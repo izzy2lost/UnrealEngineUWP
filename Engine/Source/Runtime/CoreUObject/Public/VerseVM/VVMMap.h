@@ -6,6 +6,7 @@
 
 #include "Containers/Map.h"
 #include "CoreTypes.h"
+#include "Inline/VVMValueInline.h"
 #include "VVMCell.h"
 #include "VVMContext.h"
 #include "VVMGlobalTrivialEmergentTypePtr.h"
