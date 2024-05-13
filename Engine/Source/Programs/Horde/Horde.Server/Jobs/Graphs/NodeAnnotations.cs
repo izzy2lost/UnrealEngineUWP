@@ -107,7 +107,15 @@ namespace Horde.Server.Jobs.Graphs
 				{
 					return null;
 				}
-				return new WorkflowId(workflowName);
+
+				try
+				{
+					return new WorkflowId(workflowName);
+				}
+				catch
+				{
+					return null;
+				}
 			}
 			set => SetStringValue(WorkflowKeyName, value?.ToString());
 		}
