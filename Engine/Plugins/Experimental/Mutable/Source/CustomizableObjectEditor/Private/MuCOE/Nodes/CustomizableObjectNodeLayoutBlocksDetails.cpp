@@ -11,6 +11,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeLayoutBlocks.h"
 #include "MuCOE/SCustomizableObjectNodeLayoutBlocksEditor.h"
 #include "PropertyCustomizationHelpers.h"
+#include "SSearchableComboBox.h"
 #include "Styling/SlateTypes.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SSpinBox.h"
@@ -67,6 +68,25 @@ void FCustomizableObjectNodeLayoutBlocksDetails::CustomizeDetails( IDetailLayout
 			.Font(DetailBuilder.GetDetailFont())
 		];
 
+
+		// Layout Strategy options. Hardcoded: we should get names and tooltips from the enum property
+		{
+			LayoutPackingStrategies.Empty();
+			LayoutPackingStrategiesTooltips.Empty();
+
+			LayoutPackingStrategies.Add(MakeShareable(new FString("Resizable")));
+			LayoutPackingStrategiesTooltips.Add(LOCTEXT("LayoutDetails_ResizableStrategyTooltip", "In a layout merge, Layout size will increase if blocks don't fit inside."));
+
+			LayoutPackingStrategies.Add(MakeShareable(new FString("Fixed")));
+			LayoutPackingStrategiesTooltips.Add(LOCTEXT("LayoutDetails_FixedStrategyTooltip", "In a layout merge, the layout will increase its size until the maximum layout grid size"
+				"\nBlock sizes will be reduced if they don't fit inside the layout."
+				"\nSet the reduction priority of each block to control which blocks are reduced first and how they are reduced."));
+
+			LayoutPackingStrategies.Add(MakeShareable(new FString("Overlay")));
+			LayoutPackingStrategiesTooltips.Add(LOCTEXT("LayoutDetails_OverlayStrategyTooltip", "In a layout merge, the layout will not be modified and blocks will be ignored."
+				"\nExtend material nodes just add their layouts on top of the base one"));
+		}
+
 		// Layout strategy selector group widget
 		IDetailGroup* LayoutStrategyOptionsGroup = &CustomizableObjectCategory.AddGroup(TEXT("LayoutStrategyOptionsGroup"), LOCTEXT("LayoutStrategyGroup", "Layout Strategy Group"), false, true);
 		LayoutStrategyOptionsGroup->HeaderRow()
@@ -74,17 +94,24 @@ void FCustomizableObjectNodeLayoutBlocksDetails::CustomizeDetails( IDetailLayout
 		[
 			SNew(STextBlock)
 			.Text(LOCTEXT("LayoutStrategy_Text", "Layout Strategy:"))
-			.ToolTipText(LOCTEXT("LayoutStrategyTooltup", "Selects the packing strategy: Resizable Layout or Fixed Layout"))
+			.ToolTipText(LOCTEXT("LayoutStrategyTooltup", "Selects the packing strategy in case of a layout merge."))
 			.Font(DetailBuilder.GetDetailFont())
 		]
 		.ValueContent()
 		[
-			SNew(STextComboBox)
+			SNew(SSearchableComboBox)
 			.InitiallySelectedItem(CurrentStrategy)
 			.OptionsSource(&LayoutPackingStrategies)
 			.OnSelectionChanged(this, &FCustomizableObjectNodeLayoutBlocksDetails::OnLayoutPackingStrategyChanged)
-			.Font(DetailBuilder.GetDetailFont())
+			.OnGenerateWidget(this, &FCustomizableObjectNodeLayoutBlocksDetails::OnGenerateStrategyComboBox)
+			.ToolTipText(this, &FCustomizableObjectNodeLayoutBlocksDetails::GetSelectedLayoutStrategyTooltip)
+			[
+				SNew(STextBlock)
+				.Text(this, &FCustomizableObjectNodeLayoutBlocksDetails::GetSelectedLayoutStrategyName)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+			]
 		];
+
 
 		// Max layout size selector widget
 		LayoutStrategyOptionsGroup->AddWidgetRow()
@@ -104,6 +131,17 @@ void FCustomizableObjectNodeLayoutBlocksDetails::CustomizeDetails( IDetailLayout
 			.Font(DetailBuilder.GetDetailFont())
 		];
 
+
+		// Block reduction methods options
+		{
+			BlockReductionMethods.Empty();
+			BlockReductionMethods.Add(MakeShareable(new FString("Halve")));
+			BlockReductionMethodsTooltips.Add(LOCTEXT("LayoutDetails_HalveRedMethodTooltip", "Blocks will be reduced by half each time."));
+
+			BlockReductionMethods.Add(MakeShareable(new FString("Unitary")));
+			BlockReductionMethodsTooltips.Add(LOCTEXT("LayoutDetails_UnitaryRedMethodTooltip", "Blocks will be reduced by one unit each time."));
+		}
+
 		// Reduction method selector widget
 		LayoutStrategyOptionsGroup->AddWidgetRow()
 		.Visibility(TAttribute<EVisibility>(this, &FCustomizableObjectNodeLayoutBlocksDetails::FixedStrategyOptionsVisibility))
@@ -111,18 +149,22 @@ void FCustomizableObjectNodeLayoutBlocksDetails::CustomizeDetails( IDetailLayout
 		[
 			SNew(STextBlock)
 			.Text(LOCTEXT("ReductionMethod_Text", "Reduction Method:"))
-			.ToolTipText(LOCTEXT("Reduction_Method_Tooltip", "Select how blocks will be reduced in case that they do not fit in the layout:"
-				"\n Halve: blocks will be reduced by half each time."
-				"\n Unit: blocks will be reduced by one unit each time."))
+			.ToolTipText(LOCTEXT("Reduction_Method_Tooltip", "Select how blocks will be reduced in case that they do not fit in the layout."))
 			.Font(DetailBuilder.GetDetailFont())
 		]
 		.ValueContent()
 		[
-			SNew(STextComboBox)
+			SNew(SSearchableComboBox)
 			.InitiallySelectedItem(CurrentReductionMethod)
 			.OptionsSource(&BlockReductionMethods)
 			.OnSelectionChanged(this, &FCustomizableObjectNodeLayoutBlocksDetails::OnReductionMethodChanged)
-			.Font(DetailBuilder.GetDetailFont())
+			.OnGenerateWidget(this, &FCustomizableObjectNodeLayoutBlocksDetails::OnGenerateReductionMethodComboBox)
+			.ToolTipText(this, &FCustomizableObjectNodeLayoutBlocksDetails::GetSelectedLayoutReductionMethodTooltip)
+			[
+				SNew(STextBlock)
+					.Text(this, &FCustomizableObjectNodeLayoutBlocksDetails::GetSelectedLayoutReductionMethodName)
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+			]
 		];
 
 		// Warning selector group widget
@@ -332,6 +374,102 @@ void FCustomizableObjectNodeLayoutBlocksDetails::OnReductionMethodChanged(TShare
 			Node->MarkPackageDirty();
 		}
 	}
+}
+
+
+TSharedRef<SWidget> FCustomizableObjectNodeLayoutBlocksDetails::OnGenerateStrategyComboBox(TSharedPtr<FString> InItem) const
+{
+	FText Tooltip;
+
+	if (InItem.IsValid())
+	{
+		int32 TooltipIndex = LayoutPackingStrategies.IndexOfByKey(InItem);
+
+		if (LayoutPackingStrategiesTooltips.IsValidIndex(TooltipIndex))
+		{
+			//A list of tool tips should have been populated in a 1 to 1 correspondance
+			check(LayoutPackingStrategies.Num() == LayoutPackingStrategiesTooltips.Num());
+			Tooltip = LayoutPackingStrategiesTooltips[TooltipIndex];
+		}
+	}
+
+	return SNew(STextBlock)
+		.Text(FText::FromString(*InItem.Get()))
+		.Font(IDetailLayoutBuilder::GetDetailFont())
+		.ToolTipText(Tooltip);
+}
+
+
+TSharedRef<SWidget> FCustomizableObjectNodeLayoutBlocksDetails::OnGenerateReductionMethodComboBox(TSharedPtr<FString> InItem) const
+{
+	FText Tooltip;
+
+	if (InItem.IsValid())
+	{
+		int32 TooltipIndex = BlockReductionMethods.IndexOfByKey(InItem);
+
+		if (BlockReductionMethodsTooltips.IsValidIndex(TooltipIndex))
+		{
+			//A list of tool tips should have been populated in a 1 to 1 correspondance
+			check(BlockReductionMethods.Num() == BlockReductionMethodsTooltips.Num());
+			Tooltip = BlockReductionMethodsTooltips[TooltipIndex];
+		}
+	}
+
+	return SNew(STextBlock)
+		.Text(FText::FromString(*InItem.Get()))
+		.Font(IDetailLayoutBuilder::GetDetailFont())
+		.ToolTipText(Tooltip);
+}
+
+
+FText FCustomizableObjectNodeLayoutBlocksDetails::GetSelectedLayoutStrategyName() const
+{
+	if (Node->Layout)
+	{
+		return FText::FromString(*LayoutPackingStrategies[(uint32)Node->Layout->GetPackingStrategy()]);
+	}
+
+	return FText();
+}
+
+
+FText FCustomizableObjectNodeLayoutBlocksDetails::GetSelectedLayoutReductionMethodName() const
+{
+	if (Node->Layout)
+	{
+		return FText::FromString(*BlockReductionMethods[(uint32)Node->Layout->GetBlockReductionMethod()]);
+	}
+
+	return FText();
+}
+
+
+FText FCustomizableObjectNodeLayoutBlocksDetails::GetSelectedLayoutStrategyTooltip() const
+{
+	if (Node->Layout)
+	{
+		//A list of tool tips should have been populated in a 1 to 1 correspondance
+		check(LayoutPackingStrategies.Num() == LayoutPackingStrategiesTooltips.Num());
+
+		return LayoutPackingStrategiesTooltips[(uint32)Node->Layout->GetPackingStrategy()];
+	}
+
+	return FText();
+}
+
+
+FText FCustomizableObjectNodeLayoutBlocksDetails::GetSelectedLayoutReductionMethodTooltip() const
+{
+	if (Node->Layout)
+	{
+		//A list of tool tips should have been populated in a 1 to 1 correspondance
+		check(BlockReductionMethods.Num() == BlockReductionMethodsTooltips.Num());
+
+		return BlockReductionMethodsTooltips[(uint32)Node->Layout->GetBlockReductionMethod()];
+	}
+
+	return FText();
 }
 
 #undef LOCTEXT_NAMESPACE

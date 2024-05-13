@@ -10,11 +10,14 @@ namespace ESelectInfo { enum Type : int; }
 
 class FString;
 class IDetailLayoutBuilder;
+class ISinglePropertyView;
 class FReply;
 class SButton;
 class SCustomizableObjectNodeLayoutBlocksEditor;
+class SSearchableComboBox;
 class STextBlock;
 class STextComboBox;
+class SWidget;
 class UCustomizableObjectLayout;
 class UCustomizableObjectNodeTable;
 struct EVisibility;
@@ -90,6 +93,24 @@ private:
 
 	/** Returns the visibility of the Fixed layout widgets */
 	EVisibility FixedStrategyOptionsVisibility() const;
+
+	/** Generates the Layout Packing Strategy text widgets of the ComboBox */
+	TSharedRef<SWidget> OnGenerateStrategyComboBox(TSharedPtr<FString> InItem) const;
+	
+	/** Generates the Layout Redutction Methods text widgets of the ComboBox*/
+	TSharedRef<SWidget> OnGenerateReductionMethodComboBox(TSharedPtr<FString> InItem) const;
+
+	/** Returns the selected Packing Strategy Name as a FText */
+	FText GetSelectedLayoutStrategyName() const;
+
+	/** Returns the selected Reduction Method Name as a FText */
+	FText GetSelectedLayoutReductionMethodName() const;
+
+	/** Returns the selected Packing Strategy Tooltip as a FText */
+	FText GetSelectedLayoutStrategyTooltip() const;
+
+	/** Returns the selected Reduction Method Tooltip as a FText */
+	FText GetSelectedLayoutReductionMethodTooltip() const;
 
 	/** Fills the combo box arrays sources */
 	void FillLayoutComboBoxOptions();
@@ -191,18 +212,20 @@ private:
 
 	/** List of available layout packing strategies. */
 	TArray< TSharedPtr< FString > > LayoutPackingStrategies;
+	TArray<FText> LayoutPackingStrategiesTooltips;
 
 	/** List of available block reduction methods. */
 	TArray< TSharedPtr< FString > > BlockReductionMethods;
+	TArray<FText> BlockReductionMethodsTooltips;
 
 	// ComboBox widget to select a Grid Size from the Selected Layout
 	TSharedPtr<STextComboBox> GridSizeComboBox;
-	// ComboBox widget to select a Strategy from the Selected Layout
-	TSharedPtr<STextComboBox> StrategyComboBox;
+	// ComboBox widget to select a Strategy from the Selected Layout. SSearchableComboBox allows us to set a custom tooltip per option.
+	TSharedPtr<SSearchableComboBox> StrategyComboBox;
 	// ComboBox widget to select a Max Grid Size from the Selected Layout
 	TSharedPtr<STextComboBox> MaxGridSizeComboBox;
 	// ComboBox widget to select a Reduction Method from the Selected Layout
-	TSharedPtr<STextComboBox> ReductionMethodComboBox;
+	TSharedPtr<SSearchableComboBox> ReductionMethodComboBox;
 
 
 	// Mutable UI Metadata -------------

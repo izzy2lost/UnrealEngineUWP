@@ -41,6 +41,12 @@ private:
 	void OnLayoutPackingStrategyChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
 	void OnIgnoreErrorsCheckStateChanged(ECheckBoxState State);
 	void OnLODBoxValueChanged(int32 Value);
+	TSharedRef<SWidget> OnGenerateStrategyComboBox(TSharedPtr<FString> InItem) const;
+	TSharedRef<SWidget> OnGenerateReductionMethodComboBox(TSharedPtr<FString> InItem) const;
+	FText GetSelectedLayoutStrategyName() const;
+	FText GetSelectedLayoutReductionMethodName() const;
+	FText GetSelectedLayoutStrategyTooltip() const;
+	FText GetSelectedLayoutReductionMethodTooltip() const;
 
 private:
 
@@ -59,8 +65,10 @@ private:
 
 	/** List of available layout packing strategies. */
 	TArray< TSharedPtr< FString > > LayoutPackingStrategies;
+	TArray<FText> LayoutPackingStrategiesTooltips;
 
 	/** List of available block reduction methods. */
 	TArray< TSharedPtr< FString > > BlockReductionMethods;
+	TArray<FText> BlockReductionMethodsTooltips;
 
 };
