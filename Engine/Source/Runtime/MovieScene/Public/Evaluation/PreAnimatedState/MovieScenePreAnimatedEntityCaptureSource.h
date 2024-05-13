@@ -1,8 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+// HEADER_UNIT_SKIP - Deprecated
+
 #pragma once
 
+UE_DEPRECATED_HEADER(5.4, "Use MovieScenePreAnimatedCaptureSources.h instead of MovieScenePreAnimatedEntityCaptureSource.h")
+
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedCaptureSources.h"
-
-COMPILE_WARNING("FPreAnimatedEntityCaptureSource has been moved to MovieScenePreAnimatedCaptureSources.h")
-
