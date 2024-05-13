@@ -46,7 +46,10 @@ void FDetailItemNode::Initialize()
 	{
 		// The node needs to be ticked because it has widgets that can dynamically come and go
 		bTickable = true;
-		ParentCategory.Pin()->AddTickableNode( *this );
+		if (const TSharedPtr<FDetailCategoryImpl> ParentCategoryPtr = ParentCategory.Pin())
+		{
+			ParentCategoryPtr->AddTickableNode(*this);
+		}
 	}
 
 	if( Customization.HasPropertyNode() )

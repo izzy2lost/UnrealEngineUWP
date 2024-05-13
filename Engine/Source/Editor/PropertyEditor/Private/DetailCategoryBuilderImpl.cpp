@@ -246,6 +246,17 @@ FDetailCategoryImpl::FDetailCategoryImpl(FName InCategoryName, TSharedRef<FDetai
 
 FDetailCategoryImpl::~FDetailCategoryImpl()
 {
+	// The children won't be able to pin the weak pointer of their parent (this object) to remove themselves from the list of tickables
+	// because at this point the parent's shared pointer reference counter has already reached 0 (the execution has reached this destructor).
+	// Therefore the tickable nodes need to be manually removed from that list to prevent these dead node pointers remaining in the layout object.
+	for (TSharedRef<FDetailTreeNode>& SimpleChildNode : SimpleChildNodes)
+	{
+		RemoveTickableNode(*SimpleChildNode);
+	}
+	for (TSharedRef<FDetailTreeNode>& AdvancedChildNode : AdvancedChildNodes)
+	{
+		RemoveTickableNode(*AdvancedChildNode);
+	}
 }
 
 
