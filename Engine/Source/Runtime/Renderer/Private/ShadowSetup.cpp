@@ -4236,7 +4236,8 @@ void FSceneRenderer::CreateWholeSceneProjectedShadow(
 									if (ProjectedShadowInfo->AddSubjectPrimitive(TaskData, Interaction->GetPrimitiveSceneInfo(), Views, false)
 										&& VirtualSmCacheEntry.IsValid())
 									{
-										VirtualSmCacheEntry->OnPrimitiveRendered(PrimitiveSceneInfo);
+										// NOTE: We don't track revealed primitives for local lights
+										VirtualSmCacheEntry->OnPrimitiveRendered(PrimitiveSceneInfo, false);
 									}
 								}
 							}

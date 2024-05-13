@@ -128,8 +128,8 @@ void ScaleBiasClipToPhysicalSmPage(FNaniteView NaniteView, inout float4 Position
 	}
 
 	{
-		// Clip to allocated page rect
-		uint4 PageRect = PassStruct.PageRectBounds[ NaniteView.TargetLayerIndex * VSM_MAX_MIP_LEVELS + NaniteView.TargetMipLevel ];
+		// Clip to uncached page rect
+		uint4 PageRect = PassStruct.UncachedPageRectBounds[ NaniteView.TargetLayerIndex * VSM_MAX_MIP_LEVELS + NaniteView.TargetMipLevel ];
 
 		float2 MinClip =  vPixels - ( PageRect.xy + 0 ) * VSM_PAGE_SIZE * PositionClip.w;
 		float2 MaxClip = -vPixels + ( PageRect.zw + 1 ) * VSM_PAGE_SIZE * PositionClip.w;

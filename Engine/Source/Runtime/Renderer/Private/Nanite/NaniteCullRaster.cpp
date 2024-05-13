@@ -5543,16 +5543,16 @@ void FRenderer::DrawGeometry(
 		// HZB (if provided) comes from the previous frame, so we need last frame's page table
 		// Dummy data, but matches the expected format
 		FRDGBufferRef HZBPageTableRDG		= VirtualShadowMapArray->PageTableRDG;
-		FRDGBufferRef HZBPageRectBoundsRDG	= VirtualShadowMapArray->PageRectBoundsRDG;
+		FRDGBufferRef HZBPageRectBoundsRDG	= VirtualShadowMapArray->UncachedPageRectBoundsRDG;
 		FRDGBufferRef HZBPageFlagsRDG		= VirtualShadowMapArray->PageFlagsRDG;
 
 		if (PrevHZB)
 		{
 			check( VirtualShadowMapArray->CacheManager );
 			const FVirtualShadowMapArrayFrameData& PrevBuffers = VirtualShadowMapArray->CacheManager->GetPrevBuffers();
-			HZBPageTableRDG			= GraphBuilder.RegisterExternalBuffer( PrevBuffers.PageTable,		TEXT("Shadow.Virtual.HZBPageTable") );
-			HZBPageRectBoundsRDG	= GraphBuilder.RegisterExternalBuffer( PrevBuffers.PageRectBounds,	TEXT("Shadow.Virtual.HZBPageRectBounds") );
-			HZBPageFlagsRDG			= GraphBuilder.RegisterExternalBuffer( PrevBuffers.PageFlags,		TEXT("Shadow.Virtual.HZBPageFlags") );
+			HZBPageTableRDG			= GraphBuilder.RegisterExternalBuffer( PrevBuffers.PageTable,				TEXT("Shadow.Virtual.HZBPageTable") );
+			HZBPageRectBoundsRDG	= GraphBuilder.RegisterExternalBuffer( PrevBuffers.UncachedPageRectBounds,	TEXT("Shadow.Virtual.HZBPageRectBounds") );
+			HZBPageFlagsRDG			= GraphBuilder.RegisterExternalBuffer( PrevBuffers.PageFlags,				TEXT("Shadow.Virtual.HZBPageFlags") );
 		}
 		VirtualTargetParameters.HZBPageTable		= GraphBuilder.CreateSRV( HZBPageTableRDG );
 		VirtualTargetParameters.HZBPageRectBounds	= GraphBuilder.CreateSRV( HZBPageRectBoundsRDG );
@@ -5814,7 +5814,7 @@ void FRenderer::DrawGeometry(
 			CullingParameters.HZBSize = CullingParameters.HZBTexture->Desc.Extent;
 
 			VirtualTargetParameters.HZBPageTable		= GraphBuilder.CreateSRV( VirtualShadowMapArray->PageTableRDG );
-			VirtualTargetParameters.HZBPageRectBounds	= GraphBuilder.CreateSRV( VirtualShadowMapArray->PageRectBoundsRDG );
+			VirtualTargetParameters.HZBPageRectBounds	= GraphBuilder.CreateSRV( VirtualShadowMapArray->UncachedPageRectBoundsRDG );
 			VirtualTargetParameters.HZBPageFlags		= GraphBuilder.CreateSRV( VirtualShadowMapArray->PageFlagsRDG );
 		}
 		else

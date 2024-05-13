@@ -35,8 +35,7 @@ float3 DebugVisualizeClipmap(float2 PixelUV, FVirtualShadowMapProjectionShaderDa
 	for (int Index = ProjectionData0.ClipmapLevelCountRemaining - 1; Index >= 0; --Index)
 	{
 		int LevelSmId = ProjectionData0.VirtualShadowMapId + Index;
-		uint4 AllocatedBounds = VirtualShadowMap.PageRectBounds[LevelSmId * VSM_MAX_MIP_LEVELS];
-
+		uint4 AllocatedBounds = VirtualShadowMap.AllocatedPageRectBounds[LevelSmId * VSM_MAX_MIP_LEVELS];
 
 		if (all(AllocatedBounds.xy <= AllocatedBounds.zw))
 		{

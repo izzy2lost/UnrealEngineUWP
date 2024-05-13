@@ -400,8 +400,8 @@ void InstanceCull(
 				bool bMaterialInvalidates = ShouldMaterialInvalidateShadowCache(PrimitiveData, Cull.bEnableWPO);
 				bool bHasMoved = DynamicData.bHasMoved || bMaterialInvalidates;
 				float PixelEstRadius = CalcClipSpaceRadiusEstimate(Cull.bIsOrtho, InstanceData, DynamicData.LocalToTranslatedWorld, NaniteView.ViewToClip) * float(VSM_VIRTUAL_MAX_RESOLUTION_XY);
-				Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic, bHasMoved)
-					| GetDetailGeometryFlagMaskForCulling(bCacheAsStatic, true, PixelEstRadius);
+				Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic, bHasMoved);
+				Cull.bDetailGeometry = IsDetailGeometry(bCacheAsStatic, true, PixelEstRadius);
 #endif
 				Cull.FrustumHZB( false );
 			}
@@ -528,7 +528,7 @@ void CompactViewsVSM_CS(uint DispatchThreadId : SV_DispatchThreadID)
 			uint MipViewId = TargetMipLevel * NumPrimaryViews + PrimaryViewId;
 			FNaniteView MipView = GetNaniteView(MipViewId);
 
-			uint4 RectPages = VirtualShadowMap.PageRectBounds[MipView.TargetLayerIndex * VSM_MAX_MIP_LEVELS + MipView.TargetMipLevel];
+			uint4 RectPages = VirtualShadowMap.UncachedPageRectBounds[MipView.TargetLayerIndex * VSM_MAX_MIP_LEVELS + MipView.TargetMipLevel];
 
 			if (all(RectPages.zw >= RectPages.xy))
 			{
@@ -584,7 +584,7 @@ void CompactViewsVSM_CS(uint DispatchThreadId : SV_DispatchThreadID)
 			uint MipViewId = TargetMipLevel * NumPrimaryViews + PrimaryViewId;
 			FNaniteView MipView = GetNaniteView(MipViewId);
 
-			uint4 RectPages = VirtualShadowMap.PageRectBounds[MipView.TargetLayerIndex * VSM_MAX_MIP_LEVELS + MipView.TargetMipLevel];
+			uint4 RectPages = VirtualShadowMap.UncachedPageRectBounds[MipView.TargetLayerIndex * VSM_MAX_MIP_LEVELS + MipView.TargetMipLevel];
 
 			if (all(RectPages.zw >= RectPages.xy))
 			{
@@ -642,8 +642,8 @@ void ProcessPrimaryView(const bool bIsOrtho, FPrimitiveSceneData PrimitiveData, 
 		bool bMaterialInvalidates = ShouldMaterialInvalidateShadowCache(PrimitiveData, Cull.bEnableWPO);
 		bool bHasMoved = DynamicData.bHasMoved || bMaterialInvalidates;
 		float PixelEstRadius = CalcClipSpaceRadiusEstimate(Cull.bIsOrtho, InstanceData, DynamicData.LocalToTranslatedWorld, NaniteView.ViewToClip) * float(VSM_VIRTUAL_MAX_RESOLUTION_XY);
-		Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic, bHasMoved)
-			| GetDetailGeometryFlagMaskForCulling(bCacheAsStatic, true, PixelEstRadius);
+		Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic, bHasMoved);
+		Cull.bDetailGeometry = IsDetailGeometry(bCacheAsStatic, true, PixelEstRadius);
 	}
 #endif
 

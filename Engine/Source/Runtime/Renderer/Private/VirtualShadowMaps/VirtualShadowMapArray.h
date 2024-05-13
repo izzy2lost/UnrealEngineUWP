@@ -151,10 +151,14 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FVirtualShadowMapUniformParameters, )
 	SHADER_PARAMETER(uint32, bClipmapGreedyLevelSelection)
 	SHADER_PARAMETER(float, GlobalResolutionLodBias)
 
+	// Temporary for supporting old vs. new invalidation path
+	SHADER_PARAMETER(int32, bNewInvalidations)
+
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ProjectionData)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, PageTable)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, PageFlags)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint4>, PageRectBounds)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint4>, AllocatedPageRectBounds)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint4>, UncachedPageRectBounds)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray<uint>, PhysicalPagePool)
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CachePrimitiveAsDynamic)
@@ -377,7 +381,11 @@ public:
 
 	// Buffer that serves as the page table for all virtual shadow maps
 	FRDGBufferRef PageTableRDG = nullptr;
-		
+	
+	// Buffer that holds page requests during marking/page management
+	// Later it gets potentially reused to mark invalidations (see VirtualShadowMapArrayCacheManager)
+	FRDGBufferRef PageRequestFlagsRDG = nullptr;
+
 	// Buffer that stores flags (uints) marking each page that needs to be rendered and cache status, for all virtual shadow maps.
 	// Flag values defined in PageAccessCommon.ush
 	FRDGBufferRef PageFlagsRDG = nullptr;
@@ -391,8 +399,8 @@ public:
 
 	// uint4 buffer with one rect for each mip level in all SMs, calculated to bound committed pages
 	// Used to clip the rect size of clusters during culling.
-	FRDGBufferRef PageRectBoundsRDG = nullptr;
-	FRDGBufferRef AllocatedPageRectBoundsRDG = nullptr;
+	FRDGBufferRef UncachedPageRectBoundsRDG = nullptr;		// For rendering; only includes uncached pages
+	FRDGBufferRef AllocatedPageRectBoundsRDG = nullptr;		// For invalidation; includes all mapped/cached pages
 	FRDGBufferRef ProjectionDataRDG = nullptr;
 
 	FRDGBufferRef DirtyPageFlagsRDG = nullptr; // Dirty flags that are cleared after render passes

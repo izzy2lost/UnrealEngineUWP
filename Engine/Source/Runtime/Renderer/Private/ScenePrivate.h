@@ -3145,9 +3145,6 @@ public:
 	/** Preshadows that are currently cached in the PreshadowCache render target. */
 	TArray<TRefCountPtr<FProjectedShadowInfo> > CachedPreshadows;
 
-	/**	Stores persistent virtual shadow map data */
-	FVirtualShadowMapArrayCacheManager* VirtualShadowMapCache;
-
 	/**
 	 * Stores scene-aspects needed for shadow rendering.
 	 */
@@ -3410,7 +3407,7 @@ public:
 	virtual void RefreshNaniteRasterBins(FPrimitiveSceneInfo& PrimitiveSceneInfo) override;
 	virtual void ReloadNaniteFixedFunctionBins() override;
 
-	FVirtualShadowMapArrayCacheManager* GetVirtualShadowMapCache() const { return VirtualShadowMapCache; }
+	FVirtualShadowMapArrayCacheManager* GetVirtualShadowMapCache();
 
 	FLumenSceneData* FindLumenSceneData(uint32 ViewKey, uint32 GPUIndex) const;
 	inline FLumenSceneData* GetLumenSceneData(const FViewInfo& View) const

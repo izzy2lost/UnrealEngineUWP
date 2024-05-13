@@ -9,7 +9,7 @@
 
 StructuredBuffer<uint>	InStatsBuffer;
 // Rectangles bounding (allocated) pages for each mip level
-StructuredBuffer<uint4> PageRectBounds;
+StructuredBuffer<uint4> AllocatedPageRectBounds;
 
 // From cvar, used to determine which stats are shown
 // 1 = all
@@ -166,6 +166,12 @@ void LogVirtualSmStatsCS()
 			Newline(Context);
 
 			Context.Pos.x = ItemX;
+			Print(Context, TEXT("Considered for WPO"), FontWhite);
+			Context.Pos.x = ValueX;
+			PrintLeftAlign(Context, InStatsBuffer[VSM_STAT_WPO_CONSIDERED_PAGES]);
+			Newline(Context);
+
+			Context.Pos.x = ItemX;
 			Print(Context, TEXT("Merged"), FontWhite);
 			Context.Pos.x = ValueX;
 			PrintLeftAlign(Context, InStatsBuffer[VSM_STAT_NUM_PAGES_TO_MERGE]);
@@ -183,6 +189,12 @@ void LogVirtualSmStatsCS()
 			Print(Context, TEXT("Invalidated"), FontWhite);
 			Context.Pos.x = ValueX;
 			PrintLeftAlign(Context, InStatsBuffer[VSM_STAT_STATIC_INVALIDATED_PAGES]);
+			Newline(Context);
+
+			Context.Pos.x = ItemX;
+			Print(Context, TEXT("Considered for WPO"), FontWhite);
+			Context.Pos.x = ValueX;
+			PrintLeftAlign(Context, InStatsBuffer[VSM_STAT_WPO_CONSIDERED_PAGES]);
 			Newline(Context);
 		}
 
@@ -251,13 +263,13 @@ void PrintClipmapStats()
 
 	// Main Pass
 	Context.Pos.x = ItemX;
-	Print(Context, TEXT("Page Rects"));
+	Print(Context, TEXT("Allocated Page Rects"));
 	Newline(Context);
 	uint TotalArea = 0U;
 	{
 		for (uint SmId = ShadowMapIdRangeStart; SmId < ShadowMapIdRangeEnd; ++SmId)
 		{
-			uint4 Rect = PageRectBounds[SmId * VSM_MAX_MIP_LEVELS];
+			uint4 Rect = AllocatedPageRectBounds[SmId * VSM_MAX_MIP_LEVELS];
 			Context.Pos.x = ItemX;
 			Print(Context, Rect.x);//ShaderPrintLeftAlign(ScreenPos, Rect.x);
 			PrintSymbol(Context, _SPC_);

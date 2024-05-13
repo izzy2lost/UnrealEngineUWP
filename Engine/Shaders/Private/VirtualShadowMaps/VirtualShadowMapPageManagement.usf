@@ -14,7 +14,8 @@
 StructuredBuffer<FPhysicalPageMetaData> PhysicalPageMetaData;
 RWStructuredBuffer<uint> OutPageFlags;
 RWStructuredBuffer<uint> OutPageTable;
-RWStructuredBuffer<uint4> OutPageRectBounds;
+RWStructuredBuffer<uint4> OutUncachedPageRectBounds;
+RWStructuredBuffer<uint4> OutAllocatedPageRectBounds;
 
 /**
 * One thread per page physical table flag entry
@@ -61,10 +62,19 @@ void GenerateHierarchicalPageFlags(uint ThreadId : SV_DispatchThreadID)
 
 		// Compute the min/max rect of active pages
 		uint PageBoundIndex = VirtualShadowMapId * VSM_MAX_MIP_LEVELS + MipLevel;
-		InterlockedMin(OutPageRectBounds[PageBoundIndex].x, PageAddress.x);
-		InterlockedMin(OutPageRectBounds[PageBoundIndex].y, PageAddress.y);
-		InterlockedMax(OutPageRectBounds[PageBoundIndex].z, PageAddress.x);
-		InterlockedMax(OutPageRectBounds[PageBoundIndex].w, PageAddress.y);
+		InterlockedMin(OutAllocatedPageRectBounds[PageBoundIndex].x, PageAddress.x);
+		InterlockedMin(OutAllocatedPageRectBounds[PageBoundIndex].y, PageAddress.y);
+		InterlockedMax(OutAllocatedPageRectBounds[PageBoundIndex].z, PageAddress.x);
+		InterlockedMax(OutAllocatedPageRectBounds[PageBoundIndex].w, PageAddress.y);
+
+		// Only add to the rendering page rect bounds if there is anything uncached
+		if ((Flag & VSM_FLAG_ANY_UNCACHED) != 0)
+		{
+			InterlockedMin(OutUncachedPageRectBounds[PageBoundIndex].x, PageAddress.x);
+			InterlockedMin(OutUncachedPageRectBounds[PageBoundIndex].y, PageAddress.y);
+			InterlockedMax(OutUncachedPageRectBounds[PageBoundIndex].z, PageAddress.x);
+			InterlockedMax(OutUncachedPageRectBounds[PageBoundIndex].w, PageAddress.y);
+		}
 
 		if (bIsSinglePageSm)
 		{

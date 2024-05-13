@@ -582,7 +582,7 @@ void FetchAndCachePageTableEntry(FNaniteView NaniteView, uint2 vPageStart, uint2
 	if (all(vPageStart + CacheCoords <= vPageEnd))
 	{
 		FShadowPhysicalPage PhysicalPage = ShadowGetPhysicalPage( CalcPageOffset( NaniteView.TargetLayerIndex, NaniteView.TargetMipLevel, vPageStart + CacheCoords ) );
-		uint2 pPageAddress = PhysicalPage.bThisLODValid ? PhysicalPage.PhysicalAddress : 0xffff;
+		uint2 pPageAddress = PhysicalPage.bThisLODValidForRendering ? PhysicalPage.PhysicalAddress : 0xffff;
 		VsmPageTableStore(pPageAddress, CacheCoords);
 	}
 }
@@ -613,9 +613,9 @@ struct FFetchPageTable
 	bool operator()( inout FVisBufferPixel Pixel )
 	{
 	#if VIRTUAL_TEXTURE_TARGET
-		if( !VirtualToPhysicalTexel_PageTableLevelOffset( InitVirtualMLevelOffset(LevelOffset), MipLevel, Pixel.Position, Pixel.PhysicalPosition.xy ) )
+		if( !VirtualToPhysicalTexelForRendering( InitVirtualMLevelOffset(LevelOffset), MipLevel, Pixel.Position, Pixel.PhysicalPosition.xy ) )
 		{
-			// mapped to non-commited space.
+			// Not committed or should not be rendered into
 			return false;
 		}
 	#endif

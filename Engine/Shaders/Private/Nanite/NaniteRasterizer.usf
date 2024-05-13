@@ -230,7 +230,7 @@ FRaster CreateRaster( FNaniteView NaniteView, FInstanceSceneData InstanceData, F
 	if (Raster.bSinglePage)
 	{
 		FShadowPhysicalPage PhysicalPage = ShadowGetPhysicalPage( CalcPageOffset( NaniteView.TargetLayerIndex, NaniteView.TargetMipLevel, Raster.vPage ) );
-		Raster.pPage = PhysicalPage.bThisLODValid ? PhysicalPage.PhysicalAddress : 0xffff;
+		Raster.pPage = PhysicalPage.bThisLODValidForRendering ? PhysicalPage.PhysicalAddress : 0xffff;
 	}
 
 	// Virtual shadow maps can scatter instances into different physical pages for caching purposes
@@ -1817,9 +1817,9 @@ void HWRasterizePS(VSOut In
 		const uint ArrayIndex	= Primitive.ArrayIndex;
 		const uint LevelOffset	= Primitive.LevelOffset;
 
-		if( !VirtualToPhysicalTexel_PageTableLevelOffset( InitVirtualMLevelOffset(LevelOffset), MipLevel, Pixel.Position, Pixel.PhysicalPosition.xy ) )
+		if( !VirtualToPhysicalTexelForRendering( InitVirtualMLevelOffset(LevelOffset), MipLevel, Pixel.Position, Pixel.PhysicalPosition.xy ) )
 		{
-			// mapped to non-commited space.
+			// Not committed or should not be rendered into
 			return;
 		}
 

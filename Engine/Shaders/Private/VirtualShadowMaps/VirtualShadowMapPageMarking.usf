@@ -99,7 +99,7 @@ void MarkPage(uint VirtualShadowMapId, uint MipLevel, float3 TranslatedWorldPosi
 		return;
 	}
 	// Normal pages marked through pixel processing are not "coarse" and should include "detail geometry" - i.e., all geometry
-	uint Flags = VSM_ALLOCATED_FLAG | VSM_DETAIL_GEOMETRY_FLAG;
+	uint Flags = VSM_FLAG_ALLOCATED | VSM_FLAG_DETAIL_GEOMETRY;
 
 	uint MaxPageAddress = CalcLevelDimsPages(MipLevel) - 1U;
 	float2 PageAddressFloat = ShadowUVz.xy * CalcLevelDimsPages(MipLevel);
@@ -534,7 +534,7 @@ void MarkCoarsePages(uint DispatchThreadId : SV_DispatchThreadID)
 		
 	// NOTE: Coarse pages are very large and tend to get invalidated a lot due to anything in the scene moving
 	// Rendering non-nanite geometry into these pages can be very expensive and thus isn't always desirable.
-	uint Flags = VSM_ALLOCATED_FLAG;
+	uint Flags = VSM_FLAG_ALLOCATED;
 				
 	if (ProjectionData.bUnreferenced)
 	{

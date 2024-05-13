@@ -503,13 +503,20 @@ void OutputVisualize(
 		}
 		else if ( VisualizeModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_CACHED_PAGE && bValidPageAddress )
 		{
-			bool bUncachedDynamic = (pPageMeta.Flags & VSM_DYNAMIC_UNCACHED_FLAG) != 0;
-			bool bUncachedStatic = (pPageMeta.Flags & VSM_STATIC_UNCACHED_FLAG) != 0;
+			bool bUncachedDynamic = (pPageMeta.Flags & VSM_FLAG_DYNAMIC_UNCACHED) != 0;
+			bool bUncachedStatic = (pPageMeta.Flags & VSM_FLAG_STATIC_UNCACHED) != 0;
+			bool bForceCached = (pPageMeta.Flags & VSM_EXTENDED_FLAG_FORCE_CACHED) != 0;
 			// Red = both uncached, blue = only static cached, green otherwise
 			float3 CacheColor = float3(0, 1, 0);
 			if (bUncachedDynamic)
 			{
 				CacheColor = bUncachedStatic ? float3(1, 0, 0) : float3(0, 0, 1);
+			}
+			else if (bForceCached)
+			{
+				// TODO: Maybe only enable this debug color when "advanced" visualizations are enabled?
+				// Could be confusing to content developers.
+				CacheColor = float3(0.75, 1, 0);
 			}
 			Output = 0.55f*CacheColor + 0.25f*vPageColor + 0.2f*Result.ShadowFactor.xxx;
 		}
@@ -519,7 +526,7 @@ void OutputVisualize(
 			float3 DirtyColor = PageColor;
 			if (bValidPageAddress)
 			{
-				bool bDirty = (pPageMeta.Flags & VSM_PHYSICAL_FLAG_DIRTY) != 0U;
+				bool bDirty = (pPageMeta.Flags & VSM_EXTENDED_FLAG_DIRTY) != 0U;
 
 				if (bDirty)
 				{
@@ -531,29 +538,26 @@ void OutputVisualize(
 		}
 		else if (VisualizeModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_GPU_INVALIDATED_PAGE)
 		{
-			float3 PageColor = vPageColor * 0.4f;
-			float3 DirtyColor = PageColor;
+			float3 CacheColor = float3(0, 0, 0);
 			if (bValidPageAddress)
 			{
-				uint InvalidationFlags = pPageMeta.Flags >> VSM_PHYSICAL_PAGE_INVALIDATION_FLAGS_SHIFT;
-				bool bUncachedDynamic = (InvalidationFlags & VSM_DYNAMIC_UNCACHED_FLAG) != 0;
-				bool bUncachedStatic = (InvalidationFlags & VSM_STATIC_UNCACHED_FLAG) != 0;
+				bool bInvalidatedDynamic = (pPageMeta.Flags & VSM_EXTENDED_FLAG_INVALIDATE_DYNAMIC) != 0;
+				bool bInvalidatedStatic = (pPageMeta.Flags & VSM_EXTENDED_FLAG_INVALIDATE_STATIC) != 0;
 
-				if (bUncachedStatic)
+				if (bInvalidatedStatic)
 				{
-					DirtyColor.x = 1.0f;
+					CacheColor.x = 1.0f;
 				}
-				if (bUncachedDynamic)
+				if (bInvalidatedDynamic)
 				{
-					DirtyColor.y = 1.0f;
+					CacheColor.y = 1.0f;
 				}
-				PageColor = lerp(PageColor, DirtyColor, 0.8f);
 			}
-			Output = 0.8f * PageColor + 0.2f * Result.ShadowFactor.xxx;
+			Output = 0.55f*CacheColor + 0.25f*vPageColor + 0.2f*Result.ShadowFactor.xxx;
 		}
 		else if ( VisualizeModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_MERGED_PAGE)
 		{
-			bool bMerged = ((pPageMeta.Flags & VSM_PHYSICAL_FLAG_DIRTY) != 0U) && (pPageMeta.Flags & VSM_PHYSICAL_FLAG_VIEW_UNCACHED) == 0U;
+			bool bMerged = ((pPageMeta.Flags & VSM_EXTENDED_FLAG_DIRTY) != 0U) && (pPageMeta.Flags & VSM_EXTENDED_FLAG_VIEW_UNCACHED) == 0U;
 			float3 Color = float3(0, 1, 0);
 			if (bMerged)
 			{

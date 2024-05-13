@@ -56,6 +56,7 @@ struct FBoxCull
 
 #if VIRTUAL_TEXTURE_TARGET
 	uint		PageFlagMask;
+	bool        bDetailGeometry;
 	uint4		RectPages;
 #endif
 
@@ -109,6 +110,8 @@ struct FBoxCull
 		PageFlagMask = ~0u;
 		// Rect of overlapped virtual pages, is inclusive (as in zw is max, not max + 1)
 		RectPages = uint4(1U, 1U, 0U, 0U);
+		// Whether we consider this "detail geometry", i.e. not rendered into coarse pages
+		bDetailGeometry = false;
 	#endif
 	}
 
@@ -290,8 +293,8 @@ struct FBoxCull
 		BRANCH
 		if( bIsVisible )
 		{
-			RectPages = GetPageRect( Rect, NaniteView.TargetLayerIndex, NaniteView.TargetMipLevel );
-			bIsVisible = OverlapsAnyValidPage( NaniteView.TargetLayerIndex, NaniteView.TargetMipLevel, RectPages, PageFlagMask );
+			RectPages = VirtualShadowMapGetUncachedPageRect( Rect, NaniteView.TargetLayerIndex, NaniteView.TargetMipLevel );
+			bIsVisible = OverlapsAnyValidPage( NaniteView.TargetLayerIndex, NaniteView.TargetMipLevel, RectPages, PageFlagMask, bDetailGeometry );
 		}
 	#endif
 

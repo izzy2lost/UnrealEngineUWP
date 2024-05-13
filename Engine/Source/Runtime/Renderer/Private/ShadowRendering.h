@@ -255,8 +255,9 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FShadowDepthPassUniformParameters,)
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< uint >, VirtualSmPageTable)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< FPackedNaniteView >, PackedNaniteViews)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< uint4 >, PageRectBounds)
-	SHADER_PARAMETER_RDG_TEXTURE_UAV( RWTexture2DArray< uint >, OutDepthBufferArray )
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< uint4 >, AllocatedPageRectBounds)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< uint4 >, UncachedPageRectBounds)
+	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray< uint >, OutDepthBufferArray)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FMobileShadowDepthPassUniformParameters, RENDERER_API)

@@ -150,6 +150,9 @@ static FAutoConsoleVariableRef CVarVisibilitySkipAlwaysVisible(
 	ECVF_RenderThreadSafe
 );
 
+// TODO: Temporary
+extern int32 GVSMNewInvalidations;
+
 DECLARE_CYCLE_STAT(TEXT("DeferredShadingSceneRenderer MotionBlurStartFrame"), STAT_FDeferredShadingSceneRenderer_MotionBlurStartFrame, STATGROUP_SceneRendering);
 
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FDistanceCullFadeUniformShaderParameters, "PrimitiveFade");
@@ -1087,7 +1090,8 @@ uint64 FVirtualShadowMapArrayFrameData::GetGPUSizeBytes(bool bLogSizes) const
 		GetBufferGPUSizeBytes(PageTable, bLogSizes) +
 		GetBufferGPUSizeBytes(PageFlags, bLogSizes) +
 		GetBufferGPUSizeBytes(ProjectionData, bLogSizes) +
-		GetBufferGPUSizeBytes(PageRectBounds, bLogSizes);
+		GetBufferGPUSizeBytes(UncachedPageRectBounds, bLogSizes) +
+		GetBufferGPUSizeBytes(AllocatedPageRectBounds, bLogSizes);
 };
 
 uint64 FVirtualShadowMapArrayCacheManager::GetGPUSizeBytes(bool bLogSizes) const
@@ -1743,8 +1747,6 @@ FScene::FScene(UWorld* InWorld, bool bInRequiresHitProxies, bool bInIsEditorScen
 
 	DefaultLumenSceneData = new FLumenSceneData(GShaderPlatformForFeatureLevel[InFeatureLevel], InWorld->WorldType);
 
-	VirtualShadowMapCache = new FVirtualShadowMapArrayCacheManager(this);
-
 	SceneLightInfoUpdates = new FSceneLightInfoUpdates;
 
 	SceneCulling = new FSceneCulling(*this);
@@ -1783,12 +1785,6 @@ FScene::~FScene()
 	}
 	ViewStates.Empty();
 
-	// Delete default cache
-	if (VirtualShadowMapCache)
-	{
-		delete VirtualShadowMapCache;
-		VirtualShadowMapCache = nullptr;
-	}
 	if (SceneCulling)
 	{
 		delete SceneCulling;
@@ -4070,7 +4066,10 @@ void FScene::RemoveLightSceneInfo_RenderThread(FLightSceneInfo* LightSceneInfo)
 	Lights.RemoveAt(LightSceneInfo->Id);
 
 	// TODO: move this work to FShadowScene & batch the light removals
-	GetVirtualShadowMapCache()->OnLightRemoved(LightSceneInfo->Id);
+	if (auto CacheManager = GetVirtualShadowMapCache())
+	{
+		CacheManager->OnLightRemoved(LightSceneInfo->Id);
+	}
 
 	if (!LightSceneInfo->Proxy->HasStaticShadowing()
 		&& LightSceneInfo->Proxy->CastsDynamicShadow()
@@ -5631,7 +5630,7 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 	SceneExtensionsUpdaters.PreSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPreUpdateSet());
 
 	// Don't queue VSM invalidations when being destroyed. This avoids issues on preview mode change when the new preview platform doesn't use VSM.
-	if (!Parameters.bDestruction)
+	if (!GVSMNewInvalidations && !Parameters.bDestruction)
 	{
 		SCOPED_NAMED_EVENT(FScene_VirtualShadowCacheUpdate, FColor::Orange);
 		FVirtualShadowMapArrayCacheManager* CacheManager = GetVirtualShadowMapCache();
@@ -6441,11 +6440,17 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 	}
 #endif // !WITH_EDITOR
 
+	// handle scene changes (only for old invalidations path)
+	if (GVSMNewInvalidations == 0)
+	{
+		if (auto CacheManager = GetVirtualShadowMapCache())
+		{
+			CacheManager->ReallocatePersistentPrimitiveIndices();
+		}
+	}
+
 	// Allocate all instance slots. Needs to happen after the instance data is updated since that may change the counts.
 	FPrimitiveSceneInfo::AllocateGPUSceneInstances(this, PendingAllocateInstanceIds);
-
-	// handle scene changes
-	GetVirtualShadowMapCache()->OnSceneChange();
 
 	if (SceneInfosWithAddToScene.Num() > 0)
 	{
@@ -7341,3 +7346,7 @@ void FScene::UpdateCachedShadowState(const FScenePreUpdateChangeSet &ScenePreUpd
 	}
 }
 
+FVirtualShadowMapArrayCacheManager* FScene::GetVirtualShadowMapCache()
+{
+	return GetExtensionPtr<FVirtualShadowMapArrayCacheManager>();
+}

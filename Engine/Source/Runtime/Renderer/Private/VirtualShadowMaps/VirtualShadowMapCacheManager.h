@@ -9,6 +9,8 @@
 #include "GPUScene.h"
 #include "GPUMessaging.h"
 #include "SceneRendererInterface.h"
+#include "SceneExtensions.h"
+#include "ScenePrivate.h"
 
 class FRHIGPUBufferReadback;
 class FGPUScene;
@@ -81,7 +83,7 @@ public:
 		ShadowMapEntries.SetNum(NumShadowMaps);
 	}
 
-	void OnPrimitiveRendered(const FPrimitiveSceneInfo* PrimitiveSceneInfo);
+	void OnPrimitiveRendered(const FPrimitiveSceneInfo* PrimitiveSceneInfo, bool bPrimitiveRevealed);
 	/**
 	 * The (local) VSM is fully cached if it is distant and has been rendered to previously
 	 * "Fully" implies that we know all pages are mapped as well as rendered to (ignoring potential CPU-side object culling).
@@ -175,9 +177,11 @@ struct FVirtualShadowMapArrayFrameData
 {
 	TRefCountPtr<FRDGPooledBuffer>				PageTable;
 	TRefCountPtr<FRDGPooledBuffer>				PageFlags;
-	TRefCountPtr<FRDGPooledBuffer>				PageRectBounds;
+	TRefCountPtr<FRDGPooledBuffer>				UncachedPageRectBounds;
+	TRefCountPtr<FRDGPooledBuffer>				AllocatedPageRectBounds;
 	TRefCountPtr<FRDGPooledBuffer>				ProjectionData;
 	TRefCountPtr<FRDGPooledBuffer>				PhysicalPageLists;
+	TRefCountPtr<FRDGPooledBuffer>				PageRequestFlags;
 
 	uint64 GetGPUSizeBytes(bool bLogSizes) const;
 };
@@ -204,16 +208,24 @@ inline uint32 GetTypeHash(FVirtualShadowMapCacheKey Key)
 	return GetTypeHash(Key.LightSceneId) ^ GetTypeHash(Key.ViewUniqueID);
 }
 
-class FVirtualShadowMapArrayCacheManager
+class FVirtualShadowMapArrayCacheManager : public ISceneExtension
 {
+	friend class FVirtualShadowMapInvalidationSceneUpdater;
+	DECLARE_SCENE_EXTENSION(FVirtualShadowMapArrayCacheManager);
+
 public:
 	using FEntryMap = TMap< FVirtualShadowMapCacheKey, TSharedPtr<FVirtualShadowMapPerLightCacheEntry> >;
 
-	FVirtualShadowMapArrayCacheManager(FScene *InScene);
-	~FVirtualShadowMapArrayCacheManager();
-
 	// Enough for er lots...
-	static constexpr uint32 MaxStatFrames = 512*1024U;
+	static constexpr uint32 MaxStatFrames = 512 * 1024U;
+
+	FVirtualShadowMapArrayCacheManager();
+	virtual ~FVirtualShadowMapArrayCacheManager();
+
+	// ISceneExtension
+	static bool ShouldCreateExtension(FScene& InScene);
+	virtual void InitExtension(FScene& InScene) override;
+	virtual ISceneExtensionUpdater* CreateUpdater() override;
 
 	// Called by VirtualShadowMapArray to potentially resize the physical pool
 	// If the requested size is not already the size, all cache data is dropped and the pool is resized.
@@ -268,14 +280,9 @@ public:
 	class FInvalidatingPrimitiveCollector
 	{
 	public:
-		FInvalidatingPrimitiveCollector(FVirtualShadowMapArrayCacheManager* InVirtualShadowMapArrayCacheManager);
+		FInvalidatingPrimitiveCollector(FVirtualShadowMapArrayCacheManager* InCacheManager);
 
 		void AddPrimitivesToInvalidate();
-
-		/**
-		 * All of these functions filters redundant primitive adds, and thus expects valid IDs (so can't be called for primitives that have not yet been added)
-		 * and unchanging IDs (so can't be used over a span that include any scene mutation).
-		 */
 
 		// Primitive was removed from the scene
 		void Removed(FPrimitiveSceneInfo* PrimitiveSceneInfo)
@@ -302,8 +309,7 @@ public:
 	private:
 		void AddInvalidation(FPrimitiveSceneInfo* PrimitiveSceneInfo, bool bRemovedPrimitive);
 
-		FScene& Scene;
-		FGPUScene& GPUScene;
+		FScene* Scene = nullptr;
 		FVirtualShadowMapArrayCacheManager& Manager;
 	};
 
@@ -311,11 +317,6 @@ public:
 		FRDGBuilder& GraphBuilder,
 		FSceneUniformBuffer &SceneUniformBuffer,
 		FInvalidatingPrimitiveCollector& InvalidatingPrimitiveCollector);
-
-	/**
-	 * Allow the cache manager to track scene changes, in particular track resizing of primitive tracking data.
-	 */
-	void OnSceneChange();
 
 	/**
 	 * Handle light removal, need to clear out cache entries as the ID may be reused after this.
@@ -346,8 +347,11 @@ public:
 
 	UE::Renderer::Private::IShadowInvalidatingInstances *GetInvalidatingInstancesInterface() { return &ShadowInvalidatingInstancesImplementation; }
 	FRDGBufferRef UploadCachePrimitiveAsDynamic(FRDGBuilder& GraphBuilder) const;
-private:
 
+	// NOTE: Can move to private after we remove old invalidations path
+	void ReallocatePersistentPrimitiveIndices();
+
+private:
 	/** 
 	 */
 	class FShadowInvalidatingInstancesImplementation : public UE::Renderer::Private::IShadowInvalidatingInstances
@@ -369,6 +373,7 @@ private:
 		FVirtualShadowMapUniformParameters* UniformParameters;
 		TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> VirtualShadowMapUniformBuffer;
 		TRDGUniformBufferRef<FSceneUniformParameters> SceneUniformBuffer;
+		FRDGBufferRef AllocatedPageRectBounds;
 	};
 
 	FInvalidationPassCommon GetUniformParametersForInvalidation(FRDGBuilder& GraphBuilder, FSceneUniformBuffer &SceneUniformBuffer) const;
@@ -443,4 +448,22 @@ private:
 
 	FScene* Scene;
 	FShadowInvalidatingInstancesImplementation ShadowInvalidatingInstancesImplementation;
+};
+
+
+class FVirtualShadowMapInvalidationSceneUpdater : public ISceneExtensionUpdater
+{
+	DECLARE_SCENE_EXTENSION_UPDATER(FVirtualShadowMapInvalidationSceneUpdater, FVirtualShadowMapArrayCacheManager);
+
+public:
+	FVirtualShadowMapInvalidationSceneUpdater(FVirtualShadowMapArrayCacheManager& InCacheManager);
+
+	virtual void PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet) override;
+	virtual void PostSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePostUpdateChangeSet& ChangeSet) override;
+	virtual void PostGPUSceneUpdate(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniforms) override;
+
+private:
+	FVirtualShadowMapArrayCacheManager& CacheManager;
+
+	FScenePostUpdateChangeSet PostUpdateChangeSet;
 };
