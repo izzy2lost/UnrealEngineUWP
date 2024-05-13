@@ -768,12 +768,6 @@ void FCustomizableObjectEditorViewportClient::HideGizmoLight()
 }
 
 
-void FCustomizableObjectEditorViewportClient::SetVisibilityForWireframeMode(bool bIsWireframeMode)
-{
-	EngineShowFlags.SetDirectLighting(!bIsWireframeMode && bDrawSky);
-}
-
-
 FSphere FCustomizableObjectEditorViewportClient::GetCameraTarget()
 {
 	bool bFoundTarget = false;
@@ -808,14 +802,6 @@ FSphere FCustomizableObjectEditorViewportClient::GetCameraTarget()
 	}
 
 	return Sphere;
-}
-
-
-FLinearColor FCustomizableObjectEditorViewportClient::GetBackgroundColor() const
-{
-	FLinearColor BackgroundColor = FColor(55, 55, 55);
-
-	return BackgroundColor;
 }
 
 

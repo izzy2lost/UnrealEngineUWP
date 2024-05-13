@@ -75,8 +75,6 @@ public:
 	class UPersonaOptions* ConfigOption;
 
 	// FEditorViewportClient interface
-	virtual FLinearColor GetBackgroundColor() const override;
-
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void Draw(const FSceneView* View,FPrimitiveDrawInterface* PDI) override;
 	virtual void Draw(FViewport* Viewport,FCanvas* Canvas) override;
@@ -212,8 +210,6 @@ public:
 	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
 	void HideGizmoLight();
 	
-	void SetVisibilityForWireframeMode(bool bIsWireframeMode);
-
 	void SetAnimation(UAnimationAsset* Animation, EAnimationMode::Type AnimationType);
 
 	/** Set again the animation saved in AnimationBeingPlayed (if any) */

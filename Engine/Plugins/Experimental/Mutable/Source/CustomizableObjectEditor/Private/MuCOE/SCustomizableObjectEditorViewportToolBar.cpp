@@ -367,37 +367,6 @@ TSharedRef<SWidget> SCustomizableObjectEditorViewportToolBar::GenerateViewportOp
 }
 
 
-FSlateColor SCustomizableObjectEditorViewportToolBar::GetFontColor() const
-{
-	const UAssetViewerSettings* Settings = UAssetViewerSettings::Get();
-	const UEditorPerProjectUserSettings* PerProjectUserSettings = GetDefault<UEditorPerProjectUserSettings>();
-	const int32 ProfileIndex = Settings->Profiles.IsValidIndex(PerProjectUserSettings->AssetViewerProfileIndex) ? PerProjectUserSettings->AssetViewerProfileIndex : 0;
-
-	ensureMsgf(Settings->Profiles.IsValidIndex(PerProjectUserSettings->AssetViewerProfileIndex), TEXT("Invalid default settings pointer or current profile index"));
-
-	FLinearColor FontColor;
-	if (Settings->Profiles[ProfileIndex].bShowEnvironment)
-	{
-		FontColor = FLinearColor::White;
-	}
-	else
-	{
-		FLinearColor BackgroundColorInHSV = Viewport.Pin()->GetViewportBackgroundColor().LinearRGBToHSV();
-
-		// see if it's dark, if V is less than 0.2
-		if (BackgroundColorInHSV.B < 0.3f)
-		{
-			FontColor = FLinearColor::White;
-		}
-		else
-		{
-			FontColor = FLinearColor::Black;
-		}
-	}
-
-	return FontColor;
-}
-
 FText SCustomizableObjectEditorViewportToolBar::GetPlaybackMenuLabel() const
 {
 	return LOCTEXT("PlaybackError", "Error");

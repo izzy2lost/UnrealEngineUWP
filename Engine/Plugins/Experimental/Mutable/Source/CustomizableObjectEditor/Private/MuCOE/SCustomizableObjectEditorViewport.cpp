@@ -1081,10 +1081,4 @@ void SCustomizableObjectEditorViewportTabBody::SetCustomizableObject(UCustomizab
 }
 
 
-FLinearColor SCustomizableObjectEditorViewportTabBody::GetViewportBackgroundColor() const
-{
-	return LevelViewportClient->GetBackgroundColor();
-}
-
-
 #undef LOCTEXT_NAMESPACE

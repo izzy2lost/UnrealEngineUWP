@@ -160,9 +160,6 @@ public:
 	
 	void SetPreviewComponents(const TArray<UDebugSkelMeshComponent*>& InSkeletalMeshComponents);
 	
-	/** Function to get viewport's current background color */
-	FLinearColor GetViewportBackgroundColor() const;
-
 	/** Function to get the number of LOD models associated with the preview skeletal mesh*/
 	int32 GetLODModelCount() const;
 

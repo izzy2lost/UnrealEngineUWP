@@ -75,11 +75,6 @@ private:
 	TSharedRef<SWidget> GenerateViewportOptionsMenu() const;
 
 	/**
-	* Generate color of the text on the top
-	*/
-	FSlateColor GetFontColor() const;
-
-	/**
 	* Returns the label for the Playback tool bar menu, which changes depending on the current playback speed
 	*
 	* @return	Label to use for this Menu
