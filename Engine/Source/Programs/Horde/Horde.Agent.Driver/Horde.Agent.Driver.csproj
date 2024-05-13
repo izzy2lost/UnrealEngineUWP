@@ -1,13 +1,11 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net6.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-	<ApplicationIcon>HordeAgent.ico</ApplicationIcon>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
-    <AssemblyName>HordeAgent</AssemblyName>
+    <AssemblyName>HordeAgent.Driver</AssemblyName>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>false</EmbedUntrackedSources>
     <DebugType>pdbonly</DebugType>
@@ -16,7 +14,7 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <DocumentationFile>HordeAgent.xml</DocumentationFile>
+    <DocumentationFile>HordeAgentDriver.xml</DocumentationFile>
     <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
   </PropertyGroup>
 
@@ -30,6 +28,30 @@
 
   <ItemGroup>
     <None Remove="HordeAgent.xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\AutomationTool\AutomationUtils\Matchers\*.cs">
+      <Link>Parser\Matchers\%(FileName)%(Extension)</Link>
+    </Compile>
+    <Compile Include="..\..\UnrealBuildTool\Matchers\*.cs">
+      <Link>Parser\Matchers\%(FileName)%(Extension)</Link>
+    </Compile>
+    <Content Include="..\Horde.Server\Protos\horde\*.proto">
+      <Link>Protos\%(FileName)%(Extension)</Link>
+    </Content>
+    <Content Include="..\Horde.Server\Protos\horde\common\**\*.proto">
+      <Link>Protos\horde\common\%(RecursiveDir)%(FileName)%(Extension)</Link>
+    </Content>
+    <Content Include="..\Horde.Server\Protos\horde\messages\**\*.proto">
+      <Link>Protos\horde\messages\%(RecursiveDir)%(FileName)%(Extension)</Link>
+    </Content>
+    <Content Include="..\Horde.Server\Protos\horde\tasks\**\*.proto">
+      <Link>Protos\horde\tasks\%(RecursiveDir)%(FileName)%(Extension)</Link>
+    </Content>
+    <Compile Include="..\Horde.Server\Protos\horde\**\*.cs">
+      <Link>Protos\horde\%(RecursiveDir)%(FileName)%(Extension)</Link>
+    </Compile>
   </ItemGroup>
 
   <ItemGroup>
@@ -70,74 +92,7 @@
     <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="8.0.0" />
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.0" />
   </ItemGroup>
-
-  <ItemGroup>
-    <Content Include="appsettings.json" Condition="Exists('appsettings.json')">
-      <Generator></Generator>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
-    </Content>
-    <Content Include="appsettings.Development.json" Condition="Exists('appsettings.Development.json')">
-      <Generator></Generator>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
-      <DependentUpon>appsettings.json</DependentUpon>
-    </Content>
-    <Content Include="appsettings.Local.json" Condition="Exists('appsettings.Local.json')">
-      <Generator></Generator>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
-      <DependentUpon>appsettings.json</DependentUpon>
-    </Content>
-    <Content Include="appsettings.Production.json" Condition="Exists('appsettings.Production.json')">
-      <Generator></Generator>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
-      <DependentUpon>appsettings.json</DependentUpon>
-    </Content>
-    <Content Include="appsettings.User.json" Condition="Exists('appsettings.User.json')">
-      <Generator></Generator>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
-      <DependentUpon>appsettings.json</DependentUpon>
-    </Content>
-    <Content Include="Defaults\agent.json">
-      <Generator></Generator>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
-    </Content>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Include="..\Horde.Server\Protos\horde\*.proto">
-      <Link>Protos\%(FileName)%(Extension)</Link>
-    </Content>
-    <Content Include="..\Horde.Server\Protos\horde\common\**\*.proto">
-      <Link>Protos\horde\common\%(RecursiveDir)%(FileName)%(Extension)</Link>
-    </Content>
-    <Content Include="..\Horde.Server\Protos\horde\messages\**\*.proto">
-      <Link>Protos\horde\messages\%(RecursiveDir)%(FileName)%(Extension)</Link>
-    </Content>
-    <Content Include="..\Horde.Server\Protos\horde\tasks\**\*.proto">
-      <Link>Protos\horde\tasks\%(RecursiveDir)%(FileName)%(Extension)</Link>
-    </Content>
-<!--    
-    <Compile Include="..\Horde.Server\Protos\horde\**\*.cs">
-      <Link>Protos\horde\%(RecursiveDir)%(FileName)%(Extension)</Link>
-    </Compile>
-    -->
-    <Compile Include="$(IntermediateOutputPath)VersionInfo.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\Shared\EpicGames.Core\EpicGames.Core.csproj" />
-    <ProjectReference Include="..\..\Shared\EpicGames.Horde\EpicGames.Horde.csproj" />
-    <ProjectReference Include="..\..\Shared\EpicGames.Perforce.Managed\EpicGames.Perforce.Managed.csproj" />
-    <ProjectReference Include="..\..\Shared\EpicGames.Perforce\EpicGames.Perforce.csproj" />
-    <ProjectReference Include="..\Horde.Agent.Driver\Horde.Agent.Driver.csproj" />
-  </ItemGroup>
-
-  <!--
+  
   <ItemGroup>
     <Protobuf Include="..\Horde.Server\Protos\horde\horde_rpc.proto" ProtoRoot="..\Horde.Server\Protos" GrpcServices="Client" Access="Public" />
     <Protobuf Include="..\Horde.Server\Protos\horde\horde_rpc_messages.proto" ProtoRoot="..\Horde.Server\Protos" Access="Public" />
@@ -167,49 +122,12 @@
     <Protobuf Include="..\Horde.Server\Protos\horde\tasks\test_task.proto" ProtoRoot="..\Horde.Server\Protos" Access="Public" />
     <Protobuf Include="..\Horde.Server\Protos\horde\tasks\upgrade_task.proto" ProtoRoot="..\Horde.Server\Protos" Access="Public" />
   </ItemGroup>
-  -->
 
   <ItemGroup>
-    <Compile Update="Properties\Resources.Designer.cs">
-      <DesignTime>True</DesignTime>
-      <AutoGen>True</AutoGen>
-      <DependentUpon>Resources.resx</DependentUpon>
-    </Compile>
+    <ProjectReference Include="..\..\Shared\EpicGames.Core\EpicGames.Core.csproj" />
+    <ProjectReference Include="..\..\Shared\EpicGames.Horde\EpicGames.Horde.csproj" />
+    <ProjectReference Include="..\..\Shared\EpicGames.Perforce.Managed\EpicGames.Perforce.Managed.csproj" />
+    <ProjectReference Include="..\..\Shared\EpicGames.Perforce\EpicGames.Perforce.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <EmbeddedResource Update="Properties\Resources.resx">
-      <Generator>ResXFileCodeGenerator</Generator>
-      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
-    </EmbeddedResource>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Update="appsettings.Local.json" CopyToPublishDirectory="Never" />
-  </ItemGroup>
-
-  <Target Name="PublishSymbols" AfterTargets="AfterBuild" Condition="'$(FullSymbolsDir)' != ''">
-    <ItemGroup>
-      <OutputFiles Include="$(OutDir)**" />
-      <BinaryFilesBase Include="$(OutDir)\*.dll" />
-      <BinaryFilesBase Include="$(OutDir)\*.pdb" />
-      <BinaryFiles Include="@(BinaryFilesBase)" />
-    </ItemGroup>
-
-    <MakeDir Directories="$(FullSymbolsDir)" />
-    <Copy SourceFiles="@(Files)" DestinationFolder="$(FullSymbolsDir)" />
-  </Target>
-
-  <!-- Encode version in a source file as inferring version from assemblies is unreliable on platform-specific binaries -->
-  <Target Name="PrepareVersionInfo" BeforeTargets="BeforeBuild">
-    <PropertyGroup>
-      <TemplateFile>Utility/VersionInfo.cs.template</TemplateFile>
-      <OutputFile>$(IntermediateOutputPath)/VersionInfo.cs</OutputFile>
-    </PropertyGroup>
-    <ReadLinesFromFile File="$(TemplateFile)">
-      <Output TaskParameter="Lines" ItemName="Lines" />
-    </ReadLinesFromFile>
-    <WriteLinesToFile File="$(OutputFile)" Lines="@(Lines-&gt;Replace('$VERSION$', '$(InformationalVersion)'))" Overwrite="true" Encoding="UTF-8" />
-  </Target>
-  
 </Project>

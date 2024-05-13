@@ -16,7 +16,7 @@ using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Grpc.Core;
 using Horde.Agent.Parser;
-using Horde.Agent.Services;
+//using Horde.Agent.Services;
 using Horde.Agent.Utility;
 using Horde.Common.Rpc;
 using Horde.Storage.Utility;
@@ -85,10 +85,10 @@ namespace Horde.Agent.Execution
 			JobOptions = jobOptions;
 		}
 
-		public JobExecutorOptions(ISession session, HttpStorageClientFactory storageFactory, JobId jobId, JobStepBatchId batchId, RpcBeginBatchResponse batch, string token, RpcJobOptions jobOptions)
-			: this(session.ServerUrl, session.WorkingDir, session.RpcConnection, session.ProcessNamesToTerminate, storageFactory, jobId, batchId, batch, token, jobOptions)
-		{
-		}
+//		public JobExecutorOptions(ISession session, HttpStorageClientFactory storageFactory, JobId jobId, JobStepBatchId batchId, RpcBeginBatchResponse batch, string token, RpcJobOptions jobOptions)
+//			: this(session.ServerUrl, session.WorkingDir, session.RpcConnection, session.ProcessNamesToTerminate, storageFactory, jobId, batchId, batch, token, jobOptions)
+//		{
+//		}
 	}
 
 	abstract class JobExecutor : IJobExecutor
@@ -1219,7 +1219,7 @@ namespace Horde.Agent.Execution
 			AddRestrictedDirs(baseDirs, "Restricted");
 			AddRestrictedDirs(baseDirs, "Platforms");
 
-			List<string> ignorePatternLines = new List<string>(Properties.Resources.IgnorePatterns.Split('\n', StringSplitOptions.RemoveEmptyEntries));
+			List<string> ignorePatternLines = new List<string>();
 			foreach (DirectoryReference baseDir in baseDirs)
 			{
 				FileReference ignorePatternFile = FileReference.Combine(baseDir, "Build", "Horde", "IgnorePatterns.txt");
@@ -1852,8 +1852,8 @@ namespace Horde.Agent.Execution
 		{
 			ISpan newSpan = GlobalTracer.Instance.BuildSpan(span.Name)
 				.AsChildOf(parent)
-				.WithServiceName(span.Service)
-				.WithResourceName(span.Resource)
+				.WithTag("service.name", span.Service)
+				.WithTag("resource.name", span.Resource)
 				.WithStartTimestamp(new DateTime(span.Start, DateTimeKind.Utc))
 				.Start();
 

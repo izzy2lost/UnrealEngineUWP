@@ -16,7 +16,7 @@ namespace Horde.Agent.Commands.Utilities
 	/// <summary>
 	/// Runs a BuildGraph script and captures the processed log output
 	/// </summary>
-	[Command("buildgraph", "Executes a BuildGraph script with the given arguments using a build of UAT within the current branch, and runs the output through the log processor", Advertise = false)]
+	[Command("buildgraph", "Executes a BuildGraph script with the given arguments using a build of UAT within the current branch, and runs the output through the log processor")]
 	class BuildGraphCommand : Command
 	{
 		sealed class LogSink : IJsonRpcLogSink, IAsyncDisposable, IDisposable

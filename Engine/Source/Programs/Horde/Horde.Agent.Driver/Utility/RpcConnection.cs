@@ -11,7 +11,10 @@ using OpenTracing.Util;
 
 namespace Horde.Agent.Utility
 {
-	interface IRpcClientRef<T> : IDisposable where T : ClientBase<T>
+	/// <summary>
+	/// Reference to a gRPC client
+	/// </summary>
+	public interface IRpcClientRef<T> : IDisposable where T : ClientBase<T>
 	{
 		/// <summary>
 		/// The client instance
@@ -24,7 +27,10 @@ namespace Horde.Agent.Utility
 		Task DisposingTask { get; }
 	}
 
-	interface IRpcConnection : IAsyncDisposable
+	/// <summary>
+	/// gRPC connection to the server
+	/// </summary>
+	public interface IRpcConnection : IAsyncDisposable
 	{
 		/// <summary>
 		/// Reports whether the server connection is healthy

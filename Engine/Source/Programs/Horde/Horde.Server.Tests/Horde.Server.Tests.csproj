@@ -36,6 +36,9 @@
     <ProjectReference Include="..\Horde.Agent\Horde.Agent.csproj">
       <Aliases>HordeAgent</Aliases>
     </ProjectReference>
+    <ProjectReference Include="..\Horde.Agent.Driver\Horde.Agent.Driver.csproj">
+      <Aliases>HordeAgentDriver</Aliases>
+    </ProjectReference>
     <ProjectReference Include="..\Horde.Server\Horde.Server.csproj" />
   </ItemGroup>
 

@@ -49,7 +49,7 @@ namespace Horde.Agent.Execution
 			WorkspaceMaterializerSettings? autoSdkWorkspaceSettings = null;
 			if (_autoSdkWorkspace != null)
 			{
-				using IScope _ = GlobalTracer.Instance.BuildSpan("Workspace").WithResourceName("AutoSDK").StartActive();
+				using IScope _ = GlobalTracer.Instance.BuildSpan("Workspace").WithTag("resource.name", "AutoSDK").StartActive();
 				// TODO: Set type of workspace materializer as scope tag.
 
 				autoSdkWorkspaceSettings = await _autoSdkWorkspace.InitializeAsync(logger, cancellationToken);

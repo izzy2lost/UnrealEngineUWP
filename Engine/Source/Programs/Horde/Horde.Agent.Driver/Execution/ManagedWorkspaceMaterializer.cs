@@ -138,7 +138,7 @@ public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 
 	private IScope CreateTraceSpan(string operationName)
 	{
-		IScope scope = GlobalTracer.Instance.BuildSpan(operationName).WithResourceName(_agentWorkspace.Identifier).StartActive();
+		IScope scope = GlobalTracer.Instance.BuildSpan(operationName).WithTag("resource.name", _agentWorkspace.Identifier).StartActive();
 		scope.Span.SetTag("UseHaveTable", WorkspaceInfo.ShouldUseHaveTable(_agentWorkspace.Method));
 		scope.Span.SetTag("Cluster", _agentWorkspace.Cluster);
 		scope.Span.SetTag("Incremental", _agentWorkspace.Incremental);
