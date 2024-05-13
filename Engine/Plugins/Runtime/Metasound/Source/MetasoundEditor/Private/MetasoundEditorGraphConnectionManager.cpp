@@ -99,6 +99,19 @@ namespace Metasound
 			}
 		}
 
+		bool FGraphConnectionManager::HasAudioBusWriter(const FGuid& InAnalyzerInstanceID) const
+		{
+			bool bResult = false;
+
+			if (GraphAnalyzerView.IsValid())
+			{
+				const FName AnalyzerName = Engine::FVertexAnalyzerAudioBusWriter::GetAnalyzerName();
+				bResult = GraphAnalyzerView->HasAnalyzerInstance(AnalyzerName, InAnalyzerInstanceID);
+			}
+
+			return bResult;
+		}
+
 		void FGraphConnectionManager::Update(float InDeltaTime)
 		{
 			using namespace Frontend;

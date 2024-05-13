@@ -6,10 +6,12 @@
 #include "MetasoundEditorGraphCommentNode.h"
 #include "MetasoundEditorGraphNode.h"
 #include "MetasoundEditorGraphSchema.h"
+#include "NodeTemplates/MetasoundFrontendNodeTemplateAudioAnalyzer.h"
 #include "NodeTemplates/MetasoundFrontendNodeTemplateReroute.h"
 #include "SGraphNode.h"
 #include "SMetasoundGraphNode.h"
 #include "SMetasoundGraphNodeComment.h"
+#include "SMetasoundSpectrumAnalyzerGraphNode.h"
 #include "Templates/SharedPointer.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 
@@ -30,6 +32,10 @@ class FMetasoundGraphNodeFactory : public FGraphPanelNodeFactory
 				if (ClassName == FRerouteNodeTemplate::ClassName)
 				{
 					return SNew(SMetaSoundGraphNodeKnot, InNode);
+				}
+				else if (ClassName == FAudioAnalyzerNodeTemplate::ClassName)
+				{
+					return SNew(SMetaSoundSpectrumAnalyzerGraphNode, InNode);
 				}
 			}
 			return SNew(SMetaSoundGraphNode, InNode);

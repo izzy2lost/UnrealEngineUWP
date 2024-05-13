@@ -49,7 +49,11 @@ namespace Metasound
 					const FAnalyzerAddress& AnalyzerAddress = Analyzer->GetAnalyzerAddress();
 					if (ReceiverAddresses.Contains(AnalyzerAddress))
 					{
+						// Found the matching active analyzer list entry for this vertex analyzer.
 						ReceiverAddresses.Remove(AnalyzerAddress);
+
+						// Keep this vertex analyzer alive:
+						continue;
 					}
 
 					Analyzers.RemoveAtSwap(i, EAllowShrinking::No);

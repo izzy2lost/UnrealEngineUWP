@@ -52,6 +52,7 @@ namespace Metasound
 			FGuid AddAnalyzerForSpecifiedOutput(const FGuid& InNodeID, FVertexName InOutputName, FName InAnalyzerName, FName InAnalyzerMemberName);
 			void RemoveAnalyzerForAllSupportedOutputs(FName InAnalyzerName);
 			void RemoveAnalyzerInstance(FName InAnalyzerName, const FGuid& InAnalyzerInstanceID);
+			bool HasAnalyzerInstance(FName InAnalyzerName, const FGuid& InAnalyzerInstanceID) const;
 			TArray<FMetasoundAnalyzerView*> GetAnalyzerViews(FName InAnalyzerName);
 			TArray<const FMetasoundAnalyzerView*> GetAnalyzerViews(FName InAnalyzerName) const;
 			TArray<FMetasoundAnalyzerView*> GetAnalyzerViewsForOutput(const FGuid& InNodeID, FName InOutputName, FName InAnalyzerName);

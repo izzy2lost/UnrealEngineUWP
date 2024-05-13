@@ -293,6 +293,19 @@ namespace Metasound
 			SendActiveAnalyzers();
 		}
 
+		bool FMetasoundGraphAnalyzerView::HasAnalyzerInstance(FName InAnalyzerName, const FGuid& InAnalyzerInstanceID) const
+		{
+			for (const FAnalyzerAddress& AnalyzerAddress : ActiveAnalyzers)
+			{
+				if (AnalyzerAddress.AnalyzerName == InAnalyzerName && AnalyzerAddress.AnalyzerInstanceID == InAnalyzerInstanceID)
+				{
+					return true;
+				}
+			}
+
+			return false;
+		}
+
 		const FMetasoundAssetBase& FMetasoundGraphAnalyzerView::GetMetaSoundAssetChecked() const
 		{
 			check(MetaSoundAsset);

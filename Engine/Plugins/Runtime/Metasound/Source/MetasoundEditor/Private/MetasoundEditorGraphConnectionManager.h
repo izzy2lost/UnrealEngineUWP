@@ -105,6 +105,9 @@ namespace Metasound
 			// Remove the specified analyzer. InAnalyzerInstanceID is an FGuid that was previously returned from a call to AddAudioBusWriter(...).
 			void RemoveAudioBusWriter(const FGuid& InAnalyzerInstanceID);
 
+			// Does this connection manager have the specified analyzer? InAnalyzerInstanceID is an FGuid that was previously returned from a call to AddAudioBusWriter(...).
+			bool HasAudioBusWriter(const FGuid& InAnalyzerInstanceID) const;
+
 			void Update(float InDeltaTime);
 
 			template <typename TAnalyzerName>
