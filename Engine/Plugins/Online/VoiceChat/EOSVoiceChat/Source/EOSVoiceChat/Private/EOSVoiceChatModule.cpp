@@ -2,6 +2,7 @@
 
 #include "EOSVoiceChatModule.h"
 
+#include "Misc/CommandLine.h"
 #include "Modules/ModuleManager.h"
 
 #include "IEOSSDKManager.h"
@@ -15,6 +16,11 @@ IMPLEMENT_MODULE(FEOSVoiceChatModule, EOSVoiceChat);
 void FEOSVoiceChatModule::StartupModule()
 {
 #if WITH_EOSVOICECHAT
+	if (FParse::Param(FCommandLine::Get(), TEXT("NoEOS")))
+	{
+		return;
+	}
+
 	const FName EOSSharedModuleName = TEXT("EOSShared");
 	const FName EOSSDKManagerFeatureName = TEXT("EOSSDKManager");
 

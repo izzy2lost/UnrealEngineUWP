@@ -4,6 +4,7 @@
 
 #include "Features/IModularFeatures.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/CommandLine.h"
 #include "Misc/CoreDelegates.h"
 #include "Modules/ModuleManager.h"
 #include "CoreGlobals.h"
@@ -20,6 +21,11 @@ IMPLEMENT_MODULE(FEOSSharedModule, EOSShared);
 void FEOSSharedModule::StartupModule()
 {
 #if WITH_EOS_SDK
+	if (FParse::Param(FCommandLine::Get(), TEXT("NoEOS")))
+	{
+		return;
+	}
+
 	FCoreDelegates::TSOnConfigSectionsChanged().AddRaw(this, &FEOSSharedModule::OnConfigSectionsChanged);
 	LoadConfig();
 
