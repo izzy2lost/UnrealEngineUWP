@@ -25,33 +25,17 @@ struct RIGVM_API FRigVMDecorator : public FRigVMStruct
 public:
 
 	FRigVMDecorator()
-	: Name(NAME_None)
-	, DecoratorStruct(nullptr)
 	{}
 
 	virtual ~FRigVMDecorator() {}
 
 	// returns the name of the decorator (the instance of it on the node)
-	FName GetName() const { return Name; }
+	FString GetName() const { return Name; }
 
 	// returns the display name of the decorator
 	virtual FString GetDisplayName() const
 	{
 		return FString();
-	}
-
-	// returns the struct of this decorator
-	const UScriptStruct* GetScriptStruct() const { return DecoratorStruct; }
-
-	// returns true if the given decorator is of a certain type (or super type)
-	template<typename T>
-	bool IsA() const
-	{
-		if(const UScriptStruct* ScriptStruct = GetScriptStruct())
-		{
-			return ScriptStruct->IsChildOf(T::StaticStruct());
-		}
-		return false;
 	}
 
 #if WITH_EDITOR
@@ -67,15 +51,24 @@ public:
 
 	virtual UScriptStruct* GetDecoratorSharedDataStruct() const { return nullptr; }
 
+	virtual bool ShouldCreatePinForProperty(const FProperty* InProperty) const override
+	{
+		if(!Super::ShouldCreatePinForProperty(InProperty))
+		{
+			return false;
+		}
+		return InProperty->GetFName() != GET_MEMBER_NAME_CHECKED(FRigVMDecorator, Name);
+	}
+
 #endif
 
 private:
 
 	// The name of the decorator on the node
-	FName Name;
-	// The struct backing up the decorator
-	UScriptStruct* DecoratorStruct;
-
+	UPROPERTY()
+	FString Name;
+	
 	friend class URigVMNode;
 	friend class URigVMController;
+	friend class FRigVMDecoratorScope;
 };

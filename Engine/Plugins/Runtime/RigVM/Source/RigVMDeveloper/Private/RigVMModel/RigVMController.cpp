@@ -736,6 +736,14 @@ void FRigVMPinInfoArray::AddPins(UScriptStruct* InScriptStruct, URigVMController
 	ERigVMPinDirection InDirection, int32 InParentIndex, TFunction<ERigVMPinDefaultValueType(const FName&)> InDefaultValueTypeGetter,
 	const uint8* InDefaultValueMemory, bool bAddSubPins)
 {
+	TSharedPtr<FStructOnScope> StructOnScope;
+	const FRigVMStruct* RigVMStructInstance = nullptr;
+	if(InScriptStruct->IsChildOf(FRigVMStruct::StaticStruct()))
+	{
+		StructOnScope = MakeShareable(new FStructOnScope(InScriptStruct));
+		RigVMStructInstance = reinterpret_cast<FRigVMStruct*>(StructOnScope->GetStructMemory()); 
+	}
+
 	if (InController->GetSchema()->ShouldUnfoldStruct(InController, InScriptStruct))
 	{
 		TArray<UStruct*> StructsToVisit = FRigVMTemplate::GetSuperStructs(InScriptStruct, true);
@@ -745,6 +753,15 @@ void FRigVMPinInfoArray::AddPins(UScriptStruct* InScriptStruct, URigVMController
 			// properties of the super struct in this iterator.
 			for (TFieldIterator<FProperty> It(StructToVisit, EFieldIterationFlags::None); It; ++It)
 			{
+				// filter pins that structs want to hide
+				if(RigVMStructInstance)
+				{
+					if(!RigVMStructInstance->ShouldCreatePinForProperty(*It))
+					{
+						continue;
+					}
+				}
+
 				const uint8* DefaultValueMemory = nullptr;
 				if(InDefaultValueMemory)
 				{
@@ -14475,8 +14492,7 @@ FName URigVMController::AddDecorator(URigVMNode* InNode, UScriptStruct* InDecora
 		}
 	}
 
-	Decorator->Name = ValidDecoratorName;
-	Decorator->DecoratorStruct = InDecoratorScriptStruct;
+	Decorator->Name = ValidDecoratorName.ToString();
 
 	FString FailureReason;
 	if(!Decorator->CanBeAddedToNode(InNode, &FailureReason))
@@ -14842,6 +14858,14 @@ void URigVMController::AddPinsForStruct(UStruct* InStruct, URigVMNode* InNode, U
 		}
 	}
 
+	TSharedPtr<FStructOnScope> StructOnScope;
+	const FRigVMStruct* RigVMStructInstance = nullptr;
+	if(InStruct->IsChildOf(FRigVMStruct::StaticStruct()))
+	{
+		StructOnScope = MakeShareable(new FStructOnScope(InStruct));
+		RigVMStructInstance = reinterpret_cast<FRigVMStruct*>(StructOnScope->GetStructMemory()); 
+	}
+
 	TArray<UStruct*> StructsToVisit = FRigVMTemplate::GetSuperStructs(InStruct, true);
 	for(UStruct* StructToVisit : StructsToVisit)
 	{
@@ -14849,6 +14873,15 @@ void URigVMController::AddPinsForStruct(UStruct* InStruct, URigVMNode* InNode, U
 		// properties of the super struct in this iterator.
 		for (TFieldIterator<FProperty> It(StructToVisit, EFieldIterationFlags::None); It; ++It)
 		{
+			// filter pins that structs want to hide
+			if(RigVMStructInstance)
+			{
+				if(!RigVMStructInstance->ShouldCreatePinForProperty(*It))
+				{
+					continue;
+				}
+			}
+			
 			FName PropertyName = It->GetFName();
 
 			URigVMPin* Pin = NewObject<URigVMPin>(InParentPin == nullptr ? Cast<UObject>(InNode) : Cast<UObject>(InParentPin), PropertyName);

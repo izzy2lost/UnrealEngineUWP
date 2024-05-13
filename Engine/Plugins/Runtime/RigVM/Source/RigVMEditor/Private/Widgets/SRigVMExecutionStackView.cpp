@@ -585,6 +585,11 @@ void SRigVMExecutionStackView::PopulateStackView(URigVM* InVM, FRigVMExtendedExe
 						Label = FString::Printf(TEXT("Run Instructions %d-%d"), Op.StartInstruction, Op.EndInstruction);
 						break;
 					}
+					case ERigVMOpCode::SetupDecorators:
+					{
+						Label = TEXT("Setup Decorators");
+						break;
+					}
 					case ERigVMOpCode::Exit:
 					{
 						Label = TEXT("Exit");

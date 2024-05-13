@@ -141,7 +141,7 @@ public:
 	TArray<const FRigVMExprAST*> ExprToSkip;
 	TArray<const FRigVMExprAST*> TraversalExpressions;
 	TMap<FString, int32> ProcessedLinks;
-	TMap<int32, FRigVMOperand> IntegerLiterals;
+	TMap<const URigVMNode*, FRigVMOperand> DecoratorListLiterals;
 	FRigVMOperand ComparisonOperand;
 
 	using FRigVMASTProxyArray = TArray<FRigVMASTProxy, TInlineAllocator<3>>; 
@@ -178,11 +178,12 @@ public:
 	TMap<ERigVMMemoryType, TArray<FRigVMPropertyDescription>> PropertyDescriptions;
 
 	FRigVMOperand AddProperty(ERigVMMemoryType InMemoryType, const FName& InName, const FString& InCPPType, UObject* InCPPTypeObject, const FString& InDefaultValue = FString());
-	FRigVMOperand FindProperty(ERigVMMemoryType InMemoryType, const FName& InName);
+	FRigVMOperand FindProperty(ERigVMMemoryType InMemoryType, const FName& InName) const;
 	FRigVMPropertyDescription GetProperty(const FRigVMOperand& InOperand);
 	int32 FindOrAddPropertyPath(const FRigVMOperand& InOperand, const FString& InHeadCPPType, const FString& InSegmentPath);
 	const FProperty* GetPropertyForOperand(const FRigVMOperand& InOperand) const;
 	TRigVMTypeIndex GetTypeIndexForOperand(const FRigVMOperand& InOperand) const;
+	FName GetUniquePropertyName(ERigVMMemoryType InMemoryType, const FName& InDesiredName) const;
 
 	TSharedPtr<FRigVMParserAST> AST;
 	
@@ -268,7 +269,6 @@ public:
 		ExprComplete.Reset();
 		ExprToSkip.Reset();
 		ProcessedLinks.Reset();
-		IntegerLiterals.Reset();
 		CachedProxiesWithSharedOperand.Reset();
 		ProxyTargets.Reset();
 		BranchInfos.Reset();

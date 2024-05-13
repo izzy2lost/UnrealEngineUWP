@@ -543,6 +543,11 @@ bool FRigVMStruct::CheckFunctionExists(UScriptStruct* InStruct, const FName& Fun
 	return true;
 }
 
+bool FRigVMStruct::ShouldCreatePinForProperty(const FProperty* InProperty) const
+{
+	return true;
+}
+
 ERigVMPinDirection FRigVMStruct::GetPinDirectionFromProperty(FProperty* InProperty)
 {
 	bool bIsInput = InProperty->HasMetaData(InputMetaName);

@@ -5,6 +5,8 @@
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 #include "RigVMCore/RigVM.h"
+#include "RigVMCore/RigVMDecorator.h"
+#include "RigVMCore/RigVMDecoratorScope.h"
 #include "RigVMObjectVersion.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMByteCode)
@@ -432,6 +434,12 @@ void FRigVMByteCode::Save(FArchive& Ar)
 				Ar << Op;
 				break;
 			}
+			case ERigVMOpCode::SetupDecorators:
+			{
+				FRigVMSetupDecoratorsOp Op = GetOpAt<FRigVMSetupDecoratorsOp>(Instruction.ByteCodeIndex);
+				Ar << Op;
+				break;
+			}
 			default:
 			{
 				ensure(false);
@@ -622,6 +630,13 @@ void FRigVMByteCode::Load(FArchive& Ar)
 				FRigVMRunInstructionsOp Op;
 				Ar << Op;
 				AddOp<FRigVMRunInstructionsOp>(Op);
+				break;
+			}
+			case ERigVMOpCode::SetupDecorators:
+			{
+				FRigVMSetupDecoratorsOp Op;
+				Ar << Op;
+				AddOp<FRigVMSetupDecoratorsOp>(Op);
 				break;
 			}
 			default:
@@ -834,6 +849,10 @@ uint32 FRigVMByteCode::GetOperatorHash(const FRigVMInstruction& InInstruction) c
 		case ERigVMOpCode::RunInstructions:
 		{
 			return GetTypeHash(GetOpAt<FRigVMRunInstructionsOp>(InInstruction));
+		}
+		case ERigVMOpCode::SetupDecorators:
+		{
+			return GetTypeHash(GetOpAt<FRigVMSetupDecoratorsOp>(InInstruction));
 		}
 		case ERigVMOpCode::Invalid:
 		{
@@ -1050,6 +1069,10 @@ uint64 FRigVMByteCode::GetOpNumBytesAt(uint64 InByteCodeIndex, bool bIncludeOper
 		case ERigVMOpCode::RunInstructions:
 		{
 			return (uint64)sizeof(FRigVMRunInstructionsOp);
+		}
+		case ERigVMOpCode::SetupDecorators:
+		{
+			return (uint64)sizeof(FRigVMSetupDecoratorsOp);
 		}
 		case ERigVMOpCode::Invalid:
 		{
@@ -1341,6 +1364,14 @@ FString FRigVMByteCode::DumpToText() const
 				Line += FString::FromInt(Op.EndInstruction);
 				break;
 			}
+			case ERigVMOpCode::SetupDecorators:
+			{
+				const FRigVMSetupDecoratorsOp& Op = GetOpAt<FRigVMSetupDecoratorsOp>(Instruction.ByteCodeIndex);
+				FString Arg;
+				FRigVMOperand::StaticStruct()->ExportText(Arg, &Op.Arg, &Op.Arg, nullptr, PPF_None, nullptr);
+				Line += Arg;
+				break;
+			}
 			case ERigVMOpCode::Invalid:
 			{
 				ensure(false);
@@ -1387,6 +1418,11 @@ uint64 FRigVMByteCode::AddJumpToBranchOp(FRigVMOperand InBranchNameArg, int32 In
 uint64 FRigVMByteCode::AddRunInstructionsOp(FRigVMOperand InExecuteStateArg, int32 InStartInstruction, int32 InEndInstruction)
 {
 	return AddOp(FRigVMRunInstructionsOp(InExecuteStateArg, InStartInstruction, InEndInstruction));
+}
+
+uint64 FRigVMByteCode::AddSetupDecoratorsOp(FRigVMOperand InDecoratorListArg)
+{
+	return AddOp(FRigVMSetupDecoratorsOp(InDecoratorListArg));
 }
 
 int32 FRigVMByteCode::AddBranchInfo(const FRigVMBranchInfo& InBranchInfo)
@@ -1493,6 +1529,11 @@ FRigVMOperandArray FRigVMByteCode::GetOperandsForOp(const FRigVMInstruction& InI
 			const FRigVMRunInstructionsOp& Op = GetOpAt<FRigVMRunInstructionsOp>(InInstruction.ByteCodeIndex);
 			return FRigVMOperandArray(&Op.Arg, 1);
 		}
+		case ERigVMOpCode::SetupDecorators:
+		{
+			const FRigVMSetupDecoratorsOp& Op = GetOpAt<FRigVMSetupDecoratorsOp>(InInstruction.ByteCodeIndex);
+			return FRigVMOperandArray(&Op.Arg, 1);
+		}
 		case ERigVMOpCode::JumpAbsolute:
 		case ERigVMOpCode::JumpForward:
 		case ERigVMOpCode::JumpBackward:
@@ -1589,6 +1630,11 @@ uint64 FRigVMByteCode::GetFirstOperandByteIndex(const FRigVMInstruction& InInstr
 		case ERigVMOpCode::RunInstructions:
 		{
 			const FRigVMRunInstructionsOp& Op = GetOpAt<FRigVMRunInstructionsOp>(InInstruction.ByteCodeIndex);
+			return InInstruction.ByteCodeIndex + ((uint64)&Op.Arg - (uint64)&Op);
+		}
+		case ERigVMOpCode::SetupDecorators:
+		{
+			const FRigVMSetupDecoratorsOp& Op = GetOpAt<FRigVMSetupDecoratorsOp>(InInstruction.ByteCodeIndex);
 			return InInstruction.ByteCodeIndex + ((uint64)&Op.Arg - (uint64)&Op);
 		}
 		case ERigVMOpCode::JumpAbsolute:
@@ -1727,6 +1773,11 @@ uint64 FRigVMByteCode::GetOpAlignment(ERigVMOpCode InOpCode) const
 		case ERigVMOpCode::RunInstructions:
 		{
 			static const uint64 Alignment = FRigVMRunInstructionsOp::StaticStruct()->GetCppStructOps()->GetAlignment();
+			return Alignment;
+		}
+		case ERigVMOpCode::SetupDecorators:
+		{
+			static const uint64 Alignment = FRigVMSetupDecoratorsOp::StaticStruct()->GetCppStructOps()->GetAlignment();
 			return Alignment;
 		}
 		case ERigVMOpCode::Invalid:
@@ -2075,6 +2126,74 @@ void FRigVMByteCode::SetOperandsForInstruction(int32 InInstructionIndex, const F
 }
 
 #endif
+
+TMap<int32, TArray<FRigVMDecoratorScope>> FRigVMByteCode::GetDecorators(
+	FRigVMMemoryStorageStruct& InLiteralMemory,
+	FRigVMMemoryStorageStruct& InWorkMemory,
+	const UScriptStruct* InScriptStruct) const
+{
+	TMap<int32, TArray<FRigVMDecoratorScope>> Result;
+	const FRigVMInstructionArray Instructions = GetInstructions();
+	for(int32 InstructionIndex = 0; InstructionIndex < Instructions.Num(); InstructionIndex++)
+	{
+		const FRigVMInstruction& Instruction = Instructions[InstructionIndex];
+		if(Instruction.OpCode == ERigVMOpCode::SetupDecorators)
+		{
+			const TArray<FRigVMDecoratorScope> Decorators = GetDecoratorsForInstruction(Instruction, InLiteralMemory, InWorkMemory, InScriptStruct);
+			if(!Decorators.IsEmpty())
+			{
+				Result.Add(InstructionIndex, Decorators);
+			}
+		}
+	}
+	return Result;
+}
+
+TArray<FRigVMDecoratorScope> FRigVMByteCode::GetDecoratorsForInstruction(
+	const FRigVMInstruction& InInstruction,
+	FRigVMMemoryStorageStruct& InLiteralMemory,
+	FRigVMMemoryStorageStruct& InWorkMemory,
+	const UScriptStruct* InScriptStruct) const
+{
+	TArray<FRigVMDecoratorScope> Decorators;
+
+	if(InInstruction.OpCode == ERigVMOpCode::SetupDecorators)
+	{
+		if(InScriptStruct == nullptr)
+		{
+			InScriptStruct = FRigVMDecorator::StaticStruct();
+		}
+
+		const FRigVMSetupDecoratorsOp& Op = GetOpAt<FRigVMSetupDecoratorsOp>(InInstruction);
+		check(Op.Arg.GetMemoryType() == ERigVMMemoryType::Literal);
+
+		if(InLiteralMemory.GetProperties().IsValidIndex(Op.Arg.GetRegisterIndex()))
+		{
+			if(const FArrayProperty* DecoratorIndicesProperty = CastField<FArrayProperty>(InLiteralMemory.GetProperty(Op.Arg.GetRegisterIndex())))
+			{
+				if(DecoratorIndicesProperty->Inner->IsA<FIntProperty>())
+				{
+					const TArray<int32>& DecoratorIndices = *InLiteralMemory.GetData<TArray<int32>>(DecoratorIndicesProperty);
+					for(const int32 DecoratorIndex : DecoratorIndices)
+					{
+						const FProperty* Property = InWorkMemory.GetProperties()[DecoratorIndex];
+						if(const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+						{
+							if(StructProperty->Struct && StructProperty->Struct->IsChildOf(InScriptStruct))
+							{
+								Decorators.Emplace(
+									InWorkMemory.GetData<FRigVMDecorator>(StructProperty),
+									Cast<UScriptStruct>(StructProperty->Struct));
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return Decorators;
+}
 
 const FRigVMBranchInfo* FRigVMByteCode::GetBranchInfo(const FRigVMBranchInfoKey& InBranchInfoKey) const
 {

@@ -810,9 +810,13 @@ FString URigVMPin::GetDefaultValue(const URigVMPin::FPinOverride& InOverride, bo
 	}
 	else if (IsStruct())
 	{
-		if (SubPins.Num() > 0)
+		if (SubPins.Num() > 0 || IsDecoratorPin())
 		{
 			TArray<FString> MemberDefaultValues;
+			if(IsDecoratorPin())
+			{
+				MemberDefaultValues.Add(FString::Printf(TEXT("Name=\"%s\""), *GetName()));
+			}
 			for (const URigVMPin* SubPin : SubPins)
 			{
 				FString MemberDefaultValue = SubPin->GetDefaultValue(InOverride, bAdaptValueForPinType);

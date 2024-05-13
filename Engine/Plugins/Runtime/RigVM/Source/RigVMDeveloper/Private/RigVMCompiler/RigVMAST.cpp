@@ -1260,7 +1260,7 @@ TArray<FRigVMExprAST*> FRigVMParserAST::TraversePins(const FRigVMASTProxy& InNod
 			for (URigVMPin* Pin : Node->GetPins())
 			{
 				// We skip decorator pins as we don't want to traverse them
-				if (!Pin->IsDecoratorPin())
+				if (!Pin->IsDecoratorPin()  || Settings.bSetupDecorators)
 				{
 					Pins.AddUnique(Pin);
 				}
@@ -1352,6 +1352,7 @@ FRigVMExprAST* FRigVMParserAST::TraversePin(const FRigVMASTProxy& InPinProxy, FR
 
 	if ((Pin->GetDirection() == ERigVMPinDirection::Input ||
 		Pin->GetDirection() == ERigVMPinDirection::Visible) &&
+		!Pin->IsDecoratorPin() &&
 		LinkIndices.Num() == 0)
 	{
 		if (Cast<URigVMVariableNode>(Pin->GetNode()) ||

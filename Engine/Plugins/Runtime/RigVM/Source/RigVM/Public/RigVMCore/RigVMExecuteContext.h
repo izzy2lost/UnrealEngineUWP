@@ -19,6 +19,7 @@
 #include "RigVMCore/RigVMProfilingInfo.h"
 #include "RigVMCore/RigVMNameCache.h"
 #include "RigVMCore/RigVMMemoryStorageStruct.h"
+#include "RigVMCore/RigVMDecoratorScope.h"
 #include "RigVMLog.h"
 #include "RigVMDrawInterface.h"
 #include "RigVMDrawContainer.h"
@@ -271,6 +272,7 @@ struct FRigVMExecuteContext
 		, OwningComponent(nullptr)
 		, OwningActor(nullptr)
 		, World(nullptr)
+		, Decorators()
 	{
 	}
 
@@ -416,6 +418,20 @@ struct FRigVMExecuteContext
 	FRigVMDrawContainer* GetDrawContainer() { return DrawContainerPtr; }
 	void SetDrawContainer(FRigVMDrawContainer* InDrawContainer) { DrawContainerPtr = InDrawContainer; }
 
+	TArrayView<const FRigVMDecoratorScope> GetDecorators() const
+	{
+		if(Decorators.IsEmpty())
+		{
+			return TArrayView<const FRigVMDecoratorScope>();
+		}
+		return TArrayView<const FRigVMDecoratorScope>(Decorators.GetData(), Decorators.Num());
+	}
+
+	TArrayView<FRigVMDecoratorScope> GetDecorators()
+	{
+		return TArrayView<FRigVMDecoratorScope>(Decorators.GetData(), Decorators.Num());
+	}
+
 	virtual void Initialize()
 	{
 		if(NameCache == nullptr)
@@ -483,6 +499,8 @@ protected:
 	/** The world this VM is running in */
 	const UWorld* World;
 
+	/** The decorators accessible to the current instruction */
+	TArray<FRigVMDecoratorScope> Decorators;
 
 #if UE_RIGVM_DEBUG_EXECUTION
 public:

@@ -221,6 +221,7 @@ enum class ERigVMOpCode : uint8
 	JumpToBranch, // jumps to a branch based on a name operand
 	Execute, // single execute op (formerly Execute_0_Operands to Execute_64_Operands)
 	RunInstructions, // runs a set of instructions lazily
+	SetupDecorators, // sets up a list of decorators on executecontext
 	Invalid,
 	FirstArrayOpCode = ArrayReset,
 	LastArrayOpCode = ArrayReverse,
@@ -334,7 +335,8 @@ struct RIGVM_API FRigVMUnaryOp : public FRigVMBaseOp
 			uint8(InOpCode) == uint8(ERigVMOpCode::JumpBackwardIf) ||
 			uint8(InOpCode) == uint8(ERigVMOpCode::ChangeType) ||
 			uint8(InOpCode) == uint8(ERigVMOpCode::JumpToBranch) ||
-			uint8(InOpCode) == uint8(ERigVMOpCode::RunInstructions)
+			uint8(InOpCode) == uint8(ERigVMOpCode::RunInstructions) ||
+			uint8(InOpCode) == uint8(ERigVMOpCode::SetupDecorators)
 		);
 	}
 
@@ -1014,6 +1016,23 @@ struct RIGVM_API FRigVMRunInstructionsOp : public FRigVMUnaryOp
 	}
 };
 
+// sets up a list of decorators in the execute context
+USTRUCT()
+struct RIGVM_API FRigVMSetupDecoratorsOp : public FRigVMUnaryOp
+{
+	GENERATED_USTRUCT_BODY()
+
+	FRigVMSetupDecoratorsOp()
+		: FRigVMUnaryOp()
+	{
+	}
+
+	FRigVMSetupDecoratorsOp(FRigVMOperand InDecoratorListArg)
+		: FRigVMUnaryOp(ERigVMOpCode::SetupDecorators, InDecoratorListArg)
+	{
+	}
+};
+
 /**
  * The FRigVMInstruction represents
  * a single instruction within the VM.
@@ -1216,6 +1235,9 @@ public:
 	// adds a run instructions op
 	uint64 AddRunInstructionsOp(FRigVMOperand InExecuteStateArg, int32 InStartInstruction, int32 InEndInstruction);
 
+	// adds a setup decorators op
+	uint64 AddSetupDecoratorsOp(FRigVMOperand InDecoratorListArg);
+
 	// adds information about a branch for an instruction's argument
 	int32 AddBranchInfo(const FRigVMBranchInfo& InBranchInfo);
 	int32 AddBranchInfo(const FName& InBranchLabel, int32 InInstructionIndex, int32 InArgumentIndex, int32 InFirstBranchInstruction, int32 InLastBranchInstruction);
@@ -1407,6 +1429,26 @@ public:
 	void SetOperandsForInstruction(int32 InInstructionIndex, const FRigVMOperandArray& InputOperands, const FRigVMOperandArray& OutputOperands);
 
 #endif
+
+	// returns the decorators for the provided memory
+	TMap<int32, TArray<FRigVMDecoratorScope>> GetDecorators(FRigVMMemoryStorageStruct& InLiteralMemory, FRigVMMemoryStorageStruct& InWorkMemory, const UScriptStruct* InScriptStruct = nullptr) const;
+
+	// returns the decorators of a given type for the provided memory
+	template<typename T>
+	TMap<int32, TArray<FRigVMDecoratorScope>> GetDecorators(FRigVMMemoryStorageStruct& InLiteralMemory, FRigVMMemoryStorageStruct& InWorkMemory) const
+	{
+		return GetDecorators(InLiteralMemory, InWorkMemory, T::StaticStruct());
+	}
+
+	// returns the decorators for the provided memory for a single instruction
+	TArray<FRigVMDecoratorScope> GetDecoratorsForInstruction(const FRigVMInstruction& InInstruction, FRigVMMemoryStorageStruct& InLiteralMemory, FRigVMMemoryStorageStruct& InWorkMemory, const UScriptStruct* InScriptStruct = nullptr) const;
+
+	// returns the decorators of a given type for the provided memory for a single instruction
+	template<typename T>
+	TArray<FRigVMDecoratorScope> GetDecoratorsForInstruction(const FRigVMInstruction& InInstruction, FRigVMMemoryStorageStruct& InLiteralMemory, FRigVMMemoryStorageStruct& InWorkMemory) const
+	{
+		return GetDecoratorsForInstruction(InInstruction, InLiteralMemory, InWorkMemory, T::StaticStruct());
+	}
 
 private:
 

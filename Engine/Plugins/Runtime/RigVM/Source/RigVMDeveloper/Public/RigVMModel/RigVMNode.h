@@ -301,6 +301,9 @@ public:
 
 	virtual uint32 GetStructureHash() const;
 
+	// allows the node to support non-native pins
+	virtual bool HasNonNativePins() const { return !DecoratorRootPinNames.IsEmpty(); }
+
 	UFUNCTION(BlueprintPure, Category = RigVMNode)
 	TArray<URigVMPin*> GetDecoratorPins() const;
 
@@ -311,7 +314,7 @@ public:
 
 	bool IsDecoratorPin(const URigVMPin* InDecoratorPin) const;
 
-	URigVMPin* FindDecorator(const FName& InName) const;
+	URigVMPin* FindDecorator(const FName& InName, const FString& InSubPinPath = FString()) const;
 
 	URigVMPin* FindDecorator(const URigVMPin* InDecoratorPin) const;
 

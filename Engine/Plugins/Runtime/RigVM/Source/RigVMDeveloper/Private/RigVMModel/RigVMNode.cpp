@@ -344,6 +344,10 @@ void URigVMNode::UpdateDecoratorRootPinNames()
 	{
 		if(Pin->IsDecoratorPin())
 		{
+			if(URigVMPin* NamePin = Pin->FindSubPin(TEXT("Name")))
+			{
+				NamePin->DefaultValue = Pin->GetName();
+			}
 			NewDecoratorRootPinNames.Add(Pin->GetName());
 		}
 	}
@@ -555,14 +559,18 @@ bool URigVMNode::IsDecoratorPin(const URigVMPin* InDecoratorPin) const
 	return FindDecorator(InDecoratorPin) != nullptr;
 }
 
-URigVMPin* URigVMNode::FindDecorator(const FName& InName) const
+URigVMPin* URigVMNode::FindDecorator(const FName& InName, const FString& InSubPinPath) const
 {
 	const FString NameString = InName.ToString();
 	for(const FString& DecoratorRootPinName : DecoratorRootPinNames)
 	{
 		if(DecoratorRootPinName.Equals(NameString, ESearchCase::CaseSensitive))
 		{
-			return FindPin(DecoratorRootPinName);
+			if(InSubPinPath.IsEmpty())
+			{
+				return FindPin(DecoratorRootPinName);
+			}
+			return FindPin(URigVMPin::JoinPinPath(DecoratorRootPinName, InSubPinPath));
 		}
 	}
 	return nullptr;
@@ -612,8 +620,7 @@ TSharedPtr<FStructOnScope> URigVMNode::GetDecoratorInstance(const URigVMPin* InD
 			}
 		}
 
-		Decorator->Name = RootPin->GetFName();
-		Decorator->DecoratorStruct = ScriptStruct;
+		Decorator->Name = RootPin->GetName();
 		
 		return Scope;
 	}

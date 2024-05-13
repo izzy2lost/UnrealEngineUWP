@@ -139,9 +139,9 @@ FRigVMOperand FRigVMCompilerWorkData::AddProperty(
 	return FRigVMOperand(InMemoryType, PropertyIndex);
 }
 
-FRigVMOperand FRigVMCompilerWorkData::FindProperty(ERigVMMemoryType InMemoryType, const FName& InName)
+FRigVMOperand FRigVMCompilerWorkData::FindProperty(ERigVMMemoryType InMemoryType, const FName& InName) const
 {
-	TArray<FRigVMPropertyDescription>* PropertyArray = PropertyDescriptions.Find(InMemoryType);
+	const TArray<FRigVMPropertyDescription>* PropertyArray = PropertyDescriptions.Find(InMemoryType);
 	if(PropertyArray)
 	{
 		for(int32 Index=0;Index<PropertyArray->Num();Index++)
@@ -277,6 +277,18 @@ TRigVMTypeIndex FRigVMCompilerWorkData::GetTypeIndexForOperand(const FRigVMOpera
 	RigVMPropertyUtils::GetTypeFromProperty(Property, CPPTypeName, CPPTypeObject);
 
 	return FRigVMRegistry::Get().GetTypeIndex(CPPTypeName, CPPTypeObject);
+}
+
+FName FRigVMCompilerWorkData::GetUniquePropertyName(ERigVMMemoryType InMemoryType, const FName& InDesiredName) const
+{
+	const FString Prefix = InDesiredName.ToString(); 
+	FString Name =  Prefix;
+	int32 Suffix = 1;
+	while(FindProperty(ERigVMMemoryType::Literal, *Name).IsValid())
+	{
+		Name = FString::Printf(TEXT("%s_%d"), *Prefix, Suffix++);
+	}
+	return *Name;
 }
 
 void FRigVMCompilerWorkData::ReportInfo(const FString& InMessage) const
@@ -2068,6 +2080,44 @@ bool URigVMCompiler::TraverseCallExtern(const FRigVMCallExternExprAST* InExpr, F
 		{
 			return false;
 		}
+
+		if(WorkData.Settings.ASTSettings.bSetupDecorators)
+		{
+			const TArray<URigVMPin*> DecoratorPins = Node->GetDecoratorPins(); 
+			if(!DecoratorPins.IsEmpty())
+			{
+				// also take care of the empty decorator list
+				if(!WorkData.DecoratorListLiterals.Contains(nullptr))
+				{
+					const FName Name = WorkData.GetUniquePropertyName(ERigVMMemoryType::Literal, TEXT("EmptyDecoratorList"));
+					const FRigVMOperand& ListOperand = WorkData.AddProperty(ERigVMMemoryType::Literal, Name, RigVMTypeUtils::ArrayTypeFromBaseType(RigVMTypeUtils::Int32Type), nullptr, TEXT("()"));
+					WorkData.DecoratorListLiterals.Add(nullptr, ListOperand);
+				}
+
+				if(!WorkData.DecoratorListLiterals.Contains(Node))
+				{
+					TArray<FString> DefaultValues;
+					for(const URigVMPin* DecoratorPin : DecoratorPins)
+					{
+						if(const FRigVMExprAST* DecoratorExpr = InExpr->FindVarWithPinName(DecoratorPin->GetFName()))
+						{
+							check(DecoratorExpr->IsVar());
+							const FRigVMOperand DecoratorOperand = FindOrAddRegister(DecoratorExpr->To<FRigVMVarExprAST>(), WorkData);
+							check(DecoratorOperand.GetMemoryType() == ERigVMMemoryType::Work);
+							DefaultValues.Add(FString::FromInt(DecoratorOperand.GetRegisterIndex()));
+						}
+					}
+
+					if(!DefaultValues.IsEmpty())
+					{
+						const FName Name = WorkData.GetUniquePropertyName(ERigVMMemoryType::Literal, TEXT("DecoratorList"));
+						const FString DefaultValue = FString::Printf(TEXT("(%s)"), *FString::Join(DefaultValues, TEXT(",")));
+						const FRigVMOperand& ListOperand = WorkData.AddProperty(ERigVMMemoryType::Literal, Name, RigVMTypeUtils::ArrayTypeFromBaseType(RigVMTypeUtils::Int32Type), nullptr, DefaultValue);
+						WorkData.DecoratorListLiterals.Add(Node, ListOperand);
+					}
+				}
+			}
+		}
 	}
 	else
 	{
@@ -2256,6 +2306,18 @@ bool URigVMCompiler::TraverseCallExtern(const FRigVMCallExternExprAST* InExpr, F
 			return false;
 		}
 
+		// setup the decorator list for the context
+		bool bSetupDecorators = false;
+		if(const FRigVMOperand* DecoratorListOperand = WorkData.DecoratorListLiterals.Find(Node))
+		{
+			if (WorkData.Settings.SetupNodeInstructionIndex)
+			{
+				WorkData.VM->GetByteCode().SetSubject(WorkData.VM->GetByteCode().GetNumInstructions(), Callstack.GetCallPath(), Callstack.GetStack());
+			}
+			WorkData.VM->GetByteCode().AddSetupDecoratorsOp(*DecoratorListOperand);
+			bSetupDecorators = true;
+		}
+
 		// setup the instruction
 		const int32 FunctionIndex = WorkData.VM->AddRigVMFunction(Function->GetName());
 		check(FunctionIndex != INDEX_NONE);
@@ -2411,6 +2473,19 @@ bool URigVMCompiler::TraverseCallExtern(const FRigVMCallExternExprAST* InExpr, F
 				WorkData.VM->GetByteCode().BranchInfos[BranchIndex].LastInstruction = WorkData.VM->GetByteCode().GetNumInstructions() - 1;
 			}
 		}
+
+		if(bSetupDecorators)
+		{
+			// passing nullptr retrieves the empty decorator list
+			if(const FRigVMOperand* EmptyDecoratorListOperand = WorkData.DecoratorListLiterals.Find(nullptr))
+			{
+				if (WorkData.Settings.SetupNodeInstructionIndex)
+				{
+					WorkData.VM->GetByteCode().SetSubject(WorkData.VM->GetByteCode().GetNumInstructions(), Callstack.GetCallPath(), Callstack.GetStack());
+				}
+				WorkData.VM->GetByteCode().AddSetupDecoratorsOp(*EmptyDecoratorListOperand);
+			}
+		}
 	}
 
 	return true;
@@ -2447,6 +2522,24 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 			return false;
 		}
 
+		// create a map of all of the decorator setup lists (indices to decorator properties)
+		TMap<int32, FRigVMOperand> LiteralValueToSetupDecoratorArg;
+		const FRigVMInstructionArray FunctionInstructions = FunctionByteCode.GetInstructions();
+		for(const FRigVMInstruction& Instruction : FunctionInstructions)
+		{
+			if(Instruction.OpCode == ERigVMOpCode::SetupDecorators)
+			{
+				const FRigVMSetupDecoratorsOp& Op = FunctionByteCode.GetOpAt<FRigVMSetupDecoratorsOp>(Instruction);
+				check(Op.Arg.GetMemoryType() == ERigVMMemoryType::Literal);
+				check(FunctionCompilationData->LiteralPropertyDescriptions.IsValidIndex(Op.Arg.GetRegisterIndex()));
+				const FString& DefaultValue = FunctionCompilationData->LiteralPropertyDescriptions[Op.Arg.GetRegisterIndex()].DefaultValue;
+				if(!DefaultValue.IsEmpty() && DefaultValue != TEXT("()"))
+				{
+					LiteralValueToSetupDecoratorArg.Add(Op.Arg.GetRegisterIndex(), FRigVMOperand());
+				}
+			}
+		}
+
 		// Add internal operands (not the ones represented by interface pins)
 		for (uint8 MemoryIndex=0; MemoryIndex< (uint8)ERigVMMemoryType::Invalid; ++MemoryIndex)
 		{
@@ -2454,22 +2547,22 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 			TArray<FRigVMFunctionCompilationPropertyDescription> Properties;
 			switch (MemoryType)
 			{
-				case ERigVMMemoryType::Work:
+			case ERigVMMemoryType::Work:
 				{
 					Properties = FunctionCompilationData->WorkPropertyDescriptions;
 					break;
 				}
-				case ERigVMMemoryType::Literal:
+			case ERigVMMemoryType::Literal:
 				{
 					Properties = FunctionCompilationData->LiteralPropertyDescriptions;
 					break;
 				}
-				case ERigVMMemoryType::External:
+			case ERigVMMemoryType::External:
 				{
 					Properties = FunctionCompilationData->ExternalPropertyDescriptions;
 					break;
 				}
-				case ERigVMMemoryType::Debug:
+			case ERigVMMemoryType::Debug:
 				{
 					Properties = FunctionCompilationData->DebugPropertyDescriptions;
 					break;
@@ -2505,11 +2598,12 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 				}
 			}
 
-			auto FindOrAddProperty = [&WorkData, MemoryType] (const FRigVMFunctionCompilationPropertyDescription& InProperty, const FString& InNewName, const bool bIsExecuteState) -> FRigVMOperand
+			auto FindOrAddProperty = [&WorkData, MemoryType, LiteralValueToSetupDecoratorArg]
+			(const FRigVMFunctionCompilationPropertyDescription& InProperty, const FString& InNewName, const bool bIsExecuteState) -> FRigVMOperand
 			{
 				// Sharing / reusing memory / operands happens as per following contract:
 				// 1. properties are only shared if their CPP type matches
-				// 2. Literal / constant memory is only shared if the constant values match
+				// 2. Literal / constant memory is only shared if the constant values match (and it is not a decorator list)
 				// 3. Work state is only shared if it is not internal work state private to the instruction referring to it
 				// 4. Work state of type FRigVMInstructionSetExecuteState (bIsExecuteState) is never shared either since it is work state private to a lazy branch.
 
@@ -2527,7 +2621,9 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 					{
 						if(MemoryType == ERigVMMemoryType::Literal)
 						{
-							if(ExistingProperty.DefaultValue.Equals(InProperty.DefaultValue))
+							// if the value is the same and this is not a decorator setup list
+							if(ExistingProperty.DefaultValue.Equals(InProperty.DefaultValue) &&
+								!LiteralValueToSetupDecoratorArg.Contains(Operand.GetRegisterIndex()))
 							{
 								return Operand;
 							}
@@ -2566,10 +2662,13 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 				FString NewName = Description.Name.ToString();
 				static const FString FunctionLibraryPrefix = TEXT("FunctionLibrary");
 
+				const UScriptStruct* ScriptStruct = Cast<UScriptStruct>(Description.CPPTypeObject.Get());
+
 				// instantiate function library specific work state as well as
 				// instruction set execute state - which is used for lazy blocks.
 				const bool bIsExecuteState = Description.CPPType.Equals(RigVMInstructionSetExecuteStateName);
-				if (NewName.StartsWith(FunctionLibraryPrefix) || bIsExecuteState)
+				const bool bIsDecorator = ScriptStruct && ScriptStruct->IsChildOf(FRigVMDecorator::StaticStruct());
+				if (NewName.StartsWith(FunctionLibraryPrefix) || bIsExecuteState || bIsDecorator)
 				{
 					NewName = FString::Printf(TEXT("%s%s"), *FunctionReferenceNode->GetNodePath(), *NewName.RightChop(FunctionLibraryPrefix.Len()));
 					FRigVMPropertyDescription::SanitizeName(NewName);
@@ -2578,6 +2677,49 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 				const FRigVMOperand Operand = FindOrAddProperty(Description, NewName, bIsExecuteState);
 				FRigVMCompilerWorkData::FFunctionRegisterData Data = {FunctionReferenceNode, MemoryType, PropertyIndex};
 				WorkData.FunctionRegisterToOperand.Add(Data, Operand);
+
+				if(MemoryType == ERigVMMemoryType::Literal && LiteralValueToSetupDecoratorArg.Contains(PropertyIndex))
+				{
+					LiteralValueToSetupDecoratorArg.FindChecked(PropertyIndex) = Operand;
+				}
+			}
+		}
+		// For decorator setup lists we need to update the integer values (pointing to decorator property indices)
+		for(const TPair<int32, FRigVMOperand>& Pair : LiteralValueToSetupDecoratorArg)
+		{
+			const FRigVMOperand DecoratorIndicesOperand = Pair.Value;
+			const int32 LiteralPropertyIndex = DecoratorIndicesOperand.GetRegisterIndex();
+			FString OriginalDecoratorIndicesString = WorkData.PropertyDescriptions[ERigVMMemoryType::Literal][LiteralPropertyIndex].DefaultValue;
+			if(!OriginalDecoratorIndicesString.IsEmpty() && OriginalDecoratorIndicesString != TEXT("()"))
+			{
+				OriginalDecoratorIndicesString = OriginalDecoratorIndicesString.TrimChar(TEXT('('));
+				OriginalDecoratorIndicesString = OriginalDecoratorIndicesString.TrimChar(TEXT(')'));
+				FString PinPathRemaining = OriginalDecoratorIndicesString;
+				FString Left, Right;
+				TArray<FString> IndexStrings;
+				while(PinPathRemaining.Split(TEXT(","), &Left, &Right))
+				{
+					IndexStrings.Add(Left.TrimStartAndEnd());
+					Left.Empty();
+					PinPathRemaining = Right;
+				}
+				if (!Right.IsEmpty())
+				{
+					IndexStrings.Add(Right.TrimStartAndEnd());
+				}
+
+				for(int32 PartIndex = 0; PartIndex < IndexStrings.Num(); PartIndex++)
+				{
+					const int32 OriginalIndex = FCString::Atoi(*IndexStrings[PartIndex]);
+					FRigVMCompilerWorkData::FFunctionRegisterData Data = {FunctionReferenceNode, ERigVMMemoryType::Work, OriginalIndex};
+					const FRigVMOperand& NewOperand = WorkData.FunctionRegisterToOperand.FindChecked(Data);
+					check(NewOperand.GetMemoryType() == ERigVMMemoryType::Work);
+					IndexStrings[PartIndex] = FString::FromInt(NewOperand.GetRegisterIndex());
+				}
+
+				IndexStrings.Remove(FString());
+				WorkData.PropertyDescriptions[ERigVMMemoryType::Literal][LiteralPropertyIndex].DefaultValue =
+					FString::Printf(TEXT("(%s)"), *FString::Join(IndexStrings, TEXT(",")));
 			}
 		}
 	}
