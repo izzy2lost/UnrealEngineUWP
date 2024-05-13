@@ -6,8 +6,7 @@
 #include "Mask2D/AvaMask2DBaseModifier.h"
 
 class FAvaMask2DModifierDetails
-	: public TSharedFromThis<FAvaMask2DModifierDetails>
-	, public IDetailCustomization
+	: public IDetailCustomization
 {
 public:
 	static TSharedRef<IDetailCustomization> MakeInstance()
