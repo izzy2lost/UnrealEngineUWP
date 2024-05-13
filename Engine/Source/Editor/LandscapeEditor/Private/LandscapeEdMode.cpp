@@ -855,6 +855,39 @@ void FEdModeLandscape::Tick(FEditorViewportClient* ViewportClient, float DeltaTi
 	}
 }
 
+/** FEdMode: Called when the mouse enters the viewport area */
+bool FEdModeLandscape::MouseEnter(FEditorViewportClient* InViewportClient, FViewport* InViewport, int32 MouseX, int32 MouseY)
+{
+	if (!IsEditingEnabled())
+	{
+		return false;
+	}
+
+	bool bHandled = false;
+	if (CurrentTool)
+	{
+		bHandled = CurrentTool->MouseEnter(InViewportClient, InViewport, MouseX, MouseY);
+	}
+
+	return bHandled;
+}
+
+/** FEdMode: Called when the mouse exits the viewport area */
+bool FEdModeLandscape::MouseLeave(FEditorViewportClient * InViewportClient, FViewport * InViewport)
+{
+	if (!IsEditingEnabled())
+	{
+		return false;
+	}
+
+	bool bHandled = false;
+	if (CurrentTool)
+	{
+		bHandled = CurrentTool->MouseLeave(InViewportClient, InViewport);
+	}
+
+	return bHandled;
+}
 
 /** FEdMode: Called when the mouse is moved over the viewport */
 bool FEdModeLandscape::MouseMove(FEditorViewportClient* InViewportClient, FViewport* InViewport, int32 MouseX, int32 MouseY)

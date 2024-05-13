@@ -199,6 +199,8 @@ public:
 	virtual bool BeginTool(FEditorViewportClient* ViewportClient, const FLandscapeToolTarget& Target, const FVector& InHitLocation) = 0;
 	virtual void EndTool(FEditorViewportClient* ViewportClient) = 0;
 	virtual void Tick(FEditorViewportClient* ViewportClient, float DeltaTime) {};
+	virtual bool MouseEnter(FEditorViewportClient* InViewportClient, FViewport* InViewport, int32 MouseX, int32 MouseY) { return true; }
+	virtual bool MouseLeave(FEditorViewportClient* InViewportClient, FViewport* InViewport) { return true; }
 	virtual bool MouseMove(FEditorViewportClient* ViewportClient, FViewport* Viewport, int32 x, int32 y) = 0;
 	virtual bool HandleClick(HHitProxy* HitProxy, const FViewportClick& Click) { return false; }
 	virtual bool InputKey(FEditorViewportClient* InViewportClient, FViewport* InViewport, FKey InKey, EInputEvent InEvent) { return false; }

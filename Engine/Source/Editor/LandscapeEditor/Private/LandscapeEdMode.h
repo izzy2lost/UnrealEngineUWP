@@ -381,6 +381,12 @@ public:
 	/** FEdMode: Called when the mode is exited */
 	virtual void Exit() override;
 
+	/** FEdMode: Called when the mouse enters the viewport area */
+	virtual bool MouseEnter(FEditorViewportClient* InViewportClient, FViewport* InViewport, int32 MouseX, int32 MouseY) override;
+
+	/** FEdMode: Called when the mouse exits the viewport area */
+	virtual bool MouseLeave(FEditorViewportClient* InViewportClient, FViewport* Viewport) override;
+
 	/** FEdMode: Called when the mouse is moved over the viewport */
 	virtual bool MouseMove(FEditorViewportClient* ViewportClient, FViewport* Viewport, int32 x, int32 y) override;
 

@@ -1189,11 +1189,6 @@ public:
 
 		Super::Tick(ViewportClient, DeltaTime);
 
-		if (this->EdMode->UISettings->bFlattenEyeDropperModeActivated)
-		{
-			this->EdMode->UISettings->bFlattenEyeDropperModeMousingOverViewport = false;
-		}
-
 		if (HeightmapFlattenPreviewComponent != nullptr)
 		{
 			bool bShowGrid = this->EdMode->UISettings->bUseFlattenTarget && this->EdMode->UISettings->bShowFlattenTargetPreview;
@@ -1207,17 +1202,30 @@ public:
 		}
 	}
 
+	virtual bool MouseEnter(FEditorViewportClient* InViewportClient, FViewport* Viewport, int32 InMouseX, int32 InMouseY) override
+	{
+		if (InViewportClient->IsLevelEditorClient() && this->EdMode->UISettings->bFlattenEyeDropperModeActivated)
+		{
+			this->EdMode->UISettings->bFlattenEyeDropperModeMousingOverViewport = true;
+		}
+		return true;
+	}
+
+	virtual bool MouseLeave(FEditorViewportClient* InViewportClient, FViewport* Viewport) override
+	{
+		if (InViewportClient->IsLevelEditorClient() && this->EdMode->UISettings->bFlattenEyeDropperModeActivated)
+		{
+			this->EdMode->UISettings->bFlattenEyeDropperModeMousingOverViewport = false;
+		}
+		return true;
+	}
+
 	virtual bool MouseMove(FEditorViewportClient* ViewportClient, FViewport* Viewport, int32 x, int32 y) override
 	{
 		bool bResult = Super::MouseMove(ViewportClient, Viewport, x, y);
 
 		if (ViewportClient->IsLevelEditorClient())
 		{
-			if (this->EdMode->UISettings->bFlattenEyeDropperModeActivated)
-			{
-				this->EdMode->UISettings->bFlattenEyeDropperModeMousingOverViewport = true;
-			}
-
 			if (HeightmapFlattenPreviewComponent != nullptr)
 			{
 				FVector MousePosition;
