@@ -159,7 +159,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenTranslucencyVolumeHardwareRayTracing)
 			#if PROBE_SOURCE_MODE == PROBE_SOURCE_MODE_FROXEL
 				if (true) // Froxel probes are always valid for the translucency volume froxels.
 				{
-					const float3 FroxelProbeRadiance = GetFroxelProbeLighting(VolumeFroxelProbeRadiance, GridCoordinate, ProbeUV) * View.OneOverPreExposure;
+					const float3 FroxelProbeRadiance = GetFroxelProbeLighting(VolumeFroxelProbeRadiance, GridCoordinate, ProbeUV);
 			
 					// Lerp according to tracing coverage=1-transparency
 					TraceLightingResult.Radiance += FroxelProbeRadiance * Transparency;

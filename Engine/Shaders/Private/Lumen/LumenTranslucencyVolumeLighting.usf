@@ -162,7 +162,7 @@ void TranslucencyVolumeTraceVoxelsCS(
 #if PROBE_SOURCE_MODE == PROBE_SOURCE_MODE_FROXEL
 			if (true) // Froxel probes are always valid for the translucency volume froxels.
 			{
-				const float3 FroxelProbeRadiance = GetFroxelProbeLighting(VolumeFroxelProbeRadianceHitDistance, GridCoordinate, ProbeUV).rgb;// *View.OneOverPreExposure;
+				const float3 FroxelProbeRadiance = GetFroxelProbeLighting(VolumeFroxelProbeRadianceHitDistance, GridCoordinate, ProbeUV).rgb;
 			
 				// Lerp according to tracing coverage=1-transparency
 				TraceResult.Lighting += FroxelProbeRadiance * TraceResult.Transparency;
@@ -728,7 +728,7 @@ void UpdateFroxelProbesMainCS(
 		}
 
 		// Adapt to current exposure
-//		TraceRadiance *= ViewFroxelProbesHistoryPreExposureAndInv.y * View.PreExposure;
+		TraceRadiance *= ViewFroxelProbesHistoryPreExposureAndInv.y * View.PreExposure;
 
 	#if FROXEL_PROBE_DEBUG_COLOR
 		TraceRadiance *= float3(0.96, 0.996, 0.0);
@@ -928,7 +928,7 @@ float4 TranslucencyVolumeFroxelProbesTracingCommon(
 
 			TraceResult = TranslucencyVolumeTraceRayCommon(ProbeGridCoordinate, WorldPosition, TranslatedWorldPosition, WorldConeDirection, ConeHalfAngle);
 
-			//	TraceResult.Radiance *= View.PreExposure;
+			TraceResult.Radiance *= View.PreExposure;
 			float MaxLighting = max3(TraceResult.Radiance.x, TraceResult.Radiance.y, TraceResult.Radiance.z);
 			if (MaxLighting > MaxRayIntensity)
 			{

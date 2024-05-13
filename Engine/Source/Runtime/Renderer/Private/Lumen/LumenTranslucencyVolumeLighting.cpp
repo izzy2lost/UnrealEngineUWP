@@ -1251,14 +1251,12 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 						}
 					}
 
-					float ViewFroxelProbesHistoryPreExposure = 1.0f;
 					FRDGTextureRef ViewVolumeFroxelProbeRadianceHitDistanceHistory = GSystemTextures.GetVolumetricBlackDummy(GraphBuilder);
 					if (View.ViewState && View.ViewState->Lumen.ViewVolumeFroxelProbeRadianceHitDistance.IsValid())
 					{
 						ViewVolumeFroxelProbeRadianceHitDistanceHistory = GraphBuilder.RegisterExternalTexture(View.ViewState->Lumen.ViewVolumeFroxelProbeRadianceHitDistance);
-						ViewFroxelProbesHistoryPreExposure = View.ViewState->Lumen.ViewFroxelProbesHistoryPreExposure;
 					}
-					const FVector2f ViewFroxelProbesHistoryPreExposureAndInv = FVector2f(ViewFroxelProbesHistoryPreExposure, ViewFroxelProbesHistoryPreExposure > 0.0f ? 1.0f / ViewFroxelProbesHistoryPreExposure : 1.0f);
+					const FVector2f ViewFroxelProbesHistoryPreExposureAndInv = FVector2f(View.PrevViewInfo.SceneColorPreExposure, View.PrevViewInfo.SceneColorPreExposure > 0.0f ? 1.0f / View.PrevViewInfo.SceneColorPreExposure : 1.0f);
 
 					const bool bCameraCut = 
 						!( View.ViewState
@@ -1557,8 +1555,6 @@ void FDeferredShadingSceneRenderer::ComputeLumenTranslucencyGIVolume(
 					if (View.ViewState && !View.bStatePrevViewInfoIsReadOnly)
 					{
 						View.ViewState->Lumen.ViewVolumeFroxelProbeRadianceHitDistance = GraphBuilder.ConvertToExternalTexture(VolumeFroxelProbeRadianceHitDistance);
-
-						View.ViewState->Lumen.ViewFroxelProbesHistoryPreExposure = ViewFroxelProbesHistoryPreExposure;
 					}
 				}
 			}

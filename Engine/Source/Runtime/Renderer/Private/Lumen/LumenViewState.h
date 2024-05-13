@@ -344,7 +344,6 @@ public:
 
 	// View froxel probes
 	TRefCountPtr<IPooledRenderTarget> ViewVolumeFroxelProbeRadianceHitDistance;
-	float ViewFroxelProbesHistoryPreExposure = 1.0f;
 	UE::Math::FLinearFeedbackShiftRegister FroxelProbesLFSR;
 
 	FRadianceCacheState RadianceCacheState;

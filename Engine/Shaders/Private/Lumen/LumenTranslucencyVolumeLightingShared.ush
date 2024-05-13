@@ -148,6 +148,7 @@ bool IsFroxelProbeVisible(uint3 GridCoordinate)
 #endif
 }
 
+// Returns luminance with view exposure removed.
 float3 GetFroxelProbeLighting(Texture3D<float3> VolumeFroxelProbeRadiance, uint3 FroxelGridCoordinate, float2 ProbeUV)
 {
 	// Sample the Froxel probes generated at lower frequency than froxels
@@ -186,7 +187,7 @@ float3 GetFroxelProbeLighting(Texture3D<float3> VolumeFroxelProbeRadiance, uint3
 			
 	float3 LightingX0 = lerp( lerp(Lighting000, Lighting001, LerpUVs.zzz), lerp(Lighting010, Lighting011, LerpUVs.zzz), LerpUVs.yyy);
 	float3 LightingX1 = lerp( lerp(Lighting100, Lighting101, LerpUVs.zzz), lerp(Lighting110, Lighting111, LerpUVs.zzz), LerpUVs.yyy);
-	return lerp( LightingX0, LightingX1, LerpUVs.xxx);
+	return lerp( LightingX0, LightingX1, LerpUVs.xxx) * View.OneOverPreExposure;
 	
 	#undef PREPARE_SAMPLE
 }
