@@ -40,7 +40,7 @@ namespace UE::ConcertInsightsCore
 
 		if (!LocallyStartSynchronizedTrace({ Session }, Args))
 		{
-			SET_REASON(FailReason, LOCTEXT("Reason.AlreadyRunning", "Failed to start local trace. See log."));
+			SET_REASON(FailReason, LOCTEXT("Reason.FailedToStart", "Failed to start local trace. See log."));
 			return false;
 		}
 		

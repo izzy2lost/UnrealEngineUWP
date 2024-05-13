@@ -33,8 +33,8 @@ namespace UE::ConcertInsightsClient
 				TAttribute<FText>::CreateLambda([&Controls]()
 				{
 					return Controls.IsTracing()
-						? LOCTEXT("Menu.Tracing.ToggleSynchronizedTrace.Label", "Stop synchronized trace")
-						: LOCTEXT("Menu.Tracing.ToggleSynchronizedTrace.Label", "Start synchronized trace");
+						? LOCTEXT("Menu.Tracing.ToggleSynchronizedTrace.StopLabel", "Stop synchronized trace")
+						: LOCTEXT("Menu.Tracing.ToggleSynchronizedTrace.StartLabel", "Start synchronized trace");
 				}),
 				TAttribute<FText>::CreateLambda([&Controls]()
 				{
