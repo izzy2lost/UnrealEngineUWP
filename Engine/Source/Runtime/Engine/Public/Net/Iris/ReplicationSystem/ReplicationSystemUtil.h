@@ -132,7 +132,7 @@ struct FReplicationSystemUtil
 	ENGINE_API static void ClearCullDistanceSqrOverride(const AActor* Actor);
 
 	/** Set the poll frequency for an object and its subobjects. */
-	ENGINE_API static void SetPollFrequency(const UObject* Object, float CullDistSqr);
+	ENGINE_API static void SetPollFrequency(const UObject* Object, float PollFrequency);
 };
 
 }
