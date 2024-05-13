@@ -658,6 +658,8 @@ void SPCGEditorGraphAttributeListView::RefreshAttributeList()
 	const FPCGDataVisualizationRegistry& DataVisRegistry = FPCGModule::GetConstPCGDataVisualizationRegistry();
 	const UPCGData* DataToVisualize = PCGData;
 
+	DataStrongPtr.Reset(DataToVisualize);
+
 	if (const IPCGDataVisualization* DataVisualization = DataVisRegistry.GetDataVisualization(PCGData->GetClass()))
 	{
 		const FPCGTableVisualizerInfo TableVisualizerInfo = DataVisualization->GetTableVisualizerInfo(PCGData);
@@ -695,8 +697,6 @@ void SPCGEditorGraphAttributeListView::RefreshAttributeList()
 			ListViewItems.Add(ListViewItem);
 		}
 	}
-
-	DataStrongPtr.Reset(DataToVisualize);
 
 	ListView->SetItemsSource(&ListViewItems);
 	ListView->RequestListRefresh();
