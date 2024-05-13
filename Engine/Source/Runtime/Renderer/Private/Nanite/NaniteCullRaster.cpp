@@ -2744,6 +2744,9 @@ private:
 						Command.bEmulated			= bBundleEmulation;
 						Command.RecordArgBuffer		= Parameters.IndirectArgs->GetIndirectRHICallBuffer();
 
+						Command.BundleState.ViewRect		= ViewRect;
+						Command.BundleState.PrimitiveType	= HardwarePath == ERasterHardwarePath::PrimitiveShader ? PT_PointList : PT_TriangleList;
+
 						Command.Dispatches.SetNum(HWShaderBundle->NumRecords);
 
 						for (FRHIShaderBundleGraphicsDispatch& Dispatch : Command.Dispatches)

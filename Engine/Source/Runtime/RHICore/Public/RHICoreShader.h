@@ -35,6 +35,7 @@ extern RHICORE_API void DispatchShaderBundleEmulation(
 	FRHICommandList& InRHICmdList,
 	FRHIShaderBundle* ShaderBundle,
 	FRHIBuffer* ArgumentBuffer,
+	const FRHIShaderBundleGraphicsState& BundleState,
 	TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches
 );
 

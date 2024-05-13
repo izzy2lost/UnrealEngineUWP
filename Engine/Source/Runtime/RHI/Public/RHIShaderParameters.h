@@ -213,6 +213,20 @@ struct FRHIShaderBundleComputeDispatch
 	}
 };
 
+struct FRHIShaderBundleGraphicsState
+{
+	FIntRect ViewRect;
+
+	float DepthMin = 0.0f;
+	float DepthMax = 1.0f;
+
+	float BlendFactor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+	EPrimitiveType PrimitiveType = PT_TriangleList;
+
+	uint8 StencilRef = 0;
+};
+
 struct FRHIShaderBundleGraphicsDispatch
 {
 	uint32 RecordIndex = ~uint32(0u);

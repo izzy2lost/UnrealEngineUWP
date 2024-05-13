@@ -126,9 +126,22 @@ void DispatchShaderBundleEmulation(
 	FRHICommandList& InRHICmdList,
 	FRHIShaderBundle* ShaderBundle,
 	FRHIBuffer* ArgumentBuffer,
+	const FRHIShaderBundleGraphicsState& BundleState,
 	TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches)
 {
-	const uint32 StencilRef = 0u;
+	if (Dispatches.Num() == 0)
+	{
+		return;
+	}
+
+	InRHICmdList.SetViewport(
+		BundleState.ViewRect.Min.X,
+		BundleState.ViewRect.Min.Y,
+		BundleState.DepthMin,
+		FMath::Min(BundleState.ViewRect.Max.X, 32767),
+		FMath::Min(BundleState.ViewRect.Max.Y, 32767),
+		BundleState.DepthMax
+	);
 
 	for (const FRHIShaderBundleGraphicsDispatch& Dispatch : Dispatches)
 	{
@@ -148,7 +161,7 @@ void DispatchShaderBundleEmulation(
 		checkf(ShaderState.GetPixelShader()->HasShaderBundleUsage(), TEXT("All shaders in a bundle must specify CFLAG_ShaderBundle"));
 		checkf(MSVSShader->HasShaderBundleUsage(), TEXT("All shaders in a bundle must specify CFLAG_ShaderBundle"));
 
-		SetGraphicsPipelineState(InRHICmdList, Dispatch.PipelineInitializer, StencilRef);
+		SetGraphicsPipelineState(InRHICmdList, Dispatch.PipelineInitializer, BundleState.StencilRef);
 
 		if (Dispatch.Parameters_MSVS.HasParameters())
 		{

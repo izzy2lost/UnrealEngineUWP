@@ -268,7 +268,7 @@ void FRHICommandDispatchGraphicsShaderBundle::Execute(FRHICommandListBase& CmdLi
 			Dispatch.RHIPipeline = ExecuteSetGraphicsPipelineState(Dispatch.PipelineState);
 		}
 	}
-	INTERNAL_DECORATOR_COMPUTE(RHIDispatchGraphicsShaderBundle)(ShaderBundle, RecordArgBuffer, Dispatches, bEmulated);
+	INTERNAL_DECORATOR_COMPUTE(RHIDispatchGraphicsShaderBundle)(ShaderBundle, RecordArgBuffer, BundleState, Dispatches, bEmulated);
 }
 
 void FRHICommandSetShaderRootConstants::Execute(FRHICommandListBase& CmdList)

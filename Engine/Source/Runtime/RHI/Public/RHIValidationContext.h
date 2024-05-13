@@ -173,6 +173,7 @@ public:
 	virtual void RHIDispatchGraphicsShaderBundle(
 		FRHIShaderBundle* ShaderBundleRHI,
 		FRHIBuffer* RecordArgBuffer,
+		const FRHIShaderBundleGraphicsState& BundleState,
 		TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches,
 		bool bEmulated) final override
 	{
@@ -197,7 +198,7 @@ public:
 
 		Tracker->Assert(RecordArgBuffer->GetWholeResourceIdentity(), ERHIAccess::IndirectArgs);
 #endif
-		RHIContext->RHIDispatchGraphicsShaderBundle(ShaderBundleRHI, RecordArgBuffer, Dispatches, bEmulated);
+		RHIContext->RHIDispatchGraphicsShaderBundle(ShaderBundleRHI, RecordArgBuffer, BundleState, Dispatches, bEmulated);
 	}
 
 	virtual void RHIBeginUAVOverlap() final override
@@ -496,6 +497,7 @@ public:
 	virtual void RHIDispatchGraphicsShaderBundle(
 		FRHIShaderBundle* ShaderBundleRHI,
 		FRHIBuffer* RecordArgBuffer,
+		const FRHIShaderBundleGraphicsState& BundleState,
 		TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches,
 		bool bEmulated) final override
 	{
@@ -521,7 +523,7 @@ public:
 
 		Tracker->Assert(RecordArgBuffer->GetWholeResourceIdentity(), ERHIAccess::IndirectArgs);
 #endif
-		RHIContext->RHIDispatchGraphicsShaderBundle(ShaderBundleRHI, RecordArgBuffer, Dispatches, bEmulated);
+		RHIContext->RHIDispatchGraphicsShaderBundle(ShaderBundleRHI, RecordArgBuffer, BundleState, Dispatches, bEmulated);
 	}
 
 	virtual void RHIBeginUAVOverlap() final override

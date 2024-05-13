@@ -682,6 +682,7 @@ public:
 	virtual void RHIDispatchGraphicsShaderBundle(
 		FRHIShaderBundle* ShaderBundle,
 		FRHIBuffer* RecordArgBuffer,
+		const FRHIShaderBundleGraphicsState& BundleState,
 		TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches,
 		bool bEmulated) override;
 

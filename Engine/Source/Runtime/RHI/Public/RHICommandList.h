@@ -1796,6 +1796,7 @@ FRHICOMMAND_MACRO(FRHICommandDispatchGraphicsShaderBundle)
 {
 	FRHIShaderBundle* ShaderBundle;
 	FRHIBuffer* RecordArgBuffer;
+	FRHIShaderBundleGraphicsState BundleState;
 	TArray<FRHIShaderBundleGraphicsDispatch> Dispatches;
 	bool bEmulated;
 	FORCEINLINE_DEBUGGABLE FRHICommandDispatchGraphicsShaderBundle()
@@ -1807,11 +1808,13 @@ FRHICOMMAND_MACRO(FRHICommandDispatchGraphicsShaderBundle)
 	FORCEINLINE_DEBUGGABLE FRHICommandDispatchGraphicsShaderBundle(
 		FRHIShaderBundle* InShaderBundle,
 		FRHIBuffer* InRecordArgBuffer,
+		const FRHIShaderBundleGraphicsState& InBundleState,
 		TConstArrayView<FRHIShaderBundleGraphicsDispatch> InDispatches,
 		bool bInEmulated
 	)
 		: ShaderBundle(InShaderBundle)
 		, RecordArgBuffer(InRecordArgBuffer)
+		, BundleState(InBundleState)
 		, Dispatches(InDispatches)
 		, bEmulated(bInEmulated)
 	{
@@ -2856,6 +2859,7 @@ public:
 	FORCEINLINE_DEBUGGABLE void DispatchGraphicsShaderBundle(
 		FRHIShaderBundle* ShaderBundle,
 		FRHIBuffer* RecordArgBuffer,
+		const FRHIShaderBundleGraphicsState& BundleState,
 		TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches,
 		bool bEmulated
 	)
@@ -2864,10 +2868,10 @@ public:
 
 		if (Bypass())
 		{
-			GetContext().RHIDispatchGraphicsShaderBundle(ShaderBundle, RecordArgBuffer, Dispatches, bEmulated);
+			GetContext().RHIDispatchGraphicsShaderBundle(ShaderBundle, RecordArgBuffer, BundleState, Dispatches, bEmulated);
 			return;
 		}
-		ALLOC_COMMAND(FRHICommandDispatchGraphicsShaderBundle)(ShaderBundle, RecordArgBuffer, Dispatches, bEmulated);
+		ALLOC_COMMAND(FRHICommandDispatchGraphicsShaderBundle)(ShaderBundle, RecordArgBuffer, BundleState, Dispatches, bEmulated);
 	}
 
 	FORCEINLINE_DEBUGGABLE void DispatchGraphicsShaderBundle(

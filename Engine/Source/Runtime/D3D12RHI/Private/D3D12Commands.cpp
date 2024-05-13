@@ -1537,6 +1537,7 @@ void FD3D12CommandContext::RHIDispatchComputeShaderBundle(
 void FD3D12CommandContext::RHIDispatchGraphicsShaderBundle(
 	FRHIShaderBundle* ShaderBundle,
 	FRHIBuffer* RecordArgBuffer,
+	const FRHIShaderBundleGraphicsState& BundleState,
 	TConstArrayView<FRHIShaderBundleGraphicsDispatch> Dispatches,
 	bool bEmulated
 )
@@ -1549,7 +1550,7 @@ void FD3D12CommandContext::RHIDispatchGraphicsShaderBundle(
 	if (bEmulated)
 	{
 		TRHICommandList_RecursiveHazardous<FD3D12CommandContext> RHICmdList(this);
-		UE::RHICore::DispatchShaderBundleEmulation(RHICmdList, ShaderBundle, RecordArgBuffer, Dispatches);
+		UE::RHICore::DispatchShaderBundleEmulation(RHICmdList, ShaderBundle, RecordArgBuffer, BundleState, Dispatches);
 	}
 	else
 	{
