@@ -15,7 +15,7 @@ FText UAssetDefinition_DynamicMaterialInstance::GetAssetDisplayName() const
 
 FText UAssetDefinition_DynamicMaterialInstance::GetAssetDisplayName(const FAssetData& InAssetData) const
 {
-	return FText::FromName(InAssetData.AssetName);
+	return LOCTEXT("MaterialDesignerInstance", "Material Designer Instance");
 }
 
 TSoftClassPtr<> UAssetDefinition_DynamicMaterialInstance::GetAssetClass() const
