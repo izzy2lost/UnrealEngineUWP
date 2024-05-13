@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -15,8 +15,7 @@ class UGeometryMaskCanvas;
 class UTexture;
 
 class FGMECanvasItemViewModel
-	: public TSharedFromThis<FGMECanvasItemViewModel>
-	, public FGMETickableViewModelBase
+	: public FGMETickableViewModelBase
 	, public FEditorUndoClient
 	, public IGMETreeNodeViewModel
 {

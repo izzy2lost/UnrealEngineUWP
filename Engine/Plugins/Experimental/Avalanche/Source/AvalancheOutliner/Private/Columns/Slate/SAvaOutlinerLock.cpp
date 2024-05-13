@@ -10,7 +10,7 @@
 
 namespace UE::AvaOutliner::Private
 {
-	class FLockDragDropOp : public FDragDropOperation, public TSharedFromThis<FLockDragDropOp>
+	class FLockDragDropOp : public FDragDropOperation
 	{
 	public:
 		DRAG_DROP_OPERATOR_TYPE(FLockDragDropOp, FDragDropOperation)

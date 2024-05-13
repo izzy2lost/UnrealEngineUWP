@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -10,8 +10,7 @@
 class FGMECanvasItemViewModel;
 
 class FGMECanvasListViewModel
-	: public TSharedFromThis<FGMECanvasListViewModel>
-	, public FGMEListViewModelBase
+	: public FGMEListViewModelBase
 	, public FEditorUndoClient
 	, public IGMETreeNodeViewModel
 {
