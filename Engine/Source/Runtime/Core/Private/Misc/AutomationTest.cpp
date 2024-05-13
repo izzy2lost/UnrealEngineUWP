@@ -1294,14 +1294,11 @@ void FAutomationTestExecutionInfo::AddError(const FString& ErrorMessage)
 FAutomationEvent FAutomationScreenshotCompareResults::ToAutomationEvent() const
 {
 	FAutomationEvent Event(EAutomationEventType::Info, TEXT(""));
-	FString OutputScreenshotName = ScreenshotPath;
-	FPaths::NormalizeDirectoryName(OutputScreenshotName);
-	OutputScreenshotName.ReplaceInline(TEXT("/"), TEXT("."));
 
 	if (bWasNew)
 	{
 		Event.Type = EAutomationEventType::Warning;
-		Event.Message = FString::Printf(TEXT("New Screenshot '%s' was discovered!  Please add a ground truth version of it."), *OutputScreenshotName);
+		Event.Message = FString::Printf(TEXT("New Screenshot '%s' was discovered!  Please add a ground truth version of it."), *ScreenshotPath);
 	}
 	else
 	{
@@ -1309,7 +1306,7 @@ FAutomationEvent FAutomationScreenshotCompareResults::ToAutomationEvent() const
 		{
 			Event.Type = EAutomationEventType::Info;
 			Event.Message = FString::Printf(TEXT("Screenshot '%s' was similar!  Global Difference = %f, Max Local Difference = %f"),
-				*OutputScreenshotName, GlobalDifference, MaxLocalDifference);
+				*ScreenshotPath, GlobalDifference, MaxLocalDifference);
 		}
 		else
 		{
@@ -1318,11 +1315,11 @@ FAutomationEvent FAutomationScreenshotCompareResults::ToAutomationEvent() const
 			if (ErrorMessage.IsEmpty())
 			{
 				Event.Message = FString::Printf(TEXT("Screenshot '%s' test failed, Screenshots were different!  Global Difference = %f, Max Local Difference = %f"),
-					*OutputScreenshotName, GlobalDifference, MaxLocalDifference);
+					*ScreenshotPath, GlobalDifference, MaxLocalDifference);
 			}
 			else
 			{
-				Event.Message = FString::Printf(TEXT("Screenshot '%s' test failed; Error = %s"), *OutputScreenshotName, *ErrorMessage);
+				Event.Message = FString::Printf(TEXT("Screenshot '%s' test failed; Error = %s"), *ScreenshotPath, *ErrorMessage);
 			}
 		}
 	}

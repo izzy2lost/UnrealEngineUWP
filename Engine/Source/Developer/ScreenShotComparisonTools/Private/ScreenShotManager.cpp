@@ -82,14 +82,17 @@ FString FScreenShotManager::GetPathComponentForPlatformAndRHI(const FAutomationS
  */
 FString FScreenShotManager::GetPathComponentForTestImages(const FAutomationScreenshotMetadata& MetaData, bool bIncludeVariantName) const
 {
+	FString FilePath;
 	if (bIncludeVariantName)
 	{
-		return FPaths::Combine(MetaData.Context, *MetaData.ScreenShotName, *MetaData.VariantName);
+		FilePath = FPaths::Combine(MetaData.Context, *MetaData.ScreenShotName, *MetaData.VariantName);
 	}
 	else
 	{
-		return FPaths::Combine(MetaData.Context, *MetaData.ScreenShotName);
+		FilePath = FPaths::Combine(MetaData.Context, *MetaData.ScreenShotName);
 	}
+	FPaths::NormalizeDirectoryName(FilePath);
+	return FilePath;
 }
 
 FString FScreenShotManager::GetApprovedFolderForImageWithOptions(const FAutomationScreenshotMetadata& MetaData, EApprovedFolderOptions InOptions) const
@@ -359,7 +362,7 @@ FImageComparisonResult FScreenShotManager::CompareScreenshot(const FString& InUn
 	{
 		// We can't find a ground truth, so it's a new comparison.
 		ComparisonResult.IncomingFilePath = InUnapprovedIncomingFilePath;
-		ComparisonResult.CreationTime = FDateTime::Now();
+		ComparisonResult.CreationTime = FDateTime::UtcNow();
 
 		UE_LOG(LogScreenShotManager, Log, TEXT("No ideal-image found. Assuming %s is a new test image"), *InUnapprovedIncomingFilePath);
 	}
