@@ -90,6 +90,8 @@ protected:
 	template <typename IndexRemapType>
 	void ApplyAttributeChanges(FISMInstanceUpdateChangeSet &ChangeSet, const IndexRemapType &IndexRemap, FInstanceSceneDataBuffers::FWriteView &ProxyData);
 
+	void TestAndApplyInstanceBufferSizeFixup(int32 PostUpdateNumInstances);
+
 	FStaticShaderPlatform ShaderPlatform;
 	ERHIFeatureLevel::Type FeatureLevel;
 	bool bUseLegacyRenderingPath = false;

@@ -2493,12 +2493,12 @@ TArray<int32> UHierarchicalInstancedStaticMeshComponent::AddInstances(const TArr
 		for (const int32 InstanceIndex : InstanceIndices)
 		{
 			InstanceReorderTable.Add(InitialBufferOffset + InstanceIndex);
+			++InstanceCountToRender;
 
 			const FBox NewInstanceBounds = GetStaticMesh()->GetBounds().GetBox().TransformBy(PerInstanceSMData[InstanceIndex].Transform);
 			UnbuiltInstanceBounds += NewInstanceBounds;
 			UnbuiltInstanceBoundsList.Add(NewInstanceBounds);
 		}
-		InstanceCountToRender = InstanceReorderTable.Num();
 
 		if (bAutoRebuildTreeOnInstanceChanges)
 		{

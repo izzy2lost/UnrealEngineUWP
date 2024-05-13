@@ -418,6 +418,7 @@ void FPrimitiveInstanceDataManager::DispatchUpdateTask(bool bIsUnattached, const
 		check(!InstanceDataUpdateTaskInfo || InstanceDataUpdateTaskInfo->GetHeader() == InstanceDataBufferHeader);
 		InnerTaskLambda();
 		check(!InstanceDataUpdateTaskInfo || InstanceDataUpdateTaskInfo->GetHeader() == InstanceDataBufferHeader);
+		check(!InstanceDataUpdateTaskInfo || InstanceDataBufferHeader.NumInstances == Proxy->GetData().GetNumInstances());
 		// check(InstanceDataBufferHeader.Flags == Proxy->GetData().GetFlags());
 		const FInstanceDataFlags HeaderFlags = InstanceDataBufferHeader.Flags;
 		const bool bHasAnyPayloadData = HeaderFlags.bHasPerInstanceHierarchyOffset || HeaderFlags.bHasPerInstanceLocalBounds || HeaderFlags.bHasPerInstanceDynamicData || HeaderFlags.bHasPerInstanceLMSMUVBias || HeaderFlags.bHasPerInstanceCustomData || HeaderFlags.bHasPerInstancePayloadExtension || HeaderFlags.bHasPerInstanceEditorData;
@@ -749,9 +750,11 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 		if (Mode == EMode::ExternalLegacyData && ChangeDesc.bPrimitiveTransformChanged)
 		{
 			LOG_INST_DATA(TEXT("Primitive Transform Update %s"), TEXT(""));
-			DispatchUpdateTask(bIsUnattached, InstanceDataBufferHeader, [ChangeSet = MoveTemp(ChangeSet), Proxy = Proxy] () mutable 
+			SuccessorTrackingState = ETrackingState::Initial;
+			DispatchUpdateTask(bIsUnattached, InstanceDataBufferHeader, [ChangeSet = MoveTemp(ChangeSet), Proxy = Proxy, NumHeaderInstances = InstanceDataBufferHeader.NumInstances] () mutable 
 			{
 				Proxy->UpdatePrimitiveTransform(MoveTemp(ChangeSet));
+				check(NumHeaderInstances == Proxy->GeInstanceSceneDataBuffers()->GetNumInstances());
 			});
 		}
 		else if (bNeedFullUpdate)
@@ -768,18 +771,20 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 				SuccessorTrackingState = ETrackingState::Optimized;
 			}
 
-			DispatchUpdateTask(bIsUnattached, InstanceDataBufferHeader, [ChangeSet = MoveTemp(ChangeSet), Proxy = Proxy] () mutable 
+			DispatchUpdateTask(bIsUnattached, InstanceDataBufferHeader, [ChangeSet = MoveTemp(ChangeSet), Proxy = Proxy, NumHeaderInstances = InstanceDataBufferHeader.NumInstances] () mutable 
 			{
 				Proxy->Build(MoveTemp(ChangeSet));
+				check(NumHeaderInstances == Proxy->GeInstanceSceneDataBuffers()->GetNumInstances());
 			});
 		}
 		else
 		{
 			LOG_INST_DATA(TEXT("Delta Update %s"), TEXT(""));
 			check(!ChangeDesc.bUntrackedState);
-			DispatchUpdateTask(bIsUnattached, InstanceDataBufferHeader, [ChangeSet = MoveTemp(ChangeSet), Proxy = Proxy] () mutable 
+			DispatchUpdateTask(bIsUnattached, InstanceDataBufferHeader, [ChangeSet = MoveTemp(ChangeSet), Proxy = Proxy, NumHeaderInstances = InstanceDataBufferHeader.NumInstances] () mutable 
 			{
 				Proxy->Update(MoveTemp(ChangeSet));
+				check(NumHeaderInstances == Proxy->GeInstanceSceneDataBuffers()->GetNumInstances());
 			});
 		}
 	}
@@ -1059,7 +1064,8 @@ void FPrimitiveInstanceDataManager::OnRegister(int32 InNumInstances)
 
 	if (CVarInstanceDataResetTrackingOnRegister.GetValueOnGameThread())
 	{
-		if (InNumInstances != NumInstances)
+		// We don't clear for external legacy, AKA landscape grass, because it manages its own data, doesn't use the tracking & we don't want to clear the externall queued update for this case.
+		if (Mode != EMode::ExternalLegacyData && InNumInstances != NumInstances)
 		{
 			ClearIdTracking(InNumInstances);
 		}
