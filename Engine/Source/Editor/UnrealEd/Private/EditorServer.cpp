@@ -1244,7 +1244,7 @@ UTransactor* UEditorEngine::CreateTrans()
 
 	if (!GConfig->GetInt(TEXT("Undo"), TEXT("UndoBufferSize"), UndoBufferSize, GEditorPerProjectIni))
 	{
-		UndoBufferSize = 16;
+		UndoBufferSize = 256;
 	}
 
 	UE_LOG(LogInit, Log, TEXT("Undo buffer set to %d MB"), UndoBufferSize);
