@@ -7,6 +7,8 @@ public class VirtualizationEditor : ModuleRules
 	public VirtualizationEditor(ReadOnlyTargetRules Target)
 		 : base(Target)
 	{
+		UnsafeTypeCastWarningLevel = WarningLevel.Error;
+
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
