@@ -19,6 +19,7 @@ void URuntimePartition::SetDefaultValues()
 	bBlockOnSlowStreaming = false;
 	bClientOnlyVisible = false;
 	Priority = 0;
+	BoundsMethod = ERuntimePartitionCellBoundsMethod::UseMinContentCellBounds;
 	LoadingRange = 25600;
 	DebugColor = FLinearColor::MakeRandomSeededColor(GetTypeHash(GetName()));
 	HLODIndex = INDEX_NONE;
@@ -71,12 +72,6 @@ URuntimePartition::FCellDesc URuntimePartition::CreateCellDesc(const FString& In
 
 	// Add actor set instances
 	CellDesc.ActorSetInstances = InActorSetInstances;
-
-	// Update cell bounds
-	for (const IStreamingGenerationContext::FActorSetInstance* ActorSetInstance : InActorSetInstances)
-	{
-		CellDesc.Bounds += ActorSetInstance->Bounds;
-	}
 
 	return CellDesc;
 }

@@ -11,8 +11,11 @@ class UHLODLayer;
 class URuntimePartitionPersistent;
 struct FPropertyChangedChainEvent;
 
-using FStaticSpatialIndexSorter = FStaticSpatialIndex::TNodeSorterMorton<65536>;
-using FStaticSpatialIndexType = TStaticSpatialIndexRTree<TObjectPtr<UWorldPartitionRuntimeCell>, FStaticSpatialIndexSorter>;
+using FStaticSpatialIndexSorter = FStaticSpatialIndex::TNodeSorterMorton<FStaticSpatialIndex::FSpatialIndexProfile3D, 65536>;
+using FStaticSpatialIndexType = TStaticSpatialIndexRTree<TObjectPtr<UWorldPartitionRuntimeCell>, FStaticSpatialIndexSorter, FStaticSpatialIndex::FSpatialIndexProfile3D>;
+
+using FStaticSpatialIndexSorter2D = FStaticSpatialIndex::TNodeSorterMorton<FStaticSpatialIndex::FSpatialIndexProfile2D, 65536>;
+using FStaticSpatialIndexType2D = TStaticSpatialIndexRTree<TObjectPtr<UWorldPartitionRuntimeCell>, FStaticSpatialIndexSorter2D, FStaticSpatialIndex::FSpatialIndexProfile2D>;
 
 /** Holds an HLOD setup for a particular partition class. */
 USTRUCT()
@@ -93,7 +96,8 @@ protected:
 
 	// Transient
 	mutable TUniquePtr<FStaticSpatialIndexType> SpatialIndex;
-	mutable TUniquePtr<FStaticSpatialIndexType> SpatialIndex2D;
+	mutable TUniquePtr<FStaticSpatialIndexType2D> SpatialIndexForce2D;
+	mutable TUniquePtr<FStaticSpatialIndexType2D> SpatialIndex2D;
 };
 
 template<>

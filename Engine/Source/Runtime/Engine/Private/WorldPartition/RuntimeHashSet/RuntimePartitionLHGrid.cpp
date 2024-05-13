@@ -28,8 +28,8 @@ struct FCellCoord
 
 	static inline int32 GetLevelForBox(const FBox& InBox, int32 InCellSize)
 	{
-		const FVector Extent = InBox.GetExtent();
-		const FVector::FReal MaxLength = Extent.GetMax() * 2.0;
+		const FVector Extent = InBox.GetSize();
+		const FVector::FReal MaxLength = Extent.GetMax();
 		return FMath::CeilToInt32(FMath::Max<FVector::FReal>(FMath::Log2(MaxLength / InCellSize), 0));
 	}
 
@@ -145,14 +145,16 @@ bool URuntimePartitionLHGrid::GenerateStreaming(const FGenerateStreamingParams& 
 	UWorld* World = WorldPartition->GetWorld();
 	UWorld* OuterWorld = GetTypedOuter<UWorld>();
 	const bool bIsMainWorldPartition = (World == OuterWorld);
+	const FVector SpaceMask = FVector(1, 1, bIs2D ? 0 : 1);
 
 	TMap<FCellCoord, TArray<const IStreamingGenerationContext::FActorSetInstance*>> CellsActorSetInstances;
 	for (const IStreamingGenerationContext::FActorSetInstance* ActorSetInstance : *InParams.ActorSetInstances)
 	{
 		if (ActorSetInstance->bIsSpatiallyLoaded)
 		{
-			const int32 GridLevel = FCellCoord::GetLevelForBox(ActorSetInstance->Bounds, CellSize);
-			const FCellCoord CellCoord = FCellCoord::GetCellCoords(ActorSetInstance->Bounds.GetCenter(), CellSize, GridLevel, Origin);
+			const FBox ActorSetInstanceBounds = FBox(ActorSetInstance->Bounds.Min * SpaceMask, ActorSetInstance->Bounds.Max * SpaceMask);
+			const int32 GridLevel = FCellCoord::GetLevelForBox(ActorSetInstanceBounds, CellSize);
+			const FCellCoord CellCoord = FCellCoord::GetCellCoords(ActorSetInstanceBounds.GetCenter(), CellSize, GridLevel, Origin * SpaceMask);
 			CellsActorSetInstances.FindOrAdd(CellCoord).Add(ActorSetInstance);
 		}
 		else
@@ -169,8 +171,8 @@ bool URuntimePartitionLHGrid::GenerateStreaming(const FGenerateStreamingParams& 
 
 		if (bIsSpatiallyLoaded)
 		{
-			CellDesc.CellBounds = FCellCoord::GetCellBounds(CellCoord, CellSize, Origin);
-			CellDesc.Bounds = CellDesc.CellBounds.GetValue();
+			CellDesc.CellBounds = FCellCoord::GetCellBounds(CellCoord, CellSize, Origin * SpaceMask);
+			CellDesc.bIs2D = bIs2D;
 		}
 	}
 

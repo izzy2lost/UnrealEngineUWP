@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "WorldPartition/RuntimeHashSet/WorldPartitionRuntimeHashSet.h"
+#include "WorldPartition/RuntimeHashSet/WorldPartitionRuntimeCellDataHashSet.h"
 #include "WorldPartition/RuntimeHashSet/RuntimePartition.h"
 #include "WorldPartition/RuntimeHashSet/RuntimePartitionLHGrid.h"
 #include "WorldPartition/RuntimeHashSet/RuntimePartitionPersistent.h"
@@ -20,27 +21,62 @@ void FRuntimePartitionStreamingData::CreatePartitionsSpatialIndex() const
 {
 	if (!SpatialIndex)
 	{
-		SpatialIndex = MakeUnique<FStaticSpatialIndexType>();
-		{
-			TArray<TPair<FBox, TObjectPtr<UWorldPartitionRuntimeCell>>> PartitionsElements;
-			Algo::Transform(SpatiallyLoadedCells, PartitionsElements, [](UWorldPartitionRuntimeCell* Cell)
-			{
-				return TPair<FBox, TObjectPtr<UWorldPartitionRuntimeCell>>(Cell->GetStreamingBounds(), Cell);
-			});
-			SpatialIndex->Init(MoveTemp(PartitionsElements));
-		}
+		TArray<UWorldPartitionRuntimeCell*> SpatiallyLoadedCells3D;
+		TArray<UWorldPartitionRuntimeCell*> SpatiallyLoadedCells2D;
 		
-		SpatialIndex2D = MakeUnique<FStaticSpatialIndexType>();
+		SpatiallyLoadedCells3D.Reserve(SpatiallyLoadedCells.Num());		
+		SpatiallyLoadedCells2D.Reserve(SpatiallyLoadedCells.Num());
+
+		for (UWorldPartitionRuntimeCell* Cell : SpatiallyLoadedCells)
 		{
-			TArray<TPair<FBox, TObjectPtr<UWorldPartitionRuntimeCell>>> PartitionsElements;
-			Algo::Transform(SpatiallyLoadedCells, PartitionsElements, [](UWorldPartitionRuntimeCell* Cell)
+			if (CastChecked<UWorldPartitionRuntimeCellDataHashSet>(Cell->RuntimeCellData)->bIs2D)
 			{
-				FBox CellBounds = Cell->GetStreamingBounds();
-				CellBounds.Min.Z = -HALF_WORLD_MAX;
-				CellBounds.Max.Z = HALF_WORLD_MAX;
-				return TPair<FBox, TObjectPtr<UWorldPartitionRuntimeCell>>(CellBounds, Cell);
-			});
-			SpatialIndex2D->Init(MoveTemp(PartitionsElements));
+				SpatiallyLoadedCells2D.Add(Cell);
+			}
+			else
+			{
+				SpatiallyLoadedCells3D.Add(Cell);
+			}
+		}
+
+		if (SpatiallyLoadedCells3D.Num())
+		{
+			SpatialIndex = MakeUnique<FStaticSpatialIndexType>();
+			{
+				TArray<TPair<FBox, TObjectPtr<UWorldPartitionRuntimeCell>>> PartitionsElements;
+				Algo::Transform(SpatiallyLoadedCells3D, PartitionsElements, [](UWorldPartitionRuntimeCell* Cell)
+				{
+					return TPair<FBox, TObjectPtr<UWorldPartitionRuntimeCell>>(Cell->GetStreamingBounds(), Cell);
+				});
+				SpatialIndex->Init(MoveTemp(PartitionsElements));
+			}
+		
+			SpatialIndexForce2D = MakeUnique<FStaticSpatialIndexType2D>();
+			{
+				TArray<TPair<FBox2D, TObjectPtr<UWorldPartitionRuntimeCell>>> PartitionsElements;
+				Algo::Transform(SpatiallyLoadedCells3D, PartitionsElements, [](UWorldPartitionRuntimeCell* Cell)
+				{
+					const FBox CellBounds = Cell->GetStreamingBounds();
+					const FBox2D CellBounds2D = FBox2D(FVector2D(CellBounds.Min), FVector2D(CellBounds.Max));
+					return TPair<FBox2D, TObjectPtr<UWorldPartitionRuntimeCell>>(CellBounds2D, Cell);
+				});
+				SpatialIndexForce2D->Init(MoveTemp(PartitionsElements));
+			}
+		}
+
+		if (SpatiallyLoadedCells2D.Num())
+		{
+			SpatialIndex2D = MakeUnique<FStaticSpatialIndexType2D>();
+			{
+				TArray<TPair<FBox2D, TObjectPtr<UWorldPartitionRuntimeCell>>> PartitionsElements;
+				Algo::Transform(SpatiallyLoadedCells2D, PartitionsElements, [](UWorldPartitionRuntimeCell* Cell)
+				{
+					const FBox CellBounds = Cell->GetStreamingBounds();
+					const FBox2D CellBounds2D = FBox2D(FVector2D(CellBounds.Min), FVector2D(CellBounds.Max));
+					return TPair<FBox2D, TObjectPtr<UWorldPartitionRuntimeCell>>(CellBounds2D, Cell);
+				});
+				SpatialIndex2D->Init(MoveTemp(PartitionsElements));
+			}
 		}
 	}
 }
@@ -48,6 +84,7 @@ void FRuntimePartitionStreamingData::CreatePartitionsSpatialIndex() const
 void FRuntimePartitionStreamingData::DestroyPartitionsSpatialIndex() const
 {
 	SpatialIndex.Reset();
+	SpatialIndexForce2D.Reset();
 	SpatialIndex2D.Reset();
 }
 
@@ -90,6 +127,11 @@ void URuntimeHashSetExternalStreamingObject::AddReferencedObjects(UObject* InThi
 			StreamingData.SpatialIndex->AddReferencedObjects(Collector);
 		}
 		
+		if (StreamingData.SpatialIndexForce2D.IsValid())
+		{
+			StreamingData.SpatialIndexForce2D->AddReferencedObjects(Collector);
+		}
+
 		if (StreamingData.SpatialIndex2D.IsValid())
 		{
 			StreamingData.SpatialIndex2D->AddReferencedObjects(Collector);
@@ -557,13 +599,21 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FW
 							}
 						};
 
-						if (Source.bForce2D)
+						if (StreamingData->SpatialIndex.IsValid())
+						{
+							if (Source.bForce2D)
+							{
+								StreamingData->SpatialIndexForce2D->ForEachIntersectingElement(ShapeSphere, ForEachIntersectingElementFunc);
+							}
+							else
+							{
+								StreamingData->SpatialIndex->ForEachIntersectingElement(ShapeSphere, ForEachIntersectingElementFunc);
+							}
+						}
+
+						if (StreamingData->SpatialIndex2D.IsValid())
 						{
 							StreamingData->SpatialIndex2D->ForEachIntersectingElement(ShapeSphere, ForEachIntersectingElementFunc);
-						}
-						else
-						{
-							StreamingData->SpatialIndex->ForEachIntersectingElement(ShapeSphere, ForEachIntersectingElementFunc);
 						}
 					});
 				}
@@ -667,7 +717,7 @@ FGuid UWorldPartitionRuntimeHashSet::RegisterWorldAssetStreaming(const UWorldPar
 		const TSoftObjectPtr<UWorld>& WorldAsset = bIsHLODPass ? InParams.WorldAssetHLOD : InParams.WorldAsset;
 
 		if (UWorldPartitionRuntimeLevelStreamingCell* RuntimeCell = Cast<UWorldPartitionRuntimeLevelStreamingCell>(
-			CreateRuntimeCell(UWorldPartitionRuntimeLevelStreamingCell::StaticClass(), UWorldPartitionRuntimeCellData::StaticClass(), CellName, InParams.CellInstanceSuffix, StreamingObject)))
+			CreateRuntimeCell(UWorldPartitionRuntimeLevelStreamingCell::StaticClass(), UWorldPartitionRuntimeCellDataHashSet::StaticClass(), CellName, InParams.CellInstanceSuffix, StreamingObject)))
 		{
 			RuntimeCell->SetClientOnlyVisible(bClientOnlyVisible);
 			RuntimeCell->SetBlockOnSlowLoading(bBlockOnSlowStreaming);
@@ -680,13 +730,14 @@ FGuid UWorldPartitionRuntimeHashSet::RegisterWorldAssetStreaming(const UWorldPar
 				RuntimeCell->SetSourceCellGuid(SourceCellGuid);
 			}
 
-			UWorldPartitionRuntimeCellData* RuntimeCellData = RuntimeCell->RuntimeCellData;
+			UWorldPartitionRuntimeCellDataHashSet* RuntimeCellData = CastChecked<UWorldPartitionRuntimeCellDataHashSet>(RuntimeCell->RuntimeCellData);
 			RuntimeCellData->DebugName = CellName + InParams.CellInstanceSuffix;
 			RuntimeCellData->CellBounds = InParams.Bounds;
 			RuntimeCellData->ContentBounds = InParams.Bounds;
 			RuntimeCellData->HierarchicalLevel = MAX_int32;
 			RuntimeCellData->Priority = InParams.Priority;
 			RuntimeCellData->GridName = TargetGrid;
+			RuntimeCellData->bIs2D = false;
 
 			if (RuntimeCell->CreateAndSetLevelStreaming(WorldAsset, InParams.Transform))
 			{

@@ -5,6 +5,15 @@
 #include "WorldPartition/WorldPartitionStreamingGenerationContext.h"
 #include "RuntimePartition.generated.h"
 
+/** Chooses a method for how to compute streaming cells bounds */
+UENUM()
+enum class ERuntimePartitionCellBoundsMethod : uint8
+{
+	UseContent,
+	UseCellBounds,
+	UseMinContentCellBounds
+};
+
 UCLASS(Abstract, CollapseCategories)
 class URuntimePartition : public UObject
 {
@@ -24,10 +33,10 @@ public:
 	struct FCellDesc
 	{
 		FName Name;
-		FBox Bounds = FBox(ForceInit);
 		bool bIsSpatiallyLoaded;
 		bool bBlockOnSlowStreaming;
 		bool bClientOnlyVisible;
+		bool bIs2D;
 		int32 Priority;
 
 		/** Optional level value that can be used to filter debug display */
@@ -75,13 +84,16 @@ public:
 	FName Name;
 
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "HLODIndex == INDEX_NONE", EditConditionHides, HideEditConditionToggle))
-	bool bBlockOnSlowStreaming;
+	bool bBlockOnSlowStreaming = false;
 
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "HLODIndex == INDEX_NONE", EditConditionHides, HideEditConditionToggle))
 	bool bClientOnlyVisible;
 
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "HLODIndex == INDEX_NONE", EditConditionHides, HideEditConditionToggle))
 	int32 Priority;
+
+	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "HLODIndex == INDEX_NONE", EditConditionHides, HideEditConditionToggle))
+	ERuntimePartitionCellBoundsMethod BoundsMethod;
 
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
 	int32 LoadingRange;

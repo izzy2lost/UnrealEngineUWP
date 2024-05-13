@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "WorldPartition/RuntimeHashSet/WorldPartitionRuntimeHashSet.h"
+#include "WorldPartition/RuntimeHashSet/WorldPartitionRuntimeCellDataHashSet.h"
 #include "WorldPartition/RuntimeHashSet/RuntimePartition.h"
 #include "WorldPartition/RuntimeHashSet/RuntimePartitionPersistent.h"
 #include "WorldPartition/ContentBundle/ContentBundleDescriptor.h"
@@ -144,7 +145,7 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 	//
 
 	// Generate runtime cells
-	auto CreateRuntimeCellFromCellDesc = [this](const URuntimePartition::FCellDescInstance& CellDescInstance, TSubclassOf<UWorldPartitionRuntimeCell> CellClass, TSubclassOf<UWorldPartitionRuntimeCellData> CellDataClass)
+	auto CreateRuntimeCellFromCellDesc = [this](const URuntimePartition::FCellDescInstance& CellDescInstance, TSubclassOf<UWorldPartitionRuntimeCell> CellClass, TSubclassOf<UWorldPartitionRuntimeCellDataHashSet> CellDataClass)
 	{
 		const FCellUniqueId CellUniqueId = GetCellUniqueId(CellDescInstance);
 
@@ -160,12 +161,13 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 		RuntimeCell->SetGuid(CellUniqueId.Guid);
 		RuntimeCell->SetCellDebugColor(CellDescInstance.SourcePartition->DebugColor);
 
-		UWorldPartitionRuntimeCellData* RuntimeCellData = RuntimeCell->RuntimeCellData;
+		UWorldPartitionRuntimeCellDataHashSet* RuntimeCellData = CastChecked<UWorldPartitionRuntimeCellDataHashSet>(RuntimeCell->RuntimeCellData);
 		RuntimeCellData->DebugName = CellUniqueId.Name;
 		RuntimeCellData->CellBounds = CellDescInstance.CellBounds;
 		RuntimeCellData->HierarchicalLevel = CellDescInstance.bIsSpatiallyLoaded ? CellDescInstance.Level : MAX_int32;
 		RuntimeCellData->Priority = CellDescInstance.Priority;
 		RuntimeCellData->GridName = CellDescInstance.SourcePartition->Name;
+		RuntimeCellData->bIs2D = CellDescInstance.bIs2D;
 
 		return RuntimeCell;
 	};
@@ -181,14 +183,24 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 			TArray<IStreamingGenerationContext::FActorInstance> CellActorInstances;
 			if (PopulateCellActorInstances(CellDescInstance.ActorSetInstances, bIsMainWorldPartition, bIsCellAlwaysLoaded, CellActorInstances))
 			{
-				UWorldPartitionRuntimeCell* RuntimeCell = RuntimeCells.Emplace_GetRef(CreateRuntimeCellFromCellDesc(CellDescInstance, StreamingPolicy->GetRuntimeCellClass(), UWorldPartitionRuntimeCellData::StaticClass()));
+				UWorldPartitionRuntimeCell* RuntimeCell = RuntimeCells.Emplace_GetRef(CreateRuntimeCellFromCellDesc(CellDescInstance, StreamingPolicy->GetRuntimeCellClass(), UWorldPartitionRuntimeCellDataHashSet::StaticClass()));
 				RuntimeCell->SetIsAlwaysLoaded(bIsCellAlwaysLoaded);
 				PopulateRuntimeCell(RuntimeCell, CellActorInstances, OutPackagesToGenerate);
 
-				// Override the cell bounds if the runtime partition provided one
-				if (CellDescInstance.Bounds.IsValid)
+				if (CellDescInstance.CellBounds.IsSet())
 				{
-					RuntimeCell->RuntimeCellData->ContentBounds = CellDescInstance.Bounds;
+					switch (CellDescInstance.SourcePartition->BoundsMethod)
+					{
+					case ERuntimePartitionCellBoundsMethod::UseCellBounds:
+						RuntimeCell->RuntimeCellData->ContentBounds = CellDescInstance.CellBounds.GetValue();
+						break;
+					case ERuntimePartitionCellBoundsMethod::UseMinContentCellBounds:
+						if (RuntimeCell->RuntimeCellData->ContentBounds.IsValid)
+						{
+							RuntimeCell->RuntimeCellData->ContentBounds = RuntimeCell->RuntimeCellData->ContentBounds.Overlap(CellDescInstance.CellBounds.GetValue());
+						}
+						break;
+					}
 				}
 
 				// Create partition streaming data

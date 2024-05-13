@@ -204,12 +204,13 @@ bool UWorldPartitionRuntimeHashSet::SetupHLODActors(const IStreamingGenerationCo
 
 				UE_LOG(LogWorldPartition, Display, TEXT("[%d / %d] Processing cell %s..."), ++CellDescInstanceIndex, CellDescInstances.Num(), *CellUniqueId.Name);
 
+				FBox CellBounds;
 				TArray<IStreamingGenerationContext::FActorInstance> ActorInstances;
 				for (const IStreamingGenerationContext::FActorSetInstance* ActorSetInstance : CellDescInstance.ActorSetInstances)
 				{
-					ActorSetInstance->ForEachActor([this, ActorSetInstance, &ActorInstances](const FGuid& ActorGuid)
+					ActorSetInstance->ForEachActor([this, ActorSetInstance, &ActorInstances, &CellBounds](const FGuid& ActorGuid)
 					{
-						ActorInstances.Emplace(ActorGuid, ActorSetInstance);
+						CellBounds += ActorInstances.Emplace_GetRef(ActorGuid, ActorSetInstance).GetBounds();
 					});
 				}
 
@@ -224,12 +225,12 @@ bool UWorldPartitionRuntimeHashSet::SetupHLODActors(const IStreamingGenerationCo
 				{
 					MainPartitionTokens[0] = RuntimePartitions[0].Name;
 				}
-					
+
 				FHLODCreationParams HLODCreationParams;
 				HLODCreationParams.WorldPartition = WorldPartition;
 				HLODCreationParams.CellName = CellUniqueId.Name;
-				HLODCreationParams.CellGuid = CellUniqueId.Guid;			
-				HLODCreationParams.CellBounds = CellDescInstance.Bounds;
+				HLODCreationParams.CellGuid = CellUniqueId.Guid;
+				HLODCreationParams.CellBounds = CellBounds;
 				HLODCreationParams.GetRuntimeGrid = [&MainPartitionTokens](const UHLODLayer* InHLODLayer) { return FName(*FString::Printf(TEXT("%s:%s"), *FString::JoinBy(MainPartitionTokens, TEXT("."), [](const FName Token) { return Token.ToString(); }), *InHLODLayer->GetName())); };
 				HLODCreationParams.HLODLevel = HLODLevel;
 				HLODCreationParams.MinVisibleDistance = RuntimePartition->LoadingRange;

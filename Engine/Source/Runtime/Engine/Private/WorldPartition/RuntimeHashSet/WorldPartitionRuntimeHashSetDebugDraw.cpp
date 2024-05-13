@@ -120,16 +120,26 @@ bool UWorldPartitionRuntimeHashSet::Draw2D(FWorldPartitionDraw2DContext& DrawCon
 		};
 
 		TArray<const UWorldPartitionRuntimeCell*> FilteredCells;
-		const FBox Region3D(FVector(Region.Min.X, Region.Min.Y, -HALF_WORLD_MAX), FVector(Region.Max.X, Region.Max.Y, HALF_WORLD_MAX));		
-		StreamingData->SpatialIndex->ForEachIntersectingElement(Region3D, [&FilteredCells](UWorldPartitionRuntimeCell* Cell)
+		const FBox Region3D(FVector(Region.Min.X, Region.Min.Y, -HALF_WORLD_MAX), FVector(Region.Max.X, Region.Max.Y, HALF_WORLD_MAX));
+
+		auto FilterCell = [&FilteredCells](UWorldPartitionRuntimeCell* Cell)
 		{
 			UWorldPartitionRuntimeCellData* RuntimeCellData = Cell->RuntimeCellData;
-
 			if ((RuntimeCellData->HierarchicalLevel >= GShowRuntimeHashSetDebugDisplayLevel) && (RuntimeCellData->HierarchicalLevel < (GShowRuntimeHashSetDebugDisplayLevel + GShowRuntimeHashSetDebugDisplayLevelCount)))
 			{
 				FilteredCells.Add(Cell);
 			}
-		});
+		};
+		
+		if (StreamingData->SpatialIndex.IsValid())
+		{
+			StreamingData->SpatialIndex->ForEachIntersectingElement(Region3D, FilterCell);
+		}
+
+		if (StreamingData->SpatialIndex2D.IsValid())
+		{
+			StreamingData->SpatialIndex2D->ForEachIntersectingElement(Region2D, FilterCell);
+		}
 
 		if (FilteredCells.Num())
 		{

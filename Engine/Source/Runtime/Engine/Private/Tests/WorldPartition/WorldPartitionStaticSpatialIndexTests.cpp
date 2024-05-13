@@ -16,8 +16,21 @@ namespace WorldPartitionTests
 	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWorldPartitionStaticSpatialIndexTest, TEST_NAME_ROOT ".StaticSpatialIndex", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 #if WITH_EDITOR
-	template <class Class>
-	void PerformTests(FWorldPartitionStaticSpatialIndexTest* Test, const TCHAR* Name, const TArray<TPair<FBox, int32>>& Elements, const TArray<FSphere>& Tests, TArray<int32>& Results)
+	template <typename BoxType>
+	const TCHAR* GetSpaceString()
+	{
+		if constexpr (std::is_same<BoxType, FBox2D>::value)
+		{
+			return TEXT("2d");
+		}
+		else
+		{
+			return TEXT("3d");
+		}
+	}
+
+	template <typename Profile, class Class>
+	FORCENOINLINE void PerformTests(FWorldPartitionStaticSpatialIndexTest* Test, const TCHAR* Name, const TArray<TPair<typename Profile::FBox, int32>>& Elements, const TArray<FSphere>& Tests, TArray<int32>& Results)
 	{
 		Class SpatialIndex;
 		SpatialIndex.Init(Elements);
@@ -32,103 +45,126 @@ namespace WorldPartitionTests
 		}
 
 		const double RunTime = FPlatformTime::Seconds() - StartTime;
-		Test->AddInfo(FString::Printf(TEXT("%s: %d tests in %s (%.2f/s, %s)"), Name, Tests.Num(), *FPlatformTime::PrettyTime(RunTime), Tests.Num() / RunTime, *FGenericPlatformMemory::PrettyMemory(SpatialIndex.GetAllocatedSize())));
+		Test->AddInfo(FString::Printf(TEXT("%s(%s): %d tests in %s (%.2f/s, %s)"), Name, GetSpaceString<typename Profile::FBox>(), Tests.Num(), *FPlatformTime::PrettyTime(RunTime), Tests.Num() / RunTime, *FGenericPlatformMemory::PrettyMemory(SpatialIndex.GetAllocatedSize())));
 	}
 
-
-	template <int32 MaxNumElementsPerNode, int32 MaxNumElementsPerLeaf>
-	void PerformMinXTest(FWorldPartitionStaticSpatialIndexTest* Test, const TArray<TPair<FBox, int32>>& Elements, const TArray<FSphere>& Tests, const TArray<int32>& ReferenceResults)
+	template <typename Profile, int32 MaxNumElementsPerNode, int32 MaxNumElementsPerLeaf>
+	FORCENOINLINE void PerformMinXTest(FWorldPartitionStaticSpatialIndexTest* Test, const TArray<TPair<typename Profile::FBox, int32>>& Elements, const TArray<FSphere>& Tests, const TArray<int32>& ReferenceResults)
 	{
-		TArray<int32> FRTreeMinXResults;
-		FRTreeMinXResults.Reserve(ReferenceResults.Num());
-		FString TestName = FString::Printf(TEXT("TStaticSpatialIndexRTree(minx-%d-%d)"), MaxNumElementsPerNode, MaxNumElementsPerLeaf);
-		PerformTests<TStaticSpatialIndexRTree<int32, FStaticSpatialIndex::FNodeSorterMinX>>(Test, *TestName, Elements, Tests, FRTreeMinXResults);
-		FRTreeMinXResults.Sort();
-		Test->TestTrue(TestName, FRTreeMinXResults == ReferenceResults);
+		TArray<int32> RTreeMinXResults;
+		RTreeMinXResults.Reserve(ReferenceResults.Num());
+		FString TestName = FString::Printf(TEXT("TStaticSpatialIndexRTree(%s-minx-%d-%d)"), GetSpaceString<typename Profile::FBox>(), MaxNumElementsPerNode, MaxNumElementsPerLeaf);
+		PerformTests<Profile, TStaticSpatialIndexRTree<int32, FStaticSpatialIndex::TNodeSorterMinX<Profile>, Profile>>(Test, *TestName, Elements, Tests, RTreeMinXResults);
+		RTreeMinXResults.Sort();
+		Test->TestTrue(TestName, RTreeMinXResults == ReferenceResults);
 	}
 
-	void PerformMinXTests(FWorldPartitionStaticSpatialIndexTest* Test, const TArray<TPair<FBox, int32>>& Elements, const TArray<FSphere>& Tests, const TArray<int32>& ReferenceResults)
+	template <typename Profile>
+	FORCENOINLINE void PerformMinXTests(FWorldPartitionStaticSpatialIndexTest* Test, const TArray<TPair<typename Profile::FBox, int32>>& Elements, const TArray<FSphere>& Tests, const TArray<int32>& ReferenceResults)
 	{
-		PerformMinXTest<16, 16>(Test, Elements, Tests, ReferenceResults);
-		PerformMinXTest<16, 64>(Test, Elements, Tests, ReferenceResults);
-		PerformMinXTest<16, 256>(Test, Elements, Tests, ReferenceResults);
-		PerformMinXTest<16, 1024>(Test, Elements, Tests, ReferenceResults);
-		PerformMinXTest<64, 16>(Test, Elements, Tests, ReferenceResults);
-		PerformMinXTest<64, 64>(Test, Elements, Tests, ReferenceResults);
-		PerformMinXTest<64, 256>(Test, Elements, Tests, ReferenceResults);
-		PerformMinXTest<64, 1024>(Test, Elements, Tests, ReferenceResults);
-		PerformMinXTest<256, 16>(Test, Elements, Tests, ReferenceResults);
-		PerformMinXTest<256, 64>(Test, Elements, Tests, ReferenceResults);
-		PerformMinXTest<256, 256>(Test, Elements, Tests, ReferenceResults);
-		PerformMinXTest<256, 1024>(Test, Elements, Tests, ReferenceResults);
-		PerformMinXTest<1024, 16>(Test, Elements, Tests, ReferenceResults);
-		PerformMinXTest<1024, 64>(Test, Elements, Tests, ReferenceResults);
-		PerformMinXTest<1024, 256>(Test, Elements, Tests, ReferenceResults);
-		PerformMinXTest<1024, 1024>(Test, Elements, Tests, ReferenceResults);
+		PerformMinXTest<Profile, 16, 16>(Test, Elements, Tests, ReferenceResults);
+		PerformMinXTest<Profile, 16, 64>(Test, Elements, Tests, ReferenceResults);
+		PerformMinXTest<Profile, 16, 256>(Test, Elements, Tests, ReferenceResults);
+		PerformMinXTest<Profile, 16, 1024>(Test, Elements, Tests, ReferenceResults);
+		PerformMinXTest<Profile, 64, 16>(Test, Elements, Tests, ReferenceResults);
+		PerformMinXTest<Profile, 64, 64>(Test, Elements, Tests, ReferenceResults);
+		PerformMinXTest<Profile, 64, 256>(Test, Elements, Tests, ReferenceResults);
+		PerformMinXTest<Profile, 64, 1024>(Test, Elements, Tests, ReferenceResults);
+		PerformMinXTest<Profile, 256, 16>(Test, Elements, Tests, ReferenceResults);
+		PerformMinXTest<Profile, 256, 64>(Test, Elements, Tests, ReferenceResults);
+		PerformMinXTest<Profile, 256, 256>(Test, Elements, Tests, ReferenceResults);
+		PerformMinXTest<Profile, 256, 1024>(Test, Elements, Tests, ReferenceResults);
+		PerformMinXTest<Profile, 1024, 16>(Test, Elements, Tests, ReferenceResults);
+		PerformMinXTest<Profile, 1024, 64>(Test, Elements, Tests, ReferenceResults);
+		PerformMinXTest<Profile, 1024, 256>(Test, Elements, Tests, ReferenceResults);
+		PerformMinXTest<Profile, 1024, 1024>(Test, Elements, Tests, ReferenceResults);
 	}
 
-	template <int32 BucketSize, int32 MaxNumElementsPerNode, int32 MaxNumElementsPerLeaf>
-	void PerformMortonTest(FWorldPartitionStaticSpatialIndexTest* Test, const TArray<TPair<FBox, int32>>& Elements, const TArray<FSphere>& Tests, const TArray<int32>& ReferenceResults)
+	template <typename Profile, int32 BucketSize, int32 MaxNumElementsPerNode, int32 MaxNumElementsPerLeaf>
+	FORCENOINLINE void PerformMortonTest(FWorldPartitionStaticSpatialIndexTest* Test, const TArray<TPair<typename Profile::FBox, int32>>& Elements, const TArray<FSphere>& Tests, const TArray<int32>& ReferenceResults)
 	{
-		TArray<int32> FRTreeMortonResults;
-		FRTreeMortonResults.Reserve(ReferenceResults.Num());
-		FString TestName = FString::Printf(TEXT("TStaticSpatialIndexRTree(morton-%dk-%d-%d)"), BucketSize >> 10, MaxNumElementsPerNode, MaxNumElementsPerLeaf);
-		PerformTests<TStaticSpatialIndexRTree<int32, FStaticSpatialIndex::TNodeSorterMorton<BucketSize>>>(Test, *TestName, Elements, Tests, FRTreeMortonResults);
-		FRTreeMortonResults.Sort();
-		Test->TestTrue(TestName, FRTreeMortonResults == ReferenceResults);
+		TArray<int32> RTreeMortonResults;
+		RTreeMortonResults.Reserve(ReferenceResults.Num());
+		FString TestName = FString::Printf(TEXT("TStaticSpatialIndexRTree(%s-morton-%dk-%d-%d)"), GetSpaceString<typename Profile::FBox>(), BucketSize >> 10, MaxNumElementsPerNode, MaxNumElementsPerLeaf);
+		PerformTests<Profile, TStaticSpatialIndexRTree<int32, FStaticSpatialIndex::TNodeSorterMorton<Profile, BucketSize>, Profile>>(Test, *TestName, Elements, Tests, RTreeMortonResults);
+		RTreeMortonResults.Sort();
+		Test->TestTrue(TestName, RTreeMortonResults == ReferenceResults);
 	}
 
-	template <int32 BucketSize>
-	void PerformMortonTests(FWorldPartitionStaticSpatialIndexTest* Test, const TArray<TPair<FBox, int32>>& Elements, const TArray<FSphere>& Tests, const TArray<int32>& ReferenceResults)
+	template <typename Profile, int32 BucketSize>
+	FORCENOINLINE void PerformMortonTests(FWorldPartitionStaticSpatialIndexTest* Test, const TArray<TPair<typename Profile::FBox, int32>>& Elements, const TArray<FSphere>& Tests, const TArray<int32>& ReferenceResults)
 	{
-		PerformMortonTest<BucketSize, 16, 16>(Test, Elements, Tests, ReferenceResults);
-		PerformMortonTest<BucketSize, 16, 64>(Test, Elements, Tests, ReferenceResults);
-		PerformMortonTest<BucketSize, 16, 256>(Test, Elements, Tests, ReferenceResults);
-		PerformMortonTest<BucketSize, 16, 1024>(Test, Elements, Tests, ReferenceResults);
-		PerformMortonTest<BucketSize, 64, 16>(Test, Elements, Tests, ReferenceResults);
-		PerformMortonTest<BucketSize, 64, 64>(Test, Elements, Tests, ReferenceResults);
-		PerformMortonTest<BucketSize, 64, 256>(Test, Elements, Tests, ReferenceResults);
-		PerformMortonTest<BucketSize, 64, 1024>(Test, Elements, Tests, ReferenceResults);
-		PerformMortonTest<BucketSize, 256, 16>(Test, Elements, Tests, ReferenceResults);
-		PerformMortonTest<BucketSize, 256, 64>(Test, Elements, Tests, ReferenceResults);
-		PerformMortonTest<BucketSize, 256, 256>(Test, Elements, Tests, ReferenceResults);
-		PerformMortonTest<BucketSize, 256, 1024>(Test, Elements, Tests, ReferenceResults);
-		PerformMortonTest<BucketSize, 1024, 16>(Test, Elements, Tests, ReferenceResults);
-		PerformMortonTest<BucketSize, 1024, 64>(Test, Elements, Tests, ReferenceResults);
-		PerformMortonTest<BucketSize, 1024, 256>(Test, Elements, Tests, ReferenceResults);
-		PerformMortonTest<BucketSize, 1024, 1024>(Test, Elements, Tests, ReferenceResults);
+		PerformMortonTest<Profile, BucketSize, 16, 16>(Test, Elements, Tests, ReferenceResults);
+		PerformMortonTest<Profile, BucketSize, 16, 64>(Test, Elements, Tests, ReferenceResults);
+		PerformMortonTest<Profile, BucketSize, 16, 256>(Test, Elements, Tests, ReferenceResults);
+		PerformMortonTest<Profile, BucketSize, 16, 1024>(Test, Elements, Tests, ReferenceResults);
+		PerformMortonTest<Profile, BucketSize, 64, 16>(Test, Elements, Tests, ReferenceResults);
+		PerformMortonTest<Profile, BucketSize, 64, 64>(Test, Elements, Tests, ReferenceResults);
+		PerformMortonTest<Profile, BucketSize, 64, 256>(Test, Elements, Tests, ReferenceResults);
+		PerformMortonTest<Profile, BucketSize, 64, 1024>(Test, Elements, Tests, ReferenceResults);
+		PerformMortonTest<Profile, BucketSize, 256, 16>(Test, Elements, Tests, ReferenceResults);
+		PerformMortonTest<Profile, BucketSize, 256, 64>(Test, Elements, Tests, ReferenceResults);
+		PerformMortonTest<Profile, BucketSize, 256, 256>(Test, Elements, Tests, ReferenceResults);
+		PerformMortonTest<Profile, BucketSize, 256, 1024>(Test, Elements, Tests, ReferenceResults);
+		PerformMortonTest<Profile, BucketSize, 1024, 16>(Test, Elements, Tests, ReferenceResults);
+		PerformMortonTest<Profile, BucketSize, 1024, 64>(Test, Elements, Tests, ReferenceResults);
+		PerformMortonTest<Profile, BucketSize, 1024, 256>(Test, Elements, Tests, ReferenceResults);
+		PerformMortonTest<Profile, BucketSize, 1024, 1024>(Test, Elements, Tests, ReferenceResults);
 	}
 
-	template <int32 BucketSize, int32 MaxNumElementsPerNode, int32 MaxNumElementsPerLeaf>
-	void PerformHilbertTest(FWorldPartitionStaticSpatialIndexTest* Test, const TArray<TPair<FBox, int32>>& Elements, const TArray<FSphere>& Tests, const TArray<int32>& ReferenceResults)
+	template <typename Profile, int32 BucketSize, int32 MaxNumElementsPerNode, int32 MaxNumElementsPerLeaf>
+	FORCENOINLINE void PerformHilbertTest(FWorldPartitionStaticSpatialIndexTest* Test, const TArray<TPair<typename Profile::FBox, int32>>& Elements, const TArray<FSphere>& Tests, const TArray<int32>& ReferenceResults)
 	{
-		TArray<int32> FRTreeHilbertResults;
-		FRTreeHilbertResults.Reserve(ReferenceResults.Num());
-		FString TestName = FString::Printf(TEXT("TStaticSpatialIndexRTree(hilbert-%dk-%d-%d)"), BucketSize >> 10, MaxNumElementsPerNode, MaxNumElementsPerLeaf);
-		PerformTests<TStaticSpatialIndexRTree<int32, FStaticSpatialIndex::TNodeSorterHilbert<BucketSize>>>(Test, *TestName, Elements, Tests, FRTreeHilbertResults);
-		FRTreeHilbertResults.Sort();
-		Test->TestTrue(TestName, FRTreeHilbertResults == ReferenceResults);
+		TArray<int32> RTreeHilbertResults;
+		RTreeHilbertResults.Reserve(ReferenceResults.Num());
+		FString TestName = FString::Printf(TEXT("TStaticSpatialIndexRTree(%s-hilbert-%dk-%d-%d)"), GetSpaceString<typename Profile::FBox>(), BucketSize >> 10, MaxNumElementsPerNode, MaxNumElementsPerLeaf);
+		PerformTests<Profile, TStaticSpatialIndexRTree<int32, FStaticSpatialIndex::TNodeSorterHilbert<Profile, BucketSize>, Profile>>(Test, *TestName, Elements, Tests, RTreeHilbertResults);
+		RTreeHilbertResults.Sort();
+		Test->TestTrue(TestName, RTreeHilbertResults == ReferenceResults);
 	}
 
-	template <int32 BucketSize>
-	void PerformHilbertTests(FWorldPartitionStaticSpatialIndexTest* Test, const TArray<TPair<FBox, int32>>& Elements, const TArray<FSphere>& Tests, const TArray<int32>& ReferenceResults)
+	template <typename Profile, int32 BucketSize>
+	FORCENOINLINE void PerformHilbertTests(FWorldPartitionStaticSpatialIndexTest* Test, const TArray<TPair<typename Profile::FBox, int32>>& Elements, const TArray<FSphere>& Tests, const TArray<int32>& ReferenceResults)
 	{
-		PerformHilbertTest<BucketSize, 16, 16>(Test, Elements, Tests, ReferenceResults);
-		PerformHilbertTest<BucketSize, 16, 64>(Test, Elements, Tests, ReferenceResults);
-		PerformHilbertTest<BucketSize, 16, 256>(Test, Elements, Tests, ReferenceResults);
-		PerformHilbertTest<BucketSize, 16, 1024>(Test, Elements, Tests, ReferenceResults);
-		PerformHilbertTest<BucketSize, 64, 16>(Test, Elements, Tests, ReferenceResults);
-		PerformHilbertTest<BucketSize, 64, 64>(Test, Elements, Tests, ReferenceResults);
-		PerformHilbertTest<BucketSize, 64, 256>(Test, Elements, Tests, ReferenceResults);
-		PerformHilbertTest<BucketSize, 64, 1024>(Test, Elements, Tests, ReferenceResults);
-		PerformHilbertTest<BucketSize, 256, 16>(Test, Elements, Tests, ReferenceResults);
-		PerformHilbertTest<BucketSize, 256, 64>(Test, Elements, Tests, ReferenceResults);
-		PerformHilbertTest<BucketSize, 256, 256>(Test, Elements, Tests, ReferenceResults);
-		PerformHilbertTest<BucketSize, 256, 1024>(Test, Elements, Tests, ReferenceResults);
-		PerformHilbertTest<BucketSize, 1024, 16>(Test, Elements, Tests, ReferenceResults);
-		PerformHilbertTest<BucketSize, 1024, 64>(Test, Elements, Tests, ReferenceResults);
-		PerformHilbertTest<BucketSize, 1024, 256>(Test, Elements, Tests, ReferenceResults);
-		PerformHilbertTest<BucketSize, 1024, 1024>(Test, Elements, Tests, ReferenceResults);
+		PerformHilbertTest<Profile, BucketSize, 16, 16>(Test, Elements, Tests, ReferenceResults);
+		PerformHilbertTest<Profile, BucketSize, 16, 64>(Test, Elements, Tests, ReferenceResults);
+		PerformHilbertTest<Profile, BucketSize, 16, 256>(Test, Elements, Tests, ReferenceResults);
+		PerformHilbertTest<Profile, BucketSize, 16, 1024>(Test, Elements, Tests, ReferenceResults);
+		PerformHilbertTest<Profile, BucketSize, 64, 16>(Test, Elements, Tests, ReferenceResults);
+		PerformHilbertTest<Profile, BucketSize, 64, 64>(Test, Elements, Tests, ReferenceResults);
+		PerformHilbertTest<Profile, BucketSize, 64, 256>(Test, Elements, Tests, ReferenceResults);
+		PerformHilbertTest<Profile, BucketSize, 64, 1024>(Test, Elements, Tests, ReferenceResults);
+		PerformHilbertTest<Profile, BucketSize, 256, 16>(Test, Elements, Tests, ReferenceResults);
+		PerformHilbertTest<Profile, BucketSize, 256, 64>(Test, Elements, Tests, ReferenceResults);
+		PerformHilbertTest<Profile, BucketSize, 256, 256>(Test, Elements, Tests, ReferenceResults);
+		PerformHilbertTest<Profile, BucketSize, 256, 1024>(Test, Elements, Tests, ReferenceResults);
+		PerformHilbertTest<Profile, BucketSize, 1024, 16>(Test, Elements, Tests, ReferenceResults);
+		PerformHilbertTest<Profile, BucketSize, 1024, 64>(Test, Elements, Tests, ReferenceResults);
+		PerformHilbertTest<Profile, BucketSize, 1024, 256>(Test, Elements, Tests, ReferenceResults);
+		PerformHilbertTest<Profile, BucketSize, 1024, 1024>(Test, Elements, Tests, ReferenceResults);
+	}
+
+	template <typename Profile>
+	FORCENOINLINE void PerformTests(FWorldPartitionStaticSpatialIndexTest* Test, const TArray<TPair<typename Profile::FBox, int32>>& Elements, const TArray<FSphere>& Tests)
+	{
+		TArray<int32> ListResults;
+		PerformTests<Profile, TStaticSpatialIndexList<int32, FStaticSpatialIndex::TNodeSorterNoSort<Profile>, Profile>>(Test, TEXT("TStaticSpatialIndexList"), Elements, Tests, ListResults);
+		ListResults.Sort();
+
+		PerformMinXTests<Profile>(Test, Elements, Tests, ListResults);
+		PerformMinXTests<Profile>(Test, Elements, Tests, ListResults);
+		PerformMinXTests<Profile>(Test, Elements, Tests, ListResults);
+		PerformMinXTests<Profile>(Test, Elements, Tests, ListResults);
+
+		PerformMortonTests<Profile, 4096>(Test, Elements, Tests, ListResults);
+		PerformMortonTests<Profile, 16384>(Test, Elements, Tests, ListResults);
+		PerformMortonTests<Profile, 65536>(Test, Elements, Tests, ListResults);
+		PerformMortonTests<Profile, 262144>(Test, Elements, Tests, ListResults);
+
+		PerformHilbertTests<Profile, 4096>(Test, Elements, Tests, ListResults);
+		PerformHilbertTests<Profile, 16384>(Test, Elements, Tests, ListResults);
+		PerformHilbertTests<Profile, 65536>(Test, Elements, Tests, ListResults);
+		PerformHilbertTests<Profile, 262144>(Test, Elements, Tests, ListResults);
 	}
 #endif
 
@@ -139,11 +175,15 @@ namespace WorldPartitionTests
 		const int32 NumTests = 10000;
 
 		TArray<TPair<FBox, int32>> Elements;
+		TArray<TPair<FBox2D, int32>> Elements2D;
 		Elements.Reserve(NumBoxes);
+		Elements2D.Reserve(NumBoxes);
 		for (int32 i=0; i<NumBoxes; i++)
 		{
 			const FSphere Sphere(FMath::VRand() * 10000000, FMath::RandRange(1, 100000));
-			Elements.Emplace(FBoxSphereBounds(Sphere).GetBox(), i);
+			const FBox ElementBox(FBoxSphereBounds(Sphere).GetBox());
+			Elements.Emplace(ElementBox, i);
+			Elements2D.Emplace(FBox2D(FVector2D(ElementBox.Min), FVector2D(ElementBox.Max)), i);
 		}
 
 		TArray<FSphere> Tests;
@@ -154,24 +194,8 @@ namespace WorldPartitionTests
 			Tests.Add(Sphere);
 		}
 
-		TArray<int32> ListResults;
-		PerformTests<TStaticSpatialIndexList<int32, FStaticSpatialIndex::FNodeSorterNoSort>>(this, TEXT("TStaticSpatialIndexList"), Elements, Tests, ListResults);
-		ListResults.Sort();
-
-		PerformMinXTests(this, Elements, Tests, ListResults);
-		PerformMinXTests(this, Elements, Tests, ListResults);
-		PerformMinXTests(this, Elements, Tests, ListResults);
-		PerformMinXTests(this, Elements, Tests, ListResults);
-
-		PerformMortonTests<4096>(this, Elements, Tests, ListResults);
-		PerformMortonTests<16384>(this, Elements, Tests, ListResults);
-		PerformMortonTests<65536>(this, Elements, Tests, ListResults);
-		PerformMortonTests<262144>(this, Elements, Tests, ListResults);
-
-		PerformHilbertTests<4096>(this, Elements, Tests, ListResults);
-		PerformHilbertTests<16384>(this, Elements, Tests, ListResults);
-		PerformHilbertTests<65536>(this, Elements, Tests, ListResults);
-		PerformHilbertTests<262144>(this, Elements, Tests, ListResults);
+		PerformTests<FStaticSpatialIndex::FSpatialIndexProfile3D>(this, Elements, Tests);
+		PerformTests<FStaticSpatialIndex::FSpatialIndexProfile2D>(this, Elements2D, Tests);
 #endif
 		return true;
 	}

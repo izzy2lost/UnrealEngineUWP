@@ -69,6 +69,7 @@ UWorldPartitionRuntimeHashSet* UWorldPartitionRuntimeHashSet::CreateFrom(const U
 				LHGrid->Name = RuntimePartitionDesc.Name;
 				LHGrid->CellSize = Grid.CellSize;
 				LHGrid->Origin = bUseAlignedGridLevels ? FVector::ZeroVector : FVector(LHGrid->CellSize * -0.5f);
+				LHGrid->bIs2D = true;
 				LHGrid->bBlockOnSlowStreaming = Grid.bBlockOnSlowStreaming;
 				LHGrid->bClientOnlyVisible = Grid.bClientOnlyVisible;
 				LHGrid->Priority = Grid.Priority;
@@ -91,6 +92,7 @@ UWorldPartitionRuntimeHashSet* UWorldPartitionRuntimeHashSet::CreateFrom(const U
 						URuntimePartitionLHGrid* HLODLHGrid = NewObject<URuntimePartitionLHGrid>(HashSet, NAME_None);
 						HLODLHGrid->CellSize = HLODSetup.HLODLayers[0]->GetCellSize();
 						HLODLHGrid->Origin = bUseAlignedGridLevels ? FVector::ZeroVector : FVector(HLODLHGrid->CellSize * -0.5f);
+						HLODLHGrid->bIs2D = true;
 						HLODLHGrid->LoadingRange = HLODSetup.HLODLayers[0]->GetLoadingRange();
 						HLODSetup.PartitionLayer = HLODLHGrid;
 					}

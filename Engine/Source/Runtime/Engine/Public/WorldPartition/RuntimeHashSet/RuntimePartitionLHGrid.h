@@ -41,6 +41,9 @@ private:
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
 	FVector Origin = FVector::ZeroVector;
 
+	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
+	bool bIs2D = false;
+
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Transient, SkipSerialization)
 	bool bShowGridPreview = false;
 #endif
