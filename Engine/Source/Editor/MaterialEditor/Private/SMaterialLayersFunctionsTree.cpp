@@ -901,6 +901,10 @@ void SMaterialLayersFunctionsInstanceTreeItem::Construct(const FArguments& InArg
 					]
 				];
 			}
+			else
+			{
+				Row.ToolTip(FMaterialPropertyHelpers::GetParameterExpressionDescription(StackParameterData->Parameter, MaterialEditorInstance));
+			}
 
 			bisPaddedProperty = true;
 		}
@@ -2456,6 +2460,10 @@ void SMaterialLayersFunctionsMaterialTreeItem::Construct(const FArguments& InArg
 						.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
 					]
 				];
+			}
+			else
+			{
+				Row.ToolTip(FMaterialPropertyHelpers::GetParameterExpressionDescription(StackParameterData->Parameter, MaterialEditorInstance));
 			}
 		}
 
