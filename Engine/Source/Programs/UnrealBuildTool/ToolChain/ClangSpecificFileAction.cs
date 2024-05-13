@@ -49,19 +49,11 @@ namespace UnrealBuildTool
 		public IExternalAction? CreateAction(FileItem SourceFile, ILogger Logger)
 		{
 			string DummyName = "SingleFile.cpp";
-			string UniqueDummyName = $"SingleFile{SingleFileCounter}.cpp";
+			string UniqueDummyName = $"SingleFile{SingleFileCounter}{SourceFile.Location.GetExtension()}";
 			++SingleFileCounter;
 
 			int FileNameIndex = CommandArguments.IndexOf(DummyName);
 			string DummyPath = CommandArguments.Substring(2, FileNameIndex + DummyName.Length - 2);
-
-			if (SourceFile.HasExtension(".h"))
-			{
-				FileItem DummyFile = FileItem.GetItemByFileReference(FileReference.Combine(OutputDir, "SingleFile", SourceFile.Name));
-				Directory.CreateDirectory(DummyFile.Directory.FullName);
-				File.WriteAllText(DummyFile.FullName, $"#include \"{SourceFile.FullName.Replace('\\', '/')}\"");
-				SourceFile = DummyFile;
-			}
 
 			List<string> NewRspLines = new();
 			foreach (string L in RspLines)
@@ -80,6 +72,12 @@ namespace UnrealBuildTool
 					Line = Line.Replace(DummyPath, SourceFile.FullName.Replace('\\', '/'));
 				}
 				NewRspLines.Add(Line);
+			}
+
+			if (SourceFile.HasExtension(".h"))
+			{
+				NewRspLines.Add("-DSUPPRESS_MONOLITHIC_HEADER_WARNINGS=0");
+				ClangWarnings.GetHeaderDisabledWarnings(NewRspLines);
 			}
 
 			Action Action = new Action(this);

@@ -160,6 +160,14 @@ namespace UnrealBuildTool
 			}
 		}
 
+		internal static void GetHeaderDisabledWarnings(List<string> Arguments)
+		{
+			// This warning was to catch #pragma once inside a source file.
+			// If we're compiling a header directly, we should always have the pragma once, so we need to ignore this warning.
+			Arguments.Add("-Wno-pragma-once-outside-header");
+			Arguments.Add("-Wno-#pragma-messages");
+		}
+
 		// Additional disabled warnings for msvc. Everything below should be checked if it is necessary
 		internal static void GetVCDisabledWarnings(List<string> Arguments)
 		{

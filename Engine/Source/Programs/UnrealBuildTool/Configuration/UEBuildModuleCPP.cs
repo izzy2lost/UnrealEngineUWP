@@ -429,19 +429,19 @@ namespace UnrealBuildTool
 				MinFilesUsingPrecompiledHeader = 1;
 			}
 
-			// Set up the environment with which to compile the CPP files
-			CppCompileEnvironment CompileEnvironment = ModuleCompileEnvironment;
-
 			// Generate ISPC headers first so C++ can consume them
 			if (InputFiles.ISPCFiles.Count > 0)
 			{
 				CreateHeadersForISPC(ToolChain, ModuleCompileEnvironment, InputFiles.ISPCFiles, IntermediateDirectory, Graph);
 			}
 
+			// Set up the environment with which to compile the CPP files
+			CppCompileEnvironment CompileEnvironment = new(ModuleCompileEnvironment);
+
 			// Compile any module interfaces
 			if (InputFiles.IXXFiles.Count > 0 && Target.bEnableCppModules)
 			{
-				CppCompileEnvironment IxxCompileEnvironment = CompileEnvironment;
+				CppCompileEnvironment IxxCompileEnvironment = new(ModuleCompileEnvironment);
 
 				// Write all the definitions to a separate file for the ixx compile
 				CreateHeaderForDefinitions(IxxCompileEnvironment, IntermediateDirectory, "ixx", Graph);
@@ -817,8 +817,19 @@ namespace UnrealBuildTool
 				List<FileItem> HeaderFileItems = GetCompilableHeaders(InputFiles, CompileEnvironment);
 				if (HeaderFileItems.Count > 0)
 				{
-					// Add the compile actions
-					LinkInputFiles.AddRange(ToolChain.CompileAllCPPFiles(CompileEnvironment, HeaderFileItems, IntermediateDirectory, Name, Graph).ObjectFiles);
+					CppCompileEnvironment HeaderCompileEnvironment = new CppCompileEnvironment(ModuleCompileEnvironment);
+					DirectoryReference HeaderIntermediateDirectory = DirectoryReference.Combine(IntermediateDirectory, "H");
+					HeaderCompileEnvironment.Definitions.RemoveAll(x => x.StartsWith("SUPPRESS_MONOLITHIC_HEADER_WARNINGS"));
+					HeaderCompileEnvironment.Definitions.Add("SUPPRESS_MONOLITHIC_HEADER_WARNINGS=0");
+					CreateHeaderForDefinitions(HeaderCompileEnvironment, HeaderIntermediateDirectory, "h", Graph);
+
+					// Duplicate named headers are allowed, so adjust the IntermediateDirectory to compensate for this
+					foreach (DirectoryItem ParentDir in HeaderFileItems.Select(x => x.Directory!).Distinct())
+					{
+						DirectoryReference HeaderSubIntermediateDirectory = DirectoryReference.Combine(HeaderIntermediateDirectory, ParentDir.Location.MakeRelativeTo(ModuleDirectory));
+						// Add the compile actions
+						LinkInputFiles.AddRange(ToolChain.CompileAllCPPFiles(HeaderCompileEnvironment, HeaderFileItems.Where(x => x.Directory == ParentDir), HeaderSubIntermediateDirectory, Name, Graph).ObjectFiles);
+					}
 				}
 			}
 

@@ -64,17 +64,7 @@ namespace UnrealBuildTool
 			}
 			SingleFiles[SourceFile.Name].Add(SourceFile);
 
-			// If it is a header file we need to wrap it from another file.. because otherwise it will fail when there are circular dependencies
-			// (There are a lot of those, very few of the .h files in core can be compiled without errors)
-			if (SourceFile.HasExtension(".h"))
-			{
-				DirectoryReference.CreateDirectory(IntermediateDirectory);
-				FileItem DummyFile = FileItem.GetItemByFileReference(FileReference.Combine(IntermediateDirectory, Filename));
-				Directory.CreateDirectory(DummyFile.Directory.FullName);
-				File.WriteAllText(DummyFile.FullName, $"#include \"{SourceFile.FullName.Replace('\\', '/')}\"");
-				SourceFile = DummyFile;
-			}
-			else if (!SourceFile.HasExtension(".cpp"))
+			if (!SourceFile.HasExtension(".cpp") && !SourceFile.HasExtension(".h"))
 			{
 				return null;
 			}
@@ -82,6 +72,15 @@ namespace UnrealBuildTool
 			DirectoryReference.CreateDirectory(IntermediateDirectory);
 			VCCompileAction Action = new VCCompileAction(BaseAction);
 			Action.SourceFile = SourceFile;
+			if (SourceFile.HasExtension(".h"))
+			{
+				Action.Definitions.Add("SUPPRESS_MONOLITHIC_HEADER_WARNINGS=0");
+				if (BaseAction.CompilerType.IsClang())
+				{
+					ClangWarnings.GetHeaderDisabledWarnings(Action.Arguments);
+				}
+			}
+			
 			if (bPreprocessOnly)
 			{
 				Action.PreprocessedFile = FileItem.GetItemByFileReference(FileReference.Combine(IntermediateDirectory, $"{Filename}.i"));

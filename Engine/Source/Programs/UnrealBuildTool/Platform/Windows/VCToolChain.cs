@@ -25,11 +25,6 @@ namespace UnrealBuildTool
 		/// </summary>
 		protected VCEnvironment EnvVars;
 
-		/// <summary>
-		/// Length of a path string that will trigger a build warning, as long paths may cause unexpected errors with the MSVC toolchain.
-		/// </summary>
-		private static int MaxPathWarningLength = 260;
-
 		public VCToolChain(ReadOnlyTargetRules Target, ILogger Logger)
 			: base(Logger)
 		{
@@ -162,33 +157,14 @@ namespace UnrealBuildTool
 			}
 		}
 
-		private static void CheckCommandLinePathLength(string PathString)
-		{
-			if (!Path.IsPathRooted(PathString))
-			{
-				string ResolvedPath = Path.Combine(Unreal.EngineSourceDirectory.FullName, PathString);
-				if (ResolvedPath.Length > MaxPathWarningLength)
-				{
-					Log.TraceWarningOnce($"Relative path '{PathString}' when resolved will have length '{ResolvedPath.Length}' which is greater than MAX_PATH (260) and may cause unexpected errors with the MSVC toolchain.");
-				}
-			}
-			else if (PathString.Length > MaxPathWarningLength)
-			{
-				Log.TraceWarningOnce($"Absolute path '{PathString}' has length '{PathString.Length}' which is greater than MAX_PATH (260) and may cause unexpected errors with the MSVC toolchain.");
-			}
-		}
-
 		public static new string NormalizeCommandLinePath(FileSystemReference Reference)
 		{
 			// Try to use a relative path to shorten command line length and to enable remote distribution where absolute paths are not desired
 			if (Reference.IsUnderDirectory(Unreal.EngineDirectory))
 			{
-				string RelativePath = Reference.MakeRelativeTo(Unreal.EngineSourceDirectory);
-				CheckCommandLinePathLength(RelativePath);
-				return RelativePath;
+				return Reference.MakeRelativeTo(Unreal.EngineSourceDirectory);
 			}
 
-			CheckCommandLinePathLength(Reference.FullName);
 			return Reference.FullName;
 		}
 
@@ -358,13 +334,6 @@ namespace UnrealBuildTool
 
 					// Enable the static analyzer with default checks.
 					Arguments.Add("--analyze");
-
-					// Deprecated in LLVM 15
-					if (EnvVars.CompilerVersion <= new VersionNumber(14))
-					{
-						// Make sure we check inside nested blocks (e.g. 'if ((foo = getchar()) == 0) {}')
-						Arguments.Add("-Xclang -analyzer-opt-analyze-nested-blocks");
-					}
 
 					// Write out a pretty web page with navigation to understand how the analysis was derived if HTML is enabled.
 					Arguments.Add($"-Xclang -analyzer-output={Target.StaticAnalyzerOutputType.ToString().ToLowerInvariant()}");
@@ -1045,14 +1014,22 @@ namespace UnrealBuildTool
 			}
 		}
 
+		protected virtual void AppendCLArguments_H(CppCompileEnvironment CompileEnvironment, List<string> Arguments)
+		{
+			AppendCLArguments_CPP(CompileEnvironment, Arguments);
+
+			if (Target.WindowsPlatform.Compiler.IsClang())
+			{
+				ClangWarnings.GetHeaderDisabledWarnings(Arguments);
+			}
+		}
+
 		protected virtual void AppendCLArguments_CPP(CppCompileEnvironment CompileEnvironment, List<string> Arguments)
 		{
-			if (Target.WindowsPlatform.Compiler.IsMSVC())
-			{
-				// Explicitly compile the file as C++.
-				Arguments.Add("/TP");
-			}
-			else
+			// Explicitly compile the file as C++.
+			Arguments.Add("/TP");
+
+			if (Target.WindowsPlatform.Compiler.IsClang())
 			{
 				string FileSpecifier = "c++";
 				if (CompileEnvironment.PrecompiledHeaderAction == PrecompiledHeaderAction.Create)
@@ -1693,6 +1670,7 @@ namespace UnrealBuildTool
 				CompileAction.SourceFile = SourceFile;
 
 				bool bIsPlainCFile = Path.GetExtension(SourceFile.AbsolutePath).ToUpperInvariant() == ".C";
+				bool bIsHeaderFile = Path.GetExtension(SourceFile.AbsolutePath).ToUpperInvariant() == ".H";
 
 				if (CompileEnvironment.PrecompiledHeaderAction == PrecompiledHeaderAction.Create)
 				{
@@ -1828,6 +1806,10 @@ namespace UnrealBuildTool
 				if (bIsPlainCFile)
 				{
 					AppendCLArguments_C(CompileEnvironment, CompileAction.Arguments);
+				}
+				else if (bIsHeaderFile)
+				{
+					AppendCLArguments_H(CompileEnvironment, CompileAction.Arguments);
 				}
 				else
 				{

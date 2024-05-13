@@ -426,6 +426,12 @@ namespace UnrealBuildTool
 			}
 		}
 
+		protected virtual void GetCompileArguments_H(CppCompileEnvironment CompileEnvironment, List<string> Arguments)
+		{
+			GetCompileArguments_CPP(CompileEnvironment, Arguments);
+			ClangWarnings.GetHeaderDisabledWarnings(Arguments);
+		}
+
 		protected virtual void GetCompileArguments_CPP(CppCompileEnvironment CompileEnvironment, List<string> Arguments)
 		{
 			Arguments.Add("-x c++");
@@ -910,12 +916,8 @@ namespace UnrealBuildTool
 			}
 			else if (Extension == ".H")
 			{
-				// Compile the file as C++ code.
-				GetCompileArguments_CPP(CompileEnvironment, Arguments);
-
-				// This warning was to catch #pragma once inside a source file.
-				// If we're compiling a header directly, we should always have the pragma once, so we need to ignore this warning.
-				Arguments.Add("-Wno-pragma-once-outside-header");
+				// Compile the file as C++ code with some additional arguments
+				GetCompileArguments_H(CompileEnvironment, Arguments);
 			}
 			else
 			{

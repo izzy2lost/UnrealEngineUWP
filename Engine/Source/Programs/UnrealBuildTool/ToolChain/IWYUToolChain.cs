@@ -195,7 +195,7 @@ namespace UnrealBuildTool
 			Arguments.Add("-Wno-undefined-bool-conversion");
 			Arguments.Add("-Wno-deprecated-anon-enum-enum-conversion");
 			Arguments.Add("-Wno-ambiguous-reversed-operator");
-			Arguments.Add("-Wno-pragma-once-outside-header");
+			ClangWarnings.GetHeaderDisabledWarnings(Arguments);
 		}
 
 		// Skip ISPC headers

@@ -289,22 +289,33 @@ namespace UnrealBuildTool
 			{
 				const int MAX_PATH = 260;
 
-				List<FileReference> FailPaths = new List<FileReference>();
-				List<FileReference> WarnPaths = new List<FileReference>();
+				bool ShouldFail(FileItem item)
+				{
+					return item.Location.FullName.Length >= MAX_PATH &&
+						!(item.Location.ContainsName("Intermediate", 0) && item.Location.ContainsName("H", 0)); // Ignore -IncludeHeader items
+				}
+
+				bool ShouldWarn(FileItem item)
+				{
+					return item.Location.FullName.Length > Unreal.RootDirectory.FullName.Length + BuildConfiguration.MaxNestedPathLength &&
+						item.Location.IsUnderDirectory(Unreal.RootDirectory) &&
+						!(item.Location.ContainsName("Intermediate", 0) && item.Location.ContainsName("H", 0)) && // Ignore -IncludeHeader items
+						(item.Location.ContainsName("Restricted", 0) == false) && //Be more relaxed for internal only code
+						item.Location.ContainsName("NotForLicensees", 0) == false;
+				}
+
+				HashSet<FileReference> FailPaths = new();
+				HashSet<FileReference> WarnPaths = new();
 				foreach (IExternalAction Action in Actions)
 				{
 					foreach (FileItem PrerequisiteItem in Action.PrerequisiteItems)
 					{
-						if (PrerequisiteItem.Location.FullName.Length >= MAX_PATH)
+						if (ShouldFail(PrerequisiteItem))
 						{
 							FailPaths.Add(PrerequisiteItem.Location);
 						}
 
-						if (PrerequisiteItem.Location.FullName.Length > Unreal.RootDirectory.FullName.Length + BuildConfiguration.MaxNestedPathLength &&
-							PrerequisiteItem.Location.IsUnderDirectory(Unreal.RootDirectory) &&
-							(PrerequisiteItem.Location.ContainsName("Restricted", 0) == false) && //Be more relaxed for internal only code
-							(PrerequisiteItem.Location.ContainsName("NotForLicensees", 0) == false)
-							)
+						if (ShouldWarn(PrerequisiteItem))
 						{
 							WarnPaths.Add(PrerequisiteItem.Location);
 						}
@@ -312,16 +323,12 @@ namespace UnrealBuildTool
 
 					foreach (FileItem ProducedItem in Action.ProducedItems)
 					{
-						if (ProducedItem.Location.FullName.Length >= MAX_PATH)
+						if (ShouldFail(ProducedItem))
 						{
 							FailPaths.Add(ProducedItem.Location);
 						}
 
-						if (ProducedItem.Location.FullName.Length > Unreal.RootDirectory.FullName.Length + BuildConfiguration.MaxNestedPathLength &&
-							ProducedItem.Location.IsUnderDirectory(Unreal.RootDirectory) &&
-							(ProducedItem.Location.ContainsName("Restricted", 0) == false) && //Be more relaxed for internal only code
-							(ProducedItem.Location.ContainsName("NotForLicensees", 0) == false)
-							)
+						if (ShouldWarn(ProducedItem))
 						{
 							WarnPaths.Add(ProducedItem.Location);
 						}
@@ -331,8 +338,8 @@ namespace UnrealBuildTool
 				if (FailPaths.Count > 0)
 				{
 					StringBuilder Message = new StringBuilder();
-					Message.Append($"The following output paths are longer than {MAX_PATH} characters. Please move the engine to a directory with a shorter path.");
-					foreach (FileReference Path in FailPaths)
+					Message.Append($"The following action paths are longer than {MAX_PATH} characters. Please move the engine to a directory with a shorter path.");
+					foreach (FileReference Path in FailPaths.OrderBy(x => x.FullName))
 					{
 						Message.Append($"\n[{Path.FullName.Length.ToString()} characters] {Path}");
 					}
@@ -343,7 +350,7 @@ namespace UnrealBuildTool
 				{
 					StringBuilder Message = new StringBuilder();
 					Message.Append($"Detected paths more than {BuildConfiguration.MaxNestedPathLength.ToString()} characters below UE root directory. This may cause portability issues due to the {MAX_PATH.ToString()} character maximum path length on Windows:\n");
-					foreach (FileReference Path in WarnPaths)
+					foreach (FileReference Path in WarnPaths.OrderBy(x => x.FullName))
 					{
 						string RelativePath = Path.MakeRelativeTo(Unreal.RootDirectory);
 						Message.Append($"\n[{RelativePath.Length.ToString()} characters] {RelativePath}");
