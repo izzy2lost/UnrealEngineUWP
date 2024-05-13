@@ -15,6 +15,20 @@ using OpenTracing.Util;
 
 namespace Horde.Agent.Execution
 {
+	/// <summary>
+	/// Settings for the perforce executor
+	/// </summary>
+	public class PerforceExecutorSettings
+	{
+		/// <summary>
+		/// Whether to run conform jobs
+		/// </summary>
+		public bool RunConform { get; set; } = true;
+	}
+
+	/// <summary>
+	/// Executor which syncs workspaces from Perforce
+	/// </summary>
 	class PerforceExecutor : JobExecutor
 	{
 		public const string Name = "Perforce";

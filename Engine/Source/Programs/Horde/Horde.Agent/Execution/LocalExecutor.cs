@@ -7,6 +7,25 @@ using Microsoft.Extensions.Options;
 
 namespace Horde.Agent.Execution
 {
+	/// <summary>
+	/// Settings for the local executor
+	/// </summary>
+	public class LocalExecutorSettings
+	{
+		/// <summary>
+		/// Path to the local workspace to use with the local executor
+		/// </summary>
+		public string? WorkspaceDir { get; set; }
+
+		/// <summary>
+		/// Whether to actually execute steps, or just do job setup
+		/// </summary>
+		public bool RunSteps { get; set; } = true;
+	}
+
+	/// <summary>
+	/// Job executor which runs out of a local workspace
+	/// </summary>
 	class LocalExecutor : JobExecutor
 	{
 		private readonly LocalExecutorSettings _settings;

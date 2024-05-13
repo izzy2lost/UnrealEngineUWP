@@ -3,6 +3,7 @@
 using System.ComponentModel.DataAnnotations;
 using EpicGames.Core;
 using EpicGames.Horde;
+using Horde.Agent.Execution;
 using Horde.Agent.Utility;
 using Microsoft.Extensions.Configuration;
 
@@ -78,33 +79,6 @@ namespace Horde.Agent
 			}
 			return false;
 		}
-	}
-
-	/// <summary>
-	/// Settings for the local executor
-	/// </summary>
-	public class LocalExecutorSettings
-	{
-		/// <summary>
-		/// Path to the local workspace to use with the local executor
-		/// </summary>
-		public string? WorkspaceDir { get; set; }
-
-		/// <summary>
-		/// Whether to actually execute steps, or just do job setup
-		/// </summary>
-		public bool RunSteps { get; set; } = true;
-	}
-
-	/// <summary>
-	/// Settings for the perforce executor
-	/// </summary>
-	public class PerforceExecutorSettings
-	{
-		/// <summary>
-		/// Whether to run conform jobs
-		/// </summary>
-		public bool RunConform { get; set; } = true;
 	}
 
 	/// <summary>
