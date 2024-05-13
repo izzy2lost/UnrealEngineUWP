@@ -10,6 +10,7 @@
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
 #include "WorldPartition/WorldPartitionActorDescUtils.h"
+#include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "Editor.h"
 #endif
 
@@ -540,6 +541,13 @@ void UActorDescContainerInstance::OnActorDescAdded(FWorldPartitionActorDesc* InA
 	{
 		WorldPartition->OnActorDescInstanceAdded(NewActorDescInstance);
 	}
+	else if (UWorldPartition* TopWorldPartition = GetTopWorldPartition())
+	{
+		if (const UDataLayerManager* ResolvingDataLayerManager = TopWorldPartition->GetResolvingDataLayerManager())
+		{
+			ResolvingDataLayerManager->ResolveActorDescInstanceDataLayers(NewActorDescInstance);
+		}
+	}
 
 	OnActorDescInstanceAddedEvent.Broadcast(NewActorDescInstance);
 }
@@ -591,6 +599,13 @@ void UActorDescContainerInstance::OnActorDescUpdated(FWorldPartitionActorDesc* I
 		if (UWorldPartition* WorldPartition = GetOuterWorldPartition())
 		{
 			WorldPartition->OnActorDescInstanceUpdated(ActorDescInstance->Get());
+		}
+		else if (UWorldPartition* TopWorldPartition = GetTopWorldPartition())
+		{
+			if (const UDataLayerManager* ResolvingDataLayerManager = TopWorldPartition->GetResolvingDataLayerManager())
+			{
+				ResolvingDataLayerManager->ResolveActorDescInstanceDataLayers(ActorDescInstance->Get());
+			}
 		}
 
 		OnActorDescInstanceUpdatedEvent.Broadcast(ActorDescInstance->Get());
