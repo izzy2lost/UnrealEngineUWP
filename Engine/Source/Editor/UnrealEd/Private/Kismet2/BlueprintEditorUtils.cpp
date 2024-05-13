@@ -2677,21 +2677,21 @@ void FBlueprintEditorUtils::RenameGraph(UEdGraph* Graph, const FString& NewNameS
 		// Note: This will find ALL children (including nested children) so there's no need to do this recursively.
 		ValidateBlueprintChildVariables(Blueprint, Graph->GetFName(), PostValidateChildBlueprintLambda);
 
-		// Find all variable nodes in this graph.
-		TArray<UK2Node_Variable*> VariableNodes;
-		Graph->GetNodesOfClass<UK2Node_Variable>(VariableNodes);
-		GetAllChildGraphVariables(Graph, VariableNodes);
-
 		// if it's index is >= 0 we know it was found in the array of functiongraphs
-		bool bGraphIsFunction = (Blueprint->FunctionGraphs.IndexOfByKey(Graph) > -1);
+		const bool bGraphIsFunction = (Blueprint->FunctionGraphs.IndexOfByKey(Graph) > -1);
 		// For any nodes that reference a local variable, update the variable's scope to be the graph's new name (which will mirror the UFunction).
-		for (UK2Node_Variable* const VariableNode : VariableNodes)
+		if (bGraphIsFunction)
 		{
-			if (VariableNode->VariableReference.IsLocalScope())
+			// Find all variable nodes in this graph.
+			TArray<UK2Node_Variable*> VariableNodes;
+			Graph->GetNodesOfClass<UK2Node_Variable>(VariableNodes);
+			GetAllChildGraphVariables(Graph, VariableNodes);
+
+			for (UK2Node_Variable* const VariableNode : VariableNodes)
 			{
-				// if the rename is the function set the local variable scope to the new name otherwise we leave it with the same scope (Ex: subgraphs in a function)
-				if (bGraphIsFunction)
+				if (VariableNode->VariableReference.IsLocalScope())
 				{
+					// if the rename is the function set the local variable scope to the new name otherwise we leave it with the same scope (Ex: subgraphs in a function)
 					VariableNode->VariableReference.SetLocalMember(VariableNode->VariableReference.GetMemberName(), NewNameStr, VariableNode->VariableReference.GetMemberGuid());
 				}
 			}

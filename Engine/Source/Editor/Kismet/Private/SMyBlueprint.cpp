@@ -3480,9 +3480,12 @@ void SMyBlueprint::OnDuplicateAction()
 		else
 		{
 			const FScopedTransaction Transaction(LOCTEXT("DuplicateGraph", "Duplicate Graph"));
-			GetBlueprintObj()->Modify();
+			UBlueprint* BlueprintObj = GetBlueprintObj();
+			UEdGraph* GraphToDuplicate = GraphAction->EdGraph;
 
-			UEdGraph* DuplicatedGraph = GraphAction->EdGraph->GetSchema()->DuplicateGraph(GraphAction->EdGraph);
+			BlueprintObj->Modify();
+
+			UEdGraph* DuplicatedGraph = GraphToDuplicate->GetSchema()->DuplicateGraph(GraphToDuplicate);
 			check(DuplicatedGraph);
 
 			DuplicatedGraph->Modify();
@@ -3504,13 +3507,20 @@ void SMyBlueprint::OnDuplicateAction()
 
 			if (GraphType == GT_Function || GraphType == GT_Animation)
 			{
-				GetBlueprintObj()->FunctionGraphs.Add(DuplicatedGraph);
+				BlueprintObj->FunctionGraphs.Add(DuplicatedGraph);
 			}
 			else if (GraphType == GT_Macro)
 			{
-				GetBlueprintObj()->MacroGraphs.Add(DuplicatedGraph);
+				BlueprintObj->MacroGraphs.Add(DuplicatedGraph);
 			}
-			FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(GetBlueprintObj());
+
+			// Now that we've taken ownership of the graph (assigned it into macrographs
+			// or functiongraphs, as appropriate) it will be properly categorized
+			// and we can run post rename logic reliably:
+			FName NewGraphName = FBlueprintEditorUtils::FindUniqueKismetName(BlueprintObj, GraphToDuplicate->GetFName().GetPlainNameString());
+			FBlueprintEditorUtils::RenameGraph(DuplicatedGraph, NewGraphName.ToString());
+
+			FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(BlueprintObj);
 
 			BlueprintEditorPtr.Pin()->OpenDocument(DuplicatedGraph, FDocumentTracker::ForceOpenNewDocument);
 			DuplicateActionName = DuplicatedGraph->GetFName();
