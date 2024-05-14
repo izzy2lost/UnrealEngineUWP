@@ -151,37 +151,44 @@ namespace UnsyncUI
 			if (!currentDir.Parse(path, ref template))
 				return;
 
-			foreach (var childDir in await dirEnum.EnumerateDirectories(path, cancellationToken.Token))
+			try
 			{
-				if (System.IO.Path.GetFileName(childDir) == ".unsync")
+				foreach (var childDir in await dirEnum.EnumerateDirectories(path, cancellationToken.Token))
 				{
-					List<Config.BuildTemplate> fileGroups = null;
-					if (currentDir.FileGroups?.Any() == true)
+					if (System.IO.Path.GetFileName(childDir) == ".unsync")
 					{
-						var files = await dirEnum.EnumerateFiles(path, cancellationToken.Token);
-						currentDir.ParseFileGroups(files.ToList(), template, out fileGroups);
-					}
-					if (fileGroups?.Any() == true)
-					{
-						foreach (var fileGroup in fileGroups)
+						List<Config.BuildTemplate> fileGroups = null;
+						if (currentDir.FileGroups?.Any() == true)
 						{
-							Platforms.Add(new BuildPlatformModel(this, fileGroup.Platform, path, fileGroup.Flavor, fileGroup.Include));
+							var files = await dirEnum.EnumerateFiles(path, cancellationToken.Token);
+							currentDir.ParseFileGroups(files.ToList(), template, out fileGroups);
 						}
-						Platforms.Add(new BuildPlatformModel(this, template.Platform, path, "All", null));
+						if (fileGroups?.Any() == true)
+						{
+							foreach (var fileGroup in fileGroups)
+							{
+								Platforms.Add(new BuildPlatformModel(this, fileGroup.Platform, path, fileGroup.Flavor, fileGroup.Include));
+							}
+							Platforms.Add(new BuildPlatformModel(this, template.Platform, path, "All", null));
+						}
+						else
+						{
+							// This folder is a valid build
+							Platforms.Add(new BuildPlatformModel(this, template.Platform, path, template.Flavor, null));
+						}
 					}
 					else
 					{
-						// This folder is a valid build
-						Platforms.Add(new BuildPlatformModel(this, template.Platform, path, template.Flavor, null));
+						foreach (var subDir in currentDir.SubDirectories)
+						{
+							await EnumeratePlatforms(dirEnum, subDir, childDir, template, cancellationToken);
+						}
 					}
 				}
-				else
-				{
-					foreach (var subDir in currentDir.SubDirectories)
-					{
-						await EnumeratePlatforms(dirEnum, subDir, childDir, template, cancellationToken);
-					}
-				}
+			}
+			catch (Exception ex)
+			{
+				App.Current.LogMessage($"Platforms enumeration failed with exception: {ex}");
 			}
 		}
 
