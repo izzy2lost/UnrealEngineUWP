@@ -350,7 +350,6 @@ void FCustomDetailsViewDetailTreeNodeItem::GenerateCustomChildren(const TSharedR
 		return;
 	}
 
-	const TSharedRef<SCustomDetailsView> CustomDetailsView = CustomDetailsViewWeak.Pin().ToSharedRef();
 	const TSharedPtr<IDetailTreeNode> DetailTreeNode = DetailTreeNodeWeak.Pin();
 
 	if (!DetailTreeNode.IsValid())
@@ -365,10 +364,23 @@ void FCustomDetailsViewDetailTreeNodeItem::GenerateCustomChildren(const TSharedR
 	TArray<TSharedRef<IDetailTreeNode>> NodeChildren;
 	DetailTreeNode->GetChildren(NodeChildren);
 
-	for (const TSharedRef<IDetailTreeNode>& ChildTreeNode : NodeChildren)
+	AddChildDetailsTreeNodes(InParentItem, ChildNodePropertyFlags, NodeChildren, OutChildren);
+}
+
+void FCustomDetailsViewDetailTreeNodeItem::AddChildDetailsTreeNodes(const TSharedRef<ICustomDetailsViewItem>& InParentItem, ECustomDetailsViewNodePropertyFlag InNodeChildPropertyFlag,
+	const TArray<TSharedRef<IDetailTreeNode>>& InNodeChildren, TArray<TSharedPtr<ICustomDetailsViewItem>>& OutChildren)
+{
+	if (!CustomDetailsViewWeak.IsValid())
+	{
+		return;
+	}
+
+	const TSharedRef<SCustomDetailsView> CustomDetailsView = CustomDetailsViewWeak.Pin().ToSharedRef();
+
+	for (const TSharedRef<IDetailTreeNode>& ChildTreeNode : InNodeChildren)
 	{
 		using namespace UE::CustomDetailsView::Private;
-		const EAllowType AllowType = CustomDetailsView->GetAllowType(ChildTreeNode, ChildNodePropertyFlags);
+		const EAllowType AllowType = CustomDetailsView->GetAllowType(ChildTreeNode, InNodeChildPropertyFlag);
 
 		// If DisallowSelfAndChildren, this Tree Node Path is completely blocked, continue.
 		if (AllowType == EAllowType::DisallowSelfAndChildren)

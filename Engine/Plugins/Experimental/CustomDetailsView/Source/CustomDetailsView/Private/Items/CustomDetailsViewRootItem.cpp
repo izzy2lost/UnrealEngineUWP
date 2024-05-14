@@ -110,16 +110,9 @@ void FCustomDetailsViewRootItem::GenerateCustomChildren(const TSharedRef<ICustom
 		return;
 	}
 
-	const TSharedRef<SCustomDetailsView> CustomDetailsView = CustomDetailsViewWeak.Pin().ToSharedRef();
 	const TArray<TSharedRef<IDetailTreeNode>>& RootTreeNodes = PropertyRowGenerator->GetRootTreeNodes();
 
-	for (const TSharedRef<IDetailTreeNode>& RootTreeNode : RootTreeNodes)
-	{
-		TSharedRef<FCustomDetailsViewDetailTreeNodeItem> Item = CustomDetailsView->CreateItem<FCustomDetailsViewDetailTreeNodeItem>(CustomDetailsView
-			, InParentItem, RootTreeNode);
-
-		Item->AddAsChild(InParentItem, OutChildren);
-	}
+	AddChildDetailsTreeNodes(InParentItem, ECustomDetailsViewNodePropertyFlag::None, RootTreeNodes, OutChildren);
 }
 
 #undef UE_CUSTOM_DETAILS_ROOT_ITEM_NO_ENTRY

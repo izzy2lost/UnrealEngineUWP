@@ -72,15 +72,18 @@ public:
 	}
 
 protected:
-	/** Generate details context menu based on property handle */
-	virtual TSharedPtr<SWidget> GenerateContextMenuWidget() override;
-
-	virtual void GenerateCustomChildren(const TSharedRef<ICustomDetailsViewItem>& InParentItem,
-		TArray<TSharedPtr<ICustomDetailsViewItem>>& OutChildren) override;
+	void AddChildDetailsTreeNodes(const TSharedRef<ICustomDetailsViewItem>& InParentItem, ECustomDetailsViewNodePropertyFlag InNodeChildPropertyFlag, 
+		const TArray<TSharedRef<IDetailTreeNode>>& InNodeChildren, TArray<TSharedPtr<ICustomDetailsViewItem>>& OutChildren);
 
 	bool IsStruct() const;
 
 	bool HasParentStruct() const;
+
+	//~ Begin FCustomDetailsViewItemBase
+	/** Generate details context menu based on property handle */
+	virtual TSharedPtr<SWidget> GenerateContextMenuWidget() override;
+	virtual void GenerateCustomChildren(const TSharedRef<ICustomDetailsViewItem>& InParentItem, TArray<TSharedPtr<ICustomDetailsViewItem>>& OutChildren) override;
+	//~ End FCustomDetailsViewItemBase
 
 	/** The Property Handle of this Detail Tree Node. Can be null */
 	TSharedPtr<IPropertyHandle> PropertyHandle;
