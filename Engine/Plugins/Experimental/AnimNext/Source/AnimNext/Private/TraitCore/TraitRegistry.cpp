@@ -204,7 +204,6 @@ namespace UE::AnimNext
 				}
 
 				TraitUIDToEntryMap.Remove(It.Key());
-				
 
 				break;
 			}
@@ -337,6 +336,9 @@ namespace UE::AnimNext
 		if (FRegistryEntry* Entry = TraitUIDToEntryMap.Find(TraitUID.GetUID()))
 		{
 			check(Entry->TraitHandle.IsValid());
+
+			// Remove name from map before we destroy the Trait
+			TraitNameToUIDMap.Remove(*Entry->Trait->GetTraitName());
 
 			if (Entry->TraitHandle.IsDynamic())
 			{
