@@ -5,7 +5,6 @@
 #include "ChaosLog.h"
 #include "Dataflow/DataflowNodeParameters.h"
 #include "Dataflow/DataflowNode.h"
-#include "Dataflow/DataflowCoreNodes.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowInputOutput)
 
@@ -15,14 +14,7 @@ FDataflowOutput FDataflowOutput::NoOpOutput = FDataflowOutput();
 
 
 FDataflowInput::FDataflowInput(const Dataflow::FInputParameters& Param, FGuid InGuid)
-	: FDataflowConnection(Dataflow::FPin::EDirection::INPUT, Param)
-	, Connection(nullptr)
-{
-	Guid = InGuid;
-}
-
-FDataflowInput::FDataflowInput(const Dataflow::FInputParameters& Param)
-	: FDataflowConnection(Dataflow::FPin::EDirection::INPUT, Param)
+	: FDataflowConnection(Dataflow::FPin::EDirection::INPUT, Param.Type, Param.Name, Param.Owner, Param.Property, InGuid)
 	, Connection(nullptr)
 {
 }
@@ -89,15 +81,17 @@ void FDataflowInput::PullValue(Dataflow::FContext& Context) const
 void FDataflowInput::FixAndPropagateType(FName InType)
 {
 	check(InType.ToString().StartsWith(Type.ToString()));
-	const bool bSuccess = OwningNode->TrySetConnectionType(this, InType);
-	if (bSuccess)
+	Type = InType;
+
+	if (FDataflowOutput* Output = GetConnection())
 	{
-		if (FDataflowReRouteNode* ReRouteNode = OwningNode->AsType<FDataflowReRouteNode>())
+		if (Output && Output->GetType() != InType)
 		{
-			if (FDataflowOutput* Output = GetConnection())
+			if (Output->IsAnyType())
 			{
-				Output->FixAndPropagateType(InType);
+				Output->GetOwningNode()->PropagateTypeToAllAnyTypeInputsAndOutputs(InType);
 			}
+			Output->FixAndPropagateType(InType);
 		}
 	}
 }
@@ -111,14 +105,7 @@ void FDataflowInput::FixAndPropagateType(FName InType)
 
 
 FDataflowOutput::FDataflowOutput(const Dataflow::FOutputParameters& Param, FGuid InGuid)
-	: FDataflowConnection(Dataflow::FPin::EDirection::OUTPUT, Param)
-{
-	Guid = InGuid;
-	OutputLock = MakeShared<FCriticalSection>();
-}
-
-FDataflowOutput::FDataflowOutput(const Dataflow::FOutputParameters& Param)
-	: FDataflowConnection(Dataflow::FPin::EDirection::OUTPUT, Param)
+	: FDataflowConnection(Dataflow::FPin::EDirection::OUTPUT, Param.Type, Param.Name, Param.Owner, Param.Property, InGuid)
 {
 	OutputLock = MakeShared<FCriticalSection>();
 }
@@ -245,18 +232,17 @@ void FDataflowOutput::ForwardInput(const void* InputReference, Dataflow::FContex
 void FDataflowOutput::FixAndPropagateType(FName InType)
 {
 	check(InType.ToString().StartsWith(Type.ToString()));
-	const bool bSuccess = OwningNode->TrySetConnectionType(this, InType);
-	if (bSuccess)
+	Type = InType;
+
+	for (FDataflowInput* Input: Connections)
 	{
-		if (FDataflowReRouteNode* ReRouteNode = OwningNode->AsType<FDataflowReRouteNode>())
+		if (Input && Input->GetType() != InType)
 		{
-			for (FDataflowInput* Input : Connections)
+			if (Input->IsAnyType())
 			{
-				if (Input)
-				{
-					Input->FixAndPropagateType(InType);
-				}
+				Input->GetOwningNode()->PropagateTypeToAllAnyTypeInputsAndOutputs(InType);
 			}
+			Input->FixAndPropagateType(InType);
 		}
 	}
 }

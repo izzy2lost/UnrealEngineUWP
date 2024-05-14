@@ -19,11 +19,16 @@ struct FDataflowOutput;
 //
 namespace Dataflow
 {
-	struct FInputParameters : public FConnectionParameters
-	{
-		FInputParameters(FName InType = NAME_None, FName InName = NAME_None, FDataflowNode* InOwner = nullptr, const FProperty* InProperty = nullptr, FGuid InGuid = FGuid::NewGuid())
-			: FConnectionParameters(InType, InName, InOwner, InProperty, InGuid)
-		{}
+	struct FInputParameters {
+		FInputParameters(FName InType = FName(""), FName InName = FName(""), FDataflowNode* InOwner = nullptr, const FProperty* InProperty = nullptr)
+			: Type(InType)
+			, Name(InName)
+			, Owner(InOwner)
+			, Property(InProperty){}
+		FName Type;
+		FName Name;
+		FDataflowNode* Owner = nullptr;
+		const FProperty* Property = nullptr;
 	};
 }
 
@@ -43,10 +48,7 @@ protected:
 	virtual void FixAndPropagateType(FName InType) override;
 
 public:
-	UE_DEPRECATED(5.5, "Deprecated constructor : Guid is now passed through FInputParameters")
-	DATAFLOWCORE_API FDataflowInput(const Dataflow::FInputParameters& Param, FGuid InGuid);
-
-	DATAFLOWCORE_API FDataflowInput(const Dataflow::FInputParameters& Param = {});
+	FDataflowInput(const Dataflow::FInputParameters& Param = {}, FGuid InGuid = FGuid::NewGuid());
 
 	virtual bool AddConnection(FDataflowConnection* InOutput) override;
 	virtual bool RemoveConnection(FDataflowConnection* InOutput) override;
@@ -65,14 +67,11 @@ public:
 	template<class T>
 	const T& GetValue(Dataflow::FContext& Context, const T& Default) const;
 
-	template<typename TAnyType>
-	typename TAnyType::FStorageType GetValueFromAnyType(Dataflow::FContext& Context, const typename TAnyType::FStorageType& Default) const;
-
 	/**
 	* pull the value from the upstream connections
 	* the upstream graph is evaluated if necessary and values are cached along the way 
 	*/
-	DATAFLOWCORE_API void PullValue(Dataflow::FContext& Context) const;
+	void PullValue(Dataflow::FContext& Context) const;
 
 	template<class T>
 	TFuture<const T&> GetValueParallel(Dataflow::FContext& Context, const T& Default) const;
@@ -85,11 +84,18 @@ public:
 //
 namespace Dataflow
 {
-	struct FOutputParameters: public FConnectionParameters
+	struct FOutputParameters
 	{
-		FOutputParameters(FName InType = NAME_None, FName InName = NAME_None, FDataflowNode* InOwner = nullptr, const FProperty* InProperty = nullptr, FGuid InGuid = FGuid::NewGuid())
-			: FConnectionParameters(InType, InName, InOwner, InProperty, InGuid)
-		{}
+		FOutputParameters(FName InType = FName(""), FName InName = FName(""), FDataflowNode* InOwner = nullptr, const FProperty* InProperty = nullptr)
+			: Type(InType)
+			, Name(InName)
+			, Owner(InOwner)
+			, Property(InProperty) {}
+
+		FName Type;
+		FName Name;
+		FDataflowNode* Owner = nullptr;
+		const FProperty* Property = nullptr;
 	};
 }
 USTRUCT()
@@ -112,10 +118,7 @@ public:
 	
 	mutable TSharedPtr<FCriticalSection> OutputLock;
 	
-	UE_DEPRECATED(5.5, "Deprecated constructor : Guid is now passed through FOutputParameters")
-	DATAFLOWCORE_API FDataflowOutput(const Dataflow::FOutputParameters& Param, FGuid InGuid);
-
-	DATAFLOWCORE_API FDataflowOutput(const Dataflow::FOutputParameters& Param = {});
+	DATAFLOWCORE_API FDataflowOutput(const Dataflow::FOutputParameters& Param = {}, FGuid InGuid = FGuid::NewGuid());
 
 	DATAFLOWCORE_API TArray<FDataflowInput*>& GetConnections();
 	DATAFLOWCORE_API const TArray<FDataflowInput*>& GetConnections() const;
@@ -151,18 +154,6 @@ public:
 		}
 	}
 
-	template<typename TAnyType>
-	void SetValueFromAnyType(const typename TAnyType::FStorageType& InVal, Dataflow::FContext& Context) const
-	{
-		TAnyType::FPolicyType::VisitPolicyByType(GetType(),
-			[this, &Context, &InVal](auto SingleTypePolicy)
-			{
-				using FSingleType = typename decltype(SingleTypePolicy)::FReturnType;
-				FSingleType ValueToSet(InVal);
-				Context.SetData(CacheKey(), GetProperty(), Forward<FSingleType>(ValueToSet), GetOwningNodeGuid(), GetOwningNodeValueHash(), Dataflow::FTimestamp::Current());
-			});
-	}
-
 	template<class T>
 	const T& GetValue(Dataflow::FContext& Context, const T& Default) const
 	{
@@ -194,49 +185,27 @@ public:
 private:
 	DATAFLOWCORE_API const FDataflowInput* GetPassthroughInput() const;
 };
-
-template<typename T>
+ 
+template<class T>
 const T& FDataflowInput::GetValue(Dataflow::FContext& Context, const T& Default) const
 {
-	if (const FDataflowOutput* ConnectionOut = GetConnection())
+	if (GetConnectedOutputs().Num())
 	{
-		if (!ConnectionOut->Evaluate(Context))
+		ensure(GetConnectedOutputs().Num() == 1);
+		if (const FDataflowOutput* ConnectionOut = GetConnection())
 		{
-			Context.SetData(ConnectionOut->CacheKey(), Property, Default, GetOwningNodeGuid(), GetOwningNodeValueHash(), Dataflow::FTimestamp::Current());
-		}
-		if (Context.HasData(ConnectionOut->CacheKey()))
-		{
-			const T& data = Context.GetData(ConnectionOut->CacheKey(), Property, Default);
-			return data;
-		}
-	}
-	return Default;
-}
-
-template<typename TAnyType>
-typename TAnyType::FStorageType FDataflowInput::GetValueFromAnyType(Dataflow::FContext& Context, const typename TAnyType::FStorageType& Default) const
-{
-	typename TAnyType::FStorageType ReturnValue = Default;
-	if (const FDataflowOutput* ConnectionOut = GetConnection())
-	{
-		if (ConnectionOut->Evaluate(Context))
-		{
-			if (const TUniquePtr<Dataflow::FContextCacheElementBase>* CacheEntry = Context.GetDataImpl(ConnectionOut->CacheKey()))
+			if (!ConnectionOut->Evaluate(Context))
 			{
-				if (*CacheEntry)
-				{
-					TAnyType::FPolicyType::VisitPolicyByType(GetType(),
-						[this, &Context, &CacheEntry, &ReturnValue](auto SingleTypePolicy)
-						{
-							using FSingleType = typename decltype(SingleTypePolicy)::FReturnType;
-							FSingleType Default{};
-							ReturnValue = (*CacheEntry)->GetTypedData<FSingleType>(Context, nullptr, Default);
-						});
-				}
+				Context.SetData(ConnectionOut->CacheKey(), Property, Default, GetOwningNodeGuid(), GetOwningNodeValueHash(), Dataflow::FTimestamp::Current());
+			}
+			if (Context.HasData(ConnectionOut->CacheKey()))
+			{
+				const T& data = Context.GetData(ConnectionOut->CacheKey(), Property, Default);
+				return data;
 			}
 		}
 	}
-	return ReturnValue;
+	return Default;
 }
 
 template<class T>

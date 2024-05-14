@@ -7,7 +7,6 @@
 #include "Dataflow/DataflowConnection.h"
 #include "Dataflow/DataflowInputOutput.h"
 #include "Dataflow/DataflowNodeParameters.h"
-#include "Dataflow/DataflowAnyType.h"
 #include "UObject/StructOnScope.h"
 #include "Dataflow/DataflowSettings.h"
 
@@ -113,9 +112,6 @@ struct FDataflowNode
 	/** Override this function to add the RemoveOptionPin functionality to the node's context menu. */
 	virtual bool CanRemovePin() const { return false; }
 
-	DATAFLOWCORE_API bool InputSupportsType(FName Name, FName Type) const;
-	DATAFLOWCORE_API bool OutputSupportsType(FName Name, FName Type) const;
-
 	DATAFLOWCORE_API virtual void AddInput(FDataflowInput* InPtr);
 	DATAFLOWCORE_API TArray< FDataflowInput* > GetInputs() const;
 	DATAFLOWCORE_API void ClearInputs();
@@ -171,39 +167,18 @@ struct FDataflowNode
 	virtual const UScriptStruct* TypedScriptStruct() const { return nullptr; }
 
 	/** Register the Input and Outputs after the creation in the factory. Use PropertyName to disambiguate a struct name from its first property. */
-	template <typename T>
-	FDataflowInput* RegisterInputConnection(const T* Reference, const FName& PropertyName = NAME_None)
-	{
-		FDataflowInput* Input = RegisterInputConnectionInternal(Reference, PropertyName);
-		if constexpr (std::is_base_of_v<FDataflowAnyType, T>)
-		{
-			if (Input)
-			{
-				Input->SetTypePolicy(T::FPolicyType::GetInterface());
-			}
-		}
-		return Input;
-	}
-
-	template <typename T>
-	FDataflowOutput* RegisterOutputConnection(const T* Reference, const T* Passthrough = nullptr, const FName& PropertyName = NAME_None, const FName& PassthroughName = NAME_None)
-	{
-		FDataflowOutput* Output = RegisterOutputConnectionInternal(Reference, Passthrough, PropertyName, PassthroughName);
-		if constexpr (std::is_base_of_v<FDataflowAnyType, T>)
-		{
-			if (Output)
-			{
-				Output->SetTypePolicy(T::FPolicyType::GetInterface());
-			}
-		}
-		return Output;
-	}
-
-
+	DATAFLOWCORE_API FDataflowInput* RegisterInputConnection(const void* Property, const FName& PropertyName = NAME_None);
+	DATAFLOWCORE_API FDataflowOutput* RegisterOutputConnection(
+		const void* Property,
+		const void* Passthrough = nullptr,
+		const FName& PropertyName = NAME_None,
+		const FName& PassthroughName = NAME_None);
 	/** Unregister the input connection if one exists matching this property, and then invalidate the graph. */
 	DATAFLOWCORE_API void UnregisterInputConnection(const void* Property, const FName& PropertyName = NAME_None);
 	/** Unregister the connection if one exists matching this pin, then invalidate the graph. */
 	DATAFLOWCORE_API void UnregisterPinConnection(const Dataflow::FPin& Pin);
+
+	DATAFLOWCORE_API void PropagateTypeToAllAnyTypeInputsAndOutputs(FName ConcreteType);
 
 	//
 	// Evaluation
@@ -220,18 +195,10 @@ struct FDataflowNode
 	*   @param Reference : Pointer to a member of this node that corresponds with the output to set.
 	*						*Reference will be used as the default if the input is not connected. 
 	*/
-	template<class T, typename = std::enable_if_t<!std::is_base_of_v<FDataflowAnyType, T>>>
-	const T& GetValue(Dataflow::FContext& Context, const T* Reference) const
+	template<class T> const T& GetValue(Dataflow::FContext& Context, const T* Reference) const
 	{
 		checkSlow(FindInput(Reference));
 		return FindInput(Reference)->template GetValue<T>(Context, *Reference);
-	}
-
-	template<typename TAnyType, typename = std::enable_if_t<std::is_base_of_v<FDataflowAnyType, TAnyType>>>
-	typename TAnyType::FStorageType GetValue(Dataflow::FContext& Context, const TAnyType* Reference) const
-	{
-		checkSlow(Reference && FindInput(Reference));
-		return FindInput(Reference)->template GetValueFromAnyType<TAnyType>(Context, Reference->Value);
 	}
 	
 	template<class T>
@@ -272,25 +239,11 @@ struct FDataflowNode
 	*   @param Value : The value to store in the contexts data store. 
 	*   @param Reference : Pointer to a member of this node that corresponds with the output to set. 
 	*/
-	template<class T, typename = std::enable_if_t<!std::is_base_of_v<FDataflowAnyType, T>>>
-	void SetValue(Dataflow::FContext& Context, T&& Value, const typename TDecay<T>::Type* Reference) const
+	template<class T> void SetValue(Dataflow::FContext& Context, T&& Value, const typename TDecay<T>::Type* Reference) const
 	{
 		if (const FDataflowOutput* Output = FindOutput(Reference))
 		{
 			Output->template SetValue<T>(Forward<T>(Value), Context);
-		}
-		else
-		{
-			checkfSlow(false, TEXT("This output could not be found within this node, check this has been properly registered in the node constructor"));
-		}
-	}
-
-	template<typename TAnyType, typename = std::enable_if_t<std::is_base_of_v<FDataflowAnyType, TAnyType>>>
-	void SetValue(Dataflow::FContext& Context, const typename TAnyType::FStorageType& Value, const TAnyType* Reference) const
-	{
-		if (const FDataflowOutput* Output = FindOutput(Reference))
-		{
-			Output->template SetValueFromAnyType<TAnyType>(Value, Context);
 		}
 		else
 		{
@@ -365,30 +318,7 @@ struct FDataflowNode
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnNodeInvalidated, FDataflowNode*);
 	FOnNodeInvalidated& GetOnNodeInvalidatedDelegate() { return OnNodeInvalidatedDelegate; }
 
-	// returns true if the type was changed successfully
-	// only unset datatype connection will be set a new type 
-	DATAFLOWCORE_API bool TrySetConnectionType(FDataflowConnection* Connection, FName NewType);
-
-protected:
-	virtual bool OnInputTypeChanged(const FDataflowInput* Input) { return false; };
-	virtual bool OnOutputTypeChanged(const FDataflowOutput* Input) { return false; }
-
-	// returns true if the input type was changed successfully
-	DATAFLOWCORE_API bool SetInputConcreteType(void* OutputReference, FName NewType);
-
-	// returns true if the output type was changed successfully
-	DATAFLOWCORE_API bool SetOutputConcreteType(void* InputReference, FName NewType);
-
-	DATAFLOWCORE_API FDataflowInput* RegisterInputConnectionInternal(const void* Property, const FName& PropertyName = NAME_None);
-	DATAFLOWCORE_API FDataflowOutput* RegisterOutputConnectionInternal(
-		const void* Property,
-		const void* Passthrough = nullptr,
-		const FName& PropertyName = NAME_None,
-		const FName& PassthroughName = NAME_None);
-
-
 private:
-	bool InitConnectionParametersFromPropertyReference(const FStructOnScope& StructOnScope, const void* PropertyRef, const FName& PropertyName, Dataflow::FConnectionParameters& OutParams);
 	static FString GetPropertyFullNameString(const TConstArrayView<const FProperty*>& PropertyChain);
 	static FName GetPropertyFullName(const TArray<const FProperty*>& PropertyChain);
 	static FText GetPropertyDisplayNameText(const TArray<const FProperty*>& PropertyChain);
@@ -461,5 +391,15 @@ private:
 }																					\
 
 }
+
+USTRUCT()
+struct FDataflowAnyType
+{
+	GENERATED_USTRUCT_BODY()
+	void* Value = nullptr;
+
+	DATAFLOWCORE_API static const FName TypeName;
+};
+
 
 

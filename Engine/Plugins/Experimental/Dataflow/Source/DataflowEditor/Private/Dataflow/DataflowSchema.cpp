@@ -167,23 +167,25 @@ const FPinConnectionResponse UDataflowSchema::CanCreateConnection(const UEdGraph
 		PinA = InPinB; PinB = InPinA;
 	}
 
+
 	if (PinA->Direction == EEdGraphPinDirection::EGPD_Output)
 	{
 		if (PinB->Direction == EEdGraphPinDirection::EGPD_Input)
 		{
 			// Make sure the pins are not on the same node
-			UDataflowEdNode* EdNodeA = Cast<UDataflowEdNode>(PinA->GetOwningNode());
-			UDataflowEdNode* EdNodeB = Cast<UDataflowEdNode>(PinB->GetOwningNode());
-
-			if (EdNodeA && EdNodeB && (EdNodeA != EdNodeB))
+			if (PinA->GetOwningNode() != PinB->GetOwningNode())
 			{
-				const bool AIsCompatibleWithB = EdNodeA->PinIsCompatibleWithType(*PinA, PinB->PinType);
-				const bool BIsCompatibleWithA = EdNodeB->PinIsCompatibleWithType(*PinB, PinA->PinType);
-				if (AIsCompatibleWithB || BIsCompatibleWithA)
+				// Make sure types match. 
+				const bool bIsAnyTypeA = PinA->PinType.PinCategory == FDataflowAnyType::TypeName;
+				const bool bIsAnyTypeB = PinB->PinType.PinCategory == FDataflowAnyType::TypeName;
+				const bool bAreSameType = (PinA->PinType == PinB->PinType);
+				const bool bOnlyOneIsAnyType = (!bAreSameType && (bIsAnyTypeA != bIsAnyTypeB));
+				if (bAreSameType || bOnlyOneIsAnyType)
 				{
 					// cycle checking on connect
-					if (!HasLoopIfConnected(EdNodeA, EdNodeB))
+					if (!HasLoopIfConnected(PinA->GetOwningNode(), PinB->GetOwningNode()))
 					{
+
 						if (PinB->LinkedTo.Num())
 						{
 							return (bSwapped) ?

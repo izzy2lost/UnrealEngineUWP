@@ -23,15 +23,9 @@ public:
 	FDataflowReRouteNode(const Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid());
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const;
 
-
 public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Value", DisplayName = "Value"))
-	FDataflowAllTypes Value;
-
-protected:
-	virtual bool OnInputTypeChanged(const FDataflowInput* Input) override;
-	virtual bool OnOutputTypeChanged(const FDataflowOutput* Input) override;
-
+	FDataflowAnyType Value;
 };
 
 USTRUCT(meta=(Icon="GraphEditor.Branch_16x"))
@@ -47,18 +41,14 @@ public:
 
 public:
 	UPROPERTY(meta = (DataflowInput, DisplayName = "TrueValue"))
-	FDataflowAllTypes TrueValue;
+	FDataflowAnyType TrueValue;
 
 	UPROPERTY(meta = (DataflowInput, DisplayName = "FalseValue"))
-	FDataflowAllTypes FalseValue;
+	FDataflowAnyType FalseValue;
 
 	UPROPERTY(EditAnywhere, Category="Condition", meta = (DataflowInput, DisplayName = "Condition"))
 	bool bCondition = true;
 
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "Result"))
-	FDataflowAllTypes Result;
-
-private:
-	virtual bool OnInputTypeChanged(const FDataflowInput* Input) override;
-	virtual bool OnOutputTypeChanged(const FDataflowOutput* Input) override;
+	FDataflowAnyType Result;
 };

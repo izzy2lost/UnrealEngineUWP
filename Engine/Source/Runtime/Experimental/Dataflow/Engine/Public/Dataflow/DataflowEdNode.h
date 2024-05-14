@@ -76,8 +76,6 @@ public:
 	/** Remove an option pin if the underlying Dataflow node RemovePin member is overriden. */
 	DATAFLOWENGINE_API void RemoveOptionPin();
 
-	DATAFLOWENGINE_API bool PinIsCompatibleWithType(const UEdGraphPin& Pin, const FEdGraphPinType& PinType) const;
-
 #if WITH_EDITOR
 	// Pin hiding
 	DATAFLOWENGINE_API void HideAllInputPins();
@@ -97,5 +95,11 @@ public:
 
 	UPROPERTY()
 	bool bRenderInAssetEditor = false;
+
+private:
+	void OnPinConnection(const UEdGraphPin& Pin, const FEdGraphPinType& Type);
+	void OnPinDisconnection(const UEdGraphPin& Pin);
+	void SetAnyTypePinsToType(const FEdGraphPinType& Type);
+
 };
 
