@@ -81,6 +81,7 @@ class FShaderParametersMetadata;
 class FShaderPipelineType;
 class FShaderType;
 class FVertexFactoryType;
+class FRHIShaderBindingLayout;
 struct FShaderCompiledShaderInitializerType;
 struct FShaderCompilerOutput;
 using FShaderMapAssetPaths = TSet<FName>; // Copied from ShaderCodeLibrary.h
@@ -877,6 +878,9 @@ public:
 	/** Can be overridden by FShader subclasses to modify their compile environment just before compilation occurs. */
 	static void ModifyCompilationEnvironment(const FShaderPermutationParameters&, FShaderCompilerEnvironment&) {}
 
+	/**	Get shader binding layout used by the shader */
+	static const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters&) { return nullptr; }
+
 	/** Can be overridden by FShader subclasses to determine whether a specific permutation should be compiled. */
 	static bool ShouldCompilePermutation(const FShaderPermutationParameters&) { return true; }
 
@@ -1255,6 +1259,7 @@ public:
 	typedef bool (*ShouldCompilePermutationType)(const FShaderPermutationParameters&);
 	typedef EShaderPermutationPrecacheRequest (*ShouldPrecachePermutationType)(const FShaderPermutationParameters&);
 	typedef ERayTracingPayloadType(*GetRayTracingPayloadTypeType)(const int32 PermutationId);
+	typedef const FShaderBindingLayout*(*GetShaderBindingLayoutType)(const FShaderPermutationParameters&);
 #if WITH_EDITOR
 	typedef void (*ModifyCompilationEnvironmentType)(const FShaderPermutationParameters&, FShaderCompilerEnvironment&);
 	typedef bool (*ValidateCompiledResultType)(EShaderPlatform, const FShaderParameterMap&, TArray<FString>&);
@@ -1291,6 +1296,7 @@ public:
 		ShouldCompilePermutationType InShouldCompilePermutationRef,
 		ShouldPrecachePermutationType InShouldPrecachePermutationRef,
 		GetRayTracingPayloadTypeType InGetRayTracingPayloadTypeRef,
+		GetShaderBindingLayoutType InGetShaderBindingLayoutTypeRef,
 #if WITH_EDITOR
 		ModifyCompilationEnvironmentType InModifyCompilationEnvironmentRef,
 		ValidateCompiledResultType InValidateCompiledResultRef,
@@ -1307,6 +1313,7 @@ public:
 
 	RENDERCORE_API bool ShouldCompilePermutation(const FShaderPermutationParameters& Parameters) const;
 	RENDERCORE_API EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FShaderPermutationParameters& Parameters) const;
+	RENDERCORE_API const FShaderBindingLayout* GetShaderBindingLayout(const FShaderPermutationParameters& Parameters) const; 
 
 #if WITH_EDITOR
 	RENDERCORE_API void ModifyCompilationEnvironment(const FShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment) const;
@@ -1515,6 +1522,7 @@ private:
 	ShouldCompilePermutationType ShouldCompilePermutationRef;
 	ShouldPrecachePermutationType ShouldPrecachePermutationRef;
 	GetRayTracingPayloadTypeType GetRayTracingPayloadTypeRef;
+	GetShaderBindingLayoutType GetShaderBindingLayoutTypeRef;
 #if WITH_EDITOR
 	ModifyCompilationEnvironmentType ModifyCompilationEnvironmentRef;
 	ValidateCompiledResultType ValidateCompiledResultRef;
@@ -1659,7 +1667,8 @@ struct FShaderCompiledShaderInitializerType
 	ShaderClass::ConstructCompiledInstance, \
 	ShaderClass::ShouldCompilePermutationImpl, \
 	ShaderClass::ShouldPrecachePermutationImpl, \
-	ShaderClass::GetRayTracingPayloadType \
+	ShaderClass::GetRayTracingPayloadType, \
+	ShaderClass::GetShaderBindingLayout \
 	SHADER_TYPE_EDITOR_VTABLE(ShaderClass)
 
 #if !UE_BUILD_DOCS

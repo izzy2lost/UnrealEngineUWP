@@ -8557,6 +8557,12 @@ void GlobalBeginCompileShader(
 	SET_SHADER_DEFINE(Input.Environment, UE_LWC_RENDER_TILE_SIZE_FMOD_PI, (float)FMath::Fmod(TileSize, UE_DOUBLE_PI));
 	SET_SHADER_DEFINE(Input.Environment, UE_LWC_RENDER_TILE_SIZE_FMOD_2PI, (float)FMath::Fmod(TileSize, 2.0 * UE_DOUBLE_PI));
 
+	// Add required symbols from the shader binding layout if set
+	if (Input.Environment.ShaderBindingLayout)
+	{
+		Input.Environment.ShaderBindingLayout->AddRequiredSymbols(Input.RequiredSymbols);
+	}
+
 	// Allow the target shader format to modify the shader input before we add it as a job
 	const IShaderFormat* Format = GetTargetPlatformManagerRef().FindShaderFormat(ShaderFormatName);
 	checkf(Format, TEXT("Shader format %s cannot be found"), *ShaderFormatName.ToString());

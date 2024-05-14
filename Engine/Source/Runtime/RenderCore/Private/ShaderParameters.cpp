@@ -81,7 +81,7 @@ void FShaderUniformBufferParameter::ModifyCompilationEnvironment(const TCHAR* Pa
 	// if the name matches the struct's name, use the struct's cached version; otherwise, generate it now with the correct variable name.
 	if (FCString::Strcmp(ParameterName, Struct.GetShaderVariableName()) != 0)
 	{
-		const FString Declaration = UE::ShaderParameters::CreateUniformBufferShaderDeclaration(ParameterName, Struct);
+		const FString Declaration = UE::ShaderParameters::CreateUniformBufferShaderDeclaration(ParameterName, Struct, nullptr);
 		OutEnvironment.IncludeVirtualPathToContentsMap.Add(IncludeName, Declaration);
 	}
 	else
@@ -363,7 +363,7 @@ static void CreateHLSLUniformBufferStructMembersDeclaration(
 }
 
 /** Creates a HLSL declaration of a uniform buffer with the given structure. */
-static FString CreateHLSLUniformBufferDeclaration(const TCHAR* UniformBufferName, const FShaderParametersMetadata& UniformBufferStruct)
+static FString CreateHLSLUniformBufferDeclaration(const TCHAR* UniformBufferName, const FShaderParametersMetadata& UniformBufferStruct, const FRHIUniformBufferShaderBindingLayout* UniformBufferSBLayout)
 {
 	// If the uniform buffer has no members, we don't want to write out anything.  Shader compilers throw errors when faced with empty cbuffers and structs.
 	if (UniformBufferStruct.GetMembers().Num() > 0)
@@ -371,6 +371,8 @@ static FString CreateHLSLUniformBufferDeclaration(const TCHAR* UniformBufferName
 		FUniformBufferDecl Decl;
 		uint32 HLSLBaseOffset = 0;
 		CreateHLSLUniformBufferStructMembersDeclaration(UniformBufferStruct, UniformBufferName, TEXT(""), TEXT(""), 0, Decl, HLSLBaseOffset);
+
+		// TODO: use UniformBufferSBLayout to generate CB_DEFINITION with fixed register & space
 
 		return FString::Printf(
 			TEXT("#pragma once\n")
@@ -394,9 +396,9 @@ static FString CreateHLSLUniformBufferDeclaration(const TCHAR* UniformBufferName
 	return FString(TEXT("\n"));
 }
 
-FString UE::ShaderParameters::CreateUniformBufferShaderDeclaration(const TCHAR* UniformBufferName, const FShaderParametersMetadata& UniformBufferStruct)
+FString UE::ShaderParameters::CreateUniformBufferShaderDeclaration(const TCHAR* UniformBufferName, const FShaderParametersMetadata& UniformBufferStruct, const FRHIUniformBufferShaderBindingLayout* UniformBufferSBLayout)
 {
-	return CreateHLSLUniformBufferDeclaration(UniformBufferName, UniformBufferStruct);
+	return CreateHLSLUniformBufferDeclaration(UniformBufferName, UniformBufferStruct, UniformBufferSBLayout);
 }
 
 void UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(FShaderCompilerEnvironment& OutEnvironment, const TSet<const FShaderParametersMetadata*>& InUniformBuffers)
@@ -405,22 +407,32 @@ void UE::ShaderParameters::AddUniformBufferIncludesToEnvironment(FShaderCompiler
 
 	FString UniformBufferIncludes;
 
-	for (const FShaderParametersMetadata* Metadata : InUniformBuffers)
+	for (const FShaderParametersMetadata* Metadata : InUniformBuffers)	
 	{
 		FStringView UniformBufferNameView(Metadata->GetShaderVariableName());
 		uint32 UniformBufferNameHash = GetTypeHash(UniformBufferNameView);
 		if (!OutEnvironment.UniformBufferMap.FindByHash(UniformBufferNameHash, UniformBufferNameView))
 		{
-				const FThreadSafeSharedAnsiStringPtr UniformBufferDeclaration = Metadata->GetUniformBufferDeclarationAnsiPtr();
+			FThreadSafeSharedAnsiStringPtr UniformBufferDeclaration;
 
-				check(UniformBufferDeclaration.Get() != NULL);
-				check(!UniformBufferDeclaration.Get()->IsEmpty());
-
-				UniformBufferIncludes += Metadata->GetUniformBufferInclude();
-
-				OutEnvironment.IncludeVirtualPathToSharedContentsMap.AddByHash(Metadata->GetUniformBufferPathHash(), Metadata->GetUniformBufferPath(), UniformBufferDeclaration);
-
-				Metadata->AddResourceTableEntries(OutEnvironment.ResourceTableMap, OutEnvironment.UniformBufferMap);
+			// Use the shader binding layout to retrieve the uniform buffer declaration if available
+			if (OutEnvironment.ShaderBindingLayout)
+			{
+				UniformBufferDeclaration = OutEnvironment.ShaderBindingLayout->GetUniformBufferDeclarationAnsiPtr(Metadata);
+			}
+			else
+			{
+				UniformBufferDeclaration = Metadata->GetUniformBufferDeclarationAnsiPtr();
+			}
+			
+			check(UniformBufferDeclaration.Get() != NULL);
+			check(!UniformBufferDeclaration.Get()->IsEmpty());
+			
+			UniformBufferIncludes += Metadata->GetUniformBufferInclude();
+			
+			OutEnvironment.IncludeVirtualPathToSharedContentsMap.AddByHash(Metadata->GetUniformBufferPathHash(), Metadata->GetUniformBufferPath(), UniformBufferDeclaration);
+			
+			Metadata->AddResourceTableEntries(OutEnvironment.ResourceTableMap, OutEnvironment.UniformBufferMap);
 		}
 	}
 

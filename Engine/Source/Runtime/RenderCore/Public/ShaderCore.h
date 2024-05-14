@@ -27,6 +27,7 @@
 #include "Misc/TVariant.h"
 #include "PixelFormat.h"
 #include "RHIDefinitions.h"
+#include "RHIShaderBindingLayout.h"
 #include "Serialization/Archive.h"
 #include "Serialization/MemoryLayout.h"
 #include "ShaderParameterMetadata.h"
@@ -423,6 +424,54 @@ private:
 	uint64 Data;
 };
 
+/**
+RenderCore wrapper around FRHIShaderBindingLayout which can also cache the uniform buffer declarations used during shader code generation
+*/
+class FShaderBindingLayout
+{
+public:
+
+	FRHIShaderBindingLayout RHILayout;
+
+#if WITH_EDITOR
+	FThreadSafeSharedAnsiStringPtr GetUniformBufferDeclarationAnsiPtr(const FShaderParametersMetadata* ShaderParametersMetadata) const;
+	void SetUniformBufferDeclarationAnsiPtr(const FShaderParametersMetadata* ShaderParametersMetadata, FThreadSafeSharedAnsiStringPtr UniformBufferDeclarationAnsi);
+
+	RENDERCORE_API void AddRequiredSymbols(TArray<FString>& RequiredSymbols) const;
+
+protected:
+	
+	TArray<FThreadSafeSharedAnsiStringPtr> UniformBufferDeclarationsAnsi;
+#endif
+};
+
+/**
+Static shader binding layout object managing all possible binding type versions of the FShaderBindingLayout
+*/
+class FShaderBindingLayoutContainer
+{
+public:
+	enum class EBindingType : uint8
+	{
+		Bindless,
+		NotBindless,
+		Num
+	};
+
+	const FShaderBindingLayout& GetLayout(EBindingType BindingType) const
+	{
+		return Layouts[(uint8)BindingType];
+	}
+	void SetLayout(EBindingType BindingType, const FShaderBindingLayout& InLayout)
+	{
+		Layouts[(uint8)BindingType] = InLayout;
+	}
+
+protected:
+
+	FShaderBindingLayout Layouts[(uint8)EBindingType::Num];
+};
+
 struct FShaderResourceTableMap
 {
 	TArray<FUniformResourceEntry> Resources;
@@ -447,6 +496,12 @@ struct FShaderCompilerEnvironment
 	TMap<uint32,uint8> RenderTargetOutputFormatsMap;
 	FShaderResourceTableMap ResourceTableMap;
 	TMap<FString, FUniformBufferEntry> UniformBufferMap;
+	
+	// Optional shader binding layout which can be used build the Uniform buffer map
+	const FShaderBindingLayout* ShaderBindingLayout = nullptr;
+
+	// Serialized version of the shader binding layout which can be used during platform specific shader code generation and serialization
+	FRHIShaderBindingLayout RHIShaderBindingLayout;
 
 	const ITargetPlatform* TargetPlatform = nullptr;
 
@@ -669,6 +724,7 @@ enum class EShaderOptionalDataKey : uint8
 	UniformBuffers       = uint8('u'),
 	Validation           = uint8('V'),
 	VendorExtension      = uint8('v'),
+	ShaderBindingLayout  = uint8('s'),
 };
 
 enum class EShaderResourceUsageFlags : uint8
@@ -739,6 +795,12 @@ struct FShaderCodeUniformBuffers
 {
 	static const EShaderOptionalDataKey Key = EShaderOptionalDataKey::UniformBuffers;
 	// We store an array of FString objects
+};
+
+struct FShaderCodeShaderResourceTableDataDesc
+{
+	static const EShaderOptionalDataKey Key = EShaderOptionalDataKey::ShaderBindingLayout;
+	// We store FRHIShaderBindingLayout
 };
 
 // if this changes you need to make sure all shaders get invalidated

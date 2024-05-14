@@ -499,6 +499,7 @@
 	#define UB_DECL_RESOURCE(UBName, StructName, GlobalName)  UBName##.##StructName = UBName##_##GlobalName
 #else
 	#define UB_CB_DEFINITION_START(      UBName                    ) cbuffer UBName {
+	#define UB_STATIC_CB_DEFINITION_START(UBName, ResourceIndex, Space) cbuffer UBName : register(b##ResourceIndex, space##Space) {
 	#define UB_CB_MEMBER_NAME(           UBName,         MemberName) UBName##_##MemberName
 	#define UB_CB_PREFIXED_MEMBER_NAME(  UBName, Prefix, MemberName) Prefix##UBName##_##MemberName
 	#define UB_CB_DEFINITION_END(        UBName                    ) }

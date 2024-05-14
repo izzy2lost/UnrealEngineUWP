@@ -71,6 +71,9 @@ struct FD3D12ShaderData
 	TArray<uint8> Code;
 
 	FShaderCodePackedResourceCounts ResourceCounts{};
+		
+	// Hash of the static shader binding layout used during shader gen
+	uint32 ShaderBindingLayoutHash = 0;
 
 #if D3D12RHI_NEEDS_VENDOR_EXTENSIONS
 	TArray<FShaderCodeVendorExtension> VendorExtensions;
@@ -172,7 +175,7 @@ class FD3D12RayTracingShader : public FRHIRayTracingShader, public FD3D12ShaderD
 public:
 	explicit FD3D12RayTracingShader(EShaderFrequency InFrequency) : FRHIRayTracingShader(InFrequency) {}
 
-	const FD3D12RootSignature* pRootSignature = nullptr;
+	const FD3D12RootSignature* RootSignature = nullptr;
 
 	/** The shader's DXIL entrypoint & base export name for DXR (required for RTPSO creation) */
 	FString EntryPoint; // Primary entry point for all ray tracing shaders. Assumed to be closest hit shader for SF_RayHitGroup.

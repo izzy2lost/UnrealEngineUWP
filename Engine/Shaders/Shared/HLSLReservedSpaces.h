@@ -34,6 +34,9 @@
 // Register space for shader root constants (4xu32)
 #define UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS 3
 
+// Register space for static shader bindings
+#define UE_HLSL_SPACE_STATIC_SHADER_BINDINGS 4
+
 // Register space for UE diagnotic debug buffer
 #define UE_HLSL_SPACE_DIAGNOSTIC 999
 

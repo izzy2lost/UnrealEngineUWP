@@ -26,6 +26,8 @@ class FRDGBuffer;
 class FRDGBufferSRV;
 class FRDGBufferUAV;
 class FRDGUniformBuffer;
+enum class EShaderBindingLayoutFlags : uint8;
+class FShaderBindingLayoutContainer;
 template <typename TUniformStruct> class TRDGUniformBuffer;
 
 /** Alignements tools because alignas() does not work on type in clang. */
@@ -1462,6 +1464,9 @@ extern RENDERCORE_API FShaderParametersMetadata* FindUniformBufferStructByFName(
 extern RENDERCORE_API FShaderParametersMetadata* FindUniformBufferStructByLayoutHash(uint32 Hash);
 
 extern RENDERCORE_API FShaderParametersMetadata* FindUniformBufferStructByShaderVariableName(const FHashedName& Name);
+
+/** Build the shader binding layout desc from array of used Uniform buffers which will be bound as static uniform buffers to the rhi */
+extern RENDERCORE_API void BuildShaderBindingLayout(TConstArrayView<FShaderParametersMetadata*> UniformBuffers, EShaderBindingLayoutFlags BaseShaderBindingLayoutFlags, FShaderBindingLayoutContainer& OutShaderBindingLayoutContainer);
 
 /** Begins & ends a shader parameter structure.
  *

@@ -11,12 +11,14 @@
 #include "Misc/CommandLine.h"
 #include "RenderCore.h"
 #include "RHIUniformBufferLayoutInitializer.h"
+#include "RHIShaderBindingLayout.h"
 #include "Serialization/MemoryHasher.h"
 #include "Serialization/ShaderKeyGenerator.h"
 #include "ShaderCore.h"
 #include "ShaderCompilerCore.h"
 #include "ShaderParameters.h"
 #include "ShaderParameterMacros.h"
+#include "HLSLReservedSpaces.h"
 
 bool SupportShaderPrecisionModifier(EShaderPlatform Platform)
 {
@@ -145,6 +147,83 @@ FShaderParametersMetadata* FindUniformBufferStructByFName(FName StructName)
 FShaderParametersMetadata* FindUniformBufferStructByLayoutHash(uint32 Hash)
 {
 	return GetLayoutHashStructMap().FindRef(Hash);
+}
+
+void BuildShaderBindingLayout(TConstArrayView<FShaderParametersMetadata*> UniformBuffers, EShaderBindingLayoutFlags BaseShaderBindingLayoutFlags, FShaderBindingLayoutContainer& OutShaderBindingLayoutContainer)
+{
+	// only build the bindless version for now
+	FShaderBindingLayoutContainer::EBindingType BindingType = FShaderBindingLayoutContainer::EBindingType::Bindless;
+	
+	FShaderBindingLayout ShaderBindingLayout;
+
+	EShaderBindingLayoutFlags ShaderBindingLayoutFlags = BaseShaderBindingLayoutFlags;
+	if (BindingType == FShaderBindingLayoutContainer::EBindingType::Bindless)
+	{
+		ShaderBindingLayoutFlags |= EShaderBindingLayoutFlags::BindlessResources | EShaderBindingLayoutFlags::BindlessSamplers;
+	}
+
+	bool bBindlessResources = EnumHasAllFlags(ShaderBindingLayoutFlags, EShaderBindingLayoutFlags::BindlessResources);
+	bool bBindlessSamplers = EnumHasAllFlags(ShaderBindingLayoutFlags, EShaderBindingLayoutFlags::BindlessSamplers);
+
+	TArray<FRHIUniformBufferShaderBindingLayout> UniformBufferEntries;
+	UniformBufferEntries.Reserve(UniformBuffers.Num());
+
+	int32 CurrentCBVResourceIndex = 0;
+	int32 CurrentBaseSRVResourceIndex = bBindlessResources ? -1 : 0;
+	int32 CurrentBaseUAVResourceIndex = bBindlessResources ? -1 : 0;
+	int32 CurrentBaseSamplerResourceIndex = bBindlessSamplers ? -1 : 0;
+	for (FShaderParametersMetadata* ShaderParametersMetaData : UniformBuffers)
+	{
+		const FRHIUniformBufferLayout& UniformBufferLayout = ShaderParametersMetaData->GetLayout();
+		check(UniformBufferLayout.ConstantBufferSize > 0);
+
+		FRHIUniformBufferShaderBindingLayout& NewEntry = UniformBufferEntries.AddDefaulted_GetRef();
+		NewEntry.LayoutHash = UniformBufferLayout.GetHash();
+		NewEntry.RegisterSpace = UE_HLSL_SPACE_STATIC_SHADER_BINDINGS;
+		NewEntry.CBVResourceIndex = CurrentCBVResourceIndex;
+		NewEntry.BaseSRVResourceIndex = CurrentBaseSRVResourceIndex;
+		NewEntry.BaseUAVResourceIndex = CurrentBaseUAVResourceIndex;
+		NewEntry.BaseSamplerResourceIndex = CurrentBaseSamplerResourceIndex;
+
+		// Increment counters		
+		CurrentCBVResourceIndex++;
+
+		// Don't need to increment resources if using bindless because all data is in the CBV
+		if (!bBindlessSamplers)
+		{
+			// TODO use layout to find out all the samplers
+			check(false);
+		}
+		if (!bBindlessResources)
+		{
+			// TODO use layout to find out all the resources and uavs
+			check(false);
+		}
+	}
+
+	ShaderBindingLayout.RHILayout = FRHIShaderBindingLayout(ShaderBindingLayoutFlags, UniformBufferEntries);
+
+#if WITH_EDITOR
+	// Also create the uniform buffer decleration shared ansi strings used during shader gen
+	for (uint8 UniformBufferIndex = 0; UniformBufferIndex < UniformBuffers.Num(); ++UniformBufferIndex)	
+	{
+		FShaderParametersMetadata* ShaderParametersMetaData = UniformBuffers[UniformBufferIndex];
+		const FRHIUniformBufferShaderBindingLayout* UniformBufferSBLayout = ShaderBindingLayout.RHILayout.FindEntry(ShaderParametersMetaData->GetLayout().GetHash());
+		check(UniformBufferSBLayout);
+
+		FString NewDeclaration = UE::ShaderParameters::CreateUniformBufferShaderDeclaration(ShaderParametersMetaData->GetShaderVariableName(), *ShaderParametersMetaData, UniformBufferSBLayout);
+		check(!NewDeclaration.IsEmpty());
+			
+		// Cache preprocessor friendly copy of uniform buffer declaration
+		TArray<ANSICHAR>* NewDeclarationAnsi = new TArray<ANSICHAR>;
+		ShaderConvertAndStripComments(NewDeclaration, *NewDeclarationAnsi);
+		FThreadSafeSharedAnsiStringPtr UniformBufferDeclarationAnsi = MakeShareable(NewDeclarationAnsi);
+
+		ShaderBindingLayout.SetUniformBufferDeclarationAnsiPtr(ShaderParametersMetaData, UniformBufferDeclarationAnsi);
+	}
+#endif //WITH_EDITOR
+
+	OutShaderBindingLayoutContainer.SetLayout(BindingType, ShaderBindingLayout);
 }
 
 static TArray<const FShaderParametersMetadataRegistration*>* GShaderParametersMetadataRegistrationInstances = nullptr;
@@ -900,7 +979,7 @@ void FShaderParametersMetadata::InitializeUniformBufferDeclaration()
 {
 	if (UseCase != EUseCase::ShaderParameterStruct)
 	{
-		FString* NewDeclaration = new FString(UE::ShaderParameters::CreateUniformBufferShaderDeclaration(ShaderVariableName, *this));
+		FString* NewDeclaration = new FString(UE::ShaderParameters::CreateUniformBufferShaderDeclaration(ShaderVariableName, *this, nullptr));
 		check(!NewDeclaration->IsEmpty());
 
 		UniformBufferDeclaration = MakeShareable(NewDeclaration);

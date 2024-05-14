@@ -247,6 +247,7 @@ FShaderType::FShaderType(
 	ShouldCompilePermutationType InShouldCompilePermutationRef,
 	ShouldPrecachePermutationType InShouldPrecachePermutationRef,
 	GetRayTracingPayloadTypeType InGetRayTracingPayloadTypeRef,
+	GetShaderBindingLayoutType InGetShaderBindingLayoutTypeRef,
 #if WITH_EDITOR
 	ModifyCompilationEnvironmentType InModifyCompilationEnvironmentRef,
 	ValidateCompiledResultType InValidateCompiledResultRef,
@@ -270,6 +271,7 @@ FShaderType::FShaderType(
 	ShouldCompilePermutationRef(InShouldCompilePermutationRef),
 	ShouldPrecachePermutationRef(InShouldPrecachePermutationRef),
 	GetRayTracingPayloadTypeRef(InGetRayTracingPayloadTypeRef),
+	GetShaderBindingLayoutTypeRef(InGetShaderBindingLayoutTypeRef),
 #if WITH_EDITOR
 	ModifyCompilationEnvironmentRef(InModifyCompilationEnvironmentRef),
 	ValidateCompiledResultRef(InValidateCompiledResultRef),
@@ -435,11 +437,24 @@ EShaderPermutationPrecacheRequest FShaderType::ShouldPrecachePermutation(const F
 	return ShouldCompileShaderFrequency((EShaderFrequency)Frequency, Parameters.Platform) ? (*ShouldPrecachePermutationRef)(Parameters) : EShaderPermutationPrecacheRequest::NotUsed;
 }
 
+const FShaderBindingLayout* FShaderType::GetShaderBindingLayout(const FShaderPermutationParameters& Parameters) const
+{
+	return (*GetShaderBindingLayoutTypeRef)(Parameters);
+}
+
+
 #if WITH_EDITOR
 
 void FShaderType::ModifyCompilationEnvironment(const FShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment) const
 {
 	(*ModifyCompilationEnvironmentRef)(Parameters, OutEnvironment);
+	
+	OutEnvironment.ShaderBindingLayout = GetShaderBindingLayout(Parameters);
+	if (OutEnvironment.ShaderBindingLayout)
+	{
+		// Store copy of RHI version of the shader binding layout in the environment so it can be serialized for the shader compiler workers
+		OutEnvironment.RHIShaderBindingLayout = OutEnvironment.ShaderBindingLayout->RHILayout;
+	}
 
 	if (Frequency == SF_RayHitGroup)
 	{
@@ -2609,6 +2624,14 @@ void ShaderMapAppendKey(EShaderPlatform Platform, FShaderKeyGenerator& KeyGen)
 			KeyGen.Append(SamplersConfig == ERHIBindlessConfiguration::RayTracingShaders ?
 				TEXT("BNDLSRTSAM") : TEXT("BNDLSSAM"));
 		}
+	}
+
+	const ERHIStaticShaderBindingLayoutSupport StaticShaderBindingLayoutSupport = FDataDrivenShaderPlatformInfo::GetStaticShaderBindingLayoutSupport(Platform);
+	if (StaticShaderBindingLayoutSupport != ERHIStaticShaderBindingLayoutSupport::Unsupported)
+	{
+		KeyGen.AppendSeparator();
+		KeyGen.Append(StaticShaderBindingLayoutSupport == ERHIStaticShaderBindingLayoutSupport::RayTracingOnly ?
+		              TEXT("SSBL-RT") : TEXT("SSBL"));
 	}
 
 	if (ShouldCompileRayTracingShadersForProject(Platform))

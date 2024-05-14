@@ -76,6 +76,7 @@ public:
 		ShouldCompilePermutationType InShouldCompilePermutationRef,
 		ShouldPrecachePermutationType InShouldPrecachePermutationRef,
 		GetRayTracingPayloadTypeType InGetRayTracingPayloadTypeRef,
+		GetShaderBindingLayoutType InGetShaderBindingLayoutTypeRef,
 #if WITH_EDITOR
 		ModifyCompilationEnvironmentType InModifyCompilationEnvironmentRef,
 		ValidateCompiledResultType InValidateCompiledResultRef,
@@ -96,6 +97,7 @@ public:
 			InShouldCompilePermutationRef,
 			InShouldPrecachePermutationRef,
 			InGetRayTracingPayloadTypeRef,
+			InGetShaderBindingLayoutTypeRef,
 #if WITH_EDITOR
 			InModifyCompilationEnvironmentRef,
 			InValidateCompiledResultRef,

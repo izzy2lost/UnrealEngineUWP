@@ -52,6 +52,15 @@ static inline bool ReadShaderOptionalData(FShaderCodeReader& InShaderCode, TShad
 	}
 #endif
 
+	int32 ShaderBindingLayoutSize = 0;
+	auto* ShaderBindingLayoutData = InShaderCode.FindOptionalDataAndSize(FShaderCodeShaderResourceTableDataDesc::Key, ShaderBindingLayoutSize);
+	if (ShaderBindingLayoutData && ShaderBindingLayoutSize > 0)
+	{
+		check(ShaderBindingLayoutSize == sizeof(OutShader.ShaderBindingLayoutHash));
+		FBufferReader Ar((void*)ShaderBindingLayoutData, ShaderBindingLayoutSize, false);
+		Ar << OutShader.ShaderBindingLayoutHash;
+	}
+
 	UE::RHICore::SetupShaderCodeValidationData(&OutShader, InShaderCode);
 	UE::RHICore::SetupShaderDiagnosticData(&OutShader, InShaderCode);
 
@@ -240,7 +249,7 @@ FRayTracingShaderRHIRef FD3D12DynamicRHI::RHICreateRayTracingShader(TArrayView<c
 	FD3D12RayTracingShader* Shader = InitStandardShaderWithCustomSerialization(new FD3D12RayTracingShader(ShaderFrequency), Code, CustomSerialization);
 	if (Shader)
 	{
-		Shader->pRootSignature = GetAdapter().GetRootSignature(Shader);
+		Shader->RootSignature = GetAdapter().GetRootSignature(Shader);
 	}
 
 	return Shader;

@@ -22,6 +22,7 @@
 #include "D3D12RayTracingDebug.h"
 #include "D3D12ExplicitDescriptorCache.h"
 #include "D3D12ResourceCollection.h"
+#include "RHIShaderBindingLayout.h"
 
 extern int32 GD3D12ExplicitViewDescriptorHeapSize;
 extern int32 GD3D12ExplicitViewDescriptorHeapOverflowReported;
@@ -1156,7 +1157,7 @@ public:
 		else
 		{
 			// All other shaders (hit groups, miss, callable) use custom root signatures.
-			LocalRootSignature = Shader->pRootSignature->GetRootSignature();
+			LocalRootSignature = Shader->RootSignature->GetRootSignature();
 		}
 
 		FKey CacheKey;
@@ -1970,6 +1971,8 @@ public:
 		TArrayView<FRHIRayTracingShader*> InitializerMissShaders = Initializer.GetMissTable();
 		TArrayView<FRHIRayTracingShader*> InitializerRayGenShaders = Initializer.GetRayGenTable();
 		TArrayView<FRHIRayTracingShader*> InitializerCallableShaders = Initializer.GetCallableTable();
+				
+		uint32 ShaderBindingLayoutHash = Initializer.ShaderBindingLayout ? Initializer.ShaderBindingLayout->GetHash() : 0;
 
 		const uint32 MaxTotalShaders = InitializerRayGenShaders.Num() + InitializerMissShaders.Num() + InitializerHitGroups.Num() + InitializerCallableShaders.Num();
 		checkf(MaxTotalShaders >= 1, TEXT("Ray tracing pipelines are expected to contain at least one shader"));
@@ -1998,11 +2001,14 @@ public:
 
 		// Helper function to acquire a D3D12_EXISTING_COLLECTION_DESC for a compiled shader via cache
 
-		auto AddShaderCollection = [Device, GlobalRootSignature = this->GlobalRootSignature, PipelineCache,
+		auto AddShaderCollection = [Device, ShaderBindingLayoutHash, GlobalRootSignature = this->GlobalRootSignature, PipelineCache,
 										&UniqueShaderHashes = this->PipelineShaderHashes, &UniqueShaderCollections, &Initializer, &NumCacheHits, &CompileTime,
 										&CompileCompletionList]
 			(FD3D12RayTracingShader* Shader, FD3D12RayTracingPipelineCache::ECollectionType CollectionType)
 		{
+			// verify that that the same shader binding layout is used for all shaders in the RTPSO
+			checkf(Shader->ShaderBindingLayoutHash == ShaderBindingLayoutHash, TEXT("Raytracing shader with with entry point %s doesn't match the RTPSO ShaderBindingLayout"), *Shader->EntryPoint);
+
 			bool bIsAlreadyInSet = false;
 			const uint64 ShaderHash = GetShaderHash64(Shader);
 			UniqueShaderHashes.Add(ShaderHash, &bIsAlreadyInSet);
@@ -2047,7 +2053,7 @@ public:
 		for (FRHIRayTracingShader* ShaderRHI : InitializerRayGenShaders)
 		{
 			FD3D12RayTracingShader* Shader = FD3D12DynamicRHI::ResourceCast(ShaderRHI);
-			checkf(Shader->pRootSignature->GetRootSignature() == GlobalRootSignature, TEXT("All raygen and miss shaders must share the same root signature"));
+			checkf(Shader->RootSignature->GetRootSignature() == GlobalRootSignature, TEXT("All raygen and miss shaders must share the same root signature"));
 			checkf(!Shader->UsesGlobalUniformBuffer(), TEXT("Global uniform buffers are not implemented for ray generation shaders"));
 
 			FD3D12RayTracingPipelineCache::FEntry* ShaderCacheEntry = AddShaderCollection(Shader, FD3D12RayTracingPipelineCache::ECollectionType::RayGen);
@@ -2076,7 +2082,7 @@ public:
 
 			const uint32 ShaderViewDescriptors = Shader->ResourceCounts.NumSRVs + Shader->ResourceCounts.NumUAVs;
 			MaxHitGroupViewDescriptors = FMath::Max(MaxHitGroupViewDescriptors, ShaderViewDescriptors);
-			MaxLocalRootSignatureSize = FMath::Max(MaxLocalRootSignatureSize, Shader->pRootSignature->GetTotalRootSignatureSizeInBytes());
+			MaxLocalRootSignatureSize = FMath::Max(MaxLocalRootSignatureSize, Shader->RootSignature->GetTotalRootSignatureSizeInBytes());
 
 			FD3D12RayTracingPipelineCache::FEntry* ShaderCacheEntry = AddShaderCollection(Shader, FD3D12RayTracingPipelineCache::ECollectionType::Miss);
 
@@ -2098,7 +2104,7 @@ public:
 
 			const uint32 ShaderViewDescriptors = Shader->ResourceCounts.NumSRVs + Shader->ResourceCounts.NumUAVs;
 			MaxHitGroupViewDescriptors = FMath::Max(MaxHitGroupViewDescriptors, ShaderViewDescriptors);
-			MaxLocalRootSignatureSize = FMath::Max(MaxLocalRootSignatureSize, Shader->pRootSignature->GetTotalRootSignatureSizeInBytes());
+			MaxLocalRootSignatureSize = FMath::Max(MaxLocalRootSignatureSize, Shader->RootSignature->GetTotalRootSignatureSizeInBytes());
 
 			FD3D12RayTracingPipelineCache::FEntry* ShaderCacheEntry = AddShaderCollection(Shader, FD3D12RayTracingPipelineCache::ECollectionType::HitGroup);
 
@@ -2121,7 +2127,7 @@ public:
 
 			const uint32 ShaderViewDescriptors = Shader->ResourceCounts.NumSRVs + Shader->ResourceCounts.NumUAVs;
 			MaxHitGroupViewDescriptors = FMath::Max(MaxHitGroupViewDescriptors, ShaderViewDescriptors);
-			MaxLocalRootSignatureSize = FMath::Max(MaxLocalRootSignatureSize, Shader->pRootSignature->GetTotalRootSignatureSizeInBytes());
+			MaxLocalRootSignatureSize = FMath::Max(MaxLocalRootSignatureSize, Shader->RootSignature->GetTotalRootSignatureSizeInBytes());
 
 			FD3D12RayTracingPipelineCache::FEntry* ShaderCacheEntry = AddShaderCollection(Shader, FD3D12RayTracingPipelineCache::ECollectionType::Callable);
 
@@ -4279,7 +4285,7 @@ static bool SetRayTracingShaderResources(
 	uint32 InLooseParameterDataSize, const void* InLooseParameterData,
 	ResourceBinderType& Binder)
 {
-	const FD3D12RootSignature* RootSignature = Shader->pRootSignature;
+	const FD3D12RootSignature* RootSignature = Shader->RootSignature;
 
 	struct FBindings
 	{
@@ -4905,7 +4911,7 @@ static void SetRayTracingHitGroup(
 		}
 	}
 
-	FD3D12RayTracingLocalResourceBinder ResourceBinder(*Device, *ShaderTable, *(Shader->pRootSignature), RecordIndex, WorkerIndex, ERayTracingBindingType::HitGroup);
+	FD3D12RayTracingLocalResourceBinder ResourceBinder(*Device, *ShaderTable, *(Shader->RootSignature), RecordIndex, WorkerIndex, ERayTracingBindingType::HitGroup);
 	const bool bResourcesBound = SetRayTracingShaderResources(Shader,
 		0, nullptr, // Textures
 		0, nullptr, // SRVs
@@ -4950,7 +4956,7 @@ static void SetRayTracingCallableShader(
 	{
 		const FD3D12RayTracingShader* Shader = Pipeline->CallableShaders.Shaders[ShaderIndexInPipeline];
 
-		FD3D12RayTracingLocalResourceBinder ResourceBinder(*Device, *ShaderTable, *(Shader->pRootSignature), RecordIndex, WorkerIndex, ERayTracingBindingType::CallableShader);
+		FD3D12RayTracingLocalResourceBinder ResourceBinder(*Device, *ShaderTable, *(Shader->RootSignature), RecordIndex, WorkerIndex, ERayTracingBindingType::CallableShader);
 		const bool bResourcesBound = SetRayTracingShaderResources(Shader,
 			0, nullptr, // Textures
 			0, nullptr, // SRVs
@@ -4989,7 +4995,7 @@ static void SetRayTracingMissShader(
 
 	const FD3D12RayTracingShader* Shader = Pipeline->MissShaders.Shaders[ShaderIndexInPipeline];
 
-	FD3D12RayTracingLocalResourceBinder ResourceBinder(*Device, *ShaderTable, *(Shader->pRootSignature), RecordIndex, WorkerIndex, ERayTracingBindingType::MissShader);
+	FD3D12RayTracingLocalResourceBinder ResourceBinder(*Device, *ShaderTable, *(Shader->RootSignature), RecordIndex, WorkerIndex, ERayTracingBindingType::MissShader);
 	const bool bResourcesBound = SetRayTracingShaderResources(Shader,
 		0, nullptr, // Textures
 		0, nullptr, // SRVs

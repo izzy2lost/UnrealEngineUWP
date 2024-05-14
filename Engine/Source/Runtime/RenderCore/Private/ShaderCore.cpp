@@ -772,6 +772,40 @@ uint32 FShaderParameterMap::CountParametersOfType(EShaderParameterType InType) c
 	return Result;
 }
 
+#if WITH_EDITOR
+
+FThreadSafeSharedAnsiStringPtr FShaderBindingLayout::GetUniformBufferDeclarationAnsiPtr(const FShaderParametersMetadata* ShaderParametersMetadata) const
+{
+	// Does the binding layout contain a uniform buffer declaration for this shader paramaters
+	uint32 LayoutHash = ShaderParametersMetadata->GetLayout().GetHash();
+	const FRHIUniformBufferShaderBindingLayout* Entry = RHILayout.FindEntry(LayoutHash);
+	if (Entry)
+	{
+		uint8 UniformBufferIndex = Entry->CBVResourceIndex;
+		return UniformBufferDeclarationsAnsi[UniformBufferIndex];
+	}
+
+	// use the shared declaration from the metadata object itself (no fixed register or space defined)
+	return ShaderParametersMetadata->GetUniformBufferDeclarationAnsiPtr();
+}
+
+void FShaderBindingLayout::SetUniformBufferDeclarationAnsiPtr(const FShaderParametersMetadata* ShaderParametersMetadata, FThreadSafeSharedAnsiStringPtr UniformBufferDeclarationAnsi)
+{
+	uint32 LayoutHash = ShaderParametersMetadata->GetLayout().GetHash();
+	const FRHIUniformBufferShaderBindingLayout* Entry = RHILayout.FindEntry(LayoutHash);
+	check(Entry);
+	UniformBufferDeclarationsAnsi.SetNum(FMath::Max(UniformBufferDeclarationsAnsi.Num(), int32(Entry->CBVResourceIndex + 1)));
+	UniformBufferDeclarationsAnsi[Entry->CBVResourceIndex] = UniformBufferDeclarationAnsi;
+}
+
+void FShaderBindingLayout::AddRequiredSymbols(TArray<FString>& RequiredSymbols) const
+{
+	// assume only bindless for now so only need to add the CBuffer declares as required symbols
+	check(EnumHasAllFlags(RHILayout.GetFlags(), EShaderBindingLayoutFlags::BindlessResources | EShaderBindingLayoutFlags::BindlessSamplers));
+}
+
+#endif // WITH_EDITOR
+
 void FShaderResourceTableMap::Append(const FShaderResourceTableMap& Other)
 {
 	// Get the set of uniform buffers used by the target resource table map
@@ -1177,6 +1211,7 @@ void FShaderCompilerEnvironment::SerializeEverythingButFiles(FArchive& Ar)
 	Ar << RenderTargetOutputFormatsMap;
 	Ar << ResourceTableMap.Resources;
 	Ar << UniformBufferMap;
+	Ar << RHIShaderBindingLayout;
 	Ar << FullPrecisionInPS;
 	if (Ar.IsLoading())
 	{
@@ -1192,6 +1227,7 @@ void FShaderCompilerEnvironment::SerializeCompilationDependencies(FArchive& Ar)
 	Ar << RenderTargetOutputFormatsMap;
 	Ar << ResourceTableMap.Resources;
 	Ar << UniformBufferMap;
+	Ar << RHIShaderBindingLayout;
 	Ar << FullPrecisionInPS;
 	if (Ar.IsLoading())
 	{

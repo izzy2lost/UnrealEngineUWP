@@ -3,6 +3,7 @@
 #pragma once
 
 #include "D3D12RHI.h"
+#include "RHIShaderBindingLayout.h"
 
 struct FD3DShaderCompileData
 {
@@ -460,6 +461,19 @@ inline void GenerateFinalOutput(
 		Output.ShaderCode.AddOptionalData(PackedResourceCounts);
 		Output.ShaderCode.AddOptionalData(FShaderCodeUniformBuffers::Key, UniformBufferNameBytes.GetData(), UniformBufferNameBytes.Num());
 		AddOptionalDataCallback(Output.ShaderCode);
+	}
+	
+	// Append the shader binding layout hash used for validation
+	{
+		uint32 ShaderBindingLayoutHash = Input.Environment.RHIShaderBindingLayout.GetHash();
+
+		TArray<uint8> WriterBytes;
+		FMemoryWriter Writer(WriterBytes);
+		Writer << ShaderBindingLayoutHash;
+		if (WriterBytes.Num() > 0)
+		{
+			Output.ShaderCode.AddOptionalData(FShaderCodeShaderResourceTableDataDesc::Key, WriterBytes.GetData(), WriterBytes.Num());
+		}
 	}
 
 	// Append information about optional hardware vendor extensions

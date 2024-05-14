@@ -26,6 +26,7 @@ class FShaderParametersMetadata;
 struct FRWBuffer;
 struct FRWBufferStructured;
 struct FShaderCompilerEnvironment;
+struct FRHIUniformBufferShaderBindingLayout;
 
 enum class EShaderParameterType : uint8;
 DECLARE_INTRINSIC_TYPE_LAYOUT(EShaderParameterType);
@@ -37,7 +38,7 @@ DECLARE_INTRINSIC_TYPE_LAYOUT(EShaderCodeResourceBindingType);
 namespace UE::ShaderParameters
 {
 	/** Creates a shader code declaration of this struct for the given shader platform. */
-	RENDERCORE_API FString CreateUniformBufferShaderDeclaration(const TCHAR* Name, const FShaderParametersMetadata& UniformBufferStruct);
+	RENDERCORE_API FString CreateUniformBufferShaderDeclaration(const TCHAR* Name, const FShaderParametersMetadata& UniformBufferStruct, const FRHIUniformBufferShaderBindingLayout* UniformBufferSBLayout);
 
 	UE_DEPRECATED(5.5, "AddUniformBufferIncludesToEnviroment now takes a set of FShaderParametersMetadata pointers")
 	inline void AddUniformBufferIncludesToEnvironment(FShaderCompilerEnvironment& OutEnvironment, const TSet<const TCHAR*, TStringPointerSetKeyFuncs_DEPRECATED<const TCHAR*>>& InUniformBufferNames) {}
