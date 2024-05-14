@@ -103,7 +103,7 @@ protected:
 public:
 	bool IsModuleEnabled() const { return bModuleEnabled; }
 #if WITH_EDITOR
-	bool IsDebugDrawEnabled() const { return bDebugDrawEnabled; }
+	bool IsDebugDrawEnabled() const { return bModuleEnabled && bDebugDrawEnabled; }
 
 	struct PrivateMemberNames
 	{
