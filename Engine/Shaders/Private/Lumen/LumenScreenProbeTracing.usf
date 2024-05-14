@@ -374,8 +374,8 @@ void ScreenProbeTraceScreenTexturesCS(
 
 #ifdef ScreenProbeCompactTracesCS
 
-RWStructuredBuffer<uint> RWCompactedTraceTexelAllocator;
-RWStructuredBuffer<uint> RWCompactedTraceTexelData;
+RWBuffer<uint> RWCompactedTraceTexelAllocator;
+RWBuffer<uint> RWCompactedTraceTexelData;
 
 uint CullByDistanceFromCamera;
 float CompactionTracingEndDistanceFromCamera;

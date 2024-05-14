@@ -64,12 +64,12 @@ void DecodeRadianceCacheTraceTexel(uint Encoded, inout uint TraceTileIndex, inou
 	TraceTexelCoord.y = (Encoded >> 28) & 0xF;
 }
 
-StructuredBuffer<uint> CompactedTraceTexelAllocator_0;
-StructuredBuffer<uint> CompactedTraceTexelData_0;
+Buffer<uint> CompactedTraceTexelAllocator_0;
+Buffer<uint> CompactedTraceTexelData_0;
 
 #if RADIANCE_CACHE_BATCH_SIZE > 1
-	StructuredBuffer<uint> CompactedTraceTexelAllocator_1;
-	StructuredBuffer<uint> CompactedTraceTexelData_1;
+	Buffer<uint> CompactedTraceTexelAllocator_1;
+	Buffer<uint> CompactedTraceTexelData_1;
 #endif
 
 RWBuffer<uint> RWHardwareRayTracingIndirectArgs;
@@ -442,12 +442,12 @@ Texture2D<float> TraceHitTexture;
 
 #ifdef RadianceCacheCompactTracesCS
 
-RWStructuredBuffer<uint> RWCompactedTraceTexelAllocator_0;
-RWStructuredBuffer<uint> RWCompactedTraceTexelData_0;
+RWBuffer<uint> RWCompactedTraceTexelAllocator_0;
+RWBuffer<uint> RWCompactedTraceTexelData_0;
 
 #if RADIANCE_CACHE_BATCH_SIZE > 1
-	RWStructuredBuffer<uint> RWCompactedTraceTexelAllocator_1;
-	RWStructuredBuffer<uint> RWCompactedTraceTexelData_1;
+	RWBuffer<uint> RWCompactedTraceTexelAllocator_1;
+	RWBuffer<uint> RWCompactedTraceTexelData_1;
 #endif
 
 groupshared uint SharedTraceTexelAllocator;

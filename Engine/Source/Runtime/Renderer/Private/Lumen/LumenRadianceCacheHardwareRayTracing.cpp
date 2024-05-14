@@ -85,8 +85,8 @@ namespace LumenRadianceCache
 		SHADER_PARAMETER(uint32, ProbeAtlasResolutionModuloMask)
 		SHADER_PARAMETER(uint32, ProbeAtlasResolutionDivideShift)
 		SHADER_PARAMETER(uint32, FarField)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompactedTraceTexelAllocator)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompactedTraceTexelData)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, CompactedTraceTexelAllocator)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, CompactedTraceTexelData)
 	END_SHADER_PARAMETER_STRUCT()
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FBatchRadianceCacheTracingParameters, )
@@ -196,7 +196,7 @@ class FLumenRadianceCacheHardwareRayTracingIndirectArgsCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FLumenRadianceCacheHardwareRayTracingIndirectArgsCS, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_RDG_BUFFER_SRV_ARRAY(StructuredBuffer<uint>, CompactedTraceTexelAllocator, [LumenRadianceCache::MaxBatchSize])
+		SHADER_PARAMETER_RDG_BUFFER_SRV_ARRAY(Buffer<uint>, CompactedTraceTexelAllocator, [LumenRadianceCache::MaxBatchSize])
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWHardwareRayTracingIndirectArgs)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWResolveIndirectArgs)
 		SHADER_PARAMETER(FIntPoint, OutputThreadGroupSize)
@@ -267,8 +267,8 @@ class FRadianceCacheCompactTracesCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		RDG_BUFFER_ACCESS(ResolveIndirectArgs, ERHIAccess::IndirectArgs)
-		SHADER_PARAMETER_RDG_BUFFER_UAV_ARRAY(RWStructuredBuffer<uint>, RWCompactedTraceTexelAllocator, [LumenRadianceCache::MaxBatchSize])
-		SHADER_PARAMETER_RDG_BUFFER_UAV_ARRAY(RWStructuredBuffer<uint>, RWCompactedTraceTexelData, [LumenRadianceCache::MaxBatchSize])
+		SHADER_PARAMETER_RDG_BUFFER_UAV_ARRAY(RWBuffer<uint>, RWCompactedTraceTexelAllocator, [LumenRadianceCache::MaxBatchSize])
+		SHADER_PARAMETER_RDG_BUFFER_UAV_ARRAY(RWBuffer<uint>, RWCompactedTraceTexelData, [LumenRadianceCache::MaxBatchSize])
 		SHADER_PARAMETER_STRUCT_INCLUDE(LumenRadianceCache::FBatchRadianceCacheTracingParameters, BatchTracingParameters)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, TraceHitTexture)
 	END_SHADER_PARAMETER_STRUCT()
@@ -527,8 +527,8 @@ void LumenRadianceCache::RenderLumenHardwareRayTracingRadianceCache(
 			{
 				PassParameters->CompactedTraceTexelAllocator[IndexInBatch] = BatchTracingParameters.RadianceCache[IndexInBatch].CompactedTraceTexelAllocator;
 			}
-			PassParameters->RWHardwareRayTracingIndirectArgs = GraphBuilder.CreateUAV(HardwareRayTracingIndirectArgsBuffer, PF_R32_UINT);
-			PassParameters->RWResolveIndirectArgs = GraphBuilder.CreateUAV(ResolveIndirectArgs, PF_R32_UINT);
+			PassParameters->RWHardwareRayTracingIndirectArgs = GraphBuilder.CreateUAV(HardwareRayTracingIndirectArgsBuffer);
+			PassParameters->RWResolveIndirectArgs = GraphBuilder.CreateUAV(ResolveIndirectArgs);
 			PassParameters->OutputThreadGroupSize = bInlineRayTracing ? FLumenRadianceCacheHardwareRayTracingCS::GetThreadGroupSize(View.GetShaderPlatform()) : FLumenRadianceCacheHardwareRayTracingRGS::GetThreadGroupSize();
 
 			FLumenRadianceCacheHardwareRayTracingIndirectArgsCS::FPermutationDomain PermutationVector;
@@ -577,11 +577,11 @@ void LumenRadianceCache::RenderLumenHardwareRayTracingRadianceCache(
 
 			for (uint32 IndexInBatch = 0; IndexInBatch < BatchSize; ++IndexInBatch)
 			{
-				CompactedTraceTexelAllocatorArray[IndexInBatch] = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 2), TEXT("Lumen.RadianceCache.CompactedTraceTexelAllocator"));;
+				CompactedTraceTexelAllocatorArray[IndexInBatch] = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), 2), TEXT("Lumen.RadianceCache.CompactedTraceTexelAllocator"));;
 				AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(CompactedTraceTexelAllocatorArray[IndexInBatch], PF_R32_UINT), 0, ComputePassFlags);
 
 				const int32 NumCompactedTraceTexelDataElements = TempTraceAtlasResolution.X * TempTraceAtlasResolution.Y;
-				CompactedTraceTexelDataArray[IndexInBatch] = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), NumCompactedTraceTexelDataElements), TEXT("Lumen.RadianceCache.CompactedTraceTexelData"));
+				CompactedTraceTexelDataArray[IndexInBatch] = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), NumCompactedTraceTexelDataElements), TEXT("Lumen.RadianceCache.CompactedTraceTexelData"));
 			}
 
 			// Compact unfinished traces
@@ -621,7 +621,7 @@ void LumenRadianceCache::RenderLumenHardwareRayTracingRadianceCache(
 
 					PassParameters->CompactedTraceTexelAllocator[IndexInBatch] = RadianceCache.CompactedTraceTexelAllocator;
 				}
-				PassParameters->RWHardwareRayTracingIndirectArgs = GraphBuilder.CreateUAV(HardwareRayTracingIndirectArgsBuffer, PF_R32_UINT);
+				PassParameters->RWHardwareRayTracingIndirectArgs = GraphBuilder.CreateUAV(HardwareRayTracingIndirectArgsBuffer);
 				PassParameters->RWResolveIndirectArgs = nullptr;
 				PassParameters->OutputThreadGroupSize = bInlineRayTracing ? FLumenRadianceCacheHardwareRayTracingCS::GetThreadGroupSize(View.GetShaderPlatform()) : FLumenRadianceCacheHardwareRayTracingRGS::GetThreadGroupSize();
 

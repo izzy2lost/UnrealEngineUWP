@@ -276,8 +276,8 @@ class FScreenProbeCompactTracesCS : public FGlobalShader
 		SHADER_PARAMETER(float, CompactionTracingEndDistanceFromCamera)
 		SHADER_PARAMETER(float, CompactionMaxTraceDistance)
 		SHADER_PARAMETER(uint32, CompactForFarField)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWCompactedTraceTexelAllocator)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWCompactedTraceTexelData)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWCompactedTraceTexelAllocator)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWCompactedTraceTexelData)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static int32 GetGroupSize()
@@ -321,7 +321,7 @@ class FSetupCompactedTracesIndirectArgsCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWScreenProbeCompactTracingIndirectArgs)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompactedTraceTexelAllocator)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, CompactedTraceTexelAllocator)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FScreenProbeParameters, ScreenProbeParameters)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -607,14 +607,14 @@ FCompactedTraceParameters LumenScreenProbeGather::CompactTraces(
 	bool bCompactForFarField,
 	ERDGPassFlags ComputePassFlags)
 {
-	FRDGBufferRef CompactedTraceTexelAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 2), TEXT("Lumen.ScreenProbeGather.CompactedTraceTexelAllocator"));
+	FRDGBufferRef CompactedTraceTexelAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), 2), TEXT("Lumen.ScreenProbeGather.CompactedTraceTexelAllocator"));
 	FRDGBufferUAVRef CompactedTraceTexelAllocatorUAV = GraphBuilder.CreateUAV(CompactedTraceTexelAllocator, PF_R32_UINT, ERDGUnorderedAccessViewFlags::SkipBarrier);
 
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(CompactedTraceTexelAllocator, PF_R32_UINT), 0, ComputePassFlags);
 
 	const FIntPoint ScreenProbeTraceBufferSize = ScreenProbeParameters.ScreenProbeAtlasBufferSize * ScreenProbeParameters.ScreenProbeTracingOctahedronResolution;
 	const int32 NumCompactedTraceTexelDataElements = ScreenProbeTraceBufferSize.X * ScreenProbeTraceBufferSize.Y;
-	FRDGBufferRef CompactedTraceTexelData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), NumCompactedTraceTexelDataElements), TEXT("Lumen.ScreenProbeGather.CompactedTraceTexelData"));
+	FRDGBufferRef CompactedTraceTexelData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), NumCompactedTraceTexelDataElements), TEXT("Lumen.ScreenProbeGather.CompactedTraceTexelData"));
 
 	const FIntPoint ScreenProbeLightSampleBufferSize = ScreenProbeParameters.ScreenProbeAtlasBufferSize * ScreenProbeParameters.ScreenProbeLightSampleResolutionXY;
 	const int32 NumCompactedLightSampleTraceTexelDataElements = ScreenProbeLightSampleBufferSize.X * ScreenProbeLightSampleBufferSize.Y;

@@ -15,7 +15,7 @@
 	#include "../HairStrands/HairStrandsRaytracing.ush"
 #endif
 
-StructuredBuffer<uint> CompactedTraceTexelAllocator;
+Buffer<uint> CompactedTraceTexelAllocator;
 
 #ifdef InitCompactedTraceTexelIndirectArgsCS
 
@@ -56,8 +56,8 @@ uint MinimumTracingThreadOccupancy;
 Texture2D<uint> LightSamples;
 
 Texture2D<uint> RWTraceTile;
-RWStructuredBuffer<uint> RWCompactedTraceTexelData;
-RWStructuredBuffer<uint> RWCompactedTraceTexelAllocator;
+RWBuffer<uint> RWCompactedTraceTexelData;
+RWBuffer<uint> RWCompactedTraceTexelAllocator;
 
 #ifdef CompactLightSampleTracesCS
 

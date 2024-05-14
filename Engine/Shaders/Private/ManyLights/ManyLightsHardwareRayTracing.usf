@@ -36,8 +36,8 @@ RaytracingAccelerationStructure TLAS;
 RWTexture2D<uint> RWLightSamples;
 
 Texture2D<float> LightSampleRayDistance;
-StructuredBuffer<uint> CompactedTraceTexelData;
-StructuredBuffer<uint> CompactedTraceTexelAllocator;
+Buffer<uint> CompactedTraceTexelData;
+Buffer<uint> CompactedTraceTexelAllocator;
 Texture2D<float> DownsampledSceneDepth;
 Texture2D<UNORM float3> DownsampledSceneWorldNormal;
 
