@@ -735,6 +735,7 @@ enum class EShaderResourceUsageFlags : uint8
 	RootConstants         = 1 << 3,
 	NoDerivativeOps       = 1 << 4,
 	ShaderBundle          = 1 << 5,
+	DiagnosticBuffer      = 1 << 6,
 };
 ENUM_CLASS_FLAGS(EShaderResourceUsageFlags)
 
@@ -767,7 +768,7 @@ enum class EShaderCodeFeatures : uint16
 	SixteenBitTypes         = 1 << 1,
 	TypedUAVLoadsExtended   = 1 << 2,
 	Atomic64                = 1 << 3,
-	DiagnosticBuffer        = 1 << 4,
+	DiagnosticBuffer UE_DEPRECATED(5.5, "EShaderCodeFeatures::DiagnosticBuffer is superseded by EShaderResourceUsageFlags::DiagnosticBuffer") = 1 << 4,
 	BindlessResources       = 1 << 5,
 	BindlessSamplers        = 1 << 6,
 	StencilRef              = 1 << 7,

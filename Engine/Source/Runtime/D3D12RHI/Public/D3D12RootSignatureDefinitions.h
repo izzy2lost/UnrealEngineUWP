@@ -181,6 +181,7 @@ namespace D3D12ShaderUtils
 		virtual void AddRootFlag(D3D12_ROOT_SIGNATURE_FLAGS Flag) = 0;
 		virtual void AddConstantBufferViewParameter(uint32 Register, uint32 Space, ERootSignatureVisibility Visibility = ERootSignatureVisibility::All) = 0;
 		virtual void AddShaderResourceViewParameter(uint32 Register, uint32 Space, ERootSignatureVisibility Visibility = ERootSignatureVisibility::All) = 0;
+		virtual void AddUnorderedAccessViewParameter(uint32 Register, uint32 Space, ERootSignatureVisibility Visibility = ERootSignatureVisibility::All) = 0;
 		virtual void AddTable(ERootSignatureVisibility Visibility, ERootSignatureRangeType Type, int32 NumDescriptors, D3D12_DESCRIPTOR_RANGE_FLAGS FlagsOverride = D3D12_DESCRIPTOR_RANGE_FLAG_NONE) = 0;
 		virtual void AddConstantsParameter(uint32 Num32BitValues, uint32 Register, uint32 Space) = 0;
 
@@ -268,6 +269,12 @@ namespace D3D12ShaderUtils
 			Parameter.InitAsShaderResourceView(Register, Space, D3D12_ROOT_DESCRIPTOR_FLAG_NONE, GetD3D12ShaderVisibility(Visibility));
 		}
 
+		void AddUnorderedAccessViewParameter(uint32 Register, uint32 Space, ERootSignatureVisibility Visibility = ERootSignatureVisibility::All) override
+		{
+			CD3DX12_ROOT_PARAMETER1& Parameter = Parameters.AddZeroed_GetRef();
+			Parameter.InitAsUnorderedAccessView(Register, Space, D3D12_ROOT_DESCRIPTOR_FLAG_NONE, GetD3D12ShaderVisibility(Visibility));
+		}
+
 		void AddConstantsParameter(uint32 Num32BitValues, uint32 Register, uint32 Space) override
 		{
 			CD3DX12_ROOT_PARAMETER1& Parameter = Parameters.AddZeroed_GetRef();
@@ -345,9 +352,24 @@ namespace D3D12ShaderUtils
 			Table += Line;
 		}
 
+		void AddUnorderedAccessViewParameter(uint32 Register, uint32 Space, ERootSignatureVisibility Visibility = ERootSignatureVisibility::All) override
+		{
+			FString Line = FString::Printf(TEXT("UAV(u%d, space=%d, visibility=%s)"), Register, Space, GetVisibilityFlag(Visibility));
+			if (Table.Len() > 0)
+			{
+				Table += ",";
+			}
+			Table += Line;
+		}
+
 		void AddConstantsParameter(uint32 Num32BitValues, uint32 Register, uint32 Space) override
 		{
-			Constants.Appendf(TEXT("RootConstants(num32BitConstants=%d, b%d, space=%d),"), Num32BitValues, Register, Space);
+			FString Line = FString::Printf(TEXT("RootConstants(num32BitConstants=%d, b%d, space=%d)"), Num32BitValues, Register, Space);
+			if (Table.Len() > 0)
+			{
+				Table += ",";
+			}
+			Table += Line;
 		}
 
 		void AddTable(ERootSignatureVisibility Visibility, ERootSignatureRangeType Type, int32 NumDescriptors, D3D12_DESCRIPTOR_RANGE_FLAGS FlagsOverride = D3D12_DESCRIPTOR_RANGE_FLAG_NONE) override
@@ -367,16 +389,14 @@ namespace D3D12ShaderUtils
 
 		FString GenerateString() const
 		{
-			FString String = FString::Printf(TEXT("\"RootFlags(%s),%s%s\""),
+			FString String = FString::Printf(TEXT("\"RootFlags(%s),%s\""),
 				RootFlags.Len() == 0 ? TEXT("0") : *RootFlags,
-				*Constants,
 				*Table);
 			return String;
 		}
 
 		FString RootFlags;
 		FString Table;
-		FStringBuilderBase Constants;
 	};
 
 	inline void AddAllStandardTablesForVisibility(FRootSignatureCreator& Creator, ERootSignatureVisibility Visibility)
@@ -392,6 +412,16 @@ namespace D3D12ShaderUtils
 		// Ensure the creator starts in a clean state (in cases of creator reuse, etc.).
 		Creator.SetFlags(InFlags | EShaderBindingLayoutFlags::InputAssembler);
 
+		Creator.AddUnorderedAccessViewParameter(0, UE_HLSL_SPACE_DIAGNOSTIC);
+
+		if (EnumHasAnyFlags(InFlags, EShaderBindingLayoutFlags::RootConstants))
+		{
+			const uint32 NumConstants = 4u;
+			Creator.AddConstantsParameter(NumConstants, 0u, UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS); // UERootConstants
+		}
+
+		// Tables must be added only after other parameters
+
 		AddAllStandardTablesForVisibility(Creator, ERootSignatureVisibility::Pixel);
 		AddAllStandardTablesForVisibility(Creator, ERootSignatureVisibility::Vertex);
 		AddAllStandardTablesForVisibility(Creator, ERootSignatureVisibility::Geometry);
@@ -406,12 +436,6 @@ namespace D3D12ShaderUtils
 
 		Creator.AddTable(ERootSignatureVisibility::Pixel, ERootSignatureRangeType::UAV, MAX_UAVS);
 		Creator.AddTable(ERootSignatureVisibility::Vertex, ERootSignatureRangeType::UAV, MAX_UAVS);
-
-		if (EnumHasAnyFlags(InFlags, EShaderBindingLayoutFlags::RootConstants))
-		{
-			const uint32 NumConstants = 4u;
-			Creator.AddConstantsParameter(NumConstants, 0u, UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS); // UERootConstants
-		}
 	}
 
 	// Fat/Static Compute Root Signature
@@ -419,14 +443,19 @@ namespace D3D12ShaderUtils
 	{
 		// Ensure the creator starts in a clean state (in cases of creator reuse, etc.).
 		Creator.SetFlags(InFlags);
-		AddAllStandardTablesForVisibility(Creator, ERootSignatureVisibility::All);
-		Creator.AddTable(ERootSignatureVisibility::All, ERootSignatureRangeType::UAV, MAX_UAVS);
+
+		Creator.AddUnorderedAccessViewParameter(0, UE_HLSL_SPACE_DIAGNOSTIC);
 
 		if (EnumHasAnyFlags(InFlags, EShaderBindingLayoutFlags::RootConstants))
 		{
 			const uint32 NumConstants = 4u;
 			Creator.AddConstantsParameter(NumConstants, 0u, UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS); // UERootConstants
 		}
+
+		// Tables must be added only after other parameters
+
+		AddAllStandardTablesForVisibility(Creator, ERootSignatureVisibility::All);
+		Creator.AddTable(ERootSignatureVisibility::All, ERootSignatureRangeType::UAV, MAX_UAVS);
 	}
 
 #if !defined(D3D12RHI_TOOLS_RAYTRACING_SHADERS_UNSUPPORTED)

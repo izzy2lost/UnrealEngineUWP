@@ -375,6 +375,11 @@ inline FShaderCodePackedResourceCounts InitPackedResourceCounts(const FD3DShader
 		PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::BindlessSamplers;
 	}
 
+	if (CompileData.bDiagnosticBufferUsed)
+	{
+		PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::DiagnosticBuffer;
+	}
+
 	PackedResourceCounts.NumSamplers = static_cast<uint8>(CompileData.NumSamplers);
 	PackedResourceCounts.NumSRVs = static_cast<uint8>(CompileData.NumSRVs);
 	PackedResourceCounts.NumCBs = static_cast<uint8>(CompileData.NumCBs);
