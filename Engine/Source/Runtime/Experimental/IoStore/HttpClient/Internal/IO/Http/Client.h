@@ -243,5 +243,3 @@ private:
 } // namespace UE::IoStore::HTTP
 
 #undef UE_API
-
-/* vim: set noet : */
