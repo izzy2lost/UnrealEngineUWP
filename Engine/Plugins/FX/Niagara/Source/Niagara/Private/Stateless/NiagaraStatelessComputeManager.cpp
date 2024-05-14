@@ -238,10 +238,8 @@ void FNiagaraStatelessComputeManager::OnPostPreRender(FRDGBuilder& GraphBuilder)
 				FRHIComputeShader* ComputeShaderRHI = ComputeShader.GetComputeShader();
 				const uint32 NumThreadGroups = FMath::DivideAndRoundUp<uint32>(CacheData->ActiveParticles, NiagaraStateless::FSimulationShader::ThreadGroupSize);
 
-				SetComputePipelineState(RHICmdList, ComputeShaderRHI);
-				SetShaderParameters(RHICmdList, ComputeShader, ComputeShaderRHI, EmitterData->GetShaderParametersMetadata(), *ShaderParameters);
-				RHICmdList.DispatchComputeShader(NumThreadGroups, 1, 1);
-				UnsetShaderUAVs(RHICmdList, ComputeShader, ComputeShaderRHI);
+				const FIntVector NumWrappedThreadGroups = FComputeShaderUtils::GetGroupCountWrapped(NumThreadGroups);
+				FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, EmitterData->GetShaderParametersMetadata(), *ShaderParameters, NumWrappedThreadGroups);
 			}
 			RHICmdList.EndUAVOverlap(CountBufferUAV);
 
