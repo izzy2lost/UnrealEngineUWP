@@ -120,6 +120,7 @@ private:
 
 	FTextureEntry PageTable[TextureCapacity];
 	TEnumAsByte<EPixelFormat> TexturePixelFormat[TextureCapacity];
+	FString PageTableDebugNames[TextureCapacity];
 
 	FTextureEntry PageTableIndirection;
 

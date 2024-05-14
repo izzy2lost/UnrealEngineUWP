@@ -80,7 +80,7 @@ void FVirtualTextureFeedbackBuffer::Begin(FRDGBuilder& GraphBuilder, const FVirt
 	FRDGBufferDesc BufferDesc(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), Desc.BufferSize.X * Desc.BufferSize.Y));
 	BufferDesc.Usage |= BUF_SourceCopy;
 
-	if (AllocatePooledBuffer(BufferDesc, PooledBuffer, TEXT("VirtualTextureFeedbackGPU")))
+	if (AllocatePooledBuffer(BufferDesc, PooledBuffer, TEXT("VirtualTexture_FeedbackBuffer")))
 	{
 		FRDGBufferUAVDesc UAVDesc{};
 		UAV = PooledBuffer->GetOrCreateUAV(GraphBuilder.RHICmdList, UAVDesc);

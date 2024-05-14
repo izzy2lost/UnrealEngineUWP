@@ -304,7 +304,7 @@ void FVirtualTextureUploadCache::Finalize(FRDGBuilder& GraphBuilder)
 			}
 
 			FRHITextureCreateDesc Desc =
-				FRHITextureCreateDesc::Create2D(TEXT("FVirtualTextureUploadCache_StagingTexture"), TileSize * WidthInTiles, TileSize * HeightInTiles, PoolEntry.Format);
+				FRHITextureCreateDesc::Create2D(TEXT("VirtualTexture_UploadCacheStagingTexture"), TileSize * WidthInTiles, TileSize * HeightInTiles, PoolEntry.Format);
 
 			if (bIsCpuWritable)
 			{

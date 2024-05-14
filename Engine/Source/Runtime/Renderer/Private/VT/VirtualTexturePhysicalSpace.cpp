@@ -91,6 +91,21 @@ FVirtualTexturePhysicalSpace::FVirtualTexturePhysicalSpace(uint16 InID, const FV
 			FormatString += TEXT(", ");
 		}
 	}
+
+#if !UE_BUILD_SHIPPING
+	// Store string for resorce debug names.
+	for (uint32 Layer = 0; Layer < Description.NumLayers; ++Layer)
+	{
+		if (Description.NumLayers > 1)
+		{
+			PooledRenderTargetDebugNames[Layer] = FString::Printf(TEXT("VirtualTexture_Physical (%s) %d/%d"), *FormatString, Layer + 1, Description.NumLayers);
+		}
+		else
+		{
+			PooledRenderTargetDebugNames[Layer] = FString::Printf(TEXT("VirtualTexture_Physical (%s)"), *FormatString);
+		}
+	}
+#endif
 }
 
 FVirtualTexturePhysicalSpace::~FVirtualTexturePhysicalSpace()
@@ -152,7 +167,7 @@ void FVirtualTexturePhysicalSpace::InitRHI(FRHICommandListBase& RHICmdList)
 			Desc.UAVFormat = FormatUAV;
 		}
 
-		GRenderTargetPool.FindFreeElement(RHICmdList, Desc, PooledRenderTarget[Layer], TEXT("VirtualPhysicalTexture"));
+		GRenderTargetPool.FindFreeElement(RHICmdList, Desc, PooledRenderTarget[Layer], *PooledRenderTargetDebugNames[Layer]);
 		FRHITexture* TextureRHI = PooledRenderTarget[Layer]->GetRHI();
 
 		// Create sRGB and non-sRGB shader resource views into the physical texture

@@ -157,6 +157,7 @@ private:
 	TRefCountPtr<IPooledRenderTarget> PooledRenderTarget[VIRTUALTEXTURE_SPACE_MAXLAYERS];
 	FShaderResourceViewRHIRef TextureSRV[VIRTUALTEXTURE_SPACE_MAXLAYERS];
 	FShaderResourceViewRHIRef TextureSRV_SRGB[VIRTUALTEXTURE_SPACE_MAXLAYERS];
+	FString PooledRenderTargetDebugNames[VIRTUALTEXTURE_SPACE_MAXLAYERS];
 
 	uint16 ID;
 	uint32 NumRefs;
