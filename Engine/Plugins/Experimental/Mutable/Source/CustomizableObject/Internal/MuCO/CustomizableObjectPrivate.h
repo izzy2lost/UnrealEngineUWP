@@ -857,7 +857,7 @@ public:
 	FReply AddNewParameterProfile(FString Name, class UCustomizableObjectInstance& CustomInstance);
 
 	// Compose folder name where the data is stored
-	FString GetCompiledDataFolderPath() const;
+	static FString GetCompiledDataFolderPath();
 
 	/** Generic Save/Load methods to write/read compiled data */
 	void SaveCompiledData(FArchive& Ar, bool bSkipEditorOnlyData = false);

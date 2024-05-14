@@ -995,7 +995,7 @@ FReply UCustomizableObjectPrivate::AddNewParameterProfile(FString Name, UCustomi
 }
 
 
-FString UCustomizableObjectPrivate::GetCompiledDataFolderPath() const
+FString UCustomizableObjectPrivate::GetCompiledDataFolderPath()
 {	
 	return FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() + TEXT("MutableStreamedDataEditor/"));
 }
