@@ -2447,41 +2447,22 @@ bool FNiagaraStackGraphUtilities::RemoveModuleFromStack(UNiagaraScript& OwningSc
 
 	// Traverse all of the nodes in the group to find the nodes to remove.
 	FNiagaraStackGraphUtilities::FStackNodeGroup ModuleGroup = StackNodeGroups[ModuleStackIndex];
-	TArray<UNiagaraNode*> NodesToRemove;
-	TArray<UNiagaraNode*> NodesToCheck;
-	FPinCollectorArray InputPins;
-	NodesToCheck.Add(ModuleGroup.EndNode);
-	while (NodesToCheck.Num() > 0)
-	{
-		UNiagaraNode* NodeToRemove = NodesToCheck[0];
-		NodesToCheck.RemoveAt(0);
-		NodesToRemove.AddUnique(NodeToRemove);
-
-		InputPins.Reset();
-		NodeToRemove->GetInputPins(InputPins);
-		for (UEdGraphPin* InputPin : InputPins)
-		{
-			if (InputPin->LinkedTo.Num() == 1)
-			{
-				UNiagaraNode* LinkedNode = Cast<UNiagaraNode>(InputPin->LinkedTo[0]->GetOwningNode());
-				if (LinkedNode != nullptr)
-				{
-					NodesToCheck.Add(LinkedNode);
-				}
-			}
-		}
-	}
-
+	
 	// Remove the nodes in the group from the graph.
-	UNiagaraGraph* Graph = ModuleNode.GetNiagaraGraph();
-	for (UNiagaraNode* NodeToRemove : NodesToRemove)
+	if (UNiagaraGraph* Graph = ModuleNode.GetNiagaraGraph())
 	{
-		NodeToRemove->Modify();
-		Graph->RemoveNode(NodeToRemove);
-		UNiagaraNodeInput* InputNode = Cast<UNiagaraNodeInput>(NodeToRemove);
-		if (InputNode != nullptr)
+		TArray<UNiagaraNode*> NodesToRemove;
+		Graph->BuildTraversal(NodesToRemove, ModuleGroup.EndNode);
+
+		for (UNiagaraNode* NodeToRemove : NodesToRemove)
 		{
-			OutRemovedInputNodes.Add(InputNode);
+			NodeToRemove->Modify();
+			Graph->RemoveNode(NodeToRemove);
+			UNiagaraNodeInput* InputNode = Cast<UNiagaraNodeInput>(NodeToRemove);
+			if (InputNode != nullptr)
+			{
+				OutRemovedInputNodes.Add(InputNode);
+			}
 		}
 	}
 
