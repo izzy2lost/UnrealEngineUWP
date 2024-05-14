@@ -19,6 +19,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshReshape.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshSwitch.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshVariation.h"
+#include "MuCOE/Nodes/CustomizableObjectNodePassThroughMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeSkeletalMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeStaticMesh.h"
@@ -364,12 +365,25 @@ UCustomizableObjectNodeObject* GetFullGraphRootNodeObject(UCustomizableObjectNod
 const UEdGraphPin* FindMeshBaseSource(const UEdGraphPin& Pin, const bool bOnlyLookForStaticMesh)
 {
 	check(Pin.Direction == EGPD_Output);
-	check(Pin.PinType.PinCategory == UEdGraphSchema_CustomizableObject::PC_Mesh || Pin.PinType.PinCategory == UEdGraphSchema_CustomizableObject::PC_Material);
+	check(Pin.PinType.PinCategory == UEdGraphSchema_CustomizableObject::PC_Mesh 
+		||
+		Pin.PinType.PinCategory == UEdGraphSchema_CustomizableObject::PC_PassThroughMesh
+		||
+		Pin.PinType.PinCategory == UEdGraphSchema_CustomizableObject::PC_Material
+	);
 	
 	const UEdGraphNode* Node = Pin.GetOwningNode();
 	check(Node);
 
 	if (Cast<UCustomizableObjectNodeSkeletalMesh>(Node))
+	{
+		if (!bOnlyLookForStaticMesh)
+		{
+			return &Pin;
+		}
+	}
+
+	else if (Cast<UCustomizableObjectNodePassThroughMesh>(Node))
 	{
 		if (!bOnlyLookForStaticMesh)
 		{

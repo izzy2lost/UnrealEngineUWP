@@ -98,6 +98,7 @@ namespace mu
 		{   0,   0,   0,   0 },	// ST_PARAMETER
 		    
 		{   0,   0,   0,   0 },	// IM_REFERENCE
+		{   0,   0,   0,   0 },	// ME_REFERENCE
 
 		{   0,   0,   0,   0 },	// NU_CONDITIONAL
 		{   0,   0,   0,   0 },	// SC_CONDITIONAL
@@ -2415,7 +2416,7 @@ namespace mu
 	{
 	public:
 
-		FImageExternalLoadTask(const FScheduledOp& InItem, uint8 InMipmapsToSkip, CodeRunner::FExternalImageId InId);
+		FImageExternalLoadTask(const FScheduledOp& InItem, uint8 InMipmapsToSkip, CodeRunner::FExternalResourceId InId);
 
 		// FIssuedTask interface
 		virtual bool Prepare(CodeRunner*, bool& bOutFailed) override;
@@ -2423,7 +2424,7 @@ namespace mu
 		
 	private:
 		uint8 MipmapsToSkip;
-		CodeRunner::FExternalImageId Id;
+		CodeRunner::FExternalResourceId Id;
 
 		Ptr<Image> Result;
 		
@@ -2431,7 +2432,7 @@ namespace mu
 	};
 
 
-	FImageExternalLoadTask::FImageExternalLoadTask(const FScheduledOp& InOp, uint8 InMipmapsToSkip, CodeRunner::FExternalImageId InId)
+	FImageExternalLoadTask::FImageExternalLoadTask(const FScheduledOp& InOp, uint8 InMipmapsToSkip, CodeRunner::FExternalResourceId InId)
 		: FIssuedTask(InOp)
 	{
 		MipmapsToSkip = InMipmapsToSkip;
@@ -2442,7 +2443,7 @@ namespace mu
 	bool FImageExternalLoadTask::Prepare(CodeRunner* Runner, bool& bOutFailed)
 	{
 		// This runs in the mutable Runner thread
-		MUTABLE_CPUPROFILER_SCOPE(FLoadImageRomsTask_Prepare);
+		MUTABLE_CPUPROFILER_SCOPE(FImageExternalLoadTask_Prepare);
 
 		// LoadExternalImageAsync will always generate some image even if it is a dummy one.
 		bOutFailed = false;
@@ -2472,7 +2473,72 @@ namespace mu
 
 		Runner->StoreImage(Op, Result);
 	}	
-	
+
+
+	/** This task is used to load a mesh parameter (by its FName) or a mesh reference (from its ID).
+	*/
+	class FMeshExternalLoadTask : public CodeRunner::FIssuedTask
+	{
+	public:
+
+		FMeshExternalLoadTask(const FScheduledOp&, CodeRunner::FExternalResourceId);
+
+		// FIssuedTask interface
+		virtual bool Prepare(CodeRunner*, bool& bOutFailed) override;
+		virtual void Complete(CodeRunner* Runner) override;
+
+	private:
+		uint8 MipmapsToSkip;
+		CodeRunner::FExternalResourceId Id;
+
+		Ptr<Mesh> Result;
+
+		TFunction<void()> ExternalCleanUpFunc;
+	};
+
+
+	FMeshExternalLoadTask::FMeshExternalLoadTask(const FScheduledOp& InOp, CodeRunner::FExternalResourceId InId)
+		: FIssuedTask(InOp)
+		, Id(InId)
+	{
+	}
+
+
+	bool FMeshExternalLoadTask::Prepare(CodeRunner* Runner, bool& bOutFailed)
+	{
+		// This runs in the mutable Runner thread
+		MUTABLE_CPUPROFILER_SCOPE(FMeshExternalLoadTask_Prepare);
+
+		// LoadExternalMeshAsync will always generate some mesh even if it is a dummy one.
+		bOutFailed = false;
+
+		// Capturing this here should not be a problem. The lifetime of the callback lambda is tied to 
+		// the task and the later will always outlive the former. 
+
+		// Probably we could simply pass a reference to the result mesh. 
+		TFunction<void(Ptr<Mesh>)> ResultCallback = [this](Ptr<Mesh> InResult)
+			{
+				Result = InResult;
+			};
+
+		Tie(Event, ExternalCleanUpFunc) = Runner->LoadExternalMeshAsync(Id, ResultCallback);
+
+		// return false indicating there is no work to do so Event is not overriden by a DoWork task.
+		return false;
+	}
+
+
+	void FMeshExternalLoadTask::Complete(CodeRunner* Runner)
+	{
+		if (ExternalCleanUpFunc)
+		{
+			Invoke(ExternalCleanUpFunc);
+		}
+
+		Runner->StoreMesh(Op, Result);
+	}
+
+
 	//---------------------------------------------------------------------------------------------
 	//---------------------------------------------------------------------------------------------
 	//---------------------------------------------------------------------------------------------
@@ -2573,7 +2639,7 @@ namespace mu
 
 			const uint8 MipmapsToSkip = item.ExecutionOptions + static_cast<uint8>(ImageLOD);
 
-			CodeRunner::FExternalImageId FullId;
+			CodeRunner::FExternalResourceId FullId;
 			FullId.ParameterId = Id;
 			Issued = MakeShared<FImageExternalLoadTask>(item, MipmapsToSkip, FullId);
 
@@ -2591,9 +2657,26 @@ namespace mu
 
 				const uint8 MipmapsToSkip = item.ExecutionOptions + static_cast<uint8>(ImageLOD);
 
-				FExternalImageId FullId;
-				FullId.ReferenceImageId = Args.ID;
+				FExternalResourceId FullId;
+				FullId.ReferenceResourceId = Args.ID;
 				Issued = MakeShared<FImageExternalLoadTask>(item, MipmapsToSkip, FullId);
+			}
+
+			break;
+		}
+
+		case OP_TYPE::ME_REFERENCE:
+		{
+			OP::ResourceReferenceArgs Args = m_pModel->GetPrivate()->m_program.GetOpArgs<OP::ResourceReferenceArgs>(item.At);
+
+			// We only convert references to meshes if indicated in the operation.
+			if (Args.ForceLoad)
+			{
+				check(item.Stage == 0);
+
+				FExternalResourceId FullId;
+				FullId.ReferenceResourceId = Args.ID;
+				Issued = MakeShared<FMeshExternalLoadTask>(item, FullId);
 			}
 
 			break;

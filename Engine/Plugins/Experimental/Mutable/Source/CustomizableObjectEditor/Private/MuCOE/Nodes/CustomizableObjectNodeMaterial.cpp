@@ -1300,12 +1300,21 @@ bool UCustomizableObjectNodeMaterial::CanConnect(const UEdGraphPin* InOwnedInput
 {
 	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
 
-	if (InOwnedInputPin && InOwnedInputPin->PinType.PinCategory == Schema->PC_Image &&
-		InOutputPin && InOutputPin->PinType.PinCategory == Schema->PC_PassThroughImage)
+	if (InOwnedInputPin && InOutputPin)
 	{
-		return true;
+		if (InOwnedInputPin->PinType.PinCategory == Schema->PC_Image &&
+			InOutputPin->PinType.PinCategory == Schema->PC_PassThroughImage)
+		{
+			return true;
+		}
+
+		if (InOwnedInputPin->PinType.PinCategory == Schema->PC_Mesh &&
+			InOutputPin->PinType.PinCategory == Schema->PC_PassThroughMesh)
+		{
+			return true;
+		}
 	}
-	
+
 	return Super::CanConnect(InOwnedInputPin, InOutputPin, bOutIsOtherNodeBlocklisted, bOutArePinsCompatible);
 }
 

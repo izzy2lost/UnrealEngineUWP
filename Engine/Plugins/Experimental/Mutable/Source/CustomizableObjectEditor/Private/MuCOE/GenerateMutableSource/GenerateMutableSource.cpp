@@ -1954,6 +1954,68 @@ mu::Ptr<mu::Image> GenerateImageConstant(UTexture* Texture, FMutableGraphGenerat
 }
 
 
+mu::Ptr<mu::Mesh> GenerateMeshConstant(const USkeletalMesh* Mesh, FMutableGraphGenerationContext& GenerationContext, bool bIsReference)
+{
+	if (!Mesh)
+	{
+		return nullptr;
+	}
+
+	bool bForceLoad = false;
+	bool bIsCompileTime = false;
+	if (!bIsReference)
+	{
+		bForceLoad = true;
+		if (GenerationContext.Options.OptimizationLevel == 0)
+		{
+			bIsCompileTime = false;
+		}
+		else
+		{
+			bIsCompileTime = true;
+		}
+	}
+
+
+	FMutableGraphGenerationContext::FGeneratedReferencedMesh InvalidEntry;
+	InvalidEntry.ID = TNumericLimits<uint32>::Max();
+
+	FMutableGraphGenerationContext::FGeneratedReferencedMesh* Entry = nullptr;
+	int32 Num = 0;
+
+	if (bIsReference)
+	{
+		Entry = &GenerationContext.PassthroughMeshMap.FindOrAdd(Mesh, InvalidEntry);
+		Num = GenerationContext.PassthroughMeshMap.Num();
+	}
+	// Not supported yet: this will be implemented when mesh conversion happens on-demand in the compilation process
+	// like it happens with images. For now we only implement support for pure pass-through.
+	//else if (bIsCompileTime)
+	//{
+	//	Entry = &GenerationContext.CompileTimeTextureMap.FindOrAdd(Texture, InvalidEntry);
+	//	Num = GenerationContext.CompileTimeTextureMap.Num();
+	//}
+	//else
+	//{
+	//	Entry = &GenerationContext.RuntimeReferencedTextureMap.FindOrAdd(Texture, InvalidEntry);
+	//	Num = GenerationContext.RuntimeReferencedTextureMap.Num();
+	//}
+	else
+	{
+		check(false);
+		return nullptr;
+	}
+
+	if (Entry->ID == TNumericLimits<uint32>::Max())
+	{
+		Entry->ID = Num - 1;
+	}
+
+	mu::Ptr<mu::Mesh> Result = mu::Mesh::CreateAsReference(Entry->ID, bForceLoad);
+	return Result;
+}
+
+
 void AddSocketTagsToMesh(const USkeletalMesh* SourceMesh, mu::Ptr<mu::Mesh> MutableMesh, FMutableGraphGenerationContext& GenerationContext)
 {
 	for (int32 SocketIndex = 0; SocketIndex < SourceMesh->NumSockets(); ++SocketIndex)

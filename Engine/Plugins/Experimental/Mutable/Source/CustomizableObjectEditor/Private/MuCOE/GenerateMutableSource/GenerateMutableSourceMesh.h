@@ -74,7 +74,8 @@ mu::Ptr<mu::Mesh> ConvertStaticMeshToMutable(const UStaticMesh* StaticMesh, int3
 mu::Ptr<mu::Mesh> GenerateMutableMesh(const UObject* Mesh, const TSoftClassPtr<UAnimInstance>& AnimBp,
                                 int32 LODIndexConnected, int32 SectionIndexConnected,
                                 int32 LODIndex, int32 SectionIndex, const FString& MeshUniqueTags,
-                                FMutableGraphGenerationContext& GenerationContext, const UCustomizableObjectNode* CurrentNode);
+                                FMutableGraphGenerationContext& GenerationContext, const UCustomizableObjectNode* CurrentNode, 
+								bool bIsReference);
 
 
 mu::Ptr<mu::Mesh> BuildMorphedMutableMesh(const UEdGraphPin* BaseSourcePin, const FString& MorphTargetName,

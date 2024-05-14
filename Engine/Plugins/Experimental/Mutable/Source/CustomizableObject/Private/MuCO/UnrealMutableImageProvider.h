@@ -18,16 +18,17 @@ class UTexture2D;
 
 
 /** Implementation of a mutable core provider for image parameters that are application-specific. */
-class FUnrealMutableImageProvider : public mu::ImageParameterGenerator, public FGCObject
+class FUnrealMutableResourceProvider : public mu::ExternalResourceProvider, public FGCObject
 {
 
 public:
-	// mu::ImageParameterGenerator interface
+	// mu::ExternalResourceProvider interface
 	// Thread: worker
 	virtual TTuple<UE::Tasks::FTask, TFunction<void()>> GetImageAsync(FName Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback) override;
 	virtual TTuple<UE::Tasks::FTask, TFunction<void()>> GetReferencedImageAsync(const void* ModelPtr, int32 Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback) override;
-
 	virtual mu::FImageDesc GetImageDesc(FName Id, uint8 MipmapsToSkip) override;
+	virtual TTuple<UE::Tasks::FTask, TFunction<void()>> GetMeshAsync(FName Id, TFunction<void(mu::Ptr<mu::Mesh>)>& ResultCallback) override;
+	virtual TTuple<UE::Tasks::FTask, TFunction<void()>> GetReferencedMeshAsync(const void* ModelPtr, int32 Id, TFunction<void(mu::Ptr<mu::Mesh>)>& ResultCallback) override;
 
 	
 	// Own interface	

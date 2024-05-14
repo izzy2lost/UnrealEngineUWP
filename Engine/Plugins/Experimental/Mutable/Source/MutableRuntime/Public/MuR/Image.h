@@ -46,7 +46,7 @@ namespace mu
         //! \param format Pixel format.
         Image(uint32 SizeX, uint32 SizeY, uint32 lods, EImageFormat Format, EInitializationType InitType);
 
-		/** */
+		/** Create a new empty image that repreents an external resource image. */
 		static Ptr<Image> CreateAsReference(uint32 ID, const FImageDesc& Desc, bool bForceLoad);
 
 		//! Serialisation
@@ -63,6 +63,18 @@ namespace mu
 		/** */
 		void Init(uint32 SizeX, uint32 SizeY, uint32 Lods, EImageFormat Format, EInitializationType InitType);
 
+		/** Clear the image to black colour. */
+		void InitToBlack();
+
+		/** Return true if this is a reference to an engine image. */
+		bool IsReference() const;
+
+		/** If true, this is a reference that must be resolved at compile time. */
+		bool IsForceLoad() const;
+
+		/** Return the id of the engine referenced texture. Only valid if IsReference. */
+		uint32 GetReferencedTexture() const;
+
 		//! Return the width of the image.
         uint16 GetSizeX() const;
 
@@ -77,7 +89,6 @@ namespace mu
 		//! Return the number of levels of detail (mipmaps) in the texture. The base lavel is also
 		//! counted, so the minimum is 1.
 		int32 GetLODCount() const;
-		void SetLODCount(int32 LODCount);
 
 		//! Return a pointer to a instance-owned buffer where the image pixels are.
         const uint8* GetLODData(int32 LODIndex) const;
@@ -86,17 +97,6 @@ namespace mu
         //! Return the size in bytes of a specific LOD of the image.
         int32 GetLODDataSize(int32 LODIndex) const;
 
-		/** Return true if this is a reference to an engine image. */
-		bool IsReference() const;
-
-		/** If true, this is a reference that must be resolved at compile time. */
-		bool IsForceLoad() const;
-
-		/** Return the id of the engine referenced texture. Only valid if IsReference. */
-		uint32 GetReferencedTexture() const;
-
-		/** Clear the image to black colour. */
-		void InitToBlack();
 
 	protected:
 
@@ -140,7 +140,6 @@ namespace mu
 		uint32 ReferenceID = 0;
 
 		/** Pixel data for all lods. */
-
 		FImageDataStorage DataStorage;
 
 		// This used to be the methods in the private implementation of the image interface
@@ -222,24 +221,7 @@ namespace mu
 		//! Calculate the size of the image data in bytes, regardless of what is allocated in
 		//! m_data, only using the image descriptions. For non-block-compressed images, it returns
 		//! 0.
-		int32 CalculateDataSize() const;
 		static int32 CalculateDataSize(int32 SizeX, int32 SizeY, int32 LodCount, EImageFormat Format);
-
-
-		//! Calculate the size of a lod of the image data in bytes, regardless of what is allocated
-		//! in m_data, only using the image descriptions. For non-block-compressed images, it
-		//! returns 0.
-		//int32 CalculateDataSize(int lod) const;
-
-		////! Calculate the number of pixels of the image, regardless of what is allocated in
-		////! m_data, only using the image descriptions.
-		////! For block-compressed images, it includes the wasted pixels in the blocks, in case
-		////! the size is not a multiple of it in all lods.
-		////! It includes the pixels in all lods
-		//int32 CalculatePixelCount() const;
-
-		////! Same as above, but only calculates the pixels of an lod
-		//int32 CalculatePixelCount(int32 LOD) const;
 
 		//! Calculate the size in pixels of a particular mipmap of this image. The size doesn't
 		//! include pixels necessary for completing blocks in block-compressed formats.
@@ -266,7 +248,7 @@ namespace mu
 		void ReduceLODs(int32 LODsToSkip);
 
 		//! Calculate the number of mipmaps for a particular image size.
-		static int GetMipmapCount(int SizeX, int SizeY);
+		static int32 GetMipmapCount(int32 SizeX, int32 SizeY);
 
 		//! Get the rect inside the image bounding the non-black content of the image.
 		void GetNonBlackRect(FImageRect& rect) const;

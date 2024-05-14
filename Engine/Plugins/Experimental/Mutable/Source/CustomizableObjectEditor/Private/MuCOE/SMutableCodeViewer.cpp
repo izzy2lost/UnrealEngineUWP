@@ -2431,7 +2431,7 @@ bool SMutableCodeViewer::IsConstantResourceUsedByOperation(const int32 IndexOnCo
 namespace
 {
 	/** Test implementation to provide image parameters. It will generate some images of a fixed size and format. */
-	class TestImageProvider : public mu::ImageParameterGenerator
+	class TestResourceProvider : public mu::ExternalResourceProvider
 	{
 		static inline const mu::FImageDesc IMAGE_DESC = 
 			mu::FImageDesc(mu::FImageSize(1024, 1024), mu::EImageFormat::IF_RGBA_UBYTE, 1);
@@ -2444,7 +2444,7 @@ namespace
 	public:
 
 
-		TTuple<UE::Tasks::FTask, TFunction<void()>> GetImageAsync(FName Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback) override
+		virtual TTuple<UE::Tasks::FTask, TFunction<void()>> GetImageAsync(FName Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback) override
 		{
 			MUTABLE_CPUPROFILER_SCOPE(TestImageProvider_GetImage);
 
@@ -2486,13 +2486,13 @@ namespace
 			return MakeTuple(UE::Tasks::MakeCompletedTask<void>(), []() -> void {});
 		}
 
-		mu::FImageDesc GetImageDesc(FName Id, uint8 MipmapsToSkip) override
+		virtual mu::FImageDesc GetImageDesc(FName Id, uint8 MipmapsToSkip) override
 		{
 			return IMAGE_DESC;
 		}
 
 
-		TTuple<UE::Tasks::FTask, TFunction<void()>> GetReferencedImageAsync(const void* ModelPtr, int32 Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback)
+		virtual TTuple<UE::Tasks::FTask, TFunction<void()>> GetReferencedImageAsync(const void* ModelPtr, int32 Id, uint8 MipmapsToSkip, TFunction<void(mu::Ptr<mu::Image>)>& ResultCallback)
 		{
 			check(ReferencedTextures.IsValidIndex(Id));
 
@@ -2524,6 +2524,50 @@ namespace
 			};
 
 			return Invoke(TrivialReturn);
+		}
+
+
+		virtual TTuple<UE::Tasks::FTask, TFunction<void()>> GetMeshAsync(FName Id, TFunction<void(mu::Ptr<mu::Mesh>)>& ResultCallback) override
+		{
+			// TODO: This is a stub function where Mesh Parameters would be supported.
+
+			// Thread: worker
+			MUTABLE_CPUPROFILER_SCOPE(FUnrealMutableImageProvider::GetMeshAsync);
+
+			auto TrivialReturn = []() -> TTuple<UE::Tasks::FTask, TFunction<void()>>
+				{
+					return MakeTuple(UE::Tasks::MakeCompletedTask<void>(), []() -> void {});
+				};
+
+			// No USkeletalMesh was provided, cannot do anything, just provide a dummy mesh
+			UE_LOG(LogMutable, Warning, TEXT("No USkeletalMesh was provided for an application-specific mesh parameter."));
+
+			mu::Ptr<mu::Mesh> Dummy = new mu::Mesh;
+			ResultCallback(Dummy);
+			return Invoke(TrivialReturn);
+		}
+
+
+		virtual TTuple<UE::Tasks::FTask, TFunction<void()>> GetReferencedMeshAsync(const void* ModelPtr, int32 Id, TFunction<void(mu::Ptr<mu::Mesh>)>& ResultCallback) override
+		{
+			// TODO: This is a stub function where referenced Meshes would be supported.
+
+			// Thread: worker
+			MUTABLE_CPUPROFILER_SCOPE(FUnrealMutableImageProvider::GetReferencedMeshAsync);
+
+			auto TrivialReturn = []() -> TTuple<UE::Tasks::FTask, TFunction<void()>>
+				{
+					return MakeTuple(UE::Tasks::MakeCompletedTask<void>(), []() -> void {});
+				};
+
+			mu::Ptr<mu::Mesh> Mesh = new mu::Mesh();
+
+			// Not supported outside editor yet.
+			UE_LOG(LogMutable, Warning, TEXT("Failed to get referenced mesh. Not implemented yet."));
+
+			ResultCallback(Mesh);
+			return Invoke(TrivialReturn);
+
 		}
 
 	};
@@ -2560,9 +2604,9 @@ void SMutableCodeViewer::Tick(const FGeometry& AllottedGeometry, const double In
 	const mu::Ptr<mu::Settings> Settings = new mu::Settings();
 	const mu::Ptr<mu::System> System = new mu::System(Settings);
 
-	TSharedPtr<TestImageProvider> ImageProvider = MakeShared<TestImageProvider>();
-	ImageProvider->ReferencedTextures = ReferencedTextures;
-	System->SetImageParameterGenerator(ImageProvider);
+	TSharedPtr<TestResourceProvider> ExternalResourceProvider = MakeShared<TestResourceProvider>();
+	ExternalResourceProvider->ReferencedTextures = ReferencedTextures;
+	System->SetExternalResourceProvider(ExternalResourceProvider);
 
 	System->GetPrivate()->BeginBuild(MutableModel);
 

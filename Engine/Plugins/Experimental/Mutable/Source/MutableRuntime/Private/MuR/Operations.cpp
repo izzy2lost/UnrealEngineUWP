@@ -14,10 +14,9 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	//---------------------------------------------------------------------------------------------
 	//---------------------------------------------------------------------------------------------
-    #define OP_DESC_COUNT		int32(OP_TYPE::COUNT)
 
     // clang-format off
-    static const OP_DESC s_opDescs[OP_DESC_COUNT] =
+    static const FOpDesc s_opDescs[] =
 	{ 
 		// type				cached	supported base image formats
         { DT_NONE,			false,	{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }		},	// NONE
@@ -42,6 +41,7 @@ namespace mu
 		{ DT_STRING,		false,	{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }		},	// ST_PARAMETER
 
 		{ DT_IMAGE,			true,	{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }		},	// IM_REFERENCE
+		{ DT_MESH,			true,	{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }		},	// ME_REFERENCE
 
 		{ DT_INT,			false,	{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }		},	// NU_CONDITIONAL
 		{ DT_SCALAR,		false,	{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }		},	// SC_CONDITIONAL
@@ -146,10 +146,10 @@ namespace mu
 
     // clang-format on
 
-    static_assert( OP_DESC_COUNT == (int)OP_TYPE::COUNT, "OperationDescMismatch" );
+    static_assert( sizeof(s_opDescs)/sizeof(FOpDesc) == (int32)OP_TYPE::COUNT, "OperationDescMismatch");
 
 	//---------------------------------------------------------------------------------------------
-	const OP_DESC& GetOpDesc( OP_TYPE type )
+	const FOpDesc& GetOpDesc( OP_TYPE type )
 	{
         return s_opDescs[ (int32)type ];
 	}
@@ -383,6 +383,7 @@ namespace mu
         case OP_TYPE::PR_PARAMETER:
         case OP_TYPE::IM_PARAMETER:
 		case OP_TYPE::IM_REFERENCE:
+		case OP_TYPE::ME_REFERENCE:
 			break;
 
         case OP_TYPE::SC_CURVE:

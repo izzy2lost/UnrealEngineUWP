@@ -582,10 +582,20 @@ struct FMutableGraphGenerationContext
 		//mu::FImageDesc ImageDesc;
 	};
 
+	/** Data stored per-generated passthrough mesh. */
+	struct FGeneratedReferencedMesh
+	{
+		uint32 ID;
+	};
+
+	// Cache of runtime pass-through meshes and their IDs used in the core to indentify them.
+	// These meshes will remain as external references even in optimized models.
+	TMap<TSoftObjectPtr<USkeletalMesh>, FGeneratedReferencedMesh> PassthroughMeshMap;
+
 	// Cache of runtime pass-through images and their IDs used in the core to indentify them.
 	// These textures will remain as external references even in optimized models.
 	TMap<TSoftObjectPtr<UTexture>, FGeneratedReferencedTexture> PassthroughTextureMap;
-	
+
 	// Cache of runtime images and their IDs used in the core to indentify them.
 	// These textures will remain as external references even in optimized models.
 	TMap<TSoftObjectPtr<UTexture2D>, FGeneratedReferencedTexture> RuntimeReferencedTextureMap;
@@ -905,7 +915,8 @@ int32 GetMaxTextureSize(const UTexture2D& ReferenceTexture, const UTextureLODSet
 // Max texture size of the texture with per platform MaxTextureSize and LODBias applied.
 int32 GetTextureSizeInGame(const UTexture2D& Texture, const UTextureLODSettings& LODSettings, uint8 SurfaceLODBias = 0);
 
-mu::Ptr<mu::Image> GenerateImageConstant( UTexture*, FMutableGraphGenerationContext&, bool bIsReference);
+mu::Ptr<mu::Image> GenerateImageConstant(UTexture*, FMutableGraphGenerationContext&, bool bIsReference);
+mu::Ptr<mu::Mesh> GenerateMeshConstant(const USkeletalMesh*, FMutableGraphGenerationContext&, bool bIsReference);
 
 /** Generates a mutable image descriptor from an unreal engine texture */
 mu::FImageDesc GenerateImageDescriptor(UTexture* Texture);

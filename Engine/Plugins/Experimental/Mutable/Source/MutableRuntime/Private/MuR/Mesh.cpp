@@ -40,6 +40,40 @@ MeshPtr Mesh::StaticUnserialise( InputArchive& arch )
 }
 
 
+Ptr<Mesh> Mesh::CreateAsReference(uint32 ID,  bool bForceLoad)
+{
+	Ptr<Mesh> Result = new Mesh;
+	Result->ReferenceID = ID;
+
+	EnumAddFlags(Result->Flags, EMeshFlags::IsResourceReference);
+	if (bForceLoad)
+	{
+		EnumAddFlags(Result->Flags, EMeshFlags::IsResourceForceLoad);
+	}
+
+	return Result;
+}
+
+
+bool Mesh::IsReference() const
+{
+	return EnumHasAnyFlags(Flags, EMeshFlags::IsResourceReference);
+}
+
+
+bool Mesh::IsForceLoad() const
+{
+	return EnumHasAnyFlags(Flags, EMeshFlags::IsResourceForceLoad);
+}
+
+
+uint32 Mesh::GetReferencedMesh() const
+{
+	ensure(IsReference());
+	return ReferenceID;
+}
+
+
 MeshPtr Mesh::Clone() const
 {
     //MUTABLE_CPUPROFILER_SCOPE(MeshClone);
@@ -48,7 +82,7 @@ MeshPtr Mesh::Clone() const
     MeshPtr pResult = new Mesh();
 
     pResult->InternalId = InternalId;
-	pResult->StaticFormatFlags = StaticFormatFlags;
+	pResult->Flags = Flags;
 	pResult->Surfaces = Surfaces;
 	pResult->Skeleton = Skeleton;
 	pResult->PhysicsBody = PhysicsBody;
@@ -83,61 +117,61 @@ MeshPtr Mesh::Clone() const
 }
 
 
-MeshPtr Mesh::Clone(EMeshCopyFlags Flags) const
+Ptr<Mesh> Mesh::Clone(EMeshCopyFlags InFlags) const
 {
     //MUTABLE_CPUPROFILER_SCOPE(MeshClone);
 	LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 
-    MeshPtr pResult = new Mesh();
+	Ptr<Mesh> pResult = new Mesh();
 
     pResult->InternalId = InternalId;
-	pResult->StaticFormatFlags = StaticFormatFlags;
 	pResult->MeshIDPrefix = MeshIDPrefix;
+	pResult->Flags = Flags;
 
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithSurfaces))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithSurfaces))
 	{
 		pResult->Surfaces = Surfaces;
 	}
 
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithSkeleton))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithSkeleton))
 	{
 		pResult->Skeleton = Skeleton;
 	}
 
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithPhysicsBody))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithPhysicsBody))
 	{
 		pResult->PhysicsBody = PhysicsBody;
 	}
 
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithTags))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithTags))
 	{
 		pResult->Tags = Tags;
 	}
 
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithStreamedResources))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithStreamedResources))
 	{
 		pResult->StreamedResources = StreamedResources;
 	}
 
     // Clone the main buffers
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithVertexBuffers))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithVertexBuffers))
     {
 		pResult->VertexBuffers = VertexBuffers;
 	}
 
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithIndexBuffers))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithIndexBuffers))
     {
 		pResult->IndexBuffers = IndexBuffers;
 	}
 
 	// Clone additional buffers
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithAdditionalBuffers))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithAdditionalBuffers))
 	{
 		pResult->AdditionalBuffers = AdditionalBuffers;
 	}
 
     // Clone the layout	
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithLayouts))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithLayouts))
 	{
 		pResult->Layouts = Layouts;
 	}
@@ -147,24 +181,24 @@ MeshPtr Mesh::Clone(EMeshCopyFlags Flags) const
 	// physics body doen't need to be deep cloned either as they are also assumed to be shared.
 	
 	// Clone bone poses
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithPoses))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithPoses))
 	{
 		pResult->BonePoses = BonePoses;
 	}
 
 	// Clone BoneMap
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithBoneMap))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithBoneMap))
 	{
 		pResult->BoneMap = BoneMap;
 	}
 
 	// Clone SkeletonIDs
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithSkeletonIDs))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithSkeletonIDs))
 	{
 		pResult->SkeletonIDs = SkeletonIDs;
 	}
 
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithAdditionalPhysics))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithAdditionalPhysics))
 	{
 		pResult->AdditionalPhysicsBodies = AdditionalPhysicsBodies;
 	}
@@ -173,58 +207,58 @@ MeshPtr Mesh::Clone(EMeshCopyFlags Flags) const
 }
 
 
-void Mesh::CopyFrom(const Mesh& From, EMeshCopyFlags Flags)
+void Mesh::CopyFrom(const Mesh& From, EMeshCopyFlags InFlags)
 {
     //MUTABLE_CPUPROFILER_SCOPE(CopyFrom);
 
     InternalId = From.InternalId;
-	StaticFormatFlags = From.StaticFormatFlags;
+	Flags = From.Flags;
 	MeshIDPrefix = From.MeshIDPrefix;
 
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithSurfaces))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithSurfaces))
 	{
 		Surfaces = From.Surfaces;
 	}
 
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithSkeleton))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithSkeleton))
 	{
 		Skeleton = From.Skeleton;
 	}
 
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithPhysicsBody))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithPhysicsBody))
 	{
 		PhysicsBody = From.PhysicsBody;
 	}
 
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithTags))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithTags))
 	{
 		Tags = From.Tags;
 	}
 
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithStreamedResources))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithStreamedResources))
 	{
 		StreamedResources = From.StreamedResources;
 	}
 
     // Copy the main buffers
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithVertexBuffers))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithVertexBuffers))
     {
 		VertexBuffers = From.VertexBuffers;
 	}
 
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithIndexBuffers))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithIndexBuffers))
     {
 		IndexBuffers = From.IndexBuffers;
 	}
 
 	// Copy additional buffers
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithAdditionalBuffers))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithAdditionalBuffers))
 	{
 		AdditionalBuffers = From.AdditionalBuffers;
 	}
 
     // Copy the layout	
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithLayouts))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithLayouts))
 	{
 		Layouts = From.Layouts;
 	}
@@ -234,24 +268,24 @@ void Mesh::CopyFrom(const Mesh& From, EMeshCopyFlags Flags)
 	// physics body doen't need to be deep copied either as they are also assumed to be shared.
 	
 	// Copy bone poses
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithPoses))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithPoses))
 	{
 		BonePoses = From.BonePoses;
 	}
 
 	// Copy BoneMap
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithBoneMap))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithBoneMap))
 	{
 		BoneMap = From.BoneMap;
 	}
 
 	// Copy SkeletonIDs
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithSkeletonIDs))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithSkeletonIDs))
 	{
 		SkeletonIDs = From.SkeletonIDs;
 	}
 
-	if (EnumHasAnyFlags(Flags, EMeshCopyFlags::WithAdditionalPhysics))
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithAdditionalPhysics))
 	{
 		AdditionalPhysicsBodies = From.AdditionalPhysicsBodies;
 	}
@@ -1106,7 +1140,7 @@ void Mesh::FBonePose::Unserialise(InputArchive& arch)
 
 void Mesh::Serialise(OutputArchive& arch) const
 {
-	uint32 ver = 19;
+	uint32 ver = 20;
 	arch << ver;
 
 	arch << IndexBuffers;
@@ -1119,7 +1153,7 @@ void Mesh::Serialise(OutputArchive& arch) const
 	arch << Skeleton;
 	arch << PhysicsBody;
 
-	arch << StaticFormatFlags;
+	arch << uint32(Flags);
 	arch << Surfaces;
 
 	arch << Tags;
@@ -1138,132 +1172,33 @@ void Mesh::Unserialise(InputArchive& arch)
 {
 	uint32 ver;
 	arch >> ver;
-	check(ver <= 19);
+	check(ver == 20);
 
 	arch >> IndexBuffers;
 	arch >> VertexBuffers;
-	
-	if (ver < 19)
-	{
-		FMeshBufferSet Dummy;
-		arch >> Dummy;
-	}
-
 	arch >> AdditionalBuffers;
 	arch >> Layouts;
 
-	if (ver >= 14)
-	{
-		arch >> SkeletonIDs;
-	}
+	arch >> SkeletonIDs;
 
 	arch >> Skeleton;
-	if (ver >= 12)
-	{ 
-		arch >> PhysicsBody;
-	}
-	else
-	{
-		PhysicsBody = nullptr;
-	}
+	arch >> PhysicsBody;
 
-	arch >> StaticFormatFlags;
+	uint32 Temp;
+	arch >> Temp;
+	Flags = reinterpret_cast<EMeshFlags>(Flags);
 
-	if (ver >= 16)
-	{
-		arch >> Surfaces;
-	}
-	else
-	{
-		// Deserialize LegacySurfaces
-		UnserialiseLegacySurfaces(arch, Surfaces);
-	}
+	arch >> Surfaces;
 
-	if (ver <= 16)
-	{
-		struct FACE_GROUP_DEPRECATED
-		{
-			std::string m_name;
-			TArray<int32> m_faces;
-			inline void Unserialise(InputArchive& arch) 
-			{
-				int32 ver = 0;
-				arch >> ver;
-				arch >> m_name;
-				arch >> m_faces;
-			}
+	arch >> Tags;
+	arch >> StreamedResources;
 
-		};
-		TArray<FACE_GROUP_DEPRECATED> FaceGroups;
-		arch >> FaceGroups;
-	}
+	arch >> BonePoses;
+	arch >> BoneMap;
 
-	if (ver <= 16)
-	{
-		TArray < std::string > Temp;
-		arch >> Temp;
-		Tags.SetNum(Temp.Num());
-		for (int32 c = 0; c < Temp.Num(); ++c)
-		{
-			Tags[c] = Temp[c].c_str();
-		}
-	}
-	else
-	{
-		arch >> Tags;
-	}
+	arch >> AdditionalPhysicsBodies;
 
-	if (ver >= 18)
-	{
-		arch >> StreamedResources;
-	}
-
-	if (ver >= 13)
-	{
-		arch >> BonePoses;
-	}
-	else if (Skeleton)
-	{
-		const int32 NumBones = Skeleton->GetBoneCount();
-		BonePoses.SetNum(NumBones);
-		check(Skeleton->m_boneTransforms_DEPRECATED.Num() == NumBones);
-
-		for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
-		{
-			BonePoses[BoneIndex].BoneId = FBoneName(static_cast<uint32>(BoneIndex));
-			BonePoses[BoneIndex].BoneUsageFlags = EBoneUsageFlags::Skinning;
-			BonePoses[BoneIndex].BoneTransform = Skeleton->m_boneTransforms_DEPRECATED[BoneIndex];
-		}
-	}
-
-	if (ver >= 16)
-	{
-		arch >> BoneMap;
-	}
-	else
-	{
-		const int32 NumBonePoses = BonePoses.Num();
-		BoneMap.SetNum(NumBonePoses);
-		for (int32 BoneIndex = 0; BoneIndex < NumBonePoses; ++BoneIndex)
-		{
-			BoneMap[BoneIndex] = FBoneName(static_cast<uint32>(BoneIndex));
-		}
-
-		for (FMeshSurface& Surface : Surfaces)
-		{
-			Surface.BoneMapCount = NumBonePoses;
-		}
-	}
-
-	if (ver >= 15)
-	{
-		arch >> AdditionalPhysicsBodies;
-	}
-
-	if (ver >= 19)
-	{
-		arch >> MeshIDPrefix;
-	}
+	arch >> MeshIDPrefix;
 }
 
 
@@ -1322,22 +1257,6 @@ bool Mesh::IsSimilar(const Mesh& o, bool bCompareLayouts) const
 
 	return equal;
 
-}
-
-
-void Mesh::ResetStaticFormatFlags() const
-{
-    StaticFormatFlags = 0;
-
-    for ( int f=0; f<SMF_COUNT; ++f )
-    {
-        if ( s_staticMeshFormatIdentify[f]
-             &&
-             s_staticMeshFormatIdentify[f]( this ) )
-        {
-            StaticFormatFlags |= (1<<f);
-        }
-    }
 }
 
 
@@ -1505,12 +1424,6 @@ void Mesh::CheckIntegrity() const
 }
 
 
-static bool StaticMeshFormatIdentify_None( const Mesh* )
-{
-    return false;
-}
-
-
 static bool StaticMeshFormatIdentify_Project( const Mesh* pM )
 {
     // This format is used internally for the mesh project
@@ -1663,12 +1576,21 @@ static bool StaticMeshFormatIdentify_ProjectWrapping( const Mesh* pM )
 }
 
 
-STATIC_MESH_FORMAT_ID_FUNC s_staticMeshFormatIdentify[] =
+void Mesh::ResetStaticFormatFlags() const
 {
-    StaticMeshFormatIdentify_None,
-    StaticMeshFormatIdentify_Project,
-    StaticMeshFormatIdentify_ProjectWrapping
-};
+	EnumRemoveFlags(Flags, EMeshFlags::ProjectFormat);
+	EnumRemoveFlags(Flags, EMeshFlags::ProjectWrappingFormat);
+
+	if (StaticMeshFormatIdentify_Project(this))
+	{
+		EnumAddFlags(Flags, EMeshFlags::ProjectFormat);
+	}
+
+	if (StaticMeshFormatIdentify_ProjectWrapping(this))
+	{
+		EnumAddFlags(Flags, EMeshFlags::ProjectWrappingFormat);
+	}
+}
 
 
 namespace

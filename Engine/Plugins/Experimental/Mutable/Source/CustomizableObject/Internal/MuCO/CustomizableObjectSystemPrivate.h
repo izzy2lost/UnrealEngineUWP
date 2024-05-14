@@ -631,10 +631,10 @@ public:
 
 	TSharedPtr<class FUnrealExtensionDataStreamer> ExtensionDataStreamer;
 
-	// This object is responsible for providing custom images to mutable models (for image parameters)
+	// This object is responsible for providing custom images and meshes to mutable (for image parameters, etc.)
 	// This object is called from the mutable thread, and it should only access data already safely submitted from
 	// the game thread and stored in FUnrealMutableImageProvider::GlobalExternalImages.
-	TSharedPtr<class FUnrealMutableImageProvider> ImageProvider;
+	TSharedPtr<class FUnrealMutableResourceProvider> ResourceProvider;
 
 	// Cache of weak references to generated resources to see if they can be reused.
 	TArray<FMutableResourceCache> ModelResourcesCache;
@@ -737,7 +737,7 @@ public:
 
 	bool IsMutableAnimInfoDebuggingEnabled() const;
 
-	FUnrealMutableImageProvider* GetImageProviderChecked() const;
+	FUnrealMutableResourceProvider* GetResourceProviderChecked() const;
 
 	/** Start the actual work of Update Skeletal Mesh process (Update Skeletal Mesh without the queue). */
 	void StartUpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context);

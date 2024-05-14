@@ -759,21 +759,4 @@ namespace mu
 	};
 
 
-	/** Optimised mesh formats that are identified in some operations to chose a faster version. */
-	typedef enum
-	{
-		SMF_NONE,
-
-        SMF_PROJECT,
-
-        SMF_PROJECTWRAPPING,
-
-		SMF_COUNT
-	} STATIC_MESH_FORMATS;
-
-	//! Array of functions that can identify each format
-	typedef bool (*STATIC_MESH_FORMAT_ID_FUNC)( const Mesh* );
-	extern STATIC_MESH_FORMAT_ID_FUNC s_staticMeshFormatIdentify[SMF_COUNT];
-
-
 }

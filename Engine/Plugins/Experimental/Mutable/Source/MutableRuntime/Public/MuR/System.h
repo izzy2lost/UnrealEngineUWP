@@ -78,18 +78,22 @@ namespace mu
 
 
     /** Interface to request external images used as parameters. */
-    class MUTABLERUNTIME_API ImageParameterGenerator
+    class MUTABLERUNTIME_API ExternalResourceProvider
     {
     public:
 
         //! Ensure virtual destruction
-        virtual ~ImageParameterGenerator() = default;
+        virtual ~ExternalResourceProvider() = default;
 
-        //! Returns the completion event and a cleanup function that must be called once event is completed.
+        /** Returns the completion event and a cleanup function that must be called once event is completed. */
 		virtual TTuple<UE::Tasks::FTask, TFunction<void()>> GetImageAsync(FName Id, uint8 MipmapsToSkip, TFunction<void(Ptr<Image>)>& ResultCallback) = 0;
 		virtual TTuple<UE::Tasks::FTask, TFunction<void()>> GetReferencedImageAsync(const void* ModelPtr, int32 Id, uint8 MipmapsToSkip, TFunction<void(Ptr<Image>)>& ResultCallback) { check(false); return {}; }
 
-        virtual mu::FImageDesc GetImageDesc(FName Id, uint8 MipmapsToSkip) = 0;
+		virtual mu::FImageDesc GetImageDesc(FName Id, uint8 MipmapsToSkip) = 0;
+
+		/** Returns the completion event and a cleanup function that must be called once event is completed. */
+		virtual TTuple<UE::Tasks::FTask, TFunction<void()>> GetMeshAsync(FName Id, TFunction<void(Ptr<Mesh>)>& ResultCallback) = 0;
+		virtual TTuple<UE::Tasks::FTask, TFunction<void()>> GetReferencedMeshAsync(const void* ModelPtr, int32 Id, TFunction<void(Ptr<Mesh>)>& ResultCallback) { check(false); return {}; }
     };
 
 
@@ -127,7 +131,7 @@ namespace mu
 		void SetGeneratedCacheSize(uint32 InCount);
 
         /** Set a new provider for external image data. This is only necessary if image parameters are used in the models. */
-        void SetImageParameterGenerator(const TSharedPtr<ImageParameterGenerator>&);
+        void SetExternalResourceProvider(const TSharedPtr<ExternalResourceProvider>&);
 
 		/** Set a function that will be used to convert image pixel formats instead of the internal conversion. 
 		* \warning The provided function can be called from any thread, and also concurrently.

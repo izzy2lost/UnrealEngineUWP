@@ -39,7 +39,7 @@ FGuid CUSTOMIZABLEOBJECT_API GenerateIdentifier(const UCustomizableObject& Custo
 // Warning! MutableCompiledDataHeader must be the first data serialized in a stream
 struct MutableCompiledDataStreamHeader
 {
-	int32 InternalVersion;
+	int32 InternalVersion=0;
 	FGuid VersionId;
 
 	MutableCompiledDataStreamHeader() { }
@@ -667,6 +667,10 @@ struct FModelResources
 	UPROPERTY()
 	TArray<TSoftObjectPtr<UTexture>> PassThroughTextures;
 
+	/** PassThrough meshes used by the mu::Model. */
+	UPROPERTY()
+	TArray<TSoftObjectPtr<USkeletalMesh>> PassThroughMeshes;
+
 #if WITH_EDITORONLY_DATA
 	/** Runtime referenced textures used by the mu::Model. */
 	UPROPERTY()
@@ -992,6 +996,8 @@ public:
 		BackoutDeterminisiticLayoutBlockIds,
 
 		FixWrappingProjectorLayoutBlockId,
+
+		MeshReferenceSupport,
 
 		LastCustomizableObjectVersion
 	};

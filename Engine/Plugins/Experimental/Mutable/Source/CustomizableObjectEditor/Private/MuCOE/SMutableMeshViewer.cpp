@@ -274,6 +274,7 @@ TSharedRef<SWidget> SMutableMeshViewer::GenerateDataTableSlates()
 	const FText FacesCountTitle = LOCTEXT("FacesCountTitle", "Face count : ");
 	const FText BonesCountTitle = LOCTEXT("BonesCountTitle", "Bone count : ");
 	const FText MeshIdPrefixTitle = LOCTEXT("MeshIdPrefixTitle", "Mesh ID prefix : ");
+	const FText MeshFlagsTitle = LOCTEXT("MeshFlagsTitle", "Mesh flags : ");
 	const FText BuffersTitle = LOCTEXT("BuffersTitle", "Buffers");
 	
 	return SNew(SScrollBox)
@@ -385,6 +386,28 @@ TSharedRef<SWidget> SMutableMeshViewer::GenerateDataTableSlates()
 						[
 							SNew(STextBlock).
 								Text(this, &SMutableMeshViewer::GetMeshIdPrefix)
+						]
+				]
+
+				// Flags
+				+ SVerticalBox::Slot().
+				Padding(0, SimpleSpacing).
+				AutoHeight()
+				[
+					SNew(SHorizontalBox)
+
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						[
+							SNew(STextBlock).
+								Text(MeshFlagsTitle)
+						]
+
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						[
+							SNew(STextBlock).
+								Text(this, &SMutableMeshViewer::GetMeshFlags)
 						]
 				]
 			]
@@ -692,6 +715,11 @@ FText SMutableMeshViewer::GetBoneCount() const
 FText SMutableMeshViewer::GetMeshIdPrefix() const
 {
 	return FText::AsNumber(MutableMesh ? MutableMesh->MeshIDPrefix : 0);
+}
+
+FText SMutableMeshViewer::GetMeshFlags() const
+{
+	return FText::AsNumber(MutableMesh ? uint32(MutableMesh->Flags) : uint32(0));
 }
 
 

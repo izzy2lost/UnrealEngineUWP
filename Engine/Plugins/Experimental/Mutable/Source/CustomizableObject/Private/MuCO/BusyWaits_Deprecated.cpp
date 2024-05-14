@@ -236,6 +236,22 @@ namespace CustomizableObjectSystem::ImplDeprecated
 					if (bGenerateLOD)
 					{
 						Component.Mesh = System->GetMeshInline(OperationData->InstanceID, Component.MeshID);
+
+						if (Component.Mesh->IsReference())
+						{
+							uint32 ReferenceID = Component.Mesh->GetReferencedMesh();
+
+							if (ModelResources.PassThroughMeshes.IsValidIndex(ReferenceID))
+							{
+								TSoftObjectPtr<USkeletalMesh> Ref = ModelResources.PassThroughMeshes[ReferenceID];
+								CustomizableObjectInstancePrivateData->PassThroughMeshesToLoad.Add(Ref);
+							}
+							else
+							{
+								// internal error.
+								UE_LOG(LogMutable, Error, TEXT("Referenced mesh [%d] was not stored in the resource array."), ReferenceID);
+							}
+						}
 					}
 				}
 

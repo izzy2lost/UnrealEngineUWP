@@ -350,8 +350,9 @@ public:
 	UPROPERTY(Transient, Category = Animation, editfixedsize, VisibleAnywhere)
 	TMap<TSubclassOf<UAnimInstance>, FAnimBpGeneratedPhysicsAssets> AnimBpPhysicsAssets;
 
-	// The pass-through textures that will be loaded during an update
+	// The pass-through assets that will be loaded during an update
 	TArray<TSoftObjectPtr<UTexture>> PassThroughTexturesToLoad;
+	TArray<TSoftObjectPtr<USkeletalMesh>> PassThroughMeshesToLoad;
 
 	// Used during an update to prevent the pass-through textures loaded by LoadAdditionalAssetsAsync() from being unloaded by GC
 	// between AdditionalAssetsAsyncLoaded() and their setting into the generated materials in BuildMaterials()

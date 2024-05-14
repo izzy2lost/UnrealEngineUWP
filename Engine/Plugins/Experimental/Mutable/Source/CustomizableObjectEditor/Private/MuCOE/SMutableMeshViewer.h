@@ -124,6 +124,7 @@ private:
 	FText GetFaceCount() const;
 	FText GetBoneCount() const;
 	FText GetMeshIdPrefix() const;
+	FText GetMeshFlags() const;
 
 	/*
 	 * Elements used to feed the buffers list (index and buffer channels as an internal list)

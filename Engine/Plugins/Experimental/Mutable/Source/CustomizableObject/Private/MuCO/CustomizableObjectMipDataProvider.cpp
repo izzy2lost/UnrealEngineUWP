@@ -40,7 +40,7 @@ FMutableUpdateContext::FMutableUpdateContext(
 	if (Parameters)
 	{
 		const UCustomizableObjectSystemPrivate* Private = UCustomizableObjectSystem::GetInstance()->GetPrivate();
-		Private->GetImageProviderChecked()->CacheImages(*Parameters);
+		Private->GetResourceProviderChecked()->CacheImages(*Parameters);
 	}
 }
 
@@ -51,7 +51,7 @@ FMutableUpdateContext::~FMutableUpdateContext()
 		UCustomizableObjectSystem::IsCreated())
 	{
 		const UCustomizableObjectSystemPrivate* Private = UCustomizableObjectSystem::GetInstance()->GetPrivate();
-		Private->GetImageProviderChecked()->UnCacheImages(*Parameters);
+		Private->GetResourceProviderChecked()->UnCacheImages(*Parameters);
 	}
 }
 

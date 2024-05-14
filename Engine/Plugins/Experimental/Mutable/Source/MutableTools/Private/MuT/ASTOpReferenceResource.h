@@ -50,7 +50,6 @@ namespace mu
 		void GetLayoutBlockSize(int32* pBlockX, int32* pBlockY) override;
 		bool GetNonBlackRect(FImageRect& maskUsage) const override;
 		Ptr<ImageSizeExpression> GetImageSizeExpression() const override;
-		Ptr<ASTOp> OptimiseSemantic(const FModelOptimizationOptions& options, int32 Pass) const override;
 	};
 
 

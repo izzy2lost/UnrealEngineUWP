@@ -923,6 +923,12 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 			ModelResources.Materials.Emplace(Material);
 		}
 
+		for (const TPair<TSoftObjectPtr<USkeletalMesh>, FMutableGraphGenerationContext::FGeneratedReferencedMesh>& Pair : GenerationContext.PassthroughMeshMap)
+		{
+			check(Pair.Value.ID == ModelResources.PassThroughMeshes.Num());
+			ModelResources.PassThroughMeshes.Add(Pair.Key);
+		}
+
 		for (const TPair<TSoftObjectPtr<UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.PassthroughTextureMap)
 		{
 			check(Pair.Value.ID == ModelResources.PassThroughTextures.Num());

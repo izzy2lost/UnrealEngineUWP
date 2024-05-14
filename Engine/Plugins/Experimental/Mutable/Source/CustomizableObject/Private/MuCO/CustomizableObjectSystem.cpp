@@ -548,10 +548,10 @@ void UCustomizableObjectSystem::InitSystem()
 	Private->MutableSystem->SetStreamingInterface(Private->Streamer);
 
 	// Set up the external image provider, for image parameters.
-	TSharedPtr<FUnrealMutableImageProvider> Provider = MakeShared<FUnrealMutableImageProvider>();
+	TSharedPtr<FUnrealMutableResourceProvider> Provider = MakeShared<FUnrealMutableResourceProvider>();
 	check(Provider != nullptr);
-	Private->ImageProvider = Provider;
-	Private->MutableSystem->SetImageParameterGenerator(Provider);
+	Private->ResourceProvider = Provider;
+	Private->MutableSystem->SetExternalResourceProvider(Provider);
 
 #if WITH_EDITORONLY_DATA
 	Private->EditorImageProvider = NewObject<UEditorImageProvider>();
@@ -1736,7 +1736,7 @@ namespace impl
 		for (FInstanceUpdateData::FComponent& Component : OperationData->InstanceUpdateData.Components)
 		{
 			mu::MeshPtrConst Mesh = Component.Mesh;
-			if (!Mesh)
+			if (!Mesh || Mesh->IsReference())
 			{
 				continue;
 			}
@@ -3278,7 +3278,7 @@ namespace impl
 		Operation->Model = CustomizableObject->GetPrivate()->GetModel().ToSharedRef();
 
 #if WITH_EDITOR
-		SystemPrivateData->GetImageProviderChecked()->CacheRuntimeReferencedImages(Operation->Model.ToSharedRef(), CustomizableObject->GetPrivate()->GetModelResources().RuntimeReferencedTextures);
+		SystemPrivateData->GetResourceProviderChecked()->CacheRuntimeReferencedImages(Operation->Model.ToSharedRef(), CustomizableObject->GetPrivate()->GetModelResources().RuntimeReferencedTextures);
 #endif
 		
 		// Task: Mutable Update and GetMesh
@@ -3792,7 +3792,7 @@ TArray<FCustomizableObjectExternalTexture> UCustomizableObjectSystem::GetTexture
 {
 	TArray<FCustomizableObjectExternalTexture> Result;
 
-	for (const TWeakObjectPtr<UCustomizableSystemImageProvider> Provider : GetPrivate()->GetImageProviderChecked()->ImageProviders)
+	for (const TWeakObjectPtr<UCustomizableSystemImageProvider> Provider : GetPrivate()->GetResourceProviderChecked()->ImageProviders)
 	{
 		if (Provider.IsValid())
 		{
@@ -3806,13 +3806,13 @@ TArray<FCustomizableObjectExternalTexture> UCustomizableObjectSystem::GetTexture
 
 void UCustomizableObjectSystem::RegisterImageProvider(UCustomizableSystemImageProvider* Provider)
 {
-	GetPrivate()->GetImageProviderChecked()->ImageProviders.Add(Provider);
+	GetPrivate()->GetResourceProviderChecked()->ImageProviders.Add(Provider);
 }
 
 
 void UCustomizableObjectSystem::UnregisterImageProvider(UCustomizableSystemImageProvider* Provider)
 {
-	GetPrivate()->GetImageProviderChecked()->ImageProviders.Remove(Provider);
+	GetPrivate()->GetResourceProviderChecked()->ImageProviders.Remove(Provider);
 }
 
 
@@ -3820,11 +3820,11 @@ void UCustomizableObjectSystemPrivate::CacheTextureParameters(const TArray<FCust
 {
 	for (const FCustomizableObjectTextureParameterValue& TextureParameter : TextureParameters)
 	{
-		ImageProvider->CacheImage(TextureParameter.ParameterValue, false);
+		ResourceProvider->CacheImage(TextureParameter.ParameterValue, false);
 
 		for (const FName& RangeValue : TextureParameter.ParameterRangeValues)
 		{
-			ImageProvider->CacheImage(RangeValue, false);
+			ResourceProvider->CacheImage(RangeValue, false);
 		}
 	}
 }
@@ -3834,11 +3834,11 @@ void UCustomizableObjectSystemPrivate::UnCacheTextureParameters(const TArray<FCu
 {
 	for (const FCustomizableObjectTextureParameterValue& TextureParameter : TextureParameters)
 	{
-		ImageProvider->UnCacheImage(TextureParameter.ParameterValue, false);
+		ResourceProvider->UnCacheImage(TextureParameter.ParameterValue, false);
 
 		for (const FName& RangeValue : TextureParameter.ParameterRangeValues)
 		{
-			ImageProvider->UnCacheImage(RangeValue, false);
+			ResourceProvider->UnCacheImage(RangeValue, false);
 		}
 	}
 }
@@ -4055,19 +4055,19 @@ uint64 UCustomizableObjectSystem::GetMaxChunkSizeForPlatform(const ITargetPlatfo
 
 void UCustomizableObjectSystem::CacheImage(FName ImageId)
 {
-	GetPrivate()->GetImageProviderChecked()->CacheImage(ImageId, true);
+	GetPrivate()->GetResourceProviderChecked()->CacheImage(ImageId, true);
 }
 
 
 void UCustomizableObjectSystem::UnCacheImage(FName ImageId)
 {
-	GetPrivate()->GetImageProviderChecked()->UnCacheImage(ImageId, true);
+	GetPrivate()->GetResourceProviderChecked()->UnCacheImage(ImageId, true);
 }
 
 
 void UCustomizableObjectSystem::ClearImageCache()
 {
-	GetPrivate()->GetImageProviderChecked()->ClearCache(true);
+	GetPrivate()->GetResourceProviderChecked()->ClearCache(true);
 }
 
 
@@ -4081,10 +4081,10 @@ bool UCustomizableObjectSystemPrivate::IsMutableAnimInfoDebuggingEnabled() const
 }
 
 
-FUnrealMutableImageProvider* UCustomizableObjectSystemPrivate::GetImageProviderChecked() const
+FUnrealMutableResourceProvider* UCustomizableObjectSystemPrivate::GetResourceProviderChecked() const
 {
-	check(ImageProvider)
-	return ImageProvider.Get();
+	check(ResourceProvider)
+	return ResourceProvider.Get();
 }
 
 

@@ -132,38 +132,4 @@ namespace mu
 	}
 
 
-	Ptr<ASTOp> ASTOpReferenceResource::OptimiseSemantic(const FModelOptimizationOptions& options, int32 Pass) const
-	{
-		mu::Ptr<ASTOp> NewOp;
-
-		//switch (type)
-		//{
-
-		//case OP_TYPE::IM_REFERENCE:
-		//{
-		//	// If we are in reference resolution stage
-		//	if (Pass>=2 && bForceLoad)
-		//	{
-		//		MUTABLE_CPUPROFILER_SCOPE(ResolveReference);
-
-		//		check(options.ReferencedResourceProvider);
-
-		//		TFuture<Ptr<Image>> ConstantImageFuture = options.ReferencedResourceProvider(ID);
-		//		Ptr<Image> ConstantImage = ConstantImageFuture.Get();
-
-		//		Ptr<ASTOpConstantResource> ConstantOp = new ASTOpConstantResource;
-		//		ConstantOp->type = OP_TYPE::IM_CONSTANT;
-		//		ConstantOp->SetValue( ConstantImage.get(), options.bUseDiskCache );
-		//		NewOp = ConstantOp;
-		//	}
-		//	break;
-		//}
-
-		//default:
-		//	checkf(false, TEXT("Instruction not supported"));
-		//}
-
-		return NewOp;
-	}
-
 }

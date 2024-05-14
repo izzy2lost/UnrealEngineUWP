@@ -136,19 +136,21 @@ namespace  mu
 
     public:
 
-		struct FExternalImageId
+		struct FExternalResourceId
 		{
-			/** If it is an image reference. */
-			int32 ReferenceImageId = -1;
+			/** If it is an image or mesh reference. */
+			int32 ReferenceResourceId = -1;
 
-			/** If it is an image parameter.*/
+			/** If it is an image or mesh parameter.*/
 			FName ParameterId; 
 		};
 
-		//! Load an external image asynchronously, retuns an event to wait for complition and a cleanup function 
-		//! that must be called once the event has completed.
-		TTuple<UE::Tasks::FTask, TFunction<void()>> LoadExternalImageAsync(FExternalImageId Id, uint8 MipmapsToSkip, TFunction<void(Ptr<Image>)>& ResultCallback);
+		/** Load an external image asynchronously, returns an event to wait for complition and a cleanup function that must be called once the event has completed. */
+		TTuple<UE::Tasks::FTask, TFunction<void()>> LoadExternalImageAsync(FExternalResourceId Id, uint8 MipmapsToSkip, TFunction<void(Ptr<Image>)>& ResultCallback);
  	    mu::FImageDesc GetExternalImageDesc(FName Id, uint8 MipmapsToSkip);
+
+		/** Load an external mesh asynchronously, returns an event to wait for complition and a cleanup function that must be called once the event has completed. */
+		TTuple<UE::Tasks::FTask, TFunction<void()>> LoadExternalMeshAsync(FExternalResourceId Id, TFunction<void(Ptr<Mesh>)>& ResultCallback);
 
 		/** Settings that may affect the execution of some operations, like image conversion quality. */
 		Ptr<const Settings> m_pSettings;

@@ -41,6 +41,7 @@ namespace mu
 		RelevancyMaxY = 0;
 	}
 
+
 	Ptr<Image> Image::CreateAsReference(uint32 ID, const FImageDesc& Desc, bool bForceLoad)
 	{
 		Ptr<Image> Result = new Image;
@@ -263,92 +264,6 @@ namespace mu
 
 		return Result;
 	}
-
-
-	//int32 Image::CalculateDataSize() const
-	//{
-	//	check(false);
-	//	return DataStorage.GetDataSize();
-	//}
-
-	//int32 Image::CalculateDataSize(int32 Mip) const
-	//{
-	//	check(false);
-	//	return DataStorage.GetLOD(Mip).Num();
-	//}
-
-	//int32 Image::CalculatePixelCount() const
-	//{
-	//	check(false);
-	//	int32 Result = 0;
-
-	//	const int32 LODCount = FMath::Max(1, GetLODCount());
-	//	const FImageFormatData& FormatData = GetImageFormatData(GetFormat());
-	//	
-	//	if (FormatData.BytesPerBlock)
-	//	{
-	//		FImageSize Size = GetSize();
-
-	//		for (int32 L = 0; L < LODCount; ++L)
-	//		{
-	//			int32 BlocksX = FMath::DivideAndRoundUp(Size[0], (uint16)FormatData.PixelsPerBlockX);
-	//			int32 BlocksY = FMath::DivideAndRoundUp(Size[1], (uint16)FormatData.PixelsPerBlockY);
-
-	//			Result += (BlocksX*BlocksY) * FormatData.PixelsPerBlockX * FormatData.PixelsPerBlockY;
-
-	//			Size[0] = FMath::DivideAndRoundUp(Size[0], (uint16)2);
-	//			Size[1] = FMath::DivideAndRoundUp(Size[1], (uint16)2);
-	//		}
-	//	}
-	//	else
-	//	{
-	//		// An RLE image.
-	//		for (int32 L = 0; L < LODCount; ++L)
-	//		{
-	//			FIntVector2 MipSize = CalculateMipSize(L);
-	//			Result += MipSize[0] * MipSize[1];
-	//		}
-	//	}
-
-	//	return Result;
-	//}
-
-
-	////---------------------------------------------------------------------------------------------
-	//int32 Image::CalculatePixelCount(int32 Mip) const
-	//{
-	//	check(false);
-	//	int32 Result = 0;
-	//	
-	//	const FImageFormatData& FormatData = GetImageFormatData(GetFormat());
-	//	if (FormatData.BytesPerBlock)
-	//	{
-	//		FImageSize Size = GetSize();
-
-	//		for (int32 L = 0; L < Mip + 1; ++L)
-	//		{
-	//			int32 BlocksX = FMath::DivideAndRoundUp(Size[0], (uint16)FormatData.PixelsPerBlockX);
-	//			int32 BlocksY = FMath::DivideAndRoundUp(Size[1], (uint16)FormatData.PixelsPerBlockY);
-
-	//			if (L == Mip)
-	//			{
-	//				Result = (BlocksX*BlocksY) * FormatData.PixelsPerBlockX * FormatData.PixelsPerBlockY;
-	//				break;
-	//			}
-
-	//			Size[0] = FMath::DivideAndRoundUp(Size[0], (uint16)2);
-	//			Size[1] = FMath::DivideAndRoundUp(Size[1], (uint16)2);
-	//		}
-	//	}
-	//	else
-	//	{
-	//		// An RLE image.
-	//		FIntVector2 MipSize = CalculateMipSize(Mip);
-	//		Result += MipSize[0] * MipSize[1];
-	//	}
-
-	//	return Result;
-	//}
 
 
 	//---------------------------------------------------------------------------------------------

@@ -166,23 +166,52 @@ namespace mu
 	}
 
 
-	TTuple<UE::Tasks::FTask, TFunction<void()>> CodeRunner::LoadExternalImageAsync(FExternalImageId Id, uint8 MipmapsToSkip, TFunction<void(Ptr<Image>)>& ResultCallback)
+	TTuple<UE::Tasks::FTask, TFunction<void()>> CodeRunner::LoadExternalImageAsync(FExternalResourceId Id, uint8 MipmapsToSkip, TFunction<void(Ptr<Image>)>& ResultCallback)
     {
 		MUTABLE_CPUPROFILER_SCOPE(LoadExternalImageAsync);
 
 		check(m_pSystem);
 
-		if (m_pSystem->ImageParameterGenerator)
+		if (m_pSystem->ExternalResourceProvider)
 		{
-			if (Id.ReferenceImageId < 0)
+			if (Id.ReferenceResourceId < 0)
 			{
 				// It's a parameter image
-				return m_pSystem->ImageParameterGenerator->GetImageAsync(Id.ParameterId, MipmapsToSkip, ResultCallback);
+				return m_pSystem->ExternalResourceProvider->GetImageAsync(Id.ParameterId, MipmapsToSkip, ResultCallback);
 			}
 			else
 			{
 				// It's an image reference
-				return m_pSystem->ImageParameterGenerator->GetReferencedImageAsync(m_pModel.Get(), Id.ReferenceImageId, MipmapsToSkip, ResultCallback);
+				return m_pSystem->ExternalResourceProvider->GetReferencedImageAsync(m_pModel.Get(), Id.ReferenceResourceId, MipmapsToSkip, ResultCallback);
+			}
+		}
+		else
+		{
+			// Not found and there is no generator!
+			check(false);
+		}
+
+		return MakeTuple(UE::Tasks::MakeCompletedTask<void>(), []() -> void {});
+	}
+
+
+	TTuple<UE::Tasks::FTask, TFunction<void()>> CodeRunner::LoadExternalMeshAsync(FExternalResourceId Id, TFunction<void(Ptr<Mesh>)>& ResultCallback)
+	{
+		MUTABLE_CPUPROFILER_SCOPE(LoadExternalImageAsync);
+
+		check(m_pSystem);
+
+		if (m_pSystem->ExternalResourceProvider)
+		{
+			if (Id.ReferenceResourceId < 0)
+			{
+				// It's a parameter mesh
+				return m_pSystem->ExternalResourceProvider->GetMeshAsync(Id.ParameterId, ResultCallback);
+			}
+			else
+			{
+				// It's a mesh reference
+				return m_pSystem->ExternalResourceProvider->GetReferencedMeshAsync(m_pModel.Get(), Id.ReferenceResourceId, ResultCallback);
 			}
 		}
 		else
@@ -202,9 +231,9 @@ namespace mu
 
 		check(m_pSystem);
 
-		if (m_pSystem->ImageParameterGenerator)
+		if (m_pSystem->ExternalResourceProvider)
 		{
-			return m_pSystem->ImageParameterGenerator->GetImageDesc(Id, MipmapsToSkip);
+			return m_pSystem->ExternalResourceProvider->GetImageDesc(Id, MipmapsToSkip);
 		}
 		else
 		{
@@ -1016,6 +1045,34 @@ namespace mu
         switch (type)
         {
 
+		case OP_TYPE::ME_REFERENCE:
+		{
+			OP::ResourceReferenceArgs Args = Program.GetOpArgs<OP::ResourceReferenceArgs>(item.At);
+			switch (item.Stage)
+			{
+			case 0:
+			{
+				Ptr<Mesh> Result;
+				if (Args.ForceLoad)
+				{
+					// This should never be reached because it should have been caught as a Task in IssueOp
+					check(false);
+				}
+				else
+				{
+					Result = Mesh::CreateAsReference(Args.ID, false);
+				}
+				StoreMesh(item, Result);
+				break;
+			}
+
+			default:
+				check(false);
+			}
+
+			break;
+		}
+
         case OP_TYPE::ME_APPLYLAYOUT:
         {
 			OP::MeshApplyLayoutArgs args = Program.GetOpArgs<OP::MeshApplyLayoutArgs>(item.At);
@@ -1284,6 +1341,8 @@ namespace mu
 
                 if (pA && pB && pA->GetVertexCount() && pB->GetVertexCount())
                 {
+					check(!pA->IsReference() && !pB->IsReference());
+
 					FMeshMergeScratchMeshes Scratch;
 					Scratch.FirstReformat = CreateMesh();
 					Scratch.SecondReformat = CreateMesh();
@@ -1305,16 +1364,16 @@ namespace mu
 					Release(pB);
 					StoreMesh(item, Result);
                 }
-                else if (pA && pA->GetVertexCount())
+                else if (pA && (pA->GetVertexCount() || pA->IsReference()))
                 {
 					Release(pB);
 					StoreMesh(item, pA);
                 }
-                else if (pB && pB->GetVertexCount())
+                else if (pB && (pB->GetVertexCount() || pB->IsReference()))
                 {
 					Ptr<Mesh> Result = CloneOrTakeOver(pB);
 
-                    check(Result->GetSurfaceCount() == 1);
+                    check(Result->IsReference() || (Result->GetSurfaceCount() == 1) );
 
                     if (Result->GetSurfaceCount() > 0 && args.newSurfaceID)
                     {
@@ -1793,7 +1852,12 @@ namespace mu
                 Ptr<const Mesh> Source = LoadMesh(FCacheAddress(args.source,item));
                 Ptr<const Mesh> Format = LoadMesh(FCacheAddress(args.format,item));
 
-				if (Source)
+				if (Source && Source->IsReference())
+				{
+					Release(Format);
+					StoreMesh(item, Source);
+				}
+				else if (Source)
 				{
 					uint8 Flags = args.Flags;
 					if (!Format && !(Flags & OP::MeshFormatArgs::ResetBufferIndices))
@@ -2989,6 +3053,11 @@ namespace mu
 				MUTABLE_CPUPROFILER_SCOPE(ME_OPTIMIZESKINNING_1)
 
 				Ptr<const Mesh> Source = LoadMesh(FCacheAddress(args.source, item));
+
+				if (Source && Source->IsReference())
+				{
+					StoreMesh(item, Source);
+				}
 
 				Ptr<Mesh> Result = CreateMesh();
 

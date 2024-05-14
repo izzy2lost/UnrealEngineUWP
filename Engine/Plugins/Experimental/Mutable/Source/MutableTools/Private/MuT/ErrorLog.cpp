@@ -200,7 +200,7 @@ namespace mu
     
     // clang-format off
 
-    const TCHAR* s_opNames[ int32(OP_TYPE::COUNT) ] =
+    const TCHAR* s_opNames[] =
 	{
 		TEXT("NONE             "),
 
@@ -224,6 +224,7 @@ namespace mu
 		TEXT("ST_PARAMETER     "),
 		
 		TEXT("IM_REFERENCE     "),
+		TEXT("ME_REFERENCE     "),
 
 		TEXT("NU_CONDITIONAL   "),
 		TEXT("SC_CONDITIONAL   "),

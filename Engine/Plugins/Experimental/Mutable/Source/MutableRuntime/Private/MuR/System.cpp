@@ -137,7 +137,7 @@ namespace mu
 		// Make it explicit to try to capture metrics
         StreamInterface = nullptr;
 		ExtensionDataStreamer = nullptr;
-        ImageParameterGenerator = nullptr;
+		ExternalResourceProvider = nullptr;
     }
 
 
@@ -206,11 +206,11 @@ namespace mu
 
 	
     //---------------------------------------------------------------------------------------------
-    void System::SetImageParameterGenerator(const TSharedPtr<ImageParameterGenerator>& InInterface )
+    void System::SetExternalResourceProvider(const TSharedPtr<ExternalResourceProvider>& InInterface )
     {
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 
-        m_pD->ImageParameterGenerator = InInterface;
+        m_pD->ExternalResourceProvider = InInterface;
     }
 
 

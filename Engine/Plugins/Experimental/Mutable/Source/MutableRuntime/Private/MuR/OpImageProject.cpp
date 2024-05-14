@@ -966,7 +966,7 @@ void ImageRasterProjectedPlanar(const Mesh* pMesh, Image* pImage,
 		ProcessorFeatures |= EPixelProcessorFeatures::WithMask;
 	}
 
-	if (pMesh->StaticFormatFlags & (1 << SMF_PROJECT))
+	if (EnumHasAnyFlags(pMesh->Flags, EMeshFlags::ProjectFormat))
 	{
 		float UnusedProjectionAngle = 0;
 		FImageRasterInvokeArgs RasterArgs = 
@@ -1180,7 +1180,7 @@ void ImageRasterProjectedWrapping( const Mesh* pMesh, Image* pImage,
 		ProcessorFeatures |= EPixelProcessorFeatures::WithMask;
 	}
 
-    if ( ( pMesh->StaticFormatFlags & (1<<SMF_PROJECTWRAPPING) ) )
+	if (EnumHasAnyFlags(pMesh->Flags, EMeshFlags::ProjectWrappingFormat))
     {
 		float UnusedProjectionAngle = 0;
 
@@ -1394,8 +1394,8 @@ void ImageRasterProjectedCylindrical( const Mesh* pMesh, Image* pImage,
 		ProcessorFeatures |= EPixelProcessorFeatures::WithMask;
 	}
 
-    if ((pMesh->StaticFormatFlags & (1 << SMF_PROJECT)))
-    {
+	if (EnumHasAnyFlags(pMesh->Flags, EMeshFlags::ProjectFormat))
+	{
 		int32 UnusedLayout = 0;
 		int32 UnusedBlock = 0;
 
@@ -3071,12 +3071,12 @@ void MeshProject(Mesh* Result, const Mesh* pMesh, const FProjector& projector, b
 {
 	MUTABLE_CPUPROFILER_SCOPE(MeshProject);
 
-    if (pMesh->StaticFormatFlags & (1<<SMF_PROJECT))
+    if ( EnumHasAnyFlags(pMesh->Flags, EMeshFlags::ProjectFormat) )
     {
         // Mesh-optimised version
         MeshProject_Optimised(Result, pMesh, projector, bOutSuccess);
     }
-    else if (pMesh->StaticFormatFlags & (1<<SMF_PROJECTWRAPPING))
+    else if (EnumHasAnyFlags(pMesh->Flags, EMeshFlags::ProjectWrappingFormat))
     {
         // Mesh-optimised version for wrapping projectors
         // \todo: make sure the projector is a wrapping projector

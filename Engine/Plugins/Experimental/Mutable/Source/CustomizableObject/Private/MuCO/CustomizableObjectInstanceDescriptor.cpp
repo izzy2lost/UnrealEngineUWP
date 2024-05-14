@@ -2367,7 +2367,7 @@ void FCustomizableObjectInstanceDescriptor::SetRandomValuesFromStream(const FRan
 
 	// Get all possible values
 	TArray<FCustomizableObjectExternalTexture> ProviderValues;
-	for (const TWeakObjectPtr<UCustomizableSystemImageProvider>& Provider : SystemPrivate->ImageProvider->ImageProviders)
+	for (const TWeakObjectPtr<UCustomizableSystemImageProvider>& Provider : SystemPrivate->ResourceProvider->ImageProviders)
 	{
 		ProviderValues.Reset();
 		Provider->GetTextureParameterValues(ProviderValues);

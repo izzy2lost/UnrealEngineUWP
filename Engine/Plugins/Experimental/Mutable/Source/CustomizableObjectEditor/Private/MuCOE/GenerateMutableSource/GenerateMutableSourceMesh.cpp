@@ -36,6 +36,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeSkeletalMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeStaticMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeTable.h"
+#include "MuCOE/Nodes/CustomizableObjectNodePassThroughMesh.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
 #include "MuT/NodeMeshConstant.h"
 #include "MuT/NodeMeshGeometryOperation.h"
@@ -2122,8 +2123,8 @@ mu::MeshPtr ConvertStaticMeshToMutable(const UStaticMesh* StaticMesh, int32 LODI
 	mu::MeshPtr MutableMesh = new mu::Mesh();
 
 	// Vertices
-	int VertexStart = StaticMesh->GetRenderData()->LODResources[LODIndex].Sections[SectionIndex].MinVertexIndex;
-	int VertexCount = StaticMesh->GetRenderData()->LODResources[LODIndex].Sections[SectionIndex].MaxVertexIndex - VertexStart + 1;
+	int32 VertexStart = StaticMesh->GetRenderData()->LODResources[LODIndex].Sections[SectionIndex].MinVertexIndex;
+	int32 VertexCount = StaticMesh->GetRenderData()->LODResources[LODIndex].Sections[SectionIndex].MaxVertexIndex - VertexStart + 1;
 
 	MutableMesh->GetVertexBuffers().SetElementCount(VertexCount);
 	{
@@ -2135,13 +2136,13 @@ mu::MeshPtr ConvertStaticMeshToMutable(const UStaticMesh* StaticMesh, int32 LODI
 		{
 			const FPositionVertexBuffer& VertexBuffer = StaticMesh->GetRenderData()->LODResources[LODIndex].VertexBuffers.PositionVertexBuffer;
 
-			const int ElementSize = 12;
-			const int ChannelCount = 1;
+			const int32 ElementSize = 12;
+			const int32 ChannelCount = 1;
 			const EMeshBufferSemantic Semantics[ChannelCount] = { MBS_POSITION };
-			const int SemanticIndices[ChannelCount] = { 0 };
+			const int32 SemanticIndices[ChannelCount] = { 0 };
 			const EMeshBufferFormat Formats[ChannelCount] = { MBF_FLOAT32 };
-			const int Components[ChannelCount] = { 3 };
-			const int Offsets[ChannelCount] = { 0 };
+			const int32 Components[ChannelCount] = { 3 };
+			const int32 Offsets[ChannelCount] = { 0 };
 
 			MutableMesh->GetVertexBuffers().SetBuffer(MUTABLE_VERTEXBUFFER_POSITION, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
 			FMemory::Memcpy(
@@ -2155,13 +2156,13 @@ mu::MeshPtr ConvertStaticMeshToMutable(const UStaticMesh* StaticMesh, int32 LODI
 			const FStaticMeshVertexBuffer& VertexBuffer = StaticMesh->GetRenderData()->LODResources[LODIndex].VertexBuffers.StaticMeshVertexBuffer;
 
 			EMeshBufferSemantic Semantics[2];
-			int SemanticIndices[2];
+			int32 SemanticIndices[2];
 			EMeshBufferFormat Formats[2];
-			int Components[2];
-			int Offsets[2];
+			int32 Components[2];
+			int32 Offsets[2];
 
-			int currentChannel = 0;
-			int currentOffset = 0;
+			int32 currentChannel = 0;
+			int32 currentOffset = 0;
 
 			Semantics[currentChannel] = MBS_TANGENT;
 			SemanticIndices[currentChannel] = 0;
@@ -2193,19 +2194,19 @@ mu::MeshPtr ConvertStaticMeshToMutable(const UStaticMesh* StaticMesh, int32 LODI
 		{
 			const FStaticMeshVertexBuffer& VertexBuffer = StaticMesh->GetRenderData()->LODResources[LODIndex].VertexBuffers.StaticMeshVertexBuffer;
 
-			int texChannels = VertexBuffer.GetNumTexCoords();
-			int ChannelCount = texChannels;
+			int32 texChannels = VertexBuffer.GetNumTexCoords();
+			int32 ChannelCount = texChannels;
 
 			EMeshBufferSemantic* Semantics = new EMeshBufferSemantic[ChannelCount];
-			int* SemanticIndices = new int[ChannelCount];
+			int32* SemanticIndices = new int[ChannelCount];
 			EMeshBufferFormat* Formats = new EMeshBufferFormat[ChannelCount];
-			int* Components = new int[ChannelCount];
-			int* Offsets = new int[ChannelCount];
+			int32* Components = new int[ChannelCount];
+			int32* Offsets = new int[ChannelCount];
 
-			int currentChannel = 0;
-			int currentOffset = 0;
+			int32 currentChannel = 0;
+			int32 currentOffset = 0;
 
-			int texChannelSize;
+			int32 texChannelSize;
 			EMeshBufferFormat texChannelFormat;
 			if (VertexBuffer.GetUseFullPrecisionUVs())
 			{
@@ -2218,7 +2219,7 @@ mu::MeshPtr ConvertStaticMeshToMutable(const UStaticMesh* StaticMesh, int32 LODI
 				texChannelFormat = MBF_FLOAT16;
 			}
 
-			for (int c = 0; c < texChannels; ++c)
+			for (int32 c = 0; c < texChannels; ++c)
 			{
 				Semantics[currentChannel] = MBS_TEXCOORDS;
 				SemanticIndices[currentChannel] = c;
@@ -2282,7 +2283,7 @@ mu::MeshPtr ConvertStaticMeshToMutable(const UStaticMesh* StaticMesh, int32 LODI
 			//pSource += IndexStart;
 			uint16* pDest = reinterpret_cast<uint16*>(MutableMesh->GetIndexBuffers().GetBufferData(0));
 
-			for (int i = 0; i < IndexCount; ++i)
+			for (int32 i = 0; i < IndexCount; ++i)
 			{
 				*pDest = Source[IndexStart + i] - VertexStart;
 				++pDest;
@@ -2295,8 +2296,8 @@ mu::MeshPtr ConvertStaticMeshToMutable(const UStaticMesh* StaticMesh, int32 LODI
 
 
 // Convert a Mesh constant to a mutable format. UniqueTags are the tags that make this Mesh unique that cannot be merged in the cache 
-//  with the exact same Mesh with other tags
-mu::MeshPtr GenerateMutableMesh(const UObject * Mesh, const TSoftClassPtr<UAnimInstance>& AnimInstance, int32 LODIndexConnected, int32 SectionIndexConnected, int32 LODIndex, int32 SectionIndex, const FString& UniqueTags, FMutableGraphGenerationContext & GenerationContext, const UCustomizableObjectNode* CurrentNode)
+// with the exact same Mesh with other tags
+mu::Ptr<mu::Mesh> GenerateMutableMesh(const UObject * Mesh, const TSoftClassPtr<UAnimInstance>& AnimInstance, int32 LODIndexConnected, int32 SectionIndexConnected, int32 LODIndex, int32 SectionIndex, const FString& UniqueTags, FMutableGraphGenerationContext & GenerationContext, const UCustomizableObjectNode* CurrentNode, bool bIsReference)
 {
 	// Get the mesh generation flags to use
 	EMutableMeshConversionFlags CurrentFlags = GenerationContext.MeshGenerationFlags.Last();
@@ -2308,20 +2309,28 @@ mu::MeshPtr GenerateMutableMesh(const UObject * Mesh, const TSoftClassPtr<UAnimI
 	{
 		if (const USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Mesh))
 		{
-			MutableMesh = ConvertSkeletalMeshToMutable(SkeletalMesh, AnimInstance, LODIndexConnected, SectionIndexConnected, LODIndex, SectionIndex, GenerationContext, CurrentNode);
-
-			FSkeletalMeshModel* ImportedModel = SkeletalMesh->GetImportedModel();
-			
-			if (MutableMesh &&
-				ImportedModel->LODModels.IsValidIndex(LODIndex) &&
-				ImportedModel->LODModels[LODIndex].Sections.IsValidIndex(SectionIndex))
+			// At some point we will want all meshes to be references at compile-time. For now, just create the actual pass-through meshes.
+			if (bIsReference)
 			{
-				FMeshData MeshData;
-				MeshData.Mesh = Mesh;
-				MeshData.LOD = LODIndex;
-				MeshData.MaterialIndex = SectionIndex;
-				MeshData.Node = CurrentNode;
-				GenerationContext.PinData.GetCurrent().MeshesData.Add(MeshData); // Set::Emplace only supports single element constructors
+				MutableMesh = GenerateMeshConstant(SkeletalMesh,GenerationContext, bIsReference);
+			}
+			else
+			{
+				MutableMesh = ConvertSkeletalMeshToMutable(SkeletalMesh, AnimInstance, LODIndexConnected, SectionIndexConnected, LODIndex, SectionIndex, GenerationContext, CurrentNode);
+
+				FSkeletalMeshModel* ImportedModel = SkeletalMesh->GetImportedModel();
+
+				if (MutableMesh &&
+					ImportedModel->LODModels.IsValidIndex(LODIndex) &&
+					ImportedModel->LODModels[LODIndex].Sections.IsValidIndex(SectionIndex))
+				{
+					FMeshData MeshData;
+					MeshData.Mesh = Mesh;
+					MeshData.LOD = LODIndex;
+					MeshData.MaterialIndex = SectionIndex;
+					MeshData.Node = CurrentNode;
+					GenerationContext.PinData.GetCurrent().MeshesData.Add(MeshData); // Set::Emplace only supports single element constructors
+				}
 			}
 		}
 		else if (const UStaticMesh* StaticMesh = Cast<UStaticMesh>(Mesh))
@@ -2401,7 +2410,8 @@ mu::MeshPtr BuildMorphedMutableMesh(const UEdGraphPin* BaseSourcePin, const FStr
 	{
 		GetLODAndSectionForAutomaticLODs(GenerationContext, *Node, *SkeletalMesh, LODIndexConnected, SectionIndexConnected, LODIndex, SectionIndex, bOnlyConnectedLOD);
 		// Get the base mesh
-		mu::MeshPtr BaseSourceMesh = GenerateMutableMesh(SkeletalMesh, TSoftClassPtr<UAnimInstance>(), LODIndexConnected, SectionIndexConnected, LODIndex, SectionIndex, FString(), GenerationContext, Node);
+		constexpr bool bIsReference = false;
+		mu::Ptr<mu::Mesh> BaseSourceMesh = GenerateMutableMesh(SkeletalMesh, TSoftClassPtr<UAnimInstance>(), LODIndexConnected, SectionIndexConnected, LODIndex, SectionIndex, FString(), GenerationContext, Node, bIsReference);
 		if (BaseSourceMesh)
 		{
 			// Clone it (it will probably be shared)
@@ -3250,7 +3260,8 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 
 			FSkeletalMeshModel* ImportedModel = TypedNodeSkel->SkeletalMesh->GetImportedModel();
 			
-			mu::MeshPtr MutableMesh = GenerateMutableMesh(TypedNodeSkel->SkeletalMesh, TypedNodeSkel->AnimInstance, LODIndexConnected, SectionIndexConnected, LODIndex, SectionIndex, MeshUniqueTags, GenerationContext, TypedNodeSkel);
+			constexpr bool bIsReference = false;
+			mu::Ptr<mu::Mesh> MutableMesh = GenerateMutableMesh(TypedNodeSkel->SkeletalMesh, TypedNodeSkel->AnimInstance, LODIndexConnected, SectionIndexConnected, LODIndex, SectionIndex, MeshUniqueTags, GenerationContext, TypedNodeSkel, bIsReference);
 			if (MutableMesh)
 			{
 				MeshNode->SetValue(MutableMesh);
@@ -3436,7 +3447,8 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			
 			check(SectionIndex < TypedNodeStatic->LODs[LODIndex].Materials.Num());
 
-			mu::MeshPtr MutableMesh = GenerateMutableMesh(TypedNodeStatic->StaticMesh, TSoftClassPtr<UAnimInstance>(), LODIndex, SectionIndex, LODIndex, SectionIndex, FString(), GenerationContext, TypedNodeStatic);
+			constexpr bool bIsReference = false;
+			mu::MeshPtr MutableMesh = GenerateMutableMesh(TypedNodeStatic->StaticMesh, TSoftClassPtr<UAnimInstance>(), LODIndex, SectionIndex, LODIndex, SectionIndex, FString(), GenerationContext, TypedNodeStatic, bIsReference);
 			if (MutableMesh)
 			{
 				MeshNode->SetValue(MutableMesh);
@@ -3460,6 +3472,27 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			{
 				Result = nullptr;
 			}
+		}
+	}
+
+	else if (const UCustomizableObjectNodePassThroughMesh* TypedNodePassThroughMesh = Cast<UCustomizableObjectNodePassThroughMesh>(Node))
+	{
+		USkeletalMesh* BaseMesh = TypedNodePassThroughMesh->Mesh;
+		if (BaseMesh)
+		{
+			mu::Ptr<mu::NodeMeshConstant> MeshNode = new mu::NodeMeshConstant();
+			Result = MeshNode;
+
+			FString MeshUniqueTags;
+			constexpr bool bIsReference = true;
+			TSoftClassPtr<UAnimInstance> AnimInstance;
+			mu::Ptr<mu::Mesh> MutableMesh = GenerateMutableMesh(BaseMesh, AnimInstance, 0, 0, 0, 0, MeshUniqueTags, GenerationContext, TypedNodeSkel, bIsReference);
+
+			MeshNode->SetValue(MutableMesh);
+		}
+		else
+		{
+			GenerationContext.Compiler->CompilerLog(LOCTEXT("MissingImagePassThrough", "Missing image in pass-through texture node."), Node);
 		}
 	}
 

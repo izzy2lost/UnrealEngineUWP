@@ -541,6 +541,15 @@ void UCustomizableObjectPrivate::SaveCompiledData(FArchive& MemoryWriter, bool b
 		MemoryWriter << StringRef;
 	}
 
+	int32 NumPassthroughMeshes = LocalModelResources.PassThroughMeshes.Num();
+	MemoryWriter << NumPassthroughMeshes;
+
+	for (const TSoftObjectPtr<USkeletalMesh>& PassthroughMesh : LocalModelResources.PassThroughMeshes)
+	{
+		FString StringRef = PassthroughMesh.ToString();
+		MemoryWriter << StringRef;
+	}
+
 #if WITH_EDITORONLY_DATA
 	int32 NumRuntimeReferencedTextures = LocalModelResources.RuntimeReferencedTextures.Num();
 	MemoryWriter << NumRuntimeReferencedTextures;
@@ -667,6 +676,17 @@ void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const 
 			MemoryReader << StringRef;
 
 			LocalModelResource.PassThroughTextures.Add(TSoftObjectPtr<UTexture>(FSoftObjectPath(StringRef)));
+		}
+
+		int32 NumPassthroughMeshes = 0;
+		MemoryReader << NumPassthroughMeshes;
+
+		for (int32 Index = 0; Index < NumPassthroughMeshes; ++Index)
+		{
+			FString StringRef;
+			MemoryReader << StringRef;
+
+			LocalModelResource.PassThroughMeshes.Add(TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(StringRef)));
 		}
 
 #if WITH_EDITORONLY_DATA

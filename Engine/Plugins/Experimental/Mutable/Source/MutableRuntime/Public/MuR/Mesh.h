@@ -132,6 +132,27 @@ namespace mu
 	
 	ENUM_CLASS_FLAGS(EMeshCopyFlags);
 
+
+	/** Optimised mesh formats that are identified in some operations to chose a faster version. */
+	enum class EMeshFlags : uint32
+	{
+		None = 0,
+
+		/** The mesh is formatted to be used for planar and cilyndrical projection */
+		ProjectFormat = 1 << 0,
+
+		/** The mesh is formatted to be used for wrapping projection */
+		ProjectWrappingFormat = 1 << 1,
+
+		/** The mesh is a reference to an external resource mesh. */
+		IsResourceReference = 1 << 2,
+
+		/** The mesh is a reference to an external resource mesh and must be loaded when first referenced. */
+		IsResourceForceLoad = 1 << 3,
+
+	};
+
+
     //! \brief Mesh object containing any number of buffers with any number of channels.
     //! The buffers can be per-index or per-vertex.
     //! The mesh also includes layout information for every texture channel for internal usage, and
@@ -149,6 +170,9 @@ namespace mu
         //-----------------------------------------------------------------------------------------
         // Life cycle
         //-----------------------------------------------------------------------------------------
+				
+		/** Create a new empty mesh that repreents an external resource mesh. */
+		static Ptr<Mesh> CreateAsReference(uint32 ID, bool bForceLoad);
 
         //! Deep clone this mesh.
         Ptr<Mesh> Clone() const;
@@ -170,6 +194,14 @@ namespace mu
         // Own interface
         //-----------------------------------------------------------------------------------------
 
+		/** Return true if this is a reference to an engine image. */
+		bool IsReference() const;
+
+		/** If true, this is a reference that must be resolved at compile time. */
+		bool IsForceLoad() const;
+
+		/** Return the id of the engine referenced mesh. Only valid if IsReference. */
+		uint32 GetReferencedMesh() const;
 
         //! \name Buffers
         //! \{
@@ -331,10 +363,13 @@ namespace mu
 		/** Non-persistent internal id unique for a mesh generated for a specific state and parameter values. */
 		mutable uint32 InternalId = 0;
 
-		//! This is bit-mask on the STATIC_MESH_FORMATS enumeration, marking what static formats
-		//! are compatible with this one. Usually precalculated at model compilation time.
-		//! It should be reset after any operation that modifies the format.
-		mutable uint32 StaticFormatFlags = 0;
+		/** This is bit - mask on the EMeshFlags enumeration, marking what static formats are compatible with this one and other properties. 
+		 * It should be reset after any operation that modifies the format.
+		 */
+		mutable EMeshFlags Flags = EMeshFlags::None;
+
+		/** Only valid if the right flags are set, this identifies a referenced mesh. */
+		uint32 ReferenceID = 0;
 
 		/** Prefix for the unique IDs related to this mesh (vertices and layout blocks). Useful if the mesh stores them in an implicit, or relative way. 
 		* See MeshVertexIdIterator for details.

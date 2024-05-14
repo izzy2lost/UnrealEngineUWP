@@ -1897,13 +1897,18 @@ bool UCustomizableInstancePrivate::DoComponentsNeedUpdate(UCustomizableObjectIns
 				return false;
 			}
 
-			if (!Component.bGenerated || !Component.Mesh || Component.SurfaceCount == 0) // else
+			if (!Component.bGenerated || !Component.Mesh ) 
+			{
+				continue;
+			}
+
+			if (Component.SurfaceCount == 0 && !Component.Mesh->IsReference()) 
 			{
 				continue;
 			}
 
 			// Unreal does not support empty sections.
-			if (Component.Mesh->GetVertexCount() == 0) // else
+			if (!Component.Mesh->IsReference() && Component.Mesh->GetVertexCount() == 0) // else
 			{
 				UE_LOG(LogMutable, Error, TEXT("Failed to generate SkeletalMesh for CO Instance [%s]. CO [%s] has invalid geometry for LOD [%d] Component [%d]."),
 					*Public->GetName(), *CustomizableObject->GetName(),
@@ -2057,10 +2062,26 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 		// Reset last mesh IDs.
 		ComponentsData[Component.Id].LastMeshIdPerLOD.Init(MAX_uint64, MAX_MESH_LOD_COUNT);
 
-		if (!Component.bGenerated || !Component.Mesh || Component.SurfaceCount == 0)
+		if (!Component.bGenerated || !Component.Mesh)
 		{
 			continue;
 		}
+
+		if (Component.SurfaceCount == 0 && !Component.Mesh->IsReference())
+		{
+			continue;
+		}
+
+
+		if (Component.Mesh && Component.Mesh->IsReference())
+		{
+			// TODO: This shouldn't happen here synchronosuly. It should have been requested as an async load.
+			int32 ReferenceID = Component.Mesh->GetReferencedMesh();
+			TSoftObjectPtr<USkeletalMesh> Ref = ModelResources.PassThroughMeshes[ReferenceID];
+
+			SkeletalMeshes[Component.Id] = Ref.LoadSynchronous();
+			break;
+		}		
 
 		if (!ModelResources.ReferenceSkeletalMeshesData.IsValidIndex(Component.Id))
 		{
@@ -2264,6 +2285,12 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 		const int32 NumComponents = SkeletalMeshes.Num();
 		for (int32 ComponentIndex = 0; bSuccess && ComponentIndex < NumComponents; ++ComponentIndex)
 		{
+			const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[ComponentIndex];
+			if (Component.Mesh && Component.Mesh->IsReference())
+			{
+				continue;
+			}
+
 			if (OperationData->bUseMeshCache)
 			{
 				const TArray<mu::FResourceID>& MeshId = OperationData->MeshDescriptors[ComponentIndex];

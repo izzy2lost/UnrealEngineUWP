@@ -32,6 +32,7 @@
 #include "MuT/ASTOpMeshMorph.h"
 #include "MuT/ASTOpMeshAddTags.h"
 #include "MuT/ASTOpSwitch.h"
+#include "MuT/ASTOpReferenceResource.h"
 #include "MuT/CodeGenerator.h"
 #include "MuT/CodeGenerator_FirstPass.h"
 #include "MuT/CompilerPrivate.h"
@@ -1295,6 +1296,19 @@ namespace mu
 
 			// Log an error message
 			m_pErrorLog->GetPrivate()->Add("Constant mesh not set.", ELMT_WARNING, Node.m_errorContext);
+
+			return;
+		}
+
+		if (pMesh->IsReference())
+		{
+			Ptr<ASTOpReferenceResource> ReferenceOp = new ASTOpReferenceResource();
+			ReferenceOp->type = OP_TYPE::ME_REFERENCE;
+			ReferenceOp->ID = pMesh->GetReferencedMesh();
+			ReferenceOp->bForceLoad = pMesh->IsForceLoad();
+
+			OutResult.baseMeshOp = ReferenceOp;
+			OutResult.meshOp = ReferenceOp;
 
 			return;
 		}

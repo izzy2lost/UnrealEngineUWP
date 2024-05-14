@@ -1911,7 +1911,7 @@ namespace mu
         //! Data streaming interface, if any.
 		TSharedPtr<ModelReader> StreamInterface;
 
-		TSharedPtr<ImageParameterGenerator> ImageParameterGenerator;
+		TSharedPtr<ExternalResourceProvider> ExternalResourceProvider;
 
 		/** If this is set, it will be tried first instead of the internal formatting function. */
 		FImageOperator::FImagePixelFormatFunc ImagePixelFormatOverride;
