@@ -16,7 +16,7 @@
 #include "Serialization/ArrayWriter.h"
 #include "StructSerializer.h"
 #include "WebSocketDeserializedMessage.h"
-#include "WebSocketMessaging.h"
+#include "WebSocketMessagingModule.h"
 #include "WebSocketMessagingSettings.h"
 #include "WebSocketsModule.h"
 
@@ -46,13 +46,35 @@ FWebSocketMessageTransport::~FWebSocketMessageTransport()
 {
 }
 
+FName FWebSocketMessageTransport::GetDebugName() const
+{
+	static const FName DebugName("WebSocketMessageTransport");
+	return DebugName;
+}
+
 bool FWebSocketMessageTransport::StartTransport(IMessageTransportHandler& Handler)
 {
 	const UWebSocketMessagingSettings* Settings = GetDefault<UWebSocketMessagingSettings>();
-
+	
 	TransportHandler = &Handler;
+	
+	const int32 ServerPort = Settings->GetServerPort();
+	
+	// Cache the settings to be able to detect changes.
+	LastServerPort = ServerPort;
+	LastServerBindAddress = Settings->ServerBindAddress;
+	LastConnectionEndpoints = Settings->ConnectToEndpoints;
+	LastHttpHeaders = Settings->HttpHeaders;
 
-	if (Settings->ServerPort > 0)
+	FString ServerBindAddress = Settings->ServerBindAddress;
+
+	if (ServerBindAddress.Compare(TEXT("0.0.0.0")) == 0
+		|| ServerBindAddress.Compare(TEXT("any"), ESearchCase::IgnoreCase) == 0)
+	{
+		ServerBindAddress = TEXT("");	// Leaving empty will bind to all adapters.
+	}
+
+	if (ServerPort > 0)
 	{
 		IWebSocketNetworkingModule* WebSocketNetworkingModule = FModuleManager::Get().LoadModulePtr<IWebSocketNetworkingModule>(TEXT("WebSocketNetworking"));
 		if (WebSocketNetworkingModule)
@@ -60,14 +82,18 @@ bool FWebSocketMessageTransport::StartTransport(IMessageTransportHandler& Handle
 			Server = WebSocketNetworkingModule->CreateServer();
 			if (Server)
 			{
-				if (!Server->Init(Settings->ServerPort, FWebSocketClientConnectedCallBack::CreateThreadSafeSP(this, &FWebSocketMessageTransport::ClientConnected)))
+				FWebSocketClientConnectedCallBack Callback;
+				Callback.BindThreadSafeSP(this, &FWebSocketMessageTransport::ClientConnected);
+				
+				if (!Server->Init(ServerPort, Callback, ServerBindAddress))
 				{
-					UE_LOG(LogWebSocketMessaging, Log, TEXT("Unable to start WebSocketMessaging Server on port %d"), Settings->ServerPort);
+					Server.Reset();
+					UE_LOG(LogWebSocketMessaging, Error, TEXT("Unable to start WebSocketMessaging Server on port %d"), ServerPort);
 				}
 				else
 				{
 					ServerTickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateThreadSafeSP(this, &FWebSocketMessageTransport::ServerTick));
-					UE_LOG(LogWebSocketMessaging, Log, TEXT("WebSocketMessaging Server started on port %d"), Settings->ServerPort);
+					UE_LOG(LogWebSocketMessaging, Log, TEXT("WebSocketMessaging Server started on port %d"), ServerPort);
 				}
 			}
 		}
@@ -100,7 +126,6 @@ bool FWebSocketMessageTransport::StartTransport(IMessageTransportHandler& Handle
 		WebSocketMessageConnections.Add(Guid, WebSocketMessageConnection);
 
 		WebSocketConnection->Connect();
-
 	}
 
 	return true;
@@ -108,6 +133,8 @@ bool FWebSocketMessageTransport::StartTransport(IMessageTransportHandler& Handle
 
 void FWebSocketMessageTransport::StopTransport()
 {
+	FTSTicker::GetCoreTicker().RemoveTicker(ServerTickerHandle);
+	
 	if (Server.IsValid())
 	{
 		Server.Reset();
@@ -119,6 +146,21 @@ void FWebSocketMessageTransport::StopTransport()
 		Pair.Value->Close();
 	}
 	WebSocketMessageConnections.Empty();
+}
+
+bool FWebSocketMessageTransport::NeedsRestart() const
+{
+	const UWebSocketMessagingSettings* Settings = GetDefault<UWebSocketMessagingSettings>();
+	
+	if (LastServerPort != Settings->GetServerPort()
+		|| LastServerBindAddress != Settings->ServerBindAddress
+		|| LastConnectionEndpoints != Settings->ConnectToEndpoints
+		|| !LastHttpHeaders.OrderIndependentCompareEqual(Settings->HttpHeaders))
+	{
+		return true;
+	}
+
+	return false;
 }
 
 void FWebSocketMessageTransport::OnClosed(int32 Code, const FString& Reason, bool bUserClose, FWebSocketMessageConnectionRef WebSocketMessageConnection)
@@ -165,24 +207,24 @@ class FWebSocketMessageTransportSerializeHelper
 public:
 	static const TMap<EMessageScope, FString> MessageScopeStringMapping;
 
-	static bool Serialize(const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context, FString& OutJsonMessage)
+	static bool Serialize(const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext, bool bInStandardizeCase, FString& OutJsonMessage)
 	{
 		TSharedRef<FJsonObject> JsonRoot = MakeShared<FJsonObject>();
-		JsonRoot->SetStringField(WebSocketMessaging::Tag::Sender, Context->GetSender().ToString());
+		JsonRoot->SetStringField(WebSocketMessaging::Tag::Sender, InContext->GetSender().ToString());
 		TArray<TSharedPtr<FJsonValue>> JsonRecipients;
-		for (const FMessageAddress& Recipient : Context->GetRecipients())
+		for (const FMessageAddress& Recipient : InContext->GetRecipients())
 		{
 			JsonRecipients.Add(MakeShared<FJsonValueString>(Recipient.ToString()));
 		}
 		JsonRoot->SetArrayField(WebSocketMessaging::Tag::Recipients, JsonRecipients);
-		JsonRoot->SetStringField(WebSocketMessaging::Tag::MessageType, Context->GetMessageTypePathName().ToString());
-		JsonRoot->SetNumberField(WebSocketMessaging::Tag::Expiration, Context->GetExpiration().ToUnixTimestamp());
-		JsonRoot->SetNumberField(WebSocketMessaging::Tag::TimeSent, Context->GetTimeSent().ToUnixTimestamp());
-		JsonRoot->SetStringField(WebSocketMessaging::Tag::Scope, MessageScopeStringMapping[Context->GetScope()]);
+		JsonRoot->SetStringField(WebSocketMessaging::Tag::MessageType, InContext->GetMessageTypePathName().ToString());
+		JsonRoot->SetNumberField(WebSocketMessaging::Tag::Expiration, InContext->GetExpiration().ToUnixTimestamp());
+		JsonRoot->SetNumberField(WebSocketMessaging::Tag::TimeSent, InContext->GetTimeSent().ToUnixTimestamp());
+		JsonRoot->SetStringField(WebSocketMessaging::Tag::Scope, MessageScopeStringMapping[InContext->GetScope()]);
 
 
 		TSharedRef<FJsonObject> JsonAnnotations = MakeShared<FJsonObject>();
-		for (const TPair<FName, FString>& Pair : Context->GetAnnotations())
+		for (const TPair<FName, FString>& Pair : InContext->GetAnnotations())
 		{
 			JsonAnnotations->SetStringField(Pair.Key.ToString(), Pair.Value);
 		}
@@ -190,8 +232,11 @@ public:
 
 		TSharedRef<FJsonObject> OutJsonObject = MakeShared<FJsonObject>();
 
-		// Remark: This will change the case of field names, see StandardizeCase.
-		if (!FJsonObjectConverter::UStructToJsonObject(Context->GetMessageTypeInfo().Get(), Context->GetMessage(), OutJsonObject))
+		constexpr int64 CheckFlags = 0;
+		constexpr int64 SkipFlags = 0;
+		const EJsonObjectConversionFlags ConversionFlags = bInStandardizeCase ? EJsonObjectConversionFlags::None : EJsonObjectConversionFlags::SkipStandardizeCase;
+		if (!FJsonObjectConverter::UStructToJsonObject(InContext->GetMessageTypeInfo().Get(), InContext->GetMessage(), OutJsonObject,
+			CheckFlags, SkipFlags, nullptr, ConversionFlags))
 		{
 			return false;
 		}
@@ -202,7 +247,7 @@ public:
 		return FJsonSerializer::Serialize(JsonRoot, Writer);
 	}
 
-	static bool Serialize(const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context, FArrayWriter& OutCborBinaryWriter)
+	static bool Serialize(const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext, bool bInStandardizeCase, FArrayWriter& OutCborBinaryWriter)
 	{
 		FCborHeader Header(ECborCode::Map | ECborCode::Indefinite);
 		OutCborBinaryWriter << Header;
@@ -211,32 +256,32 @@ public:
 			FCborWriter CborWriter(&OutCborBinaryWriter);
 			
 			CborWriter.WriteValue(FString(WebSocketMessaging::Tag::Sender));
-			CborWriter.WriteValue(Context->GetSender().ToString());
+			CborWriter.WriteValue(InContext->GetSender().ToString());
 			
 			CborWriter.WriteValue(FString(WebSocketMessaging::Tag::Recipients));
 			CborWriter.WriteContainerStart(ECborCode::Array, -1);
-			for (const FMessageAddress& Recipient : Context->GetRecipients())
+			for (const FMessageAddress& Recipient : InContext->GetRecipients())
 			{
 				CborWriter.WriteValue(Recipient.ToString());
 			}
 			CborWriter.WriteContainerEnd();
 			
 			CborWriter.WriteValue(FString(WebSocketMessaging::Tag::MessageType));
-			CborWriter.WriteValue(Context->GetMessageTypePathName().ToString());
+			CborWriter.WriteValue(InContext->GetMessageTypePathName().ToString());
 			
 			CborWriter.WriteValue(FString(WebSocketMessaging::Tag::Expiration));
-			CborWriter.WriteValue(Context->GetExpiration().ToUnixTimestamp());
+			CborWriter.WriteValue(InContext->GetExpiration().ToUnixTimestamp());
 			
 			CborWriter.WriteValue(FString(WebSocketMessaging::Tag::TimeSent));
-			CborWriter.WriteValue(Context->GetTimeSent().ToUnixTimestamp());
+			CborWriter.WriteValue(InContext->GetTimeSent().ToUnixTimestamp());
 			
 			CborWriter.WriteValue(FString(WebSocketMessaging::Tag::Scope));
-			CborWriter.WriteValue(MessageScopeStringMapping[Context->GetScope()]);
+			CborWriter.WriteValue(MessageScopeStringMapping[InContext->GetScope()]);
 			
 			
 			CborWriter.WriteValue(FString(WebSocketMessaging::Tag::Annotations));
 			CborWriter.WriteContainerStart(ECborCode::Map, -1);
-			for (const TPair<FName, FString>& Annotation : Context->GetAnnotations())
+			for (const TPair<FName, FString>& Annotation : InContext->GetAnnotations())
 			{
 				CborWriter.WriteValue(Annotation.Key.ToString());
 				CborWriter.WriteValue(Annotation.Value);
@@ -246,7 +291,7 @@ public:
 			CborWriter.WriteValue(FString(WebSocketMessaging::Tag::Message));
 		}
 		FCborStructSerializerBackend Backend(OutCborBinaryWriter, EStructSerializerBackendFlags::Default);
-		FStructSerializer::Serialize(Context->GetMessage(), *Context->GetMessageTypeInfo().Get(), Backend);
+		FStructSerializer::Serialize(InContext->GetMessage(), *InContext->GetMessageTypeInfo().Get(), Backend);
 			
 		Header.Set(ECborCode::Break);
 		OutCborBinaryWriter << Header;
@@ -260,13 +305,14 @@ public:
 		OutputType OutputMessage;
 		bool bIsSerializeAttempted = false;
 		bool bIsSerialized = false;
+		bool bStandardizeCase = true;
 
-		bool SerializeOnDemand(const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context)
+		bool SerializeOnDemand(const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
 		{
-			if(!bIsSerializeAttempted)
+			if (!bIsSerializeAttempted)
 			{
 				bIsSerializeAttempted = true;
-				bIsSerialized = FWebSocketMessageTransportSerializeHelper::Serialize(Context, OutputMessage);
+				bIsSerialized = FWebSocketMessageTransportSerializeHelper::Serialize(InContext, bStandardizeCase, OutputMessage);
 			}
 			return bIsSerialized;
 		}
@@ -311,42 +357,42 @@ bool FWebSocketMessageTransport::TransportMessage(const TSharedRef<IMessageConte
 		return false;
 	}
 
-	// Remark: Json serializer uses UStructToJsonObject, which is going to change
-	// the field name case (see StandardizeCase), which is going to cause a difference
-	// with the field names in Cbor (which doesn't change the case).
-
+	const UWebSocketMessagingSettings* Settings = GetDefault<UWebSocketMessagingSettings>();
+	
 	FWebSocketMessageTransportSerializeHelper::TOnDemandSerializer<FString> JsonSerializer;
+	JsonSerializer.bStandardizeCase = Settings->bMessageSerializationStandardizeCase;
+	
 	FWebSocketMessageTransportSerializeHelper::TOnDemandSerializer<FArrayWriter> CborSerializer;
 	
 	// Serialize the message on demand in the appropriate format for each peer connections.
-	for (const TPair<FGuid, FWebSocketMessageConnectionRef>& Pair : RecipientConnections)
+	for (const TPair<FGuid, FWebSocketMessageConnectionRef>& Connection : RecipientConnections)
 	{
-		if (Pair.Value->WebSocketConnection.IsValid())
+		if (Connection.Value->WebSocketConnection.IsValid())
 		{
 			// Remark: client connections are always text/json
-			if(JsonSerializer.SerializeOnDemand(Context))
+			if (JsonSerializer.SerializeOnDemand(Context))
 			{
-				Pair.Value->WebSocketConnection->Send(JsonSerializer.OutputMessage);
+				Connection.Value->WebSocketConnection->Send(JsonSerializer.OutputMessage);
 			}
 		}
-		else if (Pair.Value->WebSocketServerConnection)
+		else if (Connection.Value->WebSocketServerConnection)
 		{
 			// Remark: server connections are always binary.
-			const UWebSocketMessagingSettings* Settings = GetDefault<UWebSocketMessagingSettings>();
-
-			if(Settings->ServerTransportFormat == EWebSocketMessagingTransportFormat::Json)
+			if (Settings->ServerTransportFormat == EWebSocketMessagingTransportFormat::Json)
 			{
-				if(JsonSerializer.SerializeOnDemand(Context))
+				if (JsonSerializer.SerializeOnDemand(Context))
 				{
-					FTCHARToUTF8 Converted(*JsonSerializer.OutputMessage);
-					Pair.Value->WebSocketServerConnection->Send(reinterpret_cast<const uint8*>(Converted.Get()), Converted.Length(), false);
+					auto MessageUtf8 = StringCast<UTF8CHAR>(*JsonSerializer.OutputMessage);
+					Connection.Value->WebSocketServerConnection->Send(
+						reinterpret_cast<const uint8*>(MessageUtf8.Get()), MessageUtf8.Length(), /*bPrependSize*/ false);
 				}
 			}
 			else
 			{
-				if(CborSerializer.SerializeOnDemand(Context))
+				if (CborSerializer.SerializeOnDemand(Context))
 				{
-					Pair.Value->WebSocketServerConnection->Send(CborSerializer.OutputMessage.GetData(), CborSerializer.OutputMessage.Num(), false);
+					Connection.Value->WebSocketServerConnection->Send(
+						CborSerializer.OutputMessage.GetData(), CborSerializer.OutputMessage.Num(), /*bPrependSize*/ false);
 				}
 			}
 		}
@@ -414,7 +460,7 @@ bool FWebSocketMessageTransport::ServerTick(float DeltaTime)
 
 void FWebSocketMessageTransport::ForgetTransportNode(FWebSocketMessageConnectionRef WebSocketMessageConnection)
 {
-	if(TransportHandler)
+	if (TransportHandler)
 	{
 		TransportHandler->ForgetTransportNode(WebSocketMessageConnection->Guid);
 	}

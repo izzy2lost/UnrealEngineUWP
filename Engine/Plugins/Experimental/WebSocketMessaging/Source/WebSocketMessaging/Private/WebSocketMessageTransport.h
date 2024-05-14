@@ -67,16 +67,14 @@ public:
 	FWebSocketMessageTransport();
 	virtual ~FWebSocketMessageTransport() override;
 
-	virtual FName GetDebugName() const override
-	{
-		return "WebSocketMessageTransport";
-	}
-
+	//~ Begin IMessageTransport
+	virtual FName GetDebugName() const override;
 	virtual bool StartTransport(IMessageTransportHandler& Handler) override;
-
 	virtual void StopTransport() override;
-
 	virtual bool TransportMessage(const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context, const TArray<FGuid>& Recipients) override;
+	//~ End IMessageTransport
+
+	bool NeedsRestart() const;
 
 	virtual void OnJsonMessage(const FString& Message, FWebSocketMessageConnectionRef WebSocketMessageConnection);
 	virtual void OnConnected(FWebSocketMessageConnectionRef WebSocketMessageConnection);
@@ -95,9 +93,14 @@ public:
 protected:
 	void ForgetTransportNode(FWebSocketMessageConnectionRef WebSocketMessageConnection);
 	
-	IMessageTransportHandler* TransportHandler;
+	IMessageTransportHandler* TransportHandler = nullptr;
 	TMap<FGuid, FWebSocketMessageConnectionRef> WebSocketMessageConnections;
 
 	TUniquePtr<class IWebSocketServer> Server;
 	FTSTicker::FDelegateHandle ServerTickerHandle;
+
+	FString LastServerBindAddress;
+	int32 LastServerPort = INDEX_NONE;
+	TArray<FString> LastConnectionEndpoints;
+	TMap<FString, FString> LastHttpHeaders;
 };

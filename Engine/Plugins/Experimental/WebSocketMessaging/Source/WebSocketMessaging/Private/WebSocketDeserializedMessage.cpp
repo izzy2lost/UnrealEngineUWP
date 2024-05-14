@@ -4,7 +4,7 @@
 #include "WebSocketDeserializedMessage.h"
 #include "JsonObjectConverter.h"
 #include "UObject/CoreRedirects.h"
-#include "WebSocketMessaging.h"
+#include "WebSocketMessagingModule.h"
 
 FWebSocketDeserializedMessage::FWebSocketDeserializedMessage()
 	: Expiration(FDateTime::MaxValue())	// Make sure messages don't expire if no expiration is specified.

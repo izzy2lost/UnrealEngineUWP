@@ -28,6 +28,10 @@
 	],
 	"Plugins": [
 		{
+			"Name": "DiscoveryBeaconReceiver",
+			"Enabled": true
+		},
+		{
 			"Name": "WebSocketNetworking",
 			"Enabled": true
 		}

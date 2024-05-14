@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "WebSocketMessaging.h"
+#include "WebSocketMessagingModule.h"
 #include "IMessageBridge.h"
 #if WITH_EDITOR
 #include "ISettingsModule.h"
@@ -8,10 +8,10 @@
 #endif
 #include "MessageBridgeBuilder.h"
 #include "WebSocketMessageTransport.h"
+#include "WebSocketMessagingBeaconReceiver.h"
 #include "WebSocketMessagingSettings.h"
 
 DEFINE_LOG_CATEGORY(LogWebSocketMessaging);
-
 
 #define LOCTEXT_NAMESPACE "FWebSocketMessagingModule"
 
@@ -57,6 +57,20 @@ void FWebSocketMessagingModule::ShutdownModule()
 #endif
 }
 
+bool FWebSocketMessagingModule::IsTransportRunning() const
+{
+	return MessageBridge.IsValid();
+}
+
+int32 FWebSocketMessagingModule::GetServerPort() const
+{
+	if (const UWebSocketMessagingSettings* Settings = GetDefault<UWebSocketMessagingSettings>())
+	{
+		return Settings->GetServerPort();
+	}
+	return 0;
+}
+
 bool FWebSocketMessagingModule::HandleSettingsSaved()
 {
 	if (GetDefault<UWebSocketMessagingSettings>()->EnableTransport)
@@ -68,14 +82,31 @@ bool FWebSocketMessagingModule::HandleSettingsSaved()
 		ShutdownBridge();
 	}
 
+	if (GetDefault<UWebSocketMessagingSettings>()->bEnableDiscoveryListener)
+	{
+		InitializeBeaconReceiver();
+	}
+	else
+	{
+		ShutdownBeaconReceiver();
+	}
 	return true;
 }
 
 void FWebSocketMessagingModule::InitializeBridge()
 {
+	const TSharedPtr<FWebSocketMessageTransport, ESPMode::ThreadSafe> Transport = TransportWeak.Pin();
+
+	if (Transport && !Transport->NeedsRestart())
+	{
+		return;
+	}
+
 	ShutdownBridge();
 
-	MessageBridge = FMessageBridgeBuilder().UsingTransport(MakeShared<FWebSocketMessageTransport>()).Build();
+	const TSharedRef<FWebSocketMessageTransport, ESPMode::ThreadSafe> NewTransport = MakeShared<FWebSocketMessageTransport, ESPMode::ThreadSafe>();
+	TransportWeak = NewTransport;
+	MessageBridge = FMessageBridgeBuilder().UsingTransport(NewTransport).Build();
 }
 
 void FWebSocketMessagingModule::ShutdownBridge()
@@ -86,6 +117,27 @@ void FWebSocketMessagingModule::ShutdownBridge()
 		FPlatformProcess::Sleep(0.1f);
 		MessageBridge.Reset();
 	}
+}
+
+void FWebSocketMessagingModule::InitializeBeaconReceiver()
+{
+	if (BeaconReceiver && !BeaconReceiver->NeedsRestart())
+	{
+		return;
+	}
+	
+	ShutdownBeaconReceiver();
+	BeaconReceiver = MakeUnique<FWebSocketMessagingBeaconReceiver>();
+	BeaconReceiver->Startup();
+}
+
+void FWebSocketMessagingModule::ShutdownBeaconReceiver()
+{
+	if (BeaconReceiver)
+	{
+		BeaconReceiver->Shutdown();
+	}
+	BeaconReceiver.Reset();
 }
 
 #undef LOCTEXT_NAMESPACE

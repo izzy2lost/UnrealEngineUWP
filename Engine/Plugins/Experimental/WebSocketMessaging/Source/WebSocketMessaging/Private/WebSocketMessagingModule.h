@@ -2,9 +2,14 @@
 
 #pragma once
 
+#include "IWebSocketMessagingModule.h"
 #include "Logging/LogMacros.h"
 #include "Modules/ModuleManager.h"
 #include "Templates/SharedPointer.h"
+
+class FWebSocketMessageTransport;
+class FWebSocketMessagingBeaconReceiver;
+class UWebSocketMessagingSettings;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogWebSocketMessaging, Log, All);
 
@@ -28,20 +33,33 @@ namespace WebSocketMessaging
 	}
 }
 
-class FWebSocketMessagingModule : public IModuleInterface
+// Todo: implement INetworkMessagingExtension to expose more service controls.
+class FWebSocketMessagingModule : public IWebSocketMessagingModule
 {
 public:
-
-	/** IModuleInterface implementation */
+	//~ Begin IModuleInterface
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
-
+	//~ End IModuleInterface
+	
+	//~ Begin IWebSocketMessaging
+	virtual bool IsTransportRunning() const override;
+	virtual int32 GetServerPort() const override;
+	//~ End IWebSocketMessaging
+	
 	virtual bool HandleSettingsSaved();
-
+	
 	virtual void InitializeBridge();
 	virtual void ShutdownBridge();
+
+	void InitializeBeaconReceiver();
+	void ShutdownBeaconReceiver();
 
 protected:
 	/** Holds the message bridge if present. */
 	TSharedPtr<class IMessageBridge, ESPMode::ThreadSafe> MessageBridge;
+	/** Keep track of the transport for access to derived functions. */
+	TWeakPtr<FWebSocketMessageTransport, ESPMode::ThreadSafe> TransportWeak;
+	/** Multicast Discovery Beacon Receiver, if present. */
+	TUniquePtr<FWebSocketMessagingBeaconReceiver> BeaconReceiver;
 };

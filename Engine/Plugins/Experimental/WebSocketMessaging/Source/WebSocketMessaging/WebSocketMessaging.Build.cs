@@ -13,8 +13,10 @@ public class WebSocketMessaging : ModuleRules
 			{
 				"Core",
 				"CoreUObject",
+				"DiscoveryBeaconReceiver",
 				"Engine",
 				"Messaging",
+				"Networking",
 				"WebSockets",
 				"WebSocketNetworking",
 				"Json",
