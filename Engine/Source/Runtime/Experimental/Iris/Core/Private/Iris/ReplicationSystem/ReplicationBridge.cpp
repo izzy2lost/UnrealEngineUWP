@@ -342,6 +342,8 @@ void UReplicationBridge::Initialize(UReplicationSystem* InReplicationSystem)
 		const FReplicationFragments RegisteredFragments;
 		FCreateReplicationProtocolParameters CreateProtocolParams {.bValidateProtocolId = false, .TypeStatsIndex =  GetReplicationSystem()->GetReplicationSystemInternal()->GetNetTypeStats().GetOrCreateTypeStats(FName("DestructionInfo"))};
 		DestructionInfoProtocol = ReplicationProtocolManager->CreateReplicationProtocol(FReplicationProtocolManager::CalculateProtocolIdentifier(RegisteredFragments), RegisteredFragments, TEXT("InternalDestructionInfo"), CreateProtocolParams);
+		// Explicit refcount
+		DestructionInfoProtocol->AddRef();
 	}
 }
 
@@ -376,7 +378,11 @@ void UReplicationBridge::Deinitialize()
 	});
 
 	// Release destructioninfo protocol.
-	DestructionInfoProtocol = nullptr;
+	if (DestructionInfoProtocol)
+	{
+		DestructionInfoProtocol->Release();
+		DestructionInfoProtocol = nullptr;
+	}
 
 	ReplicationSystem = nullptr;
 	ReplicationProtocolManager = nullptr;
