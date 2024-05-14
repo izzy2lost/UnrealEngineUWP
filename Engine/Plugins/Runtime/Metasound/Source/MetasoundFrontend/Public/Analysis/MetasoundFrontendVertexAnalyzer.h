@@ -48,6 +48,12 @@ namespace Metasound
 			// Returns analyzer address
 			virtual const FAnalyzerAddress& GetAnalyzerAddress() const = 0;
 
+			// Returns the data reference id for the analyzer's input
+			virtual FDataReferenceID GetDataReferenceId() const = 0;
+
+			// Re-bind the analyzer's input
+			virtual void SetDataReference(const FAnyDataReference& NewDataRef) = 0;
+
 			// Executes analysis
 			virtual void Execute() = 0;
 
@@ -139,6 +145,16 @@ namespace Metasound
 			virtual const FAnalyzerAddress& GetAnalyzerAddress() const override
 			{
 				return AnalyzerAddress;
+			}
+
+			virtual FDataReferenceID GetDataReferenceId() const override final
+			{
+				return Metasound::GetDataReferenceID(VertexDataReference);
+			}
+
+			virtual void SetDataReference(const FAnyDataReference& NewDataRef) override final
+			{
+				VertexDataReference = NewDataRef;
 			}
 
 		protected:

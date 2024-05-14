@@ -505,18 +505,25 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		OutputAnalyzerModificationQueue.Enqueue([this, AnalyzerAddress]
 		{
-			if (OutputAnalyzers.ContainsByPredicate([AnalyzerAddress](const TUniquePtr<Frontend::IVertexAnalyzer>& Analyzer)
-			{
-				return AnalyzerAddressesReferToSameGeneratorOutput(AnalyzerAddress, Analyzer->GetAnalyzerAddress());
-			}))
+			const FAnyDataReference* OutputReference = VertexInterfaceData.GetOutputs().FindDataReference(AnalyzerAddress.OutputName);
+
+			if (nullptr == OutputReference)
 			{
 				return;
 			}
-			
-			const FAnyDataReference* OutputReference = VertexInterfaceData.GetOutputs().FindDataReference(AnalyzerAddress.OutputName);
-			
-			if (nullptr == OutputReference)
+
+			TUniquePtr<Frontend::IVertexAnalyzer>* ExistingAnalyzer = OutputAnalyzers.FindByPredicate([AnalyzerAddress](const TUniquePtr<Frontend::IVertexAnalyzer>& Analyzer)
+				{
+					return AnalyzerAddressesReferToSameGeneratorOutput(AnalyzerAddress, Analyzer->GetAnalyzerAddress());
+				});
+
+			if (ExistingAnalyzer && ExistingAnalyzer->IsValid())
 			{
+				if (ExistingAnalyzer->Get()->GetDataReferenceId() != GetDataReferenceID(*OutputReference))
+				{
+					ExistingAnalyzer->Get()->SetDataReference(*OutputReference);
+				}
+
 				return;
 			}
 			
