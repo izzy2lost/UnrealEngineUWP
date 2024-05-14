@@ -77,6 +77,9 @@ namespace Horde.Server.Jobs
 		/// <inheritdoc cref="IJob.Arguments"/>
 		public List<string> Arguments { get; } = new List<string>();
 
+		/// <inheritdoc cref="IJob.AdditionalArguments"/>
+		public List<string> AdditionalArguments { get; } = new List<string>();
+
 		/// <inheritdoc cref="IJob.Environment"/>
 		public Dictionary<string, string> Environment { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 

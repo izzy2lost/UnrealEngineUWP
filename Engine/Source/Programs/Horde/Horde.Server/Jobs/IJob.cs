@@ -182,6 +182,11 @@ namespace Horde.Server.Jobs
 		public IReadOnlyList<string> Arguments { get; }
 
 		/// <summary>
+		/// Additional arguments for the job, when a set of parameters are applied.
+		/// </summary>
+		public IReadOnlyList<string> AdditionalArguments { get; }
+
+		/// <summary>
 		/// Environment variables for the job
 		/// </summary>
 		public IReadOnlyDictionary<string, string> Environment { get; }

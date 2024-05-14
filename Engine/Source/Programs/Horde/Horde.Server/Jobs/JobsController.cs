@@ -200,6 +200,11 @@ namespace Horde.Server.Jobs
 			options.Claims.AddRange(User.Claims.Select(x => new AclClaimConfig(x)));
 			options.JobOptions ??= create.JobOptions;
 
+			if (create.AdditionalArguments != null)
+			{
+				options.AdditionalArguments.AddRange(create.AdditionalArguments);
+			}
+
 			if (create.Arguments != null && create.Arguments.Count > 0)
 			{
 				// Use the specific argument list specified in the request
@@ -226,6 +231,9 @@ namespace Horde.Server.Jobs
 
 				// Build the final arguments list from the combined parameter set
 				template.GetArgumentsForParameters(options.Parameters, options.Arguments);
+
+				// Add the additional arguments
+				options.Arguments.AddRange(options.AdditionalArguments);
 			}
 
 			// Merge the environment variables
@@ -599,6 +607,7 @@ namespace Horde.Server.Jobs
 			response.Reports = job.Reports?.ConvertAll(x => CreateGetReportResponse(x));
 			response.Parameters = job.Parameters.ToDictionary();
 			response.Arguments = job.Arguments.ToList();
+			response.AdditionalArguments = job.AdditionalArguments.ToList();
 			response.UpdateTime = new DateTimeOffset(job.UpdateTimeUtc);
 			response.UseArtifactsV2 = true;
 			response.UpdateIssues = job.UpdateIssues;

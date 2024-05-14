@@ -238,6 +238,11 @@ namespace EpicGames.Horde.Jobs
 		public List<string>? Arguments { get; set; }
 
 		/// <summary>
+		/// Additional arguments for the job
+		/// </summary>
+		public List<string>? AdditionalArguments { get; set; }
+
+		/// <summary>
 		/// Private constructor for serialization
 		/// </summary>
 		public CreateJobRequest(StreamId streamId, TemplateId templateId)
@@ -503,6 +508,11 @@ namespace EpicGames.Horde.Jobs
 		/// Command line arguments for the job
 		/// </summary>
 		public List<string> Arguments { get; set; } = new List<string>();
+
+		/// <summary>
+		/// Additional command line arguments for the job for when using the parameters block
+		/// </summary>
+		public List<string> AdditionalArguments { get; set; } = new List<string>();
 
 		/// <summary>
 		/// The last update time for this job

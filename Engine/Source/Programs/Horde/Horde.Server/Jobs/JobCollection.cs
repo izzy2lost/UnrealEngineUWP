@@ -82,6 +82,7 @@ namespace Horde.Server.Jobs
 			IReadOnlyList<IJobStepBatch> IJob.Batches => Batches;
 			IReadOnlyDictionary<ParameterId, string> IJob.Parameters => _document.Parameters;
 			IReadOnlyList<string> IJob.Arguments => _document.Arguments;
+			IReadOnlyList<string> IJob.AdditionalArguments => _document.AdditionalArguments;
 			IReadOnlyDictionary<string, string> IJob.Environment => _document.Environment;
 			IReadOnlyList<int> IJob.Issues => _document.ReferencedByIssues;
 			ObjectId? IJob.NotificationTriggerId => _document.NotificationTriggerId;
@@ -452,6 +453,7 @@ namespace Horde.Server.Jobs
 			public Dictionary<ParameterId, string> Parameters { get; set; } = new Dictionary<ParameterId, string>();
 
 			public List<string> Arguments { get; set; } = new List<string>();
+			public List<string> AdditionalArguments { get; set; } = new List<string>();
 
 			[BsonDictionaryOptions(DictionaryRepresentation.ArrayOfDocuments)]
 			public Dictionary<string, string> Environment { get; set; } = new Dictionary<string, string>();
@@ -514,6 +516,7 @@ namespace Horde.Server.Jobs
 				NotificationChannelFilter = options.NotificationChannelFilter;
 				Parameters = new Dictionary<ParameterId, string>(options.Parameters);
 				Arguments.AddRange(options.Arguments);
+				AdditionalArguments.AddRange(options.AdditionalArguments);
 
 				foreach (KeyValuePair<string, string> pair in options.Environment)
 				{
