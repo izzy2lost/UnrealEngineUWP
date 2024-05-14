@@ -198,6 +198,46 @@ struct FNaniteLumenCardData
 namespace Nanite
 {
 
+void CollectLumenCardPSOInitializers(
+	const FSceneTexturesConfig& SceneTexturesConfig,
+	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
+	const FMaterial& Material,
+	const FPSOPrecacheParams& PreCacheParams,
+	ERHIFeatureLevel::Type FeatureLevel,
+	EShaderPlatform ShaderPlatform,
+	int32 PSOCollectorIndex,
+	TArray<FPSOPrecacheData>& PSOInitializers)
+{	
+	FMaterialShaderTypes ShaderTypes;
+	ShaderTypes.AddShaderType<FLumenCardCS>();
+
+	FMaterialShaders Shaders;
+	if (!Material.TryGetShaders(ShaderTypes, VertexFactoryData.VertexFactoryType, Shaders))
+	{
+		return;
+	}
+
+	TShaderRef<FLumenCardCS> LumenCardComputeShader;
+	if (!Shaders.TryGetComputeShader(LumenCardComputeShader))
+	{
+		return;
+	}
+
+	FPSOPrecacheData ComputePSOPrecacheData;
+	ComputePSOPrecacheData.Type = FPSOPrecacheData::EType::Compute;
+	ComputePSOPrecacheData.ComputeShader = LumenCardComputeShader.GetComputeShader();
+#if PSO_PRECACHING_VALIDATE
+	ComputePSOPrecacheData.PSOCollectorIndex = PSOCollectorIndex;
+	ComputePSOPrecacheData.VertexFactoryType = VertexFactoryData.VertexFactoryType;
+	if (PSOCollectorStats::IsFullPrecachingValidationEnabled())
+	{
+		ComputePSOPrecacheData.bDefaultMaterial = Material.IsDefaultMaterial();
+		ConditionalBreakOnPSOPrecacheShader(ComputePSOPrecacheData.ComputeShader);
+	}
+#endif // PSO_PRECACHING_VALIDATE
+	PSOInitializers.Add(ComputePSOPrecacheData);
+}
+
 void RecordLumenCardParameters(
 	FRHIBatchedShaderParameters& ShaderParameters,
 	FNaniteShadingCommand& ShadingCommand,

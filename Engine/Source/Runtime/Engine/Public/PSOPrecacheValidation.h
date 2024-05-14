@@ -30,6 +30,7 @@ extern ENGINE_API void ConditionalBreakOnPSOPrecacheMaterial(const FMaterial& Ma
  * Conditional break when PSO precaching a specific shader - used for debugging PSO misses
  */
 extern ENGINE_API void ConditionalBreakOnPSOPrecacheShader(const FGraphicsPipelineStateInitializer& GraphicsPSOInitializer);
+extern ENGINE_API void ConditionalBreakOnPSOPrecacheShader(const FRHIComputeShader* ComputeShader);
 
 /**
  * Type of PSO precache miss

@@ -18,6 +18,81 @@ static FAutoConsoleVariableRef CVarNaniteAllowProgrammableDistances(
 	ECVF_ReadOnly
 );
 
+static const TCHAR* NanitePSOCollectorName = TEXT("NaniteMesh");
+
+class FNanitePSOCollector : public IPSOCollector
+{
+public:
+	FNanitePSOCollector(ERHIFeatureLevel::Type InFeatureLevel) : 
+		IPSOCollector(FPSOCollectorCreateManager::GetIndex(GetFeatureLevelShadingPath(InFeatureLevel), NanitePSOCollectorName)),
+		FeatureLevel(InFeatureLevel)
+	{
+	}
+
+	virtual void CollectPSOInitializers(
+		const FSceneTexturesConfig& SceneTexturesConfig,
+		const FMaterial& Material,
+		const FPSOPrecacheVertexFactoryData& VertexFactoryData,
+		const FPSOPrecacheParams& PreCacheParams,
+		TArray<FPSOPrecacheData>& PSOInitializers
+	) override final;
+
+private:
+
+	ERHIFeatureLevel::Type FeatureLevel;
+};
+
+void FNanitePSOCollector::CollectPSOInitializers(
+	const FSceneTexturesConfig& SceneTexturesConfig,
+	const FMaterial& Material,
+	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
+	const FPSOPrecacheParams& PreCacheParams,
+	TArray<FPSOPrecacheData>& PSOInitializers
+)
+{
+	// Make sure Nanite rendering is supported.
+	EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(FeatureLevel);
+	if (!UseNanite(ShaderPlatform))
+	{
+		return;
+	}
+
+	// Only support the Nanite vertex factory type.
+	if (VertexFactoryData.VertexFactoryType != &FNaniteVertexFactory::StaticType)
+	{
+		return;
+	}
+
+	// Check if Nanite can be used by this material
+	const FMaterialShadingModelField ShadingModels = Material.GetShadingModels();
+	bool bShouldDraw = Nanite::IsSupportedBlendMode(Material) && Nanite::IsSupportedMaterialDomain(Material.GetMaterialDomain());
+	if (!bShouldDraw)
+	{
+		return;
+	}
+
+	// Nanite passes always use the forced fixed vertex element and not custom default vertex declaration even if it's provided
+	FPSOPrecacheVertexFactoryData NaniteVertexFactoryData = VertexFactoryData;
+	NaniteVertexFactoryData.CustomDefaultVertexDeclaration = nullptr;
+
+	Nanite::CollectBasePassShadingPSOInitializers(SceneTexturesConfig, NaniteVertexFactoryData, Material, PreCacheParams, FeatureLevel, ShaderPlatform, PSOCollectorIndex, PSOInitializers);
+	Nanite::CollectRasterPSOInitializers(SceneTexturesConfig, Material, PreCacheParams, ShaderPlatform, PSOCollectorIndex, PSOInitializers);
+	Nanite::CollectLumenCardPSOInitializers(SceneTexturesConfig, NaniteVertexFactoryData, Material, PreCacheParams, FeatureLevel, ShaderPlatform, PSOCollectorIndex, PSOInitializers);
+}
+
+IPSOCollector* CreateNanitePSOCollector(ERHIFeatureLevel::Type FeatureLevel)
+{
+	if (DoesPlatformSupportNanite(GetFeatureLevelShaderPlatform(FeatureLevel)))
+	{
+		return new FNanitePSOCollector(FeatureLevel);
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+FRegisterPSOCollectorCreateFunction RegisterNanitePSOCollector(&CreateNanitePSOCollector, EShadingPath::Deferred, NanitePSOCollectorName);
+
 FNaniteMaterialSlot& FNaniteMaterialListContext::GetMaterialSlotForWrite(FPrimitiveSceneInfo& PrimitiveSceneInfo, ENaniteMeshPass::Type MeshPass, uint8 SectionIndex)
 {	
 	TArray<FNaniteMaterialSlot>& MaterialSlots = PrimitiveSceneInfo.NaniteMaterialSlots[MeshPass];

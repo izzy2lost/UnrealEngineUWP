@@ -1833,7 +1833,7 @@ FShadeBinning ShadeBinning(
 	return Binning;
 }
 
-void CollectShadingPSOInitializers(
+void CollectBasePassShadingPSOInitializers(
 	const FSceneTexturesConfig& SceneTexturesConfig,
 	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
 	const FMaterial& Material,
@@ -1843,53 +1843,47 @@ void CollectShadingPSOInitializers(
 	int32 PSOCollectorIndex,
 	TArray<FPSOPrecacheData>& PSOInitializers)
 {
-	// Base Pass
+	TArray<ELightMapPolicyType, TInlineAllocator<2>> UniformLightMapPolicyTypes = FBasePassMeshProcessor::GetUniformLightMapPolicyTypeForPSOCollection(FeatureLevel, Material);
+
+	auto CollectBasePass = [&](bool bRenderSkyLight)
 	{
-		TArray<ELightMapPolicyType, TInlineAllocator<2>> UniformLightMapPolicyTypes = FBasePassMeshProcessor::GetUniformLightMapPolicyTypeForPSOCollection(FeatureLevel, Material);
-
-		auto CollectBasePass = [&](bool bRenderSkyLight)
+		for (ELightMapPolicyType UniformLightMapPolicyType : UniformLightMapPolicyTypes)
 		{
-			for (ELightMapPolicyType UniformLightMapPolicyType : UniformLightMapPolicyTypes)
+			TShaderRef<TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>> BasePassComputeShader;
+
+			bool bShadersValid = GetBasePassShader<FUniformLightMapPolicy>(
+				Material,
+				VertexFactoryData.VertexFactoryType,
+				FUniformLightMapPolicy(UniformLightMapPolicyType),
+				FeatureLevel,
+				bRenderSkyLight,
+				SF_Compute,
+				&BasePassComputeShader
+			);
+
+			if (!bShadersValid)
 			{
-				TShaderRef<TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>> BasePassComputeShader;
-
-				bool bShadersValid = GetBasePassShader<FUniformLightMapPolicy>(
-					Material,
-					VertexFactoryData.VertexFactoryType,
-					FUniformLightMapPolicy(UniformLightMapPolicyType),
-					FeatureLevel,
-					bRenderSkyLight,
-					SF_Compute,
-					&BasePassComputeShader
-				);
-
-				if (!bShadersValid)
-				{
-					continue;
-				}
-
-				FPSOPrecacheData ComputePSOPrecacheData;
-				ComputePSOPrecacheData.Type = FPSOPrecacheData::EType::Compute;
-				ComputePSOPrecacheData.ComputeShader = BasePassComputeShader.GetComputeShader();
-			#if PSO_PRECACHING_VALIDATE
-				ComputePSOPrecacheData.PSOCollectorIndex = PSOCollectorIndex;
-				ComputePSOPrecacheData.VertexFactoryType = VertexFactoryData.VertexFactoryType;
-			#endif
-				PSOInitializers.Add(ComputePSOPrecacheData);
-
-			#if PSO_PRECACHING_VALIDATE
-				if (PSOCollectorStats::IsFullPrecachingValidationEnabled())
-				{
-					PSOCollectorStats::GetShadersOnlyPSOPrecacheStatsCollector().AddStateToCache(*ComputePSOPrecacheData.ComputeShader, PSOCollectorStats::GetPSOPrecacheHash, &Material, (uint32)EMeshPass::BasePass, VertexFactoryData.VertexFactoryType);
-					PSOCollectorStats::GetMinimalPSOPrecacheStatsCollector().AddStateToCache(*ComputePSOPrecacheData.ComputeShader, PSOCollectorStats::GetPSOPrecacheHash, &Material, (uint32)EMeshPass::BasePass, VertexFactoryData.VertexFactoryType);
-				}
-			#endif
+				continue;
 			}
-		};
 
-		CollectBasePass(true);
-		CollectBasePass(false);
-	}
+			FPSOPrecacheData ComputePSOPrecacheData;
+			ComputePSOPrecacheData.Type = FPSOPrecacheData::EType::Compute;
+			ComputePSOPrecacheData.ComputeShader = BasePassComputeShader.GetComputeShader();
+		#if PSO_PRECACHING_VALIDATE
+			ComputePSOPrecacheData.PSOCollectorIndex = PSOCollectorIndex;
+			ComputePSOPrecacheData.VertexFactoryType = VertexFactoryData.VertexFactoryType;
+			if (PSOCollectorStats::IsFullPrecachingValidationEnabled())
+			{
+				ComputePSOPrecacheData.bDefaultMaterial = Material.IsDefaultMaterial();
+				ConditionalBreakOnPSOPrecacheShader(ComputePSOPrecacheData.ComputeShader);
+			}
+		#endif // PSO_PRECACHING_VALIDATE
+			PSOInitializers.Add(ComputePSOPrecacheData);
+		}
+	};
+
+	CollectBasePass(true);
+	CollectBasePass(false);
 }
 
 } // Nanite

@@ -113,6 +113,19 @@ void ConditionalBreakOnPSOPrecacheShader(const FGraphicsPipelineStateInitializer
 	}
 }
 
+void ConditionalBreakOnPSOPrecacheShader(const FRHIComputeShader* ComputeShader)
+{
+	if (!GPSOPrecachingBreakOnShaderHash.IsEmpty() && ComputeShader)
+	{
+		FSHAHash ShaderHash;
+		ShaderHash.FromString(GPSOPrecachingBreakOnShaderHash);
+		if (ComputeShader->GetHash() == ShaderHash)
+		{
+			UE_DEBUG_BREAK();
+		}
+	}
+}
+
 PSOCollectorStats::EPSOPrecacheValidationMode PSOCollectorStats::GetPrecachingValidationMode()
 {
 	switch (GPSOPrecachingValidationMode)

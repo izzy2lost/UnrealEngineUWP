@@ -2315,9 +2315,9 @@ void CollectRasterPSOInitializersForPermutation(
 			{
 				MinimalPipelineStateInitializer.StatePrecachePSOHash = GraphicsPSOInit.StatePrecachePSOHash;
 				FGraphicsMinimalPipelineStateInitializer ShadersOnlyInitializer = PSOCollectorStats::GetShadersOnlyInitializer(MinimalPipelineStateInitializer);
-				PSOCollectorStats::GetShadersOnlyPSOPrecacheStatsCollector().AddStateToCache(ShadersOnlyInitializer, PSOCollectorStats::GetPSOPrecacheHash, &Material, (uint32)EMeshPass::NaniteMeshPass, nullptr);
+				PSOCollectorStats::GetShadersOnlyPSOPrecacheStatsCollector().AddStateToCache(ShadersOnlyInitializer, PSOCollectorStats::GetPSOPrecacheHash, &Material, PSOCollectorIndex, nullptr);
 				FGraphicsMinimalPipelineStateInitializer PatchedMinimalInitializer = PSOCollectorStats::PatchMinimalPipelineStateToCheck(MinimalPipelineStateInitializer);
-				PSOCollectorStats::GetMinimalPSOPrecacheStatsCollector().AddStateToCache(PatchedMinimalInitializer, PSOCollectorStats::GetPSOPrecacheHash, &Material, (uint32)EMeshPass::NaniteMeshPass, nullptr);
+				PSOCollectorStats::GetMinimalPSOPrecacheStatsCollector().AddStateToCache(PatchedMinimalInitializer, PSOCollectorStats::GetPSOPrecacheHash, &Material, PSOCollectorIndex, nullptr);
 			}
 		#endif
 			
@@ -2344,6 +2344,11 @@ void CollectRasterPSOInitializersForPermutation(
 			#if PSO_PRECACHING_VALIDATE
 				ComputePSOPrecacheData.PSOCollectorIndex = PSOCollectorIndex;
 				ComputePSOPrecacheData.VertexFactoryType = nullptr;
+				if (PSOCollectorStats::IsFullPrecachingValidationEnabled())
+				{
+					ComputePSOPrecacheData.bDefaultMaterial = Material.IsDefaultMaterial();
+					ConditionalBreakOnPSOPrecacheShader(ComputePSOPrecacheData.ComputeShader);
+				}
 			#endif
 				PSOInitializers.Add(ComputePSOPrecacheData);
 			}

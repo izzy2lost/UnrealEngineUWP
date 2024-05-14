@@ -81,7 +81,18 @@ void DispatchBasePass(
 	const FRasterResults& RasterResults
 );
 
-void CollectShadingPSOInitializers(
+void CollectBasePassShadingPSOInitializers(
+	const FSceneTexturesConfig& SceneTexturesConfig,
+	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
+	const FMaterial& Material,
+	const FPSOPrecacheParams& PreCacheParams,
+	ERHIFeatureLevel::Type FeatureLevel,
+	EShaderPlatform ShaderPlatform,
+	int32 PSOCollectorIndex,
+	TArray<FPSOPrecacheData>& PSOInitializers
+);
+
+void CollectLumenCardPSOInitializers(
 	const FSceneTexturesConfig& SceneTexturesConfig,
 	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
 	const FMaterial& Material,
