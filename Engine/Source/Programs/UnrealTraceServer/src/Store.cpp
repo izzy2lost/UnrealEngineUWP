@@ -357,7 +357,7 @@ FStore::FMount::FMount(FStore* InParent, asio::io_context& InIoContext, const fs
 : Dir(InDir)
 , Id(QuickStoreHash(InDir.c_str()))
 , Parent(InParent)
-#if TS_USING(TS_PLATFORM_WINDOWS)
+#if TS_USING(TS_PLATFORM_WINDOWS) || TS_USING(TS_PLATFORM_LINUX)
 , IoContext(InIoContext)
 #endif
 {
