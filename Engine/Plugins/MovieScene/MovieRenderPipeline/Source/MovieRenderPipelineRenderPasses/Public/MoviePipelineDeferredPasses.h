@@ -28,6 +28,10 @@ public:
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
 	TSoftObjectPtr<UMaterialInterface> Material;
+
+	/** Request output to be 32-bit, usually for data exports. Note that scene color precision is still defined by r.SceneColorFormat.*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", DisplayName="High Precision Output (32-bit)")
+	bool bHighPrecisionOutput = false;
 };
 
 UCLASS(BlueprintType)

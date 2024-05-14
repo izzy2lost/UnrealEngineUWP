@@ -277,6 +277,8 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 
 		if (UMovieGraphImagePassBaseNode* ParentNode = GetParentNode(InFrameTraversalContext.Time.EvaluatedConfig))
 		{
+			TSet<UMaterialInterface*> HighPrecisionMaterials;
+
 			for (const FMoviePipelinePostProcessPass& PostProcessPass : ParentNode->GetAdditionalPostProcessMaterials())
 			{
 				if (PostProcessPass.bEnabled)
@@ -285,6 +287,11 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 					if (Material)
 					{
 						NewView->FinalPostProcessSettings.BufferVisualizationOverviewMaterials.Add(Material);
+						
+						if (PostProcessPass.bHighPrecisionOutput)
+						{
+							HighPrecisionMaterials.Add(Material);
+						}
 					}
 				}
 			}
@@ -292,6 +299,11 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 			for (UMaterialInterface* VisMaterial : NewView->FinalPostProcessSettings.BufferVisualizationOverviewMaterials)
 			{
 				auto BufferPipe = MakeShared<FImagePixelPipe, ESPMode::ThreadSafe>();
+
+				if (HighPrecisionMaterials.Contains(VisMaterial))
+				{
+					BufferPipe->bIsExpecting32BitPixelData = true;
+				}
 				
 				FMovieGraphRenderDataIdentifier Identifier = RenderDataIdentifier;
 				Identifier.SubResourceName = VisMaterial->GetName();

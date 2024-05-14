@@ -370,16 +370,19 @@ FScreenPassTexture AddVisualizeGBufferOverviewPass(
 				EPathTracingPostProcessMaterialInput::Radiance, FScreenPassTexture(PathTracingResources.Radiance, ViewRect));
 		}
 
-		const TSharedPtr<FImagePixelPipe, ESPMode::ThreadSafe>* OutputPipe = PostProcessSettings.BufferVisualizationPipes.Find(MaterialInterface->GetFName());		
+		PostProcessMaterialInputs.SceneTextures = Inputs.SceneTextures;
+
+		const TSharedPtr<FImagePixelPipe, ESPMode::ThreadSafe>* OutputPipe = PostProcessSettings.BufferVisualizationPipes.Find(MaterialInterface->GetFName());
 		const bool bIsValidOutputPipe = OutputPipe && OutputPipe->IsValid();
-		
+
 		if (bIsValidOutputPipe && OutputPipe->Get()->bIsExpecting32BitPixelData)
 		{
-			OutputFormat = PF_A32B32G32R32F;
+			PostProcessMaterialInputs.OutputFormat = PF_A32B32G32R32F;
 		}
-
-		PostProcessMaterialInputs.SceneTextures = Inputs.SceneTextures;
-		PostProcessMaterialInputs.OutputFormat = OutputFormat;
+		else
+		{
+			PostProcessMaterialInputs.OutputFormat = OutputFormat;
+		}
 
 		Output = AddPostProcessMaterialPass(GraphBuilder, View, PostProcessMaterialInputs, MaterialInterface);
 
