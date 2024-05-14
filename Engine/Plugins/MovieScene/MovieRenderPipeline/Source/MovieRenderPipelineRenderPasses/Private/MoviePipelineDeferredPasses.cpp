@@ -253,8 +253,6 @@ void UMoviePipelineDeferredPassBase::SetupImpl(const MoviePipeline::FMoviePipeli
 	AccumulatorPool = MakeShared<TAccumulatorPool<FImageOverlappedAccumulator>, ESPMode::ThreadSafe>(PoolSize);
 	
 	PreviousCustomDepthValue.Reset();
-	PreviousDumpFramesValue.Reset();
-	PreviousColorFormatValue.Reset();
 
 	// This scene view extension will be released automatically as soon as Render Sequence is torn down.
 	// One Extension per sequence, since each sequence has its own OCIO settings.
@@ -276,23 +274,6 @@ void UMoviePipelineDeferredPassBase::SetupImpl(const MoviePipeline::FMoviePipeli
 				// during their current session but it's less likely than changing the project settings.
 				CVar->Set(CustomDepthWithStencil, EConsoleVariableFlags::ECVF_SetByProjectSetting);
 			}
-		}
-	}
-	
-	if (bUse32BitPostProcessMaterials)
-	{
-		IConsoleVariable* DumpFramesCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.BufferVisualizationDumpFramesAsHDR"));
-		if (DumpFramesCVar)
-		{
-			PreviousDumpFramesValue = DumpFramesCVar->GetInt();
-			DumpFramesCVar->Set(1, EConsoleVariableFlags::ECVF_SetByConsole);
-		}
-		
-		IConsoleVariable* ColorFormatCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessingColorFormat"));
-		if (ColorFormatCVar)
-		{
-			PreviousColorFormatValue = ColorFormatCVar->GetInt();
-			ColorFormatCVar->Set(1, EConsoleVariableFlags::ECVF_SetByConsole);
 		}
 	}
 
@@ -355,21 +336,6 @@ void UMoviePipelineDeferredPassBase::TeardownImpl()
 				UE_LOG(LogMovieRenderPipeline, Log, TEXT("Restoring custom depth/stencil value to: %d"), PreviousCustomDepthValue.GetValue());
 				CVar->Set(PreviousCustomDepthValue.GetValue(), EConsoleVariableFlags::ECVF_SetByProjectSetting);
 			}
-		}
-	}
-	
-	if (PreviousDumpFramesValue.IsSet())
-	{
-		IConsoleVariable* DumpFramesCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.BufferVisualizationDumpFramesAsHDR"));
-		if (DumpFramesCVar)
-		{
-			DumpFramesCVar->Set(PreviousDumpFramesValue.GetValue(),  EConsoleVariableFlags::ECVF_SetByConsole);
-		}
-		
-		IConsoleVariable* ColorFormatCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessingColorFormat"));
-		if (ColorFormatCVar)
-		{
-			ColorFormatCVar->Set(PreviousColorFormatValue.GetValue(), EConsoleVariableFlags::ECVF_SetByConsole);
 		}
 	}
 
@@ -553,6 +519,7 @@ void UMoviePipelineDeferredPassBase::RenderSample_GameThreadImpl(const FMoviePip
 				FMoviePipelinePassIdentifier LayerPassIdentifier = FMoviePipelinePassIdentifier(PassIdentifier.Name + VisMaterial->GetName(), PassIdentifierForCurrentCamera.CameraName);
 
 				auto BufferPipe = MakeShared<FImagePixelPipe, ESPMode::ThreadSafe>();
+				BufferPipe->bIsExpecting32BitPixelData = bUse32BitPostProcessMaterials;
 				BufferPipe->AddEndpoint(MakeForwardingEndpoint(LayerPassIdentifier, InOutSampleState));
 
 				View->FinalPostProcessSettings.BufferVisualizationPipes.Add(VisMaterial->GetFName(), BufferPipe);

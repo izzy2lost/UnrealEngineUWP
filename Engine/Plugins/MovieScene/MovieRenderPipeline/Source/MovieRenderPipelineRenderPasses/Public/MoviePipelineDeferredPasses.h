@@ -138,9 +138,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stencil Clip Layers")
 	TArray<FActorLayer> ActorLayers;
 	
-	UE_DEPRECATED(5.1, "Use ActorLayers property instead.")
-	TArray<FActorLayer> StencilLayers;
-	
 	/**
 	* If the map you are working with is a World Partition map, you can specify Data layers instead of Actor Layers. If any
 	* Data Layers are specified, this will take precedence over any ActorLayers in this config. Does not affect whether or
@@ -171,9 +168,9 @@ protected:
 
 	// Cache the custom stencil value. Only has meaning if they have stencil layers.
 	TOptional<int32> PreviousCustomDepthValue;
-	/** Cache the previous dump frames as HDR value. Only used if using 32-bit post processing. */
+	UE_DEPRECATED(5.5, "PreviousDumpFramesValue has been deprecated.")
 	TOptional<int32> PreviousDumpFramesValue;
-	/** Cache the previous color format value. Only used if using 32-bit post processing. */
+	UE_DEPRECATED(5.5, "PreviousColorFormatValue has been deprecated.")
 	TOptional<int32> PreviousColorFormatValue;
 
 	TSharedPtr<FAccumulatorPool, ESPMode::ThreadSafe> AccumulatorPool;

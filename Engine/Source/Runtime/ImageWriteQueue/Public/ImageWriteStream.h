@@ -63,6 +63,9 @@ struct FImagePixelPipe
 		return EndPoints;
 	}
 
+	/** Boolean flag used to request 32-bit image pixel data, false by default. */
+	std::atomic_bool bIsExpecting32BitPixelData = false;
+
 private:
 
 	/** A lock to protect the end points array */
