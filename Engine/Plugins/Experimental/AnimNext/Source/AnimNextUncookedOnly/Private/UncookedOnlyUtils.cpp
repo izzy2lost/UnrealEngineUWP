@@ -606,6 +606,13 @@ void FUtils::CompileVM(UAnimNextGraph* InGraph)
 		}
 	}
 
+	// Remove our old root nodes
+	for (Private::FTraitGraph& TraitGraph : TraitGraphs)
+	{
+		URigVMController* GraphController = TempController->GetControllerForGraph(TraitGraph.RootNode->GetGraph());
+		GraphController->RemoveNode(TraitGraph.RootNode, false, false);
+	}
+
 	if(LatentPins.Num() > 0)
 	{
 		// We need a unique method name to match our unique argument list
@@ -650,13 +657,6 @@ void FUtils::CompileVM(UAnimNextGraph* InGraph)
 
 	// Populate our runtime metadata
 	InGraph->LoadFromArchiveBuffer(InGraph->SharedDataArchiveBuffer);
-
-	// Remove our old root nodes
-	for(Private::FTraitGraph& TraitGraph : TraitGraphs)
-	{
-		URigVMController* GraphController = TempController->GetControllerForGraph(TraitGraph.RootNode->GetGraph());
-		GraphController->RemoveNode(TraitGraph.RootNode, false, false);
-	}
 
 	URigVMCompiler* Compiler = URigVMCompiler::StaticClass()->GetDefaultObject<URigVMCompiler>();
 	EditorData->VMCompileSettings.SetExecuteContextStruct(FAnimNextExecuteContext::StaticStruct());
