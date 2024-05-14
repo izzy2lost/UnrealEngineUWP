@@ -1303,6 +1303,7 @@ public:
 	bool IsMovementInProgress() const { return bMovementInProgress; }
 
 	//BEGIN UNavMovementComponent Interface
+	ENGINE_API virtual FVector GetActorFeetLocation() const override;
 	ENGINE_API virtual void RequestDirectMove(const FVector& MoveVelocity, bool bForceMaxSpeed) override;
 	ENGINE_API virtual void RequestPathMove(const FVector& MoveInput) override;
 	ENGINE_API virtual bool CanStartPathFollowing() const override;
@@ -1661,6 +1662,18 @@ public:
 	/** Rotate a vector from gravity to world space. */
 	FVector RotateWorldToGravity(const FVector& Gravity) const { return GravityToWorldTransform.RotateVector(Gravity); }
 
+	/** Project a vector onto the floor defined by the gravity direction. */
+	FVector ProjectToGravityFloor(const FVector& Vector) const { return FVector::VectorPlaneProject(Vector, GetGravityDirection()); }
+
+	/** Returns the size of a vector in the gravity-space vertical direction. */
+	FVector::FReal GetGravitySpaceZ(const FVector& Vector) const { return Vector.Dot(-GetGravityDirection()); }
+
+	/** Returns the component of the vector in the gravity-space vertical direction.  */
+	FVector GetGravitySpaceComponentZ(const FVector& Vector) const { return Vector.Dot(GetGravityDirection()) * GetGravityDirection(); }
+
+	/** Set the vertical component of the vector to the given value in the gravity-space vertical direction. */
+	void SetGravitySpaceZ(FVector& Vector, const FVector::FReal Z) const { Vector = ProjectToGravityFloor(Vector) - Z * GetGravityDirection(); }
+	
 protected:
 
 	/**
