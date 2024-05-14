@@ -21,6 +21,8 @@ public:
 	float GetGridSize() const;
 	uint32 GetCacheLimit() const;
 
+	SIZE_T GetAllocatedSize() const;
+
 private:
 
 	Chaos::TVec3<int32> GetCacheKey(const FVector& LocalPos) const;
@@ -31,5 +33,6 @@ private:
 
 	uint32 CacheLimit = 256;
 
-	TMap<const FBuoyancyWaterSplineData*, TMap<Chaos::TVec3<int32>, float>> SplineKeyCache;
+	using FSplineKeyCache = TMap<const FBuoyancyWaterSplineData*, TMap<Chaos::TVec3<int32>, float>>;
+	FSplineKeyCache SplineKeyCache;
 };

@@ -2,6 +2,7 @@
 
 #include "BuoyancyAlgorithms.h"
 #include "BuoyancyStats.h"
+#include "BuoyancyParticleData.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
 #include "Chaos/ParticleHandle.h"
@@ -256,11 +257,11 @@ namespace BuoyancyAlgorithms
 	}
 
 
-	bool ComputeSubmergedVolume(const FPBDRigidsEvolutionGBF& Evolution, const FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, const FVector& WaterX, const FVector& WaterN, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM, float& TotalVol)
+	bool ComputeSubmergedVolume(FBuoyancyParticleData& ParticleData, const FPBDRigidsEvolutionGBF& Evolution, const FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, const FVector& WaterX, const FVector& WaterN, int32 NumSubdivisions, float MinVolume, float& SubmergedVol, FVec3& SubmergedCoM, float& TotalVol)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_BuoyancyAlgorithms_ComputeSubmergedVolume)
 
-		if (ComputeSubmergedVolume(SubmergedParticle, WaterParticle, WaterX, WaterN, NumSubdivisions, MinVolume, SubmergedShapes, SubmergedVol, SubmergedCoM))
+		if (ComputeSubmergedVolume(ParticleData, SubmergedParticle, WaterParticle, WaterX, WaterN, NumSubdivisions, MinVolume, SubmergedVol, SubmergedCoM))
 		{
 			ScaleSubmergedVolume(Evolution, SubmergedParticle, SubmergedVol, TotalVol);
 
@@ -279,14 +280,15 @@ namespace BuoyancyAlgorithms
 		return false;
 	}
 
-	bool ComputeSubmergedVolume(const FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, const FVector& WaterX, const FVector& WaterN, int32 NumSubdivisions, float MinVolume, TSparseArray<TBitArray<>>& SubmergedShapes, float& SubmergedVol, FVec3& SubmergedCoM)
+	bool ComputeSubmergedVolume(FBuoyancyParticleData& ParticleData, const FGeometryParticleHandle* SubmergedParticle, const FGeometryParticleHandle* WaterParticle, const FVector& WaterX, const FVector& WaterN, int32 NumSubdivisions, float MinVolume, float& SubmergedVol, FVec3& SubmergedCoM)
 	{
 		// Get some initial data about the submerged particle
 		const FImplicitObject* RootImplicit = SubmergedParticle->GetGeometry();
 		const FShapeInstanceArray& ShapeInstances = SubmergedParticle->ShapeInstances();
 		const FConstGenericParticleHandle SubmergedGeneric = SubmergedParticle;
 		const FRigidTransform3 ParticleWorldTransform = SubmergedGeneric->GetTransformPQ();
-		const int32 ParticleIndex = SubmergedParticle->UniqueIdx().Idx;
+		const int32 ParticleIndex = ParticleData.GetIndex(*SubmergedParticle);
+		TSparseArray<TBitArray<>>& SubmergedShapes = ParticleData.SubmergedShapes;
 
 		// Some info about the water
 		const FImplicitObject* WaterRootImplicit = WaterParticle->GetGeometry();

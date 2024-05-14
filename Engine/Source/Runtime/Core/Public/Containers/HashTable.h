@@ -224,8 +224,9 @@ public:
 	 * If the previous size was empty, allocates the hash at its desired size.
 	 */
 	CORE_API void	Resize( uint32 NewIndexSize );
-	inline uint32	GetIndexSize() { return IndexSize; }
-	inline uint32	GetHashSize() { return HashSize; }
+	inline uint32	GetIndexSize() const { return IndexSize; }
+	inline uint32	GetHashSize() const { return HashSize; }
+	CORE_API SIZE_T	GetAllocatedSize() const;
 
 	// Functions used to search
 	uint32			First( uint32 Key ) const;
