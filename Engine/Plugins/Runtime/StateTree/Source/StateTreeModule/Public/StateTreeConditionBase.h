@@ -26,7 +26,7 @@ struct STATETREEMODULE_API FStateTreeConditionBase : public FStateTreeNodeBase
 	virtual bool TestCondition(FStateTreeExecutionContext& Context) const { return false; }
 
 	UPROPERTY()
-	EStateTreeConditionOperand Operand = EStateTreeConditionOperand::And;
+	EStateTreeExpressionOperand Operand = EStateTreeExpressionOperand::And;
 
 	UPROPERTY()
 	int8 DeltaIndent = 0;

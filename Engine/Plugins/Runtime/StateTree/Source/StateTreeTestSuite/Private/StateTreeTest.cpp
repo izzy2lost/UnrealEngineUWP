@@ -1014,7 +1014,7 @@ struct FStateTreeTest_LastConditionWithIndent : FAITestBase
 		auto& LastCondition = State1.AddEnterCondition<FStateTreeTestCondition>();
 
 		// Last condition has Indent
-		LastCondition.ConditionIndent = 1;
+		LastCondition.ExpressionIndent = 1;
 		
 		State1.AddTransition(EStateTreeTransitionTrigger::OnStateCompleted, EStateTreeTransitionType::Succeeded);
 

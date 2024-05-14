@@ -34,7 +34,7 @@ namespace UE::AvaEditor::Private
 		FAvaTransitionSceneMatchCondition& Condition = ConditionNode.GetNode();
 
 		Condition.SceneComparisonType  = InComparisonType;
-		ConditionNode.ConditionOperand = EStateTreeConditionOperand::Or;
+		ConditionNode.ExpressionOperand = EStateTreeExpressionOperand::Or;
 	}
 
 	void AddTransitionCondition(UStateTreeState& InState, EAvaTransitionType InTransitionType)

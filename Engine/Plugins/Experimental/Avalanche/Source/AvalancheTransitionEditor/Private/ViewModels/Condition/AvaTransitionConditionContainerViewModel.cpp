@@ -17,9 +17,9 @@ namespace UE::AvaTransitionEditor::Private
 	FText GetOperandText(int32 InConditionIndex, const FStateTreeEditorNode& InEditorNode)
 	{
 		// First Conditions or Copy operands should not have any operand displayed
-		if (InConditionIndex > 0 && InEditorNode.ConditionOperand != EStateTreeConditionOperand::Copy)
+		if (InConditionIndex > 0 && InEditorNode.ExpressionOperand != EStateTreeExpressionOperand::Copy)
 		{
-			return FText::Format(INVTEXT("{0} "), UEnum::GetDisplayValueAsText(InEditorNode.ConditionOperand).ToLower());
+			return FText::Format(INVTEXT("{0} "), UEnum::GetDisplayValueAsText(InEditorNode.ExpressionOperand).ToLower());
 		}
 		return FText::GetEmpty();
 	}
@@ -87,12 +87,12 @@ FText FAvaTransitionConditionContainerViewModel::UpdateStateDescription() const
 			continue;
 		}
 
-		int8 DeltaIndent = -EditorNode->ConditionIndent;
+		int8 DeltaIndent = -EditorNode->ExpressionIndent;
 		if (ConditionViewModels.IsValidIndex(ConditionIndex + 1))
 		{
 			if (const FStateTreeEditorNode* NextEditorNode = ConditionViewModels[ConditionIndex + 1]->GetEditorNode())
 			{
-				DeltaIndent += NextEditorNode->ConditionIndent;
+				DeltaIndent += NextEditorNode->ExpressionIndent;
 			}
 		}
 

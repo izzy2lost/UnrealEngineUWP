@@ -2518,8 +2518,8 @@ bool FStateTreeExecutionContext::TestAllConditions(const FStateTreeExecutionFram
 		return true;
 	}
 
-	TStaticArray<EStateTreeConditionOperand, UE::StateTree::MaxConditionIndent + 1> Operands(InPlace, EStateTreeConditionOperand::Copy);
-	TStaticArray<bool, UE::StateTree::MaxConditionIndent + 1> Values(InPlace, false);
+	TStaticArray<EStateTreeExpressionOperand, UE::StateTree::MaxExpressionIndent + 1> Operands(InPlace, EStateTreeExpressionOperand::Copy);
+	TStaticArray<bool, UE::StateTree::MaxExpressionIndent + 1> Values(InPlace, false);
 
 	int32 Level = 0;
 	
@@ -2568,7 +2568,7 @@ bool FStateTreeExecutionContext::TestAllConditions(const FStateTreeExecutionFram
 
 		// Store the operand to apply when merging higher level down when returning to this level.
 		// @todo: remove this conditions in 5.1, needs resaving existing StateTrees.
-		const EStateTreeConditionOperand Operand = Index == 0 ? EStateTreeConditionOperand::Copy : Cond.Operand;
+		const EStateTreeExpressionOperand Operand = Index == 0 ? EStateTreeExpressionOperand::Copy : Cond.Operand;
 		Operands[Level] = Operand;
 
 		// Store current value at the top of the stack.
@@ -2584,17 +2584,17 @@ bool FStateTreeExecutionContext::TestAllConditions(const FStateTreeExecutionFram
 			Level--;
 			switch (Operands[Level])
 			{
-			case EStateTreeConditionOperand::Copy:
+			case EStateTreeExpressionOperand::Copy:
 				Values[Level] = Values[Level + 1];
 				break;
-			case EStateTreeConditionOperand::And:
+			case EStateTreeExpressionOperand::And:
 				Values[Level] &= Values[Level + 1];
 				break;
-			case EStateTreeConditionOperand::Or:
+			case EStateTreeExpressionOperand::Or:
 				Values[Level] |= Values[Level + 1];
 				break;
 			}
-			Operands[Level] = EStateTreeConditionOperand::Copy;
+			Operands[Level] = EStateTreeExpressionOperand::Copy;
 		}
 	}
 	

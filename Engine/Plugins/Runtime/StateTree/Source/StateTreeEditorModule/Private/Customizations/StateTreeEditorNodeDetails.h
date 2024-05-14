@@ -26,7 +26,7 @@ class UStateTreeEditorData;
 struct EVisibility;
 struct FStateTreeEditorNode;
 struct FStateTreePropertyPath;
-enum class EStateTreeConditionOperand : uint8;
+enum class EStateTreeExpressionOperand : uint8;
 
 /**
  * Type customization for nodes (Conditions, Evaluators and Tasks) in StateTreeState.
@@ -64,8 +64,8 @@ private:
 	TSharedRef<SWidget> OnGetOperandContent() const;
 	bool IsOperandEnabled() const;
 
-	void SetOperand(const EStateTreeConditionOperand Operand) const;
-	bool IsOperand(const EStateTreeConditionOperand Operand) const;
+	void SetOperand(const EStateTreeExpressionOperand Operand) const;
+	bool IsOperand(const EStateTreeExpressionOperand Operand) const;
 
 	bool IsFirstItem() const;
 	int32 GetCurrIndent() const;

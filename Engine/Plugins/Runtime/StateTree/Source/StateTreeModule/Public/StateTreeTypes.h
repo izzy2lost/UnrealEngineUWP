@@ -18,7 +18,12 @@ struct FStateTreeEvent;
 
 namespace UE::StateTree
 {
+#if WITH_EDITOR
+	UE_DEPRECATED(5.5, "Use MaxExpressionIndent instead.")
 	inline constexpr int32 MaxConditionIndent = 4;
+#endif //WITH_EDITOR
+
+	inline constexpr int32 MaxExpressionIndent = 4;
 
 	inline const FName SchemaTag(TEXT("Schema"));
 
@@ -76,9 +81,9 @@ enum class EStateTreeTransitionType : uint8
 	NotSet UE_DEPRECATED(5.0, "Use None instead."),
 };
 
-/** Operand between conditions */
+/** Operand in an expression */
 UENUM()
-enum class EStateTreeConditionOperand : uint8
+enum class EStateTreeExpressionOperand : uint8
 {
 	/** Copy result */
 	Copy UMETA(Hidden),
@@ -89,6 +94,10 @@ enum class EStateTreeConditionOperand : uint8
 	/** Combine results with OR. */
 	Or,
 };
+
+#if WITH_EDITOR
+	using EStateTreeConditionOperand UE_DEPRECATED(5.5, "Use EStateTreeExpressionOperand instead.") = EStateTreeExpressionOperand;
+#endif //WITH_EDITOR
 
 UENUM()
 enum class EStateTreeStateType : uint8

@@ -72,10 +72,20 @@ struct STATETREEEDITORMODULE_API FStateTreeEditorNode
 	FGuid ID;
 
 	UPROPERTY(EditDefaultsOnly, Category = Node)
-	uint8 ConditionIndent = 0;
+	uint8 ExpressionIndent = 0;
 
 	UPROPERTY(EditDefaultsOnly, Category = Node)
-	EStateTreeConditionOperand ConditionOperand = EStateTreeConditionOperand::And; 
+	EStateTreeExpressionOperand ExpressionOperand = EStateTreeExpressionOperand::And;
+
+#if WITH_EDITOR
+	UE_DEPRECATED(5.5, "Use ExpressionIndent instead.")
+	uint8 ConditionIndent = 0;
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "Use ExpressionOperand instead.")
+	EStateTreeConditionOperand ConditionOperand = EStateTreeConditionOperand::And;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif //WITH_EDITOR
 };
 
 template <typename T>

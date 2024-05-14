@@ -362,8 +362,8 @@ void FStateTreeEditorNodeDetails::CustomizeHeader(TSharedRef<class IPropertyHand
 	InstanceObjectProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeEditorNode, InstanceObject));
 	IDProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeEditorNode, ID));
 
-	IndentProperty = StructProperty->GetChildHandle(TEXT("ConditionIndent"));
-	OperandProperty = StructProperty->GetChildHandle(TEXT("ConditionOperand"));
+	IndentProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeEditorNode, ExpressionIndent));
+	OperandProperty = StructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeEditorNode, ExpressionOperand));
 
 	check(NodeProperty.IsValid());
 	check(InstanceProperty.IsValid());
@@ -414,7 +414,7 @@ void FStateTreeEditorNodeDetails::CustomizeHeader(TSharedRef<class IPropertyHand
 						.OnClicked(this, &FStateTreeEditorNodeDetails::HandleIndentPlus)
 						.HAlign(HAlign_Center)
 						.ContentPadding(FMargin(4.f, 4.f))
-						.ToolTipText(LOCTEXT("AddIdentTOoltip", "Browse to the current node blueprint in Content Browser"))
+						.ToolTipText(LOCTEXT("IncreaseIdentTooltip", "Increment the depth of the expression row controlling parentheses and expression order"))
 						[
 							SNew(SImage)
 							.DesiredSizeOverride(FVector2D(8.f, 8.f))
@@ -437,7 +437,7 @@ void FStateTreeEditorNodeDetails::CustomizeHeader(TSharedRef<class IPropertyHand
 						.OnClicked(this, &FStateTreeEditorNodeDetails::HandleIndentMinus)
 						.HAlign(HAlign_Center)
 						.ContentPadding(FMargin(4.f, 4.f))
-						.ToolTipText(LOCTEXT("BrowseToCurrentNodeBP", "Browse to the current node blueprint in Content Browser"))
+						.ToolTipText(LOCTEXT("DecreaseIndentTooltip", "Decrement the depth of the expression row controlling parentheses and expression order"))
 						[
 							SNew(SImage)
 							.DesiredSizeOverride(FVector2D(8.f, 8.f))
@@ -1041,7 +1041,7 @@ void FStateTreeEditorNodeDetails::SetIndent(const int32 Indent) const
 {
 	check(IndentProperty);
 	
-	IndentProperty->SetValue((uint8)FMath::Clamp(Indent, 0, UE::StateTree::MaxConditionIndent - 1));
+	IndentProperty->SetValue((uint8)FMath::Clamp(Indent, 0, UE::StateTree::MaxExpressionIndent - 1));
 }
 
 bool FStateTreeEditorNodeDetails::IsIndent(const int32 Indent) const
@@ -1094,7 +1094,7 @@ int32 FStateTreeEditorNodeDetails::GetNextIndent() const
 		return 0;
 	}
 	
-	TSharedPtr<IPropertyHandle> NextIndentProperty = NextStructProperty->GetChildHandle(TEXT("ConditionIndent"));
+	TSharedPtr<IPropertyHandle> NextIndentProperty = NextStructProperty->GetChildHandle(GET_MEMBER_NAME_CHECKED(FStateTreeEditorNode, ExpressionIndent));
 	if (!NextIndentProperty.IsValid())
 	{
 		return 0;
@@ -1115,7 +1115,7 @@ FText FStateTreeEditorNodeDetails::GetOpenParens() const
 	const int32 DeltaIndent = NextIndent - CurrIndent;
 	const int32 OpenParens = FMath::Max(0, DeltaIndent);
 
-	static_assert(UE::StateTree::MaxConditionIndent == 4);
+	static_assert(UE::StateTree::MaxExpressionIndent == 4);
 	switch (OpenParens)
 	{
 		case 1: return FText::FromString(TEXT("("));
@@ -1135,7 +1135,7 @@ FText FStateTreeEditorNodeDetails::GetCloseParens() const
 	const int32 DeltaIndent = NextIndent - CurrIndent;
 	const int32 CloseParens = FMath::Max(0, -DeltaIndent);
 
-	static_assert(UE::StateTree::MaxConditionIndent == 4);
+	static_assert(UE::StateTree::MaxExpressionIndent == 4);
 	switch (CloseParens)
 	{
 	case 1: return FText::FromString(TEXT(")"));
@@ -1158,13 +1158,13 @@ FText FStateTreeEditorNodeDetails::GetOperandText() const
 
 	uint8 Value = 0;
 	OperandProperty->GetValue(Value);
-	const EStateTreeConditionOperand Operand = (EStateTreeConditionOperand)Value;
+	const EStateTreeExpressionOperand Operand = (EStateTreeExpressionOperand)Value;
 
-	if (Operand == EStateTreeConditionOperand::And)
+	if (Operand == EStateTreeExpressionOperand::And)
 	{
 		return LOCTEXT("AndOperand", "AND");
 	}
-	else if (Operand == EStateTreeConditionOperand::Or)
+	else if (Operand == EStateTreeExpressionOperand::Or)
 	{
 		return LOCTEXT("OrOperand", "OR");
 	}
@@ -1187,13 +1187,13 @@ FSlateColor FStateTreeEditorNodeDetails::GetOperandColor() const
 
 	uint8 Value = 0; 
 	OperandProperty->GetValue(Value);
-	const EStateTreeConditionOperand Operand = (EStateTreeConditionOperand)Value;
+	const EStateTreeExpressionOperand Operand = (EStateTreeExpressionOperand)Value;
 
-	if (Operand == EStateTreeConditionOperand::And)
+	if (Operand == EStateTreeExpressionOperand::And)
 	{
 		return FStyleColors::AccentPink;
 	}
-	else if (Operand == EStateTreeConditionOperand::Or)
+	else if (Operand == EStateTreeExpressionOperand::Or)
 	{
 		return FStyleColors::AccentBlue;
 	}
@@ -1210,14 +1210,14 @@ TSharedRef<SWidget> FStateTreeEditorNodeDetails::OnGetOperandContent() const
 	FMenuBuilder MenuBuilder(true, NULL);
 
 	FUIAction AndAction(
-		FExecuteAction::CreateSP(this, &FStateTreeEditorNodeDetails::SetOperand, EStateTreeConditionOperand::And),
+		FExecuteAction::CreateSP(this, &FStateTreeEditorNodeDetails::SetOperand, EStateTreeExpressionOperand::And),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(this, &FStateTreeEditorNodeDetails::IsOperand, EStateTreeConditionOperand::And));
+		FIsActionChecked::CreateSP(this, &FStateTreeEditorNodeDetails::IsOperand, EStateTreeExpressionOperand::And));
 	MenuBuilder.AddMenuEntry(LOCTEXT("AndOperand", "AND"), TAttribute<FText>(), FSlateIcon(), AndAction, FName(), EUserInterfaceActionType::Check);
 
-	FUIAction OrAction(FExecuteAction::CreateSP(this, &FStateTreeEditorNodeDetails::SetOperand, EStateTreeConditionOperand::Or),
+	FUIAction OrAction(FExecuteAction::CreateSP(this, &FStateTreeEditorNodeDetails::SetOperand, EStateTreeExpressionOperand::Or),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(this, &FStateTreeEditorNodeDetails::IsOperand, EStateTreeConditionOperand::Or));
+		FIsActionChecked::CreateSP(this, &FStateTreeEditorNodeDetails::IsOperand, EStateTreeExpressionOperand::Or));
 	MenuBuilder.AddMenuEntry(LOCTEXT("OrOperand", "OR"), TAttribute<FText>(), FSlateIcon(), OrAction, FName(), EUserInterfaceActionType::Check);
 
 	return MenuBuilder.MakeWidget();
@@ -1228,18 +1228,18 @@ bool FStateTreeEditorNodeDetails::IsOperandEnabled() const
 	return !IsFirstItem();
 }
 
-bool FStateTreeEditorNodeDetails::IsOperand(const EStateTreeConditionOperand Operand) const
+bool FStateTreeEditorNodeDetails::IsOperand(const EStateTreeExpressionOperand Operand) const
 {
 	check(OperandProperty);
 
 	uint8 Value = 0; 
 	OperandProperty->GetValue(Value);
-	const EStateTreeConditionOperand CurrOperand = (EStateTreeConditionOperand)Value;
+	const EStateTreeExpressionOperand CurrOperand = (EStateTreeExpressionOperand)Value;
 
 	return CurrOperand == Operand;
 }
 
-void FStateTreeEditorNodeDetails::SetOperand(const EStateTreeConditionOperand Operand) const
+void FStateTreeEditorNodeDetails::SetOperand(const EStateTreeExpressionOperand Operand) const
 {
 	check(OperandProperty);
 
