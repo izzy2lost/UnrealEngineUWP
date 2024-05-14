@@ -336,27 +336,68 @@ void FUserManagerEOS::GetPlatformAuthToken(int32 LocalUserNum, const FOnGetLinke
 	IOnlineSubsystem* PlatformOSS = GetPlatformOSS();
 	if (PlatformOSS == nullptr)
 	{
-		UE_LOG_ONLINE(Error, TEXT("ConnectLoginNoEAS(%d) failed due to no platform OSS"), LocalUserNum);
+		UE_LOG_ONLINE(Error, TEXT("[%hs] for user %d failed due to no platform OSS"), __FUNCTION__, LocalUserNum);
 		Delegate.ExecuteIfBound(LocalUserNum, false, FExternalAuthToken());
 		return;
 	}
+
+	if (PlatformOSS->GetSubsystemName() == EOS_SUBSYSTEM)
+	{
+		UE_LOG_ONLINE(Error, TEXT("[%hs] EOS is the platform OSS, call GetLinkedAccountAuthToken instead"), __FUNCTION__);
+		Delegate.ExecuteIfBound(LocalUserNum, false, FExternalAuthToken());
+		return;
+	}
+
 	IOnlineIdentityPtr PlatformIdentity = PlatformOSS->GetIdentityInterface();
 	if (!PlatformIdentity.IsValid())
 	{
-		UE_LOG_ONLINE(Error, TEXT("ConnectLoginNoEAS(%d) failed due to no platform OSS identity interface"), LocalUserNum);
+		UE_LOG_ONLINE(Error, TEXT("[%hs] for user %d failed due to no platform OSS identity interface"), __FUNCTION__, LocalUserNum);
 		Delegate.ExecuteIfBound(LocalUserNum, false, FExternalAuthToken());
 		return;
 	}
 
-	FString TokenType;
-	if (PlatformOSS->GetSubsystemName() == STEAM_SUBSYSTEM)
+	if (PlatformIdentity->GetLoginStatus(LocalUserNum) == ELoginStatus::LoggedIn)
 	{
-		FEOSSettings Settings = UEOSSettings::GetSettings();
-		TokenType = Settings.SteamTokenType;
-	}
+		FString TokenType;
+		if (PlatformOSS->GetSubsystemName() == STEAM_SUBSYSTEM)
+		{
+			FEOSSettings Settings = UEOSSettings::GetSettings();
+			TokenType = Settings.SteamTokenType;
+		}
 
-	// Request the auth token from the platform
-	PlatformIdentity->GetLinkedAccountAuthToken(LocalUserNum, TokenType, Delegate);
+		// Request the auth token from the platform
+		PlatformIdentity->GetLinkedAccountAuthToken(LocalUserNum, TokenType, Delegate);
+	}
+	else
+	{
+		// If the given local user is not logged in, we'll call AutoLogin before attempting to retrieve the AuthToken
+
+		TSharedRef<FDelegateHandle> DelegateHandleRef = MakeShared<FDelegateHandle>();
+		*DelegateHandleRef = PlatformIdentity->AddOnLoginCompleteDelegate_Handle(LocalUserNum, FOnLoginCompleteDelegate::CreateLambda([PlatformOSS, PlatformIdentity, Delegate, DelegateHandleRef](int32 LocalUserNum, bool bWasSuccessful, const FUniqueNetId& UserId, const FString& Error)
+			{
+				if (bWasSuccessful)
+				{
+					FString TokenType;
+					if (PlatformOSS->GetSubsystemName() == STEAM_SUBSYSTEM)
+					{
+						FEOSSettings Settings = UEOSSettings::GetSettings();
+						TokenType = Settings.SteamTokenType;
+					}
+
+					// Request the auth token from the platform
+					PlatformIdentity->GetLinkedAccountAuthToken(LocalUserNum, TokenType, Delegate);
+				}
+				else
+				{
+					UE_LOG_ONLINE(Warning, TEXT("[%hs] for user %d failed a login attempt in the platform OSS identity interface"), __FUNCTION__, LocalUserNum);
+					Delegate.ExecuteIfBound(LocalUserNum, false, FExternalAuthToken());
+				}
+
+				PlatformIdentity->ClearOnLoginCompleteDelegate_Handle(LocalUserNum, *DelegateHandleRef);
+			}));
+
+		PlatformIdentity->AutoLogin(LocalUserNum);
+	}
 }
 
 FString FUserManagerEOS::GetPlatformDisplayName(int32 LocalUserNum) const
@@ -540,7 +581,7 @@ FString ToHexString(const TArray<uint8>& InToken)
 void FUserManagerEOS::LoginViaExternalAuth(int32 LocalUserNum, const FOnlineAccountCredentials& AccountCredentials)
 {
 	GetPlatformAuthToken(LocalUserNum,
-		FOnGetLinkedAccountAuthTokenCompleteDelegate::CreateLambda([this, WeakThis = AsWeak(), AccountCredentials = FOnlineAccountCredentials(AccountCredentials)](int32 LocalUserNum, bool bWasSuccessful, const FExternalAuthToken& AuthToken) mutable
+		FOnGetLinkedAccountAuthTokenCompleteDelegate::CreateLambda([this, WeakThis = AsWeak()](int32 LocalUserNum, bool bWasSuccessful, const FExternalAuthToken& AuthToken) mutable
 		{
 			if (FUserManagerEOSPtr StrongThis = WeakThis.Pin())
 			{
@@ -551,6 +592,7 @@ void FUserManagerEOS::LoginViaExternalAuth(int32 LocalUserNum, const FOnlineAcco
 					return;
 				}
 
+				FOnlineAccountCredentials AccountCredentials;
 				AccountCredentials.Type = FString(TEXT("externalauth"));
 
 				if (AuthToken.HasTokenData())

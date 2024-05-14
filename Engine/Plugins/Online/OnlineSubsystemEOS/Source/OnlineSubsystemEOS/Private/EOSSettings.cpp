@@ -141,9 +141,11 @@ FEOSSettings::FEOSSettings()
 	, bUseEAS(false)
 	, bUseEOSConnect(false)
 	, bUseEOSSessions(false)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	, bMirrorStatsToEOS(false)
 	, bMirrorAchievementsToEOS(false)
 	, bMirrorPresenceToEAS(false)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 
 }
@@ -190,9 +192,11 @@ const FEOSSettings& UEOSSettings::ManualGetSettings()
 		GConfig->GetBool(INI_SECTION, TEXT("bUseEAS"), CachedSettings->bUseEAS, GEngineIni);
 		GConfig->GetBool(INI_SECTION, TEXT("bUseEOSConnect"), CachedSettings->bUseEOSConnect, GEngineIni);
 		GConfig->GetBool(INI_SECTION, TEXT("bUseEOSSessions"), CachedSettings->bUseEOSSessions, GEngineIni);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		GConfig->GetBool(INI_SECTION, TEXT("bMirrorStatsToEOS"), CachedSettings->bMirrorStatsToEOS, GEngineIni);
 		GConfig->GetBool(INI_SECTION, TEXT("bMirrorAchievementsToEOS"), CachedSettings->bMirrorAchievementsToEOS, GEngineIni);
 		GConfig->GetBool(INI_SECTION, TEXT("bMirrorPresenceToEAS"), CachedSettings->bMirrorPresenceToEAS, GEngineIni);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		// Artifacts explicitly skipped
 		GConfig->GetArray(INI_SECTION, TEXT("TitleStorageTags"), CachedSettings->TitleStorageTags, GEngineIni);
 		GConfig->GetArray(INI_SECTION, TEXT("AuthScopeFlags"), CachedSettings->AuthScopeFlags, GEngineIni);
@@ -222,9 +226,11 @@ FEOSSettings UEOSSettings::ToNative() const
 	Native.bUseEAS = bUseEAS;
 	Native.bUseEOSConnect = bUseEOSConnect;
 	Native.bUseEOSSessions = bUseEOSSessions;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	Native.bMirrorStatsToEOS = bMirrorStatsToEOS;
 	Native.bMirrorAchievementsToEOS = bMirrorAchievementsToEOS;
 	Native.bMirrorPresenceToEAS = bMirrorPresenceToEAS;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	Algo::Transform(Artifacts, Native.Artifacts, &FArtifactSettings::ToNative);
 	Native.TitleStorageTags = TitleStorageTags;
 	Native.AuthScopeFlags = AuthScopeFlags;
@@ -435,14 +441,18 @@ void UEOSSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChanged
 	{
 		if (!bUseEAS)
 		{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			bMirrorPresenceToEAS = false;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 
 	// Turning on presence requires EAS
 	if (PropertyChangedEvent.Property->GetFName() == FName(TEXT("bMirrorPresenceToEAS")))
 	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (bMirrorPresenceToEAS)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			bUseEAS = true;
 		}
@@ -453,8 +463,10 @@ void UEOSSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChanged
 	{
 		if (!bUseEOSConnect)
 		{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			bMirrorAchievementsToEOS = false;
 			bMirrorStatsToEOS = false;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			bUseEOSSessions = false;
 		}
 	}
@@ -464,7 +476,10 @@ void UEOSSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChanged
 		PropertyChangedEvent.Property->GetFName() == FName(TEXT("bMirrorStatsToEOS")) ||
 		PropertyChangedEvent.Property->GetFName() == FName(TEXT("bUseEOSSessions")))
 	{
-		if (bMirrorAchievementsToEOS || bMirrorStatsToEOS || bUseEOSSessions)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		if (bMirrorAchievementsToEOS || bMirrorStatsToEOS
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			|| bUseEOSSessions)
 		{
 			bUseEOSConnect = true;
 		}

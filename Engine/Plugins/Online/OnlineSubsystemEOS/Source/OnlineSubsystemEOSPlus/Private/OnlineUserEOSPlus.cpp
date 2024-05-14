@@ -1559,7 +1559,11 @@ void FOnlineUserEOSPlus::SetPresence(const FUniqueNetId& User, const FOnlineUser
 		FOnPresenceTaskCompleteDelegate::CreateLambda([this, NetIdPlus, StatusCopy = FOnlineUserPresenceStatus(Status), IntermediateComplete = FOnPresenceTaskCompleteDelegate(Delegate)](const FUniqueNetId& UserId, const bool bWasSuccessful)
 	{
 		// Skip setting EAS presence if not mirrored or if we errored at the platform level or the EOS user isn't found
-		if (!bWasSuccessful || !NetIdPlus->GetEOSNetId().IsValid() || !UEOSSettings::GetSettings().bMirrorPresenceToEAS)
+				
+		if (!bWasSuccessful || !NetIdPlus->GetEOSNetId().IsValid()
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			|| !UEOSSettings::GetSettings().bMirrorPresenceToEAS)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			IntermediateComplete.ExecuteIfBound(UserId, bWasSuccessful);
 			return;

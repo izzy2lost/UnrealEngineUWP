@@ -69,6 +69,11 @@ struct FEOSSettings
 {
 	FEOSSettings();
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FEOSSettings(const FEOSSettings& Other) = default;
+	FEOSSettings(FEOSSettings&& Other) = default;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	FString CacheDir;
 	FString DefaultArtifactName;
 	FString SteamTokenType;
@@ -82,8 +87,11 @@ struct FEOSSettings
 	bool bUseEAS;
 	bool bUseEOSConnect;
 	bool bUseEOSSessions;
+	UE_DEPRECATED(5.5, "EOSPlus is deprecated, and related settings will be removed soon.")
 	bool bMirrorStatsToEOS;
+	UE_DEPRECATED(5.5, "EOSPlus is deprecated, and related settings will be removed soon.")
 	bool bMirrorAchievementsToEOS;
+	UE_DEPRECATED(5.5, "EOSPlus is deprecated, and related settings will be removed soon. Equivalent functionality can be accessed via the IntegratedPlatformManagementFlags config.")
 	bool bMirrorPresenceToEAS;
 	TArray<FEOSArtifactSettings> Artifacts;
 	TArray<FString> TitleStorageTags;
@@ -158,10 +166,12 @@ public:
 	bool bUseEOSConnect = false;
 
 	/** Set to true to write stats to EOS as well as the default platform */
+	UE_DEPRECATED(5.5, "EOSPlus is deprecated, and related settings will be removed soon.")
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category="Crossplay Settings")
 	bool bMirrorStatsToEOS = false;
 
 	/** Set to true to write achievement data to EOS as well as the default platform */
+	UE_DEPRECATED(5.5, "EOSPlus is deprecated, and related settings will be removed soon.")
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category="Crossplay Settings")
 	bool bMirrorAchievementsToEOS = false;
 
@@ -170,6 +180,7 @@ public:
 	bool bUseEOSSessions = false;
 
 	/** Set to true to have Epic Accounts presence information updated when the default platform is updated */
+	UE_DEPRECATED(5.5, "EOSPlus is deprecated, and related settings will be removed soon. Equivalent functionality can be accessed via the IntegratedPlatformManagementFlags config.")
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category="Crossplay Settings")
 	bool bMirrorPresenceToEAS = false;
 

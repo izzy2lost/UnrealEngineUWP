@@ -66,7 +66,10 @@ void FOnlineStatsEOSPlus::UpdateStats(const FUniqueNetIdRef LocalUserId, const T
 		}
 
 		const FEOSSettings& EOSSettings = UEOSSettings::GetSettings();
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (EOSSettings.bMirrorStatsToEOS)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			// Also write the data to EOS
 			IOnlineStatsPtr EOSStats = EOSPlus->EosOSS->GetStatsInterface();
