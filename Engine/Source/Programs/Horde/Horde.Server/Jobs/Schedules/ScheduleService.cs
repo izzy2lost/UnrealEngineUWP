@@ -469,7 +469,7 @@ namespace Horde.Server.Jobs.Schedules
 				CreateJobOptions options = new CreateJobOptions(templateRef.Config);
 				options.Priority = template.Priority;
 				template.GetDefaultParameters(options.Parameters, true);
-				template.GetArgumentsForParameters(null, options.Parameters, options.Arguments);
+				template.GetArgumentsForParameters(options.Parameters, options.Arguments);
 
 				IJob newJob = await _jobService.CreateJobAsync(null, stream.Config, templateId, template.Hash, graph, template.Name, change, codeChange, options, cancellationToken);
 				_logger.LogInformation("Started new job for {StreamId} template {TemplateId} at CL {Change} (Code CL {CodeChange}): {JobId}", stream.Id, templateId, change, codeChange, newJob.Id);

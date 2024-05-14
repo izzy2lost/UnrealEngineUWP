@@ -200,19 +200,33 @@ namespace Horde.Server.Jobs
 			options.Claims.AddRange(User.Claims.Select(x => new AclClaimConfig(x)));
 			options.JobOptions ??= create.JobOptions;
 
-			// Find all the default parameters, and override any settings with the values in the request
-			template.GetDefaultParameters(options.Parameters, false);
-
-			if (create.Parameters != null)
+			if (create.Arguments != null && create.Arguments.Count > 0)
 			{
-				foreach ((ParameterId parameter, string value) in create.Parameters)
+				// Use the specific argument list specified in the request
+				options.Arguments.AddRange(create.Arguments);
+
+				// Make sure we're not trying to specify parameters as well
+				if (create.Parameters != null && create.Parameters.Count > 0)
 				{
-					options.Parameters[parameter] = value;
+					return BadRequest("Cannot specify argument list and parameter list at the same time.");
 				}
 			}
+			else
+			{
+				// Find all the default parameters, and override any settings with the values in the request
+				template.GetDefaultParameters(options.Parameters, false);
 
-			// Build the final arguments list from the combined parameter set
-			template.GetArgumentsForParameters(create.Arguments, options.Parameters, options.Arguments);
+				if (create.Parameters != null)
+				{
+					foreach ((ParameterId parameter, string value) in create.Parameters)
+					{
+						options.Parameters[parameter] = value;
+					}
+				}
+
+				// Build the final arguments list from the combined parameter set
+				template.GetArgumentsForParameters(options.Parameters, options.Arguments);
+			}
 
 			// Merge the environment variables
 			foreach ((string key, string value) in environment)

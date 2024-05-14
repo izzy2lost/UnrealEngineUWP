@@ -661,9 +661,9 @@ namespace Horde.Server.Jobs.Templates
 		/// <summary>
 		/// Gets the full argument list for a template
 		/// </summary>
-		public static void GetArgumentsForParameters(this ITemplate template, IReadOnlyList<string>? baseArguments, IReadOnlyDictionary<ParameterId, string> parameters, List<string> arguments)
+		public static void GetArgumentsForParameters(this ITemplate template, IReadOnlyDictionary<ParameterId, string> parameters, List<string> arguments)
 		{
-			arguments.AddRange(baseArguments ?? template.Arguments);
+			arguments.AddRange(template.Arguments);
 
 			foreach (Parameter parameter in template.Parameters)
 			{
