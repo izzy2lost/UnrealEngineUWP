@@ -60,7 +60,7 @@ protected:
 	bool bPrivateSpace = true;
 
 	/** Enable sparse adaptive page tables. This supports larger tile counts but adds an indirection cost when sampling the virtual texture. It is recommended only when very large virtual resolutions are necessary. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Layout, meta = (DisplayName = "Enable adaptive page table"))
+	UPROPERTY(EditAnywhere, Category = Layout, meta = (DisplayName = "Enable adaptive page table"))
 	bool bAdaptive = false;
 
 	/** Enable continuous update of the virtual texture pages. This round-robin updates already mapped pages and can help fix pages that are mapped before dependent textures are fully streamed in.  */

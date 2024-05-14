@@ -299,7 +299,9 @@ int32 URuntimeVirtualTexture::GetMaxTileCountLog2(bool InAdaptive)
 
 int32 URuntimeVirtualTexture::GetPageTableSize() const
 {
-	return 1 << GetPageTableTileCountLog2(FMath::Clamp(TileCount, 0, GetMaxTileCountLog2(bAdaptive)));
+	const int32 ClampedTileCountLog2 = FMath::Clamp(TileCount, 0, GetMaxTileCountLog2(bAdaptive));
+	const int32 PageTableSizeLog2 = bAdaptive ? GetPageTableTileCountLog2(ClampedTileCountLog2) : ClampedTileCountLog2;
+	return 1 << PageTableSizeLog2;
 }
 
 void URuntimeVirtualTexture::GetProducerDescription(FVTProducerDescription& OutDesc, FInitSettings const& InitSettings, FTransform const& VolumeToWorld) const
