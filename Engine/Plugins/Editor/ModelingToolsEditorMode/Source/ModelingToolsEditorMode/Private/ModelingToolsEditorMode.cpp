@@ -1669,8 +1669,6 @@ void UModelingToolsEditorMode::OnToolEnded(UInteractiveToolManager* Manager, UIn
 
 void UModelingToolsEditorMode::BindCommands()
 {
-	Super::BindCommands();
-
 	const FModelingToolsManagerCommands& ToolManagerCommands = FModelingToolsManagerCommands::Get();
 	const TSharedRef<FUICommandList>& CommandList = Toolkit->GetToolkitCommands();
 
@@ -1835,20 +1833,29 @@ void UModelingToolsEditorMode::FocusCameraAtCursorHotkey()
 }
 
 
-FBox UModelingToolsEditorMode::ComputeCustomViewportFocus() const
+bool UModelingToolsEditorMode::ComputeBoundingBoxForViewportFocus(AActor* Actor, UPrimitiveComponent* PrimitiveComponent, FBox& InOutBox) const
 {
-	// Modeling mode prefers a slightly farther-out focus
 	auto ProcessFocusBoxFunc = [](FBox& FocusBoxInOut)
 	{
 		double MaxDimension = FocusBoxInOut.GetExtent().GetMax();
+		double ExpandAmount = (MaxDimension > SMALL_NUMBER) ? (MaxDimension * 0.2) : 25;		// 25 is a bit arbitrary here...
 		FocusBoxInOut = FocusBoxInOut.ExpandBy(MaxDimension * 0.2);
 	};
 
-	FBox FocusBox = Super::ComputeCustomViewportFocus();
-	if (FocusBox.IsValid)
+	// if Tool supports custom Focus box, use that
+	if (GetToolManager()->HasAnyActiveTool())
 	{
-		ProcessFocusBoxFunc(FocusBox);
-		return FocusBox;
+		UInteractiveTool* Tool = GetToolManager()->GetActiveTool(EToolSide::Mouse);
+		IInteractiveToolCameraFocusAPI* FocusAPI = Cast<IInteractiveToolCameraFocusAPI>(Tool);
+		if (FocusAPI && FocusAPI->SupportsWorldSpaceFocusBox() )
+		{
+			InOutBox = FocusAPI->GetWorldSpaceFocusBox();
+			if (InOutBox.IsValid)
+			{
+				ProcessFocusBoxFunc(InOutBox);
+				return true;
+			}
+		}
 	}
 
 	// if we have an active Selection we can focus on that
@@ -1856,29 +1863,12 @@ FBox UModelingToolsEditorMode::ComputeCustomViewportFocus() const
 	{
 		UE::Geometry::FGeometrySelectionBounds SelectionBounds;
 		GetSelectionManager()->GetSelectionBounds(SelectionBounds);
-		FocusBox = (FBox)SelectionBounds.WorldBounds;
-		ProcessFocusBoxFunc(FocusBox);
-		return FocusBox;
-	}
-
-	// did not set a focus box, return a default (invalid) box
-	return FBox();
-}
-
-bool UModelingToolsEditorMode::HasCustomViewportFocus() const
-{
-	if (Super::HasCustomViewportFocus())
-	{
+		InOutBox = (FBox)SelectionBounds.WorldBounds;
+		ProcessFocusBoxFunc(InOutBox);
 		return true;
 	}
 
-	// if we have an active Selection we can focus on that
-	if (GetSelectionManager() && GetSelectionManager()->HasSelection())
-	{
-		return true;
-	}
-
-	// no mode-specific focus behavior
+	// fallback to base focus behavior
 	return false;
 }
 
