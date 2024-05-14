@@ -6,18 +6,29 @@
 #include "NNEOnnxruntime.h"
 #include "NNERuntimeFormat.h"
 #include "NNETypes.h"
+#include "Templates/UniquePtr.h"
 
 namespace UE::NNERuntimeORT::Private
 {
 
 	class FEnvironment;
 
-	namespace OrtHelper
-	{
-		TArray<uint32> GetShape(const Ort::Value& OrtTensor);
+namespace OrtHelper
+{
+	TArray<uint32> GetShape(const Ort::Value& OrtTensor);
+} // namespace OrtHelper
 
-		bool OptimizeModel(TSharedRef<FEnvironment> InEnvironment, FNNEModelRaw& Model, ENNEInferenceFormat OutFormat);
-	}
+	GraphOptimizationLevel GetGraphOptimizationLevelForCPU(bool bIsOnline, bool bIsCooking = false);
+
+	GraphOptimizationLevel GetGraphOptimizationLevelForDML(bool bIsOnline, bool bIsCooking = false);
+
+	TUniquePtr<Ort::SessionOptions> CreateSessionOptionsDefault(const TSharedRef<FEnvironment> &Environment);
+
+#if PLATFORM_WINDOWS
+	TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const TSharedRef<FEnvironment> &Environment);
+#endif // PLATFORM_WINDOWS
+
+	bool OptimizeModel(const TSharedRef<FEnvironment> &Environment, Ort::SessionOptions &SessionOptions, ENNEInferenceFormat TargetFormat, FNNEModelRaw& Model);
 
 	struct TypeInfoORT
 	{

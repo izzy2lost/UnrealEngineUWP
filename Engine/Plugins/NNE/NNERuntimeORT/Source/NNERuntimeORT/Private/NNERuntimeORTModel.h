@@ -18,13 +18,7 @@ namespace UE::NNERuntimeORT::Private
 
 struct FRuntimeConf
 {
-	bool bUseGlobalThreadPool = false;
-	int32 IntraOpNumThreads = 0;
-	int32 InterOpNumThreads = 0;
-
 	ExecutionMode ExecutionMode = ExecutionMode::ORT_SEQUENTIAL;
-
-	GraphOptimizationLevel OptimizationLevel = GraphOptimizationLevel::ORT_ENABLE_ALL;
 };
 
 template <class ModelInterface, class TensorBinding>

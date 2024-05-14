@@ -25,16 +25,6 @@ BEGIN_SHADER_PARAMETER_STRUCT(FORTModelInstanceRDGParameters, )
 	RDG_BUFFER_ACCESS_ARRAY(OutputBuffers)
 END_SHADER_PARAMETER_STRUCT()
 
-static int32 ORTProfilingSessionNumber = 0;
-static TAutoConsoleVariable<bool> CVarNNERuntimeORTEnableProfiling(
-	TEXT("nne.ort.enableprofiling"),
-	false,
-	TEXT("True if NNERuntimeORT plugin should create ORT sessions with profiling enabled.\n")
-	TEXT("When profiling is enabled ORT will create standard performance tracing json files next to the editor executable.\n")
-	TEXT("The files will be prefixed by 'NNERuntimeORTProfile_' and can be loaded for example using chrome://tracing.\n")
-	TEXT("More information can be found at https://onnxruntime.ai/docs/performance/tune-performance/profiling-tools.html\n"),
-	ECVF_Default);
-
 DECLARE_GPU_STAT_NAMED(FNNERuntimeORTDmlRDG, TEXT("FModelInstanceORTDmlRDG::EnqueueRDG"));
 
 namespace UE::NNERuntimeORT::Private
@@ -46,148 +36,15 @@ namespace Detail
 	FRuntimeConf MakeRuntimeConfigFromSettings(const UNNERuntimeORTSettings* Settings)
 	{
 		FRuntimeConf Result{};
-
 #if WITH_EDITOR
 			FThreadingOptions ThreadingOptions = Settings->EditorThreadingOptions;
 #else
 			FThreadingOptions ThreadingOptions = Settings->GameThreadingOptions;
 #endif
-
-		Result.bUseGlobalThreadPool = ThreadingOptions.bUseGlobalThreadPool;
-		Result.IntraOpNumThreads = ThreadingOptions.IntraOpNumThreads;
-		Result.InterOpNumThreads = ThreadingOptions.InterOpNumThreads;
 		Result.ExecutionMode = ThreadingOptions.ExecutionMode == EExecutionMode::SEQUENTIAL ? ExecutionMode::ORT_SEQUENTIAL : ExecutionMode::ORT_PARALLEL;
 
 		return Result;
 	}
-
-TUniquePtr<Ort::SessionOptions> CreateSessionOptionsDefault(const FRuntimeConf &RuntimeConf)
-{
-	TUniquePtr<Ort::SessionOptions> SessionOptions = MakeUnique<Ort::SessionOptions>();
-
-	// Configure Threading
-	if (RuntimeConf.bUseGlobalThreadPool)
-	{
-		SessionOptions->DisablePerSessionThreads();
-	}
-	else
-	{
-		SessionOptions->SetIntraOpNumThreads(RuntimeConf.IntraOpNumThreads);
-		SessionOptions->SetInterOpNumThreads(RuntimeConf.InterOpNumThreads);
-	}
-
-	SessionOptions->SetExecutionMode(RuntimeConf.ExecutionMode);
-
-	// Configure Graph optimization
-	SessionOptions->SetGraphOptimizationLevel(RuntimeConf.OptimizationLevel);
-
-
-	// Configure Profiling
-	if (CVarNNERuntimeORTEnableProfiling.GetValueOnGameThread())
-	{
-		FString ProfilingFilePrefix("NNERuntimeORTProfile_");
-		ProfilingFilePrefix += FString::FromInt(ORTProfilingSessionNumber);
-		++ORTProfilingSessionNumber;
-		#if PLATFORM_WINDOWS
-			SessionOptions->EnableProfiling(*ProfilingFilePrefix);
-		#else
-			SessionOptions->EnableProfiling(TCHAR_TO_ANSI(*ProfilingFilePrefix));
-		#endif
-	}
-
-	return SessionOptions;
-}
-
-#if PLATFORM_WINDOWS
-TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const FRuntimeConf &RuntimeConf)
-{
-	TUniquePtr<Ort::SessionOptions> SessionOptions = CreateSessionOptionsDefault(RuntimeConf);
-	if (!SessionOptions.IsValid())
-	{
-		return {};
-	}
-
-	// Configure for DirectML
-	SessionOptions->SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
-	SessionOptions->DisableMemPattern();
-
-	// In order to use DirectML we need D3D12
-	ID3D12DynamicRHI* RHI = nullptr;
-
-	if (!GDynamicRHI)
-	{
-		UE_LOG(LogNNE, Error, TEXT("Error:No RHI found, could not initialize"));
-		return {};
-	}
-
-	if (IsRHID3D12() )
-	{
-		RHI = GetID3D12DynamicRHI();
-	}
-	else
-	{
-		if (GDynamicRHI)
-		{
-			UE_LOG(LogNNE, Error, TEXT("Error:%s RHI is not supported by DirectML, please use D3D12."), GDynamicRHI->GetName());
-			return {};
-		}
-		else
-		{
-			UE_LOG(LogNNE, Error, TEXT("Error:No RHI found"));
-			return {};
-		}
-	}
-
-	check(RHI);
-
-	const int32 DeviceIndex = 0;
-	ID3D12Device* D3D12Device = RHI->RHIGetDevice(DeviceIndex);
-
-	if (!D3D12Device)
-	{
-		UE_LOG(LogNNE, Error, TEXT("Failed to get D3D12 Device from RHI for device index %d"), DeviceIndex);
-		return {};
-	}
-
-	DML_CREATE_DEVICE_FLAGS DmlCreateFlags = DML_CREATE_DEVICE_FLAG_NONE;
-
-	// Set debugging flags
-	if (GRHIGlobals.IsDebugLayerEnabled)
-	{
-		DmlCreateFlags |= DML_CREATE_DEVICE_FLAG_DEBUG;
-	}
-
-	IDMLDevice* DmlDevice = nullptr;
-	HRESULT Res = DMLCreateDevice(D3D12Device, DmlCreateFlags, DML_PPV_ARGS(&DmlDevice));
-
-	if (FAILED(Res) || !DmlDevice)
-	{
-		UE_LOG(LogNNE, Error, TEXT("Failed to create DirectML device, DMLCreateDevice error code :%x"), Res);
-		return {};
-	}
-
-	ID3D12CommandQueue* CmdQ = RHI->RHIGetCommandQueue();
-
-	const OrtDmlApi* DmlApi = nullptr;
-	Ort::ThrowOnError(Ort::GetApi().GetExecutionProviderApi("DML", ORT_API_VERSION, reinterpret_cast<const void**>(&DmlApi)));
-
-	if (!DmlApi)
-	{
-		UE_LOG(LogNNE, Error, TEXT("Ort DirectML Api not available!"));
-		return {};
-	}
-
-	OrtStatusPtr Status = DmlApi->SessionOptionsAppendExecutionProvider_DML1(*SessionOptions.Get(), DmlDevice, CmdQ);
-
-	if (Status)
-	{
-		UE_LOG(LogNNE, Error, TEXT("Failed to add DirectML execution provider to OnnxRuntime session options: %s"), ANSI_TO_TCHAR(Ort::GetApi().GetErrorMessage(Status)));
-		return {};
-	}
-
-	return SessionOptions;
-}
-#endif // PLATFORM_WINDOWS
 
 } // namespace Detail
 
@@ -508,12 +365,14 @@ bool FModelInstanceORTCpu::InitializedAndConfigureMembers()
 		return false;
 	}
 
-	SessionOptions = Detail::CreateSessionOptionsDefault(RuntimeConf);
+	SessionOptions = CreateSessionOptionsDefault(Environment);
 	if (!SessionOptions.IsValid())
 	{
 		return false;
 	}
 
+	SessionOptions->SetExecutionMode(RuntimeConf.ExecutionMode);
+	SessionOptions->SetGraphOptimizationLevel(GetGraphOptimizationLevelForCPU(true));
 	SessionOptions->EnableCpuMemArena();
 
 	return true;
@@ -549,11 +408,13 @@ bool FModelInstanceORTDmlGPU::InitializedAndConfigureMembers()
 		return false;
 	}
 
-	SessionOptions = Detail::CreateSessionOptionsForDirectML(RuntimeConf);
+	SessionOptions = CreateSessionOptionsForDirectML(Environment);
 	if (!SessionOptions.IsValid())
 	{
 		return false;
 	}
+
+	SessionOptions->SetGraphOptimizationLevel(GetGraphOptimizationLevelForDML(true));
 
 	return true;
 }
@@ -598,12 +459,14 @@ bool FModelInstanceORTDmlRDG::Init()
 	{
 		Allocator = MakeUnique<Ort::AllocatorWithDefaultOptions>();
 
-		SessionOptions = Detail::CreateSessionOptionsForDirectML(RuntimeConf);
+		SessionOptions = CreateSessionOptionsForDirectML(Environment);
 		if (!SessionOptions.IsValid())
 		{
 			UE_LOG(LogNNE, Error, TEXT("FModelInstanceORTDmlRDG::Init(): Failed to configure session options for DirectML Execution Provider."));
 			return false;
 		}
+		
+		SessionOptions->SetGraphOptimizationLevel(GetGraphOptimizationLevelForDML(true));
 
 		Session = MakeUnique<Ort::Session>(Environment->GetOrtEnv(), ModelBuffer.GetData(), ModelBuffer.Num(), *SessionOptions);
 
@@ -763,12 +626,14 @@ FModelInstanceORTDmlRDG::ESetInputTensorShapesStatus FModelInstanceORTDmlRDG::Se
 	}
 
 	// Recreate session options because potentially we add new free dimension overrides
-	SessionOptions = Detail::CreateSessionOptionsForDirectML(RuntimeConf);
+	SessionOptions = CreateSessionOptionsForDirectML(Environment);
 	if (!SessionOptions.IsValid())
 	{
 		UE_LOG(LogNNE, Error, TEXT("Failed to recreate session options!"));
 		return ESetInputTensorShapesStatus::Fail;
 	}
+
+	SessionOptions->SetGraphOptimizationLevel(GetGraphOptimizationLevelForDML(true));
 
 	// Setup concrete input tensors
 	for (int32 i = 0; i < InputSymbolicTensors.Num(); i++)

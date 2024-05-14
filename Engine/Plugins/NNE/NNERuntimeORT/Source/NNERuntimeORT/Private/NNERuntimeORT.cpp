@@ -31,6 +31,8 @@ UNNERuntimeORTCpu::ECanCreateModelDataStatus UNNERuntimeORTCpu::CanCreateModelDa
 
 TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTCpu::CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
 {
+	using namespace UE::NNERuntimeORT::Private;
+
 	if (CanCreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform) != ECanCreateModelDataStatus::Ok)
 	{
 		UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeORTCpu cannot create the model data with id %s (Filetype: %s)"), *FileId.ToString(EGuidFormats::Digits).ToLower(), *FileType);
@@ -38,9 +40,16 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTCpu::CreateModelData(const F
 	}
 
 	FNNEModelRaw InputModel{TArray<uint8>{FileData}, ENNEInferenceFormat::ONNX};
-	if (!UE::NNERuntimeORT::Private::OrtHelper::OptimizeModel(Environment.ToSharedRef(), InputModel, ENNEInferenceFormat::ORT))
+	if (GraphOptimizationLevel OptimizationLevel = GetGraphOptimizationLevelForCPU(false, IsRunningCookCommandlet()); OptimizationLevel > GraphOptimizationLevel::ORT_DISABLE_ALL)
 	{
-		return {};
+		TUniquePtr<Ort::SessionOptions> SessionOptions = CreateSessionOptionsDefault(Environment.ToSharedRef());
+		SessionOptions->SetGraphOptimizationLevel(OptimizationLevel);
+		SessionOptions->EnableCpuMemArena();
+
+		if (!OptimizeModel(Environment.ToSharedRef(), *SessionOptions, ENNEInferenceFormat::ONNX, InputModel))
+		{
+			return {};
+		}
 	}
 
 	TArray<uint8> Result;
@@ -142,6 +151,8 @@ UNNERuntimeORTDml::ECanCreateModelDataStatus UNNERuntimeORTDml::CanCreateModelDa
 
 TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTDml::CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
 {
+	using namespace UE::NNERuntimeORT::Private;
+
 	if (CanCreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform) != ECanCreateModelDataStatus::Ok)
 	{
 		UE_LOG(LogNNE, Warning, TEXT("NNERuntimeORTDmlImpl cannot create the model data with id %s (Filetype: %s)"), *FileId.ToString(EGuidFormats::Digits).ToLower(), *FileType);
@@ -149,9 +160,17 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeORTDml::CreateModelData(const F
 	}
 
 	FNNEModelRaw InputModel{TArray<uint8>{FileData}, ENNEInferenceFormat::ONNX};
-	if (!UE::NNERuntimeORT::Private::OrtHelper::OptimizeModel(Environment.ToSharedRef(), InputModel, ENNEInferenceFormat::ONNX))
+	if (GraphOptimizationLevel OptimizationLevel = GetGraphOptimizationLevelForDML(false, IsRunningCookCommandlet()); OptimizationLevel > GraphOptimizationLevel::ORT_DISABLE_ALL)
 	{
-		return {};
+		TUniquePtr<Ort::SessionOptions> SessionOptions = CreateSessionOptionsDefault(Environment.ToSharedRef());
+		SessionOptions->SetGraphOptimizationLevel(OptimizationLevel);
+		SessionOptions->SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
+		SessionOptions->DisableMemPattern();
+		
+		if (!OptimizeModel(Environment.ToSharedRef(), *SessionOptions, ENNEInferenceFormat::ONNX, InputModel))
+		{
+			return {};
+		}
 	}
 
 	TArray<uint8> Result;
