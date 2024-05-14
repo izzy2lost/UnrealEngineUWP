@@ -206,7 +206,10 @@ static void InternalAddClusteredDeferredShadingPass(
 
 	// VS - Substrate tile parameters
 	EPrimitiveType PrimitiveType = PT_TriangleList;
-	PassParameters->SubstrateTile = Substrate::SetTileParameters(GraphBuilder, View, TileType, PrimitiveType);
+	if (Substrate::IsSubstrateEnabled())
+	{
+		PassParameters->SubstrateTile = Substrate::SetTileParameters(GraphBuilder, View, TileType, PrimitiveType);
+	}
 	
 	const TCHAR* TileTypeName = ToString(TileType);
 	GraphBuilder.AddPass(
