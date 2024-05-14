@@ -77,6 +77,7 @@ private:
 	EColumnSortMode::Type GetColumnSortMode(const FName ColumnId) const;
 	FText GetTotalTimeLabel() const;
 	FText GetTotalWallTimeLabel() const;
+	FText GetTotalDataSizeInMB() const;
 
 	FReply OnListViewKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) const;
 	void CopySelectionToClipboard() const;
@@ -111,6 +112,7 @@ private:
 
 	double TotalTime = 0.0;
 	double TotalWallTime = 0.0;
+	double TotalDataSizeInMB = 0.0;
 
 	bool bNeedsRefresh = false;
 

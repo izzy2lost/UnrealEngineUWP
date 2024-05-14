@@ -30,6 +30,7 @@ namespace PCGUtils
 
 		int32 ExecutionFrameCount = 0;
 		int32 PrepareDataFrameCount = 0;
+		uint64 OutputDataMemorySize = 0;
 
 		double PrepareDataWallTime() const { return PrepareDataEndTime - PrepareDataStartTime; }
 		double ExecutionWallTime() const { return ExecutionEndTime - ExecutionStartTime; }

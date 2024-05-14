@@ -5,6 +5,7 @@
 #include "PCGComponent.h"
 #include "PCGContext.h"
 #include "PCGGraph.h"
+#include "PCGInputOutputSettings.h"
 #include "PCGSubgraph.h"
 #include "Graph/PCGGraphCompiler.h"
 #include "Graph/PCGGraphExecutor.h"
@@ -58,6 +59,44 @@ void PCGUtils::FExtraCapture::Update(const PCGUtils::FScopedCall& InScopedCall)
 		break;
 	case EPCGExecutionPhase::PostExecute:
 		Timer.PostExecuteTime = ThisFrameTime;
+
+		if (InScopedCall.Context->GetInputSettings<UPCGGraphInputOutputSettings>())
+		{
+			// Ignore input/output nodes as they don't create any data and could count towards memory costs this way (not in totals, but locally).
+		}
+		else
+		{
+			ensure(Timer.OutputDataMemorySize == 0);
+			// Count memory here
+			// FIXME / TODO: This is sensitive to representation of data. If/when we change data representation to separate data from metadata, this might not report memory accurately
+			auto VisitAllData = [](const FPCGDataCollection& InCollection, TSet<const UPCGData*>& OutData)
+			{
+				for (const FPCGTaggedData& Data : InCollection.TaggedData)
+				{
+					if (Data.Data)
+					{
+						Data.Data->VisitDataNetwork([&OutData](const UPCGData* VisitedData) { OutData.Add(VisitedData); });
+					}
+				}
+			};
+
+			TSet<const UPCGData*> InputData;
+			TSet<const UPCGData*> OutputData;
+			VisitAllData(InScopedCall.Context->InputData, InputData);
+			VisitAllData(InScopedCall.Context->OutputData, OutputData);
+
+			TSet<const UPCGData*> NewData = OutputData.Difference(InputData);
+
+			Timer.OutputDataMemorySize = 0;
+			for (const UPCGData* Data : NewData)
+			{
+				FResourceSizeEx ResSize = FResourceSizeEx(EResourceSizeMode::Exclusive);
+				const_cast<UPCGData*>(Data)->GetResourceSizeEx(ResSize);
+				const SIZE_T DataSize = ResSize.GetDedicatedSystemMemoryBytes();
+				Timer.OutputDataMemorySize += DataSize;
+			}
+		}
+
 		break;
 	}
 
@@ -80,6 +119,11 @@ namespace PCGUtils
 			Info.Name = FName::NameToDisplayString((*Subgraph)->GetName(), /*bIsBool=*/false);
 		}
 
+		if (!Info.Children.IsEmpty())
+		{
+			Info.CallTime.OutputDataMemorySize = 0;
+		}
+
 		for (FCallTreeInfo& Child : Info.Children)
 		{
 			BuildTreeInfo(Child, SubgraphNodeToGraphMap);
@@ -95,6 +139,8 @@ namespace PCGUtils
 
 			Info.CallTime.MinExecutionFrameTime = FMath::Min(Info.CallTime.MinExecutionFrameTime, Child.CallTime.MinExecutionFrameTime);
 			Info.CallTime.MaxExecutionFrameTime = FMath::Max(Info.CallTime.MaxExecutionFrameTime, Child.CallTime.MaxExecutionFrameTime);
+
+			Info.CallTime.OutputDataMemorySize += Child.CallTime.OutputDataMemorySize;
 		}
 	}
 }

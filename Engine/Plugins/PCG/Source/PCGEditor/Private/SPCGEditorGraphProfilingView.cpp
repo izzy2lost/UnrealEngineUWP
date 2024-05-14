@@ -36,6 +36,7 @@ namespace PCGEditorGraphProfilingView
 	const FName NAME_NbExecutionFrames = FName(TEXT("NbExecutionFrames"));
 	const FName NAME_TotalTime = FName(TEXT("TotalTime"));
 	const FName NAME_TotalWallTime = FName(TEXT("Total_WallTime"));
+	const FName NAME_MemoryInMB = FName(TEXT("Data size (MB)"));
 
 	/** Labels of the columns */
 	const FText TEXT_NodeLabel = LOCTEXT("NodeLabel", "Node");
@@ -49,6 +50,7 @@ namespace PCGEditorGraphProfilingView
 	const FText TEXT_NbExecutionFramesLabel = LOCTEXT("NbExecutionFramesLabel", "Exec Frames");
 	const FText TEXT_TotalTimeLabel = LOCTEXT("TotalTimeLabel", "Total");
 	const FText TEXT_TotalWallTimeLabel = LOCTEXT("TotalWallTimeLabel", "Total WallTime");
+	const FText TEXT_MemoryInMBLabel = LOCTEXT("MemoryInMBLabel", "Data size (MB)");
 
 	/** Tooltips */
 	const FText TEXT_PrepareDataTimeTooltip = LOCTEXT("PrepareDataTimeTooltip", "Cost of the PrepareData execution phase which some nodes use to process the incoming data, in ms.");
@@ -61,6 +63,7 @@ namespace PCGEditorGraphProfilingView
 	const FText TEXT_NbExecutionFramesTooltip = LOCTEXT("NbExecutionFramesTooltip", "The number of frames in which one or more execution phases were executed.");
 	const FText TEXT_TotalTimeTooltip = LOCTEXT("TotalTimeTooltip", "The total time spent in this node, summed over all execution and prepare data frames, in ms.");
 	const FText TEXT_TotalWallTimeTooltip = LOCTEXT("TotalWallTimeTooltip", "Total real time elapsed between the first call until completion, including any wait/sleep time, in ms.");
+	const FText TEXT_MemoryInMBTooltip = LOCTEXT("MemoryInMBTooltip", "Size in MB of newly created data.");
 }
 
 void SPCGProfilingListViewItemRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, const PCGProfilingListViewItemPtr& Item)
@@ -139,6 +142,11 @@ FText FPCGProfilingListViewItem::GetTextForColumn(FName ColumnId, bool bNoGroupi
 	{
 		// In ms
 		return FText::AsNumber((CallTime.TotalWallTime()) * 1000.0, NumberFormattingOptions);
+	}
+	else if (ColumnId == PCGEditorGraphProfilingView::NAME_MemoryInMB)
+	{
+		// In MB
+		return FText::AsNumber(CallTime.OutputDataMemorySize / (1024.0 * 1024.0), NumberFormattingOptions);
 	}
 	else
 	{
@@ -306,6 +314,22 @@ void SPCGEditorGraphProfilingView::Construct(const FArguments& InArgs, TSharedPt
 				.Text(this, &SPCGEditorGraphProfilingView::GetTotalWallTimeLabel)
 				.MinDesiredWidth(50.0f)
 			]
+			+SHorizontalBox::Slot()
+			.Padding(FMargin(30.0f, 0.0f, 2.0f, 0.0f))
+			.VAlign(EVerticalAlignment::VAlign_Center)
+			.AutoWidth()
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("TotalMemoryInM", "Total data size (MB):"))
+			]
+			+SHorizontalBox::Slot()
+			.VAlign(EVerticalAlignment::VAlign_Center)
+			.AutoWidth()
+			[
+				SNew(STextBlock)
+				.Text(this, &SPCGEditorGraphProfilingView::GetTotalDataSizeInMB)
+				.MinDesiredWidth(50.0f)
+			]
 		]
 		+SVerticalBox::Slot()
 		.FillHeight(1.0f)
@@ -454,7 +478,16 @@ TSharedRef<SHeaderRow> SPCGEditorGraphProfilingView::CreateHeaderRowWidget()
 		.SortMode(this, &SPCGEditorGraphProfilingView::GetColumnSortMode, PCGEditorGraphProfilingView::NAME_TotalWallTime)
 		.OnSort(this, &SPCGEditorGraphProfilingView::OnSortColumnHeader)
 		.InitialSortMode(EColumnSortMode::Descending)
-		.DefaultTooltip(PCGEditorGraphProfilingView::TEXT_TotalWallTimeTooltip);
+		.DefaultTooltip(PCGEditorGraphProfilingView::TEXT_TotalWallTimeTooltip)
+		+ SHeaderRow::Column(PCGEditorGraphProfilingView::NAME_MemoryInMB)
+		.ManualWidth(100.0f)
+		.DefaultLabel(PCGEditorGraphProfilingView::TEXT_MemoryInMBLabel)
+		.HAlignHeader(HAlign_Center)
+		.HAlignCell(HAlign_Right)
+		.SortMode(this, &SPCGEditorGraphProfilingView::GetColumnSortMode, PCGEditorGraphProfilingView::NAME_MemoryInMB)
+		.OnSort(this, &SPCGEditorGraphProfilingView::OnSortColumnHeader)
+		.InitialSortMode(EColumnSortMode::Descending)
+		.DefaultTooltip(PCGEditorGraphProfilingView::TEXT_MemoryInMBTooltip);
 }
 
 FText SPCGEditorGraphProfilingView::GetTotalTimeLabel() const
@@ -465,6 +498,11 @@ FText SPCGEditorGraphProfilingView::GetTotalTimeLabel() const
 FText SPCGEditorGraphProfilingView::GetTotalWallTimeLabel() const
 {
 	return FText::Format(LOCTEXT("GraphTotalWallTimeLabel", "{0} s"), TotalWallTime);
+}
+
+FText SPCGEditorGraphProfilingView::GetTotalDataSizeInMB() const
+{
+	return FText::Format(LOCTEXT("GraphTotalDataSizeInMBLabel", "{0} MB"), TotalDataSizeInMB);
 }
 
 void SPCGEditorGraphProfilingView::OnSortColumnHeader(const EColumnSortPriority::Type SortPriority, const FName& ColumnId, const EColumnSortMode::Type NewSortMode)
@@ -636,6 +674,7 @@ FReply SPCGEditorGraphProfilingView::Refresh()
 {
 	TotalTime = 0;
 	TotalWallTime = 0;
+	TotalDataSizeInMB = 0;
 
 	ListViewItems.Empty();
 	ListView->RequestListRefresh();
@@ -674,6 +713,7 @@ FReply SPCGEditorGraphProfilingView::Refresh()
 	{
 		TotalTime = TreeInfo.CallTime.TotalTime();
 		TotalWallTime = TreeInfo.CallTime.TotalWallTime();
+		TotalDataSizeInMB = TreeInfo.CallTime.OutputDataMemorySize / (1024.0 * 1024.0);
 	}
 
 	//TODO: could turn this into a tree instead of expanding into a list
@@ -727,6 +767,10 @@ FReply SPCGEditorGraphProfilingView::Refresh()
 				else if (SortingColumn == PCGEditorGraphProfilingView::NAME_TotalWallTime)
 				{
 					isLess = A->CallTime.TotalWallTime() < B->CallTime.TotalWallTime();
+				}
+				else if (SortingColumn == PCGEditorGraphProfilingView::NAME_MemoryInMB)
+				{
+					isLess = A->CallTime.OutputDataMemorySize < B->CallTime.OutputDataMemorySize;
 				}
 
 				return SortMode == EColumnSortMode::Ascending ? isLess : !isLess;
