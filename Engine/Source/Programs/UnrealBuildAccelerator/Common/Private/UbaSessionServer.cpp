@@ -841,13 +841,13 @@ namespace uba
 						bool writeCompressed = m_storeObjFilesCompressed && destination.EndsWith(TC(".obj"));
 						success = m_storage.CopyOrLink(casKey, destination.data, attributes, writeCompressed);
 						if (!success)
-							m_logger.Error(TC("Failed to copy cas from %s to %s"), CasKeyString(casKey).str, destination.data);
+							m_logger.Error(TC("Failed to copy cas from %s to %s (%s)"), CasKeyString(casKey).str, destination.data, GetProcessDescription(processId).c_str());
 					}
 					else
 					{
 						success = m_storage.FakeCopy(casKey, destination.data);
 						if (!success)
-							m_logger.Error(TC("Failed to fake copy cas from %s to %s"), CasKeyString(casKey).str, destination.data);
+							m_logger.Error(TC("Failed to fake copy cas from %s to %s (%s)"), CasKeyString(casKey).str, destination.data, GetProcessDescription(processId).c_str());
 						SCOPED_WRITE_LOCK(m_receivedFilesLock, lock);
 						m_receivedFiles.try_emplace(destinationKey, casKey);
 					}
@@ -1686,6 +1686,16 @@ namespace uba
 		ProcessHandle h(findIt->second);
 		m_processes.erase(findIt);
 		return h;
+	}
+
+	TString SessionServer::GetProcessDescription(u32 processId)
+	{
+		StringBuffer<512> str;
+		SCOPED_READ_LOCK(m_processesLock, lock);
+		auto findIt = m_processes.find(processId);
+		if (findIt == m_processes.end())
+			return str.Appendf(TC("<Process with id %u not found>"), processId).data;
+		return str.Appendf(TC("%s"), findIt->second.GetStartInfo().description).data;
 	}
 
 	bool SessionServer::PrepareProcess(const ProcessStartInfo& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir)

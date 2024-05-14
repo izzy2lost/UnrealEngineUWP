@@ -80,6 +80,8 @@ namespace uba
 		void OnCancelled(RemoteProcess* process);
 		ProcessHandle ProcessRemoved(u32 processId);
 
+		TString GetProcessDescription(u32 processId);
+
 		virtual bool PrepareProcess(const ProcessStartInfo& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir) override final;
 		virtual bool CreateFile(CreateFileResponse& out, const CreateFileMessage& msg) override final;
 		virtual void FileEntryAdded(StringKey fileNameKey, u64 lastWritten, u64 size) override final;
