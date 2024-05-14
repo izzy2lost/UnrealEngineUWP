@@ -2,18 +2,17 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "UObject/NoExportTypes.h"
 #include "DMXProtocolTypes.h"
 #include "DMXTypes.h"
 #include "IO/DMXInputPortReference.h"
 #include "IO/DMXOutputPortReference.h"
 #include "Library/DMXEntityReference.h"
-#include "Library/DMXEntityFixtureType.h"
 #include "Subsystems/EngineSubsystem.h"
+
 #include "DMXSubsystem.generated.h"
 
 class IDMXProtocol;
+class UDMXEntityFixtureType;
 class UDMXEntityFixturePatch;
 class UDMXLibrary;
 class UDMXModulator;
@@ -36,10 +35,12 @@ class DMXRUNTIME_API UDMXSubsystem
 public:
 	/**  Send DMX using function names and integer values. */
 	UFUNCTION(BlueprintCallable, Category = "DMX", meta = (DeprecatedFunction, DeprecationMessage = "Deprecated 4.27. Use DMXEntityFixurePatch::SendDMX instead"))
+	UE_DEPRECATED(5.5, "Use UDMXEntityFixurePatch::SendDMX instead.")
 	void SendDMX(UDMXEntityFixturePatch* FixturePatch, TMap<FDMXAttributeName, int32> AttributeMap, EDMXSendResult& OutResult);
 
 	/**  DEPRECATED 4.27 */
 	UFUNCTION(BlueprintCallable, Category = "DMX", meta = (DeprecatedFunction, DeprecationMessage = "Deprecated 4.27. Use SendDMXToOutputPort instead."))
+	UE_DEPRECATED(5.5, "Use UDMXSubsystem::SendDMXToOutputPort instead.")
 	void SendDMXRaw(FDMXProtocolName SelectedProtocol, int32 RemoteUniverse, TMap<int32, uint8> AddressValueMap, EDMXSendResult& OutResult);
 
 	/**  Sends DMX Values over the Output Port */
@@ -48,14 +49,15 @@ public:
 
 	/**  DEPRECATED 4.27 */
 	UFUNCTION(BlueprintCallable, Category = "DMX", meta = (DeprecatedFunction, DeprecationMessage = "Deprecated 4.27. Use GetDMXDataFromInputPort or GetDMXDataFromOutputPort instead."))
+	UE_DEPRECATED(5.5, "Use UDMXSubsystem::GetDMXDataFromInputPort or GetDMXDataFromOutputPort instead.")
 	void GetRawBuffer(FDMXProtocolName SelectedProtocol, int32 RemoteUniverse, TArray<uint8>& DMXBuffer);
 	
 	/**  Gets accumulated latest DMX Values from the Input Port (all that's been received since Begin Play) */
-	UFUNCTION(BlueprintCallable, Category = "DMX")
+	UFUNCTION(BlueprintCallable, Category = "DMX", Meta = (DisplayName = "Get DMX Data From Input Port"))
 	static void GetDMXDataFromInputPort(FDMXInputPortReference InputPortReference, TArray<uint8>& DMXData, int32 LocalUniverse = 1);
 	
 	/**  Gets accumulated latest DMX Values from the Output Port  (all that's been sent since Begin Play)*/
-	UFUNCTION(BlueprintCallable, Category = "DMX")
+	UFUNCTION(BlueprintCallable, Category = "DMX", Meta = (DisplayName = "Get DMX Data From Output Port"))
 	static void GetDMXDataFromOutputPort(FDMXOutputPortReference OutputPortReference, TArray<uint8>& DMXData, int32 LocalUniverse = 1);
 
 	/**  Return reference to array of Fixture Patch objects of a given type. */
@@ -96,19 +98,29 @@ public:
 
 	/**  DEPRECATED 4.27 */
 	UFUNCTION(BlueprintCallable, Category = "DMX", meta = (DeprecatedFunction, DeprecationMessage = "Deprecated 4.27. Controllers are removed in favor of Ports."))
+	UE_DEPRECATED(5.5, "Controllers are removed in favor of Ports.")
 	void GetAllUniversesInController(const UDMXLibrary* DMXLibrary, FString ControllerName, TArray<int32>& OutResult);
 
 	/**  DEPRECATED 4.27 */
 	UFUNCTION(BlueprintCallable, Category = "DMX", meta = (DeprecatedFunction, DeprecationMessage = "Deprecated 4.27. Controllers are removed in favor of Ports."))
+	UE_DEPRECATED(5.5, "Controllers are removed in favor of Ports.")
 	TArray<UDMXEntityController*> GetAllControllersInLibrary(const UDMXLibrary* DMXLibrary);
 
 	/**  DEPRECATED 4.27 */
 	UFUNCTION(BlueprintCallable, Category = "DMX", meta = (AutoCreateRefTerm = "Name"), meta = (DeprecatedFunction, DeprecationMessage = "Deprecated 4.27. Controllers are removed in favor of Ports."))
+	UE_DEPRECATED(5.5, "Controllers are removed in favor of Ports.")
 	UDMXEntityController* GetControllerByName(const UDMXLibrary* DMXLibrary, const FString& Name);
 
-	/**  Return reference to array of DMX Library objects. */
+	UE_DEPRECATED(5.5, "Renamed to UDMXSubsystem::LoadAllDMXLibrariesSynchronous. See also UDMXSubsystem::GetDMXLibraries to get soft object ptrs for all DMX Libraries.")
+	TArray<UDMXLibrary*> GetAllDMXLibraries();
+
+	/**  Loads all DMX Libraries in this project synchronous. */
+	UFUNCTION(BlueprintCallable, Category = "DMX", Meta = (DisplayName = "Load DMX Libraries Synchronous"))
+	TArray<UDMXLibrary*> LoadDMXLibrariesSynchronous() const;
+
+	/**  Returns a Soft Object Ptr to all DMX Library in the project. */
 	UFUNCTION(BlueprintCallable, Category = "DMX")
-	const TArray<UDMXLibrary*>& GetAllDMXLibraries();
+	TArray<TSoftObjectPtr<UDMXLibrary>> GetDMXLibraries() const;
 
 	/**
 	 * Return integer given an array of bytes. Up to the first 4 bytes in the array will be used for the conversion.
@@ -280,41 +292,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DMX")
 	void PixelMappingDistributionSort(EDMXPixelMappingDistribution InDistribution, int32 InNumXPanels, int32 InNumYPanels, const TArray<int32>& InUnorderedList, TArray<int32>& OutSortedList);
 
-public:
-	//~ USubsystem interface begin
-	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
-	//~ USubsystem interface end
-
-private:
-	/**
-	 * Stores DelegateHandles for each Protocol's UniverseInputUpdate event.
-	 * That way we can unbind them when this subsystem is being destroyed and prevent crashes.
-	 */
-	TMap<FName, FDelegateHandle> UniverseInputBufferUpdatedHandles;
-
-public:
-	/** Delegate broadcast when all dmx library assets were loaded */
-	FSimpleMulticastDelegate OnAllDMXLibraryAssetsLoaded;
+	public:
+		/** Delegate broadcast when all dmx library assets were loaded */
+		UE_DEPRECATED(5.5, "DMX Libraries are no longer loaded by default and this delegate is no longer raised. Instead please use UDMXSubsystem::GetDMXLibraries or UDMXSubsystem::LoadDMXLibrariesSynchronous.")
+		FSimpleMulticastDelegate OnAllDMXLibraryAssetsLoaded;
 
 #if WITH_EDITOR
-	/** Delegate broadcast when a dmx library asset was added */
-	FDMXOnDMXLibraryAssetDelegate OnDMXLibraryAssetAdded;
+		/** Delegate broadcast when a dmx library asset was added */
+		UE_DEPRECATED(5.5, "DMX Libraries are no longer loaded by default and this delegate is no longer raised. Instead please refer to the asset subsystem directly. See IAssetRegistry::OnAssetAdded.")
+		FDMXOnDMXLibraryAssetDelegate OnDMXLibraryAssetAdded;
 
-	/** Delegate broadcast when a dmx library asset was removed */
-	FDMXOnDMXLibraryAssetDelegate OnDMXLibraryAssetRemoved;
-
-private:
-	/** Called when asset registry added an asset */
-	UFUNCTION()
-	void OnAssetRegistryAddedAsset(const FAssetData& Asset);
-
-	/** Called when asset registry removed an asset */
-	UFUNCTION()
-	void OnAssetRegistryRemovedAsset(const FAssetData& Asset);
-#endif 
-
-private:
-	/** Strongly references all libraries at all times */
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UDMXLibrary>> LoadedDMXLibraries;
+		/** Delegate broadcast when a dmx library asset was removed */
+		UE_DEPRECATED(5.5, "DMX Libraries are no longer loaded by default and this delegate is no longer raised. Instead please refer to the asset subsystem directly. See IAssetRegistry::OnAssetRemoved.")
+		FDMXOnDMXLibraryAssetDelegate OnDMXLibraryAssetRemoved;
+#endif // WITH_EDITOR
 };

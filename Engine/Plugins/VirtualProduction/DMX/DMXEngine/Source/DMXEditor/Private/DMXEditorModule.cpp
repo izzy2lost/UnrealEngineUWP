@@ -393,7 +393,7 @@ TSharedRef<SDockTab> FDMXEditorModule::OnSpawnPatchToolTab(const FSpawnTabArgs& 
 		.Label(LOCTEXT("PatchToolTitle", "DMX Patch Tool"))
 		.TabRole(ETabRole::NomadTab)
 		[
-			SNew(SDMXPatchTool)
+			SNew(UE::DMX::SDMXPatchTool)
 		];
 }
 

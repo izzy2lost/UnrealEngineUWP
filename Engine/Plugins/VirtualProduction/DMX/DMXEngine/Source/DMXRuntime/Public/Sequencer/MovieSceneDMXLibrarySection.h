@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "DMXProtocolCommon.h"
 #include "MovieSceneSection.h"
 #include "Channels/MovieSceneFloatChannel.h"
@@ -13,20 +12,14 @@
 enum class EDMXFixtureSignalFormat : uint8;
 class UDMXEntityFixturePatch;
 
-
 USTRUCT()
 struct FDMXFixtureFunctionChannel
 {
 	GENERATED_BODY()
 
-	FDMXFixtureFunctionChannel()
-		: CellCoordinate(FIntPoint(-1, -1))
-		, DefaultValue(0)
-		, bEnabled(true)
-	{}
-
 	/** Attribute Name of the function */
-	FName AttributeName;
+	UPROPERTY()
+	FName AttributeName = NAME_None;
 
 	/** Function animation curve. */
 	UPROPERTY()
@@ -36,18 +29,19 @@ struct FDMXFixtureFunctionChannel
 	 * For Cell Functions the coordinate of the cell
 	 * For common functions -1.
 	 */
-	FIntPoint CellCoordinate;
+	UPROPERTY()
+	FIntPoint CellCoordinate = FIntPoint(-1, -1);
 
 	/** Default value to use when this Function is disabled in the track. */
 	UPROPERTY()
-	uint32 DefaultValue;
+	uint32 DefaultValue = 0;
 
 	/**
 	 * Whether or not to display this Function in the Patch's group
 	 * If false, the Function's default value is sent to DMX protocols.
 	 */
 	UPROPERTY()
-	bool bEnabled;
+	bool bEnabled = true;
 
 	/** True if the function is a cell function */
 	bool IsCellFunction() const { return CellCoordinate.X != -1 && CellCoordinate.Y != -1; }
@@ -57,11 +51,6 @@ USTRUCT()
 struct FDMXFixturePatchChannel
 {
 	GENERATED_BODY()
-
-	FDMXFixturePatchChannel()
-		: DMXLibrary(nullptr)
-		, ActiveMode(INDEX_NONE)
-	{}
 
 	/** The outer library of the channel */
 	UPROPERTY()
@@ -80,7 +69,7 @@ struct FDMXFixturePatchChannel
 	 * simply by the user changing the active mode in the DMX Library.
 	 */
 	UPROPERTY()
-	int32 ActiveMode;
+	int32 ActiveMode = INDEX_NONE;
 
 	void SetFixturePatch(UDMXEntityFixturePatch* InPatch);
 

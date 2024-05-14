@@ -2,7 +2,6 @@
 
 #include "DMXSubsystem.h"
 
-
 #include "AssetRegistry/AssetData.h"
 #include "Async/Async.h"
 #include "DMXAttribute.h"
@@ -16,16 +15,16 @@
 #include "EngineAnalytics.h"
 #include "EngineUtils.h"
 #include "Interfaces/IDMXProtocol.h"
-#include "IO/DMXTrace.h"
-#include "IO/DMXPortManager.h"
 #include "IO/DMXInputPort.h"
 #include "IO/DMXOutputPort.h"
-#include "Library/DMXLibrary.h"
-#include "Library/DMXEntityReference.h"
+#include "IO/DMXPortManager.h"
+#include "IO/DMXTrace.h"
 #include "Library/DMXEntity.h"
 #include "Library/DMXEntityController.h"
-#include "Library/DMXEntityFixtureType.h"
 #include "Library/DMXEntityFixturePatch.h"
+#include "Library/DMXEntityFixtureType.h"
+#include "Library/DMXEntityReference.h"
+#include "Library/DMXLibrary.h"
 #include "UObject/UObjectIterator.h"
 
 #if WITH_EDITOR
@@ -119,7 +118,6 @@ namespace
 	}
 #endif // WITH_EDITOR
 }
-
 
 void UDMXSubsystem::SendDMX(UDMXEntityFixturePatch* FixturePatch, TMap<FDMXAttributeName, int32> AttributeMap, EDMXSendResult& OutResult)
 {
@@ -658,9 +656,51 @@ UDMXEntityController* UDMXSubsystem::GetControllerByName(const UDMXLibrary* DMXL
 	return nullptr;
 }
 
-const TArray<UDMXLibrary*>& UDMXSubsystem::GetAllDMXLibraries()
+TArray<UDMXLibrary*> UDMXSubsystem::GetAllDMXLibraries()
 {
-	return LoadedDMXLibraries;
+	// DEPRECATED 5.5
+	return LoadDMXLibrariesSynchronous();
+}
+
+TArray<UDMXLibrary*> UDMXSubsystem::LoadDMXLibrariesSynchronous() const
+{
+	TArray<TSoftObjectPtr<UDMXLibrary>> SoftDMXLibraries = GetDMXLibraries();
+	TArray<UDMXLibrary*> DMXLibraries;
+	Algo::TransformIf(SoftDMXLibraries, DMXLibraries,
+		[](const TSoftObjectPtr<UDMXLibrary>& DMXLibrary)
+		{
+			return DMXLibrary.IsValid();
+		},
+		[](const TSoftObjectPtr<UDMXLibrary>& DMXLibrary)
+		{
+			return DMXLibrary.LoadSynchronous();
+		});
+
+	return DMXLibraries;
+}
+
+TArray<TSoftObjectPtr<UDMXLibrary>> UDMXSubsystem::GetDMXLibraries() const
+{
+	constexpr bool bHasBlueprintClasses = true;
+	UObjectLibrary* LibraryOfDMXLibraries = UObjectLibrary::CreateLibrary(UDMXLibrary::StaticClass(), bHasBlueprintClasses, GIsEditor);
+	LibraryOfDMXLibraries->LoadAssetDataFromPath(TEXT("/Game"));
+	LibraryOfDMXLibraries->LoadAssetsFromAssetData();
+
+	TArray<FAssetData> AssetDatas;
+	LibraryOfDMXLibraries->GetAssetDataList(AssetDatas);
+
+	TArray<TSoftObjectPtr<UDMXLibrary>> DMXLibraries;
+	Algo::TransformIf(AssetDatas, DMXLibraries,
+		[](const FAssetData& AssetData)
+		{
+			return AssetData.IsValid();
+		},
+		[](const FAssetData& AssetData)
+		{
+			return TSoftObjectPtr<UDMXLibrary>(AssetData.ToSoftObjectPath());
+		});
+
+	return DMXLibraries;
 }
 
 FORCEINLINE EDMXFixtureSignalFormat SignalFormatFromBytesNum(uint32 InBytesNum)
@@ -759,67 +799,3 @@ float UDMXSubsystem::GetNormalizedAttributeValue(UDMXEntityFixturePatch* InFixtu
 
 	return -1.0f;
 }
-
-void UDMXSubsystem::Initialize(FSubsystemCollectionBase& Collection)
-{
-	// Load all available dmx libraries
-	constexpr bool bHasBlueprintClasses = true;
-	UObjectLibrary* LibraryOfDMXLibraries = UObjectLibrary::CreateLibrary(UDMXLibrary::StaticClass(), bHasBlueprintClasses, GIsEditor);
-	LibraryOfDMXLibraries->LoadAssetDataFromPath(TEXT("/Game"));
-	LibraryOfDMXLibraries->LoadAssetsFromAssetData();
-
-	TArray<FAssetData> AssetDatas;
-	LibraryOfDMXLibraries->GetAssetDataList(AssetDatas);
-
-	for (const FAssetData& AssetData : AssetDatas)
-	{
-		UDMXLibrary* DMXLibrary = Cast<UDMXLibrary>(AssetData.ToSoftObjectPath().TryLoad());
-
-		if (DMXLibrary)
-		{
-			LoadedDMXLibraries.Add(DMXLibrary);
-		}
-		else
-		{
-			UE_LOG(DMXSubsystemLog, Warning, TEXT("Failed to load DMXLibrary %s. See previous errors for causes."), *AssetData.AssetName.ToString());
-		}
-	}
-	OnAllDMXLibraryAssetsLoaded.Broadcast();
-
-#if WITH_EDITOR
-	// Handle adding/removing new libraries
-	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(FName("AssetRegistry")).Get();
-	AssetRegistry.OnAssetAdded().AddUObject(this, &UDMXSubsystem::OnAssetRegistryAddedAsset);
-	AssetRegistry.OnAssetRemoved().AddUObject(this, &UDMXSubsystem::OnAssetRegistryRemovedAsset);
-#endif
-}
-
-#if WITH_EDITOR
-void UDMXSubsystem::OnAssetRegistryAddedAsset(const FAssetData& Asset)
-{
-	if (Asset.AssetClassPath == UDMXLibrary::StaticClass()->GetClassPathName())
-	{
-		UObject* AssetObject = Asset.GetAsset();
-		if (UDMXLibrary* Library = Cast<UDMXLibrary>(AssetObject))
-		{
-			LoadedDMXLibraries.AddUnique(Library);
-			OnDMXLibraryAssetAdded.Broadcast(Library);
-		}
-	}
-}
-#endif // WITH_EDITOR
-
-#if WITH_EDITOR
-void UDMXSubsystem::OnAssetRegistryRemovedAsset(const FAssetData& Asset)
-{
-	if (Asset.AssetClassPath == UDMXLibrary::StaticClass()->GetClassPathName())
-	{
-		UObject* AssetObject = Asset.GetAsset();
-		if (UDMXLibrary* Library = Cast<UDMXLibrary>(AssetObject))
-		{
-			LoadedDMXLibraries.Remove(Library);
-			OnDMXLibraryAssetRemoved.Broadcast(Library);
-		}
-	}
-}
-#endif // WITH_EDITOR

@@ -2,34 +2,32 @@
 
 #include "DMXEditorUtils.h"
 
+#include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "Dialogs/Dialogs.h"
 #include "DMXEditorLog.h"
 #include "DMXRuntimeUtils.h"
 #include "DMXSubsystem.h"
+#include "Exporters/Exporter.h"
+#include "Factories.h"
+#include "HAL/PlatformApplicationMisc.h"
+#include "Internationalization/Regex.h"
 #include "IO/DMXInputPort.h"
 #include "IO/DMXOutputPort.h"
 #include "IO/DMXPortManager.h"
-#include "Library/DMXLibrary.h"
-#include "Library/DMXEntityFixtureType.h"
 #include "Library/DMXEntityFixturePatch.h"
+#include "Library/DMXEntityFixtureType.h"
+#include "Library/DMXLibrary.h"
 #include "MVR/DMXMVRGeneralSceneDescription.h"
 #include "MVR/Types/DMXMVRFixtureNode.h"
-
-#include "AssetRegistry/AssetRegistryModule.h"
-#include "Factories.h"
 #include "PackageTools.h"
 #include "ScopedTransaction.h"
 #include "UnrealExporter.h"
-#include "Dialogs/Dialogs.h"
-#include "Exporters/Exporter.h"
-#include "HAL/PlatformApplicationMisc.h"
-#include "Internationalization/Regex.h"
 #include "UObject/Package.h"
-
 
 #define LOCTEXT_NAMESPACE "FDMXEditorUtils"
 
-
-// Text object factory for pasting DMX Entities
+/** Text object factory for pasting DMX Entities */
 struct FDMXEntityObjectTextFactory : public FCustomizableTextObjectFactory
 {
 	/** Entities instantiated */
@@ -1110,12 +1108,12 @@ void FDMXEditorUtils::ClearFixturePatchCachedData()
 	UDMXSubsystem* Subsystem = UDMXSubsystem::GetDMXSubsystem_Callable();
 	if (Subsystem && Subsystem->IsValidLowLevel())
 	{
-		TArray<UDMXLibrary*> DMXLibraries = Subsystem->GetAllDMXLibraries();
-		for (UDMXLibrary* Library : DMXLibraries)
+		TArray<TSoftObjectPtr<UDMXLibrary>> DMXLibraries = Subsystem->GetDMXLibraries();
+		for (const TSoftObjectPtr<UDMXLibrary>& Library : DMXLibraries)
 		{
-			if (Library != nullptr && Library->IsValidLowLevel())
+			if (Library.IsValid())
 			{
-				Library->ForEachEntityOfType<UDMXEntityFixturePatch>([](UDMXEntityFixturePatch* Patch) {
+				Library.Get()->ForEachEntityOfType<UDMXEntityFixturePatch>([](UDMXEntityFixturePatch* Patch) {
 					Patch->RebuildCache();
 				});
 			}
