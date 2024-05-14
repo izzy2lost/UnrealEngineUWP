@@ -1091,6 +1091,10 @@ bool Writer_WriteSnapshot(const FSnapshotTarget& Target)
 	//  have a limited tolerance to gaps/out-of-order event packets.
 	Writer_WorkerUpdateInternal();
 
+	// Force flush the send buffer so that platforms that use internal send buffers
+	// don't loose data.
+	Writer_FlushSendBuffer();
+
 	{
 		TStashGlobal DataHandle(GDataHandle);
 		TStashGlobal PendingDataHandle(GPendingDataHandle);
