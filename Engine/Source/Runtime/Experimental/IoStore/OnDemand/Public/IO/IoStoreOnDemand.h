@@ -193,57 +193,6 @@ UE_API bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandToc& OutToc);
 #if (IS_PROGRAM || WITH_EDITOR)
 
 ////////////////////////////////////////////////////////////////////////////////
-struct FIoStoreUploadParams
-{
-	FString ServiceUrl;
-	FString DistributionUrl;
-	FString FallbackUrl;
-	FString Bucket;
-	FString BucketPrefix;
-	FString Region; 
-	FString AccessKey;
-	FString SecretKey;
-	FString SessionToken;
-	FString CredentialsFile;
-	FString CredentialsFileKeyName;
-	FString BuildVersion;
-	FString TargetPlatform;
-	FString EncryptionKeyName;
-	int32 MaxConcurrentUploads = 16;
-	bool bDeleteContainerFiles = true;
-	bool bDeletePakFiles = true;
-	bool bPerContainerTocs = false;
-
-	/** If we should write out the .iochunktoc to disk as well as uploading it. */
-	bool bWriteTocToDisk = false;
-	/** Where the .iochunktoc file should be written out. */
-	FString TocOutputDir;
-
-	static TIoStatusOr<FIoStoreUploadParams> Parse(const TCHAR* CommandLine);
-	FIoStatus Validate() const;
-};
-
-/** Results from uploading a FOnDemandToc */
-struct FIoStoreUploadResult
-{
-	/** Hash of the toc when written as a binary blob */
-	FIoHash TocHash;
-	
-	/** Url of the service that the toc was uploaded too */
-	FString ServiceUrl;
-	/** Path of the toc on the service */
-	FString TocPath;
-
-	/** Size (in bytes) of the toc when written as a binary blob */
-	uint64 TocSize = 0;
-};
-
-TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
-	const FIoStoreUploadParams& UploadParams,
-	TConstArrayView<FString> ContainerFiles,
-	const FKeyChain& KeyChain);
-
-////////////////////////////////////////////////////////////////////////////////
 struct FIoStoreDownloadParams
 {
 	FString Directory;
