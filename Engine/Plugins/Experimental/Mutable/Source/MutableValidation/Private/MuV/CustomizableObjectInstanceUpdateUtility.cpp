@@ -12,6 +12,8 @@
 
 bool FCustomizableObjectInstanceUpdateUtility::UpdateInstance(UCustomizableObjectInstance* InInstance)
 {
+	LLM_SCOPE_BYNAME(TEXT("FCustomizableObjectInstanceUpdateUtility/UpdateInstance"));
+	
 	check (InInstance);
 	check (ComponentsBeingUpdated.IsEmpty());
 	
@@ -20,23 +22,30 @@ bool FCustomizableObjectInstanceUpdateUtility::UpdateInstance(UCustomizableObjec
 	
 	// Schedule the update of the COI
 	{
-		UE_LOG(LogMutable, Display, TEXT("Invoking update for %s instance."), *InInstance->GetName());
+		UE_LOG(LogMutable, Display, TEXT("Invoking update for %s instance."), *Instance->GetName());
 
 		// Instance update delegate	
 		FInstanceUpdateNativeDelegate InstanceUpdateNativeDelegate;
 		InstanceUpdateNativeDelegate.AddSP(this, &FCustomizableObjectInstanceUpdateUtility::OnInstanceUpdateResult);
 
 		bIsInstanceBeingUpdated = true;
-		InInstance->UpdateSkeletalMeshAsyncResult(InstanceUpdateNativeDelegate, true, true);
+		Instance->UpdateSkeletalMeshAsyncResult(InstanceUpdateNativeDelegate, true, true);
 	}
-	
+
+	// Debug
+	// FLowLevelMemTracker& LowLevelMemoryTracker = FLowLevelMemTracker::Get();
 	
 	// Wait until the update has been completed and the mips streamed
 	while (bIsInstanceBeingUpdated)
 	{
+		LLM_SCOPE_BYNAME(TEXT("FCustomizableObjectInstanceUpdateUtility/UpdateLoop"));
+		
 		// Tick the engine
 		CommandletHelpers::TickEngine();
 
+		// Debug
+		// LowLevelMemoryTracker.UpdateStatsPerFrame();
+		
 		// Stop if exit was requested
 		if (IsEngineExitRequested())
 		{
@@ -66,7 +75,7 @@ bool FCustomizableObjectInstanceUpdateUtility::UpdateInstance(UCustomizableObjec
 
 			if (bFullyStreamed)
 			{
-				UE_LOG(LogMutable, Display, TEXT("Instance %s finished streaming all MIPs."), *InInstance->GetName());
+				UE_LOG(LogMutable, Display, TEXT("Instance %s finished streaming all MIPs."), *Instance->GetName());
 				ComponentsBeingUpdated.Reset();
 				
 				bIsInstanceBeingUpdated = false;		// Exit the while loop
@@ -81,6 +90,8 @@ bool FCustomizableObjectInstanceUpdateUtility::UpdateInstance(UCustomizableObjec
 
 void FCustomizableObjectInstanceUpdateUtility::OnInstanceUpdateResult(const FUpdateContext& Result)
 {
+	LLM_SCOPE_BYNAME(TEXT("FCustomizableObjectInstanceUpdateUtility/OnInstanceUpdated"));
+	
 	const FString InstanceName = Instance->GetName();
 	
 	if (UCustomizableObjectSystem::IsUpdateResultValid(Result.UpdateResult))
@@ -123,3 +134,4 @@ void FCustomizableObjectInstanceUpdateUtility::OnInstanceUpdateResult(const FUpd
 		bIsInstanceBeingUpdated = false;
 	}	
 }
+

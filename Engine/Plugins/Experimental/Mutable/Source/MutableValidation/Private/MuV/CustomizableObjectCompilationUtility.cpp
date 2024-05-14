@@ -15,6 +15,8 @@
 
 bool FCustomizableObjectCompilationUtility::CompileCustomizableObject(UCustomizableObject* InCustomizableObject, const bool bShouldLogMutableLogs /* = true */, const FCompilationOptions* InCompilationOptionsOverride  /* nullptr */)
 {
+	LLM_SCOPE_BYNAME(TEXT("FCustomizableObjectCompilationUtility/Compile"));
+	
 	check(InCustomizableObject);
 	
 	CustomizableObject = TStrongObjectPtr(InCustomizableObject);
@@ -93,6 +95,8 @@ bool FCustomizableObjectCompilationUtility::CompileCustomizableObject(UCustomiza
 		const double CompilationStartSeconds = FPlatformTime::Seconds();
 		while (CompileRequest->GetCompilationState() != ECompilationStatePrivate::Completed)
 		{
+			LLM_SCOPE_BYNAME(TEXT("FCustomizableObjectCompilationUtility/CompileLoop"));
+			
 			// Tick the engine
 			CommandletHelpers::TickEngine();
 

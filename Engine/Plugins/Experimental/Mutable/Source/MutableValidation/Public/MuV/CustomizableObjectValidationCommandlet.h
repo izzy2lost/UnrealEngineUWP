@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Commandlets/Commandlet.h"
-#include "Containers/Array.h"
+#include "Containers/SpscQueue.h"
 #include "MuV/CustomizableObjectCompilationUtility.h"
 #include "MuV/CustomizableObjectInstanceUpdateUtility.h"
 
@@ -37,6 +37,5 @@ private:
 	TObjectPtr<UCustomizableObject> ToTestCustomizableObject = nullptr;
 
 	/** Array of COI to be generated with randomized parameter values */
-	UPROPERTY()
-	TArray<TObjectPtr<UCustomizableObjectInstance>> InstancesToProcess;
+	TSpscQueue<TStrongObjectPtr<UCustomizableObjectInstance>> InstancesToProcess;
 };

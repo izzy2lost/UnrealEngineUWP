@@ -27,7 +27,7 @@ class FCustomizableObjectCompiler : public FTickableEditorObject, public FTickab
 public:
 
 	FCustomizableObjectCompiler();
-	virtual ~FCustomizableObjectCompiler() {}
+	virtual ~FCustomizableObjectCompiler() override {}
 
 	/** Check for pending compilation process. Returns true if an object has been updated. */
 	bool Tick(bool bBlocking = false);

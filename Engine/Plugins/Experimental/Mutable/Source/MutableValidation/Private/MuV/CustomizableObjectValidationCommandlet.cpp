@@ -7,6 +7,7 @@
 #include "ValidationUtils.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Containers/Array.h"
+#include "Containers/SpscQueue.h"
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/CustomizableObjectPrivate.h"
@@ -20,6 +21,8 @@
 
 int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 {
+	LLM_SCOPE_BYNAME(TEXT("CustomizableObjectValidationCommandlet"));
+	
 	// Execution arguments for commandlet from IDE
 	// -run=CustomizableObjectValidation -CustomizableObject=(PathToCO)
 
@@ -76,10 +79,12 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 	// Compile the Customizable Object ------------------------------------------------------------------------------ //
 	bool bWasCoCompilationSuccessful = false;
 	{
+		LLM_SCOPE_BYNAME(TEXT("CustomizableObjectValidationCommandlet/Compile"));
+		
 		// Override some configurations that may have been changed by the user
 		FCompilationOptions CompilationOptions = ToTestCustomizableObject->CompileOptions;
 		CompilationOptions.bSilentCompilation = false;
-		CompilationOptions.OptimizationLevel = 2;			// Set the optimization level to the max
+		CompilationOptions.OptimizationLevel = UE_MUTABLE_MAX_OPTIMIZATION;
 		CompilationOptions.TextureCompression = ECustomizableObjectTextureCompression::Fast;
 
 		// Set the target compilation platform based on what the caller wants
@@ -150,7 +155,10 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 
 	// Generate target random instances to be tested ------------------------------------------------------------ //
 	bool bWasInstancesCreationSuccessful = true;
+	uint32 GeneratedInstances = 0;
 	{
+		LLM_SCOPE_BYNAME(TEXT("CustomizableObjectValidationCommandlet/GenerateInstances"));
+		
 		// Test this parameter configuration in all the states of the CO
 		const uint32 StateCount = ToTestCustomizableObject->GetStateCount();
 		check(StateCount >= 1);
@@ -183,7 +191,8 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 				{
 					// Set the state for the instance and store it for later update.
 					GeneratedInstance->GetPrivate()->SetState(State);
-                	InstancesToProcess.Push(GeneratedInstance->Clone());
+                	InstancesToProcess.Enqueue(GeneratedInstance->Clone());
+					GeneratedInstances++;
 				}
 			}
 			else
@@ -195,17 +204,23 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 	}
 	// ---------------------------------------------------------------------------------------------------------- //
 
-	UE_LOG(LogMutable, Log,TEXT("(int) generated_instances_count : %u "), InstancesToProcess.Num());
+	UE_LOG(LogMutable, Log,TEXT("(int) generated_instances_count : %u "), GeneratedInstances);
 	
 	// Update the instances generated --------------------------------------------------------------------------- //
 	UE_LOG(LogMutable,Display,TEXT("Updating generated instances..."));
 	bool bInstanceFailedUpdate = false;
 	const double InstancesUpdateStartSeconds = FPlatformTime::Seconds();
 	{
+		LLM_SCOPE_BYNAME(TEXT("CustomizableObjectValidationCommandlet/Update"));
+		
 		TSharedRef<FCustomizableObjectInstanceUpdateUtility> InstanceUpdatingUtility = MakeShared<FCustomizableObjectInstanceUpdateUtility>();
-		for (UCustomizableObjectInstance* InstanceToUpdate : InstancesToProcess)
+
+		TStrongObjectPtr<UCustomizableObjectInstance> InstanceToUpdate;
+		while (InstancesToProcess.Dequeue(InstanceToUpdate))
 		{
-			if (!InstanceUpdatingUtility->UpdateInstance(InstanceToUpdate))
+			CollectGarbage(RF_NoFlags, true);
+			
+			if (!InstanceUpdatingUtility->UpdateInstance(InstanceToUpdate.Get()))
 			{
 				bInstanceFailedUpdate = true;
 			}
@@ -217,8 +232,8 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 	const double CombinedInstanceUpdateSeconds = InstancesUpdateEndSeconds - InstancesUpdateStartSeconds;
 	UE_LOG(LogMutable, Log,TEXT("(double) combined_update_time_ms : %f "), CombinedInstanceUpdateSeconds * 1000);
 
-	check(InstancesToProcess.Num() > 0);
-	const double AverageInstanceUpdateSeconds = CombinedInstanceUpdateSeconds / InstancesToProcess.Num();
+	check(GeneratedInstances > 0);
+	const double AverageInstanceUpdateSeconds = CombinedInstanceUpdateSeconds / GeneratedInstances;
 	UE_LOG(LogMutable, Log,TEXT("(double) avg_update_time_ms : %f "), AverageInstanceUpdateSeconds * 1000);
 
 	UE_LOG(LogMutable,Display,TEXT("Generation of Customizable object instances took %f seconds (%f seconds avg)."), CombinedInstanceUpdateSeconds, AverageInstanceUpdateSeconds);

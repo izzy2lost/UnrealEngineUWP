@@ -63,7 +63,7 @@ int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 	}
 
 	// Get all the CO's that need compilation before proceeding
-	TMap<UCustomizableObject*, TSet<UCustomizableObjectInstance*>>  MutableResources;
+	TMap<UCustomizableObject*, TArray<TStrongObjectPtr<UCustomizableObjectInstance>>>  MutableResources;
 	for (FAssetData& Data : FoundAssetData)
 	{
 		UObject* LoadedAsset =  Data.GetAsset();
@@ -80,8 +80,8 @@ int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 		}
 		
 		// Add/update an entry with the new instance for a given CO. 
-		TSet<UCustomizableObjectInstance*>& Entry = MutableResources.FindOrAdd(InstanceCO);
-		Entry.Add(LoadedInstance);
+		TArray<TStrongObjectPtr<UCustomizableObjectInstance>>& Entry = MutableResources.FindOrAdd(InstanceCO);
+		Entry.Emplace(LoadedInstance);
 	}
 
 	// At this point it is safe to assume that all keys are valid COs and all instances are also valid.
@@ -97,7 +97,7 @@ int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 	UE_LOG(LogMutable, Log, TEXT("(int) customizable_object_instances_count : %u "), TotalAmountOfInstances);
 	
 	// Report the amount of instances for each of the COs found as parents of the instances in the target path
-	for (TTuple<UCustomizableObject*, TSet<UCustomizableObjectInstance*>>& MutableResourceTuple : MutableResources)
+	for (TTuple<UCustomizableObject*, TArray<TStrongObjectPtr<UCustomizableObjectInstance>>>& MutableResourceTuple : MutableResources)
 	{
 		const UCustomizableObject* CustomizableObjectToCompile = MutableResourceTuple.Key;
 		check (CustomizableObjectToCompile);
@@ -109,7 +109,7 @@ int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 		
 		// print the name of the instances+
 		uint32 InstanceIndex = 0;
-		for (const UCustomizableObjectInstance* Instance : MutableResourceTuple.Value)
+		for (const TStrongObjectPtr<UCustomizableObjectInstance>& Instance : MutableResourceTuple.Value)
 		{
 			check(Instance);
 			const FString CustomizableObjectInstanceName = Instance->GetName();
@@ -131,38 +131,48 @@ int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 	
 	// Compile all found COs one by one
 	uint32 CurrentInstanceIndex = 1;
-	for (TTuple<UCustomizableObject*, TSet<UCustomizableObjectInstance*>>& MutableResourceTuple : MutableResources)
+	
+	for ( TMap<UCustomizableObject*, TArray<TStrongObjectPtr<UCustomizableObjectInstance>>>::TIterator ResourcesIterator = MutableResources.CreateIterator(); ResourcesIterator; ++ResourcesIterator)
 	{
-		UCustomizableObject* CustomizableObjectToCompile = MutableResourceTuple.Key;
-		check (CustomizableObjectToCompile);
+		UCustomizableObject*& CustomizableObject = ResourcesIterator->Key;
+		check (CustomizableObject);
 
-		const FString CustomizableObjectName = CustomizableObjectToCompile->GetName();
+		const FString CustomizableObjectName = CustomizableObject->GetName();
 		
 		// Set the compilation platform based on what the system is currently running on
-		FCompilationOptions CompilationOptions = CustomizableObjectToCompile->CompileOptions;
+		FCompilationOptions CompilationOptions = CustomizableObject->CompileOptions;
 		CompilationOptions.TargetPlatform = TargetCompilationPlatform;
 		CompilationOptions.bUseDiskCompilation = false;
-		
-		// Compile the current CO object
+		CompilationOptions.OptimizationLevel = UE_MUTABLE_MAX_OPTIMIZATION;
+		CompilationOptions.bSilentCompilation = false;
 
-		if (!CompilationUtility->CompileCustomizableObject(CustomizableObjectToCompile, false, &CompilationOptions))	// Do not log mutable data since mongoDB will not be able to handle it correctly 
+		// Compile the current CO object
+		if (!CompilationUtility->CompileCustomizableObject(CustomizableObject, false, &CompilationOptions))	// Do not log mutable data since mongoDB will not be able to handle it correctly 
 		{
 			UE_LOG(LogMutable,Error,TEXT("The CO %s could not be compiled succesfully. Skipping the update of all COIs that use it."), *CustomizableObjectName )
 			continue;
 		}
 
 		// Now that CO has been compiled proceed with the update of the instances that use it
-		const uint32 CustomizableObjectInstanceCount = MutableResourceTuple.Value.Num();
+		const uint32 CustomizableObjectInstanceCount = ResourcesIterator->Value.Num();
 		UE_LOG(LogMutable,Display,TEXT("Starting update of the \"%u\" instances with CO : \"%s\"."), CustomizableObjectInstanceCount, *CustomizableObjectName);
-		
+
 		// Iterate over all the COIs of the CO and update them
-		for (UCustomizableObjectInstance* Instance : MutableResourceTuple.Value)
+		TArray<TStrongObjectPtr<UCustomizableObjectInstance>>& Instances = ResourcesIterator->Value;
+		while (!Instances.IsEmpty())
 		{
+			TStrongObjectPtr<UCustomizableObjectInstance> Instance = Instances[0];
+			Instances.RemoveAt(0);
 			UE_LOG(LogMutable,Display,TEXT("\t( %u / %u ) Processing instance : \"%s\" ."),CurrentInstanceIndex++, TotalAmountOfInstances ,*Instance->GetName());
+
+			CollectGarbage(RF_NoFlags, true);
 			
 			// Update each one of the instances and notify if the update failed in any manner
-			InstanceUpdatingUtility->UpdateInstance(Instance);
+			InstanceUpdatingUtility->UpdateInstance(Instance.Get());
 		}
+
+		ResourcesIterator.RemoveCurrent();
+		CollectGarbage(RF_NoFlags, true);
 	}
 
 	UE_LOG(LogMutable,Display,TEXT("Mutable commandlet finished."));
