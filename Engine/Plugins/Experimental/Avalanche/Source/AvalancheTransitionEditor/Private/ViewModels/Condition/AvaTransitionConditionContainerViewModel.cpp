@@ -2,7 +2,7 @@
 
 #include "AvaTransitionConditionContainerViewModel.h"
 #include "AvaTransitionConditionViewModel.h"
-#include "AvaTransitionNodeContext.h"
+#include "AvaTransitionTreeEditorData.h"
 #include "Conditions/AvaTransitionCondition.h"
 #include "StateTreeEditorStyle.h"
 #include "StateTreeState.h"
@@ -22,22 +22,6 @@ namespace UE::AvaTransitionEditor::Private
 			return FText::Format(INVTEXT("{0} "), UEnum::GetDisplayValueAsText(InEditorNode.ConditionOperand).ToLower());
 		}
 		return FText::GetEmpty();
-	}
-
-	FText GetDescriptionText(const FStateTreeEditorNode& InEditorNode)
-	{
-		FText ConditionDescription;
-		if (const FAvaTransitionCondition* Condition = InEditorNode.Node.GetPtr<FAvaTransitionCondition>())
-		{
-			ConditionDescription = Condition->GenerateDescription(FAvaTransitionNodeContext(InEditorNode.GetInstance()));
-		}
-
-		const UScriptStruct* Struct = InEditorNode.Node.GetScriptStruct();
-		if (Struct && ConditionDescription.IsEmpty())
-		{
-			ConditionDescription = Struct->GetDisplayNameText();
-		}
-		return ConditionDescription;
 	}
 
 	FText GetParenthesisText(int8 InDeltaIndent)
@@ -87,6 +71,12 @@ FText FAvaTransitionConditionContainerViewModel::UpdateStateDescription() const
 		return FText::GetEmpty();
 	}
 
+	const UAvaTransitionTreeEditorData* EditorData = GetEditorData();
+	if (!EditorData)
+	{
+		return FText::GetEmpty();
+	}
+
 	TArray<FText> ConditionDescriptions;
 	for (int32 ConditionIndex = 0; ConditionIndex < ConditionViewModels.Num(); ++ConditionIndex)
 	{
@@ -114,7 +104,7 @@ FText FAvaTransitionConditionContainerViewModel::UpdateStateDescription() const
 
 		FFormatNamedArguments TextArguments;
 		TextArguments.Add(TEXT("Operand"), Private::GetOperandText(ConditionIndex, *EditorNode));
-		TextArguments.Add(TEXT("Description"), Private::GetDescriptionText(*EditorNode));
+		TextArguments.Add(TEXT("Description"), EditorData->GetNodeDescription(*EditorNode, EStateTreeNodeFormatting::RichText));
 		TextArguments.Add(TEXT("Parenthesis"), Private::GetParenthesisText(DeltaIndent));
 
 		ConditionDescriptions.Add(FText::Format(TextFormat, TextArguments));

@@ -7,10 +7,12 @@
 
 #define LOCTEXT_NAMESPACE "AvaTransitionLayerMatchCondition"
 
-FText FAvaTransitionLayerMatchCondition::GenerateDescription(const FAvaTransitionNodeContext& InContext) const
+#if WITH_EDITOR
+FText FAvaTransitionLayerMatchCondition::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
 {
 	return FText::Format(LOCTEXT("ConditionDescription", "scenes transitioning in {0}"), GetLayerQueryText());
 }
+#endif
 
 bool FAvaTransitionLayerMatchCondition::TestCondition(FStateTreeExecutionContext& InContext) const
 {

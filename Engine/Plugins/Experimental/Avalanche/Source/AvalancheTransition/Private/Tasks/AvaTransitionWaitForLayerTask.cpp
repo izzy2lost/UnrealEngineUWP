@@ -6,11 +6,12 @@
 
 #define LOCTEXT_NAMESPACE "AvaTransitionWaitForLayerTask"
 
-FText FAvaTransitionWaitForLayerTask::GenerateDescription(const FAvaTransitionNodeContext& InContext) const
+#if WITH_EDITOR
+FText FAvaTransitionWaitForLayerTask::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
 {
-	return FText::Format(LOCTEXT("TaskDescription", "Wait for others in {0} to finish")
-		, GetLayerQueryText());
+	return FText::Format(LOCTEXT("TaskDescription", "Wait for others in {0} to finish"), GetLayerQueryText());
 }
+#endif
 
 EStateTreeRunStatus FAvaTransitionWaitForLayerTask::EnterState(FStateTreeExecutionContext& InContext, const FStateTreeTransitionResult& InTransition) const
 {

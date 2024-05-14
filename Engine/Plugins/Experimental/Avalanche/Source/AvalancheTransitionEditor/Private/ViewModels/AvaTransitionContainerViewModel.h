@@ -5,6 +5,7 @@
 #include "AvaTransitionViewModel.h"
 #include "UObject/WeakObjectPtr.h"
 
+class UAvaTransitionTreeEditorData;
 class UStateTreeState;
 
 /** View Model serving as a container for a particular group of elements in a State */
@@ -16,6 +17,8 @@ public:
 	explicit FAvaTransitionContainerViewModel(UStateTreeState* InState);
 
 	UStateTreeState* GetState() const;
+
+	UAvaTransitionTreeEditorData* GetEditorData() const;
 
 	//~ Begin FAvaTransitionViewModel
 	virtual bool IsValid() const override;

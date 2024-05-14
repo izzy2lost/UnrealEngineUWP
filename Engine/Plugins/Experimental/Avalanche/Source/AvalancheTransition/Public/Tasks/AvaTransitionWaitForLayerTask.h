@@ -18,11 +18,10 @@ struct AVALANCHETRANSITION_API FAvaTransitionWaitForLayerTask : public FAvaTrans
 
 	using FInstanceDataType = FAvaTransitionWaitForLayerTaskInstanceData;
 
-	//~ Begin FAvaTransitionTask
-	virtual FText GenerateDescription(const FAvaTransitionNodeContext& InContext) const override;
-	//~ End FAvaTransitionTask
-
 	//~ Begin FStateTreeNodeBase
+#if WITH_EDITOR
+	virtual FText GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const override;
+#endif
 	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
 	//~ End FStateTreeNodeBase
 

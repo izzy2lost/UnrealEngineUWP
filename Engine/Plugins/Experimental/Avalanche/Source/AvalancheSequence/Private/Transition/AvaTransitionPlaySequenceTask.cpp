@@ -10,7 +10,8 @@
 
 #define LOCTEXT_NAMESPACE "AvaTransitionPlaySequenceTask"
 
-FText FAvaTransitionPlaySequenceTask::GenerateDescription(const FAvaTransitionNodeContext& InContext) const
+#if WITH_EDITOR
+FText FAvaTransitionPlaySequenceTask::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
 {
 	FText DescriptionFormat = LOCTEXT("TaskDescription", "Play {SequenceQueryText} {AdditionalArgs}");
 
@@ -31,6 +32,7 @@ FText FAvaTransitionPlaySequenceTask::GenerateDescription(const FAvaTransitionNo
 
 	return FText::Format(DescriptionFormat, NamedArgs);
 }
+#endif
 
 TArray<UAvaSequencePlayer*> FAvaTransitionPlaySequenceTask::ExecuteSequenceTask(FStateTreeExecutionContext& InContext) const
 {

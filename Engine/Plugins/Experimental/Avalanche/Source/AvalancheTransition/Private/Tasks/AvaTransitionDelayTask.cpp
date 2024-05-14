@@ -5,10 +5,12 @@
 
 #define LOCTEXT_NAMESPACE "AvaTransitionDelayTask"
 
-FText FAvaTransitionDelayTask::GenerateDescription(const FAvaTransitionNodeContext& InContext) const
+#if WITH_EDITOR
+FText FAvaTransitionDelayTask::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
 {
 	return FText::Format(LOCTEXT("TaskDescription", "Delay {0} seconds"), FText::AsNumber(Duration));
 }
+#endif
 
 EStateTreeRunStatus FAvaTransitionDelayTask::EnterState(FStateTreeExecutionContext& InContext, const FStateTreeTransitionResult& InTransition) const
 {

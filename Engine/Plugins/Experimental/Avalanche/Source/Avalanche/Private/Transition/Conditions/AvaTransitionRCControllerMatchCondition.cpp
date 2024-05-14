@@ -18,12 +18,14 @@
 
 #define LOCTEXT_NAMESPACE "AvaTransitionRCControllerMatchCondition"
 
-FText FAvaTransitionRCControllerMatchCondition::GenerateDescription(const FAvaTransitionNodeContext& InContext) const
+#if WITH_EDITOR
+FText FAvaTransitionRCControllerMatchCondition::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
 {
 	return FText::Format(LOCTEXT("ConditionDescription", "'{0}' is {1}")
 		, ControllerId.ToText()
 		, UEnum::GetDisplayValueAsText(ValueComparisonType).ToLower());
 }
+#endif
 
 bool FAvaTransitionRCControllerMatchCondition::Link(FStateTreeLinker& InLinker)
 {

@@ -13,7 +13,8 @@
 
 #define LOCTEXT_NAMESPACE "AvaSceneContainsTagAttributeConditionBase"
 
-FText FAvaSceneContainsTagAttributeConditionBase::GenerateDescription(const FAvaTransitionNodeContext& InContext) const
+#if WITH_EDITOR
+FText FAvaSceneContainsTagAttributeConditionBase::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
 {
 	FFormatNamedArguments Arguments;
 
@@ -40,6 +41,7 @@ FText FAvaSceneContainsTagAttributeConditionBase::GenerateDescription(const FAva
 
 	return FText::Format(LOCTEXT("ConditionDescription", "{IndefinitePronoun}{Scene} {Contains} tag attribute '{TagAttribute}'"), Arguments);
 }
+#endif
 
 bool FAvaSceneContainsTagAttributeConditionBase::Link(FStateTreeLinker& InLinker)
 {

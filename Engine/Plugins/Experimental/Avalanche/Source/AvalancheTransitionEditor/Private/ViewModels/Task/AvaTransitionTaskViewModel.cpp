@@ -2,7 +2,6 @@
 
 #include "AvaTransitionTaskViewModel.h"
 #include "AvaTransitionEditorStyle.h"
-#include "AvaTransitionNodeContext.h"
 #include "AvaTransitionTreeEditorData.h"
 #include "StateTreeEditorData.h"
 #include "StateTreeEditorStyle.h"
@@ -68,34 +67,16 @@ FSlateColor FAvaTransitionTaskViewModel::GetTaskIconColor() const
 
 void FAvaTransitionTaskViewModel::UpdateTaskDescription()
 {
-	TaskDescription = FText::GetEmpty();
-
+	const UAvaTransitionTreeEditorData* EditorData = GetEditorData();
 	const FStateTreeEditorNode* EditorNode = GetEditorNode();
-	if (!EditorNode)
-	{
-		return;
-	}
 
-	// Advanced Mode: Show Task Descriptions from the Node Name (Raw) if name not none
-	if (GetSharedData()->GetEditorMode() == EAvaTransitionEditorMode::Advanced)
+	if (EditorData && EditorNode)
 	{
-		const FStateTreeNodeBase* Task = EditorNode->Node.GetPtr<FStateTreeNodeBase>();
-		if (Task && Task->Name != NAME_None)
-		{
-			TaskDescription = FText::FromName(Task->Name);
-			return;
-		}
+		TaskDescription = EditorData->GetNodeDescription(*EditorNode, EStateTreeNodeFormatting::RichText);
 	}
-
-	if (const FAvaTransitionTask* Task = EditorNode->Node.GetPtr<FAvaTransitionTask>())
+	else
 	{
-		TaskDescription = Task->GenerateDescription(FAvaTransitionNodeContext(EditorNode->GetInstance()));
-	}
-
-	const UScriptStruct* Struct = EditorNode->Node.GetScriptStruct();
-	if (Struct && TaskDescription.IsEmpty())
-	{
-		TaskDescription = Struct->GetDisplayNameText();
+		TaskDescription = FText::GetEmpty();
 	}
 }
 

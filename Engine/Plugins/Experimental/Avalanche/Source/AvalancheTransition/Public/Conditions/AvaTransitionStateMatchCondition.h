@@ -19,11 +19,10 @@ struct AVALANCHETRANSITION_API FAvaTransitionStateMatchCondition : public FAvaTr
 
 	using FInstanceDataType = FAvaTransitionStateMatchConditionInstanceData;
 
-	//~ Begin FAvaTransitionCondition
-	virtual FText GenerateDescription(const FAvaTransitionNodeContext& InContext) const override;
-	//~ End FAvaTransitionCondition
-
 	//~ Begin FStateTreeNodeBase
+#if WITH_EDITOR
+	virtual FText GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const override;
+#endif
 	virtual const UStruct* GetInstanceDataType() const override { return FAvaTransitionStateMatchConditionInstanceData::StaticStruct(); }
 	//~ End FStateTreeNodeBase
 

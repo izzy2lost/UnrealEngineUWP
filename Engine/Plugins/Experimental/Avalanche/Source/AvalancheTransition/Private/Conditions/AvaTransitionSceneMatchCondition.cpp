@@ -8,12 +8,14 @@
 
 #define LOCTEXT_NAMESPACE "AvaTransitionSceneMatchCondition"
 
-FText FAvaTransitionSceneMatchCondition::GenerateDescription(const FAvaTransitionNodeContext& InContext) const
+#if WITH_EDITOR
+FText FAvaTransitionSceneMatchCondition::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
 {
 	return FText::Format(LOCTEXT("ConditionDescription", "{0} scene in {1}")
 		, UEnum::GetDisplayValueAsText(SceneComparisonType).ToLower()
 		, GetLayerQueryText());
 }
+#endif
 
 bool FAvaTransitionSceneMatchCondition::TestCondition(FStateTreeExecutionContext& InContext) const
 {
