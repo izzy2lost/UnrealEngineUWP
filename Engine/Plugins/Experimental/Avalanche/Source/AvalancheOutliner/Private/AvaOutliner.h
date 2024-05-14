@@ -247,8 +247,11 @@ public:
 	/** Called when an Actor's attachment has changed. This triggers a refresh */
 	void OnActorAttachmentChanged(AActor* InActor, const AActor* InParent, bool bAttach);
 
-	/** Called the engine replaces an object. A common example is when a BP Component is destroyed, and replaced */
+	/** Called when the engine replaces an object. A common example is when a BP Component is destroyed, and replaced */
 	void OnObjectsReplaced(const TMap<UObject*, UObject*>& InReplacementMap);
+
+	/** Called when the engine replaces an Actor */
+	void OnActorReplaced(AActor* InOldActor, AActor* InNewActor);
 
 	/** Marks the Outliner dirty. This triggers IAvaOutlinerProvider::OnOutlinerModified on next tick */
 	void SetOutlinerModified();

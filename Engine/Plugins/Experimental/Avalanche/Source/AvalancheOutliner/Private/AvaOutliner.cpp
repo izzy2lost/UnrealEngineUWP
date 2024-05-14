@@ -66,6 +66,7 @@ FAvaOutliner::FAvaOutliner(IAvaOutlinerProvider& InOutlinerProvider)
 
 	//Listen to Object Replacement Changes
 	FCoreUObjectDelegates::OnObjectsReplaced.AddRaw(this, &FAvaOutliner::OnObjectsReplaced);
+	FEditorDelegates::OnEditorActorReplaced.AddRaw(this, &FAvaOutliner::OnActorReplaced);
 }
 
 FAvaOutliner::~FAvaOutliner()
@@ -84,6 +85,7 @@ FAvaOutliner::~FAvaOutliner()
 	}
 
 	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
+	FEditorDelegates::OnEditorActorReplaced.RemoveAll(this);
 }
 
 UAvaOutlinerSubsystem* FAvaOutliner::GetOutlinerSubsystem() const
@@ -1282,6 +1284,13 @@ void FAvaOutliner::OnObjectsReplaced(const TMap<UObject*, UObject*>& InReplaceme
 	{
 		InOutlinerView->NotifyObjectsReplaced();
 	});
+}
+
+void FAvaOutliner::OnActorReplaced(AActor* InOldActor, AActor* InNewActor)
+{
+	TMap<UObject*, UObject*> ReplacementMap;
+	ReplacementMap.Add(InOldActor, InNewActor);
+	OnObjectsReplaced(ReplacementMap);
 }
 
 void FAvaOutliner::SetOutlinerModified()
