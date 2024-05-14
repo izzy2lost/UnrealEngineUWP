@@ -1186,7 +1186,7 @@ void Mesh::Unserialise(InputArchive& arch)
 
 	uint32 Temp;
 	arch >> Temp;
-	Flags = reinterpret_cast<EMeshFlags>(Flags);
+	Flags = static_cast<EMeshFlags>(Temp);
 
 	arch >> Surfaces;
 
