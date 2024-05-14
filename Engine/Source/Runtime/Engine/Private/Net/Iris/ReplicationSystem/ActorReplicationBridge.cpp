@@ -96,8 +96,6 @@ bool ShouldIncludeActorInLevelGroups(const AActor* Actor)
 
 UActorReplicationBridge::UActorReplicationBridge()
 : UObjectReplicationBridge()
-, NetDriver(nullptr)
-, ObjectReferencePackageMap(nullptr)
 , SpawnInfoFlags(0U)
 {
 	SetInstancePreUpdateFunction(UE::Net::Private::ActorReplicationBridgePreUpdateFunction);
@@ -151,7 +149,6 @@ void UActorReplicationBridge::Initialize(UReplicationSystem* InReplicationSystem
 	}
 
 	ObjectReferencePackageMap = NewObject<UIrisObjectReferencePackageMap>();
-	ObjectReferencePackageMap->AddToRoot();
 
 	// Get spawn info flags from cvars
 	SpawnInfoFlags = UE::Net::Private::GetActorReplicationBridgeSpawnInfoFlags();
@@ -159,12 +156,6 @@ void UActorReplicationBridge::Initialize(UReplicationSystem* InReplicationSystem
 
 UActorReplicationBridge::~UActorReplicationBridge()
 {
-	if (ObjectReferencePackageMap)
-	{
-		ObjectReferencePackageMap->RemoveFromRoot();
-		ObjectReferencePackageMap->MarkAsGarbage();
-		ObjectReferencePackageMap = nullptr;
-	}
 }
 
 void UActorReplicationBridge::Deinitialize()
@@ -172,8 +163,10 @@ void UActorReplicationBridge::Deinitialize()
 	if (NetDriver)
 	{
 		NetDriver->OnNetServerMaxTickRateChanged.RemoveAll(this);
+		NetDriver = nullptr;
 	}
 	Super::Deinitialize();
+	ObjectReferencePackageMap = nullptr;
 }
 
 UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(AActor* Actor, const FActorBeginReplicationParams& Params)

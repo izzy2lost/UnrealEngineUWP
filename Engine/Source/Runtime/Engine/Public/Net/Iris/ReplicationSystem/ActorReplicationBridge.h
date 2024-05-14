@@ -4,15 +4,16 @@
 
 #include "Iris/ReplicationSystem/ObjectReplicationBridge.h"
 #include "Engine/EngineTypes.h"
+#include "UObject/ObjectPtr.h"
 #include "ActorReplicationBridge.generated.h"
+
+class UNetDriver;
+class UIrisObjectReferencePackageMap;
 
 #if UE_WITH_IRIS
 
 class UActorComponent;
-class UNetDriver;
 class UWorld;
-class UNetDriver;
-class UIrisObjectReferencePackageMap;
 
 namespace UE::Net
 {
@@ -126,11 +127,14 @@ private:
 	void AddActorToLevelGroup(const AActor* Actor);
 
 private:
-	UNetDriver* NetDriver;
-
-	UIrisObjectReferencePackageMap* ObjectReferencePackageMap;
 
 	uint32 SpawnInfoFlags;
 
 #endif // UE_WITH_IRIS
+
+	UNetDriver* NetDriver = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UIrisObjectReferencePackageMap> ObjectReferencePackageMap = nullptr;
+
 };
