@@ -5,6 +5,7 @@
 #include "EntitySystem/BuiltInComponentTypes.h"
 #include "EntitySystem/MovieSceneComponentRegistry.h"
 #include "EntitySystem/MovieSceneEntityFactoryTemplates.h"
+#include "EntitySystem/MovieSceneEntitySystemLinker.h"
 #include "EntitySystem/MovieScenePropertyComponentHandler.h"
 #include "MovieSceneTracksComponentTypes.h"
 #include "Systems/MovieScenePiecewiseDoubleBlenderSystem.h"

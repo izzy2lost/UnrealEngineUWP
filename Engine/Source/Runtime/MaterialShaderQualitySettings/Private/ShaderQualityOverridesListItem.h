@@ -2,6 +2,7 @@
 
 #pragma once
 
+#if WITH_EDITOR
 #include "CoreMinimal.h"
 #include "PropertyHandle.h"
 #include "SceneTypes.h"
@@ -28,4 +29,4 @@ public:
 	{
 	}
 };
-
+#endif

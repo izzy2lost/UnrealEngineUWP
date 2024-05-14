@@ -3,6 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "LightingMesh.h"
+#include "MeshExport.h"
 #include "Raster.h"
 
 namespace Lightmass

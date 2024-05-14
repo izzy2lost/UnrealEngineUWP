@@ -4,6 +4,7 @@
 
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "AnimData/AnimDataNotifications.h"
+#include "BoneContainer.h"
 #include "Containers/Array.h"
 #include "Delegates/IDelegateInstance.h"
 

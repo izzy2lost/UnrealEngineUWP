@@ -2,6 +2,7 @@
 
 #include "CoreTypes.h"
 #include "CoreFwd.h"
+#include "IOSTargetDevice.h"
 #include "Logging/LogMacros.h"
 #include "Common/TcpSocketBuilder.h"
 #include "string.h"

@@ -8,6 +8,7 @@
 
 #include "CoreMinimal.h"
 #include "Interfaces/ITargetDevice.h"
+#include "Interfaces/ITargetPlatformControls.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformProcess.h"
 

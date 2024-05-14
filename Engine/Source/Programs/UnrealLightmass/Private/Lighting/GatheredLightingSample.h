@@ -3,6 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ImportExport.h"
+#include "Math/SHMath.h"
 
 namespace Lightmass
 {
