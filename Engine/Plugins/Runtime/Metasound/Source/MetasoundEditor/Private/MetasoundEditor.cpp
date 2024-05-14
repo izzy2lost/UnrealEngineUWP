@@ -1998,11 +1998,11 @@ namespace Metasound
 				Builder->ConvertFromPreset(Result);
 				ensure(Result == EMetaSoundBuilderResult::Succeeded);
 
-				// Hack until toolbar is polished up & corner text properly dynamically updates
-				if (UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
+				if (UToolMenus* ToolMenus = UToolMenus::Get())
 				{
-					AssetEditorSubsystem->CloseAllEditorsForAsset(Metasound);
+					ToolMenus->RefreshAllWidgets();
 				}
+				RefreshDetails();
 			}
 		}
 
