@@ -20,6 +20,9 @@ static FAutoConsoleVariableRef CVarScalabilityManParallelThreshold(TEXT("fx.Scal
 static int32 GScalabilityMaxUpdatesPerFrame = 50;
 static FAutoConsoleVariableRef CVarScalabilityMaxUpdatesPerFrame(TEXT("fx.ScalabilityMaxUpdatesPerFrame"), GScalabilityMaxUpdatesPerFrame, TEXT("Number of instances that can be processed per frame when updating scalability state. -1 for all of them. \n"), ECVF_Default);
 
+static int32 GApplyInstanceCountsRigidly = 1;
+static FAutoConsoleVariableRef CVarApplyInstanceCountsRigidly(TEXT("fx.Niagara.Scalability.ApplyInstanceCountsRigidly"), GApplyInstanceCountsRigidly, TEXT("If true we'll apply instance counts more rigidly. Un-culled Systems wil not be able to activate until overall systems fall below the instance count. \n"), ECVF_Default);
+
 static float GetScalabilityUpdatePeriod(ENiagaraScalabilityUpdateFrequency Frequency)
 {
 	switch (Frequency)
@@ -337,6 +340,8 @@ void FNiagaraScalabilityManager::ProcessSignificance(FNiagaraWorldManager* World
 	}
 }
 
+extern int32 GEnableNiagaraGlobalBudgetCulling;
+
 bool FNiagaraScalabilityManager::ApplyScalabilityState(int32 ComponentIndex, ENiagaraCullReaction CullReaction, bool bNewOnly)
 {
 	FNiagaraScalabilityState& CompState = State[ComponentIndex];
@@ -370,8 +375,6 @@ bool FNiagaraScalabilityManager::ApplyScalabilityState(int32 ComponentIndex, ENi
 			}
 		}
 
-		CompState.Apply();
-
 #if WITH_NIAGARA_DEBUGGER
 		//Tell the debugger about our scalability state.
 		//Unfortunately cannot have the debugger just read the manager state data as components are removed.
@@ -381,6 +384,8 @@ bool FNiagaraScalabilityManager::ApplyScalabilityState(int32 ComponentIndex, ENi
 
 		if (CompState.bCulled)
 		{
+			CompState.Apply();
+
 			switch (CullReaction)
 			{
 			case ENiagaraCullReaction::Deactivate:					Component->DeactivateInternal(false); bContinueIteration = false; break;//We don't increment CompIdx here as this call will remove an entry from ManagedObjects;
@@ -392,17 +397,33 @@ bool FNiagaraScalabilityManager::ApplyScalabilityState(int32 ComponentIndex, ENi
 		}
 		else
 		{
-			if (CullReaction == ENiagaraCullReaction::Deactivate || CullReaction == ENiagaraCullReaction::DeactivateImmediate)
+			UNiagaraSystem* System = Component->GetAsset();
+			check(System);
+			
+			int32 SystemInstanceMax = 0;
+			int32 EffectTypeInstanceMax = 0;
+
+			bool bBudgetCullEnabled = GEnableNiagaraGlobalBudgetCulling && FFXBudget::Enabled() && INiagaraModule::UseGlobalFXBudget();
+			Component->GetAsset()->GetMaxInstanceCounts(SystemInstanceMax, EffectTypeInstanceMax, bBudgetCullEnabled);
+
+			//We do not allow new activations if it would blow our instance count limits.
+			//Though we do allow currently running but inactive components to (!IsComplete()) to reactivate
+			bool bAllow = GApplyInstanceCountsRigidly == 0 || (Component->IsComplete() == false || (System->GetActiveInstancesCount() < SystemInstanceMax && EffectType->NumInstances < EffectTypeInstanceMax));
+			if(bAllow)
 			{
-				UE_LOG(LogNiagara, Error, TEXT("Niagara Component is incorrectly still registered with the scalability manager. %d - %s "), (int32)CullReaction, *Component->GetAsset()->GetFullName());
-			}
-			else if(CullReaction == ENiagaraCullReaction::PauseResume)
-			{
-				Component->SetPausedInternal(false, true);
-			}
-			else
-			{
-				Component->ActivateInternal(false, true);
+				CompState.Apply();
+				if (CullReaction == ENiagaraCullReaction::Deactivate || CullReaction == ENiagaraCullReaction::DeactivateImmediate)
+				{
+					UE_LOG(LogNiagara, Error, TEXT("Niagara Component is incorrectly still registered with the scalability manager. %d - %s "), (int32)CullReaction, *Component->GetAsset()->GetFullName());
+				}
+				else if (CullReaction == ENiagaraCullReaction::PauseResume)
+				{
+					Component->SetPausedInternal(false, true);
+				}
+				else
+				{
+					Component->ActivateInternal(false, true);
+				}
 			}
 		}
 
@@ -441,7 +462,8 @@ void FNiagaraScalabilityManager::UpdateInternal(FNiagaraWorldManager* WorldMan, 
 
 	if (Context.bProcessAllComponents || !Context.ComponentRequiresUpdate.Contains(true))
 	{
-		if (Context.bRequiresGlobalSignificancePass && EffectType->SignificanceHandler)
+		bool bProcessSignificance = Context.bRequiresGlobalSignificancePass && EffectType->SignificanceHandler;
+		if (bProcessSignificance)
 		{
 			ProcessSignificance(WorldMan, EffectType->SignificanceHandler, Context);
 		}
@@ -450,13 +472,35 @@ void FNiagaraScalabilityManager::UpdateInternal(FNiagaraWorldManager* WorldMan, 
 		{
 			const ENiagaraCullReaction CullReaction = EffectType->CullReaction;
 
-			int32 CompIdx = 0;
 			//As we'll be activating and deactivating here, this must be done on the game thread.
-			while (CompIdx < ManagedComponents.Num())
+			
+			//Do one pass to apply in significance order so that any re-activations are done on the most significant items first.
+			int32 CompIdx = 0;
+			if(bProcessSignificance && GApplyInstanceCountsRigidly != 0)
 			{
-				if (ApplyScalabilityState(CompIdx, CullReaction, Context.bNewOnly))
+				while (CompIdx < Context.SignificanceIndices.Num())
 				{
-					++CompIdx;
+					int32 SortedIdx = Context.SignificanceIndices[CompIdx++];
+					if(!ApplyScalabilityState(SortedIdx, CullReaction, Context.bNewOnly))
+					{
+						//If we deactivate a component then we'll have to bail on this pass as the sorted index list is no longer valid. 
+						//By this point we should have processed all the activations we want in order anyway.
+						break;
+					}
+				}
+			}
+
+			//We have to do another pass if we've not processed everything yet. 
+			//Might want to move to having a separate index list for dirty components
+			if(CompIdx < ManagedComponents.Num())
+			{
+				CompIdx = 0;
+				while (CompIdx < ManagedComponents.Num())
+				{
+					if (ApplyScalabilityState(CompIdx, CullReaction, Context.bNewOnly))
+					{
+						++CompIdx;
+					}
 				}
 			}
 

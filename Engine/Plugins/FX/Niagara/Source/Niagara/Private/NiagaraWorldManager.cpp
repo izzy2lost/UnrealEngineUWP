@@ -137,7 +137,7 @@ static FAutoConsoleVariableRef CVarEnableNiagaraInstanceCountCulling(
 	ECVF_Default
 );
 
-static int GEnableNiagaraGlobalBudgetCulling = 1;
+int GEnableNiagaraGlobalBudgetCulling = 1;
 static FAutoConsoleVariableRef CVarEnableNiagaraGlobalBudgetCulling(
 	TEXT("fx.Niagara.Scalability.GlobalBudgetCulling"),
 	GEnableNiagaraGlobalBudgetCulling,
@@ -1753,8 +1753,12 @@ void FNiagaraWorldManager::SortedSignificanceCull(UNiagaraEffectType* EffectType
 	
 	if(GetScalabilityCullingMode() == ENiagaraScalabilityCullingMode::Enabled && GEnableNiagaraInstanceCountCulling)
 	{
-		int32 SystemInstanceMax = ScalabilitySettings.MaxSystemInstances;
-		int32 EffectTypeInstanceMax = ScalabilitySettings.MaxInstances;
+		UNiagaraSystem* System = Component->GetAsset();
+		check(System);
+
+		int32 SystemInstanceMax = 0;
+		int32 EffectTypeInstanceMax = 0;
+		System->GetMaxInstanceCounts(SystemInstanceMax, EffectTypeInstanceMax, false);
 
 		bCull = ScalabilitySettings.bCullMaxInstanceCount && EffectTypeInstCount >= EffectTypeInstanceMax;
 		bCull |= ScalabilitySettings.bCullPerSystemMaxInstanceCount && SystemInstCount >= SystemInstanceMax;
@@ -1767,22 +1771,13 @@ void FNiagaraWorldManager::SortedSignificanceCull(UNiagaraEffectType* EffectType
 			OutState.bCulledByGlobalBudget = false;
 #endif
 		}
-		else if (bBudgetCullEnabled && ScalabilitySettings.BudgetScaling.bCullByGlobalBudget)
-	 	{
-			float Usage = FFXBudget::GetWorstAdjustedUsage();
+		else if (bBudgetCullEnabled)
+		{
+			//Grab Adjusted instance counts.
+			System->GetMaxInstanceCounts(SystemInstanceMax, EffectTypeInstanceMax, bBudgetCullEnabled);
 
-			if (ScalabilitySettings.bCullMaxInstanceCount && ScalabilitySettings.BudgetScaling.bScaleMaxInstanceCountByGlobalBudgetUse)
-			{
-				const float Scale = ScalabilitySettings.BudgetScaling.MaxInstanceCountScaleByGlobalBudgetUse.Evaluate(Usage);
-				EffectTypeInstanceMax = int32(float(EffectTypeInstanceMax) * Scale);
-				bCull = EffectTypeInstCount >= EffectTypeInstanceMax;
-			}
-			if (ScalabilitySettings.bCullPerSystemMaxInstanceCount && ScalabilitySettings.BudgetScaling.bScaleSystemInstanceCountByGlobalBudgetUse)
-			{
-				const float Scale = ScalabilitySettings.BudgetScaling.MaxSystemInstanceCountScaleByGlobalBudgetUse.Evaluate(Usage);
-				SystemInstanceMax = int32(float(SystemInstanceMax) * Scale);
-				bCull |= SystemInstCount >= SystemInstanceMax;
-			}
+			bCull = EffectTypeInstCount >= EffectTypeInstanceMax;
+			bCull |= SystemInstCount >= SystemInstanceMax;
 
 #if DEBUG_SCALABILITY_STATE
 			OutState.bCulledByGlobalBudget |= bCull;
@@ -1793,6 +1788,8 @@ void FNiagaraWorldManager::SortedSignificanceCull(UNiagaraEffectType* EffectType
 	OutState.bCulled |= bCull;
 
 	//Only increment the instance counts if this is not culled. Including other causes of culling.
+	//This considers only culled state and will only affect which components we *want* to turn on.
+	//There is another check inside the apply that will limit instance counts to ensure they never exceed the max that are actually running (or winding down)
 	if(OutState.bCulled == false)
 	{
 		++EffectTypeInstCount;

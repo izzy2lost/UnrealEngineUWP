@@ -17,6 +17,7 @@
 #include "Particles/ParticleSystem.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
+#include "Particles/FXBudget.h"
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "NiagaraBakerSettings.h"
@@ -743,6 +744,8 @@ public:
 	FORCEINLINE const FNiagaraSystemScalabilitySettings& GetScalabilitySettings()const { return CurrentScalabilitySettings; }
 	NIAGARA_API const FNiagaraSystemScalabilityOverride& GetCurrentOverrideSettings() const;
 	FORCEINLINE bool NeedsSortedSignificanceCull()const{ return bNeedsSortedSignificanceCull; }
+
+	FORCEINLINE void GetMaxInstanceCounts(int32& OutSystemInstanceMax, int32& OutFXTypeInstanceMax, bool bBudgetAdjusted)const;
 	
 	NIAGARA_API FNiagaraPlatformSet& GetScalabilityPlatformSet() { return Platforms; }
 	NIAGARA_API const FNiagaraPlatformSet& GetScalabilityPlatformSet() const { return Platforms; }
@@ -1082,4 +1085,27 @@ FORCEINLINE void UNiagaraSystem::RegisterActiveInstance()
 FORCEINLINE void UNiagaraSystem::UnregisterActiveInstance()
 {
 	--ActiveInstances;
+}
+
+
+FORCEINLINE void UNiagaraSystem::GetMaxInstanceCounts(int32& OutSystemInstanceMax, int32& OutFXTypeInstanceMax, bool bBudgetAdjusted)const 
+{
+	OutSystemInstanceMax = CurrentScalabilitySettings.MaxSystemInstances;
+	OutFXTypeInstanceMax = CurrentScalabilitySettings.MaxInstances;
+
+	if (bBudgetAdjusted && (CurrentScalabilitySettings.BudgetScaling.bScaleMaxInstanceCountByGlobalBudgetUse || CurrentScalabilitySettings.BudgetScaling.bScaleSystemInstanceCountByGlobalBudgetUse))
+	{
+		float Usage = FFXBudget::GetWorstAdjustedUsage();
+
+		if (CurrentScalabilitySettings.bCullMaxInstanceCount && CurrentScalabilitySettings.BudgetScaling.bScaleMaxInstanceCountByGlobalBudgetUse)
+		{
+			const float Scale = CurrentScalabilitySettings.BudgetScaling.MaxInstanceCountScaleByGlobalBudgetUse.Evaluate(Usage);
+			OutFXTypeInstanceMax = int32(float(OutFXTypeInstanceMax) * Scale);
+		}
+		if (CurrentScalabilitySettings.bCullPerSystemMaxInstanceCount && CurrentScalabilitySettings.BudgetScaling.bScaleSystemInstanceCountByGlobalBudgetUse)
+		{
+			const float Scale = CurrentScalabilitySettings.BudgetScaling.MaxSystemInstanceCountScaleByGlobalBudgetUse.Evaluate(Usage);
+			OutSystemInstanceMax = int32(float(OutSystemInstanceMax) * Scale);
+		}
+	}
 }
