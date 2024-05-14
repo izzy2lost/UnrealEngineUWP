@@ -526,7 +526,7 @@ void OnArrayNodePicked(const UStruct* InStruct, TSharedPtr<SComboButton> PickerC
 {
 	if (const TSharedPtr<IPropertyHandleArray> ArrayHandle = ArrayPropertyHandle->AsArray())
 	{
-		GEditor->BeginTransaction(LOCTEXT("SelectNode", "Add Node"));
+		GEditor->BeginTransaction(LOCTEXT("AddNode", "Add Node"));
 		ArrayPropertyHandle->NotifyPreChange();
 
 		// Add new item to the end.

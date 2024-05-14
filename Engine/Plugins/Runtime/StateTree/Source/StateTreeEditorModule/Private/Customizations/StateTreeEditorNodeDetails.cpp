@@ -1617,7 +1617,7 @@ TSharedRef<SWidget> FStateTreeEditorNodeDetails::GenerateOptionsMenu()
 	// Paste
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("PasteItem", "Paste"),
-		LOCTEXT("PasteItemTooltip", "Paste over this item"),
+		LOCTEXT("PasteItemTooltip", "Paste into this item"),
 		FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Paste"),
 		FUIAction(
 			FExecuteAction::CreateSP(this, &FStateTreeEditorNodeDetails::OnPasteNode),
