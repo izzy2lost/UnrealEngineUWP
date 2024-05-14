@@ -285,8 +285,6 @@ uint64 URuntimeVirtualTextureComponent::CalculateStreamingTextureSettingsHash() 
 
 bool URuntimeVirtualTextureComponent::IsStreamingLowMips(EShadingPath ShadingPath) const
 {
-	checkf(IsActiveInWorld(), TEXT("This function should never be called for a world where we're inactive"));
-	
 #if WITH_EDITOR
 	if (GIsEditor)
 	{
@@ -314,8 +312,6 @@ bool IsCompatibleFormat(URuntimeVirtualTexture const& RuntimeVirtualTexture, UVi
 
 bool URuntimeVirtualTextureComponent::IsStreamingTextureInvalid(EShadingPath ShadingPath) const
 {
-	checkf(IsActiveInWorld(), TEXT("This function should never be called for a world where we're inactive"));
-
 	return 
 		VirtualTexture != nullptr && 
 		StreamingTexture != nullptr && 
