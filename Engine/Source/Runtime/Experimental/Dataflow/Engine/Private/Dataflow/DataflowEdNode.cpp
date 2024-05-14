@@ -281,7 +281,7 @@ bool UDataflowEdNode::PinIsCompatibleWithType(const UEdGraphPin& Pin, const FEdG
 			return DataflowNode->OutputSupportsType(Pin.GetFName(), PinType.PinCategory);
 		}
 	}
-#endif WITH_EDITOR
+#endif // WITH_EDITOR
 	return false;
 }
 
