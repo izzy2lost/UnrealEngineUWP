@@ -1484,7 +1484,7 @@ TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> UGeometryCollection::Genera
 
 		if (!DuplicateGeometryCollection->HasAttribute("NaniteIndex", "Transform"))
 		{
-			DuplicateGeometryCollection->AddAttribute<FBox>("NaniteIndex", "Transform");
+			DuplicateGeometryCollection->AddAttribute<int32>("NaniteIndex", "Transform");
 		}
 
 		const int32 NumTransforms = GeometryCollection->NumElements(FGeometryCollection::TransformGroup);
