@@ -16,6 +16,16 @@ void FDataflowReRouteNode::Evaluate(Dataflow::FContext& Context, const FDataflow
 	ForwardInput(Context, &Value, &Value);
 }
 
+bool FDataflowReRouteNode::OnInputTypeChanged(const FDataflowInput* Input)
+{
+	return SetOutputConcreteType(&Value, Input->GetType());
+}
+
+bool FDataflowReRouteNode::OnOutputTypeChanged(const FDataflowOutput* Input)
+{
+	return SetInputConcreteType(&Value, Input->GetType());
+}
+
 FDataflowBranchNode::FDataflowBranchNode(const Dataflow::FNodeParameters& Param, FGuid InGuid)
 	: Super(Param, InGuid)
 {
@@ -30,7 +40,7 @@ void FDataflowBranchNode::Evaluate(Dataflow::FContext& Context, const FDataflowO
 	if (Out->IsA(&Result))
 	{
 		const bool InCondition = GetValue<bool>(Context, &bCondition);
-		const FDataflowAnyType* SelectedInputReference = InCondition ? &TrueValue : &FalseValue;
+		const void* SelectedInputReference = InCondition ? &TrueValue : &FalseValue;
 		if (IsConnected(SelectedInputReference))
 		{
 			ForwardInput(Context, SelectedInputReference, &Result);
@@ -41,4 +51,21 @@ void FDataflowBranchNode::Evaluate(Dataflow::FContext& Context, const FDataflowO
 			// Context.Error(TEXT("Both True and False Inputs must be connected"));
 		}
 	}
+}
+
+bool FDataflowBranchNode::OnInputTypeChanged(const FDataflowInput* Input)
+{
+	return bool(
+		SetInputConcreteType(&TrueValue, Input->GetType())
+	  | SetInputConcreteType(&FalseValue, Input->GetType())
+	  | SetOutputConcreteType(&Result, Input->GetType())
+		);
+}
+
+bool FDataflowBranchNode::OnOutputTypeChanged(const FDataflowOutput* Input)
+{
+	return bool(
+		  SetInputConcreteType(&TrueValue, Input->GetType())
+		| SetInputConcreteType(&FalseValue, Input->GetType())
+		);
 }

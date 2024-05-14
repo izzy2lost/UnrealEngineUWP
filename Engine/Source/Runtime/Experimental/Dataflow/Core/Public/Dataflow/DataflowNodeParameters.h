@@ -131,11 +131,9 @@ namespace Dataflow
 	template<class T>
 	const T& FContextCacheElementBase::GetTypedData(FContext& Context, const FProperty* PropertyIn, const T& Default) const
 	{
-		check(PropertyIn);
 		// check(PropertyIn->IsA<T>()); // @todo(dataflow) compile error for non-class T; find alternatives
 		if (Type == EType::CacheElementTyped)
 		{
-			check(Property->SameType(PropertyIn));
 			return static_cast<const FContextCacheElement<T>&>(*this).GetData(Context, PropertyIn, Default);
 		}
 		if (Type == EType::CacheElementReference)

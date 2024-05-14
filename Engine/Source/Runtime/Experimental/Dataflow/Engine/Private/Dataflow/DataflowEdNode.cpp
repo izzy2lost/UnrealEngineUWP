@@ -266,6 +266,25 @@ void UDataflowEdNode::RemoveOptionPin()
 #endif // WITH_EDITOR && !UE_BUILD_SHIPPING
 }
 
+bool UDataflowEdNode::PinIsCompatibleWithType(const UEdGraphPin& Pin, const FEdGraphPinType& PinType) const
+{
+#if WITH_EDITOR
+	check(Pin.GetOwningNode() == this);
+	if (TSharedPtr<const FDataflowNode> DataflowNode = GetDataflowNode())
+	{
+		if (Pin.Direction == EEdGraphPinDirection::EGPD_Input)
+		{
+			return DataflowNode->InputSupportsType(Pin.GetFName(), PinType.PinCategory);
+		}
+		if (Pin.Direction == EEdGraphPinDirection::EGPD_Output)
+		{
+			return DataflowNode->OutputSupportsType(Pin.GetFName(), PinType.PinCategory);
+		}
+	}
+#endif WITH_EDITOR
+	return false;
+}
+
 FText UDataflowEdNode::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
 	return FText::FromString(GetName());
@@ -293,14 +312,16 @@ void UDataflowEdNode::PinConnectionListChanged(UEdGraphPin* Pin)
 								{
 									if (FDataflowOutput* LinkedConOutput = LinkedDataflowNode->FindOutput(FName(LinkedCon->GetName())))
 									{
+										const bool bTypeChanged = DataflowNode->TrySetConnectionType(ConnectionInput, LinkedConOutput->GetType());
 										DataflowGraph->Connect(LinkedConOutput, ConnectionInput);
+
+										if (bTypeChanged)
+										{
+											UpdatePinsFromDataflowNode();
+										}
+
 									}
 								}
-								OnPinConnection(*Pin, LinkedCon->PinType);
-							}
-							else
-							{
-								OnPinDisconnection(*Pin);
 							}
 						}
 					}
@@ -321,14 +342,16 @@ void UDataflowEdNode::PinConnectionListChanged(UEdGraphPin* Pin)
 								{
 									if (FDataflowInput* LinkedConInput = LinkedDataflowNode->FindInput(FName(LinkedCon->GetName())))
 									{
+										const bool bTypeChanged = DataflowNode->TrySetConnectionType(ConnectionOutput, LinkedConInput->GetType());
 										DataflowGraph->Connect(ConnectionOutput, LinkedConInput);
+
+										if (bTypeChanged)
+										{
+											UpdatePinsFromDataflowNode();
+										}
 									}
 								}
-								OnPinConnection(*Pin, LinkedCon->PinType);
-							}
-							else
-							{
-								OnPinDisconnection(*Pin);
+								
 							}
 						}
 					}
@@ -341,62 +364,6 @@ void UDataflowEdNode::PinConnectionListChanged(UEdGraphPin* Pin)
 }
 
 #endif // WITH_EDITOR && !UE_BUILD_SHIPPING
-
-void UDataflowEdNode::OnPinConnection(const UEdGraphPin& Pin, const FEdGraphPinType& Type)
-{
-#if WITH_EDITOR
-	if (Pin.PinType.PinCategory == FDataflowAnyType::TypeName)
-	{
-		SetAnyTypePinsToType(Type);
-	}
-#endif
-}
-
-void UDataflowEdNode::OnPinDisconnection(const UEdGraphPin& Pin)
-{
-}
-
-void UDataflowEdNode::SetAnyTypePinsToType(const FEdGraphPinType& Type)
-{
-#if WITH_EDITOR
-	if (const TSharedPtr<FDataflowNode> DataflowNode = this->GetDataflowNode())
-	{
-		for (UEdGraphPin* Pin : GetAllPins())
-		{
-			if (Pin)
-			{
-				switch (Pin->Direction)
-				{
-					case EEdGraphPinDirection::EGPD_Input:
-					{
-						if (FDataflowInput* Input = DataflowNode->FindInput(Pin->GetFName()))
-						{
-							if (Input->IsAnyType())
-							{
-								Pin->PinType = Type;
-								Input->SetConcreteType(Type.PinCategory);
-							}
-						}
-						break;
-					}
-					case EEdGraphPinDirection::EGPD_Output:
-					{
-						if (FDataflowOutput* Output = DataflowNode->FindOutput(Pin->GetFName()))
-						{
-							if (Output->IsAnyType())
-							{
-								Pin->PinType = Type;
-								Output->SetConcreteType(Type.PinCategory);
-							}
-						}
-						break;
-					}
-				}
-			}
-		}
-	}
-#endif
-}
 
 void UDataflowEdNode::Serialize(FArchive& Ar)
 {
@@ -526,61 +493,50 @@ void UDataflowEdNode::GetPinHoverText(const UEdGraphPin& Pin, FString& HoverText
 
 void UDataflowEdNode::AutowireNewNode(UEdGraphPin* FromPin)
 {
-	if (DataflowGraph && FromPin)
+	const UEdGraph* EdGraph = this->GetGraph();
+	if (EdGraph == nullptr)
 	{
-		if (UEdGraphNode* FromGraphNode = FromPin->GetOwningNode())
+		return;
+	}
+
+	if (!DataflowGraph || !FromPin)
+	{
+		return;
+	}
+
+	if (UEdGraphNode* FromGraphNode = FromPin->GetOwningNode())
+	{
+		if (FromPin->Direction == EEdGraphPinDirection::EGPD_Output)
 		{
-			if (UDataflowEdNode* FromDataflowGraphNode = Cast<UDataflowEdNode>(FromPin->GetOwningNode()))
+			for (UEdGraphPin* InputPin : this->GetAllPins())
 			{
-				const TSharedPtr<FDataflowNode> FromDataFlowNode = FromDataflowGraphNode->GetDataflowNode();
-				if (FromDataFlowNode)
+				if (InputPin->Direction == EEdGraphPinDirection::EGPD_Input)
 				{
-					if (FDataflowOutput* FromOutput = FromDataFlowNode->FindOutput(FromPin->PinName))
+					if (this->PinIsCompatibleWithType(*InputPin, FromPin->PinType))
 					{
-						const TSharedPtr<FDataflowNode> ToDataFlowNode = this->GetDataflowNode();
-						for (UEdGraphPin* InputPin : this->GetAllPins())
+						if (EdGraph->GetSchema()->TryCreateConnection(FromPin, InputPin))
 						{
-							if (FDataflowInput* ToInput = ToDataFlowNode->FindInput(InputPin->PinName))
-							{
-								const bool bAreSameType = (ToInput->GetType() == FromOutput->GetType());
-								const bool bOnlyOneIsAnyType = (!bAreSameType && (ToInput->GetType() == FDataflowAnyType::TypeName) != (FromOutput->GetType() == FDataflowAnyType::TypeName));
-								if (bAreSameType || bOnlyOneIsAnyType)
-								{
-									if (const UEdGraph* EdGraph = this->GetGraph())
-									{
-										if (EdGraph->GetSchema()->TryCreateConnection(FromPin, InputPin))
-										{
-											FromGraphNode->NodeConnectionListChanged();
-											this->NodeConnectionListChanged();
-											break;
-										}
-									}
-								}
-							}
+							FromGraphNode->NodeConnectionListChanged();
+							this->NodeConnectionListChanged();
+							return;
 						}
 					}
-					else if(FDataflowInput* FromInput = FromDataFlowNode->FindInput(FromPin->PinName))
+				}
+			}
+		}
+		if (FromPin->Direction == EEdGraphPinDirection::EGPD_Input)
+		{
+			for (UEdGraphPin* OutputPin : this->GetAllPins())
+			{
+				if (OutputPin->Direction == EEdGraphPinDirection::EGPD_Output)
+				{
+					if (this->PinIsCompatibleWithType(*OutputPin, FromPin->PinType))
 					{
-						const TSharedPtr<FDataflowNode> ToDataFlowNode = this->GetDataflowNode();
-						for (UEdGraphPin* InputPin : this->GetAllPins())
+						if (EdGraph->GetSchema()->TryCreateConnection(FromPin, OutputPin))
 						{
-							if (FDataflowOutput* ToOutput = ToDataFlowNode->FindOutput(InputPin->PinName))
-							{
-								const bool bAreSameType = (ToOutput->GetType() == FromInput->GetType());
-								const bool bOnlyOneIsAnyType = (!bAreSameType && (ToOutput->GetType() == FDataflowAnyType::TypeName) != (FromInput->GetType() == FDataflowAnyType::TypeName));
-								if (bAreSameType || bOnlyOneIsAnyType)
-								{
-									if (const UEdGraph* EdGraph = this->GetGraph())
-									{
-										if (EdGraph->GetSchema()->TryCreateConnection(FromPin, InputPin))
-										{
-											FromGraphNode->NodeConnectionListChanged();
-											this->NodeConnectionListChanged();
-											break;
-										}
-									}
-								}
-							}
+							FromGraphNode->NodeConnectionListChanged();
+							this->NodeConnectionListChanged();
+							return;
 						}
 					}
 				}
