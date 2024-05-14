@@ -938,6 +938,7 @@ private:
 private:
 	MEDIAUTILS_API TRange<FMediaTimeStamp> GetAdjustedBlockOnRange() const;
 
+	TRange<FTimespan> GetActivePlaybackRange() const;
 	void ReInit();
 
 	class FBlockOnRange
