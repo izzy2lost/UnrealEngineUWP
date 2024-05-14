@@ -633,13 +633,17 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_Actor::GetWidgets()
 			.DataTypePlural(FText::FromString("Actors"))
 			.OnGetRowText_Static(&GetRowText)
 			.OnGetRowIcon_Static(&GetRowIcon)
-			.OnDelete_Lambda([this](const TSharedPtr<TSoftObjectPtr<AActor>> InActor)
+			.OnDelete_Lambda([this](const TArray<TSharedPtr<TSoftObjectPtr<AActor>>> InActors)
 			{
 				const FScopedTransaction Transaction(LOCTEXT("RemoveActorsFromCollection", "Remove Actors from Collection"));
 				Modify();
+
+				for (const TSharedPtr<TSoftObjectPtr<AActor>>& Actor : InActors)
+				{
+					ListDataSource.Remove(Actor);
+					ActorsToMatch.Remove(*Actor.Get());
+				}
 				
-				ListDataSource.Remove(InActor);
-				ActorsToMatch.Remove(*InActor.Get());
 				ActorsList->Refresh();
 			})
 		]
@@ -1043,12 +1047,16 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_ActorType::GetWidgets
 			.DataTypePlural(FText::FromString("Actor Types"))
 			.OnGetRowText_Static(&GetRowText)
 			.OnGetRowIcon_Static(&GetRowIcon)
-			.OnDelete_Lambda([this](UClass* InActorClass)
+			.OnDelete_Lambda([this](const TArray<UClass*> InActorClasses)
 			{
 				const FScopedTransaction Transaction(LOCTEXT("RemoveActorTypesFromCollection", "Remove Actor Types from Collection"));
 				Modify();
+
+				for (UClass* ActorClass : InActorClasses)
+				{
+					ActorTypes.Remove(ActorClass);
+				}
 				
-				ActorTypes.Remove(InActorClass);
 				ActorTypesList->Refresh();
 			})
 		]
@@ -1276,12 +1284,16 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_ComponentType::GetWid
 			.DataTypePlural(FText::FromString("Component Types"))
 			.OnGetRowText_Static(&GetRowText)
 			.OnGetRowIcon_Static(&GetRowIcon)
-			.OnDelete_Lambda([this](UClass* InComponentType)
+			.OnDelete_Lambda([this](const TArray<UClass*> InComponentTypes)
 			{
 				const FScopedTransaction Transaction(LOCTEXT("RemoveComponentTypesFromCollection", "Remove Component Types from Collection"));
 				Modify();
+
+				for (UClass* ComponentType : InComponentTypes)
+				{
+					ComponentTypes.Remove(ComponentType);
+				}
 				
-				ComponentTypes.Remove(InComponentType);
 				ComponentTypesList->Refresh();
 			})
 	);
@@ -1464,12 +1476,16 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_EditorFolder::GetWidg
 			.DataTypePlural(FText::FromString("Folders"))
 			.OnGetRowText_Static(&GetRowText)
 			.OnGetRowIcon_Static(&GetRowIcon)
-			.OnDelete_Lambda([this](FName InFolderPath)
+			.OnDelete_Lambda([this](const TArray<FName> InFolderPaths)
 			{
 				const FScopedTransaction Transaction(LOCTEXT("RemoveEditorFoldersFromCollection", "Remove Editor Folders from Collection"));
 				Modify();
 
-				FolderPaths.Remove(InFolderPath);
+				for (const FName& FolderPath : InFolderPaths)
+				{
+					FolderPaths.Remove(FolderPath);
+				}
+				
 				FolderPathsList->Refresh();
 
 				if (FolderPickerWidget.IsValid())
@@ -1689,13 +1705,16 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_Sublevel::GetWidgets(
 			.DataTypePlural(FText::FromString("Sublevels"))
 			.OnGetRowText_Static(&GetRowText)
 			.OnGetRowIcon_Static(&GetRowIcon)
-			.OnDelete_Lambda([this](const TSharedPtr<TSoftObjectPtr<UWorld>> InSublevel)
+			.OnDelete_Lambda([this](const TArray<TSharedPtr<TSoftObjectPtr<UWorld>>> InSublevels)
 			{
 				const FScopedTransaction Transaction(LOCTEXT("RemoveSublevelsFromCollection", "Remove Sublevels from Collection"));
 				Modify();
-				
-				ListDataSource.Remove(InSublevel);
-				Sublevels.Remove(*InSublevel.Get());
+
+				for (TSharedPtr<TSoftObjectPtr<UWorld>> Sublevel : InSublevels)
+				{
+					ListDataSource.Remove(Sublevel);
+					Sublevels.Remove(*Sublevel.Get());
+				}
 				
 				SublevelsList->Refresh();
 				
@@ -1870,12 +1889,16 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_ActorLayer::GetWidget
 			.DataTypePlural(FText::FromString("Actor Layers"))
 			.OnGetRowText_Static(&GetRowText)
 			.OnGetRowIcon_Static(&GetRowIcon)
-			.OnDelete_Lambda([this](FName InLayerName)
+			.OnDelete_Lambda([this](const TArray<FName> InLayerNames)
 			{
 				const FScopedTransaction Transaction(LOCTEXT("RemoveActorLayerFromCollection", "Remove Actor Layers from Collection"));
 				Modify();
 
-				LayerNames.Remove(InLayerName);
+				for (const FName& LayerName : InLayerNames)
+				{
+					LayerNames.Remove(LayerName);
+				}
+				
 				LayerNamesList->Refresh();
 			})
 		]
@@ -2042,13 +2065,17 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_DataLayer::GetWidgets
 			.DataTypePlural(FText::FromString("Data Layers"))
 			.OnGetRowText_Static(&GetRowText)
 			.OnGetRowIcon_Static(&GetRowIcon)
-			.OnDelete_Lambda([this](TSharedPtr<TSoftObjectPtr<UDataLayerAsset>> InLayer)
+			.OnDelete_Lambda([this](const TArray<TSharedPtr<TSoftObjectPtr<UDataLayerAsset>>> InLayers)
 			{
 				const FScopedTransaction Transaction(LOCTEXT("RemoveDataLayerFromCollection", "Remove Data Layers from Collection"));
 				Modify();
 
-				ListDataSource.Remove(InLayer);
-				DataLayers.Remove(*InLayer.Get());
+				for (TSharedPtr<TSoftObjectPtr<UDataLayerAsset>> Layer : InLayers)
+				{
+					ListDataSource.Remove(Layer);
+					DataLayers.Remove(*Layer.Get());
+				}
+				
 				DataLayersList->Refresh();
 
 				constexpr bool bUpdateSources = true;

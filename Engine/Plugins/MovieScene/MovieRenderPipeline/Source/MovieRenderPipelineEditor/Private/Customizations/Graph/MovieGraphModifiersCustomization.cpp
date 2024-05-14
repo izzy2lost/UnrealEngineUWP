@@ -206,13 +206,17 @@ void FMovieGraphModifiersCustomization::CustomizeDetails(IDetailLayoutBuilder& I
 		.DataSource(&ListDataSource)
 		.DataType(FText::FromString("Collection"))
 		.DataTypePlural(FText::FromString("Collections"))
-		.OnDelete_Lambda([this, ModifierNode](const FName DeletedCollectionName)
+		.OnDelete_Lambda([this, ModifierNode](const TArray<FName> DeletedCollectionNames)
 		{
 			if (ModifierNode.IsValid())
 			{
-				const FScopedTransaction Transaction(LOCTEXT("RemoveCollectionFromModifier", "Remove Collection from Modifier"));
+				const FScopedTransaction Transaction(LOCTEXT("RemoveCollectionsFromModifier", "Remove Collections from Modifier"));
+
+				for (const FName& DeletedCollectionName : DeletedCollectionNames)
+				{
+					ModifierNode.Get()->RemoveCollection(DeletedCollectionName);
+				}
 				
-				ModifierNode.Get()->RemoveCollection(DeletedCollectionName);
 				ListDataSource = ModifierNode->GetCollections();
 				CollectionsList->Refresh();
 			}

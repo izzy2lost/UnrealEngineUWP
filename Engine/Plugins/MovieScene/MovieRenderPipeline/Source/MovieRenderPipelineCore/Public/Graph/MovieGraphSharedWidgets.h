@@ -29,13 +29,15 @@ class SMovieGraphSimpleList final : public SCompoundWidget
 public:
 	DECLARE_DELEGATE_RetVal_OneParam(const FSlateBrush*, FGetRowIcon, ListType);
 	DECLARE_DELEGATE_RetVal_OneParam(FText, FGetRowText, ListType);
-	DECLARE_DELEGATE_OneParam(FOnDelete, ListType);
+	DECLARE_DELEGATE_OneParam(FOnDelete, TArray<ListType>);
 	DECLARE_DELEGATE_RetVal_OneParam(bool, FGetRowEnableState, ListType);
 	DECLARE_DELEGATE_TwoParams(FSetRowEnableState, ListType, bool);
 	
 	SLATE_BEGIN_ARGS(SMovieGraphSimpleList<ListType>)
-		: _ShowEnableDisable(false)
+		: _SelectionMode(ESelectionMode::Multi)
+		, _ShowEnableDisable(false)
 		{}
+		
 		/** The source of data that the list will display. */
 		SLATE_ATTRIBUTE(TArray<ListType>*, DataSource)
 
@@ -44,6 +46,9 @@ public:
 
 		/** The plural of the DataType attribute. */
 		SLATE_ATTRIBUTE(FText, DataTypePlural)
+
+		/** The selection mode the list should be put into. Defaults to Multi. */
+		SLATE_ATTRIBUTE(ESelectionMode::Type, SelectionMode)
 
 		/** Gets the icon for a row in the list. */
 		SLATE_EVENT(FGetRowIcon, OnGetRowIcon);
@@ -69,6 +74,7 @@ public:
 		DataSource = InArgs._DataSource.Get();
 		DataType = InArgs._DataType.Get();
 		DataTypePlural = InArgs._DataTypePlural.Get();
+		SelectionMode = InArgs._SelectionMode.Get();
 		OnGetRowIcon = InArgs._OnGetRowIcon;
 		OnGetRowText = InArgs._OnGetRowText;
 		OnDelete = InArgs._OnDelete;
@@ -96,6 +102,7 @@ public:
 			[
 				SAssignNew(ListView, SListView<ListType>)
 				.ListItemsSource(DataSource)
+				.SelectionMode(SelectionMode)
 				.OnKeyDownHandler_Lambda([this](const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
 				{
 					return CommandList->ProcessCommandBindings(InKeyEvent) ? FReply::Handled() : FReply::Unhandled();
@@ -177,7 +184,7 @@ private:
 		{
 			if (OnDelete.IsBound())
 			{
-				OnDelete.Execute(SelectedItems[0]);
+				OnDelete.Execute(SelectedItems);
 			}
 		}
 	}
@@ -271,6 +278,7 @@ private:
 	FText DataType;
 	FText DataTypePlural;
 	TArray<ListType>* DataSource = nullptr;
+	ESelectionMode::Type SelectionMode = ESelectionMode::Multi;
 };
 
 /**
