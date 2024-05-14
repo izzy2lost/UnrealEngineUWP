@@ -2,11 +2,17 @@
 
 using System;
 using System.Net.Http;
+using System.Net.Http.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
+using EpicGames.Horde.Server;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
+using Grpc.Core;
+using Grpc.Net.Client;
+using Grpc.Net.Client.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -15,7 +21,7 @@ namespace EpicGames.Horde
 	/// <summary>
 	/// Default implementation of <see cref="IHordeClient"/>
 	/// </summary>
-	class HordeClient : IHordeClient
+	sealed class HordeClient : IHordeClient, IAsyncDisposable
 	{
 		readonly IHttpClientFactory _httpClientFactory;
 		readonly HordeHttpAuthHandlerState _authHandlerState;
@@ -23,6 +29,7 @@ namespace EpicGames.Horde
 		readonly HordeOptions _hordeOptions;
 		readonly ILoggerFactory _loggerFactory;
 
+		BackgroundTask<GrpcChannel>? _grpcChannel;
 		Uri? _serverUrl;
 
 		/// <inheritdoc/>
@@ -38,6 +45,16 @@ namespace EpicGames.Horde
 			_bundleCache = bundleCache;
 			_hordeOptions = hordeOptions.Value;
 			_loggerFactory = loggerFactory;
+		}
+
+		/// <inheritdoc/>
+		public async ValueTask DisposeAsync()
+		{
+			if (_grpcChannel != null)
+			{
+				await _grpcChannel.DisposeAsync();
+				_grpcChannel = null;
+			}
 		}
 
 		Uri GetServerUrl()
@@ -67,6 +84,60 @@ namespace EpicGames.Horde
 			{
 				return false;
 			}
+		}
+
+		/// <inheritdoc/>
+		public async Task<GrpcChannel> GetGrpcChannelAsync(CancellationToken cancellationToken)
+		{
+			_grpcChannel ??= BackgroundTask.StartNew(ctx => CreateGrpcChannelInternalAsync(ctx));
+			return await _grpcChannel.WaitAsync(cancellationToken);
+		}
+
+		async Task<GrpcChannel> CreateGrpcChannelInternalAsync(CancellationToken cancellationToken)
+		{
+			HttpClient httpClient = _httpClientFactory.CreateClient(HordeHttpClient.HttpClientName);
+
+			// Get the server URL for gRPC traffic. If we're using an unencrpyted connection we need to use a different port for http/2, so 
+			// send a http1 request to the server to query it.
+			Uri serverUri = httpClient.BaseAddress ?? throw new InvalidOperationException("Horde server base address is not configured");
+			if (serverUri.Scheme.Equals("http", StringComparison.Ordinal))
+			{
+				using (HttpResponseMessage response = await httpClient.GetAsync("api/v1/server/ports", cancellationToken))
+				{
+					GetPortsResponse? ports = await response.Content.ReadFromJsonAsync<GetPortsResponse>(HordeHttpClient.JsonSerializerOptions, cancellationToken);
+					if (ports != null && ports.UnencryptedHttp2.HasValue && ports.UnencryptedHttp2 != 0)
+					{
+						UriBuilder builder = new UriBuilder(serverUri);
+						builder.Port = ports.UnencryptedHttp2.Value;
+						serverUri = builder.Uri;
+					}
+				}
+			}
+
+			ServiceConfig serviceConfig = new ServiceConfig();
+			serviceConfig.MethodConfigs.Add(new MethodConfig
+			{
+				Names = { MethodName.Default },
+				RetryPolicy = new RetryPolicy
+				{
+					MaxAttempts = 3,
+					InitialBackoff = TimeSpan.FromSeconds(1),
+					MaxBackoff = TimeSpan.FromSeconds(10),
+					BackoffMultiplier = 2.0,
+					RetryableStatusCodes = { StatusCode.Unavailable },
+				}
+			});
+
+			return GrpcChannel.ForAddress(serverUri, new GrpcChannelOptions
+			{
+				// Required payloads coming from CAS service can be large
+				MaxReceiveMessageSize = 1024 * 1024 * 1024, // 1 GB
+				MaxSendMessageSize = 1024 * 1024 * 1024, // 1 GB
+				LoggerFactory = _loggerFactory,
+				HttpClient = httpClient,
+				DisposeHttpClient = true,
+				ServiceConfig = serviceConfig
+			});
 		}
 
 		/// <inheritdoc/>

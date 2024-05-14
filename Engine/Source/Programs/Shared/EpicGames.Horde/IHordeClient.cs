@@ -5,6 +5,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Tools;
+using Grpc.Core;
+using Grpc.Net.Client;
 
 namespace EpicGames.Horde
 {
@@ -32,9 +34,13 @@ namespace EpicGames.Horde
 		bool IsConnected();
 
 		/// <summary>
-		/// Creates a http client 
+		/// Gets a grpc channel for communication with the server. This should NOT be disposed by the caller.
 		/// </summary>
-		/// <returns></returns>
+		Task<GrpcChannel> GetGrpcChannelAsync(CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Creates a Horde HTTP client 
+		/// </summary>
 		HordeHttpClient CreateHttpClient();
 
 		/// <summary>
@@ -59,5 +65,15 @@ namespace EpicGames.Horde
 		/// </summary>
 		public static IStorageClient CreateStorageClient(this IHordeClient hordeClient, ToolId toolId)
 			=> hordeClient.CreateStorageClient($"api/v1/tools/{toolId}");
+
+		/// <summary>
+		/// Attempts to get a client reference, returning immediately if there's not one available
+		/// </summary>
+		public static async Task<TClient> GetGrpcClientAsync<TClient>(this IHordeClient hordeClient, CancellationToken cancellationToken = default) 
+			where TClient : ClientBase<TClient>
+		{
+			GrpcChannel channel = await hordeClient.GetGrpcChannelAsync(cancellationToken);
+			return (TClient)Activator.CreateInstance(typeof(TClient), channel)!;
+		}
 	}
 }
