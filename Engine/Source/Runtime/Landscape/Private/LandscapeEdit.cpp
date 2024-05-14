@@ -976,13 +976,13 @@ void ULandscapeComponent::PostEditUndo()
 			ComponentProxy->FixupWeightmaps();
 		}
 
-		// Update Material Instances on each modified component (uses the weightmap allocations fixed by FixupWeightmaps)
+		// Update Material Instances on each modified component, in case the material property has changed (uses the weightmap allocations fixed by FixupWeightmaps)
 		for (ULandscapeComponent* Component : UndoRedoModifiedComponents)
 		{
 			if (IsValid(Component)) // Components can be pending kill, if they were removed by the undo operation
 			{
 				ALandscapeProxy* ComponentProxy = Component->GetLandscapeProxy();
-				if (IsValid(ComponentProxy) && !ComponentProxy->HasLayersContent())
+				if (IsValid(ComponentProxy))
 				{
 					Component->UpdateMaterialInstances();
 				}
