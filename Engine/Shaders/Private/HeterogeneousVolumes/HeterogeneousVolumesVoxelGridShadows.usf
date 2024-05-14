@@ -491,6 +491,28 @@ groupshared int GSWarpSampleCount[THREADGROUP_SIZE_2D * THREADGROUP_SIZE_2D];
 groupshared int GSWarpPrefixSum[THREADGROUP_SIZE_2D * THREADGROUP_SIZE_2D];
 groupshared int GSWarpOffset;
 
+/*
+ * CompressVolumetricShadowMapCS
+ * 
+ * Builds a compressed Adaptive Volumetric Shadow Map. The structure utilizes two buffers:
+ * 
+ * 1) Per-pixel indirection buffer:
+ *    a) Indirection pointer to transmittance function.
+ *    b) Number of samples stored in the transmittance function (max = 64).
+ *    c) Bounding depth information: (z_0, z_n)
+ * 
+ * 2) Transmittance function atlas:
+ *    The atlas is a densely packed two-level structure, containing spans of transmittance
+ *    information for a given pixel. To optimize for query performance, only the top-level
+ *    contains the first element, offsetting the second-level elements by 1 to optimize
+ *    for 4-wide loads.
+ * 
+ *    Level 1) Strided information to accelerate the query:
+ *             (z_0, tau_0) -> (z_4, tau_4) -> (z_8, tau_8) -> (z_12, tau_12)
+ * 
+ *    Level 2) Linear span of transmittance information, offset by 1:
+ *             (z_1, tau_1) -> (z_2, tau_2) -> ... -> (z_15, tau_15)
+ */
 [numthreads(THREADGROUP_SIZE_2D, THREADGROUP_SIZE_2D, 1)]
 void CompressVolumetricShadowMapCS(
 	uint2 GroupThreadId : SV_GroupThreadID,
@@ -529,7 +551,10 @@ void CompressVolumetricShadowMapCS(
 			NextPtr = AVSM_GetNextPtr(VolumetricShadowLinkedListBuffer[PixelIndex + NextPtr]);
 		}
 	}
-	GSWarpSampleCount[GroupIndex] = SampleCount;
+
+	// Add top-level skip list
+	int TopLevelSampleCount = CalcTopLevelSampleCount(SampleCount);
+	GSWarpSampleCount[GroupIndex] = Align4(TopLevelSampleCount) + Align4(SampleCount);
 	GroupMemoryBarrierWithGroupSync();
 
 	// TODO: Parallel Prefix sum
@@ -550,20 +575,46 @@ void CompressVolumetricShadowMapCS(
 	}
 	GroupMemoryBarrierWithGroupSync();
 
+	uint TopLevelOffset = GSWarpOffset + GSWarpPrefixSum[GroupIndex];
+	uint BottomLevelOffset = GSWarpOffset + GSWarpPrefixSum[GroupIndex] + Align4(TopLevelSampleCount);
+
 	// Pack and fill data per thread
-	FAVSMIndirectionDataContext Context = AVSM_CreateIndirectionDataContext(DataBegin, DataEnd);
+	FAVSMSampleData ShadowData = AVSM_CreateSampleData(0.0, 1.0);
 	int NextPtr = 0;
 	for (int SampleIndex = 0; SampleIndex < SampleCount; ++SampleIndex)
 	{
-		FAVSMSampleData ShadowData = AVSM_UnpackSampleData(VolumetricShadowLinkedListBuffer[PixelIndex + NextPtr]);
+		ShadowData = AVSM_UnpackSampleData(VolumetricShadowLinkedListBuffer[PixelIndex + NextPtr]);
 		NextPtr = AVSM_GetNextPtr(VolumetricShadowLinkedListBuffer[PixelIndex + NextPtr]);
 
-		RWVolumetricShadowTransmittanceBuffer[GSWarpOffset + GSWarpPrefixSum[GroupIndex] + SampleIndex] = AVSM_PackSampleData(ShadowData);
+		// Store indexed list offset by 1 element
+		int BottomLevelIndex = max(SampleIndex - 1, 0);
+		RWVolumetricShadowTransmittanceBuffer[BottomLevelOffset + BottomLevelIndex] = AVSM_PackSampleData(ShadowData);
+
+		// Mark the current sample as an acceleration sample at the top-level
+		if (SampleIndex % 4 == 0)
+		{
+			uint TopLevelIndex = SampleIndex / 4;
+			RWVolumetricShadowTransmittanceBuffer[TopLevelOffset + TopLevelIndex] = AVSM_PackSampleData(ShadowData);
+		}
+	}
+
+
+	// Pad remainder
+	for (int BottomLevelIndex = SampleCount - 1; BottomLevelIndex < Align4(SampleCount); ++BottomLevelIndex)
+	{
+		RWVolumetricShadowTransmittanceBuffer[BottomLevelOffset + BottomLevelIndex] = AVSM_PackSampleData(AVSM_CreateSampleData(MaxHalfFloat, ShadowData.Tau));
+	}
+
+	// Pad remainder
+	for (int TopLevelIndex = TopLevelSampleCount; TopLevelIndex < Align4(TopLevelSampleCount); ++TopLevelIndex)
+	{
+		RWVolumetricShadowTransmittanceBuffer[TopLevelOffset + TopLevelIndex] = AVSM_PackSampleData(AVSM_CreateSampleData(MaxHalfFloat, ShadowData.Tau));
 	}
 
 	// Write indirection entry
 	if (all(PixelCoord < ShadowResolution))
 	{
+		FAVSMIndirectionDataContext Context = AVSM_CreateIndirectionDataContext(DataBegin, DataEnd);
 		FAVSMIndirectionData IndirectionData = AVSM_CreateIndirectionData(
 			Context,
 			GSWarpOffset + GSWarpPrefixSum[GroupIndex],

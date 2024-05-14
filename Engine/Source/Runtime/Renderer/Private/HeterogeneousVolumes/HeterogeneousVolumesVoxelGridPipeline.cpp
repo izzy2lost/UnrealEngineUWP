@@ -3303,9 +3303,10 @@ void CompressVolumetricShadowMap(
 		TEXT("HeterogeneousVolume.VolumetricShadowIndirectionBuffer")
 	);
 
-	int32 FVolumetricShadowTransmittanceMaxCount = VolumetricShadowPixelCount * MaxSampleCount;
+	int32 TopLevelSampleCount = FMath::CeilToInt(MaxSampleCount / 4.0);
+	int32 VolumetricShadowTransmittanceMaxCount = VolumetricShadowPixelCount * (Align(TopLevelSampleCount, 4) + Align(MaxSampleCount, 4));
 	VolumetricShadowTransmittanceBuffer = GraphBuilder.CreateBuffer(
-		FRDGBufferDesc::CreateStructuredDesc(sizeof(FAVSMSamplePackedData), FVolumetricShadowTransmittanceMaxCount),
+		FRDGBufferDesc::CreateStructuredDesc(sizeof(FAVSMSamplePackedData), VolumetricShadowTransmittanceMaxCount),
 		TEXT("HeterogeneousVolume.VolumetricShadowTransmittanceBuffer")
 	);
 
