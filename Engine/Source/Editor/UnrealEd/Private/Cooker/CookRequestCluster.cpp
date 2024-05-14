@@ -747,21 +747,21 @@ void FRequestCluster::FGraphSearch::QueueEdgesFetch(FVertexData& Vertex, TConstA
 
 	bool bAnyRequestedNeedsPlatformAgnostic = false;
 	bool bAnyRequested = false;
-	bool bAllHaveAlreadyCompletedFetch = false;
+	bool bAllHaveAlreadyCompletedFetch = true;
 
 	for (int32 PlatformIndex : PlatformIndexes)
 	{
 		// The platform data may have already been requested; request it only if current status is NotRequested
 		FQueryPlatformData& QueryData = Vertex.PlatformData[PlatformIndex];
 		if (!QueryData.bSchedulerThreadFetchCompleted)
-			{
+		{
 			bAllHaveAlreadyCompletedFetch = false;
 			EAsyncQueryStatus ExpectedStatus = EAsyncQueryStatus::NotRequested;
 			if (QueryData.CompareExchangeAsyncQueryStatus(ExpectedStatus, EAsyncQueryStatus::SchedulerRequested))
-		{
+			{
 				bAnyRequested = true;
+			}
 		}
-	}
 	}
 
 	if (bAnyRequested)
