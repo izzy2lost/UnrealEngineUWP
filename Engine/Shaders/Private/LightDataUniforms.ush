@@ -40,6 +40,7 @@ FDeferredLightData InitDeferredLightFromUniforms(uint InLightType)
 	Out.RectLightData.AtlasData.AtlasUVOffset	= DeferredLightUniforms.RectLightAtlasUVOffset;
 	Out.RectLightData.AtlasData.AtlasUVScale	= DeferredLightUniforms.RectLightAtlasUVScale;
 
+	Out.IESAtlasIndex = DeferredLightUniforms.IESAtlasIndex;
 	Out.LightFunctionAtlasLightIndex = DeferredLightUniforms.LightFunctionAtlasLightIndex;
 
 	Out.bAffectsTranslucentLighting = DeferredLightUniforms.bAffectsTranslucentLighting;
@@ -76,4 +77,9 @@ FDeferredLightData SetupLightDataForStandardDeferred_Mobile(uint InLightType)
 	Out.HairTransmittance		= InitHairTransmittanceData();
 
 	return Out;
+}
+
+bool IsDeferredSpotlight()
+{
+	return DeferredLightUniforms.SpotAngles.x > -2.0f;
 }
