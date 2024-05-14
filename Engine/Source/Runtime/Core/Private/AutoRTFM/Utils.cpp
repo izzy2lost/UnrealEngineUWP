@@ -25,7 +25,7 @@ void PrettyAbort(const char* const File, const unsigned Line, const char* const 
 {
     UE_LOG(LogAutoRTFM, Fatal, TEXT("%s:%d:%s: assertion %s failed."), ANSI_TO_TCHAR(File), Line, ANSI_TO_TCHAR(Function), ANSI_TO_TCHAR(Expression));
 
-#if PLATFORM_WINDOWS
+#if defined(_MSC_VER) && !defined(__clang__)
 	__assume(false);
 #else
 	__builtin_unreachable();

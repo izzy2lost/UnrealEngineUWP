@@ -2,6 +2,7 @@
 
 #pragma once
 
+#if (defined(__AUTORTFM) && __AUTORTFM)
 #include "AutoRTFM/AutoRTFM.h"
 #include "Utils.h"
 #include <setjmp.h>
@@ -55,7 +56,7 @@ void FLongJump::TryCatch(const TTryFunctor& TryFunctor, const TCatchFunctor& Cat
 inline void FLongJump::Throw()
 {
     ASSERT(bIsSet);
-#if PLATFORM_WINDOWS
+#if defined(_MSC_VER) && !defined(__clang__)
 	longjmp(JmpBuf, 1);
 #else
 	_longjmp(JmpBuf, 1);
@@ -63,3 +64,4 @@ inline void FLongJump::Throw()
 }
 
 } // namespace AutoRTFM
+#endif

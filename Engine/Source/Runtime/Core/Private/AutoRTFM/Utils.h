@@ -22,7 +22,7 @@ namespace AutoRTFM
 {
 	UE_LOG(LogAutoRTFM, Fatal, TEXT("Unreachable encountered!"));
 
-#if PLATFORM_WINDOWS
+#if defined(_MSC_VER) && !defined(__clang__)
     __assume(false);
 #else
     __builtin_unreachable();
