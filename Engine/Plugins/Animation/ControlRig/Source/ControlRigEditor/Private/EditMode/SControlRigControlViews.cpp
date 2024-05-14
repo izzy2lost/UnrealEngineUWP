@@ -442,22 +442,25 @@ void SControlRigPoseView::Construct(const FArguments& InArgs)
 				*/
 			]
 	];
-
-	if (FControlRigEditMode* EditMode = OwningWidget->GetEditMode())
+	if (OwningWidget.IsValid())
 	{
-		EditMode->OnControlRigAddedOrRemoved().AddRaw(this, &SControlRigPoseView::HandleControlAdded);
-		TArray<UControlRig*> ControlRigs = GetControlRigs();
-		for (UControlRig* ControlRig : ControlRigs)
+		if (FControlRigEditMode* EditMode = OwningWidget.Pin()->GetEditMode())
 		{
-			HandleControlAdded(ControlRig, true);
+			EditMode->OnControlRigAddedOrRemoved().AddRaw(this, &SControlRigPoseView::HandleControlAdded);
+			TArray<UControlRig*> ControlRigs = GetControlRigs();
+			for (UControlRig* ControlRig : ControlRigs)
+			{
+				HandleControlAdded(ControlRig, true);
+			}
 		}
 	}
 }
 
 SControlRigPoseView::~SControlRigPoseView()
 {
-	if (FControlRigEditMode* EditMode = OwningWidget->GetEditMode())
+	if(OwningWidget.IsValid() && OwningWidget.Pin()->GetEditMode())
 	{
+		FControlRigEditMode* EditMode = OwningWidget.Pin()->GetEditMode();
 		EditMode->OnControlRigAddedOrRemoved().RemoveAll(this);
 		TArray<UControlRig*> EditModeRigs = EditMode->GetControlRigsArray(false /*bIsVisible*/);
 		for (UControlRig* ControlRig : EditModeRigs)
@@ -680,7 +683,7 @@ TArray<UControlRig*> SControlRigPoseView::GetControlRigs()
 	TArray<UControlRig*> NewControlRigs;
 	if (OwningWidget.IsValid())
 	{
-		FControlRigEditMode* EditMode = OwningWidget->GetEditMode();
+		FControlRigEditMode* EditMode = OwningWidget.Pin()->GetEditMode();
 		if (EditMode)
 		{
 			NewControlRigs =  EditMode->GetControlRigsArray(false /*bIsVisible*/);

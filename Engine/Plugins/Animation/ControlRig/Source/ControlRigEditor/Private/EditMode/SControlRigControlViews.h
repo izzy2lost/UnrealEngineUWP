@@ -81,7 +81,7 @@ private:
 	TSharedPtr<STextBlock> TextStatusBlock1;
 	TSharedPtr<STextBlock> TextStatusBlock2;
 
-	TSharedPtr<SControlRigBaseListWidget> OwningWidget;
+	TWeakPtr<SControlRigBaseListWidget> OwningWidget;
 
 	/* Mirroring*/
 	TSharedPtr<IDetailsView> MirrorDetailsView;
