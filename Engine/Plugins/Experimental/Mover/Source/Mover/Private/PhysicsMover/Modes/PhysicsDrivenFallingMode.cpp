@@ -16,6 +16,8 @@
 #include "Misc/DataValidation.h"
 #endif // WITH_EDITOR
 
+#include "MoveLibrary/MovementUtils.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PhysicsDrivenFallingMode)
 
 #define LOCTEXT_NAMESPACE "PhysicsDrivenFallingMode"
@@ -63,13 +65,6 @@ void UPhysicsDrivenFallingMode::OnSimulationTick(const FSimulationTickParams& Pa
 
 	const float DeltaSeconds = Params.TimeStep.StepMs * 0.001f;
 	const FVector UpDir = GetMoverComponent()->GetUpDirection();
-
-	// Instantaneous movement changes that are executed and we exit before consuming any time
-	if (ProposedMove.bHasTargetLocation && AttemptTeleport(UpdatedComponent, ProposedMove.TargetLocation, UpdatedComponent->GetComponentRotation(), StartingSyncState->GetVelocity_WorldSpace(), OutputSyncState))
-	{
-		OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs; 	// Give back all the time
-		return;
-	}
 
 	// Floor query
 
@@ -140,6 +135,9 @@ void UPhysicsDrivenFallingMode::OnSimulationTick(const FSimulationTickParams& Pa
 	if (FloorResult.IsWalkableFloor() && bIsFloorWithinReach && !bIsMovingUpRelativeToFloor)
 	{
 		OutputState.MovementEndState.NextModeName = DefaultModeNames::Walking;
+		//TargetVel = FVector::VectorPlaneProject(TargetVel, FloorResult.HitResult.Normal);
+		const FPlane MovementPlane(FVector::ZeroVector, UpDir);
+		TargetVel = UMovementUtils::ConstrainToPlane(TargetVel, MovementPlane, false);
 		TargetPos -= (UpDir.Dot(TargetVel * DeltaSeconds) + (FloorResult.FloorDist - TargetHeight)) * UpDir;
 	}
 	else

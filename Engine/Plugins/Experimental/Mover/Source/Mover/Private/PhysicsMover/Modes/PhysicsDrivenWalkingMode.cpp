@@ -276,13 +276,6 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 
 	const float DeltaSeconds = Params.TimeStep.StepMs * 0.001f;
 
-	// Instantaneous movement changes that are executed and we exit before consuming any time
-	if ((ProposedMove.bHasTargetLocation && AttemptTeleport(UpdatedComponent, ProposedMove.TargetLocation, UpdatedComponent->GetComponentRotation(), StartingSyncState->GetVelocity_WorldSpace(), OutputState)))
-	{
-		OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs; 	// Give back all the time
-		return;
-	}
-
 	UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable();
 	if (!SimBlackboard)
 	{
@@ -424,25 +417,6 @@ void UPhysicsDrivenWalkingMode::OnSimulationTick(const FSimulationTickParams& Pa
 		// No water or floor not found
 		SwitchToState(DefaultModeNames::Falling, Params, OutputState);
 	}
-}
-
-bool UPhysicsDrivenWalkingMode::AttemptTeleport(USceneComponent* UpdatedComponent, const FVector& TeleportPos, const FRotator& TeleportRot, const FVector& PriorVelocity, FMoverTickEndData& Output)
-{
-	FMoverDefaultSyncState& OutputSyncState = Output.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
-
-	OutputSyncState.SetTransforms_WorldSpace(TeleportPos,
-		TeleportRot,
-		PriorVelocity,
-		nullptr); // no movement base
-
-	// TODO: instead of invalidating it, consider checking for a floor. Possibly a dynamic base?
-	if (UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable())
-	{
-		SimBlackboard->Invalidate(CommonBlackboard::LastFloorResult);
-		SimBlackboard->Invalidate(CommonBlackboard::LastFoundDynamicMovementBase);
-	}
-
-	return true;
 }
 
 void UPhysicsDrivenWalkingMode::SwitchToState(const FName& StateName, const FSimulationTickParams& Params, FMoverTickEndData& OutputState)

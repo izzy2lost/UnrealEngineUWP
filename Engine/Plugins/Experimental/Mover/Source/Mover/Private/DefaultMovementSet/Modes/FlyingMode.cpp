@@ -73,13 +73,6 @@ void UFlyingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTi
 
 	const float DeltaSeconds = Params.TimeStep.StepMs * 0.001f;
 
-	// Instantaneous movement changes that are executed and we exit before consuming any time
-	if (ProposedMove.bHasTargetLocation && AttemptTeleport(UpdatedComponent, ProposedMove.TargetLocation, UpdatedComponent->GetComponentRotation(), *StartingSyncState, OutputState))
-	{
-		OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs; 	// Give back all the time
-		return;
-	}
-
 	FMovementRecord MoveRecord;
 	MoveRecord.SetDeltaSeconds(DeltaSeconds);
 
@@ -123,29 +116,6 @@ void UFlyingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTi
 
 	CaptureFinalState(UpdatedComponent, MoveRecord, *StartingSyncState, OutputSyncState, DeltaSeconds);
 }
-
-
-bool UFlyingMode::AttemptTeleport(USceneComponent* UpdatedComponent, const FVector& TeleportPos, const FRotator& TeleportRot, const FMoverDefaultSyncState& StartingSyncState, FMoverTickEndData& Output)
-{
-	if (UpdatedComponent->GetOwner()->TeleportTo(TeleportPos, TeleportRot))
-	{
-		FMoverDefaultSyncState& OutputSyncState = Output.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
-
-		OutputSyncState.SetTransforms_WorldSpace( UpdatedComponent->GetComponentLocation(),
-												  UpdatedComponent->GetComponentRotation(),
-												  StartingSyncState.GetVelocity_WorldSpace(),
-												  nullptr); // no movement base
-
-		UpdatedComponent->ComponentVelocity = StartingSyncState.GetVelocity_WorldSpace();
-
-		GetBlackboard_Mutable()->Invalidate(CommonBlackboard::LastFloorResult);
-
-		return true;
-	}
-
-	return false;
-}
-
 
 // TODO: replace this function with simply looking at/collapsing the MovementRecord
 void UFlyingMode::CaptureFinalState(USceneComponent* UpdatedComponent, FMovementRecord& Record, const FMoverDefaultSyncState& StartSyncState, FMoverDefaultSyncState& OutputSyncState, const float DeltaSeconds) const

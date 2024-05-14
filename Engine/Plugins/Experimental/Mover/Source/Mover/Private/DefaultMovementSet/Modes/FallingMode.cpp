@@ -144,13 +144,6 @@ void UFallingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 	const float DeltaSeconds = Params.TimeStep.StepMs * 0.001f;
 	float PctTimeApplied = 0.f;
 
-	// Instantaneous movement changes that are executed and we exit before consuming any time
-	if (ProposedMove.bHasTargetLocation && AttemptTeleport(UpdatedComponent, ProposedMove.TargetLocation, UpdatedComponent->GetComponentRotation(), StartingSyncState->GetVelocity_WorldSpace(), OutputSyncState))
-	{
-		OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs; 	// Give back all the time
-		return;
-	}
-
 	FMovementRecord MoveRecord;
 	MoveRecord.SetDeltaSeconds(DeltaSeconds);
 	
@@ -248,23 +241,6 @@ void UFallingMode::OnUnregistered()
 	CommonLegacySettings = nullptr;
 
 	Super::OnUnregistered();
-}
-
-
-bool UFallingMode::AttemptTeleport(USceneComponent* UpdatedComponent, const FVector& TeleportPos, const FRotator& TeleportRot, const FVector& PriorVelocity, FMoverDefaultSyncState& OutputSyncState)
-{
-	if (UpdatedComponent->GetOwner()->TeleportTo(TeleportPos, TeleportRot))
-	{
-		OutputSyncState.SetTransforms_WorldSpace( UpdatedComponent->GetComponentLocation(),
-												  UpdatedComponent->GetComponentRotation(),
-												  PriorVelocity,
-												  nullptr); // no movement base
-
-		UpdatedComponent->ComponentVelocity = PriorVelocity;
-		return true;
-	}
-
-	return false;
 }
 
 void UFallingMode::ProcessLanded(const FFloorCheckResult& FloorResult, FVector& Velocity, FRelativeBaseInfo& BaseInfo, FMoverTickEndData& TickEndData) const

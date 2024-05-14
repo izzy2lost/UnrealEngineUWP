@@ -22,8 +22,7 @@ class MOVER_API UPhysicsDrivenSwimmingMode : public USwimmingMode, public IPhysi
 public:
 
 	virtual void OnSimulationTick(const FSimulationTickParams& Params, FMoverTickEndData& OutputState) override;
-	virtual bool AttemptJump(float UpwardsSpeed, FMoverTickEndData& Output);
-	virtual bool AttemptTeleport(USceneComponent* UpdatedComponent, const FVector& TeleportPos, const FRotator& TeleportRot, const FVector& PriorVelocity, FMoverTickEndData& Output);
+	virtual bool AttemptJump(float UpwardsSpeed, FMoverTickEndData& Output) override;
 
 	virtual void UpdateConstraintSettings(Chaos::FCharacterGroundConstraint& Constraint) const override;
 

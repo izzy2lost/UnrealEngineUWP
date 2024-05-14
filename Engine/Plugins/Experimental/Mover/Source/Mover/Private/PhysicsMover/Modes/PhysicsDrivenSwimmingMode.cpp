@@ -3,7 +3,7 @@
 #include "PhysicsMover/Modes/PhysicsDrivenSwimmingMode.h"
 
 #include "Chaos/Character/CharacterGroundConstraint.h"
-#include "DefaultMovementSet/LayeredMoves/BasicLayeredMoves.h"
+#include "DefaultMovementSet/InstantMovementEffects/BasicInstantMovementEffects.h"
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "GameFramework/PhysicsVolume.h"
 #include "Math/UnitConversion.h"
@@ -69,8 +69,7 @@ void UPhysicsDrivenSwimmingMode::OnSimulationTick(const FSimulationTickParams& P
 
 	const float DeltaSeconds = Params.TimeStep.StepMs * 0.001f;
 
-	if ((ProposedMove.bHasTargetLocation && AttemptTeleport(UpdatedComponent, ProposedMove.TargetLocation, UpdatedComponent->GetComponentRotation(), StartingSyncState->GetVelocity_WorldSpace(), OutputState)) ||	// Teleport
-		(CharacterInputs->bIsJumpJustPressed && AttemptJump(SurfaceSwimmingWaterControlSettings.JumpMultiplier*CommonLegacySettings->JumpUpwardsSpeed, OutputState)))
+	if (CharacterInputs->bIsJumpJustPressed && AttemptJump(SurfaceSwimmingWaterControlSettings.JumpMultiplier*CommonLegacySettings->JumpUpwardsSpeed, OutputState))
 	{
 		OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs;
 		return;
@@ -154,29 +153,10 @@ void UPhysicsDrivenSwimmingMode::OnSimulationTick(const FSimulationTickParams& P
 bool UPhysicsDrivenSwimmingMode::AttemptJump(float UpwardsSpeed, FMoverTickEndData& OutputState)
 {
 	// TODO: This should check if a jump is even allowed
- 	TSharedPtr<FLayeredMove_JumpImpulse> JumpMove = MakeShared<FLayeredMove_JumpImpulse>();
+ 	TSharedPtr<FJumpImpulseEffect> JumpMove = MakeShared<FJumpImpulseEffect>();
 	JumpMove->UpwardsSpeed = UpwardsSpeed;
-	OutputState.SyncState.LayeredMoves.QueueLayeredMove(JumpMove);
-	OutputState.MovementEndState.NextModeName = DefaultModeNames::Falling;
-	return true;
-}
-
-bool UPhysicsDrivenSwimmingMode::AttemptTeleport(USceneComponent* UpdatedComponent, const FVector& TeleportPos, const FRotator& TeleportRot, const FVector& PriorVelocity, FMoverTickEndData& Output)
-{
-	FMoverDefaultSyncState& OutputSyncState = Output.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
-
-	OutputSyncState.SetTransforms_WorldSpace(TeleportPos,
-		TeleportRot,
-		PriorVelocity,
-		nullptr); // no movement base
-
-	// TODO: instead of invalidating it, consider checking for a floor. Possibly a dynamic base?
-	if (UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable())
-	{
-		SimBlackboard->Invalidate(CommonBlackboard::LastFloorResult);
-		SimBlackboard->Invalidate(CommonBlackboard::LastFoundDynamicMovementBase);
-	}
-
+	GetMoverComponent()->QueueInstantMovementEffect(JumpMove);
+	
 	return true;
 }
 

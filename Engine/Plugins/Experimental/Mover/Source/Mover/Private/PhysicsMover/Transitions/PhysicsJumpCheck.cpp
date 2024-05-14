@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PhysicsMover/Transitions/PhysicsJumpCheck.h"
-#include "DefaultMovementSet/LayeredMoves/BasicLayeredMoves.h"
+#include "DefaultMovementSet/InstantMovementEffects/BasicInstantMovementEffects.h"
 #include "MoverComponent.h"
 
 #if WITH_EDITOR
@@ -32,11 +32,10 @@ FTransitionEvalResult UPhysicsJumpCheck::OnEvaluate(const FSimulationTickParams&
 
 void UPhysicsJumpCheck::OnTrigger(const FSimulationTickParams& Params)
 {
-	TSharedPtr<FLayeredMove_JumpImpulse> JumpMove = MakeShared<FLayeredMove_JumpImpulse>();
+	TSharedPtr<FJumpImpulseEffect> JumpMove = MakeShared<FJumpImpulseEffect>();
 	JumpMove->UpwardsSpeed = JumpUpwardsSpeed;
 
-	Params.MoverComponent->QueueLayeredMove(JumpMove);
-
+	Params.MoverComponent->QueueInstantMovementEffect(JumpMove);
 }
 
 #if WITH_EDITOR

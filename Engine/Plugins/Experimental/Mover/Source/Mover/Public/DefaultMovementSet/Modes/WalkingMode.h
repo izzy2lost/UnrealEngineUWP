@@ -44,10 +44,6 @@ protected:
 	virtual void OnRegistered(const FName ModeName) override; 
 	virtual void OnUnregistered() override;
 
-	virtual bool AttemptJump(float UpwardsSpeed, FMoverTickEndData& Output);
-	virtual bool AttemptTeleport(USceneComponent* UpdatedComponent, const FVector& TeleportPos, const FRotator& TeleportRot, const FVector& PriorVelocity, FMoverTickEndData& Output);
-
-
 	void CaptureFinalState(USceneComponent* UpdatedComponent, bool bDidAttemptMovement, const FFloorCheckResult& FloorResult, const FMovementRecord& Record, FMoverDefaultSyncState& OutputSyncState) const;
 
 	FRelativeBaseInfo UpdateFloorAndBaseInfo(const FFloorCheckResult& FloorResult) const;

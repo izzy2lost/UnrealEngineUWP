@@ -210,8 +210,6 @@ protected:
 	virtual void OnUnregistered() override;
 
 	virtual bool AttemptJump(float UpwardsSpeed, FMoverTickEndData& Output);
-	virtual bool AttemptTeleport(USceneComponent* UpdatedComponent, const FVector& TeleportPos, const FRotator& TeleportRot, const FVector& PriorVelocity, FMoverTickEndData& Output);
-
 
 	void CaptureFinalState(USceneComponent* UpdatedComponent, const FFloorCheckResult& FloorResult, const FMovementRecord& Record, FMoverDefaultSyncState& OutputSyncState) const;
 

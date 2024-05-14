@@ -62,13 +62,6 @@ void UPhysicsDrivenFlyingMode::OnSimulationTick(const FSimulationTickParams& Par
 	const float DeltaSeconds = Params.TimeStep.StepMs * 0.001f;
 	const FVector UpDir = GetMoverComponent()->GetUpDirection();
 
-	// Instantaneous movement changes that are executed and we exit before consuming any time
-	if (ProposedMove.bHasTargetLocation && AttemptTeleport(UpdatedComponent, ProposedMove.TargetLocation, UpdatedComponent->GetComponentRotation(), *StartingSyncState, OutputState))
-	{
-		OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs; 	// Give back all the time
-		return;
-	}
-
 	// Don't need a floor query - just invalidate the blackboard to ensure we don't use an old result elsewhere
 
 	if (UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable())

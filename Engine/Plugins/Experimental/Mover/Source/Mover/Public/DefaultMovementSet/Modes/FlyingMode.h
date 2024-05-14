@@ -30,8 +30,6 @@ protected:
 	virtual void OnRegistered(const FName ModeName) override;
 	virtual void OnUnregistered() override;
 
-	virtual bool AttemptTeleport(USceneComponent* UpdatedComponent, const FVector& TeleportPos, const FRotator& TeleportRot, const FMoverDefaultSyncState& StartingSyncState, FMoverTickEndData& Output);
-
 	void CaptureFinalState(USceneComponent* UpdatedComponent, FMovementRecord& Record, const FMoverDefaultSyncState& StartSyncState, FMoverDefaultSyncState& OutputSyncState, const float DeltaSeconds) const;
 
 	TObjectPtr<const UCommonLegacyMovementSettings> CommonLegacySettings;

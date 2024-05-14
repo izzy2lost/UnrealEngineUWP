@@ -8,10 +8,10 @@
 #include "MoveLibrary/ModularMovement.h"
 #include "MoveLibrary/FloorQueryUtils.h"
 #include "MoveLibrary/GroundMovementUtils.h"
-#include "DefaultMovementSet/LayeredMoves/BasicLayeredMoves.h"
 #include "MoverComponent.h"
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "MoverLog.h"
+#include "DefaultMovementSet/InstantMovementEffects/BasicInstantMovementEffects.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WalkingMode)
 
@@ -123,15 +123,6 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 
 	const float DeltaSeconds = Params.TimeStep.StepMs * 0.001f;
 
-	// Instantaneous movement changes that are executed and we exit before consuming any time
-	if ( (ProposedMove.bHasTargetLocation && AttemptTeleport(UpdatedComponent, ProposedMove.TargetLocation, UpdatedComponent->GetComponentRotation(), StartingSyncState->GetVelocity_WorldSpace(), OutputState)) ||	// Teleport
-		 (CharacterInputs && CharacterInputs->bIsJumpJustPressed && AttemptJump(CommonLegacySettings->JumpUpwardsSpeed, OutputState)) )	// Jump
-	{
-		UpdatedComponent->ComponentVelocity = StartingSyncState->GetVelocity_WorldSpace();
-		OutputState.MovementEndState.RemainingMs = Params.TimeStep.StepMs; 	// Give back all the time
-		return;
-	}
-
 	const FVector OrigMoveDelta = ProposedMove.LinearVelocity * DeltaSeconds;
 
 	TObjectPtr<AActor> OwnerActor = UpdatedComponent->GetOwner();
@@ -160,7 +151,7 @@ void UWalkingMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverT
 	bool bIsOrientationChanging = false;
 
 	// Apply orientation changes (if any)
-	if (!ProposedMove.AngularVelocity.IsZero())
+	if (!ProposedMove.AngularVelocity.IsNearlyZero())
 	{ 
 		TargetOrient += (ProposedMove.AngularVelocity * DeltaSeconds);
 		bIsOrientationChanging = (TargetOrient != StartingOrient);
@@ -331,40 +322,6 @@ void UWalkingMode::OnUnregistered()
 	CommonLegacySettings = nullptr;
 
 	Super::OnUnregistered();
-}
-
-bool UWalkingMode::AttemptJump(float UpwardsSpeed, FMoverTickEndData& OutputState)
-{
-	// TODO: This should check if a jump is even allowed
-	TSharedPtr<FLayeredMove_JumpImpulse> JumpMove = MakeShared<FLayeredMove_JumpImpulse>();
-	JumpMove->UpwardsSpeed = UpwardsSpeed;
-	OutputState.SyncState.LayeredMoves.QueueLayeredMove(JumpMove);
-	OutputState.MovementEndState.NextModeName = CommonLegacySettings->AirMovementModeName;
-	return true;
-}
-
-bool UWalkingMode::AttemptTeleport(USceneComponent* UpdatedComponent, const FVector& TeleportPos, const FRotator& TeleportRot, const FVector& PriorVelocity, FMoverTickEndData& Output)
-{
-	if (UpdatedComponent->GetOwner()->TeleportTo(TeleportPos, TeleportRot))
-	{
-		FMoverDefaultSyncState& OutputSyncState = Output.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
-
-		OutputSyncState.SetTransforms_WorldSpace( UpdatedComponent->GetComponentLocation(),
-												  UpdatedComponent->GetComponentRotation(),
-												  PriorVelocity,
-												  nullptr ); // no movement base
-		
-		// TODO: instead of invalidating it, consider checking for a floor. Possibly a dynamic base?
-		if (UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable())
-		{
-			SimBlackboard->Invalidate(CommonBlackboard::LastFloorResult);
-			SimBlackboard->Invalidate(CommonBlackboard::LastFoundDynamicMovementBase);
-		}
-
-		return true;
-	}
-
-	return false;
 }
 
 void UWalkingMode::CaptureFinalState(USceneComponent* UpdatedComponent, bool bDidAttemptMovement, const FFloorCheckResult& FloorResult, const FMovementRecord& Record, FMoverDefaultSyncState& OutputSyncState) const

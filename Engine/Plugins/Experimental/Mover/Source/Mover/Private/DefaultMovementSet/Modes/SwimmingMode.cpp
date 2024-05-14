@@ -4,7 +4,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Pawn.h"
 #include "MoveLibrary/WaterMovementUtils.h"
-#include "DefaultMovementSet/LayeredMoves/BasicLayeredMoves.h"
+#include "DefaultMovementSet/InstantMovementEffects/BasicInstantMovementEffects.h"
 #include "MoverComponent.h"
 #include "DefaultMovementSet/Settings/CommonLegacyMovementSettings.h"
 #include "MoverLog.h"
@@ -184,34 +184,9 @@ void USwimmingMode::OnUnregistered()
 bool USwimmingMode::AttemptJump(float UpwardsSpeed, FMoverTickEndData& OutputState)
 {
 	// TODO: This should check if a jump is even allowed
-	TSharedPtr<FLayeredMove_JumpImpulse> JumpMove = MakeShared<FLayeredMove_JumpImpulse>();
+	TSharedPtr<FJumpImpulseEffect> JumpMove = MakeShared<FJumpImpulseEffect>();
 	JumpMove->UpwardsSpeed = UpwardsSpeed;
-	OutputState.SyncState.LayeredMoves.QueueLayeredMove(JumpMove);
-	OutputState.MovementEndState.NextModeName = DefaultModeNames::Falling;
+	GetMoverComponent()->QueueInstantMovementEffect(JumpMove);
+	
 	return true;
-}
-
-bool USwimmingMode::AttemptTeleport(USceneComponent* UpdatedComponent, const FVector& TeleportPos, const FRotator& TeleportRot, const FVector& PriorVelocity, FMoverTickEndData& Output)
-{
-	if (UpdatedComponent->GetOwner()->TeleportTo(TeleportPos, TeleportRot))
-	{
-		FMoverDefaultSyncState& OutputSyncState = Output.SyncState.SyncStateCollection.FindOrAddMutableDataByType<FMoverDefaultSyncState>();
-
-		OutputSyncState.SetTransforms_WorldSpace( UpdatedComponent->GetComponentLocation(),
-												  UpdatedComponent->GetComponentRotation(),
-												  PriorVelocity,
-												  nullptr ); // no movement base
-		
-		// TODO: instead of invalidating it, consider checking for a floor. Possibly a dynamic base?
-		if (UMoverBlackboard* SimBlackboard = GetBlackboard_Mutable())
-		{
-			SimBlackboard->Invalidate(CommonBlackboard::LastFloorResult);
-			SimBlackboard->Invalidate(CommonBlackboard::LastWaterResult);
-			SimBlackboard->Invalidate(CommonBlackboard::LastFoundDynamicMovementBase);
-		}
-
-		return true;
-	}
-
-	return false;
 }
