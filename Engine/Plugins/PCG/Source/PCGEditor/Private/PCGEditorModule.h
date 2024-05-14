@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "Editor/IPCGEditorModule.h"
+
 #include "AssetTypeCategories.h"
 #include "Modules/ModuleInterface.h"
 #include "Toolkits/AssetEditorToolkit.h"
@@ -13,7 +15,7 @@ class FMenuBuilder;
 class FPCGEditorGraphNodeFactory;
 class IAssetTypeActions;
 
-class FPCGEditorModule : public IModuleInterface
+class FPCGEditorModule : public IPCGEditorModule
 {
 public:
 	// ~IModuleInterface implementation
@@ -21,6 +23,11 @@ public:
 	virtual void ShutdownModule() override;
 	virtual bool SupportsDynamicReloading() override;
 	// ~End IModuleInterface implementation
+
+	// ~IPCGEditorModule implementation
+	virtual TWeakPtr<IPCGEditorProgressNotification> CreateProgressNotification(const FTextFormat& TextFormat, bool bCanCancel) override;
+	virtual void ReleaseProgressNotification(TWeakPtr<IPCGEditorProgressNotification> InNotification) override;
+	// ~End IPCGEditorModule implementation
 
 protected:
 	void RegisterDetailsCustomizations();
@@ -48,4 +55,6 @@ protected:
 	TSharedPtr<FPCGEditorGraphNodeFactory> GraphNodeFactory;
 
 	FDelegateHandle ShouldDisableCPUThrottlingDelegateHandle;
+
+	TSet<TSharedPtr<IPCGEditorProgressNotification>> ActiveNotifications;
 };

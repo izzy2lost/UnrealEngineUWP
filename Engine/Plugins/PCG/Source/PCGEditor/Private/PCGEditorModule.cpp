@@ -6,6 +6,7 @@
 #include "PCGEditorCommands.h"
 #include "PCGEditorGraphNodeFactory.h"
 #include "PCGEditorMenuUtils.h"
+#include "PCGEditorProgressNotification.h"
 #include "PCGEditorSettings.h"
 #include "PCGEditorStyle.h"
 #include "PCGEditorUtils.h"
@@ -138,6 +139,24 @@ void FPCGEditorModule::OnEditorModeIDChanged(const FEditorModeID& EditorModeID, 
 bool FPCGEditorModule::SupportsDynamicReloading()
 {
 	return true;
+}
+
+TWeakPtr<IPCGEditorProgressNotification> FPCGEditorModule::CreateProgressNotification(const FTextFormat& TextFormat, bool bCanCancel)
+{
+	TSharedPtr<IPCGEditorProgressNotification> NewNotification = MakeShared<FPCGEditorProgressNotification>(TextFormat, bCanCancel);
+	ActiveNotifications.Add(NewNotification);
+	return NewNotification.ToWeakPtr();
+}
+
+void FPCGEditorModule::ReleaseProgressNotification(TWeakPtr<IPCGEditorProgressNotification> InNotification)
+{
+	if (InNotification.IsValid())
+	{
+		if (TSharedPtr<IPCGEditorProgressNotification> SharedPtr = InNotification.Pin(); ActiveNotifications.Contains(SharedPtr))
+		{
+			ActiveNotifications.Remove(SharedPtr);
+		}
+	}
 }
 
 void FPCGEditorModule::RegisterOnEditorModeChange()

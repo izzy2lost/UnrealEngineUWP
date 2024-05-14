@@ -24,6 +24,8 @@
 
 #if WITH_EDITOR
 #include "Editor.h"
+#include "Editor/IPCGEditorModule.h"
+#include "Modules/ModuleManager.h"
 #else
 #include "GameFramework/Actor.h"
 #endif
@@ -131,10 +133,8 @@ bool FPCGGraphTask::IsApproximatelyEqual(const FPCGGraphTask& Other) const
 }
 #endif // WITH_EDITOR
 
-FPCGGraphExecutor::FPCGGraphExecutor()
-#if WITH_EDITOR
-	: GenerationProgressNotification(GetNotificationTextFormat())
-#endif
+FPCGGraphExecutor::FPCGGraphExecutor(UWorld* InWorld)
+	: World(InWorld)
 {
 }
 
@@ -147,7 +147,7 @@ FPCGGraphExecutor::~FPCGGraphExecutor()
 #if WITH_EDITOR
 	// Cleanup + clear notification
 	ClearAllTasks();
-	UpdateGenerationNotification();
+	ReleaseGenerationNotification();
 #endif
 }
 
@@ -1751,22 +1751,59 @@ void FPCGGraphExecutor::NotifyGraphChanged(UPCGGraph* InGraph, EPCGChangeType Ch
 void FPCGGraphExecutor::UpdateGenerationNotification()
 {
 	const int32 RemainingTaskNum = GetNonScheduledRemainingTaskCount();
-
-	if (RemainingTaskNum > 0)
+	if (RemainingTaskNum == 0)
 	{
-		GenerationProgressNotification.Update(RemainingTaskNum);
+		ReleaseGenerationNotification();
+		return;
 	}
-	else
+
+	if (!GenerationProgressNotification.IsValid())
 	{
-		GenerationProgressNotification.Update(0);
-		// To reset the UI notification
-		GenerationProgressNotification = FAsyncCompilationNotification(GetNotificationTextFormat());
+		IPCGEditorModule* EditorModule = FModuleManager::GetModulePtr<IPCGEditorModule>("PCGEditor");
+		if (!EditorModule)
+		{
+			return;
+		}
+
+		GenerationProgressNotification = EditorModule->CreateProgressNotification(GetNotificationTextFormat(), /*bCanCancel=*/true);
+		if (GenerationProgressNotification.IsValid())
+		{
+			GenerationProgressNotification.Pin()->OnCancelTasks().AddRaw(this, &FPCGGraphExecutor::OnNotificationCancel);
+		}
+	}
+
+	if (GenerationProgressNotification.IsValid())
+	{
+		GenerationProgressNotification.Pin()->Update(RemainingTaskNum);
+	}
+}
+
+void FPCGGraphExecutor::ReleaseGenerationNotification()
+{
+	if (GenerationProgressNotification.IsValid())
+	{
+		GenerationProgressNotification.Pin()->OnCancelTasks().RemoveAll(this);
+		if (IPCGEditorModule* EditorModule = FModuleManager::GetModulePtr<IPCGEditorModule>("PCGEditor"))
+		{
+			EditorModule->ReleaseProgressNotification(GenerationProgressNotification);
+		}
+		GenerationProgressNotification = nullptr;
+	}
+}
+
+void FPCGGraphExecutor::OnNotificationCancel()
+{
+	ReleaseGenerationNotification();
+
+	if (UPCGSubsystem* PCGSubsystem = UWorld::GetSubsystem<UPCGSubsystem>(World))
+	{
+		PCGSubsystem->CancelAllGeneration();
 	}
 }
 
 FTextFormat FPCGGraphExecutor::GetNotificationTextFormat()
 {
-	return NSLOCTEXT("PCG", "PCGGenerationNotificationFormat", "{0}|plural(one=PCG Task,other=PCG Tasks)");
+	return NSLOCTEXT("PCG", "PCGGenerationNotificationFormat", "Executing PCG {0}|plural(one=Task,other=Tasks)");
 }
 
 #endif // WITH_EDITOR

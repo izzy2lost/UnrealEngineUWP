@@ -13,7 +13,7 @@
 #include "UObject/GCObject.h"
 
 #if WITH_EDITOR
-#include "AsyncCompilationHelpers.h"
+#include "Editor/IPCGEditorProgressNotification.h"
 #include "WorldPartition/WorldPartitionHandle.h" // Needed for FWorldPartitionReference
 #endif
 
@@ -118,7 +118,9 @@ struct FPCGGraphActiveTask
 class FPCGGraphExecutor : public FGCObject
 {
 public:
-	FPCGGraphExecutor();
+	// Default constructor used by unittests
+	FPCGGraphExecutor() = default;
+	FPCGGraphExecutor(UWorld* InWorld);
 	~FPCGGraphExecutor();
 
 	/** Compile (and cache) a graph for later use. This call is threadsafe */
@@ -241,6 +243,8 @@ private:
 	void ReleaseUnusedActors();
 
 	void UpdateGenerationNotification();
+	void ReleaseGenerationNotification();
+	void OnNotificationCancel();
 	static FTextFormat GetNotificationTextFormat();
 #endif
 
@@ -276,10 +280,12 @@ private:
 	TSet<FWorldPartitionReference> ActorsToRelease;
 
 	int32 ReleaseActorsCountUntilGC = 30;
-	FAsyncCompilationNotification GenerationProgressNotification;
+	TWeakPtr<IPCGEditorProgressNotification> GenerationProgressNotification;
 
 	int32 TidyCacheCountUntilGC = 100;
 #endif
+
+	TObjectPtr<UWorld> World = nullptr;
 };
 
 class FPCGFetchInputElement : public IPCGElement

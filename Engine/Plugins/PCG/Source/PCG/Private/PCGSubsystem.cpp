@@ -186,7 +186,7 @@ void UPCGSubsystem::PostInitialize()
 
 	// Initialize graph executor
 	check(!GraphExecutor);
-	GraphExecutor = new FPCGGraphExecutor();
+	GraphExecutor = new FPCGGraphExecutor(GetWorld());
 
 	// Initialize runtime generation scheduler
 	check(!RuntimeGenScheduler);
