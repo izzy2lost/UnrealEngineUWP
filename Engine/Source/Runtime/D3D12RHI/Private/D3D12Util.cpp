@@ -1905,11 +1905,14 @@ DEFINE_STAT(STAT_D3D12DecommitTransientResourceTime);
 
 DEFINE_STAT(STAT_D3D12UAVBarriers);
 
-DEFINE_STAT(STAT_D3D12BindlessResourceHeaps);
+DEFINE_STAT(STAT_D3D12BindlessResourceHeapsAllocated);
+DEFINE_STAT(STAT_D3D12BindlessResourceHeapsActive);
+DEFINE_STAT(STAT_D3D12BindlessResourceHeapsInUseByGPU);
 DEFINE_STAT(STAT_D3D12BindlessResourceHeapsVersioned);
 DEFINE_STAT(STAT_D3D12BindlessResourceDescriptorsInitialized);
 DEFINE_STAT(STAT_D3D12BindlessResourceDescriptorsUpdated);
 DEFINE_STAT(STAT_D3D12BindlessResourceGPUDescriptorsCopied);
+DEFINE_STAT(STAT_D3D12BindlessResourceHeapGPUMemoryUsage);
 
 DEFINE_STAT(STAT_D3D12NewBoundShaderStateTime);
 DEFINE_STAT(STAT_D3D12CreateBoundShaderStateTime);

@@ -775,7 +775,7 @@ void FD3D12DescriptorCache::SetExplicitDescriptorCache(FD3D12ExplicitDescriptorC
 	//   Bindless RT Only: BindlessHeaps will override LastSetXXX
 	//   No Bindless:  BindlessHeaps will be null, ExplicitDescriptorCache heaps will override LastSetXXX
 
-	const FD3D12DescriptorHeapPair BindlessHeaps = GetParentDevice()->GetBindlessDescriptorManager().GetHeapsForContext(Context, ExplicitDescriptorCache.BindlessConfiguration);
+	const FD3D12DescriptorHeapPair BindlessHeaps = GetParentDevice()->GetBindlessDescriptorManager().GetExplicitHeapsForContext(Context, ExplicitDescriptorCache.BindlessConfiguration);
 
 	ViewHeapToSet = BindlessHeaps.ResourceHeap ? BindlessHeaps.ResourceHeap->GetHeap() : nullptr;
 	SamplerHeapToSet = BindlessHeaps.SamplerHeap ? BindlessHeaps.SamplerHeap->GetHeap() : nullptr;

@@ -41,7 +41,7 @@ public:
 	void OpenCommandList(FD3D12CommandContext& Context);
 	void CloseCommandList(FD3D12CommandContext& Context);
 
-	FD3D12DescriptorHeap* GetHeapForContext(FD3D12CommandContext& Context) const;
+	FD3D12DescriptorHeap* GetExplicitHeapForContext(FD3D12CommandContext& Context) const;
 
 	FD3D12DescriptorHeap* GetHeap() const { return GpuHeap.GetReference(); }
 	ERHIBindlessConfiguration GetConfiguration() const { return Configuration; }
@@ -75,6 +75,50 @@ struct FD3D12ContextBindlessState
 	}
 };
 
+/** Simple helper class to compute moving max in given amount of values. */
+template <typename T, int32 ArraySize>
+class FMovingWindowMax
+{
+public:
+	FMovingWindowMax()
+	: RemoveNextIdx(0)
+	, NumValuesUsed(0)
+	{
+		static_assert(ArraySize > 0, "ArraySize must be greater than zero");
+	}
+
+	void PushValue(T Value)
+	{
+		if (ArraySize == NumValuesUsed)
+		{
+			ValuesArray[RemoveNextIdx] = Value;
+			RemoveNextIdx = (RemoveNextIdx + 1) % ArraySize;
+		}
+		else
+		{
+			ValuesArray[NumValuesUsed] = Value;
+			++NumValuesUsed;
+		}
+	}
+
+	T GetMax() const
+	{		
+		T Max = static_cast<T>(0);
+		for (int32 Index = 0; Index < NumValuesUsed; ++Index)
+		{
+			Max = FMath::Max(Max, ValuesArray[Index]);
+		}
+		return Max;
+	}
+
+private:
+	TStaticArray<T, ArraySize> ValuesArray;
+
+	/** The array Index of the next item to remove when the moving window is full */
+	int32 RemoveNextIdx;
+	int32 NumValuesUsed;
+};
+
 /** Manager specifically for bindless resource descriptors. Has to handle renames on command lists. */
 class FD3D12BindlessResourceManager : public FD3D12DeviceChild
 {
@@ -86,7 +130,8 @@ public:
 
 	FRHIDescriptorHandle Allocate();
 	void                 Free(FRHIDescriptorHandle InHandle);
-
+	
+	void GarbageCollect();
 	void Recycle(FD3D12DescriptorHeap* DescriptorHeap);
 
 	void InitializeDescriptor(FRHIDescriptorHandle DstHandle, FD3D12View* View);
@@ -99,7 +144,7 @@ public:
 	void FinalizeContext(FD3D12CommandContext& Context);
 
 	FD3D12DescriptorHeap* GetHeap(ERHIPipeline Pipeline) const;
-	FD3D12DescriptorHeap* GetHeapForContext(FD3D12CommandContext& Context) const;
+	FD3D12DescriptorHeap* GetExplicitHeapForContext(FD3D12CommandContext& Context);
 
 	ERHIBindlessConfiguration GetConfiguration() const { return Configuration; }
 
@@ -108,20 +153,33 @@ private:
 	void AssignHeapToState(FD3D12ContextBindlessState& State);
 	void FinalizeHeapOnState(FD3D12ContextBindlessState& State);
 
+	int AddActiveGPUHeap();
+	void ReleaseGPUHeaps();
+	void UpdateInUseGPUHeaps(bool bInUse);
+
 	FD3D12DescriptorHeapPtr         CpuHeap;
 	FRHIHeapDescriptorAllocator     Allocator;
 	const ERHIBindlessConfiguration Configuration;
+
+	uint64 							GarbageCollectCycle = 0;
+	uint64							LastUsedExplicitHeapCycle = 0;
+
+	uint32							InUseGPUHeaps = 0;
+	uint32							MaxInUseGPUHeaps = 0;
+	FMovingWindowMax<uint32, 100>	MovingWindowMaxInUseGPUHeaps;
 
 	struct FGpuHeapData
 	{
 		FD3D12DescriptorHeapPtr      GpuHeap;
 		TArray<FRHIDescriptorHandle> UpdatedHandles;
 		bool                         bInUse = true;
-	};
+		uint64						 LastUsedGarbageCollectCycle = 0;
+	};		
 
-	FCriticalSection     GpuHeapsCS;
-	int32                ActiveGpuHeapIndex;
-	TArray<FGpuHeapData> GpuHeaps;
+	FCriticalSection				GpuHeapsCS;
+	int32							ActiveGpuHeapIndex = -1;
+	TArray<FGpuHeapData>			ActiveGpuHeaps;
+	TArray<FGpuHeapData>			PooledGpuHeaps;
 };
 
 #endif
@@ -159,6 +217,7 @@ public:
 	void                 ImmediateFree(FRHIDescriptorHandle InHandle);
 	void                 DeferredFreeFromDestructor(FRHIDescriptorHandle InHandle);
 
+	void GarbageCollect();
 	void Recycle(FD3D12DescriptorHeap* DescriptorHeap);
 
 	void InitializeDescriptor(FRHIDescriptorHandle DstHandle, FD3D12View* View);
@@ -172,7 +231,7 @@ public:
 	void FlushPendingDescriptorUpdates(FD3D12CommandContext& Context);
 	void SetHeapsForRayTracing(FD3D12CommandContext& Context);
 
-	FD3D12DescriptorHeapPair GetHeapsForContext(FD3D12CommandContext& Context, ERHIBindlessConfiguration InConfiguration) const;
+	FD3D12DescriptorHeapPair GetExplicitHeapsForContext(FD3D12CommandContext& Context, ERHIBindlessConfiguration InConfiguration);
 
 #if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 	TRHIPipelineArray<FD3D12DescriptorHeapPtr> AllocateResourceHeapsForAllPipelines(int32 InSize);

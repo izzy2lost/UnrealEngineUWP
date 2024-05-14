@@ -39,11 +39,14 @@ DECLARE_CYCLE_STAT_EXTERN(TEXT("Decommit transient resource time"), STAT_D3D12De
 
 DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("UAV Barriers"), STAT_D3D12UAVBarriers, STATGROUP_D3D12RHI, );
 
-DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Resource Heaps"), STAT_D3D12BindlessResourceHeaps, STATGROUP_D3D12Bindless, );
+DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Resource Heaps Allocated"), STAT_D3D12BindlessResourceHeapsAllocated, STATGROUP_D3D12Bindless, );
+DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Resource Heaps Active"), STAT_D3D12BindlessResourceHeapsActive, STATGROUP_D3D12Bindless, );
+DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Resource Heaps in use by GPU"), STAT_D3D12BindlessResourceHeapsInUseByGPU, STATGROUP_D3D12Bindless, );
 DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Resource Heaps Versioned"), STAT_D3D12BindlessResourceHeapsVersioned, STATGROUP_D3D12Bindless, );
 DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Resource Descriptors Initialized"), STAT_D3D12BindlessResourceDescriptorsInitialized, STATGROUP_D3D12Bindless, );
 DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Resource Descriptors Updated"), STAT_D3D12BindlessResourceDescriptorsUpdated, STATGROUP_D3D12Bindless, );
 DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Resource GPU Descriptors Copied"), STAT_D3D12BindlessResourceGPUDescriptorsCopied, STATGROUP_D3D12Bindless, );
+DECLARE_MEMORY_STAT_EXTERN(TEXT("Resource Heaps GPU Memory Usage"), STAT_D3D12BindlessResourceHeapGPUMemoryUsage, STATGROUP_D3D12Bindless, );
 
 DECLARE_CYCLE_STAT_EXTERN(TEXT("CreateBoundShaderState time"), STAT_D3D12CreateBoundShaderStateTime, STATGROUP_D3D12RHI, );
 DECLARE_CYCLE_STAT_EXTERN(TEXT("New bound shader state time"), STAT_D3D12NewBoundShaderStateTime, STATGROUP_D3D12RHI, );

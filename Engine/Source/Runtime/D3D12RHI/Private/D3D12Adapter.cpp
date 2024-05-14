@@ -1493,6 +1493,13 @@ void FD3D12Adapter::EndFrame()
 		TransientMemoryCache->GarbageCollect();
 	}
 
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	for (uint32 GPUIndex : FRHIGPUMask::All())
+	{
+		GetDevice(GPUIndex)->GetBindlessDescriptorManager().GarbageCollect();
+	}
+#endif
+
 #if TRACK_RESOURCE_ALLOCATIONS
 	FScopeLock Lock(&TrackedAllocationDataCS); 
 
