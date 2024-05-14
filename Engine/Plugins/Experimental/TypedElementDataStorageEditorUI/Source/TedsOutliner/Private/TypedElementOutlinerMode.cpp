@@ -393,7 +393,7 @@ TSharedPtr<SWidget> FTypedElementOutlinerMode::CreateContextMenu()
 
 TUniquePtr<ISceneOutlinerHierarchy> FTypedElementOutlinerMode::CreateHierarchy()
 {
-	return MakeUnique<FTypedElementOutlinerHierarchy>(this, InitialQueryDescription, HierarchyData);
+	return MakeUnique<FTypedElementOutlinerHierarchy>(this, InitialQueryDescription.Get(), HierarchyData);
 }
 
 void FTypedElementOutlinerMode::AppendQuery(TypedElementDataStorage::FQueryDescription& Query1, const TypedElementDataStorage::FQueryDescription& Query2)

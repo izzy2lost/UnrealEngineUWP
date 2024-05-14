@@ -100,7 +100,7 @@ struct FTypedElementOutlinerModeParams
 	SSceneOutliner* SceneOutliner;
 
 	// The query description that will be used to populate rows in the TEDS-Outliner
-	TypedElementDataStorage::FQueryDescription QueryDescription;
+	TAttribute<TypedElementDataStorage::FQueryDescription> QueryDescription;
 
 	// The selection set to use for this Outliner, unset = don't propagate tree selection to the TEDS column
 	TOptional<FName> SelectionSetOverride;
@@ -181,7 +181,7 @@ protected:
 
 	// TEDS-Outliner TODO: Should the queries be owned by mode or hierarchy? Currently half and half
 	// Initial query provided by user
-	TypedElementDataStorage::FQueryDescription InitialQueryDescription;
+	TAttribute<TypedElementDataStorage::FQueryDescription> InitialQueryDescription;
 
 	// Final composite query (filters/searches etc)
 	TypedElementDataStorage::QueryHandle FinalRowHandleQuery;
