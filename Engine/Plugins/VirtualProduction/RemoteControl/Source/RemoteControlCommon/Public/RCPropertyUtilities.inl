@@ -50,7 +50,8 @@ namespace RemoteControlPropertyUtilities
 	{
 		if(Property.IsValid())
 		{
-			return Property.Get();
+			// API is not const-correct
+			return const_cast<FProperty*>(Property.Get());
 		}
 
 #if WITH_EDITOR
@@ -362,7 +363,7 @@ namespace RemoteControlPropertyUtilities
 		return true;
 	}
 
-	static FProperty* FindSetterArgument(UFunction* SetterFunction, FProperty* PropertyToModify)
+	static FProperty* FindSetterArgument(UFunction* SetterFunction, const FProperty* PropertyToModify)
 	{
 		FProperty* SetterArgument = nullptr;
 
@@ -389,7 +390,7 @@ namespace RemoteControlPropertyUtilities
 	}
 
 	/** LightComponent derived components use a lot of property setters, without specifying BlueprintSetter, so handle here.  */
-	static FName FindLightSetterFunctionInternal(FProperty* Property, UClass* OwnerClass)
+	static FName FindLightSetterFunctionInternal(const FProperty* Property, UClass* OwnerClass)
 	{
 		static const FName LightAffectDynamicIndirectLightingPropertyName = TEXT("bAffectDynamicIndirectLighting");
 		static const FName LightAffectTranslucentLightingPropertyName = TEXT("bAffectTranslucentLighting");
@@ -461,7 +462,7 @@ namespace RemoteControlPropertyUtilities
 		return NAME_None;	
 	}
 
-	static UFunction* FindSetterFunctionInternal(FProperty* Property, UClass* OwnerClass)
+	static UFunction* FindSetterFunctionInternal(const FProperty* Property, UClass* OwnerClass)
 	{
 		// Check if the property setter is already cached.
 		const TWeakObjectPtr<UFunction> SetterPtr = CachedSetterFunctions.FindRef(Property);
@@ -547,7 +548,7 @@ namespace RemoteControlPropertyUtilities
 		return SetterFunction;
 	}
 
-	static UFunction* FindSetterFunction(FProperty* Property, UClass* OwnerClass)
+	static UFunction* FindSetterFunction(const FProperty* Property, UClass* OwnerClass)
 	{
 		// UStruct properties cannot have setters.
 		if (!ensure(Property) || !Property->GetOwnerClass())

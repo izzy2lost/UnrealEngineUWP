@@ -12,9 +12,6 @@
 #include "CoreTypes.h"
 #include "HAL/ThreadSafeCounter.h"
 #include "Misc/AssertionMacros.h"
-#include "Templates/EnableIf.h"
-#include "Templates/LosesQualifiersFromTo.h"
-#include "Templates/PointerIsConvertibleFromTo.h"
 #include "Templates/Requires.h"
 #include "Templates/TypeHash.h"
 #include "Templates/UnrealTemplate.h"
@@ -329,6 +326,9 @@ public:
 	TFieldPath(UField* InField)
 		: FFieldPath(InField, PropertyType::StaticClass()->GetFName())
 	{
+		// This static assert is in here rather than in the body of the class because we want
+		// to be able to define TWeakFieldPtr<UUndefinedClass>.
+		static_assert(std::is_convertible_v<PropertyType*, const volatile FField*>, "TFieldPath can only be constructed with FField types");
 	}
 #endif
 
@@ -345,30 +345,38 @@ public:
 	{
 		// This static assert is in here rather than in the body of the class because we want
 		// to be able to define TFieldPath<UUndefinedClass>.
-		static_assert(TPointerIsConvertibleFromTo<PropertyType, const volatile FField>::Value, "TFieldPath can only be constructed with FField types");
+		static_assert(std::is_convertible_v<PropertyType*, const volatile FField*>, "TFieldPath can only be constructed with FField types");
 	}
 
 	/**
 	* Construct from another weak pointer of another type, intended for derived-to-base conversions
 	* @param Other weak pointer to copy from
 	**/
-	template <typename OtherPropertyType>
+	template <
+		typename OtherPropertyType
+		UE_REQUIRES(std::is_convertible_v<OtherPropertyType*, PropertyType*>)
+	>
 	FORCEINLINE TFieldPath(const TFieldPath<OtherPropertyType>& Other)
 		: FFieldPath(Other)
 	{
-		// It's also possible that this static_assert may fail for valid conversions because
-		// one or both of the types have only been forward-declared.
-		static_assert(TPointerIsConvertibleFromTo<OtherPropertyType, PropertyType>::Value, "Unable to convert TFieldPath - types are incompatible");
+		// This static assert is in here rather than in the body of the class because we want
+		// to be able to define TFieldPath<UUndefinedClass>.
+		static_assert(std::is_convertible_v<PropertyType*, const volatile FField*>, "TFieldPath can only be constructed with FField types");
 	}
 
 	/**
 	* Copy from an object pointer
 	* @param Object object to create a weak pointer to
 	**/
-	template<class OtherPropertyType>
-	FORCEINLINE typename TEnableIf<!TLosesQualifiersFromTo<OtherPropertyType, PropertyType>::Value>::Type operator=(OtherPropertyType* InProperty)
+	template <
+		typename OtherPropertyType
+		UE_REQUIRES(std::is_convertible_v<OtherPropertyType*, PropertyType*>)
+	>
+	FORCEINLINE void operator=(OtherPropertyType* InProperty)
 	{
-		ResolvedField = InProperty; 
+		// This (FField*) cast is effectively a const_cast, as we've already validated the convertibility in the
+		// constraint, and that PropertyType is an FField type in the constructors.
+		ResolvedField = (FField*)InProperty; 
 		Generate(ResolvedField);
 	}
 
@@ -376,13 +384,12 @@ public:
 	* Assign from another weak pointer, intended for derived-to-base conversions
 	* @param Other weak pointer to copy from
 	**/
-	template <typename OtherPropertyType>
+	template <
+		typename OtherPropertyType
+		UE_REQUIRES(std::is_convertible_v<OtherPropertyType*, PropertyType*>)
+	>
 	FORCEINLINE void operator=(const TFieldPath<OtherPropertyType>& Other)
 	{
-		// It's also possible that this static_assert may fail for valid conversions because
-		// one or both of the types have only been forward-declared.
-		static_assert(TPointerIsConvertibleFromTo<OtherPropertyType, PropertyType>::Value, "Unable to convert TFieldPath - types are incompatible");
-
 		// First make sure the Other path has the serial number up to date, otherwise we'll keep having to
 		// reevealuate this path because it gets the serial number copied from the Other path
 		Other.Get();

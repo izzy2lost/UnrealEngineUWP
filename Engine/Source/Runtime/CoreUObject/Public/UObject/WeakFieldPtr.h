@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "Templates/Requires.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/FieldPath.h"
@@ -54,21 +55,24 @@ public:
 	{
 		// This static assert is in here rather than in the body of the class because we want
 		// to be able to define TWeakFieldPtr<UUndefinedClass>.
-		static_assert(TPointerIsConvertibleFromTo<T, const volatile FField>::Value, "TWeakFieldPtr can only be constructed with FField types");
+		static_assert(std::is_convertible_v<T*, const volatile FField*>, "TWeakFieldPtr can only be constructed with FField types");
 	}
 
 	/**
 	* Construct from another weak pointer of another type, intended for derived-to-base conversions
 	* @param Other weak pointer to copy from
 	**/
-	template <typename OtherT>
+	template <
+		typename OtherT
+		UE_REQUIRES(std::is_convertible_v<OtherT*, T*>)
+	>
 	FORCEINLINE TWeakFieldPtr(const TWeakFieldPtr<OtherT>& Other)
 		: Owner(Other.Owner)
 		, Field(Other.Field)
 	{
-		// It's also possible that this static_assert may fail for valid conversions because
-		// one or both of the types have only been forward-declared.
-		static_assert(TPointerIsConvertibleFromTo<OtherT, T>::Value, "Unable to convert TWeakFieldPtr - types are incompatible");
+		// This static assert is in here rather than in the body of the class because we want
+		// to be able to define TWeakFieldPtr<UUndefinedClass>.
+		static_assert(std::is_convertible_v<T*, const volatile FField*>, "TWeakFieldPtr can only be constructed with FField types");
 	}
 
 	/**
@@ -84,8 +88,11 @@ public:
 	* Copy from an object pointer
 	* @param Object object to create a weak pointer to
 	**/
-	template<class U>
-	FORCEINLINE typename TEnableIf<!TLosesQualifiersFromTo<U, T>::Value>::Type operator=(const U* InField)
+	template <
+		typename U
+		UE_REQUIRES(std::is_convertible_v<U*, T*>)
+	>
+	FORCEINLINE void operator=(U* InField)
 	{
 		Owner = InField ? InField->GetOwnerUObject() : (UObject*)nullptr;
 		Field = (U*)InField;
@@ -95,13 +102,12 @@ public:
 	* Assign from another weak pointer, intended for derived-to-base conversions
 	* @param Other weak pointer to copy from
 	**/
-	template <typename OtherT>
+	template <
+		typename OtherT
+		UE_REQUIRES(std::is_convertible_v<OtherT*, T*>)
+	>
 	FORCEINLINE void operator=(const TWeakFieldPtr<OtherT>& Other)
 	{
-		// It's also possible that this static_assert may fail for valid conversions because
-		// one or both of the types have only been forward-declared.
-		static_assert(TPointerIsConvertibleFromTo<OtherT, T>::Value, "Unable to convert TWeakFieldPtr - types are incompatible");
-
 		Owner = Other.Owner;
 		Field = Other.Field;
 	}

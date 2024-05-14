@@ -172,7 +172,7 @@ namespace
 			return false;
 		}
 
-		const FProperty* Property = PropertyHandle.GetProperty();
+		FProperty* Property = PropertyHandle.GetProperty();
 		const FProperty* ParentProperty = PropertyHandle.GetParentProperty();
 		if (!ensure(Property))
 		{
@@ -235,7 +235,7 @@ namespace
 			return false;
 		}
 	
-		const FProperty* Property = InPropertyHandle.GetProperty();
+		FProperty* Property = InPropertyHandle.GetProperty();
 		if (!ensure(Property))
 		{
 			return false;

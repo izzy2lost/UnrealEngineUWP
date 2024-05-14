@@ -17,11 +17,11 @@ namespace UE::WebAPI
 		struct FCachedOutcome
 		{
 		public:
-			TWeakFieldPtr<FMulticastDelegateProperty> PositiveOutcomeDelegate;
-			TWeakFieldPtr<FMulticastDelegateProperty> NegativeOutcomeDelegate;
+			TWeakFieldPtr<const FMulticastDelegateProperty> PositiveOutcomeDelegate;
+			TWeakFieldPtr<const FMulticastDelegateProperty> NegativeOutcomeDelegate;
 
 			template <uint32 Index, typename TEnableIf<Index < 2>::Type* = nullptr>
-			const TWeakFieldPtr<FMulticastDelegateProperty>& Get() const
+			const TWeakFieldPtr<const FMulticastDelegateProperty>& Get() const
 			{
 				if constexpr (Index == 0)
 				{
@@ -56,20 +56,20 @@ namespace UE::WebAPI
 		/** Cached positive and negative (in order) delegates per operation class (name). */
 		static TMap<FName, FCachedOutcome> CachedOutcomeDelegates;
 
-		FMulticastDelegateProperty* GetPositiveOutcomeDelegate(const TSubclassOf<UWebAPIOperationObject>& InOperationClass);
+		const FMulticastDelegateProperty* GetPositiveOutcomeDelegate(const TSubclassOf<UWebAPIOperationObject>& InOperationClass);
 
 		template <class OperationType = UWebAPIOperationObject>
-		FMulticastDelegateProperty* GetPositiveOutcomeDelegate()
+		const FMulticastDelegateProperty* GetPositiveOutcomeDelegate()
 		{
-			return GetPositiveOutcomeDelegate(OperationType::StaticClass());			
+			return GetPositiveOutcomeDelegate(OperationType::StaticClass());
 		}
 		
-		FMulticastDelegateProperty* GetNegativeOutcomeDelegate(const TSubclassOf<UWebAPIOperationObject>& InOperationClass);
+		const FMulticastDelegateProperty* GetNegativeOutcomeDelegate(const TSubclassOf<UWebAPIOperationObject>& InOperationClass);
 
 		template <class OperationType = UWebAPIOperationObject>
-		FMulticastDelegateProperty* GetNegativeOutcomeDelegate()
+		const FMulticastDelegateProperty* GetNegativeOutcomeDelegate()
 		{
-			return GetNegativeOutcomeDelegate(OperationType::StaticClass());			
+			return GetNegativeOutcomeDelegate(OperationType::StaticClass());
 		}
 
 		UFunction* GetOutcomeDelegateSignatureFunction(const TSubclassOf<UWebAPIOperationObject>& InOperationClass);

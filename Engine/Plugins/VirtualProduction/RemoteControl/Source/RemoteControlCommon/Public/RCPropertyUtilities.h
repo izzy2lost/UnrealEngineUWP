@@ -13,7 +13,7 @@
 
 namespace RemoteControlPropertyUtilities
 {
-	static TMap<TWeakFieldPtr<FProperty>, TWeakObjectPtr<UFunction>> CachedSetterFunctions;
+	static TMap<TWeakFieldPtr<const FProperty>, TWeakObjectPtr<UFunction>> CachedSetterFunctions;
 	static const FName NAME_BlueprintGetter(TEXT("BlueprintGetter"));
 	static const FName NAME_BlueprintSetter(TEXT("BlueprintSetter"));
 
@@ -23,7 +23,7 @@ namespace RemoteControlPropertyUtilities
 #if WITH_EDITOR
 		TSharedPtr<IPropertyHandle> PropertyHandle = nullptr;
 #endif
-		TWeakFieldPtr<FProperty> Property = nullptr;
+		TWeakFieldPtr<const FProperty> Property = nullptr;
 		void* PropertyData = nullptr;
 		TArray<uint8>* PropertyContainer = nullptr;
 
@@ -157,14 +157,14 @@ namespace RemoteControlPropertyUtilities
 		std::is_same_v<PropertyType, FNumericProperty>, bool>::Type
 	Serialize(const FRCPropertyVariant& InSrc, FRCPropertyVariant& OutDst);
 
-	static FProperty* FindSetterArgument(UFunction* SetterFunction, FProperty* PropertyToModify);
+	static FProperty* FindSetterArgument(UFunction* SetterFunction, const FProperty* PropertyToModify);
 
 	/** LightComponent derived components use a lot of property setters, without specifying BlueprintSetter, so handle here.  */
-	static FName FindLightSetterFunctionInternal(FProperty* Property, UClass* OwnerClass);
+	static FName FindLightSetterFunctionInternal(const FProperty* Property, UClass* OwnerClass);
 
-	static UFunction* FindSetterFunctionInternal(FProperty* Property, UClass* OwnerClass);
+	static UFunction* FindSetterFunctionInternal(const FProperty* Property, UClass* OwnerClass);
 	
-	static UFunction* FindSetterFunction(FProperty* Property, UClass* OwnerClass = nullptr);
+	static UFunction* FindSetterFunction(const FProperty* Property, UClass* OwnerClass = nullptr);
 }
 
 #include "RCPropertyUtilities.inl"

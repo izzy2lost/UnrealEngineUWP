@@ -162,7 +162,7 @@ void UK2Node_WebAPIOperation::AllocateDefaultPins()
 		CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Then);
 	}
 
-	TArray<FMulticastDelegateProperty*, TFixedAllocator<2>> DelegateProperties = {
+	TArray<const FMulticastDelegateProperty*, TFixedAllocator<2>> DelegateProperties = {
 		UE::WebAPI::Operation::GetPositiveOutcomeDelegate(OperationClass),
 		UE::WebAPI::Operation::GetNegativeOutcomeDelegate(OperationClass)
 	};
