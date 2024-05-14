@@ -13,8 +13,6 @@ namespace UnrealBuildTool.Rules
 
 			UnsafeTypeCastWarningLevel = WarningLevel.Warning;
 
-			PrivateIncludePaths.Add(Path.Combine(GetModuleDirectory("MassEntity"), "Private")); 
-
 			PublicDependencyModuleNames.AddRange(
 				new string[] {
 					"Core",
