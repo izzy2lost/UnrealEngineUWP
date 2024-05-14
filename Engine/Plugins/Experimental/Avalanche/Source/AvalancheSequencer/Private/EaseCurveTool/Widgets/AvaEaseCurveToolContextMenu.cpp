@@ -292,7 +292,7 @@ void FAvaEaseCurveToolContextMenu::PopulateContextMenuSettings(UToolMenu* const 
 					EaseCurveToolSettings->SaveConfig();
 				});
 
-		Section.AddEntry(FToolMenuEntry::InitWidget(TEXT("ToolSize"), GraphSizeWidget, LOCTEXT("ToolSizeLabel", "Tool Size")));
+		Section.AddEntry(FToolMenuEntry::InitWidget(TEXT("ToolSize"), GraphSizeWidget, LOCTEXT("ToolSizeLabel", "Tool Size"), true));
 	}
 
 	// Grid Size
@@ -345,7 +345,7 @@ void FAvaEaseCurveToolContextMenu::PopulateContextMenuSettings(UToolMenu* const 
 					SetEaseCurveToolGridSize(InNewValue);
 				});
 
-		Section.AddEntry(FToolMenuEntry::InitWidget(TEXT("GridSize"), GridSizeWidget, LOCTEXT("GridSizeLabel", "Grid Size")));
+		Section.AddEntry(FToolMenuEntry::InitWidget(TEXT("GridSize"), GridSizeWidget, LOCTEXT("GridSizeLabel", "Grid Size"), true));
 	}
 
 	Section.AddSeparator(NAME_None);
