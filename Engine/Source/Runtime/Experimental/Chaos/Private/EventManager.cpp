@@ -60,7 +60,11 @@ namespace Chaos
 
 	void FEventManager::FlipBuffersIfRequired()
 	{
-		if (BufferMode == EMultiBufferMode::Double)
+		if (BufferMode == EMultiBufferMode::Single)
+		{
+			return;
+		}
+		else if (BufferMode == EMultiBufferMode::Double)
 		{
 			ResourceLock.WriteLock();
 		}
@@ -102,6 +106,17 @@ namespace Chaos
 		if (BufferMode == EMultiBufferMode::Double)
 		{
 			ResourceLock.ReadUnlock();
+		} 
+		else if (BufferMode == EMultiBufferMode::Single)
+		{
+			for (FEventContainerBasePtr EventContainer : EventContainers)
+			{
+				if (EventContainer)
+				{
+					EventContainer->ResetConsumerBuffer();
+					EventContainer->FlipBufferIfRequired();
+				}
+			}
 		}
 	}
 
