@@ -1780,6 +1780,41 @@ public:
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 
+/**
+*
+* Expression node for floats
+*
+*/
+USTRUCT()
+struct FMathExpressionDataflowNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FMathExpressionDataflowNode, "MathExpression", "Math", "")
+
+public:
+	UPROPERTY(EditAnywhere, Category = Inputs, meta = (DataflowInput));
+	FDataflowNumericTypes A;
+
+	UPROPERTY(EditAnywhere, Category = Inputs, meta = (DataflowInput));
+	FDataflowNumericTypes B;
+
+	UPROPERTY(EditAnywhere, Category = Inputs, meta = (DataflowInput));
+	FDataflowNumericTypes C;
+
+	UPROPERTY(EditAnywhere, Category = Inputs, meta = (DataflowInput));
+	FDataflowNumericTypes D;
+
+	UPROPERTY(EditAnywhere, Category = Expression);
+	FString Expression;
+
+	UPROPERTY(meta = (DataflowOutput))
+	FDataflowNumericTypes ReturnValue;
+
+	FMathExpressionDataflowNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+
+	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+};
+
 namespace Dataflow
 {
 	void GeometryCollectionMathNodes();
