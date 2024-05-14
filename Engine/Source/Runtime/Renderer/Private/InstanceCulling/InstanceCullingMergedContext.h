@@ -22,14 +22,14 @@ public:
 
 	// Info about a batch of culling work produced by a context, when part of a batched job
 	// Store once per context, provides start offsets to commands/etc for the context.
-	struct FContextBatchInfo
+	struct FContextBatchInfoPacked
 	{
 		uint32 IndirectArgsOffset;
 		uint32 InstanceDataWriteOffset;
 		uint32 PayloadDataOffset;
 		uint32 CompactionDataOffset;
 		uint32 ViewIdsOffset;
-		uint32 NumViewIds;
+		uint32 NumViewIds_bAllowOcclusionCulling;
 		uint32 DynamicInstanceIdOffset;
 		uint32 DynamicInstanceIdMax;
 		uint32 ItemDataOffset[uint32(EBatchProcessingMode::Num)];
@@ -55,7 +55,7 @@ public:
 
 	TStaticArray<TInstanceCullingLoadBalancer<SceneRenderingAllocator>, static_cast<uint32>(EBatchProcessingMode::Num)> LoadBalancers;
 	TStaticArray<TArray<uint32, SceneRenderingAllocator>, static_cast<uint32>(EBatchProcessingMode::Num)> BatchInds;
-	TArray<FContextBatchInfo, SceneRenderingAllocator> BatchInfos;
+	TArray<FContextBatchInfoPacked, SceneRenderingAllocator> BatchInfos;
 
 	EShaderPlatform ShaderPlatform = SP_NumPlatforms;
 	// if true, the contexts that are supplied through calling AddBatch must all have an 1:1 entry in the resulting merged Batches array

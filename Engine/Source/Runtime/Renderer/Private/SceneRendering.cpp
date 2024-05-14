@@ -4390,11 +4390,14 @@ void FSceneRenderer::SetupMeshPass(FViewInfo& View, FExclusiveDepthStencil::Type
 			
 			EInstanceCullingFlags CullingFlags = EInstanceCullingFlags::None;
 
+			// TODO: Maybe this should be configured somewhere else?
+			const bool bAllowInstanceOcclusionCulling = PassType != EMeshPass::CustomDepth;
+
 			FName PassName(GetMeshPassName(PassType));
 			Pass.DispatchPassSetup(
 				Scene,
 				View,
-				FInstanceCullingContext(PassName, ShaderPlatform, &InstanceCullingManager, ViewIds, View.PrevViewInfo.HZB, InstanceCullingMode, CullingFlags),
+				FInstanceCullingContext(PassName, ShaderPlatform, &InstanceCullingManager, ViewIds, bAllowInstanceOcclusionCulling ? View.PrevViewInfo.HZB : nullptr, InstanceCullingMode, CullingFlags),
 				PassType,
 				BasePassDepthStencilAccess,
 				MeshPassProcessor,

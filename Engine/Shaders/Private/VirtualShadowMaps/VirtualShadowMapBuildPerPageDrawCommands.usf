@@ -184,13 +184,15 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 
 #if ENABLE_BATCH_MODE
 	// Load Instance culling context batch info, indirection per group
-	FContextBatchInfo BatchInfo = BatchInfos[BatchInds[DispatchGroupId]];
+	FContextBatchInfo BatchInfo = LoadBatchInfo(DispatchGroupId);
 	FVSMCullingBatchInfo VSMCullingBatchInfo = VSMCullingBatchInfos[BatchInds[DispatchGroupId]];
 #else // !ENABLE_BATCH_MODE
 	// Single Instance culling context batch in the call, set up batch from the kernel parameters
 	FContextBatchInfo BatchInfo = (FContextBatchInfo)0;
 	BatchInfo.DynamicInstanceIdOffset = DynamicInstanceIdOffset;
 	BatchInfo.DynamicInstanceIdMax = DynamicInstanceIdMax;
+	// Note: for the unbatched case, the permutation will control HZB test, so we set to true
+	BatchInfo.bAllowOcclusionCulling = true;
 
 	FVSMCullingBatchInfo VSMCullingBatchInfo;
 	VSMCullingBatchInfo.FirstPrimaryView = FirstPrimaryView;

@@ -2299,7 +2299,7 @@ static FCullingResult AddCullingPasses(FRDGBuilder& GraphBuilder,
 	const TConstArrayView<uint32>& DrawCommandDescs,
 	const TConstArrayView<uint32>& InstanceIdOffsets,
 	InstanceCullingLoadBalancerType *LoadBalancer,
-	const TConstArrayView<FInstanceCullingMergedContext::FContextBatchInfo> BatchInfos,
+	const TConstArrayView<FInstanceCullingMergedContext::FContextBatchInfoPacked> BatchInfos,
 	const TConstArrayView<FVSMCullingBatchInfo> VSMCullingBatchInfos,
 	const TConstArrayView<uint32> BatchInds,
 	uint32 TotalInstances,
@@ -3027,7 +3027,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 	{
 		const auto VSMCullingBatchInfo = UnBatchedVSMCullingBatchInfo[Index];
 		FProjectedShadowInfo* ProjectedShadowInfo = UnBatchedVirtualSmMeshCommandPasses[Index];
-		FInstanceCullingMergedContext::FContextBatchInfo CullingBatchInfo = FInstanceCullingMergedContext::FContextBatchInfo{ 0 };
+		FInstanceCullingMergedContext::FContextBatchInfoPacked CullingBatchInfo = FInstanceCullingMergedContext::FContextBatchInfoPacked{ 0 };
 
 		FParallelMeshDrawCommandPass& MeshCommandPass = ProjectedShadowInfo->GetShadowDepthPass();
 		const TSharedPtr<FVirtualShadowMapClipmap> Clipmap = ProjectedShadowInfo->VirtualShadowMapClipmap;

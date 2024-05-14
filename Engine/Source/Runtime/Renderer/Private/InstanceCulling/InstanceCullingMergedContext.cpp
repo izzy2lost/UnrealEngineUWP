@@ -44,7 +44,7 @@ void FInstanceCullingMergedContext::MergeBatches()
 		check(InstanceCullingContext.HasCullingCommands());
 
 		int32 BatchInfoIndex = BatchInfos.Num();
-		FContextBatchInfo& BatchInfo = BatchInfos.AddDefaulted_GetRef();
+		FContextBatchInfoPacked& BatchInfo = BatchInfos.AddDefaulted_GetRef();
 
 		BatchInfo.IndirectArgsOffset = IndirectArgs.Num();
 		//BatchInfo.NumIndirectArgs = InstanceCullingContext.IndirectArgs.Num();
@@ -65,7 +65,11 @@ void FInstanceCullingMergedContext::MergeBatches()
 		}
 
 		BatchInfo.ViewIdsOffset = ViewIds.Num();
-		BatchInfo.NumViewIds = InstanceCullingContext.ViewIds.Num();
+		BatchInfo.NumViewIds_bAllowOcclusionCulling = uint32(InstanceCullingContext.ViewIds.Num()) << 1u;
+		if (InstanceCullingContext.PrevHZB.IsValid())
+		{
+			BatchInfo.NumViewIds_bAllowOcclusionCulling |= 1u;
+		}
 		ViewIds.Append(InstanceCullingContext.ViewIds);
 
 		check(InstanceCullingContext.DynamicInstanceIdOffset >= 0);
