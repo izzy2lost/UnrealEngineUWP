@@ -27,7 +27,7 @@ FProposedMove UGroundMovementUtils::ComputeControlledGroundMove(const FGroundMov
 	FComputeVelocityParams ComputeVelocityParams;
 	ComputeVelocityParams.DeltaSeconds = InParams.DeltaSeconds;
 	ComputeVelocityParams.InitialVelocity = InParams.PriorVelocity;
-	ComputeVelocityParams.MoveDirectionIntent = InParams.MoveInput;
+	ComputeVelocityParams.MoveDirectionIntent = MoveDirIntentInMovementPlane;
 	ComputeVelocityParams.MaxSpeed = InParams.MaxSpeed;
 	ComputeVelocityParams.TurningBoost = InParams.TurningBoost;
 	ComputeVelocityParams.Deceleration = InParams.Deceleration;
@@ -35,8 +35,8 @@ FProposedMove UGroundMovementUtils::ComputeControlledGroundMove(const FGroundMov
 	ComputeVelocityParams.Friction = InParams.Friction;
 	
 	// Figure out linear velocity
-	OutMove.MovePlaneVelocity = UMovementUtils::ComputeVelocity(ComputeVelocityParams);
-	OutMove.LinearVelocity = UMovementUtils::ConstrainToPlane(OutMove.MovePlaneVelocity, GroundSurfacePlane, true);
+	const FVector Velocity = UMovementUtils::ComputeVelocity(ComputeVelocityParams);
+	OutMove.LinearVelocity = UMovementUtils::ConstrainToPlane(Velocity, GroundSurfacePlane, true);
 
 	// Linearly rotate in place
 	OutMove.AngularVelocity = UMovementUtils::ComputeAngularVelocity(InParams.PriorOrientation, InParams.OrientationIntent, InParams.DeltaSeconds, InParams.TurningRate);

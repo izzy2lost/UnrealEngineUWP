@@ -60,10 +60,7 @@ bool FLayeredMove_AnimRootMotion::GenerateMove(const FMoverTickStartData& SimSta
 	OutProposedMove.MixMode = MixMode;
 
 	// Convert the transform into linear and angular velocities
-	const FPlane MovementPlane(FVector::ZeroVector, MoverComp->GetUpDirection());
-
 	OutProposedMove.LinearVelocity    = WorldSpaceRootMotion.GetTranslation() / DeltaSeconds;
-	OutProposedMove.MovePlaneVelocity = UMovementUtils::ConstrainToPlane(OutProposedMove.LinearVelocity, MovementPlane);
 	OutProposedMove.AngularVelocity   = WorldSpaceRootMotion.GetRotation().Rotator() * (1.f / DeltaSeconds);
 
 	return true;

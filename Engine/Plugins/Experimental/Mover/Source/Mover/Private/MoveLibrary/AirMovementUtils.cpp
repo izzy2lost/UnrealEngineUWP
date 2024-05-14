@@ -25,7 +25,6 @@ FProposedMove UAirMovementUtils::ComputeControlledFreeMove(const FFreeMoveParams
 	ComputeVelocityParams.Acceleration = InParams.Acceleration;
 	
 	OutMove.LinearVelocity = UMovementUtils::ComputeVelocity(ComputeVelocityParams);
-	OutMove.MovePlaneVelocity = UMovementUtils::ConstrainToPlane(OutMove.LinearVelocity, MovementPlane, false);
 
 	// JAH TODO: this is where we can perform turning, based on aux settings. For now, just snap to the intended final orientation.
 	FVector IntendedFacingDir = InParams.OrientationIntent.RotateVector(FVector::ForwardVector).GetSafeNormal();

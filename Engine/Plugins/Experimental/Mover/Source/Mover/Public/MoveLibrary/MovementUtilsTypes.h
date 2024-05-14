@@ -25,8 +25,7 @@ struct MOVER_API FProposedMove
 	GENERATED_USTRUCT_BODY()
 
 	FProposedMove() : 
-		bHasDirIntent(false),
-		bHasTargetLocation(false)
+		bHasDirIntent(false)
 	{}
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
@@ -37,8 +36,6 @@ struct MOVER_API FProposedMove
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
 	uint8	 bHasDirIntent : 1;							// Signals whether there was any directional intent specified
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
-	uint8	 bHasTargetLocation : 1;					// Signals whether the proposed move should move to a target location, regardless of other fields
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
 	FVector  DirectionIntent = FVector::ZeroVector;		// Directional, per-axis magnitude [-1, 1] in world space (length of 1 indicates max speed intent). Only valid if bHasDirIntent is set.
@@ -47,10 +44,4 @@ struct MOVER_API FProposedMove
 	FVector  LinearVelocity = FVector::ZeroVector;		// Units per second, world space, possibly mapped onto walking surface
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
 	FRotator AngularVelocity = FRotator::ZeroRotator;	// Degrees per second, local space
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
-	FVector  MovePlaneVelocity = FVector::ZeroVector;	// Units per second, world space, always along the movement plane
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
-	FVector  TargetLocation = FVector::ZeroVector;		// World space go-to position. Only valid if bHasTargetLocation is set. Used for movement like teleportation.
 };
