@@ -26,6 +26,9 @@ public:
 	FVector GridZParams            = FVector::ZeroVector;
 	uint32 GridPixelSizeShift      = 0;
 	FIntVector GridSize            = FIntVector::ZeroValue;
+
+	FRDGTextureRef VolumeFroxelProbeRadianceHitDistance = nullptr;
+	// TODO pass Froxel Probes parameters
 };
 
 // Used by translucent BasePass

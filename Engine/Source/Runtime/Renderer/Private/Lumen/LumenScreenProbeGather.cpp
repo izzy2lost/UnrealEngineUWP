@@ -1853,6 +1853,8 @@ FSSDSignalTextures FDeferredShadingSceneRenderer::RenderLumenFinalGather(
 
 	FSSDSignalTextures Outputs;
 	LumenRadianceCache::FRadianceCacheInterpolationParameters TranslucencyVolumeRadianceCacheParameters;
+	
+	ComputeLumenFroxelProbeVolume(GraphBuilder, View, FrameTemporaries, TranslucencyVolumeRadianceCacheParameters, ComputePassFlags);
 
 	if (GLumenIrradianceFieldGather != 0)
 	{
