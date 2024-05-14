@@ -193,25 +193,6 @@ UE_API bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandToc& OutToc);
 #if (IS_PROGRAM || WITH_EDITOR)
 
 ////////////////////////////////////////////////////////////////////////////////
-struct FIoStoreDownloadParams
-{
-	FString Directory;
-	FString ServiceUrl;
-	FString Bucket;
-	FString Region; 
-	FString AccessKey;
-	FString SecretKey;
-	FString SessionToken;
-	FString CredentialsFile;
-	FString CredentialsFileKeyName;
-	int32 MaxConcurrentDownloads = 16;
-	
-	static TIoStatusOr<FIoStoreDownloadParams> Parse(const TCHAR* CommandLine);
-	FIoStatus Validate() const;
-};
-
-FIoStatus DownloadContainerFiles(const FIoStoreDownloadParams& DownloadParams, const FString& TocPath);
-
 /**
  * Parameters for listing uploaded TOC file(s) from an S3 compatible endpoint.
  *
