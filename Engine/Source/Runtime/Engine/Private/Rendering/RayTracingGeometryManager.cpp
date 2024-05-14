@@ -439,6 +439,8 @@ void FRayTracingGeometryManager::BoostPriority(BuildRequestIndex InRequestIndex,
 
 void FRayTracingGeometryManager::ForceBuildIfPending(FRHIComputeCommandList& InCmdList, const TArrayView<const FRayTracingGeometry*> InGeometries)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FRayTracingGeometryManager::ForceBuildIfPending);
+
 	FScopeLock ScopeLock(&RequestCS);
 
 	BuildParams.Empty(FMath::Max(BuildParams.Max(), InGeometries.Num()));

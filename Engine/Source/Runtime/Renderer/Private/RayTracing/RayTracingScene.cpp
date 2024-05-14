@@ -61,7 +61,8 @@ void FRayTracingScene::InitPreViewTranslation(const FViewMatrices& ViewMatrices)
 
 void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FGPUScene* GPUScene, FRayTracingSceneWithGeometryInstances SceneWithGeometryInstances, ERDGPassFlags ComputePassFlags)
 {
-	QUICK_SCOPE_CYCLE_COUNTER(FRayTracingScene_BeginCreate);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FRayTracingScene::CreateWithInitializationData);
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_RayTracingScene_CreateWithInitializationData);
 
 	// Round up buffer sizes to some multiple to avoid pathological growth reallocations.
 	static constexpr uint32 AllocationGranularity = 8 * 1024;
@@ -263,8 +264,6 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 					RHICmdList.UnlockBuffer(TransformUploadBuffer);
 				}
 
-				QUICK_SCOPE_CYCLE_COUNTER(GetAccelerationStructuresAddresses);
-
 				for (uint32 GPUIndex : RHICmdList.GetGPUMask())
 				{
 					FRayTracingAccelerationStructureAddress* AddressesPtr = (FRayTracingAccelerationStructureAddress*)RHICmdList.LockBufferMGPU(
@@ -275,6 +274,8 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 
 					RHICmdList.EnqueueLambda([AddressesPtr, &SceneInitializer, GPUIndex](FRHICommandListBase&)
 					{
+						TRACE_CPUPROFILER_EVENT_SCOPE(GetAccelerationStructuresAddresses);
+
 						for (int32 GeometryIndex = 0; GeometryIndex < SceneInitializer.ReferencedGeometries.Num(); ++GeometryIndex)
 						{
 							AddressesPtr[GeometryIndex] = SceneInitializer.ReferencedGeometries[GeometryIndex]->GetAccelerationStructureAddress(GPUIndex);
