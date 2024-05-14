@@ -933,7 +933,8 @@ namespace AutomationTool
 			HashSet<BgNodeDef> CleanedNodes = new HashSet<BgNodeDef>();
 			foreach (BgNodeDef NodeToExecute in NodesToExecute)
 			{
-				if (NodeToExecute.InputDependencies.Any(x => CleanedNodes.Contains(x)) || !Storage.CheckLocalIntegrity(NodeToExecute.Name, NodeToExecute.Outputs.Select(x => x.TagName)))
+				FileFilter IgnoreModifiedFilter = new FileFilter(NodeToExecute.IgnoreModified);
+				if (NodeToExecute.InputDependencies.Any(x => CleanedNodes.Contains(x)) || !Storage.CheckLocalIntegrity(NodeToExecute.Name, NodeToExecute.Outputs.Select(x => x.TagName), IgnoreModifiedFilter))
 				{
 					Storage.CleanLocalNode(NodeToExecute.Name);
 					CleanedNodes.Add(NodeToExecute);
@@ -1088,7 +1089,7 @@ namespace AutomationTool
 			foreach (TempStorageFile File in InputManifests.Values.SelectMany(x => x.Files))
 			{
 				string? Message;
-				if (!ModifiedFiles.ContainsKey(File.RelativePath) && !File.Compare(Unreal.RootDirectory, out Message) && !IgnoreModifiedFilter.Matches(File.RelativePath))
+				if (!ModifiedFiles.ContainsKey(File.RelativePath) && !IgnoreModifiedFilter.Matches(File.ToFileReference(Unreal.RootDirectory).FullName) && !File.Compare(Unreal.RootDirectory, out Message))
 				{
 					// look up the previous nodes to help with error diagnosis
 					List<string> PreviousNodeNames = InputManifests.Where(x => x.Value.Files.Contains(File))

@@ -662,8 +662,9 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="NodeName">The node to retrieve build products for</param>
 		/// <param name="TagNames">List of tag names from this node.</param>
+		/// <param name="IgnoreModified">Filter for files to ignore when performing integrity check. Specified per node. </param>
 		/// <returns>True if the node is complete and valid, false if not (and typically followed by a call to CleanNode()).</returns>
-		public bool CheckLocalIntegrity(string NodeName, IEnumerable<string> TagNames)
+		public bool CheckLocalIntegrity(string NodeName, IEnumerable<string> TagNames, FileFilter IgnoreModified)
 		{
 			// If the node is not locally complete, fail immediately.
 			FileReference CompleteMarkerFile = GetCompleteMarkerFile(LocalDir, NodeName);
@@ -740,7 +741,7 @@ namespace AutomationTool
 
 				// Read the manifest and check the files
 				TempStorageManifest LocalManifest = TempStorageManifest.Load(LocalManifestFile);
-				if(LocalManifest.Files.Any(x => !x.Compare(RootDir)))
+				if(LocalManifest.Files.Any(x => !IgnoreModified.Matches(x.ToFileReference(RootDir).FullName) && !x.Compare(RootDir)))
 				{
 					return false;
 				}
@@ -974,7 +975,7 @@ namespace AutomationTool
 				foreach(TempStorageFile File in Manifest.Files)
 				{
 					string? Message;
-					if (!IgnoreModified.Matches(File.RelativePath) && !File.Compare(RootDir, out Message))
+					if (!IgnoreModified.Matches(File.ToFileReference(RootDir).FullName) && !File.Compare(RootDir, out Message))
 					{
 						ModifiedFileMessages.Add(Message);
 					}
