@@ -19,6 +19,8 @@ namespace EAvaRundownApiVersion
 	 */
 	enum Type
 	{
+		Unspecified = -1,
+		
 		Initial = 1,
 		/**
 		 * The rundown server has been moved to the runtime module.
@@ -36,6 +38,37 @@ namespace EAvaRundownApiVersion
 	};
 }
 
+/**
+ * Build targets.
+ * This will help determine the set of features that are available.
+ */
+UENUM()
+enum class EAvaRundownServerBuildTargetType : uint8
+{
+	Unknown = 0,
+	Editor,
+	Game,
+	Server,
+	Client,
+	Program
+};
+
+/**
+ * An editor build can be launched in different modes but it could also be
+ * a dedicated build target. The engine mode combined with the build target
+ * will determine the set of functionalities available.
+ */
+UENUM()
+enum class EAvaRundownServerEngineMode : uint8
+{
+	Unknown = 0,
+	Editor,
+	Game,
+	Server,
+	Commandlet,
+	Other
+};
+
 
 USTRUCT()
 struct FAvaRundownMsgBase
@@ -43,7 +76,7 @@ struct FAvaRundownMsgBase
 	GENERATED_BODY()
 public:
 	UPROPERTY()
-	int32 RequestId = -1;
+	int32 RequestId = INDEX_NONE;
 };
 
 USTRUCT()
@@ -70,10 +103,10 @@ public:
 
 	/**
 	 * API Version the client has been implemented against.
-	 * If none (-1) the server will consider the initial version is requested.
+	 * If unspecified the server will consider the latest version is requested.
 	 */
 	UPROPERTY()
-	int32 RequestedApiVersion = -1;
+	int32 RequestedApiVersion = EAvaRundownApiVersion::Unspecified;
 };
 
 /** Response sent by server to client to be discovered. */
@@ -94,18 +127,85 @@ public:
 	 * Clients should expect an older server to reply with an older version.
 	 */
 	UPROPERTY()
-	int32 ApiVersion = -1;
+	int32 ApiVersion = EAvaRundownApiVersion::Unspecified;
 
 	/** Minimum API Version the server implements. */
 	UPROPERTY()
-	int32 MinimumApiVersion = -1;
+	int32 MinimumApiVersion = EAvaRundownApiVersion::Unspecified;
 
 	/** Latest API Version the server support. */
 	UPROPERTY()
-	int32 LatestApiVersion = -1;
+	int32 LatestApiVersion = EAvaRundownApiVersion::Unspecified;
 
 	UPROPERTY()
 	FString HostName;
+};
+
+/**
+ * Request the extended server information.
+ */
+USTRUCT()
+struct FAvaRundownGetServerInfo : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+};
+
+/**
+ * Extended server information 
+ */
+USTRUCT()
+struct FAvaRundownServerInfo : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+
+	/** API Version the server will communicate with for this client. */
+	UPROPERTY()
+	int32 ApiVersion = EAvaRundownApiVersion::Unspecified;
+
+	/** Minimum API Version the server implements. */
+	UPROPERTY()
+	int32 MinimumApiVersion = EAvaRundownApiVersion::Unspecified;
+
+	/** Latest API Version the server support. */
+	UPROPERTY()
+	int32 LatestApiVersion = EAvaRundownApiVersion::Unspecified;
+
+	UPROPERTY()
+	FString HostName;
+
+	/** Holds the engine version checksum */
+	UPROPERTY()
+	uint32 EngineVersion = 0;
+	
+	/** Holds the instance identifier. */
+	UPROPERTY()
+	FGuid InstanceId;
+
+	UPROPERTY()
+	EAvaRundownServerBuildTargetType InstanceBuild = EAvaRundownServerBuildTargetType::Unknown;
+
+	UPROPERTY()
+	EAvaRundownServerEngineMode InstanceMode = EAvaRundownServerEngineMode::Unknown;
+
+	/** Holds the identifier of the session that the application belongs to. */
+	UPROPERTY()
+	FGuid SessionId;
+	
+	/** The unreal project name this server is running from. */
+	UPROPERTY()
+	FString ProjectName;
+	
+	/** The unreal project directory this server is running from. */
+	UPROPERTY()
+	FString ProjectDir;
+
+	/** Http Server Port of the remote control service. */
+	UPROPERTY()
+	uint32 RemoteControlHttpServerPort = 0;
+
+	/** WebSocket Server Port of the remote control service. */
+	UPROPERTY()
+	uint32 RemoteControlWebSocketServerPort = 0;
 };
 
 /**

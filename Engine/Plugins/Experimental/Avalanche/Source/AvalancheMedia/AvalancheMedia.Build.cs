@@ -45,6 +45,7 @@ public class AvalancheMedia : ModuleRules
 				"InputCore",
 				"Projects",
 				"RHI",
+				"RemoteControlCommon",
 				"RenderCore",
 				"Renderer",
 				"Slate",

@@ -16,14 +16,17 @@
 #include "Broadcast/OutputDevices/AvaBroadcastOutputServerItem.h"
 #include "Broadcast/OutputDevices/AvaBroadcastOutputTreeItem.h"
 #include "Broadcast/OutputDevices/AvaBroadcastRenderTargetMediaUtils.h"
+#include "Engine/Engine.h"
 #include "IAvaMediaModule.h"
 #include "IRemoteControlModule.h"
 #include "ImageUtils.h"
 #include "MediaOutput.h"
 #include "MessageEndpointBuilder.h"
 #include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "Playback/AvaPlaybackManager.h"
 #include "Playback/AvaPlaybackUtils.h"
+#include "RemoteControlSettings.h"
 #include "RenderingThread.h"
 #include "Rundown/AvaRundown.h"
 #include "Rundown/AvaRundownManagedInstanceCache.h"
@@ -44,6 +47,61 @@ DEFINE_LOG_CATEGORY_STATIC(LogAvaRundownServer, Log, All);
 
 namespace UE::AvaRundownServer::Private
 {
+	// We still support the initial version.
+	constexpr int32 CurrentMinimumApiVersion = EAvaRundownApiVersion::Initial;
+
+	EAvaRundownServerBuildTargetType GetRundownEngineBuild()
+	{
+		switch(FApp::GetBuildTargetType())
+		{
+		case EBuildTargetType::Unknown:
+			return EAvaRundownServerBuildTargetType::Unknown;
+		case EBuildTargetType::Game:
+			return EAvaRundownServerBuildTargetType::Game;
+		case EBuildTargetType::Server:
+			return EAvaRundownServerBuildTargetType::Server;
+		case EBuildTargetType::Client:
+			return EAvaRundownServerBuildTargetType::Client;
+		case EBuildTargetType::Editor:
+			return EAvaRundownServerBuildTargetType::Editor;
+		case EBuildTargetType::Program:
+			return EAvaRundownServerBuildTargetType::Program;
+		default:
+			return EAvaRundownServerBuildTargetType::Unknown;
+		}
+	}
+
+	EAvaRundownServerEngineMode GetRundownEngineMode()
+	{
+		if (!GEngine)
+		{
+			return EAvaRundownServerEngineMode::Unknown;
+		}
+		
+		if (IsRunningDedicatedServer())
+		{
+			return EAvaRundownServerEngineMode::Server;
+		}
+		
+		if (IsRunningCommandlet())
+		{
+			return EAvaRundownServerEngineMode::Commandlet;
+		}
+
+		// This is checking GIsEditor
+		if (GEngine->IsEditor())
+		{
+			return EAvaRundownServerEngineMode::Editor;
+		}
+		
+		if (IsRunningGame())
+		{
+			return EAvaRundownServerEngineMode::Game;
+		}
+		
+		return EAvaRundownServerEngineMode::Other;
+	}
+	
 	inline FAvaRundownPageInfo GetPageInfo(const UAvaRundown* InRundown, const FAvaRundownPage& InPage)
 	{
 		FAvaRundownPageInfo PageInfo;
@@ -237,6 +295,7 @@ void FAvaRundownServer::Init(const FString& InAssignedHostName)
 	
 	MessageEndpoint = FMessageEndpoint::Builder("MotionDesignRundownServer")
 	.Handling<FAvaRundownPing>(this, &FAvaRundownServer::HandleRundownPing)
+	.Handling<FAvaRundownGetServerInfo>(this, &FAvaRundownServer::HandleGetRundownServerInfo)
 	.Handling<FAvaRundownGetRundowns>(this, &FAvaRundownServer::HandleGetRundowns)
 	.Handling<FAvaRundownLoadRundown>(this, &FAvaRundownServer::HandleLoadRundown)
 	.Handling<FAvaRundownSaveRundown>(this, &FAvaRundownServer::HandleSaveRundown)
@@ -462,8 +521,7 @@ void FAvaRundownServer::HandleRundownPing(const FAvaRundownPing& InMessage, cons
 	ReplyMessage->RequestId = InMessage.RequestId;
 	ReplyMessage->bAuto = InMessage.bAuto;
 
-	// We still support the initial version.
-	constexpr int32 CurrentMinimumApiVersion = EAvaRundownApiVersion::Initial;
+	using namespace UE::AvaRundownServer::Private;
 
 	// Consider clients that didn't request a version to be the latest version.
 	const int32 RequestedApiVersion = InMessage.RequestedApiVersion != -1 ? InMessage.RequestedApiVersion : EAvaRundownApiVersion::LatestVersion;
@@ -485,6 +543,31 @@ void FAvaRundownServer::HandleRundownPing(const FAvaRundownPing& InMessage, cons
 	ClientInfo.ApiVersion = HonoredApiVersion;
 
 	SendResponse(ReplyMessage, InContext->GetSender());
+}
+
+void FAvaRundownServer::HandleGetRundownServerInfo(const FAvaRundownGetServerInfo& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
+{
+	FAvaRundownServerInfo* ServerInfo = FMessageEndpoint::MakeMessage<FAvaRundownServerInfo>();
+	ServerInfo->RequestId = InMessage.RequestId;
+	
+	const FClientInfo* ClientInfo = GetClientInfo(InContext->GetSender());
+	ServerInfo->ApiVersion = ClientInfo ? ClientInfo->ApiVersion : EAvaRundownApiVersion::Unspecified;
+	ServerInfo->MinimumApiVersion = UE::AvaRundownServer::Private::CurrentMinimumApiVersion;
+	ServerInfo->LatestApiVersion = EAvaRundownApiVersion::LatestVersion;
+	ServerInfo->HostName = HostName;
+	ServerInfo->EngineVersion = FNetworkVersion::GetLocalNetworkVersion();
+	ServerInfo->InstanceId = FApp::GetInstanceId();
+	ServerInfo->InstanceBuild = UE::AvaRundownServer::Private::GetRundownEngineBuild();
+	ServerInfo->InstanceMode = UE::AvaRundownServer::Private::GetRundownEngineMode();
+	ServerInfo->SessionId = FApp::GetSessionId();
+	ServerInfo->ProjectName = FApp::GetProjectName();
+	ServerInfo->ProjectDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+
+	const URemoteControlSettings* RCSettings = GetDefault<URemoteControlSettings>();
+	ServerInfo->RemoteControlHttpServerPort = RCSettings->RemoteControlHttpServerPort;
+	ServerInfo->RemoteControlWebSocketServerPort = RCSettings->RemoteControlWebSocketServerPort;
+
+	SendResponse(ServerInfo, InContext->GetSender());
 }
 
 void FAvaRundownServer::HandleGetRundowns(const FAvaRundownGetRundowns& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
