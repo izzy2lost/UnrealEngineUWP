@@ -188,7 +188,7 @@ namespace UnsyncUI
 			}
 			catch (Exception ex)
 			{
-				App.Current.LogMessage($"Platforms enumeration failed with exception: {ex}");
+				App.Current?.LogMessage($"Platforms enumeration failed with exception: {ex}");
 			}
 		}
 
