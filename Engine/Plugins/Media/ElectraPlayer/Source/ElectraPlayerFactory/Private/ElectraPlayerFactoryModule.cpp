@@ -52,7 +52,7 @@ public:
 		{
 			if (OutErrors != nullptr)
 			{
-				OutErrors->Add(FText::Format(LOCTEXT("SchemeNotSupported", "The URI '{0}' could not be parsed"), FText::FromString(Url)));
+				OutErrors->Add(FText::Format(LOCTEXT("MalformedURI", "The URI '{0}' could not be parsed"), FText::FromString(Url)));
 			}
 		}
 		// Check scheme
