@@ -176,6 +176,20 @@ int32 SDMLayerEffectsView::GetLayerItemIndex(const TSharedPtr<FDMEffectsLayerIte
 	return GetItems().Find(TListTypeTraits<TSharedPtr<FDMEffectsLayerItem>>::NullableItemTypeConvertToItemType(Item));
 }
 
+bool SDMLayerEffectsView::SetSelectedItem(UDMMaterialEffect* InEffect)
+{
+	for (const TSharedPtr<FDMEffectsLayerItem>& EffectItem : EffectItems)
+	{
+		if (EffectItem->MaterialEffectWeak.Get() == InEffect)
+		{
+			SetSelection(EffectItem);
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void SDMLayerEffectsView::RebuildList()
 {
 	EffectItems.Empty();

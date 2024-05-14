@@ -48,6 +48,8 @@ void SDMSlotLayerItem::Construct(const FArguments& InArgs, const TSharedPtr<SDMS
 	OnStageSelected = InArgs._OnStageSelected;
 	OnLayerLinkToggled = InArgs._OnLayerLinkToggled;
 
+	bDisplayEffectsList = true;
+
 	STableRow<TSharedPtr<FDMMaterialLayerReference>>::Construct(
 		STableRow<TSharedPtr<FDMMaterialLayerReference>>::FArguments()
 		.Padding(2.0f)
@@ -862,20 +864,25 @@ void SDMSlotLayerItem::OnStageClick(const FPointerEvent& InMouseEvent, const TSh
 
 	if (MouseButton == EKeys::LeftMouseButton)
 	{
-		if (TSharedPtr<STableViewBase> TableViewBase = LayerViewWeak.Pin())
-		{
-			TSharedPtr<SListView<TSharedPtr<FDMMaterialLayerReference>>> LayerView = StaticCastSharedPtr<SListView<TSharedPtr<FDMMaterialLayerReference>>>(TableViewBase);
-			LayerView->SetSelection(LayerItem);
-		}
-
-		if (SelectedStageWidget.IsValid())
-		{
-			OnStageSelected.ExecuteIfBound(false, SelectedStageWidget.ToSharedRef());
-		}
-
-		SelectedStageWidget = InStageWidget;
-		OnStageSelected.ExecuteIfBound(true, InStageWidget);
+		SetSelectedStage(InStageWidget);
 	}
+}
+
+void SDMSlotLayerItem::SetSelectedStage(const TSharedRef<SDMStage>& InStageWidget)
+{
+	if (TSharedPtr<STableViewBase> TableViewBase = LayerViewWeak.Pin())
+	{
+		TSharedPtr<SListView<TSharedPtr<FDMMaterialLayerReference>>> LayerView = StaticCastSharedPtr<SListView<TSharedPtr<FDMMaterialLayerReference>>>(TableViewBase);
+		LayerView->SetSelection(LayerItem);
+	}
+
+	if (SelectedStageWidget.IsValid())
+	{
+		OnStageSelected.ExecuteIfBound(false, SelectedStageWidget.ToSharedRef());
+	}
+
+	SelectedStageWidget = InStageWidget;
+	OnStageSelected.ExecuteIfBound(true, InStageWidget);
 }
 
 bool SDMSlotLayerItem::OnStageCanAcceptDrop(const FDragDropEvent& InDragDropEvent, const TSharedRef<SDMStage>& InStageWidget) const
@@ -1018,7 +1025,14 @@ TSharedRef<SWidget> SDMSlotLayerItem::CreateNewEffectMenu()
 {
 	if (LayerItem.IsValid())
 	{
-		return FDMMaterialSlotLayerAddEffectMenus::OpenAddEffectMenu(LayerItem->GetLayer());
+		TSharedPtr<SDMEditor> EditorWidget;
+
+		if (TSharedPtr<SDMSlot> SlotWidget = SlotWidgetWeak.Pin())
+		{
+			EditorWidget = SlotWidget->GetEditorWidget();
+		}
+
+		return FDMMaterialSlotLayerAddEffectMenus::OpenAddEffectMenu(EditorWidget, LayerItem->GetLayer());
 	}
 
 	return SNullWidget::NullWidget;

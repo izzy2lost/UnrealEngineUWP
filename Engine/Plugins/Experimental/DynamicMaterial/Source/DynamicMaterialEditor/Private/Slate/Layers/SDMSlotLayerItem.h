@@ -59,7 +59,13 @@ public:
 
 	FORCEINLINE bool AreEffectsExpanded() const { return bDisplayEffectsList; }
 
+	void SetEffectsExpanded(bool bInExpanded) { bDisplayEffectsList = bInExpanded; }
+
 	void DeselectAllEffects();
+
+	void SetSelectedStage(const TSharedRef<SDMStage>& InStageWidget);
+
+	TSharedPtr<SDMLayerEffectsView> GetEffectsList() const { return EffectsList; }
 
 protected:
 	TWeakPtr<SDMSlot> SlotWidgetWeak;

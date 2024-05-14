@@ -5,6 +5,7 @@
 #include "Templates/SharedPointer.h"
 #include "UObject/SoftObjectPtr.h"
 
+class SDMEditor;
 class SWidget;
 class UDMMaterialLayerObject;
 class UMaterialFunctionInterface;
@@ -14,7 +15,7 @@ struct FToolMenuContext;
 class FDMMaterialSlotLayerAddEffectMenus
 {
 public:
-	static TSharedRef<SWidget> OpenAddEffectMenu(UDMMaterialLayerObject* InLayer);
+	static TSharedRef<SWidget> OpenAddEffectMenu(const TSharedPtr<SDMEditor>& InEditor, UDMMaterialLayerObject* InLayer);
 
 	static void AddEffectSubMenu(UToolMenu* InMenu, UDMMaterialLayerObject* InLayer);
 };

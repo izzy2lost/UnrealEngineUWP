@@ -93,27 +93,35 @@ void SDMSlot::Construct(const FArguments& InArgs, const TSharedRef<SDMEditor>& I
 	SlotPreviewSize = InArgs._SlotPreviewSize;
 	LayerPreviewSize = InArgs._LayerPreviewSize;
 
-	if (ensure(IsValid(InSlot)))
+	if (!ensure(IsValid(InSlot)))
 	{
-		InSlot->GetOnPropertiesUpdateDelegate().AddSP(this, &SDMSlot::OnSlotPropertiesUpdated);
-		InSlot->GetOnLayersUpdateDelegate().AddSP(this, &SDMSlot::OnSlotLayersUpdated);
+		return;
+	}
 
-		for (const UDMMaterialLayerObject* Layer : InSlot->GetLayers())
-		{
-			Layer->ForEachValidStage(
-				EDMMaterialLayerStage::All,
-				[](UDMMaterialStage* InStage)
-				{
-					InStage->SetBeingEdited(false);
-				});
-		}
+	InSlot->GetOnPropertiesUpdateDelegate().AddSP(this, &SDMSlot::OnSlotPropertiesUpdated);
+	InSlot->GetOnLayersUpdateDelegate().AddSP(this, &SDMSlot::OnSlotLayersUpdated);
 
-		RefreshMainWidget();
+	for (const UDMMaterialLayerObject* Layer : InSlot->GetLayers())
+	{
+		Layer->ForEachValidStage(
+			EDMMaterialLayerStage::All,
+			[](UDMMaterialStage* InStage)
+			{
+				InStage->SetBeingEdited(false);
+			});
+	}
 
-		bInvalidateMainWidget = false;
-		bInvalidateHeaderWidget = false;
-		bInvalidateSettingsWidget = false;
-		OnEndFrameDelegateHandle = FCoreDelegates::OnEndFrame.AddSP(this, &SDMSlot::HandleEndFrameRefresh);
+	RefreshMainWidget();
+
+	bInvalidateMainWidget = false;
+	bInvalidateHeaderWidget = false;
+	bInvalidateSettingsWidget = false;
+	OnEndFrameDelegateHandle = FCoreDelegates::OnEndFrame.AddSP(this, &SDMSlot::HandleEndFrameRefresh);
+
+	if (!InSlot->GetLayers().IsEmpty())
+	{
+		UDMMaterialLayerObject* Layer = InSlot->GetLayers().Last();
+		SetSelectedLayer(Layer);
 	}
 }
 
@@ -166,7 +174,7 @@ TSharedRef<SWidget> SDMSlot::GetLayerEffectsMenuContent()
 {
 	if (UDMMaterialLayerObject* LayerObject = GetSelectedLayer())
 	{
-		return FDMMaterialSlotLayerAddEffectMenus::OpenAddEffectMenu(LayerObject);
+		return FDMMaterialSlotLayerAddEffectMenus::OpenAddEffectMenu(EditorWidgetWeak.Pin(), LayerObject);
 	}
 
 	return SNullWidget::NullWidget;
@@ -1218,6 +1226,11 @@ UDMMaterialLayerObject* SDMSlot::AddNewLayer(UDMMaterialStage* InNewBaseStage, U
 	}
 
 	return Layer;
+}
+
+TSharedPtr<SDMSlotLayerView> SDMSlot::GetLayerView() const
+{
+	return LayerView;
 }
 
 void SDMSlot::AddNewLayer_NewLocalValue(TSubclassOf<UDMMaterialValue> InValueClass)

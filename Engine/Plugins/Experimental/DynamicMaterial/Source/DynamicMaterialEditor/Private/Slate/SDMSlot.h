@@ -89,6 +89,8 @@ public:
 
 	UDMMaterialLayerObject* AddNewLayer(UDMMaterialStage* InNewBaseStage = nullptr, UDMMaterialStage* InNewMaskStage = nullptr);
 
+	TSharedPtr<SDMSlotLayerView> GetLayerView() const;
+
 protected:
 	TWeakPtr<SDMEditor> EditorWidgetWeak;
 

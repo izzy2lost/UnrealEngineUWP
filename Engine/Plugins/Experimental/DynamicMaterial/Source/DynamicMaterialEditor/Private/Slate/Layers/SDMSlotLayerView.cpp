@@ -102,6 +102,24 @@ TSharedRef<ITableRow> SDMSlotLayerView::OnGenerateLayerItemWidget(TSharedPtr<FDM
 		}
 	}
 
+	if (InItem.IsValid() && SelectedStageWidgets.IsEmpty() && !StageWidgets.IsEmpty())
+	{
+		if (InItem->IsBaseEnabled())
+		{
+			if (TSharedPtr<SDMStage> BaseStage = LayerItem->GetBaseStageWidget())
+			{
+				OnLayerStageSelected(true, BaseStage.ToSharedRef());
+			}
+		}
+		else if (InItem->IsMaskEnabled())
+		{
+			if (TSharedPtr<SDMStage> MaskStage = LayerItem->GetMaskStageWidget())
+			{
+				OnLayerStageSelected(true, MaskStage.ToSharedRef());
+			}
+		}
+	}
+
 	return LayerItem;
 }
 
@@ -735,7 +753,7 @@ void SDMSlotLayerView::PostRedo(bool bSuccess)
 	OnUndo();
 }
 
-TSharedPtr<FDMMaterialLayerReference> SDMSlotLayerView::FindLayerItem(UDMMaterialStage* const InStage) const
+TSharedPtr<FDMMaterialLayerReference> SDMSlotLayerView::FindLayerItem(const UDMMaterialStage* InStage) const
 {
 	if (!IsValid(InStage))
 	{
@@ -759,7 +777,7 @@ TSharedPtr<FDMMaterialLayerReference> SDMSlotLayerView::FindLayerItem(UDMMateria
 	return nullptr;
 }
 
-TSharedPtr<FDMMaterialLayerReference> SDMSlotLayerView::FindLayerItem(UDMMaterialLayerObject* const InLayer) const
+TSharedPtr<FDMMaterialLayerReference> SDMSlotLayerView::FindLayerItem(const UDMMaterialLayerObject* InLayer) const
 {
 	if (!MaterialSlotWeak.IsValid())
 	{

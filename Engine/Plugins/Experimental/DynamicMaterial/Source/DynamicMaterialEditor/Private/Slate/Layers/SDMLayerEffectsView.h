@@ -38,6 +38,8 @@ public:
 
 	int32 GetLayerItemCount() const { return EffectItems.Num(); }
 
+	bool SetSelectedItem(UDMMaterialEffect* InEffect);
+
 	//~ Begin SListView
 	virtual void RebuildList() override;
 	//~ End SListView

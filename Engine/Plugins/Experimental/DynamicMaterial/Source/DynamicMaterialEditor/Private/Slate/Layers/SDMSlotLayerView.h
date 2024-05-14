@@ -45,8 +45,8 @@ public:
 
 	TSharedPtr<SDMSlotLayerItem> WidgetFromLayerItem(const TSharedPtr<FDMMaterialLayerReference>& InItem);
 
-	TSharedPtr<FDMMaterialLayerReference> FindLayerItem(UDMMaterialStage* const InStage) const;
-	TSharedPtr<FDMMaterialLayerReference> FindLayerItem(UDMMaterialLayerObject* const InLayer) const;
+	TSharedPtr<FDMMaterialLayerReference> FindLayerItem(const UDMMaterialStage* InStage) const;
+	TSharedPtr<FDMMaterialLayerReference> FindLayerItem(const UDMMaterialLayerObject* InLayer) const;
 
 	void SelectLayerItem(UDMMaterialStage* const InStage, const bool bInSelected, const ESelectInfo::Type InSelectInfo);
 	void SelectLayerItem(UDMMaterialLayerObject* const InLayer, const bool bInMask, const bool bInSelected, const ESelectInfo::Type InSelectInfo);

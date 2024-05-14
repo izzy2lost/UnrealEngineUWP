@@ -11,7 +11,11 @@
 #include "Materials/MaterialFunctionInterface.h"
 #include "Menus/DMMaterialSlotLayerAddEffectContext.h"
 #include "Menus/DMMenuContext.h"
+#include "Slate/Layers/SDMSlotLayerView.h"
+#include "Slate/SDMEditor.h"
+#include "Slate/SDMSlot.h"
 #include "ToolMenus.h"
+#include "Slate/Layers/SDMLayerEffectsView.h"
 #include "Utils/DMMaterialEffectStackPresetSubsystem.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Notifications/SNotificationList.h"
@@ -73,14 +77,17 @@ namespace UE::DynamicMaterialEditor::Private
 	void AddEffect(const FToolMenuContext& InContext, TSoftObjectPtr<UMaterialFunctionInterface> InMaterialFunctionPtr)
 	{
 		const UDMMaterialLayerObject* Layer = nullptr;
+		TSharedPtr<SDMEditor> EditorWidget;
 
 		if (UDMMenuContext* MenuContext = InContext.FindContext<UDMMenuContext>())
 		{
 			Layer = MenuContext->GetLayer();
+			EditorWidget = MenuContext->GetEditorWidget();
 		}
 		else if (UDMMaterialSlotLayerAddEffectContext* SlotContext = InContext.FindContext<UDMMaterialSlotLayerAddEffectContext>())
 		{
 			Layer = SlotContext->GetLayer();
+			EditorWidget = SlotContext->GetEditorWidget();
 		}
 
 		if (!Layer || !IsValid(Layer))
@@ -112,6 +119,32 @@ namespace UE::DynamicMaterialEditor::Private
 		}
 
 		EffectStack->AddEffect(EffectFunction);
+
+		if (!EditorWidget.IsValid())
+		{
+			return;
+		}
+
+		EditorWidget->SetEditedComponent(EffectFunction);
+
+		if (TSharedPtr<SDMSlot> ActiveSlotWidget = EditorWidget->GetActiveSlotWidget())
+		{
+			if (TSharedPtr<SDMSlotLayerView> LayerView = ActiveSlotWidget->GetLayerView())
+			{
+				if (TSharedPtr<FDMMaterialLayerReference> LayerItem = LayerView->FindLayerItem(Layer))
+				{
+					if (TSharedPtr<SDMSlotLayerItem> LayerWiget = LayerView->WidgetFromLayerItem(LayerItem))
+					{
+						LayerWiget->SetEffectsExpanded(true);
+
+						if (TSharedPtr<SDMLayerEffectsView> EffectsList = LayerWiget->GetEffectsList())
+						{
+							EffectsList->SetSelectedItem(EffectFunction);
+						}
+					}
+				}
+			}
+		}
 	}
 
 	void GenerateAddEffectSubMenu(UToolMenu* InMenu, int32 InCategoryIndex)
@@ -500,13 +533,14 @@ namespace UE::DynamicMaterialEditor::Private
 	}
 }
 
-TSharedRef<SWidget> FDMMaterialSlotLayerAddEffectMenus::OpenAddEffectMenu(UDMMaterialLayerObject* InLayer)
+TSharedRef<SWidget> FDMMaterialSlotLayerAddEffectMenus::OpenAddEffectMenu(const TSharedPtr<SDMEditor>& InEditor, UDMMaterialLayerObject* InLayer)
 {
 	using namespace UE::DynamicMaterialEditor::Private;
 
 	RegisterAddEffectMenu();
 
 	UDMMaterialSlotLayerAddEffectContext* ContextObject = NewObject<UDMMaterialSlotLayerAddEffectContext>();
+	ContextObject->SetEditorWidget(InEditor);
 	ContextObject->SetLayer(InLayer);
 
 	return UToolMenus::Get()->GenerateWidget(AddEffectMenuName, FToolMenuContext(ContextObject));

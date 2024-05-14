@@ -8,6 +8,7 @@
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "DMMaterialSlotLayerAddEffectContext.generated.h"
 
+class SDMEditor;
 class UDMMaterialLayerObject;
 class UToolMenu;
 
@@ -19,10 +20,15 @@ class UDMMaterialSlotLayerAddEffectContext : public UObject
 public:
 	UDMMaterialSlotLayerAddEffectContext() = default;
 
+	void SetEditorWidget(const TSharedPtr<SDMEditor>& InEditor) { EditorWidgetWeak = InEditor; }
+
+	TSharedPtr<SDMEditor> GetEditorWidget() const { return EditorWidgetWeak.Pin(); }
+
 	void SetLayer(UDMMaterialLayerObject* InLayer) { LayerWeak = InLayer; }
 
 	UDMMaterialLayerObject* GetLayer() const { return LayerWeak.Get(); }
 
 private:
+	TWeakPtr<SDMEditor> EditorWidgetWeak;
 	TWeakObjectPtr<UDMMaterialLayerObject> LayerWeak;
 };
