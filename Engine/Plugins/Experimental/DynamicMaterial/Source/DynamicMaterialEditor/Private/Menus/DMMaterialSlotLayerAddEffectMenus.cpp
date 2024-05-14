@@ -140,11 +140,6 @@ namespace UE::DynamicMaterialEditor::Private
 				UMaterialFunctionInterface* MaterialFunctionA = InA.LoadSynchronous();
 				UMaterialFunctionInterface* MaterialFunctionB = InB.LoadSynchronous();
 
-				if (!MaterialFunctionA && !MaterialFunctionA)
-				{
-					return false;
-				}
-
 				if (!MaterialFunctionA)
 				{
 					return false;
