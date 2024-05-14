@@ -398,6 +398,8 @@ struct FInputKeyParams
 	FVector Get3DAxisDelta() const { return Delta; }
 };
 
+ENGINE_API DECLARE_LOG_CATEGORY_EXTERN(LogPlayerInput, Log, All);
+
 /**
  * Object within PlayerController that processes player input.
  * Only exists on the client in network games.
