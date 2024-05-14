@@ -12,14 +12,13 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ToolMenuSection)
 
-FToolMenuSection::FToolMenuSection() :
-	ToolMenuSectionDynamic(nullptr),
-	bIsRegistering(false),
-	bAddedDuringRegister(false)
+FToolMenuSection::FToolMenuSection()
+	: ToolMenuSectionDynamic(nullptr)
+	, bIsRegistering(false)
+	, bAddedDuringRegister(false)
+	, bShowSectionMenu(false)
 {
-
 }
-
 
 void FToolMenuSection::InitSection(const FName InName, const TAttribute< FText >& InLabel, const FToolMenuInsert InPosition)
 {
@@ -35,6 +34,7 @@ void FToolMenuSection::InitGeneratedSectionCopy(const FToolMenuSection& Source, 
 	InsertPosition = Source.InsertPosition;
 	Construct = Source.Construct;
 	Context = InContext;
+	bShowSectionMenu = Source.bShowSectionMenu;
 }
 
 bool FToolMenuSection::IsRegistering() const
@@ -163,6 +163,11 @@ const FToolMenuEntry* FToolMenuSection::FindEntry(const FName InName) const
 	}
 
 	return nullptr;
+}
+
+void FToolMenuSection::SetShowSectionMenu(bool InShow)
+{
+	bShowSectionMenu = InShow;
 }
 
 int32 FToolMenuSection::IndexOfBlock(const FName InName) const

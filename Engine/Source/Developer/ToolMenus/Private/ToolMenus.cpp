@@ -10,6 +10,7 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Internationalization/Internationalization.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 
 #include "HAL/PlatformApplicationMisc.h" // For clipboard
 #include "Widgets/Layout/SScrollBox.h"
@@ -1443,6 +1444,52 @@ void UToolMenus::PopulateToolBarBuilder(FToolBarBuilder& ToolBarBuilder, UToolMe
 		}
 
 		ToolBarBuilder.BeginSection(Section.Name);
+
+		if (Section.bShowSectionMenu)
+		{
+			TWeakObjectPtr<UToolMenu> WeakMenuPtr = MenuData;
+			const FOnGetContent MenuGenerator = FOnGetContent::CreateLambda(
+				[this, WeakMenuPtr, SectionName = Section.Name]() -> TSharedRef<SWidget> {
+					TStrongObjectPtr<UToolMenu> Menu = WeakMenuPtr.Pin();
+					// If we got no menu, there's nothing to do.
+					if (!Menu)
+					{
+						return SNullWidget::NullWidget;
+					}
+
+					FToolMenuSection* const Section = Menu->FindSection(SectionName);
+					// If our section doesn't exist anymore, we have nothing to do.
+					if (!Section)
+					{
+						return SNullWidget::NullWidget;
+					}
+
+					// Most of the following code came from UToolMenus::PopulateMenuBuilder.
+
+					FMenuBuilder MenuBuilder(true, nullptr);
+					MenuBuilder.SetSearchable(Menu->bSearchable);
+
+					// Don't pass in a label here because the label is already displayed as the combo button text
+					// and the menu will only have this single section.
+					MenuBuilder.BeginSection(Section->Name);
+
+					for (FToolMenuEntry& Block : Section->Blocks)
+					{
+						FPopulateMenuBuilderWithToolMenuEntry PopulateMenuBuilderWithToolMenuEntry(
+							MenuBuilder, Menu.Get(), *Section, Block, /* bAllowSubMenuCollapse= */ true);
+						PopulateMenuBuilderWithToolMenuEntry.Populate();
+					}
+
+					MenuBuilder.EndSection();
+
+					AddReferencedContextObjects(MenuBuilder.GetMultiBox(), Menu.Get());
+
+					return MenuBuilder.MakeWidget();
+				});
+
+			ToolBarBuilder.AddComboButton(FUIAction(), MenuGenerator, Section.Label,
+				LOCTEXT("ToolbarSectionMenuTooltip", "Menu that contains all entries of this section"));
+		}
 
 		for (FToolMenuEntry& Block : Section.Blocks)
 		{
