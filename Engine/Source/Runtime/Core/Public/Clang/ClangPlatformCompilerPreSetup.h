@@ -302,3 +302,5 @@
 #endif
 
 #endif // __clang__
+
+#include "GenericPlatform/GenericPlatformCompilerPreSetup.h"

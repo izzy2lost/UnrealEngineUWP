@@ -6,9 +6,11 @@
 
 #pragma once
 
+#if RHI_RAYTRACING
 #include "RenderResource.h"
 #include "RenderGraphUtils.h"
 #include "PipelineStateCache.h"
+#include "ShaderParameters.h"
 
 /** All utils for ray generation shaders. */
 struct FRayGenShaderUtils
@@ -42,3 +44,4 @@ struct FRayGenShaderUtils
 		});
 	}
 };
+#endif //RHI_RAYTRACINGO

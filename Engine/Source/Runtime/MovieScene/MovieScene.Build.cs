@@ -19,6 +19,7 @@ public class MovieScene : ModuleRules
 				"CoreUObject",
                 "InputCore",
                 "Engine",
+				"MovieSceneTracks",
 				"SlateCore",
 				"TimeManagement",
 				"UniversalObjectLocator"
