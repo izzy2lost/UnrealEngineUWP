@@ -84,7 +84,7 @@ CmdLogin(const FCmdLoginOptions& Options)
 					UNSYNC_ERROR("Failed to Base64-decode access token");
 					return -1;
 				}
-				DecodedTokenData.Append(0);
+				DecodedTokenData.PushBack(0);
 
 				LogPrintf(ELogLevel::MachineReadable, L"%hs\n", (const char*)DecodedTokenData.Data());
 			}
