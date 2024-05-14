@@ -48,11 +48,6 @@ namespace Horde.Agent.Services
 		IRpcConnection RpcConnection { get; }
 
 		/// <summary>
-		/// A gRPC channel authenticated for this session
-		/// </summary>
-		GrpcChannel GrpcChannel { get; }
-
-		/// <summary>
 		/// Working directory for sandboxes etc..
 		/// </summary>
 		DirectoryReference WorkingDir { get; }
@@ -97,9 +92,6 @@ namespace Horde.Agent.Services
 		public IRpcConnection RpcConnection { get; }
 
 		/// <inheritdoc/>
-		public GrpcChannel GrpcChannel { get; }
-
-		/// <inheritdoc/>
 		public DirectoryReference WorkingDir { get; }
 
 		/// <inheritdoc/>
@@ -108,14 +100,13 @@ namespace Horde.Agent.Services
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public Session(Uri serverUrl, AgentId agentId, SessionId sessionId, string token, IRpcConnection rpcConnection, GrpcChannel grpcChannel, DirectoryReference workingDir, IReadOnlyDictionary<string, TerminateCondition> processNamesToTerminate)
+		public Session(Uri serverUrl, AgentId agentId, SessionId sessionId, string token, IRpcConnection rpcConnection, DirectoryReference workingDir, IReadOnlyDictionary<string, TerminateCondition> processNamesToTerminate)
 		{
 			ServerUrl = serverUrl;
 			AgentId = agentId;
 			SessionId = sessionId;
 			Token = token;
 			RpcConnection = rpcConnection;
-			GrpcChannel = grpcChannel;
 			WorkingDir = workingDir;
 			ProcessNamesToTerminate = processNamesToTerminate;
 		}
@@ -232,13 +223,11 @@ namespace Horde.Agent.Services
 				}
 			}
 
-			Func<CancellationToken, Task<GrpcChannel>> createGrpcChannelAsync = ctx => grpcService.CreateGrpcChannelAsync(createSessionResponse.Token, ctx);
-
 			// Open a connection to the server
 #pragma warning disable CA2000 // False positive; ownership is transferred to new Session object.
+			Func<CancellationToken, Task<GrpcChannel>> createGrpcChannelAsync = ctx => grpcService.CreateGrpcChannelAsync(createSessionResponse.Token, ctx);
 			IRpcConnection rpcConnection = new RpcConnection(createGrpcChannelAsync, logger);
-			GrpcChannel sessionGrpcChannel = await grpcService.CreateGrpcChannelAsync(createSessionResponse.Token, cancellationToken);
-			return new Session(serverProfile.Url, new AgentId(createSessionResponse.AgentId), SessionId.Parse(createSessionResponse.SessionId), createSessionResponse.Token, rpcConnection, sessionGrpcChannel, workingDir, currentSettings.GetProcessesToTerminateMap());
+			return new Session(serverProfile.Url, new AgentId(createSessionResponse.AgentId), SessionId.Parse(createSessionResponse.SessionId), createSessionResponse.Token, rpcConnection, workingDir, currentSettings.GetProcessesToTerminateMap());
 #pragma warning restore CA2000
 		}
 

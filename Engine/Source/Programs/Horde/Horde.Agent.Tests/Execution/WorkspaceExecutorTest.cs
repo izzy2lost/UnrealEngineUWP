@@ -10,7 +10,6 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Streams;
 using Horde.Agent.Execution;
 using Horde.Agent.Services;
-using Horde.Agent.Utility;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
@@ -47,7 +46,7 @@ public sealed class WorkspaceExecutorTest : IAsyncDisposable
 		_server.AddStream(_streamId, "//Foo/Main");
 		_server.AddAgentType(_streamId, AgentType);
 		_server.AddJob(_jobId, _streamId, 1, 0);
-		_session = FakeServerSessionFactory.CreateSession(_server.GetConnection(), _server.GetGrpcChannel());
+		_session = FakeServerSessionFactory.CreateSession(_server.GetConnection());
 
 		_autoSdkWorkspace.SetFile(1, "HostWin64/Android/base.h", "base");
 		_workspace.SetFile(1, "main.cpp", "main");

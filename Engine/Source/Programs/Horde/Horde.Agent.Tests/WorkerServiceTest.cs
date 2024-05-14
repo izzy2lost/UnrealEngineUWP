@@ -162,7 +162,7 @@ namespace Horde.Agent.Tests
 			await using RpcConnectionStub rpcConnection = new RpcConnectionStub(null!, null!, client);
 
 			await using FakeHordeRpcServer fakeServer = new();
-			await using ISession session = FakeServerSessionFactory.CreateSession(rpcConnection, fakeServer.GetGrpcChannel());
+			await using ISession session = FakeServerSessionFactory.CreateSession(rpcConnection);
 
 			client.BeginStepResponses.Enqueue(new RpcBeginStepResponse { Name = "stepName1", StepId = _stepId1.ToString() });
 			client.BeginStepResponses.Enqueue(new RpcBeginStepResponse { Name = "stepName2", StepId = _stepId2.ToString() });
@@ -252,7 +252,7 @@ namespace Horde.Agent.Tests
 			cts.CancelAfter(20000);
 
 			await using FakeHordeRpcServer fakeServer = new();
-			await using ISession session = FakeServerSessionFactory.CreateSession(fakeServer.GetConnection(), fakeServer.GetGrpcChannel());
+			await using ISession session = FakeServerSessionFactory.CreateSession(fakeServer.GetConnection());
 
 			LeaseManager manager = new LeaseManager(session, serviceProvider);
 
@@ -271,17 +271,16 @@ namespace Horde.Agent.Tests
 
 		public Task<ISession> CreateAsync(CancellationToken cancellationToken)
 		{
-			return Task.FromResult(CreateSession(_fakeServer.GetConnection(), _fakeServer.GetGrpcChannel()));
+			return Task.FromResult(CreateSession(_fakeServer.GetConnection()));
 		}
 
-		public static ISession CreateSession(IRpcConnection rpcConnection, GrpcChannel grpcChannel)
+		public static ISession CreateSession(IRpcConnection rpcConnection)
 		{
 			Mock<ISession> fakeSession = new Mock<ISession>(MockBehavior.Strict);
 			fakeSession.Setup(x => x.ServerUrl).Returns(new Uri("https://localhost:9999"));
 			fakeSession.Setup(x => x.AgentId).Returns(new EpicGames.Horde.Agents.AgentId("LocalAgent"));
 			fakeSession.Setup(x => x.SessionId).Returns(new EpicGames.Horde.Agents.Sessions.SessionId(default));
 			fakeSession.Setup(x => x.RpcConnection).Returns(rpcConnection);
-			fakeSession.Setup(x => x.GrpcChannel).Returns(grpcChannel);
 			fakeSession.Setup(x => x.ProcessNamesToTerminate).Returns((IReadOnlyDictionary<string, TerminateCondition>)new Dictionary<string, TerminateCondition>());
 			fakeSession.Setup(x => x.DisposeAsync()).Returns(new ValueTask());
 			fakeSession.Setup(x => x.WorkingDir).Returns(DirectoryReference.Combine(DirectoryReference.GetCurrentDirectory(), Guid.NewGuid().ToString()));
