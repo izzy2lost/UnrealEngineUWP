@@ -11,7 +11,7 @@
 struct FWebSocketMessageConnection
 {
 	FWebSocketMessageConnection() = delete;
-	FWebSocketMessageConnection(const FString& InUrl, FGuid InGuid, TSharedRef<class IWebSocket, ESPMode::ThreadSafe> InWebSocketConnection) :
+	FWebSocketMessageConnection(const FString& InUrl, const FGuid& InGuid, const TSharedRef<class IWebSocket, ESPMode::ThreadSafe>& InWebSocketConnection) :
 		Url(InUrl),
 		Guid(InGuid),
 		WebSocketConnection(InWebSocketConnection),
@@ -22,7 +22,7 @@ struct FWebSocketMessageConnection
 
 	}
 
-	FWebSocketMessageConnection(const FString& InUrl, FGuid InGuid, class INetworkingWebSocket* InWebSocketServerConnection) :
+	FWebSocketMessageConnection(const FString& InUrl, const FGuid& InGuid, class INetworkingWebSocket* InWebSocketServerConnection) :
 		Url(InUrl),
 		Guid(InGuid),
 		WebSocketConnection(nullptr),
@@ -69,29 +69,29 @@ public:
 
 	//~ Begin IMessageTransport
 	virtual FName GetDebugName() const override;
-	virtual bool StartTransport(IMessageTransportHandler& Handler) override;
+	virtual bool StartTransport(IMessageTransportHandler& InHandler) override;
 	virtual void StopTransport() override;
-	virtual bool TransportMessage(const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context, const TArray<FGuid>& Recipients) override;
+	virtual bool TransportMessage(const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext, const TArray<FGuid>& InRecipients) override;
 	//~ End IMessageTransport
 
 	bool NeedsRestart() const;
 
-	virtual void OnJsonMessage(const FString& Message, FWebSocketMessageConnectionRef WebSocketMessageConnection);
-	virtual void OnConnected(FWebSocketMessageConnectionRef WebSocketMessageConnection);
-	virtual void OnClosed(int32 Code, const FString& Reason, bool bUserClose, FWebSocketMessageConnectionRef WebSocketMessageConnection);
-	virtual void OnConnectionError(const FString& Message, FWebSocketMessageConnectionRef WebSocketMessageConnection);
+	virtual void OnJsonMessage(const FString& InMessage, FWebSocketMessageConnectionRef InWebSocketMessageConnection);
+	virtual void OnConnected(FWebSocketMessageConnectionRef InWebSocketMessageConnection);
+	virtual void OnClosed(int32 InCode, const FString& InReason, bool bInUserClose, FWebSocketMessageConnectionRef InWebSocketMessageConnection);
+	virtual void OnConnectionError(const FString& InMessage, FWebSocketMessageConnectionRef InWebSocketMessageConnection);
 
-	virtual void RetryConnection(FWebSocketMessageConnectionRef WebSocketMessageConnection);
+	virtual void RetryConnection(FWebSocketMessageConnectionRef InWebSocketMessageConnection);
 
-	virtual void ClientConnected(class INetworkingWebSocket* NetworkingWebSocket);
+	virtual void ClientConnected(class INetworkingWebSocket* InNetworkingWebSocket);
 
-	virtual bool ServerTick(float DeltaTime);
+	virtual bool ServerTick(float InDeltaTime);
 
-	virtual void OnServerJsonMessage(void* Data, int32 DataSize, FWebSocketMessageConnectionRef WebSocketMessageConnection);
-	virtual void OnServerConnectionClosed(FWebSocketMessageConnectionRef WebSocketMessageConnection);
+	virtual void OnServerJsonMessage(void* InData, int32 InDataSize, FWebSocketMessageConnectionRef InWebSocketMessageConnection);
+	virtual void OnServerConnectionClosed(FWebSocketMessageConnectionRef InWebSocketMessageConnection);
 
 protected:
-	void ForgetTransportNode(FWebSocketMessageConnectionRef WebSocketMessageConnection);
+	void ForgetTransportNode(FWebSocketMessageConnectionRef InWebSocketMessageConnection);
 	
 	IMessageTransportHandler* TransportHandler = nullptr;
 	TMap<FGuid, FWebSocketMessageConnectionRef> WebSocketMessageConnections;

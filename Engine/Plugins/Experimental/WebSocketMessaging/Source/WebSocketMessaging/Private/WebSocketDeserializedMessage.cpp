@@ -21,7 +21,7 @@ FWebSocketDeserializedMessage::~FWebSocketDeserializedMessage()
 	}
 }
 
-bool FWebSocketDeserializedMessage::ParseJson(const FString& Json, FString& OutParseError)
+bool FWebSocketDeserializedMessage::ParseJson(const FString& InJson, FString& OutParseError)
 {
 	static TMap<FString, EMessageScope> MessageScopeStringMapping =
 	{
@@ -33,10 +33,10 @@ bool FWebSocketDeserializedMessage::ParseJson(const FString& Json, FString& OutP
 
 	TSharedPtr<FJsonValue> RootValue;
 
-	TSharedRef<TJsonReader<TCHAR>> JsonReader = TJsonReaderFactory<TCHAR>::Create(Json);
+	const TSharedRef<TJsonReader<TCHAR>> JsonReader = TJsonReaderFactory<TCHAR>::Create(InJson);
 	if (FJsonSerializer::Deserialize(JsonReader, RootValue))
 	{
-		TSharedPtr<FJsonObject> RootObject = RootValue->AsObject();
+		const TSharedPtr<FJsonObject> RootObject = RootValue->AsObject();
 		if (!RootObject)
 		{
 			return false;
