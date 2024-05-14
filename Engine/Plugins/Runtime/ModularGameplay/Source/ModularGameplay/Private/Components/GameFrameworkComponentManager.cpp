@@ -481,26 +481,71 @@ EGameFrameworkAddComponentResult UGameFrameworkComponentManager::CreateComponent
 
 	if (!ComponentClass->GetDefaultObject<UActorComponent>()->GetIsReplicated() || ActorInstance->GetLocalRole() == ROLE_Authority)
 	{
-		// If AddUnique is set, it will be added only if no component on ActorInstance is child (or same class) of ComponentClass
-		const bool bAddUnique = EnumHasAnyFlags(AdditionFlags, EGameFrameworkAddComponentFlags::AddUnique);
-		if (bAddUnique)
-		{			
-			if (ActorInstance->GetComponentByClass(ComponentClass))
-			{
-				return EGameFrameworkAddComponentResult::Failed;
-			}
-		}
-
-		// If AddIfNotChild is set,it will be added only if ComponentClass is not a child (or same class) of an existing component on ActorInstance
-		const bool bAddIfNotChild = EnumHasAnyFlags(AdditionFlags, EGameFrameworkAddComponentFlags::AddIfNotChild);
-		if (bAddIfNotChild)
+		// If ReplaceParents is set, it will remove all parent class components of ComponentClass when it is added. Note: ReplaceParents will supersede other 'AddUnique...' flags.
+		const bool bReplaceParents = EnumHasAnyFlags(AdditionFlags, EGameFrameworkAddComponentFlags::ReplaceParents);
+		if (bReplaceParents)
 		{
+			// Note: Do not add "unique instance" checks here to avoid complicated logic, and because "Replace" behavior and "Add If Unique" behavior are not fully compatible paradigms.
+			// Since this Replace behavior destroys existing parents, we know we will be unique with respect to parent instances after this logic runs.
+
+			TArray<UActorComponent*> FoundParents;
+
+			// Find all components on the ActorInstance whose class is an ancestor of our new component's class
 			const TSet<UActorComponent*>& Components = ActorInstance->GetComponents();
-			for (const UActorComponent* ActorComp : Components)
+			for (UActorComponent* ActorComp : Components)
 			{
 				if (ComponentClass->IsChildOf(ActorComp->GetClass()))
 				{
+					FoundParents.Add(ActorComp);
+				}
+			}
+
+			// Remove all ancestor components found
+			for (UActorComponent* ParentComp : FoundParents)
+			{
+				DestroyInstancedComponent(ParentComp);
+			}
+			FoundParents.Reset();
+		}
+
+		// If ReplaceCopiesAndChildren is set, it will remove all components of ComponentClass when it is added. Note: ReplaceCopiesAndChildren will supersede other 'AddUnique...' flags.
+		const bool bReplaceCopiesAndChildren = EnumHasAnyFlags(AdditionFlags, EGameFrameworkAddComponentFlags::ReplaceCopiesAndChildren);
+		if (bReplaceCopiesAndChildren)
+		{
+			// Note: Do not add "unique instance" checks here to avoid complicated logic, and because "Replace" behavior and "Add If Unique" behavior are not fully compatible paradigms.
+			// Since this Replace behavior destroys existing copies and children, we know we will be unique with respect to instances of our component class after this logic runs.
+
+			// Find and remove all components from ActorInstnace whose class is or descends from ComponentClass
+			while (UActorComponent* FoundRelative = ActorInstance->GetComponentByClass(ComponentClass))
+			{
+				DestroyInstancedComponent(FoundRelative);
+			}
+		}
+
+		// Only evaluate "AddUnique..." behaviors if we are not using "ReplaceAllParents" or "ReplaceCopiesAndChildren" behaviors
+		if(!bReplaceParents && !bReplaceCopiesAndChildren)
+		{
+			// If AddUnique is set, it will be added only if no component on ActorInstance is child (or same class) of ComponentClass
+			const bool bAddUnique = EnumHasAnyFlags(AdditionFlags, EGameFrameworkAddComponentFlags::AddUnique);
+			if (bAddUnique)
+			{
+				if (ActorInstance->GetComponentByClass(ComponentClass))
+				{
 					return EGameFrameworkAddComponentResult::Failed;
+				}
+			}
+
+			// If AddIfNotChild is set,it will be added only if ComponentClass is not a child of an existing component on ActorInstance
+			const bool bAddIfNotChild = EnumHasAnyFlags(AdditionFlags, EGameFrameworkAddComponentFlags::AddIfNotChild);
+			if (bAddIfNotChild)
+			{
+				const TSet<UActorComponent*>& Components = ActorInstance->GetComponents();
+				for (const UActorComponent* ActorComp : Components)
+				{
+					if (ComponentClass->IsChildOf(ActorComp->GetClass()))
+					{
+						return EGameFrameworkAddComponentResult::Failed;
+					}
 				}
 			}
 		}
