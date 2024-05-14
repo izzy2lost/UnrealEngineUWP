@@ -52,7 +52,4 @@ protected:
 private:
 	/** The fixture patch this item uses */
 	TObjectPtr<UDMXEntityFixturePatch> FixturePatch;
-
-	/** The fixture ID, optional, set if the patch specifies one */
-	TOptional<int32> OptionalFixtureID;
 };

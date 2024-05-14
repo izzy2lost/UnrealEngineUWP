@@ -68,12 +68,9 @@ namespace UE::DMX::Private
 			return
 				Algo::FindByPredicate(GlobalFilter.FixtureIDs, [Fader, FixturePatch](int32 FixtureID)
 					{
-						int32 FixturePatchFixtureID;
-						if (FixturePatch && FixturePatch->FindFixtureID(FixturePatchFixtureID))
-						{
-							return FixturePatchFixtureID == FixtureID;
-						}
-						return true;
+						int32 FixturePatchFixtureID = FixturePatch ? FixturePatch->GetFixtureID() : -1;
+						return FixturePatchFixtureID == FixtureID;
+
 					}) != nullptr;
 		};
 

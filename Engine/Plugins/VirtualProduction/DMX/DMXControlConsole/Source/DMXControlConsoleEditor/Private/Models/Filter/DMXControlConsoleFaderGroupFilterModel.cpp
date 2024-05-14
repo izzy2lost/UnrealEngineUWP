@@ -111,18 +111,14 @@ namespace UE::DMX::Private
 			return false;
 		}
 
-		int32 FixtureID;
-		if (FixturePatch->FindFixtureID(FixtureID))
-		{
-			const int32* MatchingIDPtr = Algo::FindByPredicate(GlobalFilter.FixtureIDs, [FixtureID](const int32 InFixtureID)
-				{
-					return FixtureID == InFixtureID;
-				});
+		const int32 FixtureID = FixturePatch->GetFixtureID();
 
-			return MatchingIDPtr != nullptr;
-		}
+		const int32* MatchingIDPtr = Algo::FindByPredicate(GlobalFilter.FixtureIDs, [FixtureID](const int32 InFixtureID)
+			{
+				return FixtureID == InFixtureID;
+			});
 
-		return false;
+		return MatchingIDPtr != nullptr;
 	}
 
 	bool FDMXControlConsoleFaderGroupFilterModel::HasFadersMatchingGlobalFilterNames(const FGlobalFilter& GlobalFilter) const
@@ -290,18 +286,14 @@ namespace UE::DMX::Private
 			return false;
 		}
 
-		int32 FixtureID;
-		if (FixturePatch->FindFixtureID(FixtureID))
-		{
-			const bool bMatchesFaderGroupFixtureIDs =
-				Algo::FindByPredicate(GlobalFilter.FixtureIDs, [FixtureID](const int32 InFixtureID)
-					{
-						return FixtureID == InFixtureID;
-					}) != nullptr;
+		const int32 FixtureID = FixturePatch->GetFixtureID();
 
-			return bMatchesFaderGroupFixtureIDs;
-		}
+		const bool bMatchesFaderGroupFixtureIDs =
+			Algo::FindByPredicate(GlobalFilter.FixtureIDs, [FixtureID](const int32 InFixtureID)
+				{
+					return FixtureID == InFixtureID;
+				}) != nullptr;
 
-		return false;
+		return bMatchesFaderGroupFixtureIDs;
 	}
 }

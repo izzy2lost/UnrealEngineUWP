@@ -532,11 +532,8 @@ TArray<TSharedPtr<FDMXReadOnlyFixturePatchListItem>> SDMXReadOnlyFixturePatchLis
 				const UDMXEntityFixturePatch* FixturePatch = FixturePatchRef.IsValid() ? FixturePatchRef->GetFixturePatch() : nullptr;
 				if (FixturePatch)
 				{
-					int32 FID;
-					if (FixturePatch->FindFixtureID(FID))
-					{
-						return FID != FixtureID;
-					}
+					const int32 FID = FixturePatch->GetFixtureID();
+					return FID != FixtureID;
 				}
 
 				return true;
@@ -600,10 +597,8 @@ void SDMXReadOnlyFixturePatchList::SortByColumnID(const EColumnSortPriority::Typ
 						return false;
 					}
 
-					int32 FixtureIDA;
-					int32 FixtureIDB;
-					FixturePatchA->FindFixtureID(FixtureIDA);
-					FixturePatchB->FindFixtureID(FixtureIDB);
+					const int32 FixtureIDA = FixturePatchA->GetFixtureID();
+					const int32 FixtureIDB = FixturePatchB->GetFixtureID();
 
 					return FixtureIDA >= FixtureIDB;
 				}();

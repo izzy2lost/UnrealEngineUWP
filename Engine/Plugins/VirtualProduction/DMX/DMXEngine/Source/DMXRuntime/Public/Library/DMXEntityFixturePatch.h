@@ -2,17 +2,14 @@
 
 #pragma once
 
-#include "DMXProtocolCommon.h"
-#include "Library/DMXEntity.h"
-#include "MVR/DMXMVRGeneralSceneDescription.h"
-
 #include "DMXAttribute.h"
 #include "DMXProtocolCommon.h"
 #include "DMXTypes.h"
-#include "Library/DMXEntityFixtureType.h"
+#include "Library/DMXEntity.h"
 #include "Library/DMXEntityFixturePatchCache.h"
+#include "Library/DMXEntityFixtureType.h"
 #include "Library/DMXEntityReference.h"
-
+#include "MVR/DMXMVRGeneralSceneDescription.h"
 #include "Tickable.h"
 
 #include "DMXEntityFixturePatch.generated.h"
@@ -33,15 +30,15 @@ struct DMXRUNTIME_API FDMXEntityFixturePatchConstructionParams
 {
 	GENERATED_BODY()
 	
-	/** Property to point to the template parent fixture for details panel purposes */
+	/** The fixture type of the newly constructed fixture patch */
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadWrite, Category = "Fixture Patch", meta = (DisplayName = "Fixture Type"))
 	FDMXEntityFixtureTypeRef FixtureTypeRef;
 
-	/** The Index of the Mode in the Fixture Type the Patch uses */
+	/** The index of the mode in the fixture type the fixture patch uses */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fixture Patch")
 	int32 ActiveMode = 0;
 
-	/** The local universe of the patch */
+	/** The local universe of the fixture patch */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fixture Patch", meta = (ClampMin = 0, DisplayName = "Universe"))
 	int32 UniverseID = 1;
 
@@ -225,18 +222,25 @@ public:
 	bool SetActiveModeIndex(int32 NewActiveModeIndex);
 
 	/** Returns the index of the Mode the Patch uses from its Fixture Type */
-	FORCEINLINE int32 GetActiveModeIndex() const { return ActiveMode; }
+	int32 GetActiveModeIndex() const { return ActiveMode; }
 
 	/** Returns custom tags defined for the patch */
-	FORCEINLINE const TArray<FName>& GetCustomTags() const { return CustomTags; }
+	const TArray<FName>& GetCustomTags() const { return CustomTags; }
 
 	/** Returns the MVR Fixture UUIDs of this patch */
-	FORCEINLINE const FGuid& GetMVRFixtureUUID() const { return MVRFixtureUUID; }
+	const FGuid& GetMVRFixtureUUID() const { return MVRFixtureUUID; }
+
+	/** Returns the MVR Fixture ÎD of this patch */
+	int32 GetFixtureID() const { return FixtureID; }
+
+	/** Generates a unique Fixture ID for this patch. */
+	void GenerateFixtureID();
 
 	/** 
 	 * Tries to find the fixture ID of the patch. Looks up the general scene description resulting in a relatively slow operation. 
 	 * Returns false if the patch has no fixture ID could be found, typically the case when the patch is no valid MVR Fixture.
 	 */
+	UE_DEPRECATED(5.5, "The patches now hold their Fixture ID. Use UDMXEntityFixturePatch::GetFixtureID.")
 	bool FindFixtureID(int32& OutFixtureID) const;
 
 #if WITH_EDITOR
@@ -288,9 +292,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Fixture Patch")
 	int32 ActiveMode;
 
-	/** The MVR Fixture UUID when used as such */
+	/** The MVR Fixture UUID */
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Fixture Patch")
 	FGuid MVRFixtureUUID;
+
+	/** The Fixture ID. Note, fixture patch much like some lighting consoles only supports numerical fixture IDs, and not a string as per MVR specs. */
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Fixture Patch")
+	int32 FixtureID = 0;
 
 	/** Delegate broadcast when a Fixture Patch changed */
 	static FDMXOnFixturePatchChangedDelegate OnFixturePatchChangedDelegate;

@@ -2,6 +2,8 @@
 
 #include "Library/DMXEntityFixturePatch.h"
 
+#include "Algo/Find.h"
+#include "Algo/MaxElement.h"
 #include "DMXConversions.h"
 #include "DMXProtocolConstants.h"
 #include "DMXRuntimeLog.h"
@@ -19,8 +21,6 @@
 #include "Library/DMXLibrary.h"
 #include "Modulators/DMXModulator.h"
 #include "MVR/Types/DMXMVRFixtureNode.h"
-
-#include "Algo/Find.h"
 #include "UObject/UObjectGlobals.h"
 
 DECLARE_LOG_CATEGORY_CLASS(DMXEntityFixturePatchLog, Log, All);
@@ -96,6 +96,8 @@ UDMXEntityFixturePatch* UDMXEntityFixturePatch::CreateFixturePatchInLibrary(FDMX
 				ConstructionParams.MVRFixtureUUID = FGuid::NewGuid();
 			}
 			NewFixturePatch->MVRFixtureUUID = ConstructionParams.MVRFixtureUUID;
+
+			NewFixturePatch->GenerateFixtureID();
 
 #if WITH_EDITOR
 			// Make a nice Editor Color
@@ -196,7 +198,7 @@ void UDMXEntityFixturePatch::PostLoad()
 	Super::PostLoad();
 
 	if (!HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
-	{
+	{		
 		RebuildCache();
 	}
 }
@@ -583,9 +585,36 @@ bool UDMXEntityFixturePatch::SetActiveModeIndex(int32 NewActiveModeIndex)
 	return false;
 }
 
+void UDMXEntityFixturePatch::GenerateFixtureID()
+{
+	if (!ParentLibrary.IsValid())
+	{
+		FixtureID = 1;
+		return;
+	}
+
+	const TArray<UDMXEntityFixturePatch*> FixturePatches = ParentLibrary->GetEntitiesTypeCast<UDMXEntityFixturePatch>();
+	const UDMXEntityFixturePatch* const* MaxFixtureIDPatchPtr = Algo::MaxElementBy(FixturePatches, [this](const UDMXEntityFixturePatch* Other)
+		{
+			if (Other && Other != this)
+			{
+				return Other->GetFixtureID();
+			}
+			return 0;
+		});
+	if (MaxFixtureIDPatchPtr)
+	{
+		FixtureID = (*MaxFixtureIDPatchPtr)->GetFixtureID() + 1;
+	}
+	else
+	{
+		FixtureID = 1;
+	}
+}
 
 bool UDMXEntityFixturePatch::FindFixtureID(int32& OutFixtureID) const
 {
+	// DEPRECATED 5.5. The patch now holds its MVR fixture ID
 	if (!MVRFixtureUUID.IsValid())
 	{
 		return false;

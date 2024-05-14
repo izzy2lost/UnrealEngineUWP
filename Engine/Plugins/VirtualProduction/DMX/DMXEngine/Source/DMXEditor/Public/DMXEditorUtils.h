@@ -2,7 +2,9 @@
 
 #pragma once
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "CoreMinimal.h"
+#endif
 #include "Templates/SubclassOf.h"
 #include "Library/DMXEntity.h"
 

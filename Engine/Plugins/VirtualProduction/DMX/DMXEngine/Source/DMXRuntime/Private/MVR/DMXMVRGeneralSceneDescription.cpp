@@ -2,13 +2,18 @@
 
 #include "MVR/DMXMVRGeneralSceneDescription.h"
 
+#include "Algo/MaxElement.h"
+#include "Algo/RemoveIf.h"
 #include "DMXProtocolCommon.h"
 #include "DMXRuntimeLog.h"
+#include "DMXRuntimeMainStreamObjectVersion.h"
+#include "EditorFramework/AssetImportData.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXEntityFixtureType.h"
 #include "Library/DMXGDTFAssetImportData.h"
 #include "Library/DMXImportGDTF.h"
 #include "Library/DMXLibrary.h"
+#include "Misc/Paths.h"
 #include "MVR/DMXMVRAssetImportData.h"
 #include "MVR/Types/DMXMVRChildListNode.h"
 #include "MVR/Types/DMXMVRFixtureNode.h"
@@ -18,11 +23,7 @@
 #include "MVR/Types/DMXMVRParametricObjectNodeBase.h"
 #include "MVR/Types/DMXMVRRootNode.h"
 #include "MVR/Types/DMXMVRSceneNode.h"
-
 #include "XmlFile.h"
-#include "Algo/RemoveIf.h"
-#include "EditorFramework/AssetImportData.h"
-#include "Misc/Paths.h"
 
 
 #define LOCTEXT_NAMESPACE "DMXMVRGeneralSceneDescription"
@@ -79,12 +80,6 @@ UDMXMVRGeneralSceneDescription* UDMXMVRGeneralSceneDescription::CreateFromDMXLib
 #endif // WITH_EDITOR
 
 
-// Hotfix UE5.1.1: To set MVR Fixture UUIDs faster, hold newly added nodes in the array here
-namespace UE::DMX::DMXMVRGeneralSceneDescription::HotFix::Private
-{
-	TArray<UDMXMVRFixtureNode*> NewNodes;
-}
-
 #if WITH_EDITOR
 void UDMXMVRGeneralSceneDescription::WriteDMXLibraryToGeneralSceneDescription(const UDMXLibrary& DMXLibrary)
 {
@@ -115,23 +110,12 @@ void UDMXMVRGeneralSceneDescription::WriteDMXLibraryToGeneralSceneDescription(co
 	}
 
 	// Create or update MVR Fixtures for each Fixture Patch's MVR Fixture UUIDs
-	UE::DMX::DMXMVRGeneralSceneDescription::HotFix::Private::NewNodes.Reset();
 	for (UDMXEntityFixturePatch* FixturePatch : FixturePatches)
 	{
 		if (FixturePatch)
 		{
 			WriteFixturePatchToGeneralSceneDescription(*FixturePatch);
 		}
-	}
-
-	// Generate a Fixture ID for all new nodes. This is a 5.1.1 optimization to avoid the O1 lookup for each patch individually.
-	const TArray<int32> FixtureIDsInUse = GetNumericalFixtureIDsInUse(DMXLibrary);
-	int32 NextFixtureID = FixtureIDsInUse.Num() > 0 ? FixtureIDsInUse.Last() + 1 : 1;
-	
-	for (UDMXMVRFixtureNode* FixtureNode : UE::DMX::DMXMVRGeneralSceneDescription::HotFix::Private::NewNodes) //-V1078
-	{
-		FixtureNode->FixtureID = FString::FromInt(NextFixtureID);
-		NextFixtureID++;
 	}
 }
 #endif // WITH_EDITOR
@@ -184,8 +168,7 @@ void UDMXMVRGeneralSceneDescription::WriteFixturePatchToGeneralSceneDescription(
 
 		MVRFixtureNode->Name = FixturePatch.Name;
 		MVRFixtureNode->UUID = MVRFixtureUUID;
-
-		UE::DMX::DMXMVRGeneralSceneDescription::HotFix::Private::NewNodes.Add(MVRFixtureNode);
+		MVRFixtureNode->FixtureID = FString::FromInt(FixturePatch.GetFixtureID());
 	}
 	check(MVRFixtureNode);
 

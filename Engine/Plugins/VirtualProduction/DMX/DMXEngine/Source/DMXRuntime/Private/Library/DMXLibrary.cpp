@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Library/DMXLibrary.h"
 
+#include "Algo/MaxElement.h"
 #include "DMXRuntimeLog.h"
 #include "DMXRuntimeMainStreamObjectVersion.h"
 #include "DMXProtocolSettings.h"
@@ -41,6 +42,25 @@ void UDMXLibrary::PostInitProperties()
 	}
 }
 
+void UDMXLibrary::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+
+#if WITH_EDITOR
+	if (Ar.IsLoading())
+	{
+		if (Ar.CustomVer(FDMXRuntimeMainStreamObjectVersion::GUID) < FDMXRuntimeMainStreamObjectVersion::DMXFixturePatchHasFixtureID)
+		{
+			const TArray<UDMXEntityFixturePatch*> FixturePatches = GetEntitiesTypeCast<UDMXEntityFixturePatch>();
+			for (UDMXEntityFixturePatch* FixturePatch : FixturePatches)
+			{
+				FixturePatch->GenerateFixtureID();
+			}
+		}
+	}
+#endif
+}
+
 void UDMXLibrary::PostLoad()
 {
 	Super::PostLoad();
@@ -57,7 +77,6 @@ void UDMXLibrary::PostLoad()
 			UpgradeFromControllersToPorts();
 		}
 
-		UpdateGeneralSceneDescription();
 #endif 
 		UpdatePorts();
 
