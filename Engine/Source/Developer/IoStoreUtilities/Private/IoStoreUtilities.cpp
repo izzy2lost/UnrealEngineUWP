@@ -329,7 +329,7 @@ public:
 
 	// Returns whether we expect to be able to load the chunk from the reference chunk database.
 	// This can be called from any thread, though in the presence of existing hashes it's single threaded.
-	virtual bool ChunkExists(const FIoContainerId& InContainerId, const FIoHash& InChunkHash, const FIoChunkId& InChunkId, uint32& OutNumChunkBlocks)
+	virtual bool ChunkExists(const FIoContainerId& InContainerId, const FIoHash& InChunkHash, const FIoChunkId& InChunkId, int32& OutNumChunkBlocks)
 	{
 		if (!bValid)
 		{
@@ -404,7 +404,7 @@ public:
 		// We match.
 		MatchCount.fetch_add(1, std::memory_order_relaxed);
 		ReaderChunks->UsedChunksByType[ChunkType].fetch_add(1, std::memory_order_relaxed);
-		OutNumChunkBlocks = ChunkInfo.NumCompressedBlocks;
+		OutNumChunkBlocks = IntCastChecked<int32>(ChunkInfo.NumCompressedBlocks);
 		return true;
 	}
 
@@ -3414,11 +3414,14 @@ private:
 		
 		virtual void FreeSourceBuffer() override
 		{
-			SourceBuffer = FIoBuffer();
-			Manager.OnBufferMemoryFreed(SourceBufferSize);
+			if (SourceBuffer.DataSize() > 0)
+			{
+				SourceBuffer = FIoBuffer();
+				Manager.OnBufferMemoryFreed(SourceBufferSize);
+			}
 		}
 
-		uint64 GetSourceBufferSize() const
+		virtual uint64 GetSourceBufferSizeEstimate() override
 		{
 			return SourceBufferSize;
 		}
@@ -3483,7 +3486,7 @@ private:
 		virtual void LoadSourceBufferAsync() override
 		{
 			Manager.LooseFileSourceReads[(int8)TargetFile.ChunkId.GetChunkType()].IncrementExchange();
-			SourceBuffer = FIoBuffer(GetSourceBufferSize());
+			SourceBuffer = FIoBuffer(GetSourceBufferSizeEstimate());
 
 			QueueEntry->FileHandle.Reset(
 				FPlatformFileManager::Get().GetPlatformFile().OpenAsyncRead(*TargetFile.NormalizedSourcePath));
@@ -3647,7 +3650,7 @@ private:
 
 	void Start(FQueueEntry* QueueEntry)
 	{
-		const uint64 SourceBufferSize = QueueEntry->WriteRequest->GetSourceBufferSize();
+		const uint64 SourceBufferSize = QueueEntry->WriteRequest->GetSourceBufferSizeEstimate();
 
 		uint64 LocalUsedBufferMemory = UsedBufferMemory.Load();
 		while (LocalUsedBufferMemory > 0 && LocalUsedBufferMemory + SourceBufferSize > BufferMemoryLimit)

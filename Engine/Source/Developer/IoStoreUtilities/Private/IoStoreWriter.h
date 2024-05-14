@@ -110,6 +110,8 @@ public:
 
 	// Can't be called between PrepareSourceBufferAsync and its completion!
 	virtual void FreeSourceBuffer() = 0;
+
+	virtual uint64 GetSourceBufferSizeEstimate() = 0;
 };
 
 class IIoStoreWriterReferenceChunkDatabase
@@ -142,7 +144,7 @@ public:
 	* the necessary structures without needing to read the source data for the chunk. This might be called from
 	* multiple threads as it has to happen after we have the source hash computed.
 	*/
-	virtual bool ChunkExists(const FIoContainerId& InContainerId, const FIoHash& InChunkHash, const FIoChunkId& InChunkId, uint32& OutNumChunkBlocks) = 0;
+	virtual bool ChunkExists(const FIoContainerId& InContainerId, const FIoHash& InChunkHash, const FIoChunkId& InChunkId, int32& OutNumChunkBlocks) = 0;
 
 	/*
 	* Returns the compression block size that was used to break up the IoChunks in the source containers. If this is different than what we want, 

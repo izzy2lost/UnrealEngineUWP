@@ -110,6 +110,11 @@ public:
 				return nullptr;
 			}
 
+			virtual uint64 GetSourceBufferSizeEstimate() override
+			{
+				return SourceBuffer.DataSize();
+			}
+
 			FIoBuffer SourceBuffer;
 			uint64 OrderHint;
 		};
