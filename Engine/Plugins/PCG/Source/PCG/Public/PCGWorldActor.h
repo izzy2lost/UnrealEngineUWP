@@ -26,6 +26,8 @@ public:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 #if WITH_EDITOR
+	virtual bool ActorTypeSupportsDataLayer() const override { return false; }
+	virtual bool ActorTypeSupportsExternalDataLayer() const override { return false; }
 	virtual bool CanChangeIsSpatiallyLoadedFlag() const override { return false; }
 	virtual bool IsUserManaged() const override { return false; }
 	virtual bool ShouldExport() override { return false; }
