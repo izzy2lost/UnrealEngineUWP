@@ -984,7 +984,7 @@ void FVirtualizationManager::DumpStats() const
 #endif // ENABLE_COOK_STATS
 }
 
-FPayloadActivityInfo FVirtualizationManager::GetAccumualtedPayloadActivityInfo() const
+FPayloadActivityInfo FVirtualizationManager::GetSystemStatistics() const
 {
 	FPayloadActivityInfo Info;
 
@@ -1014,14 +1014,24 @@ FPayloadActivityInfo FVirtualizationManager::GetAccumualtedPayloadActivityInfo()
 	return Info;
 }
 
-void FVirtualizationManager::GetPayloadActivityInfo( GetPayloadActivityInfoFuncRef GetPayloadFunc ) const
+TArray<FBackendStats> FVirtualizationManager::GetBackendStatistics() const
 {
-	FPayloadActivityInfo Info;
-
+	TArray<FBackendStats> Stats;
+	
 #if ENABLE_COOK_STATS
 
-	for (const auto& Backend : AllBackends)
+	Stats.Reserve(AllBackends.Num());
+
+	for (const TUniquePtr<IVirtualizationBackend>& Backend : AllBackends)
 	{
+		FBackendStats& BackendStats = Stats.AddDefaulted_GetRef();
+
+		BackendStats.DebugName = Backend->GetDebugName();
+		BackendStats.ConfigName = Backend->GetConfigName();
+		BackendStats.Type = PersistentStorageBackends.Contains(Backend.Get()) ? EStorageType::Persistent : EStorageType::Cache;
+
+		FPayloadActivityInfo& Info = BackendStats.PayloadActivity;
+
 		const FCookStats::CallStats& CacheStats = Profiling::GetCacheStats(*Backend);
 
 		Info.Cache.PayloadCount = CacheStats.GetAccumulatedValueAnyThread(FCookStats::CallStats::EHitOrMiss::Hit, FCookStats::CallStats::EStatType::Counter);
@@ -1039,13 +1049,10 @@ void FVirtualizationManager::GetPayloadActivityInfo( GetPayloadActivityInfoFuncR
 		Info.Pull.PayloadCount = PullStats.GetAccumulatedValueAnyThread(FCookStats::CallStats::EHitOrMiss::Hit, FCookStats::CallStats::EStatType::Counter);
 		Info.Pull.TotalBytes = PullStats.GetAccumulatedValueAnyThread(FCookStats::CallStats::EHitOrMiss::Hit, FCookStats::CallStats::EStatType::Bytes);
 		Info.Pull.CyclesSpent = PullStats.GetAccumulatedValueAnyThread(FCookStats::CallStats::EHitOrMiss::Hit, FCookStats::CallStats::EStatType::Cycles);
-
-		GetPayloadFunc(Backend->GetDebugName(), Backend->GetConfigName(), Info);
-
 	}
 #endif // ENABLE_COOK_STATS
 
-	
+	return Stats;
 }
 
 void FVirtualizationManager::ApplySettingsFromConfigFiles(const FConfigFile& ConfigFile)
@@ -2298,7 +2305,7 @@ void FVirtualizationManager::GatherAnalytics(TArray<FAnalyticsEventAttribute>& A
 {
 	Attributes.Reserve(Attributes.Num() + 10);
 
-	FPayloadActivityInfo PayloadActivityInfo = GetAccumualtedPayloadActivityInfo();
+	FPayloadActivityInfo PayloadActivityInfo = GetSystemStatistics();
 
 	const FString BaseName = TEXT("Virtualization");
 

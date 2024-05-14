@@ -336,7 +336,7 @@ TSharedRef<SWidget> SVirtualAssetsStatisticsDialog::GetGridPanel()
 	Panels.Push = CreateGridPanels(LOCTEXT("Upload", "Upload"));
 
 	int32 RowIndex = 2;
-	auto DisplayPayloadActivityInfo = [&StdMargin, &Color, &Font, &RowIndex, &Panels](const FString& DebugName, const FString& ConfigName, const FPayloadActivityInfo& PayloadActivityInfo)
+	auto DisplayPayloadActivityInfo = [&StdMargin, &Color, &Font, &RowIndex, &Panels](const FString& Name, const FPayloadActivityInfo& PayloadActivityInfo)
 		{
 			Panels.Names->AddSlot(0, RowIndex)
 			[
@@ -345,7 +345,7 @@ TSharedRef<SWidget> SVirtualAssetsStatisticsDialog::GetGridPanel()
 				.ColorAndOpacity(Color)
 				.Font(Font)
 				.Justification(ETextJustify::Left)
-				.Text(FText::FromString(ConfigName))
+				.Text(FText::FromString(Name))
 			];
 
 			auto FillPanelDetails = [&StdMargin, &Color, &Font, &RowIndex](TSharedPtr<SGridPanel>& Panel, const FPayloadActivityInfo::FActivity& Activity)
@@ -393,14 +393,18 @@ TSharedRef<SWidget> SVirtualAssetsStatisticsDialog::GetGridPanel()
 			RowIndex++;
 		};
 
-	IVirtualizationSystem::Get().GetPayloadActivityInfo(DisplayPayloadActivityInfo);
+	TArray<FBackendStats> BackendStats = IVirtualizationSystem::Get().GetBackendStatistics();
+	for (const FBackendStats& Stats : BackendStats)
+	{
+		DisplayPayloadActivityInfo(Stats.ConfigName, Stats.PayloadActivity);
+	}
 
-	FPayloadActivityInfo AccumulatedPayloadAcitvityInfo = IVirtualizationSystem::Get().GetAccumualtedPayloadActivityInfo();
+	FPayloadActivityInfo AccumulatedPayloadAcitvityInfo = IVirtualizationSystem::Get().GetSystemStatistics();
 
 	Color = TitleColor;
 	Font = TitleFont;
 
-	DisplayPayloadActivityInfo(FString("Total"), FString("Total"), AccumulatedPayloadAcitvityInfo);
+	DisplayPayloadActivityInfo(FString("Total"), AccumulatedPayloadAcitvityInfo);
 
 	return Panel;
 }

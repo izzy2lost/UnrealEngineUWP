@@ -142,12 +142,12 @@ public:
 		// The null implementation will have no stats and nothing to log
 	}
 
-	virtual void GetPayloadActivityInfo(GetPayloadActivityInfoFuncRef) const override
+	virtual TArray<FBackendStats> GetBackendStatistics() const override
 	{
-		// The null implementation has no stats and nothing to invoke
+		return TArray<FBackendStats>();
 	}
 
-	virtual FPayloadActivityInfo GetAccumualtedPayloadActivityInfo() const override
+	virtual FPayloadActivityInfo GetSystemStatistics() const override
 	{
 		return FPayloadActivityInfo();
 	}

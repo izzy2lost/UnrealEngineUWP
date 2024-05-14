@@ -46,6 +46,21 @@ struct FPayloadActivityInfo
 	FActivity Cache;
 };
 
+/** Profiling data containing all activity relating to a single backend */
+struct FBackendStats
+{
+	/** Name of the backend as provided by the current VA graph found in ini:Engine */
+	FString ConfigName;
+	/** Full debug name of the backend */
+	FString DebugName;
+	
+	/** The storage type of the backend */
+	EStorageType Type;
+
+	/** Payload activity for the current backend */
+	FPayloadActivityInfo PayloadActivity;
+};
+
 /** Info about a rehydration operation */
 struct FRehydrationInfo
 {
@@ -823,11 +838,26 @@ public:
 
 	using GetPayloadActivityInfoFuncRef = TFunctionRef<void(const FString& DebugName, const FString& ConfigName, const FPayloadActivityInfo& PayloadInfo)>;
 
-	/** Access profiling info relating to payload activity per backend. Stats will only be collected if ENABLE_COOK_STATS is enabled.*/
-	virtual void GetPayloadActivityInfo( GetPayloadActivityInfoFuncRef ) const = 0;
+	UE_DEPRECATED(5.5, "Use IVirtualizationSystem::GetBackendStatistics instead")
+	virtual void GetPayloadActivityInfo(GetPayloadActivityInfoFuncRef Func) const
+	{
+		for (const FBackendStats& Stats : GetBackendStatistics())
+		{
+			Func(Stats.DebugName, Stats.ConfigName, Stats.PayloadActivity);
+		}
+	}
 
-	/** Access profiling info relating to accumulated payload activity. Stats will only be collected if ENABLE_COOK_STATS is enabled.*/
-	virtual FPayloadActivityInfo GetAccumualtedPayloadActivityInfo() const = 0;
+	UE_DEPRECATED(5.5, "Use IVirtualizationSystem::GetSystemStatistics instead")
+	virtual FPayloadActivityInfo GetAccumualtedPayloadActivityInfo() const
+	{
+		return GetSystemStatistics();
+	}
+	
+	/** Access profiling info relating to payload activity per backend. Stats will only be collected if ENABLE_COOK_STATS is enabled.*/
+	virtual TArray<FBackendStats> GetBackendStatistics() const = 0;
+	
+	/** Access profiling info for all backends combined. Stats will only be collected if ENABLE_COOK_STATS is enabled.*/
+	virtual FPayloadActivityInfo GetSystemStatistics() const = 0;
 
 	/** Gather analytics data. Stats will only be collected if ENABLE_COOK_STATS is enabled.*/
 	virtual void GatherAnalytics(TArray<FAnalyticsEventAttribute>& Attributes) const =0;

@@ -199,9 +199,9 @@ private:
 
 	virtual void DumpStats() const override;
 
-	virtual FPayloadActivityInfo GetAccumualtedPayloadActivityInfo() const override;
+	virtual FPayloadActivityInfo GetSystemStatistics() const override;
 
-	virtual void GetPayloadActivityInfo( GetPayloadActivityInfoFuncRef ) const override;
+	virtual TArray<FBackendStats> GetBackendStatistics() const override;
 
 	virtual void GatherAnalytics(TArray<FAnalyticsEventAttribute>& Attributes) const override;
 
