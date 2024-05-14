@@ -86,21 +86,27 @@ EMassActorSpawnRequestAction UMassRepresentationActorManagement::OnPostActorSpaw
 	, FConstStructView SpawnRequest, TSharedRef<FMassEntityManager> EntityManager) const
 {
 	const FMassActorSpawnRequest& MassActorSpawnRequest = SpawnRequest.Get<const FMassActorSpawnRequest>();
-	checkf(MassActorSpawnRequest.SpawnedActor, TEXT("Expecting valid spawned actor"));
-
-	// Might be already done if the actor has a MassAgentComponent via the callback OnMassAgentComponentEntityAssociated on the MassRepresentationSubsystem
-	FMassActorFragment& ActorInfo = EntityManager->GetFragmentDataChecked<FMassActorFragment>(MassActorSpawnRequest.MassAgent);
-	if (ActorInfo.IsValid())
+	
+	if (MassActorSpawnRequest.SpawnedActor)
 	{
-		// If already set, make sure it is pointing to the same actor.
-		checkf(ActorInfo.Get() == MassActorSpawnRequest.SpawnedActor, TEXT("Expecting the pointer to the spawned actor in the actor fragment"));
-	}
-	else
-	{
-		ActorInfo.SetAndUpdateHandleMap(MassActorSpawnRequest.MassAgent, MassActorSpawnRequest.SpawnedActor, true/*bIsOwnedByMass*/);
+		// Might be already done if the actor has a MassAgentComponent via the callback OnMassAgentComponentEntityAssociated on the MassRepresentationSubsystem
+		FMassActorFragment& ActorInfo = EntityManager->GetFragmentDataChecked<FMassActorFragment>(MassActorSpawnRequest.MassAgent);
+		if (ActorInfo.IsValid())
+		{
+			// If already set, make sure it is pointing to the same actor.
+			checkf(ActorInfo.Get() == MassActorSpawnRequest.SpawnedActor, TEXT("Expecting the pointer to the spawned actor in the actor fragment"));
+		}
+		else
+		{
+			ActorInfo.SetAndUpdateHandleMap(MassActorSpawnRequest.MassAgent, MassActorSpawnRequest.SpawnedActor, true/*bIsOwnedByMass*/);
+		}
+
+		// by default we keep the spawn request since there's code in other places that will consume this request by 
+		// calling RemoveActorSpawnRequest (like UMassRepresentationSubsystem::GetOrSpawnActorFromTemplate)
+		return EMassActorSpawnRequestAction::Keep;
 	}
 
-	return EMassActorSpawnRequestAction::Keep;
+	return EMassActorSpawnRequestAction::Remove;
 }
 
 void UMassRepresentationActorManagement::ReleaseAnyActorOrCancelAnySpawning(FMassEntityManager& EntityManager, const FMassEntityHandle MassAgent)
