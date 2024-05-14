@@ -16,6 +16,8 @@ using Grpc.Net.Client.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+#pragma warning disable CA2234 // Use URIs instead of strings
+
 namespace EpicGames.Horde
 {
 	/// <summary>
