@@ -157,7 +157,7 @@ void BuildShaderBindingLayout(TConstArrayView<FShaderParametersMetadata*> Unifor
 	FShaderBindingLayout ShaderBindingLayout;
 
 	EShaderBindingLayoutFlags ShaderBindingLayoutFlags = BaseShaderBindingLayoutFlags;
-	if (BindingType == FShaderBindingLayoutContainer::EBindingType::Bindless)
+	//if (BindingType == FShaderBindingLayoutContainer::EBindingType::Bindless)
 	{
 		ShaderBindingLayoutFlags |= EShaderBindingLayoutFlags::BindlessResources | EShaderBindingLayoutFlags::BindlessSamplers;
 	}
