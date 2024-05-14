@@ -21,6 +21,7 @@ call Engine/Build/BatchFiles/RunUBT.bat -NoUba -NoUbaLocal -NoSNDBS -NoXGE -Arch
 	-Target="UbaHost Win64 %config%" ^
 	-Target="UbaStorageProxy Win64 %config%" ^
 	-Target="UbaVisualizer Win64 %config%" ^
+	-Target="UbaObjTool Win64 %config%" ^
 	-Target="UbaCacheService Win64 %config%"
 
 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
