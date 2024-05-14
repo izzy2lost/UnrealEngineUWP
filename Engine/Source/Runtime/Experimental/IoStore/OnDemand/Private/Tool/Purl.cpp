@@ -5,9 +5,11 @@
 #include "Command.h"
 
 #include <Containers/UnrealString.h>
+#include <HAL/FileManager.h>
 #include <HAL/PlatformProcess.h>
 #include <IO/IoBuffer.h>
 #include <IO/Http/Client.h>
+#include <Misc/Paths.h>
 #include <Misc/ScopeExit.h>
 
 #if PLATFORM_WINDOWS
@@ -23,6 +25,28 @@ namespace UE::IoStore::Tool
 {
 
 ////////////////////////////////////////////////////////////////////////////////
+static void LoadCaCerts()
+{
+	using namespace UE::IoStore::HTTP;
+
+	IFileManager& Ifm = IFileManager::Get();
+	FString PemPath = FPaths::EngineContentDir() / TEXT("Certificates/ThirdParty/cacert.pem");
+	FArchive* Reader = Ifm.CreateFileReader(*PemPath);
+	check(Reader != nullptr)
+
+	uint32 Size = uint32(Reader->TotalSize());
+	FIoBuffer PemData(Size);
+	FMutableMemoryView PemView = PemData.GetMutableView();
+	Reader->Serialize(PemView.GetData(), Size);
+
+	FCertRoots CaRoots(PemData.GetView());
+	check(CaRoots.IsValid());
+
+	FCertRoots::SetDefault(MoveTemp(CaRoots));
+	delete Reader;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 static int32 PurlCommandEntry(const FContext& Context)
 {
 #if PLATFORM_WINDOWS
@@ -33,6 +57,8 @@ static int32 PurlCommandEntry(const FContext& Context)
 #endif
 
 	using namespace UE::IoStore::HTTP;
+
+	LoadCaCerts();
 
 	FStringView Url = Context.Get<FStringView>(TEXT("Url"));
 	auto AnsiUrl = StringCast<ANSICHAR>(Url.GetData(), Url.Len());

@@ -305,6 +305,30 @@ static FIasCacheConfig GetIasCacheConfig(const TCHAR* CommandLine)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+static void LoadCaCerts()
+{
+	using namespace UE::IoStore::HTTP;
+
+	IFileManager& Ifm = IFileManager::Get();
+	FString PemPath = FPaths::EngineContentDir() / TEXT("Certificates/ThirdParty/cacert.pem");
+	FArchive* Reader = Ifm.CreateFileReader(*PemPath);
+	check(Reader != nullptr)
+
+	uint32 Size = uint32(Reader->TotalSize());
+	FIoBuffer PemData(Size);
+	FMutableMemoryView PemView = PemData.GetMutableView();
+	Reader->Serialize(PemView.GetData(), Size);
+
+	FCertRoots CaRoots(PemData.GetView());
+
+	uint32 NumCerts = CaRoots.Num();
+	UE_LOG(LogIas, Display, TEXT("CaRoots: %u (%u .pem bytes))"), NumCerts, Size);
+
+	FCertRoots::SetDefault(MoveTemp(CaRoots));
+	delete Reader;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 /**
  * Utility to create a FArchive capable of reading from disk using the exact same pathing
  * rules as FPlatformMisc::LoadTextFileFromPlatformPackage but without forcing the entire
@@ -1810,6 +1834,8 @@ void FIoStoreOnDemandModule::InitializeInternal()
 		return;
 	}
 #endif
+
+	LoadCaCerts();
 
 	// Make sure we haven't called initialize before
 	check(!HttpIoDispatcherBackend.IsValid());
