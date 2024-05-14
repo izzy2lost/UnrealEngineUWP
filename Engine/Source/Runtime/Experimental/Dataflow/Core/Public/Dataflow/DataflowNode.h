@@ -228,7 +228,7 @@ struct FDataflowNode
 	}
 
 	template<typename TAnyType, typename = std::enable_if_t<std::is_base_of_v<FDataflowAnyType, TAnyType>>>
-	TAnyType::FStorageType GetValue(Dataflow::FContext& Context, const TAnyType* Reference) const
+	typename TAnyType::FStorageType GetValue(Dataflow::FContext& Context, const TAnyType* Reference) const
 	{
 		checkSlow(Reference && FindInput(Reference));
 		return FindInput(Reference)->template GetValueFromAnyType<TAnyType>(Context, Reference->Value);
