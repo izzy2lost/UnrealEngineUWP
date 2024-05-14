@@ -126,8 +126,11 @@ FString FStateTreeBindableStructDesc::ToString() const
 {
 	FStringBuilderBase Result;
 
-	Result += UEnum::GetDisplayValueAsText(DataSource).ToString();
-	Result += TEXT(" '");
+	Result += TEXT("'");
+#if WITH_EDITORONLY_DATA
+	Result += StatePath;
+	Result += TEXT("/");
+#endif
 	Result += Name.ToString();
 	Result += TEXT("'");
 
@@ -1400,7 +1403,7 @@ bool FStateTreePropertyPath::UpdateSegmentsFromValue(const FStateTreeDataView Ba
 
 FString FStateTreePropertyPath::ToString(const int32 HighlightedSegment, const TCHAR* HighlightPrefix, const TCHAR* HighlightPostfix, const bool bOutputInstances) const
 {
-	FString Result;
+	FStringBuilderBase Result;
 	for (TEnumerateRef<const FStateTreePropertyPathSegment> Segment : EnumerateRange(Segments))
 	{
 		if (Segment.GetIndex() > 0)
@@ -1417,13 +1420,30 @@ FString FStateTreePropertyPath::ToString(const int32 HighlightedSegment, const T
 			Result += FString::Printf(TEXT("(%s)"), *GetNameSafe(Segment->GetInstanceStruct()));
 		}
 
-		if (Segment->GetArrayIndex() >= 0)
+#if WITH_EDITORONLY_DATA
+		const UStruct* ParentInstanceStruct = Segment.GetIndex() > 0 ? Segments[Segment.GetIndex() - 1].GetInstanceStruct() : nullptr;
+		if (const UUserDefinedStruct* ParentUserDefinedStruct = Cast<const UUserDefinedStruct>(ParentInstanceStruct))
 		{
-			Result += FString::Printf(TEXT("%s[%d]"), *Segment->GetName().ToString(), Segment->GetArrayIndex());
+			// Find friendly names for UDS properties (the property name itself has hash in it). 
+			const FString FriendlyName = FStructureEditorUtils::GetVariableFriendlyName(ParentUserDefinedStruct, Segment->GetPropertyGuid());
+			if (!FriendlyName.IsEmpty())
+			{
+				Result += FriendlyName;
+			}
+			else
+			{
+				Result += Segment->GetName().ToString();
+			}
 		}
 		else
+#endif			
 		{
 			Result += Segment->GetName().ToString();
+		}
+
+		if (Segment->GetArrayIndex() >= 0)
+		{
+			Result += FString::Printf(TEXT("[%d]"), Segment->GetArrayIndex());
 		}
 
 		if (Segment.GetIndex() == HighlightedSegment && HighlightPostfix)
@@ -1431,7 +1451,7 @@ FString FStateTreePropertyPath::ToString(const int32 HighlightedSegment, const T
 			Result += HighlightPostfix;
 		}
 	}
-	return Result;
+	return Result.ToString();
 }
 
 

@@ -213,32 +213,6 @@ const FStateTreeBindableStructDesc* FindStruct(TConstArrayView<FStateTreeBindabl
 	return AccessibleStructs.FindByPredicate([StructID](const FStateTreeBindableStructDesc& Desc) { return Desc.ID == StructID; });
 }
 
-
-FText GetSectionNameFromDataSource(const EStateTreeBindableStructSource Source)
-{
-	switch (Source)
-	{
-	case EStateTreeBindableStructSource::Context:
-		return LOCTEXT("Context", "Context");
-	case EStateTreeBindableStructSource::Parameter:
-		return LOCTEXT("Parameters", "Parameters");
-	case EStateTreeBindableStructSource::Evaluator:
-		return LOCTEXT("Evaluators", "Evaluators");
-	case EStateTreeBindableStructSource::GlobalTask:
-		return LOCTEXT("StateGlobalTasks", "Global Tasks");
-	case EStateTreeBindableStructSource::StateParameter:
-		return LOCTEXT("StateParameters", "State Parameters");
-	case EStateTreeBindableStructSource::Task:
-		return LOCTEXT("Tasks", "Tasks");
-	case EStateTreeBindableStructSource::TransitionEvent:
-		return LOCTEXT("TransitionEvents", "Transition Events");
-	case EStateTreeBindableStructSource::StateEvent:
-		return LOCTEXT("StateSelectionEvents", "State Selection Events");
-	default:
-		return FText::GetEmpty();
-	}
-}
-
 // @todo: there's a similar function in StateTreeNodeDetails.cpp, merge.
 FText GetPropertyTypeText(const FProperty* Property)
 {
@@ -461,7 +435,7 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 				SourcePropertyName += SourceDesc->Name.ToString();
 				if (!SourcePath->IsPathEmpty())
 				{
-					SourcePropertyName += TEXT(" ") + SourcePath->ToString();
+					SourcePropertyName += TEXT(".") + SourcePath->ToString();
 				}
 
 				if (bIsValidBinding)
@@ -903,6 +877,8 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 			EditorBindings = BindingOwner->GetPropertyEditorBindings();
 			BindingOwner->GetAccessibleStructs(TargetPath.GetStructID(), AccessibleStructs);
 
+			TMap<FString, FText> SectionNames;
+			
 			for (FStateTreeBindableStructDesc& StructDesc : AccessibleStructs)
 			{
 				const UStruct* Struct = StructDesc.Struct;
@@ -910,7 +886,16 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 				FBindingContextStruct& ContextStruct = BindingContextStructs.AddDefaulted_GetRef();
 				ContextStruct.DisplayText = FText::FromString(StructDesc.Name.ToString());
 				ContextStruct.Struct = const_cast<UStruct*>(Struct);
-				ContextStruct.Section = UE::StateTree::PropertyBinding::GetSectionNameFromDataSource(StructDesc.DataSource);
+
+				// Mare sure same section names get exact same FText representation (binding widget uses IsIdentical() to compare the section names).
+				if (const FText* SectionText = SectionNames.Find(StructDesc.StatePath))
+				{
+					ContextStruct.Section = *SectionText;
+				}
+				else
+				{
+					ContextStruct.Section = SectionNames.Add(StructDesc.StatePath, FText::FromString(StructDesc.StatePath));
+				}
 			}
 		}
 

@@ -214,6 +214,9 @@ public:
 	const UStateTreeState* GetNextSiblingState() const;
 	const UStateTreeState* GetNextSelectableSiblingState() const;
 
+	/** @return the path of the state as string. */
+	FString GetPath() const;
+	
 	/** @return true if the property of specified ID is overridden. */
 	bool IsParametersPropertyOverridden(const FGuid PropertyID) const
 	{

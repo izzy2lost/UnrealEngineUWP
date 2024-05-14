@@ -132,6 +132,17 @@ struct STATETREEMODULE_API FStateTreeBindableStructDesc
 	FStateTreeBindableStructDesc() = default;
 
 #if WITH_EDITORONLY_DATA
+	FStateTreeBindableStructDesc(const FString& InStatePath, const FName InName, const UStruct* InStruct, const FStateTreeDataHandle InDataHandle, const EStateTreeBindableStructSource InDataSource, const FGuid InGuid)
+		: Struct(InStruct)
+		, Name(InName)
+		, DataHandle(InDataHandle)
+		, DataSource(InDataSource)
+		, ID(InGuid)
+		, StatePath(InStatePath)
+	{
+	}
+
+	UE_DEPRECATED(5.5, "Use constructor with StatePath instead.")
 	FStateTreeBindableStructDesc(const FName InName, const UStruct* InStruct, const FStateTreeDataHandle InDataHandle, const EStateTreeBindableStructSource InDataSource, const FGuid InGuid)
 		: Struct(InStruct)
 		, Name(InName)
@@ -180,6 +191,10 @@ struct STATETREEMODULE_API FStateTreeBindableStructDesc
 	/** Unique identifier of the struct. */
 	UPROPERTY()
 	FGuid ID;
+
+	/** In Editor path to State containting the data. */
+	UPROPERTY(Transient)
+	FString StatePath;
 #endif
 };
 

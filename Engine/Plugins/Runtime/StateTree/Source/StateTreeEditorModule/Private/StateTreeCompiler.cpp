@@ -216,6 +216,7 @@ bool FStateTreeCompiler::Compile(UStateTree& InStateTree)
 	
 	// Mark parameters as binding source
 	const FStateTreeBindableStructDesc ParametersDesc = {
+			UE::StateTree::Editor::GlobalStateName,
 			TEXT("Parameters"),
 			StateTree->Parameters.GetPropertyBagStruct(),
 			FStateTreeDataHandle(EStateTreeDataSourceType::GlobalParameterData),
@@ -239,6 +240,7 @@ bool FStateTreeCompiler::Compile(UStateTree& InStateTree)
 		for (FStateTreeExternalDataDesc& Desc : StateTree->ContextDataDescs)
 		{
 			const FStateTreeBindableStructDesc ExtDataDesc = {
+					UE::StateTree::Editor::GlobalStateName,
 					Desc.Name,
 					Desc.Struct,
 					FStateTreeDataHandle(EStateTreeDataSourceType::ContextData, ContextDataIndex++),
@@ -462,7 +464,7 @@ bool FStateTreeCompiler::CreateStateRecursive(UStateTreeState& State, const FSta
 	return true;
 }
 
-bool FStateTreeCompiler::CreateConditions(UStateTreeState& State, TConstArrayView<FStateTreeEditorNode> Conditions)
+bool FStateTreeCompiler::CreateConditions(UStateTreeState& State, const FString& StatePath, TConstArrayView<FStateTreeEditorNode> Conditions)
 {
 	for (int32 Index = 0; Index < Conditions.Num(); Index++)
 	{
@@ -477,7 +479,7 @@ bool FStateTreeCompiler::CreateConditions(UStateTreeState& State, TConstArrayVie
 		
 		const int32 DeltaIndent = NextIndent - CurrIndent;
 
-		if (!CreateCondition(State, CondNode, Operand, (int8)DeltaIndent))
+		if (!CreateCondition(State, StatePath, CondNode, Operand, (int8)DeltaIndent))
 		{
 			return false;
 		}
@@ -620,9 +622,12 @@ bool FStateTreeCompiler::CreateStateTasksAndParameters()
 
 		// @todo: We should be able to skip empty parameter data.
 
+		const FString StatePath = State->GetPath(); 
+		
 		// Binding target
 		FStateTreeBindableStructDesc LinkedParamsDesc = {
-			State->Name,
+			StatePath,
+			FName("Parameters"),
 			State->Parameters.Parameters.GetPropertyBagStruct(),
 			CompactState.ParameterDataHandle,
 			EStateTreeBindableStructSource::StateParameter,
@@ -644,9 +649,12 @@ bool FStateTreeCompiler::CreateStateTasksAndParameters()
 			CompactState.RequiredEventToEnter.PayloadStruct = State->RequiredEventToEnter.PayloadStruct;
 			CompactState.bConsumeEventOnSelect = State->RequiredEventToEnter.bConsumeEventOnSelect;
 
+			const FString StatePathWithConditions = StatePath + TEXT("/EnterConditions");
+
 			FStateTreeBindableStructDesc Desc;
+			Desc.StatePath = StatePathWithConditions,
 			Desc.Struct = FStateTreeEvent::StaticStruct();
-			Desc.Name = CompactState.Name;
+			Desc.Name = FName("Enter Event");
 			Desc.ID = State->GetEventID();
 			Desc.DataSource = EStateTreeBindableStructSource::StateEvent;
 			Desc.DataHandle = FStateTreeDataHandle(EStateTreeDataSourceType::StateEvent, CompactState.EventDataIndex.Get(), CompactStateHandle);
@@ -773,7 +781,9 @@ bool FStateTreeCompiler::CreateStateTransitions()
 		check(SourceState != nullptr);
 
 		FStateTreeCompilerLogStateScope LogStateScope(SourceState, Log);
-		
+
+		const FString StatePath = SourceState->GetPath();
+
 		// Enter conditions.
 		const int32 EnterConditionsBegin = Nodes.Num();
 		if (const auto Validation = UE::StateTree::Compiler::IsValidCount16(EnterConditionsBegin); Validation.DidFail())
@@ -782,8 +792,9 @@ bool FStateTreeCompiler::CreateStateTransitions()
 			return false;
 		}
 		CompactState.EnterConditionsBegin = uint16(EnterConditionsBegin);
-		
-		if (!CreateConditions(*SourceState, SourceState->EnterConditions))
+
+		const FString StatePathWithConditions = StatePath + TEXT("/EnterConditions");
+		if (!CreateConditions(*SourceState, StatePathWithConditions, SourceState->EnterConditions))
 		{
 			Log.Reportf(EMessageSeverity::Error,
 				TEXT("Failed to create state enter condition."));
@@ -959,6 +970,8 @@ bool FStateTreeCompiler::CreateStateTransitions()
 						*TransitionTargetState.Name.ToString());
 				}
 			}
+
+			const FString StatePathWithTransition = StatePath + FString::Printf(TEXT("/Transition[%d]"), TransitionIndex - TransitionsBegin);
 			
 			if (Transition.Trigger == EStateTreeTransitionTrigger::OnEvent)
 			{
@@ -967,8 +980,9 @@ bool FStateTreeCompiler::CreateStateTransitions()
 				CompactTransition.bConsumeEventOnSelect = Transition.RequiredEvent.bConsumeEventOnSelect;
 
 				FStateTreeBindableStructDesc Desc;
+				Desc.StatePath = StatePathWithTransition;
 				Desc.Struct = FStateTreeEvent::StaticStruct();
-				Desc.Name = FName(TEXT("Transition"));
+				Desc.Name = FName(TEXT("Transition Event"));
 				Desc.ID = Transition.GetEventID();
 				Desc.DataSource = EStateTreeBindableStructSource::TransitionEvent;
 				Desc.DataHandle = FStateTreeDataHandle(EStateTreeDataSourceType::TransitionEvent, TransitionIndex);
@@ -1005,7 +1019,7 @@ bool FStateTreeCompiler::CreateStateTransitions()
 			}
 			CompactTransition.ConditionsBegin = uint16(ConditionsBegin);
 			
-			if (!CreateConditions(*SourceState, Transition.Conditions))
+			if (!CreateConditions(*SourceState, StatePathWithTransition, Transition.Conditions))
 			{
 				Log.Reportf(EMessageSeverity::Error,
 					TEXT("Failed to create condition for transition to '%s'."),
@@ -1106,7 +1120,7 @@ bool FStateTreeCompiler::ResolveTransitionState(const UStateTreeState* SourceSta
 	return true;
 }
 
-bool FStateTreeCompiler::CreateCondition(UStateTreeState& State, const FStateTreeEditorNode& CondNode, const EStateTreeExpressionOperand Operand, const int8 DeltaIndent)
+bool FStateTreeCompiler::CreateCondition(UStateTreeState& State, const FString& StatePath, const FStateTreeEditorNode& CondNode, const EStateTreeExpressionOperand Operand, const int8 DeltaIndent)
 {
 	if (!CondNode.Node.IsValid())
 	{
@@ -1115,6 +1129,7 @@ bool FStateTreeCompiler::CreateCondition(UStateTreeState& State, const FStateTre
 	}
 
 	FStateTreeBindableStructDesc StructDesc;
+	StructDesc.StatePath = StatePath;
 	StructDesc.ID = CondNode.ID;
 	StructDesc.Name = CondNode.GetName();
 	StructDesc.DataSource = EStateTreeBindableStructSource::Condition;
@@ -1295,6 +1310,7 @@ bool FStateTreeCompiler::CreateTask(UStateTreeState* State, const FStateTreeEdit
 	
 	// Create binding source struct descriptor.
 	FStateTreeBindableStructDesc StructDesc;
+	StructDesc.StatePath = State ? State->GetPath() : UE::StateTree::Editor::GlobalStateName;
 	StructDesc.ID = TaskNode.ID;
 	StructDesc.Name = TaskNode.GetName();
 	StructDesc.DataSource = EStateTreeBindableStructSource::Task;
@@ -1409,6 +1425,7 @@ bool FStateTreeCompiler::CreateEvaluator(const FStateTreeEditorNode& EvalNode, c
 
 	// Create binding source struct descriptor.
 	FStateTreeBindableStructDesc StructDesc;
+	StructDesc.StatePath = UE::StateTree::Editor::GlobalStateName;
     StructDesc.ID = EvalNode.ID;
 	StructDesc.Name = EvalNode.GetName();
 	StructDesc.DataSource = EStateTreeBindableStructSource::Evaluator;

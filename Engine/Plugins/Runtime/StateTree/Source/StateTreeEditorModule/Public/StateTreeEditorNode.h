@@ -36,18 +36,7 @@ struct STATETREEEDITORMODULE_API FStateTreeEditorNode
 	 * If the node has a specified name, used that, or else of return the display name of the node.
 	 * @return name of the node.
 	 */
-	FName GetName() const
-	{
-		if (const FStateTreeNodeBase* NodePtr = Node.GetPtr<FStateTreeNodeBase>())
-		{
-			if (NodePtr->Name.IsNone())
-			{
-				return FName(Node.GetScriptStruct()->GetDisplayNameText().ToString());
-			}
-			return NodePtr->Name;
-		}
-		return FName();
-	}
+	FName GetName() const;
 
 	FStateTreeDataView GetInstance() const
 	{

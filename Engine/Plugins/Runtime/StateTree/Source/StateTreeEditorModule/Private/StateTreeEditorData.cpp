@@ -19,6 +19,11 @@
 
 #define LOCTEXT_NAMESPACE "StateTreeEditor"
 
+namespace UE::StateTree::Editor
+{
+	const FString GlobalStateName(TEXT("Global"));
+}
+
 UStateTreeEditorData::UStateTreeEditorData()
 {
 	FStateTreeEditorColor DefaultColor;
@@ -351,11 +356,6 @@ void UStateTreeEditorData::GetAccessibleStructs(const TConstArrayView<const USta
 			}
 		}
 	}
-	
-	OutStructDescs.StableSort([](const FStateTreeBindableStructDesc& A, const FStateTreeBindableStructDesc& B)
-	{
-		return (uint8)A.DataSource < (uint8)B.DataSource;
-	});
 }
 
 FStateTreeBindableStructDesc UStateTreeEditorData::FindContextData(const UStruct* ObjectType, const FString ObjectNameHint) const
@@ -371,7 +371,7 @@ FStateTreeBindableStructDesc UStateTreeEditorData::FindContextData(const UStruct
 	{
 		if (Desc.Struct->IsChildOf(ObjectType))
 		{
-			Candidates.Emplace(Desc.Name, Desc.Struct, FStateTreeDataHandle(), EStateTreeBindableStructSource::Context, Desc.ID);
+			Candidates.Emplace(UE::StateTree::Editor::GlobalStateName, Desc.Name, Desc.Struct, FStateTreeDataHandle(), EStateTreeBindableStructSource::Context, Desc.ID);
 		}
 	}
 
@@ -893,19 +893,21 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 	return bContinue ? EStateTreeVisitor::Continue : EStateTreeVisitor::Break;
 }
 
-
 EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& State, TFunctionRef<EStateTreeVisitor(const UStateTreeState* State, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)> InFunc) const
 {
 	bool bContinue = true;
 
+	const FString StatePath = State.GetPath();
+	
 	if (bContinue)
 	{
 		// Bindable state parameters
 		if (State.Parameters.Parameters.IsValid())
 		{
 			FStateTreeBindableStructDesc Desc;
+			Desc.StatePath = StatePath;
 			Desc.Struct = State.Parameters.Parameters.GetPropertyBagStruct();
-			Desc.Name = State.Name;
+			Desc.Name = FName("Parameters");
 			Desc.ID = State.Parameters.ID;
 			Desc.DataSource = EStateTreeBindableStructSource::StateParameter;
 
@@ -916,13 +918,16 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 		}
 	}
 
+	const FString StatePathWithConditions = StatePath + TEXT("/EnterConditions");
+	
 	if (bContinue)
 	{
 		if (State.bHasRequiredEventToEnter )
 		{
 			FStateTreeBindableStructDesc Desc;
+			Desc.StatePath = StatePathWithConditions;
 			Desc.Struct = FStateTreeEvent::StaticStruct();
-			Desc.Name = State.Name;
+			Desc.Name = FName("Enter Event");
 			Desc.ID = State.GetEventID();
 			Desc.DataSource = EStateTreeBindableStructSource::StateEvent;
 
@@ -941,6 +946,7 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 			if (const FStateTreeConditionBase* Cond = Node.Node.GetPtr<FStateTreeConditionBase>())
 			{
 				FStateTreeBindableStructDesc Desc;
+				Desc.StatePath = StatePathWithConditions;
 				Desc.Struct = Cond->GetInstanceDataType();
 				Desc.Name = Node.GetName();
 				Desc.ID = Node.ID;
@@ -962,6 +968,7 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 			if (const FStateTreeTaskBase* Task = Node.Node.GetPtr<FStateTreeTaskBase>())
 			{
 				FStateTreeBindableStructDesc Desc;
+				Desc.StatePath = StatePath;
 				Desc.Struct = Task->GetInstanceDataType();
 				Desc.Name = Node.GetName();
 				Desc.ID = Node.ID;
@@ -980,6 +987,7 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 		if (const FStateTreeTaskBase* Task = State.SingleTask.Node.GetPtr<FStateTreeTaskBase>())
 		{
 			FStateTreeBindableStructDesc Desc;
+			Desc.StatePath = StatePath;
 			Desc.Struct = Task->GetInstanceDataType();
 			Desc.Name = State.SingleTask.GetName();
 			Desc.ID = State.SingleTask.ID;
@@ -995,13 +1003,17 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 	if (bContinue)
 	{
 		// Transitions
-		for (const FStateTreeTransition& Transition : State.Transitions)
+		for (int32 TransitionIndex = 0; TransitionIndex < State.Transitions.Num(); TransitionIndex++)
 		{
+			const FStateTreeTransition& Transition = State.Transitions[TransitionIndex];
+			const FString StatePathWithTransition = StatePath + FString::Printf(TEXT("/Transition[%d]"), TransitionIndex);
+
 			if (Transition.Trigger == EStateTreeTransitionTrigger::OnEvent)
 			{
 				FStateTreeBindableStructDesc Desc;
+				Desc.StatePath = StatePathWithTransition;
 				Desc.Struct = FStateTreeEvent::StaticStruct();
-				Desc.Name = FName(TEXT("Transition"));
+				Desc.Name = FName(TEXT("Transition Event"));
 				Desc.ID = Transition.GetEventID();
 				Desc.DataSource = EStateTreeBindableStructSource::TransitionEvent;
 
@@ -1017,6 +1029,7 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 				if (const FStateTreeConditionBase* Cond = Node.Node.GetPtr<FStateTreeConditionBase>())
 				{
 					FStateTreeBindableStructDesc Desc;
+					Desc.StatePath = StatePathWithTransition;
 					Desc.Struct = Cond->GetInstanceDataType();
 					Desc.Name = Node.GetName();
 					Desc.ID = Node.ID;
@@ -1096,6 +1109,7 @@ EStateTreeVisitor UStateTreeEditorData::VisitGlobalNodes(TFunctionRef<EStateTree
 	// Root parameters
 	{
 		FStateTreeBindableStructDesc Desc;
+		Desc.StatePath = UE::StateTree::Editor::GlobalStateName;
 		Desc.Struct = RootParameters.Parameters.GetPropertyBagStruct();
 		Desc.Name = FName(TEXT("Parameters"));
 		Desc.ID = RootParameters.ID;
@@ -1113,6 +1127,7 @@ EStateTreeVisitor UStateTreeEditorData::VisitGlobalNodes(TFunctionRef<EStateTree
 		for (const FStateTreeExternalDataDesc& ContextDesc : Schema->GetContextDataDescs())
 		{
 			FStateTreeBindableStructDesc Desc;
+			Desc.StatePath = UE::StateTree::Editor::GlobalStateName;
 			Desc.Struct = ContextDesc.Struct;
 			Desc.Name = ContextDesc.Name;
 			Desc.ID = ContextDesc.ID;
@@ -1132,6 +1147,7 @@ EStateTreeVisitor UStateTreeEditorData::VisitGlobalNodes(TFunctionRef<EStateTree
 		if (const FStateTreeEvaluatorBase* Evaluator = Node.Node.GetPtr<FStateTreeEvaluatorBase>())
 		{
 			FStateTreeBindableStructDesc Desc;
+			Desc.StatePath = UE::StateTree::Editor::GlobalStateName;
 			Desc.Struct = Evaluator->GetInstanceDataType();
 			Desc.Name = Node.GetName();
 			Desc.ID = Node.ID;
@@ -1150,6 +1166,7 @@ EStateTreeVisitor UStateTreeEditorData::VisitGlobalNodes(TFunctionRef<EStateTree
 		if (const FStateTreeTaskBase* Task = Node.Node.GetPtr<FStateTreeTaskBase>())
 		{
 			FStateTreeBindableStructDesc Desc;
+			Desc.StatePath = UE::StateTree::Editor::GlobalStateName;
 			Desc.Struct = Task->GetInstanceDataType();
 			Desc.Name = Node.GetName();
 			Desc.ID = Node.ID;

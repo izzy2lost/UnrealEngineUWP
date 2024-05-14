@@ -543,6 +543,28 @@ const UStateTreeState* UStateTreeState::GetNextSelectableSiblingState() const
 	return nullptr;
 }
 
+FString UStateTreeState::GetPath() const
+{
+	TArray<const UStateTreeState*> States;
+	for (const UStateTreeState* CurrState = this; CurrState; CurrState = CurrState->Parent)
+	{
+		States.Add(CurrState);
+	}
+	Algo::Reverse(States);
+	
+	FStringBuilderBase Result;
+	for (const UStateTreeState* CurrState : States)
+	{
+		if (Result.Len() > 0)
+		{
+			Result.Append(TEXT("/"));
+		}
+		Result.Append(CurrState->Name.ToString());
+	}
+
+	return Result.ToString();
+}
+
 FStateTreeStateLink UStateTreeState::GetLinkToState() const
 {
 	FStateTreeStateLink Link(EStateTreeTransitionType::GotoState);

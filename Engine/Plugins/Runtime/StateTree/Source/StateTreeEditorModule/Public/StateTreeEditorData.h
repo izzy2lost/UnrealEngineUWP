@@ -13,6 +13,13 @@ struct FStateTreeEditorPropertyPath;
 
 class UStateTreeSchema;
 
+namespace UE::StateTree::Editor
+{
+	// Name used to describe container of global items (other items use the path to the container State).  
+	extern STATETREEEDITORMODULE_API const FString GlobalStateName;
+}
+
+
 USTRUCT()
 struct FStateTreeEditorBreakpoint
 {
