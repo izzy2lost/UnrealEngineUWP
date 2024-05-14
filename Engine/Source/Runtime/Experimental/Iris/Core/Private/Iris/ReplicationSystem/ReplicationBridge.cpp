@@ -375,7 +375,7 @@ void UReplicationBridge::Deinitialize()
 		}
 	});
 
-	// Just set the protocol to null, it will be destroyed with the protocolmanager
+	// Release destructioninfo protocol.
 	DestructionInfoProtocol = nullptr;
 
 	ReplicationSystem = nullptr;
