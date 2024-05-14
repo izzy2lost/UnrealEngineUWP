@@ -172,13 +172,73 @@ static FTextureBuildSettings ReadBuildSettingsFromCompactBinary(const FCbObjectV
 	return BuildSettings;
 }
 
-static ERawImageFormat::Type ComputeRawImageFormat(ETextureSourceFormat SourceFormat)
+
+static bool GetResolvedBuildSettings(const FCbObject& Settings, FTextureBuildSettings* OutBuildSettings, const ITextureFormat** OutTextureFormat)
 {
-	return FImageCoreUtils::ConvertToRawImageFormat(SourceFormat);
+	*OutBuildSettings = ReadBuildSettingsFromCompactBinary(Settings["Build"].AsObjectView());
+
+	const uint16 RequiredTextureFormatVersion = Settings["FormatVersion"].AsUInt16();
+	const ITextureFormat* TextureFormat = nullptr;
+	if (ITextureFormatManagerModule* TFM = GetTextureFormatManager())
+	{
+		TextureFormat = TFM->FindTextureFormat(OutBuildSettings->TextureFormatName);
+	}
+	else
+	{
+		UE_LOG(LogTextureBuildFunction, Error, TEXT("TextureFormatManager not found!"));
+		return false;
+	}
+
+	if (!TextureFormat)
+	{
+		UE_LOG(LogTextureBuildFunction, Error, TEXT("Texture format %s not found"), *WriteToString<128>(OutBuildSettings->TextureFormatName));
+		return false;
+	}
+
+	if (OutTextureFormat)
+	{
+		*OutTextureFormat = TextureFormat;
+	}
+
+	const uint16 CurrentTextureFormatVersion = TextureFormat->GetVersion(OutBuildSettings->TextureFormatName, OutBuildSettings);
+	if (CurrentTextureFormatVersion != RequiredTextureFormatVersion)
+	{
+		UE_LOG(LogTextureBuildFunction, Error, TEXT("%s has version %hu when version %hu is required."),
+			*OutBuildSettings->TextureFormatName.ToString(), CurrentTextureFormatVersion, RequiredTextureFormatVersion);;
+		return false;
+	}
+
+	const FChildTextureFormat* ChildTextureFormat = TextureFormat->GetChildFormat();
+	if (ChildTextureFormat)
+	{
+		OutBuildSettings->BaseTextureFormatName = ChildTextureFormat->GetBaseFormatName(OutBuildSettings->TextureFormatName);
+	}
+	else
+	{
+		OutBuildSettings->BaseTextureFormatName = OutBuildSettings->TextureFormatName;
+	}
+
+	OutBuildSettings->BaseTextureFormat = GetTextureFormatManager()->FindTextureFormat(OutBuildSettings->BaseTextureFormatName);
+	return true;
 }
 
+
+static bool GetImageInfoFromCb(FCbFieldView InSource, FImageInfo* OutImageInfo, int32* OutMipCount)
+{
+	OutImageInfo->Format = FImageCoreUtils::ConvertToRawImageFormat((ETextureSourceFormat)InSource["SourceFormat"].AsUInt8());
+	OutImageInfo->GammaSpace = (EGammaSpace)InSource["GammaSpace"].AsUInt8();
+	OutImageInfo->NumSlices = InSource["NumSlices"].AsInt32();
+	OutImageInfo->SizeX = InSource["SizeX"].AsInt32();
+	OutImageInfo->SizeY = InSource["SizeY"].AsInt32();
+
+	*OutMipCount = InSource["Mips"].AsArrayView().Num();
+
+	return true;
+}
+
+
 static bool TryReadTextureSourceFromCompactBinary(FCbFieldView Source, UE::DerivedData::FBuildContext& Context,
-												const FTextureBuildSettings & BuildSettings, TArray<FImage>& OutMips)
+												bool bVolume, TArray<FImage>& OutMips)
 {
 	FSharedBuffer InputBuffer = Context.FindInput(Source.GetName());
 	if (!InputBuffer)
@@ -195,7 +255,7 @@ static bool TryReadTextureSourceFromCompactBinary(FCbFieldView Source, UE::Deriv
 	// Source data has no CompressionFormat
 	ETextureSourceFormat SourceFormat = (ETextureSourceFormat)Source["SourceFormat"].AsUInt8();
 
-	ERawImageFormat::Type RawImageFormat = ComputeRawImageFormat(SourceFormat);
+	ERawImageFormat::Type RawImageFormat = FImageCoreUtils::ConvertToRawImageFormat(SourceFormat);
 
 	EGammaSpace GammaSpace = (EGammaSpace)Source["GammaSpace"].AsUInt8();
 	int32 NumSlices = Source["NumSlices"].AsInt32();
@@ -234,11 +294,11 @@ static bool TryReadTextureSourceFromCompactBinary(FCbFieldView Source, UE::Deriv
 			MipSize
 		);
 
-		MipSizeX = FMath::Max(MipSizeX / 2, 1);
-		MipSizeY = FMath::Max(MipSizeY / 2, 1);
-		if ( BuildSettings.bVolume )
+		MipSizeX = FEncodedTextureDescription::GetMipWidth(MipSizeX, 1);
+		MipSizeY = FEncodedTextureDescription::GetMipHeight(MipSizeY, 1);
+		if ( bVolume )
 		{
-			NumSlices = FMath::Max(NumSlices / 2, 1);
+			NumSlices = FEncodedTextureDescription::GetMipDepth(NumSlices, 1, true);
 		}
 	}
 
@@ -272,8 +332,20 @@ void FTextureBuildFunction::Configure(UE::DerivedData::FBuildConfigContext& Cont
 	Context.SetCacheBucket(UE::DerivedData::FCacheBucket(ANSITEXTVIEW("Texture")));
 
 	const FCbObject Settings = Context.FindConstant(UTF8TEXTVIEW("Settings"));
-	const int64 RequiredMemoryEstimate = Settings["RequiredMemoryEstimate"].AsInt64();
-	Context.SetRequiredMemory(RequiredMemoryEstimate);
+
+	// Bit unfortunate - we have to deserialize this entire thing in order to be able to compute
+	// the memory estimate, and we're about the deserialize the whole things again.	
+	FTextureBuildSettings BuildSettings;
+	if (GetResolvedBuildSettings(Settings, &BuildSettings, nullptr))
+	{	
+		FImageInfo SourceImageInfo;
+		int32 SourceMipCount = 0;
+		if (GetImageInfoFromCb(Settings["Source"], &SourceImageInfo, &SourceMipCount))
+		{
+			const int64 RequiredMemoryEstimate = UE::TextureBuildUtilities::GetPhysicalTextureBuildMemoryEstimate(&BuildSettings, SourceImageInfo, SourceMipCount);
+			Context.SetRequiredMemory(RequiredMemoryEstimate);
+		}
+	}
 }
 
 // All texture builds output (at least) these values.
@@ -437,48 +509,15 @@ void FTextureBuildFunction::Build(UE::DerivedData::FBuildContext& Context) const
 		return;
 	}
 
-	const FTextureBuildSettings BuildSettings = ReadBuildSettingsFromCompactBinary(Settings["Build"].AsObjectView());
-	
-	const uint16 RequiredTextureFormatVersion = Settings["FormatVersion"].AsUInt16();
 	const ITextureFormat* TextureFormat = nullptr;
-	if (ITextureFormatManagerModule* TFM = GetTextureFormatManager())
+	FTextureBuildSettings BuildSettings;
+	if (!GetResolvedBuildSettings(Settings, &BuildSettings, &TextureFormat))
 	{
-		TextureFormat = TFM->FindTextureFormat(BuildSettings.TextureFormatName);
-	}
-	else
-	{
-		UE_LOG(LogTextureBuildFunction, Error, TEXT("TextureFormatManager not found!"));
 		return;
 	}
-
-	if (!TextureFormat)
-	{
-		UE_LOG(LogTextureBuildFunction, Error, TEXT("Texture format %s not found"), *WriteToString<128>(BuildSettings.TextureFormatName));
-		return;
-	}
-
-	const uint16 CurrentTextureFormatVersion = TextureFormat->GetVersion(BuildSettings.TextureFormatName, &BuildSettings);
-	if (CurrentTextureFormatVersion != RequiredTextureFormatVersion)
-	{
-		UE_LOG(LogTextureBuildFunction, Error, TEXT("%s has version %hu when version %hu is required."),
-			*BuildSettings.TextureFormatName.ToString(), CurrentTextureFormatVersion, RequiredTextureFormatVersion);;
-		return;
-	}
-
-	const FChildTextureFormat* ChildTextureFormat = TextureFormat->GetChildFormat();
-	if (ChildTextureFormat)
-	{
-		const_cast<FTextureBuildSettings&>(BuildSettings).BaseTextureFormatName = ChildTextureFormat->GetBaseFormatName(BuildSettings.TextureFormatName);
-	}
-	else
-	{
-		const_cast<FTextureBuildSettings&>(BuildSettings).BaseTextureFormatName = BuildSettings.TextureFormatName;
-	}
-
-	const_cast<FTextureBuildSettings&>(BuildSettings).BaseTextureFormat = GetTextureFormatManager()->FindTextureFormat(BuildSettings.BaseTextureFormatName);
-
+	
 	TArray<FImage> SourceMips;
-	if (!TryReadTextureSourceFromCompactBinary(Settings["Source"], Context,BuildSettings, SourceMips))
+	if (!TryReadTextureSourceFromCompactBinary(Settings["Source"], Context, BuildSettings.bVolume, SourceMips))
 	{
 		return;
 	}
@@ -497,7 +536,7 @@ void FTextureBuildFunction::Build(UE::DerivedData::FBuildContext& Context) const
 
 	TArray<FImage> AssociatedNormalSourceMips;
 	if (FCbFieldView CompositeSource = Settings["CompositeSource"];
-		CompositeSource && !TryReadTextureSourceFromCompactBinary(CompositeSource, Context,BuildSettings, AssociatedNormalSourceMips))
+		CompositeSource && !TryReadTextureSourceFromCompactBinary(CompositeSource, Context, BuildSettings.bVolume, AssociatedNormalSourceMips))
 	{
 		return;
 	}

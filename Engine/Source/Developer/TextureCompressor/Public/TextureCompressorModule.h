@@ -274,7 +274,7 @@ struct FTextureBuildSettings
 	// to TextureFormatName.
 	FName BaseTextureFormatName;
 
-	// Cached pointer to BaseTextureFormatName
+	// Cached pointer to BaseTextureFormatName. Resolved in FinalizeBuildSettingsForLayer and ResolveBuildSettings
 	const ITextureFormat* BaseTextureFormat = nullptr;
 	
 	// Whether bHasTransparentAlpha is valid.
@@ -395,18 +395,17 @@ struct FTextureBuildSettings
 		return bInSourceMipsAlphaDetected;
 	}
 
-	// the return value is whether the *output* has alpha
-	// the argument is whether we should treat the source as having alpha, in cases where the source alpha is unknown
-	bool GetOutputAlphaFromKnownAlphaOrFallback(bool bUnknownSourceAlphaFallback = true) const
+	// bUnknownSourceAlphaFallback is whether we should treat the source as having alpha, in cases where the source alpha is unknown
+	void GetOutputAlphaFromKnownAlphaOrFallback(bool* bOutOutputHasAlpha, bool bUnknownSourceAlphaFallback = true) const
 	{
 		if ( bKnowAlphaTransparency )
 		{
-			return bHasTransparentAlpha;
+			*bOutOutputHasAlpha = bHasTransparentAlpha;
 		}
 		else
 		{
 			// fallback without known alpha
-			return GetTextureExpectsAlphaInPixelFormat(bUnknownSourceAlphaFallback);
+			*bOutOutputHasAlpha = GetTextureExpectsAlphaInPixelFormat(bUnknownSourceAlphaFallback);
 		}
 	}
 

@@ -91,5 +91,38 @@ TEXTUREBUILDUTILITIES_API void GetPlaceholderTextureImage(FImage* OutImage);
 //	if InPow2Setting == None, the Out sizes match the In sizes, and false is returned
 TEXTUREBUILDUTILITIES_API bool GetPowerOfTwoTargetTextureSize(int32 InMip0SizeX, int32 InMip0SizeY, int32 InMip0NumSlices, bool bInIsVolume, ETexturePowerOfTwoSetting::Type InPow2Setting, int32 InResizeDuringBuildX, int32 InResizeDuringBuildY, int32& OutTargetSizeX, int32& OutTargetSizeY, int32& OutTargetSizeZ);
 
+// Return the final output pixel format. When we don't know the source's alpha channel information this might not be knowable. In those cases
+// treat such sources as having an alpha channel if bKnownAlphaFallback is true.
+TEXTUREBUILDUTILITIES_API EPixelFormat GetOutputPixelFormatWithFallback(const FTextureBuildSettings& InBuildSettings, bool bInKnownAlphaFallback);
+
+// Return the estimate for how much memory a physical texture will take to build, for managing memory resources during build dispatch.
+TEXTUREBUILDUTILITIES_API int64 GetPhysicalTextureBuildMemoryEstimate(const FTextureBuildSettings* InBuildSettings, const FImageInfo& InSourceImageInfo, int32 InMipCount);
+
+// Mirrors Texture.h FTextureSourceBlock for use without Texture.h
+//
+// This provides the layout representation of a block of source pixels for a virtual texture. The format is separate
+// as VTs can have multiple layers, each with the same source pixel layout but with a different format (and thus byte size).
+struct TEXTUREBUILDUTILITIES_API FVirtualTextureSourceBlockInfo
+{
+	// @@ I don't actually know what coordinate space blocks are in and none of the code I'm looking at seems very clear on it.
+	// afaict it's just the index of the source image and where it exists. I don't know what happens if you have a hole in your source blocks.
+	int32 BlockX=0;
+	int32 BlockY=0;
+
+	// Pixel dims.
+	int32 SizeX=0;
+	int32 SizeY=0;
+
+	// afaict this is ignored: see "BlockData.NumSlices = 1; // TODO?" in VirtualTextureDataBuilder
+	int32 NumSlices=0;
+
+	int32 NumMips=0;
+};
+
+// Return the estimate for how much memory a virtual texture will take to build, for managing memory resources during build dispatch.
+TEXTUREBUILDUTILITIES_API int64 GetVirtualTextureRequiredMemoryEstimate(const FTextureBuildSettings* InBuildSettingsPerLayer,
+	TConstArrayView<ERawImageFormat::Type> InLayerFormats,
+	TConstArrayView<UE::TextureBuildUtilities::FVirtualTextureSourceBlockInfo> InSourceBlocks);
+
 } // namespace TextureBuildUtilities
 } // namespace UE

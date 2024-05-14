@@ -651,7 +651,8 @@ static void GetBuiltTextureSizeBytesEstimate(
 	int64 NumMips = FImageCoreUtils::GetMipCountFromDimensions(TopMipSizeX,TopMipSizeY,TopMipSizeZ,bIsVolume);
 	check( NumMips > 0 );
 
-	bool bHasAlpha = BuildSettings.GetOutputAlphaFromKnownAlphaOrFallback(true);
+	bool bHasAlpha;
+	BuildSettings.GetOutputAlphaFromKnownAlphaOrFallback(&bHasAlpha, true);
 
 	FEncodedTextureDescription TextureDescription;
 	BuildSettings.GetEncodedTextureDescription(&TextureDescription, TextureFormat, TopMipSizeX, TopMipSizeY, TopMipSizeZ, NumMips, bHasAlpha);
@@ -775,11 +776,11 @@ static void ModifyMaxTextureResolutionBuildSettingsForPlatformLimit(
 	uint64 MaxSurfaceBytes,MaxPackageBytes;
 	TargetPlatform->GetTextureSizeLimits(MaxSurfaceBytes,MaxPackageBytes);
 	
-	EPixelFormat PixelFormat = GetOutputPixelFormat(OutSettings);
+	EPixelFormat PixelFormat = UE::TextureBuildUtilities::GetOutputPixelFormatWithFallback(OutSettings, true);
 
 	if ( PixelFormat == PF_Unknown )
 	{
-		UE_LOG(LogTexture, Error, TEXT("Texture %s failed GetOutputPixelFormat (format=%s)"), 
+		UE_LOG(LogTexture, Error, TEXT("Texture %s failed GetOutputPixelFormatWithFallback (format=%s)"), 
 			*Texture.GetPathName(),
 			*OutSettings.TextureFormatName.ToString());
 			
