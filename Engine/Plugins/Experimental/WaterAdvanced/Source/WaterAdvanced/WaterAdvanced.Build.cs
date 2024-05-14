@@ -43,8 +43,21 @@ public class WaterAdvanced : ModuleRules
 				"GameplayTags"
 			}
 		);
-		
-		
+
+		if (Target.bBuildEditor == true)
+		{
+			PrivateDependencyModuleNames.AddRange(
+				new string[] {
+				"TargetPlatform",
+				"DerivedDataCache",
+				"EditorFramework",
+				"UnrealEd",
+				"SlateCore",
+				"Slate"
+			});
+		}
+
+
 		DynamicallyLoadedModuleNames.AddRange(
 			new string[]
 			{

@@ -27,6 +27,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Simulation", meta = (DisplayName = "Source Width"))
 	float SourceSize;
 
+	UPROPERTY(EditAnywhere, Category = "Simulation", meta = (DisplayName = "Speed"))
+	float SimSpeed = 1.f;
+
+	UPROPERTY(EditAnywhere, Category = "Simulation", meta = (DisplayName = "Num Substeps"))
+	int NumSteps = 1;
+
 	UPROPERTY(EditAnywhere, Category = "Water", meta = (DisplayName = "Source River Water Body"))
 	TObjectPtr<AWaterBody> SourceRiverWaterBody;
 
@@ -36,8 +42,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Water", meta = (DisplayName = "Additional River Water Bodies"))
 	TArray<TObjectPtr<AWaterBody>> AdditonalRiverWaterBodies;
 
-	UPROPERTY(EditAnywhere, Category = "Reset", meta = (DisplayName = "Reset"))
-	bool Reset;
+	UPROPERTY(EditAnywhere, Category = "Baking", meta = (DisplayName = "Preview Baked Sim"))
+	bool PreviewBakedSim = false;
+
+	UPROPERTY(EditAnywhere, Category = "Shallow Water")
+	TObjectPtr<UTexture2D> BakedWaterSurfaceTexture;
 
 	virtual void PostLoad() override;
 
@@ -47,6 +56,8 @@ public:
 
 #if WITH_EDITOR
 	void Rebuild();
+
+	void Bake();
 
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	void OnWaterInfoTextureCreated(const UTextureRenderTarget2D* InWaterInfoTexture);
@@ -59,6 +70,9 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, VisibleDefaultsOnly, Category = "Shallow Water")
 	TObjectPtr<const UTextureRenderTarget2D> WaterInfoTexture;
+
+	UPROPERTY(BlueprintReadOnly, VisibleDefaultsOnly, Category = "Shallow Water")
+	TObjectPtr<UTextureRenderTarget2D> BakedWaterSurfaceRT;
 
 	bool QueryWaterAtSplinePoint(TObjectPtr<AWaterBody> WaterBody, int SplinePoint, FVector& OutPos, FVector& OutTangent, float& OutWidth, float& OutDepth);
 

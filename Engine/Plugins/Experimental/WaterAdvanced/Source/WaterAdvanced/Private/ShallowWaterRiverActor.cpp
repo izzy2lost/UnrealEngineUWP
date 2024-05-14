@@ -9,6 +9,7 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "ShallowWaterCommon.h"
 #include "Engine/World.h"
+#include "Engine/Texture2D.h"
 
 UShallowWaterRiverComponent::UShallowWaterRiverComponent(const FObjectInitializer& Initializer)
 	: Super(Initializer)
@@ -70,7 +71,21 @@ void UShallowWaterRiverComponent::PostEditChangeProperty(FPropertyChangedEvent& 
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	Rebuild();
+	FName PropertyName;
+	if (PropertyChangedEvent.Property)
+	{
+		PropertyName = PropertyChangedEvent.Property->GetFName();
+	}
+			
+	// this should go before rebuild not after...something is wrong
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UShallowWaterRiverComponent, PreviewBakedSim))
+	{
+		RiverSimSystem->SetVariableBool(FName("ReadCachedSim"), PreviewBakedSim);
+	}
+	else
+	{
+		Rebuild();
+	}
 }
 
 void UShallowWaterRiverComponent::Rebuild()
@@ -250,7 +265,29 @@ void UShallowWaterRiverComponent::Rebuild()
 	RiverSimSystem->SetVariableVec3(FName("SinkSize"), FVector(SinkWidth, SourceSize, SinkBoxHeight));
 	RiverSimSystem->SetVariableFloat(FName("SinkAngle"), PI / 2.f + FMath::Acos(SinkDir.Dot(FVector(1, 0, 0))));
 
+	RiverSimSystem->SetVariableFloat(FName("SimSpeed"), SimSpeed);
+	RiverSimSystem->SetVariableInt(FName("NumSteps"), NumSteps);	
+	
+	BakedWaterSurfaceRT = NewObject<UTextureRenderTarget2D>(this, NAME_None, RF_Transient);
+	BakedWaterSurfaceRT->InitAutoFormat(1, 1);
+	RiverSimSystem->SetVariableTextureRenderTarget(FName("SimGridRT"), BakedWaterSurfaceRT);
+	RiverSimSystem->SetVariableBool(FName("ReadCachedSim"), PreviewBakedSim);
+
+	if (BakedWaterSurfaceTexture != nullptr)
+	{
+		RiverSimSystem->SetVariableTexture(FName("BakedSimTexture"), BakedWaterSurfaceTexture);
+	}
+
 	bIsInitialized = true;
+}
+
+void UShallowWaterRiverComponent::Bake()
+{	
+	EObjectFlags TextureObjectFlags = EObjectFlags::RF_Public;
+
+	BakedWaterSurfaceTexture = BakedWaterSurfaceRT->ConstructTexture2D(this, "BakedRiverTexture", TextureObjectFlags);
+
+	RiverSimSystem->SetVariableTexture(FName("BakedSimTexture"), BakedWaterSurfaceTexture);
 }
 
 void UShallowWaterRiverComponent::OnWaterInfoTextureCreated(const UTextureRenderTarget2D* InWaterInfoTexture)
