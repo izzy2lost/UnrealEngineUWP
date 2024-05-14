@@ -9,6 +9,7 @@
 
 #if WITH_EDITOR
 #include "ContentBrowserDelegates.h"
+#include "ISceneOutlinerColumn.h"
 #endif	// WITH_EDITOR
 
 #include "MovieGraphRenderLayerSubsystem.generated.h"
@@ -165,8 +166,11 @@ private:
 	static const FSlateBrush* GetRowIcon(TSharedPtr<TSoftObjectPtr<AActor>> InActor);
 	static FText GetRowText(TSharedPtr<TSoftObjectPtr<AActor>> InActor);
 
-	/** Adds the provided actors to the query, updating the UI as needed. Calls InOnAddFinished when done. */
-	void AddActors(const TArray<AActor*>& InActors, const FMovieGraphConditionGroupQueryContentsChanged& InOnAddFinished);
+	/** Adds the provided actors to the query, updating the UI as needed. Calls InOnAddFinished when done. Can optionally close the Add menu. */
+	void AddActors(const TArray<AActor*>& InActors, const FMovieGraphConditionGroupQueryContentsChanged& InOnAddFinished, const bool bCloseAddMenu = true);
+
+	/** Removes the provided actors from the query, updating the UI as needed. */
+	void RemoveActors(const TArray<TSoftObjectPtr<AActor>>& InActors);
 #endif
 
 public:
@@ -176,6 +180,31 @@ public:
 
 private:
 #if WITH_EDITOR
+	/** Custom outliner column that allows adding/removing an actor from an Actor condition group query (via checkbox). */
+	class FActorSelectionColumn final : public ISceneOutlinerColumn
+	{
+	public:
+		explicit FActorSelectionColumn(const TWeakObjectPtr<UMovieGraphConditionGroupQuery_Actor> InWeakActorQuery)
+			: WeakActorQuery(InWeakActorQuery)
+		{}
+		
+		static FName GetID();
+		virtual FName GetColumnID() override;
+		virtual SHeaderRow::FColumn::FArguments ConstructHeaderRowColumn() override;
+		virtual const TSharedRef<SWidget> ConstructRowWidget(FSceneOutlinerTreeItemRef TreeItem, const STableRow<FSceneOutlinerTreeItemPtr>& Row) override;
+
+	private:
+		/** Determines if the given tree item (corresponding to one actor) is checked. */
+		ECheckBoxState IsRowChecked(const FActorTreeItem* InActorTreeItem) const;
+
+		/** Updates the associated actor query when a row is checked or unchecked. */
+		void OnCheckStateChanged(const ECheckBoxState NewState, const FActorTreeItem* InActorTreeItem) const;
+	
+	private:
+		/** The Actor condition group query that populates the data for this column. */
+		TWeakObjectPtr<UMovieGraphConditionGroupQuery_Actor> WeakActorQuery;
+	};
+	
 	TSharedPtr<class ISceneOutliner> ActorPickerWidget;
 
 	/** Displays the actors which have been chosen. */
