@@ -105,7 +105,6 @@ public:
 	void LoadObjects();
 	void CleanupObjects();
 	void GarbageCollect();
-	static void GarbageCollect(const TArray<FString>& PackageNames, FAutomationTestBase& AutomationTest);
 
 	FLoadingTestsScope(FAutomationTestBase* InAutomationTest, TFunction<void (FLoadingTestsScope&)> InMutateObjects = nullptr)
 		: AutomationTest(*InAutomationTest)

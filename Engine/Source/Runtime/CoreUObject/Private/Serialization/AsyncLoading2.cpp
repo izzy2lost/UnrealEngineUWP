@@ -690,7 +690,7 @@ private:
 
 		FPublicExportMap(const FPublicExportMap&) = delete;
 
-		FPublicExportMap(FPublicExportMap&& Other) noexcept
+		FPublicExportMap(FPublicExportMap&& Other)
 		{
 			Allocation = Other.Allocation;
 			Count = Other.Count;
@@ -701,7 +701,7 @@ private:
 
 		FPublicExportMap& operator=(const FPublicExportMap&) = delete;
 
-		FPublicExportMap& operator=(FPublicExportMap&& Other) noexcept
+		FPublicExportMap& operator=(FPublicExportMap&& Other)
 		{
 			if (Count > 1)
 			{
@@ -1072,10 +1072,6 @@ private:
 	TMap<FPackageObjectIndex, UObject*> ScriptObjects;
 	// All currently loaded public export objects from any loaded package
 	TMap<int32, FPublicExportKey> ObjectIndexToPublicExport;
-#if WITH_EDITOR
-	// All exports that have been marked invalid and should not be loaded
-	TMultiMap<FPackageId, uint64> InvalidExports;
-#endif
 
 	// Process all the deferred deletion for packages that are finished loading
 	void FlushDeferredDeletePackagesQueue();
@@ -1086,10 +1082,6 @@ public:
 		Packages.Reserve(32768);
 		ScriptObjects.Reserve(32768);
 		ObjectIndexToPublicExport.Reserve(32768);
-
-#if WITH_EDITOR
-		InvalidExports.Reserve(1024);
-#endif
 	}
 
 	int32 GetStoredPackagesCount() const
@@ -1357,10 +1349,6 @@ public:
 					ObjectIndexToPublicExport.Remove(ObjectIndex);
 				}
 			}
-#if WITH_EDITOR
-			// Now that the package is removed, remove all export invalidations.
-			InvalidExports.Remove(PackageId);
-#endif
 		}
 	}
 
@@ -1515,19 +1503,6 @@ public:
 		int32 ObjectIndex = GUObjectArray.ObjectToIndex(Object);
 		FPublicExportKey Key = FPublicExportKey::MakeKey(PackageId, ExportHash);
 
-#if WITH_EDITOR
-		if (IsInvalidExport(Key))
-		{
-			UE_LOG(LogStreaming, Verbose,
-				TEXT("FGlobalImportStore::StoreGlobalObject: The constructed public export object '%s' with index %d and id %s:0x%llX was marked as an invalid export and will not be stored."),
-				Object ? *Object->GetFullName() : TEXT("null"),
-				ObjectIndex,
-				*FormatPackageId(Key.GetPackageId()), 
-				Key.GetExportHash());
-			return;
-		}
-#endif
-
 		UObject* ExistingObject = FindPublicExportObjectUnchecked(Key);
 		if (ExistingObject && ExistingObject != Object)
 		{
@@ -1538,8 +1513,7 @@ public:
 				TEXT("The existing object will be replaced since it or its package was most likely renamed after it was loaded the first time."),
 				Object ? *Object->GetFullName() : TEXT("null"),
 				ObjectIndex,
-				*FormatPackageId(Key.GetPackageId()), 
-				Key.GetExportHash(),
+				*FormatPackageId(Key.GetPackageId()), Key.GetExportHash(),
 				*ExistingObject->GetFullName(),
 				ExistingObject->GetFlags(),
 				int(ExistingObject->GetInternalFlags()),
@@ -1574,19 +1548,6 @@ public:
 		PackageRef.StorePublicExport(ExportHash, Object);
 		ObjectIndexToPublicExport.Add(ObjectIndex, Key);
 	}
-
-#if WITH_EDITOR
-	bool IsInvalidExport(FPublicExportKey Key)
-	{
-		uint64* Pair = InvalidExports.FindPair(Key.GetPackageId(), Key.GetExportHash());
-		return Pair != nullptr;
-	}
-
-	void StoreInvalidExport(FPackageId PackageId, uint64 ExportHash)
-	{
-		InvalidExports.Add(PackageId, ExportHash);
-	}
-#endif
 
 	void FindAllScriptObjects(bool bVerifyOnly);
 	void RegistrationComplete();
@@ -1729,18 +1690,6 @@ struct FPackageImportStore
 	{
 		GlobalImportStore.StoreGlobalObject(PackageId, ExportHash, Object);
 	}
-
-#if WITH_EDITOR
-	inline bool IsInvalidExport(FPackageId PackageId, uint64 ExportHash)
-	{
-		return GlobalImportStore.IsInvalidExport(FPublicExportKey::MakeKey(PackageId, ExportHash));
-	}
-
-	inline void StoreInvalidExport(FPackageId PackageId, uint64 ExportHash)
-	{
-		return GlobalImportStore.StoreInvalidExport(PackageId, ExportHash);
-	}
-#endif
 
 public:
 	FLoadedPackageRef& AddImportedPackageReference(FPackageId ImportedPackageId, FName PackageNameIfKnown)
@@ -2880,14 +2829,6 @@ struct FAsyncPackage2
 	void ReleaseRef();
 
 	void ClearImportedPackages();
-
-#if WITH_EDITOR
-	/*
-	* Marks exports as failed if LinkerLoad(if using) has marked the same export as failed. 
-	* All found failed exports in the FAsyncPackage2 and FLinkerLoad are recorded in the GlobalImportStore
-	*/
-	void SyncAndStoreInvalidExports();
-#endif
 
 	/**
 	 * @return Time load begun. This is NOT the time the load was requested in the case of other pending requests.
@@ -5973,19 +5914,8 @@ bool FAsyncPackage2::CreateLinkerLoadExports(FAsyncLoadingThreadState2& ThreadSt
 			continue;
 		}
 #endif
-
 		FObjectExport& LinkerExport = LinkerLoadState->Linker->ExportMap[ExportIndex];
 		FExportObject& ExportObject = Data.Exports[ExportIndex];
-		uint64_t HeaderPublicExportHash = HeaderData.ExportMap[ExportIndex].PublicExportHash;
-#if WITH_EDITOR
-		if (ImportStore.IsInvalidExport(Desc.UPackageId, HeaderPublicExportHash))
-		{
-			ExportObject.Object = nullptr;
-			ExportObject.bExportLoadFailed = true;
-			continue;
-		}
-#endif
-
 		if (UObject* Object = LinkerLoadState->Linker->CreateExport(ExportIndex))
 		{
 			checkf(!Object->IsUnreachable(), TEXT("Trying to store an unreachable object '%s' in the import store"), *Object->GetFullName());
@@ -5993,8 +5923,6 @@ bool FAsyncPackage2::CreateLinkerLoadExports(FAsyncLoadingThreadState2& ThreadSt
 			ExportObject.bWasFoundInMemory = true; // Make sure that the async flags are cleared in ClearConstructedObjects
 			EInternalObjectFlags FlagsToSet = EInternalObjectFlags::Async;
 			uint64 PublicExportHash = LinkerLoadState->LinkerLoadHeaderData.ExportMap[ExportIndex].PublicExportHash;
-			checkf(HeaderPublicExportHash == PublicExportHash, TEXT("PublicExportHash for object %s doesn't match the hash in the header for package %s"), *Object->GetFullName(), *HeaderData.PackageName.ToString());
-
 			if (Desc.bCanBeImported && PublicExportHash)
 			{
 				FlagsToSet |= EInternalObjectFlags::LoaderImport;
@@ -8100,8 +8028,6 @@ EAsyncPackageState::Type FAsyncLoadingThread2::ProcessLoadedPackagesFromGameThre
 							}
 						}
 					}
-
-					Package->SyncAndStoreInvalidExports();
 				}
 #endif
 
@@ -8752,6 +8678,12 @@ void FAsyncLoadingThread2::CollectUnreachableObjects(
 			{
 				const int32 CachedLinkerIndex = Object->GetLinkerIndex();
 				Object->SetLinker(nullptr, INDEX_NONE);
+				// As we are garbaging the object, mark it as invalid in the linker
+				// Either it is now truly invalid to access this object 
+				// (i.e the asset ran upgraded, migrated away from this object and doesn't hold any references to it anymore.)
+				// or we are gc'ing the entire asset in which case the linker will eventually get purged and those entry won't be marked invalid anymore on recreation
+				FObjectExport& ObjExport = ObjectLinker->ExportMap[CachedLinkerIndex];
+				ObjExport.bExportLoadFailed = true;
 			}
 #endif // ALT2_ENABLE_LINKERLOAD_SUPPORT
 		});
@@ -9037,100 +8969,6 @@ void FAsyncPackage2::ClearImportedPackages()
 	}
 }
 
-#if WITH_EDITOR
-void FAsyncPackage2::SyncAndStoreInvalidExports()
-{
-	TArrayView<FExportObject> PackageExports = Data.Exports;
-	const int32 ExportCount = PackageExports.Num();
-
-#if ALT2_ENABLE_LINKERLOAD_SUPPORT
-	FLinkerLoad* Linker = nullptr; 
-	if (LinkerLoadState.IsSet())
-	{
-		Linker = LinkerLoadState->Linker;
-		check(Linker->ExportMap.Num() == ExportCount);
-	}
-#endif
-
-	// The visited state is inverted from what you'd normally expect so we may more efficiently iterate later
-	constexpr int InlineElementCount = 32;
-	TBitArray<TInlineAllocator<InlineElementCount>> NotVisitedIndices(true, ExportCount);
-	TSet<int32, DefaultKeyFuncs<int32>, TInlineSetAllocator<InlineElementCount>> InvalidIndices;
-	InvalidIndices.Reserve(32); // There are normally not very many invalid exports per package
-
-	// First scan all our exports ensure we list all the same invalid exports as LinkerLoad
-	for (int32 ExportIndex = 0; ExportIndex < ExportCount; ++ExportIndex)
-	{
-		FExportObject& ExportObject = PackageExports[ExportIndex];
-#if ALT2_ENABLE_LINKERLOAD_SUPPORT
-		ExportObject.bExportLoadFailed |= Linker ? Linker->ExportMap[ExportIndex].bExportLoadFailed : false;
-#endif
-		if (ExportObject.bExportLoadFailed)
-		{
-			// Only mark invalid indices as visited since we know we don't need to check this export's Outer
-			NotVisitedIndices[ExportIndex] = false;
-			InvalidIndices.Add(ExportIndex);
-		}
-	}
-	
-#if ALT2_ENABLE_LINKERLOAD_SUPPORT
-	if (!InvalidIndices.IsEmpty() && Linker)
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(SyncAndStoreInvalidExports_GatherAndStoreInvalidChildExports);
-
-		for (TConstSetBitIterator<TInlineAllocator<InlineElementCount>> It(NotVisitedIndices); It;)
-		{
-			const int32 ExportIndex = It.GetIndex();
-
-			TArray<int32, TInlineAllocator<InlineElementCount>> Stack;
-			Stack.Add(ExportIndex);
-			NotVisitedIndices[ExportIndex] = false;
-
-			// Since we pre-visited all invalid exports we are only iterating over known valid exports 
-			// and only need to check their outers (i.e. are they a child of an invalid export)
-			bool bIsInvalid = false;
-			FPackageIndex Outer = Linker->ExportMap[ExportIndex].OuterIndex;
-			while (Outer.IsExport())
-			{
-				const int32 OuterIndex = Outer.ToExport();
-				Stack.Add(OuterIndex);
-
-				if (NotVisitedIndices[OuterIndex])
-				{
-					bIsInvalid = InvalidIndices.Contains(OuterIndex);
-					break;
-				}
-				NotVisitedIndices[OuterIndex] = false;
-
-				if (Linker->ExportMap[OuterIndex].bExportLoadFailed)
-				{
-					bIsInvalid = true;
-					break;
-				}
-				Outer = Linker->ExportMap[OuterIndex].OuterIndex;
-			}
-
-			if (bIsInvalid)
-			{
-				InvalidIndices.Append(Stack);
-			}
-
-			// We modified It so re-create it (there isn't a non-const iterator form)
-			new(&It) TConstSetBitIterator<TInlineAllocator<InlineElementCount>>(NotVisitedIndices, ExportIndex);
-		}
-#elif WITH_EDITOR
-	UE_LOG(LogStreaming, Warning, TEXT("Building WITH_EDITOR but not ALT2_ENABLE_LINKERLOAD_SUPPORT is missing support for marking child exports of invalid exports. We may load invalid exports unnecessarily."));
-#endif
-
-		for (int32 Index : InvalidIndices)
-		{ 
-			const uint64 ExportHash = HeaderData.ExportMap[Index].PublicExportHash;
-			ImportStore.GlobalImportStore.StoreInvalidExport(Desc.UPackageId, ExportHash);
-		}
-	}
-}
-#endif
-
 void FAsyncPackage2::ClearConstructedObjects()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ClearConstructedObjects);
@@ -9341,7 +9179,7 @@ EAsyncPackageState::Type FAsyncPackage2::PostLoadInstances(FAsyncLoadingThreadSt
 	{
 		const FExportObject& Export = Data.Exports[PostLoadInstanceIndex++];
 
-		if (!(Export.bFiltered || Export.bExportLoadFailed))
+		if (!(Export.bFiltered | Export.bExportLoadFailed))
 		{
 			UClass* ObjClass = Export.Object->GetClass();
 			ObjClass->PostLoadInstance(Export.Object);
