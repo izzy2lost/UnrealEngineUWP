@@ -6,7 +6,7 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Styling/SlateColor.h"
 
-#include "DisplayClusterconfigurationTypes.h"
+#include "DisplayClusterConfigurationTypes.h"
 
 
 class SButton;
