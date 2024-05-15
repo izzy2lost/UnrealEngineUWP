@@ -31,9 +31,11 @@ namespace UE::AnimNext
 		FTraitPtr(FNodeInstance* InNodeInstance, uint32 InTraitIndex);
 
 		FTraitPtr(const FTraitPtr& TraitPtr);
+		explicit FTraitPtr(const FWeakTraitPtr& TraitPtr);
 		FTraitPtr(FTraitPtr&& TraitPtr) noexcept;
 		~FTraitPtr();
 
+		FTraitPtr& operator=(const FWeakTraitPtr& TraitPtr);
 		FTraitPtr& operator=(const FTraitPtr& TraitPtr);
 		FTraitPtr& operator=(FTraitPtr&& TraitPtr) noexcept;
 

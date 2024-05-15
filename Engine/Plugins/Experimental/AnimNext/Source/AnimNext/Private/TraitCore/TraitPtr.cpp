@@ -35,6 +35,19 @@ namespace UE::AnimNext
 		}
 	}
 
+	FTraitPtr::FTraitPtr(const FWeakTraitPtr& TraitPtr)
+		: PackedPointerAndFlags(reinterpret_cast<uintptr_t>(TraitPtr.GetNodeInstance()))
+		, TraitIndex(TraitPtr.GetTraitIndex())
+	{
+		check((reinterpret_cast<uintptr_t>(TraitPtr.GetNodeInstance()) & FLAGS_MASK) == 0);	// Make sure we have enough alignment
+		check(TraitPtr.GetTraitIndex() <= MAX_uint8);	// Make sure we don't truncate
+
+		if (TraitPtr.IsValid())
+		{
+			PackedPointerAndFlags |= IS_WEAK_BIT;
+		}
+	}
+
 	FTraitPtr::FTraitPtr(FTraitPtr&& TraitPtr) noexcept
 		: PackedPointerAndFlags(TraitPtr.PackedPointerAndFlags)
 		, TraitIndex(TraitPtr.TraitIndex)
@@ -80,6 +93,21 @@ namespace UE::AnimNext
 
 		PackedPointerAndFlags = TraitPtr.PackedPointerAndFlags;
 		TraitIndex = TraitPtr.TraitIndex;
+
+		return *this;
+	}
+
+	FTraitPtr& FTraitPtr::operator=(const FWeakTraitPtr& TraitPtr)
+	{
+		Reset();
+
+		PackedPointerAndFlags = reinterpret_cast<uintptr_t>(TraitPtr.GetNodeInstance());
+		TraitIndex = TraitPtr.GetTraitIndex();
+
+		if (TraitPtr.IsValid())
+		{
+			PackedPointerAndFlags |= IS_WEAK_BIT;
+		}
 
 		return *this;
 	}
