@@ -8,6 +8,8 @@
 #include "Templates/PointerVariants.h"
 
 class FControlFlowContainerBase;
+class FControlFlow;
+
 namespace UE::Private
 {
 	static bool OwningObjectIsValid(TSharedRef<const FControlFlowContainerBase> InFlowContainer);
