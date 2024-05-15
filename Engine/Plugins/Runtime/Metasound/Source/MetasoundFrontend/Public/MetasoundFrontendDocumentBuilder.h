@@ -276,7 +276,6 @@ public:
 
 	// Returns whether or not builder is attached to a DocumentInterface and is valid to build or act on a document.
 	bool IsValid() const;
-	bool IsVariableClass(EMetasoundFrontendClassType ClassType) const;
 
 	// Returns whether or not the given edge is valid (i.e. represents an input and output that equate in data and access types) or malformed.
 	// Note that this does not return whether or not the given edge exists, but rather if it could be legally applied to the given edge vertices.
@@ -292,6 +291,10 @@ public:
 	bool RemoveDependency(const FGuid& InClassID);
 	bool RemoveDependency(EMetasoundFrontendClassType ClassType, const FMetasoundFrontendClassName& InClassName, const FMetasoundFrontendVersionNumber& InClassVersionNumber);
 	bool RemoveEdge(const FMetasoundFrontendEdge& EdgeToRemove);
+
+	// Removes all edges connected to an input or output vertex associated with the node of the given ID.
+	bool RemoveEdges(const FGuid& InNodeID);
+
 	bool RemoveEdgesByNodeClassInterfaceBindings(const FGuid& InOutputNodeID, const FGuid& InInputNodeID);
 	bool RemoveEdgesFromNodeOutput(const FGuid& InNodeID, const FGuid& InVertexID);
 	bool RemoveEdgeToNodeInput(const FGuid& InNodeID, const FGuid& InVertexID);
@@ -367,6 +370,7 @@ private:
 	using FFinalizeNodeFunctionRef = TFunctionRef<void(FMetasoundFrontendNode&, const Metasound::Frontend::FNodeRegistryKey&)>;
 
 	FMetasoundFrontendNode* AddNodeInternal(const FMetasoundFrontendClassMetadata& InClassMetadata, Metasound::Frontend::FFinalizeNodeFunctionRef FinalizeNode, FGuid InNodeID = FGuid::NewGuid(), int32* NewNodeIndex = nullptr);
+	void BeginBuilding(TSharedPtr<Metasound::Frontend::FDocumentModifyDelegates> Delegates = {}, bool bPrimeCache = false);
 
 	// Conforms GraphOutput node's ClassID, Access & Data Type with the GraphOutput.
 	// creating and removing dependencies as necessary within the document dependency array. Does *NOT*
@@ -389,9 +393,9 @@ private:
 	FMetasoundFrontendDocument& GetDocument();
 
 	bool SetGraphInputInheritsDefault(FName InName, bool bInputInheritsDefault);
-	bool UnlinkVariableNode(const FGuid& InNodeID);
 
-	void BeginBuilding(TSharedPtr<Metasound::Frontend::FDocumentModifyDelegates> Delegates = {}, bool bPrimeCache = false);
+	bool SpliceVariableNodeFromStack(const FGuid& InNodeID);
+	bool UnlinkVariableNode(const FGuid& InNodeID);
 
 	UPROPERTY(Transient)
 	TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface;
