@@ -11,19 +11,47 @@
 #include "RivermaxMediaOutput.h"
 
 
-bool FRivermaxMediaInitializerFeature::IsMediaSubjectSupported(const UObject* MediaSubject)
+bool FRivermaxMediaInitializerFeature::IsMediaObjectSupported(const UObject* MediaObject)
 {
-	if (MediaSubject)
+	if (MediaObject)
 	{
-		return MediaSubject->IsA<URivermaxMediaSource>() || MediaSubject->IsA<URivermaxMediaOutput>();
+		return MediaObject->IsA<URivermaxMediaSource>() || MediaObject->IsA<URivermaxMediaOutput>();
 	}
 
 	return false;
 }
 
-void FRivermaxMediaInitializerFeature::InitializeMediaSubjectForTile(UObject* MediaSubject, const FMediaSubjectOwnerInfo& OnwerInfo, const FIntPoint& TilePos)
+bool FRivermaxMediaInitializerFeature::AreMediaObjectsCompatible(const UObject* MediaSource, const UObject* MediaOutput)
 {
-	if (URivermaxMediaSource* RivermaxMediaSource = Cast<URivermaxMediaSource>(MediaSubject))
+	if (MediaSource && MediaOutput)
+	{
+		return MediaSource->IsA<URivermaxMediaSource>() && MediaOutput->IsA<URivermaxMediaOutput>();
+	}
+
+	return false;
+}
+
+bool FRivermaxMediaInitializerFeature::GetSupportedMediaPropagationTypes(const UObject* MediaSource, const UObject* MediaOutput, EMediaStreamPropagationType& OutPropagationTypes)
+{
+	if (!IsMediaObjectSupported(MediaSource) ||
+		!IsMediaObjectSupported(MediaOutput) ||
+		!AreMediaObjectsCompatible(MediaSource, MediaOutput))
+	{
+		return false;
+	}
+
+	OutPropagationTypes =
+		EMediaStreamPropagationType::LocalUnicast |
+		EMediaStreamPropagationType::LocalMulticast |
+		EMediaStreamPropagationType::Unicast |
+		EMediaStreamPropagationType::Multicast;
+
+	return true;
+}
+
+void FRivermaxMediaInitializerFeature::InitializeMediaObjectForTile(UObject* MediaObject, const FMediaObjectOwnerInfo& OnwerInfo, const FIntPoint& TilePos)
+{
+	if (URivermaxMediaSource* RivermaxMediaSource = Cast<URivermaxMediaSource>(MediaObject))
 	{
 		RivermaxMediaSource->PlayerMode          = ERivermaxPlayerMode::Framelock;
 		RivermaxMediaSource->bUseZeroLatency     = true;
@@ -37,7 +65,7 @@ void FRivermaxMediaInitializerFeature::InitializeMediaSubjectForTile(UObject* Me
 		RivermaxMediaSource->bIsSRGBInput        = false;
 		RivermaxMediaSource->bUseGPUDirect       = true;
 	}
-	else if (URivermaxMediaOutput* RivermaxMediaOutput = Cast<URivermaxMediaOutput>(MediaSubject))
+	else if (URivermaxMediaOutput* RivermaxMediaOutput = Cast<URivermaxMediaOutput>(MediaObject))
 	{
 		RivermaxMediaOutput->AlignmentMode       = ERivermaxMediaAlignmentMode::FrameCreation;
 		RivermaxMediaOutput->bDoContinuousOutput = false;
@@ -55,9 +83,9 @@ void FRivermaxMediaInitializerFeature::InitializeMediaSubjectForTile(UObject* Me
 	}
 }
 
-void FRivermaxMediaInitializerFeature::InitializeMediaSubjectForFullFrame(UObject* MediaSubject, const FMediaSubjectOwnerInfo& OnwerInfo)
+void FRivermaxMediaInitializerFeature::InitializeMediaObjectForFullFrame(UObject* MediaObject, const FMediaObjectOwnerInfo& OnwerInfo)
 {
-	if (URivermaxMediaSource* RivermaxMediaSource = Cast<URivermaxMediaSource>(MediaSubject))
+	if (URivermaxMediaSource* RivermaxMediaSource = Cast<URivermaxMediaSource>(MediaObject))
 	{
 		RivermaxMediaSource->PlayerMode          = ERivermaxPlayerMode::Framelock;
 		RivermaxMediaSource->bUseZeroLatency     = true;
@@ -71,7 +99,7 @@ void FRivermaxMediaInitializerFeature::InitializeMediaSubjectForFullFrame(UObjec
 		RivermaxMediaSource->bIsSRGBInput        = false;
 		RivermaxMediaSource->bUseGPUDirect       = true;
 	}
-	else if (URivermaxMediaOutput* RivermaxMediaOutput = Cast<URivermaxMediaOutput>(MediaSubject))
+	else if (URivermaxMediaOutput* RivermaxMediaOutput = Cast<URivermaxMediaOutput>(MediaObject))
 	{
 		RivermaxMediaOutput->FrameLockingMode      = ERivermaxFrameLockingMode::BlockOnReservation;
 		RivermaxMediaOutput->PresentationQueueSize = 2;
@@ -84,8 +112,8 @@ void FRivermaxMediaInitializerFeature::InitializeMediaSubjectForFullFrame(UObjec
 
 		switch (OnwerInfo.OwnerType)
 		{
-		case FMediaSubjectOwnerInfo::EMediaSubjectOwnerType::ICVFXCamera:
-		case FMediaSubjectOwnerInfo::EMediaSubjectOwnerType::Viewport:
+		case FMediaObjectOwnerInfo::EMediaObjectOwnerType::ICVFXCamera:
+		case FMediaObjectOwnerInfo::EMediaObjectOwnerType::Viewport:
 			RivermaxMediaOutput->AlignmentMode       = ERivermaxMediaAlignmentMode::FrameCreation;
 			RivermaxMediaOutput->bDoContinuousOutput = false;
 			RivermaxMediaOutput->bDoFrameCounterTimestamping = true;
@@ -93,7 +121,7 @@ void FRivermaxMediaInitializerFeature::InitializeMediaSubjectForFullFrame(UObjec
 			RivermaxMediaOutput->bUseGPUDirect       = true;
 			break;
 
-		case FMediaSubjectOwnerInfo::EMediaSubjectOwnerType::Backbuffer:
+		case FMediaObjectOwnerInfo::EMediaObjectOwnerType::Backbuffer:
 			RivermaxMediaOutput->AlignmentMode       = ERivermaxMediaAlignmentMode::AlignmentPoint;
 			RivermaxMediaOutput->bDoContinuousOutput = true;
 			RivermaxMediaOutput->bDoFrameCounterTimestamping = false;
@@ -142,7 +170,7 @@ FString FRivermaxMediaInitializerFeature::GenerateStreamAddress(uint8 OwnerUniqu
 	return FString::Printf(TEXT("228.%u.%u.%u"), AddressOffsetForTiles + OwnerUniqueIdx, TilePos.X, TilePos.Y);
 }
 
-FString FRivermaxMediaInitializerFeature::GenerateStreamAddress(uint8 ClusterNodeUniqueIdx, uint8 OwnerUniqueIdx, const FMediaSubjectOwnerInfo::EMediaSubjectOwnerType OwnerType) const
+FString FRivermaxMediaInitializerFeature::GenerateStreamAddress(uint8 ClusterNodeUniqueIdx, uint8 OwnerUniqueIdx, const FMediaObjectOwnerInfo::EMediaObjectOwnerType OwnerType) const
 {
 	// 228.0.*.* - 228.199.*.* - range for full-frame media (max 200 objects). But could be extended up to the limit if no tiles used.
 	return FString::Printf(TEXT("228.%u.%u.%u"), ClusterNodeUniqueIdx, static_cast<uint8>(OwnerType), OwnerUniqueIdx);

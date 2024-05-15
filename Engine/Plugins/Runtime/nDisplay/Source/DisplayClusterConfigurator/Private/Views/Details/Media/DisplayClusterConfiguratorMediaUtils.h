@@ -28,10 +28,10 @@ public:
 	}
 
 	/** Tiled media auto-configuration event */
-	DECLARE_EVENT_OneParam(FDisplayClusterConfiguratorMediaUtils, FDisplayClusterConfiguratorMediaAutoConfigurationRequestedEvent, UObject*);
-	FDisplayClusterConfiguratorMediaAutoConfigurationRequestedEvent& OnMediaAutoConfiguration()
+	DECLARE_EVENT_OneParam(FDisplayClusterConfiguratorMediaUtils, FResetToDefaultsEvent, UObject*);
+	FResetToDefaultsEvent& OnMediaResetToDefaults()
 	{
-		return MediaAutoConfigurationEvent;
+		return MediaResetToDefaultsEvent;
 	}
 
 private:
@@ -39,6 +39,6 @@ private:
 	/** Media initializers (modular features) available. */
 	TArray<IDisplayClusterModularFeatureMediaInitializer*> MediaInitializers;
 
-	/** Tiled media auto-configuration event */
-	FDisplayClusterConfiguratorMediaAutoConfigurationRequestedEvent MediaAutoConfigurationEvent;
+	/** Tiled media reset to defaults event */
+	FResetToDefaultsEvent MediaResetToDefaultsEvent;
 };

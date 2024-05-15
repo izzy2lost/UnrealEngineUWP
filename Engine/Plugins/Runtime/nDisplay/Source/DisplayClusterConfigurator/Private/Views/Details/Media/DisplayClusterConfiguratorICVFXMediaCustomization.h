@@ -9,6 +9,8 @@
 
 #include "IPropertyTypeCustomization.h"
 
+class UDisplayClusterConfigurationData;
+
 
 /**
  * Details panel customization for the FDisplayClusterConfigurationMediaICVFX struct.
@@ -29,11 +31,25 @@ protected:
 
 private:
 
-	/** Builds auto-conf button widget. */
-	void AddAutoConfigurationButton(IDetailChildrenBuilder& ChildBuilder);
+	/** Builds setup button widget. */
+	void AddSetupButton(IDetailChildrenBuilder& ChildBuilder);
 
-	/** Handles auto-configuration button clicks. */
-	FReply OnAutoConfigureButtonClicked();
+	/** Builds reset button widget. */
+	void AddResetButton(IDetailChildrenBuilder& ChildBuilder);
+
+	/** Handles setup button clicks. */
+	FReply OnSetupButtonClicked();
+
+	/** Handles reset button clicks. */
+	FReply OnResetButtonClicked();
+
+private:
+
+	/** Returns configuration of a DCRA owning the camera being edited. */
+	UDisplayClusterConfigurationData* GetConfig() const;
+
+	/** Marks package as dirty */
+	void MarkDirty();
 
 private:
 
