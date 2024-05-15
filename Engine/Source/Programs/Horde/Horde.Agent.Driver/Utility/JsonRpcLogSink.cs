@@ -7,7 +7,6 @@ using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using Google.Protobuf;
 using Grpc.Core;
-using Grpc.Net.Client;
 using Horde.Common.Rpc;
 using HordeCommon.Rpc;
 using Microsoft.Extensions.Logging;
@@ -26,7 +25,7 @@ namespace Horde.Agent.Utility
 	{
 		const int FlushLength = 1024 * 1024;
 
-		readonly GrpcChannel _connection;
+		readonly IRpcConnection _connection;
 		readonly JobId? _jobId;
 		readonly JobStepBatchId? _jobBatchId;
 		readonly JobStepId? _jobStepId;
@@ -43,7 +42,7 @@ namespace Horde.Agent.Utility
 		AsyncEvent _tailTaskStop;
 		readonly AsyncEvent _newTailDataEvent = new AsyncEvent();
 
-		public JsonRpcAndStorageLogSink(GrpcChannel connection, LogId logId, JobId? jobId, JobStepBatchId? jobBatchId, JobStepId? jobStepId, IStorageClient store, ILogger logger)
+		public JsonRpcAndStorageLogSink(IRpcConnection connection, LogId logId, JobId? jobId, JobStepBatchId? jobBatchId, JobStepId? jobStepId, IStorageClient store, ILogger logger)
 		{
 			_connection = connection;
 			_logId = logId;
@@ -174,10 +173,9 @@ namespace Horde.Agent.Utility
 			// Update the outcome of this jobstep
 			if (_jobId != null && _jobBatchId != null && _jobStepId != null)
 			{
-				JobRpc.JobRpcClient jobRpc = new JobRpc.JobRpcClient(_connection);
 				try
 				{
-					await jobRpc.UpdateStepAsync(new RpcUpdateStepRequest(_jobId.Value, _jobBatchId.Value, _jobStepId.Value, JobStepState.Unspecified, outcome), cancellationToken: cancellationToken);
+					await _connection.InvokeAsync((JobRpc.JobRpcClient x) => x.UpdateStepAsync(new RpcUpdateStepRequest(_jobId.Value, _jobBatchId.Value, _jobStepId.Value, JobStepState.Unspecified, outcome)), cancellationToken);
 				}
 				catch (Exception ex)
 				{
@@ -189,8 +187,7 @@ namespace Horde.Agent.Utility
 		/// <inheritdoc/>
 		public async Task WriteEventsAsync(List<RpcCreateEventRequest> events, CancellationToken cancellationToken)
 		{
-			JobRpc.JobRpcClient jobRpc = new JobRpc.JobRpcClient(_connection);
-			await jobRpc.CreateEventsAsync(new RpcCreateEventsRequest(events), cancellationToken: cancellationToken);
+			await _connection.InvokeAsync((JobRpc.JobRpcClient x) => x.CreateEventsAsync(new RpcCreateEventsRequest(events)), cancellationToken);
 		}
 
 		/// <inheritdoc/>
@@ -221,9 +218,7 @@ namespace Horde.Agent.Utility
 			request.TargetHash = target.Hash.ToString();
 			request.TargetLocator = target.GetLocator().ToString();
 			request.Complete = complete;
-
-			LogRpcClient clientRef = new LogRpcClient(_connection);
-			await clientRef.UpdateLogAsync(request, cancellationToken: cancellationToken);
+			await _connection.InvokeAsync((LogRpcClient client) => client.UpdateLogAsync(request, cancellationToken: cancellationToken), cancellationToken);
 		}
 
 		protected virtual async Task<int> UpdateLogTailAsync(int tailNext, ReadOnlyMemory<byte> tailData, CancellationToken cancellationToken)
@@ -231,8 +226,8 @@ namespace Horde.Agent.Utility
 			DateTime deadline = DateTime.UtcNow.AddMinutes(2.0);
 			try
 			{
-				LogRpcClient clientRef = new LogRpcClient(_connection);
-				using AsyncDuplexStreamingCall<UpdateLogTailRequest, UpdateLogTailResponse> call = clientRef.UpdateLogTail(deadline: deadline, cancellationToken: cancellationToken);
+				using IRpcClientRef<LogRpcClient> clientRef = await _connection.GetClientRefAsync<LogRpcClient>(cancellationToken);
+				using AsyncDuplexStreamingCall<UpdateLogTailRequest, UpdateLogTailResponse> call = clientRef.Client.UpdateLogTail(deadline: deadline, cancellationToken: cancellationToken);
 
 				// Write the request to the server
 				UpdateLogTailRequest request = new UpdateLogTailRequest();
@@ -245,8 +240,14 @@ namespace Horde.Agent.Utility
 				// Wait until the server responds or we need to trigger a new update
 				Task<bool> moveNextAsync = call.ResponseStream.MoveNext();
 
-				Task task = await Task.WhenAny(moveNextAsync, _tailTaskStop.Task, Task.Delay(TimeSpan.FromMinutes(1.0), CancellationToken.None));
-				if (task == _tailTaskStop.Task)
+				Task task = await Task.WhenAny(moveNextAsync, clientRef.DisposingTask, _tailTaskStop.Task, Task.Delay(TimeSpan.FromMinutes(1.0), CancellationToken.None));
+				if (task == clientRef.DisposingTask)
+				{
+					TimeSpan graceDelay = TimeSpan.FromSeconds(10);
+					_logger.LogInformation("Cancelling long poll from client side (server migration). Backing off for {Delay} ms...", graceDelay.TotalMilliseconds);
+					await Task.Delay(graceDelay, cancellationToken);
+				}
+				else if (task == _tailTaskStop.Task)
 				{
 					_logger.LogInformation("Cancelling long poll from client side (complete)");
 				}

@@ -124,7 +124,7 @@ namespace Horde.Agent.Execution
 					RpcUpdateJobRequest updateJobRequest = new RpcUpdateJobRequest();
 					updateJobRequest.JobId = JobId.ToString();
 					updateJobRequest.Change = Batch.Change;
-					await JobRpc.UpdateJobAsync(updateJobRequest, null, null, cancellationToken);
+					await RpcConnection.InvokeAsync((JobRpc.JobRpcClient x) => x.UpdateJobAsync(updateJobRequest, null, null, cancellationToken), cancellationToken);
 				}
 
 				// Sync the workspace

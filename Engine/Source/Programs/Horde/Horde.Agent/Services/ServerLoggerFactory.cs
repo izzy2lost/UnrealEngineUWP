@@ -72,7 +72,7 @@ namespace Horde.Agent.Services
 		{
 #pragma warning disable CA2000 // Dispose objects before losing scope
 			IStorageClient storageClient = _storageClientFactory.CreateClientWithPath($"api/v1/logs/{logId}", session.Token);
-			IJsonRpcLogSink sink = new JsonRpcAndStorageLogSink(session.GrpcChannel, logId, jobId, batchId, stepId, storageClient, _logger);
+			IJsonRpcLogSink sink = new JsonRpcAndStorageLogSink(session.RpcConnection, logId, jobId, batchId, stepId, storageClient, _logger);
 
 			return new ServerLogger(sink, logId, warnings, outputLevel, localLogger, _logger);
 #pragma warning restore CA2000 // Dispose objects before losing scope

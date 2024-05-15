@@ -148,7 +148,6 @@ namespace Horde.Agent.Tests
 			}
 		}
 
-		[Ignore]
 		[TestMethod]
 		public async Task AbortExecuteJobTestAsync()
 		{
@@ -165,9 +164,10 @@ namespace Horde.Agent.Tests
 			executeJobTask.Workspace = new RpcAgentWorkspace();
 
 			JobRpcClientStub client = new JobRpcClientStub(NullLogger.Instance);
+			await using RpcConnectionStub rpcConnection = new RpcConnectionStub(null!, null!, client);
 
 			await using FakeHordeRpcServer fakeServer = new();
-			await using ISession session = FakeServerSessionFactory.CreateSession(null!);
+			await using ISession session = FakeServerSessionFactory.CreateSession(rpcConnection);
 
 			client.BeginStepResponses.Enqueue(new RpcBeginStepResponse { Name = "stepName1", StepId = _stepId1.ToString() });
 			client.BeginStepResponses.Enqueue(new RpcBeginStepResponse { Name = "stepName2", StepId = _stepId2.ToString() });
@@ -202,7 +202,6 @@ namespace Horde.Agent.Tests
 			Assert.AreEqual(JobStepState.Completed, (JobStepState)client.UpdateStepRequests[2].State);
 		}
 
-		[Ignore]
 		[TestMethod]
 		public async Task PollForStepAbortFailureTestAsync()
 		{
@@ -219,6 +218,7 @@ namespace Horde.Agent.Tests
 			jobHandler._stepAbortPollInterval = TimeSpan.FromMilliseconds(5);
 
 			JobRpcClientStub client = new JobRpcClientStub(NullLogger.Instance);
+			await using RpcConnectionStub rpcConnection = new RpcConnectionStub(null!, null!, client);
 
 			int c = 0;
 			client._getStepFunc = (request) =>
@@ -236,7 +236,7 @@ namespace Horde.Agent.Tests
 			using CancellationTokenSource stepCancelSource = new CancellationTokenSource();
 			TaskCompletionSource<bool> stepFinishedSource = new TaskCompletionSource<bool>();
 
-			await jobHandler.PollForStepAbortAsync(null!, _jobId, _batchId, _stepId2, stepCancelSource, stepFinishedSource.Task, NullLogger.Instance, stepPollCancelSource.Token);
+			await jobHandler.PollForStepAbortAsync(rpcConnection, _jobId, _batchId, _stepId2, stepCancelSource, stepFinishedSource.Task, NullLogger.Instance, stepPollCancelSource.Token);
 			Assert.IsTrue(stepCancelSource.IsCancellationRequested);
 		}
 
@@ -257,7 +257,7 @@ namespace Horde.Agent.Tests
 			cts.CancelAfter(20000);
 
 			await using FakeHordeRpcServer fakeServer = new();
-			await using ISession session = FakeServerSessionFactory.CreateSession(fakeServer.GetGrpcChannel());
+			await using ISession session = FakeServerSessionFactory.CreateSession(fakeServer.GetConnection());
 
 			LeaseManager manager = new LeaseManager(session, serviceProvider);
 
@@ -276,16 +276,16 @@ namespace Horde.Agent.Tests
 
 		public Task<ISession> CreateAsync(CancellationToken cancellationToken)
 		{
-			return Task.FromResult(CreateSession(_fakeServer.GetGrpcChannel()));
+			return Task.FromResult(CreateSession(_fakeServer.GetConnection()));
 		}
 
-		public static ISession CreateSession(GrpcChannel grpcChannel)
+		public static ISession CreateSession(IRpcConnection rpcConnection)
 		{
 			Mock<ISession> fakeSession = new Mock<ISession>(MockBehavior.Strict);
 			fakeSession.Setup(x => x.ServerUrl).Returns(new Uri("https://localhost:9999"));
 			fakeSession.Setup(x => x.AgentId).Returns(new EpicGames.Horde.Agents.AgentId("LocalAgent"));
 			fakeSession.Setup(x => x.SessionId).Returns(new EpicGames.Horde.Agents.Sessions.SessionId(default));
-			fakeSession.Setup(x => x.GrpcChannel).Returns(grpcChannel);
+			fakeSession.Setup(x => x.RpcConnection).Returns(rpcConnection);
 			fakeSession.Setup(x => x.DisposeAsync()).Returns(new ValueTask());
 			fakeSession.Setup(x => x.WorkingDir).Returns(DirectoryReference.Combine(DirectoryReference.GetCurrentDirectory(), Guid.NewGuid().ToString()));
 			return fakeSession.Object;
@@ -305,12 +305,15 @@ namespace Horde.Agent.Tests
 
 		private readonly Dictionary<StreamId, RpcGetStreamResponse> _streamIdToStreamResponse = new();
 		private readonly Dictionary<JobId, RpcGetJobResponse> _jobIdToJobResponse = new();
+		private readonly Mock<IRpcClientRef<HordeRpc.HordeRpcClient>> _mockClientRef;
+		private readonly Mock<IRpcConnection> _mockConnection;
 		private readonly ILogger<FakeHordeRpcServer> _logger;
 		public readonly TaskCompletionSource<bool> CreateSessionReceived = new();
 		public readonly TaskCompletionSource<bool> UpdateSessionReceived = new();
 
+		private readonly RpcConnectionStub _connection;
 		private readonly GrpcChannel _grpcChannel;
-//		private readonly FakeJobRpcClient _client;
+		private readonly FakeJobRpcClient _client;
 
 		private class FakeHordeRpcClient : HordeRpc.HordeRpcClient
 		{
@@ -361,9 +364,26 @@ namespace Horde.Agent.Tests
 		{
 			_serverName = "FakeServer";
 			_logger = NullLogger<FakeHordeRpcServer>.Instance;
-//			FakeHordeRpcClient hordeClient = new FakeHordeRpcClient(this);
-//			_client = new FakeJobRpcClient(this);
+			FakeHordeRpcClient hordeClient = new FakeHordeRpcClient(this);
+			_client = new FakeJobRpcClient(this);
+			_connection = new RpcConnectionStub(null!, hordeClient, _client);
 			_grpcChannel = GrpcChannel.ForAddress(new Uri("http://horde-agent-test"), new GrpcChannelOptions());
+
+			_mockClientRef = new Mock<IRpcClientRef<HordeRpc.HordeRpcClient>>();
+			_mockClientRef
+				.Setup(m => m.Client)
+				.Returns(() => hordeClient);
+
+			_mockConnection = new(MockBehavior.Strict);
+			_mockConnection
+				.Setup(m => m.TryGetClientRef<HordeRpc.HordeRpcClient>())
+				.Returns(() => _mockClientRef.Object);
+			_mockConnection
+				.Setup(m => m.GetClientRefAsync<HordeRpc.HordeRpcClient>(It.IsAny<CancellationToken>()))
+				.Returns(() => Task.FromResult(_mockClientRef.Object));
+			_mockConnection
+				.Setup(m => m.DisposeAsync())
+				.Returns(() => new ValueTask());
 		}
 
 		public void AddTestLease(string leaseId)
@@ -429,6 +449,11 @@ namespace Horde.Agent.Tests
 				Change = change,
 				PreflightChange = preflightChange
 			};
+		}
+
+		public IRpcConnection GetConnection()
+		{
+			return _connection;
 		}
 
 		public GrpcChannel GetGrpcChannel()
@@ -519,8 +544,9 @@ namespace Horde.Agent.Tests
 				() => { });
 		}
 
-		public ValueTask DisposeAsync()
+		public async ValueTask DisposeAsync()
 		{
+			await _connection.DisposeAsync();
 			_grpcChannel.Dispose();
 
 			foreach (RpcGetStreamResponse stream in _streamIdToStreamResponse.Values)
@@ -533,8 +559,6 @@ namespace Horde.Agent.Tests
 					}
 				}
 			}
-
-			return default;
 		}
 	}
 

@@ -12,7 +12,6 @@ using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Bundles.V1;
-using Grpc.Net.Client;
 using Horde.Agent.Utility;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -127,7 +126,7 @@ namespace Horde.Agent.Tests
 		{
 			public IBlobRef? Target { get; private set; }
 
-			public FakeJsonRpcLoggerBackend(GrpcChannel connection, LogId logId, JobId? jobId, JobStepBatchId? batchId, JobStepId? stepId, IStorageClient store, ILogger logger)
+			public FakeJsonRpcLoggerBackend(IRpcConnection connection, LogId logId, JobId? jobId, JobStepBatchId? batchId, JobStepId? stepId, IStorageClient store, ILogger logger)
 				: base(connection, logId, jobId, batchId, stepId, store, logger)
 			{
 			}

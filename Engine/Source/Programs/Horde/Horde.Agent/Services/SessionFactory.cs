@@ -45,7 +45,7 @@ namespace Horde.Agent.Services
 		/// <summary>
 		/// Connection to the server
 		/// </summary>
-		GrpcChannel GrpcChannel { get; }
+		IRpcConnection RpcConnection { get; }
 
 		/// <summary>
 		/// State of the connection 
@@ -89,7 +89,7 @@ namespace Horde.Agent.Services
 		public string Token { get; }
 
 		/// <inheritdoc/>
-		public GrpcChannel GrpcChannel { get; }
+		public IRpcConnection RpcConnection { get; }
 
 		/// <inheritdoc/>
 		public DirectoryReference WorkingDir { get; }
@@ -100,13 +100,13 @@ namespace Horde.Agent.Services
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public Session(Uri serverUrl, AgentId agentId, SessionId sessionId, string token, GrpcChannel grpcChannel, DirectoryReference workingDir)
+		public Session(Uri serverUrl, AgentId agentId, SessionId sessionId, string token, IRpcConnection rpcConnection, DirectoryReference workingDir)
 		{
 			ServerUrl = serverUrl;
 			AgentId = agentId;
 			SessionId = sessionId;
 			Token = token;
-			GrpcChannel = grpcChannel;
+			RpcConnection = rpcConnection;
 			WorkingDir = workingDir;
 		}
 
@@ -224,8 +224,9 @@ namespace Horde.Agent.Services
 
 			// Open a connection to the server
 #pragma warning disable CA2000 // False positive; ownership is transferred to new Session object.
-			GrpcChannel grpcChannel = await grpcService.CreateGrpcChannelAsync(createSessionResponse.Token, cancellationToken);
-			return new Session(serverProfile.Url, new AgentId(createSessionResponse.AgentId), SessionId.Parse(createSessionResponse.SessionId), createSessionResponse.Token, grpcChannel, workingDir);
+			Func<CancellationToken, Task<GrpcChannel>> createGrpcChannelAsync = ctx => grpcService.CreateGrpcChannelAsync(createSessionResponse.Token, ctx);
+			IRpcConnection rpcConnection = new RpcConnection(createGrpcChannelAsync, logger);
+			return new Session(serverProfile.Url, new AgentId(createSessionResponse.AgentId), SessionId.Parse(createSessionResponse.SessionId), createSessionResponse.Token, rpcConnection, workingDir);
 #pragma warning restore CA2000
 		}
 
@@ -233,10 +234,9 @@ namespace Horde.Agent.Services
 		/// Dispose of the current session
 		/// </summary>
 		/// <returns></returns>
-		public ValueTask DisposeAsync()
+		public async ValueTask DisposeAsync()
 		{
-			GrpcChannel.Dispose();
-			return default;
+			await RpcConnection.DisposeAsync();
 		}
 
 		static FileReference GetRegistrationFile()
