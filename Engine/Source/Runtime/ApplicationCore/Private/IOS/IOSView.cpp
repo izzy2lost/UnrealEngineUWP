@@ -118,7 +118,7 @@ MTL::Device* GMetalDevice = nullptr;
 {
 #if BUILD_EMBEDDED_APP
 	SCOPED_BOOT_TIMING("MetalLayer class");
-	GMetalDevice = MTLCreateSystemDefaultDevice();
+	GMetalDevice = (__bridge MTL::Device*)MTLCreateSystemDefaultDevice();
 	return [CAMetalLayer class];
 #endif
 	
