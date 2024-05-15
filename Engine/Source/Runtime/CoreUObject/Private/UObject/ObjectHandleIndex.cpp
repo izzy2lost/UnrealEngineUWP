@@ -590,11 +590,12 @@ namespace UE::CoreUObject::Private
 
 	FPackedObjectRef FindExistingPackedObjectRef(const UObject* Object)
 	{
-		int32 ObjectIndex = GUObjectArray.ObjectToIndex(Object);
-		if (ObjectIndex == INDEX_NONE)
+		if (!GUObjectArray.IsValidIndex(Object))
 		{
 			return FPackedObjectRef {0};
 		}
+
+		const int32 ObjectIndex = GUObjectArray.ObjectToIndex(Object);
 		return UE::CoreUObject::Private::GObjectHandleIndex.ObjectIndexToPackedObjectRef[ObjectIndex];
 	}
 }
