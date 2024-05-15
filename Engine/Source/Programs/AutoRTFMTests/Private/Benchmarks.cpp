@@ -254,6 +254,16 @@ TEST_CASE("Graph")
 
 	for (unsigned Total : {1, 10, 100, 10000})
 	{
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer)
+		// This test is hella long with ASan so we bail after the first iteration.
+		if (Total > 1)
+		{
+			return;
+		}
+#endif
+#endif
+
 		{
 			unsigned Result;
 			ResetXorshift();
