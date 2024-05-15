@@ -22,6 +22,9 @@ namespace UE::DMX::GDTF
 	public:
 		FDMXGDTFDMXChannel(const TSharedRef<FDMXGDTFDMXMode>& InDMXMode);
 
+		/** Explicit copy constructor, required to avoid deprecation warnings on Clang with deprecated member Default. */
+		FDMXGDTFDMXChannel(const FDMXGDTFDMXChannel& Other) = default;
+
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("DMXChannel"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
