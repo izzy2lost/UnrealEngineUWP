@@ -44,7 +44,7 @@ public:
 	UE_DEPRECATED(5.4, "LoadActors is deprecated, LoadActors with FLoadActorsParams should be used instead.")
 	static bool LoadActors(UWorld* InOuterWorld, ULevel* InDestLevel, TArrayView<FWorldPartitionRuntimeCellObjectMapping> InActorPackages, FPackageReferencer& InPackageReferencer, TFunction<void(bool)> InCompletionCallback, bool bInLoadAsync, FLinkerInstancingContext InInstancingContext);
 
-	/* Struct of optional parameters passed to foreach actordesc functions. */
+	/* Struct of optional parameters passed to LoadActors function. */
 	struct FLoadActorsParams
 	{
 		FLoadActorsParams()

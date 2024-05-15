@@ -22,6 +22,7 @@
 #include "WorldPartition/WorldPartitionStreamingGeneration.h"
 #include "WorldPartition/WorldPartitionActorLoaderInterface.h"
 #include "WorldPartition/WorldPartitionEditorLoaderAdapter.h"
+#include "WorldPartition/WorldPartitionRuntimeCellTransformer.h"
 #include "ExternalDirtyActorsTracker.h"
 #include "PackageSourceControlHelper.h"
 #include "CookPackageSplitter.h"
@@ -113,6 +114,27 @@ public:
 };
 #endif
 
+/** Holds an instance of a runtime cell transformer. */
+USTRUCT()
+struct FRuntimeCellTransformerInstance
+{
+	GENERATED_USTRUCT_BODY()
+
+#if WITH_EDITORONLY_DATA
+	inline void PreTransform(ULevel* InLevel) const { if (Instance) { Instance->PreTransform(InLevel); } }
+	inline void Transform(ULevel* InLevel) const { if (Instance) { Instance->Transform(InLevel); } }
+	inline void PostTransform(ULevel* InLevel) const { if (Instance) { Instance->PostTransform(InLevel); } }
+
+	/** Runtime cell transformer class */
+	UPROPERTY(EditAnywhere, Category = WorldPartitionSetup, AdvancedDisplay)
+	TSubclassOf<UWorldPartitionRuntimeCellTransformer> Class;
+
+	/** Transformer object instance */
+	UPROPERTY(VisibleAnywhere, Category = WorldPartitionSetup, Instanced, Meta = (EditCondition = "Class != nullptr", HideEditConditionToggle, NoResetToDefault))
+	TObjectPtr<UWorldPartitionRuntimeCellTransformer> Instance;
+#endif
+};
+
 UCLASS(AutoExpandCategories=(WorldPartition), MinimalAPI)
 class UWorldPartition final : public UObject, public FActorDescContainerInstanceCollection, public IWorldPartitionCookPackageGenerator
 {
@@ -186,6 +208,7 @@ public:
 	//~ Begin UObject Interface
 #if WITH_EDITOR
 	ENGINE_API virtual bool CanEditChange(const FProperty* InProperty) const override;
+	ENGINE_API virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 #endif //WITH_EDITOR
 	ENGINE_API virtual void Serialize(FArchive& Ar) override;
 	ENGINE_API virtual UWorld* GetWorld() const override;
@@ -310,6 +333,8 @@ public:
 
 	ENGINE_API FBox GetEditorWorldBounds() const;
 	ENGINE_API FBox GetRuntimeWorldBounds() const;
+
+	ENGINE_API void ApplyRuntimeCellsTransformerStack(ULevel* InLevel);
 	
 	UHLODLayer* GetDefaultHLODLayer() const { return DefaultHLODLayer; }
 	void SetDefaultHLODLayer(UHLODLayer* InDefaultHLODLayer) { DefaultHLODLayer = InDefaultHLODLayer; }
@@ -589,6 +614,14 @@ private:
 #endif
 
 #if WITH_EDITORONLY_DATA
+	/** Runtime cells transform stack objects */
+	UPROPERTY(EditAnywhere, Category = WorldPartitionSetup)
+	TArray<FRuntimeCellTransformerInstance> RuntimeCellsTransformerStack;
+
+	/** Runtime cells transform stack objects execution stats */
+	float RuntimeCellsTransformerStackDumpTime = 0.0f;
+	TMap<UClass*, TPair<double, int32>> RuntimeCellsTransformerStackTimes;
+
 	// Default HLOD layer
 	UPROPERTY(EditAnywhere, Category = WorldPartitionSetup, meta = (DisplayName = "Default HLOD Layer", EditCondition="bEnableStreaming", EditConditionHides, HideEditConditionToggle))
 	TObjectPtr<class UHLODLayer> DefaultHLODLayer;

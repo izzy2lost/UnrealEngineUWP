@@ -537,6 +537,8 @@ void UWorldPartitionLevelStreamingDynamic::FinalizeRuntimeLevel()
 			// Remap Runtime Level's SoftObjectPaths
 			FWorldPartitionLevelHelper::RemapLevelSoftObjectPaths(RuntimeLevel, OuterWorldPartition.Get());
 		}
+
+		OuterWorldPartition->ApplyRuntimeCellsTransformerStack(RuntimeLevel);
 	}
 
 	SetLoadedLevel(RuntimeLevel);

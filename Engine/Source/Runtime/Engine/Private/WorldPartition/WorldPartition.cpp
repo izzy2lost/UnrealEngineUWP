@@ -4,6 +4,7 @@
 	WorldPartition.cpp: UWorldPartition implementation
 =============================================================================*/
 #include "WorldPartition/WorldPartition.h"
+#include "Engine/Engine.h"
 #include "Misc/PackageName.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/UObjectIterator.h"
@@ -57,6 +58,8 @@
 #include "WorldPartition/ErrorHandling/WorldPartitionStreamingGenerationMapCheckErrorHandler.h"
 #include "Modules/ModuleManager.h"
 #include "GameDelegates.h"
+
+#include "WorldPartition/WorldPartitionRuntimeCellTransformerISM.h"
 #else
 #include "Engine/Level.h"
 #endif //WITH_EDITOR
@@ -482,6 +485,32 @@ bool UWorldPartition::CanEditChange(const FProperty* InProperty) const
 	}
 
 	return true;
+}
+
+void UWorldPartition::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeChainProperty(PropertyChangedEvent);
+
+	static FName NAME_RuntimeCellsTransformerStack(TEXT("RuntimeCellsTransformerStack"));
+	FName PropertyName = PropertyChangedEvent.Property ? PropertyChangedEvent.Property->GetFName() : NAME_None;
+
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(FRuntimeCellTransformerInstance, Class))
+	{
+		int32 TransformerIndex = PropertyChangedEvent.GetArrayIndex(NAME_RuntimeCellsTransformerStack.ToString());
+		check(RuntimeCellsTransformerStack.IsValidIndex(TransformerIndex));
+
+		FRuntimeCellTransformerInstance& TransformerInstance = RuntimeCellsTransformerStack[TransformerIndex];
+		
+		UWorldPartitionRuntimeCellTransformer* OldTransformerInstance = TransformerInstance.Instance;
+
+		TransformerInstance.Instance = TransformerInstance.Class ? NewObject<UWorldPartitionRuntimeCellTransformer>(this, TransformerInstance.Class, NAME_None) : nullptr;
+
+		if (OldTransformerInstance && TransformerInstance.Instance)
+		{
+			UEngine::FCopyPropertiesForUnrelatedObjectsParams Params;
+			UEngine::CopyPropertiesForUnrelatedObjects(OldTransformerInstance, TransformerInstance.Instance, Params);
+		}
+	}
 }
 
 FName UWorldPartition::GetWorldPartitionEditorName() const
@@ -1667,6 +1696,25 @@ void UWorldPartition::Tick(float DeltaSeconds)
 			}
 		}
 	}
+
+	if (RuntimeCellsTransformerStackTimes.Num())
+	{
+		RuntimeCellsTransformerStackDumpTime += DeltaSeconds;
+
+		if (RuntimeCellsTransformerStackDumpTime > 10.0f)
+		{
+			RuntimeCellsTransformerStackTimes.ValueSort([](const TPair<double, int32>& A, const TPair<double, int32>& B) { return B.Key < A.Key; } );
+
+			UE_LOG(LogWorldPartition, Log, TEXT("Runtime cells transformer stack per-cell stats:"));
+			for (TPair<UClass*, TPair<double, int32>>& StatsPair : RuntimeCellsTransformerStackTimes)
+			{
+				UE_LOG(LogWorldPartition, Log, TEXT("\t%s: %s"), *StatsPair.Key->GetName(), *FPlatformTime::PrettyTime(StatsPair.Value.Key / (double)StatsPair.Value.Value));
+			}
+
+			RuntimeCellsTransformerStackTimes.Empty();
+			RuntimeCellsTransformerStackDumpTime = 0.0f;
+		}
+	}
 #endif
 }
 
@@ -2209,6 +2257,27 @@ FBox UWorldPartition::GetRuntimeWorldBounds() const
 
 	return EditorHash->GetNonSpatialBounds();
 }
+
+void UWorldPartition::ApplyRuntimeCellsTransformerStack(ULevel* InLevel)
+{
+	auto ApplyTransformPhase = [this, InLevel](TFunction<void(const FRuntimeCellTransformerInstance& TransformerInstance, ULevel* Level)> Func)
+	{
+		for (const FRuntimeCellTransformerInstance& TransformerInstance : RuntimeCellsTransformerStack)
+		{
+			TPair<double, int32>& TotalStats = RuntimeCellsTransformerStackTimes.FindOrAdd(TransformerInstance.Class);
+			TotalStats.Key -= FPlatformTime::Seconds();
+		
+			Func(TransformerInstance, InLevel);
+		
+			TotalStats.Key += FPlatformTime::Seconds();
+			TotalStats.Value++;
+		}
+	};
+
+	ApplyTransformPhase([](const FRuntimeCellTransformerInstance& TransformerInstance, ULevel* Level) { TransformerInstance.PreTransform(Level); });
+	ApplyTransformPhase([](const FRuntimeCellTransformerInstance& TransformerInstance, ULevel* Level) { TransformerInstance.Transform(Level); });
+	ApplyTransformPhase([](const FRuntimeCellTransformerInstance& TransformerInstance, ULevel* Level) { TransformerInstance.PostTransform(Level); });
+}
 #endif
 
 bool UWorldPartition::SupportsWorldAssetStreaming(const FName& InTargetGrid)
@@ -2232,4 +2301,3 @@ TArray<UWorldPartitionRuntimeCell*> UWorldPartition::GetWorldAssetStreamingCells
 }
 
 #undef LOCTEXT_NAMESPACE
-
