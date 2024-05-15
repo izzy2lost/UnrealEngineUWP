@@ -1292,8 +1292,6 @@ public:
 		}
 
 		OutPackedUniformBufferStagingMask = ((uint64)1 << (uint64)InCodeHeader.PackedUBs.Num()) - 1;
-		EmulatedUBsCopyInfo = InCodeHeader.EmulatedUBsCopyInfo;
-		EmulatedUBsCopyRanges = InCodeHeader.EmulatedUBCopyRanges;
 	}
 
 	inline void SetPackedGlobalParameter(uint32 BufferIndex, uint32 ByteOffset, uint32 NumBytes, const void* RESTRICT NewValue, uint64& InOutPackedUniformBufferStagingDirty)
@@ -1317,31 +1315,6 @@ public:
 	// Copies a 'real' constant buffer into the packed globals uniform buffer (only the used ranges)
 	inline void SetEmulatedUniformBufferIntoPacked(uint32 BindPoint, const TArray<uint8>& ConstantData, uint64& NEWPackedUniformBufferStagingDirty)
 	{
-		// Emulated UBs. Assumes UniformBuffersCopyInfo table is sorted by CopyInfo.SourceUBIndex
-		if (BindPoint < (uint32)EmulatedUBsCopyRanges.Num())
-		{
-			uint32 Range = EmulatedUBsCopyRanges[BindPoint];
-			uint16 Start = (Range >> 16) & 0xffff;
-			uint16 Count = Range & 0xffff;
-			const uint8* RESTRICT SourceData = ConstantData.GetData();
-			for (int32 Index = Start; Index < Start + Count; ++Index)
-			{
-				const CrossCompiler::FUniformBufferCopyInfo& CopyInfo = EmulatedUBsCopyInfo[Index];
-				check(CopyInfo.SourceUBIndex == BindPoint);
-				FPackedBuffer& StagingBuffer = PackedUniformBuffers[(int32)CopyInfo.DestUBIndex];
-				//check(ByteOffset + NumBytes <= (uint32)StagingBuffer.Num());
-				bool bChanged = false;
-				uint32* RESTRICT RawDst = (uint32*)(StagingBuffer.GetData() + CopyInfo.DestOffsetInFloats * 4);
-				uint32* RESTRICT RawSrc = (uint32*)(SourceData + CopyInfo.SourceOffsetInFloats * 4);
-				uint32* RESTRICT RawSrcEnd = RawSrc + CopyInfo.SizeInFloats;
-				do
-				{
-					bChanged |= CopyAndReturnNotEqual(*RawDst++, *RawSrc++);
-				}
-				while (RawSrc != RawSrcEnd);
-				NEWPackedUniformBufferStagingDirty = NEWPackedUniformBufferStagingDirty | ((uint64)(bChanged ? 1 : 0) << (uint64)CopyInfo.DestUBIndex);
-			}
-		}
 	}
 
 	inline const FPackedBuffer& GetBuffer(int32 Index) const
@@ -1351,10 +1324,6 @@ public:
 
 protected:
 	TArray<FPackedBuffer>									PackedUniformBuffers;
-
-	// Copies to Shader Code Header (shaders may be deleted when we use this object again)
-	TArray<CrossCompiler::FUniformBufferCopyInfo>			EmulatedUBsCopyInfo;
-	TArray<uint32>											EmulatedUBsCopyRanges;
 };
 
 class FVulkanStagingBuffer : public FRHIStagingBuffer

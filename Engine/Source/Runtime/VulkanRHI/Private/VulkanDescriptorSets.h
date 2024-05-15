@@ -58,7 +58,6 @@ struct FDescriptorSetRemappingInfo
 
 		bool					bHasConstantData = false;
 		const bool				bPadding = false;	// padding is need on memcmp/MemCrc to make sure mem align
-		//bool					bIsRedundant = false;
 	};
 
 	struct FSetInfo
@@ -173,12 +172,9 @@ struct FDescriptorSetRemappingInfo
 		return false;
 	}
 
-	uint32 AddGlobal(uint32 Stage, int32 GlobalIndex, uint32 NewDescriptorSet, VkDescriptorType InType, uint16 CombinedSamplerStateAlias)
+	uint32 AddGlobal(uint32 Stage, int32 GlobalIndex, uint32 NewDescriptorSet, VkDescriptorType InType)
 	{
-		// Combined Image Samplers point both the texture and the sampler to the same descriptor
-		check(CombinedSamplerStateAlias == UINT16_MAX || InType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-
-		uint32 NewBindingIndex = CombinedSamplerStateAlias == UINT16_MAX ? SetInfos[NewDescriptorSet].Types.Add(InType) : StageInfos[Stage].Globals[CombinedSamplerStateAlias].NewBindingIndex;
+		const uint32 NewBindingIndex = SetInfos[NewDescriptorSet].Types.Add(InType);
 
 		int32 RemappingIndex = StageInfos[Stage].Globals.AddDefaulted();
 		check(RemappingIndex == GlobalIndex);
@@ -240,24 +236,6 @@ struct FDescriptorSetRemappingInfo
 		FDescriptorSetRemappingInfo::FUBRemappingInfo& UBRemapping = StageInfos[Stage].UniformBuffers[UBRemappingIndex];
 		UBRemapping.bHasConstantData = false;
 	}
-
-/*
-	uint32 AddUBResourceEntryToSetAndRemapping(int32 Stage, int32 UniformBufferIndex, int32 ResourceEntryIndex, uint32 NewDescriptorSet, VkDescriptorType InType, uint8 CombinedSamplerStateAlias)
-	{
-		// Combined Image Samplers point both the texture and the sampler to the same descriptor
-		check(CombinedSamplerStateAlias == UINT8_MAX || InType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-		uint32 NewBindingIndex = CombinedSamplerStateAlias == UINT8_MAX ? SetInfos[NewDescriptorSet].Types.Add(InType) : StageInfos[Stage].UniformBuffers[UniformBufferIndex].EntriesRemappingInfo[CombinedSamplerStateAlias].NewBindingIndex;
-
-		int32 UBEntryRemappingIndex = StageInfos[Stage].UniformBuffers[UniformBufferIndex].EntriesRemappingInfo.AddDefaulted();
-		check(UBEntryRemappingIndex == ResourceEntryIndex);
-		FDescriptorSetRemappingInfo::FRemappingInfo& UBEntryRemapping = StageInfos[Stage].UniformBuffers[UniformBufferIndex].EntriesRemappingInfo[UBEntryRemappingIndex];
-		UBEntryRemapping.NewDescriptorSet = NewDescriptorSet;
-		UBEntryRemapping.NewBindingIndex = NewBindingIndex;
-
-		return NewBindingIndex;
-	}
-*/
-
 
 	static_assert(
 		sizeof(FRemappingInfo) == (sizeof(FRemappingInfo::NewDescriptorSet) + sizeof(FRemappingInfo::NewBindingIndex)),
@@ -786,15 +764,10 @@ public:
 		{
 		case FVulkanShaderHeader::UniformBuffer:
 			ensure(RemappingUBInfos[Stage][ParameterIndex].bHasConstantData);
-			//ensure(RemappingInfo->StageInfos[Stage].UniformBuffers[ParameterIndex].bHasConstantData);
-			//OutDescriptorSet = RemappingInfo->StageInfos[Stage].UniformBuffers[ParameterIndex].Remapping.NewDescriptorSet;
-			//OutBindingIndex = RemappingInfo->StageInfos[Stage].UniformBuffers[ParameterIndex].Remapping.NewBindingIndex;
 			OutDescriptorSet = RemappingUBInfos[Stage][ParameterIndex].Remapping.NewDescriptorSet;
 			OutBindingIndex = RemappingUBInfos[Stage][ParameterIndex].Remapping.NewBindingIndex;
 			break;
 		case FVulkanShaderHeader::Global:
-			//OutDescriptorSet = RemappingInfo->StageInfos[Stage].Globals[ParameterIndex].NewDescriptorSet;
-			//OutBindingIndex = RemappingInfo->StageInfos[Stage].Globals[ParameterIndex].NewBindingIndex;
 			OutDescriptorSet = RemappingGlobalInfos[Stage][ParameterIndex].NewDescriptorSet;
 			OutBindingIndex = RemappingGlobalInfos[Stage][ParameterIndex].NewBindingIndex;
 			break;
@@ -807,7 +780,6 @@ public:
 
 	inline const TArray<FDescriptorSetRemappingInfo::FRemappingInfo>& GetGlobalRemappingInfo(ShaderStage::EStage Stage) const
 	{
-		//OutDescriptorSet = RemappingUBInfos[Stage][ParameterIndex].Remapping.NewDescriptorSet;
 		return RemappingInfo->StageInfos[Stage].Globals;
 	}
 

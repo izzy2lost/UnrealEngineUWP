@@ -812,7 +812,7 @@ void FVulkanDescriptorSetsLayoutInfo::FinalizeBindings(const FVulkanDevice& Devi
 	{
 		if (const FVulkanShaderHeader* ShaderHeader = UBGatherInfo.CodeHeaders[Stage])
 		{
-			VkShaderStageFlags StageFlags = UEFrequencyToVKStageBit(bIsCompute ? SF_Compute : ShaderStage::GetFrequencyForGfxStage((ShaderStage::EStage)Stage));
+			const VkShaderStageFlags StageFlags = UEFrequencyToVKStageBit(bIsCompute ? SF_Compute : ShaderStage::GetFrequencyForGfxStage((ShaderStage::EStage)Stage));
 			Binding.stageFlags = StageFlags;
 
 			RemappingInfo.StageInfos[Stage].PackedUBBindingIndices.Reserve(ShaderHeader->PackedUBs.Num());
@@ -867,31 +867,12 @@ void FVulkanDescriptorSetsLayoutInfo::FinalizeBindings(const FVulkanDevice& Devi
 			{
 				const FVulkanShaderHeader::FGlobalInfo& GlobalInfo = ShaderHeader->Globals[Index];
 				int32 DescriptorSet = FindOrAddDescriptorSet(Stage);
-				VkDescriptorType Type = BindingToDescriptorType(ShaderHeader->GlobalDescriptorTypes[GlobalInfo.TypeIndex]);
-				uint16 CombinedSamplerStateAlias = GlobalInfo.CombinedSamplerStateAliasIndex;
-				uint32 NewBindingIndex = RemappingInfo.AddGlobal(Stage, Index, DescriptorSet, Type, CombinedSamplerStateAlias);
+				const VkDescriptorType Type = (VkDescriptorType)GlobalInfo.TypeIndex;
+				uint32 NewBindingIndex = RemappingInfo.AddGlobal(Stage, Index, DescriptorSet, Type);
 				Binding.binding = NewBindingIndex;
 				Binding.descriptorType = Type;
-				if (CombinedSamplerStateAlias == UINT16_MAX)
-				{
-					if (GlobalInfo.bImmutableSampler)
-					{
-						if (CurrentImmutableSampler < ImmutableSamplers.Num())
-						{
-							FVulkanSamplerState* SamplerState = ResourceCast(ImmutableSamplers[CurrentImmutableSampler]);
-							if (SamplerState && SamplerState->Sampler != VK_NULL_HANDLE)
-							{
-								Binding.pImmutableSamplers = &SamplerState->Sampler;
-							}
-							++CurrentImmutableSampler;
-						}
-					}
-
 					AddDescriptor(DescriptorSet, Binding);
 				}
-
-				Binding.pImmutableSamplers = nullptr;
-			}
 
 			if (ShaderHeader->InputAttachments.Num())
 			{
@@ -901,7 +882,7 @@ void FVulkanDescriptorSetsLayoutInfo::FinalizeBindings(const FVulkanDevice& Devi
 				{
 					int32 OriginalGlobalIndex = ShaderHeader->InputAttachments[SrcIndex].GlobalIndex;
 					const FVulkanShaderHeader::FGlobalInfo& OriginalGlobalInfo = ShaderHeader->Globals[OriginalGlobalIndex];
-					check(BindingToDescriptorType(ShaderHeader->GlobalDescriptorTypes[OriginalGlobalInfo.TypeIndex]) == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT);
+					check((VkDescriptorType)OriginalGlobalInfo.TypeIndex == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT);
 					int32 RemappingIndex = RemappingInfo.InputAttachmentData.AddDefaulted();
 					FInputAttachmentData& AttachmentData = RemappingInfo.InputAttachmentData[RemappingIndex];
 					AttachmentData.BindingIndex = RemappingInfo.StageInfos[Stage].Globals[OriginalGlobalIndex].NewBindingIndex;

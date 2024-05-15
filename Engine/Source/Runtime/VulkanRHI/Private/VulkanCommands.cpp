@@ -540,7 +540,7 @@ void FVulkanCommandListContext::RHISetShaderUniformBuffer(FRHIGraphicsShader* Sh
 		}
 	}
 
-	if (HeaderUBInfo.ResourceEntries.Num())
+	if (HeaderUBInfo.bHasResources)
 	{
 		checkSlow(Shader->Frequency < SF_NumStandardFrequencies);
 		check(BufferIndex < MAX_UNIFORM_BUFFERS_PER_SHADER_STAGE);
@@ -598,7 +598,7 @@ void FVulkanCommandListContext::RHISetShaderUniformBuffer(FRHIComputeShader* Com
 		}
 	}
 
-	if (HeaderUBInfo.ResourceEntries.Num())
+	if (HeaderUBInfo.bHasResources)
 	{
 		checkSlow(ComputeShaderRHI->GetFrequency() == SF_Compute);
 		check(BufferIndex < MAX_UNIFORM_BUFFERS_PER_SHADER_STAGE);

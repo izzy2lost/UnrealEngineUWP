@@ -26,25 +26,17 @@ namespace ShaderStage
 		// Keep the values in sync with EShaderFrequency
 		Vertex = 0,
 		Pixel = 1,
-
-#if VULKAN_SUPPORTS_GEOMETRY_SHADERS
 		Geometry = 2,
-#endif
 
 		RayGen = 3,
 		RayMiss = 4,
 		RayHitGroup = 5,
 		RayCallable = 6,
 
-#if VULKAN_SUPPORTS_GEOMETRY_SHADERS
-		NumGeometryStages = 1,
-#else
-		NumGeometryStages = 0,
-#endif
-
+		NumGraphicsStages = 3,
 		NumRayTracingStages = 4,
 
-		NumStages = (2 + NumGeometryStages + NumRayTracingStages),
+		NumStages = (NumGraphicsStages + NumRayTracingStages),
 
 		// Compute is its own pipeline, so it can all live as set 0
 		Compute = 0,
@@ -60,9 +52,7 @@ namespace ShaderStage
 		{
 		case SF_Vertex:		return Vertex;
 		case SF_Pixel:		return Pixel;
-#if VULKAN_SUPPORTS_GEOMETRY_SHADERS
 		case SF_Geometry:	return Geometry;
-#endif
 		case SF_RayGen:			return RayGen;
 		case SF_RayMiss:		return RayMiss;
 		case SF_RayHitGroup:	return RayHitGroup;
@@ -82,9 +72,7 @@ namespace ShaderStage
 		{
 		case EStage::Vertex:	return SF_Vertex;
 		case EStage::Pixel:		return SF_Pixel;
-#if VULKAN_SUPPORTS_GEOMETRY_SHADERS
 		case EStage::Geometry:	return SF_Geometry;
-#endif
 		case EStage::RayGen:		return SF_RayGen;
 		case EStage::RayMiss:		return SF_RayMiss;
 		case EStage::RayHitGroup:	return SF_RayHitGroup;
@@ -122,59 +110,6 @@ namespace VulkanBindless
 		MaxNumSets = NumBindlessSets
 	};
 };
-
-namespace EVulkanBindingType
-{
-	enum EType : uint8
-	{
-		PackedUniformBuffer,	//VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
-		UniformBuffer,			//VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
-
-		CombinedImageSampler,	//VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER	*not used*
-		Sampler,				//VK_DESCRIPTOR_TYPE_SAMPLER				(HLSL: SamplerState/SamplerComparisonState)
-		Image,					//VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE			(HLSL: Texture2D/3D/Cube)
-
-		UniformTexelBuffer,		//VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER	(HLSL: Buffer)
-
-		// A storage image is a descriptor type that is used for load, store, and atomic operations on image memory from within shaders bound to pipelines.
-		StorageImage,			//VK_DESCRIPTOR_TYPE_STORAGE_IMAGE			(HLSL: RWTexture2D/3D/Cube)
-
-		//A storage texel buffer represents a tightly packed array of homogeneous formatted data that is stored in a buffer and is made accessible to shaders. Storage texel buffers differ from uniform texel buffers in that they support stores and atomic operations in shaders, may support a different maximum length, and may have different performance characteristics.
-		StorageTexelBuffer,		//VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER	(HLSL: RWBuffer)
-
-		// A storage buffer is a region of structured storage that supports both read and write access for shaders. In addition to general read and write operations, some members of storage buffers can be used as the target of atomic operations. In general, atomic operations are only supported on members that have unsigned integer formats.
-		StorageBuffer,			//VK_DESCRIPTOR_TYPE_STORAGE_BUFFER			(HLSL: StructuredBuffer/RWStructureBuffer/ByteAddressBuffer/RWByteAddressBuffer)
-
-		InputAttachment,
-
-		AccelerationStructure,	//VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR
-
-		Count,
-	};
-
-	static inline char GetBindingTypeChar(EType Type)
-	{
-		// Make sure these do NOT alias EPackedTypeName*
-		switch (Type)
-		{
-		case UniformBuffer:			return 'b';
-		case CombinedImageSampler:	return 'c';
-		case Sampler:				return 'p';
-		case Image:					return 'w';
-		case UniformTexelBuffer:	return 'x';
-		case StorageImage:			return 'y';
-		case StorageTexelBuffer:	return 'z';
-		case StorageBuffer:			return 'v';
-		case InputAttachment:		return 'a';
-		case AccelerationStructure:	return 'r';
-		default:
-			check(0);
-			break;
-		}
-
-		return 0;
-	}
-}
 
 DECLARE_LOG_CATEGORY_EXTERN(LogVulkan, Display, All);
 

@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "SpirvCommon.h"
-#include "hlslcc.h"
 
 
 struct FVulkanSpirv : FSpirv
@@ -12,15 +11,17 @@ struct FVulkanSpirv : FSpirv
 	struct FEntry
 	{
 		FEntry() = default;
-		FEntry(const FString& InName, int32 InBinding)
+		FEntry(const FString& InName, int32 InBinding, uint32 InDescriptorType)
 			: Name(InName)
 			, Binding(InBinding)
+			, DescriptorType(InDescriptorType)
 		{
 		}
 		FString Name;
 		int32 Binding = -1;
 
 		uint32 DescriptorSet = UINT32_MAX;
+		uint32 DescriptorType = UINT32_MAX;
 
 		// Index into the Spirv Word containing the descriptor set decoration
 		uint32 WordDescriptorSetIndex = UINT32_MAX;

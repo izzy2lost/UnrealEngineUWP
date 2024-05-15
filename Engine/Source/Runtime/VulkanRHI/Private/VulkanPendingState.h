@@ -128,11 +128,6 @@ public:
 		CurrentState->SetPackedGlobalShaderParameter(BufferIndex, Offset, NumBytes, NewValue);
 	}
 
-	inline void SetUniformBufferConstantData(uint32 BindingIndex, const TArray<uint8>& ConstantData)
-	{
-		CurrentState->SetUniformBufferConstantData(BindingIndex, ConstantData);
-	}
-
 	inline void SetSamplerStateForUBResource(uint32 DescriptorSet, uint32 BindingIndex, FVulkanSamplerState* Sampler)
 	{
 		CurrentState->SetSamplerState(DescriptorSet, BindingIndex, Sampler);
@@ -291,11 +286,6 @@ public:
 	inline void SetTextureForUBResource(uint8 DescriptorSet, uint32 BindingIndex, const FVulkanTexture* Texture, VkImageLayout Layout)
 	{
 		CurrentState->SetTexture(DescriptorSet, BindingIndex, Texture, Layout);
-	}
-
-	inline void SetUniformBufferConstantData(ShaderStage::EStage Stage, uint32 BindingIndex, const TArray<uint8>& ConstantData)
-	{
-		CurrentState->SetUniformBufferConstantData(Stage, BindingIndex, ConstantData);
 	}
 
 	template<bool bDynamic>
