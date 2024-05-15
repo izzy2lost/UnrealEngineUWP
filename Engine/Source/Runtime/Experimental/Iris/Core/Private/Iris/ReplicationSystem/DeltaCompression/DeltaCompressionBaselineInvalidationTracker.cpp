@@ -18,7 +18,12 @@ FDeltaCompressionBaselineInvalidationTracker::~FDeltaCompressionBaselineInvalida
 void FDeltaCompressionBaselineInvalidationTracker::Init(FDeltaCompressionBaselineInvalidationTrackerInitParams& InitParams)
 {
 	BaselineManager = InitParams.BaselineManager;
-	InvalidatedObjects.Init(InitParams.MaxObjectCount);
+	InvalidatedObjects.Init(InitParams.MaxInternalNetRefIndex);
+}
+
+void FDeltaCompressionBaselineInvalidationTracker::OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex)
+{
+	InvalidatedObjects.SetNumBits(NewMaxInternalIndex);
 }
 
 void FDeltaCompressionBaselineInvalidationTracker::InvalidateBaselines(FInternalNetRefIndex ObjectIndex, uint32 ConnId)

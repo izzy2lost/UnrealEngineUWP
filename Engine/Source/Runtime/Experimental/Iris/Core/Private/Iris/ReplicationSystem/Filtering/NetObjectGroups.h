@@ -43,7 +43,7 @@ struct FNetObjectGroup
 struct FNetObjectGroupInitParams
 {
 	FNetRefHandleManager* NetRefHandleManager = nullptr;
-	uint32 MaxObjectCount = 0;
+	uint32 MaxInternalNetRefIndex = 0;
 	uint32 MaxGroupCount = 0;
 };
 
@@ -116,6 +116,9 @@ public:
 	{
 		return MakeNetBitArrayView(GroupFilteredOutObjects);
 	}
+
+	/** Called when the maximum InternalNetRefIndex increased and we need to realloc our lists */
+	void OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex);
 
 private:
 	struct FNetObjectGroupMembership

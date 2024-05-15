@@ -33,7 +33,7 @@ struct FReplicationConditionalsInitParams
 	const FReplicationConnections* ReplicationConnections = nullptr;
 	const FNetObjectGroups* NetObjectGroups = nullptr;
 	FDeltaCompressionBaselineInvalidationTracker* BaselineInvalidationTracker = nullptr;
-	uint32 MaxObjectCount = 0;
+	FInternalNetRefIndex MaxInternalNetRefIndex = 0;
 	uint32 MaxConnectionCount = 0;
 };
 
@@ -51,6 +51,9 @@ public:
 	FReplicationConditionals();
 
 	void Init(FReplicationConditionalsInitParams& Params);
+
+	/** Called when the maximum InternalNetRefIndex increased and we need to realloc our lists */
+	void OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex);
 
 	void AddConnection(uint32 ConnectionId);
 	void RemoveConnection(uint32 ConnectionId);
@@ -140,7 +143,7 @@ private:
 	TArray<FPerConnectionInfo> ConnectionInfos;
 	TMap<FInternalNetRefIndex, FObjectDynamicConditions> DynamicConditions;
 
-	uint32 MaxObjectCount = 0;
+	FInternalNetRefIndex MaxInternalNetRefIndex = 0;
 	uint32 MaxConnectionCount = 0;
 	uint16 CachedRemoteRoleRepIndex = InvalidRepIndex;
 };

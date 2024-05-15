@@ -18,7 +18,18 @@ void USphereWithOwnerBoostNetObjectPrioritizer::Init(FNetObjectPrioritizerInitPa
 	Super::Init(Params);
 
 	ReplicationSystem = Params.ReplicationSystem;
-	AssignedOwningConnectionIndices.Init(Params.MaxObjectCount);
+
+	AssignedOwningConnectionIndices.Init(Params.AbsoluteMaxNetObjectCount);
+}
+
+void USphereWithOwnerBoostNetObjectPrioritizer::Deinit()
+{
+	Super::Deinit();
+
+	ReplicationSystem = nullptr;
+
+	AssignedOwningConnectionIndices.Empty();
+	OwningConnections.Empty();
 }
 
 bool USphereWithOwnerBoostNetObjectPrioritizer::AddObject(uint32 ObjectIndex, FNetObjectPrioritizerAddObjectParams& Params)

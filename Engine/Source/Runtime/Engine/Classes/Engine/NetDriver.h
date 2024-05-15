@@ -632,25 +632,25 @@ struct FNetDriverReplicationSystemConfig
 {
 	GENERATED_USTRUCT_BODY()
 
-	/** Override the max object count when running as a client. If 0 use the default system value. */
+	/** Override the max object count. If 0 use the default system value. */
 	UPROPERTY()
-	uint32 MaxReplicatedObjectClientCount = 0;
+	uint32 MaxReplicatedObjectCount = 0;
 
-	/** Override the max object count when running as a server. If 0 use the default system value. */
+	/** Override the preallocated size of net object lists. If 0 use the default value. */
 	UPROPERTY()
-	uint32 MaxReplicatedObjectServerCount = 0;
+	uint32 InitialNetObjectListCount = 0;
 
-	/** Override the number of pre-allocated objects when running as a client. */
+	/** Override the amount to grow every net object list by when they hit the preallocated count. If 0 use the default system value. */
 	UPROPERTY()
-	uint32 PreAllocatedReplicatedObjectClientCount = 0;
+	uint32 NetObjectListGrowCount = 0;
 
-	/** Override the number of pre-allocated objects when running as a server. */
+	/** Override the number of pre-allocated memory buffers that can hold up to the specified number of objects before they have to grow. */
 	UPROPERTY()
-	uint32 PreAllocatedReplicatedObjectServerCount = 0;
+	uint32 PreAllocatedMemoryBuffersObjectCount = 0;
 
-	/** Override the number of pre-allocated objects in FReplicationWriter on the client. */
+	/** Override the number of pre-allocated objects in FReplicationWriter. */
 	UPROPERTY()
-	uint32 MaxReplicatedWriterObjectClientCount = 0;
+	uint32 MaxReplicationWriterObjectCount = 0;
 	
 	/** Override the max compressed object count. If 0 use the default system value. */
 	UPROPERTY()
@@ -823,9 +823,13 @@ public:
 	UPROPERTY(Config)
 	FString ReplicationBridgeClassName;
 	
-	/** Can be used to configure settings for the ReplicationSystem */
+	/** Can be used to configure Server settings for the ReplicationSystem */
 	UPROPERTY(Config)
-	FNetDriverReplicationSystemConfig ReplicationSystemConfig;
+	FNetDriverReplicationSystemConfig ReplicationSystemConfigServer;
+
+	/** Can be used to configure Client settings for the ReplicationSystem */
+	UPROPERTY(Config)
+	FNetDriverReplicationSystemConfig ReplicationSystemConfigClient;
 
 	/** @todo document */
 	UPROPERTY(Config)

@@ -48,8 +48,8 @@ struct FReplicationFilteringInitParams
 	FNetObjectGroups* Groups = nullptr;
 	FDeltaCompressionBaselineInvalidationTracker* BaselineInvalidationTracker = nullptr;
 	FReplicationConnections* Connections = nullptr;
+	FInternalNetRefIndex MaxInternalNetRefIndex = 0;
 	uint32 MaxGroupCount = 0;
-	uint32 MaxObjectCount = 0;
 };
 
 class FReplicationFiltering
@@ -58,6 +58,10 @@ public:
 	FReplicationFiltering();
 
 	void Init(FReplicationFilteringInitParams& Params);
+	void Deinit();
+
+	/** Called when the maximum InternalNetRefIndex increased and we need to realloc our lists */
+	void OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex);
 
 	/**
 	 * Executes group, owner and connection filtering then any dynamic filters.
@@ -201,6 +205,9 @@ private:
 	void InitFilters();
 	void InitObjectScopeHysteresis();
 
+	void SetNetObjectListsSize(FInternalNetRefIndex MaxInternalIndex);
+	void SetPerConnectionListsSize(FPerConnectionInfo& ConnectionInfo, FInternalNetRefIndex NewMaxInternalIndex);
+
 	void InitNewConnections();
 	void ResetRemovedConnections();
 	void UpdateObjectsInScope();
@@ -318,7 +325,7 @@ private:
 	FNetBitArray NewConnections;
 
 	// Object specifics
-	uint32 MaxObjectCount = 0;
+	FInternalNetRefIndex MaxInternalNetRefIndex = 0;
 	uint32 WordCountForObjectBitArrays = 0;
 
 	// Filter specifics

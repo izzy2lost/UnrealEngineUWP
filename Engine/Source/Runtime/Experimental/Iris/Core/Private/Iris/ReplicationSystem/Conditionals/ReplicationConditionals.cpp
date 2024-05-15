@@ -42,11 +42,27 @@ void FReplicationConditionals::Init(FReplicationConditionalsInitParams& Params)
 	ReplicationConnections = Params.ReplicationConnections;
 	BaselineInvalidationTracker = Params.BaselineInvalidationTracker;
 	NetObjectGroups = Params.NetObjectGroups;
-	MaxObjectCount = Params.MaxObjectCount;
+	MaxInternalNetRefIndex = Params.MaxInternalNetRefIndex;
 	MaxConnectionCount = Params.MaxConnectionCount;
 
-	PerObjectInfos.SetNumZeroed(MaxObjectCount);
+	PerObjectInfos.SetNumZeroed(MaxInternalNetRefIndex);
 	ConnectionInfos.SetNum(MaxConnectionCount + 1U);
+}
+
+void FReplicationConditionals::OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex)
+{
+	MaxInternalNetRefIndex = NewMaxInternalIndex;
+
+	PerObjectInfos.SetNumZeroed(NewMaxInternalIndex);
+
+	for (FPerConnectionInfo& ConnectionInfo : ConnectionInfos)
+	{
+		// Resize the netobject list for valid connections
+		if (!ConnectionInfo.ObjectConditionals.IsEmpty())
+		{
+			ConnectionInfo.ObjectConditionals.SetNumZeroed(NewMaxInternalIndex);
+		}
+	}
 }
 
 bool FReplicationConditionals::SetConditionConnectionFilter(FInternalNetRefIndex ObjectIndex, EReplicationCondition Condition, uint32 ConnectionId, bool bEnable)
@@ -81,7 +97,7 @@ void FReplicationConditionals::AddConnection(uint32 ConnectionId)
 {
 	// Init connection info
 	FPerConnectionInfo& ConnectionInfo = ConnectionInfos[ConnectionId];
-	ConnectionInfo.ObjectConditionals.SetNumZeroed(MaxObjectCount);
+	ConnectionInfo.ObjectConditionals.SetNumZeroed(MaxInternalNetRefIndex);
 }
 
 void FReplicationConditionals::RemoveConnection(uint32 ConnectionId)
@@ -688,7 +704,7 @@ void FReplicationConditionals::UpdateObjectsInScope()
 	const FNetBitArrayView ObjectsInScope = NetRefHandleManager->GetCurrentFrameScopableInternalIndices();
 	const FNetBitArrayView PrevObjectsInScope = NetRefHandleManager->GetPrevFrameScopableInternalIndices();
 
-	const uint32 WordCountForModifiedWords = Align(FPlatformMath::Max(MaxObjectCount, 1U), 32U)/32U;
+	const uint32 WordCountForModifiedWords = Align(FPlatformMath::Max(MaxInternalNetRefIndex, 1U), 32U)/32U;
 	TArray<uint32> ModifiedWords;
 	ModifiedWords.SetNumUninitialized(WordCountForModifiedWords);
 	uint32* ModifiedWordsStorage = ModifiedWords.GetData();

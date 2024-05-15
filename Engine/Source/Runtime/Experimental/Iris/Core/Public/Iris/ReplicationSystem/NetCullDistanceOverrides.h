@@ -6,12 +6,17 @@
 #include "Containers/ChunkedArray.h"
 #include "Net/Core/NetBitArray.h"
 
+namespace UE::Net::Private
+{
+	typedef uint32 FInternalNetRefIndex;
+}
+
 namespace UE::Net
 {
 
 struct FNetCullDistanceOverridesInitParams
 {
-	uint32 MaxObjectCount = 0;
+	uint32 MaxInternalNetRefIndex = 0;
 };
 
 class FNetCullDistanceOverrides
@@ -28,12 +33,14 @@ public:
 	/** Returns the object's squared cull distance override if it's valid or the provided DefaultValue if it's not. */
 	float GetCullDistanceSqr(uint32 ObjectIndex, float DefaultValue) const;
 
-public:
 	/** Remove cull distance override for object. */
 	bool ClearCullDistanceSqr(uint32 ObjectIndex);
 
 	/** Set cull distance override for object. */
 	void SetCullDistanceSqr(uint32 ObjectIndex, float CullDistSqr);
+
+	/** Called when the maximum InternalNetRefIndex increased and we need to realloc our lists */
+	void OnMaxInternalNetRefIndexIncreased(UE::Net::Private::FInternalNetRefIndex NewMaxInternalIndex);
 
 private:
 	enum : unsigned

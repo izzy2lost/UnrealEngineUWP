@@ -29,7 +29,6 @@ FDirtyNetObjectTracker::FDirtyNetObjectTracker()
 
 FDirtyNetObjectTracker::~FDirtyNetObjectTracker()
 {
-	Deinit();
 }
 
 void FDirtyNetObjectTracker::Init(const FDirtyNetObjectTrackerInitParams& Params)
@@ -39,13 +38,13 @@ void FDirtyNetObjectTracker::Init(const FDirtyNetObjectTrackerInitParams& Params
 	NetRefHandleManager = Params.NetRefHandleManager;
 	ReplicationSystemId = Params.ReplicationSystemId;
 	
-	NetObjectIdCount = Params.MaxObjectCount;
+	NetObjectIdCount = Params.MaxInternalNetRefIndex;
 
 	GlobalDirtyTrackerPollHandle = FGlobalDirtyNetObjectTracker::CreatePoller();
 
-	AccumulatedDirtyNetObjects.Init(NetObjectIdCount);
-	ForceNetUpdateObjects.Init(NetObjectIdCount);
-	DirtyNetObjects.Init(NetObjectIdCount);
+	SetNetObjectListsSize(Params.MaxInternalNetRefIndex);
+
+	NetRefHandleManager->GetOnMaxInternalNetRefIndexIncreasedDelegate().AddRaw(this, &FDirtyNetObjectTracker::OnMaxInternalNetRefIndexIncreased);
 
 	AllowExternalAccess();
 
@@ -54,8 +53,22 @@ void FDirtyNetObjectTracker::Init(const FDirtyNetObjectTrackerInitParams& Params
 
 void FDirtyNetObjectTracker::Deinit()
 {
+	NetRefHandleManager->GetOnMaxInternalNetRefIndexIncreasedDelegate().RemoveAll(this);
 	GlobalDirtyTrackerPollHandle.Destroy();
 	bShouldResetPolledGlobalDirtyTracker = false;
+}
+
+void FDirtyNetObjectTracker::SetNetObjectListsSize(FInternalNetRefIndex NewMaxInternalIndex)
+{
+	AccumulatedDirtyNetObjects.SetNumBits(NewMaxInternalIndex);
+	ForceNetUpdateObjects.SetNumBits(NewMaxInternalIndex);
+	DirtyNetObjects.SetNumBits(NewMaxInternalIndex);
+}
+
+void FDirtyNetObjectTracker::OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex)
+{
+	SetNetObjectListsSize(NewMaxInternalIndex);
+	NetObjectIdCount = NewMaxInternalIndex;
 }
 
 void FDirtyNetObjectTracker::GrabAndApplyGlobalDirtyObjectList()

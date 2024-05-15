@@ -5,7 +5,6 @@
 #include "Iris/Core/IrisLog.h"
 #include "Iris/Core/IrisProfiler.h"
 #include "Net/Core/Misc/NetCVars.h"
-#include "Net/Core/NetBitArray.h"
 #include "Iris/ReplicationSystem/NetRefHandleManager.h"
 #include "Iris/ReplicationSystem/ReplicationConnections.h"
 #include "Iris/ReplicationSystem/ReplicationWriter.h"
@@ -298,31 +297,91 @@ void FReplicationPrioritization::Init(FReplicationPrioritizationInitParams& Para
 	Connections = Params.Connections;
 	NetRefHandleManager = Params.NetRefHandleManager;
 
-	MaxObjectCount = Params.MaxObjectCount;
+	MaxInternalNetRefIndex = Params.MaxInternalNetRefIndex;
 
-	constexpr EAllowShrinking AllowShrinking = EAllowShrinking::No;
+	SetNetObjectListsSize(MaxInternalNetRefIndex);
 
-	// $IRIS TODO: This can be quite wasteful in terms of memory assuming many objects will use a static priority. Need object pool!
-	NetObjectPrioritizationInfos.SetNumUninitialized(Params.MaxObjectCount, AllowShrinking);
-
-	{
-		ObjectIndexToPrioritizer.SetNumUninitialized(Params.MaxObjectCount, AllowShrinking);
-		FMemory::Memset(ObjectIndexToPrioritizer.GetData(), FReplicationPrioritization_InvalidNetObjectPrioritizerIndex, Params.MaxObjectCount*sizeof(decltype(ObjectIndexToPrioritizer)::ElementType));
-	}
-	
-	{
-		DefaultPriorities.SetNumUninitialized(Params.MaxObjectCount, AllowShrinking);
-		float* Priorities = DefaultPriorities.GetData();
-		for (SIZE_T PrioIt = 0, PrioEndIt = Params.MaxObjectCount; PrioIt != PrioEndIt; ++PrioIt)
-		{
-			Priorities[PrioIt] = DefaultPriority;
-		}
-	}
-
-	ObjectsWithNewStaticPriority.Init(false, Params.MaxObjectCount);
 	ConnectionInfos.Reserve(Params.Connections->GetMaxConnectionCount());
 
 	InitPrioritizers();
+}
+
+void FReplicationPrioritization::Deinit()
+{
+	for (FPrioritizerInfo& Info : PrioritizerInfos)
+	{
+		Info.Prioritizer->Deinit();
+		Info.Prioritizer = nullptr;
+	}
+
+	PrioritizerDefinitions = nullptr;
+
+	ReplicationSystem = nullptr;
+	Connections = nullptr;
+	NetRefHandleManager = nullptr;
+
+	NetObjectPrioritizationInfos.Empty();
+	ObjectIndexToPrioritizer.Empty();
+	DefaultPriorities.Empty();
+	ObjectsWithNewStaticPriority.Empty();
+}
+
+void FReplicationPrioritization::SetNetObjectListsSize(FInternalNetRefIndex MaxInternalIndex)
+{
+	constexpr EAllowShrinking NoShrinking = EAllowShrinking::No;
+
+	// $IRIS TODO: This can be quite wasteful in terms of memory assuming many objects will use a static priority. Need object pool!
+	NetObjectPrioritizationInfos.SetNumUninitialized(MaxInternalIndex, NoShrinking);
+
+	// Properly Initialize ObjectIndexToPrioritizer
+	{
+		const int32 PreviousSize = ObjectIndexToPrioritizer.Num();
+		ObjectIndexToPrioritizer.SetNumUninitialized(MaxInternalIndex, NoShrinking);
+
+		uint8* BufferData = ObjectIndexToPrioritizer.GetData();
+		BufferData += PreviousSize;
+
+		check((int32)MaxInternalIndex >= PreviousSize);
+		const int32 UninitNum = (int32)MaxInternalIndex - PreviousSize;
+
+		FMemory::Memset(BufferData, FReplicationPrioritization_InvalidNetObjectPrioritizerIndex, UninitNum * sizeof(decltype(ObjectIndexToPrioritizer)::ElementType));
+	}
+
+	// Property initialize DefaultPriorities
+	ResizePrioritiesList(DefaultPriorities, MaxInternalIndex);
+
+	ObjectsWithNewStaticPriority.SetNumBits(MaxInternalIndex);
+}
+
+void FReplicationPrioritization::ResizePrioritiesList(TArray<float>& OutPriorities, FInternalNetRefIndex MaxInternalIndex)
+{
+	const int32 PreviousSize = OutPriorities.Num();
+	OutPriorities.SetNumUninitialized(MaxInternalIndex, EAllowShrinking::No);
+
+	for (int32 PrioIndex = PreviousSize; PrioIndex < (int32)MaxInternalIndex; ++PrioIndex)
+	{
+		OutPriorities[PrioIndex] = DefaultPriority;
+	}
+}
+
+void FReplicationPrioritization::OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex)
+{
+	MaxInternalNetRefIndex = NewMaxInternalIndex;
+
+	SetNetObjectListsSize(NewMaxInternalIndex);
+
+	for (FPrioritizerInfo& PrioritizerInfo : PrioritizerInfos)
+	{
+		PrioritizerInfo.Prioritizer->OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
+	}
+
+	for (FPerConnectionInfo& ConnectionInfo : ConnectionInfos)
+	{
+		if (ConnectionInfo.IsValid)
+		{
+			ResizePrioritiesList(ConnectionInfo.Priorities, NewMaxInternalIndex);
+		}
+	}
 }
 
 void FReplicationPrioritization::SetStaticPriority(uint32 ObjectIndex, float NewPrio)
@@ -348,7 +407,7 @@ void FReplicationPrioritization::SetStaticPriority(uint32 ObjectIndex, float New
 			Prioritizer = FReplicationPrioritization_InvalidNetObjectPrioritizerIndex;
 		}
 
-		ObjectsWithNewStaticPriority[ObjectIndex] = true;
+		ObjectsWithNewStaticPriority.SetBit(ObjectIndex);
 	}
 }
 
@@ -405,7 +464,7 @@ bool FReplicationPrioritization::SetPrioritizer(uint32 ObjectIndex, FNetObjectPr
 		{
 			DefaultPriorities[ObjectIndex] = DefaultPriority;
 			Prioritizer = FReplicationPrioritization_InvalidNetObjectPrioritizerIndex;
-			ObjectsWithNewStaticPriority[ObjectIndex] = true;
+			ObjectsWithNewStaticPriority.SetBit(ObjectIndex);
 		}
 	}
 
@@ -621,13 +680,13 @@ void FReplicationPrioritization::UpdatePrioritiesForNewAndDeletedObjects()
 	{
 		NewIndices.Add(ObjectIndex);
 		// Prevent the same index from being added twice
-		this->ObjectsWithNewStaticPriority[ObjectIndex] = false;
+		this->ObjectsWithNewStaticPriority.ClearBit(ObjectIndex);
 	};
 
 	TFunction<void(uint32)> ForEachNewObject = (ConnectionCount > 0 ? AddIndexAndClearFromNewPriority : DoNothing);
 	if (ConnectionCount > 0)
 	{
-		NewIndices.Reserve(FMath::Min(1024U, MaxObjectCount));
+		NewIndices.Reserve(FMath::Min(1024U, MaxInternalNetRefIndex));
 	}
 
 	FNetBitArrayView::ForAllExclusiveBits(ScopedIndices, PrevScopedIndices, ForEachNewObject, ForEachRemovedObject);
@@ -638,7 +697,10 @@ void FReplicationPrioritization::UpdatePrioritiesForNewAndDeletedObjects()
 
 		if (ConnectionCount > 0)
 		{
-			MakeNetBitArrayView(ObjectsWithNewStaticPriority.GetData(), ObjectsWithNewStaticPriority.Num()).ForAllSetBits([this, &NewIndices](uint32 ObjectIndex) { NewIndices.Add(ObjectIndex); });
+			ObjectsWithNewStaticPriority.ForAllSetBits([this, &NewIndices](uint32 ObjectIndex)
+			{ 
+				NewIndices.Add(ObjectIndex); 
+			});
 		}
 
 		// $IRIS TODO: Want ForAllSetBits with clear.
@@ -847,7 +909,8 @@ void FReplicationPrioritization::InitPrioritizers()
 		FNetObjectPrioritizerInitParams InitParams;
 		InitParams.ReplicationSystem = ReplicationSystem;
 		InitParams.Config = (Definition.ConfigClass != nullptr ? NewObject<UNetObjectPrioritizerConfig>((UObject*)GetTransientPackage(), Definition.ConfigClass) : nullptr);
-		InitParams.MaxObjectCount = MaxObjectCount;
+		InitParams.AbsoluteMaxNetObjectCount = NetRefHandleManager->GetMaxActiveObjectCount();
+		InitParams.CurrentMaxInternalIndex = MaxInternalNetRefIndex;
 		InitParams.MaxConnectionCount = Connections->GetMaxConnectionCount();
 
 		Prioritizer->Init(InitParams);

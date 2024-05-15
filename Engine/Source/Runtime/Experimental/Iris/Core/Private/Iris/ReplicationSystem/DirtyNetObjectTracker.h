@@ -25,7 +25,7 @@ struct FDirtyNetObjectTrackerInitParams
 {
 	const FNetRefHandleManager* NetRefHandleManager = nullptr;
 	uint32 ReplicationSystemId = 0;
-	uint32 MaxObjectCount = 0;
+	uint32 MaxInternalNetRefIndex = 0;
 };
 
 class FDirtyNetObjectTracker
@@ -35,6 +35,7 @@ public:
 	~FDirtyNetObjectTracker();
 
 	void Init(const FDirtyNetObjectTrackerInitParams& Params);
+	void Deinit();
 
 	/** Returns true if this dirty tracker can be used by the replication system */
 	bool IsInit() const { return NetRefHandleManager != nullptr; }
@@ -73,7 +74,9 @@ private:
 	using StorageType = FNetBitArrayView::StorageWordType;
 	static constexpr uint32 StorageTypeBitCount = FNetBitArrayView::WordBitCount;
 
-	void Deinit();
+	void SetNetObjectListsSize(FInternalNetRefIndex NewMaxInternalIndex);
+	void OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex);
+
 	void MarkNetObjectDirty(FInternalNetRefIndex NetObjectIndex);
 	void ForceNetUpdate(FInternalNetRefIndex NetObjectIndex);
 	void GrabAndApplyGlobalDirtyObjectList();

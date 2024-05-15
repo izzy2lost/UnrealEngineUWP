@@ -19,12 +19,30 @@ void UNetObjectGridFilter::OnInit(const FNetObjectFilterInitParams& Params)
 	Config = TStrongObjectPtr<UNetObjectGridFilterConfig>(CastChecked<UNetObjectGridFilterConfig>(Params.Config));
 	checkf(Config.IsValid(), TEXT("Need config to operate."));
 
-	AssignedObjectInfoIndices.Init(Params.MaxObjectCount);
+	AssignedObjectInfoIndices.Init(Params.CurrentMaxInternalIndex);
 
 	PerConnectionInfos.SetNum(Params.MaxConnectionCount + 1);
 
 	NetRefHandleManager = &Params.ReplicationSystem->GetReplicationSystemInternal()->GetNetRefHandleManager();
 	NetCullDistanceOverrides = &Params.ReplicationSystem->GetNetCullDistanceOverrides();
+}
+
+void UNetObjectGridFilter::OnDeinit()
+{
+	Config = nullptr;
+	NetRefHandleManager = nullptr;
+	NetCullDistanceOverrides = nullptr;
+
+	PerConnectionInfos.Empty();
+	ObjectInfos.Empty();
+	AssignedObjectInfoIndices.Empty();
+	
+	Cells.Empty();
+}
+
+void UNetObjectGridFilter::OnMaxInternalNetRefIndexIncreased(uint32 NewMaxInternalIndex)
+{
+	AssignedObjectInfoIndices.SetNumBits(NewMaxInternalIndex);
 }
 
 void UNetObjectGridFilter::AddConnection(uint32 ConnectionId)
@@ -560,6 +578,11 @@ void UNetObjectGridWorldLocFilter::OnInit(const FNetObjectFilterInitParams& Para
 	Super::OnInit(Params);
 
 	WorldLocations = &Params.ReplicationSystem->GetWorldLocations();
+}
+
+void UNetObjectGridWorldLocFilter::OnDeinit()
+{
+	WorldLocations = nullptr;
 }
 
 void UNetObjectGridWorldLocFilter::PreFilter(FNetObjectPreFilteringParams& Params)

@@ -197,22 +197,15 @@ void FReplicationFiltering::Init(FReplicationFilteringInitParams& Params)
 	BaselineInvalidationTracker = Params.BaselineInvalidationTracker;
 	Groups = Params.Groups;
 
-	MaxObjectCount = Params.MaxObjectCount;
-	WordCountForObjectBitArrays = Align(FPlatformMath::Max(MaxObjectCount, 1U), sizeof(FNetBitArrayBase::StorageWordType)*8U)/(sizeof(FNetBitArrayBase::StorageWordType)*8U);
+	MaxInternalNetRefIndex = Params.MaxInternalNetRefIndex;
 
 	// Connection specifics
 	ConnectionInfos.SetNum(Params.Connections->GetMaxConnectionCount() + 1U);
 	ValidConnections.Init(ConnectionInfos.Num());
 	NewConnections.Init(ConnectionInfos.Num());
 
-	// Filter specifics
-	ObjectsWithDirtyConnectionFilter.Init(MaxObjectCount);
-	ObjectsWithDirtyOwner.Init(MaxObjectCount);
-	ObjectsWithOwnerFilter.Init(MaxObjectCount);
-	ObjectsWithPerObjectInfo.Init(MaxObjectCount);
-
-	AllConnectionFilteredObjects.Init(MaxObjectCount);
-	DynamicFilterEnabledObjects.Init(MaxObjectCount);
+	// Initialize all InternalNetRefIndex lists
+	SetNetObjectListsSize(MaxInternalNetRefIndex);
 
 	// Group filtering
 	{
@@ -229,29 +222,95 @@ void FReplicationFiltering::Init(FReplicationFilteringInitParams& Params)
 		DirtySubObjectFilterGroups.Init(InMaxGroupCount);
 	}
 
-	ObjectIndexToPerObjectInfoIndex.SetNumZeroed(MaxObjectCount);
-
 	PerObjectInfoStorageCountForConnections = Align(FPlatformMath::Max(uint32(ConnectionInfos.Num()), 1U), 32U)/32U;
 	PerObjectInfoStorageCountPerItem = sizeof(FPerObjectInfo) + PerObjectInfoStorageCountForConnections - 1U;
 
-	// Owning connections
-	ObjectIndexToOwningConnection.SetNumZeroed(MaxObjectCount);
-
-	// Object scope hysteresis
-	ObjectScopeHysteresisFrameCounts.SetNumZeroed(MaxObjectCount);
-
-	// Dynamic filters
-	{
-		NetObjectFilteringInfos.SetNumUninitialized(Params.MaxObjectCount);
-
-		ObjectIndexToDynamicFilterIndex.SetNumUninitialized(Params.MaxObjectCount);
-		FMemory::Memset(ObjectIndexToDynamicFilterIndex.GetData(), InvalidDynamicFilterIndex, Params.MaxObjectCount*sizeof(decltype(ObjectIndexToDynamicFilterIndex)::ElementType));
-
-		ObjectsRequiringDynamicFilterUpdate.Init(MaxObjectCount);
-	}
-
 	InitFilters();
 	InitObjectScopeHysteresis();
+}
+
+void FReplicationFiltering::Deinit()
+{
+	for (FFilterInfo& FilterInfo : DynamicFilterInfos)
+	{
+		FilterInfo.Filter->Deinit();
+	}
+
+	// Clear most buffers by setting size to 0
+	SetNetObjectListsSize(0);
+}
+
+void FReplicationFiltering::SetNetObjectListsSize(FInternalNetRefIndex MaxInternalIndex)
+{
+	WordCountForObjectBitArrays = Align(MaxInternalIndex, sizeof(FNetBitArrayBase::StorageWordType) * 8U) / (sizeof(FNetBitArrayBase::StorageWordType) * 8U);
+
+	// Increase NetBitArrays
+	{
+		ObjectsWithDirtyConnectionFilter.SetNumBits(MaxInternalIndex);
+		ObjectsWithDirtyOwner.SetNumBits(MaxInternalIndex);
+		ObjectsWithOwnerFilter.SetNumBits(MaxInternalIndex);
+		ObjectsWithPerObjectInfo.SetNumBits(MaxInternalIndex);
+
+		AllConnectionFilteredObjects.SetNumBits(MaxInternalIndex);
+		DynamicFilterEnabledObjects.SetNumBits(MaxInternalIndex);
+		
+		ObjectsRequiringDynamicFilterUpdate.SetNumBits(MaxInternalIndex);
+	}
+
+	// Increase TArrays whose index maps to a NetBitArray
+	{
+		ObjectIndexToPerObjectInfoIndex.SetNumZeroed(MaxInternalIndex);
+		ObjectIndexToOwningConnection.SetNumZeroed(MaxInternalIndex);
+		ObjectScopeHysteresisFrameCounts.SetNumZeroed(MaxInternalIndex);
+		NetObjectFilteringInfos.SetNumZeroed(MaxInternalIndex);
+	}
+
+	// ObjectIndexToDynamicFilterIndex is initialized to a non-zero value.
+	{
+		const int32 PrevMaxSize = ObjectIndexToDynamicFilterIndex.Num();
+		ObjectIndexToDynamicFilterIndex.SetNumUninitialized(MaxInternalIndex);
+
+		// Initialize the newly allocated buffer portion
+		if (MaxInternalIndex > 0)
+		{
+			checkf(MaxInternalIndex > (uint32)PrevMaxSize, TEXT("Not expected for the array to get smaller."));
+			uint8* NewBufferToInit = ObjectIndexToDynamicFilterIndex.GetData();
+			NewBufferToInit += PrevMaxSize;
+			FMemory::Memset(NewBufferToInit, InvalidDynamicFilterIndex, (MaxInternalIndex - PrevMaxSize) * sizeof(decltype(ObjectIndexToDynamicFilterIndex)::ElementType));
+		}
+	}
+
+	// Always allocated and maintained regardless of whether the feature is enabled or not.
+	HysteresisState.ObjectsToClear.SetNumBits(MaxInternalNetRefIndex);
+}
+
+void FReplicationFiltering::OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex)
+{
+	MaxInternalNetRefIndex = NewMaxInternalIndex;
+
+	SetNetObjectListsSize(NewMaxInternalIndex);
+
+	// Resize the per-connection data
+	{
+		IRIS_PROFILER_SCOPE(FReplicationFiltering_ResizeAllPerConnectionLists);
+
+		auto ResizePerConnectionInfo = [this, NewMaxInternalIndex](uint32 ConnectionId)
+		{
+			FPerConnectionInfo& ConnectionInfo = this->ConnectionInfos[ConnectionId];
+			this->SetPerConnectionListsSize(ConnectionInfo, NewMaxInternalIndex);
+		};
+
+		ValidConnections.ForAllSetBits(ResizePerConnectionInfo);
+	}
+
+	// Propagate the increase to the DynamicFilters
+	{
+		TArrayView<FNetObjectFilteringInfo> NewFilterInfoView = GetNetObjectFilteringInfos();
+		for (FFilterInfo& FilterInfo : DynamicFilterInfos)
+		{
+			FilterInfo.Filter->MaxInternalNetRefIndexIncreased(NewMaxInternalIndex, NewFilterInfoView);
+		}
+	}
 }
 
 void FReplicationFiltering::Filter()
@@ -653,29 +712,12 @@ void FReplicationFiltering::InitNewConnections()
 		const FNetBitArrayView ScopableInternalIndices = NetRefHandleManager->GetCurrentFrameScopableInternalIndices();
 		FPerConnectionInfo& ConnectionInfo = this->ConnectionInfos[ConnectionId];
 
-		ConnectionInfo.ConnectionFilteredObjects.Init(MaxObjectCount);
+		const FInternalNetRefIndex CurrentMaxInternalindex = NetRefHandleManager->GetCurrentMaxInternalNetRefIndex();
+
+		this->SetPerConnectionListsSize(ConnectionInfo, CurrentMaxInternalindex);
+
 		ConnectionInfo.ConnectionFilteredObjects.Copy(ScopableInternalIndices);
 		ConnectionInfo.ConnectionFilteredObjects.ClearBit(FNetRefHandleManager::InvalidInternalIndex);
-
-		// Do not filter out anything by default.
-		ConnectionInfo.GroupExcludedObjects.Init(MaxObjectCount);
-
-		// Do not override dynamic filtering by default.
-		ConnectionInfo.GroupIncludedObjects.Init(MaxObjectCount);
-
-		// The combined result of scoped objects, connection filtering and group exclusion filtering.
-		ConnectionInfo.ObjectsInScopeBeforeDynamicFiltering.Init(MaxObjectCount);
-
-		// The final result of all filtering.
-		ConnectionInfo.ObjectsInScope.Init(MaxObjectCount);
-
-		if (HasDynamicFilters())
-		{
-			ConnectionInfo.DynamicFilteredOutObjects.Init(MaxObjectCount);
-			ConnectionInfo.InProgressDynamicFilteredOutObjects.Init(MaxObjectCount);
-			ConnectionInfo.DynamicFilteredOutObjectsHysteresisAdjusted.Init(MaxObjectCount);
-			ConnectionInfo.HysteresisUpdater.Init(MaxObjectCount);
-		}
 
 		// Update group exclusion filtering
 		{
@@ -807,6 +849,31 @@ void FReplicationFiltering::ResetRemovedConnections()
 	};
 
 	FNetBitArray::ForAllSetBits(ExclusionFilterGroups, InclusionFilterGroups, FNetBitArrayBase::OrOp, ResetGroupFilterStatus);
+}
+
+void FReplicationFiltering::SetPerConnectionListsSize(FPerConnectionInfo& ConnectionInfo, FInternalNetRefIndex NewMaxInternalIndex)
+{
+	ConnectionInfo.ConnectionFilteredObjects.SetNumBits(NewMaxInternalIndex);
+
+	// Do not filter out anything by default.
+	ConnectionInfo.GroupExcludedObjects.SetNumBits(NewMaxInternalIndex);
+
+	// Do not override dynamic filtering by default.
+	ConnectionInfo.GroupIncludedObjects.SetNumBits(NewMaxInternalIndex);
+
+	// The combined result of scoped objects, connection filtering and group exclusion filtering.
+	ConnectionInfo.ObjectsInScopeBeforeDynamicFiltering.SetNumBits(NewMaxInternalIndex);
+
+	// The final result of all filtering.
+	ConnectionInfo.ObjectsInScope.SetNumBits(NewMaxInternalIndex);
+
+	if (HasDynamicFilters())
+	{
+		ConnectionInfo.DynamicFilteredOutObjects.SetNumBits(NewMaxInternalIndex);
+		ConnectionInfo.InProgressDynamicFilteredOutObjects.SetNumBits(NewMaxInternalIndex);
+		ConnectionInfo.DynamicFilteredOutObjectsHysteresisAdjusted.Init(NewMaxInternalIndex);
+		ConnectionInfo.HysteresisUpdater.Init(NewMaxInternalIndex);
+	}
 }
 
 void FReplicationFiltering::UpdateObjectsInScope()
@@ -1270,7 +1337,7 @@ void FReplicationFiltering::UpdateDynamicFiltering()
 	FilteredOutByHysteresisObjects.Reserve(256);
 
 	uint32* AllowedObjectsData = static_cast<uint32*>(FMemory_Alloca(WordCountForObjectBitArrays * sizeof(uint32)));
-	FNetBitArrayView AllowedObjects(AllowedObjectsData, MaxObjectCount, FNetBitArrayView::NoResetNoValidate);
+	FNetBitArrayView AllowedObjects(AllowedObjectsData, MaxInternalNetRefIndex, FNetBitArrayView::NoResetNoValidate);
 
 	// Subobjects will never be added to a dynamic filter, but objects can become dependent at any time.
 	// We need to make sure they are not filtered out.
@@ -2598,7 +2665,8 @@ void FReplicationFiltering::InitFilters()
 		FNetObjectFilterInitParams InitParams;
 		InitParams.ReplicationSystem = ReplicationSystem;
 		InitParams.Config = (NetObjectFilterConfigClass ? NewObject<UNetObjectFilterConfig>((UObject*)GetTransientPackage(), NetObjectFilterConfigClass) : nullptr);
-		InitParams.MaxObjectCount = MaxObjectCount;
+		InitParams.AbsoluteMaxNetObjectCount = NetRefHandleManager->GetMaxActiveObjectCount();
+		InitParams.CurrentMaxInternalIndex = MaxInternalNetRefIndex;
 		InitParams.MaxConnectionCount = Connections->GetMaxConnectionCount();
 
 		Info.Filter->Init(InitParams);
@@ -2611,8 +2679,6 @@ void FReplicationFiltering::InitFilters()
 void FReplicationFiltering::InitObjectScopeHysteresis()
 {
 	HysteresisState.Mode = Config->IsObjectScopeHysteresisEnabled() ? EHysteresisProcessingMode::Enabled : EHysteresisProcessingMode::Disabled;
-	// Always allocated and maintained regardless of whether the feature is enabled or not.
-	HysteresisState.ObjectsToClear.SetNumBits(MaxObjectCount);
 }
 
 void FReplicationFiltering::RemoveFromDynamicFilter(uint32 ObjectIndex, uint32 FilterIndex)

@@ -74,6 +74,9 @@ void FReplicationConnections::DestroyReplicationReaderAndWriter(uint32 Connectio
 		ReplicationDataStream->SetReaderAndWriter(nullptr, nullptr);
 	}
 
+	Connection->ReplicationReader->Deinit();
+	Connection->ReplicationWriter->Deinit();
+
 	delete Connection->ReplicationReader;
 	Connection->ReplicationReader = nullptr;
 	delete Connection->ReplicationWriter;

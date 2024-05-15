@@ -21,8 +21,17 @@ void UMockNetObjectFilter::OnInit(const FNetObjectFilterInitParams& Params)
 
 	CallStatus.SuccessfulCallCounts.Init += Cast<UMockNetObjectFilterConfig>(Params.Config) != nullptr;
 
-	AddedObjectIndices.Init(Params.MaxObjectCount);
+	AddedObjectIndices.Init(Params.CurrentMaxInternalIndex);
 	AddedConnectionIndices.Init(Params.MaxConnectionCount + 1);
+}
+
+void UMockNetObjectFilter::OnDeinit()
+{
+}
+
+void UMockNetObjectFilter::OnMaxInternalNetRefIndexIncreased(uint32 NewMaxInternalIndex)
+{
+	AddedObjectIndices.SetNumBits(NewMaxInternalIndex);
 }
 
 void UMockNetObjectFilter::AddConnection(uint32 ConnectionId)

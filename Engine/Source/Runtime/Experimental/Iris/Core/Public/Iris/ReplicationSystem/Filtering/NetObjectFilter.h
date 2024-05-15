@@ -15,6 +15,11 @@ namespace UE::Net
 	typedef uint32 FNetObjectFilterHandle;
 	struct FReplicationInstanceProtocol;
 	struct FReplicationProtocol;
+
+	namespace Private
+	{
+		typedef uint32 FInternalNetRefIndex;
+	}
 }
 
 namespace UE::Net
@@ -119,8 +124,10 @@ public:
 	TObjectPtr<UReplicationSystem> ReplicationSystem = nullptr;
 	/** Optional config as set in the FNetObjectFilterDefinition. */
 	UNetObjectFilterConfig* Config = nullptr;
-	/** The maximum number of objects in the system. */
-	uint32 MaxObjectCount = 0;
+	/** The maximum number of replicated objects in the system. */
+	uint32 AbsoluteMaxNetObjectCount = 0;
+	/** The current maximum replicated objects referenced by an index (may grow at runtime). */
+	uint32 CurrentMaxInternalIndex = 0;
 	/** The maximum number of connections in the system. */
 	uint32 MaxConnectionCount = 0;
 };
@@ -166,6 +173,9 @@ class UNetObjectFilter : public UObject
 
 public:
 	IRISCORE_API void Init(const FNetObjectFilterInitParams& Params);
+	IRISCORE_API void Deinit();
+
+	IRISCORE_API void MaxInternalNetRefIndexIncreased(UE::Net::Private::FInternalNetRefIndex MaxInternalIndex, TArrayView<FNetObjectFilteringInfo> NewFilterInfoView);
 	
 	/** A new connection has been added. An opportunity for the filter to allocate per connection info. */
 	IRISCORE_API virtual void AddConnection(uint32 ConnectionId);
@@ -225,6 +235,12 @@ protected:
 
 	/** Called right after constructor for enabled filters. Must be overriden. */
 	IRISCORE_API virtual void OnInit(const FNetObjectFilterInitParams&) PURE_VIRTUAL(OnInit, );
+
+	/** Called when the replication system is shutting down. Use this to remove references to other systems */
+	IRISCORE_API virtual void OnDeinit() PURE_VIRTUAL(OnDeinit);
+
+	/** Called when the maximum InternalNetRefIndex increased and we need to realloc our lists */
+	IRISCORE_API virtual void OnMaxInternalNetRefIndexIncreased(uint32 NewMaxInternalIndex) PURE_VIRTUAL(OnMaxInternalNetRefIndexIncreased);
 
 	/* Returns the filtering info for this object if it's handled by this filter, nullptr otherwise. */
 	IRISCORE_API FNetObjectFilteringInfo* GetFilteringInfo(uint32 ObjectIndex);

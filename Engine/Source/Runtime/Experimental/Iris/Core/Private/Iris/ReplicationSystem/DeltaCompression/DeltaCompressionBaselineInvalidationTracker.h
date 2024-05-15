@@ -21,7 +21,7 @@ namespace UE::Net::Private
 struct FDeltaCompressionBaselineInvalidationTrackerInitParams
 {
 	const FDeltaCompressionBaselineManager* BaselineManager = nullptr;
-	uint32 MaxObjectCount = 0;
+	FInternalNetRefIndex MaxInternalNetRefIndex = 0;
 };
 
 class FDeltaCompressionBaselineInvalidationTracker
@@ -51,6 +51,9 @@ public:
 
 	void PreSendUpdate();
 	void PostSendUpdate();
+
+	/** Called when the maximum InternalNetRefIndex increased and we need to realloc our lists */
+	void OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex);
 
 private:
 	enum : unsigned

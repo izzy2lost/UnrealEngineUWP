@@ -64,20 +64,42 @@ public:
 		/** The replication bridge that allows communication between the replication system and the game engine  */
 		UReplicationBridge* ReplicationBridge = nullptr;
 
-		/** The maximum amount of netobjects that can be registered to the replication system */
-		uint32 MaxReplicatedObjectCount = 65535U;
+		/** 
+		 * The maximum amount of netobjects that can be registered to the replication system 
+		 * Note that this variable is automatically rounded up to a multiple of 32 so that all available bits in the NetBitArray storage type are used.
+		 */
+		uint32 MaxReplicatedObjectCount = 65536U;
 
 		/**
-		 * The amount of netobjects to preallocate internal memory buffers for. Preallocated memory provides faster cache-friendly operations but
-		 * has the downside of using much more memory than might actually be needed. Reduce this value if you are operating on a memory constrained platform.
+		 * The default allocated size for lists referencing NetObjects by their internal index (NetBitArray or TArray).
+		 * Use 0 to preallocate for all possible replicated objects and never reallocate the lists.
+		 * Setting a value smaller than Max minimizes the memory footprint of the replication system when few replicated objects are registered.
+		 * The downside is you have to pay a CPU hit when the initial list size is met.
 		 */
-		uint32 PreAllocatedReplicatedObjectCount = 65535U;
+		uint32 InitialNetObjectListCount = 65536U;
 
 		/**
-		 * The maximum amount of netobjects that can replicate properties to remote connection. Can be much lower on clients where very few
-		 * netobjects have authority and support property replication
+		 * The amount by which we increase the size of every NetObjectList (NetBitArray and TArray) when we hit the initial amount.
+		 * Use a small value if you want to keep the memory footprint of the system to a minimum.
+		 * But be aware that increasing the NetObjectList's is costly and may increase memory fragmentation so you'll want to do pay the reallocation cost as little as possible.
+		 * Note that this variable is automatically rounded up to a multiple of 32 so that all available bits in the NetBitArray storage type are used.
 		 */
-		uint32 MaxReplicatedWriterObjectCount = 65535U;
+		uint32 NetObjectListGrowCount = 16384U;
+
+		/**
+		 * The amount of netobjects to preallocate internal memory buffers for (NetChunkedArray types).
+		 * These arrays hold the biggest memory blocks in the replication system and can grow independently of the NetObjectLists.
+		 * Using a large amount of preallocated memory provides faster cache-friendly CPU operations but has the downside of holding into much more memory than might actually be needed. 
+		 * Reduce this value if you are operating on a memory constrained platform.
+		 */
+		uint32 PreAllocatedMemoryBuffersObjectCount = 65536U;
+
+		/**
+		 * The maximum amount of netobjects that can replicate properties to remote connection. 
+		 * Can be much lower on clients where very few netobjects have authority and support property replication (often just 1 player controller)
+		 * When set to 0 it will follow the MaxReplicatedObjectCount and InitialNetObjectListCount limits
+		 */
+		uint32 MaxReplicationWriterObjectCount = 0;
 
 		/** The maximum amount of netobjects that can be added to the delta compression manager */
 		uint32 MaxDeltaCompressedObjectCount = 2048U;

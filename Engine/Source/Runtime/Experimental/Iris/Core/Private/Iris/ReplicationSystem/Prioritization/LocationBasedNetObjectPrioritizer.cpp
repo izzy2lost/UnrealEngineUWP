@@ -15,8 +15,18 @@ ULocationBasedNetObjectPrioritizer::ULocationBasedNetObjectPrioritizer()
 
 void ULocationBasedNetObjectPrioritizer::Init(FNetObjectPrioritizerInitParams& Params)
 {
-	AssignedLocationIndices.Init(Params.MaxObjectCount);
+	AssignedLocationIndices.Init(Params.CurrentMaxInternalIndex);
 	WorldLocations = &Params.ReplicationSystem->GetWorldLocations();
+}
+
+void ULocationBasedNetObjectPrioritizer::Deinit()
+{
+	WorldLocations = nullptr;
+}
+
+void ULocationBasedNetObjectPrioritizer::OnMaxInternalNetRefIndexIncreased(uint32 NewMaxInternalIndex)
+{
+	AssignedLocationIndices.SetNumBits(NewMaxInternalIndex);
 }
 
 bool ULocationBasedNetObjectPrioritizer::AddObject(uint32 ObjectIndex, FNetObjectPrioritizerAddObjectParams& Params)

@@ -150,6 +150,8 @@ public:
 	// Init
 	void Init(const FReplicationParameters& InParameters);
 
+	void Deinit();
+
 	// Update new or existing/destroyed 
 	void UpdateScope(const FNetBitArrayView& ScopedObjects);
 
@@ -401,6 +403,9 @@ private:
 	};
 
 private:
+
+	void SetNetObjectListsSize(FInternalNetRefIndex NewMaxInternalIndex);
+	void OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex);
 
 	uint32 GetDefaultFlushFlags() const;
 	uint32 GetFlushStatus(uint32 InternalIndex, const FReplicationInfo& Info, uint32 FlushFlagsToTest = EFlushFlags::FlushFlags_Default) const;

@@ -62,8 +62,14 @@ void FNetObjectGroups::Init(const FNetObjectGroupInitParams& Params)
 	// Reserve first as invalid group
 	Groups.Add(FNetObjectGroup());
 
-	GroupMemberships.SetNum(Params.MaxObjectCount);
-	GroupFilteredOutObjects.Init(Params.MaxObjectCount);
+	GroupMemberships.SetNum(Params.MaxInternalNetRefIndex);
+	GroupFilteredOutObjects.Init(Params.MaxInternalNetRefIndex);
+}
+
+void FNetObjectGroups::OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex)
+{
+	GroupMemberships.SetNum(NewMaxInternalIndex);
+	GroupFilteredOutObjects.SetNumBits(NewMaxInternalIndex);
 }
 
 FNetObjectGroupHandle FNetObjectGroups::CreateGroup()

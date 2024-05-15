@@ -8,6 +8,11 @@
 #include "Math/Vector.h"
 #include "WorldLocations.generated.h"
 
+namespace UE::Net::Private
+{
+	typedef uint32 FInternalNetRefIndex;
+}
+
 /**
 * Common settings used to configure how the GridFilter behaves
 */
@@ -31,13 +36,14 @@ namespace UE::Net
 
 struct FWorldLocationsInitParams
 {
-	uint32 MaxObjectCount = 0;
+	UE::Net::Private::FInternalNetRefIndex MaxInternalNetRefIndex = 0;
 };
 
 class FWorldLocations
 {
 public:
 	void Init(const FWorldLocationsInitParams& InitParams);
+	void Deinit();
 
 	/** Returns whether the object has a valid cached data or not. */
 	bool HasInfoForObject(uint32 ObjectIndex) const;
@@ -92,6 +98,8 @@ public:
 	
 	/** Return a position clamped to the configured world boundary. */
 	FVector ClampPositionToBoundary(const FVector& Position);
+
+	void OnMaxInternalNetRefIndexIncreased(UE::Net::Private::FInternalNetRefIndex NewMaxInternalIndex);
 
 private:
 	enum : uint32

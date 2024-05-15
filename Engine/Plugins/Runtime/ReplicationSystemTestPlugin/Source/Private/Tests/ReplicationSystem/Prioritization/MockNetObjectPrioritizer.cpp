@@ -15,7 +15,12 @@ void UMockNetObjectPrioritizer::Init(FNetObjectPrioritizerInitParams& Params)
 
 	CallStatus.SuccessfulCallCounts.Init += Cast<UMockNetObjectPrioritizerConfig>(Params.Config) != nullptr;
 
-	AddedIndices.Init(false, Params.MaxObjectCount);
+	AddedIndices.Init(Params.CurrentMaxInternalIndex);
+}
+
+void UMockNetObjectPrioritizer::OnMaxInternalNetRefIndexIncreased(uint32 NewMaxInternalIndex)
+{
+	AddedIndices.SetNumBits(NewMaxInternalIndex);
 }
 
 bool UMockNetObjectPrioritizer::AddObject(uint32 ObjectIndex, FNetObjectPrioritizerAddObjectParams& Params)
@@ -39,7 +44,7 @@ bool UMockNetObjectPrioritizer::AddObject(uint32 ObjectIndex, FNetObjectPrioriti
 		Params.OutInfo.Data[2] = uint16(ObjectIndex);
 		Params.OutInfo.Data[3] = uint16(ObjectIndex);
 
-		AddedIndices[ObjectIndex] = true;
+		AddedIndices.SetBit(ObjectIndex);
 		++AddedCount;
 
 		// Check if object has the NetTest_Priority RepTag which the priority should be read from.
@@ -60,7 +65,7 @@ void UMockNetObjectPrioritizer::RemoveObject(uint32 ObjectIndex, const FNetObjec
 	++CallStatus.CallCounts.RemoveObject;
 
 	// If this object wasn't added to us it shouldn't be removed either.
-	if (AddedIndices[ObjectIndex])
+	if (AddedIndices.IsBitSet(ObjectIndex))
 	{
 		bool bIsProperCall = true;
 
@@ -72,7 +77,7 @@ void UMockNetObjectPrioritizer::RemoveObject(uint32 ObjectIndex, const FNetObjec
 
 		CallStatus.SuccessfulCallCounts.RemoveObject += bIsProperCall;
 
-		AddedIndices[ObjectIndex] = false;
+		AddedIndices.ClearBit(ObjectIndex);
 		--AddedCount;
 
 		ObjectToPriority.Remove(ObjectIndex);
@@ -113,7 +118,7 @@ void UMockNetObjectPrioritizer::Prioritize(FNetObjectPrioritizationParams& Param
 	uint32 LastObjectIndex = 0;
 	for (uint32 ObjectIndex : MakeArrayView(Params.ObjectIndices, Params.ObjectCount))
 	{
-		bIsProperCall &= (AddedIndices[ObjectIndex] == true);
+		bIsProperCall &= (AddedIndices.IsBitSet(ObjectIndex));
 		bIsProperCall &= (ObjectIndex > LastObjectIndex);
 
 		LastObjectIndex = ObjectIndex;
@@ -134,7 +139,7 @@ void UMockNetObjectPrioritizer::Prioritize(FNetObjectPrioritizationParams& Param
 
 float UMockNetObjectPrioritizer::GetPriority(UE::Net::Private::FInternalNetRefIndex ObjectIndex) const
 {
-	check(AddedIndices[ObjectIndex]);
+	check(AddedIndices.IsBitSet(ObjectIndex));
 	if (const float* Priority = ObjectToPriority.Find(ObjectIndex))
 	{
 		return *Priority;

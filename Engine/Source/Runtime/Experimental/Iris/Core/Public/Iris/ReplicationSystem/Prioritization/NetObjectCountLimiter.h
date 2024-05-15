@@ -72,6 +72,8 @@ class UNetObjectCountLimiter : public UNetObjectPrioritizer
 protected:
 	// UNetObjectPrioritizer interface
 	IRISCORE_API virtual void Init(FNetObjectPrioritizerInitParams&) override;
+	IRISCORE_API virtual void Deinit() override;
+	IRISCORE_API virtual void OnMaxInternalNetRefIndexIncreased(uint32 NewMaxInternalIndex) override {}
 	IRISCORE_API virtual void AddConnection(uint32 ConnectionId) override;
 	IRISCORE_API virtual void RemoveConnection(uint32 ConnectionId) override;
 	IRISCORE_API virtual bool AddObject(uint32 ObjectIndex, FNetObjectPrioritizerAddObjectParams&) override;

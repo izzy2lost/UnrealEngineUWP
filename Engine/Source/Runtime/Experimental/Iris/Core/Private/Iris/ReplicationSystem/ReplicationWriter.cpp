@@ -361,7 +361,8 @@ void FReplicationWriter::Init(const FReplicationParameters& InParameters)
 	// Store copy of parameters
 	Parameters = InParameters;
 
-	UE_LOG(LogIris, Log, TEXT("ReplicationWriter: Configured with MaxActiveReplicatedObjectCount=%d, PreallocatedObjectCount=%d and MaxReplicatedWriterObjectCount=%d."), Parameters.MaxActiveReplicatedObjectCount, Parameters.PreAllocatedReplicatedObjectCount, Parameters.MaxReplicatedWriterObjectCount);
+	UE_LOG(LogIris, Log, TEXT("ReplicationWriter: Configured with MaxInternalNetRefIndex=%d and MaxReplicationWriterObjectCount=%d."), 
+		Parameters.MaxInternalNetRefIndex, Parameters.MaxReplicationWriterObjectCount);
 
 	// Cache internal systems
 	ReplicationSystemInternal = Parameters.ReplicationSystem->GetReplicationSystemInternal();
@@ -376,24 +377,49 @@ void FReplicationWriter::Init(const FReplicationParameters& InParameters)
 	NetObjectBlobHandler = NetBlobManager->GetNetObjectBlobHandler();
 	NetTypeStats = &ReplicationSystemInternal->GetNetTypeStats();
 
-	// Init book keeping
-	const int32 PreAllocatedBufferSize = Parameters.MaxReplicatedWriterObjectCount;
-	ReplicatedObjects.SetNumZeroed(PreAllocatedBufferSize);
-	ReplicatedObjectsRecordInfoLists.SetNumZeroed(PreAllocatedBufferSize);
-	SchedulingPriorities.SetNumZeroed(PreAllocatedBufferSize);
-
+	// See if we want to limit the amount of objects able to do property replication, otherwise follow the system max and grow as needed
+	const uint32 MaxSupportedObjects = Parameters.MaxReplicationWriterObjectCount > 0 ? Parameters.MaxReplicationWriterObjectCount : Parameters.MaxInternalNetRefIndex;
+	ReplicatedObjects.SetNumZeroed(MaxSupportedObjects);
+	ReplicatedObjectsRecordInfoLists.SetNumZeroed(MaxSupportedObjects);
+	SchedulingPriorities.SetNumZeroed(MaxSupportedObjects);
+	
 	// NOTE: Currently disabled because FReplicationWriter until the performance impact of TNetChunkedArray can be measured on the server.
 	//OnLargestIndexIncreaseHandle = NetRefHandleManager->GetLargestIndexIncreaseDelegate().AddRaw(this, &FReplicationWriter::OnLargestIndexIncrease);
 
-	ObjectsPendingDestroy.Init(Parameters.MaxActiveReplicatedObjectCount);
-	ObjectsWithDirtyChanges.Init(Parameters.MaxActiveReplicatedObjectCount);
-	ObjectsInScope.Init(Parameters.MaxActiveReplicatedObjectCount);	
-	WriteContext.ObjectsWrittenThisPacket.Init(Parameters.MaxActiveReplicatedObjectCount);
+	SetNetObjectListsSize(Parameters.MaxInternalNetRefIndex);
+
+	NetRefHandleManager->GetOnMaxInternalNetRefIndexIncreasedDelegate().AddRaw(this, &FReplicationWriter::OnMaxInternalNetRefIndexIncreased);
 
 	// Attachments init
 	SetupReplicationInfoForAttachmentsToObjectsNotInScope();
 
 	bReplicationEnabled = false;
+}
+
+void FReplicationWriter::Deinit()
+{
+	NetRefHandleManager->GetOnMaxInternalNetRefIndexIncreasedDelegate().RemoveAll(this);
+}
+
+void FReplicationWriter::SetNetObjectListsSize(FInternalNetRefIndex NewMaxInternalIndex)
+{
+	ObjectsPendingDestroy.SetNumBits(NewMaxInternalIndex);
+	ObjectsWithDirtyChanges.SetNumBits(NewMaxInternalIndex);
+	ObjectsInScope.SetNumBits(NewMaxInternalIndex);
+	WriteContext.ObjectsWrittenThisPacket.SetNumBits(NewMaxInternalIndex);
+}
+
+void FReplicationWriter::OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex)
+{
+	// Only grow the objects if no limits were set
+	if (Parameters.MaxReplicationWriterObjectCount == 0)
+	{
+		ReplicatedObjects.SetNumZeroed(NewMaxInternalIndex);
+		ReplicatedObjectsRecordInfoLists.SetNumZeroed(NewMaxInternalIndex);
+		SchedulingPriorities.SetNumZeroed(NewMaxInternalIndex);
+	}
+
+	SetNetObjectListsSize(NewMaxInternalIndex);
 }
 
 void FReplicationWriter::GetInitialChangeMask(ChangeMaskStorageType* ChangeMaskData, const FReplicationProtocol* Protocol)
@@ -1572,7 +1598,7 @@ void FReplicationWriter::HandleDroppedRecord(const FReplicationRecord::FRecordIn
 void FReplicationWriter::ProcessDeliveryNotification(EPacketDeliveryStatus PacketDeliveryStatus)
 {
 #if UE_NET_VALIDATE_REPLICATION_RECORD
-	check(s_ValidateReplicationRecord(&ReplicationRecord, Parameters.MaxActiveReplicatedObjectCount + 1U, true));
+	check(s_ValidateReplicationRecord(&ReplicationRecord, NetRefHandleManager->GetMaxActiveObjectCount() + 1U, true));
 #endif
 
 	const uint32 RecordCount = ReplicationRecord.PopRecord();
@@ -3188,7 +3214,7 @@ UDataStream::EWriteResult FReplicationWriter::BeginWrite(const UDataStream::FBeg
 		// Allocate space for indices to send
 		// This should be allocated from frame temp allocator and be cleaned up end of frame, we might want this data to persist over multiple write calls but not over multiple frames 
 		// https://jira.it.epicgames.com/browse/UE-127374	
-		WriteContext.ScheduledObjectInfos = reinterpret_cast<FScheduleObjectInfo*>(FMemory::Malloc(sizeof(FScheduleObjectInfo) * Parameters.MaxActiveReplicatedObjectCount));
+		WriteContext.ScheduledObjectInfos = reinterpret_cast<FScheduleObjectInfo*>(FMemory::Malloc(sizeof(FScheduleObjectInfo) * NetRefHandleManager->GetCurrentMaxInternalNetRefIndex()));
 		WriteContext.ScheduledObjectCount = ScheduleObjects(WriteContext.ScheduledObjectInfos);
 	}
 
@@ -3352,7 +3378,7 @@ UDataStream::EWriteResult FReplicationWriter::Write(FNetSerializationContext& Co
 		ReplicationRecord.PushRecord(ReplicationInfoCount);
 
 #if UE_NET_VALIDATE_REPLICATION_RECORD
-		check(s_ValidateReplicationRecord(&ReplicationRecord, Parameters.MaxActiveReplicatedObjectCount + 1U, false));
+		check(s_ValidateReplicationRecord(&ReplicationRecord, NetRefHandleManager->GetMaxActiveObjectCount() + 1U, false));
 #endif
 
 #if UE_NET_TRACE_ENABLED

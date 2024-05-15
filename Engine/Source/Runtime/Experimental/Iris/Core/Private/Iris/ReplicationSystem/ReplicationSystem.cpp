@@ -61,7 +61,14 @@ public:
 
 	explicit FReplicationSystemImpl(UReplicationSystem* InReplicationSystem, const UReplicationSystem::FReplicationSystemParams& Params)
 	: ReplicationSystem(InReplicationSystem)
-	, ReplicationSystemInternal(FReplicationSystemInternalInitParams({ InReplicationSystem->GetId(), Params.MaxReplicatedObjectCount, Params.PreAllocatedReplicatedObjectCount, Params.MaxReplicatedWriterObjectCount }))
+	, ReplicationSystemInternal(
+		FReplicationSystemInternalInitParams(
+		{ 
+			.ReplicationSystemId = InReplicationSystem->GetId(),
+			.MaxReplicatedObjectCount = Params.MaxReplicatedObjectCount,
+			.NetChunkedArrayCount = Params.PreAllocatedMemoryBuffersObjectCount,
+			.MaxReplicationWriterObjectCount = Params.MaxReplicationWriterObjectCount,
+		}))
 	{
 	}
 
@@ -90,23 +97,25 @@ public:
 #if !UE_BUILD_SHIPPING
 		IrisDebugHelperDummy = UE::Net::IrisDebugHelper::Init();
 #endif
-
 		const uint32 ReplicationSystemId = ReplicationSystem->GetId();
 
 		FNetRefHandleManager& NetRefHandleManager = ReplicationSystemInternal.GetNetRefHandleManager();
-
 		{
-			FNetRefHandleManager::FInitParams HandleInitParams
-			{
-				.ReplicationSystemId = ReplicationSystemId,
-				.MaxActiveObjectCount = Params.MaxReplicatedObjectCount,
-				.PreAllocatedObjectCount = Params.PreAllocatedReplicatedObjectCount,
-			};
+			FNetRefHandleManager::FInitParams NetRefHandleManagerInitParams;
+			NetRefHandleManagerInitParams.ReplicationSystemId = ReplicationSystemId;
+			NetRefHandleManagerInitParams.MaxActiveObjectCount = Params.MaxReplicatedObjectCount;
+			NetRefHandleManagerInitParams.InternalNetRefIndexInitSize = Params.InitialNetObjectListCount;
+			NetRefHandleManagerInitParams.InternalNetRefIndexGrowSize = Params.NetObjectListGrowCount;
+			NetRefHandleManagerInitParams.NetChunkedArrayCount = Params.PreAllocatedMemoryBuffersObjectCount;
+			NetRefHandleManager.Init(NetRefHandleManagerInitParams);
 
-			NetRefHandleManager.Init(HandleInitParams);
+			NetRefHandleManager.GetOnMaxInternalNetRefIndexIncreasedDelegate().AddRaw(this, &FReplicationSystemImpl::OnMaxInternalNetRefIndexIncreased);
 		}
 
-		const uint32 MaxObjectCount =  NetRefHandleManager.GetMaxActiveObjectCount();
+		// Note that Params.MaxReplicatedObjectCount was just a suggestion for the NetRefHandleManager.
+		// From here systems must rely on the NetRefHandleManager configuration.
+		const uint32 AbsoluteMaxObjectCount =  NetRefHandleManager.GetMaxActiveObjectCount();
+		const uint32 CurrentMaxInternalNetRefIndex = NetRefHandleManager.GetCurrentMaxInternalNetRefIndex();
 
 		// DirtyNetObjectTracking is only needed when object replication is allowed
 		if (Params.bAllowObjectReplication)
@@ -116,109 +125,112 @@ public:
 
 			DirtyNetObjectTrackerInitParams.NetRefHandleManager = &NetRefHandleManager;
 			DirtyNetObjectTrackerInitParams.ReplicationSystemId = ReplicationSystemId;
-			DirtyNetObjectTrackerInitParams.MaxObjectCount = MaxObjectCount;
+			DirtyNetObjectTrackerInitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 
 			ReplicationSystemInternal.InitDirtyNetObjectTracker(DirtyNetObjectTrackerInitParams);
 		}
 
-		FReplicationStateStorage& StateStorage = ReplicationSystemInternal.GetReplicationStateStorage();
 		{
+			FReplicationStateStorage& StateStorage = ReplicationSystemInternal.GetReplicationStateStorage();
 			FReplicationStateStorageInitParams InitParams;
 			InitParams.ReplicationSystem = ReplicationSystem;
 			InitParams.NetRefHandleManager = &NetRefHandleManager;
-			InitParams.MaxObjectCount = MaxObjectCount;
+			InitParams.MaxObjectCount = AbsoluteMaxObjectCount;
+			InitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 			InitParams.MaxConnectionCount = ReplicationSystemInternal.GetConnections().GetMaxConnectionCount();
 			InitParams.MaxDeltaCompressedObjectCount = Params.MaxDeltaCompressedObjectCount;
 			StateStorage.Init(InitParams);
 		}
 
-		FNetObjectGroups& Groups = ReplicationSystemInternal.GetGroups();
 		{
+			FNetObjectGroups& Groups = ReplicationSystemInternal.GetGroups();
 			FNetObjectGroupInitParams InitParams = {};
 			InitParams.NetRefHandleManager = &NetRefHandleManager;
-			InitParams.MaxObjectCount = MaxObjectCount;
+			InitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 			InitParams.MaxGroupCount = Params.MaxNetObjectGroupCount;
 
 			Groups.Init(InitParams);
 		}
 
-		FReplicationStateDescriptorRegistry& Registry = ReplicationSystemInternal.GetReplicationStateDescriptorRegistry();
 		{
+			FReplicationStateDescriptorRegistry& Registry = ReplicationSystemInternal.GetReplicationStateDescriptorRegistry();
 			FReplicationStateDescriptorRegistryInitParams InitParams = {};
 			InitParams.ProtocolManager = &ReplicationSystemInternal.GetReplicationProtocolManager();
 
 			Registry.Init(InitParams);
 		}		
 
-		FNetCullDistanceOverrides& NetCullDistanceOverrides = ReplicationSystemInternal.GetNetCullDistanceOverrides();
 		{
+			FNetCullDistanceOverrides& NetCullDistanceOverrides = ReplicationSystemInternal.GetNetCullDistanceOverrides();
 			FNetCullDistanceOverridesInitParams InitParams;
-			InitParams.MaxObjectCount = MaxObjectCount;
+			InitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 			NetCullDistanceOverrides.Init(InitParams);
 		}
 
-		FWorldLocations& WorldLocations = ReplicationSystemInternal.GetWorldLocations();
 		{
+			FWorldLocations& WorldLocations = ReplicationSystemInternal.GetWorldLocations();
 			FWorldLocationsInitParams InitParams;
-			InitParams.MaxObjectCount = MaxObjectCount;
+			InitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 			WorldLocations.Init(InitParams);
 		}
 	
-		FDeltaCompressionBaselineInvalidationTracker& DeltaCompressionBaselineInvalidationTracker = ReplicationSystemInternal.GetDeltaCompressionBaselineInvalidationTracker();
-		FDeltaCompressionBaselineManager& DeltaCompressionBaselineManager = ReplicationSystemInternal.GetDeltaCompressionBaselineManager();
 		{
+			FDeltaCompressionBaselineInvalidationTracker& DeltaCompressionBaselineInvalidationTracker = ReplicationSystemInternal.GetDeltaCompressionBaselineInvalidationTracker();
 			FDeltaCompressionBaselineInvalidationTrackerInitParams InitParams;
-			InitParams.BaselineManager = &DeltaCompressionBaselineManager;
-			InitParams.MaxObjectCount = MaxObjectCount;
+			InitParams.BaselineManager = &ReplicationSystemInternal.GetDeltaCompressionBaselineManager();
+			InitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 			DeltaCompressionBaselineInvalidationTracker.Init(InitParams);
 		}
+
 		{
+			FDeltaCompressionBaselineManager& DeltaCompressionBaselineManager = ReplicationSystemInternal.GetDeltaCompressionBaselineManager();
 			FDeltaCompressionBaselineManagerInitParams InitParams;
-			InitParams.BaselineInvalidationTracker = &DeltaCompressionBaselineInvalidationTracker;
+			InitParams.BaselineInvalidationTracker = &ReplicationSystemInternal.GetDeltaCompressionBaselineInvalidationTracker();
 			InitParams.Connections = &ReplicationSystemInternal.GetConnections();
 			InitParams.NetRefHandleManager = &NetRefHandleManager;
-			InitParams.ReplicationStateStorage = &StateStorage;
-			InitParams.MaxObjectCount = MaxObjectCount;
+			InitParams.ReplicationStateStorage = &ReplicationSystemInternal.GetReplicationStateStorage();
+			InitParams.MaxNetObjectCount = AbsoluteMaxObjectCount;
+			InitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 			InitParams.MaxDeltaCompressedObjectCount = Params.MaxDeltaCompressedObjectCount;
 			InitParams.ReplicationSystem = ReplicationSystem;
 			DeltaCompressionBaselineManager.Init(InitParams);
 		}
 
-		FReplicationFiltering& ReplicationFiltering = ReplicationSystemInternal.GetFiltering();
 		{
+			FReplicationFiltering& ReplicationFiltering = ReplicationSystemInternal.GetFiltering();
 			FReplicationFilteringInitParams InitParams;
 			InitParams.ReplicationSystem = ReplicationSystem;
 			InitParams.Connections = &ReplicationSystemInternal.GetConnections();
 			InitParams.NetRefHandleManager = &NetRefHandleManager;
-			InitParams.Groups = &Groups;
+			InitParams.Groups = &ReplicationSystemInternal.GetGroups();
 			InitParams.BaselineInvalidationTracker = &ReplicationSystemInternal.GetDeltaCompressionBaselineInvalidationTracker();
-			InitParams.MaxObjectCount = MaxObjectCount;
+			InitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 			InitParams.MaxGroupCount = Params.MaxNetObjectGroupCount;
 			ReplicationFiltering.Init(InitParams);
 		}
 
 		InitDefaultFilteringGroups();
 
-		FReplicationConditionals& ReplicationConditionals = ReplicationSystemInternal.GetConditionals();
 		{
+			FReplicationConditionals& ReplicationConditionals = ReplicationSystemInternal.GetConditionals();
 			FReplicationConditionalsInitParams InitParams = {};
 			InitParams.NetRefHandleManager = &NetRefHandleManager;
 			InitParams.ReplicationConnections = &ReplicationSystemInternal.GetConnections();
-			InitParams.ReplicationFiltering = &ReplicationFiltering;
-			InitParams.NetObjectGroups = &Groups;
+			InitParams.ReplicationFiltering = &ReplicationSystemInternal.GetFiltering();
+			InitParams.NetObjectGroups = &ReplicationSystemInternal.GetGroups();
 			InitParams.BaselineInvalidationTracker = &ReplicationSystemInternal.GetDeltaCompressionBaselineInvalidationTracker();
-			InitParams.MaxObjectCount = MaxObjectCount;
+			InitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 			InitParams.MaxConnectionCount = ReplicationSystemInternal.GetConnections().GetMaxConnectionCount();
 			ReplicationConditionals.Init(InitParams);
 		}
 
-		FReplicationPrioritization& ReplicationPrioritization = ReplicationSystemInternal.GetPrioritization();
 		{
+			FReplicationPrioritization& ReplicationPrioritization = ReplicationSystemInternal.GetPrioritization();
 			FReplicationPrioritizationInitParams InitParams;
 			InitParams.ReplicationSystem = ReplicationSystem;
 			InitParams.Connections = &ReplicationSystemInternal.GetConnections();
 			InitParams.NetRefHandleManager = &NetRefHandleManager;
-			InitParams.MaxObjectCount = MaxObjectCount;
+			InitParams.MaxInternalNetRefIndex = CurrentMaxInternalNetRefIndex;
 			ReplicationPrioritization.Init(InitParams);
 		}
 
@@ -236,8 +248,8 @@ public:
 			ReplicationSystemInternal.SetIrisObjectReferencePackageMap(ObjectReferencePackageMap);
 		}
 
-		FNetBlobManager& BlobManager = ReplicationSystemInternal.GetNetBlobManager();
 		{
+			FNetBlobManager& BlobManager = ReplicationSystemInternal.GetNetBlobManager();
 			FNetBlobManagerInitParams InitParams = {};
 			InitParams.ReplicationSystem = ReplicationSystem;
 			InitParams.bSendAttachmentsWithObject = ReplicationSystem->IsServer();
@@ -251,8 +263,8 @@ public:
 
 		ConnectionsPendingPostTickDispatchSend.Init(ReplicationSystemInternal.GetConnections().GetMaxConnectionCount());
 
-		FNetTypeStats& NetStats = ReplicationSystemInternal.GetNetTypeStats();
 		{
+			FNetTypeStats& NetStats = ReplicationSystemInternal.GetNetTypeStats();
 			FNetTypeStats::FInitParams InitParams;
 			InitParams.NetRefHandleManager = &NetRefHandleManager;
 			NetStats.Init(InitParams);
@@ -261,7 +273,16 @@ public:
 
 	void Deinit()
 	{
+		ReplicationSystemInternal.GetPrioritization().Deinit();
+		ReplicationSystemInternal.GetFiltering().Deinit();
 		ReplicationSystemInternal.GetConnections().Deinit();
+		ReplicationSystemInternal.GetDeltaCompressionBaselineManager().Deinit();
+		ReplicationSystemInternal.GetReplicationStateStorage().Deinit();
+
+		if (ReplicationSystemInternal.IsDirtyNetObjectTrackerInitialized())
+		{
+			ReplicationSystemInternal.GetDirtyNetObjectTracker().Deinit();
+		}
 
 		// Reset replication bridge
 		ReplicationSystemInternal.GetReplicationBridge()->Deinitialize();
@@ -273,8 +294,21 @@ public:
 			ReplicationSystemInternal.SetIrisObjectReferencePackageMap(static_cast<UIrisObjectReferencePackageMap*>(nullptr));
 		}
 
-		ReplicationSystemInternal.GetDeltaCompressionBaselineManager().Deinit();
+		ReplicationSystemInternal.GetNetRefHandleManager().GetOnMaxInternalNetRefIndexIncreasedDelegate().RemoveAll(this);
 		ReplicationSystemInternal.GetNetRefHandleManager().Deinit();
+	}
+
+	void OnMaxInternalNetRefIndexIncreased(FInternalNetRefIndex NewMaxInternalIndex)
+	{
+		ReplicationSystemInternal.GetReplicationStateStorage().OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
+		ReplicationSystemInternal.GetGroups().OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
+		ReplicationSystemInternal.GetNetCullDistanceOverrides().OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
+		ReplicationSystemInternal.GetWorldLocations().OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
+		ReplicationSystemInternal.GetDeltaCompressionBaselineInvalidationTracker().OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
+		ReplicationSystemInternal.GetDeltaCompressionBaselineManager().OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
+		ReplicationSystemInternal.GetFiltering().OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
+		ReplicationSystemInternal.GetConditionals().OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
+		ReplicationSystemInternal.GetPrioritization().OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
 	}
 
 	void StartPreSendUpdate()
@@ -507,9 +541,8 @@ public:
 			Params.ReplicationSystem = ReplicationSystem;
 			Params.PacketSendWindowSize = 256;
 			Params.ConnectionId = ConnectionId;
-			Params.MaxActiveReplicatedObjectCount = ReplicationSystemInternal.GetNetRefHandleManager().GetMaxActiveObjectCount();
-			Params.PreAllocatedReplicatedObjectCount = ReplicationSystemInternal.GetNetRefHandleManager().GetPreAllocatedObjectCount();
-			Params.MaxReplicatedWriterObjectCount = ReplicationSystemInternal.GetInitParams().MaxReplicatedWriterObjectCount;
+			Params.MaxInternalNetRefIndex = ReplicationSystemInternal.GetNetRefHandleManager().GetCurrentMaxInternalNetRefIndex();
+			Params.MaxReplicationWriterObjectCount = ReplicationSystemInternal.GetInitParams().MaxReplicationWriterObjectCount;
 
 			/** 
 			  * Currently we expect all objects to be replicated from server to client.
@@ -592,9 +625,9 @@ public:
 		const FNetBitArray& ValidConnections = Connections.GetValidConnections();
 		ValidConnections.ForAllSetBits(UpdateUnresolvableReferenceTracking);
 	}
-};
+}; // end class FReplicationSystemImpl
 
-}
+} // end namespace UE::Net::Private
 
 UReplicationSystem::UReplicationSystem()
 : Super()
@@ -1729,7 +1762,7 @@ UReplicationSystem* FReplicationSystemFactory::CreateReplicationSystem(const URe
 			MaxReplicationSystemId = ReplicationSystemId;
 		}
 
-		UE_LOG(LogIris, Display, TEXT("Iris ReplicationSystem[%i] is created"), ReplicationSystemId);
+		UE_LOG(LogIris, Display, TEXT("Iris ReplicationSystem[%i]: %s (0x%p) is created"), ReplicationSystemId, *ReplicationSystem->GetName(), ReplicationSystem);
 
 		ReplicationSystem->Init(ReplicationSystemId, Params);
 
@@ -1754,7 +1787,7 @@ void FReplicationSystemFactory::DestroyReplicationSystem(UReplicationSystem* Sys
 
 	const uint32 Id = System->GetId();
 
-	UE_LOG(LogIris, Display, TEXT("Iris ReplicationSystem[%i] is about to be destroyed"), Id);
+	UE_LOG(LogIris, Display, TEXT("Iris ReplicationSystem[%i]: %s (0x%p) is about to be destroyed"), Id, *System->GetName(), System);
 
 	if (Id < MaxReplicationSystemCount)
 	{

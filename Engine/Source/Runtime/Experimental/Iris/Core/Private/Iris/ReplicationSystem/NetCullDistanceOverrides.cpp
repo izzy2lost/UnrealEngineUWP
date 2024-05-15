@@ -8,7 +8,12 @@ namespace UE::Net
 
 void FNetCullDistanceOverrides::Init(const FNetCullDistanceOverridesInitParams& InitParams)
 {
-	ValidCullDistanceSqr.Init(InitParams.MaxObjectCount);
+	ValidCullDistanceSqr.Init(InitParams.MaxInternalNetRefIndex);
+}
+
+void FNetCullDistanceOverrides::OnMaxInternalNetRefIndexIncreased(UE::Net::Private::FInternalNetRefIndex NewMaxInternalIndex)
+{
+	ValidCullDistanceSqr.SetNumBits(NewMaxInternalIndex);
 }
 
 bool FNetCullDistanceOverrides::ClearCullDistanceSqr(uint32 ObjectIndex)

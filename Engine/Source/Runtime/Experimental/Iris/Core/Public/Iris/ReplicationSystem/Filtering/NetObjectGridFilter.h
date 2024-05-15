@@ -95,6 +95,8 @@ class UNetObjectGridFilter : public UNetObjectFilter
 protected:
 	// UNetObjectFilter interface
 	IRISCORE_API virtual void OnInit(const FNetObjectFilterInitParams&) override;
+	IRISCORE_API virtual void OnDeinit() override;
+	IRISCORE_API virtual void OnMaxInternalNetRefIndexIncreased(uint32 NewMaxInternalIndex) override;
 	IRISCORE_API virtual void AddConnection(uint32 ConnectionId) override;
 	IRISCORE_API virtual void RemoveConnection(uint32 ConnectionId) override;
 	IRISCORE_API virtual bool AddObject(uint32 ObjectIndex, FNetObjectFilterAddObjectParams&) override;
@@ -308,6 +310,7 @@ class UNetObjectGridWorldLocFilter : public UNetObjectGridFilter
 protected:
 
 	virtual void OnInit(const FNetObjectFilterInitParams&) override;
+	virtual void OnDeinit() override;
 	virtual void PreFilter(FNetObjectPreFilteringParams&) override;
 	virtual void UpdateObjectInfo(FPerObjectInfo& PerObjectInfo, const UNetObjectGridFilter::FObjectLocationInfo& ObjectLocationInfo, const UE::Net::FReplicationInstanceProtocol* InstanceProtocol) override;
 	virtual bool BuildObjectInfo(uint32 ObjectIndex, FNetObjectFilterAddObjectParams& Params) override;

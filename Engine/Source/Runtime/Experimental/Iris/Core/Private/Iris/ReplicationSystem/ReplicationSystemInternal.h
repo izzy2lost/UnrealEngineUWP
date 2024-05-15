@@ -35,8 +35,8 @@ struct FReplicationSystemInternalInitParams
 {
 	uint32 ReplicationSystemId;
 	uint32 MaxReplicatedObjectCount;
-	uint32 PreAllocatedReplicatedObjectCount;
-	uint32 MaxReplicatedWriterObjectCount;
+	uint32 NetChunkedArrayCount;
+	uint32 MaxReplicationWriterObjectCount;
 };
 
 class FReplicationSystemInternal
@@ -58,6 +58,7 @@ public:
 	const FNetRefHandleManager& GetNetRefHandleManager() const { return NetRefHandleManager; }
 
 	void InitDirtyNetObjectTracker(const struct FDirtyNetObjectTrackerInitParams& Params) { DirtyNetObjectTracker.Init(Params); }
+	bool IsDirtyNetObjectTrackerInitialized() const { return DirtyNetObjectTracker.IsInit(); }
 	FDirtyNetObjectTracker& GetDirtyNetObjectTracker() { checkf(DirtyNetObjectTracker.IsInit(), TEXT("Not allowed to access the DirtyNetObjectTracker unless object replication is enabled.")); return DirtyNetObjectTracker; }
 
 	FReplicationStateDescriptorRegistry& GetReplicationStateDescriptorRegistry() { return ReplicationStateDescriptorRegistry; }

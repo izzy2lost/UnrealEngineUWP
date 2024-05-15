@@ -3,8 +3,8 @@
 #pragma once
 
 #include "Iris/ReplicationSystem/Prioritization/NetObjectPrioritizer.h"
+#include "Net/Core/NetBitArray.h"
 #include "Iris/ReplicationSystem/RepTag.h"
-#include "Containers/BitArray.h"
 #include "MockNetObjectPrioritizer.generated.h"
 
 namespace UE::Net::Private
@@ -60,6 +60,8 @@ public:
 
 protected:
 	virtual void Init(FNetObjectPrioritizerInitParams& Params) override;
+	virtual void Deinit() override {}
+	virtual void OnMaxInternalNetRefIndexIncreased(uint32 NewMaxInternalIndex) override;
 	virtual bool AddObject(uint32 ObjectIndex, FNetObjectPrioritizerAddObjectParams& Params) override;
 	virtual void RemoveObject(uint32 ObjectIndex, const FNetObjectPrioritizationInfo& Info) override;
 	virtual void UpdateObjects(FNetObjectPrioritizerUpdateParams&) override;
@@ -70,7 +72,7 @@ private:
 
 	FFunctionCallStatus CallStatus;
 	FFunctionCallSetup CallSetup;
-	TBitArray<> AddedIndices;
+	UE::Net::FNetBitArray AddedIndices;
 	SIZE_T AddedCount;
 	TMap<uint32, UPTRINT> ObjectToPriorityOffset;
 	TMap<uint32, float> ObjectToPriority;

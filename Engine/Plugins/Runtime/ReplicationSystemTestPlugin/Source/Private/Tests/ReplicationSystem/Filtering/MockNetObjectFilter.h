@@ -67,6 +67,8 @@ public:
 
 protected:
 	virtual void OnInit(const FNetObjectFilterInitParams&) override;
+	virtual void OnDeinit() override;
+	virtual void OnMaxInternalNetRefIndexIncreased(uint32 NewMaxInternalIndex) override;
 	virtual void AddConnection(uint32 ConnectionId) override;
 	virtual void RemoveConnection(uint32 ConnectionId) override;
 	virtual bool AddObject(uint32 ObjectIndex, FNetObjectFilterAddObjectParams&) override;

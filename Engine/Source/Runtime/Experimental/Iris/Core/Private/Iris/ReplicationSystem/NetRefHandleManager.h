@@ -124,11 +124,14 @@ public:
 
 public:
 
+	/** External configuration variables used to initialize the NetRefHandleManager */
 	struct FInitParams
 	{
 		uint32 ReplicationSystemId = 0;
 		uint32 MaxActiveObjectCount = 0;
-		uint32 PreAllocatedObjectCount = 0;
+		uint32 InternalNetRefIndexInitSize = 0;
+		uint32 NetChunkedArrayCount = 0;
+		uint32 InternalNetRefIndexGrowSize = 0;
 	};
 
 	FNetRefHandleManager(FReplicationProtocolManager& InReplicationProtocolManager);
@@ -257,10 +260,12 @@ public:
 	void SetShouldPropagateChangedStates(FNetRefHandle Handle, bool bShouldPropagateChangedStates);
 	void SetShouldPropagateChangedStates(FInternalNetRefIndex ObjectInternalIndex, bool bShouldPropagateChangedStates);
 
+	/** The absolute maximum replicated objects that can be registered in the ReplicationSystem. Hitting this limit will cause a critical failure. */
 	uint32 GetMaxActiveObjectCount() const { return MaxActiveObjectCount; }
-	uint32 GetActiveObjectCount() const { return ActiveObjectCount; }
-	uint32 GetPreAllocatedObjectCount() const { return PreAllocatedObjectCount; }
 
+	/** The current amount of replicated objects registered for replication. */
+	uint32 GetActiveObjectCount() const { return ActiveObjectCount; }
+	
 	// We do refcount objects tracked by each connection in order to know when it is safe to reuse an InternalIndex
 	void AddNetObjectRef(FInternalNetRefIndex InternalIndex) { ++ReplicatedObjectRefCount[InternalIndex]; }
 	void ReleaseNetObjectRef(FInternalNetRefIndex InternalIndex) { check(ReplicatedObjectRefCount[InternalIndex] > 0); --ReplicatedObjectRefCount[InternalIndex]; }
@@ -302,16 +307,22 @@ public:
 	FNetBitArrayView GetWantToBeDormantInternalIndices() { return MakeNetBitArrayView(WantToBeDormantInternalIndices); }
 
 	/** Return a string to identify the object linked to an index in logs */
-	FString PrintObjectFromIndex(FInternalNetRefIndex ObjectIndex) const;
-	FString PrintObjectFromNetRefHandle(FNetRefHandle ObjectHandle) const;
+	[[nodiscard]] FString PrintObjectFromIndex(FInternalNetRefIndex ObjectIndex) const;
+	[[nodiscard]] FString PrintObjectFromNetRefHandle(FNetRefHandle ObjectHandle) const;
 
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnLargestIndexIncrease, uint32 LargestIndex);
+	/** Delegate that will notify when the highest NetChunkedArray internal index has increased (Highest = Max-1)*/
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnNetChunkedArrayIncrease, FInternalNetRefIndex HighestInternalIndex);
+	FOnNetChunkedArrayIncrease& GetOnNetChunkedArrayIncreaseDelegate() const { return OnNetChunkedArrayIncrease; };
 
-	/** Return a delegate that will notify when the largest internal index has increased. */
-	FOnLargestIndexIncrease& GetLargestIndexIncreaseDelegate() { return OnLargestIndexIncreaseDelegate; };
+	/** Return the highest internal index that NetChunkedArrays are currently allocated for. */
+	uint32 GetHighestNetChunkedArrayInternalIndex() const { return HighestNetChunkedArrayInternalIndex; };
 
-	/** Return the largest internal index that has been used. */
-	uint32 GetLargestInternalIndex() const { return LargestInternalIndex; };
+	/** Delegate that will notify when the NetObjectLists (eg. NetBitArray and TArray indexed via FInternalNetRefIndex) have a new maximum index to support */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnMaxInternalNetRefIndexIncreased, FInternalNetRefIndex MaxInternalIndex);
+	FOnMaxInternalNetRefIndexIncreased& GetOnMaxInternalNetRefIndexIncreasedDelegate() const { return OnMaxInternalNetRefIndexIncreased; };
+
+	/** Return the maximum internal index that NetBitArrays and TArrays are currently allocated for. */
+	FInternalNetRefIndex GetCurrentMaxInternalNetRefIndex() const { return CurrentMaxInternalNetRefIndex; };
 
 	/** Get Objects that is flagged for PreUpdate (aka PreReplication) */
 	FNetBitArrayView GetObjectsWithPreUpdate() const { return MakeNetBitArrayView(ObjectsWithPreUpdate); }
@@ -354,23 +365,34 @@ private:
 	void InternalRemoveDependentObject(FInternalNetRefIndex ParentInternalIndex, FInternalNetRefIndex DependentInternalIndex, ERemoveDependentObjectFlags Flags = ERemoveDependentObjectFlags::All);
 	void InternalRemoveDependentObject(FInternalNetRefIndex DependentInternalIndex);
 
-	// Ensure that all buffers that depend on the largest internal index are sized correctly.
-	void GrowBuffersToLargestIndex(uint32 InternalIndex);
+	/**
+	 * Grow the NetObjectLists to fit more internal indexes.
+	 * Returns the newest available index if the increase worked or InvalidInternalIndex if we hit the maximum.
+	 */
+	FInternalNetRefIndex GrowNetObjectLists();
 
-	// The current replicated object count
-	uint32 ActiveObjectCount = 0;
+	/** Grow memory buffers when we use an index higher than the previous maximum. */
+	void GrowNetChunkedArrayBuffers(FInternalNetRefIndex InternalIndex);
+
+	/** Deal with the increase to the max index and tell other systems about it */
+	void MaxInternalNetRefIndexIncreased(uint32 NewBitCount);
+
+private:
 
 	// Max allowed replicated object count
 	uint32 MaxActiveObjectCount = 0;
 
-	// The number of pre-allocated objects used by internal buffers.
-	uint32 PreAllocatedObjectCount = 0;
+	// The current replicated object count
+	uint32 ActiveObjectCount = 0;
 
-	// The largest internal index value that has been used.
-	uint32 LargestInternalIndex = 0;
+	// By how many indexes to grow the NetObjectLists when we hit the highest index.
+	FInternalNetRefIndex InternalNetRefIndexGrowSize = 0;
 
-	// A delegate that is triggered when the largest encountered internal index increases.
-	FOnLargestIndexIncrease OnLargestIndexIncreaseDelegate;
+	// The maximum internal index that NetObjectLists need to be able to reference
+	FInternalNetRefIndex CurrentMaxInternalNetRefIndex = 0;
+
+	// The highest internal index currently allocated for NetChunkedArrays
+	uint32 HighestNetChunkedArrayInternalIndex = 0;
 
 	uint32 ReplicationSystemId = UE::Net::InvalidReplicationSystemId;
 
@@ -434,8 +456,6 @@ private:
 	// Map DestructionInfoIndex -> Orignal
 	TMap<uint32, uint32> DestroyedStartupObject;
 
-private:
-
 	// Array used in order to track objects pending destroy
 	TArray<FInternalNetRefIndex> PendingDestroyInternalIndices;
 
@@ -459,6 +479,14 @@ private:
 	FNetDependencyData SubObjects;
 
 	FReplicationProtocolManager& ReplicationProtocolManager;
+
+	// Delegates
+	mutable FOnMaxInternalNetRefIndexIncreased OnMaxInternalNetRefIndexIncreased;
+	mutable FOnNetChunkedArrayIncrease OnNetChunkedArrayIncrease;
+
+	// Track NetBitArrays owned by the NetRefHandleManager so they can automatically be resized.
+	TArray<FNetBitArray*> OwnedNetBitArrays;
+
 };
 
 const FNetRefHandleManager::FReplicatedObjectData& FNetRefHandleManager::GetReplicatedObjectData(FInternalNetRefIndex InternalIndex) const

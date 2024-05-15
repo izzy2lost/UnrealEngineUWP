@@ -249,32 +249,31 @@ namespace UE::Net::Private
 	static bool bIgnoreStaticActorDestruction = false;
 
 
-	void ApplyReplicationSystemConfig(const FNetDriverReplicationSystemConfig& ReplicationSystemConfig, UReplicationSystem::FReplicationSystemParams& OutParams, bool bIsServer)
+	void ApplyReplicationSystemConfig(const FNetDriverReplicationSystemConfig& ReplicationSystemConfig, UReplicationSystem::FReplicationSystemParams& OutParams)
 	{
-		if (bIsServer)
+		if (ReplicationSystemConfig.MaxReplicatedObjectCount != 0)
 		{
-			if (ReplicationSystemConfig.MaxReplicatedObjectServerCount != 0)
-			{
-				OutParams.MaxReplicatedObjectCount = ReplicationSystemConfig.MaxReplicatedObjectServerCount;
-			}
-
-			OutParams.PreAllocatedReplicatedObjectCount = ReplicationSystemConfig.PreAllocatedReplicatedObjectServerCount;
-
-			OutParams.MaxReplicatedWriterObjectCount = OutParams.MaxReplicatedObjectCount;
+			OutParams.MaxReplicatedObjectCount = ReplicationSystemConfig.MaxReplicatedObjectCount;
 		}
-		else
+
+		if (ReplicationSystemConfig.InitialNetObjectListCount != 0 )
 		{
-			if (ReplicationSystemConfig.MaxReplicatedObjectClientCount != 0)
-			{
-				OutParams.MaxReplicatedObjectCount = ReplicationSystemConfig.MaxReplicatedObjectClientCount;
-			}
+			OutParams.InitialNetObjectListCount = ReplicationSystemConfig.InitialNetObjectListCount;
+		}
 
-			OutParams.PreAllocatedReplicatedObjectCount = ReplicationSystemConfig.PreAllocatedReplicatedObjectClientCount;
+		if (ReplicationSystemConfig.NetObjectListGrowCount != 0)
+		{
+			OutParams.NetObjectListGrowCount = ReplicationSystemConfig.NetObjectListGrowCount;
+		}
 
-			if (ReplicationSystemConfig.MaxReplicatedWriterObjectClientCount != 0)
-			{
-				OutParams.MaxReplicatedWriterObjectCount = ReplicationSystemConfig.MaxReplicatedWriterObjectClientCount;
-			}
+		if (ReplicationSystemConfig.PreAllocatedMemoryBuffersObjectCount != 0)
+		{
+			OutParams.PreAllocatedMemoryBuffersObjectCount = ReplicationSystemConfig.PreAllocatedMemoryBuffersObjectCount;
+		}
+		
+		if (ReplicationSystemConfig.MaxReplicationWriterObjectCount!= 0)
+		{
+			OutParams.MaxReplicationWriterObjectCount = OutParams.MaxReplicationWriterObjectCount;
 		}
 
 		if (ReplicationSystemConfig.MaxDeltaCompressedObjectCount != 0)
@@ -7006,7 +7005,14 @@ void UNetDriver::CreateReplicationSystem(bool bInitAsClient)
 		Params.bAllowObjectReplication = !bInitAsClient;
 		Params.ForwardNetRPCCallDelegate.BindUObject(this, &UNetDriver::ForwardRemoteFunction);
 
-		UE::Net::Private::ApplyReplicationSystemConfig(ReplicationSystemConfig, Params, !bInitAsClient);
+		if (bInitAsClient)
+		{
+			UE::Net::Private::ApplyReplicationSystemConfig(ReplicationSystemConfigClient, Params);
+		}
+		else
+		{
+			UE::Net::Private::ApplyReplicationSystemConfig(ReplicationSystemConfigServer, Params);
+		}
 
 		SetReplicationSystem(UE::Net::FReplicationSystemFactory::CreateReplicationSystem(Params));
 	}

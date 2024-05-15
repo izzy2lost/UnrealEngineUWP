@@ -1550,6 +1550,42 @@ UE_NET_TEST(FNetBitArrayView, PrintHelper)
 	}
 }
 
+UE_NET_TEST(FNetBitArrayView, TestRoundUpToMaxWord)
+{
+	{
+		const uint32 NumBits = 0;
+		uint32 RoundUpZero = FNetBitArray::RoundUpToMaxWordBitCount(NumBits);
+		UE_NET_ASSERT_TRUE(RoundUpZero > NumBits);
+		UE_NET_ASSERT_TRUE((RoundUpZero % FNetBitArray::WordBitCount) == 0);
+
+		FNetBitArray BitArray(RoundUpZero);
+		UE_NET_ASSERT_TRUE(BitArray.GetNumWords() == 1);
+		UE_NET_ASSERT_TRUE(BitArray.GetNumBits() == RoundUpZero);
+	}
+
+	{
+		const uint32 NumBits = 32;
+		uint32 RoundUpWord = FNetBitArray::RoundUpToMaxWordBitCount(NumBits);
+		UE_NET_ASSERT_TRUE(RoundUpWord == NumBits);
+		UE_NET_ASSERT_TRUE((RoundUpWord % FNetBitArray::WordBitCount) == 0);
+
+		FNetBitArray BitArray(RoundUpWord);
+		UE_NET_ASSERT_TRUE(BitArray.GetNumWords() == 1);
+		UE_NET_ASSERT_TRUE(BitArray.GetNumBits() == RoundUpWord);
+	}
+
+	{
+		const uint32 NumBits = 48;
+		uint32 RoundUpTwoWords = FNetBitArray::RoundUpToMaxWordBitCount(NumBits);
+		UE_NET_ASSERT_TRUE(RoundUpTwoWords > NumBits);
+		UE_NET_ASSERT_TRUE((RoundUpTwoWords % FNetBitArray::WordBitCount) == 0);
+
+		FNetBitArray BitArray(RoundUpTwoWords);
+		UE_NET_ASSERT_TRUE(BitArray.GetNumWords() == 2);
+		UE_NET_ASSERT_TRUE(BitArray.GetNumBits() == RoundUpTwoWords);
+	}
+}
+
 class FNetBitArrayViewFixture : public FNetworkAutomationTestSuiteFixture
 {
 public:

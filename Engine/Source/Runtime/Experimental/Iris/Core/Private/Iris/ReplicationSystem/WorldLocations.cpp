@@ -2,6 +2,7 @@
 
 #include "Iris/ReplicationSystem/WorldLocations.h"
 #include "Iris/Core/IrisMemoryTracker.h"
+#include "Iris/ReplicationSystem/NetRefHandleManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldLocations)
 
@@ -10,12 +11,19 @@ namespace UE::Net
 
 void FWorldLocations::Init(const FWorldLocationsInitParams& InitParams)
 {
-	ValidInfoIndexes.Init(InitParams.MaxObjectCount);
-	ObjectsWithDirtyInfo.Init(InitParams.MaxObjectCount);
-	ObjectsRequiringFrequentWorldLocationUpdate.Init(InitParams.MaxObjectCount);
+	ValidInfoIndexes.Init(InitParams.MaxInternalNetRefIndex);
+	ObjectsWithDirtyInfo.Init(InitParams.MaxInternalNetRefIndex);
+	ObjectsRequiringFrequentWorldLocationUpdate.Init(InitParams.MaxInternalNetRefIndex);
 
 	MinWorldPos = GetDefault<UWorldLocationsConfig>()->MinPos;
 	MaxWorldPos = GetDefault<UWorldLocationsConfig>()->MaxPos;
+}
+
+void FWorldLocations::OnMaxInternalNetRefIndexIncreased(UE::Net::Private::FInternalNetRefIndex NewMaxInternalIndex)
+{
+	ValidInfoIndexes.SetNumBits(NewMaxInternalIndex);
+	ObjectsWithDirtyInfo.SetNumBits(NewMaxInternalIndex);
+	ObjectsRequiringFrequentWorldLocationUpdate.SetNumBits(NewMaxInternalIndex);
 }
 
 void FWorldLocations::InitObjectInfoCache(uint32 ObjectIndex)

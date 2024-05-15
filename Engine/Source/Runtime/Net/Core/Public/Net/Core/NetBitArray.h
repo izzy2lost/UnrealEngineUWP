@@ -58,6 +58,12 @@ public:
 	static constexpr StorageWordType AndNotOp(StorageWordType A, StorageWordType B) { return A & ~B; }
 	static constexpr StorageWordType OrOp(StorageWordType A, StorageWordType B) { return A | B; }
 	static constexpr StorageWordType XorOp(StorageWordType A, StorageWordType B) { return A ^ B; }
+
+	// Round up to a value that uses all available bits in a single NetBitArray Word
+	static uint32 RoundUpToMaxWordBitCount(uint32 Value)
+	{
+		return Value > 0  ? ((Value + WordBitCount - 1) & ~(WordBitCount - 1)) : WordBitCount;
+	}
 };
 
 /**

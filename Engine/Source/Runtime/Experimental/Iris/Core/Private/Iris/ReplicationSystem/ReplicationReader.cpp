@@ -270,7 +270,8 @@ FReplicationReader::FReplicationReader()
 
 FReplicationReader::~FReplicationReader()
 {
-	Deinit();
+	checkf(ReplicatedObjects.IsEmpty(), TEXT("Possible leak detected in FReplicationReader. Nothing should be registered after Deinit()"));
+	checkf(PendingBatches.PendingBatches.IsEmpty(), TEXT("Possible leak detected in FReplicationReader. Nothing should be registered after Deinit()"));
 }
 
 void FReplicationReader::Init(const FReplicationParameters& InParameters)
@@ -320,6 +321,7 @@ void FReplicationReader::Deinit()
 			}
 		}		
 	}
+	PendingBatches.PendingBatches.Empty();
 
 	// Cleanup any allocation stored in the per object info
 	for (auto& ObjectIt : ReplicatedObjects)
