@@ -252,7 +252,6 @@ namespace Metasound
 					{
 						return bIsGraphEditable;
 					}
-					return false;
 				});
 
 				PasteAction.ExecuteAction = CreateDefaultValueObjectPasteExecuteAction(PropertyHandle, bIsArray);
