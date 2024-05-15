@@ -32,6 +32,9 @@ class MESHMODELINGTOOLSEXP_API UMeshInspectorToolBuilder : public USingleSelecti
 
 public:
 	virtual USingleSelectionMeshEditingTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
+
+protected:
+	virtual const FToolTargetTypeRequirements& GetTargetRequirements() const override;
 };
 
 
