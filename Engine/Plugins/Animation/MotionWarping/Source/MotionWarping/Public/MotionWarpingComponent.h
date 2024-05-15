@@ -197,6 +197,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Motion Warping")
 	int32 RemoveAllWarpTargets();
 
+	/** Removes multiple warp targets */
+	UFUNCTION(BlueprintCallable, Category = "Motion Warping")
+	int32 RemoveWarpTargets(const TArray<FName>& WarpTargetNames);
+
 protected:
 
 	/** Adapter that connects motion warping to an owner */

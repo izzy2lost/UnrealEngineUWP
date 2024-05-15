@@ -543,6 +543,18 @@ int32 UMotionWarpingComponent::RemoveWarpTarget(FName WarpTargetName)
 	return NumRemoved;
 }
 
+int32 UMotionWarpingComponent::RemoveWarpTargets(const TArray<FName>& WarpTargetNames)
+{
+	const int32 NumRemoved = WarpTargets.RemoveAll([&WarpTargetNames](const FMotionWarpingTarget& WarpTarget) { return WarpTargetNames.Contains(WarpTarget.Name); });
+
+	if (NumRemoved > 0)
+	{
+		MARK_PROPERTY_DIRTY_FROM_NAME(UMotionWarpingComponent, WarpTargets, this);
+	}
+
+	return NumRemoved;
+}
+
 int32 UMotionWarpingComponent::RemoveAllWarpTargets()
 {
 	const int32 NumRemoved = WarpTargets.Num();
