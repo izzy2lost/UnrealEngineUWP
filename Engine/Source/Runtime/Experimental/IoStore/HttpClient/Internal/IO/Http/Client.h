@@ -45,6 +45,7 @@ enum class EStatusCodeClass
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+using	FCertRootsRef	= UPTRINT;
 using	FTicket		= uint64;
 using	FPemCert	= FMemoryView;
 struct	FActivity;
@@ -61,6 +62,9 @@ public:
 	bool					IsValid() const					{ return Handle != 0; }
 	int32					Num() const;
 	static void				SetDefault(FCertRoots&& CertRoots);
+	static FCertRootsRef	NoTls();
+	static FCertRootsRef	Default();
+	static FCertRootsRef	Explicit(const FCertRoots& CertRoots);
 
 private:
 	UPTRINT					Handle = 0;

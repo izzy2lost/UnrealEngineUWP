@@ -76,6 +76,12 @@ bool FSslContext::AddCert(const FPemCert& Cert)
 ////////////////////////////////////////////////////////////////////////////////
 static FCertRoots GDefaultCertRoots;
 
+struct ECertRootsRefType
+{
+	static const FCertRootsRef	None	= 0;
+	static const FCertRootsRef	Default = ~0ull;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 FCertRoots::~FCertRoots()
 {
@@ -165,6 +171,25 @@ void FCertRoots::SetDefault(FCertRoots&& CertRoots)
 {
 	check(GDefaultCertRoots.IsValid() != CertRoots.IsValid());
 	GDefaultCertRoots = MoveTemp(CertRoots);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+FCertRootsRef FCertRoots::NoTls()
+{
+	return ECertRootsRefType::None;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+FCertRootsRef FCertRoots::Default()
+{
+	return ECertRootsRefType::Default;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+FCertRootsRef FCertRoots::Explicit(const FCertRoots& CertRoots)
+{
+	check(CertRoots.IsValid());
+	return CertRoots.Handle;
 }
 
 
