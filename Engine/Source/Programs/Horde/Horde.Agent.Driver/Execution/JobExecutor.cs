@@ -550,7 +550,7 @@ namespace Horde.Agent.Execution
 			}
 
 			RpcUpdateGraphRequest updateGraph = await ParseGraphUpdateAsync(definitionFile, logger, cancellationToken);
-			await jobRpc.UpdateGraphAsync(updateGraph, null, null, cancellationToken);
+			await JobRpc.UpdateGraphAsync(updateGraph, null, null, cancellationToken);
 
 			HashSet<string> validTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 			validTargets.Add("Setup Build");
