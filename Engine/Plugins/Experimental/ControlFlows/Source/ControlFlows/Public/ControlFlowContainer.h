@@ -6,13 +6,20 @@
 
 #include "Templates/SharedPointer.h"
 #include "Templates/PointerVariants.h"
-#include "CastedTo.h"
+
+class FControlFlowContainerBase;
+namespace UE::Private
+{
+	static bool OwningObjectIsValid(TSharedRef<const FControlFlowContainerBase> InFlowContainer);
+}
+
+/* These wrapper classes along with FControlFlowStatics should be restructured in a way so that we do not rely on heap memory anymore
+*  Specifically we do not derive any FControlFlow classes from `TSharedFromThis` nor `UObject`
+*/
 
 class FControlFlowContainerBase : public TSharedFromThis<FControlFlowContainerBase>
 {
-	friend class FControlFlowStatics;
 public:
-
 	FControlFlowContainerBase() = delete;
 	virtual ~FControlFlowContainerBase() {}
 
@@ -22,15 +29,16 @@ public:
 		checkf(FlowName.Len() > 0, TEXT("All Flows need a non-empty ID!"));
 	}
 
-private:
-	virtual const void* const GetOwningObject() const = 0;
-
-private:
-	bool OwningObjectIsValid() const { return GetOwningObject() != nullptr; }
+public:
+	virtual bool OwningObjectEqualTo(const void* InObject) const = 0;
 
 	const FString& GetFlowName() const { return FlowName; }
 
 	TSharedRef<FControlFlow> GetControlFlow() const { return ControlFlow; }
+
+private:
+	virtual bool OwningObjectIsValid() const = 0;
+	friend bool UE::Private::OwningObjectIsValid(TSharedRef<const FControlFlowContainerBase> InFlowContainer);
 
 private:
 	TSharedRef<FControlFlow> ControlFlow;
@@ -49,11 +57,24 @@ public:
 	{}
 
 private:
-	virtual const void* const GetOwningObject() const override final
+	virtual bool OwningObjectEqualTo(const void* InObject) const override final
 	{
-		return OwningObject.IsValid() ? OwningObject.Cast() : nullptr;
+		return InObject != nullptr && OwningObject.IsValid() && OwningObject.Pin().Get() == InObject;
+	}
+
+	virtual bool OwningObjectIsValid() const override final
+	{
+		return OwningObject.IsValid();
 	}
 
 private:
-	TWeakContainer<T> OwningObject;
+	TWeakPtrVariant<T> OwningObject;
 };
+
+namespace UE::Private
+{
+	static inline bool OwningObjectIsValid(TSharedRef<const FControlFlowContainerBase> InFlowContainer)
+	{
+		return InFlowContainer->OwningObjectIsValid();
+	}
+}

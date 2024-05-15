@@ -29,7 +29,7 @@ void FControlFlowStatics::HandleControlFlowStartedNotification(TSharedRef<const 
 	TArray<TSharedRef<FControlFlowContainerBase>>& NewFlows = GetNewlyCreatedFlows();
 	for (size_t Idx = 0; Idx < NewFlows.Num(); ++Idx)
 	{
-		if (ensureAlways(NewFlows[Idx]->OwningObjectIsValid()))
+		if (ensureAlways(UE::Private::OwningObjectIsValid(NewFlows[Idx])))
 		{
 			if (InFlow == NewFlows[Idx]->GetControlFlow())
 			{
@@ -66,7 +66,7 @@ bool FControlFlowStatics::IterateThroughNewlyCreatedFlows(float DeltaTime)
 	TArray<TSharedRef<FControlFlowContainerBase>>& NewFlows = GetNewlyCreatedFlows();
 	for (size_t Idx = 0; Idx < NewFlows.Num(); ++Idx)
 	{
-		if (ensureAlways(NewFlows[Idx]->OwningObjectIsValid()))
+		if (ensureAlways(UE::Private::OwningObjectIsValid(NewFlows[Idx])))
 		{
 			TSharedRef<FControlFlow> NewFlow = NewFlows[Idx]->GetControlFlow();
 			if (ensureAlwaysMsgf(NewFlow->IsRunning(), TEXT("Call to execute after queue-ing your steps to avoid this ensure. We will fire the flow 1 frame late to hopefully not cause anything from breaking. Flow:%s"), *NewFlow->GetDebugName()))
@@ -102,7 +102,7 @@ bool FControlFlowStatics::IterateForInvalidFlows(float DeltaTime)
 		TArray<TSharedRef<FControlFlowContainerBase>>& Persistent = GetPersistentFlows();
 		for (size_t Idx = 0; Idx < Persistent.Num(); ++Idx)
 		{
-			if (Persistent[Idx]->OwningObjectIsValid())
+			if (UE::Private::OwningObjectIsValid(Persistent[Idx]))
 			{
 				TSharedRef<FControlFlow> PersistentFlow = Persistent[Idx]->GetControlFlow();
 				if (PersistentFlow->IsRunning())
@@ -125,12 +125,12 @@ bool FControlFlowStatics::IterateForInvalidFlows(float DeltaTime)
 		TArray<TSharedRef<FControlFlowContainerBase>>& Executing = GetExecutingFlows();
 		for (size_t Idx = 0; Idx < Executing.Num(); ++Idx)
 		{
-			if (Executing[Idx]->OwningObjectIsValid())
+			if (UE::Private::OwningObjectIsValid(Executing[Idx]))
 			{
 				TSharedRef<FControlFlow> ExecutingFlow = Executing[Idx]->GetControlFlow();
 				if (!ExecutingFlow->IsRunning() && ensureAlways(ExecutingFlow->NumInQueue() == 0))
 				{
-					Executing[Idx]->ControlFlow->Activity = nullptr;
+					Executing[Idx]->GetControlFlow()->Activity = nullptr;
 					GetFinishedFlows().Add(Executing[Idx]);
 					Executing.RemoveAtSwap(Idx);
 					--Idx;
@@ -138,7 +138,7 @@ bool FControlFlowStatics::IterateForInvalidFlows(float DeltaTime)
 			}
 			else
 			{
-				Executing[Idx]->ControlFlow->Activity = nullptr;
+				Executing[Idx]->GetControlFlow()->Activity = nullptr;
 				Executing.RemoveAtSwap(Idx);
 				--Idx;
 			}
@@ -150,7 +150,7 @@ bool FControlFlowStatics::IterateForInvalidFlows(float DeltaTime)
 		TArray<TSharedRef<FControlFlowContainerBase>>& Completed = GetFinishedFlows();
 		for (size_t Idx = 0; Idx < Completed.Num(); ++Idx)
 		{
-			if (!Completed[Idx]->OwningObjectIsValid())
+			if (!UE::Private::OwningObjectIsValid(Completed[Idx]))
 			{
 				UE_LOG(LogControlFlows, Warning, TEXT("Owning Object for completed flow is not valid!"));
 			}

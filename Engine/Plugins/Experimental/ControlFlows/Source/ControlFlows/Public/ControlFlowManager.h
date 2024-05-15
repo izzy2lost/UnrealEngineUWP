@@ -117,9 +117,9 @@ private:
 		{
 			for (TSharedRef<FControlFlowContainerBase> ControlFlowContainer : InArray)
 			{
-				if (ControlFlowContainer->OwningObjectIsValid())
+				if (UE::Private::OwningObjectIsValid(ControlFlowContainer))
 				{
-					if (ControlFlowContainer->GetOwningObject() == OwningObject && ControlFlowContainer->GetFlowName() == FlowId)
+					if (ControlFlowContainer->GetFlowName() == FlowId && ControlFlowContainer->OwningObjectEqualTo(OwningObject))
 					{
 						return ControlFlowContainer->GetControlFlow();
 					}
