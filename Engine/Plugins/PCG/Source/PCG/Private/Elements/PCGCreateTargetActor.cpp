@@ -18,6 +18,10 @@
 #include "GameFramework/Actor.h"
 #include "UObject/Package.h"
 
+#if WITH_EDITOR
+#include "WorldPartition/DataLayer/DataLayerInstance.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGCreateTargetActor)
 
 #define LOCTEXT_NAMESPACE "PCGCreateTargetActor"
@@ -292,6 +296,7 @@ bool FPCGCreateTargetActorElement::ExecuteInternal(FPCGContext* Context) const
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.Template = TemplateActor;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	SpawnParams.OverrideLevel = TargetActor->GetLevel();
 
 	if (PCGHelpers::IsRuntimeOrPIE() || (Context->SourceComponent.IsValid() && Context->SourceComponent->IsInPreviewMode()))
 	{
@@ -304,7 +309,13 @@ bool FPCGCreateTargetActorElement::ExecuteInternal(FPCGContext* Context) const
 		Transform = Settings->ActorPivot;
 	}
 
-	AActor* GeneratedActor = UPCGActorHelpers::SpawnDefaultActor(TargetActor->GetWorld(), TargetActor->GetLevel(), Settings->TemplateActorClass, Transform, SpawnParams);
+	UPCGActorHelpers::FSpawnDefaultActorParams SpawnDefaultActorParams(TargetActor->GetWorld(), Settings->TemplateActorClass, Transform, SpawnParams);
+	
+#if WITH_EDITOR
+	SpawnDefaultActorParams.DataLayerInstances = TargetActor->GetDataLayerInstances();
+#endif
+
+	AActor* GeneratedActor = UPCGActorHelpers::SpawnDefaultActor(SpawnDefaultActorParams);
 
 	if (!GeneratedActor)
 	{

@@ -17,6 +17,10 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGActorHelpers)
 
 #if WITH_EDITOR
+#include "Engine/Level.h"
+#include "WorldPartition/DataLayer/DataLayerInstance.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
 #endif
 
 UInstancedStaticMeshComponent* UPCGActorHelpers::GetOrCreateISMC(AActor* InTargetActor, UPCGComponent* InSourceComponent, uint64 SettingsUID, const FPCGISMCBuilderParameters& InParams)
@@ -414,15 +418,30 @@ AActor* UPCGActorHelpers::SpawnDefaultActor(UWorld* World, ULevel* Level, TSubcl
 
 AActor* UPCGActorHelpers::SpawnDefaultActor(UWorld* World, ULevel* Level, TSubclassOf<AActor> ActorClass, const FTransform& Transform, const FActorSpawnParameters& InSpawnParams, AActor* Parent)
 {
-	if (!World || !ActorClass)
+	FActorSpawnParameters ActorSpawnParams(InSpawnParams);
+	if (Level)
+	{
+		ActorSpawnParams.OverrideLevel = Level;
+	}
+
+	FSpawnDefaultActorParams SpawnDefaultActorParams(World, ActorClass, Transform, ActorSpawnParams);
+	
+	SpawnDefaultActorParams.Parent = Parent;
+	
+	return SpawnDefaultActor(SpawnDefaultActorParams);
+}
+
+AActor* UPCGActorHelpers::SpawnDefaultActor(const FSpawnDefaultActorParams& Params)
+{
+	if (!Params.World || !Params.ActorClass)
 	{
 		return nullptr;
 	}
 
-	FActorSpawnParameters SpawnParams = InSpawnParams;
-	if (Level)
+	FActorSpawnParameters SpawnParams = Params.SpawnParams;
+	if (!SpawnParams.OverrideLevel)
 	{
-		SpawnParams.OverrideLevel = Level;
+		SpawnParams.OverrideLevel = Params.World->PersistentLevel;
 	}
 
 	if (PCGHelpers::IsRuntimeOrPIE())
@@ -430,7 +449,22 @@ AActor* UPCGActorHelpers::SpawnDefaultActor(UWorld* World, ULevel* Level, TSubcl
 		SpawnParams.ObjectFlags |= RF_Transient;
 	}
 
-	AActor* NewActor = World->SpawnActor(*ActorClass, &Transform, SpawnParams);
+#if WITH_EDITOR
+	// Find External Data Layer if it exists so we can create scope that will allow actor to be properly created
+	const UExternalDataLayerInstance* ExternalDataLayerInstance = nullptr;
+	for (const UDataLayerInstance* DataLayerInstance : Params.DataLayerInstances)
+	{
+		if (const UExternalDataLayerInstance* Found = Cast<UExternalDataLayerInstance>(DataLayerInstance))
+		{
+			ExternalDataLayerInstance = Found;
+			break;
+		}
+	}
+
+	FScopedOverrideSpawningLevelMountPointObject EDLScope(ExternalDataLayerInstance ? ExternalDataLayerInstance->GetExternalDataLayerAsset() : nullptr);
+#endif
+
+	AActor* NewActor = Params.World->SpawnActor(*Params.ActorClass, &Params.Transform, SpawnParams);
 	
 	if (!NewActor)
 	{
@@ -438,9 +472,18 @@ AActor* UPCGActorHelpers::SpawnDefaultActor(UWorld* World, ULevel* Level, TSubcl
 	}
 
 	// HACK: until UE-62747 is fixed, we have to force set the scale after spawning the actor
-	NewActor->SetActorRelativeScale3D(Transform.GetScale3D());
+	NewActor->SetActorRelativeScale3D(Params.Transform.GetScale3D());
 
 #if WITH_EDITOR
+	// Add remaining DataLayers (except External which was done on spawn)
+	for (const UDataLayerInstance* DataLayerInstance : Params.DataLayerInstances)
+	{
+		if (DataLayerInstance != ExternalDataLayerInstance)
+		{
+			DataLayerInstance->AddActor(NewActor);
+		}
+	}
+	
 	if (SpawnParams.Name != NAME_None)
 	{
 		NewActor->SetActorLabel(SpawnParams.Name.ToString());
@@ -451,7 +494,7 @@ AActor* UPCGActorHelpers::SpawnDefaultActor(UWorld* World, ULevel* Level, TSubcl
 	if (!RootComponent)
 	{
 		RootComponent = NewObject<USceneComponent>(NewActor, USceneComponent::GetDefaultSceneRootVariableName(), RF_Transactional);
-		RootComponent->SetWorldTransform(Transform);
+		RootComponent->SetWorldTransform(Params.Transform);
 
 		NewActor->SetRootComponent(RootComponent);
 		NewActor->AddInstanceComponent(RootComponent);
@@ -465,9 +508,9 @@ AActor* UPCGActorHelpers::SpawnDefaultActor(UWorld* World, ULevel* Level, TSubcl
 	RootComponent->bVisualizeComponent = true;
 #endif // WITH_EDITOR
 
-	if (Parent)
+	if (Params.Parent)
 	{
-		NewActor->AttachToActor(Parent, FAttachmentTransformRules::KeepWorldTransform);
+		NewActor->AttachToActor(Params.Parent, FAttachmentTransformRules::KeepWorldTransform);
 	}
 
 	return NewActor;

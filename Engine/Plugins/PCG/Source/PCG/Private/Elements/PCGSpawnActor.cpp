@@ -799,6 +799,12 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 		SpawnParams.ObjectFlags |= RF_Transient;
 	}
 
+	UPCGActorHelpers::FSpawnDefaultActorParams SpawnDefaultActorParams(TargetActor->GetWorld(), InTemplateActorClass, FTransform::Identity, SpawnParams);
+
+#if WITH_EDITOR
+	SpawnDefaultActorParams.DataLayerInstances = TargetActor->GetDataLayerInstances();
+#endif
+
 	const bool bForceCallGenerate = (Settings->GenerationTrigger == EPCGSpawnActorGenerationTrigger::ForceGenerate);
 #if WITH_EDITOR
 	const bool bOnLoadCallGenerate = (Settings->GenerationTrigger == EPCGSpawnActorGenerationTrigger::Default);
@@ -890,7 +896,8 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 
 			bAllActorOverridesSucceeded &= ActorOverrides.Apply(i);
 
-			AActor* GeneratedActor = TargetActor->GetWorld()->SpawnActor(InTemplateActorClass, &Point.Transform, SpawnParams);
+			SpawnDefaultActorParams.Transform = Point.Transform;
+			AActor* GeneratedActor = UPCGActorHelpers::SpawnDefaultActor(SpawnDefaultActorParams);
 
 			if (!GeneratedActor)
 			{

@@ -62,18 +62,6 @@ void APCGWorldActor::BeginCacheForCookedPlatformData(const ITargetPlatform* Targ
 		return;
 	}
 
-	// Cache Partition Actor Records at Cook
-	if (UWorldPartition* WorldPartition = World->GetWorldPartition())
-	{
-		TMap<FPCGGridCellDescriptor, FGuid> PartitionActorRecords;
-		TSet<FGuid> InvalidPartitionActors;
-		FPCGActorAndComponentMapping::BuildPartitionActorRecords(this, WorldPartition, PartitionActorRecords, InvalidPartitionActors);
-
-		TArray<FPCGGridCellDescriptor> SerializedPartitionActorRecords;
-		PartitionActorRecords.GenerateKeyArray(SerializedPartitionActorRecords);
-		RuntimePartitionActorRecords = TSet<FPCGGridCellDescriptor>(SerializedPartitionActorRecords);
-	}
-
 	if (LandscapeCacheObject->SerializationMode == EPCGLandscapeCacheSerializationMode::SerializeOnlyAtCook)
 	{
 		// Implementation note: actor references gathered from the world partition helpers will register on creation and unregister on deletion

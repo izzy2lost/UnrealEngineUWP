@@ -314,10 +314,25 @@ FIntVector APCGPartitionActor::GetGridCoord() const
 
 FPCGGridDescriptor APCGPartitionActor::GetGridDescriptor() const
 {
-	return FPCGGridDescriptor()
+	FPCGGridDescriptor GridDescriptor = FPCGGridDescriptor()
 		.SetGridSize(GetPCGGridSize())
 		.SetIs2DGrid(bUse2DGrid)
 		.SetIsRuntime(IsRuntimeGenerated());
+
+#if WITH_EDITORONLY_DATA
+	if (GetWorld() && GetWorld()->IsPlayInEditor())
+	{
+		GridDescriptor.SetRuntimeHash(RuntimeGridDescriptorHash);
+	}
+	else
+	{
+		GridDescriptor.SetDataLayerAssets(GetDataLayerAssets());
+	}
+#else
+	GridDescriptor.SetRuntimeHash(RuntimeGridDescriptorHash);
+#endif
+
+	return GridDescriptor;
 }
 
 bool APCGPartitionActor::Teleport(const FVector& NewLocation)
@@ -579,8 +594,21 @@ void APCGPartitionActor::PostCreation(const FPCGGridDescriptor& GridDescriptor)
 	bUse2DGrid = GridDescriptor.Is2DGrid();
 
 #if WITH_EDITOR
+	// Fetch Non External Assets and assign
+	TArray<TSoftObjectPtr<UDataLayerAsset>> DescriptorDataLayerAssets;
+	const UExternalDataLayerAsset* DescriptorExternalDataLayerAsset = nullptr;
+	GridDescriptor.GetDataLayerAssets(DescriptorDataLayerAssets, DescriptorExternalDataLayerAsset);
+
+	// External DataLayer should have been assigned on Spawn
+	ensure(ExternalDataLayerAsset == DescriptorExternalDataLayerAsset);
+
+	DataLayerAssets = DescriptorDataLayerAssets;
+	// Set only once upon creation, can't change for a Partition Actor
+	RuntimeGridDescriptorHash = GridDescriptor.GetRuntimeHash();
 	SetGridSize(PCGGridSize);
 	UpdateBoundsComponentExtents();
+
+	ensure(GetGridDescriptor() == GridDescriptor);
 #endif // WITH_EDITOR
 
 	RegisterPCG();
@@ -686,27 +714,5 @@ FString APCGPartitionActor::GetPCGPartitionActorName(uint32 GridSize, const FInt
 
 FString APCGPartitionActor::GetPCGPartitionActorName(const FPCGGridDescriptor& GridDescriptor, const FIntVector& GridCoords)
 {
-	TStringBuilderWithBuffer<TCHAR, NAME_SIZE> ActorNameBuilder;
-
-	if (GridDescriptor.IsRuntime())
-	{
-		ActorNameBuilder += TEXT("PCGRuntimePartitionGridActor_");
-	}
-	else
-	{
-		ActorNameBuilder += TEXT("PCGPartitionGridActor_");
-	}
-
-	ActorNameBuilder += FString::Printf(TEXT("%d_"), GridDescriptor.GetGridSize());
-	
-	if (GridDescriptor.Is2DGrid())
-	{
-		ActorNameBuilder += FString::Printf(TEXT("%d_%d"), GridCoords.X, GridCoords.Y);
-	}
-	else
-	{
-		ActorNameBuilder += FString::Printf(TEXT("%d_%d_%d"), GridCoords.X, GridCoords.Y, GridCoords.Z);
-	}
-
-	return ActorNameBuilder.ToString();
+	return GridDescriptor.GetPartitionActorName(GridCoords);
 }

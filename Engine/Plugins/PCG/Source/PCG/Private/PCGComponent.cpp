@@ -46,6 +46,7 @@
 #include "Components/SplineComponent.h"
 #include "Components/SplineMeshComponent.h"
 #include "Engine/Engine.h"
+#include "Engine/Level.h"
 #include "GameFramework/Volume.h"
 #include "Kismet/GameplayStatics.h"
 #include "LandscapeSplinesComponent.h"
@@ -133,6 +134,41 @@ bool UPCGComponent::Use2DGrid() const
 	}
 
 	return GetDefault<UPCGGraph>()->Use2DGrid();
+}
+
+FPCGGridDescriptor UPCGComponent::GetGridDescriptor(uint32 GridSize) const
+{
+	return GetGridDescriptorInternal(GridSize, /*bRuntimeHashUpdate=*/false);
+}
+
+FPCGGridDescriptor UPCGComponent::GetGridDescriptorInternal(uint32 GridSize, bool bRuntimeHashUpdate) const
+{
+	// Return owner descriptor in case of Partition Actors
+	if (APCGPartitionActor* PartitionActorOwner = Cast<APCGPartitionActor>(GetOwner()))
+	{
+		return PartitionActorOwner->GetGridDescriptor();
+	}
+
+	FPCGGridDescriptor PCGGridDescriptor = FPCGGridDescriptor()
+		.SetGridSize(GridSize)
+		.SetIs2DGrid(Use2DGrid())
+		.SetIsRuntime(IsManagedByRuntimeGenSystem());
+
+#if WITH_EDITORONLY_DATA
+	// Only return the RuntimeGridDescriptorHash for PIE Worlds and not when we are updating the Runtime Hash
+	if (GetWorld() && GetWorld()->IsPlayInEditor() && !bRuntimeHashUpdate)
+	{
+		PCGGridDescriptor.SetRuntimeHash(RuntimeGridDescriptorHash);
+	}
+	else
+	{
+		PCGGridDescriptor.SetDataLayerAssets(GetOwner()->GetDataLayerAssets());
+	}
+#else
+	PCGGridDescriptor.SetRuntimeHash(RuntimeGridDescriptorHash);
+#endif
+
+	return PCGGridDescriptor;
 }
 
 void UPCGComponent::SetGraph_Implementation(UPCGGraphInterface* InGraph)
@@ -842,7 +878,7 @@ void UPCGComponent::NotifyPropertiesChangedFromBlueprint()
 #endif
 }
 
-AActor* UPCGComponent::ClearPCGLink(UClass* TemplateActor)
+AActor* UPCGComponent::ClearPCGLink(UClass* TemplateActorClass)
 {
 	if (!bGenerated || !GetOwner() || !GetWorld())
 	{
@@ -856,9 +892,20 @@ AActor* UPCGComponent::ClearPCGLink(UClass* TemplateActor)
 	}
 
 	UWorld* World = GetWorld();
+	
+	FActorSpawnParameters ActorSpawnParams;
+	UClass* SpawnClass = TemplateActorClass ? TemplateActorClass : AActor::StaticClass();
+	ActorSpawnParams.Name = MakeUniqueObjectName(GetOwner()->GetLevel(), SpawnClass, TEXT("PCGStamp"));
+	ActorSpawnParams.OverrideLevel = GetOwner()->GetLevel();
+
+	UPCGActorHelpers::FSpawnDefaultActorParams SpawnDefaultActorParams(World, SpawnClass, GetOwner()->GetTransform(), ActorSpawnParams);
+
+#if WITH_EDITOR
+	SpawnDefaultActorParams.DataLayerInstances = GetOwner()->GetDataLayerInstances();
+#endif
 
 	// First create a new actor that will be the new owner of all the resources
-	AActor* NewActor = UPCGActorHelpers::SpawnDefaultActor(World, GetOwner()->GetLevel(), TemplateActor ? TemplateActor : AActor::StaticClass(), TEXT("PCGStamp"), GetOwner()->GetTransform());
+	AActor* NewActor = UPCGActorHelpers::SpawnDefaultActor(SpawnDefaultActorParams);
 
 	// Then move all resources linked to this component to this actor
 	bool bHasMovedResources = MoveResourcesToNewActor(NewActor, /*bCreateChild=*/false);
@@ -1020,7 +1067,17 @@ bool UPCGComponent::MoveResourcesToNewActor(AActor* InNewActor, bool bCreateChil
 
 	if (bCreateChild)
 	{
-		NewActor = UPCGActorHelpers::SpawnDefaultActor(GetWorld(), GetOwner()->GetLevel(), NewActor->GetClass(), TEXT("PCGStampChild"), Owner->GetTransform());
+		FActorSpawnParameters ActorSpawnParams;
+		ActorSpawnParams.Name = MakeUniqueObjectName(Owner->GetLevel(), NewActor->GetClass(), TEXT("PCGStampChild"));
+		ActorSpawnParams.OverrideLevel = Owner->GetLevel();
+
+		UPCGActorHelpers::FSpawnDefaultActorParams SpawnDefaultActorParams(GetWorld(), NewActor->GetClass(), Owner->GetTransform(), ActorSpawnParams);
+
+#if WITH_EDITOR
+		SpawnDefaultActorParams.DataLayerInstances = Owner->GetDataLayerInstances();
+#endif
+
+		NewActor = UPCGActorHelpers::SpawnDefaultActor(SpawnDefaultActorParams);
 		NewActor->AttachToActor(InNewActor, FAttachmentTransformRules::KeepWorldTransform);
 		check(NewActor);
 	}
@@ -1468,6 +1525,12 @@ void UPCGComponent::Serialize(FArchive& Ar)
 	{
 		GeneratedResourcesCopy = GeneratedResources;
 		GeneratedResources = LoadedPreviewResources;
+	}
+
+	// When duplicating for PIE, we need to Update the RuntimeGridDescriptorHash before duplication for unsaved changes
+	if (Ar.IsSaving() && (Ar.GetPortFlags() & PPF_DuplicateForPIE))
+	{
+		UpdateRuntimeGridDescriptorHash();
 	}
 #endif // WITH_EDITOR
 
@@ -1958,6 +2021,27 @@ void UPCGComponent::PostEditImport()
 	Super::PostEditImport();
 
 	SetupCallbacksOnCreation();
+}
+
+void UPCGComponent::PreSave(FObjectPreSaveContext ObjectSaveContext)
+{
+	Super::PreSave(ObjectSaveContext);
+
+	// Update RuntimeGridDescriptorHash on Save (Actor might have changed DataLayers and we need to update)
+	if (!ObjectSaveContext.IsCooking())
+	{
+		UpdateRuntimeGridDescriptorHash();
+	}
+}
+
+void UPCGComponent::UpdateRuntimeGridDescriptorHash()
+{
+	// No need to maintain RuntimeGridDescriptorHash for PCGComponents owned by Partition Actors
+	if (!IsTemplate() && GetOwner() && !GetOwner()->IsA<APCGPartitionActor>())
+	{
+		FPCGGridDescriptor GridDescriptor = GetGridDescriptorInternal(0, /*bRuntimeHashUpdate=*/true);
+		RuntimeGridDescriptorHash = GridDescriptor.GetRuntimeHash();
+	}
 }
 
 void UPCGComponent::PreEditUndo()

@@ -15,6 +15,7 @@
 
 class AActor;
 class UActorComponent;
+class UDataLayerInstance;
 class UInstancedStaticMeshComponent;
 class ULevel;
 class UMaterialInterface;
@@ -127,6 +128,32 @@ public:
 	*/
 	static AActor* SpawnDefaultActor(UWorld* World, ULevel* Level, TSubclassOf<AActor> ActorClass, const FTransform& Transform, const FActorSpawnParameters& SpawnParams, AActor* Parent = nullptr);
 
+	/**
+	* Struct containing all parameters needed to spawn the actor
+	*/
+	struct FSpawnDefaultActorParams
+	{
+		FSpawnDefaultActorParams(UWorld* InWorld, TSubclassOf<AActor> InActorClass, const FTransform& InTransform, const FActorSpawnParameters& InSpawnParams)
+			: World(InWorld), ActorClass(InActorClass), Transform(InTransform), SpawnParams(InSpawnParams)
+		{
+		}
+
+		UWorld* World = nullptr;
+		TSubclassOf<AActor> ActorClass;
+		FTransform Transform;
+		FActorSpawnParameters SpawnParams;
+		AActor* Parent = nullptr;
+#if WITH_EDITOR
+		TArray<const UDataLayerInstance*> DataLayerInstances;
+#endif
+	};
+
+	/**
+	* Spawn a new actor
+	* @param Params struct containing all the parameters needed to spawn the actor
+	*/
+	static AActor* SpawnDefaultActor(const FSpawnDefaultActorParams& Params);
+	
 	/**
 	 * Return the grid cell coordinates on the PCG partition grid given a position and the grid size.
 	 */

@@ -9,12 +9,14 @@
 #include "UObject/ObjectMacros.h"
 #include "WorldPartition/ActorPartition/PartitionActorDesc.h"
 
+class FWorldPartitionActorDescInstance;
+
 class FPCGPartitionActorDesc : public FPartitionActorDesc
 {
 public:
 	FPCGPartitionActorDesc() = default;
 
-	FPCGGridDescriptor GetGridDescriptor() const;
+	FPCGGridDescriptor GetGridDescriptor(const FWorldPartitionActorDescInstance* ActorDescInstance) const;
 	FIntVector GetGridCoord() const;
 protected:
 	virtual void Init(const AActor* InActor) override;

@@ -79,10 +79,6 @@ private:
 #if WITH_EDITOR
 	void OnPartitionGridSizeChanged();
 #endif
-
-	/** Keeps a record of what grid cells contain a serialized partition actor for game worlds. */
-	UPROPERTY()
-	TSet<FPCGGridCellDescriptor> RuntimePartitionActorRecords;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

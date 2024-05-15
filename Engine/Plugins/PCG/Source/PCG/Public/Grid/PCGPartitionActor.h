@@ -147,6 +147,9 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = WorldPartition)
 	bool bUse2DGrid;
 
+	UPROPERTY()
+	uint32 RuntimeGridDescriptorHash = 0;
+
 #if WITH_EDITORONLY_DATA
 	/** Box component to draw the Partition actor bounds in the Editor viewport */
 	UPROPERTY(Transient)

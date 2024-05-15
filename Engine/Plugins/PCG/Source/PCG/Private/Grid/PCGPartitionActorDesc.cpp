@@ -4,8 +4,11 @@
 
 #if WITH_EDITOR
 #include "Grid/PCGPartitionActor.h"
+
+#include "Algo/Transform.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 #include "WorldPartition/WorldPartitionActorDescArchive.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 
 void FPCGPartitionActorDesc::Init(const AActor* InActor)
 {
@@ -15,12 +18,26 @@ void FPCGPartitionActorDesc::Init(const AActor* InActor)
 	bUse2DGrid = PartitionActor->IsUsing2DGrid();
 }
 
-FPCGGridDescriptor FPCGPartitionActorDesc::GetGridDescriptor() const
+FPCGGridDescriptor FPCGPartitionActorDesc::GetGridDescriptor(const FWorldPartitionActorDescInstance* InActorDescInstance) const
 {
-	return FPCGGridDescriptor()
+	check(InActorDescInstance);
+	FPCGGridDescriptor GridDescriptor = FPCGGridDescriptor()
 		.SetGridSize(GridSize)
 		.SetIs2DGrid(bUse2DGrid)
 		.SetIsRuntime(false);
+
+	if (IsUsingDataLayerAsset())
+	{
+		TArray<TSoftObjectPtr<UDataLayerAsset>> DataLayerAssets;
+		// Because of deprecation DataLayerAssets in ActorDescs are stored in FNames (we can convert them to SoftObjectPtrs if IsUsingDataLayerAsset() returns true)
+		Algo::Transform(GetDataLayers(), DataLayerAssets, [](const FName& InDataLayerAsset) 
+		{
+			return TSoftObjectPtr<UDataLayerAsset>(FSoftObjectPath(InDataLayerAsset.ToString()));
+		});
+		GridDescriptor.SetDataLayerAssets(DataLayerAssets);
+	}
+
+	return GridDescriptor;
 }
 
 FIntVector FPCGPartitionActorDesc::GetGridCoord() const

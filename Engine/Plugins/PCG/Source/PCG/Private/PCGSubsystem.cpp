@@ -28,6 +28,7 @@
 #include "Misc/ScopedSlowTask.h"
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
+#include "WorldPartition/DataLayer/DataLayerManager.h"
 #else
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -987,10 +988,8 @@ FPCGTaskId UPCGSubsystem::ForAllOverlappingCells(UPCGComponent* InComponent, con
 	TArray<FPCGTaskId> CellTasks;
 	for (uint32 GridSize : GridSizes)
 	{
-		FPCGGridDescriptor Descriptor = FPCGGridDescriptor()
-			.SetGridSize(GridSize)
-			.SetIs2DGrid(InComponent->Use2DGrid())
-			.SetIsRuntime(false);
+		FPCGGridDescriptor Descriptor = InComponent->GetGridDescriptor(GridSize);
+		check(!Descriptor.IsRuntime());
 
 		// In case of 2D grid, we are clamping our bounds in Z to be within 0 and GridSize to create a 2D grid instead of 3D.
 		FBox ModifiedInBounds = InBounds;
@@ -1150,11 +1149,20 @@ APCGPartitionActor* UPCGSubsystem::FindOrCreatePCGPartitionActor(const FPCGGridD
 	}
 	else if (!GridDescriptor.IsRuntime())
 	{
+		// In a Game World PAs need to be Pre-Existing. 
+		// The Original PCG Component will be marked as Generated on load see UPCGComponent::BeginPlay
+		if (GetWorld()->IsGameWorld())
+		{
+			return nullptr;
+		}
+
+#if WITH_EDITOR
 		// Check if there is already an unloaded actor for this cell. RuntimeGenerated PAs are never unloaded, so we ignore them.
 		if (ActorAndComponentMapping.DoesPartitionActorRecordExist(GridDescriptor, GridCoords))
 		{
 			return nullptr;
 		}
+#endif
 	}
 
 	if (!bCanCreateActor)
@@ -1173,6 +1181,15 @@ APCGPartitionActor* UPCGSubsystem::FindOrCreatePCGPartitionActor(const FPCGGridD
 		SpawnParams.ObjectFlags |= RF_Transient;
 		SpawnParams.ObjectFlags &= ~RF_Transactional;
 	}
+		
+#if WITH_EDITOR
+	TArray<TSoftObjectPtr<UDataLayerAsset>> DataLayerAssets;
+	const UExternalDataLayerAsset* ExternalDataLayerAsset = nullptr;
+			
+	GridDescriptor.GetDataLayerAssets(DataLayerAssets, ExternalDataLayerAsset);
+
+	FScopedOverrideSpawningLevelMountPointObject EDLScope(ExternalDataLayerAsset);
+#endif
 
 	const FVector CellCenter(FVector(GridCoords.X + 0.5, GridCoords.Y + 0.5, GridCoords.Z + 0.5) * GridDescriptor.GetGridSize());
 	APCGPartitionActor* NewActor = CastChecked<APCGPartitionActor>(World->SpawnActor(APCGPartitionActor::StaticClass(), &CellCenter, nullptr, SpawnParams));
