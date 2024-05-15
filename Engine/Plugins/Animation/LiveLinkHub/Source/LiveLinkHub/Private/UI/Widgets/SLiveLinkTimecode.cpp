@@ -216,7 +216,7 @@ void SLiveLinkTimecode::Construct(const FArguments& InArgs)
 	ChildSlot
 	[
 		SNew(SComboButton)
-		.ContentPadding(FMargin(6.0f, 0.0f))
+		.ContentPadding(FMargin(4.0f, 0.0f))
 		.MenuPlacement(MenuPlacement_AboveAnchor)
 		.OnGetMenuContent(this, &SLiveLinkTimecode::MakeMenu)
 		.ComboButtonStyle(&FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("SimpleComboButton"))

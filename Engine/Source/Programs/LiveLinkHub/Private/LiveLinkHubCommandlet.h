@@ -31,10 +31,11 @@ public:
 		{
 			PRIVATE_GIsRunningCommandlet = false;
 			AssetDataSourceModule->StartupModule();
-			PRIVATE_GIsRunningCommandlet = true;	
+			PRIVATE_GIsRunningCommandlet = true;
 		}
 
 		FModuleManager::Get().LoadModule("OutputLog");
+		FModuleManager::Get().LoadModule("ProjectSettingsViewer");
 
 		FModuleManager::Get().LoadModuleChecked<ILiveLinkHubModule>("LiveLinkEditor");
 		FModuleManager::Get().LoadModuleChecked<ILiveLinkHubModule>("LiveLinkHub").StartLiveLinkHub();

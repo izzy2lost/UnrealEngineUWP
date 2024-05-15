@@ -83,6 +83,10 @@ private:
 
 	/** Clear all client settings. */
 	FName GetSubjectNameOverride(const FLiveLinkSubjectKey& InSubjectKey) const;
+	/** Register settings relevant to the livelink hub. */
+	void RegisterLiveLinkHubSettings();
+	/** Unregister settings relevant to the livelink hub. */
+	void UnregisterLiveLinkHubSettings();
 
 	/** Create a new config. */
 	void NewConfig();

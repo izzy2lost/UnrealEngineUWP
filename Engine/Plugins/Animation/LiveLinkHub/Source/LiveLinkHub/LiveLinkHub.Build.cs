@@ -13,34 +13,38 @@ public class LiveLinkHub : ModuleRules
 			"CoreUObject",
 		});
 
-		PrivateDependencyModuleNames.AddRange(
-		new string[]
-		{
-			"ApplicationCore",
-			"AssetRegistry",
-			"AssetTools",
-			"ContentBrowser",
-			"ContentBrowserAssetDataSource",
-			"ContentBrowserData",
-			"EditorStyle",
-			"Engine",
-			"InputCore",
-			"Json",
-			"JsonUtilities",
-			"LiveLink",
-			"LiveLinkEditor",
-			"LiveLinkHubMessaging",
-			"LiveLinkInterface",
-			"LiveLinkMessageBusFramework",
-			"Slate",
-			"SlateCore",
-			"StandaloneRenderer",
-			"StructUtils",
-			"TimeManagement",
-			"ToolMenus",
-			"ToolWidgets",
-			"UnrealEd",
-			"OutputLog",
-		});
+			PrivateDependencyModuleNames.AddRange(
+			new string[]
+			{
+				"ApplicationCore",
+				"AssetRegistry",
+				"AssetTools",
+				"ContentBrowser",
+				"ContentBrowserAssetDataSource",
+				"ContentBrowserData",
+				"EditorStyle",
+				"Engine",
+				"InputCore",
+				"Json",
+				"JsonUtilities",
+				"LiveLink",
+				"LiveLinkEditor",
+				"LiveLinkHubMessaging",
+				"LiveLinkInterface",
+				"LiveLinkMessageBusFramework",
+				"ProjectSettingsViewer",
+				"SharedSettingsWidgets",
+				"Settings",
+				"SettingsEditor",
+				"Slate",
+				"SlateCore",
+				"StandaloneRenderer",
+				"StructUtils",
+				"TimeManagement",
+				"ToolMenus",
+				"ToolWidgets",
+				"UnrealEd",
+				"OutputLog",
+			});
 	}
 }

@@ -9,6 +9,7 @@
 #include "Misc/App.h"
 #include "Modules/ModuleManager.h"
 #include "Recording/LiveLinkHubRecordingController.h"
+#include "SLiveLinkHubSettings.h"
 #include "SLiveLinkHubStatusBar.h"
 #include "SLiveLinkTimecode.h"
 
@@ -24,6 +25,7 @@
 #define LOCTEXT_NAMESPACE "LiveLinkHub"
 
 #define LIVELINKHUB_SUPPORTS_LAYOUTS 0
+
 TSharedRef<SWidget> GetModeSwitcherContent()
 {
 	FMenuBuilder MenuBuilder(true, NULL);
@@ -109,10 +111,17 @@ void SLiveLinkHubTabViewBase::Construct(const FArguments& InArgs)
 							.Orientation(Orient_Vertical)
 						]
 						+ SHorizontalBox::Slot()
-						.Padding(2.f)
+						.AutoWidth()
 	                    .VAlign(VAlign_Center)
 						[
 							SNew(SLiveLinkTimecode)
+						]
+						+ SHorizontalBox::Slot()
+						.Padding(2.f)
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						[
+							SNew(SLiveLinkHubSettings)
 						]
 					]
 				]

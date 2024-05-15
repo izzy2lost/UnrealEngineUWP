@@ -12,10 +12,14 @@
 #include "Features/IModularFeatures.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IDesktopPlatform.h"
+#include "ISettingsModule.h"
+#include "LiveLinkEditorSettings.h"
 #include "LiveLinkHubClient.h"
+#include "LiveLinkHubSettings.h"
 #include "LiveLinkProvider.h"
 #include "LiveLinkHubCommands.h"
 #include "LiveLinkProviderImpl.h"
+#include "LiveLinkSettings.h"
 #include "LiveLinkSubject.h"
 #include "LiveLinkSubjectSettings.h"
 #include "Misc/App.h"
@@ -42,6 +46,8 @@ void FLiveLinkHub::Initialize()
 
 	SessionManager = MakeShared<FLiveLinkHubSessionManager>();
 	LiveLinkProvider = MakeShared<FLiveLinkHubProvider>(SessionManager.ToSharedRef());
+
+	FModuleManager::Get().LoadModule("Settings");
 
 	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(AssetRegistryConstants::ModuleName).Get();
 	const FString FilePath = FPaths::Combine(FPlatformProcess::UserSettingsDir(), *FApp::GetEpicProductIdentifier(), TEXT("LiveLinkHub"), TEXT("Content"));
@@ -73,6 +79,8 @@ void FLiveLinkHub::Initialize()
 	LiveLinkHubClient->OnSubjectMarkedPendingKill_AnyThread().AddSP(this, &FLiveLinkHub::OnSubjectMarkedPendingKill_AnyThread);
 	LiveLinkHubClient->OnLiveLinkSubjectAdded().AddSP(this, &FLiveLinkHub::OnSubjectAdded);
 
+	RegisterLiveLinkHubSettings();
+
 	PlaybackController->Start();
 
 	GIsRunning = true;
@@ -80,6 +88,8 @@ void FLiveLinkHub::Initialize()
 
 FLiveLinkHub::~FLiveLinkHub()
 {
+	UnregisterLiveLinkHubSettings();
+
 	RecordingController.Reset();
 	PlaybackController.Reset();
 
@@ -255,6 +265,40 @@ FName FLiveLinkHub::GetSubjectNameOverride(const FLiveLinkSubjectKey& InSubjectK
 	}
 
 	return InSubjectKey.SubjectName;
+}
+
+void FLiveLinkHub::RegisterLiveLinkHubSettings()
+{
+	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
+	{
+		SettingsModule->RegisterSettings("Editor", "Plugins", "LiveLink",
+			LOCTEXT("EditorSettingsName", "Live Link"),
+			LOCTEXT("EditorSettingsDescription", "Configure LiveLink."),
+			GetMutableDefault<ULiveLinkEditorSettings>()
+		);
+
+		SettingsModule->RegisterSettings("Project", "Plugins", "LiveLink",
+			LOCTEXT("LiveLinkSettingsName", "Live Link"),
+			LOCTEXT("LiveLinkDescription", "Configure LiveLink."),
+			GetMutableDefault<ULiveLinkSettings>()
+		);
+
+		SettingsModule->RegisterSettings("Project", "Plugins", "LiveLinkHub",
+			LOCTEXT("LiveLinkHubSettingsName", "Live Link Hub"),
+			LOCTEXT("LiveLinkHubDescription", "Configure LiveLink Hub."),
+			GetMutableDefault<ULiveLinkHubSettings>()
+		);
+	}
+}
+
+void FLiveLinkHub::UnregisterLiveLinkHubSettings()
+{
+	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
+	{
+		SettingsModule->UnregisterSettings("Editor", "Plugins", "LiveLink");
+		SettingsModule->UnregisterSettings("Project", "Plugins", "LiveLink");
+		SettingsModule->UnregisterSettings("Project", "Plugins", "LiveLinkHub");
+	}
 }
 
 #undef LOCTEXT_NAMESPACE /*LiveLinkHub*/
