@@ -46,6 +46,7 @@
 #include "Editor/RigVMEditorMode.h"
 #include "InstancedPropertyBagStructureDataProvider.h"
 #include "Widgets/SRigVMSwapFunctionsWidget.h"
+#include "Widgets/SRigVMSwapAssetReferencesWidget.h"
 #include "Widgets/SRigVMBulkEditDialog.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 
@@ -1404,6 +1405,11 @@ void FRigVMEditor::BindCommands()
 		FRigVMEditorCommands::Get().SwapFunctionAcrossProject,
 		FExecuteAction::CreateSP(this, &FRigVMEditor::SwapFunctionAcrossProject),
 		FCanExecuteAction());
+
+	GetToolkitCommands()->MapAction(
+		FRigVMEditorCommands::Get().SwapAssetReferences,
+		FExecuteAction::CreateSP(this, &FRigVMEditor::SwapAssetReferences),
+		FCanExecuteAction());
 }
 
 void FRigVMEditor::ToggleAutoCompileGraph()
@@ -1466,6 +1472,9 @@ TSharedRef<SWidget> FRigVMEditor::GenerateBulkEditMenuContent()
 	MenuBuilder.BeginSection(TEXT("Functions"), LOCTEXT("Functions", "Functions"));
 	MenuBuilder.AddMenuEntry(FRigVMEditorCommands::Get().SwapFunctionWithinAsset, TEXT("SwapFunctionWithinAsset"), TAttribute<FText>(), TAttribute<FText>(), FSlateIcon());
 	MenuBuilder.AddMenuEntry(FRigVMEditorCommands::Get().SwapFunctionAcrossProject, TEXT("SwapFunctionAcrossProject"), TAttribute<FText>(), TAttribute<FText>(), FSlateIcon());
+	MenuBuilder.EndSection();
+	MenuBuilder.BeginSection(TEXT("Asset"), LOCTEXT("Asset", "Asset"));
+	MenuBuilder.AddMenuEntry(FRigVMEditorCommands::Get().SwapAssetReferences, TEXT("SwapAssetReferences"), TAttribute<FText>(), TAttribute<FText>(), FSlateIcon());
 	MenuBuilder.EndSection();
 	return MenuBuilder.MakeWidget();
 }
@@ -3462,6 +3471,29 @@ void FRigVMEditor::SwapFunctionForAssets(const TArray<FAssetData>& InAssets, boo
 
 	const TSharedRef<SRigVMBulkEditDialog<SRigVMSwapFunctionsWidget>> SwapFunctionsDialog =
 		SNew(SRigVMBulkEditDialog<SRigVMSwapFunctionsWidget>)
+		.WindowSize(FVector2D(800.0f, 640.0f))
+		.WidgetArgs(WidgetArgs);
+
+	SwapFunctionsDialog->ShowNormal();
+}
+
+void FRigVMEditor::SwapAssetReferences()
+{
+	TArray<FAssetData> SourceAssets;
+	IAssetRegistry::Get()->GetAssetsByPackageName(*GetRigVMBlueprint()->GetPackage()->GetPathName(),SourceAssets);
+	if (SourceAssets.IsEmpty())
+	{
+		return;
+	}
+	
+	SRigVMSwapAssetReferencesWidget::FArguments WidgetArgs;
+	WidgetArgs
+		.Source(SourceAssets[0])
+		.EnableUndo(false)
+		.CloseOnSuccess(true);
+
+	const TSharedRef<SRigVMBulkEditDialog<SRigVMSwapAssetReferencesWidget>> SwapFunctionsDialog =
+		SNew(SRigVMBulkEditDialog<SRigVMSwapAssetReferencesWidget>)
 		.WindowSize(FVector2D(800.0f, 640.0f))
 		.WidgetArgs(WidgetArgs);
 

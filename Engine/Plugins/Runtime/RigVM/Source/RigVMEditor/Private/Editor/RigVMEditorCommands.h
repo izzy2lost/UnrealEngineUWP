@@ -63,6 +63,9 @@ public:
 	/** Swap Function (Project) */
 	TSharedPtr< FUICommandInfo > SwapFunctionAcrossProject;
 
+	/** Swap Asset References */
+	TSharedPtr< FUICommandInfo > SwapAssetReferences;
+
 	/**
 	 * Initialize commands
 	 */

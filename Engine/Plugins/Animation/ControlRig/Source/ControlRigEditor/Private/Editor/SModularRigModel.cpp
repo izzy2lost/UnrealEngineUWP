@@ -54,6 +54,8 @@
 #include "Kismet2/SClassPickerDialog.h"
 #include "RigVMFunctions/Math/RigVMMathLibrary.h"
 #include "Preferences/PersonaOptions.h"
+#include "Widgets/SRigVMBulkEditDialog.h"
+#include "Widgets/SRigVMSwapAssetReferencesWidget.h"
 
 #define LOCTEXT_NAMESPACE "SModularRigModel"
 
@@ -229,6 +231,10 @@ void SModularRigModel::BindCommands()
 	CommandList->MapAction(Commands.ReresolveModuleItem,
 		FExecuteAction::CreateSP(this, &SModularRigModel::HandleReresolveModules),
 		FCanExecuteAction());
+
+	CommandList->MapAction(Commands.SwapModuleClassItem,
+		FExecuteAction::CreateSP(this, &SModularRigModel::HandleSwapClassForModules),
+		FCanExecuteAction::CreateSP(this, &SModularRigModel::CanSwapModules));
 }
 
 FReply SModularRigModel::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
@@ -395,6 +401,7 @@ void SModularRigModel::CreateContextMenu()
 					ModulesSection.AddMenuEntry(Commands.DeleteModuleItem);
 					ModulesSection.AddMenuEntry(Commands.MirrorModuleItem);
 					ModulesSection.AddMenuEntry(Commands.ReresolveModuleItem);
+					ModulesSection.AddMenuEntry(Commands.SwapModuleClassItem);
 				}
 			})
 		);
@@ -860,6 +867,145 @@ void SModularRigModel::HandleReresolveModules(const TArray<FString>& InPaths)
 	}
 }
 
+bool SModularRigModel::CanSwapModules() const
+{
+	// Only if all modules selected have the same module class
+	if(!ControlRigEditor.IsValid())
+	{
+		return false;
+	}
+
+	UModularRig* Rig = GetDefaultModularRig();
+	if (Rig)
+	{
+		TSoftClassPtr<UControlRig> CommonClass = nullptr;
+		TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = TreeView->GetSelectedItems();
+		for (TSharedPtr<FModularRigTreeElement>& SelectedItem : SelectedItems)
+		{
+			TSoftClassPtr<UControlRig> ModuleClass;
+			if (const FRigModuleReference* Module = ControlRigBlueprint->ModularRigModel.FindModule(SelectedItem->ModulePath))
+			{
+				if (Module->Class.IsValid())
+				{
+					ModuleClass = Module->Class;
+				}
+			}
+			if(!ModuleClass)
+			{
+				return false;
+			}
+			if(!CommonClass)
+			{
+				CommonClass = ModuleClass;
+			}
+			if(ModuleClass != CommonClass)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+	return false;
+}
+
+void SModularRigModel::HandleSwapClassForModules()
+{
+	if(!ControlRigEditor.IsValid())
+	{
+		return;
+	}
+
+	UModularRig* Rig = GetDefaultModularRig();
+	if (Rig)
+	{
+		TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = TreeView->GetSelectedItems();
+		TArray<FString> SelectedPaths;
+		Algo::Transform(SelectedItems, SelectedPaths, [](const TSharedPtr<FModularRigTreeElement>& Element)
+		{
+			if (Element.IsValid())
+			{
+				return Element->ModulePath;
+			}
+			return FString();
+		});
+		HandleSwapClassForModules(SelectedPaths);
+	}
+}
+
+void SModularRigModel::HandleSwapClassForModules(const TArray<FString>& InPaths)
+{
+	TArray<FSoftObjectPath> ModulePaths;
+	Algo::Transform(InPaths, ModulePaths, [this](const FString& Path)
+	{
+		FSoftObjectPath ModulePath(ControlRigBlueprint->GetPathName());
+		ModulePath.SetSubPathString(Path);
+		return ModulePath;
+	});
+
+	TSoftClassPtr<UControlRig> SourceClass = nullptr;
+	if (FRigModuleReference* Module = ControlRigBlueprint->ModularRigModel.FindModule(InPaths[0]))
+	{
+		SourceClass = Module->Class;
+	}
+
+	if (!SourceClass)
+	{
+		return;
+	}
+
+	TArray<FAssetData> SourceAssets;
+	IAssetRegistry::Get()->GetAssetsByPackageName(*SourceClass->GetPackage()->GetPathName(),SourceAssets);
+	if (SourceAssets.IsEmpty())
+	{
+		return;
+	}
+	
+	SRigVMSwapAssetReferencesWidget::FArguments WidgetArgs;
+	WidgetArgs
+		.EnableUndo(true)
+		.CloseOnSuccess(true)
+		.Source(SourceAssets[0])
+		.ReferencePaths(ModulePaths)
+		.SkipPickingRefs(true)
+		.OnSwapReference_Lambda([](const FSoftObjectPath& ModulePath, const FAssetData& NewModuleAsset) -> bool
+		{
+			TSubclassOf<UControlRig> NewModuleClass = nullptr;
+			if (const UControlRigBlueprint* ModuleBlueprint = Cast<UControlRigBlueprint>(NewModuleAsset.GetAsset()))
+			{
+				NewModuleClass = ModuleBlueprint->GetRigVMBlueprintGeneratedClass();
+			}
+			if (NewModuleClass)
+			{
+				if (UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(ModulePath.GetWithoutSubPath().ResolveObject()))
+				{
+					return RigBlueprint->GetModularRigController()->SwapModuleClass(ModulePath.GetSubPathString(), NewModuleClass);
+				}
+			}
+			return false;
+		})
+		.ExtraAssetFilter_Lambda([](const FAssetData& AssetData) -> bool
+		{
+			static const FLazyName ControlRigTypeName(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ControlRigType));
+			FProperty* ControlRigTypeProperty = CastField<FProperty>(UControlRigBlueprint::StaticClass()->FindPropertyByName(ControlRigTypeName));
+			const FString ControlRigTypeString = AssetData.GetTagValueRef<FString>(ControlRigTypeName);
+			if (ControlRigTypeString.IsEmpty())
+			{
+				return false;
+			}
+
+			EControlRigType RigType;
+			ControlRigTypeProperty->ImportText_Direct(*ControlRigTypeString, &RigType, nullptr, EPropertyPortFlags::PPF_None);
+			return RigType == EControlRigType::RigModule;
+		});
+
+	const TSharedRef<SRigVMBulkEditDialog<SRigVMSwapAssetReferencesWidget>> SwapModulesDialog =
+		SNew(SRigVMBulkEditDialog<SRigVMSwapAssetReferencesWidget>)
+		.WindowSize(FVector2D(800.0f, 640.0f))
+		.WidgetArgs(WidgetArgs);
+	
+	SwapModulesDialog->ShowNormal();
+}
+
 void SModularRigModel::HandleConnectorResolved(const FRigElementKey& InConnector, const FRigElementKey& InTarget)
 {
 	if (ControlRigBlueprint.IsValid())
@@ -988,7 +1134,13 @@ UModularRig* SModularRigModel::GetDefaultModularRig() const
 {
 	if (ControlRigBlueprint.IsValid())
 	{
-		if (UControlRig* DebuggedRig = ControlRigBeingDebuggedPtr.Get())
+		UControlRig* DebuggedRig = ControlRigBeingDebuggedPtr.Get();
+		if (!DebuggedRig)
+		{
+			DebuggedRig = ControlRigBlueprint->GetDebuggedControlRig();
+		}
+		
+		if (DebuggedRig)
 		{
 			return Cast<UModularRig>(DebuggedRig);
 		}

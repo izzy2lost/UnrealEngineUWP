@@ -827,6 +827,7 @@ private:
 	friend struct FRigVMEdGraphSchemaAction_PromoteToVariable;
 	friend class URigVMBuildData;
 	friend class FRigVMVariantDetailCustomization;
+	friend class FRigVMTreeAssetVariantFilter;
 };
 
 class RIGVMDEVELOPER_API FRigVMBlueprintCompileScope

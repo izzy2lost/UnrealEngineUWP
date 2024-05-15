@@ -82,6 +82,11 @@ private:
 	void HandleReresolveModules();
 	void HandleReresolveModules(const TArray<FString>& InPaths);
 
+	/** Swap module class for items */
+	bool CanSwapModules() const;
+	void HandleSwapClassForModules();
+	void HandleSwapClassForModules(const TArray<FString>& InPaths);
+
 	/** Resolve connector */
 	void HandleConnectorResolved(const FRigElementKey& InConnector, const FRigElementKey& InTarget);
 

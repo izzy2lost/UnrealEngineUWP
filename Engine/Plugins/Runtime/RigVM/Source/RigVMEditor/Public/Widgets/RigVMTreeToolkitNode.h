@@ -179,6 +179,8 @@ public:
 	virtual FText GetLabel() const override;
 	virtual bool IsLoaded() const override;
 
+	const FSoftObjectPath& GetPackagePath() const { return SoftObjectPath; }
+
 protected:
 	void HandleAssetLoaded(UObject* InAsset);
 

@@ -558,7 +558,7 @@ struct RIGVM_API FRigVMGraphFunctionHeader
 	FText GetTooltip() const
 	{
 		FString TooltipStr = FString::Printf(TEXT("%s (%s)\n%s"),
-		*NodeTitle,
+		*Name.ToString(),
 		*LibraryPointer.GetNodeSoftPath().GetAssetPathString(),
 		*Description);
 		return FText::FromString(TooltipStr);

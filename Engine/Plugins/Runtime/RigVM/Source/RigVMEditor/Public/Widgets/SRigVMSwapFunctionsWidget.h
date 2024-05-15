@@ -303,9 +303,6 @@ public:
 
 private:
 
-	TSharedPtr<FRigVMTreePhase> PickSourceFunctionPhase;
-	TSharedPtr<FRigVMTreePhase> PickTargetFunctionPhase;
-	TSharedPtr<FRigVMTreePhase> PickFunctionReferencesPhase;
 	TSharedPtr<SRigVMBulkEditWidget> BulkEditWidget;
 	TSharedPtr<FRigVMSwapFunctionContext> PickTargetContext;
 	TSharedPtr<FRigVMSwapFunctionContext> PickFunctionRefsContext;

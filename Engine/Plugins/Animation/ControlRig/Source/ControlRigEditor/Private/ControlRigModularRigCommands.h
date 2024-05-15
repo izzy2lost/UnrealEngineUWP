@@ -33,6 +33,9 @@ public:
 	/** Reresolve Module */
 	TSharedPtr< FUICommandInfo > ReresolveModuleItem;
 
+	/** Swap Module Class */
+	TSharedPtr< FUICommandInfo > SwapModuleClassItem;
+
 	/**
 	 * Initialize commands
 	 */

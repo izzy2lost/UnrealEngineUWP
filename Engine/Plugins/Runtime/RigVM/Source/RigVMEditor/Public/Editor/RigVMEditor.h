@@ -311,6 +311,7 @@ protected:
 	virtual void SwapFunctionWithinAsset();
 	virtual void SwapFunctionAcrossProject();
 	virtual void SwapFunctionForAssets(const TArray<FAssetData>& InAssets, bool bSetupUndo);
+	virtual void SwapAssetReferences();
 
 	/** Once the log is collected update the graph */
 	void UpdateGraphCompilerErrors();

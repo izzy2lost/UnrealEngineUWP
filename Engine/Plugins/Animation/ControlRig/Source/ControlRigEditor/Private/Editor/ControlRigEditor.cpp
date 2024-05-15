@@ -111,11 +111,147 @@
 #include "SchematicGraphPanel/SSchematicGraphPanel.h"
 #include "RigVMCore/RigVMExecuteContext.h"
 #include "Editor/RigVMGraphDetailCustomization.h"
+#include "Widgets/SRigVMSwapAssetReferencesWidget.h"
+#include "Widgets/SRigVMBulkEditDialog.h"
 
 #define LOCTEXT_NAMESPACE "ControlRigEditor"
 
 TAutoConsoleVariable<bool> CVarControlRigShowTestingToolbar(TEXT("ControlRig.Test.EnableTestingToolbar"), false, TEXT("When true we'll show the testing toolbar in Control Rig Editor."));
 TAutoConsoleVariable<bool> CVarShowSchematicPanelOverlay(TEXT("ControlRig.Preview.ShowSchematicPanelOverlay"), true, TEXT("When true we'll add an overlay to the persona viewport to show modular rig information."));
+
+FAutoConsoleCommand FCmdModularRigSwapModuleWidget
+(
+	TEXT("ControlRig.SwapModules"),
+	TEXT("Create swap modules wizard."),
+	FConsoleCommandDelegate::CreateLambda([]()
+	{
+		SRigVMSwapAssetReferencesWidget::FArguments WidgetArgs;
+		WidgetArgs
+			.EnableUndo(true)
+			.CloseOnSuccess(true)
+			.OnGetReferences_Lambda([](const FAssetData& ReferencedAsset) -> TArray<FSoftObjectPath>
+			{
+				TArray<FSoftObjectPath> Result;
+				FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+				IAssetRegistry& AssetRegistry = AssetRegistryModule.GetRegistry();
+
+				UClass* ReferencedClass = nullptr;
+				if (UControlRigBlueprint* ReferencedBlueprint = Cast<UControlRigBlueprint>(ReferencedAsset.GetAsset()))
+				{
+					ReferencedClass = ReferencedBlueprint->GetRigVMBlueprintGeneratedClass();
+				}
+				
+				TArray<FName> PackageDependencies;
+				AssetRegistry.GetReferencers(ReferencedAsset.PackageName, PackageDependencies);
+
+				for (FName& DependencyPath : PackageDependencies)
+				{
+					TArray<FAssetData> Assets;
+					AssetRegistry.GetAssetsByPackageName(DependencyPath, Assets);
+
+					for (const FAssetData& DependencyData : Assets)
+					{
+						if (DependencyData.IsAssetLoaded())
+						{
+							if (UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(DependencyData.GetAsset()))
+							{
+								if (Blueprint->IsModularRig())
+								{
+									TArray<const FRigModuleReference*> Modules = Blueprint->ModularRigModel.FindModuleInstancesOfClass(ReferencedClass);
+									for (const FRigModuleReference* Module : Modules)
+									{
+										FSoftObjectPath ModulePath = DependencyData.GetSoftObjectPath();
+										ModulePath.SetSubPathString(Module->GetPath());
+										Result.Add(ModulePath);
+									}
+								}
+							}
+						}
+						else
+						{
+							// Check only modular rigs
+							{
+								static const FLazyName ControlRigTypeName(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ControlRigType));
+								FProperty* ControlRigTypeProperty = CastField<FProperty>(UControlRigBlueprint::StaticClass()->FindPropertyByName(ControlRigTypeName));
+								const FString ControlRigTypeString = DependencyData.GetTagValueRef<FString>(ControlRigTypeName);
+								if (ControlRigTypeString.IsEmpty())
+								{
+									continue;
+								}
+
+								EControlRigType RigType;
+								ControlRigTypeProperty->ImportText_Direct(*ControlRigTypeString, &RigType, nullptr, EPropertyPortFlags::PPF_None);
+								if (RigType != EControlRigType::ModularRig)
+								{
+									continue;
+								}
+							}
+
+							static const FLazyName ModuleReferenceDataName(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ModuleReferenceData));
+							FArrayProperty* ModuleReferenceDataProperty = CastField<FArrayProperty>(UControlRigBlueprint::StaticClass()->FindPropertyByName(ModuleReferenceDataName));
+							const FString ModularRigDataString = DependencyData.GetTagValueRef<FString>(ModuleReferenceDataName);
+							if (ModularRigDataString.IsEmpty())
+							{
+								continue;
+							}
+
+							TArray<FModuleReferenceData> Modules;
+							ModuleReferenceDataProperty->ImportText_Direct(*ModularRigDataString, &Modules, nullptr, EPropertyPortFlags::PPF_None);
+
+							for (const FModuleReferenceData& Module : Modules)
+							{
+								if (Module.ReferencedModule == ReferencedClass)
+								{
+									FSoftObjectPath ModulePath = DependencyData.GetSoftObjectPath();
+									ModulePath.SetSubPathString(Module.ModulePath);
+									Result.Add(ModulePath);
+								}
+							}
+						}
+					}
+				}
+				
+				return Result;
+			})
+			.OnSwapReference_Lambda([](const FSoftObjectPath& ModulePath, const FAssetData& NewModuleAsset) -> bool
+			{
+				TSubclassOf<UControlRig> NewModuleClass = nullptr;
+				if (const UControlRigBlueprint* ModuleBlueprint = Cast<UControlRigBlueprint>(NewModuleAsset.GetAsset()))
+				{
+					NewModuleClass = ModuleBlueprint->GetRigVMBlueprintGeneratedClass();
+				}
+				if (NewModuleClass)
+				{
+					if (UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(ModulePath.GetWithoutSubPath().ResolveObject()))
+					{
+						return RigBlueprint->GetModularRigController()->SwapModuleClass(ModulePath.GetSubPathString(), NewModuleClass);
+					}
+				}
+				return false;
+			})
+			.ExtraAssetFilter_Lambda([](const FAssetData& AssetData) -> bool
+			{
+				static const FLazyName ControlRigTypeName(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ControlRigType));
+				FProperty* ControlRigTypeProperty = CastField<FProperty>(UControlRigBlueprint::StaticClass()->FindPropertyByName(ControlRigTypeName));
+				const FString ControlRigTypeString = AssetData.GetTagValueRef<FString>(ControlRigTypeName);
+				if (ControlRigTypeString.IsEmpty())
+				{
+					return false;
+				}
+
+				EControlRigType RigType;
+				ControlRigTypeProperty->ImportText_Direct(*ControlRigTypeString, &RigType, nullptr, EPropertyPortFlags::PPF_None);
+				return RigType == EControlRigType::RigModule;
+			});
+
+		const TSharedRef<SRigVMBulkEditDialog<SRigVMSwapAssetReferencesWidget>> SwapModulesDialog =
+		 	SNew(SRigVMBulkEditDialog<SRigVMSwapAssetReferencesWidget>)
+		 	.WindowSize(FVector2D(800.0f, 640.0f))
+		 	.WidgetArgs(WidgetArgs);
+		
+		SwapModulesDialog->ShowNormal();
+	})
+);
 
 const FName FControlRigEditorModes::ControlRigEditorMode = TEXT("Rigging");
 const TArray<FName> FControlRigEditor::ForwardsSolveEventQueue = {FRigUnit_BeginExecution::EventName};
