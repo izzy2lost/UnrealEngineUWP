@@ -22,6 +22,10 @@ DEFINE_LOG_CATEGORY_STATIC(LogASan, Log, All);
 
 static void ASanErrorCallback(const char* ErrorStr)
 {
+	if (GIsCriticalError)
+	{
+		UE_LOG(LogASan, Warning, TEXT("Critical error raised prior to ASan error; engine memory may be unstable in this state!"));
+	}
 	UE_LOG(LogASan, Fatal, TEXT("ASan Error: %s"), ANSI_TO_TCHAR(ErrorStr));
 }
 
