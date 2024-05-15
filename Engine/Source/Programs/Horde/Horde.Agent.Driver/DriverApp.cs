@@ -8,7 +8,7 @@ namespace Horde.Agent.Driver
 {
 	class DriverApp
 	{
-		public static async Task<int> Main(string[] args)
+		public static async Task<int> MainAsync(string[] args)
 		{
 			CommandLineArguments arguments = new CommandLineArguments(args);
 
