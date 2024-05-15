@@ -1,10 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Security;
-using System.Net.Sockets;
 using EpicGames.Horde.Server;
 using Grpc.Core;
 using Grpc.Core.Interceptors;
@@ -13,8 +10,6 @@ using Grpc.Net.Client.Configuration;
 using Horde.Agent.Utility;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using OpenTracing;
-using OpenTracing.Util;
 
 namespace Horde.Agent.Services
 {
@@ -105,6 +100,19 @@ namespace Horde.Agent.Services
 			channelOptions.LoggerFactory = _loggerFactory;
 			channelOptions.HttpHandler = httpHandler;
 			channelOptions.DisposeHttpClient = true;
+			channelOptions.ServiceConfig = new ServiceConfig();
+			channelOptions.ServiceConfig.MethodConfigs.Add(new MethodConfig
+			{
+				Names = { MethodName.Default },
+				RetryPolicy = new RetryPolicy
+				{
+					MaxAttempts = 3,
+					InitialBackoff = TimeSpan.FromSeconds(1),
+					MaxBackoff = TimeSpan.FromSeconds(10),
+					BackoffMultiplier = 2.0,
+					RetryableStatusCodes = { StatusCode.Unavailable },
+				}
+			});
 
 			// Configure requests to send the bearer token
 			if (!String.IsNullOrEmpty(bearerToken))

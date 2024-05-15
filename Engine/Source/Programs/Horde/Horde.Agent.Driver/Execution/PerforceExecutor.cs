@@ -6,7 +6,6 @@ using EpicGames.Core;
 using EpicGames.Perforce;
 using EpicGames.Perforce.Managed;
 using Horde.Agent.Utility;
-using Horde.Common.Rpc;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
@@ -124,7 +123,7 @@ namespace Horde.Agent.Execution
 					RpcUpdateJobRequest updateJobRequest = new RpcUpdateJobRequest();
 					updateJobRequest.JobId = JobId.ToString();
 					updateJobRequest.Change = Batch.Change;
-					await RpcConnection.InvokeAsync((JobRpc.JobRpcClient x) => x.UpdateJobAsync(updateJobRequest, null, null, cancellationToken), cancellationToken);
+					await JobRpc.UpdateJobAsync(updateJobRequest, null, null, cancellationToken);
 				}
 
 				// Sync the workspace

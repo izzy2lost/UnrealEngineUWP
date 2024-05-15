@@ -15,6 +15,7 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Grpc.Core;
+using Grpc.Net.Client;
 using Horde.Agent.Driver;
 using Horde.Agent.Parser;
 //using Horde.Agent.Services;
@@ -63,7 +64,7 @@ namespace Horde.Agent.Execution
 	{
 		public Uri ServerUrl { get; }
 		public DirectoryReference WorkingDir { get; }
-		public IRpcConnection RpcConnection { get; }
+		public GrpcChannel GrpcChannel { get; }
 		public IReadOnlyList<ProcessToTerminate>? ProcessesToTerminate { get; }
 		public HttpStorageClientFactory StorageFactory { get; }
 		public JobId JobId { get; }
@@ -72,11 +73,11 @@ namespace Horde.Agent.Execution
 		public string Token { get; }
 		public RpcJobOptions JobOptions { get; }
 
-		public JobExecutorOptions(Uri serverUrl, DirectoryReference workingDir, IRpcConnection rpcConnection, IReadOnlyList<ProcessToTerminate>? processesToTerminate, HttpStorageClientFactory storageFactory, JobId jobId, JobStepBatchId batchId, RpcBeginBatchResponse batch, string token, RpcJobOptions jobOptions)
+		public JobExecutorOptions(Uri serverUrl, DirectoryReference workingDir, GrpcChannel grpcChannel, IReadOnlyList<ProcessToTerminate>? processesToTerminate, HttpStorageClientFactory storageFactory, JobId jobId, JobStepBatchId batchId, RpcBeginBatchResponse batch, string token, RpcJobOptions jobOptions)
 		{
 			ServerUrl = serverUrl;
 			WorkingDir = workingDir;
-			RpcConnection = rpcConnection;
+			GrpcChannel = grpcChannel;
 			ProcessesToTerminate = processesToTerminate;
 			StorageFactory = storageFactory;
 			JobId = jobId;
@@ -240,7 +241,8 @@ namespace Horde.Agent.Execution
 		protected HttpStorageClientFactory StorageFactory { get; }
 		protected RpcJobOptions JobOptions { get; }
 
-		protected IRpcConnection RpcConnection => Options.RpcConnection;
+		protected GrpcChannel GrpcChannel => Options.GrpcChannel;
+		protected JobRpc.JobRpcClient JobRpc { get; }
 		protected Dictionary<string, string> _remapAgentTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
 		protected Dictionary<string, string> _envVars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -255,6 +257,7 @@ namespace Horde.Agent.Execution
 			Batch = options.Batch;
 
 			JobOptions = options.JobOptions;
+			JobRpc = new JobRpc.JobRpcClient(GrpcChannel);
 
 			_envVars[HordeHttpClient.HordeUrlEnvVarName] = options.ServerUrl.ToString();
 			_envVars[HordeHttpClient.HordeTokenEnvVarName] = options.Token;
@@ -511,8 +514,6 @@ namespace Horde.Agent.Execution
 			using (GlobalTracer.Instance.BuildSpan("TempStorage").WithTag("resource", "Write").StartActive())
 			{
 				// Create the artifact
-				using IRpcClientRef<JobRpc.JobRpcClient> jobRpc = await RpcConnection.GetClientRefAsync<JobRpc.JobRpcClient>(cancellationToken);
-
 				ArtifactName artifactName = TempStorage.GetArtifactNameForNode(SetupStepName);
 				ArtifactType artifactType = ArtifactType.StepOutput;
 
@@ -522,7 +523,7 @@ namespace Horde.Agent.Execution
 				artifactRequest.Name = artifactName.ToString();
 				artifactRequest.Type = artifactType.ToString();
 
-				RpcCreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
+				RpcCreateJobArtifactResponseV2 artifact = await JobRpc.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 				ArtifactId artifactId = ArtifactId.Parse(artifact.Id);
 				logger.LogInformation("Creating output artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} in namespace {NamespaceId}", artifactId, artifactName, artifactType, artifact.RefName, artifact.NamespaceId);
 
@@ -549,7 +550,7 @@ namespace Horde.Agent.Execution
 			}
 
 			RpcUpdateGraphRequest updateGraph = await ParseGraphUpdateAsync(definitionFile, logger, cancellationToken);
-			await RpcConnection.InvokeAsync((JobRpc.JobRpcClient x) => x.UpdateGraphAsync(updateGraph, null, null, cancellationToken), cancellationToken);
+			await JobRpc.UpdateGraphAsync(updateGraph, null, null, cancellationToken);
 
 			HashSet<string> validTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 			validTargets.Add("Setup Build");
@@ -770,15 +771,13 @@ namespace Horde.Agent.Execution
 
 				ArtifactName artifactName = TempStorage.GetArtifactNameForNode(SetupStepName);
 
-				using IRpcClientRef<JobRpc.JobRpcClient> jobRpc = await RpcConnection.GetClientRefAsync<JobRpc.JobRpcClient>(cancellationToken);
-
 				RpcGetJobArtifactRequest artifactRequest = new RpcGetJobArtifactRequest();
 				artifactRequest.JobId = JobId.ToString();
 				artifactRequest.StepId = step.StepId.ToString();
 				artifactRequest.Name = artifactName.ToString();
 				artifactRequest.Type = ArtifactType.StepOutput.ToString();
 
-				RpcGetJobArtifactResponse artifact = await jobRpc.Client.GetArtifactAsync(artifactRequest, cancellationToken: cancellationToken);
+				RpcGetJobArtifactResponse artifact = await JobRpc.GetArtifactAsync(artifactRequest, cancellationToken: cancellationToken);
 
 				NamespaceId namespaceId = new NamespaceId(artifact.NamespaceId);
 				RefName refName = new RefName(artifact.RefName);
@@ -827,15 +826,13 @@ namespace Horde.Agent.Execution
 		{
 			try
 			{
-				using IRpcClientRef<JobRpc.JobRpcClient> jobRpc = await RpcConnection.GetClientRefAsync<JobRpc.JobRpcClient>(cancellationToken);
-
 				RpcCreateJobArtifactRequestV2 artifactRequest = new RpcCreateJobArtifactRequestV2();
 				artifactRequest.JobId = JobId.ToString();
 				artifactRequest.StepId = stepId.ToString();
 				artifactRequest.Name = name.ToString();
 				artifactRequest.Type = type.ToString();
 
-				RpcCreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
+				RpcCreateJobArtifactResponseV2 artifact = await JobRpc.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 				ArtifactId artifactId = ArtifactId.Parse(artifact.Id);
 				Logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({Link})", artifactId, name, type, artifact.RefName, $"{Options.ServerUrl}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
 
@@ -870,8 +867,6 @@ namespace Horde.Agent.Execution
 		{
 			DirectoryReference manifestDir = DirectoryReference.Combine(workspaceDir, "Engine", "Saved", "BuildGraph");
 
-			using IRpcClientRef<JobRpc.JobRpcClient> jobRpc = await RpcConnection.GetClientRefAsync<JobRpc.JobRpcClient>(cancellationToken);
-
 			// Create the mapping of tag names to file sets
 			Dictionary<string, HashSet<FileReference>> tagNameToFileSet = new Dictionary<string, HashSet<FileReference>>();
 
@@ -889,7 +884,7 @@ namespace Horde.Agent.Execution
 				string nodeName = input.Substring(0, slashIdx);
 				string tagName = input.Substring(slashIdx + 1);
 
-				TempStorageTagManifest fileList = await TempStorage.RetrieveTagAsync(jobRpc, JobId, step.StepId, StorageFactory, nodeName, tagName, manifestDir, logger, cancellationToken);
+				TempStorageTagManifest fileList = await TempStorage.RetrieveTagAsync(JobRpc, JobId, step.StepId, StorageFactory, nodeName, tagName, manifestDir, logger, cancellationToken);
 				tagNameToFileSet[tagName] = fileList.ToFileSet(workspaceDir);
 				inputStorageBlocks.UnionWith(fileList.Blocks);
 			}
@@ -902,7 +897,7 @@ namespace Horde.Agent.Execution
 				scope.Span.SetTag("blocks", inputStorageBlocks.Count);
 				foreach (TempStorageBlockRef inputStorageBlock in inputStorageBlocks)
 				{
-					TempStorageBlockManifest manifest = await TempStorage.RetrieveBlockAsync(jobRpc, JobId, step.StepId, StorageFactory, inputStorageBlock.NodeName, inputStorageBlock.OutputName, workspaceDir, manifestDir, logger, cancellationToken);
+					TempStorageBlockManifest manifest = await TempStorage.RetrieveBlockAsync(JobRpc, JobId, step.StepId, StorageFactory, inputStorageBlock.NodeName, inputStorageBlock.OutputName, workspaceDir, manifestDir, logger, cancellationToken);
 					inputManifests[inputStorageBlock] = manifest;
 				}
 				scope.Span.SetTag("size", inputManifests.Sum(x => x.Value.GetTotalSize()));
@@ -1037,7 +1032,7 @@ namespace Horde.Agent.Execution
 				artifactRequest.Name = TempStorage.GetArtifactNameForNode(step.Name).ToString();
 				artifactRequest.Type = ArtifactType.StepOutput.ToString();
 
-				RpcCreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
+				RpcCreateJobArtifactResponseV2 artifact = await JobRpc.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 				ArtifactId artifactId = ArtifactId.Parse(artifact.Id);
 				logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({RefUrl})", artifactId, artifactRequest.Name, ArtifactType.StepOutput, artifact.RefName, $"{Options.ServerUrl.ToString().TrimEnd('/')}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
 
@@ -1116,7 +1111,7 @@ namespace Horde.Agent.Execution
 					artifactRequest.Keys.AddRange(graphArtifact.Keys);
 					artifactRequest.Metadata.AddRange(graphArtifact.Metadata);
 
-					RpcCreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
+					RpcCreateJobArtifactResponseV2 artifact = await JobRpc.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 					ArtifactId artifactId = ArtifactId.Parse(artifact.Id);
 					logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({RefUrl})", artifactId, artifactRequest.Name, ArtifactType.StepOutput, artifact.RefName, $"{Options.ServerUrl.ToString().TrimEnd('/')}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
 
@@ -1663,7 +1658,7 @@ namespace Horde.Agent.Execution
 					}
 				}
 
-				await RpcConnection.InvokeAsync((JobRpc.JobRpcClient x) => x.UpdateGraphAsync(updateGraph, null, null, cancellationToken), cancellationToken);
+				await JobRpc.UpdateGraphAsync(updateGraph, null, null, cancellationToken);
 
 				HashSet<string> publishOutputNames = new HashSet<string>(updateGraph.Groups.SelectMany(x => x.Nodes).SelectMany(x => x.Inputs), StringComparer.OrdinalIgnoreCase);
 				foreach (string publishOutputName in publishOutputNames)
@@ -1841,7 +1836,7 @@ namespace Horde.Agent.Execution
 			request.Placement = report.Placement;
 			request.Name = report.Name;
 			request.Content = report.Content;
-			await RpcConnection.InvokeAsync((JobRpc.JobRpcClient x) => x.CreateReportAsync(request), CancellationToken.None);
+			await JobRpc.CreateReportAsync(request);
 		}
 
 		private static ISpan CreateTracingData(ISpan parent, TraceSpan span)
@@ -1872,17 +1867,11 @@ namespace Horde.Agent.Execution
 			return newSpan;
 		}
 
-		protected async Task UploadTestDataAsync(JobStepId jobStepId, IEnumerable<KeyValuePair<string, object>> testData)
+		public async Task UploadTestDataAsync(JobStepId jobStepId, IEnumerable<KeyValuePair<string, object>> pairs)
 		{
-			if (testData.Any())
+			if (pairs.Any())
 			{
-				await RpcConnection.InvokeAsync((JobRpc.JobRpcClient x) => UploadTestDataAsync(x, jobStepId, testData), CancellationToken.None);
-			}
-		}
-
-		async Task<bool> UploadTestDataAsync(JobRpc.JobRpcClient rpcClient, JobStepId jobStepId, IEnumerable<KeyValuePair<string, object>> pairs)
-		{
-			using (AsyncClientStreamingCall<RpcUploadTestDataRequest, RpcUploadTestDataResponse> call = rpcClient.UploadTestData())
+				using (AsyncClientStreamingCall<RpcUploadTestDataRequest, RpcUploadTestDataResponse> call = JobRpc.UploadTestData())
 				{
 					foreach (KeyValuePair<string, object> pair in pairs)
 					{
@@ -1901,7 +1890,7 @@ namespace Horde.Agent.Execution
 					await call.RequestStream.CompleteAsync();
 					await call.ResponseAsync;
 				}
-			return true;
+			}
 		}
 	}
 
