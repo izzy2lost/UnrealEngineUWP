@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "RHIDefinitions.h"
+
 #if RHI_RAYTRACING
 #include "RenderResource.h"
 #include "RenderGraphUtils.h"
