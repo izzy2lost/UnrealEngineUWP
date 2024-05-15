@@ -37,7 +37,7 @@ namespace UE::AnimNext
 		Context.RaiseOutputTraitEvent(Event);
 	}
 
-	float FBlendInertializerTrait::GetBlendTime(const FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const
+	float FBlendInertializerTrait::GetBlendTime(FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const
 	{
 		// We hijack the blend time and always transition instantaneously
 		return 0.0f;

@@ -161,7 +161,7 @@ namespace UE::AnimNext
 		}
 	}
 
-	float FSubGraphHostTrait::GetBlendWeight(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
+	float FSubGraphHostTrait::GetBlendWeight(FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
 	{
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
@@ -180,7 +180,7 @@ namespace UE::AnimNext
 		}
 	}
 
-	int32 FSubGraphHostTrait::GetBlendDestinationChildIndex(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding) const
+	int32 FSubGraphHostTrait::GetBlendDestinationChildIndex(FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding) const
 	{
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
@@ -226,7 +226,7 @@ namespace UE::AnimNext
 
 			if (SubGraphEntry.State == ESlotState::ActiveWithGraph)
 			{
-				InstanceData->SubGraphSlots[ChildIndex].GraphInstance.Release();
+				SubGraphEntry.GraphInstance.Release();
 			}
 
 			SubGraphEntry.State = ESlotState::Inactive;

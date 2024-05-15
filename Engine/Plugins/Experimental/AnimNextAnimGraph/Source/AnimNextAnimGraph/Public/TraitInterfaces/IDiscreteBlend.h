@@ -22,16 +22,16 @@ namespace UE::AnimNext
 		// Returns the blend weight for the specified child
 		// Multiple children can have non-zero weight but their sum must be 1.0
 		// Returns -1.0 if the child index is invalid
-		virtual float GetBlendWeight(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const;
+		virtual float GetBlendWeight(FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const;
 
 		// Returns the blend alpha for the specified child
 		// Returns nullptr if the child index is invalid
 		// Allows additive traits to query the internal state of the base trait
-		virtual const FAlphaBlend* GetBlendState(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const;
+		virtual const FAlphaBlend* GetBlendState(FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const;
 
 		// Returns the blend destination child index (aka the active child index)
 		// Returns INDEX_NONE if no child is active
-		virtual int32 GetBlendDestinationChildIndex(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding) const;
+		virtual int32 GetBlendDestinationChildIndex(FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding) const;
 
 		// Called when a blend transition between children occurs
 		// OldChildIndex can be INDEX_NONE if there was no previously active child
@@ -54,19 +54,19 @@ namespace UE::AnimNext
 	struct TTraitBinding<IDiscreteBlend> : FTraitBinding
 	{
 		// @see IDiscreteBlend::GetBlendWeight
-		float GetBlendWeight(const FExecutionContext& Context, int32 ChildIndex) const
+		float GetBlendWeight(FExecutionContext& Context, int32 ChildIndex) const
 		{
 			return GetInterface()->GetBlendWeight(Context, *this, ChildIndex);
 		}
 
 		// @see IDiscreteBlend::GetBlendState
-		const FAlphaBlend* GetBlendState(const FExecutionContext& Context, int32 ChildIndex) const
+		const FAlphaBlend* GetBlendState(FExecutionContext& Context, int32 ChildIndex) const
 		{
 			return GetInterface()->GetBlendState(Context, *this, ChildIndex);
 		}
 
 		// @see IDiscreteBlend::GetBlendDestinationChildIndex
-		int32 GetBlendDestinationChildIndex(const FExecutionContext& Context) const
+		int32 GetBlendDestinationChildIndex(FExecutionContext& Context) const
 		{
 			return GetInterface()->GetBlendDestinationChildIndex(Context, *this);
 		}

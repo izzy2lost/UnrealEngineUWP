@@ -46,19 +46,19 @@ namespace UE::AnimNext
 		Component.RegisterWithGroup(GroupName, GroupRole, Binding.GetTraitPtr(), TraitState);
 	}
 
-	FName FSynchronizeUsingGroupsTrait::GetGroupName(const FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding) const
+	FName FSynchronizeUsingGroupsTrait::GetGroupName(FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		return SharedData->GroupName;
 	}
 
-	EAnimGroupRole::Type FSynchronizeUsingGroupsTrait::GetGroupRole(const FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding) const
+	EAnimGroupRole::Type FSynchronizeUsingGroupsTrait::GetGroupRole(FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		return SharedData->GroupRole;
 	}
 
-	float FSynchronizeUsingGroupsTrait::AdvanceBy(const FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding, float DeltaTime) const
+	float FSynchronizeUsingGroupsTrait::AdvanceBy(FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding, float DeltaTime) const
 	{
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
@@ -75,7 +75,7 @@ namespace UE::AnimNext
 		return ProgressRatio;
 	}
 
-	void FSynchronizeUsingGroupsTrait::AdvanceToRatio(const FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding, float ProgressRatio) const
+	void FSynchronizeUsingGroupsTrait::AdvanceToRatio(FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding, float ProgressRatio) const
 	{
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
@@ -90,7 +90,7 @@ namespace UE::AnimNext
 		InstanceData->bFreezeTimeline = true;
 	}
 
-	float FSynchronizeUsingGroupsTrait::AdvanceBy(const FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float DeltaTime) const
+	float FSynchronizeUsingGroupsTrait::AdvanceBy(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float DeltaTime) const
 	{
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 		if (InstanceData->bFreezeTimeline)
@@ -101,7 +101,7 @@ namespace UE::AnimNext
 		return ITimeline::AdvanceBy(Context, Binding, DeltaTime);
 	}
 
-	void FSynchronizeUsingGroupsTrait::AdvanceToRatio(const FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float ProgressRatio) const
+	void FSynchronizeUsingGroupsTrait::AdvanceToRatio(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float ProgressRatio) const
 	{
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 		if (InstanceData->bFreezeTimeline)

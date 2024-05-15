@@ -47,13 +47,13 @@ namespace UE::AnimNext
 		Context.AppendTask(Task);
 	}
 
-	float FSequencePlayerTrait::GetPlayRate(const FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding) const
+	float FSequencePlayerTrait::GetPlayRate(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		return SharedData->GetPlayRate(Binding);
 	}
 
-	float FSequencePlayerTrait::AdvanceBy(const FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float DeltaTime) const
+	float FSequencePlayerTrait::AdvanceBy(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float DeltaTime) const
 	{
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
@@ -76,7 +76,7 @@ namespace UE::AnimNext
 		return 0.0f;
 	}
 
-	void FSequencePlayerTrait::AdvanceToRatio(const FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float ProgressRatio) const
+	void FSequencePlayerTrait::AdvanceToRatio(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float ProgressRatio) const
 	{
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 

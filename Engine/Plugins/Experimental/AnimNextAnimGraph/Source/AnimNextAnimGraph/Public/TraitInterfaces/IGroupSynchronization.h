@@ -19,18 +19,18 @@ namespace UE::AnimNext
 		DECLARE_ANIM_TRAIT_INTERFACE(IGroupSynchronization, GRS, 0xf607d0fd)
 
 		// Returns the group name used for synchronization
-		virtual FName GetGroupName(const FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding) const;
+		virtual FName GetGroupName(FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding) const;
 
 		// Returns the group role used for synchronization
-		virtual EAnimGroupRole::Type GetGroupRole(const FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding) const;
+		virtual EAnimGroupRole::Type GetGroupRole(FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding) const;
 
 		// Called by the sync group graph instance component once a group has been synchronized to advance time on the leader
 		// Returns the progress ratio of playback: 0.0 = start of animation, 1.0 = end of animation
-		virtual float AdvanceBy(const FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding, float DeltaTime) const;
+		virtual float AdvanceBy(FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding, float DeltaTime) const;
 
 		// Called by the sync group graph instance component once a group has been synchronized to advance time on each follower
 		// Progress ratio must be between [0.0, 1.0]
-		virtual void AdvanceToRatio(const FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding, float ProgressRatio) const;
+		virtual void AdvanceToRatio(FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding, float ProgressRatio) const;
 	};
 
 	/**
@@ -40,25 +40,25 @@ namespace UE::AnimNext
 	struct TTraitBinding<IGroupSynchronization> : FTraitBinding
 	{
 		// @see IGroupSynchronization::GetGroupName
-		FName GetGroupName(const FExecutionContext& Context) const
+		FName GetGroupName(FExecutionContext& Context) const
 		{
 			return GetInterface()->GetGroupName(Context, *this);
 		}
 
 		// @see IGroupSynchronization::GetGroupRole
-		EAnimGroupRole::Type GetGroupRole(const FExecutionContext& Context) const
+		EAnimGroupRole::Type GetGroupRole(FExecutionContext& Context) const
 		{
 			return GetInterface()->GetGroupRole(Context, *this);
 		}
 
 		// @see IGroupSynchronization::AdvanceBy
-		float AdvanceBy(const FExecutionContext& Context, float DeltaTime) const
+		float AdvanceBy(FExecutionContext& Context, float DeltaTime) const
 		{
 			return GetInterface()->AdvanceBy(Context, *this, DeltaTime);
 		}
 
 		// @see IGroupSynchronization::AdvanceToRatio
-		void AdvanceToRatio(const FExecutionContext& Context, float ProgressRatio) const
+		void AdvanceToRatio(FExecutionContext& Context, float ProgressRatio) const
 		{
 			GetInterface()->AdvanceToRatio(Context, *this, ProgressRatio);
 		}

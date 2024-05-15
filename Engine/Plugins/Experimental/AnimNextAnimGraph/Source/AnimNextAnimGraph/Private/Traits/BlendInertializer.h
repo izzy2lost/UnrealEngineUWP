@@ -34,12 +34,11 @@ namespace UE::AnimNext
 		DECLARE_ANIM_TRAIT(FBlendInertializerTrait, 0x7ea0bdee, FAdditiveTrait)
 
 		using FSharedData = FAnimNextBlendInertializerTraitSharedData;
-		using FInstanceData = FTrait::FInstanceData;
 
 		// IDiscreteBlend impl
 		virtual void OnBlendTransition(FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const override;
 
 		// ISmoothBlend impl
-		virtual float GetBlendTime(const FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const override;
+		virtual float GetBlendTime(FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const override;
 	};
 }

@@ -18,15 +18,15 @@ namespace UE::AnimNext
 		DECLARE_ANIM_TRAIT_INTERFACE(ITimeline, TIM, 0x53760727)
 
 		// Returns the play rate of this timeline
-		virtual float GetPlayRate(const FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding) const;
+		virtual float GetPlayRate(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding) const;
 
 		// Advances time by the provided delta time (positive or negative) on this timeline
-		// Returns the progress ratio of playback: 0.0 = start of animation, 1.0 = end of animation
-		virtual float AdvanceBy(const FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float DeltaTime) const;
+		// Returns the progress of playback
+		virtual float AdvanceBy(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float DeltaTime) const;
 
 		// Advances time to the specified progress ratio on this timeline
 		// Progress ratio must be between [0.0, 1.0]
-		virtual void AdvanceToRatio(const FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float ProgressRatio) const;
+		virtual void AdvanceToRatio(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float ProgressRatio) const;
 	};
 
 	/**
@@ -36,19 +36,19 @@ namespace UE::AnimNext
 	struct TTraitBinding<ITimeline> : FTraitBinding
 	{
 		// @see ITimeline::GetPlayRate
-		float GetPlayRate(const FExecutionContext& Context) const
+		float GetPlayRate(FExecutionContext& Context) const
 		{
 			return GetInterface()->GetPlayRate(Context, *this);
 		}
 
 		// @see ITimeline::AdvanceBy
-		float AdvanceBy(const FExecutionContext& Context, float DeltaTime) const
+		float AdvanceBy(FExecutionContext& Context, float DeltaTime) const
 		{
 			return GetInterface()->AdvanceBy(Context, *this, DeltaTime);
 		}
 
 		// @see ITimeline::AdvanceToRatio
-		void AdvanceToRatio(const FExecutionContext& Context, float ProgressRatio) const
+		void AdvanceToRatio(FExecutionContext& Context, float ProgressRatio) const
 		{
 			GetInterface()->AdvanceToRatio(Context, *this, ProgressRatio);
 		}
