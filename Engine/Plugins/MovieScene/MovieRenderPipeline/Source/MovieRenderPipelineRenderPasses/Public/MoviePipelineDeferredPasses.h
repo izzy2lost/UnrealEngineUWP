@@ -42,6 +42,10 @@ class MOVIERENDERPIPELINERENDERPASSES_API UMoviePipelineDeferredPassBase : publi
 public:
 	UMoviePipelineDeferredPassBase();
 	
+	// UObject Interface
+	virtual void PostLoad() override;
+	// ~UObject Interface
+
 protected:
 	// UMoviePipelineRenderPass API
 	virtual void SetupImpl(const MoviePipeline::FMoviePipelineRenderPassInitSettings& InPassInitSettings) override;
@@ -107,11 +111,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Post Processing")
 	bool bDisableMultisampleEffects;
 
+#if WITH_EDITORONLY_DATA
 	/**
 	* Should the additional post-process materials write out to a 32-bit render target instead of 16-bit?
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Deferred Renderer Data")
-	bool bUse32BitPostProcessMaterials;
+	UE_DEPRECATED(5.5, "bUse32BitPostProcessMaterials has been deprecated, please use the setting per material.")
+	UPROPERTY()
+	bool bUse32BitPostProcessMaterials_DEPRECATED;
+#endif
 
 	/**
 	* An array of additional post-processing materials to run after the frame is rendered. Using this feature may add a notable amount of render time.
@@ -154,6 +161,9 @@ protected:
 	/** While rendering, store an array of the non-null valid materials loaded from AdditionalPostProcessMaterials. Cleared on teardown. */
 	UPROPERTY(Transient, DuplicateTransient)
 	TArray<TObjectPtr<UMaterialInterface>> ActivePostProcessMaterials;
+
+	UPROPERTY(Transient, DuplicateTransient)
+	TSet<TObjectPtr<UMaterialInterface>> ActiveHighPrecisionPostProcessMaterials;
 
 	UPROPERTY(Transient, DuplicateTransient)
 	TObjectPtr<UMaterialInterface> StencilLayerMaterial;

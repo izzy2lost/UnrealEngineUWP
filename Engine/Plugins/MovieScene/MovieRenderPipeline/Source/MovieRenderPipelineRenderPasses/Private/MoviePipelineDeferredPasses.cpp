@@ -62,9 +62,26 @@ UMoviePipelineDeferredPassBase::UMoviePipelineDeferredPassBase()
 		FMoviePipelinePostProcessPass& NewPass = AdditionalPostProcessMaterials.AddDefaulted_GetRef();
 		NewPass.Material = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(MaterialPath));
 		NewPass.bEnabled = false;
+		NewPass.bHighPrecisionOutput = MaterialPath.Equals(DefaultDepthAsset);
 	}
 	bRenderMainPass = true;
-	bUse32BitPostProcessMaterials = false;
+}
+
+void UMoviePipelineDeferredPassBase::PostLoad()
+{
+	Super::PostLoad();
+
+#if WITH_EDITORONLY_DATA
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (bUse32BitPostProcessMaterials_DEPRECATED)
+	{
+		for (FMoviePipelinePostProcessPass& Pass : AdditionalPostProcessMaterials)
+		{
+			Pass.bHighPrecisionOutput = true;
+		}
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
 }
 
 FIntPoint UMoviePipelineDeferredPassBase::GetEffectiveOutputResolutionForCamera(const int32 InCameraIndex) const
@@ -165,6 +182,11 @@ void UMoviePipelineDeferredPassBase::SetupImpl(const MoviePipeline::FMoviePipeli
 			if (Material)
 			{
 				ActivePostProcessMaterials.Add(Material);
+				
+				if (AdditionalPass.bHighPrecisionOutput)
+				{
+					ActiveHighPrecisionPostProcessMaterials.Add(Material);
+				}
 			}
 		}
 	}
@@ -304,6 +326,7 @@ void UMoviePipelineDeferredPassBase::SetupImpl(const MoviePipeline::FMoviePipeli
 void UMoviePipelineDeferredPassBase::TeardownImpl()
 {
 	ActivePostProcessMaterials.Reset();
+	ActiveHighPrecisionPostProcessMaterials.Reset();
 	UniqueStencilLayerNames.Reset();
 
 	for (FMultiCameraViewStateData& CameraData : CameraViewStateData)
@@ -519,7 +542,7 @@ void UMoviePipelineDeferredPassBase::RenderSample_GameThreadImpl(const FMoviePip
 				FMoviePipelinePassIdentifier LayerPassIdentifier = FMoviePipelinePassIdentifier(PassIdentifier.Name + VisMaterial->GetName(), PassIdentifierForCurrentCamera.CameraName);
 
 				auto BufferPipe = MakeShared<FImagePixelPipe, ESPMode::ThreadSafe>();
-				BufferPipe->bIsExpecting32BitPixelData = bUse32BitPostProcessMaterials;
+				BufferPipe->bIsExpecting32BitPixelData = ActiveHighPrecisionPostProcessMaterials.Contains(VisMaterial);
 				BufferPipe->AddEndpoint(MakeForwardingEndpoint(LayerPassIdentifier, InOutSampleState));
 
 				View->FinalPostProcessSettings.BufferVisualizationPipes.Add(VisMaterial->GetFName(), BufferPipe);
