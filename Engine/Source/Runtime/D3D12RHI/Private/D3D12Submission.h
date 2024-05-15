@@ -42,7 +42,7 @@ struct FD3D12Fence
 {
 	TRefCountPtr<ID3D12Fence> D3DFence;
 	uint64 NextCompletionValue = 0;
-	uint64 LastSignaledValue = 0;
+	std::atomic<uint64> LastSignaledValue = 0;
 	bool bInterruptAwaited = false;
 };
 
