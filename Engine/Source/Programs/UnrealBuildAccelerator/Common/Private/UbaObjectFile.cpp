@@ -543,7 +543,7 @@ namespace uba
 		{
 			auto& symbol = newSymbols[i + importsToFixCount];
 			symbol.N.Name.Long = symbolsToAdd[i] - 6;
-			symbol.SectionNumber = (decltype(SymbolType::SectionNumber))newSectionIndex;
+			symbol.SectionNumber = (decltype(SymbolType::SectionNumber))(newSectionIndex + 1);
 			symbol.StorageClass = ImageSymClassExternal;
 			symbol.Value = i * 8;
 		}
