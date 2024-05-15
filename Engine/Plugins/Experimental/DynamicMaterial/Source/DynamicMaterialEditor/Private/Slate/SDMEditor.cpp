@@ -483,6 +483,7 @@ TSharedRef<SWidget> SDMEditor::CreateActorMaterialSlotSelector(const AActor* InA
 			SNew(STextBlock)
 			.Justification(ETextJustify::Center)
 			.AutoWrapText(true)
+			.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 			.Text(LOCTEXT("NoMaterialSlot", "\n\nThe selected actor contains no primitive components with material slots."));
 	}
 
@@ -579,8 +580,8 @@ TSharedRef<SWidget> SDMEditor::CreateActorMaterialSlotSelector(const AActor* InA
 					.Padding(0.f, 5.f, 0.f, 5.f)
 					[
 						SNew(STextBlock)
+						.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 						.Text(MaterialSlot->GetPropertyName(true))
-						.Font(IDetailLayoutBuilder::GetDetailFont())
 					]
 
 					+ SVerticalBox::Slot()
@@ -592,8 +593,8 @@ TSharedRef<SWidget> SDMEditor::CreateActorMaterialSlotSelector(const AActor* InA
 						.OnClicked(this, &SDMEditor::OnCreateMaterialButtonClicked, MaterialSlotWeak)
 						[
 							SNew(STextBlock)
+							.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 							.Text(LOCTEXT("CreateMaterial", "Create Material"))
-							.Font(IDetailLayoutBuilder::GetDetailFont())
 						]
 					]
 				]
@@ -615,6 +616,7 @@ TSharedRef<SWidget> SDMEditor::GetEmptyContent()
 		.Padding(5.0f, 5.0f, 5.0f, 5.0f)
 		[
 			SNew(STextBlock)
+			.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 			.Text(LOCTEXT("NoActiveMaterial", "No active Material Designer Instance."))
 		];
 }
@@ -771,8 +773,8 @@ TSharedRef<SWidget> SDMEditor::CreateParametersArea()
 			.VAlign(EVerticalAlignment::VAlign_Center)
 			[
 				SNew(STextBlock)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
 				.Text(LOCTEXT("MaterialParameters", "Material Parameters"))
-				.Font(IDetailLayoutBuilder::GetDetailFontBold())
 			]
 		]
 		.BodyContent()
@@ -807,6 +809,7 @@ TSharedRef<SWidget> SDMEditor::CreateSlotPickerWidget()
 			.Content()
 			[
 				SNew(STextBlock)
+				.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 				.Text(LOCTEXT("GlobalSettings", "Global"))
 			]
 		];
@@ -863,6 +866,7 @@ TSharedRef<SWidget> SDMEditor::CreateSlotPickerWidget()
 					.Content()
 					[
 						SNew(STextBlock)
+						.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 						.Text(!ShortName.IsEmpty() ? FText::FromString(ShortName) : MaterialPropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(Property.Key)))
 					]
 				];
@@ -1367,8 +1371,8 @@ TSharedRef<SWidget> SDMEditor::CreateSlotWidget()
 			.Padding(10.f, 5.f, 10.f, 5.f)
 			[
 				SNew(STextBlock)
+				.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 				.Text(LOCTEXT("SlotsContent", "Select a Material Property to view the Layer Stack."))
-				.Font(IDetailLayoutBuilder::GetDetailFont())
 			];
 	};
 

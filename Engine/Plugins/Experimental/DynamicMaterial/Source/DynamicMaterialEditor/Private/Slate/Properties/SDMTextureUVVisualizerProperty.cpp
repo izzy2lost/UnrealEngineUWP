@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Slate/Properties/SDMTextureUVVisualizerProperty.h"
+
 #include "Components/DMMaterialStage.h"
 #include "Components/DMTextureUV.h"
 #include "DetailLayoutBuilder.h"
@@ -36,8 +37,8 @@ void SDMTextureUVVisualizerProperty::Construct(const FArguments& InArgs, UDMMate
 				.Content()
 				[
 					SNew(STextBlock)
+					.Font(IDetailLayoutBuilder::GetDetailFont())
 					.Text(LOCTEXT("ToggleVisualizer", "Toggle"))
-					.Font(IDetailLayoutBuilder::GetDetailFontBold())
 				]
 			]
 			+ SHorizontalBox::Slot()
@@ -48,8 +49,8 @@ void SDMTextureUVVisualizerProperty::Construct(const FArguments& InArgs, UDMMate
 				.Content()
 				[
 					SNew(STextBlock)
+					.Font(IDetailLayoutBuilder::GetDetailFont())
 					.Text(LOCTEXT("PopoutVisualizer", "Popout"))
-					.Font(IDetailLayoutBuilder::GetDetailFontBold())
 				]
 			]
 		]
@@ -87,8 +88,8 @@ void SDMTextureUVVisualizerProperty::Construct(const FArguments& InArgs, UDMMate
 				.Content()
 				[
 					SNew(STextBlock)
+					.Font(IDetailLayoutBuilder::GetDetailFont())
 					.Text(LOCTEXT("VisualizerOffset", "Offset"))
-					.Font(IDetailLayoutBuilder::GetDetailFontBold())
 				]
 			]
 			+ SHorizontalBox::Slot()
@@ -104,8 +105,8 @@ void SDMTextureUVVisualizerProperty::Construct(const FArguments& InArgs, UDMMate
 				.Content()
 				[
 					SNew(STextBlock)
+					.Font(IDetailLayoutBuilder::GetDetailFont())
 					.Text(LOCTEXT("VisualizerPivot", "Pivot"))
-					.Font(IDetailLayoutBuilder::GetDetailFontBold())
 				]
 			]
 		]

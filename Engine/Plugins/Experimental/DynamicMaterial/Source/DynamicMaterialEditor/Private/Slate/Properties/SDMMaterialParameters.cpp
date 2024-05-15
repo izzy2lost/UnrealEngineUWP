@@ -7,7 +7,6 @@
 #include "DMValueDefinition.h"
 #include "DynamicMaterialEditorModule.h"
 #include "DynamicMaterialEditorStyle.h"
-#include "DynamicMaterialModule.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Slate/Properties/SDMDetailsGrid.h"
 #include "SlateOptMacros.h"
@@ -73,8 +72,8 @@ void SDMMaterialParameters::Construct(const FArguments& InArgs, TWeakObjectPtr<U
 			.VAlign(EVerticalAlignment::VAlign_Center)
 			[
 				SNew(STextBlock)
+				.TextStyle(FDynamicMaterialEditorStyle::Get(), "BoldFont")
 				.Text(LOCTEXT("GlobalValuesHeader", "Global Values"))
-				.Font(IDetailLayoutBuilder::GetDetailFontBold())
 			]
 			+ CreateAddValueButton(EDMValueType::VT_Float1)
 			+ CreateAddValueButton(EDMValueType::VT_Float2)
@@ -110,8 +109,8 @@ TSharedRef<SWidget> SDMMaterialParameters::CreateValuesWidget()
 			.Padding(10.f, 5.f, 10.f, 5.f)
 			[
 				SNew(STextBlock)
+				.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 				.Text(LOCTEXT("GlobalValuesContent", "Global Values Content"))
-				.Font(IDetailLayoutBuilder::GetDetailFont())
 			];
 		// @formatter:on
 	}
@@ -128,8 +127,8 @@ TSharedRef<SWidget> SDMMaterialParameters::CreateValuesWidget()
 			.Padding(10.f, 5.f, 10.f, 5.f)
 			[
 				SNew(STextBlock)
+				.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 				.Text(LOCTEXT("GlobalValuesNoContent", "Click a button to add a value!"))
-				.Font(IDetailLayoutBuilder::GetDetailFont())
 			];
 		// @formatter:on
 	}

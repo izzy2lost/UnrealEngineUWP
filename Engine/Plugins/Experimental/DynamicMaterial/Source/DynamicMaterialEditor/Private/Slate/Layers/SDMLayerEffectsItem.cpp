@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Slate/Layers/SDMLayerEffectsItem.h"
+
 #include "Components/DMMaterialEffect.h"
 #include "Components/DMMaterialEffectStack.h"
 #include "Components/DMMaterialStage.h"
@@ -70,6 +71,7 @@ TSharedRef<SWidget> SDMLayerEffectsItem::CreateMainContent()
 			.Padding(10.0f, 0.0f, 0.0f, 0.0f)
 			[
 				SNew(STextBlock)
+				.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 				.Text(this, &SDMLayerEffectsItem::GetLayerHeaderText)
 			]
 			+ SHorizontalBox::Slot()

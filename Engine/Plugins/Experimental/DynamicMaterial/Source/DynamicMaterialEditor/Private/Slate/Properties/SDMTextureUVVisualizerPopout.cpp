@@ -8,7 +8,7 @@
 #include "CustomDetailsViewModule.h"
 #include "DetailLayoutBuilder.h"
 #include "DMWorldSubsystem.h"
-#include "DynamicMaterialEditorModule.h"
+#include "DynamicMaterialEditorStyle.h"
 #include "Engine/World.h"
 #include "Generators/DMTextureUVPropertyRowGenerator.h"
 #include "ICustomDetailsView.h"
@@ -242,8 +242,8 @@ TSharedRef<SWidget> SDMTextureUVVisualizerPopout::CreatePropertyWidget(UDMTextur
 			.Content()
 			[
 				SNew(STextBlock)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
 				.Text(LOCTEXT("VisualizerOffset", "Offset"))
-				.Font(IDetailLayoutBuilder::GetDetailFontBold())
 			]
 		]
 		+ SHorizontalBox::Slot()
@@ -259,8 +259,8 @@ TSharedRef<SWidget> SDMTextureUVVisualizerPopout::CreatePropertyWidget(UDMTextur
 			.Content()
 			[
 				SNew(STextBlock)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
 				.Text(LOCTEXT("VisualizerPivot", "Pivot"))
-				.Font(IDetailLayoutBuilder::GetDetailFontBold())
 			]
 		];
 
@@ -319,9 +319,9 @@ TSharedRef<SWidget> SDMTextureUVVisualizerPopout::CreatePropertyWidget(UDMTextur
 			Item->SetOverrideWidget(
 				ECustomDetailsViewWidgetType::Name,
 				SNew(STextBlock)
-				.Font(IDetailLayoutBuilder::GetDetailFont())
-				.Text(EditRow.NameOverride.GetValue())
-				.ToolTipText(EditRow.NameToolTipOverride.Get(FText::GetEmpty()))
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+					.Text(EditRow.NameOverride.GetValue())
+					.ToolTipText(EditRow.NameToolTipOverride.Get(FText::GetEmpty()))
 			);
 		}
 

@@ -11,6 +11,7 @@
 #include "Components/DMMaterialStageThroughput.h"
 #include "Components/MaterialStageInputs/DMMSITextureUV.h"
 #include "ContentBrowserDataDragDropOp.h"
+#include "DetailLayoutBuilder.h"
 #include "DragDrop/DMSlotLayerDragDropOperation.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialEditorStyle.h"
@@ -240,7 +241,7 @@ TSharedRef<SWidget> SDMSlotLayerItem::CreateHeaderRowContent()
 			.Padding(0.0f, 0.0f, 0.0f, 0.0f)
 			[
 				SNew(STextBlock)
-				.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
+				.TextStyle(FDynamicMaterialEditorStyle::Get(), "SmallFont")
 				.Text(this, &SDMSlotLayerItem::GetBlendModeText)
 			]
 			+ SVerticalBox::Slot()
@@ -250,7 +251,7 @@ TSharedRef<SWidget> SDMSlotLayerItem::CreateHeaderRowContent()
 			.Padding(0.0f, 0.0f, 0.0f, 2.0f)
 			[
 				SNew(STextBlock)
-				.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
+				.TextStyle(FDynamicMaterialEditorStyle::Get(), "SmallFont")
 				.Text(this, &SDMSlotLayerItem::GetStageDescription)
 			]
 		]
@@ -343,8 +344,8 @@ TSharedRef<SWidget> SDMSlotLayerItem::CreateHandleWidget()
 				.VAlign(VAlign_Center)
 				[
 					SNew(STextBlock)
-					.TextStyle(&FDynamicMaterialEditorStyle::Get(), "LayerView.Row.HeaderText.Small")
 					.Justification(ETextJustify::Center)
+					.TextStyle(&FDynamicMaterialEditorStyle::Get(), "LayerView.Row.HeaderText.Small")
 					.Text(this, &SDMSlotLayerItem::GetLayerIndexText)
 				]
 			]
@@ -1235,9 +1236,9 @@ FVector2D SDMSlotLayerItem::GetStagePreviewSize() const
 TSharedRef<SWidget> SDMSlotLayerItem::CreateLayerHeaderText() const
 {
 	TSharedRef<SWidget> TextBlock = SNew(STextBlock)
-		.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
-		.Text(this, &SDMSlotLayerItem::GetLayerHeaderText)
-		.ColorAndOpacity(FSlateColor(EStyleColor::PrimaryHover));
+		.ColorAndOpacity(FSlateColor(EStyleColor::PrimaryHover))
+		.TextStyle(FDynamicMaterialEditorStyle::Get(), "SmallFont")
+		.Text(this, &SDMSlotLayerItem::GetLayerHeaderText);
 
 	TextBlock->SetOnMouseButtonDown(FPointerEventHandler::CreateSPLambda(
 		this,
@@ -1273,7 +1274,7 @@ TSharedRef<SWidget> SDMSlotLayerItem::CreateLayerHeaderEditableText() const
 	}
 
 	return SNew(SEditableTextBox)
-		.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
+		.Font(IDetailLayoutBuilder::GetDetailFont())
 		.HintText(LOCTEXT("LayerName", "Layer Name"))
 		.IsEnabled(true)
 		.Text(LayerName)

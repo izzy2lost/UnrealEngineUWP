@@ -26,7 +26,6 @@
 #include "Components/MaterialValues/DMMaterialValueFloat3RGB.h"
 #include "Components/MaterialValues/DMMaterialValueFloat4.h"
 #include "Components/MaterialValues/DMMaterialValueTexture.h"
-#include "DetailLayoutBuilder.h"
 #include "DynamicMaterialEditorModule.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialEditorStyle.h"
@@ -530,10 +529,10 @@ TSharedRef<SWidget> SDMSlot::CreateHeaderPropertyListWidget()
 				.HAlign(EHorizontalAlignment::HAlign_Fill)
 				[
 					SNew(STextBlock)
-					.Text(Pair.Key->GetDescription())
-					.Font(IDetailLayoutBuilder::GetDetailFont())
 					.ColorAndOpacity(FLinearColor::White)
 					.Margin(FMargin(16.f, 4.f, 4.f, 4.f))
+					.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
+					.Text(Pair.Key->GetDescription())
 				]
 			];
 	}
@@ -713,6 +712,7 @@ TSharedRef<SWidget> SDMSlot::CreateSlotSettingsRow()
 				.Padding(0.f, 0.f, 5.f, 0.f)
 				[
 					SNew(STextBlock)
+					.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 					.Text(LOCTEXT("MaterialDesignerInstanceBlendMode", "Blend"))
 				]
 			]
@@ -730,11 +730,13 @@ TSharedRef<SWidget> SDMSlot::CreateSlotSettingsRow()
 					+ SWidgetSwitcher::Slot()
 					[
 						SNew(STextBlock)
+						.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 						.Text(INVTEXT("-"))
 					]
 					+ SWidgetSwitcher::Slot()
 					[
 						SNew(STextBlock)
+						.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 						.Text(INVTEXT("-"))
 					]
 					+ SWidgetSwitcher::Slot()
@@ -763,6 +765,7 @@ TSharedRef<SWidget> SDMSlot::CreateSlotSettingsRow()
 				.Padding(0.f, 0.f, 5.f, 0.f)
 				[
 					SNew(STextBlock)
+					.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 					.Text(LOCTEXT("StageOpacity", "Opacity"))
 				]
 			]
@@ -777,7 +780,11 @@ TSharedRef<SWidget> SDMSlot::CreateSlotSettingsRow()
 				[
 					OpacityPropertyEditWidget.IsValid()
 						? StaticCastSharedRef<SWidget>(OpacityPropertyEditWidget.ToSharedRef())
-						: StaticCastSharedRef<SWidget>(SNew(STextBlock).Text(INVTEXT("-")))
+						: StaticCastSharedRef<SWidget>(
+							SNew(STextBlock)
+							.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
+							.Text(INVTEXT("-"))
+						)
 				]
 			]
 			+ SHorizontalBox::Slot()

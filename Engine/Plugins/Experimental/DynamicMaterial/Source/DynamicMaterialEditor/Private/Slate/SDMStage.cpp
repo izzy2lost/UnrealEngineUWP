@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SDMStage.h"
+
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
@@ -23,10 +24,8 @@
 #include "SlateOptMacros.h"
 #include "Styling/CoreStyle.h"
 #include "Utils/DMPrivate.h"
-#include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScaleBox.h"
-#include "Widgets/Layout/SScissorRectBox.h"
 #include "Widgets/SOverlay.h"
 #include "Widgets/SToolTip.h"
 #include "Widgets/Text/STextBlock.h"
@@ -161,8 +160,8 @@ TSharedRef<SWidget> SDMStage::CreateTextBlockBackground()
 					SNew(STextBlock)
 					.Margin(3.0f)
 					.ColorAndOpacity(FSlateColor(FLinearColor::White))
+					.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 					.Text(this, &SDMStage::GetStageName)
-					.Font(FCoreStyle::GetDefaultFontStyle("Regular", DefaultLabelFontSize))
 				]
 			]
 		];

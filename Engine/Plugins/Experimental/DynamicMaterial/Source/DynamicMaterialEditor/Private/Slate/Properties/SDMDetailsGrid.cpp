@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Slate/Properties/SDMDetailsGrid.h"
-#include "Components/DMMaterialValue.h"
+
 #include "DMWorldSubsystem.h"
 #include "DynamicMaterialEditorStyle.h"
 #include "Engine/World.h"
@@ -231,6 +231,7 @@ TSharedRef<SWidget> SDMDetailsGrid::CreateDefaultLabel(const TAttribute<FText>& 
 {
 	return
 		SNew(STextBlock)
+		.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 		.Text(InText);
 }
 

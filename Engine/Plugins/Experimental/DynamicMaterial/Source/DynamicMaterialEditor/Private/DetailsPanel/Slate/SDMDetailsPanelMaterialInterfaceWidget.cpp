@@ -1,16 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DetailsPanel/Slate/SDMDetailsPanelMaterialInterfaceWidget.h"
-#include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
-#include "DetailLayoutBuilder.h"
+#include "DynamicMaterialEditorStyle.h"
 #include "IAssetTools.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Material/DynamicMaterialInstanceFactory.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyHandle.h"
 #include "Widgets/Input/SButton.h"
-#include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SDMDetailsPanelMaterialInterfaceWidget"
@@ -71,8 +69,8 @@ void SDMDetailsPanelMaterialInterfaceWidget::Construct(const FArguments& InArgs,
 			.Content()
 			[
 				SNew(STextBlock)
+				.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 				.Text(this, &SDMDetailsPanelMaterialInterfaceWidget::GetButtonText)
-				.Font(IDetailLayoutBuilder::GetDetailFontBold())
 			]
 		]
 	];

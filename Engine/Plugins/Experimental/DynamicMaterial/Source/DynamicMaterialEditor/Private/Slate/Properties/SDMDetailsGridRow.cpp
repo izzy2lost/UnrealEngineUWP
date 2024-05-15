@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Slate/Properties/SDMDetailsGridRow.h"
-#include "Components/DMMaterialValue.h"
-#include "PropertyCustomizationHelpers.h"
+
+#include "DynamicMaterialEditorStyle.h"
 #include "Slate/Properties/SDMPropertyEdit.h"
 #include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Layout/SSplitter.h"
@@ -115,6 +115,7 @@ void SDMDetailsGridRow::AddPropertyRow(const FText& InText, const TSharedRef<SWi
 		.VAlign(VAlign_Center)
 		[
 			SNew(STextBlock)
+			.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 			.Text(InText)
 		];
 

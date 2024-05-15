@@ -505,9 +505,19 @@ void FDynamicMaterialEditorStyle::SetupTextStyles(const TSharedRef<FSlateStyleSe
 	HandleFontOutline.OutlineColor = LayerViewItemTextShadowColor;
 	HandleFontOutline.OutlineSize = 1;
 
-	FTextBlockStyle ActorNameTextStyle(NormalTextStyle);
-	ActorNameTextStyle.SetFont(DEFAULT_FONT("Regular", 10));
-	Style->Set("ActorName", ActorNameTextStyle);
+	FTextBlockStyle SmallTextStyle(NormalTextStyle);
+	SmallTextStyle.SetFont(DEFAULT_FONT("Regular", 8));
+	Style->Set("SmallFont", SmallTextStyle);
+
+	FTextBlockStyle RegularTextStyle(NormalTextStyle);
+	RegularTextStyle.SetFont(DEFAULT_FONT("Regular", 10));
+	Style->Set("RegularFont", RegularTextStyle);
+
+	FTextBlockStyle BoldTextStyle(NormalTextStyle);
+	BoldTextStyle.SetFont(DEFAULT_FONT("Bold", 10));
+	Style->Set("BoldFont", BoldTextStyle);
+
+	Style->Set("ActorName", RegularTextStyle);
 
 	FTextBlockStyle ActorNameBigTextStyle(NormalTextStyle);
 	ActorNameBigTextStyle.SetFont(DEFAULT_FONT("Regular", 14));
@@ -525,9 +535,7 @@ void FDynamicMaterialEditorStyle::SetupTextStyles(const TSharedRef<FSlateStyleSe
 	LayerViewItemFont.OutlineSettings = HandleFontOutline;
 	Style->Set("LayerView.Row.Font", LayerViewItemFont);
 
-	FSlateFontInfo LayerViewItemHandleSmallFont = DEFAULT_FONT("Regular", 10);
-	LayerViewItemHandleSmallFont.OutlineSettings = HandleFontOutline;
-	Style->Set("LayerView.Row.HandleFont", LayerViewItemHandleSmallFont);
+	Style->Set("LayerView.Row.HandleFont", RegularTextStyle);
 
 	FTextBlockStyle LayerViewItemTextStyle(NormalTextStyle);
 	LayerViewItemTextStyle.SetShadowOffset(FVector2D(1.0f, 1.0f));
@@ -541,15 +549,13 @@ void FDynamicMaterialEditorStyle::SetupTextStyles(const TSharedRef<FSlateStyleSe
 	Style->Set("LayerView.Row.HeaderText.Small",
 		FTextBlockStyle(LayerViewItemTextStyle)
 		.SetColorAndOpacity(FStyleColors::Foreground)
-		.SetFont(LayerViewItemHandleSmallFont));
+		.SetFont(RegularTextStyle.Font));
 
 	FTextBlockStyle StagePropertyDetailsTextStyle(NormalTextStyle);
 	StagePropertyDetailsTextStyle.SetFont(DEFAULT_FONT("Regular", 12));
 	Style->Set("Font.Stage.Details", StagePropertyDetailsTextStyle);
 
-	FTextBlockStyle StagePropertyDetailsBoldTextStyle(NormalTextStyle);
-	StagePropertyDetailsBoldTextStyle.SetFont(DEFAULT_FONT("Bold", 12));
-	Style->Set("Font.Stage.Details.Bold", StagePropertyDetailsBoldTextStyle);
+	Style->Set("Font.Stage.Details.Bold", BoldTextStyle);
 
 	FTextBlockStyle StagePropertyDetailsSmallTextStyle(NormalTextStyle);
 	StagePropertyDetailsSmallTextStyle.SetFont(IDetailLayoutBuilder::GetDetailFont());

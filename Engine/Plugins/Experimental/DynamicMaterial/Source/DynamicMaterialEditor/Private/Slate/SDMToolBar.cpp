@@ -1,16 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Slate/SDMToolBar.h"
-#include "AssetToolsModule.h"
 #include "ContentBrowserModule.h"
-#include "DMEDefs.h"
 #include "DynamicMaterialEditorModule.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialEditorStyle.h"
-#include "DynamicMaterialModule.h"
 #include "EngineAnalytics.h"
 #include "GameFramework/Actor.h"
-#include "IAssetTools.h"
 #include "IContentBrowserSingleton.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Model/DynamicMaterialModel.h"
@@ -18,7 +14,6 @@
 #include "Styling/AppStyle.h"
 #include "Styling/StyleColors.h"
 #include "Utils/DMBlueprintFunctionLibrary.h"
-#include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboBox.h"
@@ -92,6 +87,7 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarEntries()
 				.Padding(0.0f, 0.0f, 10.0f, 0.0f)
 				[
 					SNew(STextBlock)
+					.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 					.Text(LOCTEXT("MaterialDesignerInstanceActorLabel", "Actor"))
 				]
 				+ SHorizontalBox::Slot()
@@ -118,6 +114,7 @@ TSharedRef<SWidget> SDMToolBar::CreateToolBarEntries()
 				.Padding(0.0f, 0.0f, 10.0f, 0.0f)
 				[
 					SNew(STextBlock)
+					.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 					.Text(LOCTEXT("MaterialDesignerInstanceActorSlotLabel", "Property"))
 				]
 				+ SHorizontalBox::Slot()
@@ -224,6 +221,7 @@ TSharedRef<SWidget> SDMToolBar::CreateSlotsComboBoxWidget()
 		[
 			SNew(STextBlock)
 			.MinDesiredWidth(100.0f)
+			.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 			.Text(this, &SDMToolBar::GetSelectedMaterialSlotName)
 		];
 }
@@ -234,6 +232,7 @@ TSharedRef<SWidget> SDMToolBar::GenerateSelectedMaterialSlotRow(TSharedPtr<FDMOb
 	{
 		return SNew(STextBlock)
 			.MinDesiredWidth(100.f)
+			.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 			.Text(this, &SDMToolBar::GetSlotDisplayName, InSelectedSlot);
 	}
 	return SNullWidget::NullWidget;

@@ -11,9 +11,7 @@
 #include "Components/DMMaterialStageSource.h"
 #include "Components/DMMaterialStageThroughput.h"
 #include "Components/DMMaterialValue.h"
-#include "Components/DMTextureUV.h"
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
-#include "Components/MaterialValues/DMMaterialValueFloat2.h"
 #include "CustomDetailsViewArgs.h"
 #include "CustomDetailsViewModule.h"
 #include "CustomDetailsViewSequencer.h"
@@ -421,9 +419,9 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 			Item->SetOverrideWidget(
 				ECustomDetailsViewWidgetType::Name,
 				SNew(STextBlock)
-				.Font(IDetailLayoutBuilder::GetDetailFont())
-				.Text(EditRow.NameOverride.GetValue())
-				.ToolTipText(EditRow.NameToolTipOverride.Get(FText::GetEmpty()))
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+					.Text(EditRow.NameOverride.GetValue())
+					.ToolTipText(EditRow.NameToolTipOverride.Get(FText::GetEmpty()))
 			);
 		}
 
@@ -922,6 +920,7 @@ TSharedRef<SWidget> SDMComponentEdit::CreateSourceTypeEditWidget()
 				.ButtonContent()
 				[
 					SNew(STextBlock)
+					.Font(IDetailLayoutBuilder::GetDetailFont())
 					.Text(this, &SDMComponentEdit::GetSourceTypeEditWidgetText)
 				]
 		];

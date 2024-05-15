@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Slate/SDMMaterialWizard.h"
+
 #include "DMDefs.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialEditorStyle.h"
@@ -86,6 +87,7 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateLayout()
 			.Padding(0.0f, SeparationDistance, 0.0f, TitleContentDistance)
 			[
 				SNew(STextBlock)
+				.TextStyle(FDynamicMaterialEditorStyle::Get(), "BoldFont")
 				.Text(LOCTEXT("MaterialType", "Material Type"))
 			]
 
@@ -103,6 +105,7 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateLayout()
 			.Padding(0.0f, SeparationDistance, 0.0f, TitleContentDistance)
 			[
 				SNew(STextBlock)
+				.TextStyle(FDynamicMaterialEditorStyle::Get(), "BoldFont")
 				.Text(LOCTEXT("AvailableChannels", "Available Channels"))
 			]
 
@@ -148,6 +151,7 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateChannelPresets()
 					.OnCheckStateChanged(this, &SDMMaterialWizard::Preset_OnChange, Preset.Name)
 					[
 						SNew(STextBlock)
+						.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 						.Text(FText::FromName(Preset.Name))
 					]
 			];
@@ -192,6 +196,7 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateChannelList()
 					.Padding(TextPadding)
 					[
 						SNew(STextBlock)
+						.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 						.Text(!ShortName.IsEmpty() ? FText::FromString(ShortName) : MaterialPropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(Property.Key)))
 					];
 			}
@@ -214,6 +219,7 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateAcceptButton()
 			.OnClicked(this, &SDMMaterialWizard::Accept_OnClick)
 			[
 				SNew(STextBlock)
+				.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 				.Text(LOCTEXT("Continue", "Continue"))
 			]
 		];

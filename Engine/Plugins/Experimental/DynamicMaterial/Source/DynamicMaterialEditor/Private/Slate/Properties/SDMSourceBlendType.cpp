@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Slate/Properties/SDMSourceBlendType.h"
+
 #include "Components/MaterialStageBlends/DMMSBAdd.h"
 #include "Components/MaterialStageBlends/DMMSBColor.h"
 #include "Components/MaterialStageBlends/DMMSBColorBurn.h"
@@ -28,6 +29,7 @@
 #include "Components/MaterialStageBlends/DMMSBSoftLight.h"
 #include "Components/MaterialStageBlends/DMMSBSubtract.h"
 #include "Components/MaterialStageBlends/DMMSBVividLight.h"
+#include "DynamicMaterialEditorStyle.h"
 #include "ToolMenu.h"
 #include "ToolMenuDelegates.h"
 #include "ToolMenus.h"
@@ -155,6 +157,7 @@ void SDMSourceBlendType::Construct(const FArguments& InArgs)
 		.ButtonContent()
 		[
 			SNew(STextBlock)
+			.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 			.Text(this, &SDMSourceBlendType::GetSelectedItemText)
 		]
 	];
@@ -220,6 +223,7 @@ TSharedRef<SWidget> SDMSourceBlendType::OnGenerateWidget(const FName InItem)
 
 	return 
 		SNew(STextBlock)
+		.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 		.Text(BlendMap[InItem].BlendName);
 }
 

@@ -5,7 +5,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "DMObjectMaterialProperty.h"
 #include "DMWorldSubsystem.h"
-#include "DetailLayoutBuilder.h"
+#include "DynamicMaterialEditorStyle.h"
 #include "Engine/World.h"
 #include "IAssetTools.h"
 #include "Material/DynamicMaterialInstance.h"
@@ -39,8 +39,8 @@ void SDMMaterialListExtensionWidget::Construct(const FArguments& InArgs, const T
 			.Content()
 			[
 				SNew(STextBlock)
+				.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
 				.Text(this, &SDMMaterialListExtensionWidget::GetButtonText)
-				.Font(IDetailLayoutBuilder::GetDetailFontBold())
 			]
 		]
 	];
