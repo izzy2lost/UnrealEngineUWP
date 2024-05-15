@@ -190,4 +190,7 @@ private:
 	/** Compilation progress bar handle */
 	FProgressNotificationHandle CompileNotificationHandle;
 
+	/** Compilation start time in seconds. */
+	double CompilationStartTime = 0;
+
 };
