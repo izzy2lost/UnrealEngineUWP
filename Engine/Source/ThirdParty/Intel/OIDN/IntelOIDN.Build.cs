@@ -16,12 +16,17 @@ public class IntelOIDN : ModuleRules
 			PublicSystemIncludePaths.Add(SDKDir + "include/");
             PublicSystemLibraryPaths.Add(SDKDir + "lib/");
             PublicAdditionalLibraries.Add(SDKDir + "lib/OpenImageDenoise.lib");
-			RuntimeDependencies.Add("$(TargetOutputDir)/OpenImageDenoise.dll", SDKDir + "bin/OpenImageDenoise.dll");
+			PublicAdditionalLibraries.Add(SDKDir + "lib/OpenImageDenoise_core.lib");
+			RuntimeDependencies.Add("$(TargetOutputDir)/OpenImageDenoise.dll"           , SDKDir + "bin/OpenImageDenoise.dll");
+			RuntimeDependencies.Add("$(TargetOutputDir)/OpenImageDenoise_core.dll"      , SDKDir + "bin/OpenImageDenoise_core.dll");
+			RuntimeDependencies.Add("$(TargetOutputDir)/OpenImageDenoise_device_cpu.dll", SDKDir + "bin/OpenImageDenoise_device_cpu.dll");
 
 			//@todo - find a cleaner way to share this library with Embree3
 			//RuntimeDependencies.Add("$(TargetOutputDir)/tbb12.dll", SDKDir + "bin/tbb12.dll");
 			RuntimeDependencies.Add("$(TargetOutputDir)/tbb12.dll", Embree3_SDKDir + "lib/tbb12.dll");
 			PublicDelayLoadDLLs.Add("OpenImageDenoise.dll");
+			PublicDelayLoadDLLs.Add("OpenImageDenoise_core.dll");
+			PublicDelayLoadDLLs.Add("OpenImageDenoise_device_cpu.dll");
 			PublicDelayLoadDLLs.Add("tbb12.dll");
 			PublicDefinitions.Add("WITH_INTELOIDN=1");
         }
