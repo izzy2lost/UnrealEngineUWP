@@ -424,17 +424,18 @@ namespace uba
 			storageInfo.casCapacityBytes = 0;
 			storageInfo.storeCompressed = storeCompressed;
 			StorageServer storageServer(storageInfo);
-			NetworkClientCreateInfo ncci;
-			NetworkClient client(ctorSuccess, ncci);
+
 			StringBuffer<> rootDir2(g_rootDir.data);
 			rootDir2.Append("_CHECKCAS2");
-			StorageClientCreateInfo scci(client, rootDir2.data);
-			StorageClient storageClient(scci);
-			storageClient.Start();
+			Client client;
+
 			auto g = MakeGuard([&]() { server.DisconnectClients(); });
 			if (!server.StartListen(networkBackend, 1347, TC("127.0.0.1")))
 				return false;
-			if (!client.Connect(networkBackend, TC("127.0.0.1"), 1347))
+			ClientInitInfo cii { logWriter, networkBackend, rootDir2.data, TC("127.0.0.1"), 1347, TC("foo") };
+			cii.createSession = false;
+			cii.addDirSuffix = false;
+			if (!client.Init(cii))
 				return false;
 			bool success = true;
 			WorkManagerImpl workManager(DefaultProcessorCount);
@@ -444,8 +445,8 @@ namespace uba
 						{
 							Storage::RetrieveResult res;
 							storageServer.EnsureCasFile(casKey, TC("Dummy"));
-							CasKey casKey2 = AsCompressed(casKey, false);
-							if (!storageClient.RetrieveCasFile(res, casKey2, TC("")))
+							CasKey casKey2 = AsCompressed(casKey, true);
+							if (!client.storageClient->RetrieveCasFile(res, casKey2, TC("")))
 								success = false;
 						}, 1, TC(""));
 				});
