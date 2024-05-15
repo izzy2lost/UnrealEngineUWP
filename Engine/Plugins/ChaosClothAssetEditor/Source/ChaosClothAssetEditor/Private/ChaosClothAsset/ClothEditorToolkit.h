@@ -177,6 +177,8 @@ private:
 	TSharedPtr<IStructureDetailsView> NodeDetailsEditor;
 
 	FDelegateHandle OnPackageReloadedDelegateHandle;
-	
+
+	DECLARE_MULTICAST_DELEGATE(FTickCommands)
+	FTickCommands TickCommands;
 };
 } // namespace UE::Chaos::ClothAsset

@@ -253,6 +253,10 @@ UDataflow* FChaosClothAssetEditorToolkit::GetDataflow()
 
 void FChaosClothAssetEditorToolkit::Tick(float DeltaTime)
 {
+	// Execute commands that required waiting for the next tick to execute (e.g. refresh of the details view)
+	TickCommands.Broadcast();
+	TickCommands.Clear();
+
 	// Evaluate terminal node if one is assigned, but only if needed (don't force it)
 	constexpr bool bForceOperation = false;
 	EvaluateNode(nullptr, bForceOperation);
@@ -1248,6 +1252,8 @@ void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>&
 							OnNodeInvalidatedDelegateHandle = SelectedDataflowNode->GetOnNodeInvalidatedDelegate().AddLambda(
 								[this](FDataflowNode* InDataflowNode)
 								{
+									// Warning: Do not execute code that rebuilds the UI in this lambda as it is called by the UI!
+
 									if (SelectedDataflowNode.Get() == InDataflowNode)
 									{
 										GetClothCollectionIfPossible(SelectedDataflowNode, DataflowContext);
@@ -1256,11 +1262,15 @@ void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>&
 											SelectedDataflowNode->OnSelected(*DataflowContext);
 										}
 									}
-									// The detail panel won't update correctly when a change affects a node's properties and needs a refresh
-									if (NodeDetailsEditor && NodeDetailsEditor->GetDetailsView())
-									{
-										NodeDetailsEditor->GetDetailsView()->ForceRefresh();
-									}
+									// The detail panel won't update correctly when a change affects a node's properties and needs a refresh at the next tick
+									TickCommands.AddLambda([this]()
+										{
+											if (NodeDetailsEditor && NodeDetailsEditor->GetDetailsView())
+											{
+												NodeDetailsEditor->GetDetailsView()->InvalidateCachedState();
+											}
+										});
+
 									// The node has just been invalidated, best to close the current tool
 									if (const UChaosClothAssetEditorMode* const ClothMode = 
 										CastChecked<UChaosClothAssetEditorMode>(EditorModeManager->GetActiveScriptableMode(UChaosClothAssetEditorMode::EM_ChaosClothAssetEditorModeId)))
