@@ -150,6 +150,8 @@ private:
 	void PreparePhase(EQueryTickPhase Phase, float DeltaTime);
 	void FinalizePhase(EQueryTickPhase Phase, float DeltaTime);
 	void Reset();
+
+	int32 GetTableChunkSize(FName TableName) const;
 	
 	struct FFactoryTypePair
 	{

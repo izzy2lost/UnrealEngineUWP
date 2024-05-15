@@ -3,6 +3,7 @@
 #include "TypedElementDatabase.h"
 
 #include "Editor.h"
+#include "EditorDataStorageSettings.h"
 #include "Elements/Interfaces/TypedElementDataStorageFactory.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Engine/World.h"
@@ -269,6 +270,7 @@ TypedElementTableHandle UTypedElementDatabase::RegisterTable(TConstArrayView<con
 		TypedElementTableHandle Result = Tables.Num();
 		FMassArchetypeCreationParams ArchetypeCreationParams;
 		ArchetypeCreationParams.DebugName = Name;
+		ArchetypeCreationParams.ChunkMemorySize = GetTableChunkSize(Name);
 		Tables.Add(ActiveEditorEntityManager->CreateArchetype(ColumnList, ArchetypeCreationParams));
 		if (Name.IsValid())
 		{
@@ -287,6 +289,7 @@ TypedElementTableHandle UTypedElementDatabase::RegisterTable(TypedElementTableHa
 		TypedElementTableHandle Result = Tables.Num();
 		FMassArchetypeCreationParams ArchetypeCreationParams;
 		ArchetypeCreationParams.DebugName = Name;
+		ArchetypeCreationParams.ChunkMemorySize = GetTableChunkSize(Name);
 		Tables.Add(ActiveEditorEntityManager->CreateArchetype(Tables[SourceTable], ColumnList, ArchetypeCreationParams));
 		if (Name.IsValid())
 		{
@@ -960,6 +963,19 @@ void UTypedElementDatabase::Reset()
 	Environment.Reset();
 	ActiveEditorPhaseManager.Reset();
 	ActiveEditorEntityManager.Reset();
+}
+
+int32 UTypedElementDatabase::GetTableChunkSize(FName TableName) const
+{
+	const UEditorDataStorageSettings* Settings = GetDefault<UEditorDataStorageSettings>();
+	if (const EChunkMemorySize* TableSpecificSize = Settings->TableSpecificChunkMemorySize.Find(TableName))
+	{
+		return static_cast<int32>(*TableSpecificSize);
+	}
+	else
+	{
+		return static_cast<int32>(Settings->ChunkMemorySize);
+	}
 }
 
 TSharedPtr<FTypedElementDatabaseEnvironment> UTypedElementDatabase::GetEnvironment()

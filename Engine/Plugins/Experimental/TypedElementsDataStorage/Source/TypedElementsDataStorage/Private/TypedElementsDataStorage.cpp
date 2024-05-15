@@ -2,15 +2,17 @@
 
 #include "TypedElementsDataStorage.h"
 
+#include "EditorDataStorageSettings.h"
+#include "Elements/Common/TypedElementDataStorageLog.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Interfaces/TypedElementDataStorageFactory.h"
+#include "ISettingsModule.h"
 #include "MassEntityTypes.h"
 #include "Misc/CoreDelegates.h"
 #include "Templates/IsPolymorphic.h"
 #include "TypedElementDatabase.h"
 #include "TypedElementDatabaseCompatibility.h"
 #include "TypedElementDatabaseUI.h"
-#include "Elements/Common/TypedElementDataStorageLog.h"
 #include "UObject/UObjectGlobals.h"
 
 #define LOCTEXT_NAMESPACE "FTypedElementsDataStorageModule"
@@ -68,7 +70,17 @@ void FTypedElementsDataStorageModule::StartupModule()
 
 	UE_LOG(LogTypedElementDataStorage, Log, TEXT("Enabled by TEDS.Enable CVar"));
 
-	
+	// Setup the editor settings;
+	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
+	{
+		// automation
+		SettingsModule->RegisterSettings("Editor", "Advanced", "The Editor Data Storage",
+			LOCTEXT("DataStorageSettingsName", "The Editor Data Storage"),
+			LOCTEXT("DataStorageSettingsDescription", "Configuration options for the central data storage used by various tools to store their data."),
+			GetMutableDefault<UEditorDataStorageSettings>()
+		);
+	}
+
 	// Load the dependent TypedElementFramework module (holding TypedElementRegistry) here so that it is guaranteed to be available in Shutdown
 	// and it is shutdown AFTER FTypedElementsDataStorageModule
 	FModuleManager::Get().LoadModule(TEXT("TypedElementFramework"));
