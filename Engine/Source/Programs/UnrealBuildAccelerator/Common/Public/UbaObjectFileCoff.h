@@ -37,8 +37,6 @@ namespace uba
 		bool m_isBigObj = false;
 		Info m_info;
 
-
-
 		UnorderedSymbols m_loopbacksToAdd;
 		UnorderedSymbols m_toRemove;
 	};

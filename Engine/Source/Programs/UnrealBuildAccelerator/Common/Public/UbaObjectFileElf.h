@@ -12,5 +12,7 @@ namespace uba
 		virtual bool Parse(Logger& logger, const tchar* filename) override;
 		virtual bool ComputeLoopbacksAndDuplicates(UnorderedSymbols& allSharedExports, UnorderedSymbols& duplicates) override;
 		virtual bool CreateStripped(Logger& logger, const tchar* newFilename, const UnorderedSymbols& allNeededImports) override;
+
+		UnorderedSymbols m_toRemove;
 	};
 }

@@ -21,25 +21,6 @@ namespace uba
 	#pragma pack(push)
 	#pragma pack(1)
 
-	struct Elf64Header
-	{
-	  unsigned char	e_ident[16];	/* Magic number and other info */
-	  u16 e_type;			/* Object file type */
-	  u16 e_machine;		/* Architecture */
-	  u32 e_version;		/* Object file version */
-	  u64 e_entry;		/* Entry point virtual address */
-	  u64 e_phoff;		/* Program header table file offset */
-	  u64 e_shoff;		/* Section header table file offset */
-	  u32 e_flags;		/* Processor-specific flags */
-	  u16 e_ehsize;		/* ELF header size in bytes */
-	  u16 e_phentsize;		/* Program header table entry size */
-	  u16 e_phnum;		/* Program header table entry count */
-	  u16 e_shentsize;		/* Section header table entry size */
-	  u16 e_shnum;		/* Section header table entry count */
-	  u16 e_shstrndx;		/* Section header string table index */
-	};
-
-
 	struct ImageFileHeader // IMAGE_FILE_HEADER
 	{
 		u16 Machine;
