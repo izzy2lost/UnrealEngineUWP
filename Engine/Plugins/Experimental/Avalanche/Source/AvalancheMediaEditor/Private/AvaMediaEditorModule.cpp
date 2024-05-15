@@ -328,7 +328,7 @@ void FAvaMediaEditorModule::HandleMapChanged(UWorld* InWorld, EMapChangeType InM
 template <
 	typename InRundownFilterExpressionFactoryType,
 	typename ... InArgsType
-	UE_REQUIRES(TIsDerivedFrom<InRundownFilterExpressionFactoryType, IAvaRundownFilterExpressionFactory>::Value)
+	UE_REQUIRES_DEFINITION(std::is_base_of_v<IAvaRundownFilterExpressionFactory, InRundownFilterExpressionFactoryType>)
 >
 void FAvaMediaEditorModule::RegisterRundownFilterExpressionFactory(InArgsType&&... InArgs)
 {
@@ -344,7 +344,7 @@ void FAvaMediaEditorModule::RegisterRundownFilterExpressionFactory(InArgsType&&.
 template <
 	typename InRundownSuggestionFactoryType,
 	typename ... InArgsType
-	UE_REQUIRES(TIsDerivedFrom<InRundownSuggestionFactoryType, IAvaRundownFilterSuggestionFactory>::Value)
+	UE_REQUIRES_DEFINITION(std::is_base_of_v<IAvaRundownFilterSuggestionFactory, InRundownSuggestionFactoryType>)
 >
 void FAvaMediaEditorModule::RegisterRundownFilterSuggestionFactory(InArgsType&&... InArgs)
 {

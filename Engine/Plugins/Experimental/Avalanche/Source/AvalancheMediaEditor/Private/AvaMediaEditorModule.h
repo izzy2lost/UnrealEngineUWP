@@ -5,6 +5,8 @@
 #include "IAvaMediaEditorModule.h"
 #include "Templates/UnrealTypeTraits.h"
 
+#include <type_traits>
+
 class IAvaRundownFilterExpressionFactory;
 class IAvaRundownFilterSuggestionFactory;
 enum class EAvaRundownSearchListType : uint8;
@@ -54,14 +56,14 @@ private:
 	template <
 		typename InRundownFilterExpressionFactoryType,
 		typename... InArgsType
-		UE_REQUIRES(TIsDerivedFrom<InRundownFilterExpressionFactoryType, IAvaRundownFilterExpressionFactory>::Value)
+		UE_REQUIRES(std::is_base_of_v<IAvaRundownFilterExpressionFactory, InRundownFilterExpressionFactoryType>)
 	>
 	void RegisterRundownFilterExpressionFactory(InArgsType&&... InArgs);
 
 	template <
 		typename InRundownSuggestionFactoryType,
 		typename... InArgsType
-		UE_REQUIRES(TIsDerivedFrom<InRundownSuggestionFactoryType, IAvaRundownFilterSuggestionFactory>::Value)
+		UE_REQUIRES(std::is_base_of_v<IAvaRundownFilterSuggestionFactory, InRundownSuggestionFactoryType>)
 	>
 	void RegisterRundownFilterSuggestionFactory(InArgsType&&... InArgs);
 
