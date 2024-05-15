@@ -134,13 +134,8 @@ namespace Horde.Server.Agents.Leases
 			}
 
 			IAgent? agent = await _agentService.GetAgentAsync(lease.AgentId, cancellationToken);
-			if (agent == null)
-			{
-				return NotFound(lease.AgentId);
-			}
-
 			double? agentRate = null;
-			if (_globalConfig.Value.Authorize(ServerAclAction.ViewCosts, User))
+			if (_globalConfig.Value.Authorize(ServerAclAction.ViewCosts, User) && agent != null)
 			{
 				agentRate = await _agentService.GetRateAsync(agent.Id, cancellationToken);
 			}
