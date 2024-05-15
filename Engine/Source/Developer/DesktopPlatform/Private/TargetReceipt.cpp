@@ -85,7 +85,11 @@ bool FTargetReceipt::Read(const FString& FileName, bool bExpandVariables)
 	// Get the launch path
 	if(!Object->TryGetStringField(TEXT("Launch"), Launch))
 	{
-		return false;
+		//If the regular launch field is not present try using the LaunchCmd field
+		if (!Object->TryGetStringField(TEXT("LaunchCmd"), Launch))
+		{
+			return false;
+		}
 	}
 	if (bExpandVariables)
 	{

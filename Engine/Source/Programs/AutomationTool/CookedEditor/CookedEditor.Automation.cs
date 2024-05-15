@@ -87,6 +87,7 @@ public class ModifyStageContext
 	public bool bStageUAT = false;
 	public bool bIsForExternalDistribution = false;
 	public bool bStagePython = false;
+	public bool bStageTargetFiles = false;
 
 	public ConfigHelper ConfigHelper;
 
@@ -1006,8 +1007,11 @@ public class MakeCookedEditor : BuildCommand
 		// we already cooked assets, so remove assets we may have found, except for the Uncook ones
 		Context.UFSFilesToStage.RemoveAll(x => x.GetExtension() == ".uasset");
 
-		// don't need the .target files
-		Context.NonUFSFilesToStage.RemoveAll(x => x.GetExtension() == ".target");
+		if (!Context.bStageTargetFiles)
+		{
+			// don't need the .target files
+			Context.NonUFSFilesToStage.RemoveAll(x => x.GetExtension() == ".target");
+		}
 
 		if (!Context.bStageShaderDirs)
 		{
