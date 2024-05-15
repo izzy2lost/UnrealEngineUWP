@@ -227,6 +227,7 @@ struct FBinkMediaPlayerModule : IModuleInterface, FTickableGameObject
 				GEngine->GameViewport->OnDrawn().Remove(overlayHook);
 			}
 		}
+		MovieStreamer.Reset();
 #if BINKPLUGIN_UE4_EDITOR
 		FEditorDelegates::BeginPIE.RemoveAll(this);
 		FEditorDelegates::EndPIE.RemoveAll(this);
