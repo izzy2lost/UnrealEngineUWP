@@ -661,8 +661,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Print out files that are included by each source file
 		/// </summary>
-		[CommandLine("-ShowIncludes")]
-		[XmlConfigFile(Category = "WindowsPlatform")]
+		[Obsolete("Deprecated in UE5.5 - Use bShowIncludes on TargetRules instead.")]
 		public bool bShowIncludes = false;
 
 		/// <summary>
@@ -931,6 +930,7 @@ namespace UnrealBuildTool
 
 		public bool bCompilerTrace => Inner.bCompilerTrace;
 
+		[Obsolete("Deprecated in UE5.5 - Use bShowIncludes on TargetRules instead.")]
 		public bool bShowIncludes => Inner.bShowIncludes;
 
 		public string GetVisualStudioCompilerVersionName()

@@ -421,7 +421,7 @@ namespace UnrealBuildTool
 			Arguments.Add("/Oi");
 
 			// Trace includes
-			if (Target.WindowsPlatform.bShowIncludes)
+			if (Target.bShowIncludes)
 			{
 				if (Target.WindowsPlatform.Compiler.IsClang())
 				{
@@ -1923,7 +1923,7 @@ namespace UnrealBuildTool
 				else
 				{
 					CompileAction.DependencyListFile = FileItem.GetItemByFileReference(FileReference.Combine(OutputDir, $"{FileName}.txt"));
-					CompileAction.bShowIncludes = Target.WindowsPlatform.bShowIncludes;
+					CompileAction.bShowIncludes = Target.bShowIncludes;
 				}
 
 				// Write cl errors and warnings to a file if supported

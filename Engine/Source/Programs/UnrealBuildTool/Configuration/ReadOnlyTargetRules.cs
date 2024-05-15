@@ -360,6 +360,8 @@ namespace UnrealBuildTool
 
 		public WarningLevel ModuleIncludeSubdirectoryWarningLevel => Inner.ModuleIncludeSubdirectoryWarningLevel;
 
+		public bool bShowIncludes => Inner.bShowIncludes;
+
 		public bool bWarningsAsErrors => Inner.bWarningsAsErrors;
 
 		public bool bUseFastMonoCalls => Inner.bUseFastMonoCalls;

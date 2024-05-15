@@ -1791,6 +1791,13 @@ namespace UnrealBuildTool
 		public WarningLevel ModuleIncludeSubdirectoryWarningLevel { get; set; } = WarningLevel.Off;
 
 		/// <summary>
+		/// Print out files that are included by each source file
+		/// </summary>
+		[XmlConfigFile(Category = "BuildConfiguration")]
+		[CommandLine("-ShowIncludes")]
+		public bool bShowIncludes = false;
+
+		/// <summary>
 		/// Forces frame pointers to be retained this is usually required when you want reliable callstacks e.g. mallocframeprofiler
 		/// </summary>
 		public bool bRetainFramePointers

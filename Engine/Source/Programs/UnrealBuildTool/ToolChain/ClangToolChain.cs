@@ -200,6 +200,7 @@ namespace UnrealBuildTool
 
 		// Target settings
 		protected bool PreprocessDepends = false;
+		protected bool ShowIncludes = false;
 		protected StaticAnalyzer StaticAnalyzer = StaticAnalyzer.None;
 		protected StaticAnalyzerMode StaticAnalyzerMode = StaticAnalyzerMode.Deep;
 		protected StaticAnalyzerOutputType StaticAnalyzerOutputType = StaticAnalyzerOutputType.Text;
@@ -232,6 +233,7 @@ namespace UnrealBuildTool
 			base.SetUpGlobalEnvironment(Target);
 
 			PreprocessDepends = Target.bPreprocessDepends;
+			ShowIncludes = Target.bShowIncludes;
 			StaticAnalyzer = Target.StaticAnalyzer;
 			StaticAnalyzerMode = Target.StaticAnalyzerMode;
 			StaticAnalyzerOutputType = Target.StaticAnalyzerOutputType;
@@ -488,6 +490,11 @@ namespace UnrealBuildTool
 		{
 			Arguments.AddRange(CompileEnvironment.UserIncludePaths.Select(IncludePath => GetUserIncludePathArgument(IncludePath)));
 			Arguments.AddRange(CompileEnvironment.SystemIncludePaths.Select(IncludePath => GetSystemIncludePathArgument(IncludePath)));
+
+			if (ShowIncludes)
+			{
+				Arguments.Add("-H");
+			}
 		}
 
 		protected virtual string GetPreprocessorDefinitionArgument(string Definition)
