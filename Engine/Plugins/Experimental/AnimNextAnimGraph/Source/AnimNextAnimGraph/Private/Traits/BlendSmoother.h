@@ -15,8 +15,16 @@
 
 class UCurveFloat;
 
+USTRUCT(meta = (DisplayName = "Blend Smoother Core"))
+struct FAnimNextBlendSmootherCoreTraitSharedData : public FAnimNextTraitSharedData
+{
+	GENERATED_BODY()
+
+	// This struct is empty but required so that we can give a nice display name to the trait
+};
+
 USTRUCT(meta = (DisplayName = "Blend Smoother"))
-struct FAnimNextBlendSmootherTraitSharedData : public FAnimNextTraitSharedData
+struct FAnimNextBlendSmootherTraitSharedData : public FAnimNextBlendSmootherCoreTraitSharedData
 {
 	GENERATED_BODY()
 
@@ -36,15 +44,16 @@ struct FAnimNextBlendSmootherTraitSharedData : public FAnimNextTraitSharedData
 namespace UE::AnimNext
 {
 	/**
-	 * FBlendSmootherTrait
-	 * 
+	 * FBlendSmootherCoreTrait
+	 *
 	 * A trait that smoothly blends between discrete states over time.
+	 * It only implements the smoothing logic, it queries its required arguments using the ISmoothBlend interface.
 	 */
-	struct FBlendSmootherTrait : FAdditiveTrait, IEvaluate, IUpdate, IDiscreteBlend, ISmoothBlend
+	struct FBlendSmootherCoreTrait : FAdditiveTrait, IEvaluate, IUpdate, IDiscreteBlend
 	{
-		DECLARE_ANIM_TRAIT(FBlendSmootherTrait, 0xbaeb537b, FAdditiveTrait)
+		DECLARE_ANIM_TRAIT(FBlendSmootherCoreTrait, 0x440a43d2, FAdditiveTrait)
 
-		using FSharedData = FAnimNextBlendSmootherTraitSharedData;
+		using FSharedData = FAnimNextBlendSmootherCoreTraitSharedData;
 
 		// Struct for tracking blends for each pose
 		struct FBlendData
@@ -76,10 +85,25 @@ namespace UE::AnimNext
 		virtual const FAlphaBlend* GetBlendState(FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const override;
 		virtual void OnBlendTransition(FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const override;
 
-		// ISmoothBlend impl
-		virtual float GetBlendTime(FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const override;
-
 		// Internal impl
 		static void InitializeInstanceData(FExecutionContext& Context, const FTraitBinding& Binding, const FSharedData* SharedData, FInstanceData* InstanceData);
+	};
+
+	/**
+	 * FBlendSmootherTrait
+	 * 
+	 * A trait that smoothly blends between discrete states over time.
+	 * This trait implements both the logic and contains the arguments necessary.
+	 */
+	struct FBlendSmootherTrait : FBlendSmootherCoreTrait, ISmoothBlend
+	{
+		DECLARE_ANIM_TRAIT(FBlendSmootherTrait, 0xbaeb537b, FBlendSmootherCoreTrait)
+
+		using FSharedData = FAnimNextBlendSmootherTraitSharedData;
+
+		// ISmoothBlend impl
+		virtual float GetBlendTime(FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const override;
+		virtual EAlphaBlendOption GetBlendType(FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const override;
+		virtual UCurveFloat* GetCustomBlendCurve(FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const override;
 	};
 }

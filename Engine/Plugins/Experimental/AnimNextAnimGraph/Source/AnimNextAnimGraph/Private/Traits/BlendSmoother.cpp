@@ -10,19 +10,26 @@
 
 namespace UE::AnimNext
 {
+	AUTO_REGISTER_ANIM_TRAIT(FBlendSmootherCoreTrait)
 	AUTO_REGISTER_ANIM_TRAIT(FBlendSmootherTrait)
 
 	// Trait implementation boilerplate
 	#define TRAIT_INTERFACE_ENUMERATOR(GeneratorMacro) \
 		GeneratorMacro(IDiscreteBlend) \
 		GeneratorMacro(IEvaluate) \
-		GeneratorMacro(ISmoothBlend) \
 		GeneratorMacro(IUpdate) \
+
+	GENERATE_ANIM_TRAIT_IMPLEMENTATION(FBlendSmootherCoreTrait, TRAIT_INTERFACE_ENUMERATOR, NULL_ANIM_TRAIT_INTERFACE_ENUMERATOR, NULL_ANIM_TRAIT_EVENT_ENUMERATOR)
+	#undef TRAIT_INTERFACE_ENUMERATOR
+
+	// Trait implementation boilerplate
+	#define TRAIT_INTERFACE_ENUMERATOR(GeneratorMacro) \
+		GeneratorMacro(ISmoothBlend) \
 
 	GENERATE_ANIM_TRAIT_IMPLEMENTATION(FBlendSmootherTrait, TRAIT_INTERFACE_ENUMERATOR, NULL_ANIM_TRAIT_INTERFACE_ENUMERATOR, NULL_ANIM_TRAIT_EVENT_ENUMERATOR)
 	#undef TRAIT_INTERFACE_ENUMERATOR
 
-	void FBlendSmootherTrait::PostEvaluate(FEvaluateTraversalContext& Context, const TTraitBinding<IEvaluate>& Binding) const
+	void FBlendSmootherCoreTrait::PostEvaluate(FEvaluateTraversalContext& Context, const TTraitBinding<IEvaluate>& Binding) const
 	{
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
@@ -79,7 +86,7 @@ namespace UE::AnimNext
 		Context.AppendTask(FAnimNextNormalizeKeyframeRotationsTask());
 	}
 
-	void FBlendSmootherTrait::PreUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const
+	void FBlendSmootherCoreTrait::PreUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
@@ -158,22 +165,25 @@ namespace UE::AnimNext
 		}
 	}
 
-	float FBlendSmootherTrait::GetBlendWeight(FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
+	float FBlendSmootherCoreTrait::GetBlendWeight(FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
 	{
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 		return InstanceData->PerChildBlendData.IsValidIndex(ChildIndex) ? InstanceData->PerChildBlendData[ChildIndex].Weight : -1.0f;
 	}
 
-	const FAlphaBlend* FBlendSmootherTrait::GetBlendState(FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
+	const FAlphaBlend* FBlendSmootherCoreTrait::GetBlendState(FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
 	{
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 		return InstanceData->PerChildBlendData.IsValidIndex(ChildIndex) ? &InstanceData->PerChildBlendData[ChildIndex].Blend : nullptr;
 	}
 
-	void FBlendSmootherTrait::OnBlendTransition(FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const
+	void FBlendSmootherCoreTrait::OnBlendTransition(FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+
+		TTraitBinding<ISmoothBlend> SmoothBlendTrait;
+		Binding.GetStackInterface(SmoothBlendTrait);
 
 		const int32 NumChildren = InstanceData->PerChildBlendData.Num();
 		if (NewChildIndex >= NumChildren)
@@ -181,10 +191,13 @@ namespace UE::AnimNext
 			// We have a new child
 			check(NewChildIndex == NumChildren);
 
+			const EAlphaBlendOption BlendType = SmoothBlendTrait.GetBlendType(Context, NewChildIndex);
+			UCurveFloat* CustomBlendCurve = SmoothBlendTrait.GetCustomBlendCurve(Context, NewChildIndex);
+
 			FBlendData& ChildBlendData = InstanceData->PerChildBlendData.AddDefaulted_GetRef();
 
-			ChildBlendData.Blend.SetBlendOption(SharedData->BlendType);
-			ChildBlendData.Blend.SetCustomCurve(SharedData->CustomBlendCurve);
+			ChildBlendData.Blend.SetBlendOption(BlendType);
+			ChildBlendData.Blend.SetCustomCurve(CustomBlendCurve);
 		}
 
 		// scale by the weight difference since we want consistency:
@@ -193,9 +206,6 @@ namespace UE::AnimNext
 		const float NewChildCurrentWeight = InstanceData->PerChildBlendData[NewChildIndex].Weight;
 		const float NewChildDesiredWeight = 1.0f;
 		const float WeightDifference = FMath::Clamp(FMath::Abs(NewChildDesiredWeight - NewChildCurrentWeight), 0.0f, 1.0f);
-
-		TTraitBinding<ISmoothBlend> SmoothBlendTrait;
-		Binding.GetStackInterface(SmoothBlendTrait);
 
 		const float BlendTime = SmoothBlendTrait.GetBlendTime(Context, NewChildIndex);
 		const float RemainingBlendTime = OldChildIndex != INDEX_NONE ? (BlendTime * WeightDifference) : 0.0f;
@@ -231,6 +241,28 @@ namespace UE::AnimNext
 		DiscreteBlendTrait.OnBlendInitiated(Context, NewChildIndex);
 	}
 
+	void FBlendSmootherCoreTrait::InitializeInstanceData(FExecutionContext& Context, const FTraitBinding& Binding, const FSharedData* SharedData, FInstanceData* InstanceData)
+	{
+		check(InstanceData->PerChildBlendData.IsEmpty());
+
+		TTraitBinding<ISmoothBlend> SmoothBlendTrait;
+		Binding.GetStackInterface(SmoothBlendTrait);
+
+		const uint32 NumChildren = IHierarchy::GetNumStackChildren(Context, Binding);
+
+		InstanceData->PerChildBlendData.SetNum(NumChildren);
+
+		for (uint32 ChildIndex = 0; ChildIndex < NumChildren; ++ChildIndex)
+		{
+			const EAlphaBlendOption BlendType = SmoothBlendTrait.GetBlendType(Context, ChildIndex);
+			UCurveFloat* CustomBlendCurve = SmoothBlendTrait.GetCustomBlendCurve(Context, ChildIndex);
+
+			FBlendData& ChildBlendData = InstanceData->PerChildBlendData[ChildIndex];
+			ChildBlendData.Blend.SetBlendOption(BlendType);
+			ChildBlendData.Blend.SetCustomCurve(CustomBlendCurve);
+		}
+	}
+
 	float FBlendSmootherTrait::GetBlendTime(FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const
 	{
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
@@ -247,23 +279,20 @@ namespace UE::AnimNext
 		}
 		else
 		{
-			// No blend time has been specified, we snap
-			return 0.0f;
+			// No blend time has been specified, forward below us on the stack, maybe someone can provide one
+			return ISmoothBlend::GetBlendTime(Context, Binding, ChildIndex);
 		}
 	}
 
-	void FBlendSmootherTrait::InitializeInstanceData(FExecutionContext& Context, const FTraitBinding& Binding, const FSharedData* SharedData, FInstanceData* InstanceData)
+	EAlphaBlendOption FBlendSmootherTrait::GetBlendType(FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const
 	{
-		check(InstanceData->PerChildBlendData.IsEmpty());
+		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
+		return SharedData->BlendType;
+	}
 
-		const uint32 NumChildren = IHierarchy::GetNumStackChildren(Context, Binding);
-
-		InstanceData->PerChildBlendData.SetNum(NumChildren);
-
-		for (FBlendData& ChildBlendData : InstanceData->PerChildBlendData)
-		{
-			ChildBlendData.Blend.SetBlendOption(SharedData->BlendType);
-			ChildBlendData.Blend.SetCustomCurve(SharedData->CustomBlendCurve);
-		}
+	UCurveFloat* FBlendSmootherTrait::GetCustomBlendCurve(FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const
+	{
+		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
+		return SharedData->CustomBlendCurve;
 	}
 }

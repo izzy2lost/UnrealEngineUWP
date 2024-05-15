@@ -3,8 +3,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AlphaBlend.h"
 #include "TraitCore/ITraitInterface.h"
 #include "TraitCore/TraitBinding.h"
+
+class UCurveFloat;
 
 namespace UE::AnimNext
 {
@@ -19,6 +22,12 @@ namespace UE::AnimNext
 
 		// Returns the desired blend time for the specified child
 		virtual float GetBlendTime(FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const;
+
+		// Returns the desired blend type for the specified child
+		virtual EAlphaBlendOption GetBlendType(FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const;
+
+		// Returns the desired blend curve for the specified child
+		virtual UCurveFloat* GetCustomBlendCurve(FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const;
 	};
 
 	/**
@@ -31,6 +40,18 @@ namespace UE::AnimNext
 		float GetBlendTime(FExecutionContext& Context, int32 ChildIndex) const
 		{
 			return GetInterface()->GetBlendTime(Context, *this, ChildIndex);
+		}
+
+		// @see ISmoothBlend::GetBlendType
+		EAlphaBlendOption GetBlendType(FExecutionContext& Context, int32 ChildIndex) const
+		{
+			return GetInterface()->GetBlendType(Context, *this, ChildIndex);
+		}
+
+		// @see ISmoothBlend::GetCustomBlendCurve
+		UCurveFloat* GetCustomBlendCurve(FExecutionContext& Context, int32 ChildIndex) const
+		{
+			return GetInterface()->GetCustomBlendCurve(Context, *this, ChildIndex);
 		}
 
 	protected:

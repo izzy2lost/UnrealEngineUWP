@@ -16,4 +16,26 @@ namespace UE::AnimNext
 
 		return 0.0f;
 	}
+
+	EAlphaBlendOption ISmoothBlend::GetBlendType(FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const
+	{
+		TTraitBinding<ISmoothBlend> SuperBinding;
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
+		{
+			return SuperBinding.GetBlendType(Context, ChildIndex);
+		}
+
+		return EAlphaBlendOption::Linear;
+	}
+
+	UCurveFloat* ISmoothBlend::GetCustomBlendCurve(FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const
+	{
+		TTraitBinding<ISmoothBlend> SuperBinding;
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
+		{
+			return SuperBinding.GetCustomBlendCurve(Context, ChildIndex);
+		}
+
+		return nullptr;
+	}
 }
