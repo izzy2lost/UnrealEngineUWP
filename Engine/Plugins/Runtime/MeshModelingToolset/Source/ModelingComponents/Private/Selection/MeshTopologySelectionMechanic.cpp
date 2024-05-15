@@ -530,11 +530,51 @@ void UMeshTopologySelectionMechanic::GrowSelection()
 		PersistentSelection.SelectedCornerIDs.Append(VerticesToAdd);
 	}
 
-	if (Properties->bSelectEdges || Properties->bSelectFaces)
+	if (Properties->bSelectEdges)
 	{
-		// TODO add support for growing edge/face selections if your tool requires it.
-		// growing edge/face selection not yet supported
-		checkNoEntry();
+		// grow edge selection
+		TSet<int32> EdgesToAdd;
+		for (const int32 EdgeIndex : PersistentSelection.SelectedEdgeIDs)
+		{
+			FDynamicMesh3::FEdge CurrentEdge = Mesh->GetEdge(EdgeIndex);
+			for (int32 EdgeVertex = 0; EdgeVertex<2; ++EdgeVertex)
+			{
+				for (int32 EdgeID : Mesh->VtxEdgesItr(CurrentEdge.Vert[EdgeVertex]))
+				{
+					if (!PersistentSelection.SelectedEdgeIDs.Contains(EdgeID))
+					{
+						EdgesToAdd.Add(EdgeID);
+					}
+				}
+			}
+		}
+		
+		PersistentSelection.SelectedEdgeIDs.Append(EdgesToAdd);
+	}
+
+	if (Properties->bSelectFaces)
+	{
+		// grow face selection
+		TSet<int32> TrianglesToAdd;
+		for (const int32 TriIndex : PersistentSelection.SelectedGroupIDs)
+		{
+			FIndex3i NeighborTriangles = Mesh->GetTriNeighbourTris(TriIndex);
+			for (int32 TriSideIndex = 0; TriSideIndex < 3; ++TriSideIndex)
+			{
+				const int32 NeighborTriangleIndex = NeighborTriangles[TriSideIndex];
+				if (NeighborTriangleIndex == FDynamicMesh3::InvalidID)
+				{
+					continue;
+				}
+				
+				if (!PersistentSelection.SelectedGroupIDs.Contains(NeighborTriangleIndex))
+				{
+					TrianglesToAdd.Add(NeighborTriangleIndex);
+				}
+			}
+		}
+		
+		PersistentSelection.SelectedGroupIDs.Append(TrianglesToAdd);
 	}
 
 	SelectionTimestamp++;
@@ -570,11 +610,57 @@ void UMeshTopologySelectionMechanic::ShrinkSelection()
 		}
 	}
 
-	if (Properties->bSelectEdges || Properties->bSelectFaces)
+	if (Properties->bSelectEdges)
 	{
-		// TODO add support for shrinking edge/face selections if your tool requires it.
-		// shrinking edge/face selection not yet supported
-		checkNoEntry();
+		// shrink edge selection
+		TSet<int32> BorderEdges;
+		for (const int32 EdgeIndex : PersistentSelection.SelectedEdgeIDs)
+		{
+			FDynamicMesh3::FEdge CurrentEdge = Mesh->GetEdge(EdgeIndex);
+			for (int32 EdgeVertex = 0; EdgeVertex<2; ++EdgeVertex)
+			{
+				for (const int32 EdgeID : Mesh->VtxEdgesItr(CurrentEdge.Vert[EdgeVertex]))
+				{
+					if (!PersistentSelection.SelectedEdgeIDs.Contains(EdgeID))
+					{
+						BorderEdges.Add(EdgeIndex);
+					}
+				}
+			}
+		}
+		
+		for (const int32 BorderEdge : BorderEdges)
+		{
+			PersistentSelection.SelectedEdgeIDs.Remove(BorderEdge);
+		}
+	}
+
+	if (Properties->bSelectFaces)
+	{
+		// shrink face selection
+		TSet<int32> BorderTriangles;
+		for (const int32 TriIndex : PersistentSelection.SelectedGroupIDs)
+		{
+			FIndex3i NeighborTriangles = Mesh->GetTriNeighbourTris(TriIndex);
+			for (int32 TriSideIndex = 0; TriSideIndex < 3; ++TriSideIndex)
+			{
+				const int32 NeighborTriangleIndex = NeighborTriangles[TriSideIndex];
+				if (NeighborTriangleIndex == FDynamicMesh3::InvalidID)
+				{
+					continue;
+				}
+				
+				if (!PersistentSelection.SelectedGroupIDs.Contains(NeighborTriangleIndex))
+				{
+					BorderTriangles.Add(TriIndex);
+				}
+			}
+		}
+		
+		for (const int32 BorderTriangle : BorderTriangles)
+		{
+			PersistentSelection.SelectedGroupIDs.Remove(BorderTriangle);
+		}
 	}
 
 	SelectionTimestamp++;
@@ -588,6 +674,7 @@ void UMeshTopologySelectionMechanic::FloodSelection()
 	ParentTool->GetToolManager()->BeginUndoTransaction(LOCTEXT("FloodSelectionChange", "Flood Selection"));
 	BeginChange();
 
+	// add all connected VERTICES to selection
 	if (Properties->bSelectVertices)
 	{
 		TSet<int32>& SelectedVertices = PersistentSelection.SelectedCornerIDs;
@@ -611,11 +698,63 @@ void UMeshTopologySelectionMechanic::FloodSelection()
 		}
 	}
 
-	if (Properties->bSelectEdges || Properties->bSelectFaces)
+	// add all connected EDGES to selection
+	if (Properties->bSelectEdges)
 	{
-		// TODO add support for flooding edge/face selections if your tool requires it.
-		// flooding edge/face selection not yet supported
-		checkNoEntry();
+		TSet<int32>& SelectedEdges = PersistentSelection.SelectedEdgeIDs;
+		TSet<int32> EdgesAddedInPrevIteration = PersistentSelection.SelectedEdgeIDs;
+		while(!EdgesAddedInPrevIteration.IsEmpty())
+		{
+			TSet<int32> EdgesToAddThisIteration;
+			for (const int32 EdgeAdded : EdgesAddedInPrevIteration)
+			{
+				FDynamicMesh3::FEdge CurrentEdge = Mesh->GetEdge(EdgeAdded);
+				for (int32 EdgeVertex = 0; EdgeVertex<2; ++EdgeVertex)
+				{
+					for (const int32 NeighborEdgeID : Mesh->VtxEdgesItr(CurrentEdge.Vert[EdgeVertex]))
+					{
+						if (!SelectedEdges.Contains(NeighborEdgeID))
+                    	{
+                    		EdgesToAddThisIteration.Add(NeighborEdgeID);
+                    	}
+					}
+				}
+			}
+			
+			SelectedEdges.Append(EdgesToAddThisIteration);
+			EdgesAddedInPrevIteration = EdgesToAddThisIteration;
+		}
+	}
+
+	// add all connected FACES to selection
+	if (Properties->bSelectFaces)
+	{
+		TSet<int32>& SelectedFaces = PersistentSelection.SelectedGroupIDs;
+		TSet<int32> FacesAddedInPrevIteration = PersistentSelection.SelectedGroupIDs;
+		while(!FacesAddedInPrevIteration.IsEmpty())
+		{
+			TSet<int32> FacesToAddThisIteration;
+			for (const int32 FaceAdded : FacesAddedInPrevIteration)
+			{
+				FIndex3i NeighborTriangles = Mesh->GetTriNeighbourTris(FaceAdded);
+				for (int32 TriSideIndex = 0; TriSideIndex < 3; ++TriSideIndex)
+				{
+					const int32 NeighborTriangleIndex = NeighborTriangles[TriSideIndex];
+					if (NeighborTriangleIndex == FDynamicMesh3::InvalidID)
+					{
+						continue;
+					}
+				
+					if (!PersistentSelection.SelectedGroupIDs.Contains(NeighborTriangleIndex))
+					{
+						FacesToAddThisIteration.Add(NeighborTriangleIndex);
+					}
+				}
+			}
+			
+			SelectedFaces.Append(FacesToAddThisIteration);
+			FacesAddedInPrevIteration = FacesToAddThisIteration;
+		}
 	}
 
 	SelectionTimestamp++;

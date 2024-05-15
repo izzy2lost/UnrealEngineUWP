@@ -12,6 +12,8 @@
 #include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 #include "ModelingToolTargetUtil.h"
 
+#include "Materials/Material.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "MeshDescription.h"
 #include "MeshModelingToolsEditorOnlyExp.h"
 #include "PointSetAdapter.h"
@@ -301,7 +303,7 @@ void FSkinToolDeformer::UpdateVertexDeformation(USkinWeightsPaintTool* Tool)
 	}
 
 	// update data structures used by the selection mode
-	if (EditingMode == EWeightEditMode::Vertices)
+	if (EditingMode == EWeightEditMode::Mesh)
 	{
 		// update AABB Tree for vertex selection
 		TRACE_CPUPROFILER_EVENT_SCOPE(SkinTool::UpdateAABBTree);
@@ -791,25 +793,46 @@ void USkinWeightsPaintTool::Setup()
 
 	RecalculateBrushRadius();
 
+	
+	const FLinearColor FaceSelectedOrange = FLinearColor(0.886f, 0.672f, 0.473f);
+	const FLinearColor VertexSelectedPurple = FLinearColor(0.78f, 0.f, 0.78f);
+	const FLinearColor VertexSelectedYellow = FLinearColor::Yellow;
+
+	// configure secondary render material for selected triangles
+	// NOTE: the material returned by ToolSetupUtil::GetSelectionMaterial has a checkerboard pattern on back faces which makes it hard to use
+	UMaterialInterface* Material = LoadObject<UMaterial>(nullptr, TEXT("/MeshModelingToolsetExp/Materials/SculptMaterial"));
+	if (Material)
+	{
+		if (UMaterialInstanceDynamic* MatInstance = UMaterialInstanceDynamic::Create(Material, GetToolManager()))
+		{
+			MatInstance->SetVectorParameterValue(TEXT("Color"), FaceSelectedOrange);
+			PreviewMesh->SetSecondaryRenderMaterial(MatInstance);
+		}
+	}
+
 	// set up vertex selection mechanic
 	PolygonSelectionMechanic = NewObject<UPolygonSelectionMechanic>(this);
 	PolygonSelectionMechanic->bAddSelectionFilterPropertiesToParentTool = false;
 	PolygonSelectionMechanic->Setup(this);
 	PolygonSelectionMechanic->SetIsEnabled(false);
 	PolygonSelectionMechanic->OnSelectionChanged.AddLambda([this](){OnSelectionChanged.Broadcast();} );
-	// only select vertices
-	PolygonSelectionMechanic->Properties->bSelectEdges = false;
-	PolygonSelectionMechanic->Properties->bSelectFaces = false;
-	PolygonSelectionMechanic->Properties->bSelectVertices = true;
+	// restore saved mode
+	SetComponentSelectionMode(WeightToolProperties->ComponentSelectionMode);
 	// adjust selection rendering for this context
-	PolygonSelectionMechanic->PolyEdgesRenderer.PointColor = FLinearColor(0.78f, 0.f, 0.78f);
-	PolygonSelectionMechanic->PolyEdgesRenderer.PointSize = 5.0f;
-	PolygonSelectionMechanic->HilightRenderer.PointColor = FLinearColor::Red;
+	PolygonSelectionMechanic->HilightRenderer.PointColor = FLinearColor::Blue;
 	PolygonSelectionMechanic->HilightRenderer.PointSize = 10.0f;
-	PolygonSelectionMechanic->SelectionRenderer.LineThickness = 0.0f;
-	PolygonSelectionMechanic->SelectionRenderer.PointColor = FLinearColor::Yellow;
+
+	PolygonSelectionMechanic->SelectionRenderer.LineThickness = 1.0f;
+	PolygonSelectionMechanic->SelectionRenderer.PointColor = VertexSelectedYellow;
 	PolygonSelectionMechanic->SelectionRenderer.PointSize = 5.0f;
-	PolygonSelectionMechanic->SetShowEdges(false);
+	PolygonSelectionMechanic->SelectionRenderer.DepthBias = 2.0f;
+
+	// despite the name, this renders the vertices
+	PolygonSelectionMechanic->PolyEdgesRenderer.PointColor = VertexSelectedPurple;
+	PolygonSelectionMechanic->PolyEdgesRenderer.PointSize = 5.0f;
+	PolygonSelectionMechanic->PolyEdgesRenderer.DepthBias = 2.0f;
+	PolygonSelectionMechanic->PolyEdgesRenderer.LineThickness = 1.0f;
+	
 	// initialize the polygon selection mechanic
 	constexpr bool bAutoBuild = true;
 	const FDynamicMesh3* DynamicMesh = PreviewMesh->GetPreviewDynamicMesh();
@@ -822,6 +845,20 @@ void USkinWeightsPaintTool::Setup()
 		SelectionTopology.Get(),
 		[this]() { return MeshSpatial.Get(); }
 	);
+	// secondary triangle buffer used to render face selection
+	PreviewMesh->EnableSecondaryTriangleBuffers([this](const FDynamicMesh3* Mesh, int32 TriangleID)
+	{
+		return PolygonSelectionMechanic->GetActiveSelection().IsSelectedTriangle(Mesh, SelectionTopology.Get(), TriangleID);
+	});
+	// notify preview mesh when triangle selection has been updated
+	PolygonSelectionMechanic->OnSelectionChanged.AddWeakLambda(this, [this]()
+	{
+		PreviewMesh->FastNotifySecondaryTrianglesChanged();
+	});
+	PolygonSelectionMechanic->OnFaceSelectionPreviewChanged.AddWeakLambda(this, [this]()
+	{
+		PreviewMesh->FastNotifySecondaryTrianglesChanged();
+	});
 	
 	SmoothWeightsDataSource = MakeUnique<FPaintToolWeightsDataSource>(&Weights);
 	SmoothWeightsOp = MakeUnique<UE::Geometry::TSmoothBoneWeights<int32, float>>(PreviewMesh->GetMesh(), SmoothWeightsDataSource.Get());
@@ -860,7 +897,7 @@ void USkinWeightsPaintTool::Render(IToolsContextRenderAPI* RenderAPI)
 	{
 		Super::Render(RenderAPI);	
 	}
-	else if (PolygonSelectionMechanic && WeightToolProperties->EditingMode == EWeightEditMode::Vertices)
+	else if (PolygonSelectionMechanic && WeightToolProperties->EditingMode == EWeightEditMode::Mesh)
 	{
 		PolygonSelectionMechanic->Render(RenderAPI);
 	}
@@ -877,25 +914,23 @@ FBox USkinWeightsPaintTool::GetWorldSpaceFocusBox()
 				return FBox(LastBrushStamp.WorldPosition - Radius, LastBrushStamp.WorldPosition + Radius);
 			}
 			break;
-	case EWeightEditMode::Vertices:
+	case EWeightEditMode::Mesh:
 		{
-			if (PolygonSelectionMechanic)
+			FAxisAlignedBox3d Bounds = FAxisAlignedBox3d::Empty();
+			TArray<int32> SelectedVertexIndices;
+			GetSelectedVertices(SelectedVertexIndices);
+			if (!SelectedVertexIndices.IsEmpty())
 			{
-				const FGroupTopologySelection& Selection = PolygonSelectionMechanic->GetActiveSelection();
-				if (!Selection.SelectedCornerIDs.IsEmpty())
+				const FDynamicMesh3* Mesh = PreviewMesh->GetMesh();
+				const FTransform3d Transform(PreviewMesh->GetTransform());
+				for (const int32 VertexID : SelectedVertexIndices)
 				{
-					const FDynamicMesh3* Mesh = PreviewMesh->GetMesh();
-					const FTransform3d Transform(PreviewMesh->GetTransform());
-					FAxisAlignedBox3d Bounds = FAxisAlignedBox3d::Empty();
-					for (const int32 VertexID : Selection.SelectedCornerIDs)
-					{
-						Bounds.Contain(Transform.TransformPosition(Mesh->GetVertex(VertexID)));
-					}
-					if (Bounds.MaxDim() > FMathf::ZeroTolerance)
-					{
-						return static_cast<FBox>(Bounds);
-					}
+					Bounds.Contain(Transform.TransformPosition(Mesh->GetVertex(VertexID)));
 				}
+			}
+			if (Bounds.MaxDim() > FMathf::ZeroTolerance)
+			{
+				return static_cast<FBox>(Bounds);
 			}
 		}
 		break;
@@ -997,6 +1032,14 @@ void USkinWeightsPaintTool::OnTick(float DeltaTime)
 
 	// sparsely updates vertex positions (only on vertices with modified weights)
 	Weights.Deformer.UpdateVertexDeformation(this);
+}
+
+void USkinWeightsPaintToolProperties::SetComponentMode(EComponentSelectionMode InComponentMode)
+{
+	ComponentSelectionMode = InComponentMode;
+	
+	WeightTool->SetComponentSelectionMode(ComponentSelectionMode);
+	WeightTool->SetFocusInViewport();
 }
 
 void USkinWeightsPaintToolProperties::SetFalloffMode(EWeightBrushFalloffMode InFalloffMode)
@@ -1686,6 +1729,11 @@ void USkinWeightsPaintTool::OnShutdown(EToolShutdownType ShutdownType)
 	FPreviewProfileController PreviewProfileController;
 	PreviewProfileController.SetActiveProfile(PreviewProfileToRestore);
 	GetMutableDefault<UPersonaOptions>()->bShowBoneColors = bBoneColorsToRestore;
+	// mesh selection mode takes control of "Show Edges" render flag
+	if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("ShowFlag.MeshEdges")))
+	{
+		CVar->Unset(ECVF_SetByCode);
+	}
 
 	if (EditorContext.IsValid())
 	{
@@ -2170,8 +2218,8 @@ void USkinWeightsPaintTool::ToggleEditingMode()
 	// toggle brush mode
 	SetBrushEnabled(WeightToolProperties->EditingMode == EWeightEditMode::Brush);
 
-	// toggle vertex mode
-	PolygonSelectionMechanic->SetIsEnabled(WeightToolProperties->EditingMode == EWeightEditMode::Vertices);
+	// toggle mesh mode
+	PolygonSelectionMechanic->SetIsEnabled(WeightToolProperties->EditingMode == EWeightEditMode::Mesh);
 
 	// toggle bone select mode
 	// this mode is set to be compatible with the 
@@ -2188,6 +2236,23 @@ void USkinWeightsPaintTool::ToggleEditingMode()
 	}
 
 	SetFocusInViewport();
+}
+
+void USkinWeightsPaintTool::SetComponentSelectionMode(EComponentSelectionMode InMode)
+{
+	PolygonSelectionMechanic->Properties->bSelectVertices = InMode == EComponentSelectionMode::Vertices;
+	PolygonSelectionMechanic->Properties->bSelectEdges = InMode == EComponentSelectionMode::Edges;
+	PolygonSelectionMechanic->Properties->bSelectFaces = InMode == EComponentSelectionMode::Faces;
+	
+	PolygonSelectionMechanic->SetShowSelectableCorners(InMode == EComponentSelectionMode::Vertices);
+	PolygonSelectionMechanic->SetShowEdges(InMode == EComponentSelectionMode::Edges);
+
+	IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("ShowFlag.MeshEdges"));
+	if (CVar)
+	{
+		const float Value = (InMode == EComponentSelectionMode::Edges) ? 0.0f : 1.0f;
+		CVar->Set(Value, ECVF_SetByCode);
+	}
 }
 
 void USkinWeightsPaintTool::GrowSelection() const
@@ -2207,18 +2272,61 @@ void USkinWeightsPaintTool::FloodSelection() const
 
 void USkinWeightsPaintTool::GetSelectedVertices(TArray<int32>& OutVertexIndices) const
 {
+	OutVertexIndices.Empty();
+	if (!PolygonSelectionMechanic)
+	{
+		return;
+	}
+	
 	const FGroupTopologySelection& Selection = PolygonSelectionMechanic->GetActiveSelection();
-	if (!Selection.SelectedCornerIDs.IsEmpty())
+	const FDynamicMesh3* DynamicMesh = PreviewMesh->GetMesh();
+	const FVertexArray& AllVertices = EditedMesh->Vertices();
+
+	// validate and add vertices to the output array
+	auto AddVertices = [&OutVertexIndices, &AllVertices](const TSet<int32>& VerticesToAdd)
 	{
 		// we have to make sure that the vertex ids are safe to use as PolygonSelectionMechanic does not act on the
 		// mesh description but on the dynamic mesh that can duplicate vertices when dealing with degenerate triangles.
 		// cf. FMeshDescriptionToDynamicMesh::Convert for more details.
-		const FVertexArray& Vertices = EditedMesh->Vertices();
-		OutVertexIndices.Empty();
-		Algo::CopyIf(Selection.SelectedCornerIDs, OutVertexIndices, [&](int VertexID)
+		Algo::CopyIf(VerticesToAdd, OutVertexIndices, [&](int32 VertexID)
 		{
-			return Vertices.IsValid(VertexID);	
+			return AllVertices.IsValid(VertexID);	
 		});
+	};
+
+	// add selected vertices
+	if (PolygonSelectionMechanic->Properties->bSelectVertices)
+	{
+		AddVertices(Selection.SelectedCornerIDs);
+	}
+
+	// add vertices on selected edges
+	if (PolygonSelectionMechanic->Properties->bSelectEdges)
+	{
+		TSet<int32> VerticesInSelectedEdges;
+		for (const int32 SelectedEdgeIndex : Selection.SelectedEdgeIDs)
+		{
+			FDynamicMesh3::FEdge CurrentEdge = DynamicMesh->GetEdge(SelectedEdgeIndex);
+			VerticesInSelectedEdges.Add(CurrentEdge.Vert.A);
+			VerticesInSelectedEdges.Add(CurrentEdge.Vert.B);
+		}
+		
+		AddVertices(VerticesInSelectedEdges);
+	}
+
+	// add vertices in selected faces
+	if (PolygonSelectionMechanic->Properties->bSelectFaces)
+	{
+		TSet<int32> VerticesInSelectedFaces;
+		for (const int32 SelectedFaceIndex : Selection.SelectedGroupIDs)
+		{
+			UE::Geometry::FIndex3i TriangleVertices = DynamicMesh->GetTriangleRef(SelectedFaceIndex);
+			VerticesInSelectedFaces.Add(TriangleVertices[0]);
+			VerticesInSelectedFaces.Add(TriangleVertices[1]);
+			VerticesInSelectedFaces.Add(TriangleVertices[2]);
+		}
+		
+		AddVertices(VerticesInSelectedFaces);
 	}
 }
 

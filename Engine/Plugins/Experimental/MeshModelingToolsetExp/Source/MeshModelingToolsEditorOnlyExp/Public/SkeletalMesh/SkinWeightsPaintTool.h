@@ -38,8 +38,17 @@ UENUM()
 enum class EWeightEditMode : uint8
 {
 	Brush,
-	Vertices,
+	Mesh,
 	Bones,
+};
+
+// component selection mode
+UENUM()
+enum class EComponentSelectionMode : uint8
+{
+	Vertices,
+	Edges,
+	Faces
 };
 
 // weight color mode
@@ -289,6 +298,10 @@ public:
 	EWeightEditOperation BrushMode;
 	EWeightEditOperation PriorBrushMode; // when toggling with modifier key
 
+	// are we selecting vertices, edges or faces
+	UPROPERTY(Config)
+	EComponentSelectionMode ComponentSelectionMode;
+
 	// weight color properties
 	UPROPERTY(EditAnywhere, Config, Category = MeshDisplay)
 	EWeightColorMode ColorMode;
@@ -325,6 +338,7 @@ public:
 	// pointer back to paint tool
 	TObjectPtr<USkinWeightsPaintTool> WeightTool;
 
+	void SetComponentMode(EComponentSelectionMode InComponentMode);
 	void SetFalloffMode(EWeightBrushFalloffMode InFalloffMode);
 	void SetColorMode(EWeightColorMode InColorMode);
 	void SetBrushMode(EWeightEditOperation InBrushMode);
@@ -384,6 +398,7 @@ public:
 	void ToggleEditingMode();
 
 	// edit selection
+	void SetComponentSelectionMode(EComponentSelectionMode InMode);
 	void GrowSelection() const;
 	void ShrinkSelection() const;
 	void FloodSelection() const;
