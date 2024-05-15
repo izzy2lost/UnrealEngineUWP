@@ -510,6 +510,11 @@ namespace Horde.Server
 		public AuthMethod AuthMethod { get; set; } = AuthMethod.Anonymous;
 
 		/// <summary>
+		/// Whether to automatically enroll agents in the farm
+		/// </summary>
+		public bool AutoEnrollAgents { get; set; }
+
+		/// <summary>
 		/// Optional profile name to report through the /api/v1/server/auth endpoint. Allows sharing auth tokens between providers configured through
 		/// the same profile name in OidcToken.exe config files.
 		/// </summary>
