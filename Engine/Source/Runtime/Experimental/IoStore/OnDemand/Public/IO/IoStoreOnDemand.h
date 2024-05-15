@@ -29,6 +29,7 @@ struct FIoContainerSettings;
 struct FIoStoreWriterSettings;
 namespace UE::IoStore { struct FOnDemandEndpoint; }
 namespace UE::IoStore { class FOnDemandIoStore; }
+namespace UE::IoStore { class IOnDemandIoDispatcherBackend; }
 using FIoBlockHash = uint32;
 
 // Custom initialization allows users to control when
@@ -189,71 +190,6 @@ struct FOnDemandToc
 };
 
 UE_API bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandToc& OutToc);
-
-#if (IS_PROGRAM || WITH_EDITOR)
-
-////////////////////////////////////////////////////////////////////////////////
-/**
- * Parameters for listing uploaded TOC file(s) from an S3 compatible endpoint.
- *
- * Example usage:
- *
- * 1) Print available TOC's from a local server to standard out.
- * UnrealPak.exe -ListTocs -ServiceUrl="http://10.24.101.92:9000" -Bucket=<bucketname> -BucketPrefix=<some/path/to/data> -AccessKey=<accesskey> -SecretKey=<secretkey>
- *
- * 2) Print available TOC's from AWS S3.
- * UnrealPak.exe -Region="us-east-1" -BucketPath=<mybucket/some/data/path/> -CredentialsFile=<path/to/credentials.txt> -BuildVersion=<version> -Json=<path/to/file.json>
- * 
- * 3) Serialize all TOC's matching a specific build version to JSON:
- * UnrealPak.exe -Region="us-east-1" -BucketPath=<mybucket/some/data/path/> -CredentialsFile=<path/to/credentials.txt> -BuildVersion=<version> -Json=<path/to/file.json>
- *
- * 4) Serialize all chunk object key(s) to JSON.
- * UnrealPak.exe -Region="us-east-1" -BucketPath=<mybucket/some/data/path/> -CredentialsFile=<path/to/credentials.txt> -BuildVersion=<version> -ChunkKeys=<path/to/file.json>
- *
- * 5) Fetch a TOC from a public CDN.
- * UnrealPak.exe -ListTocs -TocUrl=<http://some.public.endpoint.net/path/to/1a32076ca12bfc6feb982ffb064d18f28156606c.iochunktoc>
- *
- * Parameters: -TocEntries, -BlockSizes and -BlockHashes controls what to include when serializing TOC's to JSON.
- *
- * Credentials file example:
- *
- * [default]
- * aws_access_key_id="<key>"
- * aws_secret_access_key="<key>
- * aws_session_token="<token>"
- *
- * Note: All values must be surounded with "".
- */
-struct FIoStoreListTocsParams
-{
-	FString OutFile;
-	FString ServiceUrl;
-	FString Bucket;
-	FString BucketPrefix;
-	FString Region; 
-	FString AccessKey;
-	FString SecretKey;
-	FString SessionToken;
-	FString CredentialsFile;
-	FString CredentialsFileKeyName;
-	FString TocUrl;
-	FString TocKey;
-	FString BuildVersion;
-	FString TargetPlatform;
-	FString ChunkKeys;
-	bool bTocEntries = false;
-	bool bBlockSizes = false;
-	bool bBlockHashes = false;
-
-	static TIoStatusOr<FIoStoreListTocsParams> Parse(const TCHAR* CommandLine);
-	FIoStatus Validate() const;
-};
-
-FIoStatus ListTocs(const FIoStoreListTocsParams& Params);
-
-#endif // (IS_PROGRAM || WITH_EDITOR)
-
-class IOnDemandIoDispatcherBackend;
 
 #if UE_IAS_CUSTOM_INITIALIZATION
 
