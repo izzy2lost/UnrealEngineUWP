@@ -2,8 +2,6 @@
 
 #pragma once
 
-#if TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
-
 #include "IImageViewer.h"
 #include "Data/Blob.h"
 #include "Widgets/SCompoundWidget.h"
@@ -62,14 +60,14 @@ private:
 	/** Indicates that a node is in sRGB format. */
 	bool IsSRGB() const;
 
+	/** The Blob for this node. */
+	BlobPtr CurrentBlob;
+
 	/** The render target texture for the node. */
 	UTextureRenderTarget2D* NodeTexture = nullptr;
 
 	/** Toggles for enabling RGBA components for drawing. */
 	bool bRGBA[4] = {true, true, true, true};
-
-	/** Duplicate CPU buffer with the node's pixel data for quick lookup of the pixel under the cursor. */
-	TArray<FLinearColor> NodePixels;
 
 	/** Node meta data.  */
 	BufferDescriptor NodeDescriptor;
@@ -138,5 +136,3 @@ private:
 	/** Flags for toggling RGBA channels in the preview, which are hooked up to the RGBA buttons in the viewport toolbar extension. */
 	bool bRGBA[4] = {true, true, true, true};
 };
-
-#endif // TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW

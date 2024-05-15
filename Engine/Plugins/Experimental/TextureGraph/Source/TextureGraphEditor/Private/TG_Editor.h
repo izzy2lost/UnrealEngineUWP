@@ -193,12 +193,7 @@ private:
 	FActionMenuContent								OnCreateGraphActionMenu(UEdGraph* InGraph, const FVector2D& InNodePosition, const TArray<UEdGraphPin*>& InDraggedPins, bool bAutoExpand, SGraphEditor::FActionMenuClosed InOnMenuClosed);
 
 	/** Create Node preview widget */
-#if TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
-	TSharedRef<class STG_SelectionPreview>			CreateSelectionViewWidget();
-#endif // TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
-#if TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
 	TSharedRef<class STG_NodePreviewWidget>			CreateNodePreviewWidget();
-#endif // TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
 
 	/** Create Texture details widget */
 	TSharedRef<class STG_TextureDetails>			CreateTextureDetailsWidget();
@@ -258,12 +253,7 @@ private:
 	TSharedRef<SDockTab>							SpawnTab_Find(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab>							SpawnTab_PreviewSettings(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab>							SpawnTab_ParameterDefaults(const FSpawnTabArgs& Args);
-#if TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
-	TSharedRef<SDockTab>							SpawnTab_SelectionPreview(const FSpawnTabArgs& Args);
-#endif // TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
-#if TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
 	TSharedRef<SDockTab>							SpawnTab_NodePreview(const FSpawnTabArgs& Args);
-#endif // TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
 	TSharedRef<SDockTab>							SpawnTab_Output(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab>							SpawnTab_Settings(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab>							SpawnTab_Errors(const FSpawnTabArgs& Args);
@@ -313,12 +303,7 @@ private:
 	TSharedPtr<SGraphEditor>						GraphEditorWidget;
 
 	/** Node preview widget being displayed*/
-#if TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
-	TSharedPtr<class STG_SelectionPreview>			SelectionPreview;
-#endif // TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
-#if TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
 	TSharedPtr<STG_NodePreviewWidget>				NodePreview;
-#endif // TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
 
 	/** Texture details widget being displayed*/
 	TSharedPtr<class STG_TextureDetails>			TextureDetails;

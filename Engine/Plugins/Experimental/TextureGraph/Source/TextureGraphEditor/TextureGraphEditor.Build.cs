@@ -3,10 +3,6 @@ using UnrealBuildTool;
 public class TextureGraphEditor : ModuleRules
 {
 	// Flag that enables the new node preview.
-	private const bool EnableNewNodePreview = true;
-	// Flag that disables the old selection preview. This is only used if the EnableNewNodePreview is set to true.
-	private const bool DisableOldSelectionPreview = false;
-
 	public TextureGraphEditor(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
@@ -64,6 +60,7 @@ public class TextureGraphEditor : ModuleRules
 				"MessageLog",
 				"EditorWidgets",
 				"AssetDefinition",
+				"ImageWidgets"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);
@@ -73,17 +70,5 @@ public class TextureGraphEditor : ModuleRules
 				// ... add any modules that your module loads dynamically here ...
 			}
 			);
-
-		if (EnableNewNodePreview)
-		{
-			PrivateDependencyModuleNames.Add("ImageWidgets");
-		}
-
-		PublicDefinitions.Add(EnableNewNodePreview
-			? "TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW=1"
-			: "TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW=0");
-		PublicDefinitions.Add(EnableNewNodePreview && DisableOldSelectionPreview
-			? "TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW=0"
-			: "TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW=1");
 	}
 }

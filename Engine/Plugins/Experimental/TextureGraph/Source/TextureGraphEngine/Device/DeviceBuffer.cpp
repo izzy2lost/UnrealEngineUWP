@@ -100,6 +100,7 @@ AsyncRawBufferPtr DeviceBuffer::Raw()
 		return cti::make_ready_continuable(RawData);
 
 	check(!IsNull());
+	FetchingRaw = true;
 
 	return GetOwnerDevice()->Use()
 		.then([this](int32) mutable
@@ -111,6 +112,7 @@ AsyncRawBufferPtr DeviceBuffer::Raw()
 
 			/// Add to blobber
 			NewHash = TextureGraphEngine::GetBlobber()->AddGloballyUniqueHash(NewHash);
+			FetchingRaw = false;
 
 			return PromiseUtil::OnGameThread();
 

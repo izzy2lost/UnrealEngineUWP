@@ -1,7 +1,5 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#if TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
-
 #include "STG_NodePreview.h"
 
 #include "CanvasItem.h"
@@ -46,16 +44,29 @@ void FNodeViewer::DrawCurrentImage(FViewport*, FCanvas* Canvas, const FDrawPrope
 TOptional<TVariant<FColor, FLinearColor>> FNodeViewer::GetCurrentImagePixelColor(FIntPoint PixelCoords, int32 MipIndex) const
 {
 	const uint64 PixelIndex = PixelCoords.Y * NodeDescriptor.Width + PixelCoords.X;
-	if (PixelIndex < NodePixels.Num())
-	{
-		const FLinearColor LinearColor = NodePixels[PixelIndex];
 
-		if (NodeDescriptor.Format == BufferFormat::Byte)
+	if (NodeTexture && CurrentBlob)
+	{
+		if (!CurrentBlob->GetBufferRef()->HasRaw())
 		{
-			return TVariant<FColor, FLinearColor>(TInPlaceType<FColor>(), LinearColor.ToFColor(IsSRGB()));
+			/// If it's already fetching raw, then we don't want to do it again
+			if (CurrentBlob->GetBufferRef()->IsFetchingRaw())
+				return {};
+
+			CurrentBlob->GetBufferRef()->Raw();
 		}
-		return TVariant<FColor, FLinearColor>(TInPlaceType<FLinearColor>(), LinearColor);
+		else 
+		{
+			const FLinearColor LinearColor = CurrentBlob->GetBufferRef()->Raw_Now()->GetAsLinearColor(PixelIndex);
+
+			if (NodeDescriptor.Format == BufferFormat::Byte)
+			{
+				return TVariant<FColor, FLinearColor>(TInPlaceType<FColor>(), LinearColor.ToFColor(IsSRGB()));
+			}
+			return TVariant<FColor, FLinearColor>(TInPlaceType<FLinearColor>(), LinearColor);
+		}
 	}
+
 	return {};
 }
 
@@ -80,8 +91,8 @@ bool FNodeViewer::IsSingleChannel() const
 void FNodeViewer::SetTexture(const BlobPtr& InBlob)
 {
 	NodeTexture = nullptr;
+	CurrentBlob = InBlob;
 
-	NodePixels.SetNumUnsafeInternal(0);
 	NodeDescriptor = {};
 
 	if (InBlob)
@@ -89,13 +100,7 @@ void FNodeViewer::SetTexture(const BlobPtr& InBlob)
 		if (const DeviceBufferPtr Buffer = InBlob->GetBufferRef().GetPtr())
 		{
 			NodeTexture = GetTextureFromBuffer(Buffer);
-
-			Buffer->Raw()
-			      .then([this](const RawBufferPtr& RawBuffer)
-			      {
-				      RawBuffer->GetAsLinearColor(NodePixels);
-				      NodeDescriptor = RawBuffer->GetDescriptor();
-			      });
+			NodeDescriptor = Buffer->Descriptor();
 		}
 	}
 }
@@ -156,6 +161,7 @@ ESimpleElementBlendMode FNodeViewer::GetBlendMode() const
 UTextureRenderTarget2D* FNodeViewer::GetTextureFromBuffer(const DeviceBufferPtr& Buffer) const
 {
 	UTextureRenderTarget2D* OutTexture = nullptr;
+
 	if (const std::shared_ptr<DeviceBuffer_FX> FXBuffer = std::static_pointer_cast<DeviceBuffer_FX>(Buffer))
 	{
 		if (!FXBuffer->IsNull())
@@ -457,5 +463,3 @@ void STG_NodePreviewWidget::ToggleLock()
 }
 
 #undef LOCTEXT_NAMESPACE
-
-#endif // TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW

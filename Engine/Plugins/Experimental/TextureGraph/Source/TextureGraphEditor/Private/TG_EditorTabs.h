@@ -15,12 +15,7 @@ struct FTG_EditorTabs
 	static const FName GraphEditorId;
 	static const FName PreviewSceneSettingsTabId;
 	static const FName ParameterDefaultsTabId;
-#if TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
-	static const FName SelectionPreviewTabId;
-#endif // TEXTUREGRAPHEDITOR_ENABLE_OLD_SELECTION_PREVIEW
-#if TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
 	static const FName NodePreviewTabId;
-#endif // TEXTUREGRAPHEDITOR_ENABLE_NEW_NODE_PREVIEW
 	static const FName OutputTabId;
 	static const FName PreviewSettingsTabId;
 	static const FName ErrorsTabId;
