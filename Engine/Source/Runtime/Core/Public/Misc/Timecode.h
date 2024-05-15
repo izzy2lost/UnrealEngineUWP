@@ -8,6 +8,7 @@
 #include "Math/UnrealMathUtility.h"
 #include "Misc/FrameNumber.h"
 #include "Misc/FrameRate.h"
+#include "Misc/FrameTime.h"
 #include "Misc/Timespan.h"
 
 /**
@@ -24,6 +25,7 @@ struct FTimecode
 		, Minutes(0)
 		, Seconds(0)
 		, Frames(0)
+		, Subframe(0)
 		, bDropFrameFormat(false)
 	{}
 
@@ -38,6 +40,21 @@ struct FTimecode
 		, Minutes(InMinutes)
 		, Seconds(InSeconds)
 		, Frames(InFrames)
+		, bDropFrameFormat(InbDropFrame)
+	{}
+
+	/**
+	 * User construction from a number of hours minutes seconds frames, and subframes.
+	 * @param InbDropFrame - If true, this Timecode represents a "Drop Frame Timecode" format which
+							skips the first frames of every minute (except those ending in multiples of 10)
+							to account for drift when using a fractional NTSC framerate.
+ 	 */
+	explicit FTimecode(int32 InHours, int32 InMinutes, int32 InSeconds, int32 InFrames, float InSubframe, bool InbDropFrame)
+		: Hours(InHours)
+		, Minutes(InMinutes)
+		, Seconds(InSeconds)
+		, Frames(InFrames)
+		, Subframe(InSubframe)
 		, bDropFrameFormat(InbDropFrame)
 	{}
 
@@ -228,6 +245,22 @@ public:
 	}
 
 	/**
+	 * Create a FTimecode from a specific frame time at the given frame rate.
+	 *
+	 * @param InFrameTime - The frame time to convert into a timecode. This should already be converted to InFrameTimes's resolution.
+	 * @param InFrameRate - The framerate that this timecode is based in. This should be the playback framerate as it is used to determine
+	 *					    when the Frame value wraps over.
+	 * @param bDropFrame  - Optional parameter to indicate if we are in drop frame format.
+	 */
+	static FTimecode FromFrameTime(const FFrameTime& InFrameTime, const FFrameRate& InFrameRate, TOptional<bool> bDropFrame = {})
+	{
+		bool bShouldUseDropFrame = bDropFrame ? *bDropFrame : UseDropFormatTimecode(InFrameRate);
+		FTimecode Timecode = FromFrameNumber(InFrameTime.FloorToFrame(), InFrameRate, bShouldUseDropFrame);
+		Timecode.Subframe = InFrameTime.GetSubFrame();
+		return Timecode;
+	}
+
+	/**
 	 * Converts this Timecode back into a timespan at the given framerate, taking into account if this is a drop-frame format timecode.
 	 */
 	FTimespan ToTimespan(const FFrameRate& InFrameRate) const
@@ -319,14 +352,23 @@ public:
 			SignText = PositiveSign;
 		}
 
+		TStringBuilder<32> Builder;
+
 		if (bDropFrameFormat)
 		{
-			return FString::Printf(TEXT("%s%02d:%02d:%02d;%02d"), SignText, FMath::Abs(Hours), FMath::Abs(Minutes), FMath::Abs(Seconds), FMath::Abs(Frames));
+			Builder.Appendf(TEXT("%s%02d:%02d:%02d;%02d"), SignText, FMath::Abs(Hours), FMath::Abs(Minutes), FMath::Abs(Seconds), FMath::Abs(Frames));
 		}
 		else
 		{
-			return FString::Printf(TEXT("%s%02d:%02d:%02d:%02d"), SignText, FMath::Abs(Hours), FMath::Abs(Minutes), FMath::Abs(Seconds), FMath::Abs(Frames));
+			Builder.Appendf(TEXT("%s%02d:%02d:%02d:%02d"), SignText, FMath::Abs(Hours), FMath::Abs(Minutes), FMath::Abs(Seconds), FMath::Abs(Frames));
 		}
+
+		if (Subframe > 0)
+		{
+			int32 ClampedSubframe = static_cast<int32>(FMath::Clamp(100*Subframe,0,99));
+			Builder.Appendf(TEXT(".%02d"), ClampedSubframe);
+		}
+		return Builder.ToString();
 	}
 
 public:
@@ -343,13 +385,15 @@ public:
 	/** How many frames does this timecode represent */
 	int32 Frames;
 
+	/** The subframe value provided when converting to FFrameTime */
+	float Subframe = 0;
+
 	/** If true, this Timecode represents a Drop Frame timecode used to account for fractional frame rates in NTSC play rates. */
 	bool bDropFrameFormat;
 
-
 	friend inline bool operator==(const FTimecode& A, const FTimecode& B)
 	{
-		return A.Hours == B.Hours && A.Minutes == B.Minutes && A.Seconds == B.Seconds && A.Frames == B.Frames;
+		return A.Hours == B.Hours && A.Minutes == B.Minutes && A.Seconds == B.Seconds && A.Frames == B.Frames && A.Subframe == B.Subframe;
 	}
 
 	friend inline bool operator!=(const FTimecode& A, const FTimecode& B)

@@ -56,13 +56,12 @@ public:
 	/**
 	 * Create an FTimecode from this qualified frame time.
 	 *
-	 * Any subframe value in the frame time will be ignored.
 	 * Whether or not the returned timecode is a drop-frame timecode will be determined by the qualified frame time's frame rate
 	 * and the CVar specifying whether to generate drop-frame timecodes by default for supported frame rates.
 	 */
 	FTimecode ToTimecode() const
 	{
-		return FTimecode::FromFrameNumber(Time.FloorToFrame(), Rate);
+		return FTimecode::FromFrameTime(Time, Rate);
 	}
 
 	/**
@@ -75,7 +74,7 @@ public:
 	 */
 	FTimecode ToTimecode(bool bDropFrame) const
 	{
-		return FTimecode::FromFrameNumber(Time.FloorToFrame(), Rate, bDropFrame);
+		return FTimecode::FromFrameTime(Time, Rate, bDropFrame);
 	}
 
 public:
