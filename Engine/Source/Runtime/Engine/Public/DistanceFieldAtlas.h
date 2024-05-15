@@ -430,7 +430,7 @@ private:
 
 	FDelegateHandle PostReachabilityAnalysisHandle;
 
-	class IMeshUtilities* MeshUtilities;
+	std::atomic<class IMeshUtilities*> MeshUtilities;
 
 	mutable FCriticalSection CriticalSection;
 

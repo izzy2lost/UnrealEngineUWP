@@ -520,9 +520,10 @@ void FDistanceFieldAsyncQueue::AddTask(FAsyncDistanceFieldTask* Task)
 		return;
 	}
 
-	if (!MeshUtilities)
+	// This is ok to only use relaxed atomics here since if threads are racing they should all get the same module pointer to store.
+	if (!MeshUtilities.load(std::memory_order_relaxed))
 	{
-		MeshUtilities = &FModuleManager::Get().LoadModuleChecked<IMeshUtilities>(TEXT("MeshUtilities"));
+		MeshUtilities.store(&FModuleManager::Get().LoadModuleChecked<IMeshUtilities>(TEXT("MeshUtilities")), std::memory_order_relaxed);
 	}
 	
 	const bool bUseAsyncBuild = GUseAsyncDistanceFieldBuildQueue || !IsInGameThread();
@@ -723,7 +724,7 @@ void FDistanceFieldAsyncQueue::Build(FAsyncDistanceFieldTask* Task, FQueuedThrea
 		TRACE_CPUPROFILER_EVENT_SCOPE(FDistanceFieldAsyncQueue::Build);
 
 		const FStaticMeshLODResources& LODModel = Task->GenerateSource->GetRenderData()->LODResources[0];
-		MeshUtilities->GenerateSignedDistanceFieldVolumeData(
+		MeshUtilities.load(std::memory_order_relaxed)->GenerateSignedDistanceFieldVolumeData(
 			Task->StaticMesh->GetName(),
 			Task->SourceMeshData,
 			LODModel,
