@@ -11,7 +11,6 @@ public class IoStoreHttpClient : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"OpenSSL",
-				"SSL",
 			}
 		);
 

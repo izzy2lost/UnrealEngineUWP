@@ -13,8 +13,6 @@
 #include <Misc/ScopeLock.h>
 #include <Misc/StringBuilder.h>
 #include <ProfilingDebugging/CpuProfilerTrace.h>
-#include <Ssl.h>
-#include <Interfaces/ISslCertificateManager.h>
 #include <Tasks/Task.h>
 #include <Trace/Trace.h>
 #endif
