@@ -61,6 +61,7 @@ class UDataflow : public UEdGraph
 
 	Dataflow::FTimestamp LastModifiedRenderTarget = Dataflow::FTimestamp::Invalid; 
 	TArray< TObjectPtr<const UDataflowEdNode> > RenderTargets; // Not Serialized
+	TArray< TObjectPtr<const UDataflowEdNode> > WireframeRenderTargets; // Not Serialized
 	TSharedPtr<Dataflow::FGraph, ESPMode::ThreadSafe> Dataflow;
 	DATAFLOWENGINE_API void PostEditCallback();
 
@@ -113,9 +114,14 @@ public:
 	//
 	// Render Targets
 	//
-	DATAFLOWENGINE_API void AddRenderTarget(TObjectPtr<UDataflowEdNode>);
-	DATAFLOWENGINE_API void RemoveRenderTarget(TObjectPtr<UDataflowEdNode>);
+	DATAFLOWENGINE_API void AddRenderTarget(TObjectPtr<const UDataflowEdNode>);
+	DATAFLOWENGINE_API void RemoveRenderTarget(TObjectPtr<const UDataflowEdNode>);
 	const TArray< TObjectPtr<const UDataflowEdNode> >& GetRenderTargets() const { return RenderTargets; }
+
+	DATAFLOWENGINE_API void AddWireframeRenderTarget(TObjectPtr<const UDataflowEdNode>);
+	DATAFLOWENGINE_API void RemoveWireframeRenderTarget(TObjectPtr<const UDataflowEdNode>);
+	const TArray< TObjectPtr<const UDataflowEdNode> >& GetWireframeRenderTargets() const { return WireframeRenderTargets; }
+
 	const Dataflow::FTimestamp& GetRenderingTimestamp() const { return LastModifiedRenderTarget; }
 
 };

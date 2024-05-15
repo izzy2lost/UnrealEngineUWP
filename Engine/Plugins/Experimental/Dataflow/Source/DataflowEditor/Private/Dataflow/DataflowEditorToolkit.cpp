@@ -632,6 +632,14 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 			return Objs;
 		};
 
+		for (UObject* const PreviouslySelectedNode : SelectedDataflowNodes)
+		{
+			if (UDataflowEdNode* PreviouslySelectedEdNode = Cast<UDataflowEdNode>(PreviouslySelectedNode))
+			{
+				PreviouslySelectedEdNode->SetShouldRenderNode(false);
+			}
+		}
+
 		// Only keep UDataflowEdNode from NewSelection
 		TSet< TObjectPtr<UObject> > NodeSelection = FindDataflowNodesInSet(AsObjectPointers(InNewSelection));
 
@@ -678,6 +686,14 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 			}
 
 			SelectedDataflowNodes = NodeSelection;
+		}
+
+		for (UObject* const SelectedNode : NodeSelection)
+		{
+			if (UDataflowEdNode* SelectedEdNode = Cast<UDataflowEdNode>(SelectedNode))
+			{
+				SelectedEdNode->SetShouldRenderNode(true);
+			}
 		}
 
 		if (bPrimarySelectionChanged)

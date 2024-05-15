@@ -33,7 +33,7 @@ UDataflowEdNode::UDataflowEdNode(const FObjectInitializer& ObjectInitializer)
 #endif // WITH_EDITOR && !UE_BUILD_SHIPPING
 }
 
-void UDataflowEdNode::SetAssetRender(bool bInRender)
+void UDataflowEdNode::SetShouldRenderNode(bool bInRender)
 {
 	bRenderInAssetEditor = bInRender;
 	if (IsBound())
@@ -42,14 +42,38 @@ void UDataflowEdNode::SetAssetRender(bool bInRender)
 		if (UDataflow* DataflowObject = Cast< UDataflow>(GetGraph()))
 		{
 			if (bRenderInAssetEditor)
+			{
 				DataflowObject->AddRenderTarget(this);
+			}
 			else
+			{
 				DataflowObject->RemoveRenderTarget(this);
+			}
 		}
 #endif
 	}
 }
 
+void UDataflowEdNode::SetShouldWireframeRenderNode(bool bInRender)
+{
+	bRenderWireframeInAssetEditor = bInRender;
+	if (IsBound())
+	{
+#if WITH_EDITOR && !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+		if (UDataflow* const DataflowObject = Cast<UDataflow>(GetGraph()))
+		{
+			if (bRenderWireframeInAssetEditor)
+			{
+				DataflowObject->AddWireframeRenderTarget(this);
+			}
+			else
+			{
+				DataflowObject->RemoveWireframeRenderTarget(this);
+			}
+		}
+#endif
+	}
+}
 
 TSharedPtr<FDataflowNode> UDataflowEdNode::GetDataflowNode()
 {

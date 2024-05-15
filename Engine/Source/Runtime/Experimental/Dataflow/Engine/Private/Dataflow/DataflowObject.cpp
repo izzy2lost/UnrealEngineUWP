@@ -91,9 +91,13 @@ void UDataflow::PostLoad()
 		{
 			if (DataflowEdNode)
 			{
-				if (DataflowEdNode->DoAssetRender())
+				if (DataflowEdNode->ShouldRenderNode())
 				{
 					RenderTargets.Add(DataflowEdNode);
+				}
+				if (DataflowEdNode->ShouldWireframeRenderNode())
+				{
+					WireframeRenderTargets.Add(DataflowEdNode);
 				}
 			}
 		}
@@ -104,18 +108,32 @@ void UDataflow::PostLoad()
 	UObject::PostLoad();
 }
 
-void UDataflow::AddRenderTarget(TObjectPtr<UDataflowEdNode> InNode)
+void UDataflow::AddRenderTarget(TObjectPtr<const UDataflowEdNode> InNode)
 {
 	LastModifiedRenderTarget = Dataflow::FTimestamp::Current();
-	InNode->bRenderInAssetEditor = true;
+	check(InNode->ShouldRenderNode());
 	RenderTargets.AddUnique(InNode);
 }
 
-void UDataflow::RemoveRenderTarget(TObjectPtr<UDataflowEdNode> InNode)
+void UDataflow::RemoveRenderTarget(TObjectPtr<const UDataflowEdNode> InNode)
 {
 	LastModifiedRenderTarget = Dataflow::FTimestamp::Current();
-	InNode->bRenderInAssetEditor = false;
+	check(!InNode->ShouldRenderNode());
 	RenderTargets.Remove(InNode);
+}
+
+void UDataflow::AddWireframeRenderTarget(TObjectPtr<const UDataflowEdNode> InNode)
+{
+	LastModifiedRenderTarget = Dataflow::FTimestamp::Current();
+	check(InNode->ShouldWireframeRenderNode());
+	WireframeRenderTargets.AddUnique(InNode);
+}
+
+void UDataflow::RemoveWireframeRenderTarget(TObjectPtr<const UDataflowEdNode> InNode)
+{
+	LastModifiedRenderTarget = Dataflow::FTimestamp::Current();
+	check(!InNode->ShouldWireframeRenderNode());
+	WireframeRenderTargets.Remove(InNode);
 }
 
 

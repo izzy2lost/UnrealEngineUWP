@@ -54,7 +54,7 @@ void SDataflowEdNode::Construct(const FArguments& InArgs, UDataflowEdNode* InNod
 		.Style(&CheckBoxStyle)
 		.IsChecked_Lambda([this]()-> ECheckBoxState
 			{
-				if (DataflowGraphNode && DataflowGraphNode->DoAssetRender())
+				if (DataflowGraphNode && DataflowGraphNode->ShouldWireframeRenderNode())
 				{
 					return ECheckBoxState::Checked;
 				}
@@ -65,9 +65,9 @@ void SDataflowEdNode::Construct(const FArguments& InArgs, UDataflowEdNode* InNod
 				if (DataflowGraphNode)
 				{
 					if (NewState == ECheckBoxState::Checked)
-						DataflowGraphNode->SetAssetRender(true);
+						DataflowGraphNode->SetShouldWireframeRenderNode(true);
 					else
-						DataflowGraphNode->SetAssetRender(false);
+						DataflowGraphNode->SetShouldWireframeRenderNode(false);
 				}
 			});
 

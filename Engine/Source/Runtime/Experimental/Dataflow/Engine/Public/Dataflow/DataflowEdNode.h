@@ -90,12 +90,26 @@ public:
 	//
 	// Node Rendering
 	//
-	DATAFLOWENGINE_API void SetAssetRender(bool bInRender);
-	bool DoAssetRender() { return bRenderInAssetEditor; }
+	DATAFLOWENGINE_API void SetShouldRenderNode(bool bInRender);
+	bool ShouldRenderNode() const { return bRenderInAssetEditor; }
+
+	DATAFLOWENGINE_API void SetShouldWireframeRenderNode(bool bInRender);
+	bool ShouldWireframeRenderNode() const { return bRenderWireframeInAssetEditor; }
+
 	DATAFLOWENGINE_API TArray<Dataflow::FRenderingParameter> GetRenderParameters() const;
 	DATAFLOWENGINE_API virtual bool Render(GeometryCollection::Facades::FRenderingFacade& RenderData, const TSharedPtr<Dataflow::FContext> Context) const;
 
+private:
+
 	UPROPERTY()
 	bool bRenderInAssetEditor = false;
+
+	UPROPERTY()
+	bool bRenderWireframeInAssetEditor = false;
+
+	void OnPinConnection(const UEdGraphPin& Pin, const FEdGraphPinType& Type);
+	void OnPinDisconnection(const UEdGraphPin& Pin);
+	void SetAnyTypePinsToType(const FEdGraphPinType& Type);
+
 };
 

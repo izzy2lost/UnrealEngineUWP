@@ -14,9 +14,6 @@
 
 #define LOCTEXT_NAMESPACE "FDataflowConstructionScene"
 
-bool bDataflowShowWireframeInConstructionView = false;
-FAutoConsoleVariableRef CVARDataflowShowWireframeInConstructionView(TEXT("p.Dataflow.Editor.Construction.ShowWireframe"), bDataflowShowWireframeInConstructionView, TEXT("Show the wireframe model in the dataflows construction view[def:true]"));
-
 //
 // Construction Scene
 //
@@ -27,6 +24,7 @@ FDataflowConstructionScene::FDataflowConstructionScene(FPreviewScene::Constructi
 
 FDataflowConstructionScene::~FDataflowConstructionScene()
 {
+	ResetWireframeMeshElementsVisualizer();
 	ResetDynamicMeshComponents();
 }
 
@@ -145,8 +143,8 @@ void FDataflowConstructionScene::UpdateDynamicMeshComponents()
 
 					Target->Render(Facade, DataflowContext);
 
-					int32 NumGeometry = Facade.NumGeometry();
-					for (int32 MeshIndex = 0; MeshIndex < NumGeometry; MeshIndex++)
+					const int32 NumGeometry = Facade.NumGeometry();
+					for (int32 MeshIndex = 0; MeshIndex < NumGeometry; ++MeshIndex)
 					{
 						FDynamicMesh3 DynamicMesh;
 						Dataflow::Conversion::RenderingFacadeToDynamicMesh(Facade, MeshIndex, DynamicMesh);
@@ -159,6 +157,56 @@ void FDataflowConstructionScene::UpdateDynamicMeshComponents()
 							}
 							const FString MeshName = Facade.GetGeometryName()[MeshIndex];
 							AddDynamicMeshComponent({Target, MeshIndex}, MeshName, MoveTemp(DynamicMesh), {});
+						}
+					}
+				}
+			}
+
+			// Add hidden DynamicMeshComponents for any targets that we want to render in wireframe
+			// 
+			// Note: UMeshElementsVisualizers need source meshes to pull from. We add invisible dynamic mesh components to the existing DynamicMeshComponents collection
+			// for this purpose, but could have instead created a separate collection of meshes for wireframe rendering. We are choosing to keep all the scene DynamicMeshComponents 
+			// in one place and using separate structures to dictate how they are used (MeshComponentsForWireframeRendering in this case), in case visualization requirements 
+			// change in the future.
+			//
+
+			MeshComponentsForWireframeRendering.Reset();
+			for (TObjectPtr<const UDataflowEdNode> Target : DataflowAsset->GetWireframeRenderTargets())
+			{
+				if (Target)
+				{
+					TSharedPtr<FManagedArrayCollection> RenderCollection(new FManagedArrayCollection);
+					GeometryCollection::Facades::FRenderingFacade Facade(*RenderCollection);
+					Facade.DefineSchema();
+
+					Target->Render(Facade, DataflowContext);
+
+					const int32 NumGeometry = Facade.NumGeometry();
+					for (int32 MeshIndex = 0; MeshIndex < NumGeometry; ++MeshIndex)
+					{
+						FDataflowRenderKey WireframeDynamicMeshKey{ Target, MeshIndex };
+
+						if (DynamicMeshComponents.Contains(WireframeDynamicMeshKey))
+						{
+							UDynamicMeshComponent* const ExistingMeshComponent = DynamicMeshComponents[WireframeDynamicMeshKey];
+							MeshComponentsForWireframeRendering.Add(ExistingMeshComponent);
+						}
+						else
+						{
+							FDynamicMesh3 DynamicMesh;
+							Dataflow::Conversion::RenderingFacadeToDynamicMesh(Facade, MeshIndex, DynamicMesh);
+
+							if (DynamicMesh.VertexCount())
+							{
+								if (Target == DataflowContent->GetPrimarySelectedNode())
+								{
+									DataflowContent->SetPrimaryRenderCollection(RenderCollection);
+								}
+								const FString MeshName = Facade.GetGeometryName()[MeshIndex];
+								UDynamicMeshComponent* const NewDynamicMeshComponent = AddDynamicMeshComponent(WireframeDynamicMeshKey, MeshName, MoveTemp(DynamicMesh), {});
+								NewDynamicMeshComponent->SetVisibility(false);
+								MeshComponentsForWireframeRendering.Add(NewDynamicMeshComponent);
+							}
 						}
 					}
 				}
@@ -187,9 +235,12 @@ void FDataflowConstructionScene::ResetDynamicMeshComponents()
 
 TObjectPtr<UDynamicMeshComponent>& FDataflowConstructionScene::AddDynamicMeshComponent(FDataflowRenderKey InKey, const FString& MeshName, UE::Geometry::FDynamicMesh3&& DynamicMesh, const TArray<UMaterialInterface*>& MaterialSet)
 {
-	TObjectPtr<UDataflowEditorCollectionComponent> DynamicMeshComponent = NewObject<UDataflowEditorCollectionComponent>(RootSceneActor, FName(MeshName));
+	const FName UniqueObjectName = MakeUniqueObjectName(RootSceneActor, UDataflowEditorCollectionComponent::StaticClass(), FName(MeshName));
+	
+	TObjectPtr<UDataflowEditorCollectionComponent> DynamicMeshComponent = NewObject<UDataflowEditorCollectionComponent>(RootSceneActor, UniqueObjectName);
+
 	DynamicMeshComponent->MeshIndex = InKey.Value;
-	DynamicMeshComponent->Node = InKey.Key;;
+	DynamicMeshComponent->Node = InKey.Key;
 	DynamicMeshComponent->SetMesh(MoveTemp(DynamicMesh));
 	
 	// @todo(Material) This is just to have a material, we should transfer the materials from the assets if they have them. 
@@ -222,8 +273,6 @@ TObjectPtr<UDynamicMeshComponent>& FDataflowConstructionScene::AddDynamicMeshCom
 
 void FDataflowConstructionScene::AddWireframeMeshElementsVisualizer()
 {
-	if(!bDataflowShowWireframeInConstructionView) return;
-
 	ensure(WireframeElements.Num()==0);
 	for(FRenderElement Elem : DynamicMeshComponents)
 	{
@@ -235,6 +284,8 @@ void FDataflowConstructionScene::AddWireframeMeshElementsVisualizer()
 			WireframeElements.Add(DynamicMeshComponent, WireframeDraw);
 
 			WireframeDraw->CreateInWorld(GetWorld(), FTransform::Identity);
+			checkf(WireframeDraw->Settings, TEXT("Expected UMeshElementsVisualizer::Settings to exist after CreateInWorld"));
+
 			WireframeDraw->Settings->DepthBias = 2.0;
 			WireframeDraw->Settings->bAdjustDepthBiasUsingMeshSize = false;
 			WireframeDraw->Settings->bShowWireframe = true;
@@ -254,10 +305,9 @@ void FDataflowConstructionScene::AddWireframeMeshElementsVisualizer()
 					{
 						WireframeDraw->NotifyMeshChanged();
 					}));
-
-				const bool bRestSpaceMeshVisible = RenderElement.Value->GetVisibleFlag();
-				WireframeDraw->Settings->bVisible = bRestSpaceMeshVisible && bConstructionViewWireframe;
 			}
+
+			WireframeDraw->Settings->bVisible = false;
 			PropertyObjectsToTick.Add(WireframeDraw->Settings);
 		}
 	}
@@ -313,6 +363,11 @@ void FDataflowConstructionScene::UpdateConstructionScene()
 	
 	// Attach a wireframe renderer to the DynamicMeshComponents
 	UpdateWireframeMeshElementsVisualizer();
+
+	for (const UDynamicMeshComponent* const DynamicMeshComponent : MeshComponentsForWireframeRendering)
+	{
+		WireframeElements[DynamicMeshComponent]->Settings->bVisible = true;
+	}
 
 	if (TObjectPtr<UDataflowBaseContent> DataflowContent = GetDataflowContent())
 	{

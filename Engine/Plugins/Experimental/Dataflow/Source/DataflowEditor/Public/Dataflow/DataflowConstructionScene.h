@@ -82,6 +82,9 @@ private:
 	typedef TPair<TObjectPtr<UDynamicMeshComponent>, TObjectPtr<UMeshElementsVisualizer>> FRenderWireElement;
 	TMap<TObjectPtr<UDynamicMeshComponent>,TObjectPtr<UMeshElementsVisualizer> > WireframeElements;
 
+	/** Source meshes for Wireframe rendering */
+	TArray<UDynamicMeshComponent*> MeshComponentsForWireframeRendering;
+
 	/** Property objects (visible or not) that get ticked. [ticked] */
 	TArray<TObjectPtr<UInteractiveToolPropertySet>> PropertyObjectsToTick;
 
