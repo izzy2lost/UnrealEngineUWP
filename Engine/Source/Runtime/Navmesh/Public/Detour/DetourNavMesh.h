@@ -1002,7 +1002,7 @@ struct ReadTilesHelper
 		{
 			dtFree(AllocatedTiles, DT_ALLOC_TEMP);
 			AllocatedTiles = (dtMeshTile**)dtAlloc(RequestedSize * sizeof(dtMeshTile*), DT_ALLOC_TEMP);
-			NumAllocated = RequestedSize;
+			NumAllocated = AllocatedTiles != nullptr ? RequestedSize : 0;
 		}
 
 		return AllocatedTiles;
