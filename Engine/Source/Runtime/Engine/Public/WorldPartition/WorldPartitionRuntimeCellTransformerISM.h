@@ -2,6 +2,8 @@
 #pragma once
 
 #include "WorldPartition/WorldPartitionRuntimeCellTransformer.h"
+#include "Templates/SubclassOf.h"
+
 #include "WorldPartitionRuntimeCellTransformerISM.generated.h"
 
 UCLASS()
