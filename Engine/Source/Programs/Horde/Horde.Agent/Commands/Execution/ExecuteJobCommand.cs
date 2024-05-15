@@ -4,6 +4,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Sessions;
+using Horde.Agent.Driver;
 using Horde.Agent.Leases.Handlers;
 using Horde.Agent.Services;
 using Horde.Agent.Utility;
@@ -33,24 +34,24 @@ namespace Horde.Agent.Commands.Execution
 
 		readonly GrpcService _grpcService;
 		readonly JobHandler _jobHandler;
-		readonly AgentSettings _settings;
+		readonly AgentSettings _agentSettings;
+		readonly DriverSettings _driverSettings;
 
-		public ExecuteJobCommand(GrpcService grpcService, JobHandler jobHandler, IOptions<AgentSettings> settings)
+		public ExecuteJobCommand(GrpcService grpcService, JobHandler jobHandler, IOptions<AgentSettings> agentSettings, IOptions<DriverSettings> driverSettings)
 		{
 			_grpcService = grpcService;
 			_jobHandler = jobHandler;
-			_settings = settings.Value;
+			_agentSettings = agentSettings.Value;
+			_driverSettings = driverSettings.Value;
 		}
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			ServerProfile serverProfile = _settings.GetCurrentServerProfile();
+			ServerProfile serverProfile = _agentSettings.GetCurrentServerProfile();
 			ExecuteJobTask executeTask = ExecuteJobTask.Parser.ParseFrom(Convert.FromBase64String(Task));
 
-			Dictionary<string, TerminateCondition> processNamesToTerminate = _settings.GetProcessesToTerminateMap();
-
 			await using RpcConnection rpcConnection = new RpcConnection(ctx => _grpcService.CreateGrpcChannelAsync(executeTask.Token, ctx), logger);
-			await using Session session = new Session(serverProfile.Url, AgentId, SessionId, executeTask.Token, rpcConnection, WorkingDir, processNamesToTerminate);
+			await using Session session = new Session(serverProfile.Url, AgentId, SessionId, executeTask.Token, rpcConnection, WorkingDir);
 
 			await _jobHandler.ExecuteInternalAsync(session, LeaseId, executeTask, logger, CancellationToken.None);
 			return 0;

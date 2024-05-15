@@ -20,6 +20,7 @@ using EpicGames.Horde.Streams;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Grpc.Net.Client;
+using Horde.Agent.Driver;
 using Horde.Agent.Execution;
 using Horde.Agent.Leases;
 using Horde.Agent.Leases.Handlers;
@@ -98,6 +99,10 @@ namespace Horde.Agent.Tests
 				settings.ServerProfiles.Add(profile.Name, profile);
 				settings.Server = "test";
 				settings.WorkingDir = new DirectoryReference(Path.GetTempPath());
+			});
+
+			_serviceCollection.Configure<DriverSettings>(settings =>
+			{
 				settings.Executor = TestExecutor.Name; // Not really used since the executor is overridden in the tests
 			});
 
@@ -281,7 +286,6 @@ namespace Horde.Agent.Tests
 			fakeSession.Setup(x => x.AgentId).Returns(new EpicGames.Horde.Agents.AgentId("LocalAgent"));
 			fakeSession.Setup(x => x.SessionId).Returns(new EpicGames.Horde.Agents.Sessions.SessionId(default));
 			fakeSession.Setup(x => x.RpcConnection).Returns(rpcConnection);
-			fakeSession.Setup(x => x.ProcessNamesToTerminate).Returns((IReadOnlyDictionary<string, TerminateCondition>)new Dictionary<string, TerminateCondition>());
 			fakeSession.Setup(x => x.DisposeAsync()).Returns(new ValueTask());
 			fakeSession.Setup(x => x.WorkingDir).Returns(DirectoryReference.Combine(DirectoryReference.GetCurrentDirectory(), Guid.NewGuid().ToString()));
 			return fakeSession.Object;

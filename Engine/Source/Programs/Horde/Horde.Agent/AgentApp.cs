@@ -15,6 +15,7 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
+using Horde.Agent.Driver;
 using Horde.Agent.Execution;
 using Horde.Agent.Leases;
 using Horde.Agent.Leases.Handlers;
@@ -162,6 +163,7 @@ namespace Horde.Agent
 			// Add all the default 
 			IConfigurationSection configSection = configuration.GetSection(AgentSettings.SectionName);
 			services.AddOptions<AgentSettings>().Configure(options => configSection.Bind(options)).ValidateDataAnnotations();
+			services.AddOptions<DriverSettings>().Configure(options => configSection.Bind(options)).ValidateDataAnnotations();
 
 			ServerProfile serverProfile = settings.GetCurrentServerProfile();
 			if (String.IsNullOrEmpty(serverProfile.Url.Scheme) || String.IsNullOrEmpty(serverProfile.Url.Host))

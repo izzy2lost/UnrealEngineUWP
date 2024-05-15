@@ -232,7 +232,7 @@ namespace Horde.Agent.Leases
 			IRpcConnection rpcCon = _session.RpcConnection;
 
 			// Terminate any remaining child processes from other instances
-			await _session.TerminateProcessesAsync(TerminateCondition.BeforeSession, _logger, stoppingToken);
+			ProcessUtils.TerminateProcesses(x => x.IsUnderDirectory(_session.WorkingDir), _logger, stoppingToken);
 
 			// Track how many updates we get in 10 seconds. We'll start rate limiting this if it looks like we've got a problem that's causing us to spam the server.
 			Stopwatch updateTimer = Stopwatch.StartNew();

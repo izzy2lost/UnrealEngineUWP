@@ -10,6 +10,7 @@ using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage.Clients;
 using Google.Protobuf;
 using Grpc.Core;
+using Horde.Agent.Driver;
 using Horde.Agent.Execution;
 using Horde.Agent.Services;
 using Horde.Agent.Utility;
@@ -55,17 +56,19 @@ namespace Horde.Agent.Leases.Handlers
 		public string? CurrentBatchId { get; private set; } = null;
 
 		readonly IEnumerable<IJobExecutorFactory> _executorFactories;
-		readonly AgentSettings _settings;
+		readonly AgentSettings _agentSettings;
+		readonly DriverSettings _driverSettings;
 		readonly HttpStorageClientFactory _serverStorageFactory;
 		readonly IServerLoggerFactory _serverLoggerFactory;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public JobHandler(IEnumerable<IJobExecutorFactory> executorFactories, IOptions<AgentSettings> settings, HttpStorageClientFactory storageClientFactory, IServerLoggerFactory serverLoggerFactory)
+		public JobHandler(IEnumerable<IJobExecutorFactory> executorFactories, IOptions<AgentSettings> agentSettings, IOptions<DriverSettings> driverSettings, HttpStorageClientFactory storageClientFactory, IServerLoggerFactory serverLoggerFactory)
 		{
 			_executorFactories = executorFactories;
-			_settings = settings.Value;
+			_agentSettings = agentSettings.Value;
+			_driverSettings = driverSettings.Value;
 			_serverStorageFactory = storageClientFactory;
 			_serverLoggerFactory = serverLoggerFactory;
 		}
@@ -97,7 +100,7 @@ namespace Horde.Agent.Leases.Handlers
 #pragma warning restore IL3000 // Avoid accessing Assembly file path when publishing as a single file						
 						arguments.Add("execute");
 						arguments.Add("job");
-						arguments.Add($"-Server={_settings.GetCurrentServerProfile().Name}");
+						arguments.Add($"-Server={_agentSettings.GetCurrentServerProfile().Name}");
 						arguments.Add($"-AgentId={session.AgentId}");
 						arguments.Add($"-SessionId={session.SessionId}");
 						arguments.Add($"-LeaseId={leaseId}");
@@ -170,7 +173,7 @@ namespace Horde.Agent.Leases.Handlers
 			RpcBeginBatchResponse batch = await session.RpcConnection.InvokeAsync<JobRpc.JobRpcClient, RpcBeginBatchResponse>(x => x.BeginBatchAsync(new RpcBeginBatchRequest(executeTask.JobId, executeTask.BatchId, leaseId), null, null, cancellationToken), cancellationToken);
 			try
 			{
-				JobExecutorOptions options = new JobExecutorOptions(session.ServerUrl, session.WorkingDir, session.RpcConnection, session.ProcessNamesToTerminate, _serverStorageFactory, executeTask.JobId, executeTask.BatchId, batch, executeTask.Token, jobOptions);
+				JobExecutorOptions options = new JobExecutorOptions(session.ServerUrl, session.WorkingDir, session.RpcConnection, _driverSettings.ProcessesToTerminate, _serverStorageFactory, executeTask.JobId, executeTask.BatchId, batch, executeTask.Token, jobOptions);
 				await ExecuteBatchAsync(session, leaseId, executeTask.Workspace, executeTask.AutoSdkWorkspace, options, logger, localLogger, cancellationToken);
 			}
 			catch (Exception ex)
@@ -215,10 +218,10 @@ namespace Horde.Agent.Leases.Handlers
 			IRpcConnection rpcClient = session.RpcConnection;
 
 			// Create an executor for this job
-			string executorName = String.IsNullOrEmpty(options.JobOptions.Executor) ? _settings.Executor : options.JobOptions.Executor;
+			string executorName = String.IsNullOrEmpty(options.JobOptions.Executor) ? _driverSettings.Executor : options.JobOptions.Executor;
 
 			logger.LogInformation("Executing batch {BatchId} using {Executor} executor", options.BatchId, executorName);
-			await session.TerminateProcessesAsync(TerminateCondition.BeforeBatch, logger, cancellationToken);
+			await TerminateProcessHelper.TerminateProcessesAsync(TerminateCondition.BeforeBatch, session.WorkingDir, _driverSettings.ProcessesToTerminate, logger, cancellationToken);
 
 			IJobExecutorFactory? executorFactory = _executorFactories.FirstOrDefault(x => x.Name.Equals(executorName, StringComparison.OrdinalIgnoreCase));
 			if (executorFactory == null)
@@ -329,7 +332,7 @@ namespace Horde.Agent.Leases.Handlers
 							}
 
 							// Kill any processes spawned by the step
-							await session.TerminateProcessesAsync(TerminateCondition.AfterStep, logger, cancellationToken);
+							await TerminateProcessHelper.TerminateProcessesAsync(TerminateCondition.AfterStep, session.WorkingDir, _driverSettings.ProcessesToTerminate, logger, cancellationToken);
 
 							// Wait for the logger to finish
 							await stepLogger.StopAsync();
@@ -374,7 +377,7 @@ namespace Horde.Agent.Leases.Handlers
 			// Terminate any processes which are still running
 			try
 			{
-				await session.TerminateProcessesAsync(TerminateCondition.AfterBatch, logger, CancellationToken.None);
+				await TerminateProcessHelper.TerminateProcessesAsync(TerminateCondition.AfterBatch, session.WorkingDir, _driverSettings.ProcessesToTerminate, logger, CancellationToken.None);
 			}
 			catch (Exception ex)
 			{

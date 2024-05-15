@@ -82,22 +82,6 @@ namespace Horde.Agent
 	}
 
 	/// <summary>
-	/// Specifies a process to terminate
-	/// </summary>
-	public class ProcessToTerminate
-	{
-		/// <summary>
-		/// Name of the process
-		/// </summary>
-		public string Name { get; set; } = String.Empty;
-
-		/// <summary>
-		/// When to terminate this process
-		/// </summary>
-		public List<TerminateCondition>? When { get; init; }
-	}
-
-	/// <summary>
 	/// Global settings for the agent
 	/// </summary>
 	public class AgentSettings
@@ -139,21 +123,6 @@ namespace Horde.Agent
 		public bool Ephemeral { get; set; } = false;
 
 		/// <summary>
-		/// The executor to use for jobs
-		/// </summary>
-		public string Executor { get; set; } = Execution.WorkspaceExecutor.Name;
-
-		/// <summary>
-		/// Settings for the local executor
-		/// </summary>
-		public LocalExecutorSettings LocalExecutor { get; set; } = new LocalExecutorSettings();
-
-		/// <summary>
-		/// Settings for the perforce executor
-		/// </summary>
-		public PerforceExecutorSettings PerforceExecutor { get; set; } = new PerforceExecutorSettings();
-
-		/// <summary>
 		/// Working directory for leases and jobs (i.e where files from Perforce will be checked out) 
 		/// </summary>
 		public DirectoryReference WorkingDir { get; set; } = DirectoryReference.Combine(AgentApp.DataDir, "Sandbox");
@@ -172,17 +141,6 @@ namespace Horde.Agent
 		/// List of network shares to mount
 		/// </summary>
 		public List<MountNetworkShare> Shares { get; } = new List<MountNetworkShare>();
-
-		/// <summary>
-		/// List of process names to terminate after a job
-		/// </summary>
-		[Obsolete("Prefer using the ProcessesToTerminate list instead")]
-		public List<string> ProcessNamesToTerminate { get; } = new List<string>();
-
-		/// <summary>
-		/// List of process names to terminate after a lease completes, but not after a job step
-		/// </summary>
-		public List<ProcessToTerminate> ProcessesToTerminate { get; } = new List<ProcessToTerminate>();
 
 		/// <summary>
 		/// Path to Wine executable. If null, execution under Wine is disabled
@@ -292,35 +250,8 @@ namespace Horde.Agent
 				defaultServerProfile.Url = defaultServerUrl ?? new Uri("http://localhost:5000");
 				return defaultServerProfile;
 			}
-
+			
 			return GetServerProfile(Server);
-		}
-
-		/// <summary>
-		/// Gets a lookup of process name to the circumstances in which it should be terminate
-		/// </summary>
-		public Dictionary<string, TerminateCondition> GetProcessesToTerminateMap()
-		{
-			Dictionary<string, TerminateCondition> processesToTerminate = new Dictionary<string, TerminateCondition>(StringComparer.OrdinalIgnoreCase);
-#pragma warning disable CS0618 // Type or member is obsolete
-			foreach (string processName in ProcessNamesToTerminate)
-			{
-				processesToTerminate[processName] = TerminateCondition.None;
-			}
-#pragma warning restore CS0618 // Type or member is obsolete
-			foreach (ProcessToTerminate processToTerminate in ProcessesToTerminate)
-			{
-				TerminateCondition condition = default;
-				if (processToTerminate.When != null)
-				{
-					foreach (TerminateCondition when in processToTerminate.When)
-					{
-						condition |= when;
-					}
-				}
-				processesToTerminate[processToTerminate.Name] = condition;
-			}
-			return processesToTerminate;
 		}
 
 		/// <summary>

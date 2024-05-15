@@ -8,6 +8,7 @@ using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Sessions;
 using Grpc.Core;
 using Grpc.Net.Client;
+using Horde.Agent.Driver;
 using Horde.Agent.Utility;
 using Horde.Common.Rpc;
 using HordeCommon.Rpc;
@@ -51,11 +52,6 @@ namespace Horde.Agent.Services
 		/// Working directory for sandboxes etc..
 		/// </summary>
 		DirectoryReference WorkingDir { get; }
-
-		/// <summary>
-		/// List of process names to terminate
-		/// </summary>
-		IReadOnlyDictionary<string, TerminateCondition> ProcessNamesToTerminate { get; }
 	}
 
 	/// <summary>
@@ -94,13 +90,10 @@ namespace Horde.Agent.Services
 		/// <inheritdoc/>
 		public DirectoryReference WorkingDir { get; }
 
-		/// <inheritdoc/>
-		public IReadOnlyDictionary<string, TerminateCondition> ProcessNamesToTerminate { get; }
-
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public Session(Uri serverUrl, AgentId agentId, SessionId sessionId, string token, IRpcConnection rpcConnection, DirectoryReference workingDir, IReadOnlyDictionary<string, TerminateCondition> processNamesToTerminate)
+		public Session(Uri serverUrl, AgentId agentId, SessionId sessionId, string token, IRpcConnection rpcConnection, DirectoryReference workingDir)
 		{
 			ServerUrl = serverUrl;
 			AgentId = agentId;
@@ -108,7 +101,6 @@ namespace Horde.Agent.Services
 			Token = token;
 			RpcConnection = rpcConnection;
 			WorkingDir = workingDir;
-			ProcessNamesToTerminate = processNamesToTerminate;
 		}
 
 		public class AgentRegistrationList
@@ -121,7 +113,7 @@ namespace Horde.Agent.Services
 		/// <summary>
 		/// Creates a new agent session
 		/// </summary>
-		public static async Task<Session> CreateAsync(CapabilitiesService capabilitiesService, GrpcService grpcService, StatusService statusService, IOptions<AgentSettings> settings, ILogger logger, CancellationToken cancellationToken)
+		public static async Task<Session> CreateAsync(CapabilitiesService capabilitiesService, GrpcService grpcService, StatusService statusService, IOptions<AgentSettings> settings, IOptions<DriverSettings> driverSettings, ILogger logger, CancellationToken cancellationToken)
 		{
 			AgentSettings currentSettings = settings.Value;
 
@@ -227,7 +219,7 @@ namespace Horde.Agent.Services
 #pragma warning disable CA2000 // False positive; ownership is transferred to new Session object.
 			Func<CancellationToken, Task<GrpcChannel>> createGrpcChannelAsync = ctx => grpcService.CreateGrpcChannelAsync(createSessionResponse.Token, ctx);
 			IRpcConnection rpcConnection = new RpcConnection(createGrpcChannelAsync, logger);
-			return new Session(serverProfile.Url, new AgentId(createSessionResponse.AgentId), SessionId.Parse(createSessionResponse.SessionId), createSessionResponse.Token, rpcConnection, workingDir, currentSettings.GetProcessesToTerminateMap());
+			return new Session(serverProfile.Url, new AgentId(createSessionResponse.AgentId), SessionId.Parse(createSessionResponse.SessionId), createSessionResponse.Token, rpcConnection, workingDir);
 #pragma warning restore CA2000
 		}
 
@@ -356,32 +348,24 @@ namespace Horde.Agent.Services
 		readonly CapabilitiesService _capabilitiesService;
 		readonly GrpcService _grpcService;
 		readonly StatusService _statusService;
-		readonly IOptions<AgentSettings> _settings;
+		readonly IOptions<AgentSettings> _agentSettings;
+		readonly IOptions<DriverSettings> _driverSettings;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public SessionFactory(CapabilitiesService capabilitiesService, GrpcService grpcService, StatusService statusService, IOptions<AgentSettings> settings, ILogger<SessionFactory> logger)
+		public SessionFactory(CapabilitiesService capabilitiesService, GrpcService grpcService, StatusService statusService, IOptions<AgentSettings> agentSettings, IOptions<DriverSettings> driverSettings, ILogger<SessionFactory> logger)
 		{
 			_capabilitiesService = capabilitiesService;
 			_grpcService = grpcService;
 			_statusService = statusService;
-			_settings = settings;
+			_agentSettings = agentSettings;
+			_driverSettings = driverSettings;
 			_logger = logger;
 		}
 
 		/// <inheritdoc/>
-		public async Task<ISession> CreateAsync(CancellationToken cancellationToken) => await Session.CreateAsync(_capabilitiesService, _grpcService, _statusService, _settings, _logger, cancellationToken);
-	}
-
-	/// <summary>
-	/// Extension methods
-	/// </summary>
-	static class SessionExtensions
-	{
-		/// <inheritdoc cref="TerminateProcessHelper.TerminateProcessesAsync(TerminateCondition, DirectoryReference, IReadOnlyDictionary{string, TerminateCondition}, ILogger, CancellationToken)"/>
-		public static Task TerminateProcessesAsync(this ISession session, TerminateCondition condition, ILogger logger, CancellationToken cancellationToken)
-			=> TerminateProcessHelper.TerminateProcessesAsync(condition, session.WorkingDir, session.ProcessNamesToTerminate, logger, cancellationToken);
+		public async Task<ISession> CreateAsync(CancellationToken cancellationToken) => await Session.CreateAsync(_capabilitiesService, _grpcService, _statusService, _agentSettings, _driverSettings, _logger, cancellationToken);
 	}
 }

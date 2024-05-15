@@ -2,6 +2,7 @@
 
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Logs;
+using Horde.Agent.Driver;
 using Horde.Agent.Execution;
 using Horde.Agent.Services;
 using Horde.Agent.Utility;
@@ -15,15 +16,17 @@ namespace Horde.Agent.Leases.Handlers
 {
 	class ConformHandler : LeaseHandler<ConformTask>
 	{
-		readonly AgentSettings _settings;
+		readonly AgentSettings _agentSettings;
+		readonly DriverSettings _driverSettings;
 		readonly IServerLoggerFactory _serverLoggerFactory;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ConformHandler(IOptions<AgentSettings> settings, IServerLoggerFactory serverLoggerFactory)
+		public ConformHandler(IOptions<AgentSettings> agentSettings, IOptions<DriverSettings> driverSettings, IServerLoggerFactory serverLoggerFactory)
 		{
-			_settings = settings.Value;
+			_agentSettings = agentSettings.Value;
+			_driverSettings = driverSettings.Value;
 			_serverLoggerFactory = serverLoggerFactory;
 		}
 
@@ -46,14 +49,14 @@ namespace Horde.Agent.Leases.Handlers
 		async Task<LeaseResult> ExecuteInternalAsync(ISession session, LeaseId leaseId, ConformTask conformTask, ILogger logger, CancellationToken cancellationToken)
 		{
 			logger.LogInformation("Conforming, lease {LeaseId}", leaseId);
-			await TerminateProcessHelper.TerminateProcessesAsync(TerminateCondition.BeforeConform, session.WorkingDir, session.ProcessNamesToTerminate, logger, cancellationToken);
+			await TerminateProcessHelper.TerminateProcessesAsync(TerminateCondition.BeforeConform, session.WorkingDir, _driverSettings.ProcessesToTerminate, logger, cancellationToken);
 
 			bool removeUntrackedFiles = conformTask.RemoveUntrackedFiles;
 			IList<RpcAgentWorkspace> pendingWorkspaces = conformTask.Workspaces;
 			for (; ; )
 			{
-				bool isPerforceExecutor = _settings.Executor.Equals(PerforceExecutor.Name, StringComparison.OrdinalIgnoreCase);
-				bool isWorkspaceExecutor = _settings.Executor.Equals(WorkspaceExecutor.Name, StringComparison.OrdinalIgnoreCase);
+				bool isPerforceExecutor = _driverSettings.Executor.Equals(PerforceExecutor.Name, StringComparison.OrdinalIgnoreCase);
+				bool isWorkspaceExecutor = _driverSettings.Executor.Equals(WorkspaceExecutor.Name, StringComparison.OrdinalIgnoreCase);
 
 				// When using WorkspaceExecutor, only job options can override exact materializer to use
 				// It will default to ManagedWorkspaceMaterializer, which is compatible with the conform call below
@@ -62,13 +65,13 @@ namespace Horde.Agent.Leases.Handlers
 				bool isExecutorConformCompatible = isPerforceExecutor || isWorkspaceExecutor;
 
 				// Run the conform task
-				if (isExecutorConformCompatible && _settings.PerforceExecutor.RunConform)
+				if (isExecutorConformCompatible && _driverSettings.PerforceExecutor.RunConform)
 				{
 					await PerforceExecutor.ConformAsync(session.WorkingDir, pendingWorkspaces, removeUntrackedFiles, logger, cancellationToken);
 				}
 				else
 				{
-					logger.LogInformation("Skipping conform. Executor={Executor} RunConform={RunConform}", _settings.Executor, _settings.PerforceExecutor.RunConform);
+					logger.LogInformation("Skipping conform. Executor={Executor} RunConform={RunConform}", _driverSettings.Executor, _driverSettings.PerforceExecutor.RunConform);
 				}
 
 				// Update the new set of workspaces

@@ -15,6 +15,7 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Grpc.Core;
+using Horde.Agent.Driver;
 using Horde.Agent.Parser;
 //using Horde.Agent.Services;
 using Horde.Agent.Utility;
@@ -63,7 +64,7 @@ namespace Horde.Agent.Execution
 		public Uri ServerUrl { get; }
 		public DirectoryReference WorkingDir { get; }
 		public IRpcConnection RpcConnection { get; }
-		public IReadOnlyDictionary<string, TerminateCondition>? ProcessNamesToTerminate { get; }
+		public IReadOnlyList<ProcessToTerminate>? ProcessesToTerminate { get; }
 		public HttpStorageClientFactory StorageFactory { get; }
 		public JobId JobId { get; }
 		public JobStepBatchId BatchId { get; }
@@ -71,12 +72,12 @@ namespace Horde.Agent.Execution
 		public string Token { get; }
 		public RpcJobOptions JobOptions { get; }
 
-		public JobExecutorOptions(Uri serverUrl, DirectoryReference workingDir, IRpcConnection rpcConnection, IReadOnlyDictionary<string, TerminateCondition>? processNamesToTerminate, HttpStorageClientFactory storageFactory, JobId jobId, JobStepBatchId batchId, RpcBeginBatchResponse batch, string token, RpcJobOptions jobOptions)
+		public JobExecutorOptions(Uri serverUrl, DirectoryReference workingDir, IRpcConnection rpcConnection, IReadOnlyList<ProcessToTerminate>? processesToTerminate, HttpStorageClientFactory storageFactory, JobId jobId, JobStepBatchId batchId, RpcBeginBatchResponse batch, string token, RpcJobOptions jobOptions)
 		{
 			ServerUrl = serverUrl;
 			WorkingDir = workingDir;
 			RpcConnection = rpcConnection;
-			ProcessNamesToTerminate = processNamesToTerminate;
+			ProcessesToTerminate = processesToTerminate;
 			StorageFactory = storageFactory;
 			JobId = jobId;
 			BatchId = batchId;
@@ -84,11 +85,6 @@ namespace Horde.Agent.Execution
 			Token = token;
 			JobOptions = jobOptions;
 		}
-
-//		public JobExecutorOptions(ISession session, HttpStorageClientFactory storageFactory, JobId jobId, JobStepBatchId batchId, RpcBeginBatchResponse batch, string token, RpcJobOptions jobOptions)
-//			: this(session.ServerUrl, session.WorkingDir, session.RpcConnection, session.ProcessNamesToTerminate, storageFactory, jobId, batchId, batch, token, jobOptions)
-//		{
-//		}
 	}
 
 	abstract class JobExecutor : IJobExecutor
@@ -1285,7 +1281,7 @@ namespace Horde.Agent.Execution
 		{
 			try
 			{
-				await TerminateProcessHelper.TerminateProcessesAsync(condition, Options.WorkingDir, Options.ProcessNamesToTerminate, logger, CancellationToken.None);
+				await TerminateProcessHelper.TerminateProcessesAsync(condition, Options.WorkingDir, Options.ProcessesToTerminate, logger, CancellationToken.None);
 			}
 			catch (Exception ex)
 			{

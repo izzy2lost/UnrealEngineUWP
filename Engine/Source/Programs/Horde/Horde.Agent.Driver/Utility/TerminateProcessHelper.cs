@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using Horde.Agent.Driver;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Agent.Utility
@@ -15,11 +16,6 @@ namespace Horde.Agent.Utility
 		/// Not specified; terminate in all circumstances
 		/// </summary>
 		None = 0,
-
-		/// <summary>
-		/// When a session starts
-		/// </summary>
-		BeforeSession = 1,
 
 		/// <summary>
 		/// Before running a conform
@@ -50,28 +46,33 @@ namespace Horde.Agent.Utility
 		/// <summary>
 		/// Terminate processes matching certain criteria
 		/// </summary>
-		public static Task TerminateProcessesAsync(TerminateCondition condition, DirectoryReference workingDir, IReadOnlyDictionary<string, TerminateCondition>? processNamesToTerminate, ILogger logger, CancellationToken cancellationToken)
+		public static Task TerminateProcessesAsync(TerminateCondition condition, DirectoryReference workingDir, IReadOnlyList<ProcessToTerminate>? processesToTerminate, ILogger logger, CancellationToken cancellationToken)
 		{
 			// Terminate child processes from any previous runs
-			ProcessUtils.TerminateProcesses(x => ShouldTerminateProcess(x, condition, workingDir, processNamesToTerminate), logger, cancellationToken);
+			ProcessUtils.TerminateProcesses(x => ShouldTerminateProcess(x, condition, workingDir, processesToTerminate), logger, cancellationToken);
 			return Task.CompletedTask;
 		}
 
 		/// <summary>
 		/// Callback for determining whether a process should be terminated
 		/// </summary>
-		static bool ShouldTerminateProcess(FileReference imageFile, TerminateCondition condition, DirectoryReference workingDir, IReadOnlyDictionary<string, TerminateCondition>? processNamesToTerminate)
+		static bool ShouldTerminateProcess(FileReference imageFile, TerminateCondition condition, DirectoryReference workingDir, IReadOnlyList<ProcessToTerminate>? processesToTerminate)
 		{
 			if (imageFile.IsUnderDirectory(workingDir))
 			{
 				return true;
 			}
 
-			if (processNamesToTerminate != null)
+			if (processesToTerminate != null)
 			{
 				string fileName = imageFile.GetFileName();
-				if (processNamesToTerminate.TryGetValue(fileName, out TerminateCondition terminateFlags))
+				foreach (ProcessToTerminate processToTerminate in processesToTerminate)
 				{
+					TerminateCondition terminateFlags = TerminateCondition.None;
+					foreach (TerminateCondition when in processToTerminate.When ?? Enumerable.Empty<TerminateCondition>())
+					{
+						terminateFlags |= when;
+					}
 					if (terminateFlags == TerminateCondition.None || (terminateFlags & condition) != 0)
 					{
 						return true;

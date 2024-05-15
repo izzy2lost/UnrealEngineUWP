@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Streams;
+using Horde.Agent.Driver;
 using Horde.Agent.Execution;
 using Horde.Agent.Services;
 using HordeCommon.Rpc;
@@ -79,7 +80,7 @@ public sealed class WorkspaceExecutorTest : IAsyncDisposable
 	public async Task RegularAndAutoSdkWorkspaceAsync()
 	{
 		RpcBeginBatchResponse batch = new RpcBeginBatchResponse { Change = 1 };
-		JobExecutorOptions executorOptions = new JobExecutorOptions(_session.ServerUrl, _session.WorkingDir, _session.RpcConnection, _session.ProcessNamesToTerminate, null!, _jobId, _batchId, batch, null!, new RpcJobOptions());
+		JobExecutorOptions executorOptions = new JobExecutorOptions(_session.ServerUrl, _session.WorkingDir, _session.RpcConnection, Array.Empty<ProcessToTerminate>(), null!, _jobId, _batchId, batch, null!, new RpcJobOptions());
 		using WorkspaceExecutor executor = new(executorOptions, _workspace, _autoSdkWorkspace, NullLogger.Instance);
 
 		await executor.InitializeAsync(_logger, CancellationToken.None);
@@ -93,7 +94,7 @@ public sealed class WorkspaceExecutorTest : IAsyncDisposable
 	public async Task EnvVarsAsync()
 	{
 		RpcBeginBatchResponse batch = new RpcBeginBatchResponse { Change = 1, StreamName = "//UE5/Main" };
-		JobExecutorOptions executorOptions = new JobExecutorOptions(_session.ServerUrl, _session.WorkingDir, _session.RpcConnection, _session.ProcessNamesToTerminate, null!, _jobId, _batchId, batch, null!, new RpcJobOptions());
+		JobExecutorOptions executorOptions = new JobExecutorOptions(_session.ServerUrl, _session.WorkingDir, _session.RpcConnection, Array.Empty<ProcessToTerminate>(), null!, _jobId, _batchId, batch, null!, new RpcJobOptions());
 		using WorkspaceExecutor executor = new(executorOptions, _workspace, _autoSdkWorkspace, NullLogger.Instance);
 		await executor.InitializeAsync(_logger, CancellationToken.None);
 
@@ -120,7 +121,7 @@ public sealed class WorkspaceExecutorTest : IAsyncDisposable
 		_workspace.SetFile(1000, "New/Feature/Foo.cs", "foo");
 
 		RpcBeginBatchResponse batch = new RpcBeginBatchResponse { Change = 1, PreflightChange = 1000 };
-		JobExecutorOptions executorOptions = new JobExecutorOptions(_session.ServerUrl, _session.WorkingDir, _session.RpcConnection, _session.ProcessNamesToTerminate, null!, preflightJobId, _batchId, batch, null!, new RpcJobOptions());
+		JobExecutorOptions executorOptions = new JobExecutorOptions(_session.ServerUrl, _session.WorkingDir, _session.RpcConnection, Array.Empty<ProcessToTerminate>(), null!, preflightJobId, _batchId, batch, null!, new RpcJobOptions());
 		using WorkspaceExecutor executor = new(executorOptions, _workspace, null, NullLogger.Instance);
 
 		await executor.InitializeAsync(_logger, CancellationToken.None);
@@ -137,7 +138,7 @@ public sealed class WorkspaceExecutorTest : IAsyncDisposable
 
 		_server.AddJob(noChangeJobId, _streamId, 0, 0);
 		RpcBeginBatchResponse batch = new RpcBeginBatchResponse { };
-		JobExecutorOptions executorOptions = new JobExecutorOptions(_session.ServerUrl, _session.WorkingDir, _session.RpcConnection, _session.ProcessNamesToTerminate, null!, noChangeJobId, _batchId, batch, null!, new RpcJobOptions());
+		JobExecutorOptions executorOptions = new JobExecutorOptions(_session.ServerUrl, _session.WorkingDir, _session.RpcConnection, Array.Empty<ProcessToTerminate>(), null!, noChangeJobId, _batchId, batch, null!, new RpcJobOptions());
 		using WorkspaceExecutor executor = new(executorOptions, _workspace, null, NullLogger.Instance);
 		await Assert.ThrowsExceptionAsync<WorkspaceMaterializationException>(() => executor.InitializeAsync(_logger, CancellationToken.None));
 	}
