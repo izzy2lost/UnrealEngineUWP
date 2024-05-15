@@ -1,0 +1,79 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "Blueprint/StateTreeConsiderationBlueprintBase.h"
+#include "BlueprintNodeHelpers.h"
+#include "StateTreeExecutionContext.h"
+
+#include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeConsiderationBlueprintBase)
+
+//----------------------------------------------------------------------//
+//  UStateTreeConsiderationBlueprintBase
+//----------------------------------------------------------------------//
+
+UStateTreeConsiderationBlueprintBase::UStateTreeConsiderationBlueprintBase(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	bHasComputeRawScore = BlueprintNodeHelpers::HasBlueprintFunction(TEXT("ReceiveComputeRawScore"), *this, *StaticClass());
+}
+
+float UStateTreeConsiderationBlueprintBase::ComputeRawScore(FStateTreeExecutionContext& Context) const
+{
+	if (bHasComputeRawScore)
+	{
+		// Cache the owner and event queue for the duration the consideration is evaluated.
+		SetCachedInstanceDataFromContext(Context);
+
+		const float RawScore = ReceiveComputeRawScore();
+
+		ClearCachedInstanceData();
+
+		return RawScore;
+	}
+
+	return .0f;
+}
+
+//----------------------------------------------------------------------//
+//  FStateTreeBlueprintConsiderationWrapper
+//----------------------------------------------------------------------//
+
+#if WITH_EDITOR
+FText FStateTreeBlueprintConsiderationWrapper::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting /*= EStateTreeNodeFormatting::Text*/) const
+{
+	FText Description;
+	if (const UStateTreeConsiderationBlueprintBase* Instance = InstanceDataView.GetPtr<UStateTreeConsiderationBlueprintBase>())
+	{
+		Description = Instance->GetDescription(ID, InstanceDataView, BindingLookup, Formatting);
+	}
+	if (Description.IsEmpty() && ConsiderationClass)
+	{
+		Description = ConsiderationClass->GetDisplayNameText();
+	}
+	return Description;
+}
+
+FName FStateTreeBlueprintConsiderationWrapper::GetIconName() const
+{
+	if (const UStateTreeNodeBlueprintBase* NodeCDO = GetDefault<const UStateTreeNodeBlueprintBase>(ConsiderationClass))
+	{
+		return NodeCDO->GetIconName();
+	}
+	return FStateTreeConsiderationBase::GetIconName();
+}
+
+FColor FStateTreeBlueprintConsiderationWrapper::GetIconColor() const
+{
+	if (const UStateTreeNodeBlueprintBase* NodeCDO = GetDefault<const UStateTreeNodeBlueprintBase>(ConsiderationClass))
+	{
+		return NodeCDO->GetIconColor();
+	}
+	return FStateTreeConsiderationBase::GetIconColor();
+}
+#endif //WITH_EDITOR
+
+float FStateTreeBlueprintConsiderationWrapper::ComputeRawScore(FStateTreeExecutionContext& Context) const
+{
+	UStateTreeConsiderationBlueprintBase* Consideration = Context.GetInstanceDataPtr<UStateTreeConsiderationBlueprintBase>(*this);
+	check(Consideration);
+	return Consideration->ComputeRawScore(Context);
+}

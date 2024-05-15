@@ -4,6 +4,7 @@
 #include "StateTree.h"
 #include "StateTreeEditorData.h"
 #include "StateTreeConditionBase.h"
+#include "StateTreeConsiderationBase.h"
 #include "StateTreeTaskBase.h"
 #include "StateTreeDelegates.h"
 #include "StateTreePropertyHelpers.h"
@@ -139,6 +140,7 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 	static const FStateTreeEditPropertyPath StateParametersPath(UStateTreeState::StaticClass(), TEXT("Parameters"));
 	static const FStateTreeEditPropertyPath StateTasksPath(UStateTreeState::StaticClass(), TEXT("Tasks"));
 	static const FStateTreeEditPropertyPath StateEnterConditionsPath(UStateTreeState::StaticClass(), TEXT("EnterConditions"));
+	static const FStateTreeEditPropertyPath StateConsiderationsPath(UStateTreeState::StaticClass(), TEXT("Considerations"));
 	static const FStateTreeEditPropertyPath StateTransitionsPath(UStateTreeState::StaticClass(), TEXT("Transitions"));
 	static const FStateTreeEditPropertyPath StateTransitionsConditionsPath(UStateTreeState::StaticClass(), TEXT("Transitions.Conditions"));
 	static const FStateTreeEditPropertyPath StateTransitionsIDPath(UStateTreeState::StaticClass(), TEXT("Transitions.ID"));
@@ -271,6 +273,18 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 			}
 		}
 
+		// Utility Considerations
+		if (ChangePropertyPath.IsPathExact(StateConsiderationsPath))
+		{
+			const int32 ArrayIndex = ChangePropertyPath.GetPropertyArrayIndex(StateConsiderationsPath);
+			if (Considerations.IsValidIndex(ArrayIndex))
+			{
+				const FGuid OldStructID = Considerations[ArrayIndex].ID;
+				Considerations[ArrayIndex].ID = FGuid::NewGuid();
+				CopyBindings(OldStructID, Considerations[ArrayIndex].ID);
+			}
+		}
+
 		// Transitions
 		if (ChangePropertyPath.IsPathExact(StateTransitionsPath))
 		{
@@ -331,6 +345,7 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 	{
 		if (ChangePropertyPath.IsPathExact(StateTasksPath)
 			|| ChangePropertyPath.IsPathExact(StateEnterConditionsPath)
+			|| ChangePropertyPath.IsPathExact(StateConsiderationsPath)
 			|| ChangePropertyPath.IsPathExact(StateTransitionsConditionsPath))
 		{
 			if (UStateTreeEditorData* TreeData = GetTypedOuter<UStateTreeEditorData>())
@@ -395,6 +410,14 @@ void UStateTreeState::PostLoad()
 		if (FStateTreeNodeBase* ConditionNode = EnterConditionEditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
 		{
 			ConditionNode->PostLoad(EnterConditionEditorNode.GetInstance());
+		}
+	}
+
+	for (FStateTreeEditorNode& ConsiderationEditorNode : Considerations)
+	{
+		if (FStateTreeNodeBase* ConsiderationNode = ConsiderationEditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
+		{
+			ConsiderationNode->PostLoad(ConsiderationEditorNode.GetInstance());
 		}
 	}
 

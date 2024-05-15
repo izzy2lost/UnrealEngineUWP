@@ -6,6 +6,7 @@
 #include "SmartObjectRuntime.h"
 #include "SmartObjectSubsystem.h"
 #include "StateTreeEvaluatorBase.h"
+#include "StateTreeConsiderationBase.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Tasks/StateTreeAITask.h"
 
@@ -32,7 +33,8 @@ bool UGameplayInteractionStateTreeSchema::IsStructAllowed(const UScriptStruct* I
 		|| InScriptStruct->IsChildOf(FStateTreeTaskCommonBase::StaticStruct())
 		|| InScriptStruct->IsChildOf(FGameplayInteractionStateTreeTask::StaticStruct())
 		|| InScriptStruct->IsChildOf(FStateTreeAITaskBase::StaticStruct())
-		|| InScriptStruct->IsChildOf(FStateTreeAIConditionBase::StaticStruct());
+		|| InScriptStruct->IsChildOf(FStateTreeAIConditionBase::StaticStruct())
+		|| InScriptStruct->IsChildOf(FStateTreeConsiderationCommonBase::StaticStruct());
 }
 
 bool UGameplayInteractionStateTreeSchema::IsClassAllowed(const UClass* InClass) const

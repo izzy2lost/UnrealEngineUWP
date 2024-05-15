@@ -4,6 +4,7 @@
 #include "MassEntityTypes.h"
 #include "MassStateTreeTypes.h"
 #include "StateTreeConditionBase.h"
+#include "StateTreeConsiderationBase.h"
 #include "Subsystems/WorldSubsystem.h"
 
 bool UMassStateTreeSchema::IsStructAllowed(const UScriptStruct* InScriptStruct) const
@@ -12,7 +13,8 @@ bool UMassStateTreeSchema::IsStructAllowed(const UScriptStruct* InScriptStruct) 
 	return InScriptStruct->IsChildOf(FMassStateTreeEvaluatorBase::StaticStruct())
 			|| InScriptStruct->IsChildOf(FStateTreeEvaluatorCommonBase::StaticStruct())
 			|| InScriptStruct->IsChildOf(FMassStateTreeTaskBase::StaticStruct())
-			|| InScriptStruct->IsChildOf(FStateTreeConditionBase::StaticStruct());
+			|| InScriptStruct->IsChildOf(FStateTreeConditionBase::StaticStruct())
+			|| InScriptStruct->IsChildOf(FStateTreeConsiderationBase::StaticStruct());
 }
 
 bool UMassStateTreeSchema::IsExternalItemAllowed(const UStruct& InStruct) const

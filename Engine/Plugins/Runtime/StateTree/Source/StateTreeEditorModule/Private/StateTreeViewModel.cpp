@@ -157,6 +157,7 @@ namespace UE::StateTree::Editor
 		FixNodesAfterDuplication(TArrayView<FStateTreeEditorNode>(&State->SingleTask, 1), IDsMap, Links);
 		FixNodesAfterDuplication(State->Tasks, IDsMap, Links);
 		FixNodesAfterDuplication(State->EnterConditions, IDsMap, Links);
+		FixNodesAfterDuplication(State->Considerations, IDsMap, Links);
 
 		for (FStateTreeTransition& Transition : State->Transitions)
 		{

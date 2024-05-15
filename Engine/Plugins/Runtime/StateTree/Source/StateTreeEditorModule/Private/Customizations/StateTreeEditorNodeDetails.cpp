@@ -27,6 +27,7 @@
 #include "Blueprint/StateTreeEvaluatorBlueprintBase.h"
 #include "Blueprint/StateTreeTaskBlueprintBase.h"
 #include "Blueprint/StateTreeConditionBlueprintBase.h"
+#include "Blueprint/StateTreeConsiderationBlueprintBase.h"
 #include "Styling/StyleColors.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "ScopedTransaction.h"
@@ -456,7 +457,7 @@ void FStateTreeEditorNodeDetails::CustomizeHeader(TSharedRef<class IPropertyHand
 					.WidthOverride(30.0f)
 					.Padding(FMargin(2, 4, 2, 3))
 					.VAlign(VAlign_Center)
-					.Visibility(this, &FStateTreeEditorNodeDetails::IsConditionVisible)
+					.Visibility(this, &FStateTreeEditorNodeDetails::IsOperandVisible)
 					[
 						SNew(SComboButton)
 						.IsEnabled(TAttribute<bool>(this, &FStateTreeEditorNodeDetails::IsOperandEnabled))
@@ -481,7 +482,7 @@ void FStateTreeEditorNodeDetails::CustomizeHeader(TSharedRef<class IPropertyHand
 				[
 					SNew(SBox)
 					.Padding(FMargin(FMargin(0.0f, 0.0f, 4.0f, 0.0f)))
-					.Visibility(this, &FStateTreeEditorNodeDetails::IsConditionVisible)
+					.Visibility(this, &FStateTreeEditorNodeDetails::AreParensVisible)
 					[
 						SNew(STextBlock)
 						.TextStyle(FStateTreeEditorStyle::Get(), "StateTree.Node.Parens")
@@ -549,7 +550,7 @@ void FStateTreeEditorNodeDetails::CustomizeHeader(TSharedRef<class IPropertyHand
 					SNew(STextBlock)
 					.TextStyle(FStateTreeEditorStyle::Get(), "StateTree.Node.Parens")
 					.Text(this, &FStateTreeEditorNodeDetails::GetCloseParens)
-					.Visibility(this, &FStateTreeEditorNodeDetails::IsConditionVisible)
+					.Visibility(this, &FStateTreeEditorNodeDetails::AreParensVisible)
 				]
 
 				// Debug and property widgets
@@ -721,7 +722,8 @@ void FStateTreeEditorNodeDetails::OnPasteNode()
 		// BP nodes are identified by the instance type.
 		if (NodeTypeStruct->IsChildOf(FStateTreeBlueprintEvaluatorWrapper::StaticStruct())
 			|| NodeTypeStruct->IsChildOf(FStateTreeBlueprintTaskWrapper::StaticStruct())
-			|| NodeTypeStruct->IsChildOf(FStateTreeBlueprintConditionWrapper::StaticStruct()))
+			|| NodeTypeStruct->IsChildOf(FStateTreeBlueprintConditionWrapper::StaticStruct())
+			|| NodeTypeStruct->IsChildOf(FStateTreeBlueprintConsiderationWrapper::StaticStruct()))
 		{
 			if (const FStateTreeNodeBase* Node = TempNode.Node.GetPtr<FStateTreeNodeBase>())
 			{
@@ -1150,10 +1152,18 @@ FText FStateTreeEditorNodeDetails::GetOperandText() const
 {
 	check(OperandProperty);
 
-	// First item does not relate to anything existing, it could be empty, we return IF to indicate that we're building condition. 
+	// First item does not relate to anything existing, it could be empty. 
+	// return IF to indicate that we're building condition and IS for consideration.
 	if (IsFirstItem())
 	{
-		return LOCTEXT("IfOperand", "IF");
+		if (IsConditionVisible() == EVisibility::Visible)
+		{
+			return LOCTEXT("IfOperand", "IF");
+		}
+		else //IsConsiderationVisible() == EVisibility::Visible
+		{
+			return LOCTEXT("IsOperand", "IS");
+		}
 	}
 
 	uint8 Value = 0;
@@ -1251,13 +1261,47 @@ EVisibility FStateTreeEditorNodeDetails::IsConditionVisible() const
 	return UE::StateTreeEditor::EditorNodeUtils::IsConditionVisible(StructProperty);
 }
 
+EVisibility FStateTreeEditorNodeDetails::IsConsiderationVisible() const
+{
+	return UE::StateTreeEditor::EditorNodeUtils::IsConsiderationVisible(StructProperty);
+}
+
+EVisibility FStateTreeEditorNodeDetails::IsOperandVisible() const
+{
+	// Assume the Condition and Consideration's Visibility is either Visible or Collapsed
+	if (IsConditionVisible() == EVisibility::Visible || IsConsiderationVisible() == EVisibility::Visible)
+	{
+		return EVisibility::Visible;
+	}
+
+	return EVisibility::Collapsed;
+}
+
 EVisibility FStateTreeEditorNodeDetails::AreIndentButtonsVisible() const
 {
 	if (IsFirstItem())
 	{
 		return EVisibility::Collapsed;
 	}
-	return UE::StateTreeEditor::EditorNodeUtils::IsConditionVisible(StructProperty);
+
+	// Assume the Condition and Consideration's Visibility is either Visible or Collapsed
+	if (IsConditionVisible() == EVisibility::Visible || IsConsiderationVisible() == EVisibility::Visible)
+	{
+		return EVisibility::Visible;
+	}
+
+	return EVisibility::Collapsed;
+}
+
+EVisibility FStateTreeEditorNodeDetails::AreParensVisible() const
+{
+	//Assume the Condition and Consideration's Visibility is either Visible or Collapsed
+	if (EVisibility::Visible.Value & (IsConditionVisible().Value | IsConsiderationVisible().Value))
+	{
+		return EVisibility::Visible;
+	}
+
+	return EVisibility::Collapsed;
 }
 
 EVisibility FStateTreeEditorNodeDetails::IsIconVisible() const
@@ -1556,7 +1600,8 @@ void FStateTreeEditorNodeDetails::GeneratePickerMenu(class FMenuBuilder& InMenuB
 		{
 			if (ScriptStruct->IsChildOf(FStateTreeBlueprintEvaluatorWrapper::StaticStruct())
 				|| ScriptStruct->IsChildOf(FStateTreeBlueprintTaskWrapper::StaticStruct())
-				|| ScriptStruct->IsChildOf(FStateTreeBlueprintConditionWrapper::StaticStruct()))
+				|| ScriptStruct->IsChildOf(FStateTreeBlueprintConditionWrapper::StaticStruct())
+				|| ScriptStruct->IsChildOf(FStateTreeBlueprintConsiderationWrapper::StaticStruct()))
 			{
 				if (Node->InstanceObject != nullptr)
 				{

@@ -2,9 +2,16 @@
 
 #pragma once
 
+#include "HAL/IConsoleManager.h"
 #include "StateTreeSchema.generated.h"
 
 struct FStateTreeExternalDataDesc;
+
+namespace StateTreeSchemaUtilityCVars
+{
+	//temporary param to be removed when Utility is fully there.
+	extern STATETREEMODULE_API FAutoConsoleVariable CVarAllowUtilityConsiderations;
+}
 
 /**
  * Schema describing which inputs, evaluators, and tasks a StateTree can contain.
@@ -45,6 +52,9 @@ public:
 	
 	/** @return True if enter conditions are allowed. */
 	virtual bool AllowEnterConditions() const { return true; }
+
+	/** @return True if utility considerations are allowed. */
+	virtual bool AllowUtilityConsiderations() const { return true; }
 
 	/** @return True if evaluators are allowed. */
 	virtual bool AllowEvaluators() const { return true; }

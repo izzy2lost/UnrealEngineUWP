@@ -89,6 +89,9 @@ private:
 	FSlateIcon GetNewConditionButtonImage() const;
 	TSharedRef<SWidget> GenerateConditionBPBaseClassesMenu() const;
 	
+	FSlateIcon GetNewConsiderationButtonImage() const;
+	TSharedRef<SWidget> GenerateConsiderationBPBaseClassesMenu() const;
+
 	void OnNodeBPBaseClassPicked(UClass* NodeClass) const;
 
 	void UpdateAsset();

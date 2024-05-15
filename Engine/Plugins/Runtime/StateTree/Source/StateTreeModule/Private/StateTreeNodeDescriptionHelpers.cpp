@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "StateTreeNodeDescriptionHelpers.h"
 #include "GameplayTagContainer.h"
@@ -78,6 +78,32 @@ FText GetBoolText(bool bValue, EStateTreeNodeFormatting Formatting)
 	return bValue ? LOCTEXT("True", "True") : LOCTEXT("False", "False");
 }
 
+FText GetWithinValueRangeText(float Min, float Max, EStateTreeNodeFormatting Formatting)
+{
+	FNumberFormattingOptions Options;
+	Options.MinimumFractionalDigits = 1;
+	Options.MaximumFractionalDigits = 2;
+
+	FText MinValueText = FText::AsNumber(Min, &Options);
+	FText MaxValueText = FText::AsNumber(Max, &Options);
+
+	FText WithinValueRangeText;
+	if (Formatting == EStateTreeNodeFormatting::RichText)
+	{
+		WithinValueRangeText = FText::Format(LOCTEXT("WithinValueRangeRich", "<s>in</> [{Min}<s>,</> {Max}]"),
+			MinValueText,
+			MaxValueText);
+	}
+	else //EStateTreeNodeFormatting::Text
+	{
+		WithinValueRangeText = FText::Format(LOCTEXT("WithinValueRange", "in [{Min}, {Max}]"),
+			MinValueText,
+			MaxValueText);
+	}
+
+	return WithinValueRangeText;
+}
+
 FText GetGameplayTagContainerAsText(const FGameplayTagContainer& TagContainer, const int ApproxMaxLength)
 {
 	if (TagContainer.IsEmpty())
@@ -138,7 +164,6 @@ FText GetExactMatchText(bool bExactMatch, EStateTreeNodeFormatting Formatting)
 	}
 	return bExactMatch ? LOCTEXT("Exactly", "exactly ") : FText::GetEmpty();
 }
-
 } // UE::StateTree::Helpers
 
 #undef LOCTEXT_NAMESPACE

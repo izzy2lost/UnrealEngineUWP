@@ -181,7 +181,7 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 
 	const FComboButtonStyle& ComboButtonStyle = FCoreStyle::Get().GetWidgetStyle<FComboButtonStyle>("ComboButton");
 
-	// Condition Operand combo button
+	// Expression Operand combo button
 	const FButtonStyle OperandButton = FButtonStyle()
 		.SetNormal(FSlateRoundedBoxBrush(FStyleColors::AccentGreen.GetSpecifiedColor().Desaturate(0.3f), 4.0f))
 		.SetHovered(FSlateRoundedBoxBrush(FStyleColors::AccentGreen.GetSpecifiedColor().Desaturate(0.2f), 4.0f))

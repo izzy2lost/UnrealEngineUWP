@@ -5,6 +5,7 @@
 #include "Engine/BlueprintGeneratedClass.h"
 #include "Blueprint/StateTreeTaskBlueprintBase.h"
 #include "Blueprint/StateTreeConditionBlueprintBase.h"
+#include "Blueprint/StateTreeConsiderationBlueprintBase.h"
 #include "ContentBrowserModule.h"
 #include "ClassViewerFilter.h"
 #include "Kismet2/KismetEditorUtilities.h"
@@ -20,6 +21,7 @@
 #include "Misc/UObjectToken.h"
 #include "SStateTreeView.h"
 #include "StateTree.h"
+//#include "StateTreeSchema.h"
 #include "StateTreeCompiler.h"
 #include "StateTreeCompilerLog.h"
 #include "StateTreeDelegates.h"
@@ -663,8 +665,8 @@ namespace UE::StateTree::Editor::Internal
 		if (!TreeData)
 		{
 			return;
-		}
 		
+		}
 		const UStateTreeSchema* Schema = TreeData->Schema;
 		if (!Schema)
 		{
@@ -690,6 +692,13 @@ namespace UE::StateTree::Editor::Internal
 			{
 				UE_LOG(LogStateTreeEditor, Warning, TEXT("%s: Resetting Enter Conditions in state %s due to current schema restrictions."), *GetNameSafe(&StateTree), *GetNameSafe(&State));
 				State.EnterConditions.Reset();
+			}
+
+			// Clear Utility if not allowed
+			if (Schema->AllowUtilityConsiderations() == false && State.Considerations.Num() > 0)
+			{
+				UE_LOG(LogStateTreeEditor, Warning, TEXT("%s: Resetting Utility Considerations in state %s due to current schema restrictions."), *GetNameSafe(&StateTree), *GetNameSafe(&State));
+				State.Considerations.Reset();
 			}
 
 			// Keep single and many tasks based on what is allowed.
@@ -844,7 +853,7 @@ namespace UE::StateTree::Editor
 
 	using FStateTreeTaskBPClassFilter = FEditorNodeClassFilter<UStateTreeTaskBlueprintBase>;
 	using FStateTreeConditionBPClassFilter = FEditorNodeClassFilter<UStateTreeConditionBlueprintBase>;
-
+	using FStateTreeConsiderationBPClassFilter = FEditorNodeClassFilter<UStateTreeConsiderationBlueprintBase>;
 }; // UE::StateTree::Editor
 
 void FStateTreeEditor::BindCommands()
@@ -932,9 +941,9 @@ void FStateTreeEditor::RegisterToolbar()
 
 	static const FToolMenuInsert InsertAfterCompileSection("Compile", EToolMenuInsertType::After);
 
-	FToolMenuSection& CreateNewNodeSection = ToolBar->AddSection("CreateNewTaskAndCondition", TAttribute<FText>(), InsertAfterCompileSection);
+	FToolMenuSection& CreateNewNodeSection = ToolBar->AddSection("CreateNewNodes", TAttribute<FText>(), InsertAfterCompileSection);
 
-	CreateNewNodeSection.AddDynamicEntry("CreateNewTaskAndCondition", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
+	CreateNewNodeSection.AddDynamicEntry("CreateNewNodes", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
 	{
 		const UStateTreeToolMenuContext* Context = InSection.FindContext<UStateTreeToolMenuContext>();
 		if (Context && Context->StateTreeEditor.IsValid())
@@ -960,6 +969,19 @@ void FStateTreeEditor::RegisterToolbar()
 					LOCTEXT("CreateNewCondition_ToolbarTooltip", "Create a new Blueprint State Tree Condition"),
 					TAttribute<FSlateIcon>(StateTreeEditorRef, &FStateTreeEditor::GetNewConditionButtonImage)
 				));
+
+				//reached here before Schema was loaded
+				if (StateTreeSchemaUtilityCVars::CVarAllowUtilityConsiderations->GetBool())
+				{
+					FToolMenuEntry& CreateNewConsiderationDropdown = InSection.AddEntry(FToolMenuEntry::InitComboButton(
+						"CreateNewConsiderationComboButton",
+						FUIAction(),
+						FOnGetContent::CreateSP(StateTreeEditorRef, &FStateTreeEditor::GenerateConsiderationBPBaseClassesMenu),
+						LOCTEXT("CreateNewConsideration_Title", "New Consideration"),
+						LOCTEXT("CreateNewConsideration_ToolbarTooltip", "Create a new Blueprint State Tree Utility Consideration"),
+						TAttribute<FSlateIcon>(StateTreeEditorRef, &FStateTreeEditor::GetNewConsiderationButtonImage)
+					));
+				}
 			}
 		}
 	}));
@@ -1074,6 +1096,23 @@ TSharedRef<SWidget> FStateTreeEditor::GenerateConditionBPBaseClassesMenu() const
 	FClassViewerInitializationOptions Options;
 	Options.NameTypeToDisplay = EClassViewerNameTypeToDisplay::DisplayName;
 	Options.ClassFilters.Add(MakeShareable(new UE::StateTree::Editor::FStateTreeConditionBPClassFilter));
+
+	FOnClassPicked OnPicked(FOnClassPicked::CreateSP(this, &FStateTreeEditor::OnNodeBPBaseClassPicked));
+
+	return FModuleManager::LoadModuleChecked<FClassViewerModule>("ClassViewer").CreateClassViewer(Options, OnPicked);
+}
+
+FSlateIcon FStateTreeEditor::GetNewConsiderationButtonImage() const
+{
+	//placeholder
+	return FSlateIcon(FAppStyle::GetAppStyleSetName(), NAME_None, NAME_None, NAME_None);
+}
+
+TSharedRef<SWidget> FStateTreeEditor::GenerateConsiderationBPBaseClassesMenu() const
+{
+	FClassViewerInitializationOptions Options;
+	Options.NameTypeToDisplay = EClassViewerNameTypeToDisplay::DisplayName;
+	Options.ClassFilters.Add(MakeShareable(new UE::StateTree::Editor::FStateTreeConsiderationBPClassFilter));
 
 	FOnClassPicked OnPicked(FOnClassPicked::CreateSP(this, &FStateTreeEditor::OnNodeBPBaseClassPicked));
 

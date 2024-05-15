@@ -75,7 +75,10 @@ private:
 	FText GetCloseParens() const;
 
 	EVisibility IsConditionVisible() const;
+	EVisibility IsConsiderationVisible() const;
+	EVisibility IsOperandVisible() const;
 	EVisibility AreIndentButtonsVisible() const;
+	EVisibility AreParensVisible() const;
 	
 	EVisibility IsIconVisible() const;
 	const FSlateBrush* GetIcon() const;

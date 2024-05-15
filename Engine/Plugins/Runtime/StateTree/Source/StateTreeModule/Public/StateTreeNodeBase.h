@@ -31,7 +31,7 @@ enum EStateTreeNodeFormatting : uint8
 };
 
 /**
- * Base struct of StateTree Conditions, Evaluators, and Tasks.
+ * Base struct of StateTree Conditions, Considerations, Evaluators, and Tasks.
  */
 USTRUCT()
 struct STATETREEMODULE_API FStateTreeNodeBase

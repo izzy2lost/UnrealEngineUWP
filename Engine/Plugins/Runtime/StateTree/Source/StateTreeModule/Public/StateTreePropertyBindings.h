@@ -31,6 +31,8 @@ enum class EStateTreeBindableStructSource : uint8
 	Task,
 	/** Source is State condition */
 	Condition,
+	/** Source is State utility consideration */
+	Consideration,
 	/** Source is StateTree event used by transition */
 	TransitionEvent,
 	/** Source is StateTree event used by state selection */

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -21,6 +21,9 @@ extern STATETREEMODULE_API FText GetInvertText(bool bInvert, EStateTreeNodeForma
 
 /** @return description of a boolean value. */
 extern STATETREEMODULE_API FText GetBoolText(bool bValue, EStateTreeNodeFormatting Formatting);
+
+/** @return description of being within a value range. */
+extern STATETREEMODULE_API FText GetWithinValueRangeText(float Min, float Max, EStateTreeNodeFormatting Formatting);
 
 /** @return description for a Gameplay Tag Container. If the length of container description is longer than ApproxMaxLength, the it truncated and ... as added to the end. */
 extern STATETREEMODULE_API FText GetGameplayTagContainerAsText(const FGameplayTagContainer& TagContainer, const int ApproxMaxLength = 60);

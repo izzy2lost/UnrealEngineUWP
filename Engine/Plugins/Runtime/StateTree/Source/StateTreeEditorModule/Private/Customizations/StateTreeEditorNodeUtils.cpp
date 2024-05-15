@@ -9,12 +9,14 @@
 #include "PropertyHandle.h"
 #include "ScopedTransaction.h"
 #include "StateTreeConditionBase.h"
+#include "StateTreeConsiderationBase.h"
 #include "StateTreeEditorData.h"
 #include "StateTreeEditorNode.h"
 #include "StateTreeEditorSettings.h"
 #include "StateTreeEditorStyle.h"
 #include "StateTreeTaskBase.h"
 #include "Blueprint/StateTreeConditionBlueprintBase.h"
+#include "Blueprint/StateTreeConsiderationBlueprintBase.h"
 #include "Blueprint/StateTreeEvaluatorBlueprintBase.h"
 #include "Blueprint/StateTreeTaskBlueprintBase.h"
 #include "Widgets/SStateTreeNodeTypePicker.h"
@@ -78,6 +80,16 @@ EVisibility IsConditionVisible(const TSharedPtr<IPropertyHandle>& StructProperty
 	return ScriptStruct != nullptr && ScriptStruct->IsChildOf(FStateTreeConditionBase::StaticStruct()) ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
+EVisibility IsConsiderationVisible(const TSharedPtr<IPropertyHandle>& StructProperty)
+{
+	const UScriptStruct* ScriptStruct = nullptr;
+	if (const FStateTreeEditorNode* Node = GetCommonNode(StructProperty))
+	{
+		ScriptStruct = Node->Node.GetScriptStruct();
+	}
+
+	return ScriptStruct != nullptr && ScriptStruct->IsChildOf(FStateTreeConsiderationBase::StaticStruct()) ? EVisibility::Visible : EVisibility::Collapsed;
+}
 
 FName GetNodeIconName(const TSharedPtr<IPropertyHandle>& StructProperty)
 {
@@ -424,6 +436,18 @@ void SetNodeTypeStruct(const TSharedPtr<IPropertyHandle>& StructProperty, const 
 							Node->InstanceObject = NewObject<UObject>(Outer, InstanceClass);
 						}
 					}
+					else if (InStruct->IsChildOf(FStateTreeConsiderationBase::StaticStruct()))
+					{
+						FStateTreeConsiderationBase& Consideration = Node->Node.GetMutable<FStateTreeConsiderationBase>();
+						if (const UScriptStruct* InstanceType = Cast<const UScriptStruct>(Consideration.GetInstanceDataType()))
+						{
+							Node->Instance.InitializeAs(InstanceType);
+						}
+						else if (const UClass* InstanceClass = Cast<const UClass>(Consideration.GetInstanceDataType()))
+						{
+							Node->InstanceObject = NewObject<UObject>(Outer, InstanceClass);
+						}
+					}
 
 					if (bRetainProperties)
 					{
@@ -483,6 +507,16 @@ void SetNodeTypeClass(const TSharedPtr<IPropertyHandle>& StructProperty, const U
 					Node->Node.InitializeAs(FStateTreeBlueprintConditionWrapper::StaticStruct());
 					FStateTreeBlueprintConditionWrapper& Cond = Node->Node.GetMutable<FStateTreeBlueprintConditionWrapper>();
 					Cond.ConditionClass = const_cast<UClass*>(InClass);
+
+					Node->InstanceObject = NewObject<UObject>(Outer, InClass);
+
+					Node->ID = FGuid::NewGuid();
+				}
+				else if (InClass && InClass->IsChildOf(UStateTreeConsiderationBlueprintBase::StaticClass()))
+				{
+					Node->Node.InitializeAs(FStateTreeBlueprintConsiderationWrapper::StaticStruct());
+					FStateTreeBlueprintConsiderationWrapper& Consideration = Node->Node.GetMutable<FStateTreeBlueprintConsiderationWrapper>();
+					Consideration.ConsiderationClass = const_cast<UClass*>(InClass);
 
 					Node->InstanceObject = NewObject<UObject>(Outer, InClass);
 

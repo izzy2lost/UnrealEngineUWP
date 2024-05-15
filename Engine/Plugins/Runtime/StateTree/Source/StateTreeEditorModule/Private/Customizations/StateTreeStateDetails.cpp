@@ -75,6 +75,7 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 	const TSharedPtr<IPropertyHandle> TasksProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, Tasks));
 	const TSharedPtr<IPropertyHandle> SingleTaskProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, SingleTask));
 	const TSharedPtr<IPropertyHandle> EnterConditionsProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, EnterConditions));
+	const TSharedPtr<IPropertyHandle> ConsiderationsProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, Considerations));
 	const TSharedPtr<IPropertyHandle> TransitionsProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, Transitions));
 	const TSharedPtr<IPropertyHandle> TypeProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, Type));
 	const TSharedPtr<IPropertyHandle> LinkedSubtreeProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, LinkedSubtree));
@@ -285,6 +286,28 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 		DetailBuilder.EditCategory(EnterConditionsCategoryName).SetCategoryVisibility(false);
 	}
 
+	// Utility
+	const FName UtilityCategoryName(TEXT("Utility"));
+	if (StateTreeSchemaUtilityCVars::CVarAllowUtilityConsiderations->GetBool() && Schema && Schema->AllowUtilityConsiderations())
+	{
+		IDetailCategoryBuilder& UtilityConsiderationsCategory = UE::StateTreeEditor::EditorNodeUtils::MakeArrayCategory(
+			DetailBuilder,
+			ConsiderationsProperty,
+			UtilityCategoryName,
+			LOCTEXT("StateDetailsUtility", "Utility"),
+			FName("StateTreeEditor.Considerations"),
+			UE::StateTree::Colors::Yellow,
+			UE::StateTree::Colors::Yellow.WithAlpha(192),
+			LOCTEXT("UtilityAddTooltip", "Add new Utility Consideration"),
+			/*SortOrder*/3);
+
+		ConsiderationsProperty->MarkHiddenByCustomization();
+	}
+	else
+	{
+		DetailBuilder.EditCategory(UtilityCategoryName).SetCategoryVisibility(false);
+	}
+
 	// Tasks
 	if ((StateType == EStateTreeStateType::State || StateType == EStateTreeStateType::Subtree))
 	{
@@ -300,7 +323,7 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 				UE::StateTree::Colors::Cyan,
 				UE::StateTree::Colors::Cyan.WithAlpha(192),
 				LOCTEXT("StateDetailsTasksAddTooltip", "Add new Task"),
-				/*SortOrder*/3);
+				/*SortOrder*/4);
 			SingleTaskProperty->MarkHiddenByCustomization();
 		}
 		else
@@ -331,7 +354,7 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 		UE::StateTree::Colors::Magenta,
 		UE::StateTree::Colors::Magenta.WithAlpha(192),
 		LOCTEXT("StateDetailsTransitionsAddTooltip", "Add new Transition"),
-		/*SortOrder*/4);
+		/*SortOrder*/5);
 
 	// Refresh the UI when the type changes.	
 	TypeProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([PropUtils = PropUtils] ()

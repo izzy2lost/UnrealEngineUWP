@@ -3,6 +3,7 @@
 #include "StateTreeEditorData.h"
 #include "StateTree.h"
 #include "StateTreeConditionBase.h"
+#include "StateTreeConsiderationBase.h"
 #include "StateTreeDelegates.h"
 #include "StateTreeEvaluatorBase.h"
 #include "StateTreeTaskBase.h"
@@ -951,6 +952,29 @@ EStateTreeVisitor UStateTreeEditorData::VisitStateNodes(const UStateTreeState& S
 				Desc.Name = Node.GetName();
 				Desc.ID = Node.ID;
 				Desc.DataSource = EStateTreeBindableStructSource::Condition;
+
+				if (InFunc(&State, Desc, Node.GetInstance()) == EStateTreeVisitor::Break)
+				{
+					bContinue = false;
+					break;
+				}
+			}
+		}
+	}
+	if (bContinue)
+	{
+		const FString StatePathWithConsiderations = StatePath + TEXT("/Considerations");
+		// Utility Considerations
+		for (const FStateTreeEditorNode& Node : State.Considerations)
+		{
+			if (const FStateTreeConsiderationBase* Consideration = Node.Node.GetPtr<FStateTreeConsiderationBase>())
+			{
+				FStateTreeBindableStructDesc Desc;
+				Desc.StatePath = StatePathWithConsiderations;
+				Desc.Struct = Consideration->GetInstanceDataType();
+				Desc.Name = Node.GetName();
+				Desc.ID = Node.ID;
+				Desc.DataSource = EStateTreeBindableStructSource::Consideration;
 
 				if (InFunc(&State, Desc, Node.GetInstance()) == EStateTreeVisitor::Break)
 				{

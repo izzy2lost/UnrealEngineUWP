@@ -47,6 +47,13 @@ void GetNodeBaseScriptStructAndClass(const TSharedPtr<IPropertyHandle>& StructPr
 EVisibility IsConditionVisible(const TSharedPtr<IPropertyHandle>& StructProperty);
 
 /**
+ * Returns visibility status depending if the node is a Consideration.
+ * @param StructProperty Property handle pointing to a FStateTreeEditorNode.
+ * @return visibility status.
+ */
+EVisibility IsConsiderationVisible(const TSharedPtr<IPropertyHandle>& StructProperty);
+
+/**
  * Returns condition evaluation method of a node.
  * @param StructProperty Property handle pointing to a FStateTreeEditorNode. 
  * @return condition evaluation method or Evaluated if not valid node.
