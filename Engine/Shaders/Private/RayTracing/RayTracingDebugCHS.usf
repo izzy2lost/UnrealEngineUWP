@@ -23,7 +23,7 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(RayTracingDebugMainCHS,
 
 	Payload.WorldNormal = GetGeometryNormalFromTriangleBaseAttributes(PrimitiveIndex());
 	Payload.InstanceIndex = InstanceIndex();
-	Payload.GeometryIndex = GeometryIndex();
+	Payload.GeometryIndex = 0; // GeometryIndex();
 	Payload.ScenePrimitiveIndex = InstanceSceneData.PrimitiveId;
 }
 
