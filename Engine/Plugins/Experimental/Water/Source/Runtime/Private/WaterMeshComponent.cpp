@@ -205,6 +205,12 @@ bool UWaterMeshComponent::ShouldBuildQuadTreeInSceneProxy() const
 	return bShouldBuildQuadTreeInSceneProxy;
 }
 
+const FWaterQuadTree& UWaterMeshComponent::GetWaterQuadTree() const
+{
+	ensureMsgf(!ShouldBuildQuadTreeInSceneProxy(), TEXT("Retrieving the water quadtree from the WaterMeshComponent is invalid if the quadtree is built in the scene proxy!"));
+	return WaterQuadTree;
+}
+
 void UWaterMeshComponent::SetDynamicWaterMeshCenter(const FVector2D& NewCenter)
 {
 	if (!DynamicWaterMeshCenter.Equals(NewCenter))

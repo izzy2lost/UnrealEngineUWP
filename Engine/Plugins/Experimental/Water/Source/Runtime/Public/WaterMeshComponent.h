@@ -52,7 +52,7 @@ public:
 
 	bool ShouldBuildQuadTreeInSceneProxy() const;
 	const FWaterQuadTreeBuilder& GetWaterQuadTreeBuilder() const { return WaterQuadTreeBuilder; }
-	const FWaterQuadTree& GetWaterQuadTree() const { return WaterQuadTree; }
+	const FWaterQuadTree& GetWaterQuadTree() const;
 
 	const TSet<TObjectPtr<UMaterialInterface>>& GetUsedMaterialsSet() const { return UsedMaterials; }
 
