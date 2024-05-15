@@ -1843,6 +1843,8 @@ void FLogMessagesMessageHandler::ServerReceiveMessage(FMPCollectorServerMessageC
 		{
 			checkNoEntry();
 		}
+
+		FMsg::Logf(__FILE__, __LINE__, LogData.Category, LogData.Verbosity, TEXT("[CookWorker %d]: %s"),
 	}
 
 	// Flush if the tables in the serialization context have exceeded 100 entries
