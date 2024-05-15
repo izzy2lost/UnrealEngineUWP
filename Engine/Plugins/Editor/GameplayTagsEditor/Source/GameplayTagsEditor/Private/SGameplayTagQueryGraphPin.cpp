@@ -36,6 +36,7 @@ TSharedRef<SWidget>	SGameplayTagQueryGraphPin::GetDefaultValueWidget()
 
 	return SNew(SGameplayTagQueryEntryBox)
 		.Visibility(this, &SGraphPin::GetDefaultValueVisibility)
+		.Filter(UE::GameplayTags::EditorUtilities::ExtractTagFilterStringFromGraphPin(GraphPinObj))
 		.DescriptionMaxWidth(250.0f)
 		.TagQuery(this, &SGameplayTagQueryGraphPin::GetTagQuery)
 		.OnTagQueryChanged(this, &SGameplayTagQueryGraphPin::OnTagQueryChanged);
