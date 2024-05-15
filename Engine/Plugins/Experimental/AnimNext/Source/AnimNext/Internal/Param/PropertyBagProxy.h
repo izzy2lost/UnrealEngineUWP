@@ -10,7 +10,7 @@ namespace UE::AnimNext
 {
 
 // Proxy struct used to hold data in a property bag
-struct FPropertyBagProxy : public IParameterSource
+struct ANIMNEXT_API FPropertyBagProxy : public IParameterSource
 {
 	FPropertyBagProxy(FName InInstanceId);
 
