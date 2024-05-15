@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "DMXGDTFColorCIE1931xyY.h"
 #include "GDTF/DMXGDTFNode.h"
 #include "Math/Vector.h"
 #include "Misc/EnumRange.h"
@@ -42,13 +43,14 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("ColorSpace"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 		
 		/** 
 		 * Unique Name of the Color Space. Default Value : "Default".
 		 * Note that the name need to be unique for the default colorspace and all color spaces in the AdditionalColorSpaces node. 
 		 */
-		FName Name = "Default";
+		FName Name = "";
 
 		/** 
 		 * Definition of the Color Space that used for the indirect color mixing.
@@ -57,16 +59,16 @@ namespace UE::DMX::GDTF
 		EDMXGDTFColorSpaceMode Mode = EDMXGDTFColorSpaceMode::sRGB;
 
 		/** (Optional) CIE xyY of the Red Primary; this is used only if the ColorSpace is "Custom". */
-		FVector Red = FVector::ZeroVector;	
+		FDMXGDTFColorCIE1931xyY Red;	
 		
 		/** (Optional) CIE xyY of the Green Primary; this is used only if the ColorSpace is "Custom". */
-		FVector Green = FVector::ZeroVector;
+		FDMXGDTFColorCIE1931xyY Green;
 
 		/** (Optional) CIE xyY of the Blue Primary; this is used only if the ColorSpace is "Custom". */
-		FVector Blue = FVector::ZeroVector;
+		FDMXGDTFColorCIE1931xyY Blue;
 		
 		/** (Optional) CIE xyY of the White Point; this is used only if the ColorSpace is "Custom". */
-		FVector WhitePoint = FVector::ZeroVector;
+		FDMXGDTFColorCIE1931xyY WhitePoint;
 
 		/** The outer physcial descriptions */
 		const TWeakPtr<FDMXGDTFPhysicalDescriptions> OuterPhysicalDescriptions;

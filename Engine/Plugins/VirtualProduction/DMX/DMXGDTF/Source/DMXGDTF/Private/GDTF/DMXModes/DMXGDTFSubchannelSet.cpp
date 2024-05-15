@@ -10,6 +10,7 @@
 #include "GDTF/PhysicalDescriptions/DMXGDTFDMXProfile.h"
 #include "GDTF/PhysicalDescriptions/DMXGDTFPhysicalDescriptions.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -27,6 +28,20 @@ namespace UE::DMX::GDTF
 			.GetAttribute(TEXT("DMXProfile"), DMXProfile);
 	}
 
+	FXmlNode* FDMXGDTFSubchannelSet::CreateXmlNode(FXmlNode& Parent)
+	{
+		const float DefaultPhysicalFrom = 0.f;
+		const float DefaultPhysicalTo = 1.f;
+
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("Name"), Name)
+			.SetAttribute(TEXT("PhysicalFrom"), PhysicalFrom, DefaultPhysicalFrom)
+			.SetAttribute(TEXT("PhysicalTo"), PhysicalTo, DefaultPhysicalTo)
+			.SetAttribute(TEXT("SubphyiscalUnit"), SubphyiscalUnit)
+			.SetAttribute(TEXT("DMXProfile"), DMXProfile);
+
+		return ChildBuilder.GetIntermediateXmlNode();
+	}
 	TSharedPtr<FDMXGDTFSubphysicalUnit> FDMXGDTFSubchannelSet::ResolveSubphysicalUnit() const
 	{
 		TArray<FString> Link;

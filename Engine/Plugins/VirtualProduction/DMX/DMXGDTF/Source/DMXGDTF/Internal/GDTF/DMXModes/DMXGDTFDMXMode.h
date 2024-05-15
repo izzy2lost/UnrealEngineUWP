@@ -22,6 +22,7 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("DMXMode"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 
 		/** The unique name of the DMX mode */
@@ -30,11 +31,7 @@ namespace UE::DMX::GDTF
 		/** Description of the DMX mode. */
 		FString Description;
 
-		/**
-		 * The first geometry in the device; Only top level geometries are allowed to be linked
-		 *
-		 * UE Specific: A ptr to the geometry instead of its unique name.
-		 */
+		/** The first geometry in the device; Only top level geometries are allowed to be linked	 */
 		FString Geometry;
 
 		/** Description of all DMX channels used in the mode */

@@ -48,6 +48,7 @@ namespace UE::DMX::GDTF
 		//~ Begin DMXGDTFGeneralGeometryNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("Structure"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End DMXGDTFGeneralGeometryNode interface
 
 		/** The linked geometry */
@@ -60,10 +61,10 @@ namespace UE::DMX::GDTF
 		EDMXGDTFStructureGeometryCrossSectionType CrossSectionType = EDMXGDTFStructureGeometryCrossSectionType::TrussFramework;
 
 		/** The height of the cross section. Only for Tubes. Unit: meter */
-		double CrossSectionHeight = 0.f;
+		float CrossSectionHeight = 0.f;
 
 		/** The thickness of the wall of the cross section. Only for Tubes. Unit: meter. */
-		double CrossSectionWallThickness = 0.f;
+		float CrossSectionWallThickness = 0.f;
 
 		/** The name of the truss cross section. Only for Trusses. */
 		FString TrussCrossSection;

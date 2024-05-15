@@ -35,3 +35,14 @@ void UDMXGDTF::InitializeFromData(const TArray64<uint8>& Data)
 	Description = MakeShared<FDMXGDTFDescription>();
 	Description->InitializeFromDescriptionXml(XmlFile);
 }
+
+void UDMXGDTF::InitializeFromFixtureType(const TSharedRef<FDMXGDTFFixtureType>& InFixtureType)
+{
+	Description = MakeShared<FDMXGDTFDescription>();
+	Description->InitializeFromFixtureType(InFixtureType);
+}
+
+TSharedPtr<FXmlFile> UDMXGDTF::ExportAsXml() const
+{
+	return Description->ExportAsXml();
+}

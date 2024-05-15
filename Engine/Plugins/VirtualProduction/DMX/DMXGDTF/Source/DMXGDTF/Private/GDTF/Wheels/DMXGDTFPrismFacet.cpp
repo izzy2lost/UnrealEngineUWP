@@ -3,6 +3,7 @@
 #include "GDTF/Wheels/DMXGDTFPrismFacet.h"
 
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -15,5 +16,14 @@ namespace UE::DMX::GDTF
 		FDMXGDTFNodeInitializer(SharedThis(this), XmlNode)
 			.GetAttribute(TEXT("Color"), Color)
 			.GetAttribute(TEXT("Rotation"), Rotation);
+	}
+
+	FXmlNode* FDMXGDTFPrismFacet::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("Color"), Color)
+			.SetAttribute(TEXT("Rotation"), Rotation, EDMXGDTFMatrixType::Matrix3x3);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 }

@@ -4,6 +4,10 @@
 
 namespace UE::DMX::GDTF
 {
+	FDMXGDTFDMXValue::FDMXGDTFDMXValue(const TCHAR* InValue)
+		: Value(InValue)
+	{}
+
 	bool FDMXGDTFDMXValue::ToInt(uint32& OutInteger) const
 	{
 		if (Value.IsEmpty() || Value == TEXT("None"))

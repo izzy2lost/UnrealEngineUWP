@@ -21,6 +21,7 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("DMXProfile"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 
 		/** Unique name of the DMX profile */

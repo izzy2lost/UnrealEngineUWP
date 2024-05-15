@@ -22,6 +22,7 @@
 #include "GDTF/Geometries/DMXGDTFSupportGeometry.h"
 #include "GDTF/Geometries/DMXGDTFWiringObjectGeometry.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -54,6 +55,30 @@ namespace UE::DMX::GDTF
 			.CreateChildren(TEXT("Magnet"), MagnetArray);
 	}
 
+	FXmlNode* FDMXGDTFGeometryCollectBase::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.AppendChildren(TEXT("Geometry"), GeometryArray)
+			.AppendChildren(TEXT("Axis"), AxisArray)
+			.AppendChildren(TEXT("FilterBeam"), FilterBeamArray)
+			.AppendChildren(TEXT("FilterColor"), FilterColorArray)
+			.AppendChildren(TEXT("FilterGobo"), FilterGoboArray)
+			.AppendChildren(TEXT("FilterShaper"), FilterShaperArray)
+			.AppendChildren(TEXT("Beam"), BeamArray)
+			.AppendChildren(TEXT("MediaServerLayer"), MediaServerLayerArray)
+			.AppendChildren(TEXT("MediaServerCamera"), MediaServerCameraArray)
+			.AppendChildren(TEXT("MediaServerMaster"), MediaServerMasterArray)
+			.AppendChildren(TEXT("Display"), DisplayArray)
+			.AppendChildren(TEXT("GeometryReference"), GeometryReferenceArray)
+			.AppendChildren(TEXT("Laser"), LaserArray)
+			.AppendChildren(TEXT("WiringObject"), WiringObjectArray)
+			.AppendChildren(TEXT("Inventory"), InventoryArray)
+			.AppendChildren(TEXT("Structure"), StructureArray)
+			.AppendChildren(TEXT("Support"), SupportArray)
+			.AppendChildren(TEXT("Magnet"), MagnetArray);
+
+		return ChildBuilder.GetIntermediateXmlNode();
+	}
 	void FDMXGDTFGeometryCollectBase::FindGeometryByName(const TCHAR* InName, TSharedPtr<FDMXGDTFGeometry>& OutGeometry, TSharedPtr<FDMXGDTFGeometryReference>& OutGeometryReference) const
 	{
 		const TSharedPtr<FDMXGDTFGeometryReference>* GeometryReferencePtr = Algo::FindBy(GeometryReferenceArray, InName, &FDMXGDTFGeometryReference::Name);

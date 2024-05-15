@@ -19,6 +19,7 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("AnimationSystem"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 
 		/**
@@ -52,7 +53,7 @@ namespace UE::DMX::GDTF
 		 * Radius of the circle that defines the section of the animation system which 
 		 * will be shown in the beam 
 		 */
-		double Radius = 0.0;
+		float Radius = 0.0;
 
 		/** The outer wheel slot */
 		const TWeakPtr<FDMXGDTFWheelSlot> OuterWheelSlot;

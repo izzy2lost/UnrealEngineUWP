@@ -25,13 +25,14 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("Properties"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 
 		/** (optional) Temperature range in which the device can be operated. */
 		TSharedPtr<FDMXGDTFOperatingTemperature> OperatingTemperature;
 
 		/** (optional) Weight of the device including all accessories. */
-		TSharedPtr<FDMXGDTFWeight> Weigth;
+		TSharedPtr<FDMXGDTFWeight> Weight;
 
 		/** (optional) Height of the legs. */
 		TSharedPtr<FDMXGDTFLegHeight> LegHeight;

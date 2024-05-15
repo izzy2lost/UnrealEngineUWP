@@ -3,6 +3,7 @@
 #include "GDTF/Wheels/DMXGDTFAnimationSystem.h"
 
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -17,5 +18,16 @@ namespace UE::DMX::GDTF
 			.GetAttribute(TEXT("P2"), P2)
 			.GetAttribute(TEXT("P3"), P3)
 			.GetAttribute(TEXT("Radius"), Radius);
+	}
+
+	FXmlNode* FDMXGDTFAnimationSystem::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("P1"), P1)
+			.SetAttribute(TEXT("P2"), P2)
+			.SetAttribute(TEXT("P3"), P3)
+			.SetAttribute(TEXT("Radius"), Radius);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 }

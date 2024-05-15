@@ -6,6 +6,7 @@
 #include "GDTF/Geometries/DMXGDTFWiringObjectPinPatch.h"
 #include "GDTF/Models/DMXGDTFModel.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -33,6 +34,36 @@ namespace UE::DMX::GDTF
 			.GetAttribute(TEXT("Orientation"), Orientation)
 			.GetAttribute(TEXT("WireGroup"), WireGroup)
 			.CreateChildren(TEXT("PinPatch"), PinPatchArray);
+	}
+
+	FXmlNode* FDMXGDTFWiringObjectGeometry::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FTransform DefaultMatrix = FTransform::Identity;
+
+		FXmlNode* AppendToNode = FDMXGDTFGeometry::CreateXmlNode(Parent);
+
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this, AppendToNode)
+			.SetAttribute(TEXT("ConnectorType"), ConnectorType)
+			.SetAttribute(TEXT("Matrix"), Matrix, EDMXGDTFMatrixType::Matrix4x4, DefaultMatrix)
+			.SetAttribute(TEXT("ComponentType"), ComponentType)
+			.SetAttribute(TEXT("SignalType"), SignalType)
+			.SetAttribute(TEXT("PinCount"), PinCount)
+			.SetAttribute(TEXT("ElectricalPayLoad"), ElectricalPayLoad)
+			.SetAttribute(TEXT("VoltageRangeMax"), VoltageRangeMax)
+			.SetAttribute(TEXT("VoltageRangeMin"), VoltageRangeMin)
+			.SetAttribute(TEXT("FrequencyRangeMax"), FrequencyRangeMax)
+			.SetAttribute(TEXT("FrequencyRangeMin"), FrequencyRangeMin)
+			.SetAttribute(TEXT("MaxPayLoad"), MaxPayLoad)
+			.SetAttribute(TEXT("Voltage"), Voltage)
+			.SetAttribute(TEXT("SignalLayer"), SignalLayer)
+			.SetAttribute(TEXT("CosPhi"), CosPhi)
+			.SetAttribute(TEXT("FuseCurrent"), FuseCurrent)
+			.SetAttribute(TEXT("FuseRating"), FuseRating)
+			.SetAttribute(TEXT("Orientation"), Orientation)
+			.SetAttribute(TEXT("WireGroup"), WireGroup)
+			.AppendChildren(TEXT("PinPatch"), PinPatchArray);
+		
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 
 	TSharedPtr<FDMXGDTFModel> FDMXGDTFWiringObjectGeometry::ResolveModel() const

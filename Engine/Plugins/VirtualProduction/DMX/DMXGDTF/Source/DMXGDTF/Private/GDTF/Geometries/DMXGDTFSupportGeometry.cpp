@@ -3,6 +3,7 @@
 #include "GDTF/Geometries/DMXGDTFSupportGeometry.h"
 
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -26,5 +27,29 @@ namespace UE::DMX::GDTF
 			.GetAttribute(TEXT("ResistanceXX"), ResistanceXX)
 			.GetAttribute(TEXT("ResistanceYY"), ResistanceYY)
 			.GetAttribute(TEXT("ResistanceZZ"), ResistanceZZ);
+	}
+
+	FXmlNode* FDMXGDTFSupportGeometry::CreateXmlNode(FXmlNode& Parent)
+	{
+		FXmlNode* AppendToNode = FDMXGDTFGeometry::CreateXmlNode(Parent);
+
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this, AppendToNode)
+			.SetAttribute(TEXT("SupportType"), SupportType)
+			.SetAttribute(TEXT("RopeCrossSection"), RopeCrossSection)
+			.SetAttribute(TEXT("RopeOffset"), RopeOffset)
+			.SetAttribute(TEXT("CapacityX"), CapacityX)
+			.SetAttribute(TEXT("CapacityY"), CapacityY)
+			.SetAttribute(TEXT("CapacityZ"), CapacityZ)
+			.SetAttribute(TEXT("CapacityXX"), CapacityXX)
+			.SetAttribute(TEXT("CapacityYY"), CapacityYY)
+			.SetAttribute(TEXT("CapacityZZ"), CapacityZZ)
+			.SetAttribute(TEXT("ResistanceX"), ResistanceX)
+			.SetAttribute(TEXT("ResistanceY"), ResistanceY)
+			.SetAttribute(TEXT("ResistanceZ"), ResistanceZ)
+			.SetAttribute(TEXT("ResistanceXX"), ResistanceXX)
+			.SetAttribute(TEXT("ResistanceYY"), ResistanceYY)
+			.SetAttribute(TEXT("ResistanceZZ"), ResistanceZZ);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 }

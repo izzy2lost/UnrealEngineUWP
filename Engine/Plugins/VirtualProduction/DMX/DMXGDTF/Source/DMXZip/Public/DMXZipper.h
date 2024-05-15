@@ -50,6 +50,9 @@ public:
 	/** Saves the zip to specified Filename */
 	[[nodiscard]] bool SaveToFile(const FString& Filename);
 
+	/** Gets the zip as data. Returns true on success */
+	[[nodiscard]] bool GetData(TArray64<uint8>& OutData);
+
 	/** Returns the File Names in the Zip. Note, may contain relative paths */
 	TArray<FString> GetFiles() const;
 

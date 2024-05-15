@@ -64,6 +64,7 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("LogicalChannel"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface;
 
 		/** Link to the attribute; The starting point is the Attribute Collect. */
@@ -76,14 +77,14 @@ namespace UE::DMX::GDTF
 		EDMXGDTFLogicalChannelMaster Master = EDMXGDTFLogicalChannelMaster::None;
 
 		/** Minimum fade time for moves in black action. MibFade is defined for the complete DMX range. Default value : 0; Unit: second */
-		double MibFade = 0.0;
+		float MibFade = 0.f;
 
 		/**
 		 * Minimum fade time for the subordinate channel functions to change
 		 * DMX values by the control system.DMXChangeTimeLimit is defined
 		 * for the complete DMX range.Default value : 0; Unit: second
 		 */
-		double DMXChangeTimeLimit = 0.0;
+		float DMXChangeTimeLimit = 0.f;
 
 		/** A list of channel functions */
 		TArray<TSharedPtr<FDMXGDTFChannelFunction>> ChannelFunctionArray;

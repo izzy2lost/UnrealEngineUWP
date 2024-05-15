@@ -7,18 +7,19 @@
 namespace UE::DMX::GDTF::RDM
 {
 	class FDMXGDTFDMXPersonality;
-	class FDMXGDTFProtocolRDM;
+	class FDMXGDTFProtocolFTRDM;
 
 	/** For each supported software version add an XML node <SoftwareVersionID>.. */
 	class DMXGDTF_API FDMXGDTFSoftwareVersionID
 		: public FDMXGDTFNode
 	{
 	public:
-		FDMXGDTFSoftwareVersionID(const TSharedRef<FDMXGDTFProtocolRDM>& InProtocolRDM);
+		FDMXGDTFSoftwareVersionID(const TSharedRef<FDMXGDTFProtocolFTRDM>& InProtocolRDM);
 
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("SoftwareVersionID"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 
 		/** Software version ID */
@@ -28,6 +29,6 @@ namespace UE::DMX::GDTF::RDM
 		TArray<TSharedPtr<FDMXGDTFDMXPersonality>> DMXPersonalityArray;
 
 		/** The outer protocols */
-		const TWeakPtr<FDMXGDTFProtocolRDM> OuterProtocolRDM;
+		const TWeakPtr<FDMXGDTFProtocolFTRDM> OuterProtocolRDM;
 	};
 }

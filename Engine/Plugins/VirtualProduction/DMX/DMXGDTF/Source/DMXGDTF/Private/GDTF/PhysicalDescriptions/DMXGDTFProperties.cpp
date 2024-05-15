@@ -6,6 +6,7 @@
 #include "GDTF/PhysicalDescriptions/DMXGDTFOperatingTemperature.h"
 #include "GDTF/PhysicalDescriptions/DMXGDTFWeight.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -17,7 +18,17 @@ namespace UE::DMX::GDTF
 	{
 		FDMXGDTFNodeInitializer(SharedThis(this), XmlNode)
 			.CreateOptionalChild(TEXT("OperatingTemperature"), OperatingTemperature)
-			.CreateOptionalChild(TEXT("Weigth"), Weigth)
+			.CreateOptionalChild(TEXT("Weight"), Weight)
 			.CreateOptionalChild(TEXT("LegHeight"), LegHeight);
+	}
+
+	FXmlNode* FDMXGDTFProperties::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.AppendOptionalChild(TEXT("OperatingTemperature"), OperatingTemperature)
+			.AppendOptionalChild(TEXT("Weight"), Weight)
+			.AppendOptionalChild(TEXT("LegHeight"), LegHeight);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 }

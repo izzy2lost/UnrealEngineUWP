@@ -18,6 +18,7 @@ namespace UE::DMX::GDTF
 		//~ Begin DMXGDTFGeneralGeometryNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("Inventory"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End DMXGDTFGeneralGeometryNode interface
 
 		/** The default count for new objects. */

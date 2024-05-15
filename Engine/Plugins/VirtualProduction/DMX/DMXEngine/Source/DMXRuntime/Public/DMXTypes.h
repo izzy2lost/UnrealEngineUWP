@@ -3,15 +3,15 @@
 #pragma once
 
 #include "DMXAttribute.h"
-
-#include "CoreMinimal.h"
+#include "DMXGDTFColorCIE1931xyY.h"
 #include "Templates/SubclassOf.h"
 
 #include "DMXTypes.generated.h"
 
 class UDMXLibrary;
 
-
+UE_DEPRECATED(5.5, "FDMXColorCIE1931xyY is deprecated. Please use FDMXGDTFColorCIE1931xyY instead.")
+typedef FDMXGDTFColorCIE1931xyY FDMXColorCIE1931xyY;
 
 /** Holds an array Attribute Names with their normalized Values (expand the property to see the map) */
 USTRUCT(BlueprintType, Category = "DMX")
@@ -21,49 +21,6 @@ struct DMXRUNTIME_API FDMXNormalizedAttributeValueMap
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "DMX")
 	TMap<FDMXAttributeName, float> Map;
-};
-
-
-/** xyY color representation in the CIE 1931 color space, as typically used in GDTF and MVR */
-USTRUCT(BlueprintType, Category = "DMX")
-struct DMXRUNTIME_API FDMXColorCIE1931xyY
-{
-	GENERATED_BODY()
-
-	FString ToString() const
-	{
-		return FString::FromInt(X) + TEXT(", ") + FString::FromInt(Y) + TEXT(", ") + FString::FromInt(YY);
-	}
-
-	/** x */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "DMX")
-	float X = 0.f;
-
-	/** y */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "DMX")
-	float Y = 0.f;
-
-	/** Y */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "DMX")
-	float YY = 0.f;
-
-	friend bool operator==(const FDMXColorCIE1931xyY& A, const FDMXColorCIE1931xyY& B)
-	{
-		return A.X == B.X && A.Y == B.Y && A.YY == B.YY;
-	}
-
-	friend bool operator!=(const FDMXColorCIE1931xyY& A, const FDMXColorCIE1931xyY& B)
-	{
-		return !(A == B);
-	}
-
-	friend FArchive& operator<<(FArchive& Ar, FDMXColorCIE1931xyY& ColorCIE1931)
-	{
-		Ar << ColorCIE1931.X;
-		Ar << ColorCIE1931.Y;
-		Ar << ColorCIE1931.YY;
-		return Ar;
-	}
 };
 
 USTRUCT()

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "DMXGDTFColorCIE1931xyY.h"
 #include "GDTF/DMXGDTFNode.h"
 #include "Math/Vector.h"
 
@@ -21,16 +22,18 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("Slot"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
+
+		/** The unique name of the wheel slot */
+		FName Name;
 
 		/**
 		 * Color of the wheel slot, Default value: {0.3127, 0.3290, 100.0} (white). 
 		 * For Y give relative value compared to overall output defined in property
 		 * Luminous Flux of related Beam Geometry (transmissive case).
-		 *
-		 * UE specific: Using a Vector3d to store the xyY color.
 		 */
-		FVector Color = { 0.3127, 0.3290, 100.0 };
+		FDMXGDTFColorCIE1931xyY Color;
 
 		/**
 		 * (Optional) PNG file name without extension containing image for specific gobos etc.

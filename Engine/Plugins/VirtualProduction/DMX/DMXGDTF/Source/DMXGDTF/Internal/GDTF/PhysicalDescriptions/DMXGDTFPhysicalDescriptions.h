@@ -26,6 +26,7 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("PhysicalDescriptions"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 
 		/** 
@@ -43,7 +44,7 @@ namespace UE::DMX::GDTF
 		TArray<TSharedPtr<FDMXGDTFFilter>> Filters;
 
 		/** This section defines color spaces. Currently it does not have any XML attributes (XML node <AdditionalColorSpaces>). */
-		TArray<TSharedPtr<FDMXGDTFColorSpace>> ColorSpaces;
+		TSharedPtr<FDMXGDTFColorSpace> ColorSpaces;
 
 		/** Describes additional device color spaces. */
 		TArray<TSharedPtr<FDMXGDTFColorSpace>> AdditionalColorSpaces;

@@ -4,6 +4,7 @@
 
 #include "GDTF/PhysicalDescriptions/DMXGDTFDMXProfilePoint.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -16,5 +17,14 @@ namespace UE::DMX::GDTF
 		FDMXGDTFNodeInitializer(SharedThis(this), XmlNode)
 			.GetAttribute(TEXT("Name"), Name)
 			.CreateChildren(TEXT("Point"), PointArray);
+	}
+
+	FXmlNode* FDMXGDTFDMXProfile::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("Name"), Name)
+			.AppendChildren(TEXT("Point"), PointArray);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 }

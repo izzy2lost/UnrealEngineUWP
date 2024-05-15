@@ -12,7 +12,7 @@ namespace UE::DMX::GDTF
 	class FDMXGDTFFeatureGroup;
 	class FDMXGDTFFixtureType;
 
-	/** This section defines the attribute DefinitionCollect for the Fixture Type Attributes. */
+	/** This section defines the attribute definition collect for the Fixture Type Attributes. */
 	class DMXGDTF_API FDMXGDTFAttributeDefinitions
 		: public FDMXGDTFNode
 	{
@@ -22,6 +22,7 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("AttributeDefinitions"); }
 		virtual void Initialize(const FXmlNode& InXmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 
 		/** 

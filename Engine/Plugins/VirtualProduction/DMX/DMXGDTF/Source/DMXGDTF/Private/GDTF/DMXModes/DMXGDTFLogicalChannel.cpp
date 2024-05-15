@@ -8,6 +8,7 @@
 #include "GDTF/DMXGDTFFixtureType.h"
 #include "GDTF/DMXModes/DMXGDTFChannelFunction.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -24,6 +25,19 @@ namespace UE::DMX::GDTF
 			.GetAttribute(TEXT("MibFade"), MibFade)
 			.GetAttribute(TEXT("DMXChangeTimeLimit"), DMXChangeTimeLimit)
 			.CreateChildren(TEXT("ChannelFunction"), ChannelFunctionArray);
+	}
+
+	FXmlNode* FDMXGDTFLogicalChannel::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("Attribute"), Attribute)
+			.SetAttribute(TEXT("Snap"), Snap)
+			.SetAttribute(TEXT("Master"), Master)
+			.SetAttribute(TEXT("MibFade"), MibFade)
+			.SetAttribute(TEXT("DMXChangeTimeLimit"), DMXChangeTimeLimit)
+			.AppendChildren(TEXT("ChannelFunction"), ChannelFunctionArray);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 
 	TSharedPtr<FDMXGDTFAttribute> FDMXGDTFLogicalChannel::ResolveAttribute() const

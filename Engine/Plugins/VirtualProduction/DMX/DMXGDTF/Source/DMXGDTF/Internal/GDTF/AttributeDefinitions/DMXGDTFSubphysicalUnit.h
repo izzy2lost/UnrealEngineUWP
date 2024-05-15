@@ -50,6 +50,7 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("SubphysicalUnit"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 
 		/** Type of subpyhsical unit */
@@ -59,10 +60,10 @@ namespace UE::DMX::GDTF
 		EDMXGDTFPhysicalUnit PhysicalUnit;
 
 		/** The default physical from of the subphysical unit; Unit: as defined in PhysicalUnit; Default value: 0 */
-		double PhysicalFrom = 0.0;
+		float PhysicalFrom = 0.0;
 
 		/** The default physical to of the subphysical unit; Unit: as defined in PhysicalUnit; Default value: 1 */
-		double PhysicalTo = 1.0;
+		float PhysicalTo = 1.0;
 
 		/** The outer attribute */
 		const TWeakPtr<FDMXGDTFAttribute> OuterAttribute;

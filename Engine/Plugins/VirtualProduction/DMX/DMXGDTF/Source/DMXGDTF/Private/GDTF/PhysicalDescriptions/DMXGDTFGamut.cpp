@@ -4,6 +4,7 @@
 
 #include "DMXGDTFLog.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -18,14 +19,23 @@ namespace UE::DMX::GDTF
 			.GetAttribute(TEXT("Points"), Points, this, &FDMXGDTFGamut::ParsePoints);
 	}
 
-	TArray<FVector> FDMXGDTFGamut::ParsePoints(const FString& GDTFString) const
+	FXmlNode* FDMXGDTFGamut::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("Name"), Name)
+			.SetAttribute(TEXT("Points"), Points);
+
+		return ChildBuilder.GetIntermediateXmlNode();
+	}
+
+	TArray<FDMXGDTFColorCIE1931xyY> FDMXGDTFGamut::ParsePoints(const FString& GDTFString) const
 	{
 		const FString CleanString = GDTFString.Replace(TEXT("}"), TEXT(""));
 
 		TArray<FString> Strings;
 		GDTFString.ParseIntoArray(Strings, TEXT("{"));
 
-		TArray<FVector> Result;
+		TArray<FDMXGDTFColorCIE1931xyY> Result;
 		for (const FString& String : Strings)
 		{
 			TArray<FString> ComponentStrings;
@@ -39,10 +49,10 @@ namespace UE::DMX::GDTF
 				break;
 			}
 
-			FVector Point;
+			FDMXGDTFColorCIE1931xyY Point;
 			if (LexTryParseString(Point.X, *ComponentStrings[0]) &&
 				LexTryParseString(Point.Y, *ComponentStrings[1]) &&
-				LexTryParseString(Point.Z, *ComponentStrings[2]))
+				LexTryParseString(Point.YY, *ComponentStrings[2]))
 			{
 				Result.Add(Point);
 			}

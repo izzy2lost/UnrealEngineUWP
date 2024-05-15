@@ -437,7 +437,7 @@ struct DMXRUNTIME_API FDMXOptionalColorCIE1931
 	GENERATED_BODY()
 
 	/** The Optional Value */
-	TOptional<FDMXColorCIE1931xyY> Value;
+	TOptional<FDMXGDTFColorCIE1931xyY> Value;
 
 	/** Resets the optional */
 	void Reset() { Value.Reset(); }
@@ -446,9 +446,9 @@ struct DMXRUNTIME_API FDMXOptionalColorCIE1931
 	bool IsSet() const { return Value.IsSet(); }
 	
 	/** Returns the Value of the optional, only call when the value is set. */
-	const FDMXColorCIE1931xyY& GetValue() const { return Value.GetValue(); }
+	const FDMXGDTFColorCIE1931xyY& GetValue() const { return Value.GetValue(); }
 
-	const FDMXOptionalColorCIE1931& operator=(const FDMXColorCIE1931xyY& Transform)
+	const FDMXOptionalColorCIE1931& operator=(const FDMXGDTFColorCIE1931xyY& Transform)
 	{
 		Value = Transform;
 		return *this;

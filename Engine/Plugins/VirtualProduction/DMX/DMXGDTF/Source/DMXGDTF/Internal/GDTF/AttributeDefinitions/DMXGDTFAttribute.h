@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "DMXGDTFColorCIE1931xyY.h"
 #include "GDTF/DMXGDTFNode.h"
 #include "Math/Vector.h"
 
@@ -24,6 +25,7 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("Attribute"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 
 		/** The unique name of the attribute. */
@@ -45,7 +47,7 @@ namespace UE::DMX::GDTF
 		EDMXGDTFPhysicalUnit PhysicalUnit;
 
 		/** (Optional) Defines the color for the attribute. */
-		FVector Color;
+		FDMXGDTFColorCIE1931xyY Color;
 
 		/** As children the attribute node has a list of a subphysical units. */
 		TArray<TSharedPtr<FDMXGDTFSubphysicalUnit>> SubpyhsicalUnitArray;

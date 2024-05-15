@@ -3,8 +3,10 @@
 #include "GDTF/AttributeDefinitions/DMXGDTFAttribute.h"
 
 #include "GDTF/AttributeDefinitions/DMXGDTFAttributeDefinitions.h"
+#include "GDTF/AttributeDefinitions/DMXGDTFPhysicalUnit.h"
 #include "GDTF/AttributeDefinitions/DMXGDTFSubphysicalUnit.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -23,6 +25,25 @@ namespace UE::DMX::GDTF
 			.GetAttribute(TEXT("MainAttribute"), MainAttribute)
 			.GetAttribute(TEXT("Color"), Color)
 			.CreateChildren(TEXT("SubphysicalUnit"), SubpyhsicalUnitArray);
+	}
+
+	FXmlNode* FDMXGDTFAttribute::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FString DefaultActivationGroup = TEXT("");
+		const FString DefaultMainAttribute = TEXT("");
+		const FDMXGDTFColorCIE1931xyY DefaultColor = { 0.f, 0.f, 0.f };
+
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("Name"), Name)
+			.SetAttribute(TEXT("Pretty"), Pretty)
+			.SetAttribute(TEXT("PhysicalUnit"), PhysicalUnit)
+			.SetAttribute(TEXT("ActivationGroup"), ActivationGroup, DefaultActivationGroup)
+			.SetAttribute(TEXT("Feature"), Feature)
+			.SetAttribute(TEXT("MainAttribute"), MainAttribute, DefaultMainAttribute)
+			.SetAttribute(TEXT("Color"), Color, DefaultColor)
+			.AppendChildren(TEXT("SubphysicalUnit"), SubpyhsicalUnitArray);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 
 	TSharedPtr<FDMXGDTFActivationGroup> FDMXGDTFAttribute::ResolveActivationGroup() const

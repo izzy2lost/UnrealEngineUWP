@@ -20,8 +20,9 @@ namespace UE::DMX::GDTF
 			FDMXGDTFProtocolSACN(const TSharedRef<FDMXGDTFProtocols>& InProtocols);
 
 			//~ Begin FDMXGDTFNode interface
-			virtual const TCHAR* GetXmlTag() const override { return TEXT("FTRDM"); }
+			virtual const TCHAR* GetXmlTag() const override { return TEXT("sACN"); }
 			virtual void Initialize(const FXmlNode& XmlNode) override;
+			virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 			//~ End FDMXGDTFNode interface
 
 			/** As children the Art-Net has a list of Maps. */

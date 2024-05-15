@@ -18,6 +18,7 @@
 #include "GDTF/PhysicalDescriptions/DMXGDTFPhysicalDescriptions.h"
 #include "GDTF/Wheels/DMXGDTFWheel.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -32,7 +33,7 @@ namespace UE::DMX::GDTF
 			.GetAttribute(TEXT("Attribute"), Attribute)
 			.GetAttribute(TEXT("OriginalAttribute"), OriginalAttribute)
 			.GetAttribute(TEXT("DMXFrom"), DMXFrom)
-			.GetAttribute(TEXT("Default"), Default)
+			.GetAttribute(TEXT("Default"), Default, this, &FDMXGDTFChannelFunction::ParseDefault, &XmlNode)
 			.GetAttribute(TEXT("PhysicalFrom"), PhysicalFrom)
 			.GetAttribute(TEXT("PhysicalTo"), PhysicalTo)
 			.GetAttribute(TEXT("RealFade"), RealFade)
@@ -48,8 +49,57 @@ namespace UE::DMX::GDTF
 			.GetAttribute(TEXT("DMXProfile"), DMXProfile)
 			.GetAttribute(TEXT("Min"), Min)
 			.GetAttribute(TEXT("Max"), Max)
+			.GetAttribute(TEXT("CustomName"), CustomName)
 			.CreateChildren(TEXT("ChannelSet"), ChannelSetArray)
 			.CreateChildren(TEXT("SubchannelSet"), SubchannelSetArray);
+
+		// As per specs, Min and Max default the same as PhysicalFrom and PhysicalTo
+		if (Min != PhysicalFrom)
+		{
+			Min = PhysicalFrom;
+		}
+
+		if (Max != PhysicalTo)
+		{
+			Max = PhysicalTo;
+		}
+	}
+
+	FXmlNode* FDMXGDTFChannelFunction::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FString DefaultLink = TEXT("");
+		const FDMXGDTFDMXValue DefaultModeFrom = TEXT("0/1");
+		const FDMXGDTFDMXValue DefaultModeTo = TEXT("0/1");
+		const float DefaultMin = PhysicalFrom;
+		const float DefaultMax = PhysicalTo;
+		const FString DefaultCustomName = TEXT("");
+
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("Name"), Name)
+			.SetAttribute(TEXT("Attribute"), Attribute)
+			.SetAttribute(TEXT("OriginalAttribute"), OriginalAttribute)
+			.SetAttribute(TEXT("DMXFrom"), DMXFrom)
+			.SetAttribute(TEXT("Default"), Default)
+			.SetAttribute(TEXT("PhysicalFrom"), PhysicalFrom)
+			.SetAttribute(TEXT("PhysicalTo"), PhysicalTo)
+			.SetAttribute(TEXT("RealFade"), RealFade)
+			.SetAttribute(TEXT("RealAcceleration"), RealAcceleration)
+			.SetAttribute(TEXT("Wheel"), Wheel, DefaultLink)
+			.SetAttribute(TEXT("Emitter"), Emitter, DefaultLink)
+			.SetAttribute(TEXT("Filter"), Filter, DefaultLink)
+			.SetAttribute(TEXT("ColorSpace"), ColorSpace, DefaultLink)
+			.SetAttribute(TEXT("Gamut"), Gamut, DefaultLink)
+			.SetAttribute(TEXT("ModeMaster"), ModeMaster, DefaultLink)
+			.SetAttribute(TEXT("ModeFrom"), ModeFrom, DefaultModeFrom)
+			.SetAttribute(TEXT("ModeTo"), ModeTo, DefaultModeTo)
+			.SetAttribute(TEXT("DMXProfile"), DMXProfile, DefaultLink)
+			.SetAttribute(TEXT("Min"), Min, DefaultMin)
+			.SetAttribute(TEXT("Max"), Max, DefaultMax)
+			.SetAttribute(TEXT("CustomName"), CustomName, DefaultCustomName)
+			.AppendChildren(TEXT("ChannelSet"), ChannelSetArray)
+			.AppendChildren(TEXT("SubchannelSet"), SubchannelSetArray);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 
 	TSharedPtr<FDMXGDTFAttribute> FDMXGDTFChannelFunction::ResolveAttribute() const
@@ -108,10 +158,7 @@ namespace UE::DMX::GDTF
 		const TSharedPtr<FDMXGDTFPhysicalDescriptions> PhysicalDescriptions = FixtureType.IsValid() ? FixtureType->PhysicalDescriptions : nullptr;
 		if (PhysicalDescriptions.IsValid())
 		{
-			if (const TSharedPtr<FDMXGDTFColorSpace>* ColorSpacePtr = Algo::FindBy(PhysicalDescriptions->ColorSpaces, ColorSpace, &FDMXGDTFColorSpace::Name))
-			{
-				return *ColorSpacePtr;
-			}
+			return PhysicalDescriptions->ColorSpaces;
 		}
 		return nullptr;
 	}
@@ -158,5 +205,27 @@ namespace UE::DMX::GDTF
 	void FDMXGDTFChannelFunction::ResolveModePrimary(TSharedPtr<FDMXGDTFDMXChannel>& OutDMXChannel, TSharedPtr<FDMXGDTFChannelFunction>& OutChannelFunction) const
 	{
 		ResolveModeMaster(OutDMXChannel, OutChannelFunction);
+	}
+	
+	FDMXGDTFDMXValue FDMXGDTFChannelFunction::ParseDefault(const FString& Value, const FXmlNode* XmlNode) const
+	{
+		if (!Value.IsEmpty())
+		{
+			return FDMXGDTFDMXValue(*Value);
+		}
+		else if(Algo::FindBy(XmlNode->GetAttributes(), TEXT("Default"), &FXmlAttribute::GetValue) == nullptr)
+		{						
+			// Try to read the value from the DXM channel instead, as it was defined in GDTF 1.0
+
+			const TSharedPtr<FDMXGDTFDMXChannel> DMXChannel = OuterLogicalChannel.IsValid() ? OuterLogicalChannel.Pin()->OuterDMXChannel.Pin() : nullptr;
+			if (ensureMsgf(DMXChannel.IsValid(), TEXT("Invalid node, node does not reside in a valid DMX channel.")))
+			{
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				return DMXChannel->Default;
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			}
+		}
+
+		return FDMXGDTFDMXValue();
 	}
 }

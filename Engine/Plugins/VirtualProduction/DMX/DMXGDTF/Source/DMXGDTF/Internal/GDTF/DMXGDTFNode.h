@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "DMXGDTFVersion.h"
 #include "Templates/SharedPointer.h"
 
 class FXmlNode;
@@ -9,17 +10,14 @@ class FXmlNode;
 namespace UE::DMX::GDTF
 {
 	class FDMXGDTFFixtureType;
+	class FDMXGDTFXmlNodeBuilder;
 
-	/**
-	 * Base class for GDTF nodes.
-	 *
-	 * The tree of GDTF nodes is constructed by calling InitializeFromXmlNode from its root. Use DMXGDTFNodeParser to parse attributes and create children.
-	 */
+	/** Base class for GDTF nodes. */
 	class DMXGDTF_API FDMXGDTFNode
 		: public TSharedFromThis<FDMXGDTFNode>
 	{
-		// Allow node initializer to set the fixture type
 		template <typename NodeType> friend class FDMXGDTFNodeInitializer;
+		friend class FDMXGDTFXmlNodeBuilder;
 
 	public:
 		virtual ~FDMXGDTFNode() {}
@@ -29,6 +27,9 @@ namespace UE::DMX::GDTF
 
 		/** Initializes the node from an Xml node. Called after the node was constructed. */
 		virtual void Initialize(const FXmlNode& InXmlNode) = 0;
+
+		/** Creates an XML node in the parent node */
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) { return nullptr; };
 
 		/** Returns the fixture type this node resides in */
 		TWeakPtr<FDMXGDTFFixtureType> GetFixtureType() const { return WeakFixtureType; }

@@ -3,6 +3,7 @@
 #include "GDTF/Geometries/DMXGDTFInventoryGeometry.h"
 
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -10,9 +11,17 @@ namespace UE::DMX::GDTF
 	{
 		FDMXGDTFGeometry::Initialize(XmlNode);
 
-		using namespace UE::DMX::GDTF;
-
 		FDMXGDTFNodeInitializer(SharedThis(this), XmlNode)
 			.GetAttribute(TEXT("Cout"), Count);
+	}
+
+	FXmlNode* FDMXGDTFInventoryGeometry::CreateXmlNode(FXmlNode& Parent)
+	{
+		FXmlNode* AppendToNode = FDMXGDTFGeometry::CreateXmlNode(Parent);
+
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this, AppendToNode)
+			.SetAttribute(TEXT("Cout"), Count);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 }

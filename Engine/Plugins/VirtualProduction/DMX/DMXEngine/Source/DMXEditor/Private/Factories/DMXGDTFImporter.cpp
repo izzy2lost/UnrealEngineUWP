@@ -61,7 +61,8 @@ namespace UE::DMX
 		}
 
 		// Create GDTF
-		UDMXImportGDTF* NewGDTF = NewObject<UDMXImportGDTF>(ImportArgs.Parent.Get(), ImportArgs.Name, ImportArgs.Flags | RF_Public);
+		const FName UniqueName = MakeUniqueObjectName(ImportArgs.Parent.Get(), UDMXImportGDTF::StaticClass(), ImportArgs.Name);
+		UDMXImportGDTF* NewGDTF = NewObject<UDMXImportGDTF>(ImportArgs.Parent.Get(), UniqueName, ImportArgs.Flags | RF_Public);
 
 		// Set Asset Import Data
 		UDMXGDTFAssetImportData* GDTFAssetImportData = NewGDTF->GetGDTFAssetImportData();

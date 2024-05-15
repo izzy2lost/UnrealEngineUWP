@@ -3,7 +3,7 @@
 #pragma once
 
 #include "GDTF/DMXGDTFNode.h"
-#include "GDTF/Geometries/DMXGDTFAddress.h"
+#include "GDTF/Geometries/DMXGDTFDMXAddress.h"
 
 namespace UE::DMX::GDTF
 {
@@ -19,10 +19,11 @@ namespace UE::DMX::GDTF
 		//~ Begin DMXGDTFGeneralGeometryNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("Break"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End DMXGDTFGeneralGeometryNode interface
 
 		/** DMX offset; Default value:1 (Means no offset for the corresponding DMX Channel) */
-		FDMXGDTFAddress DMXAddress;
+		FDMXGDTFDMXAddress DMXOffset;
 
 		/** Defines the unique number of the DMX Break for which the Offset is given. Size: 1 byte; Default value 1 */
 		uint8 DMXBreak = 1;

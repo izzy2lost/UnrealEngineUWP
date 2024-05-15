@@ -3,7 +3,7 @@
 	"Version": 1,
 	"VersionName": "1.0",
 	"FriendlyName": "DMX GDTF",
-	"Description": "Implementation of GDTF standard using Unreal Engine types",
+	"Description": "Implementation of the GDTF standard using Unreal Engine types",
 	"Category": "Virtual Production",
 	"CreatedBy": "Epic Games, Inc.",
 	"CreatedByURL": "https://epicgames.com",
@@ -18,6 +18,11 @@
 		{
 			"Name": "DMXGDTF",
 			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "DMXGDTFTests",
+			"Type": "Editor",
 			"LoadingPhase": "Default"
 		},
 		{

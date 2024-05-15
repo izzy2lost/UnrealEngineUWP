@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "DMXGDTFColorCIE1931xyY.h"
 #include "GDTF/DMXGDTFNode.h"
 #include "Math/Vector.h"
 #include "UObject/NameTypes.h"
@@ -21,6 +22,7 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("Emitter"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 		
 		/** Unique Name of the emitter */
@@ -30,7 +32,7 @@ namespace UE::DMX::GDTF
 		 * Approximate absolute color point if applicable.Omit for non - visible emitters (eg., UV).
 		 * For Y give relative value compared to overall output defined in property Luminous Flux of related Beam Geometry (transmissive case). 
 		 */
-		FVector ColorCIE;
+		FDMXGDTFColorCIE1931xyY Color;
 
 		/** Required if color is omitted, otherwise it is optional. Dominant wavelength of the LED. */
 		float DominantWaveLength;

@@ -3,15 +3,16 @@
 #pragma once
 
 #include "Algo/Count.h"
+#include "Algo/Find.h"
 #include "Algo/Transform.h"
+#include "DMXGDTFColorCIE1931xyY.h"
 #include "DMXGDTFLog.h"
 #include "GDTF/DMXGDTFFixtureType.h"
 #include "GDTF/DMXModes/DMXGDTFDMXValue.h"
-#include "GDTF/Geometries/DMXGDTFAddress.h"
+#include "GDTF/Geometries/DMXGDTFDMXAddress.h"
 #include "Internationalization/Regex.h"
 #include "Math/Vector2D.h"
 #include "Misc/Char.h"
-#include "Templates/UnrealTemplate.h"
 #include "UObject/Class.h"
 #include "XmlNode.h"
 #include <type_traits>
@@ -25,31 +26,42 @@ namespace UE::DMX::GDTF
 	 */
 	template<typename NodeType>
 	class FDMXGDTFNodeInitializer
-		: FNoncopyable
+		: public FNoncopyable
 	{
 	public:
-		FDMXGDTFNodeInitializer(TSharedRef<NodeType> InUserObject, const FXmlNode& InXmlNode UE_LIFETIMEBOUND)
+		FDMXGDTFNodeInitializer() = delete;
+		FDMXGDTFNodeInitializer(TSharedRef<NodeType> InUserObject, const FXmlNode& InXmlNode)
 			: UserObject(InUserObject)
 			, XmlNode(InXmlNode)
 		{
-			checkf(XmlNode.GetTag() == InUserObject->GetXmlTag(), TEXT("Tag mismatch when trying to initialize GDTF node initializer. Expected tag '%s' but got tag '%s'."), InUserObject->GetXmlTag(), *XmlNode.GetTag());
+			ensureMsgf(XmlNode.GetTag() == InUserObject->GetXmlTag(), TEXT("Tag mismatch when trying to initialize GDTF node initializer. Expected tag '%s' but got tag '%s'."), InUserObject->GetXmlTag(), *XmlNode.GetTag());
 		}
-		
+	
 		/** Initializes an attribute */
 		template <typename AttributeType>
 		const FDMXGDTFNodeInitializer& GetAttribute(const TCHAR* InAttribute, AttributeType& OutValue) const
 		{
-			const FString StringValue = XmlNode.GetAttribute(InAttribute);
+			const FXmlAttribute* AttributePtr = Algo::FindBy(XmlNode.GetAttributes(), InAttribute, &FXmlAttribute::GetTag);
+			if (!AttributePtr)
+			{
+				return *this;
+			}
+			const FString StringValue = AttributePtr->GetValue();
+
 			if constexpr (std::is_same_v<AttributeType, FString> || std::is_same_v<AttributeType, FName>)
 			{
 				OutValue = *StringValue;
 			}
 			else if constexpr (std::is_arithmetic_v<AttributeType>)
 			{
-				const bool bSuccess = LexTryParseString(OutValue, *StringValue);
-				if (!StringValue.IsEmpty() && !bSuccess)
+				AttributeType ArithmeticValue;
+				if (LexTryParseString(ArithmeticValue, *StringValue))
 				{
-					UE_LOG(LogDMXGDTF, Warning, TEXT("Failed to parse numerical value from XML attribute '%s'. String was '%s'."), InAttribute, *StringValue);
+					OutValue = ArithmeticValue;
+				}
+				else if(!StringValue.IsEmpty())
+				{
+					UE_LOG(LogDMXGDTF, Warning, TEXT("Failed to parse numerical value from XML attribute '%s' in node '%s'. String was '%s'."), InAttribute, UserObject->GetXmlTag(), *StringValue);
 				}
 			}
 			else if constexpr (std::is_enum_v<AttributeType> && std::is_invocable_v<decltype(&FDMXGDTFNodeInitializer::ParseUEnum<AttributeType>), FDMXGDTFNodeInitializer, const FString&, AttributeType&>)
@@ -58,6 +70,10 @@ namespace UE::DMX::GDTF
 				if (ParseUEnum<AttributeType>(StringValue, EnumValue))
 				{
 					OutValue = EnumValue;
+				}
+				else
+				{
+					UE_LOG(LogDMXGDTF, Warning, TEXT("Failed to parse enum value from XML attribute '%s' in node '%s'. String was '%s'."), InAttribute, UserObject->GetXmlTag(), *StringValue);
 				}
 			}
 			else if constexpr (std::is_same_v<AttributeType, FVector2D>)
@@ -68,6 +84,10 @@ namespace UE::DMX::GDTF
 			{
 				OutValue = ParseVector(StringValue);
 			}
+			else if constexpr (std::is_same_v<AttributeType, FDMXGDTFColorCIE1931xyY>)
+			{
+				OutValue = ParseColorCIE(StringValue);
+			}
 			else if constexpr (std::is_same_v<AttributeType, FTransform>)
 			{
 				OutValue = ParseTransform(StringValue);
@@ -76,7 +96,7 @@ namespace UE::DMX::GDTF
 			{
 				OutValue = FGuid(StringValue);
 			}
-			else if constexpr (std::is_same_v<AttributeType, FDMXGDTFAddress>)
+			else if constexpr (std::is_same_v<AttributeType, FDMXGDTFDMXAddress>)
 			{
 				OutValue = ParseDMXAddress(StringValue);
 			}
@@ -306,7 +326,6 @@ namespace UE::DMX::GDTF
 				return FVector::ZeroVector;
 			}
 
-			// Could be a color or a vector. Vectors are wrapped with curly brackets, otherwise they're formated the same.
 			const FString VectorString = GDTFString.Replace(TEXT("{"), TEXT("")).Replace(TEXT("}"), TEXT(""));
 
 			TArray<FString> Substrings;
@@ -321,7 +340,7 @@ namespace UE::DMX::GDTF
 			FVector Result;
 			bool bSuccess = LexTryParseString(Result.X, *Substrings[0]);
 			bSuccess |= LexTryParseString(Result.Y, *Substrings[1]);
-			bSuccess |= LexTryParseString(Result.Z, *Substrings[1]);
+			bSuccess |= LexTryParseString(Result.Z, *Substrings[2]);
 			if (!bSuccess)
 			{
 				UE_LOG(LogDMXGDTF, Warning, TEXT("Cannot parse GDTF vector 3D. Failed to parse %s."), *GDTFString);
@@ -331,30 +350,118 @@ namespace UE::DMX::GDTF
 			return Result;
 		}
 
-		/** Parses a GDTF string as transform */
-		FTransform ParseTransform(const FString& GDTFString) const
+		/** Parses a GDTF string as color CIE */
+		FDMXGDTFColorCIE1931xyY ParseColorCIE(const FString& GDTFString) const
 		{
 			if (GDTFString.IsEmpty())
 			{
-				return FTransform::Identity;
+				return FDMXGDTFColorCIE1931xyY();
+			}
+			
+			TArray<FString> Substrings;
+			GDTFString.ParseIntoArray(Substrings, TEXT(","));
+
+			if (Substrings.Num() != 3)
+			{
+				UE_LOG(LogDMXGDTF, Warning, TEXT("Cannot parse GDTF color. Expected none or three components, but got %i."), Substrings.Num());
+				return FDMXGDTFColorCIE1931xyY();
 			}
 
-			// Note 3x3 and 4x4 matrices are supported
+			FDMXGDTFColorCIE1931xyY Result;
+			bool bSuccess = LexTryParseString(Result.X, *Substrings[0]);
+			bSuccess |= LexTryParseString(Result.Y, *Substrings[1]);
+			bSuccess |= LexTryParseString(Result.YY, *Substrings[2]);
+			if (!bSuccess)
+			{
+				UE_LOG(LogDMXGDTF, Warning, TEXT("Cannot parse GDTF color. Failed to parse %s."), *GDTFString);
+				return FDMXGDTFColorCIE1931xyY();
+			}
+
+			return Result;
+		}
+
+		/** Parses a GDTF string as transform */
+		FTransform ParseTransform(const FString& GDTFString) const
+		{
+			FMatrix GDTFMatrix;
+			if (!ParseGDTFMatrix(GDTFString, GDTFMatrix))
+			{
+				return FTransform::Identity;
+			}
+		
+			// To Column major order
+			const FMatrix ColumnMajorGDTFMatrix = GDTFMatrix.GetTransposed();
+
+			// To Unreal's coordinate system
+			const FMatrix GDTFToUnrealMatrix = FMatrix(
+				FPlane(1.0, 0.0, 0.0, 0.0),
+				FPlane(0.0, 0.0, 1.0, 0.0),
+				FPlane(0.0, -1.0, 0.0, 0.0),
+				FPlane(0.0, 0.0, 0.0, 1.0)
+			);
+
+			const FMatrix UnrealMatrix = GDTFToUnrealMatrix * ColumnMajorGDTFMatrix * GDTFToUnrealMatrix;
+			const FTransform Transform = FTransform(UnrealMatrix);
+
+			return Transform;
+		}
+
+		/** Parses a GDTF string as DMX address */
+		FDMXGDTFDMXAddress ParseDMXAddress(const FString& GDTFString) const
+		{
+			if (GDTFString.IsEmpty())
+			{
+				return FDMXGDTFDMXAddress();
+			}
+
+			const FString CleanString = GDTFString.Replace(TEXT("{"), TEXT("")).Replace(TEXT("}"), TEXT(""));
+
+			// Can be an absolute adddress
+			uint64 AbsoluteAddress;
+			if (LexTryParseString(AbsoluteAddress, *CleanString))
+			{
+				return FDMXGDTFDMXAddress(AbsoluteAddress);
+			}
+
+			// Or in the form of Universe.Channel
+			TArray<FString> Substrings;
+			CleanString.ParseIntoArray(Substrings, TEXT("."));
+
+			if (Substrings.Num() == 2)
+			{
+				int32 Universe;
+				int32 Channel;
+				if (LexTryParseString(Universe, *Substrings[0]) &&
+					LexTryParseString(Channel, *Substrings[1]))
+				{
+					constexpr uint16 UniverseSize = 512;
+
+					FDMXGDTFDMXAddress Result;
+					Result.AbsoluteAddress = Universe * UniverseSize + Channel - 1;
+					return Result;
+				}
+			}
+
+			UE_LOG(LogDMXGDTF, Warning, TEXT("Failed to parse DMX Address. '%s' is not a valid GDTF string"), *GDTFString);
+			return FDMXGDTFDMXAddress();
+		}
+
+		/** Helper to parse 3x3 and 4x4 matrices */
+		bool ParseGDTFMatrix(const FString& InGDTFString, FMatrix& OutMatrix) const
+		{
+			if (InGDTFString.IsEmpty())
+			{
+				return false;
+			}
 
 			// Parse rows
 			TArray<FString> RowStrings;
 
 			const FRegexPattern CurlyBracketRegex(TEXT("\\{([^}]+)\\}"), ERegexPatternFlags::CaseInsensitive);
-			FRegexMatcher CurlyBracketMatcher(CurlyBracketRegex, GDTFString);
+			FRegexMatcher CurlyBracketMatcher(CurlyBracketRegex, InGDTFString);
 			while (CurlyBracketMatcher.FindNext())
 			{
 				RowStrings.Add(CurlyBracketMatcher.GetCaptureGroup(1));
-			}
-
-			if (RowStrings.Num() < 3)
-			{
-				UE_LOG(LogDMXGDTF, Warning, TEXT("Cannot parse 3x3 or 4x4 matrix from GDTF string %s."), *GDTFString);
-				return FTransform::Identity;
 			}
 
 			// Parse each component
@@ -367,12 +474,7 @@ namespace UE::DMX::GDTF
 					Result.AddZeroed(Substrings.Num());
 					for (int32 StringIndex = 0; StringIndex < Substrings.Num(); StringIndex++)
 					{
-						float Value = 0.f;
-						if (LexTryParseString(Result[StringIndex], *Substrings[StringIndex]))
-						{
-							// Convert from mm to cm
-							Result[StringIndex] = Value / 10.f;
-						}
+						LexTryParseString(Result[StringIndex], *Substrings[StringIndex]);
 					}
 					return Result;
 				});
@@ -386,84 +488,22 @@ namespace UE::DMX::GDTF
 			const bool bValid = (U.Num() == NumRows && V.Num() == NumRows && W.Num() == NumRows && O.Num() == NumRows);
 			if (!bValid)
 			{
-				UE_LOG(LogDMXGDTF, Warning, TEXT("Cannot parse 3x3 or 4x4 matrix from GDTF string %s."), *GDTFString);
-				return FTransform::Identity;
+				UE_LOG(LogDMXGDTF, Warning, TEXT("Cannot parse 3x3 or 4x4 matrix from GDTF string '%s'."), *InGDTFString);
+				return false;
 			}
 
-			// Create the matrix and resulting transform
-			FMatrix Matrix;
-			Matrix.M[0][0] = U[0];
-			Matrix.M[0][1] = U[1];
-			Matrix.M[0][2] = U[2];
-			Matrix.M[0][3] = U.IsValidIndex(3) ? U[3] : 0.f;
+			OutMatrix = FMatrix(
+				FPlane(U[0], U[1], U[2], U.IsValidIndex(3) ? U[3] : 0.f),
+				FPlane(V[0], V[1], V[2], V.IsValidIndex(3) ? V[3] : 0.f),
+				FPlane(W[0], W[1], W[2], W.IsValidIndex(3) ? W[3] : 0.f),
+				FPlane(O[0], O[1], O[2], O.IsValidIndex(3) ? O[3] : 1.f)
+			);
 
-			Matrix.M[1][0] = V[0];
-			Matrix.M[1][1] = V[1];
-			Matrix.M[1][2] = V[2];
-			Matrix.M[1][3] = V.IsValidIndex(3) ? U[3] : 0.f;
-
-			Matrix.M[2][0] = W[0];
-			Matrix.M[2][1] = W[0];
-			Matrix.M[2][2] = W[0];
-			Matrix.M[2][3] = W.IsValidIndex(3) ? W[3] : 0.f;
-
-			Matrix.M[3][0] = O[0];
-			Matrix.M[3][1] = -O[1]; // From GDTF's right hand to UE's left hand coordinate system
-			Matrix.M[3][2] = O[2];
-			Matrix.M[3][3] = O.IsValidIndex(3) ? O[3] : 1.f;
-
-			FTransform Transform = FTransform(Matrix);
-
-			// Prevent the convertion to cm from affecting scale
-			Transform.SetScale3D(Transform.GetScale3D() * 10.0);
-
-			// GDTFs are facing down on the Z-Axis, but UE Actors are facing up 
-			const FQuat InvertUpRotationQuaternion = FQuat(Transform.GetRotation().GetAxisY(), PI);
-			Transform.SetRotation(Transform.GetRotation() * InvertUpRotationQuaternion);
-
-			return Transform;
-		}
-
-		///** Parses a GDTF string as DMX address */
-		FDMXGDTFAddress ParseDMXAddress(const FString& GDTFString) const
-		{
-			if (GDTFString.IsEmpty())
-			{
-				return FDMXGDTFAddress();
-			}
-
-			// Can be an absolute adddress
-			uint64 AbsoluteAddress;
-			if (LexTryParseString(AbsoluteAddress, *GDTFString))
-			{
-				return FDMXGDTFAddress();
-			}
-
-			// Or in the form of Universe.Channel
-			TArray<FString> Substrings;
-			GDTFString.ParseIntoArray(Substrings, TEXT("."));
-
-			if (Substrings.Num() == 2)
-			{
-				int32 Universe;
-				int32 Channel;
-				if (LexTryParseString(Universe, *Substrings[0]) &&
-					LexTryParseString(Channel, *Substrings[1]))
-				{
-					constexpr uint16 UniverseSize = 512;
-
-					FDMXGDTFAddress Result;
-					Result.AbsoluteAddress = Universe * UniverseSize + Channel - 1;
-					return Result;
-				}
-			}
-
-			UE_LOG(LogDMXGDTF, Warning, TEXT("Failed to parse DMX Address. '%s' is not a valid GDTF string"), *GDTFString);
-			return FDMXGDTFAddress();
+			return true;
 		}
 
 		/** The object that uses this parser */
-		const TSharedRef<NodeType> UserObject;
+		TSharedRef<NodeType> UserObject;
 
 		/** The XML node that needs to be parsed */
 		const FXmlNode& XmlNode;

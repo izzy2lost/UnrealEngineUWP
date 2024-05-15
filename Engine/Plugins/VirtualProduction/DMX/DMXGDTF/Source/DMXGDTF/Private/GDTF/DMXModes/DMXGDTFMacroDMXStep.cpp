@@ -4,6 +4,7 @@
 
 #include "GDTF/DMXModes/DMXGDTFMacroDMXValue.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -16,5 +17,14 @@ namespace UE::DMX::GDTF
 		FDMXGDTFNodeInitializer(SharedThis(this), XmlNode)
 			.GetAttribute(TEXT("Duration"), Duration)
 			.CreateChildren(TEXT("MacroDMXValue"), MacroDMXValueArray);
+	}
+
+	FXmlNode* FDMXGDTFMacroDMXStep::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("Duration"), Duration)
+			.AppendChildren(TEXT("MacroDMXValue"), MacroDMXValueArray);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 }

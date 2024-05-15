@@ -4,6 +4,7 @@
 
 #include "GDTF/Wheels/DMXGDTFWheelSlot.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -16,5 +17,14 @@ namespace UE::DMX::GDTF
 		FDMXGDTFNodeInitializer(SharedThis(this), XmlNode)
 			.GetAttribute(TEXT("Name"), Name)
 			.CreateChildren(TEXT("Slot"), WheelSlotArray);
+	}
+
+	FXmlNode* FDMXGDTFWheel::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("Name"), Name)
+			.AppendChildren(TEXT("Slot"), WheelSlotArray);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 }

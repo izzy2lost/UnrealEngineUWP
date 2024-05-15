@@ -5,6 +5,7 @@
 #include "GDTF/Geometries/DMXGDTFGeometryCollect.h"
 #include "GDTF/Geometries/DMXGDTFWiringObjectGeometry.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -18,6 +19,16 @@ namespace UE::DMX::GDTF
 			.GetAttribute(TEXT("FromPin"), FromPin)
 			.GetAttribute(TEXT("ToPin"), ToPin)
 			.GetAttribute(TEXT("ToWiringObject"), ToWiringObject);
+	}
+
+	FXmlNode* FDMXGDTFWiringObjectPinPatch::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("FromPin"), FromPin)
+			.SetAttribute(TEXT("ToPin"), ToPin)
+			.SetAttribute(TEXT("ToWiringObject"), ToWiringObject);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 
 	TSharedPtr<FDMXGDTFWiringObjectGeometry> FDMXGDTFWiringObjectPinPatch::ResolveToWiringObject() const

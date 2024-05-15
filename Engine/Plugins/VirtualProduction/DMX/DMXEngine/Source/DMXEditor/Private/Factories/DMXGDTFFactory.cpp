@@ -99,7 +99,9 @@ UObject* UDMXGDTFFactory::FactoryCreateFile(UClass* InClass, UObject* InParent, 
     // Create import options
 	using namespace UE::DMX;
     FDMXGDTFImportArgs ImportArgs;
-    ImportArgs.Name = InName;
+
+	const FString BaseFilename = FPaths::GetBaseFilename(InName.ToString());
+    ImportArgs.Name = *BaseFilename;
     ImportArgs.Parent = InParent;
     ImportArgs.Filename = InFilename;
     ImportArgs.Flags = Flags;

@@ -4,6 +4,7 @@
 
 #include "GDTF/PhysicalDescriptions/DMXGDTFColorRenderingIndex.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -16,5 +17,14 @@ namespace UE::DMX::GDTF
 		FDMXGDTFNodeInitializer(SharedThis(this), XmlNode)
 			.GetAttribute(TEXT("ColorTemperature"), ColorTemperature)
 			.CreateChildren(TEXT("CRI"), CRIArray);
+	}
+
+	FXmlNode* FDMXGDTFColorRenderingIndexGroup::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("ColorTemperature"), ColorTemperature)
+			.AppendChildren(TEXT("CRI"), CRIArray);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 }

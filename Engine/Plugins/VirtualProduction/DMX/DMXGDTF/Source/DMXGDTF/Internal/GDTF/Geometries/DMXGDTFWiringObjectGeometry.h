@@ -76,6 +76,7 @@ namespace UE::DMX::GDTF
 		//~ Begin DMXGDTFGeneralGeometryNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("WiringObject"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End DMXGDTFGeneralGeometryNode interface
 
 		/** Link to the corresponding model. */
@@ -105,25 +106,25 @@ namespace UE::DMX::GDTF
 		int32 PinCount = 0;
 
 		/** The electrical consumption in Watts.Only for Consumers.Unit: Watt. */
-		double ElectricalPayLoad = 0.f;
+		float ElectricalPayLoad = 0.f;
 
 		/** The voltage range’s maximum value.Only for Consumers.Unit: volt. */
-		double VoltageRangeMax = 0.f;
+		float VoltageRangeMax = 0.f;
 
 		/** The voltage range’s minimum value.Only for Consumers.Unit: volt. */
-		double VoltageRangeMin = 0.f;
+		float VoltageRangeMin = 0.f;
 
 		/** The Frequency range’s maximum value.Only for Consumers.Unit: hertz. */
-		double FrequencyRangeMax = 0.f;
+		float FrequencyRangeMax = 0.f;
 
 		/** The Frequency range’s minimum value.Only for Consumers.Unit: hertz. */
-		double FrequencyRangeMin = 0.f;
+		float FrequencyRangeMin = 0.f;
 
 		/** The maximum electrical payload that this power source can handle. Only for Power Sources. Unit: voltampere.  */
-		double MaxPayLoad = 0.f;
+		float MaxPayLoad = 0.f;
 
 		/** he voltage output that this power source can handle. Only for Power Sources.Unit : volt. */
-		double Voltage = 0.f;
+		float Voltage = 0.f;
 
 		/**
 		 * The layer of the Signal Type. In one device, all wiring geometry that
@@ -133,10 +134,10 @@ namespace UE::DMX::GDTF
 		int32 SignalLayer = 0;
 
 		/** The Power Factor of the device. Only for consumers. */
-		double CosPhi = 0.f;
+		float CosPhi = 0.f;
 
 		/** The fuse value.Only for fuses. Unit: ampere.  */
-		double FuseCurrent = 0.f;
+		float FuseCurrent = 0.f;
 
 		/** Fuse Rating */
 		EDMXWiringObjectGeometryFuseRating FuseRating = EDMXWiringObjectGeometryFuseRating::B;

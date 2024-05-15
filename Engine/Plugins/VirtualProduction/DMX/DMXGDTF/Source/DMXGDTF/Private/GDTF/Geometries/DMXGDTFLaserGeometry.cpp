@@ -6,6 +6,7 @@
 #include "GDTF/PhysicalDescriptions/DMXGDTFEmitter.h"
 #include "GDTF/PhysicalDescriptions/DMXGDTFPhysicalDescriptions.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -27,6 +28,26 @@ namespace UE::DMX::GDTF
 			.GetAttribute(TEXT("ScanAngleTilt"), ScanAngleTilt)
 			.GetAttribute(TEXT("ScanSpeed"), ScanSpeed)
 			.CreateChildren(TEXT("Protocol"), ProtocolArray);
+	}
+
+	FXmlNode* FDMXGDTFLaserGeometry::CreateXmlNode(FXmlNode& Parent)
+	{
+		FXmlNode* AppendToNode = FDMXGDTFGeometry::CreateXmlNode(Parent);
+
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this, AppendToNode)
+			.SetAttribute(TEXT("ColorType"), ColorType)
+			.SetAttribute(TEXT("Color"), Color)
+			.SetAttribute(TEXT("OutputStrength"), OutputStrength)
+			.SetAttribute(TEXT("BeamDiameter"), BeamDiameter)
+			.SetAttribute(TEXT("Emitter"), Emitter)
+			.SetAttribute(TEXT("BeamDivergenceMin"), BeamDivergenceMin)
+			.SetAttribute(TEXT("BeamDivergenceMax"), BeamDivergenceMax)
+			.SetAttribute(TEXT("ScanAnglePan"), ScanAnglePan)
+			.SetAttribute(TEXT("ScanAngleTilt"), ScanAngleTilt)
+			.SetAttribute(TEXT("ScanSpeed"), ScanSpeed)
+			.AppendChildren(TEXT("Protocol"), ProtocolArray);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 
 	TSharedPtr<FDMXGDTFEmitter> FDMXGDTFLaserGeometry::ResolveEmitter() const

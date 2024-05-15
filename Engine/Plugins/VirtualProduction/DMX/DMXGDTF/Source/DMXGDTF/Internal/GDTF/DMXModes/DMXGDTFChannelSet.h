@@ -19,6 +19,7 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("ChannelSet"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface;
 
 		/** The name of the channel set. Default: Empty */
@@ -32,10 +33,10 @@ namespace UE::DMX::GDTF
 		FDMXGDTFDMXValue DMXFrom;
 
 		/** Physical start value */
-		float PhysicalFrom = 0.0;
+		float PhysicalFrom = 0.f;
 
 		/** Physical end value */
-		float PhysicalTo = 0.0;
+		float PhysicalTo = 1.f;
 
 		/**
 		 * If the channel function has a link to a wheel, a corresponding slot index
@@ -43,7 +44,7 @@ namespace UE::DMX::GDTF
 		 * the wheel which is linked in the channel function. The wheel slot index is
 		 * normalized to 1. Size: 4 bytes
 		 */
-		uint32 WheelSlotIndex = INDEX_NONE;
+		int32 WheelSlotIndex = INDEX_NONE;
 
 		/** The outer channel function */
 		const TWeakPtr<FDMXGDTFChannelFunction> OuterChannelFunction;

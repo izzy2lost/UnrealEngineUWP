@@ -54,19 +54,20 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("Model"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 
 		/** The unique name of the model. */
 		FName Name;
 
 		/** Length. Unit: meter; Default value: 0 */
-		double Length = 0.0;
+		float Length = 0.0;
 
 		/** Width. Unit: meter; Default value: 0 */
-		double Width = 0.0;
+		float Width = 0.0;
 
 		/** Height. Unit: meter; Default value: 0 */
-		double Height = 0.0;
+		float Height = 0.0;
 
 		/** Type of 3D model. Default value: “Undefined */
 		EDMXGDTFModelPrimitiveType PrimitiveType = EDMXGDTFModelPrimitiveType::Undefined;

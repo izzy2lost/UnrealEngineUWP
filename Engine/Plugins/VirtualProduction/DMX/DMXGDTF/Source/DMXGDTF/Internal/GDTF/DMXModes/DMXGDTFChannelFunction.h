@@ -32,6 +32,7 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("ChannelFunction"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface;
 
 		/** Unique name; Default value: Name of attribute and number of channel function. */
@@ -44,25 +45,25 @@ namespace UE::DMX::GDTF
 		FString OriginalAttribute;
 
 		/**
-		 * Start DMX value; The end DMX value is calculated as a DMXFrom of the next channel function — 1 or the maximum value of the DMX channel.
-		 * Default value : “0 / 1”.
+		 * Start DMX value; The end DMX value is calculated as a DMXFrom of the next channel function -1 or the maximum value of the DMX channel.
+		 * Default value: "0/1".
 		 */
 		FDMXGDTFDMXValue DMXFrom;
 
-		/** Default DMX value of channel function when activated by the contro system. */
+		/** Default DMX value of channel function when activated by the control system. */
 		FDMXGDTFDMXValue Default;
 
 		/** Physical start value; Default value : 0 */
-		double PhysicalFrom = 0.0;
+		float PhysicalFrom = 0.f;
 
 		/** Physical end value; Default value : 1 */
-		double PhysicalTo = 1.0;
+		float PhysicalTo = 1.f;
 
 		/** Time in seconds to move from min to max of the Channel Function; Default value : 0 */
-		double RealFade = 0.0;
+		float RealFade = 0.f;
 
 		/** Time in seconds to accelerate from stop to maximum velocity; Default value : 0 */
-		double RealAcceleration = 0.0;
+		float RealAcceleration = 0.f;
 
 		/** (Optional) Link to a wheel; Starting point: Wheel Collect */
 		FString Wheel;
@@ -82,20 +83,20 @@ namespace UE::DMX::GDTF
 		/** (Optional) Link to DMX Channel or Channel Function; Starting point DMX mode. */
 		FString ModeMaster;
 
-		/** Only used together with ModeMaster; DMX start value; Default value: 0 / 1 */
-		FDMXGDTFDMXValue ModeFrom;
+		/** Only used together with ModeMaster; DMX start value; Default value: 0/1 */
+		FDMXGDTFDMXValue ModeFrom = TEXT("0/1");
 
-		/** Only used together with ModeMaster; DMX start value; Default value: 0 / 1 */
-		FDMXGDTFDMXValue ModeTo;
+		/** Only used together with ModeMaster; DMX start value; Default value: 0/1 */
+		FDMXGDTFDMXValue ModeTo = TEXT("0/1");
 
 		/** (Optional) Link to DMX Profile; Starting point: DMX Profile Collect */
 		FString DMXProfile;
 
 		/** Minimum Physical Value that will be used for the DMX Profile. Default: Value from PhysicalFrom 1 */
-		double Min = 0.0;
+		float Min = 0.f;
 
 		/**  Maximum Physical Value that will be used for the DMX Profile. Default: Value from PhysicalTo */
-		double Max = 0.0;
+		float Max = 1.f;
 
 		/**
 		 * Custom Name that can he used do adress this channel function with
@@ -142,5 +143,8 @@ namespace UE::DMX::GDTF
 
 		/** Resolves the linked DMX profile. Returns the DMX profile, or nullptr if no DMX profile is linked */
 		TSharedPtr<FDMXGDTFDMXProfile> ResolveDMXProfile() const;
+
+		/** Parses the default value. Useful to parse legacy GDTFs that store the default in the DMX channel node */
+		FDMXGDTFDMXValue ParseDefault(const FString& Value, const FXmlNode* XmlNode) const;
 	};
 }

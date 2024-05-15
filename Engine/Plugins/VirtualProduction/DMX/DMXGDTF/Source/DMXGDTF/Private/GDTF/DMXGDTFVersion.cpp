@@ -2,17 +2,20 @@
 
 #include "GDTF/DMXGDTFVersion.h"
 
-const FString FDMXGDTFVersion::GetMajorVersionAsString()
+namespace UE::DMX::GDTF
 {
-	return FString::FromInt(FDMXGDTFVersion::MajorVersion);
-}
+	const FString FDMXGDTFVersion::GetMajorVersionAsString()
+	{
+		return FString::FromInt(FDMXGDTFVersion::MajorVersion);
+	}
 
-const FString FDMXGDTFVersion::GetMinorVersionAsString()
-{
-	return FString::FromInt(FDMXGDTFVersion::MinorVersion);
-}
+	const FString FDMXGDTFVersion::GetMinorVersionAsString()
+	{
+		return FString::FromInt(FDMXGDTFVersion::MinorVersion);
+	}
 
-const FString FDMXGDTFVersion::GetAsString()
-{
-	return GetMajorVersionAsString() + TEXT(".") + GetMinorVersionAsString();
+	const FString FDMXGDTFVersion::GetAsString()
+	{
+		return GetMajorVersionAsString() + TEXT(".") + GetMinorVersionAsString();
+	}
 }

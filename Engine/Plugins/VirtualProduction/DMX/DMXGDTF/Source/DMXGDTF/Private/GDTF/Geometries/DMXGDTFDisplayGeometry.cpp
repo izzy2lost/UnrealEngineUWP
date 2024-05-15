@@ -3,6 +3,7 @@
 #include "GDTF/Geometries/DMXGDTFDisplayGeometry.h"
 
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -12,5 +13,15 @@ namespace UE::DMX::GDTF
 
 		FDMXGDTFNodeInitializer(SharedThis(this), XmlNode)
 			.GetAttribute(TEXT("Texture"), Texture);
+	}
+
+	FXmlNode* FDMXGDTFDisplayGeometry::CreateXmlNode(FXmlNode& Parent)
+	{
+		FXmlNode* AppendToNode = FDMXGDTFGeometry::CreateXmlNode(Parent);
+
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this, AppendToNode)
+			.SetAttribute(TEXT("Texture"), Texture);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 }

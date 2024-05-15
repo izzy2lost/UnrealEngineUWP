@@ -9,6 +9,7 @@
 #include "GDTF/Geometries/DMXGDTFGeometryCollect.h"
 #include "GDTF/Models/DMXGDTFModel.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -18,13 +19,26 @@ namespace UE::DMX::GDTF
 
 	void FDMXGDTFGeometryReference::Initialize(const FXmlNode& XmlNode)
 	{
-		using namespace UE::DMX::GDTF;
-
 		FDMXGDTFNodeInitializer(SharedThis(this), XmlNode)
 			.GetAttribute(TEXT("Name"), Name)
+			.GetAttribute(TEXT("Position"), Position)
 			.CreateChildren(TEXT("Break"), BreakArray)
 			.GetAttribute(TEXT("Geometry"), Geometry)
 			.GetAttribute(TEXT("Model"), Model);
+	}
+
+	FXmlNode* FDMXGDTFGeometryReference::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FString DefaultModel = TEXT("");
+
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("Name"), Name)
+			.SetAttribute(TEXT("Position"), Position, EDMXGDTFMatrixType::Matrix4x4)
+			.AppendChildren(TEXT("Break"), BreakArray)
+			.SetAttribute(TEXT("Geometry"), Geometry)
+			.SetAttribute(TEXT("Model"), Model, DefaultModel);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 
 	TSharedPtr<FDMXGDTFGeometry> FDMXGDTFGeometryReference::ResolveGeometry() const

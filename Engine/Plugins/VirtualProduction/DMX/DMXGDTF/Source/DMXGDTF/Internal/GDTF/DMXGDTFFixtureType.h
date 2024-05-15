@@ -10,6 +10,7 @@ namespace UE::DMX::GDTF
 	class FDMXGDTFAttributeDefinitions;
 	class FDMXGDTFDescription;
 	class FDMXGDTFDMXMode;
+	class FDMXGDTFFTPreset;
 	class FDMXGDTFGeometryCollect;
 	class FDMXGDTFModel;
 	class FDMXGDTFPhysicalDescriptions;
@@ -17,7 +18,7 @@ namespace UE::DMX::GDTF
 	class FDMXGDTFRevision;
 	class FDMXGDTFWheel;
 
-	/** The FixtureType node is the starting point of the description of the fixture type within the [GDTF's] XML file. */
+	/** The FixtureType node is the starting point of the description of the fixture type within the XML file. */
 	class DMXGDTF_API FDMXGDTFFixtureType
 		: public FDMXGDTFNode
 	{
@@ -25,6 +26,7 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("FixtureType"); }
 		virtual void Initialize(const FXmlNode& InXmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 
 		/** Name of the fixture type. As it is based on Name. [UE: GDTF version specific, unreal only parses the name] */
@@ -100,6 +102,9 @@ namespace UE::DMX::GDTF
 
 		/** This section defines the history of device type (XML node <Revisions>). */
 		TArray<TSharedPtr<FDMXGDTFRevision>> Revisions;
+
+		/** Is used to transfer user-defined and fixture type specific presets to other show files. */
+		TArray<TSharedPtr<FDMXGDTFFTPreset>> FTPresets;
 
 		/** Is used to specify supported protocols. */
 		TSharedPtr<FDMXGDTFProtocols> Protocols;	

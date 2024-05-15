@@ -23,6 +23,7 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("Revision"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface;
 
 		/** User-defined text for this revision; Default value: empty */
@@ -32,7 +33,7 @@ namespace UE::DMX::GDTF
 		FDateTime Date;
 
 		/** UserID of the user that has uploaded the GDTF file to the database; Default value: 0 */
-		uint32 User = 0;
+		uint32 UserID = 0;
 
 		/** Name of the software that modified this revision; Default value: empty */
 		FString ModifiedBy;

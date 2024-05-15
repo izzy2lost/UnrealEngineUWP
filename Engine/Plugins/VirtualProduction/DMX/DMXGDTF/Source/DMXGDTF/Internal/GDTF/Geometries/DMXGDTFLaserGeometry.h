@@ -37,37 +37,38 @@ namespace UE::DMX::GDTF
 		//~ Begin DMXGDTFGeneralGeometryNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("Laser"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End DMXGDTFGeneralGeometryNode interface
 
 		/** Color type of a Laser */
 		EDMXLaserGeometryColorType ColorType = EDMXLaserGeometryColorType::RGB;
 
 		/** Required if ColorType is “SingleWaveLength”; Unit:nm (nanometers) */
-		double Color = 0.f;
+		float Color = 0.f;
 
 		/** Output Strength of the Laser; Unit: Watt */
-		double OutputStrength = 0.f;
+		float OutputStrength = 0.f;
 
 		/** (Optional) link to the emitter group. The starting point is the Emitter Collect. */
 		FString Emitter;
 
 		/** Beam diameter where it leaves the projector; Unit: meter */
-		double BeamDiameter = 0.f;
+		float BeamDiameter = 0.f;
 
 		/** Minimum beam divergence; Unit: mrad (milliradian) */
-		double BeamDivergenceMin = 0.f;
+		float BeamDivergenceMin = 0.f;
 
 		/** Maximum beam divergence; Unit: mrad (milliradian) */
-		double BeamDivergenceMax = 0.f;
+		float BeamDivergenceMax = 0.f;
 
 		/** Possible Total Scan Angle Pan of the beam. Assumes symmetrical output; Unit: Degree */
-		double ScanAnglePan = 0.f;
+		float ScanAnglePan = 0.f;
 
 		/** Possible Total Scan Angle Tilt of the beam. Assumes symmetrical output; Unit: Degree */
-		double ScanAngleTilt = 0.f;
+		float ScanAngleTilt = 0.f;
 
 		/** Speed of the beam; Unit: kilo point per second */
-		double ScanSpeed = 0.f;
+		float ScanSpeed = 0.f;
 
 		/** A list of protocols supported by the laser */
 		TArray<TSharedPtr<FDMXGDTFLaserProtocol>> ProtocolArray;

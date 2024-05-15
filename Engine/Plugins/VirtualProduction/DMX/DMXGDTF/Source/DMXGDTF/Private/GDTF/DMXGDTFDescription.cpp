@@ -4,7 +4,6 @@
 
 #include "DMXGDTFLog.h"
 #include "GDTF/DMXGDTFFixtureType.h"
-#include "GDTF/DMXGDTFVersion.h"
 #include "Misc/MessageDialog.h"
 #include "XmlFile.h"
 #include "XmlNode.h"
@@ -67,5 +66,45 @@ namespace UE::DMX::GDTF
 			FixtureType = MakeShared<FDMXGDTFFixtureType>();
 			FixtureType->Initialize(*FixtureTypeXmlNode);
 		}
+	}
+
+	void FDMXGDTFDescription::InitializeFromFixtureType(const TSharedRef<FDMXGDTFFixtureType>& InFixtureType)
+	{	
+		FixtureType = InFixtureType;
+	}
+
+	TSharedPtr<FXmlFile> FDMXGDTFDescription::ExportAsXml() const
+	{
+		// Don't export if there's nothing to export
+		if (!FixtureType.IsValid())
+		{
+			return nullptr;
+		}
+
+		// Create Xml File
+		const FString Buffer = "<?xml version=\"1.0\" encoding=\"UTF - 8\" standalone=\"no\" ?>\n<GDTF>\n</GDTF>";
+
+		TSharedRef<FXmlFile> XmlFile = MakeShared<FXmlFile>();
+		const bool bCreatedNewFile = XmlFile->LoadFile(Buffer, EConstructMethod::ConstructFromBuffer);
+
+		FXmlNode* RootNode = XmlFile->GetRootNode();
+		if (!ensureAlwaysMsgf(bCreatedNewFile && RootNode, TEXT("Failed to create a GDTF description.xml. Cannot export GDTF.")))
+		{
+			return nullptr;
+		}
+		check(RootNode);
+
+		// Version the Root Node
+		constexpr TCHAR DataVersionAttributeName[] = TEXT("DataVersion");
+		TArray<FXmlAttribute> Attributes =
+		{
+			FXmlAttribute(DataVersionAttributeName, FDMXGDTFVersion::GetAsString()),
+		};
+		RootNode->SetAttributes(Attributes);
+
+		// Export Children
+		FixtureType->CreateXmlNode(*RootNode);
+
+		return XmlFile;
 	}
 }

@@ -10,6 +10,7 @@
 #include "GDTF/DMXModes/DMXGDTFFTMacro.h"
 #include "GDTF/DMXModes/DMXGDTFLogicalChannel.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -26,6 +27,19 @@ namespace UE::DMX::GDTF
 			.CreateChildCollection(TEXT("DMXChannels"), TEXT("DMXChannel"), DMXChannels)
 			.CreateChildCollection(TEXT("Relations"), TEXT("Relation"), Relations)
 			.CreateChildCollection(TEXT("FTMacros"), TEXT("FTMacro"), FTMacros);
+	}
+
+	FXmlNode* FDMXGDTFDMXMode::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("Name"), Name)
+			.SetAttribute(TEXT("Description"), Description)
+			.SetAttribute(TEXT("Geometry"), Geometry)
+			.AppendChildCollection(TEXT("DMXChannels"), TEXT("DMXChannel"), DMXChannels)
+			.AppendChildCollection(TEXT("Relations"), TEXT("Relation"), Relations)
+			.AppendChildCollection(TEXT("FTMacros"), TEXT("FTMacro"), FTMacros);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 
 	void FDMXGDTFDMXMode::ResolveChannel(const FString& Link, TSharedPtr<FDMXGDTFDMXChannel>& OutDMXChannel, TSharedPtr<FDMXGDTFChannelFunction>& OutChannelFunction) const

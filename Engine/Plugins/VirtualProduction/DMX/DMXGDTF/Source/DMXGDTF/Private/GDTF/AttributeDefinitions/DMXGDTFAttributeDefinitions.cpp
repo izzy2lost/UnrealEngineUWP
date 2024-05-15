@@ -8,14 +8,12 @@
 #include "GDTF/AttributeDefinitions/DMXGDTFFeature.h"
 #include "GDTF/AttributeDefinitions/DMXGDTFFeatureGroup.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
 	FDMXGDTFAttributeDefinitions::FDMXGDTFAttributeDefinitions(const TSharedRef<FDMXGDTFFixtureType>& InFixtureType)
-	{		
-		// The outer fixture type is available to all nodes and doesn't need extra initialization.
-		// This constructor is only here to enforce the correct outer.
-	}
+	{}
 
 	void FDMXGDTFAttributeDefinitions::Initialize(const FXmlNode& XmlNode)
 	{
@@ -23,6 +21,16 @@ namespace UE::DMX::GDTF
 			.CreateChildCollection(TEXT("ActivationGroups"), TEXT("ActivationGroup"), ActivationGroups)
 			.CreateChildCollection(TEXT("FeatureGroups"), TEXT("FeatureGroup"), FeatureGroups)
 			.CreateChildCollection(TEXT("Attributes"), TEXT("Attribute"), Attributes);
+	}
+
+	FXmlNode* FDMXGDTFAttributeDefinitions::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.AppendChildCollection(TEXT("ActivationGroups"), TEXT("ActivationGroup"), ActivationGroups)
+			.AppendChildCollection(TEXT("FeatureGroups"), TEXT("FeatureGroup"), FeatureGroups)
+			.AppendChildCollection(TEXT("Attributes"), TEXT("Attribute"), Attributes);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 
 	TSharedPtr<FDMXGDTFActivationGroup> FDMXGDTFAttributeDefinitions::FindActivationGroup(const FString& ActivationGroupName) const

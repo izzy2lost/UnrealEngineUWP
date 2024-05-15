@@ -7,22 +7,22 @@
 namespace UE::DMX::GDTF
 {
 	/** The container for DMX Addresses */
-	struct FDMXGDTFAddress
+	struct FDMXGDTFDMXAddress
 	{
-		FDMXGDTFAddress() = default;
+		FDMXGDTFDMXAddress() = default;
 
-		FDMXGDTFAddress(int64 InAbsoluteAddress)
+		FDMXGDTFDMXAddress(int64 InAbsoluteAddress)
 			: AbsoluteAddress(InAbsoluteAddress)
 		{}
 
-		FDMXGDTFAddress(int32 InUniverse, int32 InChannel)
+		FDMXGDTFDMXAddress(int32 InUniverse, int32 InChannel)
 		{
 			AbsoluteAddress = InUniverse * UniverseSize + InChannel - 1;
 		}
 
 		int32 GetUniverse() const { return AbsoluteAddress / UniverseSize; }
 
-		int32 GetChannel() const { return AbsoluteAddress % UniverseSize + 1; }
+		int32 GetChannel() const { return AbsoluteAddress % UniverseSize; }
 
 		int64 AbsoluteAddress = 512;
 

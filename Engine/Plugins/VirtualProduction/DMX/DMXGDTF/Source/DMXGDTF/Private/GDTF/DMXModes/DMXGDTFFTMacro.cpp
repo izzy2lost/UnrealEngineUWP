@@ -5,6 +5,7 @@
 #include "GDTF/DMXModes/DMXGDTFDMXMode.h"
 #include "GDTF/DMXModes/DMXGDTFMacroDMX.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -18,6 +19,18 @@ namespace UE::DMX::GDTF
 			.GetAttribute(TEXT("Name"), Name)
 			.GetAttribute(TEXT("ChannelFunction"), ChannelFunction)
 			.CreateChildren(TEXT("MacroDMX"), MacroDMXArray);
+	}
+
+	FXmlNode* FDMXGDTFFTMacro::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FString DefaultChannelFunction = TEXT("");
+
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("Name"), Name)
+			.SetAttribute(TEXT("ChannelFunction"), ChannelFunction, DefaultChannelFunction)
+			.AppendChildren(TEXT("MacroDMX"), MacroDMXArray);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 
 	TSharedPtr<FDMXGDTFChannelFunction> FDMXGDTFFTMacro::ResolveChannelFunction() const

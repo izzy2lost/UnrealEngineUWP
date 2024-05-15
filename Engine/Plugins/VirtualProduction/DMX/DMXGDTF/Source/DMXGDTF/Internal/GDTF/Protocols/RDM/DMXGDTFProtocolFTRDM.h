@@ -11,15 +11,16 @@ namespace UE::DMX::GDTF::RDM
 	class FDMXGDTFSoftwareVersionID;
 
 	/** This section defines the overall ProtocolRDM of the device (XML node <ProtocolRDM>). */
-	class DMXGDTF_API FDMXGDTFProtocolRDM
+	class DMXGDTF_API FDMXGDTFProtocolFTRDM
 		: public FDMXGDTFNode
 	{
 	public:
-		FDMXGDTFProtocolRDM(const TSharedRef<FDMXGDTFProtocols>& InProtocols);
+		FDMXGDTFProtocolFTRDM(const TSharedRef<FDMXGDTFProtocols>& InProtocols);
 
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("FTRDM"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 
 		/** Manufacturer ESTA ID */

@@ -25,15 +25,16 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("DMXChannel"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface;
 
 		/**
 		 * Number of the DMXBreak; Default value: 1;
 		 * Special value: “Overwrite” – means that this number will be overwritten by Geometry Reference; Size: 4 bytes
 		 *
-		 * @todo UE Specific: If the optional is not set and a related geometry reference exists, it means the value is set to special value "Overwrite".
+		 * UE Specific: If negative and a related geometry reference exists, it means the value is set to special value "Overwrite".
 		 */
-		uint32 DMXBreak;
+		int32 DMXBreak = 1;
 
 		/**
 		 * Relative addresses of the current DMX channel from highest to least significant; Size per int: 4 bytes
@@ -49,7 +50,7 @@ namespace UE::DMX::GDTF
 		FString InitialFunction;
 
 		/** Highlight value for current channel; Special value : “None”.Default value : “None” */
-		FDMXGDTFDMXValue DMXValue;
+		FDMXGDTFDMXValue Highlight;
 
 		/**
 		 * Name of the geometry the current channel controls.
@@ -65,6 +66,9 @@ namespace UE::DMX::GDTF
 
 		/** The outer DMX mode */
 		const TWeakPtr<FDMXGDTFDMXMode> OuterDMXMode;
+
+		UE_DEPRECATED(5.5, "Deprecated with GDTF 1.1. Instead each channel function can hold its own default. Please refer to DMXGDTFChannelFunction::Default")
+		FDMXGDTFDMXValue Default;
 
 		/** Resolves the linked initial function. Returns the initial function, or nullptr if no initial function is linked */
 		TSharedPtr<FDMXGDTFChannelFunction> ResolveInitialFunction() const;

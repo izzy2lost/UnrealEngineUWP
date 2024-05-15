@@ -8,6 +8,7 @@
 #include "GDTF/DMXModes/DMXGDTFMacroDMX.h"
 #include "GDTF/DMXModes/DMXGDTFMacroDMXStep.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -22,6 +23,14 @@ namespace UE::DMX::GDTF
 			.GetAttribute(TEXT("DMXChannel"), DMXChannel);
 	}
 
+	FXmlNode* FDMXGDTFMacroDMXValue::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("DMXValue"), DMXValue)
+			.SetAttribute(TEXT("DMXChannel"), DMXChannel);
+
+		return ChildBuilder.GetIntermediateXmlNode();
+	}
 	TSharedPtr<FDMXGDTFDMXChannel> FDMXGDTFMacroDMXValue::ResolveDMXChannel() const
 	{
 		const TSharedPtr<FDMXGDTFMacroDMX> MacroDMX = OuterMacroDMXStep.IsValid() ? OuterMacroDMXStep.Pin()->OuterMacroDMX.Pin() : nullptr;

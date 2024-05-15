@@ -3,6 +3,7 @@
 #include "GDTF/Protocols/DMXGDTFProtocolDMXMap.h"
 
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -13,9 +14,18 @@ namespace UE::DMX::GDTF
 			.GetAttribute(TEXT("Value"), Value);
 	}
 
+	FXmlNode* FDMXGDTFProtocolDMXMapBase::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("Key"), Key)
+			.SetAttribute(TEXT("Value"), Value);
+
+		return ChildBuilder.GetIntermediateXmlNode();
+	}
+
 	namespace ArtNet
 	{
-		FDMXGDTFProtocolArtNetDMXMap::FDMXGDTFProtocolArtNetDMXMap(const TWeakPtr<ArtNet::FDMXGDTFProtocolArtNet>& InProtocolArtNet)
+		FDMXGDTFProtocolArtNetDMXMap::FDMXGDTFProtocolArtNetDMXMap(const TSharedRef<ArtNet::FDMXGDTFProtocolArtNet>& InProtocolArtNet)
 			: OuterProtocolArtNet(InProtocolArtNet)
 		{}
 	}

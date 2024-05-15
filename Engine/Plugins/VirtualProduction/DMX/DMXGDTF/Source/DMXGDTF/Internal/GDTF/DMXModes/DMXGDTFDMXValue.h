@@ -14,7 +14,10 @@ namespace UE::DMX::GDTF
 	*/
 	struct DMXGDTF_API FDMXGDTFDMXValue
 	{
-		FString Value;
+		FDMXGDTFDMXValue() = default;
+		FDMXGDTFDMXValue(const TCHAR* InValue);
+
+		FString Value = TEXT("None");
 
 		/** Returns the value as integer. Note this is a relatively slow operation as it parses the string. */
 		bool ToInt(uint32& OutInteger) const;

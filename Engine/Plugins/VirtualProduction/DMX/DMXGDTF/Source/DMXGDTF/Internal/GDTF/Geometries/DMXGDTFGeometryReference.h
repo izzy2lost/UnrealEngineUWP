@@ -4,6 +4,8 @@
 
 #include "GDTF/DMXGDTFNode.h"
 
+#include "Math/Transform.h" 
+
 namespace UE::DMX::GDTF
 {
 	class FDMXGDTFBreak;
@@ -23,10 +25,14 @@ namespace UE::DMX::GDTF
 		//~ Begin DMXGDTFGeneralGeometryNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("GeometryReference"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End DMXGDTFGeneralGeometryNode interface
 
 		/** The unique name of geometry. */
 		FName Name;
+
+		/** Relative position of geometry; Default value : Identity Matrix */
+		FTransform Position;
 
 		/** The referenced geometry. Only top level geometries are allowed to be referenced */
 		FString Geometry;

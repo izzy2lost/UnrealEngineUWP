@@ -34,6 +34,7 @@ namespace UE::DMX::GDTF
 		//~ Begin DMXGDTFGeneralGeometryNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("Support"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End DMXGDTFGeneralGeometryNode interface
 
 		/** The type of support */
@@ -46,39 +47,39 @@ namespace UE::DMX::GDTF
 		FVector RopeOffset;
 
 		/** The allowable force on the X-Axis applied to the object according to the Eurocode. Unit: N. */
-		double CapacityX = 0.f;
+		float CapacityX = 0.f;
 
 		/** The allowable force on the Y-Axis applied to the object according to the Eurocode. Unit: N. */
-		double CapacityY = 0.f;
+		float CapacityY = 0.f;
 
 		/** The allowable force on the Z-Axis applied to the object according to the Eurocode. Unit: N. */
-		double CapacityZ = 0.f;
+		float CapacityZ = 0.f;
 
 		/** The allowable moment around the X-Axis applied to the object according to the Eurocode. Unit: N/m. */
-		double CapacityXX = 0.f;
+		float CapacityXX = 0.f;
 
 		/** The allowable moment around the Y-Axis applied to the object according to the Eurocode. Unit: N/m. */
-		double CapacityYY = 0.f;
+		float CapacityYY = 0.f;
 
 		/** The allowable moment around the Z-Axis applied to the object according to the Eurocode. Unit: N/m. */
-		double CapacityZZ = 0.f;
+		float CapacityZZ = 0.f;
 
 		/** The compression ratio for this support along the X-Axis. Unit N/m. Only for Ground Supports. */
-		double ResistanceX = 0.f;
+		float ResistanceX = 0.f;
 
 		/** The compression ratio for this support along the Y-Axis. Unit N/m. Only for Ground Supports. */
-		double ResistanceY = 0.f;
+		float ResistanceY = 0.f;
 
 		/** The compression ratio for this support along the Z-Axis. Unit N/m. Only for Ground Supports. */
-		double ResistanceZ = 0.f;
+		float ResistanceZ = 0.f;
 
 		/** The compression ratio for this support around the X-Axis. Unit N/m. Only for Ground Supports. */
-		double ResistanceXX = 0.f;
+		float ResistanceXX = 0.f;
 
 		/** The compression ratio for this support around the Y-Axis. Unit N/m. Only for Ground Supports. */
-		double ResistanceYY = 0.f;
+		float ResistanceYY = 0.f;
 
 		/** The compression ratio for this support around the Z-Axis. Unit N/m. Only for Ground Supports. */
-		double ResistanceZZ = 0.f;
+		float ResistanceZZ = 0.f;
 	};
 }

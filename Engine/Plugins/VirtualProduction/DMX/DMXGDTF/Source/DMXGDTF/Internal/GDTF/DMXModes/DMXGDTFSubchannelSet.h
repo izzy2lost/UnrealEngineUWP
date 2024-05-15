@@ -21,16 +21,17 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("SubchannelSet"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 
 		/** The name of the sub channel set. Default: Empty */
 		FName Name;
 
 		/** Physical start value */
-		float PhysicalFrom = 0.0;
+		float PhysicalFrom = 0.f;
 
 		/** Physical end value */
-		float PhysicalTo = 0.0;
+		float PhysicalTo = 1.f;
 
 		/** (Optional) Link to the sub physical unit; Starting Point: Attribute */
 		FString SubphyiscalUnit;

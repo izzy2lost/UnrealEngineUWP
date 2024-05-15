@@ -17,6 +17,7 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("Protocols"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 
 		/** Value of the protocol value. */
@@ -34,7 +35,7 @@ namespace UE::DMX::GDTF
 			: public FDMXGDTFProtocolDMXMapBase
 		{
 		public:
-			FDMXGDTFProtocolArtNetDMXMap(const TWeakPtr<ArtNet::FDMXGDTFProtocolArtNet>& InProtocolArtNet);
+			FDMXGDTFProtocolArtNetDMXMap(const TSharedRef<ArtNet::FDMXGDTFProtocolArtNet>& InProtocolArtNet);
 
 			const TWeakPtr<FDMXGDTFProtocolArtNet> OuterProtocolArtNet;
 		};

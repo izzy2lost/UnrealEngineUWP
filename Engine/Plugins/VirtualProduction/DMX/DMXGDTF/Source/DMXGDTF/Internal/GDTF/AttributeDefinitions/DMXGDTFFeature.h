@@ -13,11 +13,12 @@ namespace UE::DMX::GDTF
 		: public FDMXGDTFNode
 	{
 	public:
-		FDMXGDTFFeature(const TWeakPtr<FDMXGDTFFeatureGroup>& InFeatureGroup);
+		FDMXGDTFFeature(const TSharedRef<FDMXGDTFFeatureGroup>& InFeatureGroup);
 
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("Feature"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 
 		/** The unique name of the feature. */

@@ -36,8 +36,10 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override;
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 
+	public:
 		/** Any General Geometry. */
 		TArray<TSharedPtr<FDMXGDTFGeometry>> GeometryArray;
 
@@ -95,13 +97,13 @@ namespace UE::DMX::GDTF
 		/** Finds the geometry by name. Can be either a geometry or a geometry reference */
 		void FindGeometryByName(const TCHAR* InName, TSharedPtr<FDMXGDTFGeometry>& OutGeometry, TSharedPtr<FDMXGDTFGeometryReference>& OutGeometryReference) const;
 
-		template <typename GeometryType, typename ForwardDMXGDTFGeometry = FDMXGDTFGeometry, typename ForwardDMXGDTFGeometryReference = FDMXGDTFGeometryReference>
+		template <typename GeometryType>
 		TSharedPtr<GeometryType> ResolveGeometryLink(const FString& Link) const
 		{
 			TArray<FString> LinkArray;
 			Link.ParseIntoArray(LinkArray, TEXT("."));
 
-			TSharedPtr<const FDMXGDTFGeometryCollectBase> OuterGeometryCollect = SharedThis(this);
+			TSharedPtr<const FDMXGDTFGeometryCollectBase> OuterGeometryCollect = StaticCastSharedRef<const FDMXGDTFGeometryCollectBase>(SharedThis(this));
 			for (const FString& GeometryName : LinkArray)
 			{
 				if (&LinkArray.Last() == &GeometryName)
@@ -115,12 +117,12 @@ namespace UE::DMX::GDTF
 					}
 				}
 
-				TSharedPtr<ForwardDMXGDTFGeometry> Geometry;
-				TSharedPtr<ForwardDMXGDTFGeometryReference> GeometryReference;
+				TSharedPtr<FDMXGDTFGeometry> Geometry;
+				TSharedPtr<FDMXGDTFGeometryReference> GeometryReference;
 				OuterGeometryCollect->FindGeometryByName(*GeometryName, Geometry, GeometryReference);
 				if (Geometry.IsValid())
 				{
-					OuterGeometryCollect = Geometry;
+					OuterGeometryCollect = StaticCastSharedPtr<const FDMXGDTFGeometryCollectBase>(Geometry);
 				}
 			}
 

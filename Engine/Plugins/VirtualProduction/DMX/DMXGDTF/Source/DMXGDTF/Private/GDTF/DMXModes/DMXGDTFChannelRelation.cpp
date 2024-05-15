@@ -5,6 +5,7 @@
 #include "Algo/Find.h"
 #include "GDTF/DMXModes/DMXGDTFDMXMode.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -19,6 +20,17 @@ namespace UE::DMX::GDTF
 			.GetAttribute(TEXT("Master"), Master)
 			.GetAttribute(TEXT("Follower"), Follower)
 			.GetAttribute(TEXT("Type"), Type);
+	}
+
+	FXmlNode* FDMXGDTFChannelRelation::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("Name"), Name)
+			.SetAttribute(TEXT("Master"), Master)
+			.SetAttribute(TEXT("Follower"), Follower)
+			.SetAttribute(TEXT("Type"), Type);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 
 	TSharedPtr<FDMXGDTFDMXChannel> FDMXGDTFChannelRelation::ResolveMaster() const

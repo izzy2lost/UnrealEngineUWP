@@ -4,10 +4,11 @@
 
 #include "GDTF/Protocols/RDM/DMXGDTFDMXPersonality.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF::RDM
 {
-	FDMXGDTFSoftwareVersionID::FDMXGDTFSoftwareVersionID(const TSharedRef<FDMXGDTFProtocolRDM>& InProtocolRDM)
+	FDMXGDTFSoftwareVersionID::FDMXGDTFSoftwareVersionID(const TSharedRef<FDMXGDTFProtocolFTRDM>& InProtocolRDM)
 		: OuterProtocolRDM(InProtocolRDM)
 	{}
 
@@ -16,5 +17,14 @@ namespace UE::DMX::GDTF::RDM
 		FDMXGDTFNodeInitializer(SharedThis(this), XmlNode)
 			.GetAttribute(TEXT("Value"), Value, &FParse::HexNumber)
 			.CreateChildren(TEXT("DMXPersonality"), DMXPersonalityArray);
+	}
+
+	FXmlNode* FDMXGDTFSoftwareVersionID::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("Value"), Value)
+			.AppendChildren(TEXT("DMXPersonality"), DMXPersonalityArray);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 }

@@ -3,6 +3,7 @@
 #include "GDTF/PhysicalDescriptions/DMXGDTFColorRenderingIndex.h"
 
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -15,6 +16,15 @@ namespace UE::DMX::GDTF
 		FDMXGDTFNodeInitializer(SharedThis(this), XmlNode)
 			.GetAttribute(TEXT("CES"), CES, this, &FDMXGDTFColorRenderingIndex::ParseCES)
 			.GetAttribute(TEXT("ColorRenderingIndex"), ColorRenderingIndex);
+	}
+
+	FXmlNode* FDMXGDTFColorRenderingIndex::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("CES"), CES)
+			.SetAttribute(TEXT("ColorRenderingIndex"), ColorRenderingIndex);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 
 	uint8 FDMXGDTFColorRenderingIndex::ParseCES(const FString& GDTFString) const

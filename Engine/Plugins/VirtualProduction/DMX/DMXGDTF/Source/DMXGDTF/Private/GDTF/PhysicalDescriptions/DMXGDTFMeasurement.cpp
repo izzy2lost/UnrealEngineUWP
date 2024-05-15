@@ -4,6 +4,7 @@
 
 #include "GDTF/PhysicalDescriptions/DMXGDTFMeasurementPoint.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -14,10 +15,26 @@ namespace UE::DMX::GDTF
 			.GetAttribute(TEXT("LuminousIntensity"), LuminousIntensity)
 			.GetAttribute(TEXT("Transmission"), Transmission)
 			.GetAttribute(TEXT("InterpolationTo"), InterpolationTo)
-			.CreateChildren(TEXT("MeasurementPoints"), MeasurementPointArray);
+			.CreateChildren(TEXT("MeasurementPoint"), MeasurementPointArray);
 	}
 
-	FDMXGDTFEmitterMeasurement::FDMXGDTFEmitterMeasurement(const TWeakPtr<FDMXGDTFEmitter>& InEmitter)
+	FXmlNode* FDMXGDTFMeasurementBase::CreateXmlNode(FXmlNode& Parent)
+	{
+		const float DefaultPhysical = 0.f;
+		const float DefaultLuminousIntensity = 0.f;
+		const float DefaultTransmission = 0.f;
+
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("Physical"), Physical, DefaultPhysical)
+			.SetAttribute(TEXT("LuminousIntensity"), LuminousIntensity, DefaultLuminousIntensity)
+			.SetAttribute(TEXT("Transmission"), Transmission, DefaultTransmission)
+			.SetAttribute(TEXT("InterpolationTo"), InterpolationTo)
+			.AppendChildren(TEXT("MeasurementPoint"), MeasurementPointArray);
+
+		return ChildBuilder.GetIntermediateXmlNode();
+	}
+
+	FDMXGDTFEmitterMeasurement::FDMXGDTFEmitterMeasurement(const TSharedRef<FDMXGDTFEmitter>& InEmitter)
 		: OuterEmitter(InEmitter)
 	{}
 

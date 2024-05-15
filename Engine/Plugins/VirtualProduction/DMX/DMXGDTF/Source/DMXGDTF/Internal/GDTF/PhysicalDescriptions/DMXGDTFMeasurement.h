@@ -48,19 +48,20 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("Measurement"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 		
 		/** 
 		 * For additive color mixing: uniquely given emitter intensity DMX percentage. Value range between > 0 and <= 100. 
 		 * For subtractive color mixing: uniquely given flag insertion DMX percentage. Value range between 0 and 100. 
 		 */
-		float Physical;		
+		float Physical = 0.f;		
 
 		/** Used for additive color mixing: overall candela value for the enclosed set of measurement. */
-		float LuminousIntensity;		
+		float LuminousIntensity = 0.f;		
 
 		/** Used for subtractive color mixing: total amount of lighting energy passed at this insertion percentage. */
-		float Transmission;	
+		float Transmission = 0.f;	
 
 		/** Interpolation scheme from the previous value.The currently defined values are : "Linear", "Step", "Log"; Default: Linear */
 		EDMXGDTFMeasurementInterpolationTo InterpolationTo = EDMXGDTFMeasurementInterpolationTo::Linear;
@@ -74,7 +75,7 @@ namespace UE::DMX::GDTF
 		: public FDMXGDTFMeasurementBase
 	{
 	public:
-		FDMXGDTFEmitterMeasurement(const TWeakPtr<FDMXGDTFEmitter>& InEmitter);
+		FDMXGDTFEmitterMeasurement(const TSharedRef<FDMXGDTFEmitter>& InEmitter);
 
 		/** The outer emitter */
 		const TWeakPtr<FDMXGDTFEmitter> OuterEmitter;

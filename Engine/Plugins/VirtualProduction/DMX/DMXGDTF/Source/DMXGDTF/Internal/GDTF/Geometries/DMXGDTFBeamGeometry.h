@@ -18,7 +18,7 @@ enum class EDMXGDTFBeamGeometryLampType : uint8
 	Tungsten UMETA(DisplayName = "Tungsten"),
 	Halogen UMETA(DisplayName = "Halogen"),
 	LED UMETA(DisplayName = "LED"),
-
+	
 	// Max value. Add further elements above.
 	MaxEnumValue UMETA(Hidden)
 };
@@ -45,7 +45,7 @@ enum class EDMXGDTFBeamGeometryBeamType : uint8
 	PC UMETA(DisplayName = "PC"),
 	Fresnel UMETA(DisplayName = "Fresnel"),
 	Glow UMETA(DisplayName = "Glow"),
-
+	
 	// Max value. Add further elements above.
 	MaxEnumValue UMETA(Hidden)
 };
@@ -71,34 +71,35 @@ namespace UE::DMX::GDTF
 		//~ Begin DMXGDTFGeneralGeometryNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("Beam"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End DMXGDTFGeneralGeometryNode interface
 
 		/** Defines type of the light source */
 		EDMXGDTFBeamGeometryLampType LampType = EDMXGDTFBeamGeometryLampType::Discharge;
 
 		/** Power consumption; Default value: 1 000; Unit: Watt */
-		float PowerConsumption = 1000.0;
+		float PowerConsumption = 1000.f;
 
 		/** Intensity of all the represented light emitters; Default value: 10 000; Unit: lumen */
-		float LuminousFlux = 1000.0;
+		float LuminousFlux = 1000.f;
 
 		/** Color temperature; Default value: 6 000; Unit: kelvin */
-		float ColorTemperature = 1000.0;
+		float ColorTemperature = 1000.f;
 
 		/** Beam angle; Default value: 25,0; Unit: degree */
-		float BeamAngle = 25.0;
+		float BeamAngle = 25.f;
 
 		/** Field angle; Default value: 25,0; Unit: degree */
-		float FieldAngle = 25.0;
+		float FieldAngle = 25.f;
 
 		/** Throw Ratio of the lens for BeamType Rectangle; Default value: 1; Unit: None */
-		float ThrowRatio = 1.0;
+		float ThrowRatio = 1.f;
 
 		/** Ratio from Width to Height of the Rectangle Type Beam; Default value: 1.7777; Unit: None */
-		float RectangleRatio = 1.7777;
+		float RectangleRatio = 1.7777f;
 
 		/** Beam radius on starting point. Default value: 0,05; Unit: meter. */
-		float BeamRadius = 0.05;
+		float BeamRadius = 0.05f;
 
 		/**
 		 * Beam Type

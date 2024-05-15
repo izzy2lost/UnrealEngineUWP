@@ -5,6 +5,7 @@
 #include "Algo/Find.h"
 #include "GDTF/DMXModes/DMXGDTFDMXMode.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF::RDM
 {
@@ -17,6 +18,15 @@ namespace UE::DMX::GDTF::RDM
 		FDMXGDTFNodeInitializer(SharedThis(this), XmlNode)
 			.GetAttribute(TEXT("Value"), Value, &FParse::HexNumber)
 			.GetAttribute(TEXT("DMXMode"), DMXMode);
+	}
+
+	FXmlNode* FDMXGDTFDMXPersonality::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("Value"), Value)
+			.SetAttribute(TEXT("DMXMode"), DMXMode);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 
 	TSharedPtr<FDMXGDTFDMXMode> FDMXGDTFDMXPersonality::ResolveDMXMode() const

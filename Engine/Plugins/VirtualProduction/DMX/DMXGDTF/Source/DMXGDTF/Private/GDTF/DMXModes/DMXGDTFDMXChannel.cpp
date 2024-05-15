@@ -11,6 +11,7 @@
 #include "GDTF/Geometries/DMXGDTFGeometry.h"
 #include "GDTF/Geometries/DMXGDTFGeometryCollect.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -26,9 +27,27 @@ namespace UE::DMX::GDTF
 			.GetAttribute(TEXT("DMXBreak"), DMXBreak)
 			.GetAttribute(TEXT("Offset"), Offset, this, &FDMXGDTFDMXChannel::ParseOffset)
 			.GetAttribute(TEXT("InitialFunction"), InitialFunction)
-			.GetAttribute(TEXT("DMXValue"), DMXValue)
+			.GetAttribute(TEXT("Highlight"), Highlight)
 			.GetAttribute(TEXT("Geometry"), Geometry)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			.GetAttribute(TEXT("Default"), Default) // Deprecated with GDTF 1.1, but still initialize so old GDTFs can be supported. See DMXGDTFChannelFunction for the upgrade path.
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			.CreateChildren(TEXT("LogicalChannel"), LogicalChannelArray);
+	}
+
+	FXmlNode* FDMXGDTFDMXChannel::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FString DefaultInitialFunction = TEXT("");
+
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("DMXBreak"), DMXBreak)
+			.SetAttribute(TEXT("Offset"), Offset)
+			.SetAttribute(TEXT("InitialFunction"), InitialFunction, DefaultInitialFunction)
+			.SetAttribute(TEXT("Highlight"), Highlight)
+			.SetAttribute(TEXT("Geometry"), Geometry)
+			.AppendChildren(TEXT("LogicalChannel"), LogicalChannelArray);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 
 	TSharedPtr<FDMXGDTFChannelFunction> FDMXGDTFDMXChannel::ResolveInitialFunction() const
@@ -51,7 +70,7 @@ namespace UE::DMX::GDTF
 			}
 			else if (!LogicalChannelArray.IsEmpty() && LogicalChannelArray[0].IsValid())
 			{
-				// Fall back to the default value if the link cannot be resolved
+				// As per specs, the first channel function if no initial function is specified
 				return LogicalChannelArray[0]->ChannelFunctionArray.IsEmpty() ? nullptr : LogicalChannelArray[0]->ChannelFunctionArray[0];
 			}
 		}

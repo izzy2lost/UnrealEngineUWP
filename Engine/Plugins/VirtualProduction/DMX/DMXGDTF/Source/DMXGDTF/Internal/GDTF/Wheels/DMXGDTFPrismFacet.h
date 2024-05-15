@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "DMXGDTFColorCIE1931xyY.h"
 #include "GDTF/DMXGDTFNode.h"
 #include "Math/Vector.h"
 #include "Math/Transform.h" 
@@ -20,6 +21,7 @@ namespace UE::DMX::GDTF
 		//~ Begin FDMXGDTFNode interface
 		virtual const TCHAR* GetXmlTag() const override { return TEXT("Facet"); }
 		virtual void Initialize(const FXmlNode& XmlNode) override;
+		virtual FXmlNode* CreateXmlNode(FXmlNode& Parent) override;
 		//~ End FDMXGDTFNode interface
 
 		/**
@@ -27,7 +29,7 @@ namespace UE::DMX::GDTF
 		 *
 		 * UE specific: Using a Vector3d to store the xyY color.
 		 */
-		FVector Color = { 0.3127, 0.3290, 100.0 };
+		FDMXGDTFColorCIE1931xyY Color = { 0.3127, 0.3290, 100.0 };
 
 		/** Specify the rotation, translation and scaling for the facet. */
 		FTransform Rotation = FTransform::Identity;

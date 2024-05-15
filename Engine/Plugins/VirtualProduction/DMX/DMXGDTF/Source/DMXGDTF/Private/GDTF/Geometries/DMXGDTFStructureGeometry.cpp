@@ -6,6 +6,7 @@
 #include "GDTF/Geometries/DMXGDTFGeometry.h"
 #include "GDTF/Geometries/DMXGDTFGeometryCollect.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -20,6 +21,21 @@ namespace UE::DMX::GDTF
 			.GetAttribute(TEXT("CrossSectionWallThickness"), CrossSectionWallThickness)
 			.GetAttribute(TEXT("TrussCrossSection"), TrussCrossSection)
 			.GetAttribute(TEXT("LinkedGeometry"), LinkedGeometry);
+	}
+
+	FXmlNode* FDMXGDTFStructureGeometry::CreateXmlNode(FXmlNode& Parent)
+	{
+		FXmlNode* AppendToNode = FDMXGDTFGeometry::CreateXmlNode(Parent);
+
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this, AppendToNode)
+			.SetAttribute(TEXT("StructureType"), StructureType)
+			.SetAttribute(TEXT("CrossSectionType"), CrossSectionType)
+			.SetAttribute(TEXT("CrossSectionHeight"), CrossSectionHeight)
+			.SetAttribute(TEXT("CrossSectionWallThickness"), CrossSectionWallThickness)
+			.SetAttribute(TEXT("TrussCrossSection"), TrussCrossSection)
+			.SetAttribute(TEXT("LinkedGeometry"), LinkedGeometry);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 
 	TSharedPtr<FDMXGDTFGeometry> FDMXGDTFStructureGeometry::ResolveLinkedGeometry() const

@@ -3,6 +3,7 @@
 #include "GDTF/PhysicalDescriptions/DMXGDTFOperatingTemperature.h"
 
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -15,5 +16,14 @@ namespace UE::DMX::GDTF
 		FDMXGDTFNodeInitializer(SharedThis(this), XmlNode)
 			.GetAttribute(TEXT("Low"), Low)
 			.GetAttribute(TEXT("High"), High);
+	}
+
+	FXmlNode* FDMXGDTFOperatingTemperature::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.SetAttribute(TEXT("Low"), Low)
+			.SetAttribute(TEXT("High"), High);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 }

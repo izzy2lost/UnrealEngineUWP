@@ -40,6 +40,17 @@ bool FDMXZipper::LoadFromData(const TArray64<uint8>& Data)
 
 bool FDMXZipper::SaveToFile(const FString& Filename)
 {
+	TArray64<uint8> Data;
+	if (GetData(Data))
+	{
+		return FFileHelper::SaveArrayToFile(Data, *Filename);
+	}
+	
+	return false;
+}
+
+bool FDMXZipper::GetData(TArray64<uint8>& OutData)
+{
 	FArrayWriter Writer;
 
 	OffsetOfCentralDirectory = 0;
@@ -78,7 +89,8 @@ bool FDMXZipper::SaveToFile(const FString& Filename)
 
 	AddEndOfCentralDirectory(Writer);
 
-	return FFileHelper::SaveArrayToFile(Writer, *Filename);
+	OutData = Writer;
+	return true;
 }
 
 TArray<FString> FDMXZipper::GetFiles() const

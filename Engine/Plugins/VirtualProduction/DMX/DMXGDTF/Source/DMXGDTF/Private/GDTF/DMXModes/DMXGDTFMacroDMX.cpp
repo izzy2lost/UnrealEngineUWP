@@ -4,6 +4,7 @@
 
 #include "GDTF/DMXModes/DMXGDTFMacroDMXStep.h"
 #include "Serialization/DMXGDTFNodeInitializer.h"
+#include "Serialization/DMXGDTFXmlNodeBuilder.h"
 
 namespace UE::DMX::GDTF
 {
@@ -15,5 +16,13 @@ namespace UE::DMX::GDTF
 	{
 		FDMXGDTFNodeInitializer(SharedThis(this), XmlNode)
 			.CreateChildren(TEXT("MacroDMXStep"), MacroDMXStepArray);
+	}
+
+	FXmlNode* FDMXGDTFMacroDMX::CreateXmlNode(FXmlNode& Parent)
+	{
+		const FDMXGDTFXmlNodeBuilder ChildBuilder = FDMXGDTFXmlNodeBuilder(Parent, *this)
+			.AppendChildren(TEXT("MacroDMXStep"), MacroDMXStepArray);
+
+		return ChildBuilder.GetIntermediateXmlNode();
 	}
 }
