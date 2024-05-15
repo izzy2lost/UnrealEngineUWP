@@ -2,6 +2,9 @@
 
 #pragma once
 
+#include <HAL/FileManager.h>
+#include <Misc/Paths.h>
+
 namespace UE::IoStore::HTTP
 {
 
@@ -253,7 +256,70 @@ static void ThrottleTest(FAnsiStringView TestUrl)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static void RedirectTest(const ANSICHAR* TestHost)
+static void TlsLoadRootCerts()
+{
+	IFileManager& Ifm = IFileManager::Get();
+	FString PemPath = FPaths::EngineDir() / TEXT("Content/Certificates/ThirdParty/cacert.pem");
+	FArchive* Reader = Ifm.CreateFileReader(*PemPath);
+
+	uint32 Size = uint32(Reader->TotalSize());
+	FIoBuffer PemData(Size);
+	FMutableMemoryView PemView = PemData.GetMutableView();
+	Reader->Serialize(PemView.GetData(), Size);
+
+	FCertRoots CaRoots(PemData.GetView());
+	FCertRoots::SetDefault(MoveTemp(CaRoots));
+
+	delete Reader;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+static void TlsTest()
+{
+	FEventLoop Loop;
+
+	auto WaitForLoopIdle = [&] {
+		for (; Loop.Tick(-1); FPlatformProcess::SleepNoStats(0.02f));
+	};
+
+	auto OkSink = [Dest=FIoBuffer()] (const FTicketStatus& Status) mutable {
+		check(Status.GetId() != FTicketStatus::EId::Error);
+		if (Status.GetId() == FTicketStatus::EId::Response)
+		{
+			FResponse& Response = Status.GetResponse();
+			check(Response.GetStatusCode() == 200);
+			Response.SetDestination(&Dest);
+			return;
+		}
+		check(Status.GetId() == FTicketStatus::EId::Content);
+	};
+
+	auto NotOkSink = [Dest=FIoBuffer()] (const FTicketStatus& Status) mutable {
+		check(Status.GetId() == FTicketStatus::EId::Error);
+	};
+
+	static const ANSICHAR* Url = "https://httpbin.org/get";
+
+	{
+		FRequest Request = Loop.Get(Url);
+		Loop.Send(MoveTemp(Request), OkSink);
+		WaitForLoopIdle();
+	}
+
+	if (false) {
+		FRequest Request = Loop.Request("HEAD", "https://github.com/mridgers/clink/releases/download/1.0.0a4/clink-1.0.0a4.zip");
+		Loop.Send(MoveTemp(Request), OkSink);
+		WaitForLoopIdle();
+	}
+
+	{
+		FCertRoots NotACert(FMemoryView("493", 3));
+		check(NotACert.IsValid() == false);
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+static void RedirectTest(const ANSICHAR* TestHost, FCertRootsRef VerifyCert)
 {
 	FEventLoop Loop;
 
@@ -265,18 +331,19 @@ static void RedirectTest(const ANSICHAR* TestHost)
 		.bAutoRedirect = true,
 	};
 
-	enum ReTyp { ReAbs, ReRel };
+	enum ReTyp { ReAbs, ReAbsTls, ReRel, ReRelTls };
 	enum { RecvDataSize = 48 };
 
 	TAnsiStringBuilder<64> Builder;
 	auto BuildUrl = [&] (ReTyp Typ, uint32 Code) -> const auto&
 	{
+		bool bTls = (Typ & 1);
 		Builder.Reset();
-		Builder << "https://";
+		Builder << ((bTls) ? "https://" : "http://");
 		Builder << TestHost;
-		Builder << ":9493";
+		Builder << ":" << (bTls ? 4939 : 9493);
 		Builder << "/redirect";
-		Builder << ((Typ < ReRel) ? "/abs/" : "/rel/");
+		Builder << ((Typ <= ReAbsTls) ? "/abs/" : "/rel/");
 		Builder << Code;
 		Builder << "/data/" << uint32(RecvDataSize);
 		return Builder;
@@ -301,8 +368,9 @@ static void RedirectTest(const ANSICHAR* TestHost)
 
 	uint32 TestCodes[] = { 301, 302, 307, 308 };
 
-	for (auto ReTest : { ReAbs, ReRel })
+	for (auto ReTest : { ReAbs, ReAbsTls, ReRel, ReRelTls })
 	{
+		RequestParams.VerifyCert = (ReTest & 1) ? VerifyCert : 0;
 		RecvCount = 0;
 		for (uint32 Code : TestCodes)
 		{
@@ -320,25 +388,40 @@ static void RedirectTest(const ANSICHAR* TestHost)
 	RequestParams = FEventLoop::FRequestParams();
 	RequestParams.bAutoRedirect = true;
 
-	FConnectionPool::FParams Params;
-	Params.SetHostFromUrl(BuildUrl(ReAbs, 0));
-	Params.ConnectionCount = 4;
-	FConnectionPool Pool(Params);
+	for (auto ReTest : { ReAbs, ReAbsTls, ReRel, ReRelTls })
+	{
+		FConnectionPool::FParams Params;
+		Params.SetHostFromUrl(BuildUrl(ReTest, 0));
+		Params.VerifyCert = (ReTest & 1) ? VerifyCert : 0;
+		Params.ConnectionCount = 4;
+		FConnectionPool Pool(Params);
 
-	RecvCount = 0;
-	Loop.Send(Loop.Get("/redirect/abs/307/data/55", Pool, &RequestParams), OkSink, SinkParam);
-	WaitForLoopIdle();
-	check(RecvCount == 55);
+		RecvCount = 0;
+		uint32 ExpectCount = 0;
+		for (uint32 TestCount : { 4, 267, 55, 17, 1024, 13, 26, 39, 52, 493 })
+		{
+			ExpectCount += TestCount;
+			TAnsiStringBuilder<64> Path;
+			Path << "/redirect/abs/307/data/";
+			Path << TestCount;
+			Loop.Send(Loop.Get(Path.ToString(), Pool, &RequestParams), OkSink, SinkParam);
+		}
+		WaitForLoopIdle();
+		check(RecvCount == ExpectCount);
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static void HttpTest(const ANSICHAR* TestHost)
+static void HttpTest(const ANSICHAR* TestHost, FCertRootsRef VerifyCert)
 {
+	const uint32 DefaultPort = (VerifyCert != 0) ? 4939 : 9493;
+
 	TAnsiStringBuilder<64> Ret;
-	auto BuildUrl = [&] (const ANSICHAR* Suffix=nullptr, uint32 Port=9493) -> const auto&
+	auto BuildUrl = [&] (const ANSICHAR* Suffix=nullptr, uint32 Port=0) -> const auto&
 	{
+		Port = Port ? Port : DefaultPort;
 		Ret.Reset();
-		Ret << "http://";
+		Ret << ((Port == 4939) ? "https://" : "http://");
 		Ret << TestHost;
 		Ret << ":" << Port;
 		return (Suffix != nullptr) ? (Ret << Suffix) : Ret;
@@ -435,6 +518,13 @@ static void HttpTest(const ANSICHAR* TestHost)
 		}
 	};
 
+	FEventLoop::FRequestParams ReqParamObj = { .VerifyCert = VerifyCert };
+	const FEventLoop::FRequestParams* ReqParams = nullptr;
+	if (VerifyCert != 0)
+	{
+		ReqParams = &ReqParamObj;
+	}
+
 	// unused request
 	{
 		FRequest Request = Loop.Request("GET", BuildUrl("/data"));
@@ -442,7 +532,7 @@ static void HttpTest(const ANSICHAR* TestHost)
 
 	// foundational
 	{
-		FRequest Request = Loop.Request("GET", BuildUrl("/seed/493"));
+		FRequest Request = Loop.Request("GET", BuildUrl("/seed/493"), ReqParams);
 		Request.Accept(EMimeType::Json);
 
 		FTicket Ticket = Loop.Send(MoveTemp(Request), NullSink);
@@ -452,11 +542,11 @@ static void HttpTest(const ANSICHAR* TestHost)
 
 	// convenience
 	{
-		FRequest Request = Loop.Get(BuildUrl("/data")).Accept(EMimeType::Json);
+		FRequest Request = Loop.Get(BuildUrl("/data"), ReqParams).Accept(EMimeType::Json);
 
 		FTicket Tickets[] = {
+			Loop.Send(Loop.Get(BuildUrl("/data"), ReqParams).Accept(EMimeType::Json), HashSink),
 			Loop.Send(MoveTemp(Request), HashSink),
-			Loop.Send(Loop.Get(BuildUrl("/data")).Accept(EMimeType::Json), HashSink),
 			Loop.Send(Loop.Get("http://httpbin.org/get"), NoErrorSink),
 		};
 		WaitForLoopIdle();
@@ -464,7 +554,7 @@ static void HttpTest(const ANSICHAR* TestHost)
 
 	// convenience
 	{
-		FRequest Request = Loop.Get(BuildUrl("/data")).Accept(EMimeType::Json);
+		FRequest Request = Loop.Get(BuildUrl("/data"), ReqParams).Accept(EMimeType::Json);
 		FTicket Ticket = Loop.Send(MoveTemp(Request), HashSink);
 		WaitForLoopIdle();
 	}
@@ -474,11 +564,14 @@ static void HttpTest(const ANSICHAR* TestHost)
 	{
 		FConnectionPool::FParams Params;
 		Params.SetHostFromUrl(BuildUrl());
+		Params.VerifyCert = VerifyCert;
 		Params.ConnectionCount = (i % 2) + 1;
 		FConnectionPool Pool(Params);
 		for (int32 j = 0; j < i; ++j)
 		{
-			FRequest Request = Loop.Get("/data", Pool);
+			TAnsiStringBuilder<16> Path;
+			Path << "/data?pool=" << i << "x" << j;
+			FRequest Request = Loop.Get(Path, Pool);
 			Loop.Send(MoveTemp(Request), HashSink);
 		}
 		WaitForLoopIdle();
@@ -511,12 +604,13 @@ static void HttpTest(const ANSICHAR* TestHost)
 
 		FConnectionPool::FParams Params;
 		Params.SetHostFromUrl(BuildUrl());
+		Params.VerifyCert = VerifyCert;
 		FConnectionPool Pool(Params);
 
 		FEventLoop Loop2;
 		Loop2.Send(Loop2.Get("/data?stall=1", Pool), Sink);
 
-		// Requests are pipelined. The second one will get went during the stall so
+		// Requests are pipelined. The second one will get sent during the stall so
 		// we expect it to fail. The subsequent ones are expected to succeed.
 		Loop2.Send(Loop2.Get("/data", Pool), ErrorSink);
 		Loop2.Send(Loop2.Get("/data", Pool), HashSink);
@@ -563,7 +657,7 @@ static void HttpTest(const ANSICHAR* TestHost)
 
 		for (int32 i = 0; (i += 69493) < 2 << 20;)
 		{
-			FRequest Request = Loop.Request("HEAD", BuildUrl("/data"));
+			FRequest Request = Loop.Request("HEAD", BuildUrl("/data"), ReqParams);
 			for (int32 j = i; j > 0;)
 			{
 				FAnsiStringView Name(AsciiData, MixTh() + 1);
@@ -630,7 +724,7 @@ static void HttpTest(const ANSICHAR* TestHost)
 				FTicket Tickets[StressLoad];
 				for (FTicket& Ticket : Tickets)
 				{
-					Ticket = Loop.Send(Loop.Get(StressUrl).Header("Accept", "*/*"), Sink);
+					Ticket = Loop.Send(Loop.Get(StressUrl, ReqParams).Header("Accept", "*/*"), Sink);
 				}
 
 				LoopTickDelay = AddDelay;
@@ -653,7 +747,7 @@ static void HttpTest(const ANSICHAR* TestHost)
 		auto StressTaskEntry = [&] {
 			for (uint32 i = 0; i < StressLoad; ++i)
 			{
-				FTicket Ticket = Loop.Send(Loop.Get(Url), HashSink);
+				FTicket Ticket = Loop.Send(Loop.Get(Url, ReqParams), HashSink);
 				if (!Ticket)
 				{
 					FPlatformProcess::SleepNoStats(0.01f);
@@ -682,9 +776,9 @@ static void HttpTest(const ANSICHAR* TestHost)
 		TamperUrl << "/data?tamper=" << i;
 		FAnsiStringView Url = BuildUrl(TamperUrl.ToString());
 
-		for (int j = 0; j < 48; ++j)
+		for (int j = 0; j < 13; ++j)
 		{
-			FRequest Request = Loop.Request("GET", Url);
+			FRequest Request = Loop.Request("GET", Url, ReqParams);
 			Loop.Send(MoveTemp(Request), NullSink);
 		}
 
@@ -697,7 +791,10 @@ static void HttpTest(const ANSICHAR* TestHost)
 	check(Loop.IsIdle());
 
 #if IS_PROGRAM
-	ThrottleTest(BuildUrl("/data/"));
+	if (VerifyCert == 0)
+	{
+		ThrottleTest(BuildUrl("/data/"));
+	}
 #endif
 
 	// pre-generated headers
@@ -705,9 +802,7 @@ static void HttpTest(const ANSICHAR* TestHost)
 	// proxy
 	// chunked transfer encoding
 	// gzip / deflate
-	// redirects
 	// loop multi-req.
-	// tls
 	// url auth credentials
 	// transfer-file / splice / sendfile
 	// (header field parser)
@@ -730,12 +825,43 @@ IOSTOREHTTPCLIENT_API void IasHttpTest(const ANSICHAR* TestHost="localhost")
 #endif
 
 	MiscTest();
-	HttpTest(TestHost);
-	RedirectTest(TestHost);
+
+	FCertRoots TestServerCaChain;
+	{
+		TAnsiStringBuilder<64> CaUrl;
+		CaUrl << "http://" << TestHost << ":9493/ca";
+
+		FIoBuffer CertBuffer;
+
+		FEventLoop Loop;
+		FRequest Request = Loop.Get(CaUrl);
+		Loop.Send(MoveTemp(Request), [&] (const FTicketStatus& Status) {
+			check(Status.GetId() != FTicketStatus::EId::Error);
+
+			if (Status.GetId() == FTicketStatus::EId::Response)
+			{
+				FResponse& Response = Status.GetResponse();
+				Response.SetDestination(&CertBuffer);
+			}
+		});
+		for (; Loop.Tick(-1); FPlatformProcess::SleepNoStats(0.02f));
+
+		TestServerCaChain = FCertRoots(CertBuffer.GetView());
+	}
+
+	FCertRootsRef TestServerCertRef = FCertRoots::Explicit(TestServerCaChain);
+
+	HttpTest(TestHost, FCertRoots::NoTls());
+	HttpTest(TestHost, TestServerCertRef);
+
+	RedirectTest(TestHost, TestServerCertRef);
+
+	TlsLoadRootCerts();
+	TlsTest();
 }
 
 #endif // !SHIP|TEST
+
 // }}}
 
 } // namespace UE::IoStore::HTTP
-

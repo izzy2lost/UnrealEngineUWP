@@ -20,60 +20,6 @@ static_assert(OPENSSL_VERSION_NUMBER >= 0x10100000L, "version supporting autoini
 
 
 ////////////////////////////////////////////////////////////////////////////////
-class FSslContext
-{
-public:
-				FSslContext(const FPemCert& CertPin={});
-				~FSslContext()					{ SSL_CTX_free(Context); }
-				operator SSL_CTX* () const		{ return Context; }
-	bool		AddCert(const FPemCert& Cert);
-
-private:
-	SSL_CTX*	Context;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-FSslContext::FSslContext(const FPemCert& CertPin)
-{
-	Context = SSL_CTX_new(TLS_client_method());
-
-	uint32 ProtoFlags = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
-	SSL_CTX_set_options(Context, ProtoFlags);
-
-	if (CertPin.GetSize() == 0)
-	{
-#if WITH_SSL
-		const ISslCertificateManager& CertManager = FSslModule::Get().GetCertificateManager();
-		CertManager.AddCertificatesToSslContext(Context);
-#endif
-		return;
-	}
-
-	AddCert(CertPin);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-bool FSslContext::AddCert(const FPemCert& Cert)
-{
-	const void* Data = Cert.GetData();
-	uint32 Size = uint32(Cert.GetSize());
-	if (Data == nullptr || Size == 0)
-	{
-		return false;
-	}
-
-	BIO* Bio = BIO_new_mem_buf(Data, Size);
-	X509* FiveOhNine = PEM_read_bio_X509(Bio, nullptr, 0, nullptr);
-	check(FiveOhNine != nullptr);
-
-	X509_STORE* Store = SSL_CTX_get_cert_store(Context);
-	int32 Result = X509_STORE_add_cert(Store, FiveOhNine);
-	return Result == 1;
-}
-
-
-
-////////////////////////////////////////////////////////////////////////////////
 static FCertRoots GDefaultCertRoots;
 
 struct ECertRootsRefType
@@ -232,7 +178,7 @@ public:
 				~FTlsPeer();
 				FTlsPeer(FTlsPeer&& Rhs)				{ Move(MoveTemp(Rhs)); }
 				FTlsPeer& operator = (FTlsPeer&& Rhs)	{ return Move(MoveTemp(Rhs)); }
-				FTlsPeer(FSocket InSocket, const FSslContext* Context=nullptr, const char* HostName=nullptr);
+				FTlsPeer(FSocket InSocket, FCertRootsRef Certs=ECertRootsRefType::None, const char* HostName=nullptr);
 	FTlsPeer&	Move(FTlsPeer&& Rhs);
 	FOutcome	Handshake();
 	FOutcome	Send(const char* Data, int32 Size);
@@ -249,13 +195,20 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-FTlsPeer::FTlsPeer(FSocket InSocket, const FSslContext* Context, const char* HostName)
+FTlsPeer::FTlsPeer(FSocket InSocket, FCertRootsRef Certs, const char* HostName)
 : FPeer(MoveTemp(InSocket))
 {
-	if (Context == nullptr)
+	if (Certs == ECertRootsRefType::None)
 	{
 		return;
 	}
+
+	if (Certs == ECertRootsRefType::Default)
+	{
+		Certs = FCertRoots::Explicit(GDefaultCertRoots);
+		check(Certs != 0);
+	}
+	auto* Context = (SSL_CTX*)Certs;
 
 	static BIO_METHOD* BioMethod = nullptr;
 	if (BioMethod == nullptr)
@@ -278,7 +231,7 @@ FTlsPeer::FTlsPeer(FSocket InSocket, const FSslContext* Context, const char* Hos
 
 	// SSL_MODE_ENABLE_PARTIAL_WRITE ??!!!
 
-	Ssl = SSL_new(*Context);
+	Ssl = SSL_new(Context);
 	SSL_set_connect_state(Ssl);
 	SSL_set0_rbio(Ssl, Bio);
 	SSL_set0_wbio(Ssl, Bio);
@@ -434,7 +387,7 @@ class FHttpPeer
 {
 public:
 				FHttpPeer() = default;
-				FHttpPeer(FSocket InSocket, FSslContext* Context=nullptr, const char* HostName=nullptr);
+				FHttpPeer(FSocket InSocket, FCertRootsRef Certs=ECertRootsRefType::None, const char* HostName=nullptr);
 	FOutcome	Handshake();
 
 private:
@@ -443,8 +396,8 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-FHttpPeer::FHttpPeer(FSocket InSocket, FSslContext* Context, const char* HostName)
-: FTlsPeer(MoveTemp(InSocket), Context, HostName)
+FHttpPeer::FHttpPeer(FSocket InSocket, FCertRootsRef Certs, const char* HostName)
+: FTlsPeer(MoveTemp(InSocket), Certs, HostName)
 {
 	if (Ssl == nullptr)
 	{

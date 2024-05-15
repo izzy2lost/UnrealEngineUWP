@@ -46,8 +46,7 @@ enum class EStatusCodeClass
 
 ////////////////////////////////////////////////////////////////////////////////
 using	FCertRootsRef	= UPTRINT;
-using	FTicket		= uint64;
-using	FPemCert	= FMemoryView;
+using	FTicket			= uint64;
 struct	FActivity;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,12 +81,11 @@ public:
 	{
 		int32				SetHostFromUrl(FAnsiStringView Url);
 		FAnsiStringView		HostName;
-		FPemCert			VerifyCert;
+		FCertRootsRef		VerifyCert = FCertRoots::NoTls();
 		int32				SendBufSize = -1;
 		int32				RecvBufSize = -1;
 		uint32				Port = 0;
 		uint16				ConnectionCount = 1;
-		bool				bUseTls = false;
 		/*
 		enum class ProxyType { Http, Socks4 };
 		Proxy = { ip, port, type }
@@ -214,7 +212,7 @@ public:
 
 	struct FRequestParams
 	{
-		FPemCert			VerifyCert;
+		FCertRootsRef		VerifyCert		= {};
 		uint32				BufferSize		= 256;
 		bool				bAutoRedirect	= false;
 	};

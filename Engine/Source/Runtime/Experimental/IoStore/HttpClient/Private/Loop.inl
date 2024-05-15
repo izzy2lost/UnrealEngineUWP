@@ -1294,13 +1294,14 @@ FRequest FEventLoop::Request(
 	// Create an activity and an emphemeral host
 	Params = (Params != nullptr) ? Params : &GDefaultParams;
 
-	FPemCert VerifyCert;
+	FCertRootsRef VerifyCert = FCertRoots::NoTls();
 	if (UrlOffsets.SchemeLength == 5)
 	{
-		if (VerifyCert = Params->VerifyCert; VerifyCert.GetSize() == 0)
+		if (VerifyCert = Params->VerifyCert; VerifyCert == ECertRootsRefType::None)
 		{
-			VerifyCert = FPemCert("", 0);
+			VerifyCert = FCertRoots::Default();
 		}
+		check(VerifyCert != ECertRootsRefType::None);
 	}
 
 	uint32 BufferSize = Params->BufferSize;
@@ -1338,7 +1339,7 @@ FRequest FEventLoop::Request(
 	const FRequestParams* Params)
 {
 	check(Pool.Ptr != nullptr);
-	check(Params == nullptr || Params->VerifyCert.GetData() == nullptr); // add cert to FConPool instead
+	check(Params == nullptr || Params->VerifyCert == ECertRootsRefType::None); // add cert to FConPool instead
 
 	Params = (Params != nullptr) ? Params : &GDefaultParams;
 
@@ -1402,7 +1403,7 @@ bool FEventLoop::Redirect(const FTicketStatus& Status, FTicketSink& OuterSink)
 		FHost& Host = *(Activity.Host);
 
 		TAnsiStringBuilder<256> Url;
-		Url << (Host.WithTls() ? "https" : "http");
+		Url << ((Host.GetVerifyCert() != ECertRootsRefType::None) ? "https" : "http");
 		Url << "://";
 		Url << Host.GetHostName();
 		Url << ":" << Host.GetPort();

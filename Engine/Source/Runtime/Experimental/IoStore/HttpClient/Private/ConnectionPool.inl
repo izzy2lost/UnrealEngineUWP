@@ -19,7 +19,7 @@ public:
 		const ANSICHAR* HostName;
 		uint32			Port = 0;
 		uint32			MaxConnections = 1;
-		FPemCert		VerifyCert;
+		FCertRootsRef	VerifyCert;
 	};
 
 					FHost(const FParams& Params);
@@ -28,8 +28,7 @@ public:
 	FOutcome		Connect(FTlsPeer& Peer);
 	int32			IsResolved() const;
 	FOutcome		ResolveHostName();
-	bool			WithTls() const				{ return GetVerifyCert().GetData() != nullptr; }
-	FPemCert		GetVerifyCert() const		{ return VerifyCert; }
+	FCertRootsRef	GetVerifyCert() const		{ return VerifyCert; }
 	uint32			GetMaxConnections() const	{ return MaxConnections; }
 	uint32			GetIpAddress() const		{ return IpAddresses[0]; }
 	FAnsiStringView	GetHostName() const			{ return HostName; }
@@ -37,7 +36,7 @@ public:
 
 private:
 	FOutcome		Connect(FSocket& Socket);
-	FPemCert		VerifyCert;
+	FCertRootsRef	VerifyCert;
 	const ANSICHAR*	HostName;
 	uint32			IpAddresses[4] = {};
 	int16			SendBufKb = -1;
@@ -57,7 +56,7 @@ FHost::FHost(const FParams& Params)
 
 	if (Port == 0)
 	{
-		Port = (VerifyCert.GetData() == nullptr) ? 80 : 443;
+		Port = (VerifyCert == ECertRootsRefType::None) ? 80 : 443;
 	}
 }
 
@@ -154,14 +153,13 @@ FOutcome FHost::Connect(FTlsPeer& Peer)
 		return Outcome;
 	}
 
-	if (VerifyCert.GetData() == nullptr)
+	if (VerifyCert == ECertRootsRefType::None)
 	{
 		Peer = FTlsPeer(MoveTemp(Socket));
 		return Outcome;
 	}
 
-	FSslContext SslContext(VerifyCert);
-	Peer = FTlsPeer(MoveTemp(Socket), &SslContext, HostName);
+	Peer = FTlsPeer(MoveTemp(Socket), VerifyCert, HostName);
 	return Outcome;
 }
 
@@ -243,7 +241,12 @@ int32 FConnectionPool::FParams::SetHostFromUrl(FAnsiStringView Url)
 	}
 
 	HostName = Offsets.HostName.Get(Url);
-	bUseTls = (Offsets.SchemeLength == 5);
+	
+	VerifyCert = FCertRoots::NoTls();	
+	if (Offsets.SchemeLength == 5)
+	{
+		VerifyCert = FCertRoots::Default();
+	}
 
 	if (Offsets.Port)
 	{
@@ -270,20 +273,12 @@ FConnectionPool::FConnectionPool(const FParams& Params)
 	memcpy(HostDest, Params.HostName.GetData(), HostNameLen);
 	HostDest[HostNameLen] = '\0';
 
-	// Verify
-	FPemCert VerifyCert;
-	if (Params.bUseTls)
-	{
-		VerifyCert = Params.VerifyCert;
-		VerifyCert = (VerifyCert.GetData() != nullptr) ? VerifyCert : FPemCert("", 0);
-	}
-
 	// Init internal object
 	new (Internal) FHost({
 		.HostName		= HostDest,
 		.Port			= Params.Port,
 		.MaxConnections	= Params.ConnectionCount,
-		.VerifyCert		= VerifyCert,
+		.VerifyCert		= Params.VerifyCert,
 	});
 	Internal->SetBufferSize(FHost::EDirection::Send, Params.SendBufSize);
 	Internal->SetBufferSize(FHost::EDirection::Recv, Params.RecvBufSize);
