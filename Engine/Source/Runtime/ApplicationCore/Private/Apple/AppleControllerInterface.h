@@ -137,9 +137,6 @@ protected:
 		bool bNeedsReferenceAttitude;
 		bool bHasReferenceAttitude;
 #endif
-
-		// Workaround for unreliable buttonMenu behavior since iOS/tvOS 14
-        bool bPauseWasPressed;
 	};
 	
 	// Controller Event Callbacks are on the main thread - defer to tick processing
