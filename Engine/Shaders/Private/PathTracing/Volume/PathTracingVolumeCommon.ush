@@ -132,7 +132,7 @@ struct FVolumeIntersectionList
 				}
 				else
 				{
-					// segments could be disjoint (TMax is closer) or overlapping (TMax is closer)
+					// segments could be disjoint (TMax is closer) or overlapping (VolumeTMin is closer)
 					Result.VolumeTMax = min(TMax, Result.VolumeTMin);
 					Result.VolumeTMin = TMin; // we just established this one is closer
 				}

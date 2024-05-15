@@ -563,7 +563,7 @@ FPackedPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bo
 				float3 PathThroughput = PathState.PathThroughput;
 
 				// In order to use analytic transmittance, the user must have requested it _and_ we must be on an interval with no clouds or heterogeneous volumes
-				const bool bUseAnalyticTransmittance =
+				bool bUseAnalyticTransmittance =
 					(VolumeFlags & PATH_TRACER_VOLUME_USE_ANALYTIC_TRANSMITTANCE) != 0 &&
 					(Interval.VolumeMask & (PATH_TRACER_VOLUME_ENABLE_CLOUDS | PATH_TRACER_VOLUME_ENABLE_HETEROGENEOUS_VOLUMES)) == 0;
 				// are there any holdouts on the current segment?
@@ -633,6 +633,13 @@ FPackedPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bo
 							VolumeRadiance += Result.Emission * PathThroughput;
 							// keep tracing through the volume
 							PathThroughput *= SigmaN;
+							// early termination - fades off from 0.002 to 0.001 and then will be 0
+							PathThroughput *= saturate(1000.0 * max3(PathThroughput.x, PathThroughput.y, PathThroughput.z) - 1.0);
+							if (!any(PathThroughput > 0))
+							{
+								bUseAnalyticTransmittance = false; // avoid re-computing the transmittance after the loop
+								break;
+							}
 						}
 						else
 						{

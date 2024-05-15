@@ -99,7 +99,7 @@ FVolumeShadedResult VolumeGetDensity(float3 TranslatedWorldPos, uint VolumeMask,
 		/* take stochastic steps along the ray to estimate transmittance (null scattering) */		\
 		float3 ColorChannelPdf = Throughput;														\
 		/* Sample the distance to the next interaction */											\
-		float2 RandValue = RandomSequence_GenerateSample2D(RandSequence);							\
+		float RandValue = RandomSequence_GenerateSample1D(RandSequence);							\
 		float DeltaT = SampleSpectralTransmittance(RandValue.x, SigmaBar, ColorChannelPdf);			\
 		if (DeltaT < 0.0)																			\
 		{																							\
@@ -118,6 +118,12 @@ FVolumeShadedResult VolumeGetDensity(float3 TranslatedWorldPos, uint VolumeMask,
 			float3 SigmaN = SigmaBar - SigmaT;														\
 			/* keep tracing through the volume */													\
 			Throughput *= SigmaN;																	\
+			/* early termination - fades off from 0.002 to 0.001 and then will be 0 */				\
+			Throughput *= saturate(1000.0 * max3(Throughput.x, Throughput.y, Throughput.z) - 1.0);	\
+			if (!any(Throughput > 0))																\
+			{																						\
+				break;																				\
+			}																						\
 		}																							\
 		else                                                                                        \
 		{																							\
