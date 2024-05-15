@@ -2,11 +2,11 @@
 
 #include "PreLoginAsyncManager.h"
 
-namespace UE::PreLoginAsync
+namespace UE::PreLoginAsync::Name
 {
-	const FName StateGraphName("PreLoginAsync");
-	const FName OptionsName("Options");
-} // UE::PreLoginAsync
+	const FName StateGraph("PreLoginAsync");
+	const FName Options("Options");
+} // UE::PreLoginAsync::Name
 
 #if WITH_SERVER_CODE
 
