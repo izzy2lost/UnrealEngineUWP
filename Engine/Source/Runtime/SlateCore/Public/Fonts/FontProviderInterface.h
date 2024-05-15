@@ -6,6 +6,7 @@
 #include "UObject/Interface.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/UObjectGlobals.h"
+#include "FontRasterizationMode.h"
 #include "FontSdfSettings.h"
 
 #include "FontProviderInterface.generated.h"

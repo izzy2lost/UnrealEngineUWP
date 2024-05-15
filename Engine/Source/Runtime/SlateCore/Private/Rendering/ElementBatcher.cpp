@@ -1391,7 +1391,9 @@ void FSlateElementBatcher::AddTextElement(const FSlateTextElement& DrawElement)
 							ShaderType = ESlateShader::ColorFont;
 							break;
 						case ESlateFontAtlasContentType::Msdf:
-							check(IsSlateSdfTextFeatureEnabled());
+							// SDF / MSDF not supported here because we don't have SDF attributes available
+							checkNoEntry();
+							// Still use SDF shader to prevent raw MSDF texture from showing
 							ShaderType = !bEnableOutline || InOutlineSettings.bMiteredCorners ? ESlateShader::MsdfFont : ESlateShader::SdfFont;
 							break;
 						default:
@@ -3281,7 +3283,7 @@ void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext
 			if (bIsSdfGlyph)
 			{
 				const FFontSdfSettings& FontSdfSettings = GlyphSequenceToRender->GetFontSdfSettings();
-				const FSdfGlyphFontAtlasData SdfGlyphAtlasData = Context.FontCache->GetSdfGlyphFontAtlasData(GlyphToRender, *Context.OutlineSettings, FontSdfSettings);
+				const FSdfGlyphFontAtlasData SdfGlyphAtlasData = Context.FontCache->GetSdfGlyphFontAtlasData(GlyphToRender, *Context.OutlineSettings, GlyphSequenceToRender->GetRasterizationMode(), FontSdfSettings);
 				bCanRenderGlyph = (SdfGlyphAtlasData.Valid && SdfGlyphAtlasData.bSupportsSdf);
 				if (bCanRenderGlyph)
 				{
@@ -3358,18 +3360,19 @@ void FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContext
 
 					const ESlateFontAtlasContentType ContentType = SlateFontTexture->GetContentType();
 					Tint = ContentType == ESlateFontAtlasContentType::Color ? FColor::White : Context.FontTint;
-					check(bIsSdfGlyph == (ContentType == ESlateFontAtlasContentType::Msdf));
 
 					ESlateShader ShaderType = ESlateShader::Default;
 					switch (ContentType)
 					{
 						case ESlateFontAtlasContentType::Alpha:
-							ShaderType = ESlateShader::GrayscaleFont;
+							ShaderType = bIsSdfGlyph ? ESlateShader::SdfFont : ESlateShader::GrayscaleFont;
 							break;
 						case ESlateFontAtlasContentType::Color:
+							check(!bIsSdfGlyph);
 							ShaderType = ESlateShader::ColorFont;
 							break;
 						case ESlateFontAtlasContentType::Msdf:
+							check(bIsSdfGlyph);
 							ShaderType = !bOutlineFont || Context.OutlineSettings->bMiteredCorners ? ESlateShader::MsdfFont : ESlateShader::SdfFont;
 							break;
 						default:

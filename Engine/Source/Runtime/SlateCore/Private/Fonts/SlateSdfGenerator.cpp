@@ -336,6 +336,21 @@ public:
 
 };
 
+static int32 GetNumSdfChannels(FSlateSdfGenerator::ESdfType InSdfType)
+{
+	switch (InSdfType)
+	{
+		case FSlateSdfGenerator::ESdfType::Simple:
+		case FSlateSdfGenerator::ESdfType::Pseudodistance:
+			return 1;
+		case FSlateSdfGenerator::ESdfType::MultichannelAndSimple:
+			return 4;
+		default:
+			checkNoEntry();
+	}
+	return 0;
+}
+
 FSlateSdfGenerator::ERequestResponse FSdfGeneratorTask::Prepare(const FSlateSdfGenerator::FRequestDescriptor& InDescriptor, FSlateSdfGenerator::FRequestOutputInfo& OutOutputInfo, bool bCsvTrace)
 {
 	#if WITH_FREETYPE
@@ -440,35 +455,66 @@ void FSdfGeneratorTask::DoOutlineDecomposition()
 	const bool OverlappedContourSupport = true;
 	const int32 TargetWidth = GlyphSdfMapping.GetSdfWidth();
 	const int32 TargetHeight = GlyphSdfMapping.GetSdfHeight();
+	const int32 TargetChannels = GetNumSdfChannels(Descriptor.SdfType);
 	TArray<float> FloatPixels;
-	FloatPixels.SetNumUninitialized(4 * TargetWidth * TargetHeight);
-	OutputPixels.SetNumUninitialized(4 * TargetWidth * TargetHeight);
+	FloatPixels.SetNumUninitialized(TargetChannels * TargetWidth * TargetHeight);
+	OutputPixels.SetNumUninitialized(TargetChannels * TargetWidth * TargetHeight);
 
-	TArray<uint8> ECBuffer;
-	ECBuffer.SetNumUninitialized (TargetWidth * TargetHeight);
+	switch (Descriptor.SdfType)
+	{
+		case FSlateSdfGenerator::ESdfType::Simple:
+		{
+			msdfgen::BitmapRef<float, 1> FloatBitmap(FloatPixels.GetData(), TargetWidth, TargetHeight);
+			msdfgen::generateSDF(
+				FloatBitmap,
+				MsdfgenShape,
+				GlyphSdfMapping.GetMsdfgenProjection(),
+				1.0,
+				msdfgen::GeneratorConfig(OverlappedContourSupport)
+			);
+			break;
+		}
+		case FSlateSdfGenerator::ESdfType::Pseudodistance:
+		{
+			msdfgen::BitmapRef<float, 1> FloatBitmap(FloatPixels.GetData(), TargetWidth, TargetHeight);
+			msdfgen::generatePseudoSDF(
+				FloatBitmap,
+				MsdfgenShape,
+				GlyphSdfMapping.GetMsdfgenProjection(),
+				1.0,
+				msdfgen::GeneratorConfig(OverlappedContourSupport)
+			);
+			break;
+		}
+		case FSlateSdfGenerator::ESdfType::MultichannelAndSimple:
+		{
+			msdfgen::edgeColoringInkTrap(MsdfgenShape, SDF_CORNER_ANGLE_THRESHOLD);
 
-	msdfgen::edgeColoringInkTrap(MsdfgenShape, SDF_CORNER_ANGLE_THRESHOLD);
-
-	msdfgen::BitmapRef<float, 4> FloatBitmap(FloatPixels.GetData(), TargetWidth, TargetHeight);
-	msdfgen::generateMTSDF(
-		FloatBitmap,
-		MsdfgenShape,
-		GlyphSdfMapping.GetMsdfgenProjection(),
-		1.0,
-		msdfgen::MSDFGeneratorConfig(
-			OverlappedContourSupport,
-			msdfgen::ErrorCorrectionConfig(
-				msdfgen::ErrorCorrectionConfig::EDGE_PRIORITY,
-				msdfgen::ErrorCorrectionConfig::CHECK_DISTANCE_AT_EDGE,
-				msdfgen::ErrorCorrectionConfig::defaultMinDeviationRatio,
-				msdfgen::ErrorCorrectionConfig::defaultMinImproveRatio,
-				ECBuffer.GetData()
-			)
-		)
-	);
+			msdfgen::BitmapRef<float, 4> FloatBitmap(FloatPixels.GetData(), TargetWidth, TargetHeight);
+			msdfgen::generateMTSDF(
+				FloatBitmap,
+				MsdfgenShape,
+				GlyphSdfMapping.GetMsdfgenProjection(),
+				1.0,
+				msdfgen::MSDFGeneratorConfig(
+					OverlappedContourSupport,
+					msdfgen::ErrorCorrectionConfig(
+						msdfgen::ErrorCorrectionConfig::EDGE_PRIORITY,
+						msdfgen::ErrorCorrectionConfig::CHECK_DISTANCE_AT_EDGE,
+						msdfgen::ErrorCorrectionConfig::defaultMinDeviationRatio,
+						msdfgen::ErrorCorrectionConfig::defaultMinImproveRatio,
+						OutputPixels.GetData() // Temporarily repurpose output buffer as error correction buffer
+					)
+				)
+			);
+			break;
+		}
+		default:
+			checkNoEntry();
+	}
 
 	const float* Src = FloatPixels.GetData();
-	for (uint8* Dst = OutputPixels.GetData(), * End = Dst+4*TargetWidth*TargetHeight; Dst < End; ++Dst, ++Src)
+	for (uint8* Dst = OutputPixels.GetData(), * End = Dst+TargetChannels*TargetWidth*TargetHeight; Dst < End; ++Dst, ++Src)
 	{
 		*Dst = GlyphSdfMapping.EncodeDistance(*Src);
 	}
@@ -476,10 +522,11 @@ void FSdfGeneratorTask::DoOutlineDecomposition()
 
 void FSdfGeneratorTask::MakePlaceholder(TArray<uint8>& OutRawPixels) const
 {
+	const int32 TargetChannels = GetNumSdfChannels(Descriptor.SdfType);
 	const int32 TargetWidth = GlyphSdfMapping.GetSdfWidth();
 	const int32 TargetHeight = GlyphSdfMapping.GetSdfHeight();
 	const int32 TargetArea = TargetWidth * TargetHeight;
-	const int32 TotalSubpixels = 4 * TargetArea;
+	const int32 TotalSubpixels = TargetChannels * TargetArea;
 	TArray<float> FloatPixels;
 	FloatPixels.SetNumUninitialized(TargetArea);
 	OutRawPixels.SetNumUninitialized(TotalSubpixels);
@@ -491,10 +538,30 @@ void FSdfGeneratorTask::MakePlaceholder(TArray<uint8>& OutRawPixels) const
 		GlyphSdfMapping.GetMsdfgenOuterRange(),
 		GlyphSdfMapping.GetMsdfgenInnerRange()
 	);
+
 	const float* Src = FloatPixels.GetData();
-	for (uint8* Dst = OutRawPixels.GetData(), * End = Dst + TotalSubpixels; Dst < End; Dst += 4, ++Src)
+	switch (TargetChannels)
 	{
-		Dst[3] = Dst[2] = Dst[1] = Dst[0] = msdfgen::pixelFloatToByte(*Src);
+		case 1:
+			for (uint8* Dst = OutRawPixels.GetData(), * End = Dst + TotalSubpixels; Dst < End; ++Dst, ++Src)
+			{
+				*Dst = msdfgen::pixelFloatToByte(*Src);
+			}
+			break;
+		case 3:
+			for (uint8* Dst = OutRawPixels.GetData(), * End = Dst + TotalSubpixels; Dst < End; Dst += 3, ++Src)
+			{
+				Dst[2] = Dst[1] = Dst[0] = msdfgen::pixelFloatToByte(*Src);
+			}
+			break;
+		case 4:
+			for (uint8* Dst = OutRawPixels.GetData(), * End = Dst + TotalSubpixels; Dst < End; Dst += 4, ++Src)
+			{
+				Dst[3] = Dst[2] = Dst[1] = Dst[0] = msdfgen::pixelFloatToByte(*Src);
+			}
+			break;
+		default:
+			checkNoEntry();
 	}
 }
 
@@ -513,6 +580,7 @@ public:
 	virtual ERequestResponse Spawn(const FRequestDescriptor& InRequest, FRequestOutputInfo& OutCharInfo) override;
 	virtual ERequestResponse SpawnWithPlaceholder(const FRequestDescriptor& InRequest, FRequestOutputInfo& OutCharInfo, TArray<uint8>& OutRawPixels) override;
 	virtual ERequestResponse Respawn(const FRequestDescriptor& InRequest, const FRequestOutputInfo& InCharInfo) override;
+	virtual ERequestResponse MakePlaceholder(const FRequestDescriptor& InRequest, FRequestOutputInfo& OutCharInfo, TArray<uint8>& OutRawPixels) override;
 	virtual void Update(const FForEachRequestDoneCallback& InEnumerator) override;
 	virtual void Flush() override;
 private:
@@ -599,11 +667,9 @@ FSlateSdfGenerator::ERequestResponse FSlateSdfGeneratorImpl::SpawnWithPlaceholde
 {
 	if (FreeTasks.IsEmpty())
 	{
-		SdfUtils::FSdfGeneratorTask PlaceholderTask;
-		const ERequestResponse Result = PlaceholderTask.Prepare(InRequest, OutCharInfo, false);
+		const ERequestResponse Result = MakePlaceholder(InRequest, OutCharInfo, OutRawPixels);
 		if (Result == ERequestResponse::SUCCESS)
 		{
-			PlaceholderTask.MakePlaceholder(OutRawPixels);
 			return ERequestResponse::PLACEHOLDER_ONLY;
 		}
 		return Result;
@@ -653,6 +719,17 @@ FSlateSdfGenerator::ERequestResponse FSlateSdfGeneratorImpl::Respawn(const FRequ
 		}
 	}
 	FreeTasks.Push(Task);
+	return Result;
+}
+
+FSlateSdfGenerator::ERequestResponse FSlateSdfGeneratorImpl::MakePlaceholder(const FRequestDescriptor& InRequest, FRequestOutputInfo& OutCharInfo, TArray<uint8>& OutRawPixels)
+{
+	SdfUtils::FSdfGeneratorTask PlaceholderTask;
+	const ERequestResponse Result = PlaceholderTask.Prepare(InRequest, OutCharInfo, false);
+	if (Result == ERequestResponse::SUCCESS)
+	{
+		PlaceholderTask.MakePlaceholder(OutRawPixels);
+	}
 	return Result;
 }
 

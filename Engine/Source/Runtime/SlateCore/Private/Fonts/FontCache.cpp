@@ -137,15 +137,17 @@ FShapedGlyphEntryKey::FShapedGlyphEntryKey(const FShapedGlyphFaceData& InFontFac
 *
 */
 
-FSdfGlyphEntryKey::FSdfGlyphEntryKey(const TWeakPtr<FFreeTypeFace> InFontFace, uint32 InGlyphIndex, int32 InPpem, float InEmOuterSpread, float InEmInnerSpread)
+FSdfGlyphEntryKey::FSdfGlyphEntryKey(const TWeakPtr<FFreeTypeFace> InFontFace, uint32 InGlyphIndex, ESlateFontAtlasContentType InAtlasContentType, int32 InPpem, float InEmOuterSpread, float InEmInnerSpread)
 	: FontFace(InFontFace)
 	, GlyphIndex(InGlyphIndex)
+	, AtlasContentType(InAtlasContentType)
 	, Ppem(InPpem)
 	, SpreadCategory(GetSpreadCategory(InEmOuterSpread, InEmInnerSpread))
 	, KeyHash(0)
 {
 	KeyHash = HashCombine(KeyHash, GetTypeHash(FontFace));
 	KeyHash = HashCombine(KeyHash, GetTypeHash(GlyphIndex));
+	KeyHash = HashCombine(KeyHash, GetTypeHash(AtlasContentType));
 	KeyHash = HashCombine(KeyHash, GetTypeHash(Ppem));
 	KeyHash = HashCombine(KeyHash, GetTypeHash(SpreadCategory));
 }
@@ -276,26 +278,16 @@ SIZE_T FShapedGlyphSequence::GetAllocatedSize() const
 
 bool FShapedGlyphSequence::IsSdfFont() const
 {
-	switch (RasterizationMode)
-	{
-		case EFontRasterizationMode::Msdf:
-			return IsSlateSdfTextFeatureEnabled();
-		default:
-			return false;
-	}
+	return IsSdfFontRasterizationMode(RasterizationMode) && IsSlateSdfTextFeatureEnabled();
 }
 
 EFontRasterizationMode FShapedGlyphSequence::GetRasterizationMode() const
 {
-	switch (RasterizationMode)
+	if (IsSdfFontRasterizationMode(RasterizationMode) && !IsSlateSdfTextFeatureEnabled())
 	{
-		case EFontRasterizationMode::Msdf:
-			return IsSlateSdfTextFeatureEnabled() ?
-				EFontRasterizationMode::Msdf :
-				EFontRasterizationMode::Bitmap;
-		default:
-			return RasterizationMode;
+		return EFontRasterizationMode::Bitmap;
 	}
+	return RasterizationMode;
 }
 
 bool FShapedGlyphSequence::IsDirty() const
@@ -1201,7 +1193,7 @@ static float CeilSdfHalfSpread(float InEmSpread, float Ppem)
 	return PixelSpread/Ppem;
 }
 
-FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGlyphEntry& InShapedGlyph, const FFontOutlineSettings& InOutlineSettings, const FFontSdfSettings& InSdfSettings)
+FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGlyphEntry& InShapedGlyph, const FFontOutlineSettings& InOutlineSettings, EFontRasterizationMode InRasterizationMode, const FFontSdfSettings& InSdfSettings)
 {
 	if (!IsSlateSdfTextFeatureEnabled()
 		|| !InShapedGlyph.FontFaceData->bSupportsSdf
@@ -1212,6 +1204,7 @@ FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGl
 	const int32 CachedAtlasDataThreadIndex = static_cast<int32>(OwningThread);
 	check(CachedAtlasDataThreadIndex >= 0 && CachedAtlasDataThreadIndex < 2);
 
+	const bool bPlaceholderOnly = InRasterizationMode == EFontRasterizationMode::SdfApproximation;
 #if WITH_FREETYPE
 	const float TargetPpem = static_cast<float>(FreeTypeUtils::ComputeFontPixelSize(InShapedGlyph.FontFaceData->FontSize, InShapedGlyph.FontFaceData->FontScale));
 #else
@@ -1224,11 +1217,34 @@ FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGl
 	float EmInnerSpread = FMath::Clamp(2.f/TargetPpem, 0.05f, 8.f);
 	float EmOuterSpread = FMath::Min(EmInnerSpread + EmOutlineSize, 8.f);
 
+	FSlateSdfGenerator::ESdfType SdfType = FSlateSdfGenerator::ESdfType::MultichannelAndSimple;
+	ESlateFontAtlasContentType AtlasType = ESlateFontAtlasContentType::Msdf;
+	TArray<uint8>* FontAtlasIndicesPtr = &MsdfFontAtlasIndices;
+	switch (InRasterizationMode)
+	{
+		case EFontRasterizationMode::Bitmap:
+		default:
+			checkNoEntry();
+			break;
+		case EFontRasterizationMode::Msdf:
+			SdfType = FSlateSdfGenerator::ESdfType::MultichannelAndSimple;
+			AtlasType = ESlateFontAtlasContentType::Msdf;
+			FontAtlasIndicesPtr = &MsdfFontAtlasIndices;
+			break;
+		case EFontRasterizationMode::Sdf:
+		case EFontRasterizationMode::SdfApproximation:
+			SdfType = FSlateSdfGenerator::ESdfType::Simple;
+			AtlasType = ESlateFontAtlasContentType::Alpha;
+			FontAtlasIndicesPtr = &GrayscaleFontAtlasIndices;
+			break;
+	}
+
 	auto TryRespawn = [&](const FSdfGlyphFontAtlasData& GlyphAtlasData) -> bool {
-		const FSdfGlyphEntryKey GlyphKey(InShapedGlyph.FontFaceData->FontFace, InShapedGlyph.GlyphIndex, InSdfSettings.GetClampedPpem(), GlyphAtlasData.EmOuterSpread, GlyphAtlasData.EmInnerSpread);
+		const FSdfGlyphEntryKey GlyphKey(InShapedGlyph.FontFaceData->FontFace, InShapedGlyph.GlyphIndex, AtlasType, InSdfSettings.GetClampedPpem(), GlyphAtlasData.EmOuterSpread, GlyphAtlasData.EmInnerSpread);
 		FSlateSdfGenerator::FRequestDescriptor SdfRequestDescriptor = { 
 			GlyphKey.FontFace,
 			GlyphKey.GlyphIndex,
+			SdfType,
 			GlyphAtlasData.EmOuterSpread,
 			GlyphAtlasData.EmInnerSpread,
 			GlyphKey.Ppem
@@ -1292,7 +1308,7 @@ FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGl
 	};
 	// Not cached on the glyph, so create a key for to look up this glyph, as it may
 	// have already been cached by another shaped text sequence
-	const FSdfGlyphEntryKey GlyphKey(InShapedGlyph.FontFaceData->FontFace, InShapedGlyph.GlyphIndex, InSdfSettings.GetClampedPpem(), EmOuterSpread, EmInnerSpread);
+	const FSdfGlyphEntryKey GlyphKey(InShapedGlyph.FontFaceData->FontFace, InShapedGlyph.GlyphIndex, AtlasType, InSdfSettings.GetClampedPpem(), EmOuterSpread, EmInnerSpread);
 
 	{
 		// Has the atlas data already been cached by another shaped text sequence?
@@ -1311,13 +1327,16 @@ FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGl
 	FSlateSdfGenerator::FRequestDescriptor SdfRequestDescriptor = { 
 		GlyphKey.FontFace,
 		GlyphKey.GlyphIndex,
+		SdfType,
 		EmOuterSpread,
 		EmInnerSpread,
 		GlyphKey.Ppem
 	};
 	FSlateSdfGenerator::FRequestOutputInfo SdfRequestOutputInfo = {};
 	FCharacterRenderData PlaceholderRenderData;
-	const FSlateSdfGenerator::ERequestResponse SpawnStatus = SdfGenerator->SpawnWithPlaceholder(SdfRequestDescriptor, SdfRequestOutputInfo, PlaceholderRenderData.RawPixels);
+	const FSlateSdfGenerator::ERequestResponse SpawnStatus = bPlaceholderOnly ?
+		SdfGenerator->MakePlaceholder(SdfRequestDescriptor, SdfRequestOutputInfo, PlaceholderRenderData.RawPixels) :
+		SdfGenerator->SpawnWithPlaceholder(SdfRequestDescriptor, SdfRequestOutputInfo, PlaceholderRenderData.RawPixels);
 	TSharedRef<FSdfGlyphFontAtlasData> NewAtlasData = MakeShareable(new FSdfGlyphFontAtlasData());
 
 	switch (SpawnStatus)
@@ -1333,7 +1352,7 @@ FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGl
 			// This can happen if font is still loading
 			return { };
 		case FSlateSdfGenerator::ERequestResponse::PLACEHOLDER_ONLY:
-			NewAtlasData->bPendingRespawn = true;
+			NewAtlasData->bPendingRespawn = !bPlaceholderOnly;
 			break;
 		case FSlateSdfGenerator::ERequestResponse::BAD_REQUEST:
 		default:
@@ -1361,8 +1380,12 @@ FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGl
 		PlaceholderRenderData.SizeY = SdfRequestOutputInfo.ImageHeight;
 		PlaceholderRenderData.HorizontalOffset = SdfRequestOutputInfo.BearingX;
 		PlaceholderRenderData.VerticalOffset = SdfRequestOutputInfo.BearingY;
-		PlaceholderRenderData.ContentType = ESlateFontAtlasContentType::Msdf;
+		PlaceholderRenderData.ContentType = AtlasType;
 		PlaceholderRenderData.bSupportsOutline = true;
+	}
+	else if (bPlaceholderOnly)
+	{
+		return { };
 	}
 
 	auto TryAddToAtlas = [&](FSlateFontAtlas& FontAtlas, uint8 FontAtlasIndex) -> bool
@@ -1379,7 +1402,7 @@ FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGl
 				return true;
 			}
 		}
-		else
+		else if (!bPlaceholderOnly)
 		{
 			// Deferred add character begins by reserving the character box/slot in the texture
 			FDeferredCharacterRenderData RenderData;
@@ -1397,7 +1420,8 @@ FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGl
 		return false;
 	};
 
-	for (const uint8 FontAtlasIndex : MsdfFontAtlasIndices)
+	check(FontAtlasIndicesPtr);
+	for (const uint8 FontAtlasIndex : *FontAtlasIndicesPtr)
 	{
 		FSlateFontAtlas& FontAtlas = static_cast<FSlateFontAtlas&>(AllFontTextures[FontAtlasIndex].Get());
 		if (TryAddToAtlas(FontAtlas, FontAtlasIndex))
@@ -1414,9 +1438,9 @@ FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGl
 		return { /*AtlasHasTooManyTexturesTryAgainLater*/ };
 	}
 
-	TSharedRef<FSlateFontAtlas> FontAtlas = FontAtlasFactory->CreateFontAtlas(ESlateFontAtlasContentType::Msdf);
+	TSharedRef<FSlateFontAtlas> FontAtlas = FontAtlasFactory->CreateFontAtlas(AtlasType);
 	const uint8 TextureIndex = (uint8)AllFontTextures.Add(FontAtlas);
-	MsdfFontAtlasIndices.Add(TextureIndex);
+	FontAtlasIndicesPtr->Add(TextureIndex);
 
 	INC_DWORD_STAT_BY(STAT_SlateNumFontAtlases, 1);
 
@@ -1717,8 +1741,22 @@ void FSlateFontCache::UpdateCache()
 		SdfGenerator->Update(
 			[this](const FSlateSdfGenerator::FRequestDescriptor InRequestDescriptor, TArray<uint8> InRawPixels)
 			{
-				const FSdfGlyphEntryKey GlyphKey(InRequestDescriptor.FontFace, 
-												 InRequestDescriptor.GlyphIndex, 
+				ESlateFontAtlasContentType AtlasType = ESlateFontAtlasContentType::Msdf;
+				switch (InRequestDescriptor.SdfType)
+				{
+					case FSlateSdfGenerator::ESdfType::Simple:
+					case FSlateSdfGenerator::ESdfType::Pseudodistance:
+						AtlasType = ESlateFontAtlasContentType::Alpha;
+						break;
+					case FSlateSdfGenerator::ESdfType::MultichannelAndSimple:
+						AtlasType = ESlateFontAtlasContentType::Msdf;
+						break;
+					default:
+						checkNoEntry();
+				}
+				const FSdfGlyphEntryKey GlyphKey(InRequestDescriptor.FontFace,
+												 InRequestDescriptor.GlyphIndex,
+												 AtlasType,
 												 InRequestDescriptor.Ppem,
 												 InRequestDescriptor.EmOuterSpread,
 												 InRequestDescriptor.EmInnerSpread);
@@ -1729,7 +1767,7 @@ void FSlateFontCache::UpdateCache()
 					if (FoundAtlasData && (*FoundAtlasData)->bSupportsSdf)
 					{
 						check(AllFontTextures.IsValidIndex((*FoundAtlasData)->TextureIndex) &&
-							  MsdfFontAtlasIndices.Contains((*FoundAtlasData)->TextureIndex));
+							  (InRequestDescriptor.SdfType == FSlateSdfGenerator::ESdfType::MultichannelAndSimple ? MsdfFontAtlasIndices : GrayscaleFontAtlasIndices).Contains((*FoundAtlasData)->TextureIndex));
 						FSlateFontAtlas& FontAtlas = static_cast<FSlateFontAtlas&>(AllFontTextures[(*FoundAtlasData)->TextureIndex].Get());
 						FDeferredCharacterRenderData RenderData;
 						RenderData.StartU = (*FoundAtlasData)->StartU;

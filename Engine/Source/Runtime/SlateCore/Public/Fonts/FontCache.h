@@ -7,6 +7,7 @@
 #include "Fonts/ShapedTextFwd.h"
 #include "UObject/ObjectMacros.h"
 #include "Fonts/SlateFontInfo.h"
+#include "Fonts/FontRasterizationMode.h"
 #include "Fonts/FontSdfSettings.h"
 #include "Textures/TextureAtlas.h"
 #include "Fonts/FontTypes.h"
@@ -253,12 +254,13 @@ private:
 struct FSdfGlyphEntryKey
 {
 public:
-	FSdfGlyphEntryKey(const TWeakPtr<FFreeTypeFace> InFontFace, uint32 InGlyphIndex, int32 InPpem, float InEmOuterSpread, float InEmInnerSpread);
+	FSdfGlyphEntryKey(const TWeakPtr<FFreeTypeFace> InFontFace, uint32 InGlyphIndex, ESlateFontAtlasContentType InAtlasContentType, int32 InPpem, float InEmOuterSpread, float InEmInnerSpread);
 
 	FORCEINLINE bool operator==(const FSdfGlyphEntryKey& Other) const
 	{
 		return FontFace == Other.FontFace
 			&& GlyphIndex == Other.GlyphIndex
+			&& AtlasContentType == Other.AtlasContentType
 			&& Ppem == Other.Ppem
 			&& SpreadCategory == Other.SpreadCategory;
 	}
@@ -277,6 +279,8 @@ public:
 	const TWeakPtr<FFreeTypeFace> FontFace;
 	/** The index of this glyph in the FreeType face */
 	const uint32 GlyphIndex;
+	/** Type of glyph pixel content */
+	const ESlateFontAtlasContentType AtlasContentType;
 	/** The pixel size at which the sdf glyph is generated */
 	const int32 Ppem;
 	/** The spread category. The spreads of a glyph entry can be arbitrary but similar values will share the same category and therefore glyph entry */
@@ -832,7 +836,7 @@ public:
 	/**
 	 * Get the atlas information and the scaled metrics of a given shaped sdf glyph. This information will be cached if required.
 	 */
-	SLATECORE_API FSdfGlyphFontAtlasData GetSdfGlyphFontAtlasData(const FShapedGlyphEntry& InShapedGlyph, const FFontOutlineSettings& InOutlineSettings, const FFontSdfSettings& InSdfSettings);
+	SLATECORE_API FSdfGlyphFontAtlasData GetSdfGlyphFontAtlasData(const FShapedGlyphEntry& InShapedGlyph, const FFontOutlineSettings& InOutlineSettings, EFontRasterizationMode InRasterizationMode, const FFontSdfSettings& InSdfSettings);
 
 	/**
 	 * Gets the overflow glyph sequence for a given font. The overflow sequence is used to replace characters that are clipped

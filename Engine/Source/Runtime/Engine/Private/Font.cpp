@@ -391,22 +391,14 @@ void UFont::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
 
 bool UFont::IsSdfFont() const
 {
-	switch (FontRasterizationMode)
-	{
-		case EFontRasterizationMode::Msdf:
-			return IsSlateSdfTextFeatureEnabled();
-		default:
-			return false;
-	}
+	return IsSdfFontRasterizationMode(FontRasterizationMode) && IsSlateSdfTextFeatureEnabled();
 }
 
 EFontRasterizationMode UFont::GetFontRasterizationMode() const
 {
-	switch (FontRasterizationMode)
+	if (IsSdfFontRasterizationMode(FontRasterizationMode) && !IsSlateSdfTextFeatureEnabled())
 	{
-		case EFontRasterizationMode::Msdf:
-			return IsSlateSdfTextFeatureEnabled() ? EFontRasterizationMode::Msdf : EFontRasterizationMode::Bitmap;
-		default:
-			return FontRasterizationMode;
+		return EFontRasterizationMode::Bitmap;
 	}
+	return FontRasterizationMode;
 }
