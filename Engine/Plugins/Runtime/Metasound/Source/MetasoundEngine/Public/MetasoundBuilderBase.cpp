@@ -45,11 +45,12 @@ void UMetaSoundBuilderBase::BeginDestroy()
 	{
 		if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
 		{
-			constexpr bool bForceUnregister = true;
 			const FMetasoundFrontendClassName& MetaSoundClassName = Builder.GetConstDocument().RootGraph.Metadata.GetClassName();
-			BuilderRegistry->FinishBuilding(MetaSoundClassName, bForceUnregister);
+			BuilderRegistry->FinishBuilding(MetaSoundClassName);
 		}
 
+		// The registry may have not been active or it was and the internal weak pointer record of this object no longer accessible.
+		// In either of these cases, we could still have a local, valid builder, so call finish directly here just in case.
 		Builder.FinishBuilding();
 	}
 	Super::BeginDestroy();

@@ -427,6 +427,9 @@ void FMetasoundAssetBase::OnNotifyBeginDestroy()
 {
 	using namespace Metasound::Frontend;
 
+	UObject* OwningAsset = GetOwningAsset();
+	check(OwningAsset);
+
 	// Unregistration of graph is not necessary when cooking as deserialized objects are not mutable and, should they be reloaded,
 	// omitting unregistration avoids potentially kicking off an invalid asynchronous task to unregister a non-existent runtime graph.
 	if (IsRunningCookCommandlet())
@@ -439,21 +442,13 @@ void FMetasoundAssetBase::OnNotifyBeginDestroy()
 	}
 	else
 	{
-		// The editor module removal and addition of assets with the MetaSoundAssetManager directly,
-		// so it can update open editors and load possible assets to reference at will, as opposed
-		// to managing by direct load requests and associated asset references.
-		// (Owning "asset" is a misnomer as we support dynamically generated MetaSounds at runtime now.)
-#if WITH_EDITOR
-		UObject* OwningAsset = GetOwningAsset();
-		check(OwningAsset);
-		if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
-		{
-			AssetManager->RemoveAsset(*OwningAsset);
-		}
-#endif // !WITH_EDITOR
-
 		UnregisterGraphWithFrontend();
 	}
+
+	if (IMetaSoundAssetManager* AssetManager = IMetaSoundAssetManager::Get())
+	{
+		AssetManager->RemoveAsset(*OwningAsset);
+	};
 }
 
 void FMetasoundAssetBase::UnregisterGraphWithFrontend()

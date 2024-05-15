@@ -412,6 +412,11 @@ namespace Metasound
 
 			void OnAssetScanFinished()
 			{
+				if (IsRunningCookCommandlet())
+				{
+					return;
+				}
+
 				AssetScanStatus = EAssetScanStatus::Complete;
 
 				if (AssetPrimeStatus == EAssetPrimeStatus::Requested)

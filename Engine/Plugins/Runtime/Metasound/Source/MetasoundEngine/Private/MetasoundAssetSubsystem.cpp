@@ -85,22 +85,25 @@ namespace Metasound::Engine
 			return bSuccess;
 		}
 
-		// Remove the Map entry only if the key and value are equal.
-		//
-		// This protects against scenarios where a metasound is renamed or moved 
-		// and the new entry was being erroneously removed from the PathMap
 		bool RemovePath(TMap<Frontend::FAssetKey, TArray<FTopLevelAssetPath>>& InMap, const Frontend::FAssetKey& AssetKey, const FTopLevelAssetPath& AssetPath)
 		{
-			if (AssetPath.IsValid())
+			check(IsInGameThread());
+			if (TArray<FTopLevelAssetPath>* MapAssetPaths = InMap.Find(AssetKey))
 			{
-				if (TArray<FTopLevelAssetPath>* MapAssetPaths = InMap.Find(AssetKey))
+				auto ComparePaths = [&AssetPath](const FTopLevelAssetPath& Path)
 				{
-					const int32 NumRemoved = MapAssetPaths->RemoveAllSwap([&AssetPath](const FTopLevelAssetPath& Path) { return Path == AssetPath; }, EAllowShrinking::No);
+					// Cook can strip package names on destruction, so only asset name is reliable
+					return IsRunningCookCommandlet()
+						? Path.GetAssetName() == AssetPath.GetAssetName()
+						: Path == AssetPath;
+				};
+				if (MapAssetPaths->RemoveAllSwap(ComparePaths, EAllowShrinking::No) > 0)
+				{
 					if (MapAssetPaths->IsEmpty())
 					{
 						InMap.Remove(AssetKey);
 					}
-					return NumRemoved > 0;
+					return true;
 				}
 			}
 
@@ -109,6 +112,7 @@ namespace Metasound::Engine
 
 		void AddPath(TMap<Frontend::FAssetKey, TArray<FTopLevelAssetPath>>& InMap, const Frontend::FAssetKey& AssetKey, const FTopLevelAssetPath& AssetPath)
 		{
+			check(IsInGameThread());
 			TArray<FTopLevelAssetPath>& Paths = InMap.FindOrAdd(AssetKey);
 			Paths.AddUnique(AssetPath);
 #if !NO_LOGGING
@@ -197,10 +201,24 @@ namespace Metasound::Engine
 
 	FMetaSoundAssetManager::~FMetaSoundAssetManager()
 	{
+#if !NO_LOGGING
 		if (!PathMap.IsEmpty())
 		{
-			UE_LOG(LogMetaSound, Display, TEXT("Destroying MetaSoundAssetManager while %i asset keys are still registered."), PathMap.Num());
+			TSet<FAssetKey> Keys;
+			if (int32 NumKeys = PathMap.GetKeys(Keys); NumKeys > 0)
+			{
+				UE_LOG(LogMetaSound, Warning, TEXT("AssetManager is shutting down with the following '%i' assets active:"), NumKeys);
+				for (const TPair<FAssetKey, TArray<FTopLevelAssetPath>>& Pair : PathMap)
+				{
+					for (const FTopLevelAssetPath& Path : Pair.Value)
+					{
+						UE_LOG(LogMetaSound, Warning, TEXT("- %s"), *Path.ToString());
+					}
+				}
+			}
 		}
+#endif // !NO_LOGGING
+
 	}
 
 	void FMetaSoundAssetManager::AddReferencedObjects(FReferenceCollector& Collector)
@@ -359,6 +377,7 @@ namespace Metasound::Engine
 
 	bool FMetaSoundAssetManager::ContainsKey(const Metasound::Frontend::FAssetKey& InKey) const
 	{
+		check(IsInGameThread());
 		return PathMap.Contains(InKey);
 	}
 
@@ -410,6 +429,7 @@ namespace Metasound::Engine
 
 	const FTopLevelAssetPath* FMetaSoundAssetManager::FindAssetPath(const Metasound::Frontend::FAssetKey& InKey) const
 	{
+		check(IsInGameThread());
 		if (const TArray<FTopLevelAssetPath>* Paths = PathMap.Find(InKey))
 		{
 			if (!Paths->IsEmpty())
@@ -604,22 +624,20 @@ namespace Metasound::Engine
 	{
 		using namespace Frontend;
 
-		if (const FMetasoundAssetBase* MetaSoundAsset = Metasound::IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InObject))
+		TScriptInterface<const IMetaSoundDocumentInterface> DocInterface(&InObject);
+		check(DocInterface.GetObject());
+		const FMetasoundFrontendDocument& Document = DocInterface->GetConstDocument();
+		const FMetasoundFrontendClassMetadata& Metadata = Document.RootGraph.Metadata;
+
+		if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
 		{
-			const FMetasoundFrontendDocument& Document = MetaSoundAsset->GetConstDocumentChecked();
-			const FMetasoundFrontendClassMetadata& Metadata = Document.RootGraph.Metadata;
-
-			const FAssetKey AssetKey(Metadata.GetClassName(), Metadata.GetVersion());
-			const FGraphRegistryKey GraphKey = MetaSoundAsset->GetGraphRegistryKey();
-
-			if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
-			{
-				constexpr bool bForceUnregister = true;
-				BuilderRegistry->FinishBuilding(Metadata.GetClassName(), bForceUnregister);
-			}
-
-			AssetSubsystemPrivate::RemovePath(PathMap, AssetKey, GraphKey.AssetPath);
+			constexpr bool bForceUnregister = true;
+			BuilderRegistry->FinishBuilding(Metadata.GetClassName(), bForceUnregister);
 		}
+
+		const FAssetKey AssetKey(Metadata.GetClassName(), Metadata.GetVersion());
+		const FTopLevelAssetPath AssetPath(&InObject);
+		AssetSubsystemPrivate::RemovePath(PathMap, AssetKey, AssetPath);
 	}
 
 	void FMetaSoundAssetManager::RemoveAsset(const FAssetData& InAssetData)
@@ -677,7 +695,7 @@ namespace Metasound::Engine
 			{
 				if (AssetKey.IsValid())
 				{
-					PathMap.FindOrAdd(AssetKey).AddUnique(ClassInfo.AssetPath);
+					AssetSubsystemPrivate::AddPath(PathMap, AssetKey, ClassInfo.AssetPath);
 				}
 			}
 		}
