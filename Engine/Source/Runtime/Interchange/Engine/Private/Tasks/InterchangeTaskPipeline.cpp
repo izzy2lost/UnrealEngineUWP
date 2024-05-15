@@ -182,6 +182,24 @@ void UE::Interchange::FTaskPostImport::DoTask(ENamedThreads::Type CurrentThread,
 		return;
 	}
 
+#if WITH_EDITOR
+	auto CallPostEditChangeForAsset = [](const TArray<UE::Interchange::FImportAsyncHelper::FImportedObjectInfo>& ImportedInfos)
+		{
+			for (const UE::Interchange::FImportAsyncHelper::FImportedObjectInfo& ObjectInfo : ImportedInfos)
+			{
+				UObject* ImportedObject = ObjectInfo.ImportedObject;
+				if (!ObjectInfo.bPostEditChangeCalled)
+				{
+					ImportedObject->PostEditChange();
+				}
+			}
+		};
+
+	AsyncHelper->IterateImportedAssets(SourceIndex, CallPostEditChangeForAsset);
+	AsyncHelper->IterateImportedSceneObjects(SourceIndex, CallPostEditChangeForAsset);
+
+#endif //WITH_EDITOR
+
 	TArray<FString> NodeUniqueIDs;
 	TArray<UObject*> ImportedObjects;
 	TArray<bool> IsAssetsReimported;
@@ -207,8 +225,7 @@ void UE::Interchange::FTaskPostImport::DoTask(ENamedThreads::Type CurrentThread,
 			{
 				UObject* ImportedObject = ObjectInfo.ImportedObject;
 
-				//In case Some factory code cannot run outside of the main thread we offer this callback to finish the work after calling post edit change (building the asset)
-				//Its possible the build of the asset to be asynchronous, the factory must handle is own asset correctly
+				//In case Some factory code cannot run outside of the main thread we offer this callback to finish the work after asset build is finish.
 				if (bCallPostImportGameThreadCallback && ObjectInfo.Factory)
 				{
 					Arguments.ImportedObject = ImportedObject;

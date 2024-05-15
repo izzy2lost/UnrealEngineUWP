@@ -157,12 +157,6 @@ void UE::Interchange::FTaskPreCompletion::DoTask(ENamedThreads::Type CurrentThre
 			if (bIsAsset)
 			{
 				AsyncHelper->AssetImportResult->AddImportedObject(ImportedObject);
-
-				if (!AsyncHelper->TaskData.ReimportObject)
-				{
-					//Notify the asset registry, only when we have created the asset
-					FAssetRegistryModule::AssetCreated(ImportedObject);
-				}
 			}
 			else
 			{
@@ -206,14 +200,12 @@ void UE::Interchange::FTaskCompletion::DoTask(ENamedThreads::Type CurrentThread,
 				{
 					if (UObject* Asset = AssetInfo.ImportedObject)
 					{
-						//Call post edit change if it was not call previously
-#if WITH_EDITOR
-						if (!AssetInfo.bPostEditChangeCalled)
+						if (!AsyncHelper->TaskData.ReimportObject)
 						{
-							Asset->PostEditChange();
+							//Notify the asset registry, only when we have created the asset
+							FAssetRegistryModule::AssetCreated(Asset);
 						}
-#endif //WITH_EDITOR
-						if (AsyncHelper->TaskData.ReimportObject && AsyncHelper->TaskData.ReimportObject == Asset)
+						else if (AsyncHelper->TaskData.ReimportObject && AsyncHelper->TaskData.ReimportObject == Asset)
 						{
 							UInterchangeManager::GetInterchangeManager().OnAssetPostReimport.Broadcast(Asset);
 						}

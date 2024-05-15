@@ -2145,40 +2145,24 @@ void UInterchangeSkeletalMeshFactory::FinalizeObject_GameThread(const FSetupObje
 	//to do this we need to put the cloth binding data in the import data use by the build (i.e. Meshdescription)
 	if (ImportAssetObjectData.ExistingClothingBindings.Num() > 0)
 	{
-		float ProgressCount = 2.0f;
-
-		FScopedSlowTask Progress(ProgressCount, NSLOCTEXT("UInterchangeSkeletalMeshPostImportTask", "SkeletalMeshFinalizeImportGameThread", "Executing Skeletal Mesh Finalize Import Task..."));
-		Progress.MakeDialog();
-
 		//Make sure we rebuild the skeletal mesh after re-importing all skin weight
 		FScopedSkeletalMeshPostEditChange ScopePostEditChange(SkeletalMesh);
-
 		//Wait until the asset is finish building then lock the skeletal mesh properties to prevent the UI to update during the alternate skinning reimport
 		FEvent* LockEvent = SkeletalMesh->LockPropertiesUntil();
-
-		Progress.EnterProgressFrame(1.0f);
-
 		FSkinnedAssetAsyncBuildScope AsyncBuildScope(SkeletalMesh);
-
-		//Restore the clothing
-		if (ImportAssetObjectData.ExistingClothingBindings.Num() > 0)
+		for (ClothingAssetUtils::FClothingAssetMeshBinding& ExistingClothMeshBinding : ImportAssetObjectData.ExistingClothingBindings)
 		{
-			for (ClothingAssetUtils::FClothingAssetMeshBinding& ExistingClothMeshBinding : ImportAssetObjectData.ExistingClothingBindings)
+			if (UClothingAssetCommon* ClothAssetCommon = ExistingClothMeshBinding.Asset)
 			{
-				if (UClothingAssetCommon* ClothAssetCommon = ExistingClothMeshBinding.Asset)
-				{
-					ClothAssetCommon->RefreshBoneMapping(SkeletalMesh);
-				}
+				ClothAssetCommon->RefreshBoneMapping(SkeletalMesh);
 			}
-			FSkeletalMeshModel* ImportedResource = SkeletalMesh->GetImportedModel();
-			for (int32 LodIndex = 0; LodIndex < ImportedResource->LODModels.Num(); ++LodIndex)
-			{
-				// Re-apply our clothing assets
-				FLODUtilities::RestoreClothingFromBackup(SkeletalMesh, ImportAssetObjectData.ExistingClothingBindings, LodIndex);
-			}
-			Progress.EnterProgressFrame(1.0f);
 		}
-
+		FSkeletalMeshModel* ImportedResource = SkeletalMesh->GetImportedModel();
+		for (int32 LodIndex = 0; LodIndex < ImportedResource->LODModels.Num(); ++LodIndex)
+		{
+			// Re-apply our clothing assets
+			FLODUtilities::RestoreClothingFromBackup(SkeletalMesh, ImportAssetObjectData.ExistingClothingBindings, LodIndex);
+		}
 		//Release the skeletal mesh async properties
 		LockEvent->Trigger();
 	}
