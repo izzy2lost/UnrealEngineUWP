@@ -664,7 +664,7 @@ namespace uba
 						{
 							bool f = false;
 							if (rec->error.compare_exchange_strong(f, true))
-								rec->logger->Error(TC("Expecting to be able to decompress to %u bytes but got %llu (%s)"), decompressedBlockSize, decompLen, rec->hint);
+								rec->logger->Error(TC("Expecting to be able to decompress %u bytes to %u bytes but got %llu (%s)"), compressedBlockSize, decompressedBlockSize, decompLen, rec->hint);
 							if (!--rec->refCount)
 								delete rec;
 							rec->done.Set();
