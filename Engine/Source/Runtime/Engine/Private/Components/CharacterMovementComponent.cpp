@@ -207,6 +207,13 @@ namespace CharacterMovementCVars
 		TEXT("0: Disable, 1: Enable"),
 		ECVF_Default);
 
+	static bool bNetServerForcePositionUpdateAdvanceClientTimestamp = false;
+	FAutoConsoleVariableRef CVarNetServerForcePositionUpdateAdvanceClientTimestamp(
+		TEXT("p.NetServerForcePositionUpdateAdvanceClientTimestamp"),
+		bNetServerForcePositionUpdateAdvanceClientTimestamp,
+		TEXT("If enabled, the server will advance client timestamps when running ForcePositionUpdate() on client timeout.\n"),
+		ECVF_Default);
+
 
 	static int32 ReplayLerpAcceleration = 0;
 	FAutoConsoleVariableRef CVarReplayLerpAcceleration(
@@ -8428,8 +8435,12 @@ bool UCharacterMovementComponent::ForcePositionUpdate(float DeltaTime)
 
 	FNetworkPredictionData_Server_Character* ServerData = GetPredictionData_Server_Character();
 
-	// Increment client timestamp so we reject client moves after this new simulated time position.
-	ServerData->CurrentClientTimeStamp += DeltaTime;
+	if (CharacterMovementCVars::bNetServerForcePositionUpdateAdvanceClientTimestamp)
+	{
+		// Increment client timestamp so we reject client moves after this new simulated time position.
+		// See handling of CurrentClientTimeStamp in VerifyClientTimeStamp().
+		ServerData->CurrentClientTimeStamp += DeltaTime;
+	}
 
 	// Increment server timestamp so ServerLastTransformUpdateTimeStamp gets changed if there is an actual movement.
 	const double SavedServerTimestamp = ServerData->ServerAccumulatedClientTimeStamp;
@@ -9070,12 +9081,7 @@ bool UCharacterMovementComponent::VerifyClientTimeStamp(float TimeStamp, FNetwor
 			// Also apply the reset to any active root motions.
 			CurrentRootMotion.ApplyTimeStampReset(MinTimeBetweenTimeStampResets);
 		}
-		else
-		{
-			UE_LOG(LogNetPlayerMovement, VeryVerbose, TEXT("TimeStamp %f Accepted! CurrentTimeStamp: %f"), TimeStamp, ServerData.CurrentClientTimeStamp);
-			ProcessClientTimeStampForTimeDiscrepancy(TimeStamp, ServerData);
-		}
-
+		
 		if (bFirstMoveAfterForcedUpdates)
 		{
 			// We have been performing ForcedUpdates because we hadn't received any moves from this connection in a while but we've now received a new move!
@@ -9088,6 +9094,11 @@ bool UCharacterMovementComponent::VerifyClientTimeStamp(float TimeStamp, FNetwor
 			{
 				ServerData.ServerTimeStamp = World->GetTimeSeconds();
 			}
+		}
+		else if (!bTimeStampResetDetected)
+		{
+			UE_LOG(LogNetPlayerMovement, VeryVerbose, TEXT("TimeStamp %f Accepted! CurrentTimeStamp: %f"), TimeStamp, ServerData.CurrentClientTimeStamp);
+			ProcessClientTimeStampForTimeDiscrepancy(TimeStamp, ServerData);
 		}
 	}
 	else
