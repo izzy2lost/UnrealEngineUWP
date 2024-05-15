@@ -89,6 +89,7 @@ public:
 	virtual void GetOutputLinkAttributes(FNodeAttributeArray& OutAttributes) const override;
 	virtual bool ShouldShowAttributesOnPins() const override { return false; }
 	virtual void OnCopyTermDefaultsToDefaultObject(IAnimBlueprintCopyTermDefaultsContext& InCompilationContext, IAnimBlueprintNodeCopyTermDefaultsContext& InPerNodeContext, IAnimBlueprintGeneratedClassCompiledData& OutCompiledData) override;
+	virtual void GetRequiredExtensions(TArray<TSubclassOf<UAnimBlueprintExtension>>& OutExtensions) const override;
 
 	/** Make a name widget for this linked input pose node */
 	TSharedRef<SWidget> MakeNameWidget(IDetailLayoutBuilder& DetailBuilder);
@@ -123,6 +124,10 @@ private:
 
 	/** Create pins from the stub function FunctionReference */
 	void CreatePinsFromStubFunction(const UFunction* Function);
+
+	friend class UAnimBlueprintExtension_LinkedInputPose;
+	// Called pre-compilation to evaluate is this input pose is used
+	void AnalyzeLinks(TArrayView<UAnimGraphNode_Base*> InAnimNodes);
 
 	/** Reconstruct any layer nodes in this BP post-edit */
 	static void ReconstructLayerNodes(UBlueprint* InBlueprint);

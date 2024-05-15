@@ -20,6 +20,8 @@ struct FAnimNode_LinkedInputPose : public FAnimNode_Base
 	FAnimNode_LinkedInputPose()
 		: Name(DefaultInputPoseName)
 		, Graph(NAME_None)
+		, bIsCachedInputPoseInitialized(false)
+		, bIsOutputLinked(true)
 		, OuterGraphNodeIndex(INDEX_NONE)
 		, InputProxy(nullptr)
 	{
@@ -47,10 +49,16 @@ struct FAnimNode_LinkedInputPose : public FAnimNode_Base
 
 	// CachedInputPose can have bone data allocated but uninitialized.
 	// This can happen if an anim graph has an Input Pose node with nothing populating it (e.g. if it's played as the only animbp on an actor).
-	bool bIsCachedInputPoseInitialized = false;
+	uint8 bIsCachedInputPoseInitialized : 1;
+
+	// True if this linked input pose output is connected to the graph root
+	UPROPERTY(meta = (BlueprintCompilerGeneratedDefaults))
+	uint8 bIsOutputLinked : 1;
 
 	// The node index of the currently-linked outer node
 	int32 OuterGraphNodeIndex;
+
+
 
 	// FAnimNode_Base interface
 #if ENABLE_ANIMGRAPH_TRAVERSAL_DEBUG
