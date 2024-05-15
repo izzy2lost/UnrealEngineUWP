@@ -328,7 +328,7 @@ namespace UE::AnimNext
 			return *static_cast<ComponentType*>(Component);
 		}
 
-		return static_cast<ComponentType&>(AddComponent(ComponentNameHash, ComponentName, MakeShared<ComponentType>()));
+		return static_cast<ComponentType&>(AddComponent(ComponentNameHash, ComponentName, MakeShared<ComponentType>(*RootGraphInstance)));
 	}
 
 	template<class ComponentType>

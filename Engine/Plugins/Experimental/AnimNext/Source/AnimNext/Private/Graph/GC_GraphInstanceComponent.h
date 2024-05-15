@@ -19,6 +19,8 @@ namespace UE::AnimNext
 	{
 		DECLARE_ANIM_GRAPH_INSTANCE_COMPONENT(FGCGraphInstanceComponent)
 
+		explicit FGCGraphInstanceComponent(FAnimNextGraphInstance& InOwnerInstance);
+
 		// Registers the provided trait with the GC system
 		// Once registered, IGarbageCollection::AddReferencedObjects will be called on it during GC
 		void Register(const FWeakTraitPtr& InTraitPtr);

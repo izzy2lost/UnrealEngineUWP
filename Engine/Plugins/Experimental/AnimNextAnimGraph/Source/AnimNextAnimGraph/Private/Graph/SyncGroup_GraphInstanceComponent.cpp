@@ -5,6 +5,11 @@
 
 namespace UE::AnimNext
 {
+	FSyncGroupGraphInstanceComponent::FSyncGroupGraphInstanceComponent(FAnimNextGraphInstance& InOwnerInstance)
+		: FGraphInstanceComponent(InOwnerInstance)
+	{
+	}
+
 	void FSyncGroupGraphInstanceComponent::RegisterWithGroup(FName GroupName, EAnimGroupRole::Type GroupRole, const FWeakTraitPtr& TraitPtr, const FTraitUpdateState& TraitState)
 	{
 		FSyncGroupState& GroupState = SyncGroupMap.FindOrAdd(GroupName);

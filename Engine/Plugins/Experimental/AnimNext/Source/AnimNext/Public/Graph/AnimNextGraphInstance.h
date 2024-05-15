@@ -202,7 +202,7 @@ ComponentType& FAnimNextGraphInstance::GetComponent()
 		return *static_cast<ComponentType*>(Component);
 	}
 
-	return static_cast<ComponentType&>(AddComponent(ComponentNameHash, ComponentName, MakeShared<ComponentType>()));
+	return static_cast<ComponentType&>(AddComponent(ComponentNameHash, ComponentName, MakeShared<ComponentType>(*this)));
 }
 
 template<class ComponentType>

@@ -7,6 +7,11 @@
 
 namespace UE::AnimNext
 {
+	FGCGraphInstanceComponent::FGCGraphInstanceComponent(FAnimNextGraphInstance& InOwnerInstance)
+		: FGraphInstanceComponent(InOwnerInstance)
+	{
+	}
+
 	void FGCGraphInstanceComponent::Register(const FWeakTraitPtr& InTraitPtr)
 	{
 		TraitsWithReferences.Add(InTraitPtr);
