@@ -616,7 +616,7 @@ RWTexture2D<float> RWOutputLuminance;
 void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 {
 	float4 SvPosition = float4((float2)DispatchThreadId + 0.5f + Output_ViewportMin, 0.0f, 1.0f);
-	float2 UV = ((float2)DispatchThreadId + 0.5f) * Output_ViewportSizeInverse;
+	float2 UV = ((float2)DispatchThreadId + 0.5f + Color_ViewportMin) * Color_ExtentInverse;
 
 	if (IsComputeUVOutOfBounds(UV))
 	{
