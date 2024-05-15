@@ -1089,6 +1089,12 @@ private:
 	FEntityManager* EntityManager;
 };
 
+#if PLATFORM_WINDOWS
+#define UE_SELECT_ANY __declspec(selectany)
+#else
+#define UE_SELECT_ANY 
+#endif
+
 extern MOVIESCENE_API FEntityManager* GEntityManagerForDebuggingVisualizers;
 
 

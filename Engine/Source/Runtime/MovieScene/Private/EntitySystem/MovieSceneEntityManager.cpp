@@ -15,7 +15,7 @@
 
 #include "EntitySystem/EntityAllocationIterator.h"
 
-UE::MovieScene::FEntityManager*& GEntityManagerForDebugging = UE::MovieScene::GEntityManagerForDebuggingVisualizers;
+UE_SELECT_ANY UE::MovieScene::FEntityManager*& GEntityManagerForDebugging = UE::MovieScene::GEntityManagerForDebuggingVisualizers;
 
 #if DO_GUARD_SLOW
 
