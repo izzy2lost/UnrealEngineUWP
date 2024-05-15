@@ -261,6 +261,7 @@ void FCustomizableObjectEditorModule::StartupModule()
 	PropertyModule.RegisterCustomPropertyTypeLayout("CustomizableObjectIdentifier", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FCustomizableObjectIdentifierCustomization::MakeInstance));
 	PropertyModule.RegisterCustomPropertyTypeLayout(FMeshReshapeBoneReference::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMeshReshapeBonesReferenceCustomization::MakeInstance));
 	PropertyModule.RegisterCustomPropertyTypeLayout(FBoneToRemove::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FCustomizableObjectLODReductionSettings::MakeInstance));
+	PropertyModule.RegisterCustomPropertyTypeLayout(NAME_StrProperty, FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FCustomizableObjectStateParameterSelector::MakeInstance), MakeShared<FStatePropertyTypeIdentifier>());
 
 	PropertyModule.NotifyCustomizationModuleChanged();
 
@@ -303,10 +304,18 @@ void FCustomizableObjectEditorModule::ShutdownModule()
 	if( FModuleManager::Get().IsModuleLoaded( "PropertyEditor" ) )
 	{
 		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+		
+		// Unregister Property views
 		for (const auto& ClassName : RegisteredCustomDetails)
 		{
 			PropertyModule.UnregisterCustomClassLayout(ClassName);
 		}
+
+		// Unregister Custom properties
+		PropertyModule.UnregisterCustomPropertyTypeLayout("CustomizableObjectIdentifier");
+		PropertyModule.UnregisterCustomPropertyTypeLayout(FMeshReshapeBoneReference::StaticStruct()->GetFName());
+		PropertyModule.UnregisterCustomPropertyTypeLayout(FBoneToRemove::StaticStruct()->GetFName());
+		PropertyModule.UnregisterCustomPropertyTypeLayout(NAME_StrProperty);
 
 		PropertyModule.NotifyCustomizationModuleChanged();
 	}

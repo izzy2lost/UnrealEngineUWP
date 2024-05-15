@@ -6,6 +6,7 @@
 
 class UCustomizableObject;
 class UCustomizableObjectNodeObject;
+class UEdGraph;
 class UEdGraphPin;
 class UCustomizableObjectNode;
 
@@ -69,6 +70,9 @@ const UEdGraphPin* FindMeshBaseSource(const UEdGraphPin& Pin, const bool bOnlyLo
 /** Return the mapping of Group Object Nodes to Child Object Nodes of the given hierarchy.
  * @param Object Child or root Object to start the search from. */
 TMultiMap<FGuid, UCustomizableObjectNodeObject*> GetNodeGroupObjectNodeMapping(UCustomizableObject* Object);
+
+/** Returns all the Customizable Objects in a graph starting at the root object */
+void GetAllObjectsInGraph(UCustomizableObject* Object, TSet<UCustomizableObject*>& OutObjects);
 
 namespace GraphTraversal
 {

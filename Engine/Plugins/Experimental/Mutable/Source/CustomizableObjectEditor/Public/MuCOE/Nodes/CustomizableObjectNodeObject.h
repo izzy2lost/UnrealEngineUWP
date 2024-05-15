@@ -63,7 +63,7 @@ struct CUSTOMIZABLEOBJECTEDITOR_API FCustomizableObjectState
 	UPROPERTY(EditAnywhere, Category=CustomizableObject)
 	FString Name;
 
-	UPROPERTY(EditAnywhere, Category=CustomizableObject)
+	UPROPERTY(EditAnywhere, Category = CustomizableObject, meta = (ShowParameterOptions))
 	TArray<FString> RuntimeParameters;
 
 	/** Special treatment of texture compression for this state. */
@@ -282,6 +282,9 @@ public:
 	// Node Details Support
 	int32 CurrentComponent = 0;
 	int32 CurrentLOD = 0;
+
+	// Array filled in the Details of the node to store all the parameter names of a CO graph (full tree)
+	TArray<FString> ParameterNames;
 
 private:
 	static const FName ChildrenPinName;

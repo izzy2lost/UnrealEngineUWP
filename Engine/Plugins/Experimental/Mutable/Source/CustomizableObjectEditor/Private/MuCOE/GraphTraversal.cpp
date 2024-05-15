@@ -3,7 +3,6 @@
 #include "MuCOE/GraphTraversal.h"
 
 #include "AssetRegistry/AssetRegistryModule.h"
-#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCOE/CustomizableObjectPin.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeEnumParameter.h"
@@ -552,7 +551,7 @@ void GetNodeGroupObjectNodeMappingImmersive(UCustomizableObject* Object, FAssetR
 		UCustomizableObject* ChildObject = Cast<UCustomizableObject>(AssetData.GetAsset());
 		if (!ChildObject)
 		{
-			continue;			
+			continue;
 		}
 
 		if (ChildObject != Object && !ChildObject->HasAnyFlags(RF_Transient))
@@ -587,6 +586,22 @@ TMultiMap<FGuid, UCustomizableObjectNodeObject*> GetNodeGroupObjectNodeMapping(U
 	GetNodeGroupObjectNodeMappingImmersive(Object, AssetRegistryModule, Visited, Mapping);
 	
 	return Mapping;
+}
+
+
+void GetAllObjectsInGraph(UCustomizableObject* Object, TSet<UCustomizableObject*>& OutObjects)
+{
+	if (!Object)
+	{
+		return;
+	}
+
+	// Search the root of the CO's graph
+	UCustomizableObject* RootObject = GetRootObject(Object);
+	TMultiMap<FGuid, UCustomizableObjectNodeObject*> DummyMap;
+
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	GetNodeGroupObjectNodeMappingImmersive(RootObject, AssetRegistryModule, OutObjects, DummyMap);
 }
 
 
