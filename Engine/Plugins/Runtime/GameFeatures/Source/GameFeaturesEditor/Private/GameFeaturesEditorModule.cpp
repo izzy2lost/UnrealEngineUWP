@@ -112,6 +112,7 @@ class FGameFeaturesEditorModule : public FDefaultModuleImpl
 					PluginTemplate.Description,
 					PluginTemplate.Path.Path,
 					PluginTemplate.DefaultSubfolder,
+					PluginTemplate.DefaultPluginName,
 					PluginTemplate.DefaultGameFeatureDataClass,
 					PluginTemplate.DefaultGameFeatureDataName,
 					PluginTemplate.bIsEnabledByDefault ? EPluginEnabledByDefault::Enabled : EPluginEnabledByDefault::Disabled)));

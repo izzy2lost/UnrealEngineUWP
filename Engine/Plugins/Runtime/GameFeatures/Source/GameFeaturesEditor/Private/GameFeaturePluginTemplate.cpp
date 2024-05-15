@@ -16,12 +16,13 @@
 
 #define LOCTEXT_NAMESPACE "GameFeatures"
 
-FGameFeaturePluginTemplateDescription::FGameFeaturePluginTemplateDescription(FText InName, FText InDescription, FString InOnDiskPath, FString InDefaultSubfolder, TSubclassOf<UGameFeatureData> GameFeatureDataClassOverride, FString GameFeatureDataNameOverride, EPluginEnabledByDefault InEnabledByDefault)
+FGameFeaturePluginTemplateDescription::FGameFeaturePluginTemplateDescription(FText InName, FText InDescription, FString InOnDiskPath, FString InDefaultSubfolder, FString InDefaultPluginName, TSubclassOf<UGameFeatureData> GameFeatureDataClassOverride, FString GameFeatureDataNameOverride, EPluginEnabledByDefault InEnabledByDefault)
 	: FPluginTemplateDescription(InName, InDescription, InOnDiskPath, /*bCanContainContent=*/ true, EHostType::Runtime)
 {
 	SortPriority = 10;
 	bCanBePlacedInEngine = false;
 	DefaultSubfolder = InDefaultSubfolder;
+	DefaultPluginName = InDefaultPluginName;
 	GameFeatureDataName = !GameFeatureDataNameOverride.IsEmpty() ? GameFeatureDataNameOverride : FString();
 	GameFeatureDataClass = GameFeatureDataClassOverride != nullptr ? GameFeatureDataClassOverride : TSubclassOf<UGameFeatureData>(UGameFeatureData::StaticClass());
 	PluginEnabledByDefault = InEnabledByDefault;
@@ -51,6 +52,16 @@ void FGameFeaturePluginTemplateDescription::UpdatePathWhenTemplateUnselected(FSt
 {
 	InOutPath = IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*FPaths::ProjectPluginsDir());
 	FPaths::MakePlatformFilename(InOutPath);
+}
+
+void FGameFeaturePluginTemplateDescription::UpdatePluginNameTextWhenTemplateSelected(FText& OutPluginNameText)
+{
+	OutPluginNameText = FText::FromString(DefaultPluginName);
+}
+
+void FGameFeaturePluginTemplateDescription::UpdatePluginNameTextWhenTemplateUnselected(FText& OutPluginNameText)
+{
+	OutPluginNameText = FText::GetEmpty();
 }
 
 void FGameFeaturePluginTemplateDescription::CustomizeDescriptorBeforeCreation(FPluginDescriptor& Descriptor)

@@ -444,6 +444,7 @@ void SNewPluginWizard::OnTemplateSelectionChanged(TSharedPtr<FPluginTemplateDesc
 			if (OldSelectedItem.IsValid())
 			{
 				OldSelectedItem->UpdatePathWhenTemplateUnselected(PluginFolderPath);
+				OldSelectedItem->UpdatePluginNameTextWhenTemplateUnselected(PluginNameText);
 			}
 
 			PluginWizardDefinition->OnTemplateSelectionChanged(SelectedItem, SelectInfo);
@@ -451,6 +452,7 @@ void SNewPluginWizard::OnTemplateSelectionChanged(TSharedPtr<FPluginTemplateDesc
 			if (SelectedItem.IsValid())
 			{
 				SelectedItem->UpdatePathWhenTemplateSelected(PluginFolderPath);
+				SelectedItem->UpdatePluginNameTextWhenTemplateSelected(PluginNameText);
 			}
 		}
 	}
