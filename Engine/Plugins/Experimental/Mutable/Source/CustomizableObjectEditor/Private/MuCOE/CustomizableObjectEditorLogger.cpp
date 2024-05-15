@@ -46,8 +46,9 @@ private:
 	/** Private constructor */
 	explicit FCustomizableObjectToken(const UEdGraphNode* Node) : NodeBeingReferenced(Node)
 	{
-		const FString String = Node ? *Node->GetName() : TEXT("<None>");
-		CachedText = FText::FromString(String);
+		CachedText = Node ?
+			FText::FromString(Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString().Replace(TEXT("\n"), TEXT(" "))) :
+			LOCTEXT("TokenNoNode", "<None>");
 	}
 
 	/** An object being referenced by this token, if any */
