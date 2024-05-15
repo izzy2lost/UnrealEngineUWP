@@ -2,7 +2,7 @@
 
 #include "RegisterServerManager.h"
 
-namespace UE::RegisterServer
+namespace UE::RegisterServer::Name
 {
-	const FName StateGraphName("RegisterServer");
-} // UE::RegisterServer
+	const FName StateGraph("RegisterServer");
+} // UE::RegisterServer::Name
