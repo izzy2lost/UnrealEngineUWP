@@ -2161,8 +2161,6 @@ void USkinWeightsPaintTool::HandleSkeletalMeshModified(const TArray<FName>& InBo
 	default:
 		checkNoEntry();
 	}
-
-	SetFocusInViewport();
 }
 
 void USkinWeightsPaintTool::ToggleEditingMode()
