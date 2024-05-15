@@ -259,8 +259,8 @@ private:
 	/** Called to refresh the native classes list, called at end of engine initialization. */
 	void OnRefreshNativeClasses();
 
-	/** Called from the PluginManager's loading phase, used to scan classes that were loaded by plugins. */
-	void OnPluginLoadingPhaseComplete(ELoadingPhase::Type LoadingPhase, bool bPhaseSuccessful);
+	/** Called from LaunchEngineLoop via SetEngineStartupModuleLoadingComplete after plugins are loaded, used to scan classes that were loaded by plugins. */
+	void OnInitialPluginLoadingComplete();
 
 	/** Shared helper for Scan*Synchronous function */
 	void ScanPathsSynchronousInternal(const TArray<FString>& InDirs, const TArray<FString>& InFiles,

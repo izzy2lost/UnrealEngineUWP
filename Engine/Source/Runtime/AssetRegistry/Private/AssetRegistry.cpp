@@ -1189,10 +1189,9 @@ void UAssetRegistryImpl::InitializeEvents(UE::AssetRegistry::Impl::FInitializeCo
 	FCoreDelegates::OnPostEngineInit.AddUObject(this, &UAssetRegistryImpl::OnRefreshNativeClasses);
 
 	IPluginManager& PluginManager = IPluginManager::Get();
-	ELoadingPhase::Type LoadingPhase = PluginManager.GetLastCompletedLoadingPhase();
-	if (LoadingPhase == ELoadingPhase::None || LoadingPhase < ELoadingPhase::PostEngineInit)
+	if (!IsEngineStartupModuleLoadingComplete())
 	{
-		PluginManager.OnLoadingPhaseComplete().AddUObject(this, &UAssetRegistryImpl::OnPluginLoadingPhaseComplete);
+		FCoreDelegates::OnAllModuleLoadingPhasesComplete.AddUObject(this, &UAssetRegistryImpl::OnInitialPluginLoadingComplete);
 	}
 }
 
@@ -1292,19 +1291,15 @@ void FAssetRegistryImpl::InitRedirectors(Impl::FEventContext& EventContext,
 
 }
 
-void UAssetRegistryImpl::OnPluginLoadingPhaseComplete(ELoadingPhase::Type LoadingPhase, bool bPhaseSuccessful)
+void UAssetRegistryImpl::OnInitialPluginLoadingComplete()
 {
-	if (LoadingPhase != ELoadingPhase::PostEngineInit)
-	{
-		return;
-	}
 	{
 		LLM_SCOPE(ELLMTag::AssetRegistry);
 		UE::AssetRegistry::FInterfaceWriteScopeLock InterfaceScopeLock(InterfaceLock);
-		GuardedData.OnPostEngineInit(bPhaseSuccessful);
+		GuardedData.OnPostEngineInit(true);
 	}
 
-	IPluginManager::Get().OnLoadingPhaseComplete().RemoveAll(this);
+	FCoreDelegates::OnAllModuleLoadingPhasesComplete.RemoveAll(this);
 }
 
 namespace UE::AssetRegistry
@@ -2034,8 +2029,10 @@ void UAssetRegistryImpl::WaitForCompletion()
 			if (Status == EGatherStatus::UnableToProgress)
 			{
 				UE_LOG(LogAssetRegistry, Display,
-					TEXT("UAssetRegistryImpl::WaitForCompletion exiting without completing because TickGatherer returned UnableToProgress. IsInGameThread() == %s"),
-					IsInGameThread() ? TEXT("TRUE") : TEXT("FALSE"));
+					TEXT("UAssetRegistryImpl::WaitForCompletion exiting without completing because TickGatherer returned UnableToProgress. "
+					"IsInGameThread() == %s; IsEngineStartupModuleLoadingComplete() == %s"),
+					IsInGameThread() ? TEXT("TRUE") : TEXT("FALSE"),
+					IsEngineStartupModuleLoadingComplete() ? TEXT("TRUE") : TEXT("FALSE"));
 			}
 			else if (Status == EGatherStatus::Complete && bInitialSearchStarted)
 			{

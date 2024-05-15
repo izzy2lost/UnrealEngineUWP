@@ -374,7 +374,6 @@ private:
 	/** Convert the LongPackageName into our normalized version. */
 	static FStringView NormalizeLongPackageName(FStringView LongPackageName);
 
-	void OnAllModuleLoadingPhasesComplete();
 private:
 
 	/**
@@ -427,8 +426,6 @@ private:
 	 * Pointer is constant during threading. Object pointed to internally provides threadsafety.
 	 */
 	TUniquePtr<UE::AssetDataGather::Private::FAssetDataDiscovery> Discovery;
-	/** Async only. Set to true once initial plugins have been loaded. */
-	std::atomic<bool> bInitialPluginsLoaded;
 	/** True when TickInternal requests periodic or final save of the async cache. */
 	std::atomic<bool> bSaveAsyncCacheTriggered;
 	/** True if the current process allows reading of AssetDataGatherer cache files. */

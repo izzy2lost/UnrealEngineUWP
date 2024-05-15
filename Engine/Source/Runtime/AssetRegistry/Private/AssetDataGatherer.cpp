@@ -3587,7 +3587,6 @@ FAssetDataGatherer::FAssetDataGatherer(const TArray<FString>& InLongPackageNames
 	, IsStopped(0)
 	, IsGatheringPaused(0)
 	, IsProcessingPaused(0)
-	, bInitialPluginsLoaded(false)
 	, bSaveAsyncCacheTriggered(false)
 	, CurrentSearchTime(0.)
 	, LastCacheWriteTime(0.0)
@@ -3641,12 +3640,10 @@ FAssetDataGatherer::FAssetDataGatherer(const TArray<FString>& InLongPackageNames
 	Discovery = MakeUnique<UE::AssetDataGather::Private::FAssetDataDiscovery>(InLongPackageNamesDenyList,
 		InMountRelativePathsDenyList, bAsyncEnabled);
 	FilesToSearch = MakeUnique<UE::AssetDataGather::Private::FFilesToSearch>();
-	FCoreDelegates::OnAllModuleLoadingPhasesComplete.AddRaw(this, &FAssetDataGatherer::OnAllModuleLoadingPhasesComplete);
 }
 
 FAssetDataGatherer::~FAssetDataGatherer()
 {
-	FCoreDelegates::OnAllModuleLoadingPhasesComplete.RemoveAll(this);
 	EnsureCompletion();
 	NewCachedAssetDataMap.Empty();
 	DiskCachedAssetDataMap.Empty();
@@ -4012,7 +4009,7 @@ FAssetDataGatherer::ETickResult FAssetDataGatherer::TickInternal(double& TickSta
 		{
 			IngestDiscoveryResults();
 		}
-		if (bInitialPluginsLoaded && !bFlushedRetryFiles)
+		if (IsEngineStartupModuleLoadingComplete() && !bFlushedRetryFiles)
 		{
 			bFlushedRetryFiles = true;
 			FilesToSearch->RetryLaterRetryFiles();
@@ -4412,7 +4409,7 @@ bool FAssetDataGatherer::ReadAssetFile(const FString& AssetLongPackageName, cons
 		// If we're missing a custom version, we might be able to load this package later once the module containing that version is loaded...
 		//   -	We can only attempt a retry in editors (not commandlets) that haven't yet finished initializing (!GIsRunning), as we 
 		//		have no guarantee that a commandlet or an initialized editor is going to load any more modules/plugins
-		const bool bAllowRetry = GIsEditor && !bInitialPluginsLoaded;
+		const bool bAllowRetry = GIsEditor && !IsEngineStartupModuleLoadingComplete();
 		if (OpenPackageResult == FPackageReader::EOpenPackageResult::CustomVersionMissing)
 		{
 			OutCanRetry = bAllowRetry;
@@ -4779,7 +4776,6 @@ bool FAssetDataGatherer::IsComplete() const
 
 void FAssetDataGatherer::SetInitialPluginsLoaded()
 {
-	bInitialPluginsLoaded = true;
 	FGathererScopeLock ResultsScopeLock(&ResultsLock);
 	SetIsIdle(false);
 }
@@ -5474,13 +5470,6 @@ FStringView FAssetDataGatherer::NormalizeLongPackageName(FStringView LongPackage
 		LongPackageName = LongPackageName.LeftChop(1);
 	}
 	return LongPackageName;
-}
-
-void FAssetDataGatherer::OnAllModuleLoadingPhasesComplete()
-{
-	CHECK_IS_NOT_LOCKED_CURRENT_THREAD(ResultsLock);
-	FGathererScopeLock ResultsScopeLock(&ResultsLock);
-	SetIsIdle(false);
 }
 
 namespace UE::AssetDataGather::Private
