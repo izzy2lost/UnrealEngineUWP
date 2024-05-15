@@ -124,7 +124,7 @@ private:
 	void AddLocalEndpoints();
 
 	/** Holds the calculated interval between Hello segments. */
-	FTimespan BeaconInterval;
+	std::atomic<FTimespan> BeaconInterval;
 
 	/** Holds an event signaling that an endpoint left. */
 	FEvent* EndpointLeftEvent;
