@@ -244,12 +244,6 @@ double ULandscapePatchEditLayer::GetHighestPatchPriority()
 {
 	return HighestKnownPriority;
 }
-
-double ULandscapePatchEditLayer::ClaimHighestPatchPriority()
-{
-	HighestKnownPriority += 1;
-	return HighestKnownPriority;
-}
 #endif // WITH_EDITOR
 
 void ULandscapePatchEditLayer::GetRenderDependencies(TSet<UObject*>& OutDependencies) const

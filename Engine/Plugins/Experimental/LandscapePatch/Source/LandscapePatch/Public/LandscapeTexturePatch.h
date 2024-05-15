@@ -209,7 +209,6 @@ protected:
 #endif
 
 	friend class ULandscapeTexturePatch;
-	friend struct FLandscapeTexturePatchInstanceData;
 };
 
 
@@ -229,9 +228,6 @@ public:
 	virtual bool CanAffectWeightmapLayer(const FName& InLayerName) const override;
 	virtual bool CanAffectVisibilityLayer() const override;
 	virtual void GetRenderDependencies(TSet<UObject*>& OutDependencies) const override;
-
-	// UActorComponent
-	virtual TStructOnScope<FActorComponentInstanceData> GetComponentInstanceData() const override;
 
 	// UObject
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -437,8 +433,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = LandscapePatch)
 	void SetWeightPatchTextureAsset(const FName& InWeightmapLayerName, UTexture* TextureIn);
 
+	/**
+	 * @param bMarkDirty If true, marks the containing package as dirty, since the render target is presumably
+	 *  being written to. Can be set to false if the render target is not being written to.
+	 */
 	UFUNCTION(BlueprintCallable, Category = LandscapePatch)
-	virtual UTextureRenderTarget2D* GetWeightPatchRenderTarget(const FName& InWeightmapLayerName);
+	virtual UTextureRenderTarget2D* GetWeightPatchRenderTarget(const FName& InWeightmapLayerName, bool bMarkDirty = true);
 
 	UFUNCTION(BlueprintCallable, Category = LandscapePatch)
 	virtual void SetUseAlphaChannelForWeightPatch(const FName& InWeightmapLayerName, bool bUseAlphaChannel);
@@ -451,11 +451,6 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = LandscapePatch)
 	virtual void SetEditVisibilityLayer(const FName& InWeightmapLayerName, const bool bEditVisibilityLayer);
-
-	// These need to be public so that we can take the internal textures and write them to external ones,
-	// but unclear whether we want to expose them to blueprints, since this is a fairly internal thing.
-	UTexture2D* GetHeightInternalTexture() { return HeightInternalData ? HeightInternalData->GetInternalTexture() : nullptr; ; }
-	UTexture2D* GetWeightPatchInternalTexture(const FName& InWeightmapLayerName);
 
 protected:
 	//~ Don't expose these on the instance because a user might not realize that they would lose their existing internal
@@ -605,8 +600,9 @@ protected:
 	int32 InitTextureSizeY = 33;
 
 private:
-	void ApplyComponentInstanceData(struct FLandscapeTexturePatchInstanceData* ComponentInstanceData, ECacheApplyPhase CacheApplyPhase);
-	friend struct FLandscapeTexturePatchInstanceData;
+	UTexture2D* GetHeightInternalTexture();
+	UTextureRenderTarget2D* GetWeightPatchRenderTarget(ULandscapeWeightPatchTextureInfo* WeightPatch);
+	UTexture2D* GetWeightPatchInternalTexture(ULandscapeWeightPatchTextureInfo* WeightPatch);
 
 	void UpdateHeightConvertToNativeParamsIfNeeded();
 #if WITH_EDITOR
@@ -631,43 +627,11 @@ private:
 	void ReinitializeWeightPatch(ULandscapeWeightPatchTextureInfo* PatchInfo, UTextureRenderTarget2D* InCombinedResult, 
 		const FTransform& LandscapeHeightmapToWorld);
 
-	void MakeSureInternalDataIsAllocated();
 	void ResetHeightRenderTargetFormat();
 #endif // WITH_EDITOR
 
 	UPROPERTY(EditDefaultsOnly, Category = Settings)
 	TEnumAsByte<ETextureRenderTargetFormat> HeightRenderTargetFormat = ETextureRenderTargetFormat::RTF_R32f;
-};
-
-
-/** Carries over internal data subobjects to avoid constant reconstruction on construction script reruns. */
-USTRUCT()
-struct FLandscapeTexturePatchInstanceData : public FLandscapePatchComponentInstanceData
-{
-	GENERATED_BODY()
-
-	FLandscapeTexturePatchInstanceData() = default;
-	FLandscapeTexturePatchInstanceData(const ULandscapeTexturePatch* SourceComponent);
-
-	virtual ~FLandscapeTexturePatchInstanceData() = default;
-
-	virtual bool ContainsData() const override
-	{
-		return true;
-	}
-
-	virtual void ApplyToComponent(UActorComponent* Component, const ECacheApplyPhase CacheApplyPhase) override
-	{
-		Super::ApplyToComponent(Component, CacheApplyPhase);
-		CastChecked<ULandscapeTexturePatch>(Component)->ApplyComponentInstanceData(this, CacheApplyPhase);
-	}
-
-#if WITH_EDITORONLY_DATA
-	UPROPERTY()
-	TWeakObjectPtr<ULandscapeHeightTextureBackedRenderTarget> HeightInternalData = nullptr;
-	UPROPERTY()
-	TArray<TWeakObjectPtr<ULandscapeWeightTextureBackedRenderTarget>> WeightPatchInternalData;
-#endif
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

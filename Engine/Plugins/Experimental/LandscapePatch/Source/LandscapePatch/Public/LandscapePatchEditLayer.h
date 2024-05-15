@@ -44,12 +44,6 @@ public:
 	 */
 	virtual double GetHighestPatchPriority();
 
-	/**
-	 * Increments highest known patch priority and returns that value. Meant to allow an 
-	 *  already-registered patch to quickly become the highest priority patch.
-	 */
-	virtual double ClaimHighestPatchPriority();
-
 	void RequestLandscapeUpdate(bool bInUserTriggered = false);
 #endif
 

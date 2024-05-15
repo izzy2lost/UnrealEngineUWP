@@ -323,6 +323,15 @@ void ULandscapePatchComponent::OnComponentCreated()
 		return;
 	}
 
+	// We're going to be binding to an edit layer, which will place us in its registered patch list with
+	//  our current priority. If we're later going to be updating our priority to be the highest, then 
+	//  we need to temporarily lower our priority so that we aren't accidentally the highest priority patch
+	//  the edit layer sees when we query it. 
+	if (IsPatchInWorld() && PriorityInitialization == ELandscapePatchPriorityInitialization::AcquireHighest)
+	{
+		Priority = TNumericLimits<double>::Lowest();
+	}
+
 	// Otherwise, bind to some edit layer
 	bool bConnectionToLandscapeEstablished = false;
 	if (EditLayerGuid.IsValid())
@@ -352,18 +361,16 @@ void ULandscapePatchComponent::OnComponentCreated()
 			break;
 		case ELandscapePatchPriorityInitialization::SmallIncrement:
 			Priority += 0.01;
+			if (EditLayer.IsValid())
+			{
+				EditLayer->NotifyOfPriorityChange(this);
+			}
 			break;
 		case ELandscapePatchPriorityInitialization::AcquireHighest:
 			if (EditLayer.IsValid())
 			{
-				if (IsPatchPreview())
-				{
-					Priority = EditLayer->GetHighestPatchPriority();
-				}
-				else
-				{
-					Priority = EditLayer->ClaimHighestPatchPriority();
-				}
+				Priority = EditLayer->GetHighestPatchPriority() + 1;
+				EditLayer->NotifyOfPriorityChange(this);
 			}
 			break;
 		}
