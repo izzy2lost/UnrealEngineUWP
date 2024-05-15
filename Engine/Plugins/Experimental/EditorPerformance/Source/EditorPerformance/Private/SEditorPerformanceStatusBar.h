@@ -66,8 +66,6 @@ private:
 	FText							CurrentNotificationMessage;
 	FName							CurrentNotificationName;
 	TArray<FName>					AcknowledgedNotifications;
-	TArray<FName>					RecordedSnapshot;
-	TArray<FName>					RecordedTelemetry;
 	uint32							WarningCount = 0;
 
 };

@@ -12,6 +12,8 @@ void FKPIValue::SetValue(float Value)
 {
 	CurrentValue = Value;
 
+	EState PreviousState = State;
+
 	switch (Compare)
 	{
 		default:
@@ -38,6 +40,11 @@ void FKPIValue::SetValue(float Value)
 			State = CurrentValue >= ThresholdValue ? FKPIValue::Good : FKPIValue::Bad;
 			break;
 		}
+	}
+	
+	if (PreviousState != State && State == FKPIValue::Bad)
+	{
+		FailureCount++;
 	}
 }
 

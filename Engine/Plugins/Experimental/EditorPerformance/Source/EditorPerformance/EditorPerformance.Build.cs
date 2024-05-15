@@ -26,6 +26,7 @@ public class EditorPerformance : ModuleRules
 				"MessageLog",
 				"ToolWidgets",
 				"DerivedDataCache",
+				"Virtualization",
 				"StudioTelemetry"
 			});
 

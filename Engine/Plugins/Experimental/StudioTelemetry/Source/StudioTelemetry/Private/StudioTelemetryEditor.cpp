@@ -525,25 +525,33 @@ void FStudioTelemetryEditor::Initialize()
 
 	FEditorDelegates::OnMapLoad.AddLambda([this](const FString& MapName, FCanLoadMap& OutCanLoadMap)
 		{
-			// The Editor loads a new map
-			EditorLoadMapSpan = FStudioTelemetry::Get().StartSpan(EditorLoadMapSpanName, EditorSpan);
+			if (MapName.Len() > 0)
+			{
+				// The Editor loads a new map
+				EditorLoadMapSpan = FStudioTelemetry::Get().StartSpan(EditorLoadMapSpanName, EditorSpan);
+			}
 		});
 
 	FEditorDelegates::OnMapOpened.AddLambda([this](const FString& MapName, bool Unused)
 		{
-			// The new editor map was actually opened
-			EditorMapName = FPaths::GetBaseFilename(MapName);
+			if (EditorLoadMapSpan.IsValid())
+			{
+				// The new editor map was actually opened
+				EditorMapName = FPaths::GetBaseFilename(MapName);
 
-			TArray<FAnalyticsEventAttribute> Attributes;
-			Attributes.Emplace(TEXT("MapName"), EditorMapName);
+				TArray<FAnalyticsEventAttribute> Attributes;
+				Attributes.Emplace(TEXT("MapName"), EditorMapName);
 
-			EditorSpan->AddAttributes(Attributes);
-			EditorLoadMapSpan->AddAttributes(Attributes);
+				EditorSpan->AddAttributes(Attributes);
+				EditorLoadMapSpan->AddAttributes(Attributes);
 
-			FStudioTelemetry::Get().EndSpan(EditorLoadMapSpan);
+				FStudioTelemetry::Get().EndSpan(EditorLoadMapSpan);
+				
+				FStudioTelemetryEditor::RecordEvent_Loading(TEXT("LoadMap"), EditorLoadMapSpan->GetDuration(), EditorLoadMapSpan->GetAttributes());
+				FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("LoadMap"), EditorLoadMapSpan->GetAttributes());
 
-			FStudioTelemetryEditor::RecordEvent_Loading(TEXT("LoadMap"), EditorLoadMapSpan->GetDuration(), EditorLoadMapSpan->GetAttributes());
-			FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("LoadMap"), EditorLoadMapSpan->GetAttributes());
+				EditorLoadMapSpan.Reset();
+			}	
 		});
 
 	// Install any plugin load/unload callbacks
@@ -694,20 +702,14 @@ void FStudioTelemetryEditor::Initialize()
 			// PIE mode has been started. The user has pressed the Start PIE button.
 			// Finish the Editor span
 			FStudioTelemetry::Get().EndSpan(EditorSpan);
+			EditorSessionCount++;
 
 			// Start PIE span
 			PIESpan = FStudioTelemetry::Get().StartSpan(PIESpanName);
 
-			if (PIETransitionCount==0)
-			{ 
-				PIEStartupSpan = FStudioTelemetry::Get().StartSpan(PIEStartupSpanName, PIESpan);
-			}
-			else
-			{
-				// Append the PIE transition count to the PIE name
-				PIEStartupSpan = FStudioTelemetry::Get().StartSpan(FName(*FString::Printf(TEXT("%s%d"), *PIEStartupSpanName.ToString(), PIETransitionCount)), PIESpan);
-			}
-
+			// Append the PIE transition count to the PIE name
+			PIEStartupSpan = FStudioTelemetry::Get().StartSpan(PIESessionCount == 0? PIEStartupSpanName : FName(*FString::Printf(TEXT("%s%d"), *PIEStartupSpanName.ToString(), PIESessionCount)), PIESpan);
+		
 			TArray<FAnalyticsEventAttribute> Attributes;
 			Attributes.Emplace(TEXT("MapName"), EditorMapName);
 
@@ -717,7 +719,7 @@ void FStudioTelemetryEditor::Initialize()
 
 	FEditorDelegates::PreBeginPIE.AddLambda([this](bool)
 		{	
-			PIEPreBeginSpan = FStudioTelemetry::Get().StartSpan(PIEPreBeginSpanName, PIEStartupSpan);
+			PIEPreBeginSpan = FStudioTelemetry::Get().StartSpan(PIESessionCount == 0 ? PIEPreBeginSpanName : FName(*FString::Printf(TEXT("%s%d"), *PIEPreBeginSpanName.ToString(), PIESessionCount)), PIESpan);
 			PIEPreBeginSpan->AddAttributes(PIESpan->GetAttributes());
 		});
 
@@ -759,7 +761,7 @@ void FStudioTelemetryEditor::Initialize()
 					
 					// Keep track of the PIE transition counts
 					TArray<FAnalyticsEventAttribute> Attributes;
-					Attributes.Emplace(TEXT("PIE_TransitionCount"), PIETransitionCount );
+					Attributes.Emplace(TEXT("PIE_TransitionCount"), PIESessionCount );
 					
 					PIESpan->AddAttributes(Attributes);
 					PIEStartupSpan->AddAttributes(Attributes);
@@ -770,7 +772,7 @@ void FStudioTelemetryEditor::Initialize()
 					FStudioTelemetryEditor::RecordEvent_Loading(TEXT("PIE.TotalStartupTime"), PIEStartupSpan->GetDuration(), PIEStartupSpan->GetAttributes());
 					FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("PIE.TotalStartupTime"), PIEStartupSpan->GetAttributes());
 
-					if (PIETransitionCount == 0)
+					if (PIESessionCount == 0)
 					{
 						const double TimeInEditor = EditorLoadMapSpan.IsValid() ? EditorLoadMapSpan->GetDuration() : 0.0;
 						const double TimeToStartPIE = PIEStartupSpan->GetDuration();
@@ -780,11 +782,9 @@ void FStudioTelemetryEditor::Initialize()
 						FStudioTelemetryEditor::RecordEvent_Loading(TEXT("TimeToPIE"), TimeToBootToPIE, PIEStartupSpan->GetAttributes());
 						FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("TimeToPIE"), PIEStartupSpan->GetAttributes());
 					}
-
-					PIETransitionCount++;
 				}
 
-				PIEInteractSpan = FStudioTelemetry::Get().StartSpan(PIEInteractSpanName, PIESpan);
+				PIEInteractSpan = FStudioTelemetry::Get().StartSpan( PIESessionCount==0? PIEInteractSpanName : FName(*FString::Printf(TEXT("%s%d"), *PIEInteractSpanName.ToString(), PIESessionCount)), PIESpan);
 				PIEInteractSpan->AddAttributes(PIESpan->GetAttributes());
 			}
 		});
@@ -795,7 +795,7 @@ void FStudioTelemetryEditor::Initialize()
 			{
 				// PIE is ending so no longer interactive
 				FStudioTelemetry::Get().EndSpan(PIEInteractSpan);
-				PIEShutdownSpan = FStudioTelemetry::Get().StartSpan(PIEShutdownSpanName, PIESpan);
+				PIEShutdownSpan = FStudioTelemetry::Get().StartSpan(PIESessionCount == 0 ? PIEShutdownSpanName : FName(*FString::Printf(TEXT("%s%d"), *PIEShutdownSpanName.ToString(), PIESessionCount)), PIESpan);
 				PIEShutdownSpan->AddAttributes(PIESpan->GetAttributes());
 			}
 		});
@@ -811,12 +811,14 @@ void FStudioTelemetryEditor::Initialize()
 				FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("PIE.EndTime"), PIESpan->GetAttributes());
 			}
 
+			PIESessionCount++;
+
 			TArray<FAnalyticsEventAttribute> Attributes;
 			Attributes.Emplace(TEXT("MapName"), EditorMapName);
 
 			// Restart the Editor span
 			EditorSpan = FStudioTelemetry::Get().StartSpan(EditorSpanName, Attributes);
-			EditorInteractSpan = FStudioTelemetry::Get().StartSpan(EditorInteractSpanName, EditorSpan);
+			EditorInteractSpan = FStudioTelemetry::Get().StartSpan(FName(*FString::Printf(TEXT("%s%d"), *EditorInteractSpanName.ToString(), EditorSessionCount)), EditorSpan);
 		});
 
 	

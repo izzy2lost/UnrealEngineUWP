@@ -189,6 +189,7 @@ namespace UE::DerivedData::CookStats
 				TEXT("TotalPutHitPct"), SafeDivide(RootPutHits, RootPutTotal),	
 				TEXT("PutMissPct"), SafeDivide(RootPutMisses, RootPutTotal),
 				TEXT("LocalGetHits"), LocalGetHits,
+				TEXT("LocalGetMisses"), LocalGetMisses,
 				TEXT("LocalGetTotal"), LocalGetTotal,
 				TEXT("LocalGetHitPct"), SafeDivide(LocalGetHits, LocalGetTotal),
 				TEXT("SharedGetHits"), SharedGetHits,

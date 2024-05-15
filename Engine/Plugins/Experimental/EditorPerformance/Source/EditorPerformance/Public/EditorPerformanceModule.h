@@ -62,12 +62,13 @@ private:
 	TSharedRef<SDockTab> CreatePerformanceReportTab(const FSpawnTabArgs& Args);	
 	TWeakPtr<SDockTab> PerformanceReportTab;
 
-	void InitializeUI();
-	void TerminateUI();
+	void InitializeEditor();
+	void TerminateEditor();
 
 	void InitializeKPIs();
 	void TerminateKPIs();
 
+	void HeartBeatCallback();
 	void HitchSamplerCallback();
 
 	FKPIRegistry					KPIRegistry;
@@ -76,7 +77,7 @@ private:
 	FDateTime						LoadMapStartTime;
 	FDateTime						PIEStartTime;
 	FDateTime						PIEEndTime;
-	FDateTime						AssetRegistryScanStartTime;
+	FDateTime						AssetRegistryScanStartTime; 
 	bool							IsFirstTimeToPIE = true;
 	bool							IsLoadingMap = false;
 	EEditorState					EditorState = EEditorState::Editor_Boot;
@@ -85,21 +86,24 @@ private:
 	float							EditorStartUpTime = 0;
 	float							EditorLoadMapTime = 0;
 	float							EditorAssetRegistryScanTime = 0;
-	uint32							EditorAssetRegistryScanCount = 0;
+	volatile int32					EditorAssetRegistryScanCount = 0;
 	FString							EditorMapName=TEXT("Boot");
+	FTimerHandle					HeartBeatTimerHandle;
+	const float						HeartBeatIntervalSeconds = 1.0f;
 	FTimerHandle					HitchSamplerTimerHandle;
 	const float						HitchSamplerIntervalSeconds = 0.1f;
-	const float						MinFPSForHitching = 5.0f;
-	double							HitchAvergageFPS = 0;
-	uint32							HitchSampleCount = 0;
-	uint32							EditorHitchCount = 0;
-	uint32							PIEHitchCount = 0;
+	const float						MinFPSForHitching = 15.0f;
+	const uint32					MinSamplesForHitching = 10;
+	volatile int32					StallDetectedCount = 0;
+	float							HitchRate = 0;
+	float							StallRate = 0;
 	uint32							TotalPluginCount = 0;
 
 	FGuid							EditorBootKPI;
 	FGuid							EditorInitializeKPI;
 	FGuid							EditorLoadMapKPI;
-	FGuid							EditorHitchrateKPI;
+	FGuid							EditorHitchRateKPI;
+	FGuid							EditorStallRateKPI;
 	FGuid							EditorAssetRegistryScanKPI;
 	FGuid							EditorPluginCountKPI;
 	FGuid							TotalTimeToEditorKPI;
@@ -107,11 +111,13 @@ private:
 	FGuid							PIEFirstTransitionKPI;
 	FGuid							PIETransitionKPI;
 	FGuid							PIEShutdownKPI;
-	FGuid							PIEHitchrateKPI;
+	FGuid							PIEHitchRateKPI;
+	FGuid							PIEStallRateKPI;
 	FGuid							CloudDDCLatencyKPI;
 	FGuid							CloudDDCReadSpeedKPI;
 	FGuid							TotalDDCEfficiencyKPI;
 	FGuid							LocalDDCEfficiencyKPI;
+	FGuid							VirtualAssetEfficiencyKPI;
 	FGuid							CoreCountKPI;
 	FGuid							TotalMemoryKPI;
 	FGuid							AvailableMemoryKPI;

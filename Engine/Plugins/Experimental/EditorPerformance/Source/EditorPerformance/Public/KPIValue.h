@@ -69,6 +69,7 @@ public:
 	FName			Path;
 	float			CurrentValue = 0;
 	float			ThresholdValue = 0;
+	uint32			FailureCount =0;
 	EState			State = EState::NotSet;
 	ECompare		Compare = ECompare::LessThan;
 	EDisplayType	DisplayType = EDisplayType::Number;

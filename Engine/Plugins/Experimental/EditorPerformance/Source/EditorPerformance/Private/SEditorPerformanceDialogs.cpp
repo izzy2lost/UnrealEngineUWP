@@ -266,6 +266,37 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetSettingsGridPanel()
 
 	Panel->AddSlot(4, Row)
 		.HAlign(HAlign_Left)
+		[
+			SNew(SCheckBox)
+				.IsChecked_Lambda([]
+					{
+						const UEditorPerformanceSettings* EditorPerformanceSettings = GetDefault<UEditorPerformanceSettings>();
+						return EditorPerformanceSettings && EditorPerformanceSettings->bShowFrameRateAndMemory ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+					})
+				.OnCheckStateChanged_Lambda([this](ECheckBoxState NewState)
+					{
+						UEditorPerformanceSettings* EditorPerformanceSettings = GetMutableDefault<UEditorPerformanceSettings>();
+
+						if (EditorPerformanceSettings)
+						{
+							EditorPerformanceSettings->bShowFrameRateAndMemory = NewState == ECheckBoxState::Checked;
+							EditorPerformanceSettings->PostEditChange();
+							EditorPerformanceSettings->SaveConfig();
+						}
+
+						UpdateGridPanels(0.0f, 0.0f);
+					})
+						.Padding(FMargin(4.0f, 0.0f))
+						[
+							SNew(STextBlock)
+								.Text(LOCTEXT("EnableShowFrameRateAndMemoryText", "Diagnostics"))
+								.ToolTipText(LOCTEXT("EnableShowFrameRateAndMemoryToolTip", "Show the Frame Rate, Memory and Stalls."))
+								.ColorAndOpacity(EStyleColor::Foreground)
+						]
+		];
+
+	Panel->AddSlot(5, Row)
+		.HAlign(HAlign_Left)
 		.Padding(FMargin(10.0f, 10.0f))
 		[
 			SNew(SButton)
@@ -493,9 +524,19 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetKPIGridPanel()
 			.Text(LOCTEXT("ExpectedValueColumn", "Expected"))
 		];
 
+	Panel->AddSlot(4, Row)
+		.HAlign(HAlign_Left)
+		[
+			SNew(STextBlock)
+				.Margin(DefaultMargin)
+				.ColorAndOpacity(EStyleColor::Foreground)
+				.Font(TitleFont)
+				.Text(LOCTEXT("ExpectedValueColumn", "Failures"))
+		];
+
 	if (EnableNotifcations)
 	{
-		Panel->AddSlot(5, Row)
+		Panel->AddSlot(6, Row)
 			.HAlign(HAlign_Center)
 			[
 				SNew(STextBlock)
@@ -597,9 +638,18 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetKPIGridPanel()
 						.Text(FText::FromString(*FKPIValue::GetValueAsString(KPIValue.ThresholdValue, KPIValue.DisplayType)))
 					];
 
+				Panel->AddSlot(4, Row)
+					.HAlign(HAlign_Left)
+					[
+						SNew(STextBlock)
+							.Margin(DefaultMargin)
+							.ColorAndOpacity(KPIColor)
+							.Text(FText::FromString(*FString::Printf(TEXT("%d"),KPIValue.FailureCount)))
+					];
+
 				if (KPIValueState != FKPIValue::Good)
 				{
-					Panel->AddSlot(4, Row)
+					Panel->AddSlot(5, Row)
 						[
 							SNew(SImage)
 							.Image(KPIWarningIcon)
@@ -620,7 +670,7 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetKPIGridPanel()
 
 			if (EnableNotifcations)
 			{
-				Panel->AddSlot(5, Row)
+				Panel->AddSlot(6, Row)
 					.HAlign(HAlign_Left)
 					[
 						SNew(SComboBox<FName>)

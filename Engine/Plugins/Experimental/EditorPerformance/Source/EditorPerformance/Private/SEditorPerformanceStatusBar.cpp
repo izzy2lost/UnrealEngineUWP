@@ -175,10 +175,9 @@ EActiveTimerReturnType SEditorPerformanceStatusBarWidget::UpdateState(double InC
 
 	const UEditorPerformanceSettings* EditorPerformanceSettings = GetDefault<UEditorPerformanceSettings>();
 
-	// Update the KPIS
-	EditorPerfModule.UpdateKPIs(InDeltaTime);
-
 	WarningCount = 0;
+
+	EditorPerfModule.UpdateKPIs(InDeltaTime);
 
 	// Check for KPIs that have exceeded their value
 	for (FKPIValues::TConstIterator It(EditorPerfModule.GetKPIRegistry().GetKPIValues()); It; ++It)
@@ -203,20 +202,6 @@ EActiveTimerReturnType SEditorPerformanceStatusBarWidget::UpdateState(double InC
 
 					CurrentNotificationName = KPIValue.Path;
 				}
-
-				if (RecordedSnapshot.Find(KPIValue.Path) == INDEX_NONE && EditorPerformanceSettings->bEnableSnapshots)
-				{
-					// Create an Insights Snapshot
-					EditorPerfModule.RecordInsightsSnaphshot(KPIValue);
-					RecordedSnapshot.Emplace(KPIValue.Path);
-				}
-
-				if (RecordedTelemetry.Find(KPIValue.Path) == INDEX_NONE && EditorPerformanceSettings->bEnableTelemetry)
-				{
-					// Create a new telemetry event
-					EditorPerfModule.RecordTelemetryEvent(KPIValue);
-					RecordedTelemetry.Emplace(KPIValue.Path);
-				}
 			}
 
 			WarningCount++;
@@ -226,8 +211,6 @@ EActiveTimerReturnType SEditorPerformanceStatusBarWidget::UpdateState(double InC
 			// No longer exceeding threshold, so no need to acknowledge the last time it was raised to the user
 			// There may be subsequent times that this same KPI is exceeded this session so we may want to alert the user again
 			AcknowledgedNotifications.Remove(KPIValue.Path);
-			RecordedSnapshot.Remove(KPIValue.Path);
-			RecordedTelemetry.Remove(KPIValue.Path);
 		}
 	}
 

@@ -79,7 +79,8 @@ private:
 	FTimerHandle TelemetryHitchSamplerTimerHandle;
 	FString EditorMapName;
 	FString PIEMapName;
-	uint32 PIETransitionCount = 0;
+	uint32 EditorSessionCount = 0;
+	uint32 PIESessionCount = 0;
 	double SessionStartTime;
 	double AssetOpenStartTime;
 	double TimeToBootEditor;

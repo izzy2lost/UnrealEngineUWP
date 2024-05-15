@@ -16,7 +16,6 @@
 #include "Templates/UnrealTemplate.h"
 
 class IAnalyticsProvider;
-class IAnalyticsProviderET;
 
 /**
  *  Public implementation of IAnalyticsProviderModule that returns a JSON formatted FAnalayticsProviderLog object

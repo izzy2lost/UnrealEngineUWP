@@ -39,7 +39,7 @@ class UEditorPerformanceSettings : public UDeveloperSettings
 
 	/** Whether to enable Editor Perf Warnings */
 	UPROPERTY(EditAnywhere, config, Category = EditorPerformanceTool, meta = (DisplayName = "Enable Notifcations", ConfigRestartRequired = false, EditCondition = "bEnableEditorPeformanceTool"))
-	bool bEnableNotifications = true;
+	bool bEnableNotifications = false;
 
 	/** Specific measurements to notify */
 	UPROPERTY(EditAnywhere, config, Category = EditorPerformanceTool, meta = (DisplayName = "Notification List", ConfigRestartRequired = false, EditCondition = "bEnableEditorPeformanceTool"))
