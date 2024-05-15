@@ -159,7 +159,7 @@ namespace UnrealBuildTool
 
 		protected override void GetCompileArguments_Global(CppCompileEnvironment CompileEnvironment, List<string> Arguments)
 		{
-			Arguments.Add(GetPreprocessorDefinitionArgument("SUPPRESS_MONOLITHIC_HEADER_WARNINGS=1"));
+			Arguments.Add(GetPreprocessorDefinitionArgument("UE_DIRECT_HEADER_COMPILE=1"));
 			Arguments.Add(GetPreprocessorDefinitionArgument("PLATFORM_COMPILER_IWYU=1"));
 
 			base.GetCompileArguments_Global(CompileEnvironment, Arguments);

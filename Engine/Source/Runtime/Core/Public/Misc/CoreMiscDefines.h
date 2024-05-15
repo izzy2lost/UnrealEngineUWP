@@ -291,7 +291,10 @@ enum EPerElement {PerElement};
 /**
  * Macro which can be placed in a header to throw a deprecation warning when it is included.
  */
-#ifdef _MSC_VER
+#if defined(UE_DIRECT_HEADER_COMPILE)
+	// Don't warn about the deprecated header when we are directly compiling the header
+	#define UE_DEPRECATED_HEADER(Version, Message)
+#elif defined(_MSC_VER)
     #if UE_WARNINGS_AS_ERRORS
     	#define UE_DEPRECATED_HEADER(Version, Message) __pragma(message(__FILE__ "(" PREPROCESSOR_TO_STRING(__LINE__) "): error C4996: " Message " Please update your code to the new API before upgrading to the next release, otherwise your project will no longer compile."))
     #else

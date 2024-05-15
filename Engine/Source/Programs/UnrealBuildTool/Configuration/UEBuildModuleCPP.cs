@@ -819,8 +819,10 @@ namespace UnrealBuildTool
 				{
 					CppCompileEnvironment HeaderCompileEnvironment = new CppCompileEnvironment(ModuleCompileEnvironment);
 					DirectoryReference HeaderIntermediateDirectory = DirectoryReference.Combine(IntermediateDirectory, "H");
-					HeaderCompileEnvironment.Definitions.RemoveAll(x => x.StartsWith("SUPPRESS_MONOLITHIC_HEADER_WARNINGS"));
-					HeaderCompileEnvironment.Definitions.Add("SUPPRESS_MONOLITHIC_HEADER_WARNINGS=0");
+
+					HeaderCompileEnvironment.Definitions.RemoveAll(x => x.StartsWith("UE_DIRECT_HEADER_COMPILE"));
+					HeaderCompileEnvironment.Definitions.Add("UE_DIRECT_HEADER_COMPILE=1");
+
 					CreateHeaderForDefinitions(HeaderCompileEnvironment, HeaderIntermediateDirectory, "h", Graph);
 
 					// Duplicate named headers are allowed, so adjust the IntermediateDirectory to compensate for this by using an index
