@@ -248,6 +248,13 @@ protected:
 	UPROPERTY(Transient)
 	TArray<FContextualAnimIKTarget> IKTargets;
 
+	/** 
+	 * Motion warping doesn't remove warp targets when a warping window ends, so we keep track of the warp targets added during the interaction 
+	 * and remove them at the end of it to prevent issues caused by dangling warp targets after an interaction.
+	 */
+	UPROPERTY(Transient)
+	TArray<FName> WarpTargetNamesCache;
+
 	struct FCharacterProperties
 	{
 		bool bIgnoreClientMovementErrorChecksAndCorrection = false;

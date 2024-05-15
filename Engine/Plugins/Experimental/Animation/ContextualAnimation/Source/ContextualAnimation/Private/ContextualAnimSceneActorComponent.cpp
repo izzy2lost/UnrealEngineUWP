@@ -202,6 +202,7 @@ void UContextualAnimSceneActorComponent::AddOrUpdateWarpTargets(int32 SectionIdx
 					const FTransform TransformRelativeToWarpPoint = Asset->GetAlignmentTransform(*AnimTrack, WarpPoint.Name, Time);
 					const FTransform WarpTargetTransform = TransformRelativeToWarpPoint * WarpPoint.Transform;
 					MotionWarpComp->AddOrUpdateWarpTargetFromTransform(WarpPoint.Name, WarpTargetTransform);
+					WarpTargetNamesCache.AddUnique(WarpPoint.Name);
 				}
 			}
 		}
@@ -212,6 +213,7 @@ void UContextualAnimSceneActorComponent::AddOrUpdateWarpTargets(int32 SectionIdx
 			if (WarpTarget.Role == Role)
 			{
 				MotionWarpComp->AddOrUpdateWarpTargetFromTransform(WarpTarget.TargetName, FTransform(WarpTarget.TargetRotation, WarpTarget.TargetLocation));
+				WarpTargetNamesCache.AddUnique(WarpTarget.TargetName);
 			}
 		}
 	}
@@ -1005,9 +1007,14 @@ void UContextualAnimSceneActorComponent::LeaveScene()
 
 		RestoreMovementState(*Binding);
 
-		if (UMotionWarpingComponent* MotionWarpComp = Binding->GetMotionWarpingComponent())
+		if (WarpTargetNamesCache.Num() > 0)
 		{
-			MotionWarpComp->RemoveAllWarpTargets();
+			if (UMotionWarpingComponent* MotionWarpComp = Binding->GetMotionWarpingComponent())
+			{
+				MotionWarpComp->RemoveWarpTargets(WarpTargetNamesCache);
+			}
+
+			WarpTargetNamesCache.Reset();
 		}
 
 		// Notify the other actors in the interaction
