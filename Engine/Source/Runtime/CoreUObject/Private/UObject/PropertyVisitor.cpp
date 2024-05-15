@@ -6,6 +6,15 @@
 #include "UObject/UnrealType.h"
 #include "Serialization/ArchiveSerializedPropertyChain.h"
 
+bool FPropertyVisitorInfo::Identical(const FPropertyVisitorInfo& Other) const
+{
+	return Property == Other.Property
+		&& ParentStructType == Other.ParentStructType
+		&& Index == Other.Index
+		&& PropertyInfo == Other.PropertyInfo
+		&& bContainsInnerProperties == Other.bContainsInnerProperties;
+}
+
 FString FPropertyVisitorPath::ToString(const TCHAR* Separator /*= TEXT(".")*/) const
 {
 	return PropertyVisitorHelpers::PathToString(Path, Separator);

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Containers/Array.h"
+#include "Containers/ArrayView.h"
 
 class FProperty;
 struct FArchiveSerializedPropertyChain;
@@ -45,6 +46,23 @@ struct FPropertyVisitorInfo
 		PropertyInfo = InPropertyInfo;
 	}
 
+	COREUOBJECT_API bool Identical(const FPropertyVisitorInfo& Other) const;
+
+	/** @note The default comparison only compares the key data to match GetTypeHash and is for use with hashed containers and ResolveVisitedPathInfo_Generic; use Identical for an exact comparison */
+	friend bool operator==(const FPropertyVisitorInfo& A, const FPropertyVisitorInfo& B)
+	{
+		return A.Property == B.Property && A.PropertyInfo == B.PropertyInfo && A.Index == B.Index;
+	}
+	friend bool operator!=(const FPropertyVisitorInfo& A, const FPropertyVisitorInfo& B)
+	{
+		return !(A == B);
+	}
+
+	friend uint32 GetTypeHash(const FPropertyVisitorInfo& A)
+	{
+		return HashCombine(HashCombine(GetTypeHash(A.Property), GetTypeHash(A.PropertyInfo)), GetTypeHash(A.Index));
+	}
+
 	/** The property currently being visited */
 	const FProperty* Property;
 
@@ -83,6 +101,11 @@ public:
 		Push(Info);
 	}
 
+	explicit FPropertyVisitorPath(TArrayView<const FPropertyVisitorInfo> InPath)
+	{
+		Path = InPath;
+	}
+
 	void Push(const FPropertyVisitorInfo& Info)
 	{
 		Path.Push(Info);
@@ -111,6 +134,20 @@ public:
 	const TArray<FPropertyVisitorInfo>& GetPath() const
 	{
 		return Path;
+	}
+
+	friend bool operator==(const FPropertyVisitorPath& A, const FPropertyVisitorPath& B)
+	{
+		return A.Path == B.Path;
+	}
+	friend bool operator!=(const FPropertyVisitorPath& A, const FPropertyVisitorPath& B)
+	{
+		return !(A == B);
+	}
+
+	friend uint32 GetTypeHash(const FPropertyVisitorPath& A)
+	{
+		return GetTypeHash(A.Path);
 	}
 
 	COREUOBJECT_API FString ToString(const TCHAR* Separator = TEXT(".")) const;
@@ -216,7 +253,7 @@ void* ResolveVisitedPathInfo_Generic(Type* This, FPropertyVisitorPath& Path, voi
 		{
 			return EPropertyVisitorControlFlow::StepInto;
 		}
-		if (Info.Property == InnerPath.Top().Property && Info.PropertyInfo == InnerPath.Top().PropertyInfo && Info.Index == InnerPath.Top().Index)
+		if (Info == InnerPath.Top())
 		{
 			FoundInnerData = InnerData;
 			return EPropertyVisitorControlFlow::Stop;
