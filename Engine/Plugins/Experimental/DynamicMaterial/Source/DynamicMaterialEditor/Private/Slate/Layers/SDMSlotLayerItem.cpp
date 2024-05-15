@@ -217,7 +217,7 @@ TSharedRef<SWidget> SDMSlotLayerItem::CreateHeaderRowContent()
 		]
 		+ SHorizontalBox::Slot()
 		.FillWidth(1.0f)
-		.HAlign(HAlign_Center)
+		.HAlign(HAlign_Left)
 		.VAlign(VAlign_Fill)
 		.Padding(2.0f, 0.0f, 10.0f, 0.0f)
 		[
