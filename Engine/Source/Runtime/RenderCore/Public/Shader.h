@@ -360,6 +360,11 @@ public:
 		return RHIShaders[ShaderIndex].load(std::memory_order_acquire) != nullptr;
 	}
 
+	inline bool ContainsAtLeastOneRHIShaderCreated() const
+	{
+		return bAtLeastOneRHIShaderCreated;
+	}
+
 	inline FRHIShader* GetShader(int32 ShaderIndex, bool bRequired = true)
 	{
 		// This is a double checked locking. This trickery arises from the fact that we're
