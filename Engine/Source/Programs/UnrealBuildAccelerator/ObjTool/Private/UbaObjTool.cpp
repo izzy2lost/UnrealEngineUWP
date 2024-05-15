@@ -128,7 +128,7 @@ namespace uba
 		{
 			CriticalSection cs;
 			bool success = true;
-			UnorderedSymbols allNeededImports;
+			UnorderedSymbols allNeededImports; // Imports needed from the outside of the stripped obj files
 
 			u32 workerCount = DefaultProcessorCount;
 			WorkManagerImpl workManager(workerCount);
@@ -147,18 +147,19 @@ namespace uba
 			if (!success)
 				return -1;
 
-			UnorderedSymbols allSharedExports;
+			UnorderedSymbols allSharedExports; // Exports from all the obj files about to be stripped
 
-			struct ObjectFileRec { ObjectFile file; UnorderedSet<std::string> loopbacksToAdd; };
+			struct ObjectFileRec { ObjectFile file; UnorderedSymbols loopbacksToAdd;  UnorderedSymbols toRemove; };
 			Map<TString, ObjectFileRec> objectFileRecs;
+			CriticalSection cs2;
 
 			workManager.ParallelFor(workerCount, objFilesToStrip, [&](auto& it)
 				{
 					const TString& objFileName = *it;
 
-					cs.Enter();
+					cs2.Enter();
 					ObjectFile& objectFile = objectFileRecs.try_emplace(objFileName).first->second.file;
-					cs.Leave();
+					cs2.Leave();
 
 					bool res = objectFile.Parse(logger, objFileName.c_str());
 
@@ -171,21 +172,27 @@ namespace uba
 			if (!success)
 				return -1;
 
+			UnorderedSymbols duplicates;
+
 			// Figure out which loopback symbols that should be added to which obj file
 			for (auto& objFileName : objFilesToStrip)
 			{
-				ObjectFileRec& rec = objectFileRecs[objFileName];//kv.second;
+				ObjectFileRec& rec = objectFileRecs[objFileName];
 				for (auto& importSymbol : rec.file.GetImports())
 				{
 					if (strncmp(importSymbol.c_str(), "__imp_", 6) != 0)
 						continue;
-					std::string tmp = importSymbol.substr(6);
-					auto findIt = allSharedExports.find(tmp);
+					std::string importString = importSymbol.substr(6);
+					auto findIt = allSharedExports.find(importString);
 					if (findIt == allSharedExports.end())
 						continue;
-					rec.loopbacksToAdd.emplace(tmp);
+					rec.loopbacksToAdd.emplace(importString);
 					allSharedExports.erase(findIt);
 				}
+
+				for (auto& dupSymbol : rec.file.GetPotentialDuplicates())
+					if (!duplicates.insert(dupSymbol).second)
+						rec.toRemove.insert(dupSymbol);
 			}
 
 			workManager.ParallelFor(workerCount, objectFileRecs, [&](auto& it)
@@ -196,7 +203,7 @@ namespace uba
 					UBA_ASSERT(lastDot);
 					StringBuffer<> newFilename;
 					newFilename.Append(fileName, lastDot - fileName).Append(TC(".strip")).Append(lastDot);
-					rec.file.CreateStripped(logger, newFilename.data, allNeededImports, rec.loopbacksToAdd);
+					rec.file.CreateStripped(logger, newFilename.data, allNeededImports, rec.loopbacksToAdd, rec.toRemove);
 				});
 
 			//logger.Info(TC("Stripped %llu symbols from %llu obj files"), strippedSymbolCount.load(), objFilesToStrip.size());
