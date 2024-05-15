@@ -8745,9 +8745,9 @@ void ALandscape::InitializeLayers(bool bUseNormalCapture)
 
 	if (CreateLayersRenderingResource(bUseNormalCapture))
 	{
-	InitializeLandscapeLayersWeightmapUsage();
-	bLandscapeLayersAreInitialized = true;
-}
+		InitializeLandscapeLayersWeightmapUsage();
+		bLandscapeLayersAreInitialized = true;
+	}
 }
 
 void ALandscape::OnPreSave()

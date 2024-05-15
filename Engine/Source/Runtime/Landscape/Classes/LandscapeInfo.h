@@ -398,9 +398,9 @@ public:
 	void UpdateNanite(const ITargetPlatform* InTargetPlatform);
 
 	/** Associates passed actor with this info object
- *  @param	Proxy		Landscape actor to register
- *  @param  bMapCheck	Whether to warn about landscape errors
- */
+	 *  @param	Proxy		Landscape actor to register
+	 *  @param  bMapCheck	Whether to warn about landscape errors
+	 */
 	LANDSCAPE_API void RegisterActor(ALandscapeProxy* Proxy, bool bMapCheck = false, bool bUpdateAllAddCollisions = true);
 
 	/** Deassociates passed actor with this info object*/
@@ -461,4 +461,7 @@ private:
 	void UpdateLayerInfoMapInternal(ALandscapeProxy* Proxy);
 	bool TryAddToModifiedPackages(UPackage* InPackage, const ALandscape* InLandscapeOverride = nullptr);
 #endif
+
+private:
+	void RegisterLandscapeActorWithProxyInternal(ALandscapeProxy* Proxy, bool bMapCheck);
 };
