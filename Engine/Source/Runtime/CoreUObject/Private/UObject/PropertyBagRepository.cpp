@@ -48,6 +48,11 @@ public:
 		PendingPlaceholderTypes.Enqueue(Type);
 	}
 
+	void Remove(UStruct* Type)
+	{
+		PlaceholderTypes.Remove(Type);
+	}
+
 	bool Contains(const UStruct* Type)
 	{
 		ConsumePendingPlaceholderTypes();
@@ -139,7 +144,7 @@ void FPropertyBagRepository::ReassociateObjects(const TMap<UObject*, UObject*>& 
 	FPropertyBagAssociationData OldBagData;
 	for (const TPair<UObject*, UObject*>& Pair : ReplacedObjects)
 	{
-		if(AssociatedData.RemoveAndCopyValue(Pair.Key, OldBagData))
+		if (AssociatedData.RemoveAndCopyValue(Pair.Key, OldBagData))
 		{
 			InstanceDataObjectToOwner.Remove(OldBagData.InstanceDataObject);
 			if (Pair.Value != nullptr) // Pair.Value can be nullptr when an object was destroyed like for example a UClass when it's deleted
@@ -153,6 +158,13 @@ void FPropertyBagRepository::ReassociateObjects(const TMap<UObject*, UObject*>& 
 					NewBagData.InstanceDataObject->GetClass(), NewBagData.InstanceDataObject);
 			}
 			OldBagData.Destroy();
+		}
+		else if (UStruct* TypeObject = Cast<UStruct>(Pair.Value))
+		{
+			if (IsPropertyBagPlaceholderType(TypeObject))
+			{
+				FPropertyBagPlaceholderTypeRegistry::Get().Remove(TypeObject);
+			}
 		}
 		Namespaces.Remove(Pair.Key);
 	}
@@ -737,8 +749,8 @@ bool FPropertyBagRepository::IsInstanceDataObjectSupportEnabled(UObject* InObjec
 
 UStruct* FPropertyBagRepository::CreatePropertyBagPlaceholderType(UObject* Outer, UClass* Class, FName Name, EObjectFlags Flags, UStruct* SuperStruct)
 {
-	// Generate and link a transient type object using the given SuperStruct as its base.
-	UStruct* PlaceholderType = NewObject<UClass>(Outer, Class, Name, Flags | RF_Transient);
+	// Generate and link a new type object using the given SuperStruct as its base.
+	UStruct* PlaceholderType = NewObject<UClass>(Outer, Class, Name, Flags);
 	PlaceholderType->SetSuperStruct(SuperStruct);
 	PlaceholderType->Bind();
 	PlaceholderType->StaticLink(/*bRelinkExistingProperties =*/ true);

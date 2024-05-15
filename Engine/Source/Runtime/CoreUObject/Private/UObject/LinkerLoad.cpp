@@ -4111,6 +4111,9 @@ UClass* FLinkerLoad::TryCreatePlaceholderClassImport(int32 ImportIndex)
 					{
 						ClassObjectPackage = CreatePackage(*OuterImport.ObjectName.ToString());
 
+						// Flag that this package exists in memory only (i.e. it's not being loaded from disk).
+						ClassObjectPackage->SetPackageFlags(PKG_InMemoryOnly);
+
 						// Patch it into the import table so that we resolve to this package for future reference.
 						OuterImport.XObject = ClassObjectPackage;
 					}
@@ -4118,8 +4121,8 @@ UClass* FLinkerLoad::TryCreatePlaceholderClassImport(int32 ImportIndex)
 
 				if (ClassObjectPackage)
 				{
-					// Create an opaque, non-native transient type object that has no reflected properties.
-					ClassObject = UE::FPropertyBagRepository::CreatePropertyBagPlaceholderClass(ClassObjectPackage, ImportClass, Import.ObjectName);
+					// Create an opaque, non-native public type object that has no reflected properties.
+					ClassObject = UE::FPropertyBagRepository::CreatePropertyBagPlaceholderClass(ClassObjectPackage, ImportClass, Import.ObjectName, RF_Public);
 
 					// Patch it into the import table so that we resolve to this class for any future exports of this type.
 					Import.XObject = ClassObject;
