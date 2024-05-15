@@ -174,6 +174,9 @@ private:
 	void GenerateSpline(int32 NumChannels, int32 SamplePositionOffset);
 
 private:
+
+	void DestroyTexture();
+
 	/** The section we are visualizing */
 	UMovieSceneSection& Section;
 
@@ -240,19 +243,34 @@ FAudioThumbnail::FAudioThumbnail(UMovieSceneSection& InSection, TRange<float> Dr
 
 FAudioThumbnail::~FAudioThumbnail()
 {
-	if (ShouldRender())
-	{
-		BeginReleaseResource( Texture );
-
-		FlushRenderingCommands();
-	}
-
-	if (Texture) 
-	{
-		delete Texture;
-	}
+	DestroyTexture();
 }
 
+void
+FAudioThumbnail::DestroyTexture()
+{
+	if (Texture)
+	{
+		// UE-114425: Defer the destroy until the next tick to work around the RHI getting destroyed before the render command completes.
+		FSlateTexture2DRHIRef* InTexture = Texture;
+
+		Texture = nullptr;
+
+		GEditor->GetTimerManager()->SetTimerForNextTick([this, InTexture]()
+		{
+			ENQUEUE_RENDER_COMMAND(DestroyTexture)(
+				[InTexture](FRHICommandList& RHICmdList)
+				{
+					if (InTexture)
+					{
+						InTexture->ReleaseResource();
+						delete InTexture;
+					}
+				}
+			);
+		});
+	}
+}
 
 FIntPoint FAudioThumbnail::GetSize() const {return FIntPoint(TextureSize, Section.GetTypedOuter<UMovieSceneAudioTrack>()->GetRowHeight());}
 FSlateShaderResource* FAudioThumbnail::GetViewportRenderTargetTexture() const {return Texture;}
