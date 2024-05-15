@@ -448,7 +448,8 @@ namespace PerfSummaries
 					{
 						denominator += otherStatValues[i];
 					}
-					value = numerator / denominator; // TODO: Does the rest of the pipeline handle +/-i infinity?
+					// Guard against divide by 0 as json serialization cannot handle Inf.
+					value = denominator != 0.0 ? numerator / denominator : 0.0;
 					totalFrameWeight = 1.0;
 				}
 				else
@@ -456,7 +457,7 @@ namespace PerfSummaries
 					throw new Exception("BoundedStatValuesSummary: unexpected formula " + col.formula);
 				}
 				value *= col.multiplier;
-				col.value = value / totalFrameWeight;
+				col.value = totalFrameWeight != 0.0 ? value / totalFrameWeight : value;
 			}
 
 			// Output HTML
