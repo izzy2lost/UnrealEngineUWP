@@ -1,12 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaInteractiveToolsEdMode.h"
+
+#include "AvaInteractiveToolsCommands.h"
 #include "AvaInteractiveToolsEdModeToolkit.h"
 #include "AvaInteractiveToolsStyle.h"
 #include "ContextObjectStore.h"
-#include "EdModeInteractiveToolsContext.h"
 #include "EditorModeManager.h"
 #include "EditorModes.h"
+#include "EdModeInteractiveToolsContext.h"
 #include "IAvalancheInteractiveToolsModule.h"
 #include "Selection.h"
 #include "Tools/AvaInteractiveToolsToolBase.h"
@@ -40,6 +42,26 @@ namespace UE::AvaInteractiveToolsEditorMode::Private
 bool UAvaInteractiveToolsEdMode::IsCompatibleWith(FEditorModeID OtherModeID) const
 {
 	return !UE::AvaInteractiveToolsEditorMode::Private::IncompatibleEdModes.Contains(OtherModeID);
+}
+
+void UAvaInteractiveToolsEdMode::BindCommands()
+{
+	Super::BindCommands();
+
+	const FAvaInteractiveToolsCommands& ToolManagerCommands = FAvaInteractiveToolsCommands::Get();
+	const TSharedRef<FUICommandList>& CommandList = Toolkit->GetToolkitCommands();
+
+	CommandList->MapAction(
+		ToolManagerCommands.CancelActiveTool,
+		FExecuteAction::CreateWeakLambda(this, [this]()
+			{
+				GetInteractiveToolsContext()->EndTool(EToolShutdownType::Cancel);
+			}),
+		FCanExecuteAction(),
+		FGetActionCheckState(),
+		FIsActionButtonVisible(),
+		EUIActionRepeatMode::RepeatDisabled
+	);
 }
 
 void UAvaInteractiveToolsEdMode::Enter()

@@ -17,11 +17,22 @@ FAvaInteractiveToolsCommands::FAvaInteractiveToolsCommands()
 
 void FAvaInteractiveToolsCommands::RegisterCommands()
 {
+	RegisterEdModeCommands();
 	RegisterCategoryCommands();
 	Register2DCommands();
 	Register3DCommands();
 	RegisterActorCommands();
 	RegisterLayoutCommands();
+}
+
+void FAvaInteractiveToolsCommands::RegisterEdModeCommands()
+{
+	UI_COMMAND(CancelActiveTool
+		, "Cancel"
+		, "Cancel the active Tool"
+		, EUserInterfaceActionType::Button
+		, FInputChord(EKeys::Escape)
+	);
 }
 
 void FAvaInteractiveToolsCommands::RegisterCategoryCommands()

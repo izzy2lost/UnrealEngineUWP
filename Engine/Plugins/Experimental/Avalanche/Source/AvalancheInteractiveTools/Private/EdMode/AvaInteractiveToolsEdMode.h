@@ -20,6 +20,7 @@ public:
 
 	//~ Begin UEdMode interface
 	virtual bool IsCompatibleWith(FEditorModeID OtherModeID) const override;
+	virtual void BindCommands() override;
 	virtual void Enter() override;
 	virtual void CreateToolkit() override;
 	virtual TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> GetModeCommands() const override;
@@ -36,7 +37,7 @@ public:
 protected:
 	FString LastActiveTool;
 	TWeakObjectPtr<UTypedElementSelectionSet> WeakActorSelectionSet;
-	double LastToolActivateTime;
+	double LastToolActivateTime = -1.0;
 
 	void OnActorSelectionChange(const UTypedElementSelectionSet* InSelectionSet);
 };
