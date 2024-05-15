@@ -186,6 +186,11 @@ public:
 		ApplicationRestartRequiredNotification.SetOnRestartApplicationCallback(InRestartApplicationDelegate);
 	}
 
+	virtual void SetShouldRegisterSettingCallback(FShouldRegisterSettingsDelegate InShouldRegisterSettingDelegate) override
+	{
+		ShouldRegisterSettingsDelegate = MoveTemp(InShouldRegisterSettingDelegate);
+	}
+
 private:
 
 	void ModulesChangesCallback(FName ModuleName, EModuleChangeReason ReasonForChange)
@@ -242,6 +247,12 @@ private:
 				{
 					// Ignore the setting if it's specifically the UDeveloperSettings or other abstract settings classes
 					if ( Settings->GetClass()->HasAnyClassFlags(CLASS_Abstract) || !Settings->SupportsAutoRegistration() )
+					{
+						continue;
+					}
+
+					// Let an external module decide if the setting should be registered.
+					if (ShouldRegisterSettingsDelegate.IsBound() && !ShouldRegisterSettingsDelegate.Execute(Settings))
 					{
 						continue;
 					}
@@ -305,6 +316,9 @@ private:
 
 	/** Flag if the settings are stale currently and need to be refreshed. */
 	bool bAreSettingsStale;
+
+	/** Delegate called to decide if a settings object should be registered with the module. */
+	FShouldRegisterSettingsDelegate ShouldRegisterSettingsDelegate;
 };
 
 
