@@ -267,6 +267,7 @@ public:
 		Commands.Add(Command); 
 	}
 
+	static CHAOS_API bool NeedToInitializeSharedCollisionStructures(const FGeometryCollection& RestCollection);
 	static CHAOS_API void InitializeSharedCollisionStructures(Chaos::FErrorReporter& ErrorReporter, FGeometryCollection& RestCollection, const FSharedSimulationParameters& SharedParams);
 
 	CHAOS_API void FieldForcesUpdateCallback(Chaos::FPBDRigidsSolver* RigidSolver);

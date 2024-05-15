@@ -4940,6 +4940,17 @@ static Chaos::FImplicitObjectPtr MakeTransformImplicitObject(const Chaos::FImpli
 	return ResultObject;
 }
 
+bool FGeometryCollectionPhysicsProxy::NeedToInitializeSharedCollisionStructures(const FGeometryCollection& RestCollection)
+{
+	return !RestCollection.HasAttribute(InertiaTensorAttributeName, FTransformCollection::TransformGroup)
+		|| !RestCollection.HasAttribute(MassAttributeName, FTransformCollection::TransformGroup)
+		|| !RestCollection.HasAttribute(FGeometryDynamicCollection::SimplicialsAttribute, FTransformCollection::TransformGroup)
+		|| !RestCollection.HasAttribute(LevelAttributeName, FTransformCollection::TransformGroup)
+		|| !RestCollection.HasAttribute(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup)
+		|| !RestCollection.HasAttribute(MassToLocalAttributeName, FTransformCollection::TransformGroup)
+		;
+}
+
 /** 
 	NOTE - Making any changes to data stored on the rest collection below MUST be accompanied
 	by a rotation of the DDC key in FDerivedDataGeometryCollectionCooker::GetVersionString
@@ -4971,7 +4982,7 @@ void FGeometryCollectionPhysicsProxy::InitializeSharedCollisionStructures(
 	TManagedArray<FRealSingle>& CollectionMass = RestCollection.AddAttribute<FRealSingle>(MassAttributeName, FTransformCollection::TransformGroup);
 	TManagedArray<TUniquePtr<FSimplicial>>& CollectionSimplicials =	RestCollection.AddAttribute<TUniquePtr<FSimplicial>>(FGeometryDynamicCollection::SimplicialsAttribute, FTransformCollection::TransformGroup);
 
-	TManagedArray<int32>& Levels = RestCollection.AddAttribute<int32>(TEXT("Level"), FTransformCollection::TransformGroup);
+	TManagedArray<int32>& Levels = RestCollection.AddAttribute<int32>(LevelAttributeName, FTransformCollection::TransformGroup);
 
 	RestCollection.RemoveAttribute(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);
 	TManagedArray<Chaos::FImplicitObjectPtr>& CollectionImplicits = RestCollection.AddAttribute<Chaos::FImplicitObjectPtr>(FGeometryDynamicCollection::ImplicitsAttribute, FTransformCollection::TransformGroup);

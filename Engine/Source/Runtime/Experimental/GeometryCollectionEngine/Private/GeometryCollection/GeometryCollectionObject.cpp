@@ -25,6 +25,8 @@
 #include "Rendering/NaniteResources.h"
 #include "Engine/AssetUserData.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
+#include "PhysicsProxy/GeometryCollectionPhysicsProxy.h"
+#include "Chaos/ErrorReporter.h"
 
 #if WITH_EDITOR
 #include "GeometryCollection/DerivedDataGeometryCollectionCooker.h"
@@ -1862,7 +1864,25 @@ void UGeometryCollection::EnsureDataIsCooked(bool bInitResources, bool bIsTransa
 	if (StateGuid != LastBuiltSimulationDataGuid)
 	{
 		CreateSimulationDataImp(/*bCopyFromDDC=*/ bAllowCopyFromDDC && !bIsTransacting);
+
 		LastBuiltSimulationDataGuid = StateGuid;
+	}
+
+	// todo(chaos) - this is temporary solution to make sure the data is computed accordingly if the attribute are missing
+	//				 in the future we should probably get rid of this all cooker logic and have a proper dependent attribute system 
+	if (GeometryCollection)
+	{
+		if (FGeometryCollectionPhysicsProxy::NeedToInitializeSharedCollisionStructures(*GeometryCollection))
+		{
+			FSharedSimulationParameters SharedParams;
+			GetSharedSimulationParams(SharedParams);
+
+			Chaos::FErrorReporter ErrorReporter(GetName());
+			BuildSimulationData(ErrorReporter, *GeometryCollection, SharedParams);
+			// important : this is necessary to make sure we compute mass scale on the instances properly
+			// sadly we cannot call this in BuildSimulationData because we have no access to the asset
+			CacheMaterialDensity();
+		}
 	}
 
 	// Render data only goes through DDC when loading and saving (bIsPersistant).
