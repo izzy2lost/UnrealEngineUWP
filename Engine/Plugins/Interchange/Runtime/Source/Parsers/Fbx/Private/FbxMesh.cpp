@@ -1886,6 +1886,17 @@ void FFbxMesh::AddAllMeshes(FbxScene* SDKScene, FbxGeometryConverter* SDKGeometr
 					FString MorphTargetAttributeName = Parser.GetFbxHelper()->GetMeshName(Shape);
 					FString MorphTargetUniqueID = Parser.GetFbxHelper()->GetMeshUniqueID(Shape);
 					const UInterchangeMeshNode* ExistingMorphTargetNode = Cast<const UInterchangeMeshNode>(NodeContainer.GetNode(MorphTargetUniqueID));
+					if (ExistingMorphTargetNode)
+					{
+						int32 UniqueId = 1;
+						FString NameClash = "_ncl_";
+						while (ExistingMorphTargetNode)
+						{
+							MorphTargetUniqueID = Parser.GetFbxHelper()->GetMeshUniqueID(Shape) + NameClash + FString::FromInt(UniqueId++);
+							ExistingMorphTargetNode = Cast<const UInterchangeMeshNode>(NodeContainer.GetNode(MorphTargetUniqueID));
+						}
+					}
+
 					if (!ExistingMorphTargetNode)
 					{
 						UInterchangeMeshNode* MorphTargetNode = CreateMeshNode(NodeContainer, MorphTargetAttributeName, MorphTargetUniqueID);

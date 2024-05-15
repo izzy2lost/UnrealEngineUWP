@@ -177,6 +177,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skeletal Meshes")
 	bool bImportMorphTargets = true;
 
+	/** If enabled, all morph target shapes with the same name will be merge together. Turn it to false if you want to control those morph with different values. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skeletal Meshes", meta = (EditCondition = "bImportMorphTargets"))
+	bool bMergeMorphTargetsWithSameName = true;
+
 	/** If enabled, imports per-vertex attributes from the FBX file. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skeletal Meshes", meta = (ToolTip = "If enabled, creates named vertex attributes for secondary vertex color data."))
 	bool bImportVertexAttributes = false;

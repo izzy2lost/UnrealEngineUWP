@@ -501,6 +501,7 @@ UInterchangeSkeletalMeshFactoryNode* UInterchangeGenericMeshPipeline::CreateSkel
 	SkeletalMeshFactoryNode->SetCustomThresholdUV(ThresholdUV);
 	SkeletalMeshFactoryNode->SetCustomMorphThresholdPosition(MorphThresholdPosition);
 	SkeletalMeshFactoryNode->SetCustomBoneInfluenceLimit(BoneInfluenceLimit);
+	SkeletalMeshFactoryNode->SetCustomMergeMorphTargetShapeWithSameName(bMergeMorphTargetsWithSameName);
 
 	return SkeletalMeshFactoryNode;
 }

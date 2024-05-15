@@ -224,6 +224,15 @@ bool UInterchangeSkeletalMeshFactoryNode::FillCustomBoneInfluenceLimitFromAsset(
 	IMPLEMENT_SKELETALMESH_BUILD_ASSET_TO_VALUE(BoneInfluenceLimit, BoneInfluenceLimit);
 }
 
+bool UInterchangeSkeletalMeshFactoryNode::GetCustomMergeMorphTargetShapeWithSameName(bool& AttributeValue) const
+{
+	IMPLEMENT_NODE_ATTRIBUTE_GETTER(MergeMorphTargetShapeWithSameName, bool)
+}
+bool UInterchangeSkeletalMeshFactoryNode::SetCustomMergeMorphTargetShapeWithSameName(const bool& AttributeValue)
+{
+	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(MergeMorphTargetShapeWithSameName, bool)
+}
+
 bool UInterchangeSkeletalMeshFactoryNode::GetCustomImportContentType(EInterchangeSkeletalMeshContentType& AttributeValue) const
 {
 	FString OperationName = GetTypeName() + TEXT(".GetImportContentType");

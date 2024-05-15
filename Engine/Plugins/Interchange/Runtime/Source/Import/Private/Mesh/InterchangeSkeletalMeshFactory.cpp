@@ -153,19 +153,32 @@ namespace UE
 				}
 			}
 
-			void CopyMorphTargetsMeshDescriptionToSkeletalMeshImportData(const TMap<FString, TOptional<UE::Interchange::FMeshPayloadData>>& LodMorphTargetMeshDescriptions, FSkeletalMeshImportData& DestinationSkeletalMeshImportData)
+			void CopyMorphTargetsMeshDescriptionToSkeletalMeshImportData(const TMap<FString, TOptional<UE::Interchange::FMeshPayloadData>>& LodMorphTargetMeshDescriptions, FSkeletalMeshImportData& DestinationSkeletalMeshImportData, const bool bMergeMorphTargetWithSameName)
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(CopyMorphTargetsMeshDescriptionToSkeletalMeshImportData)
 				const int32 OriginalMorphTargetCount = LodMorphTargetMeshDescriptions.Num();
-				TArray<FString> Keys;
-				int32 MorphTargetCount = 0;
+				TArray < TPair<FString, TArray<FString>>> KeysPerName;
+				auto FindOrAdd = [&KeysPerName](const FString& MorphTargetName)->TPair<FString, TArray<FString>>&
+					{
+						for (TPair<FString, TArray<FString>>& Pair : KeysPerName)
+						{
+							if (Pair.Key.Equals(MorphTargetName))
+							{
+								return Pair;
+							}
+						}
+
+						TPair<FString, TArray<FString>>& NewPair = KeysPerName.AddDefaulted_GetRef();
+						NewPair.Key = MorphTargetName;
+						return NewPair;
+					};
 				for (const TPair<FString, TOptional<UE::Interchange::FMeshPayloadData>>& Pair : LodMorphTargetMeshDescriptions)
 				{
-					const FString MorphTargetName(Pair.Key);
+					const FString MorphTargetUniqueId(Pair.Key);
 					const TOptional<UE::Interchange::FMeshPayloadData>& MorphTargetPayloadData = Pair.Value;
 					if (!MorphTargetPayloadData.IsSet())
 					{
-						UE_LOG(LogInterchangeImport, Error, TEXT("Empty morph target optional payload data [%s]."), *MorphTargetName);
+						UE_LOG(LogInterchangeImport, Error, TEXT("Empty morph target optional payload data [%s]."), *MorphTargetUniqueId);
 						continue;
 					}
 
@@ -175,12 +188,25 @@ namespace UE
 					const int32 DestinationVertexIndexMax = VertexOffset + SourceMeshVertexCount;
 					if (!DestinationSkeletalMeshImportData.Points.IsValidIndex(DestinationVertexIndexMax-1))
 					{
-						UE_LOG(LogInterchangeImport, Error, TEXT("Corrupted morph target optional payload data [%s]."), *MorphTargetName);
+						UE_LOG(LogInterchangeImport, Error, TEXT("Corrupted morph target optional payload data [%s]."), *MorphTargetUniqueId);
 						continue;
 					}
-					Keys.Add(Pair.Key);
-					MorphTargetCount++;
+
+					if (bMergeMorphTargetWithSameName)
+					{
+						TPair<FString, TArray<FString>>& PairMorphNameWithKeys = FindOrAdd(MorphTargetPayloadData->MorphTargetName);
+						PairMorphNameWithKeys.Value.Add(MorphTargetUniqueId);
+					}
+					else
+					{
+						TPair<FString, TArray<FString>>& NewPair = KeysPerName.AddDefaulted_GetRef();
+						NewPair.Key = MorphTargetPayloadData->MorphTargetName;
+						NewPair.Value.Add(MorphTargetUniqueId);
+					}
 				}
+				
+				//Adjust the count from the merge context
+				const int32 MorphTargetCount = KeysPerName.Num();
 
 				//No morph target to import
 				if (MorphTargetCount == 0)
@@ -188,7 +214,6 @@ namespace UE
 					return;
 				}
 
-				ensure(Keys.Num() == MorphTargetCount);
 				//Allocate the data
 				DestinationSkeletalMeshImportData.MorphTargetNames.AddDefaulted(MorphTargetCount);
 				DestinationSkeletalMeshImportData.MorphTargetModifiedPoints.AddDefaulted(MorphTargetCount);
@@ -203,70 +228,75 @@ namespace UE
 							MorphTargetCount,
 							NumMorphGroup,
 							&LodMorphTargetMeshDescriptions,
-							&Keys,
+							&KeysPerName,
+							bMergeMorphTargetWithSameName,
 							&DestinationSkeletalMeshImportData](const int32 MorphTargetGroupIndex)
 				{
 					const int32 MorphTargetIndexOffset = MorphTargetGroupIndex * MorphTargetGroupSize;
 					const int32 MorphTargetEndLoopCount = MorphTargetIndexOffset + MorphTargetGroupSize;
 					for (int32 MorphTargetIndex = MorphTargetIndexOffset; MorphTargetIndex < MorphTargetEndLoopCount; ++MorphTargetIndex)
 					{
-						if (!Keys.IsValidIndex(MorphTargetIndex))
+						if (!KeysPerName.IsValidIndex(MorphTargetIndex))
 						{
 							ensure(MorphTargetGroupIndex + 1 == NumMorphGroup);
 							//Executing the last morph target group, in case we do not have a full last group.
 							break;
 						}
-						const FString MorphTargetKey(Keys[MorphTargetIndex]);
-						const TOptional<UE::Interchange::FMeshPayloadData>& MorphTargetPayloadData = LodMorphTargetMeshDescriptions.FindChecked(MorphTargetKey);
-						if (!ensure(MorphTargetPayloadData.IsSet()))
-						{
-							//This error was suppose to be catch in the pre parallel for loop
-							break;
-						}
-
-						const FMeshDescription& SourceMeshDescription = MorphTargetPayloadData.GetValue().MeshDescription;
-						const FTransform GlobalTransform = MorphTargetPayloadData->GlobalTransform.IsSet() ? MorphTargetPayloadData->GlobalTransform.GetValue() : FTransform::Identity;
-						const int32 VertexOffset = MorphTargetPayloadData->VertexOffset;
-						const int32 SourceMeshVertexCount = SourceMeshDescription.Vertices().Num();
-						const int32 DestinationVertexIndexMax = VertexOffset + SourceMeshVertexCount;
-						if (!ensure(DestinationSkeletalMeshImportData.Points.IsValidIndex(DestinationVertexIndexMax-1)))
-						{
-							//This error was suppose to be catch in the pre parallel for loop
-							break;
-						}
-						TArray<FVector3f> CompressPoints;
-						CompressPoints.Reserve(SourceMeshVertexCount);
-						FStaticMeshConstAttributes Attributes(SourceMeshDescription);
-						TVertexAttributesConstRef<FVector3f> VertexPositions = Attributes.GetVertexPositions();
-
 						//Create the morph target source data
 						FString& MorphTargetName = DestinationSkeletalMeshImportData.MorphTargetNames[MorphTargetIndex];
-						MorphTargetName = MorphTargetPayloadData->MorphTargetName;
+						MorphTargetName = KeysPerName[MorphTargetIndex].Key;
 						TSet<uint32>& ModifiedPoints = DestinationSkeletalMeshImportData.MorphTargetModifiedPoints[MorphTargetIndex];
 						FSkeletalMeshImportData& MorphTargetData = DestinationSkeletalMeshImportData.MorphTargets[MorphTargetIndex];
 
-						//Reserve the point and influences
-						MorphTargetData.Points.AddZeroed(SourceMeshVertexCount);
-
-						for (FVertexID VertexID : SourceMeshDescription.Vertices().GetElementIDs())
+						TArray<FVector3f> CompressPoints;
+						for (const FString& MorphTargetKey : KeysPerName[MorphTargetIndex].Value)
 						{
-							//We can use GetValue because the Meshdescription was compacted before the copy
-							MorphTargetData.Points[VertexID.GetValue()] = (FVector3f)GlobalTransform.TransformPosition((FVector)VertexPositions[VertexID]);
-						}
-
-						for (int32 PointIdx = VertexOffset; PointIdx < DestinationSkeletalMeshImportData.Points.Num(); ++PointIdx)
-						{
-							int32 OriginalPointIdx = DestinationSkeletalMeshImportData.PointToRawMap[PointIdx] - VertexOffset;
-							if (!MorphTargetData.Points.IsValidIndex(OriginalPointIdx))
+							const TOptional<UE::Interchange::FMeshPayloadData>& MorphTargetPayloadData = LodMorphTargetMeshDescriptions.FindChecked(MorphTargetKey);
+							if (!ensure(MorphTargetPayloadData.IsSet()))
 							{
-								//We break if we get over a valid point it mean we are inspecting a different part of the mesh
+								//This error was suppose to be catch in the pre parallel for loop
 								break;
 							}
-							//Rebuild the data with only the modified point
-							if ((MorphTargetData.Points[OriginalPointIdx] - DestinationSkeletalMeshImportData.Points[PointIdx]).SizeSquared() > FMath::Square(THRESH_POINTS_ARE_SAME))
+
+							const FMeshDescription& SourceMeshDescription = MorphTargetPayloadData.GetValue().MeshDescription;
+							const FTransform GlobalTransform = MorphTargetPayloadData->GlobalTransform.IsSet() ? MorphTargetPayloadData->GlobalTransform.GetValue() : FTransform::Identity;
+							const int32 VertexOffset = MorphTargetPayloadData->VertexOffset;
+							const int32 SourceMeshVertexCount = SourceMeshDescription.Vertices().Num();
+							const int32 DestinationVertexIndexMax = VertexOffset + SourceMeshVertexCount;
+							if (!ensure(DestinationSkeletalMeshImportData.Points.IsValidIndex(DestinationVertexIndexMax - 1)))
 							{
-								ModifiedPoints.Add(PointIdx);
-								CompressPoints.Add(MorphTargetData.Points[OriginalPointIdx]);
+								//This error was suppose to be catch in the pre parallel for loop
+								break;
+							}
+							
+							CompressPoints.Reserve(CompressPoints.Num() + SourceMeshVertexCount);
+							FStaticMeshConstAttributes Attributes(SourceMeshDescription);
+							TVertexAttributesConstRef<FVector3f> VertexPositions = Attributes.GetVertexPositions();
+
+							//Reserve the point and influences
+							MorphTargetData.Points.Reset(SourceMeshVertexCount);
+							MorphTargetData.Points.AddZeroed(SourceMeshVertexCount);
+
+							for (FVertexID VertexID : SourceMeshDescription.Vertices().GetElementIDs())
+							{
+								//We can use GetValue because the Meshdescription was compacted before the copy
+								MorphTargetData.Points[VertexID.GetValue()] = (FVector3f)GlobalTransform.TransformPosition((FVector)VertexPositions[VertexID]);
+							}
+
+							for (int32 PointIdx = VertexOffset; PointIdx < DestinationSkeletalMeshImportData.Points.Num(); ++PointIdx)
+							{
+								int32 OriginalPointIdx = DestinationSkeletalMeshImportData.PointToRawMap[PointIdx] - VertexOffset;
+								if (!MorphTargetData.Points.IsValidIndex(OriginalPointIdx))
+								{
+									//We break if we get over a valid point it mean we are inspecting a different part of the mesh
+									break;
+								}
+								//Rebuild the data with only the modified point
+								if ((MorphTargetData.Points[OriginalPointIdx] - DestinationSkeletalMeshImportData.Points[PointIdx]).SizeSquared() > FMath::Square(THRESH_POINTS_ARE_SAME))
+								{
+									ModifiedPoints.Add(PointIdx);
+									CompressPoints.Add(MorphTargetData.Points[OriginalPointIdx]);
+								}
 							}
 						}
 						MorphTargetData.Points = CompressPoints;
@@ -626,8 +656,10 @@ namespace UE
 				DestinationImportData = FSkeletalMeshImportData::CreateFromMeshDescription(LodMeshDescription);
 				DestinationImportData.RefBonesBinary = RefBonesBinary;
 
+				bool bMergeMorphTargetWithSameName = false;
+				SkeletalMeshFactoryNode->GetCustomMergeMorphTargetShapeWithSameName(bMergeMorphTargetWithSameName);
 				//Copy all the lod morph targets data to the DestinationImportData.
-				CopyMorphTargetsMeshDescriptionToSkeletalMeshImportData(MorphTargetMeshDescriptionsPerMorphTargetName, DestinationImportData);
+				CopyMorphTargetsMeshDescriptionToSkeletalMeshImportData(MorphTargetMeshDescriptionsPerMorphTargetName, DestinationImportData, bMergeMorphTargetWithSameName);
 			}
 
 			void ProcessImportMeshInfluences(const int32 WedgeCount, TArray<SkeletalMeshImportData::FRawBoneInfluence>& Influences)
