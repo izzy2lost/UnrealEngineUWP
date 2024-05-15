@@ -3695,6 +3695,8 @@ struct FTileGenerationContext
 dtStatus FRecastTileGenerator::BuildTileCacheLinks(FNavMeshBuildContext& BuildContext, dtTileCacheAlloc* alloc, const dtTileCacheLayer& layer,
 	const dtTileCacheContourSet& lcset, TArray<FNavigationLink>& OutGeneratedLinks) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FRecastTileGenerator::BuildTileCacheLinks);
+	
 	duDebugDraw* dd = nullptr;
 	int32 DebugEdge = -1;
 
@@ -3737,9 +3739,15 @@ dtStatus FRecastTileGenerator::BuildTileCacheLinks(FNavMeshBuildContext& BuildCo
 	if (DebugEdge == -1)
 	{
 		{
-			SCOPE_CYCLE_COUNTER(STAT_Navigation_RecastBuildLinks_Sample);
-			linkBuilder.buildForAllEdges(linkBuilderConfig, DT_LINK_ACTION_JUMP_DOWN);
-			linkBuilder.buildForAllEdges(linkBuilderConfig, DT_LINK_ACTION_JUMP_OVER);
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(RecastBuildLinks_JumpDown);
+				linkBuilder.buildForAllEdges(linkBuilderConfig, DT_LINK_ACTION_JUMP_DOWN);
+			}
+
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(RecastBuildLinks_JumpOver);
+				linkBuilder.buildForAllEdges(linkBuilderConfig, DT_LINK_ACTION_JUMP_OVER);
+			}
 		}
 
 #if RECAST_INTERNAL_DEBUG_DATA

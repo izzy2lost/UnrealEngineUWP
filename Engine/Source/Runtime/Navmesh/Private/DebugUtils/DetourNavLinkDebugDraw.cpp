@@ -195,10 +195,19 @@ void duDebugDrawNavLinkBuilder(duDebugDraw* dd, const dtNavLinkBuilder& linkBuil
 			dd->begin(DU_DRAW_LINES, 3.0f);
 			for (int i = 0; i < nedges; ++i)
 			{
+				// Display edge index
+				dtReal x = 0.5*(edges[i].sp[0]+edges[i].sq[0]);
+				dtReal y = 0.5*(edges[i].sp[1]+edges[i].sq[1]);
+				dtReal z = 0.5*(edges[i].sp[2]+edges[i].sq[2]);
+				constexpr int bufferSize = 32;
+				char buffer[bufferSize];
+				snprintf(buffer, bufferSize, "%i", i);
+				dd->text(x, y, z, buffer);
+				
 				unsigned int col = duRGBA(0,96,128,255);
 				if (i == selectedEdge)
 					continue;
-				
+
 				dd->vertex(edges[i].sp, col);
 				dd->vertex(edges[i].sq, col);
 			}
@@ -354,7 +363,7 @@ void duDebugDrawNavLinkBuilder(duDebugDraw* dd, const dtNavLinkBuilder& linkBuil
 
 	if (drawFlags & DRAW_SELECTED_EDGE)
 	{
-		if (es)
+		if (es && es->action != DT_LINK_ACTION_UNSET)
 		{
 			dd->begin(DU_DRAW_LINES, 2.0f);
 

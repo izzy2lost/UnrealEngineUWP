@@ -42,15 +42,17 @@ class dtNavLinkBuilder
 	dtLinkBuilderConfig m_linkBuilderConfig;
 
 	dtReal m_cs = 0;
-	const rcHeightfield* m_solid;
-	const rcCompactHeightfield* m_chf;
+	dtReal m_ch = 0;
+	dtReal m_invCs = 0;
+	const rcHeightfield* m_solid = nullptr;
+	const rcCompactHeightfield* m_chf = nullptr;
 
 	struct Edge
 	{
 		dtReal sp[3], sq[3];
 	};
-	Edge* m_edges;
-	int m_nedges;
+	Edge* m_edges = nullptr;
+	int m_nedges = 0;
 	
 public:	
 	static constexpr int MAX_SPINE = 8;
@@ -97,11 +99,11 @@ private:
 	
 	struct GroundSegment
 	{
-		GroundSegment() : gsamples(nullptr), ngsamples(0) {}
+		GroundSegment() : ngsamples(0) {}
 		NAVMESH_API ~GroundSegment();
 
 		dtReal p[3], q[3];
-		GroundSample* gsamples;
+		TArray<GroundSample, TInlineAllocator<32>> gsamples;
 		unsigned short ngsamples;
 		unsigned short npass;
 	};
@@ -136,17 +138,16 @@ public:
 		JumpLinkFlag flags;
 		dtNavLinkAction action = DT_LINK_ACTION_UNSET;
 	};
-	JumpLink* m_links;
-	int m_nlinks;
-	int m_clinks;
+	JumpLink* m_links = nullptr;
+	int m_nlinks = 0;
+	int m_clinks = 0;
 
 private:
-	int m_debugSelectedEdge;
+	int m_debugSelectedEdge = -1;
 
 	friend NAVMESH_API void duDebugDrawNavLinkBuilder(struct duDebugDraw* dd, const dtNavLinkBuilder& linkBuilder, unsigned int drawFlags, const EdgeSampler* es);
 	
 public:
-	NAVMESH_API dtNavLinkBuilder();
 	NAVMESH_API ~dtNavLinkBuilder();
 
 	// Loops through contours to store edge points in world coordinates.
@@ -176,12 +177,12 @@ private:
 						 const float jumpStartDist, const float jumpEndDist,
 						 const float jumpHeight, const float groundRange);
 
-	bool getCompactHeightfieldHeight(const dtReal* pt, const float hrange, dtReal* height) const;
+	bool getCompactHeightfieldHeight(const dtReal* pt, const dtReal hrange, dtReal* height) const;
 	bool checkHeightfieldCollision(const dtReal x, const dtReal ymin, const dtReal ymax, const dtReal z) const;
 
-	void sampleGroundSegment(GroundSegment* seg, const float nsamples, const float groundRange) const;
+	void sampleGroundSegment(GroundSegment* seg, const int nsamples, const float groundRange) const;
 	
-	void sampleAction(const EdgeSampler* es) const;
+	void sampleAction(EdgeSampler* es) const;
 	
 	void filterJumpOverLinks() const;
 

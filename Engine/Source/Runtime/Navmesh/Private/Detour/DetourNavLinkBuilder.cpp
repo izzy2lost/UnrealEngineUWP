@@ -206,19 +206,6 @@ dtNavLinkBuilder::Trajectory2D::~Trajectory2D()
 
 dtNavLinkBuilder::GroundSegment::~GroundSegment()
 {
-	dtFree(gsamples, DT_ALLOC_PERM_TILE_LINK_BUILDER);
-}
-
-dtNavLinkBuilder::dtNavLinkBuilder() :
-	m_solid(nullptr),
-	m_chf(nullptr),
-	m_edges(nullptr),
-	m_nedges(0),
-	m_links(nullptr),
-	m_nlinks(0),
-	m_clinks(0),
-	m_debugSelectedEdge(-1)
-{
 }
 
 dtNavLinkBuilder::~dtNavLinkBuilder()
@@ -249,8 +236,12 @@ bool dtNavLinkBuilder::findEdges(rcContext& ctx, const rcConfig& cfg, const dtLi
 	m_linkBuilderConfig = builderConfig;
 
 	m_cs = cfg.cs;
+	m_ch = cfg.ch;
+	m_invCs = 1.0/cfg.cs;
 	m_solid = solidHF;
 	m_chf = compactHF;
+
+	dtAssert(m_cs == m_chf->cs && m_ch == m_chf->ch);
 
 	// Build edges.
 	m_nedges = 0;
@@ -287,7 +278,7 @@ bool dtNavLinkBuilder::findEdges(rcContext& ctx, const rcConfig& cfg, const dtLi
 		{
 			const unsigned short* va = &c.verts[k*4];
 			const unsigned short* vb = &c.verts[j*4];
-			
+
 			// Check k-j for matching contour
 			bool matchFound = false;
 			for (int ii = 0; ii < lcset.nconts; ++ii)
@@ -360,6 +351,8 @@ dtNavLinkBuilder::JumpLink* dtNavLinkBuilder::addLink()
 
 void dtNavLinkBuilder::addEdgeLinks(const dtLinkBuilderConfig& builderConfig, const EdgeSampler* es)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(dtNavLinkBuilder::addEdgeLinks);
+	
 	using namespace UE::Detour::NavLink::Private;
 	
 	if (es->start.ngsamples != es->end.ngsamples)
@@ -466,6 +459,8 @@ void dtNavLinkBuilder::addEdgeLinks(const dtLinkBuilderConfig& builderConfig, co
 
 void dtNavLinkBuilder::filterJumpOverLinks() const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(dtNavLinkBuilder::filterJumpOverLinks);
+	
 	using namespace UE::Detour::NavLink::Private;
 	
 	// Filter out links which overlap
@@ -545,13 +540,17 @@ void dtNavLinkBuilder::debugBuildEdge(const dtLinkBuilderConfig& builderConfig, 
 	filterJumpOverLinks();
 }
 
-bool dtNavLinkBuilder::getCompactHeightfieldHeight(const dtReal* pt, const float hrange, dtReal* height) const
+bool dtNavLinkBuilder::getCompactHeightfieldHeight(const dtReal* pt, const dtReal hrange, dtReal* height) const
 {
-	const float range = m_chf->cs;
-	const int ix0 = dtClamp((int)floorf((pt[0]-range - m_chf->bmin[0])/m_chf->cs), 0, m_chf->width-1);
-	const int iz0 = dtClamp((int)floorf((pt[2]-range - m_chf->bmin[2])/m_chf->cs), 0, m_chf->height-1);
-	const int ix1 = dtClamp((int)floorf((pt[0]+range - m_chf->bmin[0])/m_chf->cs), 0, m_chf->width-1);
-	const int iz1 = dtClamp((int)floorf((pt[2]+range - m_chf->bmin[2])/m_chf->cs), 0, m_chf->height-1);
+
+	const int chfWidth = m_chf->width;
+	const int chfHeight = m_chf->height;
+
+	const dtReal range = m_cs;
+	const int ix0 = dtClamp((int)dtFloor((pt[0]-range - m_chf->bmin[0])*m_invCs), 0, chfWidth-1);
+	const int iz0 = dtClamp((int)dtFloor((pt[2]-range - m_chf->bmin[2])*m_invCs), 0, chfHeight-1);
+	const int ix1 = dtClamp((int)dtFloor((pt[0]+range - m_chf->bmin[0])*m_invCs), 0, chfWidth-1);
+	const int iz1 = dtClamp((int)dtFloor((pt[2]+range - m_chf->bmin[2])*m_invCs), 0, chfHeight-1);
 	
 	dtReal bestDist = DT_REAL_MAX;
 	dtReal bestHeight = DT_REAL_MAX;
@@ -561,16 +560,15 @@ bool dtNavLinkBuilder::getCompactHeightfieldHeight(const dtReal* pt, const float
 	{
 		for (int x = ix0; x <= ix1; ++x)
 		{
-			const rcCompactCell& c = m_chf->cells[x+z*m_chf->width];
-			for (int i = (int)c.index, ni = (int)(c.index+c.count); i < ni; ++i)
+			const rcCompactCell& c = m_chf->cells[x+z*chfWidth];
+			for (unsigned int i = c.index, ni = c.index+c.count; i < ni; ++i)
 			{
-				const rcCompactSpan& s = m_chf->spans[i];
 				if (m_chf->areas[i] == RC_NULL_AREA)
 				{
 					continue;
 				}
 				
-				const dtReal y = m_chf->bmin[1] + s.y * m_chf->ch;
+				const dtReal y = m_chf->bmin[1] + m_chf->spans[i].y * m_ch;
 				const dtReal dist = abs(y - pt[1]);
 				if (dist < hrange && dist < bestDist)
 				{
@@ -650,37 +648,39 @@ bool dtNavLinkBuilder::isTrajectoryClear(const dtReal* pa, const dtReal* pb, con
 	return true;	
 }
 
-void dtNavLinkBuilder::sampleGroundSegment(GroundSegment* seg, const float nsamples, const float groundRange) const
+void dtNavLinkBuilder::sampleGroundSegment(GroundSegment* seg, const int nsamples, const float groundRange) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(dtNavLinkBuilder::sampleGroundSegment);
+	
 	dtReal delta[3];
 	dtVsub(delta, seg->p, seg->q);
 	
 	seg->ngsamples = nsamples;
-	// TODO: profile, preallocate, use dtChunkArray or else.
-	dtAssert(seg->gsamples == nullptr);
-	seg->gsamples = (GroundSample*)dtAlloc(sizeof(GroundSample)*seg->ngsamples, DT_ALLOC_PERM_TILE_LINK_BUILDER);	 
 	seg->npass = 0;
-	
-	for (int i = 0; i < seg->ngsamples; ++i)
+
+	const float invLastIndex = 1.f/(nsamples-1);
+	for (int i = 0; i < nsamples; ++i)
 	{
-		const float u = (float)i/(float)(seg->ngsamples-1);
+		const float u = (float)i*invLastIndex;
 		dtReal pt[3];
 
-		GroundSample* s = &seg->gsamples[i];
+		GroundSample& s = seg->gsamples.Emplace_GetRef();
 		dtVlerp(pt, seg->p, seg->q, u);
-		s->flags = dtNavLinkBuilder::UNSET;
-		if (!getCompactHeightfieldHeight(pt, groundRange, &s->height))
+		s.flags = dtNavLinkBuilder::UNSET;
+		if (!getCompactHeightfieldHeight(pt, groundRange, &s.height))
 		{
 			continue;
 		}
 		
-		s->flags = static_cast<GroundSampleFlag>((unsigned char)s->flags | (unsigned char)HAS_GROUND);
+		s.flags = static_cast<GroundSampleFlag>((unsigned char)s.flags | (unsigned char)HAS_GROUND);
 		seg->npass++;
 	}
 }
 
-void dtNavLinkBuilder::sampleAction(const EdgeSampler* es) const
+void dtNavLinkBuilder::sampleAction(EdgeSampler* es) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(dtNavLinkBuilder::sampleAction);
+	
 	if (es->start.ngsamples != es->end.ngsamples)
 		return;
 	
@@ -688,10 +688,10 @@ void dtNavLinkBuilder::sampleAction(const EdgeSampler* es) const
 	
 	for (int i = 0; i < nsamples; ++i)
 	{
-		GroundSample* ssmp = &es->start.gsamples[i];
-		GroundSample* esmp = &es->end.gsamples[i];
+		GroundSample& ssmp = es->start.gsamples[i];
+		GroundSample& esmp = es->end.gsamples[i];
 		
-		if ((ssmp->flags & HAS_GROUND) == 0 || (esmp->flags & HAS_GROUND) == 0)
+		if ((ssmp.flags & HAS_GROUND) == 0 || (esmp.flags & HAS_GROUND) == 0)
 			continue;
 
 		const dtReal u = (dtReal)i/(dtReal)(nsamples-1);
@@ -699,13 +699,13 @@ void dtNavLinkBuilder::sampleAction(const EdgeSampler* es) const
 		dtVlerp(spt, es->start.p, es->start.q, u);
 		dtVlerp(ept, es->end.p, es->end.q, u);
 		
-		spt[1] = ssmp->height;
-		ept[1] = esmp->height;
+		spt[1] = ssmp.height;
+		ept[1] = esmp.height;
 		
 		if (!isTrajectoryClear(spt, ept, &es->trajectory))
 			continue;
 
-		ssmp->flags = static_cast<GroundSampleFlag>((unsigned char)ssmp->flags | (unsigned char)UNRESTRICTED);
+		ssmp.flags = static_cast<GroundSampleFlag>((unsigned char)ssmp.flags | (unsigned char)UNRESTRICTED);
 	}
 }
 
@@ -713,25 +713,28 @@ void dtNavLinkBuilder::initTrajectory(Trajectory2D* tra) const
 {
 	using namespace UE::Detour::NavLink::Private;
 	
-	const float cs = m_linkBuilderConfig.cellSize;
-	
 	const float* pa = &tra->spine[0];
 	const float* pb = &tra->spine[(tra->nspine-1)*2];
 	
 	const float dx = pb[0] - pa[0];
-	tra->nsamples = dtMax(2, (int)ceilf(dx/cs));
+	const int nsamples  = dtMax(2, (int)ceilf(dx*m_invCs));
+	tra->nsamples = nsamples;
 	// TODO: profile, preallocate, use dtChunkArray or else.
 	dtAssert(tra->samples == nullptr);
-	tra->samples = (TrajectorySample*)dtAlloc(sizeof(TrajectorySample)*tra->nsamples, DT_ALLOC_PERM_TILE_LINK_BUILDER);
-	
-	for (int i = 0; i < tra->nsamples; ++i)
+	tra->samples = (TrajectorySample*)dtAlloc(sizeof(TrajectorySample)*nsamples, DT_ALLOC_PERM_TILE_LINK_BUILDER);
+
+	const unsigned short lastSampleIndex = nsamples-1;
+	const float invLastIndex = 1.f/lastSampleIndex;
+	for (int i = 0; i < nsamples; ++i)
 	{
-		const float u = (float)i / (float)(tra->nsamples-1);
+		const float u = (float)i * invLastIndex;
 		TrajectorySample* s = &tra->samples[i];
 		s->x = dtLerp(pa[0], pb[0], u);
-		
-		const float y0 = getHeight(s->x-m_linkBuilderConfig.agentRadius, tra->spine, tra->nspine);
-		const float y1 = getHeight(s->x+m_linkBuilderConfig.agentRadius, tra->spine, tra->nspine);
+
+		const float* spine = tra->spine;
+		unsigned char nspine = tra->nspine;
+		const float y0 = getHeight(s->x-m_linkBuilderConfig.agentRadius, spine, nspine);
+		const float y1 = getHeight(s->x+m_linkBuilderConfig.agentRadius, spine, nspine);
 
 		const float y = dtLerp(pa[1], pb[1], u);
 		
@@ -745,6 +748,8 @@ int dtNavLinkBuilder::findPotentialJumpOverEdges(const dtReal* sp, const dtReal*
 												  const float depthRange, const float heightRange,
 												  dtReal* outSegs, const int maxOutSegs) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(dtNavLinkBuilder::findPotentialJumpOverEdges);
+	
 	using namespace UE::Detour::NavLink::Private;
 	
 	// Find potential edges to join to.
@@ -967,7 +972,11 @@ void dtNavLinkBuilder::initJumpOverRig(EdgeSampler* es, const dtReal* sp, const 
 
 bool dtNavLinkBuilder::sampleEdge(const dtLinkBuilderConfig& builderConfig, dtNavLinkAction desiredAction, const dtReal* sp, const dtReal* sq, dtNavLinkBuilder::EdgeSampler* es) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(dtNavLinkBuilder::sampleEdge);
+	
 	using namespace UE::Detour::NavLink::Private;
+
+	float samplingSeparationFactor = 1.f;
 	
 	if (desiredAction == DT_LINK_ACTION_JUMP_DOWN)
 	{
@@ -976,6 +985,7 @@ bool dtNavLinkBuilder::sampleEdge(const dtLinkBuilderConfig& builderConfig, dtNa
 		const float jumpEndDist = config.jumpLength;
 		const float jumpDownDist = config.jumpMaxDepth;
 		const float groundRange = config.jumpEndsHeightTolerance;
+		samplingSeparationFactor = config.samplingSeparationFactor;
 		initJumpDownRig(es, sp, sq, -jumpStartDist, jumpEndDist, -jumpDownDist, groundRange);
 	}
 	else if (desiredAction == DT_LINK_ACTION_JUMP_OVER)
@@ -1007,6 +1017,7 @@ bool dtNavLinkBuilder::sampleEdge(const dtLinkBuilderConfig& builderConfig, dtNa
 		const float jumpStartDist = config.jumpDistanceFromEdge; 
 		const float jumpHeight = config.jumpHeight;
 		const float groundRange = config.jumpEndsHeightTolerance;
+		samplingSeparationFactor = config.samplingSeparationFactor;
 		initJumpOverRig(es, &segs[ibest*6+0], &segs[ibest*6+3], -jumpStartDist, jumpStartDist, jumpHeight, groundRange);
 	}
 	
@@ -1023,8 +1034,10 @@ bool dtNavLinkBuilder::sampleEdge(const dtLinkBuilderConfig& builderConfig, dtNa
 
 	// Sample start and end ground segments.
 	const float dist = sqrtf(dtVdistSqr(es->rigp, es->rigq));
-	const int ngsamples = dtMax(2, (int)ceilf(dist/m_cs)); // One trajectory per cs
-	
+
+	const dtReal distBetweenSamples = samplingSeparationFactor*m_cs;
+	const int ngsamples = dtMax(2, (int)ceilf(dist/distBetweenSamples));
+
 	sampleGroundSegment(&es->start, ngsamples, es->groundRange);
 	sampleGroundSegment(&es->end, ngsamples, es->groundRange);
 

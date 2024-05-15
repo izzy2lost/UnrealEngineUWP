@@ -25,7 +25,12 @@ struct FNavLinkGenerationJumpDownConfig
 	float JumpMaxDepth = 150.f;
 
 	UPROPERTY(EditAnywhere, Config, Category = Settings, meta=(Units=cm, UIMin=0, ClampMin=0))
-	float JumpEndsHeightTolerance = 50.f;
+	float JumpEndsHeightTolerance = 80.f;
+
+	/** Value multiplied by CellSize to find the distance between sampling trajectories. Default is 1. */
+    /*  Larger values improve generation speed but might introduce sampling errors.  */
+	UPROPERTY(EditAnywhere, Config, Category = Settings, meta=(UIMin=1, ClampMin=1))
+	float SamplingSeparationFactor = 1.f;
 
 #if WITH_RECAST	
 	/** Copy configuration to dtNavLinkBuilderJumpDownConfig. */
@@ -53,7 +58,12 @@ struct FNavLinkGenerationJumpOverConfig
 	float JumpHeightTolerance = 100.f; 
 
 	UPROPERTY(EditAnywhere, Config, Category = Settings, meta=(Units=cm, UIMin=0, ClampMin=0))
-	float JumpEndsHeightTolerance = 50.f;
+	float JumpEndsHeightTolerance = 80.f;
+
+	/** Value multiplied by CellSize to find the distance between sampling trajectories. Default is 1. */
+    /*  Larger values improve generation speed but might introduce sampling errors.  */
+	UPROPERTY(EditAnywhere, Config, Category = Settings, meta=(UIMin=1, ClampMin=1))
+	float SamplingSeparationFactor = 1.f;
 
 #if WITH_RECAST
 	/** Copy configuration to dtNavLinkBuilderJumpOverConfig. */
