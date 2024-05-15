@@ -16,9 +16,12 @@
 namespace UE::NNEDenoiser::Private
 {
 
-	static const FString DefaultRuntimeRDGName = TEXT("NNERuntimeRDGHlsl");
+	static const FString DefaultRuntimeRDGName = TEXT("NNERuntimeORTDml");
+	static const FString FallbackRuntimeRDGName = TEXT("NNERuntimeRDGHlsl");
 
-	TUniquePtr<FModelInstanceRDG> FModelInstanceRDG::Make(UNNEModelData& ModelData, const FString& RuntimeNameOverride)
+namespace Internal
+{
+	TUniquePtr<FModelInstanceRDG> Make(UNNEModelData& ModelData, const FString& RuntimeNameOverride)
 	{
 		FString RuntimeRDGName = RuntimeNameOverride.IsEmpty() ? DefaultRuntimeRDGName : RuntimeNameOverride;
 		
@@ -51,6 +54,22 @@ namespace UE::NNEDenoiser::Private
 		UE_LOG(LogNNEDenoiser, Log, TEXT("NNEDenoiserRDG: Creaded model instance from %s using %s"), *ModelData.GetFileId().ToString(), *RuntimeRDGName);
 
 		return MakeUnique<FModelInstanceRDG>(ModelInstance.ToSharedRef());
+	}
+} // namespace Internal
+
+	TUniquePtr<FModelInstanceRDG> FModelInstanceRDG::Make(UNNEModelData& ModelData, const FString& RuntimeNameOverride)
+	{
+		if (!RuntimeNameOverride.IsEmpty())
+		{
+			return Internal::Make(ModelData, RuntimeNameOverride);
+		}
+
+		if (TUniquePtr<FModelInstanceRDG> Result = Internal::Make(ModelData, DefaultRuntimeRDGName); Result.IsValid())
+		{
+			return Result;
+		}
+
+		return Internal::Make(ModelData, FallbackRuntimeRDGName);
 	}
 
 	FModelInstanceRDG::FModelInstanceRDG(TSharedRef<UE::NNE::IModelInstanceRDG> ModelInstance) :
