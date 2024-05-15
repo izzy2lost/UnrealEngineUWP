@@ -2149,6 +2149,9 @@ namespace Metasound
 				GraphEditorCommands->MapAction(FGraphEditorCommands::Get().CreateComment,
 					FExecuteAction::CreateSP(this, &FEditor::OnCreateComment));
 
+				GraphEditorCommands->MapAction(FGraphEditorCommands::Get().FindReferences,
+					FExecuteAction::CreateSP(this, &FEditor::FindSelectedNodeInGraph));
+
 				GraphEditorCommands->MapAction(FEditorCommands::Get().UpdateNodeClass,
 					FExecuteAction::CreateSP(this, &FEditor::UpdateSelectedNodeClasses));
 			}
@@ -3645,6 +3648,23 @@ namespace Metasound
 			if (FindWidget.IsValid())
 			{
 				FindWidget->FocusForUse();
+			}
+		}
+
+		void FEditor::FindSelectedNodeInGraph()
+		{
+			TabManager->TryInvokeTab(TabFactory::Names::Find);
+			if (FindWidget.IsValid())
+			{		
+				const FGraphPanelSelectionSet& SelectedNodes = MetasoundGraphEditor->GetSelectedNodes();
+				for (UObject* Object : SelectedNodes)
+				{
+					if (UEdGraphNode* SelectedNode = Cast<UEdGraphNode>(Object))
+					{
+						FString SearchTerms = SelectedNode->GetFindReferenceSearchString(EGetFindReferenceSearchStringFlags::UseSearchSyntax);
+						FindWidget->FocusForUse(SearchTerms);
+					}
+				}
 			}
 		}
 	}

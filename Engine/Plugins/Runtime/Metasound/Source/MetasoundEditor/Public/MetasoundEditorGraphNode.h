@@ -207,6 +207,10 @@ public:
 	// Clamp float literal value based on the given default float literal. 
 	// Returns whether the literal was clamped. 
 	static bool ClampFloatLiteral(const UMetasoundEditorGraphMemberDefaultFloat* DefaultFloatLiteral, FMetasoundFrontendLiteral& LiteralValue);
+
+protected:
+	virtual FString GetFindReferenceSearchString_Impl(EGetFindReferenceSearchStringFlags InFlags) const override;
+
 };
 
 /** Node that represents a graph output */

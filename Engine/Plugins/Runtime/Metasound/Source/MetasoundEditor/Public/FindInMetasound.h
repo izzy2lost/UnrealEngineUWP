@@ -92,6 +92,8 @@ namespace Metasound::Editor
 
 		/** Focuses this widget's search box */
 		void FocusForUse();
+		/** Focuses this widget's search box, and Initiates a search with given SearchTerms */
+		void FocusForUse(const FString& NewSearchTerms);
 
 	protected:
 		typedef TSharedPtr<FFindInMetasoundResult> FSearchResult;

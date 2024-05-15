@@ -339,6 +339,9 @@ namespace Metasound
 			/** Show and focus the Find in MetaSound tab. */
 			void ShowFindInMetaSound();
 
+			/** Find selected node from Graph*/
+			void FindSelectedNodeInGraph();
+
 		private:
 			void RemoveInvalidSelection();
 

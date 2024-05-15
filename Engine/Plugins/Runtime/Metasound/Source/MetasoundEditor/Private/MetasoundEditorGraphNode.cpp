@@ -764,6 +764,29 @@ bool UMetasoundEditorGraphMemberNode::ClampFloatLiteral(const UMetasoundEditorGr
 	return bClampedFloatLiteral;
 }
 
+FString UMetasoundEditorGraphMemberNode::GetFindReferenceSearchString_Impl(EGetFindReferenceSearchStringFlags InFlags) const
+{
+	using namespace Metasound::Frontend;
+
+	if (UMetasoundEditorGraphMember* GraphMember = GetMember())
+	{
+		FString NameToSearch;
+	
+		if (!GraphMember->GetDisplayName().IsEmpty())
+		{
+			NameToSearch = GraphMember->GetDisplayName().ToString();		
+		}
+		else
+		{
+			NameToSearch = GraphMember->GetMemberName().ToString();
+		}
+
+		return FString::Printf(TEXT("\"%s\" \"%s\""), *NameToSearch, *GraphMember->GetDataType().ToString());
+	}
+
+	return FString();
+}
+
 bool UMetasoundEditorGraphOutputNode::CanDuplicateNode() const
 {
 	return false;

@@ -372,6 +372,7 @@ namespace Metasound::Editor
 					.HintText(LOCTEXT("FindMetasound_GraphSearchHint", "Search"))
 					.OnTextChanged(this, &SFindInMetasound::OnSearchTextChanged)
 					.OnTextCommitted(this, &SFindInMetasound::OnSearchTextCommitted)
+					.DelayChangeNotificationsWhileTyping(false)
 				]
 			]
 			+ SVerticalBox::Slot()
@@ -401,6 +402,17 @@ namespace Metasound::Editor
 
 		// Set keyboard focus directly
 		FSlateApplication::Get().SetKeyboardFocus(FilterTextBoxWidgetPath, EFocusCause::SetDirectly);
+	}
+
+	void SFindInMetasound::FocusForUse(const FString& NewSearchTerms)
+	{
+		FocusForUse();
+
+		if (!NewSearchTerms.IsEmpty())
+		{
+			SearchTextField->SetText(FText::FromString(NewSearchTerms));
+			InitiateSearch();
+		}
 	}
 
 	void SFindInMetasound::OnSearchTextChanged(const FText& Text)
