@@ -186,6 +186,41 @@ namespace UE::DynamicMaterialEditor::Private
 			}
 		}
 	}
+
+	bool CheckMaterialModelValidity(UDynamicMaterialModel* InMaterialModel)
+		{
+			if (UWorld* World = InMaterialModel->GetWorld())
+			{
+				if (UDMWorldSubsystem* WorldSubsystem = World->GetSubsystem<UDMWorldSubsystem>())
+				{
+					if (WorldSubsystem->GetIsValidDelegate().IsBound()
+						&& WorldSubsystem->GetIsValidDelegate().Execute(InMaterialModel) == false)
+					{
+						return false;
+					}
+				}
+			}
+
+			UActorComponent* ComponentOuter = InMaterialModel->GetTypedOuter<UActorComponent>();
+			if (ComponentOuter && !IsValid(ComponentOuter))
+			{
+				return false;
+			}
+
+			AActor* ActorOuter = InMaterialModel->GetTypedOuter<AActor>();
+			if (ActorOuter && !IsValid(ActorOuter))
+			{
+				return false;
+			}
+
+			UPackage* PackageOuter = InMaterialModel->GetPackage();
+			if (PackageOuter && !IsValid(PackageOuter))
+			{
+				return false;
+			}
+
+			return true;
+		};
 }
 
 TSharedPtr<FAssetThumbnailPool> SDMEditor::ThumbnailPool = nullptr;
@@ -392,6 +427,7 @@ void SDMEditor::SetMaterialModel(UDynamicMaterialModel* InMaterialModel)
 	ActiveSlotWidget.Reset();
 	ComponentEditContainer.Reset();
 	SplitterContainer.Reset();
+	bInvalidateComponentEditWidget = false;
 
 	Toolbar->SetMaterialModel(InMaterialModel);
 	SetEditedComponent(nullptr);
@@ -399,8 +435,11 @@ void SDMEditor::SetMaterialModel(UDynamicMaterialModel* InMaterialModel)
 	if (!InMaterialModel)
 	{
 		Container->SetContent(SDMEditor::GetEmptyContent());
+		bHasActiveLayout = false;
 		return;
 	}
+
+	bHasActiveLayout = true;
 
 	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(InMaterialModel);
 
@@ -910,74 +949,65 @@ void SDMEditor::Tick(const FGeometry& AllottedGeometry, const double InCurrentTi
 {
 	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 
-	if (!MaterialModelWeak.IsValid())
+	if (!FDynamicMaterialModule::AreUObjectsSafe())
 	{
 		return;
 	}
 
-	bool bValidModel = false;
+	UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get();
+
+	if (!IsValid(MaterialModel))
+	{
+		if (bHasActiveLayout)
+		{
+			ClearEditor();
+		}
+
+		return;
+	}
 
 	if (ObjectProperty.IsValid())
 	{
-		bValidModel = IsValid(ObjectProperty.GetMaterialModel());
-	}
-	else if (UDynamicMaterialModel* MaterialModel = MaterialModelWeak.Get())
-	{
-		auto CheckValidity = [MaterialModel]()
+		UDynamicMaterialModel* MaterialModelProperty = ObjectProperty.GetMaterialModel();
+
+		if (!IsValid(MaterialModelProperty))
 		{
-			if (UWorld* World = MaterialModel->GetWorld())
-			{
-				if (UDMWorldSubsystem* WorldSubsystem = World->GetSubsystem<UDMWorldSubsystem>())
-				{
-					// ExecuteIfBound doesn't work with return values
-					if (WorldSubsystem->GetIsValidDelegate().IsBound()
-						&& WorldSubsystem->GetIsValidDelegate().Execute(MaterialModel) == false)
-					{
-						return false;
-					}
-				}
-			}
-
-			UActorComponent* ComponentOuter = MaterialModel->GetTypedOuter<UActorComponent>();
-			if (ComponentOuter && !IsValid(ComponentOuter))
-			{
-				return false;
-			}
-
-			AActor* ActorOuter = MaterialModel->GetTypedOuter<AActor>();
-			if (ActorOuter && !IsValid(ActorOuter))
-			{
-				return false;
-			}
-
-			UPackage* PackageOuter = MaterialModel->GetPackage();
-			if (PackageOuter && !IsValid(PackageOuter))
-			{
-				return false;
-			}
-
-			return true;
-		};
-
-		bValidModel = CheckValidity();
-	}
-
-	if (!bValidModel)
-	{
-		ClearEditor();
-	}
-	else if (FDynamicMaterialModule::AreUObjectsSafe())
-	{
-		if (Toolbar.IsValid() && Toolbar->GetMaterialModel() != MaterialModelWeak)
-		{
-			Toolbar->SetMaterialModel(MaterialModelWeak.Get());
+			MaterialModelProperty = nullptr;
 		}
-		else if (ActiveSlotWidget.IsValid())
+
+		if (MaterialModel != MaterialModelProperty)
 		{
-			if (!ActiveSlotWidget->CheckValidity())
+			if (MaterialModelProperty)
 			{
-				RefreshSlotWidget();
+				// Re-set the property
+				SetMaterialObjectProperty(ObjectProperty);
+				return;
 			}
+			else
+			{
+				ClearEditor();
+				return;
+			}
+		}
+	}
+	else 
+	{
+		if (!UE::DynamicMaterialEditor::Private::CheckMaterialModelValidity(MaterialModel))
+		{
+			ClearEditor();
+			return;
+		}
+	}
+
+	if (Toolbar.IsValid() && Toolbar->GetMaterialModel() != MaterialModel)
+	{
+		Toolbar->SetMaterialModel(MaterialModel);
+	}
+	else if (bHasActiveLayout && ActiveSlotWidget.IsValid())
+	{
+		if (!ActiveSlotWidget->CheckValidity())
+		{
+			RefreshSlotWidget();
 		}
 	}
 

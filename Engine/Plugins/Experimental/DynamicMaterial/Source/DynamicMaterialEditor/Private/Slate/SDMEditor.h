@@ -133,6 +133,7 @@ protected:
 	SSplitter::FSlot* LayerViewSplitterSlot = nullptr;
 	SSplitter::FSlot* ExtraSpaceSplitterSlot = nullptr;
 	TSharedPtr<SDMSlot> ActiveSlotWidget;
+	bool bHasActiveLayout = false;
 
 	TSharedPtr<FUICommandList> CommandList;
 	int32 ActiveSlotIndex;
