@@ -73,7 +73,7 @@ namespace UnrealBuildTool
 
 			if (SourceFile.HasExtension(".h"))
 			{
-				NewRspLines.Add("-DSUPPRESS_MONOLITHIC_HEADER_WARNINGS=0");
+				NewRspLines.Add("-DSUPPRESS_MONOLITHIC_HEADER_WARNINGS=1");
 				ClangWarnings.GetHeaderDisabledWarnings(NewRspLines);
 
 				string IncludeFileString = SourceFile.AbsolutePath;

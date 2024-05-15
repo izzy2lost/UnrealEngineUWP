@@ -74,7 +74,7 @@ namespace UnrealBuildTool
 			Action.SourceFile = SourceFile;
 			if (SourceFile.HasExtension(".h"))
 			{
-				Action.Definitions.Add("SUPPRESS_MONOLITHIC_HEADER_WARNINGS=0");
+				Action.Definitions.Add("SUPPRESS_MONOLITHIC_HEADER_WARNINGS=1");
 				if (BaseAction.CompilerType.IsClang())
 				{
 					ClangWarnings.GetHeaderDisabledWarnings(Action.Arguments);
