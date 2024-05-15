@@ -219,6 +219,8 @@ class FUniqueBuffer
 public:
 	/** Make an uninitialized owned buffer of the specified size. */
 	[[nodiscard]] CORE_API static FUniqueBuffer Alloc(uint64 Size);
+	/** Make a zeroed owned buffer of the specified size. */
+	[[nodiscard]] CORE_API static FUniqueBuffer AllocZeroed(uint64 Size);
 
 	/** Make an owned clone of the input. */
 	[[nodiscard]] CORE_API static FUniqueBuffer Clone(FMemoryView View);
