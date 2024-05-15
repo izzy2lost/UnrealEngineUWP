@@ -27,6 +27,7 @@ public:
 		static const auto Categories = { FAssetCategoryPath(EAssetCategoryPaths::Animation, LOCTEXT("AnimNextSubMenu", "AnimNext")) };
 		return Categories;
 	}
+	virtual bool ShouldSaveExternalPackages() const override { return true; }
 };
 
 UCLASS()

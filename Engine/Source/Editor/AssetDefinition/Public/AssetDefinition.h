@@ -566,6 +566,12 @@ public:
 		return TSharedPtr<SWidget>();
 	}
 
+	/** Whether or not external packages associated with this asset should be saved in addition to the asset itself */
+	virtual bool ShouldSaveExternalPackages() const
+	{
+		return false;
+	}	
+
 	// DEVELOPER NOTE:
 	// Originally this class was based on the IAssetTypeActions implementation.  Several of the functions on there
 	// were created organically and added without a larger discussion about if such a thing belonged on those classes.

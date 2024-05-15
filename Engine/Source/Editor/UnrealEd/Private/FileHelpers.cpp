@@ -73,6 +73,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Misc/NamePermissionList.h"
 #include "AnalyticsEventAttribute.h"
+#include "AssetDefinitionRegistry.h"
 #include "HierarchicalLOD.h"
 #include "WorldPartition/IWorldPartitionEditorModule.h"
 #include "WorldPartition/ActorDescContainer.h"
@@ -4314,10 +4315,27 @@ FEditorFileUtils::EPromptReturnCode FEditorFileUtils::PromptForCheckoutAndSave(c
 	TArray<UPackage*> PackagesToSave(InPackages);
 
 	// When saving a package which owns other packages, add those to the prompt as well,
-	// if we do not check dirty, we aren't already checked out and we prompt
-	if (!InOutParams.bAlreadyCheckedOut && !InOutParams.bCheckDirty && InOutParams.bPromptToSave)
+	for (UPackage* Package : InPackages)
 	{
-		for (UPackage* Package : InPackages)
+		const bool bShouldAddExternalPackages = [Package, InOutParams]() -> bool
+		{
+			if (const UObject* MainAsset = Package->FindAssetInPackage())
+			{
+				if (const UAssetDefinition* AssetDefinition = UAssetDefinitionRegistry::Get()->GetAssetDefinitionForClass(MainAsset->GetClass()))
+				{
+					if(AssetDefinition->ShouldSaveExternalPackages())
+					{
+						// if forced according to the top-level asset definition
+						return true;
+					}
+				}
+			}
+
+			// or if we do not check dirty, we aren't already checked out and we prompt
+			return !InOutParams.bAlreadyCheckedOut && !InOutParams.bCheckDirty && InOutParams.bPromptToSave;
+		}();
+		
+		if (bShouldAddExternalPackages)
 		{
 			for (UPackage* ExternalPackage : Package->GetExternalPackages())
 			{

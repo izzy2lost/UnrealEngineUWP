@@ -25,6 +25,7 @@ public:
 		static const auto Categories = { FAssetCategoryPath(EAssetCategoryPaths::Misc) };
 		return Categories;
 	}
+	virtual bool ShouldSaveExternalPackages() const override { return true; }
 };
 
 #undef LOCTEXT_NAMESPACE
