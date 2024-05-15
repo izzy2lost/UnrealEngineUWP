@@ -114,7 +114,7 @@ namespace Horde.Agent.Execution
 			updateGraph.Labels.Add(CreateLabel("Editors", "Project", new string[] { $"Compile {projectName}Editor Win64" }, Array.Empty<string>(), dependencyMap));
 			updateGraph.Labels.Add(CreateLabel("Clients", "Project", new string[] { $"Cook {projectName}Client Win64" }, new string[] { $"Publish {projectName}Client Win64" }, dependencyMap));
 
-			await RpcConnection.InvokeAsync((JobRpc.JobRpcClient x) => x.UpdateGraphAsync(updateGraph, null, null, cancellationToken), cancellationToken);
+			await JobRpc.UpdateGraphAsync(updateGraph, null, null, cancellationToken);
 
 			logger.LogInformation("**** FINISH JOB SETUP ****");
 			return true;

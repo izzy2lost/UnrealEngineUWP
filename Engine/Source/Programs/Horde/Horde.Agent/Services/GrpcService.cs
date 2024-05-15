@@ -8,6 +8,7 @@ using System.Net.Sockets;
 using Grpc.Core;
 using Grpc.Core.Interceptors;
 using Grpc.Net.Client;
+using Grpc.Net.Client.Configuration;
 using Horde.Agent.Utility;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -133,6 +134,20 @@ namespace Horde.Agent.Services
 				}
 			}
 
+			ServiceConfig serviceConfig = new ServiceConfig();
+			serviceConfig.MethodConfigs.Add(new MethodConfig
+			{
+				Names = { MethodName.Default },
+				RetryPolicy = new RetryPolicy
+				{
+					MaxAttempts = 3,
+					InitialBackoff = TimeSpan.FromSeconds(1),
+					MaxBackoff = TimeSpan.FromSeconds(10),
+					BackoffMultiplier = 2.0,
+					RetryableStatusCodes = { StatusCode.Unavailable },
+				}
+			});
+
 			_logger.LogInformation("Connecting to rpc server {BaseUrl}", serverUri);
 			return GrpcChannel.ForAddress(serverUri, new GrpcChannelOptions
 			{
@@ -141,7 +156,8 @@ namespace Horde.Agent.Services
 				MaxSendMessageSize = 1024 * 1024 * 1024, // 1 GB
 				LoggerFactory = _loggerFactory,
 				HttpClient = httpClient,
-				DisposeHttpClient = true
+				DisposeHttpClient = true,
+				ServiceConfig = serviceConfig
 			});
 		}
 

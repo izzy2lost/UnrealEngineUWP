@@ -6,6 +6,7 @@ using EpicGames.Horde.Agents.Leases;
 using EpicGames.Perforce.Managed;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
+using Grpc.Net.Client;
 using Horde.Agent.Services;
 using Horde.Agent.Utility;
 using HordeCommon.Rpc;
@@ -229,7 +230,7 @@ namespace Horde.Agent.Leases
 
 		async Task<SessionResult> HandleSessionAsync(bool shutdownAfterFinishedLease, CancellationToken stoppingToken)
 		{
-			IRpcConnection rpcCon = _session.RpcConnection;
+			HordeRpc.HordeRpcClient hordeRpc = new HordeRpc.HordeRpcClient(_session.GrpcChannel);
 
 			// Terminate any remaining child processes from other instances
 			ProcessUtils.TerminateProcesses(x => x.IsUnderDirectory(_session.WorkingDir), _logger, stoppingToken);
@@ -242,7 +243,7 @@ namespace Horde.Agent.Leases
 			await using BackgroundTask updateCapsTask = BackgroundTask.StartNew(ctx => UpdateCapabilitiesBackgroundAsync(_session.WorkingDir, ctx));
 
 			// Run another background task to send telemetry data
-			await using BackgroundTask telemetryTask = BackgroundTask.StartNew(ctx => SendTelemetryAsync(_session.RpcConnection, ctx));
+			await using BackgroundTask telemetryTask = BackgroundTask.StartNew(ctx => SendTelemetryAsync(hordeRpc, ctx));
 
 			// Loop until we're ready to exit
 			Stopwatch updateCapabilitiesTimer = Stopwatch.StartNew();
@@ -308,7 +309,7 @@ namespace Horde.Agent.Leases
 				using (stopping ? (CancellationTokenRegistration?)null : stoppingToken.Register(() => _updateLeasesEvent.Set()))
 				{
 					// Update the state with the server
-					RpcUpdateSessionResponse? updateSessionResponse = await UpdateSessionAsync(_session.RpcConnection, updateSessionRequest, waitTask);
+					RpcUpdateSessionResponse? updateSessionResponse = await UpdateSessionAsync(_session.GrpcChannel, updateSessionRequest, waitTask);
 
 					lock (_lockObject)
 					{
@@ -369,7 +370,7 @@ namespace Horde.Agent.Leases
 					}
 
 					// Update the current status
-					if (!rpcCon.Healthy)
+					if (_session.GrpcChannel.State == ConnectivityState.TransientFailure)
 					{
 						_statusService.Set(false, _activeLeases.Count, "Attempting to connect to server...");
 					}
@@ -413,18 +414,18 @@ namespace Horde.Agent.Leases
 		/// <summary>
 		/// Wrapper for <see cref="UpdateSessionInternalAsync"/> which filters/logs exceptions
 		/// </summary>
-		/// <param name="rpcConnection">The RPC client connection</param>
+		/// <param name="grpcChannel">The RPC client connection</param>
 		/// <param name="updateSessionRequest">The session update request</param>
 		/// <param name="waitTask">Task which can be used to jump out of the update early</param>
 		/// <returns>Response from the call</returns>
-		async Task<RpcUpdateSessionResponse?> UpdateSessionAsync(IRpcConnection rpcConnection, RpcUpdateSessionRequest updateSessionRequest, Task waitTask)
+		async Task<RpcUpdateSessionResponse?> UpdateSessionAsync(GrpcChannel grpcChannel, RpcUpdateSessionRequest updateSessionRequest, Task waitTask)
 		{
-			using IRpcClientRef<HordeRpc.HordeRpcClient> rpcClientRef = await rpcConnection.GetClientRefAsync<HordeRpc.HordeRpcClient>(CancellationToken.None);
+			HordeRpc.HordeRpcClient hordeRpc = new HordeRpc.HordeRpcClient(grpcChannel);
 
 			RpcUpdateSessionResponse? updateSessionResponse = null;
 			try
 			{
-				updateSessionResponse = await UpdateSessionInternalAsync(rpcClientRef.Client, updateSessionRequest, waitTask);
+				updateSessionResponse = await UpdateSessionInternalAsync(hordeRpc, updateSessionRequest, waitTask);
 				_updateSessionFailures = 0;
 			}
 			catch (RpcException ex)
@@ -593,7 +594,7 @@ namespace Horde.Agent.Leases
 		/// <summary>
 		/// Periodically send agent telemetry to the server
 		/// </summary>
-		async Task SendTelemetryAsync(IRpcConnection rpcConnection, CancellationToken cancellationToken)
+		async Task SendTelemetryAsync(HordeRpc.HordeRpcClient hordeRpc, CancellationToken cancellationToken)
 		{
 			while (!cancellationToken.IsCancellationRequested)
 			{
@@ -619,8 +620,7 @@ namespace Horde.Agent.Leases
 							request.UsedRam = memMetrics.Used / 1024;
 						}
 
-						CallOptions callOptions = new CallOptions(cancellationToken: cancellationToken);
-						await rpcConnection.InvokeAsync<HordeRpc.HordeRpcClient, Empty>(client => client.UploadTelemetryAsync(request, callOptions), cancellationToken);
+						await hordeRpc.UploadTelemetryAsync(request, cancellationToken: cancellationToken);
 					}
 				}
 				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

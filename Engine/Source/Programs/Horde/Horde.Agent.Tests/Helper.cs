@@ -38,69 +38,6 @@ namespace Horde.Agent.Tests
 			=> null;
 	}
 
-	class RpcClientRefStub<TClient> : IRpcClientRef<TClient> where TClient : ClientBase<TClient>
-	{
-		public GrpcChannel Channel { get; }
-		public TClient Client { get; }
-		public Task DisposingTask { get; }
-
-		public RpcClientRefStub(GrpcChannel channel, TClient client)
-		{
-			Channel = channel;
-			Client = client;
-			DisposingTask = new TaskCompletionSource<bool>().Task;
-		}
-
-		public void Dispose()
-		{
-		}
-	}
-
-	class RpcConnectionStub : IRpcConnection
-	{
-		private readonly GrpcChannel _grpcChannel;
-		private readonly HordeRpc.HordeRpcClient _hordeRpcClient;
-		private readonly JobRpc.JobRpcClient _jobRpcClient;
-
-		public bool Healthy => true;
-		public ILogger Logger => NullLogger.Instance;
-
-		public RpcConnectionStub(GrpcChannel grpcChannel, HordeRpc.HordeRpcClient hordeRpcClient, JobRpc.JobRpcClient jobRpcClient)
-		{
-			_grpcChannel = grpcChannel;
-			_hordeRpcClient = hordeRpcClient;
-			_jobRpcClient = jobRpcClient;
-		}
-
-		public IRpcClientRef<TClient>? TryGetClientRef<TClient>() where TClient : ClientBase<TClient>
-		{
-			return (IRpcClientRef<TClient>)(object)new RpcClientRefStub<HordeRpc.HordeRpcClient>(_grpcChannel, _hordeRpcClient);
-		}
-
-		public Task<IRpcClientRef<TClient>> GetClientRefAsync<TClient>(CancellationToken cancellationToken) where TClient : ClientBase<TClient>
-		{
-			IRpcClientRef<TClient> rpcClientRefStub;
-			if (typeof(TClient) == typeof(HordeRpc.HordeRpcClient))
-			{
-				rpcClientRefStub = (IRpcClientRef<TClient>)(object)new RpcClientRefStub<HordeRpc.HordeRpcClient>(_grpcChannel, _hordeRpcClient);
-			}
-			else if (typeof(TClient) == typeof(JobRpc.JobRpcClient))
-			{
-				rpcClientRefStub = (IRpcClientRef<TClient>)(object)new RpcClientRefStub<JobRpc.JobRpcClient>(_grpcChannel, _jobRpcClient);
-			}
-			else
-			{
-				throw new NotImplementedException();
-			}
-			return Task.FromResult(rpcClientRefStub);
-		}
-
-		public ValueTask DisposeAsync()
-		{
-			return new ValueTask();
-		}
-	}
-
 	class JobRpcClientStub : JobRpc.JobRpcClient
 	{
 		public readonly Queue<RpcBeginStepResponse> BeginStepResponses = new Queue<RpcBeginStepResponse>();

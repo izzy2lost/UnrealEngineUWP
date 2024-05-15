@@ -4,6 +4,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Sessions;
+using Grpc.Net.Client;
 using Horde.Agent.Driver;
 using Horde.Agent.Leases.Handlers;
 using Horde.Agent.Services;
@@ -50,7 +51,7 @@ namespace Horde.Agent.Commands.Execution
 			ServerProfile serverProfile = _agentSettings.GetCurrentServerProfile();
 			ExecuteJobTask executeTask = ExecuteJobTask.Parser.ParseFrom(Convert.FromBase64String(Task));
 
-			await using RpcConnection rpcConnection = new RpcConnection(ctx => _grpcService.CreateGrpcChannelAsync(executeTask.Token, ctx), logger);
+			using GrpcChannel rpcConnection = await _grpcService.CreateGrpcChannelAsync(executeTask.Token, CancellationToken.None);
 			await using Session session = new Session(serverProfile.Url, AgentId, SessionId, executeTask.Token, rpcConnection, WorkingDir);
 
 			await _jobHandler.ExecuteInternalAsync(session, LeaseId, executeTask, logger, CancellationToken.None);
