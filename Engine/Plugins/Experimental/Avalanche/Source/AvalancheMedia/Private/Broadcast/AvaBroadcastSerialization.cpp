@@ -8,6 +8,7 @@
 #include "Formatters/XmlArchiveOutputFormatter.h"
 #include "JsonObjectConverter.h"
 #include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 
 namespace UE::AvaMedia::BroadcastSerialization::Private
 {
@@ -178,6 +179,14 @@ bool FAvaBroadcastSerialization::SaveBroadcastToJson(const UAvaBroadcast* InBroa
 
 bool FAvaBroadcastSerialization::LoadBroadcastFromJson(const FString& InFilename, UAvaBroadcast* OutBroadcast)
 {
+	// A missing file will not be considered an error as part of initializing a broadcast object
+	// since it may not have been saved yet. However, we log it to help troubleshoot potential issues.
+	if (!FPaths::FileExists(InFilename))
+	{
+		UE_LOG(LogAvaBroadcast, Log, TEXT("Json Configuration file \"%s\" not found."), *InFilename);
+		return false;
+	}
+
 	FString JsonText;
 
 	// Load json text to the string object
