@@ -115,7 +115,7 @@ TAutoConsoleVariable<bool> CVarEnableMeshCache(
 
 TAutoConsoleVariable<bool> CVarEnableNewSplitMutableTask(
 	TEXT("mutable.EnableNewSplitMutableTask"),
-	false,
+	true,
 	TEXT("Enables or disables the then new split GetImages and GetMesh tasks that remove BusyWaits."),
 	ECVF_Scalability);
 
