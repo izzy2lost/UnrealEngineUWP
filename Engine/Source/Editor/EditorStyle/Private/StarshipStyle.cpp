@@ -6112,6 +6112,7 @@ void FStarshipEditorStyle::FStyle::SetupClassIconsAndThumbnails()
 			{TEXT("SceneCapture2D")},
 			{TEXT("SceneCaptureCube")},
 			{TEXT("SceneComponent")},
+			{TEXT("SkeletalMesh")},
 			{TEXT("SkeletalMeshActor")},
 			{TEXT("Skeleton")},
 			{TEXT("SkyAtmosphere")},
