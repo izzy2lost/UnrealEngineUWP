@@ -70,7 +70,7 @@ public:
 	TSharedPtr<FUICommandInfo> RenderOnlySelectedSolid;
 	TSharedPtr<FUICommandInfo> HideSimulatedBodies;
 	TSharedPtr<FUICommandInfo> HideKinematicBodies;
-	TSharedPtr<FUICommandInfo> HideBodyMass;
+	TSharedPtr<FUICommandInfo> DrawBodyMass;
 	TSharedPtr<FUICommandInfo> DrawCenterOfMass;
 	TSharedPtr<FUICommandInfo> RenderOnlySelectedBodyCoMs;
 	TSharedPtr<FUICommandInfo> RenderOnlySelectedConstraints;

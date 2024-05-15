@@ -39,7 +39,7 @@ UPhysicsAssetEditorSkeletalMeshComponent::UPhysicsAssetEditorSkeletalMeshCompone
 	, ConstraintBone2Color(0, 150, 150)
 	, HierarchyDrawColor(220, 255, 220)
 	, AnimSkelDrawColor(255, 64, 64)
-	, COMRenderSize(5.0f)
+	, COMRenderSize(2.0f)
 	, InfluenceLineLength(2.0f)
 	, InfluenceLineColor(0, 255, 0)
 {
@@ -120,6 +120,7 @@ void UPhysicsAssetEditorSkeletalMeshComponent::DebugDraw(const FSceneView* View,
 		// when an asset is open in the Physics Asset Editor but should not persist after the editor has been closed.
 		RenderSettings->CenterOfMassViewMode = SharedData->GetCurrentCenterOfMassViewMode(SharedData->bRunningSimulation);
 		RenderSettings->CollisionViewMode = SharedData->GetCurrentCollisionViewMode(SharedData->bRunningSimulation);
+		RenderSettings->COMRenderSize = SharedData->EditorOptions->COMRenderSize;
 		RenderSettings->ConstraintViewMode = SharedData->GetCurrentConstraintViewMode(SharedData->bRunningSimulation);
 		RenderSettings->ConstraintDrawSize = SharedData->EditorOptions->ConstraintDrawSize;
 		RenderSettings->PhysicsBlend = SharedData->EditorOptions->PhysicsBlend;

@@ -45,6 +45,7 @@ UPhysicsAssetEditorOptions::UPhysicsAssetEditorOptions(const FObjectInitializer&
 	bShowConstraintsAsPoints = false;
 	bDrawViolatedLimits = false;
 	bSimulationFloorCollisionEnabled = true;
+	COMRenderSize = 1.0f;
 	ConstraintDrawSize = 1.0f;
 
 	// view options

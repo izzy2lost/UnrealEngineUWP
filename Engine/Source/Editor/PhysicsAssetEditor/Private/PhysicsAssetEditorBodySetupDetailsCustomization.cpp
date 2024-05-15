@@ -99,6 +99,7 @@ void FPhysicsAssetEditorBodySetupDetailsCustomization::CustomizeCoMNudge(IDetail
 
 				ValueContent->AddSlot()
 					.AutoWidth()
+					.FillWidth(1.0f)
 					.HAlign(HAlign_Left)
 					.VAlign(VAlign_Center)
 					.Padding(HorizontalPadding, VerticalPadding)
@@ -108,11 +109,13 @@ void FPhysicsAssetEditorBodySetupDetailsCustomization::CustomizeCoMNudge(IDetail
 
 				ValueContent->AddSlot()
 					.AutoWidth()
+					.HAlign(HAlign_Center)
 					.VAlign(VAlign_Center)
 					[
 						SNew(SButton)
-							.HAlign(HAlign_Center)
-							.VAlign(VAlign_Center)
+							.ButtonStyle(FAppStyle::Get(), "NoBorder")
+							.ContentPadding(FMargin(0.0f,2.0f))
+							.ContentScale(FVector2D(0.8f, 0.8f))
 							.OnClicked_Lambda([this, Axis]() { return this->ToggleFixCOMInComponentSpace(Axis); })
 							.ButtonColorAndOpacity(FSlateColor::UseForeground())
 							.Content()

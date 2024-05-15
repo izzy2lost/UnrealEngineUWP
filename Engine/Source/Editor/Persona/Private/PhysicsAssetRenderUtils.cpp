@@ -41,11 +41,16 @@ FTransform GetConstraintMatrix(const USkeletalMeshComponent* const SkeletalMeshC
 	return LFrame * BoneTM;
 }
 
-void DrawWireStar(FPrimitiveDrawInterface* PDI, const FVector& Position, float Size, const FLinearColor& Color, uint8 DepthPriority, const float Thickness)
+void DrawWireStar(FPrimitiveDrawInterface* PDI, const FTransform& Transform, float Size, const FLinearColor& Color, uint8 DepthPriority, const float Thickness)
 {
-	PDI->DrawLine(Position + Size * FVector(1, 0, 0), Position - Size * FVector(1, 0, 0), Color, DepthPriority, Thickness);
-	PDI->DrawLine(Position + Size * FVector(0, 1, 0), Position - Size * FVector(0, 1, 0), Color, DepthPriority, Thickness);
-	PDI->DrawLine(Position + Size * FVector(0, 0, 1), Position - Size * FVector(0, 0, 1), Color, DepthPriority, Thickness);
+	const FVector Position = Transform.GetLocation();
+	const FVector XAxis = Transform.GetUnitAxis(EAxis::X);
+	const FVector YAxis = Transform.GetUnitAxis(EAxis::Y);
+	const FVector ZAxis = Transform.GetUnitAxis(EAxis::Z);
+
+	PDI->DrawLine(Position + Size * XAxis, Position - Size * XAxis, Color, DepthPriority, Thickness);
+	PDI->DrawLine(Position + Size * YAxis, Position - Size * YAxis, Color, DepthPriority, Thickness);
+	PDI->DrawLine(Position + Size * ZAxis, Position - Size * ZAxis, Color, DepthPriority, Thickness);
 }
 
 ////////////////////////////////////////
@@ -69,7 +74,7 @@ FPhysicsAssetRenderSettings::FPhysicsAssetRenderSettings()
 	, BoneUnselectedColor(170, 155, 225)
 	, NoCollisionColor(200, 200, 200)
 	, COMRenderColor(255, 255, 100)
-	, COMRenderSize(3.0f)
+	, COMRenderSize(2.0f)
 	, COMRenderLineThickness(0.2f)
 	, COMRenderMassTextOffsetScreenspace(8.0f)
 	, InfluenceLineLength(2.0f)
@@ -267,6 +272,7 @@ void FPhysicsAssetRenderSettings::ResetEditorViewportOptions()
 
 	CenterOfMassViewMode = DefaultObject.CenterOfMassViewMode;
 	CollisionViewMode = DefaultObject.CollisionViewMode;
+	COMRenderSize = DefaultObject.COMRenderSize;
 	ConstraintViewMode = DefaultObject.ConstraintViewMode;
 	ConstraintDrawSize = DefaultObject.ConstraintDrawSize;
 	PhysicsBlend = DefaultObject.PhysicsBlend;
@@ -474,8 +480,16 @@ namespace PhysicsAssetRender
 							COMRenderLineThickness *= SelectedItemRenderSizeMultiplier;
 						}
 
+						FTransform CoMMarkerTM(GetCoMPosition(BodyIndex));
+						
+						if (BodyInstance->GetBodySetup())
+						{
+							const FName BoneName = BodyInstance->GetBodySetup()->BoneName;
+							CoMMarkerTM.SetRotation(SkeletalMeshComponent->GetBoneTransform(BoneName).GetRotation());
+						}
+
 						PDI->SetHitProxy(CreateHitProxy(BodyIndex));
-						DrawWireStar(PDI, GetCoMPosition(BodyIndex), COMRenderSize, RenderSettings->COMRenderColor, SDPG_Foreground, COMRenderLineThickness);
+						DrawWireStar(PDI, CoMMarkerTM, COMRenderSize, RenderSettings->COMRenderColor, SDPG_Foreground, COMRenderLineThickness);
 						PDI->SetHitProxy(NULL);
 					}
 				}

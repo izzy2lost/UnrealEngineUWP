@@ -309,6 +309,10 @@ void FPhysicsAssetEditor::HandleViewportSelectionChanged(const TArray<FPhysicsAs
 			{ 
 				return SharedData->PhysicsAsset->ConstraintSetup[InItem.Index];
 			});
+			Algo::Transform(InSelectedCoMs, Objects, [this](const FPhysicsAssetEditorSharedData::FSelection& InItem)
+			{
+					return SharedData->PhysicsAsset->SkeletalBodySetups[InItem.Index]; // Add the owning physics body here so we display its details panel in the UI.
+			});
 			Algo::Transform(InSelectedBodies, Bodies, [this](const FPhysicsAssetEditorSharedData::FSelection& InItem) 
 			{ 
 				return SharedData->PhysicsAsset->SkeletalBodySetups[InItem.Index];
@@ -783,7 +787,8 @@ void FPhysicsAssetEditor::ExtendViewportMenus()
 
 						{
 							FToolMenuSection& Section = InSubMenu->AddSection("PhysicsAssetEditorCenterOfMassRenderSettings", LOCTEXT("CenterOfMassRenderSettingsHeader", "Center of Mass Drawing"));
-							Section.AddMenuEntry(Commands.HideBodyMass);
+							Section.AddMenuEntry(Commands.DrawBodyMass);
+							Section.AddEntry(FToolMenuEntry::InitWidget(TEXT("CoMMarkerScale"), WeakPhysicsAssetEditor.Pin()->MakeCoMMarkerScaleWidget(), LOCTEXT("CoMMarkerScaleLabel", "Marker Scale")));
 						}
 
 						{
@@ -1523,10 +1528,10 @@ void FPhysicsAssetEditor::BindCommands()
 		FIsActionChecked::CreateSP(this, &FPhysicsAssetEditor::IsHidingKinematicBodies));
 	
 	ViewportCommandList->MapAction(
-		Commands.HideBodyMass,
+		Commands.DrawBodyMass,
 		FExecuteAction::CreateSP(this, &FPhysicsAssetEditor::ToggleHideBodyMass),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(this, &FPhysicsAssetEditor::IsHidingBodyMass));
+		FIsActionChecked::CreateSP(this, &FPhysicsAssetEditor::IsDrawingBodyMass));
 
 	ViewportCommandList->MapAction(
 		Commands.DrawConstraintsAsPoints,
@@ -2911,6 +2916,11 @@ bool FPhysicsAssetEditor::IsHidingBodyMass() const
 	return SharedData->EditorOptions->bHideBodyMass;
 }
 
+bool FPhysicsAssetEditor::IsDrawingBodyMass() const
+{
+	return !IsHidingBodyMass();
+}
+
 bool FPhysicsAssetEditor::IsConstraintRenderingMode(EPhysicsAssetEditorConstraintViewMode Mode, bool bSimulation) const
 {
 	return Mode == SharedData->GetCurrentConstraintViewMode(bSimulation);
@@ -4024,31 +4034,41 @@ void FPhysicsAssetEditor::RecreatePhysicsState()
 	SharedData->EnableSimulation(false);
 }
 
-TSharedRef<SWidget> FPhysicsAssetEditor::MakeConstraintScaleWidget()
+template<typename TValueAccessor> TSharedRef<SWidget> FPhysicsAssetEditor::MakeScaleWidget(const float MinValue, const float MaxValue, TValueAccessor ValueAccessorFunction, const FName WidgetInteractionText)
 {
-	return 
+	return
 		SNew(SBox)
 		.HAlign(HAlign_Right)
 		[
 			SNew(SBox)
-			.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
-			.WidthOverride(100.0f)
-			[
-				SNew(SNumericEntryBox<float>)
-				.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
-				.AllowSpin(true)
-				.MinSliderValue(0.0f)
-				.MaxSliderValue(4.0f)
-				.Value_Lambda([this]() { return SharedData->EditorOptions->ConstraintDrawSize; })
-				.OnValueChanged_Lambda([this](float InValue) { SharedData->EditorOptions->ConstraintDrawSize = InValue; })
-				.OnValueCommitted_Lambda([this](float InValue, ETextCommit::Type InCommitType) 
-				{
-					SharedData->EditorOptions->ConstraintDrawSize = InValue; 
-					SharedData->EditorOptions->SaveConfig(); 
-					ViewportCommandList->WidgetInteraction(TEXT("ConstraintScaleWidget"));
-				})
-			]
+				.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
+				.WidthOverride(100.0f)
+				[
+					SNew(SNumericEntryBox<float>)
+						.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
+						.AllowSpin(true)
+						.MinSliderValue(MinValue)
+						.MaxSliderValue(MaxValue)
+						.Value_Lambda([ValueAccessorFunction]() { return ValueAccessorFunction(); })
+						.OnValueChanged_Lambda([ValueAccessorFunction](float InValue) { ValueAccessorFunction() = InValue; })
+						.OnValueCommitted_Lambda([this, ValueAccessorFunction, WidgetInteractionText](float InValue, ETextCommit::Type InCommitType)
+							{
+								ValueAccessorFunction() = InValue;
+								SharedData->EditorOptions->SaveConfig();
+								ViewportCommandList->WidgetInteraction(WidgetInteractionText);
+							})
+				]
 		];
+}
+
+TSharedRef<SWidget> FPhysicsAssetEditor::MakeConstraintScaleWidget()
+{
+	return MakeScaleWidget(0.0f, 4.0f, [this]() -> float& { return SharedData->EditorOptions->ConstraintDrawSize; }, TEXT("ConstraintScaleWidget"));
+}
+
+TSharedRef<SWidget> FPhysicsAssetEditor::MakeCoMMarkerScaleWidget()
+{
+	return MakeScaleWidget(0.0f, 4.0f, [this]() -> float& { return SharedData->EditorOptions->COMRenderSize; }, TEXT("CoMMarkerScaleWidget"));
 }
 
 TSharedRef<SWidget> FPhysicsAssetEditor::MakeCollisionOpacityWidget()

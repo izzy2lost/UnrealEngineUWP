@@ -127,6 +127,10 @@ class UPhysicsAssetEditorOptions : public UObject
 	UPROPERTY(config)
 	uint32 bSimulationFloorCollisionEnabled:1;
 
+	/** Controls the size of Center of Mass markers drawn in Physics Asset Editor */
+	UPROPERTY(config)
+	float COMRenderSize;
+
 	/** Controls how large constraints are drawn in Physics Asset Editor */
 	UPROPERTY(config)
 	float ConstraintDrawSize;

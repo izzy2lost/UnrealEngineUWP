@@ -146,6 +146,9 @@ public:
 	/** Make the constraint scale widget */
 	TSharedRef<SWidget> MakeConstraintScaleWidget();
 
+	/** Make the Center of Mass marker scale widget */
+	TSharedRef<SWidget> MakeCoMMarkerScaleWidget();
+
 	/** Make the collision opacity widget */
 	TSharedRef<SWidget> MakeCollisionOpacityWidget();
 
@@ -258,6 +261,7 @@ private:
 	bool IsHidingSimulatedBodies() const;
 	bool IsHidingKinematicBodies() const;
 	bool IsHidingBodyMass() const;
+	bool IsDrawingBodyMass() const;
 	void OnToggleMassProperties();
 	bool IsToggleMassProperties() const;
 	void OnSetCollision(bool bEnable);
@@ -364,6 +368,9 @@ private:
 
 	/** show a notification message **/
 	void ShowNotificationMessage(const FText& Message, const SNotificationItem::ECompletionState CompletionState);
+
+	/** Helper function for creating Scale Widgets */
+	template<typename TValueAccessor> TSharedRef<SWidget> MakeScaleWidget(const float MinValue, const float MaxValue, TValueAccessor ValueAccessorFunction, const FName WidgetInteractionText);
 
 private:
 	/** Physics asset properties tab */
