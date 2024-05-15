@@ -181,14 +181,15 @@ void UMovieSceneNiagaraEmitterTrack::Tick(float DeltaTime)
 {
 	if(!HasAnyFlags(RF_ClassDefaultObject) && bScalabilityModeActive)
 	{
-		FVersionedNiagaraEmitterData* EmitterData = nullptr;
-		// the emitter instance might no longer be valid if we deleted the emitter but the track still lives until garbage collection
-		if(EmitterHandleViewModel.IsValid() && EmitterHandleViewModel.Pin()->GetEmitterHandle() != nullptr)
+		bool bIsAllowedByScalability = false;
+
+		if (TSharedPtr<FNiagaraEmitterHandleViewModel> EmitterViewModel = EmitterHandleViewModel.Pin())
 		{
-			EmitterData = EmitterHandleViewModel.Pin()->GetEmitterHandle()->GetEmitterData();
+			FNiagaraEmitterHandle* EmitterHandle = EmitterViewModel->GetEmitterHandle();
+			bIsAllowedByScalability = EmitterHandle ? EmitterHandle->IsAllowedByScalability() : false;
 		}
-		
-		if(EmitterData && !EmitterData->IsAllowedByScalability())
+
+		if (bIsAllowedByScalability)
 		{
 			SetColorTint(FNiagaraEditorStyle::Get().GetColor("NiagaraEditor.SystemOverview.ExcludedFromScalability").ToFColor(true));
 		}

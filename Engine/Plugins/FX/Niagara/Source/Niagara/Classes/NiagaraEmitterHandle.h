@@ -68,6 +68,9 @@ public:
 	/** Sets whether or not this emitter is enabled within the System.  Disabled emitters aren't simulated. Returns whether or not the enabled state changed. */
 	NIAGARA_API bool SetIsEnabled(bool bInIsEnabled, UNiagaraSystem& InOwnerSystem, bool bRecompileIfChanged);
 
+	/** Test to see if the emitter is allowed by scalability or not */
+	NIAGARA_API bool IsAllowedByScalability() const;
+
 #if WITH_EDITORONLY_DATA
 	bool IsIsolated() const {	return bIsolated; }
 	void SetIsolated(bool bInIsolated) { bIsolated = bInIsolated; }

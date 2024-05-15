@@ -168,6 +168,19 @@ bool FNiagaraEmitterHandle::SetIsEnabled(bool bInIsEnabled, UNiagaraSystem& InOw
 	return false;
 }
 
+bool FNiagaraEmitterHandle::IsAllowedByScalability() const
+{
+	if (EmitterMode == ENiagaraEmitterMode::Standard)
+	{
+		FVersionedNiagaraEmitterData* EmitterData = VersionedInstance.GetEmitterData();
+		return EmitterData ? EmitterData->IsAllowedByScalability() : false;
+	}
+	else
+	{
+		return StatelessEmitter ? StatelessEmitter->IsAllowedByScalability() : false;
+	}
+}
+
 #if WITH_EDITORONLY_DATA
 void FNiagaraEmitterHandle::SetEmitterMode(UNiagaraSystem& InOwningSystem, ENiagaraEmitterMode InEmitterMode)
 {

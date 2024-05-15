@@ -257,7 +257,7 @@ void UNiagaraStatelessEmitter::CacheFromCompiledData()
 	}
 
 	StatelessEmitterData->bCanEverExecute = NiagaraStatelessInternal::IsValid(*StatelessEmitterData);
-	StatelessEmitterData->bCanEverExecute &= Platforms.IsActive();
+	StatelessEmitterData->bCanEverExecute &= IsAllowedByScalability();
 
 	// Determine our supported feature set mask
 	// If we can not execute on any enabled units then the emitter is considered disabled
@@ -455,6 +455,11 @@ NiagaraStateless::FCommonShaderParameters* UNiagaraStatelessEmitter::AllocateSha
 	GetEmitterTemplate()->SetShaderParameters(static_cast<uint8*>(UntypedShaderParameters), StatelessEmitterData->ComponentOffsets);
 
 	return CommonParameters;
+}
+
+bool UNiagaraStatelessEmitter::IsAllowedByScalability() const
+{
+	return Platforms.IsActive();
 }
 
 #if WITH_EDITOR

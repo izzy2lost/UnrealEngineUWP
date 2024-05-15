@@ -7,6 +7,7 @@
 #include "NiagaraMeshRendererProperties.h"
 #include "NiagaraObjectSelection.h"
 #include "Modules/ModuleManager.h"
+#include "Stateless/NiagaraStatelessEmitter.h"
 #include "ViewModels/NiagaraOverviewGraphViewModel.h"
 #include "ViewModels/NiagaraSystemSelectionViewModel.h"
 #include "ViewModels/NiagaraSystemViewModel.h"
@@ -16,6 +17,7 @@
 #include "ViewModels/NiagaraEmitterViewModel.h"
 #include "ViewModels/Stack/NiagaraStackEmitterPropertiesGroup.h"
 #include "ViewModels/Stack/NiagaraStackRoot.h"
+#include "ViewModels/Stack/NiagaraStackStatelessEmitterGroup.h"
 #include "ViewModels/Stack/NiagaraStackSystemSettingsGroup.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
 
@@ -40,7 +42,7 @@ void SNiagaraScalabilityContext::Construct(const FArguments& InArgs, UNiagaraSys
 	// without this, a few properties from the mesh renderer properties make it into the details panel even though the delegate returns false for them.
 	DetailsView->RegisterInstancedCustomPropertyLayout(UNiagaraMeshRendererProperties::StaticClass(), DetailsView->GetGenericLayoutDetailsDelegate());
 	DetailsView->RegisterInstancedCustomPropertyLayout(UNiagaraEmitter::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FNiagaraEmitterScalabilityDetails::MakeInstance));
-	
+
 	DetailsView->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateSP(this, &SNiagaraScalabilityContext::FilterScalabilityProperties));
 	
 	UpdateScalabilityContent();
@@ -95,6 +97,10 @@ void SNiagaraScalabilityContext::SetObject(UObject* Object)
 	{
 		DetailsView->SetObject(Emitter);
 	}
+	else if (UNiagaraStatelessEmitter* StatelessEmitter = Cast<UNiagaraStatelessEmitter>(Object))
+	{
+		DetailsView->SetObject(StatelessEmitter);
+	}
 	else if(UNiagaraSystem* System = Cast<UNiagaraSystem>(Object))
 	{
 		DetailsView->SetObject(System);
@@ -128,6 +134,11 @@ void SNiagaraScalabilityContext::UpdateScalabilityContent()
 			UNiagaraEmitter* Emitter = Cast<UNiagaraStackEmitterPropertiesGroup>(StackEntry)->GetEmitterViewModel()->GetEmitter().Emitter;
 			NewSelection = Emitter;
 		}
+		else if (StackEntry->IsA(UNiagaraStackStatelessEmitterGroup::StaticClass()))
+		{
+			UNiagaraStatelessEmitter* Emitter = Cast<UNiagaraStackStatelessEmitterGroup>(StackEntry)->GetStatelessEmitter();
+			NewSelection = Emitter;
+		}
 		else if(StackEntry->IsA(UNiagaraStackSystemPropertiesGroup::StaticClass()))
 		{
 			UNiagaraSystem& System = Cast<UNiagaraStackSystemPropertiesGroup>(StackEntry)->GetSystemViewModel()->GetSystem();
@@ -142,7 +153,14 @@ void SNiagaraScalabilityContext::UpdateScalabilityContent()
 		{
 			if(FNiagaraEmitterHandle* EmitterHandle = OverviewNode->TryGetEmitterHandle())
 			{
-				NewSelection = EmitterHandle->GetInstance().Emitter;
+				if (EmitterHandle->GetEmitterMode() == ENiagaraEmitterMode::Standard)
+				{
+					NewSelection = EmitterHandle->GetInstance().Emitter;
+				}
+				else
+				{
+					NewSelection = EmitterHandle->GetStatelessEmitter();
+				}
 			}
 			else if(UNiagaraSystem* System = OverviewNode->GetOwningSystem())
 			{

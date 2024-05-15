@@ -59,7 +59,19 @@ public:
 	{
 		for (UNiagaraRendererProperties* Renderer : RendererProperties)
 		{
-			if (Renderer && Renderer->GetIsEnabled() && Renderer->IsSimTargetSupported(ENiagaraSimTarget::GPUComputeSim))
+			if (Renderer && Renderer->GetIsEnabled())
+			{
+				Func(Renderer);
+			}
+		}
+	}
+
+	template<typename TAction>
+	void ForEachRenderer(TAction Func) const
+	{
+		for (UNiagaraRendererProperties* Renderer : RendererProperties)
+		{
+			if (Renderer)
 			{
 				Func(Renderer);
 			}
@@ -71,6 +83,8 @@ public:
 
 	FNiagaraStatelessEmitterDataPtr GetEmitterData() const { return StatelessEmitterData; }
 	NiagaraStateless::FCommonShaderParameters* AllocateShaderParameters(const FNiagaraParameterStore& RendererBindings) const;
+
+	NIAGARA_API bool IsAllowedByScalability() const;
 
 #if WITH_EDITOR
 	NIAGARA_API void SetEmitterTemplateClass(UClass* TemplateClass);
@@ -94,6 +108,8 @@ public:
 	NIAGARA_API FNiagaraStatelessSpawnInfo* GetSpawnInfoByIndex(int32 Index);
 
 	NIAGARA_API const TArray<TObjectPtr<UNiagaraStatelessModule>>& GetModules() const { return Modules; }
+
+	NIAGARA_API FNiagaraPlatformSet& GetPlatformSet() { return Platforms; }
 
 	UNiagaraStatelessEmitter* CreateAsDuplicate(FName InDuplicateName, UNiagaraSystem& InDuplicateOwnerSystem) const;
 
