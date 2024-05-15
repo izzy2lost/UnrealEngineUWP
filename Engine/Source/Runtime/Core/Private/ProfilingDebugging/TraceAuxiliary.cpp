@@ -68,6 +68,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 const TCHAR* GDefaultChannels = TEXT("cpu,gpu,frame,log,bookmark,screenshot,region");
 const TCHAR* GMemoryChannels = TEXT("memtag,memalloc,callstack,module");
+const TCHAR* GMemoryLightChannels = TEXT("memtag,memalloc");
 const TCHAR* GTraceConfigSection = TEXT("Trace.Config");
 static UE::Trace::FInitializeDesc GInitializeDesc;
 
@@ -279,9 +280,13 @@ void FTraceAuxiliaryImpl::ForEachChannel(const TCHAR* ChannelList, bool bResolve
 			{
 				ForEachChannel(GDefaultChannels, false, LogCategory, Callable);
 			}
-			else if (FCString::Stricmp(Name, TEXT("memory"))== 0)
+			else if (FCString::Stricmp(Name, TEXT("memory")) == 0)
 			{
 				ForEachChannel(GMemoryChannels, false, LogCategory, Callable);
+			}
+			else if (FCString::Stricmp(Name, TEXT("memory_light")) == 0)
+			{
+				ForEachChannel(GMemoryLightChannels, false, LogCategory, Callable);
 			}
 			// Check against data driven presets (if available)
 			else if (GConfig && GConfig->GetString(TEXT("Trace.ChannelPresets"), Name, Value, GEngineIni))

@@ -69,6 +69,22 @@ enum class EMemoryTraceSwapOperation : uint8
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// Internal options for early initialization of memory tracing systems. Exposed
+// here due to visibility in platform implementations.
+enum class EMemoryTraceInit : uint8
+{
+	Disabled		= 0,
+	AllocEvents		= 1 << 0,
+	Callstacks		= 1 << 1,
+	Tags			= 1 << 2,
+	Full			= AllocEvents|Callstacks|Tags,
+	Light			= AllocEvents|Tags,
+};
+
+ENUM_CLASS_FLAGS(EMemoryTraceInit);
+
+////////////////////////////////////////////////////////////////////////////////
 #if UE_MEMORY_TRACE_ENABLED
 
 #define UE_MEMORY_TRACE(x) x

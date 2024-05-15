@@ -7135,8 +7135,17 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 				bundle.getString("com.epicgames.unreal.GameActivity.BuildConfiguration").equals("Shipping");
 			if (!bShipping)
 			{ 
-				boolean bEnableMemoryTracing = new File(GameApplication.getAppContext().getFilesDir() + "/UEEnableMemoryTracing.txt").exists();
-				Os.setenv("UEEnableMemoryTracing", bEnableMemoryTracing ? "1" : "0", true);
+				boolean bEnableFullMemoryTracing = new File(GameApplication.getAppContext().getFilesDir() + "/UEEnableMemoryTracing.txt").exists();
+				boolean bEnableLightlMemoryTracing = new File(GameApplication.getAppContext().getFilesDir() + "/UEEnableMemoryTracingLight.txt").exists();
+				
+				if (bEnableFullMemoryTracing)
+				{
+					Os.setenv("UEEnableMemoryTracing", "full", true);
+				}
+				else if (bEnableLightlMemoryTracing)
+				{
+					Os.setenv("UEEnableMemoryTracing", "light", true);
+				}
 			}
 		}
 		catch (ErrnoException | NameNotFoundException e)
