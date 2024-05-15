@@ -208,7 +208,7 @@ namespace UE::DMX
 		}
 		else
 		{
-			SelectedLibraryTextBlock->SetText(LOCTEXT("NoLibraryAvailable", "No DMX library available"));
+			SelectedLibraryTextBlock->SetText(LOCTEXT("NoLibraryAvailableAfterUpdate", "No DMX library available"));
 		}
 	}
 
@@ -359,7 +359,7 @@ namespace UE::DMX
 		}
 		else
 		{
-			SelectedLibraryTextBlock->SetText(LOCTEXT("NoLibraryAvailable", "No DMX Library available"));
+			SelectedLibraryTextBlock->SetText(LOCTEXT("NoLibraryAvailableAfterSelectionChange", "No DMX Library available"));
 		}
 
 		UpdateFixturePatchSelection(DMXLibrary);
