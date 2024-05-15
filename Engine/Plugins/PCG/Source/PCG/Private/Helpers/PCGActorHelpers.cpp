@@ -342,7 +342,8 @@ bool UPCGActorHelpers::DeleteActors(UWorld* World, const TArray<TSoftObjectPtr<A
 		// Not in editor, really unlikely to happen but might be slow
 		for (const TSoftObjectPtr<AActor>& ManagedActor : ActorsToDelete)
 		{
-			if (AActor* Actor = ManagedActor.Get())
+			// @todo_pcg: Revisit this GetWorld() check when fixing UE-215065
+			if (AActor* Actor = ManagedActor.Get(); Actor && Actor->GetWorld())
 			{
 				if (!ensure(World->DestroyActor(Actor)))
 				{
