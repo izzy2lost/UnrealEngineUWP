@@ -4,5 +4,5 @@
 
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedCaptureSources.h"
 
-COMPILE_WARNING("FPreAnimatedEntityCaptureSource has been moved to MovieScenePreAnimatedCaptureSources.h")
+UE_DEPRECATED_HEADER(5.4, "FPreAnimatedEntityCaptureSource has been moved to MovieScenePreAnimatedCaptureSources.h")
 
