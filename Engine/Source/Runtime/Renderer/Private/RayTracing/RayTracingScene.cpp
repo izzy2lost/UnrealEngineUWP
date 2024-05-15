@@ -192,6 +192,68 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 		AddClearUAVPass(GraphBuilder, DebugInstanceGPUSceneIndexBufferUAV, 0xFFFFFFFF);
 	}
 
+	if (InstancesDebugData.Num() > 0 && NumNativeInstances > 0)
+	{
+		// Create InstanceDebugBuffer (one entry per instance in TLAS)
+		// This requires replicating the data in InstancesDebugData (one entry per FRayTracingGeometryInstance) according to NumTransforms in each geometry instance
+
+		check(InstancesDebugData.Num() == Instances.Num());
+
+		TArrayView<uint32> LayerBaseIndices = MakeArrayView(GraphBuilder.AllocPODArray<uint32>(NumLayers), NumLayers);
+		LayerBaseIndices[0] = 0;
+
+		for (uint32 LayerIndex = 1; LayerIndex < NumLayers; ++LayerIndex)
+		{
+			LayerBaseIndices[LayerIndex] = LayerBaseIndices[LayerIndex - 1] + SceneInitializer.NumNativeInstancesPerLayer[LayerIndex - 1];
+		}
+
+		// make a copy of SceneWithGeometryInstances.BaseInstancePrefixSum that can be passed to the RDG setup tasks below
+		TArray<uint32, SceneRenderingAllocator> BaseInstancePrefixSum = GraphBuilder.AllocArray<uint32>();
+		BaseInstancePrefixSum = SceneWithGeometryInstances.BaseInstancePrefixSum;
+
+		FRDGUploadData<FRayTracingInstanceDebugData> UploadData(GraphBuilder, NumNativeInstances);
+
+		{
+			const uint32 NumItems = InstancesDebugData.Num();
+
+			// Distribute work evenly to the available task graph workers based on NumItems.
+			const uint32 TargetItemsPerTask = 512;
+			const uint32 NumThreads = FMath::Min(FTaskGraphInterface::Get().GetNumWorkerThreads(), CVarRHICmdWidth.GetValueOnRenderThread());
+			const uint32 NumTasks = FMath::Min(NumThreads, FMath::DivideAndRoundUp(NumItems, TargetItemsPerTask));
+			const uint32 NumItemsPerTask = FMath::DivideAndRoundUp(NumItems, NumTasks);
+
+			for (uint32 TaskIndex = 0; TaskIndex < NumTasks; ++TaskIndex)
+			{
+				const uint32 TaskFirstItemIndex = TaskIndex * NumItemsPerTask;
+				const uint32 TaskNumItems = FMath::Min(NumItemsPerTask, NumItems - TaskFirstItemIndex);
+
+				TConstArrayView<FRayTracingGeometryInstance> TaskInstancesData(Instances.GetData() + TaskFirstItemIndex, TaskNumItems);
+				TConstArrayView<FRayTracingInstanceDebugData> TaskInstancesDebugData(InstancesDebugData.GetData() + TaskFirstItemIndex, TaskNumItems);
+				TConstArrayView<uint32> TaskBaseInstancePrefixSum(BaseInstancePrefixSum.GetData() + TaskFirstItemIndex, TaskNumItems);
+
+				GraphBuilder.AddSetupTask([UploadData, TaskInstancesDebugData, TaskInstancesData, TaskBaseInstancePrefixSum, LayerBaseIndices]()
+					{
+						TRACE_CPUPROFILER_EVENT_SCOPE(FillRayTracingInstanceDebugBuffer);
+
+						for (int32 Index = 0; Index < TaskInstancesDebugData.Num(); ++Index)
+						{
+							const FRayTracingGeometryInstance& SceneInstance = TaskInstancesData[Index];
+							const uint32 BaseInstanceIndex = TaskBaseInstancePrefixSum[Index];
+							const uint32 LayerBaseIndex = LayerBaseIndices[SceneInstance.LayerIndex];
+
+							for (uint32 TransformIndex = 0; TransformIndex < SceneInstance.NumTransforms; ++TransformIndex)
+							{
+								// write data in the same order used in InstanceBuffer used to build TLAS / InstanceIndex() in hit shaders
+								UploadData[LayerBaseIndex + BaseInstanceIndex + TransformIndex] = TaskInstancesDebugData[Index];
+							}
+						}
+					});
+			}
+		}
+
+		InstanceDebugBuffer = CreateStructuredBuffer(GraphBuilder, TEXT("FRayTracingScene::InstanceDebugData"), UploadData);
+	}
+
 	if (NumNativeInstances > 0)
 	{
 		const uint32 InstanceUploadBytes = NumNativeInstances * sizeof(FRayTracingInstanceDescriptorInput);
@@ -227,12 +289,6 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 				InstanceUploadData,
 				TransformUploadData);
 		});
-		
-		if (InstancesDebugData.Num() > 0)
-		{
-			check(InstancesDebugData.Num() == Instances.Num());
-			InstanceDebugBuffer = CreateStructuredBuffer(GraphBuilder, TEXT("FRayTracingScene::InstanceDebugData"), InstancesDebugData);
-		}
 
 		FBuildInstanceBufferPassParams* PassParams = GraphBuilder.AllocParameters<FBuildInstanceBufferPassParams>();
 		PassParams->InstanceBuffer = GraphBuilder.CreateUAV(InstanceBuffer);

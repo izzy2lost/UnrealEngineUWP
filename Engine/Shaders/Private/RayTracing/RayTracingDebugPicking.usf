@@ -41,13 +41,12 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingDebugPickingRGS)
 
 	if (Payload.IsHit())
 	{
-		FRayTracingInstanceDebugData InstanceDebugData = InstancesDebugData[Payload.GeometryInstanceIndex];
+		FRayTracingInstanceDebugData InstanceDebugData = InstancesDebugData[Payload.InstanceIndex];
 		FRayTracingInstanceDescriptor InstanceDescriptor = InstanceBuffer[Payload.InstanceIndex];
 
 		PickingFeedback.GeometryAddress = InstanceDebugData.GeometryAddress;
 
 		PickingFeedback.InstanceIndex = Payload.InstanceIndex;
-		PickingFeedback.GeometryInstanceIndex = Payload.GeometryInstanceIndex;
 		PickingFeedback.TriangleIndex = Payload.TriangleIndex;
 		PickingFeedback.GeometryIndex = Payload.GeometryIndex;
 

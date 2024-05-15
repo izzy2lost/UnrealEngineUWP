@@ -729,7 +729,6 @@ void BindRayTracingDebugCHSMaterialBindings(FRHICommandList& RHICmdList, FRHISha
 		Binding.SegmentIndex = MeshCommand.GeometrySegmentIndex;
 		Binding.UniformBuffers = HelperBinding.UniformBufferArray;
 		Binding.NumUniformBuffers = HelperBinding.NumUniformBuffers;
-		Binding.UserData = VisibleMeshCommand.InstanceIndex;
 
 		Bindings[BindingIndex] = Binding;
 		BindingIndex++;
@@ -1640,7 +1639,6 @@ void FDeferredShadingSceneRenderer::RayTracingDisplayPicking(const FRayTracingPi
 	Writer.EmptyLine();
 
 	Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Instance Index: %u"), PickingFeedback.InstanceIndex)), 10, FColor::Yellow);
-	Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Geometry Instance Index: %u"), PickingFeedback.GeometryInstanceIndex)), 10, FColor::Yellow);
 	Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Segment Index: %u"), PickingFeedback.GeometryIndex)), 10, FColor::Yellow);
 	Writer.DrawLine(FText::FromString(FString::Printf(TEXT("Triangle Index: %u"), PickingFeedback.TriangleIndex)), 10, FColor::Yellow);
 

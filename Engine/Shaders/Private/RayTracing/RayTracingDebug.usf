@@ -220,10 +220,10 @@ float4 DebugRayTracingInstance(FRayDesc Ray, out float OutDepth)
 			Result.rgb = TriangleColor;
 			break;
 		case RAY_TRACING_DEBUG_VIZ_DYNAMIC_INSTANCES:
-			Result.rgb = InstancesDebugData[Payload.GeometryInstanceIndex].Flags ? float3(0.25f, 0.50f, 0.25f) : float3(0.50f, 0.25f, 0.25f);
+			Result.rgb = InstancesDebugData[Payload.InstanceIndex].Flags ? float3(0.25f, 0.50f, 0.25f) : float3(0.50f, 0.25f, 0.25f);
 			break;
 		case RAY_TRACING_DEBUG_VIZ_PROXY_TYPE:
-			Result.rgb = IntToColor(InstancesDebugData[Payload.GeometryInstanceIndex].ProxyHash);
+			Result.rgb = IntToColor(InstancesDebugData[Payload.InstanceIndex].ProxyHash);
 			break;
 		}
 	
