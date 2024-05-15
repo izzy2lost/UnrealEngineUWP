@@ -355,17 +355,23 @@ void UMeshAttributePaintTool::OnUpdateDrag(const FRay& WorldRay)
 
 void UMeshAttributePaintTool::OnEndDrag(const FRay& Ray)
 {
+	// Capture brush stroke state prior to invoking Super::OnEndDrag
+	const bool bWasInBrushStroke = IsInBrushStroke();
+	
 	UDynamicMeshBrushTool::OnEndDrag(Ray);
 
 	bInRemoveStroke = bInSmoothStroke = false;
 	bStampPending = false;
 
-	// close change record
-	TUniquePtr<FMeshAttributePaintChange> Change = EndChange();
-	if (Change)
+	if (bWasInBrushStroke)
 	{
-		GetToolManager()->EmitObjectChange(this, MoveTemp(Change), LOCTEXT("AttributeValuesChange", "Paint"));
-		LongTransactions.Close(GetToolManager());
+		// close change record
+		TUniquePtr<FMeshAttributePaintChange> Change = EndChange();
+		if (Change)
+		{
+			GetToolManager()->EmitObjectChange(this, MoveTemp(Change), LOCTEXT("AttributeValuesChange", "Paint"));
+			LongTransactions.Close(GetToolManager());
+		}
 	}
 }
 

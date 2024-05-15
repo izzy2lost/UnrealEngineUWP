@@ -752,15 +752,24 @@ void UMeshSelectionTool::UpdateFaceSelection(const FBrushStampData& Stamp, const
 
 void UMeshSelectionTool::OnEndDrag(const FRay& Ray)
 {
+	// Capture brush stroke state prior to invoking Super::OnEndDrag
+	const bool bWasInBrushStroke = IsInBrushStroke();
+	
 	UDynamicMeshBrushTool::OnEndDrag(Ray);
 
 	bInRemoveStroke = false;
 	bStampPending = false;
 
 	// close change record
-	TUniquePtr<FToolCommandChange> Change = EndChange();
-	GetToolManager()->EmitObjectChange(Selection, MoveTemp(Change), LOCTEXT("MeshSelectionChange", "Mesh Selection"));
-	LongTransactions.Close(GetToolManager());
+	if (bWasInBrushStroke)
+	{
+		TUniquePtr<FToolCommandChange> Change = EndChange();
+		if (Change)
+		{
+			GetToolManager()->EmitObjectChange(Selection, MoveTemp(Change), LOCTEXT("MeshSelectionChange", "Mesh Selection"));
+			LongTransactions.Close(GetToolManager());
+		}
+	}
 }
 
 
@@ -1039,7 +1048,6 @@ void UMeshSelectionTool::CancelChange()
 
 TUniquePtr<FToolCommandChange> UMeshSelectionTool::EndChange()
 {
-	check(ActiveSelectionChange);
 	if (ActiveSelectionChange != nullptr)
 	{
 		TUniquePtr<FMeshSelectionChange> Result = MoveTemp(ActiveSelectionChange->Change);
