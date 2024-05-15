@@ -287,19 +287,24 @@ public:
 		// Primitive was removed from the scene
 		void Removed(FPrimitiveSceneInfo* PrimitiveSceneInfo)
 		{
-			AddInvalidation(PrimitiveSceneInfo, true);
+			AddInvalidation(PrimitiveSceneInfo, EInvalidationCause::Removed);
 		}
 
 		// Primitive instances updated
 		void UpdatedInstances(FPrimitiveSceneInfo* PrimitiveSceneInfo)
 		{
-			AddInvalidation(PrimitiveSceneInfo, false);
+			AddInvalidation(PrimitiveSceneInfo, EInvalidationCause::Updated);
 		}
 
 		// Primitive moved/transform was updated
 		void UpdatedTransform(FPrimitiveSceneInfo* PrimitiveSceneInfo)
 		{
-			AddInvalidation(PrimitiveSceneInfo, false);
+			AddInvalidation(PrimitiveSceneInfo, EInvalidationCause::Updated);
+		}
+
+		void Added(FPrimitiveSceneInfo* PrimitiveSceneInfo)
+		{
+			AddInvalidation(PrimitiveSceneInfo, EInvalidationCause::Added);
 		}
 
 		FInstanceGPULoadBalancer Instances;
@@ -307,7 +312,14 @@ public:
 		TBitArray<> RemovedPrimitives;
 
 	private:
-		void AddInvalidation(FPrimitiveSceneInfo* PrimitiveSceneInfo, bool bRemovedPrimitive);
+		enum class EInvalidationCause
+		{
+			Added,
+			Removed,
+			Updated,
+		};
+
+		void AddInvalidation(FPrimitiveSceneInfo* PrimitiveSceneInfo, EInvalidationCause InvalidationCause);
 
 		FScene* Scene = nullptr;
 		FVirtualShadowMapArrayCacheManager& Manager;
