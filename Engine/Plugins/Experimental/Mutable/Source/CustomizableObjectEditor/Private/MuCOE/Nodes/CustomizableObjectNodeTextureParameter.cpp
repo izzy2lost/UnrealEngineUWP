@@ -70,11 +70,6 @@ void UCustomizableObjectNodeTextureParameter::BackwardsCompatibleFixup()
 		ReferenceValue = DefaultValue;
 		DefaultValue = {};
 	}
-
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AddedRenameOptionToParameterNodes)
-	{
-		ReconstructNode();
-	}
 }
 
 #undef LOCTEXT_NAMESPACE

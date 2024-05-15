@@ -87,11 +87,6 @@ void UCustomizableObjectNodeFloatParameter::BackwardsCompatibleFixup()
 	{
 		ReconstructNode();
 	}
-
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AddedRenameOptionToParameterNodes)
-	{
-		ReconstructNode();
-	}
 }
 
 

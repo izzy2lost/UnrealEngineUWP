@@ -50,11 +50,6 @@ void UCustomizableObjectNodeProjectorParameter::BackwardsCompatibleFixup()
 	{
 		DefaultValue.ProjectionType = ProjectionType_DEPRECATED;
 	}
-
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AddedRenameOptionToParameterNodes)
-	{
-		ReconstructNode();
-	}
 }
 
 

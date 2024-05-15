@@ -57,18 +57,5 @@ void UCustomizableObjectNodeColorParameter::OnRenameNode(const FString& NewName)
 	}
 }
 
-
-void UCustomizableObjectNodeColorParameter::BackwardsCompatibleFixup()
-{
-	Super::BackwardsCompatibleFixup();
-
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
-
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AddedRenameOptionToParameterNodes)
-	{
-		ReconstructNode();
-	}
-}
-
 #undef LOCTEXT_NAMESPACE
 

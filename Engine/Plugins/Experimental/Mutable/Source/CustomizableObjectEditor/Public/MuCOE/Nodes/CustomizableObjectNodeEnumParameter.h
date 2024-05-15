@@ -57,7 +57,6 @@ public:
 	// UCustomizableObjectNode interface
 	void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
 	virtual bool IsAffectedByLOD() const override { return false; }
-	virtual void BackwardsCompatibleFixup() override;
 
 };
 
