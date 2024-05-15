@@ -2501,7 +2501,7 @@ bool ULevelSequenceEditorSubsystem::IsSelectedBindingRootPossessable()
 	{
 		TArray<FGuid> ObjectBindings;
 		Sequencer->GetSelectedObjects(ObjectBindings);
-		if (ObjectBindings.Num() >= 0)
+		if (ObjectBindings.Num() > 0)
 		{
 			UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
 			UMovieScene* MovieScene = Sequence ? Sequence->GetMovieScene() : nullptr;
