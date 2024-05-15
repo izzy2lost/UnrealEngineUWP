@@ -2,6 +2,8 @@
 
 #pragma once
 
+#if WITH_EDITOR
+
 #include "Containers/ContainersFwd.h"
 #include "Model/IDMMaterialBuildStateInterface.h"
 #include "Templates/SubclassOf.h"
@@ -63,3 +65,4 @@ struct IDMMaterialBuildUtilsInterface
 	virtual void UpdatePreviewMaterial(UMaterialExpression* InLastExpression, int32 InOutputIndex, int32 InOutputChannel, 
 		int32 InSize) const = 0;
 };
+#endif
