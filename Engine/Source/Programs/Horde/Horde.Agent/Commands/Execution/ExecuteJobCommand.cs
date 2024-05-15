@@ -5,10 +5,8 @@ using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Sessions;
 using Grpc.Net.Client;
-using Horde.Agent.Driver;
 using Horde.Agent.Leases.Handlers;
 using Horde.Agent.Services;
-using Horde.Agent.Utility;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -36,14 +34,12 @@ namespace Horde.Agent.Commands.Execution
 		readonly GrpcService _grpcService;
 		readonly JobHandler _jobHandler;
 		readonly AgentSettings _agentSettings;
-		readonly DriverSettings _driverSettings;
 
-		public ExecuteJobCommand(GrpcService grpcService, JobHandler jobHandler, IOptions<AgentSettings> agentSettings, IOptions<DriverSettings> driverSettings)
+		public ExecuteJobCommand(GrpcService grpcService, JobHandler jobHandler, IOptions<AgentSettings> agentSettings)
 		{
 			_grpcService = grpcService;
 			_jobHandler = jobHandler;
 			_agentSettings = agentSettings.Value;
-			_driverSettings = driverSettings.Value;
 		}
 
 		public override async Task<int> ExecuteAsync(ILogger logger)

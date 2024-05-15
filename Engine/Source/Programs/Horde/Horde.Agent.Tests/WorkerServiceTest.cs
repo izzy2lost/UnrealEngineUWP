@@ -310,7 +310,7 @@ namespace Horde.Agent.Tests
 		public readonly TaskCompletionSource<bool> UpdateSessionReceived = new();
 
 		private readonly GrpcChannel _grpcChannel;
-		private readonly FakeJobRpcClient _client;
+//		private readonly FakeJobRpcClient _client;
 
 		private class FakeHordeRpcClient : HordeRpc.HordeRpcClient
 		{
@@ -361,8 +361,8 @@ namespace Horde.Agent.Tests
 		{
 			_serverName = "FakeServer";
 			_logger = NullLogger<FakeHordeRpcServer>.Instance;
-			FakeHordeRpcClient hordeClient = new FakeHordeRpcClient(this);
-			_client = new FakeJobRpcClient(this);
+//			FakeHordeRpcClient hordeClient = new FakeHordeRpcClient(this);
+//			_client = new FakeJobRpcClient(this);
 			_grpcChannel = GrpcChannel.ForAddress(new Uri("http://horde-agent-test"), new GrpcChannelOptions());
 		}
 

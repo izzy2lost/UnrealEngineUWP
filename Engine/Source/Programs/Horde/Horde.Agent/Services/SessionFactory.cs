@@ -8,7 +8,6 @@ using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Sessions;
 using Grpc.Core;
 using Grpc.Net.Client;
-using Horde.Agent.Driver;
 using Horde.Agent.Utility;
 using Horde.Common.Rpc;
 using HordeCommon.Rpc;
@@ -47,6 +46,11 @@ namespace Horde.Agent.Services
 		/// Connection to the server
 		/// </summary>
 		GrpcChannel GrpcChannel { get; }
+
+		/// <summary>
+		/// State of the connection 
+		/// </summary>
+		ConnectivityState ConnectivityState { get; }
 
 		/// <summary>
 		/// Working directory for sandboxes etc..
@@ -90,6 +94,9 @@ namespace Horde.Agent.Services
 		/// <inheritdoc/>
 		public DirectoryReference WorkingDir { get; }
 
+		/// <inheritdoc/>
+		public ConnectivityState ConnectivityState => ConnectivityState.Ready;
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -113,7 +120,7 @@ namespace Horde.Agent.Services
 		/// <summary>
 		/// Creates a new agent session
 		/// </summary>
-		public static async Task<Session> CreateAsync(CapabilitiesService capabilitiesService, GrpcService grpcService, StatusService statusService, IOptions<AgentSettings> settings, IOptions<DriverSettings> driverSettings, ILogger logger, CancellationToken cancellationToken)
+		public static async Task<Session> CreateAsync(CapabilitiesService capabilitiesService, GrpcService grpcService, StatusService statusService, IOptions<AgentSettings> settings, ILogger logger, CancellationToken cancellationToken)
 		{
 			AgentSettings currentSettings = settings.Value;
 
@@ -349,23 +356,21 @@ namespace Horde.Agent.Services
 		readonly GrpcService _grpcService;
 		readonly StatusService _statusService;
 		readonly IOptions<AgentSettings> _agentSettings;
-		readonly IOptions<DriverSettings> _driverSettings;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public SessionFactory(CapabilitiesService capabilitiesService, GrpcService grpcService, StatusService statusService, IOptions<AgentSettings> agentSettings, IOptions<DriverSettings> driverSettings, ILogger<SessionFactory> logger)
+		public SessionFactory(CapabilitiesService capabilitiesService, GrpcService grpcService, StatusService statusService, IOptions<AgentSettings> agentSettings, ILogger<SessionFactory> logger)
 		{
 			_capabilitiesService = capabilitiesService;
 			_grpcService = grpcService;
 			_statusService = statusService;
 			_agentSettings = agentSettings;
-			_driverSettings = driverSettings;
 			_logger = logger;
 		}
 
 		/// <inheritdoc/>
-		public async Task<ISession> CreateAsync(CancellationToken cancellationToken) => await Session.CreateAsync(_capabilitiesService, _grpcService, _statusService, _agentSettings, _driverSettings, _logger, cancellationToken);
+		public async Task<ISession> CreateAsync(CancellationToken cancellationToken) => await Session.CreateAsync(_capabilitiesService, _grpcService, _statusService, _agentSettings, _logger, cancellationToken);
 	}
 }

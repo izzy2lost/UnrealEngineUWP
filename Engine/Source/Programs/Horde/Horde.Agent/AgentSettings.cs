@@ -3,8 +3,6 @@
 using System.ComponentModel.DataAnnotations;
 using EpicGames.Core;
 using EpicGames.Horde;
-using Horde.Agent.Execution;
-using Horde.Agent.Utility;
 using Microsoft.Extensions.Configuration;
 
 namespace Horde.Agent
@@ -250,7 +248,7 @@ namespace Horde.Agent
 				defaultServerProfile.Url = defaultServerUrl ?? new Uri("http://localhost:5000");
 				return defaultServerProfile;
 			}
-			
+
 			return GetServerProfile(Server);
 		}
 

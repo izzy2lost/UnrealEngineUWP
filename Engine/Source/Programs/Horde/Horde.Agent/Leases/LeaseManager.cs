@@ -8,7 +8,6 @@ using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Horde.Agent.Services;
-using Horde.Agent.Utility;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.DependencyInjection;
@@ -370,7 +369,7 @@ namespace Horde.Agent.Leases
 					}
 
 					// Update the current status
-					if (_session.GrpcChannel.State == ConnectivityState.TransientFailure)
+					if (_session.ConnectivityState == ConnectivityState.TransientFailure)
 					{
 						_statusService.Set(false, _activeLeases.Count, "Attempting to connect to server...");
 					}

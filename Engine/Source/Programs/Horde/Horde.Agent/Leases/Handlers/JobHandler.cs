@@ -182,7 +182,7 @@ namespace Horde.Agent.Leases.Handlers
 			{
 				if (cancellationToken.IsCancellationRequested && ex.IsCancellationException())
 				{
-					if (session.GrpcChannel.State == ConnectivityState.TransientFailure)
+					if (session.ConnectivityState == ConnectivityState.TransientFailure)
 					{
 						logger.LogError(ex, "Connection to the server was lost; step aborted.");
 					}
@@ -361,7 +361,7 @@ namespace Horde.Agent.Leases.Handlers
 			{
 				if (cancellationToken.IsCancellationRequested && ex.IsCancellationException())
 				{
-					if (session.GrpcChannel.State == ConnectivityState.TransientFailure)
+					if (session.ConnectivityState == ConnectivityState.TransientFailure)
 					{
 						logger.LogError(ex, "Exception while executing batch: {Ex}", ex);
 					}

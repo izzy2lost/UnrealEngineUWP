@@ -16,16 +16,14 @@ namespace Horde.Agent.Leases.Handlers
 {
 	class ConformHandler : LeaseHandler<ConformTask>
 	{
-		readonly AgentSettings _agentSettings;
 		readonly DriverSettings _driverSettings;
 		readonly IServerLoggerFactory _serverLoggerFactory;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ConformHandler(IOptions<AgentSettings> agentSettings, IOptions<DriverSettings> driverSettings, IServerLoggerFactory serverLoggerFactory)
+		public ConformHandler(IOptions<DriverSettings> driverSettings, IServerLoggerFactory serverLoggerFactory)
 		{
-			_agentSettings = agentSettings.Value;
 			_driverSettings = driverSettings.Value;
 			_serverLoggerFactory = serverLoggerFactory;
 		}
