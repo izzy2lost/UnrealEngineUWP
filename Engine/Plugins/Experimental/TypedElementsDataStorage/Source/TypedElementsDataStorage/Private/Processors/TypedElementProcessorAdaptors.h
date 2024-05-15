@@ -48,6 +48,7 @@ struct FTypedElementQueryProcessorData
 		TArrayView<FMassEntityQuery> Subqueries);
 	static EMassProcessingPhase MapToMassProcessingPhase(ITypedElementDataStorageInterface::EQueryTickPhase Phase);
 	FString GetProcessorName() const;
+	void DebugOutputDescription(FOutputDevice& Ar, int32 Indent) const;
 
 	static TypedElementDataStorage::FQueryResult Execute(
 		TypedElementDataStorage::DirectQueryCallbackRef& Callback,
@@ -75,7 +76,6 @@ struct FTypedElementQueryProcessorData
 	static bool PrepareCachedDependenciesOnQuery(
 		ITypedElementDataStorageInterface::FQueryDescription& Description, FMassExecutionContext& Context);
 
-	
 	FTypedElementExtendedQueryStore::Handle ParentQuery;
 	FTypedElementExtendedQueryStore* QueryStore{ nullptr };
 	FTypedElementDatabaseEnvironment* Environment{ nullptr };
@@ -114,6 +114,7 @@ protected:
 	
 	void PostInitProperties() override;
 	FString GetProcessorName() const override;
+	void DebugOutputDescription(FOutputDevice& Ar, int32 Indent) const override;
 
 private:
 	UPROPERTY(transient)
@@ -296,6 +297,7 @@ protected:
 	void PostInitProperties() override;
 	void Register() override;
 	FString GetProcessorName() const override;
+	void DebugOutputDescription(FOutputDevice& Ar, int32 Indent) const override;
 
 private:
 	UPROPERTY(transient)

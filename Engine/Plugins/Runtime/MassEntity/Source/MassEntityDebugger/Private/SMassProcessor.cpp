@@ -36,6 +36,22 @@ void SMassProcessor::Construct(const FArguments& InArgs, TSharedPtr<FMassDebugge
 			.TextStyle(FAppStyle::Get(), "LargeText")
 		]
 	];
+
+#if WITH_MASSENTITY_DEBUG
+	if (!ProcessorData->Description.IsEmpty())
+	{
+		Box->AddSlot()
+		.AutoHeight()
+		[
+			SNew(SBorder)
+			.Padding(10.0f)
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(ProcessorData->Description))
+			]
+		];
+	}
+#endif //WITH_MASSENTITY_DEBUG
 	
 	if (ProcessorData->ProcessorRequirements->IsEmpty())
 	{

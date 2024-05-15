@@ -167,6 +167,15 @@ void FMassDebuggerProcessorData::SetProcessor(const UMassProcessor& InProcessor)
 	UE::Mass::Debugger::Private::MakeDisplayName(Name, Label);
 
 	ProcessorHash = UE::Mass::Debugger::Private::CalcProcessorHash(InProcessor);
+
+#if WITH_MASSENTITY_DEBUG
+	FStringOutputDevice DescriptionDevice;
+	InProcessor.DebugOutputDescription(DescriptionDevice);
+	if (DescriptionDevice != InProcessor.GetProcessorName())
+	{
+		Description = MoveTemp(DescriptionDevice);
+	}
+#endif // WITH_MASSENTITY_DEBUG
 }
 
 //----------------------------------------------------------------------//

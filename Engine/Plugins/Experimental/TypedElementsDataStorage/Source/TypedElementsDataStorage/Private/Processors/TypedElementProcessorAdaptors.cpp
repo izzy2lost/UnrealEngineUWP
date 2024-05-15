@@ -674,6 +674,7 @@ void FPhasePreOrPostAmbleExecutor::ExecuteQuery(
 /**
  * FTypedElementQueryProcessorData
  */
+
 FTypedElementQueryProcessorData::FTypedElementQueryProcessorData(UMassProcessor& Owner)
 	: NativeQuery(Owner)
 {
@@ -743,22 +744,60 @@ EMassProcessingPhase FTypedElementQueryProcessorData::MapToMassProcessingPhase(I
 
 FString FTypedElementQueryProcessorData::GetProcessorName() const
 {
-	FString Result;
 	if (const FTypedElementExtendedQuery* StoredQuery = QueryStore ? QueryStore->Get(ParentQuery) : nullptr)
 	{
-		Result = StoredQuery->Description.Callback.Name.ToString();
-		if (!StoredQuery->Description.Callback.ActivationName.IsNone())
-		{
-			Result += TEXT(" (Activatable: '");
-			StoredQuery->Description.Callback.ActivationName.AppendString(Result);
-			Result += TEXT("')");
-		}
+		return StoredQuery->Description.Callback.Name.ToString();
 	}
 	else
 	{
-		Result = TEXT("<unnamed>");
+		return TEXT("<unnamed>");
 	}
-	return Result;
+}
+
+void FTypedElementQueryProcessorData::DebugOutputDescription(FOutputDevice& Ar, int32 Indent) const
+{
+#if WITH_MASSENTITY_DEBUG
+	if (const FTypedElementExtendedQuery* StoredQuery = QueryStore ? QueryStore->Get(ParentQuery) : nullptr)
+	{
+		const ITypedElementDataStorageInterface::FQueryDescription& Description = StoredQuery->Description;
+		const ITypedElementDataStorageInterface::FQueryDescription::FCallbackData& Callback = Description.Callback;
+		
+		if (!Callback.Group.IsNone())
+		{
+			Ar.Logf(TEXT("\n%*sGroup: %s"), Indent, TEXT(""), *Callback.Group.ToString());
+		}
+		if (!Callback.BeforeGroups.IsEmpty())
+		{
+			Ar.Logf(TEXT("\n%*sBefore:"), Indent, TEXT(""));
+			int32 Index = 0;
+			for (FName BeforeName : Callback.BeforeGroups)
+			{
+				Ar.Logf(TEXT("\n%*s[%i] %s"), Indent + 4, TEXT(""), Index++, *BeforeName.ToString());
+			}
+		}
+		if (!Callback.AfterGroups.IsEmpty())
+		{
+			Ar.Logf(TEXT("\n%*sAfter:"), Indent, TEXT(""));
+			int32 Index = 0;
+			for (FName AfterName : Callback.AfterGroups)
+			{
+				Ar.Logf(TEXT("\n%*s[%i] %s"), Indent + 4, TEXT(""), Index++, *AfterName.ToString());
+			}
+		}
+		
+		if (!Callback.ActivationName.IsNone())
+		{
+			Ar.Logf(TEXT("\n%*sActivatable: %s"), Indent, TEXT(""), *Callback.ActivationName.ToString());
+		}
+
+		if (Callback.MonitoredType)
+		{
+			Ar.Logf(TEXT("\n%*sMonitored type: %s"), Indent, TEXT(""), *Callback.MonitoredType->GetName());
+		}
+
+		Ar.Logf(TEXT("\n%*sIs forced to GameThread: %s"), Indent, TEXT(""), Callback.bForceToGameThread ? TEXT("True") : TEXT("False"));
+	}
+#endif // WITH_MASSENTITY_DEBUG
 }
 
 bool FTypedElementQueryProcessorData::PrepareCachedDependenciesOnQuery(
@@ -975,9 +1014,16 @@ void UTypedElementQueryProcessorCallbackAdapterProcessorBase::PostInitProperties
 
 FString UTypedElementQueryProcessorCallbackAdapterProcessorBase::GetProcessorName() const
 {
-	FString Name = Data.GetProcessorName();
-	Name += TEXT(" [Editor Processor]");
-	return Name;
+	return Data.GetProcessorName();
+}
+
+void UTypedElementQueryProcessorCallbackAdapterProcessorBase::DebugOutputDescription(FOutputDevice& Ar, int32 Indent) const
+{
+#if WITH_MASSENTITY_DEBUG
+	UMassProcessor::DebugOutputDescription(Ar, Indent);
+	Ar.Logf(TEXT("\n%*sType: Editor Processor"), Indent, TEXT(""));
+	Data.DebugOutputDescription(Ar, Indent);
+#endif // WITH_MASSENTITY_DEBUG
 }
 
 void UTypedElementQueryProcessorCallbackAdapterProcessorBase::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
@@ -1114,22 +1160,30 @@ void UTypedElementQueryObserverCallbackAdapterProcessorBase::Register()
 
 FString UTypedElementQueryObserverCallbackAdapterProcessorBase::GetProcessorName() const
 {
-	FString Name = Data.GetProcessorName();
+	return Data.GetProcessorName();
+}
+
+void UTypedElementQueryObserverCallbackAdapterProcessorBase::DebugOutputDescription(FOutputDevice& Ar, int32 Indent) const
+{
+#if WITH_MASSENTITY_DEBUG
+	UMassObserverProcessor::DebugOutputDescription(Ar, Indent);
 	EMassObservedOperation ObservationType = GetObservedOperation();
 	if (ObservationType == EMassObservedOperation::Add)
 	{
-		Name += TEXT(" [Editor Add Observer]");
+		Ar.Logf(TEXT("\n%*sType: Editor Add Observer"), Indent, TEXT(""));
 	}
 	else if (ObservationType == EMassObservedOperation::Remove)
 	{
-		Name += TEXT(" [Editor Remove Observer]");
+		Ar.Logf(TEXT("\n%*sType: Editor Remove Observer"), Indent, TEXT(""));
 	}
 	else
 	{
-		Name += TEXT(" [Editor <Unknown> Observer]");
+		Ar.Logf(TEXT("\n%*sType: Editor <Unknown> Observer"), Indent, TEXT(""));
 	}
-	return Name;
+	Data.DebugOutputDescription(Ar, Indent);
+#endif // WITH_MASSENTITY_DEBUG
 }
+
 
 void UTypedElementQueryObserverCallbackAdapterProcessorBase::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {

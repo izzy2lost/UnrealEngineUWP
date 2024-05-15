@@ -66,9 +66,10 @@ public:
 	UE_DEPRECATED(5.2, "This function is deprecated. Use ShouldAllowDuplicates instead.")
 	bool AllowDuplicates() const { return ShouldAllowMultipleInstances(); }
 
-	virtual void DebugOutputDescription(FOutputDevice& Ar, int32 Indent = 0) const;
+	void DebugOutputDescription(FOutputDevice& Ar) const { DebugOutputDescription(Ar, 0); }
+	virtual void DebugOutputDescription(FOutputDevice& Ar, int32 Indent) const;
 	virtual FString GetProcessorName() const { return GetName(); }
-
+	
 	//----------------------------------------------------------------------//
 	// Ordering functions 
 	//----------------------------------------------------------------------//

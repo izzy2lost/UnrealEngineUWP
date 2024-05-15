@@ -107,7 +107,9 @@ public:
 	TSharedPtr<FMassDebuggerQueryData> ProcessorRequirements;
 	TArray<TSharedPtr<FMassDebuggerQueryData>> Queries;
 	TArray<TSharedPtr<FMassDebuggerArchetypeData>> ValidArchetypes;
-	
+#if WITH_MASSENTITY_DEBUG
+	FString Description;
+#endif // WITH_MASSENTITY_DEBUG	
 	EMassDebuggerProcessorSelection Selection = EMassDebuggerProcessorSelection::None;
 };
 
