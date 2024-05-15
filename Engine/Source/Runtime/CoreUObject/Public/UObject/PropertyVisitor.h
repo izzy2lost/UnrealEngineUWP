@@ -114,6 +114,7 @@ public:
 	}
 
 	COREUOBJECT_API FString ToString(const TCHAR* Separator = TEXT(".")) const;
+	COREUOBJECT_API void ToString(FWideStringBuilderBase& Out, const TCHAR* Separator = TEXT(".")) const;
 
 	/**
 	 * Is this property path contained in the specified one
@@ -121,7 +122,7 @@ public:
 	 * @param bIsEqual optional parameter to know if it fully match
 	 * @return true if it is contained in the specified path
 	 */
-	COREUOBJECT_API bool Contained(const FPropertyVisitorPath& OtherPath, bool* bIsEqual) const;
+	COREUOBJECT_API bool Contained(const FPropertyVisitorPath& OtherPath, bool* bIsEqual = nullptr) const;
 
 	/**
 	 * Retrieves the data using the specified root object
@@ -230,5 +231,20 @@ void* ResolveVisitedPathInfo_Generic(Type* This, void* Data, const FPropertyVisi
 	FPropertyVisitorPath Path;
 	return ResolveVisitedPathInfo_Generic(This, Path, Data, Info);
 }
+
+/** Convert the given path to a string */
+COREUOBJECT_API FString PathToString(TArrayView<const FPropertyVisitorInfo> Path, const TCHAR* Separator = TEXT("."));
+COREUOBJECT_API void PathToString(TArrayView<const FPropertyVisitorInfo> Path, FWideStringBuilderBase& Out, const TCHAR* Separator = TEXT("."));
+
+/**
+ * Is this property path contained in the specified one
+ * @param OtherPath property path to check if it is contained in
+ * @param bIsEqual optional parameter to know if it fully match
+ * @return true if it is contained in the specified path
+ */
+COREUOBJECT_API bool PathIsContainedWithin(TArrayView<const FPropertyVisitorInfo> Path, TArrayView<const FPropertyVisitorInfo> OtherPath, bool* bIsEqual = nullptr);
+
+/** Convert the given path to a serialized property chain */
+COREUOBJECT_API FArchiveSerializedPropertyChain PathToSerializedPropertyChain(TArrayView<const FPropertyVisitorInfo> Path);
 
 } // namespace PropertyVisitorHelpers

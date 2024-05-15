@@ -8,7 +8,41 @@
 
 FString FPropertyVisitorPath::ToString(const TCHAR* Separator /*= TEXT(".")*/) const
 {
+	return PropertyVisitorHelpers::PathToString(Path, Separator);
+}
+
+void FPropertyVisitorPath::ToString(FWideStringBuilderBase& Out, const TCHAR* Separator /*= TEXT(".")*/) const
+{
+	PropertyVisitorHelpers::PathToString(Path, Out, Separator);
+}
+
+bool FPropertyVisitorPath::Contained(const FPropertyVisitorPath& Other, bool* bIsEqual) const
+{
+	return PropertyVisitorHelpers::PathIsContainedWithin(Path, Other.Path, bIsEqual);
+}
+
+void* FPropertyVisitorPath::GetPropertyDataPtr(UObject* Object) const
+{
+	checkf(Object, TEXT("Expecting an valid object"));
+	return PropertyVisitorHelpers::ResolveVisitedPath(Object->GetClass(), Object, *this);
+}
+
+FArchiveSerializedPropertyChain FPropertyVisitorPath::ToSerializedPropertyChain() const
+{
+	return PropertyVisitorHelpers::PathToSerializedPropertyChain(Path);
+}
+
+FString PropertyVisitorHelpers::PathToString(TArrayView<const FPropertyVisitorInfo> Path, const TCHAR* Separator)
+{
 	TStringBuilder<FName::StringBufferSize> PropertyPath;
+	PropertyVisitorHelpers::PathToString(Path, PropertyPath, Separator);
+	return PropertyPath.ToString();
+}
+
+void PropertyVisitorHelpers::PathToString(TArrayView<const FPropertyVisitorInfo> Path, FWideStringBuilderBase& Out, const TCHAR* Separator)
+{
+	Out.Reset();
+
 	bool bFirstEntry = true;
 	for (const FPropertyVisitorInfo& Entry : Path)
 	{
@@ -47,38 +81,36 @@ FString FPropertyVisitorPath::ToString(const TCHAR* Separator /*= TEXT(".")*/) c
 			}
 			else
 			{
-				PropertyPath.Append(Separator);
+				Out.Append(Separator);
 			}
-			PropertyPath.Append(Entry.Property->GetAuthoredName());
+			Out.Append(Entry.Property->GetAuthoredName());
 		}
 		if (bDisplayIndex)
 		{
 			checkf(Entry.Index != INDEX_NONE, TEXT("Expecting the index to be valid"));
-			PropertyPath.Appendf(TEXT("[%d]"), Entry.Index);
+			Out.Appendf(TEXT("[%d]"), Entry.Index);
 		}
 		if (Suffix.Len())
 		{
-			PropertyPath.Append(Separator);
-			PropertyPath.Append(Suffix);
+			Out.Append(Separator);
+			Out.Append(Suffix);
 		}
 	}
-
-	return PropertyPath.ToString();
 }
 
-bool FPropertyVisitorPath::Contained(const FPropertyVisitorPath& Other, bool* bIsEqual) const
+bool PropertyVisitorHelpers::PathIsContainedWithin(TArrayView<const FPropertyVisitorInfo> Path, TArrayView<const FPropertyVisitorInfo> OtherPath, bool* bIsEqual)
 {
 	int32 i;
 	for (i = 0; i < Path.Num(); ++i)
 	{
-		if (i >= Other.Path.Num())
+		if (i >= OtherPath.Num())
 		{
 			// The other path is smaller than this one, so not contained in
 			break;
 		}
 
 		const FPropertyVisitorInfo& PathInfo = Path[i];
-		const FPropertyVisitorInfo& OtherPathInfo = Other.Path[i];
+		const FPropertyVisitorInfo& OtherPathInfo = OtherPath[i];
 
 		if (PathInfo.Property != OtherPathInfo.Property)
 		{
@@ -102,18 +134,12 @@ bool FPropertyVisitorPath::Contained(const FPropertyVisitorPath& Other, bool* bI
 	}
 	if (bIsEqual)
 	{
-		*bIsEqual = i == Other.Path.Num();
+		*bIsEqual = i == OtherPath.Num();
 	}
 	return i == Path.Num();
 }
 
-void* FPropertyVisitorPath::GetPropertyDataPtr(UObject* Object) const
-{
-	checkf(Object, TEXT("Expecting an valid object"));
-	return PropertyVisitorHelpers::ResolveVisitedPath(Object->GetClass(), Object, *this);
-}
-
-FArchiveSerializedPropertyChain FPropertyVisitorPath::ToSerializedPropertyChain() const
+FArchiveSerializedPropertyChain PropertyVisitorHelpers::PathToSerializedPropertyChain(TArrayView<const FPropertyVisitorInfo> Path)
 {
 	FArchiveSerializedPropertyChain Chain;
 	for (const FPropertyVisitorInfo& Info : Path)
