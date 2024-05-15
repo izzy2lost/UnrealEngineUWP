@@ -151,7 +151,8 @@ public:
 	}
 
 	COREUOBJECT_API FString ToString(const TCHAR* Separator = TEXT(".")) const;
-	COREUOBJECT_API void ToString(FWideStringBuilderBase& Out, const TCHAR* Separator = TEXT(".")) const;
+	COREUOBJECT_API void ToString(FStringBuilderBase& Out, const TCHAR* Separator = TEXT(".")) const;
+	COREUOBJECT_API void AppendString(FStringBuilderBase& Out, const TCHAR* Separator = TEXT(".")) const;
 
 	/**
 	 * Is this property path contained in the specified one
@@ -271,7 +272,8 @@ void* ResolveVisitedPathInfo_Generic(Type* This, void* Data, const FPropertyVisi
 
 /** Convert the given path to a string */
 COREUOBJECT_API FString PathToString(TArrayView<const FPropertyVisitorInfo> Path, const TCHAR* Separator = TEXT("."));
-COREUOBJECT_API void PathToString(TArrayView<const FPropertyVisitorInfo> Path, FWideStringBuilderBase& Out, const TCHAR* Separator = TEXT("."));
+COREUOBJECT_API void PathToString(TArrayView<const FPropertyVisitorInfo> Path, FStringBuilderBase& Out, const TCHAR* Separator = TEXT("."));
+COREUOBJECT_API void PathAppendString(TArrayView<const FPropertyVisitorInfo> Path, FStringBuilderBase& Out, const TCHAR* Separator = TEXT("."));
 
 /**
  * Is this property path contained in the specified one

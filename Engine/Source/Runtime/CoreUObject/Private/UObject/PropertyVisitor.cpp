@@ -20,9 +20,14 @@ FString FPropertyVisitorPath::ToString(const TCHAR* Separator /*= TEXT(".")*/) c
 	return PropertyVisitorHelpers::PathToString(Path, Separator);
 }
 
-void FPropertyVisitorPath::ToString(FWideStringBuilderBase& Out, const TCHAR* Separator /*= TEXT(".")*/) const
+void FPropertyVisitorPath::ToString(FStringBuilderBase& Out, const TCHAR* Separator /*= TEXT(".")*/) const
 {
 	PropertyVisitorHelpers::PathToString(Path, Out, Separator);
+}
+
+void FPropertyVisitorPath::AppendString(FStringBuilderBase& Out, const TCHAR* Separator /*= TEXT(".")*/) const
+{
+	PropertyVisitorHelpers::PathAppendString(Path, Out, Separator);
 }
 
 bool FPropertyVisitorPath::Contained(const FPropertyVisitorPath& Other, bool* bIsEqual) const
@@ -44,14 +49,18 @@ FArchiveSerializedPropertyChain FPropertyVisitorPath::ToSerializedPropertyChain(
 FString PropertyVisitorHelpers::PathToString(TArrayView<const FPropertyVisitorInfo> Path, const TCHAR* Separator)
 {
 	TStringBuilder<FName::StringBufferSize> PropertyPath;
-	PropertyVisitorHelpers::PathToString(Path, PropertyPath, Separator);
+	PathAppendString(Path, PropertyPath, Separator);
 	return PropertyPath.ToString();
 }
 
-void PropertyVisitorHelpers::PathToString(TArrayView<const FPropertyVisitorInfo> Path, FWideStringBuilderBase& Out, const TCHAR* Separator)
+void PropertyVisitorHelpers::PathToString(TArrayView<const FPropertyVisitorInfo> Path, FStringBuilderBase& Out, const TCHAR* Separator)
 {
 	Out.Reset();
+	PathAppendString(Path, Out, Separator);
+}
 
+void PropertyVisitorHelpers::PathAppendString(TArrayView<const FPropertyVisitorInfo> Path, FStringBuilderBase& Out, const TCHAR* Separator)
+{
 	bool bFirstEntry = true;
 	for (const FPropertyVisitorInfo& Entry : Path)
 	{
