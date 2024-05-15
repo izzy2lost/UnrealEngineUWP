@@ -8,15 +8,16 @@
 
 namespace PlainProps 
 {
-
+	
+class FCustomBindings;
 class FDeclarations;
 struct FLoadBatch;
 class FRangeBinding;
-class FStructBindings;
+class FSchemaBindings;
 struct FTypedRange;
 
 
-PP_API FLoadBatch* CreateLoadPlans(FReadBatchId ReadId, const FDeclarations& Declarations, const FStructBindings& Bindings, TConstArrayView<FStructSchemaId> RuntimeIds);
+PP_API FLoadBatch* CreateLoadPlans(FReadBatchId ReadId, const FDeclarations& Declarations, const FCustomBindings& Customs, const FSchemaBindings& Schemas, TConstArrayView<FStructSchemaId> RuntimeIds);
 PP_API void DestroyLoadPlans(FLoadBatch* Batch);
 PP_API void LoadStruct(uint8* Dst, FByteReader Src, FStructSchemaId Id, const FLoadBatch& Batch);
 PP_API void LoadStruct(uint8* Dst, FStructView Src, const FLoadBatch& Batch);

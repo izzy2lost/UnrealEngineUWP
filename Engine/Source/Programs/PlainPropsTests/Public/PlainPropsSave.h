@@ -9,14 +9,15 @@ namespace PlainProps
 {
 
 struct FBuiltStruct;
+class FCustomBindings;
 class FDeclarations;
-class FStructBindings;
+class FSchemaBindings;
 
 struct FSaveContext
 {
-	const FDeclarations& Declarations;
-	const FStructBindings& Bindings;
-	const FDebugIds& Debug;
+	const FDeclarations&		Declarations;
+	const FSchemaBindings&		Schemas;
+	FCustomBindings&			Customs;
 };
 
 [[nodiscard]] TUniquePtr<FBuiltStruct> SaveStruct(const uint8* Struct, FStructSchemaId Id, const FSaveContext& Context);

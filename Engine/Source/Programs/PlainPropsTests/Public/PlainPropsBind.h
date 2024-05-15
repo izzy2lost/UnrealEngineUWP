@@ -93,23 +93,22 @@ union FMemberBindType
 	constexpr explicit FMemberBindType(ERangeSizeType MaxSize) : Range({EMemberKind::Range, MaxSize}) {}
 	constexpr explicit FMemberBindType(FStructType In) : Struct(In) {}
 	
-	bool				IsLeaf() const			{ return Kind == EMemberKind::Leaf; }
-	bool				IsRange() const			{ return Kind == EMemberKind::Range; }
-	bool				IsStruct() const		{ return Kind == EMemberKind::Struct; }
-	EMemberKind			GetKind() const			{ return Kind; }
+	bool					IsLeaf() const		{ return Kind == EMemberKind::Leaf; }
+	bool					IsRange() const		{ return Kind == EMemberKind::Range; }
+	bool					IsStruct() const	{ return Kind == EMemberKind::Struct; }
+	EMemberKind				GetKind() const		{ return Kind; }
 	
-	FLeafBindType		AsLeaf() const			{ check(IsLeaf());		return Leaf; }
-	FRangeBindType		AsRange() const			{ check(IsRange());		return Range; }
-	FStructBindType		AsStruct() const		{ check(IsStruct());	return Struct; }
-	uint8				AsByte() const			{ return BitCast<uint8>(*this); }
+	FLeafBindType			AsLeaf() const		{ check(IsLeaf());		return Leaf; }
+	FRangeBindType			AsRange() const		{ check(IsRange());		return Range; }
+	FStructBindType			AsStruct() const	{ check(IsStruct());	return Struct; }
+	uint8					AsByte() const		{ return BitCast<uint8>(*this); }
 
 	friend inline bool operator==(FMemberBindType A, FMemberBindType B) { return A.AsByte() == B.AsByte(); }
-
 private:
-    EMemberKind			Kind : 2;
-	FLeafBindType		Leaf;
-    FRangeBindType		Range;
-    FStructBindType		Struct;
+    EMemberKind				Kind : 2;
+	FLeafBindType			Leaf;
+    FRangeBindType			Range;
+    FStructBindType			Struct;
 };
 
 static_assert(sizeof(FMemberBindType) == 1);
@@ -117,7 +116,7 @@ static_assert(sizeof(FMemberBindType) == 1);
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Members are loaded in saved FStructSchema order, not current offset order unless upgrade layer reorders
-struct FStructSchemaBinding
+struct FSchemaBinding
 {
 	uint16					NumMembers;
 	uint16					NumInnerSchemas;
@@ -139,13 +138,13 @@ struct FUnpackedLeafBindType
 	ELeafBindType			Type;
 	union
 	{
-		ELeafWidth				Width;
-		uint8					BitfieldIdx;
+		ELeafWidth			Width;
+		uint8				BitfieldIdx;
 	};
 	
 	//constexpr FUnpackedLeafBindType(ELeafBindType InType, ELeafWidth InWidth) : Type(InType), Width(InWidth) {}
 	constexpr FUnpackedLeafBindType(FLeafBindType In)
-		: Type(In.Bind.Type)
+	: Type(In.Bind.Type)
 	{
 		if (Type == ELeafBindType::BitfieldBool)
 		{
@@ -191,7 +190,8 @@ struct FStructMemberBinding
 class FMemberVisitor
 {
 public:
-	explicit FMemberVisitor(const FStructSchemaBinding& InSchema);
+	explicit FMemberVisitor(const FSchemaBinding& InSchema);
+
 	bool						HasMore() const			{ return MemberIdx < NumMembers; }
 	uint16						GetIndex() const		{ return MemberIdx; }
 	
@@ -204,7 +204,7 @@ public:
 	void						SkipMember();
 
 protected: // for unit tests
-	const FStructSchemaBinding& Schema;
+	const FSchemaBinding&		Schema;
 	const uint16				NumMembers;
 	uint16						MemberIdx = 0;
 	uint16						InnerRangeIdx = 0;		// Types of [nested] ranges
@@ -224,44 +224,37 @@ protected: // for unit tests
 
 enum ECustomLoadMethod { Construct, Assign };
 
-class ICustomStructBinding
+class ICustomBinding
 {
 public:
-	virtual void			LoadStruct(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const = 0;
-	virtual void			SaveStruct(FMemberBuilder& Dst, const void* Src, void* UserData, const FDebugIds& Debug) const = 0;
+	virtual ~ICustomBinding() {}
+	virtual void				SaveStruct(FMemberBuilder& Dst, const void* Src, void* UserData, const FDebugIds& Debug) = 0;
+	virtual void				LoadStruct(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const = 0;
 };
 
-class FStructBinding
+class FCustomBindings
 {
 public:
-	explicit FStructBinding(const FStructSchemaBinding& Schema) : Handle(uint64(&Schema) | SchemaBit) {}
-	explicit FStructBinding(const ICustomStructBinding& Custom) : Handle(uint64(&Custom)) {}
-	
-	bool						IsSchema() const		{ return Handle & SchemaBit; }
-	bool						IsCustom() const		{ return !IsSchema(); }
-	const FStructSchemaBinding&	AsSchema() const		{ check(IsSchema()); return *static_cast<FStructSchemaBinding*>(AsPtr()); }
-	const ICustomStructBinding&	AsCustom() const		{ check(IsCustom()); return *static_cast<ICustomStructBinding*>(AsPtr()); }
+	UE_NONCOPYABLE(FCustomBindings);
+	explicit FCustomBindings(const FDebugIds& In) : Debug(In) {}
+
+	// @param Binding must outlive this or call DropStruct()
+	void						BindStruct(FStructSchemaId Id, ICustomBinding& Binding);
+	ICustomBinding*				FindStruct(FStructSchemaId Id)								{ return Find(Id); }
+	const ICustomBinding*		FindStruct(FStructSchemaId Id) const						{ return Find(Id); }
+	void						DropStruct(FStructSchemaId Id);
 
 private:
-	static constexpr uint64 SchemaBit = 1;
-	uint64 Handle;
+	ICustomBinding*				Find(FStructSchemaId Id) const;
 
-	friend class FStructBindingOwner;
-	explicit FStructBinding(uint64 InHandle) : Handle(InHandle) {}
-	void*						AsPtr() const			{ return reinterpret_cast<void*>(Handle & ~SchemaBit); }
-};
+	struct FEntry
+	{
+		FStructSchemaId	Id;
+		ICustomBinding* Binding;
+	};
 
-class FStructBindingOwner
-{
-	uint64 Handle = 0;
-public:
-	UE_NONCOPYABLE(FStructBindingOwner);
-	FStructBindingOwner() = default;
-	~FStructBindingOwner();
-	explicit					operator bool() const	{ return Handle != 0; }
-	FStructBinding				Get() const;
-	void						ResetOwned();
-	void						TakeOwnership(FStructBinding Binding);
+	TArray<FEntry, TInlineAllocator<8>>		Entries;
+	const FDebugIds&						Debug;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -434,23 +427,20 @@ struct FMemberBinding
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FStructBindings
+class FSchemaBindings
 {
 public:
-	UE_NONCOPYABLE(FStructBindings);
-	explicit FStructBindings(const FDebugIds& In) : Debug(In) {}
-	~FStructBindings();
+	UE_NONCOPYABLE(FSchemaBindings);
+	explicit FSchemaBindings(const FDebugIds& In) : Debug(In) {}
+	~FSchemaBindings();
 
-	void							BindStruct(FStructSchemaId Id, const ICustomStructBinding& Custom);
-	void							BindStruct(FStructSchemaId Id, TConstArrayView<FMemberBinding> Schema);
-	FStructBinding					Get(FStructSchemaId Id) const;
-	void							DropStruct(FStructSchemaId Id);
+	void								BindStruct(FStructSchemaId Id, TConstArrayView<FMemberBinding> Schema);
+	const FSchemaBinding&				GetStruct(FStructSchemaId Id) const;
+	void								DropStruct(FStructSchemaId Id);
 
 private:
-	TArray<FStructBindingOwner>		Bindings;
-	const FDebugIds&				Debug;
-
-	void							Bind(FStructSchemaId Id, FStructBinding Binding);
+	TArray<TUniquePtr<FSchemaBinding>>	Bindings;
+	const FDebugIds&					Debug;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -520,11 +510,15 @@ FStructSchemaId BindCustomStructOnce()
 template<class Type, class CustomBinding, class Runtime>
 FMemberBindType BindMemberStruct(FOptionalSchemaId& OutSchema)
 {
-	FStructSchemaId Id	= std::is_void_v<CustomBinding>
-						? IndexNativeStruct<Type, typename Runtime::Ids>()
-						: BindCustomStructOnce<CustomBinding, Runtime>();
+	if constexpr (std::is_void_v<CustomBinding>)
+	{
+		OutSchema = FOptionalSchemaId(IndexNativeStruct<Type, typename Runtime::Ids>());
+	}
+	else
+	{
+		OutSchema = FOptionalSchemaId(BindCustomStructOnce<CustomBinding, Runtime>());
+	}
 
-	OutSchema = FOptionalSchemaId(Id);
 	return FMemberBindType(FStructType{EMemberKind::Struct, /* IsDynamic */ 0, /* IsSuper */ 0});
 }
 
@@ -662,28 +656,6 @@ FEnumSchemaId DeclareNativeEnum(FDeclarations& Out, EEnumMode Mode)
 	return Id;
 }
 
-//
-//template<class Ctti, class Rttis>
-//FStructSchemaId BindNativeStruct(FDeclarations& Runtime, EMemberPresence Occupancy)
-//{
-//	using Ids = typename Rttis::IdsType;
-//	FTypeId Type = Ids::IndexNativeType(Ctti::Name);
-//
-//	FMemberBinding MemberBindings[Ctti::NumVars];
-//	FMemberId MemberIds[Ctti::NumVars];
-//	ForEachVar<Ctti>([&]<class Var>()
-//	{ 
-//		MemberIds[Var::Index] = Ids::IndexMember(Var::Name);
-//		MemberBindings[Var::Index] = BindMember<Var, Rttis>();
-//	});
-//
-//	FOptionalSchemaId SuperId = !std::is_void_v<Ctti::Super> ? IndexNativeStruct<Ctti::Super, Ids>() : NoId;
-//	FStructSchemaId Id = Runtime.DeclareStruct(Type, SuperId, MemberIds, Occupancy);
-//	Runtime.BindStruct(Id, MemberBindings);
-//	return Id;
-//}
-
-
 template<class Ctti, class Ids>
 FStructSchemaId DeclareNativeStruct(FDeclarations& Out, EMemberPresence Occupancy)
 {
@@ -701,7 +673,7 @@ FStructSchemaId DeclareNativeStruct(FDeclarations& Out, EMemberPresence Occupanc
 }
 
 template<class Ctti, class Runtime>
-void BindNativeStruct(FStructBindings& Out, FStructSchemaId DeclaredId)
+void BindNativeStruct(FSchemaBindings& Out, FStructSchemaId DeclaredId)
 {
 	FMemberBinding MemberBindings[Ctti::NumVars];
 	ForEachVar<Ctti>([&]<class Var>()
@@ -715,7 +687,7 @@ void BindNativeStruct(FStructBindings& Out, FStructSchemaId DeclaredId)
 
 struct FMemberBinder
 {
-	FMemberBinder(FStructSchemaBinding& InSchema)
+	FMemberBinder(FSchemaBinding& InSchema)
 	: Schema(InSchema)
 	, MemberIt(Schema.Members)
 	, RangeTypeIt(const_cast<FMemberBindType*>(Schema.GetInnerRangeTypes()))
@@ -758,7 +730,7 @@ struct FMemberBinder
 		*InnerSchemaIt++ = InnermostSchema;
 	}
 
-	FStructSchemaBinding& Schema;
+	FSchemaBinding& Schema;
 	FMemberBindType* MemberIt;
 	FMemberBindType* RangeTypeIt;
 	uint32* OffsetIt;

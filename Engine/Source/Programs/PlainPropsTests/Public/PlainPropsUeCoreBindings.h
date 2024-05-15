@@ -15,6 +15,10 @@ namespace PlainProps
 	void AppendString(FString& Out, const FName& Name) { Name.AppendString(Out); }
 }
 
+// Todo: PP_NAME_STRUCT(, FName);
+struct FName_Ctti { static constexpr char Name[] = "FName"; };
+FName_Ctti CttiOfPtr(FName*);
+
 namespace PlainProps::UE
 {
 
@@ -31,7 +35,7 @@ namespace PlainProps::UE
 
 	//template<typename Ctti>
 	//FStructSchemaId			BindStructInterlaced(TConstArrayView<FMemberBinding> NonCttiMembers);
-	//FStructSchemaId			BindStruct(FStructSchemaId Id, const ICustomStructBinding& Custom);
+	//FStructSchemaId			BindStruct(FStructSchemaId Id, const ICustomBinding& Custom);
 	//FStructSchemaId			BindStruct(FTypeId Type, FOptionalSchemaId Super, TConstArrayView<FNamedMemberBinding> Members, EMemberPresence Occupancy);
 	//void					DropStruct(FStructSchemaId Id) { Types.DropStruct(Id); }
 
@@ -301,7 +305,7 @@ struct FSetOps
 };
 
 template <class Ids, typename T>
-struct TSetDeltaBinding : public ICustomStructBinding
+struct TSetDeltaBinding : public ICustomBinding
 {
 	using Type = TSet<T>;
 	static constexpr EMemberPresence Occupancy = EMemberPresence::AllowSparse;
@@ -422,7 +426,7 @@ struct TSetDeltaBinding : public ICustomStructBinding
 //	};
 //
 //template <typename... Ts>
-//struct TVariantBinding : public ICustomStructBinding
+//struct TVariantBinding : public ICustomBinding
 //{
 //	using VariantType = TVariant<Ts...>;
 //

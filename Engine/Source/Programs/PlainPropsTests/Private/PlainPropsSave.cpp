@@ -323,7 +323,6 @@ template<class SaverType, typename InnerContextType>
 	return { FMemberType(Member.RangeBindings[0].GetSizeType()), Member.InnermostSchema, ToMemberTypes(Member.InnerTypes) };
 }
 
-
 static void SaveMember(FMemberBuilder& Out, const uint8* Struct, FMemberId Name, const FSaveContext& Ctx, FLeafMemberBinding Member)
 {
 	FUnpackedLeafType Type = { ToLeafType(Member.Leaf.Type), Member.Leaf.Width };
@@ -342,15 +341,14 @@ static void SaveMember(FMemberBuilder& Out, const uint8* Struct, FMemberId Name,
 
 TUniquePtr<FBuiltStruct> SaveStruct(const uint8* Struct, FStructSchemaId Id, const FSaveContext& Ctx)
 {
-	FStructBinding Binding = Ctx.Bindings.Get(Id);
 	const FStructDeclaration& Declaration = Ctx.Declarations.Get(Id);
-	FMemberBuilder Out;
 
-	if (Binding.IsCustom())
+	FMemberBuilder Out;
+	if (ICustomBinding* Custom = Ctx.Customs.FindStruct(Id))
 	{
-		Binding.AsCustom().SaveStruct(Out, Struct, nullptr, Ctx.Debug);
+		Custom->SaveStruct(Out, Struct, nullptr, Ctx.Declarations.GetDebug());
 	}
-	else for (FMemberVisitor It(Binding.AsSchema()); It.HasMore(); )
+	else for (FMemberVisitor It(Ctx.Schemas.GetStruct(Id)); It.HasMore(); )
 	{
 		FMemberId Name = Declaration.GetMemberOrder()[It.GetIndex()];
 		switch (It.PeekKind())
@@ -361,7 +359,7 @@ TUniquePtr<FBuiltStruct> SaveStruct(const uint8* Struct, FStructSchemaId Id, con
 		}
 	}
 	
-	return Out.BuildAndReset(Declaration, Ctx.Debug);
+	return Out.BuildAndReset(Declaration, Ctx.Declarations.GetDebug());
 }
 
 } // namespace PlainProps

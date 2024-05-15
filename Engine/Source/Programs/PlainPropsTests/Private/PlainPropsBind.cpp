@@ -19,9 +19,9 @@ static_assert((uint8)ELeafType::Unicode		== (uint8)ELeafBindType::Unicode);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-uint32 FStructSchemaBinding::CalculateSize() const
+uint32 FSchemaBinding::CalculateSize() const
 {
-	uint32 Out = sizeof(FStructSchemaBinding) + (NumMembers + NumInnerRanges) * sizeof(FMemberBindType);
+	uint32 Out = sizeof(FSchemaBinding) + (NumMembers + NumInnerRanges) * sizeof(FMemberBindType);
 	Out = Align(Out + NumMembers * sizeof(uint32), sizeof(uint32));
 	Out = Align(Out + NumInnerSchemas * sizeof(FSchemaId), sizeof(FSchemaId));
 	Out = Align(Out + NumInnerRanges * sizeof(FRangeBinding), sizeof(FRangeBinding));
@@ -30,7 +30,7 @@ uint32 FStructSchemaBinding::CalculateSize() const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-FMemberVisitor::FMemberVisitor(const FStructSchemaBinding& InSchema)
+FMemberVisitor::FMemberVisitor(const FSchemaBinding& InSchema)
 : Schema(InSchema)
 , NumMembers(InSchema.NumMembers)
 {}
@@ -122,44 +122,43 @@ FRangeBinding::FRangeBinding(const IRangeBinding& Binding, ERangeSizeType SizeTy
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-FStructBindingOwner::~FStructBindingOwner()
+void FCustomBindings::BindStruct(FStructSchemaId Id, ICustomBinding& Binding)
 {
-	if (Handle & FStructBinding::SchemaBit)
+	checkf(!Find(Id), TEXT("'%s' already bound"), *Debug.Print(Id));
+	Entries.Emplace(Id, &Binding);
+}
+
+void FCustomBindings::DropStruct(FStructSchemaId Id)
+{
+	for (FEntry& Entry : Entries)
 	{
-		FMemory::Free(Get().AsPtr());
+		if (Entry.Id == Id)
+		{
+			Entries.RemoveAtSwap(&Entry - Entries.GetData(), EAllowShrinking::No);
+			return;
+		}
 	}
+	
+	checkf(false, TEXT("'%s' unbound"), *Debug.Print(Id));
 }
 
-FStructBinding FStructBindingOwner::Get() const
+ICustomBinding*	FCustomBindings::Find(FStructSchemaId Id) const
 {
-	check(*this);
-	return FStructBinding(Handle);
-}
-
-void FStructBindingOwner::ResetOwned()
-{
-	check(*this);
-	if (Handle & FStructBinding::SchemaBit)
+	for (const FEntry& Entry : Entries)
 	{
-		FMemory::Free(Get().AsPtr());
+		if (Entry.Id == Id)
+		{
+			return Entry.Binding;
+		}
 	}
-	Handle = 0;
+
+	return nullptr;
 }
 
-void FStructBindingOwner::TakeOwnership(FStructBinding Binding)
-{
-	check(!*this);
-	Handle = Binding.Handle;
-	check(*this);
-}
+////////////////////////////////////////////////////////////////////////////////////////////////
 
-FStructBindings::~FStructBindings()
+FSchemaBindings::~FSchemaBindings()
 {}
-
-void FStructBindings::BindStruct(FStructSchemaId Id, const ICustomStructBinding& Custom)
-{
-	Bind(Id, FStructBinding(Custom));
-}
 
 static uint16 CountInnerSchemas(TConstArrayView<FMemberBinding> Members)
 {
@@ -181,11 +180,11 @@ static uint16 CountRanges(TConstArrayView<FMemberBinding> Members)
 	return IntCastChecked<uint16>(Out);
 }
 
-void FStructBindings::BindStruct(FStructSchemaId Id, TConstArrayView<FMemberBinding> Members)
+void FSchemaBindings::BindStruct(FStructSchemaId Id, TConstArrayView<FMemberBinding> Members)
 {
 	// Make header, allocate and copy header
-	FStructSchemaBinding Header = { IntCastChecked<uint16>(Members.Num()), CountInnerSchemas(Members), CountRanges(Members) };
-	FStructSchemaBinding* Schema = new (FMemory::MallocZeroed(Header.CalculateSize())) FStructSchemaBinding {Header};
+	FSchemaBinding Header = { IntCastChecked<uint16>(Members.Num()), CountInnerSchemas(Members), CountRanges(Members) };
+	FSchemaBinding* Schema = new (FMemory::MallocZeroed(Header.CalculateSize())) FSchemaBinding {Header};
 
 	// Write footer
 	FMemberBinder Footer(*Schema);
@@ -207,32 +206,26 @@ void FStructBindings::BindStruct(FStructSchemaId Id, TConstArrayView<FMemberBind
 		}
 	}
 
-	// Register
-	Bind(Id, FStructBinding(*Schema));
-}
-
-void FStructBindings::Bind(FStructSchemaId Id, FStructBinding Binding)
-{
+	// Bind
 	if (Id.Idx >= static_cast<uint32>(Bindings.Num()))
 	{
 		Bindings.SetNum(Id.Idx + 1);
 	}
-
-	Bindings[Id.Idx].TakeOwnership(Binding);
+	checkf(!Bindings[Id.Idx], TEXT("'%s' already bound"), *Debug.Print(Id));
+	Bindings[Id.Idx].Reset(Schema);
 }
 
-FStructBinding FStructBindings::Get(FStructSchemaId Id) const
+const FSchemaBinding& FSchemaBindings::GetStruct(FStructSchemaId Id) const
 {
 	checkf(Id.Idx < (uint32)Bindings.Num() && Bindings[Id.Idx], TEXT("'%s' is unbound"), *Debug.Print(Id));
-	return Bindings[Id.Idx].Get();
+	return *Bindings[Id.Idx].Get();
 }
 
-void FStructBindings::DropStruct(FStructSchemaId Id)
+void FSchemaBindings::DropStruct(FStructSchemaId Id)
 {
 	checkf(Id.Idx < (uint32)Bindings.Num() && Bindings[Id.Idx], TEXT("'%s' is unbound"), *Debug.Print(Id));
-	Bindings[Id.Idx].ResetOwned();
+	Bindings[Id.Idx].Reset();
 }
-
 
 //////////////////////////////////////////////////////////////////////////
 

@@ -23,7 +23,7 @@ namespace PlainProps::UE::Test
 
 static TIdIndexer<FName>	GNames;
 static FDeclarations		GTypes(/* debug */ GNames);
-static FStructBindings		GBindings(/* debug */ GNames);
+static FSchemaBindings		GSchemas(/* debug */ GNames);
 
 struct FIds
 {
@@ -55,67 +55,130 @@ struct FDefaultRuntime
 	template<class T> using CustomBindings = TCustomBindings<T>;
 
 	static FDeclarations&			GetDeclarations()				{ return GTypes; }
-	static FStructBindings&			GetBindings()					{ return GBindings; }
+	static FSchemaBindings&			GetSchemas()					{ return GSchemas; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-template<class T, class Runtime = FDefaultRuntime>
-struct TScopedStructBinding
-{
-	using Ids = typename Runtime::Ids;
-	using Ctti = CttiOf<T>;
-
-	TScopedStructBinding(EMemberPresence Occupancy = EMemberPresence::AllowSparse)
-	: Id(DeclareNativeStruct<Ctti, Ids>(Runtime::GetDeclarations(), Occupancy))
-	{
-		BindNativeStruct<Ctti, Runtime>(Runtime::GetBindings(), Id);
-	}
-
-	~TScopedStructBinding()
-	{
-		Runtime::GetBindings().DropStruct(Id);
-		Runtime::GetDeclarations().DropStruct(Id);
-	}
-
-	FStructSchemaId Id;
-};
-
 template<typename Enum, EEnumMode Mode, class Runtime = FDefaultRuntime>
-struct TScopedEnumBinding
+struct TScopedEnumDeclaration
 {
 	using Ids = typename Runtime::Ids;
 	using Ctti = CttiOf<Enum>;
 
 	FEnumSchemaId Id;
-	TScopedEnumBinding() : Id(DeclareNativeEnum<Ctti, Ids>(Runtime::GetDeclarations(), Mode)) {}
-	~TScopedEnumBinding() { Runtime::GetDeclarations().DropEnum(Id); }
+	TScopedEnumDeclaration() : Id(DeclareNativeEnum<Ctti, Ids>(Runtime::GetDeclarations(), Mode)) {}
+	~TScopedEnumDeclaration() { Runtime::GetDeclarations().DropEnum(Id); }
+};
+
+template<class T, EMemberPresence Occupancy = EMemberPresence::AllowSparse, class Runtime = FDefaultRuntime>
+struct TScopedStructDeclaration
+{
+	using Ids = typename Runtime::Ids;
+
+	FStructSchemaId Id;
+
+	TScopedStructDeclaration()
+	: Id(DeclareNativeStruct<CttiOf<T>, Ids>(Runtime::GetDeclarations(), Occupancy))
+	{}
+
+	~TScopedStructDeclaration()
+	{
+		Runtime::GetDeclarations().DropStruct(Id);
+	}
+
+	const FStructDeclaration& Get() const
+	{
+		return Runtime::GetDeclarations().Get(Id);
+	}
+};
+
+template<class T, EMemberPresence Occupancy = EMemberPresence::AllowSparse, class Runtime = FDefaultRuntime>
+struct TScopedStructBinding : TScopedStructDeclaration<T, Occupancy, Runtime>
+{
+	using TScopedStructDeclaration<T, Occupancy, Runtime>::Id;
+
+	TScopedStructBinding()
+	{
+		BindNativeStruct<CttiOf<T>, Runtime>(Runtime::GetSchemas(), Id);
+	}
+
+	~TScopedStructBinding()
+	{
+		Runtime::GetSchemas().DropStruct(Id);
+	}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-inline constexpr uint32 Magics[] = { 0xFEEDF00D, 0xABCD1234, 0xDADADAAA, 0x99887766, 0xF0F1F2F3 };
+// Maybe replace with macro, e.g. PP_DECLARE_CUSTOM_DENSE_STRUCT(FIds, FName, void, Idx)
+struct FNameDeclaration 
+{
+	FStructSchemaId		Id;
+	FMemberId			Idx;
+
+	FNameDeclaration(FTypeId Type = FIds::IndexNativeType(CttiOf<FName>::Name))
+	: Id(FIds::IndexStruct(Type))
+	, Idx(FIds::IndexMember("Idx"))
+	{
+		GTypes.DeclareStruct(Id, Type, MakeArrayView(&Idx, 1), EMemberPresence::RequireAll);
+	}
+
+	~FNameDeclaration()
+	{
+		GTypes.DropStruct(Id);
+	}
+};
+
+struct FNameBinding : public ICustomBinding
+{
+	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, void*, const FDebugIds& Debug) override
+	{
+		FSetElementId Idx = Names.Add(*static_cast<const FName*>(Src));
+		Dst.Add(Declaration.Idx, Idx.AsInteger());
+	}
+
+	virtual void LoadStruct(void* Dst, FStructView Src, ECustomLoadMethod, const FLoadBatch&) const override
+	{
+		FSetElementId Idx = FSetElementId::FromInteger(FMemberReader(Src).GrabLeaf().AsS32());
+		*static_cast<FName*>(Dst) = Names.Get(Idx);
+	}
+
+	FNameDeclaration	Declaration;
+	TSet<FName>			Names;
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+inline constexpr uint32 Magics[] = { 0xFEEDF00D, 0xABCD1234, 0xDADADAAA, 0x99887766, 0xF0F1F2F3 , 0x00112233};
 
 class FBatchSaver
 {
 public:
-	explicit FBatchSaver(const FStructBindings& InBindings) : Bindings(InBindings) {}
+	FBatchSaver();
 
 	template<class T>
-	void						Save(T&& Object) { Save(IndexNativeStruct<T, FIds>(), &Object); }
+	void						Save(T&& Object);
 	TArray64<uint8>				Write() const;
 
 private:
-	void						Save(FStructSchemaId Id, const void* Object); 
-
 	using IdBuiltStructPair = TPair<FStructSchemaId, TUniquePtr<FBuiltStruct>>;
 	TArray<IdBuiltStructPair>	SavedObjects;
-	const FStructBindings&		Bindings;
+	FNameBinding				SavedNames;
+	FCustomBindings				Customs;
 };
 
-void FBatchSaver::Save(FStructSchemaId Id, const void* Object)
+FBatchSaver::FBatchSaver()
+: Customs(/* debug */ GNames)
 {
-	SavedObjects.Emplace(Id, SaveStruct(reinterpret_cast<const uint8*>(Object), Id, {GTypes, GBindings, /* debug */ GNames}));
+	Customs.BindStruct(SavedNames.Declaration.Id, SavedNames);
+}
+
+template<class T>
+void FBatchSaver::Save(T&& Object) 
+{
+	FStructSchemaId Id = IndexNativeStruct<T, FIds>();
+	SavedObjects.Emplace(Id, SaveStruct(reinterpret_cast<const uint8*>(&Object), Id, {GTypes, GSchemas, Customs}));
 }
 
 template<typename ArrayType>
@@ -180,6 +243,10 @@ TArray64<uint8> FBatchSaver::Write() const
 	// Write object terminator
 	WriteSkippableSlice(Out, TConstArrayView64<uint8>());
 	WriteU32(Out, Magics[4]);
+	
+	// Write names
+	WriteNumAndArray(Out, SavedNames.Names.Array());
+	WriteU32(Out, Magics[5]);
 		
 	return Out;
 }
@@ -189,13 +256,14 @@ TArray64<uint8> FBatchSaver::Write() const
 class FBatchLoader
 {
 public:
-	FBatchLoader(const FStructBindings& Bindings, FMemoryView Data)
+	FBatchLoader(FMemoryView Data)
+	: Customs(/* debug */ GNames)
 	{
 		// Read ids
 		FByteReader It(Data);
 		CHECK(It.Grab<uint32>() == Magics[0]);
-		SavedNames = GrabNumAndArray<FName>(It);
-		CHECK(SavedNames.Num() != 0);
+		Ids = GrabNumAndArray<FName>(It);
+		CHECK(Ids.Num() != 0);
 		
 		// Read schemas
 		CHECK(It.Grab<uint32>() == Magics[1]);
@@ -205,7 +273,7 @@ public:
 		CHECK(It.Grab<uint32>() == Magics[2]);
 		
 		// Bind saved ids to runtime ids, make new schemas with new ids and mount them
-		FIdTranslator RuntimeIds(GNames, SavedNames, *SavedSchemas);
+		FIdTranslator RuntimeIds(GNames, Ids, *SavedSchemas);
 		FSchemaBatch* LoadSchemas = CreateTranslatedSchemas(*SavedSchemas, RuntimeIds.Translation);
 		FReadBatchId Batch = MountReadSchemas(LoadSchemas);
 
@@ -221,9 +289,14 @@ public:
 		CHECK(It.Grab<uint32>() == Magics[4]);
 		CHECK(!Objects.IsEmpty());
 
+		// Read names and bind custom loader
+		Names.Names.Append(GrabNumAndArray<FName>(It));
+		Customs.BindStruct(Names.Declaration.Id, Names);
+		CHECK(It.Grab<uint32>() == Magics[5]);
+
 		// Finally create load plans
 		TConstArrayView<FStructSchemaId> LoadStructIds = RuntimeIds.Translation.GetStructIds(SavedSchemas->NumStructSchemas);
-		Plans = CreateLoadPlans(Batch, GTypes, Bindings, LoadStructIds);
+		Plans = CreateLoadPlans(Batch, GTypes, Customs, GSchemas, LoadStructIds);
 	}
 
 	~FBatchLoader()
@@ -244,30 +317,26 @@ public:
 	}
 
 private:
-	TConstArrayView<FName> SavedNames;
-	FLoadBatch* Plans;
-	TArray<FStructView> Objects;
-	int32 LoadIdx = 0;
+	TConstArrayView<FName>		Ids;
+	FNameBinding				Names;
+	FCustomBindings				Customs;
+	FLoadBatch*					Plans;
+	TArray<FStructView>			Objects;
+	int32						LoadIdx = 0;
 };
 
 
-static void SaveAndLoad(const FStructBindings& Bindings, void (*Save)(FBatchSaver&), void (*Load)(FBatchLoader&))
+static void TestSaveAndLoad(void (*Save)(FBatchSaver&), void (*Load)(FBatchLoader&))
 {
 	TArray64<uint8> Data;
 	{
-		FBatchSaver Batch(Bindings);
+		FBatchSaver Batch;
 		Save(Batch);
 		Data = Batch.Write();
 	}
 
-	FBatchLoader Batch(Bindings, MakeMemoryView(Data));
+	FBatchLoader Batch(MakeMemoryView(Data));
 	Load(Batch);
-}
-
-template<class Runtime = FDefaultRuntime>
-static void TestSaveAndLoad(void (*Save)(FBatchSaver&), void (*Load)(FBatchLoader&))
-{
-	SaveAndLoad(Runtime::GetBindings(), Save, Load);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -349,6 +418,16 @@ struct FComplexArrays
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FComplexArrays, void, Str, Enums, Misc, Nested);
 static bool operator==(const FComplexArrays& A, const FComplexArrays& B) { return A.Str == B.Str && A.Enums == B.Enums && A.Misc == B.Misc && A.Nested == B.Nested; }
 
+struct FNames
+{
+	FName Name;
+	TArray<FName> Names;
+};
+PP_REFLECT_STRUCT(PlainProps::UE::Test, FNames, void, Name, Names);
+static bool operator==(const FNames& A, const FNames& B) { return A.Name == B.Name && A.Names == B.Names; }
+
+//////////////////////////////////////////////////////////////////////////
+
 struct FUniquePtrs
 {
 	TUniquePtr<bool> Bit;
@@ -388,6 +467,70 @@ TArray<TUniquePtr<T>> MakeTwo(T&& A, T&& B)
 }
 
 //////////////////////////////////////////////////////////////////////////
+//
+//struct FObject
+//{
+//	virtual ~FObject() {}
+//	char Rtti = '\0';
+//	int Id = 0;
+//};
+//
+//struct FObjectReferenceBinding : public ICustomBinding
+//{
+//	using Type = FObject*;
+//
+//	static constexpr EMemberPresence Occupancy = EMemberPresence::RequireAll;
+//
+//	static TConstArrayView<FMemberId> GetMemberIds()
+//	{
+//		static FMemberId Ids[] = {Ids::IndexMember("Type"), Ids::IndexMember("Id")};
+//		return MakeArrayView(Ids, 2);
+//	}
+//
+//	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, void*, const FDebugIds&) const override
+//	{
+//		if (const FObject* Object = reinterpret_cast<const FObject*>(Src))
+//		{
+//			Dst.AddLeaf(GetMemberIds()[0], Object->Rtti);
+//			Dst.AddLeaf(GetMemberIds()[1], Object->Id);
+//		}
+//	}
+//
+//	virtual void LoadStruct(void* Dst, FStructView Src, ECustomLoadMethod, const FLoadBatch&) const override
+//	{
+//		FMemberReader Members(Src);
+//		check(Members.PeekName() == GetMemberIds()[0]);
+//		char Rtti = static_cast<char>(Members.GrabLeaf().AsChar8());
+//		check(Members.PeekName() == GetMemberIds()[1]);
+//		int Id = Members.GrabLeaf().AsS32();
+//		check(!Members.HasMore());
+//
+//	}
+//}
+//
+//PP_REFLECT_STRUCT(PlainProps::UE::Test, FObject, void, Rtti, Sibling);
+//
+//struct FObjectX : public FObject
+//{
+//	FObjectX() { Rtti = 'x'; }
+//	FObject* Sibling = nullptr;
+//};
+//PP_REFLECT_STRUCT(PlainProps::UE::Test, FObjectX, FObject, X);
+//
+//struct FObjectY : public FObject
+//{
+//	FObjectY() { Rtti = 'y'; }
+//	FObject* Sibling = nullptr;
+//};
+//PP_REFLECT_STRUCT(PlainProps::UE::Test, FObjectY, FObject, X);
+//
+//struct FOwner
+//{
+//	TArray<TUniquePtr<FObject>> Objects;
+//};
+//PP_REFLECT_STRUCT(PlainProps::UE::Test, FOwner, void, Objects);
+
+//////////////////////////////////////////////////////////////////////////
 
 TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps::UE::Core", "[Core][PlainProps][SmokeFilter]")
 {
@@ -407,10 +550,10 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 	
 	SECTION("Enum")
 	{
-		TScopedEnumBinding<EFlat1, EEnumMode::Flat> Flat1;
-		TScopedEnumBinding<EFlat2, EEnumMode::Flat> Flat2;
-		TScopedEnumBinding<EFlag1, EEnumMode::Flag> Flag1;
-		TScopedEnumBinding<EFlag2, EEnumMode::Flag> Flag2;
+		TScopedEnumDeclaration<EFlat1, EEnumMode::Flat> Flat1;
+		TScopedEnumDeclaration<EFlat2, EEnumMode::Flat> Flat2;
+		TScopedEnumDeclaration<EFlag1, EEnumMode::Flag> Flag1;
+		TScopedEnumDeclaration<EFlag2, EEnumMode::Flag> Flag2;
 		TScopedStructBinding<FEnums> Int;
 		TestSaveAndLoad(
 			[](FBatchSaver& Batch)
@@ -453,7 +596,7 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 
 	SECTION("TArrayComplex")
 	{
-		TScopedEnumBinding<EFlat1, EEnumMode::Flat> Flat1;
+		TScopedEnumDeclaration<EFlat1, EEnumMode::Flat> Flat1;
 		TScopedStructBinding<FLeafArrays> LeafArrays;
 		TScopedStructBinding<FComplexArrays> ComplexArrays;
 		TestSaveAndLoad(
@@ -486,16 +629,27 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 			});
 	}
 
-	SECTION("FakeReference")
+	SECTION("FName")
+	{
+		TScopedStructBinding<FNames> Names;
+		TestSaveAndLoad(
+			[](FBatchSaver& Batch)
+			{
+				Batch.Save(FNames{ FName("A"), {FName("Y"), FName("A")} });
+			}, 
+			[](FBatchLoader& Batch)
+			{
+				CHECK(Batch.Load<FNames>() == FNames{ FName("A"), {FName("Y"), FName("A")}});
+			});
+	}
+
+	SECTION("Reference")
 	{}
 
 	SECTION("FString")
 	{}
 		
 	SECTION("TSet")
-	{}
-	
-	SECTION("FName")
 	{}
 
 	SECTION("NestedContainer")

@@ -28,14 +28,14 @@ public:
 		check(Memcpy.Offset == AsMemcpy().Offset && Memcpy.Size == AsMemcpy().Size);
 	}
 
-	explicit FLoadStructPlan(const ICustomStructBinding& Custom)
+	explicit FLoadStructPlan(const ICustomBinding& Custom)
 	: Handle(uint64(&Custom) | CustomMask)
 	{
 		check(&Custom == &AsCustom());
 	}
 
 	// @param OffsetWidth Usage unimplemented, store size and offsets as 8/16/32/64-bit 
-	explicit FLoadStructPlan(const FStructSchemaBinding& Schema, ELeafWidth OffsetWidth, bool bSparse)
+	explicit FLoadStructPlan(const FSchemaBinding& Schema, ELeafWidth OffsetWidth, bool bSparse)
 	: Handle(uint64(&Schema) | (uint64(OffsetWidth) << 1) | (uint64(bSparse) << KernelAddressBit) | SchemaMask)
 	{
 		check(&Schema == &AsSchema());
@@ -47,8 +47,8 @@ public:
 	bool						IsMemcpy() const		{ return (Handle & LoMask) == MemcpyMask; }
 	bool						IsCustom() const		{ return (Handle & LoMask) == CustomMask; }
 	FLoadStructMemcpy			AsMemcpy() const		{ check(IsMemcpy()); return { static_cast<uint32>(Handle >> 32), static_cast<uint32>(Handle) >> 1 }; }
-	const ICustomStructBinding&	AsCustom() const		{ check(IsCustom()); return *AsPtr<ICustomStructBinding>(); }
-	const FStructSchemaBinding&	AsSchema() const		{ check(IsSchema()); return *AsPtr<FStructSchemaBinding>(); }
+	const ICustomBinding&		AsCustom() const		{ check(IsCustom()); return *AsPtr<ICustomBinding>(); }
+	const FSchemaBinding&		AsSchema() const		{ check(IsSchema()); return *AsPtr<FSchemaBinding>(); }
 
 private:
 	// This bit is always zero in user mode addresses and most likely won't be used by current or future
@@ -118,7 +118,7 @@ static uint16 CountEnums(const FStructSchema& Schema)
 	return Num;
 }
 
-static bool HasDifferentSupers(const FStructSchema& From, const FStructSchemaBinding& To, TConstArrayView<FStructSchemaId> ToStructIds)
+static bool HasDifferentSupers(const FStructSchema& From, const FSchemaBinding& To, TConstArrayView<FStructSchemaId> ToStructIds)
 {
 	if (From.Inheritance == ESuper::No)
 	{
@@ -182,19 +182,19 @@ static void CopyMemberBinding(/* in-out */ FMemberVisitor& BindIt, /* in-out */ 
 		case EMemberKind::Leaf:		CopyMemberBinding(BindIt.GrabLeaf(), InnerSchemaIt, Out);	break;
 		case EMemberKind::Range:	CopyMemberBinding(BindIt.GrabRange(), InnerSchemaIt, Out);	break;
 		case EMemberKind::Struct:	CopyMemberBinding(BindIt.GrabStruct(), InnerSchemaIt, Out);	break;
-		default:					check(false);											break;
+		default:					check(false);												break;
 	}
 }
 
-static void CreateSubsetBindingWithoutEnumIds(const FStructSchema& From, const FStructSchemaBinding& To, TConstArrayView<FMemberId> ToNames,  uint16 NumEnums, SubsetByteArray& Out)
+static void CreateSubsetBindingWithoutEnumIds(const FStructSchema& From, const FSchemaBinding& To, TConstArrayView<FMemberId> ToNames,  uint16 NumEnums, SubsetByteArray& Out)
 {
 	check(To.NumMembers == ToNames.Num());
 	check(To.NumMembers >= From.NumMembers);
 
 	int32 OutPos = Out.Num();
-	FStructSchemaBinding Header = { From.NumMembers, From.NumInnerSchemas - NumEnums, From.NumRangeTypes };
+	FSchemaBinding Header = { From.NumMembers, From.NumInnerSchemas - NumEnums, From.NumRangeTypes };
 	Out.AddUninitialized(Header.CalculateSize());
-	FStructSchemaBinding* Schema = new (&Out[OutPos]) FStructSchemaBinding {Header};
+	FSchemaBinding* Schema = new (&Out[OutPos]) FSchemaBinding {Header};
 	
 	FMemberVisitor ToIt(To);
 	FMemberBinder Footer(*Schema);
@@ -211,16 +211,16 @@ static void CreateSubsetBindingWithoutEnumIds(const FStructSchema& From, const F
 	check(InnerSchemaIt == From.GetInnerSchemas() + From.NumInnerSchemas);
 }
 
-static void CloneBindingWithReplacedStructIds(const FSchemaId* FromIds, const FStructSchemaBinding& To, SubsetByteArray& Out)
+static void CloneBindingWithReplacedStructIds(const FSchemaId* FromIds, const FSchemaBinding& To, SubsetByteArray& Out)
 {
 	uint32 Size = To.CalculateSize();
 	Out.AddUninitialized(Size);
-	FStructSchemaBinding* Schema = reinterpret_cast<FStructSchemaBinding*>(&Out[Out.Num() - Size]);
+	FSchemaBinding* Schema = reinterpret_cast<FSchemaBinding*>(&Out[Out.Num() - Size]);
 	FMemory::Memcpy(Schema, &To, Size);
 	FMemory::Memcpy(const_cast<FSchemaId*>(Schema->GetInnerSchemas()), FromIds, To.NumInnerSchemas * sizeof(FSchemaId));
 }
 
-[[nodiscard]] static FLoadStructPlan MakeSchemaLoadPlan(const FStructSchema& From, const FStructSchemaBinding& To, TConstArrayView<FMemberId> ToMemberIds, TConstArrayView<FStructSchemaId> ToStructIds, SubsetByteArray& OutSubsetSchemas)
+[[nodiscard]] static FLoadStructPlan MakeSchemaLoadPlan(const FStructSchema& From, const FSchemaBinding& To, TConstArrayView<FMemberId> ToMemberIds, TConstArrayView<FStructSchemaId> ToStructIds, SubsetByteArray& OutSubsetSchemas)
 {
 	uint16 NumEnums = CountEnums(From);
 	if (From.NumMembers < To.NumMembers || NumEnums || HasDifferentSupers(From, To, ToStructIds))
@@ -244,19 +244,19 @@ static void CloneBindingWithReplacedStructIds(const FSchemaId* FromIds, const FS
 	return FLoadStructPlan(To, ELeafWidth::B32, !From.IsDense);
 }
 
-[[nodiscard]] static TOptional<FLoadStructMemcpy> TryMakeMemcpyPlan(const FStructSchema& From, const FStructSchemaBinding& To, TConstArrayView<FMemberId> ToMemberIds)
+[[nodiscard]] static TOptional<FLoadStructMemcpy> TryMakeMemcpyPlan(const FStructSchema& From, const FSchemaBinding& To, TConstArrayView<FMemberId> ToMemberIds)
 {
 	// todo
 	return NullOpt;
 }
 
-[[nodiscard]] static FLoadStructPlan MakeLoadPlan(const FStructSchema& From, const FStructSchemaBinding& To, TConstArrayView<FMemberId> ToMemberIds, TConstArrayView<FStructSchemaId> ToStructIds, SubsetByteArray& OutSubsetSchemas)
+[[nodiscard]] static FLoadStructPlan MakeLoadPlan(const FStructSchema& From, const FSchemaBinding& To, TConstArrayView<FMemberId> ToMemberIds, TConstArrayView<FStructSchemaId> ToStructIds, SubsetByteArray& OutSubsetSchemas)
 {
 	TOptional<FLoadStructMemcpy> Memcpy = TryMakeMemcpyPlan(From, To, ToMemberIds);
 	return Memcpy ? FLoadStructPlan(Memcpy.GetValue()) : MakeSchemaLoadPlan(From, To, ToMemberIds, ToStructIds, OutSubsetSchemas);
 }
 
-FLoadBatch* CreateLoadPlans(FReadBatchId ReadId, const FDeclarations& Declarations, const FStructBindings& Bindings, TConstArrayView<FStructSchemaId> RuntimeIds)
+FLoadBatch* CreateLoadPlans(FReadBatchId ReadId, const FDeclarations& Declarations, const FCustomBindings& Customs, const FSchemaBindings& Schemas, TConstArrayView<FStructSchemaId> RuntimeIds)
 {
 	check(NumStructSchemas(ReadId) == RuntimeIds.Num());
 
@@ -272,16 +272,15 @@ FLoadBatch* CreateLoadPlans(FReadBatchId ReadId, const FDeclarations& Declaratio
 	for (FStructSchemaId SavedId = { 0 }; SavedId.Idx < NumPlans; ++SavedId.Idx)
 	{
 		FStructSchemaId RuntimeId = RuntimeIds[SavedId.Idx];
-		FStructBinding Binding = Bindings.Get(RuntimeId);
 		int32 SubsetSchemaOffset = SubsetSchemaData.Num();
-		if (Binding.IsCustom())
+		if (const ICustomBinding* Custom = Customs.FindStruct(RuntimeId))
 		{
-			Plans[SavedId.Idx] = FLoadStructPlan(Binding.AsCustom()) ;
+			Plans[SavedId.Idx] = FLoadStructPlan(*Custom) ;
 		}
 		else
 		{
 			const FStructSchema& From = ResolveStructSchema(ReadId, SavedId);
-			const FStructSchemaBinding& To = Binding.AsSchema();
+			const FSchemaBinding& To = Schemas.GetStruct(RuntimeId);
 			// Possible optimization - some simple memcpy cases doesn't need to resolve the declaration
 			TConstArrayView<FMemberId> ToMemberIds = Declarations.Get(RuntimeId).GetMemberOrder();
 			Plans[SavedId.Idx] = MakeLoadPlan(From, To, ToMemberIds, RuntimeIds, /* out */ SubsetSchemaData);	
@@ -306,10 +305,10 @@ FLoadBatch* CreateLoadPlans(FReadBatchId ReadId, const FDeclarations& Declaratio
 		{
 			if (int32 Size = SubsetSchemaSizes[Idx])
 			{
-				check(IsAligned(Size, alignof(FStructSchemaBinding)));
+				check(IsAligned(Size, alignof(FSchemaBinding)));
 				check(Plans[Idx].IsSchema());
 				bool bSparse = Plans[Idx].IsSparseSchema();
-				Out->Plans[Idx] = FLoadStructPlan(*reinterpret_cast<const FStructSchemaBinding*>(It), ELeafWidth::B32, bSparse);
+				Out->Plans[Idx] = FLoadStructPlan(*reinterpret_cast<const FSchemaBinding*>(It), ELeafWidth::B32, bSparse);
 				It += Size;
 			}
 		}
@@ -488,7 +487,7 @@ template<bool bSparse, typename OffsetType>
 class TMemberLoader : public FRangeLoader
 {
 public:
-	TMemberLoader(FByteReader Values, const FStructSchemaBinding& Schema, const FLoadBatch& InBatch)
+	TMemberLoader(FByteReader Values, const FSchemaBinding& Schema, const FLoadBatch& InBatch)
 	: Types(Schema.Members, Schema.NumMembers)
 	, Offsets(Schema.GetOffsets())
 	, InnerStructSchemas(static_cast<const FStructSchemaId*>(Schema.GetInnerSchemas()), Schema.NumInnerSchemas)
@@ -634,7 +633,7 @@ void LoadStruct(uint8* Dst, FStructView Src, const FLoadBatch& Batch)
 void ConstructAndLoadStruct(uint8* Dst, FByteReader Src, FStructSchemaId Id, const FLoadBatch& Batch)
 {
 	FLoadStructPlan Plan = Batch[Id];
-	checkf(!Plan.IsSchema(), TEXT("Non-default constructible types requires ICustomStructBinding or in rare cases memcpying"));
+	checkf(!Plan.IsSchema(), TEXT("Non-default constructible types requires ICustomBinding or in rare cases memcpying"));
 
 	if (Plan.IsMemcpy())
 	{
