@@ -2619,7 +2619,7 @@ TSet<FName> FDefaultInstallBundleManager::GetBundleDependencies(FName InBundleNa
 		{
 			if (!BundlesToLoad.Contains(SkippedBundle))
 			{
-				LOG_INSTALL_BUNDLE_MAN(Warning, TEXT("Unknown Bundle dependency %s, skipping"), *SkippedBundle.ToString());
+				LOG_INSTALL_BUNDLE_MAN(Verbose, TEXT("Unknown Bundle dependency %s, skipping"), *SkippedBundle.ToString());
 				*bSkippedUnknownBundles = true;
 			}
 		}
