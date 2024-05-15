@@ -946,6 +946,11 @@ namespace PCG
 			enum { CanSearchString = true };
 			enum { NeedsConstruction = true };
 
+			static FString ToString(const FString& A)
+			{
+				return A;
+			}
+
 			static bool Equal(const FString& A, const FString& B)
 			{
 				return A == B;

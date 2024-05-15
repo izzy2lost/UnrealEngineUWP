@@ -55,7 +55,20 @@ bool FPCGAddTagElement::ExecuteInternal(FPCGContext* Context) const
 
 	for (const FString& Tag : TagsArray)
 	{
-		const FString TagToAdd = Settings->Prefix + Tag + Settings->Suffix;
+		FString TagToAdd;
+
+		int32 DividerPosition = INDEX_NONE;
+		if (!Settings->bIgnoreTagValueParsing && Tag.FindChar(':', DividerPosition))
+		{
+			FString LeftSide = Tag.Left(DividerPosition);
+			FString RightSide = Tag.RightChop(DividerPosition); // not +1 because we want to keep the ':'
+
+			TagToAdd = Settings->Prefix + LeftSide + Settings->Suffix + RightSide;
+		}
+		else
+		{
+			TagToAdd = Settings->Prefix + Tag + Settings->Suffix;
+		}
 
 		for (FPCGTaggedData& OutputTaggedData : Context->OutputData.TaggedData)
 		{

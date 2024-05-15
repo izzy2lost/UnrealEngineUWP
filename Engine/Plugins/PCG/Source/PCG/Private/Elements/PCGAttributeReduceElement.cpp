@@ -125,6 +125,35 @@ namespace PCGAttributeReduceElement
 			});
 		}
 	}
+
+	template<typename T, typename OT>
+	bool Join(const IPCGAttributeAccessorKeys& Keys, const IPCGAttributeAccessor& Accessor, const FString& Delimiter, OT& OutValue)
+	{
+		if constexpr (std::is_constructible_v<OT, FString>)
+		{
+			TArray<FString> StringsToJoin;
+			StringsToJoin.Reserve(Keys.GetNum());
+
+			bool bAppliedAccessor = PCGMetadataElementCommon::ApplyOnAccessor<T>(Keys, Accessor, [&StringsToJoin](const T& InValue, int32)
+			{
+				StringsToJoin.Add(PCG::Private::MetadataTraits<T>::ToString(InValue));
+			});
+
+			if (bAppliedAccessor)
+			{
+				OutValue = OT(FString::Join(StringsToJoin, *Delimiter));
+				return true;
+			}
+			else
+			{
+				return false;
+			}
+		}
+		else
+		{
+			return false;
+		}
+	}
 }
 
 #if WITH_EDITOR
@@ -266,55 +295,96 @@ bool FPCGAttributeReduceElement::ExecuteInternal(FPCGContext* Context) const
 			continue;
 		}
 
-		auto DoOperation = [&Accessor, &Keys, Operation = Settings->Operation, bMergeOutputAttributes = Settings->bMergeOutputAttributes, &OutputParams, &NewAttribute, OutputAttributeName](auto DummyValue) -> bool
+		auto DoOperation = [&Accessor, &Keys, Settings, &OutputParams, &NewAttribute, OutputAttributeName](auto DummyValue) -> bool
 		{
 			using AttributeType = decltype(DummyValue);
 
-			bool bSuccess = false;
+			const EPCGAttributeReduceOperation Operation = Settings->Operation;
+			const bool bMergeOutputAttributes = Settings->bMergeOutputAttributes;
 
-			AttributeType OutputValue = PCG::Private::MetadataTraits<AttributeType>::ZeroValue();
-
+			bool bCreatedNewParams = false;
 			if (!OutputParams || !bMergeOutputAttributes)
 			{
 				OutputParams = NewObject<UPCGParamData>();
-				NewAttribute = OutputParams->Metadata->CreateAttribute<AttributeType>(OutputAttributeName, OutputValue, /*bAllowInterpolation=*/ true, /*bOverrideParent=*/false);
+				bCreatedNewParams = true;
+			}
 
-				if (!NewAttribute)
+			auto DoOperationInternal = [&OutputParams, &Accessor, &Keys, Settings, bCreatedNewParams, &NewAttribute, OutputAttributeName](auto DummyOutputValue) -> bool
+			{
+				using OutAttributeType = decltype(DummyOutputValue);
+				const EPCGAttributeReduceOperation Operation = Settings->Operation;
+				const bool bMergeOutputAttributes = Settings->bMergeOutputAttributes;
+				const FString& JoinDelimiter = Settings->JoinDelimiter;
+
+				OutAttributeType OutputValue = PCG::Private::MetadataTraits<OutAttributeType>::ZeroValue();
+
+				if (bCreatedNewParams)
 				{
-					OutputParams = nullptr;
-					return false;
+					NewAttribute = OutputParams->Metadata->CreateAttribute<OutAttributeType>(OutputAttributeName, OutputValue, /*bAllowInterpolation=*/ true, /*bOverrideParent=*/false);
+
+					if (!NewAttribute)
+					{
+						OutputParams = nullptr;
+						return false;
+					}
 				}
-			}
 
-			FPCGMetadataAttribute<AttributeType>* TypedNewAttribute = static_cast<FPCGMetadataAttribute<AttributeType>*>(NewAttribute);
-			check(TypedNewAttribute);
+				bool bSuccess = false;
 
-			switch (Operation)
+				if constexpr (std::is_same_v<AttributeType, OutAttributeType>)
+				{
+					switch (Operation)
+					{
+					case EPCGAttributeReduceOperation::Average:
+						bSuccess = PCGAttributeReduceElement::Average<AttributeType>(*Keys, *Accessor, OutputValue);
+						break;
+					case EPCGAttributeReduceOperation::Max:
+						bSuccess = PCGAttributeReduceElement::MinMax<AttributeType, /*bIsMin*/false>(*Keys, *Accessor, OutputValue);
+						break;
+					case EPCGAttributeReduceOperation::Min:
+						bSuccess = PCGAttributeReduceElement::MinMax<AttributeType, /*bIsMin*/true>(*Keys, *Accessor, OutputValue);
+						break;
+					case EPCGAttributeReduceOperation::Sum:
+						bSuccess = PCGAttributeReduceElement::Sum<AttributeType>(*Keys, *Accessor, OutputValue);
+						break;
+					case EPCGAttributeReduceOperation::Join:
+						bSuccess = PCGAttributeReduceElement::Join<AttributeType>(*Keys, *Accessor, Settings->JoinDelimiter, OutputValue);
+					default:
+						break;
+					}
+				}
+				else
+				{
+					switch (Operation)
+					{
+					case EPCGAttributeReduceOperation::Join:
+						bSuccess = PCGAttributeReduceElement::Join<AttributeType>(*Keys, *Accessor, Settings->JoinDelimiter, OutputValue);
+					default:
+						break;
+					}
+				}
+
+				if (bSuccess)
+				{
+					FPCGMetadataAttribute<OutAttributeType>* TypedNewAttribute = static_cast<FPCGMetadataAttribute<OutAttributeType>*>(NewAttribute);
+					check(TypedNewAttribute);
+
+					// Implementation note: since the default value does not match the value computed here
+					// and because we might have multiple entries, we need to set it in the attribute
+					TypedNewAttribute->SetValue(OutputParams->Metadata->AddEntry(), OutputValue);
+				}
+
+				return bSuccess;
+			};
+
+			if (Operation == EPCGAttributeReduceOperation::Join)
 			{
-			case EPCGAttributeReduceOperation::Average:
-				bSuccess = PCGAttributeReduceElement::Average<AttributeType>(*Keys, *Accessor, OutputValue);
-				break;
-			case EPCGAttributeReduceOperation::Max:
-				bSuccess = PCGAttributeReduceElement::MinMax<AttributeType, /*bIsMin*/false>(*Keys, *Accessor, OutputValue);
-				break;
-			case EPCGAttributeReduceOperation::Min:
-				bSuccess = PCGAttributeReduceElement::MinMax<AttributeType, /*bIsMin*/true>(*Keys, *Accessor, OutputValue);
-				break;
-			case EPCGAttributeReduceOperation::Sum:
-				bSuccess = PCGAttributeReduceElement::Sum<AttributeType>(*Keys, *Accessor, OutputValue);
-				break;
-			default:
-				break;
+				return DoOperationInternal(FString{});
 			}
-
-			if (bSuccess)
+			else
 			{
-				// Implementation note: since the default value does not match the value computed here
-				// and because we might have multiple entries, we need to set it in the attribute
-				TypedNewAttribute->SetValue(OutputParams->Metadata->AddEntry(), OutputValue);
+				return DoOperationInternal(AttributeType{});
 			}
-
-			return bSuccess;
 		};
 
 		if (!PCGMetadataAttribute::CallbackWithRightType(Accessor->GetUnderlyingType(), DoOperation))

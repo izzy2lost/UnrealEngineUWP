@@ -9,6 +9,7 @@
 #include "Data/PCGPointData.h"
 #include "Helpers/PCGActorHelpers.h"
 #include "Helpers/PCGHelpers.h"
+#include "Helpers/PCGTagHelpers.h"
 #include "Metadata/PCGMetadata.h"
 
 #include "ContentBrowserModule.h"
@@ -235,67 +236,36 @@ bool UPCGLevelToAsset::BP_ExportWorld_Implementation(UWorld* World, const FStrin
 
 		for (FName ActorTag : Actor->Tags)
 		{
-			if (ReservedTags.Contains(ActorTag) || TagToAttributeMap.Contains(ActorTag))
+			PCG::Private::FParseTagResult TagData(ActorTag);
+
+			if (!TagData.IsValid())
 			{
 				continue;
 			}
 
-			FString TagString = ActorTag.ToString();
-			int32 DividerPosition = INDEX_NONE;
-			
-			if (TagString.FindChar(':', DividerPosition))
+			FName OriginalAttributeName(TagData.GetOriginalAttribute());
+			FName SanitizedAttributeName(TagData.Attribute);
+
+			// Check if we can safely skip that tag
+			if (ReservedTags.Contains(SanitizedAttributeName) || TagToAttributeMap.Contains(OriginalAttributeName) || SanitizedAttributeNames.Contains(SanitizedAttributeName))
 			{
-				const FString LeftSide = TagString.Left(DividerPosition);
-				const FString RightSide = TagString.RightChop(DividerPosition + 1);
-
-				if (LeftSide.IsEmpty() || RightSide.IsEmpty())
-				{
-					continue;
-				}
-
-				const FName TagName(LeftSide);
-				FString SanitizedAttributeNameString = LeftSide;
-				const bool bSanitized = FPCGMetadataAttributeBase::SanitizeName(SanitizedAttributeNameString);
-				const FName SanitizedAttributeName(SanitizedAttributeNameString);
-
-				// Once sanitized, multiple tags can map to a single attribute name. The first tag will be used, remaining will be ignored.
-				if (ReservedTags.Contains(SanitizedAttributeName) || TagToAttributeMap.Contains(TagName) || SanitizedAttributeNames.Contains(SanitizedAttributeName))
-				{
-					continue;
-				}
-
-				if (bSanitized)
-				{
-					UE_LOG(LogPCGEditor, Warning, TEXT("Sanitized tag string on actor '%s' to remove invalid characters: '%s' -> '%s'"), *Actor->GetName(), *LeftSide, *SanitizedAttributeNameString);
-				}
-
-				// Otherwise, create the attribute based on the type of the data after the colon.
-				if (RightSide.IsNumeric())
-				{
-					TagToAttributeMap.Add(TagName, PointMetadata->CreateAttribute<double>(SanitizedAttributeName, 0.0f, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true));
-				}
-				else
-				{
-					TagToAttributeMap.Add(TagName, PointMetadata->CreateAttribute<FString>(SanitizedAttributeName, FString(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true));
-				}
-
-				SanitizedAttributeNames.Add(SanitizedAttributeName);
+				continue;
 			}
-			else
+
+			// Try to create the attribute
+			if (!PCG::Private::CreateAttributeFromTag(TagData, PointMetadata))
 			{
-				// Simple boolean attribute
-				FString& SanitizedTagString = TagString;
-				FPCGMetadataAttributeBase::SanitizeName(SanitizedTagString);
-				const FName SanitizedTagName(SanitizedTagString);
-
-				// Once sanitized, multiple tags can map to a single attribute name. The first tag will be used, remaining will be ignored.
-				if (!ReservedTags.Contains(SanitizedTagName) && !SanitizedAttributeNames.Contains(SanitizedTagName))
-				{
-					TagToAttributeMap.Add(ActorTag, PointMetadata->CreateAttribute<bool>(SanitizedTagName, false, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/true));
-
-					SanitizedAttributeNames.Add(SanitizedTagName);
-				}
+				continue;
 			}
+
+			// Log warning if we sanitized some values
+			if (TagData.HasBeenSanitized())
+			{
+				UE_LOG(LogPCGEditor, Warning, TEXT("Sanitized tag string on actor '%s' to remove invalid characters: '%s' -> '%s'"), *Actor->GetName(), *TagData.GetOriginalAttribute(), *TagData.Attribute);
+			}
+
+			TagToAttributeMap.Add(OriginalAttributeName, PointMetadata->GetMutableAttribute(SanitizedAttributeName));
+			SanitizedAttributeNames.Add(SanitizedAttributeName);
 		}
 
 		// Prepare actor-level data that's propagated to all points
@@ -337,40 +307,12 @@ bool UPCGLevelToAsset::BP_ExportWorld_Implementation(UWorld* World, const FStrin
 			// create a boolean attribute with the name given by the sanitized tag string.
 			for (FName ActorTag : Actor->Tags)
 			{
-				const FString TagString = ActorTag.ToString();
-				int32 DividerPosition = INDEX_NONE;
+				// Implementation note: we don't set values directly from the tag in the eventuality that there are some name collisions
+				PCG::Private::FParseTagResult TagData(ActorTag);
 
-				if (TagString.FindChar(':', DividerPosition))
+				if (TagData.IsValid() && TagToAttributeMap.Contains(FName(TagData.GetOriginalAttribute())))
 				{
-					const FString LeftSide = TagString.Left(DividerPosition);
-					const FString RightSide = TagString.RightChop(DividerPosition + 1);
-
-					if (LeftSide.IsEmpty() || RightSide.IsEmpty())
-					{
-						continue;
-					}
-
-					const FName TagName(LeftSide);
-					if (FPCGMetadataAttributeBase** Attribute = TagToAttributeMap.Find(TagName))
-					{
-						check(*Attribute);
-						if (RightSide.IsNumeric() && (*Attribute)->GetTypeId() == PCG::Private::MetadataTypes<double>::Id)
-						{
-							double RightSideValue = FCString::Atod(*RightSide);
-							static_cast<FPCGMetadataAttribute<double>*>(*Attribute)->SetValue(Point.MetadataEntry, RightSideValue);
-						}
-						else if ((*Attribute)->GetTypeId() == PCG::Private::MetadataTypes<FString>::Id)
-						{
-							static_cast<FPCGMetadataAttribute<FString>*>(*Attribute)->SetValue(Point.MetadataEntry, RightSide);
-						}
-					}
-				}
-				else if (FPCGMetadataAttributeBase** Attribute = TagToAttributeMap.Find(ActorTag))
-				{
-					if ((*Attribute)->GetTypeId() == PCG::Private::MetadataTypes<bool>::Id)
-					{
-						static_cast<FPCGMetadataAttribute<bool>*>(*Attribute)->SetValue(Point.MetadataEntry, true);
-					}
+					PCG::Private::SetAttributeFromTag(TagData, PointMetadata, Point.MetadataEntry, /*bCanCreateAttribute=*/false);
 				}
 			}
 		};

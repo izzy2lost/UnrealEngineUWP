@@ -14,7 +14,8 @@ enum class EPCGAttributeReduceOperation
 	Average,
 	Max,
 	Min,
-	Sum
+	Sum,
+	Join
 };
 
 /**
@@ -65,6 +66,9 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	EPCGAttributeReduceOperation Operation = EPCGAttributeReduceOperation::Average;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "Operation==EPCGAttributeReduceOperation::Join", EditConditionHides))
+	FString JoinDelimiter = FString(", ");
 
 	/** Option to merge all results into a single attribute set with multiple entries, instead of multiple attribute sets with a single value in them.*/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))

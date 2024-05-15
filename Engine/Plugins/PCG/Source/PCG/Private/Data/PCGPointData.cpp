@@ -3,6 +3,7 @@
 #include "Data/PCGPointData.h"
 
 #include "Helpers/PCGHelpers.h"
+#include "Helpers/PCGTagHelpers.h"
 #include "Metadata/PCGMetadataAccessor.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
@@ -408,11 +409,6 @@ void UPCGPointData::AddSinglePointFromActor(AActor* InActor, bool* bOutOptionalS
 {
 	check(InActor);
 
-	if (bOutOptionalSanitizedTagAttributeName)
-	{
-		*bOutOptionalSanitizedTagAttributeName = false;
-	}
-
 	FPCGPoint& Point = GetMutablePoints().Emplace_GetRef();
 	Point.Steepness = 1.0f;
 	Point.Transform = InActor->GetActorTransform();
@@ -432,67 +428,21 @@ void UPCGPointData::AddSinglePointFromActor(AActor* InActor, bool* bOutOptionalS
 		ActorReferenceAttribute->SetValue(Point.MetadataEntry, FSoftObjectPath(InActor));
 	}
 
+	bool bSanitizedAttributeNames = false;
+
 	// Parse tags as well
 	for (FName Tag : InActor->Tags)
 	{
-		FString TagString = Tag.ToString();
-		int32 EqualPosition = INDEX_NONE;
-		
-		// Tags that contain a colon will be consider a field:value pair; we'll try to read a number first then default to a string
-		if(TagString.FindChar(':', EqualPosition))
+		PCG::Private::FParseTagResult TagData(Tag);
+		if (PCG::Private::SetAttributeFromTag(TagData, Metadata, Point.MetadataEntry, /*bCanCreateAttribute=*/true))
 		{
-			FString LeftSide = TagString.Left(EqualPosition);
-			FString RightSide = TagString.RightChop(EqualPosition+1);
-
-			if (LeftSide.IsEmpty() || RightSide.IsEmpty())
-			{
-				continue;
-			}
-
-			const bool bSanitized = FPCGMetadataAttributeBase::SanitizeName(LeftSide);
-			if (bOutOptionalSanitizedTagAttributeName)
-			{
-				*bOutOptionalSanitizedTagAttributeName |= bSanitized;
-			}
-
-			if (RightSide.IsNumeric())
-			{
-				if (FPCGMetadataAttribute<double>* Attribute = Metadata->FindOrCreateAttribute<double>(FName(LeftSide), 0.0, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/false))
-				{
-					double RightSideValue = FCString::Atod(*RightSide);
-					Attribute->SetValue(Point.MetadataEntry, RightSideValue);
-				}
-			}
-			else
-			{
-				if (FPCGMetadataAttribute<FString>* Attribute = Metadata->FindOrCreateAttribute<FString>(FName(LeftSide), FString(), /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/false))
-				{
-					Attribute->SetValue(Point.MetadataEntry, RightSide);
-				}
-			}
+			bSanitizedAttributeNames |= TagData.HasBeenSanitized();
 		}
-		else // Otherwise, consider that the tag is a boolean value
-		{
-			FName SanitizedAttributeName = NAME_None;
-			if (FPCGMetadataAttributeBase::SanitizeName(TagString))
-			{
-				SanitizedAttributeName = FName(TagString);
+	}
 
-				if (bOutOptionalSanitizedTagAttributeName)
-				{
-					*bOutOptionalSanitizedTagAttributeName = true;
-				}
-			}
-			else
-			{
-				SanitizedAttributeName = Tag;
-			}
-
-			if (FPCGMetadataAttribute<bool>* Attribute = Metadata->FindOrCreateAttribute<bool>(SanitizedAttributeName, false, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false, /*bOverwriteIfTypeMismatch=*/false))
-			{
-				Attribute->SetValue(Point.MetadataEntry, true);
-			}
-		}
+	if (bOutOptionalSanitizedTagAttributeName)
+	{
+		*bOutOptionalSanitizedTagAttributeName = bSanitizedAttributeNames;
 	}
 }
 
