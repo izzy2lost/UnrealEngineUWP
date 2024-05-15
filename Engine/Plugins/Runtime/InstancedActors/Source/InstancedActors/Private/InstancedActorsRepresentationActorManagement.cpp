@@ -163,10 +163,18 @@ AActor* UInstancedActorsRepresentationActorManagement::FindOrInstantlySpawnActor
 		// force spawn
 		UMassActorSpawnerSubsystem* ActorSpawnerSubsystem = RepresentationSubsystem.GetActorSpawnerSubsystem();
 		check(ActorSpawnerSubsystem);
-		if (ActorSpawnerSubsystem->ProcessSpawnRequest(Representation.ActorSpawnRequestHandle) != ESpawnRequestStatus::None)
+		const ESpawnRequestStatus RequestResult = ActorSpawnerSubsystem->ProcessSpawnRequest(Representation.ActorSpawnRequestHandle);
+		
+		if (RequestResult == ESpawnRequestStatus::Failed || RequestResult == ESpawnRequestStatus::Succeeded)
 		{
-			FMassActorSpawnRequest& SpawnRequest = ActorSpawnerSubsystem->GetMutableSpawnRequest<FMassActorSpawnRequest>(Representation.ActorSpawnRequestHandle);
-			SpawnedActor = SpawnRequest.SpawnedActor;
+			if (RequestResult == ESpawnRequestStatus::Succeeded)
+			{
+				FMassActorSpawnRequest& SpawnRequest = ActorSpawnerSubsystem->GetMutableSpawnRequest<FMassActorSpawnRequest>(Representation.ActorSpawnRequestHandle);
+				SpawnedActor = SpawnRequest.SpawnedActor;
+				ensureMsgf(ActorSpawnerSubsystem->RemoveActorSpawnRequest(Representation.ActorSpawnRequestHandle), TEXT("Unable to remove a valid spawn request"));
+			}
+			
+			Representation.ActorSpawnRequestHandle.Invalidate();
 		}
 	}
 
