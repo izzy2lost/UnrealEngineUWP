@@ -127,7 +127,7 @@ namespace uba
 		if (!objFilesToStrip.empty())
 		{
 			CriticalSection cs;
-			bool success = true;
+			Atomic<bool> success = true;
 			UnorderedSymbols allNeededImports; // Imports needed from the outside of the stripped obj files
 
 			u32 workerCount = DefaultProcessorCount;
@@ -135,98 +135,83 @@ namespace uba
 			workManager.ParallelFor(workerCount, objFilesDependencies, [&](auto& it)
 				{
 					const TString& objFile = *it;
-					ObjectFile objectFile;
-					bool res = objectFile.Parse(logger, objFile.c_str());
+					ObjectFile* objectFile = ObjectFile::CreateAndParse(logger, objFile.c_str());
+					if (!objectFile)
+					{
+						success = false;
+						return;
+					}
+					auto g = MakeGuard([&]() { delete objectFile; });
 
 					ScopedCriticalSection _(cs);
-					success &= res;
-					if (res)
-						allNeededImports.insert(objectFile.GetImports().begin(), objectFile.GetImports().end());
+					allNeededImports.insert(objectFile->GetImports().begin(), objectFile->GetImports().end());
 				});
-
 			if (!success)
 				return -1;
 
 			UnorderedSymbols allSharedExports; // Exports from all the obj files about to be stripped
 
-			struct ObjectFileRec { ObjectFile file; UnorderedSymbols loopbacksToAdd;  UnorderedSymbols toRemove; };
-			Map<TString, ObjectFileRec> objectFileRecs;
-			CriticalSection cs2;
+			Map<TString, ObjectFile*> objectFiles;
+			auto g = MakeGuard([&]() { for (auto& kv : objectFiles) delete kv.second; });
 
 			workManager.ParallelFor(workerCount, objFilesToStrip, [&](auto& it)
 				{
 					const TString& objFileName = *it;
-
-					cs2.Enter();
-					ObjectFile& objectFile = objectFileRecs.try_emplace(objFileName).first->second.file;
-					cs2.Leave();
-
-					bool res = objectFile.Parse(logger, objFileName.c_str());
+					ObjectFile* objectFile = ObjectFile::CreateAndParse(logger, objFileName.c_str());
+					if (!objectFile)
+					{
+						success = false;
+						return;
+					}
 
 					ScopedCriticalSection _(cs);
-					success &= res;
-					if (res)
-						allSharedExports.insert(objectFile.GetExports().begin(), objectFile.GetExports().end());
+					objectFiles.try_emplace(objFileName, objectFile);
+					allSharedExports.insert(objectFile->GetExports().begin(), objectFile->GetExports().end());
 				});
-
 			if (!success)
 				return -1;
 
-			UnorderedSymbols duplicates;
-
 			// Figure out which loopback symbols that should be added to which obj file
+			UnorderedSymbols duplicates;
 			for (auto& objFileName : objFilesToStrip)
-			{
-				ObjectFileRec& rec = objectFileRecs[objFileName];
-				for (auto& importSymbol : rec.file.GetImports())
-				{
-					if (strncmp(importSymbol.c_str(), "__imp_", 6) != 0)
-						continue;
-					std::string importString = importSymbol.substr(6);
-					auto findIt = allSharedExports.find(importString);
-					if (findIt == allSharedExports.end())
-						continue;
-					rec.loopbacksToAdd.emplace(importString);
-					allSharedExports.erase(findIt);
-				}
+				if (!objectFiles[objFileName]->ComputeLoopbacksAndDuplicates(allSharedExports, duplicates))
+					return -1;
 
-				for (auto& dupSymbol : rec.file.GetPotentialDuplicates())
-					if (!duplicates.insert(dupSymbol).second)
-						rec.toRemove.insert(dupSymbol);
-			}
-
-			workManager.ParallelFor(workerCount, objectFileRecs, [&](auto& it)
+			workManager.ParallelFor(workerCount, objectFiles, [&](auto& it)
 				{
-					ObjectFileRec& rec = it->second;
-					const tchar* fileName = rec.file.GetFileName();
+					ObjectFile& file = *it->second;
+					const tchar* fileName = file.GetFileName();
 					const tchar* lastDot = TStrrchr(fileName, '.');
 					UBA_ASSERT(lastDot);
 					StringBuffer<> newFilename;
 					newFilename.Append(fileName, lastDot - fileName).Append(TC(".strip")).Append(lastDot);
-					rec.file.CreateStripped(logger, newFilename.data, allNeededImports, rec.loopbacksToAdd, rec.toRemove);
+					if (!file.CreateStripped(logger, newFilename.data, allNeededImports))
+						success = false;
 				});
-
-			//logger.Info(TC("Stripped %llu symbols from %llu obj files"), strippedSymbolCount.load(), objFilesToStrip.size());
 			if (!success)
 				return -1;
+
+			//logger.Info(TC("Stripped %llu symbols from %llu obj files"), strippedSymbolCount.load(), objFilesToStrip.size());
 		}
 		else
 		{
 			if (objFile.empty())
 				return PrintHelp(TC("No obj file provided"));
 
-			ObjectFile objectFile;
-			if (!objectFile.Parse(logger, objFile.c_str()))
+			ObjectFile* objectFile = ObjectFile::CreateAndParse(logger, objFile.c_str());
+			if (!objectFile)
 				return -1;
 
 			if (printSymbols)
 			{
-				for (auto& symbol : objectFile.GetImports())
+				for (auto& symbol : objectFile->GetImports())
 					logger.Info(TC("I %S"), symbol.c_str());
 
-				for (auto& symbol : objectFile.GetExports())
+				for (auto& symbol : objectFile->GetExports())
 					logger.Info(TC("E %S"), symbol.c_str());
 			}
+
+			delete objectFile;
 		}
 		return 0;
 	}
