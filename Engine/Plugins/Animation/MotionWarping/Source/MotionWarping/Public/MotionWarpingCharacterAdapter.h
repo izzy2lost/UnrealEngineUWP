@@ -28,5 +28,6 @@ private:
 	FTransform WarpLocalRootMotionOnCharacter(const FTransform& LocalRootMotionTransform, UCharacterMovementComponent* TargetMoveComp, float DeltaSeconds);
 
 	/** The associated character */
+	UPROPERTY(Transient, DuplicateTransient)
 	TObjectPtr<ACharacter> TargetCharacter;
 };

@@ -28,5 +28,6 @@ private:
 	// This is called when our Mover actor wants to warp local motion, and passes the responsibility onto the warping component
 	FTransform WarpLocalRootMotionOnMoverComp(const FTransform& LocalRootMotionTransform, float DeltaSeconds, const FMotionWarpingUpdateContext* OptionalWarpingContext);
 
+	UPROPERTY(Transient, DuplicateTransient)
 	TObjectPtr<UMoverComponent> TargetMoverComp;
 };
