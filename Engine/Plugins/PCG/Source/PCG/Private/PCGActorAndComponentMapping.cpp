@@ -31,10 +31,11 @@
 #include "Materials/MaterialInterface.h"
 
 #if WITH_EDITOR
+#include "Grid/PCGPartitionActorDesc.h"
+#include "UObject/PackageReload.h"
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
-#include "Grid/PCGPartitionActorDesc.h"
 #endif
 
 namespace PCGActorAndComponentMapping
@@ -1193,6 +1194,7 @@ void FPCGActorAndComponentMapping::RegisterDelegates()
 	FCoreUObjectDelegates::OnObjectPropertyChanged.AddRaw(this, &FPCGActorAndComponentMapping::OnObjectPropertyChanged);
 	FCoreUObjectDelegates::OnObjectModified.AddRaw(this, &FPCGActorAndComponentMapping::OnObjectModified);
 	FCoreUObjectDelegates::OnObjectPreSave.AddRaw(this, &FPCGActorAndComponentMapping::OnObjectSaved);
+	FCoreUObjectDelegates::OnPackageReloaded.AddRaw(this, &FPCGActorAndComponentMapping::OnPackageReloaded);
 
 	UWorld* World = GetWorld();
 	check(World);
@@ -1236,6 +1238,7 @@ void FPCGActorAndComponentMapping::UnregisterDelegates()
 	FCoreUObjectDelegates::OnObjectPropertyChanged.RemoveAll(this);
 	FCoreUObjectDelegates::OnObjectModified.RemoveAll(this);
 	FCoreUObjectDelegates::OnObjectPreSave.RemoveAll(this);
+	FCoreUObjectDelegates::OnPackageReloaded.RemoveAll(this);
 
 	UWorld* World = GetWorld();
 	check(World);
@@ -1362,6 +1365,43 @@ void FPCGActorAndComponentMapping::OnActorAdded(AActor* InActor)
 	// Implementation note: We delay adding because OnActorAdded fires before an actor's properties are set,
 	// so the actor is not ready for processing until the next tick.
 	OnActorAdded_Internal(InActor, /*bShouldDirty=*/ true);
+}
+
+void FPCGActorAndComponentMapping::OnPackageReloaded(const EPackageReloadPhase InPackageReloadPhase, FPackageReloadedEvent* InPackageReloadedEvent)
+{
+	if (InPackageReloadPhase == EPackageReloadPhase::PrePackageFixup)
+	{
+		for (const auto& RepointedObjectPair : InPackageReloadedEvent->GetRepointedObjects())
+		{
+			if (RepointedObjectPair.Key && RepointedObjectPair.Key->IsAsset() && RepointedObjectPair.Key->IsA<UPCGGraphInterface>())
+			{
+				ForEachObjectOfClass(UPCGGraphInstance::StaticClass(), [OldGraphInterface = RepointedObjectPair.Key](UObject* InObj)
+				{
+					if (UPCGGraphInstance* GraphInstance = Cast<UPCGGraphInstance>(InObj); GraphInstance && GraphInstance->Graph == OldGraphInterface)
+					{
+						GraphInstance->TeardownCallbacks();
+					}
+				});
+			}
+		}
+	}
+	else if (InPackageReloadPhase == EPackageReloadPhase::PostPackageFixup)
+	{
+		for (const auto& RepointedObjectPair : InPackageReloadedEvent->GetRepointedObjects())
+		{
+			if (RepointedObjectPair.Value && RepointedObjectPair.Value->IsAsset() && RepointedObjectPair.Value->IsA<UPCGGraphInterface>())
+			{
+				ForEachObjectOfClass(UPCGGraphInstance::StaticClass(), [NewGraphInterface = RepointedObjectPair.Value](UObject* InObj)
+				{
+					if (UPCGGraphInstance* GraphInstance = Cast<UPCGGraphInstance>(InObj); GraphInstance && GraphInstance->Graph == NewGraphInterface)
+					{
+						GraphInstance->SetupCallbacks();
+						GraphInstance->OnGraphParametersChanged(EPCGGraphParameterEvent::GraphChanged, NAME_None);
+					}
+				});
+			}
+		}
+	}
 }
 
 void FPCGActorAndComponentMapping::OnActorDescInstanceAdded(FWorldPartitionActorDescInstance* InActorDescInstance)

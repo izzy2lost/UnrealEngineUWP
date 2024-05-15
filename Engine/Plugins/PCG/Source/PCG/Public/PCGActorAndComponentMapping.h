@@ -30,6 +30,9 @@ class UPCGSubsystem;
 class UWorld;
 class UWorldPartition;
 class FWorldPartitionActorDescInstance;
+class FPackageReloadedEvent;
+
+enum class EPackageReloadPhase : uint8;
 
 /**
 * This class handle any necessary mapping between actors and pcg components.
@@ -167,6 +170,7 @@ private:
 	/** Return true if the actor is tracked.*/
 	bool IsActorTracked(const AActor* InActor) const;
 
+	void OnPackageReloaded(const EPackageReloadPhase InPackageReloadPhase, FPackageReloadedEvent* InPackageReloadedEvent);
 	void OnActorDescInstanceAdded(FWorldPartitionActorDescInstance* InActorDescInstance);
 	void OnActorDescInstanceRemoved(FWorldPartitionActorDescInstance* InActorDescInstance);
 	void OnActorAdded(AActor* InActor);
