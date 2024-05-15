@@ -13,13 +13,13 @@ extern "C" {
 #endif
 
 // Handle types for per-platform objects.
-#if __APPLE__
+#if defined(__APPLE__)
 struct objc_object;
 typedef struct objc_object *ssc_pal_object;
-#elif _WIN32
+#elif defined(_WIN32)
 struct IUnknown;
 typedef struct IUnknown *ssc_pal_object;
-#elif __ANDROID__
+#elif defined(__ANDROID__)
 typedef void *ssc_pal_object;
 #else
 typedef void *ssc_pal_object;

@@ -12,6 +12,8 @@
 
 #if ARCORE_SERVICE_SUPPORTED_PLATFORM
 
+#include "ARTypes.h"
+
 #if PLATFORM_ANDROID
 #include "arcore_c_api.h"
 #elif PLATFORM_IOS
