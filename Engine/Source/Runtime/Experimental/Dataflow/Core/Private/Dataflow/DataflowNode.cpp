@@ -26,6 +26,24 @@ const FName FDataflowAnyType::TypeName = TEXT("FDataflowAnyType");
 // Inputs
 //
 
+bool FDataflowNode::OutputSupportsType(FName InName, FName InType) const
+{
+	if (const FDataflowOutput* Output = FindOutput(InName))
+	{
+		return Output->SupportsType(InType);
+	}
+	return false;
+}
+
+bool FDataflowNode::InputSupportsType(FName InName, FName InType) const
+{
+	if (const FDataflowInput* Input = FindInput(InName))
+	{
+		return Input->SupportsType(InType);
+	}
+	return false;
+}
+
 void FDataflowNode::AddInput(FDataflowInput* InPtr)
 {
 	if (InPtr)
@@ -378,26 +396,6 @@ void FDataflowNode::UnregisterPinConnection(const Dataflow::FPin& Pin)
 	}
 }
 
-void FDataflowNode::PropagateTypeToAllAnyTypeInputsAndOutputs(FName ConcreteType)
-{
-	for (TPair<uint32, FDataflowOutput*> Elem : Outputs)
-	{
-		FDataflowOutput* Output = Elem.Value;
-		if (Output->IsAnyType())
-		{
-			Output->SetConcreteType(ConcreteType);
-		}
-	}
-	for (TPair<uint32, FDataflowInput*> Elem : Inputs)
-	{
-		FDataflowInput* Input = Elem.Value;
-		if (Input->IsAnyType())
-		{
-			Input->SetConcreteType(ConcreteType);
-		}
-	}
-}
-
 void FDataflowNode::Invalidate(const Dataflow::FTimestamp& InModifiedTimestamp)
 {
 	if (LastModifiedTimestamp < InModifiedTimestamp)
@@ -516,24 +514,36 @@ FText FDataflowNode::GetPropertyDisplayNameText(const TArray<const FProperty*>& 
 #endif
 }
 
-FDataflowInput* FDataflowNode::RegisterInputConnection(const void* InProperty, const FName& PropertyName)
+bool FDataflowNode::InitConnectionParametersFromPropertyReference(const FStructOnScope& StructOnScope, const void* PropertyRef, const FName& PropertyName, Dataflow::FConnectionParameters& OutParams)
+{
+		if (const UStruct* Struct = StructOnScope.GetStruct())
+		{
+			TArray<const FProperty*> PropertyChain;
+			const FProperty* const Property = FindProperty(Struct, PropertyRef, PropertyName, &PropertyChain);
+			if (ensure(Property && PropertyChain.Num()))
+			{
+				FString ExtendedType;
+				const FString CPPType = Property->GetCPPType(&ExtendedType);
+				OutParams.Type = FName(CPPType + ExtendedType);
+				OutParams.Name = GetPropertyFullName(PropertyChain);
+				OutParams.Property = Property;
+				OutParams.Owner = this;
+				return true;
+			}
+		}
+	return false;
+}
+
+FDataflowInput* FDataflowNode::RegisterInputConnectionInternal(const void* InProperty, const FName& PropertyName)
 {
 	if (TUniquePtr<FStructOnScope> ScriptOnStruct = TUniquePtr<FStructOnScope>(NewStructOnScope()))
 	{
-		if (const UStruct* Struct = ScriptOnStruct->GetStruct())
+		Dataflow::FInputParameters InputParams;
+		if (InitConnectionParametersFromPropertyReference(*ScriptOnStruct, InProperty, PropertyName, InputParams))
 		{
-			TArray<const FProperty*> PropertyChain;
-			const FProperty* const Property = FindProperty(Struct, InProperty, PropertyName, &PropertyChain);
-			if (ensure(Property && PropertyChain.Num()))
-			{
-				const FName PropName(GetPropertyFullName(PropertyChain));
-				FString ExtendedType;
-				const FString CPPType = Property->GetCPPType(&ExtendedType);
-				const FName PropType(CPPType + ExtendedType);
-				FDataflowInput* const Input = new FDataflowInput({ PropType, PropName, this, Property });
-				AddInput(Input);
-				return Input;
-			}
+			FDataflowInput* const Input = new FDataflowInput(InputParams);
+			AddInput(Input);
+			return Input;
 		}
 	}
 	return nullptr;
@@ -564,38 +574,27 @@ void FDataflowNode::UnregisterInputConnection(const void* InProperty, const FNam
 	}
 }
 
-FDataflowOutput* FDataflowNode::RegisterOutputConnection(const void* InProperty, const void* Passthrough, const FName& PropertyName, const FName& PassthroughName)
+FDataflowOutput* FDataflowNode::RegisterOutputConnectionInternal(const void* InProperty, const void* Passthrough, const FName& PropertyName, const FName& PassthroughName)
 {
 	if (TUniquePtr<FStructOnScope> ScriptOnStruct = TUniquePtr<FStructOnScope>(NewStructOnScope()))
 	{
-		if (const UStruct* Struct = ScriptOnStruct->GetStruct())
+		Dataflow::FOutputParameters OutputParams;
+		if (InitConnectionParametersFromPropertyReference(*ScriptOnStruct, InProperty, PropertyName, OutputParams))
 		{
-			FDataflowOutput* OutputConnection = nullptr;
-			TArray<const FProperty*> PropertyChain;
-			const FProperty* const Property =
-				FindProperty(Struct, InProperty, PropertyName, &PropertyChain);
-			if (ensure(Property && PropertyChain.Num()))
-			{
-				const FName PropName(GetPropertyFullName(PropertyChain));
-				FString ExtendedType;
-				const FString CPPType = Property->GetCPPType(&ExtendedType);
-				const FName PropType(CPPType + ExtendedType);
-				OutputConnection = new FDataflowOutput({ PropType, PropName, this, Property });
+			FDataflowOutput* OutputConnection = new FDataflowOutput(OutputParams);
 
-				TArray<const FProperty*> PassthroughPropertyChain;
-				if (FindProperty(Struct, Passthrough, PassthroughName, &PassthroughPropertyChain))
-				{
-					const uint32 PassthroughOffset = GetPropertyOffset(PassthroughPropertyChain);
-					OutputConnection->SetPassthroughOffset(PassthroughOffset);
-				}
-				AddOutput(OutputConnection);
+			TArray<const FProperty*> PassthroughPropertyChain;
+			if (FindProperty(ScriptOnStruct->GetStruct(), Passthrough, PassthroughName, &PassthroughPropertyChain))
+			{
+				const uint32 PassthroughOffset = GetPropertyOffset(PassthroughPropertyChain);
+				OutputConnection->SetPassthroughOffset(PassthroughOffset);
 			}
-			return OutputConnection;
+
+			AddOutput(OutputConnection);
 		}
 	}
 	return nullptr;
 }
-
 
 uint32 FDataflowNode::GetValueHash()
 {
@@ -884,6 +883,51 @@ void FDataflowNode::ForwardInput(Dataflow::FContext& Context, const void* InputR
 	{
 		checkfSlow(false, TEXT("This output could not be found within this node, check this has been properly registered in the node constructor"));
 	}
+}
+
+bool FDataflowNode::TrySetConnectionType(FDataflowConnection* Connection, FName NewType)
+{
+	if (Connection)
+	{
+		if (Connection->IsAnyType() && Connection->GetType() != NewType && !FDataflowConnection::IsAnyType(NewType))
+		{
+			Connection->SetConcreteType(NewType);
+			if (Connection->GetDirection() == Dataflow::FPin::EDirection::INPUT)
+			{
+				OnInputTypeChanged((FDataflowInput*)Connection);
+			}
+			if (Connection->GetDirection() == Dataflow::FPin::EDirection::OUTPUT)
+			{
+				OnOutputTypeChanged((FDataflowOutput*)Connection);
+			}
+			return true;
+		}
+	}
+	return false;
+}
+
+bool FDataflowNode::SetInputConcreteType(void* InputReference, FName NewType)
+{
+	if (FDataflowInput* Input = FindInput(InputReference))
+	{
+		if (Input->GetType() != NewType)
+		{
+			return Input->SetConcreteType(NewType);
+		}
+	}
+	return false;
+}
+
+bool FDataflowNode::SetOutputConcreteType(void* OutputReference, FName NewType)
+{
+	if (FDataflowOutput* Output = FindOutput(OutputReference))
+	{
+		if (Output->GetType() != NewType)
+		{
+			return Output->SetConcreteType(NewType);
+		}
+	}
+	return false;
 }
 
 

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Dataflow/DataflowNodeParameters.h"
+#include "Dataflow/DataflowTypePolicy.h"
 #include "HAL/PlatformMath.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/Guid.h"
@@ -14,7 +15,6 @@
 
 class FProperty;
 struct FDataflowNode;
-
 
 namespace Dataflow
 {
@@ -35,6 +35,23 @@ namespace Dataflow
 		bool bHidden = false;
 	};
 
+	struct FConnectionParameters
+	{
+		FConnectionParameters(FName InType = FName(""), FName InName = FName(""), FDataflowNode* InOwner = nullptr, const FProperty* InProperty = nullptr, FGuid InGuid = FGuid::NewGuid())
+			: Type(InType)
+			, Name(InName)
+			, Owner(InOwner)
+			, Property(InProperty)
+			, Guid(InGuid)
+		{}
+
+		FName Type;
+		FName Name;
+		FDataflowNode* Owner = nullptr;
+		const FProperty* Property = nullptr;
+		FGuid Guid;
+	};
+
 	class FGraph;
 }
 
@@ -47,23 +64,23 @@ struct FDataflowConnection
 	GENERATED_USTRUCT_BODY()
 
 protected:
-	Dataflow::FPin::EDirection Direction;
 	FName Type;
 	FName Name;
 	FDataflowNode* OwningNode = nullptr;
 	const FProperty* Property = nullptr;
 	FGuid  Guid;
-	bool bIsAnyType = false;
-	bool bCanHidePin = false;
-	bool bPinIsHidden = false;
+	IDataflowTypePolicy* TypePolicy = nullptr;
+	Dataflow::FPin::EDirection Direction;
+	bool bIsAnyType:1 = false;
+	bool bHasConcreteType : 1 = false;
+	bool bCanHidePin:1 = false;
+	bool bPinIsHidden:1 = false;
 
 	friend struct FDataflowNode;
 	friend class Dataflow::FGraph;
 
 protected:
 	DATAFLOWCORE_API bool IsOwningNodeEnabled() const;
-	DATAFLOWCORE_API FGuid GetOwningNodeGuid() const;
-	DATAFLOWCORE_API uint32 GetOwningNodeValueHash() const;
 
 	/** this should only be used for serialization */
 	DATAFLOWCORE_API void SetAsAnyType(bool bAnyType, const FName& ConcreteType);
@@ -73,13 +90,24 @@ protected:
 	DATAFLOWCORE_API void FixAndPropagateType();
 	DATAFLOWCORE_API virtual void FixAndPropagateType(FName InType) { ensure(false); }
 
+	/** 
+	* Set the concrete type of an anytype connection 
+	* @return true if the typewas effectivelly changed
+	*/
+	DATAFLOWCORE_API bool SetConcreteType(FName InType);
+
 public:
 	FDataflowConnection() {};
+	UE_DEPRECATED(5.5, "Deprecated constructor : use FConnectionParameters to pass parameters")
 	DATAFLOWCORE_API FDataflowConnection(Dataflow::FPin::EDirection Direction, FName InType, FName InName, FDataflowNode* OwningNode = nullptr, const FProperty* InProperty = nullptr, FGuid InGuid = FGuid::NewGuid());
+	DATAFLOWCORE_API FDataflowConnection(Dataflow::FPin::EDirection Direction, const Dataflow::FConnectionParameters& Params);
 	virtual ~FDataflowConnection() {};
 
 	FDataflowNode* GetOwningNode() { return OwningNode; }
 	const FDataflowNode* GetOwningNode() const { return OwningNode; }
+
+	DATAFLOWCORE_API FGuid GetOwningNodeGuid() const;
+	DATAFLOWCORE_API uint32 GetOwningNodeValueHash() const;
 
 	const FProperty* GetProperty() const { return Property; }
 
@@ -101,9 +129,10 @@ public:
 	virtual bool RemoveConnection(FDataflowConnection* In) { return false; }
 
 	DATAFLOWCORE_API bool IsAnyType() const { return bIsAnyType; }
-	static bool IsAnyType(const FName& InType);
-
-	DATAFLOWCORE_API void SetConcreteType(FName InType);
+	DATAFLOWCORE_API static bool IsAnyType(const FName& InType);
+	DATAFLOWCORE_API bool HasConcreteType() const { return bHasConcreteType; }
+	DATAFLOWCORE_API void SetTypePolicy(IDataflowTypePolicy* InTypePolicy);
+	DATAFLOWCORE_API bool SupportsType(FName InType) const;
 
 	template<class T>
 	bool IsA(const T* InVar) const
@@ -117,4 +146,7 @@ public:
 	bool GetPinIsHidden() const { return bCanHidePin && bPinIsHidden; }
 	void SetCanHidePin(bool bInCanHidePin) { bCanHidePin = bInCanHidePin; }
 	void SetPinIsHidden(bool bInPinIsHidden) { bPinIsHidden = bInPinIsHidden; }
+
+private:
+	void InitFromType();
 };
