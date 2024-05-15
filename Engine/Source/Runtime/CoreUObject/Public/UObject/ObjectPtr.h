@@ -389,7 +389,7 @@ namespace ObjectPtr_Private
 	template <
 		typename T
 #if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
-		UE_REQUIRES(std::is_same_v<T, UObject>)
+		UE_REQUIRES(std::is_same_v<std::remove_const_t<T>, UObject>)
 #endif
 	>
 	FORCEINLINE bool IsObjectPtrNull(const FObjectPtr& ObjectPtr)
@@ -401,7 +401,7 @@ namespace ObjectPtr_Private
 	template <
 		typename T
 #if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
-		UE_REQUIRES(std::is_same_v<T, UObject>)
+		UE_REQUIRES(std::is_same_v<std::remove_const_t<T>, UObject>)
 #endif
 	>
 	FORCEINLINE T* Get(const FObjectPtr& ObjectPtr)
@@ -413,7 +413,7 @@ namespace ObjectPtr_Private
 	/** Check for NULL without resolving the handle. Always returns true if the handle is not type safe (only when T != UObject). */
 	template <
 		typename T
-		UE_REQUIRES(!std::is_same_v<T, UObject>)
+		UE_REQUIRES(!std::is_same_v<std::remove_const_t<T>, UObject>)
 	>
 	FORCEINLINE bool IsObjectPtrNull(const FObjectPtr& ObjectPtr)
 	{
@@ -429,7 +429,7 @@ namespace ObjectPtr_Private
 	/** Resolve and return the underlying reference. Always returns NULL if the handle is not type safe (only when T != UObject). */
 	template <
 		typename T
-		UE_REQUIRES(!std::is_same_v<T, UObject>)
+		UE_REQUIRES(!std::is_same_v<std::remove_const_t<T>, UObject>)
 	>
 	FORCEINLINE T* Get(const FObjectPtr& ObjectPtr)
 	{
