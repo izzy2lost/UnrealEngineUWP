@@ -80,4 +80,7 @@ private:
 
 	/** Holds the tab manager that manages the front-end's tabs. */
 	TSharedPtr<FTabManager> TabManager;
+
+	/** Trace controller */
+	TSharedPtr<class ITraceController> TraceController;
 };

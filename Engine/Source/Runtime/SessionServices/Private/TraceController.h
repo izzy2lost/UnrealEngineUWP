@@ -41,6 +41,8 @@ private:
 	virtual void SendStatusUpdateRequest() override;
 	virtual void SendChannelUpdateRequest() override;
 	virtual void SendSettingsUpdateRequest() override;
+
+	virtual bool HasAvailableSelectedInstance() override;
 	
 	DECLARE_DERIVED_EVENT(FTraceController, ITraceController::FStatusRecievedEvent, FStatusRecievedEvent);
 	virtual FStatusRecievedEvent& OnStatusReceived() override

@@ -187,5 +187,10 @@ public:
 	 * is updated. A reference to the status and what has changed is provided.
 	 */
 	virtual FStatusRecievedEvent& OnStatusReceived() = 0;
+
+	/**
+	 * Return true if a selected instance exists and has been discovered.
+	 */
+	virtual bool HasAvailableSelectedInstance() = 0;
 	
 };

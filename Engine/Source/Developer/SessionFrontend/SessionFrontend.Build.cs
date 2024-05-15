@@ -30,6 +30,7 @@ public class SessionFrontend : ModuleRules
 				"ScreenShotComparison",
 				"ScreenShotComparisonTools",
 				"TargetPlatform",
+				"TraceTools",
 				"WorkspaceMenuStructure",
 			}
 		);

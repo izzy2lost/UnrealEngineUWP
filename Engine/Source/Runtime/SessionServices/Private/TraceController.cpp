@@ -305,12 +305,30 @@ void FTraceController::OnSettings(const FTraceControlSettings& Message, const TS
 	}
 }
 
+bool FTraceController::HasAvailableSelectedInstance()
+{
+	if (SelectedInstanceId.IsValid())
+	{
+		return InstanceToAddress.Find(SelectedInstanceId) != nullptr;
+	}
+
+	return false;
+}
+
 void FTraceController::OnInstanceSelectionChanged(const TSharedPtr<ISessionInstanceInfo>& Instance, bool bSelected)
 {
 	FReadScopeLock _(InstancesLock);
 	
-	SelectedInstanceId = Instance->GetInstanceId();
-	if (const auto Address = InstanceToAddress.Find(SelectedInstanceId))
+	if (bSelected)
+	{
+		SelectedInstanceId = Instance->GetInstanceId();
+	}
+	else
+	{
+		SelectedInstanceId.Invalidate();
+	}
+
+	if (const auto Address = InstanceToAddress.Find(Instance->GetInstanceId()))
 	{
 		if (const auto Status = Instances.Find(*Address))
 		{

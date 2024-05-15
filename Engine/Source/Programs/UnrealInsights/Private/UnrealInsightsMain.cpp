@@ -18,8 +18,16 @@ int32 UnrealInsightsMain(const TCHAR* CommandLine)
 	// Override the stack size for the thread pool.
 	FQueuedThreadPool::OverrideStackSize = 256 * 1024;
 
+	FString NewCommandLine = CommandLine;
+
+	// Add -Messaging if it was not given in the command line.
+	if (!FParse::Param(*NewCommandLine, TEXT("Messaging")))
+	{
+		NewCommandLine += TEXT(" -Messaging");
+	}
+
 	// Initialize core.
-	GEngineLoop.PreInit(CommandLine);
+	GEngineLoop.PreInit(*NewCommandLine);
 
 	// Make sure all UObject classes are registered and default properties have been initialized.
 	//ProcessNewlyLoadedUObjects();

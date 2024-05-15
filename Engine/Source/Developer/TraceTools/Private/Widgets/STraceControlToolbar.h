@@ -1,0 +1,90 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "ITraceController.h"
+#include "Framework/Commands/UICommandList.h"
+#include "Widgets/DeclarativeSyntaxSupport.h"
+#include "Widgets/SCompoundWidget.h"
+
+class ITraceController;
+
+namespace UE::TraceTools
+{
+
+enum ETraceTarget : uint8
+{
+	Server = 0,
+	File = 1
+};
+
+/**
+ * Implements the trace control toolbar widget.
+ */
+class STraceControlToolbar
+	: public SCompoundWidget
+{
+public:
+
+	SLATE_BEGIN_ARGS(STraceControlToolbar) { }
+	SLATE_END_ARGS()
+
+public:
+
+	STraceControlToolbar();
+	~STraceControlToolbar();
+
+	void Construct( const FArguments& InArgs, const TSharedRef<FUICommandList>& CommandList, TSharedPtr<ITraceController> InTraceController);
+
+private:
+	void BindCommands(const TSharedRef<FUICommandList>& CommandList);
+
+	TSharedRef<SWidget> BuildTraceTargetMenu(const TSharedRef<FUICommandList> CommandList);
+	FText GetTraceTargetLabelText() const;
+	FText GetTraceTargetTooltipText() const;
+	FSlateIcon GetTraceTargetIcon() const;
+
+	void OnTraceStatusUpdated(const FTraceStatus& InStatus, FTraceStatus::EUpdateType InUpdateType);
+	void InitializeSettings();
+
+	bool SetTraceTarget_CanExecute() const;
+	void SetTraceTarget_Execute(ETraceTarget InTraceTarget);
+
+	bool StartTrace_CanExecute() const;
+	void StartTrace_Execute();
+
+	bool StopTrace_CanExecute() const;
+	void StopTrace_Execute();
+
+	bool TraceSnapshot_CanExecute() const;
+	void TraceSnapshot_Execute();
+
+	bool PauseTrace_CanExecute() const;
+	void PauseTrace_Execute();
+
+	bool ResumeTrace_CanExecute() const;
+	void ResumeTrace_Execute();
+
+	bool TraceBookmark_CanExecute() const;
+	void TraceBookmark_Execute();
+
+	bool TraceScreenshot_CanExecute() const;
+	void TraceScreenshot_Execute();
+
+	bool ToggleStatNamedEvents_CanExecute() const;
+	bool ToggleStatNamedEvents_IsChecked() const;
+	void ToggleStatNamedEvents_Execute();
+
+private:
+	TSharedPtr<ITraceController> TraceController;
+
+	ETraceTarget TraceTarget = ETraceTarget::Server;
+	bool bIsTracing = false;
+	bool bIsPaused = false;
+	bool bAreStatNamedEventsEnabled = false;
+	FString TraceHostAddr;
+
+	FDelegateHandle OnStatusReceivedDelegate;
+};
+
+} // namespace UE::TraceTools
