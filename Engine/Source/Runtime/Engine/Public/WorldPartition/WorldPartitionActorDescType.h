@@ -4,10 +4,12 @@
 #include "Templates/Requires.h"
 #include "Templates/UnrealTypeTraits.h"
 
+#include <type_traits>
+
 class AActor;
 
 #if WITH_EDITOR
-template <typename ActorType, TEMPLATE_REQUIRES(TIsDerivedFrom<ActorType, AActor>::IsDerived)>
+template <typename ActorType UE_REQUIRES(std::is_base_of_v<AActor, ActorType>)>
 struct FWorldPartitionActorDescType
 {};
 

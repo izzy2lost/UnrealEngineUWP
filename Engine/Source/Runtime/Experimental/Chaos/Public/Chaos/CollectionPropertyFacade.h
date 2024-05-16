@@ -74,18 +74,18 @@ namespace Chaos::Softs
 		//~ Values access per index, fast, no check, index must be valid (0 <= KeyIndex < Num())
 		const FString& GetKey(int32 KeyIndex) const { return GetValue<const FString&>(KeyIndex, KeyArray); }
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		T GetLowValue(int32 KeyIndex) const { return GetValue<T>(KeyIndex, LowValueArray); }
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		T GetHighValue(int32 KeyIndex) const { return GetValue<T>(KeyIndex, HighValueArray); }
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		TPair<T, T> GetWeightedValue(int32 KeyIndex) const { return MakeTuple(GetLowValue<T>(KeyIndex), GetHighValue<T>(KeyIndex)); }
 
 		FVector2f GetWeightedFloatValue(int32 KeyIndex) const { return FVector2f(GetLowValue<float>(KeyIndex), GetHighValue<float>(KeyIndex)); }
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		T GetValue(int32 KeyIndex) const { return GetLowValue<T>(KeyIndex); }
 
 		const FString& GetStringValue(int32 KeyIndex) const { return GetValue<const FString&>(KeyIndex, StringValueArray); }
@@ -104,19 +104,19 @@ namespace Chaos::Softs
 		bool IsInterpolable(int32 KeyIndex) const { return HasAnyFlags(KeyIndex, ECollectionPropertyFlags::Interpolable); }
 
 		//~ Values access per key
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		T GetLowValue(const FString& Key, const T& Default = T(0), int32* OutKeyIndex = nullptr) const
 		{
 			return SafeGet(Key, [this](int32 KeyIndex)->T { return GetLowValue<T>(KeyIndex); }, Default, OutKeyIndex);
 		}
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		T GetHighValue(const FString& Key, const T& Default = T(0), int32* OutKeyIndex = nullptr) const
 		{
 			return SafeGet(Key, [this](int32 KeyIndex)->T { return GetHighValue<T>(KeyIndex); }, Default, OutKeyIndex);
 		}
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		TPair<T, T> GetWeightedValue(const FString& Key, const T& Default = T(0), int32* OutKeyIndex = nullptr) const
 		{
 			return SafeGet(Key, [this](int32 KeyIndex)->TPair<T, T> { return GetWeightedValue<T>(KeyIndex); }, MakeTuple(Default, Default), OutKeyIndex);
@@ -132,7 +132,7 @@ namespace Chaos::Softs
 			return SafeGet(Key, [this](int32 KeyIndex)->FVector2f { return GetWeightedFloatValue(KeyIndex); }, Default, OutKeyIndex);
 		}
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		T GetValue(const FString& Key, const T& Default = T(0), int32* OutKeyIndex = nullptr) const
 		{
 			return SafeGet(Key, [this](int32 KeyIndex)->T { return GetValue<T>(KeyIndex); }, Default, OutKeyIndex);
@@ -272,18 +272,18 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		FCollectionPropertyFacade& operator=(FCollectionPropertyFacade&&) = default;
 
 		//~ Values set per index
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		void SetLowValue(int32 KeyIndex, const T& Value) { SetValue(KeyIndex, GetLowValueArray(), FVector3f(Value)); }
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		void SetHighValue(int32 KeyIndex, const T& Value) { SetValue(KeyIndex, GetHighValueArray(), FVector3f(Value)); }
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		void SetWeightedValue(int32 KeyIndex, const T& LowValue, const T& HighValue) { SetLowValue(KeyIndex, LowValue); SetHighValue(KeyIndex, HighValue); }
 
 		void SetWeightedFloatValue(int32 KeyIndex, const FVector2f& Value) { SetLowValue<float>(KeyIndex, Value.X); SetHighValue<float>(KeyIndex, Value.Y); }
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		void SetValue(int32 KeyIndex, const T& Value) { SetWeightedValue(KeyIndex, Value, Value); }
 
 		void SetStringValue(int32 KeyIndex, const FString& Value) { if (GetStringValueArray()[KeyIndex] != Value) { GetStringValueArray()[KeyIndex] = Value; SetStringDirty(KeyIndex); } }
@@ -306,19 +306,19 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		void SetInterpolable(int32 KeyIndex) { EnableFlags(KeyIndex, ECollectionPropertyFlags::Interpolable, true); }
 
 		//~ Values set per key
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		int32 SetLowValue(const FString& Key, const T& Value)
 		{
 			return SafeSet(Key, [this, &Value](int32 KeyIndex) { SetLowValue(KeyIndex, Value); });
 		}
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		int32 SetHighValue(const FString& Key, const T& Value)
 		{
 			return SafeSet(Key, [this, &Value](int32 KeyIndex) { SetHighValue(KeyIndex, Value); });
 		}
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		int32 SetWeightedValue(const FString& Key, const T& LowValue, const T& HighValue)
 		{
 			return SafeSet(Key, [this, &LowValue, &HighValue](int32 KeyIndex) { SetWeightedValue(KeyIndex, LowValue, HighValue); });
@@ -329,7 +329,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			return SafeSet(Key, [this, &Value](int32 KeyIndex) { SetWeightedFloatValue(KeyIndex, Value); });
 		}
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		int32 SetValue(const FString& Key, const T& Value)
 		{
 			return SafeSet(Key, [this, &Value](int32 KeyIndex) { SetValue(KeyIndex, Value); });
@@ -498,17 +498,17 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		CHAOS_API void Update(const TSharedPtr<const FManagedArrayCollection>& InManagedArrayCollection, ECollectionPropertyUpdateFlags UpdateFlags);
 
 		//~ Add values
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		inline int32 AddWeightedValue(const FString& Key, const T& LowValue, const T& HighValue, ECollectionPropertyFlags Flags = ECollectionPropertyFlags::Enabled);
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		inline int32 AddWeightedValue(const FString& Key, const T& LowValue, const T& HighValue, bool bEnabled, bool bAnimatable = false, bool bIntrinsic = false);
 
 		CHAOS_API int32 AddWeightedFloatValue(const FString& Key, const FVector2f& Value, ECollectionPropertyFlags Flags = ECollectionPropertyFlags::Enabled);
 		CHAOS_API int32 AddWeightedFloatValue(const FString& Key, const FVector2f& Value, bool bEnabled, bool bAnimatable, bool bIntrinsic = false);
 
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		int32 AddValue(const FString& Key, const T& Value, ECollectionPropertyFlags Flags = ECollectionPropertyFlags::Enabled) { return AddWeightedValue(Key, Value, Value, Flags); }
-		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsWeightedType<T>::Value)>
 		int32 AddValue(const FString& Key, const T& Value, bool bEnabled, bool bAnimatable = false) { return AddWeightedValue(Key, Value, Value, bEnabled, bAnimatable); }
 
 		CHAOS_API int32 AddStringValue(const FString& Key, const FString& Value, ECollectionPropertyFlags Flags = ECollectionPropertyFlags::Enabled);
@@ -525,7 +525,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 
-	template<typename T, typename TEnableIf<TIsWeightedType<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(TIsWeightedType<T>::Value)>
 	inline int32 FCollectionPropertyMutableFacade::AddWeightedValue(const FString& Key, const T& LowValue, const T& HighValue, ECollectionPropertyFlags Flags)
 	{
 		const int32 KeyIndex = AddProperty(Key, Flags);
@@ -533,7 +533,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return KeyIndex;
 	}
 
-	template<typename T, typename TEnableIf<TIsWeightedType<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(TIsWeightedType<T>::Value)>
 	inline int32 FCollectionPropertyMutableFacade::AddWeightedValue(const FString& Key, const T& LowValue, const T& HighValue, bool bEnabled, bool bAnimatable, bool bIntrinsic)
 	{
 		const int32 KeyIndex = AddProperty(Key, bEnabled, bAnimatable, bIntrinsic);

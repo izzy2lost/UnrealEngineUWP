@@ -15,6 +15,8 @@
 #include "EngineLogs.h"
 #include "Net/Core/Serialization/QuantizedVectorSerialization.h"
 
+#include <type_traits>
+
 #include "NetSerialization.generated.h"
 
 /**
@@ -290,7 +292,7 @@ struct TFixedCompressedFloatDetails
 	static constexpr int32 MaxDelta = (1 << (NumBits - 0)) - 1;     //   1111 1111 - Max delta is
 };
 
-template<int32 MaxValue, uint32 NumBits, typename T, TEMPLATE_REQUIRES(TIsFloatingPoint<T>::Value), TEMPLATE_REQUIRES(NumBits < 32)>
+template<int32 MaxValue, uint32 NumBits, typename T UE_REQUIRES(std::is_floating_point_v<T> && NumBits < 32)>
 bool WriteFixedCompressedFloat(const T Value, FArchive& Ar)
 {
 	using Details = TFixedCompressedFloatDetails<MaxValue, NumBits>;

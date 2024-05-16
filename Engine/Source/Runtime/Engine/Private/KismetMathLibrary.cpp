@@ -15,12 +15,14 @@
 #include "Misc/QualifiedFrameTime.h"
 #include "Templates/SubclassOf.h"
 
+#include <type_traits>
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(KismetMathLibrary)
 
 #define LOCTEXT_NAMESPACE "UKismetMathLibrary"
 
 /** Interpolate a linear alpha value using an ease mode and function. */
-template<typename FloatType, TEMPLATE_REQUIRES(TIsFloatingPoint<FloatType>::Value)>
+template<typename FloatType UE_REQUIRES(std::is_floating_point_v<FloatType>)>
 FloatType EaseAlpha(FloatType InAlpha, uint8 EasingFunc, FloatType BlendExp, int32 Steps)
 {
 	switch (EasingFunc)

@@ -26,32 +26,7 @@ public:
 	static constexpr FSolverReal MinDampingRatio = (FSolverReal)0.;
 	static constexpr FSolverReal MaxDampingRatio = (FSolverReal)1000.;
 
-	template<int32 Valence, TEMPLATE_REQUIRES(Valence >= 2 && Valence <= 4)>
-	UE_DEPRECATED(5.2, "Use the other constructor instead.")
-	FXPBDSpringConstraints(
-		const FSolverParticles& Particles,
-		int32 ParticleOffset,
-		int32 ParticleCount,
-		const TArray<TVector<int32, Valence>>& InConstraints,
-		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
-		const FSolverVec2& InStiffness,
-		bool bTrimKinematicConstraints = false)
-		: Base(
-			Particles,
-			ParticleOffset,
-			ParticleCount,
-			InConstraints,
-			StiffnessMultipliers,
-			InStiffness,
-			true /*bTrimKinematicConstraints*/,
-			MaxStiffness)
-		, DampingRatio(FSolverVec2::ZeroVector)
-	{
-		Lambdas.Init((FSolverReal)0., Constraints.Num());
-		InitColor(Particles);
-	}	
-	
-	template<int32 Valence, TEMPLATE_REQUIRES(Valence >= 2 && Valence <= 4)>
+	template<int32 Valence UE_REQUIRES(Valence >= 2 && Valence <= 4)>
 	FXPBDSpringConstraints(
 		const FSolverParticlesRange& Particles,
 		const TArray<TVector<int32, Valence>>& InConstraints,
@@ -77,7 +52,7 @@ public:
 		InitColor(Particles);
 	}
 
-	template<int32 Valence, TEMPLATE_REQUIRES(Valence >= 2 && Valence <= 4)>
+	template<int32 Valence UE_REQUIRES(Valence >= 2 && Valence <= 4)>
 	UE_DEPRECATED(5.4, "XPBD Constraints must always trim kinematic constraints")
 	FXPBDSpringConstraints(
 		const FSolverParticlesRange& Particles,
@@ -105,7 +80,7 @@ public:
 		InitColor(Particles);
 	}
 
-	template<int32 Valence, TEMPLATE_REQUIRES(Valence >= 2 && Valence <= 4)>
+	template<int32 Valence UE_REQUIRES(Valence >= 2 && Valence <= 4)>
 	FXPBDSpringConstraints(
 		const FSolverParticles& Particles,
 		int32 ParticleOffset,
@@ -138,7 +113,7 @@ public:
 		InitColor(Particles);
 	}
 
-	template<int32 Valence, TEMPLATE_REQUIRES(Valence >= 2 && Valence <= 4)>
+	template<int32 Valence UE_REQUIRES(Valence >= 2 && Valence <= 4)>
 	UE_DEPRECATED(5.4, "XPBD Constraints must always trim kinematic constraints")
 	FXPBDSpringConstraints(
 		const FSolverParticles& Particles,
