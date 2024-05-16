@@ -48,6 +48,7 @@ struct FMassDebuggerQueryData
 
 	FMassExecutionRequirements ExecutionRequirements;
 	FText Label;
+	FText AdditionalInformation;
 
 	int32 GetTotalBitsUsedCount();
 	bool IsEmpty() const;

@@ -418,4 +418,16 @@ struct FMassArchetypeHelper
 	{
 		return FMassArchetypeHandle(Archetype);
 	}
+
+	/**
+	 * Determines whether given Archetype matches given Requirements. In case of failure to match and if WITH_MASSENTITY_DEBUG
+	 * the function will also log the reasons for said failure (at VeryVerbose level).
+	 * @param bBailOutOnFirstFail if true will skip the remaining tests as soon as a single mismatch is detected. This option
+	 *	is used when looking for matching archetypes. For debugging purposes use `false` to list all the mismatching elements.
+	 */
+	MASSENTITY_API static bool DoesArchetypeMatchRequirements(const FMassArchetypeData& Archetype, const FMassFragmentRequirements& Requirements
+#if WITH_MASSENTITY_DEBUG
+		, const bool bBailOutOnFirstFail = true, FOutputDevice* OutputDevice = nullptr
+#endif // WITH_MASSENTITY_DEBUG
+		);
 };

@@ -9,6 +9,7 @@
 #include "MassDebuggerSettings.h"
 #include "UObject/UObjectIterator.h"
 #include "Containers/UnrealString.h"
+#include "MassArchetypeData.h"
 
 #define LOCTEXT_NAMESPACE "SMassDebugger"
 
@@ -139,7 +140,8 @@ FMassDebuggerProcessorData::FMassDebuggerProcessorData(const UMassProcessor& InP
 #endif // WITH_MASSENTITY_DEBUG
 }
 
-FMassDebuggerProcessorData::FMassDebuggerProcessorData(const FMassEntityManager& EntityManager, UMassProcessor& InProcessor, const TMap<FMassArchetypeHandle, TSharedPtr<FMassDebuggerArchetypeData>>& InTransientArchetypesMap)
+FMassDebuggerProcessorData::FMassDebuggerProcessorData(const FMassEntityManager& EntityManager, UMassProcessor& InProcessor
+	, const TMap<FMassArchetypeHandle, TSharedPtr<FMassDebuggerArchetypeData>>& InTransientArchetypesMap)
 {
 	SetProcessor(InProcessor);
 #if WITH_MASSENTITY_DEBUG
@@ -147,11 +149,39 @@ FMassDebuggerProcessorData::FMassDebuggerProcessorData(const FMassEntityManager&
 
 	ProcessorRequirements = MakeShareable(new FMassDebuggerQueryData(InProcessor.GetProcessorRequirements(), LOCTEXT("MassProcessorRequirementsLabel", "Processor Requirements")));
 
+	const FMassEntityHandle SelectedEntityHandle = UE::Mass::Debug::bTestSelectedEntityAgainstProcessorQueries
+		? FMassDebugger::GetSelectedEntity(EntityManager)
+		: FMassEntityHandle();
+	FStringOutputDevice SelectedEntityFailureJustificationLog;
+	SelectedEntityFailureJustificationLog.SetAutoEmitLineTerminator(true);
+	const FText SelectedEntityHandleDescription = UE::Mass::Debug::bTestSelectedEntityAgainstProcessorQueries
+		? FText::Format(LOCTEXT("WhyNotEntityJustificationLabel", "Why not entity {0}:"), FText::FromString(SelectedEntityHandle.DebugGetDescription()))
+		: FText();
+
 	Queries.Reserve(ProcessorQueries.Num());
 	for (const FMassEntityQuery* Query : ProcessorQueries)
 	{
 		check(Query);
-		Queries.Add(MakeShareable(new FMassDebuggerQueryData(*Query, LOCTEXT("MassEntityQueryLabel", "Query"))));
+		TSharedPtr<FMassDebuggerQueryData>& QueryData = Queries.Add_GetRef(MakeShareable(new FMassDebuggerQueryData(*Query, LOCTEXT("MassEntityQueryLabel", "Query"))));
+
+		if (SelectedEntityHandle.IsValid())
+		{
+			const FMassArchetypeHandle ArchetypeHandle = EntityManager.GetArchetypeForEntity(SelectedEntityHandle);
+			if (ArchetypeHandle.IsValid() && Query->GetArchetypes().Contains(ArchetypeHandle) == false)
+			{
+				if (FMassArchetypeHelper::DoesArchetypeMatchRequirements(FMassArchetypeHelper::ArchetypeDataFromHandleChecked(ArchetypeHandle), *Query
+					, false, &SelectedEntityFailureJustificationLog) == false)
+				{
+					FTextBuilder DescriptionBuilder;
+					DescriptionBuilder.AppendLine(QueryData->AdditionalInformation);
+					DescriptionBuilder.AppendLine(SelectedEntityHandleDescription);
+					DescriptionBuilder.AppendLine(SelectedEntityFailureJustificationLog);
+					QueryData->AdditionalInformation = DescriptionBuilder.ToText();
+					
+					SelectedEntityFailureJustificationLog.Reset();
+				}
+			}
+		}
 
 		for (const FMassArchetypeHandle& ArchetypeHandle : Query->GetArchetypes())
 		{

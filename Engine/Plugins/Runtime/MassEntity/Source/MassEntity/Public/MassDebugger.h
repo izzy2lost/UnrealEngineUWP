@@ -46,6 +46,7 @@ namespace UE::Mass::Debug
 {
 	extern MASSENTITY_API bool bAllowProceduralDebuggedEntitySelection;
 	extern MASSENTITY_API bool bAllowBreakOnDebuggedEntity;
+	extern MASSENTITY_API bool bTestSelectedEntityAgainstProcessorQueries;
 } // namespace UE::Mass::Debug
 
 #define MASS_IF_ENTITY_DEBUGGED(Manager, EntityHandle) (FMassDebugger::GetSelectedEntity(Manager) == EntityHandle)
@@ -138,6 +139,11 @@ struct MASSENTITY_API FMassDebugger
 	static void RegisterEntityManager(FMassEntityManager& EntityManager);
 	static void UnregisterEntityManager(FMassEntityManager& EntityManager);
 	static TConstArrayView<FEnvironment> GetEnvironments() { return ActiveEnvironments; }
+
+	/**
+	 * Determines whether given Archetype matches given Requirements. In case of a mismatch description of failed conditions will be added to OutputDevice.
+	 */
+	static bool DoesArchetypeMatchRequirements(const FMassArchetypeHandle& ArchetypeHandle, const FMassFragmentRequirements& Requirements, FOutputDevice& OutputDevice);
 
 private:
 	static TArray<FEnvironment> ActiveEnvironments;

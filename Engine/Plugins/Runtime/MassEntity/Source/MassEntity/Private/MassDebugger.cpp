@@ -22,13 +22,18 @@ namespace UE::Mass::Debug
 {
 	bool bAllowProceduralDebuggedEntitySelection = false;
 	bool bAllowBreakOnDebuggedEntity = false;
+	bool bTestSelectedEntityAgainstProcessorQueries = true;
 
 	FAutoConsoleVariableRef CVars[] =
 	{
-		FAutoConsoleVariableRef(TEXT("mass.debug.AllowProceduralDebuggedEntitySelection"), bAllowProceduralDebuggedEntitySelection
-			, TEXT("Guards whether MASS_SET_ENTITY_DEBUGGED calls take effect."), ECVF_Cheat)
-		, FAutoConsoleVariableRef(TEXT("mass.debug.AllowBreakOnDebuggedEntity"), bAllowBreakOnDebuggedEntity
-			, TEXT("Guards whether MASS_BREAK_IF_ENTITY_DEBUGGED calls take effect."), ECVF_Cheat)
+		{ TEXT("mass.debug.AllowProceduralDebuggedEntitySelection"), bAllowProceduralDebuggedEntitySelection
+			, TEXT("Guards whether MASS_SET_ENTITY_DEBUGGED calls take effect."), ECVF_Cheat}
+		, {TEXT("mass.debug.AllowBreakOnDebuggedEntity"), bAllowBreakOnDebuggedEntity
+			, TEXT("Guards whether MASS_BREAK_IF_ENTITY_DEBUGGED calls take effect."), ECVF_Cheat}
+		, {	TEXT("mass.debug.TestSelectedEntityAgainstProcessorQueries"), bTestSelectedEntityAgainstProcessorQueries
+			, TEXT("Enabling will result in testing all processors' queries against SelectedEntity (as indicated by")
+			TEXT("mass.debug.DebugEntity or the gameplay debugger) and storing potential failure results to be viewed in MassDebugger")
+			, ECVF_Cheat }
 	};
 	
 
@@ -658,6 +663,15 @@ void FMassDebugger::UnregisterEntityManager(FMassEntityManager& EntityManager)
 			});
 	}
 	OnEntityManagerDeinitialized.Broadcast(EntityManager);
+}
+
+bool FMassDebugger::DoesArchetypeMatchRequirements(const FMassArchetypeHandle& ArchetypeHandle, const FMassFragmentRequirements& Requirements, FOutputDevice& OutputDevice)
+{
+	if (const FMassArchetypeData* Archetype = FMassArchetypeHelper::ArchetypeDataFromHandle(ArchetypeHandle))
+	{
+		return FMassArchetypeHelper::DoesArchetypeMatchRequirements(*Archetype, Requirements, /*bBailOutOnFirstFail=*/false, &OutputDevice);
+	}
+	return false;
 }
 
 #endif // WITH_MASSENTITY_DEBUG

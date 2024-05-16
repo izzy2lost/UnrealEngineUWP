@@ -1612,6 +1612,11 @@ void FMassEntityManager::GetMatchingArchetypes(const FMassFragmentRequirements& 
 		}
 	}
 
+#if WITH_MASSENTITY_DEBUG
+	FStringOutputDevice LogOutput;
+	LogOutput.SetAutoEmitLineTerminator(true);
+#endif // WITH_MASSENTITY_DEBUG
+
 	// Then verify that they contain *all* required fragments
 	for (TSharedPtr<FMassArchetypeData>& ArchetypePtr : AnyArchetypes)
 	{
@@ -1623,161 +1628,21 @@ void FMassEntityManager::GetMatchingArchetypes(const FMassFragmentRequirements& 
 			continue;
 		}
 
-		if (Archetype.GetTagBitSet().HasAll(Requirements.GetRequiredAllTags()) == false)
-		{
-			// missing some required tags, skip.
+		if (FMassArchetypeHelper::DoesArchetypeMatchRequirements(Archetype, Requirements
 #if WITH_MASSENTITY_DEBUG
-			const FMassTagBitSet UnsatisfiedTags = Requirements.GetRequiredAllTags() - Archetype.GetTagBitSet();
-			FStringOutputDevice Description;
-			UnsatisfiedTags.DebugGetStringDesc(Description);
-			UE_LOG(LogMass, VeryVerbose, TEXT("Archetype did not match due to missing tags: %s")
-				, *Description);
+			, /*bBailOutOnFirstFail=*/true, & LogOutput
 #endif // WITH_MASSENTITY_DEBUG
-			continue;
-		}
-
-		if (Archetype.GetTagBitSet().HasNone(Requirements.GetRequiredNoneTags()) == false)
+		))
 		{
-			// has some tags required to be absent
-#if WITH_MASSENTITY_DEBUG
-			const FMassTagBitSet UnwantedTags = Requirements.GetRequiredAllTags().GetOverlap(Archetype.GetTagBitSet());
-			FStringOutputDevice Description;
-			UnwantedTags.DebugGetStringDesc(Description);
-			UE_LOG(LogMass, VeryVerbose, TEXT("Archetype has tags required absent: %s")
-				, *Description);
-#endif // WITH_MASSENTITY_DEBUG
-			continue;
+			OutValidArchetypes.Add(ArchetypePtr);
 		}
-
-		if (Requirements.GetRequiredAnyTags().IsEmpty() == false 
-			&& Archetype.GetTagBitSet().HasAny(Requirements.GetRequiredAnyTags()) == false)
+#if WITH_MASSENTITY_DEBUG
+		else
 		{
-#if WITH_MASSENTITY_DEBUG
-			FStringOutputDevice Description;
-			Requirements.GetRequiredAnyTags().DebugGetStringDesc(Description);
-			UE_LOG(LogMass, VeryVerbose, TEXT("Archetype did not match due to missing \'any\' tags: %s")
-				, *Description);
-#endif // WITH_MASSENTITY_DEBUG
-			continue;
+			UE_VLOG_UELOG(GetOwner(), LogMass, VeryVerbose, TEXT("%s"), *LogOutput);
+			LogOutput.Reset();
 		}
-		
-		if (Archetype.GetFragmentBitSet().HasAll(Requirements.GetRequiredAllFragments()) == false)
-		{
-			// missing some required fragments, skip.
-#if WITH_MASSENTITY_DEBUG
-			const FMassFragmentBitSet UnsatisfiedFragments = Requirements.GetRequiredAllFragments() - Archetype.GetFragmentBitSet();
-			FStringOutputDevice Description;
-			UnsatisfiedFragments.DebugGetStringDesc(Description);
-			UE_LOG(LogMass, VeryVerbose, TEXT("Archetype did not match due to missing Fragments: %s")
-				, *Description);
 #endif // WITH_MASSENTITY_DEBUG
-			continue;
-		}
-
-		if (Archetype.GetFragmentBitSet().HasNone(Requirements.GetRequiredNoneFragments()) == false)
-		{
-			// has some Fragments required to be absent
-#if WITH_MASSENTITY_DEBUG
-			const FMassFragmentBitSet UnwantedFragments = Requirements.GetRequiredAllFragments().GetOverlap(Archetype.GetFragmentBitSet());
-			FStringOutputDevice Description;
-			UnwantedFragments.DebugGetStringDesc(Description);
-			UE_LOG(LogMass, VeryVerbose, TEXT("Archetype has Fragments required absent: %s")
-				, *Description);
-#endif // WITH_MASSENTITY_DEBUG
-			continue;
-		}
-
-		if (Requirements.GetRequiredAnyFragments().IsEmpty() == false 
-			&& Archetype.GetFragmentBitSet().HasAny(Requirements.GetRequiredAnyFragments()) == false)
-		{
-#if WITH_MASSENTITY_DEBUG
-			FStringOutputDevice Description;
-			Requirements.GetRequiredAnyFragments().DebugGetStringDesc(Description);
-			UE_LOG(LogMass, VeryVerbose, TEXT("Archetype did not match due to missing \'any\' fragments: %s")
-				, *Description);
-#endif // WITH_MASSENTITY_DEBUG
-			continue;
-		}
-
-		if (Archetype.GetChunkFragmentBitSet().HasAll(Requirements.GetRequiredAllChunkFragments()) == false)
-		{
-			// missing some required fragments, skip.
-#if WITH_MASSENTITY_DEBUG
-			const FMassChunkFragmentBitSet UnsatisfiedFragments = Requirements.GetRequiredAllChunkFragments() - Archetype.GetChunkFragmentBitSet();
-			FStringOutputDevice Description;
-			UnsatisfiedFragments.DebugGetStringDesc(Description);
-			UE_LOG(LogMass, VeryVerbose, TEXT("Archetype did not match due to missing Chunk Fragments: %s")
-				, *Description);
-#endif // WITH_MASSENTITY_DEBUG
-			continue;
-		}
-
-		if (Archetype.GetChunkFragmentBitSet().HasNone(Requirements.GetRequiredNoneChunkFragments()) == false)
-		{
-			// has some Fragments required to be absent
-#if WITH_MASSENTITY_DEBUG
-			const FMassChunkFragmentBitSet UnwantedFragments = Requirements.GetRequiredNoneChunkFragments().GetOverlap(Archetype.GetChunkFragmentBitSet());
-			FStringOutputDevice Description;
-			UnwantedFragments.DebugGetStringDesc(Description);
-			UE_LOG(LogMass, VeryVerbose, TEXT("Archetype has Chunk Fragments required absent: %s")
-				, *Description);
-#endif // WITH_MASSENTITY_DEBUG
-			continue;
-		}
-
-		if (Archetype.GetSharedFragmentBitSet().HasAll(Requirements.GetRequiredAllSharedFragments()) == false)
-		{
-			// missing some required fragments, skip.
-#if WITH_MASSENTITY_DEBUG
-			const FMassSharedFragmentBitSet UnsatisfiedFragments = Requirements.GetRequiredAllSharedFragments() - Archetype.GetSharedFragmentBitSet();
-			FStringOutputDevice Description;
-			UnsatisfiedFragments.DebugGetStringDesc(Description);
-			UE_LOG(LogMass, VeryVerbose, TEXT("Archetype did not match due to missing Shared Fragments: %s")
-				, *Description);
-#endif // WITH_MASSENTITY_DEBUG
-			continue;
-		}
-
-		if (Archetype.GetSharedFragmentBitSet().HasNone(Requirements.GetRequiredNoneSharedFragments()) == false)
-		{
-			// has some Fragments required to be absent
-#if WITH_MASSENTITY_DEBUG
-			const FMassSharedFragmentBitSet UnwantedFragments = Requirements.GetRequiredNoneSharedFragments().GetOverlap(Archetype.GetSharedFragmentBitSet());
-			FStringOutputDevice Description;
-			UnwantedFragments.DebugGetStringDesc(Description);
-			UE_LOG(LogMass, VeryVerbose, TEXT("Archetype has Shared Fragments required absent: %s")
-				, *Description);
-#endif // WITH_MASSENTITY_DEBUG
-			continue;
-		}
-
-		if (Archetype.GetConstSharedFragmentBitSet().HasAll(Requirements.GetRequiredAllConstSharedFragments()) == false)
-		{
-			// missing some required fragments, skip.
-#if WITH_MASSENTITY_DEBUG
-			const FMassConstSharedFragmentBitSet UnsatisfiedFragments = Requirements.GetRequiredAllConstSharedFragments() - Archetype.GetConstSharedFragmentBitSet();
-			FStringOutputDevice Description;
-			UnsatisfiedFragments.DebugGetStringDesc(Description);
-			UE_LOG(LogMass, VeryVerbose, TEXT("Archetype did not match due to missing Const Shared Fragments: %s")
-				, *Description);
-#endif // WITH_MASSENTITY_DEBUG
-			continue;
-		}
-
-		if (Archetype.GetConstSharedFragmentBitSet().HasNone(Requirements.GetRequiredNoneConstSharedFragments()) == false)
-		{
-			// has some Fragments required to be absent
-#if WITH_MASSENTITY_DEBUG
-			const FMassConstSharedFragmentBitSet UnwantedFragments = Requirements.GetRequiredNoneConstSharedFragments().GetOverlap(Archetype.GetConstSharedFragmentBitSet());
-			FStringOutputDevice Description;
-			UnwantedFragments.DebugGetStringDesc(Description);
-			UE_LOG(LogMass, VeryVerbose, TEXT("Archetype has Const Shared Fragments required absent: %s")
-				, *Description);
-#endif // WITH_MASSENTITY_DEBUG
-			continue;
-		}
-
-		OutValidArchetypes.Add(ArchetypePtr);
 	}
 }
 

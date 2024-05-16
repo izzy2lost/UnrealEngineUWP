@@ -69,6 +69,16 @@ void SMassQuery::Construct(const FArguments& InArgs, TSharedPtr<FMassDebuggerQue
 	AddBitSetPair(Box, ExecutionRequirements.ConstSharedFragments, TEXT("Const Shared Fragments"));
 	AddBitSetPair(Box, ExecutionRequirements.RequiredSubsystems, TEXT("Required Subsystems"));
 
+	if (InQueryData->AdditionalInformation.IsEmpty() == false)
+	{
+		Box->AddSlot()
+		.AutoHeight()
+		[
+			SNew(SRichTextBlock)
+			.Text(InQueryData->AdditionalInformation)
+		];
+	}
+
 	ChildSlot
 	[
 		SNew(SBorder)

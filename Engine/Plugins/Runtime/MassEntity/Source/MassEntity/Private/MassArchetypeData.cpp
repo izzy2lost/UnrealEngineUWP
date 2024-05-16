@@ -1318,3 +1318,232 @@ void FMassArchetypeData::BatchSetFragmentValues(TConstArrayView<FMassArchetypeEn
 		EntitiesHandled += EntityRange.Length;
 	}
 }
+
+//-----------------------------------------------------------------------------
+// FMassArchetypeHelper
+//-----------------------------------------------------------------------------
+bool FMassArchetypeHelper::DoesArchetypeMatchRequirements(const FMassArchetypeData& Archetype, const FMassFragmentRequirements& Requirements
+#if WITH_MASSENTITY_DEBUG
+	, const bool bBailOutOnFirstFail, FOutputDevice* OutputDevice
+#endif // WITH_MASSENTITY_DEBUG
+	)
+{
+	bool bResult = true;
+	if (Archetype.GetTagBitSet().HasAll(Requirements.GetRequiredAllTags()) == false)
+	{
+		// missing some required tags, skip.
+#if WITH_MASSENTITY_DEBUG
+		if (OutputDevice)
+		{
+			const FMassTagBitSet UnsatisfiedTags = Requirements.GetRequiredAllTags() - Archetype.GetTagBitSet();
+			FStringOutputDevice Description;
+			UnsatisfiedTags.DebugGetStringDesc(Description);
+			OutputDevice->Logf(TEXT("Archetype did not match due to missing tags: %s"), *Description);
+		}
+		if (!bBailOutOnFirstFail) bResult = false; else
+#endif // WITH_MASSENTITY_DEBUG
+		{
+			return false;
+		}
+	}
+
+	if (Archetype.GetTagBitSet().HasNone(Requirements.GetRequiredNoneTags()) == false)
+	{
+		// has some tags required to be absent
+#if WITH_MASSENTITY_DEBUG
+		if (OutputDevice)
+		{
+			const FMassTagBitSet UnwantedTags = Requirements.GetRequiredAllTags().GetOverlap(Archetype.GetTagBitSet());
+			FStringOutputDevice Description;
+			UnwantedTags.DebugGetStringDesc(Description);
+			OutputDevice->Logf(TEXT("Archetype has tags required absent: %s"), *Description);
+		}
+		if (!bBailOutOnFirstFail) bResult = false; else
+#endif // WITH_MASSENTITY_DEBUG
+		{
+			return false;
+		}
+	}
+
+	if (Requirements.GetRequiredAnyTags().IsEmpty() == false
+		&& Archetype.GetTagBitSet().HasAny(Requirements.GetRequiredAnyTags()) == false)
+	{
+#if WITH_MASSENTITY_DEBUG
+		if (OutputDevice)
+		{
+			FStringOutputDevice Description;
+			Requirements.GetRequiredAnyTags().DebugGetStringDesc(Description);
+			OutputDevice->Logf(TEXT("Archetype did not match due to missing \'any\' tags: %s"), *Description);
+		}
+		if (!bBailOutOnFirstFail) bResult = false; else
+#endif // WITH_MASSENTITY_DEBUG
+		{
+			return false;
+		}
+	}
+
+	if (Archetype.GetFragmentBitSet().HasAll(Requirements.GetRequiredAllFragments()) == false)
+	{
+		// missing some required fragments, skip.
+#if WITH_MASSENTITY_DEBUG
+		if (OutputDevice)
+		{
+			const FMassFragmentBitSet UnsatisfiedFragments = Requirements.GetRequiredAllFragments() - Archetype.GetFragmentBitSet();
+			FStringOutputDevice Description;
+			UnsatisfiedFragments.DebugGetStringDesc(Description);
+			OutputDevice->Logf(TEXT("Archetype did not match due to missing Fragments: %s"), *Description);
+		}
+		if (!bBailOutOnFirstFail) bResult = false; else
+#endif // WITH_MASSENTITY_DEBUG
+		{
+			return false;
+		}
+	}
+
+	if (Archetype.GetFragmentBitSet().HasNone(Requirements.GetRequiredNoneFragments()) == false)
+	{
+		// has some Fragments required to be absent
+#if WITH_MASSENTITY_DEBUG
+		if (OutputDevice)
+		{
+			const FMassFragmentBitSet UnwantedFragments = Requirements.GetRequiredAllFragments().GetOverlap(Archetype.GetFragmentBitSet());
+			FStringOutputDevice Description;
+			UnwantedFragments.DebugGetStringDesc(Description);
+			OutputDevice->Logf(TEXT("Archetype has Fragments required absent: %s"), *Description);
+		}
+		if (!bBailOutOnFirstFail) bResult = false; else
+#endif // WITH_MASSENTITY_DEBUG
+		{
+			return false;
+		}
+	}
+
+	if (Requirements.GetRequiredAnyFragments().IsEmpty() == false
+		&& Archetype.GetFragmentBitSet().HasAny(Requirements.GetRequiredAnyFragments()) == false)
+	{
+#if WITH_MASSENTITY_DEBUG
+		if (OutputDevice)
+		{
+			FStringOutputDevice Description;
+			Requirements.GetRequiredAnyFragments().DebugGetStringDesc(Description);
+			OutputDevice->Logf(TEXT("Archetype did not match due to missing \'any\' fragments: %s"), *Description);
+		}
+		if (!bBailOutOnFirstFail) bResult = false; else
+#endif // WITH_MASSENTITY_DEBUG
+		{
+			return false;
+		}
+	}
+
+	if (Archetype.GetChunkFragmentBitSet().HasAll(Requirements.GetRequiredAllChunkFragments()) == false)
+	{
+		// missing some required fragments, skip.
+#if WITH_MASSENTITY_DEBUG
+		if (OutputDevice)
+		{
+			const FMassChunkFragmentBitSet UnsatisfiedFragments = Requirements.GetRequiredAllChunkFragments() - Archetype.GetChunkFragmentBitSet();
+			FStringOutputDevice Description;
+			UnsatisfiedFragments.DebugGetStringDesc(Description);
+			OutputDevice->Logf(TEXT("Archetype did not match due to missing Chunk Fragments: %s"), *Description);
+		}
+		if (!bBailOutOnFirstFail) bResult = false; else
+#endif // WITH_MASSENTITY_DEBUG
+		{
+			return false;
+		}
+	}
+
+	if (Archetype.GetChunkFragmentBitSet().HasNone(Requirements.GetRequiredNoneChunkFragments()) == false)
+	{
+		// has some Fragments required to be absent
+#if WITH_MASSENTITY_DEBUG
+		if (OutputDevice)
+		{
+			const FMassChunkFragmentBitSet UnwantedFragments = Requirements.GetRequiredNoneChunkFragments().GetOverlap(Archetype.GetChunkFragmentBitSet());
+			FStringOutputDevice Description;
+			UnwantedFragments.DebugGetStringDesc(Description);
+			OutputDevice->Logf(TEXT("Archetype has Chunk Fragments required absent: %s"), *Description);
+		}
+		if (!bBailOutOnFirstFail) bResult = false; else
+#endif // WITH_MASSENTITY_DEBUG
+		{
+			return false;
+		}
+	}
+
+	if (Archetype.GetSharedFragmentBitSet().HasAll(Requirements.GetRequiredAllSharedFragments()) == false)
+	{
+		// missing some required fragments, skip.
+#if WITH_MASSENTITY_DEBUG
+		if (OutputDevice)
+		{
+			const FMassSharedFragmentBitSet UnsatisfiedFragments = Requirements.GetRequiredAllSharedFragments() - Archetype.GetSharedFragmentBitSet();
+			FStringOutputDevice Description;
+			UnsatisfiedFragments.DebugGetStringDesc(Description);
+			OutputDevice->Logf(TEXT("Archetype did not match due to missing Shared Fragments: %s"), *Description);
+		}
+		if (!bBailOutOnFirstFail) bResult = false; else
+#endif // WITH_MASSENTITY_DEBUG
+		{
+			return false;
+		}
+	}
+
+	if (Archetype.GetSharedFragmentBitSet().HasNone(Requirements.GetRequiredNoneSharedFragments()) == false)
+	{
+		// has some Fragments required to be absent
+#if WITH_MASSENTITY_DEBUG
+		if (OutputDevice)
+		{
+			const FMassSharedFragmentBitSet UnwantedFragments = Requirements.GetRequiredNoneSharedFragments().GetOverlap(Archetype.GetSharedFragmentBitSet());
+			FStringOutputDevice Description;
+			UnwantedFragments.DebugGetStringDesc(Description);
+			OutputDevice->Logf(TEXT("Archetype has Shared Fragments required absent: %s"), *Description);
+		}
+		if (!bBailOutOnFirstFail) bResult = false; else
+#endif // WITH_MASSENTITY_DEBUG
+		{
+			return false;
+		}
+	}
+
+	if (Archetype.GetConstSharedFragmentBitSet().HasAll(Requirements.GetRequiredAllConstSharedFragments()) == false)
+	{
+		// missing some required fragments, skip.
+#if WITH_MASSENTITY_DEBUG
+		if (OutputDevice)
+		{
+			const FMassConstSharedFragmentBitSet UnsatisfiedFragments = Requirements.GetRequiredAllConstSharedFragments() - Archetype.GetConstSharedFragmentBitSet();
+			FStringOutputDevice Description;
+			UnsatisfiedFragments.DebugGetStringDesc(Description);
+			OutputDevice->Logf(TEXT("Archetype did not match due to missing Const Shared Fragments: %s"), *Description);
+		}
+		if (!bBailOutOnFirstFail) bResult = false; else
+#endif // WITH_MASSENTITY_DEBUG
+		{
+			return false;
+		}
+	}
+
+	if (Archetype.GetConstSharedFragmentBitSet().HasNone(Requirements.GetRequiredNoneConstSharedFragments()) == false)
+	{
+		// has some Fragments required to be absent
+#if WITH_MASSENTITY_DEBUG
+		if (OutputDevice)
+		{
+			const FMassConstSharedFragmentBitSet UnwantedFragments = Requirements.GetRequiredNoneConstSharedFragments().GetOverlap(Archetype.GetConstSharedFragmentBitSet());
+			FStringOutputDevice Description;
+			UnwantedFragments.DebugGetStringDesc(Description);
+			OutputDevice->Logf(TEXT("Archetype has Const Shared Fragments required absent: %s"), *Description);
+		}
+		// could skip the test as it's the final check we're performing, but leaving it in in case more cases are added
+		// later without checking the existing code
+		if (!bBailOutOnFirstFail) bResult = false; else
+#endif // WITH_MASSENTITY_DEBUG
+		{
+			return false;
+		}
+	}
+
+	return bResult;
+}
