@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "StorageServerConnection.h"
+#include "DebugStorageServerConnection.h"
 
 #include "IO/IoDispatcher.h"
 #include "IPAddress.h"
@@ -55,6 +56,7 @@ FStorageServerRequest::FStorageServerRequest(FAnsiStringView Verb, FAnsiStringVi
 
 IStorageConnectionSocket* FStorageServerRequest::Send(FStorageServerConnection& Owner, bool bLogOnError)
 {
+	StartTiming();
 	if (BodyBuffer.Num())
 	{
 		HeaderBuffer.Append("Content-Length: ").Appendf("%d\r\n", BodyBuffer.Num());
@@ -263,6 +265,7 @@ bool FStorageServerChunkBatchRequest::Issue(TFunctionRef<void(uint32 ChunkCount,
 		ChunkSizes.Emplace(ChunkSize);
 	}
 	OnResponse(ChunkCount, ChunkIndices.GetData(), ChunkSizes.GetData(), Response);
+	Owner.AddTimingInstance(GetDuration(), (double)Response.Tell());
 	return true;
 }
 
@@ -470,6 +473,11 @@ FStorageServerConnection::FStorageServerConnection()
 
 FStorageServerConnection::~FStorageServerConnection()
 {
+	if (StatsObject)
+	{
+		StatsObject->StopDrawing();
+		StatsObject->RemoveFromRoot();
+	}
 }
 
 bool FStorageServerConnection::Initialize(TArrayView<const FString> InHostAddresses, int32 InPort, const TCHAR* InProjectNameOverride, const TCHAR* InPlatformNameOverride)
@@ -507,7 +515,6 @@ bool FStorageServerConnection::Initialize(TArrayView<const FString> InHostAddres
 void FStorageServerConnection::PackageStoreRequest(TFunctionRef<void(FPackageStoreEntryResource&&)> Callback)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(StorageServerPackageStoreRequest);
-	ShowDebugMessage();
 
 	TAnsiStringBuilder<256> ResourceBuilder;
 	ResourceBuilder.Append(OplogPath).Append("/entries?fieldfilter=packagestoreentry");
@@ -539,8 +546,6 @@ void FStorageServerConnection::PackageStoreRequest(TFunctionRef<void(FPackageSto
 
 void FStorageServerConnection::FileManifestRequest(TFunctionRef<void(FIoChunkId Id, FStringView Path)> Callback)
 {
-	ShowDebugMessage();
-
 	TAnsiStringBuilder<256> ResourceBuilder;
 	ResourceBuilder.Append(OplogPath).Append("/files?filter=client");
 	FStorageServerRequest Request("GET", *ResourceBuilder, Hostname, EStorageServerContentType::CbObject);
@@ -592,6 +597,8 @@ int64 FStorageServerConnection::ChunkSizeRequest(const FIoChunkId& ChunkId)
 	FStorageServerResponse Response(*this, *Socket);
 	if (Response.IsOk())
 	{
+		AddTimingInstance(Request.GetDuration(), (double)Response.TotalSize());
+
 		FCbObject ResponseObj = Response.GetResponseObject();
 
 		const int64 ChunkSize = ResponseObj["size"].AsInt64(0);
@@ -612,9 +619,6 @@ int64 FStorageServerConnection::ChunkSizeRequest(const FIoChunkId& ChunkId)
 bool FStorageServerConnection::ReadChunkRequest(const FIoChunkId& ChunkId, uint64 Offset, uint64 Size, TFunctionRef<void(FStorageServerResponse&)> OnResponse)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ZenHttpClient::ReadChunkRequest);
-
-	ShowDebugMessage();
-
 	TAnsiStringBuilder<256> ResourceBuilder;
 	ResourceBuilder.Append(OplogPath) << "/" << ChunkId;
 
@@ -656,6 +660,7 @@ bool FStorageServerConnection::ReadChunkRequest(const FIoChunkId& ChunkId, uint6
 	if (Response.IsOk())
 	{
 		OnResponse(Response);
+		AddTimingInstance(Request.GetDuration(), (double)Response.Tell());
 		return true;
 	}
 	else if (Response.GetErrorCode() == 404)
@@ -720,17 +725,19 @@ FStorageConnectionBackend* FStorageServerConnection::GetConnectionBackend() cons
 	return ConnectionBackend.Get();
 }
 
-void FStorageServerConnection::ShowDebugMessage()
+void FStorageServerConnection::AddTimingInstance(double duration, uint64 bytes)
 {
-	static bool bShowDebugMessage = true;
-
-	if ((bShowDebugMessage) && (GEngine))
+	if ((StatsObject == nullptr) && (UObjectInitialized()))
 	{
-		FString ZenConnectionDebugMsg;
-		ZenConnectionDebugMsg = FString::Printf(TEXT("ZenServer streaming from %s"), *ConnectionBackend->GetHostName());
-		GEngine->AddOnScreenDebugMessage(INDEX_NONE, 86400.0f, FColor::White, ZenConnectionDebugMsg, false);
-		bShowDebugMessage = false;
+		StatsObject = NewObject<UDebugStorageServerConnection>();
+		StatsObject->SetOwner(this);
+		StatsObject->AddToRoot();
+		StatsObject->StartDrawing();
 	}
+
+	if (StatsObject)
+		StatsObject->AddTimingInstance(duration, bytes);
 }
+
 
 #endif

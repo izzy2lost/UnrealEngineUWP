@@ -9,6 +9,7 @@
 #include "Memory/MemoryFwd.h"
 #include "Templates/SharedPointer.h"
 #include "SocketTypes.h"
+#include "HAL/PlatformTime.h"
 
 #if !UE_BUILD_SHIPPING
 
@@ -95,6 +96,21 @@ protected:
 	EStorageServerContentType AcceptType;
 	TAnsiStringBuilder<512> HeaderBuffer;
 	TArray<uint8, TInlineAllocator<1024>> BodyBuffer;
+	double StartRequestWallTime;
+
+public:
+	void StartTiming()
+	{
+		StartRequestWallTime = FPlatformTime::Seconds();
+	}
+
+	double GetDuration() // seconds
+	{
+		check(StartRequestWallTime > 0.0);
+		double EndRequestWallTime = FPlatformTime::Seconds();
+		return EndRequestWallTime - StartRequestWallTime;
+	}
+
 };
 
 class FStorageServerResponse
@@ -218,6 +234,8 @@ protected:
 	TAnsiStringBuilder<1024> OplogPath;
 };
 
+class UDebugStorageServerConnection;
+
 class FStorageServerConnection
 {
 public:
@@ -238,13 +256,13 @@ private:
 	friend FStorageServerRequest;
 	friend FStorageServerResponse;
 	friend FStorageServerChunkBatchRequest;
+	friend UDebugStorageServerConnection;
 
 	bool CreateConnectionBackend(TArrayView<const FString> HostAddresses, int32 Port);
 	bool CreatePlatformBackend(const FString& HostAddresses, int32 Port);
 
 	FStorageConnectionBackend* GetConnectionBackend() const;
-
-	void ShowDebugMessage();
+	void AddTimingInstance(double duration, uint64 bytes);
 
 	ISocketSubsystem& SocketSubsystem;
 	TAnsiStringBuilder<1024> OplogPath;
@@ -252,6 +270,8 @@ private:
 	TAnsiStringBuilder<1024> Hostname;
 	TUniquePtr<FStorageConnectionBackend> ConnectionBackend;
 	FCriticalSection BackendCS;
+
+	UDebugStorageServerConnection* StatsObject = nullptr;
 };
 
 #endif
