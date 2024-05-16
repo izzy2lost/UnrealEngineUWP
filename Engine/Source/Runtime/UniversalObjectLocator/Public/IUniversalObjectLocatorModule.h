@@ -24,6 +24,7 @@ struct FFragmentTypeParameters
 	FFragmentTypeParameters(FName InFragmentTypeID, FText InDisplayText)
 		: DisplayText(InDisplayText)
 		, FragmentTypeID(InFragmentTypeID)
+		, Flags(EFragmentTypeFlags::None)
 	{
 	}
 
