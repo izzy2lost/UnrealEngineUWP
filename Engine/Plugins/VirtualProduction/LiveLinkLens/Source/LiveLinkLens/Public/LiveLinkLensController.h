@@ -30,10 +30,6 @@ public:
 	virtual void PostLoad() override;
 	//~ End UObject interface
 
-private:
-	/** Sets the evaluation mode of the attached LensComponent to use LiveLink and enable applying distortion */
-	void SetupLensComponent();
-
 protected:
 
 #if WITH_EDITORONLY_DATA
