@@ -1521,8 +1521,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 
-	GrassData->ConditionalDiscardDataOnLoad();
-
 #if WITH_EDITORONLY_DATA
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// If the Collision Component is not set yet and we're transferring the property from the lazy object pointer it was previously stored as to the soft object ptr it is now stored as :
@@ -1541,6 +1539,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif // !WITH_EDITORONLY_DATA
 
 #endif // WITH_EDITOR
+
+	GrassData->ConditionalDiscardDataOnLoad();
 }
 
 #if WITH_EDITORONLY_DATA
