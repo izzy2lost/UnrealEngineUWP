@@ -32,7 +32,7 @@
 	
 	<!-- This will be set to the names of all nodes we want to execute based on specified platforms/options -->
 	<Property Name="EditorPlatform" Value="Win64"/>
-	<Property Name="AgentType" Value="Win64Generic;Win64"/>
+	<Property Name="AgentType" Value="Win-Fortnite;Win64Generic;Win64"/>
 
 	<!-- ForEach Project to run, generate the graph nodes -->
 	<ForEach Name="Project" Values="$(Projects)">
