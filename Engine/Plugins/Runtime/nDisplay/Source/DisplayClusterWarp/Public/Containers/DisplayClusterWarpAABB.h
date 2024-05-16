@@ -14,12 +14,6 @@ struct FDisplayClusterWarpAABB
 		: FBox(FVector(FLT_MAX, FLT_MAX, FLT_MAX), FVector(-FLT_MAX, -FLT_MAX, -FLT_MAX))
 	{ }
 
-	/** Expand the value in AABB using the input AABB. */
-	inline void UpdateAABB(const FBox& InAABB)
-	{
-		operator+=(InAABB);
-	}
-
 	/** Expand the value in AABB with the new values. */
 	template<typename FArg>
 	inline void UpdateAABB(const FArg X, const FArg Y, const FArg Z)
@@ -60,7 +54,7 @@ struct FDisplayClusterWarpAABB
 	/** Expand the value in AABB using the input AABB. */
 	inline void UpdateAABB(const FDisplayClusterWarpAABB& InAABB)
 	{
-		UpdateAABB(InAABB);
+		operator+=(InAABB);
 	}
 
 	/** The AABB defined by 8 points

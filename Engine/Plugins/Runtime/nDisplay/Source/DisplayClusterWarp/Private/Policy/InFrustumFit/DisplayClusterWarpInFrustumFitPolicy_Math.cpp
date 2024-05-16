@@ -291,7 +291,7 @@ bool FDisplayClusterWarpInFrustumFitPolicy::CalcUnitedGeometryWorldAABBox(const 
 
 		// Transform from the Origin component space to the world space.
 		const FBox WorldSpaceAABBox = WarpBlend->GetGeometryContext().AABBox.TransformBy(OriginComp->GetComponentTransform());
-		OutUnitedGeometryWorldAABBox.UpdateAABB(WorldSpaceAABBox);
+		OutUnitedGeometryWorldAABBox +=WorldSpaceAABBox;
 	}
 
 	return true;
