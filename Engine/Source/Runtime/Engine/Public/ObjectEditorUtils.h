@@ -11,6 +11,13 @@ class FProperty;
 
 namespace FObjectEditorUtils
 {
+	/**
+	 * Gets the category text from this category FName
+	 *
+	 * @param	InName Category FName we want the text for
+	 * @return	Category text for the provided category name
+	 */
+	ENGINE_API FText GetCategoryText( const FName InName );
 
 	/**
 	 * Gets the category this field belongs to.
