@@ -189,6 +189,14 @@ void FNiagaraStatelessEmitterInstance::BindParameters(bool bExternalOnly)
 		if (ParentSystemInstance)
 		{
 			ParentSystemInstance->BindToParameterStore(RendererBindings);
+
+			for (UNiagaraParameterCollection* ParameterCollection : EmitterData->BoundParameterCollections)
+			{
+				if (UNiagaraParameterCollectionInstance* ParameterCollectionInstance = ParentSystemInstance->GetParameterCollectionInstance(ParameterCollection))
+				{
+					ParameterCollectionInstance->GetParameterStore().Bind(&RendererBindings);
+				}
+			}
 		}
 	}
 }
@@ -200,6 +208,14 @@ void FNiagaraStatelessEmitterInstance::UnbindParameters(bool bExternalOnly)
 		if (ParentSystemInstance)
 		{
 			ParentSystemInstance->UnbindFromParameterStore(RendererBindings);
+
+			for (UNiagaraParameterCollection* ParameterCollection : EmitterData->BoundParameterCollections)
+			{
+				if (UNiagaraParameterCollectionInstance* ParameterCollectionInstance = ParentSystemInstance->GetParameterCollectionInstance(ParameterCollection))
+				{
+					ParameterCollectionInstance->GetParameterStore().Unbind(&RendererBindings);
+				}
+			}
 		}
 	}
 }

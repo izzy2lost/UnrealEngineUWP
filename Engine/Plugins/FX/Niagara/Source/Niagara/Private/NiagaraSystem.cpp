@@ -488,10 +488,21 @@ bool UNiagaraSystem::UsesCollection(const UNiagaraParameterCollection* Collectio
 
 	for (const FNiagaraEmitterHandle& EmitterHandle : GetEmitterHandles())
 	{
-		FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
-		if (EmitterData && EmitterData->UsesCollection(Collection))
+		if (EmitterHandle.GetEmitterMode() == ENiagaraEmitterMode::Standard)
 		{
-			return true;
+			FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+			if (EmitterData && EmitterData->UsesCollection(Collection))
+			{
+				return true;
+			}
+		}
+		else
+		{
+			UNiagaraStatelessEmitter* Emitter = EmitterHandle.GetStatelessEmitter();
+			if (Emitter && Emitter->UsesCollection(Collection))
+			{
+				return true;
+			}
 		}
 	}
 

@@ -10,6 +10,7 @@
 
 #include "Shader.h"
 
+class UNiagaraParameterCollection;
 class UNiagaraRendererProperties;
 class UNiagaraStatelessEmitterTemplate;
 namespace NiagaraStateless
@@ -45,6 +46,7 @@ struct FNiagaraStatelessEmitterData
 	TArray<FNiagaraStatelessSpawnInfo>				SpawnInfos;
 
 	TArray<TObjectPtr<UNiagaraRendererProperties>>	RendererProperties;
+	TArray<TObjectPtr<UNiagaraParameterCollection>>	BoundParameterCollections;
 
 	bool											bModulesHaveRendererBindings = false;
 	FNiagaraParameterStore							RendererBindings;			// Contains all bindings for modules & renderers

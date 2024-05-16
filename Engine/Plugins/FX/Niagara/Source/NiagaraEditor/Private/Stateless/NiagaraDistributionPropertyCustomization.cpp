@@ -15,6 +15,7 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/SNiagaraDistributionEditor.h"
 
+#include "NiagaraEditorUtilities.h"
 #include "NiagaraNodeParameterMapBase.h"
 #include "NiagaraParameterMapHistory.h"
 #include "NiagaraScriptSource.h"
@@ -181,6 +182,8 @@ public:
 		{
 			switch (InSourceMode)
 			{
+			case ENiagaraDistributionMode::Binding:
+				return ENiagaraDistributionEditorMode::Binding;
 			case ENiagaraDistributionMode::NonUniformConstant:
 				return ENiagaraDistributionEditorMode::ColorConstant;
 			case ENiagaraDistributionMode::NonUniformRange:
@@ -490,6 +493,19 @@ public:
 				if (Variable.GetType() == AllowedTypeDef)
 				{
 					AvailableBindings.Add(Variable);
+				}
+			}
+
+			TArray<UNiagaraParameterCollection*> AvailableParameterCollections;
+			FNiagaraEditorUtilities::GetAvailableParameterCollections(AvailableParameterCollections);
+			for (UNiagaraParameterCollection* NPCollection : AvailableParameterCollections)
+			{
+				for (const FNiagaraVariable& NPCVariable : NPCollection->GetParameters())
+				{
+					if (NPCVariable.GetType() == AllowedTypeDef)
+					{
+						AvailableBindings.Add(NPCVariable);
+					}
 				}
 			}
 		}

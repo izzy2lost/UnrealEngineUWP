@@ -13,6 +13,7 @@
 
 //-TODO:Stateless: Merge this into UNiagaraEmitterBase perhaps?
 
+class UNiagaraParameterCollection;
 struct FNiagaraStatelessEmitterData;
 class UNiagaraStatelessModule;
 class UNiagaraRendererProperties;
@@ -43,8 +44,11 @@ public:
 
 #if WITH_EDITOR
 	void OnEmitterTemplateChanged();
+	void OnCacheParameterCollectionReferences();
 #endif
 	NIAGARA_API const UNiagaraStatelessEmitterTemplate* GetEmitterTemplate() const;
+
+	bool UsesCollection(const UNiagaraParameterCollection* Collection) const;
 
 	const TArray<UNiagaraRendererProperties*>& GetRenderers() { return RendererProperties; }
 	const TArray<UNiagaraRendererProperties*>& GetRenderers() const { return RendererProperties; }
@@ -154,6 +158,9 @@ protected:
 
 	UPROPERTY()
 	TArray<int32> ComponentOffsets;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UNiagaraParameterCollection>> CachedParameterCollectionReferences;
 
 #if WITH_EDITORONLY_DATA
 	FSimpleMulticastDelegate OnRenderersChangedDelegate;

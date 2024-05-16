@@ -15,6 +15,7 @@
 
 #include "Algo/Copy.h"
 #include "Interfaces/ITargetPlatform.h"
+#include "UObject/UObjectIterator.h"
 
 namespace NiagaraStatelessInternal
 {
@@ -99,6 +100,7 @@ void UNiagaraStatelessEmitter::PostLoad()
 #if WITH_EDITOR
 	// Ensure our module list is up to date
 	OnEmitterTemplateChanged();
+	//OnCacheParameterCollectionReferences();
 #endif
 }
 
@@ -157,6 +159,7 @@ void UNiagaraStatelessEmitter::PostEditChangeProperty(FPropertyChangedEvent& Pro
 		//if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UNiagaraStatelessEmitter, EmitterTemplateClass))
 		{
 			OnEmitterTemplateChanged();
+			OnCacheParameterCollectionReferences();
 		}
 	}
 }
@@ -198,7 +201,57 @@ void UNiagaraStatelessEmitter::OnEmitterTemplateChanged()
 	}
 	Modules = MoveTemp(NewModules);
 }
+
+void UNiagaraStatelessEmitter::OnCacheParameterCollectionReferences()
+{
+	TArray<TObjectPtr<UNiagaraParameterCollection>> OriginalReferences;
+	Swap(OriginalReferences, CachedParameterCollectionReferences);
+
+	for (const UNiagaraStatelessModule* Module : Modules)
+	{
+		for (TFieldIterator<FStructProperty> PropIt(Module->GetClass()); PropIt; ++PropIt)
+		{
+			FStructProperty* StructProp = *PropIt;
+			if (!StructProp || !StructProp->Struct || !StructProp->Struct->IsChildOf(FNiagaraDistributionBase::StaticStruct()))
+			{
+				continue;
+			}
+
+			const FNiagaraDistributionBase* DistributionBase = StructProp->ContainerPtrToValuePtr<const FNiagaraDistributionBase>(Module);
+			if (!DistributionBase->IsBinding())
+			{
+				continue;
+			}
+
+
+			if (!DistributionBase->ParameterBinding.IsInNameSpace(FNiagaraConstants::ParameterCollectionNamespaceString))
+			{
+				continue;
+			}
+
+			for (TObjectIterator<UNiagaraParameterCollection> NPCIt; NPCIt; ++NPCIt)
+			{
+				UNiagaraParameterCollection* NPC = *NPCIt;
+				if (NPC->GetParameters().Contains(DistributionBase->ParameterBinding))
+				{
+					CachedParameterCollectionReferences.AddUnique(NPC);
+					break;
+				}
+			}
+		}
+	}
+	
+	if ( OriginalReferences != CachedParameterCollectionReferences )
+	{
+		Modify();
+	}
+}
 #endif //WITH_EDITOR
+
+bool UNiagaraStatelessEmitter::UsesCollection(const UNiagaraParameterCollection* Collection) const
+{
+	return CachedParameterCollectionReferences.Contains(Collection);
+}
 
 const UNiagaraStatelessEmitterTemplate* UNiagaraStatelessEmitter::GetEmitterTemplate() const
 {
@@ -308,6 +361,21 @@ void UNiagaraStatelessEmitter::CacheFromCompiledData()
 			StatelessEmitterData->StaticFloatData.Emplace(0.0f);
 		}
 		StatelessEmitterData->InitRenderResources();
+
+		// Gather the parameter collections we need to bind to
+	#if WITH_EDITOR
+		// UNiagaraStatelessEmitter does not get a notification when bindings change.
+		//-OPT: Shift this to be when distributions change mode in / out of binding + binding changed
+		OnCacheParameterCollectionReferences();
+	#endif
+		StatelessEmitterData->BoundParameterCollections.Reset(CachedParameterCollectionReferences.Num());
+		for (UNiagaraParameterCollection* ParameterCollection : CachedParameterCollectionReferences)
+		{
+			if (ParameterCollection)
+			{
+				StatelessEmitterData->BoundParameterCollections.Add(ParameterCollection);
+			}
+		}
 
 		// Prepare renderer bindings this avoid having to do this per instance spawned
 		// Note: Order is important here we detect if we need to update shader parameters on binding changes above by looking to see if we had any renderer bindings so this must be below
