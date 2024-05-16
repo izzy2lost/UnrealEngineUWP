@@ -844,7 +844,7 @@ void UObjectReplicationBridge::PreSendUpdate()
 	using namespace UE::Net;
 
 	FNetBitArrayView ObjectsConsideredForPolling = GetReplicationSystem()->GetReplicationSystemInternal()->GetNetRefHandleManager().GetPolledObjectsInternalIndices();
-	ObjectsConsideredForPolling.Reset();
+	ObjectsConsideredForPolling.ClearAllBits();
 
 	BuildPollList(ObjectsConsideredForPolling);
 

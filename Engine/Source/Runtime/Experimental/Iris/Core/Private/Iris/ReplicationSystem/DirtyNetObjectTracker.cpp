@@ -105,16 +105,14 @@ void FDirtyNetObjectTracker::UpdateDirtyNetObjects()
 
 	//$IRIS TODO:  We could look if any objects where actually in the global list and skip the array iteration if not needed.
 
-	const FNetBitArrayView GlobalScopeList = NetRefHandleManager->GetCurrentFrameScopableInternalIndices();
-	const uint32* GlobalScopeListData = GlobalScopeList.GetData();
-	
-	uint32* AccumulatedDirtyNetObjectsData = AccumulatedDirtyNetObjects.GetData();
-	uint32* DirtyNetObjectsData = DirtyNetObjects.GetData();
-
 	const uint32 NumWords = AccumulatedDirtyNetObjects.GetNumWords();
-	check(NumWords == DirtyNetObjects.GetNumWords());
-	check(NumWords == GlobalScopeList.GetNumWords());
 
+	const FNetBitArrayView GlobalScopeList = NetRefHandleManager->GetCurrentFrameScopableInternalIndices();
+	const uint32* GlobalScopeListData = GlobalScopeList.GetDataChecked(NumWords);
+	
+	uint32* AccumulatedDirtyNetObjectsData = AccumulatedDirtyNetObjects.GetDataChecked(NumWords);
+	uint32* DirtyNetObjectsData = DirtyNetObjects.GetDataChecked(NumWords);
+		
 	for (uint32 WordIndex = 0; WordIndex < NumWords; ++WordIndex)
 	{
 		// Due to objects having been marked as dirty and later removed we must make sure that all dirty objects are still in scope.
@@ -218,7 +216,7 @@ void FDirtyNetObjectTracker::ReconcilePolledList(const FNetBitArrayView& Objects
 	MakeNetBitArrayView(AccumulatedDirtyNetObjects).Combine(ObjectsPolled, FNetBitArrayView::AndNotOp);
 
 	// Clear the current frame dirty objects
-	DirtyNetObjects.Reset();
+	DirtyNetObjects.ClearAllBits();
 
 	AllowExternalAccess();
 

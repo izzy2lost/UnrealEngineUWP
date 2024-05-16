@@ -220,7 +220,7 @@ void FDeltaCompressionBaselineStorage::FreeAllBaselineStateInfos()
 
 	UsedBaselineStateInfos.ClearBit(InvalidDeltaCompressionBaselineStateInfoIndex);
 	UsedBaselineStateInfos.ForAllSetBits(DestructStateInfo);
-	UsedBaselineStateInfos.Reset();
+	UsedBaselineStateInfos.ClearAllBits();
 }
 
 }

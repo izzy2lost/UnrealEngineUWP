@@ -226,7 +226,7 @@ void FGlobalDirtyNetObjectTracker::FPimpl::ResetDirtyNetObjects()
 {
 	if (!ensureMsgf(Pollers.IsNoBitSet(), TEXT("FGlobalDirtyNetObjectTracker poller %u forgot to call ResetDirtyNetObjects."), Pollers.FindFirstOne()))
 	{
-		Pollers.Reset();
+		Pollers.ClearAllBits();
 
 		// DirtyObjects should already be reset if there are no pollers.
 		DirtyObjects.Reset();

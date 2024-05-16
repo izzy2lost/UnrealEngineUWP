@@ -704,7 +704,7 @@ void FReplicationPrioritization::UpdatePrioritiesForNewAndDeletedObjects()
 		}
 
 		// $IRIS TODO: Want ForAllSetBits with clear.
-		ObjectsWithNewStaticPriority.Reset();
+		ObjectsWithNewStaticPriority.ClearAllBits();
 	}
 
 	// Copy the priorities for the new objects to each connection

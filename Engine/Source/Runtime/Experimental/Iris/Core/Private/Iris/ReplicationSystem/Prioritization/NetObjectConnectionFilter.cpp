@@ -127,7 +127,7 @@ void UNetObjectConnectionFilter::Filter(FNetObjectFilteringParams& Params)
 	IRIS_PROFILER_SCOPE(UNetObjectConnectionFilter_Filter);
 
 	UE::Net::FNetBitArrayView& AllowedObjects = Params.OutAllowedObjects;
-	AllowedObjects.Reset();
+	AllowedObjects.ClearAllBits();
 
 	FPerConnectionInfo& ConnectionInfo = PerConnectionInfos[Params.ConnectionId];
 	ConnectionInfo.ReplicationEnabledObjects.ForAllSetBits(

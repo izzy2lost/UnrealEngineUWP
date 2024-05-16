@@ -18,5 +18,5 @@ void UFilterOutNetObjectFilter::RemoveObject(uint32 ObjectIndex, const FNetObjec
 void UFilterOutNetObjectFilter::Filter(FNetObjectFilteringParams& Params)
 {
 	// Filter out everything
-	Params.OutAllowedObjects.Reset();
+	Params.OutAllowedObjects.ClearAllBits();
 }

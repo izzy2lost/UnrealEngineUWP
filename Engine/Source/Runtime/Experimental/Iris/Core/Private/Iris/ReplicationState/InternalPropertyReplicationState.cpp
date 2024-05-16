@@ -18,7 +18,7 @@ void InitReplicationStateInternals(uint8* StateBuffer, const FReplicationStateDe
 
 	// init dirty state tracking
 	FNetBitArrayView DirtyStates = GetMemberChangeMask(StateBuffer, Descriptor);
-	DirtyStates.Reset();
+	DirtyStates.ClearAllBits();
 
 	// Init optional conditionals
 	if (EnumHasAnyFlags(Descriptor->Traits, EReplicationStateTraits::HasLifetimeConditionals))

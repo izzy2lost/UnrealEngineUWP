@@ -228,7 +228,7 @@ UE_NET_TEST_FIXTURE(FTestElementChangeMaskForArrayPropertyNetSerializer, TestCha
 	TObjectPtr<UClassWithDynamicArrayOfPrimitiveTypeForArrayPropertyNetSerializerTest> Source = NewObject<UClassWithDynamicArrayOfPrimitiveTypeForArrayPropertyNetSerializerTest>();
 
 	FNetBitArrayView ArrayChangeMask = UE::Net::Private::GetMemberChangeMask(ReplicationState.GetStateBuffer(), ReplicationStateDescriptor);
-	ArrayChangeMask.Reset();
+	ArrayChangeMask.ClearAllBits();
 
 	// Add one element at a time until the last bit in the changemask is set and make sure the array is always marked as dirty as well as the corresponding element
 	for (unsigned ElementIt = 0, ElementEndIt = FPropertyReplicationState::TArrayElementChangeMaskBits; ElementIt != ElementEndIt; ++ElementIt)
@@ -240,7 +240,7 @@ UE_NET_TEST_FIXTURE(FTestElementChangeMaskForArrayPropertyNetSerializer, TestCha
 		UE_NET_ASSERT_TRUE(ArrayChangeMask.GetBit(FPropertyReplicationState::TArrayElementChangeMaskBitOffset + ElementIt));
 		UE_NET_ASSERT_EQ(ArrayChangeMask.CountSetBits(), 2U);
 
-		ArrayChangeMask.Reset();
+		ArrayChangeMask.ClearAllBits();
 	}
 }
 
@@ -250,7 +250,7 @@ UE_NET_TEST_FIXTURE(FTestElementChangeMaskForArrayPropertyNetSerializer, TestCha
 	TObjectPtr<UClassWithDynamicArrayOfPrimitiveTypeForArrayPropertyNetSerializerTest> Source = NewObject<UClassWithDynamicArrayOfPrimitiveTypeForArrayPropertyNetSerializerTest>();
 
 	FNetBitArrayView ArrayChangeMask = UE::Net::Private::GetMemberChangeMask(ReplicationState.GetStateBuffer(), ReplicationStateDescriptor);
-	ArrayChangeMask.Reset();
+	ArrayChangeMask.ClearAllBits();
 
 	// First add elements up to the max element changemask capacity.
 	{
@@ -258,7 +258,7 @@ UE_NET_TEST_FIXTURE(FTestElementChangeMaskForArrayPropertyNetSerializer, TestCha
 		ReplicationState.PollPropertyReplicationState(Source.Get());
 
 		UE_NET_ASSERT_EQ(ArrayChangeMask.CountSetBits(), ArrayChangeMask.GetNumBits());
-		ArrayChangeMask.Reset();
+		ArrayChangeMask.ClearAllBits();
 	}
 
 	// Double the array size by adding one element at a time until the last bit in the changemask is set and make sure the array is always marked as dirty as well as the corresponding element.
@@ -271,7 +271,7 @@ UE_NET_TEST_FIXTURE(FTestElementChangeMaskForArrayPropertyNetSerializer, TestCha
 		UE_NET_ASSERT_TRUE(ArrayChangeMask.GetBit(FPropertyReplicationState::TArrayElementChangeMaskBitOffset + ElementIt));
 		UE_NET_ASSERT_EQ(ArrayChangeMask.CountSetBits(), 2U);
 
-		ArrayChangeMask.Reset();
+		ArrayChangeMask.ClearAllBits();
 	}
 }
 
@@ -287,7 +287,7 @@ UE_NET_TEST_FIXTURE(FTestElementChangeMaskForArrayPropertyNetSerializer, TestCha
 		Source->ArrayOfUint.SetNum(FPropertyReplicationState::TArrayElementChangeMaskBits);
 		ReplicationState.PollPropertyReplicationState(Source.Get());
 
-		ArrayChangeMask.Reset();
+		ArrayChangeMask.ClearAllBits();
 	}
 
 	// Modify one element at a time until the last bit in the changemask is set and make sure the array is always marked as dirty as well as the corresponding element
@@ -300,7 +300,7 @@ UE_NET_TEST_FIXTURE(FTestElementChangeMaskForArrayPropertyNetSerializer, TestCha
 		UE_NET_ASSERT_TRUE(ArrayChangeMask.GetBit(FPropertyReplicationState::TArrayElementChangeMaskBitOffset + ElementIt));
 		UE_NET_ASSERT_EQ(ArrayChangeMask.CountSetBits(), 2U);
 
-		ArrayChangeMask.Reset();
+		ArrayChangeMask.ClearAllBits();
 	}
 }
 
@@ -310,14 +310,14 @@ UE_NET_TEST_FIXTURE(FTestElementChangeMaskForArrayPropertyNetSerializer, TestCha
 	TObjectPtr<UClassWithDynamicArrayOfPrimitiveTypeForArrayPropertyNetSerializerTest> Source = NewObject<UClassWithDynamicArrayOfPrimitiveTypeForArrayPropertyNetSerializerTest>();
 
 	FNetBitArrayView ArrayChangeMask = UE::Net::Private::GetMemberChangeMask(ReplicationState.GetStateBuffer(), ReplicationStateDescriptor);
-	ArrayChangeMask.Reset();
+	ArrayChangeMask.ClearAllBits();
 
 	// First add elements up to double the max element changemask capacity.
 	{
 		Source->ArrayOfUint.SetNum(2*FPropertyReplicationState::TArrayElementChangeMaskBits);
 		ReplicationState.PollPropertyReplicationState(Source.Get());
 
-		ArrayChangeMask.Reset();
+		ArrayChangeMask.ClearAllBits();
 	}
 
 	// Double the array size by adding one element at a time until the last bit in the changemask is set and make sure the array is always marked as dirty as well as the corresponding element.
@@ -330,7 +330,7 @@ UE_NET_TEST_FIXTURE(FTestElementChangeMaskForArrayPropertyNetSerializer, TestCha
 		UE_NET_ASSERT_TRUE(ArrayChangeMask.GetBit(FPropertyReplicationState::TArrayElementChangeMaskBitOffset + ElementIt));
 		UE_NET_ASSERT_EQ(ArrayChangeMask.CountSetBits(), 2U);
 
-		ArrayChangeMask.Reset();
+		ArrayChangeMask.ClearAllBits();
 	}
 }
 
@@ -340,7 +340,7 @@ UE_NET_TEST_FIXTURE(FTestElementChangeMaskForArrayPropertyNetSerializer, TestCha
 	TObjectPtr<UClassWithDynamicArrayOfPrimitiveTypeForArrayPropertyNetSerializerTest> Source = NewObject<UClassWithDynamicArrayOfPrimitiveTypeForArrayPropertyNetSerializerTest>();
 
 	FNetBitArrayView ArrayChangeMask = UE::Net::Private::GetMemberChangeMask(ReplicationState.GetStateBuffer(), ReplicationStateDescriptor);
-	ArrayChangeMask.Reset();
+	ArrayChangeMask.ClearAllBits();
 
 	constexpr int32 ElementCount = 17;
 	// First add some elements
@@ -348,7 +348,7 @@ UE_NET_TEST_FIXTURE(FTestElementChangeMaskForArrayPropertyNetSerializer, TestCha
 		Source->ArrayOfUint.SetNum(ElementCount);
 		ReplicationState.PollPropertyReplicationState(Source.Get());
 
-		ArrayChangeMask.Reset();
+		ArrayChangeMask.ClearAllBits();
 	}
 
 	// Modify some arbitrary elements
@@ -376,7 +376,7 @@ UE_NET_TEST_FIXTURE(FTestElementChangeMaskForArrayPropertyNetSerializer, TestSer
 	TObjectPtr<UClassWithDynamicArrayOfPrimitiveTypeForArrayPropertyNetSerializerTest> Source = NewObject<UClassWithDynamicArrayOfPrimitiveTypeForArrayPropertyNetSerializerTest>();
 
 	FNetBitArrayView ArrayChangeMask = UE::Net::Private::GetMemberChangeMask(ReplicationState.GetStateBuffer(), ReplicationStateDescriptor);
-	ArrayChangeMask.Reset();
+	ArrayChangeMask.ClearAllBits();
 
 	constexpr int32 ElementCount = 17;
 	// First add some elements
@@ -418,7 +418,7 @@ UE_NET_TEST_FIXTURE(FTestElementChangeMaskForArrayPropertyNetSerializer, TestSer
 
 	// Modify a few elements
 	{
-		ArrayChangeMask.Reset();
+		ArrayChangeMask.ClearAllBits();
 
 		const int32 ElementIndicesToModify[] = {3, 7, 11};
 		for (int32 ElementIndex : ElementIndicesToModify)

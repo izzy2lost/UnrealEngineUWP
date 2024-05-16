@@ -271,9 +271,6 @@ static bool s_ValidateReplicationRecord(const FReplicationRecord* ReplicationRec
 
 FReplicationWriter::~FReplicationWriter()
 {
-	// NOTE: Currently disabled because FReplicationWriter until the performance impact of TNetChunkedArray can be measured on the server.
-	//NetRefHandleManager->GetLargestIndexIncreaseDelegate().Remove(OnLargestIndexIncreaseHandle);
-
 	DiscardAllRecords();
 
 	// Freeing the huge object queue needs to be done before calling StopAllReplication() in order to be able to free any changemask allocations.
@@ -383,9 +380,6 @@ void FReplicationWriter::Init(const FReplicationParameters& InParameters)
 	ReplicatedObjectsRecordInfoLists.SetNumZeroed(MaxSupportedObjects);
 	SchedulingPriorities.SetNumZeroed(MaxSupportedObjects);
 	
-	// NOTE: Currently disabled because FReplicationWriter until the performance impact of TNetChunkedArray can be measured on the server.
-	//OnLargestIndexIncreaseHandle = NetRefHandleManager->GetLargestIndexIncreaseDelegate().AddRaw(this, &FReplicationWriter::OnLargestIndexIncrease);
-
 	SetNetObjectListsSize(Parameters.MaxInternalNetRefIndex);
 
 	NetRefHandleManager->GetOnMaxInternalNetRefIndexIncreasedDelegate().AddRaw(this, &FReplicationWriter::OnMaxInternalNetRefIndexIncreased);
@@ -2964,7 +2958,7 @@ uint32 FReplicationWriter::WriteObjects(FNetSerializationContext& Context)
 	WriteContext.SortedObjectCount = SortedCount;
 
 	// Reset objects written this packet
-	WriteContext.ObjectsWrittenThisPacket.Reset();
+	WriteContext.ObjectsWrittenThisPacket.ClearAllBits();
 
 	return WrittenObjectCount;
 }
@@ -3023,7 +3017,7 @@ int FReplicationWriter::HandleObjectBatchSuccess(const FBatchInfo& BatchInfo, FR
 			CreateObjectRecord(&ChangeMask, Info, BatchObjectInfo, ObjectRecord);
 
 			// The object no longer has any dirty state, but may still have attachments that didn't fit
-			ChangeMask.Reset();
+			ChangeMask.ClearAllBits();
 
 			++ObjectCount;
 			if (Info.LastAckedBaselineIndex != FDeltaCompressionBaselineManager::InvalidBaselineIndex)
@@ -3624,14 +3618,6 @@ void FReplicationWriter::MarkObjectDirty(FInternalNetRefIndex InternalIndex, con
 
 	ObjectsWithDirtyChanges.SetBit(InternalIndex);
 }
-
-void FReplicationWriter::OnLargestIndexIncrease(uint32 InternalIndex)
-{
-	ReplicatedObjects.SetNumZeroed(InternalIndex);
-	ReplicatedObjectsRecordInfoLists.SetNumZeroed(InternalIndex);
-	SchedulingPriorities.SetNumZeroed(InternalIndex);
-}
-
 
 FReplicationWriter::FHugeObjectContext::FHugeObjectContext() = default;
 

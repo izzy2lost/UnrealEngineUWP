@@ -481,7 +481,7 @@ public:
 		};
 
 		DirtyObjectsToQuantize.ForAllSetBits(QuantizeFunction);
-		DirtyObjectsToQuantize.Reset();
+		DirtyObjectsToQuantize.ClearAllBits();
 
 		const uint32 ReplicationSystemId = ReplicationSystem->GetId();
 		UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystemId, ReplicationSystem.QuantizedObjectCount, QuantizedObjectCount, ENetTraceVerbosity::Trace);
@@ -817,7 +817,7 @@ IRISCORE_API void UReplicationSystem::SendUpdate(TFunctionRef<void(TArrayView<ui
 		// We only need to send data to connections that has data to send in PostTickDispatch
 
 		FNetBitArray::ForAllSetBits(Impl->ConnectionsPendingPostTickDispatchSend, ReplicatingConnections, FNetBitArray::AndOp, [&ConnectionToUpdate](uint32 ConnId) { ConnectionToUpdate.Add(ConnId);});
-		Impl->ConnectionsPendingPostTickDispatchSend.Reset();
+		Impl->ConnectionsPendingPostTickDispatchSend.ClearAllBits();
 	}
 
 	SendFunction(MakeArrayView(ConnectionToUpdate));

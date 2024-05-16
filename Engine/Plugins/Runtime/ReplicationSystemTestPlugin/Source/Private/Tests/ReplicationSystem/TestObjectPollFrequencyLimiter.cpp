@@ -40,7 +40,7 @@ UE_NET_TEST(ObjectPollFrequencyLimiter, ObjectsToPollAreSpreadOutWhenCreatingObj
 	// All objects are created. Verify we get one object polled per frame
 	for (uint32 It = 0, EndIt = MaxObjectCount; It < EndIt; ++It)
 	{
-		OutputBitArrayView.Reset();
+		OutputBitArrayView.ClearAllBits();
 		FrequencyLimiter.Update(MakeNetBitArrayView(ScopeBitArray), MakeNetBitArrayView(EmptyBitArray), OutputBitArrayView);
 
 		const uint32 PollCount = OutputArray.CountSetBits();
@@ -99,7 +99,7 @@ UE_NET_TEST(ObjectPollFrequencyLimiter, ObjectsToPollAreSpreadOutRegardlessOfUpd
 	// Verify the objects get polled evenly.
 	for (uint32 PollIt = 0; PollIt <= PollFrequency; ++PollIt)
 	{
-		OutputArray.Reset();
+		OutputArray.ClearAllBits();
 		FNetBitArrayView OutputBitArrayView = MakeNetBitArrayView(OutputArray);
 		FrequencyLimiter.Update(MakeNetBitArrayView(ScopeBitArray), MakeNetBitArrayView(EmptyBitArray), OutputBitArrayView);
 

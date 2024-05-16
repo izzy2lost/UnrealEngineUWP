@@ -449,7 +449,7 @@ void FNetBlobManager::FNetObjectAttachmentSendQueue::PrepareAndProcessOOBAttachm
 
 	if (ScheduleAsOOBAttachmentQueue.Num() <= 0)
 	{
-		OutConnectionsPendingImmediateSend.Reset();
+		OutConnectionsPendingImmediateSend.ClearAllBits();
 		return;
 	}
 

@@ -132,7 +132,7 @@ void UMockNetObjectFilter::Filter(FNetObjectFilteringParams& Params)
 
 	if (CallSetup.Filter.bFilterOutByDefault)
 	{
-		Params.OutAllowedObjects.Reset();
+		Params.OutAllowedObjects.ClearAllBits();
 	}
 	else
 	{

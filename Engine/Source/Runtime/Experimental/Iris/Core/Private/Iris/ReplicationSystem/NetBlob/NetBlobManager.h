@@ -161,7 +161,7 @@ private:
 				Connections = nullptr;
 				NetRefHandleManager = nullptr;
 				QueueToProcess = nullptr;
-				ConnectionsPendingSendInPostDispatch.Reset();
+				ConnectionsPendingSendInPostDispatch.ClearAllBits();
 			}
 
 			bool IsValid() const { return NetRefHandleManager != nullptr; }

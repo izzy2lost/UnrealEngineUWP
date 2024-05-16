@@ -503,7 +503,7 @@ void UObjectReplicationBridge::PrintRelevantObjectsForConnections(const TArray<F
 	TArray<uint32> RequestedConnectionList = FindConnectionsFromArgs(Args);
 	if (RequestedConnectionList.Num())
 	{
-		ConnectionsToPrint.Reset();
+		ConnectionsToPrint.ClearAllBits();
 		for (uint32 ConnectionId : RequestedConnectionList)
 		{
 			if (ValidConnections.IsBitSet(ConnectionId))

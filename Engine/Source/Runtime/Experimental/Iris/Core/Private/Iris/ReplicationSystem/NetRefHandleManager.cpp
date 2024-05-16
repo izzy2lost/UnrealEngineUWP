@@ -705,7 +705,7 @@ bool FNetRefHandleManager::SetSubObjectNetCondition(FInternalNetRefIndex SubObje
 
 					check(SubObjectConditionals->Num() == SubObjectsArray->Num());
 
-					SubObjectConditionals->GetData()[SubObjectArrayIndex] = SubObjectCondition;
+					(*SubObjectConditionals)[SubObjectArrayIndex] = SubObjectCondition;
 					return true;
 				}
 			}

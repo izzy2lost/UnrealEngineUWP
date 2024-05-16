@@ -61,7 +61,7 @@ void FDeltaCompressionBaselineInvalidationTracker::PostSendUpdate()
 	if (InvalidationInfos.Num() > 0)
 	{
 		InvalidationInfos.Empty();
-		InvalidatedObjects.Reset();
+		InvalidatedObjects.ClearAllBits();
 	}
 }
 

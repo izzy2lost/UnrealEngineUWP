@@ -183,7 +183,7 @@ void UNetObjectGridFilter::Filter(FNetObjectFilteringParams& Params)
 
 	// Only allow objects in any of the relevant cells to replicate.
 	FNetBitArrayView AllowedObjects = Params.OutAllowedObjects;
-	AllowedObjects.Reset();
+	AllowedObjects.ClearAllBits();
 
 	/**
 	 * The algorithm will simply iterate over all relevant cells and set the bits

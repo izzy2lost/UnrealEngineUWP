@@ -77,7 +77,7 @@ void FWorldLocations::UpdateWorldLocation(uint32 ObjectIndex, const FVector& Wor
 
 void FWorldLocations::ResetObjectsWithDirtyInfo()
 {
-	ObjectsWithDirtyInfo.Reset();
+	ObjectsWithDirtyInfo.ClearAllBits();
 }
 
 FVector FWorldLocations::ClampPositionToBoundary(const FVector& Position)

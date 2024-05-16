@@ -1567,7 +1567,7 @@ void FReplicationReader::CleanupReferenceTracking(FReplicatedObjectInfo* ObjectI
 
 void FReplicationReader::BuildUnresolvedChangeMaskAndUpdateObjectReferenceTracking(const FResolveAndCollectUnresolvedAndResolvedReferenceCollector& Collector, FNetBitArrayView CollectorChangeMask, FReplicatedObjectInfo* ReplicationInfo, FNetBitArrayView& OutUnresolvedChangeMask, FResolvedNetRefHandlesArray& OutNewResolvedRefHandles)
 {
-	OutUnresolvedChangeMask.Reset();
+	OutUnresolvedChangeMask.ClearAllBits();
 	bool bHasUnresolvedInitReferences = false;
 
 	UnresolvedReferencesCache.Reset();
@@ -1656,7 +1656,7 @@ void FReplicationReader::ResolveAndDispatchUnresolvedReferencesForObject(FNetSer
 		BuildUnresolvedChangeMaskAndUpdateObjectReferenceTracking(Collector, TempUnresolvedChangeMask, ReplicationInfo, UnresolvedChangeMask, NewResolvedRefHandles);
 
 		// Re-purpose temp changemask for members that has resolved references.
-		TempChangeMask.Reset();
+		TempChangeMask.ClearAllBits();
 		FNetBitArrayView ResolvedChangeMask = TempChangeMask;
 
 		// Merge in partially resolved changes
