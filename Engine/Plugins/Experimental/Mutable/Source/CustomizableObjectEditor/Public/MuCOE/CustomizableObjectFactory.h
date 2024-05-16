@@ -54,14 +54,13 @@ class UCustomizableObjectFactory : public UFactory
 
 	UCustomizableObjectFactory();
 
-	// Begin UObject Interface
-	virtual bool ConfigureProperties() override;
-
+public:
 	// Begin UFactory Interface
+	virtual bool ConfigureProperties() override;
 	virtual bool DoesSupportClass(UClass * Class) override;
 	virtual UClass* ResolveSupportedClass() override;
-	virtual UObject* FactoryCreateNew(UClass* Class,UObject* InParent,FName Name,EObjectFlags Flags,UObject* Context,FFeedbackContext* Warn) override;
-
+	virtual UObject* FactoryCreateNew(UClass* Class, UObject* InParent,FName Name,EObjectFlags Flags,UObject* Context,FFeedbackContext* Warn) override;
+	
 	FCustomizableObjectOptions CreationSettings;
 };
 
