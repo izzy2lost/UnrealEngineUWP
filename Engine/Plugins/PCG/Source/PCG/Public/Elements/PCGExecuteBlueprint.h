@@ -281,7 +281,8 @@ public:
 protected:
 #if WITH_EDITOR
 	void OnDependencyChanged(UObject* Object, FPropertyChangedEvent& PropertyChangedEvent);
-	TSet<TObjectPtr<UObject>> DataDependencies;
+	void UpdateDependencies();
+	TSet<TWeakObjectPtr<UObject>> DataDependencies;
 #endif
 
 #if !WITH_EDITORONLY_DATA
