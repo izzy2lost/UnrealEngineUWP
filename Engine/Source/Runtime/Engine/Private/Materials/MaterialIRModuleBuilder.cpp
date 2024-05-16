@@ -8,10 +8,14 @@
 #include "Materials/MaterialIR.h"
 #include "Materials/MaterialIRTypes.h"
 #include "Materials/MaterialIRBuilder.h"
-#include "MaterialShared.h"
+#include "MaterialIRUtility.h"
+
 #include "Materials/MaterialAttributeDefinitionMap.h"
 #include "Materials/Material.h"
 #include "MaterialExpressionIO.h"
+#include "MaterialShared.h"
+
+namespace IR = MaterialIR;
 
 struct FMaterialIRModuleBuilder::FHelper
 {
@@ -39,7 +43,7 @@ bool FMaterialIRModuleBuilder::Build()
 {
 	Module->Reset(ShaderPlatform, FeatureLevel, TargetPlatform);
 
-	MaterialIR::FBuilder Builder{ Module };
+	IR::FBuilder Builder{ Module };
 
 	UMaterial* BaseMaterial = Material->GetMaterialInterface()->GetMaterial();
 
@@ -48,21 +52,23 @@ bool FMaterialIRModuleBuilder::Build()
 		EMaterialProperty Property = (EMaterialProperty)PropertyIndex;
 		FMaterialInputDescription Input;
 
-		if (Property == MP_CustomOutput || Property == MP_MaterialAttributes || !BaseMaterial->GetExpressionInputDescription(Property, Input))
+		if (!Utility::IsMaterialPropertyShared(Property) 
+			|| Property == MP_SubsurfaceColor
+			|| Property == MP_FrontMaterial
+			|| !BaseMaterial->GetExpressionInputDescription(Property, Input))
 		{
 			continue;
 		}
 
-		MaterialIR::FSetMaterialOutputInstr* Output = Builder.EmitSetMaterialOutput(Property, nullptr);
+		IR::FSetMaterialOutputInstr* Output = Builder.EmitSetMaterialOutput(Property, nullptr);
 	
 		if (Input.bUseConstant)
 		{
 			Output->ArgValue = Builder.NewConstantFromShaderValue(Input.ConstantValue);
 		}
-		else if (!Input.Input->IsConnected() && Input.Type != UE::Shader::EValueType::Void)
+		else if (!Input.Input->IsConnected())
 		{
-			UE::Shader::FValue Zero{ Input.Type };
-			Output->ArgValue = Builder.NewConstantFromShaderValue(Zero);
+			Output->ArgValue = Utility::CreateMaterialAttributeDefaultValue(Builder, Material, Property);
 		}
 		else if (Input.Input->IsConnected())
 		{

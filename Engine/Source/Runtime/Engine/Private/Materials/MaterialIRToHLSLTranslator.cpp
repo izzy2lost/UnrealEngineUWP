@@ -4,6 +4,7 @@
 #include "Materials/MaterialIRModule.h"
 #include "Materials/MaterialIRTypes.h"
 #include "Materials/MaterialIR.h"
+#include "MaterialIRUtility.h"
 
 #include "ShaderCore.h"
 #include "MaterialShared.h"
@@ -21,11 +22,12 @@ namespace IR = MaterialIR;
 struct FHLSLPrinter
 {
 	FString& Buffer;
+	bool bFirstListItem = false;
 
-	template <typename... Types>
-	void Print(const TCHAR* Format, Types... Args)
+	template <int N, typename... Types>
+	void Printf(const TCHAR (&Format)[N], Types... Args)
 	{
-		Buffer.Printf(Format, Args...);
+		Buffer.Appendf(Format, Args...);
 	}
 
 	FHLSLPrinter& operator<<(const TCHAR* Text)
@@ -48,8 +50,22 @@ struct FHLSLPrinter
 
 	FHLSLPrinter& operator<<(float Value)
 	{
- 		Buffer.Appendf(TEXT("%.5f"), Value);
+ 		Buffer.Appendf(TEXT("%.5ff"), Value);
 		return *this;
+	}
+
+	void BeginList()
+	{
+		bFirstListItem = true;
+	}
+
+	void PrintListSeparator()
+	{
+		if (!bFirstListItem)
+		{
+			Buffer.Append(TEXT(", "));
+		}
+		bFirstListItem = false;
 	}
 };
 
@@ -84,34 +100,6 @@ static const TCHAR* GetHLSLTypeString(EMaterialValueType Type)
 	};
 }
 
-static bool IsMaterialPropertyShared(EMaterialProperty InProperty)
-{
-	switch (InProperty)
-	{
-		case MP_Normal:
-		case MP_Tangent:
-		case MP_EmissiveColor:
-		case MP_Opacity:
-		case MP_OpacityMask:
-		case MP_BaseColor:
-		case MP_Metallic:
-		case MP_Specular:
-		case MP_Roughness:
-		case MP_Anisotropy:
-		case MP_AmbientOcclusion:
-		case MP_Refraction:
-		case MP_PixelDepthOffset:
-		case MP_SubsurfaceColor:
-		case MP_ShadingModel:
-		case MP_SurfaceThickness:
-		case MP_FrontMaterial:
-		case MP_Displacement:
-			return true;
-		default:
-			return false;
-	}
-};
-
 static const TCHAR* GetShadingModelParameterName(EMaterialShadingModel InModel)
 {
 	switch (InModel)
@@ -138,27 +126,20 @@ void GenerateHLSL(const FMaterial& InMaterial, const FMaterialIRModule& InModule
 {
 	FString PixelAttributes;
 	FString EvaluateOtherMaterialAttributesHLSL;
-
 	FHLSLPrinter Printer{ EvaluateOtherMaterialAttributesHLSL };
 
  	for (const IR::FSetMaterialOutputInstr* Output : InModule.GetOutputs())
 	{
-		// Special case MP_SubsurfaceColor as the actual property is a combination of the color and the profile but we don't want to expose the profile
-		FString PropertyName = (Output->Property == MP_SubsurfaceColor) ? "Subsurface" : FMaterialAttributeDefinitionMap::GetAttributeName(Output->Property);
-		EMaterialValueType Type = (Output->Property == MP_SubsurfaceColor) ? MCT_Float4 : FMaterialAttributeDefinitionMap::GetValueType(Output->Property);
-		check(PropertyName.Len() > 0);
-
-		EvaluateOtherMaterialAttributesHLSL.Appendf(TEXT("\tPixelMaterialInputs.%s = "), *PropertyName);
-
 		LowerValue(Printer, Output);
-
-		EvaluateOtherMaterialAttributesHLSL.Append(TEXT("\n"));
 	}
+
+	EvaluateOtherMaterialAttributesHLSL.Append(TEXT("\tPixelMaterialInputs.FrontMaterial = GetInitialisedSubstrateData();\n"));
+	EvaluateOtherMaterialAttributesHLSL.Append(TEXT("\tPixelMaterialInputs.Subsurface = 0;\n"));
 
 	for (int32 PropertyIndex = 0; PropertyIndex < MP_MAX; ++PropertyIndex)
 	{
 		EMaterialProperty Property = (EMaterialProperty)PropertyIndex;
-		if (!IsMaterialPropertyShared(Property))
+		if (!Utility::IsMaterialPropertyShared(Property))
 		{
 			continue;
 		}
@@ -174,8 +155,13 @@ void GenerateHLSL(const FMaterial& InMaterial, const FMaterialIRModule& InModule
 	}
 	
 	InParams.Add(TEXT("pixel_material_inputs"), MoveTemp(PixelAttributes));
-	InParams.Add(TEXT("calc_pixel_material_inputs_normal"), TEXT("PixelMater ialInputs.Normal = MaterialFloat3(0.00000000, 0.00000000, 1.00000000);"));
-	InParams.Add(TEXT("calc_pixel_material_inputs_other_inputs"), MoveTemp(EvaluateOtherMaterialAttributesHLSL));
+
+	InParams.Add(TEXT("calc_pixel_material_inputs_normal"), TEXT("\tPixelMaterialInputs.Normal = MaterialFloat3(0.00000000, 0.00000000, 1.00000000);"));
+	InParams.Add(TEXT("calc_pixel_material_inputs_other_inputs"), EvaluateOtherMaterialAttributesHLSL);
+
+	InParams.Add(TEXT("calc_pixel_material_inputs_analytic_derivatives_normal"), TEXT("\tPixelMaterialInputs.Normal = MaterialFloat3(0.00000000, 0.00000000, 1.00000000);"));
+	InParams.Add(TEXT("calc_pixel_material_inputs_analytic_derivatives_other_inputs"), MoveTemp(EvaluateOtherMaterialAttributesHLSL));
+	
 	InParams.Add(TEXT("material_declarations"), TEXT("struct FMaterialAttributes {};"));
 	
 	auto SetParamInt = [&] (const TCHAR* InParamName, int InValue)
@@ -212,8 +198,8 @@ void SetMaterialParameters(const FMaterial& InMaterial, FParametersMap& InParams
 	InParams.Add(TEXT("get_material_previous_world_position_offset_raw"), TEXT("\treturn 0; // todo"));
 	
 	// CustomData0/1 are named ClearCoat/ClearCoatRoughness
-	InParams.Add(TEXT("get_material_custom_data0"), TEXT("\treturn 0; // todo"));
-	InParams.Add(TEXT("get_material_custom_data1"), TEXT("\treturn 0; // todo"));
+	InParams.Add(TEXT("get_material_custom_data0"), TEXT("\treturn 1.0f; // todo"));
+	InParams.Add(TEXT("get_material_custom_data1"), TEXT("\treturn 0.1f; // todo"));
 
 	FString EvaluateMaterialDeclaration;
 	EvaluateMaterialDeclaration.Append(TEXT("void EvaluateVertexMaterialAttributes(in out FMaterialVertexParameters Parameters)\n{\n"));
@@ -339,31 +325,48 @@ void GetShaderCompilerEnvironment(const FMaterial& InMaterial, const FMaterialIR
 
 void LowerValue(FHLSLPrinter& Printer, const IR::FValue* InValue)
 {
-	if (const IR::FScalarValue* S = InValue->Cast<IR::FScalarValue>())
+	if (const IR::FScalarValue* Scalar = InValue->Cast<IR::FScalarValue>())
 	{
-		IR::FArithmeticTypePtr ArithType = S->Type->ToArithmetic();
+		IR::FArithmeticTypePtr ArithType = Scalar->Type->ToArithmetic();
 		check(ArithType && ArithType->IsScalar());
 
 		switch (ArithType->ScalarKind)
 		{
-			case IR::SK_Bool: Printer << S->Boolean; break;
-			case IR::SK_Int: Printer << S->Integer; break;
-			case IR::SK_Float: Printer << S->Float; break;
+			case IR::SK_Bool: Printer << Scalar->Boolean; break;
+			case IR::SK_Int: Printer << Scalar->Integer; break;
+			case IR::SK_Float: Printer << Scalar->Float; break;
 		}
 	}
-	else if (const IR::FVectorValue* V = InValue->Cast<IR::FVectorValue>())
+	else if (const IR::FVectorValue* Vector = InValue->Cast<IR::FVectorValue>())
 	{
-		IR::FArithmeticTypePtr ArithType = V->Type->ToArithmetic();
+		IR::FArithmeticTypePtr ArithType = Vector->Type->ToArithmetic();
 		check(ArithType && ArithType->IsVector());
 
-		Printer << ScalarKindToString(ArithType->ScalarKind) << ArithType->NumColumns << TEXT("(");
+		Printer << ScalarKindToString(ArithType->ScalarKind) << ArithType->NumRows << TEXT("(");
 
-		for (IR::FValuePtr ComponentVal : V->GetComponents())
+		Printer.BeginList();
+		for (IR::FValuePtr Component : Vector->GetComponents())
 		{
-			LowerValue(Printer, ComponentVal);
+			Printer.PrintListSeparator();
+			LowerValue(Printer, Component);
 		}
 
 		Printer << TEXT(")");
+	}
+	else if (const IR::FSetMaterialOutputInstr* Output = InValue->Cast<IR::FSetMaterialOutputInstr>())
+	{
+		// Special case MP_SubsurfaceColor as the actual property is a combination of the color and the profile but we don't want to expose the profile
+		const FString& PropertyName = (Output->Property == MP_SubsurfaceColor) ? "Subsurface" : FMaterialAttributeDefinitionMap::GetAttributeName(Output->Property);
+
+		Printer.Printf(TEXT("\tPixelMaterialInputs.%s = "), *PropertyName);
+		
+		LowerValue(Printer, Output->ArgValue);
+
+		Printer << TEXT(";\n");
+	}
+	else
+	{
+		UE_MIR_UNREACHABLE();
 	}
 }
 

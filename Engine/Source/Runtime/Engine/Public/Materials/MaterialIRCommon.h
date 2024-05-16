@@ -46,24 +46,6 @@ struct FSetMaterialOutputInstr;
 /* Others */
 class FBuilder;
 
-//
-template <typename TKindType>
-struct FIRNode
-{
-	TKindType Kind;
-
-	bool IsA(TKindType InKind) const
-	{
-		return (static_cast<uint64>(Kind) & static_cast<uint64>(InKind)) == static_cast<uint64>(InKind);
-	}
-
-	template <typename T>
-	const T* Cast() const
-	{
- 		return this && IsA(T::TypeKind) ? static_cast<const T*>(this) : nullptr;
-	}
-};
-
 }
 
 #define UE_MIR_UNREACHABLE() { check(!"Unreachable"); UE_ASSUME(false); }

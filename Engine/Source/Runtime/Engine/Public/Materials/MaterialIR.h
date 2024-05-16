@@ -13,21 +13,32 @@ namespace MaterialIR
 enum EValueKind
 {
 	/* Values */
-	VK_Value = 0,
-	VK_Scalar = 1 << 1,
-	VK_Vector = 2 << 1,
+	VK_Value = 1 << 0,
+	VK_Scalar = VK_Value | 1 << 2,
+	VK_Vector = VK_Value | 2 << 2,
 	
 	/* Instructions */
-	VK_Instruction = 1,
- 	VK_SetMaterialOutputInstr = VK_Instruction | 1 << 1,
+	VK_Instruction = 1 << 1,
+ 	VK_SetMaterialOutputInstr = VK_Instruction | 1 << 2,
 };
 
 /* Values */
 
-struct FValue : FIRNode<EValueKind>
+struct FValue
 {
-	EValueKind Kind = VK_Value;
+	EValueKind Kind{};
 	FTypePtr  Type{};
+
+	bool IsA(EValueKind InKind) const
+	{
+		return (Kind & InKind) == InKind;
+	}
+
+	template <typename T>
+	const T* Cast() const
+	{
+		return this && IsA(T::TypeKind) ? static_cast<const T*>(this) : nullptr;
+	}
 
 	void Destroy();
 };

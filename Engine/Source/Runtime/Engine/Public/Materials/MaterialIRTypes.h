@@ -11,7 +11,7 @@ namespace MaterialIR
 
 enum ETypeKind
 {
-	TK_Void = 1,
+	TK_Void,
 	TK_Arithmetic
 };
 
