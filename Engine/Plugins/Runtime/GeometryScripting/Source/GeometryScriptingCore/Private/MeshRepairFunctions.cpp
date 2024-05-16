@@ -65,6 +65,36 @@ UDynamicMesh* UGeometryScriptLibrary_MeshRepairFunctions::RemoveUnusedVertices(
 }
 
 
+
+
+UDynamicMesh* UGeometryScriptLibrary_MeshRepairFunctions::SnapMeshOpenBoundaries(
+	UDynamicMesh* TargetMesh,
+	FGeometryScriptSnapBoundariesOptions SnapOptions,
+	UGeometryScriptDebug* Debug)
+{
+	if (TargetMesh == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("SnapMeshOpenBoundaries_InvalidInput", "SnapMeshOpenBoundaries: TargetMesh is Null"));
+		return TargetMesh;
+	}
+
+	TargetMesh->EditMesh([&](FDynamicMesh3& EditMesh) 
+	{
+		FMeshSnapOpenBoundaries Snapper(&EditMesh);
+		Snapper.DistanceTolerance = 2 * SnapOptions.Tolerance;
+		Snapper.MaxIterations = SnapOptions.MaxIterations;
+		Snapper.bSnapToEdges = SnapOptions.bSnapToEdges;
+		bool bResolveOK = Snapper.Apply();
+		if (!bResolveOK)
+		{
+			UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::OperationFailed, LOCTEXT("SnapMeshOpenBoundaries_Error", "SnapMeshOpenBoundaries: SnapMeshOpenBoundaries Operation returned error flag"));
+		}
+
+	}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, false);
+
+	return TargetMesh;
+}
+
 UDynamicMesh* UGeometryScriptLibrary_MeshRepairFunctions::ResolveMeshTJunctions(
 	UDynamicMesh* TargetMesh,
 	FGeometryScriptResolveTJunctionOptions ResolveOptions,

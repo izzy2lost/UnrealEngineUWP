@@ -35,6 +35,23 @@ public:
 	float Tolerance = 1e-03f;
 };
 
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptSnapBoundariesOptions
+{
+	GENERATED_BODY()
+public:
+	/** Snapping tolerance */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	float Tolerance = 1e-03f;
+
+	/** Whether to snap vertices to open edges. If false, will only snap together vertices */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bSnapToEdges = true;
+
+	/** Maximum number of iterations of boundary snapping to apply. Will stop earlier if an iteration applies no snapping. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	int MaxIterations = 5;
+};
 
 UENUM(BlueprintType)
 enum class EGeometryScriptFillHolesMethod : uint8
@@ -182,6 +199,18 @@ public:
 	RemoveUnusedVertices(
 		UDynamicMesh* TargetMesh,
 		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
+	 * Snap vertices on open edges to the closest compatible open boundary, if found within the tolerance distance
+	 * Unlike ResolveMeshTJunctions, does not introduce new vertices to the mesh
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Repair", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	SnapMeshOpenBoundaries(
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptSnapBoundariesOptions SnapOptions,
+		UGeometryScriptDebug* Debug = nullptr
+	);
 
 	/**
 	* Attempts to resolve T-Junctions in the mesh by addition of vertices and welding.
