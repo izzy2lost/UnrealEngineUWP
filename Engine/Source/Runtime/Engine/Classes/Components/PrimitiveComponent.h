@@ -1839,7 +1839,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Rendering")
 	ENGINE_API void SetReceivesDecals(bool bNewReceivesDecals);
 
-    /** Changes the value of bHoldout (Path Tracing only feature)*/
+    /** Changes the value of bHoldout */
 	UFUNCTION(BlueprintCallable, Category = "Rendering")
 	ENGINE_API void SetHoldout(bool bNewHoldout);
 

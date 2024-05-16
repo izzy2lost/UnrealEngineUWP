@@ -2862,6 +2862,7 @@ void ALandscapeProxy::UpdateGrass(const TArray<FVector>& Cameras, int32& InOutNu
 										GrassInstancedStaticMeshComponent->SetCanEverAffectNavigation(false);
 										GrassInstancedStaticMeshComponent->InstancingRandomSeed = FolSeed;
 										GrassInstancedStaticMeshComponent->LightingChannels = GrassVariety.LightingChannels;
+										GrassInstancedStaticMeshComponent->bHoldout = bHoldout;
 										GrassInstancedStaticMeshComponent->bCastStaticShadow = false;
 										GrassInstancedStaticMeshComponent->CastShadow = (GrassVariety.bCastDynamicShadow || GrassVariety.bCastContactShadow) && !bDisableDynamicShadows;
 										GrassInstancedStaticMeshComponent->bAffectDistanceFieldLighting = GrassVariety.bAffectDistanceFieldLighting;

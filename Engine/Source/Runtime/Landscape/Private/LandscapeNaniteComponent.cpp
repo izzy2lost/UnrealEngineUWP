@@ -118,11 +118,14 @@ void ULandscapeNaniteComponent::UpdatedSharedPropertiesFromActor()
 	bCastHiddenShadow = LandscapeProxy->bCastHiddenShadow;
 	bCastShadowAsTwoSided = LandscapeProxy->bCastShadowAsTwoSided;
 	bAffectDistanceFieldLighting = LandscapeProxy->bAffectDistanceFieldLighting;
+	bAffectDynamicIndirectLighting = LandscapeProxy->bAffectDynamicIndirectLighting;
+	bAffectIndirectLightingWhileHidden = LandscapeProxy->bAffectIndirectLightingWhileHidden;
 	bRenderCustomDepth = LandscapeProxy->bRenderCustomDepth;
 	CustomDepthStencilWriteMask = LandscapeProxy->CustomDepthStencilWriteMask;
 	CustomDepthStencilValue = LandscapeProxy->CustomDepthStencilValue;
 	SetCullDistance(LandscapeProxy->LDMaxDrawDistance);
 	LightingChannels = LandscapeProxy->LightingChannels;
+	bHoldout = LandscapeProxy->bHoldout;
 	ShadowCacheInvalidationBehavior = LandscapeProxy->ShadowCacheInvalidationBehavior;
 
 	// We don't want Nanite representation in ray tracing

@@ -75,6 +75,7 @@ Landscape.cpp: Terrain rendering
 #include "Rendering/Texture2DResource.h"
 #include "RenderCaptureInterface.h"
 #include "VisualLogger/VisualLogger.h"
+#include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "NaniteSceneProxy.h"
 #include "Misc/ArchiveMD5.h"
 #include "LandscapeEditLayer.h"
@@ -1177,12 +1178,15 @@ void ULandscapeComponent::UpdatedSharedPropertiesFromActor()
 	bCastHiddenShadow = LandscapeProxy->bCastHiddenShadow;
 	bCastShadowAsTwoSided = LandscapeProxy->bCastShadowAsTwoSided;
 	bAffectDistanceFieldLighting = LandscapeProxy->bAffectDistanceFieldLighting;
+	bAffectDynamicIndirectLighting = LandscapeProxy->bAffectDynamicIndirectLighting;
+	bAffectIndirectLightingWhileHidden = LandscapeProxy->bAffectIndirectLightingWhileHidden;
 	bRenderCustomDepth = LandscapeProxy->bRenderCustomDepth;
 	CustomDepthStencilWriteMask = LandscapeProxy->CustomDepthStencilWriteMask;
 	CustomDepthStencilValue = LandscapeProxy->CustomDepthStencilValue;
 	SetCullDistance(LandscapeProxy->LDMaxDrawDistance);
 	LightingChannels = LandscapeProxy->LightingChannels;
 	ShadowCacheInvalidationBehavior = LandscapeProxy->ShadowCacheInvalidationBehavior;
+	bHoldout = LandscapeProxy->bHoldout;
 
 	UpdateNavigationRelevance();
 	UpdateRejectNavmeshUnderneath();
@@ -1583,6 +1587,9 @@ ALandscapeProxy::ALandscapeProxy(const FObjectInitializer& ObjectInitializer)
 	bCastHiddenShadow = false;
 	bCastShadowAsTwoSided = false;
 	bAffectDistanceFieldLighting = true;
+	bAffectDynamicIndirectLighting = true;
+	bAffectIndirectLightingWhileHidden = false;
+	bHoldout = false;
 
 	RootComponent->SetRelativeScale3D(FVector(128.0f, 128.0f, 256.0f)); // Old default scale, preserved for compatibility. See ULandscapeEditorObject::NewLandscape_Scale
 	RootComponent->Mobility = EComponentMobility::Static;
