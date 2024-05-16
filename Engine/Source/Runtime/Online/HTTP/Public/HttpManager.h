@@ -285,8 +285,6 @@ protected:
 
 	HTTP_API bool HasAnyBoundDelegate() const;
 
-	HTTP_API void UpdateUrlPatternsToLogResponse(IConsoleVariable* CVar);
-
 protected:
 	/** List of Http requests that are actively being processed */
 	TArray<FHttpRequestRef> Requests;
@@ -342,18 +340,13 @@ protected:
 
 	bool bUseEventLoop = true;
 
-	TArray<FString> UrlPatternsToLogResponse;
-
 PACKAGE_SCOPE:
 
 	/** Used to lock access to add/remove/find requests */
-	mutable FCriticalSection RequestLock;
+	static FCriticalSection RequestLock;
 
 	/** Used to lock access to get completed requests */
-	FCriticalSection CompletedRequestLock;
-
-	/** Used to lock access to url patterns for logging */
-	FCriticalSection UrlPatternsToLogResponseCriticalSection;
+	static FCriticalSection CompletedRequestLock;
 
 	/**
 	 * Broadcast that a non-threaded HTTP request is complete.
@@ -375,6 +368,4 @@ PACKAGE_SCOPE:
 
 	/** Record the time to wait in queue, to have a general idea how long the client usually wait before actually starting, to adjust the requests */
 	HTTP_API void RecordMaxTimeToWaitInQueue(float Duration);
-
-	HTTP_API bool ShouldLogResponse(FStringView Url);
 };

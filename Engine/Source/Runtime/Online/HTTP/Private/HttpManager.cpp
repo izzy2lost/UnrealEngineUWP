@@ -25,14 +25,10 @@ TAutoConsoleVariable<int32> CVarHttpEventLoopEnableChance(
 	ECVF_SaveForNextBoot
 );
 
-TAutoConsoleVariable<FString> CVarHttpUrlPatternsToLogResponse(
-	TEXT("http.UrlPatternsToLogResponse"),
-	TEXT(""),
-	TEXT("List of url patterns to log headers and json content: \"epicgames.com,unrealengine.com,...\""),
-	ECVF_SaveForNextBoot
-);
-
 // FHttpManager
+
+FCriticalSection FHttpManager::RequestLock;
+FCriticalSection FHttpManager::CompletedRequestLock;
 
 const TCHAR* LexToString(const EHttpFlushReason& FlushReason)
 {
@@ -92,15 +88,10 @@ void FHttpManager::Initialize()
 	}
 
 	UpdateConfigs();
-
-	UpdateUrlPatternsToLogResponse(CVarHttpUrlPatternsToLogResponse.AsVariable());
-	CVarHttpUrlPatternsToLogResponse.AsVariable()->OnChangedDelegate().AddRaw(this, &FHttpManager::UpdateUrlPatternsToLogResponse);
 }
 
 void FHttpManager::Shutdown()
 {
-	CVarHttpUrlPatternsToLogResponse.AsVariable()->OnChangedDelegate().Clear();
-
 	{
 		FScopeLock ScopeLock(&RequestLock);
 
@@ -608,25 +599,3 @@ void FHttpManager::RecordMaxTimeToWaitInQueue(float Duration)
 {
 	HttpStats.MaxTimeToWaitInQueue = FGenericPlatformMath::Max(Duration, HttpStats.MaxTimeToWaitInQueue);
 }
-
-void FHttpManager::UpdateUrlPatternsToLogResponse(IConsoleVariable* CVar)
-{
-	const FScopeLock CacheLock(&UrlPatternsToLogResponseCriticalSection);
-	const FString UrlPatternsToLogResponseStr = CVar->AsVariable()->GetString();
-	UrlPatternsToLogResponseStr.ParseIntoArray(UrlPatternsToLogResponse, TEXT(","));
-}
-
-bool FHttpManager::ShouldLogResponse(FStringView Url)
-{
-	const FScopeLock CacheLock(&UrlPatternsToLogResponseCriticalSection);
-	for (const FString& UrlPatternToLogResponse : UrlPatternsToLogResponse)
-	{
-		if (Url.Contains(UrlPatternToLogResponse))
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-

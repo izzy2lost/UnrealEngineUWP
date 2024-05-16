@@ -13,12 +13,48 @@
 namespace UE::HttpRequestCommon::Private
 {
 
+TAutoConsoleVariable<FString> CVarHttpUrlPatternsToLogResponse(
+	TEXT("http.UrlPatternsToLogResponse"),
+	TEXT(""),
+	TEXT("List of url patterns to log headers and json content: \"epicgames.com,unrealengine.com,...\""),
+	ECVF_SaveForNextBoot
+);
+
 TAutoConsoleVariable<bool> CVarHttpLogJsonResponseOnly(
 	TEXT("http.LogJsonResponseOnly"),
 	true,
 	TEXT("When log response payload, log json content only"),
 	ECVF_SaveForNextBoot
 );
+
+bool ShouldLogResponse(FStringView Url)
+{
+	static std::atomic<bool> bUpdatedCVarHttpUrlPatternsToLogResponse = true;
+	UE_CALL_ONCE([] {
+		CVarHttpUrlPatternsToLogResponse.AsVariable()->OnChangedDelegate().AddLambda([](IConsoleVariable* CVar) {
+			bUpdatedCVarHttpUrlPatternsToLogResponse = true;
+		});
+	});
+
+	static TArray<FString> UrlPatternsToLogResponse;
+	static FCriticalSection UrlPatternsToLogResponseCriticalSection;
+	const FScopeLock CacheLock(&UrlPatternsToLogResponseCriticalSection);
+	if (bUpdatedCVarHttpUrlPatternsToLogResponse)
+	{
+		CVarHttpUrlPatternsToLogResponse.GetValueOnAnyThread().ParseIntoArray(UrlPatternsToLogResponse, TEXT(","));
+		bUpdatedCVarHttpUrlPatternsToLogResponse = false;
+	}
+
+	for (const FString& UrlPatternToLogResponse : UrlPatternsToLogResponse)
+	{
+		if (Url.Contains(UrlPatternToLogResponse))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
 
 }
 
@@ -580,7 +616,7 @@ void FHttpRequestCommon::CloseRequestPayloadDefaultImpl()
 
 void FHttpRequestCommon::LogResponse(const TSharedPtr<IHttpResponse>& InResponse)
 {
-	bool bShouldLogResponse = FHttpModule::Get().GetHttpManager().ShouldLogResponse(GetURL());
+	bool bShouldLogResponse = UE::HttpRequestCommon::Private::ShouldLogResponse(GetURL());
 	UE_HTTP_LOG_RESPONSE_PRIVATE(bShouldLogResponse, TEXT("%p %s %s completed with code %d after %.2fs. Content length: %ld"), this, *GetVerb(), *GetURL(), InResponse->GetResponseCode(), ElapsedTime, InResponse->GetContentLength());
 
 	TArray<FString> AllHeaders = InResponse->GetAllHeaders();
