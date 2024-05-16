@@ -102,6 +102,10 @@
 	// Likewise, expressions involving constants can also be valuable to check code paths compile.
 	#pragma warning(disable : 6240) // warning C6240 : (<expression> && <non-zero constant>) always evaluates to the result of <expression>. Did you intend to use the bitwise-and operator?
 
+	// This is a warning that a static array is exactly 365 members long.  We get false positives because our code gen can make arrays exactly this size.  
+	// EX: 365 properties in a UObject will auto gen a table exactly this long.
+	#pragma warning(disable : 6393) // warning C6393: A lookup table of size 365 is not sufficient to handle leap years.
+
 	//PVS-Studio settings:
 	//-V::505,542,581,601,623,668,677,690,704,719,720,730,735,751,758,780,781,1002,1008,1055,1062,1100
 	//-V:TRYCOMPRESSION:519,547
