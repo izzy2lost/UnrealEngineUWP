@@ -711,7 +711,8 @@ bool UPCGEditorGraphNodeBase::IsCompatible(const UPCGPin* InputPin, const UPCGPi
 	if (PCGEditorGraphSwitches::CVarCheckConnectionCycles.GetValueOnAnyThread() && InputPin && OutputPin && InputPin->Node == PCGNode)
 	{
 		// Upstream Visitor
-		auto Visitor = [ThisPCGNode = PCGNode](const UPCGNode* InNode, auto VisitorLambda) -> bool
+		TSet<const UPCGNode*> VisitedNodes;
+		auto Visitor = [&VisitedNodes, ThisPCGNode = PCGNode](const UPCGNode* InNode, auto VisitorLambda) -> bool
 		{
 			if (InNode)
 			{
@@ -719,6 +720,12 @@ bool UPCGEditorGraphNodeBase::IsCompatible(const UPCGPin* InputPin, const UPCGPi
 				{
 					return false;
 				}
+				else if (VisitedNodes.Contains(InNode))
+				{
+					return true;
+				}
+
+				VisitedNodes.Add(InNode);
 
 				for (const TObjectPtr<UPCGPin>& InputPin : InNode->GetInputPins())
 				{
