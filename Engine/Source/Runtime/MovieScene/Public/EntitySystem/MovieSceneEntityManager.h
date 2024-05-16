@@ -1089,10 +1089,10 @@ private:
 	FEntityManager* EntityManager;
 };
 
-#if PLATFORM_WINDOWS
-#define UE_SELECT_ANY __declspec(selectany)
+#if PLATFORM_COMPILER_CLANG
+#define UE_SELECT_ANY __attribute__((weak))
 #else
-#define UE_SELECT_ANY 
+#define UE_SELECT_ANY __declspec(selectany)
 #endif
 
 extern MOVIESCENE_API FEntityManager* GEntityManagerForDebuggingVisualizers;
