@@ -74,7 +74,7 @@ USTRUCT()
 struct ANIMNEXTANIMGRAPH_API FAnimNextInertializationRequestEvent : public FAnimNextTraitEvent
 {
 	GENERATED_BODY()
-	DECLARE_ANIM_TRAIT_EVENT(FAnimNextInertializationRequestEvent)
+	DECLARE_ANIM_TRAIT_EVENT(FAnimNextInertializationRequestEvent, FAnimNextTraitEvent)
 
 	UE::AnimNext::FInertializationRequest Request;
 };

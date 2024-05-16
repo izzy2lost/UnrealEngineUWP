@@ -12,6 +12,7 @@
 #include "Scheduler/ScheduleInstanceData.h"
 #include "Scheduler/AnimNextSchedulerWorldSubsystem.h"
 #include "Scheduler/ScheduleTaskContext.h"
+#include "Scheduler/ScheduleEvents.h"
 
 namespace UE::AnimNext
 {
@@ -63,6 +64,39 @@ void FScheduleEndTickFunction::Run()
 		InstanceData.RootParamStack->PopLayer(PushedRootUserLayer);
 	}
 	InstanceData.PushedRootUserLayers.Reset();
+
+	// Decrement the remaining lifetime of the input events we processed and queue up any remaining events
+	UE::AnimNext::DecrementLifetimeAndPurgeExpired(InstanceData.InputEventList, InstanceData.OutputEventList);
+
+	// Filter out our schedule action events, we'll hand them off to the main thread to execute
+	FTraitEventList MainThreadActionEventList;
+	if (!InstanceData.OutputEventList.IsEmpty())
+	{
+		for (FAnimNextTraitEventPtr& Event : InstanceData.OutputEventList)
+		{
+			if (!Event->IsValid())
+			{
+				continue;
+			}
+
+			if (FAnimNextSchedule_ActionEvent* ActionEvent = Event->AsType<FAnimNextSchedule_ActionEvent>())
+			{
+				if (ActionEvent->IsThreadSafe())
+				{
+					// Execute this action now
+					ActionEvent->Execute();
+				}
+				else
+				{
+					// Defer this action and execute it on the main thread
+					MainThreadActionEventList.Push(Event);
+				}
+			}
+		}
+
+		// Reset our list of output events, we don't retain any
+		InstanceData.OutputEventList.Reset();
+	}
 	
 	auto RunTaskOnGameThread = [](TUniqueFunction<void(void)>&& InFunction)
 	{
@@ -99,6 +133,19 @@ void FScheduleEndTickFunction::Run()
 			check(IsInGameThread());
 			Entry.TransitionToRunState(FAnimNextSchedulerEntry::ERunState::Running);
 		});
+	}
+
+	if (!MainThreadActionEventList.IsEmpty())
+	{
+		RunTaskOnGameThread([MainThreadActionEventList = MoveTemp(MainThreadActionEventList)]()
+			{
+				check(IsInGameThread());
+				for (const FAnimNextTraitEventPtr& Event : MainThreadActionEventList)
+				{
+					FAnimNextSchedule_ActionEvent* ActionEvent = Event->AsType<FAnimNextSchedule_ActionEvent>();
+					ActionEvent->Execute();
+				}
+			});
 	}
 
 	Entry.ResolvedObject = nullptr;

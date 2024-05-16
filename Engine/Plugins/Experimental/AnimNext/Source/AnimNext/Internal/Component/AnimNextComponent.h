@@ -6,6 +6,8 @@
 #include "Components/ActorComponent.h"
 #include "Scheduler/AnimNextSchedule.h"
 #include "Scheduler/ScheduleHandle.h"
+#include "TraitCore/TraitEvent.h"
+
 #include "AnimNextComponent.generated.h"
 
 class UAnimNextSchedule;
@@ -42,11 +44,15 @@ public:
 	// @param    Name     The name of the parameter to apply
 	// @param    Value    The value to set the parameter to
 	UFUNCTION(BlueprintCallable, Category = "AnimNext", CustomThunk, meta = (CustomStructureParam = Value, UnsafeDuringActorConstruction))
-	void SetParameterInScope(UPARAM(meta = (CustomWidget = "ParamName", AllowedParamType = "FAnimNextScope")) FName Scope, EAnimNextParameterScopeOrdering Ordering, UPARAM(meta = (CustomWidget = "ParamName")) FName Name, int32 Value);
+	ANIMNEXT_API void SetParameterInScope(UPARAM(meta = (CustomWidget = "ParamName", AllowedParamType = "FAnimNextScope")) FName Scope, EAnimNextParameterScopeOrdering Ordering, UPARAM(meta = (CustomWidget = "ParamName")) FName Name, int32 Value);
 
 	// Enable or disable this component's update
 	UFUNCTION(BlueprintCallable, Category = "AnimNext")
-	void Enable(bool bEnabled);
+	ANIMNEXT_API void Enable(bool bEnabled);
+
+	// Queues an input trait event
+	// Input events will be processed in the next graph update after they are queued
+	ANIMNEXT_API void QueueInputTraitEvent(FAnimNextTraitEventPtr Event);
 	
 private:
 	DECLARE_FUNCTION(execSetParameterInScope);

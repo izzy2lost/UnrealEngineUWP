@@ -11,16 +11,19 @@
 
 namespace UE::AnimNext
 {
+	struct FTraitEventList;
+
 	// Create an alias to improve readability
 	using FTraitEventUID = UE::AnimNext::FConstExprUID;
 }
 
 // Helper macros
 // In a trait event struct declaration, this macro declares the necessary boilerplate we require
-#define DECLARE_ANIM_TRAIT_EVENT(EventName) \
+#define DECLARE_ANIM_TRAIT_EVENT(EventName, SuperEventName) \
 	/* FAnimNextTraitEvent impl */ \
 	static constexpr UE::AnimNext::FTraitEventUID TypeUID = UE::AnimNext::FTraitEventUID::MakeFromString(TEXT(#EventName)); \
-	virtual UE::AnimNext::FTraitEventUID GetTypeUID() const override { return TypeUID; }
+	virtual UE::AnimNext::FTraitEventUID GetTypeUID() const override { return TypeUID; } \
+	virtual bool IsA(UE::AnimNext::FTraitEventUID InTypeUID) const override { return InTypeUID == TypeUID ? true : SuperEventName::IsA(InTypeUID); } \
 
 
 /**
@@ -44,6 +47,13 @@ struct FAnimNextTraitEvent
 	// Returns the event type UID
 	virtual UE::AnimNext::FTraitEventUID GetTypeUID() const { return UE::AnimNext::FTraitEventUID(); }
 
+	// Returns whether or not this event derives from the specified type
+	template<class EventType>
+	bool IsA() const { return IsA(EventType::TypeUID); }
+
+	// Returns whether or not this event derives from the specified type
+	virtual bool IsA(UE::AnimNext::FTraitEventUID InTypeUID) const { return false; }
+
 	// Returns whether or not this event is valid
 	// An event is valid if it hasn't been consumed and if it isn't expired
 	bool IsValid() const { return !IsConsumed() && !IsExpired(); }
@@ -56,17 +66,19 @@ struct FAnimNextTraitEvent
 
 	// Marks this event as being handled.
 	// Subsequent handlers can use this to determine if they should take action or not.
-	void MarkHandled() { bIsHandled = true; }
+	// Returns whether or not this thread succeeded in marking this event as handled
+	bool MarkHandled() { return FPlatformAtomics::InterlockedExchange(&bIsHandled, 1) == 0; }
 
 	// Returns whether or not this event has been handled by a previous handler
-	bool IsHandled() const { return bIsHandled; }
+	bool IsHandled() const { return FPlatformAtomics::AtomicRead_Relaxed(&bIsHandled) != 0; }
 
 	// Marks this event as being consumed.
 	// This event won't be forward to any other handlers.
-	void MarkConsumed() { bIsConsumed = true; }
+	// Returns whether or not this thread succeeded in marking this event as consumed
+	bool MarkConsumed() { return FPlatformAtomics::InterlockedExchange(&bIsConsumed, 1) == 0; }
 
 	// Returns whether or not this event has been consumed by a previous handler
-	bool IsConsumed() const { return bIsConsumed; }
+	bool IsConsumed() const { return FPlatformAtomics::AtomicRead_Relaxed(&bIsConsumed) != 0; }
 
 	// Returns whether or not this event has expired
 	bool IsExpired() const { return Lifetime.IsExpired(); }
@@ -78,15 +90,16 @@ struct FAnimNextTraitEvent
 	bool IsTransient() const { return Lifetime.IsTransient(); }
 
 	// Decrements the lifetime count and returns whether or not this event has expired in the process
-	bool DecrementLifetime() { return Lifetime.Decrement(); }
+	// OnExpired will be called on the derived type if we expire and new output events can be appended
+	ANIMNEXT_API bool DecrementLifetime(UE::AnimNext::FTraitEventList& OutputEventList);
 
 	// Returns a pointer to this event cast to the specified type if the TypeUIDs match, nullptr otherwise
 	template<class EventType>
-	EventType* AsType() { return EventType::TypeUID == GetTypeUID() ? static_cast<EventType*>(this) : nullptr; }
+	EventType* AsType() { return IsA<EventType>() ? static_cast<EventType*>(this) : nullptr; }
 
 	// Returns a pointer to this event cast to the specified type if the TypeUIDs match, nullptr otherwise
 	template<class EventType>
-	const EventType* AsType() const { return EventType::TypeUID == GetTypeUID() ? static_cast<const EventType*>(this) : nullptr; }
+	const EventType* AsType() const { return IsA<EventType>() ? static_cast<const EventType*>(this) : nullptr; }
 
 protected:
 	// Creates an event of the specified type and associated lifetime
@@ -95,22 +108,25 @@ protected:
 	{
 	}
 
+	// Called when an events' lifetime expires
+	virtual void OnExpired(UE::AnimNext::FTraitEventList& OutputEventList) {}
+
 private:
 	// The specified lifetime of this event
 	UE::AnimNext::FTraitEventLifetime Lifetime = UE::AnimNext::FTraitEventLifetime::MakeTransient();
 
 	// Signals whether someone has opted to handle this event
-	bool bIsHandled = false;
+	int8 bIsHandled = 0;
 
 	// Signals whether someone consumed this event and it thus shouldn't be forwarded to other handlers
-	bool bIsConsumed = false;
+	int8 bIsConsumed = 0;
 };
 
 // Create a shared pointer alias for trait events
 using FAnimNextTraitEventPtr = TSharedPtr<FAnimNextTraitEvent, ESPMode::ThreadSafe>;
 
 template<class EventType, typename... TArgs>
-TSharedPtr<EventType, ESPMode::ThreadSafe> MakeTraitEvent(TArgs&&... Args)
+inline TSharedPtr<EventType, ESPMode::ThreadSafe> MakeTraitEvent(TArgs&&... Args)
 {
 	return MakeShared<EventType>(Forward<TArgs>(Args)...);
 }

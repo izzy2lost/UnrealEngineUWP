@@ -19,4 +19,10 @@ void FScheduleTaskContext::ApplyParametersToScope(FName InScope, EParameterScope
 	Context.GetInstanceData().ApplyParametersToScope(InScope, InOrdering, MoveTemp(PropertyBagProxy));
 }
 
+
+void FScheduleTaskContext::QueueInputTraitEvent(FAnimNextTraitEventPtr Event) const
+{
+	FScheduleInstanceData& InstanceData = Context.GetInstanceData();
+	InstanceData.QueueInputTraitEvent(MoveTemp(Event));
+}
 }

@@ -196,7 +196,8 @@ bool FAnimationAnimNextRuntimeTest_TraitEvent::RunTest(const FString& InParamete
 		AddErrorIfFalse(!Event.IsInfinite(), "FAnimationAnimNextRuntimeTest_TraitEvent -> Default constructed event should be transient");
 		AddErrorIfFalse(Event.IsTransient(), "FAnimationAnimNextRuntimeTest_TraitEvent -> Default constructed event should be transient");
 
-		bool bIsExpired = Event.DecrementLifetime();
+		FTraitEventList OutputEventList;
+		bool bIsExpired = Event.DecrementLifetime(OutputEventList);
 		AddErrorIfFalse(bIsExpired, "FAnimationAnimNextRuntimeTest_TraitEvent -> Event should be expired");
 		AddErrorIfFalse(!Event.IsValid(), "FAnimationAnimNextRuntimeTest_TraitEvent -> Event should be expired");
 		AddErrorIfFalse(!Event.IsHandled(), "FAnimationAnimNextRuntimeTest_TraitEvent -> Event should not be handled");

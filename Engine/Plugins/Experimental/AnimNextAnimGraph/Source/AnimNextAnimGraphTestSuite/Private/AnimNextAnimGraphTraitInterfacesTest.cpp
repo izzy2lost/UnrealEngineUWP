@@ -687,7 +687,9 @@ bool FAnimationAnimNextRuntimeTest_IUpdate::RunTest(const FString& InParameters)
 			Private::UpdatedTraits = &UpdatedTraits;
 
 			// Call pre/post update on our graph
-			UpdateGraph(GraphInstance, 0.0333f);
+			FTraitEventList InputEventList;
+			FTraitEventList OutputEventList;
+			UpdateGraph(GraphInstance, 0.0333f, InputEventList, OutputEventList);
 
 			AddErrorIfFalse(UpdatedTraits.Num() == 6, "FAnimationAnimNextRuntimeTest_IUpdate -> Expected 6 nodes to have been visited during the update traversal");
 			AddErrorIfFalse(UpdatedTraits[0] == FTraitWithChildren::TraitUID, "FAnimationAnimNextRuntimeTest_IUpdate -> Unexpected update order");		// NodeC
@@ -961,7 +963,9 @@ bool FAnimationAnimNextRuntimeTest_IScopedInterface::RunTest(const FString& InPa
 
 			// Call pre/post update on our graph
 			Private::AutoPopTag = true;
-			UpdateGraph(GraphInstance, 0.0333f);
+			FTraitEventList InputEventList;
+			FTraitEventList OutputEventList;
+			UpdateGraph(GraphInstance, 0.0333f, InputEventList, OutputEventList);
 
 			AddErrorIfFalse(IsTagInScope.Num() == 8, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected number of entries");
 			AddErrorIfFalse(IsTagInScope[0] == false, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected scoped tag state");		// NodeC::PreUpdate (template 0)
@@ -977,7 +981,7 @@ bool FAnimationAnimNextRuntimeTest_IScopedInterface::RunTest(const FString& InPa
 			Private::AutoPopTag = false;
 
 			// Call pre/post update on our graph
-			UpdateGraph(GraphInstance, 0.0333f);
+			UpdateGraph(GraphInstance, 0.0333f, InputEventList, OutputEventList);
 
 			AddErrorIfFalse(IsTagInScope.Num() == 8, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected number of entries");
 			AddErrorIfFalse(IsTagInScope[0] == false, "FAnimationAnimNextRuntimeTest_IScopedInterface -> Unexpected scoped tag state");		// NodeC::PreUpdate (template 0)

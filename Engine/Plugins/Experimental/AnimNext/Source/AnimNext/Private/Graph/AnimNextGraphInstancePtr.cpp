@@ -95,24 +95,6 @@ GraphInstanceComponentMapType::TConstIterator FAnimNextGraphInstancePtr::GetComp
 	return Impl->GetComponentIterator();
 }
 
-void FAnimNextGraphInstancePtr::QueueInputTraitEvent(FAnimNextTraitEventPtr Event)
-{
-	check(Impl);
-	Impl->QueueInputTraitEvent(Event);
-}
-
-void FAnimNextGraphInstancePtr::QueueInputTraitEvents(const UE::AnimNext::FTraitEventList& Events)
-{
-	check(Impl);
-	Impl->QueueInputTraitEvents(Events);
-}
-
-void FAnimNextGraphInstancePtr::CollectInputTraitEvents(UE::AnimNext::FTraitEventList& OutInputEvents)
-{
-	check(Impl);
-	Impl->CollectInputTraitEvents(OutInputEvents);
-}
-
 void FAnimNextGraphInstancePtr::Update()
 {
 	check(Impl);

@@ -23,6 +23,11 @@ namespace UE::AnimNext
 		void Push(FAnimNextTraitEventPtr Event) { Events.Add(MoveTemp(Event)); }
 		void Reset() { Events.Reset(); }
 		int32 Num() const { return Events.Num(); }
+		bool IsEmpty() const { return Events.IsEmpty(); }
+
+		void SetNum(int32 NewNum, EAllowShrinking AllowShrinking = EAllowShrinking::Yes) { Events.SetNum(NewNum, AllowShrinking); }
+
+		void Append(const FTraitEventList& Source) { Events.Append(Source.Events); }
 
 		FAnimNextTraitEventPtr& operator[](int32 EventIndex) { return Events[EventIndex]; }
 		const FAnimNextTraitEventPtr& operator[](int32 EventIndex) const { return Events[EventIndex]; }
@@ -32,17 +37,12 @@ namespace UE::AnimNext
 		IteratorType end() { return Events.end(); }
 		ConstIteratorType end() const { return Events.end(); }
 
-		// Decrements the lifetime of every event within the list
-		void DecrementLifetime()
-		{
-			for (FAnimNextTraitEventPtr& Event : Events)
-			{
-				Event->DecrementLifetime();
-			}
-		}
-
 	private:
 		// A list of events
 		TArray<FAnimNextTraitEventPtr> Events;
 	};
+
+	// Decrements and purges expired entries from the specified event list
+	// Expired events can generate new output events if they wish
+	ANIMNEXT_API void DecrementLifetimeAndPurgeExpired(FTraitEventList& EventList, FTraitEventList& OutputEventList);
 }

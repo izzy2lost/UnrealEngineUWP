@@ -7,6 +7,8 @@
 #include "Graph/AnimNextGraph.h"
 #include "Graph/AnimNextGraphInstancePtr.h"
 #include "Param/ParamStack.h"
+#include "TraitCore/TraitEvent.h"
+#include "TraitCore/TraitEventList.h"
 
 class UAnimNextSchedule;
 struct FAnimNextSchedulerEntry;
@@ -36,6 +38,10 @@ struct FScheduleInstanceData : public FGCObject
 
 	// Apply the supplied parameter source to the specified scope, evicting any source that was there previously
 	void ApplyParametersToScope(FName InScope, EParameterScopeOrdering InOrdering, TUniquePtr<IParameterSource>&& InParameters);
+
+	// Queues an input trait event
+	// Input events will be processed in the next graph update after they are queued
+	void QueueInputTraitEvent(FAnimNextTraitEventPtr Event);
 
 	// Get the appropriate params stack given the ID
 	TSharedPtr<FParamStack> GetParamStack(uint32 InIndex) const;
@@ -112,6 +118,15 @@ struct FScheduleInstanceData : public FGCObject
 	};
 
 	TArray<FExternalParamCache> ExternalParamCaches;
+
+	// Input event list to be processed on the next update
+	FTraitEventList InputEventList;
+
+	// Output event list to be processed at the end of the schedule tick
+	FTraitEventList OutputEventList;
+
+	// Lock to ensure event list actions are thread safe
+	FRWLock EventListLock;
 };
 
 }

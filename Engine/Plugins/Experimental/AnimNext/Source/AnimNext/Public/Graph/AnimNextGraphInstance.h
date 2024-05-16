@@ -98,18 +98,6 @@ struct ANIMNEXT_API FAnimNextGraphInstance
 	// Returns const iterators to the graph instance component container
 	GraphInstanceComponentMapType::TConstIterator GetComponentIterator() const;
 
-	// Queues an input trait event (thread safe)
-	// Input events will be processed in the next graph update after they are queued
-	void QueueInputTraitEvent(FAnimNextTraitEventPtr Event);
-
-	// Queues a list of input trait events (thread safe)
-	// Input events will be processed in the next graph update after they are queued
-	// Expired or invalid events will be skipped
-	void QueueInputTraitEvents(const UE::AnimNext::FTraitEventList& Events);
-
-	// Collects all currently queued input trait events (thread safe)
-	void CollectInputTraitEvents(UE::AnimNext::FTraitEventList& OutInputEvents);
-
 	// Called each time the graph updates
 	void Update();
 
@@ -162,12 +150,6 @@ private:
 
 	// Graph instance components that persist from update to update
 	GraphInstanceComponentMapType Components;
-
-	// Input event list to be processed on the next update
-	UE::AnimNext::FTraitEventList InputEventList;
-
-	// Lock to ensure input event list actions are thread safe
-	FRWLock InputEventListLock;
 
 	// Whether or not this graph has updated once
 	bool bHasUpdatedOnce = false;

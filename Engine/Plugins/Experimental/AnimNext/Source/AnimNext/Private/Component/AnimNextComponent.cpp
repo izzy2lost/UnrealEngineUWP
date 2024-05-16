@@ -142,3 +142,13 @@ void UAnimNextComponent::Enable(bool bEnabled)
 {
 	UE::AnimNext::FScheduler::EnableHandle(this, SchedulerHandle, bEnabled);
 }
+
+void UAnimNextComponent::QueueInputTraitEvent(FAnimNextTraitEventPtr Event)
+{
+	using namespace UE::AnimNext;
+
+	FScheduler::QueueTask(this, SchedulerHandle, NAME_None, [Event = MoveTemp(Event)](const FScheduleTaskContext& InContext)
+		{
+			InContext.QueueInputTraitEvent(Event);
+		});
+}

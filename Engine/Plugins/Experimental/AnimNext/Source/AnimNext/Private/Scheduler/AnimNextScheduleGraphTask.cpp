@@ -160,6 +160,19 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 
 	check(OutputPose->LODPose.LODLevel == LODIndex);
 
+	// Every graph in a schedule will see the same input events (if they were queued before the schedule started)
+	FTraitEventList InputEventList;
+	FTraitEventList OutputEventList;
+
+	// A schedule can contain multiple graphs, we copy the input event list since it might be appended to during our update
+	{
+		FReadScopeLock ReadLock(InstanceData.EventListLock);
+		InputEventList = InstanceData.InputEventList;
+	}
+
+	// Track how many input events we started with, we'll append the new ones
+	const int32 NumOriginalInputEvents = InputEventList.Num();
+
 	// Internally we use memstack allocation, so we need a mark here
 	FMemStack& MemStack = FMemStack::Get();
 	FMemMark MemMark(MemStack);
@@ -168,6 +181,27 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	// This reduces churn internally by avoiding a chunk to be repeatedly allocated and freed as we push/pop marks
 	MemStack.Alloc(size_t(FPageAllocator::SmallPageSize) + 1, 16);
 
-	IAnimNextModule::Get().UpdateGraph(GraphCache.GraphInstanceData, InContext.GetDeltaTime());
-	IAnimNextModule::Get().EvaluateGraph(GraphCache.GraphInstanceData, RefPose, LODIndex, OutputPose->LODPose);
+	IAnimNextModule& AnimNextModule = IAnimNextModule::Get();
+	AnimNextModule.UpdateGraph(GraphCache.GraphInstanceData, InContext.GetDeltaTime(), InputEventList, OutputEventList);
+	AnimNextModule.EvaluateGraph(GraphCache.GraphInstanceData, RefPose, LODIndex, OutputPose->LODPose);
+
+	// We might have appended new input/output events, append them
+	{
+		const int32 NumInputEvents = InputEventList.Num();
+
+		FWriteScopeLock WriteLock(InstanceData.EventListLock);
+
+		// Append the new input events
+		for (int32 EventIndex = NumOriginalInputEvents; EventIndex < NumInputEvents; ++EventIndex)
+		{
+			FAnimNextTraitEventPtr& Event = InputEventList[EventIndex];
+			if (Event->IsValid())
+			{
+				InstanceData.InputEventList.Push(MoveTemp(Event));
+			}
+		}
+
+		// Append our output events
+		InstanceData.OutputEventList.Append(OutputEventList);
+	}
 }

@@ -307,10 +307,12 @@ bool FAnimationAnimNextRuntimeTest_GraphTraitEvent::RunTest(const FString& InPar
 				auto EventA = MakeTraitEvent<FTraitAnimGraphTest_EventA>();
 				auto EventB = MakeTraitEvent<FTraitAnimGraphTest_EventB>();
 
-				GraphInstance.QueueInputTraitEvent(EventA);
-				GraphInstance.QueueInputTraitEvent(EventB);
+				FTraitEventList InputEventList;
+				InputEventList.Push(EventA);
+				InputEventList.Push(EventB);
 
-				UpdateGraph(GraphInstance, 0.0333f);
+				FTraitEventList OutputEventList;
+				UpdateGraph(GraphInstance, 0.0333f, InputEventList, OutputEventList);
 
 				UE_RETURN_ON_ERROR(EventA->VisitedTraits.Num() == 4, "FAnimationAnimNextRuntimeTest_GraphTraitEvent -> Unexpected number of traits visited");
 				AddErrorIfFalse(EventA->VisitedTraits[0] == NodeTemplateTraitListB[0], "FAnimationAnimNextRuntimeTest_GraphTraitEvent -> Unexpected trait visited");
@@ -330,9 +332,11 @@ bool FAnimationAnimNextRuntimeTest_GraphTraitEvent::RunTest(const FString& InPar
 				auto EventA = MakeTraitEvent<FTraitAnimGraphTest_EventA>();
 				EventA->bTestFlag = true;
 
-				GraphInstance.QueueInputTraitEvent(EventA);
+				FTraitEventList InputEventList;
+				InputEventList.Push(EventA);
 
-				UpdateGraph(GraphInstance, 0.0333f);
+				FTraitEventList OutputEventList;
+				UpdateGraph(GraphInstance, 0.0333f, InputEventList, OutputEventList);
 
 				UE_RETURN_ON_ERROR(EventA->VisitedTraits.Num() == 2, "FAnimationAnimNextRuntimeTest_GraphTraitEvent -> Unexpected number of traits visited");
 				AddErrorIfFalse(EventA->VisitedTraits[0] == NodeTemplateTraitListB[0], "FAnimationAnimNextRuntimeTest_GraphTraitEvent -> Unexpected trait visited");
@@ -345,10 +349,12 @@ bool FAnimationAnimNextRuntimeTest_GraphTraitEvent::RunTest(const FString& InPar
 				EventA->bTestFlag = true;
 				auto EventB = MakeTraitEvent<FTraitAnimGraphTest_EventB>();
 
-				GraphInstance.QueueInputTraitEvent(EventA);
-				GraphInstance.QueueInputTraitEvent(EventB);
+				FTraitEventList InputEventList;
+				InputEventList.Push(EventA);
+				InputEventList.Push(EventB);
 
-				UpdateGraph(GraphInstance, 0.0333f);
+				FTraitEventList OutputEventList;
+				UpdateGraph(GraphInstance, 0.0333f, InputEventList, OutputEventList);
 
 				UE_RETURN_ON_ERROR(EventA->VisitedTraits.Num() == 2, "FAnimationAnimNextRuntimeTest_GraphTraitEvent -> Unexpected number of traits visited");
 				AddErrorIfFalse(EventA->VisitedTraits[0] == NodeTemplateTraitListB[0], "FAnimationAnimNextRuntimeTest_GraphTraitEvent -> Unexpected trait visited");
@@ -366,9 +372,11 @@ bool FAnimationAnimNextRuntimeTest_GraphTraitEvent::RunTest(const FString& InPar
 				auto EventB = MakeTraitEvent<FTraitAnimGraphTest_EventB>();
 				EventB->bTestFlag0 = true;
 
-				GraphInstance.QueueInputTraitEvent(EventB);
+				FTraitEventList InputEventList;
+				InputEventList.Push(EventB);
 
-				UpdateGraph(GraphInstance, 0.0333f);
+				FTraitEventList OutputEventList;
+				UpdateGraph(GraphInstance, 0.0333f, InputEventList, OutputEventList);
 
 				UE_RETURN_ON_ERROR(EventB->VisitedTraits.Num() == 4, "FAnimationAnimNextRuntimeTest_GraphTraitEvent -> Unexpected number of traits visited");
 				AddErrorIfFalse(EventB->VisitedTraits[0] == NodeTemplateTraitListB[0], "FAnimationAnimNextRuntimeTest_GraphTraitEvent -> Unexpected trait visited");
@@ -389,9 +397,11 @@ bool FAnimationAnimNextRuntimeTest_GraphTraitEvent::RunTest(const FString& InPar
 				auto EventB = MakeTraitEvent<FTraitAnimGraphTest_EventB>();
 				EventB->bTestFlag1 = true;
 
-				GraphInstance.QueueInputTraitEvent(EventB);
+				FTraitEventList InputEventList;
+				InputEventList.Push(EventB);
 
-				UpdateGraph(GraphInstance, 0.0333f);
+				FTraitEventList OutputEventList;
+				UpdateGraph(GraphInstance, 0.0333f, InputEventList, OutputEventList);
 
 				UE_RETURN_ON_ERROR(EventB->VisitedTraits.Num() == 4, "FAnimationAnimNextRuntimeTest_GraphTraitEvent -> Unexpected number of traits visited");
 				AddErrorIfFalse(EventB->VisitedTraits[0] == NodeTemplateTraitListB[0], "FAnimationAnimNextRuntimeTest_GraphTraitEvent -> Unexpected trait visited");

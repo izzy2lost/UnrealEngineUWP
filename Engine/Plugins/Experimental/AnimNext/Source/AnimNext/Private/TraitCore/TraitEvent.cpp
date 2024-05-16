@@ -6,6 +6,17 @@
 #include "TraitCore/TraitStackBinding.h"
 #include "Graph/GraphInstanceComponent.h"
 
+bool FAnimNextTraitEvent::DecrementLifetime(UE::AnimNext::FTraitEventList& OutputEventList)
+{
+	const bool bExpired = Lifetime.Decrement();
+	if (bExpired)
+	{
+		OnExpired(OutputEventList);
+	}
+
+	return bExpired;
+}
+
 namespace UE::AnimNext
 {
 	void RaiseTraitEvent(FExecutionContext& Context, const FTraitStackBinding& StackBinding, FAnimNextTraitEvent& Event)

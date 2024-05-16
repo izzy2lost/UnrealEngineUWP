@@ -61,7 +61,9 @@ void FAnimNode_AnimNextGraph::Update_AnyThread(const FAnimationUpdateContext& Co
 
 		PropagateInputProperties(Context.AnimInstanceProxy->GetAnimInstanceObject());
 
-		UE::AnimNext::UpdateGraph(GraphInstance, Context.GetDeltaTime());
+		UE::AnimNext::FTraitEventList InputEventList;
+		UE::AnimNext::FTraitEventList OutputEventList;
+		UE::AnimNext::UpdateGraph(GraphInstance, Context.GetDeltaTime(), InputEventList, OutputEventList);
 	}
 
 	FAnimNode_CustomProperty::Update_AnyThread(Context);

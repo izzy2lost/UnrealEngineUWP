@@ -215,7 +215,7 @@ namespace UE::AnimNext
 			Private::QueueBookkeepingEntry(ExecutingEntry->EventBookkeepingList, BookkeepingEntry);
 		}
 
-		InputEventList.Push(Event);
+		InputEventList->Push(MoveTemp(Event));
 	}
 
 	void FUpdateTraversalContext::RaiseOutputTraitEvent(FAnimNextTraitEventPtr Event)
@@ -242,7 +242,7 @@ namespace UE::AnimNext
 		{
 			// We aren't executing a trait stack or we are the root stack, just queue the output
 			// We might be in a component pre/post-update
-			OutputEventList.Push(Event);
+			OutputEventList->Push(MoveTemp(Event));
 		}
 	}
 
@@ -260,7 +260,7 @@ namespace UE::AnimNext
 			switch (BookkeepingEntry->Action)
 			{
 			case Private::FUpdateEventBookkeepingAction::PushOutput:
-				OutputEventList.Push(BookkeepingEntry->Event);
+				OutputEventList->Push(MoveTemp(BookkeepingEntry->Event));
 				break;
 			case Private::FUpdateEventBookkeepingAction::Consume:
 				BookkeepingEntry->Event->MarkConsumed();
@@ -443,7 +443,7 @@ namespace UE::AnimNext
 	// perform as much useful work as possible while waiting for memory, hiding its slow latency by fully
 	// leveraging out-of-order CPU execution.
 
-	void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime)
+	void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime, FTraitEventList& InputEventList, FTraitEventList& OutputEventList)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_AnimNext_UpdateGraph);
 		
@@ -458,6 +458,8 @@ namespace UE::AnimNext
 		}
 
 		FUpdateTraversalContext TraversalContext;
+		TraversalContext.InputEventList = &InputEventList;
+		TraversalContext.OutputEventList = &OutputEventList;
 
 		FMemStack& MemStack = TraversalContext.GetMemStack();
 		FMemMark Mark(MemStack);
@@ -479,14 +481,11 @@ namespace UE::AnimNext
 		// Update the graph instance itself
 		GraphInstance.Update();
 
-		// Grab our input events, we'll propagate them down the graph as we traverse
-		GraphInstance.CollectInputTraitEvents(TraversalContext.InputEventList);
-
 		// Before we start the traversal, we give the graph instance components the chance to do some work
 		TraversalContext.BindTo(GraphInstance);
 		for (auto It = TraversalContext.GetComponentIterator(); It; ++It)
 		{
-			RaiseTraitEvents(TraversalContext, *It.Value(), TraversalContext.InputEventList);
+			RaiseTraitEvents(TraversalContext, *It.Value(), *TraversalContext.InputEventList);
 
 			It.Value()->PreUpdate(TraversalContext);
 		}
@@ -528,7 +527,7 @@ namespace UE::AnimNext
 				}
 
 				// Raise our input events
-				Private::RaiseTraitEvents(TraversalContext, Entry, TraversalContext.InputEventList);
+				Private::RaiseTraitEvents(TraversalContext, Entry, *TraversalContext.InputEventList);
 
 				// Main update before our children
 				if (bImplementsIUpdate)
@@ -593,7 +592,7 @@ namespace UE::AnimNext
 				TraversalContext.ExecuteBookkeepingActions(Entry->EventBookkeepingList);
 
 				// Raise our output events
-				Private::RaiseTraitEvents(TraversalContext, Entry, TraversalContext.OutputEventList);
+				Private::RaiseTraitEvents(TraversalContext, Entry, *TraversalContext.OutputEventList);
 
 				// We've already visited this node once, time to PostUpdate
 				if (Entry->UpdateTrait.IsValid())
@@ -621,21 +620,13 @@ namespace UE::AnimNext
 		// After we finish the traversal, we give the graph instance components the chance to do some work
 		for (auto It = TraversalContext.GetComponentIterator(); It; ++It)
 		{
-			RaiseTraitEvents(TraversalContext, *It.Value(), TraversalContext.OutputEventList);
+			RaiseTraitEvents(TraversalContext, *It.Value(),* TraversalContext.OutputEventList);
 
 			It.Value()->PostUpdate(TraversalContext);
 		}
 
-		// Decrement the remaining lifetime of the input events we processed and queue up any remaining events
-		TraversalContext.InputEventList.DecrementLifetime();
-		GraphInstance.QueueInputTraitEvents(TraversalContext.InputEventList);
-
 		// At this point, we shouldn't have any remaining scoped interfaces
 		// If this fails, it means we failed to pop them due to a push/pop mismatch
 		ensure(!TraversalContext.HasScopedInterfaces());
-
-		// TODO: Figure out what to do with the output events, we probably want to return them here and let the caller
-		// determine whether they should be ignored, filtered, or handled (e.g. post-physics vs pre-physics)
-		// The caller can determine what events can fire because it knows where it is running (e.g. worker vs main thread)
 	}
 }

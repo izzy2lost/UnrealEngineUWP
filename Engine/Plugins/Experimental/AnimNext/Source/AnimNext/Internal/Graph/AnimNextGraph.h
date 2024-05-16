@@ -89,6 +89,9 @@ public:
 	// Update the parameter layer, if any
 	void UpdateLayer(UE::AnimNext::FParamStackLayerHandle& InHandle, float InDeltaTime) const;
 
+	// Get the fully-qualified default entry point name (/Path/To/Asset.Asset:EntryPoint)
+	FName GetDefaultEntryPoint() const;
+
 protected:
 
 	// Loads the graph data from the provided archive buffer and returns true on success, false otherwise
@@ -105,9 +108,6 @@ protected:
 	// During graph compilation, once compilation is done we thaw existing graph instances to reallocate their memory
 	void ThawGraphInstances();
 #endif
-
-	// Get the fully-qualified default entry point name (/Path/To/Asset.Asset:EntryPoint)
-	FName GetDefaultEntryPoint() const;
 
 	// Set the default entry point name (unqualified)
 	void SetDefaultEntryPoint(FName InEntryPoint);

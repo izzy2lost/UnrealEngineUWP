@@ -7,24 +7,18 @@
 #include "TraitCore/TraitUID.h"
 #include "TraitCore/TraitEvent.h"
 
-#include "AnimNextTraitEventTest.generated.h"
-
-USTRUCT()
 struct FTraitCoreTest_EventA : public FAnimNextTraitEvent
 {
-	GENERATED_BODY()
-	DECLARE_ANIM_TRAIT_EVENT(FTraitCoreTest_EventA)
+	DECLARE_ANIM_TRAIT_EVENT(FTraitCoreTest_EventA, FAnimNextTraitEvent)
 
 	bool bAlwaysForwardToBase = true;
 
 	TArray<UE::AnimNext::FTraitUID> VisitedTraits;
 };
 
-USTRUCT()
 struct FTraitCoreTest_EventB : public FAnimNextTraitEvent
 {
-	GENERATED_BODY()
-	DECLARE_ANIM_TRAIT_EVENT(FTraitCoreTest_EventB)
+	DECLARE_ANIM_TRAIT_EVENT(FTraitCoreTest_EventB, FAnimNextTraitEvent)
 
 	TArray<UE::AnimNext::FTraitUID> VisitedTraits;
 };

@@ -33,6 +33,7 @@ void FAnimNextGraphInstance::Release()
 	ExtendedExecuteContext.Reset();
 	Components.Empty();
 	Graph = nullptr;
+	GraphState = nullptr;
 }
 
 bool FAnimNextGraphInstance::IsValid() const
@@ -130,38 +131,6 @@ UE::AnimNext::FGraphInstanceComponent& FAnimNextGraphInstance::AddComponent(int3
 GraphInstanceComponentMapType::TConstIterator FAnimNextGraphInstance::GetComponentIterator() const
 {
 	return RootGraphInstance->Components.CreateConstIterator();
-}
-
-void FAnimNextGraphInstance::QueueInputTraitEvent(FAnimNextTraitEventPtr Event)
-{
-	if (!Event || !Event->IsValid())
-	{
-		return;
-	}
-
-	FWriteScopeLock WriteLock(RootGraphInstance->InputEventListLock);
-	RootGraphInstance->InputEventList.Push(Event);
-}
-
-void FAnimNextGraphInstance::QueueInputTraitEvents(const UE::AnimNext::FTraitEventList& Events)
-{
-	FWriteScopeLock WriteLock(RootGraphInstance->InputEventListLock);
-
-	for (const FAnimNextTraitEventPtr& Event : Events)
-	{
-		if (Event->IsValid())
-		{
-			RootGraphInstance->InputEventList.Push(Event);
-		}
-	}
-}
-
-void FAnimNextGraphInstance::CollectInputTraitEvents(UE::AnimNext::FTraitEventList& OutInputEvents)
-{
-	OutInputEvents.Reset();
-
-	FWriteScopeLock WriteLock(RootGraphInstance->InputEventListLock);
-	Swap(OutInputEvents, RootGraphInstance->InputEventList);
 }
 
 void FAnimNextGraphInstance::Update()

@@ -161,8 +161,8 @@ namespace UE::AnimNext
 		void ExecuteBookkeepingActions(Private::FUpdateEventBookkeepingList& BookkeepingList);
 
 		// The input and output event lists
-		UE::AnimNext::FTraitEventList InputEventList;
-		UE::AnimNext::FTraitEventList OutputEventList;
+		UE::AnimNext::FTraitEventList* InputEventList = nullptr;
+		UE::AnimNext::FTraitEventList* OutputEventList = nullptr;
 
 		// The currently executing entry
 		Private::FUpdateEntry* ExecutingEntry = nullptr;
@@ -185,7 +185,7 @@ namespace UE::AnimNext
 		// The root node doesn't have a parent but we need a bookkeeping list regardless
 		Private::FUpdateEventBookkeepingList* RootParentBookkeepingEntryList = nullptr;
 
-		friend ANIMNEXTANIMGRAPH_API void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime);
+		friend ANIMNEXTANIMGRAPH_API void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime, FTraitEventList& InputEventList, FTraitEventList& OutputEventList);
 		friend FUpdateTraversalQueue;
 	};
 
@@ -213,7 +213,7 @@ namespace UE::AnimNext
 		// emptied and pushed onto the update stack
 		Private::FUpdateEntry* QueuedUpdateStackHead = nullptr;
 
-		friend ANIMNEXTANIMGRAPH_API void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime);
+		friend ANIMNEXTANIMGRAPH_API void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime, FTraitEventList& InputEventList, FTraitEventList& OutputEventList);
 		friend FUpdateTraversalContext;
 	};
 
@@ -312,8 +312,10 @@ namespace UE::AnimNext
 	 *     - We call PreUpdate on all its traits
 	 *     - We update all children
 	 *     - We call PostUpdate on all its traits
+	 * 
+	 * During our update, we can append new input/output events.
 	 *
 	 * @see IUpdate::PreUpdate, IUpdate::PostUpdate, IHierarchy::GetChildren
 	 */
-	ANIMNEXTANIMGRAPH_API void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime);
+	ANIMNEXTANIMGRAPH_API void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime, FTraitEventList& InputEventList, FTraitEventList& OutputEventList);
 }

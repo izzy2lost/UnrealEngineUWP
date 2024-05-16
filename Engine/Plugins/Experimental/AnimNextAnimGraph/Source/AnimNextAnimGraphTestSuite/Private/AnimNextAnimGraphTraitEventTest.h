@@ -7,24 +7,18 @@
 #include "TraitCore/TraitUID.h"
 #include "TraitCore/TraitEvent.h"
 
-#include "AnimNextAnimGraphTraitEventTest.generated.h"
-
-USTRUCT()
 struct FTraitAnimGraphTest_EventA : public FAnimNextTraitEvent
 {
-	GENERATED_BODY()
-	DECLARE_ANIM_TRAIT_EVENT(FTraitAnimGraphTest_EventA)
+	DECLARE_ANIM_TRAIT_EVENT(FTraitAnimGraphTest_EventA, FAnimNextTraitEvent)
 
 	bool bTestFlag = false;
 
 	TArray<UE::AnimNext::FTraitUID> VisitedTraits;
 };
 
-USTRUCT()
 struct FTraitAnimGraphTest_EventB : public FAnimNextTraitEvent
 {
-	GENERATED_BODY()
-	DECLARE_ANIM_TRAIT_EVENT(FTraitAnimGraphTest_EventB)
+	DECLARE_ANIM_TRAIT_EVENT(FTraitAnimGraphTest_EventB, FAnimNextTraitEvent)
 
 	bool bTestFlag0 = false;
 	bool bTestFlag1 = false;

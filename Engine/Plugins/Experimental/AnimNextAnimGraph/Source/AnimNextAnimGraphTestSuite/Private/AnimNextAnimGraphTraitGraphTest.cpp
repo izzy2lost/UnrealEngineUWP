@@ -455,7 +455,9 @@ bool FAnimationAnimNextRuntimeTest_GraphExecute::RunTest(const FString& InParame
 		);
 
 		{
-			UE::AnimNext::UpdateGraph(GraphInstance, 1.0f / 30.0f);
+			UE::AnimNext::FTraitEventList InputEventList;
+			UE::AnimNext::FTraitEventList OutputEventList;
+			UE::AnimNext::UpdateGraph(GraphInstance, 1.0f / 30.0f, InputEventList, OutputEventList);
 			(void)UE::AnimNext::EvaluateGraph(GraphInstance);
 		}
 
@@ -598,7 +600,9 @@ bool FAnimationAnimNextRuntimeTest_GraphExecuteLatent::RunTest(const FString& In
 		);
 
 		{
-			UE::AnimNext::UpdateGraph(GraphInstance, 1.0f / 30.0f);
+			UE::AnimNext::FTraitEventList InputEventList;
+			UE::AnimNext::FTraitEventList OutputEventList;
+			UE::AnimNext::UpdateGraph(GraphInstance, 1.0f / 30.0f, InputEventList, OutputEventList);
 			(void)UE::AnimNext::EvaluateGraph(GraphInstance);
 		}
 

@@ -182,4 +182,9 @@ void FScheduleInstanceData::ApplyParametersToScope(FName InScope, EParameterScop
 	}
 }
 
+void FScheduleInstanceData::QueueInputTraitEvent(FAnimNextTraitEventPtr Event)
+{
+	InputEventList.Push(MoveTemp(Event));
+}
+
 }

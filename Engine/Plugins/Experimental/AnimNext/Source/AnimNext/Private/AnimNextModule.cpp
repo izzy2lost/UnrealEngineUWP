@@ -157,11 +157,11 @@ namespace UE::AnimNext
 		AnimGraphImpl = nullptr;
 	}
 
-	void FModule::UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime)
+	void FModule::UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime, FTraitEventList& InputEventList, FTraitEventList& OutputEventList)
 	{
 		if (AnimGraphImpl != nullptr)
 		{
-			AnimGraphImpl->UpdateGraph(GraphInstance, DeltaTime);
+			AnimGraphImpl->UpdateGraph(GraphInstance, DeltaTime, InputEventList, OutputEventList);
 		}
 	}
 
