@@ -152,7 +152,7 @@ namespace UE::Chaos::ClothAsset
 		TManagedArray<T>* GetUserDefinedAttribute(const FName& Name, const FName& GroupName);
 
 		static bool IsValidClothCollectionGroupName(const FName& GroupName);
-		static bool IsValidUserDefinedAttributeName(const FName& Name, const FName& GroupName);
+		bool IsValidUserDefinedAttributeName(const FName& Name, const FName& GroupName);
 
 		//~ LODs Group (There should be only one LOD per ClothCollection)
 		const TManagedArray<FString>* GetPhysicsAssetPathName() const { return PhysicsAssetPathName; }

@@ -363,6 +363,10 @@ void FChaosClothAssetProxyDeformerNode::Evaluate(Dataflow::FContext& Context, co
 
 		SetValue(Context, MoveTemp(*ClothCollection), &Collection);
 	}
+	else if (Out->IsA<FString>(&SkinningBlendName))
+	{
+		SetValue(Context, SkinningBlendName, &SkinningBlendName);
+	}
 }
 
 Dataflow::FPin FChaosClothAssetProxyDeformerNode::AddPin()
