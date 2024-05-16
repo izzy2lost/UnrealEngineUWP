@@ -66,6 +66,7 @@ namespace UE::AnimNext
 			FAnimNextEntryPoint::StaticStruct(),
 			FUniversalObjectLocator::StaticStruct(),
 			FAnimNextTickFunctionBinding::StaticStruct(),
+			FAnimNextGraphReferencePose::StaticStruct()
 		};
 
 		RigVMRegistry.RegisterStructTypes(AllowedStructTypes);
