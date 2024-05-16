@@ -2854,7 +2854,10 @@ namespace impl
 			const mu::Ptr<mu::System> MutableSystem = CustomizableObjectSystemPrivateData->MutableSystem;
 			CustomizableObjectSystemPrivateData->MutableTaskGraph.AddMutableThreadTask(
 				TEXT("Task_Mutable_ReleaseInstance"),
-				[OperationData, MutableSystem]() {Task_Mutable_ReleaseInstance(OperationData->InstanceID, MutableSystem, OperationData->bLiveUpdateMode); });
+				[InstanceID = OperationData->InstanceID, MutableSystem, bLiveUpdateMode = OperationData->bLiveUpdateMode]()
+				{
+					Task_Mutable_ReleaseInstance(InstanceID, MutableSystem, bLiveUpdateMode);
+				});
 		}
 
 
