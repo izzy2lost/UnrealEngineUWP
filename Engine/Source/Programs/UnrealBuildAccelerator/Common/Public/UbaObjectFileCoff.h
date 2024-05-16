@@ -39,5 +39,7 @@ namespace uba
 
 		UnorderedSymbols m_loopbacksToAdd;
 		UnorderedSymbols m_toRemove;
+
+		static UnorderedSymbols PotentiallyDuplicatedSymbols;
 	};
 }

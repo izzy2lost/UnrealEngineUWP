@@ -68,7 +68,7 @@ namespace uba
 
 	// These are symbols that are added to all dlls through some macros.
 	// When merging dlls we need to remove duplicates of these
-	static UnorderedSymbols PotentiallyDuplicatedSymbols = 
+	UnorderedSymbols ObjectFileElf::PotentiallyDuplicatedSymbols = 
 	{
 		// REPLACEMENT_OPERATOR_NEW_AND_DELETE
 		"_Znwm",
