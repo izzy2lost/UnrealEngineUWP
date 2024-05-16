@@ -26,6 +26,14 @@
 
 #define ENABLE_EARLY_Z_TEST (NANITE_PIXEL_PROGRAMMABLE)
 
+// For shadows in displacement fallback raster bins, we need to apply minimum displacement on cluster triangles
+#define ENABLE_FALLBACK_DISPLACEMENT (SHADOW_DEPTH_SHADER && ( \
+	FIXED_DISPLACEMENT_FALLBACK || \
+	(NANITE_VERTEX_PROGRAMMABLE && USES_DISPLACEMENT && !NANITE_TESSELLATION) \
+))
+
+#define MATERIAL_SHADER_HAS_DOMAIN (NANITE_TESSELLATION && (NANITE_VERTEX_PROGRAMMABLE || NANITE_PIXEL_PROGRAMMABLE))
+#define MATERIAL_SHADER_HAS_DISPLACEMENT (ENABLE_FALLBACK_DISPLACEMENT || (MATERIAL_SHADER_HAS_DOMAIN && USES_DISPLACEMENT))
 
 // State encompassing mapping a pixel position to memory address
 struct FRaster
@@ -354,17 +362,16 @@ struct TNaniteWritePixel
 
 struct FMaterialShader
 {
-#if NANITE_VERTEX_PROGRAMMABLE || NANITE_PIXEL_PROGRAMMABLE
 	FNaniteView					NaniteView;
 	FPrimitiveSceneData 		PrimitiveData;
 	FInstanceSceneData			InstanceData;
 	FInstanceDynamicData		InstanceDynamicData;
 	FCluster					Cluster;
+	FVisibleCluster				VisibleCluster;
 	FNaniteVertTransforms		VertTransforms;
 	FNaniteTransformedTri		TransformedTri;
-#endif
 
-#if USES_DISPLACEMENT
+#if MATERIAL_SHADER_HAS_DISPLACEMENT
 	FNaniteMaterialDisplacementParams	DisplacementParams;
 	float								DisplacementFadeSlope;
 	float								DisplacementFadeOffset;
@@ -397,18 +404,18 @@ struct FMaterialShader
 		return WorldPositionOffset;
 	}
 
-#if NANITE_TESSELLATION && (NANITE_VERTEX_PROGRAMMABLE || NANITE_PIXEL_PROGRAMMABLE)
-#if USES_DISPLACEMENT
+#if MATERIAL_SHADER_HAS_DISPLACEMENT
 	void InitDisplacement(FNaniteMaterialDisplacementParams InParams)
 	{
 		DisplacementParams = InParams;
-
+	
+	#if USES_DISPLACEMENT
 		if (DisplacementParams.FadeSizeStop > 0.0f)
 		{
 			// Solve fade slope/offset relative to view depth
 			// NOTE: This isn't the same as fading linearly with projected depth, but makes EvaluateDomain cheaper
 			const float InstanceScale = InstanceData.NonUniformScale.w;
-			const float MaxDisplacement = GetAbsMaxMaterialDisplacement( PrimitiveData, false /* bFallbackRaster */ );
+			const float MaxDisplacement = GetAbsMaxMaterialDisplacement( PrimitiveData );
 			const float StartDepth = (MaxDisplacement * NaniteView.LODScale * InstanceScale) / DisplacementParams.FadeSizeStart;
 			const float StopDepth = (MaxDisplacement * NaniteView.LODScale * InstanceScale) / DisplacementParams.FadeSizeStop;
 			DisplacementFadeSlope = 1.0f / (StartDepth - StopDepth);
@@ -423,13 +430,41 @@ struct FMaterialShader
 			}
 		}
 		else
+	#endif
 		{
 			DisplacementFadeSlope = 0.0f;
 			DisplacementFadeOffset = 1.0f;
 		}
 	}
-#endif // USES_DISPLACEMENT
 
+	bool ApplyFallbackDisplacement(inout FNanitePostDeformVertex InOutVert)
+	{
+	#if ENABLE_FALLBACK_DISPLACEMENT
+	#if FIXED_DISPLACEMENT_FALLBACK
+		// We know that all clusters rasterized by this bin are displacement fallbacks, so save the extra check
+		const bool bApplyDisplacement = true;
+	#else
+		const bool bApplyDisplacement = (VisibleCluster.Flags & NANITE_CULLING_FLAG_FALLBACK_RASTER) != 0 &&
+			(PrimitiveData.PixelProgrammableDistanceSquared > 0.0f ||
+			PrimitiveData.MaterialDisplacementFadeOutSize > 0.0f);
+	#endif // FIXED_DISPLACEMENT_FALLBACK
+
+		// For shadows in fixed function or fallback rasterization with WPO enabled, if we're rasterizing a cluster with
+		// displacement disabled, apply minimum displacement to avoid shadowing objects that have displacement in the main
+		// view	(prevents false self-shadow artifacts)
+		if (bApplyDisplacement)
+		{
+			const float Displacement = -DisplacementParams.Center * DisplacementParams.Magnitude;
+			InOutVert.Position += InOutVert.TangentBasis.TangentZ * Displacement;
+			return true;
+		}
+	#endif // ENABLE_FALLBACK_DISPLACEMENT
+
+		return false;
+	}
+#endif // MATERIAL_SHADER_HAS_DISPLACEMENT
+
+#if MATERIAL_SHADER_HAS_DOMAIN
 	float4 EvaluateDomain( float4 UVDensities, FBarycentrics Barycentrics )
 	{
 		float3 PointPostDeform = Lerp( 
@@ -486,7 +521,7 @@ struct FMaterialShader
 		if (DisplacementFade < 1.0f)
 		{
 			// Always push to the minimum displacement (instead of 0 displacement) for shadows to prevent self-shadowing
-			// artifacts in the fade out region
+			// artifacts in the fade out region (more details above in ApplyFallbackDisplacement)
 			NormalizedDisplacement = 0.0f;
 			DisplacementFade = 1.0f;
 		}

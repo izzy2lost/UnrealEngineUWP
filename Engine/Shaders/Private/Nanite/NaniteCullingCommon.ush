@@ -239,7 +239,7 @@ struct FBoxCull
 			{
 				const float SurfaceDepth = max(dot( NaniteView.ViewForward, CenterTranslatedWorld ) - Radius, 0.0f);
 				const float MaxDisplacementProj = GetProjectedEdgeLengthAtDepth(
-						NonUniformScale.w * GetAbsMaxMaterialDisplacement( PrimitiveData, false /* bFallbackRaster */ ),
+						NonUniformScale.w * GetAbsMaxMaterialDisplacement(PrimitiveData),
 						SurfaceDepth,
 						NaniteView );
 				bFallbackRaster = MaxDisplacementProj <= DisplacementFadeOutSize;

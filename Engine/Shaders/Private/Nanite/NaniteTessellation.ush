@@ -55,7 +55,7 @@ float CalcDisplacementLowTessDistance(FPrimitiveSceneData PrimitiveData, FInstan
 	}
 
 	// Solve for the view depth at which max displacement equals the fade out size
-	const float MaxDisplacement = GetAbsMaxMaterialDisplacement(PrimitiveData, false /* bFallbackRaster */);
+	const float MaxDisplacement = GetAbsMaxMaterialDisplacement(PrimitiveData);
 	return (MaxDisplacement * InstanceData.NonUniformScale.w * NaniteView.LODScale) / LowTessSize;
 }
 

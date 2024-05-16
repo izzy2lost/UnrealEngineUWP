@@ -378,12 +378,6 @@ void InstanceCull(
 				Cull.bSkipCullGlobalClipPlane = true;
 			}
 
-			// TODO: Nanite Displacement Fade - Figure out how to be able to achieve disabling pixel programmable based on
-			// displacement fade in shadow. Right now, it causes self-shadowing issues with objects that have negative
-			// displacement. We need to ensure it only disables in clip maps that cannot shadow itself with displacement
-			// enabled in the main view.
-			Cull.bSkipDisplacementFadeOutDistance |= bIsShadowPass;
-
 			Cull.Distance(PrimitiveData);
 			bool bCacheAsStatic = false;
 

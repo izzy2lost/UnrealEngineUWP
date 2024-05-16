@@ -1888,16 +1888,16 @@ void CollectBasePassShadingPSOInitializers(
 
 } // Nanite
 
-FNaniteRasterPipeline FNaniteRasterPipeline::GetFixedFunctionPipeline(bool bIsTwoSided, bool bSplineMesh, bool bSkinnedMesh)
+FNaniteRasterPipeline FNaniteRasterPipeline::GetFixedFunctionPipeline(uint8 BinMask)
 {
 	FNaniteRasterPipeline Pipeline;
 	Pipeline.RasterMaterial = UMaterial::GetDefaultMaterial(MD_Surface)->GetRenderProxy();
-	Pipeline.bIsTwoSided = bIsTwoSided;
+	Pipeline.bIsTwoSided = (BinMask & NANITE_FIXED_FUNCTION_BIN_TWOSIDED) != 0;
 	Pipeline.bWPOEnabled = false;
 	Pipeline.bDisplacementEnabled = false;
 	Pipeline.bPerPixelEval = false;
-	Pipeline.bSplineMesh = bSplineMesh;
-	Pipeline.bSkinnedMesh = bSkinnedMesh;
+	Pipeline.bSplineMesh = (BinMask & NANITE_FIXED_FUNCTION_BIN_SPLINE) != 0;
+	Pipeline.bSkinnedMesh = (BinMask & NANITE_FIXED_FUNCTION_BIN_SKINNED) != 0;
 	Pipeline.bHasWPODistance = false;
 	Pipeline.bHasPixelDistance = false;
 	Pipeline.bHasDisplacementFadeOut = false;
@@ -1934,14 +1934,11 @@ uint32 FNaniteRasterPipeline::GetPipelineHash() const
 	HashKey.MaterialFlags |= bPerPixelEval ? 0x8u : 0x0u;
 	HashKey.MaterialFlags |= bSplineMesh ? 0x10u : 0x0u;
 	HashKey.MaterialFlags |= bSkinnedMesh ? 0x20u : 0x0u;
+	HashKey.MaterialFlags |= bFixedDisplacementFallback ? 0x40u : 0x0u;
 	HashKey.MaterialHash   = FHashKey::PointerHash(RasterMaterial);
 
-	// Don't let displacement options affect the hash if displacement is disabled
-	if (bDisplacementEnabled)
-	{
-		HashKey.DisplacementScaling = DisplacementScaling;
-		HashKey.DisplacementFadeRange = DisplacementFadeRange;
-	}
+	HashKey.DisplacementScaling = DisplacementScaling;
+	HashKey.DisplacementFadeRange = DisplacementFadeRange;
 
 	const uint64 PipelineHash = CityHash64((char*)&HashKey, sizeof(FHashKey));
 	return HashCombineFast(uint32(PipelineHash & 0xFFFFFFFF), uint32((PipelineHash >> 32) & 0xFFFFFFFF));
@@ -1949,6 +1946,12 @@ uint32 FNaniteRasterPipeline::GetPipelineHash() const
 
 bool FNaniteRasterPipeline::GetFallbackPipeline(FNaniteRasterPipeline& OutFallback) const
 {
+	// Get a mask of the required fixed function features for this pipeline to fall back to a fixed function bin.
+	const uint32 FixedBinMask = 
+		(bIsTwoSided ? NANITE_FIXED_FUNCTION_BIN_TWOSIDED : 0) |
+		(bSplineMesh ? NANITE_FIXED_FUNCTION_BIN_SPLINE : 0) |
+		(bSkinnedMesh ? NANITE_FIXED_FUNCTION_BIN_SKINNED : 0);
+
 	// NOTE: Ordering matters here. We don't want to have to create many bins to handle enabled/disabled state of
 	// pixel programmable, WPO, and displacement, so when we have overlap, WPO disabled clusters rely on branching
 	// rather than using simpler shaders until either pixel programmable distance or displacement fade-out occurs,
@@ -1968,7 +1971,17 @@ bool FNaniteRasterPipeline::GetFallbackPipeline(FNaniteRasterPipeline& OutFallba
 		else
 		{
 			// The fallback bin can be a non-programmable, fixed-function bin
-			OutFallback = GetFixedFunctionPipeline(bIsTwoSided, bSplineMesh, bSkinnedMesh);
+			OutFallback = GetFixedFunctionPipeline(FixedBinMask);
+		}
+
+		if (bDisplacementEnabled)
+		{
+			// NOTE: We do something special for displacement fallback bins. The displacement scaling still has to be unique
+			// per bin, so it can't strictly be a "fixed function bin", though it does use default material permutations if
+			// the fallback does not have WPO (and is therefore not itself programmable in any way).
+			OutFallback.bFixedDisplacementFallback = !bWPOEnabled;
+			OutFallback.DisplacementScaling = DisplacementScaling;
+			OutFallback.DisplacementFadeRange = FDisplacementFadeRange::Invalid();
 		}
 
 		return true;
@@ -1985,8 +1998,16 @@ bool FNaniteRasterPipeline::GetFallbackPipeline(FNaniteRasterPipeline& OutFallba
 		else
 		{
 			// The fallback bin can be a non-programmable, fixed-function bin
-			OutFallback = GetFixedFunctionPipeline(bIsTwoSided, bSplineMesh, bSkinnedMesh);
+			OutFallback = GetFixedFunctionPipeline(FixedBinMask);
 		}
+
+		if (bDisplacementEnabled)
+		{
+			// Make sure the fallback bin preserves the displacement scaling
+			OutFallback.DisplacementScaling = DisplacementScaling;
+			OutFallback.DisplacementFadeRange = FDisplacementFadeRange::Invalid();
+		}
+
 		return true;
 	}
 
@@ -2019,15 +2040,12 @@ void FNaniteRasterPipelines::AllocateFixedFunctionBins()
 	// We let the registration succeed because permutations are not actually fetched for the fixed function material here.
 	// When caching the raster passes we remap skinned | spline => skinned permutation and also skip launching these bins.
 
-	for (uint32 BinMask = 0; BinMask <= NANITE_FIXED_FUNCTION_BIN_MASK; ++BinMask)
+	for (uint8 BinMask = 0; BinMask <= NANITE_FIXED_FUNCTION_BIN_MASK; ++BinMask)
 	{
 		FFixedFunctionBin Bin;
-		Bin.TwoSided	= (BinMask & NANITE_FIXED_FUNCTION_BIN_TWOSIDED) != 0u;
-		Bin.Spline		= (BinMask & NANITE_FIXED_FUNCTION_BIN_SPLINE)   != 0u;
-		Bin.Skinned		= (BinMask & NANITE_FIXED_FUNCTION_BIN_SKINNED)  != 0u;
-
-		FNaniteRasterPipeline Pipeline = FNaniteRasterPipeline::GetFixedFunctionPipeline(Bin.TwoSided, Bin.Spline, Bin.Skinned);
+		FNaniteRasterPipeline Pipeline = FNaniteRasterPipeline::GetFixedFunctionPipeline(BinMask);
 		Bin.RasterBin = Register(Pipeline);
+		Bin.BinMask = BinMask;
 		check(Bin.RasterBin.BinIndex == BinMask);
 
 		FixedFunctionBins.Emplace(Bin);
@@ -2048,7 +2066,7 @@ void FNaniteRasterPipelines::ReloadFixedFunctionBins()
 {
 	for (const FFixedFunctionBin& FixedFunctionBin : FixedFunctionBins)
 	{
-		FNaniteRasterPipeline Pipeline = FNaniteRasterPipeline::GetFixedFunctionPipeline(FixedFunctionBin.TwoSided, FixedFunctionBin.Spline, FixedFunctionBin.Skinned);
+		FNaniteRasterPipeline Pipeline = FNaniteRasterPipeline::GetFixedFunctionPipeline(FixedFunctionBin.BinMask);
 		FNaniteRasterEntry* RasterEntry = PipelineMap.Find(Pipeline);
 		check(RasterEntry != nullptr);
 		RasterEntry->RasterPipeline = Pipeline;

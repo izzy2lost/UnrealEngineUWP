@@ -1483,6 +1483,7 @@ static void RenderShadowDepthAtlasNanite(
 			TRefCountPtr<IPooledRenderTarget> PrevAtlasHZB = bUseHZB ? PrevAtlasHZBs[AtlasIndex] : nullptr;
 	
 			Nanite::FConfiguration CullingConfig = { 0 };
+			CullingConfig.bIsShadowPass = true;
 			CullingConfig.bTwoPassOcclusion = true;
 			CullingConfig.bUpdateStreaming = CVarNaniteShadowsUpdateStreaming.GetValueOnRenderThread() != 0;
 			CullingConfig.HiddenFilterFlags = HiddenFilterFlags;
@@ -1815,6 +1816,7 @@ void FSceneRenderer::RenderShadowDepthMaps(FRDGBuilder& GraphBuilder, FDynamicSh
 					TRefCountPtr<IPooledRenderTarget> PrevHZB = (PrevShadowState && bUseHZB) ? PrevShadowState->HZB : nullptr;
 
 					Nanite::FConfiguration CullingConfig = { 0 };
+					CullingConfig.bIsShadowPass	= true;
 					CullingConfig.bTwoPassOcclusion	= true;
 					CullingConfig.bUpdateStreaming	= bUpdateStreaming;
 					if (ProjectedShadowInfo->CacheMode == SDCM_StaticPrimitivesOnly)

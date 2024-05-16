@@ -46,15 +46,20 @@ FInstanceDynamicData CalculateInstanceDynamicData( FNaniteView NaniteView, FInst
 	return DynamicData;
 }
 
-float GetAbsMaxMaterialDisplacement(FPrimitiveSceneData PrimitiveData, bool bFallbackRaster)
+float GetAbsMaxMaterialDisplacement(FPrimitiveSceneData PrimitiveData)
 {
 #if DISABLE_DISPLACEMENT_BOUNDS
 	return 0.0f;
 #else
-	const bool bDisplacementDisabled = bFallbackRaster &&
-		(PrimitiveData.PixelProgrammableDistanceSquared > 0.0f || PrimitiveData.MaterialDisplacementFadeOutSize > 0.0f);
-	return bDisplacementDisabled ? 0.0f : max(-PrimitiveData.MinMaterialDisplacement, PrimitiveData.MaxMaterialDisplacement);
+	return max(-PrimitiveData.MinMaterialDisplacement, PrimitiveData.MaxMaterialDisplacement);
 #endif
+}
+
+float GetMaxMaterialDisplacementExtent(FPrimitiveSceneData PrimitiveData, bool bFallbackRaster, bool bIsShadowPass)
+{
+	const bool bDisplacementEnabled = !bFallbackRaster || bIsShadowPass ||
+		(PrimitiveData.PixelProgrammableDistanceSquared <= 0.0f && PrimitiveData.MaterialDisplacementFadeOutSize <= 0.0f);
+	return bDisplacementEnabled ? GetAbsMaxMaterialDisplacement(PrimitiveData) : 0.0f;
 }
 
 float3 GetLocalMaxWPOExtent(FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData, bool bEnableWPO = true)

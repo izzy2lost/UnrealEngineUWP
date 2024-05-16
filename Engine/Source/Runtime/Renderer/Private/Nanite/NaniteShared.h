@@ -535,8 +535,9 @@ struct FNaniteRasterPipeline
 	bool bHasWPODistance : 1 = false;
 	bool bHasPixelDistance : 1 = false;
 	bool bHasDisplacementFadeOut : 1 = false;
+	bool bFixedDisplacementFallback : 1 = false;
 
-	static FNaniteRasterPipeline GetFixedFunctionPipeline(bool bIsTwoSided, bool bSplineMesh, bool bSkinnedMesh);
+	static FNaniteRasterPipeline GetFixedFunctionPipeline(uint8 BinMask);
 
 	uint32 GetPipelineHash() const;
 	bool GetFallbackPipeline(FNaniteRasterPipeline& OutFallback) const;
@@ -574,18 +575,19 @@ struct FNaniteRasterMaterialCacheKey
 	{
 		struct
 		{
-			uint16 FeatureLevel				: 4;
-			uint16 bWPOEnabled				: 1;
-			uint16 bPerPixelEval			: 1;
-			uint16 bUseMeshShader			: 1;
-			uint16 bUsePrimitiveShader		: 1;
-			uint16 bDisplacementEnabled		: 1;
-			uint16 bVisualizeActive			: 1;
-			uint16 bHasVirtualShadowMap		: 1;
-			uint16 bIsDepthOnly				: 1;
-			uint16 bIsTwoSided				: 1;
-			uint16 bSplineMesh				: 1;
-			uint16 bSkinnedMesh				: 1;
+			uint16 FeatureLevel					: 4;
+			uint16 bWPOEnabled					: 1;
+			uint16 bPerPixelEval				: 1;
+			uint16 bUseMeshShader				: 1;
+			uint16 bUsePrimitiveShader			: 1;
+			uint16 bDisplacementEnabled			: 1;
+			uint16 bVisualizeActive				: 1;
+			uint16 bHasVirtualShadowMap			: 1;
+			uint16 bIsDepthOnly					: 1;
+			uint16 bIsTwoSided					: 1;
+			uint16 bSplineMesh					: 1;
+			uint16 bSkinnedMesh					: 1;
+			uint16 bFixedDisplacementFallback	: 1;
 		};
 
 		uint16 Packed = 0;
@@ -738,9 +740,7 @@ private:
 	struct FFixedFunctionBin
 	{
 		FNaniteRasterBin RasterBin;
-		uint8 TwoSided : 1;
-		uint8 Spline   : 1;
-		uint8 Skinned  : 1;
+		uint8 BinMask;
 	};
 
 	TArray<FFixedFunctionBin, TInlineAllocator<4u>> FixedFunctionBins;

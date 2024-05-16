@@ -172,8 +172,13 @@ void TransformNodeCullingBounds(
 	// Extend the bounds for WPO or displacement
 	// NOTE: always extend the bounds if any material ignores the Enable WPO flag
 	const bool bFallbackRaster = (CullingFlags & NANITE_CULLING_FLAG_FALLBACK_RASTER);
+#if VIRTUAL_TEXTURE_TARGET
+	const bool bIsShadowPass = true; // We know at compile time that this permutation is always for shadow
+#else
+	const bool bIsShadowPass = (RenderFlags & NANITE_RENDER_FLAG_IS_SHADOW_PASS) != 0;
+#endif
 	const float3 LocalWPOExtent = GetLocalMaxWPOExtent(PrimitiveData, InstanceData, bEnableWPOBoundsExpansion);
-	Bounds.BoxExtent += LocalWPOExtent + GetAbsMaxMaterialDisplacement(PrimitiveData, bFallbackRaster);
+	Bounds.BoxExtent += LocalWPOExtent + GetMaxMaterialDisplacementExtent(PrimitiveData, bFallbackRaster, bIsShadowPass);
 
 	if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_SKINNED_MESH) != 0)
 	{

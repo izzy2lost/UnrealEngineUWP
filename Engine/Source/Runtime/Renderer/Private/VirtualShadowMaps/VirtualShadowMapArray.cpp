@@ -2673,6 +2673,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNanite(FRDGBuilder& GraphBui
 		bool bPrevHZBValid = HZBPhysical != nullptr && CacheManager->GetPrevBuffers().PageTable != nullptr;
 
 		Nanite::FConfiguration CullingConfig = { 0 };
+		CullingConfig.bIsShadowPass = true;
 		CullingConfig.bUpdateStreaming = bUpdateNaniteStreaming;
 		CullingConfig.bTwoPassOcclusion = UseTwoPassHzbOcclusion();
 		CullingConfig.bExtractStats = Nanite::IsStatFilterActive(VirtualFilterName);

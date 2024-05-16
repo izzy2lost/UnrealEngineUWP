@@ -1471,6 +1471,7 @@ class FMicropolyRasterizeCS : public FNaniteMaterialShader
 	class FPatchesDim : SHADER_PERMUTATION_BOOL("PATCHES");
 	class FSplineDeformDim : SHADER_PERMUTATION_BOOL("USE_SPLINEDEFORM");
 	class FSkinningDim : SHADER_PERMUTATION_BOOL("USE_SKINNING");
+	class FFixedDisplacementFallbackDim : SHADER_PERMUTATION_BOOL("FIXED_DISPLACEMENT_FALLBACK");
 	
 	using FPermutationDomain = TShaderPermutationDomain<
 		FDepthOnlyDim,
@@ -1482,7 +1483,8 @@ class FMicropolyRasterizeCS : public FNaniteMaterialShader
 		FTessellationDim,
 		FPatchesDim,
 		FSplineDeformDim,
-		FSkinningDim
+		FSkinningDim,
+		FFixedDisplacementFallbackDim
 	>;
 
 	using FParameters = FRasterizePassParameters;
@@ -1580,6 +1582,19 @@ class FMicropolyRasterizeCS : public FNaniteMaterialShader
 			}
 		}
 
+		if (PermutationVector.Get<FFixedDisplacementFallbackDim>())
+		{
+			// This permutation is ONLY applicable to the default material with no programmable features
+			if (!Parameters.MaterialParameters.bIsDefaultMaterial ||
+				PermutationVector.Get<FVertexProgrammableDim>() ||
+				PermutationVector.Get<FPixelProgrammableDim>() ||
+				PermutationVector.Get<FTessellationDim>() ||
+				PermutationVector.Get<FPatchesDim>())
+			{
+				return false;
+			}
+		}
+
 		return FNaniteMaterialShader::ShouldCompileComputePermutation(Parameters);
 	}
 
@@ -1626,7 +1641,18 @@ class FHWRasterizeVS : public FNaniteMaterialShader
 	class FPixelProgrammableDim : SHADER_PERMUTATION_BOOL("NANITE_PIXEL_PROGRAMMABLE");
 	class FSplineDeformDim : SHADER_PERMUTATION_BOOL("USE_SPLINEDEFORM");
 	class FSkinningDim : SHADER_PERMUTATION_BOOL("USE_SKINNING");
-	using FPermutationDomain = TShaderPermutationDomain<FDepthOnlyDim, FPrimShaderDim, FVirtualTextureTargetDim, FVertexProgrammableDim, FPixelProgrammableDim, FSplineDeformDim, FSkinningDim>;
+	class FFixedDisplacementFallbackDim : SHADER_PERMUTATION_BOOL("FIXED_DISPLACEMENT_FALLBACK");
+
+	using FPermutationDomain = TShaderPermutationDomain<
+		FDepthOnlyDim,
+		FPrimShaderDim,
+		FVirtualTextureTargetDim,
+		FVertexProgrammableDim,
+		FPixelProgrammableDim,
+		FSplineDeformDim,
+		FSkinningDim,
+		FFixedDisplacementFallbackDim
+	>;
 
 	using FParameters = FRasterizePassParameters;
 
@@ -1684,6 +1710,17 @@ class FHWRasterizeVS : public FNaniteMaterialShader
 			if (PermutationVector.Get<FSplineDeformDim>())
 			{
 				// Mutually exclusive
+				return false;
+			}
+		}
+
+		if (PermutationVector.Get<FFixedDisplacementFallbackDim>())
+		{
+			// This permutation is ONLY applicable to the default material with no programmable features
+			if (!Parameters.MaterialParameters.bIsDefaultMaterial ||
+				PermutationVector.Get<FVertexProgrammableDim>() ||
+				PermutationVector.Get<FPixelProgrammableDim>())
+			{
 				return false;
 			}
 		}
@@ -1751,6 +1788,7 @@ class FHWRasterizeMS : public FNaniteMaterialShader
 	class FSplineDeformDim : SHADER_PERMUTATION_BOOL("USE_SPLINEDEFORM");
 	class FSkinningDim : SHADER_PERMUTATION_BOOL("USE_SKINNING");
 	class FAllowSvBarycentricsDim : SHADER_PERMUTATION_BOOL("NANITE_ALLOW_SV_BARYCENTRICS");
+	class FFixedDisplacementFallbackDim : SHADER_PERMUTATION_BOOL("FIXED_DISPLACEMENT_FALLBACK");
 
 	using FPermutationDomain = TShaderPermutationDomain
 	<
@@ -1760,7 +1798,8 @@ class FHWRasterizeMS : public FNaniteMaterialShader
 		FPixelProgrammableDim,
 		FSplineDeformDim,
 		FSkinningDim,
-		FAllowSvBarycentricsDim
+		FAllowSvBarycentricsDim,
+		FFixedDisplacementFallbackDim
 	>;
 
 	using FParameters = FRasterizePassParameters;
@@ -1819,6 +1858,17 @@ class FHWRasterizeMS : public FNaniteMaterialShader
 			if (PermutationVector.Get<FSplineDeformDim>())
 			{
 				// Mutually exclusive
+				return false;
+			}
+		}
+
+		if (PermutationVector.Get<FFixedDisplacementFallbackDim>())
+		{
+			// This permutation is ONLY applicable to the default material with no programmable features
+			if (!Parameters.MaterialParameters.bIsDefaultMaterial ||
+				PermutationVector.Get<FVertexProgrammableDim>() ||
+				PermutationVector.Get<FPixelProgrammableDim>())
+			{
 				return false;
 			}
 		}
@@ -2125,6 +2175,7 @@ static void GetMaterialShaderTypes(
 		PermutationVectorMS.Set<FHWRasterizeMS::FVertexProgrammableDim>(bVertexProgrammableHW);
 		PermutationVectorMS.Set<FHWRasterizeMS::FPixelProgrammableDim>(bPixelProgrammable);
 		PermutationVectorMS.Set<FHWRasterizeMS::FAllowSvBarycentricsDim>(bUseBarycentricPermutation);
+		PermutationVectorMS.Set<FHWRasterizeMS::FFixedDisplacementFallbackDim>(false);
 		if (bVertexProgrammableHW)
 		{
 			ProgrammableShaderTypes.AddShaderType<FHWRasterizeMS>(PermutationVectorMS.ToDimensionValueId());
@@ -2141,6 +2192,7 @@ static void GetMaterialShaderTypes(
 		PermutationVectorVS.Set<FHWRasterizeVS::FSkinningDim>(bSkinnedMesh);
 		PermutationVectorVS.Set<FHWRasterizeVS::FVertexProgrammableDim>(bVertexProgrammableHW);
 		PermutationVectorVS.Set<FHWRasterizeVS::FPixelProgrammableDim>(bPixelProgrammable);
+		PermutationVectorVS.Set<FHWRasterizeVS::FFixedDisplacementFallbackDim>(false);
 		if (bVertexProgrammableHW)
 		{
 			ProgrammableShaderTypes.AddShaderType<FHWRasterizeVS>(PermutationVectorVS.ToDimensionValueId());
@@ -2172,6 +2224,7 @@ static void GetMaterialShaderTypes(
 	PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FSkinningDim>(bSkinnedMesh);
 	PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FVertexProgrammableDim>(bVertexProgrammable);
 	PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FPixelProgrammableDim>(bPixelProgrammable);
+	PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FFixedDisplacementFallbackDim>(false);
 	if (bVertexProgrammable || bPixelProgrammable)
 	{
 		ProgrammableShaderTypes.AddShaderType<FMicropolyRasterizeCS>(PermutationVectorCS_Cluster.ToDimensionValueId());
@@ -2190,6 +2243,7 @@ static void GetMaterialShaderTypes(
 		PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FSkinningDim>(bSkinnedMesh);
 		PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FVertexProgrammableDim>(bVertexProgrammable);
 		PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FPixelProgrammableDim>(bPixelProgrammable);
+		PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FFixedDisplacementFallbackDim>(false);
 		PatchShaderTypes.AddShaderType<FMicropolyRasterizeCS>(PermutationVectorCS_Patch.ToDimensionValueId());
 	}
 }
@@ -3280,6 +3334,7 @@ FRenderer::FRenderer(
 	RenderFlags |= Configuration.bDisableProgrammable	? NANITE_RENDER_FLAG_DISABLE_PROGRAMMABLE : 0u;
 	RenderFlags |= Configuration.bForceHWRaster			? NANITE_RENDER_FLAG_FORCE_HW_RASTER : 0u;
 	RenderFlags |= Configuration.bUpdateStreaming		? NANITE_RENDER_FLAG_OUTPUT_STREAMING_REQUESTS : 0u;
+	RenderFlags |= Configuration.bIsShadowPass			? NANITE_RENDER_FLAG_IS_SHADOW_PASS : 0u;
 	RenderFlags |= Configuration.bIsSceneCapture		? NANITE_RENDER_FLAG_IS_SCENE_CAPTURE : 0u;
 	RenderFlags |= Configuration.bIsReflectionCapture	? NANITE_RENDER_FLAG_IS_REFLECTION_CAPTURE : 0u;
 	RenderFlags |= Configuration.bIsLumenCapture		? NANITE_RENDER_FLAG_IS_LUMEN_CAPTURE : 0u;
@@ -4305,6 +4360,7 @@ void FRenderer::PrepareRasterizerPasses(
 		{
 			const bool bMeshShaderRasterPath = IsMeshShaderRasterPath(HardwarePath);
 			const bool bUseBarycentricPermutation = ShouldUseSvBarycentricPermutation(GetFeatureLevelShaderPlatform(FeatureLevel), RasterizerPass.bPixelProgrammable, bMeshShaderRasterPath);
+			const bool bFixedDisplacementFallback = RasterizerPass.RasterPipeline.bFixedDisplacementFallback;
 
 			if (bMeshShaderRasterPath)
 			{
@@ -4313,6 +4369,7 @@ void FRenderer::PrepareRasterizerPasses(
 				PermutationVectorMS.Set<FHWRasterizeMS::FSplineDeformDim>(RasterizerPass.bSplineMesh);
 				PermutationVectorMS.Set<FHWRasterizeMS::FSkinningDim>(RasterizerPass.bSkinnedMesh);
 				PermutationVectorMS.Set<FHWRasterizeMS::FAllowSvBarycentricsDim>(bUseBarycentricPermutation);
+				PermutationVectorMS.Set<FHWRasterizeMS::FFixedDisplacementFallbackDim>(bFixedDisplacementFallback);
 				RasterizerPass.RasterMeshShader = FixedMaterialShaderMap->GetShader<FHWRasterizeMS>(PermutationVectorMS);
 				check(!RasterizerPass.RasterMeshShader.IsNull());
 			}
@@ -4322,6 +4379,7 @@ void FRenderer::PrepareRasterizerPasses(
 				PermutationVectorVS.Set<FHWRasterizeVS::FPixelProgrammableDim>(RasterizerPass.bPixelProgrammable);
 				PermutationVectorVS.Set<FHWRasterizeVS::FSplineDeformDim>(RasterizerPass.bSplineMesh);
 				PermutationVectorVS.Set<FHWRasterizeVS::FSkinningDim>(RasterizerPass.bSkinnedMesh);
+				PermutationVectorVS.Set<FHWRasterizeVS::FFixedDisplacementFallbackDim>(bFixedDisplacementFallback);
 				RasterizerPass.RasterVertexShader = FixedMaterialShaderMap->GetShader<FHWRasterizeVS>(PermutationVectorVS);
 				check(!RasterizerPass.RasterVertexShader.IsNull());
 			}
@@ -4338,6 +4396,7 @@ void FRenderer::PrepareRasterizerPasses(
 			PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FPixelProgrammableDim>(RasterizerPass.bPixelProgrammable);
 			PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FSplineDeformDim>(RasterizerPass.bSplineMesh);
 			PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FSkinningDim>(RasterizerPass.bSkinnedMesh);
+			PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FFixedDisplacementFallbackDim>(bFixedDisplacementFallback);
 			RasterizerPass.ClusterComputeShader = FixedMaterialShaderMap->GetShader<FMicropolyRasterizeCS>(PermutationVectorCS_Cluster);
 			check(!RasterizerPass.ClusterComputeShader.IsNull());
 
@@ -4571,6 +4630,7 @@ void FRenderer::PrepareRasterizerPasses(
 				RasterMaterialCacheKey.bIsTwoSided = RasterizerPass.RasterPipeline.bIsTwoSided;
 				RasterMaterialCacheKey.bSplineMesh = RasterEntry.RasterPipeline.bSplineMesh;
 				RasterMaterialCacheKey.bSkinnedMesh = RasterEntry.RasterPipeline.bSkinnedMesh;
+				RasterMaterialCacheKey.bFixedDisplacementFallback = RasterEntry.RasterPipeline.bFixedDisplacementFallback;
 			}
 
 			FNaniteRasterMaterialCache  EmptyCache;

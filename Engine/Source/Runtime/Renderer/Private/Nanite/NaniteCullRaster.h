@@ -144,6 +144,7 @@ struct FConfiguration
 	uint32 bForceHWRaster : 1;
 	uint32 bPrimaryContext : 1;
 	uint32 bDrawOnlyRootGeometry : 1;
+	uint32 bIsShadowPass : 1;
 	uint32 bIsSceneCapture : 1;
 	uint32 bIsReflectionCapture : 1;
 	uint32 bIsLumenCapture : 1;
