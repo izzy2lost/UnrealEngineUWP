@@ -331,6 +331,21 @@ class GEOMETRYSCRIPTINGCORE_API UGeometryScriptLibrary_CollisionFunctions : publ
 	GENERATED_BODY()
 public:
 
+	/**
+	 * Set a static mesh as the custom collision for another static mesh to use.
+	 * Note: Only works if editor-only data is available.
+	 * 
+	 * @return true on success.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision")
+	static bool SetStaticMeshCustomComplexCollision(
+		UStaticMesh* StaticMeshAsset,
+		UStaticMesh* StaticMeshCollisionAsset,
+		bool bEmitTransaction,
+		bool bMarkCollisionAsCustomized = true,
+		UGeometryScriptDebug* Debug = nullptr
+	);
+
 	/** 
 	* Generates Simple Collision shapes for a Static Mesh Asset based on the input Dynamic Mesh.
 	*/
