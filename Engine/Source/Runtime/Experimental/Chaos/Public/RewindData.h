@@ -48,6 +48,9 @@ struct FBaseRewindHistory
 	UE_DEPRECATED(5.4, "Deprecated, use ExtractData() instead")
 	FORCEINLINE virtual bool ExtractDatas(const int32 ExtractFrame, const bool bResetSolver, void* HistoryDatas, const bool bExactFrame = false) { return ExtractData(ExtractFrame, bResetSolver, HistoryDatas, bExactFrame); }
 	
+	/** Call ApplyData on each frame data within range */
+	FORCEINLINE virtual void ApplyDataRange(const int32 FromFrame, const int32 ToFrame, void* ActorComponent, const bool bOnlyImportant = false) {}
+
 	/** Iterate over and merge data */
 	FORCEINLINE virtual void MergeData(const int32 FromFrame, void* ToData) {}
 
@@ -56,14 +59,12 @@ struct FBaseRewindHistory
 	UE_DEPRECATED(5.4, "Deprecated, use RecordData() instead")
 	FORCEINLINE virtual bool RecordDatas(const int32 RecordFrame, const void* HistoryDatas) { return RecordData(RecordFrame, HistoryDatas); }
 	
-	/** Check if we should record received data into history on @param RecordFrame.
-	* Can for example block received data from client from overriding server authoritative data */
-	FORCEINLINE virtual bool ShouldRecordReceivedDataOnFrame(const int32 RecordFrame) { return true; }
-
 	/** Copy data from local history into @param OutHistory
 	* @param StartFrame = Included
-	* @param EndFrame = Included */
-	virtual void CopyData(Chaos::FBaseRewindHistory& OutHistory, const uint32 StartFrame, const uint32 EndFrame) {};
+	* @param EndFrame = Included 
+	* @param bIncludeUnimportant = If to copy unimportant data entries
+	* @param bIncludeImportant = If to copy important data entries*/
+	virtual bool CopyData(Chaos::FBaseRewindHistory& OutHistory, const uint32 StartFrame, const uint32 EndFrame, bool bIncludeUnimportant = true, bool bIncludeImportant = false) { return false; }
 
 	/** Create a polymorphic copy of only a range of frames, applying the frame offset to the copies
 	* @param StartFrame = Included
@@ -71,12 +72,9 @@ struct FBaseRewindHistory
 	virtual TUniquePtr<FBaseRewindHistory> CopyFramesWithOffset(const uint32 StartFrame, const uint32 EndFrame, const int32 FrameOffset) = 0;
 
 	/** Copy new data (received from the network) into this history, returns frame to resimulate from if @param CompareDataForRewind is set to true and compared data differ enough */
-	virtual int32 ReceiveNewData(FBaseRewindHistory& NewData, const int32 FrameOffset, bool CompareDataForRewind = false) { return INDEX_NONE; }
+	virtual int32 ReceiveNewData(FBaseRewindHistory& NewData, const int32 FrameOffset, const bool CompareDataForRewind = false, const bool bImportant = false) { return INDEX_NONE; }
 	UE_DEPRECATED(5.4, "Deprecated, use ReceiveNewData() instead")
 	virtual void ReceiveNewDatas(FBaseRewindHistory& NewDatas, const int32 FrameOffset) { ReceiveNewData(NewDatas, FrameOffset); }
-
-	/** Compares new received data with local predicted data and returns true if they differ enough to trigger a resimulation  */
-	FORCEINLINE virtual bool TriggerRewindFromNewData(void* NewData) { return false; }
 
 	/** Serialize the data to or from a network archive */
 	virtual void NetSerialize(FArchive& Ar, UPackageMap* PackageMap) {}
@@ -98,8 +96,14 @@ struct FBaseRewindHistory
 	/** Legacy interface to apply inputs */
 	FORCEINLINE virtual bool ApplyInputs(const int32 ApplyFrame, const bool bResetSolver) { return false; }
 
-	/** Return the most up to date frame entry in history */
+	/** Return the most up to date frame entry in history, returns INDEX_NONE if no frame was found */
 	virtual const int32 GetLatestFrame() const { return INDEX_NONE; }
+
+	/** Return the least up to date frame entry in history, returns INT_MAX if no frame was found */
+	virtual const int32 GetEarliestFrame() const { return INT_MAX; }
+
+	/** Return the max size of the history */
+	virtual const int32 GetHistorySize() const { return 0; }
 
 	/** Resize the history */
 	virtual void ResizeDataHistory(const int32 FrameCount, const EAllowShrinking AllowShrinking = EAllowShrinking::Yes) {}
@@ -188,6 +192,7 @@ public :
 			if (MinFrameIndex != INDEX_NONE && MaxFrameIndex != INDEX_NONE)
 			{
 				DataType& ExtractedData = *static_cast<DataType*>(HistoryData);
+				ExtractedData = DataHistory[MinFrameIndex];
 
 				PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				// TODO: Change to InterpolateData() in UE 5.6 and remove deprecation pragma
@@ -247,16 +252,6 @@ public :
 		}
 	}
 
-	FORCEINLINE virtual bool TriggerRewindFromNewData(void* NewData) override
-	{
-		if (EvalData(static_cast<DataType*>(NewData)->LocalFrame) && !DataHistory[CurrentIndex].bReceivedData)
-		{
-			return !static_cast<DataType*>(NewData)->CompareData(DataHistory[CurrentIndex]);
-		}
-
-		return false;
-	}
-
 	/** Load the data from the buffer at a specific frame */
 	FORCEINLINE bool LoadData(const int32 LoadFrame)
 	{
@@ -295,18 +290,6 @@ public :
 		return true;
 	}
 
-	FORCEINLINE virtual bool ShouldRecordReceivedDataOnFrame(const int32 RecordFrame) override
-	{
-		if (RecordFrame < 0)
-		{
-			return false;
-		}
-
-		// Allow received data to get recorded if it's for a newer frame than already stored at the history index or if the data stored is not marked as received (i.e. it's locally predicted)
-		LoadData(RecordFrame);
-		return (!DataHistory[CurrentIndex].bReceivedData || DataHistory[CurrentIndex].LocalFrame < RecordFrame);
-	}
-
 	/** Current data that is being loaded/recorded*/
 	DataType& GetCurrentData() { return DataHistory[CurrentIndex]; }
 	UE_DEPRECATED(5.4, "Deprecated, use GetCurrentData() instead")
@@ -341,6 +324,28 @@ public :
 	virtual const int32 GetLatestFrame() const override
 	{
 		return LatestFrame;
+	}
+
+	/** Return the least up to date frame entry in history */
+	virtual const int32 GetEarliestFrame() const override
+	{
+		int32 EarliestFrame = INT_MAX;
+		
+		for (int32 FrameIndex = 0; FrameIndex < NumFrames; ++FrameIndex)
+		{
+			if (DataHistory[FrameIndex].LocalFrame > INDEX_NONE)
+			{
+				EarliestFrame = FMath::Min(EarliestFrame, DataHistory[FrameIndex].LocalFrame);
+			}
+		}
+
+		return EarliestFrame;
+	}
+
+	/** Return the max size of the history */
+	virtual const int32 GetHistorySize() const
+	{
+		return NumFrames;
 	}
 
 	/** Resize the history */

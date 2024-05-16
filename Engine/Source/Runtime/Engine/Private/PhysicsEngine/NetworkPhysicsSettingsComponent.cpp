@@ -60,6 +60,7 @@ void UNetworkPhysicsSettingsComponent::InitializeComponent()
 								AsyncInput->Settings.DefaultReplicationSettings = DefaultReplicationSettings;
 								AsyncInput->Settings.ResimulationSettings = ResimulationSettings;
 								AsyncInput->Settings.PredictiveInterpolationSettings = PredictiveInterpolationSettings;
+								AsyncInput->Settings.NetworkPhysicsComponentSettings = NetworkPhysicsComponentSettings;
 							}
 						}
 					}

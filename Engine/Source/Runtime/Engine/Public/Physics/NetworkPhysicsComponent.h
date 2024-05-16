@@ -58,9 +58,25 @@ struct TNetRewindHistory : public Chaos::TDataRewindHistory<DataType>
 		}
 	}
 
-	virtual void CopyData(Chaos::FBaseRewindHistory& OutHistory, const uint32 StartFrame, const uint32 EndFrame) override
+	virtual void ApplyDataRange(const int32 FromFrame, const int32 ToFrame, void* ActorComponent, const bool bOnlyImportant = false) override
+	{
+		UActorComponent* NetworkComponent = static_cast<UActorComponent*>(ActorComponent);
+
+		for (int32 ApplyFrame = FromFrame; ApplyFrame <= ToFrame; ++ApplyFrame)
+		{
+			const int32 ApplyIndex = Super::GetFrameIndex(ApplyFrame);
+			DataType& FrameData = Super::DataHistory[ApplyIndex];
+			if (ApplyFrame == FrameData.LocalFrame && (!bOnlyImportant || FrameData.bImportant))
+			{
+				FrameData.ApplyData(NetworkComponent);
+			}
+		}
+	}
+
+	virtual bool CopyData(Chaos::FBaseRewindHistory& OutHistory, const uint32 StartFrame, const uint32 EndFrame, bool bIncludeUnimportant = true, bool bIncludeImportant = false) override
 	{
 		TNetRewindHistory& OutNetHistory = static_cast<TNetRewindHistory&>(OutHistory);
+		bool bHasCopiedData = false;
 
 		DataType FrameData;
 		for (uint32 CopyFrame = StartFrame; CopyFrame <= EndFrame; ++CopyFrame)
@@ -69,9 +85,16 @@ struct TNetRewindHistory : public Chaos::TDataRewindHistory<DataType>
 			if (CopyFrame == Super::DataHistory[CopyIndex].LocalFrame)
 			{
 				FrameData = Super::DataHistory[CopyIndex];
-				OutNetHistory.RecordData(CopyFrame, &FrameData);
+
+				// Check if we should include unimportant and/or important data
+				if ((!FrameData.bImportant && bIncludeUnimportant) || (FrameData.bImportant && bIncludeImportant))
+				{
+					OutNetHistory.RecordData(CopyFrame, &FrameData);
+					bHasCopiedData = true;
+				}
 			}
 		}
+		return bHasCopiedData;
 	}
 
 	virtual TUniquePtr<Chaos::FBaseRewindHistory> CopyFramesWithOffset(const uint32 StartFrame, const uint32 EndFrame, const int32 FrameOffset) override
@@ -97,7 +120,7 @@ struct TNetRewindHistory : public Chaos::TDataRewindHistory<DataType>
 		return Copy;
 	}
 
-	virtual int32 ReceiveNewData(Chaos::FBaseRewindHistory& NewData, const int32 FrameOffset, bool CompareDataForRewind = false) override
+	virtual int32 ReceiveNewData(Chaos::FBaseRewindHistory& NewData, const int32 FrameOffset, bool CompareDataForRewind = false, const bool bImportant = false) override
 	{
 		TNetRewindHistory& NetNewData = static_cast<TNetRewindHistory&>(NewData);
 
@@ -107,14 +130,14 @@ struct TNetRewindHistory : public Chaos::TDataRewindHistory<DataType>
 			for (int32 FrameIndex = 0; FrameIndex < NetNewData.NumFrames; ++FrameIndex)
 			{
 				DataType& FrameData = NetNewData.DataHistory[FrameIndex];
+				FrameData.bImportant = bImportant;
+				FrameData.bReceivedData = true; // Received data is marked to differentiate from locally predicted data
 
 				FrameData.LocalFrame = FrameData.ServerFrame - FrameOffset;
 
-				if (Super::ShouldRecordReceivedDataOnFrame(FrameData.LocalFrame))
+				if (ShouldRecordReceivedDataOnFrame(FrameData))
 				{
-					FrameData.bReceivedData = true; // Received data is marked to differentiate from locally predicted data
-
-					if (CompareDataForRewind && FrameData.LocalFrame > RewindFrame && Super::TriggerRewindFromNewData(&FrameData))
+					if (CompareDataForRewind && FrameData.LocalFrame > RewindFrame && TriggerRewindFromNewData(FrameData))
 					{
 						RewindFrame = FrameData.LocalFrame;
 					}
@@ -126,6 +149,31 @@ struct TNetRewindHistory : public Chaos::TDataRewindHistory<DataType>
 			}
 		}
 		return RewindFrame;
+	}
+
+	/** Check if we should record received data into history.
+	* Can for example block received data from client from overriding server authoritative data */
+	virtual bool ShouldRecordReceivedDataOnFrame(const DataType& ReceivedData)
+	{
+		if (ReceivedData.LocalFrame < 0)
+		{
+			return false;
+		}
+
+		// Allow received data to get recorded if it's for a newer frame than already stored at the history index or if the data stored is not marked as received (i.e. it's locally predicted)
+		Super::LoadData(ReceivedData.LocalFrame);
+		return (Super::DataHistory[Super::CurrentIndex].LocalFrame < ReceivedData.LocalFrame || (!Super::DataHistory[Super::CurrentIndex].bReceivedData && Super::DataHistory[Super::CurrentIndex].LocalFrame == ReceivedData.LocalFrame));
+	}
+
+	/** Compares new received data with local predicted data and returns true if they differ enough to trigger a resimulation  */
+	virtual bool TriggerRewindFromNewData(DataType& NewData)
+	{
+		if (Super::EvalData(NewData.LocalFrame) && !Super::DataHistory[Super::CurrentIndex].bReceivedData)
+		{
+			return !NewData.CompareData(Super::DataHistory[Super::CurrentIndex]);
+		}
+
+		return false;
 	}
 
 	virtual void NetSerialize(FArchive& Ar, UPackageMap* InPackageMap) override
@@ -182,11 +230,13 @@ struct TNetRewindHistory : public Chaos::TDataRewindHistory<DataType>
 		{
 			for (int32 FrameIndex = 0; FrameIndex < Super::NumFrames; ++FrameIndex)
 			{
-				UE_LOG(LogChaos, Log, TEXT("		Index: %d || LocalFrame = %d || ServerFrame = %d || InputFrame = %d  ||  Data: %s")
+				UE_LOG(LogChaos, Log, TEXT("		Index: %d || LocalFrame = %d || ServerFrame = %d || InputFrame = %d || bReceivedData = %d || bImportant = %d  ||  Data: %s")
 				, FrameIndex
 				, Super::DataHistory[FrameIndex].LocalFrame
 				, Super::DataHistory[FrameIndex].ServerFrame
 				, Super::DataHistory[FrameIndex].InputFrame
+				, Super::DataHistory[FrameIndex].bReceivedData
+				, Super::DataHistory[FrameIndex].bImportant
 				, *Super::DataHistory[FrameIndex].DebugData());
 			}
 		}
@@ -290,6 +340,47 @@ struct FNetworkPhysicsRewindDataStateProxy : public FNetworkPhysicsRewindDataPro
 
 template<>
 struct TStructOpsTypeTraits<FNetworkPhysicsRewindDataStateProxy> : public TStructOpsTypeTraitsBase2<FNetworkPhysicsRewindDataStateProxy>
+{
+	enum
+	{
+		WithNetSerializer = true,
+		WithIdenticalViaEquality = true
+	};
+};
+/**
+ * Struct suitable for use as a replicated property to replicate input rewind history
+ */
+USTRUCT()
+struct FNetworkPhysicsRewindDataImportantInputProxy : public FNetworkPhysicsRewindDataProxy
+{
+	GENERATED_BODY()
+		
+	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess);
+};
+
+template<>
+struct TStructOpsTypeTraits<FNetworkPhysicsRewindDataImportantInputProxy> : public TStructOpsTypeTraitsBase2<FNetworkPhysicsRewindDataImportantInputProxy>
+{
+	enum
+	{
+		WithNetSerializer = true,
+		WithIdenticalViaEquality = true
+	};
+};
+
+/**
+ * Struct suitable for use as a replicated property to replicate state rewind history
+ */
+USTRUCT()
+struct FNetworkPhysicsRewindDataImportantStateProxy : public FNetworkPhysicsRewindDataProxy
+{
+	GENERATED_BODY()
+
+	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess);
+};
+
+template<>
+struct TStructOpsTypeTraits<FNetworkPhysicsRewindDataImportantStateProxy> : public TStructOpsTypeTraitsBase2<FNetworkPhysicsRewindDataImportantStateProxy>
 {
 	enum
 	{
@@ -422,12 +513,31 @@ struct FNetworkPhysicsData
 	// If this data was received over the network or locally predicted
 	bool bReceivedData = false;
 
+	// If this data is marked as important (replicated reliably)
+	bool bImportant = false;
+
 	// Serialize the data into/from the archive
 	void SerializeFrames(FArchive& Ar)
 	{
 		Ar << ServerFrame;
 		Ar << LocalFrame;
 		Ar << InputFrame;
+	}
+
+	void PrepareFrame(int32 CurrentFrame, bool bIsServer, int32 ClientFrameOffset)
+	{
+		LocalFrame = CurrentFrame;
+		ServerFrame = bIsServer ? CurrentFrame : CurrentFrame + ClientFrameOffset;
+		InputFrame = CurrentFrame;
+		bReceivedData = false;
+		bImportant = false;
+	}
+
+	/** Set if this data is important(replicated reliably) or unimportant(replicated unreliably)
+	* NOTE: Default is to handle all inputs as unimportant, while one time events can be marked as important. */
+	void SetImportant(bool bIsImportant)
+	{
+		bImportant = bIsImportant;
 	}
 
 	// Apply the data onto the network physics component
@@ -527,14 +637,9 @@ public:
 	// Init the network physics component 
 	ENGINE_API void InitPhysics();
 
-	// Server RPC to receive inputs from client
-	UFUNCTION(Server, unreliable)
-	ENGINE_API void ServerReceiveInputData(const FNetworkPhysicsRewindDataInputProxy& ClientInputs);
-
 	UE_DEPRECATED(5.4, "Deprecated, use SendInputData() instead")
 	UFUNCTION(Server, unreliable, meta = (DeprecatedFunction, DeprecationMessage = "ServerReceiveInputsDatas has been deprecated. Use ServerReceiveInputData instead."))
 	ENGINE_API void ServerReceiveInputsDatas(const FNetworkPhysicsRewindDataInputProxy& ClientInputs);
-
 	// Async physics tick component function per frame from the solver
 	ENGINE_API virtual void AsyncPhysicsTickComponent(float DeltaTime, float SimTime) override;
 
@@ -621,10 +726,22 @@ public:
 	ENGINE_API bool IsLocallyControlled() const;
 
 	/** Mark this as controlled through locally relayed inputs rather than controlled as a pawn through a player controller.
-	* Set if NetworkPhysicsComponent is implemented on an AActor instead of APawn and it's currently being fed inputs from the local player / autonomous proxy */
+	* Set if NetworkPhysicsComponent is implemented on an AActor instead of APawn and it's currently being fed inputs, or if this is controlled by the server. 
+	* NOTE: The actor for this NetworkPhysicsComponent also needs to be owned by the local client if this is used client-side. */
 	ENGINE_API void SetIsRelayingLocalInputs(bool bInRelayingLocalInputs)
 	{
 		bIsRelayingLocalInputs = bInRelayingLocalInputs;
+	}
+
+	/** Stop relaying local inputs after next network send.
+	* Deferred version of SetIsRelayingLocalInputs(false) to ensure that the last replicated data gets sent.
+	* This does not work on locally controlled APawns, see SetIsRelayingLocalInputs() for description. */
+	ENGINE_API void StopRelayingLocalInputsDeferred()
+	{
+		if (bIsRelayingLocalInputs)
+		{
+			bStopRelayingLocalInputsDeferred = true;
+		}
 	}
 
 	/** Check if this is controlled locally through relayed inputs from autonomous proxy. It's recommended to use IsLocallyControlled() when checking if this is locally controlled. */
@@ -634,6 +751,30 @@ public:
 	ENGINE_API const float GetCurrentInputDecay(FNetworkPhysicsData* PhysicsData);
 
 protected : 
+
+	// Server RPC to receive inputs from client
+	UFUNCTION(Server, unreliable)
+	ENGINE_API void ServerReceiveInputData(const FNetworkPhysicsRewindDataInputProxy& ClientInputs);
+
+	// Server RPC to receive important inputs from client
+	UFUNCTION(Server, reliable)
+	ENGINE_API void ServerReceiveImportantInputData(const FNetworkPhysicsRewindDataImportantInputProxy& ClientInputs);
+
+	// Client RPC to receive important inputs from server
+	UFUNCTION(NetMulticast, reliable)
+	ENGINE_API void MulticastReceiveImportantInputData(const FNetworkPhysicsRewindDataImportantInputProxy& ServerInputs);
+
+	// Client RPC to receive important states from server
+	UFUNCTION(NetMulticast, reliable)
+	ENGINE_API void MulticastReceiveImportantStateData(const FNetworkPhysicsRewindDataImportantStateProxy& ServerStates);
+
+	// replicated important physics input
+	UPROPERTY(Transient)
+	FNetworkPhysicsRewindDataImportantInputProxy ReplicatedImportantInput;
+
+	// replicated important physics state
+	UPROPERTY(Transient)
+	FNetworkPhysicsRewindDataImportantStateProxy ReplicatedImportantState;
 
 	// repnotify for the inputs on the client
 	UFUNCTION()
@@ -651,14 +792,17 @@ protected :
 	UPROPERTY(Transient, ReplicatedUsing = OnRep_SetReplicatedStates)
 	FNetworkPhysicsRewindDataStateProxy ReplicatedStates;
 
-	// Frame counter to compute the local to server offset
-	int32 FrameCounter = 0;
+private:
+	/** Trigger a resimulation on frame */
+	void TriggerResimulation(int32 ResimFrame);
 
 private:
 
 	friend FNetworkPhysicsCallback;
 	friend struct FNetworkPhysicsRewindDataInputProxy;
 	friend struct FNetworkPhysicsRewindDataStateProxy;
+	friend struct FNetworkPhysicsRewindDataImportantInputProxy;
+	friend struct FNetworkPhysicsRewindDataImportantStateProxy;
 
 	// States history uses to rewind simulation 
 	TSharedPtr<Chaos::FBaseRewindHistory> StateHistory;
@@ -686,12 +830,21 @@ private:
 
 	// Locally relayed inputs makes this component act as if it's a locally controlled pawn.
 	bool bIsRelayingLocalInputs = false;
+	
+	// If we are currently relaying inputs and will stop after next network send.
+	bool bStopRelayingLocalInputsDeferred = false;
 
-	// Cache locally predicted states and then compare then via FNetworkPhysicsData::CompareData to trigger rewind if comparison differ
+	int32 LastInputSendFrame = INDEX_NONE;
+	int32 LastStateSendFrame = INDEX_NONE;
+	int32 NewImportantInputFrame = INT_MAX;
+
+	// Temporary settings variables, ToDo, Remove when async ISimCallback flow is implemented and these can be retrieved from NetworkPhysicsSettingsComponent on PT
 	bool bCompareStateToTriggerRewind = false;
-
-	// Compare locally predicted inputs via FNetworkPhysicsData::CompareData to trigger rewind if comparison differ
 	bool bCompareInputToTriggerRewind = false;
+	bool bEnableUnreliableFlow = true;
+	bool bEnableReliableFlow = false;
+	bool bApplyDataInsteadOfMergeData = false;
+	bool bAllowInputExtrapolation = true;
 };
 
 /** DEPRECATED UE 5.4 */
@@ -718,6 +871,12 @@ FORCEINLINE void UNetworkPhysicsComponent::CreateDataHistory(UActorComponent* Hi
 	ReplicatedStates.History = MakeUnique<TNetRewindHistory<typename PhysicsTraits::StatesType>>(StateRedundancy);
 	ReplicatedStates.Owner = this;
 
+	ReplicatedImportantInput.History = MakeUnique<TNetRewindHistory<typename PhysicsTraits::InputsType>>(1);
+	ReplicatedImportantInput.Owner = this;
+
+	ReplicatedImportantState.History = MakeUnique<TNetRewindHistory<typename PhysicsTraits::StatesType>>(1);
+	ReplicatedImportantState.Owner = this;
+
 	ActorComponent = HistoryComponent;
 	
 	AddDataHistory();
@@ -734,6 +893,9 @@ FORCEINLINE void UNetworkPhysicsComponent::CreateInputHistory(UActorComponent* H
 
 	ReplicatedInputs.History = MakeUnique<TNetRewindHistory<InputsType>>(InputRedundancy);
 	ReplicatedInputs.Owner = this;
+
+	ReplicatedImportantInput.History = MakeUnique<TNetRewindHistory<InputsType>>(1);
+	ReplicatedImportantInput.Owner = this;
 
 	ActorComponent = HistoryComponent;
 

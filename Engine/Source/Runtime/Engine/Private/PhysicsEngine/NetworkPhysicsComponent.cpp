@@ -29,6 +29,14 @@ namespace PhysicsReplicationCVars
 		static FAutoConsoleVariableRef CVarResimCompareStateToTriggerRewind(TEXT("np2.Resim.CompareStateToTriggerRewind"), bCompareStateToTriggerRewind, TEXT("When true, cache local players custom state struct in rewind history and compare the predicted state with incoming server state to trigger resimulations if they differ, comparison done through FNetworkPhysicsData::CompareData"));
 		bool bCompareInputToTriggerRewind = false;
 		static FAutoConsoleVariableRef CVarResimCompareInputToTriggerRewind(TEXT("np2.Resim.CompareInputToTriggerRewind"), bCompareInputToTriggerRewind, TEXT("When true, compare local players predicted inputs with incoming server inputs to trigger resimulations if they differ, comparison done through FNetworkPhysicsData::CompareData."));
+		bool bEnableUnreliableFlow = true;
+		static FAutoConsoleVariableRef CVarResimEnableUnreliableFlow(TEXT("np2.Resim.EnableUnreliableFlow"), bEnableUnreliableFlow, TEXT("When true, allow data to be sent unreliably. Also sends FNetworkPhysicsData not marked with FNetworkPhysicsData::bimportant unreliably over the network."));
+		bool bEnableReliableFlow = false;
+		static FAutoConsoleVariableRef CVarResimEnableReliableFlow(TEXT("np2.Resim.EnableReliableFlow"), bEnableReliableFlow, TEXT("EXPERIMENTAL -- When true, allow data to be sent reliably. Also send FNetworkPhysicsData marked with FNetworkPhysicsData::bimportant reliably over the network."));
+		bool bApplyDataInsteadOfMergeData = false;
+		static FAutoConsoleVariableRef CVarResimApplyDataInsteadOfMergeData(TEXT("np2.Resim.ApplyDataInsteadOfMergeData"), bApplyDataInsteadOfMergeData, TEXT("When true, call ApplyData for each data instead of MergeData when having to use multiple data entries in one frame."));
+		bool bAllowInputExtrapolation = true;
+		static FAutoConsoleVariableRef CVarResimAllowInputExtrapolation(TEXT("np2.Resim.AllowInputExtrapolation"), bAllowInputExtrapolation, TEXT("When true and not locally controlled, allow inputs to be extrapolated from last known and if there is a gap allow interpolation between two known inputs."));
 	}
 }
 
@@ -136,6 +144,8 @@ FNetworkPhysicsRewindDataProxy& FNetworkPhysicsRewindDataProxy::operator=(const 
 #if UE_WITH_IRIS
 UE_NET_IMPLEMENT_NAMED_STRUCT_LASTRESORT_NETSERIALIZER_AND_REGISTRY_DELEGATES(NetworkPhysicsRewindDataInputProxy);
 UE_NET_IMPLEMENT_NAMED_STRUCT_LASTRESORT_NETSERIALIZER_AND_REGISTRY_DELEGATES(NetworkPhysicsRewindDataStateProxy);
+UE_NET_IMPLEMENT_NAMED_STRUCT_LASTRESORT_NETSERIALIZER_AND_REGISTRY_DELEGATES(NetworkPhysicsRewindDataImportantInputProxy);
+UE_NET_IMPLEMENT_NAMED_STRUCT_LASTRESORT_NETSERIALIZER_AND_REGISTRY_DELEGATES(NetworkPhysicsRewindDataImportantStateProxy);
 #endif // UE_WITH_IRIS
 
 bool FNetworkPhysicsRewindDataInputProxy::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
@@ -146,6 +156,16 @@ bool FNetworkPhysicsRewindDataInputProxy::NetSerialize(FArchive& Ar, class UPack
 bool FNetworkPhysicsRewindDataStateProxy::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
 {
 	return NetSerializeBase(Ar, Map, bOutSuccess, [this]() { return Owner->ReplicatedStates.History->CreateNew(); });
+}
+
+bool FNetworkPhysicsRewindDataImportantInputProxy::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
+{
+	return NetSerializeBase(Ar, Map, bOutSuccess, [this]() { return Owner->ReplicatedImportantInput.History->CreateNew(); });
+}
+
+bool FNetworkPhysicsRewindDataImportantStateProxy::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
+{
+	return NetSerializeBase(Ar, Map, bOutSuccess, [this]() { return Owner->ReplicatedImportantState.History->CreateNew(); });
 }
 
 // after presimulate internal (asyncinput internal simulation done and the output created)
@@ -471,14 +491,25 @@ void UNetworkPhysicsComponent::InitializeComponent()
 {
 	Super::InitializeComponent();
 
+	// Cache CVar values
+	bEnableUnreliableFlow = PhysicsReplicationCVars::ResimulationCVars::bEnableUnreliableFlow;
+	bEnableReliableFlow = PhysicsReplicationCVars::ResimulationCVars::bEnableReliableFlow;
+	bApplyDataInsteadOfMergeData = PhysicsReplicationCVars::ResimulationCVars::bApplyDataInsteadOfMergeData;
+	bAllowInputExtrapolation = PhysicsReplicationCVars::ResimulationCVars::bAllowInputExtrapolation;
+
 	if (AActor* Owner = GetOwner())
 	{
+		// Get settings from NetworkPhysicsSettingsComponent, if there is one
 		if (UNetworkPhysicsSettingsComponent* PhysicsSettings = Owner->FindComponentByClass<UNetworkPhysicsSettingsComponent>())
 		{
-			InputRedundancy = PhysicsSettings->ResimulationSettings.bOverrideRedundantInputs ? PhysicsSettings->ResimulationSettings.RedundantInputs : InputRedundancy;
-			StateRedundancy = PhysicsSettings->ResimulationSettings.bOverrideRedundantStates ? PhysicsSettings->ResimulationSettings.RedundantStates : StateRedundancy;
-			bCompareInputToTriggerRewind = PhysicsSettings->ResimulationSettings.GetCompareInputToTriggerRewind(bCompareInputToTriggerRewind);
-			bCompareStateToTriggerRewind = PhysicsSettings->ResimulationSettings.GetCompareStateToTriggerRewind(bCompareStateToTriggerRewind);
+			InputRedundancy = PhysicsSettings->NetworkPhysicsComponentSettings.GetRedundantInputs(InputRedundancy);
+			StateRedundancy = PhysicsSettings->NetworkPhysicsComponentSettings.GetRedundantStates(StateRedundancy);
+			bCompareInputToTriggerRewind = PhysicsSettings->NetworkPhysicsComponentSettings.GetCompareInputToTriggerRewind(bCompareInputToTriggerRewind);
+			bCompareStateToTriggerRewind = PhysicsSettings->NetworkPhysicsComponentSettings.GetCompareStateToTriggerRewind(bCompareStateToTriggerRewind);
+			bEnableUnreliableFlow = PhysicsSettings->NetworkPhysicsComponentSettings.GetEnableUnreliableFlow();
+			bEnableReliableFlow = PhysicsSettings->NetworkPhysicsComponentSettings.GetEnableReliableFlow();
+			bApplyDataInsteadOfMergeData = PhysicsSettings->NetworkPhysicsComponentSettings.GetApplyDataInsteadOfMergeData();
+			bAllowInputExtrapolation = PhysicsSettings->NetworkPhysicsComponentSettings.GetAllowInputExtrapolation();
 
 			if (ReplicatedInputs.History)
 			{
@@ -489,6 +520,13 @@ void UNetworkPhysicsComponent::InitializeComponent()
 				ReplicatedStates.History->ResizeDataHistory(StateRedundancy);
 			}
 		}
+	}
+
+	// TEMP: Stops ensure that happens if first ever network broadcast for the actor is a multicast from PT (with GT frozen), this instead makes the first multicast happen in GT.
+	// ToDo, remove this when NetworkPhysicComponent has a proper Async ISimCallback flow.
+	if (bEnableReliableFlow && ReplicatedImportantInput.Owner != nullptr)
+	{
+		MulticastReceiveImportantInputData(ReplicatedImportantInput);
 	}
 
 	if (UWorld* World = GetWorld())
@@ -518,7 +556,7 @@ void UNetworkPhysicsComponent::GetLifetimeReplicatedProps(TArray< FLifetimePrope
 
 	FDoRepLifetimeParams ReplicatedParams;
 	ReplicatedParams.Condition = COND_None;
-	ReplicatedParams.RepNotifyCondition = REPNOTIFY_OnChanged;
+	ReplicatedParams.RepNotifyCondition = REPNOTIFY_Always; //REPNOTIFY_OnChanged;
 	ReplicatedParams.bIsPushBased = true;
 
 	DOREPLIFETIME_WITH_PARAMS_FAST(UNetworkPhysicsComponent, ReplicatedInputs, ReplicatedParams);
@@ -550,8 +588,9 @@ void UNetworkPhysicsComponent::AsyncPhysicsTickComponent(float DeltaTime, float 
 
 void UNetworkPhysicsComponent::SendInputData()
 {
+	const bool bIsServer = HasServerWorld();
 	// Inputs are sent from the server or locally controlled actors/pawns
-	if (InputHistory && (IsLocallyControlled() || HasServerWorld()))
+	if (InputHistory && (IsLocallyControlled() || bIsServer))
 	{
 		const APlayerController* PlayerController = GetPlayerController();
 		if (!PlayerController)
@@ -564,33 +603,73 @@ void UNetworkPhysicsComponent::SendInputData()
 		{
 			// Send latest N frames from history
 			const int32 ToFrame = InputHistory->GetLatestFrame();
-			const int32 FromFrame = ToFrame - InputRedundancy;
 
-			InputHistory->CopyData(*ReplicatedInputs.History, FromFrame, ToFrame);
-
-			if (HasServerWorld())
+			// -- Default / Unreliable Flow --
+			if (bEnableUnreliableFlow)
 			{
-				// Server sends inputs through property replication
-				MARK_PROPERTY_DIRTY_FROM_NAME(UNetworkPhysicsComponent, ReplicatedInputs, this);
-			}
-			else
-			{
-				// Clients send inputs through an RPC to the server
-				ServerReceiveInputData(ReplicatedInputs);
-			}
+				const int32 FromFrame = ToFrame - InputRedundancy;
+				if (InputHistory->CopyData(*ReplicatedInputs.History, FromFrame, ToFrame, /*bIncludeUnimportant*/ true, /*bIncludeImportant*/ bEnableReliableFlow == false))
+				{
+					if (bIsServer)
+					{
+						// Server sends inputs through property replication
+						MARK_PROPERTY_DIRTY_FROM_NAME(UNetworkPhysicsComponent, ReplicatedInputs, this);
+					}
+					else
+					{
+						// Clients send inputs through an RPC to the server
+						ServerReceiveInputData(ReplicatedInputs);
+					}
 
 #if DEBUG_NETWORK_PHYSICS
-			FAsyncPhysicsTimestamp Timestamp = const_cast<APlayerController*>(PlayerController)->GetPhysicsTimestamp();
-			if (HasServerWorld())
-			{
-				ReplicatedInputs.History->DebugData(FString::Printf(TEXT("SERVER | PT | SendInputData | CurrentLocalFrame = %d | CurrentServerFrame = %d | Component = %s"), Timestamp.LocalFrame, Timestamp.ServerFrame, *GetFullName()));
-			}
-			else
-			{
-				ReplicatedInputs.History->DebugData(FString::Printf(TEXT("CLIENT | PT | SendInputData | CurrentLocalFrame = %d | CurrentServerFrame = %d | Component = %s"), Timestamp.LocalFrame, Timestamp.ServerFrame, *GetFullName()));
-			}
+					{
+						FAsyncPhysicsTimestamp Timestamp = const_cast<APlayerController*>(PlayerController)->GetPhysicsTimestamp();
+						FString NetRole = HasServerWorld() ? FString("SERVER    ") : (IsLocallyControlled() ? FString("AUTONOMOUS") : FString("PROXY     "));
+						ReplicatedInputs.History->DebugData(FString::Printf(TEXT("%s | PT | SendInputData | CurrentLocalFrame = %d | CurrentServerFrame = %d | Component = %s"), *NetRole, Timestamp.LocalFrame, Timestamp.ServerFrame, *GetFullName()));
+					}
 #endif
+				}
+			}
+
+			// -- Important / Reliable flow --
+			if (bEnableReliableFlow)
+			{
+				/* Get the latest valid frame that can hold new important data:
+				* 1. Frame after last time we called SendInputData
+				* 2. Frame after last entry in replicated data
+				* 3. Earliest possible frame in history */
+				const int32 FromFrame = FMath::Max(FMath::Max(LastInputSendFrame + 1, ReplicatedImportantInput.History->GetLatestFrame() + 1), ToFrame - InputHistory->GetHistorySize());
+
+				for (int32 CopyFrame = FromFrame; CopyFrame <= ToFrame; CopyFrame++)
+				{
+					if (InputHistory->CopyData(*ReplicatedImportantInput.History, CopyFrame, CopyFrame, /*bIncludeUnimportant*/ false, /*bIncludeImportant*/ true))
+					{
+						if (bIsServer)
+						{
+							MulticastReceiveImportantInputData(ReplicatedImportantInput);
+						}
+						else
+						{
+							ServerReceiveImportantInputData(ReplicatedImportantInput);
+						}
+#if DEBUG_NETWORK_PHYSICS
+						{
+							FAsyncPhysicsTimestamp Timestamp = const_cast<APlayerController*>(PlayerController)->GetPhysicsTimestamp();
+							FString NetRole = HasServerWorld() ? FString("SERVER    ") : (IsLocallyControlled() ? FString("AUTONOMOUS") : FString("PROXY     "));
+							ReplicatedImportantInput.History->DebugData(FString::Printf(TEXT("%s | PT | SendInputData | RELIABLE | CurrentLocalFrame = %d | CurrentServerFrame = %d | Component = %s"), *NetRole, Timestamp.LocalFrame, Timestamp.ServerFrame, *GetFullName()));
+						}
+#endif
+					}
+				}
+			}
+			LastInputSendFrame = InputHistory->GetLatestFrame();
 		}
+	}
+
+	if (bStopRelayingLocalInputsDeferred)
+	{
+		bIsRelayingLocalInputs = false;
+		bStopRelayingLocalInputsDeferred = false;
 	}
 }
 
@@ -600,15 +679,43 @@ void UNetworkPhysicsComponent::SendStateData()
 	{
 		// Send latest N frames from history
 		const int32 ToFrame = StateHistory->GetLatestFrame();
-		const int32 FromFrame = ToFrame - StateRedundancy;
 
-		// If on server we should send the states onto all the clients through repnotify
-		StateHistory->CopyData(*ReplicatedStates.History, FromFrame, ToFrame);
-		MARK_PROPERTY_DIRTY_FROM_NAME(UNetworkPhysicsComponent, ReplicatedStates, this);
-		
+		// -- Default / Unreliable Flow --
+		if (bEnableUnreliableFlow)
+		{
+			const int32 FromFrame = ToFrame - StateRedundancy;
+			if (StateHistory->CopyData(*ReplicatedStates.History, FromFrame, ToFrame, /*bIncludeUnimportant*/ true, /*bIncludeImportant*/ bEnableReliableFlow == false))
+			{
+				// If on server we should send the states onto all the clients through repnotify
+				MARK_PROPERTY_DIRTY_FROM_NAME(UNetworkPhysicsComponent, ReplicatedStates, this);
+
 #if DEBUG_NETWORK_PHYSICS
-		ReplicatedStates.History->DebugData(FString::Printf(TEXT("SERVER | PT | SendStateData | Component = %s"), *GetFullName()));
+				ReplicatedStates.History->DebugData(FString::Printf(TEXT("SERVER | PT | SendStateData | Component = %s"), *GetFullName()));
 #endif
+			}
+		}
+		
+		// -- Important / Reliable flow --
+		if (bEnableReliableFlow)
+		{
+			/* Get the latest valid frame that can hold new important data: 
+			* 1. Frame after last time we called SendStateData
+			* 2. Frame after last entry in replicated data
+			* 3. Earliest possible frame in history */
+			const int32 FromFrame = FMath::Max(FMath::Max(LastStateSendFrame + 1, ReplicatedImportantState.History->GetLatestFrame() + 1), ToFrame - StateHistory->GetHistorySize());
+
+			for (int32 CopyFrame = FromFrame; CopyFrame <= ToFrame; CopyFrame++)
+			{
+				if (StateHistory->CopyData(*ReplicatedImportantState.History, CopyFrame, CopyFrame, /*bIncludeUnimportant*/ false, /*bIncludeImportant*/ true))
+				{
+					MulticastReceiveImportantStateData(ReplicatedImportantState);
+#if DEBUG_NETWORK_PHYSICS
+					ReplicatedImportantState.History->DebugData(FString::Printf(TEXT("SERVER | PT | SendStateData | RELIABLE | Component = %s"), *GetFullName()));
+#endif
+				}
+			}
+		}
+		LastStateSendFrame = StateHistory->GetLatestFrame();
 	}
 }
 
@@ -672,29 +779,15 @@ void UNetworkPhysicsComponent::OnRep_SetReplicatedStates()
 				{
 					if (bCompareStateToTriggerRewind && IsLocallyControlled())
 					{
-						int32 ResimFrame = StateHistory->ReceiveNewData(*ReceivedStates, LocalOffset, /*CompareDataForRewind*/ bCompareStateToTriggerRewind);
-						if (ResimFrame != INDEX_NONE)
-						{
-							if (Chaos::FPhysicsSolver* Solver = PhysScene->GetSolver())
-							{
-								if (Chaos::FRewindData* RewindData = Solver->GetRewindData())
-								{
-									// Mark particle/island as resim
-									Chaos::FReadPhysicsObjectInterface_Internal Interface = Chaos::FPhysicsObjectInternalInterface::GetRead();
-									if (Chaos::FPBDRigidParticleHandle* POHandle = Interface.GetRigidParticle(RootPhysicsObject))
-									{
-										Solver->GetEvolution()->GetIslandManager().SetParticleResimFrame(POHandle, ResimFrame);
-									}
-
-									// Set resim frame in rewind data
-									ResimFrame = (RewindData->GetResimFrame() == INDEX_NONE) ? ResimFrame : FMath::Min(ResimFrame, RewindData->GetResimFrame());
-									RewindData->SetResimFrame(ResimFrame);
-								}
-							}
-						}
+						// Record received data into history
+						const int32 ResimFrame = StateHistory->ReceiveNewData(*ReceivedStates, LocalOffset, /*CompareDataForRewind*/ bCompareStateToTriggerRewind);
+					
+						// Trigger resimulation if ReceiveNewData returned a valid frame to rewind to
+						TriggerResimulation(ResimFrame);
 					}
 					else 
 					{
+						// Record received data into history
 						PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to ReceiveNewData() in UE 5.6 and remove deprecation pragma
 						StateHistory->ReceiveNewDatas(*ReceivedStates, LocalOffset);
 						PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -735,29 +828,15 @@ void UNetworkPhysicsComponent::OnRep_SetReplicatedInputs()
 				{
 					if (bCompareInputToTriggerRewind && IsLocallyControlled())
 					{
-						int32 ResimFrame = InputHistory->ReceiveNewData(*ReceivedInputs, LocalOffset, /*CompareDataForRewind*/ bCompareInputToTriggerRewind);
-						if (ResimFrame != INDEX_NONE)
-						{
-							if (Chaos::FPhysicsSolver* Solver = PhysScene->GetSolver())
-							{
-								if (Chaos::FRewindData* RewindData = Solver->GetRewindData())
-								{
-									// Mark particle/island as resim
-									Chaos::FReadPhysicsObjectInterface_Internal Interface = Chaos::FPhysicsObjectInternalInterface::GetRead();
-									if (Chaos::FPBDRigidParticleHandle* POHandle = Interface.GetRigidParticle(RootPhysicsObject))
-									{
-										Solver->GetEvolution()->GetIslandManager().SetParticleResimFrame(POHandle, ResimFrame);
-									}
-
-									// Set resim frame in rewind data
-									ResimFrame = (RewindData->GetResimFrame() == INDEX_NONE) ? ResimFrame : FMath::Min(ResimFrame, RewindData->GetResimFrame());
-									RewindData->SetResimFrame(ResimFrame);
-								}
-							}
-						}
+						// Record received data into history
+						const int32 ResimFrame = InputHistory->ReceiveNewData(*ReceivedInputs, LocalOffset, /*CompareDataForRewind*/ bCompareInputToTriggerRewind, /*Important*/false);
+						
+						// Trigger resimulation if ReceiveNewData returned a valid frame to rewind to
+						TriggerResimulation(ResimFrame);
 					}
 					else
 					{
+						// Record received data into history
 						PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to ReceiveNewData() in UE 5.6 and remove deprecation pragma
 						InputHistory->ReceiveNewDatas(*ReceivedInputs, LocalOffset);
 						PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -785,9 +864,6 @@ void UNetworkPhysicsComponent::ServerReceiveInputData_Implementation(const FNetw
 {
 	if (InputHistory)
 	{ 
-		// We could probably skip that test since the server RPC is on server
-		ensure(HasServerWorld());
-		
 		if (UWorld* World = GetWorld())
 		{
 			if (FPhysScene* PhysScene = World->GetPhysicsScene())
@@ -799,6 +875,7 @@ void UNetworkPhysicsComponent::ServerReceiveInputData_Implementation(const FNetw
 					// Validate data in the received inputs
 					ReceivedInputs->ValidateDataInHistory(ActorComponent);
 
+					// Record received data into history
 					PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to ReceiveNewData() in UE 5.6 and remove deprecation pragma
 					InputHistory->ReceiveNewDatas(*ReceivedInputs, 0);
 					PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -812,6 +889,133 @@ void UNetworkPhysicsComponent::ServerReceiveInputData_Implementation(const FNetw
 				}, false);
 			}
 		}
+	}
+}
+
+void UNetworkPhysicsComponent::ServerReceiveImportantInputData_Implementation(const FNetworkPhysicsRewindDataImportantInputProxy& ClientInputs)
+{
+	if (InputHistory)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (FPhysScene* PhysScene = World->GetPhysicsScene())
+			{
+				// Make another copy of the client inputs for the physics thread to consume
+				TSharedPtr<Chaos::FBaseRewindHistory> ReceivedInputs = MakeShareable(ClientInputs.History->Clone().Release());
+				PhysScene->EnqueueAsyncPhysicsCommand(0, this, [this, ReceivedInputs, PhysScene]()
+					{
+						// Validate data in the received inputs
+						ReceivedInputs->ValidateDataInHistory(ActorComponent);
+
+						// Record received data into history
+						InputHistory->ReceiveNewData(*ReceivedInputs, 0, /*CompareDataForRewind*/false, /*Important*/true);
+
+						// Cache earliest important data frame since last ApplyData was called
+						NewImportantInputFrame = FMath::Min(NewImportantInputFrame, ReceivedInputs->GetEarliestFrame());
+
+#if DEBUG_NETWORK_PHYSICS
+						{
+							const int32 CurrentFrame = PhysScene->GetSolver()->GetCurrentFrame();
+							ReceivedInputs->DebugData(FString::Printf(TEXT("SERVER | PT | ServerReceiveImportantInputData | RELIABLE | CurrentLocalFrame = %d | NewImportantInputFrame = %d | Component = %s"), CurrentFrame, NewImportantInputFrame, *GetFullName()));
+						}
+#endif
+					}, false);
+			}
+		}
+	}
+}
+
+void UNetworkPhysicsComponent::MulticastReceiveImportantInputData_Implementation(const FNetworkPhysicsRewindDataImportantInputProxy& ServerInputs)
+{
+	// Multicast RPC, ignore on server
+	if (HasServerWorld())
+	{
+		return;
+	}
+
+	APlayerController* PlayerController = GetPlayerController();
+	if (!PlayerController)
+	{
+		PlayerController = GetWorld()->GetFirstPlayerController();
+	}
+
+	if (PlayerController && InputHistory)
+	{
+		const int32 LocalOffset = PlayerController->GetNetworkPhysicsTickOffset();
+		
+		if (UWorld* World = GetWorld())
+		{
+			if (FPhysScene* PhysScene = World->GetPhysicsScene())
+			{
+				// Make another copy of the client inputs for the physics thread to consume
+				TSharedPtr<Chaos::FBaseRewindHistory> ReceivedInputs = MakeShareable(ServerInputs.History->Clone().Release());
+				PhysScene->EnqueueAsyncPhysicsCommand(0, this, [this, ReceivedInputs, PhysScene, LocalOffset]()
+					{
+						// Record received data into history
+						const bool bCompareDataForRewind = (bCompareInputToTriggerRewind && IsLocallyControlled());
+						const int32 ResimFrame = InputHistory->ReceiveNewData(*ReceivedInputs, LocalOffset, /*CompareDataForRewind*/bCompareDataForRewind, /*Important*/true);
+						
+						// Trigger resimulation if ReceiveNewData returned a valid frame to rewind to
+						TriggerResimulation(ResimFrame);
+
+						// Cache earliest important data frame since last ApplyData was called
+						NewImportantInputFrame = FMath::Min(NewImportantInputFrame, ReceivedInputs->GetEarliestFrame());
+
+#if DEBUG_NETWORK_PHYSICS
+						{
+							const int32 CurrentFrame = PhysScene->GetSolver()->GetCurrentFrame();
+							FString NetRole = HasServerWorld() ? FString("SERVER    ") : (IsLocallyControlled() ? FString("AUTONOMOUS") : FString("PROXY     "));
+							ReceivedInputs->DebugData(FString::Printf(TEXT("%s | PT | MulticastReceiveImportantInputData | RELIABLE | CurrentLocalFrame = %d | NewImportantInputFrame = %d | Component = %s"), *NetRole, CurrentFrame, NewImportantInputFrame, *GetFullName()));
+						}
+#endif
+					}, false);
+			}
+		}
+
+	}
+}
+
+void UNetworkPhysicsComponent::MulticastReceiveImportantStateData_Implementation(const FNetworkPhysicsRewindDataImportantStateProxy& ServerStates)
+{
+	// Multicast RPC, ignore on server
+	if (HasServerWorld())
+	{
+		return;
+	}
+
+	APlayerController* PlayerController = GetPlayerController();
+	if (!PlayerController)
+	{
+		PlayerController = GetWorld()->GetFirstPlayerController();
+	}
+
+	if (PlayerController && StateHistory)
+	{
+		const int32 LocalOffset = PlayerController->GetNetworkPhysicsTickOffset();
+
+		if (UWorld* World = GetWorld())
+		{
+			if (FPhysScene* PhysScene = World->GetPhysicsScene())
+			{
+				// Make another copy of the client inputs for the physics thread to consume
+				TSharedPtr<Chaos::FBaseRewindHistory> ReceivedStates = MakeShareable(ServerStates.History->Clone().Release());
+				PhysScene->EnqueueAsyncPhysicsCommand(0, this, [this, ReceivedStates, PhysScene, LocalOffset]()
+					{
+						const bool bCompareDataForRewind = (bCompareStateToTriggerRewind && IsLocallyControlled());
+						const int32 ResimFrame = StateHistory->ReceiveNewData(*ReceivedStates, LocalOffset, /*CompareDataForRewind*/bCompareDataForRewind, /*bImportant*/true);
+						TriggerResimulation(ResimFrame);
+
+#if DEBUG_NETWORK_PHYSICS
+						{
+							const int32 CurrentFrame = PhysScene->GetSolver()->GetCurrentFrame();
+							FString NetRole = HasServerWorld() ? FString("SERVER    ") : (IsLocallyControlled() ? FString("AUTONOMOUS") : FString("PROXY     "));
+							ReceivedStates->DebugData(FString::Printf(TEXT("%s | PT | MulticastReceiveImportantStateData | RELIABLE | CurrentLocalFrame = %d | Component = %s"), *NetRole, CurrentFrame, *GetFullName()));
+						}
+#endif
+					}, false);
+			}
+		}
+
 	}
 }
 
@@ -856,8 +1060,8 @@ void UNetworkPhysicsComponent::OnPreProcessInputsInternal(const int32 PhysicsSte
 			{
 				PhysicsData->ApplyData(ActorComponent);
 #if DEBUG_NETWORK_PHYSICS
-				UE_LOG(LogChaos, Log, TEXT("		Applying extracted state from history | bExactFrame = %d | LocalFrame = %d | ServerFrame = %d | InputFrame = %d | ")
-					, bExactFrame, PhysicsData->LocalFrame, PhysicsData->ServerFrame, PhysicsData->InputFrame);
+				UE_LOG(LogChaos, Log, TEXT("		Applying extracted state from history | bExactFrame = %d | LocalFrame = %d | ServerFrame = %d | InputFrame = %d | Data: %s")
+					, bExactFrame, PhysicsData->LocalFrame, PhysicsData->ServerFrame, PhysicsData->InputFrame, *PhysicsData->DebugData());
 #endif
 			}
 #if DEBUG_NETWORK_PHYSICS
@@ -873,13 +1077,34 @@ void UNetworkPhysicsComponent::OnPreProcessInputsInternal(const int32 PhysicsSte
 		if (InputHistory && (!IsLocallyControlled() || bIsSolverResim))
 		{
 			FNetworkPhysicsData* PhysicsData = InputData.Get();
-			const int32 NextExpectedLocalFrame = PhysicsData->LocalFrame + 1;
+			int32 NextExpectedLocalFrame = PhysicsData->LocalFrame + 1;
 			PhysicsData->LocalFrame = PhysicsStep;
 
+			// There are important inputs earlier than upcoming input to apply
+			if (NewImportantInputFrame < NextExpectedLocalFrame && !bIsSolverResim)
+			{
+				if (bApplyDataInsteadOfMergeData)
+				{
+#if DEBUG_NETWORK_PHYSICS
+					UE_LOG(LogChaos, Log, TEXT("	Reapplying multiple data due to receiving an important data that was previously missed. FromFrame: %d | ToFrame: %d | IsLocallyControlled = %d"), NewImportantInputFrame, (NextExpectedLocalFrame - 1), IsLocallyControlled());
+#endif
+					// Apply all inputs in range
+					InputHistory->ApplyDataRange(NewImportantInputFrame, NextExpectedLocalFrame - 1, ActorComponent, /*bOnlyImportant*/false);
+				}
+				else
+				{
+					// Merge all inputs from earliest new important
+					NextExpectedLocalFrame = NewImportantInputFrame;
+#if DEBUG_NETWORK_PHYSICS
+					UE_LOG(LogChaos, Log, TEXT("	Prepare to reapply multiple data through MergeData due to receiving an important data that was previously missed. FromFrame: %d | ToFrame: %d | IsLocallyControlled = %d"), NewImportantInputFrame, (NextExpectedLocalFrame - 1), IsLocallyControlled());
+#endif
+				}
+			}
+
 			PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to ExtractData() in UE 5.6 and remove deprecation pragma
-			if (InputHistory->ExtractDatas(PhysicsStep, bIsSolverReset, PhysicsData))
+			if (InputHistory->ExtractDatas(PhysicsStep, bIsSolverReset, PhysicsData, /*bExactFrame*/(bAllowInputExtrapolation == false)))
 			PRAGMA_ENABLE_DEPRECATION_WARNINGS
-			{ 
+			{
 				// Calculate input decay if we are resimulating and we don't have up to date inputs
 				if (bIsSolverResim)
 				{
@@ -889,25 +1114,52 @@ void UNetworkPhysicsComponent::OnPreProcessInputsInternal(const int32 PhysicsSte
 						PhysicsData->DecayData(InputDecay);
 					}
 				}
-				// Merge all inputs since last used input, if not resimulating
-				else if (PhysicsData->LocalFrame > NextExpectedLocalFrame)
+				// Apply input if data is unimportant or if data is important and unaltered (extrapolated, interpolated)
+				else if (!PhysicsData->bImportant || PhysicsData->InputFrame != INDEX_NONE)
 				{
-					InputHistory->MergeData(NextExpectedLocalFrame, PhysicsData);
-				}
+					// Check if we have a gap between last used input and current input
+					if (PhysicsData->LocalFrame > NextExpectedLocalFrame)
+					{
+						if (bApplyDataInsteadOfMergeData)
+						{
+#if DEBUG_NETWORK_PHYSICS
+							UE_LOG(LogChaos, Log, TEXT("	Applying multiple data instead of merging, from LocalFrame %d into LocalFrame %d | IsLocallyControlled = %d"), NextExpectedLocalFrame, PhysicsData->LocalFrame, IsLocallyControlled());
+#endif
+							// Iterate over each input and call ApplyData, except on the last, it will get handled by the normal ApplyData call further down
+							const int32 LastFrame = PhysicsData->LocalFrame;
+							for (; NextExpectedLocalFrame <= LastFrame; NextExpectedLocalFrame++)
+							{
+								if (InputHistory->ExtractData(NextExpectedLocalFrame, bIsSolverReset, PhysicsData, true) && NextExpectedLocalFrame < LastFrame)
+								{
+									PhysicsData->ApplyData(ActorComponent);
+								}
+							}
+						}
+						else
+						{
+#if DEBUG_NETWORK_PHYSICS
+							UE_LOG(LogChaos, Log, TEXT("	Merging inputs from LocalFrame %d into LocalFrame %d | IsLocallyControlled = %d"), NextExpectedLocalFrame, PhysicsData->LocalFrame, IsLocallyControlled());
+#endif
+							// Merge all inputs since last used input
+							InputHistory->MergeData(NextExpectedLocalFrame, PhysicsData);
+						}
+					}
 
-				// If the extracted input data was altered (interpolated, merged, extrapolated/predicted) on the server, record it into the history for it to get replicated to clients
-				if (bIsServer && !bIsSolverResim && PhysicsData->InputFrame == INDEX_NONE)
-				{
-					PhysicsData->bReceivedData = true; // Mark the input data as received so that it doesn't get overwritten by incoming client inputs
-					PhysicsData->LocalFrame = PhysicsStep;
-					InputHistory->RecordData(PhysicsStep, PhysicsData);
+					// If the extracted input data was altered (extrapolated, interpolated) on the server, record it into the history for it to get replicated to clients
+					if (bIsServer && !bIsSolverResim && PhysicsData->InputFrame == INDEX_NONE)
+					{
+						PhysicsData->bReceivedData = true; // Mark the input data as received so that it doesn't get overwritten by incoming client inputs
+						PhysicsData->bImportant = false;
+						PhysicsData->LocalFrame = PhysicsStep;
+						InputHistory->RecordData(PhysicsStep, PhysicsData);
+					}
 				}
 
 				PhysicsData->ApplyData(ActorComponent);
 
 #if DEBUG_NETWORK_PHYSICS
-				UE_LOG(LogChaos, Log, TEXT("		Applying extracted input from history | LocalFrame = %d | ServerFrame = %d | InputFrame = %d | IsResim = %d | IsLocallyControlled = %d | InputDecay = %f")
-					, PhysicsData->LocalFrame, PhysicsData->ServerFrame, PhysicsData->InputFrame, bIsSolverResim, IsLocallyControlled(), GetCurrentInputDecay(PhysicsData));
+				UE_LOG(LogChaos, Log, TEXT("		Applying extracted input from history | LocalFrame = %d | ServerFrame = %d | InputFrame = %d | IsResim = %d | IsLocallyControlled = %d | InputDecay = %f | Data: %s")
+					, PhysicsData->LocalFrame, PhysicsData->ServerFrame, PhysicsData->InputFrame, bIsSolverResim, IsLocallyControlled(), GetCurrentInputDecay(PhysicsData), *PhysicsData->DebugData());
 #endif
 			}
 #if DEBUG_NETWORK_PHYSICS
@@ -919,6 +1171,7 @@ void UNetworkPhysicsComponent::OnPreProcessInputsInternal(const int32 PhysicsSte
 #endif
 		}
 	}
+	NewImportantInputFrame = INT_MAX;
 }
 
 void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsStep)
@@ -955,15 +1208,12 @@ void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsSt
 			PlayerController = GetWorld()->GetFirstPlayerController();
 		}
 
-		const bool bShouldCacheInputHistory = PlayerController && IsLocallyControlled() && !bIsSolverResim;
+		const bool bShouldCacheInputHistory = IsLocallyControlled() && !bIsSolverResim;
 		// for the inputs client local ones are ground truth otherwise use the replicated ones coming from the server
-		if (bShouldCacheInputHistory && (InputData != nullptr))
+		if (PlayerController && bShouldCacheInputHistory && (InputData != nullptr))
 		{
 			FNetworkPhysicsData* PhysicsData = InputData.Get();
-			PhysicsData->LocalFrame = PhysicsStep;
-			PhysicsData->ServerFrame = bIsServer ? PhysicsStep : PhysicsStep + PlayerController->GetNetworkPhysicsTickOffset();
-			PhysicsData->InputFrame = PhysicsStep;
-			PhysicsData->bReceivedData = false;
+			PhysicsData->PrepareFrame(PhysicsStep, bIsServer, PlayerController->GetNetworkPhysicsTickOffset());
 
 			PhysicsData->BuildData(ActorComponent);
 
@@ -972,13 +1222,15 @@ void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsSt
 			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #if DEBUG_NETWORK_PHYSICS
+			{
 				UE_LOG(LogChaos, Log, TEXT("		Recording input into history | LocalFrame = %d | ServerFrame = %d | InputFrame = %d | Input: %s ")
 					, PhysicsData->LocalFrame, PhysicsData->ServerFrame, PhysicsData->InputFrame, *PhysicsData->DebugData());
+			}
 #endif
 		}
 
 		const bool bShouldCacheStateHistory = bIsServer || (bCompareStateToTriggerRewind && bShouldCacheInputHistory);
-		if (StateHistory && bShouldCacheStateHistory)
+		if (PlayerController && StateHistory && bShouldCacheStateHistory)
 		{
 			// Compute of the local frame coming from the client that was used to generate this state
 			int32 InputFrame = INDEX_NONE;
@@ -993,10 +1245,8 @@ void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsSt
 			}
 
 			FNetworkPhysicsData* PhysicsData = StateData.Get();
-			PhysicsData->LocalFrame = PhysicsStep;
-			PhysicsData->ServerFrame = PhysicsStep;
+			PhysicsData->PrepareFrame(PhysicsStep, bIsServer, PlayerController->GetNetworkPhysicsTickOffset());
 			PhysicsData->InputFrame = InputFrame;
-			PhysicsData->bReceivedData = false;
 
 			PhysicsData->BuildData(ActorComponent);
 
@@ -1005,8 +1255,10 @@ void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsSt
 			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #if DEBUG_NETWORK_PHYSICS
+			{
 				UE_LOG(LogChaos, Log, TEXT("		Recording state into history | LocalFrame = %d | ServerFrame = %d | InputFrame = %d | State: %s ")
 					, PhysicsData->LocalFrame, PhysicsData->ServerFrame, PhysicsData->InputFrame, *PhysicsData->DebugData());
+			}
 #endif
 		}
 	}
@@ -1164,6 +1416,31 @@ int32 UNetworkPhysicsComponent::SetupRewindData()
 	return NumFrames;
 }
 
+void UNetworkPhysicsComponent::TriggerResimulation(int32 ResimFrame)
+{
+	if (ResimFrame != INDEX_NONE)
+	{
+		if (FPhysScene* PhysScene = GetWorld()->GetPhysicsScene())
+		{
+			if (Chaos::FPhysicsSolver* Solver = PhysScene->GetSolver())
+			{
+				if (Chaos::FRewindData* RewindData = Solver->GetRewindData())
+				{
+					// Mark particle/island as resim
+					Chaos::FReadPhysicsObjectInterface_Internal Interface = Chaos::FPhysicsObjectInternalInterface::GetRead();
+					if (Chaos::FPBDRigidParticleHandle* POHandle = Interface.GetRigidParticle(RootPhysicsObject))
+					{
+						Solver->GetEvolution()->GetIslandManager().SetParticleResimFrame(POHandle, ResimFrame);
+					}
+
+					// Set resim frame in rewind data
+					ResimFrame = (RewindData->GetResimFrame() == INDEX_NONE) ? ResimFrame : FMath::Min(ResimFrame, RewindData->GetResimFrame());
+					RewindData->SetResimFrame(ResimFrame);
+				}
+			}
+		}
+	}
+}
 
 
 
