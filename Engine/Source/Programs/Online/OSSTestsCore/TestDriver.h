@@ -107,6 +107,23 @@ public:
 	};
 	using FStepPtr = TUniquePtr<FStep>;
 
+	class FLambdaStep : public FStep
+	{
+	public:
+		FLambdaStep(TUniqueFunction<void(IOnlineSubsystem*)>&& InLambda)
+			: Lambda(MoveTemp(InLambda))
+		{}
+
+		virtual EContinuance Tick(IOnlineSubsystem* Subsystem) override
+		{
+			Lambda(Subsystem);
+			return EContinuance::Done;
+		}
+
+	private:
+		TUniqueFunction<void(IOnlineSubsystem*)> Lambda;
+	};
+
 	FTestPipeline(FTestPipeline&&) = default;
 	FTestPipeline(const FTestPipeline&) = delete;
 
@@ -141,6 +158,11 @@ public:
 		TestSteps.Last()->Index = NewIndex;
 
 		return MoveTemp(*this);
+	}
+
+	FTestPipeline&& EmplaceLambda(TUniqueFunction<void(IOnlineSubsystem*)> Lambda)
+	{
+		return EmplaceStep<FLambdaStep>(MoveTemp(Lambda));
 	}
 
 	/** Generates a string suitable for INFO which will help identify where and when a specific failure has occurred. */

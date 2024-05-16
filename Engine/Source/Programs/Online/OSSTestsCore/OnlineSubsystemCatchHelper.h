@@ -30,7 +30,7 @@ protected:
 	FString GetSubsystem() const;
 	FOnlineAccountCredentials GetCredentials(int LocalUserNum) const;
 	FTestPipeline& GetLoginPipeline(uint32 NumUsersToLogin = 1) const;
-	FTestPipeline& GetPipeline();
+	FTestPipeline& GetPipeline() const;
 	void RunToCompletion() const;
 
 	/* ITestInvoker */
@@ -118,3 +118,7 @@ void PREPROCESSOR_JOIN(OnlineSubsystemTest_,RegName)::invoke() const\
 
 #define ONLINESUBSYSTEM_TEST_CASE(Name, Tags, ...) \
 	INTERNAL_ONLINESUBSYSTEM_TEST_CASE_NAMED(INTERNAL_CATCH_UNIQUE_NAME(OnlineSubsystemRegistrar), Name, Tags, __VA_ARGS__)
+
+#define REQUIRE_OP(Op)\
+	CAPTURE(Op);\
+	REQUIRE(Op.WasSuccessful());

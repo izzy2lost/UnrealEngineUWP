@@ -133,7 +133,7 @@
 			<Expand Name="$(TestName)AfterSteps" Platform="$(Platform)" />	
 		</Node>
 		<Label Category="After" Name="$(ShortName) After $(Platform)" Requires="$(TestName) AfterStep $(Platform)"/>
-		<Property Name="AfterTestNodes" Value="$(AfterTestNodes);$(TestName) AfterStep $(Platform)" If="$(RunAllTests) Or $(Run$(TestName)Tests)"/>
+		<Property Name="AfterTestNodes" Value="$(AfterTestNodes);$(TestName) AfterStep $(Platform)" If="($(RunsAllTests) Or $(Run$(TestName)Tests)) And ($(TestsAllSupportedPlatforms) Or $(TestPlatform$(Platform)))"/>
 	</Macro>
 	
 	<Macro Name="BuildAndStageTest" Arguments="Platform;TestName;StagesWithProjectFile;TargetName;ExtraCompilationArgs">
@@ -229,7 +229,7 @@
 				</Do>
 			</Node>
 			<Label Category="Test" Name="$(ShortName) $(Platform)" Requires="$(ShortName) Tests $(Platform)"/>
-			<Property Name="TestNodes" Value="$(TestNodes);$(ShortName) Tests $(Platform)" If="$(RunAllTests) Or $(Run$(TestName)Tests)"/>
+			<Property Name="TestNodes" Value="$(TestNodes);$(ShortName) Tests $(Platform)" If="($(RunsAllTests) Or $(Run$(TestName)Tests)) And ($(TestsAllSupportedPlatforms) Or $(TestPlatform$(Platform)))"/>
 				
 			<Do If="'$(CheckedRunAfterStep)' == 'True' AND '$(HasAfterSteps)' == 'True'">
 				<Expand Name="TestAfterStep" TestName="$(TestName)" ShortName="$(ShortName)" Platform="$(Platform)"/>

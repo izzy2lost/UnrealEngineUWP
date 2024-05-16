@@ -198,7 +198,7 @@ FTestPipeline& OnlineSubsystemTestBase::GetLoginPipeline(uint32 NumUsersToLogin)
 	return Pipeline;
 }
 
-FTestPipeline& OnlineSubsystemTestBase::GetPipeline()
+FTestPipeline& OnlineSubsystemTestBase::GetPipeline() const
 {
 	return GetLoginPipeline(0);
 }
@@ -229,7 +229,6 @@ void OnlineSubsystemTestBase::RunToCompletion() const
 	}
 	
 	FName SubsystemName = FName(GetSubsystem());
-	CAPTURE(*GetSubsystem());
 	FPipelineTestContext TestContext = FPipelineTestContext(SubsystemName);
 	CHECK(Driver.AddPipeline(MoveTemp(Pipeline), TestContext));
 	REQUIRE(IOnlineSubsystem::IsEnabled(SubsystemName));
