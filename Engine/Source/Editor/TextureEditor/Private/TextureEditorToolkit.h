@@ -98,7 +98,10 @@ public:
 	{
 		return ExposureBias;
 	}
-
+	virtual EVisibility GetVisibilityWhileAssetCompiling() const override
+	{
+		return EVisibility::Visible;
+	}
 
 	// IToolkit interface
 	virtual FText GetBaseToolkitName( ) const override;

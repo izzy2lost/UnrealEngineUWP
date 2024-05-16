@@ -202,8 +202,31 @@ void FTextureEditorViewportClient::Draw(FViewport* Viewport, FCanvas* Canvas)
 	
 	UpdateScrollBars();
 
-
 	Canvas->Clear( Settings.BackgroundColor );
+	
+	UFont* ReportingFont = GEngine->GetLargeFont();
+	const int32 ReportingLineHeight = FMath::CeilToInt(ReportingFont->GetMaxCharHeight()) + 2; // 2 for line spacing
+	const int32 ReportingLineX = 8;
+	int32 ReportingLineY = 8;
+
+	// make sure error messages are shown last, no matter if we return early or not
+	ON_SCOPE_EXIT {
+		// Print any warnings/errors that we saw in the output log.
+		FScopeLock _(&TextureConsoleCapture->LogLinesLock);
+		for (TPair<bool, FString>& ReportedLine : TextureConsoleCapture->RelevantLogLines)
+		{
+			Canvas->DrawShadowedText(ReportingLineX, ReportingLineY, FText::FromString(ReportedLine.Value), ReportingFont, ReportedLine.Key ? FLinearColor::Red : FLinearColor::Yellow);
+			ReportingLineY += ReportingLineHeight;
+		}
+	};
+
+	if ( Texture->IsCompiling() )
+	{
+		const FText Message = NSLOCTEXT("TextureEditor", "Compiling", "Compiling...");
+		Canvas->DrawShadowedText(ReportingLineX, ReportingLineY, Message, ReportingFont, FLinearColor::White);
+		ReportingLineY += ReportingLineHeight;
+		return;
+	}
 
 	UTexture2D* Texture2D = Cast<UTexture2D>(Texture);
 	UTextureCube* TextureCube = Cast<UTextureCube>(Texture);
@@ -389,12 +412,6 @@ void FTextureEditorViewportClient::Draw(FViewport* Viewport, FCanvas* Canvas)
 		}
 	}
 
-	UFont* ReportingFont = GEngine->GetLargeFont();
-	const int32 ReportingLineHeight = FMath::CeilToInt(ReportingFont->GetMaxCharHeight()) + 2; // 2 for line spacing
-	const int32 ReportingLineX = 8;
-	int32 ReportingLineY = 8;
-
-
 	// If we are requesting an explicit mip level of a VT asset, test to see if we can even display it properly and warn about it
 	if (bIsVirtualTexture && MipLevel >= 0.f)
 	{
@@ -515,15 +532,6 @@ void FTextureEditorViewportClient::Draw(FViewport* Viewport, FCanvas* Canvas)
 		} // end if valid result metadata
 	} // end if not deferring
 
-	// Print any warnings/errors that we saw in the output log.
-	{
-		FScopeLock _(&TextureConsoleCapture->LogLinesLock);
-		for (TPair<bool, FString>& ReportedLine : TextureConsoleCapture->RelevantLogLines)
-		{
-			Canvas->DrawShadowedText(ReportingLineX, ReportingLineY, FText::FromString(ReportedLine.Value), GEngine->GetLargeFont(), ReportedLine.Key ? FLinearColor::Red : FLinearColor::Yellow);
-			ReportingLineY += ReportingLineHeight;
-		}
-	}
 }
 
 

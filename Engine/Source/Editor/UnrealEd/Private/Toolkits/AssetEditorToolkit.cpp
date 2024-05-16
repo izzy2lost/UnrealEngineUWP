@@ -215,6 +215,8 @@ void FAssetEditorToolkit::InitAssetEditor( const EToolkitMode::Type Mode, const 
 		this->TabManager = NewTabManager;
 
 		TArray<TWeakObjectPtr<UObject>> ObjectsToEditWeak;
+		EVisibility VisibilityWhileCompiling = GetVisibilityWhileAssetCompiling();
+
 		ObjectsToEditWeak.Reserve(ObjectsToEdit.Num());
 		for (UObject* Object : ObjectsToEdit)
 		{
@@ -223,7 +225,7 @@ void FAssetEditorToolkit::InitAssetEditor( const EToolkitMode::Type Mode, const 
 		NewMajorTab->SetContent
 		( 
 			SAssignNew( NewStandaloneHost, SStandaloneAssetEditorToolkitHost, NewTabManager, AppIdentifier )
-			.Visibility_Lambda([ObjectsToEditWeak]()
+			.Visibility_Lambda([ObjectsToEditWeak,VisibilityWhileCompiling]()
 				{
 					for (const TWeakObjectPtr<UObject> Object : ObjectsToEditWeak)
 					{
@@ -231,7 +233,7 @@ void FAssetEditorToolkit::InitAssetEditor( const EToolkitMode::Type Mode, const 
 						{
 							if (AsyncAsset->IsCompiling())
 							{
-								return EVisibility::Collapsed;
+								return VisibilityWhileCompiling;
 							}
 						}
 					}

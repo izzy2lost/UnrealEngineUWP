@@ -371,6 +371,9 @@ protected:
 	/** Called to test if "Find in Content Browser" should be enabled for this asset */
 	virtual bool CanFindInContentBrowser() const { return true; }
 
+	/** Called to get the desired visibility when the asset is compiling */
+	UNREALED_API virtual EVisibility GetVisibilityWhileAssetCompiling() const { return EVisibility::Collapsed; }
+
 	/** Called to test if "Find in Content Browser" should be visible for this asset */
 	virtual bool IsFindInContentBrowserButtonVisible() const { return true; }
 
