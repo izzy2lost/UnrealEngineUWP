@@ -650,13 +650,15 @@ struct FAtmosphereConfig
 	uint32 Resolution;
 };
 
-struct FPathTracingState {
+struct FPathTracingState
+{
 	FPathTracingConfig LastConfig;
 	// Textures holding onto the accumulated frame data
 	TRefCountPtr<IPooledRenderTarget> RadianceRT;
 	TRefCountPtr<IPooledRenderTarget> VarianceRT;
 	TRefCountPtr<IPooledRenderTarget> AlbedoRT;
 	TRefCountPtr<IPooledRenderTarget> NormalRT;
+	TRefCountPtr<IPooledRenderTarget> DepthRT;
 	TRefCountPtr<FRDGPooledBuffer> VarianceBuffer;
 	TRefCountPtr<IPooledRenderTarget> CloudAccelerationMap;
 	TRefCountPtr<IPooledRenderTarget> CloudMap;
@@ -664,8 +666,9 @@ struct FPathTracingState {
 	// Cache to improve the stability when frame denoising (SPP=r.pathtracing.SamplesPerPixel) is used in animation rendering
 	TRefCountPtr<IPooledRenderTarget> LastDenoisedRadianceRT;
 	TRefCountPtr<IPooledRenderTarget> LastRadianceRT;
-	TRefCountPtr<IPooledRenderTarget> LastNormalRT;
 	TRefCountPtr<IPooledRenderTarget> LastAlbedoRT;
+	TRefCountPtr<IPooledRenderTarget> LastNormalRT;
+	TRefCountPtr<IPooledRenderTarget> LastDepthRT;
 	TRefCountPtr<FRDGPooledBuffer> LastVarianceBuffer;
 
 	// Volume acceleration structures
@@ -1109,6 +1112,7 @@ class FPathTracingRG : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float2>, VarianceTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, AlbedoTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, NormalTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, DepthTexture)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(RaytracingAccelerationStructure, TLAS)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(RaytracingAccelerationStructure, DecalTLAS)
 
@@ -2748,7 +2752,7 @@ class FPathTracingCompositorPS : public FGlobalShader
 		SHADER_PARAMETER_SAMPLER(SamplerState, VarianceSampler)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float4>, RadianceTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float2>, VarianceTexture)
-		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float4>, NormalDepthTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float>, DepthTexture)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER(uint32, Iteration)
 		SHADER_PARAMETER(uint32, MaxSamples)
@@ -2863,6 +2867,7 @@ void FSceneViewState::PathTracingInvalidate(bool InvalidateAnimationStates)
 		State->VarianceRT.SafeRelease();
 		State->AlbedoRT.SafeRelease();
 		State->NormalRT.SafeRelease();
+		State->DepthRT.SafeRelease();
 		State->VarianceBuffer.SafeRelease();
 		State->CloudAccelerationMap.SafeRelease();
 		State->CloudMap.SafeRelease();
@@ -2893,8 +2898,9 @@ static void SplitDouble(double x, float* hi, float* lo)
 #if WITH_MGPU
 BEGIN_SHADER_PARAMETER_STRUCT(FMGPUTransferParameters, )
 	RDG_TEXTURE_ACCESS(InputTexture, ERHIAccess::CopySrc)
-	RDG_TEXTURE_ACCESS(InputAlbedo, ERHIAccess::CopySrc)
-	RDG_TEXTURE_ACCESS(InputNormal, ERHIAccess::CopySrc)
+	RDG_TEXTURE_ACCESS(InputAlbedo , ERHIAccess::CopySrc)
+	RDG_TEXTURE_ACCESS(InputNormal , ERHIAccess::CopySrc)
+	RDG_TEXTURE_ACCESS(InputDepth  , ERHIAccess::CopySrc)
 END_SHADER_PARAMETER_STRUCT()
 #endif
 
@@ -3147,27 +3153,40 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	// Prepare radiance buffer (will be shared with display pass)
 	FRDGTexture* RadianceTexture = nullptr;
 	FRDGTexture* VarianceTexture = nullptr;
-	FRDGTexture* AlbedoTexture = nullptr;
-	FRDGTexture* NormalTexture = nullptr;
+	FRDGTexture* AlbedoTexture   = nullptr;
+	FRDGTexture* NormalTexture   = nullptr;
+	FRDGTexture* DepthTexture    = nullptr;
 	const int NumVarianceMips = FMath::Min(5u, 1 + FMath::FloorLog2(uint32(View.ViewRect.Size().GetMin())));
 	if (PathTracingState->RadianceRT)
 	{
 		// we already have a valid radiance texture, re-use it
 		RadianceTexture = GraphBuilder.RegisterExternalTexture(PathTracingState->RadianceRT, TEXT("PathTracer.Radiance"));
-		AlbedoTexture   = GraphBuilder.RegisterExternalTexture(PathTracingState->AlbedoRT, TEXT("PathTracer.Albedo"));
-		NormalTexture   = GraphBuilder.RegisterExternalTexture(PathTracingState->NormalRT, TEXT("PathTracer.Normal"));
+		AlbedoTexture   = GraphBuilder.RegisterExternalTexture(PathTracingState->AlbedoRT  , TEXT("PathTracer.Albedo"));
+		NormalTexture   = GraphBuilder.RegisterExternalTexture(PathTracingState->NormalRT  , TEXT("PathTracer.Normal"));
+		DepthTexture    = GraphBuilder.RegisterExternalTexture(PathTracingState->DepthRT   , TEXT("PathTracer.Depth"));
 	}
 	else
 	{
 		// First time through, need to make a new texture
-		FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
+		FRDGTextureDesc RadianceDesc = FRDGTextureDesc::Create2D(
 			View.ViewRect.Size(),
 			PF_A32B32G32R32F,
 			FClearValueBinding::None,
 			TexCreate_ShaderResource | TexCreate_UAV | GetExtraTextureCreateFlagsForDenoiser());
-		RadianceTexture = GraphBuilder.CreateTexture(Desc, TEXT("PathTracer.Radiance"), ERDGTextureFlags::MultiFrame);
-		AlbedoTexture   = GraphBuilder.CreateTexture(Desc, TEXT("PathTracer.Albedo")  , ERDGTextureFlags::MultiFrame);
-		NormalTexture   = GraphBuilder.CreateTexture(Desc, TEXT("PathTracer.Normal")  , ERDGTextureFlags::MultiFrame);
+		FRDGTextureDesc AlbedoNormalDesc = FRDGTextureDesc::Create2D(
+			View.ViewRect.Size(),
+			PF_FloatRGBA,
+			FClearValueBinding::None,
+			TexCreate_ShaderResource | TexCreate_UAV | GetExtraTextureCreateFlagsForDenoiser());
+		FRDGTextureDesc DepthDesc = FRDGTextureDesc::Create2D(
+			View.ViewRect.Size(),
+			PF_R32_FLOAT,
+			FClearValueBinding::None,
+			TexCreate_ShaderResource | TexCreate_UAV | GetExtraTextureCreateFlagsForDenoiser());
+		RadianceTexture = GraphBuilder.CreateTexture(RadianceDesc    , TEXT("PathTracer.Radiance"), ERDGTextureFlags::MultiFrame);
+		AlbedoTexture   = GraphBuilder.CreateTexture(AlbedoNormalDesc, TEXT("PathTracer.Albedo")  , ERDGTextureFlags::MultiFrame);
+		NormalTexture   = GraphBuilder.CreateTexture(AlbedoNormalDesc, TEXT("PathTracer.Normal")  , ERDGTextureFlags::MultiFrame);
+		DepthTexture    = GraphBuilder.CreateTexture(DepthDesc       , TEXT("PathTracer.Depth")   , ERDGTextureFlags::MultiFrame);
 	}
 	if (Config.UseAdaptiveSampling)
 	{
@@ -3509,6 +3528,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 							PassParameters->RadianceTexture = GraphBuilder.CreateUAV(RadianceTexture);
 							PassParameters->AlbedoTexture = GraphBuilder.CreateUAV(AlbedoTexture);
 							PassParameters->NormalTexture = GraphBuilder.CreateUAV(NormalTexture);
+							PassParameters->DepthTexture = GraphBuilder.CreateUAV(DepthTexture);
 
 							if (Config.UseAdaptiveSampling)
 							{
@@ -3700,6 +3720,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 			Parameters->InputTexture = RadianceTexture;
 			Parameters->InputAlbedo = AlbedoTexture;
 			Parameters->InputNormal = NormalTexture;
+			Parameters->InputDepth = DepthTexture;
 			GraphBuilder.AddPass(RDG_EVENT_NAME("Path Tracer Cross-GPU Transfer (%d GPUs)", NumGPUs), Parameters, ERDGPassFlags::Readback,
 				[Parameters, DispatchResX, DispatchResY, DispatchSize, GPUMask, MainGPUMask = View.GPUMask, LocalCopyFenceDatas = MoveTemp(CopyFenceDatas)](FRHICommandListImmediate& RHICmdList)
 				{
@@ -3734,6 +3755,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 									TransferParams.Emplace(Parameters->InputTexture->GetRHI(), TileToCopy, GPUIndex, FirstGPUIndex, false, false);
 									TransferParams.Emplace(Parameters->InputAlbedo->GetRHI(), TileToCopy, GPUIndex, FirstGPUIndex, false, false);
 									TransferParams.Emplace(Parameters->InputNormal->GetRHI(), TileToCopy, GPUIndex, FirstGPUIndex, false, false);
+									TransferParams.Emplace(Parameters->InputDepth->GetRHI(), TileToCopy, GPUIndex, FirstGPUIndex, false, false);
 								}
 								++CurrentGPU;
 							}
@@ -3756,6 +3778,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 		GraphBuilder.QueueTextureExtraction(RadianceTexture, &PathTracingState->RadianceRT);
 		GraphBuilder.QueueTextureExtraction(AlbedoTexture, &PathTracingState->AlbedoRT);
 		GraphBuilder.QueueTextureExtraction(NormalTexture, &PathTracingState->NormalRT);
+		GraphBuilder.QueueTextureExtraction(DepthTexture, &PathTracingState->DepthRT);
 		if (Config.UseAdaptiveSampling)
 		{
 			check(VarianceTexture != nullptr);
@@ -3787,21 +3810,23 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	{
 		// mGPU renders blocks of pixels that need to be mapped back into alternating scanlines
 		// perform this swizzling now with a simple compute shader
+		// NOTE: we only perform this swizzling for albedo/normals if we are going to use them for denoising
 
 		TShaderMapRef<FPathTracingSwizzleScanlinesCS> ComputeShader(GetGlobalShaderMap(View.FeatureLevel));
-		FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
-			View.ViewRect.Size(),
-			PF_A32B32G32R32F,
-			FClearValueBinding::None,
-			TexCreate_ShaderResource | TexCreate_UAV);
-		FRDGTexture* NewRadianceTexture = GraphBuilder.CreateTexture(Desc, TEXT("PathTracer.RadianceUnswizzled"));
-		FRDGTexture* NewNormalTexture = GraphBuilder.CreateTexture(Desc, TEXT("PathTracer.NormalUnswizzled"));
-		FRDGTexture* NewAlbedoTexture = NeedsDenoise ? GraphBuilder.CreateTexture(Desc, TEXT("PathTracer.AlbedoUnswizzled")) : nullptr;
+		FRDGTexture* NewRadianceTexture = GraphBuilder.CreateTexture(RadianceTexture->Desc, TEXT("PathTracer.RadianceUnswizzled"));
+		FRDGTexture* NewDepthTexture = GraphBuilder.CreateTexture(DepthTexture->Desc, TEXT("PathTracer.DepthUnswizzled"));
+		FRDGTexture* NewNormalTexture = NeedsDenoise ? GraphBuilder.CreateTexture(NormalTexture->Desc, TEXT("PathTracer.NormalUnswizzled")) : nullptr;
+		FRDGTexture* NewAlbedoTexture = NeedsDenoise ? GraphBuilder.CreateTexture(AlbedoTexture->Desc, TEXT("PathTracer.AlbedoUnswizzled")) : nullptr;
 
-		FRDGTexture* InputTextures[3] = { RadianceTexture, NormalTexture, AlbedoTexture};
-		FRDGTexture* OutputTextures[3] = { NewRadianceTexture, NewNormalTexture, NewAlbedoTexture};
-		for (int Index = 0, Num = NeedsDenoise ? 3 : 2; Index < Num; Index++)
+		FRDGTexture* InputTextures[4] = { RadianceTexture, NormalTexture, DepthTexture, AlbedoTexture};
+		FRDGTexture* OutputTextures[4] = { NewRadianceTexture, NewNormalTexture, NewDepthTexture, NewAlbedoTexture};
+		for (int Index = 0; Index < 4; Index++)
 		{
+			if (OutputTextures[Index] == nullptr)
+			{
+				// skip unused textures
+				continue;
+			}
 			FPathTracingSwizzleScanlinesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FPathTracingSwizzleScanlinesCS::FParameters>();
 			PassParameters->DispatchDim.X = DispatchResX;
 			PassParameters->DispatchDim.Y = DispatchResY;
@@ -3821,6 +3846,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 		// let the remaining code operate on the unswizzled textures
 		RadianceTexture = NewRadianceTexture;
 		NormalTexture = NewNormalTexture;
+		DepthTexture = NewDepthTexture;
 		AlbedoTexture = NewAlbedoTexture;
 	}
 #endif
@@ -3871,6 +3897,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 			DenoisingContext.RadianceTexture = RadianceTexture;
 			DenoisingContext.AlbedoTexture = AlbedoTexture;
 			DenoisingContext.NormalTexture = NormalTexture;
+			DenoisingContext.DepthTexture = DepthTexture;
 			DenoisingContext.VarianceBuffer = PathTracingState->VarianceBuffer ? 
 				GraphBuilder.RegisterExternalBuffer(PathTracingState->VarianceBuffer, TEXT("PathTracing.VarianceBuffer")) : nullptr;
 			DenoisingContext.LastVarianceBuffer = PathTracingState->LastVarianceBuffer ?
@@ -3894,10 +3921,12 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 					GraphBuilder.RegisterExternalTexture(PathTracingState->LastDenoisedRadianceRT, TEXT("PathTracing.LastPreDenoisedRadiance"));
 				DenoisingContext.LastRadianceTexture =
 					GraphBuilder.RegisterExternalTexture(PathTracingState->LastRadianceRT, TEXT("PathTracing.LastRadianceTexture"));
-				DenoisingContext.LastNormalTexture =
-					GraphBuilder.RegisterExternalTexture(PathTracingState->LastNormalRT, TEXT("PathTracing.LastNormalTexture"));
 				DenoisingContext.LastAlbedoTexture =
 					GraphBuilder.RegisterExternalTexture(PathTracingState->LastAlbedoRT, TEXT("PathTracing.LastAlbedoTexture"));
+				DenoisingContext.LastNormalTexture =
+					GraphBuilder.RegisterExternalTexture(PathTracingState->LastNormalRT, TEXT("PathTracing.LastNormalTexture"));
+				DenoisingContext.LastDepthTexture =
+					GraphBuilder.RegisterExternalTexture(PathTracingState->LastDepthRT, TEXT("PathTracing.LastDepthTexture"));
 			}
 
 			PathTracingSpatialTemporalDenoising(GraphBuilder,
@@ -3907,8 +3936,9 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 				DenoisingContext);
 
 			GraphBuilder.QueueTextureExtraction(DenoisedRadianceTexture, &PathTracingState->LastDenoisedRadianceRT);
-			GraphBuilder.QueueTextureExtraction(NormalTexture, &PathTracingState->LastNormalRT);
 			GraphBuilder.QueueTextureExtraction(AlbedoTexture, &PathTracingState->LastAlbedoRT);
+			GraphBuilder.QueueTextureExtraction(NormalTexture, &PathTracingState->LastNormalRT);
+			GraphBuilder.QueueTextureExtraction(DepthTexture, &PathTracingState->LastDepthRT);
 			GraphBuilder.QueueTextureExtraction(RadianceTexture, &PathTracingState->LastRadianceRT);
 
 			PathTracingState->SpatialTemporalDenoiserHistory = DenoisingContext.SpatialTemporalDenoiserHistory;
@@ -3943,7 +3973,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 	DisplayParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 	DisplayParameters->RadianceTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(DenoisedRadianceTexture ? DenoisedRadianceTexture : RadianceTexture));
 	DisplayParameters->VarianceTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(VarianceTexture ? VarianceTexture : GSystemTextures.GetBlackDummy(GraphBuilder)));
-	DisplayParameters->NormalDepthTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(NormalTexture));
+	DisplayParameters->DepthTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(DepthTexture));
 	DisplayParameters->RenderTargets[0] = FRenderTargetBinding(SceneColorOutputTexture, ERenderTargetLoadAction::ELoad);
 	DisplayParameters->RenderTargets.DepthStencil = FDepthStencilBinding(SceneDepthOutputTexture,  ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ENoAction, FExclusiveDepthStencil::DepthWrite_StencilNop);
 	DisplayParameters->VarianceSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();

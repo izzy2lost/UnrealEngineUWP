@@ -36,31 +36,67 @@ DEFINE_LOG_CATEGORY(LogOpenImageDenoise);
 
 IMPLEMENT_MODULE(FOpenImageDenoiseModule, OpenImageDenoise)
 
-enum class EDenoiseMode
+static TAutoConsoleVariable<bool> CVarOIDNDenoiseAlpha(
+	TEXT("r.OIDN.DenoiseAlpha"),
+	true,
+	TEXT("Should OpenImageDenoise denoise the alpha channel? (default: true)")
+);
+
+static TAutoConsoleVariable<bool> CVarOIDNDenoiseAux(
+	TEXT("r.OIDN.DenoiseAuxilaryInputs"),
+	false,
+	TEXT("Should OpenImageDenoise denoise the auxilary buffers (albedo and normal) prior to using them? (default: false)")
+);
+
+static TAutoConsoleVariable<bool> CVarOIDNUseAux(
+	TEXT("r.OIDN.UseAuxilaryInputs"),
+	true,
+	TEXT("Should OpenImageDenoise make use of auxilary buffers (albedo and normal) to improve image quality? (default: true)")
+);
+
+struct FHalfColor
 {
-	OFF = 0,
-	DEFAULT = 1,   // denoise using albedo/normal as provided
-	CLEAN_AUX = 2, // denoise albedo/normal first and pass cleanAux (haven't found a scene where this is clearly better, and it runs much slower)
-	NO_AOVS = 3,   // denoise beauty only
+	uint16_t r, g, b, a;
 };
+
+struct FDenoiseSettings
+{
+	bool DenoiseAlpha;
+	bool DenoiseAux;
+	bool UseAux;
+
+	bool operator==(const FDenoiseSettings& Other) const = default;
+	bool operator!=(const FDenoiseSettings& Other) const = default;
+};
+
+FDenoiseSettings GetCurrentSettings()
+{
+	FDenoiseSettings Settings = {};
+	Settings.DenoiseAlpha = CVarOIDNDenoiseAlpha.GetValueOnRenderThread();
+	Settings.UseAux = CVarOIDNUseAux.GetValueOnRenderThread();
+	Settings.DenoiseAux = CVarOIDNDenoiseAux.GetValueOnRenderThread();
+
+	return Settings;
+}
 
 struct OIDNState
 {
 	// scratch CPU memory for running the OIDN filter
 	TArray<FLinearColor> RawPixels;
-	TArray<FLinearColor> RawAlbedo;
-	TArray<FLinearColor> RawNormal;
+	TArray<FHalfColor> RawAlbedo;
+	TArray<FHalfColor> RawNormal;
 
 	// re-useable filters
 	oidn::FilterRef AlbedoFilter;
 	oidn::FilterRef NormalFilter;
 	oidn::FilterRef PixelsFilter;
+	oidn::FilterRef AlphaFilter;
 	oidn::DeviceRef OIDNDevice;
 
-	EDenoiseMode CurrentMode = EDenoiseMode::OFF;
+	FDenoiseSettings CurrentSettings = {};
 	FIntPoint CurrentSize = FIntPoint(0, 0);
 
-	void UpdateFilter(FIntPoint Size, EDenoiseMode DenoiserMode)
+	void UpdateFilter(FIntPoint Size, FDenoiseSettings Settings)
 	{
 		int NewSize = Size.X * Size.Y;
 		if (RawPixels.Num() != NewSize)
@@ -72,30 +108,32 @@ struct OIDNState
 			AlbedoFilter = oidn::FilterRef();
 			NormalFilter = oidn::FilterRef();
 			PixelsFilter = oidn::FilterRef();
-		}
-		if (DenoiserMode == EDenoiseMode::OFF)
-		{
-			OIDNDevice = oidn::DeviceRef();
-			return;
+			AlphaFilter = oidn::FilterRef();
 		}
 		if (!OIDNDevice)
 		{
 			OIDNDevice = oidn::newDevice();
 			OIDNDevice.commit();
 		}
-		if (!PixelsFilter || CurrentMode != DenoiserMode || CurrentSize != Size)
+		if (!PixelsFilter || CurrentSettings != Settings || CurrentSize != Size)
 		{
-			CurrentMode = DenoiserMode;
+#if WITH_EDITOR
+			UE_LOG(LogOpenImageDenoise, Log, TEXT("Updating filter configuration for (%d x %d) with denoise_alpha=%s, denoise_aux=%s, use_aux=%s)"), Size.X, Size.Y,
+				   Settings.DenoiseAlpha ? TEXT("on") : TEXT("off"),
+				   Settings.DenoiseAux   ? TEXT("on") : TEXT("off"),
+				   Settings.UseAux       ? TEXT("on") : TEXT("off"));
+#endif
+			CurrentSettings = Settings;
 			CurrentSize = Size;
-			if (CurrentMode == EDenoiseMode::CLEAN_AUX)
+			if (CurrentSettings.DenoiseAux)
 			{
 				AlbedoFilter = OIDNDevice.newFilter("RT");
-				AlbedoFilter.setImage("albedo", RawAlbedo.GetData(), oidn::Format::Float3, Size.X, Size.Y, 0, sizeof(FLinearColor), sizeof(FLinearColor) * Size.X);
-				AlbedoFilter.setImage("output", RawAlbedo.GetData(), oidn::Format::Float3, Size.X, Size.Y, 0, sizeof(FLinearColor), sizeof(FLinearColor) * Size.X);
+				AlbedoFilter.setImage("albedo", RawAlbedo.GetData(), oidn::Format::Half3, Size.X, Size.Y, 0, sizeof(FHalfColor), sizeof(FHalfColor) * Size.X);
+				AlbedoFilter.setImage("output", RawAlbedo.GetData(), oidn::Format::Half3, Size.X, Size.Y, 0, sizeof(FHalfColor), sizeof(FHalfColor) * Size.X);
 				AlbedoFilter.commit();
 				NormalFilter = OIDNDevice.newFilter("RT");
-				NormalFilter.setImage("normal", RawNormal.GetData(), oidn::Format::Float3, Size.X, Size.Y, 0, sizeof(FLinearColor), sizeof(FLinearColor) * Size.X);
-				NormalFilter.setImage("output", RawNormal.GetData(), oidn::Format::Float3, Size.X, Size.Y, 0, sizeof(FLinearColor), sizeof(FLinearColor) * Size.X);
+				NormalFilter.setImage("normal", RawNormal.GetData(), oidn::Format::Half3, Size.X, Size.Y, 0, sizeof(FHalfColor), sizeof(FHalfColor) * Size.X);
+				NormalFilter.setImage("output", RawNormal.GetData(), oidn::Format::Half3, Size.X, Size.Y, 0, sizeof(FHalfColor), sizeof(FHalfColor) * Size.X);
 				NormalFilter.commit();
 			}
 			else
@@ -104,29 +142,41 @@ struct OIDNState
 				NormalFilter = oidn::FilterRef();
 			}
 			PixelsFilter = OIDNDevice.newFilter("RT");
-			// TODO: find a way to denoise the alpha channel? OIDN does not support this yet
 			PixelsFilter.setImage("color" , RawPixels.GetData(), oidn::Format::Float3, Size.X, Size.Y, 0, sizeof(FLinearColor), sizeof(FLinearColor) * Size.X);
 			PixelsFilter.setImage("output", RawPixels.GetData(), oidn::Format::Float3, Size.X, Size.Y, 0, sizeof(FLinearColor), sizeof(FLinearColor) * Size.X);
-			if (CurrentMode == EDenoiseMode::DEFAULT || CurrentMode == EDenoiseMode::CLEAN_AUX)
+
+			if (CurrentSettings.UseAux)
 			{
 				// default behavior, use the albedo/normal buffers to improve quality
-				// TODO: switch these buffers to half precision? (requires OIDN 1.4.2+)
-				PixelsFilter.setImage("albedo", RawAlbedo.GetData(), oidn::Format::Float3, Size.X, Size.Y, 0, sizeof(FLinearColor), sizeof(FLinearColor) * Size.X);
-				PixelsFilter.setImage("normal", RawNormal.GetData(), oidn::Format::Float3, Size.X, Size.Y, 0, sizeof(FLinearColor), sizeof(FLinearColor) * Size.X);
+				PixelsFilter.setImage("albedo", RawAlbedo.GetData(), oidn::Format::Half3, Size.X, Size.Y, 0, sizeof(FHalfColor), sizeof(FHalfColor) * Size.X);
+				PixelsFilter.setImage("normal", RawNormal.GetData(), oidn::Format::Half3, Size.X, Size.Y, 0, sizeof(FHalfColor), sizeof(FHalfColor) * Size.X);
 			}
-			if (CurrentMode == EDenoiseMode::CLEAN_AUX)
+			if (CurrentSettings.DenoiseAux && CurrentSettings.UseAux)
 			{
 				// +cleanAux
 				PixelsFilter.set("cleanAux", true);
 			}
 			PixelsFilter.set("hdr", true);
 			PixelsFilter.commit();
+
+			if (CurrentSettings.DenoiseAlpha)
+			{
+				AlphaFilter = OIDNDevice.newFilter("RT");
+				AlphaFilter.setImage("color" , RawPixels.GetData(), oidn::Format::Float, Size.X, Size.Y, sizeof(float) * 3, sizeof(FLinearColor), sizeof(FLinearColor) * Size.X);
+				AlphaFilter.setImage("output", RawPixels.GetData(), oidn::Format::Float, Size.X, Size.Y, sizeof(float) * 3, sizeof(FLinearColor), sizeof(FLinearColor) * Size.X);
+				AlphaFilter.set("hdr", true);
+				AlphaFilter.commit();
+			}
+			else
+			{
+				AlphaFilter = oidn::FilterRef();
+			}
 		}
 	}
 	
 	void Reset()
 	{
-		UpdateFilter(FIntPoint(0, 0), EDenoiseMode::OFF);
+		UpdateFilter(FIntPoint(0, 0), FDenoiseSettings{});
 	}
 };
 
@@ -167,10 +217,7 @@ static void CopyTextureFromCPUToGPU(FRHICommandListImmediate& RHICmdList, const 
 
 static void Denoise(FRHICommandListImmediate& RHICmdList, FRHITexture* ColorTex, FRHITexture* AlbedoTex, FRHITexture* NormalTex, FRHITexture* OutputTex, FRHIGPUMask GPUMask)
 {
-	static IConsoleVariable* DenoiseModeCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PathTracing.Denoiser"));
-
-	const int DenoiseModeCVarValue = DenoiseModeCVar ? DenoiseModeCVar->GetInt() : -1;
-	const EDenoiseMode DenoiseMode = DenoiseModeCVarValue >= 0 ? EDenoiseMode(DenoiseModeCVarValue) : EDenoiseMode::DEFAULT;
+	FDenoiseSettings Settings = GetCurrentSettings();
 
 #if WITH_EDITOR
 	// NOTE: the time will include the transfer from GPU to CPU which will include waiting for the GPU pipeline to complete
@@ -181,16 +228,16 @@ static void Denoise(FRHICommandListImmediate& RHICmdList, FRHITexture* ColorTex,
 	FIntPoint Size = ColorTex->GetSizeXY();
 	FIntRect Rect = FIntRect(0, 0, Size.X, Size.Y);
 
-	DenoiserState.UpdateFilter(Size, DenoiseMode);
+	DenoiserState.UpdateFilter(Size, Settings);
 	CopyTextureFromGPUToCPU(RHICmdList, ColorTex, Size, DenoiserState.RawPixels);
-	if (DenoiseMode == EDenoiseMode::DEFAULT || DenoiseMode == EDenoiseMode::CLEAN_AUX)
+	if (Settings.UseAux || Settings.DenoiseAux)
 	{
 		CopyTextureFromGPUToCPU(RHICmdList, AlbedoTex, Size, DenoiserState.RawAlbedo);
 		CopyTextureFromGPUToCPU(RHICmdList, NormalTex, Size, DenoiserState.RawNormal);
 	}
 	check(DenoiserState.RawPixels.Num() == Size.X * Size.Y);
 
-	if (DenoiseMode == EDenoiseMode::CLEAN_AUX)
+	if (Settings.DenoiseAux)
 	{
 		check(DenoiserState.AlbedoFilter);
 		check(DenoiserState.NormalFilter);
@@ -200,14 +247,19 @@ static void Denoise(FRHICommandListImmediate& RHICmdList, FRHITexture* ColorTex,
 
 	check(DenoiserState.PixelsFilter);
 	DenoiserState.PixelsFilter.execute();
-	// copy pixels back to GPU (including alpha channel which was hopefully untouched by OIDN)
+	if (Settings.DenoiseAlpha)
+	{
+		check(DenoiserState.AlphaFilter);
+		DenoiserState.AlphaFilter.execute();
+	}
+	// copy pixels back to GPU (RGB and A are part of the same buffer)
 	CopyTextureFromCPUToGPU(RHICmdList, DenoiserState.RawPixels, Size, OutputTex);
 
 #if WITH_EDITOR
 	const char* errorMessage;
 	if (DenoiserState.OIDNDevice.getError(errorMessage) != oidn::Error::None)
 	{
-		UE_LOG(LogOpenImageDenoise, Warning, TEXT("Denoiser failed: %s"), *FString(errorMessage));
+		UE_LOG(LogOpenImageDenoise, Warning, TEXT("Denoiser failed: %hs"), errorMessage);
 		return;
 	}
 
@@ -249,7 +301,7 @@ public:
 void FOpenImageDenoiseModule::StartupModule()
 {
 #if WITH_EDITOR
-	UE_LOG(LogOpenImageDenoise, Log, TEXT("OIDN starting up"));
+	UE_LOG(LogOpenImageDenoise, Log, TEXT("OIDN starting up (built with OIDN %hs)"), OIDN_VERSION_STRING);
 #endif
 
 	GPathTracingDenoiserPlugin = MakeUnique<FOIDNDenoiser>();

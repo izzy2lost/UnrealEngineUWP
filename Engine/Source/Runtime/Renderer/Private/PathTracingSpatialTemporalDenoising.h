@@ -20,12 +20,14 @@ struct FPathTracingSpatialTemporalDenoisingContext
 	FRDGTexture*	RadianceTexture = nullptr;
 	FRDGTexture*	AlbedoTexture = nullptr;
 	FRDGTexture*	NormalTexture = nullptr;
+	FRDGTexture*	DepthTexture = nullptr;
 	FRDGBuffer*		VarianceBuffer = nullptr;
 
 	FRDGTexture*	LastDenoisedRadianceTexture = nullptr;
 	FRDGTexture*	LastRadianceTexture = nullptr;
-	FRDGTexture*	LastNormalTexture = nullptr;
 	FRDGTexture*	LastAlbedoTexture = nullptr;
+	FRDGTexture*	LastNormalTexture = nullptr;
+	FRDGTexture*	LastDepthTexture = nullptr;
 	FRDGBuffer*		LastVarianceBuffer = nullptr;
 
 	// Custom path tracing spacial temporal denoiser result, used by plugins

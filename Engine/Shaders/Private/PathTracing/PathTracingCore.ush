@@ -73,6 +73,7 @@ RWTexture2D<float4> VarianceTexture;
 #endif
 RWTexture2D<float4> AlbedoTexture;
 RWTexture2D<float4> NormalTexture;
+RWTexture2D<float>  DepthTexture;
 RaytracingAccelerationStructure TLAS;
 RaytracingAccelerationStructure DecalTLAS;
 uint SceneVisibleLightCount;
@@ -271,14 +272,14 @@ struct FPathState
 		const float3 Normal = GetNormal();
 
 		RadianceTexture[TextureIndex] = lerp(OldPixel, PixelValue, Blend);
-		AlbedoTexture[TextureIndex]   = lerp(OldAlbedo, float4(Albedo, 0), Blend);
+		AlbedoTexture[TextureIndex].xyz = lerp(OldAlbedo.xyz, Albedo, Blend);
 		NormalTexture[TextureIndex].xyz = lerp(OldNormal.xyz,Normal.xyz, Blend);
 	}
 
 	void WriteDepth(uint2 TextureIndex)
 	{
-		float OldDepth = Iteration > 0 ? NormalTexture[TextureIndex].w : 0;
-		NormalTexture[TextureIndex].w = max(OldDepth, ConvertToDeviceZ(DepthZ));
+		float OldDepth = Iteration > 0 ? DepthTexture[TextureIndex] : 0;
+		DepthTexture[TextureIndex] = max(OldDepth, ConvertToDeviceZ(DepthZ));
 	}
 };
 
@@ -634,7 +635,7 @@ FPackedPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bo
 							// keep tracing through the volume
 							PathThroughput *= SigmaN;
 							// early termination - fades off from 0.002 to 0.001 and then will be 0
-							PathThroughput *= saturate(1000.0 * max3(PathThroughput.x, PathThroughput.y, PathThroughput.z) - 1.0);
+							PathThroughput *= saturate(10000.0 * max3(PathThroughput.x, PathThroughput.y, PathThroughput.z) - 1.0);
 							if (!any(PathThroughput > 0))
 							{
 								bUseAnalyticTransmittance = false; // avoid re-computing the transmittance after the loop

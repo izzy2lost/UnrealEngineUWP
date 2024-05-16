@@ -12,7 +12,7 @@ uint Iteration;
 uint MaxSamples;
 int ProgressDisplayEnabled;
 Texture2D<float4> RadianceTexture;
-Texture2D<float4> NormalDepthTexture;
+Texture2D<float> DepthTexture;
 
 int AdaptiveSamplingVisualize;
 
@@ -93,5 +93,5 @@ void CompositeMain(
 		}
 	}
 
-	OutDepth = NormalDepthTexture.Load(TexCoord).w;
+	OutDepth = DepthTexture.Load(TexCoord);
 }
