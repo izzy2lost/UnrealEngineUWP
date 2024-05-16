@@ -75,6 +75,11 @@ public:
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float4>, InSourceHeightmap)
+		// Offset of the source heightmap relative to the 0,0 location in the destination heightmap, because
+		// the source is likely to be a copied region from some inner part of the destination. This is basically
+		// a SourceHeightmapToDestinationHeightmap coordinate transformation, except that it is always a simple 
+		// integer translation.
+		SHADER_PARAMETER(FIntPoint, InSourceHeightmapOffset)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float4>, InHeightPatch)
 		SHADER_PARAMETER_SAMPLER(SamplerState, InHeightPatchSampler)
 		SHADER_PARAMETER(FMatrix44f, InHeightmapToPatch)
@@ -223,6 +228,11 @@ public:
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float4>, InSourceWeightmap)
+		// Offset of the source weightmap relative to the 0,0 location in the destination weightmap, because
+		// the source is likely to be a copied region from some inner part of the destination. This is basically
+		// a SourceWeightmapToDestinationWeightmap coordinate transformation, except that it is always a simple 
+		// integer translation.
+		SHADER_PARAMETER(FIntPoint, InSourceWeightmapCoordOffset)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float4>, InWeightPatch)
 		SHADER_PARAMETER_SAMPLER(SamplerState, InWeightPatchSampler)
 		SHADER_PARAMETER(FMatrix44f, InWeightmapToPatch)
@@ -255,6 +265,9 @@ class FReinitializeLandscapePatchPS : public FGlobalShader
 
 public:
 
+	class FHeightPatch : SHADER_PERMUTATION_BOOL("HEIGHT_PATCH");
+	using FPermutationDomain = TShaderPermutationDomain<FHeightPatch>;
+
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float4>, InSource)
 		SHADER_PARAMETER_SAMPLER(SamplerState, InSourceSampler)
@@ -266,7 +279,7 @@ public:
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters);
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment);
 
-	LANDSCAPEPATCH_API static void AddToRenderGraph(FRDGBuilder& GraphBuilder, FParameters* InParameters);
+	LANDSCAPEPATCH_API static void AddToRenderGraph(FRDGBuilder& GraphBuilder, FParameters* InParameters, bool bHeightPatch);
 };
 
 /**

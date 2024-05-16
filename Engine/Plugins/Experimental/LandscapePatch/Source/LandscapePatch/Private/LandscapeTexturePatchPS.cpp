@@ -216,17 +216,20 @@ void FReinitializeLandscapePatchPS::ModifyCompilationEnvironment(const FGlobalSh
 	OutEnvironment.SetDefine(TEXT("REINITIALIZE_PATCH"), 1);
 }
 
-void FReinitializeLandscapePatchPS::AddToRenderGraph(FRDGBuilder& GraphBuilder, FParameters* InParameters)
+void FReinitializeLandscapePatchPS::AddToRenderGraph(FRDGBuilder& GraphBuilder, FParameters* InParameters, bool bHeightPatch)
 {
 	FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
-	TShaderMapRef<FReinitializeLandscapePatchPS> PixelShader(ShaderMap);
+
+	FReinitializeLandscapePatchPS::FPermutationDomain PermutationDomain;
+	PermutationDomain.Set<FReinitializeLandscapePatchPS::FHeightPatch>(bHeightPatch);
+	TShaderMapRef<FReinitializeLandscapePatchPS> PixelShader(ShaderMap, PermutationDomain);
 
 	FIntVector DestinationSize = InParameters->RenderTargets[0].GetTexture()->Desc.GetSize();
 
 	FPixelShaderUtils::AddFullscreenPass(
 		GraphBuilder,
 		ShaderMap,
-		RDG_EVENT_NAME("LandscapeTextureHeightPatch"),
+		RDG_EVENT_NAME("ReinitializeLandscapeTexturePatch"),
 		PixelShader,
 		InParameters,
 		FIntRect(0, 0, DestinationSize.X, DestinationSize.Y));
