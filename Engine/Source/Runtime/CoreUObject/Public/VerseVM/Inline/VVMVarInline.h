@@ -12,20 +12,29 @@ namespace Verse
 {
 template <typename T>
 template <typename TResult>
-auto TWriteBarrier<T>::SetTransactionally(FAccessContext Context, VCell& Owner, TValue NewValue) -> std::enable_if_t<bIsVValue, TResult>
+inline auto TWriteBarrier<T>::SetTransactionally(FAccessContext Context, VCell& Owner, TValue NewValue) -> std::enable_if_t<bIsVValue || bIsAux, TResult>
 {
 	RunBarrier(Context, NewValue);
 	Context.CurrentTransaction()->LogBeforeWrite(Context, Owner, *this);
 	Value = NewValue;
 }
 
-void VRestValue::SetTransactionally(FAccessContext Context, VCell& Owner, VValue NewValue)
+template <typename T>
+template <typename U, typename TResult>
+inline auto TWriteBarrier<T>::SetTransactionally(FAccessContext Context, TAux<U> Owner, TValue NewValue) -> std::enable_if_t<bIsVValue, TResult>
+{
+	RunBarrier(Context, NewValue);
+	Context.CurrentTransaction()->LogBeforeWrite(Context, Owner, *this);
+	Value = NewValue;
+}
+
+inline void VRestValue::SetTransactionally(FAccessContext Context, VCell& Owner, VValue NewValue)
 {
 	checkSlow(!NewValue.IsRoot());
 	Value.SetTransactionally(Context, Owner, NewValue);
 }
 
-void VVar::Set(FAccessContext Context, VValue NewValue)
+inline void VVar::Set(FAccessContext Context, VValue NewValue)
 {
 	return Value.SetTransactionally(Context, *this, NewValue);
 }

@@ -427,17 +427,52 @@ TEST_CASE("Abort.PushOnAbortHandler_Order")
 					// Make a child transaction.
 					Result = AutoRTFM::Transact([&]
 						{
-							AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value]() { REQUIRE(38 == Value); Value += 2; });
+							AutoRTFM::PushOnAbortHandler(UIntToPointer(747), [&Value]() { REQUIRE(99 == Value); Value += 2; });
 							AutoRTFM::AbortTransaction();
 						});
 
-					AutoRTFM::OnCommit([&Value] { REQUIRE(40 == Value); Value += 3; });
+					AutoRTFM::Open([&]
+					{
+						REQUIRE(Value == 101);
+					});
+
+					AutoRTFM::OnCommit([&Value] { REQUIRE(38 == Value); Value += 3; });
 
 					Value = 37;
 				});
 
 			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
-			REQUIRE(Value == 43);
+			REQUIRE(Value == 41);
 		}
 	}
+}
+
+TEST_CASE("Abort.OnAbortTiming")
+{
+	bool bOnAbortRan = false;
+	int Memory = 666;
+	AutoRTFM::Commit([&]
+	{
+		REQUIRE(bOnAbortRan == false);
+		REQUIRE(Memory == 666);
+
+		AutoRTFM::Transact([&]
+		{
+			Memory = 1234;
+			REQUIRE(Memory == 1234);
+
+			AutoRTFM::OnAbort([&]
+			{
+				REQUIRE(Memory == 666);
+				bOnAbortRan = true;
+			});
+
+			AutoRTFM::AbortTransaction();
+		});
+
+		REQUIRE(Memory == 666);
+		REQUIRE(bOnAbortRan == true);
+	});
+	REQUIRE(Memory == 666);
+	REQUIRE(bOnAbortRan == true);
 }

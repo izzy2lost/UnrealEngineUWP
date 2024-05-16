@@ -1387,7 +1387,7 @@ class FInterpreter
 			// Bounds check since this index access in Verse is failable.
 			if (Index.IsInt32() && Index.AsInt32() >= 0 && Array->IsInBounds(Index.AsInt32()))
 			{
-				Array->SetValue(Context, static_cast<uint32>(Index.AsInt32()), ValueToSet);
+				Array->SetValueTransactionally(Context, static_cast<uint32>(Index.AsInt32()), ValueToSet);
 			}
 			else
 			{
@@ -1396,7 +1396,7 @@ class FInterpreter
 		}
 		else if (VMutableMap* Map = Container.DynamicCast<VMutableMap>())
 		{
-			Map->Add(Context, Index, ValueToSet);
+			Map->AddTransactionally(Context, Index, ValueToSet);
 		}
 		else
 		{
@@ -1771,8 +1771,7 @@ class FInterpreter
 			const VShape::VEntry* Field = Shape->GetField(Context, FieldName);
 			// Right now, this is only used for setting fields on mutable structs. So it has to be an offset.
 			V_DIE_UNLESS(Field->Type == EFieldType::Offset);
-			// TODO: Make this transactional.
-			Object->GetData(*EmergentType->CppClassInfo)[Field->Index].Set(Context, Value);
+			Object->GetData(*EmergentType->CppClassInfo)[Field->Index].SetTransactionally(Context, *Object, Value);
 		}
 		else if (ObjectOperand.IsUObject())
 		{

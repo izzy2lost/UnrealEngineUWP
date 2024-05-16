@@ -110,7 +110,9 @@ struct TWriteBarrier
 	}
 
 	template <typename TResult = void>
-	std::enable_if_t<bIsVValue, TResult> SetTransactionally(FAccessContext Context, VCell& Owner, TValue NewValue);
+	std::enable_if_t<bIsVValue || bIsAux, TResult> SetTransactionally(FAccessContext Context, VCell& Owner, TValue NewValue);
+	template <typename U, typename TResult = void>
+	std::enable_if_t<bIsVValue, TResult> SetTransactionally(FAccessContext Context, TAux<U> Owner, TValue NewValue);
 
 	template <typename TResult = void>
 	std::enable_if_t<bIsVValue, TResult> SetNonCellNorPlaceholder(VValue NewValue)

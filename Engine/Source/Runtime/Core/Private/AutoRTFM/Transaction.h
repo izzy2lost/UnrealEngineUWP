@@ -83,9 +83,7 @@ public:
 
 private:
     void Undo();
-    void AbortNested();
-    void AbortOuterNest();
-    
+
     void CommitNested();
     bool AttemptToCommitOuterNest();
 

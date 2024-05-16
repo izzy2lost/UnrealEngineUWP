@@ -10,7 +10,9 @@
 #include "VerseVM/Inline/VVMMapInline.h"
 #include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
+#include "VerseVM/Inline/VVMVarInline.h"
 #include "VerseVM/VVMOpResult.h"
+#include "VerseVM/VVMTransaction.h"
 #include "VerseVM/VVMWriteBarrier.h"
 
 namespace Verse
@@ -128,12 +130,11 @@ bool VMapBase::EqualImpl(FAllocationContext Context, VCell* Other, const TFuncti
 void VMapBase::Reserve(FAllocationContext Context, uint32 InCapacity)
 {
 	uint32 NewCapacity = FMath::RoundUpToPowerOfTwo(InCapacity < 8 ? 8 : InCapacity);
-	int32 NumElementsInsertedIntoNewData = 0;
 	if (NewCapacity <= Capacity)
 	{
 		return; // should we support shrinking?
 	}
-	TAux<void> NewData = TAux<void>(FAllocationContext(Context).AllocateAuxCell(GetPairTableSizeForCapacity(NewCapacity)));
+	TAux<PairType> NewData = TAux<PairType>(FAllocationContext(Context).AllocateAuxCell(GetPairTableSizeForCapacity(NewCapacity)));
 	TAux<SequenceType> NewSequenceData = TAux<SequenceType>(FAllocationContext(Context).AllocateAuxCell(GetSequenceTableSizeForCapacity(NewCapacity)));
 
 	FMemory::Memzero(NewData.GetPtr(), GetPairTableSizeForCapacity(NewCapacity));
@@ -145,6 +146,8 @@ void VMapBase::Reserve(FAllocationContext Context, uint32 InCapacity)
 
 		PairType* NewPairTable = static_cast<PairType*>(NewData.GetPtr());
 		SequenceType* NewSequenceTable = static_cast<SequenceType*>(NewSequenceData.GetPtr());
+
+		int32 NumElementsInsertedIntoNewData = 0;
 
 		for (int32 ElemIdx = 0; ElemIdx < NumElements; ++ElemIdx)
 		{
@@ -160,13 +163,102 @@ void VMapBase::Reserve(FAllocationContext Context, uint32 InCapacity)
 			NewSequenceTable[NumElementsInsertedIntoNewData++] = NewSlot;
 		}
 	}
-	Data = {Context, NewData};
-	SequenceData = {Context, NewSequenceData};
+
+	Data.Set(Context, NewData);
+	SequenceData.Set(Context, NewSequenceData);
 	Capacity = NewCapacity;
 }
 
-VMapBase::~VMapBase()
+TPair<uint32, bool> VMapBase::AddWithoutLocking(FAllocationContext Context, uint32 KeyHash, VValue Key, VValue Value, bool bTransactional)
 {
+	checkSlow(!Key.IsUninitialized());
+	checkSlow(!Value.IsUninitialized());
+
+	bool bGrewCapacity = false;
+	uint32 OldCapacity;
+	TAux<PairType> OldData;
+	TAux<SequenceType> OldSequenceData;
+
+	if (2 * NumElements >= Capacity) // NumElements >= Capacity/2
+	{
+		if (bTransactional)
+		{
+			bGrewCapacity = true;
+			OldCapacity = Capacity;
+			OldData = Data.Get();
+			OldSequenceData = SequenceData.Get();
+		}
+
+		Reserve(Context, Capacity * 2);
+	}
+
+	bool bAddedNewEntry = false;
+
+	uint32 Slot;
+	VValue ExistingVal = FindByHashWithSlot(Context, KeyHash, Key, &Slot);
+
+	if (ExistingVal.IsUninitialized())
+	{
+		GetSequenceTable()[NumElements++] = Slot;
+		bAddedNewEntry = true;
+	}
+
+	if (ExistingVal != Value)
+	{
+		PairType* PairTable = GetPairTable();
+		checkSlow(PairTable[Slot].Key.Get().IsUninitialized() || VValue::Equal(Context, PairTable[Slot].Key.Get(), Key, [](VValue R, VValue L) {}));
+		// See comment below. These can be reverted without locking because the
+		// table is zero initialized. So if the GC races with the stores to revert
+		// these values, it's guaranteed to see a valid VValue.
+		if (bTransactional)
+		{
+			PairTable[Slot].Get<0>().SetTransactionally(Context, Data.Get(), Key);
+			PairTable[Slot].Get<1>().SetTransactionally(Context, Data.Get(), Value);
+		}
+		else
+		{
+			PairTable[Slot].Get<0>().Set(Context, Key);
+			PairTable[Slot].Get<1>().Set(Context, Value);
+		}
+	}
+
+	if (bTransactional && (bGrewCapacity || bAddedNewEntry))
+	{
+		Context.CurrentTransaction()->AddRoot(Context, this);
+		if (bGrewCapacity)
+		{
+			Context.CurrentTransaction()->AddAuxRoot(Context, OldData);
+			Context.CurrentTransaction()->AddAuxRoot(Context, OldSequenceData);
+		}
+
+		(void)AutoRTFM::Close([=] {
+			AutoRTFM::OnAbort([=] {
+				// It's safe to do this in a different critical section to reverting the
+				// stores to key/value because the pair table is zero initialized. The
+				// GC is guaranteed to visit valid VValues even if we race with it. It
+				// might see uninitialized, the new value, or the old value -- all which
+				// are valid VValues.
+				UE::FExternalMutex ExternalMutex(Mutex);
+				UE::TUniqueLock Lock(ExternalMutex);
+
+				if (bAddedNewEntry)
+				{
+					--NumElements;
+				}
+
+				if (bGrewCapacity)
+				{
+					FRunningContext CurrentContext = FRunningContext(FRunningContextPromise());
+					Capacity = OldCapacity;
+					Data.Set(CurrentContext, OldData);
+					SequenceData.Set(CurrentContext, OldSequenceData);
+				}
+			});
+		});
+	}
+
+	bool bReplacedExistingEntry = !bAddedNewEntry;
+	return {Slot, bReplacedExistingEntry};
 }
 
 template <typename MapType, typename TranslationFunc>
@@ -174,19 +266,12 @@ VValue VMapBase::FreezeMeltImpl(FAllocationContext Context, TranslationFunc&& Fu
 {
 	VMapBase& MapCopy = VMapBase::New<MapType>(Context, Num());
 
-	UE::FExternalMutex ExternalMutex(MapCopy.Mutex);
-	UE::TUniqueLock Lock(ExternalMutex);
-
 	PairType* PairTable = GetPairTable();
 	SequenceType* SequenceTable = GetSequenceTable();
-	for (int i = 0; i < NumElements; ++i)
+	for (uint32 I = 0; I < NumElements; ++I)
 	{
-		PairType* Pair = PairTable + SequenceTable[i];
-		VValue Key = Pair->Key.Get(); // Func(Context, Pair->Key.Get());
-		// if (Key.IsPlaceholder())
-		//{
-		//	return Key;
-		// }
+		PairType* Pair = PairTable + SequenceTable[I];
+		VValue Key = Pair->Key.Get();
 		VValue Val = Func(Context, Pair->Value.Get());
 		if (Val.IsPlaceholder())
 		{

@@ -14,46 +14,6 @@
 namespace Verse
 {
 
-// This should only be called if you already have the required mutexes or know you don't need them.
-// Returns the slot in the data table where the value was inserted.  If the value was overwritten, it sets the high bit (1 << 31).
-inline TPair<uint32, bool> VMapBase::AddWithoutLocking(FAllocationContext Context, uint32 KeyHash, VValue Key, VValue Value)
-{
-	uint32 Slot;
-	bool OverwriteSlot = false;
-
-	VValue ExistingVal;
-	PairType* PairTable;
-	SequenceType* SequenceTable;
-
-	check(!Key.IsUninitialized());
-	check(!Value.IsUninitialized());
-
-	if (NumElements >= (Capacity >> 1))
-	{
-		Reserve(Context, Capacity << 1);
-	}
-	uint32 HashMask = Capacity - 1;
-
-	ExistingVal = FindByHashWithSlot(Context, KeyHash, Key, &Slot);
-	PairTable = GetPairTable();
-	SequenceTable = GetSequenceTable();
-	if (ExistingVal.IsUninitialized())
-	{
-		SequenceTable[NumElements++] = Slot;
-	}
-	else
-	{
-		OverwriteSlot = true;
-	}
-	if (ExistingVal != Value)
-	{
-		check(PairTable[Slot].Key.Get().IsUninitialized() || VValue::Equal(Context, PairTable[Slot].Key.Get(), Key, [](VValue R, VValue L) {}));
-		PairTable[Slot] = {TWriteBarrier<VValue>(Context, Key), TWriteBarrier<VValue>(Context, Value)};
-	}
-
-	return {Slot, OverwriteSlot};
-}
-
 inline void VMapBase::Add(FAllocationContext Context, VValue Key, VValue Value)
 {
 	check(Capacity > 0);
@@ -62,6 +22,17 @@ inline void VMapBase::Add(FAllocationContext Context, VValue Key, VValue Value)
 
 	uint32 KeyHash = GetTypeHash(Key);
 	AddWithoutLocking(Context, KeyHash, Key, Value);
+}
+
+inline void VMapBase::AddTransactionally(FAllocationContext Context, VValue Key, VValue Value)
+{
+	check(Capacity > 0);
+	UE::FExternalMutex ExternalMutex(Mutex);
+	UE::TUniqueLock Lock(ExternalMutex);
+
+	uint32 KeyHash = GetTypeHash(Key);
+	bool bTransactional = true;
+	AddWithoutLocking(Context, KeyHash, Key, Value, bTransactional);
 }
 
 inline VMapBase::VMapBase(FAllocationContext Context, uint32 InitialCapacity, VEmergentType* Type)
@@ -80,7 +51,7 @@ inline VMapBase::VMapBase(FAllocationContext Context, uint32 MaxNumEntries, cons
 	, Capacity(0)
 {
 	SetIsDeeplyMutable();
-	Reserve(Context, MaxNumEntries);
+	Reserve(Context, MaxNumEntries * 2);
 
 	// Constructing a map in Verse has these semantics:
 	// - If the same key appears more than once, it's as if only the last key was provided.
@@ -91,7 +62,7 @@ inline VMapBase::VMapBase(FAllocationContext Context, uint32 MaxNumEntries, cons
 	{
 		TPair<VValue, VValue> Pair = GetEntry(Index);
 		uint32 KeyHash = GetTypeHash(Pair.Key);
-		TPair<uint32, bool> Res = AddWithoutLocking(Context, KeyHash, Pair.Key, Pair.Value); // we don't need a lock because we aren't constructed yet and can't be hit by the GC
+		TPair<uint32, bool> Res = AddWithoutLocking(Context, KeyHash, Pair.Key, Pair.Value); // We don't need to lock because we can't be visited by the GC until after the next handshake.
 		uint32 Slot = Res.Get<0>();
 		bool SlotOverwritten = Res.Get<1>();
 		if (SlotOverwritten)
@@ -150,7 +121,7 @@ inline void VMapBase::Serialize(MapType*& This, FAllocationContext Context, FAbs
 template <typename MapType, typename GetEntryByIndex>
 inline VMapBase& VMapBase::New(FAllocationContext Context, uint32 MaxNumEntries, const GetEntryByIndex& GetEntry)
 {
-	return *new (FAllocationContext(Context).Allocate(Verse::FHeap::DestructorSpace, sizeof(VMapBase))) VMapBase(Context, MaxNumEntries, GetEntry, &MapType::GlobalTrivialEmergentType.Get(Context));
+	return *new (FAllocationContext(Context).AllocateFastCell(sizeof(VMapBase))) VMapBase(Context, MaxNumEntries, GetEntry, &MapType::GlobalTrivialEmergentType.Get(Context));
 }
 
 } // namespace Verse

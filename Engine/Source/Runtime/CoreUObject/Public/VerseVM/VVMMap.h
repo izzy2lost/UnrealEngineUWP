@@ -13,6 +13,7 @@
 #include "VVMHeap.h"
 #include "VVMValue.h"
 #include "VVMWriteBarrier.h"
+#include "VerseVM/Inline/VVMValueInline.h"
 
 namespace Verse
 {
@@ -67,9 +68,10 @@ protected:
 	VMapBase(FAllocationContext Context, uint32 InitialCapacity, VEmergentType* Type);
 	template <typename GetEntryByIndex>
 	VMapBase(FAllocationContext Context, uint32 MaxNumEntries, const GetEntryByIndex& GetEntry, VEmergentType* Type);
-	~VMapBase();
 
-	TPair<uint32, bool> AddWithoutLocking(FAllocationContext Context, uint32 KeyHash, VValue Key, VValue Value);
+	// This should only be called if you already have the required mutexes or know you don't need them.
+	// Returns the slot in the data table where the value was inserted and a boolean indicating if an existing entry was replaced.
+	TPair<uint32, bool> AddWithoutLocking(FAllocationContext Context, uint32 KeyHash, VValue Key, VValue Value, bool bTransactional = false);
 
 public:
 	uint32 Num() const
@@ -112,6 +114,7 @@ public:
 		return PairTable[SequenceTable[Index]].Value.Follow();
 	}
 	void Add(FAllocationContext Context, VValue Key, VValue Value);
+	void AddTransactionally(FAllocationContext Context, VValue Key, VValue Value);
 	void Reserve(FAllocationContext Context, uint32 InCapacity);
 
 	size_t GetPairTableSizeForCapacity(uint32 InCapacity) const
@@ -136,26 +139,26 @@ public:
 	}
 	const PairType* GetPairTable() const
 	{
-		return static_cast<PairType*>(Data.Get().GetPtr());
+		return Data.Get().GetPtr();
 	}
 	const SequenceType* GetSequenceTable() const
 	{
-		return static_cast<SequenceType*>(SequenceData.Get().GetPtr());
+		return SequenceData.Get().GetPtr();
 	}
 	PairType* GetPairTable()
 	{
-		return static_cast<PairType*>(Data.Get().GetPtr());
+		return Data.Get().GetPtr();
 	}
 	SequenceType* GetSequenceTable()
 	{
-		return static_cast<SequenceType*>(SequenceData.Get().GetPtr());
+		return SequenceData.Get().GetPtr();
 	}
 
 	// These `new` calls are templated so as to avoid boilerplate News/Ctors in VMapBase's subclasses.
 	template <typename MapType>
 	static VMapBase& New(FAllocationContext Context, uint32 InitialCapacity = 0)
 	{
-		return *new (FAllocationContext(Context).Allocate(Verse::FHeap::DestructorSpace, sizeof(VMapBase))) VMapBase(Context, InitialCapacity, &MapType::GlobalTrivialEmergentType.Get(Context));
+		return *new (FAllocationContext(Context).AllocateFastCell(sizeof(VMapBase))) VMapBase(Context, InitialCapacity, &MapType::GlobalTrivialEmergentType.Get(Context));
 	}
 
 	template <typename MapType, typename GetEntryByIndex>
@@ -186,7 +189,7 @@ public:
 		return it;
 	}
 
-	TWriteBarrier<TAux<void>> Data;
+	TWriteBarrier<TAux<PairType>> Data;
 	TWriteBarrier<TAux<SequenceType>> SequenceData; // initial insert sequence only.  Overwritten values will stay in their original sequence
 	uint32 NumElements;
 	uint32 Capacity;

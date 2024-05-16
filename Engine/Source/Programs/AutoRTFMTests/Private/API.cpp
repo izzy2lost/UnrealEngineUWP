@@ -392,8 +392,8 @@ TEST_CASE("API.autortfm_on_abort")
             AutoRTFM::AbortTransaction();
         });
 
-        // This should never be modified because its transaction aborted!
-        if (InnerTransactionWithAbort)
+        // OnAbort runs eagerly on inner abort
+        if (!InnerTransactionWithAbort)
         {
             AutoRTFM::AbortTransaction();
         }
@@ -838,11 +838,11 @@ TEST_CASE("API.OnAbort")
                 InnerTransactionWithAbort = true;
             });
 
-		AutoRTFM::AbortTransaction();
+			AutoRTFM::AbortTransaction();
         });
 
-        // This should never be modified because its transaction aborted!
-        if (InnerTransactionWithAbort)
+        // Inner OnAbort runs eagerly
+        if (!InnerTransactionWithAbort)
         {
 			AutoRTFM::AbortTransaction();
         }

@@ -137,25 +137,33 @@ struct VBuffer : TAux<void>
 		SetChar(Num(), static_cast<UTF8CHAR>(0));
 	}
 
+	template <bool bTransactional>
 	void SetVValue(FAllocationContext Context, uint32 Index, VValue Value)
 	{
 		checkSlow(GetArrayType() == EArrayType::VValue);
-		new (&GetData<TWriteBarrier<VValue>>()[Index]) TWriteBarrier<VValue>(Context, Value);
+		if constexpr (bTransactional)
+		{
+			GetData<TWriteBarrier<VValue>>()[Index].SetTransactionally(Context, *this, Value);
+		}
+		else
+		{
+			new (&GetData<TWriteBarrier<VValue>>()[Index]) TWriteBarrier<VValue>(Context, Value);
+		}
 	}
 	void SetInt32(uint32 Index, int32 Value)
 	{
 		checkSlow(GetArrayType() == EArrayType::Int32);
-		new (&GetData<int32>()[Index]) int32(Value);
+		GetData<int32>()[Index] = Value;
 	}
 	void SetChar(uint32 Index, uint8 Value)
 	{
 		checkSlow(GetArrayType() == EArrayType::Char8);
-		new (&GetData<uint8>()[Index]) uint8(Value);
+		GetData<uint8>()[Index] = Value;
 	}
 	void SetChar32(uint32 Index, uint32 Value)
 	{
 		checkSlow(GetArrayType() == EArrayType::Char32);
-		new (&GetData<uint32>()[Index]) uint32(Value);
+		GetData<uint32>()[Index] = Value;
 	}
 
 	template <typename T = void>
@@ -174,14 +182,23 @@ struct VArrayBase : VHeapValue
 protected:
 	TWriteBarrier<VBuffer> Buffer;
 
+	template <bool bTransactional = false>
 	void SetBufferWithoutStoreBarrier(FAccessContext Context, VBuffer NewBuffer)
 	{
-		this->Buffer.Set(Context, NewBuffer);
+		if constexpr (bTransactional)
+		{
+			reinterpret_cast<TWriteBarrier<TAux<void>>&>(Buffer).SetTransactionally(Context, *this, NewBuffer);
+		}
+		else
+		{
+			Buffer.Set(Context, NewBuffer);
+		}
 	}
+	template <bool bTransactional = false>
 	void SetBufferWithStoreBarrier(FAccessContext Context, VBuffer NewBuffer)
 	{
 		StoreStoreFence();
-		SetBufferWithoutStoreBarrier(Context, NewBuffer);
+		SetBufferWithoutStoreBarrier<bTransactional>(Context, NewBuffer);
 	}
 
 	static EArrayType DetermineArrayType(VValue Value)
@@ -272,6 +289,7 @@ protected:
 		Buffer.Get().SetNullTerminator();
 	}
 
+	template <bool bTransactional = false>
 	void ConvertDataToVValues(FAllocationContext Context, uint32 NewCapacity);
 
 	template <typename T>
@@ -285,10 +303,17 @@ public:
 	VValue GetValue(uint32 Index);
 
 	/// Capacity parameter is required for handling when a re-allocation to VValues takes place during SetValue from a VMutableArray.
+protected:
+	template <bool bTransactional>
+	void SetValueImpl(FAllocationContext Context, uint32 Index, VValue Value);
+
+public:
 	void SetValue(FAllocationContext Context, uint32 Index, VValue Value);
+	void SetValueTransactionally(FAllocationContext Context, uint32 Index, VValue Value);
+	template <bool bTransactional = false>
 	void SetVValue(FAllocationContext Context, uint32 Index, VValue Value)
 	{
-		Buffer.Get().SetVValue(Context, Index, Value);
+		Buffer.Get().SetVValue<bTransactional>(Context, Index, Value);
 	}
 	void SetInt32(uint32 Index, int32 Value)
 	{

@@ -34,14 +34,18 @@ void FTransaction::AbortWithoutThrowing()
     Stats.Collect<EStatsKind::Abort>();
     CollectStats();
 
+    Undo();
+	AbortTasks.ForEachBackward([&](const TFunction<void()>& Task) -> bool { Task(); return true; });
+
     if (IsNested())
     {
-        AbortNested();
+		ASSERT(Parent);
     }
     else
     {
-        AbortOuterNest();
+		ASSERT(Context->IsAborting());
     }
+
     Reset();
 }
 
@@ -126,27 +130,6 @@ void FTransaction::Undo()
     }
 
 	UE_LOG(LogAutoRTFM, Verbose, TEXT("Undone a transaction!"));
-}
-
-void FTransaction::AbortNested()
-{
-    ASSERT(Parent);
-
-    Undo();
-
-	// We need to add the abort tasks in reverse order to the parent, as they need to be run in the reverse order.
-	AbortTasks.ForEachBackward([&](const TFunction<void()>& Task) -> bool { Parent->CommitTasks.Add(Task); return true; });
-
-    Parent->AbortTasks.AddAll(MoveTemp(AbortTasks));
-}
-
-void FTransaction::AbortOuterNest()
-{
-    Undo();
-
-    AbortTasks.ForEachBackward([] (const TFunction<void()>& Task) -> bool { Task(); return true; });
-
-	ASSERT(Context->IsAborting());
 }
 
 void FTransaction::CommitNested()

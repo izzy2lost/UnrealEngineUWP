@@ -10,6 +10,7 @@
 #include "VerseVM/VVMInt.h"
 #include "VerseVM/VVMMarkStackVisitor.h"
 #include "VerseVM/VVMMutableArray.h"
+#include "VerseVM/VVMTransaction.h"
 
 namespace Verse
 {
@@ -52,6 +53,7 @@ inline VValue VArrayBase::GetValue(uint32 Index)
 	}
 }
 
+template <bool bTransactional>
 inline void VArrayBase::ConvertDataToVValues(FAllocationContext Context, uint32 NewCapacity)
 {
 	if (GetArrayType() != EArrayType::VValue)
@@ -65,40 +67,63 @@ inline void VArrayBase::ConvertDataToVValues(FAllocationContext Context, uint32 
 
 		// We need to see the store to ArrayType/Num/all the VValues before the GC
 		// sees the buffer itself.
-		SetBufferWithStoreBarrier(Context, NewBuffer);
+		SetBufferWithStoreBarrier<bTransactional>(Context, NewBuffer);
 	}
 }
 
-inline void VArrayBase::SetValue(FAllocationContext Context, uint32 Index, VValue Value)
+template <bool bTransactional>
+inline void VArrayBase::SetValueImpl(FAllocationContext Context, uint32 Index, VValue Value)
 {
 	checkSlow(Index < Capacity());
 	EArrayType ArrayType = GetArrayType();
 	if (ArrayType == EArrayType::VValue)
 	{
-		SetVValue(Context, Index, Value);
+		SetVValue<bTransactional>(Context, Index, Value);
 	}
 	else if (ArrayType != DetermineArrayType(Value))
 	{
-		ConvertDataToVValues(Context, Capacity());
-		SetVValue(Context, Index, Value);
+		ConvertDataToVValues<bTransactional>(Context, Capacity());
+		SetVValue<bTransactional>(Context, Index, Value);
 	}
 	else
 	{
-		switch (ArrayType)
+		auto DoSet = [&] {
+			switch (ArrayType)
+			{
+				case EArrayType::Int32:
+					SetInt32(Index, Value.AsInt32());
+					break;
+				case EArrayType::Char8:
+					SetChar(Index, Value.AsChar());
+					break;
+				case EArrayType::Char32:
+					SetChar32(Index, Value.AsChar32());
+					break;
+				default:
+					V_DIE("Unhandled EArrayType encountered!");
+			}
+		};
+
+		if constexpr (bTransactional)
 		{
-			case EArrayType::Int32:
-				SetInt32(Index, Value.AsInt32());
-				break;
-			case EArrayType::Char8:
-				SetChar(Index, Value.AsChar());
-				break;
-			case EArrayType::Char32:
-				SetChar32(Index, Value.AsChar32());
-				break;
-			default:
-				V_DIE("Unhandled EArrayType encountered!");
+			Context.CurrentTransaction()->AddAuxRoot(Context, Buffer.Get());
+			(void)AutoRTFM::Close(DoSet);
+		}
+		else
+		{
+			DoSet();
 		}
 	}
+}
+
+inline void VArrayBase::SetValue(FAllocationContext Context, uint32 Index, VValue Value)
+{
+	SetValueImpl<false>(Context, Index, Value);
+}
+
+inline void VArrayBase::SetValueTransactionally(FAllocationContext Context, uint32 Index, VValue Value)
+{
+	SetValueImpl<true>(Context, Index, Value);
 }
 
 template <typename T>
