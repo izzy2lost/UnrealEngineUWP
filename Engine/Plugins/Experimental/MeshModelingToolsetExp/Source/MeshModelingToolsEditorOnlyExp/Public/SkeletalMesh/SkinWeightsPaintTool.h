@@ -2,19 +2,19 @@
 
 #pragma once
 
-#include "AssetViewerSettings.h"
 #include "DynamicMeshBrushTool.h"
 #include "BaseTools/MeshSurfacePointMeshEditingTool.h"
 #include "MeshDescription.h"
 #include "DynamicMesh/DynamicVerticesOctree3.h"
 #include "BoneWeights.h"
 #include "GroupTopology.h"
-#include "PreviewProfileController.h"
+#include "SkeletalMeshAttributes.h"
 #include "Misc/Optional.h"
 #include "Containers/Map.h"
 #include "DynamicMesh/DynamicMeshOctree3.h"
 #include "SkeletalMesh/SkeletalMeshEditionInterface.h"
 #include "Engine/SkeletalMesh.h"
+#include "TargetInterfaces/MeshTargetInterfaceTypes.h"
 
 #include "SkinWeightsPaintTool.generated.h"
 
@@ -153,7 +153,11 @@ namespace SkinPaintTool
 	class FMeshSkinWeightsChange : public FToolCommandChange
 	{
 	public:
-		FMeshSkinWeightsChange() : FToolCommandChange()	{ }
+		FMeshSkinWeightsChange(const EMeshLODIdentifier InLOD, const FName InSkinWeightProfile)
+			: FToolCommandChange()
+			, LOD(InLOD)
+			, SkinWeightProfile(InSkinWeightProfile)
+		{}
 
 		virtual FString ToString() const override
 		{
@@ -168,6 +172,8 @@ namespace SkinPaintTool
 
 	private:
 		FMultiBoneWeightEdits AllWeightEdits;
+		EMeshLODIdentifier LOD = EMeshLODIdentifier::Default;
+		FName SkinWeightProfile = FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName;
 	};
 
 	// intermediate storage of the weight maps for duration of tool
@@ -224,6 +230,9 @@ namespace SkinPaintTool
 
 		// update deformation when vertex weights are modified
 		FSkinToolDeformer Deformer;
+
+		// which skin profile is currently edited
+		FName Profile = FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName;
 	};
 
 	struct FSkinMirrorData
@@ -335,6 +344,12 @@ public:
 	UPROPERTY(Config)
 	FSkinWeightBrushConfig BrushConfigRelax;
 
+	// skin weight layer properties
+	UPROPERTY(EditAnywhere, Category = SkinWeightLayer, meta = (DisplayName = "Active LOD", GetOptions = GetLODsFunc))
+	FName ActiveLOD = "LOD0";
+	UPROPERTY(EditAnywhere, Category = SkinWeightLayer, meta = (DisplayName = "Active Profile", GetOptions = GetSkinWeightProfilesFunc))
+	FName ActiveSkinWeightProfile = FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName;
+	
 	// pointer back to paint tool
 	TObjectPtr<USkinWeightsPaintTool> WeightTool;
 
@@ -342,6 +357,13 @@ public:
 	void SetFalloffMode(EWeightBrushFalloffMode InFalloffMode);
 	void SetColorMode(EWeightColorMode InColorMode);
 	void SetBrushMode(EWeightEditOperation InBrushMode);
+
+private:
+	
+	UFUNCTION()
+	TArray<FName> GetLODsFunc() const;
+	UFUNCTION()
+	TArray<FName> GetSkinWeightProfilesFunc() const;
 };
 
 // An interactive tool for painting and editing skin weights.
@@ -379,6 +401,7 @@ public:
 
 	// using when ToolChange is applied via Undo/Redo
 	void ExternalUpdateWeights(const int32 BoneIndex, const TMap<int32, float>& IndexValues);
+	void ExternalUpdateSkinWeightLayer(const EMeshLODIdentifier InLOD, const FName InSkinWeightProfile);
 
 	// weight editing operations (selection based)
 	void MirrorWeights(EAxis::Type Axis, EMirrorDirection Direction);
@@ -484,18 +507,22 @@ protected:
 		SkinPaintTool::FMultiBoneWeightEdits& InOutWeightEdits);
 
 	// used to accelerate mesh queries
-	UE::Geometry::TDynamicVerticesOctree3<FDynamicMesh3> VerticesOctree;
-	UE::Geometry::FDynamicMeshOctree3 TrianglesOctree;
+	using DynamicVerticesOctree = UE::Geometry::TDynamicVerticesOctree3<FDynamicMesh3>;
+	TUniquePtr<DynamicVerticesOctree> VerticesOctree;
+	using DynamicTrianglesOctree = UE::Geometry::FDynamicMeshOctree3;
+	TUniquePtr<DynamicTrianglesOctree> TrianglesOctree;
 	TFuture<void> TriangleOctreeFuture;
 	TArray<int32> TrianglesToReinsert;
+	void InitializeOctrees();
 
 	// tool properties
 	UPROPERTY()
 	TObjectPtr<USkinWeightsPaintToolProperties> WeightToolProperties;
 	virtual void OnPropertyModified(UObject* ModifiedObject, FProperty* ModifiedProperty) override;
 	
-	// the currently edited mesh description
-	TUniquePtr<FMeshDescription> EditedMesh;
+	// the currently edited mesh descriptions
+	mutable TMap<EMeshLODIdentifier, FMeshDescription> EditedMeshes;
+	FMeshDescription* EditedMesh = nullptr;
 
 	// storage of vertex weights per bone 
 	SkinPaintTool::FSkinToolWeights Weights;
@@ -509,6 +536,7 @@ protected:
 	// Smooth weights data source and operator
 	TUniquePtr<UE::Geometry::TBoneWeightsDataSource<int32, float>> SmoothWeightsDataSource;
 	TUniquePtr<UE::Geometry::TSmoothBoneWeights<int32, float>> SmoothWeightsOp;
+	void InitializeSmoothWeightsOperator();
 
 	// vertex colors updated when switching current bone or editing weights
 	void UpdateCurrentBoneVertexColors();
@@ -535,6 +563,12 @@ protected:
 	TObjectPtr<UPolygonSelectionMechanic> PolygonSelectionMechanic;
 	TUniquePtr<UE::Geometry::FDynamicMeshAABBTree3> MeshSpatial = nullptr;
 	TUniquePtr<UE::Geometry::FTriangleGroupTopology> SelectionTopology = nullptr;
+	void InitializeSelectionMechanic();
+
+	// skin weight layer
+	void OnActiveLODChanged();
+	void OnActiveSkinWeightProfileChanged();
+	bool IsProfileValid(const FName InProfileName) const;
 
 	UPROPERTY()
 	TWeakObjectPtr<USkeletalMeshEditorContextObjectBase> EditorContext = nullptr;

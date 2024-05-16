@@ -36,6 +36,10 @@ void FSkinWeightDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 	ensure(DetailObjects.Num()==1);
 	SkinToolSettings = Cast<USkinWeightsPaintToolProperties>(DetailObjects[0]);
 
+	// Edit SkinWeightLayer category first 
+	IDetailCategoryBuilder& SkinWeightLayerCategory = DetailBuilder.EditCategory("SkinWeightLayer", FText::GetEmpty(), ECategoryPriority::Important);
+	SkinWeightLayerCategory.InitiallyCollapsed(true);
+	
 	// custom display of falloff mode as segmented toggle buttons
 	IDetailCategoryBuilder& EditModeCategory = DetailBuilder.EditCategory("Weight Editing Mode", FText::GetEmpty(), ECategoryPriority::Important);
 
