@@ -393,6 +393,7 @@ private:
 	static FName GetPropertyFullName(const TArray<const FProperty*>& PropertyChain);
 	static FText GetPropertyDisplayNameText(const TArray<const FProperty*>& PropertyChain);
 	static uint32 GetPropertyOffset(const TArray<const FProperty*>& PropertyChain);
+	uint32 GetConnectionOffsetFromReference(const void* Reference) const;
 
 	/**
 	* Find a property using the property address and name (not including its parent struct property names).

@@ -21,8 +21,8 @@ namespace Dataflow
 {
 	struct FInputParameters : public FConnectionParameters
 	{
-		FInputParameters(FName InType = NAME_None, FName InName = NAME_None, FDataflowNode* InOwner = nullptr, const FProperty* InProperty = nullptr, FGuid InGuid = FGuid::NewGuid())
-			: FConnectionParameters(InType, InName, InOwner, InProperty, InGuid)
+		FInputParameters(FName InType = NAME_None, FName InName = NAME_None, FDataflowNode* InOwner = nullptr, const FProperty* InProperty = nullptr, uint32 InOffset = INDEX_NONE, FGuid InGuid = FGuid::NewGuid())
+			: FConnectionParameters(InType, InName, InOwner, InProperty, InOffset, InGuid)
 		{}
 	};
 }
@@ -87,8 +87,8 @@ namespace Dataflow
 {
 	struct FOutputParameters: public FConnectionParameters
 	{
-		FOutputParameters(FName InType = NAME_None, FName InName = NAME_None, FDataflowNode* InOwner = nullptr, const FProperty* InProperty = nullptr, FGuid InGuid = FGuid::NewGuid())
-			: FConnectionParameters(InType, InName, InOwner, InProperty, InGuid)
+		FOutputParameters(FName InType = NAME_None, FName InName = NAME_None, FDataflowNode* InOwner = nullptr, const FProperty* InProperty = nullptr, uint32 InOffset = INDEX_NONE, FGuid InGuid = FGuid::NewGuid())
+			: FConnectionParameters(InType, InName, InOwner, InProperty, InOffset, InGuid)
 		{}
 	};
 }

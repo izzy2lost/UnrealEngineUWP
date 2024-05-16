@@ -54,14 +54,12 @@ void FDataflowNode::AddInput(FDataflowInput* InPtr)
 			ensureMsgf(!In->GetName().IsEqual(InPtr->GetName()), TEXT("Add Input Failed: Existing Node input already defined with name (%s)"), *InPtr->GetName().ToString());
 		}
 
+		check(InPtr->GetOwningNode() == this);
+
 		const uint32 PropertyOffset = InPtr->GetOffset();
-		if (!Inputs.Contains(PropertyOffset))
+		if (ensure(!Inputs.Contains(PropertyOffset)))
 		{
 			Inputs.Add(PropertyOffset, InPtr);
-		}
-		else
-		{
-			Inputs[PropertyOffset] = InPtr;
 		}
 	}
 }
@@ -95,26 +93,22 @@ const FDataflowInput* FDataflowNode::FindInput(FName InName) const
 
 const FDataflowInput* FDataflowNode::FindInput(const void* Reference) const
 {
-	for (const TPair<int32, FDataflowInput*>& Elem : Inputs)
+	const int32 Key = GetConnectionOffsetFromReference(Reference);
+	if (const FDataflowInput* const* Con = Inputs.Find(Key))
 	{
-		const FDataflowInput* const Con = Elem.Value;
-		if (Con->RealAddress() == Reference)
-		{
-			return Con;
-		}
+		check(*Con && (*Con)->RealAddress() == Reference);
+		return *Con;
 	}
 	return nullptr;
 }
 
 FDataflowInput* FDataflowNode::FindInput(void* Reference)
 {
-	for (TPair<int32, FDataflowInput*>& Elem : Inputs)
+	const int32 Key = GetConnectionOffsetFromReference(Reference);
+	if (FDataflowInput* const* Con = Inputs.Find(Key))
 	{
-		FDataflowInput* const Con = Elem.Value;
-		if (Con->RealAddress() == Reference)
-		{
-			return Con;
-		}
+		check(*Con && (*Con)->RealAddress() == Reference);
+		return *Con;
 	}
 	return nullptr;
 }
@@ -190,14 +184,12 @@ void FDataflowNode::AddOutput(FDataflowOutput* InPtr)
 			ensureMsgf(!Out->GetName().IsEqual(InPtr->GetName()), TEXT("Add Output Failed: Existing Node output already defined with name (%s)"), *InPtr->GetName().ToString());
 		}
 
+		check(InPtr->GetOwningNode() == this);
+
 		const uint32 PropertyOffset = InPtr->GetOffset();
-		if (!Outputs.Contains(PropertyOffset))
+		if (ensure(!Outputs.Contains(PropertyOffset)))
 		{
 			Outputs.Add(PropertyOffset, InPtr);
-		}
-		else
-		{
-			Outputs[PropertyOffset] = InPtr;
 		}
 	}
 }
@@ -257,26 +249,22 @@ const FDataflowOutput* FDataflowNode::FindOutput(uint32 InGuidHash) const
 
 const FDataflowOutput* FDataflowNode::FindOutput(const void* Reference) const
 {
-	for (const TPair<int32, FDataflowOutput*>& Elem : Outputs)
+	const int32 Key = GetConnectionOffsetFromReference(Reference);
+	if (const FDataflowOutput* const* Con = Outputs.Find(Key))
 	{
-		const FDataflowOutput* const Con = Elem.Value;
-		if (Con->RealAddress() == Reference)
-		{
-			return Con;
-		}
+		check(*Con && (*Con)->RealAddress() == Reference);
+		return *Con;
 	}
 	return nullptr;
 }
 
 FDataflowOutput* FDataflowNode::FindOutput(void* Reference)
 {
-	for (TPair<int32, FDataflowOutput*>& Elem : Outputs)
+	const int32 Key = GetConnectionOffsetFromReference(Reference);
+	if (FDataflowOutput* const* Con = Outputs.Find(Key))
 	{
-		FDataflowOutput* const Con = Elem.Value;
-		if (Con->RealAddress() == Reference)
-		{
-			return Con;
-		}
+		check(*Con && (*Con)->RealAddress() == Reference);
+		return *Con;
 	}
 	return nullptr;
 }
@@ -478,6 +466,11 @@ uint32 FDataflowNode::GetPropertyOffset(const FName& PropertyFullName) const
 	return Offset;
 }
 
+uint32 FDataflowNode::GetConnectionOffsetFromReference(const void* Reference) const
+{
+	return (uint32)((size_t)Reference - (size_t)this);
+}
+
 FString FDataflowNode::GetPropertyFullNameString(const TConstArrayView<const FProperty*>& PropertyChain)
 {
 	FString PropertyFullName;
@@ -528,6 +521,8 @@ bool FDataflowNode::InitConnectionParametersFromPropertyReference(const FStructO
 				OutParams.Name = GetPropertyFullName(PropertyChain);
 				OutParams.Property = Property;
 				OutParams.Owner = this;
+				OutParams.Offset = GetConnectionOffsetFromReference(PropertyRef);
+				check(OutParams.Offset == GetPropertyOffset(PropertyChain));
 				return true;
 			}
 		}
@@ -542,7 +537,9 @@ FDataflowInput* FDataflowNode::RegisterInputConnectionInternal(const void* InPro
 		if (InitConnectionParametersFromPropertyReference(*ScriptOnStruct, InProperty, PropertyName, InputParams))
 		{
 			FDataflowInput* const Input = new FDataflowInput(InputParams);
+			check(Input->RealAddress() == InProperty);
 			AddInput(Input);
+			check(FindInput(InProperty) == Input);
 			return Input;
 		}
 	}
@@ -582,15 +579,19 @@ FDataflowOutput* FDataflowNode::RegisterOutputConnectionInternal(const void* InP
 		if (InitConnectionParametersFromPropertyReference(*ScriptOnStruct, InProperty, PropertyName, OutputParams))
 		{
 			FDataflowOutput* OutputConnection = new FDataflowOutput(OutputParams);
+			check(OutputConnection->RealAddress() == InProperty);
 
 			TArray<const FProperty*> PassthroughPropertyChain;
 			if (FindProperty(ScriptOnStruct->GetStruct(), Passthrough, PassthroughName, &PassthroughPropertyChain))
 			{
-				const uint32 PassthroughOffset = GetPropertyOffset(PassthroughPropertyChain);
+				const uint32 PassthroughOffset = GetConnectionOffsetFromReference(Passthrough);
+				check(PassthroughOffset == GetPropertyOffset(PassthroughPropertyChain));
 				OutputConnection->SetPassthroughOffset(PassthroughOffset);
 			}
 
 			AddOutput(OutputConnection);
+			check(FindOutput(InProperty) == OutputConnection);
+			return OutputConnection;
 		}
 	}
 	return nullptr;

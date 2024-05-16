@@ -13,6 +13,7 @@ FDataflowConnection::FDataflowConnection(Dataflow::FPin::EDirection InDirection,
 	, OwningNode(InOwningNode)
 	, Property(InProperty)
 	, Guid(InGuid)
+	, Offset(OwningNode ? OwningNode->GetPropertyOffset(Name) : INDEX_NONE)
 	, Direction(InDirection)
 {
 	InitFromType();
@@ -24,6 +25,7 @@ FDataflowConnection::FDataflowConnection(Dataflow::FPin::EDirection InDirection,
 	, OwningNode(Params.Owner)
 	, Property(Params.Property)
 	, Guid(Params.Guid)
+	, Offset(Params.Offset)
 	, Direction(InDirection)
 {
 	InitFromType();
@@ -46,16 +48,6 @@ void FDataflowConnection::InitFromType()
 		}
 	}
 }
-
-uint32 FDataflowConnection::GetOffset() const
-{
-	if (ensure(OwningNode))
-	{
-		return OwningNode->GetPropertyOffset(Name);
-	}
-	return INDEX_NONE;
-}
-
 
 bool FDataflowConnection::IsOwningNodeEnabled() const
 {

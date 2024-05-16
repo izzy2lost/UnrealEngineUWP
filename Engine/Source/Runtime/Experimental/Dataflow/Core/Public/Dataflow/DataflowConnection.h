@@ -37,11 +37,12 @@ namespace Dataflow
 
 	struct FConnectionParameters
 	{
-		FConnectionParameters(FName InType = FName(""), FName InName = FName(""), FDataflowNode* InOwner = nullptr, const FProperty* InProperty = nullptr, FGuid InGuid = FGuid::NewGuid())
+		FConnectionParameters(FName InType = FName(""), FName InName = FName(""), FDataflowNode* InOwner = nullptr, const FProperty* InProperty = nullptr, uint32 InOffset = INDEX_NONE, FGuid InGuid = FGuid::NewGuid())
 			: Type(InType)
 			, Name(InName)
 			, Owner(InOwner)
 			, Property(InProperty)
+			, Offset(InOffset)
 			, Guid(InGuid)
 		{}
 
@@ -49,6 +50,7 @@ namespace Dataflow
 		FName Name;
 		FDataflowNode* Owner = nullptr;
 		const FProperty* Property = nullptr;
+		uint32 Offset = INDEX_NONE;
 		FGuid Guid;
 	};
 
@@ -70,6 +72,7 @@ protected:
 	const FProperty* Property = nullptr;
 	FGuid  Guid;
 	IDataflowTypePolicy* TypePolicy = nullptr;
+	uint32 Offset;
 	Dataflow::FPin::EDirection Direction;
 	bool bIsAnyType:1 = false;
 	bool bHasConcreteType : 1 = false;
@@ -112,7 +115,7 @@ public:
 	const FProperty* GetProperty() const { return Property; }
 
 	Dataflow::FPin::EDirection GetDirection() const { return Direction; }
-	DATAFLOWCORE_API uint32 GetOffset() const;
+	uint32 GetOffset() const { return Offset; }
 
 	FName GetType() const { return Type; }
 
