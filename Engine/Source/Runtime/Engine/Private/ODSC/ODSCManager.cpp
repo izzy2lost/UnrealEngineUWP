@@ -6,6 +6,7 @@
 #include "ODSCLog.h"
 #include "ODSCThread.h"
 #include "Containers/BackgroundableTicker.h"
+#include "Materials/MaterialInstance.h"
 
 DEFINE_LOG_CATEGORY(LogODSC);
 
@@ -72,6 +73,13 @@ bool FODSCManager::Tick(float DeltaSeconds)
 		TArray<FODSCMessageHandler*> CompletedThreadedRequests;
 		Thread->GetCompletedRequests(CompletedThreadedRequests);
 
+		bool bFlushAsyncLoading = HasAsyncLoadingInstances();
+
+		if (CompletedThreadedRequests.Num() && bFlushAsyncLoading)
+		{
+			FlushAsyncLoading();
+		}
+
 		// Finish and remove any completed requests
 		for (FODSCMessageHandler* CompletedRequest : CompletedThreadedRequests)
 		{
@@ -116,4 +124,49 @@ void FODSCManager::AddThreadedShaderPipelineRequest(
 	{
 		Thread->AddShaderPipelineRequest(ShaderPlatform, FeatureLevel, QualityLevel, MaterialName, VertexFactoryName, PipelineName, ShaderTypeNames, PermutationId);
 	}
+}
+
+static inline bool IsODSCActive()
+{
+	return GODSCManager && GODSCManager->IsHandlingRequests();
+}
+
+void FODSCManager::RegisterMaterialInstance(const UMaterialInstance* MaterialInstance)
+{
+	if (IsODSCActive() && MaterialInstance->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+	{
+		FScopeLock Lock(&GODSCManager->MaterialInstancesCachedUniformExpressionsCS);
+		TWeakObjectPtr<const UMaterialInstance>& MaterialInstanceSoftPtr = GODSCManager->MaterialInstancesCachedUniformExpressions.FindOrAdd(MaterialInstance);
+		MaterialInstanceSoftPtr = TWeakObjectPtr<const UMaterialInstance>(MaterialInstance);
+	}
+} 
+
+void FODSCManager::UnregisterMaterialInstance(const UMaterialInstance* MaterialInstance)
+{
+	if (GODSCManager != nullptr)
+	{
+		FScopeLock Lock(&GODSCManager->MaterialInstancesCachedUniformExpressionsCS);
+		GODSCManager->MaterialInstancesCachedUniformExpressions.Remove(MaterialInstance);
+	}
+}
+
+bool FODSCManager::HasAsyncLoadingInstances()
+{
+	FScopeLock Lock(&MaterialInstancesCachedUniformExpressionsCS);
+
+	bool bHasAsyncLoadingInstances = false;
+	for (auto Iter = MaterialInstancesCachedUniformExpressions.CreateIterator(); Iter; ++Iter)
+	{
+		const UMaterialInstance* MI = Iter.Value().Get();
+
+		if (MI == nullptr || !MI->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+		{
+			Iter.RemoveCurrent();
+			continue;
+		}
+
+		bHasAsyncLoadingInstances = true;
+	}
+
+	return bHasAsyncLoadingInstances;
 }

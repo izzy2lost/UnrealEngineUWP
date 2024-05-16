@@ -9,6 +9,7 @@
 #include "ShaderCompiler.h"
 
 class FODSCThread;
+class UMaterialInstance;
 
 /**
  * Responsible for processing shader compile responses from the ODSC Thread.
@@ -81,15 +82,22 @@ public:
 	/** Returns true if we would actually add a request when calling AddThreadedShaderPipelineRequest. */
 	inline bool IsHandlingRequests() const { return Thread != nullptr; }
 
+	static void RegisterMaterialInstance(const UMaterialInstance* MI);
+	static void UnregisterMaterialInstance(const UMaterialInstance* MI);
+
 private:
 
 	ENGINE_API void OnEnginePreExit();
 	ENGINE_API void StopThread();
 
+	bool HasAsyncLoadingInstances();
+
 	/** Handles communicating directly with the cook on the fly server. */
 	FODSCThread* Thread = nullptr;
 
 	FDelegateHandle OnScreenMessagesHandle;
+	FCriticalSection MaterialInstancesCachedUniformExpressionsCS;
+	TMap<const void*, TWeakObjectPtr<const UMaterialInstance> > MaterialInstancesCachedUniformExpressions;
 
 };
 

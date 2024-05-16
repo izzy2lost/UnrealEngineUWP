@@ -66,6 +66,10 @@
 #include "Cooker/CookDependency.h"
 #endif
 
+#if WITH_ODSC
+#include "ODSC/ODSCManager.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MaterialInstance)
 
 DECLARE_CYCLE_STAT(TEXT("MaterialInstance CopyMatInstParams"), STAT_MaterialInstance_CopyMatInstParams, STATGROUP_Shaders);
@@ -81,6 +85,9 @@ const FMaterialInstanceCachedData FMaterialInstanceCachedData::EmptyData{};
 void UMaterialInstance::StartCacheUniformExpressions() const
 {
 	UsedByRT |= (uint32)EMaterialInstanceUsedByRTFlag::CacheUniformExpressions;
+#if WITH_ODSC
+	FODSCManager::RegisterMaterialInstance(this);
+#endif
 }
 
 void UMaterialInstance::FinishCacheUniformExpressions() const
@@ -3350,6 +3357,10 @@ void UMaterialInstance::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutC
 
 void UMaterialInstance::BeginDestroy()
 {
+#if WITH_ODSC
+	FODSCManager::UnregisterMaterialInstance(this);
+#endif
+
 	TArray<TRefCountPtr<FMaterialResource>> ResourcesToDestroy;
 	for (FMaterialResource* CurrentResource : StaticPermutationMaterialResources)
 	{
