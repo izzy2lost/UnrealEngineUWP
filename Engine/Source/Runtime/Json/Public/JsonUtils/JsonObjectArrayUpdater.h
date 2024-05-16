@@ -25,7 +25,9 @@ struct FJsonObjectArrayUpdater
 
 	DECLARE_DELEGATE_TwoParams(FUpdateJsonObject, const ElementType&, FJsonObject&);
 
-	static void Execute(FJsonObject& JsonObject, const FString& ArrayName, const TArray<ElementType>& SourceArray, FGetElementKey GetElementKey, FTryGetJsonObjectKey TryGetJsonObjectKey, FUpdateJsonObject UpdateJsonObject)
+	DECLARE_DELEGATE_OneParam(FSortArray, TArray<TSharedPtr<FJsonValue>>&);
+
+	static void Execute(FJsonObject& JsonObject, const FString& ArrayName, const TArray<ElementType>& SourceArray, FGetElementKey GetElementKey, FTryGetJsonObjectKey TryGetJsonObjectKey, FUpdateJsonObject UpdateJsonObject, FSortArray SortJsonArray = FSortArray())
 	{
 		if (SourceArray.Num() > 0)
 		{
@@ -79,6 +81,10 @@ struct FJsonObjectArrayUpdater
 					}
 				}
 			}
+
+			// Optionally sort new json array before setting incase the user doesn't want the default
+			// appending of new items at the end.
+			SortJsonArray.ExecuteIfBound(NewJsonValues);
 
 			// Set the new content of the json array
 			JsonObject.SetArrayField(ArrayName, NewJsonValues);
