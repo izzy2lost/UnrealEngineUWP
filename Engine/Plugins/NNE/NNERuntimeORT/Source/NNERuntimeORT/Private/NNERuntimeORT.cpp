@@ -134,9 +134,11 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeORTCpu::CreateModelCPU(const TObjectPt
 /*
  * UNNERuntimeORTDml
  */
-void UNNERuntimeORTDml::Init(TSharedRef<UE::NNERuntimeORT::Private::FEnvironment> InEnvironment)
+void UNNERuntimeORTDml::Init(TSharedRef<UE::NNERuntimeORT::Private::FEnvironment> InEnvironment, bool bInDirectMLAvailable)
 {
 	Environment = InEnvironment;
+	bDirectMLAvailable = bInDirectMLAvailable;
+	bD3D12Available = UE::NNERuntimeORT::Private::IsD3D12Available();
 }
 
 FString UNNERuntimeORTDml::GetRuntimeName() const
@@ -189,7 +191,7 @@ FString UNNERuntimeORTDml::GetModelDataIdentifier(const FString& FileType, TCons
 
 UNNERuntimeORTDml::ECanCreateModelGPUStatus UNNERuntimeORTDml::CanCreateModelGPU(const TObjectPtr<UNNEModelData> ModelData) const
 {
-	return CanCreateModelCommon(ModelData) == ECanCreateModelCommonStatus::Ok ? ECanCreateModelGPUStatus::Ok : ECanCreateModelGPUStatus::Fail;
+	return CanCreateModelCommon(ModelData, false) == ECanCreateModelCommonStatus::Ok ? ECanCreateModelGPUStatus::Ok : ECanCreateModelGPUStatus::Fail;
 }
 
 TSharedPtr<UE::NNE::IModelGPU> UNNERuntimeORTDml::CreateModelGPU(const TObjectPtr<UNNEModelData> ModelData)
@@ -256,13 +258,23 @@ TSharedPtr<UE::NNE::IModelRDG> UNNERuntimeORTDml::CreateModelRDG(TObjectPtr<UNNE
 #endif // PLATFORM_WINDOWS
 }
 
-UNNERuntimeORTDml::ECanCreateModelCommonStatus UNNERuntimeORTDml::CanCreateModelCommon(const TObjectPtr<UNNEModelData> ModelData) const
+UNNERuntimeORTDml::ECanCreateModelCommonStatus UNNERuntimeORTDml::CanCreateModelCommon(const TObjectPtr<UNNEModelData> ModelData, bool bRHID3D12Required) const
 {
 #if PLATFORM_WINDOWS
 	check(ModelData != nullptr);
 
-	// In order to use DirectML we need D3D12
-	if (!IsRHID3D12())
+	// DirectML is required
+	if (!bDirectMLAvailable)
+	{
+		return ECanCreateModelCommonStatus::Fail;
+	}
+
+	// Either RHID3D12 or at least D3D12 is required
+	if (bRHID3D12Required && !IsRHID3D12())
+	{
+		return ECanCreateModelCommonStatus::Fail;
+	}
+	else if (!bD3D12Available)
 	{
 		return ECanCreateModelCommonStatus::Fail;
 	}

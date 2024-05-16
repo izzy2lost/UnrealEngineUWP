@@ -407,7 +407,7 @@ bool FModelInstanceORTDmlGPU::InitializedAndConfigureMembers()
 		return false;
 	}
 
-	SessionOptions = CreateSessionOptionsForDirectML(Environment);
+	SessionOptions = CreateSessionOptionsForDirectML(Environment, false);
 	if (!SessionOptions.IsValid())
 	{
 		return false;

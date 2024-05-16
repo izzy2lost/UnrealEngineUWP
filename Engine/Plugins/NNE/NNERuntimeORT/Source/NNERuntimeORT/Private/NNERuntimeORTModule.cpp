@@ -99,18 +99,15 @@ void FNNERuntimeORTModule::StartupModule()
 	EnvironmentHelper::CreateOrtEnvFromSettings(GetDefault<UNNERuntimeORTSettings>(), *Environment);
 
 #if PLATFORM_WINDOWS
-	if (bDirectMLDllLoaded)
+	// NNE runtime ORT Dml startup
+	NNERuntimeORTDml = NewObject<UNNERuntimeORTDml>();
+	if (NNERuntimeORTDml.IsValid())
 	{
-		// NNE runtime ORT Dml startup
-		NNERuntimeORTDml = NewObject<UNNERuntimeORTDml>();
-		if (NNERuntimeORTDml.IsValid())
-		{
-			TWeakInterfacePtr<INNERuntime> RuntimeDmlInterface(NNERuntimeORTDml.Get());
+		TWeakInterfacePtr<INNERuntime> RuntimeDmlInterface(NNERuntimeORTDml.Get());
 
-			NNERuntimeORTDml->Init(Environment.ToSharedRef());
-			NNERuntimeORTDml->AddToRoot();
-			UE::NNE::RegisterRuntime(RuntimeDmlInterface);
-		}
+		NNERuntimeORTDml->Init(Environment.ToSharedRef(), bDirectMLDllLoaded);
+		NNERuntimeORTDml->AddToRoot();
+		UE::NNE::RegisterRuntime(RuntimeDmlInterface);
 	}
 #endif // PLATFORM_WINDOWS
 

@@ -59,7 +59,7 @@ public:
 	
 	virtual ~UNNERuntimeORTDml() = default;
 
-	void Init(TSharedRef<UE::NNERuntimeORT::Private::FEnvironment> InEnvironment);
+	void Init(TSharedRef<UE::NNERuntimeORT::Private::FEnvironment> InEnvironment, bool bInDirectMLAvailable);
 
 	virtual FString GetRuntimeName() const override;
 
@@ -74,5 +74,8 @@ public:
 	virtual TSharedPtr<UE::NNE::IModelRDG> CreateModelRDG(TObjectPtr<UNNEModelData> ModelData) override;
 
 private:
-	ECanCreateModelCommonStatus CanCreateModelCommon(const TObjectPtr<UNNEModelData> ModelData) const;
+	ECanCreateModelCommonStatus CanCreateModelCommon(const TObjectPtr<UNNEModelData> ModelData, bool bRHID3D12Required = true) const;
+
+	bool bDirectMLAvailable = false;
+	bool bD3D12Available = false;
 };

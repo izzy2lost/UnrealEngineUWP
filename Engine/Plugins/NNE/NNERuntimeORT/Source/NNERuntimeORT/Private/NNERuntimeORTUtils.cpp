@@ -10,6 +10,8 @@
 #include "NNERuntimeORTEnv.h"
 
 #if PLATFORM_WINDOWS
+#include <dxcore_interface.h>
+#include <dxcore.h>
 #include "ID3D12DynamicRHI.h"
 #endif // PLATFORM_WINDOWS
 
@@ -32,6 +34,83 @@ static TAutoConsoleVariable<bool> CVarNNERuntimeORTEnableProfiling(
 
 namespace UE::NNERuntimeORT::Private
 {
+// Check for DirectX 12-compatible hardware.
+// Manually load DXCore.dll and d3d12.dll (avoid dll dependency) to enumerate adapters and
+// try to create a d3d12 device using the default adapter
+bool IsD3D12Available()
+{
+#if PLATFORM_WINDOWS
+	using Microsoft::WRL::ComPtr;
+	using DXCoreCreateAdapterFactoryFn = HRESULT __stdcall(REFIID, void**);
+
+	const int32 DeviceIndex = 0;
+
+	void* DxCoreModule = FPlatformProcess::GetDllHandle(TEXT("DXCore.dll"));
+	if (!DxCoreModule)
+	{
+		return false;
+	}
+
+	DXCoreCreateAdapterFactoryFn* DxCoreCreateAdapterFactory = reinterpret_cast<DXCoreCreateAdapterFactoryFn*>(FPlatformProcess::GetDllExport(DxCoreModule, TEXT("DXCoreCreateAdapterFactory")));
+	if (!DxCoreCreateAdapterFactory)
+	{
+		return false;
+	}
+
+	ComPtr<IDXCoreAdapterFactory> Factory;
+	DxCoreCreateAdapterFactory(IID_PPV_ARGS(&Factory));
+	if (!Factory)
+	{
+		return false;
+	}
+
+	const GUID DxGUIDs[] = { DXCORE_ADAPTER_ATTRIBUTE_D3D12_CORE_COMPUTE };
+	
+	ComPtr<IDXCoreAdapterList> AdapterList;
+	Factory->CreateAdapterList(ARRAYSIZE(DxGUIDs), DxGUIDs, IID_PPV_ARGS(&AdapterList));
+	if (!AdapterList || AdapterList->GetAdapterCount() < 1)
+	{
+		return false;
+	}
+
+	if (AdapterList->GetAdapterCount() <= DeviceIndex)
+	{
+		UE_LOG(LogNNE, Error, TEXT("Invalid device index %d. Number of available devices is %d."), DeviceIndex, AdapterList->GetAdapterCount());
+		return false;
+	}
+
+	ComPtr<IDXCoreAdapter> Adapter;
+	AdapterList->GetAdapter(static_cast<uint32_t>(DeviceIndex), IID_PPV_ARGS(&Adapter));
+	if (!Adapter)
+	{
+		return false;
+	}
+
+	void* D3D12Module = FPlatformProcess::GetDllHandle(TEXT("d3d12.dll"));
+	if (!D3D12Module)
+	{
+		return false;
+	}
+
+	decltype(&D3D12CreateDevice) D3D12CreateDeviceFun = reinterpret_cast<decltype(&D3D12CreateDevice)>(FPlatformProcess::GetDllExport(D3D12Module, TEXT("D3D12CreateDevice")));
+	if (!D3D12CreateDeviceFun)
+	{
+		return false;
+	}
+
+	ComPtr<ID3D12Device1> Device;
+	D3D12CreateDeviceFun(Adapter.Get(), D3D_FEATURE_LEVEL_1_0_CORE, DML_PPV_ARGS(&Device));
+	if (!Device)
+	{
+		return false;
+	}
+
+	return true;
+#else
+	return false;
+#endif // PLATFORM_WINDOWS
+}
+
 // For more details about ORT graph optimization checkout
 // https://onnxruntime.ai/docs/performance/model-optimizations/graph-optimizations.html
 
@@ -153,9 +232,9 @@ TUniquePtr<Ort::SessionOptions> CreateSessionOptionsDefault(const TSharedRef<FEn
 	return SessionOptions;
 }
 
-#if PLATFORM_WINDOWS
-TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const TSharedRef<FEnvironment> &Environment)
+TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const TSharedRef<FEnvironment> &Environment, bool bRHID3D12Required)
 {
+#if PLATFORM_WINDOWS
 	TUniquePtr<Ort::SessionOptions> SessionOptions = CreateSessionOptionsDefault(Environment);
 	if (!SessionOptions.IsValid())
 	{
@@ -166,8 +245,27 @@ TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const TSharedRef
 	SessionOptions->SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
 	SessionOptions->DisableMemPattern();
 
-	// In order to use DirectML we need D3D12
-	ID3D12DynamicRHI* RHI = nullptr;
+	if (!bRHID3D12Required && !IsRHID3D12())
+	{
+		const int32 DeviceIndex = 0;
+
+		const OrtDmlApi* DmlApi = nullptr;
+		Ort::ThrowOnError(Ort::GetApi().GetExecutionProviderApi("DML", ORT_API_VERSION, reinterpret_cast<const void**>(&DmlApi)));
+		if (!DmlApi)
+		{
+			UE_LOG(LogNNE, Error, TEXT("Ort DirectML Api not available!"));
+			return {};
+		}
+
+		OrtStatusPtr Status = DmlApi->SessionOptionsAppendExecutionProvider_DML(*SessionOptions.Get(), DeviceIndex);
+		if (Status)
+		{
+			UE_LOG(LogNNE, Error, TEXT("Failed to add DirectML execution provider to OnnxRuntime session options: %s"), ANSI_TO_TCHAR(Ort::GetApi().GetErrorMessage(Status)));
+			return {};
+		}
+
+		return SessionOptions;
+	}
 
 	if (!GDynamicRHI)
 	{
@@ -175,6 +273,8 @@ TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const TSharedRef
 		return {};
 	}
 
+	// In order to use DirectML we need D3D12
+	ID3D12DynamicRHI* RHI = nullptr;
 	if (IsRHID3D12() )
 	{
 		RHI = GetID3D12DynamicRHI();
@@ -241,8 +341,10 @@ TUniquePtr<Ort::SessionOptions> CreateSessionOptionsForDirectML(const TSharedRef
 	}
 
 	return SessionOptions;
-}
+#else
+	return {};
 #endif // PLATFORM_WINDOWS
+}
 
 bool OptimizeModel(const TSharedRef<FEnvironment> &Environment, Ort::SessionOptions &SessionOptions, ENNEInferenceFormat TargetFormat, FNNEModelRaw& Model)
 {
