@@ -933,6 +933,7 @@ static void PathTracingSpatialTemporalDenoiserPlugin(FRDGBuilder& GraphBuilder,
 	FRDGTextureRef InputTexture,
 	FRDGTextureRef AlbedoTexture,
 	FRDGTextureRef NormalTexture,
+	FRDGTextureRef DepthTexture,
 	FRDGTextureRef FlowTexture,
 	FRDGTextureRef PreviousOutputFrameTexture,
 	FRDGTextureRef OutputTexture,
@@ -966,6 +967,7 @@ static void PathTracingSpatialTemporalDenoiserPlugin(FRDGBuilder& GraphBuilder,
 	Inputs.ColorTex = InputTexture;
 	Inputs.AlbedoTex = AlbedoTexture;
 	Inputs.NormalTex = NormalTexture;
+	Inputs.DepthTex = DepthTexture;
 	Inputs.VarianceTex = Context.VarianceTexture;
 	Inputs.OutputTex = OutputTexture;
 	Inputs.FlowTex = FlowTexture;
@@ -1908,6 +1910,7 @@ void PathTracingSpatialTemporalDenoising(FRDGBuilder& GraphBuilder,
 		PathTracingSpatialTemporalDenoiserPlugin(
 			GraphBuilder, View, DenoiserMode, TargetTexture,
 			SpatialTemporalDenoisingContext.AlbedoTexture, SpatialTemporalDenoisingContext.NormalTexture,
+			SpatialTemporalDenoisingContext.DepthTexture,
 			MotionTexture, SourceTexture, TemporalDenoisedTexture,
 			SpatialTemporalDenoisingContext.FrameIndex,
 			bIsInitialFrame,

@@ -34,6 +34,7 @@ struct FRDGFrameCache
 	FRDGTextureRef RadianceVariance;
 	FRDGTextureRef Albedo;
 	FRDGTextureRef Normal;
+	FRDGTextureRef Depth;
 
 	FExternalFrameCache ToExternalResource(FRDGBuilder& GraphBuilder, const FSceneView& View);
 	void AppendToNFORBuffer(TArray<NFORDenoise::FRadianceDesc>& Radiances, TArray<NFORDenoise::FFeatureDesc>& Features);
@@ -45,6 +46,7 @@ struct FExternalFrameCache
 	TRefCountPtr<IPooledRenderTarget> RadianceVariance;
 	TRefCountPtr<IPooledRenderTarget> Albedo;
 	TRefCountPtr<IPooledRenderTarget> Normal;
+	TRefCountPtr<IPooledRenderTarget> Depth;
 
 	FRDGFrameCache ToRGDResource(FRDGBuilder& GraphBuilder, const FSceneView& View);
 };
@@ -56,6 +58,7 @@ FExternalFrameCache FRDGFrameCache::ToExternalResource(FRDGBuilder& GraphBuilder
 	ExternalFrameCache.RadianceVariance = GraphBuilder.ConvertToExternalTexture(RadianceVariance);
 	ExternalFrameCache.Albedo = GraphBuilder.ConvertToExternalTexture(Albedo);
 	ExternalFrameCache.Normal = GraphBuilder.ConvertToExternalTexture(Normal);
+	ExternalFrameCache.Depth = GraphBuilder.ConvertToExternalTexture(Depth);
 
 	return ExternalFrameCache;
 }
@@ -82,7 +85,7 @@ void FRDGFrameCache::AppendToNFORBuffer(
 
 		if (IsFeatureDepthEnabled())
 		{
-			NFORDenoise::FNFORTextureDesc DepthTex(Normal, 3, 1, 4);
+			NFORDenoise::FNFORTextureDesc DepthTex(Depth, 0, 1, 1);
 			NFORDenoise::FNFORTextureDesc DepthVarianceTex(nullptr);
 			Features.Add(NFORDenoise::FFeatureDesc(DepthTex, DepthVarianceTex, NFORDenoise::EVarianceType::GreyScale, true));
 		}
@@ -96,6 +99,7 @@ FRDGFrameCache FExternalFrameCache::ToRGDResource(FRDGBuilder& GraphBuilder, con
 	RDGFrameCache.RadianceVariance = GraphBuilder.RegisterExternalTexture(RadianceVariance);
 	RDGFrameCache.Albedo = GraphBuilder.RegisterExternalTexture(Albedo);
 	RDGFrameCache.Normal = GraphBuilder.RegisterExternalTexture(Normal);
+	RDGFrameCache.Depth = GraphBuilder.RegisterExternalTexture(Depth);
 
 	return RDGFrameCache;
 }
@@ -131,11 +135,13 @@ public:
 			RDGFrameCache.RadianceVariance = GraphBuilder.CreateTexture(Inputs.VarianceTex->Desc, TEXT("RadianceVariance"));
 			RDGFrameCache.Albedo = GraphBuilder.CreateTexture(Inputs.AlbedoTex->Desc, TEXT("Albedo"));
 			RDGFrameCache.Normal = GraphBuilder.CreateTexture(Inputs.NormalTex->Desc, TEXT("Normal"));
+			RDGFrameCache.Depth = GraphBuilder.CreateTexture(Inputs.DepthTex->Desc, TEXT("Depth"));
 
 			AddCopyTexturePass(GraphBuilder, Inputs.ColorTex, RDGFrameCache.Radiance);
 			AddCopyTexturePass(GraphBuilder, Inputs.VarianceTex, RDGFrameCache.RadianceVariance);
 			AddCopyTexturePass(GraphBuilder, Inputs.AlbedoTex, RDGFrameCache.Albedo);
 			AddCopyTexturePass(GraphBuilder, Inputs.NormalTex, RDGFrameCache.Normal);
+			AddCopyTexturePass(GraphBuilder, Inputs.DepthTex, RDGFrameCache.Depth);
 			
 			FExternalFrameCache FrameCache = RDGFrameCache.ToExternalResource(GraphBuilder, View);
 
@@ -164,8 +170,8 @@ public:
 		FRDGTextureRef GetDepth(FRDGBuilder& GraphBuilder, int32 FrameIndex)
 		{
 			check(FrameIndex >=0 && FrameIndex < Num());
-			TRefCountPtr<IPooledRenderTarget> NormalDepth= FrameCaches[FrameIndex].Normal;
-			return NormalDepth ? GraphBuilder.RegisterExternalTexture(NormalDepth) : nullptr;
+			TRefCountPtr<IPooledRenderTarget> Depth = FrameCaches[FrameIndex].Depth;
+			return Depth ? GraphBuilder.RegisterExternalTexture(Depth) : nullptr;
 		}
 
 		int32 Num() const { return FrameCaches.Num(); }
@@ -229,8 +235,7 @@ public:
 				const bool bAlphaOnly = true;
 				FRDGTextureRef DenoisingDepth = CurHistory->GetDepth(GraphBuilder, DenoisingDepthFrameIndex);
 
-				NFORDenoise::AddCopyMirroredTexturePass(GraphBuilder, DenoisingDepth, Inputs.NormalTex,
-					FIntPoint::ZeroValue, FIntPoint::ZeroValue, FIntPoint::ZeroValue, bAlphaOnly);
+				AddCopyTexturePass(GraphBuilder, DenoisingDepth, Inputs.DepthTex);
 			}
 		}
 

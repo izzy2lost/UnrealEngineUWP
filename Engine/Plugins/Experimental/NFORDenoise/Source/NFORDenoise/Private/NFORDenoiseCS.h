@@ -538,6 +538,17 @@ namespace NFORDenoise
 			FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
 			OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
 		}
+		
+		static EPixelFormat GetDestFloatFormat(uint32 BufferBytesPerElement)
+		{
+			// Dest buffer can be float32 or float16
+			EPixelFormat BufferFloatFormat = PF_R32_FLOAT;
+			if (BufferBytesPerElement == sizeof(int16_t))
+			{
+				BufferFloatFormat = PF_R16F;
+			}
+			return BufferFloatFormat;
+		}
 
 		static const int kMaxSourceChannelCount = 4;
 
@@ -646,6 +657,17 @@ namespace NFORDenoise
 			{
 				FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
 				OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), GetThreadGroupSize());
+			}
+
+			static EPixelFormat GetXYFloatFormat(uint32 BufferBytesPerElement)
+			{
+				// Buffer can be float32 or float16
+				EPixelFormat BufferFloatFormat = PF_R32_FLOAT;
+				if (BufferBytesPerElement == sizeof(int16_t))
+				{
+					BufferFloatFormat = PF_R16F;
+				}
+				return BufferFloatFormat;
 			}
 
 			static const int kMaxSourceChannelCount = 4;
@@ -797,6 +819,17 @@ namespace NFORDenoise
 				FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
 				OutEnvironment.SetDefine(TEXT("THREAD_GROUP_SIZE"), NON_LOCAL_MEAN_THREAD_GROUP_SIZE);
 				OutEnvironment.CompilerFlags.Add(CFLAG_AllowTypedUAVLoads);
+			}
+
+			static EPixelFormat GetXFloatFormat(uint32 BufferBytesPerElement)
+			{
+				// Buffer can be float32 or float16
+				EPixelFormat BufferFloatFormat = PF_R32_FLOAT;
+				if (BufferBytesPerElement == sizeof(int16_t))
+				{
+					BufferFloatFormat = PF_R16F;
+				}
+				return BufferFloatFormat;
 			}
 
 			enum class EReconstructionType : uint8

@@ -194,6 +194,13 @@ namespace NFORDenoise
 		TEXT(" 3: float4 x Width x Height x DivideAndRoundUp(NumOfWeightsPerPixel,float4)\n"),
 		ECVF_RenderThreadSafe);
 
+	TAutoConsoleVariable<int32> CVarNFORNOnLocalMeanFeatureFormat(
+		TEXT("r.NFOR.NonLocalMean.Feature.Format"),
+		1,
+		TEXT("0: fp32 \n")
+		TEXT("1: fp16 \n"),
+		ECVF_RenderThreadSafe);
+
 	TAutoConsoleVariable<int32> CVarNFORNonLocalMeanFeaturePatchSize(
 		TEXT("r.NFOR.NonLocalMean.Feature.PatchSize"),
 		3,
@@ -567,6 +574,34 @@ namespace NFORDenoise
 		}
 
 		return Bandwidths;
+	}
+
+	EPixelFormat GetFeaturePixelFormat()
+	{
+		EPixelFormat PixelFormat = PF_R32_FLOAT;
+
+		if (GetRegressionDevice() != ERegressionDevice::CPU)
+		{
+			if (CVarNFORNOnLocalMeanFeatureFormat.GetValueOnRenderThread() != 0)
+			{
+				PixelFormat = EPixelFormat::PF_R16F;
+			}
+		}
+		return PixelFormat;
+	}
+
+	uint32 GetFeatureBytesPerElement()
+	{
+		uint32 ByteSize = sizeof(float);
+		if (GetRegressionDevice() != ERegressionDevice::CPU)
+		{
+			if (CVarNFORNOnLocalMeanFeatureFormat.GetValueOnRenderThread() != 0)
+			{
+				ByteSize = sizeof(int16_t);
+			}
+		}
+
+		return ByteSize;
 	}
 
 	EAlbedoDivideRecoverPhase GetPreAlbedoDivideRecoverPhase()
@@ -1510,7 +1545,7 @@ namespace NFORDenoise
 			SHADER::FParameters* PassParameters = GraphBuilder.AllocParameters<SHADER::FParameters>();
 			{
 				PassParameters->Source = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(Source));
-				PassParameters->Dest = GraphBuilder.CreateUAV(Dest, PF_R32_FLOAT);
+				PassParameters->Dest = GraphBuilder.CreateUAV(Dest, SHADER::GetDestFloatFormat(Dest->Desc.BytesPerElement));
 				PassParameters->TextureSize = TextureSize;
 				PassParameters->CopyChannelOffset = CopyChannelOffset;
 				PassParameters->CopyChannelCount = CopyChannelCount;
@@ -1630,7 +1665,7 @@ namespace NFORDenoise
 
 			SHADER::FParameters* PassParameters = GraphBuilder.AllocParameters<SHADER::FParameters>();
 			{
-				PassParameters->X = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(X, PF_R32_FLOAT));
+				PassParameters->X = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(X, SHADER::GetXYFloatFormat(X->Desc.BytesPerElement)));
 				PassParameters->XDim = XDim;
 
 				PassParameters->W = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(W, GetWeightLayoutPixelFormat(NonLocalMeanWeightLayout)));
@@ -1639,12 +1674,12 @@ namespace NFORDenoise
 
 				if (GeneralizedMultiplication)
 				{
-					PassParameters->Y = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Y, PF_R32_FLOAT));
+					PassParameters->Y = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Y, SHADER::GetXYFloatFormat(Y->Desc.BytesPerElement)));
 					PassParameters->YDim = YDim;
 				}
 				else
 				{
-					PassParameters->Y = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(X, PF_R32_FLOAT));
+					PassParameters->Y = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(X, SHADER::GetXYFloatFormat(X->Desc.BytesPerElement)));
 					PassParameters->YDim = XDim;
 				}
 
@@ -1737,7 +1772,7 @@ namespace NFORDenoise
 
 			SHADER::FParameters* PassParameters = GraphBuilder.AllocParameters<SHADER::FParameters>();
 			{
-				PassParameters->X = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Feature, PF_R32_FLOAT));
+				PassParameters->X = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Feature, SHADER::GetXFloatFormat(Feature->Desc.BytesPerElement)));
 				PassParameters->W = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(NonLocalMeanWeightsBuffer, GetWeightLayoutPixelFormat(NonLocalMeanWeightLayout)));
 				PassParameters->B = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(ReconstructionWeights, PF_R32_FLOAT));
 				PassParameters->RWReconstruction = GraphBuilder.CreateUAV(FilteredRadiance);
@@ -2312,7 +2347,7 @@ namespace NFORDenoise
 			NonLocalMeanWeightsBuffer = NonLocalMeanSingleFrameWeightsBuffer;
 		}
 
-		FRDGBufferDesc CombinedFeatureDesc = FRDGBufferDesc::CreateBufferDesc(BytesPerElement, PaddedTileSize.X * PaddedTileSize.Y * NumOfCombinedFeatureChannels);
+		FRDGBufferDesc CombinedFeatureDesc = FRDGBufferDesc::CreateBufferDesc(GetFeatureBytesPerElement(), PaddedTileSize.X * PaddedTileSize.Y * NumOfCombinedFeatureChannels);
 		FRDGBufferRef CombinedFeatures = GraphBuilder.CreateBuffer(CombinedFeatureDesc, TEXT("NFOR.CombinedFeatures"));
 
 		const int32 NumOfCombinedRadianceChannels = GetNumOfCombinedFeatureChannels(Radiances);
