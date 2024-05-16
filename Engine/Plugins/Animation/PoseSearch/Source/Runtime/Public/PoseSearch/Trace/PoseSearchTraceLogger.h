@@ -27,8 +27,10 @@ struct POSESEARCH_API FTraceMessage
 
 	uint64 AnimInstanceId = 0;
 
-	/** Node Id of the motion matching node associated with this message */
-	int32 NodeId = 0;
+	// motion matching Search Id associated with this message
+	// @todo: rename it to SearchId
+	int32 NodeId = InvalidSearchId;
+	int32 GetSearchId() const { return NodeId; }
 };
 POSESEARCH_API FArchive& operator<<(FArchive& Ar, FTraceMessage& State);
 
@@ -119,6 +121,8 @@ struct POSESEARCH_API FTraceMotionMatchingStateMessage : public FTraceMessage
 #endif
 	}
 	
+	FText GenerateSearchName() const;
+
 	static const FName Name;
 };
 

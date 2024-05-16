@@ -36,7 +36,7 @@ public:
 	void OnUpdate();
 	
 	/** Updates active motion matching state based on node selection */
-	void OnUpdateNodeSelection(int32 InNodeId);
+	void OnUpdateSearchSelection(int32 InSearchId);
 
 	void SetVerbose(bool bVerbose) { bIsVerbose = bVerbose; }
 	bool IsVerbose() const { return bIsVerbose; }

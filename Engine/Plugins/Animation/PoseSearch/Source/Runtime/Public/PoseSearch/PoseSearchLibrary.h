@@ -127,6 +127,16 @@ class POSESEARCH_API UPoseSearchLibrary : public UBlueprintFunctionLibrary
 	GENERATED_BODY()
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
+	static void TraceMotionMatching(
+		UE::PoseSearch::FSearchContext& SearchContext,
+		const UE::PoseSearch::FSearchResult& CurrentResult,
+		float ElapsedPoseSearchTime,
+		const FTransform& RootMotionTransformDelta,
+		float DeltaTime,
+		bool bSearch,
+		float RecordingTime);
+
+	UE_DEPRECATED(5.4, "Use TraceMotionMatching instead")
 	static void TraceMotionMatchingState(
 		UE::PoseSearch::FSearchContext& SearchContext,
 		const UE::PoseSearch::FSearchResult& CurrentResult,
@@ -135,7 +145,11 @@ class POSESEARCH_API UPoseSearchLibrary : public UBlueprintFunctionLibrary
 		int32 NodeId,
 		float DeltaTime,
 		bool bSearch,
-		float RecordingTime);
+		float RecordingTime)
+	{
+		TraceMotionMatching(SearchContext, CurrentResult, ElapsedPoseSearchTime, RootMotionTransformDelta, DeltaTime, bSearch, RecordingTime);
+	}
+	
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 
 public:
@@ -181,7 +195,6 @@ public:
 	* @param Future							Input future properties to match (animation / start time / time offset)
 	* @param SelectedAnimation				Output selected animation from the Database asset
 	* @param Result							Output FPoseSearchBlueprintResult with the search result
-	* @param DebugSessionUniqueIdentifier	Input unique identifier used to identify TraceMotionMatchingState (rewind debugger / pose search debugger) session. Similarly the MM node uses Context.GetCurrentNodeId()
 	*/
 	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search|Experimental", meta = (BlueprintThreadSafe, Keywords = "PoseMatch"))
 	static void MotionMatch(
@@ -190,8 +203,7 @@ public:
 		const FName PoseHistoryName,
 		const FPoseSearchContinuingProperties ContinuingProperties,
 		const FPoseSearchFutureProperties Future,
-		FPoseSearchBlueprintResult& Result,
-		const int32 DebugSessionUniqueIdentifier = 6174);
+		FPoseSearchBlueprintResult& Result);
 
 	/**
 	* Implementation of the core motion matching algorithm for multiple characters
@@ -201,7 +213,6 @@ public:
 	* @param AssetsToSearch					Input assets to search (UPoseSearchDatabase or any animation asset containing UAnimNotifyState_PoseSearchBranchIn)
 	* @param PoseHistoryName				Input tag of the associated PoseSearchHistoryCollector node in the anim graphs of the AnimInstances
 	* @param Result							Output FPoseSearchBlueprintResult with the search result
-	* @param DebugSessionUniqueIdentifier	Input unique identifier used to identify TraceMotionMatchingState (rewind debugger / pose search debugger) session. Similarly the MM node uses Context.GetCurrentNodeId()
 	*/
 	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search|Experimental", meta = (BlueprintThreadSafe, Keywords = "PoseMatch"))
 	static void MotionMatchMulti(
@@ -211,9 +222,26 @@ public:
 		const FName PoseHistoryName,
 		const FPoseSearchContinuingProperties ContinuingProperties,
 		const FPoseSearchFutureProperties Future,
-		FPoseSearchBlueprintResult& Result,
-		const int32 DebugSessionUniqueIdentifier = 6174);
+		FPoseSearchBlueprintResult& Result);
 
+	static void MotionMatch(
+		const TArrayView<UAnimInstance*> AnimInstances,
+		const TArrayView<const UE::PoseSearch::FRole> Roles,
+		const TArrayView<const UObject*> AssetsToSearch,
+		const FName PoseHistoryName,
+		const FPoseSearchContinuingProperties& ContinuingProperties,
+		const FPoseSearchFutureProperties& Future,
+		FPoseSearchBlueprintResult& Result);
+
+	static UE::PoseSearch::FSearchResult MotionMatch(
+		const TArrayView<UAnimInstance*> AnimInstances,
+		const TArrayView<const UE::PoseSearch::FRole> Roles,
+		const TArrayView<const UE::PoseSearch::IPoseHistory*> PoseHistories, 
+		const TArrayView<const UObject*> AssetsToSearch,
+		const FPoseSearchContinuingProperties& ContinuingProperties,
+		const FPoseSearchFutureProperties& Future);
+
+	UE_DEPRECATED(5.4, "Use other MotionMatch signatures instead")
 	static void MotionMatch(
 		const TArrayView<UAnimInstance*> AnimInstances,
 		const TArrayView<const UE::PoseSearch::FRole> Roles,
@@ -224,6 +252,7 @@ public:
 		FPoseSearchBlueprintResult& Result,
 		const int32 DebugSessionUniqueIdentifier);
 
+	UE_DEPRECATED(5.4, "Use other MotionMatch signatures instead")
 	static UE::PoseSearch::FSearchResult MotionMatch(
 		const TArrayView<UAnimInstance*> AnimInstances,
 		const TArrayView<const UE::PoseSearch::FRole> Roles,

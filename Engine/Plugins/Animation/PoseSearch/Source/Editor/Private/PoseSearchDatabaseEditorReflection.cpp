@@ -10,8 +10,6 @@
 
 #define LOCTEXT_NAMESPACE "UPoseSearchDatabaseReflection"
 
-#if WITH_EDITOR
-
 void UPoseSearchDatabaseReflectionBase::SetSourceLink(
 	const TWeakPtr<UE::PoseSearch::FDatabaseAssetTreeNode>& InWeakAssetTreeNode,
 	const TSharedPtr<UE::PoseSearch::SDatabaseAssetTree>& InAssetTreeWidget)
@@ -168,8 +166,6 @@ bool UPoseSearchDatabaseMultiSequenceReflection::ApplyChanges()
 
 	return false;
 }
-
-#endif // WITH_EDITOR
 
 void UPoseSearchDatabaseStatistics::Initialize(const UPoseSearchDatabase* PoseSearchDatabase)
 {

@@ -142,37 +142,40 @@ FQuat FDebugDrawParams::ExtractRotation(TConstArrayView<float> PoseVector, float
 	if (const UPoseSearchSchema* Schema = GetSchema())
 	{
 		int32 HeadingAxisFoundNum = 0;
-		const UPoseSearchFeatureChannel_Heading* FoundHeading[int32(EHeadingAxis::Num)];
-		FVector DecodedHeading[int32(EHeadingAxis::Num)];
+		const UPoseSearchFeatureChannel_Heading* FoundHeading[int32(EHeadingAxis::Num)] = { nullptr };
+		FVector DecodedHeading[int32(EHeadingAxis::Num)] = { FVector::ZeroVector };
 		for (int32 HeadingAxis = 0; HeadingAxis < int32(EHeadingAxis::Num); ++HeadingAxis)
 		{
 			// looking for a UPoseSearchFeatureChannel_Heading that matches the SampleTimeOffset, SchemaBoneIdx, and with OriginTimeOffset as zero.
 			// the features data associated to this channel would be a heading vector in GetRootTransform space (since OriginTimeOffset is zero)), 
 			// so by finding at least two with differnt axis we'll be able to compose a delta rotation from OriginTimeOffset (zero) to SampleTimeOffset
-			FoundHeading[HeadingAxis] = static_cast<const UPoseSearchFeatureChannel_Heading*>(
-				Schema->FindChannel([SampleTimeOffset, SchemaBoneIdx, &Role, PermutationTimeType, SamplingAttributeId, HeadingAxis](const UPoseSearchFeatureChannel* Channel) -> const UPoseSearchFeatureChannel_Heading*
+			Schema->FindChannel([SampleTimeOffset, SchemaBoneIdx, &Role, PermutationTimeType, SamplingAttributeId, HeadingAxis, PoseVector, &FoundHeading, &DecodedHeading](const UPoseSearchFeatureChannel* Channel) -> const UPoseSearchFeatureChannel_Heading*
+				{
+					const UPoseSearchFeatureChannel_Heading* Heading = Cast<UPoseSearchFeatureChannel_Heading>(Channel);
+					if (Heading &&
+						Heading->SchemaBoneIdx == SchemaBoneIdx &&
+						Heading->SampleTimeOffset == SampleTimeOffset &&
+						Heading->OriginTimeOffset == 0.f &&
+						Heading->PermutationTimeType == PermutationTimeType &&
+						Heading->SamplingAttributeId == SamplingAttributeId &&
+						Heading->SchemaOriginBoneIdx == RootSchemaBoneIdx &&
+						Heading->SampleRole == Role &&
+						Heading->OriginRole == Role &&
+						int32(Heading->HeadingAxis) == HeadingAxis)
 					{
-						if (const UPoseSearchFeatureChannel_Heading* Heading = Cast<UPoseSearchFeatureChannel_Heading>(Channel))
+						FVector DecodedHeadingValue = FFeatureVectorHelper::DecodeVector(PoseVector, Heading->GetChannelDataOffset(), Heading->ComponentStripping);
+						if (DecodedHeadingValue.Normalize())
 						{
-							if (Heading->SchemaBoneIdx == SchemaBoneIdx &&
-								Heading->SampleTimeOffset == SampleTimeOffset &&
-								Heading->OriginTimeOffset == 0.f &&
-								Heading->PermutationTimeType == PermutationTimeType &&
-								Heading->SamplingAttributeId == SamplingAttributeId &&
-								Heading->SchemaOriginBoneIdx == RootSchemaBoneIdx &&
-								Heading->SampleRole == Role &&
-								Heading->OriginRole == Role &&
-								int32(Heading->HeadingAxis) == HeadingAxis)
-							{
-								return Heading;
-							}
+							FoundHeading[HeadingAxis] = Heading;
+							DecodedHeading[HeadingAxis] = DecodedHeadingValue;
+							return Heading;
 						}
-						return nullptr;
-					}));
+					}
+					return nullptr;
+				});
+
 			if (FoundHeading[HeadingAxis])
 			{
-				DecodedHeading[HeadingAxis] = FFeatureVectorHelper::DecodeVector(PoseVector, FoundHeading[HeadingAxis]->GetChannelDataOffset(), FoundHeading[HeadingAxis]->ComponentStripping);
-
 				++HeadingAxisFoundNum;
 				if (HeadingAxisFoundNum == 2)
 				{
@@ -191,14 +194,17 @@ FQuat FDebugDrawParams::ExtractRotation(TConstArrayView<float> PoseVector, float
 				if (!FoundHeading[int32(EHeadingAxis::X)])
 				{
 					DecodedHeading[int32(EHeadingAxis::X)] = FVector::CrossProduct(DecodedHeading[int32(EHeadingAxis::Y)], DecodedHeading[int32(EHeadingAxis::Z)]);
+					bAbleToReconstructMissingAxis &= DecodedHeading[int32(EHeadingAxis::X)].Normalize();
 				}
 				else if (!FoundHeading[int32(EHeadingAxis::Y)])
 				{
 					DecodedHeading[int32(EHeadingAxis::Y)] = FVector::CrossProduct(DecodedHeading[int32(EHeadingAxis::Z)], DecodedHeading[int32(EHeadingAxis::X)]);
+					bAbleToReconstructMissingAxis &= DecodedHeading[int32(EHeadingAxis::Y)].Normalize();
 				}
 				else // if (!FoundHeading[int32(EHeadingAxis::Z)])
 				{
 					DecodedHeading[int32(EHeadingAxis::Z)] = FVector::CrossProduct(DecodedHeading[int32(EHeadingAxis::X)], DecodedHeading[int32(EHeadingAxis::Y)]);
+					bAbleToReconstructMissingAxis &= DecodedHeading[int32(EHeadingAxis::Z)].Normalize();
 				}
 			}
 			else 
@@ -211,18 +217,21 @@ FQuat FDebugDrawParams::ExtractRotation(TConstArrayView<float> PoseVector, float
 					DecodedHeading[int32(EHeadingAxis::Y)] = FVector::CrossProduct(FVector::ZAxisVector, DecodedHeading[int32(EHeadingAxis::X)]);
 					bAbleToReconstructMissingAxis &= DecodedHeading[int32(EHeadingAxis::Y)].Normalize();
 					DecodedHeading[int32(EHeadingAxis::Z)] = FVector::CrossProduct(DecodedHeading[int32(EHeadingAxis::X)], DecodedHeading[int32(EHeadingAxis::Y)]);
+					bAbleToReconstructMissingAxis &= DecodedHeading[int32(EHeadingAxis::Z)].Normalize();
 				}
 				else if (FoundHeading[int32(EHeadingAxis::Y)])
 				{
 					DecodedHeading[int32(EHeadingAxis::X)] = FVector::CrossProduct(DecodedHeading[int32(EHeadingAxis::Y)], FVector::ZAxisVector);
 					bAbleToReconstructMissingAxis &= DecodedHeading[int32(EHeadingAxis::X)].Normalize();
 					DecodedHeading[int32(EHeadingAxis::Z)] = FVector::CrossProduct(DecodedHeading[int32(EHeadingAxis::X)], DecodedHeading[int32(EHeadingAxis::Y)]);
+					bAbleToReconstructMissingAxis &= DecodedHeading[int32(EHeadingAxis::Z)].Normalize();
 				}
 				else // if (FoundHeading[int32(EHeadingAxis::Z)])
 				{
 					DecodedHeading[int32(EHeadingAxis::X)] = FVector::CrossProduct(FVector::YAxisVector, DecodedHeading[int32(EHeadingAxis::Z)]);
 					bAbleToReconstructMissingAxis &= DecodedHeading[int32(EHeadingAxis::X)].Normalize();
 					DecodedHeading[int32(EHeadingAxis::Y)] = FVector::CrossProduct(DecodedHeading[int32(EHeadingAxis::Z)], DecodedHeading[int32(EHeadingAxis::X)]);
+					bAbleToReconstructMissingAxis &= DecodedHeading[int32(EHeadingAxis::Y)].Normalize();
 				}
 			}
 

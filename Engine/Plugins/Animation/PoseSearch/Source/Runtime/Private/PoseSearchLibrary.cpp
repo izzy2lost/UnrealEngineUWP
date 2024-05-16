@@ -275,18 +275,19 @@ void FMotionMatchingState::UpdateWantedPlayRate(const UE::PoseSearch::FSearchCon
 }
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
-void UPoseSearchLibrary::TraceMotionMatchingState(
+void UPoseSearchLibrary::TraceMotionMatching(
 	UE::PoseSearch::FSearchContext& SearchContext,
 	const UE::PoseSearch::FSearchResult& CurrentResult,
 	float ElapsedPoseSearchTime,
 	const FTransform& RootMotionTransformDelta,
-	int32 NodeId,
 	float DeltaTime,
 	bool bSearch,
 	float RecordingTime)
 {
 	using namespace UE::PoseSearch;
 	
+	uint32 SearchId = 787;
+
 	FTraceMotionMatchingStateMessage TraceState;
 	
 	const int32 AnimInstancesNum = SearchContext.GetAnimInstances().Num();
@@ -300,6 +301,8 @@ void UPoseSearchLibrary::TraceMotionMatchingState(
 		TRACE_OBJECT(AnimInstance);
 
 		TraceState.SkeletalMeshComponentIds[AnimInstanceIndex] = FObjectTrace::GetObjectId(SkeletalMeshComponent);
+
+		SearchId = HashCombineFast(SearchId, GetTypeHash(FObjectTrace::GetObjectId(AnimInstance)));
 	}
 
 	TraceState.Roles.SetNum(AnimInstancesNum);
@@ -308,12 +311,16 @@ void UPoseSearchLibrary::TraceMotionMatchingState(
 		TraceState.Roles[RoleToIndexPair.Value] = RoleToIndexPair.Key;
 	}
 
+	SearchId = HashCombineFast(SearchId, GetTypeHash(TraceState.Roles));
+
+	// @todo: do we need to hash pose history names in SearchId as well?
 	TraceState.PoseHistories.SetNum(AnimInstancesNum);
 	for (int32 AnimInstanceIndex = 0; AnimInstanceIndex < AnimInstancesNum; ++AnimInstanceIndex)
 	{
 		TraceState.PoseHistories[AnimInstanceIndex].InitFrom(SearchContext.GetPoseHistories()[AnimInstanceIndex]);
 	}
 
+	TArray<uint64, TInlineAllocator<64>> DatabaseIds;
 	int32 DbEntryIdx = 0;
 	const int32 CurrentPoseIdx = bSearch && CurrentResult.PoseCost.IsValid() ? CurrentResult.PoseIdx : INDEX_NONE;
 	TraceState.DatabaseEntries.SetNum(SearchContext.GetBestPoseCandidatesMap().Num());
@@ -327,6 +334,7 @@ void UPoseSearchLibrary::TraceMotionMatchingState(
 		// if throttling is on, the continuing pose can be valid, but no actual search occurred, so the query will not be cached, and we need to build it
 		DbEntry.QueryVector = SearchContext.GetOrBuildQuery(Database->Schema);
 		DbEntry.DatabaseId = FTraceMotionMatchingStateMessage::GetIdFromObject(Database);
+		DatabaseIds.Add(DbEntry.DatabaseId);
 
 		for (int32 CandidateIdx = 0; CandidateIdx < DatabaseBestPoseCandidates.Value.Num(); ++CandidateIdx)
 		{
@@ -353,6 +361,9 @@ void UPoseSearchLibrary::TraceMotionMatchingState(
 
 		++DbEntryIdx;
 	}
+
+	DatabaseIds.Sort();
+	SearchId = HashCombineFast(SearchId, GetTypeHash(DatabaseIds));
 
 	if (DeltaTime > SMALL_NUMBER)
 	{
@@ -387,12 +398,18 @@ void UPoseSearchLibrary::TraceMotionMatchingState(
 
 	TraceState.RecordingTime = RecordingTime;
 	TraceState.SearchBestCost = CurrentResult.PoseCost.GetTotalCost();
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG
 	TraceState.SearchBruteForceCost = CurrentResult.BruteForcePoseCost.GetTotalCost();
 	TraceState.SearchBestPosePos = CurrentResult.BestPosePos;
+#else // WITH_EDITOR && ENABLE_ANIM_DEBUG
+	TraceState.SearchBruteForceCost = 0.f;
+	TraceState.SearchBestPosePos = 0;
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
 
 	TraceState.Cycle = FPlatformTime::Cycles64();
 	TraceState.AnimInstanceId = FObjectTrace::GetObjectId(SearchContext.GetAnimInstances()[0]);
-	TraceState.NodeId = NodeId;
+
+	TraceState.NodeId = SearchId;
 
 	TraceState.Output();
 }
@@ -477,24 +494,25 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 		{
 			if (ensure(Database))
 			{
-				FSearchResult NewSearchResult = Database->Search(SearchContext);
-				if (NewSearchResult.PoseCost.GetTotalCost() < SearchResult.PoseCost.GetTotalCost())
+				const FSearchResult NewSearchResult = Database->Search(SearchContext);
+
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+				const FPoseSearchCost BestBruteForcePoseCost = NewSearchResult.BruteForcePoseCost < SearchResult.BruteForcePoseCost ? NewSearchResult.BruteForcePoseCost : SearchResult.BruteForcePoseCost;
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+
+				if (NewSearchResult.PoseCost < SearchResult.PoseCost)
 				{
 					bJumpToPose = true;
 					SearchResult = NewSearchResult;
 					SearchContext.UpdateCurrentBestCost(SearchResult.PoseCost);
 				}
+
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+				SearchResult.BruteForcePoseCost = BestBruteForcePoseCost;
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
 			}
 		}
 
-#if UE_POSE_SEARCH_TRACE_ENABLED
-		if (!SearchResult.BruteForcePoseCost.IsValid())
-		{
-			SearchResult.BruteForcePoseCost = SearchResult.PoseCost;
-		}
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
-
-		
 #if WITH_EDITOR
 		// resetting CurrentSearchResult if any DDC indexing on the requested databases is still in progress
 		if (SearchContext.IsAsyncBuildIndexInProgress())
@@ -544,9 +562,9 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 		else
 		{
 			// copying few properties of SearchResult into CurrentSearchResult to facilitate debug drawing
-#if UE_POSE_SEARCH_TRACE_ENABLED
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
 			InOutMotionMatchingState.CurrentSearchResult.BruteForcePoseCost = SearchResult.BruteForcePoseCost;
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
 			InOutMotionMatchingState.CurrentSearchResult.PoseCost = SearchResult.PoseCost;
 		}
 	}
@@ -564,8 +582,8 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 	// Record debugger details
 	if (IsTracing(Context))
 	{
-		TraceMotionMatchingState(SearchContext, InOutMotionMatchingState.CurrentSearchResult, InOutMotionMatchingState.ElapsedPoseSearchTime,
-			InOutMotionMatchingState.RootMotionTransformDelta, Context.GetCurrentNodeId(), DeltaTime, bSearch,
+		TraceMotionMatching(SearchContext, InOutMotionMatchingState.CurrentSearchResult, InOutMotionMatchingState.ElapsedPoseSearchTime,
+			InOutMotionMatchingState.RootMotionTransformDelta, DeltaTime, bSearch,
 			AnimInstance ? FObjectTrace::GetWorldElapsedTime(AnimInstance->GetWorld()) : 0.f);
 	}
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
@@ -605,8 +623,7 @@ void UPoseSearchLibrary::MotionMatch(
 	const FName PoseHistoryName,
 	const FPoseSearchContinuingProperties ContinuingProperties,
 	const FPoseSearchFutureProperties Future,
-	FPoseSearchBlueprintResult& Result,
-	const int32 DebugSessionUniqueIdentifier)
+	FPoseSearchBlueprintResult& Result)
 {
 	using namespace UE::PoseSearch;
 
@@ -619,7 +636,7 @@ void UPoseSearchLibrary::MotionMatch(
 	Roles.Add(UE::PoseSearch::DefaultRole);
 
 	TArray<const UObject*>& AssetsToSearchConst = reinterpret_cast<TArray<const UObject*>&>(AssetsToSearch);
-	MotionMatch(AnimInstances, Roles, AssetsToSearchConst, PoseHistoryName, ContinuingProperties, Future, Result, DebugSessionUniqueIdentifier);
+	MotionMatch(AnimInstances, Roles, AssetsToSearchConst, PoseHistoryName, ContinuingProperties, Future, Result);
 }
 
 void UPoseSearchLibrary::MotionMatchMulti(
@@ -629,8 +646,7 @@ void UPoseSearchLibrary::MotionMatchMulti(
 	const FName PoseHistoryName,
 	const FPoseSearchContinuingProperties ContinuingProperties,
 	const FPoseSearchFutureProperties Future,
-	FPoseSearchBlueprintResult& Result,
-	const int32 DebugSessionUniqueIdentifier)
+	FPoseSearchBlueprintResult& Result)
 {
 	using namespace UE::PoseSearch;
 
@@ -648,7 +664,7 @@ void UPoseSearchLibrary::MotionMatchMulti(
 	}
 
 	TArray<const UObject*>& AssetsToSearchConst = reinterpret_cast<TArray<const UObject*>&>(AssetsToSearch);
-	MotionMatch(AnimInstances, Roles, AssetsToSearchConst, PoseHistoryName, ContinuingProperties, Future, Result, DebugSessionUniqueIdentifier);
+	MotionMatch(AnimInstances, Roles, AssetsToSearchConst, PoseHistoryName, ContinuingProperties, Future, Result);
 }
 
 void UPoseSearchLibrary::MotionMatch(
@@ -658,8 +674,7 @@ void UPoseSearchLibrary::MotionMatch(
 	const FName PoseHistoryName,
 	const FPoseSearchContinuingProperties& ContinuingProperties,
 	const FPoseSearchFutureProperties& Future,
-	FPoseSearchBlueprintResult& Result,
-	const int32 DebugSessionUniqueIdentifier)
+	FPoseSearchBlueprintResult& Result)
 {
 	using namespace UE::Anim;
 	using namespace UE::PoseSearch;
@@ -710,7 +725,7 @@ void UPoseSearchLibrary::MotionMatch(
 		return;
 	}
 
-	const FSearchResult SearchResult = MotionMatch(AnimInstances, Roles, PoseHistories, AssetsToSearch, ContinuingProperties, Future, DebugSessionUniqueIdentifier);
+	const FSearchResult SearchResult = MotionMatch(AnimInstances, Roles, PoseHistories, AssetsToSearch, ContinuingProperties, Future);
 	if (SearchResult.IsValid())
 	{
 		const UPoseSearchDatabase* Database = SearchResult.Database.Get();
@@ -750,8 +765,7 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 	const TArrayView<const UE::PoseSearch::IPoseHistory*> PoseHistories, 
 	const TArrayView<const UObject*> AssetsToSearch,
 	const FPoseSearchContinuingProperties& ContinuingProperties,
-	const FPoseSearchFutureProperties& Future,
-	const int32 DebugSessionUniqueIdentifier)
+	const FPoseSearchFutureProperties& Future)
 {
 	check(!AnimInstances.IsEmpty() && AnimInstances.Num() == Roles.Num() && AnimInstances.Num() == PoseHistories.Num());
 
@@ -902,11 +916,20 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 								SearchContext.UpdateCurrentResultPoseVector();
 
 								const FSearchResult NewSearchResult = Database->SearchContinuingPose(SearchContext);
-								if (NewSearchResult.PoseCost.GetTotalCost() < SearchResult.PoseCost.GetTotalCost())
+
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+								const FPoseSearchCost BestBruteForcePoseCost = NewSearchResult.BruteForcePoseCost < SearchResult.BruteForcePoseCost ? NewSearchResult.BruteForcePoseCost : SearchResult.BruteForcePoseCost;
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+
+								if (NewSearchResult.PoseCost < SearchResult.PoseCost)
 								{
 									SearchResult = NewSearchResult;
 									SearchContext.UpdateCurrentBestCost(SearchResult.PoseCost);
 								}
+								
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+								SearchResult.BruteForcePoseCost = BestBruteForcePoseCost;
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
 							}
 						}
 					}
@@ -933,11 +956,20 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 			SearchContext.SetAssetsToConsider(AssetsToSearchPerDatabasePair.Value);
 
 			const FSearchResult NewSearchResult = Database->Search(SearchContext);
-			if (NewSearchResult.PoseCost.GetTotalCost() < SearchResult.PoseCost.GetTotalCost())
+
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+			const FPoseSearchCost BestBruteForcePoseCost = NewSearchResult.BruteForcePoseCost < SearchResult.BruteForcePoseCost ? NewSearchResult.BruteForcePoseCost : SearchResult.BruteForcePoseCost;
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+
+			if (NewSearchResult.PoseCost < SearchResult.PoseCost)
 			{
 				SearchResult = NewSearchResult;
 				SearchContext.UpdateCurrentBestCost(SearchResult.PoseCost);
 			}
+
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+			SearchResult.BruteForcePoseCost = BestBruteForcePoseCost;
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
 		}
 	}
 
@@ -973,48 +1005,13 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
-	const float SearchBestCost = SearchResult.PoseCost.GetTotalCost();
-	const float SearchBruteForceCost = SearchResult.BruteForcePoseCost.GetTotalCost();
-	TraceMotionMatchingState(SearchContext, SearchResult, 0.f, FTransform::Identity, DebugSessionUniqueIdentifier,
+	TraceMotionMatching(SearchContext, SearchResult, 0.f, FTransform::Identity,
 		DeltaSeconds, true, FObjectTrace::GetWorldElapsedTime(AnimInstances[0]->GetWorld()));
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 
 	return SearchResult;
 }
 
-// deprecated signatures
-UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
-	const FAnimationBaseContext& Context,
-	TArrayView<const UObject*> AssetsToSearch,
-	const FPoseSearchContinuingProperties& ContinuingProperties)
-{
-	using namespace UE::PoseSearch;
-
-	const IPoseHistory* PoseHistory = nullptr;
-	if (FPoseHistoryProvider* PoseHistoryProvider = Context.GetMessage<FPoseHistoryProvider>())
-	{
-		PoseHistory = &PoseHistoryProvider->GetPoseHistory();
-	}
-
-	UAnimInstance* AnimInstance = Cast<UAnimInstance>(Context.AnimInstanceProxy->GetAnimInstanceObject());
-	check(AnimInstance);
-
-	return MotionMatch(MakeArrayView(&AnimInstance, 1), MakeArrayView(&DefaultRole, 1), MakeArrayView(&PoseHistory, 1), 
-		AssetsToSearch, ContinuingProperties, FPoseSearchFutureProperties(), Context.GetCurrentNodeId());
-}
-		
-UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
-	TArrayView<UAnimInstance*> AnimInstances,
-	TArrayView<const UE::PoseSearch::FRole> Roles,
-	TArrayView<const UE::PoseSearch::IPoseHistory*> PoseHistories,
-	TArrayView<const UObject*> AssetsToSearch,
-	const FPoseSearchContinuingProperties& ContinuingProperties,
-	const int32 DebugSessionUniqueIdentifier,
-	float DesiredPermutationTimeOffset)
-{
-	return MotionMatch(AnimInstances, Roles, PoseHistories, AssetsToSearch, ContinuingProperties, FPoseSearchFutureProperties(), DebugSessionUniqueIdentifier);
-}
-	
 const FAnimNode_PoseSearchHistoryCollector_Base* UPoseSearchLibrary::FindPoseHistoryNode(
 	const FName PoseHistoryName,
 	const UAnimInstance* AnimInstance)
@@ -1057,5 +1054,67 @@ const FAnimNode_PoseSearchHistoryCollector_Base* UPoseSearchLibrary::FindPoseHis
 	}
 	return nullptr;
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////
+// Begin deprecated signatures
+void UPoseSearchLibrary::MotionMatch(
+	const TArrayView<UAnimInstance*> AnimInstances,
+	const TArrayView<const UE::PoseSearch::FRole> Roles,
+	const TArrayView<const UObject*> AssetsToSearch,
+	const FName PoseHistoryName,
+	const FPoseSearchContinuingProperties& ContinuingProperties,
+	const FPoseSearchFutureProperties& Future,
+	FPoseSearchBlueprintResult& Result,
+	const int32 DebugSessionUniqueIdentifier)
+{
+	MotionMatch(AnimInstances, Roles, AssetsToSearch, PoseHistoryName, ContinuingProperties, Future, Result);
+}
+
+UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
+	const TArrayView<UAnimInstance*> AnimInstances,
+	const TArrayView<const UE::PoseSearch::FRole> Roles,
+	const TArrayView<const UE::PoseSearch::IPoseHistory*> PoseHistories,
+	const TArrayView<const UObject*> AssetsToSearch,
+	const FPoseSearchContinuingProperties& ContinuingProperties,
+	const FPoseSearchFutureProperties& Future,
+	const int32 DebugSessionUniqueIdentifier)
+{
+	return MotionMatch(AnimInstances, Roles, PoseHistories, AssetsToSearch, ContinuingProperties, Future);
+}
+
+UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
+	const FAnimationBaseContext& Context,
+	TArrayView<const UObject*> AssetsToSearch,
+	const FPoseSearchContinuingProperties& ContinuingProperties)
+{
+	using namespace UE::PoseSearch;
+
+	const IPoseHistory* PoseHistory = nullptr;
+	if (FPoseHistoryProvider* PoseHistoryProvider = Context.GetMessage<FPoseHistoryProvider>())
+	{
+		PoseHistory = &PoseHistoryProvider->GetPoseHistory();
+	}
+
+	UAnimInstance* AnimInstance = Cast<UAnimInstance>(Context.AnimInstanceProxy->GetAnimInstanceObject());
+	check(AnimInstance);
+
+	return MotionMatch(MakeArrayView(&AnimInstance, 1), MakeArrayView(&DefaultRole, 1), MakeArrayView(&PoseHistory, 1),
+		AssetsToSearch, ContinuingProperties, FPoseSearchFutureProperties());
+}
+		
+UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
+	TArrayView<UAnimInstance*> AnimInstances,
+	TArrayView<const UE::PoseSearch::FRole> Roles,
+	TArrayView<const UE::PoseSearch::IPoseHistory*> PoseHistories,
+	TArrayView<const UObject*> AssetsToSearch,
+	const FPoseSearchContinuingProperties& ContinuingProperties,
+	const int32 DebugSessionUniqueIdentifier,
+	float DesiredPermutationTimeOffset)
+{
+	return MotionMatch(AnimInstances, Roles, PoseHistories, AssetsToSearch, ContinuingProperties, FPoseSearchFutureProperties());
+}
+
+// End deprecated signatures
+///////////////////////////////////////////////////////////////////////////////////////////
 
 #undef LOCTEXT_NAMESPACE

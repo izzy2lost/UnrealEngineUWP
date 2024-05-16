@@ -23,30 +23,62 @@ typedef SCurveTimelineView::FTimelineCurveData::CurvePoint FCurvePoint;
 class SCostCurveTimelineView : public SCurveTimelineView
 {
 public:
+
+	SLATE_BEGIN_ARGS(SCostCurveTimelineView) {}
+		SLATE_ATTRIBUTE(FLinearColor, CurveColor)
+	SLATE_END_ARGS()
+
+	void Construct( const FArguments& InArgs );
+
 	TRange<double> GetViewRange() const { return ViewRange.Get(); }
 	virtual FReply OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override { return FReply::Unhandled(); }
+
+	TSharedPtr<SCostCurveTimelineView::FTimelineCurveData> CurveData;
 };
 
+void SCostCurveTimelineView::Construct(const FArguments& InArgs)
+{
+	CurveData = MakeShared<SCurveTimelineView::FTimelineCurveData>();
+
+	SCurveTimelineView::FArguments CurveTimelineViewArgs;
+
+	CurveTimelineViewArgs
+	.CurveColor(InArgs._CurveColor)
+	.ViewRange_Lambda([]()
+	{
+		return IRewindDebugger::Instance()->GetCurrentViewRange();
+	})
+	.RenderFill(false)
+	.CurveData_Lambda([this]()
+	{
+		return CurveData;
+	});
+
+	SCurveTimelineView::Construct(CurveTimelineViewArgs);
+}
+
+///////////////////////////////////////////////////////
+// SCostTimelineView
 class SCostTimelineView : public SOverlay
 {
 public:
-	SLATE_BEGIN_ARGS(SCostTimelineView) {}
+	SLATE_BEGIN_ARGS(SCostTimelineView)
+	: _SearchId(0)
+	{}
+		SLATE_ARGUMENT( int32, SearchId )
+
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
 	void UpdateInternal(uint64 ObjectId);
+	int32 GetSearchId() const { return SearchId; }
 
 protected:
 	virtual FReply OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 
 	TSharedPtr<SCostCurveTimelineView> BestCostView;
-	TSharedPtr<SCostCurveTimelineView::FTimelineCurveData> BestCostData;
-
 	TSharedPtr<SCostCurveTimelineView> BruteForceCostView;
-	TSharedPtr<SCostCurveTimelineView::FTimelineCurveData> BruteForceCostData;
-
 	TSharedPtr<SCostCurveTimelineView> BestPosePosView;
-	TSharedPtr<SCostCurveTimelineView::FTimelineCurveData> BestPosePosData;
 
 	TSharedPtr<SToolTip> CostToolTip;
 
@@ -54,49 +86,16 @@ protected:
 	FText ToolTipCost;
 	FText ToolTipCostBruteForce;
 	FText ToolTipBestPosePos;
+	int32 SearchId = 0;
 };
 
 void SCostTimelineView::Construct(const FArguments& InArgs)
 {
-	BestCostData = MakeShared<SCurveTimelineView::FTimelineCurveData>();
-	BruteForceCostData = MakeShared<SCurveTimelineView::FTimelineCurveData>();
-	BestPosePosData = MakeShared<SCurveTimelineView::FTimelineCurveData>();
-	
-	BestCostView = SNew(SCostCurveTimelineView)
-	.CurveColor(FLinearColor::White)
-	.ViewRange_Lambda([]()
-	{
-		return IRewindDebugger::Instance()->GetCurrentViewRange();
-	})
-	.RenderFill(false)
-	.CurveData_Lambda([this]()
-	{
-		return BestCostData;
-	});
+	SearchId = InArgs._SearchId;
 
-	BruteForceCostView = SNew(SCostCurveTimelineView)
-	.CurveColor(FLinearColor::Red)
-	.ViewRange_Lambda([]()
-	{
-		return IRewindDebugger::Instance()->GetCurrentViewRange();
-	})
-	.RenderFill(false)
-	.CurveData_Lambda([this]()
-	{
-		return BruteForceCostData;
-	});
-
-	BestPosePosView = SNew(SCostCurveTimelineView)
-	.CurveColor(FLinearColor::Blue)
-	.ViewRange_Lambda([]()
-	{
-		return IRewindDebugger::Instance()->GetCurrentViewRange();
-	})
-	.RenderFill(false)
-	.CurveData_Lambda([this]()
-	{
-		return BestPosePosData;
-	});
+	BestCostView = SNew(SCostCurveTimelineView).CurveColor(FLinearColor::White);
+	BruteForceCostView = SNew(SCostCurveTimelineView).CurveColor(FLinearColor::Red);
+	BestPosePosView = SNew(SCostCurveTimelineView).CurveColor(FLinearColor::Blue);
 		
 	AddSlot()
 	[
@@ -122,30 +121,25 @@ void SCostTimelineView::UpdateInternal(uint64 ObjectId)
 	{
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);
 
-		TArray<FCurvePoint>& BestCostPoints = BestCostData->Points;
-		BestCostPoints.Reset();
-
-		TArray<FCurvePoint>& BruteForceCostPoints = BruteForceCostData->Points;
-		BruteForceCostPoints.Reset();
-
-		TArray<FCurvePoint>& BestPosePosPoints = BestPosePosData->Points;
-		BestPosePosPoints.Reset();
+		BestCostView->CurveData->Points.Reset();
+		BruteForceCostView->CurveData->Points.Reset();
+		BestPosePosView->CurveData->Points.Reset();
 
 		// convert time range to from rewind debugger times to profiler times
 		TRange<double> TraceTimeRange = RewindDebugger->GetCurrentTraceRange();
 		double StartTime = TraceTimeRange.GetLowerBoundValue();
 		double EndTime = TraceTimeRange.GetUpperBoundValue();
 
-		PoseSearchProvider->EnumerateMotionMatchingStateTimelines(ObjectId, [StartTime, EndTime, &BestCostPoints, &BruteForceCostPoints, &BestPosePosPoints](const FTraceProvider::FMotionMatchingStateTimeline& InTimeline)
+		PoseSearchProvider->EnumerateMotionMatchingStateTimelines(ObjectId, [StartTime, EndTime, this](const FTraceProvider::FMotionMatchingStateTimeline& InTimeline)
 		{
 			// this isn't very efficient, and it gets called every frame.  will need optimizing
-			InTimeline.EnumerateEvents(StartTime, EndTime, [StartTime, EndTime, &BestCostPoints, &BruteForceCostPoints, &BestPosePosPoints](double InStartTime, double InEndTime, uint32 InDepth, const FTraceMotionMatchingStateMessage& InMessage)
+			InTimeline.EnumerateEvents(StartTime, EndTime, [StartTime, EndTime, this](double InStartTime, double InEndTime, uint32 InDepth, const FTraceMotionMatchingStateMessage& InMessage)
 			{
-				if (InEndTime > StartTime && InStartTime < EndTime)
+				if (InMessage.GetSearchId() == SearchId && InEndTime > StartTime && InStartTime < EndTime)
 				{
-					BestCostPoints.Add({ InMessage.RecordingTime, InMessage.SearchBestCost });
-					BruteForceCostPoints.Add({ InMessage.RecordingTime, InMessage.SearchBruteForceCost });
-					BestPosePosPoints.Add({ InMessage.RecordingTime, float(InMessage.SearchBestPosePos) });
+					BestCostView->CurveData->Points.Add({ InMessage.RecordingTime, InMessage.SearchBestCost });
+					BruteForceCostView->CurveData->Points.Add({ InMessage.RecordingTime, InMessage.SearchBruteForceCost });
+					BestPosePosView->CurveData->Points.Add({ InMessage.RecordingTime, float(InMessage.SearchBestPosePos) });
 				}
 				return TraceServices::EEventEnumerate::Continue;
 			});
@@ -153,19 +147,73 @@ void SCostTimelineView::UpdateInternal(uint64 ObjectId)
 
 		float MinValue = UE_MAX_FLT;
 		float MaxValue = -UE_MAX_FLT;
-		for (const FCurvePoint& CurvePoint : BestCostPoints)
+
+		bool bAnyInvalidBestCostPoints = false;
+		bool bAnyInvalidBruteForceCostPoints = false;
+
+		bool bAnyValidBestCostPoints = false;
+		bool bAnyValidBruteForceCostPoints = false;
+		for (const FCurvePoint& CurvePoint : BestCostView->CurveData->Points)
 		{
-			MinValue = FMath::Min(MinValue, CurvePoint.Value);
-			MaxValue = FMath::Max(MaxValue, CurvePoint.Value);
+			if (FPoseSearchCost::IsCostValid(CurvePoint.Value))
+			{
+				MinValue = FMath::Min(MinValue, CurvePoint.Value);
+				MaxValue = FMath::Max(MaxValue, CurvePoint.Value);
+				bAnyValidBestCostPoints = true;
+			}
+			else
+			{
+				bAnyInvalidBestCostPoints = true;
+			}
 		}
-		for (const FCurvePoint& CurvePoint : BruteForceCostPoints)
+		for (const FCurvePoint& CurvePoint : BruteForceCostView->CurveData->Points)
 		{
-			MinValue = FMath::Min(MinValue, CurvePoint.Value);
-			MaxValue = FMath::Max(MaxValue, CurvePoint.Value);
+			if (FPoseSearchCost::IsCostValid(CurvePoint.Value))
+			{
+				MinValue = FMath::Min(MinValue, CurvePoint.Value);
+				MaxValue = FMath::Max(MaxValue, CurvePoint.Value);
+				bAnyValidBruteForceCostPoints = true;
+			}
+			else
+			{
+				bAnyInvalidBruteForceCostPoints = true;
+			}
+		}
+
+		if ((bAnyInvalidBestCostPoints && bAnyValidBestCostPoints) || (bAnyInvalidBruteForceCostPoints && bAnyValidBruteForceCostPoints))
+		{
+			// highliting invalid cost points
+			const float InvalidCostValue = (MaxValue - MinValue) * 2 + MinValue;
+			MaxValue = InvalidCostValue;
+		}
+
+		if (bAnyInvalidBestCostPoints)
+		{
+			for (FCurvePoint& CurvePoint : BestCostView->CurveData->Points)
+			{
+				CurvePoint.Value = FMath::Min(MaxValue, CurvePoint.Value);
+			}
 		}
 
 		BestCostView->SetFixedRange(MinValue, MaxValue);
-		BruteForceCostView->SetFixedRange(MinValue, MaxValue);
+
+		if (bAnyValidBruteForceCostPoints)
+		{
+			if (bAnyInvalidBruteForceCostPoints)
+			{
+				for (FCurvePoint& CurvePoint : BruteForceCostView->CurveData->Points)
+				{
+					CurvePoint.Value = FMath::Min(MaxValue, CurvePoint.Value);
+				}
+			}
+
+			BruteForceCostView->SetFixedRange(MinValue, MaxValue);
+			BruteForceCostView->SetVisibility(EVisibility::Visible);
+		}
+		else
+		{
+			BruteForceCostView->SetVisibility(EVisibility::Hidden);
+		}
 	}
 }
 
@@ -183,7 +231,7 @@ FReply SCostTimelineView::OnMouseMove(const FGeometry& MyGeometry, const FPointe
 		const double TargetTime = RangeToScreen.LocalXToInput(HitPosition.X);
 
 		// Get curve value at given time
-		const TArray<FCurvePoint>& CurvePoints = BestCostData->Points;
+		const TArray<FCurvePoint>& CurvePoints = BestCostView->CurveData->Points;
 		const int32 NumPoints = CurvePoints.Num();
 
 		if (NumPoints > 0)
@@ -205,8 +253,8 @@ FReply SCostTimelineView::OnMouseMove(const FGeometry& MyGeometry, const FPointe
 
 					const float Time = CurvePoints[TargetPointIndex].Time;
 					const float BestCost = CurvePoints[TargetPointIndex].Value;
-					const float BruteForceCost = BruteForceCostData->Points[TargetPointIndex].Value;
-					const int32 BestPosePos = FMath::RoundToInt(BestPosePosData->Points[TargetPointIndex].Value);
+					const float BruteForceCost = BruteForceCostView->CurveData->Points[TargetPointIndex].Value;
+					const int32 BestPosePos = FMath::RoundToInt(BestPosePosView->CurveData->Points[TargetPointIndex].Value);
 
 					// Tooltip text formatting
 					FNumberFormattingOptions FormattingOptions;
@@ -216,7 +264,7 @@ FReply SCostTimelineView::OnMouseMove(const FGeometry& MyGeometry, const FPointe
 					ToolTipTime = FText::Format(LOCTEXT("CostTimelineViewToolTip_TimeFormat", "Search Time: {0}"), FText::AsNumber(Time, &FormattingOptions));
 					ToolTipCost = FText::Format(LOCTEXT("CostTimelineViewToolTip_CostFormat", "Search Cost: {0}"), FText::AsNumber(BestCost, &FormattingOptions));
 
-					if (FMath::IsNearlyEqual(BestCost, BruteForceCost))
+					if (!FPoseSearchCost::IsCostValid(BruteForceCost) || FMath::IsNearlyEqual(BestCost, BruteForceCost))
 					{
 						ToolTipCostBruteForce = FText::GetEmpty();
 					}
@@ -230,7 +278,7 @@ FReply SCostTimelineView::OnMouseMove(const FGeometry& MyGeometry, const FPointe
 					{
 						SetToolTip(
 							SAssignNew(CostToolTip, SToolTip)
-							.BorderImage(FCoreStyle::Get().GetBrush("ToolTip.BrightBackground"))
+							.BorderImage(FCoreStyle::Get().GetBrush("ToolTip.Background"))
 							[
 								SNew(SVerticalBox)
 								+ SVerticalBox::Slot()
@@ -245,14 +293,14 @@ FReply SCostTimelineView::OnMouseMove(const FGeometry& MyGeometry, const FPointe
 									SNew(STextBlock)
 									.Text_Lambda([this]() { return ToolTipBestPosePos; })
 									.Font(FCoreStyle::Get().GetFontStyle("ToolTip.LargerFont"))
-									.ColorAndOpacity(FLinearColor::Black)
+									.ColorAndOpacity(FLinearColor::Blue)
 								]
 								+ SVerticalBox::Slot()
 								[
 									SNew(STextBlock)
 									.Text_Lambda([this]() { return ToolTipCost; })
 									.Font(FCoreStyle::Get().GetFontStyle("ToolTip.LargerFont"))
-									.ColorAndOpacity(FLinearColor::Black)
+									.ColorAndOpacity(FLinearColor::White)
 								]
 								+ SVerticalBox::Slot()
 								[
@@ -260,7 +308,7 @@ FReply SCostTimelineView::OnMouseMove(const FGeometry& MyGeometry, const FPointe
 									.Visibility_Lambda([this]() { return ToolTipCostBruteForce.IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible; })
 									.Text_Lambda([this]() { return ToolTipCostBruteForce; })
 									.Font(FCoreStyle::Get().GetFontStyle("ToolTip.LargerFont"))
-									.ColorAndOpacity(FLinearColor::Black)
+									.ColorAndOpacity(FLinearColor::Red)
 								]
 							]);
 					}
@@ -274,6 +322,8 @@ FReply SCostTimelineView::OnMouseMove(const FGeometry& MyGeometry, const FPointe
 	return FReply::Unhandled();
 }
 
+///////////////////////////////////////////////////////
+// FDebugger
 FDebugger* FDebugger::Debugger;
 void FDebugger::Initialize()
 {
@@ -356,89 +406,173 @@ TSharedPtr<FDebuggerViewModel> FDebugger::GetViewModel(uint64 InAnimInstanceId)
 	return nullptr;
 }
 
-TSharedPtr<SDebuggerView> FDebugger::GenerateInstance(uint64 InAnimInstanceId)
+TSharedPtr<SDebuggerView> FDebugger::GenerateInstance(uint64 InAnimInstanceId, int32 InWantedSearchId)
 {
 	ViewModels.Add_GetRef(MakeShared<FDebuggerViewModel>(InAnimInstanceId))->RewindDebugger.BindStatic(&FDebugger::GetRewindDebugger);
 
-	TSharedPtr<SDebuggerView> DebuggerView;
-
-	SAssignNew(DebuggerView, SDebuggerView, InAnimInstanceId)
+	TSharedPtr<SDebuggerView> DebuggerViewSharedPtr;
+	SAssignNew(DebuggerViewSharedPtr, SDebuggerView, InAnimInstanceId, InWantedSearchId)
 		.ViewModel_Static(&FDebugger::GetViewModel, InAnimInstanceId)
 		.OnViewClosed_Static(&FDebugger::OnViewClosed);
 
-	return DebuggerView;
+	DebuggerView = DebuggerViewSharedPtr;
+	return DebuggerViewSharedPtr;
 }
 
+///////////////////////////////////////////////////////
+// FSearchTrack
+FSearchTrack::FSearchTrack(uint64 InObjectId, int32 InSearchId, FText InTrackName)
+: RewindDebugger::FRewindDebuggerTrack()
+, CostTimelineView(SNew(SCostTimelineView).SearchId(InSearchId))
+, ObjectId(InObjectId)
+, TrackName(InTrackName)
+, Icon(FSlateIconFinder::FindIconForClass(UAnimInstance::StaticClass()))
+{
+}
+
+int32 FSearchTrack::GetSearchId() const
+{
+	return CostTimelineView->GetSearchId();
+}
+
+FText FSearchTrack::GetDisplayNameInternal() const
+{
+	return TrackName;
+}
+
+bool FSearchTrack::UpdateInternal()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(PoseSearchSearchTrack::UpdateInternal);
+	CostTimelineView->UpdateInternal(ObjectId);
+
+	return false;
+}
+
+TSharedPtr<SWidget> FSearchTrack::GetTimelineViewInternal()
+{
+	return CostTimelineView;
+}
+
+TSharedPtr<SWidget> FSearchTrack::GetDetailsViewInternal()
+{
+	return FDebugger::Get()->GenerateInstance(ObjectId, GetSearchId());
+}
+
+///////////////////////////////////////////////////////
+// FDebuggerTrack
 FDebuggerTrack::FDebuggerTrack(uint64 InObjectId)
-: ObjectId(InObjectId)
+: RewindDebugger::FRewindDebuggerTrack()
+, ObjectId(InObjectId)
+, Icon(FSlateIconFinder::FindIconForClass(UAnimInstance::StaticClass()))
 {
-	CostTimelineView = SNew(SCostTimelineView);
-}
-
-FSlateIcon FDebuggerTrack::GetIconInternal()
-{
-#if WITH_EDITOR
-	return FSlateIconFinder::FindIconForClass(UAnimInstance::StaticClass());
-#else
-	return FSlateIcon();
-#endif
 }
 
 bool FDebuggerTrack::UpdateInternal()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(PoseSearchDebuggerTrack::UpdateInternal);
-	CostTimelineView->UpdateInternal(ObjectId);
+	
+	IRewindDebugger* RewindDebugger = IRewindDebugger::Instance();
 
-	if (TSharedPtr<IRewindDebuggerView> PinnedView = View.Pin())
+	if (TSharedPtr<IRewindDebuggerView> PinnedView = FDebugger::Get()->GetDebuggerView().Pin())
 	{
-		PinnedView->SetTimeMarker(IRewindDebugger::Instance()->CurrentTraceTime());
+		PinnedView->SetTimeMarker(RewindDebugger->CurrentTraceTime());
 	}
 
-	return false;
-}
+	bool bChanged = false;
 
-FName FDebuggerTrack::GetNameInternal() const
-{
-	static const FName Name("PoseSearchDebugger");
-	return Name;
-}
+	const TraceServices::IAnalysisSession* AnalysisSession = RewindDebugger->GetAnalysisSession();
+	check(AnalysisSession);
+	if (const FTraceProvider* PoseSearchProvider = AnalysisSession->ReadProvider<FTraceProvider>(FTraceProvider::ProviderName))
+	{
+		TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);
 
-FText FDebuggerTrack::GetDisplayNameInternal() const
-{
-	return LOCTEXT("PoseSearchDebuggerTabTitle", "Pose Search");
-}
+		// convert time range to from rewind debugger times to profiler times
+		TRange<double> TraceTimeRange = RewindDebugger->GetCurrentTraceRange();
+		double StartTime = TraceTimeRange.GetLowerBoundValue();
+		double EndTime = TraceTimeRange.GetUpperBoundValue();
 
-TSharedPtr<SWidget> FDebuggerTrack::GetTimelineViewInternal()
-{
-	return CostTimelineView;
+		TArray<int32, TInlineAllocator<64>> OldSearchIds;
+		for (TSharedPtr<FSearchTrack>& SearchTrack : SearchTracks)
+		{
+			OldSearchIds.Add(SearchTrack->GetSearchId());
+		}
+
+		TMap<int32, FText, TInlineSetAllocator<64>> SearchIdNames;
+		PoseSearchProvider->EnumerateMotionMatchingStateTimelines(ObjectId, [StartTime, EndTime, &SearchIdNames](const FTraceProvider::FMotionMatchingStateTimeline& InTimeline)
+			{
+				// this isn't very efficient, and it gets called every frame.  will need optimizing
+				InTimeline.EnumerateEvents(StartTime, EndTime, [StartTime, EndTime, &SearchIdNames](double InStartTime, double InEndTime, uint32 InDepth, const FTraceMotionMatchingStateMessage& InMessage)
+					{
+						if (!SearchIdNames.Find(InMessage.GetSearchId()) && InEndTime > StartTime && InStartTime < EndTime)
+						{
+							SearchIdNames.Add(InMessage.GetSearchId()) = InMessage.GenerateSearchName();
+						}
+						return TraceServices::EEventEnumerate::Continue;
+					});
+			});
+
+		TArray<int32, TInlineAllocator<64>> SearchIds;
+		for (TPair<int32, FText> SearchIdNamePair : SearchIdNames)
+		{
+			SearchIds.Add(SearchIdNamePair.Key);
+		}
+		SearchIds.StableSort();
+
+		if (SearchIds != OldSearchIds)
+		{
+			TMap<int32, TSharedPtr<FSearchTrack>, TInlineSetAllocator<64>> OldSearchIdsMap;
+			for (TSharedPtr<FSearchTrack>& SearchTrack : SearchTracks)
+			{
+				OldSearchIdsMap.Add(SearchTrack->GetSearchId()) = SearchTrack;
+			}
+
+			SearchTracks.SetNum(SearchIds.Num());
+			for (int32 SearchIdIndex = 0; SearchIdIndex < SearchIds.Num(); ++SearchIdIndex)
+			{
+				if (TSharedPtr<FSearchTrack>* SearchTrack = OldSearchIdsMap.Find(SearchIds[SearchIdIndex]))
+				{
+					SearchTracks[SearchIdIndex] = *SearchTrack;
+				}
+				else
+				{
+					SearchTracks[SearchIdIndex] = MakeShared<FSearchTrack>(ObjectId, SearchIds[SearchIdIndex], SearchIdNames[SearchIds[SearchIdIndex]]);
+				}
+			}
+
+			bChanged = true;
+		}
+		
+		for (TSharedPtr<FSearchTrack>& SearchTrack : SearchTracks)
+		{
+			if (SearchTrack.IsValid())
+			{
+				bChanged |= SearchTrack->Update();
+			}
+		}
+	}
+
+	return bChanged;
 }
 
 TSharedPtr<SWidget> FDebuggerTrack::GetDetailsViewInternal()
 {
-	TSharedPtr<IRewindDebuggerView> RewindDebuggerView = FDebugger::Get()->GenerateInstance(ObjectId);
-	View = RewindDebuggerView;
-	return RewindDebuggerView;
+	return FDebugger::Get()->GenerateInstance(ObjectId);
 }
+
+void FDebuggerTrack::IterateSubTracksInternal(TFunction<void(TSharedPtr<FRewindDebuggerTrack> SubTrack)> IteratorFunction)
+{
+	for(TSharedPtr<FSearchTrack>& SearchTrack : SearchTracks)
+	{
+		IteratorFunction(SearchTrack);
+	}
+};
 
 // FDebuggerTrackCreator
 ///////////////////////////////////////////////////
 
-FName FDebuggerTrackCreator::GetTargetTypeNameInternal() const
-{
-	static FName TargetTypeName = "AnimInstance";
-	return TargetTypeName;
-}
-	
-static const FName PoseSearchDebuggerName("PoseSearchDebugger");
-
-FName FDebuggerTrackCreator::GetNameInternal() const
-{
-	return PoseSearchDebuggerName;
-}
-
 void FDebuggerTrackCreator::GetTrackTypesInternal(TArray<RewindDebugger::FRewindDebuggerTrackType>& Types) const
 {
-	Types.Add({PoseSearchDebuggerName, LOCTEXT("Pose Search", "Pose Search")});
+	Types.Add({ GetNameInternal(), LOCTEXT("Pose Search", "Pose Search") });
 }
 
 TSharedPtr<RewindDebugger::FRewindDebuggerTrack> FDebuggerTrackCreator::CreateTrackInternal(uint64 ObjectId) const

@@ -18,7 +18,9 @@ public:
 #endif // WITH_EDITORONLY_DATA
 	}
 
-	bool IsValid() const { return TotalCost != MAX_flt; }
+	static bool IsCostValid(const float Cost) { return Cost != MAX_flt; }
+
+	bool IsValid() const { return IsCostValid(TotalCost); }
 	float GetTotalCost() const { return TotalCost; }
 	bool operator<(const FPoseSearchCost& Other) const { return TotalCost < Other.TotalCost; }
 

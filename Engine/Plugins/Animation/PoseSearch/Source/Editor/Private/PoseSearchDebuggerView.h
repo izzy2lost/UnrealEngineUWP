@@ -3,6 +3,7 @@
 #pragma once
 
 #include "IRewindDebuggerView.h"
+#include "PoseSearch/PoseSearchDefines.h"
 
 class IDetailsView;
 class SVerticalBox;
@@ -68,7 +69,7 @@ public:
 	SDebuggerView() = default;
     virtual ~SDebuggerView() override;
 
-	void Construct(const FArguments& InArgs, uint64 InAnimInstanceId);
+	void Construct(const FArguments& InArgs, uint64 InAnimInstanceId, int32 InWantedSearchId);
 	virtual void SetTimeMarker(double InTimeMarker) override;
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 	virtual FName GetName() const override;
@@ -88,7 +89,7 @@ private:
 	int32 SelectView() const;
 
 	/** Callback when a button in the selection view is clicked */
-	FReply OnUpdateNodeSelection(int32 InSelectedNodeId);
+	FReply OnUpdateSearchSelection(int32 InSelectedSearchId);
 
 	void OnPoseSelectionChanged(const UPoseSearchDatabase* Database, int32 PoseIdx, float Time);
 
@@ -107,8 +108,11 @@ private:
 	/** Destroy the debugger instanced when closed */
 	FOnViewClosed OnViewClosed;
 
-	/** Active node being debugged */
-	int32 SelectedNodeId = INDEX_NONE;
+	/** Active User selected SearchId*/
+	int32 WantedSearchId = InvalidSearchId;
+	
+	/** Active SearchId being debugged */
+	int32 SelectedSearchId = InvalidSearchId;
 
 	/** Database view of the motion matching node */
 	TSharedPtr<SDebuggerDatabaseView> DatabaseView;

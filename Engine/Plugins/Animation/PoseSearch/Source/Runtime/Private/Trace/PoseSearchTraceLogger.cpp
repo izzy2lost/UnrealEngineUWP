@@ -132,4 +132,76 @@ const FTraceMotionMatchingStatePoseEntry* FTraceMotionMatchingStateMessage::GetC
 	return nullptr;
 }
 
+FText FTraceMotionMatchingStateMessage::GenerateSearchName() const
+{
+	TStringBuilder<256> StringBuilder;
+	bool bAddDatabasesSeparator = false;
+	for (const FTraceMotionMatchingStateDatabaseEntry& DbEntry : DatabaseEntries)
+	{
+		if (bAddDatabasesSeparator)
+		{
+			StringBuilder.Append(" - ");
+		}
+
+		if (const UPoseSearchDatabase* Database = GetObjectFromId<UPoseSearchDatabase>(DbEntry.DatabaseId))
+		{
+			StringBuilder.Append(Database->GetName());
+		}
+		else
+		{
+			StringBuilder.Append("Unknown");
+		}
+		
+		bAddDatabasesSeparator = true;
+	}
+
+	if (Roles.Num() > 1)
+	{
+		if (Roles.Num() != SkeletalMeshComponentIds.Num())
+		{
+			StringBuilder.Append("Error!");
+		}
+		else
+		{
+			StringBuilder.Append(" [");
+
+			bool bAddRolesSeparator = false;
+
+			for (int32 RoleIndex = 0; RoleIndex < Roles.Num(); ++RoleIndex)
+			{
+				if (bAddRolesSeparator)
+				{
+					StringBuilder.Append(" - ");
+				}
+
+				StringBuilder.Append(Roles[RoleIndex].ToString());
+
+				StringBuilder.Append(": ");
+
+				if (const USkeletalMeshComponent* SkeletalMeshComponent = GetObjectFromId<USkeletalMeshComponent>(SkeletalMeshComponentIds[RoleIndex]))
+				{
+					if (const AActor* Actor = SkeletalMeshComponent->GetOwner())
+					{
+						StringBuilder.Append(Actor->GetName());
+					}
+					else
+					{
+						StringBuilder.Append("Error!");
+					}
+				}
+				else
+				{
+					StringBuilder.Append("Error!");
+				}
+
+				bAddRolesSeparator = true;
+			}
+
+			StringBuilder.Append("]");
+		}
+	}
+
+	return FText::FromString(StringBuilder.ToString());
+}
+
 } // namespace UE::PoseSearch

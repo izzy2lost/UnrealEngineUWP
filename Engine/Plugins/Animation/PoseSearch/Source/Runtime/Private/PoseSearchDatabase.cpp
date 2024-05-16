@@ -760,12 +760,12 @@ int32 UPoseSearchDatabase::GetNumberOfPrincipalComponents() const
 
 bool UPoseSearchDatabase::GetSkipSearchIfPossible() const
 {
-#if WITH_EDITOR && ENABLE_ANIM_DEBUG
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
 	if (UE::PoseSearch::CVarMotionMatchCompareAgainstBruteForce.GetValueOnAnyThread())
 	{
 		return false;
 	}
-#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
 	return true;
 }
 
@@ -1076,50 +1076,44 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::Search(UE::PoseSearch::FSearc
 	}
 #endif // WITH_EDITOR
 
-	if (PoseSearchMode == EPoseSearchMode::BruteForce
-#if WITH_EDITOR && ENABLE_ANIM_DEBUG
-		|| CVarMotionMatchCompareAgainstBruteForce.GetValueOnAnyThread()
-#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
-		)
+	switch (PoseSearchMode)
 	{
-		Result = SearchBruteForce(SearchContext);
-	}
-
-#if WITH_EDITOR && ENABLE_ANIM_DEBUG
-	const FPoseSearchCost BruteForcePoseCost = Result.BruteForcePoseCost;
-	const int32 BruteForcePoseIdx = Result.PoseIdx;
-#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
-
-	if (PoseSearchMode == EPoseSearchMode::VPTree)
-	{
-		Result = SearchVPTree(SearchContext);
-
-#if WITH_EDITOR && ENABLE_ANIM_DEBUG
-		Result.BruteForcePoseCost = BruteForcePoseCost;
-		if (Result.PoseIdx != BruteForcePoseIdx && CVarMotionMatchCompareAgainstBruteForce.GetValueOnAnyThread())
+	case EPoseSearchMode::BruteForce:
 		{
-			UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchDatabase::Search - VPTree search PoseIdx %d differs from BruteForce search PoseIdx %d"), Result.PoseIdx, BruteForcePoseIdx);
-		}
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
-	}
-	else if (PoseSearchMode == EPoseSearchMode::PCAKDTree)
-	{
-		Result = SearchPCAKDTree(SearchContext);
+			Result = SearchBruteForce(SearchContext);
 
-#if WITH_EDITOR && ENABLE_ANIM_DEBUG
-		Result.BruteForcePoseCost = BruteForcePoseCost;
-		if (CVarMotionMatchCompareAgainstBruteForce.GetValueOnAnyThread())
-		{
-			const float BruteForceTotalCost = Result.BruteForcePoseCost.GetTotalCost();
-			const float PCAKDTreeTotalCost = Result.PoseCost.GetTotalCost();
-			check(BruteForceTotalCost <= PCAKDTreeTotalCost);
-
-			if (!FMath::IsNearlyEqual(BruteForceTotalCost, PCAKDTreeTotalCost))
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+			if (CVarMotionMatchCompareAgainstBruteForce.GetValueOnAnyThread())
 			{
-				UE_LOG(LogPoseSearch, Warning, TEXT("UPoseSearchDatabase::Search - PCAKDTree cost comparison %f (PCAKDTreeTotalCost %f, BruteForceTotalCost %f)"), PCAKDTreeTotalCost - BruteForceTotalCost, PCAKDTreeTotalCost, BruteForceTotalCost);
+				Result.BruteForcePoseCost = Result.PoseCost;
 			}
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+			break;
 		}
-#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
+	case EPoseSearchMode::VPTree:
+		{
+			Result = SearchVPTree(SearchContext);
+
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+			if (CVarMotionMatchCompareAgainstBruteForce.GetValueOnAnyThread())
+			{
+				Result.BruteForcePoseCost = SearchBruteForce(SearchContext).PoseCost;
+			}
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+			break;
+		}
+	case EPoseSearchMode::PCAKDTree:
+		{
+			Result = SearchPCAKDTree(SearchContext);
+
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+			if (CVarMotionMatchCompareAgainstBruteForce.GetValueOnAnyThread())
+			{
+				Result.BruteForcePoseCost = SearchBruteForce(SearchContext).PoseCost;
+			}
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+			break;
+		}
 	}
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
@@ -1150,12 +1144,12 @@ static inline void EvaluatePoseKernel(UE::PoseSearch::FSearchResult& Result, con
 			Result.PoseCost = PoseCost;
 			Result.PoseIdx = PoseIdx;
 
-#if UE_POSE_SEARCH_TRACE_ENABLED
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
 			if (bUpdateBestCandidates)
 			{
 				Result.BestPosePos = ResultIndex;
 			}
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
 		}
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
@@ -1251,6 +1245,13 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchContinuingPose(UE::Pose
 		SearchContext.Track(this, ContinuingPoseIdx, EPoseCandidateFlags::Valid_ContinuingPose, Result.PoseCost);
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 	}
+
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+	if (CVarMotionMatchCompareAgainstBruteForce.GetValueOnAnyThread())
+	{
+		Result.BruteForcePoseCost = Result.PoseCost;
+	}
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
 
 	return Result;
 }
@@ -1656,10 +1657,6 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchBruteForce(UE::PoseSear
 		Result.AssetTime = GetNormalizedAssetTime(Result.PoseIdx);
 		Result.Database = this;
 	}
-
-#if UE_POSE_SEARCH_TRACE_ENABLED
-	Result.BruteForcePoseCost = Result.PoseCost; 
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
 
 	return Result;
 }
