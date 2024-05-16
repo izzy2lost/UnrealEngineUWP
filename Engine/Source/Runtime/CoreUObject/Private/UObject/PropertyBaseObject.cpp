@@ -668,9 +668,11 @@ UObject* FObjectPropertyBase::ConstructDefaultObjectValueIfNecessary(UObject* Ex
 	}
 
 	// Final sanity check. We still may end up with a null object if the property class is abstract and the previous object value was missing or was not compatible
-	UE_CLOG(!NewDefaultObjectValue, LogProperty, Fatal, TEXT("Failed to create default object value for property %s. Previous value: %s"), 
+	UE_CLOG(!NewDefaultObjectValue, LogProperty, Fatal, TEXT("Failed to create default object value for property %s. Previous value: %s, property class: %s, outer: %s"), 
 		*GetFullName(), 
-		ExistingValue ? *ExistingValue->GetFullName() : TEXT("None"));
+		ExistingValue ? *ExistingValue->GetFullName() : TEXT("None"),
+		PropertyClass ? *PropertyClass->GetFullName() : TEXT("None"),
+		Outer ? *Outer->GetFullName() : TEXT("None"));
 
 	return NewDefaultObjectValue;
 }
