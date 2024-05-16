@@ -480,6 +480,7 @@ void FWorkspaceEditor::OnClose()
 		DetailsView.Reset();
 	}
 
+	TabFactories.Clear();
 	FBaseAssetToolkit::OnClose();
 }
 
