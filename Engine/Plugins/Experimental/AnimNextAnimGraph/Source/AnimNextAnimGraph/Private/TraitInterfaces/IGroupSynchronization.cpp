@@ -28,7 +28,7 @@ namespace UE::AnimNext
 		return EAnimGroupRole::CanBeLeader;
 	}
 
-	float IGroupSynchronization::AdvanceBy(FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding, float DeltaTime) const
+	FTimelineProgress IGroupSynchronization::AdvanceBy(FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding, float DeltaTime) const
 	{
 		TTraitBinding<IGroupSynchronization> SuperBinding;
 		if (Binding.GetStackInterfaceSuper(SuperBinding))
@@ -36,7 +36,7 @@ namespace UE::AnimNext
 			return SuperBinding.AdvanceBy(Context, DeltaTime);
 		}
 
-		return 0.0f;
+		return FTimelineProgress();
 	}
 
 	void IGroupSynchronization::AdvanceToRatio(FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding, float ProgressRatio) const

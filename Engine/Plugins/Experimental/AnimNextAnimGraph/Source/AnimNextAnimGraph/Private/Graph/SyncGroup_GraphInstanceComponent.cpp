@@ -75,7 +75,7 @@ namespace UE::AnimNext
 			}
 
 			// Now that we found our leader, advance it by the delta time
-			float LeaderProgressRatio;
+			FTimelineProgress LeaderProgress;
 			{
 				const FSyncGroupMember& GroupLeader = GroupState.Members[LeaderIndex];
 
@@ -83,8 +83,10 @@ namespace UE::AnimNext
 				ensure(Context.GetStack(GroupLeader.TraitPtr, TraitStack));
 				ensure(TraitStack.GetInterface(GroupSyncTrait));
 
-				LeaderProgressRatio = GroupSyncTrait.AdvanceBy(Context, GroupLeader.TraitState.GetDeltaTime());
+				LeaderProgress = GroupSyncTrait.AdvanceBy(Context, GroupLeader.TraitState.GetDeltaTime());
 			}
+
+			const float LeaderProgressRatio = LeaderProgress.GetPositionRatio();
 
 			// Advance every follower to the same progress ratio as the leader
 			for (int32 MemberIndex = 0; MemberIndex < NumMembers; ++MemberIndex)

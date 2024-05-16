@@ -53,7 +53,42 @@ namespace UE::AnimNext
 		return SharedData->GetPlayRate(Binding);
 	}
 
-	float FSequencePlayerTrait::AdvanceBy(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float DeltaTime) const
+	FTimelineProgress FSequencePlayerTrait::GetProgress(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding) const
+	{
+		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+		if (const UAnimSequence* AnimSeq = InstanceData->AnimSequence.Get())
+		{
+			return FTimelineProgress(InstanceData->InternalTimeAccumulator, AnimSeq->GetPlayLength());
+		}
+
+		return FTimelineProgress();
+	}
+
+	FTimelineProgress FSequencePlayerTrait::SimulateAdvanceBy(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float DeltaTime) const
+	{
+		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+
+		if (UAnimSequence* AnimSeq = InstanceData->AnimSequence.Get())
+		{
+			const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
+
+			TTraitBinding<ITimeline> TimelineTrait;
+			Binding.GetStackInterface(TimelineTrait);
+
+			const float PlayRate = TimelineTrait.GetPlayRate(Context);
+			const bool bIsLooping = SharedData->GetbLoop(Binding);
+			const float SequenceLength = AnimSeq->GetPlayLength();
+
+			float Position = InstanceData->InternalTimeAccumulator;
+			FAnimationRuntime::AdvanceTime(bIsLooping, DeltaTime * PlayRate, Position, SequenceLength);
+
+			return FTimelineProgress(Position, SequenceLength);
+		}
+
+		return FTimelineProgress();
+	}
+
+	FTimelineProgress FSequencePlayerTrait::AdvanceBy(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float DeltaTime) const
 	{
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
@@ -70,10 +105,10 @@ namespace UE::AnimNext
 
 			FAnimationRuntime::AdvanceTime(bIsLooping, DeltaTime * PlayRate, InstanceData->InternalTimeAccumulator, SequenceLength);
 
-			return FMath::Clamp(InstanceData->InternalTimeAccumulator / SequenceLength, 0.0f, 1.0f);
+			return FTimelineProgress(InstanceData->InternalTimeAccumulator, SequenceLength);
 		}
 
-		return 0.0f;
+		return FTimelineProgress();
 	}
 
 	void FSequencePlayerTrait::AdvanceToRatio(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float ProgressRatio) const

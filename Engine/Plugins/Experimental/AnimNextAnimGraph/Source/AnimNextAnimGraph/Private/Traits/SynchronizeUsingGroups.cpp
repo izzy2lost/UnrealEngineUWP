@@ -58,7 +58,7 @@ namespace UE::AnimNext
 		return SharedData->GroupRole;
 	}
 
-	float FSynchronizeUsingGroupsTrait::AdvanceBy(FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding, float DeltaTime) const
+	FTimelineProgress FSynchronizeUsingGroupsTrait::AdvanceBy(FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding, float DeltaTime) const
 	{
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
@@ -68,11 +68,11 @@ namespace UE::AnimNext
 		TTraitBinding<ITimeline> TimelineTrait;
 		Binding.GetStackInterface(TimelineTrait);
 
-		const float ProgressRatio = TimelineTrait.AdvanceBy(Context, DeltaTime);
+		const FTimelineProgress Progress = TimelineTrait.AdvanceBy(Context, DeltaTime);
 
 		InstanceData->bFreezeTimeline = true;
 
-		return ProgressRatio;
+		return Progress;
 	}
 
 	void FSynchronizeUsingGroupsTrait::AdvanceToRatio(FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding, float ProgressRatio) const
@@ -90,12 +90,23 @@ namespace UE::AnimNext
 		InstanceData->bFreezeTimeline = true;
 	}
 
-	float FSynchronizeUsingGroupsTrait::AdvanceBy(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float DeltaTime) const
+	FTimelineProgress FSynchronizeUsingGroupsTrait::SimulateAdvanceBy(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float DeltaTime) const
 	{
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 		if (InstanceData->bFreezeTimeline)
 		{
-			return 0.0f;	// If the timeline is frozen, we don't advance
+			return ITimeline::GetProgress(Context, Binding);	// If the timeline is frozen, we don't advance, return the previous value
+		}
+
+		return ITimeline::SimulateAdvanceBy(Context, Binding, DeltaTime);
+	}
+
+	FTimelineProgress FSynchronizeUsingGroupsTrait::AdvanceBy(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float DeltaTime) const
+	{
+		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+		if (InstanceData->bFreezeTimeline)
+		{
+			return ITimeline::GetProgress(Context, Binding);	// If the timeline is frozen, we don't advance, return the previous value
 		}
 
 		return ITimeline::AdvanceBy(Context, Binding, DeltaTime);

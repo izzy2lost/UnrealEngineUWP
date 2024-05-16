@@ -6,6 +6,7 @@
 #include "Animation/AnimationAsset.h"
 #include "TraitCore/ITraitInterface.h"
 #include "TraitCore/TraitBinding.h"
+#include "TraitInterfaces/ITimeline.h"
 
 namespace UE::AnimNext
 {
@@ -26,7 +27,7 @@ namespace UE::AnimNext
 
 		// Called by the sync group graph instance component once a group has been synchronized to advance time on the leader
 		// Returns the progress ratio of playback: 0.0 = start of animation, 1.0 = end of animation
-		virtual float AdvanceBy(FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding, float DeltaTime) const;
+		virtual FTimelineProgress AdvanceBy(FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding, float DeltaTime) const;
 
 		// Called by the sync group graph instance component once a group has been synchronized to advance time on each follower
 		// Progress ratio must be between [0.0, 1.0]
@@ -52,7 +53,7 @@ namespace UE::AnimNext
 		}
 
 		// @see IGroupSynchronization::AdvanceBy
-		float AdvanceBy(FExecutionContext& Context, float DeltaTime) const
+		FTimelineProgress AdvanceBy(FExecutionContext& Context, float DeltaTime) const
 		{
 			return GetInterface()->AdvanceBy(Context, *this, DeltaTime);
 		}

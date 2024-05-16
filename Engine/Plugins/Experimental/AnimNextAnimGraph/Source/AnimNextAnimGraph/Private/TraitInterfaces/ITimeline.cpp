@@ -17,7 +17,29 @@ namespace UE::AnimNext
 		return 1.0f;
 	}
 
-	float ITimeline::AdvanceBy(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float DeltaTime) const
+	FTimelineProgress ITimeline::GetProgress(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding) const
+	{
+		TTraitBinding<ITimeline> SuperBinding;
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
+		{
+			return SuperBinding.GetProgress(Context);
+		}
+
+		return FTimelineProgress();
+	}
+
+	FTimelineProgress ITimeline::SimulateAdvanceBy(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float DeltaTime) const
+	{
+		TTraitBinding<ITimeline> SuperBinding;
+		if (Binding.GetStackInterfaceSuper(SuperBinding))
+		{
+			return SuperBinding.SimulateAdvanceBy(Context, DeltaTime);
+		}
+
+		return FTimelineProgress();
+	}
+
+	FTimelineProgress ITimeline::AdvanceBy(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float DeltaTime) const
 	{
 		TTraitBinding<ITimeline> SuperBinding;
 		if (Binding.GetStackInterfaceSuper(SuperBinding))
@@ -25,7 +47,7 @@ namespace UE::AnimNext
 			return SuperBinding.AdvanceBy(Context, DeltaTime);
 		}
 
-		return 0.0f;
+		return FTimelineProgress();
 	}
 
 	void ITimeline::AdvanceToRatio(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float ProgressRatio) const
