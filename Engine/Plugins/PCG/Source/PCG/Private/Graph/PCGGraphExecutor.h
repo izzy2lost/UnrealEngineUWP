@@ -281,6 +281,8 @@ private:
 
 	int32 ReleaseActorsCountUntilGC = 30;
 	TWeakPtr<IPCGEditorProgressNotification> GenerationProgressNotification;
+	double GenerationProgressNotificationStartTime = 0.0;
+	int32 GenerationProgressLastTaskNum = 0;
 
 	int32 TidyCacheCountUntilGC = 100;
 #endif

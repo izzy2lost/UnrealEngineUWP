@@ -43,6 +43,7 @@
 #include "Details/PCGInstancedPropertyBagOverrideDetails.h"
 #include "Details/PCGVolumeDetails.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Framework/Notifications/NotificationManager.h"
 
 #define LOCTEXT_NAMESPACE "FPCGEditorModule"
 
@@ -143,6 +144,11 @@ bool FPCGEditorModule::SupportsDynamicReloading()
 
 TWeakPtr<IPCGEditorProgressNotification> FPCGEditorModule::CreateProgressNotification(const FTextFormat& TextFormat, bool bCanCancel)
 {
+	if (!FSlateNotificationManager::Get().AreNotificationsAllowed())
+	{
+		return nullptr;
+	}
+
 	TSharedPtr<IPCGEditorProgressNotification> NewNotification = MakeShared<FPCGEditorProgressNotification>(TextFormat, bCanCancel);
 	ActiveNotifications.Add(NewNotification);
 	return NewNotification.ToWeakPtr();
