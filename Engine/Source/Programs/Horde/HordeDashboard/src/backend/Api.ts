@@ -1139,6 +1139,9 @@ export type CreateJobRequest = {
 
 	/** Parameters for the job */
 	parameters?: Record<string, string>
+
+	/** Additional arguments for the job, job dialog v2 */
+	additionalArguments?: string[];
 }
 
 /**Response from creating a new job */
@@ -1299,6 +1302,8 @@ export type GetJobResponse = {
 	/**  Custom permissions for this object */
 	acl?: GetAclResponse;
 
+	/** Additional arguments for the job, job dialog v2 */
+	additionalArguments?: string[];
 }
 
 /**Request used to update a jobstep */
