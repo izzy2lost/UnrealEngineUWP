@@ -1068,7 +1068,7 @@ struct stbir__info
   stbir__alpha_unweight_func * alpha_unweight;
   stbir__encode_pixels_func * encode_pixels;
 
-  int alloced_total;
+  size_t alloced_total;
   int splits; // count of splits
 
   stbir_internal_pixel_layout input_pixel_layout_internal;
@@ -6765,7 +6765,7 @@ static stbir__info * stbir__alloc_internal_mem_and_build_samplers( stbir__sample
 
   stbir__info * info = 0;
   void * alloced = 0;
-  int alloced_total = 0;
+  size_t alloced_total = 0;
   int vertical_first;
   int decode_buffer_size, ring_buffer_length_bytes, ring_buffer_size, vertical_buffer_size, alloc_ring_buffer_num_entries;
 
@@ -7108,7 +7108,16 @@ static stbir__info * stbir__alloc_internal_mem_and_build_samplers( stbir__sample
     // is this the first time through loop?
     if ( info == 0 )
     {
-      alloced_total = (int) ( 15 + (size_t)advance_mem );
+      alloced_total = ( 15 + (size_t)advance_mem );
+	  
+	  #ifdef UE_LOG
+	  // @@ TEMP log huge allocs :
+	  if ( alloced_total > ((size_t)100<<20) )
+	  {
+		UE_LOG(LogImageCore,Display,TEXT("stb_resize : alloced_total = %lld"), alloced_total );
+	  }
+	  #endif
+
       alloced = STBIR_MALLOC( alloced_total, user_data );
       if ( alloced == 0 )
         return 0;
