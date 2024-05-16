@@ -2,14 +2,8 @@
 
 #pragma once
 
-// HEADER_UNIT_SKIP - Included by rc files and break if I include proper files
-
-#ifndef RC_INVOKED
 #include "HAL/Platform.h"
 #include "HAL/PreprocessorHelpers.h"
-#else 
-#include "../HAL/PreprocessorHelpers.h"
-#endif
 
 // When passed to pragma message will result in clickable warning in VS
 #define WARNING_LOCATION(Line) __FILE__ "(" PREPROCESSOR_TO_STRING(Line) ")"
