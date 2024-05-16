@@ -8,12 +8,14 @@
 #include "DataWrappers/ChaosVDQueryDataWrappers.h"
 #include "Trace/ChaosVDTraceProvider.h"
 
-FChaosVDSceneQueryVisitDataProcessor::FChaosVDSceneQueryVisitDataProcessor() : IChaosVDDataProcessor(FChaosVDQueryVisitStep::WrapperTypeName)
+FChaosVDSceneQueryVisitDataProcessor::FChaosVDSceneQueryVisitDataProcessor() : FChaosVDDataProcessorBase(FChaosVDQueryVisitStep::WrapperTypeName)
 {
 }
 
 bool FChaosVDSceneQueryVisitDataProcessor::ProcessRawData(const TArray<uint8>& InData)
 {
+	FChaosVDDataProcessorBase::ProcessRawData(InData);
+
 	const TSharedPtr<FChaosVDTraceProvider> ProviderSharedPtr = TraceProvider.Pin();
 	if (!ensure(ProviderSharedPtr.IsValid()))
 	{

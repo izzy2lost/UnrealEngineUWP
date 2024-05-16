@@ -19,7 +19,7 @@
 #include "Trace/DataProcessors/ChaosVDTraceImplicitObjectProcessor.h"
 #include "Trace/DataProcessors/ChaosVDTraceParticleDataProcessor.h"
 #include "Trace/DataProcessors/ChaosVDArchiveHeaderProcessor.h"
-#include "Trace/DataProcessors/IChaosVDDataProcessor.h"
+#include "Trace/DataProcessors/ChaosVDDataProcessorBase.h"
 
 FName FChaosVDTraceProvider::ProviderName("ChaosVDProvider");
 
@@ -153,12 +153,13 @@ bool FChaosVDTraceProvider::ProcessBinaryData(const int32 DataID)
 				RawData = &UnprocessedData->RawData;
 			}
 
-			if (TSharedPtr<IChaosVDDataProcessor>* DataProcessorPtrPtr = RegisteredDataProcessors.Find(UnprocessedData->TypeName))
+			if (TSharedPtr<FChaosVDDataProcessorBase>* DataProcessorPtrPtr = RegisteredDataProcessors.Find(UnprocessedData->TypeName))
 			{
-				if (TSharedPtr<IChaosVDDataProcessor> DataProcessorPtr = *DataProcessorPtrPtr)
+				if (TSharedPtr<FChaosVDDataProcessorBase> DataProcessorPtr = *DataProcessorPtrPtr)
 				{
 					if (ensure(DataProcessorPtr->ProcessRawData(*RawData)))
 					{
+						UnprocessedDataByID.Remove(DataID);
 						return true;
 					}
 					else
@@ -172,6 +173,8 @@ bool FChaosVDTraceProvider::ProcessBinaryData(const int32 DataID)
 				UE_LOG(LogChaosVDEditor, Warning, TEXT("[%s] Data processor for type [%s] not found"), ANSI_TO_TCHAR(__FUNCTION__), *UnprocessedData->TypeName);
 			}
 		}
+
+		UnprocessedDataByID.Remove(DataID);
 	}
 
 	return false;
@@ -182,9 +185,31 @@ TSharedPtr<FChaosVDRecording> FChaosVDTraceProvider::GetRecordingForSession() co
 	return InternalRecording;
 }
 
-void FChaosVDTraceProvider::RegisterDataProcessor(TSharedPtr<IChaosVDDataProcessor> InDataProcessor)
+void FChaosVDTraceProvider::RegisterDataProcessor(TSharedPtr<FChaosVDDataProcessorBase> InDataProcessor)
 {
 	RegisteredDataProcessors.Add(InDataProcessor->GetCompatibleTypeName(), InDataProcessor);
+}
+
+void FChaosVDTraceProvider::HandleAnalysisComplete()
+{
+	UnprocessedDataByID.Reset();
+
+	UE_LOG(LogChaosVDEditor, Log, TEXT("Trace Analysis complete for session [%s] | Calculating data loaded stats..."), Session.GetName());
+
+	static const FNumberFormattingOptions SizeFormattingOptions = FNumberFormattingOptions().SetMinimumFractionalDigits(2).SetMaximumFractionalDigits(2);
+
+	uint64 TotalBytes = 0;
+	for (const TPair<FStringView, TSharedPtr<FChaosVDDataProcessorBase>>& DataProcessor : RegisteredDataProcessors)
+	{
+		if (DataProcessor.Value)
+		{
+			uint64 ProcessedBytes = DataProcessor.Value->GetProcessedBytes();
+			TotalBytes += ProcessedBytes;
+			UE_LOG(LogChaosVDEditor, Log, TEXT("Data loaded for type [%s]  => [%s] "), DataProcessor.Key.IsEmpty() ? TEXT("Invalid") : DataProcessor.Key.GetData(), *FText::AsMemory(ProcessedBytes, &SizeFormattingOptions,nullptr, EMemoryUnitStandard::IEC).ToString());
+		}
+	}
+
+	UE_LOG(LogChaosVDEditor, Log, TEXT("Total size of loaded data => [%s]"), *FText::AsMemory(TotalBytes, &SizeFormattingOptions,nullptr, EMemoryUnitStandard::IEC).ToString());
 }
 
 void FChaosVDTraceProvider::RegisterDefaultDataProcessorsIfNeeded()

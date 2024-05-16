@@ -1,7 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-#include "IChaosVDDataProcessor.h"
+#include "ChaosVDDataProcessorBase.h"
 
 struct FChaosVDSolverFrameData;
 struct FChaosVDConstraint;
@@ -9,7 +9,7 @@ struct FChaosVDConstraint;
 /**
  * Data processor implementation that is able to deserialize traced Constraints
  */
-class FChaosVDConstraintDataProcessor final : public IChaosVDDataProcessor
+class FChaosVDConstraintDataProcessor final : public FChaosVDDataProcessorBase
 {
 public:
 	explicit FChaosVDConstraintDataProcessor();

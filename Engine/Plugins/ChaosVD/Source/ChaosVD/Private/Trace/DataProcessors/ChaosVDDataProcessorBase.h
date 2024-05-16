@@ -59,25 +59,32 @@ namespace Chaos::VisualDebugger
 	}
 }
 
-/** Interface for all used for any class that is able to process traced Chaos Visual Debugger binary data */
-class IChaosVDDataProcessor
+/** Abstract base class that should be used for any class that is able to process traced Chaos Visual Debugger binary data */
+class FChaosVDDataProcessorBase
 {
 public:
-	virtual ~IChaosVDDataProcessor() = default;
 
-	explicit IChaosVDDataProcessor(FStringView InCompatibleType) : CompatibleType(InCompatibleType)
+	explicit FChaosVDDataProcessorBase(FStringView InCompatibleType) : TraceProvider(nullptr), CompatibleType(InCompatibleType), ProcessedBytes(0)
 	{
 	}
 
+	virtual ~FChaosVDDataProcessorBase() = 0;
+
 	/** Type name this data processor can interpret */
-	FStringView GetCompatibleTypeName() const { return CompatibleType; }
+	FStringView GetCompatibleTypeName() const;
+
 	/** Called with the raw serialized data to be processed */
-	virtual bool ProcessRawData(const TArray<uint8>& InData) { return false; }
+	virtual bool ProcessRawData(const TArray<uint8>& InData);
+
+	/** Returns the amount of data in bytes processed by this data processor at the moment of being called */
+	uint64 GetProcessedBytes() const;
 
 	/** Sets the Trace Provider that is storing the data being analyzed */
-	void SetTraceProvider(const TSharedPtr<FChaosVDTraceProvider>& InProvider) { TraceProvider = InProvider; }
+	void SetTraceProvider(const TSharedPtr<FChaosVDTraceProvider>& InProvider);
 
 protected:
 	TWeakPtr<FChaosVDTraceProvider> TraceProvider;
 	FStringView CompatibleType;
+	uint64 ProcessedBytes;
 };
+

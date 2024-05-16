@@ -7,12 +7,14 @@
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 #include "Trace/ChaosVDTraceProvider.h"
 
-FChaosVDConstraintDataProcessor::FChaosVDConstraintDataProcessor() : IChaosVDDataProcessor(FChaosVDConstraint::WrapperTypeName)
+FChaosVDConstraintDataProcessor::FChaosVDConstraintDataProcessor() : FChaosVDDataProcessorBase(FChaosVDConstraint::WrapperTypeName)
 {
 }
 
 bool FChaosVDConstraintDataProcessor::ProcessRawData(const TArray<uint8>& InData)
 {
+	FChaosVDDataProcessorBase::ProcessRawData(InData);
+
 	TSharedPtr<FChaosVDTraceProvider> ProviderSharedPtr = TraceProvider.Pin();
 	if (!ensure(ProviderSharedPtr.IsValid()))
 	{

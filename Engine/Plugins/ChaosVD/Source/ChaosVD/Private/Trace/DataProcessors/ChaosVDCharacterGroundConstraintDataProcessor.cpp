@@ -7,12 +7,14 @@
 
 
 FChaosVDCharacterGroundConstraintDataProcessor::FChaosVDCharacterGroundConstraintDataProcessor()
-	: IChaosVDDataProcessor(FChaosVDCharacterGroundConstraint::WrapperTypeName)
+	: FChaosVDDataProcessorBase(FChaosVDCharacterGroundConstraint::WrapperTypeName)
 {
 }
 
 bool FChaosVDCharacterGroundConstraintDataProcessor::ProcessRawData(const TArray<uint8>& InData)
 {
+	FChaosVDDataProcessorBase::ProcessRawData(InData);
+
 	TSharedPtr<FChaosVDTraceProvider> ProviderSharedPtr = TraceProvider.Pin();
 	if (!ensure(ProviderSharedPtr.IsValid()))
 	{

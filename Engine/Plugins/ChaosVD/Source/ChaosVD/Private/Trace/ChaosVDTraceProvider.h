@@ -12,6 +12,8 @@
 #include "Templates/SharedPointer.h"
 #include "TraceServices/Model/AnalysisSession.h"
 
+class FChaosVDDataProcessorBase;
+
 namespace Chaos::VisualDebugger
 {
 	class FChaosVDSerializableNameTable;
@@ -73,7 +75,9 @@ public:
 
 	TSharedPtr<FChaosVDRecording> GetRecordingForSession() const;
 
-	void RegisterDataProcessor(TSharedPtr<IChaosVDDataProcessor> InDataProcessor);
+	void RegisterDataProcessor(TSharedPtr<FChaosVDDataProcessorBase> InDataProcessor);
+
+	void HandleAnalysisComplete();
 
 private:
 
@@ -88,7 +92,7 @@ private:
 
 	TMap<int32, TSharedPtr<FChaosVDBinaryDataContainer>> UnprocessedDataByID;
 
-	TMap<FStringView, TSharedPtr<IChaosVDDataProcessor>> RegisteredDataProcessors;
+	TMap<FStringView, TSharedPtr<FChaosVDDataProcessorBase>> RegisteredDataProcessors;
 
 	TMap<int32, FChaosVDSolverFrameData> CurrentSolverFramesByID;
 

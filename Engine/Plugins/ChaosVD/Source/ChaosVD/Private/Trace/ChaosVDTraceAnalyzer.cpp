@@ -35,6 +35,8 @@ void FChaosVDTraceAnalyzer::OnAnalysisBegin(const FOnAnalysisContext& Context)
 
 void FChaosVDTraceAnalyzer::OnAnalysisEnd()
 {
+	ChaosVDTraceProvider->HandleAnalysisComplete();
+
 	OnAnalysisComplete().Broadcast();
 }
 

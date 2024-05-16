@@ -3,7 +3,7 @@
 #pragma once
 
 #pragma once
-#include "IChaosVDDataProcessor.h"
+#include "ChaosVDDataProcessorBase.h"
 
 struct FChaosVDSolverFrameData;
 struct FChaosVDConstraint;
@@ -11,7 +11,7 @@ struct FChaosVDConstraint;
 /**
  * Data processor implementation that is able to deserialize traced character ground constraints
  */
-class FChaosVDCharacterGroundConstraintDataProcessor final : public IChaosVDDataProcessor
+class FChaosVDCharacterGroundConstraintDataProcessor final : public FChaosVDDataProcessorBase
 {
 public:
 	explicit FChaosVDCharacterGroundConstraintDataProcessor();

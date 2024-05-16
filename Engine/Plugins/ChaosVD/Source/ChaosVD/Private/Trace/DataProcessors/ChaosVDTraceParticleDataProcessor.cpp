@@ -8,12 +8,14 @@
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 #include "Trace/ChaosVDTraceProvider.h"
 
-FChaosVDTraceParticleDataProcessor::FChaosVDTraceParticleDataProcessor(): IChaosVDDataProcessor(FChaosVDParticleDataWrapper::WrapperTypeName)
+FChaosVDTraceParticleDataProcessor::FChaosVDTraceParticleDataProcessor(): FChaosVDDataProcessorBase(FChaosVDParticleDataWrapper::WrapperTypeName)
 {
 }
 
 bool FChaosVDTraceParticleDataProcessor::ProcessRawData(const TArray<uint8>& InData)
 {
+	FChaosVDDataProcessorBase::ProcessRawData(InData);
+
 	TSharedPtr<FChaosVDTraceProvider> ProviderSharedPtr = TraceProvider.Pin();
 	if (!ensure(ProviderSharedPtr.IsValid()))
 	{

@@ -1,7 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-#include "IChaosVDDataProcessor.h"
+#include "ChaosVDDataProcessorBase.h"
 #include "Templates/SharedPointer.h"
 
 struct FChaosVDSolverFrameData;
@@ -10,7 +10,7 @@ struct FChaosVDParticlePairMidPhase;
 /**
  * Data processor implementation that is able to deserialize traced MidPhases 
  */
-class FChaosVDMidPhaseDataProcessor final : public IChaosVDDataProcessor
+class FChaosVDMidPhaseDataProcessor final : public FChaosVDDataProcessorBase
 {
 public:
 	explicit FChaosVDMidPhaseDataProcessor();

@@ -2,12 +2,12 @@
 
 #pragma once
 
-#include "Trace/DataProcessors/IChaosVDDataProcessor.h"
+#include "Trace/DataProcessors/ChaosVDDataProcessorBase.h"
 
 /**
  * Data processor implementation that is able to deserialize traced Name Entries
  */
-class FChaosVDSerializedNameEntryDataProcessor final : public IChaosVDDataProcessor
+class FChaosVDSerializedNameEntryDataProcessor final : public FChaosVDDataProcessorBase
 {
 public:
 	explicit FChaosVDSerializedNameEntryDataProcessor();

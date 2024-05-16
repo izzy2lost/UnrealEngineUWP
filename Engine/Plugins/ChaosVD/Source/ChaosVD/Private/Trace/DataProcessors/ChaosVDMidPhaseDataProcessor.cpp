@@ -6,12 +6,14 @@
 #include "ChaosVisualDebugger/ChaosVDMemWriterReader.h"
 #include "Trace/ChaosVDTraceProvider.h"
 
-FChaosVDMidPhaseDataProcessor::FChaosVDMidPhaseDataProcessor() : IChaosVDDataProcessor(FChaosVDParticlePairMidPhase::WrapperTypeName)
+FChaosVDMidPhaseDataProcessor::FChaosVDMidPhaseDataProcessor() : FChaosVDDataProcessorBase(FChaosVDParticlePairMidPhase::WrapperTypeName)
 {
 }
 
 bool FChaosVDMidPhaseDataProcessor::ProcessRawData(const TArray<uint8>& InData)
 {
+	FChaosVDDataProcessorBase::ProcessRawData(InData);
+
 	TSharedPtr<FChaosVDTraceProvider> ProviderSharedPtr = TraceProvider.Pin();
 	if (!ensure(ProviderSharedPtr.IsValid()))
 	{

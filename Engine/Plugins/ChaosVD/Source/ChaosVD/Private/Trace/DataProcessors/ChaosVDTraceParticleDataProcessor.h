@@ -2,12 +2,12 @@
 
 #pragma once
 
-#include "Trace/DataProcessors/IChaosVDDataProcessor.h"
+#include "Trace/DataProcessors/ChaosVDDataProcessorBase.h"
 
 /**
  * Data processor implementation that is able to deserialize traced Particles data
  */
-class FChaosVDTraceParticleDataProcessor final : public IChaosVDDataProcessor
+class FChaosVDTraceParticleDataProcessor final : public FChaosVDDataProcessorBase
 {
 public:
 	explicit FChaosVDTraceParticleDataProcessor();
