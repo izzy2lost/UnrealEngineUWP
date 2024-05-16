@@ -78,7 +78,9 @@ void UClothTransferSkinWeightsTool::Setup()
 	TargetClothPreview->OnMeshUpdated.AddUObject(this, &UClothTransferSkinWeightsTool::PreviewMeshUpdatedCallback);
 
 	// Set the initial preview mesh before any computation runs
-	UE::Geometry::FDynamicMesh3 InitialPreviewMesh = UE::ToolTarget::GetDynamicMeshCopy(Target, true);
+	static FGetMeshParameters GetMeshParams;
+	GetMeshParams.bWantMeshTangents = true;
+	UE::Geometry::FDynamicMesh3 InitialPreviewMesh = UE::ToolTarget::GetDynamicMeshCopy(Target, GetMeshParams);
 	TargetClothPreview->PreviewMesh->UpdatePreview(MoveTemp(InitialPreviewMesh));
 
 	TargetClothPreview->SetVisibility(true);

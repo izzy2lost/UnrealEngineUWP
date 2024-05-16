@@ -141,8 +141,19 @@ MODELINGCOMPONENTS_API FMeshDescription GetMeshDescriptionCopy(
  * @param bWantMeshTangents if true, tangents will be returned if the target has them available. This may require that they be auto-calculated in some cases (which may be expensive)
  * @return a created DynamicMesh3, which may be empty if the Target doesn't have a mesh 
  */
-MODELINGCOMPONENTS_API UE::Geometry::FDynamicMesh3 GetDynamicMeshCopy(UToolTarget* Target, bool bWantMeshTangents = false);
-
+	UE_DEPRECATED(5.5, "Use GetDynamicMeshCopy which takes a FGetMeshParameters instead.")
+	MODELINGCOMPONENTS_API UE::Geometry::FDynamicMesh3 GetDynamicMeshCopy(UToolTarget* Target, bool bWantMeshTangents);
+	
+/**
+ * Fetch a DynamicMesh3 representing the given ToolTarget. This may be a conversion of the output of GetMeshDescription().
+ * This function returns a copy, so the caller can take ownership of this Mesh.
+ * @param InGetMeshParams to specify various options like specific LOD and/or tangents on the returned mesh.
+ * if InGetMeshParams.bWantMeshTangents is true, tangents will be returned if the target has them available. This may require that they be auto-calculated in some cases (which may be expensive)
+ * @return a created DynamicMesh3, which may be empty if the Target doesn't have a mesh 
+ */
+	MODELINGCOMPONENTS_API UE::Geometry::FDynamicMesh3 GetDynamicMeshCopy(
+		UToolTarget* Target,
+		const FGetMeshParameters& InGetMeshParams = FGetMeshParameters());
 
 /**
  * EDynamicMeshUpdateResult is returned by functions below that update a ToolTarget with a new Mesh

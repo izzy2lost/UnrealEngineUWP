@@ -281,7 +281,9 @@ void UBakeMeshAttributeVertexTool::Setup()
 	// TargetMesh stores the original target mesh. It is intended to remain
 	// const throughout this tool and is used to refresh the PreviewMesh back
 	// to its original state.
-	TargetMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>(UE::ToolTarget::GetDynamicMeshCopy(Targets[0], true));
+	static FGetMeshParameters GetMeshParams;
+	GetMeshParams.bWantMeshTangents = true;
+	TargetMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>(UE::ToolTarget::GetDynamicMeshCopy(Targets[0], GetMeshParams));
 	TargetMeshTangents = MakeShared<FMeshTangentsd, ESPMode::ThreadSafe>(TargetMesh.Get());
 	TargetMeshTangents->CopyTriVertexTangents(*TargetMesh);
 
@@ -477,7 +479,9 @@ void UBakeMeshAttributeVertexTool::UpdateDetailMesh()
 	IPrimitiveComponentBackedTarget* DetailComponent = Cast<IPrimitiveComponentBackedTarget>(Targets[bIsBakeToSelf ? 0 : 1]);
 	UToolTarget* DetailTargetMesh = Targets[bIsBakeToSelf ? 0 : 1];
 
-	const FDynamicMesh3 DetailMeshCopy = UE::ToolTarget::GetDynamicMeshCopy(DetailTargetMesh, true);
+	static FGetMeshParameters GetMeshParams;
+	GetMeshParams.bWantMeshTangents = true;
+	const FDynamicMesh3 DetailMeshCopy = UE::ToolTarget::GetDynamicMeshCopy(DetailTargetMesh, GetMeshParams);
 	DetailMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>();
 	DetailMesh->Copy(DetailMeshCopy);
 	if (InputMeshSettings->bProjectionInWorldSpace && bIsBakeToSelf == false)

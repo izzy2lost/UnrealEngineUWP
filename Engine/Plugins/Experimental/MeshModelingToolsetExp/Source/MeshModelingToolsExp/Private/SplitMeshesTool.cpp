@@ -69,11 +69,14 @@ void USplitMeshesTool::Setup()
 	BasicProperties->WatchProperty(BasicProperties->bShowPreview, [this](bool bShowPreview) { UpdatePreviewVisibility(bShowPreview); });
 	AddToolPropertySource(BasicProperties);
 
+	static FGetMeshParameters GetMeshParams;
+	GetMeshParams.bWantMeshTangents = true;
+	
 	SourceMeshes.SetNum(Targets.Num());
 	bool bHasSelection = false;
 	for (int32 k = 0; k < Targets.Num(); ++k)
 	{
-		SourceMeshes[k].Mesh = UE::ToolTarget::GetDynamicMeshCopy(Targets[k], true);
+		SourceMeshes[k].Mesh = UE::ToolTarget::GetDynamicMeshCopy(Targets[k], GetMeshParams);
 		SourceMeshes[k].Materials = UE::ToolTarget::GetMaterialSet(Targets[k]).Materials;
 		bHasSelection = bHasSelection || HasGeometrySelection(k);
 	}

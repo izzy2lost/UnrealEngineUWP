@@ -554,7 +554,9 @@ void UBakeMeshAttributeMapsTool::UpdateDetailMesh()
 	UToolTarget* DetailTarget = Targets[bIsBakeToSelf ? 0 : 1];
 
 	const bool bWantMeshTangents = (InputMeshSettings->SourceNormalMap != nullptr);
-	DetailMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>(UE::ToolTarget::GetDynamicMeshCopy(DetailTarget, bWantMeshTangents));
+	FGetMeshParameters GetMeshParams;
+	GetMeshParams.bWantMeshTangents = bWantMeshTangents;
+	DetailMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>(UE::ToolTarget::GetDynamicMeshCopy(DetailTarget, GetMeshParams));
 
 	if (InputMeshSettings->bProjectionInWorldSpace && bIsBakeToSelf == false)
 	{

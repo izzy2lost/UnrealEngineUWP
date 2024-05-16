@@ -98,7 +98,9 @@ void USimplifyMeshTool::Setup()
 		// Note that we only copy over a mesh description if we use the UEStandard path (conditionally done in MakeNewOperator)
 		// to avoid doing conversions back and forth for non mesh-description-backed targets (where the conversions can 
 		// occasionally do odd things to the attributes), and to avoid the slow copy unless the user needs it.
-		OriginalMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>(UE::ToolTarget::GetDynamicMeshCopy(Target, true));
+		static FGetMeshParameters GetMeshParams;
+		GetMeshParams.bWantMeshTangents = true;
+		OriginalMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>(UE::ToolTarget::GetDynamicMeshCopy(Target, GetMeshParams));
 
 		EnterProgressFrame(1);
 		OriginalMeshSpatial = MakeShared<FDynamicMeshAABBTree3, ESPMode::ThreadSafe>(OriginalMesh.Get(), true);

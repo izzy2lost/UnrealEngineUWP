@@ -106,7 +106,9 @@ void UMeshTangentsTool::Setup()
 	PreviewMesh->SetMaterials(MaterialSet.Materials);
 	// configure mesh
 	PreviewMesh->SetTangentsMode(EDynamicMeshComponentTangentsMode::ExternallyProvided);
-	FDynamicMesh3 InputMeshWithTangents = UE::ToolTarget::GetDynamicMeshCopy(Target, true);
+	static FGetMeshParameters GetMeshParams;
+	GetMeshParams.bWantMeshTangents = true;
+	FDynamicMesh3 InputMeshWithTangents = UE::ToolTarget::GetDynamicMeshCopy(Target, GetMeshParams);
 	PreviewMesh->ReplaceMesh(MoveTemp(InputMeshWithTangents));
 
 	// make a copy of initialized mesh and tangents

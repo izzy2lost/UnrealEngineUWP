@@ -214,8 +214,9 @@ void UWeldMeshEdgesTool::Setup()
 {
 	UInteractiveTool::Setup();
 
-
-	SourceMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>(UE::ToolTarget::GetDynamicMeshCopy(Target, true));
+	static FGetMeshParameters GetMeshParams;
+	GetMeshParams.bWantMeshTangents = true;
+	SourceMesh = MakeShared<FDynamicMesh3, ESPMode::ThreadSafe>(UE::ToolTarget::GetDynamicMeshCopy(Target, GetMeshParams));
 
 	// initialize selection if exists
 	if (HasGeometrySelection())

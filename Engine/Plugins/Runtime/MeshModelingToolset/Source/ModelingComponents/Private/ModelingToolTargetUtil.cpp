@@ -224,8 +224,14 @@ FMeshDescription UE::ToolTarget::GetMeshDescriptionCopy(UToolTarget* Target, con
 	return FMeshDescription();
 }
 
-
 FDynamicMesh3 UE::ToolTarget::GetDynamicMeshCopy(UToolTarget* Target, bool bWantMeshTangents)
+{
+	FGetMeshParameters GetMeshParams;
+	GetMeshParams.bWantMeshTangents = bWantMeshTangents;
+	return GetDynamicMeshCopy(Target, GetMeshParams);
+}
+
+FDynamicMesh3 UE::ToolTarget::GetDynamicMeshCopy(UToolTarget* Target, const FGetMeshParameters& InGetMeshParams)
 {
 	IPersistentDynamicMeshSource* DynamicMeshSource = Cast<IPersistentDynamicMeshSource>(Target);
 	if (DynamicMeshSource)
@@ -239,7 +245,7 @@ FDynamicMesh3 UE::ToolTarget::GetDynamicMeshCopy(UToolTarget* Target, bool bWant
 	IDynamicMeshProvider* DynamicMeshProvider = Cast<IDynamicMeshProvider>(Target);
 	if (DynamicMeshProvider)
 	{
-		return DynamicMeshProvider->GetDynamicMesh(bWantMeshTangents);
+		return DynamicMeshProvider->GetDynamicMesh(InGetMeshParams);
 	}
 
 	IMeshDescriptionProvider* MeshDescriptionProvider = Cast<IMeshDescriptionProvider>(Target);
@@ -250,16 +256,14 @@ FDynamicMesh3 UE::ToolTarget::GetDynamicMeshCopy(UToolTarget* Target, bool bWant
 		FMeshDescriptionToDynamicMesh Converter;
 		Converter.bVIDsFromNonManifoldMeshDescriptionAttr = true;
 		Converter.SetPolygonGroupToMaterialIndexMap(MeshDescriptionProvider->GetPolygonGroupToMaterialIndexMap());
-		if (bWantMeshTangents)
+		if (InGetMeshParams.bWantMeshTangents)
 		{
-			FGetMeshParameters GetMeshParams;
-			GetMeshParams.bWantMeshTangents = true;
-			FMeshDescription MeshDescriptionCopy = MeshDescriptionProvider->GetMeshDescriptionCopy(GetMeshParams);
-			Converter.Convert(&MeshDescriptionCopy, Mesh, bWantMeshTangents);
+			const FMeshDescription MeshDescriptionCopy = MeshDescriptionProvider->GetMeshDescriptionCopy(InGetMeshParams);
+			Converter.Convert(&MeshDescriptionCopy, Mesh, InGetMeshParams.bWantMeshTangents);
 		}
 		else
 		{
-			Converter.Convert(MeshDescriptionProvider->GetMeshDescription(), Mesh, bWantMeshTangents);
+			Converter.Convert(MeshDescriptionProvider->GetMeshDescription(InGetMeshParams), Mesh);
 		}
 
 		return Mesh;

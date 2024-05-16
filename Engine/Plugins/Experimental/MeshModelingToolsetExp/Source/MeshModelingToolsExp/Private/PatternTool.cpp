@@ -1773,7 +1773,9 @@ void UPatternTool::EmitResults()
 		
 		if (Element.SourceDynamicMesh != nullptr || bConvertToDynamic )
 		{
-			FDynamicMesh3 ElementMesh = UE::ToolTarget::GetDynamicMeshCopy(Targets[ElemIdx], true);
+			static FGetMeshParameters GetMeshParams;
+			GetMeshParams.bWantMeshTangents = true;
+			FDynamicMesh3 ElementMesh = UE::ToolTarget::GetDynamicMeshCopy(Targets[ElemIdx], GetMeshParams);
 
 			// this lambda creates a new dynamic mesh actor w/ the materials from the current Element
 			auto EmitDynamicMeshActor = [this, &Element, ModelingSettings](FDynamicMesh3&& MoveMesh, FString BaseName, FTransformSRT3d Transform)
