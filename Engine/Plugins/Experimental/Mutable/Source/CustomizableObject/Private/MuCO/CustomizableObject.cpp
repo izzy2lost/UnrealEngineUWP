@@ -1528,7 +1528,8 @@ int32 UCustomizableObject::FindIntParameterValue(int32 ParamIndex, const FString
 
 int32 UCustomizableObjectPrivate::FindIntParameterValue(int32 ParamIndex, const FString& Value) const
 {
-	int32 MinValueIndex = 0;
+	int32 MinValueIndex = INDEX_NONE;
+	
 	if (ParamIndex >= 0 && ParamIndex < ParameterProperties.Num())
 	{
 		const TArray<FMutableModelParameterValue>& PossibleValues = ParameterProperties[ParamIndex].PossibleValues;
@@ -1548,15 +1549,8 @@ int32 UCustomizableObjectPrivate::FindIntParameterValue(int32 ParamIndex, const 
 				}
 			}
 		}
-		else
-		{
-			UE_LOG(LogMutable, Warning, TEXT("No possible values for parameter with index [%d] at FindIntParameterValue at CO %s."), ParamIndex, *GetName());
-		}
 	}
-	else
-	{
-		UE_LOG(LogMutable, Warning, TEXT("Index [%d] out of ParameterProperties bounds at FindIntParameterValue at CO %s."), ParamIndex, *GetName());
-	}
+	
 	return MinValueIndex;
 }
 

@@ -930,61 +930,65 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateParameterWidget(const 
 TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateIntWidget(const int32 ParamIndexInObject)
 {
 	UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
-
-	int32 numValues = CustomizableObject->GetIntParameterNumOptions(ParamIndexInObject);
-	bool bIsParamMultidimensional = CustomInstance->GetCustomizableObject()->IsParameterMultidimensional((ParamIndexInObject));
-
-	if (!bIsParamMultidimensional && numValues)
+	
+	const bool bMultidimensional = CustomInstance->GetCustomizableObject()->IsParameterMultidimensional(ParamIndexInObject);
+	if (bMultidimensional)
 	{
-		FString ToolTipText = FString("None");
-		FString ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
-		FString Value = CustomInstance->GetIntParameterSelectedOption(ParamName, -1);
-
-		TSharedPtr<TArray<TSharedPtr<FString>>>* FoundOptions = IntParameterOptions.Find(ParamIndexInObject);
-		TArray<TSharedPtr<FString>>& OptionNamesAttribute = FoundOptions && FoundOptions->IsValid() ? 
-															*FoundOptions->Get() :
-															*(IntParameterOptions.Add(ParamIndexInObject, MakeShared<TArray<TSharedPtr<FString>>>()).Get());
-
-		OptionNamesAttribute.Empty();
-
-		int32 ValueIndex = 0;
-
-		for (int32 i = 0; i < numValues; ++i)
-		{
-			FString PossibleValue = CustomizableObject->GetIntParameterAvailableOption(ParamIndexInObject, i);
-
-			if (PossibleValue == Value)
-			{
-				ValueIndex = i;
-
-				const FString* Identifier = CustomizableObject->GetPrivate()->GroupNodeMap.FindKey(FCustomizableObjectIdPair(ParamName, PossibleValue));
-				if (Identifier)
-				{
-					if (FString* CustomizableObjectPath = CustomizableObject->GetPrivate()->CustomizableObjectPathMap.Find(*Identifier))
-					{
-						ToolTipText = *CustomizableObjectPath;
-					}
-				}
-			}
-
-			OptionNamesAttribute.Add(TSharedPtr<FString>(new FString(CustomizableObject->GetIntParameterAvailableOption(ParamIndexInObject, i))));
-		}
-
-		return SNew(SSearchableComboBox)
-			.ToolTipText(FText::FromString(ToolTipText))
-			.OptionsSource(&OptionNamesAttribute)
-			.InitiallySelectedItem(OptionNamesAttribute[ValueIndex])
-			.Method(EPopupMethod::UseCurrentWindow)
-			.OnSelectionChanged(this, &FCustomizableInstanceDetails::OnIntParameterComboBoxChanged, ParamName)
-			.OnGenerateWidget(this, &FCustomizableInstanceDetails::OnGenerateWidgetIntParameter)
-			.Content()
-			[
-				SNew(STextBlock)
-					.Text(FText::FromString(*OptionNamesAttribute[ValueIndex]))
-			];
+		return SNew(STextBlock).Text(LOCTEXT("MultidimensionalINTParameter_Text", "Multidimensional INT Parameter not supported"));
 	}
 
-	return SNew(STextBlock).Text(LOCTEXT("MultidimensionalINTParameter_Text", "Multidimensional INT Parameter not supported"));
+	const int32 NumValues = CustomizableObject->GetIntParameterNumOptions(ParamIndexInObject) != 0;
+	if (!NumValues)
+	{
+		return SNew(STextBlock).Text(LOCTEXT("NoAvailableOptions", "No Available Options"));
+	}
+	
+	FString ToolTipText = FString("None");
+	FString ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
+	FString Value = CustomInstance->GetIntParameterSelectedOption(ParamName, -1);
+
+	TSharedPtr<TArray<TSharedPtr<FString>>>* FoundOptions = IntParameterOptions.Find(ParamIndexInObject);
+	TArray<TSharedPtr<FString>>& OptionNamesAttribute = FoundOptions && FoundOptions->IsValid() ? 
+														*FoundOptions->Get() :
+														*(IntParameterOptions.Add(ParamIndexInObject, MakeShared<TArray<TSharedPtr<FString>>>()).Get());
+
+	OptionNamesAttribute.Empty();
+
+	int32 ValueIndex = 0;
+
+	for (int32 i = 0; i < NumValues; ++i)
+	{
+		FString PossibleValue = CustomizableObject->GetIntParameterAvailableOption(ParamIndexInObject, i);
+
+		if (PossibleValue == Value)
+		{
+			ValueIndex = i;
+
+			const FString* Identifier = CustomizableObject->GetPrivate()->GroupNodeMap.FindKey(FCustomizableObjectIdPair(ParamName, PossibleValue));
+			if (Identifier)
+			{
+				if (FString* CustomizableObjectPath = CustomizableObject->GetPrivate()->CustomizableObjectPathMap.Find(*Identifier))
+				{
+					ToolTipText = *CustomizableObjectPath;
+				}
+			}
+		}
+
+		OptionNamesAttribute.Add(TSharedPtr<FString>(new FString(CustomizableObject->GetIntParameterAvailableOption(ParamIndexInObject, i))));
+	}
+
+	return SNew(SSearchableComboBox)
+		.ToolTipText(FText::FromString(ToolTipText))
+		.OptionsSource(&OptionNamesAttribute)
+		.InitiallySelectedItem(OptionNamesAttribute[ValueIndex])
+		.Method(EPopupMethod::UseCurrentWindow)
+		.OnSelectionChanged(this, &FCustomizableInstanceDetails::OnIntParameterComboBoxChanged, ParamName)
+		.OnGenerateWidget(this, &FCustomizableInstanceDetails::OnGenerateWidgetIntParameter)
+		.Content()
+		[
+			SNew(STextBlock)
+				.Text(FText::FromString(*OptionNamesAttribute[ValueIndex]))
+		];
 }
 
 
