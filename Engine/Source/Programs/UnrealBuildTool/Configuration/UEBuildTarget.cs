@@ -2444,6 +2444,16 @@ namespace UnrealBuildTool
 
 			FindSharedPCHs(Binaries, GlobalCompileEnvironment, Logger);
 
+			SingleInstanceMutex? mutex = null;
+			if (Rules.BuildEnvironment == TargetBuildEnvironment.Shared)
+			{
+				string MutexName = SingleInstanceMutex.GetUniqueMutexForPath("UnrealBuildTool_CreateCompileEnvironmentForProjectFiles", Unreal.EngineDirectory.FullName);
+				mutex = new SingleInstanceMutex(MutexName, true);
+			}
+
+			CreateSharedPCHInstances(Rules, TargetToolChain, Binaries, GlobalCompileEnvironment, new NullActionGraphBuilder(Logger), Logger);
+			mutex?.Dispose();
+
 			return GlobalCompileEnvironment;
 		}
 
