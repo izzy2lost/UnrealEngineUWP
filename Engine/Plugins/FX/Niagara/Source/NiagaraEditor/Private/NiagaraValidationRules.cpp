@@ -619,7 +619,7 @@ void UNiagaraValidationRule_BannedRenderers::CheckValidity(const FNiagaraValidat
 					{
 						FNiagaraValidationResult& Result = Results.AddDefaulted_GetRef();
 						
-						Result.Severity = ENiagaraValidationSeverity::Warning;
+						Result.Severity = Severity;
 						Result.SummaryText = LOCTEXT("BannedRenderSummary", "Banned renderers used.");
 						Result.Description = LOCTEXT("BannedRenderDescription", "Please ensure only allowed renderers are used for each platform according to the validation rules in the System's Effect Type.");
 						Result.SourceObject = StackItem;
@@ -654,53 +654,62 @@ void UNiagaraValidationRule_BannedModules::CheckValidity(const FNiagaraValidatio
 
 	for (UNiagaraStackModuleItem* Item : StackModuleItems)
 	{
-		if (Item && Item->GetIsEnabled())
+		if (!Item || !Item->GetIsEnabled())
 		{
-			UNiagaraNodeFunctionCall& FuncCall = Item->GetModuleNode();
+			continue;
+		}
 
-			for (UNiagaraScript* BannedModule : BannedModules)
+		UNiagaraNodeFunctionCall& FuncCall = Item->GetModuleNode();
+		for (UNiagaraScript* BannedModule : BannedModules)
+		{
+			if (BannedModule != FuncCall.FunctionScript)
 			{
-				if (BannedModule == FuncCall.FunctionScript)
+				continue;
+			}
+
+			FVersionedNiagaraEmitterData* EmitterData = Item->GetEmitterViewModel().IsValid() ? Item->GetEmitterViewModel()->GetEmitter().GetEmitterData() : nullptr;
+			if ( EmitterData )
+			{
+				bool bApplyBan =
+					(bBanOnCpu && EmitterData->SimTarget == ENiagaraSimTarget::CPUSim) ||
+					(bBanOnGpu && EmitterData->SimTarget == ENiagaraSimTarget::GPUComputeSim);
+
+				//If we're on an emitter, this emitter may be culled on the platforms the rule applies to.
+				const TArray<FNiagaraPlatformSetConflictInfo> Conflicts = NiagaraValidation::GatherPlatformSetConflicts(&Platforms, &EmitterData->Platforms);
+				bApplyBan &= Conflicts.Num() > 0;
+				if (!bApplyBan)
 				{
-					FVersionedNiagaraEmitterData* EmitterData = Item->GetEmitterViewModel().IsValid() ? Item->GetEmitterViewModel()->GetEmitter().GetEmitterData() : nullptr;
-
-					bool bApplyBan = true;
-					if (EmitterData)
-					{
-						//If we're on an emitter, this emitter may be culled on the platforms the rule applies to.
-						const TArray<FNiagaraPlatformSetConflictInfo> Conflicts = NiagaraValidation::GatherPlatformSetConflicts(&Platforms, &EmitterData->Platforms);
-						bApplyBan = Conflicts.Num() > 0;
-					}
-
-					if (!bApplyBan)
-					{
-						continue;
-					}
-
-					const FTextFormat Format(LOCTEXT("BannedModuleFormat", "Module {0} is banned on some currently enabled platforms"));
-					const FText WarningMessage = FText::Format(Format, FText::FromString(FuncCall.FunctionScript->GetName()));
-
-					FNiagaraValidationResult& Result = Results.AddDefaulted_GetRef();
-					Result.Severity = ENiagaraValidationSeverity::Warning;
-					Result.SummaryText = WarningMessage;
-					Result.Description = LOCTEXT("BanndeModulesDescription", "Check this module against the Effect Type's Banned Modules validators");
-					Result.SourceObject = Item;
-
-					NiagaraValidation::AddGoToFXTypeLink(Result, System.GetEffectType());
-
-					//Add autofix to disable the module
-					FNiagaraValidationFix& DisableModuleFix = Result.Fixes.AddDefaulted_GetRef();
-					DisableModuleFix.Description = LOCTEXT("DisableBannedModuleFix", "Disable Banned Module");					
-					TWeakObjectPtr<UNiagaraStackModuleItem> WeakModuleItem = Item;
-					DisableModuleFix.FixDelegate = FNiagaraValidationFixDelegate::CreateLambda([WeakModuleItem]()
-					{
-						if (UNiagaraStackModuleItem* ModuleItem = WeakModuleItem.Get())
-						{
-							ModuleItem->SetEnabled(false);
-						}
-					});
+					continue;
 				}
 			}
+			else if (!bBanOnCpu)
+			{
+				// System & Emitter scripts only run on the CPU
+				continue;
+			}
+
+			const FTextFormat Format(LOCTEXT("BannedModuleFormat", "Module {0} is banned on some currently enabled platforms"));
+			const FText WarningMessage = FText::Format(Format, FText::FromString(FuncCall.FunctionScript->GetName()));
+
+			FNiagaraValidationResult& Result = Results.AddDefaulted_GetRef();
+			Result.Severity = Severity;
+			Result.SummaryText = WarningMessage;
+			Result.Description = LOCTEXT("BanndeModulesDescription", "Check this module against the Effect Type's Banned Modules validators");
+			Result.SourceObject = Item;
+
+			NiagaraValidation::AddGoToFXTypeLink(Result, System.GetEffectType());
+
+			//Add autofix to disable the module
+			FNiagaraValidationFix& DisableModuleFix = Result.Fixes.AddDefaulted_GetRef();
+			DisableModuleFix.Description = LOCTEXT("DisableBannedModuleFix", "Disable Banned Module");					
+			TWeakObjectPtr<UNiagaraStackModuleItem> WeakModuleItem = Item;
+			DisableModuleFix.FixDelegate = FNiagaraValidationFixDelegate::CreateLambda([WeakModuleItem]()
+			{
+				if (UNiagaraStackModuleItem* ModuleItem = WeakModuleItem.Get())
+				{
+					ModuleItem->SetEnabled(false);
+				}
+			});
 		}
 	}
 }
@@ -708,6 +717,9 @@ void UNiagaraValidationRule_BannedModules::CheckValidity(const FNiagaraValidatio
 void UNiagaraValidationRule_BannedDataInterfaces::CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& Results)  const
 {
 	UNiagaraSystem* NiagaraSystem = &Context.ViewModel->GetSystem();
+
+	FNiagaraDataInterfaceUtilities::FDataInterfaceSearchOptions SearchOptions;
+	SearchOptions.bIncludeInternal = true;
 
 	FNiagaraDataInterfaceUtilities::ForEachDataInterface(
 		NiagaraSystem,
@@ -761,7 +773,7 @@ void UNiagaraValidationRule_BannedDataInterfaces::CheckValidity(const FNiagaraVa
 				if (bBanOnCpu == true)
 				{
 					Results.Emplace(
-						ENiagaraValidationSeverity::Warning,
+						Severity,
 						FText::Format(WarningFormat, FText::FromName(UsageContext.Variable.GetName())),
 						FText::Format(SystemDescFormat, FText::FromName(UsageContext.Variable.GetName()), FText::FromName(DIClass->GetFName())),
 						NiagaraValidation::GetStackEntry<UNiagaraStackSystemPropertiesItem>(Context.ViewModel->GetSystemStackViewModel())
@@ -770,7 +782,8 @@ void UNiagaraValidationRule_BannedDataInterfaces::CheckValidity(const FNiagaraVa
 			}
 
 			return true;
-		}
+		},
+		SearchOptions
 	);
 }
 

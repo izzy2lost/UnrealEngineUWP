@@ -112,6 +112,9 @@ public:
 	FNiagaraPlatformSet Platforms;
 
 	UPROPERTY(EditAnywhere, Category = Validation)
+	ENiagaraValidationSeverity Severity = ENiagaraValidationSeverity::Warning;
+
+	UPROPERTY(EditAnywhere, Category = Validation)
 	TArray<TSubclassOf<UNiagaraRendererProperties>> BannedRenderers;
 
 	virtual void CheckValidity(const FNiagaraValidationContext& Context, TArray<FNiagaraValidationResult>& OutResults) const override;
@@ -128,6 +131,15 @@ public:
 	//Platforms this validation rule will apply to.
 	UPROPERTY(EditAnywhere, Category=Validation)
 	FNiagaraPlatformSet Platforms;
+
+	UPROPERTY(EditAnywhere, Category = Validation)
+	bool bBanOnGpu = true;
+
+	UPROPERTY(EditAnywhere, Category = Validation)
+	bool bBanOnCpu = true;
+
+	UPROPERTY(EditAnywhere, Category = Validation)
+	ENiagaraValidationSeverity Severity = ENiagaraValidationSeverity::Warning;
 
 	UPROPERTY(EditAnywhere, Category = Validation)
 	TArray<TObjectPtr<UNiagaraScript>> BannedModules;
