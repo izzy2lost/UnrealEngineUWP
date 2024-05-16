@@ -33,7 +33,10 @@ namespace UE::StructUtils
 	{
 		check(StructMemory != nullptr);
 		check(ScriptStruct != nullptr);
-		check(ScriptStruct == TBaseStructure<T>::Get() || ScriptStruct->IsChildOf(TBaseStructure<T>::Get()));
+		checkf(ScriptStruct == TBaseStructure<T>::Get() || ScriptStruct->IsChildOf(TBaseStructure<T>::Get()),
+			TEXT("Incompatible struct types. Source type: '%s' Target type: '%s'"),
+			*(TBaseStructure<T>::Get()->GetName()),
+			ScriptStruct ? *(ScriptStruct->GetName()) : TEXT("nullptr"));
 		return *((T*)StructMemory);
 	}
 
