@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
-using System.Security.Principal;
 using System.Text.RegularExpressions;
 using System.Xml;
 using Amazon.EC2;
@@ -13,6 +12,7 @@ using Amazon.Util;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Compute;
+using Horde.Agent.Execution;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -198,7 +198,7 @@ namespace Horde.Agent.Services
 				primaryDevice.Properties.Add($"User={Environment.UserName}");
 				primaryDevice.Properties.Add($"Domain={Environment.UserDomainName}");
 				primaryDevice.Properties.Add($"Interactive={Environment.UserInteractive}");
-				primaryDevice.Properties.Add($"Elevated={IsUserAdministrator()}");
+				primaryDevice.Properties.Add($"Elevated={JobExecutor.IsUserAdministrator()}");
 			}
 			else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 			{
@@ -269,7 +269,7 @@ namespace Horde.Agent.Services
 				primaryDevice.Properties.Add($"User={Environment.UserName}");
 				primaryDevice.Properties.Add($"Domain={Environment.UserDomainName}");
 				primaryDevice.Properties.Add($"Interactive={Environment.UserInteractive}");
-				primaryDevice.Properties.Add($"Elevated={IsUserAdministrator()}");
+				primaryDevice.Properties.Add($"Elevated={JobExecutor.IsUserAdministrator()}");
 			}
 			else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
 			{
@@ -441,30 +441,6 @@ namespace Horde.Agent.Services
 			// Add any additional properties from the config file
 			agent.Properties.AddRange(_settings.Properties.Select(kvp => $"{kvp.Key}={kvp.Value}"));
 			return agent;
-		}
-
-		/// <summary>
-		/// Determine if the current user is a running with elevated permissions on Windows (UAC)
-		/// </summary>
-		public static bool IsUserAdministrator()
-		{
-			if (!OperatingSystem.IsWindows())
-			{
-				return false;
-			}
-
-			try
-			{
-				using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
-				{
-					WindowsPrincipal principal = new WindowsPrincipal(identity);
-					return principal.IsInRole(WindowsBuiltInRole.Administrator);
-				}
-			}
-			catch
-			{
-				return false;
-			}
 		}
 
 		/// <summary>
