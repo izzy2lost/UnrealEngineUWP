@@ -28,6 +28,13 @@
 	#define NANITE_NUM_TEXCOORDS_TO_DECODE NUM_MATERIAL_TEXCOORDS
 #endif
 
+#if NANITE_PIXEL_PROGRAMMABLE && NANITE_NUM_TEXCOORDS_TO_DECODE < 2
+	// Ensure we decode at least 2 texture coordinates in the MS/VS to properly populate the interpolator with valid data.
+	#define NANITE_NUM_TEXCOORDS_TO_DECODE_HW_VS 2
+#else
+	#define NANITE_NUM_TEXCOORDS_TO_DECODE_HW_VS NANITE_NUM_TEXCOORDS_TO_DECODE
+#endif
+
 // Nanite material evaluation is deferred to a screenspace pass sampling the visibility buffer,
 // so the 'interpolants' used in the GBuffer pass are almost all generated in the PixelShader, instead of exported from VS.
 // FNaniteFullscreenVSToPS is the struct containing what actually needs to be passed between VS and PS in the Nanite GBuffer pass.
