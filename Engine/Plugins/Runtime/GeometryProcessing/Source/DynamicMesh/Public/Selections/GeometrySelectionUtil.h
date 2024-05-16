@@ -215,6 +215,21 @@ DYNAMICMESH_API bool EnumeratePolygroupSelectionEdges(
 	const UE::Geometry::FPolygroupSet& GroupSet,
 	TFunctionRef<void(int32)> EdgeFunc
 );
+
+/**
+ * Version of EnumeratePolygroupSelectionEdges which uses GroupTopology
+ *
+* Call EdgeFunc for each mesh EdgeID included in MeshSelection, where MeshSelection has polygroup topology.
+ * For Polygroup Faces, all edges (including internal, non-border edges) in the polygroup are included.
+ * For Polygroup Borders, includes all mesh edges which are a part of the selected GroupEdge(s)/BorderEdge(s)
+ * For Polygroup Corners, includes all mesh edges in all GroupEdge(s) which touch the selected Corner(s)
+ */
+DYNAMICMESH_API bool EnumeratePolygroupSelectionEdges(
+	const FGeometrySelection& MeshSelection,
+	const UE::Geometry::FDynamicMesh3& Mesh,
+	const UE::Geometry::FGroupTopology& GroupTopology,
+	TFunctionRef<void(int32)> EdgeFunc
+);	
 	
 /** Prefer EnumerateTriangleSelectionElements with Flags parameter. */
 DYNAMICMESH_API bool EnumerateTriangleSelectionElements(
@@ -315,17 +330,6 @@ DYNAMICMESH_API bool InitializeSelectionFromTriangles(
 
 
 /**
- * Convert PolyGroup IDs to target Selection type
- */
-DYNAMICMESH_API bool InitializeSelectionFromPolyGroups(
-	const FDynamicMesh3& Mesh,
-	const FGroupTopology& GroupTopology,
-	TArrayView<const int> GroupIDs,
-	FGeometrySelection& SelectionOut);
-
-
-
-/**
  * Convert Selection from one type to another, based on geometry/topology types in FromSelectionIn and ToSelectionOut.
  * 
  * The following table describes the conversions, the FromSelectionIn/ToSelectionOut type are rows/columns respectively:
@@ -334,23 +338,28 @@ DYNAMICMESH_API bool InitializeSelectionFromPolyGroups(
  *                 To:    Triangle               Polygroup           
  *   From:                Vertex  Edge    Face   Vertex  Edge    Face
  *   ----------------------------------------------------------------
- *   Triangle Vertex      1       .       .      4#      .       .   
- *   Triangle Edge        1       1       .      4#      .       .   
- *   Triangle Face        1       1       1      4#      3#      2#  
- *   Polygroup Vertex     6#      .       .      1       .       .   
- *   Polygroup Edge       5#      1#      .      1#      1       .   
- *   Polygroup Face       1#      1#      1#     1#      1#      1   
+ *   Triangle Vertex      1       1       7      4#      7#       7#   
+ *   Triangle Edge        1       1       8      4#      1#       8#   
+ *   Triangle Face        1       1       1      4#      3#       2#  
+ *   Polygroup Vertex     6#      9#      9      1       7#       7#   
+ *   Polygroup Edge       5#      1#      8      1#      1        8#   
+ *   Polygroup Face       1#      1#      1      1#      1#       1   
  *   ================================================================
  *
  *   Key:
  *   .  These conversions are not implemented... yet? GroupTopology is ignored
- *   1  supported. The implementation is obvious/unambiguous
- *   2  supported. Polygroup faces containing any input triangle are selected
- *   3  supported. Polygroup edges containing any input triangle edge are selected, but
+ *   1  - The implementation is obvious/unambiguous
+ *   2  - Polygroup faces containing any input triangle are selected
+ *   3  - Polygroup edges containing any input triangle edge are selected, but
  *                 polygroup edges containing only input triangle vertices are not.
- *   4  supported. Polygroup corners coinciding with any input triangle face/edge/vertex are selected
- *   5  supported. All mesh vertices along the polygroup edge are selected
- *   6  supported. All mesh vertices coinciding with polygroup corners are selected
+ *   4  - Polygroup corners coinciding with any input triangle face/edge/vertex are selected
+ *   5  - All mesh vertices along the polygroup edge are selected
+ *   6  - All mesh vertices coinciding with polygroup corners are selected
+ *   7  - All Elements which immediately touch any input vertex/corner are selected
+ *   8  - All triangles or faces on either side of the any input edge are selected
+ *			PolyEdge->TriFace includes all triangles in both groups which the edge borders
+ *   9  - All edges in each PolyEdge with touch any input Corner are selected
+ *		  All triangles in each PolyFace which touch any input Corner are selected
  *   #  indicates GroupTopology must not be null for this combination. If this symbol is missing GroupTopology is ignored
  *
  * @return true if conversion is supported and was computed successfully, return false otherwise
