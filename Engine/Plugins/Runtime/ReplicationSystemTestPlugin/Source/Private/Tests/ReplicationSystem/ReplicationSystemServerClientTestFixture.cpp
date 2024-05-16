@@ -65,6 +65,16 @@ void FDataStreamTestUtil::AddDataStreamDefinition(const TCHAR* StreamName, const
 // FReplicationSystemTestNode implementation
 FReplicationSystemTestNode::FReplicationSystemTestNode(bool bIsServer, const TCHAR* Name)
 {
+	Setup(bIsServer, Name);
+}
+
+FReplicationSystemTestNode::FReplicationSystemTestNode(FReplicationSystemTestNode::EDelaySetup)
+{
+	// Do nothing until asked to start up
+}
+
+void FReplicationSystemTestNode::Setup(bool bIsServer, const TCHAR* Name, FReplicationSystemTestNode::FReplicationSystemParamsOverride* ParamsOverride)
+{
 	ReplicationBridge = NewObject<UReplicatedTestObjectBridge>();
 	check(ReplicationBridge != nullptr);
 
@@ -74,6 +84,13 @@ FReplicationSystemTestNode::FReplicationSystemTestNode(bool bIsServer, const TCH
 	Params.ReplicationBridge = ReplicationBridge;
 	Params.bIsServer = bIsServer;
 	Params.bAllowObjectReplication = bIsServer;
+
+	if (ParamsOverride)
+	{
+		Params.MaxReplicatedObjectCount = ParamsOverride->MaxReplicatedObjectCount > 0 ? ParamsOverride->MaxReplicatedObjectCount : Params.MaxReplicatedObjectCount;
+		Params.InitialNetObjectListCount = ParamsOverride->InitialNetObjectListCount > 0 ? ParamsOverride->InitialNetObjectListCount : Params.InitialNetObjectListCount;
+		Params.NetObjectListGrowCount = ParamsOverride->NetObjectListGrowCount > 0 ? ParamsOverride->NetObjectListGrowCount : Params.NetObjectListGrowCount;
+	}
 
 	LOG_SCOPE_VERBOSITY_OVERRIDE(LogIris, ELogVerbosity::Error);
 	ReplicationSystem = FReplicationSystemFactory::CreateReplicationSystem(Params);	

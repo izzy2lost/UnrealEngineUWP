@@ -1940,6 +1940,6 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestPartialDequan
 	CVarForceFullDequantizeAndApply->Set(bForceFullDequantizeAndApply, ECVF_SetByCode);
 }
 
+} // end namespace UE::Net::Private
 
 
-}

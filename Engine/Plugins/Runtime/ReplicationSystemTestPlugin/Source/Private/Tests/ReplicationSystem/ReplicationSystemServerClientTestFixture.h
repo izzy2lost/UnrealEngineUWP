@@ -74,9 +74,21 @@ public:
 		uint32 ConnectionId;
 	};
 
+	struct FReplicationSystemParamsOverride
+	{
+		uint32 MaxReplicatedObjectCount = 0;
+		uint32 InitialNetObjectListCount = 0;
+		uint32 NetObjectListGrowCount = 0;
+	};
+
+	enum EDelaySetup { DelaySetup=0 };
+
 public:
 	FReplicationSystemTestNode(bool bIsServer, const TCHAR* Name);
+	explicit FReplicationSystemTestNode(FReplicationSystemTestNode::EDelaySetup);
 	~FReplicationSystemTestNode();
+
+	void Setup(bool bIsServer, const TCHAR* Name, FReplicationSystemTestNode::FReplicationSystemParamsOverride* ParamsOverride=nullptr);
 
 	template<typename T>
 	T* CreateObject()
@@ -168,6 +180,7 @@ class FReplicationSystemTestClient : public FReplicationSystemTestNode
 {
 public:
 	FReplicationSystemTestClient(const TCHAR* Name);
+	explicit FReplicationSystemTestClient(FReplicationSystemTestNode::EDelaySetup Delay) : FReplicationSystemTestNode(Delay) {}
 
 	// Tick and send packets to the server
 	bool UpdateAndSend(class FReplicationSystemTestServer* Server, bool bDeliver = true);
@@ -180,6 +193,7 @@ class FReplicationSystemTestServer : public FReplicationSystemTestNode
 {
 public:
 	explicit FReplicationSystemTestServer(const TCHAR* Name);
+	explicit FReplicationSystemTestServer(FReplicationSystemTestNode::EDelaySetup Delay) : FReplicationSystemTestNode(Delay) {}
 
 	// Send data and deliver to the client if bDeliver is true
 	bool SendAndDeliverTo(FReplicationSystemTestClient* Client, bool bDeliver, const TCHAR* Desc = nullptr);
