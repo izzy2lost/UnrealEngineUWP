@@ -270,6 +270,19 @@ void UWorkspace::GetAssetDataEntries(TArray<FAssetData>& OutAssetDataEntries) co
 	AssetRegistry.GetAssets(Filter, OutAssetDataEntries);
 }
 
+bool UWorkspace::HasValidEntries() const
+{
+	for(const UWorkspaceAssetEntry* AssetEntry : AssetEntries)
+	{
+		if (AssetEntry && AssetEntry->Asset.IsValid())
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void UWorkspace::ReportError(const TCHAR* InMessage) const
 {
 #if WITH_EDITOR

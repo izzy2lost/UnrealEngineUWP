@@ -7,10 +7,10 @@
 
 class UWorkspace;
 class UWorkSpaceAssetUserData;
-class SSceneOutliner;
 
 namespace UE::Workspace
 {
+class SWorkspaceOutliner;
 class IWorkspaceEditor;
 
 class SWorkspaceView : public SCompoundWidget
@@ -21,7 +21,7 @@ class SWorkspaceView : public SCompoundWidget
 	void Construct(const FArguments& InArgs, UWorkspace* InWorkspace, TSharedRef<UE::Workspace::IWorkspaceEditor> InWorkspaceEditor);
 private:
 	UWorkspace* Workspace = nullptr;
-	TSharedPtr<SSceneOutliner> SceneWorkspaceOutliner;
+	TSharedPtr<SWorkspaceOutliner> SceneWorkspaceOutliner;
 };
 
 };

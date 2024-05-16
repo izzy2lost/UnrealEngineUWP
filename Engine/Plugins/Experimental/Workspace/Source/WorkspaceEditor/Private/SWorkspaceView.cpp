@@ -7,6 +7,7 @@
 #include "SAssetDropTarget.h"
 #include "SceneOutlinerPublicTypes.h"
 #include "ScopedTransaction.h"
+#include "SPositiveActionButton.h"
 #include "SSceneOutliner.h"
 #include "WorkspaceSchema.h"
 #include "Framework/Commands/GenericCommands.h"
@@ -17,6 +18,76 @@
 
 namespace UE::Workspace
 {
+
+class SWorkspaceOutliner : public SSceneOutliner
+{
+public:
+	void Construct(const FArguments& InArgs, const FSceneOutlinerInitializationOptions& InitOptions, UWorkspace* InWorkspace)
+	{
+		AddAssetButton = SNew(SPositiveActionButton)
+				.OnGetMenuContent(this, &SWorkspaceOutliner::GetAddAssetPicker)			 
+				.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
+				.Text(LOCTEXT("AddAssetButton", "Add"));
+
+		WeakWorkspace = InWorkspace;
+		
+		SSceneOutliner::Construct(InArgs, InitOptions);
+	}
+
+	SWorkspaceOutliner() = default;
+	virtual ~SWorkspaceOutliner() = default;
+
+	void CustomAddToToolbar(TSharedPtr<class SHorizontalBox> Toolbar) override
+	{
+		Toolbar->AddSlot()
+		.VAlign(VAlign_Center)
+		.AutoWidth()
+		.Padding(4.f, 0.f, 0.f, 0.f)
+		[
+			AddAssetButton.ToSharedRef()
+		];
+	}
+
+	TSharedRef<SWidget> GetAddAssetPicker() const
+	{
+		if (UWorkspace* Workspace = WeakWorkspace.Get())
+		{
+			FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
+
+			FAssetPickerConfig AssetPickerConfig;
+			AssetPickerConfig.InitialAssetViewType = EAssetViewType::List;
+			AssetPickerConfig.OnAssetSelected = FOnAssetSelected::CreateLambda([this, Workspace](const FAssetData& InAssetData)
+			{
+				FScopedTransaction Transaction(LOCTEXT("AddAsset", "Add asset to workspace"));
+				Workspace->AddAsset(InAssetData);
+		
+				AddAssetButton->SetIsMenuOpen(false, false);
+			});
+
+			TArray<FAssetData> WorkspaceAssetDataEntries;
+			Workspace->GetAssetDataEntries(WorkspaceAssetDataEntries);
+	
+			AssetPickerConfig.OnShouldFilterAsset = FOnShouldFilterAsset::CreateLambda([this, WorkspaceAssetDataEntries, Workspace](const FAssetData& InAssetData)
+			{
+				if (WorkspaceAssetDataEntries.Contains(InAssetData))
+				{
+					return true;
+				}
+	
+				return !Workspace->IsAssetSupported(InAssetData);
+			});
+
+			return ContentBrowserModule.Get().CreateAssetPicker(AssetPickerConfig);
+		}
+
+		return SNullWidget::NullWidget;	
+	
+	}
+private:
+	
+	TWeakObjectPtr<UWorkspace> WeakWorkspace;
+	TSharedPtr<SPositiveActionButton> AddAssetButton;
+};
 
 void SWorkspaceView::Construct(const FArguments& InArgs, UWorkspace* InWorkspace, TSharedRef<UE::Workspace::IWorkspaceEditor> InWorkspaceEditor)
 {
@@ -31,8 +102,9 @@ void SWorkspaceView::Construct(const FArguments& InArgs, UWorkspace* InWorkspace
 		InitOptions.ColumnMap.Add(FWorkspaceOutlinerSourceControlColumn::GetID(), FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, 100, FCreateSceneOutlinerColumn::CreateLambda([](ISceneOutliner& InSceneOutliner) { return MakeShareable(new FWorkspaceOutlinerSourceControlColumn(InSceneOutliner)); }), false));	
 		InitOptions.ModeFactory = FCreateSceneOutlinerMode::CreateLambda([this, WeakWorkspaceEditor=InWorkspaceEditor.ToWeakPtr()](SSceneOutliner* InOutliner) { return new UE::Workspace::FWorkspaceOutlinerMode(UE::Workspace::FWorkspaceOutlinerMode(InOutliner, Workspace, WeakWorkspaceEditor)); });
 	}
-	SceneWorkspaceOutliner = SNew(SSceneOutliner, InitOptions);
-
+	SceneWorkspaceOutliner = SNew(SWorkspaceOutliner, InitOptions, Workspace);
+	
+	TWeakObjectPtr<UWorkspace> WeakWorkspace = Workspace;
 	ChildSlot
 	[
 		SNew(SAssetDropTarget)
@@ -40,7 +112,6 @@ void SWorkspaceView::Construct(const FArguments& InArgs, UWorkspace* InWorkspace
 		.OnAssetsDropped_Lambda([this](const FDragDropEvent& InEvent, TArrayView<FAssetData> InAssets)
 		{
 			FScopedTransaction Transaction(LOCTEXT("AddAssets", "Add assets to workspace"));
-
 			Workspace->AddAssets(InAssets);
 		})
 		.OnAreAssetsAcceptableForDropWithReason_Lambda([this](TArrayView<FAssetData> InAssets, FText& OutText)
@@ -58,7 +129,39 @@ void SWorkspaceView::Construct(const FArguments& InArgs, UWorkspace* InWorkspace
 		})
 		.Content()
 		[
-			SceneWorkspaceOutliner.ToSharedRef()
+			SNew(SOverlay)
+			+SOverlay::Slot()
+			[
+				SceneWorkspaceOutliner.ToSharedRef()
+			]
+			+SOverlay::Slot()
+			.Padding(32.f)
+			.VAlign(VAlign_Center)
+			.HAlign(HAlign_Center)
+			[
+				SNew(STextBlock)
+				.Text(
+					LOCTEXT("EmptyWorkspaceTooltip", "No assets currently in this workspace. Use 'Add' button or drag and drop to add assets.")
+				)
+				.Justification(ETextJustify::Center)
+				.AutoWrapText(true)
+				.Visibility(
+					TAttribute<EVisibility>::Create(
+						TAttribute<EVisibility>::FGetter::CreateLambda([WeakWorkspace]()
+						{
+							if (UWorkspace* PinnedWorkspace = WeakWorkspace.Get())
+							{
+								if (!PinnedWorkspace->HasValidEntries())
+								{
+									return EVisibility::Visible;
+								}
+							}
+
+							return EVisibility::Collapsed;
+						})
+					)
+				)
+			]
 		]
 	];
 }

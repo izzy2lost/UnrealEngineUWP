@@ -22,6 +22,7 @@ namespace UE::Workspace
 	class SWorkspaceView;
 	class FWorkspaceOutlinerHierarchy;
 	class FWorkspaceOutlinerMode;
+	class SWorkspaceOutliner;
 
 	struct FWorkspaceOutliner;
 }
@@ -69,6 +70,7 @@ class UWorkspace : public UObject
 	friend struct UE::Workspace::FWorkspaceOutliner;
 	friend class UE::Workspace::FWorkspaceOutlinerHierarchy;
 	friend class UE::Workspace::FWorkspaceOutlinerMode;
+	friend class UE::Workspace::SWorkspaceOutliner;
 	
 	friend class UWorkspaceFactory;
 	friend class UAssetDefinition_Workspace;
@@ -114,6 +116,9 @@ class UWorkspace : public UObject
 	void GetAssets(TArray<TObjectPtr<UObject>>& OutAssets) const;
 	// Returns all contained AssetData entries
 	void GetAssetDataEntries(TArray<FAssetData>& OutAssetDataEntries) const;
+
+	// Returns whether or not the workspace contains _any_ valid UWorkspaceAssetEntry
+	bool HasValidEntries() const;
 
 	// UObject interface
 	virtual void PostLoad() override;
