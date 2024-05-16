@@ -227,7 +227,7 @@ void UVCamOutputProviderBase::CreateUMG()
 	}
 
 	// Warn the user if the viewport is not available ...
-	const TSharedPtr<FSceneViewport> Viewport = GetSceneViewport(TargetViewport);
+	const TSharedPtr<FSceneViewport> Viewport = GetTargetSceneViewport();
 	if (!Viewport)
 	{
 		DisplayNotification_ViewportNotFound();

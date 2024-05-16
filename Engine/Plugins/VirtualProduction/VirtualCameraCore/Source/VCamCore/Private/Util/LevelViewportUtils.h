@@ -26,6 +26,6 @@ namespace UE::VCamCore::LevelViewportUtils::Private
 	TSharedPtr<SLevelViewport> GetLevelViewport(EVCamTargetViewportID TargetViewport);
 	
 	/** Gets the what SLevelViewport::GetConfigKey would return or None in the case of EVCamTargetViewportID::CurrentlySelected */
-	FString GetConfigKeyFor(EVCamTargetViewportID TargetViewport);
+	FString GetBaseConfigKeyFor(EVCamTargetViewportID TargetViewport);
 #endif
 };

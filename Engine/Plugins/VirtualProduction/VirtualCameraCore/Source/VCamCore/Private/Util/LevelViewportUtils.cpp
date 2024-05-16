@@ -184,66 +184,75 @@ namespace UE::VCamCore::LevelViewportUtils::Private
 #if WITH_EDITOR
 	TSharedPtr<SLevelViewport> GetLevelViewport(EVCamTargetViewportID TargetViewport)
 	{
-		TSharedPtr<SLevelViewport> OutLevelViewport = nullptr;
-
 		if (!GEditor)
 		{
 			return nullptr;
 		}
-	
+		
+		// We consider all layouts that in perspective mode.
+		// However, there can be multiple candidates, e.g. in 2x2 layout:
+		//	- in the top-right, there is a button for maximizing.
+		//	- in the top-left, you can set the mode to "Perspective"
+		//	- in the top-left, you can make the viewport immersive (i.e. take up entire screen)
+		// We'll just pick one randomly, but we'll favour whatever viewport takes up the most space (immersive > maximized > rest).
+		TSharedPtr<SLevelViewport> BestGuess = nullptr;
+		
 		for (FLevelEditorViewportClient* Client : GEditor->GetLevelViewportClients())
 		{
-			// We only care about the fully rendered 3D viewport...seems like there should be a better way to check for this
-			if (Client->IsOrtho())
-			{
-				continue;
-			}
-
 			TSharedPtr<SLevelViewport> LevelViewport = StaticCastSharedPtr<SLevelViewport>(Client->GetEditorViewportWidget());
-			if (!LevelViewport.IsValid())
+			// E.g. in 2x2 layout you can have several modes, like "Top", "Left". We only care for the "Perspective" mode.
+			if (Client->IsOrtho()
+				|| !LevelViewport.IsValid())
 			{
 				continue;
 			}
 		
-			const FString WantedViewportString = GetConfigKeyFor(TargetViewport);
+			const FString WantedViewportString = GetBaseConfigKeyFor(TargetViewport);
 			const FString ViewportConfigKey = LevelViewport->GetConfigKey().ToString();
-			if (ViewportConfigKey.Contains(*WantedViewportString, ESearchCase::CaseSensitive, ESearchDir::FromStart))
+			const bool bIsInTargetViewport = ViewportConfigKey.Contains(*WantedViewportString, ESearchCase::CaseSensitive, ESearchDir::FromStart);
+			if (!bIsInTargetViewport)
+			{
+				continue;
+			}
+
+			// E.g. in a 2x2 layout, there are 4 slots (each one is a SLevelViewport instance).
+			// We'll favour whatever viewport takes up the most space (immersive > maximized > rest).
+			if (LevelViewport->IsImmersive())
 			{
 				return LevelViewport;
 			}
+			if (LevelViewport->IsMaximized())
+			{
+				BestGuess = LevelViewport;
+			}
+			else if (!BestGuess)
+			{
+				BestGuess = LevelViewport;
+			}
 		}
 
-		return OutLevelViewport;
+		return BestGuess;
 	}
 	
-	FString GetConfigKeyFor(EVCamTargetViewportID TargetViewport)
+	FString GetBaseConfigKeyFor(EVCamTargetViewportID TargetViewport)
 	{
 		/*
-		 * TL;DR:
-		 * - "Viewport %d" selects he viewport from Window > Viewport x
-		 * - ".Viewport1" SEEMS to be the viewport that is rendered always 
-		 *
-		 * The GEditor->GetLevelViewportClients() up above usually returns viewports with the following keys:
-		 * - FourPanes2x2.Viewport 1.Viewport1
-		 * - FourPanes2x2.Viewport 2.Viewport1
-		 * - FourPanes2x2.Viewport 3.Viewport1
-		 * - FourPanes2x2.Viewport 4.Viewport1
-		 *
-		 * More viewports may be returned. Notable example is when Camera Cuts are enabled (i.e. ISequencer::SetPerspectiveViewportCameraCutEnabled(true))
-		 * In that case, it may look like this:
-		 * - FourPanes2x2.Viewport 1.Viewport0
-		 * - FourPanes2x2.Viewport 1.Viewport1
-		 * - FourPanes2x2.Viewport 1.Viewport2
-		 * - FourPanes2x2.Viewport 1.Viewport3
-		 * - FourPanes2x2.Viewport 2.Viewport0
-		 * - [...]
-		 * - FourPanes2x2.Viewport 2.Viewport3
-		 * - [...]
-		 * - FourPanes2x2.Viewport 4.Viewport3
-		 *
-		 * It seems like the viewport that is rendered however is always the one that ends in Viewport1.
+		 * Here are example strings for EVCamTargetViewportID == 1: 
+		 * One pane: OnePane.Viewport 1.Viewport0
+		 * Two pane:
+		 *	- Viewport 1.Viewport0
+		 *	- Viewport 1.Viewport1
+		 * Three pane:
+		 *	- ThreePanesLeft.Viewport 1.Viewport0
+		 *	- ThreePanesLeft.Viewport 1.Viewport1
+		 *	- ThreePanesLeft.Viewport 1.Viewport2
+		 * Four pane:
+		 *	- FourPanes2x2.Viewport 1.Viewport0
+		 *	- FourPanes2x2.Viewport 1.Viewport1
+		 *	- FourPanes2x2.Viewport 1.Viewport2
+		 *	- FourPanes2x2.Viewport 1.Viewport3
 		 */
-		return FString::Printf(TEXT("Viewport %d.Viewport1"), static_cast<int32>(TargetViewport) + 1);
+		return FString::Printf(TEXT("Viewport %d.Viewport"), static_cast<int32>(TargetViewport) + 1);
 	}
 #endif
 }
