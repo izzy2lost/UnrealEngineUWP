@@ -72,27 +72,20 @@ private:
 	enum ETask : uint32
 	{
 		FreeBufferSpaceTask,
-		InitPrimitiveDataTask,
+		InitHeaderDataTask,
 		AllocBufferSpaceTask,
-		UploadPrimitiveDataTask,
+		UploadHeaderDataTask,
 		UploadHierarchyDataTask,
 		UploadTransformDataTask,
 
 		NumTasks
 	};
 
-	struct FPackedPrimitiveData
-	{
-		uint32 HierarchyBufferOffset	: 16;
-		uint32 TransformBufferOffset	: 16;
-		uint32 MaxTransformCount		: 16;
-		uint32 MaxInfluenceCount		: 8;
-		uint32 UniqueAnimationCount		: 8;
-	};
-
-	struct FPrimitiveData
+	struct FHeaderData
 	{
 		FPrimitiveSceneInfo* PrimitiveSceneInfo	= nullptr;
+		uint32 ObjectSpaceBufferOffset			= INDEX_NONE;
+		uint32 ObjectSpaceBufferCount			= 0;
 		uint32 HierarchyBufferOffset			= INDEX_NONE;
 		uint32 HierarchyBufferCount				= 0;
 		uint32 TransformBufferOffset			= INDEX_NONE;
@@ -100,15 +93,18 @@ private:
 		uint16 MaxTransformCount				= 0;
 		uint8  MaxInfluenceCount				= 0;
 		uint8  UniqueAnimationCount				= 1;
+		uint8  bHasScale : 1					= false;
 
-		FPackedPrimitiveData Pack() const
+		FNaniteSkinningHeader Pack() const
 		{
-			FPackedPrimitiveData Output;
+			FNaniteSkinningHeader Output;
 			Output.HierarchyBufferOffset	= HierarchyBufferOffset;
 			Output.TransformBufferOffset	= TransformBufferOffset;
 			Output.MaxTransformCount		= MaxTransformCount;
 			Output.MaxInfluenceCount		= MaxInfluenceCount;
 			Output.UniqueAnimationCount		= UniqueAnimationCount;
+			Output.bHasScale				= bHasScale;
+			Output.Padding					= 0;
 			return Output;
 		}
 	};
@@ -118,7 +114,7 @@ private:
 	public:
 		FBuffers();
 
-		TPersistentByteAddressBuffer<FPackedPrimitiveData> PrimitiveDataBuffer;
+		TPersistentByteAddressBuffer<FNaniteSkinningHeader> HeaderDataBuffer;
 		TPersistentByteAddressBuffer<uint32> BoneHierarchyBuffer;
 		TPersistentByteAddressBuffer<FMatrix3x4> BoneObjectSpaceBuffer;
 		TPersistentByteAddressBuffer<FMatrix3x4> TransformDataBuffer;
@@ -127,7 +123,7 @@ private:
 	class FUploader
 	{
 	public:
-		TByteAddressBufferScatterUploader<FPackedPrimitiveData> PrimitiveDataUploader;
+		TByteAddressBufferScatterUploader<FNaniteSkinningHeader> HeaderDataUploader;
 		TByteAddressBufferScatterUploader<uint32> BoneHierarchyUploader;
 		TByteAddressBufferScatterUploader<FMatrix3x4> BoneObjectSpaceUploader;
 		TByteAddressBufferScatterUploader<FMatrix3x4> TransformDataUploader;
@@ -147,7 +143,7 @@ private:
 	FScene* Scene = nullptr;
 	FSpanAllocator HierarchyAllocator;
 	FSpanAllocator TransformAllocator;
-	TSparseArray<FPrimitiveData> PrimitiveData;
+	TSparseArray<FHeaderData> HeaderData;
 	TUniquePtr<FBuffers> Buffers;
 	TUniquePtr<FUploader> Uploader;
 	TStaticArray<UE::Tasks::FTask, NumTasks> TaskHandles;

@@ -1,11 +1,18 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#pragma once
+
 #define FQuat half4
 
 // Unless otherwise specified, use lerp + normalize to interpolate quats
 #ifndef QUAT_SLERP_APPROXIMATE
 	#define QUAT_SLERP_APPROXIMATE 1
 #endif
+
+FQuat QuatIdentity()
+{
+	return FQuat(0, 0, 0, 1);
+}
 
 FQuat QuatFromAxisAngle(in half3 AxisN, in float AngleRad)
 {
@@ -122,4 +129,17 @@ FQuat QuatSlerp(FQuat Q0, FQuat Q1, half Slerp)
 #else
 	return QuatSlerpPrecise(Q0, Q1, Slerp);
 #endif
+}
+
+FQuat QuatNormalize(in FQuat Q)
+{
+	float Len2 = dot(Q, Q);
+	if (Len2 > 0.0f)
+	{
+		return Q * rsqrt(Len2);
+	}
+	else
+	{
+		return QuatIdentity();
+	}
 }

@@ -453,6 +453,18 @@ struct FNanitePickingFeedback
 	UINT_TYPE RuntimeResourceID;
 };
 
+struct FNaniteSkinningHeader
+{
+	UINT_TYPE HierarchyBufferOffset		: 16;
+	UINT_TYPE TransformBufferOffset		: 16;
+	UINT_TYPE ObjectSpaceBufferOffset	: 16;
+	UINT_TYPE MaxTransformCount			: 16;
+	UINT_TYPE MaxInfluenceCount			: 8;
+	UINT_TYPE UniqueAnimationCount		: 7;
+	UINT_TYPE bHasScale					: 1;
+	UINT_TYPE Padding					: 16;
+};
+
 struct FNaniteMaterialDisplacementParams
 {
 	float Center;

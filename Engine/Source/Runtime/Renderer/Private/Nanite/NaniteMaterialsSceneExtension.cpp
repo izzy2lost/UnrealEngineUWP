@@ -199,7 +199,7 @@ void FMaterialsSceneExtension::FinishMaterialBufferUpload(
 	FRDGBufferRef PrimitiveBuffer = nullptr;
 	FRDGBufferRef MaterialBuffer = nullptr;
 
-	const uint32 MinPrimitiveDataSize = (PrimitiveData.GetMaxIndex() + 1) * sizeof(FPackedPrimitiveData) / 4;
+	const uint32 MinPrimitiveDataSize = PrimitiveData.GetMaxIndex() + 1;
 	const uint32 MinMaterialDataSize = MaterialBufferAllocator.GetMaxSize();
 
 	if (MaterialUploader.IsValid())

@@ -2157,6 +2157,8 @@ FSkinnedSceneProxy::FSkinnedSceneProxy(const FMaterialAudit& MaterialAudit, USki
 	BoneHierarchy.SetNumUninitialized(MaxBoneTransformCount);
 	BoneObjectSpace.SetNumUninitialized(MaxBoneTransformCount);
 
+	bHasScale = false;
+
 	for (int32 BoneIndex = 0; BoneIndex < MaxBoneTransformCount; ++BoneIndex)
 	{
 		struct FPackedBone

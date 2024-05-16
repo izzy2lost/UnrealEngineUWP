@@ -6,12 +6,13 @@
 #include "../BitPacking.ush"
 #include "../SceneData.ush"
 #include "../WaveOpUtil.ush"
+#include "../BoneTransform.ush"
 #include "/Engine/Shared/NaniteDefinitions.h"
 #include "/Engine/Shared/HLSLStaticAssert.h"
 #include "NanitePackedNaniteView.ush"
 
 #ifndef DEBUG_FLAGS
-    #define DEBUG_FLAGS 0
+	#define DEBUG_FLAGS 0
 #endif
 
 uint GetHWClusterCounterIndex(uint InRenderFlags)
@@ -927,35 +928,10 @@ void WriteRasterizerArgsSWHW(RWBuffer<uint> RasterizerArgsSWHW, uint ArgsOffset,
 	RasterizerArgsSWHW[ArgsOffset + 7] = 0;				// HW: StartInstanceLocation
 }
 
-struct FNaniteSkinningHeader
-{
-	uint HierarchyBufferOffset;
-	uint TransformBufferOffset;
-	uint MaxTransformCount;
-	uint MaxInfluenceCount;
-	uint UniqueAnimationCount;
-};
-
-FNaniteSkinningHeader UnpackNaniteSkinningHeader(uint2 Data)
-{
-	FNaniteSkinningHeader Output;
-	Output.HierarchyBufferOffset	= BitFieldExtractU32(Data.x, 16u,  0u);
-	Output.TransformBufferOffset	= BitFieldExtractU32(Data.x, 16u, 16u);
-	Output.MaxTransformCount		= BitFieldExtractU32(Data.y, 16u,  0u);
-	Output.MaxInfluenceCount		= BitFieldExtractU32(Data.y,  8u, 16u);
-	Output.UniqueAnimationCount		= BitFieldExtractU32(Data.y,  8u, 24u);
-	return Output;
-}
-
 FNaniteSkinningHeader LoadNaniteSkinningHeader(uint InPrimitiveIndex)
 {
-	const uint ElementStride = Scene.NaniteSkinning.SkinningHeaderStride;
-	checkSlow(ElementStride / 4u == 2u);
-
-	const uint Offset = InPrimitiveIndex * ElementStride;
-	uint2 Data = Scene.NaniteSkinning.SkinningHeaders.Load2(Offset);
-
-	return UnpackNaniteSkinningHeader(Data);
+	const uint Offset = InPrimitiveIndex * (uint)sizeof(FNaniteSkinningHeader);
+	return Scene.NaniteSkinning.SkinningHeaders.Load<FNaniteSkinningHeader>(Offset);
 }
 
 float3x4 LoadNaniteBoneTransform(uint TransformIndex)

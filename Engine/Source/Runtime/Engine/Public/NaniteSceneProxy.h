@@ -702,6 +702,11 @@ public:
 		return BoneObjectSpace;
 	}
 
+	inline bool HasScale() const
+	{
+		return bHasScale;
+	}
+
 protected:
 	const USkinnedAsset* SkinnedAsset = nullptr;
 	const FResources* Resources = nullptr;
@@ -717,6 +722,8 @@ protected:
 
 	TArray<uint32> BoneHierarchy;
 	TArray<FMatrix3x4> BoneObjectSpace;
+
+	bool bHasScale = false;
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	TOptional<FLinearColor> DebugDrawColor;
