@@ -2077,7 +2077,7 @@ static void ExtractContentBundleContainerInstances(const FActorDescContainerInst
 {
 	InContainerInstanceCollection->ForEachActorDescContainerInstance([&OutContentBundleContainerInstances, &OutNonContentBundleContainerInstances](const UActorDescContainerInstance* InActorDescContainerInstance)
 	{
-		if (InActorDescContainerInstance->GetContentBundleGuid().IsValid())
+		if (InActorDescContainerInstance->GetContentBundleGuid().IsValid() && !InActorDescContainerInstance->IsContentBundleRequired())
 		{
 			OutContentBundleContainerInstances.Add(InActorDescContainerInstance);
 		}
@@ -2234,6 +2234,12 @@ void FStreamingGenerationContainerInstanceCollection::InitializeCollection()
 	{
 		check(GetActorDescContainerCount() == 1);
 		check(GetContentBundleGuid().IsValid());
+
+		ActorDescContainerInstanceCollection.SetNum(Algo::RemoveIf(ActorDescContainerInstanceCollection, [](const UActorDescContainerInstance* ActorDescContainerInstance)
+		{
+			return ActorDescContainerInstance->GetContentBundleGuid().IsValid() && ActorDescContainerInstance->bIsContentBundleRequired;
+		}));
+
 		ContentBundleStartIdx = 0;
 		return;
 	}
@@ -2246,7 +2252,10 @@ void FStreamingGenerationContainerInstanceCollection::InitializeCollection()
 		// When type is set to BaseAndEDL, we remove ContentBundle containers from the collection.
 		// BaseAndEDL type assumes ContentBundle containers are generated separately one at a time.
 		check(!ShouldRegisterDelegates());
-		ActorDescContainerInstanceCollection.SetNum(Algo::RemoveIf(ActorDescContainerInstanceCollection, [](const UActorDescContainerInstance* ActorDescContainerInstance) { return ActorDescContainerInstance->GetContentBundleGuid().IsValid(); }));
+		ActorDescContainerInstanceCollection.SetNum(Algo::RemoveIf(ActorDescContainerInstanceCollection, [](const UActorDescContainerInstance* ActorDescContainerInstance)
+		{
+			return ActorDescContainerInstance->GetContentBundleGuid().IsValid() && !ActorDescContainerInstance->bIsContentBundleRequired;
+		}));
 	}
 
 	int32 BaseContainerCount = Algo::CountIf(ActorDescContainerInstanceCollection, [](const UActorDescContainerInstance* ActorDescContainerInstance) { return !ActorDescContainerInstance->HasExternalContent(); });
