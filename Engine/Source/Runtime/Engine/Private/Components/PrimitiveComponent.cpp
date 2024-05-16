@@ -2007,11 +2007,12 @@ void UPrimitiveComponent::SetOverlayColor(FColor InOverlayColor)
 
 void UPrimitiveComponent::RemoveOverlayColor()
 {
-	bWantsEditorEffects = true;
+	OverlayColor = FColor(ForceInitToZero);
+	bWantsEditorEffects = false;
 
 	if (SceneProxy)
 	{
-		SceneProxy->SetOverlayColor_GameThread(FColor{EForceInit::ForceInitToZero});
+		SceneProxy->SetOverlayColor_GameThread(OverlayColor);
 		SceneProxy->SetSelectionOverride_GameThread(false);
 	}
 }
