@@ -378,16 +378,6 @@ namespace Horde.Agent.Tests
 				_outer = outer;
 			}
 
-			public override AsyncUnaryCall<RpcGetStreamResponse> GetStreamAsync(RpcGetStreamRequest request, CallOptions options)
-			{
-				if (_outer._streamIdToStreamResponse.TryGetValue(new StreamId(request.StreamId), out RpcGetStreamResponse? streamResponse))
-				{
-					return JobRpcClientStub.Wrap(streamResponse);
-				}
-
-				throw new RpcException(new Status(StatusCode.NotFound, $"Stream ID {request.StreamId} not found"));
-			}
-
 			public override AsyncUnaryCall<RpcGetJobResponse> GetJobAsync(RpcGetJobRequest request, CallOptions options)
 			{
 				if (_outer._jobIdToJobResponse.TryGetValue(JobId.Parse(request.JobId), out RpcGetJobResponse? jobResponse))

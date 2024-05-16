@@ -80,29 +80,6 @@ namespace Horde.Server.Jobs
 		}
 
 		/// <summary>
-		/// Gets information about a stream
-		/// </summary>
-		/// <param name="request">Request arguments</param>
-		/// <param name="context">Context for the RPC call</param>
-		/// <returns>Information about the new agent</returns>
-		public override Task<RpcGetStreamResponse> GetStream(RpcGetStreamRequest request, ServerCallContext context)
-		{
-			StreamId streamIdValue = new StreamId(request.StreamId);
-
-			StreamConfig? streamConfig;
-			if (!_globalConfig.Value.TryGetStream(streamIdValue, out streamConfig))
-			{
-				throw new StructuredRpcException(StatusCode.NotFound, "Stream {StreamId} does not exist", request.StreamId);
-			}
-			if (!streamConfig.Authorize(StreamAclAction.ViewStream, context.GetHttpContext().User))
-			{
-				throw new StructuredRpcException(StatusCode.PermissionDenied, "Not authenticated to access stream {StreamId}", request.StreamId);
-			}
-
-			return Task.FromResult(streamConfig.ToRpcResponse());
-		}
-
-		/// <summary>
 		/// Gets information about a job
 		/// </summary>
 		/// <param name="request">Request arguments</param>
