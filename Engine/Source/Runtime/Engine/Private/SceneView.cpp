@@ -2464,6 +2464,18 @@ void FSceneView::SetupViewRectUniformBufferParameters(FViewUniformShaderParamete
 
 	ViewUniformShaderParameters.MotionBlurNormalizedToPixel = FinalPostProcessSettings.MotionBlurMax * EffectiveViewRect.Width() / 100.0f;
 
+	#if WITH_EDITOR
+		if (Family->bNullifyWorldSpacePosition)
+		{
+			// Forces world space position to 0 and view vector to up.
+			ViewUniformShaderParameters.SVPositionToTranslatedWorld = FMatrix44f(
+				FMatrix(FPlane(0, 0, 0, 0),
+					FPlane(0, 0, 0, 0),
+					FPlane(0, 0, 0, 0),
+					FPlane(0, 0, 1, 1)));
+		}
+		else
+	#endif 
 	{
 		// setup a matrix to transform float4(SvPosition.xyz,1) directly to TranslatedWorld (quality, performance as we don't need to convert or use interpolator)
 
