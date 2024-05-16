@@ -242,7 +242,7 @@ public:
 
 		// Re-create the Asset Type Action filters whenever the permission list changes
 		AssetClassPermissionList->OnFilterChanged().AddSP(this, &SAssetFilterBar<FilterType>::CreateAssetTypeActionFilters);
-
+		UAssetDefinitionRegistry::Get()->OnAssetDefinitionRegistryVersionChange().AddLambda([this](UAssetDefinitionRegistry*) { CreateAssetTypeActionFilters(); });
 	}
 
 	virtual void SaveSettings()

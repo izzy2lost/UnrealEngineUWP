@@ -226,12 +226,14 @@ private:
 	TArray<UObject*> ImportAssetsWithDialogImplementation(const FString& DestinationPath, bool bAllowAsyncImport);
 
 	/** Make sure we're not syncing */
-	void SyncAssetTypesToAssetDefinitions() const;
+	void SyncAssetTypesToAssetDefinitions();
 
 	/** Helper to remove an entry AssetTypeActionsList given a class returned by GetSupportedClass */
 	void RemoveAssetTypeActionBySupportedClass(const UClass* SupportedClass);
 
 private:
+	uint64 CachedVersion = 0;
+	
 	/** The list of all registered AssetTypeActions */
 	TArray<TSharedRef<IAssetTypeActions>> AssetTypeActionsList;
 

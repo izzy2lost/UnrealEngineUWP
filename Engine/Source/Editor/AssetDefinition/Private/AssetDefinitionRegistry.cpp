@@ -24,6 +24,11 @@ UAssetDefinitionRegistry* UAssetDefinitionRegistry::Get()
 	return Singleton;
 }
 
+UAssetDefinitionRegistry::UAssetDefinitionRegistry()
+{
+	TickerDelegate = FTickerDelegate::CreateUObject(this, &UAssetDefinitionRegistry::TickVersionNotification);
+}
+
 void UAssetDefinitionRegistry::BeginDestroy()
 {
 	if (Singleton == this)
@@ -63,6 +68,11 @@ TArray<TObjectPtr<UAssetDefinition>> UAssetDefinitionRegistry::GetAllAssetDefini
 	return AllAssetDefinitions;
 }
 
+uint64 UAssetDefinitionRegistry::GetAssetDefinitionVersion() const
+{
+	return Version;
+}
+
 void UAssetDefinitionRegistry::RegisterAssetDefinition(UAssetDefinition* AssetDefinition)
 {
 	check(AssetDefinition);
@@ -79,6 +89,9 @@ void UAssetDefinitionRegistry::RegisterAssetDefinition(UAssetDefinition* AssetDe
 		if (CanAddDefinition)
 		{
 			AssetDefinitions.Add(SupportedClass, AssetDefinition);
+
+			Version++;
+			RegisterTickerForVersionNotification();
 		}
 		else
 		{
@@ -95,5 +108,28 @@ void UAssetDefinitionRegistry::UnregisterAssetDefinition(UAssetDefinition* Asset
 	if (TSoftClassPtr<UObject> SupportedClass = AssetDefinition->GetAssetClass())
 	{
 		AssetDefinitions.Remove(SupportedClass);
+		
+		Version++;
+		RegisterTickerForVersionNotification();
 	}
+}
+
+FOnAssetDefinitionRegistryVersionChange& UAssetDefinitionRegistry::OnAssetDefinitionRegistryVersionChange()
+{
+	return OnAssetDefinitionRegistryVersionChangeDelegate;
+}
+
+void UAssetDefinitionRegistry::RegisterTickerForVersionNotification()
+{
+	if (!TickerDelegateHandle.IsValid())
+	{
+		TickerDelegateHandle = FTSTicker::GetCoreTicker().AddTicker(TickerDelegate);
+	}
+}
+
+bool UAssetDefinitionRegistry::TickVersionNotification(float)
+{
+	OnAssetDefinitionRegistryVersionChangeDelegate.Broadcast(this);
+	TickerDelegateHandle.Reset();
+	return false; // One-shot
 }

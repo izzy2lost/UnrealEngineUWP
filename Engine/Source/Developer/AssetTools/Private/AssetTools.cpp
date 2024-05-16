@@ -1453,14 +1453,15 @@ void UAssetToolsImpl::RegisterAssetTypeActions(const TSharedRef<IAssetTypeAction
 	}
 }
 
-void UAssetToolsImpl::SyncAssetTypesToAssetDefinitions() const
+void UAssetToolsImpl::SyncAssetTypesToAssetDefinitions()
 {
-	static int32 CachedAmount = 0;
-
-	TArray<TObjectPtr<UAssetDefinition>> AssetDefinitions = UAssetDefinitionRegistry::Get()->GetAllAssetDefinitions();
-	if (CachedAmount != AssetDefinitions.Num())
+	uint64 Version = UAssetDefinitionRegistry::Get()->GetAssetDefinitionVersion();
+	if (CachedVersion == 0 || CachedVersion != Version)
 	{
-		CachedAmount = AssetDefinitions.Num();		
+		CachedVersion = Version;
+		
+		TArray<TObjectPtr<UAssetDefinition>> AssetDefinitions = UAssetDefinitionRegistry::Get()->GetAllAssetDefinitions();
+		
 		for (UAssetDefinition* AssetDefinition : AssetDefinitions)
 		{
 			if (!AssetDefinition->IsA<UAssetDefinition_AssetTypeActionsProxy>())
@@ -1473,10 +1474,39 @@ void UAssetToolsImpl::SyncAssetTypesToAssetDefinitions() const
 				{
 					TSharedRef<FAssetDefinitionProxy> Proxy = MakeShared<FAssetDefinitionProxy>(AssetDefinition);
 					// Cache the asset definition proxy.
-					const_cast<UAssetToolsImpl*>(this)->RegisterAssetTypeActions(Proxy);
+					RegisterAssetTypeActions(Proxy);
 				}
 			}
 		}
+
+		// Remove any AssetDefinitionProxy objects that don't have an associated AssetDefinition
+		for (int32 Index = AssetTypeActionsList.Num() - 1, Last = 0; Index >= Last; --Index)
+		{
+			const TSharedRef<IAssetTypeActions>& AssetTypeActions = AssetTypeActionsList[Index];
+			if (AssetTypeActions->IsAssetDefinitionInDisguise())
+			{
+				UClass* AssetTypeActionsSupportedClass = AssetTypeActions->GetSupportedClass();
+				
+				bool bFound = false;
+				// Find it in the AssetDefinitions List
+				for (UAssetDefinition* AssetDefinition : AssetDefinitions)
+				{
+					if (!AssetDefinition->IsA<UAssetDefinition_AssetTypeActionsProxy>())
+					{
+						const TSoftClassPtr<UObject> AssetClass = AssetDefinition->GetAssetClass();
+						if (AssetClass == AssetTypeActionsSupportedClass)
+						{
+							bFound = true;
+							break;
+						}
+					}
+				}
+				if (!bFound)
+				{
+					RemoveAssetTypeActionBySupportedClass(AssetTypeActionsSupportedClass);
+				}
+			}
+		}		
 	}
 }
 
@@ -1501,7 +1531,7 @@ void UAssetToolsImpl::UnregisterAssetTypeActions(const TSharedRef<IAssetTypeActi
 
 void UAssetToolsImpl::GetAssetTypeActionsList( TArray<TWeakPtr<IAssetTypeActions>>& OutAssetTypeActionsList ) const
 {
-	SyncAssetTypesToAssetDefinitions();
+	const_cast<UAssetToolsImpl*>(this)->SyncAssetTypesToAssetDefinitions();
 	for (auto ActionsIt = AssetTypeActionsList.CreateConstIterator(); ActionsIt; ++ActionsIt)
 	{
 		OutAssetTypeActionsList.Add(*ActionsIt);
@@ -1510,7 +1540,7 @@ void UAssetToolsImpl::GetAssetTypeActionsList( TArray<TWeakPtr<IAssetTypeActions
 
 TWeakPtr<IAssetTypeActions> UAssetToolsImpl::GetAssetTypeActionsForClass(const UClass* Class) const
 {
-	SyncAssetTypesToAssetDefinitions();
+	const_cast<UAssetToolsImpl*>(this)->SyncAssetTypesToAssetDefinitions();
 
 	const UClass* CandidateClass = Class;
 	
@@ -1568,7 +1598,7 @@ TArray<TWeakPtr<IAssetTypeActions>> UAssetToolsImpl::GetAssetTypeActionsListForC
 {
 	TArray<TWeakPtr<IAssetTypeActions>> ResultAssetTypeActionsList;
 
-	SyncAssetTypesToAssetDefinitions();
+	const_cast<UAssetToolsImpl*>(this)->SyncAssetTypesToAssetDefinitions();
 	for (int32 TypeActionsIdx = 0; TypeActionsIdx < AssetTypeActionsList.Num(); ++TypeActionsIdx)
 	{
 		TSharedRef<IAssetTypeActions> TypeActions = AssetTypeActionsList[TypeActionsIdx];
