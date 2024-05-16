@@ -36,6 +36,8 @@
 #include "InstancedStaticMeshSceneProxyDesc.h"
 #include "GPUSkinCacheVisualizationData.h"
 
+#include "AnimationRuntime.h"
+
 #if WITH_EDITOR
 #include "DerivedDataCache.h"
 #include "DerivedDataRequestOwner.h"
@@ -2144,8 +2146,35 @@ FSkinnedSceneProxy::FSkinnedSceneProxy(const FMaterialAudit& MaterialAudit, USki
 	}
 
 	const FReferenceSkeleton& RefSkeleton = SkinnedAsset->GetRefSkeleton();
+	const TArray<FTransform>& RefBonePose = RefSkeleton.GetRawRefBonePose();
+
+	TArray<FTransform> ComponentTransforms;
+	FAnimationRuntime::FillUpComponentSpaceTransforms(RefSkeleton, RefBonePose, ComponentTransforms);
+
 	MaxBoneTransformCount = uint16(RefSkeleton.GetRawBoneNum());
 	MaxBoneInfluenceCount = RenderData->GetNumBoneInfluences();
+
+	BoneHierarchy.SetNumUninitialized(MaxBoneTransformCount);
+	BoneObjectSpace.SetNumUninitialized(MaxBoneTransformCount);
+
+	for (int32 BoneIndex = 0; BoneIndex < MaxBoneTransformCount; ++BoneIndex)
+	{
+		struct FPackedBone
+		{
+			uint32 BoneParent : 16;
+			uint32 BoneDepth : 16;
+		}
+		Packed;
+
+		const int32 ParentBoneIndex	= RefSkeleton.GetRawParentIndex(BoneIndex);
+		const int32 BoneDepth		= RefSkeleton.GetDepthBetweenBones(BoneIndex, 0);
+		Packed.BoneParent			= uint16(ParentBoneIndex);
+		Packed.BoneDepth			= uint16(BoneDepth);
+		BoneHierarchy[BoneIndex]	= *reinterpret_cast<uint32*>(&Packed);
+
+		FMatrix44f ObjectSpaceTransform = (FMatrix44f)ComponentTransforms[BoneIndex].ToMatrixWithScale();
+		ObjectSpaceTransform.To3x4MatrixTranspose((float*)BoneObjectSpace[BoneIndex].M);
+	}
 
 	const uint32 FirstLODIndex = 0; // Only data from LOD0 is used.
 	const FSkeletalMeshLODRenderData& MeshResources = RenderData->LODRenderData[FirstLODIndex];

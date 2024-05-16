@@ -280,9 +280,9 @@ public:
 /** Use these macros in the class definitions of your extension. */
 #define DECLARE_SCENE_EXTENSION(ClassName) \
 	public: \
-		static int32 GetExtensionID() { return ExtensionRegistration.GetExtensionID();  } \
+		RENDERER_API static int32 GetExtensionID() { return ExtensionRegistration.GetExtensionID();  } \
 	private: \
-		static TSceneExtensionRegistration<ClassName> ExtensionRegistration
+		RENDERER_API static TSceneExtensionRegistration<ClassName> ExtensionRegistration
 
 #define DECLARE_SCENE_EXTENSION_UPDATER(ClassName, SceneExtensionClassName) \
 	public: \

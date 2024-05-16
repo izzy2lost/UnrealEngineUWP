@@ -9,6 +9,7 @@
 #include "RayTracingInstance.h"
 #include "RayTracingGeometry.h"
 #include "LocalVertexFactory.h"
+#include "Matrix3x4.h"
 
 struct FPerInstanceRenderData;
 class UStaticMeshComponent;
@@ -691,6 +692,16 @@ public:
 		return MeshObject;
 	}
 
+	inline const TArray<uint32>& GetBoneHierarchy() const
+	{
+		return BoneHierarchy;
+	}
+
+	inline const TArray<FMatrix3x4>& GetBoneObjectSpace() const
+	{
+		return BoneObjectSpace;
+	}
+
 protected:
 	const USkinnedAsset* SkinnedAsset = nullptr;
 	const FResources* Resources = nullptr;
@@ -703,6 +714,9 @@ protected:
 	uint16 MaxBoneTransformCount = 0u;
 	uint16 MaxBoneInfluenceCount = 0u;
 	uint16 UniqueAnimationCount  = 1u;
+
+	TArray<uint32> BoneHierarchy;
+	TArray<FMatrix3x4> BoneObjectSpace;
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	TOptional<FLinearColor> DebugDrawColor;

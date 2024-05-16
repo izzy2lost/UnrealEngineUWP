@@ -66,13 +66,16 @@ public:
 	virtual ISceneExtensionUpdater* CreateUpdater() override;
 	virtual ISceneExtensionRenderer* CreateRenderer() override;
 
+	RENDERER_API void GetSkinnedPrimitives(TArray<FPrimitiveSceneInfo*>& OutPrimitives) const;
+
 private:
 	enum ETask : uint32
 	{
 		FreeBufferSpaceTask,
 		InitPrimitiveDataTask,
-		AllocTransformBufferTask,
+		AllocBufferSpaceTask,
 		UploadPrimitiveDataTask,
+		UploadHierarchyDataTask,
 		UploadTransformDataTask,
 
 		NumTasks
@@ -80,15 +83,18 @@ private:
 
 	struct FPackedPrimitiveData
 	{
-		uint32 TransformBufferOffset;
-		uint32 MaxTransformCount	: 16;
-		uint32 MaxInfluenceCount	: 8;
-		uint32 UniqueAnimationCount	: 8;
+		uint32 HierarchyBufferOffset	: 16;
+		uint32 TransformBufferOffset	: 16;
+		uint32 MaxTransformCount		: 16;
+		uint32 MaxInfluenceCount		: 8;
+		uint32 UniqueAnimationCount		: 8;
 	};
 
 	struct FPrimitiveData
 	{
 		FPrimitiveSceneInfo* PrimitiveSceneInfo	= nullptr;
+		uint32 HierarchyBufferOffset			= INDEX_NONE;
+		uint32 HierarchyBufferCount				= 0;
 		uint32 TransformBufferOffset			= INDEX_NONE;
 		uint32 TransformBufferCount				= 0;
 		uint16 MaxTransformCount				= 0;
@@ -98,6 +104,7 @@ private:
 		FPackedPrimitiveData Pack() const
 		{
 			FPackedPrimitiveData Output;
+			Output.HierarchyBufferOffset	= HierarchyBufferOffset;
 			Output.TransformBufferOffset	= TransformBufferOffset;
 			Output.MaxTransformCount		= MaxTransformCount;
 			Output.MaxInfluenceCount		= MaxInfluenceCount;
@@ -112,6 +119,8 @@ private:
 		FBuffers();
 
 		TPersistentByteAddressBuffer<FPackedPrimitiveData> PrimitiveDataBuffer;
+		TPersistentByteAddressBuffer<uint32> BoneHierarchyBuffer;
+		TPersistentByteAddressBuffer<FMatrix3x4> BoneObjectSpaceBuffer;
 		TPersistentByteAddressBuffer<FMatrix3x4> TransformDataBuffer;
 	};
 	
@@ -119,6 +128,8 @@ private:
 	{
 	public:
 		TByteAddressBufferScatterUploader<FPackedPrimitiveData> PrimitiveDataUploader;
+		TByteAddressBufferScatterUploader<uint32> BoneHierarchyUploader;
+		TByteAddressBufferScatterUploader<FMatrix3x4> BoneObjectSpaceUploader;
 		TByteAddressBufferScatterUploader<FMatrix3x4> TransformDataUploader;
 	};
 	
@@ -134,6 +145,7 @@ private:
 	bool ProcessBufferDefragmentation();
 
 	FScene* Scene = nullptr;
+	FSpanAllocator HierarchyAllocator;
 	FSpanAllocator TransformAllocator;
 	TSparseArray<FPrimitiveData> PrimitiveData;
 	TUniquePtr<FBuffers> Buffers;

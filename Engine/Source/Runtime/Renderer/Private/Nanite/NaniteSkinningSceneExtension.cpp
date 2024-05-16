@@ -63,6 +63,8 @@ static TAutoConsoleVariable<float> CVarNaniteTransformBufferDefragLowWaterMark(
 BEGIN_SHADER_PARAMETER_STRUCT(FNaniteSkinningParameters, RENDERER_API)
 	SHADER_PARAMETER(uint32, SkinningHeaderStride)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, SkinningHeaders)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, BoneHierarchy)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, BoneObjectSpace)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, BoneTransforms)
 END_SHADER_PARAMETER_STRUCT()
 
@@ -79,6 +81,8 @@ static void GetDefaultSkinningParameters(FNaniteSkinningParameters& OutParameter
 	auto DefaultBuffer = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4u));
 	OutParameters.SkinningHeaderStride = 0;
 	OutParameters.SkinningHeaders = DefaultBuffer;
+	OutParameters.BoneHierarchy = DefaultBuffer;
+	OutParameters.BoneObjectSpace = DefaultBuffer;
 	OutParameters.BoneTransforms = DefaultBuffer;
 }
 
@@ -125,6 +129,7 @@ void FSkinningSceneExtension::SetEnabled(bool bEnabled)
 		else
 		{
 			Buffers = nullptr;
+			HierarchyAllocator.Reset();
 			TransformAllocator.Reset();
 			PrimitiveData.Reset();
 		}
@@ -142,10 +147,13 @@ void FSkinningSceneExtension::FinishSkinningBufferUpload(
 	}
 
 	FRDGBufferRef HeaderBuffer = nullptr;
+	FRDGBufferRef BoneHierarchyBuffer = nullptr;
+	FRDGBufferRef BoneObjectSpaceBuffer = nullptr;
 	FRDGBufferRef TransformBuffer = nullptr;
 
 	const uint32 MinHeaderDataSize = (PrimitiveData.GetMaxIndex() + 1) * sizeof(FPackedPrimitiveData) >> 2u;
 	const uint32 MinTransformDataSize = TransformAllocator.GetMaxSize();
+	const uint32 MinHierarchyDataSize = HierarchyAllocator.GetMaxSize();
 
 	if (Uploader.IsValid())
 	{
@@ -154,6 +162,7 @@ void FSkinningSceneExtension::FinishSkinningBufferUpload(
 			MakeArrayView(
 				{
 					TaskHandles[UploadPrimitiveDataTask],
+					TaskHandles[UploadHierarchyDataTask],
 					TaskHandles[UploadTransformDataTask]
 				}
 			)
@@ -163,6 +172,18 @@ void FSkinningSceneExtension::FinishSkinningBufferUpload(
 			GraphBuilder,
 			Buffers->PrimitiveDataBuffer,
 			MinHeaderDataSize
+		);
+
+		BoneHierarchyBuffer = Uploader->BoneHierarchyUploader.ResizeAndUploadTo(
+			GraphBuilder,
+			Buffers->BoneHierarchyBuffer,
+			MinHierarchyDataSize
+		);
+
+		BoneObjectSpaceBuffer = Uploader->BoneObjectSpaceUploader.ResizeAndUploadTo(
+			GraphBuilder,
+			Buffers->BoneObjectSpaceBuffer,
+			MinHierarchyDataSize
 		);
 
 		TransformBuffer = Uploader->TransformDataUploader.ResizeAndUploadTo(
@@ -175,20 +196,25 @@ void FSkinningSceneExtension::FinishSkinningBufferUpload(
 	}
 	else
 	{
-		HeaderBuffer = Buffers->PrimitiveDataBuffer.ResizeBufferIfNeeded(GraphBuilder, MinHeaderDataSize);
-		TransformBuffer = Buffers->TransformDataBuffer.ResizeBufferIfNeeded(GraphBuilder, MinTransformDataSize);
+		HeaderBuffer			= Buffers->PrimitiveDataBuffer.ResizeBufferIfNeeded(GraphBuilder, MinHeaderDataSize);
+		BoneHierarchyBuffer		= Buffers->BoneHierarchyBuffer.ResizeBufferIfNeeded(GraphBuilder, MinHierarchyDataSize);
+		BoneObjectSpaceBuffer	= Buffers->BoneObjectSpaceBuffer.ResizeBufferIfNeeded(GraphBuilder, MinHierarchyDataSize);
+		TransformBuffer			= Buffers->TransformDataBuffer.ResizeBufferIfNeeded(GraphBuilder, MinTransformDataSize);
 	}
 
 	if (OutParams != nullptr)
 	{
-		OutParams->SkinningHeaders = GraphBuilder.CreateSRV(HeaderBuffer);
-		OutParams->BoneTransforms = GraphBuilder.CreateSRV(TransformBuffer);
+		OutParams->SkinningHeaders	= GraphBuilder.CreateSRV(HeaderBuffer);
+		OutParams->BoneHierarchy	= GraphBuilder.CreateSRV(BoneHierarchyBuffer);
+		OutParams->BoneObjectSpace	= GraphBuilder.CreateSRV(BoneObjectSpaceBuffer);
+		OutParams->BoneTransforms	= GraphBuilder.CreateSRV(TransformBuffer);
 	}
 }
 
 bool FSkinningSceneExtension::ProcessBufferDefragmentation()
 {
 	// Consolidate spans
+	HierarchyAllocator.Consolidate();
 	TransformAllocator.Consolidate();
 
 	// Decide to defragment the buffer when the used size dips below a certain multiple of the max used size.
@@ -196,7 +222,7 @@ bool FSkinningSceneExtension::ProcessBufferDefragmentation()
 	// thrashing when usage is close to a power of 2.
 	//
 	// NOTES:
-	//	* We only currently use the state of the transform buffer's fragmentation to decide to defrag both buffers
+	//	* We only currently use the state of the transform buffer's fragmentation to decide to defrag all buffers
 	//	* Rather than trying to minimize number of moves/uploads, we just realloc and re-upload everything. This
 	//	  could be implemented in a more efficient manner if the current method proves expensive.
 
@@ -229,6 +255,7 @@ bool FSkinningSceneExtension::ProcessBufferDefragmentation()
 		return false;
 	}
 
+	HierarchyAllocator.Reset();
 	TransformAllocator.Reset();
 
 	for (auto& Data : PrimitiveData)
@@ -238,6 +265,12 @@ bool FSkinningSceneExtension::ProcessBufferDefragmentation()
 			Data.TransformBufferOffset = INDEX_NONE;
 			Data.TransformBufferCount = 0;
 		}
+
+		if (Data.HierarchyBufferOffset != INDEX_NONE)
+		{
+			Data.HierarchyBufferOffset = INDEX_NONE;
+			Data.HierarchyBufferCount = 0;
+		}
 	}
 
 	return true;
@@ -245,6 +278,8 @@ bool FSkinningSceneExtension::ProcessBufferDefragmentation()
 
 FSkinningSceneExtension::FBuffers::FBuffers()
 : PrimitiveDataBuffer(CVarNanitePrimitiveSkinningDataBufferMinSizeBytes.GetValueOnAnyThread() >> 2u, TEXT("Nanite.SkinningHeaders"))
+, BoneHierarchyBuffer(CVarNaniteTransformDataBufferMinSizeBytes.GetValueOnAnyThread() >> 2u, TEXT("Nanite.BoneHierarchy"))
+, BoneObjectSpaceBuffer(CVarNaniteTransformDataBufferMinSizeBytes.GetValueOnAnyThread() >> 2u, TEXT("Nanite.BoneObjectSpace"))
 , TransformDataBuffer(CVarNaniteTransformDataBufferMinSizeBytes.GetValueOnAnyThread() >> 2u, TEXT("Nanite.BoneTransforms"))
 {
 }
@@ -288,6 +323,12 @@ void FSkinningSceneExtension::FUpdater::PreSceneUpdate(FRDGBuilder& GraphBuilder
 				if (SceneData->PrimitiveData.IsValidIndex(PersistentIndex.Index))
 				{
 					FSkinningSceneExtension::FPrimitiveData& Data = SceneData->PrimitiveData[PersistentIndex.Index];
+
+					if (Data.HierarchyBufferOffset != INDEX_NONE)
+					{
+						SceneData->HierarchyAllocator.Free(Data.HierarchyBufferOffset, Data.HierarchyBufferCount);
+					}
+
 					if (Data.TransformBufferOffset != INDEX_NONE)
 					{
 						SceneData->TransformAllocator.Free(Data.TransformBufferOffset, Data.TransformBufferCount);
@@ -406,26 +447,50 @@ void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& Gra
 			Data.MaxInfluenceCount		= SkinnedProxy->GetMaxBoneInfluenceCount();
 			Data.UniqueAnimationCount	= SkinnedProxy->GetUniqueAnimationCount();
 
-			const uint32 NeededSize = Data.UniqueAnimationCount * Data.MaxTransformCount * 2u; // Current and Previous
-			if (NeededSize != Data.TransformBufferCount)
+			bool bRequireUpload = false;
+
+			const uint32 HierarchyNeededSize = Data.MaxTransformCount;
+			if (HierarchyNeededSize != Data.HierarchyBufferCount)
+			{
+				if (Data.HierarchyBufferCount > 0)
+				{
+					SceneData->HierarchyAllocator.Free(Data.HierarchyBufferOffset, Data.HierarchyBufferCount);
+				}
+
+				Data.HierarchyBufferOffset = HierarchyNeededSize > 0 ? SceneData->HierarchyAllocator.Allocate(HierarchyNeededSize) : INDEX_NONE;
+				Data.HierarchyBufferCount = HierarchyNeededSize;
+
+				if (!bForceFullUpload)
+				{
+					bRequireUpload = true;
+				}
+			}
+
+			const uint32 TransformNeededSize = Data.UniqueAnimationCount * Data.MaxTransformCount * 2u; // Current and Previous
+			if (bRequireUpload || (TransformNeededSize != Data.TransformBufferCount))
 			{
 				if (Data.TransformBufferCount > 0)
 				{
 					SceneData->TransformAllocator.Free(Data.TransformBufferOffset, Data.TransformBufferCount);
 				}
 
-				Data.TransformBufferOffset = NeededSize > 0 ? SceneData->TransformAllocator.Allocate(NeededSize) : INDEX_NONE;
-				Data.TransformBufferCount = NeededSize;
+				Data.TransformBufferOffset = TransformNeededSize > 0 ? SceneData->TransformAllocator.Allocate(TransformNeededSize) : INDEX_NONE;
+				Data.TransformBufferCount = TransformNeededSize;
 
 				if (!bForceFullUpload)
 				{
-					DirtyPrimitiveList.Add(Data.PrimitiveSceneInfo->GetPersistentIndex().Index);
+					bRequireUpload = true;
 				}
+			}
+
+			if (bRequireUpload)
+			{
+				DirtyPrimitiveList.Add(Data.PrimitiveSceneInfo->GetPersistentIndex().Index);
 			}
 		};
 
 		// Kick off the allocate task (synced just prior to primitive uploads)
-		SceneData->TaskHandles[AllocTransformBufferTask] = GraphBuilder.AddSetupTask(
+		SceneData->TaskHandles[AllocBufferSpaceTask] = GraphBuilder.AddSetupTask(
 			[this, AllocSpaceForPrimitive]
 			{
 				if (bDefragging)
@@ -471,7 +536,7 @@ void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& Gra
 
 			// Catch when/if no transform buffer data is allocated for a primitive we're tracking.
 			// This should be indicative of a bug.
-			ensure(Data.TransformBufferCount != INDEX_NONE);
+			ensure(Data.HierarchyBufferCount != INDEX_NONE && Data.TransformBufferCount != INDEX_NONE);
 
 			check(SceneData->Uploader.IsValid()); // Sanity check
 			SceneData->Uploader->PrimitiveDataUploader.Add(Data.Pack(), PersistentIndex);
@@ -506,12 +571,51 @@ void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& Gra
 			},
 			MakeArrayView(
 				{
-					SceneData->TaskHandles[AllocTransformBufferTask],
+					SceneData->TaskHandles[AllocBufferSpaceTask]
 				}
 			),
 			UE::Tasks::ETaskPriority::Normal,
 			bEnableAsync
 		);
+
+		auto UploadHierarchyData = [this](const FPrimitiveData& Data)
+		{
+			auto SkinnedProxy = static_cast<const Nanite::FSkinnedSceneProxy*>(Data.PrimitiveSceneInfo->Proxy);
+			const TArray<uint32>& BoneHierarchy = SkinnedProxy->GetBoneHierarchy();
+			const TArray<FMatrix3x4>& BoneObjectSpace = SkinnedProxy->GetBoneObjectSpace();
+
+			check(BoneHierarchy.Num() == Data.MaxTransformCount);
+			check(BoneObjectSpace.Num() == Data.MaxTransformCount);
+			check(SceneData->Uploader.IsValid());
+
+			// Bone Hierarchy
+			{
+				auto UploadData = SceneData->Uploader->BoneHierarchyUploader.AddMultiple_GetRef(
+					Data.HierarchyBufferOffset,
+					Data.HierarchyBufferCount
+				);
+
+				uint32* DstBoneHierarchyPtr = UploadData.GetData();
+				for (int32 BoneIndex = 0; BoneIndex < Data.MaxTransformCount; ++BoneIndex)
+				{
+					DstBoneHierarchyPtr[BoneIndex] = BoneHierarchy[BoneIndex];
+				}
+			}
+
+			// Bone Object Space
+			{
+				auto UploadData = SceneData->Uploader->BoneObjectSpaceUploader.AddMultiple_GetRef(
+					Data.HierarchyBufferOffset,
+					Data.HierarchyBufferCount
+				);
+
+				FMatrix3x4* DstBoneObjectSpacePtr = UploadData.GetData();
+				for (int32 BoneIndex = 0; BoneIndex < Data.MaxTransformCount; ++BoneIndex)
+				{
+					DstBoneObjectSpacePtr[BoneIndex] = BoneObjectSpace[BoneIndex];
+				}
+			}
+		};
 
 		auto UploadTransformData = [this](const FPrimitiveData& Data)
 		{
@@ -554,6 +658,31 @@ void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& Gra
 			}
 		};
 
+		// Kick off the hierarchy data upload task (synced when accessing the buffer)
+		SceneData->TaskHandles[UploadHierarchyDataTask] = GraphBuilder.AddSetupTask(
+			[this, UploadHierarchyData]
+			{
+				if (bForceFullUpload)
+				{
+					for (auto& Data : SceneData->PrimitiveData)
+					{
+						UploadHierarchyData(Data);
+					}
+				}
+				else
+				{
+					for (auto PrimitiveSceneInfo : UpdateList)
+					{
+						const int32 PersistentIndex = PrimitiveSceneInfo->GetPersistentIndex().Index;
+						UploadHierarchyData(SceneData->PrimitiveData[PersistentIndex]);
+					}
+				}
+			},
+			MakeArrayView({ SceneData->TaskHandles[AllocBufferSpaceTask] }),
+			UE::Tasks::ETaskPriority::Normal,
+			bEnableAsync
+		);
+
 		// Kick off the transform data upload task (synced when accessing the buffer)
 		SceneData->TaskHandles[UploadTransformDataTask] = GraphBuilder.AddSetupTask(
 			[this, UploadTransformData]
@@ -574,7 +703,7 @@ void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& Gra
 					}
 				}
 			},
-			MakeArrayView({ SceneData->TaskHandles[AllocTransformBufferTask] }),
+			MakeArrayView({ SceneData->TaskHandles[AllocBufferSpaceTask] }),
 			UE::Tasks::ETaskPriority::Normal,
 			bEnableAsync
 		);
@@ -598,6 +727,24 @@ void FSkinningSceneExtension::FRenderer::UpdateSceneUniformBuffer(
 	Parameters.SkinningHeaderStride = sizeof(FPackedPrimitiveData);
 	SceneData->FinishSkinningBufferUpload(GraphBuilder, &Parameters);
 	SceneUniformBuffer.Set(SceneUB::NaniteSkinning, Parameters);
+}
+
+void FSkinningSceneExtension::GetSkinnedPrimitives(TArray<FPrimitiveSceneInfo*>& OutPrimitives) const
+{
+	OutPrimitives.Reset();
+
+	if (!IsEnabled())
+	{
+		return;
+	}
+
+	OutPrimitives.Reserve(PrimitiveData.Num());
+
+	for (typename TSparseArray<FPrimitiveData>::TConstIterator It(PrimitiveData); It; ++It)
+	{
+		const FPrimitiveData& Primitive = *It;
+		OutPrimitives.Add(Primitive.PrimitiveSceneInfo);
+	}
 }
 
 } // Nanite
