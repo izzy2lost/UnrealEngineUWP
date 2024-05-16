@@ -8,6 +8,7 @@
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformTime.h"
 #include "IO/IoChunkEncoding.h"
+#include "IO/PackageId.h"
 #include "IasCache.h"
 #include "Misc/Base64.h"
 #include "Misc/CommandLine.h"
@@ -655,6 +656,103 @@ bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandTocAdditionalFile& Addit
 	return false;
 }
 
+FArchive& operator<<(FArchive& Ar, FOnDemandTocTagSetPackageList& TagSet)
+{
+	Ar << TagSet.ContainerIndex;
+	Ar << TagSet.PackageIndicies;
+	return Ar;
+}
+
+FCbWriter& operator<<(FCbWriter& Writer, const FOnDemandTocTagSetPackageList& TagSet)
+{
+	Writer.BeginObject();
+	Writer.AddInteger(UTF8TEXTVIEW("ContainerIndex"), TagSet.ContainerIndex);
+	Writer.BeginArray(UTF8TEXTVIEW("PackageIndicies"));
+	for (const uint32 Index : TagSet.PackageIndicies)
+	{
+		Writer << Index;
+	}
+	Writer.EndArray();
+	Writer.EndObject();
+	return Writer;
+}
+
+bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandTocTagSetPackageList& TagSet)
+{
+	if (FCbObjectView Obj = Field.AsObjectView())
+	{
+		FCbFieldView ContainerIndex = Obj["ContainerIndex"];
+		TagSet.ContainerIndex = ContainerIndex.AsUInt32();
+		if (ContainerIndex.HasError())
+		{
+			return false;
+		}
+
+		FCbFieldView PackageIndicies = Obj["PackageIndicies"];
+		FCbArrayView PackageIndiciesArray = PackageIndicies.AsArrayView();
+		if(PackageIndicies.HasError())
+		{
+			return false;
+		}
+
+		TagSet.PackageIndicies.Reserve(int32(PackageIndiciesArray.Num()));
+		for (FCbFieldView ArrayField : PackageIndiciesArray)
+		{
+			uint32 Index = ArrayField.AsUInt32();
+			if (ArrayField.HasError())
+			{
+				return false;
+			}
+			TagSet.PackageIndicies.Emplace(Index);
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+FArchive& operator<<(FArchive& Ar, FOnDemandTocTagSet& TagSet)
+{
+	Ar << TagSet.Tag;
+	Ar << TagSet.Packages;
+	return Ar;
+}
+
+FCbWriter& operator<<(FCbWriter& Writer, const FOnDemandTocTagSet& TagSet)
+{
+	Writer.BeginObject();
+	Writer.AddString(UTF8TEXTVIEW("Tag"), TagSet.Tag);
+	Writer.BeginArray(UTF8TEXTVIEW("Packages"));
+	for (const FOnDemandTocTagSetPackageList& PackageList : TagSet.Packages)
+	{
+		Writer << PackageList;
+	}
+	Writer.EndArray();
+	Writer.EndObject();
+	return Writer;
+}
+
+bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandTocTagSet& TagSet)
+{
+	if (FCbObjectView Obj = Field.AsObjectView())
+	{
+		TagSet.Tag = FString(Obj["Tag"].AsString());
+		FCbArrayView Packages = Obj["Packages"].AsArrayView();
+		TagSet.Packages.Reserve(int32(Packages.Num()));
+		for (FCbFieldView ArrayField : Packages)
+		{
+			if (!LoadFromCompactBinary(ArrayField, TagSet.Packages.Emplace_GetRef()))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	return false;
+}
+
 FArchive& operator<<(FArchive& Ar, FOnDemandToc& Toc)
 {
 	Ar << Toc.Header;
@@ -674,6 +772,11 @@ FArchive& operator<<(FArchive& Ar, FOnDemandToc& Toc)
 	if (uint32(Toc.Header.Version) >= uint32(EOnDemandTocVersion::AdditionalFiles))
 	{
 		Ar << Toc.AdditionalFiles;
+	}
+
+	if (uint32(Toc.Header.Version) >= uint32(EOnDemandTocVersion::TagSets))
+	{
+		Ar << Toc.TagSets;
 	}
 
 	return Ar;
@@ -697,6 +800,16 @@ FCbWriter& operator<<(FCbWriter& Writer, const FOnDemandToc& Toc)
 		for (const FOnDemandTocAdditionalFile& File : Toc.AdditionalFiles)
 		{
 			Writer << File;
+		}
+		Writer.EndArray();
+	}
+
+	if (Toc.TagSets.Num() > 0)
+	{
+		Writer.BeginArray(UTF8TEXTVIEW("TagSets"));
+		for (const FOnDemandTocTagSet& TagSet : Toc.TagSets)
+		{
+			Writer << TagSet;
 		}
 		Writer.EndArray();
 	}
@@ -742,6 +855,19 @@ bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandToc& OutToc)
 			for (FCbFieldView ArrayField : Files)
 			{
 				if (!LoadFromCompactBinary(ArrayField, OutToc.AdditionalFiles.AddDefaulted_GetRef()))
+				{
+					return false;
+				}
+			}
+		}
+
+		if (uint32(OutToc.Header.Version) >= uint32(EOnDemandTocVersion::TagSets))
+		{
+			FCbArrayView TagSets = Obj["TagSets"].AsArrayView();
+			OutToc.TagSets.Reserve(int32(TagSets.Num()));
+			for (FCbFieldView ArrayField : TagSets)
+			{
+				if (!LoadFromCompactBinary(ArrayField, OutToc.TagSets.AddDefaulted_GetRef()))
 				{
 					return false;
 				}

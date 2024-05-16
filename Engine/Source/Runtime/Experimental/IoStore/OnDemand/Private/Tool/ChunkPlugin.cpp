@@ -11,18 +11,28 @@
 #include "IO/IoStatus.h"
 #include "IO/IoStore.h"
 #include "IO/IoStoreOnDemand.h"
+#include "IO/IoContainerHeader.h"
 #include "Misc/DateTime.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/PathViews.h"
 #include "Misc/StringBuilder.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 #include "Serialization/LargeMemoryWriter.h"
+#include "Serialization/MemoryReader.h"
 
 namespace UE::IoStore::Tool
 {
 
 ////////////////////////////////////////////////////////////////////////////////
-FIoStatus WriteChunk(const FString& Directory, FMemoryView Chunk, const FIoHash& Hash)
+struct FChunkPluginSettings
+{
+	TMap<FString, TArray<FString>> PackageSets;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+static FIoStatus WriteChunk(const FString& Directory, FMemoryView Chunk, const FIoHash& Hash)
 {
 	IFileManager& FileMgr = IFileManager::Get();
 	const FString HashString = LexToString(Hash);
@@ -57,7 +67,7 @@ FIoStatus WriteChunk(const FString& Directory, FMemoryView Chunk, const FIoHash&
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-FIoStatus WriteChunk(const FString& Directory, FMemoryView Chunk)
+static FIoStatus WriteChunk(const FString& Directory, FMemoryView Chunk)
 {
 	return WriteChunk(Directory, Chunk, FIoHash::HashBuffer(Chunk));
 }
@@ -65,12 +75,16 @@ FIoStatus WriteChunk(const FString& Directory, FMemoryView Chunk)
 ////////////////////////////////////////////////////////////////////////////////
 static int32 ChunkPluginCommandEntry(const FContext& Context)
 {
+	//while (!FPlatformMisc::IsDebuggerPresent());
+	//UE_DEBUG_BREAK();
+
 	const FString Platform				= FString(Context.Get<FStringView>(TEXT("-Platform"), FString()));
 	const FString BuildVersion			= FString(Context.Get<FStringView>(TEXT("-BuildVersion"), FString()));
 	const FString OnDemandTocName		= FString(Context.Get<FStringView>(TEXT("-OnDemandTocName"), FString()));
 	const FString InputFolder			= FString(Context.Get<FStringView>(TEXT("-InputFolder"), FString()));
 	const FString OutputFolder			= FString(Context.Get<FStringView>(TEXT("-OutputFolder"), FString()));
 	const FString IntermediateFolder	= FString(Context.Get<FStringView>(TEXT("-IntermediateFolder"), FString()));
+	FString SettingsFile				= FString(Context.Get<FStringView>(TEXT("-SettingsFile"), FString()));
 	const bool bIncludeSigPak			= Context.Get<bool>(TEXT("-IncludeSigPak"), false);
 	const bool bDeleteContainerFiles	= !Context.Get<bool>(TEXT("-KeepContainerFiles"), false);
 	FString ContainerFolder				= InputFolder;
@@ -80,6 +94,7 @@ static int32 ChunkPluginCommandEntry(const FContext& Context)
 	FPaths::NormalizeDirectoryName(ContainerFolder);
 	FPaths::NormalizeDirectoryName(IoStoreOutputFolder);
 	FPaths::NormalizeDirectoryName(ChunksOutputFolder);
+	FPaths::NormalizeFilename(SettingsFile);
 
 	UE_LOG(LogIoStore, Display, TEXT("I/O store chunk plugin:"));
 	UE_LOG(LogIoStore, Display, TEXT("----------------------------------------"));
@@ -89,10 +104,68 @@ static int32 ChunkPluginCommandEntry(const FContext& Context)
 	UE_LOG(LogIoStore, Display, TEXT("\tInputFolder: %s"), *InputFolder);
 	UE_LOG(LogIoStore, Display, TEXT("\tOutputFolder: %s"), *OutputFolder);
 	UE_LOG(LogIoStore, Display, TEXT("\tIntermediateFolder: %s"), *IntermediateFolder);
+	UE_LOG(LogIoStore, Display, TEXT("\tSettingsFile: %s"), *SettingsFile);
 	UE_LOG(LogIoStore, Display, TEXT("\tIncludeSigPak: %s"), bIncludeSigPak ? TEXT("true") : TEXT("false"));
 	UE_LOG(LogIoStore, Display, TEXT("\tDeleteContainerFiles: %s"), bDeleteContainerFiles ? TEXT("true") : TEXT("false"));
 
 	IFileManager& FileMgr = IFileManager::Get();
+
+	FChunkPluginSettings Settings;
+	if (!SettingsFile.IsEmpty())
+	{
+		TUniquePtr<FArchive> Ar(FileMgr.CreateFileReader(*SettingsFile));
+		if (!Ar || Ar->IsError())
+		{
+			UE_LOG(LogIoStore, Error, TEXT("Failed to open settings file '%s'"), *SettingsFile);
+			return -1;
+		}
+
+		TSharedRef<TJsonReader<UTF8CHAR>> JsonReader = TJsonReaderFactory<UTF8CHAR>::Create(Ar.Get());
+
+		TSharedPtr<FJsonValue> JsonSettings;
+		if (!FJsonSerializer::Deserialize(*JsonReader, JsonSettings))
+		{
+			UE_LOG(LogIoStore, Error, TEXT("Failed to read settings file '%s'"), *SettingsFile);
+			return -1;
+		}
+
+		TSharedPtr<FJsonObject> JsonSettingsObject = JsonSettings->AsObject();
+		if (!JsonSettingsObject)
+		{
+			UE_LOG(LogIoStore, Error, TEXT("Bad settings file '%s'"), *SettingsFile);
+			return -1;
+		}
+
+		if (TSharedPtr<FJsonValue> PackageSets = JsonSettingsObject->TryGetField(TEXT("PackageSets")))
+		{
+			TSharedPtr<FJsonObject> PackageSetsObject = PackageSets->AsObject();
+			if (!PackageSetsObject)
+			{
+				UE_LOG(LogIoStore, Error, TEXT("Bad settings file '%s'"), *SettingsFile);
+				return -1;
+			}
+
+			for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : PackageSetsObject->Values)
+			{
+				TArray<FString> Packages;
+				if (!PackageSetsObject->TryGetStringArrayField(Pair.Key, Packages))
+				{
+					UE_LOG(LogIoStore, Error, TEXT("Bad settings file '%s'"), *SettingsFile);
+					return -1;
+				}
+
+				UE_LOG(LogIoStore, Display, TEXT("Found Package Set '%s'"), *Pair.Key);
+				for (const FString& Package : Packages)
+				{
+					UE_LOG(LogIoStore, Display, TEXT("-> \t'%s'"), *Package);
+				}
+
+				Settings.PackageSets.Add(Pair.Key, MoveTemp(Packages));
+			}
+		}
+	}
+
+	
 	if (FileMgr.MakeDirectory(*ChunksOutputFolder, true) == false)
 	{
 		UE_LOG(LogIoStore, Error, TEXT("Failed to create directory '%s'"), *ChunksOutputFolder);
@@ -114,6 +187,9 @@ static int32 ChunkPluginCommandEntry(const FContext& Context)
 	//OnDemandToc.Header.ChunksDirectory = TODO 
 	OnDemandToc.Containers.Reserve(ContainerFilenames.Num());
 
+	TMap<FString, TArray<FOnDemandTocTagSetPackageList>> FoundTagSets;
+	FoundTagSets.Reserve(Settings.PackageSets.Num());
+
 	TArray<FString> FilesToDelete;
 
 	for (const FString& Filename : ContainerFilenames)
@@ -131,12 +207,84 @@ static int32 ChunkPluginCommandEntry(const FContext& Context)
 
 		UE_LOG(LogIoStore, Display, TEXT("Processing container '%s'"), *FullPath);
 
+		/*TArray<FString> ContainerFileList;
+		ContainerFileReader.GetFilenames(ContainerFileList);
+		for (const FString& File : ContainerFileList)
+		{
+			UE_LOG(LogIoStore, Display, TEXT("Found file in container '%s'"), *File);
+		}*/
+
 		const uint32 BlockSize = ContainerFileReader.GetCompressionBlockSize();
 		if (OnDemandToc.Header.BlockSize == 0)
 		{
 			OnDemandToc.Header.BlockSize = ContainerFileReader.GetCompressionBlockSize();
 		}
 		check(OnDemandToc.Header.BlockSize == ContainerFileReader.GetCompressionBlockSize());
+
+		const int32 ContainerIndex = OnDemandToc.Containers.AddDefaulted();
+		FOnDemandTocContainerEntry& ContainerEntry = OnDemandToc.Containers[ContainerIndex];
+		ContainerEntry.ContainerId = ContainerFileReader.GetContainerId();
+		ContainerEntry.ContainerName = FPaths::GetBaseFilename(FullPath);
+
+		if (EnumHasAnyFlags(ContainerFileReader.GetContainerFlags(), EIoContainerFlags::Encrypted))
+		{
+			ContainerEntry.EncryptionKeyGuid = LexToString(ContainerFileReader.GetEncryptionKeyGuid());
+		}
+
+		TArray<FOnDemandTocTagSet> TagSets;
+		if (Settings.PackageSets.Num() > 0)
+		{
+			const FIoChunkId HeaderChunkId = CreateContainerHeaderChunkId(ContainerFileReader.GetContainerId());
+			TIoStatusOr<FIoBuffer> Status = ContainerFileReader.Read(HeaderChunkId, FIoReadOptions());
+			if (!Status.IsOk())
+			{
+				if (Status.Status().GetErrorCode() == EIoErrorCode::NotFound)
+				{
+					UE_LOG(LogIoStore, Display, TEXT("No header chunk for container '%s'"), *FullPath);
+				}
+				else
+				{
+					UE_LOG(LogIoStore, Error, TEXT("Failed to read header chunk for container '%s'"), *FullPath);
+					return -1;
+				}
+			}
+			else
+			{
+				FIoContainerHeader ContainerHeader;
+				FMemoryReaderView Ar(Status.ValueOrDie().GetView());
+				Ar << ContainerHeader;
+				Ar.Close();
+				if (Ar.IsError() || Ar.IsCriticalError())
+				{
+					UE_LOG(LogIoStore, Error, TEXT("Failed to deserialize header chunk for container '%s'"), *FullPath);
+					return -1;
+				}
+
+				for (const TPair<FString, TArray<FString>>& Pair : Settings.PackageSets)
+				{
+					const FString& Tag = Pair.Key;
+
+					FOnDemandTocTagSetPackageList TagSetPackageList;
+					TagSetPackageList.ContainerIndex = ContainerIndex;
+
+					for (const FString& Package : Pair.Value)
+					{
+						const FPackageId PackageId = FPackageId::FromName(FName(Package));
+						int32 PackageIndex = INDEX_NONE;
+						if (ContainerHeader.PackageIds.Find(PackageId, PackageIndex))
+						{
+							UE_LOG(LogIoStore, Display, TEXT("Found package %s for tag %s in container %s"), *Package, *Tag, *Filename)
+							TagSetPackageList.PackageIndicies.Add(PackageIndex);
+						}
+					}
+
+					if (TagSetPackageList.PackageIndicies.Num() > 0)
+					{
+						FoundTagSets.FindOrAdd(Tag).Add(MoveTemp(TagSetPackageList));
+					}
+				}
+			}
+		}
 
 		TArray<FIoStoreTocChunkInfo> ChunkInfos;
 		ContainerFileReader.EnumerateChunks([&ChunkInfos](FIoStoreTocChunkInfo&& Info)
@@ -146,14 +294,6 @@ static int32 ChunkPluginCommandEntry(const FContext& Context)
 		});
 
 		UE_LOG(LogIoStore, Display, TEXT("Serializing %d chunks"), ChunkInfos.Num());
-		FOnDemandTocContainerEntry& ContainerEntry = OnDemandToc.Containers.AddDefaulted_GetRef();
-		ContainerEntry.ContainerId		= ContainerFileReader.GetContainerId();
-		ContainerEntry.ContainerName	= FPaths::GetBaseFilename(FullPath);
-
-		if (EnumHasAnyFlags(ContainerFileReader.GetContainerFlags(), EIoContainerFlags::Encrypted))
-		{
-			ContainerEntry.EncryptionKeyGuid = LexToString(ContainerFileReader.GetEncryptionKeyGuid());
-		}
 
 		for (const FIoStoreTocChunkInfo& ChunkInfo : ChunkInfos)
 		{
@@ -223,6 +363,14 @@ static int32 ChunkPluginCommandEntry(const FContext& Context)
 			FilesToDelete.Add(FullPath);
 			ContainerFileReader.GetContainerFilePaths(FilesToDelete);
 		}
+	}
+
+	OnDemandToc.TagSets.Reserve(FoundTagSets.Num());
+	for (TPair<FString, TArray<FOnDemandTocTagSetPackageList>>& Pair : FoundTagSets)
+	{
+		FOnDemandTocTagSet& TocTagSet = OnDemandToc.TagSets.Emplace_GetRef();
+		TocTagSet.Tag = Pair.Key;
+		TocTagSet.Packages = MoveTemp(Pair.Value);
 	}
 
 	IFileManager& FileMan = IFileManager::Get();
@@ -383,6 +531,7 @@ static FCommand ChunkPluginCommand(
 		TArgument<FStringView>(TEXT("-InputFolder"),		TEXT("Input folder to plugin information.")),
 		TArgument<FStringView>(TEXT("-OutputFolder"),		TEXT("Ouptut folder.")),
 		TArgument<FStringView>(TEXT("-IntermediateFolder"),	TEXT("Intermediate folder.")),
+		TArgument<FStringView>(TEXT("-SettingsFile"),		TEXT("Optional settings file.")),
 		TArgument<FStringView>(TEXT("-ErrorOutput"),		TEXT("Error output.")),
 		TArgument<bool>(TEXT("-IncludeSigPak"),				TEXT("Include .sig and .pak file in the uondemandtoc")),
 		TArgument<bool>(TEXT("-KeepContainerFiles"),		TEXT("Should we keep the container files after processing them.")),

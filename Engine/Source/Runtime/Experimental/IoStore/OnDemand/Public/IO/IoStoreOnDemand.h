@@ -59,6 +59,7 @@ enum class EOnDemandTocVersion : uint32
 	Meta			= 5,
 	ContainerId		= 6,
 	AdditionalFiles	= 7,
+	TagSets			= 8,
 
 	LatestPlusOne,
 	Latest			= (LatestPlusOne - 1)
@@ -161,6 +162,28 @@ struct FOnDemandTocAdditionalFile
 
 UE_API bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandTocAdditionalFile& AdditionalFile);
 
+struct FOnDemandTocTagSetPackageList
+{
+	uint32 ContainerIndex = 0;
+	TArray<uint32> PackageIndicies;
+
+	UE_API friend FArchive& operator<<(FArchive& Ar, FOnDemandTocTagSetPackageList& TagSet);
+	UE_API friend FCbWriter& operator<<(FCbWriter& Writer, const FOnDemandTocTagSetPackageList& TagSet);
+};
+
+UE_API bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandTocTagSetPackageList& TagSet);
+
+struct FOnDemandTocTagSet
+{
+	FString Tag;
+	TArray<FOnDemandTocTagSetPackageList> Packages;
+
+	UE_API friend FArchive& operator<<(FArchive& Ar, FOnDemandTocTagSet& TagSet);
+	UE_API friend FCbWriter& operator<<(FCbWriter& Writer, const FOnDemandTocTagSet& TagSet);
+};
+
+UE_API bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandTocTagSet& TagSet);
+
 struct FOnDemandToc
 {
 	FOnDemandToc() = default;
@@ -178,6 +201,7 @@ struct FOnDemandToc
 	FTocMeta Meta;
 	TArray<FOnDemandTocContainerEntry> Containers;
 	TArray<FOnDemandTocAdditionalFile> AdditionalFiles;
+	TArray<FOnDemandTocTagSet> TagSets;
 
 	UE_API friend FArchive& operator<<(FArchive& Ar, FOnDemandToc& Toc);
 	UE_API friend FCbWriter& operator<<(FCbWriter& Writer, const FOnDemandToc& Toc);
@@ -234,6 +258,8 @@ struct FOnDemandMountArgs
 	FString Url;
 	/** Serialize the TOC from the specified file path. */
 	FString FilePath;
+	/** Used with EOnDemandMountOptions::Install to fliter requested content */
+	TArray<FString> TagSets;
 	/** Mount options. */
 	EOnDemandMountOptions Options;
 };

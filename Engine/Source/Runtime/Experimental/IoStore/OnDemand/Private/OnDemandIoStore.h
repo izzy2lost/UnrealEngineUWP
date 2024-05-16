@@ -129,6 +129,8 @@ class FOnDemandIoStore
 
 	using FSharedMountRequest	= TSharedPtr<FMountRequest>;
 	using FMountRequestMap		= TMap<FString, FSharedMountRequest>;
+	// List of (unique container name, package index list) pairs
+	using FPackageFilter		= TArray<TPair<FString, TConstArrayView<uint32>>>;
 
 public:
 	FOnDemandIoStore();
@@ -159,7 +161,8 @@ private:
 								TArray<FSharedOnDemandContainer>& Out);
 	FIoStatus				InstallContainers(
 								const FString& Url,
-								const TConstArrayView<FSharedOnDemandContainer>& ContainersToInstall);
+								const TConstArrayView<FSharedOnDemandContainer>& ContainersToInstall,
+								const FPackageFilter* PackageFilter = nullptr);
 
 	TArray<FSharedOnDemandContainer> GetMountedContainers();
 

@@ -110,9 +110,14 @@ FString LexToString(EOnDemandContainerFlags Flags)
 const FOnDemandChunkEntry FOnDemandChunkEntry::Null = {};
 
 ///////////////////////////////////////////////////////////////////////////////
+static FString OnDemandContainerUniqueName(FStringView MountId, FStringView Name)
+{
+	return FString::Printf(TEXT("%.*s-%.*s"), MountId.Len(), MountId.GetData(), Name.Len(), Name.GetData());
+}
+
 FString FOnDemandContainer::UniqueName() const
 {
-	return FString::Printf(TEXT("%s-%s"), *MountId, *Name);
+	return OnDemandContainerUniqueName(MountId, Name);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -504,7 +509,9 @@ FIoStatus FOnDemandIoStore::TickMountRequest(FMountRequest& MountRequest)
 		}
 
 		FOnDemandToc Toc = TocStatus.ConsumeValueOrDie();
-		CreateContainersFromToc(Args.MountId, TocPath, Toc, MountRequest.Containers);
+		Args.Toc.Emplace(MoveTemp(Toc));
+
+		CreateContainersFromToc(Args.MountId, TocPath, *Args.Toc, MountRequest.Containers);
 	}
 	else if (Args.Url.IsEmpty() == false)
 	{
@@ -520,7 +527,9 @@ FIoStatus FOnDemandIoStore::TickMountRequest(FMountRequest& MountRequest)
 		}
 
 		FOnDemandToc Toc = TocStatus.ConsumeValueOrDie();
-		CreateContainersFromToc(Args.MountId, TocPath, Toc, MountRequest.Containers);
+		Args.Toc.Emplace(MoveTemp(Toc));
+
+		CreateContainersFromToc(Args.MountId, TocPath, *Args.Toc, MountRequest.Containers);
 	}
 
 	// Remove already mounted containers
@@ -567,7 +576,36 @@ FIoStatus FOnDemandIoStore::TickMountRequest(FMountRequest& MountRequest)
 			return FIoStatusBuilder(EIoErrorCode::InvalidCode) << TEXT("Install cache not configured");
 		}
 
-		if (FIoStatus Status = InstallContainers(Args.Url, MountRequest.Containers); !Status.IsOk())
+		const bool bUsePackageFilter = Args.TagSets.Num() > 0;
+
+		// List of unique container name, package index list pairs
+		FPackageFilter PackageFilter;
+
+		if (bUsePackageFilter && ensure(Args.Toc))
+		{
+			const FOnDemandToc& Toc = Args.Toc.GetValue();
+			for (const FString& TagSet : Args.TagSets)
+			{
+				const FOnDemandTocTagSet* MaybeTagSet = Algo::FindBy(Toc.TagSets, TagSet, &FOnDemandTocTagSet::Tag);
+				if (MaybeTagSet)
+				{
+					for (const FOnDemandTocTagSetPackageList& PkgList : MaybeTagSet->Packages)
+					{
+						if (!Toc.Containers.IsValidIndex(PkgList.ContainerIndex))
+						{
+							return FIoStatusBuilder(EIoErrorCode::CorruptToc) << TEXT("Bad container index in tag set");
+						}
+
+						FString ContainerName = OnDemandContainerUniqueName(Args.MountId, Toc.Containers[PkgList.ContainerIndex].ContainerName);
+						PackageFilter.Emplace(MoveTemp(ContainerName), MakeArrayView(PkgList.PackageIndicies));
+					}
+				}
+			}
+		}
+
+		FIoStatus Status = InstallContainers(
+			Args.Url, MountRequest.Containers, bUsePackageFilter ? &PackageFilter : nullptr);
+		if (!Status.IsOk())
 		{
 			return Status;
 		}
@@ -667,7 +705,8 @@ void FOnDemandIoStore::CreateContainersFromToc(
 
 FIoStatus FOnDemandIoStore::InstallContainers(
 	const FString& Url,
-	const TConstArrayView<FSharedOnDemandContainer>& ContainersToInstall)
+	const TConstArrayView<FSharedOnDemandContainer>& ContainersToInstall,
+	const FOnDemandIoStore::FPackageFilter* PackageFilter /*= nullptr*/)
 {
 	FStringView Host, TocRelUrl;
 	Private::SplitHostUrl(Url, Host, TocRelUrl);
@@ -739,7 +778,36 @@ FIoStatus FOnDemandIoStore::InstallContainers(
 				reinterpret_cast<const FFilePackageStoreEntry*>(ContainerHeader.StoreEntries.GetData()),
 				ContainerHeader.PackageIds.Num());
 
-			//TODO: Find all referenced chunks
+			//TODO: Find all referenced chunks, do not apply filter recursively, it should only be for exports
+			
+			if (!PackageFilter)
+			{
+				for (int32 Index = 0; Index < ContainerHeader.PackageIds.Num(); ++Index)
+				{
+					const FPackageId& PackageId = ContainerHeader.PackageIds[Index];
+					const FFilePackageStoreEntry& FilePackageStoreEntry = PackageStoreEntries[Index];
+				}
+			}
+			else
+			{
+				const FString ContainerName = Container->UniqueName();
+				for (const TPair<FString, TConstArrayView<uint32>>& Pair : *PackageFilter)
+				{
+					if (Pair.Key == ContainerName)
+					{
+						for (const uint32 Index : Pair.Value)
+						{
+							if (!ContainerHeader.PackageIds.IsValidIndex(Index))
+							{
+								return FIoStatusBuilder(EIoErrorCode::CorruptToc) << TEXT("Bad pkg index in tagset");
+							}
+
+							const FPackageId& PackageId = ContainerHeader.PackageIds[Index];
+							const FFilePackageStoreEntry& FilePackageStoreEntry = PackageStoreEntries[Index];
+						}
+					}
+				}
+			}
 		}
 
 		// Download all chunks
