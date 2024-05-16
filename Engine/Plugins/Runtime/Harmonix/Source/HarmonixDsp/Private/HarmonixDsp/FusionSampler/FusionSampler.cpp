@@ -78,7 +78,6 @@ FFusionSampler::FFusionSampler()
 
 FFusionSampler::~FFusionSampler()
 {
-	DumpAllChildren();
 	if (FusionPatchData)
 	{
 		FusionPatchData->DisconnectSampler(this);
@@ -773,7 +772,6 @@ void FFusionSampler::SetSampleRate(float InSampleRateHz)
 
 void FFusionSampler::ResetInstrumentStateImpl()
 {
-	DumpAllChildren();
 	// TODO: Move some reset stuff from ResetPatchRelatedState to here!!!!
 	SetMidiChannelGain(1.0, AudioRendering::kMicroFadeSec);
 	SetMidiExpressionGain(1.0, AudioRendering::kMicroFadeSec);
@@ -1217,41 +1215,13 @@ void FFusionSampler::Process(uint32 InSliceIdx, uint32 InSubSliceIdx, TAudioBuff
 			Output.Accumulate(VoiceWorkBufferChannels, NumChannels, NumSamplesToProcess);
 		}
 	}
-
-	// set up AudioBuffer alias for mixing children
-	TAudioBuffer<float> ChildMixBuffer;
-	ChildMixBuffer.Configure(
-		Output.GetChannelLayout(), 
-		NumSamplesToProcess,
-		EAudioBufferCleanupMode::DontDelete,
-		(float)GetSamplesPerSecond(), 
-		false);
-
-	for (uint32 Ch = 0; Ch < NumChannels; ++Ch)
-	{
-		ChildMixBuffer.SetChannelData(Ch, VoiceWorkBufferChannels[Ch]);
-	}
-
-	// mix in any pre-fx children now
-	for (int32 ChildIdx = 0; ChildIdx < FusionPreChildren.Num(); ++ChildIdx)
-	{
-		FusionPreChildren[ChildIdx]->Process(InSliceIdx, InSubSliceIdx, ChildMixBuffer);
-		Output.Accumulate(ChildMixBuffer);
-	}
-
+	
 	// de-activate portamento if we're in legato mode
 	// and there are no voices playing
 
 	if (PortamentoMode == EPortamentoMode::Legato && ActiveVoices.Num() == 0)
 	{
 		IsPortamentoActive = false;
-	}
-
-	// mix in any post-fx children now
-	for (int32 ChildIdx = 0; ChildIdx < FusionPostChildren.Num(); ++ChildIdx)
-	{
-		FusionPostChildren[ChildIdx]->Process(InSliceIdx, InSubSliceIdx, ChildMixBuffer);
-		Output.Accumulate(ChildMixBuffer);
 	}
 }
 
@@ -1975,72 +1945,6 @@ void FFusionSampler::UpdateVoicesForEnvelopeOrderChange()
 			Shifter->ApplyOptions(Options);
 		}
 	}
-}
-
-// TODO: Needs to be reimplemented without FHarmonixGeneratorHandle
-//bool FFusionSampler::AddChild(const FHarmonixGeneratorHandle& child, EInstrumentRenderMode InRenderMode)
-//{
-//	FInstrumentGeneratorLock ihl(child);
-//	if (!ihl)
-//		return false;
-//
-//	_AddChild(ihl.GetRaw(), InRenderMode);
-//
-//	FusionChildHandles.Add(child);
-//
-//	return true;
-//}
-//
-//bool FFusionSampler::RemoveChild(const FHarmonixGeneratorHandle& child)
-//{
-//	FInstrumentGeneratorLock ihl(child);
-//	if (!ihl)
-//		return false;
-//
-//	FScopeLock Lock(&GetBusLock());
-//
-//	bool found = _RemoveChild(ihl.GetRaw());
-//
-//	int32 ChildIdx = FusionChildHandles.Find(child);
-//	if (ChildIdx != INDEX_NONE)
-//	{
-//		FusionChildHandles.RemoveAt(ChildIdx);
-//		found = true;
-//	}
-//	return found;
-//}
-
-void FFusionSampler::AddChild(FVirtualInstrument* InChildInstrument, EInstrumentRenderMode InRenderMode)
-{
-	FScopeLock Lock(&GetBusLock());
-
-	if (InRenderMode == EInstrumentRenderMode::PreFxChild)
-	{
-		FusionPreChildren.Add(InChildInstrument);
-	}
-	else
-	{
-		FusionPostChildren.Add(InChildInstrument);
-	}
-}
-
-bool FFusionSampler::RemoveChild(FVirtualInstrument* InChildInstrument)
-{
-	FScopeLock Lock(&GetBusLock());
-
-	bool OutRemoved = false;
-
-	OutRemoved |= FusionPreChildren.Remove(InChildInstrument) > 0; 
-	OutRemoved |= FusionPostChildren.Remove(InChildInstrument) > 0;
-
-	return OutRemoved;
-}
-
-void FFusionSampler::DumpAllChildren()
-{
-	FScopeLock Lock(&BusLock);
-	FusionPreChildren.Reset();
-	FusionPostChildren.Reset();
 }
 
 FString FFusionSampler::GetPatchPath() const

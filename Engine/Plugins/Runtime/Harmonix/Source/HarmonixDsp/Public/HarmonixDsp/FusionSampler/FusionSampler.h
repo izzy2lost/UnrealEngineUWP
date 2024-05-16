@@ -26,13 +26,6 @@ struct FFusionPatchData;
 class FFusionVoicePool;
 using FSharedFusionVoicePoolPtr = TSharedPtr<FFusionVoicePool, ESPMode::ThreadSafe>;
 
-enum class EInstrumentRenderMode : uint8
-{
-	Parent = 0,
-	PreFxChild = 1,
-	PostFxChild = 2
-};
-
 // Make Fusion Sampler derive directly from virtual instrument
 class HARMONIXDSP_API FFusionSampler : public FVirtualInstrument
 {
@@ -102,14 +95,6 @@ public:
 		return SubstreamGain[Index];
 	}
 
-	// "child" will be processed manually by us, with its output
-	//  mixed into our signal chain.
-	// TODO: Commented out for now. Needs to be reimplemented without HarmonixGeneratorHandle
-	// virtual bool AddChild(const FHarmonixGeneratorHandle& child, EInstrumentRenderMode renderMode);
-	// virtual bool RemoveChild(const FHarmonixGeneratorHandle& child);
-
-	virtual bool IsChildRenderer() const { return false; }
-
 	virtual void SetSampleRate(float InSampleRateHz) override;
 
 	float GetSubstreamGain(int32 Index) const
@@ -157,10 +142,6 @@ protected:
 	void SetPatch(FFusionPatchData* PatchData);
 
 	FString GetPatchPath() const;
-
-	void AddChild(FVirtualInstrument* child, EInstrumentRenderMode renderMode);
-	bool RemoveChild(FVirtualInstrument* child);
-	void DumpAllChildren();
 
 	// apply all settings from the patch.
 	// call whenever the patch is set
@@ -374,10 +355,6 @@ private:
 	float* VoiceWorkBufferChannels[kScratchBufferChannels];
 
 protected:
-
-	// TODO: Replace these with FVirtualInstrument
-	TArray<FVirtualInstrument*> FusionPreChildren;
-	TArray<FVirtualInstrument*> FusionPostChildren;
 
 	// we'll keep track of the 'current tempo' as it is
 	// needed by any 'beat sync' effects...
