@@ -59,6 +59,7 @@ class ITargetPlatform;
 using FShaderStatVariant = TVariant<bool, float, int32, uint32>;
 DECLARE_INTRINSIC_TYPE_LAYOUT(FShaderStatVariant);
 
+CSV_DECLARE_CATEGORY_MODULE_EXTERN(RENDERCORE_API, Shaders);
 /**
  * Controls whether shader related logs are visible.
  * Note: The runtime verbosity is driven by the console variable 'r.ShaderDevelopmentMode'

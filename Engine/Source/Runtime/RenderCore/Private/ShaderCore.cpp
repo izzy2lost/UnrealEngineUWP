@@ -115,6 +115,8 @@ DEFINE_STAT(STAT_Shaders_ShaderMemory);
 DEFINE_STAT(STAT_Shaders_ShaderResourceMemory);
 DEFINE_STAT(STAT_Shaders_ShaderPreloadMemory);
 
+CSV_DEFINE_CATEGORY(Shaders, (!UE_BUILD_SHIPPING));
+
 PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
 
 /**

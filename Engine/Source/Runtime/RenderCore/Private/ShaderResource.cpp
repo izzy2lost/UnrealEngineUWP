@@ -28,6 +28,9 @@
 
 DECLARE_LOG_CATEGORY_CLASS(LogShaderWarnings, Log, Log);
 
+#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+TCsvPersistentCustomStat<int>* CsvStatNumShaderMapsUsedForRendering = nullptr;
+#endif
 
 static int32 GShaderCompilerEmitWarningsOnLoad = 0;
 static FAutoConsoleVariableRef CVarShaderCompilerEmitWarningsOnLoad(
@@ -469,19 +472,36 @@ void FShaderMapResource::ReleaseShaders()
 	{
 		FScopeLock ScopeLock(&RHIShadersCreationGuard);
 
+		int NumReleaseShaders = 0;
+
 		for (uint32 Idx = 0; Idx < NumRHIShaders; ++Idx)
 		{
 			if (FRHIShader* Shader = RHIShaders[Idx].load(std::memory_order_acquire))
 			{
 				Shader->Release();
+				NumReleaseShaders++;
 				DEC_DWORD_STAT(STAT_Shaders_NumShadersCreated);
 			}
 		}
+
+#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+		TCsvPersistentCustomStat<int>* CsvStatNumShadersCreated = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShadersCreated"), CSV_CATEGORY_INDEX(Shaders));
+		CsvStatNumShadersCreated->Sub(NumReleaseShaders);
+#endif
+
 		RHIShaders = nullptr;
 		NumRHIShaders = 0;
 		if (bAtLeastOneRHIShaderCreated)
 		{
 			DEC_DWORD_STAT(STAT_Shaders_NumShaderMapsUsedForRendering);
+
+#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+			if(CsvStatNumShaderMapsUsedForRendering == nullptr)
+			{
+				CsvStatNumShaderMapsUsedForRendering = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShaderMapsUsedForRendering"), CSV_CATEGORY_INDEX(Shaders));
+			}
+			CsvStatNumShaderMapsUsedForRendering->Sub(1);
+#endif
 		}
 		bAtLeastOneRHIShaderCreated = false;
 	}
@@ -563,6 +583,14 @@ FRHIShader* FShaderMapResource::CreateShaderOrCrash(int32 ShaderIndex, bool bReq
 			if (!bAtLeastOneRHIShaderCreated)
 			{
 				INC_DWORD_STAT(STAT_Shaders_NumShaderMapsUsedForRendering);
+
+#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+				if (CsvStatNumShaderMapsUsedForRendering == nullptr)
+				{
+					CsvStatNumShaderMapsUsedForRendering = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShaderMapsUsedForRendering"), CSV_CATEGORY_INDEX(Shaders));
+				}
+				CsvStatNumShaderMapsUsedForRendering->Add(1);
+#endif
 				bAtLeastOneRHIShaderCreated = 1;
 			}
 
@@ -675,6 +703,12 @@ FRHIShader* FShaderMapResource_InlineCode::CreateRHIShaderOrCrash(int32 ShaderIn
 	}
 
 	INC_DWORD_STAT(STAT_Shaders_NumShadersCreated);
+
+#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+	TCsvPersistentCustomStat<int>* CsvStatNumShadersCreated = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShadersCreated"), CSV_CATEGORY_INDEX(Shaders));
+	CsvStatNumShadersCreated->Add(1);
+#endif
+
 	RHIShader->SetHash(ShaderHash);
 
 	// contract of this function is to return a shader with an already held reference

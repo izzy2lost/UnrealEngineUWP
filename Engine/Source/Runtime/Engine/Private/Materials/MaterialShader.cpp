@@ -34,6 +34,7 @@
 #include "PSOPrecache.h"
 #include "PSOPrecacheMaterial.h"
 #include "PSOPrecacheValidation.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 
 #if WITH_EDITOR
 #include "Algo/Sort.h"
@@ -48,6 +49,8 @@
 #include "Serialization/CompactBinaryWriter.h"
 #include "Serialization/MemoryReader.h"
 #endif
+
+CSV_DECLARE_CATEGORY_MODULE_EXTERN(RENDERCORE_API, Shaders);
 
 int32 GMaterialExcludeNonPipelinedShaders = 1;
 static FAutoConsoleVariableRef CVarMaterialExcludeNonPipelinedShaders(
@@ -3321,6 +3324,11 @@ void FMaterialShaderMap::Register(EShaderPlatform InShaderPlatform)
 	if (!bRegistered)
 	{
 		INC_DWORD_STAT(STAT_Shaders_NumShaderMaps);
+
+#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+		TCsvPersistentCustomStat<int>* CsvStatNumShaderMaps = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShaderMaps"), CSV_CATEGORY_INDEX(Shaders));
+		CsvStatNumShaderMaps->Add(1);
+#endif
 	}
 
 	{
@@ -3397,6 +3405,11 @@ void FMaterialShaderMap::Release()
 			{
 				bRegistered = false;
 				DEC_DWORD_STAT(STAT_Shaders_NumShaderMaps);
+
+#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+				TCsvPersistentCustomStat<int>* CsvStatNumShaderMaps = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShaderMaps"), CSV_CATEGORY_INDEX(Shaders));
+				CsvStatNumShaderMaps->Sub(1);
+#endif
 
 				FMaterialShaderMap *CachedMap = GIdToMaterialShaderMap[GetShaderPlatform()].FindRef(ShaderMapId);
 
@@ -3477,6 +3490,11 @@ FMaterialShaderMap::~FMaterialShaderMap()
 		uint32 TotalShadersIncludingBaseClass = GetContent()->GetNumShaders();
 		uint32 OwnShaders = TotalShadersIncludingBaseClass - BaseClassShaders;
 		DEC_DWORD_STAT_BY(STAT_Shaders_NumShadersLoaded, OwnShaders);
+
+#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+		TCsvPersistentCustomStat<int>* CsvStatNumShadersLoaded = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShadersLoaded"), CSV_CATEGORY_INDEX(Shaders));
+		CsvStatNumShadersLoaded->Sub(OwnShaders);
+#endif
 	}
 #endif
 }
@@ -3542,6 +3560,11 @@ bool FMaterialShaderMap::Serialize(FArchive& Ar, bool bInlineShaderResources, bo
 		uint32 TotalShadersIncludingBaseClass = GetContent()->GetNumShaders();
 		uint32 OwnShaders = TotalShadersIncludingBaseClass - BaseClassShaders;
 		INC_DWORD_STAT_BY(STAT_Shaders_NumShadersLoaded, OwnShaders);
+
+#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+		TCsvPersistentCustomStat<int>* CsvStatNumShadersLoaded = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShadersLoaded"), CSV_CATEGORY_INDEX(Shaders));
+		CsvStatNumShadersLoaded->Add(OwnShaders);
+#endif
 	}
 #endif // STATS
 	return bSerialized;

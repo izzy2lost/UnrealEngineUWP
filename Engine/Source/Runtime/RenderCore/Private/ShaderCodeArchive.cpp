@@ -1327,6 +1327,12 @@ TRefCountPtr<FRHIShader> FShaderCodeArchive::CreateShader(int32 Index)
 	if (Shader)
 	{
 		INC_DWORD_STAT(STAT_Shaders_NumShadersCreated);
+
+#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+		TCsvPersistentCustomStat<int>* CsvStatNumShadersCreated = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShadersCreated"), CSV_CATEGORY_INDEX(Shaders));
+		CsvStatNumShadersCreated->Add(1);
+#endif
+
 		Shader->SetHash(ShaderHash);
 	}
 
@@ -2256,6 +2262,12 @@ TRefCountPtr<FRHIShader> FIoStoreShaderCodeArchive::CreateShader(int32 ShaderInd
 	if (Shader)
 	{
 		INC_DWORD_STAT(STAT_Shaders_NumShadersCreated);
+
+#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+		TCsvPersistentCustomStat<int>* CsvStatNumShadersCreated = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShadersCreated"), CSV_CATEGORY_INDEX(Shaders));
+		CsvStatNumShadersCreated->Add(1);
+#endif
+
 		Shader->SetHash(ShaderHash);
 	}
 

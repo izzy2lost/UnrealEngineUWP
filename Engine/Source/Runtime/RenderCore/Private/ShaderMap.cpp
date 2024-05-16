@@ -14,6 +14,7 @@
 #include "Misc/ScopeLock.h"
 #include "UObject/RenderingObjectVersion.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 
 static EShaderPermutationFlags GetCurrentShaderPermutationFlags()
 {
@@ -86,6 +87,14 @@ void FShaderMapBase::AssignCopy(const FShaderMapBase& Source)
 	INC_DWORD_STAT_BY(STAT_Shaders_ShaderMemory, Content.FrozenSize);
 	INC_DWORD_STAT_BY(STAT_Shaders_NumShadersLoaded, NumFrozenShaders);
 
+#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+	TCsvPersistentCustomStat<float>* CsvStatShaderMemoryMB = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatFloat(TEXT("ShaderMemoryMB"), CSV_CATEGORY_INDEX(Shaders));
+	TCsvPersistentCustomStat<int>* CsvStatNumShadersLoaded = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShadersLoaded"), CSV_CATEGORY_INDEX(Shaders));
+
+	CsvStatShaderMemoryMB->Add(float(Content.FrozenSize) / (1024.0f * 1024.f));
+	CsvStatNumShadersLoaded->Add(NumFrozenShaders);
+#endif
+
 	Code = new FShaderMapResourceCode(*Source.Code);
 	InitResource();
 }
@@ -109,6 +118,14 @@ void FShaderMapBase::FinalizeContent()
 		NumFrozenShaders = Content.Object->GetNumShaders();
 		INC_DWORD_STAT_BY(STAT_Shaders_ShaderMemory, Content.FrozenSize);
 		INC_DWORD_STAT_BY(STAT_Shaders_NumShadersLoaded, NumFrozenShaders);
+
+#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+		TCsvPersistentCustomStat<float>* CsvStatShaderMemoryMB = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatFloat(TEXT("ShaderMemoryMB"), CSV_CATEGORY_INDEX(Shaders));
+		TCsvPersistentCustomStat<int>* CsvStatNumShadersLoaded = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShadersLoaded"), CSV_CATEGORY_INDEX(Shaders));
+
+		CsvStatShaderMemoryMB->Add(float(Content.FrozenSize) / (1024.0f * 1024.f));
+		CsvStatNumShadersLoaded->Add(NumFrozenShaders);
+#endif
 	}
 	InitResource();
 }
@@ -117,6 +134,15 @@ void FShaderMapBase::UnfreezeContent()
 {
 	DEC_DWORD_STAT_BY(STAT_Shaders_ShaderMemory, Content.FrozenSize);
 	DEC_DWORD_STAT_BY(STAT_Shaders_NumShadersLoaded, NumFrozenShaders);
+
+#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+	TCsvPersistentCustomStat<float>* CsvStatShaderMemoryMB = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatFloat(TEXT("ShaderMemoryMB"), CSV_CATEGORY_INDEX(Shaders));
+	TCsvPersistentCustomStat<int>* CsvStatNumShadersLoaded = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShadersLoaded"), CSV_CATEGORY_INDEX(Shaders));
+
+	CsvStatShaderMemoryMB->Sub(float(Content.FrozenSize) / (1024.0f * 1024.f));
+	CsvStatNumShadersLoaded->Sub(NumFrozenShaders);
+#endif
+
 	Content.Unfreeze(PointerTable);
 	NumFrozenShaders = 0u;
 }
@@ -238,6 +264,14 @@ bool FShaderMapBase::Serialize(FArchive& Ar, bool bInlineShaderResources, bool b
 			INC_DWORD_STAT_BY(STAT_Shaders_ShaderMemory, Content.FrozenSize);
 			INC_DWORD_STAT_BY(STAT_Shaders_NumShadersLoaded, NumFrozenShaders);
 
+#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+			TCsvPersistentCustomStat<float>* CsvStatShaderMemoryMB = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatFloat(TEXT("ShaderMemoryMB"), CSV_CATEGORY_INDEX(Shaders));
+			TCsvPersistentCustomStat<int>* CsvStatNumShadersLoaded = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShadersLoaded"), CSV_CATEGORY_INDEX(Shaders));
+
+			CsvStatShaderMemoryMB->Add(float(Content.FrozenSize) / (1024.0f * 1024.f));
+			CsvStatNumShadersLoaded->Add(NumFrozenShaders);
+#endif
+
 			BeginInitResource(Resource);
 			INC_DWORD_STAT_BY(STAT_Shaders_ShaderResourceMemory, Resource->GetSizeBytes());
 		}
@@ -279,6 +313,15 @@ void FShaderMapBase::DestroyContent()
 {
 	DEC_DWORD_STAT_BY(STAT_Shaders_ShaderMemory, Content.FrozenSize);
 	DEC_DWORD_STAT_BY(STAT_Shaders_NumShadersLoaded, NumFrozenShaders);
+
+#if (CSV_PROFILER && !UE_BUILD_SHIPPING) 
+	TCsvPersistentCustomStat<float>* CsvStatShaderMemoryMB = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatFloat(TEXT("ShaderMemoryMB"), CSV_CATEGORY_INDEX(Shaders));
+	TCsvPersistentCustomStat<int>* CsvStatNumShadersLoaded = FCsvProfiler::Get()->GetOrCreatePersistentCustomStatInt(TEXT("NumShadersLoaded"), CSV_CATEGORY_INDEX(Shaders));
+
+	CsvStatShaderMemoryMB->Sub(float(Content.FrozenSize) / (1024.0f * 1024.f));
+	CsvStatNumShadersLoaded->Sub(NumFrozenShaders);
+#endif
+
 	Content.Destroy(PointerTable);
 	NumFrozenShaders = 0u;
 }
@@ -401,9 +444,9 @@ void FShaderMapContent::RemoveShaderTypePermutaion(const FHashedName& TypeName, 
 			DeleteObjectFromLayout(Shader);
 
 			// Replace the shader we're removing with the last shader in the list
-			Shaders.RemoveAtSwap(Index, EAllowShrinking::No);
-			ShaderTypes.RemoveAtSwap(Index, EAllowShrinking::No);
-			ShaderPermutations.RemoveAtSwap(Index, EAllowShrinking::No);
+			Shaders.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			ShaderTypes.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			ShaderPermutations.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 			check(ShaderTypes.Num() == Shaders.Num());
 			check(ShaderPermutations.Num() == Shaders.Num());
 			ShaderHash.Remove(Hash, Index);
