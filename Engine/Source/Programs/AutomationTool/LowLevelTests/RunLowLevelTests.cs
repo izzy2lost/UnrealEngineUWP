@@ -234,7 +234,17 @@ namespace LowLevelTests
 
 			CaptureOutput = Params.ParseParam("captureoutput");
 
-			Build = Params.ParseValue("build=", null).Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+			var buildValue = Params.ParseValue("build=", null);
+
+			if (buildValue != null)
+			{
+				Build = buildValue.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+			}
+			else
+			{
+				Build = null;
+			}
+
 			TestApp = Globals.Params.ParseValue("testapp=", "");
 
 			Tags = Params.ParseValue("tags=", null);
