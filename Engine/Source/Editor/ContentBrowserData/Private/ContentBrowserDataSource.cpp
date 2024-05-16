@@ -500,6 +500,16 @@ bool UContentBrowserDataSource::AppendItemReference(const FContentBrowserItemDat
 	return false;
 }
 
+bool UContentBrowserDataSource::AppendItemObjectPath(const FContentBrowserItemData& InItem, FString& InOutStr)
+{
+	return false;
+}
+
+bool UContentBrowserDataSource::AppendItemPackageName(const FContentBrowserItemData& InItem, FString& InOutStr)
+{
+	return false;
+}
+
 bool UContentBrowserDataSource::UpdateThumbnail(const FContentBrowserItemData& InItem, FAssetThumbnail& InThumbnail)
 {
 	return false;

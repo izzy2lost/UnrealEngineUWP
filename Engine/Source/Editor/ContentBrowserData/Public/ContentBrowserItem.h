@@ -408,6 +408,26 @@ public:
 	bool AppendItemReference(FString& InOutStr) const;
 
 	/**
+	 * Attempt to append any object path for this item to the given string.
+	 * @note Used when copying item object path to the clipboard.
+	 *
+	 * @param InOutStr The string to append to (LINE_TERMINATOR delimited).
+	 *
+	 * @return True if references were appended, false otherwise.
+	 */
+	bool AppendItemObjectPath(FString& InOutStr) const;
+
+	/**
+	 * Attempt to append any package name for this item to the given string.
+	 * @note Used when copying item package name to the clipboard.
+	 *
+	 * @param InOutStr The string to append to (LINE_TERMINATOR delimited).
+	 *
+	 * @return True if references were appended, false otherwise.
+	 */
+	bool AppendItemPackageName(FString& InOutStr) const;
+
+	/**
 	 * Attempt to update the thumbnail associated with this item.
 	 *
 	 * @param InThumbnail The thumbnail to update.

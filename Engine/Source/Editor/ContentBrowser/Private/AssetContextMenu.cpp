@@ -3,7 +3,9 @@
 #include "AssetContextMenu.h"
 
 #include "AssetDefinition.h"
+#include "AssetDefinitionRegistry.h"
 #include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/AssetRegistryHelpers.h"
 #include "AssetToolsModule.h"
 #include "AssetViewUtils.h"
 #include "CollectionAssetManagement.h"
@@ -19,6 +21,7 @@
 #include "ContentBrowserModule.h"
 #include "ContentBrowserSingleton.h"
 #include "ContentBrowserUtils.h"
+#include "Engine/AssetManager.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/Commands/UIAction.h"
 #include "Framework/Commands/UICommandInfo.h"
@@ -39,10 +42,12 @@
 #include "Misc/PathViews.h"
 #include "Misc/Paths.h"
 #include "Misc/StringBuilder.h"
+#include "Misc/WarnIfAssetsLoadedInScope.h"
 #include "Modules/ModuleManager.h"
 #include "SAssetView.h"
 #include "Styling/AppStyle.h"
 #include "Styling/SlateTypes.h"
+#include "TelemetryRouter.h"
 #include "Templates/Casts.h"
 #include "Templates/Tuple.h"
 #include "Templates/UnrealTemplate.h"
@@ -62,11 +67,6 @@
 #include "UObject/UnrealNames.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
-#include "AssetDefinitionRegistry.h"
-#include "TelemetryRouter.h"
-#include "AssetRegistry/AssetRegistryHelpers.h"
-#include "Engine/AssetManager.h"
-#include "Misc/WarnIfAssetsLoadedInScope.h"
 
 class FMenuBuilder;
 class SWidget;
@@ -89,6 +89,23 @@ void FAssetContextMenu::BindCommands(TSharedPtr< FUICommandList >& Commands)
 		FExecuteAction::CreateSP(this, &FAssetContextMenu::ExecuteSyncToAssetTree),
 		FCanExecuteAction::CreateSP(this, &FAssetContextMenu::CanExecuteSyncToAssetTree)
 		));
+
+	if (const TSharedPtr<SAssetView>& AssetViewPinned = AssetView.Pin())
+	{
+		const SAssetView* AssetViewPtr = AssetViewPinned.Get();
+
+		Commands->MapAction(FGenericCommands::Get().Copy, FUIAction(
+			FExecuteAction::CreateSP(AssetViewPtr, &SAssetView::ExecuteCopy, EAssetViewCopyType::ExportTextPath)
+		));
+
+		Commands->MapAction(FContentBrowserCommands::Get().AssetViewCopyObjectPath, FUIAction(
+			FExecuteAction::CreateSP(AssetViewPtr, &SAssetView::ExecuteCopy, EAssetViewCopyType::ObjectPath)
+		));
+
+		Commands->MapAction(FContentBrowserCommands::Get().AssetViewCopyPackageName, FUIAction(
+			FExecuteAction::CreateSP(AssetViewPtr, &SAssetView::ExecuteCopy, EAssetViewCopyType::PackageName)
+		));
+	}
 }
 
 TSharedRef<SWidget> FAssetContextMenu::MakeContextMenu(TArrayView<const FContentBrowserItem> InSelectedItems, const FSourcesData& InSourcesData, TSharedPtr< FUICommandList > InCommandList)
@@ -648,13 +665,23 @@ bool FAssetContextMenu::AddReferenceMenuOptions(UToolMenu* Menu)
 		FToolMenuSection& Section = Menu->AddSection("AssetContextReferences", LOCTEXT("ReferencesMenuHeading", "References"));
 
 		Section.AddMenuEntry(
-			"CopyReference",
+			FGenericCommands::Get().Copy,
 			LOCTEXT("CopyReference", "Copy Reference"),
-			LOCTEXT("CopyReferenceTooltip", "Copies reference paths for the selected assets to the clipboard."),
-			FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Copy"),
-			FUIAction( FExecuteAction::CreateSP( this, &FAssetContextMenu::ExecuteCopyReference ) )
-			);
-	
+			GetCopyTooltip(EAssetViewCopyType::ExportTextPath)
+		);
+
+		Section.AddMenuEntry(
+			FContentBrowserCommands::Get().AssetViewCopyObjectPath,
+			LOCTEXT("CopyObjectPath", "Copy Object Path"),
+			GetCopyTooltip(EAssetViewCopyType::ObjectPath)
+		);
+
+		Section.AddMenuEntry(
+			FContentBrowserCommands::Get().AssetViewCopyPackageName,
+			LOCTEXT("CopyPackageName", "Copy Package Path"),
+			GetCopyTooltip(EAssetViewCopyType::PackageName)
+		);
+
 		if (!Context->bHasCookedPackages)
 		{
 			Section.AddMenuEntry(
@@ -668,6 +695,79 @@ bool FAssetContextMenu::AddReferenceMenuOptions(UToolMenu* Menu)
 	}
 
 	return true;
+}
+
+FText FAssetContextMenu::GetCopyTooltip(EAssetViewCopyType InCopyType) const
+{
+	static const FString CopyExportPathBaseTooltip = TEXT("Copies reference paths for the selected asset(s) to the clipboard:");
+	static const FString CopyObjectPathBaseTooltip = TEXT("Copies object paths for the selected asset(s) to the clipboard:");
+	static const FString CopyPackageNameBaseTooltip = TEXT("Copies package paths for the selected asset(s) to the clipboard:");
+
+	FText FinalTooltip = FText::GetEmpty();
+	switch (InCopyType)
+	{
+		case EAssetViewCopyType::ExportTextPath:
+			{
+				FString ExportTextPathTooltip = CopyExportPathBaseTooltip;
+				AppendSelectionInformationForCopy(ExportTextPathTooltip, InCopyType);
+				FinalTooltip = FText::FromString(ExportTextPathTooltip);
+			}
+			break;
+
+		case EAssetViewCopyType::ObjectPath:
+			{
+				FString ObjectPathTooltip = CopyObjectPathBaseTooltip;
+				AppendSelectionInformationForCopy(ObjectPathTooltip, InCopyType);
+				FinalTooltip = FText::FromString(ObjectPathTooltip);
+			}
+			break;
+
+		case EAssetViewCopyType::PackageName:
+			{
+				FString PackageNameTooltip = CopyPackageNameBaseTooltip;
+				AppendSelectionInformationForCopy(PackageNameTooltip, InCopyType);
+				FinalTooltip = FText::FromString(PackageNameTooltip);
+			}
+			break;
+	}
+
+	return FinalTooltip;
+}
+
+void FAssetContextMenu::AppendSelectionInformationForCopy(FString& OutTooltip, EAssetViewCopyType InCopyType) const
+{
+	FString AdditionalInformation = TEXT("");
+
+	if (!SelectedFiles.IsEmpty())
+	{
+		const FContentBrowserItem& FirstSelectedFile = SelectedFiles[0];
+
+		switch (InCopyType)
+		{
+			case EAssetViewCopyType::ExportTextPath:
+				FirstSelectedFile.AppendItemReference(AdditionalInformation);
+				break;
+
+			case EAssetViewCopyType::ObjectPath:
+				FirstSelectedFile.AppendItemObjectPath(AdditionalInformation);
+				break;
+
+			case EAssetViewCopyType::PackageName:
+				FirstSelectedFile.AppendItemPackageName(AdditionalInformation);
+				break;
+		}
+
+		if (SelectedFiles.Num() > 1)
+		{
+			AdditionalInformation += LINE_TERMINATOR;
+			AdditionalInformation += FString::Format(TEXT("+{0} more"), { FString::FormatAsNumber(SelectedFiles.Num() - 1) });
+		}
+	}
+
+	if (!AdditionalInformation.IsEmpty())
+	{
+		OutTooltip += LINE_TERMINATOR + AdditionalInformation;
+	}
 }
 
 bool FAssetContextMenu::AddAssetTypeMenuOptions(UToolMenu* Menu)
@@ -1172,14 +1272,6 @@ bool FAssetContextMenu::IsSelectedAssetPublic()
 bool FAssetContextMenu::IsSelectedAssetPrivate()
 {
 	return !IsSelectedAssetPublic();
-}
-
-void FAssetContextMenu::ExecuteCopyReference()
-{
-	if (SelectedFiles.Num() > 0)
-	{
-		ContentBrowserUtils::CopyItemReferencesToClipboard(SelectedFiles);
-	}
 }
 
 void FAssetContextMenu::ExecuteCopyFilePath()

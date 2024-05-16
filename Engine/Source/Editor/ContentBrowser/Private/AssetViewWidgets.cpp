@@ -89,55 +89,6 @@ static int32 GenericThumbnailSizes[(int32)EThumbnailSize::MAX] = { 24, 32, 64, 1
 // FAssetViewModeUtils
 ///////////////////////////////
 
-FReply FAssetViewModeUtils::OnViewModeKeyDown( const TSet< TSharedPtr<FAssetViewItem> >& SelectedItems, const FKeyEvent& InKeyEvent )
-{
-	// All asset views use Ctrl-C to copy references to assets
-	if ( InKeyEvent.IsControlDown() && InKeyEvent.GetCharacter() == 'C' 
-		&& !InKeyEvent.IsShiftDown() && !InKeyEvent.IsAltDown()
-		)
-	{
-		TArray<FContentBrowserItem> SelectedFiles;
-		TArray<FContentBrowserItem> SelectedFolders;
-		for (const TSharedPtr<FAssetViewItem>& SelectedItem : SelectedItems)
-		{
-			if (SelectedItem->GetItem().IsFile())
-			{
-				SelectedFiles.Add(SelectedItem->GetItem());
-			}
-			else if (SelectedItem->GetItem().IsFolder())
-			{
-				SelectedFolders.Add(SelectedItem->GetItem());
-			}
-		}
-
-		FString ClipboardText;
-
-		if (SelectedFiles.Num() > 0)
-		{
-			ClipboardText += ContentBrowserUtils::GetItemReferencesText(SelectedFiles);
-		}
-
-		if (SelectedFolders.Num() > 0)
-		{
-			if (!ClipboardText.IsEmpty())
-			{
-				ClipboardText += LINE_TERMINATOR;
-			}
-
-			ClipboardText += ContentBrowserUtils::GetFolderReferencesText(SelectedFolders);
-		}
-
-		if (!ClipboardText.IsEmpty())
-		{
-			FPlatformApplicationMisc::ClipboardCopy(*ClipboardText);
-		}
-
-		return FReply::Handled();
-	}
-
-	return FReply::Unhandled();
-}
-
 namespace AssetViewWidgets 
 {
 bool IsTopLevelFolder(const FStringView InFolderPath)
@@ -369,20 +320,6 @@ private:
 // Asset view modes
 ///////////////////////////////
 
-FReply SAssetTileView::OnKeyDown( const FGeometry& InGeometry, const FKeyEvent& InKeyEvent )
-{
-	FReply Reply = FAssetViewModeUtils::OnViewModeKeyDown(SelectedItems, InKeyEvent);
-
-	if ( Reply.IsEventHandled() )
-	{
-		return Reply;
-	}
-	else
-	{
-		return STileView<TSharedPtr<FAssetViewItem>>::OnKeyDown(InGeometry, InKeyEvent);
-	}
-}
-
 void SAssetTileView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	// Refreshing an asset view is an intensive task. Do not do this while a user
@@ -391,20 +328,6 @@ void SAssetTileView::Tick(const FGeometry& AllottedGeometry, const double InCurr
 	if (!FSlateApplication::Get().IsDragDropping())
 	{
 		STileView<TSharedPtr<FAssetViewItem>>::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
-	}
-}
-
-FReply SAssetListView::OnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
-{
-	FReply Reply = FAssetViewModeUtils::OnViewModeKeyDown(SelectedItems, InKeyEvent);
-
-	if ( Reply.IsEventHandled() )
-	{
-		return Reply;
-	}
-	else
-	{
-		return SListView<TSharedPtr<FAssetViewItem>>::OnKeyDown(InGeometry, InKeyEvent);
 	}
 }
 
@@ -418,21 +341,6 @@ void SAssetListView::Tick(const FGeometry& AllottedGeometry, const double InCurr
 		SListView<TSharedPtr<FAssetViewItem>>::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 	}
 }
-
-FReply SAssetColumnView::OnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
-{
-	FReply Reply = FAssetViewModeUtils::OnViewModeKeyDown(SelectedItems, InKeyEvent);
-
-	if ( Reply.IsEventHandled() )
-	{
-		return Reply;
-	}
-	else
-	{
-		return SListView<TSharedPtr<FAssetViewItem>>::OnKeyDown(InGeometry, InKeyEvent);
-	}
-}
-
 
 void SAssetColumnView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {

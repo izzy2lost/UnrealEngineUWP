@@ -168,6 +168,9 @@ public:
 	/** Tick to poll attributes */
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
+	/** Process the Commands of the PathView */
+	virtual FReply OnKeyDown( const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent ) override;
+
 	/** Selects the closest matches to the supplied paths in the tree. "/" delimited */
 	void SetSelectedPaths(const TArray<FName>& Paths);
 
@@ -417,6 +420,12 @@ private:
 	/** Handler for when the view combo button is clicked */
 	TSharedRef<SWidget> GetViewButtonContent();
 
+	/** Callback for the Copy command for the PathView */
+	void CopySelectedFolder() const;
+
+	/** Bind our UI commands */
+	void BindCommands();
+
 protected:
 	/** A helper class to manage PreventTreeItemChangedDelegateCount by incrementing it when constructed (on the stack) and decrementing when destroyed */
 	class FScopedPreventTreeItemChangedDelegate
@@ -536,6 +545,9 @@ private:
 
 	/** The title of this path view */
 	FText TreeTitle;
+
+	/** Commands handled by this widget */
+	TSharedPtr<FUICommandList> Commands;
 
 	/** The filter collection used to filter plugins */
 	TSharedPtr<FPluginFilterCollectionType> PluginPathFilters;

@@ -1328,6 +1328,46 @@ bool AppendItemReference(IAssetRegistry* InAssetRegistry, const UContentBrowserD
 	return false;
 }
 
+bool AppendItemObjectPath(IAssetRegistry* InAssetRegistry, const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem, FString& InOutStr)
+{
+	if (TSharedPtr<const FContentBrowserAssetFolderItemDataPayload> FolderPayload = GetAssetFolderItemPayload(InOwnerDataSource, InItem))
+	{
+		return AppendAssetFolderItemReference(InAssetRegistry, *FolderPayload, InOutStr);
+	}
+
+	if (TSharedPtr<const FContentBrowserAssetFileItemDataPayload> AssetPayload = GetAssetFileItemPayload(InOwnerDataSource, InItem))
+	{
+		return AppendAssetFileObjectPath(*AssetPayload, InOutStr);
+	}
+
+	if (TSharedPtr<const FContentBrowserUnsupportedAssetFileItemDataPayload> UnsupportedAssetPayload = GetUnsupportedAssetFileItemPayload(InOwnerDataSource, InItem))
+	{
+		return AppendUnsupportedAssetFileObjectPath(*UnsupportedAssetPayload, InOutStr);
+	}
+
+	return false;
+}
+
+bool AppendItemPackageName(IAssetRegistry* InAssetRegistry, const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem, FString& InOutStr)
+{
+	if (TSharedPtr<const FContentBrowserAssetFolderItemDataPayload> FolderPayload = GetAssetFolderItemPayload(InOwnerDataSource, InItem))
+	{
+		return AppendAssetFolderItemReference(InAssetRegistry, *FolderPayload, InOutStr);
+	}
+
+	if (TSharedPtr<const FContentBrowserAssetFileItemDataPayload> AssetPayload = GetAssetFileItemPayload(InOwnerDataSource, InItem))
+	{
+		return AppendAssetFilePackageName(*AssetPayload, InOutStr);
+	}
+
+	if (TSharedPtr<const FContentBrowserUnsupportedAssetFileItemDataPayload> UnsupportedAssetPayload = GetUnsupportedAssetFileItemPayload(InOwnerDataSource, InItem))
+	{
+		return AppendUnsupportedAssetFilePackageName(*UnsupportedAssetPayload, InOutStr);
+	}
+
+	return false;
+}
+
 void AppendAssetExportText(const FAssetData& AssetData, FString& InOutStr)
 {
 	if (InOutStr.IsEmpty())
@@ -1341,6 +1381,39 @@ void AppendAssetExportText(const FAssetData& AssetData, FString& InOutStr)
 			InOutStr += LINE_TERMINATOR;
 		}
 		InOutStr += AssetData.GetExportTextName();
+	}
+}
+
+void AppendAssetObjectPath(const FAssetData& AssetData, FString& InOutStr)
+{
+	if (InOutStr.IsEmpty())
+	{
+		InOutStr = AssetData.GetObjectPathString();
+	}
+	else
+	{
+		if (InOutStr.Len() > 0)
+		{
+			InOutStr += LINE_TERMINATOR;
+		}
+		InOutStr += AssetData.GetObjectPathString();
+	}
+}
+
+void AppendAssetPackageName(const FAssetData& AssetData, FString& InOutStr)
+{
+	UPackage* Package = AssetData.GetPackage();
+	if (InOutStr.IsEmpty())
+	{
+		InOutStr = Package->GetPathName();
+	}
+	else
+	{
+		if (InOutStr.Len() > 0)
+		{
+			InOutStr += LINE_TERMINATOR;
+		}
+		InOutStr += Package->GetPathName();
 	}
 }
 
@@ -1367,11 +1440,45 @@ bool AppendAssetFileItemReference(const FContentBrowserAssetFileItemDataPayload&
 	return true;
 }
 
+bool AppendAssetFileObjectPath(const FContentBrowserAssetFileItemDataPayload& InAssetPayload, FString& InOutStr)
+{
+	AppendAssetObjectPath(InAssetPayload.GetAssetData(), InOutStr);
+	return true;
+}
+
+bool AppendAssetFilePackageName(const FContentBrowserAssetFileItemDataPayload& InAssetPayload, FString& InOutStr)
+{
+	AppendAssetPackageName(InAssetPayload.GetAssetData(), InOutStr);
+	return true;
+}
+
 bool AppendUnsupportedAssetFileItemReference(const FContentBrowserUnsupportedAssetFileItemDataPayload& InUnsupportedAssetPayload, FString& InOutStr)
 {
 	if (const FAssetData* AssetData = InUnsupportedAssetPayload.GetAssetDataIfAvailable())
 	{
 		AppendAssetExportText(*AssetData, InOutStr);
+		return true;
+	}
+
+	return false;
+}
+
+bool AppendUnsupportedAssetFileObjectPath(const FContentBrowserUnsupportedAssetFileItemDataPayload& InUnsupportedAssetPayload, FString& InOutStr)
+{
+	if (const FAssetData* AssetData = InUnsupportedAssetPayload.GetAssetDataIfAvailable())
+	{
+		AppendAssetObjectPath(*AssetData, InOutStr);
+		return true;
+	}
+
+	return false;
+}
+
+bool AppendUnsupportedAssetFilePackageName(const FContentBrowserUnsupportedAssetFileItemDataPayload& InUnsupportedAssetPayload, FString& InOutStr)
+{
+	if (const FAssetData* AssetData = InUnsupportedAssetPayload.GetAssetDataIfAvailable())
+	{
+		AppendAssetPackageName(*AssetData, InOutStr);
 		return true;
 	}
 

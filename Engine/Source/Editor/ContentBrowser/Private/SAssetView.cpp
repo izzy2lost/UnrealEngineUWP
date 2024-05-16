@@ -16,6 +16,7 @@
 #include "Async/ParallelFor.h"
 #include "Async/WordMutex.h"
 #include "Async/UniqueLock.h"
+#include "ContentBrowserCommands.h"
 #include "ContentBrowserConfig.h"
 #include "ContentBrowserDataDragDropOp.h"
 #include "ContentBrowserDataLegacyBridge.h"
@@ -36,6 +37,7 @@
 #include "Engine/Level.h"
 #include "Factories/Factory.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Framework/Commands/GenericCommands.h"
 #include "Framework/Commands/UIAction.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/Notifications/NotificationManager.h"
@@ -1214,6 +1216,8 @@ void SAssetView::Construct( const FArguments& InArgs )
 
 	TSharedRef<SVerticalBox> VerticalBox = SNew(SVerticalBox);
 
+	BindCommands();
+
 	ChildSlot
 	.Padding(0.0f)
 	[
@@ -2380,93 +2384,12 @@ FReply SAssetView::OnKeyChar( const FGeometry& MyGeometry,const FCharacterEvent&
 	return FReply::Unhandled();
 }
 
-static bool IsValidObjectPath(const FString& Path, FString& OutObjectClassName, FString& OutObjectPath, FString& OutPackageName)
-{
-	if (FPackageName::ParseExportTextPath(Path, &OutObjectClassName, &OutObjectPath))
-	{
-		if (UClass* ObjectClass = UClass::TryFindTypeSlow<UClass>(OutObjectClassName, EFindFirstObjectOptions::ExactClass))
-		{
-			OutPackageName = FPackageName::ObjectPathToPackageName(OutObjectPath);
-			if (FPackageName::IsValidLongPackageName(OutPackageName))
-			{
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
-static bool ContainsT3D(const FString& ClipboardText)
-{
-	return (ClipboardText.StartsWith(TEXT("Begin Object")) && ClipboardText.EndsWith(TEXT("End Object")))
-		|| (ClipboardText.StartsWith(TEXT("Begin Map")) && ClipboardText.EndsWith(TEXT("End Map")));
-}
-
 FReply SAssetView::OnKeyDown( const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent )
 {
 	const bool bIsControlOrCommandDown = InKeyEvent.IsControlDown() || InKeyEvent.IsCommandDown();
-	
-	if (bIsControlOrCommandDown && InKeyEvent.GetCharacter() == 'V' && IsAssetPathSelected())
+
+	if (Commands->ProcessCommandBindings(InKeyEvent))
 	{
-		FString AssetPaths;
-		TArray<FString> AssetPathsSplit;
-
-		// Get the copied asset paths
-		FPlatformApplicationMisc::ClipboardPaste(AssetPaths);
-
-		// Make sure the clipboard does not contain T3D
-		AssetPaths.TrimEndInline();
-		if (!ContainsT3D(AssetPaths))
-		{
-			AssetPaths.ParseIntoArrayLines(AssetPathsSplit);
-
-			// Get assets and copy them
-			TArray<UObject*> AssetsToCopy;
-			FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
-			for (const FString& AssetPath : AssetPathsSplit)
-			{
-				// Validate string
-				FString ObjectClassName;
-				FString ObjectPath;
-				FString PackageName;
-				if (IsValidObjectPath(AssetPath, ObjectClassName, ObjectPath, PackageName))
-				{
-					// Only duplicate the objects of the supported classes.
-					if (AssetToolsModule.Get().GetAssetClassPathPermissionList(EAssetClassAction::ViewAsset)->PassesStartsWithFilter(ObjectClassName))
-					{
-						FLinkerInstancingContext InstancingContext({ ULevel::LoadAllExternalObjectsTag });
-						UObject* ObjectToCopy = LoadObject<UObject>(nullptr, *ObjectPath, nullptr, LOAD_None, nullptr, &InstancingContext);
-						if (ObjectToCopy && !ObjectToCopy->IsA(UClass::StaticClass()))
-						{
-							AssetsToCopy.Add(ObjectToCopy);
-						}
-					}
-				}
-			}
-			
-			if (AssetsToCopy.Num())
-			{
-				UContentBrowserDataSubsystem* ContentBrowserData = IContentBrowserDataModule::Get().GetSubsystem();
-				if (ensure(ContentBrowserData))
-				{
-					for (const FName& SelectedVirtualPath : SourcesData.VirtualPaths)
-					{
-						const FContentBrowserItem SelectedItem = ContentBrowserData->GetItemAtPath(SelectedVirtualPath, EContentBrowserItemTypeFilter::IncludeFolders);
-						if (SelectedItem.IsValid())
-						{
-							FName PackagePath;
-							if (SelectedItem.Legacy_TryGetPackagePath(PackagePath))
-							{
-								ContentBrowserUtils::CopyAssets(AssetsToCopy, PackagePath.ToString());
-								break;
-							}
-						}
-					}
-				}
-			}
-		}
-
 		return FReply::Handled();
 	}
 	// Swallow the key-presses used by the quick-jump in OnKeyChar to avoid other things (such as the viewport commands) getting them instead
@@ -3207,6 +3130,175 @@ FAssetViewInstanceConfig* SAssetView::GetAssetViewConfig() const
 	}
 
 	return nullptr;
+}
+
+void SAssetView::BindCommands()
+{
+	Commands = TSharedPtr<FUICommandList>(new FUICommandList);
+
+	Commands->MapAction(FGenericCommands::Get().Copy, FUIAction(
+		FExecuteAction::CreateSP(this, &SAssetView::ExecuteCopy, EAssetViewCopyType::ExportTextPath)
+	));
+
+	Commands->MapAction(FContentBrowserCommands::Get().AssetViewCopyObjectPath, FUIAction(
+		FExecuteAction::CreateSP(this, &SAssetView::ExecuteCopy, EAssetViewCopyType::ObjectPath)
+	));
+
+	Commands->MapAction(FContentBrowserCommands::Get().AssetViewCopyPackageName, FUIAction(
+		FExecuteAction::CreateSP(this, &SAssetView::ExecuteCopy, EAssetViewCopyType::PackageName)
+	));
+
+	Commands->MapAction(FGenericCommands::Get().Paste, FUIAction(
+		FExecuteAction::CreateSP(this, &SAssetView::ExecutePaste),
+		FCanExecuteAction::CreateSP(this, &SAssetView::IsAssetPathSelected)
+	));
+
+	FInputBindingManager::Get().RegisterCommandList(FContentBrowserCommands::Get().GetContextName(), Commands.ToSharedRef());
+}
+
+void SAssetView::PopulateSelectedFilesAndFolders(TArray<FContentBrowserItem>& OutSelectedFolders, TArray<FContentBrowserItem>& OutSelectedFiles) const
+{
+	for (const FContentBrowserItem& SelectedItem : GetSelectedItems())
+	{
+		if (SelectedItem.IsFile())
+		{
+			OutSelectedFiles.Add(SelectedItem);
+		}
+		else if (SelectedItem.IsFolder())
+		{
+			OutSelectedFolders.Add(SelectedItem);
+		}
+	}
+}
+
+void SAssetView::ExecuteCopy(EAssetViewCopyType InCopyType) const
+{
+	TArray<FContentBrowserItem> SelectedFiles;
+	TArray<FContentBrowserItem> SelectedFolders;
+
+	PopulateSelectedFilesAndFolders(SelectedFolders, SelectedFiles);
+
+	FString ClipboardText;
+	if (SelectedFiles.Num() > 0)
+	{
+		switch (InCopyType)
+		{
+			case EAssetViewCopyType::ExportTextPath:
+				ClipboardText += ContentBrowserUtils::GetItemReferencesText(SelectedFiles);
+				break;
+
+			case EAssetViewCopyType::ObjectPath:
+				ClipboardText += ContentBrowserUtils::GetItemObjectPathText(SelectedFiles);
+				break;
+
+			case EAssetViewCopyType::PackageName:
+				ClipboardText += ContentBrowserUtils::GetItemPackageNameText(SelectedFiles);
+				break;
+		}
+	}
+
+	ExecuteCopyFolders(SelectedFolders, ClipboardText);
+
+	if (!ClipboardText.IsEmpty())
+	{
+		FPlatformApplicationMisc::ClipboardCopy(*ClipboardText);
+	}
+}
+
+void SAssetView::ExecuteCopyFolders(const TArray<FContentBrowserItem>& InSelectedFolders, FString& OutClipboardText) const
+{
+	if (InSelectedFolders.Num() > 0)
+	{
+		if (!OutClipboardText.IsEmpty())
+		{
+			OutClipboardText += LINE_TERMINATOR;
+		}
+		OutClipboardText += ContentBrowserUtils::GetFolderReferencesText(InSelectedFolders);
+	}
+}
+
+static bool IsValidObjectPath(const FString& Path, FString& OutObjectClassName, FString& OutObjectPath, FString& OutPackageName)
+{
+	if (FPackageName::ParseExportTextPath(Path, &OutObjectClassName, &OutObjectPath))
+	{
+		if (UClass* ObjectClass = UClass::TryFindTypeSlow<UClass>(OutObjectClassName, EFindFirstObjectOptions::ExactClass))
+		{
+			OutPackageName = FPackageName::ObjectPathToPackageName(OutObjectPath);
+			if (FPackageName::IsValidLongPackageName(OutPackageName))
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+static bool ContainsT3D(const FString& ClipboardText)
+{
+	return (ClipboardText.StartsWith(TEXT("Begin Object")) && ClipboardText.EndsWith(TEXT("End Object")))
+		|| (ClipboardText.StartsWith(TEXT("Begin Map")) && ClipboardText.EndsWith(TEXT("End Map")));
+}
+
+void SAssetView::ExecutePaste()
+{
+	FString AssetPaths;
+	TArray<FString> AssetPathsSplit;
+
+	// Get the copied asset paths
+	FPlatformApplicationMisc::ClipboardPaste(AssetPaths);
+
+	// Make sure the clipboard does not contain T3D
+	AssetPaths.TrimEndInline();
+	if (!ContainsT3D(AssetPaths))
+	{
+		AssetPaths.ParseIntoArrayLines(AssetPathsSplit);
+
+		// Get assets and copy them
+		TArray<UObject*> AssetsToCopy;
+		FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+		for (const FString& AssetPath : AssetPathsSplit)
+		{
+			// Validate string
+			FString ObjectClassName;
+			FString ObjectPath;
+			FString PackageName;
+			if (IsValidObjectPath(AssetPath, ObjectClassName, ObjectPath, PackageName))
+			{
+				// Only duplicate the objects of the supported classes.
+				if (AssetToolsModule.Get().GetAssetClassPathPermissionList(EAssetClassAction::ViewAsset)->PassesStartsWithFilter(ObjectClassName))
+				{
+					FLinkerInstancingContext InstancingContext({ ULevel::LoadAllExternalObjectsTag });
+					UObject* ObjectToCopy = LoadObject<UObject>(nullptr, *ObjectPath, nullptr, LOAD_None, nullptr, &InstancingContext);
+					if (ObjectToCopy && !ObjectToCopy->IsA(UClass::StaticClass()))
+					{
+						AssetsToCopy.Add(ObjectToCopy);
+					}
+				}
+			}
+		}
+
+		if (AssetsToCopy.Num())
+		{
+			UContentBrowserDataSubsystem* ContentBrowserData = IContentBrowserDataModule::Get().GetSubsystem();
+			if (ensure(ContentBrowserData))
+			{
+				for (const FName& SelectedVirtualPath : SourcesData.VirtualPaths)
+				{
+					const FContentBrowserItem SelectedItem = ContentBrowserData->GetItemAtPath(SelectedVirtualPath, EContentBrowserItemTypeFilter::IncludeFolders);
+					if (SelectedItem.IsValid())
+					{
+						FName PackagePath;
+						if (SelectedItem.Legacy_TryGetPackagePath(PackagePath))
+						{
+							ContentBrowserUtils::CopyAssets(AssetsToCopy, PackagePath.ToString());
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 void SAssetView::ToggleShowAllFolder()

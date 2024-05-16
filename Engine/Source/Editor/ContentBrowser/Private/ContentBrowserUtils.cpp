@@ -335,6 +335,46 @@ FString ContentBrowserUtils::GetItemReferencesText(const TArray<FContentBrowserI
 	return Result;
 }
 
+FString ContentBrowserUtils::GetItemObjectPathText(const TArray<FContentBrowserItem>& Items)
+{
+	TArray<FContentBrowserItem> SortedItems = Items;
+	SortedItems.Sort([](const FContentBrowserItem& One, const FContentBrowserItem& Two)
+	{
+		return One.GetVirtualPath().Compare(Two.GetVirtualPath()) < 0;
+	});
+
+	FString Result;
+	for (const FContentBrowserItem& Item : SortedItems)
+	{
+		if (ensure(!Item.IsFolder()))
+		{
+			Item.AppendItemObjectPath(Result);
+		}
+	}
+
+	return Result;
+}
+
+FString ContentBrowserUtils::GetItemPackageNameText(const TArray<FContentBrowserItem>& Items)
+{
+	TArray<FContentBrowserItem> SortedItems = Items;
+	SortedItems.Sort([](const FContentBrowserItem& One, const FContentBrowserItem& Two)
+	{
+		return One.GetVirtualPath().Compare(Two.GetVirtualPath()) < 0;
+	});
+
+	FString Result;
+	for (const FContentBrowserItem& Item : SortedItems)
+	{
+		if (ensure(!Item.IsFolder()))
+		{
+			Item.AppendItemPackageName(Result);
+		}
+	}
+
+	return Result;
+}
+
 FString ContentBrowserUtils::GetFolderReferencesText(const TArray<FContentBrowserItem>& Folders)
 {
 	TArray<FContentBrowserItem> SortedItems = Folders;
@@ -362,6 +402,24 @@ FString ContentBrowserUtils::GetFolderReferencesText(const TArray<FContentBrowse
 void ContentBrowserUtils::CopyItemReferencesToClipboard(const TArray<FContentBrowserItem>& ItemsToCopy)
 {
 	FString Text = GetItemReferencesText(ItemsToCopy);
+	if (!Text.IsEmpty())
+	{
+		FPlatformApplicationMisc::ClipboardCopy(*Text);
+	}
+}
+
+void ContentBrowserUtils::CopyItemObjectPathToClipboard(const TArray<FContentBrowserItem>& ItemsToCopy)
+{
+	FString Text = GetItemObjectPathText(ItemsToCopy);
+	if (!Text.IsEmpty())
+	{
+		FPlatformApplicationMisc::ClipboardCopy(*Text);
+	}
+}
+
+void ContentBrowserUtils::CopyItemPackageNameToClipboard(const TArray<FContentBrowserItem>& ItemsToCopy)
+{
+	FString Text = GetItemPackageNameText(ItemsToCopy);
 	if (!Text.IsEmpty())
 	{
 		FPlatformApplicationMisc::ClipboardCopy(*Text);

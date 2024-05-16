@@ -764,10 +764,6 @@ void SContentBrowser::BindCommands()
 		FExecuteAction::CreateSP(this, &SContentBrowser::HandleResaveAllCurrentFolderCommand)
 	));
 
-	Commands->MapAction(FContentBrowserCommands::Get().CopySelectedAssetPath, FUIAction(
-		FExecuteAction::CreateSP(this, &SContentBrowser::CopySelectedAssetPathCommand)
-	));
-	
 	Commands->MapAction(FContentBrowserCommands::Get().EditPath, FUIAction(
 		FExecuteAction::CreateSP(this, &SContentBrowser::EditPathCommand)
 	));

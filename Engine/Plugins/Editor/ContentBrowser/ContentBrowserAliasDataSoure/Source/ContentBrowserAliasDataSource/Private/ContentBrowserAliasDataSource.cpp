@@ -933,6 +933,16 @@ bool UContentBrowserAliasDataSource::AppendItemReference(const FContentBrowserIt
 	return ContentBrowserAssetData::AppendItemReference(AssetRegistry, this, InItem, InOutStr);
 }
 
+bool UContentBrowserAliasDataSource::AppendItemObjectPath(const FContentBrowserItemData& InItem, FString& InOutStr)
+{
+	return ContentBrowserAssetData::AppendItemObjectPath(AssetRegistry, this, InItem, InOutStr);
+}
+
+bool UContentBrowserAliasDataSource::AppendItemPackageName(const FContentBrowserItemData& InItem, FString& InOutStr)
+{
+	return ContentBrowserAssetData::AppendItemPackageName(AssetRegistry, this, InItem, InOutStr);
+}
+
 bool UContentBrowserAliasDataSource::UpdateThumbnail(const FContentBrowserItemData& InItem, FAssetThumbnail& InThumbnail)
 {
 	return ContentBrowserAssetData::UpdateItemThumbnail(this, InItem, InThumbnail);

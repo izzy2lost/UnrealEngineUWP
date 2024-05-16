@@ -62,6 +62,7 @@
 #include "ToolMenu.h"
 #include "ToolMenus.h"
 #include "ToolMenuSection.h"
+#include "Framework/Commands/GenericCommands.h"
 #include "Trace/Detail/Channel.h"
 #include "Types/WidgetActiveTimerDelegate.h"
 #include "UObject/UObjectGlobals.h"
@@ -982,6 +983,9 @@ void SPathView::Construct( const FArguments& InArgs )
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::GetModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
 	ContentBrowserModule.GetOnContentBrowserSettingChanged().AddSP(this, &SPathView::HandleSettingChanged);
 
+	// Binds the commands for the PathView
+	BindCommands();
+
 	// Setup plugin filters
 	PluginPathFilters = InArgs._PluginPathFilters;
 	if (PluginPathFilters.IsValid())
@@ -1206,6 +1210,15 @@ void SPathView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTi
 		bLastShowRedirectors = bNewShowRedirectors;
 		HandleSettingChanged("ShowRedirectors");
 	}
+}
+
+FReply SPathView::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
+{
+	if (Commands->ProcessCommandBindings(InKeyEvent))
+	{
+		return FReply::Handled();
+	}
+	return FReply::Unhandled();
 }
 
 void SPathView::PopulatePathViewFiltersMenu(UToolMenu* Menu)
@@ -2665,6 +2678,20 @@ TSharedRef<SWidget> SPathView::GetViewButtonContent()
 	const FToolMenuContext MenuContext(Context);
 					
 	return UToolMenus::Get()->GenerateWidget("ContentBrowser.PathViewOptions", MenuContext);
+}
+
+void SPathView::CopySelectedFolder() const
+{
+	ContentBrowserUtils::CopyFolderReferencesToClipboard(GetSelectedFolderItems());
+}
+
+void SPathView::BindCommands()
+{
+	Commands = TSharedPtr<FUICommandList>(new FUICommandList);
+
+	Commands->MapAction(FGenericCommands::Get().Copy, FUIAction(
+		FExecuteAction::CreateSP(this, &SPathView::CopySelectedFolder)
+	));
 }
 
 void SFavoritePathView::Construct(const FArguments& InArgs)

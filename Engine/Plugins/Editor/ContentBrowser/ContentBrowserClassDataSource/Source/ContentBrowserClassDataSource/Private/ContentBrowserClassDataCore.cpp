@@ -298,6 +298,26 @@ bool AppendItemReference(const UContentBrowserDataSource* InOwnerDataSource, con
 	return false;
 }
 
+bool AppendItemObjectPath(const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem, FString& InOutStr)
+{
+	if (TSharedPtr<const FContentBrowserClassFileItemDataPayload> ClassPayload = GetClassFileItemPayload(InOwnerDataSource, InItem))
+	{
+		return AppendObjectPathFileItemReference(*ClassPayload, InOutStr);
+	}
+
+	return false;
+}
+
+bool AppendItemPackageName(const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem, FString& InOutStr)
+{
+	if (TSharedPtr<const FContentBrowserClassFileItemDataPayload> ClassPayload = GetClassFileItemPayload(InOwnerDataSource, InItem))
+	{
+		return AppendPackageNameItemReference(*ClassPayload, InOutStr);
+	}
+
+	return false;
+}
+
 bool AppendClassFileItemReference(const FContentBrowserClassFileItemDataPayload& InClassPayload, FString& InOutStr)
 {
 	if (InOutStr.Len() > 0)
@@ -306,6 +326,30 @@ bool AppendClassFileItemReference(const FContentBrowserClassFileItemDataPayload&
 	}
 	InOutStr += InClassPayload.GetAssetData().GetExportTextName();
 	return true;
+}
+
+bool AppendObjectPathFileItemReference(const FContentBrowserClassFileItemDataPayload& InClassPayload, FString& InOutStr)
+{
+	if (InOutStr.Len() > 0)
+	{
+		InOutStr += LINE_TERMINATOR;
+	}
+	InOutStr += InClassPayload.GetAssetData().GetObjectPathString();
+	return true;
+}
+
+bool AppendPackageNameItemReference(const FContentBrowserClassFileItemDataPayload& InClassPayload, FString& InOutStr)
+{
+	if (const UPackage* Package = InClassPayload.GetAssetData().GetPackage())
+	{
+		if (InOutStr.Len() > 0)
+		{
+			InOutStr += LINE_TERMINATOR;
+		}
+		InOutStr += Package->GetPathName();
+		return true;
+	}
+	return false;
 }
 
 bool GetItemPhysicalPath(const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem, FString& OutDiskPath)

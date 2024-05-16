@@ -45,11 +45,23 @@ namespace ContentBrowserUtils
 	/** Returns references to the specified items */
 	FString GetItemReferencesText(const TArray<FContentBrowserItem>& Items);
 
+	/** Returns object path of the specified items */
+	FString GetItemObjectPathText(const TArray<FContentBrowserItem>& Items);
+
+	/** Returns package name of the specified items */
+	FString GetItemPackageNameText(const TArray<FContentBrowserItem>& Items);
+
 	/** Returns references to the specified folders */
 	FString GetFolderReferencesText(const TArray<FContentBrowserItem>& Folders);
 
 	/** Copies references to the specified items to the clipboard */
 	void CopyItemReferencesToClipboard(const TArray<FContentBrowserItem>& ItemsToCopy);
+
+	/** Copies object path of the specified items to the clipboard */
+	void CopyItemObjectPathToClipboard(const TArray<FContentBrowserItem>& ItemsToCopy);
+
+	/** Copies package name of the specified items to the clipboard */
+	void CopyItemPackageNameToClipboard(const TArray<FContentBrowserItem>& ItemsToCopy);
 
 	/** Copies references to the specified folders to the clipboard */
 	void CopyFolderReferencesToClipboard(const TArray<FContentBrowserItem>& FoldersToCopy);

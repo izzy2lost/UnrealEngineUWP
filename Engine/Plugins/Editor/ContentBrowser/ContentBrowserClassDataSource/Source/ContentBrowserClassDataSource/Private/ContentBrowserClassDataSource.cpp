@@ -535,6 +535,16 @@ bool UContentBrowserClassDataSource::AppendItemReference(const FContentBrowserIt
 	return ContentBrowserClassData::AppendItemReference(this, InItem, InOutStr);
 }
 
+bool UContentBrowserClassDataSource::AppendItemObjectPath(const FContentBrowserItemData& InItem, FString& InOutStr)
+{
+	return ContentBrowserClassData::AppendItemObjectPath(this, InItem, InOutStr);
+}
+
+bool UContentBrowserClassDataSource::AppendItemPackageName(const FContentBrowserItemData& InItem, FString& InOutStr)
+{
+	return ContentBrowserClassData::AppendItemPackageName(this, InItem, InOutStr);
+}
+
 bool UContentBrowserClassDataSource::UpdateThumbnail(const FContentBrowserItemData& InItem, FAssetThumbnail& InThumbnail)
 {
 	return ContentBrowserClassData::UpdateItemThumbnail(this, InItem, InThumbnail);

@@ -46,6 +46,7 @@
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/Views/STableViewBase.h"
 
+class FAssetContextMenu;
 class FAssetTextFilter;
 class FAssetThumbnail;
 class FAssetViewItem;
@@ -92,6 +93,14 @@ DECLARE_DELEGATE(FOnSearchOptionChanged);
 
 /** Fires whenever asset view options menu is being opened, gives chance for external code to set additional context */
 DECLARE_DELEGATE_OneParam(FOnExtendAssetViewOptionsMenuContext, FToolMenuContext&);
+
+/** Copy types */
+enum class EAssetViewCopyType
+{
+	ExportTextPath,
+	ObjectPath,
+	PackageName
+};
 
 /**
  * A widget to display a list of filtered assets
@@ -299,6 +308,8 @@ public:
 		/** The menu profile to use for the asset view options. The profile needs to be registered with the ToolMenus API. */
 		SLATE_ARGUMENT(TOptional<FName>, AssetViewOptionsProfile)
 	SLATE_END_ARGS()
+
+	friend FAssetContextMenu;
 
 	SAssetView();
 	~SAssetView();
@@ -904,6 +915,21 @@ private:
 	/** Get the config struct for this asset view, if one exists. */
 	FAssetViewInstanceConfig* GetAssetViewConfig() const;
 
+	/** Bind our UI commands */
+	void BindCommands();
+
+	/** Populate the given parameters based on the current selection */
+	void PopulateSelectedFilesAndFolders(TArray<FContentBrowserItem>& OutSelectedFolders, TArray<FContentBrowserItem>& OutSelectedFiles) const;
+
+	/** Handler for the CopyReference CopyObjectPath and CopyPackageName */
+	void ExecuteCopy(EAssetViewCopyType InCopyType) const;
+
+	/** Append folders path to the given ClipboardText */
+	void ExecuteCopyFolders(const TArray<FContentBrowserItem>& InSelectedFolders, FString& OutClipboardText) const;
+
+	/** Handler for Paste */
+	void ExecutePaste();
+
 private:
 	friend class FAssetViewFrontendFilterHelper;
 
@@ -1175,6 +1201,9 @@ private:
 
 	/** Initial set of item categories that this view should show - may be adjusted further by things like CanShowClasses or legacy delegate bindings */
 	EContentBrowserItemCategoryFilter InitialCategoryFilter;
+
+	/** Commands handled by this widget */
+	TSharedPtr<FUICommandList> Commands;
 
 	bool bShowDisallowedAssetClassAsUnsupportedItems = false;
 

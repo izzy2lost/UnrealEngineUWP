@@ -22,6 +22,7 @@ class UToolMenu;
 
 enum class ECheckBoxState : uint8;
 enum class EContentBrowserViewContext : uint8;
+enum class EAssetViewCopyType;
 
 class FAssetContextMenu : public TSharedFromThis<FAssetContextMenu>
 {
@@ -103,6 +104,12 @@ private:
 	/** Adds asset reference menu options to a menu builder. Returns true if any options were added. */
 	bool AddReferenceMenuOptions(UToolMenu* Menu);
 
+	/** Return the tooltip based on the copy type */
+	FText GetCopyTooltip(EAssetViewCopyType InCopyType) const;
+
+	/** Append information on the path for the Copy tooltip based on the current selection */
+	void AppendSelectionInformationForCopy(FString& OutTooltip, EAssetViewCopyType InCopyType) const;
+
 	bool AddPublicStateMenuOptions(UToolMenu* Menu);
 
 	/** Adds menu options related to working with collections */
@@ -146,9 +153,6 @@ private:
 
 	/** Handler for determining the selected asset's Private state */
 	bool IsSelectedAssetPrivate();
-
-	/** Handler for CopyReference */
-	void ExecuteCopyReference();
 
 	/** Handler for CopyFilePath */
 	void ExecuteCopyFilePath();

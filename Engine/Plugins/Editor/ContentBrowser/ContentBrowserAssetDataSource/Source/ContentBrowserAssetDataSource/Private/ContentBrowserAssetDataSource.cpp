@@ -2880,6 +2880,16 @@ bool UContentBrowserAssetDataSource::AppendItemReference(const FContentBrowserIt
 	return ContentBrowserAssetData::AppendItemReference(AssetRegistry, this, InItem, InOutStr);
 }
 
+bool UContentBrowserAssetDataSource::AppendItemObjectPath(const FContentBrowserItemData& InItem, FString& InOutStr)
+{
+	return ContentBrowserAssetData::AppendItemObjectPath(AssetRegistry, this, InItem, InOutStr);
+}
+
+bool UContentBrowserAssetDataSource::AppendItemPackageName(const FContentBrowserItemData& InItem, FString& InOutStr)
+{
+	return ContentBrowserAssetData::AppendItemPackageName(AssetRegistry, this, InItem, InOutStr);
+}
+
 bool UContentBrowserAssetDataSource::UpdateThumbnail(const FContentBrowserItemData& InItem, FAssetThumbnail& InThumbnail)
 {
 	return ContentBrowserAssetData::UpdateItemThumbnail(this, InItem, InThumbnail);

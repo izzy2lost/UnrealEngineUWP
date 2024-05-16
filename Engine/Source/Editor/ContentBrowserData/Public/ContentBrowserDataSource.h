@@ -659,6 +659,28 @@ public:
 	virtual bool AppendItemReference(const FContentBrowserItemData& InItem, FString& InOutStr);
 
 	/**
+	 * Attempt to append any object path for the given item to the given string.
+	 * @note Used when copying item object path to the clipboard.
+	 *
+	 * @param InItem The item to query.
+	 * @param InOutStr The string to append to (LINE_TERMINATOR delimited).
+	 *
+	 * @return True if package name were appended, false otherwise.
+	 */
+	virtual bool AppendItemObjectPath(const FContentBrowserItemData& InItem, FString& InOutStr);
+
+	/**
+	 * Attempt to append any package name for the given item to the given string.
+	 * @note Used when copying item package name to the clipboard.
+	 *
+	 * @param InItem The item to query.
+	 * @param InOutStr The string to append to (LINE_TERMINATOR delimited).
+	 *
+	 * @return True if package name were appended, false otherwise.
+	 */
+	virtual bool AppendItemPackageName(const FContentBrowserItemData& InItem, FString& InOutStr);
+
+	/**
 	 * Attempt to update the thumbnail associated with the given item.
 	 *
 	 * @param InItems The items to query.

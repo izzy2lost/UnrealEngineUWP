@@ -586,6 +586,16 @@ bool FContentBrowserItem::AppendItemReference(FString& InOutStr) const
 	return FContentBrowserItemHelper::CallDataSourceImpl<UContentBrowserDataSource>(*this, UE_PROJECTION_MEMBER(UContentBrowserDataSource, AppendItemReference), InOutStr);
 }
 
+bool FContentBrowserItem::AppendItemObjectPath(FString& InOutStr) const
+{
+	return FContentBrowserItemHelper::CallDataSourceImpl<UContentBrowserDataSource>(*this, UE_PROJECTION_MEMBER(UContentBrowserDataSource, AppendItemObjectPath), InOutStr);
+}
+
+bool FContentBrowserItem::AppendItemPackageName(FString& InOutStr) const
+{
+	return FContentBrowserItemHelper::CallDataSourceImpl<UContentBrowserDataSource>(*this, UE_PROJECTION_MEMBER(UContentBrowserDataSource, AppendItemPackageName), InOutStr);
+}
+
 bool FContentBrowserItem::UpdateThumbnail(FAssetThumbnail& InThumbnail) const
 {
 	return FContentBrowserItemHelper::CallDataSourceImpl<UContentBrowserDataSource>(*this, UE_PROJECTION_MEMBER(UContentBrowserDataSource, UpdateThumbnail), InThumbnail);
