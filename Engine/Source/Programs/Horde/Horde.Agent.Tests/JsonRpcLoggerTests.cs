@@ -7,12 +7,11 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using EpicGames.Horde;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
-using Grpc.Core;
+using EpicGames.Horde.Storage.Bundles.V1;
 using Grpc.Net.Client;
 using Horde.Agent.Utility;
 using Microsoft.Extensions.Logging;
@@ -128,8 +127,8 @@ namespace Horde.Agent.Tests
 		{
 			public IBlobRef? Target { get; private set; }
 
-			public FakeJsonRpcLoggerBackend(IHordeClient hordeClient, LogId logId, JobId? jobId, JobStepBatchId? batchId, JobStepId? stepId, ILogger logger)
-				: base(hordeClient, logId, jobId, batchId, stepId, logger)
+			public FakeJsonRpcLoggerBackend(GrpcChannel connection, LogId logId, JobId? jobId, JobStepBatchId? batchId, JobStepId? stepId, IStorageClient store, ILogger logger)
+				: base(connection, logId, jobId, batchId, stepId, store, logger)
 			{
 			}
 
@@ -146,62 +145,18 @@ namespace Horde.Agent.Tests
 			}
 		}
 
-		class FakeHordeClient : IHordeClient
-		{
-			public Dictionary<string, BundleStorageClient> StorageClients { get; } = new Dictionary<string, BundleStorageClient>();
-
-			public Uri ServerUrl => throw new NotImplementedException();
-
-			public Task<bool> LoginAsync(bool allowLogin, CancellationToken cancellationToken)
-				=> throw new NotImplementedException();
-
-			public HordeHttpClient CreateHttpClient()
-				=> throw new NotImplementedException();
-
-			public IStorageClient CreateStorageClient(string relativePath, string? accessToken = null)
-			{
-				BundleStorageClient? storageClient;
-				if (!StorageClients.TryGetValue(relativePath, out storageClient))
-				{
-					storageClient = BundleStorageClient.CreateInMemory(NullLogger.Instance);
-					StorageClients.Add(relativePath, storageClient);
-				}
-				return storageClient;
-			}
-
-			public ValueTask DisposeAsync()
-			{
-				foreach (BundleStorageClient storageClient in StorageClients.Values)
-				{
-					storageClient.Dispose();
-				}
-				StorageClients.Clear();
-				return default;
-			}
-
-			public Task<string?> GetAccessTokenAsync(bool interactive, CancellationToken cancellationToken = default)
-				=> throw new NotImplementedException();
-
-			public Task<GrpcChannel> CreateGrpcChannelAsync(CancellationToken cancellationToken = default)
-				=> throw new NotImplementedException();
-
-			public Task<TClient> CreateGrpcClientAsync<TClient>(CancellationToken cancellationToken = default) where TClient : ClientBase<TClient>
-				=> throw new NotImplementedException();
-
-			public bool HasValidAccessToken()
-				=> throw new NotImplementedException();
-		}
-
 		[TestMethod]
 		public async Task StorageLoggerTestAsync()
 		{
 			await using BundleCache cache = new BundleCache();
-			await using FakeHordeClient hordeClient = new FakeHordeClient();
+			using BundleStorageClient store = BundleStorageClient.CreateInMemory(NullLogger.Instance);
+
+			BundleReader reader = new BundleReader(store, cache, NullLogger.Instance);
 
 			const int Count = 20000;
 
 			LogNode file;
-			await using (FakeJsonRpcLoggerBackend sink = new FakeJsonRpcLoggerBackend(hordeClient, default, null, null, null, NullLogger.Instance))
+			await using (FakeJsonRpcLoggerBackend sink = new FakeJsonRpcLoggerBackend(null!, default, null, null, null, store, NullLogger.Instance))
 			{
 				await using (ServerLogger logger = new ServerLogger(sink, default, null, LogLevel.Information, NullLogger.Instance, NullLogger.Instance))
 				{

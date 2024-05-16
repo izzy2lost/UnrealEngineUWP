@@ -12,8 +12,10 @@ using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Grpc.Core;
+using Grpc.Net.Client;
 using Horde.Agent.Driver;
 using Horde.Agent.Parser;
 //using Horde.Agent.Services;
@@ -60,22 +62,28 @@ namespace Horde.Agent.Execution
 
 	class JobExecutorOptions
 	{
-		public IHordeClient HordeClient { get; }
+		public Uri ServerUrl { get; }
 		public DirectoryReference WorkingDir { get; }
+		public GrpcChannel GrpcChannel { get; }
 		public IReadOnlyList<ProcessToTerminate>? ProcessesToTerminate { get; }
+		public HttpStorageClientFactory StorageFactory { get; }
 		public JobId JobId { get; }
 		public JobStepBatchId BatchId { get; }
 		public RpcBeginBatchResponse Batch { get; }
+		public string Token { get; }
 		public RpcJobOptions JobOptions { get; }
 
-		public JobExecutorOptions(IHordeClient hordeClient, DirectoryReference workingDir, IReadOnlyList<ProcessToTerminate>? processesToTerminate, JobId jobId, JobStepBatchId batchId, RpcBeginBatchResponse batch, RpcJobOptions jobOptions)
+		public JobExecutorOptions(Uri serverUrl, DirectoryReference workingDir, GrpcChannel grpcChannel, IReadOnlyList<ProcessToTerminate>? processesToTerminate, HttpStorageClientFactory storageFactory, JobId jobId, JobStepBatchId batchId, RpcBeginBatchResponse batch, string token, RpcJobOptions jobOptions)
 		{
-			HordeClient = hordeClient;
+			ServerUrl = serverUrl;
 			WorkingDir = workingDir;
+			GrpcChannel = grpcChannel;
 			ProcessesToTerminate = processesToTerminate;
+			StorageFactory = storageFactory;
 			JobId = jobId;
 			BatchId = batchId;
 			Batch = batch;
+			Token = token;
 			JobOptions = jobOptions;
 		}
 	}
@@ -230,10 +238,11 @@ namespace Horde.Agent.Execution
 		protected bool _compileAutomationTool = true;
 
 		protected JobExecutorOptions Options { get; }
+		protected HttpStorageClientFactory StorageFactory { get; }
 		protected RpcJobOptions JobOptions { get; }
 
-		protected IHordeClient HordeClient => Options.HordeClient;
-		protected JobRpc.JobRpcClient JobRpc { get; private set; }
+		protected GrpcChannel GrpcChannel => Options.GrpcChannel;
+		protected JobRpc.JobRpcClient JobRpc { get; }
 		protected Dictionary<string, string> _remapAgentTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
 		protected Dictionary<string, string> _envVars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -241,13 +250,17 @@ namespace Horde.Agent.Execution
 		protected JobExecutor(JobExecutorOptions options, ILogger logger)
 		{
 			Options = options;
+			StorageFactory = options.StorageFactory;
 
 			JobId = options.JobId;
 			BatchId = options.BatchId;
 			Batch = options.Batch;
 
 			JobOptions = options.JobOptions;
-			JobRpc = null!; // Set in InitializeAsync()
+			JobRpc = new JobRpc.JobRpcClient(GrpcChannel);
+
+			_envVars[HordeHttpClient.HordeUrlEnvVarName] = options.ServerUrl.ToString();
+			_envVars[HordeHttpClient.HordeTokenEnvVarName] = options.Token;
 
 			Logger = logger;
 		}
@@ -263,18 +276,8 @@ namespace Horde.Agent.Execution
 		{
 		}
 
-		public virtual async Task InitializeAsync(ILogger logger, CancellationToken cancellationToken)
+		public virtual Task InitializeAsync(ILogger logger, CancellationToken cancellationToken)
 		{
-			JobRpc = await HordeClient.CreateGrpcClientAsync<JobRpc.JobRpcClient>(cancellationToken);
-
-			_envVars[HordeHttpClient.HordeUrlEnvVarName] = HordeClient.ServerUrl.ToString();
-
-			string? accessToken = await HordeClient.GetAccessTokenAsync(false, cancellationToken);
-			if (accessToken != null)
-			{
-				_envVars[HordeHttpClient.HordeTokenEnvVarName] = accessToken;
-			}
-
 			// Setup the agent type
 			foreach (KeyValuePair<string, string> envVar in Batch.Environment)
 			{
@@ -338,6 +341,8 @@ namespace Horde.Agent.Execution
 			{
 				_additionalArguments.Add($"-set:PreflightChange={Batch.PreflightChange}");
 			}
+
+			return Task.CompletedTask;
 		}
 
 		public static bool IsUserAdministrator()
@@ -449,7 +454,7 @@ namespace Horde.Agent.Execution
 
 		IStorageClient CreateStorageClient(NamespaceId namespaceId, string? token)
 		{
-			return HordeClient.CreateStorageClient(namespaceId, token);
+			return StorageFactory.CreateClient(namespaceId, token);
 		}
 
 		protected virtual async Task<bool> SetupAsync(JobStepInfo step, DirectoryReference workspaceDir, bool? useP4, ILogger logger, CancellationToken cancellationToken)
@@ -829,7 +834,7 @@ namespace Horde.Agent.Execution
 
 				RpcCreateJobArtifactResponseV2 artifact = await JobRpc.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 				ArtifactId artifactId = ArtifactId.Parse(artifact.Id);
-				Logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({Link})", artifactId, name, type, artifact.RefName, $"{HordeClient.ServerUrl}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
+				Logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({Link})", artifactId, name, type, artifact.RefName, $"{Options.ServerUrl}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
 
 				using IStorageClient storage = CreateStorageClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
 
@@ -879,7 +884,7 @@ namespace Horde.Agent.Execution
 				string nodeName = input.Substring(0, slashIdx);
 				string tagName = input.Substring(slashIdx + 1);
 
-				TempStorageTagManifest fileList = await TempStorage.RetrieveTagAsync(HordeClient, JobId, step.StepId, nodeName, tagName, manifestDir, logger, cancellationToken);
+				TempStorageTagManifest fileList = await TempStorage.RetrieveTagAsync(JobRpc, JobId, step.StepId, StorageFactory, nodeName, tagName, manifestDir, logger, cancellationToken);
 				tagNameToFileSet[tagName] = fileList.ToFileSet(workspaceDir);
 				inputStorageBlocks.UnionWith(fileList.Blocks);
 			}
@@ -892,7 +897,7 @@ namespace Horde.Agent.Execution
 				scope.Span.SetTag("blocks", inputStorageBlocks.Count);
 				foreach (TempStorageBlockRef inputStorageBlock in inputStorageBlocks)
 				{
-					TempStorageBlockManifest manifest = await TempStorage.RetrieveBlockAsync(HordeClient, JobId, step.StepId, inputStorageBlock.NodeName, inputStorageBlock.OutputName, workspaceDir, manifestDir, logger, cancellationToken);
+					TempStorageBlockManifest manifest = await TempStorage.RetrieveBlockAsync(JobRpc, JobId, step.StepId, StorageFactory, inputStorageBlock.NodeName, inputStorageBlock.OutputName, workspaceDir, manifestDir, logger, cancellationToken);
 					inputManifests[inputStorageBlock] = manifest;
 				}
 				scope.Span.SetTag("size", inputManifests.Sum(x => x.Value.GetTotalSize()));
@@ -1029,7 +1034,7 @@ namespace Horde.Agent.Execution
 
 				RpcCreateJobArtifactResponseV2 artifact = await JobRpc.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 				ArtifactId artifactId = ArtifactId.Parse(artifact.Id);
-				logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({RefUrl})", artifactId, artifactRequest.Name, ArtifactType.StepOutput, artifact.RefName, $"{HordeClient.ServerUrl.ToString().TrimEnd('/')}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
+				logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({RefUrl})", artifactId, artifactRequest.Name, ArtifactType.StepOutput, artifact.RefName, $"{Options.ServerUrl.ToString().TrimEnd('/')}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
 
 				using IStorageClient storage = CreateStorageClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
 
@@ -1108,7 +1113,7 @@ namespace Horde.Agent.Execution
 
 					RpcCreateJobArtifactResponseV2 artifact = await JobRpc.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 					ArtifactId artifactId = ArtifactId.Parse(artifact.Id);
-					logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({RefUrl})", artifactId, artifactRequest.Name, ArtifactType.StepOutput, artifact.RefName, $"{HordeClient.ServerUrl.ToString().TrimEnd('/')}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
+					logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} ({RefUrl})", artifactId, artifactRequest.Name, ArtifactType.StepOutput, artifact.RefName, $"{Options.ServerUrl.ToString().TrimEnd('/')}/api/v1/storage/{artifact.NamespaceId}/refs/{artifact.RefName}");
 
 					using IStorageClient storage = CreateStorageClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
 

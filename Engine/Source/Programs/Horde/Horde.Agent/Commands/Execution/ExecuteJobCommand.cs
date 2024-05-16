@@ -1,14 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
-using EpicGames.Horde;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Sessions;
+using Grpc.Net.Client;
 using Horde.Agent.Leases.Handlers;
 using Horde.Agent.Services;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Horde.Agent.Commands.Execution
 {
@@ -30,21 +31,24 @@ namespace Horde.Agent.Commands.Execution
 		[CommandLine("-WorkingDir=", Required = true)]
 		public DirectoryReference WorkingDir { get; set; } = null!;
 
-		readonly IHordeClientFactory _hordeClientFactory;
+		readonly GrpcService _grpcService;
 		readonly JobHandler _jobHandler;
+		readonly AgentSettings _agentSettings;
 
-		public ExecuteJobCommand(IHordeClientFactory hordeClientFactory, JobHandler jobHandler)
+		public ExecuteJobCommand(GrpcService grpcService, JobHandler jobHandler, IOptions<AgentSettings> agentSettings)
 		{
-			_hordeClientFactory = hordeClientFactory;
+			_grpcService = grpcService;
 			_jobHandler = jobHandler;
+			_agentSettings = agentSettings.Value;
 		}
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
+			ServerProfile serverProfile = _agentSettings.GetCurrentServerProfile();
 			ExecuteJobTask executeTask = ExecuteJobTask.Parser.ParseFrom(Convert.FromBase64String(Task));
 
-			IHordeClient hordeClient = _hordeClientFactory.Create(executeTask.Token);
-			await using Session session = new Session(AgentId, SessionId, WorkingDir, hordeClient);
+			using GrpcChannel rpcConnection = await _grpcService.CreateGrpcChannelAsync(executeTask.Token, CancellationToken.None);
+			await using Session session = new Session(serverProfile.Url, AgentId, SessionId, executeTask.Token, rpcConnection, WorkingDir);
 
 			await _jobHandler.ExecuteInternalAsync(session, LeaseId, executeTask, logger, CancellationToken.None);
 			return 0;

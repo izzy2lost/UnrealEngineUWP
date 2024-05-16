@@ -52,9 +52,7 @@ namespace UnrealGameSync
 		readonly DirectoryReference _cacheFolder;
 		readonly List<KeyValuePair<FileReference, DateTime>> _localConfigFiles;
 		readonly IAsyncDisposer _asyncDisposeTasks;
-#pragma warning disable CA2213 // Dispose of _hordeClient
 		readonly IHordeClient? _hordeClient;
-#pragma warning restore CA2213
 
 		string[] prevCodeRules = Array.Empty<string>();
 

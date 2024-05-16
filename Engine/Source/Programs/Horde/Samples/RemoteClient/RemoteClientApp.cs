@@ -58,7 +58,7 @@ namespace RemoteClient
 			}
 			else
 			{
-				services.AddHorde(x => x.ServerUrl = new Uri(options.Server));
+				services.AddHordeHttpClient(x => x.BaseAddress = new Uri(options.Server));
 				services.AddSingleton<IComputeClient, ServerComputeClient>();
 			}
 
