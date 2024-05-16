@@ -83,6 +83,7 @@ public:
 	void OnObjectsReinstanced(const FReplacementObjectMap& ObjectMap);
 	void OnUserDefinedStructReinstanced(const UUserDefinedStruct& UserDefinedStruct);
 	void OnParametersChanged(const UStateTree& StateTree);
+	void OnStateParametersChanged(const UStateTree& StateTree, const FGuid StateID);
 	virtual void BeginDestroy() override;
 	virtual void PostLoad() override;
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
@@ -268,6 +269,7 @@ private:
 	FDelegateHandle OnObjectsReinstancedHandle;
 	FDelegateHandle OnUserDefinedStructReinstancedHandle;
 	FDelegateHandle OnParametersChangedHandle;
+	FDelegateHandle OnStateParametersChangedHandle;
 #endif
 
 public:

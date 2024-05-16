@@ -7,6 +7,7 @@
 #include "StateTreeEditorPropertyBindings.generated.h"
 
 enum EStateTreeNodeFormatting : uint8;
+class IStateTreeEditorPropertyBindingsOwner;
 
 /**
  * Editor representation of a all property bindings in a StateTree
@@ -15,6 +16,9 @@ USTRUCT()
 struct STATETREEEDITORMODULE_API FStateTreeEditorPropertyBindings
 {
 	GENERATED_BODY()
+
+	/** Sets associated bindings owner, used to validate added property paths. */
+	void SetBindingsOwner(IStateTreeEditorPropertyBindingsOwner* BindingsOwner);
 
 	/**
 	 * Adds binding between source and destination paths. Removes any bindings to TargetPath before adding the new one.
@@ -90,6 +94,8 @@ private:
 
 	UPROPERTY()
 	TArray<FStateTreePropertyPathBinding> PropertyBindings;
+
+	IStateTreeEditorPropertyBindingsOwner* BindingsOwner = nullptr; 
 };
 
 

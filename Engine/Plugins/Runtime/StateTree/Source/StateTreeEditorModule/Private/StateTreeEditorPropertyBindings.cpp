@@ -17,10 +17,33 @@ UStateTreeEditorPropertyBindingsOwner::UStateTreeEditorPropertyBindingsOwner(con
 
 //////////////////////////////////////////////////////////////////////////
 
+void FStateTreeEditorPropertyBindings::SetBindingsOwner(IStateTreeEditorPropertyBindingsOwner* InBindingsOwner)
+{
+	BindingsOwner = InBindingsOwner;
+}
+
 void FStateTreeEditorPropertyBindings::AddPropertyBinding(const FStateTreePropertyPath& SourcePath, const FStateTreePropertyPath& TargetPath)
 {
 	RemovePropertyBindings(TargetPath);
-	PropertyBindings.Add(FStateTreePropertyPathBinding(SourcePath, TargetPath));
+
+	FStateTreePropertyPathBinding Binding(SourcePath, TargetPath);
+
+	// If we have bindings owner, update property path segments to capture property IDs, etc.
+	if (BindingsOwner)
+	{
+		FStateTreeDataView SourceDataView;
+		if (BindingsOwner->GetDataViewByID(Binding.GetSourcePath().GetStructID(), SourceDataView))
+		{
+			Binding.GetMutableSourcePath().UpdateSegmentsFromValue(SourceDataView);
+		}
+		FStateTreeDataView TargetDataView;
+		if (BindingsOwner->GetDataViewByID(Binding.GetTargetPath().GetStructID(), TargetDataView))
+		{
+			Binding.GetMutableTargetPath().UpdateSegmentsFromValue(TargetDataView);
+		}
+	}
+	
+	PropertyBindings.Add(Binding);
 }
 
 void FStateTreeEditorPropertyBindings::RemovePropertyBindings(const FStateTreePropertyPath& TargetPath)

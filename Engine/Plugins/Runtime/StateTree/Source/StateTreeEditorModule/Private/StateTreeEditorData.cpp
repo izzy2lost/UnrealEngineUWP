@@ -33,6 +33,8 @@ UStateTreeEditorData::UStateTreeEditorData()
 	DefaultColor.DisplayName = TEXT("Default Color");
 
 	Colors.Add(MoveTemp(DefaultColor));
+
+	EditorBindings.SetBindingsOwner(this);
 }
 
 void UStateTreeEditorData::PostInitProperties()
@@ -45,6 +47,7 @@ void UStateTreeEditorData::PostInitProperties()
 	OnObjectsReinstancedHandle = FCoreUObjectDelegates::OnObjectsReinstanced.AddUObject(this, &UStateTreeEditorData::OnObjectsReinstanced);
 	OnUserDefinedStructReinstancedHandle = UE::StructUtils::Delegates::OnUserDefinedStructReinstanced.AddUObject(this, &UStateTreeEditorData::OnUserDefinedStructReinstanced);
 	OnParametersChangedHandle = UE::StateTree::Delegates::OnParametersChanged.AddUObject(this, &UStateTreeEditorData::OnParametersChanged);
+	OnStateParametersChangedHandle = UE::StateTree::Delegates::OnStateParametersChanged.AddUObject(this, &UStateTreeEditorData::OnStateParametersChanged);
 #endif
 }
 
@@ -66,6 +69,11 @@ void UStateTreeEditorData::BeginDestroy()
 	{
 		UE::StateTree::Delegates::OnParametersChanged.Remove(OnParametersChangedHandle);
 		OnParametersChangedHandle.Reset();
+	}
+	if (OnStateParametersChangedHandle.IsValid())
+	{
+		UE::StateTree::Delegates::OnStateParametersChanged.Remove(OnStateParametersChangedHandle);
+		OnStateParametersChangedHandle.Reset();
 	}
 	
 	Super::BeginDestroy();
@@ -147,6 +155,16 @@ void UStateTreeEditorData::OnParametersChanged(const UStateTree& StateTree)
 	}
 }
 
+void UStateTreeEditorData::OnStateParametersChanged(const UStateTree& StateTree, const FGuid StateID)
+{
+	if (const UStateTree* OwnerStateTree = GetTypedOuter<UStateTree>())
+	{
+		if (OwnerStateTree == &StateTree)
+		{
+			UpdateBindingsInstanceStructs();
+		}
+	}
+}
 
 void UStateTreeEditorData::PostLoad()
 {

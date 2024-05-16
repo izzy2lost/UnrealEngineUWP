@@ -216,17 +216,13 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 		}
 	}
 
-	// Broadcast subtree parameter layout edits so that the linked states can adapt.
+	// Broadcast subtree parameter layout edits so that the linked states can adapt, and bindings can update.
 	if (ChangePropertyPath.IsPathExact(StateParametersPath))
 	{
-		if (!(Type == EStateTreeStateType::Linked
-				|| Type == EStateTreeStateType::LinkedAsset))
+		const UStateTree* StateTree = GetTypedOuter<UStateTree>();
+		if (ensure(StateTree))
 		{
-			const UStateTree* StateTree = GetTypedOuter<UStateTree>();
-			if (ensure(StateTree))
-			{
-				UE::StateTree::Delegates::OnStateParametersChanged.Broadcast(*StateTree, ID);
-			}
+			UE::StateTree::Delegates::OnStateParametersChanged.Broadcast(*StateTree, ID);
 		}
 	}
 
