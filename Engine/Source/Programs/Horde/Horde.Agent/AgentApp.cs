@@ -11,10 +11,6 @@ using Datadog.Trace.Configuration;
 using Datadog.Trace.OpenTracing;
 using EpicGames.Core;
 using EpicGames.Horde;
-using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Backends;
-using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Storage.Clients;
 using Horde.Agent.Driver;
 using Horde.Agent.Execution;
 using Horde.Agent.Leases;
@@ -24,7 +20,6 @@ using Horde.Agent.Utility;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Microsoft.Win32;
 using OpenTracing.Util;
 using Polly;
@@ -177,34 +172,14 @@ namespace Horde.Agent
 
 			Logging.SetEnv(serverProfile.Environment);
 
-			ILogger certificateLogger = loggerFactory.CreateLogger(typeof(CertificateHelper).FullName!);
-			services.AddHttpClient(AgentApp.HordeServerClientName, config =>
+			services.AddHorde(options =>
 			{
-				config.BaseAddress = serverProfile.Url;
-				config.DefaultRequestHeaders.Add("Accept", "application/json");
-				config.Timeout = TimeSpan.FromSeconds(300); // Need to make sure this doesn't cancel any long running gRPC streaming calls (eg. session update)
-			})
-			.ConfigurePrimaryHttpMessageHandler(() =>
-			{
-				HttpClientHandler handler = new HttpClientHandler();
-#pragma warning disable MA0039
-				handler.ServerCertificateCustomValidationCallback += (sender, cert, chain, errors) => CertificateHelper.CertificateValidationCallBack(certificateLogger, sender, cert, chain, errors, serverProfile);
-#pragma warning restore MA0039
-				return handler;
-			})
-			.AddTransientHttpErrorPolicy(builder =>
-			{
-				return builder.WaitAndRetryAsync(new[] { TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10) });
+				options.ServerUrl = serverProfile.Url;
+				options.AccessToken = serverProfile.Token;
+				options.AllowAuthPrompt = false;
+				options.BackendCache.CacheDir = DirectoryReference.Combine(settings.WorkingDir, "Saved", "Bundles").FullName;
+				options.BackendCache.MaxSize = settings.BundleCacheSize * 1024 * 1024;
 			});
-
-			services.Configure<HordeOptions>(options => options.AllowAuthPrompt = false);
-
-			services.AddHordeHttpClient(client => client.BaseAddress = serverProfile.Url)
-				.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
-				{
-					MaxConnectionsPerServer = 16,
-					PooledConnectionIdleTimeout = TimeSpan.FromMinutes(15),
-				});
 
 			services.AddHttpClient(AwsInstanceLifecycleService.HttpClientName)
 				.AddTransientHttpErrorPolicy(builder =>
@@ -245,11 +220,6 @@ namespace Horde.Agent
 			services.AddSingleton<WorkerService>();
 			services.AddSingleton<LeaseLoggerFactory>();
 			services.AddHostedService(sp => sp.GetRequiredService<WorkerService>());
-
-			services.AddSingleton<BundleCache>();
-			services.AddSingleton<StorageBackendCache>(CreateStorageBackendCache);
-			services.AddSingleton<HttpStorageBackendFactory>();
-			services.AddSingleton<HttpStorageClientFactory>();
 
 			services.AddSingleton<ComputeListenerService>();
 			services.AddHostedService(sp => sp.GetRequiredService<ComputeListenerService>());
@@ -338,13 +308,6 @@ namespace Horde.Agent
 					}
 				}
 			}
-		}
-
-		static StorageBackendCache CreateStorageBackendCache(IServiceProvider serviceProvider)
-		{
-			AgentSettings settings = serviceProvider.GetRequiredService<IOptions<AgentSettings>>().Value;
-			DirectoryReference cacheDir = DirectoryReference.Combine(settings.WorkingDir, "Saved", "Bundles");
-			return new StorageBackendCache(cacheDir, settings.BundleCacheSize * 1024 * 1024, serviceProvider.GetRequiredService<ILogger<StorageBackendCache>>());
 		}
 
 		static void ConfigureTracing(string environment, string version)

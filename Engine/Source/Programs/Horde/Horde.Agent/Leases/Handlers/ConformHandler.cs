@@ -31,7 +31,7 @@ namespace Horde.Agent.Leases.Handlers
 		/// <inheritdoc/>
 		public override async Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, ConformTask conformTask, ILogger localLogger, CancellationToken cancellationToken)
 		{
-			await using IServerLogger serverLogger = _serverLoggerFactory.CreateLogger(session, LogId.Parse(conformTask.LogId), localLogger, null);
+			await using IServerLogger serverLogger = _serverLoggerFactory.CreateLogger(session.HordeClient, LogId.Parse(conformTask.LogId), localLogger, null);
 			try
 			{
 				LeaseResult result = await ExecuteInternalAsync(session, leaseId, conformTask, serverLogger, cancellationToken);
@@ -78,7 +78,7 @@ namespace Horde.Agent.Leases.Handlers
 				request.Workspaces.AddRange(pendingWorkspaces);
 				request.RemoveUntrackedFiles = removeUntrackedFiles;
 
-				HordeRpc.HordeRpcClient hordeRpc = new HordeRpc.HordeRpcClient(session.GrpcChannel);
+				HordeRpc.HordeRpcClient hordeRpc = await session.HordeClient.CreateGrpcClientAsync<HordeRpc.HordeRpcClient>(cancellationToken);
 
 				RpcUpdateAgentWorkspacesResponse response = await hordeRpc.UpdateAgentWorkspacesAsync(request, cancellationToken: cancellationToken);
 				if (!response.Retry)

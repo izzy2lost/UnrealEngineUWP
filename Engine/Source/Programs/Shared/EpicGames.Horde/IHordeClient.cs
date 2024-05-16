@@ -3,6 +3,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Tools;
 using Grpc.Core;
@@ -13,7 +14,7 @@ namespace EpicGames.Horde
 	/// <summary>
 	/// Base interface for Horde functionality.
 	/// </summary>
-	public interface IHordeClient
+	public interface IHordeClient : IAsyncDisposable
 	{
 		/// <summary>
 		/// Base URL of the horde server
@@ -23,20 +24,30 @@ namespace EpicGames.Horde
 		/// <summary>
 		/// Connect to the Horde server
 		/// </summary>
-		/// <param name="allowLogin">Whether to allow interactive logins</param>
+		/// <param name="allowPrompt">Whether to allow prompting for credentials</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>True if the connection succeded</returns>
-		Task<bool> ConnectAsync(bool allowLogin, CancellationToken cancellationToken);
+		Task<bool> LoginAsync(bool allowPrompt, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Gets the current connection state
 		/// </summary>
-		bool IsConnected();
+		bool HasValidAccessToken();
+
+		/// <summary>
+		/// Gets an access token for the server
+		/// </summary>
+		Task<string?> GetAccessTokenAsync(bool interactive, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets a grpc channel for communication with the server. This should NOT be disposed by the caller.
 		/// </summary>
-		Task<GrpcChannel> GetGrpcChannelAsync(CancellationToken cancellationToken = default);
+		Task<GrpcChannel> CreateGrpcChannelAsync(CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Gets a gRPC client interface
+		/// </summary>
+		Task<TClient> CreateGrpcClientAsync<TClient>(CancellationToken cancellationToken = default) where TClient : ClientBase<TClient>;
 
 		/// <summary>
 		/// Creates a Horde HTTP client 
@@ -46,7 +57,23 @@ namespace EpicGames.Horde
 		/// <summary>
 		/// Creates a storage client for the given base path
 		/// </summary>
-		IStorageClient CreateStorageClient(string relativePath);
+		IStorageClient CreateStorageClient(string relativePath, string? accessToken = null);
+	}
+
+	/// <summary>
+	/// Interface to allow creating custom horde client instances. To obtain a default horde client, get an IHordeClient instance via dependency injection.
+	/// </summary>
+	public interface IHordeClientFactory
+	{
+		/// <summary>
+		/// Create a client using the user's default access token
+		/// </summary>
+		IHordeClient Create();
+
+		/// <summary>
+		/// Create a client with an explicit access token
+		/// </summary>
+		IHordeClient Create(string accessToken);
 	}
 
 	/// <summary>
@@ -57,8 +84,14 @@ namespace EpicGames.Horde
 		/// <summary>
 		/// Creates a storage client for a particular namespace
 		/// </summary>
-		public static IStorageClient CreateStorageClient(this IHordeClient hordeClient, NamespaceId namespaceId)
-			=> hordeClient.CreateStorageClient($"api/v1/storage/{namespaceId}");
+		public static IStorageClient CreateStorageClient(this IHordeClient hordeClient, NamespaceId namespaceId, string? accessToken = null)
+			=> hordeClient.CreateStorageClient($"api/v1/storage/{namespaceId}", accessToken);
+
+		/// <summary>
+		/// Creates a storage client for a particular log
+		/// </summary>
+		public static IStorageClient CreateStorageClient(this IHordeClient hordeClient, LogId logId)
+			=> hordeClient.CreateStorageClient($"api/v1/logs/{logId}");
 
 		/// <summary>
 		/// Creates a storage client for a particular tool
@@ -66,14 +99,5 @@ namespace EpicGames.Horde
 		public static IStorageClient CreateStorageClient(this IHordeClient hordeClient, ToolId toolId)
 			=> hordeClient.CreateStorageClient($"api/v1/tools/{toolId}");
 
-		/// <summary>
-		/// Attempts to get a client reference, returning immediately if there's not one available
-		/// </summary>
-		public static async Task<TClient> GetGrpcClientAsync<TClient>(this IHordeClient hordeClient, CancellationToken cancellationToken = default) 
-			where TClient : ClientBase<TClient>
-		{
-			GrpcChannel channel = await hordeClient.GetGrpcChannelAsync(cancellationToken);
-			return (TClient)Activator.CreateInstance(typeof(TClient), channel)!;
-		}
 	}
 }

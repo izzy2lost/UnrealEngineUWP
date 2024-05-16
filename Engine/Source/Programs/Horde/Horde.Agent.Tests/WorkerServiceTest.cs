@@ -67,7 +67,7 @@ namespace Horde.Agent.Tests
 
 		class FakeServerLoggerFactory : IServerLoggerFactory
 		{
-			public IServerLogger CreateLogger(ISession session, LogId logId, ILogger localLogger, JobId? jobId, JobStepBatchId? batchId, JobStepId? stepId, bool? warnings = null, LogLevel outputLevel = LogLevel.Information) => new FakeServerLogger();
+			public IServerLogger CreateLogger(IHordeClient hordeClient, LogId logId, ILogger localLogger, JobId? jobId, JobStepBatchId? batchId, JobStepId? stepId, bool? warnings = null, LogLevel outputLevel = LogLevel.Information) => new FakeServerLogger();
 		}
 
 		internal static IJobExecutor NullExecutor = new SimpleTestExecutor(async (step, logger, cancellationToken) =>
@@ -80,7 +80,7 @@ namespace Horde.Agent.Tests
 		{
 			_serviceCollection = new ServiceCollection();
 			_serviceCollection.AddLogging();
-			_serviceCollection.AddHordeHttpClient();
+			_serviceCollection.AddHorde();
 			_serviceCollection.AddSingleton<IServerLoggerFactory, FakeServerLoggerFactory>();
 			_serviceCollection.AddSingleton<BundleCache>();
 			_serviceCollection.AddSingleton<StorageBackendCache>();
@@ -257,7 +257,7 @@ namespace Horde.Agent.Tests
 			cts.CancelAfter(20000);
 
 			await using FakeHordeRpcServer fakeServer = new();
-			await using ISession session = FakeServerSessionFactory.CreateSession(fakeServer.GetGrpcChannel());
+			await using ISession session = FakeServerSessionFactory.CreateSession(fakeServer.GetHordeClient());
 
 			LeaseManager manager = new LeaseManager(session, serviceProvider);
 
@@ -276,16 +276,15 @@ namespace Horde.Agent.Tests
 
 		public Task<ISession> CreateAsync(CancellationToken cancellationToken)
 		{
-			return Task.FromResult(CreateSession(_fakeServer.GetGrpcChannel()));
+			return Task.FromResult(CreateSession(_fakeServer.GetHordeClient()));
 		}
 
-		public static ISession CreateSession(GrpcChannel grpcChannel)
+		public static ISession CreateSession(IHordeClient hordeClient)
 		{
 			Mock<ISession> fakeSession = new Mock<ISession>(MockBehavior.Strict);
-			fakeSession.Setup(x => x.ServerUrl).Returns(new Uri("https://localhost:9999"));
+			fakeSession.Setup(x => x.HordeClient).Returns(hordeClient);
 			fakeSession.Setup(x => x.AgentId).Returns(new EpicGames.Horde.Agents.AgentId("LocalAgent"));
 			fakeSession.Setup(x => x.SessionId).Returns(new EpicGames.Horde.Agents.Sessions.SessionId(default));
-			fakeSession.Setup(x => x.GrpcChannel).Returns(grpcChannel);
 			fakeSession.Setup(x => x.DisposeAsync()).Returns(new ValueTask());
 			fakeSession.Setup(x => x.WorkingDir).Returns(DirectoryReference.Combine(DirectoryReference.GetCurrentDirectory(), Guid.NewGuid().ToString()));
 			return fakeSession.Object;
@@ -309,8 +308,51 @@ namespace Horde.Agent.Tests
 		public readonly TaskCompletionSource<bool> CreateSessionReceived = new();
 		public readonly TaskCompletionSource<bool> UpdateSessionReceived = new();
 
-		private readonly GrpcChannel _grpcChannel;
-//		private readonly FakeJobRpcClient _client;
+		private readonly FakeHordeClient _hordeClient;
+
+		private class FakeHordeClient : IHordeClient
+		{
+			readonly FakeHordeRpcServer _server;
+
+			public Uri ServerUrl => new Uri("http://horde-server");
+
+			public FakeHordeClient(FakeHordeRpcServer server)
+				=> _server = server;
+
+			public Task<bool> LoginAsync(bool allowLogin, CancellationToken cancellationToken)
+				=> throw new NotImplementedException();
+
+			public HordeHttpClient CreateHttpClient()
+				=> throw new NotImplementedException();
+
+			public IStorageClient CreateStorageClient(string relativePath, string? accessToken = null)
+				=> throw new NotImplementedException();
+
+			public ValueTask DisposeAsync()
+				=> default;
+
+			public Task<string?> GetAccessTokenAsync(bool interactive, CancellationToken cancellationToken = default)
+				=> Task.FromResult<string?>(null);
+
+			public Task<GrpcChannel> CreateGrpcChannelAsync(CancellationToken cancellationToken = default)
+				=> throw new NotImplementedException();
+
+			public Task<TClient> CreateGrpcClientAsync<TClient>(CancellationToken cancellationToken = default) where TClient : ClientBase<TClient>
+			{
+				if (typeof(TClient) == typeof(HordeRpc.HordeRpcClient))
+				{
+					return Task.FromResult<TClient>((TClient)(object)new FakeHordeRpcClient(_server));
+				}
+				if (typeof(TClient) == typeof(JobRpc.JobRpcClient))
+				{
+					return Task.FromResult<TClient>((TClient)(object)new FakeJobRpcClient(_server));
+				}
+				throw new NotImplementedException();
+			}
+
+			public bool HasValidAccessToken()
+				=> throw new NotImplementedException();
+		}
 
 		private class FakeHordeRpcClient : HordeRpc.HordeRpcClient
 		{
@@ -361,9 +403,7 @@ namespace Horde.Agent.Tests
 		{
 			_serverName = "FakeServer";
 			_logger = NullLogger<FakeHordeRpcServer>.Instance;
-//			FakeHordeRpcClient hordeClient = new FakeHordeRpcClient(this);
-//			_client = new FakeJobRpcClient(this);
-			_grpcChannel = GrpcChannel.ForAddress(new Uri("http://horde-agent-test"), new GrpcChannelOptions());
+			_hordeClient = new FakeHordeClient(this);
 		}
 
 		public void AddTestLease(string leaseId)
@@ -431,9 +471,9 @@ namespace Horde.Agent.Tests
 			};
 		}
 
-		public GrpcChannel GetGrpcChannel()
+		public IHordeClient GetHordeClient()
 		{
-			return _grpcChannel;
+			return _hordeClient;
 		}
 
 		public RpcCreateSessionResponse OnCreateSessionRequest(RpcCreateSessionRequest request)
@@ -519,9 +559,9 @@ namespace Horde.Agent.Tests
 				() => { });
 		}
 
-		public ValueTask DisposeAsync()
+		public async ValueTask DisposeAsync()
 		{
-			_grpcChannel.Dispose();
+			await _hordeClient.DisposeAsync();
 
 			foreach (RpcGetStreamResponse stream in _streamIdToStreamResponse.Values)
 			{
@@ -533,8 +573,6 @@ namespace Horde.Agent.Tests
 					}
 				}
 			}
-
-			return default;
 		}
 	}
 

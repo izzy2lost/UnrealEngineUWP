@@ -28,7 +28,7 @@ namespace Horde.Agent.Leases.Handlers
 		/// <inheritdoc/>
 		public override async Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, UpgradeTask task, ILogger localLogger, CancellationToken cancellationToken)
 		{
-			await using IServerLogger logger = _serverLoggerFactory.CreateLogger(session, LogId.Parse(task.LogId), localLogger, null);
+			await using IServerLogger logger = _serverLoggerFactory.CreateLogger(session.HordeClient, LogId.Parse(task.LogId), localLogger, null);
 
 			string requiredVersion = task.SoftwareId;
 
@@ -45,7 +45,7 @@ namespace Horde.Agent.Leases.Handlers
 				// Download the new software
 				FileInfo outputFile = new FileInfo(Path.Combine(upgradeDir.FullName, "Agent.zip"));
 
-				HordeRpc.HordeRpcClient hordeRpc = new HordeRpc.HordeRpcClient(session.GrpcChannel);
+				HordeRpc.HordeRpcClient hordeRpc = await session.HordeClient.CreateGrpcClientAsync<HordeRpc.HordeRpcClient>(cancellationToken);
 				using (AsyncServerStreamingCall<RpcDownloadSoftwareResponse> cursor = hordeRpc.DownloadSoftware(new RpcDownloadSoftwareRequest(requiredVersion), null, null, cancellationToken))
 				{
 					await using Stream outputStream = outputFile.Open(FileMode.Create);

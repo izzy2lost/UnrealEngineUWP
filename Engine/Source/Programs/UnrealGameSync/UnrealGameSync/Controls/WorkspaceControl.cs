@@ -177,7 +177,9 @@ namespace UnrealGameSync
 		readonly IServiceProvider _serviceProvider;
 		readonly ILogger _logger;
 		readonly IPerforceSettings _perforceSettings;
+#pragma warning disable CA2213 // Disposed by DI container
 		readonly IHordeClient? _hordeClient;
+#pragma warning restore CA2213
 		ProjectInfo ProjectInfo { get; }
 
 		readonly UserSettings _settings;
@@ -3493,7 +3495,7 @@ namespace UnrealGameSync
 			{
 				statusLine.AddText("  |  ");
 
-				if (_hordeClient.IsConnected())
+				if (_hordeClient.HasValidAccessToken())
 				{
 					statusLine.AddLink("Connected to Horde", FontStyle.Regular, (p, r) => Utility.OpenUrl(_hordeClient.ServerUrl.ToString()));
 				}
@@ -3901,7 +3903,7 @@ namespace UnrealGameSync
 			{
 				try
 				{
-					await hordeClient.ConnectAsync(true, cancellationToken);
+					await hordeClient.LoginAsync(true, cancellationToken);
 				}
 				catch when (cancellationToken.IsCancellationRequested)
 				{
