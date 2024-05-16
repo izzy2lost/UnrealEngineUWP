@@ -8,6 +8,7 @@
 #include "VulkanContext.h"
 #include "VulkanDescriptorSets.h"
 #include "VulkanMemory.h"
+#include "VulkanRayTracing.h"
 
 static int32 GUseSingleQueue = 0;
 static FAutoConsoleVariableRef CVarVulkanUseSingleQueue(
@@ -875,6 +876,10 @@ void FVulkanCommandBufferPool::FreeUnusedCmdBuffers(FVulkanQueue* InQueue, bool 
 			(CurrentTime - CmdBuffer->SubmittedTime) > CMD_BUFFER_TIME_TO_WAIT_BEFORE_DELETING)
 		{
 			DeferredDeletionQueue.OnCmdBufferDeleted(CmdBuffer);
+			if (Device->GetRayTracingCompactionRequestHandler())
+			{
+				Device->GetRayTracingCompactionRequestHandler()->OnCmdBufferDeleted(CmdBuffer);
+			}
 
 			CmdBuffer->FreeMemory();
 			CmdBuffers.RemoveAtSwap(Index, EAllowShrinking::No);

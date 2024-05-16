@@ -335,12 +335,18 @@ public:
 
 	void Update(FVulkanCommandListContext& InCommandContext);
 
+	void OnCmdBufferDeleted(FVulkanCmdBuffer* DeletedCmdBuffer);
+
 private:
 
 	FCriticalSection CS;
 	TArray<FVulkanRayTracingGeometry*> PendingRequests;
-	TArray<FVulkanRayTracingGeometry*> ActiveRequests;
 	TArray<VkAccelerationStructureKHR> ActiveBLASes;
+
+	// Keep references on FVulkanRayTracingGeometry until lifetime issue is found (this prevents cancellation)
+	TArray<TRefCountPtr<FVulkanRayTracingGeometry>> ActiveRequests;
+	FVulkanCmdBuffer* ActiveRequestsCmdBuffer = nullptr;
+	uint64 ActiveRequestsFenceCounter = MAX_uint64;
 
 	FVulkanRayTracingCompactedSizeQueryPool* QueryPool = nullptr;
 };

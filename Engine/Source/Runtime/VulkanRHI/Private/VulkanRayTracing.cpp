@@ -1758,10 +1758,13 @@ void FVulkanRayTracingCompactedSizeQueryPool::Reset(FVulkanCmdBuffer* InCmdBuffe
 
 bool FVulkanRayTracingCompactedSizeQueryPool::TryGetResults(uint32 NumResults)
 {
-	if (CmdBuffer == nullptr) return false;
+	if (CmdBuffer == nullptr)
+	{
+		return false;
+	}
 
 	const uint64 FenceCurrentSignaledCounter = CmdBuffer->GetFenceSignaledCounter();
-	if (FenceSignaledCounter > FenceCurrentSignaledCounter)
+	if (FenceSignaledCounter >= FenceCurrentSignaledCounter)
 	{
 		return false;
 	}
@@ -1778,6 +1781,9 @@ FVulkanRayTracingCompactionRequestHandler::FVulkanRayTracingCompactionRequestHan
 	: VulkanRHI::FDeviceChild(InDevice)
 {
 	QueryPool = new FVulkanRayTracingCompactedSizeQueryPool(InDevice, GVulkanRayTracingMaxBatchedCompaction);
+
+	ActiveRequests.Reserve(GVulkanRayTracingMaxBatchedCompaction);
+	ActiveBLASes.Reserve(GVulkanRayTracingMaxBatchedCompaction);
 }
 
 void FVulkanRayTracingCompactionRequestHandler::RequestCompact(FVulkanRayTracingGeometry* InRTGeometry)
@@ -1822,6 +1828,7 @@ void FVulkanRayTracingCompactionRequestHandler::Update(FVulkanCommandListContext
 	LLM_SCOPE_BYNAME(TEXT("FVulkanRT/Compaction"));
 	FScopeLock Lock(&CS);
 
+	// If we have an active batch, wait on those queries and launch compaction when the complete
 	if (ActiveBLASes.Num() > 0)
 	{		
 		FVulkanCommandBufferManager& CommandBufferManager = *InCommandContext.GetCommandBufferManager();
@@ -1840,10 +1847,34 @@ void FVulkanRayTracingCompactionRequestHandler::Update(FVulkanCommandListContext
 
 			QueryPool->Reset(CmdBuffer);
 
-			ActiveRequests.Empty(ActiveRequests.Num());
-			ActiveBLASes.Empty(ActiveBLASes.Num());
+			ActiveBLASes.Empty(GVulkanRayTracingMaxBatchedCompaction);
+
+			ActiveRequestsCmdBuffer = CmdBuffer;
+			ActiveRequestsFenceCounter = CmdBuffer->GetFenceSignaledCounter();
 		}
+
+		// Only one active batch at a time (otherwise track the offset for when we launch queries)
+		return;
 	}
+	// If we have an active batch, wait until the compaction went through to launch another batch
+	else if (ActiveRequests.Num() > 0)
+	{
+		if (ActiveRequestsCmdBuffer)
+		{
+			if (ActiveRequestsFenceCounter >= ActiveRequestsCmdBuffer->GetFenceSignaledCounter())
+			{
+				return;
+			}
+
+			ActiveRequestsCmdBuffer = nullptr;
+			ActiveRequestsFenceCounter = MAX_uint64;
+		}
+
+		ActiveRequests.Empty(GVulkanRayTracingMaxBatchedCompaction);
+	}
+
+	check(ActiveBLASes.Num() == 0);
+	check(ActiveRequests.Num() == 0);
 
 	// build a new set of build requests to extract the build data	
 	for (FVulkanRayTracingGeometry* RTGeometry : PendingRequests)
@@ -1879,13 +1910,26 @@ void FVulkanRayTracingCompactionRequestHandler::Update(FVulkanCommandListContext
 			0
 		);
 
+		QueryPool->EndBatch(CmdBuffer);
+
 		CommandBufferManager.SubmitActiveCmdBuffer();
 		CommandBufferManager.PrepareForNewActiveCommandBuffer();
-
-		QueryPool->EndBatch(CmdBuffer);
 	}
 }
 
+void FVulkanRayTracingCompactionRequestHandler::OnCmdBufferDeleted(FVulkanCmdBuffer* DeletedCmdBuffer)
+{
+	FScopeLock Lock(&CS);
+
+	// If we are deleting it, it means all its commands went through and we don't need to wait on it anymore
+	if (DeletedCmdBuffer == ActiveRequestsCmdBuffer)
+	{
+		ActiveRequestsCmdBuffer = nullptr;
+		ActiveRequestsFenceCounter = MAX_uint64;
+	}
+
+	check(DeletedCmdBuffer != QueryPool->CmdBuffer);
+}
 
 
 
