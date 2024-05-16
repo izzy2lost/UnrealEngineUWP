@@ -13,6 +13,7 @@
 #include "MLDeformerModule.h"
 #include "MLDeformerModel.h"
 #include "MLDeformerSampler.h"
+#include "MeshDescription.h"
 #include "MLDeformerEditorModel.generated.h"
 
 class UMLDeformerModel;
@@ -500,15 +501,23 @@ namespace UE::MLDeformer
 		 * Go to a given frame in the training data.
 		 * Internally this will also call OnTimeSliderScrubPositionChanged, to go to the specific frame.
 		 * @param FrameNumber The training frame to go to. This will automatically be clamped to a valid range in case it goes out of bounds.
+		 * @param bIsScrubbing This is set to true when we are scrubbing the timeline. It is set to false when the mouse button is released.
 		 */
-		virtual void SetTrainingFrame(int32 FrameNumber);
+		virtual void SetTrainingFrame(int32 FrameNumber, bool bIsScrubbing);
+
+		UE_DEPRECATED(5.5, "Please use the SetTrainingFrame that takes a bIsScrubbing parameter.")
+		virtual void SetTrainingFrame(int32 FrameNumber) { SetTrainingFrame(FrameNumber, false); }
 
 		/**
 		 * Go to a given frame in the test data.
 		 * Internally this will also call OnTimeSliderScrubPositionChanged, to go to the specific frame.
 		 * @param FrameNumber The test frame to go to. This will automatically be clamped to a valid range in case it goes out of bounds.
+		 * @param bIsScrubbing This is set to true when we are scrubbing the timeline. It is set to false when the mouse button is released.
 		 */
-		virtual void SetTestFrame(int32 FrameNumber);
+		virtual void SetTestFrame(int32 FrameNumber, bool bIsScrubbing);
+
+		UE_DEPRECATED(5.5, "Please use the SetTestFrame that takes a bIsScrubbing parameter.")
+		virtual void SetTestFrame(int32 FrameNumber) { SetTestFrame(FrameNumber, false); }
 
 		/**
 		 * Render additional (debug) things in the viewport.
@@ -692,6 +701,17 @@ namespace UE::MLDeformer
 		virtual void ApplyDebugActorTransforms(const TArray<FTransform>& DebugActorComponentSpaceTransforms);
 
 		/**
+		 * Update the character's pose in paint mode.
+		 * This will check whether we are in training or testing mode and choose the editor actor based on that.
+		 * The paint mode will then use this specific editor actor's skeletal mesh component to calculate skinned vertex positions at its current pose.
+		 * After that it will update the dynamic mesh in the paint mode in order to paint in this same pose.
+		 * This method is called when you start painting, or scrub the timeline.
+		 * @param bFullUpdate When set to true, this can internally update the acceleration structures, which is slow. When set to false it can quickly update the visual mesh
+		 *                    It is still important to once call it with bFullUpdate set to true though, before you start painting.
+		 */
+		virtual void UpdatePaintModePose(bool bFullUpdate=true);
+
+		/**
 		 * Debug draw helpers inside the PIE viewport that highlight debuggable actors.
 		 * On default this will draw a bounding box around the actors that can be debugged by this model.
 		 * Also it will render the actor names.
@@ -736,10 +756,14 @@ namespace UE::MLDeformer
 		float GetScrubTime() const;
 
 		/** Set the current scrub position. */
-		void SetScrubPosition(FFrameTime NewScrubPostion);
+		UE_DEPRECATED(5.5, "Please use the SetScrubPosition which takes a bIsScrubbing parameter.")
+		void SetScrubPosition(FFrameTime NewScrubPosition);
+		void SetScrubPosition(FFrameTime NewScrubPosition, bool bIsScrubbing);
 
 		/** Set the current scrub position. */
-		void SetScrubPosition(FFrameNumber NewScrubPostion);
+		UE_DEPRECATED(5.5, "Please use the SetScrubPosition which takes a bIsScrubbing parameter.")
+		void SetScrubPosition(FFrameNumber NewScrubPosition);
+		void SetScrubPosition(FFrameNumber NewScrubPosition, bool bIsScrubbing);
 
 		/** Set if frames are displayed. */
 		void SetDisplayFrames(bool bDisplayFrames);
@@ -903,7 +927,7 @@ namespace UE::MLDeformer
 		/**
 		 * Get the currently desired training frame number.
 		 * You can call CheckTrainingFrameChanged in order to make the desired frame the actual frame.
-		 * @return The currenty desired training frame number, which might not the the same as the real training frame number.
+		 * @return The currently desired training frame number, which might not the the same as the real training frame number.
 		 */
 		int32 GetCurrentTrainingFrame() const { return CurrentTrainingFrame; }
 
@@ -952,6 +976,16 @@ namespace UE::MLDeformer
 
 		/** Mark the deltas to be updated on next Tick. */
 		void InvalidateDeltas();
+
+		/** 
+		 * Find the float based vertex attributes on the skeletal map that have a given name.
+		 * You can check whether the attribute data has been found using ReturnedValue.IsValid().
+		 */
+		TVertexAttributesConstRef<float> FindVertexAttributes(FName AttributeName) const;
+
+		/** Are we scrubbing on the timeline? */
+		bool IsScrubbingTimeline() const	{ return bIsScrubbingTimeline; }
+
 
 	protected:
 		virtual void CreateSamplers();
@@ -1177,6 +1211,9 @@ namespace UE::MLDeformer
 
 		/** The training input animation that is selected in the timeline. */
 		int32 ActiveTrainingInputAnimIndex = INDEX_NONE;
+
+		/** Are we currently scrubbing the timeline? */
+		bool bIsScrubbingTimeline = false;
 	};
 
 	/**

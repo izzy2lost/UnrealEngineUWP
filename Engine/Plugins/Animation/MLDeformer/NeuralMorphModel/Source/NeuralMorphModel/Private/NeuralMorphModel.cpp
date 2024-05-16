@@ -77,7 +77,7 @@ namespace
 		return BoneIndex;
 	}
 
-	void ModifyMaskInfosForBackwardCompatibility(const FReferenceSkeleton& RefSkel, const TArray<FBoneReference>& BoneIncludeList, TMap<FName, FNeuralMorphMaskInfo>& MaskInfos)
+	void ModifyMaskInfosForBackwardCompatibility(const FReferenceSkeleton& RefSkel, const TArray<FBoneReference>& BoneIncludeList, TMap<FName, FMLDeformerMaskInfo>& MaskInfos)
 	{
 		// If we are not using some masks, just skip it.
 		if (MaskInfos.IsEmpty())
@@ -107,7 +107,7 @@ namespace
 		TArray<FName> RequiredBones;
 		for (auto& MaskInfoEntry : MaskInfos)
 		{
-			FNeuralMorphMaskInfo& MaskInfo = MaskInfoEntry.Value;
+			FMLDeformerMaskInfo& MaskInfo = MaskInfoEntry.Value;
 			RequiredBones.Reset();
 			for (const FName MaskBoneName : MaskInfo.BoneNames)
 			{
@@ -141,6 +141,17 @@ namespace
 			}
 		}
 	}
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	FMLDeformerMaskInfo ConvertMaskInfo(const FNeuralMorphMaskInfo& NeuralMaskInfo)
+	{
+		FMLDeformerMaskInfo Result;
+		Result.BoneNames = NeuralMaskInfo.BoneNames;
+		Result.MaskMode = NeuralMaskInfo.MaskMode;
+		Result.VertexAttributeName = NeuralMaskInfo.VertexAttributeName;
+		return Result;
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 } // Anonymous namespace.
 
 void UNeuralMorphModel::Serialize(FArchive& Archive)
@@ -162,8 +173,8 @@ void UNeuralMorphModel::Serialize(FArchive& Archive)
 		}
 
 		// Strip the mask data in the cooked asset.
-		BoneMaskInfos.Empty();
-		BoneGroupMaskInfos.Empty();
+		BoneMaskInfoMap.Empty();
+		BoneGroupMaskInfoMap.Empty();
 	}
 
 	// Convert the UMLDeformerInputInfo object into a UNeuralMorphInputInfo object for backward compatiblity.
@@ -178,10 +189,31 @@ void UNeuralMorphModel::Serialize(FArchive& Archive)
 		}		
  	}
 
-	// Since 5.4 (when LOD was added), we modified the way the bone masks are generated.
-	// In UE 5.3 we added some extra bones to the mask. To keep the same behavior, we will upgrade the mask to include those bones again to ensure we get the same results when training.
-	// Newer assets will not do this.
 	#if WITH_EDITORONLY_DATA
+		// Since 5.5 we removed the FNeuralMorphMaskInfo and use the FMLDeformerMaskInfo type instead.
+		// We need to convert the masks.
+		if (Archive.IsLoading() && 
+			Archive.CustomVer(UE::MLDeformer::FMLDeformerObjectVersion::GUID) < UE::MLDeformer::FMLDeformerObjectVersion::MaskInfoMovedToFramework)
+		{
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+				for (const auto& MaskItemPair : BoneMaskInfos_DEPRECATED)
+				{
+					BoneMaskInfoMap.Add(MaskItemPair.Key, ConvertMaskInfo(MaskItemPair.Value));
+				}
+
+				for (const auto& MaskItemPair : BoneGroupMaskInfos_DEPRECATED)
+				{
+					BoneGroupMaskInfoMap.Add(MaskItemPair.Key, ConvertMaskInfo(MaskItemPair.Value));
+				}
+
+				BoneMaskInfos_DEPRECATED.Empty();
+				BoneGroupMaskInfos_DEPRECATED.Empty();
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+		}
+
+		// Since 5.4 (when LOD was added), we modified the way the bone masks are generated.
+		// In UE 5.3 we added some extra bones to the mask. To keep the same behavior, we will upgrade the mask to include those bones again to ensure we get the same results when training.
+		// Newer assets will not do this.
 		if (Archive.IsLoading() && 
 			Archive.CustomVer(UE::MLDeformer::FMLDeformerObjectVersion::GUID) < UE::MLDeformer::FMLDeformerObjectVersion::LODSupportAdded)
 		{
@@ -189,8 +221,8 @@ void UNeuralMorphModel::Serialize(FArchive& Archive)
 			if (SkelMesh)
 			{
 				const FReferenceSkeleton& RefSkeleton = SkelMesh->GetRefSkeleton();
-				ModifyMaskInfosForBackwardCompatibility(RefSkeleton, GetBoneIncludeList(), BoneMaskInfos);
-				ModifyMaskInfosForBackwardCompatibility(RefSkeleton, GetBoneIncludeList(), BoneGroupMaskInfos);
+				ModifyMaskInfosForBackwardCompatibility(RefSkeleton, GetBoneIncludeList(), BoneMaskInfoMap);
+				ModifyMaskInfosForBackwardCompatibility(RefSkeleton, GetBoneIncludeList(), BoneGroupMaskInfoMap);
 			}
 		}
 	#endif

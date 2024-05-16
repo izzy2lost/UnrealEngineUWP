@@ -59,6 +59,7 @@ public:
 	bool GetIncludeMorphTargetNormals() const						{ return bIncludeNormals; }
 	EMLDeformerMaskChannel GetMaskChannel() const					{ return MaskChannel; }
 	bool GetInvertMaskChannel() const								{ return bInvertMaskChannel; }
+	bool GetHasOnlyEmptyMorphs() const								{ return bHasOnlyEmptyMorphs; }
 
 	UFUNCTION(BlueprintPure, Category = "MLDeformerMorphModel")
 	bool CanDynamicallyUpdateMorphTargets() const;
@@ -69,6 +70,7 @@ public:
 	void SetMaskChannel(EMLDeformerMaskChannel Channel)				{ MaskChannel = Channel; }
 	void SetInvertMaskChannel(bool bInvert)							{ bInvertMaskChannel = bInvert; }
 	void SetClampMorphTargetsWeights(bool bEnabled)					{ bClampMorphWeights = bEnabled; }
+	void SetHasOnlyEmptyMorphs(bool bOnlyEmpty)						{ bHasOnlyEmptyMorphs = bOnlyEmpty; }
 
 	UE_DEPRECATED(5.5, "Please use SetMorphCompressionLevel, with upper case L for Level.")
 	void SetMorphCompressionlevel(float Tolerance)					{ MorphCompressionLevel = Tolerance; }
@@ -97,6 +99,10 @@ public:
 	static FName GetCompressedMorphDataSizeInBytesPropertyName()	{ return GET_MEMBER_NAME_CHECKED(UMLDeformerMorphModel, CompressedMorphDataSizeInBytes); }
 	static FName GetUncompressedMorphDataSizeInBytesPropertyName()	{ return GET_MEMBER_NAME_CHECKED(UMLDeformerMorphModel, UncompressedMorphDataSizeInBytes); }
 	static FName GetClampMorphTargetWeightsPropertyName()			{ return GET_MEMBER_NAME_CHECKED(UMLDeformerMorphModel, bClampMorphWeights); }
+
+#if WITH_EDITORONLY_DATA
+	static FName GetGlobalMaskAttributePropertyName()				{ return GET_MEMBER_NAME_CHECKED(UMLDeformerMorphModel, VertexAttributeName); }
+#endif
 
 	UE_DEPRECATED(5.4, "This method will be removed.")
 	static FName GetQualityLevelsPropertyName()						{ return GET_MEMBER_NAME_CHECKED(UMLDeformerMorphModel, QualityLevels_DEPRECATED); }
@@ -287,6 +293,11 @@ public:
 	UE_DEPRECATED(5.4, "Please use the GetNumActiveMorphsForLOD.")
 	int32 GetNumActiveMorphs(int32 QualityLevel) const;
 
+#if WITH_EDITORONLY_DATA
+	/** Get the name of the attribute used for the global mask. */
+	FName GetGlobalMaskAttributeName() const;
+#endif
+
 private:
 	/** The compressed morph target data, ready for the GPU. */
 	TSharedPtr<FExternalMorphSet> MorphTargetSet_DEPRECATED;
@@ -384,8 +395,14 @@ private:
 	 * You can use this feather out influence of the ML Deformer in specific areas, such as neck line seams, where the head mesh connects with the body.
 	 * The painted vertex color values will be like a weight multiplier on the ML deformer deltas applied to that vertex. You can invert the mask as well.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Morph Targets", meta = (EditCondition = "CanDynamicallyUpdateMorphTargets()"))
+	UPROPERTY(EditAnywhere, Category = "Morph Targets", meta = (EditCondition = "CanDynamicallyUpdateMorphTargets"))
 	EMLDeformerMaskChannel MaskChannel = EMLDeformerMaskChannel::Disabled;
+
+#if WITH_EDITORONLY_DATA
+	/** The global vertex attribute attribute name. This is an attribute on the skeletal mesh, which can be created using the skeletal mesh editor. */
+	UPROPERTY(EditAnywhere, Category = "Morph Targets", meta = (EditCondition = "CanDynamicallyUpdateMorphTargets() && MaskChannel == EMLDeformerMaskChannel::VertexAttribute", GetOptions = "GetVertexAttributeNames", NoResetToDefault))
+	FName VertexAttributeName;
+#endif
 
 	/** 
 	 * Enable this if you want to invert the mask channel values. For example if you painted the neck seam vertices in red, and you wish the vertices that got painted to NOT move, you have to invert the mask.
@@ -396,4 +413,7 @@ private:
 
 	/** The fence that let's us wait for all render commands to finish, before this instance is destroyed. */
 	FRenderCommandFence RenderCommandFence;
+
+	/** Set to true when all the morph targets got their deltas filtered out. This can happen when your global mask is all 0's for example. */
+	bool bHasOnlyEmptyMorphs = true;
 };

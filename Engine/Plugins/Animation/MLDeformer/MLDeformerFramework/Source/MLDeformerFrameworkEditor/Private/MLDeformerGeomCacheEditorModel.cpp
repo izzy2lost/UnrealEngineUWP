@@ -320,7 +320,7 @@ namespace UE::MLDeformer
 		if (GeometryCacheComponent)
 		{
 			GeometryCacheComponent->SetGeometryCache(GetActiveGeometryCache());
-			GeometryCacheComponent->SetLooping(false);
+			GeometryCacheComponent->SetLooping(true);
 			GeometryCacheComponent->SetManualTick(true);
 			GeometryCacheComponent->SetPlaybackSpeed(TestAnimSpeed);
 			GeometryCacheComponent->Play();

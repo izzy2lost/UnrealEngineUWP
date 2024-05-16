@@ -5,9 +5,12 @@
 #include "CoreTypes.h"
 #include "Templates/SharedPointer.h"
 #include "SMLDeformerInputWidget.h"
+#include "MeshDescription.h"
 #include "Framework/Commands/Commands.h"
 
 class FMenuBuilder;
+class USkeletalMesh;
+struct FMLDeformerMaskInfo;
 
 namespace UE::MLDeformer
 {
@@ -36,6 +39,9 @@ namespace UE::NeuralMorphModel
 		TSharedPtr<FUICommandInfo> ResetAllBoneGroupMasks;
 		TSharedPtr<FUICommandInfo> ResetSelectedBoneGroupMasks;
 		TSharedPtr<FUICommandInfo> ExpandSelectedBoneGroupMasks;
+
+		TSharedPtr<FUICommandInfo> ConfigureBoneMask;
+		TSharedPtr<FUICommandInfo> ConfigureBoneGroupMask;
 	};
 
 
@@ -88,6 +94,9 @@ namespace UE::NeuralMorphModel
 		void ResetAllBoneGroupMasks();
 		void ResetSelectedBoneGroupMasks();
 		void ExpandBoneGroupMasks();
+
+		void ConfigureBoneMask();
+		void ConfigureBoneGroupMask();
 
 		void BindCommands();
 		FReply ShowBoneGroupsManageContextMenu();

@@ -1221,7 +1221,7 @@ namespace UE::MLDeformer
 		{
 			FFrameNumber ScrubPosition = Model.Pin()->GetTickResScrubPosition();
 			ScrubPosition.Value += Model.Pin()->GetTicksPerFrame();
-			Model.Pin()->SetScrubPosition(ScrubPosition);
+			Model.Pin()->SetScrubPosition(ScrubPosition, false);
 			return FReply::Handled();
 		}
 		return FReply::Unhandled();
@@ -1233,7 +1233,7 @@ namespace UE::MLDeformer
 		{
 			const TRange<FFrameNumber> PlaybackRange = Model.Pin()->GetPlaybackRange();
 			FFrameNumber UpperBound = PlaybackRange.GetUpperBoundValue();
-			Model.Pin()->SetScrubPosition(UpperBound);
+			Model.Pin()->SetScrubPosition(UpperBound, false);
 			return FReply::Handled();
 		}
 		return FReply::Unhandled();
@@ -1245,7 +1245,7 @@ namespace UE::MLDeformer
 		{
 			FFrameNumber ScrubPosition = Model.Pin()->GetTickResScrubPosition();
 			ScrubPosition.Value -= Model.Pin()->GetTicksPerFrame();
-			Model.Pin()->SetScrubPosition(ScrubPosition);
+			Model.Pin()->SetScrubPosition(ScrubPosition, false);
 			return FReply::Handled();
 		}
 		return FReply::Unhandled();
@@ -1257,7 +1257,7 @@ namespace UE::MLDeformer
 		{
 			const TRange<FFrameNumber> PlaybackRange = Model.Pin()->GetPlaybackRange();
 			FFrameNumber LowerBound = PlaybackRange.GetLowerBoundValue();
-			Model.Pin()->SetScrubPosition(LowerBound);
+			Model.Pin()->SetScrubPosition(LowerBound, false);
 			return FReply::Handled();
 		}
 		return FReply::Unhandled();
@@ -1905,7 +1905,7 @@ namespace UE::MLDeformer
 	{
 		if (Model.IsValid())
 		{
-			Model.Pin()->SetScrubPosition(NewScrubPosition);
+			Model.Pin()->SetScrubPosition(NewScrubPosition, bIsScrubbing);
 		}
 	}
 
@@ -1931,7 +1931,7 @@ namespace UE::MLDeformer
 		const FFrameTime FrameTime((int)InFrameTime, 0.0f);
 		if (Model.IsValid())
 		{
-			Model.Pin()->SetScrubPosition(FrameTime);
+			Model.Pin()->SetScrubPosition(FrameTime, false);
 		}
 	}
 

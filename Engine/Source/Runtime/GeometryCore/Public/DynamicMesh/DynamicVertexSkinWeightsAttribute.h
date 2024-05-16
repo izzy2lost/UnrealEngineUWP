@@ -320,8 +320,8 @@ public:
 
 		const int32 NumEntries = BoneWeights.Num();
 
-		OutBones.SetNum(NumEntries);
-		OutWeights.SetNum(NumEntries);
+		OutBones.SetNum(NumEntries, EAllowShrinking::No);
+		OutWeights.SetNum(NumEntries, EAllowShrinking::No);
 
 		for (int32 BoneIdx = 0; BoneIdx < NumEntries; ++BoneIdx)
 		{

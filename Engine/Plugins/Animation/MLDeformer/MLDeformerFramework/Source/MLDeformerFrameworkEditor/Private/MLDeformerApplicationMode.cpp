@@ -35,6 +35,7 @@ namespace UE::MLDeformer
 		// Register Persona tabs.
 		FPersonaModule& PersonaModule = FModuleManager::LoadModuleChecked<FPersonaModule>("Persona");
 		TabFactories.RegisterFactory(PersonaModule.CreatePersonaViewportTabFactory(InHostingApp, ViewportArgs));
+		TabFactories.RegisterFactory(PersonaModule.CreatePersonaToolboxTabFactory(MLDeformerEditor));
 		TabFactories.RegisterFactory(PersonaModule.CreateDetailsTabFactory(InHostingApp, FOnDetailsCreated::CreateSP(&MLDeformerEditor.Get(), &FMLDeformerEditorToolkit::HandleDetailsCreated)));
 
 		// Register custom tabs.
@@ -49,7 +50,7 @@ namespace UE::MLDeformer
 		}
 
 		// Create tab layout.
-		TabLayout = FTabManager::NewLayout("Standalone_MLDeformerEditor_Layout_v5.3.001")
+		TabLayout = FTabManager::NewLayout("Standalone_MLDeformerEditor_Layout_v5.5.001")
 			->AddArea
 			(
 				FTabManager::NewPrimaryArea()
@@ -64,6 +65,8 @@ namespace UE::MLDeformer
 						FTabManager::NewStack()
 						->SetSizeCoefficient(0.3f)
 						->AddTab(FMLDeformerVizSettingsTabSummoner::TabID, ETabState::OpenedTab)
+						->AddTab(FPersonaTabs::ToolboxID, ETabState::OpenedTab)
+						->SetForegroundTab(FMLDeformerVizSettingsTabSummoner::TabID)
 					)
 					->Split
 					(

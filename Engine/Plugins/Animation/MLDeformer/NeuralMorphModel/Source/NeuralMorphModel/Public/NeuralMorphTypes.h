@@ -4,6 +4,7 @@
 #include "CoreTypes.h"
 #include "Containers/Array.h"
 #include "BoneContainer.h"
+#include "MLDeformerMasking.h"
 #include "MLDeformerCurveReference.h"
 #include "NeuralMorphTypes.generated.h"
 
@@ -99,7 +100,7 @@ public:
  * There will be an array of these structs, one for each bone.
  */
 USTRUCT()
-struct NEURALMORPHMODEL_API FNeuralMorphMaskInfo
+struct UE_DEPRECATED(5.5, "This class has been deprecated, please use FMLDeformerMaskInfo instead.") NEURALMORPHMODEL_API FNeuralMorphMaskInfo
 {
 	GENERATED_BODY()
 
@@ -107,4 +108,12 @@ public:
 	/** The list of bone names that should be included in the mask generation. */
 	UPROPERTY()
 	TArray<FName> BoneNames;
+
+	/** The masking mode. */
+	UPROPERTY()
+	EMLDeformerMaskingMode MaskMode = EMLDeformerMaskingMode::Generated;
+
+	/** If the masking mode is set to VertexAttribute then we can check which attribute to use using this member. */
+	UPROPERTY()
+	FName VertexAttributeName;
 };

@@ -94,6 +94,16 @@ public:
 	UPROPERTY()
 	TArray<FNeuralMorphCurveGroup> CurveGroups;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "This property has been deprecated, please use BoneMaskInfoMap instead.")
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "This property has been deprecated, please use BoneMaskInfoMap instead."))
+	TMap<FName, FNeuralMorphMaskInfo> BoneMaskInfos_DEPRECATED;
+
+	UE_DEPRECATED(5.5, "This property has been deprecated, please use BoneGroupMaskInfoMap instead.")
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "This property has been deprecated, please use BoneGroupMaskInfoMap instead."))
+	TMap<FName, FNeuralMorphMaskInfo> BoneGroupMaskInfos_DEPRECATED;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	/**
 	 * Information needed to generate a mask for each bone.
 	 * Each mask info object contains a list of bones who's skinning influence regions should be included in the final mask for the specific bone.
@@ -101,7 +111,7 @@ public:
 	 * The FName map key represents the bone name.
 	 */
 	UPROPERTY()
-	TMap<FName, FNeuralMorphMaskInfo> BoneMaskInfos;
+	TMap<FName, FMLDeformerMaskInfo> BoneMaskInfoMap;
 
 	/**
 	 * Information needed to generate a mask for each bone group.
@@ -110,7 +120,7 @@ public:
 	 * This information (and bone masking in general) is used inside the ENeuralMorphMode::Local mode.
 	 */
 	UPROPERTY()
-	TMap<FName, FNeuralMorphMaskInfo> BoneGroupMaskInfos;
+	TMap<FName, FMLDeformerMaskInfo> BoneGroupMaskInfoMap;
 
 	/**
 	 * The mode that the neural network will operate in. 

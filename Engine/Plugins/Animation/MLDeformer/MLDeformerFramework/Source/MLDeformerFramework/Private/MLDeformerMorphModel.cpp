@@ -9,6 +9,7 @@
 #include "MLDeformerModule.h"
 #include "Components/ExternalMorphSet.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "Rendering/MorphTargetVertexInfoBuffers.h"
 #include "UObject/AssetRegistryTagsContext.h"
 
@@ -186,7 +187,8 @@ int32 UMLDeformerMorphModel::GetNumMorphTargets(int32 LOD) const
 bool UMLDeformerMorphModel::CanDynamicallyUpdateMorphTargets() const
 {
 	const int32 LOD = 0;
-	return GetMorphTargetDeltas().Num() == (GetNumBaseMeshVerts() * GetNumMorphTargets(LOD));
+	const bool bResult = (GetMorphTargetDeltas().Num() == (GetNumBaseMeshVerts() * GetNumMorphTargets(LOD))) || bHasOnlyEmptyMorphs;
+	return bResult;
 }
 
 UMLDeformerModelInstance* UMLDeformerMorphModel::CreateModelInstance(UMLDeformerComponent* Component)
@@ -345,6 +347,14 @@ int32 UMLDeformerMorphModel::GetNumActiveMorphs(int32 QualityLevel) const
 {
 	return 0;
 }
+
+#if WITH_EDITORONLY_DATA
+FName UMLDeformerMorphModel::GetGlobalMaskAttributeName() const
+{
+	return VertexAttributeName;
+}
+#endif
+
 
 #if WITH_EDITOR
 void UMLDeformerMorphModel::UpdateMemoryUsage()

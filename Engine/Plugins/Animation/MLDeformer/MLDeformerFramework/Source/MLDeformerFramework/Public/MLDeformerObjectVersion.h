@@ -19,6 +19,9 @@ namespace UE::MLDeformer
 			// We added LOD support.
 			LODSupportAdded,
 
+			// We deprecated the UNeuralMorphMaskInfo and should use FMLDeformerMaskInfo instead.
+			MaskInfoMovedToFramework,
+
 			// ----- New versions can be added above this line -----
 			VersionPlusOne,
 			LatestVersion = VersionPlusOne - 1

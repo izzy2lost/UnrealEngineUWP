@@ -7,8 +7,12 @@
 #include "MLDeformerModel.h"
 #include "MLDeformerApplicationMode.h"
 #include "MLDeformerEditorMode.h"
+#include "MLDeformerPaintMode.h"
+#include "MLDeformerPaintModeToolkit.h"
 #include "MLDeformerEditorModule.h"
 #include "MLDeformerEditorModel.h"
+#include "MLDeformerVizSettingsTabSummoner.h"
+#include "MLDeformerTimelineTabSummoner.h"
 #include "MLDeformerInputInfo.h"
 #include "MLDeformerEditorStyle.h"
 #include "MLDeformerVizSettings.h"
@@ -20,6 +24,7 @@
 #include "EditorViewportClient.h"
 #include "Modules/ModuleManager.h"
 #include "PersonaModule.h"
+#include "PersonaTabs.h"
 #include "IPersonaToolkit.h"
 #include "IAssetFamily.h"
 #include "IPersonaViewport.h"
@@ -96,11 +101,13 @@ namespace UE::MLDeformer
 		GetEditorModeManager().ActivateMode(FMLDeformerEditorMode::ModeName);
 
 		FMLDeformerEditorMode* EditorMode = static_cast<FMLDeformerEditorMode*>(GetEditorModeManager().GetActiveMode(FMLDeformerEditorMode::ModeName));
-		EditorMode->SetEditorToolkit(this);
+		if (EditorMode)
+		{
+			EditorMode->SetEditorToolkit(this);
+		}
 
 		SAssignNew(DebugWidget, SMLDeformerDebugSelectionWidget)
-			.MLDeformerEditor(this)
-			.Visibility(this, &FMLDeformerEditorToolkit::GetDebuggingVisibility);
+			.MLDeformerEditor(this);
 
 		ExtendToolbar();
 		RegenerateMenusAndToolbars();
@@ -109,8 +116,8 @@ namespace UE::MLDeformer
 		if (ActiveModel)
 		{
 			ActiveModel->UpdateIsReadyForTrainingState();
-			ActiveModel->SetTrainingFrame(ActiveModel->GetModel()->GetVizSettings()->GetTrainingFrameNumber());
-			ActiveModel->SetTestFrame(ActiveModel->GetModel()->GetVizSettings()->GetTestingFrameNumber());
+			ActiveModel->SetTrainingFrame(ActiveModel->GetModel()->GetVizSettings()->GetTrainingFrameNumber(), false);
+			ActiveModel->SetTestFrame(ActiveModel->GetModel()->GetVizSettings()->GetTestingFrameNumber(), false);
 			ActiveModel->InvalidateDeltas();
 		}
 
@@ -475,19 +482,13 @@ namespace UE::MLDeformer
 	void FMLDeformerEditorToolkit::FillToolbar(FToolBarBuilder& ToolbarBuilder)
 	{
 		// Training button and model selection.
-		ToolbarBuilder.BeginSection("Training");
+		ToolbarBuilder.BeginSection("Main");
 		{
 			ToolbarBuilder.AddToolBarButton(
 				FUIAction
 				(
-					FExecuteAction::CreateLambda
-					(
-						[this]()
-						{
-							Train(/*bSuppressDialogs*/false);
-						}
-					),
-					FCanExecuteAction::CreateRaw(this, &FMLDeformerEditorToolkit::IsTrainButtonEnabled)
+					FExecuteAction::CreateLambda([this]() { Train(/*bSuppressDialogs*/false); }),
+					FCanExecuteAction::CreateLambda([this]() { return IsTrainButtonEnabled() && !IsPaintModeActive(); })
 				),
 				NAME_None,
 				LOCTEXT("TrainModel", "Train Model"),
@@ -497,16 +498,28 @@ namespace UE::MLDeformer
 			);
 
 			ToolbarBuilder.AddSeparator();
+
+			// Model selection.
 			TSharedPtr<FUICommandList> CommandList = GetToolkitCommands();
 			ToolbarBuilder.AddComboButton(
-				FUIAction(),
+				FUIAction
+				(
+					FExecuteAction(),
+					FCanExecuteAction::CreateLambda([this]() { return !IsPaintModeActive(); })						
+				),
 				FOnGetContent::CreateRaw(this, &FMLDeformerEditorToolkit::GenerateModelButtonContents, CommandList.ToSharedRef()),
 				TAttribute<FText>::CreateRaw(this, &FMLDeformerEditorToolkit::GetActiveModelName),
 				LOCTEXT("ActiveModelTooltip", "The currently active ML Deformer Model."),
 				FSlateIcon(FMLDeformerEditorStyle::Get().GetStyleSetName(), "MLDeformer.VizSettings.TabIcon")
 			);
+
+			// Visualization mode.
 			ToolbarBuilder.AddComboButton(
-				FUIAction(),
+				FUIAction
+				(
+					FExecuteAction(),
+					FCanExecuteAction::CreateLambda([this]() { return !IsPaintModeActive(); })						
+				),
 				FOnGetContent::CreateRaw(this, &FMLDeformerEditorToolkit::GenerateVizModeButtonContents, CommandList.ToSharedRef()),
 				TAttribute<FText>::CreateRaw(this, &FMLDeformerEditorToolkit::GetCurrentVizModeName),			
 				LOCTEXT("VizModeModeTooltip", "The visualization mode, specifying whether you are working on training or testing."),
@@ -522,7 +535,11 @@ namespace UE::MLDeformer
 			{
 				TSharedPtr<FUICommandList> CommandList = GetToolkitCommands();
 				ToolbarBuilder.AddComboButton(
-					FUIAction(),
+					FUIAction
+					(
+						FExecuteAction(),
+						FCanExecuteAction::CreateLambda([this]() { return !IsPaintModeActive(); })						
+					),
 					FOnGetContent::CreateRaw(this, &FMLDeformerEditorToolkit::GenerateToolsMenuContents, CommandList.ToSharedRef()),
 					TAttribute<FText>::CreateLambda(
 						[this]()
@@ -540,15 +557,20 @@ namespace UE::MLDeformer
 		// Debugging.
 		ToolbarBuilder.BeginSection("Debugging");
 		{
+			DebugWidget->SetEnabled(TAttribute<bool>::CreateLambda([this]()
+			{
+				return !IsPaintModeActive() && GetDebuggingVisibility() == EVisibility::Visible;
+			}));
+
 			ToolbarBuilder.AddWidget(DebugWidget.ToSharedRef());
 			ToolbarBuilder.AddToolBarButton
 			(
 				FUIAction
 				(
 					FExecuteAction::CreateLambda([this]() { if (DebugWidget.IsValid()) { DebugWidget->Refresh(); } }),
-					FCanExecuteAction::CreateLambda([](){ return true; }),
-					FGetActionCheckState::CreateLambda([](){ return ECheckBoxState::Checked; }),
-					FIsActionButtonVisible::CreateLambda([this](){ return GetDebuggingVisibility() == EVisibility::Visible; })
+					FCanExecuteAction::CreateLambda([this]() { return !IsPaintModeActive() && GetDebuggingVisibility() == EVisibility::Visible; }),
+					FGetActionCheckState::CreateLambda([]() { return ECheckBoxState::Checked; }),
+					FIsActionButtonVisible::CreateLambda([this]() { return true;/*return GetDebuggingVisibility() == EVisibility::Visible;*/ })
 				),
 				NAME_None,
 				FText(),
@@ -558,6 +580,43 @@ namespace UE::MLDeformer
 			);
 		}
 		ToolbarBuilder.EndSection();
+
+		ToolbarBuilder.BeginSection("EditorModes");
+		{
+			ToolbarBuilder.AddToolBarButton(
+				FUIAction
+				(
+					FExecuteAction::CreateLambda
+					(
+						[this]()
+						{
+							if (!GetEditorModeManager().IsModeActive(UMLDeformerPaintMode::Id))
+							{
+								EnablePaintMode();
+							}
+							else
+							{
+								DisablePaintMode();
+							}							
+						}
+					),
+					FCanExecuteAction::CreateLambda([this]()
+					{
+						if (ActiveModel.IsValid() && ActiveModel->GetModel() && ActiveModel->GetModel()->GetSkeletalMesh())
+						{
+							return true;
+						}
+						return false; 
+					}),
+					FIsActionChecked::CreateLambda([this] { return IsPaintModeActive(); })
+				),
+				NAME_None,
+				LOCTEXT("PaintMode", "Paint Mode"),
+				LOCTEXT("PaintModeTooltip", "Enable or disable vertex attribute painting."),
+				FSlateIcon(),
+				EUserInterfaceActionType::ToggleButton
+			);
+		}
 	}
 
 	EVisibility FMLDeformerEditorToolkit::GetDebuggingVisibility() const
@@ -570,7 +629,7 @@ namespace UE::MLDeformer
 			}
 			else
 			{
-				return EVisibility::Hidden;
+				return EVisibility::Collapsed;
 			}
 		}
 		return EVisibility::Visible;
@@ -827,14 +886,14 @@ namespace UE::MLDeformer
 				{
 					ActiveModel->ClampCurrentTrainingFrameIndex();
 					const int32 CurrentFrameNumber = ActiveModel->GetModel()->GetVizSettings()->GetTrainingFrameNumber();
-					ActiveModel->SetTrainingFrame(CurrentFrameNumber);
+					ActiveModel->SetTrainingFrame(CurrentFrameNumber, false);
 					ActiveModel->SampleDeltas();
 				}
 				else if (VizSettings->GetVisualizationMode() == EMLDeformerVizMode::TestData)
 				{
 					ActiveModel->ClampCurrentTestFrameIndex();
 					const int32 CurrentFrameNumber = ActiveModel->GetModel()->GetVizSettings()->GetTestingFrameNumber();
-					ActiveModel->SetTestFrame(CurrentFrameNumber);
+					ActiveModel->SetTestFrame(CurrentFrameNumber, false);
 				}
 
 				if (GetVizSettingsDetailsView())
@@ -1069,6 +1128,116 @@ namespace UE::MLDeformer
 		FScopeLock Lock(&ExtendersMutex);
 		return ToolsMenuExtenders;
 	}
+
+	void FMLDeformerEditorToolkit::EnablePaintMode()
+	{
+		GetEditorModeManager().DeactivateMode(FMLDeformerEditorMode::ModeName);
+		GetEditorModeManager().ActivateMode(UMLDeformerPaintMode::Id);
+
+		UEdMode* ActiveMode = GetEditorModeManager().GetActiveScriptableMode(UMLDeformerPaintMode::Id);
+		if (UMLDeformerPaintMode* PaintMode = CastChecked<UMLDeformerPaintMode>(ActiveMode))
+		{
+			PaintMode->SetMLDeformerEditor(this);
+
+			if (ActiveModel.IsValid())
+			{
+				ActiveModel->UpdatePaintModePose();
+			}
+
+			// Disable the viz settings,details and timeline tabs, as we don't want to be able to modify those settings while in Paint mode.
+			TSharedPtr<SDockTab> VizTab = TabManager->FindExistingLiveTab(FMLDeformerVizSettingsTabSummoner::TabID);
+			if (VizTab.IsValid())
+			{
+				VizTab->SetEnabled(false);
+				VizTab->GetContent()->SetEnabled(false);
+			}
+
+			TSharedPtr<SDockTab> DetailsTab = TabManager->FindExistingLiveTab(FPersonaTabs::DetailsID);
+			if (DetailsTab.IsValid())
+			{
+				DetailsTab->SetEnabled(false);
+				DetailsTab->GetContent()->SetEnabled(false);
+			}
+		}
+
+		if (ActiveModel.IsValid())
+		{
+			ActiveModel->UpdateActorVisibility();
+			ActiveModel->UpdateLabels();
+		}
+	}
+
+	void FMLDeformerEditorToolkit::DisablePaintMode()
+	{
+		GetEditorModeManager().DeactivateMode(UMLDeformerPaintMode::Id);
+		GetEditorModeManager().ActivateMode(FMLDeformerEditorMode::ModeName);
+
+		// Enable some tabs again after Paint mode ended.
+		TSharedPtr<SDockTab> VizTab = TabManager->FindExistingLiveTab(FMLDeformerVizSettingsTabSummoner::TabID);
+		if (VizTab.IsValid())
+		{
+			VizTab->SetEnabled(true);
+			VizTab->GetContent()->SetEnabled(true);
+		}
+
+		TSharedPtr<SDockTab> DetailsTab = TabManager->FindExistingLiveTab(FPersonaTabs::DetailsID);
+		if (DetailsTab.IsValid())
+		{
+			DetailsTab->SetEnabled(true);
+			DetailsTab->GetContent()->SetEnabled(true);
+		}
+
+		// Update the actor visibility as the mode changes that.
+		if (ActiveModel.IsValid())
+		{
+			ActiveModel->UpdateActorVisibility();
+			ActiveModel->UpdateLabels();
+		}
+	}
+
+	bool FMLDeformerEditorToolkit::IsDefaultModeActive() const
+	{
+		if (GetPersonaToolkitPointer() == nullptr)
+		{
+			return true;
+		}
+		return GetEditorModeManager().IsModeActive(FMLDeformerEditorMode::ModeName);
+	}
+
+	bool FMLDeformerEditorToolkit::IsPaintModeActive() const
+	{
+		if (GetPersonaToolkitPointer() == nullptr)
+		{
+			return true;
+		}
+		return GetEditorModeManager().IsModeActive(UMLDeformerPaintMode::Id);
+	}
+
+	void FMLDeformerEditorToolkit::AddViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget, int32 ZOrder)
+	{
+		if (GetViewport().IsValid())
+		{
+			GetViewport()->AddOverlayWidget(InViewportOverlayWidget, ZOrder);
+		}	
+	}
+
+	void FMLDeformerEditorToolkit::RemoveViewportOverlayWidget(TSharedRef<SWidget> InViewportOverlayWidget)
+	{
+		if (GetViewport().IsValid())
+		{
+			GetViewport()->RemoveOverlayWidget(InViewportOverlayWidget);
+		}	
+	}
+
+	void FMLDeformerEditorToolkit::Tick(float DeltaTime)
+	{
+		if (bNeedsPaintModeDisable)
+		{
+			DisablePaintMode();
+			bNeedsPaintModeDisable = false;
+		}		
+	}
+
 }	// namespace UE::MLDeformer
 
 #undef LOCTEXT_NAMESPACE

@@ -232,6 +232,8 @@ public:
 		return true;
 	}
 
+	UE::Geometry::TDynamicVerticesOctree3<FDynamicMesh3>& GetVerticesOctree() { return VerticesOctree; }
+
 protected:
 	virtual void ApplyStamp(const FBrushStampData& Stamp);
 

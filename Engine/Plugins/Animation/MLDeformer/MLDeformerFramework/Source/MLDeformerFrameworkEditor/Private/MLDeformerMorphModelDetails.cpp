@@ -175,7 +175,24 @@ namespace UE::MLDeformer
 
 		IDetailGroup& MaskGroup = MorphTargetCategoryBuilder->AddGroup("Mask", LOCTEXT("MorphMaskGroupLabel", "Masking"), false, false);
 		MaskGroup.AddPropertyRow(DetailLayoutBuilder->GetProperty(UMLDeformerMorphModel::GetMaskChannelPropertyName(), UMLDeformerMorphModel::StaticClass()));
+		MaskGroup.AddPropertyRow(DetailLayoutBuilder->GetProperty(UMLDeformerMorphModel::GetGlobalMaskAttributePropertyName(), UMLDeformerMorphModel::StaticClass()));
 		MaskGroup.AddPropertyRow(DetailLayoutBuilder->GetProperty(UMLDeformerMorphModel::GetInvertMaskChannelPropertyName(), UMLDeformerMorphModel::StaticClass()));
+
+		if (MorphModel && MorphModel->GetMaskChannel() == EMLDeformerMaskChannel::VertexAttribute && !EditorModel->FindVertexAttributes(MorphModel->GetGlobalMaskAttributeName()).IsValid())
+		{
+			const FText MaskErrorText = LOCTEXT("MorphGlobalMaskWeightMapError", "The weight map attribute you specified does not exist on the skeletal mesh.");
+			FDetailWidgetRow& MaskErrorRow = MorphTargetCategoryBuilder->AddCustomRow(FText::FromString("MorphGlobalMaskError"))
+				.WholeRowContent()
+				[
+					SNew(SBox)
+					.Padding(FMargin(0.0f, 4.0f))
+					[
+						SNew(SWarningOrErrorBox)
+						.MessageStyle(EMessageStyle::Warning)
+						.Message(MaskErrorText)
+					]
+				];
+		}
 
 		if (MorphModel && MorphModel->HasRawMorph() && !MorphModel->CanDynamicallyUpdateMorphTargets())
 		{
