@@ -19,4 +19,5 @@ void Wait(const double ToWaitSeconds);
  * Isolate tests using different configurations.
  * @note Add new logs each time you add a way to change the configuration of the test from the .xml testing file
  */
-void LogMutableSettings();
+void LogGlobalSettings();
+

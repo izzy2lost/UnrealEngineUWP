@@ -6,7 +6,7 @@
 #include "Commandlets/Commandlet.h"
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectSystem.h"
-#include "Interfaces/ITargetPlatform.h"
+#include "RHIGlobals.h"
 
 void PrepareAssetRegistry()
 {
@@ -22,13 +22,17 @@ void PrepareAssetRegistry()
 }
 
 
-void LogMutableSettings()
+void LogGlobalSettings()
 {
+	// Mutable Settings
 	const int32 WorkingMemory = UCustomizableObjectSystem::GetInstanceChecked()->GetWorkingMemory() ;
 	UE_LOG(LogMutable,Log, TEXT("(int) working_memory_bytes : %d"), WorkingMemory * 1024)
 	UE_LOG(LogMutable, Display, TEXT("The mutable updates will use as working memory the value of %d KB"), WorkingMemory)
 	
 	// Expand this when adding new controls from the .xml file
+	
+	// RHI Settings
+	UE_LOG(LogMutable, Log, TEXT("(string) rhi_adapter_name : %s"), *GRHIAdapterName )
 }
 
 

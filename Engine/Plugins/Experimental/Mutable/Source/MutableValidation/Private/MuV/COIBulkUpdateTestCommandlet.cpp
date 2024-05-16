@@ -38,7 +38,7 @@ int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 	// Load the asset registry system so we can proceed without issues
 	PrepareAssetRegistry();
 
-	LogMutableSettings();
+	LogGlobalSettings();
 	
 	// Cache all UAssets (find a way to not have them in memory yet, not until we need them)
 	TArray<FAssetData> FoundAssetData;

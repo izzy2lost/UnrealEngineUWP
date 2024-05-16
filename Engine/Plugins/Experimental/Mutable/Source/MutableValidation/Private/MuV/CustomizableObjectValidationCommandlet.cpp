@@ -74,7 +74,7 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 	// Make sure there is nothing else that the engine needs to do before starting our test
 	Wait(60);
 
-	LogMutableSettings();
+	LogGlobalSettings();
 	
 	// Compile the Customizable Object ------------------------------------------------------------------------------ //
 	bool bWasCoCompilationSuccessful = false;

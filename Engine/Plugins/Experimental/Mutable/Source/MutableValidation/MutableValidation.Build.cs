@@ -17,7 +17,8 @@ namespace UnrealBuildTool.Rules
 				new string[] {
 					"Settings", 
 					"Engine", 
-					"MutableRuntime"
+					"MutableRuntime",
+					"RHI"
 				});
 			
 			PrivateDependencyModuleNames.AddRange(
