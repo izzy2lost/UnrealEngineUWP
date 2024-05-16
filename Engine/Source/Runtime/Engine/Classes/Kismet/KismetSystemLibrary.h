@@ -373,6 +373,10 @@ class UKismetSystemLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintCallable, Category = "Utilities", meta = (DeterminesOutputType = "AssetClass"))
 	static ENGINE_API UClass* LoadClassAsset_Blocking(TSoftClassPtr<UObject> AssetClass);
 
+	/** Returns true if Object is of type SoftClass - either an instance of the class or child class, or implements the interface. Alternative to Cast - slower but without adding a hard reference. */
+	UFUNCTION(BlueprintCallable, Category = "Utilities", meta = (ExpandEnumAsExecs = ReturnValue, DisplayName = "IsA ( soft )"))
+	static bool IsObjectOfSoftClass(const UObject* Object, TSoftClassPtr<UObject> SoftClass);
+
 	// Internal functions used by K2Node_LoadAsset and K2Node_ConvertAsset
 
 	UFUNCTION(BlueprintPure, meta = (BlueprintInternalUseOnly = "true"), Category = "Utilities")

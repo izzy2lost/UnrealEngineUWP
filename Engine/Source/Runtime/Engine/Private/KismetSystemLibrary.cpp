@@ -1441,6 +1441,29 @@ UClass* UKismetSystemLibrary::LoadClassAsset_Blocking(TSoftClassPtr<UObject> Ass
 	return AssetClass.LoadSynchronous();
 }
 
+bool UKismetSystemLibrary::IsObjectOfSoftClass(const UObject* Object, TSoftClassPtr<UObject> SoftClass)
+{
+	if (!Object)
+	{
+		return false;
+	}
+
+	TSubclassOf<UObject> ObjectClass = SoftClass.Get();
+	if (!ObjectClass)
+	{
+		return false;
+	}
+
+	TSubclassOf<UInterface> InterfaceClass = ObjectClass.Get();
+	if (InterfaceClass)
+	{
+		check(Object->GetClass());
+		return Object->GetClass()->ImplementsInterface(InterfaceClass);
+	}
+
+	return Object->IsA(ObjectClass);
+}
+
 UObject* UKismetSystemLibrary::Conv_SoftObjectReferenceToObject(const TSoftObjectPtr<UObject>& SoftObject)
 {
 	return SoftObject.Get();
