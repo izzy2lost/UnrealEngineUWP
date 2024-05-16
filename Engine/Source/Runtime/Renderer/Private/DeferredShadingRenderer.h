@@ -377,7 +377,6 @@ public:
 
 	void RenderAnisotropyPass(
 		FRDGBuilder& GraphBuilder,
-		TArrayView<FViewInfo> InViews,
 		FSceneTextures& SceneTextures,
 		bool bDoParallelPass);
 	/**
@@ -385,12 +384,10 @@ public:
 	 */
 	FSingleLayerWaterPrePassResult* RenderSingleLayerWaterDepthPrepass(
 		FRDGBuilder& GraphBuilder,
-		TArrayView<FViewInfo> InViews,
 		const FSceneTextures& SceneTextures);
 
 	void RenderSingleLayerWater(
 		FRDGBuilder& GraphBuilder,
-		TArrayView<FViewInfo> InViews,
 		const FSceneTextures& SceneTextures,
 		const FSingleLayerWaterPrePassResult* SingleLayerWaterPrePassResult,
 		bool bShouldRenderVolumetricCloud,
@@ -400,14 +397,12 @@ public:
 
 	void RenderSingleLayerWaterInner(
 		FRDGBuilder& GraphBuilder,
-		TArrayView<FViewInfo> InViews,
 		const FSceneTextures& SceneTextures,
 		const FSceneWithoutWaterTextures& SceneWithoutWaterTextures,
 		const FSingleLayerWaterPrePassResult* SingleLayerWaterPrePassResult);
 
 	void RenderSingleLayerWaterReflections(
 		FRDGBuilder& GraphBuilder,
-		TArrayView<FViewInfo> InViews,
 		const FSceneTextures& SceneTextures,
 		const FSceneWithoutWaterTextures& SceneWithoutWaterTextures,
 		const FSingleLayerWaterPrePassResult* SingleLayerWaterPrePassResult,

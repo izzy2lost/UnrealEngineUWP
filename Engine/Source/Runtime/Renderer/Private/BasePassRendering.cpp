@@ -1187,10 +1187,9 @@ void FDeferredShadingSceneRenderer::RenderBasePass(
 		ClearGBufferAtMaxZ(GraphBuilder, InViews, BasePassRenderTargets, SceneColorClearValue);
 	}
 
-	// The anisotropy GBuffer is used for lighting, and not needed when running a scene capture with ERendererOutput::BasePass (BaseColor or Normal output), which doesn't run lighting.
-	if (ShouldRenderAnisotropyPass(InViews) && GetRendererOutput() == ERendererOutput::FinalSceneColor)
+	if (ShouldRenderAnisotropyPass(InViews))
 	{
-		RenderAnisotropyPass(GraphBuilder, InViews, SceneTextures, bEnableParallelBasePasses);
+		RenderAnisotropyPass(GraphBuilder, SceneTextures, bEnableParallelBasePasses);
 	}
 
 #if !(UE_BUILD_SHIPPING)

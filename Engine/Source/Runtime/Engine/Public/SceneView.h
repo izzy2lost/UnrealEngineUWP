@@ -2168,6 +2168,7 @@ public:
 	*/
 	bool bIsFirstViewInMultipleViewFamily = true;
 
+	bool bIsSceneTexturesInitialized = false;
 	bool bIsViewFamilyInfo = false;
 
 	/** Whether this view allows split screen debug -- we only want it for editor and game viewports, not other random scene renders */
