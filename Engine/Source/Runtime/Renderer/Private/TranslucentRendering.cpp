@@ -1032,7 +1032,7 @@ static FViewShaderParameters GetSeparateTranslucencyViewParameters(const FViewIn
 		// We can use the existing view uniform buffers if no downsampling is required and is not in the post-motionblur pass
 		ViewParameters = View.GetShaderParameters();
 	}	
-	else if (bIsPostMotionBlur)
+	else if (ViewportScale == 1.0f && bIsPostMotionBlur)
 	{
 		// Full-scale post-motionblur pass
 		FViewUniformShaderParameters ViewUniformParameters;
