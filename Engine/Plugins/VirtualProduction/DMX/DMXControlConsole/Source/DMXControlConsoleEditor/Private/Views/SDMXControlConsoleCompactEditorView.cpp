@@ -13,10 +13,14 @@
 #include "Models/DMXControlConsoleEditorPlayMenuModel.h"
 #include "ToolMenu.h"
 #include "ToolMenus.h"
+#include "Views/SDMXControlConsoleEditorCueStackView.h"
 #include "Views/SDMXControlConsoleEditorLayoutView.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SSplitter.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/SDMXControlConsoleEditorCueStackComboBox.h"
 #include "Widgets/Text/STextBlock.h"
 #include "UObject/Package.h"
 
@@ -41,7 +45,7 @@ namespace UE::DMX::Private
 
 			PlayMenuModel = NewObject<UDMXControlConsoleEditorPlayMenuModel>(GetTransientPackage(), NAME_None, RF_Transient | RF_Transactional);
 			PlayMenuModel->Initialize(ControlConsole, CommandList.ToSharedRef());
-			
+
 			ChildSlot
 			[
 				SNew(SVerticalBox)
@@ -51,6 +55,7 @@ namespace UE::DMX::Private
 				[
 					SNew(SHorizontalBox)
 				
+					// Compact Editor toolbar section
 					+ SHorizontalBox::Slot()
 					.FillWidth(1.0)
 					[
@@ -65,9 +70,27 @@ namespace UE::DMX::Private
 						.VAlign(VAlign_Center)
 						.Padding(FMargin(4.f, 0.f, 20.f, 0.f))
 						[
-							SNew(STextBlock)
-							.Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
-							.Text(this, &SDMXControlConsoleCompactEditorView::GetAssetNameText)
+							SNew(SHorizontalBox)
+
+							// Cue Stack toolbar section
+							+ SHorizontalBox::Slot()
+							.AutoWidth()
+							.Padding(20.f, 0.f)
+							[
+								GenerateCueStackToolbarWidget()
+							]
+
+							// Asset name label section
+							+ SHorizontalBox::Slot()
+							[
+								SNew(SBox)
+								.VAlign(VAlign_Center)
+								[
+									SNew(STextBlock)
+									.Font(FCoreStyle::GetDefaultFontStyle("Bold", 10))
+									.Text(this, &SDMXControlConsoleCompactEditorView::GetAssetNameText)
+								]
+							]
 						]
 					]
 				]
@@ -75,7 +98,23 @@ namespace UE::DMX::Private
 				+ SVerticalBox::Slot()
 				.FillHeight(1.f)
 				[
-					SNew(SDMXControlConsoleEditorLayoutView, EditorModel)
+					SNew(SSplitter)
+					.Orientation(Orient_Horizontal)
+
+					// Layout View section
+					+ SSplitter::Slot()
+					.Value(.8f)
+					[
+						SNew(SDMXControlConsoleEditorLayoutView, EditorModel)
+					]
+
+					// Cue Stack View section
+					+ SSplitter::Slot()
+					.Value(.2f)
+					[
+						SNew(SDMXControlConsoleEditorCueStackView, EditorModel)
+						.Visibility(this, &SDMXControlConsoleCompactEditorView::GetCueStackViewVisibility)
+					]
 				]
 			];
 		}
@@ -141,6 +180,49 @@ namespace UE::DMX::Private
 		return UToolMenus::Get()->GenerateWidget(ToolbarMenuName, MenuContext);
 	}
 
+	TSharedRef<SWidget> SDMXControlConsoleCompactEditorView::GenerateCueStackToolbarWidget()
+	{
+		const TSharedRef<SWidget> CueStackToolbarWidget =
+			SNew(SHorizontalBox)
+
+			// Cue Stack Combo Box section
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(2.f, 0.f)
+			[
+				SNew(SDMXControlConsoleEditorCueStackComboBox, EditorModel)
+			]
+
+			// 'Show cue stack' Check Box section
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(4.f, 0.f)
+			[
+				SNew(SHorizontalBox)
+
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				[
+					SAssignNew(CueStackCheckBox, SCheckBox)
+				]
+
+				+ SHorizontalBox::Slot()
+				.Padding(4.f, 3.f, 0.f, 0.f)
+				[
+					SNew(SBox)
+					.VAlign(VAlign_Center)
+					[
+						SNew(STextBlock)
+						.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+						.Text(LOCTEXT("ShowCueStackLabel", "Show Cue Stack"))
+						.ToolTipText(LOCTEXT("ShowCueStackTooltip", "Shows the full cue stack menu"))
+					]
+				]
+			];
+
+		return CueStackToolbarWidget;
+	}
+
 	void SDMXControlConsoleCompactEditorView::PopulateToolbar(UToolMenu* InMenu)
 	{
 		UDMXControlConsoleCompactEditorMenuContext* ContextObject = InMenu ? InMenu->FindContext<UDMXControlConsoleCompactEditorMenuContext>() : nullptr;
@@ -195,7 +277,7 @@ namespace UE::DMX::Private
 						SNew(STextBlock)
 						.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
 						.Text(LOCTEXT("ShowFullWindowLabel", "Show Full Editor"))
-						.ToolTipText(LOCTEXT("ShowFulllWindowTooltip", "Shows the full control console editor"))
+						.ToolTipText(LOCTEXT("ShowFullWindowTooltip", "Shows the full control console editor"))
 					]
 				];
 
@@ -251,6 +333,12 @@ namespace UE::DMX::Private
 		}
 
 		return FText::GetEmpty();
+	}
+
+	EVisibility SDMXControlConsoleCompactEditorView::GetCueStackViewVisibility() const
+	{
+		const bool bIsVisible = CueStackCheckBox.IsValid() && CueStackCheckBox->IsChecked();
+		return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
 	}
 }
 

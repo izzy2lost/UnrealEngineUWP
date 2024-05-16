@@ -141,11 +141,11 @@ namespace UE::DMX::Private
 					SNew(SBox)
 					.HAlign(HAlign_Fill)
 					.VAlign(VAlign_Fill)
-					.MinDesiredWidth(6.f)
+					.MinDesiredWidth(4.f)
 					.MinDesiredHeight(14.f)
 					[
 						SNew(SImage)
-						.Image(FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.FaderGroupTag"))
+						.Image(FDMXEditorStyle::Get().GetBrush("DMXEditor.WhiteRoundedPropertyBorder"))
 						.ColorAndOpacity(EditorTagColor)
 					]
 				]

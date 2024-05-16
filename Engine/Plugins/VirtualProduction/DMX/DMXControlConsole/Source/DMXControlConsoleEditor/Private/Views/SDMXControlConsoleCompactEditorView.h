@@ -8,6 +8,7 @@
 class FReply;
 class FUICommandList;
 class SBorder;
+class SCheckBox;
 class UDMXControlConsole;
 class UDMXControlConsoleEditorModel;
 class UDMXControlConsoleEditorPlayMenuModel;
@@ -47,6 +48,9 @@ namespace UE::DMX::Private
 		/** Creates a toolbar for this view */
 		TSharedRef<SWidget> CreateToolbar();
 
+		/** Generates the toolbar widget for managing the Control Console cue stack */
+		TSharedRef<SWidget> GenerateCueStackToolbarWidget();
+
 		/** Populates the toolbar. Useful as it may not be possible to populate at construction, e.g. on engine startup */
 		static void PopulateToolbar(UToolMenu* InMenu);
 
@@ -62,6 +66,9 @@ namespace UE::DMX::Private
 		/** Returns the name of the asset */
 		FText GetAssetNameText() const;
 
+		/** Gets the visibility state of the cue stack */
+		EVisibility GetCueStackViewVisibility() const;
+
 		/** The control console editor model this widget uses */
 		TObjectPtr<UDMXControlConsole> ControlConsole;
 
@@ -71,7 +78,10 @@ namespace UE::DMX::Private
 		/** The play menu model this widget uses */
 		TObjectPtr<UDMXControlConsoleEditorPlayMenuModel> PlayMenuModel;
 
-		 /** The command list this widget uses */
+		/** The check box for showing the cue stack */
+		TSharedPtr<SCheckBox> CueStackCheckBox;
+
+		/** The command list this widget uses */
 		TSharedPtr<FUICommandList> CommandList;
 
 		/** The menu name of the toolbar in this view */

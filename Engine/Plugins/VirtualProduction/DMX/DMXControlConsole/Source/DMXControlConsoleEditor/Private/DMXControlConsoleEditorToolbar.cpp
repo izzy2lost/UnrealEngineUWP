@@ -25,6 +25,7 @@
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/SDMXControlConsoleEditorCueStackComboBox.h"
 #include "Widgets/SDMXControlConsoleEditorPortSelector.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -206,7 +207,7 @@ namespace UE::DMX::Private
 				[
 					SNew(SBox)
 					.VAlign(VAlign_Center)
-					.WidthOverride(300.f)
+					.WidthOverride(200.f)
 					[	
 						SAssignNew(GlobalFilterSearchBox, SFilterSearchBox)
 						.DelayChangeNotificationsWhileTyping(true)
@@ -252,7 +253,8 @@ namespace UE::DMX::Private
 
 		ToolbarBuilder.BeginSection("EditorMode");
 		{
-			const TSharedRef<SWidget> ShowCompactEditorButton = SNew(SButton)
+			const TSharedRef<SWidget> ShowCompactEditorButton = 
+				SNew(SButton)
 				.OnClicked(this, &FDMXControlConsoleEditorToolbar::OnShowCompactEditorButtonClicked)
 				[
 					SNew(SBorder)
@@ -267,6 +269,15 @@ namespace UE::DMX::Private
 				];
 
 			ToolbarBuilder.AddWidget(ShowCompactEditorButton);
+		}
+		ToolbarBuilder.EndSection();
+
+		ToolbarBuilder.BeginSection("CueStack");
+		{
+			const TSharedRef<SWidget> CueStackComboBoxWidget =
+				SNew(SDMXControlConsoleEditorCueStackComboBox, Toolkit->GetControlConsoleEditorModel());
+
+			ToolbarBuilder.AddWidget(CueStackComboBoxWidget, NAME_None, true, HAlign_Right);
 		}
 		ToolbarBuilder.EndSection();
 	}
