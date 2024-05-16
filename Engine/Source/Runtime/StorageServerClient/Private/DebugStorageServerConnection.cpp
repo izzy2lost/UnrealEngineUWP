@@ -7,6 +7,8 @@
 #include "Engine/GameEngine.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 
+#if !UE_BUILD_SHIPPING
+
 #if CSV_PROFILER
 CSV_DEFINE_CATEGORY(ZenServerStats, true);
 
@@ -241,3 +243,5 @@ static FAutoConsoleCommandWithOutputDevice
 		TEXT("r.ZenServerStatsHide"),
 		TEXT("Hide ZenServer Stats Graph."),
 		FConsoleCommandWithOutputDeviceDelegate::CreateStatic(&UDebugStorageServerConnection::HideGraph));
+
+#endif
