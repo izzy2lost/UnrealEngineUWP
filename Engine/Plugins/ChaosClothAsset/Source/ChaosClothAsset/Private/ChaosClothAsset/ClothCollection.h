@@ -118,7 +118,7 @@ namespace UE::Chaos::ClothAsset
 		template<typename T>
 		static inline void CopyArrayViewData(const TArrayView<T>& To, const TConstArrayView<T>& From);
 
-		template<typename T, TEMPLATE_REQUIRES(!TIsArray<T>::Value)>
+		template<typename T UE_REQUIRES(!std::is_array_v<T>)>
 		static inline void CopyArrayViewDataAndApplyOffset(const TArrayView<T>& To, const TConstArrayView<T>& From, const T Offset);
 
 		template<typename T>
@@ -128,13 +128,13 @@ namespace UE::Chaos::ClothAsset
 		static inline uint32 GetElementsTypeHash(const TManagedArray<T>* ElementArray);
 
 		//~ Weight maps
-		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		TArray<FName> GetUserDefinedAttributeNames(const FName& GroupName) const;
 
-		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		TManagedArray<T>* FindOrAddUserDefinedAttribute(const FName& Name, const FName& GroupName);
 
-		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		void AddUserDefinedAttribute(const FName& Name, const FName& GroupName)
 		{
 			FindOrAddUserDefinedAttribute<T>(Name, GroupName);
@@ -142,13 +142,13 @@ namespace UE::Chaos::ClothAsset
 
 		void RemoveUserDefinedAttribute(const FName& Name, const FName& GroupName);
 
-		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		bool HasUserDefinedAttribute(const FName& Name, const FName& GroupName) const;
 
-		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		const TManagedArray<T>* GetUserDefinedAttribute(const FName& Name, const FName& GroupName) const;
 
-		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		TManagedArray<T>* GetUserDefinedAttribute(const FName& Name, const FName& GroupName);
 
 		static bool IsValidClothCollectionGroupName(const FName& GroupName);
@@ -513,7 +513,7 @@ namespace UE::Chaos::ClothAsset
 		}
 	}
 
-	template<typename T, typename TEnableIf<!TIsArray<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(!std::is_array_v<T>)>
 	inline void FClothCollection::CopyArrayViewDataAndApplyOffset(const TArrayView<T>& To, const TConstArrayView<T>& From, const T Offset)
 	{
 		check(To.Num() == From.Num());

@@ -90,7 +90,7 @@ namespace UE::Chaos::ClothAsset
 		void Reset();
 
 		/** Initialize the cloth pattern using the specified 3D and 2D positions, and topology. */
-		template<typename IndexType, TEMPLATE_REQUIRES(TIsIndexType<IndexType>::Value)>
+		template<typename IndexType UE_REQUIRES(TIsIndexType<IndexType>::Value)>
 		void Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<IndexType>& Indices, const int32 FabricIndex = INDEX_NONE);
 
 		/** Initialize this pattern using another pattern collection. */

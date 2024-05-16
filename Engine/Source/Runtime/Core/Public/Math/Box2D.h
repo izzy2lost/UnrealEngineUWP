@@ -416,8 +416,13 @@ public:
 	bool SerializeFromMismatchedTag(FName StructTag, FArchive& Ar);
 
 	// Conversion from other type. 
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg>)>
-	explicit TBox2(const TBox2<FArg>& From) : Min((TVector2<T>)From.Min), Max((TVector2<T>)From.Max), bIsValid(From.bIsValid) {}
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg>)>
+	explicit TBox2(const TBox2<FArg>& From)
+		: Min((TVector2<T>)From.Min)
+		, Max((TVector2<T>)From.Max)
+		, bIsValid(From.bIsValid)
+	{
+	}
 };
 
 

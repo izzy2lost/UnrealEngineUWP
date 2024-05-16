@@ -124,8 +124,11 @@ public:
 	TBoxSphereBounds( const TVector<T>* Points, uint32 NumPoints );
 
 	// Conversion to other type.
-	template<typename TFrom, typename TExtentFrom, TEMPLATE_REQUIRES(!(std::is_same_v<T, TFrom> && std::is_same_v<TExtent, TExtentFrom>))>
-	explicit TBoxSphereBounds(const TBoxSphereBounds<TFrom, TExtentFrom>& From) : TBoxSphereBounds<T, TExtent>(TVector<T>(From.Origin), TVector<TExtent>(From.BoxExtent), (TExtent)From.SphereRadius) {}
+	template<typename TFrom, typename TExtentFrom UE_REQUIRES(!(std::is_same_v<T, TFrom> && std::is_same_v<TExtent, TExtentFrom>))>
+	explicit TBoxSphereBounds(const TBoxSphereBounds<TFrom, TExtentFrom>& From)
+		: TBoxSphereBounds<T, TExtent>(TVector<T>(From.Origin), TVector<TExtent>(From.BoxExtent), (TExtent)From.SphereRadius)
+	{
+	}
 
 public:
 

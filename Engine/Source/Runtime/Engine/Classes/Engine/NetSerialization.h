@@ -325,7 +325,7 @@ bool WriteFixedCompressedFloat(const T Value, FArchive& Ar)
 	return !clamp;
 }
 
-template<int32 MaxValue, uint32 NumBits, typename T, TEMPLATE_REQUIRES(TIsFloatingPoint<T>::Value), TEMPLATE_REQUIRES(NumBits < 32)>
+template<int32 MaxValue, uint32 NumBits, typename T UE_REQUIRES(std::is_floating_point_v<T> && NumBits < 32)>
 bool ReadFixedCompressedFloat(T& Value, FArchive& Ar)
 {
 	using Details = TFixedCompressedFloatDetails<MaxValue, NumBits>;

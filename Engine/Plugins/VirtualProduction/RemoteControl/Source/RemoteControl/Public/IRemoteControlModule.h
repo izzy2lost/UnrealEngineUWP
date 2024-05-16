@@ -614,7 +614,7 @@ public:
 	virtual bool CanBeAccessedRemotely(UObject* InObject) const = 0;
 
 	template<class InPropertyIdPropertyHandlerType, typename... InArgTypes
-		, TEMPLATE_REQUIRES(TIsDerivedFrom<InPropertyIdPropertyHandlerType, IPropertyIdHandler>::Value)>
+		UE_REQUIRES(std::is_base_of_v<IPropertyIdHandler, InPropertyIdPropertyHandlerType>)>
 	TSharedRef<InPropertyIdPropertyHandlerType> RegisterPropertyIdPropertyHandler(InArgTypes&&... InArgs)
 	{
 		TSharedRef<InPropertyIdPropertyHandlerType> KeyPropertyHandler = MakeShared<InPropertyIdPropertyHandlerType>(Forward<InArgTypes>(InArgs)...);

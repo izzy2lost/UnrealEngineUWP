@@ -675,7 +675,7 @@ namespace UE::Chaos::ClothAsset
 	template CHAOSCLOTHASSET_API TTuple<int32, int32> FClothCollection::GetSubElementsStartEnd<false, true>(const TManagedArray<int32>* StartArray, const TManagedArray<int32>* EndArray, const TManagedArray<int32>* StartSubArray, const TManagedArray<int32>* EndSubArray, int32 ArrayIndex);
 	template CHAOSCLOTHASSET_API TTuple<int32, int32> FClothCollection::GetSubElementsStartEnd<true, true>(const TManagedArray<int32>* StartArray, const TManagedArray<int32>* EndArray, const TManagedArray<int32>* StartSubArray, const TManagedArray<int32>* EndSubArray, int32 ArrayIndex);
 
-	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(TIsUserAttributeType<T>::Value)>
 	TArray<FName> FClothCollection::GetUserDefinedAttributeNames(const FName& GroupName) const
 	{
 		using namespace UE::Chaos::ClothAsset::Private;
@@ -702,7 +702,7 @@ namespace UE::Chaos::ClothAsset
 	template CHAOSCLOTHASSET_API TArray<FName> FClothCollection::GetUserDefinedAttributeNames<float>(const FName& GroupName) const;
 	template CHAOSCLOTHASSET_API TArray<FName> FClothCollection::GetUserDefinedAttributeNames<FVector3f>(const FName& GroupName) const;
 
-	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(TIsUserAttributeType<T>::Value)>
 	TManagedArray<T>* FClothCollection::FindOrAddUserDefinedAttribute(const FName& Name, const FName& GroupName)
 	{
 		using namespace UE::Chaos::ClothAsset::Private;
@@ -742,7 +742,7 @@ namespace UE::Chaos::ClothAsset
 		}
 	}
 
-	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(TIsUserAttributeType<T>::Value)>
 	bool FClothCollection::HasUserDefinedAttribute(const FName& Name, const FName& GroupName) const
 	{
 		using namespace UE::Chaos::ClothAsset::Private;
@@ -769,7 +769,7 @@ namespace UE::Chaos::ClothAsset
 	template CHAOSCLOTHASSET_API bool FClothCollection::HasUserDefinedAttribute<float>(const FName& Name, const FName& GroupName) const;
 	template CHAOSCLOTHASSET_API bool FClothCollection::HasUserDefinedAttribute<FVector3f>(const FName& Name, const FName& GroupName) const;
 
-	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(TIsUserAttributeType<T>::Value)>
 	const TManagedArray<T>* FClothCollection::GetUserDefinedAttribute(const FName& Name, const FName& GroupName) const
 	{
 		using namespace UE::Chaos::ClothAsset::Private;
@@ -796,7 +796,7 @@ namespace UE::Chaos::ClothAsset
 	template CHAOSCLOTHASSET_API const TManagedArray<float>* FClothCollection::GetUserDefinedAttribute<float>(const FName& Name, const FName& GroupName) const;
 	template CHAOSCLOTHASSET_API const TManagedArray<FVector3f>* FClothCollection::GetUserDefinedAttribute<FVector3f>(const FName& Name, const FName& GroupName) const;
 
-	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(TIsUserAttributeType<T>::Value)>
 	TManagedArray<T>* FClothCollection::GetUserDefinedAttribute(const FName& Name, const FName& GroupName)
 	{
 		using namespace UE::Chaos::ClothAsset::Private;

@@ -16,6 +16,8 @@
 #include "Math/IntPoint.h"
 #include "Logging/LogMacros.h"
 
+#include <type_traits>
+
 #ifdef _MSC_VER
 #pragma warning (push)
 // Ensure template functions don't generate shadowing warnings against global variables at the point of instantiation.
@@ -715,8 +717,11 @@ public:
 	
 	
 	// Conversion from other type.
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg>)>
-	explicit TVector2(const TVector2<FArg>& From) : TVector2<T>((T)From.X, (T)From.Y) {}
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg>)>
+	explicit TVector2(const TVector2<FArg>& From)
+		: TVector2<T>((T)From.X, (T)From.Y)
+	{
+	}
 };
 
 /**
@@ -814,7 +819,7 @@ template<> CORE_API const FVector2d FVector2d::Unit45Deg;
  * @param V Vector2 to scale.
  * @return Result of multiplication.
  */
-template<typename T, typename T2, TEMPLATE_REQUIRES(std::is_arithmetic<T2>::value)>
+template<typename T, typename T2 UE_REQUIRES(std::is_arithmetic_v<T2>)>
 FORCEINLINE TVector2<T> operator*(T2 Scale, const TVector2<T>& V)
 {
 	return V.operator*(Scale);

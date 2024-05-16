@@ -29,8 +29,11 @@ public:
 	TScaleMatrix( const TVector<T>& Scale );
 
 	// Conversion to other type.
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg>)>
-	explicit TScaleMatrix(const TScaleMatrix<FArg>& From) : TMatrix<T>(From) {}
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg>)>
+	explicit TScaleMatrix(const TScaleMatrix<FArg>& From)
+		: TMatrix<T>(From)
+	{
+	}
 	
 	/** Matrix factory. Return an TMatrix<T> so we don't have type conversion issues in expressions. */
 	static TMatrix<T> Make(T Scale)

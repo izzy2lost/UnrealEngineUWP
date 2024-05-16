@@ -58,7 +58,7 @@ namespace UE::Chaos::ClothAsset
 
 		uint32 CalculateTypeHash(bool bIncludeWeightMaps, uint32 PreviousHash = 0) const;
 		uint32 CalculateWeightMapTypeHash(uint32 PreviousHash = 0) const;
-		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		uint32 CalculateUserDefinedAttributesTypeHash(const FName& GroupName, uint32 PreviousHash = 0) const;
 
 		//~ LOD (single per collection) Group
@@ -170,11 +170,11 @@ namespace UE::Chaos::ClothAsset
 		TConstArrayView<float> GetWeightMap(const FName& Name) const;
 
 		//~ Other User-Defined Attributes (not instantiated for bools)
-		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		bool HasUserDefinedAttribute(const FName& Name, const FName& GroupName) const;
-		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		TArray<FName> GetUserDefinedAttributeNames(const FName& GroupName) const;
-		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		TConstArrayView<T> GetUserDefinedAttribute(const FName& Name, const FName& GroupName) const;
 		static bool IsValidClothCollectionGroupName(const FName& GroupName);
 
@@ -351,10 +351,10 @@ namespace UE::Chaos::ClothAsset
 
 		//~ Other User-Defined Attributes (not instantiated for bools)
 		/** GroupName must be an existing group as defined in ClothCollectionGroup. Returns success */
-		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		bool AddUserDefinedAttribute(const FName& Name, const FName& GroupName);
 		void RemoveUserDefinedAttribute(const FName& Name, const FName& GroupName);
-		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		template<typename T UE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		TArrayView<T> GetUserDefinedAttribute(const FName& Name, const FName& GroupName);
 
 	private:

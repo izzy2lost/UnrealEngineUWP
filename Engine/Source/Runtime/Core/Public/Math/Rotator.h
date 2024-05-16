@@ -35,8 +35,8 @@ template<typename T>
 struct TRotator
 {
 
-	// Can't have a TEMPLATE_REQUIRES in the declaration because of the forward declarations, so check for allowed types here.
-	static_assert(TIsFloatingPoint<T>::Value, "TRotator only supports float and double types.");
+	// Can't have a UE_REQUIRES in the declaration because of the forward declarations, so check for allowed types here.
+	static_assert(std::is_floating_point_v<T>, "TRotator only supports float and double types.");
 
 public:
 	using FReal = T;
@@ -141,7 +141,7 @@ public:
 	 * @param Scale The scaling factor.
 	 * @return The result of scaling.
 	 */
-	template<typename FArg, TEMPLATE_REQUIRES(std::is_arithmetic<FArg>::value)>
+	template<typename FArg UE_REQUIRES(std::is_arithmetic_v<FArg>)>
 	FORCEINLINE TRotator operator*( FArg Scale ) const
 	{
 		return TRotator(Pitch * Scale, Yaw * Scale, Roll * Scale);
@@ -153,7 +153,7 @@ public:
 	 * @param Scale The scaling factor.
 	 * @return Copy of the rotator after scaling.
 	 */
-	template<typename FArg, TEMPLATE_REQUIRES(std::is_arithmetic<FArg>::value)>
+	template<typename FArg UE_REQUIRES(std::is_arithmetic_v<FArg>)>
 	FORCEINLINE TRotator operator*=( FArg Scale )
 	{
 		Pitch = Pitch * Scale; Yaw = Yaw * Scale; Roll = Roll * Scale;
@@ -484,8 +484,11 @@ public:
 	bool SerializeFromMismatchedTag(FName StructTag, FArchive& Ar);
 
 	// Conversion from other type.
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg>)>
-	explicit TRotator(const TRotator<FArg>& From) : TRotator<T>((T)From.Pitch, (T)From.Yaw, (T)From.Roll) {}
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg>)>
+	explicit TRotator(const TRotator<FArg>& From)
+		: TRotator<T>((T)From.Pitch, (T)From.Yaw, (T)From.Roll)
+	{
+	}
 };
 
 #if !defined(_MSC_VER) || defined(__clang__)  // MSVC can't forward declare explicit specializations
@@ -537,7 +540,7 @@ inline FArchive& operator<<(FArchive& Ar, TRotator<double>& R)
  * @param R rotator to be scaled.
  * @return Scaled rotator.
  */
-template<typename T, typename FArg, TEMPLATE_REQUIRES(std::is_arithmetic<FArg>::value)>
+template<typename T, typename FArg UE_REQUIRES(std::is_arithmetic_v<FArg>)>
 FORCEINLINE TRotator<T> operator*(FArg Scale, const TRotator<T>& R )
 {
 	return R.operator*( Scale );

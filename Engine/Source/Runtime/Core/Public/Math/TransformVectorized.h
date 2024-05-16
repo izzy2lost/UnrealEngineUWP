@@ -62,8 +62,8 @@ namespace Math
 template<typename T>
 struct alignas( TAlignOfTransform<T>::Value ) TTransform
 {
-	// Can't have a TEMPLATE_REQUIRES in the declaration because of the forward declarations, so check for allowed types here.
-	static_assert(TIsFloatingPoint<T>::Value, "TTransform only supports float and double types.");
+	// Can't have a UE_REQUIRES in the declaration because of the forward declarations, so check for allowed types here.
+	static_assert(std::is_floating_point_v<T>, "TTransform only supports float and double types.");
 
 	friend Z_Construct_UScriptStruct_FTransform3f_Statics;
 	friend Z_Construct_UScriptStruct_FTransform3d_Statics;
@@ -1454,12 +1454,18 @@ public:
 
 	// Conversion to other type.
 	friend struct TTransform<double>;
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg> && std::is_same_v<T, float>)>
-	explicit TTransform(const TTransform<FArg>& From) : TTransform(MakeVectorRegisterFloatFromDouble(From.Rotation), MakeVectorRegisterFloatFromDouble(From.Translation), MakeVectorRegisterFloatFromDouble(From.Scale3D)) {}
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg> && std::is_same_v<T, float>)>
+	explicit TTransform(const TTransform<FArg>& From)
+		: TTransform(MakeVectorRegisterFloatFromDouble(From.Rotation), MakeVectorRegisterFloatFromDouble(From.Translation), MakeVectorRegisterFloatFromDouble(From.Scale3D))
+	{
+	}
 
 	friend struct TTransform<float>;
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg> && std::is_same_v<T, double>)>
-	explicit TTransform(const TTransform<FArg>& From) : TTransform(MakeVectorRegisterDouble(From.Rotation), MakeVectorRegisterDouble(From.Translation), MakeVectorRegisterDouble(From.Scale3D)) {}
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg> && std::is_same_v<T, double>)>
+	explicit TTransform(const TTransform<FArg>& From)
+		: TTransform(MakeVectorRegisterDouble(From.Rotation), MakeVectorRegisterDouble(From.Translation), MakeVectorRegisterDouble(From.Scale3D))
+	{
+	}
 };
 
 #if !defined(_MSC_VER) || defined(__clang__)  // MSVC can't forward declare explicit specializations

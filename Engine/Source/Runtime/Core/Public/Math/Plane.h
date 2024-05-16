@@ -336,8 +336,11 @@ public:
 	}
 
 	// Conversion to other type.
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg>)>
-	explicit TPlane(const TPlane<FArg>& From) : TPlane<T>((T)From.X, (T)From.Y, (T)From.Z, (T)From.W) {}
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg>)>
+	explicit TPlane(const TPlane<FArg>& From)
+		: TPlane<T>((T)From.X, (T)From.Y, (T)From.Z, (T)From.W)
+	{
+	}
 };
 
 

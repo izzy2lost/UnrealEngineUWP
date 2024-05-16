@@ -159,7 +159,7 @@ namespace UE::Chaos::ClothAsset
 		return ResultHash;
 	}
 
-	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(TIsUserAttributeType<T>::Value)>
 	uint32 FCollectionClothConstFacade::CalculateUserDefinedAttributesTypeHash(const FName& GroupName, uint32 PreviousHash) const
 	{
 		uint32 ResultHash = PreviousHash;
@@ -458,7 +458,7 @@ namespace UE::Chaos::ClothAsset
 	}
 
 
-	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(TIsUserAttributeType<T>::Value)>
 	bool FCollectionClothConstFacade::HasUserDefinedAttribute(const FName& Name, const FName& GroupName) const
 	{
 		return ClothCollection->HasUserDefinedAttribute<T>(Name, GroupName);
@@ -467,7 +467,7 @@ namespace UE::Chaos::ClothAsset
 	template CHAOSCLOTHASSET_API bool FCollectionClothConstFacade::HasUserDefinedAttribute<float>(const FName& Name, const FName& GroupName) const;
 	template CHAOSCLOTHASSET_API bool FCollectionClothConstFacade::HasUserDefinedAttribute<FVector3f>(const FName& Name, const FName& GroupName) const;
 
-	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(TIsUserAttributeType<T>::Value)>
 	TArray<FName> FCollectionClothConstFacade::GetUserDefinedAttributeNames(const FName& GroupName) const
 	{
 		return ClothCollection->GetUserDefinedAttributeNames<T>(GroupName);
@@ -476,7 +476,7 @@ namespace UE::Chaos::ClothAsset
 	template CHAOSCLOTHASSET_API TArray<FName> FCollectionClothConstFacade::GetUserDefinedAttributeNames<float>(const FName& GroupName) const;
 	template CHAOSCLOTHASSET_API TArray<FName> FCollectionClothConstFacade::GetUserDefinedAttributeNames<FVector3f>(const FName& GroupName) const;
 
-	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(TIsUserAttributeType<T>::Value)>
 	TConstArrayView<T> FCollectionClothConstFacade::GetUserDefinedAttribute(const FName& Name, const FName& GroupName) const
 	{
 		return ClothCollection->GetElements(ClothCollection->GetUserDefinedAttribute<T>(Name, GroupName));
@@ -1121,7 +1121,7 @@ namespace UE::Chaos::ClothAsset
 		return GetClothCollection()->GetElements(GetClothCollection()->GetUserDefinedAttribute<float>(Name, ClothCollectionGroup::SimVertices3D));
 	}
 
-	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(TIsUserAttributeType<T>::Value)>
 	bool FCollectionClothFacade::AddUserDefinedAttribute(const FName& Name, const FName& GroupName)
 	{
 		check(IsValid());
@@ -1137,7 +1137,7 @@ namespace UE::Chaos::ClothAsset
 		GetClothCollection()->RemoveUserDefinedAttribute(Name, GroupName);
 	}
 
-	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	template<typename T UE_REQUIRES_DEFINITION(TIsUserAttributeType<T>::Value)>
 	TArrayView<T> FCollectionClothFacade::GetUserDefinedAttribute(const FName& Name, const FName& GroupName)
 	{
 		return GetClothCollection()->GetElements(GetClothCollection()->GetUserDefinedAttribute<T>(Name, GroupName));

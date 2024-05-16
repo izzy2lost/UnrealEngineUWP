@@ -407,7 +407,7 @@ public:
 	bool SerializeFromMismatchedTag(FName StructTag, FArchive& Ar);
 
 	// Conversion to other type.
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg>)>
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg>)>
 	explicit TMatrix(const TMatrix<FArg>& From)
 	{
 		// TODO: SIMD this?
@@ -496,8 +496,11 @@ struct TBasisVectorMatrix : public TMatrix<T>
 	TBasisVectorMatrix(const TVector<T>& XAxis,const TVector<T>& YAxis,const TVector<T>& ZAxis,const TVector<T>& Origin);
 
 	// Conversion to other type.
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg>)>
-	explicit TBasisVectorMatrix(const TBasisVectorMatrix<FArg>& From) : TMatrix<T>(From) {}
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg>)>
+	explicit TBasisVectorMatrix(const TBasisVectorMatrix<FArg>& From)
+		: TMatrix<T>(From)
+	{
+	}
 };
 
 
@@ -515,8 +518,11 @@ struct TLookFromMatrix : public TMatrix<T>
 	TLookFromMatrix(const TVector<T>& EyePosition, const TVector<T>& LookDirection, const TVector<T>& UpVector);
 
 	// Conversion to other type.
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg>)>
-	explicit TLookFromMatrix(const TLookFromMatrix<FArg>& From) : TMatrix<T>(From) {}
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg>)>
+	explicit TLookFromMatrix(const TLookFromMatrix<FArg>& From)
+		: TMatrix<T>(From)
+	{
+	}
 };
 
 
@@ -534,8 +540,11 @@ struct TLookAtMatrix : public TLookFromMatrix<T>
 	TLookAtMatrix(const TVector<T>& EyePosition, const TVector<T>& LookAtPosition, const TVector<T>& UpVector);
 
 	// Conversion to other type.
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg>)>
-	explicit TLookAtMatrix(const TLookAtMatrix<FArg>& From) : TLookFromMatrix<T>(From) {}
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg>)>
+	explicit TLookAtMatrix(const TLookAtMatrix<FArg>& From)
+		: TLookFromMatrix<T>(From)
+	{
+	}
 };
 
 } // namespace UE::Math
@@ -566,7 +575,7 @@ template<> CORE_API FQuat4d FMatrix44d::ToQuat() const;
 
 // very high quality 4x4 matrix inverse
 // @todo: this is redundant with FMatrix44d::Inverse and should be removed ; seems to be unused
-template<typename FArg, TEMPLATE_REQUIRES(std::is_floating_point<FArg>::value)>
+template<typename FArg UE_REQUIRES(std::is_floating_point_v<FArg>)>
 static inline bool Inverse4x4( double* dst, const FArg* src )
 {
 	const double s0  = (double)(src[ 0]); const double s1  = (double)(src[ 1]); const double s2  = (double)(src[ 2]); const double s3  = (double)(src[ 3]);

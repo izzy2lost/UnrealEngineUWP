@@ -112,7 +112,7 @@ namespace UE::Chaos::ClothAsset
 		SetDefaults();
 	}
 
-	template<typename IndexType, typename TEnableIf<TIsIndexType<IndexType>::Value, int>::type>
+	template<typename IndexType UE_REQUIRES_DEFINITION(TIsIndexType<IndexType>::Value)>
 	void FCollectionClothSimPatternFacade::Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<IndexType>& Indices, const int32 FabricIndex)
 	{
 		Reset();

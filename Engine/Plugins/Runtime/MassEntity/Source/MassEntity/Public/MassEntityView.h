@@ -48,9 +48,9 @@ struct MASSENTITY_API FMassEntityView
 	template<typename T>
 	T& GetFragmentData() const
 	{
-		static_assert(!TIsDerivedFrom<T, FMassTag>::IsDerived,
+		static_assert(!std::is_base_of_v<FMassTag, T>,
 			"Given struct doesn't represent a valid fragment type but a tag. Use HasTag instead.");
-		static_assert(TIsDerivedFrom<T, FMassTag>::IsDerived || TIsDerivedFrom<T, FMassFragment>::IsDerived,
+		static_assert(std::is_base_of_v<FMassTag, T> || std::is_base_of_v<FMassFragment, T>,
 			"Given struct doesn't represent a valid fragment type. Make sure to inherit from FMassFragment or one of its child-types.");
 
 		return *((T*)GetFragmentPtrChecked(*T::StaticStruct()));
@@ -60,9 +60,9 @@ struct MASSENTITY_API FMassEntityView
 	template<typename T>
 	T* GetFragmentDataPtr() const
 	{
-		static_assert(!TIsDerivedFrom<T, FMassTag>::IsDerived,
+		static_assert(!std::is_base_of_v<FMassTag, T>,
 			"Given struct doesn't represent a valid fragment type but a tag. Use HasTag instead.");
-		static_assert(TIsDerivedFrom<T, FMassTag>::IsDerived || TIsDerivedFrom<T, FMassFragment>::IsDerived,
+		static_assert(std::is_base_of_v<FMassTag, T> || std::is_base_of_v<FMassFragment, T>,
 			"Given struct doesn't represent a valid fragment type. Make sure to inherit from FMassFragment or one of its child-types.");
 
 		return (T*)GetFragmentPtr(*T::StaticStruct());
@@ -78,7 +78,7 @@ struct MASSENTITY_API FMassEntityView
 	template<typename T>
 	const T* GetConstSharedFragmentDataPtr() const
 	{
-		static_assert(TIsDerivedFrom<T, FMassConstSharedFragment>::IsDerived,
+		static_assert(std::is_base_of_v<FMassConstSharedFragment, T>,
 			"Given struct doesn't represent a valid shared fragment type. Make sure to inherit from FMassConstSharedFragment or one of its child-types.");
 
 		return (const T*)GetConstSharedFragmentPtr(*T::StaticStruct());
@@ -88,7 +88,7 @@ struct MASSENTITY_API FMassEntityView
 	template<typename T>
 	const T& GetConstSharedFragmentData() const
 	{
-		static_assert(TIsDerivedFrom<T, FMassConstSharedFragment>::IsDerived,
+		static_assert(std::is_base_of_v<FMassConstSharedFragment, T>,
 			"Given struct doesn't represent a valid const shared fragment type. Make sure to inherit from FMassConstSharedFragment or one of its child-types.");
 
 		return *((const T*)GetConstSharedFragmentPtrChecked(*T::StaticStruct()));
@@ -101,27 +101,27 @@ struct MASSENTITY_API FMassEntityView
 	}
 
 	/** will fail a check if the viewed entity doesn't have the given shared fragment */
-	template<typename T, TEMPLATE_REQUIRES(TIsDerivedFrom<T, FMassSharedFragment>::Value)>
+	template<typename T UE_REQUIRES(std::is_base_of_v<FMassSharedFragment, T>)>
 	T& GetSharedFragmentData() const
 	{
 		return *((T*)GetSharedFragmentPtrChecked(*T::StaticStruct()));
 	}
 
 	/** if the viewed entity doesn't have the given shared fragment the function will return null */
-	template<typename T, TEMPLATE_REQUIRES(TIsDerivedFrom<T, FMassSharedFragment>::Value)>
+	template<typename T UE_REQUIRES(std::is_base_of_v<FMassSharedFragment, T>)>
 	T* GetSharedFragmentDataPtr() const
 	{
 		return (T*)GetSharedFragmentPtr(*T::StaticStruct());
 	}
 
-	template<typename T, TEMPLATE_REQUIRES(TIsDerivedFrom<T, FMassConstSharedFragment>::Value)>
+	template<typename T UE_REQUIRES(std::is_base_of_v<FMassConstSharedFragment, T>)>
 	UE_DEPRECATED(5.5, "Using GetSharedFragmentDataPtr with const shared fragments is deprecated. Use GetConstSharedFragmentDataPtr instead")
 	T* GetSharedFragmentDataPtr() const
 	{
 		return const_cast<T*>(GetConstSharedFragmentDataPtr<T>());
 	}
 
-	template<typename T, TEMPLATE_REQUIRES(TIsDerivedFrom<T, FMassConstSharedFragment>::Value)>
+	template<typename T UE_REQUIRES(std::is_base_of_v<FMassConstSharedFragment, T>)>
 	UE_DEPRECATED(5.5, "Using GetSharedFragmentDataPtr with const shared fragments is deprecated. Use GetConstSharedFragmentData instead")
 	T& GetSharedFragmentData() const
 	{
@@ -139,7 +139,7 @@ struct MASSENTITY_API FMassEntityView
 	template<typename T>
 	bool HasTag() const
 	{
-		static_assert(TIsDerivedFrom<T, FMassTag>::IsDerived, "Given struct doesn't represent a valid tag type. Make sure to inherit from FMassTag or one of its child-types.");
+		static_assert(std::is_base_of_v<FMassTag, T>, "Given struct doesn't represent a valid tag type. Make sure to inherit from FMassTag or one of its child-types.");
 		return HasTag(*T::StaticStruct());
 	}
 

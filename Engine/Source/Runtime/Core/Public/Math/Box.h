@@ -158,8 +158,11 @@ public:
 	explicit TBox(const TArray<TVector<T>>& Points) : TBox<T>(&Points[0], Points.Num()) {};
 
 	// Conversion from other type.
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg>)>
-	explicit TBox(const TBox<FArg>& From) : TBox<T>(TVector<T>(From.Min), TVector<T>(From.Max)) {}
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg>)>
+	explicit TBox(const TBox<FArg>& From)
+		: TBox<T>(TVector<T>(From.Min), TVector<T>(From.Max))
+	{
+	}
 
 public:
 

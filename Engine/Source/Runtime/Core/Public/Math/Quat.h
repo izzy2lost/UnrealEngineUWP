@@ -36,8 +36,8 @@ namespace Math
 template<typename T>
 struct alignas(16) TQuat
 {
-	// Can't have a TEMPLATE_REQUIRES in the declaration because of the forward declarations, so check for allowed types here.
-	static_assert(TIsFloatingPoint<T>::Value, "TQuat only supports float and double types.");
+	// Can't have a UE_REQUIRES in the declaration because of the forward declarations, so check for allowed types here.
+	static_assert(std::is_floating_point_v<T>, "TQuat only supports float and double types.");
 
 public:
 	/** Type of the template param (float or double) */
@@ -86,9 +86,12 @@ public:
 	/**
 	 * Initializes all elements to V
 	 */
-	template<TEMPLATE_REQUIRES(std::is_arithmetic<T>::value)>
+	template<typename DummyT = T UE_REQUIRES(std::is_arithmetic_v<T>)>
 	explicit FORCEINLINE TQuat(T V)
-	: X(V), Y(V), Z(V), W(V)
+		: X(V)
+		, Y(V)
+		, Z(V)
+		, W(V)
 	{
 		DiagnosticCheckNaN();
 	}
@@ -240,7 +243,7 @@ public:
 	 * @param Scale The scaling factor.
 	 * @return a reference to this after scaling.
 	 */
-	template<typename FArg, TEMPLATE_REQUIRES(std::is_arithmetic<FArg>::value)>
+	template<typename FArg UE_REQUIRES(std::is_arithmetic_v<FArg>)>
 	FORCEINLINE TQuat<T> operator*=(const FArg Scale)
 	{
 #if PLATFORM_ENABLE_VECTORINTRINSICS
@@ -264,7 +267,7 @@ public:
 	 * @param Scale The scaling factor.
 	 * @return The result of scaling.
 	 */
-	template<typename FArg, TEMPLATE_REQUIRES(std::is_arithmetic<FArg>::value)>
+	template<typename FArg UE_REQUIRES(std::is_arithmetic_v<FArg>)>
 	FORCEINLINE TQuat<T> operator*(const FArg Scale) const
 	{
 #if PLATFORM_ENABLE_VECTORINTRINSICS
@@ -282,7 +285,7 @@ public:
 	 * @param Scale What to divide by.
 	 * @return a reference to this after scaling.
 	 */
-	template<typename FArg, TEMPLATE_REQUIRES(std::is_arithmetic<FArg>::value)>
+	template<typename FArg UE_REQUIRES(std::is_arithmetic_v<FArg>)>
 	FORCEINLINE TQuat<T> operator/=(const FArg Scale)
 	{
 #if PLATFORM_ENABLE_VECTORINTRINSICS
@@ -307,7 +310,7 @@ public:
 	 * @param Scale What to divide by.
 	 * @return new Quaternion of this after division by scale.
 	 */
-	template<typename FArg, TEMPLATE_REQUIRES(std::is_arithmetic<FArg>::value)>
+	template<typename FArg UE_REQUIRES(std::is_arithmetic_v<FArg>)>
 	FORCEINLINE TQuat<T> operator/(const FArg Scale) const
 	{
 #if PLATFORM_ENABLE_VECTORINTRINSICS
@@ -688,8 +691,11 @@ public:
 	bool SerializeFromMismatchedTag(FName StructTag, FArchive& Ar);
 
 	// Conversion to other type.
-	template<typename FArg, TEMPLATE_REQUIRES(!std::is_same_v<T, FArg>)>
-	explicit TQuat(const TQuat<FArg>& From) : TQuat<T>((T)From.X, (T)From.Y, (T)From.Z, (T)From.W) {}
+	template<typename FArg UE_REQUIRES(!std::is_same_v<T, FArg>)>
+	explicit TQuat(const TQuat<FArg>& From)
+		: TQuat<T>((T)From.X, (T)From.Y, (T)From.Z, (T)From.W)
+	{
+	}
 };
 
 /**
