@@ -25,6 +25,13 @@ public:
 	{
 	}
 
+	~FObjectsWaitingGeometryList()
+	 {
+	 	// Clean up the notification progress bar
+	 	WaitingObjectsByGeometryKey.Empty();
+	 	AsyncProgressNotification.Update(0);
+	 }
+
 	/** Adds an object to process when the provided geometry key is ready */
 	void AddObject(uint32 GeometryKey, ObjectType ObjectToProcess);
 

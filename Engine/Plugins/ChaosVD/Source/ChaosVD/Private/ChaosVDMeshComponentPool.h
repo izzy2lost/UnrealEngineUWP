@@ -2,41 +2,40 @@
 
 #pragma once
 
-#include "ChaosVDModule.h"
+#include "ChaosVDObjectPool.h"
+#include "Components/ChaosVDInstancedStaticMeshComponent.h"
+#include "Components/ChaosVDStaticMeshComponent.h"
 #include "Containers/Array.h"
-
-#include "Components/DynamicMeshComponent.h"
-#include "Components/InstancedStaticMeshComponent.h"
-#include "Components/StaticMeshComponent.h"
 
 class FChaosVDMeshComponentPool : public FGCObject
 {
 public:
-	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	
+	FChaosVDMeshComponentPool();
+
 	virtual FString GetReferencerName() const override
 	{
 		return TEXT("FChaosVDMeshComponentPool");
 	}
+	
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 
 	template<typename TMeshComponent>
 	TMeshComponent* AcquireMeshComponent(UObject* Outer, FName Name);
 
 	void DisposeMeshComponent(UMeshComponent* MeshComponent);
 
+	UMaterialInterface* GetMaterialForType(EChaosVDMaterialType Type);
+
 private:
 
-	template <typename DesiredMeshComponent, typename PooledComponent>
-	DesiredMeshComponent* GetMeshComponentFromPool_Internal(TArray<TObjectPtr<PooledComponent>>& InMeshComponentPool, UObject* Outer, FName Name);
+	TChaosVDObjectPool<UChaosVDStaticMeshComponent> StaticMeshComponentPool;
+	TChaosVDObjectPool<UChaosVDInstancedStaticMeshComponent> InstancedStaticMeshComponentPool;
 
-	void ResetMeshComponent(UMeshComponent* MeshComponent);
-
-	TArray<TObjectPtr<UStaticMeshComponent>> PooledStaticMeshComponent;
-	TArray<TObjectPtr<UInstancedStaticMeshComponent>> PooledInstancedStaticMeshComponent;
-	TArray<TObjectPtr<UDynamicMeshComponent>> PooledDynamicMeshComponent;
-
-	static bool bUseComponentsPool;
-	static FAutoConsoleVariableRef CVarUseComponentsPool;
+	TObjectPtr<UMaterialInterface> CachedISMCOpaqueMaterialBase;
+	TObjectPtr<UMaterialInterface> CachedISMCTranslucentBase;
+	TObjectPtr<UMaterialInterface> CachedStaticMeshComponentTranslucentMaterialBase;
+	TObjectPtr<UMaterialInterface> CachedStaticMeshComponentOpaqueMaterialBase;
 };
 
 template <typename TMeshComponent>
@@ -44,45 +43,14 @@ TMeshComponent* FChaosVDMeshComponentPool::AcquireMeshComponent(UObject* Outer, 
 {
 	if constexpr (std::is_base_of_v<UStaticMeshComponent, TMeshComponent> && !std::is_base_of_v<UInstancedStaticMeshComponent, TMeshComponent>)
 	{
-		return GetMeshComponentFromPool_Internal<TMeshComponent>(PooledStaticMeshComponent, Outer, Name);
+		return StaticMeshComponentPool.AcquireObject(Outer, Name);
 	}
 	else if constexpr (std::is_base_of_v<UInstancedStaticMeshComponent, TMeshComponent>)
 	{
-		return GetMeshComponentFromPool_Internal<TMeshComponent>(PooledInstancedStaticMeshComponent, Outer, Name);
-	}
-	else if constexpr (std::is_base_of_v<UDynamicMeshComponent, TMeshComponent>)
-	{
-		return GetMeshComponentFromPool_Internal<TMeshComponent>(PooledDynamicMeshComponent, Outer, Name);
+		return InstancedStaticMeshComponentPool.AcquireObject(Outer, Name);
 	}
 	else
 	{
 		return nullptr;
 	}
-}
-
-template <typename DesiredMeshComponent, typename PooledComponent>
-DesiredMeshComponent* FChaosVDMeshComponentPool::GetMeshComponentFromPool_Internal(TArray<TObjectPtr<PooledComponent>>& InMeshComponentPool, UObject* Outer,  FName Name)
-{
-	static_assert(std::is_base_of_v<UStaticMeshComponent, DesiredMeshComponent> || std::is_base_of_v<UInstancedStaticMeshComponent, DesiredMeshComponent> || std::is_base_of_v<DesiredMeshComponent, UDynamicMeshComponent>, "GetMeshComponentInternal Only supports DynamicMeshComponent, Static MeshComponent and Instanced Static Mesh Component");
-
-	// We need to ensure unique names
-	const FString NewName = Name.ToString() + FGuid::NewGuid().ToString();
-	
-	if (bUseComponentsPool &&  InMeshComponentPool.Num() > 0)
-	{
-		if (DesiredMeshComponent* Component = Cast<DesiredMeshComponent>(InMeshComponentPool.Pop()))
-		{
-			Component->Rename(*NewName , Outer, REN_NonTransactional | REN_DoNotDirty | REN_ForceNoResetLoaders | REN_SkipGeneratedClasses | REN_DontCreateRedirectors);
-			return Component;
-		}
-		else
-		{
-			UE_LOG(LogChaosVDEditor, Warning, TEXT("[%s] Selected Pool has [%d] objects, but none where castable to the desired type"), ANSI_TO_TCHAR(__FUNCTION__), InMeshComponentPool.Num());
-		}
-	}
-
-	DesiredMeshComponent* NewMeshComponent = NewObject<DesiredMeshComponent>(Outer, *NewName);
-	NewMeshComponent->EmptyOverrideMaterials();
-
-	return NewMeshComponent;
 }

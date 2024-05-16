@@ -11,6 +11,7 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/ObjectPtr.h"
 
+class AChaosVDGeometryContainer;
 class IChaosVDGeometryOwnerInterface;
 class FChaosVDSelectionCustomization;
 class ITypedElementSelectionInterface;
@@ -39,6 +40,16 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDOnObjectSelectedDelegate, UObject*)
 DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDSolverInfoActorCreatedDelegate, AChaosVDSolverInfoActor*)
 
 DECLARE_MULTICAST_DELEGATE_TwoParams(FChaosVDSolverVisibilityChangedDelegate, int32 SolverID, bool bNewVisibility)
+
+UENUM()
+enum class EChaosVDSceneCleanUpOptions
+{
+	None = 0,
+	ReInitializeGeometryBuilder = 1 << 0,
+	CollectGarbage = 1 << 1
+};
+
+ENUM_CLASS_FLAGS(EChaosVDSceneCleanUpOptions)
 
 /** Recreates a UWorld from a recorded Chaos VD Frame */
 class FChaosVDScene : public FGCObject , public TSharedFromThis<FChaosVDScene>
@@ -72,14 +83,14 @@ public:
 	void HandleEnterNewSolverFrame(int32 FrameNumber, const FChaosVDSolverFrameData& InFrameData);
 
 	/** Deletes all actors of the Scene and underlying UWorld */
-	void CleanUpScene();
+	void CleanUpScene(EChaosVDSceneCleanUpOptions Options = EChaosVDSceneCleanUpOptions::None);
 
 	/** Returns the a ptr to the UWorld used to represent the current recorded frame data */
 	UWorld* GetUnderlyingWorld() const { return PhysicsVDWorld; };
 
 	bool IsInitialized() const { return  bIsInitialized; }
 
-	const TSharedPtr<FChaosVDGeometryBuilder>& GetGeometryGenerator() { return  GeometryGenerator; }
+	TWeakPtr<FChaosVDGeometryBuilder> GetGeometryGenerator() { return  GeometryGenerator; }
 
 	// No need to deprecate the old version since it is not a public API nor inline 
 	Chaos::FConstImplicitObjectPtr GetUpdatedGeometry(int32 GeometryID) const;
@@ -133,6 +144,8 @@ public:
 	TSharedPtr<FChaosVDRecording> LoadedRecording;
 
 private:
+
+	void PerformGarbageCollection();
 
 	/** Creates an ChaosVDParticle actor for the Provided recorded Particle Data */
 	AChaosVDParticleActor* SpawnParticleFromRecordedData(const TSharedPtr<FChaosVDParticleDataWrapper>& InParticleData, const FChaosVDSolverFrameData& InFrameData);

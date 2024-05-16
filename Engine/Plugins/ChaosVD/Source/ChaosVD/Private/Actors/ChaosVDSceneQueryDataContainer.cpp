@@ -10,3 +10,11 @@ AChaosVDSceneQueryDataContainer::AChaosVDSceneQueryDataContainer()
 
 	SceneQueryDataComponent = CreateDefaultSubobject<UChaosVDSceneQueryDataComponent>(TEXT("ChaosVDSceneQueryDataComponent"));
 }
+
+void AChaosVDSceneQueryDataContainer::CleanUp()
+{
+	if (SceneQueryDataComponent)
+	{
+		SceneQueryDataComponent->ClearData();
+	}
+}

@@ -2,6 +2,7 @@
 
 #include "Components/ChaosVDInstancedStaticMeshComponent.h"
 
+#include "ChaosVDGeometryBuilder.h"
 #include "ChaosVDModule.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -134,10 +135,61 @@ void UChaosVDInstancedStaticMeshComponent::Reset()
 	ComponentEmptyDelegate = FChaosVDMeshComponentEmptyDelegate();
 	CurrentMaterial = nullptr;
 
+	SetStaticMesh(nullptr);
+
 	EmptyOverrideMaterials();
 
 	CurrentInstanceHandles.Reset();
 	CurrentGeometryKey = 0;
+}
+
+void UChaosVDInstancedStaticMeshComponent::Initialize()
+{
+	// We need to set the reverse culling flag correctly
+	// And the material
+
+	bReverseCulling = EnumHasAnyFlags(MeshComponentAttributeFlags, EChaosVDMeshAttributesFlags::MirroredGeometry);
+
+	TSharedPtr<FChaosVDGeometryBuilder> GeometryBuilder = GeometryBuilderWeakPtr.Pin();
+	if (ensure(GeometryBuilder))
+	{
+		if (!HasOverrideMaterials())
+		{
+			GeometryBuilder->RequestMaterialInstance(this);
+		}
+	}
+}
+
+void UChaosVDInstancedStaticMeshComponent::SetGeometryBuilder(TWeakPtr<FChaosVDGeometryBuilder> GeometryBuilder)
+{
+	GeometryBuilderWeakPtr = GeometryBuilder;
+}
+
+EChaosVDMaterialType UChaosVDInstancedStaticMeshComponent::GetMaterialType() const
+{
+	if (EnumHasAnyFlags(MeshComponentAttributeFlags, EChaosVDMeshAttributesFlags::TranslucentGeometry))
+	{
+		return  EChaosVDMaterialType::ISMCTranslucent;
+	}
+
+	return EChaosVDMaterialType::ISMCOpaque;
+}
+
+void UChaosVDInstancedStaticMeshComponent::OnDisposed()
+{
+	Reset();
+	
+	SetRelativeTransform(FTransform::Identity);
+
+	if (IsRegistered())
+	{
+		UnregisterComponent();
+	}
+
+	if (AActor* Owner =GetOwner())
+	{
+		Owner->RemoveOwnedComponent(this);
+	}
 }
 
 bool UChaosVDInstancedStaticMeshComponent::UpdateGeometryKey(const uint32 NewHandleGeometryKey)

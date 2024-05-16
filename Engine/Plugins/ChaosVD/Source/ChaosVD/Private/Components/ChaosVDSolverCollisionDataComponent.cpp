@@ -12,7 +12,7 @@ UChaosVDSolverCollisionDataComponent::UChaosVDSolverCollisionDataComponent()
 
 void UChaosVDSolverCollisionDataComponent::UpdateCollisionData(const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>& InMidPhaseData)
 {
-	ClearCollisionData();
+	ClearData();
 
 	AllMidPhases.Reserve(InMidPhaseData.Num());
 	AllMidPhases = InMidPhaseData;
@@ -45,7 +45,7 @@ const TArray<FChaosVDConstraint*>* UChaosVDSolverCollisionDataComponent::GetCons
 	return Chaos::VisualDebugger::Utils::GetDataFromParticlePairMaps<FChaosVDConstraintByParticleMap, FChaosVDConstraint*>(ConstraintsByParticleID0, ConstraintsByParticleID1, ParticleID, Options);
 }
 
-void UChaosVDSolverCollisionDataComponent::ClearCollisionData()
+void UChaosVDSolverCollisionDataComponent::ClearData()
 {
 	AllMidPhases.Reset();
 	MidPhasesByParticleID0.Reset();

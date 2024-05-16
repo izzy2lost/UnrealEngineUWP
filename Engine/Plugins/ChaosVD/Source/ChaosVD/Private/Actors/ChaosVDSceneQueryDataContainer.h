@@ -21,6 +21,8 @@ public:
 
 	UChaosVDSceneQueryDataComponent* GetSceneQueryDataComponent() const { return SceneQueryDataComponent.Get(); }
 
+	void CleanUp();
+
 protected:
 	UPROPERTY()
 	TObjectPtr<UChaosVDSceneQueryDataComponent> SceneQueryDataComponent;

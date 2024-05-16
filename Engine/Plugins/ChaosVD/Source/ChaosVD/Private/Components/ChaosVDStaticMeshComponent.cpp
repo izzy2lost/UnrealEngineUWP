@@ -2,10 +2,12 @@
 
 #include "Components/ChaosVDStaticMeshComponent.h"
 
+#include "ChaosVDGeometryBuilder.h"
 #include "ChaosVDModule.h"
-#include "MaterialDomain.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Widgets/SChaosVDEnumFlagsMenu.h"
+
 
 uint32 UChaosVDStaticMeshComponent::GetGeometryKey() const
 {
@@ -54,20 +56,26 @@ void UChaosVDStaticMeshComponent::UpdateInstanceColor(const TSharedPtr<FChaosVDM
 		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Attempted to update a mesh instance using a handle from another component. No instances were updated | Handle Component [%s] | Current Component [%s]"), ANSI_TO_TCHAR(__FUNCTION__), *GetNameSafe(InInstanceHandle->GetMeshComponent()), *GetNameSafe(this));
 		return;
 	}
-
+	
 	const bool bIsSolidColor = FMath::IsNearlyEqual(NewColor.A, 1.0f);
 
-	if (UMaterialInstanceDynamic* MaterialToApply = GetCachedMaterialInstance(bIsSolidColor ? EChaosVDMaterialType::SimOnlyMaterial : EChaosVDMaterialType::QueryOnlyMaterial))
+	bool bHasOpaqueMaterial = !EnumHasAnyFlags(MeshComponentAttributeFlags, EChaosVDMeshAttributesFlags::TranslucentGeometry);
+
+	constexpr int32 ColorPrimitiveDataIndex = 0;
+	SetCustomPrimitiveDataVector4(ColorPrimitiveDataIndex, NewColor);
+
+	// If we want to show a color with transparency, we might need to change our material
+	if (bHasOpaqueMaterial != bIsSolidColor)
 	{
-		MaterialToApply->SetVectorParameterValue(TEXT("BaseColor"), NewColor);
-		InInstanceHandle->GetMeshComponent()->SetMaterial(0, MaterialToApply);
-	}
-	else
-	{
-		ensure(false);
-		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Failed to get Query Only material for, applying the default mesh to all geometry"), ANSI_TO_TCHAR(__FUNCTION__));
+		TSharedPtr<FChaosVDGeometryBuilder> GeometryBuilder = GeometryBuilderWeakPtr.Pin();
+		if (ensure(GeometryBuilder))
+		{
+			EmptyOverrideMaterials();
+
+			Chaos::VisualDebugger::Utils::EnumAddToggleFlag(MeshComponentAttributeFlags, EChaosVDMeshAttributesFlags::TranslucentGeometry);
 			
-		InInstanceHandle->GetMeshComponent()->SetMaterial(0, UMaterial::GetDefaultMaterial(EMaterialDomain::MD_Surface));
+			GeometryBuilder->RequestMaterialInstance(this);
+		}
 	}
 }
 
@@ -93,6 +101,8 @@ void UChaosVDStaticMeshComponent::Reset()
 	bIsMeshReady = false;
 	MeshReadyDelegate = FChaosVDMeshReadyDelegate();
 	ComponentEmptyDelegate = FChaosVDMeshComponentEmptyDelegate();
+
+	SetStaticMesh(nullptr);
 
 	CurrentMeshDataHandle = nullptr;
 	CurrentGeometryKey = 0;
@@ -142,6 +152,38 @@ void UChaosVDStaticMeshComponent::RemoveMeshInstance(TSharedPtr<FChaosVDMeshData
 	ComponentEmptyDelegate.Broadcast(this);
 }
 
+void UChaosVDStaticMeshComponent::SetGeometryBuilder(TWeakPtr<FChaosVDGeometryBuilder> GeometryBuilder)
+{
+	GeometryBuilderWeakPtr = GeometryBuilder;
+}
+
+EChaosVDMaterialType UChaosVDStaticMeshComponent::GetMaterialType() const
+{
+	if (EnumHasAnyFlags(MeshComponentAttributeFlags, EChaosVDMeshAttributesFlags::TranslucentGeometry))
+	{
+		return  EChaosVDMaterialType::SMTranslucent;
+	}
+
+	return EChaosVDMaterialType::SMOpaque;
+}
+
+void UChaosVDStaticMeshComponent::OnDisposed()
+{
+	Reset();
+
+	SetRelativeTransform(FTransform::Identity);
+
+	if (IsRegistered())
+	{
+		UnregisterComponent();
+	}
+
+	if (AActor* Owner =GetOwner())
+	{
+		Owner->RemoveOwnedComponent(this);
+	}
+}
+
 bool UChaosVDStaticMeshComponent::UpdateGeometryKey(uint32 NewHandleGeometryKey)
 {
 	if (CurrentGeometryKey != 0 && CurrentGeometryKey != NewHandleGeometryKey)
@@ -159,7 +201,6 @@ bool UChaosVDStaticMeshComponent::UpdateGeometryKey(uint32 NewHandleGeometryKey)
 	return true;
 }
 
-
 TSharedPtr<FChaosVDMeshDataInstanceHandle> UChaosVDStaticMeshComponent::GetMeshDataInstanceHandle(int32 InstanceIndex) const
 {
 	return CurrentMeshDataHandle;
@@ -170,22 +211,11 @@ TArrayView<TSharedPtr<FChaosVDMeshDataInstanceHandle>> UChaosVDStaticMeshCompone
 	return TArrayView<TSharedPtr<FChaosVDMeshDataInstanceHandle>>(&CurrentMeshDataHandle, 1);
 }
 
-UMaterialInstanceDynamic* UChaosVDStaticMeshComponent::GetCachedMaterialInstance(EChaosVDMaterialType Type)
+void UChaosVDStaticMeshComponent::Initialize()
 {
-	if (const TObjectPtr<UMaterialInstanceDynamic>* MaterialInstance = CachedMaterialInstancesByID.Find(Type))
+	TSharedPtr<FChaosVDGeometryBuilder> GeometryBuilder = GeometryBuilderWeakPtr.Pin();
+	if (ensure(GeometryBuilder))
 	{
-		return MaterialInstance->Get();
+		GeometryBuilder->RequestMaterialInstance(this);
 	}
-	else
-	{
-		if (UMaterialInterface* MaterialToCreate = FChaosVDGeometryComponentUtils::GetBaseMaterialForType(Type))
-		{
-			UMaterialInstanceDynamic* DynamicMaterial = UMaterialInstanceDynamic::Create(MaterialToCreate, nullptr);
-			CachedMaterialInstancesByID.Add(Type, TObjectPtr<UMaterialInstanceDynamic>(DynamicMaterial));
-
-			return DynamicMaterial;
-		}
-	}
-
-	return nullptr;
 }

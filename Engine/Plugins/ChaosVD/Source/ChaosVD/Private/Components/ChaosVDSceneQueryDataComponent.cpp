@@ -119,3 +119,12 @@ bool UChaosVDSceneQueryDataComponent::IsQuerySelected(int32 QueryID) const
 
 	return false;
 }
+
+void UChaosVDSceneQueryDataComponent::ClearData()
+{
+	RecordedQueriesByType.Reset();
+	RecordedQueriesByID.Reset();
+	RecordedQueries.Reset();
+	
+	CurrentSQSelectionHandle = FChaosVDSceneQuerySelectionHandle();
+}

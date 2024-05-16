@@ -3,12 +3,12 @@
 #pragma once
 
 #include "ChaosVDConstraintDataHelpers.h"
-#include "Components/ActorComponent.h"
 
 #include "Containers/Array.h"
 #include "Containers/Map.h"
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 #include "GameFramework/Info.h"
+#include "SolverDataComponent.h"
 #include "Templates/SharedPointer.h"
 
 #include "ChaosVDSolverCollisionDataComponent.generated.h"
@@ -19,7 +19,7 @@ typedef TMap<int32, TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>> FChaosVDMi
 typedef TMap<int32, TArray<FChaosVDConstraint*>> FChaosVDConstraintByParticleMap;
 
 UCLASS()
-class UChaosVDSolverCollisionDataComponent : public UActorComponent
+class UChaosVDSolverCollisionDataComponent : public USolverDataComponent
 {
 	GENERATED_BODY()
 
@@ -32,9 +32,9 @@ public:
 	const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* GetMidPhasesForParticle(int32 ParticleID, EChaosVDParticlePairSlot Options) const;
 	const TArray<FChaosVDConstraint*>* GetConstraintsForParticle(int32 ParticleID, EChaosVDParticlePairSlot Options) const;
 
-protected:
+	virtual void ClearData() override;
 
-	void ClearCollisionData();
+protected:
 
 	TArray<TSharedPtr<FChaosVDParticlePairMidPhase>> AllMidPhases;
 	FChaosVDMidPhaseByParticleMap MidPhasesByParticleID0;

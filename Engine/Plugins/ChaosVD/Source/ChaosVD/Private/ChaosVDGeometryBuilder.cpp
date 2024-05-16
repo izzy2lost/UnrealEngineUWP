@@ -2,11 +2,11 @@
 
 #include "ChaosVDGeometryBuilder.h"
 
+#include "Chaos/HeightField.h"
 #include "ChaosVDConvexMeshGenerator.h"
 #include "ChaosVDGeometryDataComponent.h"
 #include "ChaosVDModule.h"
 #include "ChaosVDTriMeshGenerator.h"
-#include "Components/ChaosVDStaticMeshComponent.h"
 #include "DynamicMeshToMeshDescription.h"
 #include "Generators/CapsuleGenerator.h"
 #include "Generators/MinimalBoxMeshGenerator.h"
@@ -14,9 +14,9 @@
 #include "MeshConstraints.h"
 #include "MeshConstraintsUtil.h"
 #include "MeshSimplification.h"
+#include "Misc/ScopedSlowTask.h"
 #include "StaticMeshAttributes.h"
 #include "UDynamicMesh.h"
-#include "Chaos/HeightField.h"
 #include "UObject/UObjectGlobals.h"
 
 namespace Chaos::VisualDebugger
@@ -163,8 +163,18 @@ namespace Chaos::VisualDebugger
 	}
 }
 
+FChaosVDGeometryBuilder::~FChaosVDGeometryBuilder()
+{
+	DeInitialize();
+}
+
 void FChaosVDGeometryBuilder::Initialize(const TWeakPtr<FChaosVDScene>& ChaosVDScene)
 {
+	if (!ChaosVDScene.Pin())
+	{
+		return;
+	}
+
 	SceneWeakPtr = ChaosVDScene;
 
 	auto ProcessMeshComponent = [WeakThis = AsWeak()](uint32 GeometryKey, const TWeakObjectPtr<UMeshComponent> Object)
@@ -174,7 +184,7 @@ void FChaosVDGeometryBuilder::Initialize(const TWeakPtr<FChaosVDScene>& ChaosVDS
 		{
 			UE_LOG(LogChaosVDEditor, Verbose, TEXT(" [%s] Failed to update mesh for Handle | Geometry Key [%u] | Geometry Builder is invalid"), ANSI_TO_TCHAR(__FUNCTION__), GeometryKey);
 
-			// If the the builder is no longer valid, just consume the request
+			// If the builder is no longer valid, just consume the request
 			return true;
 		}
 
@@ -191,14 +201,14 @@ void FChaosVDGeometryBuilder::Initialize(const TWeakPtr<FChaosVDScene>& ChaosVDS
 		return false;
 	};
 	
-	auto CreateMaterialForMeshComponent = [WeakThis = AsWeak()](const TWeakObjectPtr<UMeshComponent> Object)
+	auto UpdateMeshMaterialForComponent = [WeakThis = AsWeak()](const TWeakObjectPtr<UMeshComponent> Object)
 	{
 		const TSharedPtr<FChaosVDGeometryBuilder> GeometryBuilder = WeakThis.Pin();
 		if (!GeometryBuilder)
 		{
 			UE_LOG(LogChaosVDEditor, Verbose, TEXT(" [%s] Failed to Create Material for Mesh | Geometry builder is no longer valid "), ANSI_TO_TCHAR(__FUNCTION__));
 
-			// If the the builder is no longer valid, just consume the request
+			// If the builder is no longer valid, just consume the request
 			return true;
 		}
 
@@ -212,29 +222,112 @@ void FChaosVDGeometryBuilder::Initialize(const TWeakPtr<FChaosVDScene>& ChaosVDS
 				return true;
 			}
 
-			GeometryBuilder->SetMeshComponentMaterial(CVDMeshComponent->GetMeshComponentAttributeFlags(), MeshComponent);
+			GeometryBuilder->SetMeshComponentMaterial(CVDMeshComponent);
 		}
 		return true;
 	};
 
-	auto LauchGeometryGenerationTaskDeferred = [WeakThis = AsWeak()](TSharedPtr<FGeometryGenerationTask> GeometryGenerationTask)
+	auto LaunchGeometryGenerationTaskDeferred = [](TSharedPtr<FChaosVDGeometryGenerationTask> GeometryGenerationTask)
 	{
-		UE::Tasks::Launch(TEXT("GeometryGeneration"),
-[GeometryGenerationTask]()
+		if(GeometryGenerationTask)
 		{
-			GeometryGenerationTask->GenerateGeometry();
-		});
+			GeometryGenerationTask->TaskHandle = UE::Tasks::Launch(TEXT("GeometryGeneration"),
+			[GeometryGenerationTask]()
+			{
+				if (GeometryGenerationTask)
+				{
+					if (GeometryGenerationTask->IsCanceled())
+					{
+						return;
+					}
+					GeometryGenerationTask->GenerateGeometry();
+				}
+			});
+		}
+	
 		return true;
 	};
 
 	MeshComponentsWaitingForGeometry = MakeUnique<FObjectsWaitingGeometryList<FMeshComponentWeakPtr>>(ProcessMeshComponent, NSLOCTEXT("ChaosVisualDebugger", "GeometryGenNotification","Mesh Components"), ShouldProcessObjectsForKey);
-	MeshComponentsWaitingForMaterial = MakeUnique<FObjectsWaitingProcessingQueue<FMeshComponentWeakPtr>>(CreateMaterialForMeshComponent, NSLOCTEXT("ChaosVisualDebugger", "GeometryMaterialNotification","Material instances"));
-	GeometryTasksPendingLaunch = MakeUnique<FObjectsWaitingProcessingQueue<TSharedPtr<FGeometryGenerationTask>>>(LauchGeometryGenerationTaskDeferred, NSLOCTEXT("ChaosVisualDebugger", "GeometryTaskLauchNotification","Static Meshes"));
+	MeshComponentsWaitingForMaterial = MakeUnique<FObjectsWaitingProcessingQueue<FMeshComponentWeakPtr>>(UpdateMeshMaterialForComponent, NSLOCTEXT("ChaosVisualDebugger", "GeometryMaterialNotification","Material instances"));
+	GeometryTasksPendingLaunch = MakeUnique<FObjectsWaitingProcessingQueue<TSharedPtr<FChaosVDGeometryGenerationTask>>>(LaunchGeometryGenerationTaskDeferred, NSLOCTEXT("ChaosVisualDebugger", "GeometryTaskLauchNotification","Static Meshes"));
 
 	GameThreadTickDelegate = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(this, &FChaosVDGeometryBuilder::GameThreadTick));
 
 	constexpr int32 MeshPendingDisposalContainerDefaultSize = 500; 
 	MeshComponentsPendingDisposal.Reserve(MeshPendingDisposalContainerDefaultSize);
+
+	bInitialized = true;
+}
+
+void FChaosVDGeometryBuilder::DeInitialize()
+{
+	if (!bInitialized)
+	{
+		return;
+	}
+
+	constexpr float MaxAmountOfWork = 1.0f;
+	const int32 WorkRemaining = GeometryBeingGeneratedByKey.Num() + StaticMeshCacheMap.Num();
+	const float PercentagePerElement = 1.0f / WorkRemaining;
+
+	FScopedSlowTask CleaningGeometrySlowTask(MaxAmountOfWork, NSLOCTEXT("ChaosVisualDebugger", "DeInitializeGeometrybuilderSlowTask", "Deinitialiing GeometryBuilder"));
+
+	FTSTicker::GetCoreTicker().RemoveTicker(GameThreadTickDelegate);
+
+	int32 TasksFailedToCancelNum = 0;
+
+	for (const TPair<uint32, TSharedPtr<FChaosVDGeometryGenerationTask>>& TaskWithID : GeometryBeingGeneratedByKey)
+	{
+		if (TaskWithID.Value)
+		{
+			TaskWithID.Value->CancelTask();
+		}
+
+		if (!TaskWithID.Value->TaskHandle.Wait(FTimespan::FromSeconds(10.0f)))
+		{
+			TasksFailedToCancelNum++;
+		}
+
+		CleaningGeometrySlowTask.EnterProgressFrame(PercentagePerElement);
+	}
+	
+	if (TasksFailedToCancelNum > 0)
+	{
+		UE_LOG(LogChaosVDEditor, Warning, TEXT("[%s] Failed to cancel [%d] tasks"), ANSI_TO_TCHAR(__FUNCTION__), TasksFailedToCancelNum);
+	}
+	
+	GeometryBeingGeneratedByKey.Reset();
+
+	FInstancedStaticMeshDelegates::OnInstanceIndexUpdated.RemoveAll(this);
+
+	for (const TPair<uint32, TObjectPtr<UStaticMesh>>& StaticMeshByKey : StaticMeshCacheMap)
+	{
+		if (StaticMeshByKey.Value)
+		{
+			StaticMeshByKey.Value->ClearFlags(RF_Standalone);
+			StaticMeshByKey.Value->MarkAsGarbage();
+		}
+		CleaningGeometrySlowTask.EnterProgressFrame(PercentagePerElement);
+	}
+
+	MeshComponentsPendingDisposal.Reset();
+	TranslucentMirroredInstancedMeshComponentByGeometryKey.Reset();
+	MirroredInstancedMeshComponentByGeometryKey.Reset();
+	TranslucentInstancedMeshComponentByGeometryKey.Reset();
+	InstancedMeshComponentByGeometryKey.Reset();
+	GeometryTasksPendingLaunch.Reset();
+	MeshComponentsWaitingForMaterial.Reset();
+	MeshComponentsWaitingForGeometry.Reset();
+	StaticMeshCacheMap.Reset();
+
+	bInitialized = false;
+}
+
+void FChaosVDGeometryBuilder::CreateMeshesFromImplicitObject(const Chaos::FImplicitObject* InImplicitObject, AActor* Owner, TArray<TSharedPtr<FChaosVDExtractedGeometryDataHandle>>& OutMeshDataHandles, const int32 DesiredLODCount, const Chaos::FRigidTransform3& InTransform, const int32 MeshIndex)
+{
+	// To start set the leaf and the root to the same ptr. If the object is an union, in the subsequent recursive call the leaf will be set correctly
+	CreateMeshesFromImplicit_Internal(InImplicitObject, InImplicitObject, Owner, OutMeshDataHandles, DesiredLODCount, InTransform, MeshIndex);
 }
 
 void FChaosVDGeometryBuilder::AddReferencedObjects(FReferenceCollector& Collector)
@@ -288,6 +381,55 @@ bool FChaosVDGeometryBuilder::HasNegativeScale(const Chaos::FRigidTransform3& In
 {
 	const FVector ScaleSignVector = InTransform.GetScale3D().GetSignVector();
 	return ScaleSignVector.X * ScaleSignVector.Y * ScaleSignVector.Z < 0;
+}
+
+void FChaosVDGeometryBuilder::CreateMeshesFromImplicit_Internal(const Chaos::FImplicitObject* InRootImplicitObject, const Chaos::FImplicitObject* InLeafImplicitObject, AActor* Owner, TArray<TSharedPtr<FChaosVDExtractedGeometryDataHandle>>& OutMeshDataHandles, const int32 DesiredLODCount, const Chaos::FRigidTransform3& InTransform, const int32 ShapeInstanceIndex)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FChaosVDGeometryBuilder::CreateMeshesFromImplicit_Internal);
+
+	using namespace Chaos;
+
+	const EImplicitObjectType InnerType = GetInnerType(InLeafImplicitObject->GetType());
+	
+	if (InnerType == ImplicitObjectType::Union || InnerType == ImplicitObjectType::UnionClustered)
+	{
+		if (const FImplicitObjectUnion* Union = InLeafImplicitObject->template AsA<FImplicitObjectUnion>())
+		{
+			const bool bIsRootUnion = InRootImplicitObject == InLeafImplicitObject;
+
+			for (int32 ObjectIndex = 0; ObjectIndex < Union->GetObjects().Num(); ++ObjectIndex)
+			{
+				const FImplicitObjectPtr& UnionImplicit = Union->GetObjects()[ObjectIndex];
+
+				// If this union it is not the root implicit object, then all its objects will share the same Instance index
+				int32 CurrentShapeInstanceIndex = bIsRootUnion ? ObjectIndex : ShapeInstanceIndex;
+
+				CreateMeshesFromImplicit_Internal(InRootImplicitObject, UnionImplicit.GetReference(), Owner, OutMeshDataHandles, DesiredLODCount, InTransform, CurrentShapeInstanceIndex);	
+			}
+		}
+
+		return;
+	}
+
+	if (InnerType == ImplicitObjectType::Transformed)
+	{
+		if (const TImplicitObjectTransformed<FReal, 3>* Transformed = InLeafImplicitObject->template GetObject<TImplicitObjectTransformed<FReal, 3>>())
+		{
+			// For transformed objects, the Instance index is the same so we pass it in without changing it
+			CreateMeshesFromImplicit_Internal(InRootImplicitObject, Transformed->GetTransformedObject(), Owner, OutMeshDataHandles, DesiredLODCount, Transformed->GetTransform(), ShapeInstanceIndex);
+		}
+		
+		return;
+	}
+
+	if (const TSharedPtr<FChaosVDExtractedGeometryDataHandle> MeshDataHandle = ExtractGeometryDataForImplicit(InLeafImplicitObject, InTransform))
+	{
+		MeshDataHandle->SetImplicitObject(InLeafImplicitObject);
+		MeshDataHandle->SetShapeInstanceIndex(ShapeInstanceIndex);
+		MeshDataHandle->SetRootImplicitObject(InRootImplicitObject);
+
+		OutMeshDataHandles.Add(MeshDataHandle);
+	}
 }
 
 bool FChaosVDGeometryBuilder::HasGeometryInCache(uint32 GeometryKey)
@@ -403,40 +545,43 @@ UStaticMesh* FChaosVDGeometryBuilder::CreateAndCacheStaticMesh(const uint32 Geom
 	return MainStaticMesh;
 }
 
-void FChaosVDGeometryBuilder::SetMeshComponentMaterial(EChaosVDMeshAttributesFlags MeshComponentAttributeFlags, UMeshComponent* MeshComponent)
+void FChaosVDGeometryBuilder::SetMeshComponentMaterial(IChaosVDGeometryComponent* GeometryComponent)
 {
-	UMaterialInstanceDynamic* Material = nullptr;
-
-	if (Cast<UChaosVDInstancedStaticMeshComponent>(MeshComponent))
+	if (!GeometryComponent)
 	{
-		Material = FChaosVDGeometryComponentUtils::CreateMaterialInstance(FChaosVDGeometryComponentUtils::GetMaterialTypeForComponent<UChaosVDInstancedStaticMeshComponent>(MeshComponentAttributeFlags));
-	}
-	else
-	{
-		Material = FChaosVDGeometryComponentUtils::CreateMaterialInstance(FChaosVDGeometryComponentUtils::GetMaterialTypeForComponent<UChaosVDStaticMeshComponent>(MeshComponentAttributeFlags));
+		return;
 	}
 
+	UMaterialInterface* Material = ComponentMeshPool.GetMaterialForType(GeometryComponent->GetMaterialType());
 	ensure(Material);
 
-	MeshComponent->SetMaterial(0, Material);
+	if (UMeshComponent* AsMeshComponent = Cast<UMeshComponent>(GeometryComponent))
+	{
+		AsMeshComponent->SetMaterial(0, Material);
+	}
 }
 
 void FChaosVDGeometryBuilder::DestroyMeshComponent(UMeshComponent* MeshComponent)
 {
-	if (Cast<UChaosVDInstancedStaticMeshComponent>(MeshComponent))
+	if (IChaosVDGeometryComponent* AsCVDGeometryComponent = Cast<IChaosVDGeometryComponent>(MeshComponent))
 	{
-		if (IChaosVDGeometryComponent* AsCVDGeometryComponent = Cast<IChaosVDGeometryComponent>(MeshComponent))
+		if (Cast<UChaosVDInstancedStaticMeshComponent>(MeshComponent))
 		{
-			TMap<uint32, UChaosVDInstancedStaticMeshComponent*>& InstancedMeshComponentCache = GetInstancedStaticMeshComponentCacheMap(AsCVDGeometryComponent->GetMeshComponentAttributeFlags());
+			EChaosVDMeshAttributesFlags MeshAttributes = AsCVDGeometryComponent->GetMeshComponentAttributeFlags();
+			TMap<uint32, UChaosVDInstancedStaticMeshComponent*>& InstancedMeshComponentCache = GetInstancedStaticMeshComponentCacheMap(MeshAttributes);
 			InstancedMeshComponentCache.Remove(AsCVDGeometryComponent->GetGeometryKey());
-
-			RemoveMeshComponentWaitingForGeometry(AsCVDGeometryComponent->GetGeometryKey(), MeshComponent);
-
-			AsCVDGeometryComponent->OnComponentEmpty()->RemoveAll(this);
 		}
+		
+		RemoveMeshComponentWaitingForGeometry(AsCVDGeometryComponent->GetGeometryKey(), MeshComponent);	
+        AsCVDGeometryComponent->OnComponentEmpty()->RemoveAll(this);
 	}
 
 	MeshComponentsPendingDisposal.Add(MeshComponent);
+}
+
+void FChaosVDGeometryBuilder::RequestMaterialInstance(UMeshComponent* MeshComponent)
+{
+	MeshComponentsWaitingForMaterial->EnqueueObject(MeshComponent);
 }
 
 TMap<uint32, UChaosVDInstancedStaticMeshComponent*>& FChaosVDGeometryBuilder::GetInstancedStaticMeshComponentCacheMap(EChaosVDMeshAttributesFlags MeshAttributeFlags)
@@ -656,6 +801,36 @@ void FChaosVDGeometryBuilder::AdjustedTransformForImplicit(const Chaos::FImplici
 	}
 }
 
+TSharedPtr<FChaosVDExtractedGeometryDataHandle> FChaosVDGeometryBuilder::ExtractGeometryDataForImplicit(const Chaos::FImplicitObject* InImplicitObject, const Chaos::FRigidTransform3& InTransform)
+{
+	const uint32 ImplicitObjectHash = InImplicitObject->GetTypeHash();
+
+	Chaos::FRigidTransform3 ExtractedTransform = InTransform;
+	const bool bNeedsUnpack = ImplicitObjectNeedsUnpacking(InImplicitObject);
+	if (const Chaos::FImplicitObject* ImplicitObjectToProcess = bNeedsUnpack ? UnpackImplicitObject(InImplicitObject, ExtractedTransform) : InImplicitObject)
+	{
+		TSharedPtr<FChaosVDExtractedGeometryDataHandle> MeshDataHandle = MakeShared<FChaosVDExtractedGeometryDataHandle>();
+
+		const uint32 GeometryKey = ImplicitObjectToProcess->GetTypeHash();		
+		MeshDataHandle->SetGeometryKey(GeometryKey);
+
+		// For the Component data key, we need the hash of the implicit as it is (packed) because we will need to match it when looking for shape data
+		MeshDataHandle->SetDataComponentKey(bNeedsUnpack ? ImplicitObjectHash : GeometryKey);
+
+		AdjustedTransformForImplicit(ImplicitObjectToProcess, ExtractedTransform);
+		MeshDataHandle->SetTransform(ExtractedTransform);
+
+		if (!HasGeometryInCache(GeometryKey))
+		{
+			DispatchCreateAndCacheMeshForImplicitAsync(GeometryKey, ImplicitObjectToProcess);
+		}
+
+		return MeshDataHandle;
+	}
+
+	return nullptr;
+}
+
 bool FChaosVDGeometryBuilder::ImplicitObjectNeedsUnpacking(const Chaos::FImplicitObject* InImplicitObject) const
 {
 	using namespace Chaos;
@@ -749,14 +924,39 @@ void FChaosVDGeometryBuilder::HandleStaticMeshComponentInstanceIndexUpdated(UIns
 	}
 }
 
-void FGeometryGenerationTask::GenerateGeometry()
+void FChaosVDGeometryBuilder::DispatchCreateAndCacheMeshForImplicitAsync(const uint32 GeometryKey,  const Chaos::FImplicitObject* ImplicitObject, const int32 LODsToGenerateNum)
+{
+	ensure(IsInGameThread());
+
+	{
+		FReadScopeLock ReadLock(GeometryCacheRWLock);
+		if (GeometryBeingGeneratedByKey.Contains(GeometryKey))
+		{
+			return;
+		}
+	}
+
+	TSharedPtr<FChaosVDGeometryGenerationTask> GenerationTask = MakeShared<FChaosVDGeometryGenerationTask>(AsWeak(), GeometryKey, ImplicitObject, LODsToGenerateNum);
+
+	{
+		FWriteScopeLock WriteLock(GeometryCacheRWLock);
+		GeometryBeingGeneratedByKey.Add(GeometryKey, GenerationTask);
+	}
+
+	GeometryTasksPendingLaunch->EnqueueObject(GenerationTask);
+}
+
+void FChaosVDGeometryGenerationTask::GenerateGeometry()
 {
 	if (const TSharedPtr<FChaosVDGeometryBuilder> BuilderPtr = Builder.Pin())
 	{
-		BuilderPtr->CreateAndCacheStaticMesh(GeometryKey, *MeshGenerator.Get(), LODsToGenerateNum);
+		if (TSharedPtr<UE::Geometry::FMeshShapeGenerator> MeshGenerator = BuilderPtr->CreateMeshGeneratorForImplicitObject(ImplicitObject))
 		{
-			FWriteScopeLock WriteLock(BuilderPtr->GeometryCacheRWLock);
-			BuilderPtr->GeometryBeingGeneratedByKey.Remove(GeometryKey);
+			BuilderPtr->CreateAndCacheStaticMesh(GeometryKey, *MeshGenerator.Get(), LODsToGenerateNum);
+			{
+				FWriteScopeLock WriteLock(BuilderPtr->GeometryCacheRWLock);
+				BuilderPtr->GeometryBeingGeneratedByKey.Remove(GeometryKey);
+			}
 		}
 	}
 }

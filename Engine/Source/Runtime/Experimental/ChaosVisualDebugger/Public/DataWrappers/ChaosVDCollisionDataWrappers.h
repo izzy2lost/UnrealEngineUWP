@@ -371,6 +371,24 @@ enum class EChaosVDMidPhaseFlags : uint8
 	IsModified = 1 << 4,
 };
 
+UENUM()
+enum class EChaosVDMidPhaseType : int8
+{
+	// A general purpose midphase that handle BVHs, Meshes, 
+	// Unions of Unions, etc in the geometry hierarchy.
+	Generic,
+
+	// A midphase optimized for particle pairs with a small
+	// number of shapes. Pre-expands the set of potentially
+	// colliding shape pairs.
+	ShapePair,
+
+	// A midphase used to collide particles as sphere approximations
+	SphereApproximation,
+
+	Unknown
+};
+
 USTRUCT()
 struct CHAOSVDRUNTIME_API FChaosVDParticlePairMidPhase
 {
@@ -380,6 +398,9 @@ struct CHAOSVDRUNTIME_API FChaosVDParticlePairMidPhase
 
 	UPROPERTY()
 	int32 SolverID = INDEX_NONE;
+
+	UPROPERTY(VisibleAnywhere, Category=General)
+	EChaosVDMidPhaseType MidPhaseType;
 
 	UPROPERTY(VisibleAnywhere, Category=Flags)
 	uint8 bIsActive:1 = false;
@@ -454,6 +475,12 @@ struct CHAOSVDRUNTIME_API FChaosVDCollisionFilterData
 	bool Serialize(FArchive& Ar);
 };
 
+template <>
+struct TTypeTraits<FChaosVDCollisionFilterData> : public TTypeTraitsBase <FChaosVDCollisionFilterData>
+{
+	enum { IsBytewiseComparable = true };
+};
+
 template<>
 struct TStructOpsTypeTraits<FChaosVDCollisionFilterData> : public TStructOpsTypeTraitsBase2<FChaosVDCollisionFilterData>
 {
@@ -507,6 +534,12 @@ struct CHAOSVDRUNTIME_API FChaosVDShapeCollisionData
 	bool Serialize(FArchive& Ar);
 
 	bool operator==(const FChaosVDShapeCollisionData& Other) const;
+};
+
+template <>
+struct TTypeTraits<FChaosVDShapeCollisionData> : public TTypeTraitsBase <FChaosVDShapeCollisionData>
+{
+	enum { IsBytewiseComparable = true };
 };
 
 template<>

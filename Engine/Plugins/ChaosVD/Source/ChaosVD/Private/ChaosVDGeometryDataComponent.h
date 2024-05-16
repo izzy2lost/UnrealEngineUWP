@@ -37,10 +37,10 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDMeshComponentEmptyDelegate, UMeshCom
 UENUM()
 enum class EChaosVDMaterialType
 {
-	SimOnlyMaterial,
-	QueryOnlyMaterial,
-	Instanced,
-	InstancedQueryOnly
+	SMOpaque,
+	SMTranslucent,
+	ISMCOpaque,
+	ISMCTranslucent
 };
 
 UENUM()
@@ -146,7 +146,7 @@ public:
 	void SetGeometryHandle(const TSharedPtr<FChaosVDExtractedGeometryDataHandle>& InHandle);
 
 	/** Returns the geometry handle used to create the mesh instance this handle represents */
-	TSharedPtr<FChaosVDExtractedGeometryDataHandle> GetGeometryHandle() const { return ExtractedGeometryHandle; }
+	const TSharedPtr<FChaosVDExtractedGeometryDataHandle>& GetGeometryHandle() const { return ExtractedGeometryHandle; }
 
 	/** Applies to the provided color to the mesh instance this handle represents */
 	void SetInstanceColor(const FLinearColor& NewColor);
@@ -168,6 +168,7 @@ public:
 
 	/** Sets a Ptr to the geometry builder used to generate and manage the geometry/mesh components this handle represents */
 	void SetGeometryBuilder(const TWeakPtr<FChaosVDGeometryBuilder>& InGeometryBuilder) { GeometryBuilderInstance = InGeometryBuilder; }
+	TWeakPtr<FChaosVDGeometryBuilder> GetGeometryBuilder() { return GeometryBuilderInstance; }
 
 	/** Marks this mesh instance as selected. Used to handle Selection in Editor */
 	void SetIsSelected(bool bInIsSelected);
@@ -309,8 +310,15 @@ public:
 	/** Returns the CVD Mesh Attribute flags this component is compatible with*/
 	virtual EChaosVDMeshAttributesFlags GetMeshComponentAttributeFlags() const PURE_VIRTUAL(IChaosVDGeometryDataComponent::GetMeshComponentAttributeFlags, return EChaosVDMeshAttributesFlags::None;);
 
-	/** Resets the state of this mesh component so it can be re-used later on */
+	/** Resets the state of this mesh component, so it can be re-used later on */
 	virtual void Reset() PURE_VIRTUAL(IChaosVDGeometryDataComponent::Reset);
+
+	virtual void Initialize() PURE_VIRTUAL(IChaosVDGeometryDataComponent::Initialize);
+	
+	/** Sets a Ptr to the geometry builder used to generate and manage the geometry/mesh components */
+	virtual void SetGeometryBuilder(TWeakPtr<FChaosVDGeometryBuilder> GeometryBuilder) PURE_VIRTUAL(IChaosVDGeometryDataComponent::SetGeometryBuilder);
+
+	virtual EChaosVDMaterialType GetMaterialType() const PURE_VIRTUAL(IChaosVDGeometryDataComponent::GetMaterialType,  return EChaosVDMaterialType::SMOpaque;);
 };
 
 class FChaosVDGeometryComponentUtils
@@ -325,14 +333,8 @@ public:
 	/** Calculates the correct visibility state based on the particle state, and applies it to the mesh instance the provided handle represents */
 	static void UpdateMeshVisibility(const TSharedPtr<FChaosVDMeshDataInstanceHandle>& InInstanceHandle, const FChaosVDParticleDataWrapper& InParticleData, bool bIsActive);
 
-	/** Returns an the material to use as a base to create material instances for the provided type */
+	/** Returns the material to use as a base to create material instances for the provided type */
 	static UMaterialInterface* GetBaseMaterialForType(EChaosVDMaterialType Type);
-
-	/** Creates a material instance using the provided material as a base */
-	static UMaterialInstanceDynamic* CreateMaterialInstance(UMaterialInterface* BaseMaterial);
-
-	/** Creates a material instance for the provided CVD material type */
-	static UMaterialInstanceDynamic* CreateMaterialInstance(EChaosVDMaterialType Type);
 
 	/** Returns the correct material type to use based on the provided Component type and Mesh Attributes */
 	template<typename TComponent>
@@ -350,11 +352,11 @@ EChaosVDMaterialType FChaosVDGeometryComponentUtils::GetMaterialTypeForComponent
 	constexpr bool bIsInstancedMeshComponent = std::is_base_of_v<UInstancedStaticMeshComponent, TComponent>;
 	if (EnumHasAnyFlags(MeshAttributes, EChaosVDMeshAttributesFlags::TranslucentGeometry))
 	{
-		return bIsInstancedMeshComponent ? EChaosVDMaterialType::InstancedQueryOnly : EChaosVDMaterialType::QueryOnlyMaterial;
+		return bIsInstancedMeshComponent ? EChaosVDMaterialType::ISMCTranslucent : EChaosVDMaterialType::SMTranslucent;
 	}
 	else
 	{
-		return bIsInstancedMeshComponent ? EChaosVDMaterialType::Instanced : EChaosVDMaterialType::SimOnlyMaterial;
+		return bIsInstancedMeshComponent ? EChaosVDMaterialType::ISMCOpaque : EChaosVDMaterialType::SMOpaque;
 	}
 }
 

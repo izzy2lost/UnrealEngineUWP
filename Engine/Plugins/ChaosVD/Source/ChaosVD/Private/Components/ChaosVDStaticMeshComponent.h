@@ -4,11 +4,12 @@
 
 #include "Components/StaticMeshComponent.h"
 #include "ChaosVDGeometryDataComponent.h"
+#include "Interfaces/ChaosVDPooledObject.h"
 #include "ChaosVDStaticMeshComponent.generated.h"
 
 /** CVD version of a Static Mesh Component that holds additional CVD data */
 UCLASS(HideCategories=("Transform"), MinimalAPI)
-class UChaosVDStaticMeshComponent : public UStaticMeshComponent, public IChaosVDGeometryComponent
+class UChaosVDStaticMeshComponent : public UStaticMeshComponent, public IChaosVDGeometryComponent, public IChaosVDPooledObject
 {
 	GENERATED_BODY()
 
@@ -36,31 +37,39 @@ public:
 	virtual void SetIsSelected(const TSharedPtr<FChaosVDMeshDataInstanceHandle>& InInstanceHandle, bool bIsSelected) override;
 
 	virtual bool ShouldRenderSelected() const override;
-	
+
 	virtual void UpdateInstanceColor(const TSharedPtr<FChaosVDMeshDataInstanceHandle>& InInstanceHandle, FLinearColor NewColor) override;
 	virtual void UpdateInstanceWorldTransform(const TSharedPtr<FChaosVDMeshDataInstanceHandle>& InInstanceHandle, const FTransform& InTransform) override;
 
-	virtual void SetMeshComponentAttributeFlags(EChaosVDMeshAttributesFlags Flags) override { MeshComponentAttributeFlags = static_cast<uint8>(Flags); }
-	virtual EChaosVDMeshAttributesFlags GetMeshComponentAttributeFlags() const override {return static_cast<EChaosVDMeshAttributesFlags>(MeshComponentAttributeFlags); };
+	virtual void SetMeshComponentAttributeFlags(EChaosVDMeshAttributesFlags Flags) override { MeshComponentAttributeFlags = Flags; };
+	virtual EChaosVDMeshAttributesFlags GetMeshComponentAttributeFlags() const override { return MeshComponentAttributeFlags; };
 
 	virtual TSharedPtr<FChaosVDMeshDataInstanceHandle> GetMeshDataInstanceHandle(int32 InstanceIndex) const override;
 	virtual TArrayView<TSharedPtr<FChaosVDMeshDataInstanceHandle>> GetMeshDataInstanceHandles() override;
 
+	virtual void Initialize() override;
 	virtual void Reset() override;
 
 	virtual TSharedPtr<FChaosVDMeshDataInstanceHandle> AddMeshInstance(const FTransform InstanceTransform, bool bIsWorldSpace, const TSharedPtr<FChaosVDExtractedGeometryDataHandle>& InGeometryHandle, int32 ParticleID, int32 SolverID) override;
 	virtual void AddMeshInstanceForHandle(TSharedPtr<FChaosVDMeshDataInstanceHandle> MeshDataHandle, const FTransform InstanceTransform, bool bIsWorldSpace, const TSharedPtr<FChaosVDExtractedGeometryDataHandle>& InGeometryHandle, int32 ParticleID, int32 SolverID) override;
 	virtual void RemoveMeshInstance(TSharedPtr<FChaosVDMeshDataInstanceHandle> InHandleToRemove) override;
+
+	virtual void SetGeometryBuilder(TWeakPtr<FChaosVDGeometryBuilder> GeometryBuilder) override;
+
+	virtual EChaosVDMaterialType GetMaterialType() const override;
+
 	// END IChaosVDGeometryDataComponent Interface
+
+	// BEGIN IChaosVDPooledObject Interface
+	virtual void OnAcquired() override {};
+	virtual void OnDisposed() override;
+	// END IChaosVDPooledObject Interface
 
 protected:
 
 	bool UpdateGeometryKey(uint32 NewHandleGeometryKey);
 
-	/** Returns an existing material instance used by this mesh instances, or creates a new one for the provided type */
-	UMaterialInstanceDynamic* GetCachedMaterialInstance(EChaosVDMaterialType Type);
-
-	uint8 MeshComponentAttributeFlags = 0;
+	EChaosVDMeshAttributesFlags MeshComponentAttributeFlags = EChaosVDMeshAttributesFlags::None;
 	uint8 CurrentGeometryKey = 0;
 	bool bIsMeshReady = false;
 	bool bIsOwningParticleSelected = false;
@@ -70,7 +79,6 @@ protected:
 	TSharedPtr<FChaosVDMeshDataInstanceHandle> CurrentMeshDataHandle = nullptr;
 
 	TSharedPtr<FChaosVDExtractedGeometryDataHandle> CurrentGeometryHandle = nullptr;
-
-	UPROPERTY(Transient)
-	TMap<EChaosVDMaterialType, TObjectPtr<UMaterialInstanceDynamic>> CachedMaterialInstancesByID;
+	
+	TWeakPtr<FChaosVDGeometryBuilder> GeometryBuilderWeakPtr;
 };

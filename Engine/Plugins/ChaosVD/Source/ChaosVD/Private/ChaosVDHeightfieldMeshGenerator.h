@@ -24,7 +24,7 @@ public:
 	virtual FMeshShapeGenerator& Generate() override;
 
 private:
-	void AppendTriangle(int32& OutTriIndex, int& OutCurrentNormalIndex, int32 PolygonIndex, const Chaos::TVec2<Chaos::FReal>& InCellCoordinates, const UE::Geometry::FIndex3i& InTriangle, const Chaos::FHeightField& InHeightField);
+	void AppendTriangle(const Chaos::TVec2<Chaos::FReal>& InCellCoordinates, const UE::Geometry::FIndex3i& InTriangle, const Chaos::FHeightField& InHeightField, int32 PolygonID, int32 TriangleIndex);
 
 	bool bIsGenerated = false;
 };

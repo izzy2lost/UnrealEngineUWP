@@ -2,8 +2,9 @@
 
 #pragma once
 
-#include "Components/ActorComponent.h"
 #include "DataWrappers/ChaosVDQueryDataWrappers.h"
+#include "SolverDataComponent.h"
+
 #include "ChaosVDSceneQueryDataComponent.generated.h"
 
 struct FChaosVDGameFrameData;
@@ -42,7 +43,7 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDSQSelectionChangedDelegate, const FC
 
 /** Actor Component that contains all the scene queries recorded at the current loaded frame */
 UCLASS()
-class CHAOSVD_API UChaosVDSceneQueryDataComponent : public UActorComponent
+class CHAOSVD_API UChaosVDSceneQueryDataComponent : public USolverDataComponent
 {
 	GENERATED_BODY()
 
@@ -63,6 +64,8 @@ public:
 	FChaosVDSceneQuerySelectionHandle GetSelectedQueryHandle() const { return CurrentSQSelectionHandle; }
 
 	FChaosVDSQSelectionChangedDelegate& GetOnSelectionChangeDelegate() { return SelectionChangeDelegate; }
+
+	virtual void ClearData() override;
 
 protected:
 	

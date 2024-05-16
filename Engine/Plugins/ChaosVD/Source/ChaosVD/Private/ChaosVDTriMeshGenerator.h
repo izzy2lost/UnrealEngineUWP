@@ -24,29 +24,33 @@ private:
 	template<typename BufferIndexType>
 	void ProcessTriangles(const TArray<BufferIndexType>& InTriangles, const int32 NumTriangles, const Chaos::FTriangleMeshImplicitObject& InTriMesh);
 
-	bool bIsGenerated = false;;
+	bool bIsGenerated = false;
+
+	/** Max number of elements after which we will process elements in parallel using worker threads
+	 * Note: This value is not tuned yet
+	 */
+	static constexpr int32 MaxElementsNumToProcessInSingleThread = 64;
 };
 
 template <typename BufferIndexType>
 void FChaosVDTriMeshGenerator::ProcessTriangles(const TArray<BufferIndexType>& InTriangles, const int32 NumTriangles, const Chaos::FTriangleMeshImplicitObject& InTriMesh)
 {
-	int CurrentNormalIndex = 0;
-	for (int32 TriangleIndex = 0; TriangleIndex < NumTriangles; ++TriangleIndex)
+	EParallelForFlags Flags = NumTriangles > MaxElementsNumToProcessInSingleThread ? EParallelForFlags::ForceSingleThread : EParallelForFlags::None;
+	ParallelFor(NumTriangles, [this, &InTriangles, &InTriMesh](int32 TriangleIndex)
 	{
 		UE::Geometry::FIndex3i Triangle(InTriangles[TriangleIndex][0],InTriangles[TriangleIndex][1],InTriangles[TriangleIndex][2]);
 
+		FVector3f FaceNormal(InTriMesh.GetFaceNormal(TriangleIndex));
+		int32 StartNormalIndexNumber = TriangleIndex * 3;
 		// Create a Normal entry per triangle vertex.
-		int NormalIndices[3];
 		for (int32 LocalVertexIndex = 0; LocalVertexIndex < 3; ++LocalVertexIndex)
 		{
 			// Use the normal of the face for all it's vertices
-			Normals[CurrentNormalIndex] = UE::Math::TVector<float>(InTriMesh.GetFaceNormal(TriangleIndex));
-			NormalIndices[LocalVertexIndex] = CurrentNormalIndex;
-			CurrentNormalIndex++;
+			Normals[StartNormalIndexNumber + LocalVertexIndex] = FaceNormal;
 		}
 
-		SetTriangle(TriangleIndex, MoveTemp(Triangle));
 		SetTrianglePolygon(TriangleIndex, TriangleIndex);
-		SetTriangleNormals(TriangleIndex, NormalIndices[0], NormalIndices[1], NormalIndices[2]);
-	}
+		SetTriangleNormals(TriangleIndex, StartNormalIndexNumber, StartNormalIndexNumber + 1, StartNormalIndexNumber + 2);
+		SetTriangle(TriangleIndex, MoveTemp(Triangle));
+	}, Flags);
 }

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Components/ActorComponent.h"
+#include "SolverDataComponent.h"
 #include "ChaosVDSolverJointConstraintDataComponent.generated.h"
 
 struct FChaosVDJointConstraint;
@@ -28,8 +28,6 @@ struct FChaosVDJointConstraintSelectionHandle
 	void SetIsSelected(bool bNewSelected);
 	bool IsSelected() const;
 
-	bool IsValid();
-
 	TWeakPtr<FChaosVDJointConstraint> GetData() const { return JointData; } 
 
 private:
@@ -39,7 +37,7 @@ private:
 DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDJointSlectionChangedDelegate, const FChaosVDJointConstraintSelectionHandle& SelectionHandle)
 
 UCLASS()
-class CHAOSVD_API UChaosVDSolverJointConstraintDataComponent : public UActorComponent
+class CHAOSVD_API UChaosVDSolverJointConstraintDataComponent : public USolverDataComponent
 {
 	GENERATED_BODY()
 
@@ -61,11 +59,11 @@ public:
 
 	const FChaosVDJointConstraintSelectionHandle& GetCurrentSelectionHandle() const { return CurrentJointSelectionHandle; }
 
+	virtual void ClearData() override;
+
 protected:
 
 	TSharedPtr<FChaosVDJointConstraint> GetJointConstraintByIndex(int32 ConstraintIndex);
-	
-	void ClearData();
 
 	FChaosVDJointDataArray AllJointConstraints;
 	

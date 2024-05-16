@@ -100,6 +100,14 @@ void FChaosVDPlaybackController::UnloadCurrentRecording(EChaosVDUnloadRecordingF
 	RecordingLastSeenTimeUpdatedAsCycle = 0;
 
 	TrackInfoUpdateGTQueue.Empty();
+
+	if (const TSharedPtr<FChaosVDScene> SceneToControlSharedPtr = SceneToControl.Pin())
+	{
+		if (SceneToControlSharedPtr->IsInitialized())
+		{
+			SceneToControlSharedPtr->CleanUpScene(EChaosVDSceneCleanUpOptions::ReInitializeGeometryBuilder | EChaosVDSceneCleanUpOptions::CollectGarbage);
+		}	
+	}
 	
 	if (LoadedRecording.IsValid())
 	{
@@ -110,14 +118,6 @@ void FChaosVDPlaybackController::UnloadCurrentRecording(EChaosVDUnloadRecordingF
 	// It already handles internally an unloaded recording, in which case the cached data will be properly reset
 
 	HandleCurrentRecordingUpdated();
-
-	if (const TSharedPtr<FChaosVDScene> SceneToControlSharedPtr = SceneToControl.Pin())
-	{
-		if (SceneToControlSharedPtr->IsInitialized())
-		{
-			SceneToControlSharedPtr->CleanUpScene();
-		}	
-	}
 
 	if (EnumHasAnyFlags(UnloadOptions, EChaosVDUnloadRecordingFlags::BroadcastChanges))
 	{

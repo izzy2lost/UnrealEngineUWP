@@ -162,12 +162,15 @@ void FChaosVDMeshDataInstanceHandle::SetIsSelected(bool bInIsSelected)
 
 void FChaosVDMeshDataInstanceHandle::SetVisibility(bool bInIsVisible)
 {
-	if (IChaosVDGeometryComponent* CVDGeometryComponent = Cast<IChaosVDGeometryComponent>(GetMeshComponent()))
+	if (InstanceState.bIsVisible != bInIsVisible)
 	{
-		CVDGeometryComponent->UpdateInstanceVisibility(AsShared(), bInIsVisible);
-	}
+		if (IChaosVDGeometryComponent* CVDGeometryComponent = Cast<IChaosVDGeometryComponent>(GetMeshComponent()))
+		{
+			CVDGeometryComponent->UpdateInstanceVisibility(AsShared(), bInIsVisible);
+		}
 
-	InstanceState.bIsVisible = bInIsVisible;
+		InstanceState.bIsVisible = bInIsVisible;
+	}
 }
 
 void FChaosVDMeshDataInstanceHandle::HandleInstanceIndexUpdated(TArrayView<const FInstancedStaticMeshDelegates::FInstanceIndexUpdateData> InIndexUpdates)
@@ -384,35 +387,17 @@ UMaterialInterface* FChaosVDGeometryComponentUtils::GetBaseMaterialForType(EChao
 
 	switch(Type)
 	{
-		case EChaosVDMaterialType::QueryOnlyMaterial:
+		case EChaosVDMaterialType::SMTranslucent:
 				return EditorSettings->QueryOnlyMeshesMaterial.Get();
-		case EChaosVDMaterialType::SimOnlyMaterial:
+		case EChaosVDMaterialType::SMOpaque:
 				return EditorSettings->SimOnlyMeshesMaterial.Get();
-		case EChaosVDMaterialType::Instanced:
+		case EChaosVDMaterialType::ISMCOpaque:
 				return EditorSettings->InstancedMeshesMaterial.Get();
-		case EChaosVDMaterialType::InstancedQueryOnly:
+		case EChaosVDMaterialType::ISMCTranslucent:
 				return EditorSettings->InstancedMeshesQueryOnlyMaterial.Get();
 		default:
 			return nullptr;
 	}	
-}
-
-UMaterialInstanceDynamic* FChaosVDGeometryComponentUtils::CreateMaterialInstance(UMaterialInterface* BaseMaterial)
-{
-	if (!BaseMaterial)
-	{
-		return nullptr;
-	}
-
-	UMaterialInstanceDynamic* DynamicMaterial = UMaterialInstanceDynamic::Create(BaseMaterial, nullptr);
-	DynamicMaterial->SetFlags(RF_Transient);
-	
-	return DynamicMaterial;
-}
-
-UMaterialInstanceDynamic* FChaosVDGeometryComponentUtils::CreateMaterialInstance(EChaosVDMaterialType Type)
-{
-	return CreateMaterialInstance(GetBaseMaterialForType(Type));
 }
 
 void Chaos::VisualDebugger::SelectParticleWithGeometryInstance(const TSharedRef<FChaosVDScene>& InScene, IChaosVDGeometryOwnerInterface* GeometryOwner, const TSharedPtr<FChaosVDMeshDataInstanceHandle>& InMeshDataHandle)

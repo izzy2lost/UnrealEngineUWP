@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Components/ActorComponent.h"
+#include "SolverDataComponent.h"
 #include "ChaosVDSolverCharacterGroundConstraintDataComponent.generated.h"
 
 struct FChaosVDCharacterGroundConstraint;
@@ -28,8 +28,6 @@ struct FChaosVDCharacterGroundConstraintSelectionHandle
 	void SetIsSelected(bool bNewSelected);
 	bool IsSelected() const;
 
-	bool IsValid();
-
 	TWeakPtr<FChaosVDCharacterGroundConstraint> GetData() const { return ConstraintData; }
 
 private:
@@ -39,7 +37,7 @@ private:
 DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDCharacterGroundSelectionChangedDelegate, const FChaosVDCharacterGroundConstraintSelectionHandle& SelectionHandle)
 
 UCLASS()
-class CHAOSVD_API UChaosVDSolverCharacterGroundConstraintDataComponent : public UActorComponent
+class CHAOSVD_API UChaosVDSolverCharacterGroundConstraintDataComponent : public USolverDataComponent
 {
 	GENERATED_BODY()
 
@@ -61,11 +59,11 @@ public:
 
 	const FChaosVDCharacterGroundConstraintSelectionHandle& GetCurrentSelectionHandle() const { return CurrentConstraintSelectionHandle; }
 
+	virtual void ClearData() override;
+
 protected:
 
 	TSharedPtr<FChaosVDCharacterGroundConstraint> GetConstraintByIndex(int32 ConstraintIndex);
-	
-	void ClearData();
 
 	FChaosVDCharacterGroundDataArray AllConstraints;
 	

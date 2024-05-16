@@ -33,6 +33,7 @@
 #include "Settings/ChaosVDCoreSettings.h"
 #include "UObject/Package.h"
 #include "WorldPersistentFolders.h"
+#include "Actors/ChaosVDGeometryContainer.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
@@ -47,6 +48,15 @@ namespace ChaosVDSceneUIOptions
 	constexpr bool bAllowInPIE = false;
 }
 
+namespace Chaos::VisualDebugger::Cvars
+{
+	static bool bReInitializeGeometryBuilderOnCleanup = true;
+	static FAutoConsoleVariableRef CVarChaosVDReInitializeGeometryBuilderOnCleanup(
+		TEXT("p.Chaos.VD.Tool.ReInitializeGeometryBuilderOnCleanup"),
+		bReInitializeGeometryBuilderOnCleanup,
+		TEXT("If true, any static mesh component and static mesh component created will be destroyed when a new CVD recording is loaded"));
+}
+
 void FChaosVDScene::Initialize()
 {
 	if (!ensure(!bIsInitialized))
@@ -57,10 +67,6 @@ void FChaosVDScene::Initialize()
 	InitializeSelectionSets();
 	
 	PhysicsVDWorld = CreatePhysicsVDWorld();
-
-	GeometryGenerator = MakeShared<FChaosVDGeometryBuilder>();
-
-	GeometryGenerator->Initialize(AsWeak());
 	
 	StreamableManager = MakeShared<FStreamableManager>();
 
@@ -74,8 +80,24 @@ void FChaosVDScene::Initialize()
 		StreamableManager->RequestSyncLoad(Settings->InstancedMeshesQueryOnlyMaterial.ToSoftObjectPath());
 	}
 
+	GeometryGenerator = MakeShared<FChaosVDGeometryBuilder>();
+
+	GeometryGenerator->Initialize(AsWeak());
+
 	bIsInitialized = true;
 }
+
+
+void FChaosVDScene::PerformGarbageCollection()
+{
+	FScopedSlowTask CollectingGarbageSlowTask(1, LOCTEXT("CollectingGarbageDataMessage", "Collecting Garbage ..."));
+	CollectingGarbageSlowTask.MakeDialog();
+
+	CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
+
+	CollectingGarbageSlowTask.EnterProgressFrame();
+}
+
 
 void FChaosVDScene::DeInitialize()
 {
@@ -105,14 +127,7 @@ void FChaosVDScene::DeInitialize()
 		PhysicsVDWorld = nullptr;
 	}
 
-	{
-		FScopedSlowTask CollectingGarbageSlowTask(1, LOCTEXT("CollectingGarbageDataMessage", "Collecting Garbage ..."));
-		CollectingGarbageSlowTask.MakeDialog();
-
-		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
-
-		CollectingGarbageSlowTask.EnterProgressFrame();
-	}
+	PerformGarbageCollection();
 
 	bIsInitialized = false;
 }
@@ -360,26 +375,49 @@ void FChaosVDScene::HandleEnterNewSolverFrame(int32 FrameNumber, const FChaosVDS
 	}
 }
 
-void FChaosVDScene::CleanUpScene()
+void FChaosVDScene::CleanUpScene(EChaosVDSceneCleanUpOptions Options)
 {
-	constexpr float AmountOfWork = 1.0f;
-	const float PercentagePerElement = 1.0f / SolverDataContainerBySolverID.Num();
-
-	FScopedSlowTask CleaningSceneSlowTask(AmountOfWork, LOCTEXT("CleaningupSceneSolverMessage", "Clearing Solver Data ..."));
-	CleaningSceneSlowTask.MakeDialog();
-
-	ClearSelectionAndNotify();
-
-	if (PhysicsVDWorld)
 	{
-		for (const TPair<int32, AChaosVDSolverInfoActor*>& SolverDataInfoWithID : SolverDataContainerBySolverID)
+		constexpr float AmountOfWork = 1.0f;
+		const float PercentagePerElement = 1.0f / SolverDataContainerBySolverID.Num();
+
+		FScopedSlowTask CleaningSceneSlowTask(AmountOfWork, LOCTEXT("CleaningupSceneSolverMessage", "Clearing Solver Data ..."));
+		CleaningSceneSlowTask.MakeDialog();
+
+		ClearSelectionAndNotify();
+
+		if (PhysicsVDWorld)
 		{
-			PhysicsVDWorld->DestroyActor(SolverDataInfoWithID.Value);
-			CleaningSceneSlowTask.EnterProgressFrame(PercentagePerElement);
+			for (const TPair<int32, AChaosVDSolverInfoActor*>& SolverDataInfoWithID : SolverDataContainerBySolverID)
+			{
+				PhysicsVDWorld->DestroyActor(SolverDataInfoWithID.Value);
+				CleaningSceneSlowTask.EnterProgressFrame(PercentagePerElement);
+			}
 		}
+
+		SolverDataContainerBySolverID.Reset();
 	}
 
-	SolverDataContainerBySolverID.Reset();
+	if (Chaos::VisualDebugger::Cvars:: bReInitializeGeometryBuilderOnCleanup && EnumHasAnyFlags(Options, EChaosVDSceneCleanUpOptions::ReInitializeGeometryBuilder))
+	{
+		if (AChaosVDGeometryContainer* AsGeometryContainer = Cast<AChaosVDGeometryContainer>(MeshComponentContainerActor))
+		{
+			AsGeometryContainer->CleanUp();
+		}
+
+		GeometryGenerator->DeInitialize();
+		GeometryGenerator.Reset();
+	
+		GeometryGenerator = MakeShared<FChaosVDGeometryBuilder>();
+		GeometryGenerator->Initialize(AsWeak());
+	}
+	
+	SceneQueriesContainer->CleanUp();
+
+	if (EnumHasAnyFlags(Options, EChaosVDSceneCleanUpOptions::CollectGarbage))
+	{
+		PerformGarbageCollection();
+	}
 }
 
 Chaos::FConstImplicitObjectPtr FChaosVDScene::GetUpdatedGeometry(int32 GeometryID) const
@@ -526,7 +564,7 @@ AActor* FChaosVDScene::CreateMeshComponentsContainer(UWorld* TargetWorld)
 {
 	const FName GeometryFolderPath("ChaosVisualDebugger/GeneratedMeshComponents");
 
-	MeshComponentContainerActor = TargetWorld->SpawnActor<AActor>();
+	MeshComponentContainerActor = TargetWorld->SpawnActor<AChaosVDGeometryContainer>();
 	MeshComponentContainerActor->SetFolderPath(GeometryFolderPath);
 
 	return MeshComponentContainerActor;
