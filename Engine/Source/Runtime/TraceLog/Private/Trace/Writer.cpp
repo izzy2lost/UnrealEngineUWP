@@ -162,8 +162,8 @@ uint32 Writer_GetThreadId()
 
 	ThreadOnThreadExit([] () { Writer_EndThreadBuffer(); });
 
-	static uint32 volatile Counter;
-	ThreadId = AtomicAddRelaxed(&Counter, 1u) + ETransportTid::Bias;
+	static std::atomic<uint32> Counter;
+	ThreadId = Counter.fetch_add(1u) + ETransportTid::Bias;
 	return ThreadId;
 }
 
