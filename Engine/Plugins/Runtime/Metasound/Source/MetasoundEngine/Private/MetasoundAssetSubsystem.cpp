@@ -207,12 +207,12 @@ namespace Metasound::Engine
 			TSet<FAssetKey> Keys;
 			if (int32 NumKeys = PathMap.GetKeys(Keys); NumKeys > 0)
 			{
-				UE_LOG(LogMetaSound, Warning, TEXT("AssetManager is shutting down with the following '%i' assets active:"), NumKeys);
+				UE_LOG(LogMetaSound, Display, TEXT("AssetManager is shutting down with the following %i assets active:"), NumKeys);
 				for (const TPair<FAssetKey, TArray<FTopLevelAssetPath>>& Pair : PathMap)
 				{
 					for (const FTopLevelAssetPath& Path : Pair.Value)
 					{
-						UE_LOG(LogMetaSound, Warning, TEXT("- %s"), *Path.ToString());
+						UE_LOG(LogMetaSound, Display, TEXT("- %s"), *Path.ToString());
 					}
 				}
 			}
