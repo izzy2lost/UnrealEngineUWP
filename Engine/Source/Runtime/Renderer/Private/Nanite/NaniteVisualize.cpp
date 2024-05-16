@@ -352,7 +352,7 @@ static FRDGTextureRef GetFastClearTileVis(FRDGBuilder& GraphBuilder)
 	}
 	else
 	{
-		FastClearTileVis = GSystemTextures.GetBlackAlphaOneDummy(GraphBuilder);
+		FastClearTileVis = GSystemTextures.GetZeroUIntDummy(GraphBuilder);
 	}
 
 	return FastClearTileVis;

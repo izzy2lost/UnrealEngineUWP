@@ -393,7 +393,7 @@ void ExtractShadingDebug(
 		}
 		else
 		{
-			FastTileVis = GSystemTextures.GetBlackAlphaOneDummy(GraphBuilder);
+			FastTileVis = GSystemTextures.GetZeroUIntDummy(GraphBuilder);
 		}
 
 		Nanite::GGlobalResources.GetShadingBinDataBufferRef() = GraphBuilder.ConvertToExternalBuffer(ShadingBinData);
