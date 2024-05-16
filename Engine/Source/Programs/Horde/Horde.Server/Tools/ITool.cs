@@ -39,6 +39,16 @@ namespace Horde.Server.Tools
 		string? Category { get; }
 
 		/// <summary>
+		/// Grouping key for merging tool versions together on the dashboard
+		/// </summary>
+		string? Group { get; }
+
+		/// <summary>
+		/// Supported platforms, as a NET runtime identifiers
+		/// </summary>
+		IReadOnlyList<string>? Platforms { get; }
+
+		/// <summary>
 		/// Whether the tool is available to authenticated users
 		/// </summary>
 		bool Public { get; }

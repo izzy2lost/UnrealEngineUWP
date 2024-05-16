@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Security.Claims;
@@ -47,6 +48,16 @@ namespace Horde.Server.Tools
 		/// Category for the tool. Will cause the tool to be shown in a different tab in the dashboard.
 		/// </summary>
 		public string? Category { get; set; }
+
+		/// <summary>
+		/// Grouping key for different variations of the same tool. The dashboard will show these together.
+		/// </summary>
+		public string? Group { get; set; }
+
+		/// <summary>
+		/// Platforms for this tool. Takes the form of a NET RID (https://learn.microsoft.com/en-us/dotnet/core/rid-catalog).
+		/// </summary>
+		public List<string>? Platforms { get; set; }
 
 		/// <summary>
 		/// Whether this tool should be exposed for download on a public endpoint without authentication

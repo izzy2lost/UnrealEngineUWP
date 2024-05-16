@@ -104,6 +104,8 @@ namespace Horde.Server.Tools
 			public string Name => _config.Name;
 			public string Description => _config.Description;
 			public string? Category => _config.Category;
+			public string? Group => _config.Group;
+			public IReadOnlyList<string>? Platforms => _config.Platforms;
 			public bool Public => _config.Public;
 			public bool ShowInUgs => _config.ShowInUgs;
 			public bool ShowInDashboard => _config.ShowInDashboard;
