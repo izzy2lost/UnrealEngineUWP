@@ -53,6 +53,15 @@ public:
 	}
 
 	/**
+	* If the format only allows a subset of sample rates, return them here. They must be in sorted order
+	* lowest to highest.
+	*/
+	virtual TConstArrayView<float> GetSortedAllowedSampleRates() const
+	{
+		return MakeArrayView<float>(nullptr, 0);
+	}
+
+	/**
 	 * Cooks the source data for the platform and stores the cooked data internally.
 	 *
 	 * @param Format The desired format.
