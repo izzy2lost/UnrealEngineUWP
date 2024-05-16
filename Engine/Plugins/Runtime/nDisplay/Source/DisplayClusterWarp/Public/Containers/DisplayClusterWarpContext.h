@@ -84,7 +84,7 @@ struct FDisplayClusterWarpGeometryContext
 {
 	FMatrix GeometryToOrigin = FMatrix::Identity;
 
-	// AABB of geometry
+	// AABB of the warp geometry (in the space of the Origin component).
 	FDisplayClusterWarpAABB AABBox;
 
 	// Static surface average normal for this region

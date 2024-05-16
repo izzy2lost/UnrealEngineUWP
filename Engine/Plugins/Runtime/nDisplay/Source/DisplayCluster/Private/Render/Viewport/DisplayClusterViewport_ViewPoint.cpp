@@ -201,7 +201,9 @@ float FDisplayClusterViewport::GetStereoEyeOffsetDistance(const uint32 InContext
 		const float EyeOffsetValues[] = { -EyeOffset, 0.f, EyeOffset };
 
 		// Decode current eye type
-		const EDisplayClusterEyeType EyeType = (Contexts.Num() == 1)
+		// This function should work correctly even if the viewport context data is not currently initialized.
+		const int32 ViewPerViewportAmount = Configuration->GetRenderFrameSettings().GetViewPerViewportAmount();
+		const EDisplayClusterEyeType EyeType = (ViewPerViewportAmount < 2)
 			? EDisplayClusterEyeType::Mono
 			: (InContextNum == 0) ? EDisplayClusterEyeType::StereoLeft : EDisplayClusterEyeType::StereoRight;
 

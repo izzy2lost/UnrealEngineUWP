@@ -17,24 +17,6 @@
 #include "Components/MeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 
-// Experimental: Enable static view direction for mpcdi 2d
-int32 GDisplayClusterWarpInFrustumFitPolicyUseStaticViewDirectionForMPCDIProfile2D = 1;
-static FAutoConsoleVariableRef CVarDisplayClusterWarpInFrustumFitPolicyUseStaticViewDirectionForMPCDIProfile2D(
-	TEXT("nDisplay.warp.InFrustumFit.UseStaticViewDirectionForMPCDIProfile2D"),
-	GDisplayClusterWarpInFrustumFitPolicyUseStaticViewDirectionForMPCDIProfile2D,
-	TEXT("Experimental: Enable static view direction for mpcdi 2d (0 - disable)\n"),
-	ECVF_Default
-);
-
-// Experimental: Enable single view target for group of viewports
-int32 GDisplayClusterWarpInFrustumFitPolicyUseGroupViewTarget = 1;
-static FAutoConsoleVariableRef CVarDisplayClusterWarpInFrustumFitPolicyUseGroupViewTarget(
-	TEXT("nDisplay.warp.InFrustumFit.UseGroupViewTarget"),
-	GDisplayClusterWarpInFrustumFitPolicyUseGroupViewTarget,
-	TEXT("Experimental: Enable single view target for group of viewports (0 - disable)\n"),
-	ECVF_Default
-);
-
 int32 GDisplayClusterWarpInFrustumFitPolicyDrawFrustum = 0;
 static FAutoConsoleVariableRef CVarDisplayClusterWarpInFrustumFitPolicyDrawFrustum(
 	TEXT("nDisplay.warp.InFrustumFit.DrawFrustum"),
@@ -59,102 +41,140 @@ const FString& FDisplayClusterWarpInFrustumFitPolicy::GetType() const
 
 void FDisplayClusterWarpInFrustumFitPolicy::HandleNewFrame(const TArray<TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe>>& InViewports)
 {
-	// Todo: get real scale
-	const float WorldToMeters = 100.0f;
+	// Reset all special data that was used in the prev frame.
+	// In the new frame, we have to find a new solution because the viewer's position or geometry may have changed.
+	// The number of viewports can also be changed at runtime. This changes the shape of the united geometry.
+	{
+		// Invalidate geometry cache for the new frame.
+		bGeometryContextsUpdated = false;
 
+		// Reset united geometry AABB
+		OptUnitedGeometryWorldAABB.Reset();
+
+		// Reset the solution from the previous frame.
+		OptUnitedGeometryWarpProjection.Reset();
+		OptOverrideWorldViewTarget.Reset();
+	}
+
+	if (InViewports.IsEmpty() || !InViewports[0].IsValid())
+	{
+		return;
+	}
+
+	UDisplayClusterInFrustumFitCameraComponent* ConfigurationCameraComponent = Cast<UDisplayClusterInFrustumFitCameraComponent>(InViewports[0]->GetViewPointCameraComponent(EDisplayClusterRootActorType::Configuration));
+	UDisplayClusterInFrustumFitCameraComponent* SceneCameraComponent = Cast<UDisplayClusterInFrustumFitCameraComponent>(InViewports[0]->GetViewPointCameraComponent(EDisplayClusterRootActorType::Scene));
+	if(!ConfigurationCameraComponent || !SceneCameraComponent)
+	{
+		return;
+	}
+
+	// calculate GroupFrustum for a single context
+	const uint32 ContextNum = 0;
+
+	const float WorldToMeters = InViewports[0]->GetConfiguration().GetWorldToMeters();
 	const float WorldScale = WorldToMeters / 100.f;
-	
-	bGeometryContextsUpdated = false;
-	if (GDisplayClusterWarpInFrustumFitPolicyUseGroupViewTarget)
+
+	switch (ConfigurationCameraComponent->CameraViewTarget)
 	{
-		// Calculate AABB for group of viewports:
-		GroupAABBox = FDisplayClusterWarpAABB();
-		for (const TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe>& Viewport : InViewports)
+	case EDisplayClusterWarpCameraViewTarget::GeometricCenter:
+	{
+		// In this case, we need to find a symmetric frustum
+		// 
+		// The united geometry frustum is built from geometric points projected onto a special plane.
+		// This plane is called the 'projection plane' and is created from two quantities: the view direction vector and the eye position.
+		// Therefore, when we change the view direction vector, it leads to a change in the "projection plane" and, then, to new frustum values.
+		// When we set out to create a symmetrical frustum, we need to solve this math problem.
+		// An easy way is to do this in a few iterations and stop when we find a suitable view direction that provides a nearly symmetrical frustum with acceptable precision.
+
+		// Set the center of the AABB of united geometry as the view target:
 		{
-			if (Viewport.IsValid() && Viewport->GetProjectionPolicy().IsValid())
+			// Calculate AABB for group of viewports:
+			FDisplayClusterWarpAABB UnitedGeometryWorldAABBox;
+			if (!CalcUnitedGeometryWorldAABBox(InViewports, WorldScale, UnitedGeometryWorldAABBox))
 			{
-				TSharedPtr<IDisplayClusterWarpBlend, ESPMode::ThreadSafe> WarpBlend;
-				if (Viewport->GetProjectionPolicy()->GetWarpBlendInterface(WarpBlend))
+				return;
+			}
+			bGeometryContextsUpdated = true;
+			OptUnitedGeometryWorldAABB = UnitedGeometryWorldAABBox;
+
+			// in the first iteration, use the center of the united AABB geometry as the view target.
+			OptOverrideWorldViewTarget = UnitedGeometryWorldAABBox.GetCenter();
+		}
+
+		// Iterate frustum to a nearly symmetrical frustum with acceptable precision:
+		{
+			FSymmetricFrustumData FrustumData(WorldScale, SceneCameraComponent->GetComponentTransform());
+			while (true)
+			{
+				if (CalcUnitedGeometrySymmetricFrustum(InViewports, ContextNum, FrustumData))
 				{
-					if (WarpBlend->UpdateGeometryContext(WorldScale))
+					// A symmetric frustum has been found, use it to fit
+					OptUnitedGeometryWarpProjection = *FrustumData.NewUnitedSymmetricWarpProjection;
+					break;
+				}
+
+				if (FrustumData.IterationNum == INDEX_NONE)
+				{
+					// The maximum iteration number has been reached.
+					if (FrustumData.NewUnitedSymmetricWarpProjection.IsSet())
 					{
-						GroupAABBox.UpdateAABB(WarpBlend->GetGeometryContext().AABBox);
+						// Use last valid projection
+						OptUnitedGeometryWarpProjection = *FrustumData.NewUnitedSymmetricWarpProjection;
+						break;
 					}
+
+					// no valid projection found.
+					break;
 				}
+
+				if (!FrustumData.NewWorldViewTarget.IsSet())
+				{
+					// no valid projection found.
+					break;
+				}
+
+
+				// Set the new location of the view target and perform the next iteration.
+				OptOverrideWorldViewTarget = *FrustumData.NewWorldViewTarget;
 			}
 		}
 
-		bGeometryContextsUpdated = true;
+		break;
 	}
 
-	const uint32 ContextNum = 0; // calculate for a single context
-
-	bValidGroupFrustum = false;
-
-	// Recalculate warp projection angles
-	GroupGeometryWarpProjection.ResetProjectionAngles();
-	SymmetricForwardCorrection.Reset();
-
-	bool bCanCalcFrustumContext = true;
-	bool bHasFixedViewDirection = false;
-
-	// Use center of GroupAABB as target viewpoint, and setup to use same viewprojection plane for all viewports:
-	for (const TSharedPtr<IDisplayClusterViewport, ESPMode::ThreadSafe>& Viewport : InViewports)
+	case EDisplayClusterWarpCameraViewTarget::MatchViewOrigin:
 	{
-		if (bCanCalcFrustumContext && Viewport.IsValid() && Viewport->GetProjectionPolicy().IsValid())
+		// In this case, the viewing direction is the X-axis of the ViewPoint component.
+		// This value is obtained in the FDisplayClusterWarpInFrustumFitPolicy::BeginCalcFrustum() function.
+		FDisplayClusterWarpProjection UnitedWarpProjection;
+		if (CalcUnitedGeometryFrustum(InViewports, ContextNum, WorldScale, UnitedWarpProjection))
 		{
-			// Note: This code is partially copied from FDisplayClusterProjectionMPCDIPolicy::CalculateView().
+			bGeometryContextsUpdated = true;
 
-			// Override viewpoint
-			// MPCDI always expects the location of the viewpoint component (eye location from the real world)
-			FVector ViewOffset = FVector::ZeroVector;
-			FVector InOutViewLocation;
-			FRotator InOutViewRotation;
-			if (!Viewport->GetViewPointCameraEye(ContextNum, InOutViewLocation, InOutViewRotation, ViewOffset))
-			{
-				continue;
-			}
+			// If the view target is set to a fixed value instead of being computed by the group AABB, we do not want to alter the view direction,
+			// but make the frustum symmetric around that fixed direction. This involves expanding the asymmetric frustum so that its left and right,
+			// top and bottom angles are equal
 
-			if (UDisplayClusterInFrustumFitCameraComponent* ConfigurationCameraComponent = Cast<UDisplayClusterInFrustumFitCameraComponent>(Viewport->GetViewPointCameraComponent(EDisplayClusterRootActorType::Configuration)))
-			{
-				bHasFixedViewDirection = ConfigurationCameraComponent->CameraViewTarget == EDisplayClusterWarpCameraViewTarget::MatchViewOrigin;
-			}
+			const double MaxHorizontal = FMath::Max(FMath::Abs(UnitedWarpProjection.Left), FMath::Abs(UnitedWarpProjection.Right));
+			const double MaxVertical = FMath::Max(FMath::Abs(UnitedWarpProjection.Top), FMath::Abs(UnitedWarpProjection.Bottom));
 
-			TSharedPtr<IDisplayClusterWarpBlend, ESPMode::ThreadSafe> WarpBlend;
-			if (Viewport->GetProjectionPolicy()->GetWarpBlendInterface(WarpBlend))
-			{
-				const USceneComponent* const OriginComp = Viewport->GetProjectionPolicy()->GetOriginComponent();
+			FDisplayClusterWarpProjection UnitedWarpSymmetricProjection = UnitedWarpProjection;
 
-				TSharedPtr<FDisplayClusterWarpEye, ESPMode::ThreadSafe> WarpEye = MakeShared<FDisplayClusterWarpEye, ESPMode::ThreadSafe>(Viewport, 0);
+			UnitedWarpSymmetricProjection.Left = -MaxHorizontal;
+			UnitedWarpSymmetricProjection.Right = MaxHorizontal;
 
-				WarpEye->World2LocalTransform = (OriginComp ? OriginComp->GetComponentTransform() : FTransform::Identity);
+			UnitedWarpSymmetricProjection.Bottom = -MaxVertical;
+			UnitedWarpSymmetricProjection.Top = MaxVertical;
 
-				// Get our base camera location and view offset in local space (MPCDI space)
-				WarpEye->ViewPoint.Location = WarpEye->World2LocalTransform.InverseTransformPosition(InOutViewLocation - ViewOffset);
-				WarpEye->ViewPoint.EyeOffset = WarpEye->World2LocalTransform.InverseTransformPosition(InOutViewLocation) - WarpEye->ViewPoint.Location;
-				WarpEye->ViewPoint.Rotation = WarpEye->World2LocalTransform.InverseTransformRotation(InOutViewRotation.Quaternion()).Rotator();
-
-				WarpEye->WorldScale = WorldScale;
-
-				WarpEye->WarpPolicy = SharedThis(this);
-
-				if (!WarpBlend->CalcFrustumContext(WarpEye))
-				{
-					bCanCalcFrustumContext = false;
-				}
-				else
-				{
-					const FDisplayClusterWarpData& WarpData = WarpBlend->GetWarpData(ContextNum);
-					GroupGeometryWarpProjection.ExpandProjectionAngles(WarpData.GeometryWarpProjection);
-				}
-			}
+			// use this united  frustum for fit:
+			OptUnitedGeometryWarpProjection = UnitedWarpSymmetricProjection;
 		}
+		break;
 	}
 
-	bValidGroupFrustum = bCanCalcFrustumContext;
-
-	// Recalculate the group frustum so that it is symmetric
-	MakeGroupFrustumSymmetrical(bHasFixedViewDirection);
+	default:
+		break;
+	}
 }
 
 void FDisplayClusterWarpInFrustumFitPolicy::Tick(IDisplayClusterViewportManager* InViewportManager, float DeltaSeconds)
@@ -218,84 +238,6 @@ bool FDisplayClusterWarpInFrustumFitPolicy::HasPreviewEditableMesh(IDisplayClust
 	return false;
 }
 
-void FDisplayClusterWarpInFrustumFitPolicy::BeginCalcFrustum(IDisplayClusterViewport* InViewport, const uint32 ContextNum)
-{
-	if (InViewport && InViewport->GetProjectionPolicy().IsValid())
-	{
-		TSharedPtr<IDisplayClusterWarpBlend, ESPMode::ThreadSafe> WarpBlend;
-		if (InViewport->GetProjectionPolicy()->GetWarpBlendInterface(WarpBlend))
-		{
-			if (UDisplayClusterInFrustumFitCameraComponent* ConfigurationCameraComponent = Cast<UDisplayClusterInFrustumFitCameraComponent>(InViewport->GetViewPointCameraComponent(EDisplayClusterRootActorType::Configuration)))
-			{
-				FDisplayClusterWarpData& WarpData = WarpBlend->GetWarpData(ContextNum);
-				if (WarpData.WarpEye.IsValid())
-				{
-					// geometry context already updated.
-					WarpData.WarpEye->bUpdateGeometryContext = !bGeometryContextsUpdated;
-
-					if (ConfigurationCameraComponent->CameraViewTarget == EDisplayClusterWarpCameraViewTarget::MatchViewOrigin)
-					{
-						WarpData.WarpEye->OverrideViewDirection = WarpData.WarpEye->ViewPoint.Rotation.RotateVector(FVector::XAxisVector);
-					}
-					else
-					{
-						if (GDisplayClusterWarpInFrustumFitPolicyUseGroupViewTarget)
-						{
-							// If we have a correction to the view forward vector to make the frustum symmetric, apply it
-							if (SymmetricForwardCorrection.IsSet())
-							{
-								const FVector AABBForward = (GroupAABBox.GetCenter() - WarpData.WarpEye->ViewPoint.GetEyeLocation()).GetSafeNormal();
-								WarpData.WarpEye->OverrideViewDirection = SymmetricForwardCorrection->RotateVector(AABBForward);
-							}
-							else
-							{
-								// Use the same view target for all viewports
-								WarpData.WarpEye->OverrideViewTarget = GroupAABBox.GetCenter();
-							}
-						}
-					}
-
-					if (GDisplayClusterWarpInFrustumFitPolicyUseStaticViewDirectionForMPCDIProfile2D)
-					{
-						// [experimental] use static view direction for MPCDI profile 2D
-						if (WarpBlend->GetWarpProfileType() == EDisplayClusterWarpProfileType::warp_2D)
-						{
-							WarpData.WarpEye->OverrideViewDirection = FVector(1, 0, 0);
-						}
-					}
-
-					// Todo: This feature now not supported here. need to be fixed.
-					WarpData.bEnabledRotateFrustumToFitContextSize = false;
-				}
-			}
-		}
-	}
-}
-
-void FDisplayClusterWarpInFrustumFitPolicy::EndCalcFrustum(IDisplayClusterViewport* InViewport, const uint32 ContextNum)
-{
-	if (bValidGroupFrustum && InViewport && InViewport->GetProjectionPolicy().IsValid())
-	{
-		TSharedPtr<IDisplayClusterWarpBlend, ESPMode::ThreadSafe> WarpBlend;
-		if (InViewport->GetProjectionPolicy()->GetWarpBlendInterface(WarpBlend))
-		{
-			// Change warp settings:
-			FDisplayClusterWarpData& WarpData = WarpBlend->GetWarpData(ContextNum);
-
-			// Apply camera frustum fitting:
-			FDisplayClusterWarpProjection NewWarpProjection = ApplyInFrustumFit(InViewport, WarpData.WarpEye->World2LocalTransform, WarpData.WarpProjection);
-			if (NewWarpProjection.IsValidProjection())
-			{
-				WarpData.WarpProjection = NewWarpProjection;
-
-				// The warp policy Tick() function uses warp data, and it must be sure that this data is updated in the previous frame.
-				//.This value must be set to true from the EndCalcFrustum() warp policy function when changes are made to this structure.
-				WarpData.bHasWarpPolicyChanges = true;
-			}
-		}
-	}
-}
-
 void FDisplayClusterWarpInFrustumFitPolicy::OnUpdateDisplayDeviceMeshAndMaterialInstance(IDisplayClusterViewportPreview& InViewportPreview, const EDisplayClusterDisplayDeviceMeshType InMeshType, const EDisplayClusterDisplayDeviceMaterialType InMaterialType, UMeshComponent* InMeshComponent, UMaterialInstanceDynamic* InMeshMaterialInstance) const
 {
 	// The preview material used for editable meshes requires a set of unique parameters that are set from the warp policy.
@@ -356,11 +298,11 @@ void FDisplayClusterWarpInFrustumFitPolicy::DrawDebugGroupBoundingBox(ADisplayCl
 	// DCRA uses its own LineBatcher
 	ULineBatchComponent* LineBatcher = SceneRootActor ? SceneRootActor->GetLineBatchComponent() : nullptr;
 	UWorld* World = SceneRootActor ? SceneRootActor->GetWorld() : nullptr;
-	if (LineBatcher && World)
+	if (LineBatcher && World && OptUnitedGeometryWorldAABB.IsSet())
 	{
 		const float Thickness = 1.f;
 		const float PointSize = 5.f;
-		const FBox WorldBox = GroupAABBox.TransformBy(SceneRootActor->GetActorTransform());
+		const FBox WorldBox = *OptUnitedGeometryWorldAABB;
 
 		LineBatcher->DrawBox(WorldBox.GetCenter(), WorldBox.GetExtent(), Color, 0, SDPG_World, Thickness);
 		LineBatcher->DrawPoint(WorldBox.GetCenter(), Color, PointSize, SDPG_World);
@@ -369,6 +311,12 @@ void FDisplayClusterWarpInFrustumFitPolicy::DrawDebugGroupBoundingBox(ADisplayCl
 
 void FDisplayClusterWarpInFrustumFitPolicy::DrawDebugGroupFrustum(ADisplayClusterRootActor* SceneRootActor, UDisplayClusterInFrustumFitCameraComponent* CameraComponent, const FLinearColor& Color)
 {
+	if (!OptUnitedGeometryWarpProjection.IsSet())
+	{
+		// A united frastum is required.
+		return;
+	}
+
 	// DCRA uses its own LineBatcher
 	ULineBatchComponent* LineBatcher = SceneRootActor ? SceneRootActor->GetLineBatchComponent() : nullptr;
 	if (LineBatcher && CameraComponent)
@@ -385,30 +333,32 @@ void FDisplayClusterWarpInFrustumFitPolicy::DrawDebugGroupFrustum(ADisplayCluste
 			const float NearPlane = 10;
 			const float FarPlane = 1000;
 
+		
 			const FVector CameraLoc = CameraComponent->GetComponentLocation();
 			FVector ViewDirection;
-
-			if (ConfigurationCameraComponent.CameraViewTarget == EDisplayClusterWarpCameraViewTarget::MatchViewOrigin)
 			{
-				ViewDirection = CameraComponent->GetComponentRotation().RotateVector(FVector::XAxisVector);
-			}
-			else
-			{
-				const FBox WorldBox = GroupAABBox.TransformBy(SceneRootActor->GetActorTransform());
-				ViewDirection = (WorldBox.GetCenter() - CameraComponent->GetComponentLocation()).GetSafeNormal();
-
-				if (SymmetricForwardCorrection.IsSet())
+				if (ConfigurationCameraComponent.CameraViewTarget == EDisplayClusterWarpCameraViewTarget::MatchViewOrigin)
 				{
-					ViewDirection = SymmetricForwardCorrection->RotateVector(ViewDirection);
+					ViewDirection = CameraComponent->GetComponentRotation().RotateVector(FVector::XAxisVector);
+				}
+				else if(OptUnitedGeometryWorldAABB.IsSet())
+				{
+					const FVector ViewTarget = OptOverrideWorldViewTarget.IsSet() ? *OptOverrideWorldViewTarget : OptUnitedGeometryWorldAABB->GetCenter();
+					ViewDirection = (ViewTarget - CameraComponent->GetComponentLocation()).GetSafeNormal();
+				}
+				else
+				{
+					return;
 				}
 			}
 
+			FDisplayClusterWarpProjection UnitedGeometryWarpProjection = *OptUnitedGeometryWarpProjection;
 
 			const FRotator ViewRotator = ViewDirection.ToOrientationRotator();
-			const FVector FrustumTopLeft = ViewRotator.RotateVector(FVector(GroupGeometryWarpProjection.ZNear, GroupGeometryWarpProjection.Left, GroupGeometryWarpProjection.Top) / GroupGeometryWarpProjection.ZNear);
-			const FVector FrustumTopRight = ViewRotator.RotateVector(FVector(GroupGeometryWarpProjection.ZNear, GroupGeometryWarpProjection.Right, GroupGeometryWarpProjection.Top) / GroupGeometryWarpProjection.ZNear);
-			const FVector FrustumBottomLeft = ViewRotator.RotateVector(FVector(GroupGeometryWarpProjection.ZNear, GroupGeometryWarpProjection.Left, GroupGeometryWarpProjection.Bottom) / GroupGeometryWarpProjection.ZNear);
-			const FVector FrustumBottomRight = ViewRotator.RotateVector(FVector(GroupGeometryWarpProjection.ZNear, GroupGeometryWarpProjection.Right, GroupGeometryWarpProjection.Bottom) / GroupGeometryWarpProjection.ZNear);
+			const FVector FrustumTopLeft     = ViewRotator.RotateVector(FVector(UnitedGeometryWarpProjection.ZNear, UnitedGeometryWarpProjection.Left,  UnitedGeometryWarpProjection.Top)    / UnitedGeometryWarpProjection.ZNear);
+			const FVector FrustumTopRight    = ViewRotator.RotateVector(FVector(UnitedGeometryWarpProjection.ZNear, UnitedGeometryWarpProjection.Right, UnitedGeometryWarpProjection.Top)    / UnitedGeometryWarpProjection.ZNear);
+			const FVector FrustumBottomLeft  = ViewRotator.RotateVector(FVector(UnitedGeometryWarpProjection.ZNear, UnitedGeometryWarpProjection.Left,  UnitedGeometryWarpProjection.Bottom) / UnitedGeometryWarpProjection.ZNear);
+			const FVector FrustumBottomRight = ViewRotator.RotateVector(FVector(UnitedGeometryWarpProjection.ZNear, UnitedGeometryWarpProjection.Right, UnitedGeometryWarpProjection.Bottom) / UnitedGeometryWarpProjection.ZNear);
 
 			const FVector FrustumVertices[8] =
 			{
