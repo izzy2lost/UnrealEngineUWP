@@ -548,6 +548,7 @@ bool FLandscapeGrassMapsBuilder::UpdateTrackedComponents(const TArray<FVector>& 
 
 				It.RemoveCurrent();
 				AmortizedUpdate.HandleDeletion(ComponentStateIndex);
+				ComponentStateIndex--;
 				check(PendingCount > 0);
 				PendingCount--;
 			}
