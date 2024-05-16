@@ -8,74 +8,51 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MultilayerProjector)
 
 
-const FString FMultilayerProjector::DESCRIPTOR_PARAMETERS_INVALID = TEXT("Descriptor Parameters Invalid.");
+const FString FMultilayerProjector::MULTILAYER_PROJECTOR_PARAMETERS_INVALID = TEXT("Invalid Multilayer Projector Parameters.");
 
 
-void FMultilayerProjectorLayer::Read(const FCustomizableObjectInstanceDescriptor& Descriptor, const FMultilayerProjector& MultilayerProjector, const int32 Index)
+void FMultilayerProjectorLayer::Read(const FCustomizableObjectInstanceDescriptor& Descriptor, const FString& ParamName, const int32 LayerIndex)
 {
-	check(Index >= 0 && Index < MultilayerProjector.NumLayers(Descriptor)); // Layer out of range.
-	
-	const FString ParamName = MultilayerProjector.ParamName.ToString();
-
-	if (!FMultilayerProjector::AreDescriptorParametersValid(Descriptor, ParamName))
+	if (!Descriptor.IsMultilayerProjector(ParamName))
 	{
-		ensureAlwaysMsgf(false, TEXT("%s"), *FMultilayerProjector::DESCRIPTOR_PARAMETERS_INVALID);
+		ensureAlwaysMsgf(false, TEXT("%s"), *FMultilayerProjector::MULTILAYER_PROJECTOR_PARAMETERS_INVALID);
 		return;
 	}
-	
+
+	check(LayerIndex >= 0 && LayerIndex < Descriptor.NumProjectorLayers(*ParamName)); // Layer out of range.
+
 	{
-		const int32 ProjectorParamIndex = Descriptor.FindTypedParameterIndex(ParamName, EMutableParameterType::Projector);
-		const FCustomizableObjectProjector& Projector = Descriptor.GetProjectorParameters()[ProjectorParamIndex].RangeValues[Index];
-		Position = static_cast<FVector3d>(Projector.Position);
-		Direction = static_cast<FVector3d>(Projector.Direction);
-		Up = static_cast<FVector3d>(Projector.Up);
-		Scale = static_cast<FVector3d>(Projector.Scale);
-		Angle = Projector.Angle;
+		ECustomizableObjectProjectorType DummyType;
+		Descriptor.GetProjectorValue(ParamName, Position, Direction, Up, Scale, Angle, DummyType, LayerIndex);
 	}
 
 	{
 		const int32 ImageParamIndex = Descriptor.FindTypedParameterIndex(ParamName + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX, EMutableParameterType::Int);
-		Image = Descriptor.GetIntParameters()[ImageParamIndex].ParameterRangeValueNames[Index];
+		Image = Descriptor.GetIntParameters()[ImageParamIndex].ParameterRangeValueNames[LayerIndex];
 	}
 
 	{
 		const int32 OpacityParamIndex = Descriptor.FindTypedParameterIndex(ParamName + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX, EMutableParameterType::Float);
-		Opacity = Descriptor.GetFloatParameters()[OpacityParamIndex].ParameterRangeValues[Index];
+		Opacity = Descriptor.GetFloatParameters()[OpacityParamIndex].ParameterRangeValues[LayerIndex];
 	}
 }
 
 
-void FMultilayerProjectorLayer::Write(FCustomizableObjectInstanceDescriptor& Descriptor, const FMultilayerProjector& MultilayerProjector, const int32 Index) const
+void FMultilayerProjectorLayer::Write(FCustomizableObjectInstanceDescriptor& Descriptor, const FString& ParamName, int32 LayerIndex) const
 {
-	check(Index >= 0 && Index < MultilayerProjector.NumLayers(Descriptor)); // Layer out of range.
-
-	const FString ParamName = MultilayerProjector.ParamName.ToString();
-
-	if (!FMultilayerProjector::AreDescriptorParametersValid(Descriptor, ParamName))
+	if (!Descriptor.IsMultilayerProjector(ParamName))
 	{
-		ensureAlwaysMsgf(false, TEXT("%s"), *FMultilayerProjector::DESCRIPTOR_PARAMETERS_INVALID);
+		ensureAlwaysMsgf(false, TEXT("%s"), *FMultilayerProjector::MULTILAYER_PROJECTOR_PARAMETERS_INVALID);
 		return;
 	}
 
-	{
-		const int32 ProjectorParamIndex = Descriptor.FindTypedParameterIndex(ParamName, EMutableParameterType::Projector);
-		FCustomizableObjectProjector& Projector = Descriptor.GetProjectorParameters()[ProjectorParamIndex].RangeValues[Index];
-		Projector.Position = static_cast<FVector3f>(Position);
-		Projector.Direction = static_cast<FVector3f>(Direction);
-		Projector.Up = static_cast<FVector3f>(Up);
-		Projector.Scale = static_cast<FVector3f>(Scale);
-		Projector.Angle = Angle;
-	}
+	check(LayerIndex >= 0 && LayerIndex < Descriptor.NumProjectorLayers(*ParamName)); // Layer out of range.
 
-	{
-		const int32 ImageParamIndex = Descriptor.FindTypedParameterIndex(ParamName + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX, EMutableParameterType::Int);
-		Descriptor.GetIntParameters()[ImageParamIndex].ParameterRangeValueNames[Index] = Image;
-	}
 
-	{
-		const int32 OpacityParamIndex = Descriptor.FindTypedParameterIndex(ParamName + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX, EMutableParameterType::Float);
-		Descriptor.GetFloatParameters()[OpacityParamIndex].ParameterRangeValues[Index] = Opacity;
-	}
+	Descriptor.SetProjectorValue(ParamName, Position, Direction, Up, Scale, Angle, LayerIndex);
+	Descriptor.SetIntParameterSelectedOption(ParamName + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX, Image, LayerIndex);
+	Descriptor.SetFloatParameterSelectedOption(ParamName + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX, Opacity, LayerIndex);
+
 }
 
 
@@ -110,135 +87,6 @@ const FString FMultilayerProjector::IMAGE_PARAMETER_POSTFIX = FString("_Selected
 
 const FString FMultilayerProjector::POSE_PARAMETER_POSTFIX = FString("_SelectedPoses");
 
-
-int32 FMultilayerProjector::NumLayers(const FCustomizableObjectInstanceDescriptor& Descriptor) const
-{
-	const FString NumLayersParamName = ParamName.ToString() + NUM_LAYERS_PARAMETER_POSTFIX;
-	
-	const int32 FloatParameterIndex = Descriptor.FindTypedParameterIndex(NumLayersParamName, EMutableParameterType::Float);
-	check(FloatParameterIndex != -1); // Parameter not found.
-
-	return Descriptor.GetFloatParameters()[FloatParameterIndex].ParameterValue;
-}
-
-
-void FMultilayerProjector::CreateLayer(FCustomizableObjectInstanceDescriptor& Descriptor, const int32 Index) const
-{
-	check(Index >= 0 && Index <= NumLayers(Descriptor)); // Layer is non-contiguous or out of range.
-
-	const FString ParamNameString = ParamName.ToString();
-
-	if (!AreDescriptorParametersValid(Descriptor, ParamNameString))
-	{
-		ensureAlwaysMsgf(false, TEXT("%s"), *FMultilayerProjector::DESCRIPTOR_PARAMETERS_INVALID);
-		return;
-	}
-
-	const UCustomizableObject* Object = Descriptor.GetCustomizableObject(); 
-	
-	if (!Object)
-	{
-		return;
-	}
-	
-	// Num Layers.
-	{
-        const FString NumLayersParamName = ParamNameString + NUM_LAYERS_PARAMETER_POSTFIX;
-		const int32 FloatParameterIndex = Descriptor.FindTypedParameterIndex(NumLayersParamName, EMutableParameterType::Float);
-
-        Descriptor.GetFloatParameters()[FloatParameterIndex].ParameterValue += 1;
-    }
-	
-	// Projector Range.
-	{
-		const int32 ProjectorParameterIndex = Descriptor.FindTypedParameterIndex(ParamNameString, EMutableParameterType::Projector);
-		
-		FCustomizableObjectProjectorParameterValue& ProjectorParameter = Descriptor.GetProjectorParameters()[ProjectorParameterIndex];
-		const FCustomizableObjectProjector Projector = Descriptor.GetCustomizableObject()->GetProjectorParameterDefaultValue(ParamNameString);
-		ProjectorParameter.RangeValues.Insert(Projector, Index);
-	}
-	
-	// Selected Image Range.
-	{
-		const int32 IntParameterIndex = Descriptor.FindTypedParameterIndex(ParamNameString + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX, EMutableParameterType::Int);
-
-		FCustomizableObjectIntParameterValue& IntParameter = Descriptor.GetIntParameters()[IntParameterIndex];
-		const int32 ParamIndexInObject = Object->FindParameter(IntParameter.ParameterName);
-
-		const FString DefaultValue = Object->GetIntParameterAvailableOption(ParamIndexInObject, 0); // TODO: Define the default option in the editor instead of taking the first available, like it's currently defined for GetProjectorDefaultValue()
-		IntParameter.ParameterRangeValueNames.Insert(DefaultValue, Index);
-	}
-	
-	// Opacity Range.
-	{
-		const int32 FloatParameterIndex = Descriptor.FindTypedParameterIndex(ParamNameString + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX, EMutableParameterType::Float);
-
-		FCustomizableObjectFloatParameterValue& FloatParameter = Descriptor.GetFloatParameters()[FloatParameterIndex];
-		FloatParameter.ParameterRangeValues.Insert(0.5, Index); // TODO: Define the default float in the editor instead of [0.5f], like it's currently defined for GetProjectorDefaultValue()
-	}
-}
-
-
-void FMultilayerProjector::RemoveLayerAt(FCustomizableObjectInstanceDescriptor& Descriptor, const int32 Index) const
-{
-	check(Index >= 0 && Index < NumLayers(Descriptor)); // Layer out of range.
-
-	const FString ParamNameString = ParamName.ToString();
-
-	if (!AreDescriptorParametersValid(Descriptor, ParamName.ToString()))
-	{
-		ensureAlwaysMsgf(false, TEXT("%s"), *FMultilayerProjector::DESCRIPTOR_PARAMETERS_INVALID);
-		return;
-	}
-	
-	// Num Layers.
-	{
-		const FString NumLayersParamName = ParamNameString + NUM_LAYERS_PARAMETER_POSTFIX;
-        const int32 FloatParameterIndex = Descriptor.FindTypedParameterIndex(NumLayersParamName, EMutableParameterType::Float);
-		
-    	Descriptor.GetFloatParameters()[FloatParameterIndex].ParameterValue -= 1;
-    }
-    
-	// Projector Range.
-	{
-		const int32 ProjectorParameterIndex = Descriptor.FindTypedParameterIndex(ParamNameString, EMutableParameterType::Projector);
-		
-		FCustomizableObjectProjectorParameterValue& ProjectorParameter = Descriptor.GetProjectorParameters()[ProjectorParameterIndex];
-		ProjectorParameter.RangeValues.RemoveAt(Index);
-	}
-	
-	// Selected Image Range.
-	{
-		const int32 IntParameterIndex = Descriptor.FindTypedParameterIndex(ParamNameString + IMAGE_PARAMETER_POSTFIX, EMutableParameterType::Int);
-		
-		FCustomizableObjectIntParameterValue& IntParameter = Descriptor.GetIntParameters()[IntParameterIndex];
-		IntParameter.ParameterRangeValueNames.RemoveAt(Index);
-	}
-	
-	// Opacity Range.
-	{
-		const int32 FloatParameterIndex = Descriptor.FindTypedParameterIndex(ParamNameString + OPACITY_PARAMETER_POSTFIX, EMutableParameterType::Float);
-		
-		FCustomizableObjectFloatParameterValue& FloatParameter = Descriptor.GetFloatParameters()[FloatParameterIndex];
-		FloatParameter.ParameterRangeValues.RemoveAt(Index);
-	}
-}
-
-
-FMultilayerProjectorLayer FMultilayerProjector::GetLayer(const FCustomizableObjectInstanceDescriptor& Descriptor, const int32 Index) const
-{
-	FMultilayerProjectorLayer MultilayerProjectorLayer;
-	MultilayerProjectorLayer.Read(Descriptor, *this, Index);
-	return MultilayerProjectorLayer;
-}
-
-
-void FMultilayerProjector::UpdateLayer(FCustomizableObjectInstanceDescriptor& Descriptor, const int32 Index, const FMultilayerProjectorLayer& Layer) const
-{
-	Layer.Write(Descriptor, *this, Index);
-}
-
-
 TArray<FName> FMultilayerProjector::GetVirtualLayers() const
 {
 	TArray<FName> VirtualLayers;
@@ -251,9 +99,9 @@ void FMultilayerProjector::CreateVirtualLayer(FCustomizableObjectInstanceDescrip
 {
 	if (!VirtualLayersMapping.Contains(Id))
 	{
-		const int32 Index = NumLayers(Descriptor);
+		const int32 Index = Descriptor.NumProjectorLayers(ParamName);
 		
-		CreateLayer(Descriptor, Index);
+		Descriptor.CreateLayer(ParamName, Index);
 		VirtualLayersMapping.Add(Id, Index);
 		VirtualLayersOrder.Add(Id, NEW_VIRTUAL_LAYER_ORDER);
 	}
@@ -275,7 +123,7 @@ FMultilayerProjectorVirtualLayer FMultilayerProjector::FindOrCreateVirtualLayer(
 		}
 		else
 		{
-			Layer = GetLayer(Descriptor, *Index);
+			Layer = Descriptor.GetLayer(ParamName, *Index);
 			bEnabled = true;
 		}
 
@@ -283,14 +131,14 @@ FMultilayerProjectorVirtualLayer FMultilayerProjector::FindOrCreateVirtualLayer(
 	}
 	else
 	{
-		const int32 NewIndex = NumLayers(Descriptor);
+		const int32 NewIndex = Descriptor.NumProjectorLayers(ParamName);
 		constexpr int32 NewOrder = NEW_VIRTUAL_LAYER_ORDER;
 		
-		CreateLayer(Descriptor, NewIndex);
+		Descriptor.CreateLayer(ParamName, NewIndex);
 		VirtualLayersMapping.Add(Id, NewIndex);
 		VirtualLayersOrder.Add(Id, NewOrder);
 
-		Layer = GetLayer(Descriptor, NewIndex);
+		Layer = Descriptor.GetLayer(ParamName, NewIndex);
 		bEnabled = true;
 		Order = NewOrder;
 	}
@@ -310,7 +158,7 @@ void FMultilayerProjector::RemoveVirtualLayer(FCustomizableObjectInstanceDescrip
 	}
 	else
 	{
-		RemoveLayerAt(Descriptor, *Index);
+		Descriptor.RemoveLayerAt(ParamName, *Index);
 		
 		for (TMap<FName, int32>::TIterator It =  VirtualLayersMapping.CreateIterator(); It; ++It)
 		{
@@ -334,7 +182,7 @@ FMultilayerProjectorVirtualLayer FMultilayerProjector::GetVirtualLayer(const FCu
 	const int32* Index = VirtualLayersMapping.Find(Id);
 	check(Index); // Virtual Layer not created.
 
-	const FMultilayerProjectorLayer Layer = GetLayer(Descriptor, *Index);
+	const FMultilayerProjectorLayer Layer = Descriptor.GetLayer(ParamName, *Index);
 	const bool bEnabled = *Index != VIRTUAL_LAYER_DISABLED;
 	const int32 Order = VirtualLayersOrder[Id];
 	
@@ -363,7 +211,7 @@ void FMultilayerProjector::UpdateVirtualLayer(FCustomizableObjectInstanceDescrip
 			int32 NewIndex = CalculateVirtualLayerIndex(Id, Layer.Order);
 			if (OldIndex != NewIndex) // Move required. Could be optimized by moving only the in-between values.
 			{
-				RemoveLayerAt(Descriptor, OldIndex);
+				Descriptor.RemoveLayerAt(ParamName, OldIndex);
 				UpdateMappingVirtualLayerDisabled(Id, OldIndex);
 
 				if (OldIndex < NewIndex)
@@ -371,14 +219,14 @@ void FMultilayerProjector::UpdateVirtualLayer(FCustomizableObjectInstanceDescrip
 					NewIndex -= 1;
 				}
 				
-				CreateLayer(Descriptor, NewIndex);
+				Descriptor.CreateLayer(ParamName, NewIndex);
 				UpdateMappingVirtualLayerEnabled(Id, NewIndex);
 			}
 			
 			*Order = Layer.Order;
 		}
 
-		UpdateLayer(Descriptor, *Index, static_cast<FMultilayerProjectorLayer>(Layer)); // Update enabled layer.
+		Descriptor.UpdateLayer(ParamName, *Index, static_cast<FMultilayerProjectorLayer>(Layer)); // Update enabled layer.
 	}
 	
 	// Enable or disable virtual layer.
@@ -386,16 +234,16 @@ void FMultilayerProjector::UpdateVirtualLayer(FCustomizableObjectInstanceDescrip
 	{
 		const int32 NewIndex = CalculateVirtualLayerIndex(Id, VirtualLayersOrder[Id]);
 
-		CreateLayer(Descriptor, NewIndex);
+		Descriptor.CreateLayer(ParamName, NewIndex);
 		UpdateMappingVirtualLayerEnabled(Id, NewIndex);
 
-		UpdateLayer(Descriptor, NewIndex, static_cast<FMultilayerProjectorLayer>(Layer));
+		Descriptor.UpdateLayer(ParamName, NewIndex, static_cast<FMultilayerProjectorLayer>(Layer));
 		
 		DisableVirtualLayers.Remove(Id);
 	}
 	else if (!Layer.bEnabled && bEnabled)
 	{
-		RemoveLayerAt(Descriptor, *Index);
+		Descriptor.RemoveLayerAt(ParamName, *Index);
 		UpdateMappingVirtualLayerDisabled(Id, *Index);
 		
 		DisableVirtualLayers.Add(Id, Layer);
@@ -464,43 +312,6 @@ void FMultilayerProjector::UpdateMappingVirtualLayerDisabled(const FName& Id, co
 			--Tuple.Value;
 		}
 	}
-}
-
-
-bool FMultilayerProjector::AreDescriptorParametersValid(const FCustomizableObjectInstanceDescriptor& Descriptor, const FString& ParamName)
-{
-	// Num layers.
-	{
-		const FString NumLayersParamName = ParamName + NUM_LAYERS_PARAMETER_POSTFIX;
-		const int32 FloatParameterIndex = Descriptor.FindTypedParameterIndex(NumLayersParamName, EMutableParameterType::Float);
-		if (FloatParameterIndex != INDEX_NONE)
-		{
-			return false;
-		}
-	}
-    
-	// Projector.
-	if (const int32 ProjectorParameterIndex = Descriptor.FindTypedParameterIndex(ParamName, EMutableParameterType::Projector);
-		ProjectorParameterIndex != INDEX_NONE)
-	{
-		return false;
-	}
-	
-	// Selected Image.
-	if (const int32 IntParameterIndex = Descriptor.FindTypedParameterIndex(ParamName + IMAGE_PARAMETER_POSTFIX, EMutableParameterType::Int);
-		IntParameterIndex != INDEX_NONE)
-	{
-		return false;
-	}
-		
-	// Opacity.	
-	if (const int32 FloatParameterIndex = Descriptor.FindTypedParameterIndex(ParamName + OPACITY_PARAMETER_POSTFIX, EMutableParameterType::Float);
-		FloatParameterIndex != INDEX_NONE)
-	{
-		return false;
-	}
-
-	return true;
 }
 
 

@@ -24,7 +24,7 @@ struct FMultilayerProjectorLayer
 	 * @param MultilayerProjector Multilayer Projector helper.
 	 * @param Index Index where to read the Layer in the Instance Parameters.
 	 */
-	void Read(const FCustomizableObjectInstanceDescriptor& Descriptor, const FMultilayerProjector& MultilayerProjector, int32 Index);
+	void Read(const FCustomizableObjectInstanceDescriptor& Descriptor, const FString& ParamName, int32 Index);
 
 	/** Write to Layer to the Instance Parameters.
 	 *
@@ -32,7 +32,7 @@ struct FMultilayerProjectorLayer
 	 * @param MultilayerProjector Multilayer Projector helper.
 	 * @param Index Index where to write the Layer in the Instance Parameters.
 	 */
-	void Write(FCustomizableObjectInstanceDescriptor& Descriptor, const FMultilayerProjector& MultilayerProjector, int32 Index) const;
+	void Write(FCustomizableObjectInstanceDescriptor& Descriptor, const FString& ParamName, int32 Index) const;
 	
 	/** Layer position. */
 	FVector Position;
@@ -78,10 +78,7 @@ struct FMultilayerProjectorVirtualLayer : public FMultilayerProjectorLayer
 };
 
 
-/** Multilayer Projector Helper. Eases the management of Layers and Virtual Layers.
- *
- * Layer: Management of Multilayer Projector Layers by index.
- * All layers indices has to be consecutive.
+/** Multilayer Projector Helper. Eases the management of Virtual Layers.
  * 
  * Virtual Layer: Management of Multilayer Projector Layers by name.
  * - Allows to enabled and disabled layers.
@@ -97,7 +94,7 @@ struct CUSTOMIZABLEOBJECT_API FMultilayerProjector
 	friend uint32 GetTypeHash(const FMultilayerProjector& Key);
 
 	// Log texts
-	static const FString DESCRIPTOR_PARAMETERS_INVALID;
+	static const FString MULTILAYER_PROJECTOR_PARAMETERS_INVALID;
 
 	// Parameters encoding
 	static const FString NUM_LAYERS_PARAMETER_POSTFIX;
@@ -109,23 +106,6 @@ struct CUSTOMIZABLEOBJECT_API FMultilayerProjector
 	FMultilayerProjector() = default;
 
 	explicit FMultilayerProjector(const FName& InParamName);
-
-	// Layers
-	
-	/** Returns the number of layers. */
-	int32 NumLayers(const FCustomizableObjectInstanceDescriptor& Descriptor) const;
-
-	/** Insert the Layer at the given index moving all the following layers one position. */
-	void CreateLayer(FCustomizableObjectInstanceDescriptor& Descriptor, int32 Index) const;
-
-	/** Remove the Layer at the given index moving all the following layers one position. */
-	void RemoveLayerAt(FCustomizableObjectInstanceDescriptor& Descriptor, int32 Index) const;
-
-	/** Get the properties of the Layer at the given index. */
-	FMultilayerProjectorLayer GetLayer(const FCustomizableObjectInstanceDescriptor& Descriptor, int32 Index) const;
-
-	/** Update the Layer properties at the given index. */
-	void UpdateLayer(FCustomizableObjectInstanceDescriptor& Descriptor, int32 Index, const FMultilayerProjectorLayer& Layer) const;
 
 	// Virtual layers
 
@@ -194,9 +174,6 @@ private:
 	 * @param Index Index which the layer has been disabled.
 	 */
 	void UpdateMappingVirtualLayerDisabled(const FName& Id, int32 Index);
-	
-	/** Return false if the Instance does not contain the necessary Instance Parameters. */
-	static bool AreDescriptorParametersValid(const FCustomizableObjectInstanceDescriptor& Descriptor, const FString& ParamName);
 };
 
 

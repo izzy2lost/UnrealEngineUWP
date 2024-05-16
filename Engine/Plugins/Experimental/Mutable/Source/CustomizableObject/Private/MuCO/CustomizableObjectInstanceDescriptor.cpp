@@ -1110,75 +1110,39 @@ const TArray<uint16>& FCustomizableObjectInstanceDescriptor::GetRequestedLODLeve
 }
 
 
-TArray<FCustomizableObjectBoolParameterValue>& FCustomizableObjectInstanceDescriptor::GetBoolParameters()
+const TArray<FCustomizableObjectBoolParameterValue>& FCustomizableObjectInstanceDescriptor::GetBoolParameters() const
 {
 	return BoolParameters;
 }
 
 
-const TArray<FCustomizableObjectBoolParameterValue>& FCustomizableObjectInstanceDescriptor::GetBoolParameters() const
-{
-	return const_cast<FCustomizableObjectInstanceDescriptor*>(this)->GetBoolParameters();
-}
-
-
-TArray<FCustomizableObjectIntParameterValue>& FCustomizableObjectInstanceDescriptor::GetIntParameters()
-{
-	return IntParameters;
-}
-
-
 const TArray<FCustomizableObjectIntParameterValue>& FCustomizableObjectInstanceDescriptor::GetIntParameters() const
 {
-	return const_cast<FCustomizableObjectInstanceDescriptor*>(this)->GetIntParameters();	
-}
-
-
-TArray<FCustomizableObjectFloatParameterValue>& FCustomizableObjectInstanceDescriptor::GetFloatParameters()
-{
-	return FloatParameters;	
+	return IntParameters;	
 }
 
 
 const TArray<FCustomizableObjectFloatParameterValue>& FCustomizableObjectInstanceDescriptor::GetFloatParameters() const
 {
-	return const_cast<FCustomizableObjectInstanceDescriptor*>(this)->GetFloatParameters();	
-}
-
-
-TArray<FCustomizableObjectTextureParameterValue>& FCustomizableObjectInstanceDescriptor::GetTextureParameters()
-{
-	return TextureParameters;	
+	return FloatParameters;	
 }
 
 
 const TArray<FCustomizableObjectTextureParameterValue>& FCustomizableObjectInstanceDescriptor::GetTextureParameters() const
 {
-	return const_cast<FCustomizableObjectInstanceDescriptor*>(this)->GetTextureParameters();	
-}
-
-
-TArray<FCustomizableObjectVectorParameterValue>& FCustomizableObjectInstanceDescriptor::GetVectorParameters()
-{
-	return VectorParameters;	
+	return TextureParameters;	
 }
 
 
 const TArray<FCustomizableObjectVectorParameterValue>& FCustomizableObjectInstanceDescriptor::GetVectorParameters() const
 {
-	return const_cast<FCustomizableObjectInstanceDescriptor*>(this)->GetVectorParameters();
-}
-
-
-TArray<FCustomizableObjectProjectorParameterValue>& FCustomizableObjectInstanceDescriptor::GetProjectorParameters()
-{
-	return ProjectorParameters;	
+	return VectorParameters;
 }
 
 
 const TArray<FCustomizableObjectProjectorParameterValue>& FCustomizableObjectInstanceDescriptor::GetProjectorParameters() const
 {
-	return const_cast<FCustomizableObjectInstanceDescriptor*>(this)->GetProjectorParameters();	
+	return ProjectorParameters;	
 }
 
 
@@ -2395,6 +2359,106 @@ void FCustomizableObjectInstanceDescriptor::SetRandomValuesFromStream(const FRan
 }
 
 
+void FCustomizableObjectInstanceDescriptor::SetDefaultValue(int32 ParamIndex)
+{
+	if (!CustomizableObject)
+	{
+		CustomizableObjectNullErrorMessage();
+		return;
+	}
+
+	if (ParamIndex >= CustomizableObject->GetParameterCount())
+	{
+		return;
+	}
+
+	const FString ParamName = CustomizableObject->GetParameterName(ParamIndex);
+	const EMutableParameterType ParamType = CustomizableObject->GetParameterType(ParamIndex);
+	
+	const int32 TypedIndex = FindTypedParameterIndex(ParamName, ParamType);
+
+	switch (ParamType)
+	{
+	case EMutableParameterType::Bool:
+	{
+		const bool DefaultValue = CustomizableObject->GetBoolParameterDefaultValue(ParamName);
+		BoolParameters[TypedIndex].ParameterValue = DefaultValue;
+		break;
+	}
+
+	case EMutableParameterType::Int:
+	{
+		const FString DefaultValue = CustomizableObject->FindIntParameterValueName(ParamIndex, CustomizableObject->GetIntParameterDefaultValue(ParamName));
+
+		FCustomizableObjectIntParameterValue& IntParameter = IntParameters[TypedIndex];
+		IntParameter.ParameterValueName = DefaultValue;
+
+		for (FString& RangeValue : IntParameter.ParameterRangeValueNames)
+		{
+			RangeValue = DefaultValue;
+		}
+		break;
+	}
+
+	case EMutableParameterType::Float:
+	{
+		const float DefaultValue = CustomizableObject->GetFloatParameterDefaultValue(ParamName);
+
+		FCustomizableObjectFloatParameterValue& FloatParameter = FloatParameters[TypedIndex];
+		FloatParameter.ParameterValue = DefaultValue;
+
+		for (float& RangeValue : FloatParameter.ParameterRangeValues)
+		{
+			RangeValue = DefaultValue;
+		}
+		break;
+	}
+
+	case EMutableParameterType::Color:
+	{
+		const FLinearColor DefaultValue = CustomizableObject->GetColorParameterDefaultValue(ParamName);
+		VectorParameters[TypedIndex].ParameterValue = DefaultValue;
+		break;
+	}
+
+	case EMutableParameterType::Projector:
+	{
+		const FCustomizableObjectProjector DefaultValue = CustomizableObject->GetProjectorParameterDefaultValue(ParamName);
+
+		FCustomizableObjectProjectorParameterValue& ProjectorParameter = ProjectorParameters[TypedIndex];
+		ProjectorParameter.Value = DefaultValue;
+
+		for (FCustomizableObjectProjector& RangeValue : ProjectorParameter.RangeValues)
+		{
+			RangeValue = DefaultValue;
+		}
+		break;
+	}
+
+	case EMutableParameterType::Texture:
+	{
+		const FName	DefaultValue = CustomizableObject->GetTextureParameterDefaultValue(ParamName);
+		
+		if (ensure(TextureParameters.IsValidIndex(TypedIndex)))
+		{
+			FCustomizableObjectTextureParameterValue& TextureParameter = TextureParameters[TypedIndex];
+			TextureParameter.ParameterValue = DefaultValue;
+
+			for (FName& RangeValue : TextureParameter.ParameterRangeValues)
+			{
+				RangeValue = DefaultValue;
+			}
+		}
+		break;
+	}
+
+	default:
+		// Parameter type replication not implemented.
+		unimplemented();
+	}
+}
+
+
 void FCustomizableObjectInstanceDescriptor::SetDefaultValues()
 {
 	if (!CustomizableObject)
@@ -2403,67 +2467,169 @@ void FCustomizableObjectInstanceDescriptor::SetDefaultValues()
 		return;
 	}
 
-	for (FCustomizableObjectBoolParameterValue& Value : BoolParameters)
-	{	
-		Value.ParameterValue =	CustomizableObject->GetBoolParameterDefaultValue(Value.ParameterName);
-	}
-
-	for (FCustomizableObjectIntParameterValue& Value : IntParameters)
+	const int32 NumParameters = CustomizableObject->GetParameterCount();
+	for (int32 ParamIndex = 0; ParamIndex < NumParameters; ++ParamIndex)
 	{
-		const int32 ParameterIndex = CustomizableObject->FindParameter(Value.ParameterName);
-		Value.ParameterValueName = CustomizableObject->FindIntParameterValueName(ParameterIndex, CustomizableObject->GetIntParameterDefaultValue(Value.ParameterValueName));
-
-		for (FString& RangeValue : Value.ParameterRangeValueNames)
-		{
-			RangeValue = Value.ParameterValueName;
-		}
+		SetDefaultValue(ParamIndex);
 	}
+}
 
-	for (FCustomizableObjectFloatParameterValue& Value : FloatParameters)
+bool FCustomizableObjectInstanceDescriptor::IsMultilayerProjector(const FString& ParamName) const
+{
+	if (!CustomizableObject)
 	{
-		Value.ParameterValue = CustomizableObject->GetFloatParameterDefaultValue(Value.ParameterName);
-
-		for (float& RangeValue : Value.ParameterRangeValues)
-		{
-			RangeValue = Value.ParameterValue;
-		}
+		CustomizableObjectNullErrorMessage();
+		return false;
 	}
 
-	for (FCustomizableObjectTextureParameterValue& Value : TextureParameters)
+	// Projector.
+	if (const int32 ProjectorParameterIndex = FindTypedParameterIndex(ParamName, EMutableParameterType::Projector);
+		ProjectorParameterIndex == INDEX_NONE)
 	{
-		Value.ParameterValue = CustomizableObject->GetTextureParameterDefaultValue(Value.ParameterName);
-
-		for (FName& RangeValue : Value.ParameterRangeValues)
-		{
-			RangeValue = Value.ParameterValue;
-		}
+		ensureAlwaysMsgf(false, TEXT("%s"), *FMultilayerProjector::MULTILAYER_PROJECTOR_PARAMETERS_INVALID);
+		return false;
 	}
 
-	for (FCustomizableObjectVectorParameterValue& Value : VectorParameters)
+	// Num layers.
+	if (const int32 FloatParameterIndex = FindTypedParameterIndex(ParamName + FMultilayerProjector::NUM_LAYERS_PARAMETER_POSTFIX, EMutableParameterType::Float);
+		FloatParameterIndex == INDEX_NONE)
 	{
-		Value.ParameterValue = CustomizableObject->GetColorParameterDefaultValue(Value.ParameterName);
+		ensureAlwaysMsgf(false, TEXT("%s"), *FMultilayerProjector::MULTILAYER_PROJECTOR_PARAMETERS_INVALID);
+		return false;
 	}
 
-	for (FCustomizableObjectProjectorParameterValue& Value : ProjectorParameters)
+	// Selected Image.
+	if (const int32 IntParameterIndex = FindTypedParameterIndex(ParamName + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX, EMutableParameterType::Int);
+		IntParameterIndex == INDEX_NONE)
 	{
-		Value.Value = CustomizableObject->GetProjectorParameterDefaultValue(Value.ParameterName);
-
-		for (FCustomizableObjectProjector& RangeValue : Value.RangeValues)
-		{
-			RangeValue = Value.Value;
-		}
+		ensureAlwaysMsgf(false, TEXT("%s"), *FMultilayerProjector::MULTILAYER_PROJECTOR_PARAMETERS_INVALID);
+		return false;
 	}
+
+	// Opacity.	
+	if (const int32 FloatParameterIndex = FindTypedParameterIndex(ParamName + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX, EMutableParameterType::Float);
+		FloatParameterIndex == INDEX_NONE)
+	{
+		ensureAlwaysMsgf(false, TEXT("%s"), *FMultilayerProjector::MULTILAYER_PROJECTOR_PARAMETERS_INVALID);
+		return false;
+	}
+
+	return true;
+}
+
+
+int32 FCustomizableObjectInstanceDescriptor::NumProjectorLayers(const FName& ProjectorParamName) const
+{
+	const FString ParamName = ProjectorParamName.ToString();
+
+	if (IsMultilayerProjector(ParamName))
+	{
+		return GetFloatParameterSelectedOption(ParamName + FMultilayerProjector::NUM_LAYERS_PARAMETER_POSTFIX);
+	}
+
+	return INDEX_NONE;
+}
+
+
+void FCustomizableObjectInstanceDescriptor::CreateLayer(const FName& ProjectorParamName, int32 RangeIndex)
+{
+	const FString ParamName = ProjectorParamName.ToString();
+
+	if (!IsMultilayerProjector(ParamName))
+	{
+		return;
+	}
+
+	// Num Layers.
+	SetFloatParameterSelectedOption(ParamName + FMultilayerProjector::NUM_LAYERS_PARAMETER_POSTFIX, NumProjectorLayers(ProjectorParamName) + 1);
+
+	// Projector Range. New value is defaulted.
+	AddValueToProjectorRange(ParamName);
+
+	// Selected Image Range.
+	{
+		const FString ImageParamName = ParamName + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX;
+		AddValueToTextureRange(ImageParamName);
+
+		const int32 ParamIndex = CustomizableObject->FindParameter(ImageParamName);
+		const int32 DefaultValueIndex = CustomizableObject->GetIntParameterDefaultValue(ImageParamName);
+		const FString DefaultValueName = CustomizableObject->GetIntParameterAvailableOption(ParamIndex, DefaultValueIndex);
+		SetIntParameterSelectedOption(ImageParamName, DefaultValueName, RangeIndex);
+	}
+
+	// Opacity Range.
+	{
+		const FString OpacityParamName = ParamName + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX;
+		AddValueToFloatRange(OpacityParamName);
+
+		const int32 ParamIndex = CustomizableObject->FindParameter(OpacityParamName);
+		const float DefaultValue = CustomizableObject->GetFloatParameterDefaultValue(OpacityParamName);
+		SetFloatParameterSelectedOption(OpacityParamName, DefaultValue, RangeIndex);
+	}
+}
+
+
+void FCustomizableObjectInstanceDescriptor::RemoveLayerAt(const FName& ProjectorParamName, int32 RangeIndex)
+{
+	const FString ParamName = ProjectorParamName.ToString();
+	const int32 NumLayers = NumProjectorLayers(ProjectorParamName);
+	check(RangeIndex >= 0 && RangeIndex < NumLayers); // Layer out of range.
+
+	if (!IsMultilayerProjector(ParamName))
+	{
+		return;
+	}
+
+	// Num Layers.
+	SetFloatParameterSelectedOption(ParamName + FMultilayerProjector::NUM_LAYERS_PARAMETER_POSTFIX, NumLayers - 1);
+
+	// Projector Range.
+	RemoveValueFromProjectorRange(ParamName, RangeIndex);
+
+	// Selected Image Range.
+	RemoveValueFromIntRange(ParamName + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX, RangeIndex);
+
+	// Opacity Range.
+	RemoveValueFromFloatRange(ParamName + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX);
+}
+
+
+FMultilayerProjectorLayer FCustomizableObjectInstanceDescriptor::GetLayer(const FName& ProjectorParamName, int32 Index) const
+{
+	const FString ParamName = ProjectorParamName.ToString();
+
+	FMultilayerProjectorLayer ProjectorLayer;
+
+	if (IsMultilayerProjector(ParamName))
+	{
+		ProjectorLayer.Read(*this, ParamName, Index);
+	}
+
+	return ProjectorLayer;
+}
+
+
+void FCustomizableObjectInstanceDescriptor::UpdateLayer(const FName& ProjectorParamName, int32 Index, const FMultilayerProjectorLayer& Layer)
+{
+	const FString& ParamName = ProjectorParamName.ToString();
+
+	if (!IsMultilayerProjector(ParamName))
+	{
+		return;
+	}
+
+	Layer.Write(*this, ParamName, Index);
 }
 
 
 bool FCustomizableObjectInstanceDescriptor::CreateMultiLayerProjector(const FName& ProjectorParamName)
 {
-	if (!FMultilayerProjector::AreDescriptorParametersValid(*this, ProjectorParamName.ToString()))
+	if (!IsMultilayerProjector(ProjectorParamName.ToString()))
 	{
 #if WITH_EDITOR
-		UE_LOG(LogMutable, Error, TEXT("%s"), *FMultilayerProjector::DESCRIPTOR_PARAMETERS_INVALID);
+		UE_LOG(LogMutable, Error, TEXT("%s"), *FMultilayerProjector::MULTILAYER_PROJECTOR_PARAMETERS_INVALID);
 #else
-		ensureAlwaysMsgf(false, TEXT("%s"), *FMultilayerProjector::DESCRIPTOR_PARAMETERS_INVALID);
+		ensureAlwaysMsgf(false, TEXT("%s"), *FMultilayerProjector::MULTILAYER_PROJECTOR_PARAMETERS_INVALID);
 #endif
 		return false;
 	}
@@ -2481,46 +2647,6 @@ bool FCustomizableObjectInstanceDescriptor::CreateMultiLayerProjector(const FNam
 void FCustomizableObjectInstanceDescriptor::RemoveMultilayerProjector(const FName& ProjectorParamName)
 {
 	MultilayerProjectors.Remove(ProjectorParamName);
-}
-
-
-int32 FCustomizableObjectInstanceDescriptor::MultilayerProjectorNumLayers(const FName& ProjectorParamName) const
-{
-	check(MultilayerProjectors.Contains(ProjectorParamName)); // Multilayer Projector not created.
-	
-	return MultilayerProjectors[ProjectorParamName].NumLayers(*this);
-}
-
-
-void FCustomizableObjectInstanceDescriptor::MultilayerProjectorCreateLayer(const FName& ProjectorParamName, int32 Index)
-{
-	check(MultilayerProjectors.Contains(ProjectorParamName)); // Multilayer Projector not created.
-	
-	MultilayerProjectors[ProjectorParamName].CreateLayer(*this, Index);
-}
-
-
-void FCustomizableObjectInstanceDescriptor::MultilayerProjectorRemoveLayerAt(const FName& ProjectorParamName, int32 Index)
-{
-	check(MultilayerProjectors.Contains(ProjectorParamName)); // Multilayer Projector not created.
-	
-	MultilayerProjectors[ProjectorParamName].RemoveLayerAt(*this, Index);
-}
-
-
-FMultilayerProjectorLayer FCustomizableObjectInstanceDescriptor::MultilayerProjectorGetLayer(const FName& ProjectorParamName, int32 Index) const
-{
-	check(MultilayerProjectors.Contains(ProjectorParamName)); // Multilayer Projector not created.
-	
-	return MultilayerProjectors[ProjectorParamName].GetLayer(*this, Index);
-}
-
-
-void FCustomizableObjectInstanceDescriptor::MultilayerProjectorUpdateLayer(const FName& ProjectorParamName, int32 Index, const FMultilayerProjectorLayer& Layer)
-{
-	check(MultilayerProjectors.Contains(ProjectorParamName)); // Multilayer Projector not created.
-	
-	MultilayerProjectors[ProjectorParamName].UpdateLayer(*this, Index, Layer);
 }
 
 

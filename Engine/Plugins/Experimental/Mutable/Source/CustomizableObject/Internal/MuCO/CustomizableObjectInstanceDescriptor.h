@@ -86,28 +86,16 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectInstanceDescriptor
 	// Parameters
 	// ------------------------------------------------------------
 
-	TArray<FCustomizableObjectBoolParameterValue>& GetBoolParameters();
-
 	const TArray<FCustomizableObjectBoolParameterValue>& GetBoolParameters() const;
 	
-	TArray<FCustomizableObjectIntParameterValue>& GetIntParameters();
-
 	const TArray<FCustomizableObjectIntParameterValue>& GetIntParameters() const;
-
-	TArray<FCustomizableObjectFloatParameterValue>& GetFloatParameters();
 
 	const TArray<FCustomizableObjectFloatParameterValue>& GetFloatParameters() const;
 	
-	TArray<FCustomizableObjectTextureParameterValue>& GetTextureParameters();
-	
 	const TArray<FCustomizableObjectTextureParameterValue>& GetTextureParameters() const;
 
-	TArray<FCustomizableObjectVectorParameterValue>& GetVectorParameters();
-	
 	const TArray<FCustomizableObjectVectorParameterValue>& GetVectorParameters() const;
 
-	TArray<FCustomizableObjectProjectorParameterValue>& GetProjectorParameters();
-	
 	const TArray<FCustomizableObjectProjectorParameterValue>& GetProjectorParameters() const;
 	
 	/** Return true if there are any parameters. */
@@ -282,39 +270,43 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectInstanceDescriptor
 	
 	void SetRandomValuesFromStream(const FRandomStream& InStream);
 
+	void SetDefaultValue(int32 ParamIndex);
 	void SetDefaultValues();
 	
 	// ------------------------------------------------------------
 	// Multilayer Projectors
 	// ------------------------------------------------------------
-	
-	/** Given Multilayer Projector name, create a new Multilayer Projector Helper (if non-existent). See FMultilayerProjector.
+
+	/** @return true if ParamName belongs to a multilayer projector parameter. */
+	bool IsMultilayerProjector(const FString& ParamName) const;
+
+	// Layers
+	/** @return number of layers of the projector with name ParamName,-1 if invalid or not found. */
+	int32 NumProjectorLayers(const FName& ParamName) const;
+
+	/** Creates a new layer for the multilayer projector with name ParamName. */
+	void CreateLayer(const FName& ParamName, int32 Index);
+
+	/** Removes the layer at Index from the multilayer projector with name ParamName. */
+	void RemoveLayerAt(const FName& ParamName, int32 Index);
+
+	/** @return copy of the layer at Index for the multilayer projector with name ParamName. */
+	FMultilayerProjectorLayer GetLayer(const FName& ParamName, int32 Index) const;
+
+	/** Updates the parameters of the layer at Index from the multilayer projector with name ParamName. */
+	void UpdateLayer(const FName& ParamName, int32 Index, const FMultilayerProjectorLayer& Layer);
+
+
+	// Virtual layers
+
+	/** Given Multilayer Projector name, create a new Multilayer Projector Helper (if non-existent) for virtual layers. See FMultilayerProjector.
 	 *
 	 * @return ture if successfully created (or was already created).
 	 */
 	bool CreateMultiLayerProjector(const FName& ProjectorParamName);
-	
+
 	/** Given Multilayer Projector name, remove a Multilayer Projector Helper. See FMultilayerProjector. */
 	void RemoveMultilayerProjector(const FName& ProjectorParamName);
-	
-	// Layers
-
-	/** See FMultilayerProjector::NumLayers. */
-	int32 MultilayerProjectorNumLayers(const FName& ProjectorParamName) const;
-
-	/** See FMultilayerProjector::CreateLayer. */
-	void MultilayerProjectorCreateLayer(const FName& ProjectorParamName, int32 Index);
-
-	/** See FMultilayerProjector::RemoveLayerAt. */
-	void MultilayerProjectorRemoveLayerAt(const FName& ProjectorParamName, int32 Index);
-
-	/** See FMultilayerProjector::GetLayer. */
-	FMultilayerProjectorLayer MultilayerProjectorGetLayer(const FName& ProjectorParamName, int32 Index) const;
-
-	/** See FMultilayerProjector::UpdateLayer. */
-	void MultilayerProjectorUpdateLayer(const FName& ProjectorParamName, int32 Index, const FMultilayerProjectorLayer& Layer);
-
-	// Virtual layers
 
 	/** See FMultilayerProjector::GetVirtualLayers. */
 	TArray<FName> MultilayerProjectorGetVirtualLayers(const FName& ProjectorParamName) const;

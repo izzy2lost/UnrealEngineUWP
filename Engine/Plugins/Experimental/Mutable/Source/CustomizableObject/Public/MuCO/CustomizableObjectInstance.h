@@ -295,6 +295,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	void SetRandomValuesFromStream(const FRandomStream& InStream);
 
+	/** Sets a parameter to its default value */
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
+	void SetDefaultValue(const FString& ParamName);
+
 	/** Set all parameters to their default value. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	void SetDefaultValues();

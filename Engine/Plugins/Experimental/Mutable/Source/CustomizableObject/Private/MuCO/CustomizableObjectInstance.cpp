@@ -2449,31 +2449,31 @@ void UCustomizableObjectInstance::RemoveMultilayerProjector(const FName& Project
 
 int32 UCustomizableObjectInstance::MultilayerProjectorNumLayers(const FName& ProjectorParamName) const
 {
-	return Descriptor.MultilayerProjectorNumLayers(ProjectorParamName);
+	return Descriptor.NumProjectorLayers(ProjectorParamName);
 }
 
 
 void UCustomizableObjectInstance::MultilayerProjectorCreateLayer(const FName& ProjectorParamName, int32 Index)
 {
-	Descriptor.MultilayerProjectorCreateLayer(ProjectorParamName, Index);
+	Descriptor.CreateLayer(ProjectorParamName, Index);
 }
 
 
 void UCustomizableObjectInstance::MultilayerProjectorRemoveLayerAt(const FName& ProjectorParamName, int32 Index)
 {
-	Descriptor.MultilayerProjectorRemoveLayerAt(ProjectorParamName, Index);
+	Descriptor.RemoveLayerAt(ProjectorParamName, Index);
 }
 
 
 FMultilayerProjectorLayer UCustomizableObjectInstance::MultilayerProjectorGetLayer(const FName& ProjectorParamName, int32 Index) const
 {
-	return Descriptor.MultilayerProjectorGetLayer(ProjectorParamName, Index);
+	return Descriptor.GetLayer(ProjectorParamName, Index);
 }
 
 
 void UCustomizableObjectInstance::MultilayerProjectorUpdateLayer(const FName& ProjectorParamName, int32 Index, const FMultilayerProjectorLayer& Layer)
 {
-	Descriptor.MultilayerProjectorUpdateLayer(ProjectorParamName, Index, Layer);
+	Descriptor.UpdateLayer(ProjectorParamName, Index, Layer);
 }
 
 
@@ -2735,6 +2735,16 @@ void UCustomizableObjectInstance::SetRandomValuesFromStream(const FRandomStream&
 	Descriptor.SetRandomValuesFromStream(InStream);
 }
 
+void UCustomizableObjectInstance::SetDefaultValue(const FString& ParamName)
+{
+	UCustomizableObject* CustomizableObject = GetCustomizableObject();
+	if (!CustomizableObject)
+	{
+		return;
+	}
+
+	Descriptor.SetDefaultValue(CustomizableObject->FindParameter(ParamName));
+}
 
 void UCustomizableObjectInstance::SetDefaultValues()
 {

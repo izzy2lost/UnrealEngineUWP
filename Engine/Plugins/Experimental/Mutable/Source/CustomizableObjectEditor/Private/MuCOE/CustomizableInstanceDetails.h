@@ -131,7 +131,6 @@ private:
 	FReply OnPasteAllParameters();
 	FReply OnResetAllParameters();
 	void OnResetParameterButtonClicked(int32 ParameterIndex);
-	void SetParameterValueToDefault(int32 ParameterIndex);
 
 	// Transaction System
 	void BeginTransaction(const FText& TransactionDesc, bool bModifyCustomizableObject = false);

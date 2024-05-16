@@ -19,7 +19,6 @@
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectSystem.h"
-#include "MuCOE/SCustomizableInstanceProperties.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
 
 #include "Slate/DeferredCleanupSlateBrush.h"
@@ -30,6 +29,7 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SSearchBox.h"
+#include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Input/SSlider.h"
 #include "Widgets/Input/STextComboBox.h"
 #include "Widgets/Layout/SExpandableArea.h"
@@ -45,12 +45,6 @@ namespace UIMetadataKeyWords
 	// Key name for float slider decorators
 	constexpr TCHAR const* FloatDecoratorName = TEXT("SliderImage");
 }
-
-
-TAutoConsoleVariable<bool> CVarUseOldInstanceUI(
-	TEXT("mutable.UseOldInstanceUI"),
-	false,
-	TEXT("Enables the old Parameters UI for the Instance Properties tab."));
 
 
 TSharedRef<IDetailCustomization> FCustomizableInstanceDetails::MakeInstance()
@@ -117,19 +111,6 @@ void FCustomizableInstanceDetails::CustomizeDetails(const TSharedPtr<IDetailLayo
 
 	// Store which Texture Parameter values can be selected.
 	GenerateTextureParameterOptions();
-
-	// In case that something of the new UI doesn't work as expected
-	if(CVarUseOldInstanceUI.GetValueOnGameThread())
-	{
-		OldParametersCategory.AddCustomRow(LOCTEXT("CustomizableInstanceDetails_OldUI", "Old Instance Parameters"))
-		[
-			SNew(SCustomizableInstanceProperties)
-			.CustomInstance(CustomInstance.Get())
-			.InstanceDetails(SharedThis(this))
-		];
-
-		return;
-	}
 
 	// State Selector Widget
 	VisibilitySettingsCategory.AddCustomRow(LOCTEXT("CustomizableInstanceDetails_StateSelector", "State"))
@@ -1410,7 +1391,7 @@ FReply FCustomizableInstanceDetails::OnProjectorCopyTransform(const FString Para
 
 	if ((ParameterIndexInObject >= 0) && (ProjectorParamIndex >= 0))
 	{
-		TArray<FCustomizableObjectProjectorParameterValue>& ProjectorParameters = CustomInstance->GetPrivate()->GetDescriptor().GetProjectorParameters();
+		const TArray<FCustomizableObjectProjectorParameterValue>& ProjectorParameters = CustomInstance->GetPrivate()->GetDescriptor().GetProjectorParameters();
 		FCustomizableObjectProjector Value;
 
 		if (RangeIndex == -1)
@@ -1493,7 +1474,7 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateMultidimensionalProjec
 	FString ParamName = CustomizableObject->GetParameterName(ParamIndexInObject);
 
 	const TSharedPtr<ICustomizableObjectInstanceEditor> Editor = GetEditorChecked();
-	TArray<FCustomizableObjectProjectorParameterValue>& ProjectorParameters = CustomInstance->GetPrivate()->GetDescriptor().GetProjectorParameters();
+	const TArray<FCustomizableObjectProjectorParameterValue>& ProjectorParameters = CustomInstance->GetPrivate()->GetDescriptor().GetProjectorParameters();
 	const int32 ProjectorParamIndex = CustomInstance->FindProjectorParameterNameIndex(ParamName);
 
 	check(ProjectorParamIndex < ProjectorParameters.Num());
@@ -1821,27 +1802,8 @@ FReply FCustomizableInstanceDetails::OnProjectorLayerAdded(FString ParamName)
 	FScopedTransaction LocalTransaction(LOCTEXT("AddProjectorLayer", "Add Projector Layer"));
 	CustomInstance->Modify();
 
-	const int32 NumLayers = CustomInstance->AddValueToProjectorRange(ParamName) + 1;
-	if (NumLayers == 0)
-	{
-		return FReply::Handled();
-	}
-
-	const FString TextureSwitchEnumParamName = ParamName + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX;
-	CustomInstance->AddValueToIntRange(TextureSwitchEnumParamName);
-	check(CustomInstance->FindIntParameterNameIndex(TextureSwitchEnumParamName) != INDEX_NONE);
-	check(NumLayers == CustomInstance->GetPrivate()->GetDescriptor().GetIntParameters()[CustomInstance->FindIntParameterNameIndex(TextureSwitchEnumParamName)].ParameterRangeValueNames.Num());
-
-	TArray<FCustomizableObjectFloatParameterValue>& FloatParameters = CustomInstance->GetPrivate()->GetDescriptor().GetFloatParameters();
-
-	const FString NumLayersParamName = ParamName + FMultilayerProjector::NUM_LAYERS_PARAMETER_POSTFIX;
-	check(CustomInstance->FindFloatParameterNameIndex(NumLayersParamName) != INDEX_NONE);
-	FloatParameters[CustomInstance->FindFloatParameterNameIndex(NumLayersParamName)].ParameterValue = NumLayers;
-
-	const FString OpacitySliderParamName = ParamName + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX;
-	CustomInstance->AddValueToFloatRange(OpacitySliderParamName);
-	check(CustomInstance->FindFloatParameterNameIndex(OpacitySliderParamName) != INDEX_NONE);
-	check(NumLayers == FloatParameters[CustomInstance->FindFloatParameterNameIndex(OpacitySliderParamName)].ParameterRangeValues.Num());
+	const int32 NumLayers = CustomInstance->MultilayerProjectorNumLayers(*ParamName) + 1;
+	CustomInstance->MultilayerProjectorCreateLayer(*ParamName, NumLayers);
 
 	UpdateInstance();
 
@@ -1862,30 +1824,7 @@ FReply FCustomizableInstanceDetails::OnProjectorLayerRemoved(const FString Param
 		GetEditorChecked()->HideGizmo();
 	}
 
-	const int32 projectorParameterIndex = CustomInstance->FindProjectorParameterNameIndex(ParamName);
-	if (projectorParameterIndex == INDEX_NONE
-		|| CustomInstance->GetPrivate()->GetDescriptor().GetProjectorParameters()[projectorParameterIndex].RangeValues.Num() <= 0)
-	{
-		return FReply::Handled();
-	}
-
-	const int32 NumLayers = CustomInstance->RemoveValueFromProjectorRange(ParamName, RangeIndex) + 1;
-
-	const FString TextureSwitchEnumParamName = ParamName + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX;
-	CustomInstance->RemoveValueFromIntRange(TextureSwitchEnumParamName, RangeIndex);
-	check(CustomInstance->FindIntParameterNameIndex(TextureSwitchEnumParamName) != INDEX_NONE);
-	check(NumLayers == CustomInstance->GetPrivate()->GetDescriptor().GetIntParameters()[CustomInstance->FindIntParameterNameIndex(TextureSwitchEnumParamName)].ParameterRangeValueNames.Num());
-
-	TArray<FCustomizableObjectFloatParameterValue>& FloatParameters = CustomInstance->GetPrivate()->GetDescriptor().GetFloatParameters();
-
-	const FString NumLayersParamName = ParamName + FMultilayerProjector::NUM_LAYERS_PARAMETER_POSTFIX;
-	check(CustomInstance->FindFloatParameterNameIndex(NumLayersParamName) != INDEX_NONE);
-	FloatParameters[CustomInstance->FindFloatParameterNameIndex(NumLayersParamName)].ParameterValue = NumLayers;
-
-	const FString OpacitySliderParamName = ParamName + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX;
-	CustomInstance->RemoveValueFromFloatRange(OpacitySliderParamName, RangeIndex);
-	check(CustomInstance->FindFloatParameterNameIndex(OpacitySliderParamName) != INDEX_NONE);
-	check(NumLayers == FloatParameters[CustomInstance->FindFloatParameterNameIndex(OpacitySliderParamName)].ParameterRangeValues.Num());
+	CustomInstance->MultilayerProjectorRemoveLayerAt(*ParamName, RangeIndex);
 
 	UpdateInstance();
 
@@ -2010,13 +1949,7 @@ FReply FCustomizableInstanceDetails::OnResetAllParameters()
 	FScopedTransaction LocalTransaction(LOCTEXT("OnResetAllParameters", "Reset All Parameters"));
 	CustomInstance->Modify();
 
-	const UCustomizableObject* CustomObject = CustomInstance->GetCustomizableObject();
-	const int32 NumObjectParameter = CustomObject->GetParameterCount();
-
-	for (int32 ParameterIndex = 0; ParameterIndex < NumObjectParameter; ++ParameterIndex)
-	{
-		SetParameterValueToDefault(ParameterIndex);
-	}
+	CustomInstance->SetDefaultValues();
 
 	CustomInstance->GetPrivate()->SelectedProfileIndex = INDEX_NONE;
 	UpdateInstance();
@@ -2034,123 +1967,9 @@ void FCustomizableInstanceDetails::OnResetParameterButtonClicked(int32 Parameter
 
 	FScopedTransaction LocalTransaction(FText::Format(LOCTEXT("OnResetParameter", "Reset Parameter: {0}"), FText::FromString(ParameterName)));
 	CustomInstance->Modify();
-	SetParameterValueToDefault(ParameterIndex);
+	CustomInstance->SetDefaultValue(ParameterName);
 	UpdateInstance();
 }
-
-
-void FCustomizableInstanceDetails::SetParameterValueToDefault(int32 ParameterIndex)
-{
-	UCustomizableObject* CustomObject = CustomInstance->GetCustomizableObject();
-	FString ParameterName = CustomObject->GetParameterName(ParameterIndex);
-	EMutableParameterType ParameterType = CustomObject->GetParameterType(ParameterIndex);
-
-	// Checking if there are parameteres with the same name
-	if (ParameterType != CustomObject->GetParameterTypeByName(ParameterName))
-	{
-		return;
-	}
-
-	switch (ParameterType)
-	{
-	case EMutableParameterType::None:
-		break;
-	case EMutableParameterType::Bool:
-	{
-		CustomInstance->SetBoolParameterSelectedOption(ParameterName, CustomObject->GetBoolParameterDefaultValue(ParameterName));
-		break;
-	}
-	case EMutableParameterType::Int:
-	{
-		int32 DefaultValue = CustomObject->GetIntParameterDefaultValue(ParameterName);
-		FString ValueName = CustomObject->FindIntParameterValueName(ParameterIndex, DefaultValue);
-
-		if (!ValueName.IsEmpty())
-		{
-			if (CustomObject->IsParameterMultidimensional(ParameterName))
-			{
-				int32 NumRanges = CustomInstance->GetIntValueRange(ParameterName);
-
-				for (int32 RangeIndex = 0; RangeIndex < NumRanges; ++RangeIndex)
-				{
-					CustomInstance->SetIntParameterSelectedOption(ParameterName, ValueName, RangeIndex);
-				}
-			}
-			else
-			{
-				CustomInstance->SetIntParameterSelectedOption(ParameterName, ValueName);
-			}
-		}
-		break;
-	}
-	case EMutableParameterType::Float:
-	{
-		float DefaultValue = CustomObject->GetFloatParameterDefaultValue(ParameterName);
-
-		if (CustomObject->IsParameterMultidimensional(ParameterName))
-		{
-			int32 NumRanges = CustomInstance->GetFloatValueRange(ParameterName);
-
-			for (int32 RangeIndex = 0; RangeIndex < NumRanges; ++RangeIndex)
-			{
-				CustomInstance->SetFloatParameterSelectedOption(ParameterName, DefaultValue, RangeIndex);
-			}
-		}
-		else
-		{
-			CustomInstance->SetFloatParameterSelectedOption(ParameterName, DefaultValue);
-		}
-		break;
-	}
-	case EMutableParameterType::Color:
-	{
-		CustomInstance->SetColorParameterSelectedOption(ParameterName, CustomObject->GetColorParameterDefaultValue(ParameterName));
-		break;
-	}
-	case EMutableParameterType::Projector:
-	{
-		FCustomizableObjectProjector DefaultValue = CustomObject->GetProjectorParameterDefaultValue(ParameterName);
-
-		if (CustomObject->IsParameterMultidimensional(ParameterName))
-		{
-			int32 NumRanges = CustomInstance->GetProjectorValueRange(ParameterName);
-
-			for (int32 RangeIndex = 0; RangeIndex < NumRanges; ++RangeIndex)
-			{
-				CustomInstance->SetProjectorValue(ParameterName, FVector(DefaultValue.Position), FVector(DefaultValue.Direction), FVector(DefaultValue.Up), FVector(DefaultValue.Scale), DefaultValue.Angle, RangeIndex);
-			}
-		}
-		else
-		{
-			CustomInstance->SetProjectorValue(ParameterName, FVector(DefaultValue.Position), FVector(DefaultValue.Direction), FVector(DefaultValue.Up), FVector(DefaultValue.Scale), DefaultValue.Angle);
-		}
-
-		break;
-	}
-	case EMutableParameterType::Texture:
-	{
-		FName DefaultValue = CustomObject->GetTextureParameterDefaultValue(ParameterName);
-
-		if (CustomObject->IsParameterMultidimensional(ParameterName))
-		{
-			int32 NumRanges = CustomInstance->GetTextureValueRange(ParameterName);
-
-			for (int32 RangeIndex = 0; RangeIndex < NumRanges; ++RangeIndex)
-			{
-				CustomInstance->SetTextureParameterSelectedOption(ParameterName, DefaultValue.ToString(), RangeIndex);
-			}
-		}
-		else
-		{
-			CustomInstance->SetTextureParameterSelectedOption(ParameterName, DefaultValue.ToString());
-		}
-		break;
-	}
-	}
-
-	return;
-}
-
 
 // TRANSACTION SYSTEM -----------------------------------------------------------------------------------------------------------------
 

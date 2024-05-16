@@ -353,7 +353,7 @@ void FRuntimeTest::LoadStateData(int32 StateIndex)
 		}
 		case EMutableParameterType::Bool:
 		{
-			TArray<FCustomizableObjectBoolParameterValue>& BoolParameters = Instance->GetPrivate()->GetDescriptor().GetBoolParameters();
+			const TArray<FCustomizableObjectBoolParameterValue>& BoolParameters = Instance->GetPrivate()->GetDescriptor().GetBoolParameters();
 			FCustomizableObjectBoolParameterValue Parameter;
 			Parameter.ParameterName = RunTimeParameter;
 			const uint32 MaxIndex = BoolParameters.Num();
@@ -375,7 +375,7 @@ void FRuntimeTest::LoadStateData(int32 StateIndex)
 		}
 		case EMutableParameterType::Int:
 		{
-			TArray<FCustomizableObjectIntParameterValue>& IntParameters = Instance->GetPrivate()->GetDescriptor().GetIntParameters();
+			const TArray<FCustomizableObjectIntParameterValue>& IntParameters = Instance->GetPrivate()->GetDescriptor().GetIntParameters();
 			FCustomizableObjectIntParameterValue Parameter;
 			Parameter.ParameterName = RunTimeParameter;
 			const uint32 MaxIndex = IntParameters.Num();
@@ -402,7 +402,7 @@ void FRuntimeTest::LoadStateData(int32 StateIndex)
 		}
 		case EMutableParameterType::Float:
 		{
-			TArray<FCustomizableObjectFloatParameterValue>& FloatParameters = Instance->GetPrivate()->GetDescriptor().GetFloatParameters();
+			const TArray<FCustomizableObjectFloatParameterValue>& FloatParameters = Instance->GetPrivate()->GetDescriptor().GetFloatParameters();
 			FCustomizableObjectFloatParameterValue Parameter;
 			Parameter.ParameterName = RunTimeParameter;
 			const uint32 MaxIndex = FloatParameters.Num();
@@ -425,7 +425,7 @@ void FRuntimeTest::LoadStateData(int32 StateIndex)
 		}
 		case EMutableParameterType::Color:
 		{
-			TArray<FCustomizableObjectVectorParameterValue>& VectorParameters = Instance->GetPrivate()->GetDescriptor().GetVectorParameters();
+			const TArray<FCustomizableObjectVectorParameterValue>& VectorParameters = Instance->GetPrivate()->GetDescriptor().GetVectorParameters();
 			FCustomizableObjectVectorParameterValue Parameter;
 			Parameter.ParameterName = RunTimeParameter;
 			const uint32 MaxIndex = VectorParameters.Num();
@@ -447,7 +447,7 @@ void FRuntimeTest::LoadStateData(int32 StateIndex)
 		}
 		case EMutableParameterType::Projector:
 		{
-			TArray<FCustomizableObjectVectorParameterValue>& VectorParameters = Instance->GetPrivate()->GetDescriptor().GetVectorParameters();
+			const TArray<FCustomizableObjectVectorParameterValue>& VectorParameters = Instance->GetPrivate()->GetDescriptor().GetVectorParameters();
 			FCustomizableObjectVectorParameterValue Parameter;
 			Parameter.ParameterName = RunTimeParameter;
 			const uint32 MaxIndex = VectorParameters.Num();
@@ -470,7 +470,7 @@ void FRuntimeTest::LoadStateData(int32 StateIndex)
 		}
 		case EMutableParameterType::Texture:
 		{
-			TArray<FCustomizableObjectTextureParameterValue>& TextureParameters = Instance->GetPrivate()->GetDescriptor().GetTextureParameters();
+			const TArray<FCustomizableObjectTextureParameterValue>& TextureParameters = Instance->GetPrivate()->GetDescriptor().GetTextureParameters();
 			FCustomizableObjectTextureParameterValue Parameter;
 			Parameter.ParameterName = RunTimeParameter;
 			const uint32 MaxIndex = TextureParameters.Num();
