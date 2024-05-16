@@ -362,7 +362,6 @@ const JobViewAllInner: React.FC<{ filter: JobFilterSimple }> = observer(({ filte
    const JobLabel: React.FC<{ item: JobItem; label: GetLabelStateResponse }> = ({ item, label }) => {
 
       const defaultLabel = item.job.defaultLabel;
-
       const aggregates = item.job.labels;
 
       // note details may not be loaded here, as only initialized on callout for optimization (details.getLabelIndex(label.Name, label.Category);)
@@ -374,7 +373,7 @@ const JobViewAllInner: React.FC<{ filter: JobFilterSimple }> = observer(({ filte
 
       let state: LabelState | undefined;
       let outcome: LabelOutcome | undefined;
-      if (defaultLabel) {
+      if (label === defaultLabel) {
          state = defaultLabel.state;
          outcome = defaultLabel.outcome;
       } else {

@@ -366,7 +366,7 @@ export class JobDetailsV2 extends PollBase {
 
    }
 
-   private processGraph() {
+   processGraph() {
 
       const jobData = this.jobData;
 

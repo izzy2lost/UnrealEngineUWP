@@ -212,10 +212,16 @@ export const StepRetryModal: React.FC<{ stepId: string; jobDetails: JobDetailsV2
 
       await backend.updateJobStep(jobData.id, batch.id, stepId, {
          retry: true
-      }).then((response) => {
+      }).then(async (response) => {
 
-         if (response.stepId) {
-            navigate(`/job/${jobData.id}?step=${response.stepId!}`)
+         if (response.stepId) {            
+            if (jobDetails.jobData?.id) {
+               // get new job data so we have the new batch/step
+               jobDetails.jobData = await backend.getJob(jobDetails.jobData?.id);
+               jobDetails.processGraph();
+            }
+            
+            navigate(`/job/${jobData.id}?step=${response.stepId!}`)            
          }
 
       }).catch((reason) => {

@@ -3,7 +3,7 @@
 import { action, makeObservable, observable } from "mobx";
 import moment, { Moment } from 'moment-timezone';
 import backend from '../backend';
-import { AgentData, BatchData, EventSeverity, GetArtifactResponseV2, GetLogEventResponse, GetLogFileResponse, IssueData, LeaseData, LogData, StepData, StreamData } from "../backend/Api";
+import { AgentData, BatchData, EventSeverity, GetArtifactResponseV2, GetJobsTabResponse, GetLogEventResponse, GetLogFileResponse, IssueData, LeaseData, LogData, StepData, StreamData } from "../backend/Api";
 import { getBatchSummaryMarkdown, getStepSummaryMarkdown, JobDetails } from "../backend/JobDetails";
 import { getLeaseElapsed, getStepPercent } from '../base/utilities/timeUtils';
 import { BreadcrumbItem } from './Breadcrumbs';
@@ -531,7 +531,6 @@ export class JobLogSource extends LogSource {
 
       const data = this.jobDetails.jobdata!;
 
-
       if (!this.stream) {
          return [];
       }
@@ -541,6 +540,16 @@ export class JobLogSource extends LogSource {
          projectName = "UE4";
       }
 
+      const tab = this.stream.tabs?.find((tab) => {
+         const jtab = tab as GetJobsTabResponse;
+         return !!jtab.templates?.find(t => t === data?.templateId);
+      });
+
+      let streamLink = `/stream/${this.stream.id}`;
+      if (tab) {
+         streamLink += `?tab=${tab.title}`;
+      }
+
       const crumbItems: BreadcrumbItem[] = [
          {
             text: projectName ?? "Unknown Project",
@@ -548,7 +557,7 @@ export class JobLogSource extends LogSource {
          },
          {
             text: this.stream.name,
-            link: `/stream/${this.stream.id}`
+            link: streamLink
          },
          {
             text: `${data?.name ?? ""} - ${this.clText}`,
