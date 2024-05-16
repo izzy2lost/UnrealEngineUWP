@@ -31,13 +31,14 @@ enum class EAutomationArtifactType : uint8
 	Comparison
 };
 
-UENUM()
-enum class EComparisonFileTypes : uint8
+namespace ComparisonFileTypes
 {
-	Unapproved,
-	Approved,
-	Difference
-};
+	// Use const string here instead of an enum, because FAutomationArtifact.Files property is a dictionary string/string
+	// FAutomationArtifact should be able to be used as an adhoc key/file association.
+	const FString Unapproved = TEXT("unapproved");
+	const FString Approved = TEXT("approved");
+	const FString Difference = TEXT("difference");
+}
 
 USTRUCT()
 struct FAutomationArtifact
@@ -51,7 +52,7 @@ public:
 	{
 	}
 
-	FAutomationArtifact(FGuid InUniqueId, const FString& InName, EAutomationArtifactType InType, const TMap<EComparisonFileTypes, FString>& InLocalFiles)
+	FAutomationArtifact(FGuid InUniqueId, const FString& InName, EAutomationArtifactType InType, const TMap<FString, FString>& InLocalFiles)
 		: Id(InUniqueId)
 		, Name(InName)
 		, Type(InType)
@@ -71,12 +72,12 @@ public:
 	EAutomationArtifactType Type;
 
 	UPROPERTY()
-	TMap<EComparisonFileTypes, FString> Files;
+	TMap<FString, FString> Files;
 
 	// Local Files are the files generated during a testing run, once exported, the individual file paths
 	// should be stored in the Files map.
 
-	TMap<EComparisonFileTypes, FString> LocalFiles;
+	TMap<FString, FString> LocalFiles;
 };
 
 /**

@@ -464,12 +464,12 @@ void FAutomationControllerManager::ReportImageComparisonResult(const FAutomation
 	if (Report.IsValid())
 	{
 		// Record the artifacts for the test.
-		TMap<EComparisonFileTypes, FString> LocalFiles;
+		TMap<FString, FString> LocalFiles;
 
 		FString ScreenshotResultsFolder = FPaths::AutomationReportsDir();
 
 		// Paths in the result are relative to the automation report directory.	
-		LocalFiles.Add(EComparisonFileTypes::Unapproved, FPaths::Combine(ScreenshotResultsFolder, Result.ReportIncomingFilePath));
+		LocalFiles.Add(ComparisonFileTypes::Unapproved, FPaths::Combine(ScreenshotResultsFolder, Result.ReportIncomingFilePath));
 
 		// Don't copy reference and delta if the images are similar.
 		if (!Result.bSimilar)
@@ -477,12 +477,12 @@ void FAutomationControllerManager::ReportImageComparisonResult(const FAutomation
 			// unapproved should always be valid. but approved/difference may be empty if this is a new screenshot
 			if (Result.ReportIncomingFilePath.Len())
 			{
-				LocalFiles.Add(EComparisonFileTypes::Approved, FPaths::Combine(ScreenshotResultsFolder, Result.ReportApprovedFilePath));
+				LocalFiles.Add(ComparisonFileTypes::Approved, FPaths::Combine(ScreenshotResultsFolder, Result.ReportApprovedFilePath));
 			}
 
 			if (Result.ReportComparisonFilePath.Len())
 			{
-				LocalFiles.Add(EComparisonFileTypes::Difference, FPaths::Combine(ScreenshotResultsFolder, Result.ReportComparisonFilePath));
+				LocalFiles.Add(ComparisonFileTypes::Difference, FPaths::Combine(ScreenshotResultsFolder, Result.ReportComparisonFilePath));
 			}
 		}
 
@@ -628,14 +628,14 @@ void FAutomationControllerManager::CollectTestResults(TSharedPtr<IAutomationRepo
 		FCriticalSection CS;
 		for (FAutomationArtifact& Artifact : TestResult.GetArtifacts())
 		{
-			TArray<EComparisonFileTypes> Keys;
+			TArray<FString> Keys;
 			Artifact.LocalFiles.GetKeys(Keys);
 
-			bool bOnlyUnapproved = Keys.Num() == 1 && Keys[0] == EComparisonFileTypes::Unapproved;
+			bool bOnlyUnapproved = Keys.Num() == 1 && Keys[0] == ComparisonFileTypes::Unapproved;
 
 			ParallelFor(Keys.Num(), [&](int32 Index)
 				{
-					const EComparisonFileTypes& Key = Keys[Index];
+					const FString& Key = Keys[Index];
 					FString Path = Artifact.LocalFiles[Key];
 					FPaths::MakePathRelativeTo(Path, *FPaths::AutomationReportsDir());
 					Path = ArtifactDirName / Path;
@@ -643,7 +643,7 @@ void FAutomationControllerManager::CollectTestResults(TSharedPtr<IAutomationRepo
 						FScopeLock Lock(&CS);
 						Artifact.Files.Add(Key, MoveTemp(Path));
 					}
-					if (Key == EComparisonFileTypes::Unapproved)
+					if (Key == ComparisonFileTypes::Unapproved && Artifact.Type == EAutomationArtifactType::Comparison)
 					{
 						// Copy screenshot report
 						FScreenshotExportResult ExportResult = ScreenshotManager->ExportScreenshotComparisonResult(Artifact.Name, ArtifactExportPath, bOnlyUnapproved);
