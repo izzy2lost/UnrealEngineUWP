@@ -2205,7 +2205,7 @@ void FVulkanCommandListContext::RHIRayTraceDispatchIndirect(
 
 
 
-static void SetSystemParametersUB(FVulkanHitGroupSystemParameters& OutSystemParameters, FVulkanDevice* Device, FVulkanRayTracingShaderTable* ShaderTable, uint32 InNumUniformBuffers, FRHIUniformBuffer* const* InUniformBuffers, const FVulkanRayTracingShader* InShader)
+static void SetSystemParametersUB(FVulkanHitGroupSystemParameters& OutSystemParameters, FVulkanRayTracingShaderTable* ShaderTable, uint32 InNumUniformBuffers, FRHIUniformBuffer* const* InUniformBuffers, const FVulkanRayTracingShader* InShader)
 {
 	// Plug the shaders in the right slots using LayoutHash comparisons
 	check(InShader->GetCodeHeader().UniformBuffers.Num() <= (int32)InNumUniformBuffers);
@@ -2218,7 +2218,7 @@ static void SetSystemParametersUB(FVulkanHitGroupSystemParameters& OutSystemPara
 		// :todo-jn: Hack to force in a DummyCullingBuffer in cases where it should have been culled from source (see SPIRV-Tools Issue 4902).
 		if (!UniformBuffer)
 		{
-			UniformBuffer = GetDummyUB(Device, UniformBufferInfo.LayoutHash);
+			UniformBuffer = GetDummyUB(ShaderTable->GetParent(), UniformBufferInfo.LayoutHash);
 		}
 
 		check(UniformBuffer);
@@ -2236,43 +2236,27 @@ static void SetSystemParametersUB(FVulkanHitGroupSystemParameters& OutSystemPara
 
 
 static void SetRayTracingHitGroup(
-	FVulkanCommandListContext& CommandContext,
-	FVulkanDevice* Device,
-	FVulkanRayTracingShaderTable* ShaderTable,
-	FVulkanRayTracingScene* Scene,
-	FVulkanRayTracingPipelineState* Pipeline,
-	uint32 InstanceIndex, uint32 SegmentIndex, uint32 ShaderSlot, uint32 HitGroupIndex,
+	FVulkanRayTracingShaderTable* ShaderTable, uint32 RecordIndex,
+	FVulkanRayTracingPipelineState* Pipeline, uint32 HitGroupIndex,
+	const FVulkanRayTracingGeometry* Geometry, uint32 GeometrySegmentIndex,
 	uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
 	uint32 LooseParameterDataSize, const void* LooseParameterData,
 	uint32 UserData,
-	uint32 NumShaderSlotsPerGeometrySegment,
 	uint32 WorkerIndex)
 {
-	const FRayTracingSceneInitializer2& SceneInitializer = Scene->GetInitializer();
-
-	checkf(ShaderSlot < NumShaderSlotsPerGeometrySegment, TEXT("Shader slot is invalid. Make sure that NumShaderSlotsPerGeometrySegment is correct on FRayTracingShaderBindingTableInitializer."));
-
-	const uint32 RecordIndex = Scene->GetSegmentIndex(InstanceIndex, SegmentIndex) * NumShaderSlotsPerGeometrySegment + ShaderSlot;
-
 #if DO_CHECK
 	{
-		const uint32 NumSceneInstances = (uint32)SceneInitializer.PerInstanceGeometries.Num();
-		checkf(InstanceIndex < NumSceneInstances, TEXT("Instance index %d is out of range for the scene that contains %d instances"), InstanceIndex, NumSceneInstances);
-
-		const FVulkanRayTracingGeometry* Geometry = ResourceCast(SceneInitializer.PerInstanceGeometries[InstanceIndex]);
 		const uint32 NumGeometrySegments = Geometry->GetNumSegments();
-		checkf(SegmentIndex < NumGeometrySegments, TEXT("Segment %d is out of range for ray tracing geometry '%s' that contains %d segments"),
-			SegmentIndex, Geometry->DebugName.IsNone() ? TEXT("UNKNOWN") : *Geometry->DebugName.ToString(), NumGeometrySegments);
+		checkf(GeometrySegmentIndex < NumGeometrySegments, TEXT("Segment %d is out of range for ray tracing geometry '%s' that contains %d segments"),
+			GeometrySegmentIndex, Geometry->DebugName.IsNone() ? TEXT("UNKNOWN") : *Geometry->DebugName.ToString(), NumGeometrySegments);
 	}
 #endif // DO_CHECK
 
-	const uint32 PrefixedSegmentIndex = SceneInitializer.SegmentPrefixSum[InstanceIndex];
 	const FVulkanRayTracingShader* Shader = Pipeline->GetVulkanShader(SF_RayHitGroup, HitGroupIndex);
 
-	const FVulkanRayTracingGeometry* Geometry = ResourceCast(SceneInitializer.PerInstanceGeometries[InstanceIndex]);
-	FVulkanHitGroupSystemParameters SystemParameters = Geometry->HitGroupSystemParameters[SegmentIndex];
+	FVulkanHitGroupSystemParameters SystemParameters = Geometry->HitGroupSystemParameters[GeometrySegmentIndex];
 	SystemParameters.RootConstants.UserData = UserData;
-	SetSystemParametersUB(SystemParameters, Device, ShaderTable, NumUniformBuffers, UniformBuffers, Shader);
+	SetSystemParametersUB(SystemParameters, ShaderTable, NumUniformBuffers, UniformBuffers, Shader);
 
 	ShaderTable->SetLocalShaderParameters(SF_RayHitGroup, RecordIndex, 0, SystemParameters);
 
@@ -2281,36 +2265,31 @@ static void SetRayTracingHitGroup(
 
 
 static void SetGenericSystemParameters(
-	FVulkanRayTracingShaderTable* ShaderTable,
-	FRHIRayTracingScene* InScene, uint32 ShaderSlotInScene,
+	FVulkanRayTracingShaderTable* ShaderTable, uint32 RecordIndex,
 	FRHIRayTracingPipelineState* InPipeline, uint32 ShaderIndexInPipeline,
 	uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
 	uint32 UserData, const EShaderFrequency ShaderFrequency)
 {
-	FVulkanRayTracingScene* Scene = ResourceCast(InScene);
 	FVulkanRayTracingPipelineState* Pipeline = ResourceCast(InPipeline);
 	const FVulkanRayTracingShader* Shader = Pipeline->GetVulkanShader(ShaderFrequency, ShaderIndexInPipeline);
 
 	FVulkanHitGroupSystemParameters SystemParameters;
 	FMemory::Memzero(SystemParameters);
 	SystemParameters.RootConstants.UserData = UserData;
-	SetSystemParametersUB(SystemParameters, Scene->GetParent(), ShaderTable, NumUniformBuffers, UniformBuffers, Shader);
-	ShaderTable->SetLocalShaderParameters(ShaderFrequency, ShaderSlotInScene, 0, SystemParameters);
+	SetSystemParametersUB(SystemParameters, ShaderTable, NumUniformBuffers, UniformBuffers, Shader);
+	ShaderTable->SetLocalShaderParameters(ShaderFrequency, RecordIndex, 0, SystemParameters);
 
-	ShaderTable->SetSlot(ShaderFrequency, ShaderSlotInScene, ShaderIndexInPipeline, Pipeline->GetShaderHandles(ShaderFrequency));
+	ShaderTable->SetSlot(ShaderFrequency, RecordIndex, ShaderIndexInPipeline, Pipeline->GetShaderHandles(ShaderFrequency));
 }
 
 
 void FVulkanCommandListContext::RHISetBindingsOnShaderBindingTable(FRHIShaderBindingTable* InSBT,
-	FRHIRayTracingScene* InScene, FRHIRayTracingPipelineState* InPipeline,
+	FRHIRayTracingPipelineState* InPipeline,
 	uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings,
 	ERayTracingBindingType BindingType)
 {
-	FVulkanRayTracingScene* Scene = ResourceCast(InScene);
 	FVulkanRayTracingPipelineState* Pipeline = ResourceCast(InPipeline);
 	FVulkanRayTracingShaderTable* ShaderTable = ResourceCast(InSBT);
-
-	checkf(Scene->IsBuilt(), TEXT("Ray tracing scene must be built before any shaders can be bound to it. Make sure that RHIBuildAccelerationStructure() command has been executed."));
 
 	ShaderTable->SetRayTracingPipelineState(Pipeline);
 
@@ -2330,29 +2309,29 @@ void FVulkanCommandListContext::RHISetBindingsOnShaderBindingTable(FRHIShaderBin
 		TaskContexts.Add(FTaskContext{ WorkerIndex });
 	}
 
-	auto BindingTask = [this, Bindings, Device = Device, Scene, Pipeline, ShaderTable, BindingType, NumShaderSlotsPerGeometrySegment = ShaderTable->GetInitializer().NumShaderSlotsPerGeometrySegment](const FTaskContext& Context, int32 CurrentIndex)
+	auto BindingTask = [this, Bindings, Device = Device, Pipeline, ShaderTable, BindingType](const FTaskContext& Context, int32 CurrentIndex)
 	{
 		const FRayTracingLocalShaderBindings& Binding = Bindings[CurrentIndex];
 
 		if (BindingType == ERayTracingBindingType::HitGroup)
 		{
-			SetRayTracingHitGroup(*this, Device, ShaderTable, Scene, Pipeline,
-				Binding.InstanceIndex,
-				Binding.SegmentIndex,
-				Binding.ShaderSlot,
-				Binding.ShaderIndexInPipeline,
+			const FVulkanRayTracingGeometry* Geometry = ResourceCast(Binding.Geometry);
+
+			SetRayTracingHitGroup( 
+				ShaderTable, Binding.RecordIndex,
+				Pipeline, Binding.ShaderIndexInPipeline,
+				Geometry, Binding.SegmentIndex,
 				Binding.NumUniformBuffers,
 				Binding.UniformBuffers,
 				Binding.LooseParameterDataSize,
 				Binding.LooseParameterData,
 				Binding.UserData,
-				NumShaderSlotsPerGeometrySegment,
 				Context.WorkerIndex);
 		}
 		else if (BindingType == ERayTracingBindingType::CallableShader)
 		{
 			SetGenericSystemParameters(
-				ShaderTable, Scene, Binding.ShaderSlot,
+				ShaderTable, Binding.RecordIndex,
 				Pipeline, Binding.ShaderIndexInPipeline,
 				Binding.NumUniformBuffers, Binding.UniformBuffers,
 				Binding.UserData,
@@ -2361,7 +2340,7 @@ void FVulkanCommandListContext::RHISetBindingsOnShaderBindingTable(FRHIShaderBin
 		else if (BindingType == ERayTracingBindingType::MissShader)
 		{
 			SetGenericSystemParameters(
-				ShaderTable, Scene, Binding.ShaderSlot,
+				ShaderTable, Binding.RecordIndex,
 				Pipeline, Binding.ShaderIndexInPipeline,
 				Binding.NumUniformBuffers, Binding.UniformBuffers,
 				Binding.UserData,

@@ -19,6 +19,7 @@
 #include "RayTracingLighting.h"
 #include "RayTracingDecals.h"
 #include "PathTracing.h"
+#include "RayTracing.h"
 #include "RendererModule.h"
 #include "ShaderPlatformCachedIniValue.h"
 
@@ -837,10 +838,10 @@ void FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline(
 								View.ViewUniformBuffer,
 								SceneUB,
 								Nanite::GRayTracingManager.GetUniformBuffer(),
-								VisibleMeshCommand.InstanceIndex,
+								RayTracing::CalculateHitGroupIndex(VisibleMeshCommand.GlobalSegmentIndex, RAY_TRACING_SHADER_SLOT_MATERIAL),
+								VisibleMeshCommand.RayTracingGeometry,
 								MeshCommand.GeometrySegmentIndex,
-								HitGroupIndex,
-								RAY_TRACING_SHADER_SLOT_MATERIAL);
+								HitGroupIndex);
 						}
 
 						// Bind shadow shader
@@ -848,9 +849,9 @@ void FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline(
 						{
 							// mesh decals do not use the shadow slot, so do minimal work
 							FRayTracingLocalShaderBindings& Binding = BindingWriter->AddWithExternalParameters();
-							Binding.InstanceIndex = VisibleMeshCommand.InstanceIndex;
+							Binding.RecordIndex = RayTracing::CalculateHitGroupIndex(VisibleMeshCommand.GlobalSegmentIndex, + RAY_TRACING_SHADER_SLOT_SHADOW);
+							Binding.Geometry = VisibleMeshCommand.RayTracingGeometry;
 							Binding.SegmentIndex = MeshCommand.GeometrySegmentIndex;
-							Binding.ShaderSlot = RAY_TRACING_SHADER_SLOT_SHADOW;
 							Binding.ShaderIndexInPipeline = OpaqueMeshDecalHitGroupIndex;
 
 						}
@@ -859,9 +860,9 @@ void FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline(
 							if (MeshCommand.bOpaque || !bEnableShadowMaterials)
 							{
 								FRayTracingLocalShaderBindings& Binding = BindingWriter->AddWithExternalParameters();
-								Binding.InstanceIndex = VisibleMeshCommand.InstanceIndex;
+								Binding.RecordIndex = RayTracing::CalculateHitGroupIndex(VisibleMeshCommand.GlobalSegmentIndex, + RAY_TRACING_SHADER_SLOT_SHADOW);
+								Binding.Geometry = VisibleMeshCommand.RayTracingGeometry;
 								Binding.SegmentIndex = MeshCommand.GeometrySegmentIndex;
-								Binding.ShaderSlot = RAY_TRACING_SHADER_SLOT_SHADOW;
 								Binding.ShaderIndexInPipeline = OpaqueShadowMaterialIndex;
 							}
 							else
@@ -872,18 +873,18 @@ void FDeferredShadingSceneRenderer::CreateRayTracingMaterialPipeline(
 									View.ViewUniformBuffer,
 									SceneUB,
 									Nanite::GRayTracingManager.GetUniformBuffer(),
-									VisibleMeshCommand.InstanceIndex,
+									RayTracing::CalculateHitGroupIndex(VisibleMeshCommand.GlobalSegmentIndex, + RAY_TRACING_SHADER_SLOT_SHADOW),
+									VisibleMeshCommand.RayTracingGeometry,
 									MeshCommand.GeometrySegmentIndex,
-									HitGroupIndex,
-									RAY_TRACING_SHADER_SLOT_SHADOW);
+									HitGroupIndex);
 							}
 						}
 						else
 						{
 							FRayTracingLocalShaderBindings& Binding = BindingWriter->AddWithExternalParameters();
-							Binding.InstanceIndex = VisibleMeshCommand.InstanceIndex;
+							Binding.RecordIndex = RayTracing::CalculateHitGroupIndex(VisibleMeshCommand.GlobalSegmentIndex, + RAY_TRACING_SHADER_SLOT_SHADOW);
+							Binding.Geometry = VisibleMeshCommand.RayTracingGeometry;
 							Binding.SegmentIndex = MeshCommand.GeometrySegmentIndex;
-							Binding.ShaderSlot = RAY_TRACING_SHADER_SLOT_SHADOW;
 							Binding.ShaderIndexInPipeline = HiddenMaterialIndex;
 						}
 					}
@@ -1017,7 +1018,6 @@ void MergeAndSetRayTracingBindings(
 	const bool bCopyDataToInlineStorage = false; // Storage is already allocated from RHICmdList, no extra copy necessary
 	RHICmdList.SetBindingsOnShaderBindingTable(
 		SBT,
-		RayTracingScene,
 		Pipeline,
 		NumTotalBindings, MergedBindings,
 		BindingType,

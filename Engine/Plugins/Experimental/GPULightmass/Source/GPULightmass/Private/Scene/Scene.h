@@ -25,13 +25,15 @@ public:
 	FFullyCachedRayTracingMeshCommandContext(
 		TChunkedArray<FRayTracingMeshCommand>& CommandStorage,
 		TArray<FVisibleRayTracingMeshCommand>& VisibleCommandStorage,
+		const FRHIRayTracingGeometry* InRayTracingGeometry,
 		uint32 InGeometrySegmentIndex = ~0u,
-		uint32 InRayTracingInstanceIndex = ~0u
+		uint32 InGlobalSegmentIndex = ~0u
 	)
 		: CommandStorage(CommandStorage)
 		, VisibleCommandStorage(VisibleCommandStorage)
+		, RayTracingGeometry(InRayTracingGeometry)
 		, GeometrySegmentIndex(InGeometrySegmentIndex)
-		, RayTracingInstanceIndex(InRayTracingInstanceIndex) {}
+		, GlobalSegmentIndex(InGlobalSegmentIndex) {}
 
 	virtual FRayTracingMeshCommand& AddCommand(const FRayTracingMeshCommand& Initializer) override final
 	{
@@ -43,7 +45,7 @@ public:
 
 	virtual void FinalizeCommand(FRayTracingMeshCommand& RayTracingMeshCommand) override final 
 	{
-		FVisibleRayTracingMeshCommand NewVisibleMeshCommand(&RayTracingMeshCommand, RayTracingInstanceIndex);
+		FVisibleRayTracingMeshCommand NewVisibleMeshCommand(&RayTracingMeshCommand, RayTracingGeometry, GlobalSegmentIndex + GeometrySegmentIndex);
 		VisibleCommandStorage.Add(NewVisibleMeshCommand);
 		check(NewVisibleMeshCommand.RayTracingMeshCommand);
 	}
@@ -51,8 +53,10 @@ public:
 private:
 	TChunkedArray<FRayTracingMeshCommand>& CommandStorage;
 	TArray<FVisibleRayTracingMeshCommand>& VisibleCommandStorage;
+
+	const FRHIRayTracingGeometry* RayTracingGeometry;
 	uint32 GeometrySegmentIndex;
-	uint32 RayTracingInstanceIndex;
+	uint32 GlobalSegmentIndex;
 };
 
 struct FCachedRayTracingSceneData
@@ -68,6 +72,8 @@ struct FCachedRayTracingSceneData
 
 	TArray<TArray<FRayTracingGeometryInstance>> RayTracingGeometryInstancesPerLOD;
 	TArray<TUniquePtr<FMatrix>> OwnedRayTracingInstanceTransforms;
+
+	TArray<uint32> RayTracingNumSegmentsPerLOD;
 
 	TRefCountPtr<FRDGPooledBuffer> GPUScenePrimitiveDataBuffer;
 	TRefCountPtr<FRDGPooledBuffer> GPUSceneLightmapDataBuffer;

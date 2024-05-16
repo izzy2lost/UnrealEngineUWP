@@ -186,7 +186,7 @@ public:
 		uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings,
 		ERayTracingBindingType BindingType) final override;
 	virtual void RHISetBindingsOnShaderBindingTable(
-		FRHIShaderBindingTable* SBT, FRHIRayTracingScene* Scene, FRHIRayTracingPipelineState* Pipeline,
+		FRHIShaderBindingTable* SBT, FRHIRayTracingPipelineState* Pipeline,
 		uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings,
 		ERayTracingBindingType BindingType) final override;
 #endif // METAL_RHI_RAYTRACING

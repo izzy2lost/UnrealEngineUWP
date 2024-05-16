@@ -88,7 +88,6 @@ RENDERER_API FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeom
 // Transforms of CPU instances are copied to OutTransformData
 RENDERER_API void FillRayTracingInstanceUploadBuffer(
 	FRayTracingSceneRHIRef RayTracingSceneRHI,
-	uint32 NumShaderSlotsPerGeometrySegment,
 	FVector PreViewTranslation,
 	TConstArrayView<FRayTracingGeometryInstance> Instances,
 	TConstArrayView<uint32> InstanceGeometryIndices,
@@ -99,7 +98,7 @@ RENDERER_API void FillRayTracingInstanceUploadBuffer(
 	TArrayView<FRayTracingInstanceDescriptorInput> OutInstanceUploadData,
 	TArrayView<FVector4f> OutTransformData);
 
-UE_DEPRECATED(5.5, "Must specify BaseInstancePrefixSum and NumShaderSlotsPerGeometrySegment.")
+UE_DEPRECATED(5.5, "Must specify BaseInstancePrefixSum.")
 RENDERER_API void FillRayTracingInstanceUploadBuffer(
 	FRayTracingSceneRHIRef RayTracingSceneRHI,
 	FVector PreViewTranslation,

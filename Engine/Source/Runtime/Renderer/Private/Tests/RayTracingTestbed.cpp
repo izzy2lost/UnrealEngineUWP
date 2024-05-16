@@ -180,6 +180,7 @@ bool RunRayTracingTestbed_RenderThread(const FString& Parameters)
 	Instances[0].GeometryRHI = Geometry;
 	Instances[0].NumTransforms = NumTransforms;
 	Instances[0].Transforms = MakeArrayView(&FMatrix::Identity, 1);
+	Instances[0].InstanceContributionToHitGroupIndex = 0;
 
 	FRayTracingSceneWithGeometryInstances RayTracingScene = CreateRayTracingSceneWithGeometryInstances(Instances, 1);
 
@@ -228,7 +229,6 @@ bool RunRayTracingTestbed_RenderThread(const FString& Parameters)
 		FVector4f* TransformUploadData = (FVector4f*)RHICmdList.LockBuffer(TransformUploadBuffer, 0, TransformUploadBufferSize, RLM_WriteOnly);
 		FillRayTracingInstanceUploadBuffer(
 			RayTracingScene.Scene,
-			RAY_TRACING_NUM_SHADER_SLOTS,
 			FVector::ZeroVector,
 			Instances,
 			RayTracingScene.InstanceGeometryIndices,
@@ -296,8 +296,8 @@ bool RunRayTracingTestbed_RenderThread(const FString& Parameters)
 	FShaderResourceViewInitializer RayTracingSceneViewInitializer(SceneBuffer, RayTracingScene.Scene->GetLayerBufferOffset(0), 0);
 	FShaderResourceViewRHIRef RayTracingSceneView = RHICmdList.CreateShaderResourceView(RayTracingSceneViewInitializer);
 
-	DispatchBasicOcclusionRays(RHICmdList, RayTracingScene.Scene, RayTracingSceneView, RayBufferView, OcclusionResultBufferView, NumRays);
-	DispatchBasicIntersectionRays(RHICmdList, RayTracingScene.Scene, RayTracingSceneView, RayBufferView, IntersectionResultBufferView, NumRays);
+	DispatchBasicOcclusionRays(RHICmdList, RayTracingScene.Scene, RayTracingSceneView, Geometry, RayBufferView, OcclusionResultBufferView, NumRays);
+	DispatchBasicIntersectionRays(RHICmdList, RayTracingScene.Scene, RayTracingSceneView, Geometry, RayBufferView, IntersectionResultBufferView, NumRays);
 
 	const bool bValidateResults = true;
 	bool bOcclusionTestOK = false;

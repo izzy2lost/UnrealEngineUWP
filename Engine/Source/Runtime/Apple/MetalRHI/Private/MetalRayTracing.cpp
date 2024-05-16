@@ -836,7 +836,7 @@ void FMetalRHICommandContext::RHISetRayTracingBindings(
 }
 
 void FMetalRHICommandContext::RHISetBindingsOnShaderBindingTable(
-	FRHIShaderBindingTable* SBT, FRHIRayTracingScene* InScene, FRHIRayTracingPipelineState* InPipeline,
+	FRHIShaderBindingTable* SBT, FRHIRayTracingPipelineState* InPipeline,
 	uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings,
 	ERayTracingBindingType BindingType)
 {

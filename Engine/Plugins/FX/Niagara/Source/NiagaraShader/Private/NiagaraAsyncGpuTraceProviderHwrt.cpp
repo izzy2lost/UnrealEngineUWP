@@ -234,13 +234,16 @@ static void BindNiagaraRayTracingMeshCommands(
 
 	UniformBufferArray[0] = ViewUniformBuffer;
 
+	const uint32 NumShaderSlotsPerGeometrySegment = SBT->GetInitializer().NumShaderSlotsPerGeometrySegment;
+
 	uint32 BindingIndex = 0;
 	for (const FVisibleRayTracingMeshCommand VisibleMeshCommand : RayTracingMeshCommands)
 	{
 		const FRayTracingMeshCommand& MeshCommand = *VisibleMeshCommand.RayTracingMeshCommand;
 
 		FRayTracingLocalShaderBindings Binding = {};
-		Binding.InstanceIndex = VisibleMeshCommand.InstanceIndex;
+		Binding.RecordIndex = VisibleMeshCommand.GlobalSegmentIndex * NumShaderSlotsPerGeometrySegment;
+		Binding.Geometry = VisibleMeshCommand.RayTracingGeometry;
 		Binding.SegmentIndex = MeshCommand.GeometrySegmentIndex;
 		Binding.UserData = PackUserData(MeshCommand);
 		Binding.UniformBuffers = UniformBufferArray;
@@ -253,12 +256,11 @@ static void BindNiagaraRayTracingMeshCommands(
 	const bool bCopyDataToInlineStorage = false; // Storage is already allocated from RHICmdList, no extra copy necessary
 	RHICmdList.SetRayTracingHitGroups(
 		SBT,
-		RayTracingScene,
 		Pipeline,
 		NumTotalBindings,
 		Bindings,
 		bCopyDataToInlineStorage);
-	RHICmdList.SetRayTracingMissShader(SBT, RayTracingScene, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+	RHICmdList.SetRayTracingMissShader(SBT, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
 	RHICmdList.CommitShaderBindingTable(SBT);
 }
 

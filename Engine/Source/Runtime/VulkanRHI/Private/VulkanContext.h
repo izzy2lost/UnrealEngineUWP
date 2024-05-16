@@ -129,7 +129,7 @@ public:
 		FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset) final override;
 
 	virtual void RHISetBindingsOnShaderBindingTable(FRHIShaderBindingTable* SBT,
-		FRHIRayTracingScene* Scene, FRHIRayTracingPipelineState* Pipeline,
+		FRHIRayTracingPipelineState* Pipeline,
 		uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings,
 		ERayTracingBindingType BindingType) final override;
 

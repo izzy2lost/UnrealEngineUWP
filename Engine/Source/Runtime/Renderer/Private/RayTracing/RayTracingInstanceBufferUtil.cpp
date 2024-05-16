@@ -46,10 +46,11 @@ FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances
 	FRayTracingSceneInitializer2 Initializer;
 	Initializer.DebugName = FName(TEXT("FRayTracingScene"));
 	Initializer.PerInstanceGeometries.SetNumUninitialized(NumSceneInstances);
-	Initializer.SegmentPrefixSum.SetNumUninitialized(NumSceneInstances);
 	Initializer.BuildFlags = BuildFlags;
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	Initializer.BaseInstancePrefixSum.SetNumUninitialized(NumSceneInstances);
+	Initializer.SegmentPrefixSum.SetNumUninitialized(NumSceneInstances);
 	Initializer.NumNativeInstancesPerLayer.SetNumZeroed(NumLayers);
 	Initializer.ShaderSlotsPerGeometrySegment = NumShaderSlotsPerGeometrySegment;
 	Initializer.NumMissShaderSlots = NumMissShaderSlots;
@@ -78,8 +79,11 @@ FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances
 
 		Initializer.PerInstanceGeometries[InstanceIndex] = InstanceDesc.GeometryRHI;
 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		// Compute geometry segment count prefix sum to be later used in GetHitRecordBaseIndex()
 		Initializer.SegmentPrefixSum[InstanceIndex] = Output.TotalNumSegments;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 		Output.TotalNumSegments += InstanceDesc.GeometryRHI->GetNumSegments();
 
 		uint32 GeometryIndex = UniqueGeometries.FindOrAdd(InstanceDesc.GeometryRHI, Initializer.ReferencedGeometries.Num());
@@ -110,11 +114,13 @@ FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances
 			InstanceDesc.LayerIndex, NumLayers);
 
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		Initializer.BaseInstancePrefixSum[InstanceIndex] = Initializer.NumNativeInstancesPerLayer[InstanceDesc.LayerIndex];
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 		// Can't support same instance in multiple layers because BaseInstancePrefixSum would be different per layer
 		Output.BaseInstancePrefixSum[InstanceIndex] = Initializer.NumNativeInstancesPerLayer[InstanceDesc.LayerIndex];
 
 		Initializer.NumNativeInstancesPerLayer[InstanceDesc.LayerIndex] += InstanceDesc.NumTransforms;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -138,7 +144,6 @@ FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances
 
 void FillRayTracingInstanceUploadBuffer(
 	FRayTracingSceneRHIRef RayTracingSceneRHI,
-	uint32 NumShaderSlotsPerGeometrySegment,
 	FVector PreViewTranslation,
 	TConstArrayView<FRayTracingGeometryInstance> Instances,
 	TConstArrayView<uint32> InstanceGeometryIndices,
@@ -180,8 +185,7 @@ void FillRayTracingInstanceUploadBuffer(
 			BaseInstancePrefixSum,
 			LayerBaseIndices,
 			PreViewTranslation,
-			&SceneInitializer,
-			NumShaderSlotsPerGeometrySegment
+			&SceneInitializer
 		](int32 SceneInstanceIndex)
 		{
 			const FRayTracingGeometryInstance& SceneInstance = Instances[SceneInstanceIndex];
@@ -251,7 +255,7 @@ void FillRayTracingInstanceUploadBuffer(
 				InstanceDesc.AccelerationStructureIndex = AccelerationStructureIndex;
 				InstanceDesc.InstanceId = UserData;
 				InstanceDesc.InstanceMaskAndFlags = SceneInstance.Mask | ((uint32)SceneInstance.Flags << 8);
-				InstanceDesc.InstanceContributionToHitGroupIndex = SceneInitializer.SegmentPrefixSum[SceneInstanceIndex] * NumShaderSlotsPerGeometrySegment;
+				InstanceDesc.InstanceContributionToHitGroupIndex = SceneInstance.InstanceContributionToHitGroupIndex;
 				InstanceDesc.bApplyLocalBoundsTransform = SceneInstance.bApplyLocalBoundsTransform;
 
 				checkf(InstanceDesc.InstanceId <= 0xFFFFFF, TEXT("InstanceId must fit in 24 bits."));
@@ -287,14 +291,13 @@ void FillRayTracingInstanceUploadBuffer(
 
 	FillRayTracingInstanceUploadBuffer(
 		RayTracingSceneRHI,
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		SceneInitializer.ShaderSlotsPerGeometrySegment,
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		PreViewTranslation,
 		Instances,
 		InstanceGeometryIndices,
 		BaseUploadBufferOffsets,
-		{},
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		SceneInitializer.BaseInstancePrefixSum,
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		NumNativeGPUSceneInstances,
 		NumNativeCPUInstances,
 		OutInstanceUploadData,

@@ -57,7 +57,7 @@ struct FVkRtBLASBuildData
 	VkAccelerationStructureBuildSizesInfoKHR SizesInfo;
 };
 
-class FVulkanRayTracingShaderTable : public FRHIShaderBindingTable, VulkanRHI::FDeviceChild
+class FVulkanRayTracingShaderTable : public FRHIShaderBindingTable, public VulkanRHI::FDeviceChild
 {
 public:
 	FVulkanRayTracingShaderTable(FVulkanDevice* Device, const FRayTracingShaderBindingTableInitializer& InInitializer);
@@ -216,8 +216,6 @@ public:
 	}
 
 	FRHIShaderBindingTable* FindOrCreateShaderBindingTable(const FRHIRayTracingPipelineState* Pipeline);
-
-	uint32 GetSegmentIndex(uint32 InstanceIndex, uint32 SegmentIndex) const { return Initializer.SegmentPrefixSum[InstanceIndex] + SegmentIndex; }
 
 	inline bool IsBuilt() const
 	{

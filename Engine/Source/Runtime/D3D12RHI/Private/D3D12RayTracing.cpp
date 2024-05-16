@@ -1606,7 +1606,6 @@ public:
 	uint32 NumRayGenShaders = 0;
 	uint32 NumCallableRecords = 0;
 	uint32 NumMissRecords = 0;
-	uint32 NumLocalRecords = 0;
 
 	uint32 RayGenShaderTableOffset = 0;
 	uint32 MissShaderTableOffset = 0;
@@ -4848,50 +4847,37 @@ void FD3D12CommandContext::RHIRayTraceDispatchIndirect(FRHIRayTracingPipelineSta
 
 static void SetRayTracingHitGroup(
 	FD3D12Device* Device,
-	FD3D12RayTracingShaderBindingTableInternal* ShaderTable,
-	FD3D12RayTracingScene* Scene,
-	FD3D12RayTracingPipelineState* Pipeline,
-	uint32 InstanceIndex, uint32 SegmentIndex, uint32 ShaderSlot, uint32 HitGroupIndex,
+	FD3D12RayTracingShaderBindingTableInternal* ShaderTable, uint32 RecordIndex,
+	FD3D12RayTracingPipelineState* Pipeline, uint32 HitGroupIndex,
+	const FD3D12RayTracingGeometry* Geometry, uint32 GeometrySegmentIndex,
 	uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
 	uint32 LooseParameterDataSize, const void* LooseParameterData,
 	uint32 UserData,
-	uint32 NumShaderSlotsPerGeometrySegment,
 	uint32 WorkerIndex)
 {
-	checkf(ShaderSlot < NumShaderSlotsPerGeometrySegment, TEXT("Shader slot is invalid. Make sure that NumShaderSlotsPerGeometrySegment is correct on FRayTracingShaderBindingTableInitializer."));
+	checkf(RecordIndex < ShaderTable->NumHitRecords, TEXT("Hit group record index is invalid. Make sure that NumGeometrySegments and NumShaderSlotsPerGeometrySegment is correct in FRayTracingShaderBindingTableInitializer."));
 
-	const uint32 RecordIndex = Scene->GetSegmentIndex(InstanceIndex, SegmentIndex) * NumShaderSlotsPerGeometrySegment + ShaderSlot;
 	const uint32 GPUIndex = Device->GetGPUIndex();
 
 #if DO_CHECK
 	{
-		const uint32 NumSceneInstances = (uint32)Scene->Initializer.PerInstanceGeometries.Num();
-		checkf(InstanceIndex < NumSceneInstances, TEXT("Instance index %d is out of range for the scene that contains %d instances"), InstanceIndex, NumSceneInstances);
-
-		const FD3D12RayTracingGeometry* Geometry = FD3D12DynamicRHI::ResourceCast(Scene->Initializer.PerInstanceGeometries[InstanceIndex]);
 		const uint32 NumGeometrySegments = Geometry->GetNumSegments();
-		checkf(SegmentIndex < NumGeometrySegments, TEXT("Segment %d is out of range for ray tracing geometry '%s' that contains %d segments"),
-			SegmentIndex, Geometry->DebugName.IsNone() ? TEXT("UNKNOWN") : *Geometry->DebugName.ToString(), NumGeometrySegments);
+		checkf(GeometrySegmentIndex < NumGeometrySegments, TEXT("Segment %d is out of range for ray tracing geometry '%s' that contains %d segments"),
+			GeometrySegmentIndex, Geometry->DebugName.IsNone() ? TEXT("UNKNOWN") : *Geometry->DebugName.ToString(), NumGeometrySegments);
 	}
 #endif // DO_CHECK
 
-	FHitGroupSystemParameters SystemParameters;
-	{
-		const FD3D12RayTracingGeometry* Geometry = FD3D12DynamicRHI::ResourceCast(Scene->Initializer.PerInstanceGeometries[InstanceIndex]);
-		const TArray<FHitGroupSystemParameters>& HitGroupSystemParametersForThisGPU = Geometry->HitGroupSystemParameters[GPUIndex];
-
-		SystemParameters = HitGroupSystemParametersForThisGPU[SegmentIndex];
-	}
-
+	FHitGroupSystemParameters SystemParameters = Geometry->HitGroupSystemParameters[GPUIndex][GeometrySegmentIndex];
 	SystemParameters.RootConstants.UserData = UserData;
+
 	ShaderTable->SetHitGroupSystemParameters(RecordIndex, SystemParameters);
 
 	const FD3D12RayTracingShader* Shader = Pipeline->HitGroupShaders.Shaders[HitGroupIndex];
 
 	FD3D12RayTracingShaderBindingTableInternal::FShaderRecordCacheKey CacheKey;
 
+	// TODO: disable RecordCache when using persistent SBT
 	const bool bCanUseRecordCache = GRayTracingCacheShaderRecords
-		&& Scene->Initializer.Lifetime == RTSL_SingleFrame
 		&& LooseParameterDataSize == 0 // loose parameters end up in unique constant buffers, so SBT records can't be shared
 		&& NumUniformBuffers > 0 // there is no benefit from cache if no resources are being bound
 		&& NumUniformBuffers <= CacheKey.MaxUniformBuffers;
@@ -4934,18 +4920,14 @@ static void SetRayTracingHitGroup(
 
 static void SetRayTracingCallableShader(
 	FD3D12Device* Device,
-	FD3D12RayTracingShaderBindingTableInternal* ShaderTable,
-	FD3D12RayTracingScene* Scene,
-	FD3D12RayTracingPipelineState* Pipeline,
-	uint32 ShaderSlotInScene, uint32 ShaderIndexInPipeline,
+	FD3D12RayTracingShaderBindingTableInternal* ShaderTable, uint32 RecordIndex,
+	FD3D12RayTracingPipelineState* Pipeline, uint32 ShaderIndexInPipeline,
 	uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
 	uint32 LooseParameterDataSize, const void* LooseParameterData,
 	uint32 UserData,
 	uint32 WorkerIndex)
 {
-	checkf(ShaderSlotInScene < ShaderTable->NumCallableRecords, TEXT("Callable shader slot is invalid. Make sure that NumCallableShaderSlots is correct in FRayTracingShaderBindingTableInitializer."));
-
-	const uint32 RecordIndex = ShaderSlotInScene;
+	checkf(RecordIndex < ShaderTable->NumCallableRecords, TEXT("Callable shader record index is invalid. Make sure that NumCallableShaderSlots is correct in FRayTracingShaderBindingTableInitializer."));
 
 	const uint32 UserDataOffset = offsetof(FHitGroupSystemParameters, RootConstants) + offsetof(FHitGroupSystemRootConstants, UserData);
 	ShaderTable->SetCallableShaderParameters(RecordIndex, UserDataOffset, UserData);
@@ -4977,18 +4959,14 @@ static void SetRayTracingCallableShader(
 
 static void SetRayTracingMissShader(
 	FD3D12Device* Device,
-	FD3D12RayTracingShaderBindingTableInternal* ShaderTable,
-	FD3D12RayTracingScene* Scene,
-	FD3D12RayTracingPipelineState* Pipeline,
-	uint32 ShaderSlotInScene, uint32 ShaderIndexInPipeline,
+	FD3D12RayTracingShaderBindingTableInternal* ShaderTable, uint32 RecordIndex,
+	FD3D12RayTracingPipelineState* Pipeline, uint32 ShaderIndexInPipeline,
 	uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
 	uint32 LooseParameterDataSize, const void* LooseParameterData,
 	uint32 UserData,
 	uint32 WorkerIndex)
 {
-	checkf(ShaderSlotInScene < ShaderTable->NumMissRecords, TEXT("Miss shader slot is invalid. Make sure that NumMissShaderSlots is correct in FRayTracingShaderBindingTableInitializer."));
-
-	const uint32 RecordIndex = ShaderSlotInScene;
+	checkf(RecordIndex < ShaderTable->NumMissRecords, TEXT("Miss shader record index is invalid. Make sure that NumMissShaderSlots is correct in FRayTracingShaderBindingTableInitializer."));
 
 	const uint32 UserDataOffset = offsetof(FHitGroupSystemParameters, RootConstants) + offsetof(FHitGroupSystemRootConstants, UserData);
 	ShaderTable->SetMissShaderParameters(RecordIndex, UserDataOffset, UserData);
@@ -5005,14 +4983,14 @@ static void SetRayTracingMissShader(
 		LooseParameterDataSize, LooseParameterData, // Loose parameters
 		ResourceBinder);
 
-	ShaderTable->SetMissIdentifier(ShaderSlotInScene,
+	ShaderTable->SetMissIdentifier(RecordIndex,
 		bResourcesBound
 		? Pipeline->MissShaders.Identifiers[ShaderIndexInPipeline]
 		: FD3D12ShaderIdentifier::Null);
 }
 
 void FD3D12CommandContext::RHISetBindingsOnShaderBindingTable(
-	FRHIShaderBindingTable* InSBT, FRHIRayTracingScene* InScene, FRHIRayTracingPipelineState* InPipeline,
+	FRHIShaderBindingTable* InSBT, FRHIRayTracingPipelineState* InPipeline,
 	uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings,
 	ERayTracingBindingType BindingType)
 {
@@ -5020,10 +4998,7 @@ void FD3D12CommandContext::RHISetBindingsOnShaderBindingTable(
 	SCOPE_CYCLE_COUNTER(STAT_D3D12SetBindingsOnShaderBindingTable);
 
 	FD3D12RayTracingShaderBindingTable* SBT = FD3D12DynamicRHI::ResourceCast(InSBT);
-	FD3D12RayTracingScene* Scene = FD3D12DynamicRHI::ResourceCast(InScene);
 	FD3D12RayTracingPipelineState* Pipeline = FD3D12DynamicRHI::ResourceCast(InPipeline);
-
-	checkf(Scene->bBuilt, TEXT("Ray tracing scene must be built before any shaders can be bound to it. Make sure that RHIBuildAccelerationStructure() command has been executed."));
 
 	SBT->SetRayTracingPipelineState(Pipeline);
 
@@ -5047,30 +5022,30 @@ void FD3D12CommandContext::RHISetBindingsOnShaderBindingTable(
 		TaskContexts.Add(FTaskContext{WorkerIndex});
 	}
 
-	auto BindingTask = [Bindings, Device = Device, ShaderTableForDevice, Scene, Pipeline, BindingType, NumShaderSlotsPerGeometrySegment = SBT->GetInitializer().NumShaderSlotsPerGeometrySegment](const FTaskContext& Context, int32 CurrentIndex)
+	auto BindingTask = [Bindings, Device = Device, ShaderTableForDevice, Pipeline, BindingType](const FTaskContext& Context, int32 CurrentIndex)
 	{
 		const FRayTracingLocalShaderBindings& Binding = Bindings[CurrentIndex];
 
 		if (BindingType == ERayTracingBindingType::HitGroup)
 		{
-			SetRayTracingHitGroup(Device, ShaderTableForDevice, Scene, Pipeline,
-				Binding.InstanceIndex,
-				Binding.SegmentIndex,
-				Binding.ShaderSlot,
-				Binding.ShaderIndexInPipeline,
+			const FD3D12RayTracingGeometry* Geometry = FD3D12DynamicRHI::ResourceCast(Binding.Geometry);
+
+			SetRayTracingHitGroup(Device, 
+				ShaderTableForDevice, Binding.RecordIndex,
+				Pipeline, Binding.ShaderIndexInPipeline,
+				Geometry, Binding.SegmentIndex,
 				Binding.NumUniformBuffers,
 				Binding.UniformBuffers,
 				Binding.LooseParameterDataSize,
 				Binding.LooseParameterData,
 				Binding.UserData,
-				NumShaderSlotsPerGeometrySegment,
 				Context.WorkerIndex);
 		}
 		else if (BindingType == ERayTracingBindingType::CallableShader)
 		{
-			SetRayTracingCallableShader(Device, ShaderTableForDevice, Scene, Pipeline,
-				Binding.ShaderSlot,
-				Binding.ShaderIndexInPipeline,
+			SetRayTracingCallableShader(Device,
+				ShaderTableForDevice, Binding.RecordIndex,
+				Pipeline, Binding.ShaderIndexInPipeline,
 				Binding.NumUniformBuffers,
 				Binding.UniformBuffers,
 				Binding.LooseParameterDataSize,
@@ -5080,9 +5055,9 @@ void FD3D12CommandContext::RHISetBindingsOnShaderBindingTable(
 		}
 		else if (BindingType == ERayTracingBindingType::MissShader)
 		{
-			SetRayTracingMissShader(Device, ShaderTableForDevice, Scene, Pipeline,
-				Binding.ShaderSlot,
-				Binding.ShaderIndexInPipeline,
+			SetRayTracingMissShader(Device, 
+				ShaderTableForDevice, Binding.RecordIndex,
+				Pipeline, Binding.ShaderIndexInPipeline,
 				Binding.NumUniformBuffers,
 				Binding.UniformBuffers,
 				Binding.LooseParameterDataSize,

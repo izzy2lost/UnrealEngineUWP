@@ -2,14 +2,16 @@
 
 #pragma once
 
-#include "RHIDefinitions.h"
-#include "RayTracingInstance.h"
-#include "MeshPassProcessor.h"
+#include "RendererInterface.h"
 #include "RenderGraphDefinitions.h"
+#include "RayTracingDefinitions.h"
+#include "RHIDefinitions.h"
 
 enum class EDiffuseIndirectMethod;
 enum class EReflectionsMethod;
 class FRayTracingScene;
+class FScene;
+class FViewInfo;
 class FViewFamilyInfo;
 class FGlobalDynamicReadBuffer;
 
@@ -58,6 +60,16 @@ namespace RayTracing
 		FRelevantPrimitiveList& RelevantPrimitiveList);
 
 	bool ShouldExcludeDecals();
+
+	inline uint32 CalculateHitGroupIndex(uint32 GlobalSegmentIndex, uint32 SlotIndex)
+	{
+		return GlobalSegmentIndex * RAY_TRACING_NUM_SHADER_SLOTS + SlotIndex;
+	}
+
+	inline uint32 CalculateInstanceContributionToHitGroupIndex(uint32 GlobalSegmentIndex)
+	{
+		return GlobalSegmentIndex * RAY_TRACING_NUM_SHADER_SLOTS;
+	}
 }
 
 #endif // RHI_RAYTRACING

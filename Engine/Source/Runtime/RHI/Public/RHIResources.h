@@ -3015,6 +3015,8 @@ struct FRayTracingGeometryInstance
 
 	FRHIRayTracingGeometry* GeometryRHI = nullptr;
 
+	int32 InstanceContributionToHitGroupIndex = INDEX_NONE;
+
 	// A single physical mesh may be duplicated many times in the scene with different transforms and user data.
 	// All copies share the same shader binding table entries and therefore will have the same material and shader resources.
 	TArrayView<const FMatrix> Transforms;
@@ -3038,10 +3040,6 @@ struct FRayTracingGeometryInstance
 	// If UserData view is used, then it must have the same number of entries as NumInstances.
 	uint32 DefaultUserData = 0;
 	TArrayView<const uint32> UserData;
-
-	// Each geometry copy can have one bit to make it individually deactivated (removed from TLAS while maintaining hit group indexing). Useful for culling.
-	UE_DEPRECATED(5.4, "ActivationMask has been deprecated.")
-	TArrayView<const uint32> ActivationMask;
 
 	// Whether local bounds scale and center translation should be applied to the instance transform.
 	bool bApplyLocalBoundsTransform = false;
@@ -3267,6 +3265,7 @@ struct FRayTracingSceneInitializer2
 	UE_DEPRECATED(5.5, "Providing BaseInstancePrefixSum is no longer necessary.")
 	TArray<uint32> BaseInstancePrefixSum;
 	// Exclusive prefix sum of instance geometry segments is used to calculate SBT record address from instance and segment indices.
+	UE_DEPRECATED(5.5, "Providing SegmentPrefixSum is no longer necessary.")
 	TArray<uint32> SegmentPrefixSum;
 
 	// Total flattened number of ray tracing geometry instances (a single FRayTracingGeometryInstance may represent many) per layer.

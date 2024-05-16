@@ -78,7 +78,7 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 		TEXT("Ray tracing scene RHI object is expected to have been created by BuildInitializationData() or CreateRayTracingSceneWithGeometryInstances()"));
 
 	RayTracingSceneRHI = SceneWithGeometryInstances.Scene;
-	TotalNumSegments = SceneWithGeometryInstances.TotalNumSegments;
+	check(NumSegments == SceneWithGeometryInstances.TotalNumSegments);
 
 	const FRayTracingSceneInitializer2& SceneInitializer = RayTracingSceneRHI->GetInitializer();
 
@@ -278,7 +278,6 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 			FTaskTagScope TaskTagScope(ETaskTag::EParallelRenderingThread);
 			FillRayTracingInstanceUploadBuffer(
 				RayTracingSceneRHI,
-				RAY_TRACING_NUM_SHADER_SLOTS,
 				PreViewTranslation,
 				Instances,
 				InstanceGeometryIndices,
@@ -545,6 +544,7 @@ void FRayTracingScene::Reset(bool bInInstanceDebugDataEnabled)
 	GeometriesToBuild.Reset();
 	UsedCoarseMeshStreamingHandles.Reset();
 
+	NumSegments = 0;
 	NumMissShaderSlots = 1;
 	NumCallableShaderSlots = 0;
 

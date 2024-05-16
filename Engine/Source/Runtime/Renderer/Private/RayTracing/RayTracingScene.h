@@ -108,7 +108,7 @@ public:
 
 	FRayTracingGeometryInstance& GetInstance(uint32 InstanceIndex) { return Instances[InstanceIndex]; }
 
-	uint32 GetTotalNumSegments() const { return TotalNumSegments; }
+	uint32 GetTotalNumSegments() const { return NumSegments; }
 
 	void InitPreViewTranslation(const FViewMatrices& ViewMatrices);
 
@@ -116,6 +116,7 @@ public:
 
 	// Public members for initial refactoring step (previously were public members of FViewInfo).
 
+	uint32 NumSegments = 0;
 	uint32 NumMissShaderSlots = 1; // we must have a default miss shader, so always include it from the start
 	uint32 NumCallableShaderSlots = 0;
 	TArray<FRayTracingShaderCommand> CallableCommands;
@@ -144,7 +145,6 @@ private:
 
 	// RHI object that abstracts mesh instances in this scene
 	FRayTracingSceneRHIRef RayTracingSceneRHI;
-	uint32 TotalNumSegments = -1;
 
 	// Persistently allocated buffer that holds the built TLAS
 	FBufferRHIRef RayTracingSceneBuffer;

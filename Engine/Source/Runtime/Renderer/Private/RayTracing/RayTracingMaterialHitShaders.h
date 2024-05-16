@@ -212,12 +212,12 @@ public:
 		return *AllocateInternal();
 	}
 
-	void Commit(FRHICommandList& RHICmdList, FRHIShaderBindingTable* SBT, FRHIRayTracingScene* Scene, FRayTracingPipelineState* Pipeline, bool bCopyDataToInlineStorage) const
+	void Commit(FRHICommandList& RHICmdList, FRHIShaderBindingTable* SBT, FRayTracingPipelineState* Pipeline, bool bCopyDataToInlineStorage) const
 	{
 		const FChunk* Chunk = FirstChunk;
 		while (Chunk)
 		{
-			RHICmdList.SetRayTracingHitGroups(SBT, Scene, Pipeline, Chunk->Num, Chunk->Bindings, bCopyDataToInlineStorage);
+			RHICmdList.SetRayTracingHitGroups(SBT, Pipeline, Chunk->Num, Chunk->Bindings, bCopyDataToInlineStorage);
 			Chunk = Chunk->Next;
 		}
 	}

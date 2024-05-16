@@ -1184,10 +1184,10 @@ public:
 		RHIContext->RHIRayTraceDispatchIndirect(RayTracingPipelineState, RayGenShader, Scene, SBT, GlobalResourceBindings, ArgumentBuffer, ArgumentOffset);
 	}
 
-	virtual void RHISetBindingsOnShaderBindingTable(FRHIShaderBindingTable* SBT, FRHIRayTracingScene* Scene, FRHIRayTracingPipelineState* Pipeline, uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings, ERayTracingBindingType BindingType) override final
+	virtual void RHISetBindingsOnShaderBindingTable(FRHIShaderBindingTable* SBT, FRHIRayTracingPipelineState* Pipeline, uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings, ERayTracingBindingType BindingType) override final
 	{
 		SBT->SetCommitted(false);
-		RHIContext->RHISetBindingsOnShaderBindingTable(SBT, Scene, Pipeline, NumBindings, Bindings, BindingType);
+		RHIContext->RHISetBindingsOnShaderBindingTable(SBT, Pipeline, NumBindings, Bindings, BindingType);
 	}
 
 	void ValidateDispatch();

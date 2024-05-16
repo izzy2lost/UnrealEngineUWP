@@ -676,7 +676,7 @@ void GenerateRayTracingGeometryInstance(
 	FRDGBufferRef NumVoxelsBuffer,
 	TRDGUniformBufferRef<FSparseVoxelUniformBufferParameters> SparseVoxelUniformBuffer,
 	// Output
-	TArray<FRayTracingGeometryRHIRef>& RayTracingGeometries,
+	TArray<FRayTracingGeometryRHIRef, SceneRenderingAllocator>& RayTracingGeometries,
 	TArray<FMatrix>& RayTracingTransforms
 );
 
@@ -686,8 +686,8 @@ void GenerateRayTracingScene(
 	const FScene* Scene,
 	const FViewInfo& View,
 	// Ray tracing data
-	TArray<FRayTracingGeometryRHIRef>& RayTracingGeometries,
-	TArray<FMatrix>& RayTracingTransforms,
+	TConstArrayView<FRayTracingGeometryRHIRef> RayTracingGeometries,
+	TConstArrayView<FMatrix> RayTracingTransforms,
 	// Output
 	FRayTracingScene& RayTracingScene
 );
@@ -713,6 +713,7 @@ void RenderLightingCacheWithPreshadingHardwareRayTracing(
 	TRDGUniformBufferRef<FSparseVoxelUniformBufferParameters> SparseVoxelUniformBuffer,
 	// Ray tracing data
 	FRayTracingScene& RayTracingScene,
+	TConstArrayView<FRayTracingGeometryRHIRef> RayTracingGeometries,
 	// Output
 	FRDGTextureRef& LightingCacheTexture
 );
@@ -738,6 +739,7 @@ void RenderSingleScatteringWithPreshadingHardwareRayTracing(
 	TRDGUniformBufferRef<FSparseVoxelUniformBufferParameters> SparseVoxelUniformBuffer,
 	// Ray tracing data
 	FRayTracingScene& RayTracingScene,
+	TConstArrayView<FRayTracingGeometryRHIRef> RayTracingGeometries,
 	// Transmittance volume
 	FRDGTextureRef LightingCacheTexture,
 	// Output

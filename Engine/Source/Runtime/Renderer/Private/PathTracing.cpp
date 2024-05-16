@@ -1668,7 +1668,6 @@ void FDeferredShadingSceneRenderer::SetupPathTracingDefaultMissShader(FRHIComman
 
 	RHICmdList.SetRayTracingMissShader(
 		View.RayTracingSBT,
-		View.GetRayTracingSceneChecked(),
 		RAY_TRACING_MISS_SHADER_SLOT_DEFAULT,
 		View.RayTracingMaterialPipeline,
 		MissShaderPipelineIndex,
@@ -1792,7 +1791,7 @@ static void BindLightFunction(
 
 	int32 MissShaderPipelineIndex = FindRayTracingMissShaderIndex(View.RayTracingMaterialPipeline, Shader.GetRayTracingShader(), true);
 
-	ShaderBindings.SetRayTracingShaderBindingsForMissShader(RHICmdList, SBT, RTScene, Pipeline, MissShaderPipelineIndex, Index);
+	ShaderBindings.SetRayTracingShaderBindingsForMissShader(RHICmdList, SBT, Index, Pipeline, MissShaderPipelineIndex);
 }
 
 void BindLightFunctionShadersPathTracing(

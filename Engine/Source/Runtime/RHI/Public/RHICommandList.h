@@ -250,15 +250,30 @@ struct FRayTracingShaderBindings
 
 struct FRayTracingLocalShaderBindings
 {
-	uint32 InstanceIndex = 0;
+	const FRHIRayTracingGeometry* Geometry = nullptr;
 	uint32 SegmentIndex = 0;
-	uint32 ShaderSlot = 0;
+	uint32 RecordIndex = 0;
 	uint32 ShaderIndexInPipeline = 0;
 	uint32 UserData = 0;
 	uint16 NumUniformBuffers = 0;
 	uint16 LooseParameterDataSize = 0;
 	FRHIUniformBuffer** UniformBuffers = nullptr;
 	uint8* LooseParameterData = nullptr;
+	
+	UE_DEPRECATED(5.5, "Provide Geometry and RecordIndex instead.")
+	uint32 InstanceIndex = 0;
+
+	UE_DEPRECATED(5.5, "Provide Geometry and RecordIndex instead.")
+	uint32 ShaderSlot = 0;
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FRayTracingLocalShaderBindings() = default;
+	FRayTracingLocalShaderBindings(const FRayTracingLocalShaderBindings&) = default;
+	FRayTracingLocalShaderBindings& operator=(const FRayTracingLocalShaderBindings&) = default;
+	FRayTracingLocalShaderBindings(FRayTracingLocalShaderBindings&&) = default;
+	FRayTracingLocalShaderBindings& operator=(FRayTracingLocalShaderBindings&&) = default;
+	~FRayTracingLocalShaderBindings() = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 enum class ERayTracingBindingType : uint8
@@ -2469,9 +2484,8 @@ FRHICOMMAND_MACRO(FRHICommandSetBindingsOnShaderBindingTable)
 	}
 
 	// Bindings Batch
-	FRHICommandSetBindingsOnShaderBindingTable(FRHIShaderBindingTable* InSBT, FRHIRayTracingScene* InScene, FRayTracingPipelineState* InPipeline, uint32 InNumBindings, const FRayTracingLocalShaderBindings* InBindings, ERayTracingBindingType InBindingType)
+	FRHICommandSetBindingsOnShaderBindingTable(FRHIShaderBindingTable* InSBT, FRayTracingPipelineState* InPipeline, uint32 InNumBindings, const FRayTracingLocalShaderBindings* InBindings, ERayTracingBindingType InBindingType)
 		: SBT(InSBT)
-		, Scene(InScene)
 		, Pipeline(InPipeline)
 		, NumBindings(InNumBindings)
 		, Bindings(InBindings)
@@ -3966,65 +3980,64 @@ public:
 	UE_DEPRECATED(5.5, "Use FRHIShaderBindingTable instead.")
 	FORCEINLINE_DEBUGGABLE void SetRayTracingBindings(
 		FRHIRayTracingScene* Scene, FRayTracingPipelineState* Pipeline,
-		uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings,
+		uint32 NumBindings, const FRayTracingLocalShaderBindings* InBindings,
 		ERayTracingBindingType BindingType,
 		bool bCopyDataToInlineStorage = true)
 	{
+		// Upgrade bindings to new code path (duplicate bindings array to command list memory and patch to use Geometry + RecordIndex instead of the deprecated InstanceIndex + ShaderSlot)
+		FRayTracingLocalShaderBindings* Bindings = nullptr;
+		{
+			if (NumBindings)
+			{
+				uint32 Size = sizeof(FRayTracingLocalShaderBindings) * NumBindings;
+				Bindings = (FRayTracingLocalShaderBindings*)Alloc(Size, alignof(FRayTracingLocalShaderBindings));
+				FMemory::Memcpy(Bindings, InBindings, Size);
+			}
+
+			for (uint32 i = 0; i < NumBindings; ++i)
+			{
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				Bindings[i].Geometry = Scene->GetInitializer().PerInstanceGeometries[Bindings[i].InstanceIndex];
+				Bindings[i].RecordIndex = (Scene->GetInitializer().SegmentPrefixSum[Bindings[i].InstanceIndex] + Bindings[i].SegmentIndex) * Scene->GetInitializer().ShaderSlotsPerGeometrySegment + Bindings[i].ShaderSlot;
+				Bindings[i].InstanceIndex = INDEX_NONE;
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+				if (Bindings[i].NumUniformBuffers)
+				{
+					Bindings[i].UniformBuffers = (FRHIUniformBuffer**)Alloc(sizeof(FRHIUniformBuffer*) * Bindings[i].NumUniformBuffers, alignof(FRHIUniformBuffer*));
+					for (uint32 Index = 0; Index < Bindings[i].NumUniformBuffers; ++Index)
+					{
+						Bindings[i].UniformBuffers[Index] = InBindings[i].UniformBuffers[Index];
+					}
+				}
+
+				if (Bindings[i].LooseParameterDataSize)
+				{
+					Bindings[i].LooseParameterData = (uint8*)Alloc(Bindings[i].LooseParameterDataSize, 16);
+					FMemory::Memcpy(Bindings[i].LooseParameterData, InBindings[i].LooseParameterData, Bindings[i].LooseParameterDataSize);
+				}
+			}
+		}
+
 		if (Bypass())
 		{
 			GetContext().RHISetRayTracingBindings(Scene, GetRHIRayTracingPipelineState(Pipeline), NumBindings, Bindings, BindingType);
 		}
 		else
 		{
-			// By default all batch binding data is stored in the command list memory.
-			// However, user may skip this copy if they take responsibility for keeping data alive until this command is executed.
-			if (bCopyDataToInlineStorage)
-			{
-				FRayTracingLocalShaderBindings* InlineBindings = nullptr;
-
-				if (NumBindings)
-				{
-					uint32 Size = sizeof(FRayTracingLocalShaderBindings) * NumBindings;
-					InlineBindings = (FRayTracingLocalShaderBindings*)Alloc(Size, alignof(FRayTracingLocalShaderBindings));
-					FMemory::Memcpy(InlineBindings, Bindings, Size);
-				}
-
-				for (uint32 i = 0; i < NumBindings; ++i)
-				{
-					if (InlineBindings[i].NumUniformBuffers)
-					{
-						InlineBindings[i].UniformBuffers = (FRHIUniformBuffer**)Alloc(sizeof(FRHIUniformBuffer*) * InlineBindings[i].NumUniformBuffers, alignof(FRHIUniformBuffer*));
-						for (uint32 Index = 0; Index < InlineBindings[i].NumUniformBuffers; ++Index)
-						{
-							InlineBindings[i].UniformBuffers[Index] = Bindings[i].UniformBuffers[Index];
-						}
-					}
-
-					if (InlineBindings[i].LooseParameterDataSize)
-					{
-						InlineBindings[i].LooseParameterData = (uint8*)Alloc(InlineBindings[i].LooseParameterDataSize, 16);
-						FMemory::Memcpy(InlineBindings[i].LooseParameterData, Bindings[i].LooseParameterData, InlineBindings[i].LooseParameterDataSize);
-					}
-				}
-
-				ALLOC_COMMAND(FRHICommandSetBindingsOnShaderBindingTable)(Scene, Pipeline, NumBindings, InlineBindings, BindingType);
-			}
-			else
-			{
-				ALLOC_COMMAND(FRHICommandSetBindingsOnShaderBindingTable)(Scene, Pipeline, NumBindings, Bindings, BindingType);
-			}
+			ALLOC_COMMAND(FRHICommandSetBindingsOnShaderBindingTable)(Scene, Pipeline, NumBindings, Bindings, BindingType);
 		}
 	}
 
 	FORCEINLINE_DEBUGGABLE void SetBindingsOnShaderBindingTable(
-		FRHIShaderBindingTable* SBT, FRHIRayTracingScene* Scene, FRayTracingPipelineState* Pipeline,
+		FRHIShaderBindingTable* SBT, FRayTracingPipelineState* Pipeline,
 		uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings,
 		ERayTracingBindingType BindingType,
 		bool bCopyDataToInlineStorage = true)
 	{
 		if (Bypass())
 		{
-			GetContext().RHISetBindingsOnShaderBindingTable(SBT, Scene, GetRHIRayTracingPipelineState(Pipeline), NumBindings, Bindings, BindingType);
+			GetContext().RHISetBindingsOnShaderBindingTable(SBT, GetRHIRayTracingPipelineState(Pipeline), NumBindings, Bindings, BindingType);
 		}
 		else
 		{
@@ -4059,11 +4072,11 @@ public:
 					}
 				}
 
-				ALLOC_COMMAND(FRHICommandSetBindingsOnShaderBindingTable)(SBT, Scene, Pipeline, NumBindings, InlineBindings, BindingType);
+				ALLOC_COMMAND(FRHICommandSetBindingsOnShaderBindingTable)(SBT, Pipeline, NumBindings, InlineBindings, BindingType);
 			}
 			else
 			{
-				ALLOC_COMMAND(FRHICommandSetBindingsOnShaderBindingTable)(SBT, Scene, Pipeline, NumBindings, Bindings, BindingType);
+				ALLOC_COMMAND(FRHICommandSetBindingsOnShaderBindingTable)(SBT, Pipeline, NumBindings, Bindings, BindingType);
 			}
 		}
 	}
@@ -4080,11 +4093,11 @@ public:
 	}
 
 	FORCEINLINE_DEBUGGABLE void SetRayTracingHitGroups(
-		FRHIShaderBindingTable* SBT, FRHIRayTracingScene* Scene, FRayTracingPipelineState* Pipeline,
+		FRHIShaderBindingTable* SBT, FRayTracingPipelineState* Pipeline,
 		uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings,
 		bool bCopyDataToInlineStorage = true)
 	{
-		SetBindingsOnShaderBindingTable(SBT, Scene, Pipeline, NumBindings, Bindings, ERayTracingBindingType::HitGroup, bCopyDataToInlineStorage);
+		SetBindingsOnShaderBindingTable(SBT, Pipeline, NumBindings, Bindings, ERayTracingBindingType::HitGroup, bCopyDataToInlineStorage);
 	}
 
 	UE_DEPRECATED(5.5, "Use FRHIShaderBindingTable instead.")
@@ -4099,11 +4112,11 @@ public:
 	}
 
 	FORCEINLINE_DEBUGGABLE void SetRayTracingCallableShaders(
-		FRHIShaderBindingTable* SBT, FRHIRayTracingScene* Scene, FRayTracingPipelineState* Pipeline,
+		FRHIShaderBindingTable* SBT, FRayTracingPipelineState* Pipeline,
 		uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings,
 		bool bCopyDataToInlineStorage = true)
 	{
-		SetBindingsOnShaderBindingTable(SBT, Scene, Pipeline, NumBindings, Bindings, ERayTracingBindingType::CallableShader, bCopyDataToInlineStorage);
+		SetBindingsOnShaderBindingTable(SBT, Pipeline, NumBindings, Bindings, ERayTracingBindingType::CallableShader, bCopyDataToInlineStorage);
 	}
 
 	UE_DEPRECATED(5.5, "Use FRHIShaderBindingTable instead.")
@@ -4118,11 +4131,11 @@ public:
 	}
 
 	FORCEINLINE_DEBUGGABLE void SetRayTracingMissShaders(
-		FRHIShaderBindingTable* SBT, FRHIRayTracingScene* Scene, FRayTracingPipelineState* Pipeline,
+		FRHIShaderBindingTable* SBT, FRayTracingPipelineState* Pipeline,
 		uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings,
 		bool bCopyDataToInlineStorage = true)
 	{
-		SetBindingsOnShaderBindingTable(SBT, Scene, Pipeline, NumBindings, Bindings, ERayTracingBindingType::MissShader, bCopyDataToInlineStorage);
+		SetBindingsOnShaderBindingTable(SBT, Pipeline, NumBindings, Bindings, ERayTracingBindingType::MissShader, bCopyDataToInlineStorage);
 	}
 
 	UE_DEPRECATED(5.5, "Use FRHIShaderBindingTable instead.")
@@ -4137,9 +4150,11 @@ public:
 		check(LooseParameterDataSize <= UINT16_MAX);
 
 		FRayTracingLocalShaderBindings* InlineBindings = Alloc<FRayTracingLocalShaderBindings>();
-		InlineBindings->InstanceIndex = InstanceIndex;
+		InlineBindings->Geometry = Scene->GetInitializer().PerInstanceGeometries[InstanceIndex];
 		InlineBindings->SegmentIndex = SegmentIndex;
-		InlineBindings->ShaderSlot = ShaderSlot;
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		InlineBindings->RecordIndex = (Scene->GetInitializer().SegmentPrefixSum[InstanceIndex] + SegmentIndex) * Scene->GetInitializer().ShaderSlotsPerGeometrySegment + ShaderSlot;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		InlineBindings->ShaderIndexInPipeline = HitGroupIndex;
 		InlineBindings->UserData = UserData;
 		InlineBindings->NumUniformBuffers = (uint16)NumUniformBuffers;
@@ -4166,7 +4181,7 @@ public:
 	}
 
 	FORCEINLINE_DEBUGGABLE void SetRayTracingHitGroup(
-		FRHIShaderBindingTable* SBT, FRHIRayTracingScene* Scene, uint32 InstanceIndex, uint32 SegmentIndex, uint32 ShaderSlot,
+		FRHIShaderBindingTable* SBT, uint32 RecordIndex, FRHIRayTracingGeometry* Geometry, uint32 GeometrySegmentIndex,
 		FRayTracingPipelineState* Pipeline, uint32 HitGroupIndex,
 		uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
 		uint32 LooseParameterDataSize, const void* LooseParameterData,
@@ -4176,9 +4191,9 @@ public:
 		check(LooseParameterDataSize <= UINT16_MAX);
 
 		FRayTracingLocalShaderBindings* InlineBindings = Alloc<FRayTracingLocalShaderBindings>();
-		InlineBindings->InstanceIndex = InstanceIndex;
-		InlineBindings->SegmentIndex = SegmentIndex;
-		InlineBindings->ShaderSlot = ShaderSlot;
+		InlineBindings->RecordIndex = RecordIndex;
+		InlineBindings->Geometry = Geometry;
+		InlineBindings->SegmentIndex = GeometrySegmentIndex;
 		InlineBindings->ShaderIndexInPipeline = HitGroupIndex;
 		InlineBindings->UserData = UserData;
 		InlineBindings->NumUniformBuffers = (uint16)NumUniformBuffers;
@@ -4199,7 +4214,7 @@ public:
 			FMemory::Memcpy(InlineBindings->LooseParameterData, LooseParameterData, LooseParameterDataSize);
 		}
 
-		SetBindingsOnShaderBindingTable(SBT, Scene, Pipeline, 1, InlineBindings, ERayTracingBindingType::HitGroup, /*bCopyDataToInlineStorage*/ false);
+		SetBindingsOnShaderBindingTable(SBT, Pipeline, 1, InlineBindings, ERayTracingBindingType::HitGroup, /*bCopyDataToInlineStorage*/ false);
 	}
 
 	UE_DEPRECATED(5.5, "Use FRHIShaderBindingTable instead.")
@@ -4210,7 +4225,7 @@ public:
 		uint32 UserData)
 	{
 		FRayTracingLocalShaderBindings* InlineBindings = Alloc<FRayTracingLocalShaderBindings>();
-		InlineBindings->ShaderSlot = ShaderSlotInScene;
+		InlineBindings->RecordIndex = ShaderSlotInScene;
 		InlineBindings->ShaderIndexInPipeline = ShaderIndexInPipeline;
 		InlineBindings->UserData = UserData;
 		InlineBindings->NumUniformBuffers = (uint16)NumUniformBuffers;
@@ -4230,13 +4245,13 @@ public:
 	}
 
 	FORCEINLINE_DEBUGGABLE void SetRayTracingCallableShader(
-		FRHIShaderBindingTable* SBT, FRHIRayTracingScene* Scene, uint32 ShaderSlotInScene,
+		FRHIShaderBindingTable* SBT, uint32 RecordIndex,
 		FRayTracingPipelineState* Pipeline, uint32 ShaderIndexInPipeline,
 		uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
 		uint32 UserData)
 	{
 		FRayTracingLocalShaderBindings* InlineBindings = Alloc<FRayTracingLocalShaderBindings>();
-		InlineBindings->ShaderSlot = ShaderSlotInScene;
+		InlineBindings->RecordIndex = RecordIndex;
 		InlineBindings->ShaderIndexInPipeline = ShaderIndexInPipeline;
 		InlineBindings->UserData = UserData;
 		InlineBindings->NumUniformBuffers = (uint16)NumUniformBuffers;
@@ -4250,7 +4265,7 @@ public:
 			}
 		}
 
-		SetBindingsOnShaderBindingTable(SBT, Scene, Pipeline, 1, InlineBindings, ERayTracingBindingType::CallableShader, /*bCopyDataToInlineStorage*/ false);
+		SetBindingsOnShaderBindingTable(SBT, Pipeline, 1, InlineBindings, ERayTracingBindingType::CallableShader, /*bCopyDataToInlineStorage*/ false);
 	}
 
 	UE_DEPRECATED(5.5, "Use FRHIShaderBindingTable instead.")
@@ -4261,7 +4276,7 @@ public:
 		uint32 UserData)
 	{
 		FRayTracingLocalShaderBindings* InlineBindings = Alloc<FRayTracingLocalShaderBindings>();
-		InlineBindings->ShaderSlot = ShaderSlotInScene;
+		InlineBindings->RecordIndex = ShaderSlotInScene;
 		InlineBindings->ShaderIndexInPipeline = ShaderIndexInPipeline;
 		InlineBindings->UserData = UserData;
 		InlineBindings->NumUniformBuffers = (uint16)NumUniformBuffers;
@@ -4281,13 +4296,13 @@ public:
 	}
 
 	FORCEINLINE_DEBUGGABLE void SetRayTracingMissShader(
-		FRHIShaderBindingTable* SBT, FRHIRayTracingScene* Scene, uint32 ShaderSlotInScene,
+		FRHIShaderBindingTable* SBT, uint32 RecordIndex,
 		FRayTracingPipelineState* Pipeline, uint32 ShaderIndexInPipeline,
 		uint32 NumUniformBuffers, FRHIUniformBuffer* const* UniformBuffers,
 		uint32 UserData)
 	{
 		FRayTracingLocalShaderBindings* InlineBindings = Alloc<FRayTracingLocalShaderBindings>();
-		InlineBindings->ShaderSlot = ShaderSlotInScene;
+		InlineBindings->RecordIndex = RecordIndex;
 		InlineBindings->ShaderIndexInPipeline = ShaderIndexInPipeline;
 		InlineBindings->UserData = UserData;
 		InlineBindings->NumUniformBuffers = (uint16)NumUniformBuffers;
@@ -4301,7 +4316,7 @@ public:
 			}
 		}
 
-		SetBindingsOnShaderBindingTable(SBT, Scene, Pipeline, 1, InlineBindings, ERayTracingBindingType::MissShader, /*bCopyDataToInlineStorage*/ false);
+		SetBindingsOnShaderBindingTable(SBT, Pipeline, 1, InlineBindings, ERayTracingBindingType::MissShader, /*bCopyDataToInlineStorage*/ false);
 	}
 };
 

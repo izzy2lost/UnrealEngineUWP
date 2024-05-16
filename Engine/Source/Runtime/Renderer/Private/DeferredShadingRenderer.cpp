@@ -391,6 +391,7 @@ FDeferredShadingSceneRenderer::FDeferredShadingSceneRenderer(const FSceneViewFam
 * Renders the view family. 
 */
 DECLARE_CYCLE_STAT(TEXT("Wait RayTracing Add Mesh Batch"), STAT_WaitRayTracingAddMesh, STATGROUP_SceneRendering);
+DECLARE_CYCLE_STAT(TEXT("Wait Ray Tracing Scene Initialization"), STAT_WaitRayTracingSceneInitTask, STATGROUP_SceneRendering);
 
 FGlobalDynamicIndexBuffer FDeferredShadingSceneRenderer::DynamicIndexBufferForInitShadows;
 FGlobalDynamicVertexBuffer FDeferredShadingSceneRenderer::DynamicVertexBufferForInitShadows;
@@ -598,6 +599,11 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 		return false;
 	}
 
+	if (!GRHISupportsRayTracingShaders)
+	{
+		return false;
+	}
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates);
 
 	const int32 ReferenceViewIndex = 0;
@@ -619,7 +625,6 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 
 	const bool bIsPathTracing = ViewFamily.EngineShowFlags.PathTracing;
 
-	if (GRHISupportsRayTracingShaders)
 	{
 		// #dxr_todo: UE-72565: refactor ray tracing effects to not be member functions of DeferredShadingRenderer. 
 		// Should register each effect at startup and just loop over them automatically to gather all required shaders.
@@ -689,7 +694,6 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 	}
 
 	// Add Lumen hardware ray tracing materials
-	if (GRHISupportsRayTracingShaders)
 	{
 		TArray<FRHIRayTracingShader*> LumenHardwareRayTracingRayGenShaders;
 
@@ -824,9 +828,12 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 		GRayTracingGeometryManager->ForceBuildIfPending(GraphBuilder.RHICmdList, RayTracingScene.GeometriesToBuild);
 	}
 
-	FTaskGraphInterface::Get().WaitUntilTaskCompletes(ReferenceView.RayTracingSceneInitTask, ENamedThreads::GetRenderThread_Local());
+	{
+		SCOPE_CYCLE_COUNTER(STAT_WaitRayTracingSceneInitTask);
 
-	ReferenceView.RayTracingSceneInitTask = {};
+		FTaskGraphInterface::Get().WaitUntilTaskCompletes(ReferenceView.RayTracingSceneInitTask, ENamedThreads::GetRenderThread_Local());
+		ReferenceView.RayTracingSceneInitTask = {};
+	}
 
 	{
 		Nanite::GRayTracingManager.ProcessUpdateRequests(GraphBuilder, GetSceneUniforms());
@@ -1024,7 +1031,7 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 			{
 				if (ReferenceView.LumenHardwareRayTracingMaterialPipeline)
 				{
-					RHICmdList.SetRayTracingMissShader(ReferenceView.LumenHardwareRayTracingSBT, ReferenceView.GetRayTracingSceneChecked(), RAY_TRACING_MISS_SHADER_SLOT_DEFAULT, ReferenceView.LumenHardwareRayTracingMaterialPipeline, 0 /* MissShaderPipelineIndex */, 0, nullptr, 0);
+					RHICmdList.SetRayTracingMissShader(ReferenceView.LumenHardwareRayTracingSBT, RAY_TRACING_MISS_SHADER_SLOT_DEFAULT, ReferenceView.LumenHardwareRayTracingMaterialPipeline, 0 /* MissShaderPipelineIndex */, 0, nullptr, 0);
 					BindLumenHardwareRayTracingMaterialPipeline(RHICmdList, ReferenceView);
 
 					RHICmdList.CommitShaderBindingTable(ReferenceView.LumenHardwareRayTracingSBT);

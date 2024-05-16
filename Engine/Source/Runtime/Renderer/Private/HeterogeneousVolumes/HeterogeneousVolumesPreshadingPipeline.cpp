@@ -1078,6 +1078,8 @@ void RenderWithInscatteringVolumePipelineWithPreshadingHardwareRayTracing(
 	const TRDGUniformBufferRef<FSparseVoxelUniformBufferParameters>& SparseVoxelUniformBuffer,
 	// Transmittance acceleration
 	FRDGTextureRef LightingCacheTexture,
+	// Ray tracing data
+	TConstArrayView<FRayTracingGeometryRHIRef> RayTracingGeometries,
 	// Output
 	FRDGTextureRef& HeterogeneousVolumeRadiance
 )
@@ -1141,6 +1143,7 @@ void RenderWithInscatteringVolumePipelineWithPreshadingHardwareRayTracing(
 			SparseVoxelUniformBuffer,
 			// Ray tracing data
 			Scene->HeterogeneousVolumesRayTracingScene,
+			RayTracingGeometries,
 			// Transmittance volume
 			LightingCacheTexture
 		);
@@ -1177,6 +1180,7 @@ void RenderWithInscatteringVolumePipelineWithPreshadingHardwareRayTracing(
 			SparseVoxelUniformBuffer,
 			// Ray tracing data
 			Scene->HeterogeneousVolumesRayTracingScene,
+			RayTracingGeometries,
 			// Transmittance volume
 			LightingCacheTexture,
 			// Output
@@ -1204,6 +1208,8 @@ void RenderWithTransmittanceVolumePipelineWithPreshadingHardwareRayTracing(
 	const TRDGUniformBufferRef<FSparseVoxelUniformBufferParameters>& SparseVoxelUniformBuffer,
 	// Transmittance acceleration
 	FRDGTextureRef LightingCacheTexture,
+	// Ray tracing data
+	TConstArrayView<FRayTracingGeometryRHIRef> RayTracingGeometries,
 	// Output
 	FRDGTextureRef& HeterogeneousVolumeRadiance
 )
@@ -1269,6 +1275,7 @@ void RenderWithTransmittanceVolumePipelineWithPreshadingHardwareRayTracing(
 				SparseVoxelUniformBuffer,
 				// Ray tracing data
 				Scene->HeterogeneousVolumesRayTracingScene,
+				RayTracingGeometries,
 				// Transmittance volume
 				LightingCacheTexture
 			);
@@ -1295,6 +1302,7 @@ void RenderWithTransmittanceVolumePipelineWithPreshadingHardwareRayTracing(
 			SparseVoxelUniformBuffer,
 			// Ray tracing data
 			Scene->HeterogeneousVolumesRayTracingScene,
+			RayTracingGeometries,
 			// Transmittance volume
 			LightingCacheTexture,
 			// Output
@@ -1330,7 +1338,7 @@ void RenderWithPreshadingHardwareRayTracing(
 	RDG_EVENT_SCOPE(GraphBuilder, "Hardware Ray Tracing");
 
 	// WARNING: Currently works, but I'm skeptical if all RHI resources have the correct lifetime management
-	TArray<FRayTracingGeometryRHIRef> RayTracingGeometries;
+	TArray<FRayTracingGeometryRHIRef, SceneRenderingAllocator> RayTracingGeometries = GraphBuilder.AllocArray<FRayTracingGeometryRHIRef>();
 	TArray<FMatrix> RayTracingTransforms;
 	{
 		RDG_EVENT_SCOPE(GraphBuilder, "Acceleration Structure Build");
@@ -1381,6 +1389,8 @@ void RenderWithPreshadingHardwareRayTracing(
 			SparseVoxelUniformBuffer,
 			// Transmittance acceleration
 			LightingCacheTexture,
+			// Ray tracing data
+			RayTracingGeometries,
 			// Output
 			HeterogeneousVolumeRadiance
 		);
@@ -1403,6 +1413,8 @@ void RenderWithPreshadingHardwareRayTracing(
 			SparseVoxelUniformBuffer,
 			// Transmittance acceleration
 			LightingCacheTexture,
+			// Ray tracing data
+			RayTracingGeometries,
 			// Output
 			HeterogeneousVolumeRadiance
 		);

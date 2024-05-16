@@ -821,7 +821,7 @@ public:
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
-	virtual void RHISetBindingsOnShaderBindingTable(FRHIShaderBindingTable* SBT, FRHIRayTracingScene* Scene, FRHIRayTracingPipelineState* Pipeline, uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings, ERayTracingBindingType BindingType)
+	virtual void RHISetBindingsOnShaderBindingTable(FRHIShaderBindingTable* SBT, FRHIRayTracingPipelineState* Pipeline, uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings, ERayTracingBindingType BindingType)
 	{
 		checkNoEntry();
 	}
@@ -834,7 +834,7 @@ public:
 	void RHISetRayTracingBindings(FRHIRayTracingScene* Scene, FRHIRayTracingPipelineState* Pipeline, uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings, ERayTracingBindingType BindingType)
 	{
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		RHISetBindingsOnShaderBindingTable(Scene->FindOrCreateShaderBindingTable(Pipeline), Scene, Pipeline, NumBindings, Bindings, BindingType);
+		RHISetBindingsOnShaderBindingTable(Scene->FindOrCreateShaderBindingTable(Pipeline), Pipeline, NumBindings, Bindings, BindingType);
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 

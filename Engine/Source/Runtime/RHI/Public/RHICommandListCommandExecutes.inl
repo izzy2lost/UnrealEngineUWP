@@ -570,7 +570,7 @@ void FRHICommandSetBindingsOnShaderBindingTable::Execute(FRHICommandListBase& Cm
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		
-	INTERNAL_DECORATOR(RHISetBindingsOnShaderBindingTable)(SBT, Scene, RayTracingPipelineState, NumBindings, Bindings, BindingType);
+	INTERNAL_DECORATOR(RHISetBindingsOnShaderBindingTable)(SBT, RayTracingPipelineState, NumBindings, Bindings, BindingType);
 }
 
 void FRHICommandBeginScene::Execute(FRHICommandListBase& CmdList)

@@ -777,10 +777,11 @@ namespace RayTracing
 			struct FRayTracingMeshBatchWorkItem
 			{
 				const FPrimitiveSceneProxy* SceneProxy = nullptr;
+				const FRHIRayTracingGeometry* RayTracingGeometry = nullptr;
 				TArray<FMeshBatch> MeshBatchesOwned;
 				TArrayView<const FMeshBatch> MeshBatchesView;
-				uint32 InstanceIndex;
-				uint32 DecalInstanceIndex;
+				uint32 GlobalSegmentIndex;
+				uint32 DecalGlobalSegmentIndex;
 
 				TArrayView<const FMeshBatch> GetMeshBatches() const
 				{
@@ -839,7 +840,7 @@ namespace RayTracing
 											const FMeshBatch& MeshBatch = MeshBatches[SegmentIndex];
 											FDynamicRayTracingMeshCommandContext CommandContext(
 												*TaskDynamicCommandStorage, *TaskVisibleCommands,
-												SegmentIndex, WorkItem.InstanceIndex, WorkItem.DecalInstanceIndex);
+												WorkItem.RayTracingGeometry, SegmentIndex, WorkItem.GlobalSegmentIndex, WorkItem.DecalGlobalSegmentIndex);
 											FRayTracingMeshProcessor RayTracingMeshProcessor(&CommandContext, &Scene, &View, Scene.CachedRayTracingMeshCommandsMode);
 											RayTracingMeshProcessor.AddMeshBatch(MeshBatch, 1, WorkItem.SceneProxy);
 										}
@@ -1015,6 +1016,8 @@ namespace RayTracing
 							SceneInfo->bCachedRayTracingInstanceMaskAndFlagsDirty = false;
 						}
 
+						const bool bNeedMainInstance = !SceneInfo->bCachedRayTracingInstanceAllSegmentsDecal;
+
 						// if primitive has mixed decal and non-decal segments we need to have two ray tracing instances
 						// one containing non-decal segments and the other with decal segments
 						// masking of segments is done using "hidden" hitgroups
@@ -1092,19 +1095,28 @@ namespace RayTracing
 							RayTracingInstance.BaseInstanceSceneDataOffset = InstanceSceneDataOffset;
 						}
 
-						uint32 InstanceIndex = INDEX_NONE;
-						if (!SceneInfo->bCachedRayTracingInstanceAllSegmentsDecal)
+						uint32 GlobalSegmentIndex = INDEX_NONE;
+						if (bNeedMainInstance)
 						{
-							InstanceIndex = RayTracingScene.AddInstance(RayTracingInstance, SceneProxy, true);
+							GlobalSegmentIndex = RayTracingScene.NumSegments;
+							RayTracingScene.NumSegments += Instance.GetMaterials().Num();
+
+							RayTracingInstance.InstanceContributionToHitGroupIndex = CalculateInstanceContributionToHitGroupIndex(GlobalSegmentIndex);
+
+							RayTracingScene.AddInstance(RayTracingInstance, SceneProxy, true);
 						}
 
-						uint32 DecalInstanceIndex = INDEX_NONE;
+						uint32 DecalGlobalSegmentIndex = INDEX_NONE;
 						if (bNeedDecalInstance)
 						{
+							DecalGlobalSegmentIndex = RayTracingScene.NumSegments;
+							RayTracingScene.NumSegments += Instance.GetMaterials().Num();
+
 							FRayTracingGeometryInstance DecalRayTracingInstance = RayTracingInstance;
 							DecalRayTracingInstance.LayerIndex = (uint8)ERayTracingSceneLayer::Decals;
+							DecalRayTracingInstance.InstanceContributionToHitGroupIndex = CalculateInstanceContributionToHitGroupIndex(DecalGlobalSegmentIndex);
 
-							DecalInstanceIndex = RayTracingScene.AddInstance(MoveTemp(DecalRayTracingInstance), SceneProxy, true);
+							RayTracingScene.AddInstance(MoveTemp(DecalRayTracingInstance), SceneProxy, true);
 						}
 
 						if (bParallelMeshBatchSetup)
@@ -1143,8 +1155,9 @@ namespace RayTracing
 							}
 
 							WorkItem.SceneProxy = SceneProxy;
-							WorkItem.InstanceIndex = InstanceIndex;
-							WorkItem.DecalInstanceIndex = DecalInstanceIndex;
+							WorkItem.RayTracingGeometry = Geometry->GetRHI();
+							WorkItem.GlobalSegmentIndex = GlobalSegmentIndex;
+							WorkItem.DecalGlobalSegmentIndex = DecalGlobalSegmentIndex;
 						}
 						else
 						{
@@ -1152,7 +1165,7 @@ namespace RayTracing
 							for (int32 SegmentIndex = 0; SegmentIndex < InstanceMaterials.Num(); SegmentIndex++)
 							{
 								const FMeshBatch& MeshBatch = InstanceMaterials[SegmentIndex];
-								FDynamicRayTracingMeshCommandContext CommandContext(View.DynamicRayTracingMeshCommandStorage, View.VisibleRayTracingMeshCommands, SegmentIndex, InstanceIndex, DecalInstanceIndex);
+								FDynamicRayTracingMeshCommandContext CommandContext(View.DynamicRayTracingMeshCommandStorage, View.VisibleRayTracingMeshCommands, Geometry->GetRHI(), SegmentIndex, GlobalSegmentIndex, DecalGlobalSegmentIndex);
 								FRayTracingMeshProcessor RayTracingMeshProcessor(&CommandContext, &Scene, &View, Scene.CachedRayTracingMeshCommandsMode);
 								RayTracingMeshProcessor.AddMeshBatch(MeshBatch, 1, SceneProxy);
 							}
@@ -1177,9 +1190,9 @@ namespace RayTracing
 
 		// Task to iterate over static ray tracing instances, perform auto-instancing and culling.
 		// This adds final instances to the ray tracing scene and must be done before FRayTracingScene::BuildInitializationData().
-		struct FRayTracingSceneAddInstancesTask
+		struct FRayTracingSceneAddStaticInstancesTask
 		{
-			UE_NONCOPYABLE(FRayTracingSceneAddInstancesTask)
+			UE_NONCOPYABLE(FRayTracingSceneAddStaticInstancesTask)
 
 			static ESubsequentsMode::Type GetSubsequentsMode() { return ESubsequentsMode::TrackSubsequents; }
 			TStatId                       GetStatId() const { return TStatId(); }
@@ -1203,7 +1216,7 @@ namespace RayTracing
 			FRayTracingScene& RayTracingScene; // New instances are added into FRayTracingScene::Instances and FRayTracingScene::Allocator is used for temporary data
 			TArray<FVisibleRayTracingMeshCommand>& VisibleRayTracingMeshCommands; // New elements are added here by this task
 
-			FRayTracingSceneAddInstancesTask(const FScene& InScene,
+			FRayTracingSceneAddStaticInstancesTask(const FScene& InScene,
 				const RayTracing::FSceneOptions& InSceneOptions,
 				TArray<FRelevantPrimitive>& InRelevantStaticPrimitives,
 				TArray<FRelevantPrimitive>& InRelevantCachedStaticPrimitives,
@@ -1305,6 +1318,8 @@ namespace RayTracing
 							continue; 
 						}
 
+						const bool bNeedMainInstance = !RelevantPrimitive.bAllSegmentsDecal;
+
 						// if primitive has mixed decal and non-decal segments we need to have two ray tracing instances
 						// one containing non-decal segments and the other with decal segments
 						// masking of segments is done using "hidden" hitgroups
@@ -1394,18 +1409,29 @@ namespace RayTracing
 							}
 							AddDebugRayTracingInstanceFlags(RayTracingInstance.Flags);
 
-							RayTracingInstance.LayerIndex = (uint8)ERayTracingSceneLayer::Base;
-
 							InstanceBatch.Index = INDEX_NONE;
-							if (!RelevantPrimitive.bAllSegmentsDecal)
+							uint32 GlobalSegmentIndex = INDEX_NONE;
+
+							if (bNeedMainInstance)
 							{
+								GlobalSegmentIndex = RayTracingScene.NumSegments;
+								RayTracingScene.NumSegments += RayTracingInstance.GeometryRHI->GetNumSegments();
+
+								RayTracingInstance.InstanceContributionToHitGroupIndex = CalculateInstanceContributionToHitGroupIndex(GlobalSegmentIndex);
+								RayTracingInstance.LayerIndex = (uint8)ERayTracingSceneLayer::Base;
 								InstanceBatch.Index = RayTracingScene.AddInstance(RayTracingInstance, SceneProxy, false);
 							}
 
 							InstanceBatch.DecalIndex = INDEX_NONE;
+							uint32 DecalGlobalSegmentIndex = INDEX_NONE;
+
 							if (bNeedDecalInstance)
 							{
+								DecalGlobalSegmentIndex = RayTracingScene.NumSegments;
+								RayTracingScene.NumSegments += RayTracingInstance.GeometryRHI->GetNumSegments();
+
 								FRayTracingGeometryInstance DecalRayTracingInstance = RayTracingInstance;
+								DecalRayTracingInstance.InstanceContributionToHitGroupIndex = CalculateInstanceContributionToHitGroupIndex(DecalGlobalSegmentIndex);
 								DecalRayTracingInstance.LayerIndex = (uint8)ERayTracingSceneLayer::Decals;
 
 								InstanceBatch.DecalIndex = RayTracingScene.AddInstance(MoveTemp(DecalRayTracingInstance), SceneProxy, false);
@@ -1417,17 +1443,17 @@ namespace RayTracing
 								{
 									const FRayTracingMeshCommand& MeshCommand = Scene.CachedRayTracingMeshCommands[CommandIndex];
 
-									if(InstanceBatch.Index != INDEX_NONE)
+									if (bNeedMainInstance)
 									{
 										const bool bHidden = MeshCommand.bDecal;
-										FVisibleRayTracingMeshCommand NewVisibleMeshCommand(&MeshCommand, InstanceBatch.Index, bHidden);
+										FVisibleRayTracingMeshCommand NewVisibleMeshCommand(&MeshCommand, RelevantPrimitive.RayTracingGeometryRHI, GlobalSegmentIndex + MeshCommand.GeometrySegmentIndex, bHidden);
 										VisibleRayTracingMeshCommands.Add(NewVisibleMeshCommand);
 									}
 
-									if (InstanceBatch.DecalIndex != INDEX_NONE)
+									if (bNeedDecalInstance)
 									{
 										const bool bHidden = !MeshCommand.bDecal;
-										FVisibleRayTracingMeshCommand NewVisibleMeshCommand(&MeshCommand, InstanceBatch.DecalIndex, bHidden);
+										FVisibleRayTracingMeshCommand NewVisibleMeshCommand(&MeshCommand, RelevantPrimitive.RayTracingGeometryRHI, DecalGlobalSegmentIndex + MeshCommand.GeometrySegmentIndex, bHidden);
 										VisibleRayTracingMeshCommands.Add(NewVisibleMeshCommand);
 									}
 								}
@@ -1443,18 +1469,18 @@ namespace RayTracing
 
 				{
 					TRACE_CPUPROFILER_EVENT_SCOPE(RayTracingScene_AddCachedStaticInstances);
-
+					
 					const uint32 BaseCachedStaticInstanceIndex = RayTracingScene.AddInstancesUninitialized(NumCachedStaticSceneInstances);
-
 					const uint32 BaseCachedVisibleMeshCommandsIndex = VisibleRayTracingMeshCommands.AddUninitialized(NumCachedStaticVisibleMeshCommands);
-					TArrayView<FVisibleRayTracingMeshCommand> CachedStaticVisibleRayTracingMeshCommands = TArrayView<FVisibleRayTracingMeshCommand>(VisibleRayTracingMeshCommands.GetData() + BaseCachedVisibleMeshCommandsIndex, NumCachedStaticVisibleMeshCommands);
+					const uint32 BaseCachedGlobalSegmentIndex = RayTracingScene.NumSegments;
+					RayTracingScene.NumSegments += NumCachedStaticVisibleMeshCommands;
 
 					const int32 MinBatchSize = 128;
 					ParallelFor(
 						TEXT("RayTracingScene_AddCachedStaticInstances_ParallelFor"),
 						RelevantCachedStaticPrimitives.Num(),
 						MinBatchSize,
-						[this, BaseCachedStaticInstanceIndex, CachedStaticVisibleRayTracingMeshCommands](int32 Index)
+						[this, BaseCachedStaticInstanceIndex, BaseCachedVisibleMeshCommandsIndex, BaseCachedGlobalSegmentIndex](int32 Index)
 					{
 						const FRelevantPrimitive& RelevantPrimitive = RelevantCachedStaticPrimitives[Index];
 						const int32 PrimitiveIndex = RelevantPrimitive.PrimitiveIndex;
@@ -1472,6 +1498,8 @@ namespace RayTracing
 							check(RelevantPrimitive.CachedRayTracingInstance->GeometryRHI != nullptr);
 						}
 
+						const bool bNeedMainInstance = !RelevantPrimitive.bAllSegmentsDecal;
+
 						// if primitive has mixed decal and non-decal segments we need to have two ray tracing instances
 						// one containing non-decal segments and the other with decal segments
 						// masking of segments is done using "hidden" hitgroups
@@ -1479,52 +1507,58 @@ namespace RayTracing
 						const bool bNeedDecalInstance = RelevantPrimitive.bAnySegmentsDecal && !RelevantPrimitive.bAllSegmentsDecal && !ShouldExcludeDecals();
 
 						check(!ShouldExcludeDecals() || !RelevantPrimitive.bAllSegmentsDecal);
+						
+						const int32 GlobalSegmentIndex = BaseCachedGlobalSegmentIndex + GatherContexts[RelevantPrimitive.ContextIndex].VisibleMeshCommandOffset + RelevantPrimitive.RelativeVisibleMeshCommandOffset;
+						const int32 MainGlobalSegmentIndex = GlobalSegmentIndex;
+						const int32 DecalGlobalSegmentIndex = GlobalSegmentIndex + (bNeedMainInstance ? RelevantPrimitive.CachedRayTracingMeshCommandIndices.Num() : 0);
 
 						check(RelevantPrimitive.CachedRayTracingInstance);
 
-						int32 TmpInstanceIndex = BaseCachedStaticInstanceIndex + GatherContexts[RelevantPrimitive.ContextIndex].SceneInstanceOffset + RelevantPrimitive.RelativeSceneInstanceOffset;
+						int32 InstanceIndex = BaseCachedStaticInstanceIndex + GatherContexts[RelevantPrimitive.ContextIndex].SceneInstanceOffset + RelevantPrimitive.RelativeSceneInstanceOffset;
 
-						int32 InstanceIndex = INDEX_NONE;
-						if (!RelevantPrimitive.bAllSegmentsDecal)
+						if (bNeedMainInstance)
 						{
 							FRayTracingGeometryInstance RayTracingInstance = *RelevantPrimitive.CachedRayTracingInstance;
 							RayTracingInstance.LayerIndex = (uint8)ERayTracingSceneLayer::Base;
+							RayTracingInstance.InstanceContributionToHitGroupIndex = CalculateInstanceContributionToHitGroupIndex(MainGlobalSegmentIndex);
 							AddDebugRayTracingInstanceFlags(RayTracingInstance.Flags);
 
-							InstanceIndex = TmpInstanceIndex++;
 							RayTracingScene.SetInstance(InstanceIndex, MoveTemp(RayTracingInstance), SceneProxy, false);
+							InstanceIndex++;
 						}
 
-						uint32 DecalInstanceIndex = INDEX_NONE;
 						if (bNeedDecalInstance)
 						{
 							FRayTracingGeometryInstance DecalRayTracingInstance = *RelevantPrimitive.CachedRayTracingInstance;
 							DecalRayTracingInstance.LayerIndex = (uint8)ERayTracingSceneLayer::Decals;
+							DecalRayTracingInstance.InstanceContributionToHitGroupIndex = CalculateInstanceContributionToHitGroupIndex(DecalGlobalSegmentIndex);
 							AddDebugRayTracingInstanceFlags(DecalRayTracingInstance.Flags);
 
-							DecalInstanceIndex = TmpInstanceIndex++;
-							RayTracingScene.SetInstance(DecalInstanceIndex, MoveTemp(DecalRayTracingInstance), SceneProxy, false);
+							RayTracingScene.SetInstance(InstanceIndex, MoveTemp(DecalRayTracingInstance), SceneProxy, false);
+							InstanceIndex++;
 						}
 
-						const int32 VisibleMeshCommandOffset = GatherContexts[RelevantPrimitive.ContextIndex].VisibleMeshCommandOffset + RelevantPrimitive.RelativeVisibleMeshCommandOffset;
-						int32 CommandCount = 0;
+						const int32 VisibleMeshCommandOffset = BaseCachedVisibleMeshCommandsIndex + GatherContexts[RelevantPrimitive.ContextIndex].VisibleMeshCommandOffset + RelevantPrimitive.RelativeVisibleMeshCommandOffset;
+
+						int32 MainCommandOffset = VisibleMeshCommandOffset;
+						int32 DecalCommandOffset = VisibleMeshCommandOffset + (bNeedMainInstance ? RelevantPrimitive.CachedRayTracingMeshCommandIndices.Num() : 0);
 
 						for (int32 CommandIndex : RelevantPrimitive.CachedRayTracingMeshCommandIndices)
 						{
 							const FRayTracingMeshCommand& MeshCommand = Scene.CachedRayTracingMeshCommands[CommandIndex];
 
-							if (InstanceIndex != INDEX_NONE)
+							if (bNeedMainInstance)
 							{
 								const bool bHidden = MeshCommand.bDecal;
-								CachedStaticVisibleRayTracingMeshCommands[VisibleMeshCommandOffset + CommandCount] = FVisibleRayTracingMeshCommand(&MeshCommand, InstanceIndex, bHidden);
-								++CommandCount;
+								VisibleRayTracingMeshCommands[MainCommandOffset] = FVisibleRayTracingMeshCommand(&MeshCommand, RelevantPrimitive.CachedRayTracingInstance->GeometryRHI, MainGlobalSegmentIndex + MeshCommand.GeometrySegmentIndex, bHidden);
+								++MainCommandOffset;
 							}
 
-							if (DecalInstanceIndex != INDEX_NONE)
+							if (bNeedDecalInstance)
 							{
 								const bool bHidden = !MeshCommand.bDecal;
-								CachedStaticVisibleRayTracingMeshCommands[VisibleMeshCommandOffset + CommandCount] = FVisibleRayTracingMeshCommand(&MeshCommand, DecalInstanceIndex, bHidden);
-								++CommandCount;
+								VisibleRayTracingMeshCommands[DecalCommandOffset] = FVisibleRayTracingMeshCommand(&MeshCommand, RelevantPrimitive.CachedRayTracingInstance->GeometryRHI, DecalGlobalSegmentIndex + MeshCommand.GeometrySegmentIndex, bHidden);
+								++DecalCommandOffset;
 							}
 						}
 					});
@@ -1532,10 +1566,10 @@ namespace RayTracing
 			}
 		};
 
-		FGraphEventArray AddInstancesTaskPrerequisites;
-		AddInstancesTaskPrerequisites.Add(RelevantPrimitiveList.StaticPrimitiveLODTask);
+		FGraphEventArray AddStaticInstancesTaskPrerequisites;
+		AddStaticInstancesTaskPrerequisites.Add(RelevantPrimitiveList.StaticPrimitiveLODTask);
 
-		FGraphEventRef AddInstancesTask = TGraphTask<FRayTracingSceneAddInstancesTask>::CreateTask(&AddInstancesTaskPrerequisites).ConstructAndDispatchWhenReady(
+		FGraphEventRef AddStaticInstancesTask = TGraphTask<FRayTracingSceneAddStaticInstancesTask>::CreateTask(&AddStaticInstancesTaskPrerequisites).ConstructAndDispatchWhenReady(
 			// inputs
 			Scene,
 			SceneOptions,
@@ -1560,7 +1594,7 @@ namespace RayTracing
 				TRACE_CPUPROFILER_EVENT_SCOPE(RayTracingSceneInitTask);
 				View.RayTracingSceneInitData = RayTracingScene.BuildInitializationData();
 			},
-			TStatId(), AddInstancesTask, ENamedThreads::AnyThread);
+			TStatId(), AddStaticInstancesTask, ENamedThreads::AnyThread);
 
 		return true;
 	}

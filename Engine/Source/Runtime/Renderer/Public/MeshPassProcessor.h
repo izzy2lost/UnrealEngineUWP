@@ -946,13 +946,15 @@ public:
 	}
 
 #if RHI_RAYTRACING
+	RENDERER_API FRayTracingLocalShaderBindings* SetRayTracingShaderBindings(FRayTracingLocalShaderBindingWriter* BindingWriter, uint32 ShaderIndexInPipeline, uint32 RecordIndex, uint32 UserData = 0) const;
+	UE_DEPRECATED(5.5, "Use version with explicit FRHIRayTracingGeometry.")
 	RENDERER_API FRayTracingLocalShaderBindings* SetRayTracingShaderBindingsForHitGroup(FRayTracingLocalShaderBindingWriter* BindingWriter, uint32 InstanceIndex, uint32 SegmentIndex, uint32 HitGroupIndexInPipeline, uint32 ShaderSlot) const;
-	RENDERER_API FRayTracingLocalShaderBindings* SetRayTracingShaderBindings(FRayTracingLocalShaderBindingWriter* BindingWriter, uint32 ShaderIndexInPipeline, uint32 ShaderSlot) const;
+	RENDERER_API FRayTracingLocalShaderBindings* SetRayTracingShaderBindingsForHitGroup(FRayTracingLocalShaderBindingWriter* BindingWriter, uint32 RecordIndex, const FRHIRayTracingGeometry* Geometry, uint32 GeometrySegmentIndex, uint32 HitGroupIndexInPipeline) const;
 
 	// TODO: should these move to a binding writer too? should we introduce a different class to do these bindings since they aren't mesh related? rename this class entirely?
 	UE_DEPRECATED(5.5, "Use version with explicit FRHIShaderBindingTable.")
 	void SetRayTracingShaderBindingsForMissShader(FRHICommandList& RHICmdList, FRHIRayTracingScene* Scene, FRayTracingPipelineState* Pipeline, uint32 ShaderIndexInPipeline, uint32 ShaderSlot) const;
-	void SetRayTracingShaderBindingsForMissShader(FRHICommandList& RHICmdList, FRHIShaderBindingTable* SBT, FRHIRayTracingScene* Scene, FRayTracingPipelineState* Pipeline, uint32 ShaderIndexInPipeline, uint32 ShaderSlot) const;
+	void SetRayTracingShaderBindingsForMissShader(FRHICommandList& RHICmdList, FRHIShaderBindingTable* SBT, uint32 RecordIndex, FRayTracingPipelineState* Pipeline, uint32 ShaderIndexInPipeline) const;
 #endif // RHI_RAYTRACING
 
 	/** Returns whether this set of shader bindings can be merged into an instanced draw call with another. */
@@ -2390,6 +2392,17 @@ public:
 		const TUniformBufferRef<FViewUniformShaderParameters>& ViewUniformBuffer,
 		FRHIUniformBuffer* SceneUniformBuffer,
 		FRHIUniformBuffer* NaniteUniformBuffer,
+		uint32 RecordIndex,
+		const FRHIRayTracingGeometry* RayTracingGeometry,
+		uint32 SegmentIndex,
+		uint32 HitGroupIndexInPipeline) const;
+
+	UE_DEPRECATED(5.5, "Provide RayTracingGeometry and GlobalSegmentIndex instead of InstanceIndex")
+	RENDERER_API void SetRayTracingShaderBindingsForHitGroup(
+		FRayTracingLocalShaderBindingWriter* BindingWriter,
+		const TUniformBufferRef<FViewUniformShaderParameters>& ViewUniformBuffer,
+		FRHIUniformBuffer* SceneUniformBuffer,
+		FRHIUniformBuffer* NaniteUniformBuffer,
 		uint32 InstanceIndex,
 		uint32 SegmentIndex,
 		uint32 HitGroupIndexInPipeline,
@@ -2411,17 +2424,43 @@ private:
 class FVisibleRayTracingMeshCommand
 {
 public:
+	FVisibleRayTracingMeshCommand(const FRayTracingMeshCommand* InRayTracingMeshCommand, const FRHIRayTracingGeometry* InRayTracingGeometry, uint32 InGlobalSegmentIndex, bool bInHidden = false)
+		: RayTracingMeshCommand(InRayTracingMeshCommand)
+		, RayTracingGeometry(InRayTracingGeometry)
+		, GlobalSegmentIndex(InGlobalSegmentIndex)
+		, InstanceIndex(INDEX_NONE)
+		, bHidden(bInHidden)
+	{
+		check(RayTracingGeometry != nullptr);
+		check(GlobalSegmentIndex != INDEX_NONE);
+	}
+
+	UE_DEPRECATED(5.5, "Provide RayTracingGeometry and GlobalSegmentIndex instead of InstanceIndex")
 	FVisibleRayTracingMeshCommand(const FRayTracingMeshCommand* InRayTracingMeshCommand, uint32 InInstanceIndex, bool bInHidden = false)
 		: RayTracingMeshCommand(InRayTracingMeshCommand)
+		, RayTracingGeometry(nullptr)
+		, GlobalSegmentIndex(INDEX_NONE)
 		, InstanceIndex(InInstanceIndex)
 		, bHidden(bInHidden)
 	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		check(InstanceIndex != INDEX_NONE);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	const FRayTracingMeshCommand* RayTracingMeshCommand;
+	const FRHIRayTracingGeometry* RayTracingGeometry;
+	uint32 GlobalSegmentIndex;
+	UE_DEPRECATED(5.5, "Provide RayTracingGeometry and GlobalSegmentIndex instead of InstanceIndex")
 	uint32 InstanceIndex;
 	bool bHidden;
+	
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FVisibleRayTracingMeshCommand(const FVisibleRayTracingMeshCommand&) = default;
+	FVisibleRayTracingMeshCommand& operator=(const FVisibleRayTracingMeshCommand&) = default;
+	FVisibleRayTracingMeshCommand(FVisibleRayTracingMeshCommand&&) = default;
+	FVisibleRayTracingMeshCommand& operator=(FVisibleRayTracingMeshCommand&&) = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 template <>
@@ -2477,13 +2516,36 @@ public:
 	(
 		FDynamicRayTracingMeshCommandStorage& InDynamicCommandStorage,
 		FRayTracingMeshCommandOneFrameArray& InVisibleCommands,
+		const FRHIRayTracingGeometry* InRayTracingGeometry,
+		uint32 InGeometrySegmentIndex,
+		uint32 InGlobalSegmentIndex,
+		uint32 InDecalGlobalSegmentIndex = INDEX_NONE
+	) :
+		DynamicCommandStorage(InDynamicCommandStorage),
+		VisibleCommands(InVisibleCommands),
+		RayTracingGeometry(InRayTracingGeometry),
+		GeometrySegmentIndex(InGeometrySegmentIndex),
+		GlobalSegmentIndex(InGlobalSegmentIndex),
+		DecalGlobalSegmentIndex(InDecalGlobalSegmentIndex),
+		RayTracingInstanceIndex(INDEX_NONE),
+		RayTracingDecalInstanceIndex(INDEX_NONE)
+	{}
+
+	UE_DEPRECATED(5.5, "Provide RayTracingGeometry and GlobalGeometrySegmentIndex and DecalGlobalGeometrySegmentIndex instead")
+	FDynamicRayTracingMeshCommandContext
+	(
+		FDynamicRayTracingMeshCommandStorage& InDynamicCommandStorage,
+		FRayTracingMeshCommandOneFrameArray& InVisibleCommands,
 		uint32 InGeometrySegmentIndex,
 		uint32 InRayTracingInstanceIndex,
 		uint32 InRayTracingDecalInstanceIndex = INDEX_NONE
 	) :
 		DynamicCommandStorage(InDynamicCommandStorage),
 		VisibleCommands(InVisibleCommands),
+		RayTracingGeometry(nullptr),
 		GeometrySegmentIndex(InGeometrySegmentIndex),
+		GlobalSegmentIndex(INDEX_NONE),
+		DecalGlobalSegmentIndex(INDEX_NONE),
 		RayTracingInstanceIndex(InRayTracingInstanceIndex),
 		RayTracingDecalInstanceIndex(InRayTracingDecalInstanceIndex)
 	{}
@@ -2498,6 +2560,21 @@ public:
 
 	virtual void FinalizeCommand(FRayTracingMeshCommand& RayTracingMeshCommand) override final
 	{
+		if (GlobalSegmentIndex != INDEX_NONE)
+		{
+			const bool bHidden = RayTracingMeshCommand.bDecal;
+			FVisibleRayTracingMeshCommand NewVisibleMeshCommand(&RayTracingMeshCommand, RayTracingGeometry, GlobalSegmentIndex + GeometrySegmentIndex, bHidden);
+			VisibleCommands.Add(NewVisibleMeshCommand);
+		}
+
+		if (DecalGlobalSegmentIndex != INDEX_NONE)
+		{
+			const bool bHidden = !RayTracingMeshCommand.bDecal;
+			FVisibleRayTracingMeshCommand NewVisibleMeshCommand(&RayTracingMeshCommand, RayTracingGeometry, DecalGlobalSegmentIndex + GeometrySegmentIndex, bHidden);
+			VisibleCommands.Add(NewVisibleMeshCommand);
+		}
+
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if(RayTracingInstanceIndex != INDEX_NONE)
 		{
 			const bool bHidden = RayTracingMeshCommand.bDecal;
@@ -2511,13 +2588,21 @@ public:
 			FVisibleRayTracingMeshCommand NewVisibleMeshCommand(&RayTracingMeshCommand, RayTracingDecalInstanceIndex, bHidden);
 			VisibleCommands.Add(NewVisibleMeshCommand);
 		}
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 private:
 	FDynamicRayTracingMeshCommandStorage& DynamicCommandStorage;
 	FRayTracingMeshCommandOneFrameArray& VisibleCommands;
+
+	const FRHIRayTracingGeometry* RayTracingGeometry;
 	uint32 GeometrySegmentIndex;
+	uint32 GlobalSegmentIndex;
+	uint32 DecalGlobalSegmentIndex;
+
+	UE_DEPRECATED(5.5, "Provide RayTracingGeometry and GlobalSegmentIndex instead of RayTracingInstanceIndex")
 	uint32 RayTracingInstanceIndex;
+	UE_DEPRECATED(5.5, "Provide RayTracingGeometry and DecalGlobalGeometrySegmentIndex instead of RayTracingDecalInstanceIndex")
 	uint32 RayTracingDecalInstanceIndex;
 };
 

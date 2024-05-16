@@ -11,6 +11,7 @@
 #include "PathTracingLightParameters.inl"
 #include "ClearQuad.h"
 #include "RayTracing/RayTracingMaterialHitShaders.h"
+#include "RayTracing/RayTracing.h"
 #include "Async/ParallelFor.h"
 #include "Async/Async.h"
 #include "LightmapPreviewVirtualTexture.h"
@@ -649,6 +650,7 @@ void FCachedRayTracingSceneData::SetupFromSceneRenderState(FSceneRenderState& Sc
 #if RHI_RAYTRACING
 	RayTracingGeometryInstancesPerLOD.AddDefaulted(MAX_STATIC_MESH_LODS);
 	VisibleRayTracingMeshCommandsPerLOD.AddDefaulted(MAX_STATIC_MESH_LODS);
+	RayTracingNumSegmentsPerLOD.AddDefaulted(MAX_STATIC_MESH_LODS);
 
 	FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions();
 
@@ -698,11 +700,15 @@ void FCachedRayTracingSceneData::SetupFromSceneRenderState(FSceneRenderState& Sc
 
 			if (!RayTracingMaskAndStatus.bAllSegmentsUnlit)
 			{
+				const uint32 GlobalSegmentIndex = RayTracingNumSegmentsPerLOD[LODIndex];
+				RayTracingNumSegmentsPerLOD[LODIndex] += MeshBatches.Num();
+
 				int32 InstanceIndex = RayTracingGeometryInstancesPerLOD[LODIndex].AddDefaulted(1);
 				FRayTracingGeometryInstance& RayTracingInstance = RayTracingGeometryInstancesPerLOD[LODIndex][InstanceIndex];
 				RayTracingInstance.GeometryRHI = Instance.RenderData->LODResources[LODIndexToUse].RayTracingGeometry.GetRHI();
 				RayTracingInstance.Transforms = MakeArrayView(&Instance.LocalToWorld, 1);
 				RayTracingInstance.NumTransforms = 1;
+				RayTracingInstance.InstanceContributionToHitGroupIndex = RayTracing::CalculateInstanceContributionToHitGroupIndex(GlobalSegmentIndex);
 				RayTracingInstance.DefaultUserData = (uint32)StaticMeshIndex;
 				RayTracingInstance.Mask = RayTracingMaskAndStatus.InstanceMask;
 				if (RayTracingMaskAndStatus.bAllSegmentsOpaque)
@@ -710,9 +716,11 @@ void FCachedRayTracingSceneData::SetupFromSceneRenderState(FSceneRenderState& Sc
 					RayTracingInstance.Flags |= ERayTracingInstanceFlags::ForceOpaque;
 				}
 
+				ensure(RayTracingInstance.GeometryRHI->GetNumSegments() == MeshBatches.Num());
+
 				for (int32 SegmentIndex = 0; SegmentIndex < MeshBatches.Num(); SegmentIndex++)
 				{
-					FFullyCachedRayTracingMeshCommandContext CommandContext(MeshCommandStorage, VisibleRayTracingMeshCommandsPerLOD[LODIndex], SegmentIndex, InstanceIndex);
+					FFullyCachedRayTracingMeshCommandContext CommandContext(MeshCommandStorage, VisibleRayTracingMeshCommandsPerLOD[LODIndex], RayTracingInstance.GeometryRHI, SegmentIndex, GlobalSegmentIndex);
 					FLightmapRayTracingMeshProcessor RayTracingMeshProcessor(&CommandContext);
 
 					RayTracingMeshProcessor.AddMeshBatch(MeshBatches[SegmentIndex], 1, nullptr);
@@ -735,6 +743,9 @@ void FCachedRayTracingSceneData::SetupFromSceneRenderState(FSceneRenderState& Sc
 
 			if (!RayTracingMaskAndStatus.bAllSegmentsUnlit)
 			{
+				const uint32 GlobalSegmentIndex = RayTracingNumSegmentsPerLOD[LODIndex];
+				RayTracingNumSegmentsPerLOD[LODIndex] += MeshBatches.Num();
+
 				int32 InstanceIndex = RayTracingGeometryInstancesPerLOD[LODIndex].AddDefaulted(1);
 				FRayTracingGeometryInstance& RayTracingInstance = RayTracingGeometryInstancesPerLOD[LODIndex][InstanceIndex];
 				RayTracingInstance.GeometryRHI = InstanceGroup.ComponentUObject->GetStaticMesh()->GetRenderData()->LODResources[LODIndexToUse].RayTracingGeometry.GetRHI();
@@ -752,6 +763,8 @@ void FCachedRayTracingSceneData::SetupFromSceneRenderState(FSceneRenderState& Sc
 				RayTracingInstance.Transforms = NewTransforms;
 				RayTracingInstance.NumTransforms = NumInstances;
 
+				RayTracingInstance.InstanceContributionToHitGroupIndex = RayTracing::CalculateInstanceContributionToHitGroupIndex(GlobalSegmentIndex);
+
 				RayTracingInstance.DefaultUserData = (uint32)(Scene.StaticMeshInstanceRenderStates.Elements.Num() + InstanceGroupIndex);
 				RayTracingInstance.Mask = RayTracingMaskAndStatus.InstanceMask;
 
@@ -760,9 +773,11 @@ void FCachedRayTracingSceneData::SetupFromSceneRenderState(FSceneRenderState& Sc
 					RayTracingInstance.Flags |= ERayTracingInstanceFlags::ForceOpaque;
 				}
 
+				ensure(RayTracingInstance.GeometryRHI->GetNumSegments() == MeshBatches.Num());
+
 				for (int32 SegmentIndex = 0; SegmentIndex < MeshBatches.Num(); SegmentIndex++)
 				{
-					FFullyCachedRayTracingMeshCommandContext CommandContext(MeshCommandStorage, VisibleRayTracingMeshCommandsPerLOD[LODIndex], SegmentIndex, InstanceIndex);
+					FFullyCachedRayTracingMeshCommandContext CommandContext(MeshCommandStorage, VisibleRayTracingMeshCommandsPerLOD[LODIndex], RayTracingInstance.GeometryRHI, SegmentIndex, GlobalSegmentIndex);
 					FLightmapRayTracingMeshProcessor RayTracingMeshProcessor(&CommandContext);
 
 					RayTracingMeshProcessor.AddMeshBatch(MeshBatches[SegmentIndex], 1, nullptr);
@@ -939,6 +954,8 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 			RayTracingGeometryInstances.Append(CachedRayTracingScene->RayTracingGeometryInstancesPerLOD[LODIndex]);
 		}
 		
+		uint32 RayTracingNumSegments = LODIndex != INDEX_NONE ? CachedRayTracingScene->RayTracingNumSegmentsPerLOD[LODIndex] : 0;
+		
 		int32 LandscapeStartOffset = RayTracingGeometryInstances.Num();
 		for (FLandscapeRenderState& Landscape : LandscapeRenderStates.Elements)
 		{
@@ -1057,13 +1074,18 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 							Landscape.SectionRayTracingStates[SubSectionIdx]->RayTracingDynamicVertexBuffer.Release();
 						}
 
+						TArray<FMeshBatch> MeshBatches = Landscape.GetMeshBatchesForGBufferRendering(0);
+						ensure(MeshBatches.Num() == 1);
+
+						const uint32 GlobalSegmentIndex = RayTracingNumSegments;
+						RayTracingNumSegments += MeshBatches.Num();
+
 						FRayTracingGeometryInstance& RayTracingInstance = RayTracingGeometryInstances[InstanceIndex];
 						RayTracingInstance.GeometryRHI = Landscape.SectionRayTracingStates[SubSectionIdx]->Geometry.GetRHI();
 						RayTracingInstance.Transforms = MakeArrayView(LandscapeTransforms.Emplace_GetRef(MakeUnique<FMatrix>(Landscape.LocalToWorld)).Get(), 1);
 						RayTracingInstance.NumTransforms = 1;
+						RayTracingInstance.InstanceContributionToHitGroupIndex = RayTracing::CalculateInstanceContributionToHitGroupIndex(GlobalSegmentIndex);
 						RayTracingInstance.DefaultUserData = (uint32)(StaticMeshInstanceRenderStates.Elements.Num() + InstanceGroupRenderStates.Elements.Num() + LandscapeIndex);
-
-						TArray<FMeshBatch> MeshBatches = Landscape.GetMeshBatchesForGBufferRendering(0);
 
 						FLandscapeBatchElementParams& BatchElementParams = *(FLandscapeBatchElementParams*)MeshBatches[0].Elements[0].UserData;
 						BatchElementParams.LandscapeVertexFactoryMVFUniformBuffer = Landscape.SectionRayTracingStates[SubSectionIdx]->UniformBuffer;
@@ -1076,7 +1098,7 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 
 						for (int32 SegmentIndex = 0; SegmentIndex < MeshBatches.Num(); SegmentIndex++)
 						{
-							FDynamicRayTracingMeshCommandContext CommandContext(DynamicRayTracingMeshCommandStorage, VisibleRayTracingMeshCommands, SegmentIndex, InstanceIndex);
+							FDynamicRayTracingMeshCommandContext CommandContext(DynamicRayTracingMeshCommandStorage, VisibleRayTracingMeshCommands, RayTracingInstance.GeometryRHI, SegmentIndex, GlobalSegmentIndex);
 							FLightmapRayTracingMeshProcessor RayTracingMeshProcessor(&CommandContext);
 
 							RayTracingMeshProcessor.AddMeshBatch(MeshBatches[SegmentIndex], 1, nullptr);
@@ -1161,7 +1183,6 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 				FVector4f* TransformUploadData = (FVector4f*)RHICmdList.LockBuffer(TransformUploadBuffer, 0, TransformUploadBufferSize, RLM_WriteOnly);
 				FillRayTracingInstanceUploadBuffer(
 					RayTracingScene,
-					RAY_TRACING_NUM_SHADER_SLOTS,
 					View.ViewMatrices.GetPreViewTranslation(),
 					RayTracingGeometryInstances,
 					SceneWithGeometryInstances.InstanceGeometryIndices,
@@ -1299,19 +1320,19 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 							View.ViewUniformBuffer,
 							SceneUniforms.GetBufferRHI(GraphBuilder),
 							nullptr,
-							VisibleMeshCommand.InstanceIndex,
+							RayTracing::CalculateHitGroupIndex(VisibleMeshCommand.GlobalSegmentIndex, RAY_TRACING_SHADER_SLOT_MATERIAL),
+							VisibleMeshCommand.RayTracingGeometry,
 							MeshCommand.GeometrySegmentIndex,
-							MaterialShaderIndex,
-							RAY_TRACING_SHADER_SLOT_MATERIAL);
+							MaterialShaderIndex);
 
 						MeshCommand.SetRayTracingShaderBindingsForHitGroup(BindingWriter.Get(),
 							View.ViewUniformBuffer,
 							SceneUniforms.GetBufferRHI(GraphBuilder),
 							nullptr,
-							VisibleMeshCommand.InstanceIndex,
+							RayTracing::CalculateHitGroupIndex(VisibleMeshCommand.GlobalSegmentIndex, RAY_TRACING_SHADER_SLOT_SHADOW),
+							VisibleMeshCommand.RayTracingGeometry,
 							MeshCommand.GeometrySegmentIndex,
-							MaterialShaderIndex,
-							RAY_TRACING_SHADER_SLOT_SHADOW);
+							MaterialShaderIndex);
 					}
 				}
 
@@ -1325,19 +1346,19 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 						View.ViewUniformBuffer,
 						SceneUniforms.GetBufferRHI(GraphBuilder),
 						nullptr,
-						VisibleMeshCommand.InstanceIndex,
+						RayTracing::CalculateHitGroupIndex(VisibleMeshCommand.GlobalSegmentIndex, RAY_TRACING_SHADER_SLOT_MATERIAL),
+						VisibleMeshCommand.RayTracingGeometry,
 						MeshCommand.GeometrySegmentIndex,
-						MaterialShaderIndex,
-						RAY_TRACING_SHADER_SLOT_MATERIAL);
+						MaterialShaderIndex);
 
 					MeshCommand.SetRayTracingShaderBindingsForHitGroup(BindingWriter.Get(),
 						View.ViewUniformBuffer,
 						SceneUniforms.GetBufferRHI(GraphBuilder),
 						nullptr,
-						VisibleMeshCommand.InstanceIndex,
+						RayTracing::CalculateHitGroupIndex(VisibleMeshCommand.GlobalSegmentIndex, RAY_TRACING_SHADER_SLOT_SHADOW),
+						VisibleMeshCommand.RayTracingGeometry,
 						MeshCommand.GeometrySegmentIndex,
-						MaterialShaderIndex,
-						RAY_TRACING_SHADER_SLOT_SHADOW);
+						MaterialShaderIndex);
 				}
 
 				{
@@ -1369,14 +1390,13 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 					const bool bCopyDataToInlineStorage = false; // Storage is already allocated from RHICmdList, no extra copy necessary
 					RHICmdList.SetRayTracingHitGroups(
 						SBT,
-						RayTracingScene,
 						RayTracingPipelineState,
 						NumTotalBindings, MergedBindings,
 						bCopyDataToInlineStorage);
 				}
 
 				// there is only one miss shader, so it must be at index 0 by definition
-				RHICmdList.SetRayTracingMissShader(SBT, RayTracingScene, 0, RayTracingPipelineState, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+				RHICmdList.SetRayTracingMissShader(SBT, 0, RayTracingPipelineState, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
 				RHICmdList.CommitShaderBindingTable(SBT);
 
 				// Move the ray tracing binding container ownership to the command list, so that memory will be

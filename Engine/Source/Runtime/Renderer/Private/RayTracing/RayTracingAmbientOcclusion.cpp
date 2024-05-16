@@ -217,7 +217,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingAmbientOcclusion(
 
 			SBT = RHICreateShaderBindingTable(SBTInitializer);
 
-			RHICmdList.SetRayTracingMissShader(SBT, View.GetRayTracingSceneChecked(), 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+			RHICmdList.SetRayTracingMissShader(SBT, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
 			RHICmdList.CommitShaderBindingTable(SBT);
 		}
 

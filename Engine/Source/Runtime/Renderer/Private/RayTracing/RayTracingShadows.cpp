@@ -562,7 +562,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingShadows(
 
 						FShaderBindingTableRHIRef SBT = RHICreateShaderBindingTable(SBTInitializer);
 
-						RHICmdList.SetRayTracingMissShader(SBT, RayTracingSceneRHI, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+						RHICmdList.SetRayTracingMissShader(SBT, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
 						RHICmdList.CommitShaderBindingTable(SBT);
 						RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, SBT, GlobalResources, Resolution.X, Resolution.Y);
 					}

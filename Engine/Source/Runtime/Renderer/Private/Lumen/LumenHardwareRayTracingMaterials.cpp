@@ -9,6 +9,7 @@
 #include "ShaderParameterStruct.h"
 #include "RayTracing/RayTracingScene.h"
 #include "RayTracing/RayTracingMaterialHitShaders.h"
+#include "RayTracing/RayTracing.h"
 #include "RenderGraphUtils.h"
 #include "DeferredShadingRenderer.h"
 #include "PipelineStateCache.h"
@@ -157,10 +158,7 @@ void FDeferredShadingSceneRenderer::SetupLumenHardwareRayTracingHitGroupBuffer(F
 						const FVisibleRayTracingMeshCommand VisibleMeshCommand = MeshCommands[CommandIndex];
 						const FRayTracingMeshCommand& MeshCommand = *VisibleMeshCommand.RayTracingMeshCommand;
 
-						const uint32 InstanceIndex = VisibleMeshCommand.InstanceIndex;
-						const uint32 SegmentIndex = MeshCommand.GeometrySegmentIndex;
-
-						const uint32 HitGroupIndex = SceneInitializer.SegmentPrefixSum[InstanceIndex] + SegmentIndex;
+						const uint32 HitGroupIndex = VisibleMeshCommand.GlobalSegmentIndex;
 
 						HitGroupData[HitGroupIndex].UserData = CalculateLumenHardwareRayTracingUserData(MeshCommand);
 					}
@@ -331,14 +329,14 @@ void FDeferredShadingSceneRenderer::CreateLumenHardwareRayTracingMaterialPipelin
 							const FVisibleRayTracingMeshCommand VisibleMeshCommand = MeshCommands[CommandIndex];
 							const FRayTracingMeshCommand& MeshCommand = *VisibleMeshCommand.RayTracingMeshCommand;
 
-							for (uint32 HitGroupIndex = 0; HitGroupIndex < LumenHardwareRayTracing::NumHitGroups; ++HitGroupIndex)
+							for (uint32 SlotIndex = 0; SlotIndex < LumenHardwareRayTracing::NumHitGroups; ++SlotIndex)
 							{
-								const FBinding& LumenBinding = MeshCommand.IsUsingNaniteRayTracing() ? ShaderBindingsNaniteRT[HitGroupIndex] : ShaderBindings[HitGroupIndex];
+								const FBinding& LumenBinding = MeshCommand.IsUsingNaniteRayTracing() ? ShaderBindingsNaniteRT[SlotIndex] : ShaderBindings[SlotIndex];
 
 								FRayTracingLocalShaderBindings& Binding = BindingWriter->AddWithExternalParameters();
-								Binding.ShaderSlot = HitGroupIndex;
 								Binding.ShaderIndexInPipeline = LumenBinding.ShaderIndexInPipeline;
-								Binding.InstanceIndex = VisibleMeshCommand.InstanceIndex;
+								Binding.RecordIndex = RayTracing::CalculateHitGroupIndex(VisibleMeshCommand.GlobalSegmentIndex, SlotIndex);
+								Binding.Geometry = VisibleMeshCommand.RayTracingGeometry;
 								Binding.SegmentIndex = MeshCommand.GeometrySegmentIndex;
 								Binding.UserData = CalculateLumenHardwareRayTracingUserData(MeshCommand);
 								Binding.UniformBuffers = LumenBinding.UniformBufferArray;

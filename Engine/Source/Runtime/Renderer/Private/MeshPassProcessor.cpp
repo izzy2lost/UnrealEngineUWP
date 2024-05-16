@@ -306,12 +306,7 @@ void FMeshDrawShaderBindings::SetShaderBindings(
 
 #if RHI_RAYTRACING
 
-FRayTracingLocalShaderBindings* FMeshDrawShaderBindings::SetRayTracingShaderBindingsForHitGroup(
-	FRayTracingLocalShaderBindingWriter* BindingWriter,
-	uint32 InstanceIndex, 
-	uint32 SegmentIndex,
-	uint32 HitGroupIndexInPipeline,
-	uint32 ShaderSlot) const
+FRayTracingLocalShaderBindings* FMeshDrawShaderBindings::SetRayTracingShaderBindings(FRayTracingLocalShaderBindingWriter* BindingWriter, uint32 ShaderIndexInPipeline, uint32 RecordIndex, uint32 UserData) const
 {
 	check(ShaderLayouts.Num() == 1);
 
@@ -361,15 +356,10 @@ FRayTracingLocalShaderBindings* FMeshDrawShaderBindings::SetRayTracingShaderBind
 
 	// Allocate and fill bindings
 
-	const uint32 UserData = 0; // UserData could be used to store material ID or any other kind of per-material constant. This can be retrieved in hit shaders via GetHitGroupUserData().
-
 	FRayTracingLocalShaderBindings& Bindings = BindingWriter->AddWithInlineParameters(NumUniformBuffersToSet, LooseParameterDataSize);
-
-	Bindings.InstanceIndex = InstanceIndex;
-	Bindings.SegmentIndex = SegmentIndex;
-	Bindings.ShaderSlot = ShaderSlot;
-	Bindings.ShaderIndexInPipeline = HitGroupIndexInPipeline;
-	Bindings.UserData = UserData;
+	Bindings.RecordIndex = RecordIndex;
+	Bindings.ShaderIndexInPipeline = ShaderIndexInPipeline;
+	Bindings.UserData = UserData; // UserData could be used to store material ID or any other kind of per-material constant. This can be retrieved in hit shaders via GetHitGroupUserData().
 
 	for (int32 UniformBufferIndex = 0; UniformBufferIndex < NumUniformBufferParameters; UniformBufferIndex++)
 	{
@@ -393,10 +383,35 @@ FRayTracingLocalShaderBindings* FMeshDrawShaderBindings::SetRayTracingShaderBind
 	return &Bindings;
 }
 
-FRayTracingLocalShaderBindings* FMeshDrawShaderBindings::SetRayTracingShaderBindings(FRayTracingLocalShaderBindingWriter* BindingWriter, uint32 ShaderIndexInPipeline, uint32 ShaderSlot) const
+FRayTracingLocalShaderBindings* FMeshDrawShaderBindings::SetRayTracingShaderBindingsForHitGroup(
+	FRayTracingLocalShaderBindingWriter* BindingWriter,
+	uint32 InstanceIndex, 
+	uint32 SegmentIndex,
+	uint32 HitGroupIndexInPipeline,
+	uint32 ShaderSlot) const
 {
-	check(ShaderLayouts.Num() == 1);
-	return SetRayTracingShaderBindingsForHitGroup(BindingWriter, 0, 0, ShaderIndexInPipeline, ShaderSlot);
+	FRayTracingLocalShaderBindings* Bindings = SetRayTracingShaderBindings(BindingWriter, HitGroupIndexInPipeline, INDEX_NONE);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	Bindings->InstanceIndex = InstanceIndex;
+	Bindings->ShaderSlot = ShaderSlot;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	Bindings->SegmentIndex = SegmentIndex;
+
+	return Bindings;
+}
+
+FRayTracingLocalShaderBindings* FMeshDrawShaderBindings::SetRayTracingShaderBindingsForHitGroup(
+	FRayTracingLocalShaderBindingWriter* BindingWriter,
+	uint32 RecordIndex,
+	const FRHIRayTracingGeometry* Geometry,
+	uint32 GeometrySegmentIndex,
+	uint32 HitGroupIndexInPipeline) const
+{
+	FRayTracingLocalShaderBindings* Bindings = SetRayTracingShaderBindings(BindingWriter, HitGroupIndexInPipeline, RecordIndex);
+	Bindings->Geometry = Geometry;
+	Bindings->SegmentIndex = GeometrySegmentIndex;
+
+	return Bindings;
 }
 
 void FMeshDrawShaderBindings::SetRayTracingShaderBindingsForMissShader(
@@ -451,11 +466,8 @@ void FMeshDrawShaderBindings::SetRayTracingShaderBindingsForMissShader(
 
 void FMeshDrawShaderBindings::SetRayTracingShaderBindingsForMissShader(
 	FRHICommandList& RHICmdList,
-	FRHIShaderBindingTable* SBT,
-	FRHIRayTracingScene* Scene,
-	FRayTracingPipelineState* PipelineState,
-	uint32 ShaderIndexInPipeline,
-	uint32 ShaderSlot) const
+	FRHIShaderBindingTable* SBT, uint32 RecordIndex,
+	FRayTracingPipelineState* PipelineState, uint32 ShaderIndexInPipeline) const
 {
 	check(ShaderLayouts.Num() == 1);
 
@@ -493,7 +505,9 @@ void FMeshDrawShaderBindings::SetRayTracingShaderBindingsForMissShader(
 
 	uint32 NumUniformBuffersToSet = MaxUniformBufferUsed + 1;
 	const uint32 UserData = 0; // UserData could be used to store material ID or any other kind of per-material constant. This can be retrieved in hit shaders via GetHitGroupUserData().
-	RHICmdList.SetRayTracingMissShader(SBT, Scene, ShaderSlot, PipelineState, ShaderIndexInPipeline,
+	RHICmdList.SetRayTracingMissShader(
+		SBT, RecordIndex,
+		PipelineState, ShaderIndexInPipeline,
 		NumUniformBuffersToSet, BindingState.UniformBuffers,
 		UserData);
 }
@@ -1016,13 +1030,45 @@ void FRayTracingMeshCommand::SetRayTracingShaderBindingsForHitGroup(
 	const TUniformBufferRef<FViewUniformShaderParameters>& ViewUniformBuffer,
 	FRHIUniformBuffer* SceneUniformBuffer,
 	FRHIUniformBuffer* NaniteUniformBuffer,
+	uint32 RecordIndex,
+	const FRHIRayTracingGeometry* RayTracingGeometry,
+	uint32 SegmentIndex,
+	uint32 HitGroupIndexInPipeline) const
+{
+	FRayTracingLocalShaderBindings* Bindings = ShaderBindings.SetRayTracingShaderBindingsForHitGroup(BindingWriter, RecordIndex, RayTracingGeometry, SegmentIndex, HitGroupIndexInPipeline);
+
+	if (ViewUniformBufferParameter.IsBound())
+	{
+		check(ViewUniformBuffer);
+		Bindings->UniformBuffers[ViewUniformBufferParameter.GetBaseIndex()] = ViewUniformBuffer;
+	}
+
+	if (SceneUniformBufferParameter.IsBound())
+	{
+		check(SceneUniformBuffer);
+		Bindings->UniformBuffers[SceneUniformBufferParameter.GetBaseIndex()] = SceneUniformBuffer;
+	}
+
+	if (NaniteUniformBufferParameter.IsBound())
+	{
+		check(NaniteUniformBuffer);
+		Bindings->UniformBuffers[NaniteUniformBufferParameter.GetBaseIndex()] = NaniteUniformBuffer;
+	}
+}
+
+void FRayTracingMeshCommand::SetRayTracingShaderBindingsForHitGroup(
+	FRayTracingLocalShaderBindingWriter* BindingWriter,
+	const TUniformBufferRef<FViewUniformShaderParameters>& ViewUniformBuffer,
+	FRHIUniformBuffer* SceneUniformBuffer,
+	FRHIUniformBuffer* NaniteUniformBuffer,
 	uint32 InstanceIndex,
 	uint32 SegmentIndex,
 	uint32 HitGroupIndexInPipeline,
 	uint32 ShaderSlot) const
 {
-
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FRayTracingLocalShaderBindings* Bindings = ShaderBindings.SetRayTracingShaderBindingsForHitGroup(BindingWriter, InstanceIndex, SegmentIndex, HitGroupIndexInPipeline, ShaderSlot);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	if (ViewUniformBufferParameter.IsBound())
 	{

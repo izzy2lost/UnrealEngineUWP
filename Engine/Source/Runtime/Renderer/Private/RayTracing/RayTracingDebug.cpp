@@ -623,6 +623,8 @@ void BindRayTracingDebugHitStatsCHSMaterialBindings(FRHICommandList& RHICmdList,
 	FRayTracingDebugHitStatsCHS::FPermutationDomain PermutationVector;
 
 	FBinding ShaderBinding = SetupBinding(PermutationVector);
+	
+	const uint32 NumShaderSlotsPerGeometrySegment = SBT->GetInitializer().NumShaderSlotsPerGeometrySegment;
 
 	uint32 BindingIndex = 0;
 	for (const FVisibleRayTracingMeshCommand VisibleMeshCommand : View.VisibleRayTracingMeshCommands)
@@ -633,7 +635,8 @@ void BindRayTracingDebugHitStatsCHSMaterialBindings(FRHICommandList& RHICmdList,
 
 		FRayTracingLocalShaderBindings Binding = {};
 		Binding.ShaderIndexInPipeline = HelperBinding.ShaderIndexInPipeline;
-		Binding.InstanceIndex = VisibleMeshCommand.InstanceIndex;
+		Binding.RecordIndex = VisibleMeshCommand.GlobalSegmentIndex * NumShaderSlotsPerGeometrySegment;
+		Binding.Geometry = VisibleMeshCommand.RayTracingGeometry;
 		Binding.SegmentIndex = MeshCommand.GeometrySegmentIndex;
 		Binding.UniformBuffers = HelperBinding.UniformBufferArray;
 		Binding.NumUniformBuffers = HelperBinding.NumUniformBuffers;
@@ -645,7 +648,6 @@ void BindRayTracingDebugHitStatsCHSMaterialBindings(FRHICommandList& RHICmdList,
 	const bool bCopyDataToInlineStorage = false; // Storage is already allocated from RHICmdList, no extra copy necessary
 	RHICmdList.SetRayTracingHitGroups(
 		SBT,
-		View.GetRayTracingSceneChecked(),
 		PipelineState,
 		NumTotalBindings, Bindings,
 		bCopyDataToInlineStorage);
@@ -716,6 +718,8 @@ void BindRayTracingDebugCHSMaterialBindings(FRHICommandList& RHICmdList, FRHISha
 	PermutationVector.Set<FRayTracingDebugCHS::FNaniteRayTracing>(true);
 	FBinding ShaderBindingNaniteRT = SetupBinding(PermutationVector);
 
+	const uint32 NumShaderSlotsPerGeometrySegment = SBT->GetInitializer().NumShaderSlotsPerGeometrySegment;
+
 	uint32 BindingIndex = 0;
 	for (const FVisibleRayTracingMeshCommand VisibleMeshCommand : View.VisibleRayTracingMeshCommands)
 	{
@@ -725,7 +729,8 @@ void BindRayTracingDebugCHSMaterialBindings(FRHICommandList& RHICmdList, FRHISha
 
 		FRayTracingLocalShaderBindings Binding = {};
 		Binding.ShaderIndexInPipeline = HelperBinding.ShaderIndexInPipeline;
-		Binding.InstanceIndex = VisibleMeshCommand.InstanceIndex;
+		Binding.RecordIndex = VisibleMeshCommand.GlobalSegmentIndex * NumShaderSlotsPerGeometrySegment;
+		Binding.Geometry = VisibleMeshCommand.RayTracingGeometry;
 		Binding.SegmentIndex = MeshCommand.GeometrySegmentIndex;
 		Binding.UniformBuffers = HelperBinding.UniformBufferArray;
 		Binding.NumUniformBuffers = HelperBinding.NumUniformBuffers;
@@ -737,7 +742,6 @@ void BindRayTracingDebugCHSMaterialBindings(FRHICommandList& RHICmdList, FRHISha
 	const bool bCopyDataToInlineStorage = false; // Storage is already allocated from RHICmdList, no extra copy necessary
 	RHICmdList.SetRayTracingHitGroups(
 		SBT,
-		View.GetRayTracingSceneChecked(),
 		PipelineState,
 		NumTotalBindings, Bindings,
 		bCopyDataToInlineStorage);
@@ -846,7 +850,7 @@ static FRDGBufferRef RayTracingPerformPicking(FRDGBuilder& GraphBuilder, const F
 			SetShaderParameters(GlobalResources, RayGenShader, *RayGenParameters);
 
 			BindRayTracingDebugCHSMaterialBindings(RHICmdList, PickingSBT, View, RayGenParameters->SceneUniformBuffer->GetRHI(), PickingPipeline);
-			RHICmdList.SetRayTracingMissShader(PickingSBT, View.GetRayTracingSceneChecked(), 0, PickingPipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+			RHICmdList.SetRayTracingMissShader(PickingSBT, 0, PickingPipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
 			RHICmdList.CommitShaderBindingTable(PickingSBT);
 
 			RHICmdList.RayTraceDispatch(PickingPipeline, RayGenShader.GetRayTracingShader(), View.GetRayTracingSceneChecked(), PickingSBT, GlobalResources, 1, 1);
@@ -1102,7 +1106,7 @@ static FRDGBufferRef RayTracingPerformHitStatsPerPrimitive(FRDGBuilder& GraphBui
 			SetShaderParameters(GlobalResources, RayGenShader, *RayGenParameters);
 
 			BindRayTracingDebugHitStatsCHSMaterialBindings(RHICmdList, HitStatsSBT, View, RayGenParameters->SceneUniformBuffer->GetRHI(), DebugHitStatsUniformBuffer->GetRHI(), HitStatsPerPrimitivePipeline);
-			RHICmdList.SetRayTracingMissShader(HitStatsSBT, View.GetRayTracingSceneChecked(), 0, HitStatsPerPrimitivePipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+			RHICmdList.SetRayTracingMissShader(HitStatsSBT, 0, HitStatsPerPrimitivePipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
 			RHICmdList.CommitShaderBindingTable(HitStatsSBT);
 
 			RHICmdList.RayTraceDispatch(HitStatsPerPrimitivePipeline, RayGenShader.GetRayTracingShader(), View.GetRayTracingSceneChecked(), HitStatsSBT, GlobalResources, ViewRect.Size().X, ViewRect.Size().Y);
@@ -1589,7 +1593,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 		if (bRequiresBindings)
 		{
 			BindRayTracingDebugCHSMaterialBindings(RHICmdList, SBT, View, RayGenParameters->SceneUniformBuffer->GetRHI(), Pipeline);
-			RHICmdList.SetRayTracingMissShader(SBT, View.GetRayTracingSceneChecked(), 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
+			RHICmdList.SetRayTracingMissShader(SBT, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
 			RHICmdList.CommitShaderBindingTable(SBT);
 		}
 

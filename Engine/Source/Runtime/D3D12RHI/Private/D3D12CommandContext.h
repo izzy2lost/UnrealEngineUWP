@@ -746,7 +746,7 @@ public:
 		FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset) final override;
 
 	virtual void RHISetBindingsOnShaderBindingTable(
-		FRHIShaderBindingTable* InSBT, FRHIRayTracingScene* Scene, FRHIRayTracingPipelineState* Pipeline,
+		FRHIShaderBindingTable* InSBT, FRHIRayTracingPipelineState* Pipeline,
 		uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings, ERayTracingBindingType BindingType) final override;
 #endif // D3D12_RHI_RAYTRACING
 
@@ -1102,9 +1102,9 @@ public:
 		ContextRedirect(RHIRayTraceDispatchIndirect(RayTracingPipelineState, RayGenShader, Scene, SBT, GlobalResourceBindings, ArgumentBuffer, ArgumentOffset));
 	}
 
-	virtual void RHISetBindingsOnShaderBindingTable(FRHIShaderBindingTable* SBT, FRHIRayTracingScene* Scene, FRHIRayTracingPipelineState* Pipeline, uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings, ERayTracingBindingType BindingType) final override
+	virtual void RHISetBindingsOnShaderBindingTable(FRHIShaderBindingTable* SBT, FRHIRayTracingPipelineState* Pipeline, uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings, ERayTracingBindingType BindingType) final override
 	{
-		ContextRedirect(RHISetBindingsOnShaderBindingTable(SBT, Scene, Pipeline, NumBindings, Bindings, BindingType));
+		ContextRedirect(RHISetBindingsOnShaderBindingTable(SBT, Pipeline, NumBindings, Bindings, BindingType));
 	}
 
 	virtual void RHIClearRayTracingBindings(FRHIRayTracingScene* Scene) final override

@@ -132,8 +132,6 @@ public:
 
 	void UpdateResidency(FD3D12CommandContext& CommandContext) const;
 
-	uint32 GetSegmentIndex(uint32 InstanceIndex, uint32 SegmentIndex) const { return Initializer.SegmentPrefixSum[InstanceIndex] + SegmentIndex; }
-
 	// #dxr_todo UE-68230: shader tables should be explicitly registered and unregistered with the scene
 	FRHIShaderBindingTable* FindOrCreateShaderBindingTable(const FRHIRayTracingPipelineState* Pipeline) override;
 	FD3D12RayTracingShaderBindingTable* FindExistingShaderTable(const FD3D12RayTracingPipelineState* Pipeline) const;
