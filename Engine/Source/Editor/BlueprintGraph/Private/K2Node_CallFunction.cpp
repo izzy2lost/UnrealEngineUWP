@@ -938,7 +938,7 @@ void UK2Node_CallFunction::CreateExecPinsForFunctionCall(const UFunction* Functi
 								else
 								{
 									CreatedPin = CreatePin(Direction, UEdGraphSchema_K2::PC_Exec, *NameStr);
-									CreatedPin->PinFriendlyName = FText::FromString(FString::Printf(TEXT("(%s) %s"), *Prop->GetDisplayNameText().ToString(), *NameStr));
+									CreatedPin->PinFriendlyName = FText::AsCultureInvariant(FString::Printf(TEXT("(%s) %s"), *Prop->GetDisplayNameText().ToString(), *NameStr));
 								}
 
 								ExpandAsEnumPins.Add(CreatedPin);
@@ -1201,7 +1201,7 @@ bool UK2Node_CallFunction::CreatePinsForFunctionCall(const UFunction* Function)
 			const FString& PinDisplayName = Param->GetMetaData(FBlueprintMetadata::MD_DisplayName);
 			if (!PinDisplayName.IsEmpty())
 			{
-				Pin->PinFriendlyName = FText::FromString(PinDisplayName);
+				Pin->PinFriendlyName = FText::AsCultureInvariant(PinDisplayName);
 			}
 			else if (Function->GetReturnProperty() == Param && Function->HasMetaData(FBlueprintMetadata::MD_ReturnDisplayName))
 			{
