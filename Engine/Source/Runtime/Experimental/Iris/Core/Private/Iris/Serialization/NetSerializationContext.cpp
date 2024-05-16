@@ -24,6 +24,21 @@ bool FNetSerializationContext::IsBitStreamOverflown() const
 	return false;
 }
 
+void FNetSerializationContext::AddReadJournalEntry(const TCHAR* Name)
+{ 
+	ReadJournal.AddEntry(Name, BitStreamReader->GetPosBits(), ErrorContext.GetObjectHandle());
+}
+
+void FNetSerializationContext::AddReadJournalEntry(const FNetDebugName* DebugName)
+{
+	ReadJournal.AddEntry(DebugName->Name, BitStreamReader->GetPosBits(), ErrorContext.GetObjectHandle());
+}
+
+FString FNetSerializationContext::PrintReadJournal()
+{
+	return ReadJournal.Print(InternalContext ? InternalContext->ReplicationSystem : nullptr);
+}
+
 void FNetSerializationContext::SetBitStreamOverflow()
 {
 	if (BitStreamReader != nullptr && !BitStreamReader->IsOverflown())

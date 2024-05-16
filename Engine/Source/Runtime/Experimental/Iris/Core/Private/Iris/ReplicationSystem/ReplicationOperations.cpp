@@ -301,6 +301,7 @@ void FReplicationStateOperations::Deserialize(FNetSerializationContext& Context,
 	for (uint32 MemberIt = 0; MemberIt < MemberCount; ++MemberIt)
 	{
 		UE_NET_TRACE_DYNAMIC_NAME_SCOPE(MemberDebugDescriptors[MemberIt].DebugName, *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
+		UE_ADD_READ_JOURNAL_ENTRY(Context, MemberDebugDescriptors[MemberIt].DebugName);
 
 		const FReplicationStateMemberDescriptor& MemberDescriptor = MemberDescriptors[MemberIt];
 		const FReplicationStateMemberSerializerDescriptor& MemberSerializerDescriptor = MemberSerializerDescriptors[MemberIt];
@@ -351,6 +352,7 @@ void FReplicationStateOperations::DeserializeDelta(FNetSerializationContext& Con
 	for (uint32 MemberIt = 0; MemberIt < MemberCount; ++MemberIt)
 	{
 		UE_NET_TRACE_DYNAMIC_NAME_SCOPE(MemberDebugDescriptors[MemberIt].DebugName, *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
+		UE_ADD_READ_JOURNAL_ENTRY(Context, MemberDebugDescriptors[MemberIt].DebugName);
 
 		const FReplicationStateMemberDescriptor& MemberDescriptor = MemberDescriptors[MemberIt];
 		const FReplicationStateMemberSerializerDescriptor& MemberSerializerDescriptor = MemberSerializerDescriptors[MemberIt];
@@ -448,6 +450,8 @@ void FReplicationStateOperations::DeserializeWithMask(FNetSerializationContext& 
 			UE_NET_TRACE_DYNAMIC_NAME_SCOPE(MemberSerializerDescriptor.Serializer->Name, *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::VeryVerbose);
 #endif
 
+			UE_ADD_READ_JOURNAL_ENTRY(Context, MemberDebugDescriptors[MemberIt].DebugName);
+
 			FNetDeserializeArgs Args;
 			Args.NetSerializerConfig = MemberSerializerDescriptor.SerializerConfig;
 			Args.Target = reinterpret_cast<NetSerializerValuePointer>(DstInternalBuffer + MemberDescriptor.InternalMemberOffset);
@@ -540,6 +544,8 @@ void FReplicationStateOperations::DeserializeDeltaWithMask(FNetSerializationCont
 
 			UE_NET_TRACE_DYNAMIC_NAME_SCOPE(MemberDebugDescriptors[MemberIt].DebugName, *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
 #endif
+
+			UE_ADD_READ_JOURNAL_ENTRY(Context, MemberDebugDescriptors[MemberIt].DebugName);
 
 			FNetDeserializeDeltaArgs Args;
 			Args.NetSerializerConfig = MemberSerializerDescriptor.SerializerConfig;
@@ -856,6 +862,8 @@ void FReplicationProtocolOperations::Deserialize(FNetSerializationContext& Conte
 	{
 		const FReplicationStateDescriptor* CurrentDescriptor = ReplicationStateDescriptors[StateIt];
 
+		UE_ADD_READ_JOURNAL_ENTRY(Context, CurrentDescriptor->DebugName);
+
 		CurrentInternalStateBuffer = Align(CurrentInternalStateBuffer, CurrentDescriptor->InternalAlignment);
 		
 		FReplicationStateOperations::Deserialize(Context, CurrentInternalStateBuffer, CurrentDescriptor);
@@ -935,6 +943,7 @@ void FReplicationProtocolOperations::DeserializeWithMask(FNetSerializationContex
 	// Read the ChangeMask
 	{
 		UE_NET_TRACE_SCOPE(ChangeMasks, *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
+		UE_ADD_READ_JOURNAL_ENTRY(Context, TEXT("ChangeMask"));
 		ReadSparseBitArray(Context.GetBitStreamReader(), DstChangeMaskData, Protocol->ChangeMaskBitCount);
 	}
 
@@ -945,6 +954,8 @@ void FReplicationProtocolOperations::DeserializeWithMask(FNetSerializationContex
 		const FReplicationStateDescriptor* CurrentDescriptor = ReplicationStateDescriptors[StateIt];
 
 		CurrentInternalStateBuffer = Align(CurrentInternalStateBuffer, CurrentDescriptor->InternalAlignment);
+
+		UE_ADD_READ_JOURNAL_ENTRY(Context, CurrentDescriptor->DebugName);
 		
 		if (CurrentDescriptor->IsInitState())
 		{
@@ -1174,6 +1185,7 @@ void FReplicationProtocolOperations::DeserializeWithMaskDelta(FNetSerializationC
 	// Read the ChangeMask
 	{
 		UE_NET_TRACE_SCOPE(ChangeMasks, *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
+		UE_ADD_READ_JOURNAL_ENTRY(Context, TEXT("ChangeMask"));
 		ReadSparseBitArray(Context.GetBitStreamReader(), DstChangeMaskData, Protocol->ChangeMaskBitCount);
 	}
 
@@ -1187,6 +1199,7 @@ void FReplicationProtocolOperations::DeserializeWithMaskDelta(FNetSerializationC
 		PrevInternalStateBuffer = Align(PrevInternalStateBuffer, CurrentDescriptor->InternalAlignment);
 
 		UE_NET_TRACE_DYNAMIC_NAME_SCOPE(CurrentDescriptor->DebugName, *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
+		UE_ADD_READ_JOURNAL_ENTRY(Context, CurrentDescriptor->DebugName);
 		if (CurrentDescriptor->IsInitState())
 		{
 			if (bIsInitState)

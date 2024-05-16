@@ -243,7 +243,11 @@ void FNetRPC::Deserialize(FNetSerializationContext& Context)
 	
 	if (!Context.HasErrorOrOverflow())
 	{
-		check(PostNetRPCPos == Context.GetBitStreamReader()->GetPosBits());
+		if (PostNetRPCPos != Context.GetBitStreamReader()->GetPosBits())
+		{
+			UE_LOG(LogIrisRpc, Error, TEXT("DeserializeWithObject::RPC %s did not read expected number of bits ErrorContext: %s"), ToCStr(BlobDescriptor->DebugName), *Context.PrintReadJournal())
+			ensure(PostNetRPCPos == Context.GetBitStreamReader()->GetPosBits());
+		}
 	}
 }
 

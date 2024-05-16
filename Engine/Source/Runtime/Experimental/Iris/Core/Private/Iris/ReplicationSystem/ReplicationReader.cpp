@@ -667,6 +667,8 @@ uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
 
 	UE_NET_TRACE_SCOPE(Batch, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
 
+	UE_ADD_READ_JOURNAL_ENTRY(Context, TEXT("ReadObjectBatch"));
+
 	// Special handling for destruction infos
 	if (const bool bIsDestructionInfo = Reader.ReadBool())
 	{
@@ -679,7 +681,14 @@ uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
 #if UE_NET_USE_READER_WRITER_SENTINEL
 		ReadAndVerifySentinelBits(&Reader, TEXT("DestructionInfo"), 8);
 #endif
-		
+
+		if (Context.HasErrorOrOverflow())
+		{
+			UE_LOG(LogIris, Error, TEXT("FReplicationReader::ReadObject Failed to read destruction info. \n%s"), *Context.PrintReadJournal());
+			Context.SetError(GNetError_BitStreamError);
+			return 0U;
+		}
+
 		return 1U;
 	}
 
@@ -701,6 +710,9 @@ uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
 		UE_NET_TRACE_SCOPE(BatchSize, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
 		BatchSize = Reader.ReadBits(NumBitsUsedForBatchSize);
 	}
+
+	// Store the current handle if we encounter errors
+	Context.SetErrorHandleContext(IncompleteHandle);
 
 	if (Context.HasErrorOrOverflow() || BatchSize > Reader.GetBitsLeft())
 	{
@@ -734,6 +746,7 @@ uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
 		ObjectReferenceCache->ReadExports(Context, &TempMustBeMappedReferences);
 		if (Context.HasErrorOrOverflow())
 		{
+			UE_LOG(LogIris, Error, TEXT("FReplicationReader::ReadObject Failed to read exports for handle: %s.\n%s"), *IncompleteHandle.ToString(), *Context.PrintReadJournal());
 			return 0U;
 		}
 
@@ -761,7 +774,7 @@ uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
 	FPendingBatchData* PendingBatchData = ObjectReferenceCache->ShouldAsyncLoad() ? UpdateUnresolvedMustBeMappedReferences(IncompleteHandle, TempMustBeMappedReferences) : nullptr;
 	if (PendingBatchData)
 	{
-		UE_LOG(LogIris, Verbose, TEXT("FReplicationReader::ReadObjectBatch Handle %s will be defered as it has unresolved must be mapped references"), *IncompleteHandle.ToString());				
+		UE_LOG(LogIris, Verbose, TEXT("FReplicationReader::ReadObjectBatch Handle %s will be defered as it has unresolved must be mapped references"), *IncompleteHandle.ToString());
 
 		UE_NET_TRACE_OBJECT_SCOPE(IncompleteHandle, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
 		UE_NET_TRACE_SCOPE(QueuedBatch, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
@@ -785,6 +798,9 @@ uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
 
 		if (Context.HasErrorOrOverflow())
 		{
+			// Log error, this is something we cannot recover from.
+			UE_LOG(LogIris, Error, TEXT("FReplicationReader::ReadObject Failed to read object batch data chunk for handle:%s \n%s"), ToCStr(IncompleteHandle.ToString()), *Context.PrintReadJournal());
+
 			return 0U;
 		}
 
@@ -816,6 +832,13 @@ uint32 FReplicationReader::ReadObjectBatch(FNetSerializationContext& Context)
 			
 			return 0U;
 		}
+	}
+
+	if (!ensure(Reader.GetPosBits() == BatchEndOrStartOfExportsPos))
+	{
+		UE_LOG(LogIris, Error, TEXT("FReplicationReader::ReadObjectsInBatch Did not read the expected number of bits when reading batch: %s. \n%s"), *IncompleteHandle.ToString(), *Context.PrintReadJournal());
+		Context.SetError(GNetError_BitStreamOverflow, true);
+		return 0U;
 	}
 
 	// Skip to the end as we already have read any exports
@@ -850,6 +873,12 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 
 	UE_NET_TRACE_OBJECT_SCOPE(IncompleteHandle, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
 
+	// Store the current handle in case we encounter errors
+	if (IncompleteHandle != BatchHandle)
+	{
+		Context.SetErrorHandleContext(IncompleteHandle);
+	}
+
 	//UE_LOG_REPLICATIONREADER(TEXT("FReplicationReader::Read Object with %s InitialState: %u"), *IncompleteHandle.ToString(), bIsInitialState ? 1u : 0u);
 
 	bool bHasErrors = false;
@@ -860,6 +889,8 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 	if (bIsInitialState)
 	{
 		UE_NET_TRACE_SCOPE(CreationInfo, *Context.GetBitStreamReader(), Context.GetTraceCollector(), ENetTraceVerbosity::Trace);
+
+		UE_ADD_READ_JOURNAL_ENTRY(Context, TEXT("ReadCreationInfo"));
 
 		// SubObject data for initial state
 		FNetRefHandle RootObjectOfSubObject;
@@ -874,7 +905,9 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 				UE_LOG(LogIris, Error, TEXT("FReplicationReader::ReadObject Invalid subobjectowner handle. %s"), ToCStr(IncompleteOwnerHandle.ToString()));
 				const FName& NetError = (Reader.IsOverflown() ? GNetError_BitStreamOverflow : GNetError_InvalidNetHandle);
 				Context.SetError(NetError);
-				return;			
+
+				bHasErrors = true;
+				goto ErrorHandling;
 			}
 
 			RootObjectOfSubObject = NetRefHandleManager->GetReplicatedObjectDataNoCheck(RootObjectInternalIndex).RefHandle;
@@ -893,7 +926,9 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 			UE_LOG(LogIris, Error, TEXT("FReplicationReader::ReadObject Bitstream corrupted."));
 			const FName& NetError = (Reader.IsOverflown() ? GNetError_BitStreamOverflow : GNetError_BitStreamError);
 			Context.SetError(NetError);
-			return;
+
+			bHasErrors = true;
+			goto ErrorHandling;
 		}
 	
 		// Get Bridge
@@ -933,7 +968,7 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 	else
 	{
 		bHasErrors = Context.HasErrorOrOverflow();
-		UE_CLOG(bHasErrors, LogIris, Error, TEXT("FReplicationReader::ReadObject ErrorOrOverFlow after reading object header"))
+		UE_CLOG(bHasErrors, LogIris, Error, TEXT("FReplicationReader::ReadObject ErrorOrOverFlow after reading object header %s"), *Context.PrintReadJournal())
 
 		if (bHasErrors || !IncompleteHandle.IsValid())
 		{
@@ -970,6 +1005,8 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 	{
 		const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalIndex);
 
+		UE_ADD_READ_JOURNAL_ENTRY(Context, ObjectData.Protocol ? ObjectData.Protocol->DebugName->Name : TEXT("OOB"));
+
 		// Add entry in our received data as we postpone state application until we have received all data in order to be able to properly resolve references
 		FDispatchObjectInfo& Info = ObjectsToDispatchArray->AddPendingDispatchObjectInfo(TempLinearAllocator);
 
@@ -981,6 +1018,8 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 
 		if (bHasState)
 		{
+			UE_ADD_READ_JOURNAL_ENTRY(Context, TEXT("State"));
+
 			if (IsObjectIndexForOOBAttachment(InternalIndex) || bIsReplicatedDestroyForInvalidObject)
 			{
 				bHasErrors = true;
@@ -1054,6 +1093,8 @@ void FReplicationReader::ReadObjectInBatch(FNetSerializationContext& Context, FN
 		ENetObjectAttachmentType AttachmentType = ENetObjectAttachmentType::Normal;
 		if (bHasAttachments)
 		{
+			UE_ADD_READ_JOURNAL_ENTRY(Context, TEXT("Attachments"));
+
 			if (IsObjectIndexForOOBAttachment(InternalIndex))
 			{
 				bHasErrors = bIsReplicatedDestroyForInvalidObject;
@@ -1101,7 +1142,7 @@ ErrorHandling:
 	if (bHasErrors)
 	{
 		Context.SetErrorHandleContext(IncompleteHandle);
-		UE_LOG(LogIris, Error, TEXT("FReplicationReader::ReadObject Failed to read replicated object with %s. Error '%s'."), *IncompleteHandle.ToString(), (Context.HasError() ? ToCStr(Context.GetError().ToString()) : TEXT("BitStream Overflow")));
+		UE_LOG(LogIris, Error, TEXT("FReplicationReader::ReadObject Failed to read replicated object with Handle: %s. Error '%s'. %s"), *IncompleteHandle.ToString(), (Context.HasError() ? ToCStr(Context.GetError().ToString()) : TEXT("BitStream Overflow")), *Context.PrintReadJournal());
 	}
 }
 
@@ -2466,11 +2507,6 @@ void FReplicationReader::Read(FNetSerializationContext& Context)
 
 	// Assemble and deserialize huge object if present
 	ProcessHugeObject(Context);
-	if (Context.HasErrorOrOverflow())
-	{
-		return;
-	}
-
 	if (Context.HasErrorOrOverflow())
 	{
 		return;

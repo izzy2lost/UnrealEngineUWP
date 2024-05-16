@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Iris/Serialization/NetErrorContext.h"
+#include "Iris/Serialization/NetJournal.h"
 
 class FName;
 class INetBlobReceiver;
@@ -55,6 +56,17 @@ public:
 	/** There are cases where an error is handled and reported where we want to stay calm, reset the error context and carry on */
 	void ResetErrorContext() { ErrorContext = FNetErrorContext(); }
 
+	/** Add entry into read journal, Name must be a static string as the pointer will be stored */
+	void AddReadJournalEntry(const TCHAR* Name);
+
+	/** Add entry in to error context, Name must be a static string as the pointer will be stored */
+	void AddReadJournalEntry(const FNetDebugName* DebugName);
+
+	/** Print the ReadJournal */
+	FString PrintReadJournal();
+
+	void ResetReadJournal() { ReadJournal.Reset(); }
+
 	void SetIsInitState(bool bInIsInitState) { bIsInitState = bInIsInitState; }
 	bool IsInitState() const { return bIsInitState; }
 
@@ -96,6 +108,7 @@ private:
 	IRISCORE_API void SetBitStreamOverflow();
 
 	FNetErrorContext ErrorContext;
+	FNetJournal ReadJournal;
 
 	FNetBitStreamReader* BitStreamReader = nullptr;
 	FNetBitStreamWriter* BitStreamWriter = nullptr;
