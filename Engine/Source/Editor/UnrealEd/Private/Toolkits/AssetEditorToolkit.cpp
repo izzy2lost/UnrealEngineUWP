@@ -963,6 +963,15 @@ void FAssetEditorToolkit::SwitchToWorldCentricEditor_Execute( TWeakPtr< FAssetEd
 }
 
 
+
+EVisibility FAssetEditorToolkit::GetVisibilityWhileAssetCompiling() const
+{
+	// don't tick GUI of asset editor when asset is compiling
+	//	this is to prevent deadlocks in broken asset editors
+	// @todo : change this default to Visible and instead return Collapsed only in the editors that need this bodge
+	return EVisibility::Collapsed;
+}
+
 void FAssetEditorToolkit::FindInContentBrowser_Execute()
 {
 	TArray< UObject* > ObjectsToSyncTo;
