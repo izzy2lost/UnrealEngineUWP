@@ -29,6 +29,7 @@ public class TextureGraphEditor : ModuleRules
 				"Projects",
 				"ToolWidgets",
 				"KismetWidgets",
+				"WorkspaceMenuStructure"
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);

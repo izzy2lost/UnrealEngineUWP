@@ -17,3 +17,4 @@ const FName FTG_EditorTabs::OutputTabId					(TEXT("TG_Editor_Output"));
 const FName FTG_EditorTabs::PreviewSettingsTabId		(TEXT("TG_Editor_PreviewSettings"));
 const FName FTG_EditorTabs::ErrorsTabId					(TEXT("TG_Editor_Stats"));
 const FName FTG_EditorTabs::TextureDetailsTabId			(TEXT("TG_Editor_TextureDetails"));
+const FName FTG_EditorTabs::TextureExporterTabId		(TEXT("TG_Editor_TextureExporter"));

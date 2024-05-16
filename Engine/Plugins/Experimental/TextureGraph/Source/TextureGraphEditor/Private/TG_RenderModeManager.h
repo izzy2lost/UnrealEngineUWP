@@ -41,16 +41,15 @@ protected:
 	FName							_currentRenderMode;			/// Currently applied render mode	
 	TMap<int, MaterialMap>			_renderModeMaterials;
 	TArray<FName>					_renderModesString;
-	UTextureGraph*					TextureGraph;
 
-	void							InitializeDefaultMaterials(int totalTargets);
+	void							InitializeDefaultMaterials(int totalTargets, UTextureGraph* TextureGraph);
 	RenderMaterial_BPPtr			GetTargetRenderModeMaterial(int targetId, FName renderMode);
 	void							BindBlobToMaterial(RenderMaterialPtr renderMaterial, TiledBlobPtr blobToBind, const FName& targetName);
+	virtual void					UpdateRenderMode(UTextureGraph* TextureGraph);
 public:
-									TG_RenderModeManager(UTextureGraph* InTextureGraph);
+									TG_RenderModeManager();
 	virtual							~TG_RenderModeManager();		
-	virtual void					ChangeRenderMode(FName NewRenderMode);
-	virtual void					UpdateRenderMode();
+	virtual void					ChangeRenderMode(FName NewRenderMode, UTextureGraph* TextureGraph);
 	void							Clear();
 	bool							IsCurrentRenderModelLit(int targetId = 0);
 	//////////////////////////////////////////////////////////////////////////

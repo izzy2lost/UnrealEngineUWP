@@ -4,6 +4,7 @@
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
 #include "Toolkits/IToolkit.h"
+#include "TG_Exporter.h"
 class IAssetTools;
 class IAssetTypeActions;
 class ITG_Editor;
@@ -22,7 +23,7 @@ private:
 	FTickerDelegate					TickDelegate;
 	/** Handle of the delegate to run the Tick method in charge of running TextureGraphEngine update*/
 	FTSTicker::FDelegateHandle		TickDelegateHandle;
-	
+	TUniquePtr<FTG_Exporter>		TG_Exporter;
 
 protected:
 	TSharedPtr<FTG_EditorGraphNodeFactory> GraphNodeFactory;
@@ -31,10 +32,15 @@ public:
 	/** IModuleInterface implementation */
 	virtual void					StartupModule() override;
 	virtual void					ShutdownModule() override;
+
+	
 	virtual void					StartTextureGraphEngine();
 	virtual void					ShutdownTextureGraphEngine();
 	bool							Tick(float deltaTime);
 	void							RegisterAssetTypeAction(IAssetTools& AssetTools, TSharedRef<IAssetTypeActions> Action);
 	void							UnRegisterAllAssetTypeActions();
 	static TSharedRef<ITG_Editor>	CreateTextureGraphEditor(const EToolkitMode::Type Mode, const TSharedPtr< class IToolkitHost >& InitToolkitHost, UTextureGraph* InTextureGraph);
+
+	/** Returns a reference to the Blueprint Debugger state object */
+	const TUniquePtr<FTG_Exporter>& GetTextureExporter() const { return TG_Exporter; }
 };

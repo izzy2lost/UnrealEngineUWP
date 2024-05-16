@@ -20,6 +20,7 @@ struct FTG_EditorTabs
 	static const FName PreviewSettingsTabId;
 	static const FName ErrorsTabId;
 	static const FName TextureDetailsTabId;
+	static const FName TextureExporterTabId;
 
 	// Disable default constructor
 	FTG_EditorTabs() = delete;

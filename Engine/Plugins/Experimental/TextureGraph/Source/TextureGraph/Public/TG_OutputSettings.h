@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "TG_SystemTypes.h"
 #include "Model/Mix/MixSettings.h"
 #include "Misc/OutputDeviceNull.h"
 #include "TG_OutputSettings.generated.h"
@@ -9,6 +10,34 @@
 class UTG_Expression_Output;
 class UTG_Node;
 class UTextureGraph;
+
+
+USTRUCT()
+struct TEXTUREGRAPH_API FOutputExpressionInfo
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY()
+	FName OutputName;
+
+	FTG_Id OutputNodeID;
+
+	bool operator==(const FOutputExpressionInfo& Other) const
+	{
+		return OutputName == Other.OutputName;
+	}
+};
+
+UCLASS()
+class TEXTUREGRAPH_API UTG_ExportSettings : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, EditFixedSize, Category = NoCategory, meta = (HideItemCount, NoResetToDefault, EditFixedOrder, ShowOnlyInnerProperties, FullyExpand))
+	TArray<FOutputExpressionInfo>	OutputExpressionsInfos;
+};
 
 USTRUCT(BlueprintType)
 struct TEXTUREGRAPH_API FTG_OutputSettings 

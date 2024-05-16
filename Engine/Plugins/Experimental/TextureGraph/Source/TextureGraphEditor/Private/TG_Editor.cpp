@@ -960,11 +960,10 @@ TSharedRef<SDockTab> FTG_Editor::SpawnTab_Viewport(const FSpawnTabArgs& Args)
 	TSharedRef< SDockTab > DockableTab =
 		SNew(SDockTab);
 
-	TWeakPtr<ITG_Editor> WeakSharedThis(SharedThis(this));
-	MakeViewportFunc = [WeakSharedThis](const FAssetEditorViewportConstructionArgs& InArgs)
+	MakeViewportFunc = [this](const FAssetEditorViewportConstructionArgs& InArgs)
 		{
 			return SNew(STG_EditorViewport)
-				.TG_Editor(WeakSharedThis);
+				.InTextureGraph(EditedTextureGraph);
 		};
 
 	// Create a new tab
@@ -1271,7 +1270,7 @@ bool FTG_Editor::DeleteNodes(TArray<UEdGraphNode*> NodesToDelete, bool ForceDele
 					UTG_Node* TGNode = TGEdGraphNode->GetNode();
 					check(TGNode);
 
-					NodePreview->NodeDeleted(TGEdGraphNode);
+					NodePreview->NodeDeleted(TGNode);
 					TextureGraph->RemoveNode(TGNode);
 				}
 				EdGraphNode->DestroyNode();
@@ -1927,7 +1926,7 @@ void FTG_Editor::RefreshNodePreview(const TSet<class UObject*>& NewSelection, co
 	}
 	else
 	{
-		NodePreview->SelectionChanged(SelectedNode);
+		NodePreview->SelectionChanged(SelectedNode ? SelectedNode->GetNode() : nullptr);
 	}
 }
 

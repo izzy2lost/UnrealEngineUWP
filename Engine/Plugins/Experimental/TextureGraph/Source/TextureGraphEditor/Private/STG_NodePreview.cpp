@@ -263,7 +263,7 @@ void STG_NodePreviewWidget::Construct(const FArguments& InArgs)
 		];
 }
 
-void STG_NodePreviewWidget::SelectionChanged(UTG_EdGraphNode* Node)
+void STG_NodePreviewWidget::SelectionChanged(UTG_Node* Node)
 {
 	const bool bUpdatePreview = LockedNode == nullptr && SelectedNode != Node;
 
@@ -275,7 +275,7 @@ void STG_NodePreviewWidget::SelectionChanged(UTG_EdGraphNode* Node)
 	}
 }
 
-void STG_NodePreviewWidget::NodeDeleted(const UTG_EdGraphNode* Node)
+void STG_NodePreviewWidget::NodeDeleted(const UTG_Node* Node)
 {
 	const bool bPreviewNodeDeleted = LockedNode == Node || (LockedNode == nullptr && SelectedNode == Node);
 
@@ -297,7 +297,7 @@ void STG_NodePreviewWidget::NodeDeleted(const UTG_EdGraphNode* Node)
 
 void STG_NodePreviewWidget::Update() const
 {
-	const UTG_EdGraphNode* PreviewNode = LockedNode ? LockedNode : SelectedNode;
+	const UTG_Node* PreviewNode = LockedNode ? LockedNode : SelectedNode;
 
 	// Get blob if preview node is valid or assign a nullptr if not.
 	const BlobPtr Blob = [PreviewNode]() -> BlobPtr
@@ -305,9 +305,7 @@ void STG_NodePreviewWidget::Update() const
 		if (PreviewNode)
 		{
 			TArray<FTG_Texture> OutTextures;
-			const UTG_Node* TGNode = PreviewNode->GetNode();
-			check(TGNode);
-			TGNode->GetAllOutputValues(OutTextures);
+			PreviewNode->GetAllOutputValues(OutTextures);
 
 			if (!OutTextures.IsEmpty())
 			{

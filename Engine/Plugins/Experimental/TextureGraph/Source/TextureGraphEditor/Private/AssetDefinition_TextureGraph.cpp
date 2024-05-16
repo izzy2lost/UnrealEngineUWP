@@ -11,7 +11,6 @@
 #include "IAssetTools.h"
 #include "ToolMenuSection.h"
 #include "AssetRegistry/AssetRegistryHelpers.h"
-#include "STG_ExportDialog.h"
 
 #define LOCTEXT_NAMESPACE "UAssetDefinition_TextureGraph"
 
@@ -42,10 +41,11 @@ namespace MenuExtension_TextureGraph
 		if (const UContentBrowserAssetContextMenuContext* CBContext = UContentBrowserAssetContextMenuContext::FindContextWithAssets(InContext))
 		{
 			const TArray<UTextureGraph*> &TextureGraphs = CBContext->LoadSelectedObjects<UTextureGraph>();
+			const FTextureGraphEditorModule& TextureGraphEditorModule = FModuleManager::Get().LoadModuleChecked<FTextureGraphEditorModule>(TEXT("TextureGraphEditor"));
 			
 			for (auto TextureGraphIt = TextureGraphs.CreateConstIterator(); TextureGraphIt; ++TextureGraphIt)
 			{
-				STG_ExportDialog::ShowWindow(*TextureGraphIt);
+				TextureGraphEditorModule.GetTextureExporter()->SetTextureGraphToExport(*TextureGraphIt);
 			}
 			
 		}

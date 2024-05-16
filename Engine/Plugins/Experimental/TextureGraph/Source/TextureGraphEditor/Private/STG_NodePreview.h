@@ -14,7 +14,7 @@ namespace UE::ImageWidgets
 class FToolBarBuilder;
 class FUICommandList;
 class SHorizontalBox;
-class UTG_EdGraphNode;
+class UTG_Node;
 
 /**
  * Image viewer implementation that holds the node buffer information and draws the node texture.
@@ -94,10 +94,10 @@ public:
 	void Construct(const FArguments& InArgs);
 
 	/** Notify the preview about the node selection having changed. */
-	void SelectionChanged(UTG_EdGraphNode* Node);
+	void SelectionChanged(UTG_Node* Node);
 
 	/** Notify the preview about a node being deleted. */
-	void NodeDeleted(const UTG_EdGraphNode* Node);
+	void NodeDeleted(const UTG_Node* Node);
 
 	/** Trigger an update of the node preview after the displayed contents changed. */
 	void Update() const;
@@ -125,10 +125,12 @@ private:
 	TSharedPtr<FUICommandList> CommandList;
 
 	/** Pointer to the currently selected node, which might be different if the node preview is locked to another node. */
-	UTG_EdGraphNode* SelectedNode = nullptr;
+	// UTG_EdGraphNode* SelectedNode = nullptr;
+	UTG_Node* SelectedNode = nullptr;
 
 	/** Pointer to the node the node preview is currently locked on. */
-	UTG_EdGraphNode* LockedNode = nullptr;
+	// UTG_EdGraphNode* LockedNode = nullptr;
+	UTG_Node* LockedNode = nullptr;
 
 	/** Callback to notify about the node preview texture having changed to make sure that for example the histogram is synced with the node preview. */
 	FOnNodeBlobChanged OnNodeBlobChanged;

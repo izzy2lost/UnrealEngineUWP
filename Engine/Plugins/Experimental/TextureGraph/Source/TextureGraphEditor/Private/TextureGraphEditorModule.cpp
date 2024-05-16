@@ -34,13 +34,14 @@ void FTextureGraphEditorModule::StartupModule()
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("TG_ParameterInfo", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_ParameterInfoCustomization::Create));
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("TG_Texture", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_TextureCustomization::Create));
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("TG_Variant", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_VariantCustomization::Create));
-	auto ScalarIdentifier = MakeShared<FTG_ScalarTypeIdentifier>();
-	PropertyEditorModule.RegisterCustomPropertyTypeLayout("FloatProperty", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_ScalarCustomization::Create), ScalarIdentifier);
+	PropertyEditorModule.RegisterCustomPropertyTypeLayout("FloatProperty", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_ScalarCustomization::Create), MakeShared<FTG_ScalarTypeIdentifier>());
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("MaterialMappingInfo", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_MaterialMappingInfoCustomization::Create));
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("ViewportSettings", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_ViewportSettingsCustomization::Create));
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("OutputSettings", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_OutputSettingsCustomization::Create));
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("TG_LevelsSettings", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_LevelsSettingsCustomization::Create));
-
+	PropertyEditorModule.RegisterCustomPropertyTypeLayout("OutputExpressionInfo", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_OutputExpressionInfoCustomization::Create));
+	PropertyEditorModule.NotifyCustomizationModuleChanged();
+	
 	// Register slate style overrides
 	FTG_Style::Register();
 	FTG_EditorCommands::Register();
@@ -50,6 +51,8 @@ void FTextureGraphEditorModule::StartupModule()
 
 	GraphPanelPinFactory = MakeShared<FTG_EditorGraphPanelPinFactory>();
 	FEdGraphUtilities::RegisterVisualPinFactory(GraphPanelPinFactory);
+	
+	TG_Exporter = MakeUnique<FTG_Exporter>();
 	
 	StartTextureGraphEngine();
 }
@@ -62,14 +65,20 @@ void FTextureGraphEditorModule::ShutdownModule()
 	FTG_EditorCommands::Unregister();
 	
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("TG_ParameterInfo");
-	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("TG_Texture");
-	auto ScalarIdentifier = MakeShared<FTG_ScalarTypeIdentifier>();
-	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("FloatProperty", ScalarIdentifier);
-	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("MaterialMappingInfo");
-	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("OutputSettings");
-	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("TG_LevelsSettings");
-
+	// Unregister the details customization
+	if (FModuleManager::Get().IsModuleLoaded("PropertyEditor"))
+	{
+		PropertyEditorModule.UnregisterCustomPropertyTypeLayout("TG_ParameterInfo");
+		PropertyEditorModule.UnregisterCustomPropertyTypeLayout("TG_Texture");
+		auto ScalarIdentifier = MakeShared<FTG_ScalarTypeIdentifier>();
+		PropertyEditorModule.UnregisterCustomPropertyTypeLayout("FloatProperty", ScalarIdentifier);
+		PropertyEditorModule.UnregisterCustomPropertyTypeLayout("MaterialMappingInfo");
+		PropertyEditorModule.UnregisterCustomPropertyTypeLayout("OutputSettings");
+		PropertyEditorModule.UnregisterCustomPropertyTypeLayout("TG_LevelsSettings");
+		PropertyEditorModule.UnregisterCustomPropertyTypeLayout("TG_OutputExpressionInfoCustomization");
+		
+		PropertyEditorModule.NotifyCustomizationModuleChanged();
+	}
 	FEdGraphUtilities::UnregisterVisualPinFactory(GraphPanelPinFactory);
 	FEdGraphUtilities::UnregisterVisualNodeFactory(GraphNodeFactory);
 	// Unregister slate style overrides
