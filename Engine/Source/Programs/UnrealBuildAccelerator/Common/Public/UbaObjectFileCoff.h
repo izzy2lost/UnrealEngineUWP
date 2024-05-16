@@ -11,7 +11,7 @@ namespace uba
 	public:
 		virtual bool Parse(Logger& logger, const tchar* filename) override;
 		virtual bool ComputeLoopbacksAndDuplicates(UnorderedSymbols& allSharedExports, UnorderedSymbols& duplicates) override;
-		virtual bool CreateStripped(Logger& logger, const tchar* newFilename, const UnorderedSymbols& allNeededImports) override;
+		virtual bool CreateStripped(Logger& logger, const tchar* newFilename, const UnorderedSymbols& allNeededImports, u32& outKeptExportCount) override;
 
 	private:
 		struct Info;
@@ -19,7 +19,7 @@ namespace uba
 		bool ParseExports();
 		template<typename SymbolType> void ParseImports();
 
-		void WriteExports(Logger& logger, u8* newData, const UnorderedSymbols& allNeededImports);
+		void WriteExports(Logger& logger, u8* newData, const UnorderedSymbols& allNeededImports, u32& outKeptExportCount);
 		template<typename SymbolType> void CalculateImports(Logger& logger, Vector<u32>& outImports);
 		template<typename SymbolType> void WriteImports(Logger& logger, u8* newData, Info& newInfo, const Vector<u32>& symbolsToAdd);
 		template<typename SymbolType> void RemoveSymbols(Logger& logger, u8* newData, Info& newInfo);

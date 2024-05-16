@@ -177,6 +177,8 @@ namespace uba
 				if (!objectFiles[objFileName]->ComputeLoopbacksAndDuplicates(allSharedExports, duplicates))
 					return -1;
 
+			Atomic<u32> totalExportCount;
+			Atomic<u32> totalKeptExportCount;
 			workManager.ParallelFor(workerCount, objectFiles, [&](auto& it)
 				{
 					ObjectFile& file = *it->second;
@@ -185,13 +187,17 @@ namespace uba
 					UBA_ASSERT(lastDot);
 					StringBuffer<> newFilename;
 					newFilename.Append(fileName, lastDot - fileName).Append(TC(".strip")).Append(lastDot);
-					if (!file.CreateStripped(logger, newFilename.data, allNeededImports))
+					u32 keptExportCount = 0;
+					if (!file.CreateStripped(logger, newFilename.data, allNeededImports, keptExportCount))
 						success = false;
+
+					totalExportCount += u32(file.GetExports().size());
+					totalKeptExportCount += keptExportCount;
 				});
 			if (!success)
 				return -1;
 
-			//logger.Info(TC("Stripped %llu symbols from %llu obj files"), strippedSymbolCount.load(), objFilesToStrip.size());
+			//logger.Info(TC("Reduced export count from %llu to %llu"), totalExportCount.load(), totalKeptExportCount.size());
 		}
 		else
 		{

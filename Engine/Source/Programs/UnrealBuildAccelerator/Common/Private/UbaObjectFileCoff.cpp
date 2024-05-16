@@ -126,6 +126,7 @@ namespace uba
 	// When merging dlls we need to remove duplicates of these
 	UnorderedSymbols ObjectFileCoff::PotentiallyDuplicatedSymbols = 
 	{
+		/*
 		// REPLACEMENT_OPERATOR_NEW_AND_DELETE
 		"??2@YAPEAX_K@Z",
 		"??2@YAPEAX_KAEBUnothrow_t@std@@@Z",
@@ -167,6 +168,7 @@ namespace uba
 		// Have no idea why these are duplicated
 		"??_GIFunction_OwnedObject@Function@Private@Core@UE@@UEAAPEAXI@Z",
 		"??_GIDelegateInstance@@UEAAPEAXI@Z",
+		*/
 	};
 
 	template<typename SymbolType>
@@ -232,7 +234,7 @@ namespace uba
 		return true;
 	}
 
-	bool ObjectFileCoff::CreateStripped(Logger& logger, const tchar* newFilename, const UnorderedSymbols& allNeededImports)
+	bool ObjectFileCoff::CreateStripped(Logger& logger, const tchar* newFilename, const UnorderedSymbols& allNeededImports, u32& outKeptExportCount)
 	{
 		UBA_ASSERT(m_file);
 
@@ -276,7 +278,7 @@ namespace uba
 		else
 			RemoveSymbols<ImageSymbol>(logger, newData, newInfo);
 
-		WriteExports(logger, newData, allNeededImports);
+		WriteExports(logger, newData, allNeededImports, outKeptExportCount);
 
 		return newFile.Close();
 	}
@@ -370,7 +372,7 @@ namespace uba
 		}
 	}
 
-	void ObjectFileCoff::WriteExports(Logger& logger, u8* newData, const UnorderedSymbols& allNeededImports)
+	void ObjectFileCoff::WriteExports(Logger& logger, u8* newData, const UnorderedSymbols& allNeededImports, u32& outKeptExportCount)
 	{
 		if (!m_info.directiveSectionMemOffset)
 			return;
@@ -391,6 +393,7 @@ namespace uba
 		auto readEnd = readPos + directiveSection->SizeOfRawData;
 		auto readLastPossiblePos = readEnd - 9;
 
+		u32 exportCount = 0;
 		while (true)
 		{
 			const char* exportStr = nullptr;
@@ -414,6 +417,8 @@ namespace uba
 				break;
 			}
 
+			++exportCount;
+
 			const char* startPos = exportStr;
 			exportStr += 8;
 			const char* exportEnd = strchr(exportStr, ' ');
@@ -436,6 +441,8 @@ namespace uba
 			if (strstr(exportStr, "Initialize") == exportStr && strstr(exportStr, "Module"))
 				continue;
 
+			--exportCount;
+
 			u64 toCopy = startPos - lastCopyPos - 1;
 			memcpy(writePos, lastCopyPos, toCopy);
 			writePos += toCopy;
@@ -453,6 +460,8 @@ namespace uba
 		UBA_ASSERT(newDirectiveSection->SizeOfRawData <= directiveSection->SizeOfRawData);
 
 		memset(writePos, 0, directiveSection->SizeOfRawData - newDirectiveSection->SizeOfRawData);
+
+		outKeptExportCount = exportCount;
 	}
 
 	template<typename SymbolType> void ObjectFileCoff::CalculateImports(Logger& logger, Vector<u32>& outImports)

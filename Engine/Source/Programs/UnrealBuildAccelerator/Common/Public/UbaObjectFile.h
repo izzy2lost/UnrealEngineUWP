@@ -17,7 +17,7 @@ namespace uba
 		static ObjectFile* CreateAndParse(Logger& logger, const tchar* filename);
 
 		virtual bool ComputeLoopbacksAndDuplicates(UnorderedSymbols& allSharedExports, UnorderedSymbols& duplicates) = 0;
-		virtual bool CreateStripped(Logger& logger, const tchar* newFilename, const UnorderedSymbols& allNeededImports) = 0;
+		virtual bool CreateStripped(Logger& logger, const tchar* newFilename, const UnorderedSymbols& allNeededImports, u32& outKeptExportCount) = 0;
 
 		const tchar* GetFileName() const;
 		const UnorderedSymbols& GetImports() const;

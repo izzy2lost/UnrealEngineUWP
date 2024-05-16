@@ -180,7 +180,7 @@ namespace uba
 		return true;
 	}
 
-	bool ObjectFileElf::CreateStripped(Logger& logger, const tchar* newFilename, const UnorderedSymbols& allNeededImports)
+	bool ObjectFileElf::CreateStripped(Logger& logger, const tchar* newFilename, const UnorderedSymbols& allNeededImports, u32& outKeptExportCount)
 	{
 		FileAccessor newFile(logger, newFilename);
 		if (!newFile.CreateMemoryWrite(false, DefaultAttributes(), m_dataSize))
