@@ -24,6 +24,10 @@ struct FSkelMeshSection;
 struct FSkeletalMeshLODGroupSettings;
 
 
+//This is the total cloth time split up among multiple computation (updating gpu, updating sim, etc...)
+DECLARE_CYCLE_STAT(TEXT("Cloth Total"), STAT_ClothTotalTime, STATGROUP_Physics);
+DECLARE_CYCLE_STAT(TEXT("Cloth Writeback"), STAT_ClothWriteback, STATGROUP_Physics);
+
 UENUM()
 enum class ESkinCacheUsage : uint8
 {

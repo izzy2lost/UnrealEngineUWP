@@ -63,10 +63,6 @@ static TAutoConsoleVariable<float> CVarClothTeleportRotationThreshold(TEXT("p.Cl
 
 static TAutoConsoleVariable<int32> CVarEnableKinematicDeferralPrePhysicsCondition(TEXT("p.EnableKinematicDeferralPrePhysicsCondition"), 1, TEXT("If is 1, and deferral would've been disallowed due to EUpdateTransformFlags, allow if in PrePhysics tick. If 0, condition is unchanged."));
 
-//This is the total cloth time split up among multiple computation (updating gpu, updating sim, etc...)
-DECLARE_CYCLE_STAT(TEXT("Cloth Total"), STAT_ClothTotalTime, STATGROUP_Physics);
-DECLARE_CYCLE_STAT(TEXT("Cloth Writeback"), STAT_ClothWriteback, STATGROUP_Physics);
-
 // Used as a default return value for invalid cloth data access
 static const TMap<int32, FClothSimulData> SEmptyClothSimulationData;
 

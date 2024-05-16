@@ -12,6 +12,7 @@
 #include "ChaosCloth/ChaosClothingSimulationConfig.h"
 #include "ChaosCloth/ChaosClothingSimulationSolver.h"
 #include "ChaosCloth/ChaosClothVisualization.h"
+#include "Engine/SkinnedAssetCommon.h"
 #include "PhysicsEngine/PhysicsSettings.h"
 #include "PhysicsField/PhysicsFieldComponent.h"
 #include "Rendering/SkeletalMeshRenderData.h"
@@ -81,6 +82,7 @@ namespace UE::Chaos::ClothAsset
 		void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 		{
 			FScopeCycleCounterUObject ContextScope(ClothSimulationProxy.ClothComponent.GetSkinnedAsset());
+			SCOPE_CYCLE_COUNTER(STAT_ClothTotalTime);
 			CSV_SCOPED_TIMING_STAT(Animation, Cloth);
 
 			ClothSimulationProxy.Tick();
@@ -436,7 +438,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		CSV_SCOPED_TIMING_STAT(Animation, Cloth);
 		TRACE_CPUPROFILER_EVENT_SCOPE(FClothSimulationProxy_WriteSimulationData);
 		SCOPE_CYCLE_COUNTER(STAT_ClothSimulationProxy_WriteSimulationData);
-
+		SCOPE_CYCLE_COUNTER(STAT_ClothWriteback)
 
 		USkinnedMeshComponent* LeaderPoseComponent = nullptr;
 		if (ClothComponent.LeaderPoseComponent.IsValid())
