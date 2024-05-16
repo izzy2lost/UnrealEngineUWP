@@ -217,6 +217,20 @@ LAUNCH_API int32 LaunchWindowsStartup( HINSTANCE hInInstance, HINSTANCE hPrevIns
 		GAlwaysReportCrash = true;
 	}
 
+	uint32 LogicalCoreAffinity = 0;
+	uint32 PhysicalCoreAffinity = 0;
+	FParse::Value(CmdLine, TEXT("-processaffinity="), LogicalCoreAffinity);
+	FParse::Value(CmdLine, TEXT("-processaffinityphysical="), PhysicalCoreAffinity);
+
+	if (LogicalCoreAffinity > 0)
+	{
+		FWindowsPlatformProcess::SetProcessAffinity(LogicalCoreAffinity, false);
+	}
+	else if (PhysicalCoreAffinity > 0)
+	{
+		FWindowsPlatformProcess::SetProcessAffinity(PhysicalCoreAffinity, true);
+	}
+
 	bool bNoExceptionHandler = FParse::Param(CmdLine,TEXT("noexceptionhandler"));
 	(void)bNoExceptionHandler;
 

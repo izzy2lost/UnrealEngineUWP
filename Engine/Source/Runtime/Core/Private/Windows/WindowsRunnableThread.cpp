@@ -113,6 +113,16 @@ uint32 FRunnableThreadWin::GuardedRun()
 
 bool FRunnableThreadWin::SetThreadAffinity(const FThreadAffinity& Affinity)
 {
+	// While it's technically possible to use both process and thread affinities,
+	// it requires restricting the set of cores eligible for affinity to respect 
+	// the process affinity mask.
+	// For simplicity, as long as the process-wide affinity is a debugging option,
+	// disallow thread affinities when using process affinity.
+	if (FWindowsPlatformProcess::IsProcessAffinitySet())
+	{
+		return false;
+	}
+
 	const FProcessorGroupDesc& ProcessorGroups = FPlatformMisc::GetProcessorGroupDesc();
 	int32 CpuGroupCount = ProcessorGroups.NumProcessorGroups;
 	check(Affinity.ProcessorGroup < CpuGroupCount);
