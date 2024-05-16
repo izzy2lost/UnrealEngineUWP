@@ -893,7 +893,7 @@ void AActor::Serialize(FArchive& Ar)
 		}
 		else if (Ar.IsPersistent() && !ActorGuid.IsValid())
 		{
-			ActorGuid = FGuid::NewGuid();
+			ActorGuid = FGuid::NewDeterministicGuid(GetPathName());
 		}
 		else if ((Ar.GetPortFlags() & (PPF_Duplicate | PPF_DuplicateForPIE)) == PPF_Duplicate)
 		{
