@@ -27,6 +27,7 @@
 #include "UObject/ObjectVersion.h"
 #include "Widgets/Input/SHyperlink.h"
 #include "UObject/UObjectIterator.h"
+#include "AssetToolsModule.h"
 
 #define LOCTEXT_NAMESPACE "SAnimAssetFindReplace"
 
@@ -476,6 +477,14 @@ void SAnimAssetFindReplace::RefreshSearchResults()
 
 bool SAnimAssetFindReplace::ShouldFilterOutAsset(const FAssetData& InAssetData, bool& bOutIsOldAsset) const
 {
+	FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools"));
+	
+	const bool bIsEditableAsset = AssetToolsModule.Get().GetWritableFolderPermissionList()->PassesStartsWithFilter(InAssetData.PackageName);
+	if (!bIsEditableAsset)
+	{
+		return true;
+	}
+
 	return CurrentProcessor->ShouldFilterOutAsset(InAssetData, bOutIsOldAsset);
 }
 
