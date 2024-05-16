@@ -2,11 +2,8 @@
 
 #pragma once
 
-#include "Microsoft/AllowMicrosoftPlatformTypes.h"
-#include <Unknwn.h>
-#include "Microsoft/HideMicrosoftPlatformTypes.h"
-
 #include "Misc/AssertionMacros.h"
+#include <Unknwn.h>
 
 #ifdef TEXT_PASTE
 	#undef TEXT
