@@ -340,7 +340,7 @@ namespace Horde.Agent.Execution
 			}
 		}
 
-		public static bool IsUserAdministrator()
+		static bool IsUserAdministrator()
 		{
 			if (!OperatingSystem.IsWindows())
 			{
