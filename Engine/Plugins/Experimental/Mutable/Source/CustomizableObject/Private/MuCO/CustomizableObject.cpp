@@ -238,12 +238,25 @@ void UCustomizableObject::PostLoad()
 {
 	Super::PostLoad();
 
+	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
+
 #if WITH_EDITOR
 	if (ReferenceSkeletalMesh_DEPRECATED)
 	{
 		ReferenceSkeletalMeshes.Add(ReferenceSkeletalMesh_DEPRECATED);
 		ReferenceSkeletalMesh_DEPRECATED = nullptr;
 	}
+
+#if WITH_EDITORONLY_DATA
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::CompilationOptions)
+	{
+		GetPrivate()->OptimizationLevel = CompileOptions_DEPRECATED.OptimizationLevel;
+		GetPrivate()->TextureCompression = CompileOptions_DEPRECATED.TextureCompression;
+		GetPrivate()->bUseDiskCompilation = CompileOptions_DEPRECATED.bUseDiskCompilation;
+		GetPrivate()->EmbeddedDataBytesLimit = CompileOptions_DEPRECATED.EmbeddedDataBytesLimit;
+		GetPrivate()->PackagedDataBytesLimit = CompileOptions_DEPRECATED.PackagedDataBytesLimit;
+	}
+#endif
 
 	// Register to dirty delegate so we update derived data version ID each time that the package is marked as dirty.
 	if (UPackage* Package = GetOutermost())
@@ -256,9 +269,7 @@ void UCustomizableObject::PostLoad()
 				}
 			});
 	}
-
-	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
-
+	
 	if (!IsRunningCookCommandlet())
 	{
 		GetPrivate()->Status.NextState(FCustomizableObjectStatusTypes::EState::Loading);
@@ -292,6 +303,8 @@ void UCustomizableObject::Serialize(FArchive& Ar_Asset)
 	
 	Super::Serialize(Ar_Asset);
 
+	Ar_Asset.UsingCustomVersion(FCustomizableObjectCustomVersion::GUID);
+	
 #if WITH_EDITOR
 	if (Ar_Asset.IsCooking())
 	{
@@ -912,7 +925,6 @@ void UCustomizableObjectPrivate::CompileForTargetPlatform(const ITargetPlatform*
 	Options.TextureCompression = ECustomizableObjectTextureCompression::HighQuality;
 	Options.bIsCooking = true;
 	Options.TargetPlatform = TargetPlatform;
-	Options.CustomizableObjectNumBoneInfluences = ICustomizableObjectModule::Get().GetNumBoneInfluences();
 	CompileRequests.Add(CompileRequest);
 
 	EditorModule->CompileCustomizableObject(CompileRequest, true);
@@ -2111,6 +2123,27 @@ TObjectPtr<UEdGraph>& UCustomizableObjectPrivate::GetSource() const
 {
 	return GetPublic()->Source;
 }
+
+
+FCompilationOptions UCustomizableObjectPrivate::GetCompileOptions() const
+{
+	FCompilationOptions Options;
+	Options.TextureCompression = TextureCompression;
+	Options.OptimizationLevel = OptimizationLevel;
+	Options.bUseDiskCompilation = bUseDiskCompilation;
+	Options.PackagedDataBytesLimit = PackagedDataBytesLimit;
+	Options.EmbeddedDataBytesLimit = EmbeddedDataBytesLimit;
+	Options.CustomizableObjectNumBoneInfluences = ICustomizableObjectModule::Get().GetNumBoneInfluences();
+	Options.bRealTimeMorphTargetsEnabled = GetPublic()->bEnableRealTimeMorphTargets;
+	Options.bClothingEnabled = GetPublic()->bEnableClothing;
+	Options.b16BitBoneWeightsEnabled = GetPublic()->bEnable16BitBoneWeights;
+	Options.bSkinWeightProfilesEnabled = GetPublic()->bEnableAltSkinWeightProfiles;
+	Options.bPhysicsAssetMergeEnabled = GetPublic()->bEnablePhysicsAssetMerge;
+	Options.bAnimBpPhysicsManipulationEnabled = GetPublic()->bEnableAnimBpPhysicsAssetsManipualtion;
+	Options.ImageTiling = ImageTiling;
+	
+	return Options;
+}
 #endif
 
 
@@ -2222,7 +2255,7 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 
 	FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources(true);
 
-	uint64 TargetBulkDataFileBytes = CustomizableObject->CompileOptions.PackagedDataBytesLimit;
+	uint64 TargetBulkDataFileBytes = CustomizableObject->GetPrivate()->GetCompileOptions().PackagedDataBytesLimit;
 	const uint64 MaxChunkSize = UCustomizableObjectSystem::GetInstance()->GetMaxChunkSizeForPlatform(TargetPlatform);
 	TargetBulkDataFileBytes = FMath::Min(TargetBulkDataFileBytes, MaxChunkSize);
 
@@ -2757,38 +2790,35 @@ FArchive& operator<<(FArchive& Ar, FMutableRefSkeletalMeshData& Data)
 
 	return Ar;
 }
+#endif // WITH_EDITORONLY_DATA
 
 
-//-------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------
+#if WITH_EDITOR
 FCompilationRequest::FCompilationRequest(UCustomizableObject& InCustomizableObject, bool bAsyncCompile)
 {
 	CustomizableObject = &InCustomizableObject;
-	Options = InCustomizableObject.CompileOptions;
-	Options.bRealTimeMorphTargetsEnabled = InCustomizableObject.bEnableRealTimeMorphTargets;
-	Options.bClothingEnabled = InCustomizableObject.bEnableClothing;
-	Options.b16BitBoneWeightsEnabled = InCustomizableObject.bEnable16BitBoneWeights;
-	Options.bSkinWeightProfilesEnabled = InCustomizableObject.bEnableAltSkinWeightProfiles;
-	Options.bPhysicsAssetMergeEnabled = InCustomizableObject.bEnablePhysicsAssetMerge;
-	Options.bAnimBpPhysicsManipulationEnabled = InCustomizableObject.bEnableAnimBpPhysicsAssetsManipualtion;
+	Options = InCustomizableObject.GetPrivate()->GetCompileOptions();
 	bAsync = bAsyncCompile;
 }
+
 
 UCustomizableObject* FCompilationRequest::GetCustomizableObject()
 {
 	return CustomizableObject.Get();
 }
 
+
 FCompilationOptions& FCompilationRequest::GetCompileOptions()
 {
 	return Options;
 }
 
+
 bool FCompilationRequest::IsAsyncCompilation() const
 {
 	return bAsync;
 }
+
 
 void FCompilationRequest::SetCompilationState(ECompilationStatePrivate InState, ECompilationResultPrivate InResult)
 {
@@ -2796,41 +2826,48 @@ void FCompilationRequest::SetCompilationState(ECompilationStatePrivate InState, 
 	Result = InResult;
 }
 
+
 ECompilationStatePrivate FCompilationRequest::GetCompilationState() const
 {
 	return State;
 }
+
 
 ECompilationResultPrivate FCompilationRequest::GetCompilationResult() const
 {
 	return Result;
 }
 
+
 TArray<FText>& FCompilationRequest::GetWarnings()
 {
 	return Warnings;
 }
+
 
 TArray<FText>& FCompilationRequest::GetErrors()
 {
 	return Errors;
 }
 
+
 void FCompilationRequest::SetParameterNamesToSelectedOptions(const TMap<FString, FString>& InParamNamesToSelectedOptions)
 {
 	ParamNamesToSelectedOptions = InParamNamesToSelectedOptions;
 }
+
 
 const TMap<FString, FString>& FCompilationRequest::GetParameterNamesToSelectedOptions() const
 {
 	return ParamNamesToSelectedOptions;
 }
 
+
 bool FCompilationRequest::operator==(const FCompilationRequest& Other) const
 {
 	return CustomizableObject == Other.CustomizableObject && Options.TargetPlatform == Other.Options.TargetPlatform;
-};
+}
+#endif
 
-#endif // WITH_EDITORONLY_DATA
 
 #undef LOCTEXT_NAMESPACE

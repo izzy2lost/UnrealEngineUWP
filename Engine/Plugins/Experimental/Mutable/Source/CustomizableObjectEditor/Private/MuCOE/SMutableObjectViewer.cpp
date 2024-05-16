@@ -39,11 +39,13 @@ FString SMutableObjectViewer::GetReferencerName() const
 
 void SMutableObjectViewer::Construct(const FArguments& InArgs, UCustomizableObject* InObject)
 {
+	check(InObject);
+	
 	CustomizableObject = InObject;
 
 	// Initialize the debugger compile options
-	CompileOptions.TextureCompression = ECustomizableObjectTextureCompression::Fast;
-	CompileOptions.OptimizationLevel = 2;
+	CompileOptions = InObject->GetPrivate()->GetCompileOptions();
+
 	{
 		ITargetPlatformManagerModule* TPM = GetTargetPlatformManager();
 		const TArray<ITargetPlatform*>& Platforms = TPM->GetActiveTargetPlatforms();

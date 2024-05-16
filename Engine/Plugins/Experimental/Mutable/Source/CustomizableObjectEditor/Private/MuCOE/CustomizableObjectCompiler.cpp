@@ -44,12 +44,6 @@ class UTexture2D;
 UCustomizableObjectNodeObject* GetRootNode(UCustomizableObject* Object, bool &bOutMultipleBaseObjectsFound);
 
 
-FCustomizableObjectCompiler::FCustomizableObjectCompiler()
-{
-	CustomizableObjectNumBoneInfluences = ICustomizableObjectModule::Get().GetNumBoneInfluences();
-}
-
-
 bool FCustomizableObjectCompiler::Tick(bool bBlocking)
 {
 	MUTABLE_CPUPROFILER_SCOPE(FCustomizableObjectCompiler::Tick);
@@ -150,7 +144,6 @@ void FCustomizableObjectCompiler::Compile(const TSharedRef<FCompilationRequest>&
 	CurrentRequest = InCompileRequest.ToSharedPtr();
 	CurrentObject = InCompileRequest->GetCustomizableObject();
 	CurrentOptions = InCompileRequest->GetCompileOptions();
-	CurrentOptions.CustomizableObjectNumBoneInfluences = CustomizableObjectNumBoneInfluences;
 
 	if (!CurrentObject)
 	{
@@ -1295,8 +1288,6 @@ mu::NodePtr FCustomizableObjectCompiler::Export(UCustomizableObject* Object, con
 	FSlateNotificationManager::Get().AddNotification(Info);
 
 	FCompilationOptions CompilerOptions = InCompilerOptions;
-	CompilerOptions.CustomizableObjectNumBoneInfluences = CustomizableObjectNumBoneInfluences;
-
 	CompilerOptions.bRealTimeMorphTargetsEnabled = Object->bEnableRealTimeMorphTargets;
 	CompilerOptions.bClothingEnabled = Object->bEnableClothing;
 	CompilerOptions.b16BitBoneWeightsEnabled = Object->bEnable16BitBoneWeights;

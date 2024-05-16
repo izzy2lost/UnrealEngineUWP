@@ -53,7 +53,7 @@ void UCustomizableObjectThumbnailRenderer::Draw(UObject* Object, int32 X, int32 
 		if (!CustomizableObject->IsCompiled())
 		{
 			// Use default compilation options?
-			FCompilationOptions Options;
+			FCompilationOptions Options = CustomizableObject->GetPrivate()->GetCompileOptions();
 
 			FCustomizableObjectCompiler Compiler;
 			// Compiler.Compile(CustomizableObject, Options, false); // TODO Can not be sync!

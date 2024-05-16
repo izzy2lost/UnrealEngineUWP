@@ -10,6 +10,7 @@
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectInstance.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 
 
 int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
@@ -140,7 +141,7 @@ int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 		const FString CustomizableObjectName = CustomizableObject->GetName();
 		
 		// Set the compilation platform based on what the system is currently running on
-		FCompilationOptions CompilationOptions = CustomizableObject->CompileOptions;
+		FCompilationOptions CompilationOptions = CustomizableObject->GetPrivate()->GetCompileOptions();
 		CompilationOptions.TargetPlatform = TargetCompilationPlatform;
 		CompilationOptions.bUseDiskCompilation = false;
 		CompilationOptions.OptimizationLevel = UE_MUTABLE_MAX_OPTIMIZATION;

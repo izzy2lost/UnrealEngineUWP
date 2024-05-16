@@ -13,6 +13,7 @@
 #include "Materials/Material.h"
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectCompilerTypes.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/ICustomizableObjectEditorModule.h"
 #include "MuCOE/GraphTraversal.h"
 #include "UObject/NameTypes.h"
@@ -114,7 +115,7 @@ EDataValidationResult UAssetValidator_CustomizableObjects::IsCustomizableObjectV
 	TArray<FCompilationOptions> CompilationOptionsToTest;
 
 	// Current configuration
-	CompilationOptionsToTest.Add(InCustomizableObject->CompileOptions);
+	CompilationOptionsToTest.Add(InCustomizableObject->GetPrivate()->GetCompileOptions());
 
 	// Configuration with LOD bias applied
 	// constexpr int32 MaxBias = 15;	

@@ -10,6 +10,7 @@
 #include "MuCO/CustomizableObjectStreamedResourceData.h"
 #include "MuCO/CustomizableObjectParameterTypeDefinitions.h"
 #include "MuCO/CustomizableObjectUIData.h"
+#include "MuCO/CustomizableObject_Deprecated.h"
 #include "Templates/TypeCompatibleBytes.h"
 
 #include "CustomizableObject.generated.h"
@@ -417,10 +418,11 @@ public:
 	bool bEnableMeshStreaming = false;
 	
 #if WITH_EDITORONLY_DATA
-	// Compilation options to use in editor and for packaging for this object.
+private:
 	UPROPERTY()
-	FCompilationOptions CompileOptions;
+	FCompilationOptions_DEPRECATED CompileOptions_DEPRECATED;
 
+public:
 	UPROPERTY(EditAnywhere, Category = CompileOptions)
 	bool bEnableRealTimeMorphTargets = false;
 

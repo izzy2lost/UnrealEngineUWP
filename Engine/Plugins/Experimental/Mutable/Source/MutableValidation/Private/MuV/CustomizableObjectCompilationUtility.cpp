@@ -33,7 +33,7 @@ bool FCustomizableObjectCompilationUtility::CompileCustomizableObject(UCustomiza
 	}
 	else
 	{
-		CompilationOptions = InCustomizableObject->CompileOptions;
+		CompilationOptions = InCustomizableObject->GetPrivate()->GetCompileOptions();
 		UE_LOG(LogMutable,Display,TEXT("Compiling CO using it's own compilation options."));
 	}
 

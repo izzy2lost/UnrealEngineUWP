@@ -918,6 +918,8 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	TObjectPtr<UEdGraph>& GetSource() const;
+
+	FCompilationOptions GetCompileOptions() const;
 #endif
 	
 	/** Cache of generated SkeletalMeshes */
@@ -981,6 +983,32 @@ public:
 	// use this to lookup fast by Name
 	TMap<FString, FMutableParameterIndex> ParameterPropertiesLookupTable;
 
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	ECustomizableObjectTextureCompression TextureCompression = ECustomizableObjectTextureCompression::Fast;
+
+	/** From 0 to UE_MUTABLE_MAX_OPTIMIZATION */
+	UPROPERTY()
+	int32 OptimizationLevel = UE_MUTABLE_MAX_OPTIMIZATION;
+
+	/** Use the disk to store intermediate compilation data. This slows down the object compilation
+	 * but it may be necessary for huge objects. */
+	UPROPERTY()
+	bool bUseDiskCompilation = false;
+
+	/** High limit of the size in bytes of the packaged data when cooking this object.
+	 * This limit is before any pak or filesystem compression. This limit will be broken if a single piece of data is bigger because data is not fragmented for packaging purposes.	*/
+	UPROPERTY()
+	uint64 PackagedDataBytesLimit = 256 * 1024 * 1024;
+	
+	/** High (inclusive) limit of the size in bytes of a data block to be included into the compiled object directly instead of stored in a streamable file. */
+	UPROPERTY()
+	uint64 EmbeddedDataBytesLimit = 1024;
+
+	UPROPERTY()
+	int32 ImageTiling = 0;
+#endif
+	
 	// This is a manual version number for the binary blobs in this asset.
 	// Increasing it invalidates all the previously compiled models.
 	enum ECustomizableObjectVersions

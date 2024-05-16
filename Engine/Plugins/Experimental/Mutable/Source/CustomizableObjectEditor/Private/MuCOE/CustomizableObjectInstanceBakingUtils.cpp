@@ -421,7 +421,7 @@ bool BakeCustomizableObjectInstance(
 	// COI Validation completed : Proceed with the baking operation ----------------------------------------------------------------------------------
 	
 	// Notify of better configuration -> Continue operation normally
-	if (InstanceCO->CompileOptions.TextureCompression != ECustomizableObjectTextureCompression::HighQuality)
+	if (InstanceCO->GetPrivate()->GetCompileOptions().TextureCompression != ECustomizableObjectTextureCompression::HighQuality)
 	{
 		FCustomizableObjectEditorLogger::CreateLog(
 		LOCTEXT("CustomizableObjectBakeLowQuality", "The Customizable Object wasn't compiled with high quality textures. For the best baking results, change the Texture Compression setting and recompile it."))

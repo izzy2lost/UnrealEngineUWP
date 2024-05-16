@@ -12,6 +12,7 @@
 #include "MuCOE/CustomizableObjectInstanceBakingUtils.h"
 #include "HAL/FileManager.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 
 
 /** Flag useful to know if we are currently updating an instance or not */
@@ -83,7 +84,7 @@ int32 UCOIBakingTestCommandlet::Main(const FString& Params)
 	}
 	
 	// Set the target platform to be using for the compilation. Must not be a nullptr
-	FCompilationOptions CompilationOptions = InstanceCustomizableObject->CompileOptions;
+	FCompilationOptions CompilationOptions = InstanceCustomizableObject->GetPrivate()->GetCompileOptions();
 	ITargetPlatformManagerModule& TPM = GetTargetPlatformManagerRef();
 	CompilationOptions.TargetPlatform = TPM.GetRunningTargetPlatform();
 	CompilationOptions.bUseDiskCompilation = false;

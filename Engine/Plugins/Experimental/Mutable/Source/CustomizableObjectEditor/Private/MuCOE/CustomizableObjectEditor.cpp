@@ -1248,7 +1248,7 @@ TSharedRef<SWidget> FCustomizableObjectEditor::GenerateCompileOptionsMenuContent
 
 		if (CustomizableObject)
 		{
-			int32 SelectedOptimization = FMath::Clamp(CustomizableObject->CompileOptions.OptimizationLevel, 0, CompileOptimizationStrings.Num() - 1);
+			int32 SelectedOptimization = FMath::Clamp(CustomizableObject->GetPrivate()->OptimizationLevel, 0, CompileOptimizationStrings.Num() - 1);
 			CompileOptimizationCombo =
 				SNew(STextComboBox)
 				.OptionsSource(&CompileOptimizationStrings)
@@ -1265,7 +1265,7 @@ TSharedRef<SWidget> FCustomizableObjectEditor::GenerateCompileOptionsMenuContent
 			CompileTextureCompressionStrings.Add(MakeShareable(new FString(LOCTEXT("MutableTextureCompressionFast", "Fast").ToString())));
 			CompileTextureCompressionStrings.Add(MakeShareable(new FString(LOCTEXT("MutableTextureCompressionHighQuality", "High Quality").ToString())));
 
-			int32 SelectedCompression = FMath::Clamp(int32(CustomizableObject->CompileOptions.TextureCompression), 0, CompileTextureCompressionStrings.Num() - 1);
+			int32 SelectedCompression = FMath::Clamp(int32(CustomizableObject->GetPrivate()->TextureCompression), 0, CompileTextureCompressionStrings.Num() - 1);
 			CompileTextureCompressionCombo =
 				SNew(STextComboBox)
 				.OptionsSource(&CompileTextureCompressionStrings)
@@ -1289,13 +1289,13 @@ TSharedRef<SWidget> FCustomizableObjectEditor::GenerateCompileOptionsMenuContent
 			.DropDownValues(TilingOptions)
 			.Value_Lambda([this]() 
 				{ 
-					return CustomizableObject ? float(CustomizableObject->CompileOptions.ImageTiling) : 0.0f;
+					return CustomizableObject ? float(CustomizableObject->GetPrivate()->ImageTiling) : 0.0f;
 				})
 			.OnValueChanged_Lambda([this](float Value) 
 				{ 
 					if (CustomizableObject)
 					{
-						CustomizableObject->CompileOptions.ImageTiling = int32(Value);
+						CustomizableObject->GetPrivate()->ImageTiling = int32(Value);
 						CustomizableObject->Modify();
 					}
 				});
@@ -1321,13 +1321,13 @@ TSharedRef<SWidget> FCustomizableObjectEditor::GenerateCompileOptionsMenuContent
 			.DropDownValues(EmbeddedOptions)
 			.Value_Lambda([this]()
 				{
-					return CustomizableObject ? float(CustomizableObject->CompileOptions.EmbeddedDataBytesLimit) : 0.0f;
+					return CustomizableObject ? float(CustomizableObject->GetPrivate()->EmbeddedDataBytesLimit) : 0.0f;
 				})
 			.OnValueChanged_Lambda([this](float Value)
 				{
 					if (CustomizableObject)
 					{
-						CustomizableObject->CompileOptions.EmbeddedDataBytesLimit = uint64(Value);
+						CustomizableObject->GetPrivate()->EmbeddedDataBytesLimit = uint64(Value);
 						CustomizableObject->Modify();
 					}
 				});
@@ -1347,13 +1347,13 @@ TSharedRef<SWidget> FCustomizableObjectEditor::GenerateCompileOptionsMenuContent
 			.DropDownValues(PackagedOptions)
 			.Value_Lambda([this]()
 				{
-					return CustomizableObject ? float(CustomizableObject->CompileOptions.PackagedDataBytesLimit) : 0.0f;
+					return CustomizableObject ? float(CustomizableObject->GetPrivate()->PackagedDataBytesLimit) : 0.0f;
 				})
 			.OnValueChanged_Lambda([this](float Value)
 				{
 					if (CustomizableObject)
 					{
-						CustomizableObject->CompileOptions.PackagedDataBytesLimit = uint64(Value);
+						CustomizableObject->GetPrivate()->PackagedDataBytesLimit = uint64(Value);
 						CustomizableObject->Modify();
 					}
 				});
@@ -1523,14 +1523,21 @@ void FCustomizableObjectEditor::ResetCompileOptions()
 {
 	const FScopedTransaction Transaction(LOCTEXT("ResetCompilationOptionsTransaction", "Reset Compilation Options"));
 	CustomizableObject->Modify();
-	CustomizableObject->CompileOptions = FCompilationOptions();
+	
+	UCustomizableObjectPrivate* DefaultObject = Cast<UCustomizableObjectPrivate>(CustomizableObject->GetPrivate()->StaticClass()->GetDefaultObject());
+	CustomizableObject->GetPrivate()->OptimizationLevel = DefaultObject->OptimizationLevel;
+	CustomizableObject->GetPrivate()->bUseDiskCompilation = DefaultObject->bUseDiskCompilation;
+	CustomizableObject->GetPrivate()->TextureCompression = DefaultObject->TextureCompression;
+	CustomizableObject->GetPrivate()->EmbeddedDataBytesLimit = DefaultObject->EmbeddedDataBytesLimit;
+	CustomizableObject->GetPrivate()->PackagedDataBytesLimit = DefaultObject->PackagedDataBytesLimit;
+	CustomizableObject->GetPrivate()->ImageTiling = DefaultObject->ImageTiling;
 }
 
 void FCustomizableObjectEditor::OnChangeCompileOptimizationLevel(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo)
 {
 	const FScopedTransaction Transaction(LOCTEXT("ChangedOptimizationLevelTransaction", "Changed Optimization Level"));
 	CustomizableObject->Modify();
-	CustomizableObject->CompileOptions.OptimizationLevel = CompileOptimizationStrings.Find(NewSelection);
+	CustomizableObject->GetPrivate()->OptimizationLevel = CompileOptimizationStrings.Find(NewSelection);
 }
 
 
@@ -1538,13 +1545,13 @@ void FCustomizableObjectEditor::CompileOptions_UseDiskCompilation_Toggled()
 {
 	const FScopedTransaction Transaction(LOCTEXT("ChangedEnableCompilingUsingTheDiskAsMemory", "Changed Enable compiling using the disk as memory"));
 	CustomizableObject->Modify();
-	CustomizableObject->CompileOptions.bUseDiskCompilation = !CustomizableObject->CompileOptions.bUseDiskCompilation;
+	CustomizableObject->GetPrivate()->bUseDiskCompilation = !CustomizableObject->GetPrivate()->bUseDiskCompilation;
 }
 
 
 bool FCustomizableObjectEditor::CompileOptions_UseDiskCompilation_IsChecked()
 {
-	return CustomizableObject->CompileOptions.bUseDiskCompilation;
+	return CustomizableObject->GetPrivate()->bUseDiskCompilation;
 }
 
 
@@ -1552,7 +1559,7 @@ void FCustomizableObjectEditor::OnChangeCompileTextureCompressionType(TSharedPtr
 {
 	const FScopedTransaction Transaction(LOCTEXT("ChangedTextureCompressionTransaction", "Changed Texture Compression Type"));
 	CustomizableObject->Modify();
-	CustomizableObject->CompileOptions.TextureCompression = ECustomizableObjectTextureCompression(CompileTextureCompressionStrings.Find(NewSelection));
+	CustomizableObject->GetPrivate()->TextureCompression = ECustomizableObjectTextureCompression(CompileTextureCompressionStrings.Find(NewSelection));
 }
 
 

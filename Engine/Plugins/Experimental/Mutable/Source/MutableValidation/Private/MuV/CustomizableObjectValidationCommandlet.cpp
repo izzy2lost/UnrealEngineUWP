@@ -82,7 +82,7 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 		LLM_SCOPE_BYNAME(TEXT("CustomizableObjectValidationCommandlet/Compile"));
 		
 		// Override some configurations that may have been changed by the user
-		FCompilationOptions CompilationOptions = ToTestCustomizableObject->CompileOptions;
+		FCompilationOptions CompilationOptions = ToTestCustomizableObject->GetPrivate()->GetCompileOptions();
 		CompilationOptions.bSilentCompilation = false;
 		CompilationOptions.OptimizationLevel = UE_MUTABLE_MAX_OPTIMIZATION;
 		CompilationOptions.TextureCompression = ECustomizableObjectTextureCompression::Fast;

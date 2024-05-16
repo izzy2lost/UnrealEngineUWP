@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "UObject/WeakObjectPtr.h"
+
 #include "CustomizableObjectCompilerTypes.generated.h"
 
 
@@ -37,34 +39,25 @@ enum class ECustomizableObjectTextureCompression : uint8
 };
 
 
-USTRUCT()
 struct FCompilationOptions
 {
-	GENERATED_USTRUCT_BODY()
-
 	/** Enum to know what texture compression should be used. This compression is used only in manual compiles in editor.
-	 *  When packaging, ECustomizableObjectTextureCompression::HighQuality is always used.
-	 */
-	UPROPERTY()
+	 *  When packaging, ECustomizableObjectTextureCompression::HighQuality is always used. */
 	ECustomizableObjectTextureCompression TextureCompression = ECustomizableObjectTextureCompression::Fast;
 
 	// From 0 to UE_MUTABLE_MAX_OPTIMIZATION
-	UPROPERTY()
 	int32 OptimizationLevel = UE_MUTABLE_MAX_OPTIMIZATION;
 
 	// Use the disk to store intermediate compilation data. This slows down the object compilation
 	// but it may be necessary for huge objects.
-	UPROPERTY()
 	bool bUseDiskCompilation = false;
 
 	/** High limit of the size in bytes of the packaged data when cooking this object.
 	* This limit is before any pak or filesystem compression. This limit will be broken if a single piece of data is bigger because data is not fragmented for packaging purposes.
 	*/
-	UPROPERTY()
 	uint64 PackagedDataBytesLimit = 256 * 1024 * 1024;
 
 	/** High (inclusive) limit of the size in bytes of a data block to be included into the compiled object directly instead of stored in a streamable file. */
-	UPROPERTY()
 	uint64 EmbeddedDataBytesLimit = 1024;
 
 	// Did we have the extra bones enabled when we compiled?
@@ -106,7 +99,6 @@ struct FCompilationOptions
 
 	// Control image tiled generation
 	int32 ImageTiling = 0;
-
 };
 
 
@@ -127,6 +119,7 @@ enum class ECompilationResultPrivate : uint8
 };
 
 
+#if WITH_EDITOR
 struct CUSTOMIZABLEOBJECT_API FCompilationRequest
 {
 	FCompilationRequest(UCustomizableObject& CustomizableObject, bool bAsync);
@@ -167,5 +160,4 @@ private:
 	TArray<FText> Warnings;
 	TArray<FText> Errors;
 };
-
-//#endif // WITH_EDITORONLY_DATA
+#endif

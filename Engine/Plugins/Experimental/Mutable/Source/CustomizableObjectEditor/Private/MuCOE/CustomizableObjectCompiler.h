@@ -25,8 +25,6 @@ class UCustomizableObjectNode;
 class FCustomizableObjectCompiler : public FTickableEditorObject, public FTickableCookObject, public FGCObject
 {
 public:
-
-	FCustomizableObjectCompiler();
 	virtual ~FCustomizableObjectCompiler() override {}
 
 	/** Check for pending compilation process. Returns true if an object has been updated. */
@@ -159,9 +157,6 @@ private:
 	/** SaveDD task and thread. */
 	TSharedPtr<FCustomizableObjectSaveDDRunnable> SaveDDTask;
 	TSharedPtr<FRunnableThread> SaveDDThread;
-
-	// Cache configuration settings from ini files 
-	ECustomizableObjectNumBoneInfluences CustomizableObjectNumBoneInfluences = ECustomizableObjectNumBoneInfluences::Four;
 
 	/** Array where to put the names of the already processed child in ProcessChildObjectsRecursively */
 	TArray<FName> ArrayAlreadyProcessedChild;

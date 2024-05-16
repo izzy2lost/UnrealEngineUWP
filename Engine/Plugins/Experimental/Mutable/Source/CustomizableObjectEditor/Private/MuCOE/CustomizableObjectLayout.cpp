@@ -97,7 +97,7 @@ void UCustomizableObjectLayout::GenerateBlocksFromUVs()
 		//Creating a GenerationContext
 		FCustomizableObjectCompiler Compiler;
 		UCustomizableObject* Object = Node->GetGraphEditor()->GetCustomizableObject();
-		FCompilationOptions Options = Object->CompileOptions;
+		FCompilationOptions Options = Object->GetPrivate()->GetCompileOptions();
 	
 		FMutableGraphGenerationContext GenerationContext(Object, &Compiler, Options);
 	
