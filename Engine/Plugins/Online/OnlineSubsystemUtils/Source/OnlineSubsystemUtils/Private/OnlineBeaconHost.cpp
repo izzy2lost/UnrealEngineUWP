@@ -445,10 +445,16 @@ bool AOnlineBeaconHost::HandleControlMessage(UNetConnection* Connection, uint8 M
 
 			// spawn the beacon actor for this client
 			AOnlineBeaconClient* NewClientActor = nullptr;
-			FOnBeaconSpawned* OnBeaconSpawnedDelegate = OnBeaconSpawnedMapping.Find(BeaconType);
-			if (OnBeaconSpawnedDelegate && OnBeaconSpawnedDelegate->IsBound())
+			if (FOnBeaconSpawned* OnBeaconSpawnedDelegate = OnBeaconSpawnedMapping.Find(BeaconType);
+				OnBeaconSpawnedDelegate && OnBeaconSpawnedDelegate->IsBound())
 			{
 				NewClientActor = OnBeaconSpawnedDelegate->Execute(Connection);
+			}
+			else
+			{
+				static const FText ErrorTxt = NSLOCTEXT("NetworkErrors", "BeaconSpawnFailureError.UnknownSpawner", "Join failure, Couldn't spawn client beacon actor (unknown beacon spawner).");
+				SendFailurePacket(Connection, ENetCloseResult::BeaconSpawnFailureError, ErrorTxt);
+				return false;
 			}
 
 			// make sure it spawned correctly
