@@ -29,6 +29,8 @@ FAutoConsoleVariableRef CVarSkinnedGeometryMaxRayTracingPrimitivesPerCmdList(
 
 void FRayTracingSkinnedGeometryUpdateQueue::Add(FRayTracingGeometry* InRayTracingGeometry, const FRayTracingAccelerationStructureSize& StructureSize)
 {
+	checkf(InRayTracingGeometry->GetRHI() != nullptr, TEXT("FRayTracingGeometry needs to have a valid RHI to be updated by FRayTracingSkinnedGeometryUpdateQueue."));
+
 	FScopeLock Lock(&CS);
 	FRayTracingUpdateInfo* CurrentUpdateInfo = ToUpdate.Find(InRayTracingGeometry);
 	if (CurrentUpdateInfo == nullptr)
@@ -212,6 +214,11 @@ void FRayTracingSkinnedGeometryUpdateQueue::Commit(FRDGBuilder& GraphBuilder, ER
 		{
 			FRayTracingGeometry* RayTracingGeometry = Iter.Key();
 			FRayTracingUpdateInfo& UpdateInfo = Iter.Value();
+
+			if (!ensureMsgf(RayTracingGeometry->GetRHI(), TEXT("Skipping request with invalid ray tracing geometry in FRayTracingSkinnedGeometryUpdateQueue. Geometry->IsEvicted(): %d."), RayTracingGeometry->IsEvicted()))
+			{
+				continue;
+			}
 
 			FRayTracingGeometryBuildParams BuildParams;
 			BuildParams.Geometry = RayTracingGeometry->GetRHI();
