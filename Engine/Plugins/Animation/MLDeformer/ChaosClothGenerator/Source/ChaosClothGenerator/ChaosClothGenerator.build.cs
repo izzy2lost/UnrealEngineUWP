@@ -38,10 +38,12 @@ public class ChaosClothGenerator : ModuleRules
 				"ChaosClothAssetEngine",
 				"Engine",
 				"GeometryCache",
+				"MeshDescription",
 				"MLDeformerFramework",
 				"MLDeformerFrameworkEditor",
 				"PropertyEditor",
 				"RenderCore",
+				"SkeletalMeshDescription",
 				"Slate",
 				"SlateCore",
 				"UnrealEd"

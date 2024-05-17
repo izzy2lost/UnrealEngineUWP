@@ -71,6 +71,7 @@ namespace UE::GeometryCacheHelpers
 			TArray<FColor> Colors;
 			TArray<uint32> ImportedVertexNumbers;
 			TArray<FGeometryCacheMeshBatchInfo> BatchesInfo;
+			TOptional<TArray<int32>> SourceVertexIndices;
 
 			/**
 			 * Move the position data to the cache track and close the TrackWriter. 
@@ -109,6 +110,7 @@ namespace UE::GeometryCacheHelpers
 
 	/**
 	 * @brief This will create a track writer and fill in the track writer's data (indices, UVs, materials .etc) from the skinned asset.
+	 * This only creates one track for the skinned asset. If you want to create multiple tracks based on imported mesh info, checkout AddTrackWriterFromSkinnedAsset() in ChaosClothGenerator.cpp. 
 	 * Usage:
 	 * 	FGeometryCacheConstantTopologyWriter Writer(MyCache);
 	 * 	int32 Index = AddTrackWriterFromSkinnedAsset(Writer, Asset);
