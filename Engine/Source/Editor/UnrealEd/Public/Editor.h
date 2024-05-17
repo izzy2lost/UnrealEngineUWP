@@ -713,6 +713,7 @@ UNREALED_API class FEditorModeTools& GLevelEditorModeTools();
 /**
  * Checks if FEditorModeTools is valid
  */
+UE_DEPRECATED(5.5, "Checking the validity of the global mode manager is unnecessary. Instead use FLevelEditorModule::OnLevelEditorCreated to gate the access on the global mode manager.")
 UNREALED_API bool GLevelEditorModeToolsIsValid();
 
 namespace EditorUtilities

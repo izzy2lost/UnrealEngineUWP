@@ -8,6 +8,7 @@
 #include "Modules/ModuleInterface.h"
 #include "Toolkits/AssetEditorToolkit.h"
 
+class ILevelEditor;
 // Logs
 DECLARE_LOG_CATEGORY_EXTERN(LogPCGEditor, Log, All);
 
@@ -40,7 +41,7 @@ protected:
 	void RegisterPCGDataVisualizations();
 	void UnregisterPCGDataVisualizations();
 
-	void OnPostEngineInit();
+	void OnLevelEditorCreated(TSharedPtr<ILevelEditor> InLevelEditor);
 	void RegisterOnEditorModeChange();
 	void OnEditorModeIDChanged(const FEditorModeID& EditorModeID, bool bIsEntering);
 
