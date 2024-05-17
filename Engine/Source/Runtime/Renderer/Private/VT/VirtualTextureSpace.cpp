@@ -318,7 +318,7 @@ void FVirtualTextureSpace::AllocateTextures(FRDGBuilder& GraphBuilder)
 				TexCreate_RenderTargetable | TexCreate_ShaderResource,
 				CachedNumPageTableLevels);
 
-			FRDGTextureRef DstTexture = GraphBuilder.CreateTexture(Desc, *PageTableDebugNames[TextureIndex]);
+			FRDGTextureRef DstTexture = GraphBuilder.CreateTexture(Desc, TEXT("VirtualTexture_PageTable"));
 
 			if (TextureEntry.RenderTarget)
 			{
