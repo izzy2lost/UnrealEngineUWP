@@ -59,10 +59,13 @@ namespace GeometryCollection::Facades
 	{
 		TArray<FTransform> OutTransforms;
 
-		const TManagedArray<FTransform3f>& BoneTransforms = TransformAttribute.Get();
-		const TManagedArray<int32>& Parents = ParentAttribute.Get();
+		if(IsValid())
+		{
+			const TManagedArray<FTransform3f>& BoneTransforms = TransformAttribute.Get();
+			const TManagedArray<int32>& Parents = ParentAttribute.Get();
 
-		GeometryCollectionAlgo::GlobalMatrices(BoneTransforms, Parents, OutTransforms);
+			GeometryCollectionAlgo::GlobalMatrices(BoneTransforms, Parents, OutTransforms);
+		}
 
 		return OutTransforms;
 	}

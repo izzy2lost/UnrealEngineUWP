@@ -1724,6 +1724,19 @@ namespace Chaos::Softs
 			Evolution->ResetConstraintRules();
 			Evolution->DeactivateParticleRanges();
 
+			// Sorting of the proxies to be removed to avoid particles indices issues in the next loop
+			RemovedProxies.Sort([](FThreadingProxy& BaseProxyA, FThreadingProxy& BaseProxyB) ->bool
+			{
+				const FFleshThreadingProxy* FleshProxyA = BaseProxyA.As<FFleshThreadingProxy>();
+				const FFleshThreadingProxy* FleshProxyB = BaseProxyB.As<FFleshThreadingProxy>();
+
+				if(FleshProxyA && FleshProxyB)
+				{
+					return FleshProxyA->GetSolverParticleRange()[0] < FleshProxyB->GetSolverParticleRange()[0];
+				}
+				return true;
+			});
+
 			// delete the simulated particles in block moves
 			for (FThreadingProxy* BaseProxy : RemovedProxies)
 			{
