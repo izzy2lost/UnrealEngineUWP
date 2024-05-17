@@ -128,17 +128,7 @@ namespace UnrealBuildTool
 				throw new InvalidOperationException("Session has already been initialized");
 			}
 
-			string? sessionId = null;
-			string? jobId = Environment.GetEnvironmentVariable("UE_HORDE_JOBID");
-			string? batchId = Environment.GetEnvironmentVariable("UE_HORDE_BATCHID");
-			string? stepId = Environment.GetEnvironmentVariable("UE_HORDE_STEPID");
-
-			if (jobId != null && batchId != null && stepId != null)
-			{
-				sessionId = $"{jobId}-{batchId}-{stepId}";
-			}
-
-			_client = new ServerComputeClient(_serviceProvider.GetRequiredService<IHttpClientFactory>(), sessionId, _logger);
+			_client = _serviceProvider.GetRequiredService<IHordeClient>().CreateComputeClient();
 
 			_logger.LogInformation("Creating tool bundle...");
 			DirectoryReference ubaDir;

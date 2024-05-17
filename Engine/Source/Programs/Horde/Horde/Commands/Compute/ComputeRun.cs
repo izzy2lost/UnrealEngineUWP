@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Reflection;
 using System.Text.Json;
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Clients;
@@ -64,14 +65,14 @@ namespace Horde.Commands.Compute
 		[Description("Path to a JSON file describing the workload to execute. See ComputeRun.JsonComputeTask for structure of this document.")]
 		FileReference TaskFile { get; set; } = null!;
 
-		readonly IHttpClientFactory _httpClientFactory;
+		readonly IHordeClient _hordeClient;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ComputeRun(IHttpClientFactory httpClientFactory)
+		public ComputeRun(IHordeClient hordeClient)
 		{
-			_httpClientFactory = httpClientFactory;
+			_hordeClient = hordeClient;
 		}
 
 		/// <inheritdoc/>
@@ -115,7 +116,7 @@ namespace Horde.Commands.Compute
 			}
 			else
 			{
-				return new ServerComputeClient(_httpClientFactory, logger);
+				return _hordeClient.CreateComputeClient();
 			}
 		}
 

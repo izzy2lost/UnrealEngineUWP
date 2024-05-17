@@ -6,7 +6,6 @@ using EpicGames.Horde.Agents.Leases;
 using EpicGames.Perforce.Managed;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
-using Grpc.Net.Client;
 using Horde.Agent.Services;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
@@ -229,7 +228,7 @@ namespace Horde.Agent.Leases
 
 		async Task<SessionResult> HandleSessionAsync(bool shutdownAfterFinishedLease, CancellationToken stoppingToken)
 		{
-			HordeRpc.HordeRpcClient hordeRpc = new HordeRpc.HordeRpcClient(_session.GrpcChannel);
+			HordeRpc.HordeRpcClient hordeRpc = await _session.HordeClient.CreateGrpcClientAsync<HordeRpc.HordeRpcClient>(stoppingToken);
 
 			// Terminate any remaining child processes from other instances
 			ProcessUtils.TerminateProcesses(x => x.IsUnderDirectory(_session.WorkingDir), _logger, stoppingToken);
@@ -308,7 +307,7 @@ namespace Horde.Agent.Leases
 				using (stopping ? (CancellationTokenRegistration?)null : stoppingToken.Register(() => _updateLeasesEvent.Set()))
 				{
 					// Update the state with the server
-					RpcUpdateSessionResponse? updateSessionResponse = await UpdateSessionAsync(_session.GrpcChannel, updateSessionRequest, waitTask);
+					RpcUpdateSessionResponse? updateSessionResponse = await UpdateSessionAsync(hordeRpc, updateSessionRequest, waitTask);
 
 					lock (_lockObject)
 					{
@@ -369,7 +368,7 @@ namespace Horde.Agent.Leases
 					}
 
 					// Update the current status
-					if (_session.GrpcChannel.State == ConnectivityState.TransientFailure)
+					if (!_session.HordeClient.HasValidAccessToken())
 					{
 						_statusService.Set(false, _activeLeases.Count, "Attempting to connect to server...");
 					}
@@ -413,14 +412,12 @@ namespace Horde.Agent.Leases
 		/// <summary>
 		/// Wrapper for <see cref="UpdateSessionInternalAsync"/> which filters/logs exceptions
 		/// </summary>
-		/// <param name="grpcChannel">The RPC client connection</param>
+		/// <param name="hordeRpc">The RPC client connection</param>
 		/// <param name="updateSessionRequest">The session update request</param>
 		/// <param name="waitTask">Task which can be used to jump out of the update early</param>
 		/// <returns>Response from the call</returns>
-		async Task<RpcUpdateSessionResponse?> UpdateSessionAsync(GrpcChannel grpcChannel, RpcUpdateSessionRequest updateSessionRequest, Task waitTask)
+		async Task<RpcUpdateSessionResponse?> UpdateSessionAsync(HordeRpc.HordeRpcClient hordeRpc, RpcUpdateSessionRequest updateSessionRequest, Task waitTask)
 		{
-			HordeRpc.HordeRpcClient hordeRpc = new HordeRpc.HordeRpcClient(grpcChannel);
-
 			RpcUpdateSessionResponse? updateSessionResponse = null;
 			try
 			{

@@ -175,7 +175,7 @@ namespace EpicGames.Horde.Compute.Clients
 			}
 		}
 
-		readonly IHttpClientFactory _httpClientFactory;
+		readonly HttpClient _httpClient;
 		readonly CancellationTokenSource _cancellationSource = new CancellationTokenSource();
 		readonly string _sessionId;
 		readonly ILogger _logger;
@@ -184,24 +184,24 @@ namespace EpicGames.Horde.Compute.Clients
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="httpClientFactory">Factory for constructing http client instances</param>
+		/// <param name="httpClient">Factory for constructing http client instances</param>
 		/// <param name="logger">Logger for diagnostic messages</param>
-		public ServerComputeClient(IHttpClientFactory httpClientFactory, ILogger logger) : this(httpClientFactory, null, logger)
+		public ServerComputeClient(HttpClient httpClient, ILogger logger) : this(httpClient, null, logger)
 		{
 		}
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="httpClientFactory">Factory for constructing http client instances</param>
+		/// <param name="httpClient">Factory for constructing http client instances</param>
 		/// <param name="sessionId">Arbitrary ID used for identifying this compute client. If not provided, a random one will be generated</param>
 		/// <param name="logger">Logger for diagnostic messages</param>
-		public ServerComputeClient(IHttpClientFactory httpClientFactory, string? sessionId, ILogger logger)
+		public ServerComputeClient(HttpClient httpClient, string? sessionId, ILogger logger)
 		{
-			_httpClientFactory = httpClientFactory;
+			_httpClient = httpClient;
 			_sessionId = sessionId ?? Guid.NewGuid().ToString();
 			_logger = logger;
-			_externalIpResolver = new ExternalIpResolver(_httpClientFactory.CreateClient(HordeHttpClient.HttpClientName));
+			_externalIpResolver = new ExternalIpResolver(_httpClient);
 		}
 
 		/// <inheritdoc/>
@@ -240,9 +240,8 @@ namespace EpicGames.Horde.Compute.Clients
 		/// <inheritdoc/>
 		public async Task DeclareResourceNeedsAsync(ClusterId clusterId, string pool, Dictionary<string, int> resourceNeeds, CancellationToken cancellationToken = default)
 		{
-			HttpClient client = _httpClientFactory.CreateClient(HordeHttpClient.HttpClientName);
 			ResourceNeedsMessage request = new() { SessionId = _sessionId, Pool = pool, ResourceNeeds = resourceNeeds };
-			using HttpResponseMessage response = await HordeHttpClient.PostAsync(client, $"api/v2/compute/{clusterId}/resource-needs", request, _cancellationSource.Token);
+			using HttpResponseMessage response = await HordeHttpClient.PostAsync(_httpClient, $"api/v2/compute/{clusterId}/resource-needs", request, _cancellationSource.Token);
 			response.EnsureSuccessStatusCode();
 		}
 
@@ -251,8 +250,6 @@ namespace EpicGames.Horde.Compute.Clients
 			_logger.LogDebug("Requesting compute resource");
 
 			// Assign a compute worker
-			HttpClient client = _httpClientFactory.CreateClient(HordeHttpClient.HttpClientName);
-
 			AssignComputeRequest request = new AssignComputeRequest();
 			request.Requirements = requirements;
 			request.RequestId = requestId;
@@ -265,7 +262,7 @@ namespace EpicGames.Horde.Compute.Clients
 			}
 
 			AssignComputeResponse? response;
-			using (HttpResponseMessage httpResponse = await HordeHttpClient.PostAsync(client, $"api/v2/compute/{clusterId}", request, _cancellationSource.Token))
+			using (HttpResponseMessage httpResponse = await HordeHttpClient.PostAsync(_httpClient, $"api/v2/compute/{clusterId}", request, _cancellationSource.Token))
 			{
 				if (httpResponse.StatusCode == HttpStatusCode.NotFound)
 				{

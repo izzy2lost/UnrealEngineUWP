@@ -3,7 +3,6 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text.Json;
@@ -37,11 +36,6 @@ namespace EpicGames.Horde
 		public bool AllowAuthPrompt { get; set; } = true;
 
 		/// <summary>
-		/// Callback to allow configuring any HTTP client created for Horde
-		/// </summary>
-		public Action<HttpClient>? ConfigureHttpClient { get; set; }
-
-		/// <summary>
 		/// Options for creating new bundles
 		/// </summary>
 		public BundleOptions Bundle { get; } = new BundleOptions();
@@ -50,6 +44,30 @@ namespace EpicGames.Horde
 		/// Options for caching bundles 
 		/// </summary>
 		public BundleCacheOptions BundleCache { get; } = new BundleCacheOptions();
+
+		/// <summary>
+		/// Options for the storage backend cache
+		/// </summary>
+		public StorageBackendCacheOptions BackendCache { get; } = new StorageBackendCacheOptions();
+
+		/// <summary>
+		/// Gets the configured server URL, or the default value
+		/// </summary>
+		public Uri? GetServerUrlOrDefault()
+			=> ServerUrl ?? GetServerUrlFromEnvironment() ?? GetDefaultServerUrl();
+
+		/// <summary>
+		/// Reads the server URL from the environment
+		/// </summary>
+		public static Uri? GetServerUrlFromEnvironment()
+		{
+			string? hordeUrlEnvVar = Environment.GetEnvironmentVariable(HordeHttpClient.HordeUrlEnvVarName);
+			if (String.IsNullOrEmpty(hordeUrlEnvVar))
+			{
+				return null;
+			}
+			return new Uri(hordeUrlEnvVar);
+		}
 
 		/// <summary>
 		/// Gets the default server URL for the current user
@@ -173,5 +191,21 @@ namespace EpicGames.Horde
 				}
 			}
 		}
+	}
+
+	/// <summary>
+	/// Options for the storage backend cache
+	/// </summary>
+	public class StorageBackendCacheOptions
+	{
+		/// <summary>
+		/// Directory to store cached data
+		/// </summary>
+		public string? CacheDir { get; set; }
+
+		/// <summary>
+		/// Maximum size of the cache, in bytes
+		/// </summary>
+		public long MaxSize { get; set; }
 	}
 }

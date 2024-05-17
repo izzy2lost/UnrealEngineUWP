@@ -20,16 +20,8 @@ using EpicGames.Horde.Projects;
 using EpicGames.Horde.Secrets;
 using EpicGames.Horde.Server;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Tools;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using Polly;
-using Polly.Extensions.Http;
-using Polly.Retry;
-using Polly.Timeout;
 
 #pragma warning disable CA2234
 
@@ -56,6 +48,11 @@ namespace EpicGames.Horde
 		/// Name of clients created from the http client factory
 		/// </summary>
 		public const string HttpClientName = "HordeHttpClient";
+
+		/// <summary>
+		/// Name of clients used for anonymous requests.
+		/// </summary>
+		public const string AnonymousHttpClientName = "HordeAnonymousHttpClient";
 
 		/// <summary>
 		/// Name of clients created from the http client factory for handling upload redirects. Should not contain Horde auth headers.
@@ -599,147 +596,5 @@ namespace EpicGames.Horde
 		}
 
 		#endregion
-	}
-
-	/// <summary>
-	/// Extension methods for Horde HTTP clients
-	/// </summary>
-	public static class HordeHttpClientExtensions
-	{
-		/// <summary>
-		/// Creates a <see cref="HordeHttpClient"/> instance from an http client factory
-		/// </summary>
-		public static HordeHttpClient CreateHordeHttpClient(this IHttpClientFactory factory)
-		{
-			return new HordeHttpClient(factory.CreateClient(HordeHttpClient.HttpClientName));
-		}
-
-		/// <summary>
-		/// Registers a Horde HTTP client type, and configures it to use the default OIDC message handler.
-		/// </summary>
-		/// <param name="services">Service collection to add services to</param>
-		public static IHttpClientBuilder AddHordeHttpClient(this IServiceCollection services)
-		{
-			return services.AddHordeHttpClient((sp, client) => { });
-		}
-
-		/// <summary>
-		/// Registers a Horde HTTP client type, and configures it to use the default OIDC message handler.
-		/// </summary>
-		/// <param name="services">Service collection to add services to</param>
-		/// <param name="configureClient">Callback to modify options for the http client</param>
-		public static IHttpClientBuilder AddHordeHttpClient(this IServiceCollection services, Action<HttpClient> configureClient)
-		{
-			return services.AddHordeHttpClient((sp, client) => configureClient(client));
-		}
-
-		/// <summary>
-		/// Registers a Horde HTTP client type, and configures it to use the default OIDC message handler.
-		/// </summary>
-		/// <param name="services">Service collection to add services to</param>
-		/// <param name="configureClient">Callback to modify options for the http client</param>
-		public static IHttpClientBuilder AddHordeHttpClient(this IServiceCollection services, Action<IServiceProvider, HttpClient> configureClient)
-		{
-			// Sets defaults from the environment before calling the user provided configuration method
-			void ConfigureClientFromEnvironment(IServiceProvider serviceProvider, HttpClient httpClient)
-			{
-				IOptions<HordeOptions> options = serviceProvider.GetRequiredService<IOptions<HordeOptions>>();
-				if (options.Value.ServerUrl != null)
-				{
-					httpClient.BaseAddress = options.Value.ServerUrl;
-				}
-
-				httpClient.Timeout = TimeSpan.FromSeconds(240); // Global timeout
-
-				// Run the user callbacks
-				options.Value.ConfigureHttpClient?.Invoke(httpClient);
-				configureClient(serviceProvider, httpClient);
-
-				// If the server URL isn't set, take it from the environment
-				if (httpClient.BaseAddress == null)
-				{
-					string? hordeUrlEnvVar = Environment.GetEnvironmentVariable(HordeHttpClient.HordeUrlEnvVarName);
-					if (!String.IsNullOrEmpty(hordeUrlEnvVar))
-					{
-						httpClient.BaseAddress = new Uri(hordeUrlEnvVar);
-					}
-				}
-
-				// Try to get the default server address from the registry
-				httpClient.BaseAddress ??= HordeOptions.GetDefaultServerUrl();
-
-				// Make sure we have a base URL set
-				if (httpClient.BaseAddress == null)
-				{
-					throw new Exception("No Horde server is configured, or can be detected from the environment. Consider specifying a URL when calling AddHordeHttpClient().");
-				}
-			}
-
-			// Register the HTTP client for handling login requests
-			void ConfigureClientFromOptions(IServiceProvider serviceProvider, HttpClient httpClient)
-			{
-				IOptions<HordeOptions> options = serviceProvider.GetRequiredService<IOptions<HordeOptions>>();
-				if (options.Value.ServerUrl != null)
-				{
-					httpClient.BaseAddress = options.Value.ServerUrl;
-				}
-			}
-			services.AddSingleton<HordeHttpAuthHandlerState>();
-			services.AddTransient<HordeHttpAuthHandler>();
-			services.AddHttpClient(HordeHttpAuthHandlerState.HttpClientName, ConfigureClientFromOptions);
-
-			// Register the HTTP client for processing upload redirects
-			services.AddHttpClient(HordeHttpClient.UploadRedirectHttpClientName)
-				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTimeoutRetryPolicy(request, serviceProvider.GetRequiredService<ILogger<HttpStorageBackend>>()))
-				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTransientErrorPolicy(request, serviceProvider.GetRequiredService<ILogger<HttpStorageBackend>>()));
-
-			// Create the HTTP client for handling Horde requests
-			IHttpClientBuilder builder = services.AddHttpClient<HordeHttpClient>(HordeHttpClient.HttpClientName, ConfigureClientFromEnvironment)
-				.AddHttpMessageHandler<HordeHttpAuthHandler>()
-				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTimeoutRetryPolicy(request, serviceProvider.GetRequiredService<ILogger<HttpStorageBackend>>()))
-				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTransientErrorPolicy(request, serviceProvider.GetRequiredService<ILogger<HttpStorageBackend>>()));
-
-			return builder;
-		}
-
-		/// <summary>
-		/// Create a default timeout retry policy
-		/// </summary>
-		public static IAsyncPolicy<HttpResponseMessage> CreateDefaultTimeoutRetryPolicy(HttpRequestMessage request, ILogger logger)
-		{
-			// Wait 30 seconds for operations to timeout
-			Task OnTimeoutAsync(Context context, TimeSpan timespan, Task timeoutTask)
-			{
-				logger.LogWarning(KnownLogEvents.Systemic_Horde_Http, "{Method} {Url} timed out after {Time}s.", request.Method, request.RequestUri, (int)timespan.TotalSeconds);
-				return Task.CompletedTask;
-			}
-
-			AsyncTimeoutPolicy<HttpResponseMessage> timeoutPolicy = Policy.TimeoutAsync<HttpResponseMessage>(30, OnTimeoutAsync);
-
-			// Retry twice after a timeout
-			void OnRetry(Exception ex, TimeSpan timespan)
-			{
-				logger.LogWarning(KnownLogEvents.Systemic_Horde_Http, ex, "{Method} {Url} retrying after {Time}s.", request.Method, request.RequestUri, timespan.TotalSeconds);
-			}
-
-			TimeSpan[] retryTimes = new[] { TimeSpan.FromSeconds(5.0), TimeSpan.FromSeconds(10.0) };
-			AsyncRetryPolicy retryPolicy = Policy.Handle<TimeoutRejectedException>().WaitAndRetryAsync(retryTimes, OnRetry);
-			return retryPolicy.WrapAsync(timeoutPolicy);
-		}
-
-		/// <summary>
-		/// Create a default timeout retry policy
-		/// </summary>
-		public static IAsyncPolicy<HttpResponseMessage> CreateDefaultTransientErrorPolicy(HttpRequestMessage request, ILogger logger)
-		{
-			Task OnTimeoutAsync(DelegateResult<HttpResponseMessage> outcome, TimeSpan timespan, int retryAttempt, Context context)
-			{
-				logger.LogWarning(KnownLogEvents.Systemic_Horde_Http, "{Method} {Url} failed ({Result}). Delaying for {DelayMs}ms (attempt #{RetryNum}).", request.Method, request.RequestUri, outcome.Result?.StatusCode, timespan.TotalMilliseconds, retryAttempt);
-				return Task.CompletedTask;
-			}
-
-			TimeSpan[] retryTimes = new[] { TimeSpan.FromSeconds(1.0), TimeSpan.FromSeconds(5.0), TimeSpan.FromSeconds(10.0), TimeSpan.FromSeconds(30.0), TimeSpan.FromSeconds(30.0) };
-			return HttpPolicyExtensions.HandleTransientHttpError().WaitAndRetryAsync(retryTimes, OnTimeoutAsync);
-		}
 	}
 }

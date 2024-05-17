@@ -2,12 +2,12 @@
 
 using System.Text;
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using Google.Protobuf;
 using Grpc.Core;
-using Grpc.Net.Client;
 using Horde.Common.Rpc;
 using HordeCommon.Rpc;
 using Microsoft.Extensions.Logging;
@@ -26,7 +26,7 @@ namespace Horde.Agent.Utility
 	{
 		const int FlushLength = 1024 * 1024;
 
-		readonly GrpcChannel _connection;
+		readonly IHordeClient _hordeClient;
 		readonly JobId? _jobId;
 		readonly JobStepBatchId? _jobBatchId;
 		readonly JobStepId? _jobStepId;
@@ -43,16 +43,16 @@ namespace Horde.Agent.Utility
 		AsyncEvent _tailTaskStop;
 		readonly AsyncEvent _newTailDataEvent = new AsyncEvent();
 
-		public JsonRpcAndStorageLogSink(GrpcChannel connection, LogId logId, JobId? jobId, JobStepBatchId? jobBatchId, JobStepId? jobStepId, IStorageClient store, ILogger logger)
+		public JsonRpcAndStorageLogSink(IHordeClient hordeClient, LogId logId, JobId? jobId, JobStepBatchId? jobBatchId, JobStepId? jobStepId, ILogger logger)
 		{
-			_connection = connection;
+			_hordeClient = hordeClient;
 			_logId = logId;
 			_jobId = jobId;
 			_jobBatchId = jobBatchId;
 			_jobStepId = jobStepId;
 			_builder = new LogBuilder(LogFormat.Json, logger);
-			_store = store;
-			_writer = store.CreateBlobWriter();
+			_store = _hordeClient.CreateStorageClient(logId);
+			_writer = _store.CreateBlobWriter();
 			_logger = logger;
 
 			_tailTaskStop = new AsyncEvent();
@@ -174,7 +174,7 @@ namespace Horde.Agent.Utility
 			// Update the outcome of this jobstep
 			if (_jobId != null && _jobBatchId != null && _jobStepId != null)
 			{
-				JobRpc.JobRpcClient jobRpc = new JobRpc.JobRpcClient(_connection);
+				JobRpc.JobRpcClient jobRpc = await _hordeClient.CreateGrpcClientAsync<JobRpc.JobRpcClient>(cancellationToken);
 				try
 				{
 					await jobRpc.UpdateStepAsync(new RpcUpdateStepRequest(_jobId.Value, _jobBatchId.Value, _jobStepId.Value, JobStepState.Unspecified, outcome), cancellationToken: cancellationToken);
@@ -189,7 +189,7 @@ namespace Horde.Agent.Utility
 		/// <inheritdoc/>
 		public async Task WriteEventsAsync(List<RpcCreateEventRequest> events, CancellationToken cancellationToken)
 		{
-			JobRpc.JobRpcClient jobRpc = new JobRpc.JobRpcClient(_connection);
+			JobRpc.JobRpcClient jobRpc = await _hordeClient.CreateGrpcClientAsync<JobRpc.JobRpcClient>(cancellationToken);
 			await jobRpc.CreateEventsAsync(new RpcCreateEventsRequest(events), cancellationToken: cancellationToken);
 		}
 
@@ -222,7 +222,7 @@ namespace Horde.Agent.Utility
 			request.TargetLocator = target.GetLocator().ToString();
 			request.Complete = complete;
 
-			LogRpcClient clientRef = new LogRpcClient(_connection);
+			LogRpcClient clientRef = await _hordeClient.CreateGrpcClientAsync<LogRpcClient>(cancellationToken);
 			await clientRef.UpdateLogAsync(request, cancellationToken: cancellationToken);
 		}
 
@@ -231,7 +231,7 @@ namespace Horde.Agent.Utility
 			DateTime deadline = DateTime.UtcNow.AddMinutes(2.0);
 			try
 			{
-				LogRpcClient clientRef = new LogRpcClient(_connection);
+				LogRpcClient clientRef = await _hordeClient.CreateGrpcClientAsync<LogRpcClient>(cancellationToken);
 				using AsyncDuplexStreamingCall<UpdateLogTailRequest, UpdateLogTailResponse> call = clientRef.UpdateLogTail(deadline: deadline, cancellationToken: cancellationToken);
 
 				// Write the request to the server
