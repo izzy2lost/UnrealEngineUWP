@@ -4,6 +4,7 @@
 
 #include "Delegates/Delegate.h"
 #include "IdentifierTable/ConcertTransportArchives.h"
+#include "UObject/SoftObjectPath.h"
 
 struct FLazyObjectPtr;
 struct FObjectPtr;
@@ -147,7 +148,11 @@ public:
 	//~ End FArchive Interface
 
 protected:
+	/** Called to rewrite the object path that will be stored in the persistent object value (InBytes) */
 	virtual void OnObjectSerialized(FSoftObjectPath& Obj) {}
+
+	/** Called with the result of OnObjectSerialized to get the object path to set on the in-memory object value (the output of operator<<) */
+	virtual FSoftObjectPath GetOutputObjectPath(const FSoftObjectPath& Obj) { return Obj; }
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

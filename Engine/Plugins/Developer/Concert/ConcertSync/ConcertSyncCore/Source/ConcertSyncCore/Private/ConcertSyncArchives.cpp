@@ -656,7 +656,9 @@ FArchive& FConcertSyncObjectRewriter::operator<<(UObject*& Obj)
 	{
 		OnObjectSerialized(ObjPath);
 		RewriteData(OffsetBeforeObjectRead, OffsetAfterObjectRead - OffsetBeforeObjectRead, ObjPath);
-		Obj = StaticFindObject(UObject::StaticClass(), nullptr, *ObjPath.ToString());
+
+		const FSoftObjectPath OutputObjPath = GetOutputObjectPath(ObjPath);
+		Obj = StaticFindObject(UObject::StaticClass(), nullptr, *OutputObjPath.ToString());
 	}
 
 	return *this;
@@ -706,7 +708,7 @@ FArchive& FConcertSyncObjectRewriter::operator<<(FSoftObjectPath& AssetPtr)
 	{
 		OnObjectSerialized(ObjPath);
 		RewriteData(OffsetBeforeObjectRead, OffsetAfterObjectRead - OffsetBeforeObjectRead, ObjPath);
-		AssetPtr = ObjPath;
+		AssetPtr = GetOutputObjectPath(ObjPath);
 	}
 
 	return *this;
