@@ -373,6 +373,7 @@ UCLASS(Experimental, BlueprintType, MinimalAPI)
 class UNiagaraSimCache : public UObject
 {
 	friend struct FNiagaraSimCacheAttributeReaderHelper;
+	friend struct FNiagaraSimCacheExport;
 	friend struct FNiagaraSimCacheCompare;
 	friend struct FNiagaraSimCacheHelper;
 	friend struct FNiagaraSimCacheGpuResource;

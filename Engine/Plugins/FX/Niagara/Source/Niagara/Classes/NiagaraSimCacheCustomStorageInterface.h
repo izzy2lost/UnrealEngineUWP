@@ -4,13 +4,14 @@
 
 #include "NiagaraCommon.h"
 #include "UObject/Interface.h"
+#include "Dom/JsonObject.h"
 #include "NiagaraSimCacheCustomStorageInterface.generated.h"
 
 struct FNiagaraSimCacheFeedbackContext;
 class FNiagaraSystemInstance;
 
 // Interface for UObjects to implement renderable mesh
-UINTERFACE()
+UINTERFACE(MinimalAPI)
 class UNiagaraSimCacheCustomStorageInterface : public UInterface
 {
 	GENERATED_BODY()
@@ -70,4 +71,12 @@ public:
 	this into 'MyEmitter.Particles.MyAttribute' by checking the UsageContext is a UNiagaraEmitter and then creating the variable from the unique name.
 	*/
 	virtual TArray<FNiagaraVariableBase> GetSimCacheRendererAttributes(UObject* UsageContext) const { return TArray<FNiagaraVariableBase>(); }
+
+	/**
+	 This converts the content of the storage object to a json representation. If another interchange format (e.g. an image format) is better, then the json this method produces should link to the secondary files.
+	@param TargetFolder (optional) the folder where to save auxiliary data from this frame. Might not be set if external files are not supported (e.g. when called over network).
+	@param FilenamePrefix (optional) unique name for this data interface - can either be used directly as filename or add extensions like .png or even to create a folder and put in multiple files related to this data interface
+	@return a json string representing this data interface object
+	 */
+	virtual TSharedPtr<FJsonObject> SimCacheToJson(const UObject* StorageObject, int FrameIndex, TOptional<FString> TargetFolder, TOptional<FString> FilenamePrefix) const { return TSharedPtr<FJsonObject>(); }
 };

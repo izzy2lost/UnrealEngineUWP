@@ -17,6 +17,7 @@ public class NiagaraEditor : ModuleRules
 				"ApplicationCore",
                 "InputCore",
 				"RenderCore",
+				"Json",
 				"Slate", 
 				"SlateCore",
 				"SlateNullRenderer",
