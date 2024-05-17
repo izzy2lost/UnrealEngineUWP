@@ -53,7 +53,7 @@ float3 GetVertexNormal(uint VId, Buffer<float4> InTangentBuffer, Buffer<uint> In
 }
 
 // Return a mesh triangle (position + normal)
-FHairMeshTriangle GetHairMeshTriangle(uint TriangleIndex, Buffer<float> InPositionBuffer, Buffer<float4> InTangentBuffer, Buffer<uint> InIndexBuffer, uint InIndexOffset, uint InMaxIndexCount, uint InMaxVertexCount, uint InTangentFormat)
+FHairMeshTriangle GetHairMeshTriangle(uint TriangleIndex, Buffer<float> InPositionBuffer, Buffer<float4> InTangentBuffer, Buffer<uint> InIndexBuffer, uint InIndexOffset, uint InMaxIndexCount, uint InMaxVertexCount, uint InTangentFormat, bool bUseVertexTangent)
 {
 	const uint BaseVertexId = TriangleIndex * 3;
 	const uint VId0 = BaseVertexId;
@@ -65,9 +65,12 @@ FHairMeshTriangle GetHairMeshTriangle(uint TriangleIndex, Buffer<float> InPositi
 	Out.P1 = GetVertexPosition(VId1, InPositionBuffer, InIndexBuffer, InIndexOffset, InMaxIndexCount, InMaxVertexCount);
 	Out.P2 = GetVertexPosition(VId2, InPositionBuffer, InIndexBuffer, InIndexOffset, InMaxIndexCount, InMaxVertexCount);
 
-	Out.N0 = GetVertexNormal(VId0, InTangentBuffer, InIndexBuffer, InIndexOffset, InMaxIndexCount, InMaxVertexCount, InTangentFormat);
-	Out.N1 = GetVertexNormal(VId1, InTangentBuffer, InIndexBuffer, InIndexOffset, InMaxIndexCount, InMaxVertexCount, InTangentFormat);
-	Out.N2 = GetVertexNormal(VId2, InTangentBuffer, InIndexBuffer, InIndexOffset, InMaxIndexCount, InMaxVertexCount, InTangentFormat);
+	if (bUseVertexTangent)
+	{
+		Out.N0 = GetVertexNormal(VId0, InTangentBuffer, InIndexBuffer, InIndexOffset, InMaxIndexCount, InMaxVertexCount, InTangentFormat);
+		Out.N1 = GetVertexNormal(VId1, InTangentBuffer, InIndexBuffer, InIndexOffset, InMaxIndexCount, InMaxVertexCount, InTangentFormat);
+		Out.N2 = GetVertexNormal(VId2, InTangentBuffer, InIndexBuffer, InIndexOffset, InMaxIndexCount, InMaxVertexCount, InTangentFormat);
+	}
 	
 	return Out;
 }

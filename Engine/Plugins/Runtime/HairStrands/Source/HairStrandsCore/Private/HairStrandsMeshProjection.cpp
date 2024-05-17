@@ -48,6 +48,7 @@ class FSkinUpdateCS : public FGlobalShader
 	using FPermutationDomain = TShaderPermutationDomain<FUnlimitedBoneInfluence, FUseExtraInfluence, FBoneIndexUint16, FBoneWeightUint16, FPrevious>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, bWriteTangent)
 		SHADER_PARAMETER(uint32, NumVertexToProcess)
 		SHADER_PARAMETER(uint32, NumTotalVertices)
 		SHADER_PARAMETER(uint32, SectionVertexBaseIndex)
@@ -58,8 +59,10 @@ class FSkinUpdateCS : public FGlobalShader
 		SHADER_PARAMETER_SRV(Buffer<float4>, PrevBoneMatrices)
 		SHADER_PARAMETER_SRV(Buffer<uint>, VertexWeights)
 		SHADER_PARAMETER_SRV(Buffer<float>, RestPositions)
+		SHADER_PARAMETER_SRV(Buffer<float4>, RestTangents)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<float>, DeformedPositions)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<float>, PrevDeformedPositions)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<float4>, DeformedTangents)
 	END_SHADER_PARAMETER_STRUCT()
 
 public:
@@ -81,13 +84,31 @@ void AddSkinUpdatePass(
 	FSkeletalMeshLODRenderData& RenderData,
 	const TArray<FSkinUpdateSection>& Sections,
 	FRDGBufferRef OutDeformedPositionBuffer,
-	FRDGBufferRef OutPrevDeformedPositionBuffer)
+	FRDGBufferRef OutPrevDeformedPositionBuffer,
+	FRDGBufferRef OutDeformedTangentBuffer)
 {
 	check(Sections.Num() > 0);
 	const FSkinWeightVertexBuffer* SkinWeight = &RenderData.SkinWeightVertexBuffer;
 	const bool bPrevPosition = OutPrevDeformedPositionBuffer != nullptr && Sections[0].BonePrevBuffer;
 	
+	bool bHasTangentSRV = false;
+	FRDGBufferUAVRef DeformedTangentsUAV = nullptr;
+	if (OutDeformedTangentBuffer)
+	{
+		const FRHIShaderResourceView* TangentSRV = RenderData.StaticVertexBuffers.StaticMeshVertexBuffer.GetTangentsSRV();
+		check(TangentSRV);
+		const EPixelFormat TangentFormat = TangentSRV->GetDesc().Buffer.SRV.Format;
+		DeformedTangentsUAV = GraphBuilder.CreateUAV(OutDeformedTangentBuffer, TangentFormat, ERDGUnorderedAccessViewFlags::SkipBarrier);
+		bHasTangentSRV = true;
+	}
+	else
+	{
+		// Dummy output
+		DeformedTangentsUAV = GraphBuilder.CreateUAV(GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(4u, 1), TEXT("DummyUAV")), PF_R8G8B8A8_SNORM, ERDGUnorderedAccessViewFlags::SkipBarrier);
+	}
+
 	FSkinUpdateCS::FParameters* Parameters = GraphBuilder.AllocParameters<FSkinUpdateCS::FParameters>();
+	Parameters->bWriteTangent			= bHasTangentSRV ? 1 : 0;
 	Parameters->WeightIndexSize 		= SkinWeight->GetBoneIndexByteSize() | (SkinWeight->GetBoneWeightByteSize() << 8);
 	Parameters->NumVertexToProcess 		= 0;
 	Parameters->NumTotalVertices		= RenderData.StaticVertexBuffers.PositionVertexBuffer.GetNumVertices();
@@ -98,7 +119,9 @@ void AddSkinUpdatePass(
 	Parameters->PrevBoneMatrices 		= Sections[0].BonePrevBuffer;
 	Parameters->VertexWeights 			= SkinWeight->GetDataVertexBuffer()->GetSRV();
 	Parameters->RestPositions 			= RenderData.StaticVertexBuffers.PositionVertexBuffer.GetSRV();
+	Parameters->RestTangents 			= RenderData.StaticVertexBuffers.StaticMeshVertexBuffer.GetTangentsSRV();
 	Parameters->DeformedPositions 		= GraphBuilder.CreateUAV(OutDeformedPositionBuffer, PF_R32_FLOAT, ERDGUnorderedAccessViewFlags::SkipBarrier);
+	Parameters->DeformedTangents 		= DeformedTangentsUAV;
 	if (bPrevPosition)
 	{
 		Parameters->PrevDeformedPositions = GraphBuilder.CreateUAV(OutPrevDeformedPositionBuffer, PF_R32_FLOAT, ERDGUnorderedAccessViewFlags::SkipBarrier);
@@ -159,7 +182,7 @@ private:
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer, MeshSectionBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RDGMeshPositionBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RDGMeshPreviousPositionBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RDGTangentBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RDGMeshTangentBuffer)
 		SHADER_PARAMETER_SRV(Buffer, MeshPositionBuffer)
 		SHADER_PARAMETER_SRV(Buffer, MeshPreviousPositionBuffer)
 		SHADER_PARAMETER_SRV(Buffer, MeshIndexBuffer)
@@ -209,7 +232,7 @@ static bool AddHairStrandUpdateMeshTrianglesPass(
 	CommonParameters.TangentFormat					= MeshLODData.Sections[0].TangentFormat;
 	CommonParameters.RDGMeshPositionBuffer			= MeshLODData.Sections[0].RDGPositionBuffer;
 	CommonParameters.RDGMeshPreviousPositionBuffer 	= MeshLODData.Sections[0].RDGPreviousPositionBuffer;
-	CommonParameters.RDGTangentBuffer				= MeshLODData.Sections[0].RDGTangentBuffer;
+	CommonParameters.RDGMeshTangentBuffer			= MeshLODData.Sections[0].RDGTangentBuffer;
 	CommonParameters.MeshPositionBuffer				= MeshLODData.Sections[0].PositionBuffer;
 	CommonParameters.MeshPreviousPositionBuffer		= MeshLODData.Sections[0].PreviousPositionBuffer;
 	CommonParameters.MeshIndexBuffer				= MeshLODData.Sections[0].IndexBuffer;

@@ -148,7 +148,6 @@ struct FMeshSectionData
 uint TangentFormat;
 uint MaxSectionCount;
 uint MaxUniqueTriangleCount;
-Buffer<float4> MeshTangentBuffer;
 Buffer<uint> MeshIndexBuffer;
 Buffer<uint> UniqueTriangleIndices;
 StructuredBuffer<uint4> MeshSectionBuffer;
@@ -158,11 +157,14 @@ StructuredBuffer<uint4> MeshSectionBuffer;
 // (while the skin cache system is not converted to RDG). If skin cache is disable, a manual skin compute 
 // update happens in the hair system, and its output are RDG buffers.
 #if PERMUTATION_POSITION_TYPE == 0
+Buffer<float4> MeshTangentBuffer;
 Buffer<float> MeshPositionBuffer;
 Buffer<float> MeshPreviousPositionBuffer;
 #else
+Buffer<float4> RDGMeshTangentBuffer;
 Buffer<float> RDGMeshPositionBuffer;
 Buffer<float> RDGMeshPreviousPositionBuffer;
+#define MeshTangentBuffer RDGMeshTangentBuffer
 #define MeshPositionBuffer RDGMeshPositionBuffer
 #define MeshPreviousPositionBuffer RDGMeshPreviousPositionBuffer
 #endif 
@@ -187,7 +189,7 @@ FMeshSectionData ReadMeshSectionData(uint InSectionIndex)
 	return Out;
 }
 
-FHairMeshTriangle GetHairMeshTriangle(uint InTriangleIndex, FMeshSectionData MeshSectionData, bool bPrevious)
+FHairMeshTriangle GetHairMeshTriangle(uint InTriangleIndex, FMeshSectionData MeshSectionData, bool bPrevious, bool bUseVertexTangent)
 {
 	const bool bSamplePrev = (MeshSectionData.bIsSwapped > 0 && !bPrevious) || (MeshSectionData.bIsSwapped == 0 && bPrevious);
 	if (bSamplePrev)
@@ -200,7 +202,8 @@ FHairMeshTriangle GetHairMeshTriangle(uint InTriangleIndex, FMeshSectionData Mes
 			MeshSectionData.IndexOffset,
 			MeshSectionData.MaxIndexCount,
 			MeshSectionData.MaxVertexCount,
-			TangentFormat);
+			TangentFormat,
+			bUseVertexTangent);
 	}
 	else
 	{
@@ -212,7 +215,8 @@ FHairMeshTriangle GetHairMeshTriangle(uint InTriangleIndex, FMeshSectionData Mes
 			MeshSectionData.IndexOffset,
 			MeshSectionData.MaxIndexCount,
 			MeshSectionData.MaxVertexCount,
-			TangentFormat);
+			TangentFormat,
+			bUseVertexTangent);
 	}
 }
 
@@ -239,7 +243,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	
 		// Compute the slot index of the resources for the section index (this is done in multiple pass
 		{
-			FHairMeshTriangle Tri = GetHairMeshTriangle(TriangleIndex.TriangleIndex, MeshSectionData, false);
+			FHairMeshTriangle Tri = GetHairMeshTriangle(TriangleIndex.TriangleIndex, MeshSectionData, false, !MeshSectionData.bUseFaceNormal);
 			if (MeshSectionData.bUseFaceNormal)
 			{
 				Tri.N0 = GetTriangleFaceNormal(Tri);
@@ -252,7 +256,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		}
 		#if PERMUTATION_PREVIOUS
 		{
-			FHairMeshTriangle Tri = GetHairMeshTriangle(TriangleIndex.TriangleIndex, MeshSectionData, true);
+			FHairMeshTriangle Tri = GetHairMeshTriangle(TriangleIndex.TriangleIndex, MeshSectionData, true, !MeshSectionData.bUseFaceNormal);
 			if (MeshSectionData.bUseFaceNormal)
 			{
 				Tri.N0 = GetTriangleFaceNormal(Tri);

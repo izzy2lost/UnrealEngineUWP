@@ -221,8 +221,10 @@ struct FHairGeometryCache
 		FSkeletalMeshLODRenderData* LODData 		= nullptr;
 		FRDGBufferRef PositionBuffer				= nullptr;
 		FRDGBufferRef PreviousPositionBuffer		= nullptr;
+		FRDGBufferRef TangentBuffer					= nullptr;
 		FRDGBufferSRVRef PositionSRV				= nullptr;
 		FRDGBufferSRVRef PreviousPositionSRV		= nullptr;
+		FRDGBufferSRVRef TangentSRV					= nullptr;
 
 		FHairGeometryCacheKey Key;
 		uint32 Hash 				= 0;
@@ -255,7 +257,8 @@ struct FHairGeometryCache
 		uint32 InLODIndex, 
 		const TArray<uint32>& UniqueSections,
 		FRDGBufferSRVRef& Out, 
-		FRDGBufferSRVRef& OutPrev)
+		FRDGBufferSRVRef& OutPrev,
+		FRDGBufferSRVRef& OutTangent)
 	{
 		check(InLODData);
 		check(InMeshObject);
@@ -289,6 +292,21 @@ struct FHairGeometryCache
 			Data.PositionSRV 			= GraphBuilder.CreateSRV(Data.PositionBuffer, PF_R32_FLOAT);
 			Data.PreviousPositionSRV	= bNeedPreviousPosition ? GraphBuilder.CreateSRV(Data.PreviousPositionBuffer, PF_R32_FLOAT) : nullptr;
 
+			// If available create and compute deformed tangents
+			Data.TangentBuffer = nullptr;
+			Data.TangentSRV = nullptr;
+			if (const FRHIShaderResourceView* TangentSRV = InLODData->StaticVertexBuffers.StaticMeshVertexBuffer.GetTangentsSRV())
+			{
+				const uint32 TangentStride = InLODData->StaticVertexBuffers.StaticMeshVertexBuffer.GetUseHighPrecisionTangentBasis() ? 
+					sizeof(TStaticMeshVertexTangentDatum<typename TStaticMeshVertexTangentTypeSelector<EStaticMeshVertexTangentBasisType::HighPrecision>::TangentTypeT>):
+					sizeof(TStaticMeshVertexTangentDatum<typename TStaticMeshVertexTangentTypeSelector<EStaticMeshVertexTangentBasisType::Default>::TangentTypeT>);
+				const EPixelFormat TangentFormat = TangentSRV->GetDesc().Buffer.SRV.Format;
+				const uint32 TangentElementCount = InLODData->StaticVertexBuffers.StaticMeshVertexBuffer.GetNumVertices();
+				check(TangentSRV->GetDesc().Buffer.SRV.BufferType == FRHIViewDesc::EBufferType::Typed);
+				Data.TangentBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(TangentElementCount, TangentStride), TEXT("Hair.SkinnedDeformedTangents"));;
+				Data.TangentSRV = GraphBuilder.CreateSRV(Data.TangentBuffer, TangentFormat);
+			}
+
 			Data.RequestedSections.Reserve(Data.TotalSectionCount);
 			Data.RequestedSectionBits.Init(false, Data.TotalSectionCount);
 		}
@@ -312,8 +330,9 @@ struct FHairGeometryCache
 		}
 
 		// Initialized returned values
-		Out 	= Data.PositionSRV;
-		OutPrev = Data.PreviousPositionSRV;
+		Out 		= Data.PositionSRV;
+		OutPrev 	= Data.PreviousPositionSRV;
+		OutTangent	= Data.TangentSRV;
 	}
 
 	void AddDebug(const FHairGroupInstance* InInstance, const FPrimitiveSceneProxy* InProxy, const FCachedGeometry& InGeom, EHairPositionUpdateType InGeometryType, ECacheType InCacheType, uint32 InTotalSectionCount=0)
@@ -529,8 +548,8 @@ static void GetOrAllocateCachedGeometry(
 	// Create deformed position buffer (output)
 	FRDGBufferSRVRef DeformedPositionSRV = nullptr;
 	FRDGBufferSRVRef DeformedPreviousPositionSRV = nullptr;
-	FRDGBufferSRVRef DeformedTangentSRV = nullptr; // TODO
-	OutHairGeometryCache.GetOrAdd(GraphBuilder, SkeletalMeshObject, &LODData, LODIndex, UniqueSections, DeformedPositionSRV, DeformedPreviousPositionSRV);
+	FRDGBufferSRVRef DeformedTangentSRV = nullptr;
+	OutHairGeometryCache.GetOrAdd(GraphBuilder, SkeletalMeshObject, &LODData, LODIndex, UniqueSections, DeformedPositionSRV, DeformedPreviousPositionSRV, DeformedTangentSRV);
 
 	// Add reference to be sure the data are not streamed out while they are used
 	LODData.AddRef();
@@ -545,6 +564,7 @@ static void GetOrAllocateCachedGeometry(
 		OutSection.PositionBuffer 			= nullptr; // Do not use the SRV slot, but instead use the RDG buffer created above (DeformedPositionSRV)
 		OutSection.PreviousPositionBuffer 	= nullptr; // Do not use the SRV slot, but instead use the RDG buffer created above (DeformedPositionSRV)
 		OutSection.UVsBuffer 				= LODData.StaticVertexBuffers.StaticMeshVertexBuffer.GetTexCoordsSRV();
+		OutSection.TangentBuffer 			= LODData.StaticVertexBuffers.StaticMeshVertexBuffer.GetTangentsSRV();
 		OutSection.TotalVertexCount 		= LODData.StaticVertexBuffers.PositionVertexBuffer.GetNumVertices();
 		OutSection.IndexBuffer 				= LODData.MultiSizeIndexContainer.GetIndexBuffer()->GetSRV();
 		OutSection.TotalIndexCount 			= LODData.MultiSizeIndexContainer.GetIndexBuffer()->Num();
@@ -742,7 +762,8 @@ static void RunHairBindingSurfaceUpdate(
 			*Data.LODData, 
 			Data.RequestedSections, 
 			Data.PositionBuffer, 
-			Data.PreviousPositionBuffer);
+			Data.PreviousPositionBuffer,
+			Data.TangentBuffer);
 	}
 
 	AddHairSkinCacheDebugPass(GraphBuilder, ShaderMap, View, ShaderPrintData, Instances, HairGeometryCache);
