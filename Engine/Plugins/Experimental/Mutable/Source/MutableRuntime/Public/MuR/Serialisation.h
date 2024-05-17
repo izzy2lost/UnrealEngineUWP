@@ -101,7 +101,7 @@ namespace mu
 		//! \return a previously unused identifier, now used for this operation, that can be used in
 		//! calls to the other methods of this interface. If the return value is negative it indicates
 		//! an unrecoverable error.
-		virtual OPERATION_ID BeginReadBlock(const mu::Model*, uint64 key0, void* pBuffer, uint64 size, TFunction<void(bool bSuccess)>* CompletionCallback = nullptr) = 0;
+		virtual OPERATION_ID BeginReadBlock(const mu::Model*, uint32 BlockKey, void* pBuffer, uint64 size, TFunction<void(bool bSuccess)>* CompletionCallback = nullptr) = 0;
 
         //! Check if a data request operation has been completed.
         //! This is a weak check than *may* return true if the given operation has completed, but
@@ -144,7 +144,7 @@ namespace mu
 		//!         files in a model.
 		//! \param key key identifying the model data fragment that is requested.
 		//!         This key interpretation depends on the implementation of the ModelStreamer,
-		virtual void OpenWriteFile(uint64 key0) = 0;
+		virtual void OpenWriteFile(uint32 BlockKey) = 0;
 
 		//! \brief Write a piece of data to the currently open file.
 		//!
@@ -311,6 +311,9 @@ namespace mu
 
         //! Get the amount of data in the stream, in bytes.
         uint64 GetBufferSize() const;
+
+		/** Clear the internal buffer. */
+		void Reset();
 
     private:
 

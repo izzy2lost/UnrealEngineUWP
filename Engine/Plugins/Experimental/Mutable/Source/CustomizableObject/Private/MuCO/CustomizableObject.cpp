@@ -150,14 +150,14 @@ void UCustomizableObject::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	if (ObjectSaveContext.IsCooking() && !bIsChildObject)
 	{
 		const ITargetPlatform* TargetPlatform = ObjectSaveContext.GetTargetPlatform();
+
 		// Load cached data before saving
 		if (GetPrivate()->TryLoadCompiledCookDataForPlatform(TargetPlatform))
 		{
 			// Create an export object to manage the streamable data
 			if (!BulkData)
 			{
-				BulkData = UE::Mutable::Private::MoveOldObjectAndCreateNew<UCustomizableObjectBulk>(
-					UCustomizableObjectBulk::StaticClass(), this);
+				BulkData = UE::Mutable::Private::MoveOldObjectAndCreateNew<UCustomizableObjectBulk>(UCustomizableObjectBulk::StaticClass(), this);
 			}
 			BulkData->Mark(OBJECTMARK_TagExp);
 
@@ -216,7 +216,6 @@ void UCustomizableObjectPrivate::SetIsChildObject(bool bIsChildObject)
 }
 
 
-#if WITH_EDITOR
 bool UCustomizableObjectPrivate::TryLoadCompiledCookDataForPlatform(const ITargetPlatform* TargetPlatform)
 {
 	const FMutableCachedPlatformData* PlatformData = CachedPlatformsData.Find(TargetPlatform->PlatformName());
@@ -229,7 +228,6 @@ bool UCustomizableObjectPrivate::TryLoadCompiledCookDataForPlatform(const ITarge
 	LoadCompiledData(MemoryReader, TargetPlatform, true);
 	return true;
 }
-#endif
 
 #endif // End WITH_EDITOR
 
@@ -823,8 +821,8 @@ void UCustomizableObjectPrivate::LoadCompiledDataFromDisk()
 	if (FileManager.FileExists(*ModelFileName) && FileManager.FileExists(*StreamableFileName))
 	{
 		// Check CompiledData
-		IFileHandle* CompiledDataFileHandle = FPlatformFileManager::Get().GetPlatformFile().OpenRead(*ModelFileName);
-		IFileHandle* StreamableDataFileHandle = FPlatformFileManager::Get().GetPlatformFile().OpenRead(*StreamableFileName);
+		TUniquePtr<IFileHandle> CompiledDataFileHandle( FPlatformFileManager::Get().GetPlatformFile().OpenRead(*ModelFileName) );
+		TUniquePtr<IFileHandle> StreamableDataFileHandle( FPlatformFileManager::Get().GetPlatformFile().OpenRead(*StreamableFileName) );
 
 		MutableCompiledDataStreamHeader CompiledDataHeader;
 		MutableCompiledDataStreamHeader StreamableDataHeader;
@@ -863,42 +861,12 @@ void UCustomizableObjectPrivate::LoadCompiledDataFromDisk()
 				LoadCompiledData(MemoryReader, RunningPlatform);
 			}
 		}
-
-		delete CompiledDataFileHandle;
-		delete StreamableDataFileHandle;
 	}
 
-	if (!GetModel()) // Not failed to load the model
+	if (!GetModel()) // Failed to load the model
 	{
 		Status.NextState(FCustomizableObjectStatusTypes::EState::NoModel);
 	}
-}
-
-
-void UCustomizableObjectPrivate::CachePlatformData(
-		const ITargetPlatform* InTargetPlatform, 
-		TArray64<uint8>& InModelBytes, 
-		TArray64<uint8>& InBulkBytes, 
-		TArray64<uint8>& InMorphBytes, 
-		TArray64<uint8>& InClothingBytes)
-{
-	MUTABLE_CPUPROFILER_SCOPE(CachePlatformData)
-
-	FString PlatformName = InTargetPlatform ? InTargetPlatform->PlatformName() : FPlatformProperties::PlatformName();
-
-	check(!CachedPlatformsData.Find(PlatformName));
-
-	FMutableCachedPlatformData& Data = CachedPlatformsData.Add(PlatformName);
-
-	// Cache CO data and mu::Model
-	FMemoryWriter64 MemoryWriter(Data.ModelData);
-	SaveCompiledData(MemoryWriter, true);
-	Data.ModelData.Append(InModelBytes);
-
-	// Cache streamable bulk data
-	Data.StreamableData = MoveTemp(InBulkBytes);
-	Data.MorphData = MoveTemp(InMorphBytes);
-	Data.ClothingData = MoveTemp(InClothingBytes);
 }
 
 
@@ -1054,18 +1022,18 @@ void UCustomizableObjectPrivate::SaveEmbeddedData(FArchive& Ar)
 {
 	UE_LOG(LogMutable, Verbose, TEXT("Saving embedded data for Customizable Object [%s] now at position %d."), *GetName(), int(Ar.Tell()));
 
-	int32 InternalVersion = GetModel() ? CurrentSupportedVersion : -1;
+	TSharedPtr<mu::Model> Model = GetModel();
+
+	int32 InternalVersion = Model ? CurrentSupportedVersion : -1;
 	Ar << InternalVersion;
 
-	if (GetModel())
+	if (Model)
 	{	
 		// Serialise the entire model, but unload the streamable data first.
 		{
-			GetModel()->UnloadExternalData();
-
 			UnrealMutableOutputStream Stream(Ar);
 			mu::OutputArchive Arch(&Stream);
-			mu::Model::Serialise(GetModel().Get(), Arch);
+			mu::Model::Serialise(Model.Get(), Arch);
 		}
 
 		UE_LOG(LogMutable, Verbose, TEXT("Saved embedded data for Customizable Object [%s] now at position %d."), *GetName(), int(Ar.Tell()));
@@ -2176,6 +2144,56 @@ TUniquePtr<IAsyncReadFileHandle> UCustomizableObjectBulk::OpenFileAsyncRead(uint
 
 #if WITH_EDITOR
 
+
+int64 UCustomizableObjectBulk::FFile::GetSize() const
+{
+	int64 FileSize = 0;
+	for (const FBlock& Block : Blocks)
+	{
+		FileSize += Block.Size;
+	}
+	return FileSize;
+}
+
+
+void UCustomizableObjectBulk::FFile::GetFileData(struct FMutableCachedPlatformData* PlatformData, uint8* DataDestination) const
+{
+	check(PlatformData);
+	check(DataDestination);
+
+	const uint8* SourceData = nullptr;
+	if (DataType == EDataType::Model)
+	{
+		for (int32 BlockIndex = 0; BlockIndex < Blocks.Num(); ++BlockIndex)
+		{
+			const FBlock& Block = Blocks[BlockIndex];
+			PlatformData->ModelStreamableData.Get(Block.Id, DataDestination);
+			DataDestination += Block.Size;
+		}
+		return;
+	}
+	else if (DataType == EDataType::RealTimeMorph)
+	{
+		SourceData = PlatformData->MorphData.GetData();
+	}
+	else if (DataType == EDataType::Clothing)
+	{
+		SourceData = PlatformData->ClothingData.GetData();
+	}
+	else
+	{
+		checkf(false, TEXT("Unknown file DataType found."));
+	}
+
+	for (int32 BlockIndex = 0; BlockIndex<Blocks.Num(); ++BlockIndex)
+	{
+		const FBlock& Block = Blocks[BlockIndex];
+		FMemory::Memcpy(DataDestination, SourceData + Block.Offset, Block.Size);
+		DataDestination += Block.Size;
+	}
+}
+
+
 void UCustomizableObjectBulk::CookAdditionalFilesOverride(const TCHAR* PackageFilename,
 	const ITargetPlatform* TargetPlatform,
 	TFunctionRef<void(const TCHAR* Filename, void* Data, int64 Size)> WriteAdditionalFile)
@@ -2195,42 +2213,13 @@ void UCustomizableObjectBulk::CookAdditionalFilesOverride(const TCHAR* PackageFi
 	for(int32 FileIndex = 0; FileIndex < NumBulkDataFiles; ++FileIndex)
 	{
 		const FFile& CurrentFile = BulkDataFiles[FileIndex];
+		int64 FileSize = CurrentFile.GetSize();
 
-		const uint8* SourceData = nullptr;
-		if (CurrentFile.DataType == EDataType::Model)
-		{
-			SourceData = PlatformData->StreamableData.GetData();
-		}
-		else if (CurrentFile.DataType == EDataType::RealTimeMorph)
-		{
-			SourceData = PlatformData->MorphData.GetData();
-		}
-		else if (CurrentFile.DataType == EDataType::Clothing)
-		{
-			SourceData = PlatformData->ClothingData.GetData();
-		}
-		else
-		{
-			checkf(false, TEXT("Unknown file DataType found."));
-			continue;
-		}
-
-		int64 FileSize = 0;
-		for (const FBlock& Block : CurrentFile.Blocks)
-		{
-			FileSize += Block.Size;
-		}
-
-		// Generate the bulk data file in memory
+		// Get the file data in memory
 		TArray64<uint8> FileBulkData;
-		FileBulkData.SetNum(FileSize);
+		FileBulkData.SetNumUninitialized(FileSize);
 		uint8* FileData = FileBulkData.GetData();
-
-		for (const FBlock& Block : CurrentFile.Blocks)
-		{
-			FMemory::Memcpy(FileData, SourceData + Block.Offset, Block.Size);
-			FileData += Block.Size;
-		}
+		CurrentFile.GetFileData(PlatformData, FileData);
 
 		// Path to the asset
 		const FString CookedFilePath = FPaths::GetPath(PackageFilename);
@@ -2275,29 +2264,16 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 	FClassifyNode RootNode;
 	// Create blocks data, filtering out the ones that are too big and will go on its own file in any case.
 	{
-		const int32 NumBlocks = Model->GetRomCount();
-		RootNode.Blocks.Reserve(NumBlocks);
+		const int32 NumRoms = Model->GetRomCount();
+		RootNode.Blocks.Reserve(NumRoms);
 		
-		uint64 SourceOffset = 0;
-		for (int32 BlockIndex = 0; BlockIndex < NumBlocks; ++BlockIndex)
+		for (int32 RomIndex = 0; RomIndex < NumRoms; ++RomIndex)
 		{
-			uint32 BlockId = Model->GetRomId(BlockIndex);
-			const FMutableStreamableBlock& StreamableBlock = ModelResources.HashToStreamableBlock[BlockId];
-			const uint32 BlockSize = StreamableBlock.Size;
+			uint32 BlockId = Model->GetRomId(RomIndex);
+			const uint32 BlockSize = Model->GetRomSize(RomIndex);
 
-			FBlock CurrentBlock = { EDataType::Model, BlockId, BlockSize, SourceOffset };
-			if (BlockSize > TargetBulkDataFileBytes)
-			{
-				// It will go to its own file
-				BulkDataFiles.Add(FFile{EDataType::Model, 0, {CurrentBlock}});
-			}
-			else
-			{
-				// It may merge with other small blocks
-				RootNode.Blocks.Add(CurrentBlock);
-			}
-
-			SourceOffset += BlockSize;
+			FBlock CurrentBlock = { EDataType::Model, BlockId, BlockSize, 0 };
+			RootNode.Blocks.Add(CurrentBlock);
 		}
 	}
 
@@ -2313,21 +2289,11 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 		const int32 NumBlocks = RealTimeMorphTargetsBlocks.Num();
 		for (const TPair<uint32, FRealTimeMorphStreamable>& MorphStreamable : RealTimeMorphStreamables)
 		{
-			const uint32 BlockSize = MorphStreamable.Value.Block.Size;
+			const uint32 BlockSize = MorphStreamable.Value.Size;
 			
 			check(SourceOffset == MorphStreamable.Value.Block.Offset);
 			FBlock CurrentBlock = { EDataType::RealTimeMorph, MorphStreamable.Key, BlockSize, SourceOffset };
-			
-			if (BlockSize > TargetBulkDataFileBytes)
-			{
-				// It will go to its own file
-				BulkDataFiles.Add(FFile{ EDataType::RealTimeMorph, 0, {CurrentBlock} });
-			}
-			else
-			{
-				// It may merge with other small blocks
-				RootNode.Blocks.Add(CurrentBlock);
-			}
+			RootNode.Blocks.Add(CurrentBlock);
 
 			SourceOffset += BlockSize;
 		}
@@ -2345,21 +2311,11 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 		const int32 NumBlocks = ClothingBlocks.Num();
 		for (const TPair<uint32, FClothingStreamable>& ClothStreamable : ClothingStreamables)
 		{
-			const uint32 BlockSize = ClothStreamable.Value.Block.Size;
+			const uint32 BlockSize = ClothStreamable.Value.Size;
 			
 			check(SourceOffset == ClothStreamable.Value.Block.Offset);
 			FBlock CurrentBlock = { EDataType::Clothing, ClothStreamable.Key, BlockSize, SourceOffset };
-			
-			if (BlockSize > TargetBulkDataFileBytes)
-			{
-				// It will go to its own file
-				BulkDataFiles.Add(FFile{ EDataType::Clothing, 0, {CurrentBlock} });
-			}
-			else
-			{
-				// It may merge with other small blocks
-				RootNode.Blocks.Add(CurrentBlock);
-			}
+			RootNode.Blocks.Add(CurrentBlock);
 
 			SourceOffset += BlockSize;
 		}
@@ -2379,8 +2335,7 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 			FBlock CurrentBlock = RootNode.Blocks[BlockIndex];
 
 			// Next file?
-			// Store different data types in different files. Blocks should be sorted by DataType
-			// so data is properly packeted
+			// Store different data types in different files. Blocks should be sorted by DataType so data is properly packeted
 			if (CurrentFile.DataType != CurrentBlock.DataType)
 			{
 				break;
@@ -2407,11 +2362,11 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 	{
 		// Generate the id for this file
 		FFile& CurrentFile = BulkDataFiles[FileIndex];
-		uint32 FileId = 0;
+		uint32 FileId = uint32(CurrentFile.DataType);
 		for (int32 FileBlockIndex = 0; FileBlockIndex < CurrentFile.Blocks.Num(); ++FileBlockIndex)
 		{
 			FBlock ThisBlock = CurrentFile.Blocks[FileBlockIndex];
-			FileId = (FileBlockIndex == 0) ? ThisBlock.Id : HashCombine(HashCombine(FileId, ThisBlock.Id), uint32(CurrentFile.DataType));
+			FileId = HashCombine(FileId, ThisBlock.Id);
 		}
 
 		// Ensure the FileId is unique
@@ -2441,18 +2396,15 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 			{
 				FBlock ThisBlock = CurrentFile.Blocks[FileBlockIndex];
 
-				FMutableStreamableBlock& StreamableBlock = ModelResources.HashToStreamableBlock[ThisBlock.Id];
-				check(StreamableBlock.Size == ThisBlock.Size);
-				StreamableBlock.FileId = FileId;
-				StreamableBlock.Offset = OffsetInFile;
+				FMutableStreamableBlock* StreamableBlock = ModelResources.HashToStreamableBlock.Find(ThisBlock.Id);
+				StreamableBlock->FileId = FileId;
+				StreamableBlock->Offset = OffsetInFile;
 				OffsetInFile += ThisBlock.Size;
 			}
 		}
 		else if (CurrentFile.DataType == EDataType::RealTimeMorph)
 		{
-			constexpr bool bGetCooked = true;
-			TMap<uint32, FRealTimeMorphStreamable>& MorphBlocks = 
-					CustomizableObject->GetPrivate()->GetModelResources(bGetCooked).RealTimeMorphStreamables;
+			TMap<uint32, FRealTimeMorphStreamable>& MorphBlocks = ModelResources.RealTimeMorphStreamables;
 			// Set it to all streamable blocks
 			uint32 OffsetInFile = 0;
 			for (int32 FileBlockIndex = 0; FileBlockIndex < CurrentFile.Blocks.Num(); ++FileBlockIndex)
@@ -2460,7 +2412,6 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 				FBlock ThisBlock = CurrentFile.Blocks[FileBlockIndex];
 
 				FMutableStreamableBlock& StreamableBlock = MorphBlocks[ThisBlock.Id].Block;
-				check(StreamableBlock.Size == ThisBlock.Size);
 				StreamableBlock.FileId = FileId;
 				StreamableBlock.Offset = OffsetInFile;
 				OffsetInFile += ThisBlock.Size;
@@ -2468,9 +2419,7 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 		}
 		else if (CurrentFile.DataType == EDataType::Clothing)
 		{
-			constexpr bool bGetCooked = true;
-			TMap<uint32, FClothingStreamable>& ClothBlocks = 
-					CustomizableObject->GetPrivate()->GetModelResources(bGetCooked).ClothingStreamables;
+			TMap<uint32, FClothingStreamable>& ClothBlocks = ModelResources.ClothingStreamables;
 			// Set it to all streamable blocks
 			uint32 OffsetInFile = 0;
 			for (int32 FileBlockIndex = 0; FileBlockIndex < CurrentFile.Blocks.Num(); ++FileBlockIndex)
@@ -2478,7 +2427,6 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 				FBlock ThisBlock = CurrentFile.Blocks[FileBlockIndex];
 
 				FMutableStreamableBlock& StreamableBlock = ClothBlocks[ThisBlock.Id].Block;
-				check(StreamableBlock.Size == ThisBlock.Size);
 				StreamableBlock.FileId = FileId;
 				StreamableBlock.Offset = OffsetInFile;
 				OffsetInFile += ThisBlock.Size;

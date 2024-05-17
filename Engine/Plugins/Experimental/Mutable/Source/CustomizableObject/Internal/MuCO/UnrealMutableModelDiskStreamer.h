@@ -3,6 +3,7 @@
 #pragma once
 
 #include "MuCO/CustomizableObject.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuR/Serialisation.h"
 
 class FArchive;
@@ -55,7 +56,7 @@ public:
 	void EndStreaming();
 
 	// mu::ModelReader interface
-	OPERATION_ID BeginReadBlock(const mu::Model*, uint64 key0, void* pBuffer, uint64 size, TFunction<void(bool bSuccess)>* CompletionCallback) override;
+	OPERATION_ID BeginReadBlock(const mu::Model*, uint32 key0, void* pBuffer, uint64 size, TFunction<void(bool bSuccess)>* CompletionCallback) override;
 	bool IsReadCompleted(OPERATION_ID) override;
 	void EndRead(OPERATION_ID) override;
 
@@ -72,7 +73,7 @@ protected:
 	{
 		TWeakPtr<const mu::Model> Model;
 		TMap<OPERATION_ID, FReadRequest> CurrentReadRequests;
-		TMap<uint64, FMutableStreamableBlock> StreamableBlocks;
+		TMap<uint32, FMutableStreamableBlock> StreamableBlocks;
 		FString BulkFilePrefix;
 
 		TMap<uint32, TSharedPtr<IAsyncReadFileHandle>> ReadFileHandles;
@@ -104,14 +105,14 @@ private:
 
 
 // Implementation of a mutable streamer using bulk storage.
-class CUSTOMIZABLEOBJECT_API FUnrealMutableModelBulkWriter : public mu::ModelWriter
+class CUSTOMIZABLEOBJECT_API FUnrealMutableModelBulkWriterEditor : public mu::ModelWriter
 {
 public:
 	// 
-	FUnrealMutableModelBulkWriter(FArchive* InMainDataArchive = nullptr, FArchive* InStreamedDataArchive = nullptr);
+	FUnrealMutableModelBulkWriterEditor(FArchive* InMainDataArchive = nullptr, FArchive* InStreamedDataArchive = nullptr);
 
 	// mu::ModelWriter interface
-	void OpenWriteFile(uint64 key0) override;
+	void OpenWriteFile(uint32 BlockKey) override;
 	void Write(const void* pBuffer, uint64 size) override;
 	void CloseWriteFile() override;
 
@@ -126,5 +127,31 @@ protected:
 	FArchive* CurrentWriteFile = nullptr;
 
 };
+
+
+// Implementation of a mutable streamer using bulk storage.
+class CUSTOMIZABLEOBJECT_API FUnrealMutableModelBulkWriterCook : public mu::ModelWriter
+{
+public:
+	// 
+	FUnrealMutableModelBulkWriterCook(FArchive* InMainDataArchive = nullptr, FModelStreamableData* InStreamedData = nullptr);
+
+	// mu::ModelWriter interface
+	void OpenWriteFile(uint32 BlockKey) override;
+	void Write(const void* pBuffer, uint64 size) override;
+	void CloseWriteFile() override;
+
+protected:
+
+	// Non-owned pointer to an archive where we'll store the main model data (non-streamable)
+	FArchive* MainDataArchive = nullptr;
+
+	// Non-owned pointer to an archive where we'll store the resouces (streamable)
+	FModelStreamableData* StreamedData = nullptr;
+
+	uint32 CurrentKey = 0;
+
+};
+
 
 #endif

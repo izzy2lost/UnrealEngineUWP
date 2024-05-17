@@ -272,7 +272,7 @@ FCustomizableObjectSaveDDRunnable::FCustomizableObjectSaveDDRunnable(UCustomizab
 		StreamableDataFullFileName = FolderPath + CustomizableObject->GetPrivate()->GetCompiledDataFileName(false, InOptions.TargetPlatform);
 
 		// Serialize Customizable Object's data
-		FMemoryWriter64 MemoryWriter(Bytes);
+		FMemoryWriter64 MemoryWriter(ModelBytes);
 		CustomizableObject->GetPrivate()->SaveCompiledData(MemoryWriter, Options.bIsCooking);
 	}
 #if WITH_EDITORONLY_DATA
@@ -281,17 +281,16 @@ FCustomizableObjectSaveDDRunnable::FCustomizableObjectSaveDDRunnable(UCustomizab
 		// Do a copy of the Morph and Clothing Data generated at compile time. Only needed when cooking.
 		
 		constexpr bool bGetCookedFalse = false;
+		FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources(bGetCookedFalse);
 		
 		static_assert(TCanBulkSerialize<FMorphTargetVertexData>::Value);
-		const TArray<FMorphTargetVertexData>& MorphVertexData = 
-				CustomizableObject->GetPrivate()->GetModelResources(bGetCookedFalse).EditorOnlyMorphTargetReconstructionData;
+		const TArray<FMorphTargetVertexData>& MorphVertexData = ModelResources.EditorOnlyMorphTargetReconstructionData;
 
 		MorphDataBytes.SetNum(MorphVertexData.Num() * sizeof(FMorphTargetVertexData));
 		FMemory::Memcpy(MorphDataBytes.GetData(), MorphVertexData.GetData(), MorphDataBytes.Num());
 		
 		static_assert(TCanBulkSerialize<FCustomizableObjectMeshToMeshVertData>::Value);
-		const TArray<FCustomizableObjectMeshToMeshVertData>& ClothingVertexData = 
-				CustomizableObject->GetPrivate()->GetModelResources(bGetCookedFalse).EditorOnlyClothingMeshToMeshVertData;
+		const TArray<FCustomizableObjectMeshToMeshVertData>& ClothingVertexData = ModelResources.EditorOnlyClothingMeshToMeshVertData;
 
 		ClothingDataBytes.SetNum(ClothingVertexData.Num() * sizeof(FCustomizableObjectMeshToMeshVertData));
 		FMemory::Memcpy(ClothingDataBytes.GetData(), ClothingVertexData.GetData(), ClothingDataBytes.Num());
@@ -313,16 +312,15 @@ uint32 FCustomizableObjectSaveDDRunnable::Run()
 	if (Options.bIsCooking)
 	{
 		// Serialize mu::Model and streamable resources 
-		FMemoryWriter64 ModelMemoryWriter(Bytes, false, true);
-		FMemoryWriter64 StreamableMemoryWriter(BulkDataBytes, false, true);
-
+		FMemoryWriter64 ModelMemoryWriter(ModelBytes, false, true);
 		ModelMemoryWriter << bModelSerialized;
 		if (bModelSerialized)
 		{
-			FUnrealMutableModelBulkWriter Streamer(&ModelMemoryWriter, &StreamableMemoryWriter);
-			mu::Model::Serialise(Model.Get(), Streamer);
+			FUnrealMutableModelBulkWriterCook Streamer(&ModelMemoryWriter, &ModelStreamableData);
+			constexpr bool bDropData = true;
+			mu::Model::Serialise(Model.Get(), Streamer, bDropData);
 
-			//Morph and Clothing are already in the corresponding buffer copied from the compilation thread.
+			// Morph and Clothing are already in the corresponding buffer copied from the compilation thread.
 		}
 	}
 	else if (bModelSerialized) // Save CO data + mu::Model and streamable resources to disk
@@ -361,14 +359,15 @@ uint32 FCustomizableObjectSaveDDRunnable::Run()
 			*StreamableMemoryWriter << CustomizableObjectHeader;
 
 			// Serialize Customizable Object's Data to disk
-			ModelMemoryWriter->Serialize(Bytes.GetData(), Bytes.Num() * sizeof(uint8));
-			Bytes.Empty();
+			ModelMemoryWriter->Serialize(ModelBytes.GetData(), ModelBytes.Num() * sizeof(uint8));
+			ModelBytes.Empty();
 
 			// Serialize mu::Model and streamable resources
 			*ModelMemoryWriter << bModelSerialized;
 
-			FUnrealMutableModelBulkWriter Streamer(ModelMemoryWriter.Get(), StreamableMemoryWriter.Get());
-			mu::Model::Serialise(Model.Get(), Streamer);
+			FUnrealMutableModelBulkWriterEditor Streamer(ModelMemoryWriter.Get(), StreamableMemoryWriter.Get());
+			constexpr bool bDropData = true;
+			mu::Model::Serialise(Model.Get(), Streamer, bDropData);
 
 			// Save to disk
 			ModelMemoryWriter->Flush();

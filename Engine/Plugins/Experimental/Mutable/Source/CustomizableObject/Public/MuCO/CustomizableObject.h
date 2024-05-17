@@ -206,9 +206,6 @@ struct CUSTOMIZABLEOBJECT_API FMutableStreamableBlock
 
 	UPROPERTY()
 	uint32 FileId = 0;
-
-	UPROPERTY()
-	uint32 Size = 0;
 	
 	UPROPERTY()
 	uint64 Offset = 0;
@@ -216,7 +213,6 @@ struct CUSTOMIZABLEOBJECT_API FMutableStreamableBlock
 	friend FArchive& operator<<(FArchive& Ar, FMutableStreamableBlock& Data)
 	{
 		Ar << Data.FileId;
-		Ar << Data.Size;
 		Ar << Data.Offset;
 
 		return Ar;
@@ -323,6 +319,12 @@ private:
 
 		/** List of blocks that are contained in the file, in order. */
 		TArray<FBlock> Blocks;
+
+		/** Get the total size of blocks in this file. */
+		int64 GetSize() const;
+
+		/** Copy the requested block to the requested buffer and return its size. */
+		void GetFileData(struct FMutableCachedPlatformData*, uint8* DataDestination) const;
 	};
 
 	/** Helper to store the size of each BulkData partition. Only valid while cooking */

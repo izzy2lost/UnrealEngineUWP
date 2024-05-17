@@ -5429,12 +5429,12 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 				MeshData.NameResolutionMap = RealTimeMorphStreamable.NameResolutionMap;
 
 				const TArray<FMorphTargetVertexData>& SourceData = ModelResources.EditorOnlyMorphTargetReconstructionData;	
-				const uint32 NumElems = Block.Size / sizeof(FMorphTargetVertexData);
+				const uint32 NumElems = RealTimeMorphStreamable.Size / sizeof(FMorphTargetVertexData);
 				const uint32 OffsetInElems = Block.Offset / sizeof(FMorphTargetVertexData);
 				MeshData.Data.SetNumUninitialized(NumElems);
 
-				check(SourceData.Num()*sizeof(FMorphTargetVertexData) >= Block.Offset + Block.Size);
-				FMemory::Memcpy(MeshData.Data.GetData(), SourceData.GetData() + OffsetInElems, Block.Size);
+				check(SourceData.Num()*sizeof(FMorphTargetVertexData) >= Block.Offset + RealTimeMorphStreamable.Size);
+				FMemory::Memcpy(MeshData.Data.GetData(), SourceData.GetData() + OffsetInElems, RealTimeMorphStreamable.Size);
 			}
 		}
 		{
@@ -5453,12 +5453,12 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 				MeshData.PhysicsAssetIndex = ClothingStreamable.PhysicsAssetIndex;
 
 				const TArray<FCustomizableObjectMeshToMeshVertData>& SourceData = ModelResources.EditorOnlyClothingMeshToMeshVertData;
-				const uint32 NumElems = Block.Size / sizeof(FCustomizableObjectMeshToMeshVertData);
+				const uint32 NumElems = ClothingStreamable.Size / sizeof(FCustomizableObjectMeshToMeshVertData);
 				const uint32 OffsetInElems = Block.Offset / sizeof(FCustomizableObjectMeshToMeshVertData);
 				MeshData.Data.SetNumUninitialized(NumElems);
 
-				check(SourceData.Num()*sizeof(FCustomizableObjectMeshToMeshVertData) >= Block.Offset + Block.Size);
-				FMemory::Memcpy(MeshData.Data.GetData(), SourceData.GetData() + OffsetInElems, Block.Size);
+				check(SourceData.Num()*sizeof(FCustomizableObjectMeshToMeshVertData) >= Block.Offset + ClothingStreamable.Size);
+				FMemory::Memcpy(MeshData.Data.GetData(), SourceData.GetData() + OffsetInElems, ClothingStreamable.Size);
 			}
 		}
 #else	
@@ -5486,7 +5486,8 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 			MUTABLE_CPUPROFILER_SCOPE(RealTimeMorphStreamingRequest_Alloc);
 
 			const int32 BlockId = RealTimeMorphStreamableBlocksToStream[I];
-			const FMutableStreamableBlock& Block = ModelResources.RealTimeMorphStreamables[BlockId].Block; 
+			const FRealTimeMorphStreamable& Streamable = ModelResources.RealTimeMorphStreamables[BlockId];
+			const FMutableStreamableBlock& Block = Streamable.Block; 
 		
 			FInstanceUpdateData::FMorphTargetMeshData& ReadDestData = 
 					OperationData->InstanceUpdateData.RealTimeMorphTargetMeshData.FindOrAdd(BlockId);
@@ -5499,8 +5500,8 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 
 			ReadDestData.NameResolutionMap = ModelResources.RealTimeMorphStreamables[BlockId].NameResolutionMap;
 
-			check(Block.Size % sizeof(FMorphTargetVertexData) == 0);
-			uint32 NumElems = Block.Size / sizeof(FMorphTargetVertexData);
+			check(Streamable.Size % sizeof(FMorphTargetVertexData) == 0);
+			uint32 NumElems = Streamable.Size / sizeof(FMorphTargetVertexData);
 
 			ReadDestData.Data.SetNumUninitialized(NumElems);
 
@@ -5528,7 +5529,8 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 			MUTABLE_CPUPROFILER_SCOPE(ClothingStreamingRequest_Alloc);
 
 			const int32 BlockId = ClothingStreamableBlocksToStream[I];
-			const FMutableStreamableBlock& Block = ModelResources.ClothingStreamables[BlockId].Block; 
+			const FClothingStreamable& ClothingStreamable = ModelResources.ClothingStreamables[BlockId];
+			const FMutableStreamableBlock& Block = ClothingStreamable.Block;
 		
 			FInstanceUpdateData::FClothingMeshData& ReadDestData = 
 					OperationData->InstanceUpdateData.ClothingMeshData.FindOrAdd(BlockId);
@@ -5539,14 +5541,12 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 				continue;
 			}
 
-			const FClothingStreamable& ClothingStreamable = ModelResources.ClothingStreamables[BlockId]; 
-
 			ReadDestData.ClothingAssetIndex = ClothingStreamable.ClothingAssetIndex;
 			ReadDestData.ClothingAssetLOD = ClothingStreamable.ClothingAssetLOD;
 			ReadDestData.PhysicsAssetIndex = ClothingStreamable.PhysicsAssetIndex;
 
-			check(Block.Size % sizeof(FCustomizableObjectMeshToMeshVertData) == 0);
-			const uint32 NumElems = Block.Size / sizeof(FCustomizableObjectMeshToMeshVertData);
+			check(ClothingStreamable.Size % sizeof(FCustomizableObjectMeshToMeshVertData) == 0);
+			const uint32 NumElems = ClothingStreamable.Size / sizeof(FCustomizableObjectMeshToMeshVertData);
 
 			ReadDestData.Data.SetNumUninitialized(NumElems);
 

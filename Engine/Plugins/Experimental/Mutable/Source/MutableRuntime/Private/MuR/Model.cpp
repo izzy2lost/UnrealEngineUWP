@@ -139,14 +139,21 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    void Model::Serialise( Model* p, ModelWriter& streamer )
+    void Model::Serialise( Model* p, ModelWriter& streamer, bool bDropData )
     {
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 
 		mu::FProgram& program = p->m_pD->m_program;
 
-		TArray<TPair<int32, mu::ImagePtrConst>> InitialImages = program.ConstantImageLODs;
-		TArray<TPair<int32, mu::MeshPtrConst>> InitialMeshes = program.ConstantMeshes;
+		TArray<TPair<int32, mu::ImagePtrConst>> InitialImages;
+		TArray<TPair<int32, mu::MeshPtrConst>> InitialMeshes;
+		if (!bDropData)
+		{
+			InitialImages = program.ConstantImageLODs;
+			InitialMeshes = program.ConstantMeshes;
+		}
+
+		OutputMemoryStream MemStream(16 * 1024 * 1024);
 
 		// Save images and unload from memory
 		for (int32 ResourceIndex = 0; ResourceIndex < program.ConstantImageLODs.Num(); ++ResourceIndex)
@@ -165,7 +172,7 @@ namespace mu
 			check(RomData.ResourceIndex == ResourceIndex);
 
 			// Serialize to memory, to find out final size of this rom
-			OutputMemoryStream MemStream(1024*1024);
+			MemStream.Reset();
 			OutputArchive MemoryArch(&MemStream);
 			Image::Serialise(ResData.Value.get(), MemoryArch);
 			check(RomData.Size == MemStream.GetBufferSize());
@@ -195,7 +202,7 @@ namespace mu
 			check(RomData.ResourceIndex == ResourceIndex);
 
 			// Serialize to memory, to find out final size of this rom
-			OutputMemoryStream MemStream(1024 * 1024);
+			MemStream.Reset();
 			OutputArchive MemoryArch(&MemStream);
 			Mesh::Serialise(ResData.Value.get(), MemoryArch);
 			check(RomData.Size == MemStream.GetBufferSize());
@@ -220,8 +227,11 @@ namespace mu
 		}
 
 		// Restore full data
-		program.ConstantImageLODs = InitialImages;
-		program.ConstantMeshes = InitialMeshes;
+		if (!bDropData)
+		{
+			program.ConstantImageLODs = InitialImages;
+			program.ConstantMeshes = InitialMeshes;
+		}
 	}
 
 

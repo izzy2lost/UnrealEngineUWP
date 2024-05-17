@@ -110,8 +110,6 @@ private:
 	FString CompileDataFullFileName;
 	FString StreamableDataFullFileName;
 
-	TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model;
-
 	bool bIsCooking = false;
 
 	// Whether the thread has finished running
@@ -119,11 +117,13 @@ private:
 
 public:
 
-	// Bytes where the model is stored
-	TArray64<uint8> Bytes;
+	TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model;
 
-	// Bytes where the streamed data files are stored
-	TArray64<uint8> BulkDataBytes;
+	// Bytes where the model is stored
+	TArray64<uint8> ModelBytes;
+
+	// Model streamed data
+	FModelStreamableData ModelStreamableData;
 
 	// Bytes store streameable files coming form the CO itself.
 	TArray64<uint8> MorphDataBytes;

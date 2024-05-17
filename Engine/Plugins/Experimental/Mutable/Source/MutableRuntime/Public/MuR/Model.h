@@ -57,10 +57,12 @@ namespace mu
 		static void Serialise( const Model* p, OutputArchive& arch );
 		static TSharedPtr<Model> StaticUnserialise( InputArchive& arch );
 
-		//! Special serialise operation that serialises the data in separate "files". An object
-        //! with the ModelStreamer interface is responsible of storing this data and providing
-		//! the "file" concept.
-        static void Serialise( Model* p, ModelWriter& arch );
+		/** Special serialise operation that serialises the data in separate "files". An object
+         * with the ModelStreamer interface is responsible of storing this data and providing
+		 * the "file" concept. 
+		 * If bDropData is set to true, the rom data will be freed as it is serialized.
+		 */
+        static void Serialise( Model* p, ModelWriter& arch, bool bDropData=false );
 
 		//! Return true if the model has external data in other files. This kind of models will
 		//! require data streaming when used.

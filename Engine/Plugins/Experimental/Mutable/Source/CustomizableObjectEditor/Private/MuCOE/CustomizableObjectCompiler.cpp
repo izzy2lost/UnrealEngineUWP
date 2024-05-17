@@ -995,10 +995,11 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 			FRealTimeMorphStreamable& ResourceMeshData = ModelResources.RealTimeMorphStreamables.FindOrAdd(MeshData.Key);
 			
 			check(ResourceMeshData.NameResolutionMap.IsEmpty());
-			check(ResourceMeshData.Block.Size == 0);
+			check(ResourceMeshData.Size == 0);
 
 			ResourceMeshData.NameResolutionMap = MeshData.Value.NameResolutionMap;
-			ResourceMeshData.Block = FMutableStreamableBlock { uint32(0), DataSizeInBytes, RealTimeMorphDataOffsetInBytes };
+			ResourceMeshData.Size = DataSizeInBytes;
+			ResourceMeshData.Block = FMutableStreamableBlock { uint32(0), RealTimeMorphDataOffsetInBytes };
 
 			RealTimeMorphDataOffsetInBytes += DataSizeInBytes;
 			ModelResources.EditorOnlyMorphTargetReconstructionData.Append(MeshData.Value.Data);
@@ -1022,12 +1023,13 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 			
 			check(ResourceMeshData.ClothingAssetIndex == INDEX_NONE);
 			check(ResourceMeshData.ClothingAssetLOD == INDEX_NONE);
-			check(ResourceMeshData.Block.Size == 0);
+			check(ResourceMeshData.Size == 0);
 
 			ResourceMeshData.ClothingAssetIndex = MeshData.Value.ClothingAssetIndex;
 			ResourceMeshData.ClothingAssetLOD = MeshData.Value.ClothingAssetLOD;
 			ResourceMeshData.PhysicsAssetIndex = MeshData.Value.PhysicsAssetIndex;
-			ResourceMeshData.Block = FMutableStreamableBlock { uint32(0), DataSizeInBytes, ClothingDataOffsetInBytes };
+			ResourceMeshData.Size = DataSizeInBytes;
+			ResourceMeshData.Block = FMutableStreamableBlock { uint32(0), ClothingDataOffsetInBytes };
 
 			ClothingDataOffsetInBytes += DataSizeInBytes;
 			ModelResources.EditorOnlyClothingMeshToMeshVertData.Append(MeshData.Value.Data);
@@ -1355,7 +1357,9 @@ void FCustomizableObjectCompiler::FinishCompilationTask()
 		FModelResources& ModelResources = CurrentObject->GetPrivate()->GetModelResources(false);
 
 		const int32 NumStreamingFiles = CurrentModel->GetRomCount();
-		ModelResources.HashToStreamableBlock.Empty(NumStreamingFiles);
+
+		TSharedPtr<TMap<uint32, FMutableStreamableBlock>> HashToStreamableBlock = MakeShared<TMap<uint32, FMutableStreamableBlock>>();
+		HashToStreamableBlock->Empty(NumStreamingFiles);
 
 		uint64 Offset = 0;
 		for (int32 FileIndex = 0; FileIndex < NumStreamingFiles; ++FileIndex)
@@ -1363,9 +1367,11 @@ void FCustomizableObjectCompiler::FinishCompilationTask()
 			const uint32 ResourceId = CurrentModel->GetRomId(FileIndex);
 			const uint32 ResourceSize = CurrentModel->GetRomSize(FileIndex);
 
-			ModelResources.HashToStreamableBlock.Add(ResourceId, FMutableStreamableBlock{ 0, ResourceSize, Offset });
+			HashToStreamableBlock->Add(ResourceId, FMutableStreamableBlock{ 0, Offset });
 			Offset += ResourceSize;
 		}
+
+		ModelResources.HashToStreamableBlock = *(HashToStreamableBlock.Get());
 	}
 
 	// Generate ParameterProperties and IntParameterLookUpTable
@@ -1392,12 +1398,24 @@ void FCustomizableObjectCompiler::FinishSavingDerivedDataTask()
 
 	if (CurrentOptions.bIsCooking)
 	{
-		CurrentObject->GetPrivate()->CachePlatformData(
-				SaveDDTask->GetTargetPlatform(), 
-				SaveDDTask->Bytes, 
-				SaveDDTask->BulkDataBytes,
-				SaveDDTask->MorphDataBytes,
-				SaveDDTask->ClothingDataBytes);
+		MUTABLE_CPUPROFILER_SCOPE(CachePlatformData);
+		const ITargetPlatform* TargetPlatform = CurrentOptions.TargetPlatform;
+
+		FString PlatformName = TargetPlatform ? TargetPlatform->PlatformName() : FPlatformProperties::PlatformName();
+
+		check(!CurrentObject->GetPrivate()->CachedPlatformsData.Find(PlatformName));
+
+		FMutableCachedPlatformData& Data = CurrentObject->GetPrivate()->CachedPlatformsData.Add(PlatformName);
+
+		// Cache CO data and mu::Model
+		FMemoryWriter64 MemoryWriter(Data.ModelData);
+		CurrentObject->GetPrivate()->SaveCompiledData(MemoryWriter, true);
+		Data.ModelData.Append(SaveDDTask->ModelBytes);
+
+		// Cache streamable bulk data
+		Data.ModelStreamableData = MoveTemp(SaveDDTask->ModelStreamableData);
+		Data.MorphData = MoveTemp(SaveDDTask->MorphDataBytes);
+		Data.ClothingData = MoveTemp(SaveDDTask->ClothingDataBytes);
 	}
 
 	// Order matters

@@ -492,9 +492,13 @@ struct FRealTimeMorphStreamable
 	UPROPERTY()
 	FMutableStreamableBlock Block;
 
+	UPROPERTY()
+	uint32 Size=0;
+
 	friend FArchive& operator<<(FArchive& Ar, FRealTimeMorphStreamable& Elem)
 	{
 		Ar << Elem.NameResolutionMap;
+		Ar << Elem.Size;
 		Ar << Elem.Block;
 
 		return Ar;
@@ -517,6 +521,9 @@ struct FClothingStreamable
 	int32 PhysicsAssetIndex = INDEX_NONE;
 
 	UPROPERTY()
+	uint32 Size = 0;
+
+	UPROPERTY()
 	FMutableStreamableBlock Block;
 
 	friend FArchive& operator<<(FArchive& Ar, FClothingStreamable& Elem)
@@ -524,6 +531,7 @@ struct FClothingStreamable
 		Ar << Elem.ClothingAssetIndex;
 		Ar << Elem.ClothingAssetLOD;
 		Ar << Elem.PhysicsAssetIndex;
+		Ar << Elem.Size;
 		Ar << Elem.Block;
 
 		return Ar;
@@ -740,7 +748,7 @@ struct FModelResources
 	
 	/** Map of Hash to Streaming blocks, used to stream a block of data representing a resource from the BulkData */
 	UPROPERTY()
-	TMap<uint64, FMutableStreamableBlock> HashToStreamableBlock;
+	TMap<uint32, FMutableStreamableBlock> HashToStreamableBlock;
 
 	/** Max number of components in the compiled Model. */
 	UPROPERTY()
@@ -759,13 +767,39 @@ struct FModelResources
 	uint8 FirstLODAvailable = 0;
 };
 
+
+struct FModelStreamableData
+{
+	void Get(uint32 Key, uint8* Destination) const
+	{
+		check(Destination);
+		const TArray64<uint8>* Buffer = Data.Find(Key);
+		check(Buffer);
+		FMemory::Memcpy(Destination, Buffer->GetData(), Buffer->Num());
+	}
+
+	void Set(uint32 Key, const uint8* Source, int64 Size)
+	{
+		check(Source);
+		check(Size);
+		TArray64<uint8>& Buffer = Data.Add(Key);
+		check(Buffer.Num()==0);
+		Buffer.SetNumUninitialized(Size);
+		FMemory::Memcpy(Buffer.GetData(), Source, Size);
+	}
+
+	// Temp, to be replaced with disk storage
+	TMap<uint32, TArray64<uint8> > Data;
+};
+
+
 struct CUSTOMIZABLEOBJECT_API FMutableCachedPlatformData
 {
 	/** */
 	TArray64<uint8> ModelData;
 
 	/** */
-	TArray64<uint8> StreamableData;
+	FModelStreamableData ModelStreamableData;
 
 	/** */
 	TArray64<uint8> MorphData;
@@ -869,9 +903,6 @@ public:
 
 	/** Load compiled data for the running platform from disk, this is used to load Editor Compilations. */
 	void LoadCompiledDataFromDisk();
-
-	/** Cache platform data for cook */
-	void CachePlatformData(const ITargetPlatform* InTargetPlatform, TArray64<uint8>& InObjectBytes, TArray64<uint8>& InBulkBytes, TArray64<uint8>& InMorphBytes, TArray64<uint8>& InClothingBytes);
 	
 	/** Loads data previously compiled in BeginCacheForCookedPlatformData onto the UProperties in *this,
 	  * in preparation for saving the cooked package for *this or for a CustomizableObjectInstance using *this.
@@ -1026,6 +1057,8 @@ public:
 		FixWrappingProjectorLayoutBlockId,
 
 		MeshReferenceSupport,
+
+		ImproveMemoryUsageForStreamableBlocks,
 
 		LastCustomizableObjectVersion
 	};

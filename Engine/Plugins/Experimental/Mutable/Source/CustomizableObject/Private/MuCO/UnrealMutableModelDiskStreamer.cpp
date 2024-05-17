@@ -103,6 +103,7 @@ bool FUnrealMutableModelBulkReader::PrepareStreamingForObject(UCustomizableObjec
 #endif
 
 		const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
+		// \TODO: unnecessary runtime map copy. This should be stored in a TSharedPtr and only copy the pointer.
 		NewData.StreamableBlocks = ModelResources.HashToStreamableBlock;
 		if (NewData.StreamableBlocks.IsEmpty())
 		{
@@ -191,7 +192,7 @@ FAutoConsoleVariableRef CVarStreamPriority(
 	TEXT(""));
 
 
-mu::ModelReader::OPERATION_ID FUnrealMutableModelBulkReader::BeginReadBlock(const mu::Model* Model, uint64 Key, void* pBuffer, uint64 size, TFunction<void(bool bSuccess)>* CompletionCallback)
+mu::ModelReader::OPERATION_ID FUnrealMutableModelBulkReader::BeginReadBlock(const mu::Model* Model, uint32 Key, void* pBuffer, uint64 size, TFunction<void(bool bSuccess)>* CompletionCallback)
 {
 	MUTABLE_CPUPROFILER_SCOPE(FUnrealMutableModelBulkStreamer::OpenReadFile);
 
@@ -339,7 +340,7 @@ void FUnrealMutableModelBulkReader::EndRead(mu::ModelReader::OPERATION_ID Operat
 #if WITH_EDITOR
 
 //-------------------------------------------------------------------------------------------------
-FUnrealMutableModelBulkWriter::FUnrealMutableModelBulkWriter(FArchive* InMainDataArchive, FArchive* InStreamedDataArchive)
+FUnrealMutableModelBulkWriterEditor::FUnrealMutableModelBulkWriterEditor(FArchive* InMainDataArchive, FArchive* InStreamedDataArchive)
 {
 	MainDataArchive = InMainDataArchive;
 	StreamedDataArchive = InStreamedDataArchive;
@@ -347,9 +348,9 @@ FUnrealMutableModelBulkWriter::FUnrealMutableModelBulkWriter(FArchive* InMainDat
 }
 
 
-void FUnrealMutableModelBulkWriter::OpenWriteFile(uint64 key0)
+void FUnrealMutableModelBulkWriterEditor::OpenWriteFile(uint32 BlockKey)
 {
-	if (key0 == 0) // Model
+	if (BlockKey == 0) // Model
 	{
 		check(MainDataArchive);
 		CurrentWriteFile = MainDataArchive;
@@ -362,17 +363,52 @@ void FUnrealMutableModelBulkWriter::OpenWriteFile(uint64 key0)
 }
 
 
-void FUnrealMutableModelBulkWriter::Write(const void* pBuffer, uint64 size)
+void FUnrealMutableModelBulkWriterEditor::Write(const void* pBuffer, uint64 size)
 {
 	check(CurrentWriteFile);
 	CurrentWriteFile->Serialize(const_cast<void*>(pBuffer), size);
 }
 
 
-void FUnrealMutableModelBulkWriter::CloseWriteFile()
+void FUnrealMutableModelBulkWriterEditor::CloseWriteFile()
 {
 	CurrentWriteFile = nullptr;
 }
+
+
+
+//-------------------------------------------------------------------------------------------------
+FUnrealMutableModelBulkWriterCook::FUnrealMutableModelBulkWriterCook(FArchive* InMainDataArchive, FModelStreamableData* InStreamedData)
+{
+	MainDataArchive = InMainDataArchive;
+	StreamedData = InStreamedData;
+	CurrentKey = 0;
+}
+
+
+void FUnrealMutableModelBulkWriterCook::OpenWriteFile(uint32 BlockKey)
+{
+	CurrentKey = BlockKey;
+}
+
+
+void FUnrealMutableModelBulkWriterCook::Write(const void* pBuffer, uint64 size)
+{
+	if (CurrentKey == 0)
+	{
+		MainDataArchive->Serialize(const_cast<void*>(pBuffer), size);
+	}
+	else
+	{
+		StreamedData->Set(CurrentKey, reinterpret_cast<const uint8*>(pBuffer), size);
+	}
+}
+
+
+void FUnrealMutableModelBulkWriterCook::CloseWriteFile()
+{
+}
+
 
 #endif
 
