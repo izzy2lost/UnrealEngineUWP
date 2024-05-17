@@ -87,20 +87,24 @@ public:
 		inline FFloatReadAccess(const FOptiXImageData& InImage)
 			: Image(InImage)
 			, PixelStrideInBytes(InImage.PixelStrideInBytes)
+			, HalfFloat (InImage.Format == EOptiXImageFormat::CUDA_FloatRGBA)
 		{
 			check(PixelStrideInBytes);
 		}
 		FOptiXImageData Image;
 		unsigned int PixelStrideInBytes;
+		bool HalfFloat;
 	};
 
 	struct FFloatWriteAccess
 	{
 		inline FFloatWriteAccess(const FOptiXImageData& InImage)
 			: Image(InImage)
-			, PixelStrideInBytes(InImage.PixelStrideInBytes){}
+			, PixelStrideInBytes(InImage.PixelStrideInBytes)
+			, HalfFloat(InImage.Format == EOptiXImageFormat::CUDA_FloatRGBA) {}
 		FOptiXImageData Image;
 		unsigned int PixelStrideInBytes;
+		bool HalfFloat;
 	};
 
 	void CopySurfaceToCudaBuffer(TSurfaceObject Surface, FOptiXImageData& Result, CUstream Stream, bool bIsNormalInUEViewSpace = false, float PreExposure = 1.0f)

@@ -251,6 +251,8 @@ public:
 
 	const TCHAR* GetDebugName() const override { return *DebugName; }
 
+	bool NeedTextureCreateExtraFlags() const override { return true; }
+
 	virtual FOutputs AddPasses(FRDGBuilder& GraphBuilder, const FSceneView& View, const FInputs& Inputs) const
 	{
 		FDenoiseTextureExtParameters* DenoiseParameters = GraphBuilder.AllocParameters<FDenoiseTextureExtParameters>();

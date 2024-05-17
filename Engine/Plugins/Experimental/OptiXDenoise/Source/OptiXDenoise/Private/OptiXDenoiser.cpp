@@ -67,9 +67,9 @@ namespace UE::OptiXDenoiser
 
 	FOptiXImageData& FOptiXImage2D::GetRawImage()
 	{
-		check(Format == EOptiXImageFormat::CUDA_A32B32G32R32_F);
+		check(Format == EOptiXImageFormat::CUDA_A32B32G32R32_F || EOptiXImageFormat::CUDA_FloatRGBA);
 
-		uint32_t PixelSize = (4 * static_cast<uint32_t>(sizeof(float)));
+		uint32_t PixelSize = Format == EOptiXImageFormat::CUDA_A32B32G32R32_F ? (4 * static_cast<uint32_t>(sizeof(float))) : (4 * static_cast<uint32_t>(sizeof(uint16_t)));
 		uint32_t RowStrideInBytes = PixelSize * Width;
 
 		Image.Data = (CUdeviceptr)CudaBuffer.CudaPtr;
@@ -77,7 +77,7 @@ namespace UE::OptiXDenoiser
 		Image.Height = Height;
 		Image.RowStrideInBytes = RowStrideInBytes;
 		Image.PixelStrideInBytes = PixelSize;
-		Image.Format = EOptiXImageFormat::CUDA_A32B32G32R32_F;
+		Image.Format = Format;
 		
 		return Image;
 	}
@@ -85,7 +85,7 @@ namespace UE::OptiXDenoiser
 	void FOptiXImage2D::SetTexture(TSurfaceObject InTexture, EUnderlyingRHI UnderlyingRHI, void* SharedHandle,
 		FReleaseCUDATextureCallback InOnReleaseCUDATextureCallback, FCUDASurfaceTextureCopyCallback InCopyCallback)
 	{
-		if (Format == EOptiXImageFormat::CUDA_A32B32G32R32_F)
+		if (Format == EOptiXImageFormat::CUDA_A32B32G32R32_F || Format == EOptiXImageFormat::CUDA_FloatRGBA)
 		{
 			check(CudaBuffer.Handle == nullptr);
 			check(CudaBuffer.SurfaceObject == 0);
@@ -99,7 +99,7 @@ namespace UE::OptiXDenoiser
 			// Allocate the linear memory to CudaPtr to copy between the surface object if necessary on the device.
 			if (CudaBuffer.SurfaceObject)
 			{
-				const unsigned int NewDeviceMemorySize = Width * Height * static_cast<unsigned int>(4 * sizeof(float));
+				const size_t NewDeviceMemorySize = (Format == EOptiXImageFormat::CUDA_A32B32G32R32_F ? sizeof(float) : sizeof(uint16_t)) * 4 * Width * Height;
 
 				if (CudaBuffer.CudaPtr && CudaBuffer.CudaMemorySize != NewDeviceMemorySize)
 				{
@@ -189,6 +189,9 @@ namespace UE::OptiXDenoiser
 			{
 			case EPixelFormat::PF_A32B32G32R32F:
 				NewImage->SetFormat(EOptiXImageFormat::CUDA_A32B32G32R32_F);
+				break;
+			case EPixelFormat::PF_FloatRGBA:
+				NewImage->SetFormat(EOptiXImageFormat::CUDA_FloatRGBA);
 				break;
 			default:
 				check(false);
@@ -305,7 +308,12 @@ namespace UE::OptiXDenoiser
 			MipmapDesc.arrayDesc.Height = Texture->GetDesc().Extent.Y;
 			MipmapDesc.arrayDesc.Depth = 1;
 			MipmapDesc.arrayDesc.NumChannels = 4;
-			MipmapDesc.arrayDesc.Format = CU_AD_FORMAT_FLOAT;
+			switch (Texture->GetDesc().Format)
+			{
+				case PF_A32B32G32R32F: MipmapDesc.arrayDesc.Format = CU_AD_FORMAT_FLOAT; break;
+				case PF_FloatRGBA:     MipmapDesc.arrayDesc.Format = CU_AD_FORMAT_HALF; break;
+				default: check(false);
+			}
 			MipmapDesc.arrayDesc.Flags = CUDA_ARRAY3D_SURFACE_LDST;
 
 			// get the CUarray from the external memory
@@ -523,10 +531,6 @@ namespace UE::OptiXDenoiser
 
 		PixelFormat = InPixelFormat;
 
-		// @todo add more pixel format support
-		check(PixelFormat == CUDA_A32B32G32R32_F);
-		PixelSize = static_cast<uint32_t>(4 * sizeof(float));
-
 		CUcontext CUContext = FModuleManager::GetModuleChecked<FCUDAModule>("CUDA").GetCudaContext();
 		CUDA_CHECK(FCUDAModule::CUDA().cuCtxPushCurrent(CUContext));
 
@@ -566,8 +570,6 @@ namespace UE::OptiXDenoiser
 			CUDA_CHECK(FCUDAModule::CUDA().cuMemAlloc(reinterpret_cast<CUdeviceptr*>(&Intensity), sizeof(float)));
 			CUDA_CHECK(FCUDAModule::CUDA().cuMemAlloc(reinterpret_cast<CUdeviceptr*>(&AverageColor), 3 * sizeof(float)));
 			
-			uint32_t RowStrideInBytes = PixelSize * Width;
-
 			// Memory allocation for internal use when temporal AOV mode is enabled
 			// Initialize the memory in to zero for the first frame
 			if (false /*DenoiseDimension == EDenoiseDimension::SPATIAL_TEMPORAL && ModelKind == OPTIX_DENOISER_MODEL_KIND_TEMPORAL_AOV*/)

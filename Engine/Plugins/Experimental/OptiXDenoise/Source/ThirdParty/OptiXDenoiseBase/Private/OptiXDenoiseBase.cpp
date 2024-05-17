@@ -28,17 +28,7 @@ OptixImage2D GetOptiXImage2D(const FOptiXImageData& OptiXImageData)
 	Image.height = OptiXImageData.Height;
 	Image.rowStrideInBytes = OptiXImageData.RowStrideInBytes;
 	Image.pixelStrideInBytes = OptiXImageData.PixelStrideInBytes;
-
-	switch (OptiXImageData.Format)
-	{
-		case EOptiXImageFormat::CUDA_A32B32G32R32_F:
-			Image.format = OPTIX_PIXEL_FORMAT_FLOAT4;
-			break;
-		case EOptiXImageFormat::INTERNAL_LAYER:
-			Image.format = OPTIX_PIXEL_FORMAT_INTERNAL_GUIDE_LAYER;
-		default:
-			Image.format = OPTIX_PIXEL_FORMAT_FLOAT4; // @TODO: Error check
-	}
+	Image.format = static_cast<OptixPixelFormat>(OptiXImageData.Format);
 	return Image;
 }
 
