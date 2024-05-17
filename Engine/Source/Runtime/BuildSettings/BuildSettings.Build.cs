@@ -44,5 +44,7 @@ public class BuildSettings : ModuleRules
 		PrivateDefinitions.Add($"BUILD_USER=\"{userName}\"");
 		PrivateDefinitions.Add($"BUILD_USERDOMAINNAME=\"{userDomainName}\"");
 		PrivateDefinitions.Add($"BUILD_MACHINENAME=\"{machineName}\"");
+
+		PrivateDefinitions.Add("SUPPRESS_PER_MODULE_INLINE_FILE"); // This module does not use core's standard operator new/delete overloads
 	}
 }

@@ -85,7 +85,7 @@ void* FUnixPlatformProcess::GetDllHandle( const TCHAR* Filename )
 		else
 		{
 			// is it ia ue4 module ? if not, move it to GLOBAL
-			void *IsUE4Module = dlsym(Handle, "InitializeModule");
+			void *IsUE4Module = dlsym(Handle, "ThisIsAnUnrealEngineModule");
 			if (!IsUE4Module)
 			{
 				UpgradeToGlobal = true;

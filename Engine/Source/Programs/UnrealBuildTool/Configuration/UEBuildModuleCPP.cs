@@ -590,6 +590,31 @@ namespace UnrealBuildTool
 				}
 			}
 
+			// The operator new/delete overrides need to exist in all modules.
+			// We put these overrides in a separate file in order to be able to filter out so only one file is added when modules are merged
+			if (Target.LinkType == TargetLinkType.Modular)
+			{
+				FileReference NewDeleteOverrides = FileReference.Combine(IntermediateDirectory, "PerModuleInline.gen.cpp");
+				string Content =
+					"#if !defined(PER_MODULE_INLINE_FILE) && defined(CORE_API)\r\n" +
+					"#define PER_MODULE_INLINE_FILE \"HAL/PerModuleInline.inl\"\r\n" +
+					"#endif\r\n" +
+					"#if defined(PER_MODULE_INLINE_FILE) && !defined(SUPPRESS_PER_MODULE_INLINE_FILE)\r\n" +
+					"#include PER_MODULE_INLINE_FILE\r\n" +
+					"#endif";
+
+				bool bMergeModules = false;
+				FileItem PerModuleFile = Graph.CreateIntermediateTextFile(NewDeleteOverrides, Content, bMergeModules);
+				if (bMergeModules)
+				{
+					LinkInputFiles.AddRange(ToolChain.CompileAllCPPFiles(CompileEnvironment, new[] { PerModuleFile }, IntermediateDirectory, Name, Graph).ObjectFiles);
+				}
+				else
+				{
+					CPPFiles.Add(PerModuleFile);
+				}
+			}
+
 			// Engine modules will always use unity build mode unless MinSourceFilesForUnityBuildOverride is specified in
 			// the module rules file.  By default, game modules only use unity of they have enough source files for that
 			// to be worthwhile.  If you have a lot of small game modules, consider specifying MinSourceFilesForUnityBuildOverride=0
@@ -615,7 +640,7 @@ namespace UnrealBuildTool
 			{
 				int FileCount = CPPFiles.Count;
 
-				// if we are merging the genearted cpp files then that needs to be part of the count
+				// if we are merging the generated cpp files then that needs to be part of the count
 				if (bMergeUnityFiles)
 				{
 					FileCount += GeneratedFileItems.Count;
