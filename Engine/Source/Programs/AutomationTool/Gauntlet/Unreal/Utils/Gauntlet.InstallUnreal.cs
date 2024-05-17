@@ -170,7 +170,7 @@ namespace Gauntlet
 				if (Config.Build != null)
 				{
 					Log.Info("Installing build on device {DeviceName}", Device.Name);
-					IAppInstall Install = Device.InstallApplication(Config);
+					Device.InstallBuild(Config);
 				}
 				else
 				{
