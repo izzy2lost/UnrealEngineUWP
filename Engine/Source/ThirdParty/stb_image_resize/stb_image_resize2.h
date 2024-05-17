@@ -7110,13 +7110,14 @@ static stbir__info * stbir__alloc_internal_mem_and_build_samplers( stbir__sample
     {
       alloced_total = ( 15 + (size_t)advance_mem );
 	  
+	  /*
 	  #ifdef UE_LOG
-	  // @@ TEMP log huge allocs :
 	  if ( alloced_total > ((size_t)100<<20) )
 	  {
 		UE_LOG(LogImageCore,Display,TEXT("stb_resize : alloced_total = %lld"), alloced_total );
 	  }
 	  #endif
+	  */
 
       alloced = STBIR_MALLOC( alloced_total, user_data );
       if ( alloced == 0 )
