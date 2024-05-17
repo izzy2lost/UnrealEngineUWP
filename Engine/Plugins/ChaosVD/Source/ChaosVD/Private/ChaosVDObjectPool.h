@@ -7,6 +7,8 @@
 #include "Components/ActorComponent.h"
 #include "GameFramework/Actor.h"
 #include "Interfaces/ChaosVDPooledObject.h"
+#include "UObject/Object.h"
+#include "UObject/Package.h"
 
 struct FChaosVDObjectPoolCVars
 {
