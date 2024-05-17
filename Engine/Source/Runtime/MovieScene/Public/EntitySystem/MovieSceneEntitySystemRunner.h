@@ -190,10 +190,6 @@ public:
 
 private:
 
-	MOVIESCENE_API void OnLinkerAbandon(UMovieSceneEntitySystemLinker* Linker);
-
-private:
-
 	/**
 	 * Queue the final update of a given instance, optionally destroying it after is finishes
 	 */

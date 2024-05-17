@@ -109,16 +109,10 @@ FMovieSceneEntitySystemRunner::FMovieSceneEntitySystemRunner(UMovieSceneEntitySy
 	, bRequireFullFlush(false)
 	, bIsUpdatingSequence(false)
 {
-	// We need to handle the case of our linker being GC'ed, in case someone else is holding
-	// our ref-count up in addition to the linker.
-	InLinker->Events.AbandonLinker.AddRaw(this, &FMovieSceneEntitySystemRunner::OnLinkerAbandon);
 }
 
 FMovieSceneEntitySystemRunner::~FMovieSceneEntitySystemRunner()
 {
-	// We don't need to unregister AbandonLinker here since we are either being destroyed along with
-	// our linker, or someone kept us alive longer than the linker and we already unregistered the
-	// event inisde OnLinkerAbandon.
 }
 
 UE::MovieScene::FEntityManager* FMovieSceneEntitySystemRunner::GetEntityManager() const
@@ -1294,18 +1288,6 @@ void FMovieSceneEntitySystemRunner::MarkForUpdate(FInstanceHandle InInstanceHand
 	}
 
 	CurrentInstances.Add(FQueuedUpdateParams{ InInstanceHandle, UpdateFlags });
-}
-
-void FMovieSceneEntitySystemRunner::OnLinkerAbandon(UMovieSceneEntitySystemLinker* InLinker)
-{
-	// WARNING: this can be called with a linker that is PendingKill
-
-	if (ensure(InLinker))
-	{
-		InLinker->Events.AbandonLinker.RemoveAll(this);
-	}
-
-	WeakLinker.Reset();
 }
 
 FMovieSceneEntitySystemEventTriggers& FMovieSceneEntitySystemRunner::GetQueuedEventTriggers()
