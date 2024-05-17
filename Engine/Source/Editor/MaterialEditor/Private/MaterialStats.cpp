@@ -9,6 +9,9 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Layout/SScrollBox.h"
+#include "Widgets/Layout/SSplitter.h"
+#include "Widgets/Text/SMultiLineEditableText.h"
+#include "Text/HLSLSyntaxHighlighterMarshaller.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "MaterialEditorActions.h"
 #include "Materials/MaterialInstance.h"
@@ -104,6 +107,12 @@ void FShaderPlatformSettings::OnShaderViewComboSelectionChanged(TSharedPtr<FMate
 
 FText FShaderPlatformSettings::GetShaderCode(const EMaterialQualityLevel::Type QualityType, const int32 InstanceIndex)
 {
+	if (PlatformData[QualityType].Instances.IsEmpty())
+	{
+		return FText::GetEmpty();
+	}
+
+	check(InstanceIndex >= 0 && InstanceIndex < PlatformData[QualityType].Instances.Num());
 	auto& Instance = PlatformData[QualityType].Instances[InstanceIndex];
 	// if there were no change to the material return the cached shader code
 	if (!Instance.bUpdateShaderCode)
@@ -923,6 +932,54 @@ bool FMaterialStats::AnyNewCompilationErrors(const int32 StartingFromInstanceInd
 	return bNewCompilationErrors;
 }
 
+// Generates a string of line numbers by counting the number of new-line characters in input source code.
+static FText GenerateLineNoTextForCodeView(const FString& InSourceCode)
+{
+	FString LineNumberStr;
+	int32 LineNo = 1;
+
+	for (TCHAR Chr : InSourceCode)
+	{
+		if (Chr == TEXT('\n'))
+		{
+			LineNumberStr += FString::Printf(TEXT("% 6d\n"), LineNo);
+			++LineNo;
+		}
+	}
+
+	return FText::FromString(MoveTemp(LineNumberStr));
+}
+
+TSharedRef<SScrollBox> FMaterialStats::BuildShaderCodeWidget(TFunction<FText(void)>&& InShaderCodeCallback)
+{
+	return SNew(SScrollBox)
+		+ SScrollBox::Slot().Padding(5)
+		[
+			SNew(SSplitter)
+			.Orientation(EOrientation::Orient_Horizontal)
+			+SSplitter::Slot()
+			.Resizable(false)
+			.SizeRule(SSplitter::SizeToContent)
+			[
+				SNew(STextBlock)
+				.Text_Lambda([InShaderCodeCallback]()
+				{
+					return GenerateLineNoTextForCodeView(InShaderCodeCallback().ToString());
+				})
+				.TextStyle(FAppStyle::Get(), "MessageLog")
+				.ColorAndOpacity(FLinearColor::Gray)
+			]
+			+SSplitter::Slot()
+			[
+				SNew(SMultiLineEditableText)
+				.Text_Lambda([InShaderCodeCallback](){ return InShaderCodeCallback(); })
+				.TextStyle(FAppStyle::Get(), "MessageLog")
+				.IsReadOnly(true)
+				.Marshaller(SyntaxHighlighter)
+			]
+		];
+}
+
 TSharedRef<class SDockTab> FMaterialStats::SpawnTab_HLSLCode(const class FSpawnTabArgs& Args)
 {
 	auto CodeViewUtility =
@@ -959,15 +1016,6 @@ TSharedRef<class SDockTab> FMaterialStats::SpawnTab_HLSLCode(const class FSpawnT
 			SNew(SSeparator)
 		];
 
-	auto CodeView =
-		SNew(SScrollBox)
-		+ SScrollBox::Slot().Padding(5)
-		[
-			SNew(STextBlock)
-			.Text_Lambda([Code = &HLSLCode]() { return FText::FromString(*Code); })
-		];
-
-
 	TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
 		.Label(LOCTEXT("HLSLCodeTitle", "HLSL Code"))
 		[
@@ -980,7 +1028,7 @@ TSharedRef<class SDockTab> FMaterialStats::SpawnTab_HLSLCode(const class FSpawnT
 			+ SVerticalBox::Slot()
 			.FillHeight(1)
 			[
-				CodeView
+				BuildShaderCodeWidget([Code = &HLSLCode]() { return FText::FromString(*Code); })
 			]
 		];
 
@@ -1128,6 +1176,19 @@ void FMaterialStats::BuildViewShaderCodeMenus()
 	TSharedPtr<FWorkspaceItem> PlatformGroupMenuItem = ParentCategoryRef->AddGroup(LOCTEXT("ViewShaderCodePlatformsGroupMenu", "Shader Code"),
 		FSlateIcon(FAppStyle::GetAppStyleSetName(), "MaterialEditor.Tabs.HLSLCode"));
 
+	// Create the syntax highlighter
+	FHLSLSyntaxHighlighterMarshaller::FSyntaxTextStyle CodeStyle(
+		FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("SyntaxHighlight.SourceCode.Normal"),
+		FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("SyntaxHighlight.SourceCode.Operator"),
+		FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("SyntaxHighlight.SourceCode.Keyword"),
+		FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("SyntaxHighlight.SourceCode.String"),
+		FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("SyntaxHighlight.SourceCode.Number"),
+		FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("SyntaxHighlight.SourceCode.Comment"),
+		FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("SyntaxHighlight.SourceCode.PreProcessorKeyword"),
+		FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("SyntaxHighlight.SourceCode.Error"));
+
+	SyntaxHighlighter = FHLSLSyntaxHighlighterMarshaller::Create(CodeStyle);
+
 	// add hlsl code viewer tab
 	TabManager->RegisterTabSpawner( HLSLCodeTabId, FOnSpawnTab::CreateSP(this, &FMaterialStats::SpawnTab_HLSLCode))
 		.SetDisplayName( LOCTEXT("HLSLCodeTab", "HLSL Code") )
@@ -1175,18 +1236,16 @@ void FMaterialStats::BuildViewShaderCodeMenus()
 					.SetGroup(ShaderPlatformMenuItem.ToSharedRef())
 					.SetDisplayName(FText::FromString(MaterialQualityName));
 
-				auto CodeScrollBox = SNew(SScrollBox)
+				TSharedRef<SScrollBox> CodeScrollBox = SNew(SScrollBox)
 					+ SScrollBox::Slot().Padding(5)
 					[
-						SNew(STextBlock)
-						.Text_Lambda([MaterialStats = TWeakPtr<FMaterialStats>(SharedThis(this)), PlatformID, QualityLevel]()
+						BuildShaderCodeWidget([MaterialStats = TWeakPtr<FMaterialStats>(SharedThis(this)), PlatformID, QualityLevel]()
 						{
 							auto StatsPtr = MaterialStats.Pin();
 							if (StatsPtr.IsValid())
 							{
 								return StatsPtr->GetShaderCode(PlatformID, QualityLevel, InstanceIndex);
 							}
-
 							return FText::FromString(TEXT("Error reading shader code!"));
 						})
 					];
