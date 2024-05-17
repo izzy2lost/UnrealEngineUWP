@@ -44,15 +44,15 @@ ENUM_CLASS_FLAGS(EInstancedActorsFragmentFlags);
 
 namespace UE::InstancedActors::Utils
 {
-	INSTANCEDACTORS_API TSubclassOf<UMassActorSpawnerSubsystem> DetermineActorSpawnerSubsystemClass(UWorld& World);
-	INSTANCEDACTORS_API UServerInstancedActorsSpawnerSubsystem* GetServerInstancedActorsSpawnerSubsystem(UWorld& World);
-	INSTANCEDACTORS_API UClientInstancedActorsSpawnerSubsystem* GetClientInstancedActorsSpawnerSubsystem(UWorld& World);
+	INSTANCEDACTORS_API TSubclassOf<UMassActorSpawnerSubsystem> DetermineActorSpawnerSubsystemClass(const UWorld& World);
+	INSTANCEDACTORS_API UServerInstancedActorsSpawnerSubsystem* GetServerInstancedActorsSpawnerSubsystem(const UWorld& World);
+	INSTANCEDACTORS_API UClientInstancedActorsSpawnerSubsystem* GetClientInstancedActorsSpawnerSubsystem(const UWorld& World);
 	/** 
 	 * Calls either GetServerInstancedActorsSpawnerSubsystem or GetClientInstancedActorsSpawnerSubsystem, depending on 
 	 * given UWorld's net mode.
 	 */
-	INSTANCEDACTORS_API UMassActorSpawnerSubsystem* GetActorSpawnerSubsystem(UWorld& World);
-	INSTANCEDACTORS_API UInstancedActorsSubsystem* GetInstancedActorsSubsystem(UWorld& World);
+	INSTANCEDACTORS_API UMassActorSpawnerSubsystem* GetActorSpawnerSubsystem(const UWorld& World);
+	INSTANCEDACTORS_API UInstancedActorsSubsystem* GetInstancedActorsSubsystem(const UWorld& World);
 }
 
 // FInstancedActorsTagSet -> FInstancedActorsTagSet

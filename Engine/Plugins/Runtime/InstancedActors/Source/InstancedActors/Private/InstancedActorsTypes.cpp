@@ -12,7 +12,7 @@ DEFINE_LOG_CATEGORY(LogInstancedActors);
 
 namespace UE::InstancedActors::Utils
 {
-	TSubclassOf<UMassActorSpawnerSubsystem> DetermineActorSpawnerSubsystemClass(UWorld& World)
+	TSubclassOf<UMassActorSpawnerSubsystem> DetermineActorSpawnerSubsystemClass(const UWorld& World)
 	{
 		// @todo Add support for non-replay NM_Standalone where we should use UServerInstancedActorsSpawnerSubsystem for 
 		// authoritative actor spawning.
@@ -24,21 +24,21 @@ namespace UE::InstancedActors::Utils
 		return GET_INSTANCEDACTORS_CONFIG_VALUE(GetClientActorSpawnerSubsystemClass());
 	}
 
-	UServerInstancedActorsSpawnerSubsystem* GetServerInstancedActorsSpawnerSubsystem(UWorld& World)
+	UServerInstancedActorsSpawnerSubsystem* GetServerInstancedActorsSpawnerSubsystem(const UWorld& World)
 	{
 		TSubclassOf<UMassActorSpawnerSubsystem> SpawnerSubsystemClass = GET_INSTANCEDACTORS_CONFIG_VALUE(GetServerActorSpawnerSubsystemClass());
 		check(SpawnerSubsystemClass);
 		return Cast<UServerInstancedActorsSpawnerSubsystem>(World.GetSubsystemBase(SpawnerSubsystemClass));
 	}
 
-	UClientInstancedActorsSpawnerSubsystem* GetClientInstancedActorsSpawnerSubsystem(UWorld& World)
+	UClientInstancedActorsSpawnerSubsystem* GetClientInstancedActorsSpawnerSubsystem(const UWorld& World)
 	{
 		TSubclassOf<UMassActorSpawnerSubsystem> SpawnerSubsystemClass = GET_INSTANCEDACTORS_CONFIG_VALUE(GetClientActorSpawnerSubsystemClass());
 		check(SpawnerSubsystemClass);
 		return Cast<UClientInstancedActorsSpawnerSubsystem>(World.GetSubsystemBase(SpawnerSubsystemClass));
 	}
 
-	UMassActorSpawnerSubsystem* GetActorSpawnerSubsystem(UWorld& World)
+	UMassActorSpawnerSubsystem* GetActorSpawnerSubsystem(const UWorld& World)
 	{
 		if (World.GetNetMode() == NM_DedicatedServer)
 		{
@@ -48,7 +48,7 @@ namespace UE::InstancedActors::Utils
 		return GetClientInstancedActorsSpawnerSubsystem(World);
 	}
 
-	UInstancedActorsSubsystem* GetInstancedActorsSubsystem(UWorld& World)
+	UInstancedActorsSubsystem* GetInstancedActorsSubsystem(const UWorld& World)
 	{
 		TSubclassOf<UInstancedActorsSubsystem> InstancedActorsSubsystemClass = GET_INSTANCEDACTORS_CONFIG_VALUE(GetInstancedActorsSubsystemClass());
 		check(InstancedActorsSubsystemClass);
