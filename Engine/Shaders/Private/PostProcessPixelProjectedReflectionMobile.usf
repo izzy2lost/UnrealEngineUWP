@@ -39,12 +39,12 @@ float2 ProjectionPixelToBufferUV(int2 ReflectionPixel)
 {
 #if REFLECTION_PASS_PIXEL_SHADER
 	uint2 ViewportPos = (ReflectionPixel + float2(0.5f, 0.5f) - ViewRectMin.xy) * ViewSizeAndInvSize.zw * ResolvedView.ViewSizeAndInvSize.xy;
-#else
-	uint2 ViewportPos = (ReflectionPixel + float2(0.5f, 0.5f)) * ViewSizeAndInvSize.zw * ResolvedView.ViewSizeAndInvSize.xy;
-#endif
-
 	float2 BufferUV = ((float2)ViewportPos + float2(0.5f, 0.5f) + ResolvedView.ViewRectMin.xy) * ResolvedView.BufferSizeAndInvSize.zw;
-
+#else
+	uint2 ViewportPos = (ReflectionPixel + float2(0.5f, 0.5f)) * ViewSizeAndInvSize.zw * ViewSizeAndInvSize.xy;
+	float2 BufferUV = ((float2) ViewportPos + float2(0.5f, 0.5f) + ViewRectMin.xy) * BufferSizeAndInvSize.zw;
+#endif
+	
 	return BufferUV;
 }
 
@@ -126,26 +126,8 @@ void ProjectionPassCS(
 	uint2 GroupId : SV_GroupID,
 	uint2 DispatchThreadId : SV_DispatchThreadID,
 	uint2 GroupThreadId : SV_GroupThreadID
-#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
-	, uint InstanceId : SV_InstanceID
-	, out uint LayerIndex : SV_RenderTargetArrayIndex
-#elif MOBILE_MULTI_VIEW
-	, in uint ViewId : SV_ViewID
-	, out nointerpolation uint MultiViewIndex : VIEW_ID
-#endif
 )
 {
-#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
-	const uint EyeIndex = GetEyeIndex(InstanceId);
-	ResolvedView = ResolveView(EyeIndex);
-	LayerIndex = EyeIndex;
-#elif MOBILE_MULTI_VIEW
-	ResolvedView = ResolveView(ViewId);
-	MultiViewIndex = ViewId;
-#else
-	ResolvedView = ResolveView();
-#endif
-
 	int2 ReflectedPixel = DispatchThreadId.xy;
 
 	if (all(ReflectedPixel.xy < (int2)ViewSizeAndInvSize.xy))
@@ -162,7 +144,7 @@ void ProjectionPassCS(
 		{
 			float3 MirroredViewPosition = ViewPosition - ReflectionPlane.xyz * (2.f * PlaneDistance);
 
-			float4 MirroredProjectedPosition = mul(float4(MirroredViewPosition, 1.0f), ResolvedView.ViewToClip);
+			float4 MirroredProjectedPosition = mul(float4(MirroredViewPosition, 1.0f), View.ViewToClip);
 			half2 MirroredProjectedUV = MirroredProjectedPosition.xy / MirroredProjectedPosition.w;
 
 			if (all(abs(MirroredProjectedUV.xy) < 1.0f))

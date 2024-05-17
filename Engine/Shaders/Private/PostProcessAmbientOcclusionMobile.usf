@@ -779,26 +779,8 @@ void GTAOHorizonSearchIntegralSpatialFilterCS(
 	uint2 GroupId : SV_GroupID,
 	uint2 DispatchThreadId : SV_DispatchThreadID,
 	uint2 GroupThreadId : SV_GroupThreadID
-#if INSTANCED_STEREO
-	, uint InstanceId : SV_InstanceID
-	, out uint LayerIndex : SV_RenderTargetArrayIndex
-#elif MOBILE_MULTI_VIEW
-	, in uint ViewId : SV_ViewID
-	, out nointerpolation uint MultiViewIndex : VIEW_ID
-#endif
 )
 {
-#if INSTANCED_STEREO
-	const uint EyeIndex = GetEyeIndex(InstanceId);
-	ResolvedView = ResolveView(EyeIndex);
-	LayerIndex = EyeIndex;
-#elif MOBILE_MULTI_VIEW
-	ResolvedView = ResolveView(ViewId);
-	MultiViewIndex = ViewId;
-#else
-	ResolvedView = ResolveView();
-#endif
-
 	int2 FullGroupOrigin = int2(GroupId.x * THREADGROUP_SIZEX, GroupId.y * THREADGROUP_SIZEY);
 	uint pixIdx = GroupIndex;
 
@@ -809,7 +791,7 @@ void GTAOHorizonSearchIntegralSpatialFilterCS(
 		pixIdx = GroupIndex * 2;
 		if (pixIdx < MAX_DEPTH_THREADS)
 		{
-			CacheZVal(FullGroupOriginDepth, pixIdx);
+			CacheZVal(FullGroupOriginDepth, pixIdx); 
 
 			CacheZVal(FullGroupOriginDepth, pixIdx + 1);
 		}
@@ -844,26 +826,8 @@ void GTAOHorizonSearchIntegralCS(
 	uint2 GroupId : SV_GroupID,
 	uint2 DispatchThreadId : SV_DispatchThreadID,
 	uint2 GroupThreadId : SV_GroupThreadID
-#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
-	, uint InstanceId : SV_InstanceID
-	, out uint LayerIndex : SV_RenderTargetArrayIndex
-#elif MOBILE_MULTI_VIEW
-	, in uint ViewId : SV_ViewID
-	, out nointerpolation uint MultiViewIndex : VIEW_ID
-#endif
 )
 {
-#if INSTANCED_STEREO && MOBILE_MULTI_VIEW
-	const uint EyeIndex = GetEyeIndex(InstanceId);
-	ResolvedView = ResolveView(EyeIndex);
-	LayerIndex = EyeIndex;
-#elif MOBILE_MULTI_VIEW
-	ResolvedView = ResolveView(ViewId);
-	MultiViewIndex = ViewId;
-#else
-	ResolvedView = ResolveView();
-#endif
-
 	int2 FullGroupOrigin = int2(GroupId.x * THREADGROUP_SIZEX, GroupId.y * THREADGROUP_SIZEY);
 	int pixIdx = GroupIndex;
 
@@ -885,7 +849,7 @@ void GTAOHorizonSearchIntegralCS(
 	int2 ThreadPos = int2(GroupThreadId);
 	int2 TexturePos = int2(DispatchThreadId);
 
-	half2 TextureUV = TexturePosToBufferUV(TexturePos);
+	half2 TextureUV = TexturePosToBufferUV(TexturePos); 
 
 	half GTAO = CalculateGTAO(TextureUV.xy, TexturePos.xy, ThreadPos.xy);
 	half DeviceZ = GetDeviceZFromSharedMemory(ThreadPos + DEPTH_GROUP_THREAD_OFFSET);
