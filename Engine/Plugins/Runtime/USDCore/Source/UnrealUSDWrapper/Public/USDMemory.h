@@ -294,7 +294,7 @@ TSharedRef<ObjectType> MakeSharedUnreal(ArgTypes&&... Args)
 		} \
 		/* Forced reference to this function is added by the linker to check that each module uses IMPLEMENT_MODULE */ \
 		extern "C" void IMPLEMENT_MODULE_##ModuleName() { } \
-		UE4_VISUALIZERS_HELPERS \
+		UE_VISUALIZERS_HELPERS \
 		REPLACEMENT_OPERATOR_NEW_AND_DELETE_USD
 #else
 	#define IMPLEMENT_MODULE_USD( ModuleImplClass, ModuleName ) IMPLEMENT_MODULE( ModuleImplClass, ModuleName )

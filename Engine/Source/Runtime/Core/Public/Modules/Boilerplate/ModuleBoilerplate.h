@@ -76,12 +76,20 @@ class FChunkedFixedUObjectArray;
 class FChunkedFixedUObjectArray;
 
 #ifdef DISABLE_UE4_VISUALIZER_HELPERS
-	#define UE4_VISUALIZERS_HELPERS
+	UE_DEPRECATED_HEADER(5.5, "DISABLE_UE4_VISUALIZER_HELPERS has been disabled, please define UE_ENABLE_VISUALIZER_HELPERS=0 instead.")
+	#define UE_ENABLE_VISUALIZER_HELPERS 0
+#endif
+#ifndef UE_ENABLE_VISUALIZER_HELPERS
+	#define UE_ENABLE_VISUALIZER_HELPERS 1
+#endif
+
+#if !UE_ENABLE_VISUALIZER_HELPERS
+	#define UE_VISUALIZERS_HELPERS
 #elif PLATFORM_UNIX
 	// GDB/LLDB pretty printers don't use these - no need to export additional symbols. This also solves ODR violation reported by ASan on Linux
-	#define UE4_VISUALIZERS_HELPERS
+	#define UE_VISUALIZERS_HELPERS
 #else
-	#define UE4_VISUALIZERS_HELPERS \
+	#define UE_VISUALIZERS_HELPERS \
 		uint8** GNameBlocksDebug = FNameDebugVisualizer::GetBlocks(); \
 		const UPTRINT*& GObjectIndexToPackedObjectRefDebug = GCoreObjectIndexToPackedObjectRefDebug; \
 		FChunkedFixedUObjectArray*& GObjectArrayForDebugVisualizers = GCoreObjectArrayForDebugVisualizers; \
@@ -92,6 +100,6 @@ class FChunkedFixedUObjectArray;
 // in DLL builds, these are done per-module, otherwise we just need one in the application
 // visual studio cannot find cross dll data for visualizers, so these provide access
 #define PER_MODULE_BOILERPLATE \
-	UE4_VISUALIZERS_HELPERS \
+	UE_VISUALIZERS_HELPERS \
 	REPLACEMENT_OPERATOR_NEW_AND_DELETE \
 	UE_DEFINE_FMEMORY_WRAPPERS

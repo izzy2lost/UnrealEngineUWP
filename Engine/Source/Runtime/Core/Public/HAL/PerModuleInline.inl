@@ -5,7 +5,7 @@
 #include "CoreGlobals.h"
 #include "Modules/Boilerplate/ModuleBoilerplate.h"
 
-UE4_VISUALIZERS_HELPERS
+UE_VISUALIZERS_HELPERS
 REPLACEMENT_OPERATOR_NEW_AND_DELETE
 UE_DEFINE_FMEMORY_WRAPPERS
 

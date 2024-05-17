@@ -174,7 +174,7 @@ void INiagaraModule::OnDataChannelsEnabledChanged(IConsoleVariable* Variable)
 // these two globals are intended to help ensure that a global variable is accessible to natvis (as defined in Niagara.natvis)
 // while debugging.  GCoreTypeRegistrySingletonPtr is the pointer to the actual data stored within the TLazySingleton<FNiagaraTypeRegistry>
 // while GTypeRegistrySingletonPtr can be declared in each module to ensure that it can be accessed while debugging any Niagara
-// module.  See UE4_VISUALIZERS_HELPERS.  Note that currently it seems like we can effectively debug NiagaraEditor/NiagaraShader without
+// module.  See UE_VISUALIZERS_HELPERS.  Note that currently it seems like we can effectively debug NiagaraEditor/NiagaraShader without
 // further declarations, which is nice, so will be leaving it as it is.
 namespace NiagaraDebugVisHelper
 {
