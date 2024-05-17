@@ -164,7 +164,7 @@ UPackageTools::UPackageTools(const FObjectInitializer& ObjectInitializer)
 						Object->SetFlags(RF_Standalone);
 					}
 					return true;
-				}, true, RF_NoFlags, UE::GC::GUnreachableObjectFlag);
+				}, true, RF_NoFlags, EInternalObjectFlags::Unreachable);
 			}
 		}
 	}

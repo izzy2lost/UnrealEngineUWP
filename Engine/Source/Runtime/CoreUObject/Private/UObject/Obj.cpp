@@ -25,6 +25,7 @@
 #include "UObject/Object.h"
 #include "Serialization/ArchiveUObject.h"
 #include "UObject/GarbageCollectionHistory.h"
+#include "UObject/GarbageCollectionInternalFlags.h"
 #include "UObject/Class.h"
 #include "UObject/EnumProperty.h"
 #include "UObject/UObjectIterator.h"
@@ -5453,11 +5454,11 @@ void StaticExit()
 			if (!Obj->IsA<UField>())
 			{
 				// Mark as unreachable so purge phase will kill it.
-				ObjItem->SetUnreachable();
+				UE::GC::Private::FGCFlags::SetMaybeUnreachable_ForGC(ObjItem);
 			}
 			else
 			{
-				ObjItem->ClearUnreachable();
+				UE::GC::Private::FGCFlags::ClearMaybeUnreachable_ForGC(ObjItem);
 			}
 		}
 	}
@@ -5477,7 +5478,7 @@ void StaticExit()
 		for (FRawObjectIterator It; It; ++It)
 		{
 			// Mark as unreachable so purge phase will kill it.
-			It->SetUnreachable();
+			UE::GC::Private::FGCFlags::SetMaybeUnreachable_ForGC(*It);
 		}
 
 		GatherUnreachableObjects(false);

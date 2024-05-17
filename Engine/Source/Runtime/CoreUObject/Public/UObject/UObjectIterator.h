@@ -57,7 +57,7 @@ enum class EObjectIteratorThreadSafetyOptions : uint8
 
 inline EInternalObjectFlags GetObjectIteratorDefaultInternalExclusionFlags(EInternalObjectFlags InternalExclusionFlags)
 {
-	InternalExclusionFlags |= UE::GC::GUnreachableObjectFlag | EInternalObjectFlags::PendingConstruction;
+	InternalExclusionFlags |= EInternalObjectFlags::Unreachable | EInternalObjectFlags::PendingConstruction;
 	if (!IsInAsyncLoadingThread())
 	{
 		// We don't want to return any objects that are currently being background loaded unless we're using the object iterator during async loading.

@@ -29,6 +29,7 @@
 #include "UObject/UObjectHashPrivate.h"
 #include "UObject/Object.h"
 #include "UObject/GarbageCollection.h"
+#include "UObject/GarbageCollectionInternalFlags.h"
 #include "UObject/Class.h"
 #include "UObject/CoreRedirects.h"
 #include "UObject/FastReferenceCollector.h"
@@ -5308,7 +5309,8 @@ public:
 				}
 				else
 				{
-					Object->SetInternalFlags(UE::GC::GUnreachableObjectFlag);
+					FUObjectItem* ObjectItem = GUObjectArray.ObjectToObjectItem(Object);
+					UE::GC::Private::FGCFlags::ThisThreadAtomicallySetFlag_ForGC(ObjectItem, EInternalObjectFlags::Unreachable);
 				}
 			}
 		}
@@ -5361,7 +5363,8 @@ private:
 		}
 
 		// Mark it as reachable.
-		Object->ThisThreadAtomicallyClearedRFUnreachable();
+		FUObjectItem* ObjectItem = GUObjectArray.ObjectToObjectItem(Object);
+		UE::GC::Private::FGCFlags::ThisThreadAtomicallyClearedFlag_ForGC(ObjectItem, EInternalObjectFlags::Unreachable);
 
 		// Add it to the list of objects to serialize.
 		ObjectsToSerialize.Add( Object );
@@ -5388,7 +5391,8 @@ private:
 					CurrentReferenceInfo->TotalReferences++;
 				}
 				// Mark it as reachable.
-				InObject->ThisThreadAtomicallyClearedRFUnreachable();
+				FUObjectItem* ObjectItem = GUObjectArray.ObjectToObjectItem(InObject);
+				UE::GC::Private::FGCFlags::ThisThreadAtomicallyClearedFlag_ForGC(ObjectItem, EInternalObjectFlags::Unreachable);
 			}
 			else if (InObject->IsUnreachable())
 			{

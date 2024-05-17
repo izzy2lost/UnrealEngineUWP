@@ -11,6 +11,7 @@
 #include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "UObject/UObjectAllocator.h"
 #include "UObject/Class.h"
+#include "UObject/GarbageCollectionInternalFlags.h"
 #include "UObject/UObjectIterator.h"
 #include "UObject/ReachabilityAnalysisState.h"
 
@@ -268,7 +269,9 @@ void FUObjectArray::AllocateUObjectIndex(UObjectBase* Object, EInternalObjectFla
 	ObjectItem->Flags = (int32)EInternalObjectFlags::PendingConstruction;
 	if (!(IsOpenForDisregardForGC() & GUObjectArray.DisregardForGCEnabled())) //-V792
 	{
-		ObjectItem->Flags |= (int32)UE::GC::GReachableObjectFlag;
+		// It's safe to access FGCFlags::GetReachableFlagValue_ForGC() here because creating new objects is being performed 
+		// under the same UObjectArray lock as swapping reachability flags inside of GC, see FGCFlags::SwapReachableAndMaybeUnreachable()
+		ObjectItem->Flags |= (int32)UE::GC::Private::FGCFlags::GetReachableFlagValue_ForGC();
 	}
 	ObjectItem->RefCount = 0;
 	ObjectItem->ClusterRootIndex = 0;

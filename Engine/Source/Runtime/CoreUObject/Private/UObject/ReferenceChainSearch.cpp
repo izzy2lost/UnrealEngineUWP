@@ -10,6 +10,7 @@
 #include "HAL/ThreadHeartBeat.h"
 #include "UObject/FastReferenceCollector.h"
 #include "UObject/GCObject.h"
+#include "UObject/GarbageCollectionInternalFlags.h"
 #include "UObject/UObjectIterator.h"
 #include "UObject/UnrealType.h"
 
@@ -1265,28 +1266,30 @@ namespace UE::ReferenceChainSearch
 
 FString FReferenceChainSearch::GetObjectFlags(const FGCObjectInfo& InObject)
 {
+	using namespace UE::GC::Private;
+
 	FString Flags;
 
 	if (!InObject.IsDisregardForGC())
 	{
-		if (!InObject.HasAnyInternalFlags(UE::GC::GReachableObjectFlag | UE::GC::GMaybeUnreachableObjectFlag | UE::GC::GUnreachableObjectFlag))
+		if (!InObject.HasAnyInternalFlags(EInternalObjectFlags_ReachabilityFlags))
 		{
 			Flags += TEXT("(Error: No reachability flag) ");
 		}
 	}
-	else if (InObject.HasAnyInternalFlags(UE::GC::GReachableObjectFlag))
+	else if (InObject.HasAnyInternalFlags(FGCFlags::GetReachableFlagValue_ForGC()))
 	{
 		Flags += TEXT("(Error: Reachable but NeverGCed) ");
 	}
 
-	if (InObject.HasAnyInternalFlags(UE::GC::GMaybeUnreachableObjectFlag))
+	if (InObject.HasAnyInternalFlags(FGCFlags::GetMaybeUnreachableFlagValue_ForGC()))
 	{
-		Flags += FString::Printf(TEXT("(MaybeUnreachable<%d>) "), (int32)UE::GC::GMaybeUnreachableObjectFlag);
+		Flags += FString::Printf(TEXT("(MaybeUnreachable<%d>) "), FGCFlags::GetMaybeUnreachableFlagValue_ForGC());
 	}
 
-	if (InObject.HasAnyInternalFlags(UE::GC::GUnreachableObjectFlag))
+	if (InObject.HasAnyInternalFlags(EInternalObjectFlags::Unreachable))
 	{
-		Flags += FString::Printf(TEXT("(Unreachable<%d>) "), (int32)UE::GC::GUnreachableObjectFlag);
+		Flags += TEXT("(Unreachable) ");
 	}
 
 	if (InObject.HasAnyInternalFlags(EInternalObjectFlags::RefCounted))

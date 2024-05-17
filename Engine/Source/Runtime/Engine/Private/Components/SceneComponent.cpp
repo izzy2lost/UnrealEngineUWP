@@ -1207,7 +1207,7 @@ void USceneComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
 		AActor* MyOwner = GetOwner();
 
 		// Do not involve objects which will be destroyed in hierarchy fixups
-		const EInternalObjectFlags SkipFlags = EInternalObjectFlags::Garbage | UE::GC::GUnreachableObjectFlag;
+		const EInternalObjectFlags SkipFlags = EInternalObjectFlags::Garbage | EInternalObjectFlags::Unreachable;
 
 		if (bDestroyingHierarchy)
 		{

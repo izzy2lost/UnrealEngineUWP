@@ -220,10 +220,8 @@ public:
 	 *
 	 * @return true if we are the thread that cleared RF_Unreachable
 	 */
-	FORCEINLINE bool ThisThreadAtomicallyClearedRFUnreachable()
-	{
-		return GUObjectArray.IndexToObject(InternalIndex)->ThisThreadAtomicallyClearedRFUnreachable();
-	}
+	UE_DEPRECATED(5.5, "ThisThreadAtomicallyClearedRFUnreachable() should no longer be used. Reachability flags can only be modified by the garbage collector.")
+	bool ThisThreadAtomicallyClearedRFUnreachable();
 
 	/** Checks if the object is unreachable. */
 	FORCEINLINE bool IsUnreachable() const

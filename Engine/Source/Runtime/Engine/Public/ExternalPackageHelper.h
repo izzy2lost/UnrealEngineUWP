@@ -241,7 +241,7 @@ void FExternalPackageHelper::LoadObjectsFromExternalPackages(UObject* InOuter, T
 					return false;
 				}
 				return true;
-			}, true, RF_NoFlags, UE::GC::GUnreachableObjectFlag);
+			}, true, RF_NoFlags, EInternalObjectFlags::Unreachable);
 
 			if (ensure(LoadedObject))
 			{
