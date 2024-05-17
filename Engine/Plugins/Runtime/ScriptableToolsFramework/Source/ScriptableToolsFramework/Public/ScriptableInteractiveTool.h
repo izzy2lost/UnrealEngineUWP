@@ -17,6 +17,12 @@ class FToolDataVisualizer;
 class FCanvas;
 class FSceneView;
 
+class UPreviewGeometry;
+class UScriptableToolLineSet;
+class UScriptableToolPointSet;
+class UScriptableToolTriangleSet;
+
+
 UENUM(BlueprintType)
 enum class EToolsFrameworkOutcomePins : uint8
 {
@@ -802,11 +808,79 @@ protected:
 	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
 	TArray<TObjectPtr<UToolTarget>> Targets;
 
+
+public:
+
+	// Drawing API
+
+	/**
+	 * Retrieve the default line set object for the tool, used for drawing persistent line objects in the scene.
+	 * @return A reference to the tool's default line set object
+	 */
+	UFUNCTION(BlueprintCallable, Category = "ScriptableTool|Drawing")
+	UScriptableToolLineSet* GetDefaultLineSet() const;
+
+	/**
+	 * Create and return a new, independent line set, used for drawing persistent line objects in the scene.
+	 * Users must save a reference to the created object for future access.
+	 * @return A reference to a new line set object
+	 */
+	UFUNCTION(BlueprintCallable, Category = "ScriptableTool|Drawing")
+	UScriptableToolLineSet* AddLineSet();
+
+	/**
+	 * Retrieve the default point set object for the tool, used for drawing persistent point objects in the scene.
+	 * @return A reference to the tool's default point set object
+	 */
+	UFUNCTION(BlueprintCallable, Category = "ScriptableTool|Drawing")
+	UScriptableToolPointSet* GetDefaultPointSet() const;
+
+	/**
+	 * Create and return a new, independent point set, used for drawing persistent point objects in the scene.
+	 * Users must save a reference to the created object for future access.
+	 * @return A reference to a new point set object
+	 */
+	UFUNCTION(BlueprintCallable, Category = "ScriptableTool|Drawing")
+	UScriptableToolPointSet* AddPointSet();
+
+	/**
+	 * Retrieve the default triangle set object for the tool, used for drawing persistent triangle and quad objects in the scene.
+	 * @return A reference to the tool's default triangle set object
+	 */
+	UFUNCTION(BlueprintCallable, Category = "ScriptableTool|Drawing")
+	UScriptableToolTriangleSet* GetDefaultTriangleSet() const;
+
+	/**
+	 * Create and return a new, independent triangle set, used for drawing persistent triangle and quad objects in the scene.
+	 * Users must save a reference to the created object for future access.
+	 * @return A reference to a new triangle set object
+	 */
+	UFUNCTION(BlueprintCallable, Category = "ScriptableTool|Drawing")
+	UScriptableToolTriangleSet* AddTriangleSet();
+
+protected:
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
+	TObjectPtr<UScriptableToolLineSet> DefaultLineSet;
+
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
+	TArray<TObjectPtr<UScriptableToolLineSet> > LineSets;
+
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
+	TObjectPtr<UScriptableToolPointSet> DefaultPointSet;
+
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
+	TArray<TObjectPtr<UScriptableToolPointSet> > PointSets;
+
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
+	TObjectPtr<UScriptableToolTriangleSet> DefaultTriangleSet;
+
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
+	TArray<TObjectPtr<UScriptableToolTriangleSet> > TriangleSets;
+
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional, SkipSerialization)
+	TObjectPtr<UPreviewGeometry> ToolDrawableGeometry = nullptr;
+
 };
-
-
-
-
 
 
 UCLASS(meta = (ScriptName = "ScriptableTools_Util"))

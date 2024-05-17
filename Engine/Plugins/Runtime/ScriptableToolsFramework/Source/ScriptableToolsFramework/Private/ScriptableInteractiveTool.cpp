@@ -8,6 +8,12 @@
 #include "BaseGizmos/TransformGizmoUtil.h"
 #include "BaseGizmos/CombinedTransformGizmo.h"
 
+#include "Drawing/PreviewGeometryActor.h"
+#include "Drawing/ScriptableToolLineSet.h"
+#include "Drawing/ScriptableToolPointSet.h"
+#include "Drawing/ScriptableToolTriangleSet.h"
+
+
 #include "Engine/Font.h"
 #include "ToolDataVisualizer.h"
 #include "CanvasTypes.h"
@@ -18,7 +24,6 @@
 #include "UObject/EnumProperty.h"
 
 #define LOCTEXT_NAMESPACE "UScriptableInteractiveTool"
-
 
 
 UScriptableInteractiveTool* UScriptableInteractiveToolPropertySet::GetOwningTool(EToolsFrameworkOutcomePins& Outcome)
@@ -187,12 +192,43 @@ void UScriptableInteractiveTool::Setup()
 	DrawHUDHelper = NewObject<UScriptableTool_HUDAPI>();
 
 	OnScriptSetup();
+
+
+	ToolDrawableGeometry = NewObject<UPreviewGeometry>();
+	ToolDrawableGeometry->CreateInWorld(GetWorld(), FTransform::Identity);
+
+	DefaultLineSet = NewObject<UScriptableToolLineSet>();
+	DefaultLineSet->Initialize(ToolDrawableGeometry);
+
+	DefaultPointSet = NewObject<UScriptableToolPointSet>();
+	DefaultPointSet->Initialize(ToolDrawableGeometry);
+
+	DefaultTriangleSet = NewObject<UScriptableToolTriangleSet>();
+	DefaultTriangleSet->Initialize(ToolDrawableGeometry);
 }
 
 void UScriptableInteractiveTool::OnTick(float DeltaTime)
 {
 	UInteractiveTool::OnTick(DeltaTime);
 	OnScriptTick(DeltaTime);
+
+	DefaultLineSet->OnTick();
+	for (UScriptableToolLineSet* LineSet : LineSets)
+	{
+		LineSet->OnTick();
+	}
+
+	DefaultPointSet->OnTick();
+	for (UScriptableToolPointSet* PointSet : PointSets)
+	{
+		PointSet->OnTick();
+	}
+
+	DefaultTriangleSet->OnTick();
+	for (UScriptableToolTriangleSet* TriangleSet : TriangleSets)
+	{
+		TriangleSet->OnTick();
+	}
 }
 
 bool UScriptableInteractiveTool::HasAccept() const
@@ -232,6 +268,9 @@ void UScriptableInteractiveTool::Shutdown(EToolShutdownType ShutdownType)
 
 	RenderHelper = nullptr;
 	DrawHUDHelper = nullptr;
+
+	ToolDrawableGeometry->Disconnect();
+	ToolDrawableGeometry = nullptr;
 
 	UInteractiveTool::Shutdown(ShutdownType);
 }
@@ -1141,6 +1180,48 @@ TArray<UToolTarget*> UScriptableInteractiveTool::GetToolTargets() const
 
 
 
+UScriptableToolLineSet* UScriptableInteractiveTool::GetDefaultLineSet() const
+{
+	return DefaultLineSet;
+}
+
+
+UScriptableToolLineSet* UScriptableInteractiveTool::AddLineSet()
+{
+	TObjectPtr<UScriptableToolLineSet> LineSet = NewObject<UScriptableToolLineSet>();
+	LineSet->Initialize(ToolDrawableGeometry);
+	LineSets.Add( LineSet );
+	return LineSet;
+}
+
+UScriptableToolPointSet* UScriptableInteractiveTool::GetDefaultPointSet() const
+{
+	return DefaultPointSet;
+}
+
+
+UScriptableToolPointSet* UScriptableInteractiveTool::AddPointSet()
+{
+	TObjectPtr<UScriptableToolPointSet> PointSet = NewObject<UScriptableToolPointSet>();
+	PointSet->Initialize(ToolDrawableGeometry);
+	PointSets.Add(PointSet);
+	return PointSet;
+}
+
+
+UScriptableToolTriangleSet* UScriptableInteractiveTool::GetDefaultTriangleSet() const
+{
+	return DefaultTriangleSet;
+}
+
+
+UScriptableToolTriangleSet* UScriptableInteractiveTool::AddTriangleSet()
+{
+	TObjectPtr<UScriptableToolTriangleSet> TriangleSet = NewObject<UScriptableToolTriangleSet>();
+	TriangleSet->Initialize(ToolDrawableGeometry);
+	TriangleSets.Add(TriangleSet);
+	return TriangleSet;
+}
 
 
 

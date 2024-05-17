@@ -31,7 +31,8 @@ public class ScriptableToolsFramework : ModuleRules
 				"RenderCore",
 				"GeometryCore",
 				"InputCore",
-				"InteractiveToolsFramework"
+				"InteractiveToolsFramework",
+				"ModelingComponents"
 			}
 			);
 
