@@ -9,7 +9,6 @@
 #include "RenderGraphFwd.h"
 #include "Engine/EngineTypes.h"
 #include "PrimitiveComponentId.h"
-#include "ShowFlags.h"
 
 class AWorldSettings;
 class FArchive;
@@ -690,22 +689,15 @@ public:
 	/** Contains settings used to construct scene view for custom render pass during the renderer construction. */
 	struct FCustomRenderPassRendererInput
 	{
-		FCustomRenderPassRendererInput()
-			: EngineShowFlags(ESFIM_Game)
-		{
-		}
-
 		/** Data used to construct scene view for the custom render pass. */
 		FVector ViewLocation;
 		FMatrix ViewRotationMatrix;
 		FMatrix ProjectionMatrix;
 		TSet<FPrimitiveComponentId> HiddenPrimitives;
 		TOptional<TSet<FPrimitiveComponentId>> ShowOnlyPrimitives;
-		FEngineShowFlags EngineShowFlags;
 		const AActor* ViewActor = nullptr;
 		class FSceneViewStateInterface* ViewStateInterface = nullptr;
 		bool bIsSceneCapture = false;
-		bool bUseMainViewFamilyShowFlags = false;			// Custom render pass should use flags from main view family, rather than ones in this structure
 
 		class FCustomRenderPassBase* CustomRenderPass = nullptr;
 	};

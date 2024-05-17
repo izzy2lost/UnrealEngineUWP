@@ -1090,8 +1090,7 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 		// As optimization for depth capture modes, render scene capture as additional render passes inside the main renderer.
 		if (GSceneCaptureAllowRenderInMainRenderer && 
 			CaptureComponent->bRenderInMainRenderer && 
-			(CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_SceneDepth || CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_DeviceDepth ||
-			 CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_BaseColor || CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_Normal)
+			(CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_SceneDepth || CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_DeviceDepth)
 			)
 		{
 			FCustomRenderPassRendererInput PassInput;
@@ -1101,41 +1100,12 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 			PassInput.ViewActor = CaptureComponent->GetViewOwner();
 			PassInput.bIsSceneCapture = true;
 
-			FCustomRenderPassBase::ERenderMode RenderMode;
-			FCustomRenderPassBase::ERenderOutput RenderOutput;
-			const TCHAR* DebugName;
-
-			switch (CaptureComponent->CaptureSource)
-			{
-			case ESceneCaptureSource::SCS_SceneDepth:
-				RenderMode = FCustomRenderPassBase::ERenderMode::DepthPass;
-				RenderOutput = FCustomRenderPassBase::ERenderOutput::SceneDepth;
-				DebugName = TEXT("SceneCapturePass_SceneDepth");
-				break;
-			case ESceneCaptureSource::SCS_DeviceDepth:
-				RenderMode = FCustomRenderPassBase::ERenderMode::DepthPass;
-				RenderOutput = FCustomRenderPassBase::ERenderOutput::DeviceDepth;
-				DebugName = TEXT("SceneCapturePass_DeviceDepth");
-				break;
-			case ESceneCaptureSource::SCS_Normal:
-				RenderMode = FCustomRenderPassBase::ERenderMode::DepthAndBasePass;
-				RenderOutput = FCustomRenderPassBase::ERenderOutput::Normal;
-				DebugName = TEXT("SceneCapturePass_Normal");
-				break;
-			case ESceneCaptureSource::SCS_BaseColor:
-			default:
-				RenderMode = FCustomRenderPassBase::ERenderMode::DepthAndBasePass;
-				RenderOutput = FCustomRenderPassBase::ERenderOutput::BaseColor;
-				DebugName = TEXT("SceneCapturePass_BaseColor");
-				break;
-			}
-
-			FSceneCapturePass* CustomPass = new FSceneCapturePass(DebugName, RenderMode, RenderOutput, TextureRenderTarget);
+			FString DebugName = CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_SceneDepth ? TEXT("SceneCapturePass_SceneDepth") : TEXT("SceneCapturePass_DeviceDepth");
+			FCustomRenderPassBase::ERenderOutput RenderOutput = CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_SceneDepth ? FCustomRenderPassBase::ERenderOutput::SceneDepth : FCustomRenderPassBase::ERenderOutput::DeviceDepth;
+			FSceneCapturePass* CustomPass = new FSceneCapturePass(DebugName, FCustomRenderPassBase::ERenderMode::DepthPass, RenderOutput, TextureRenderTarget);
 			PassInput.CustomRenderPass = CustomPass;
 
 			GetShowOnlyAndHiddenComponents(CaptureComponent, PassInput.HiddenPrimitives, PassInput.ShowOnlyPrimitives);
-
-			PassInput.EngineShowFlags = CaptureComponent->ShowFlags;
 
 			// Caching scene capture info to be passed to the scene renderer.
 			// #todo: We cannot (yet) guarantee for which ViewFamily this CRP will eventually be rendered since it will just execute the next time the scene is rendered by any FSceneRenderer. This seems quite problematic and could easily lead to unexpected behavior...

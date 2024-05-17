@@ -2783,6 +2783,7 @@ private:
 	const bool bDeferredShading;
 	const bool bRequiresDBufferDecals;
 	const bool bUseVirtualTexturing;
+	const bool bSupportsSimpleLights;
 	bool bTonemapSubpass;
 	bool bTonemapSubpassInline;
 	int32 NumMSAASamples;
