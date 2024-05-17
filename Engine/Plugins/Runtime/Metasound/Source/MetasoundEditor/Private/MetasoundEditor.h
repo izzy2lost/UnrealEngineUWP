@@ -484,6 +484,8 @@ namespace Metasound
 			bool bPrimingRegistry = false;
 
 			int32 HighestMessageSeverity = EMessageSeverity::Info;
+
+			TSharedPtr<SNotificationItem> NotificationPtr;
 		};
 	} // namespace Editor
 } // namespace Metasound

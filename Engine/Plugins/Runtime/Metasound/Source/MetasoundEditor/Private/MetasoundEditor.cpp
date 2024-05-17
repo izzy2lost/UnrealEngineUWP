@@ -1105,15 +1105,31 @@ namespace Metasound
 		{
 			if (MetasoundGraphEditor.IsValid())
 			{
+				const FText CloseNotificationText = LOCTEXT("MetaSoundScanInProgressNotificationButtonText", "Close");
+
+				FSimpleDelegate OnCloseNotification = FSimpleDelegate::CreateLambda([this]()
+				{
+					if (NotificationPtr)
+					{
+						NotificationPtr->Fadeout();
+						NotificationPtr.Reset();
+					}
+				});
+
 				FNotificationInfo Info(LOCTEXT("MetaSoundScanInProgressNotificationText", "Registering MetaSound Assets..."));
 				Info.SubText = LOCTEXT("MetaSoundScanInProgressNotificationSubText", "Class selector results may be incomplete");
 				Info.bUseThrobber = true;
-				Info.bFireAndForget = true;
+				Info.bFireAndForget = false;
 				Info.bUseSuccessFailIcons = false;
-				Info.ExpireDuration = 3.0f;
 				Info.FadeOutDuration = 1.0f;
+				Info.ButtonDetails.Add(FNotificationButtonInfo(CloseNotificationText, FText(), OnCloseNotification));
 
-				MetasoundGraphEditor->AddNotification(Info, false /* bSuccess */);
+				NotificationPtr = MetasoundGraphEditor->AddNotification(Info);
+				if (NotificationPtr.IsValid())
+				{
+					NotificationPtr->SetVisibility(EVisibility::Visible);
+					NotificationPtr->SetCompletionState(SNotificationItem::CS_Pending);
+				}
 			}
 		}
 
@@ -1121,6 +1137,12 @@ namespace Metasound
 		{
 			if (MetasoundGraphEditor.IsValid())
 			{
+				if (NotificationPtr.IsValid())
+				{
+					NotificationPtr->Fadeout();
+					NotificationPtr.Reset();
+				}
+
 				FNotificationInfo Info(LOCTEXT("MetaSoundScanInProgressNotification", "MetaSound Asset Registration Complete"));
 				Info.bFireAndForget = true;
 				Info.bUseSuccessFailIcons = true;

@@ -850,7 +850,7 @@ void SGraphEditorImpl::Construct( const FArguments& InArgs )
 		.HAlign(HAlign_Right)
 		[
 			SAssignNew(NotificationListPtr, SNotificationList)
-			.Visibility(EVisibility::HitTestInvisible)
+			.Visibility(EVisibility::Visible)
 		]
 	];
 
@@ -1463,8 +1463,23 @@ void SGraphEditorImpl::AddNotification( FNotificationInfo& Info, bool bSuccess )
 	TSharedPtr<SNotificationItem> Notification = NotificationListPtr->AddNotification(Info);
 	if ( Notification.IsValid() )
 	{
+		Notification->SetVisibility(EVisibility::HitTestInvisible);
 		Notification->SetCompletionState( bSuccess ? SNotificationItem::CS_Success : SNotificationItem::CS_Fail );
 	}
+}
+
+TSharedPtr<SNotificationItem> SGraphEditorImpl::AddNotification(FNotificationInfo& Info)
+{
+	// set up common notification properties
+	Info.bUseLargeFont = true;
+
+	TSharedPtr<SNotificationItem> Notification = NotificationListPtr->AddNotification(Info);
+	if (Notification.IsValid())
+	{
+		Notification->SetVisibility(EVisibility::HitTestInvisible);
+		return Notification;
+	}
+	return nullptr;
 }
 
 EActiveTimerReturnType SGraphEditorImpl::HandleFocusEditorDeferred(double InCurrentTime, float InDeltaTime)
