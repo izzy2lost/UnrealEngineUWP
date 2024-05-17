@@ -82,6 +82,8 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimationAssetBase
 	virtual int64 GetEditorMemSize() const;
 	virtual int64 GetApproxCookedSize() const { return GetEditorMemSize(); }
 
+	bool IsSynchronizedWithExternalDependency() const { return bSynchronizeWithExternalDependency_DEPRECATED || BranchInId != 0; }
+
 	// This allows users to enable or exclude animations from this database. Useful for debugging.
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 1))
 	bool bEnabled = true;
@@ -97,8 +99,13 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimationAssetBase
 
 	// SynchronizeWithExternalDependency is true when this asset has been added via SynchronizeWithExternalDependencies.
 	// To delete it, remove the PoseSearchBranchIn notify state
+	UPROPERTY()
+	bool bSynchronizeWithExternalDependency_DEPRECATED = false;
+
+	// SynchronizeWithExternalDependency is true when this asset has been added via SynchronizeWithExternalDependencies.
+	// To delete it, remove the PoseSearchBranchIn notify state
 	UPROPERTY(VisibleAnywhere, Category = "Settings", meta = (DisplayPriority = 20))
-	bool bSynchronizeWithExternalDependency = false;
+	uint32 BranchInId = 0;
 #endif // WITH_EDITORONLY_DATA
 };
 

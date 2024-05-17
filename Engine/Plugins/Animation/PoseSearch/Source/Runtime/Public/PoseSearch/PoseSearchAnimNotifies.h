@@ -114,4 +114,6 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = Config)
 	TObjectPtr<UPoseSearchDatabase> Database;
+
+	uint32 GetBranchInId() const;
 };

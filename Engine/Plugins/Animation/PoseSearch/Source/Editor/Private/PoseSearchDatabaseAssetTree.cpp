@@ -893,7 +893,7 @@ namespace UE::PoseSearch
 							if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetMutableAnimationAssetBase(SelectedNode->SourceAssetIdx))
 							{
 								// @todo: Support copying assets added via BranchIn notifies. 
-								if (!DatabaseAnimationAsset->bSynchronizeWithExternalDependency)
+								if (!DatabaseAnimationAsset->IsSynchronizedWithExternalDependency())
 								{
 									ClipboardContent->CopyDatabaseItem(DatabaseAnimationAsset);
 								}
@@ -972,7 +972,7 @@ namespace UE::PoseSearch
 					{
 						const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(SelectedNode->SourceAssetIdx);
 						
-						if (DatabaseAnimationAsset && !DatabaseAnimationAsset->bSynchronizeWithExternalDependency)
+						if (DatabaseAnimationAsset && !DatabaseAnimationAsset->IsSynchronizedWithExternalDependency())
 						{
 							OnDeleteAsset(SelectedNode, false);
 						}
@@ -1093,7 +1093,7 @@ namespace UE::PoseSearch
 
 							UAnimNotifyState_PoseSearchBranchIn* PoseSearchBranchIn = CastChecked<UAnimNotifyState_PoseSearchBranchIn>(UAnimationBlueprintLibrary::AddAnimationNotifyStateEvent(AnimSequenceBase, TrackName, StartTime, Duration, UAnimNotifyState_PoseSearchBranchIn::StaticClass()));
 							PoseSearchBranchIn->Database = PoseSearchDatabase;
-							DatabaseAnimationAssetBase->bSynchronizeWithExternalDependency = true;
+							DatabaseAnimationAssetBase->BranchInId = PoseSearchBranchIn->GetBranchInId();
 						}
 					}
 				}

@@ -596,30 +596,37 @@ bool FDatabaseViewModel::DeleteFromDatabase(int32 AnimationAssetIndex)
 		{
 			Database->Modify();
 			
-			if (UAnimSequenceBase* AnimSequenceBase = Cast<UAnimSequenceBase>(DatabaseAnimationAssetBase->GetAnimationAsset()))
+			if (DatabaseAnimationAssetBase->IsSynchronizedWithExternalDependency())
 			{
-				bool bModified = false;
-				for (int32 NotifyIndex = AnimSequenceBase->Notifies.Num() - 1; NotifyIndex >= 0; --NotifyIndex)
+				if (UAnimSequenceBase* AnimSequenceBase = Cast<UAnimSequenceBase>(DatabaseAnimationAssetBase->GetAnimationAsset()))
 				{
-					const FAnimNotifyEvent& NotifyEvent = AnimSequenceBase->Notifies[NotifyIndex];
-					if (const UAnimNotifyState_PoseSearchBranchIn* PoseSearchBranchIn = Cast<UAnimNotifyState_PoseSearchBranchIn>(NotifyEvent.NotifyStateClass))
+					bool bModified = false;
+					for (int32 NotifyIndex = AnimSequenceBase->Notifies.Num() - 1; NotifyIndex >= 0; --NotifyIndex)
 					{
-						if (PoseSearchBranchIn->Database == Database)
+						const FAnimNotifyEvent& NotifyEvent = AnimSequenceBase->Notifies[NotifyIndex];
+						if (const UAnimNotifyState_PoseSearchBranchIn* PoseSearchBranchIn = Cast<UAnimNotifyState_PoseSearchBranchIn>(NotifyEvent.NotifyStateClass))
 						{
-							if (!bModified)
+							if (PoseSearchBranchIn->Database == Database && PoseSearchBranchIn->GetBranchInId() == DatabaseAnimationAssetBase->BranchInId)
 							{
-								AnimSequenceBase->Modify();
-								bModified = true;
-							}
+								if (!bModified)
+								{
+									AnimSequenceBase->Modify();
+									bModified = true;
+								}
 
-							AnimSequenceBase->Notifies.RemoveAt(NotifyIndex);
+								AnimSequenceBase->Notifies.RemoveAt(NotifyIndex);
+							}
 						}
 					}
-				}
 
-				if (bModified)
+					if (bModified)
+					{
+						AnimSequenceBase->RefreshCacheData();
+					}
+				}
+				else
 				{
-					AnimSequenceBase->RefreshCacheData();	
+					UE_LOG(LogPoseSearchEditor, Error, TEXT("found DatabaseAnimationAssetBase with valid BranchInId, but invalid AnimSequenceBase in %s"), *Database->GetName());
 				}
 			}
 

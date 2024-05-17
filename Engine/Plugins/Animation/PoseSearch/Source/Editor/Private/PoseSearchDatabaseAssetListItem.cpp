@@ -352,7 +352,7 @@ namespace UE::PoseSearch
 					  {
 						 if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetBase(AssetTreeNode->SourceAssetIdx))
 						 {
-							if (DatabaseAnimationAssetBase->bSynchronizeWithExternalDependency)
+							if (DatabaseAnimationAssetBase->IsSynchronizedWithExternalDependency())
 							{
 							   return EVisibility::Visible;
 							}
