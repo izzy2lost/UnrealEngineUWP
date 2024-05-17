@@ -13,8 +13,6 @@ public class TraceLog : ModuleRules
 		bRequiresImplementModule = false;
 		PublicIncludePathModuleNames.Add("Core");
 
-		bAllowAutoRTFMInstrumentation = true;
-
 		PrivateDefinitions.Add("SUPPRESS_PER_MODULE_INLINE_FILE"); // This module does not use core's standard operator new/delete overloads
 	}
 }
