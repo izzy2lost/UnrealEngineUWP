@@ -459,6 +459,7 @@ vc_major_version=14
 use_surrogate=true
 force_synchronous_pdb_writes=true
 error_report_mode=prompt
+response_file_content_pattern=\s--\s"".*?cl\.exe""\s(.*)
 
 [group]
 server={VC_COMPILER_DIR}\mspdbsrv.exe
