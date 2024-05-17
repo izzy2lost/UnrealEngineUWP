@@ -598,8 +598,9 @@ namespace Horde.Agent.Leases
 				{
 					CpuMetrics? cpuMetrics = _systemMetrics.GetCpu();
 					MemoryMetrics? memMetrics = _systemMetrics.GetMemory();
+					DiskMetrics? diskMetrics = _systemMetrics.GetDisk();
 
-					if (cpuMetrics != null || memMetrics != null)
+					if (cpuMetrics != null || memMetrics != null || diskMetrics != null)
 					{
 						RpcUploadTelemetryRequest request = new RpcUploadTelemetryRequest();
 						request.AgentId = _session.AgentId.ToString();
@@ -614,6 +615,11 @@ namespace Horde.Agent.Leases
 							request.TotalRam = memMetrics.Total / 1024;
 							request.FreeRam = memMetrics.Available / 1024;
 							request.UsedRam = memMetrics.Used / 1024;
+						}
+						if (diskMetrics != null)
+						{
+							request.FreeDisk = (ulong)(diskMetrics.FreeSpace / (1024 * 1024));
+							request.TotalDisk = (ulong)(diskMetrics.TotalSize / (1024 * 1024));
 						}
 
 						await hordeRpc.UploadTelemetryAsync(request, cancellationToken: cancellationToken);

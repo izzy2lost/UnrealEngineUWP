@@ -493,7 +493,7 @@ namespace Horde.Server.Server
 		{
 			_logger.LogDebug("Posting telemetry data for {AgentId}", new AgentId(request.AgentId));
 
-			NewAgentTelemetry telemetry = new NewAgentTelemetry(request.UserCpu, request.IdleCpu, request.SystemCpu, (int)request.FreeRam, (int)request.UsedRam, (int)request.TotalRam);
+			NewAgentTelemetry telemetry = new NewAgentTelemetry(request.UserCpu, request.IdleCpu, request.SystemCpu, (int)request.FreeRam, (int)request.UsedRam, (int)request.TotalRam, (long)request.FreeDisk, (long)request.TotalDisk);
 			_agentTelemetryCollection.Add(new AgentId(request.AgentId), telemetry);
 
 			return Task.FromResult(new Empty());

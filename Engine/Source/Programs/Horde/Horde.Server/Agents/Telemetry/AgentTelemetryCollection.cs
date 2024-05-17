@@ -49,6 +49,12 @@ namespace Horde.Server.Agents.Telemetry
 
 			[BsonElement("ram_used")]
 			public int UsedRam { get; set; }
+
+			[BsonElement("hdd_tot")]
+			public long TotalDisk { get; set; }
+
+			[BsonElement("hdd_free")]
+			public long FreeDisk { get; set; }
 		}
 
 		static TimeSpan RetainDays { get; } = TimeSpan.FromDays(30.0);
@@ -123,6 +129,8 @@ namespace Horde.Server.Agents.Telemetry
 			document.FreeRam = telemetry.FreeRamMb;
 			document.UsedRam = telemetry.UsedRamMb;
 			document.TotalRam = telemetry.TotalRamMb;
+			document.FreeDisk = telemetry.FreeDiskMb;
+			document.TotalDisk = telemetry.TotalDiskMb;
 			_writer.Write(document);
 		}
 

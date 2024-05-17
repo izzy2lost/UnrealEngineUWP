@@ -31,5 +31,5 @@ namespace Horde.Server.Agents.Telemetry
 	/// <summary>
 	/// New telemetry data
 	/// </summary>
-	public record class NewAgentTelemetry(float UserCpuPct, float IdleCpuPct, float SystemCpuPct, int FreeRamMb, int UsedRamMb, int TotalRamMb);
+	public record class NewAgentTelemetry(float UserCpuPct, float IdleCpuPct, float SystemCpuPct, int FreeRamMb, int UsedRamMb, int TotalRamMb, long FreeDiskMb, long TotalDiskMb);
 }

@@ -127,5 +127,5 @@ namespace EpicGames.Horde.Agents
 	/// <summary>
 	/// Telemetry data sample
 	/// </summary>
-	public record GetAgentTelemetrySampleResponse(DateTime Time, float UserCpu, float IdleCpu, float SystemCpu, int FreeRam, int UsedRam, int TotalRam);
+	public record GetAgentTelemetrySampleResponse(DateTime Time, float UserCpu, float IdleCpu, float SystemCpu, int FreeRam, int UsedRam, int TotalRam, long FreeDisk, long TotalDisk);
 }

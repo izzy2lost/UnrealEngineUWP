@@ -43,5 +43,15 @@ namespace Horde.Server.Agents.Telemetry
 		/// Used memory (megabytes)
 		/// </summary>
 		int UsedRam { get; set; }
+
+		/// <summary>
+		/// Total disk space (megabytes)
+		/// </summary>
+		long TotalDisk { get; set; }
+
+		/// <summary>
+		/// Free disk space (megabytes)
+		/// </summary>
+		long FreeDisk { get; set; }
 	}
 }

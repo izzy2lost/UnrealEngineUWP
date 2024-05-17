@@ -97,6 +97,22 @@ public class MemoryMetrics
 }
 
 /// <summary>
+/// Metrics for free disk space
+/// </summary>
+public class DiskMetrics
+{
+	/// <summary>
+	/// Amount of free space on the drive
+	/// </summary>
+	public long FreeSpace { get; set; }
+
+	/// <summary>
+	/// Total size of the drive
+	/// </summary>
+	public long TotalSize { get; set; }
+}
+
+/// <summary>
 /// OS agnostic interface for retrieving system metrics (CPU, memory etc)
 /// </summary>
 public interface ISystemMetrics
@@ -112,6 +128,12 @@ public interface ISystemMetrics
 	/// </summary>
 	/// <returns>An object with memory usage metrics</returns>
 	MemoryMetrics? GetMemory();
+
+	/// <summary>
+	/// Gets HDD metrics
+	/// </summary>
+	/// <returns>An object with disk usage metrics</returns>
+	DiskMetrics? GetDisk();
 }
 
 /// <summary>
@@ -125,6 +147,10 @@ public sealed class DefaultSystemMetrics : ISystemMetrics
 
 	/// <inheritdoc/>
 	public MemoryMetrics? GetMemory()
+		=> null;
+
+	/// <inheritdoc/>
+	public DiskMetrics? GetDisk()
 		=> null;
 }
 
@@ -145,11 +171,18 @@ public sealed class WindowsSystemMetrics : ISystemMetrics, IDisposable
 	private readonly uint _totalPhysicalMemory = GetPhysicalMemory();
 	private readonly PerformanceCounter _memAvailableBytes = new(Memory, "Available Bytes");
 
+	private readonly DirectoryReference _workingDir;
+	private readonly Stopwatch _driveInfoUpdateTimer = Stopwatch.StartNew();
+	private DriveInfo? _driveInfo;
+
 	/// <summary>
 	/// Constructor
 	/// </summary>
-	public WindowsSystemMetrics()
+	public WindowsSystemMetrics(DirectoryReference workingDir)
 	{
+		_workingDir = workingDir;
+		_driveInfo = GetDriveInfo();
+
 		GetCpu(); // Trigger this to ensure performance counter has a fetched value. Avoids an initial zero result when called later.
 	}
 
@@ -185,6 +218,34 @@ public sealed class WindowsSystemMetrics : ISystemMetrics, IDisposable
 			Used = used,
 			UsedPercentage = used / (float)_totalPhysicalMemory,
 		};
+	}
+
+	/// <inheritdoc/>
+	public DiskMetrics? GetDisk()
+	{
+		// Update the metrics if we don't have a recent sample
+		if (_driveInfoUpdateTimer.Elapsed > TimeSpan.FromSeconds(20))
+		{
+			_driveInfo = GetDriveInfo();
+			_driveInfoUpdateTimer.Restart();
+		}
+
+		if (_driveInfo == null)
+		{
+			return null;
+		}
+
+		return new DiskMetrics { FreeSpace = _driveInfo.AvailableFreeSpace, TotalSize = _driveInfo.TotalSize };
+	}
+
+	DriveInfo? GetDriveInfo()
+	{
+		string? rootDir = Path.GetPathRoot(_workingDir.FullName);
+		if (rootDir == null)
+		{
+			return null;
+		}
+		return new DriveInfo(rootDir);
 	}
 
 	private static uint GetPhysicalMemory()
