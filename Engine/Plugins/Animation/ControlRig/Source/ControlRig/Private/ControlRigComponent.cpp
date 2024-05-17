@@ -1297,9 +1297,12 @@ void UControlRigComponent::SetControlRig(UControlRig* InControlRig)
 
 void UControlRigComponent::SetControlRigClass(TSubclassOf<UControlRig> InControlRigClass)
 {
-	SetControlRig(nullptr);
-	ControlRigClass = InControlRigClass;
-	Initialize();
+	if (ControlRigClass != InControlRigClass)
+	{
+		SetControlRig(nullptr);
+		ControlRigClass = InControlRigClass;
+		Initialize();
+	}
 }
 
 void UControlRigComponent::SetObjectBinding(UObject* InObjectToBind)
