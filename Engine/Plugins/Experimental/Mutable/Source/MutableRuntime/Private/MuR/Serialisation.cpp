@@ -74,7 +74,7 @@ namespace mu
     	v.resize( size );
     	if (size)
     	{
-    		arch.GetPrivate()->m_pStream->Read( &v[0], (unsigned)size*sizeof(char) );
+    		arch.Stream->Read( &v[0], (unsigned)size*sizeof(char) );
     	}
     }
 
@@ -82,14 +82,14 @@ namespace mu
 	void operator<<(OutputArchive& Arch, const bool& T)
     {
     	uint8 S = T ? 1 : 0;
-    	Arch.GetPrivate()->m_pStream->Write(&S, sizeof(uint8));
+    	Arch.Stream->Write(&S, sizeof(uint8));
     }
 
 
 	void operator>>(InputArchive& Arch, bool& T)
     {
     	uint8 S;
-    	Arch.GetPrivate()->m_pStream->Read(&S, sizeof(uint8));
+    	Arch.Stream->Read(&S, sizeof(uint8));
     	T = S != 0;
     }
 
@@ -97,33 +97,23 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
-    InputMemoryStream::InputMemoryStream( const void* pBuffer, uint64 size )
+    InputMemoryStream::InputMemoryStream( const void* InBuffer, uint64 InSize )
     {
-        m_pD = new Private();
-        m_pD->m_pBuffer = pBuffer;
-        m_pD->m_size = size;
+        Buffer = InBuffer;
+        Size = InSize;
     }
 
 
     //---------------------------------------------------------------------------------------------
-    InputMemoryStream::~InputMemoryStream()
+    void InputMemoryStream::Read( void* Data, uint64 InSize)
     {
-        check( m_pD );
-        delete m_pD;
-        m_pD = 0;
-    }
-
-
-    //---------------------------------------------------------------------------------------------
-    void InputMemoryStream::Read( void* pData, uint64 size )
-    {
-        if (size)
+        if (InSize)
         {
-            check( m_pD->m_pos + size <= m_pD->m_size );
+            check( Pos + InSize <= Size );
 
-            const uint8* pSource = ((const uint8*)(m_pD->m_pBuffer))+m_pD->m_pos;
-            FMemory::Memcpy( pData, pSource, (SIZE_T)size );
-            m_pD->m_pos += size;
+            const uint8* Source = reinterpret_cast<const uint8*>(Buffer)+Pos;
+            FMemory::Memcpy( Data, Source, (SIZE_T)InSize);
+            Pos += InSize;
         }
     }
 
@@ -131,33 +121,23 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
-    OutputMemoryStream::OutputMemoryStream(uint64 reserve )
+    OutputMemoryStream::OutputMemoryStream(uint64 Reserve )
     {
-        m_pD = new Private();
-        if (reserve)
+        if (Reserve)
         {
-             m_pD->m_buffer.Reserve( reserve );
+             Buffer.Reserve( Reserve );
         }
     }
 
 
     //---------------------------------------------------------------------------------------------
-    OutputMemoryStream::~OutputMemoryStream()
+    void OutputMemoryStream::Write( const void* Data, uint64 Size)
     {
-        check( m_pD );
-        delete m_pD;
-        m_pD = 0;
-    }
-
-
-    //---------------------------------------------------------------------------------------------
-    void OutputMemoryStream::Write( const void* pData, uint64 size )
-    {
-        if (size)
+        if (Size)
         {
-            uint64 pos = m_pD->m_buffer.Num();
-            m_pD->m_buffer.SetNum( pos + size, EAllowShrinking::No );
-			FMemory::Memcpy( &m_pD->m_buffer[pos], pData, size );
+            uint64 Pos = Buffer.Num();
+			Buffer.SetNum( Pos + Size, EAllowShrinking::No );
+			FMemory::Memcpy( Buffer.GetData()+Pos, Data, Size);
         }
     }
 
@@ -167,9 +147,9 @@ namespace mu
     {
         const void* pResult = 0;
 
-        if ( m_pD->m_buffer.Num() )
+        if (Buffer.Num() )
         {
-            pResult = &m_pD->m_buffer[0];
+            pResult = Buffer.GetData();
         }
 
         return pResult;
@@ -178,15 +158,15 @@ namespace mu
 
 	//---------------------------------------------------------------------------------------------
 	uint64 OutputMemoryStream::GetBufferSize() const
-	{
-		return m_pD->m_buffer.Num();
-	}
+    {
+        return Buffer.Num();
+    }
 
 
 	//---------------------------------------------------------------------------------------------
 	void OutputMemoryStream::Reset()
 	{
-		m_pD->m_buffer.SetNum(0,EAllowShrinking::No);
+		Buffer.SetNum(0,EAllowShrinking::No);
 	}
 
 
@@ -195,47 +175,30 @@ namespace mu
     //-------------------------------------------------------------------------------------------------
     OutputSizeStream::OutputSizeStream()
     {
-        m_writtenBytes = 0;
+        WrittenBytes = 0;
     }
 
 
     //-------------------------------------------------------------------------------------------------
     void OutputSizeStream::Write( const void*, uint64 size )
     {
-        m_writtenBytes += size;
+        WrittenBytes += size;
     }
 
 
     //-------------------------------------------------------------------------------------------------
 	uint64 OutputSizeStream::GetBufferSize() const
     {
-        return m_writtenBytes;
+        return WrittenBytes;
     }
 
 
     //---------------------------------------------------------------------------------------------
 	//---------------------------------------------------------------------------------------------
 	//---------------------------------------------------------------------------------------------
-	InputArchive::InputArchive( InputStream* pStream )
+	InputArchive::InputArchive( InputStream* InStream )
 	{
-		m_pD = new Private();
-		m_pD->m_pStream = pStream;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	InputArchive::~InputArchive()
-	{
-        check( m_pD );
-		delete m_pD;
-		m_pD = 0;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	InputArchive::Private* InputArchive::GetPrivate() const
-	{
-		return m_pD;
+		Stream = InStream;
 	}
 
 
@@ -249,38 +212,10 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	//---------------------------------------------------------------------------------------------
 	//---------------------------------------------------------------------------------------------
-	OutputArchive::OutputArchive( OutputStream* pStream )
+	OutputArchive::OutputArchive( OutputStream* InStream )
 	{
-		m_pD = new Private();
-		m_pD->m_pStream = pStream;
+		Stream = InStream;
 	}
-
-
-	//---------------------------------------------------------------------------------------------
-	OutputArchive::~OutputArchive()
-	{
-        check( m_pD );
-		delete m_pD;
-		m_pD = 0;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	OutputArchive::Private* OutputArchive::GetPrivate() const
-	{
-		return m_pD;
-	}
-
-
-    //---------------------------------------------------------------------------------------------
-    //---------------------------------------------------------------------------------------------
-    //---------------------------------------------------------------------------------------------
-    class InputArchiveWithProxies::Private
-    {
-    public:
-        TArray< Ptr<ResourceProxy<Image>> > m_proxyHistory;
-        ProxyFactory* m_pFactory = nullptr;
-    };
 
 
     //---------------------------------------------------------------------------------------------
@@ -289,15 +224,7 @@ namespace mu
     InputArchiveWithProxies::InputArchiveWithProxies( InputStream* s, ProxyFactory* f )
         : InputArchive( s )
     {
-        m_pD = new Private();
-        m_pD->m_pFactory = f;
-    }
-
-
-    //---------------------------------------------------------------------------------------------
-    InputArchiveWithProxies::~InputArchiveWithProxies()
-    {
-        delete m_pD;
+        Factory = f;
     }
 
 
@@ -325,9 +252,9 @@ namespace mu
             }
             else
             {
-                if ( id < m_pD->m_proxyHistory.Num() )
+                if ( id < ProxyHistory.Num() )
                 {
-                    p = m_pD->m_proxyHistory[id];
+                    p = ProxyHistory[id];
 
                     // If the pointer was nullptr it means the position in history is used, but not set
                     // yet: we have a smart pointer loop which is very bad.
@@ -336,10 +263,10 @@ namespace mu
                 else
                 {
                     // Ids come in order.
-                    m_pD->m_proxyHistory.SetNum(id+1);
+                    ProxyHistory.SetNum(id+1);
 
-                    p = m_pD->m_pFactory->NewImageProxy(*this);
-                    m_pD->m_proxyHistory[id] = p;
+                    p = Factory->NewImageProxy(*this);
+                    ProxyHistory[id] = p;
                 }
             }
         }

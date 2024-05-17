@@ -38,8 +38,6 @@ namespace mu
         //! objects is in use.
         InputMemoryStream( const void* pBuffer, uint64 size );
 
-        ~InputMemoryStream();
-
 
         //-----------------------------------------------------------------------------------------
         // InputStream interface
@@ -49,8 +47,9 @@ namespace mu
 
     private:
 
-        class Private;
-        Private* m_pD;
+		const void* Buffer = nullptr;
+		uint64 Size = 0;
+		uint64 Pos = 0;
 
     };
 
@@ -81,75 +80,20 @@ namespace mu
 
     private:
 
-        uint64 m_writtenBytes;
+        uint64 WrittenBytes;
 
     };
-
-
-    //---------------------------------------------------------------------------------------------
-    class MUTABLERUNTIME_API InputMemoryStream::Private
-    {
-    public:
-
-        Private()
-        {
-            m_pBuffer = 0;
-            m_size = 0;
-            m_pos = 0;
-        }
-
-        const void* m_pBuffer;
-
-		uint64 m_size;
-
-		uint64 m_pos;
-    };
-
-
-    //---------------------------------------------------------------------------------------------
-    class MUTABLERUNTIME_API OutputMemoryStream::Private
-    {
-    public:
-        TArray<uint8,TSizedHeapAllocator<64>> m_buffer;
-    };
-
-
-	//---------------------------------------------------------------------------------------------
-	class MUTABLERUNTIME_API InputArchive::Private
-	{
-	public:
-
-		//! Not owned
-		InputStream* m_pStream;
-
-		//! Already read pointers
-		TArray< Ptr<RefCounted> > m_history;
-
-	};
-
-	//---------------------------------------------------------------------------------------------
-	class MUTABLERUNTIME_API OutputArchive::Private
-	{
-	public:
-
-		//! Not owned
-		OutputStream* m_pStream;
-
-		//! Already written pointers and their ids
-        TMap< const void*, int32 > m_history;
-
-	};
 
 
 #define MUTABLE_IMPLEMENT_POD_SERIALISABLE(Type)				     \
     void DLLEXPORT operator<<(OutputArchive& Arch, const Type& T)    \
     {																 \
-        Arch.GetPrivate()->m_pStream->Write(&T, sizeof(Type));		 \
+        Arch.Stream->Write(&T, sizeof(Type));						 \
     }																 \
                                                                      \
     void DLLEXPORT operator>>(InputArchive& Arch, Type& T)		     \
     {																 \
-        Arch.GetPrivate()->m_pStream->Read(&T, sizeof(Type));		 \
+        Arch.Stream->Read(&T, sizeof(Type));						 \
     }																 \
 		
 
@@ -161,7 +105,7 @@ namespace mu
 		Arch << Num;                                                           \
 		if (Num)                                                               \
 		{                                                                      \
-			Arch.GetPrivate()->m_pStream->Write(&V[0], Num * sizeof(Type));    \
+			Arch.Stream->Write(&V[0], Num * sizeof(Type));					   \
 		}                                                                      \
 	}                                                                          \
                                                                                \
@@ -173,7 +117,7 @@ namespace mu
 		V.SetNum(Num);                                                         \
 		if (Num)                                                               \
 		{                                                                      \
-			Arch.GetPrivate()->m_pStream->Read(&V[0], Num * sizeof(Type));     \
+			Arch.Stream->Read(&V[0], Num * sizeof(Type));					   \
 		}                                                                      \
 	}                                                                          \
 
@@ -233,13 +177,13 @@ namespace mu
         void DLLEXPORT operator<<(OutputArchive& Arch, const Type& T)   \
 		{																\
             uint32 V = (uint32)T;                                       \
-            Arch.GetPrivate()->m_pStream->Write(&V, sizeof(uint32));    \
+            Arch.Stream->Write(&V, sizeof(uint32));					\
 		}																\
 																		\
         void DLLEXPORT operator>>(InputArchive& Arch, Type& T)   		\
 		{																\
             uint32 V;													\
-            Arch.GetPrivate()->m_pStream->Read(&V, sizeof(uint32));     \
+            Arch.Stream->Read(&V, sizeof(uint32));					\
 			T = (Type)V;												\
 		}																\
 
@@ -337,12 +281,12 @@ namespace mu
 		}
 		else
 		{
-            int32* it = arch.GetPrivate()->m_history.Find(p.get());
+            int32* it = arch.History.Find(p.get());
 
 			if ( !it )
 			{
-                int32 id = arch.GetPrivate()->m_history.Num();
-                arch.GetPrivate()->m_history.Add( p.get(), id );
+                int32 id = arch.History.Num();
+                arch.History.Add( p.get(), id );
 				arch << id;
 				T::Serialise( p.get(), arch );
 			}
@@ -365,9 +309,9 @@ namespace mu
 		}
 		else
 		{
-			if ( id < arch.GetPrivate()->m_history.Num() )
+			if ( id < arch.History.Num() )
 			{
-				p = static_cast<T*>( arch.GetPrivate()->m_history[id].get() );
+				p = static_cast<T*>( arch.History[id].get() );
 
 				// If the pointer was 0 it means the position in history is used, but not set yet
 				// option 1: we have a smart pointer loop which is very bad.
@@ -379,12 +323,12 @@ namespace mu
 			{
                 // Ids come in order, but they may have been absorbed outside in some serialisations
                 // like proxies.
-                //check( id == (int)arch.GetPrivate()->m_history.size() );
-                arch.GetPrivate()->m_history.SetNum( id+1 );
+                //check( id == (int)arch.>History.size() );
+                arch.History.SetNum( id+1 );
 
 				Ptr<T> t = T::StaticUnserialise( arch );
 				p = t;
-				arch.GetPrivate()->m_history[id] = t;
+				arch.History[id] = t;
 			}
 		}
 	}

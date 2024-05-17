@@ -19,8 +19,8 @@ namespace mu
 
 		/** Options */
 
-		/** Minimum data size in bytes to dumpt it to the disk. */
-		uint64 MinProxyFileSize = 1024 * 1024;
+		/** Minimum data size in bytes to dump it to the disk. */
+		uint64 MinProxyFileSize = 64 * 1024;
 
 		/** When creating temporary files, number of retries in case the OS-level call fails. */
 		uint64 MaxFileCreateAttempts = 256;

@@ -8,12 +8,14 @@
 #include "MuR/MutableMemory.h"
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
+#include "MuR/MutableMath.h"
 
 #include "Math/Vector.h"
 #include "Math/IntVector.h"
 #include "Math/Vector4.h"
-#include "MuR/MutableMath.h"
-
+#include "Containers/Array.h"
+#include "Containers/Map.h"
+#include "Containers/ContainerAllocationPolicies.h"
 
 namespace mu
 {    
@@ -161,94 +163,84 @@ namespace mu
 	};
 
 
-
-    //! Interface for any input stream to be use with InputArchives.
-    //! \ingroup tools
+    /** Interface for any input stream to be use with InputArchives. */
     class MUTABLERUNTIME_API InputStream
     {
     public:
 
-        //! Ensure virtual destruction
-        virtual ~InputStream() {}
+		/** Ensure virtual destruction. */
+		virtual ~InputStream() {}
 
-        //! Read a byte buffer
-        //! \param pData destination buffer, must have at least size bytes allocated.
-        //! \param size amount of bytes to read from the stream.
-        virtual void Read( void* pData, uint64 size ) = 0;
+        /** Read a byte buffer
+         * \param pData destination buffer, must have at least size bytes allocated.
+         * \param size amount of bytes to read from the stream.
+		 */
+        virtual void Read( void* Data, uint64 Size ) = 0;
     };
 
 
-    //! Interface for any output stream to be used with OutputArchives
-    //! \ingroup tools
+    /** Interface for any output stream to be used with OutputArchives. */
     class MUTABLERUNTIME_API OutputStream
     {
     public:
 
-        //! Ensure virtual destruction
+        /** Ensure virtual destruction. */
         virtual ~OutputStream() {}
 
-        //! Write a byte buffer
-        //! \param pData source buffer where data will be read from.
-        //! \param size amount of data to write to the stream.
-        virtual void Write( const void* pData, uint64 size ) = 0;
+        /** Write a byte buffer
+         * \param pData source buffer where data will be read from.
+         * \param size amount of data to write to the stream.
+		 */
+        virtual void Write( const void* Data, uint64 Size ) = 0;
 
     };
 
 
-    //! Archive containing data to be deserialised.
-    //! \ingroup tools
+    /** Archive containing data to be deserialised. */
     class MUTABLERUNTIME_API InputArchive
     {
     public:
 
-        //! Construct form an input stream. The stream will not be owned by the archive and the
-        //! caller must make sure it is not modified or destroyed while serialisation is happening.
+        /** Construct form an input stream.The stream will not be owned by the archive and the
+         * caller must make sure it is not modified or destroyed while serialisation is happening.
+		 */
         InputArchive( InputStream* );
 
-        //!
-        virtual ~InputArchive();
+		/** Ensure virtual destruction. */
+		virtual ~InputArchive() {}
 
         //
         virtual Ptr<ResourceProxy<Image>> NewImageProxy();
 
-        // Interface pattern
-        class Private;
+		/** Not owned. */
+		InputStream* Stream = nullptr;
 
-        Private* GetPrivate() const;
-
-    private:
-
-        Private* m_pD;
+		/** Already read pointers. */
+		TArray< Ptr<RefCounted> > History;
 
     };
 
 
-    //! Archive where data can be serialised to.
-    //! \ingroup tools
+    /** Archive where data can be serialised to. */
     class MUTABLERUNTIME_API OutputArchive
     {
     public:
 
-        //! Construct form an output stream. The stream will not be owned by the archive and the
-        //! caller must make sure it is not modified or destroyed while serialisation is happening.
+        /** Construct form an output stream.The stream will not be owned by the archive and the
+         * caller must make sure it is not modified or destroyed while serialisation is happening.
+		 */
         OutputArchive( OutputStream* );
 
-        //!
-        ~OutputArchive();
+		/** Not owned. */
+		OutputStream* Stream;
 
-        // Interface pattern
-        class Private;
-
-        Private* GetPrivate() const;
-
-    private:
-
-        Private* m_pD;
+		/** Already written pointers and their ids. */
+		TMap< const void*, int32 > History;
 
     };
 
-    //!
-    //! \ingroup runtime
+
+    /** */
     class MUTABLERUNTIME_API InputArchiveWithProxies : public InputArchive
     {
     public:
@@ -262,22 +254,19 @@ namespace mu
 
     public:
 
-        //! Construct form an input stream. The stream will not be owned by the archive and the
-        //! caller must make sure it is not modified or destroyed while serialisation is happening.
+        /** Construct form an input stream.The stream will not be owned by the archive and the
+         * caller must make sure it is not modified or destroyed while serialisation is happening.
+		 */
         InputArchiveWithProxies( InputStream*, ProxyFactory*  );
 
-        ~InputArchiveWithProxies() override;
-
-        //
-        Ptr<ResourceProxy<Image>> NewImageProxy() override;
+        // InputArchive interface
+        virtual Ptr<ResourceProxy<Image>> NewImageProxy() override;
 
     private:
 
-        class Private;
-
-        Private* m_pD;
-    };
-
+		TArray< Ptr<ResourceProxy<Image>> > ProxyHistory;
+		ProxyFactory* Factory = nullptr;
+	};
 
 
     //!
@@ -285,31 +274,22 @@ namespace mu
     {
     public:
 
-        //-----------------------------------------------------------------------------------------
-        // Life cycle
-        //-----------------------------------------------------------------------------------------
+        /** Create the stream with an optional buffer size in bytes.
+		* The internal buffer will be enlarged as much as necessary.
+		*/
+        OutputMemoryStream( uint64 Reserve = 0 );
 
-        //! Create the stream with an optional buffer size in bytes.
-        //! The internal buffer will be enlarged as much as necessary.
-        OutputMemoryStream( uint64 reserve = 0 );
-
-        ~OutputMemoryStream();
-
-
-        //-----------------------------------------------------------------------------------------
         // OutputStream interface
-        //-----------------------------------------------------------------------------------------
-        void Write( const void* pData, uint64 size ) override;
+        virtual void Write( const void* Data, uint64 Size ) override;
 
-        //-----------------------------------------------------------------------------------------
         // Own interface
-        //-----------------------------------------------------------------------------------------
 
-        //! Get the serialised data buffer pointer. This pointer invalidates after a Write
-        //! operation has been done, and you need to get it again.
+        /** Get the serialised data buffer pointer. This pointer invalidates after a Write
+         * operation has been done, and you need to get it again.
+		 */
         const void* GetBuffer() const;
 
-        //! Get the amount of data in the stream, in bytes.
+        /** Get the amount of data in the stream, in bytes. */
         uint64 GetBufferSize() const;
 
 		/** Clear the internal buffer. */
@@ -317,9 +297,7 @@ namespace mu
 
     private:
 
-        class Private;
-
-        Private* m_pD;
+		TArray64<uint8> Buffer;
 
     };
 

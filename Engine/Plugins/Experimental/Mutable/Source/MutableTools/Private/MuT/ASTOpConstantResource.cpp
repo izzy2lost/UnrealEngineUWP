@@ -6,92 +6,154 @@
 #include "MuR/Layout.h"
 #include "MuR/Mesh.h"
 #include "MuR/ModelPrivate.h"
+#include "MuR/ImagePrivate.h"
 #include "MuR/MutableMath.h"
 #include "MuR/PhysicsBody.h"
 #include "MuR/Serialisation.h"
 #include "MuR/Skeleton.h"
 #include "MuR/Types.h"
+
 #include "Containers/Array.h"
 #include "HAL/PlatformMath.h"
 #include "HAL/PlatformFileManager.h"
 #include "Hash/CityHash.h"
 #include "Misc/AssertionMacros.h"
 #include "GenericPlatform/GenericPlatformFile.h"
+#include "Compression/OodleDataCompression.h"
 
 #include <inttypes.h> // Required for 64-bit printf macros
 
 namespace mu
 {
 
-	//---------------------------------------------------------------------------------------------
-	//---------------------------------------------------------------------------------------------
-	//---------------------------------------------------------------------------------------------
+	/** Proxy class for a temporary resource while compiling. 
+	* The resource may be stored in different ways:
+	* - as is, in memory with its own pointer.
+	* - in a compressed buffer
+	* - saved to a disk file compressed or uncompressed.
+	*/
 	template<class R>
 	class MUTABLETOOLS_API ResourceProxyTempFile : public ResourceProxy<R>
 	{
 	private:
-		Ptr<const R> Resource;
-		FString FileName;
-		uint64 FileSize = 0;
-		FCriticalSection Mutex;
 
+		/** Actual resource to store. If the pointer is valid, it wasn't worth dumping to disk or compressing. */
+		Ptr<const R> Resource;
+
+		/** Temp filename used if it was necessary. */
+		FString FileName;
+
+		/** Size of the resource in memory. */
+		uint32 UncompressedSize = 0;
+
+		/** Size of the saved file. It may be the size of the resource in memory, or its compressed size. */
+		uint32 FileSize = 0;
+
+		/** Valid if the resource was compressed and stored in memory instead of dumped to disk. */
+		TArray<uint8> CompressedBuffer;
+
+		/** Shared context with cache settings and stats. */
 		FProxyFileContext& Options;
 
+		/** Prevent concurrent access to a signel resource. */
+		FCriticalSection Mutex;
+
 	public:
-		ResourceProxyTempFile(const R* resource, FProxyFileContext& InOptions)
+
+		ResourceProxyTempFile(const R* InResource, FProxyFileContext& InOptions)
 			: Options(InOptions)
 		{
-			IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
-
-			if (!resource)
+			if (!InResource)
 			{
 				return;
 			}
 
-			FScopeLock Lock(&Mutex);
+			IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
 
-			OutputMemoryStream stream;
+			OutputMemoryStream stream(128*1024);
 			OutputArchive arch(&stream);
-			R::Serialise(resource, arch);
+			R::Serialise(InResource, arch);
+
+			UncompressedSize = stream.GetBufferSize();
 
 			if (stream.GetBufferSize() <= Options.MinProxyFileSize)
 			{
-				Resource = resource;
+				// Not worth compressing or caching to disk
+				Resource = InResource;
 			}
 			else
 			{
-				FileSize = stream.GetBufferSize();
-
-				FString Prefix = FPlatformProcess::UserTempDir();
-
-				uint32 PID = FPlatformProcess::GetCurrentProcessId();
-				Prefix += FString::Printf(TEXT("mut.temp.%u"), PID);
-
-				FString FinalTempPath;
-				IFileHandle* ResourceFile = nullptr;
-				uint64 AttemptCount = 0;
-				while (!ResourceFile && AttemptCount < Options.MaxFileCreateAttempts)
+				// Compress
+				int64 CompressedSize = 0;
+				constexpr bool bEnableCompression = true;
+				if (bEnableCompression)
 				{
-					uint64 ThisThreadFileIndex = Options.CurrentFileIndex.load();
-					while (!Options.CurrentFileIndex.compare_exchange_strong(ThisThreadFileIndex, ThisThreadFileIndex + 1));
+					int64 CompressedBufferSize = FOodleDataCompression::CompressedBufferSizeNeeded(stream.GetBufferSize());
+					CompressedBufferSize = FMath::Max(CompressedBufferSize, int64(stream.GetBufferSize() / 2));
+					CompressedBuffer.SetNumUninitialized(CompressedBufferSize);
 
-					FinalTempPath = Prefix + FString::Printf(TEXT(".%.16" PRIx64), ThisThreadFileIndex);
-					ResourceFile = PlatformFile.OpenWrite(*FinalTempPath);
-					++AttemptCount;
+					CompressedSize = FOodleDataCompression::CompressParallel(
+						CompressedBuffer.GetData(), CompressedBufferSize,
+						stream.GetBuffer(), stream.GetBufferSize(),
+						FOodleDataCompression::ECompressor::Kraken,
+						FOodleDataCompression::ECompressionLevel::SuperFast,
+						true // CompressIndependentChunks
+					);
 				}
 
-				if (!ResourceFile)
+				bool bCompressed = CompressedSize != 0;
+
+				if (bCompressed && uint64(CompressedSize) <= Options.MinProxyFileSize)
 				{
-					UE_LOG(LogMutableCore, Error, TEXT("Failed to create temporary file. Disk full?"));
-					check(false);
+					// Keep the compressed data, and don't store to file
+					CompressedBuffer.SetNum(CompressedSize,EAllowShrinking::Yes);
 				}
+				else
+				{
+					// Save
+					FString Prefix = FPlatformProcess::UserTempDir();
 
-				ResourceFile->Write((const uint8*)stream.GetBuffer(), stream.GetBufferSize());
-				delete ResourceFile;
+					uint32 PID = FPlatformProcess::GetCurrentProcessId();
+					Prefix += FString::Printf(TEXT("mut.temp.%u"), PID);
 
-				FileName = FinalTempPath;
-				Options.FilesWritten++;
-				Options.BytesWritten += stream.GetBufferSize();
+					FString FinalTempPath;
+					IFileHandle* ResourceFile = nullptr;
+					uint64 AttemptCount = 0;
+					while (!ResourceFile && AttemptCount < Options.MaxFileCreateAttempts)
+					{
+						uint64 ThisThreadFileIndex = Options.CurrentFileIndex.load();
+						while (!Options.CurrentFileIndex.compare_exchange_strong(ThisThreadFileIndex, ThisThreadFileIndex + 1));
+
+						FinalTempPath = Prefix + FString::Printf(TEXT(".%.16" PRIx64), ThisThreadFileIndex);
+						ResourceFile = PlatformFile.OpenWrite(*FinalTempPath);
+						++AttemptCount;
+					}
+
+					if (!ResourceFile)
+					{
+						UE_LOG(LogMutableCore, Error, TEXT("Failed to create temporary file. Disk full?"));
+						check(false);
+					}
+
+					if (bCompressed)
+					{
+						FileSize = CompressedSize;
+						ResourceFile->Write(CompressedBuffer.GetData(), FileSize);
+					}
+					else
+					{
+						FileSize = UncompressedSize;
+						ResourceFile->Write((const uint8*)stream.GetBuffer(), FileSize);
+					}
+
+					CompressedBuffer.SetNum(0, EAllowShrinking::Yes);
+
+					delete ResourceFile;
+
+					FileName = FinalTempPath;
+					Options.FilesWritten++;
+					Options.BytesWritten += FileSize;
+				}
 			}
 		}
 
@@ -111,29 +173,61 @@ namespace mu
 		{
 			FScopeLock Lock(&Mutex);
 
-			Ptr<const R> r;
+			Ptr<const R> Result;
 			if (Resource)
 			{
-				// cached
-				r = Resource;
+				// Cached as is
+				Result = Resource;
 			}
-			else if (!FileName.IsEmpty())
+			else if (!CompressedBuffer.Num() && !FileName.IsEmpty())
 			{
-				TArray<char> buf;
-				buf.SetNumUninitialized(FileSize);
 				IFileHandle* resourceFile = FPlatformFileManager::Get().GetPlatformFile().OpenRead(*FileName);
 				check(resourceFile);
-				resourceFile->Read((uint8*)buf.GetData(), FileSize);
+
+				CompressedBuffer.SetNumUninitialized(FileSize);
+				resourceFile->Read(CompressedBuffer.GetData(), FileSize);
 				delete resourceFile;
 
-				InputMemoryStream stream(buf.GetData(), FileSize);
-				InputArchive arch(&stream);
-				r = R::StaticUnserialise(arch);
+				bool bCompressed = FileSize != UncompressedSize;
+
+				if (!bCompressed)
+				{
+					InputMemoryStream stream(CompressedBuffer.GetData(), FileSize);
+					InputArchive arch(&stream);
+					Result = R::StaticUnserialise(arch);
+
+					CompressedBuffer.SetNum(0, EAllowShrinking::Yes);
+				}
 
 				Options.FilesRead++;
 				Options.BytesRead += FileSize;
 			}
-			return r;
+
+			if (CompressedBuffer.Num())
+			{
+				// Cached compressed
+				TArray<uint8> UncompressedBuf;
+				UncompressedBuf.SetNumUninitialized(UncompressedSize);
+
+				bool bSuccess = FOodleDataCompression::DecompressParallel(
+					UncompressedBuf.GetData(), UncompressedSize,
+					CompressedBuffer.GetData(), CompressedBuffer.Num());
+				check(bSuccess);
+
+				if (bSuccess)
+				{
+					InputMemoryStream stream(UncompressedBuf.GetData(), UncompressedSize);
+					InputArchive arch(&stream);
+					Result = R::StaticUnserialise(arch);
+				}
+
+				if (!FileName.IsEmpty())
+				{
+					CompressedBuffer.SetNum(0, EAllowShrinking::Yes);
+				}
+			}
+
+			return Result;
 		}
 
 	};
@@ -217,7 +311,6 @@ namespace mu
 					MipsToStore = pImage->GetLODCount();
 				}
 
-				// TODO: If the image already has mips, we will be duplicating them...
 				if (pImage->GetLODCount() == 1)
 				{
 					pMip = pImage;
@@ -228,7 +321,11 @@ namespace mu
 				}
 			}
 
-			for (int Mip = 0; Mip < MipsToStore; ++Mip)
+			// Temporary uncompressed version of the image, if we need to generate the mips and the source is compressed.
+			Ptr<const Image> UncompressedMip;
+			EImageFormat UncompressedFormat = GetUncompressedFormat( pMip->GetFormat() );
+
+			for (int32 Mip = 0; Mip < MipsToStore; ++Mip)
 			{
 				check(pMip->GetFormat() == pImage->GetFormat());
 
@@ -259,14 +356,30 @@ namespace mu
 				if (Mip + 1 < MipsToStore)
 				{
 					Ptr<Image> NewMip;
-					if (Mip > pImage->GetLODCount())
+					if (Mip+1 < pImage->GetLODCount())
 					{
-						// Generate from the last mip.
-						NewMip = ImOp.ExtractMip(pMip.get(), 1);
+						// Extract directly from source image
+						NewMip = ImOp.ExtractMip(pImage.get(), Mip + 1);
 					}
 					else
 					{
-						NewMip = ImOp.ExtractMip(pImage.get(), Mip + 1);
+						// Generate from the last mip.
+						if (UncompressedFormat!=pMip->GetFormat())
+						{
+							int32 Quality = 4; // TODO
+
+							if (!UncompressedMip)
+							{
+								UncompressedMip = ImOp.ImagePixelFormat(Quality, pMip.get(), UncompressedFormat);
+							}
+
+							UncompressedMip = ImOp.ExtractMip(UncompressedMip.get(), 1);
+							NewMip = ImOp.ImagePixelFormat(Quality, UncompressedMip.get(), pMip->GetFormat());
+						}
+						else
+						{
+							NewMip = ImOp.ExtractMip(pMip.get(), 1);
+						}
 					}
 					check(NewMip);
 
