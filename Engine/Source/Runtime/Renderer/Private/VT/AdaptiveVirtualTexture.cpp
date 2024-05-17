@@ -32,7 +32,7 @@ static TAutoConsoleVariable<int32> CVarAVTMaxPageResidency(
 
 static TAutoConsoleVariable<int32> CVarAVTAgeToFree(
 	TEXT("r.VT.AVT.AgeToFree"),
-	60,
+	0,
 	TEXT("Number of frames for an allocation to be unused before it is considered for free"),
 	ECVF_RenderThreadSafe
 );
@@ -678,12 +678,15 @@ void FAdaptiveVirtualTexture::UpdateAllocations(FVirtualTextureSystem* InSystem,
 	{
 		// Free old unused pages if there is no other work to do.
 		const uint32 FrameAgeToFree = CVarAVTAgeToFree.GetValueOnRenderThread();
-		const int32 NumToFree = FMath::Min(NumAllocated, CVarAVTMaxFreePerFrame.GetValueOnRenderThread());
-
-		bool bFreeSuccess = true;
-		for (int32 FreeCount = 0; bFreeSuccess && FreeCount < NumToFree; FreeCount++)
+		if (FrameAgeToFree > 0)
 		{
-			bFreeSuccess = FreeLRU(RHICmdList, InSystem, InFrame, FrameAgeToFree);
+			const int32 NumToFree = FMath::Min(NumAllocated, CVarAVTMaxFreePerFrame.GetValueOnRenderThread());
+
+			bool bFreeSuccess = true;
+			for (int32 FreeCount = 0; bFreeSuccess && FreeCount < NumToFree; FreeCount++)
+			{
+				bFreeSuccess = FreeLRU(RHICmdList, InSystem, InFrame, FrameAgeToFree);
+			}
 		}
 	}
 	else
