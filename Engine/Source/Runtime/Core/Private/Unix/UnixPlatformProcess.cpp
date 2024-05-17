@@ -88,6 +88,11 @@ void* FUnixPlatformProcess::GetDllHandle( const TCHAR* Filename )
 			void *IsUE4Module = dlsym(Handle, "ThisIsAnUnrealEngineModule");
 			if (!IsUE4Module)
 			{
+				IsUE4Module = dlsym(Handle, "InitializeModule");
+			}
+
+			if (!IsUE4Module)
+			{
 				UpgradeToGlobal = true;
 			}
 		}
