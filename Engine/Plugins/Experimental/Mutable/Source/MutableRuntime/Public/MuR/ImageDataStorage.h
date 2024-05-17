@@ -319,7 +319,7 @@ public:
 
 		if (FirstCompactedTailLOD < LODEnd)
 		{
-			TArrayView<const uint8> FirstLODInRangeView = GetLOD(LODBegin);
+			TArrayView<const uint8> FirstLODInRangeView = GetLOD(FirstCompactedTailLOD);
 			TArrayView<const uint8> LastLODInRangeView = GetLOD(LODEnd - 1);
 			
 			const int32 TailInLODRangeNumBytes = LastLODInRangeView.GetData() - FirstLODInRangeView.GetData() + LastLODInRangeView.Num();
