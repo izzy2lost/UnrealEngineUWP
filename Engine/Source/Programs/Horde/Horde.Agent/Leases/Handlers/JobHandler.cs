@@ -19,7 +19,6 @@ using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using OpenTracing;
 using OpenTracing.Util;
@@ -35,7 +34,7 @@ namespace Horde.Agent.Leases.Handlers
 		/// Exposed as internal to ease testing.
 		/// </summary>
 		internal TimeSpan _stepAbortPollInterval = TimeSpan.FromSeconds(5);
-		
+
 		/// <summary>
 		/// How long to wait before retrying a failed step abort check request
 		/// </summary>

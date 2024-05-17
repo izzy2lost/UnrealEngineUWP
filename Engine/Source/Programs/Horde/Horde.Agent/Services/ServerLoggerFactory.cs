@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Horde;
-using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using Horde.Agent.Utility;
 using Microsoft.Extensions.Logging;
