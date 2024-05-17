@@ -869,6 +869,11 @@ UClass* UBlueprint::GetBlueprintClass() const
 	return UBlueprintGeneratedClass::StaticClass();
 }
 
+EBlueprintCompileOptions UBlueprint::GetDefaultCompileOptions() const
+{
+	return EBlueprintCompileOptions::None;
+}
+
 void UBlueprint::SetObjectBeingDebugged(UObject* NewObject)
 {
 	// Unregister the old object (even if PendingKill)

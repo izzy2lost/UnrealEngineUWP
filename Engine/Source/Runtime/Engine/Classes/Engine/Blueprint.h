@@ -22,6 +22,7 @@
 
 #include "Blueprint.generated.h"
 
+enum class EBlueprintCompileOptions;
 class ITargetPlatform;
 class UActorComponent;
 class UEdGraph;
@@ -849,6 +850,9 @@ public:
 	{
 		return true;
 	}
+
+	// Compile this prefab, overriding this methods give a chance to derived classes to specify extra default compilation flags
+	ENGINE_API virtual EBlueprintCompileOptions GetDefaultCompileOptions() const;
 
 	/** Sets the current object being debugged */
 	ENGINE_API virtual void SetObjectBeingDebugged(UObject* NewObject);

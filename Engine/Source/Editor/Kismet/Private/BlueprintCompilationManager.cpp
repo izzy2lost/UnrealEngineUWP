@@ -3718,6 +3718,19 @@ void MoveSkelCDOAside(UClass* Class, TMap<UClass*, UClass*>& OutOldToNewMap)
 	}
 };
 
+// ***************************************************************
+// FBPCompileRequest
+// ***************************************************************
+
+FBPCompileRequest::FBPCompileRequest(UBlueprint* InBPToCompile, EBlueprintCompileOptions InCompileOptions, FCompilerResultsLog* InClientResultsLog): BPToCompile(InBPToCompile)
+	, CompileOptions(InBPToCompile ? InCompileOptions | InBPToCompile->GetDefaultCompileOptions() : InCompileOptions)
+	, ClientResultsLog(InClientResultsLog)
+{
+}
+
+// ***************************************************************
+// FBlueprintCompilationManager
+// ***************************************************************
 void FBlueprintCompilationManager::Initialize()
 {
 	if(!BPCMImpl)
