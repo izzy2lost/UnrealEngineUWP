@@ -42,8 +42,8 @@ private:
 	TSharedPtr<IMessageLogListing> LogListing;
 #endif
 
-	/** Core OnEngineLoopInitComplete delegate used to mount any stored config in developer settings */
-	void OnEngineLoopInitComplete();
+	/** Core OnPostEngineInit delegate used to mount any stored config in developer settings */
+	void OnPostEngineInit();
 
 	/**
 	 * Developer settings changed handler. Called anytime settings changed.

@@ -19,40 +19,23 @@ void FStormSyncTransportServerModule::StartupModule()
 {
 	const UStormSyncTransportSettings* Settings = GetDefault<UStormSyncTransportSettings>();
 
-	HeartbeatEmitter = MakeUnique<FStormSyncHeartbeatEmitter>();
-	DiscoveryManager = MakeUnique<FStormSyncDiscoveryManager>(
-		Settings->GetMessageBusHeartbeatTimeout(),
-		Settings->GetMessageBusTimeBeforeRemovingInactiveSource(),
-		Settings->GetDiscoveryManagerTickInterval(),
-		Settings->IsDiscoveryPeriodicPublishEnabled()
-	);
-
-	// Create server endpoint and start tcp listening if configured to do so
-	ServerEndpoint = CreateServerLocalEndpoint(TEXT("Server"));
-
 	// Auto-start is disabled if running commandlet
 	const bool bIsCommandLineAutoStartDisabled = IsRunningCommandlet() || UE::StormSync::Transport::Private::IsServerAutoStartDisabled();
 
 	if (!bIsCommandLineAutoStartDisabled && Settings->IsAutoStartServer())
 	{
-		if (ServerEndpoint->StartTcpListener() && IsRunning())
-		{
-			FStormSyncCoreDelegates::OnStormSyncServerStarted.Broadcast();
-		}
+		ExecuteStartServer({});
 	}
 
-	if (GIsEditor && !IsRunningCommandlet())
-	{
-		RegisterConsoleCommands();
-	}
+	RegisterConsoleCommands();
 
 	// Register for engine initialization completed so we can broadcast presence over the network and start heartbeats
-	FCoreDelegates::OnFEngineLoopInitComplete.AddRaw(this, &FStormSyncTransportServerModule::OnEngineLoopInitComplete);
+	FCoreDelegates::OnPostEngineInit.AddRaw(this, &FStormSyncTransportServerModule::OnPostEngineInit);
 }
 
 void FStormSyncTransportServerModule::ShutdownModule()
 {
-	FCoreDelegates::OnFEngineLoopInitComplete.RemoveAll(this);
+	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 
 	if (ServerEndpoint.IsValid())
 	{
@@ -71,6 +54,43 @@ void FStormSyncTransportServerModule::ShutdownModule()
 	}
 
 	UnregisterConsoleCommands();
+}
+
+void FStormSyncTransportServerModule::StartDiscoveryManager()
+{
+	ConditionalStartHeartBeatEmitter();
+	ConditionalStartDiscoveryManager();
+}
+
+void FStormSyncTransportServerModule::StartServerEndpoint(const FString& InEndpointFriendlyName)
+{
+	StartDiscoveryManager();
+	
+	if (!ServerEndpoint.IsValid())
+	{
+		ServerEndpoint = CreateServerLocalEndpoint(TEXT("Server"));
+		if (!ServerEndpoint.IsValid())
+		{
+			UE_LOG(LogStormSyncServer, Error, TEXT("FStormSyncTransportServerModule::StartServerEndpoint - Failed to create Server Local Endpoint"));
+			return;
+		}
+	}
+	
+	if (IsRunning())
+	{
+		UE_LOG(LogStormSyncServer, Warning, TEXT("FStormSyncTransportServerModule::StartServerEndpoint - Server endpoint TCP listener already running"));
+		return;
+	}
+	
+	if (ServerEndpoint->StartTcpListener() && IsRunning())
+	{
+		FStormSyncCoreDelegates::OnStormSyncServerStarted.Broadcast();
+	}
+
+	if (bEngineInitComplete)
+	{
+		PublishPingMessage();
+	}
 }
 
 TSharedPtr<IStormSyncTransportServerLocalEndpoint> FStormSyncTransportServerModule::CreateServerLocalEndpoint(const FString& InEndpointFriendlyName) const
@@ -101,11 +121,11 @@ bool FStormSyncTransportServerModule::IsRunning() const
 	return ServerEndpoint.IsValid() && ServerEndpoint->IsRunning() && ServerEndpoint->IsTcpServerActive();
 }
 
-bool FStormSyncTransportServerModule::GetServerStatus(FText& StatusText) const
+bool FStormSyncTransportServerModule::GetServerStatus(FText& OutStatusText) const
 {
 	if (!ServerEndpoint.IsValid())
 	{
-		StatusText = LOCTEXT("ServerStatusEndpointInvalid", "Server is not active.");
+		OutStatusText = LOCTEXT("ServerStatusEndpointInvalid", "Server is not active.");
 		return false;
 	}
 
@@ -113,17 +133,45 @@ bool FStormSyncTransportServerModule::GetServerStatus(FText& StatusText) const
 
 	if (bIsRunning)
 	{
-		StatusText = FText::Format(
+		OutStatusText = FText::Format(
 			LOCTEXT("ServerStatusEndpointRunning", "Server is currently running and listening for incoming connections on {0}"),
 			FText::FromString(ServerEndpoint->GetTcpServerEndpointAddress())
 		);
 	}
 	else
 	{
-		StatusText = LOCTEXT("ServerStatusEndpointNotRunning", "Server is not running.");
+		OutStatusText = LOCTEXT("ServerStatusEndpointNotRunning", "Server is not running.");
 	}
 	
 	return bIsRunning;
+}
+
+void FStormSyncTransportServerModule::ConditionalStartHeartBeatEmitter()
+{
+	if (!HeartbeatEmitter)
+	{
+		HeartbeatEmitter = MakeUnique<FStormSyncHeartbeatEmitter>();
+	}
+}
+
+void FStormSyncTransportServerModule::ConditionalStartDiscoveryManager()
+{
+	if (!DiscoveryManager)
+	{
+		const UStormSyncTransportSettings* Settings = GetDefault<UStormSyncTransportSettings>();
+
+		DiscoveryManager = MakeUnique<FStormSyncDiscoveryManager>(
+			Settings->GetMessageBusHeartbeatTimeout(),
+			Settings->GetMessageBusTimeBeforeRemovingInactiveSource(),
+			Settings->GetDiscoveryManagerTickInterval(),
+			Settings->IsDiscoveryPeriodicPublishEnabled()
+		);
+
+		if (bEngineInitComplete)
+		{
+			PublishConnectMessage();
+		}
+	}
 }
 
 void FStormSyncTransportServerModule::RegisterConsoleCommands()
@@ -172,9 +220,11 @@ void FStormSyncTransportServerModule::UnregisterConsoleCommands()
 	ConsoleCommands.Empty();
 }
 
-void FStormSyncTransportServerModule::OnEngineLoopInitComplete()
+void FStormSyncTransportServerModule::OnPostEngineInit()
 {
-	UE_LOG(LogStormSyncServer, Verbose, TEXT("FStormSyncTransportServerModule::OnEngineLoopInitComplete - Publish ping messages for discover manager and server endpoint ..."));
+	UE_LOG(LogStormSyncServer, Verbose, TEXT("FStormSyncTransportServerModule::OnPostEngineInit - Publish ping messages for discover manager and server endpoint ..."));
+
+	bEngineInitComplete = true;
 	
 	// We broadcast a message to notify others about this editor instance (this is required so that further "direct" send are received on the other end)
 
@@ -182,6 +232,19 @@ void FStormSyncTransportServerModule::OnEngineLoopInitComplete()
 	PublishConnectMessage();
 
 	// For server endpoint
+	PublishPingMessage();
+}
+
+void FStormSyncTransportServerModule::PublishConnectMessage() const
+{
+	if (DiscoveryManager.IsValid())
+	{
+		DiscoveryManager->PublishConnectMessage();
+	}
+}
+
+void FStormSyncTransportServerModule::PublishPingMessage() const
+{
 	if (ServerEndpoint.IsValid())
 	{
 		const TSharedPtr<FMessageEndpoint, ESPMode::ThreadSafe> MessageEndpoint = ServerEndpoint->GetMessageEndpoint();
@@ -193,38 +256,12 @@ void FStormSyncTransportServerModule::OnEngineLoopInitComplete()
 	}
 }
 
-void FStormSyncTransportServerModule::PublishConnectMessage() const
+void FStormSyncTransportServerModule::ExecuteStartServer(const TArray<FString>& InArgs)
 {
-	if (!DiscoveryManager.IsValid())
-	{
-		UE_LOG(LogStormSyncServer, Error, TEXT("FStormSyncTransportServerModule::PublishConnectMessage - Unable to send connect message cause DiscoveryManager is invalid"));
-		return;
-	}
-
-	DiscoveryManager->PublishConnectMessage();
+	StartServerEndpoint(TEXT("Server"));
 }
 
-void FStormSyncTransportServerModule::ExecuteStartServer(const TArray<FString>& Args)
-{
-	if (!ServerEndpoint.IsValid())
-	{
-		ServerEndpoint = CreateServerLocalEndpoint(TEXT("Server"));
-	}
-
-	check(ServerEndpoint.IsValid());
-	if (IsRunning())
-	{
-		UE_LOG(LogStormSyncServer, Warning, TEXT("FStormSyncTransportServerModule::ExecuteStartServer - Server endpoint TCP listener already running"));
-		return;
-	}
-	
-	if (ServerEndpoint->StartTcpListener() && IsRunning())
-	{
-		FStormSyncCoreDelegates::OnStormSyncServerStarted.Broadcast();
-	}
-}
-
-void FStormSyncTransportServerModule::ExecuteStopServer(const TArray<FString>& Args)
+void FStormSyncTransportServerModule::ExecuteStopServer(const TArray<FString>& InArgs)
 {
 	if (ServerEndpoint.IsValid())
 	{
@@ -237,7 +274,7 @@ void FStormSyncTransportServerModule::ExecuteStopServer(const TArray<FString>& A
 	}
 }
 
-void FStormSyncTransportServerModule::ExecuteServerStatus(const TArray<FString>& Args) const
+void FStormSyncTransportServerModule::ExecuteServerStatus(const TArray<FString>& InArgs) const
 {
 	FText StatusText;
 	GetServerStatus(StatusText);

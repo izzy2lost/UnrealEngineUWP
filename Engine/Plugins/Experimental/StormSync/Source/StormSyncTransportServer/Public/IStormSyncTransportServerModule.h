@@ -34,7 +34,23 @@ public:
 		return FModuleManager::Get().IsModuleLoaded(ModuleName);
 	}
 
-	/** Create a local transport endpoint */
+	/**
+	 * Starts the discovery manager.
+	 * This is necessary for clients and servers to see each other.
+	 * It must be called even if the server endpoint is not created.
+	 */
+	virtual void StartDiscoveryManager() = 0;
+
+	/**
+	 * Starts a local transport endpoint.
+	 * This will automatically start the discovery manager.
+	 */
+	virtual void StartServerEndpoint(const FString& InEndpointFriendlyName) = 0;
+	
+	/**
+	 * Creates a local transport endpoint.
+	 * @remark Should be used for tests only.
+	 */
 	virtual TSharedPtr<IStormSyncTransportServerLocalEndpoint> CreateServerLocalEndpoint(const FString& InEndpointFriendlyName) const = 0;
 
 	/** Returns Message Address UID for server endpoint if it is currently running, empty string otherwise */
@@ -50,5 +66,5 @@ public:
 	virtual bool IsRunning() const = 0;
 	
 	/** Returns whether Storm Sync Server endpoint is currently active and running, along with a status text indicating current status and endpoint addresses (message bus and tcp server) */
-	virtual bool GetServerStatus(FText& StatusText) const = 0;
+	virtual bool GetServerStatus(FText& OutStatusText) const = 0;
 };
