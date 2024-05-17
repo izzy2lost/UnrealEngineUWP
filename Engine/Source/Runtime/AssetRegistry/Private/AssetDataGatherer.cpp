@@ -2359,8 +2359,8 @@ void FPathExistence::LoadExistenceData()
 		else
 		{
 			UE_LOG(LogAssetRegistry, Error,
-				TEXT("FPathExistence failed to gather correct capitalization from disk for %s, because GetFilenameOnDisk returned a non-matching filename"),
-				*LocalAbsPath);
+				TEXT("FPathExistence failed to gather correct capitalization from disk for %s, because GetFilenameOnDisk returned non-matching filename '%s'."),
+				*LocalAbsPath, *CorrectedCapitalization);
 		}
 
 		ModificationTime = StatData.ModificationTime;
@@ -2383,8 +2383,8 @@ void FPathExistence::LoadExistenceData()
 			else
 			{
 				UE_LOG(LogAssetRegistry, Error,
-					TEXT("FPathExistence failed to gather correct capitalization from disk for %s, because GetFilenameOnDisk returned a non-matching filename"),
-					*LocalAbsPath);
+					TEXT("FPathExistence failed to gather correct capitalization from disk for %s, because GetFilenameOnDisk returned non-matching filename '%s'."),
+					*LocalAbsPath, *CorrectedCapitalization);
 			}
 			PathType = EType::MissingButDirExists;
 		}
