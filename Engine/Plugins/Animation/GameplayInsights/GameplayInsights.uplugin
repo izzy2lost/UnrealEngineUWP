@@ -38,7 +38,16 @@
 			"Name": "RewindDebuggerVLog",
 			"Type": "Editor",
 			"LoadingPhase": "PostEngineInit"
+		},
+		{
+			"Name": "RewindDebuggerRuntime",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "RewindDebuggerVLogRuntime",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
 		}
-
 	]
 }

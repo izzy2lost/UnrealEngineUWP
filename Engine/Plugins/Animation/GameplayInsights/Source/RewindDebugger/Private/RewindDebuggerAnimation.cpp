@@ -27,17 +27,6 @@ FRewindDebuggerAnimation::FRewindDebuggerAnimation()
 {
 }
 
-void FRewindDebuggerAnimation::RecordingStarted(IRewindDebugger*)
-{
-	ClearSpawnedComponents();
-	UE::Trace::ToggleChannel(TEXT("Animation"), true);
-}
-
-void FRewindDebuggerAnimation::RecordingStopped(IRewindDebugger*)
-{
-	UE::Trace::ToggleChannel(TEXT("Animation"), false);
-}
-
 void FRewindDebuggerAnimation::ClearSpawnedComponents()
 {
 	for(auto& MeshComponentInfo : SpawnedMeshComponents)

@@ -14,6 +14,4 @@ public:
 	virtual ~FRewindDebuggerChooser() {};
 
 	virtual void Update(float DeltaTime, IRewindDebugger* RewindDebugger) override;
-	virtual void RecordingStarted(IRewindDebugger* RewindDebugger) override;
-	virtual void RecordingStopped(IRewindDebugger* RewindDebugger) override;
 };

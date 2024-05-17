@@ -9,6 +9,21 @@
 #include "PoseSearch/PoseSearchLibrary.h"
 #include "PoseSearch/PoseSearchSchema.h"
 #include "PoseSearchFeatureChannel_PermutationTime.h"
+#include "RewindDebuggerRuntimeInterface/IRewindDebuggerRuntimeExtension.h"
+
+class FRewindDebuggerPoseSearchRuntime : public IRewindDebuggerRuntimeExtension 
+{
+public:
+	virtual void RecordingStarted() override
+	{
+		UE::Trace::ToggleChannel(TEXT("PoseSearch"), true);
+	}
+	
+	virtual void RecordingStopped() override
+	{
+		UE::Trace::ToggleChannel(TEXT("PoseSearch"), false);
+	}
+};
 
 class FPoseSearchModule final : public IModuleInterface, public UE::Anim::IPoseSearchProvider
 {
@@ -18,11 +33,13 @@ public:
 	virtual void StartupModule() override
 	{
 		IModularFeatures::Get().RegisterModularFeature(UE::Anim::IPoseSearchProvider::GetModularFeatureName(), this);
+		IModularFeatures::Get().RegisterModularFeature(IRewindDebuggerRuntimeExtension::ModularFeatureName, &RewindDebuggerPoseSearchRuntime);
 	}
 
 	virtual void ShutdownModule() override
 	{
 		IModularFeatures::Get().UnregisterModularFeature(UE::Anim::IPoseSearchProvider::GetModularFeatureName(), this);
+		IModularFeatures::Get().UnregisterModularFeature(IRewindDebuggerRuntimeExtension::ModularFeatureName, &RewindDebuggerPoseSearchRuntime);
 	}
 
 	// IPoseSearchProvider
@@ -84,6 +101,9 @@ public:
 
 		return ProviderResult;
 	}
+
+private:
+	FRewindDebuggerPoseSearchRuntime RewindDebuggerPoseSearchRuntime;
 };
 
 IMPLEMENT_MODULE(FPoseSearchModule, PoseSearch);

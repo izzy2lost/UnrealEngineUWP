@@ -30,9 +30,6 @@ public:
 	void Shutdown();
 
 	virtual void Update(float DeltaTime, IRewindDebugger* RewindDebugger) override;
-	virtual void RecordingStarted(IRewindDebugger* RewindDebugger) override;
-	virtual void RecordingStopped(IRewindDebugger* RewindDebugger) override;
-	void ClearSpawnedComponents();
 	virtual void Clear(IRewindDebugger* RewindDebugger) override;
 	
 	void OnPIEResumed(bool bSimulating);
@@ -43,6 +40,7 @@ public:
 
 	static FRewindDebuggerAnimation* GetInstance() { return Instance; }
 private:
+	void ClearSpawnedComponents();
 	void ApplyPoseToMesh(const class IAnimationProvider* AnimationProvider, const IGameplayProvider* GameplayProvider, const TraceServices::FFrame& Frame,
 		const IAnimationProvider::SkeletalMeshPoseTimeline& TimelineData, USkeletalMeshComponent* MeshComponent, uint64 ObjectId, bool bQueueForReset, bool bApplyMesh);
 	

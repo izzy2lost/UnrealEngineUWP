@@ -39,6 +39,7 @@
 #include "UnrealEdGlobals.h"
 #include "Editor/UnrealEdEngine.h"
 #include "Kismet2/DebuggerCommands.h"
+#include "RewindDebuggerRuntime/RewindDebuggerRuntime.h"
 #include "TraceServices/AnalysisService.h"
 #include "TraceServices/ITraceServicesModule.h"
 #include "Widgets/Input/SNumericEntryBox.h"
@@ -70,6 +71,18 @@ static void TraceSubobjects(UObject* OuterObject)
 
 FRewindDebugger::FRewindDebugger()
 {
+	if (RewindDebugger::FRewindDebuggerRuntime::Instance() == nullptr)
+	{
+		RewindDebugger::FRewindDebuggerRuntime::Initialize();
+	}
+
+	if (RewindDebugger::FRewindDebuggerRuntime* Runtime = RewindDebugger::FRewindDebuggerRuntime::Instance())
+	{
+		Runtime->ClearRecording.AddRaw(this, &FRewindDebugger::OnClearRecording);
+		Runtime->RecordingStarted.AddRaw(this, &FRewindDebugger::OnRecordingStarted);
+		Runtime->RecordingStarted.AddRaw(this, &FRewindDebugger::OnRecordingStopped);
+	}
+	
 	RewindDebugger::FRewindDebuggerTrackCreators::EnumerateCreators([this](const RewindDebugger::IRewindDebuggerTrackCreator* Creator)
     {
 		Creator->GetTrackTypes(TrackTypes);
@@ -136,6 +149,11 @@ FRewindDebugger::~FRewindDebugger()
 	FEditorDelegates::SingleStepPIE.RemoveAll(this);
 
 	FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
+	
+	if (RewindDebugger::FRewindDebuggerRuntime* Runtime = RewindDebugger::FRewindDebuggerRuntime::Instance())
+	{
+		Runtime->RecordingStarted.RemoveAll(this);
+	}
 }
 
 void FRewindDebugger::Initialize() 
@@ -174,7 +192,7 @@ void FRewindDebugger::OnPIEPaused(bool bSimulating)
 	bPIESimulating = false;
 	ControlState = EControlState::Pause;
 	
-	if (bRecording)
+	if (IsRecording())
 	{
     #if OBJECT_TRACE_ENABLED
 		UWorld* World = GetWorldToVisualize();
@@ -209,7 +227,7 @@ void FRewindDebugger::OnPIEResumed(bool bSimulating)
 
 void FRewindDebugger::OnPIESingleStepped(bool bSimulating)
 {
-	if (bRecording)
+	if (IsRecording())
 	{
     #if OBJECT_TRACE_ENABLED
 		UWorld* World = GetWorldToVisualize();
@@ -423,32 +441,44 @@ void FRewindDebugger::StartRecording()
 		return;
 	}
 
+	if (RewindDebugger::FRewindDebuggerRuntime* Runtime = RewindDebugger::FRewindDebuggerRuntime::Instance())
+	{
+		Runtime->StartRecording();
+	}
+}
+
+void FRewindDebugger::OnClearRecording()
+{
 	ClearTrace();
-	
-	// Clear caches
-#if OBJECT_TRACE_ENABLED
-	FObjectTrace::Reset();
-	FAnimTrace::Reset();
-#endif
-	
 	RecordingDuration.Set(0);
-	// RecordingIndex++;
-	bRecording = true;
-
-	// Disable all trace channels, and then enable only the ones needed by RewindDebugger
-	// for systems with RewindDebugger integration, they should enable their channel(s) in an Extension in "RecordingStarted"
-	DisableAllTraceChannels();
-
-	// Clear all buffered data and prevent data from previous recordings from leaking into the new recording
-	FTraceAuxiliary::FOptions Options;
-	Options.bExcludeTail = true;
-
-	FTraceAuxiliary::OnConnection.AddRaw(this, &FRewindDebugger::OnConnection); 
-
-	FTraceAuxiliary::Start(FTraceAuxiliary::EConnectionType::Network, TEXT("127.0.0.1"), TEXT(""), &Options, LogRewindDebugger);
-	UnrealInsightsModule->StartAnalysisForLastLiveSession(5.0);
-
 	TargetObjectIds.Empty(2);
+	bTargetActorPositionValid = false;
+
+	IterateExtensions([this](IRewindDebuggerExtension* Extension)
+	{
+		Extension->Clear(this);
+	}
+	);
+}
+
+void FRewindDebugger::OnRecordingStarted()
+{
+	IterateExtensions([this](IRewindDebuggerExtension* Extension)
+	{
+		Extension->RecordingStarted(this);
+	}
+	);
+	
+	UnrealInsightsModule->StartAnalysisForLastLiveSession(5.0);
+}
+
+void FRewindDebugger::OnRecordingStopped()
+{
+	IterateExtensions([this](IRewindDebuggerExtension* Extension)
+	{
+		Extension->RecordingStopped(this);
+	}
+	);
 }
 
 bool FRewindDebugger::CanOpenTrace() const
@@ -611,19 +641,9 @@ void FRewindDebugger::SetShouldAutoEject(bool value)
 
 void FRewindDebugger::StopRecording()
 {
-	if (bRecording)
+	if (RewindDebugger::FRewindDebuggerRuntime* Runtime = RewindDebugger::FRewindDebuggerRuntime::Instance())
 	{
-		// update extensions
-		IterateExtensions([this](IRewindDebuggerExtension* Extension)
-			{
-				Extension->RecordingStopped(this);
-			}
-		);
-
-		bRecording = false;
-		
-		DisableAllTraceChannels();
-		FTraceAuxiliary::Stop();
+		Runtime->StopRecording();
 	}
 }
 
@@ -777,6 +797,15 @@ UWorld* FRewindDebugger::GetWorldToVisualize() const
 	}
 
 	return World;
+}
+
+bool FRewindDebugger::IsRecording() const
+{
+	if (RewindDebugger::FRewindDebuggerRuntime* Runtime = RewindDebugger::FRewindDebuggerRuntime::Instance())
+	{
+		return Runtime->IsRecording();
+	}
+	return false;
 }
 
 bool FRewindDebugger::IsTraceFileLoaded() const
@@ -975,45 +1004,6 @@ void FRewindDebugger::Tick(float DeltaTime)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebugger::Tick);
 
-	if (bTraceJustConnected)
-	{
-		bTraceJustConnected = false;
-		bTargetActorPositionValid = false;
-		
-		UE::Trace::ToggleChannel(TEXT("Object"), true);
-		UE::Trace::ToggleChannel(TEXT("ObjectProperties"), true);
-		UE::Trace::ToggleChannel(TEXT("Frame"), true);
-
-		// update extensions
-		IterateExtensions([this](IRewindDebuggerExtension* Extension)
-			{
-				Extension->RecordingStarted(this);
-			}
-		);
-
-	#if OBJECT_TRACE_ENABLED
-		// trace each play-in-editor world, and all the actors in it.
-		for (TObjectIterator<UWorld> World; World; ++World)
-		{
-			if (World->IsPlayInEditor())
-			{
-				FObjectTrace::ResetWorldElapsedTime(*World);
-				FObjectTrace::SetWorldRecordingIndex(*World, RecordingIndex);
-		 		
-				TRACE_WORLD(*World);
-					
-				for (TActorIterator<AController> Iterator(*World); Iterator; ++Iterator)
-				{
-					if (APawn* Pawn = Iterator->GetPawn())
-					{
-						TRACE_PAWN_POSSESS(static_cast<UObject*>(*Iterator), static_cast<UObject*>(Pawn));
-					}
-				}
-		 	}
-		}
-	#endif // OBJECT_TRACE_ENABLED
-	}
-	
 	if (const TraceServices::IAnalysisSession* Session = GetAnalysisSession())
 	{
 		const IAnimationProvider* AnimationProvider = Session->ReadProvider<IAnimationProvider>("AnimationProvider");
@@ -1037,7 +1027,7 @@ void FRewindDebugger::Tick(float DeltaTime)
 
 			if (bPIESimulating)
 			{
-				if (bRecording)
+				if (IsRecording())
 				{
 					TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebugger::Tick_UpdateSimulating);
 					SetCurrentScrubTime(RecordingDurationValue);

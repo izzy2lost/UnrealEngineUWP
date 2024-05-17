@@ -337,16 +337,6 @@ void FDebugger::Shutdown()
 	delete Debugger;
 }
 
-void FDebugger::RecordingStarted(IRewindDebugger*)
-{
-	UE::Trace::ToggleChannel(TEXT("PoseSearch"), true);
-}
-
-void FDebugger::RecordingStopped(IRewindDebugger*)
-{
-	UE::Trace::ToggleChannel(TEXT("PoseSearch"), false);
-}
-
 bool FDebugger::IsPIESimulating()
 {
 	return Debugger->RewindDebugger->IsPIESimulating();

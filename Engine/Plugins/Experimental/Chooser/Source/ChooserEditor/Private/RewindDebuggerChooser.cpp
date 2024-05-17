@@ -76,13 +76,3 @@ void FRewindDebuggerChooser::Update(float DeltaTime, IRewindDebugger* RewindDebu
 		});
 	}
 }
-
-void FRewindDebuggerChooser::RecordingStarted(IRewindDebugger*)
-{
-	UE::Trace::ToggleChannel(TEXT("Chooser"), true);
-}
-
-void FRewindDebuggerChooser::RecordingStopped(IRewindDebugger*)
-{
-	UE::Trace::ToggleChannel(TEXT("Chooser"), false);
-}

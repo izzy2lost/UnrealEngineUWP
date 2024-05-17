@@ -24,7 +24,8 @@ namespace UnrealBuildTool.Rules
 					"AnimationCore",
 					"AnimGraphRuntime",
 					"BlendStack",
-					"TraceLog"
+					"TraceLog",
+					"RewindDebuggerRuntimeInterface",
 					// ... add private dependencies that you statically link with here ...
 				}
 			);

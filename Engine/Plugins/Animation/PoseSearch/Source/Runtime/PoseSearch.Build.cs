@@ -27,6 +27,12 @@ public class PoseSearch : ModuleRules
 			}
 		);
 
+		PrivateDependencyModuleNames.AddRange(
+		new string[]{
+			"RewindDebuggerRuntimeInterface",
+		}
+		);
+
 		if (Target.bCompileAgainstEditor)
 		{
 			PrivateDependencyModuleNames.AddRange(

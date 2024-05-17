@@ -14,7 +14,6 @@
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
 #include "TraceServices/Model/Frames.h"
-#include "VisualLogger/VisualLogger.h"
 #include "VisualLogger/VisualLoggerTraceDevice.h"
 
 #define LOCTEXT_NAMESPACE "RewindDebuggerVLog"
@@ -236,18 +235,6 @@ void FRewindDebuggerVLog::Update(float DeltaTime, IRewindDebugger* RewindDebugge
 			}
 		}
 	}
-}
-
-void FRewindDebuggerVLog::RecordingStarted(IRewindDebugger*)
-{
-	// start recording visual logger data
-	FVisualLogger::Get().SetIsRecordingToTrace(true);
-}
-
-void FRewindDebuggerVLog::RecordingStopped(IRewindDebugger*)
-{
-	// stop recording visual logger data
-	FVisualLogger::Get().SetIsRecordingToTrace(false);
 }
 
 #undef LOCTEXT_NAMESPACE

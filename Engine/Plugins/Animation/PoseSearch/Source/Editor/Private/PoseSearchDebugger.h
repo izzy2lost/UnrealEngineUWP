@@ -27,9 +27,6 @@ public:
 	virtual void Update(float DeltaTime, IRewindDebugger* InRewindDebugger) override;
 	virtual ~FDebugger() = default;
 
-	virtual void RecordingStarted(IRewindDebugger* RewindDebugger) override;
-	virtual void RecordingStopped(IRewindDebugger* RewindDebugger) override;
-
 	static FDebugger* Get() { return Debugger; }
 	static void Initialize();
 	static void Shutdown();

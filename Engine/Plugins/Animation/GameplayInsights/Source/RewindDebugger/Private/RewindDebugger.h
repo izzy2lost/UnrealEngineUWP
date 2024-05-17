@@ -44,7 +44,7 @@ public:
 	virtual uint64 GetTargetActorId() const override;
 	virtual bool GetTargetActorPosition(FVector& OutPosition) const override;
 	virtual UWorld* GetWorldToVisualize() const override;
-	virtual bool IsRecording() const override { return bRecording; }
+	virtual bool IsRecording() const override;
 	virtual bool IsPIESimulating() const override { return bPIESimulating; }
 	virtual bool IsTraceFileLoaded() const override;
 	virtual double GetRecordingDuration() const override { return RecordingDuration.Get(); }
@@ -69,6 +69,9 @@ public:
 
 	// Start a new Recording:  Start tracing Object + Animation data, increment the current recording index, and reset the recording elapsed time to 0
 	void StartRecording();
+	void OnClearRecording();
+	void OnRecordingStarted();
+	void OnRecordingStopped();
 	bool CanStartRecording() const { return !IsRecording() && bPIESimulating; }
 	
 	bool CanOpenTrace() const;
