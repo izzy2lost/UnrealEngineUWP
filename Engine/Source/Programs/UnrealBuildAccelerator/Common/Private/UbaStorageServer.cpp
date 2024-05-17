@@ -430,7 +430,7 @@ namespace uba
 
 						if (checkedCasKey != casKey)
 						{
-							m_logger.Error(TC("FetchBegin failed for cas file %s (%s). Server has a source file"), CasKeyString(casKey).str, hint.data);
+							m_logger.Error(TC("FetchBegin failed for cas file %s (%s). File on disk has different cas %s"), CasKeyString(casKey).str, hint.data, CasKeyString(checkedCasKey).str);
 							writer.WriteU16(0);
 							return false;
 						}

@@ -53,6 +53,7 @@ namespace uba
 		L"psapi.dll",
 		L"rasadhlp.dll",
 		L"rpcrt4.dll",
+		L"rsaenh.dll",
 		L"rstrtmgr.dll",
 		L"sechost.dll",
 		L"setupapi.dll",
