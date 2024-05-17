@@ -45,6 +45,9 @@ public:
 	void OnOriginalComponentRegistered(UPCGComponent* InOriginalComponent);
 	void OnOriginalComponentUnregistered(UPCGComponent* InOriginalComponent);
 
+	/** Destroy all runtime gen partition actors (both generated and pooled). Executed in next tick. */
+	void FlushAllGeneratedActors() { bActorFlushRequested = true; }
+
 protected:
 	struct FGridGenerationKey : TTuple<uint32, FIntVector, UPCGComponent*>
 	{
@@ -127,6 +130,9 @@ private:
 
 	bool bPoolingWasEnabledLastFrame = true;
 	uint32 BasePoolSizeLastFrame = 0;
+
+	/** Requests to flush all actors are deferred so they can be handled at a known time during tick. */
+	bool bActorFlushRequested = false;
 
 	/** Track the existence of runtime gen components to avoid unnecessary computation when there is no work to do. */
 	bool bAnyRuntimeGenComponentsExist = false;

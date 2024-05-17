@@ -1124,7 +1124,7 @@ APCGPartitionActor* UPCGSubsystem::GetRegisteredPCGPartitionActor(const FPCGGrid
 	return ActorAndComponentMapping.GetPartitionActor(GridDescriptor, GridCoords);
 }
 
-APCGPartitionActor* UPCGSubsystem::FindOrCreatePCGPartitionActor(const FPCGGridDescriptor& GridDescriptor, const FIntVector& GridCoords, bool bCanCreateActor) const
+APCGPartitionActor* UPCGSubsystem::FindOrCreatePCGPartitionActor(const FPCGGridDescriptor& GridDescriptor, const FIntVector& GridCoords, bool bCanCreateActor, bool bHideFromOutliner) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGActorHelpers::FindOrCreatePCGPartitionActor);
 
@@ -1174,6 +1174,7 @@ APCGPartitionActor* UPCGSubsystem::FindOrCreatePCGPartitionActor(const FPCGGridD
 #if WITH_EDITOR
 	SpawnParams.Name = *APCGPartitionActor::GetPCGPartitionActorName(GridDescriptor, GridCoords);
 	SpawnParams.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Required_Fatal;
+	SpawnParams.bHideFromSceneOutliner = bHideFromOutliner;
 #endif
 	if (GridDescriptor.IsRuntime())
 	{

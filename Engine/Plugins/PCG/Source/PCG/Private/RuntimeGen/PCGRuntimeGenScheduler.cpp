@@ -55,6 +55,29 @@ namespace PCGRuntimeGenSchedulerHelpers
 		TEXT("pcg.RuntimeGeneration.BasePoolSize"),
 		100,
 		TEXT("Defines the base PartitionActor pool size for the RuntimeGeneration system. Cannot be less than 1."));
+
+	static FAutoConsoleCommand CommandFlushActorPool(
+		TEXT("pcg.RuntimeGeneration.FlushActorPool"),
+		TEXT("Flushes all pooled actors and regenerates all components."),
+		FConsoleCommandDelegate::CreateLambda([]()
+		{
+			if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
+			{
+				PCGSubsystem->GetRuntimeGenScheduler()->FlushAllGeneratedActors();
+			}
+		}));
+
+	static TAutoConsoleVariable<bool> CVarHideActorsFromOutliner(
+		TEXT("pcg.RuntimeGeneration.HideActorsFromOutliner"),
+		true,
+		TEXT("Hides partition actors from Scene Outliner."),
+		FConsoleVariableDelegate::CreateLambda([](IConsoleVariable*)
+		{
+			if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
+			{
+				PCGSubsystem->GetRuntimeGenScheduler()->FlushAllGeneratedActors();
+			}
+		}));
 }
 
 FPCGGridDescriptor FPCGRuntimeGenScheduler::FGridGenerationKey::GetGridDescriptor() const
@@ -623,7 +646,11 @@ void FPCGRuntimeGenScheduler::TickScheduleGeneration(TMap<FGridGenerationKey, do
 					}
 
 					// Find or Create RuntimeGenPA.
-					PartitionActor = Subsystem->FindOrCreatePCGPartitionActor(GridDescriptor, GridCoords);
+					PartitionActor = Subsystem->FindOrCreatePCGPartitionActor(
+						GridDescriptor,
+						GridCoords,
+						/*bCanCreateActor=*/true,
+						PCGRuntimeGenSchedulerHelpers::CVarHideActorsFromOutliner.GetValueOnAnyThread());
 				}
 
 				if (!ensure(PartitionActor))
@@ -693,6 +720,13 @@ void FPCGRuntimeGenScheduler::TickScheduleGeneration(TMap<FGridGenerationKey, do
 
 void FPCGRuntimeGenScheduler::TickCVars(const APCGWorldActor* InPCGWorldActor)
 {
+	if (bActorFlushRequested && Subsystem && Subsystem->GetPCGWorldActor())
+	{
+		CleanupLocalComponents(Subsystem->GetPCGWorldActor());
+		ResetPartitionActorPoolToSize(PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationBasePoolSize.GetValueOnAnyThread());
+	}
+	bActorFlushRequested = false;
+
 	// If pooling has been disabled since last frame, we should destroy the pool.
 	const bool bPoolingEnabled = PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnablePooling.GetValueOnAnyThread();
 
@@ -1188,7 +1222,11 @@ void FPCGRuntimeGenScheduler::AddPartitionActorPoolCount(int32 Count)
 #if WITH_EDITOR
 	SpawnParams.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Requested;
 	SpawnParams.Name = *PCGRuntimeGenSchedulerConstants::PooledPartitionActorName;
+
+	// Always hide pooled actors from outliner. Note that outliner tree view updates can incur significant costs in Slate code.
+	SpawnParams.bHideFromSceneOutliner = PCGRuntimeGenSchedulerHelpers::CVarHideActorsFromOutliner.GetValueOnAnyThread();
 #endif
+
 	SpawnParams.ObjectFlags |= RF_Transient;
 	SpawnParams.ObjectFlags &= ~RF_Transactional;
 
@@ -1220,5 +1258,3 @@ void FPCGRuntimeGenScheduler::ResetPartitionActorPoolToSize(uint32 NewPoolSize)
 	PartitionActorPoolSize = 0;
 	AddPartitionActorPoolCount(NewPoolSize);
 }
-
-
