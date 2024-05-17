@@ -20,7 +20,7 @@ FText FStateTreeFloatConsideration::GetDescription(const FGuid& ID, FStateTreeDa
 	{
 		//using a constant value for the float param
 		OptionalConstantKeywordText = (Formatting == EStateTreeNodeFormatting::RichText)
-			? LOCTEXT("ConstantConsideration", "<s>Constant</>")
+			? LOCTEXT("ConstantConsiderationRich", "<s>Constant</>")
 			: LOCTEXT("ConstantConsideration", "Constant");
 
 		RawScoreOrPropertyPathText = FText::AsNumber(InstanceData->RawScore);
