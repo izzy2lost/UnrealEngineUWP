@@ -80,7 +80,7 @@ public:
 	virtual void Deinitialize();
 	
 	virtual void Tick(const float DeltaTime);
-	
+
 	/** @return Whether this output provider should require the viewport to be locked to the camera in order to function correctly. */
 	virtual bool NeedsForceLockToViewport() const;
 	
@@ -167,6 +167,8 @@ protected:
 	 */
 	UPROPERTY(EditAnywhere, Instanced, Category = "Output", meta = (DisplayPriority = "99"))
 	TObjectPtr<UGameplayViewTargetPolicy> GameplayViewTargetPolicy;
+	
+	void SetActiveInternal(bool bInActive);
 	
 	/** Called when the provider is Activated */
 	virtual void OnActivate();

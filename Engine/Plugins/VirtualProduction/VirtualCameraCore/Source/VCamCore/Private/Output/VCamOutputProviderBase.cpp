@@ -112,37 +112,10 @@ void UVCamOutputProviderBase::Tick(const float DeltaTime)
 
 void UVCamOutputProviderBase::SetActive(const bool bInActive)
 {
-	bIsActive = bInActive;
-	
-	// E.g. when you drag-drop an actor into the level
-	if (!UE::VCamCore::CanInitVCamOutputProvider(this))
+	const bool bIsPointless = (bIsActive && bInActive) || (!bIsActive && !bInActive);
+	if (!bIsPointless)
 	{
-		return;
-	}
-
-	// Deactivation is a clean up operation that we always allow but ...
-	if (!bIsActive)
-	{
-		OnDeactivate();
-		return;
-	}
-	
-	// ... we enforce that in OnActivate that we be initialized first.
-	// For the VCam connections & modifiers to work with the output widget, the VCamComponent must be initialized.
-	// If this output provider is !bInitialized, the most likely reason is that the owning VCam component is also not initialized.
-	const bool bCanPerformActivationLogic = bInitialized && IsOuterComponentEnabledAndInitialized();
-	if (bCanPerformActivationLogic)
-	{
-		OnActivate();
-	}
-	else
-	{
-		// ... and instead of resolving that here, we defer to the API user to resolve the issue by initializing the owning VCamComponent, e.g. with a SetEnabled(true) call. 
-		UE_LOG(LogVCamOutputProvider,
-			Warning,
-			TEXT("SetActive: Owning VCamComponent is not enabled or initialized. Call SetEnabled(true) on the owning VCamComponent. Output provider bIsActive was set to true but the activation logic was skipped; it will run once you initialize the owning VCamComponent. Output provider: %s"),
-			*GetPathName()
-			);
+		SetActiveInternal(bInActive);
 	}
 }
 
@@ -187,6 +160,43 @@ void UVCamOutputProviderBase::ReapplyOverrideResolution()
 		RestoreOverrideResolutionForViewport(TargetViewport);
 	}
 }
+
+void UVCamOutputProviderBase::SetActiveInternal(const bool bInActive)
+{
+	bIsActive = bInActive;
+	
+	// E.g. when you drag-drop an actor into the level
+	if (!UE::VCamCore::CanInitVCamOutputProvider(this))
+	{
+		return;
+	}
+
+	// Deactivation is a clean up operation that we always allow but ...
+	if (!bIsActive)
+	{
+		OnDeactivate();
+		return;
+	}
+	
+	// ... we enforce that in OnActivate that we be initialized first.
+	// For the VCam connections & modifiers to work with the output widget, the VCamComponent must be initialized.
+	// If this output provider is !bInitialized, the most likely reason is that the owning VCam component is also not initialized.
+	const bool bCanPerformActivationLogic = bInitialized && IsOuterComponentEnabledAndInitialized();
+	if (bCanPerformActivationLogic)
+	{
+		OnActivate();
+	}
+	else
+	{
+		// ... and instead of resolving that here, we defer to the API user to resolve the issue by initializing the owning VCamComponent, e.g. with a SetEnabled(true) call. 
+		UE_LOG(LogVCamOutputProvider,
+			   Warning,
+			   TEXT("SetActive: Owning VCamComponent is not enabled or initialized. Call SetEnabled(true) on the owning VCamComponent. Output provider bIsActive was set to true but the activation logic was skipped; it will run once you initialize the owning VCamComponent. Output provider: %s"),
+			   *GetPathName()
+		);
+	}
+}
+
 void UVCamOutputProviderBase::OnActivate()
 {
 	check(IsInitialized());
@@ -575,7 +585,7 @@ void UVCamOutputProviderBase::PostEditChangeProperty(FPropertyChangedEvent& Prop
 		const FName PropertyName = Property->GetFName();
 		if (PropertyName == NAME_IsActive)
 		{
-			SetActive(bIsActive);
+			SetActiveInternal(bIsActive);
 		}
 		else if (PropertyName == NAME_UMGClass)
 		{
