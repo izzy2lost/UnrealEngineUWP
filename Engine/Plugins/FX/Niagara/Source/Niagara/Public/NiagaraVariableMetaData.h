@@ -159,7 +159,8 @@ struct FNiagaraInputParameterCustomization
 	UPROPERTY(EditAnywhere, Category="Customization", meta=(EditCondition="WidgetType == ENiagaraInputWidgetType::SegmentedButtons", EditConditionHides))
 	TArray<FWidgetSegmentValueOverride> SegmentValueOverrides;
 
-	UPROPERTY()
+	// If set to true then values will not be updated while typing, only when committing the input field. This is useful for values that cause big downstream changes and computational overhead, like grid size or spawned particles. 
+	UPROPERTY(EditAnywhere, Category="Customization")
 	bool bBroadcastValueChangesOnCommitOnly = false;
 	
 	/** If true then the input is also displayed and editable as a 3d widget in the viewport (vector and transform types only). */
