@@ -104,7 +104,7 @@ void FRigVMBlueprintUtils::HandleReconstructAllNodes(UBlueprint* InBlueprint)
 void FRigVMBlueprintUtils::HandleRefreshAllNodes(UBlueprint* InBlueprint)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
-#ifdef WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA
 	// Avoid refreshing EdGraph nodes during cook
 	if (GIsCookerLoadingPackage)
 	{
