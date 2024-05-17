@@ -396,7 +396,7 @@ static void UpdateHLODGridsActors(UWorld* World, const UActorDescContainerInstan
 		ASpatialHashRuntimeGridInfo* GridActor = ExistingGridActors.FindRef(GridName);
 		if (!GridActor)
 		{
-			FContentBundleActivationScope ContentBundleScope(ContainerInstance->IsContentBundleRequired() ? FGuid() : ContainerInstance->GetContentBundleGuid());
+			FContentBundleActivationScope ContentBndleScope(ContainerInstance->GetContentBundleGuid());
 			FScopedOverrideSpawningLevelMountPointObject EDLScope(ContainerInstance->GetExternalDataLayerAsset());
 
 			FActorSpawnParameters SpawnParams;
@@ -405,7 +405,7 @@ static void UpdateHLODGridsActors(UWorld* World, const UActorDescContainerInstan
 			GridActor->Tags.Add(HLODGridTag);
 			bDirty = true;
 
-			check(GridActor->GetContentBundleGuid() == (ContainerInstance->IsContentBundleRequired() ? FGuid() : ContainerInstance->GetContentBundleGuid()));
+			check(GridActor->GetContentBundleGuid() == ContainerInstance->GetContentBundleGuid());
 			check(GridActor->GetExternalDataLayerAsset() == ContainerInstance->GetExternalDataLayerAsset());
 		}
 

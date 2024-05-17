@@ -18,7 +18,6 @@ class UContentBundleDescriptor : public UObject
 
 public:
 	const FString& GetDisplayName() const { return DisplayName; }
-	bool GetRequired() const { return bRequired; }
 	const FColor& GetDebugColor() const { return DebugColor; }
 	ENGINE_API FString GetPackageRoot() const;
 	const FGuid& GetGuid() const { return Guid; }
@@ -42,9 +41,6 @@ private:
 
 	UPROPERTY(EditAnywhere, Category = BaseInformation)
 	FString DisplayName;
-
-	UPROPERTY(EditAnywhere, Category = BaseInformation)
-	bool bRequired;
 
 	UPROPERTY(EditAnywhere, DuplicateTransient, Category = BaseInformation)
 	FColor DebugColor;

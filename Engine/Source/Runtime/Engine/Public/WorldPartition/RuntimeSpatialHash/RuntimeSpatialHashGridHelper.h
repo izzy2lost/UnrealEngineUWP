@@ -303,8 +303,7 @@ struct FSquare2DGridHelper
 			void AddActorSetInstance(const IStreamingGenerationContext::FActorSetInstance* ActorSetInstance)
 			{
 				const FDataLayersID DataLayersID = FDataLayersID(ActorSetInstance->DataLayers);
-				const FGuid ContentBundleID = (ActorSetInstance->ActorSetContainerInstance->ContainerInstanceCollection->GetCollectionType() == FStreamingGenerationContainerInstanceCollection::ECollectionType::BaseAsContentBundle) ? ActorSetInstance->ContentBundleID : FGuid();
-				FGridCellDataChunk& ActorDataChunk = DataChunks.FindOrAddByHash(DataLayersID.GetHash(), FGridCellDataChunk(ActorSetInstance->DataLayers, ContentBundleID));
+				FGridCellDataChunk& ActorDataChunk = DataChunks.FindOrAddByHash(DataLayersID.GetHash(), FGridCellDataChunk(ActorSetInstance->DataLayers, ActorSetInstance->ContentBundleID));
 				ActorDataChunk.AddActorSetInstance(ActorSetInstance);
 			}
 

@@ -243,10 +243,9 @@ public:
 	ENGINE_API FName GetBaseContainerInstancePackageName() const;
 	ENGINE_API FGuid GetContentBundleGuid() const; // @todo_ow : Remove once conversion to ExternalDataLayer is complete. 
 
-	ECollectionType GetCollectionType() const { return CollectionType; }
-
 private:
-	void SetCollectionType(const ECollectionType& InCollectionType) { check(CollectionType == ECollectionType::Invalid); CollectionType = InCollectionType; }	
+	void SetCollectionType(const ECollectionType& InCollectionType) { check(CollectionType == ECollectionType::Invalid); CollectionType = InCollectionType; }
+	ECollectionType GetCollectionType() const { return CollectionType; }
 	void InitializeCollection();
 	FName GetBaseContainerPackageName() const;
 	TArrayView<const UActorDescContainerInstance* const> GetExternalDataLayerContainerInstances() const;

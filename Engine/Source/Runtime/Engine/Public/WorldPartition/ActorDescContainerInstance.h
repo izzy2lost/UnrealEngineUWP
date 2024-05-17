@@ -14,7 +14,6 @@ class UActorDescContainer;
 class FWorldPartitionActorDesc;
 class UWorldPartition;
 class UExternalDataLayerAsset;
-class FContentBundleEditor;
 struct FWorldPartitionRuntimeCellPropertyOverride;
 
 class FActorDescInstanceList : public TActorDescList<FWorldPartitionActorDescInstance> { };
@@ -30,14 +29,11 @@ protected:
 		: bIsInitialized(false) 
 		, bRegisteredDelegates(false)
 		, bCreateChildContainerHierarchy(false)
-		, bIsContentBundleRequired(false)
 #endif
 	{}
 
 #if WITH_EDITOR
-	friend class FStreamingGenerationContainerInstanceCollection;
 	friend FWorldPartitionActorDescInstance;
-	friend FContentBundleEditor;
 	friend UWorldPartition;
 		
 public:
@@ -152,9 +148,6 @@ public:
 	ENGINE_API const TMap<FGuid, TObjectPtr<UActorDescContainerInstance>>& GetChildContainerInstances() const { return ChildContainerInstances; }
 		
 	const UActorDescContainerInstance* GetParentContainerInstance() const { return ParentContainerInstance.Get(); }
-
-	bool IsContentBundleRequired() const { return bIsContentBundleRequired; }
-
 protected:
 	virtual void RegisterContainer(const FInitializeParams& InParams);
 	virtual void UnregisterContainer();
@@ -211,6 +204,5 @@ protected:
 	bool														bIsInitialized;
 	bool														bRegisteredDelegates;
 	bool														bCreateChildContainerHierarchy;
-	bool														bIsContentBundleRequired;
 #endif
 };

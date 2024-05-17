@@ -93,8 +93,6 @@ void FContentBundleEditor::DoInjectContent()
 
 			check(GetDescriptor()->GetGuid().IsValid());
 
-			ActorDescContainerInstance->bIsContentBundleRequired = GetDescriptor()->GetRequired();
-
 			if (!ActorDescContainerInstance->GetContainer()->IsEmpty())
 			{
 				WorldDataLayersActorReference = FWorldDataLayersReference(ActorDescContainerInstance.Get(), BuildWorlDataLayersName());
@@ -348,11 +346,6 @@ void FContentBundleEditor::GenerateStreaming(TArray<FString>* OutPackageToGenera
 		return;
 	}
 
-	if (GetDescriptor()->GetRequired())
-	{
-		return;
-	}
-
 	FActorDescContainerInstanceCollection Collection({ TObjectPtr<UActorDescContainerInstance>(ActorDescContainerInstance.Get()) });
 	UWorldPartition::FGenerateStreamingParams Params = UWorldPartition::FGenerateStreamingParams()
 		.SetContainerInstanceCollection(Collection, FStreamingGenerationContainerInstanceCollection::ECollectionType::BaseAsContentBundle);
@@ -395,22 +388,16 @@ void FContentBundleEditor::GenerateStreaming(TArray<FString>* OutPackageToGenera
 
 void FContentBundleEditor::OnBeginCook(IWorldPartitionCookPackageContext& CookContext)
 {
-	if (!GetDescriptor()->GetRequired())
-	{
-		check(!bIsInCook);
-		CookContext.RegisterPackageCookPackageGenerator(this);
-		bIsInCook = true;
-	}
+	check(!bIsInCook);
+	CookContext.RegisterPackageCookPackageGenerator(this);
+	bIsInCook = true;
 }
 
 void FContentBundleEditor::OnEndCook(IWorldPartitionCookPackageContext& CookContext)
 {
-	if (!GetDescriptor()->GetRequired())
-	{
-		check(bIsInCook);
-		CookContext.UnregisterPackageCookPackageGenerator(this);
-		bIsInCook = false;
-	}
+	check(bIsInCook);
+	CookContext.UnregisterPackageCookPackageGenerator(this);
+	bIsInCook = false;
 }
 
 bool FContentBundleEditor::GatherPackagesToCook(class IWorldPartitionCookPackageContext& CookContext)
