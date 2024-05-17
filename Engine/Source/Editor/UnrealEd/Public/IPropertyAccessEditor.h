@@ -126,8 +126,11 @@ DECLARE_DELEGATE_RetVal_OneParam(bool, FOnCanBindFunction, UFunction* /*InFuncti
 /** Delegate called to see if a class can be bound to */
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnCanBindToClass, UClass* /*InClass*/);
 
-/** Delegate called to see if a class can be bound to */
+// UE_DEPRECATED(5.5, "Please use OnCanBindToContextStructWithIndex instead.")
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnCanBindToContextStruct, UStruct* /*InStruct*/);
+
+/** Delegate called to see if a class can be bound to */
+DECLARE_DELEGATE_RetVal_TwoParams(bool, FOnCanBindToContextStructWithIndex, UStruct* /*InStruct*/, int32 /*InStructIndex*/);
 
 /** Delegate called to see if a subobject can be bound to */
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnCanBindToSubObjectClass, UClass* /*InSubObjectClass*/);
@@ -195,8 +198,11 @@ struct FPropertyBindingWidgetArgs
 	/** Delegate called to see if a class can be bound to */
 	FOnCanBindToClass OnCanBindToClass;
 
-	/** Delegate called to see if a context struct can be directly bound to */
+	UE_DEPRECATED(5.5, "Please use OnCanBindToContextStructWithIndex instead.")
 	FOnCanBindToContextStruct OnCanBindToContextStruct;
+
+	/** Delegate called to see if a context struct can be directly bound to */
+	FOnCanBindToContextStructWithIndex OnCanBindToContextStructWithIndex;
 	
 	/** Delegate called to see if a subobject can be bound to */
 	FOnCanBindToSubObjectClass OnCanBindToSubObjectClass;

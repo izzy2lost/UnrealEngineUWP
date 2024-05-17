@@ -524,7 +524,11 @@ TSharedRef<SWidget> SPropertyBinding::OnGenerateDelegateMenu()
 			TArray<TSharedPtr<FBindingChainElement>> BindingChain;
 			BindingChain.Emplace(MakeShared<FBindingChainElement>(nullptr, i));
 
-			if (Args.OnCanBindToContextStruct.IsBound() && Args.OnCanBindToContextStruct.Execute(ContextStruct.Struct))
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			const bool bDeprecatedCanBindToContextStruct = Args.OnCanBindToContextStruct.IsBound() && Args.OnCanBindToContextStruct.Execute(ContextStruct.Struct);
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+			if (bDeprecatedCanBindToContextStruct || (Args.OnCanBindToContextStructWithIndex.IsBound() && Args.OnCanBindToContextStructWithIndex.Execute(ContextStruct.Struct, i)))
 			{
 				// If the struct can be be bound to directly, create action for that. 
 				MenuBuilder.AddMenuEntry(

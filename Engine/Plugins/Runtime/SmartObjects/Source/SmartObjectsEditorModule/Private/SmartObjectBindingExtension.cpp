@@ -730,7 +730,7 @@ void FSmartObjectDefinitionBindingExtension::ExtendWidgetRow(FDetailWidgetRow& I
 			return CachedBindingData->CanBindToProperty(InProperty);
 		});
 
-	Args.OnCanBindToContextStruct = FOnCanBindToContextStruct::CreateLambda([CachedBindingData](const UStruct* InStruct)
+	Args.OnCanBindToContextStructWithIndex = FOnCanBindToContextStructWithIndex::CreateLambda([CachedBindingData](const UStruct* InStruct, int32 Index)
 		{
 			return CachedBindingData->CanBindToContextStruct(InStruct);
 		});

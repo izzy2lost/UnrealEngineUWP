@@ -82,7 +82,7 @@ TSharedRef<SWidget> SPropertyAccessChainWidget::CreatePropertyAccessWidget()
 	};
 
 	// allow struct bindings to bind context structs directly
-	Args.OnCanBindToContextStruct = FOnCanBindToContextStruct::CreateLambda([this](UStruct* StructType)
+	Args.OnCanBindToContextStructWithIndex = FOnCanBindToContextStructWithIndex::CreateLambda([this](UStruct* StructType, int32 StructIndex)
 	{
 		if (StructType)
 		{
