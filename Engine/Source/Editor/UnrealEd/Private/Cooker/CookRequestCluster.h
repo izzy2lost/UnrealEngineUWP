@@ -25,6 +25,7 @@
 
 #include <atomic>
 
+class FAssetPackageData;
 class IAssetRegistry;
 class ICookedPackageWriter;
 class ITargetPlatform;
@@ -138,6 +139,7 @@ private:
 	struct FVertexData
 	{
 		FVertexData(FName InPackageName, UE::Cook::FPackageData* InPackageData, FGraphSearch& GraphSearch);
+		const FAssetPackageData* GetGeneratedAssetPackageData();
 
 		/* Async thread is not allowed to access PackageData, so store its name.The name is immutable for vertex lifetime. */
 		FName PackageName;
@@ -279,7 +281,8 @@ private:
 				FFetchPlatformData& FetchPlatformData, FPackagePlatformData& PackagePlatformData,
 				UE::TargetDomain::FCookAttachments& PlatformAttachments, bool bExploreDependencies);
 
-			void SetIsIterativelyUnmodified(int32 PlatformIndex, bool bIterativelyUnmodified);
+			void SetIsIterativelyUnmodified(int32 PlatformIndex, bool bIterativelyUnmodified,
+				FPackagePlatformData& PackagePlatformData);
 
 		private:
 			FRequestCluster& Cluster;
@@ -318,7 +321,7 @@ private:
 		void ResolveTransitiveBuildDependencyCycle();
 
 		/** Find or add a Vertex for PackageName. If PackageData is provided, use it, otherwise look it up. */
-		FVertexData& FindOrAddVertex(FName PackageName);
+		FVertexData& FindOrAddVertex(FName PackageName, FGenerationHelper* ParentGenerationHelper = nullptr);
 		FVertexData& FindOrAddVertex(FName PackageName, FPackageData& PackageData);
 		/** Batched allocation for vertices. */
 		FVertexData* AllocateVertex(FName PackageName, FPackageData* PackageData);

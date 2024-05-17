@@ -58,7 +58,8 @@ static FAutoConsoleVariableRef CVarPollAsyncPeriod(
 // FPackageData
 FPackagePlatformData::FPackagePlatformData()
 	: bReachable(0), bVisitedByCluster(0), bSaveTimedOut(0), bCookable(1), bExplorable(1), bExplorableOverride(0)
-	, bIterativelyUnmodified(0), bRegisteredForCachedObjectsInOuter(0), CookResults((uint8)ECookResult::NotAttempted)
+	, bIterativelyUnmodified(0), bIterativelySkipped(0), bRegisteredForCachedObjectsInOuter(0),
+	CookResults((uint8)ECookResult::NotAttempted)
 {
 }
 
@@ -2923,7 +2924,7 @@ void FRequestQueue::NotifyRequestFencePassed(FPackageDatas& PackageDatas)
 			TRefCountPtr<FGenerationHelper> GenerationHelper = PackageData->GetGenerationHelper();
 			if (GenerationHelper)
 			{
-				GenerationHelper->OnRequestFencePassedBroadcast(PackageDatas.GetCookOnTheFlyServer());
+				GenerationHelper->OnRequestFencePassed(PackageDatas.GetCookOnTheFlyServer());
 			}
 		}
 	}

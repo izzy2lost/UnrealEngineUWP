@@ -3202,7 +3202,8 @@ EDataValidationResult UCookOnTheFlyServer::ValidateSourcePackage(UE::Cook::FPack
 }
 
 void UCookOnTheFlyServer::QueueDiscoveredPackage(UE::Cook::FPackageData& PackageData,
-	UE::Cook::FInstigator&& Instigator, UE::Cook::FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent)
+	UE::Cook::FInstigator&& Instigator, UE::Cook::FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent,
+	UE::Cook::FGenerationHelper* ParentGenerationHelper)
 {
 	using namespace UE::Cook;
 
@@ -3230,7 +3231,8 @@ void UCookOnTheFlyServer::QueueDiscoveredPackage(UE::Cook::FPackageData& Package
 	{
 		OnDiscoveredPackageDebug(PackageData.GetPackageName(), Instigator);
 	}
-	WorkerRequests->QueueDiscoveredPackage(*this, PackageData, MoveTemp(Instigator), MoveTemp(ReachablePlatforms), bUrgent);
+	WorkerRequests->QueueDiscoveredPackage(*this, PackageData, MoveTemp(Instigator), MoveTemp(ReachablePlatforms),
+		bUrgent, ParentGenerationHelper);
 }
 
 void UCookOnTheFlyServer::QueueDiscoveredPackageOnDirector(UE::Cook::FPackageData& PackageData,
@@ -3338,7 +3340,7 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::QueueGeneratedPackages(UE::Cook::FGen
 
 			// Queue the package for cooking
 			QueueDiscoveredPackage(*ChildPackageData, FInstigator(ChildPackageData->GetInstigator()),
-				EDiscoveredPlatformSet::CopyFromInstigator, bUrgent);
+				EDiscoveredPlatformSet::CopyFromInstigator, bUrgent, &GenerationHelper);
 		}
 		GenerationHelper.EndQueueGeneratedPackages(*this);
 
@@ -4428,7 +4430,9 @@ private: // Used only by UCookOnTheFlyServer, which has private access
 	void CalculatePlatformAgnosticRuntimeDependencies();
 	void CalculatePlatformRuntimeDependencies();
 	TArray<FName> GetPlatformRuntimeDependencies() const;
-	TArray<IPackageWriter::FCommitAttachmentInfo> GetCommitAttachments();
+	TArray<IPackageWriter::FCommitAttachmentInfo> GetCommitAttachments(
+		UE::TargetDomain::FGeneratedPackageResultStruct* GeneratedResult,
+		TArray<FAssetDependency>* OverrideDependencies);
 	IPackageWriter::EWriteOptions GetCommitWriteOptions() const;
 	static void AddDependency(TMap<FPackageData*, EInstigator>& InDependencies, FPackageData* PackageData, bool bHard);
 	static IPackageWriter::ECommitStatus PackageResultToCommitStatus(FSavePackageResultStruct& Result);
@@ -5967,7 +5971,8 @@ public:
 		IterativeValidatePhase2,
 	};
 
-	void InitializePackageWriter(ICookedPackageWriter*& CookedPackageWriter, const FString& ResolvedMetadataPath)
+	void InitializePackageWriter(UCookOnTheFlyServer& COTFS, ICookedPackageWriter*& CookedPackageWriter,
+		const FString& ResolvedMetadataPath)
 	{
 		Initialize();
 		if (DiffMode == EDiffMode::None)
@@ -5993,17 +5998,17 @@ public:
 			CookedPackageWriter = new FLinkerDiffPackageWriter(TUniquePtr<ICookedPackageWriter>(CookedPackageWriter));
 			break;
 		case EDiffMode::IterativeValidate:
-			CookedPackageWriter = new FIterativeValidatePackageWriter(
+			CookedPackageWriter = new FIterativeValidatePackageWriter(COTFS,
 				TUniquePtr<ICookedPackageWriter>(CookedPackageWriter), FIterativeValidatePackageWriter::EPhase::AllInOnePhase,
 				ResolvedMetadataPath);
 			break;
 		case EDiffMode::IterativeValidatePhase1:
-			CookedPackageWriter = new FIterativeValidatePackageWriter(
+			CookedPackageWriter = new FIterativeValidatePackageWriter(COTFS,
 				TUniquePtr<ICookedPackageWriter>(CookedPackageWriter), FIterativeValidatePackageWriter::EPhase::Phase1,
 				ResolvedMetadataPath);
 			break;
 		case EDiffMode::IterativeValidatePhase2:
-			CookedPackageWriter = new FIterativeValidatePackageWriter(
+			CookedPackageWriter = new FIterativeValidatePackageWriter(COTFS,
 				TUniquePtr<ICookedPackageWriter>(CookedPackageWriter), FIterativeValidatePackageWriter::EPhase::Phase2,
 				ResolvedMetadataPath);
 			break;
@@ -6376,6 +6381,7 @@ void FSaveCookedPackageContext::FinishPlatform()
 
 	// Calculate up-to-date assetregistry data for Generator and Generated packages
 	TOptional<TArray<FAssetDependency>> OverridePackageDependencies;
+	TOptional<UE::TargetDomain::FGeneratedPackageResultStruct> GeneratedResult;
 	TOptional<FAssetPackageData> AssetPackageDataBuffer;
 	TOptional<FAssetPackageData> OverrideAssetPackageData;
 	const FAssetPackageData* AssetPackageData = nullptr;
@@ -6388,10 +6394,11 @@ void FSaveCookedPackageContext::FinishPlatform()
 	else if (TRefCountPtr<FGenerationHelper> ParentGenerationHelper = PackageData.GetParentGenerationHelper();
 		ParentGenerationHelper)
 	{
-		OverridePackageDependencies.Emplace();
-		OverrideAssetPackageData.Emplace();
-		ParentGenerationHelper->FinishGeneratedPlatformSave(PackageData, *OverridePackageDependencies, *OverrideAssetPackageData);
-		AssetPackageData = OverrideAssetPackageData.GetPtrOrNull();
+		GeneratedResult.Emplace();
+		ParentGenerationHelper->FinishGeneratedPlatformSave(PackageData, *GeneratedResult);
+		OverridePackageDependencies.Emplace(GeneratedResult->PackageDependencies);
+		OverrideAssetPackageData.Emplace(GeneratedResult->AssetPackageData);
+		AssetPackageData = &GeneratedResult->AssetPackageData;
 	}
 	if (!AssetPackageData)
 	{
@@ -6407,7 +6414,7 @@ void FSaveCookedPackageContext::FinishPlatform()
 
 		ICookedPackageWriter::FCommitPackageInfo Info;
 		// Note GetCommitAttachments mutates the SaveResult; it moves CookDependencies out of it
-		Info.Attachments = GetCommitAttachments();
+		Info.Attachments = GetCommitAttachments(GeneratedResult.GetPtrOrNull(), OverridePackageDependencies.GetPtrOrNull());
 		Info.Status = PackageResultToCommitStatus(SavePackageResult);
 		Info.PackageName = Package->GetFName();
 		Info.PackageHash = AssetPackageData ? AssetPackageData->GetPackageSavedHash() : FIoHash();
@@ -6662,14 +6669,25 @@ TArray<FName> FSaveCookedPackageContext::GetPlatformRuntimeDependencies() const
 	return PlatformDependencyNames;
 }
 
-TArray<IPackageWriter::FCommitAttachmentInfo> FSaveCookedPackageContext::GetCommitAttachments()
+TArray<IPackageWriter::FCommitAttachmentInfo> FSaveCookedPackageContext::GetCommitAttachments(
+	UE::TargetDomain::FGeneratedPackageResultStruct* GeneratedResult,
+	TArray<FAssetDependency>* OverrideDependencies)
 {
 	TArray<IPackageWriter::FCommitAttachmentInfo> Result;
 	if (COTFS.bHybridIterativeEnabled)
 	{
 		UE_SCOPED_HIERARCHICAL_COOKTIMER(TargetDomainDependencies);
+		TArray<FName> PlatformRuntimeDependencies = GetPlatformRuntimeDependencies();
+		if (OverrideDependencies)
+		{
+			PlatformRuntimeDependencies.Reserve(PlatformRuntimeDependencies.Num() + OverrideDependencies->Num());
+			for (const FAssetDependency& Dependency : *OverrideDependencies)
+			{
+				PlatformRuntimeDependencies.Add(Dependency.AssetId.PackageName);
+			}
+		}
 		UE::TargetDomain::CollectAndStoreCookAttachments(Package, TargetPlatform, &SavePackageResult,
-			GetPlatformRuntimeDependencies(), Result);
+			GeneratedResult, MoveTemp(PlatformRuntimeDependencies), Result);
 	}
 	return Result;
 }
@@ -8483,11 +8501,15 @@ void UCookOnTheFlyServer::PopulateCookedPackages(TArrayView<const ITargetPlatfor
 			int32 RemovedCookedNum = 0;
 
 			auto AddPlaceholderPackage =
-				[this, TargetPlatform](const FName PackageName, ECookResult CookResult)
+				[this, TargetPlatform](const FName PackageName, ECookResult CookResult, bool bIterativelyUnmodified)
 				{
 					FPackageData* PackageData = PackageDatas->TryAddPackageDataByPackageName(PackageName, true /* bRequireExists */);
 					if (PackageData)
 					{
+						if (bIterativelyUnmodified)
+						{
+							PackageData->FindOrAddPlatformData(TargetPlatform).SetIterativelyUnmodified(true);
+						}
 						PackageData->SetPlatformCooked(TargetPlatform, CookResult);
 					}
 				};
@@ -8559,7 +8581,7 @@ void UCookOnTheFlyServer::PopulateCookedPackages(TArrayView<const ITargetPlatfor
 					++RemovedCookedNum;
 					break;
 				case EDifference::IdenticalUncooked:
-					AddPlaceholderPackage(PackageName, ECookResult::Failed);
+					AddPlaceholderPackage(PackageName, ECookResult::Failed, true /* bIterativelyUnmodified */);
 					PackagesToRemove.Add(PackageName);
 					break;
 				case EDifference::ModifiedUncooked:
@@ -8569,7 +8591,7 @@ void UCookOnTheFlyServer::PopulateCookedPackages(TArrayView<const ITargetPlatfor
 					PackagesToRemove.Add(PackageName);
 					break;
 				case EDifference::IdenticalNeverCookPlaceholder:
-					AddPlaceholderPackage(PackageName, ECookResult::NeverCookPlaceholder);
+					AddPlaceholderPackage(PackageName, ECookResult::NeverCookPlaceholder, true /* bIterativelyUnmodified */);
 					PackagesToRemove.Add(PackageName);
 					break;
 				case EDifference::ModifiedNeverCookPlaceholder:
@@ -8593,7 +8615,7 @@ void UCookOnTheFlyServer::PopulateCookedPackages(TArrayView<const ITargetPlatfor
 				FPackageData* PackageData = PackageDatas->TryAddPackageDataByPackageName(Generator, false /* bRequireExists */);
 				if (PackageData && PackageData->FindOrAddPlatformData(TargetPlatform).IsCookAttempted())
 				{
-					for (const TPair<FName, FIoHash>& GeneratedPair : Iter->Value.Generated)
+					for (const TPair<FName, FAssetPackageData>& GeneratedPair : Iter->Value.Generated)
 					{
 						UpdateCookedPackage(GeneratedPair.Key, false /* bRequireExists */, true /* bIterativelyUnmodified */);
 					}
@@ -11201,7 +11223,7 @@ UE::Cook::FCookSavePackageContext* UCookOnTheFlyServer::CreateSaveContext(const 
 		WriterDebugName = TEXT("LooseCookedPackageWriter");
 	}
 
-	DiffModeHelper->InitializePackageWriter(PackageWriter, ResolvedMetadataPath);
+	DiffModeHelper->InitializePackageWriter(*this, PackageWriter, ResolvedMetadataPath);
 
 	// Setup save package settings (i.e. validation)
 	FSavePackageSettings SavePackageSettings = FSavePackageSettings::GetDefaultSettings();

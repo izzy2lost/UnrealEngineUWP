@@ -1287,7 +1287,7 @@ void FAssetRegistryGenerator::ComputePackageDifferences(const FComputeDifference
 				else
 				{
 					FGeneratorPackageInfo& Info = OutDifference.GeneratorPackages.FindOrAdd(GeneratorName);
-					Info.Generated.Add(PackageName, PreviousPackageData->GetPackageSavedHash());
+					Info.Generated.Add(PackageName, CopyAssetPackageDataForIncrementalCook(*PreviousPackageData));
 				}
 			}
 			else
@@ -1323,7 +1323,7 @@ void FAssetRegistryGenerator::ComputePackageDifferences(const FComputeDifference
 		EDifference* GeneratorDifference = OutDifference.Packages.Find(GeneratorName);
 		if (GeneratorDifference && *GeneratorDifference == EDifference::RemovedCooked)
 		{
-			for (const TPair<FName, FIoHash>& Generated : Iter->Value.Generated)
+			for (const TPair<FName, FAssetPackageData>& Generated : Iter->Value.Generated)
 			{
 				OutDifference.Packages.Add(Generated.Key, EDifference::RemovedCooked);
 			}
@@ -1441,6 +1441,38 @@ bool FAssetRegistryGenerator::ComputePackageDifferences_IsPackageFileUnchanged(
 	return true;
 }
 
+FAssetPackageData FAssetRegistryGenerator::CopyAssetPackageDataForIncrementalCook(const FAssetPackageData& Source)
+{
+	FAssetPackageData Result;
+
+	// Copy small scalars since they don't cost memory or much network bandwidth
+	// Skip large scalars and containers that we don't need to save network bandwidth
+
+	// CookedHash is not read by the cook
+	// Result.CookedHash = Source.CookedHash;
+	
+	// PackageSavedHash is used during legacy iterative cooks to compare whether the package is modified
+	Result.SetPackageSavedHash(Source.GetPackageSavedHash());
+
+	// ChunkHashes is not read by the cook
+	// Result.ChunkHashes = Source.ChunkHashes;
+
+	// ImportedClasses is a large container, but incremental cook needs it to calculate the current packagedigest
+	Result.ImportedClasses = Source.ImportedClasses;
+	Result.DiskSize = Source.DiskSize;
+	Result.FileVersionUE = Source.FileVersionUE;
+	Result.FileVersionLicenseeUE = Source.FileVersionLicenseeUE;
+	Result.SetIsLicenseeVersion(Source.IsLicenseeVersion());
+	Result.SetHasVirtualizedPayloads(Source.HasVirtualizedPayloads());
+
+	// CustomVersions are not read by the cook
+	//Result.SetCustomVersions(Source.GetCustomVersions());
+
+	Result.Extension = Source.Extension;
+
+	return Result;
+}
+
 FName FAssetRegistryGenerator::GetGeneratorPackage(FName PackageName, const FAssetRegistryState& InState)
 {
 	TConstArrayView<const FAssetData*> Assets = InState.GetAssetsByPackageName(PackageName);
@@ -1487,7 +1519,8 @@ void FAssetRegistryGenerator::ComputePackageRemovals(const FAssetRegistryState& 
 				}
 				else
 				{
-					OutGeneratorPackages.FindOrAdd(GeneratorName).Generated.Add(PackageName, PreviousPackageData->GetPackageSavedHash());
+					OutGeneratorPackages.FindOrAdd(GeneratorName).Generated.Add(PackageName,
+						CopyAssetPackageDataForIncrementalCook(*PreviousPackageData));
 				}
 			}
 			else
@@ -1511,7 +1544,7 @@ void FAssetRegistryGenerator::ComputePackageRemovals(const FAssetRegistryState& 
 		FName GeneratorName = Iter->Key;
 		if (RemovedPackageSet.Contains(GeneratorName))
 		{
-			for (const TPair<FName, FIoHash>& Generated : Iter->Value.Generated)
+			for (const TPair<FName, FAssetPackageData>& Generated : Iter->Value.Generated)
 			{
 				RemovedPackageSet.Add(Generated.Key);
 			}
@@ -2777,13 +2810,8 @@ void FAssetRegistryPackageMessage::Write(FCbWriter& Writer) const
 	Writer.EndArray();
 	if (OverrideAssetPackageData)
 	{
-		Writer.BeginObject("P");
-		{
-			// Currently we only replicate Guid and ImportedClasses, since these are the only fields set by generated pacakges
-			Writer << "H" << OverrideAssetPackageData->GetPackageSavedHash();
-			Writer << "C" << OverrideAssetPackageData->ImportedClasses;
-		}
-		Writer.EndObject();
+		Writer.SetName("P");
+		OverrideAssetPackageData->NetworkWrite(Writer);
 	}
 	if (OverridePackageDependencies)
 	{
@@ -2818,14 +2846,7 @@ bool FAssetRegistryPackageMessage::TryRead(FCbObjectView Object)
 	if (OverrideAssetPackageDataField.HasValue())
 	{
 		OverrideAssetPackageData.Emplace();
-		// Currently we only replicate Guid and ImportedClasses, since these are the only fields set by generated packages
-		FIoHash PackageSavedHash;
-		if (!LoadFromCompactBinary(OverrideAssetPackageDataField["H"], PackageSavedHash))
-		{
-			return false;
-		}
-		OverrideAssetPackageData->SetPackageSavedHash(PackageSavedHash);
-		if (!LoadFromCompactBinary(OverrideAssetPackageDataField["C"], OverrideAssetPackageData->ImportedClasses))
+		if (!OverrideAssetPackageData->TryNetworkRead(OverrideAssetPackageDataField))
 		{
 			return false;
 		}

@@ -25,6 +25,7 @@
 
 class ITargetPlatform;
 class UCookOnTheFlyServer;
+namespace UE::TargetDomain { struct FGeneratedPackageResultStruct; }
 
 namespace UE::Cook
 {
@@ -100,6 +101,8 @@ public:
 	void SetIsGenerator(bool bValue);
 	bool HasCalledPopulate() const;
 	void SetHasCalledPopulate(bool bValue);
+	bool IsIterativelySkipped() const;
+	void SetIterativelySkipped(bool bValue);
 
 	/**
 	 * Steal the list of cached objects to call BeginCacheForCookedPlatformData on from the PackageData,
@@ -163,6 +166,7 @@ private:
 	bool bIssuedUndeclaredMovedObjectsWarning : 1;
 	bool bGenerator : 1;
 	bool bHasCalledPopulate : 1;
+	bool bIterativelySkipped : 1;
 };
 
 /**
@@ -298,12 +302,15 @@ public:
 	/** Does not call Initialize. */
 	void EndQueueGeneratedPackagesOnDirector(UCookOnTheFlyServer& COTFS, FWorkerId SourceWorkerId);
 	/**
-	 * Called from Director when the RequestFence added from EndQueueGeneratedPackages has passed. Calls
-	 * OnRequestFencePassed locally and on all Workers.
+	 * Called on Director when the RequestFence added from MarkForIterative or EndQueueGeneratedPackages has passed.
+	 * Calls the proper followup events locally and on all Workers. Does not call Initialize.
 	 */
-	void OnRequestFencePassedBroadcast(UCookOnTheFlyServer& COTFS);
-	/** Called from when the RequestFence added from EndQueueGeneratedPackages has passed. */
 	void OnRequestFencePassed(UCookOnTheFlyServer& COTFS);
+	/**
+	 * Called on Directors and Workers when the RequestFence added from EndQueueGeneratedPackages has passed.
+	 * Does not call Initialize.
+	 */
+	void OnQueuedGeneratedPackagesFencePassed(UCookOnTheFlyServer& COTFS);
 	/** Call CreatePackage and set package header data; or empty it and normalize it if it already exists. */
 	UPackage* TryCreateGeneratedPackage(FCookGenerationInfo& GenerationInfo, bool bResetToEmpty);
 	/**
@@ -317,8 +324,14 @@ public:
 	 * Calculates AssetRegistryData.
 	 */
 	void FinishGeneratedPlatformSave(FPackageData& PackageData,
-		TArray<FAssetDependency>& OutPackageDependencies,
-		FAssetPackageData& OutAssetPackageData);
+		UE::TargetDomain::FGeneratedPackageResultStruct& GeneratedResult);
+	/**
+	 * Return the AssetPackageData that was loaded for the given PackageData from the previous cook's
+	 * AssetRegistry, or nullptr if not an incremental cook or it was not previously cooked.
+	 * Does not call initialize.
+	 */
+	const FAssetPackageData* GetIncrementalCookAssetPackageData(FPackageData& PackageData);
+	const FAssetPackageData* GetIncrementalCookAssetPackageData(FName PackageName);
 
 	/**
 	 * Clear any data that should only be held when an FPackageData is in the save state, for the given Info. The given
@@ -333,9 +346,9 @@ public:
 	 */
 	void FetchExternalActorDependencies();
 	/** Iterative cook: store the list of generated packages from the last cook. Does not call Initialize. */
-	void SetPreviousGeneratedPackages(TMap<FName, FIoHash>&& Packages);
+	void SetPreviousGeneratedPackages(TMap<FName, FAssetPackageData>&& Packages);
 	/** Return the information set by SetPreviousGeneratedPackages if not yet cleared. Does not call Initialize. */
-	const TMap<FName, FIoHash>& GetPreviousGeneratedPackages() const;
+	const TMap<FName, FAssetPackageData>& GetPreviousGeneratedPackages() const;
 
 	/**
 	 * Callback during garbage collection. Does not call initialize. Caller must pass in a refcount to show
@@ -384,13 +397,18 @@ public:
 	 * Called for each of the generated packages that were discovered when TryGenerateList was called on a
 	 * remote CookWorker. Does not call Initialize.
 	 */
-	void TrackGeneratedPackageListedRemotely(UCookOnTheFlyServer& COTFS, FPackageData& PackageData);
+	void TrackGeneratedPackageListedRemotely(UCookOnTheFlyServer& COTFS, FPackageData& PackageData,
+		const FIoHash& CurrentPackageHash);
 	/**
 	 * Called on the director when the generator or one of the generated packages was saved on a remote worker.
 	 * Used to manage KeepForGCOrAllSaved lifetime. Does not call Initialize.
 	 */
 	void MarkPackageSavedRemotely(UCookOnTheFlyServer& COTFS, FPackageData& PackageData, FWorkerId SourceWorkerId);
-
+	/**
+	 * Called on the director when the generator or one of the generated packages was found to be iteratively skipped
+	 * and marked already cooked in an incremental cook. Does not call Initialize.
+	 */
+	void MarkPackageIterativelySkipped(FPackageData& PackageData);
 	/**
 	 * Called on the director and every CookWorker when all saves have been completed; this indicates that
 	 * some of our contract points are complete and the splitter can be destroyed. Does not call Initialize.
@@ -451,7 +469,7 @@ private:
 	/** Recorded list of packages to generate from the splitter, and data we need about them */
 	TArray<FCookGenerationInfo> PackagesToGenerate;
 	TWeakObjectPtr<UPackage> OwnerPackage;
-	TMap<FName, FIoHash> PreviousGeneratedPackages;
+	TMap<FName, FAssetPackageData> PreviousGeneratedPackages;
 	TArray<FName> ExternalActorDependencies;
 	TArray<FWeakObjectPtr> OwnerObjectsToMove;
 	TRefCountPtr<FGenerationHelper> ReferenceFromKeepForIterative;
@@ -471,7 +489,8 @@ private:
 	bool bKeepForAllSavedOrGC = false;
 	bool bKeepForCompletedAllSavesMessage = false;
 	bool bNeedConfirmGeneratorPackageDestroyed = false;
-	
+	bool bHasFinishedQueueGeneratedPackages = false;
+
 	friend FCookGenerationInfo;
 };
 
@@ -567,6 +586,16 @@ inline bool FCookGenerationInfo::HasCalledPopulate() const
 inline void FCookGenerationInfo::SetHasCalledPopulate(bool bValue)
 {
 	bHasCalledPopulate = bValue;
+}
+
+inline bool FCookGenerationInfo::IsIterativelySkipped() const
+{
+	return bIterativelySkipped;
+}
+
+inline void FCookGenerationInfo::SetIterativelySkipped(bool bValue)
+{
+	bIterativelySkipped = bValue;
 }
 
 inline TConstArrayView<FAssetDependency> FCookGenerationInfo::GetDependencies() const
@@ -673,7 +702,7 @@ inline TArray<FName> FGenerationHelper::ReleaseExternalActorDependencies()
 	return Result;
 }
 
-inline const TMap<FName, FIoHash>& FGenerationHelper::GetPreviousGeneratedPackages() const
+inline const TMap<FName, FAssetPackageData>& FGenerationHelper::GetPreviousGeneratedPackages() const
 {
 	return PreviousGeneratedPackages;
 }

@@ -296,6 +296,8 @@ public:
 
 	/** The name of the _Generated_ subdirectory that is the parent directory of a splitter's generated packages. */
 	UNREALED_API static const TCHAR* GetGeneratedPackageSubPath();
+	/** Return true if the given path is a _Generated_ directory, or a subpath under it. */
+	UNREALED_API static bool IsUnderGeneratedPackageSubPath(FStringView FileOrLongPackagePath);
 
 	/**
 	 * Return the full packagename that will be used for a GeneratedPackage, based on the GeneratorPackage's name and

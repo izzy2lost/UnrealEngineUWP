@@ -10,6 +10,7 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Async/Async.h"
 #include "Cooker/CookDependency.h"
+#include "Cooker/CookGenerationHelper.h"
 #include "Cooker/CookPackageData.h"
 #include "Cooker/CookPlatformManager.h"
 #include "Cooker/CookProfiling.h"
@@ -953,7 +954,7 @@ void FRequestCluster::FGraphSearch::ResolveTransitiveBuildDependencyCycle()
 			}
 		}
 		// We can also empty the IterativelyModifiedListeners since any remaining listeners must be in
-		// PendingTransitiveBuildDependencyVertices. Empting the list here avoids the expense of kicking
+		// PendingTransitiveBuildDependencyVertices. Emptying the list here avoids the expense of kicking
 		// for a second time each of the listeners.
 		CycleVert->IterativelyModifiedListeners.Empty();
 		KickVertex(CycleVert);
@@ -1265,6 +1266,22 @@ void FRequestCluster::FGraphSearch::FExploreEdgesContext::CalculatePlatformsToPr
 	}
 }
 
+const FAssetPackageData* FRequestCluster::FVertexData::GetGeneratedAssetPackageData()
+{
+	check(PackageData); // Caller should not call if no PackageData
+	FPackageDatas& LocalPackageDatas = PackageData->GetPackageDatas();
+	FPackageData* ParentPackageData = LocalPackageDatas.FindPackageDataByPackageName(PackageData->GetParentGenerator());
+	if (ParentPackageData)
+	{
+		TRefCountPtr<FGenerationHelper> ParentGenerationHelper = ParentPackageData->GetGenerationHelper();
+		if (ParentGenerationHelper)
+		{
+			return ParentGenerationHelper->GetIncrementalCookAssetPackageData(*PackageData);
+		}
+	}
+	return nullptr;
+}
+
 bool FRequestCluster::FGraphSearch::FExploreEdgesContext::TryCalculateIterativelyUnmodified()
 {
 	using namespace UE::TargetDomain;
@@ -1294,20 +1311,50 @@ bool FRequestCluster::FGraphSearch::FExploreEdgesContext::TryCalculateIterativel
 
 		if (!PackagePlatformData.IsCookable())
 		{
-			SetIsIterativelyUnmodified(PlatformIndex, false);
+			SetIsIterativelyUnmodified(PlatformIndex, false, PackagePlatformData);
 			continue;
 		}
 
 		UE::TargetDomain::FCookDependencies& CookDependencies = QueryPlatformData.CookAttachments.Dependencies;
-		if (!CookDependencies.HasKeyMatch())
+		const FAssetPackageData* OverrideAssetPackageData = nullptr;
+		if (PackageData->IsGenerated())
 		{
-			SetIsIterativelyUnmodified(PlatformIndex, false);
+			// If a generator is marked iteratively unmodified, then by contract we are not required to test its
+			// generated packages; they are all marked iteratively unmodified as well
+			FPackageData* ParentPackageData = Cluster.PackageDatas.FindPackageDataByPackageName(
+				PackageData->GetParentGenerator());
+			if (ParentPackageData)
+			{
+				const FPackagePlatformData* ParentPlatformData =
+					ParentPackageData->GetPlatformDatas().Find(TargetPlatform);
+				if (ParentPlatformData)
+				{
+					if (ParentPlatformData->IsIterativelyUnmodified())
+					{
+						SetIsIterativelyUnmodified(PlatformIndex, true, PackagePlatformData);
+						continue;
+					}
+				}
+			}
+
+			// If the generator was not marked iteratively unmodified, then we use the data provided by the generator
+			// to decide whether the generated package is iteratively unmodified.
+			OverrideAssetPackageData = Vertex->GetGeneratedAssetPackageData();
+			if (!OverrideAssetPackageData)
+			{
+				SetIsIterativelyUnmodified(PlatformIndex, false, PackagePlatformData);
+				continue;
+			}
+		}
+		if (!CookDependencies.HasKeyMatch(OverrideAssetPackageData))
+		{
+			SetIsIterativelyUnmodified(PlatformIndex, false, PackagePlatformData);
 			continue;
 		}
 
-		if (!IsIterativeEnabled(PackageName, Cluster.COTFS.bHybridIterativeAllowAllClasses))
+		if (!IsIterativeEnabled(PackageName, Cluster.COTFS.bHybridIterativeAllowAllClasses, OverrideAssetPackageData))
 		{
-			SetIsIterativelyUnmodified(PlatformIndex, false);
+			SetIsIterativelyUnmodified(PlatformIndex, false, PackagePlatformData);
 			continue;
 		}
 
@@ -1352,7 +1399,7 @@ bool FRequestCluster::FGraphSearch::FExploreEdgesContext::TryCalculateIterativel
 
 			if (bAnyTransitiveBuildDependencyIsModified)
 			{
-				SetIsIterativelyUnmodified(PlatformIndex, false);
+				SetIsIterativelyUnmodified(PlatformIndex, false, PackagePlatformData);
 				continue;
 			}
 			if (!UnreadyTransitiveBuildVertices.IsEmpty())
@@ -1378,8 +1425,7 @@ bool FRequestCluster::FGraphSearch::FExploreEdgesContext::TryCalculateIterativel
 			}
 		}
 
-		SetIsIterativelyUnmodified(PlatformIndex, true);
-		PackagePlatformData.SetIterativelyUnmodified(true);
+		SetIsIterativelyUnmodified(PlatformIndex, true, PackagePlatformData);
 	}
 
 	if (!bAllPlatformsAreReady)
@@ -1528,6 +1574,7 @@ void FRequestCluster::FGraphSearch::FExploreEdgesContext::QueueVisitsOfDependenc
 	}
 
 	TArray<FPackageData*>* Edges = nullptr;
+	TRefCountPtr<FGenerationHelper> GenerationHelper = PackageData->GetGenerationHelper();
 	for (TPair<FName, FScratchPlatformDependencyBits>& PlatformDependencyPair : PlatformDependencyMap)
 	{
 		FName DependencyName = PlatformDependencyPair.Key;
@@ -1539,7 +1586,8 @@ void FRequestCluster::FGraphSearch::FExploreEdgesContext::QueueVisitsOfDependenc
 			FCoreRedirectObjectName(NAME_None, NAME_None, DependencyName)).PackageName;
 		DependencyName = Redirected;
 
-		FVertexData& DependencyVertex = GraphSearch.FindOrAddVertex(DependencyName);
+		FVertexData& DependencyVertex = GraphSearch.FindOrAddVertex(DependencyName,
+			GenerationHelper.GetReference());
 		if (!DependencyVertex.PackageData)
 		{
 			continue;
@@ -1683,11 +1731,36 @@ void FRequestCluster::FGraphSearch::FExploreEdgesContext::ProcessPlatformAttachm
 		bool bShouldIterativelySkip = bIterativelyUnmodified;
 		PackageWriter->UpdatePackageModificationStatus(PackageName, bIterativelyUnmodified,
 			bShouldIterativelySkip);
+
+		TRefCountPtr<FGenerationHelper> ParentGenerationHelper;
+		if (PackageData->IsGenerated())
+		{
+			// If a GeneratorPackage is iteratively skipped, its generated packages must be iteratively skipped as well
+			FPackageData* ParentPackage = Cluster.PackageDatas.FindPackageDataByPackageName(PackageData->GetParentGenerator());
+			if (ParentPackage)
+			{
+				ParentGenerationHelper = ParentPackage->GetGenerationHelper();
+				const FPackagePlatformData* ParentPlatformData = ParentPackage->GetPlatformDatas().Find(TargetPlatform);
+				if (ParentPlatformData && ParentPlatformData->IsIterativelySkipped())
+				{
+					bShouldIterativelySkip = true;
+				}
+			}
+		}
 		if (bShouldIterativelySkip)
 		{
 			// Call SetPlatformCooked instead of just PackagePlatformData.SetCookResults because we might also need
 			// to set OnFirstCookedPlatformAdded
 			PackageData->SetPlatformCooked(TargetPlatform, ECookResult::Succeeded);
+			PackagePlatformData.SetIterativelySkipped(true);
+			if (TRefCountPtr<FGenerationHelper> GenerationHelper = PackageData->GetGenerationHelper())
+			{
+				GenerationHelper->MarkPackageIterativelySkipped(*PackageData);
+			}
+			if (ParentGenerationHelper)
+			{
+				ParentGenerationHelper->MarkPackageIterativelySkipped(*PackageData);
+			}
 			Cluster.SetPackageDataWasMarkedCooked(*PackageData, true);
 			if (PlatformIndex == FirstSessionPlatformIndex)
 			{
@@ -1702,18 +1775,36 @@ void FRequestCluster::FGraphSearch::FExploreEdgesContext::ProcessPlatformAttachm
 	{
 		FQueryPlatformData& PlatformAgnosticQueryData = Vertex->PlatformData[PlatformAgnosticPlatformIndex];
 
-		if (PlatformAgnosticQueryData.bSchedulerThreadFetchCompleted &&
-			PlatformAgnosticQueryData.CookAttachments.Dependencies.HasKeyMatch())
+		if (PlatformAgnosticQueryData.bSchedulerThreadFetchCompleted)
 		{
-			Cluster.BuildDefinitions.AddBuildDefinitionList(PackageName, TargetPlatform,
-				PlatformAgnosticQueryData.CookAttachments.BuildDefinitions.Definitions);
+			bool bCanCheckHasKeyMatch = true;
+			const FAssetPackageData* OverrideAssetPackageData = nullptr;
+			if (PackageData->IsGenerated())
+			{
+				OverrideAssetPackageData = Vertex->GetGeneratedAssetPackageData();
+				if (!OverrideAssetPackageData)
+				{
+					bCanCheckHasKeyMatch = false;
+				}
+			}
+			if (bCanCheckHasKeyMatch &&
+				PlatformAgnosticQueryData.CookAttachments.Dependencies.HasKeyMatch(OverrideAssetPackageData))
+			{
+				Cluster.BuildDefinitions.AddBuildDefinitionList(PackageName, TargetPlatform,
+					PlatformAgnosticQueryData.CookAttachments.BuildDefinitions.Definitions);
+			}
 		}
 	}
 }
 
-void FRequestCluster::FGraphSearch::FExploreEdgesContext::SetIsIterativelyUnmodified(int32 PlatformIndex, bool bIterativelyUnmodified)
+void FRequestCluster::FGraphSearch::FExploreEdgesContext::SetIsIterativelyUnmodified(int32 PlatformIndex,
+	bool bIterativelyUnmodified, FPackagePlatformData& PackagePlatformData)
 {
 	Vertex->PlatformData[PlatformIndex].bIterativelyUnmodified.Emplace(bIterativelyUnmodified);
+	if (bIterativelyUnmodified)
+	{
+		PackagePlatformData.SetIterativelyUnmodified(true);
+	}
 }
 
 FRequestCluster::FVertexData* FRequestCluster::FGraphSearch::AllocateVertex(FName PackageName, FPackageData* PackageData)
@@ -1732,7 +1823,7 @@ FRequestCluster::FVertexData::FVertexData(FName InPackageName, UE::Cook::FPackag
 }
 
 FRequestCluster::FVertexData&
-FRequestCluster::FGraphSearch::FindOrAddVertex(FName PackageName)
+FRequestCluster::FGraphSearch::FindOrAddVertex(FName PackageName, FGenerationHelper* ParentGenerationHelper)
 {
 	// Only called from scheduler thread
 	FVertexData*& ExistingVertex = Vertices.FindOrAdd(PackageName);
@@ -1747,6 +1838,21 @@ FRequestCluster::FGraphSearch::FindOrAddVertex(FName PackageName)
 	if (!FPackageName::IsScriptPackage(NameBuffer))
 	{
 		PackageData = Cluster.COTFS.PackageDatas->TryAddPackageDataByPackageName(PackageName);
+		if (!PackageData && ParentGenerationHelper && ICookPackageSplitter::IsUnderGeneratedPackageSubPath(NameBuffer))
+		{
+			const FAssetPackageData* PreviousPackageData =
+				ParentGenerationHelper->GetIncrementalCookAssetPackageData(PackageName);
+			if (PreviousPackageData)
+			{
+				bool bIsMap = PreviousPackageData->Extension == EPackageExtension::Map;
+				PackageData = Cluster.COTFS.PackageDatas->TryAddPackageDataByPackageName(PackageName,
+					false /* bRequireExists */, bIsMap);
+				if (PackageData)
+				{
+					PackageData->SetGenerated(ParentGenerationHelper->GetOwner().GetPackageName());
+				}
+			}
+		}
 	}
 
 	ExistingVertex = AllocateVertex(PackageName, PackageData);
@@ -2138,9 +2244,20 @@ void FRequestCluster::IsRequestCookable(const ITargetPlatform* Platform, FName P
 	if (InCOTFS.bCookFilter)
 	{
 		IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
+		FName PackageNameToTest = PackageName;
+		if (PackageData.IsGenerated())
+		{
+			FName ParentName = PackageData.GetParentGenerator();
+			FPackageData* ParentData = InCOTFS.PackageDatas->FindPackageDataByPackageName(ParentName);
+			if (ParentData)
+			{
+				PackageNameToTest = ParentName;
+			}
+		}
+
 		if (!InCOTFS.CookFilterIncludedClasses.IsEmpty())
 		{
-			TOptional<FAssetPackageData> AssetData = AssetRegistry.GetAssetPackageDataCopy(PackageName);
+			TOptional<FAssetPackageData> AssetData = AssetRegistry.GetAssetPackageDataCopy(PackageNameToTest);
 			bool bIncluded = false;
 			if (AssetData)
 			{
@@ -2163,7 +2280,7 @@ void FRequestCluster::IsRequestCookable(const ITargetPlatform* Platform, FName P
 		if (!InCOTFS.CookFilterIncludedAssetClasses.IsEmpty())
 		{
 			TArray<FAssetData> AssetDatas;
-			AssetRegistry.GetAssetsByPackageName(PackageName, AssetDatas, true /* bIncludeOnlyDiskAssets */);
+			AssetRegistry.GetAssetsByPackageName(PackageNameToTest, AssetDatas, true /* bIncludeOnlyDiskAssets */);
 			bool bIncluded = false;
 			for (FAssetData& AssetData : AssetDatas)
 			{

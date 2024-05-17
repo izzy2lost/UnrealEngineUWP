@@ -81,7 +81,7 @@ public:
 	/** Info about a GeneratorPackage (see ICookPackageSplitter) loaded from previous iterative cooks. */
 	struct FGeneratorPackageInfo
 	{
-		TMap<FName, FIoHash> Generated;
+		TMap<FName, FAssetPackageData> Generated;
 	};
 
 	enum EDifference
@@ -287,6 +287,12 @@ private:
 
 	bool ComputePackageDifferences_IsPackageFileUnchanged(const FComputeDifferenceOptions& Options, FName PackageName,
 		const FAssetPackageData& CurrentPackageData, const FAssetPackageData& PreviousPackageData);
+	/**
+	 * When copying AssetPackageData from the previous saved development assetregistry into the
+	 * FGeneratorPackageInfo returned from ComputePackageRemovals that are used for incremental cook,
+	 * we only need a subset of the data; we skip copying the portions we don't need to improve performance.
+	 */
+	static FAssetPackageData CopyAssetPackageDataForIncrementalCook(const FAssetPackageData& Source);
 
 	/** State of the asset registry that is being built for this platform */
 	FAssetRegistryState State;

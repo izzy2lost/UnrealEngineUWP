@@ -13,6 +13,7 @@
 #include "Cooker/CookDependency.h"
 #include "Cooker/PackageBuildDependencyTracker.h"
 #include "CookOnTheSide/CookLog.h"
+#include "CookPackageSplitter.h"
 #include "DerivedDataBuildDefinition.h"
 #include "DerivedDataBuildKey.h"
 #include "DerivedDataSharedString.h"
@@ -100,7 +101,7 @@ bool FCookDependencies::IsValid() const
 	return bValid;
 }
 
-bool FCookDependencies::HasKeyMatch()
+bool FCookDependencies::HasKeyMatch(const FAssetPackageData* OverrideAssetPackageData)
 {
 	if (!bValid)
 	{
@@ -112,7 +113,7 @@ bool FCookDependencies::HasKeyMatch()
 	}
 	if (CurrentKey.IsZero())
 	{
-		if (!TryCalculateCurrentKey())
+		if (!TryCalculateCurrentKey(OverrideAssetPackageData))
 		{
 			return false;
 		}
@@ -120,7 +121,8 @@ bool FCookDependencies::HasKeyMatch()
 	return CurrentKey == StoredKey;
 }
 
-bool FCookDependencies::TryCalculateCurrentKey(FString* OutErrorMessage)
+bool FCookDependencies::TryCalculateCurrentKey(const FAssetPackageData* OverrideAssetPackageData,
+	FString* OutErrorMessage)
 {
 	IAssetRegistry* AssetRegistry = IAssetRegistry::Get();
 	if (PackageName.IsNone())
@@ -140,7 +142,10 @@ bool FCookDependencies::TryCalculateCurrentKey(FString* OutErrorMessage)
 		return false;
 	}
 	FBlake3 KeyBuilder;
-	UE::EditorDomain::FPackageDigest PackageDigest = EditorDomain->GetPackageDigest(PackageName);
+	UE::EditorDomain::FPackageDigest PackageDigest = OverrideAssetPackageData ?
+		UE::EditorDomain::CalculatePackageDigest(*OverrideAssetPackageData, PackageName) :
+		EditorDomain->GetPackageDigest(PackageName);
+
 	if (!PackageDigest.IsSuccessful())
 	{
 		if (OutErrorMessage) *OutErrorMessage = PackageDigest.GetStatusString();
@@ -240,19 +245,31 @@ void FCookDependencies::Empty()
 }
 
 FCookDependencies FCookDependencies::Collect(UPackage* Package, const ITargetPlatform* TargetPlatform,
-	FSavePackageResultStruct* SaveResult, TArray<FName>&& RuntimeDependencies, FString* OutErrorMessage)
+	FSavePackageResultStruct* SaveResult, const FGeneratedPackageResultStruct* GeneratedResult, 
+	TArray<FName>&& RuntimeDependencies, FString* OutErrorMessage)
 {
 	TStringBuilder<256> StringBuffer;
 	FName TransientPackageName = GetTransientPackage()->GetFName();
-	auto IsTransientPackageName = [&StringBuffer, TransientPackageName](FName InPackageName)
+	auto IsDisallowedDependencyName = [&StringBuffer, TransientPackageName](FName InPackageName,
+		bool bAllowGeneratedPackages)
 		{
 			if (InPackageName == TransientPackageName)
 			{
 				return true;
 			}
 			InPackageName.ToString(StringBuffer);
-			return FPackageName::IsMemoryPackage(StringBuffer) ||
-				FPackageName::IsScriptPackage(StringBuffer);
+			FStringView PackageNameStr = StringBuffer.ToView();
+			return FPackageName::IsMemoryPackage(PackageNameStr) ||
+				FPackageName::IsScriptPackage(PackageNameStr) ||
+				(!bAllowGeneratedPackages && ICookPackageSplitter::IsUnderGeneratedPackageSubPath(PackageNameStr));
+		};
+	auto IsDisallowedBuildDependencyName = [&IsDisallowedDependencyName](FName InPackageName)
+		{
+			return IsDisallowedDependencyName(InPackageName, false /* bAllowGeneratedPackages */);
+		};
+	auto IsDisallowedRuntimeDependencyName = [&IsDisallowedDependencyName](FName InPackageName)
+		{
+			return IsDisallowedDependencyName(InPackageName, true /* bAllowGeneratedPackages */);
 		};
 
 	if (!Package)
@@ -278,9 +295,17 @@ FCookDependencies FCookDependencies::Collect(UPackage* Package, const ITargetPla
 	TSet<FName> BuildDependenciesSet;
 
 	TArray<FName> AssetDependencies;
-	AssetRegistry->GetDependencies(Result.PackageName, AssetDependencies,
-		UE::AssetRegistry::EDependencyCategory::Package, UE::AssetRegistry::EDependencyQuery::Game);
-	RuntimeDependencies.Append(MoveTemp(AssetDependencies));
+	if (!GeneratedResult)
+	{
+		AssetRegistry->GetDependencies(Result.PackageName, AssetDependencies,
+			UE::AssetRegistry::EDependencyCategory::Package, UE::AssetRegistry::EDependencyQuery::Game);
+		RuntimeDependencies.Append(MoveTemp(AssetDependencies));
+	}
+	else
+	{
+		// GeneratedResult->PackageDependencies are already incorporated into the PackageHash of the generated
+		// package by FCookGenerationInfo::CreatePackageHash, so we do not need to add them into the BuildDependencies
+	}
 
 	FPackageBuildDependencyTracker& Tracker = FPackageBuildDependencyTracker::Get();
 
@@ -306,7 +331,7 @@ FCookDependencies FCookDependencies::Collect(UPackage* Package, const ITargetPla
 	}
 
 	Result.BuildPackageDependencies = BuildDependenciesSet.Array();
-	Result.BuildPackageDependencies.RemoveAllSwap(IsTransientPackageName, EAllowShrinking::Yes);
+	Result.BuildPackageDependencies.RemoveAllSwap(IsDisallowedBuildDependencyName, EAllowShrinking::Yes);
 	Result.BuildPackageDependencies.Sort(FNameLexicalLess());
 
 #if UE_WITH_CONFIG_TRACKING
@@ -357,13 +382,14 @@ FCookDependencies FCookDependencies::Collect(UPackage* Package, const ITargetPla
 		Algo::Sort(Result.TransitiveBuildDependencies);
 	}
 
-	RuntimeDependencies.RemoveAllSwap(IsTransientPackageName, EAllowShrinking::No);
+	RuntimeDependencies.RemoveAllSwap(IsDisallowedRuntimeDependencyName, EAllowShrinking::No);
 	RuntimeDependencies.Sort(FNameLexicalLess());
 	RuntimeDependencies.SetNum(Algo::Unique(RuntimeDependencies), EAllowShrinking::Yes);
 
 	Result.RuntimePackageDependencies = MoveTemp(RuntimeDependencies);
 
-	if (!Result.TryCalculateCurrentKey(OutErrorMessage))
+	const FAssetPackageData* AssetPackageData = GeneratedResult ? &GeneratedResult->AssetPackageData : nullptr;
+	if (!Result.TryCalculateCurrentKey(AssetPackageData, OutErrorMessage))
 	{
 		return FCookDependencies();
 	}
@@ -577,15 +603,15 @@ void FCookAttachments::Empty()
 }
 
 bool TryCollectAndStoreCookDependencies(UPackage* Package, const ITargetPlatform* TargetPlatform,
-	FSavePackageResultStruct* SaveResult, TArray<FName>&& RuntimeDependencies,
-	IPackageWriter::FCommitAttachmentInfo& OutResult)
+	FSavePackageResultStruct* SaveResult, const FGeneratedPackageResultStruct* GeneratedResult,
+	TArray<FName>&& RuntimeDependencies, IPackageWriter::FCommitAttachmentInfo& OutResult)
 {
 	FString ErrorMessage;
-	FCookDependencies CookDependencies = FCookDependencies::Collect(Package, TargetPlatform, SaveResult, 
-		MoveTemp(RuntimeDependencies), &ErrorMessage);
+	FCookDependencies CookDependencies = FCookDependencies::Collect(Package, TargetPlatform, SaveResult,
+		GeneratedResult, MoveTemp(RuntimeDependencies), &ErrorMessage);
 	if (!CookDependencies.IsValid())
 	{
-		// CookPackageSplitterTODO: This error occurs for generated packages. Need to register them with EditorDomain.
+		// IterativeTODO: This error occurs due to dependencies on _Verse and on some transient packages.
 #if 0
 		UE_LOG(LogCook, Error, TEXT("Could not collect CookDependencies for package '%s': %s"),
 			*Package->GetName(), *ErrorMessage);
@@ -654,19 +680,24 @@ void FCookAttachments::Fetch(TArrayView<FName> PackageNames, const ITargetPlatfo
 	}
 }
 
-bool IsIterativeEnabled(FName PackageName, bool bAllowAllClasses)
+bool IsIterativeEnabled(FName PackageName, bool bAllowAllClasses, const FAssetPackageData* OverrideAssetPackageData)
 {
 	IAssetRegistry* AssetRegistry = IAssetRegistry::Get();
 	if (!AssetRegistry)
 	{
 		return false;
 	}
-	TOptional<FAssetPackageData> PackageDataOpt = AssetRegistry->GetAssetPackageDataCopy(PackageName);
-	if (!PackageDataOpt)
+	TOptional<FAssetPackageData> PackageDataOpt;
+	if (!OverrideAssetPackageData)
 	{
-		return false;
+		PackageDataOpt = AssetRegistry->GetAssetPackageDataCopy(PackageName);
+		if (!PackageDataOpt)
+		{
+			return false;
+		}
+		OverrideAssetPackageData = PackageDataOpt.GetPtrOrNull();
 	}
-	FAssetPackageData& PackageData = *PackageDataOpt;
+	const FAssetPackageData& PackageData = *OverrideAssetPackageData;
 
 	if (!bAllowAllClasses)
 	{

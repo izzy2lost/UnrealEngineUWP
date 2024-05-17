@@ -29,6 +29,7 @@
 class FAssetRegistryGenerator;
 class FAsyncIODelete;
 class FDiffModeCookServerUtils;
+class FIterativeValidatePackageWriter;
 class FReferenceCollector;
 class FSavePackageContext;
 class IAssetRegistry;
@@ -537,7 +538,8 @@ private:
 	 * @param PackageData			The PackageData to be considered for saving.
 	 */
 	void QueueDiscoveredPackage(UE::Cook::FPackageData& PackageData, UE::Cook::FInstigator&& Instigator, 
-		UE::Cook::FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent=false);
+		UE::Cook::FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent=false,
+		UE::Cook::FGenerationHelper* ParentGenerationHelper = nullptr);
 	void QueueDiscoveredPackageOnDirector(UE::Cook::FPackageData& PackageData, UE::Cook::FInstigator&& Instigator,
 		UE::Cook::FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent);
 
@@ -1605,6 +1607,7 @@ private:
 	TUniquePtr<UE::Cook::FODSCClientData> ODSCClientData;
 
 	friend FAssetRegistryGenerator;
+	friend FIterativeValidatePackageWriter;
 	friend UE::Cook::FAssetRegistryMPCollector;
 	friend UE::Cook::FBeginCookConfigSettings;
 	friend UE::Cook::FCookDirector;

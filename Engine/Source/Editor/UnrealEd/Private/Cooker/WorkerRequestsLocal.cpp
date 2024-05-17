@@ -46,8 +46,12 @@ void FWorkerRequestsLocal::DequeueAllExternal(TArray<FSchedulerCallback>& OutCal
 }
 
 void FWorkerRequestsLocal::QueueDiscoveredPackage(UCookOnTheFlyServer& COTFS, FPackageData& PackageData,
-	FInstigator&& Instigator, FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent)
+	FInstigator&& Instigator, FDiscoveredPlatformSet&& ReachablePlatforms, bool bUrgent,
+	FGenerationHelper* ParentGenerationHelper)
 {
+	// FWorkerRequestsRemote needs to send ParentGenerationHelper data to the director, but in the local case we
+	// already consumed the data in FGenerationHelper::StartQueueGeneratedPackages, so we don't use the value here.
+	(void)ParentGenerationHelper;
 	COTFS.QueueDiscoveredPackageOnDirector(PackageData, MoveTemp(Instigator), MoveTemp(ReachablePlatforms), bUrgent);
 }
 

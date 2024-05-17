@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/IAssetRegistry.h"
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
 #include "Containers/ContainersFwd.h"
@@ -35,6 +37,16 @@ namespace UE::TargetDomain
 
 /** Call during Startup to initialize global data used by TargetDomain functions. */
 void CookInitialize();
+
+/**
+ * Information collected from a CookPackageSplitter Generated package after it is saved; this information is needed to collect
+ * the CookDependencies for the generated package.
+ */
+struct FGeneratedPackageResultStruct
+{
+	FAssetPackageData AssetPackageData;
+	TArray<FAssetDependency> PackageDependencies;
+};
 
 /**
  * Recording of the dependencies of a package discovered during cook, used in incremental cooks. All dependencies
@@ -74,10 +86,10 @@ public:
 	FName GetPackageName() const;
 	const FIoHash& GetStoredKey() const;
 	const FIoHash& GetCurrentKey() const;
-	bool HasKeyMatch();
+	bool HasKeyMatch(const FAssetPackageData* OverrideAssetPackageData);
 
 	// Modifying the structure data
-	bool TryCalculateCurrentKey(FString* OutErrorMessage = nullptr);
+	bool TryCalculateCurrentKey(const FAssetPackageData* OverrideAssetPackageData, FString* OutErrorMessage = nullptr);
 	void Reset();
 	void Empty();
 
@@ -87,7 +99,8 @@ public:
 	 * that have recorded its data during the package's load/other/save operations in the current cook session.
 	 */
 	static FCookDependencies Collect(UPackage* Package, const ITargetPlatform* TargetPlatform,
-		FSavePackageResultStruct* SaveResult, TArray<FName>&& RuntimeDependencies, FString* OutErrorMessage = nullptr);
+		FSavePackageResultStruct* SaveResult, const FGeneratedPackageResultStruct* GeneratedResult,
+		TArray<FName>&& RuntimeDependencies, FString* OutErrorMessage = nullptr);
 
 	// Fetch function to load the dependencies from a PackageStore is not yet implemented independently for
 	// this structure. Use FCookAttachments instead. 
@@ -144,17 +157,20 @@ struct FCookAttachments
 };
 
 bool TryCollectAndStoreCookDependencies(UPackage* Package, const ITargetPlatform* TargetPlatform,
-	FSavePackageResultStruct* SaveResult, TArray<FName>&& RuntimeDependencies,
-	IPackageWriter::FCommitAttachmentInfo& OutResult);
+	FSavePackageResultStruct* SaveResult, const FGeneratedPackageResultStruct* GeneratedResult,
+	TArray<FName>&& RuntimeDependencies, IPackageWriter::FCommitAttachmentInfo& OutResult);
 bool TryCollectAndStoreBuildDefinitionList(UPackage* Package, const ITargetPlatform* TargetPlatform,
 	IPackageWriter::FCommitAttachmentInfo& OutResult);
 
 template <typename ArrayType>
-void CollectAndStoreCookAttachments(UPackage* Package, const ITargetPlatform* TargetPlatform,
-	FSavePackageResultStruct* SaveResult, TArray<FName>&& RuntimeDependencies, ArrayType& Output)
+void CollectAndStoreCookAttachments(UPackage* Package,
+	const ITargetPlatform* TargetPlatform, FSavePackageResultStruct* SaveResult,
+	const FGeneratedPackageResultStruct* GeneratedResult, TArray<FName>&& RuntimeDependencies,
+	ArrayType& Output)
 {
 	IPackageWriter::FCommitAttachmentInfo Result;
-	if (TryCollectAndStoreCookDependencies(Package, TargetPlatform, SaveResult, MoveTemp(RuntimeDependencies), Result))
+	if (TryCollectAndStoreCookDependencies(Package, TargetPlatform, SaveResult, GeneratedResult,
+		MoveTemp(RuntimeDependencies), Result))
 	{
 		Output.Add(MoveTemp(Result));
 	}
@@ -165,7 +181,8 @@ void CollectAndStoreCookAttachments(UPackage* Package, const ITargetPlatform* Ta
 }
 
 /** Return whether iterative cook is enabled for the given packagename, based on used-class allowlist/blocklist. */
-bool IsIterativeEnabled(FName PackageName, bool bAllowAllClasses);
+bool IsIterativeEnabled(FName PackageName, bool bAllowAllClasses,
+	const FAssetPackageData* OverrideAssetPackageData = nullptr);
 
 /** Store extra information derived during save and used by the cooker for the given EditorDomain package. */
 void CommitEditorDomainCookAttachments(FName PackageName, TArrayView<IPackageWriter::FCommitAttachmentInfo> Attachments);

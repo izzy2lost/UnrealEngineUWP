@@ -85,6 +85,7 @@ ESaveStorageResult SaveStorageResultFromString(FUtf8StringView Text);
  * Reads information from the AssetRegistry to compute the digest.
  */
 FPackageDigest CalculatePackageDigest(IAssetRegistry& AssetRegistry, FName PackageName);
+FPackageDigest CalculatePackageDigest(const FAssetPackageData& PackageData, FName PackageName);
 
 /** For any ClassNames not already in ClassDigests, look up their UStruct and add them. */
 void PrecacheClassDigests(TConstArrayView<FTopLevelAssetPath> ClassNames);

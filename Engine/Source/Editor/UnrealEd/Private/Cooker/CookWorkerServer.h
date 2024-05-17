@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "AssetRegistry/AssetData.h"
 #include "CompactBinaryTCP.h"
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
@@ -49,7 +50,7 @@ enum class ENotifyRemote
  */
 struct FAssignPackageExtraData
 {
-	TMap<FName, FIoHash> GeneratorPreviousGeneratedPackages;
+	TMap<FName, FAssetPackageData> GeneratorPreviousGeneratedPackages;
 };
 
 /** Class in a Director process that communicates over a Socket with FCookWorkerClient in a CookWorker process. */
@@ -253,7 +254,7 @@ struct FAssignPackageData
 	FName ParentGenerator;
 	FInstigator Instigator;
 	FDiscoveredPlatformSet NeedCookPlatforms;
-	TMap<FName, FIoHash> GeneratorPreviousGeneratedPackages;
+	TMap<FName, FAssetPackageData> GeneratorPreviousGeneratedPackages;
 	ICookPackageSplitter::EGeneratedRequiresGenerator DoesGeneratedRequireGenerator
 		= ICookPackageSplitter::EGeneratedRequiresGenerator::None;
 
@@ -402,6 +403,7 @@ struct FDiscoveredPackageReplication
 	FName PackageName;
 	FName NormalizedFileName;
 	FName ParentGenerator;
+	FIoHash GeneratedPackageHash;
 	FInstigator Instigator;
 	FDiscoveredPlatformSet Platforms;
 	ICookPackageSplitter::EGeneratedRequiresGenerator DoesGeneratedRequireGenerator =

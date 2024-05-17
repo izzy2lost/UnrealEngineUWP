@@ -2,6 +2,7 @@
 
 #include "CookWorkerClient.h"
 
+#include "AssetRegistry/AssetData.h"
 #include "Cooker/CompactBinaryTCP.h"
 #include "Cooker/CookDirector.h"
 #include "Cooker/CookGenerationHelper.h"
@@ -309,7 +310,7 @@ void FCookWorkerClient::ReportPackageMessage(FName PackageName, TUniquePtr<FPack
 }
 
 void FCookWorkerClient::ReportDiscoveredPackage(const FPackageData& PackageData, const FInstigator& Instigator,
-	FDiscoveredPlatformSet&& ReachablePlatforms)
+	FDiscoveredPlatformSet&& ReachablePlatforms, FGenerationHelper* ParentGenerationHelper)
 {
 	FDiscoveredPackageReplication& Discovered = PendingDiscoveredPackages.Emplace_GetRef();
 	Discovered.PackageName = PackageData.GetPackageName();
@@ -319,6 +320,13 @@ void FCookWorkerClient::ReportDiscoveredPackage(const FPackageData& PackageData,
 	Discovered.Platforms = MoveTemp(ReachablePlatforms);
 	Discovered.Platforms.ConvertToBitfield(OrderedSessionAndSpecialPlatforms);
 	Discovered.DoesGeneratedRequireGenerator = PackageData.DoesGeneratedRequireGenerator();
+	if (ParentGenerationHelper)
+	{
+		if (FCookGenerationInfo* Info = ParentGenerationHelper->FindInfo(PackageData))
+		{
+			Discovered.GeneratedPackageHash = Info->PackageHash;
+		}
+	}
 }
 
 void FCookWorkerClient::ReportGeneratorQueuedGeneratedPackages(FGenerationHelper& GenerationHelper)
@@ -338,7 +346,7 @@ void FCookWorkerClient::HandleGeneratorMessage(FGeneratorEventMessage&& Generato
 			switch (GeneratorMessage.Event)
 			{
 			case EGeneratorEvent::QueuedGeneratedPackagesFencePassed:
-				GenerationHelper->OnRequestFencePassed(COTFS);
+				GenerationHelper->OnQueuedGeneratedPackagesFencePassed(COTFS);
 				break;
 			case EGeneratorEvent::AllSavesCompleted:
 				GenerationHelper->OnAllSavesCompleted(COTFS);

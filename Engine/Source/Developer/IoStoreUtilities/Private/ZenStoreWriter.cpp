@@ -1102,7 +1102,16 @@ TUniquePtr<FAssetRegistryState> FZenStoreWriter::LoadPreviousAssetRegistry()
 	for (const TPair<FName, const FAssetPackageData*>& Pair : PreviousStatePackages)
 	{
 		FName PackageName = Pair.Key;
-		if (!PackageNameToIndex.Find(PackageName))
+		if (Pair.Value->DiskSize < 0)
+		{
+			// Keep the FailedSave previous cook packages; some of them (NeverCookPlaceholders) are not expected to exist
+			// in the package store
+			continue;
+		}
+		if (PackageNameToIndex.Find(PackageName))
+		{
+			continue;
+		}
 		{
 			RemoveSet.Add(PackageName);
 		}

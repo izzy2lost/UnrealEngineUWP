@@ -13,6 +13,7 @@
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/PackageAccessTrackingOps.h"
 #include "Misc/Parse.h"
+#include "TargetDomain/TargetDomainUtils.h"
 #include "UObject/ReferenceChainSearch.h"
 
 namespace UE::Cook
@@ -159,7 +160,14 @@ void FGenerationHelper::ModifyNumSaved(int32 Delta)
 	if (NumSaved == NumAllSaved)
 	{
 		UCookOnTheFlyServer& COTFS = GetOwner().GetPackageDatas().GetCookOnTheFlyServer();
-		if (!COTFS.CookWorkerClient)
+		// Only send OnAllSavesCompleted from director; clients have incomplete information and
+		// could send it spuriously.
+		// Additionally, only send it if we have completed queueing, to avoid sending it prematurely.
+		// ModifyNumSaved(1 == 1) will occur when the generator package is iteratively skipped,
+		// and ModifyNumSaved(k == k, k < expectednumber) can occur if we save some generated packages
+		// (or mark them iteratively skippable) before getting the full list of packages from the worker
+		// that called QueueGeneratedPackages.
+		if (!COTFS.CookWorkerClient && bHasFinishedQueueGeneratedPackages)
 		{
 			if (COTFS.CookDirector)
 			{
@@ -660,6 +668,14 @@ bool FGenerationHelper::TryGenerateList()
 					(int32)Iter->Category, *this->GetSplitDataObjectName().ToString(), *PackageName);
 				Iter.RemoveCurrent();
 			}
+			TStringBuilder<256> DependencyPackageName(InPlace, Iter->AssetId.PackageName);
+			if (ICookPackageSplitter::IsUnderGeneratedPackageSubPath(DependencyPackageName))
+			{
+				UE_LOG(LogCook, Error,
+					TEXT("PackageSplitter specified a dependency for one generated package on another generated package. Only dependencies on non-generated packages are allowed. Dependency will be ignored. Splitter=%s, Generated=%s, Dependency=%s."),
+					*this->GetSplitDataObjectName().ToString(), *PackageName, *DependencyPackageName);
+				Iter.RemoveCurrent();
+			}
 		}
 		Algo::Sort(GeneratedInfo->PackageDependencies,
 			[](const FAssetDependency& A, const FAssetDependency& B) { return A.LexicalLess(B); });
@@ -848,7 +864,12 @@ void FGenerationHelper::StartQueueGeneratedPackages(UCookOnTheFlyServer& COTFS)
 	bool bHybridIterativeEnabled = COTFS.bHybridIterativeEnabled;
 	if (!PreviousGeneratedPackages.IsEmpty())
 	{
-		TMap<FName, FIoHash> RemainingPreviousPackages = PreviousGeneratedPackages;
+		TSet<FName> RemainingPreviousPackages;
+		RemainingPreviousPackages.Reserve(PreviousGeneratedPackages.Num());
+		for (const TPair<FName, FAssetPackageData>& Pair : PreviousGeneratedPackages)
+		{
+			RemainingPreviousPackages.Add(Pair.Key);
+		}
 
 		FPackageData& OwnerPackageData = GetOwner();
 		TArray<const ITargetPlatform*, TInlineAllocator<1>> PlatformsToCook;
@@ -861,23 +882,34 @@ void FGenerationHelper::StartQueueGeneratedPackages(UCookOnTheFlyServer& COTFS)
 
 		for (FCookGenerationInfo& GeneratedInfo : PackagesToGenerate)
 		{
-			FIoHash PreviousHash;
-			if (RemainingPreviousPackages.RemoveAndCopyValue(GeneratedInfo.PackageData->GetPackageName(), PreviousHash)
-				&& !bHybridIterativeEnabled)
+			FName GeneratedPackageName = GeneratedInfo.PackageData->GetPackageName();
+			FAssetPackageData* PreviousAssetData = PreviousGeneratedPackages.Find(GeneratedPackageName);
+			RemainingPreviousPackages.Remove(GeneratedPackageName);
+			if (PreviousAssetData)
 			{
-				bool bIterativelyUnmodified;
-				GeneratedInfo.IterativeCookValidateOrClear(*this, PlatformsToCook, PreviousHash, bIterativelyUnmodified);
-				++(bIterativelyUnmodified ? NumIterativeUnmodified : NumIterativeModified);
+				if (!bHybridIterativeEnabled)
+				{
+					bool bIterativelyUnmodified;
+					GeneratedInfo.IterativeCookValidateOrClear(*this, PlatformsToCook, PreviousAssetData->GetPackageSavedHash(),
+						bIterativelyUnmodified);
+					++(bIterativelyUnmodified ? NumIterativeUnmodified : NumIterativeModified);
+				}
+				else
+				{
+					// Copy the current value for the package's hash into the PreviousPackageData, for use by incremental cook's
+					// calculation in FRequestCluster::TryCalculateIterativelyUnmodified
+					PreviousAssetData->SetPackageSavedHash(GeneratedInfo.PackageHash);
+				}
 			}
 		}
 		if (!RemainingPreviousPackages.IsEmpty())
 		{
 			NumIterativeRemoved = RemainingPreviousPackages.Num();
-			for (TPair<FName, FIoHash>& Pair : RemainingPreviousPackages)
+			for (FName PreviousPackageName : RemainingPreviousPackages)
 			{
 				for (const ITargetPlatform* TargetPlatform : PlatformsToCook)
 				{
-					COTFS.DeleteOutputForPackage(Pair.Key, TargetPlatform);
+					COTFS.DeleteOutputForPackage(PreviousPackageName, TargetPlatform);
 				}
 			}
 		}
@@ -900,7 +932,6 @@ void FGenerationHelper::NotifyStartQueueGeneratedPackages(UCookOnTheFlyServer& C
 	// and lose the information from SavedOnWorker or TryGenerateList.
 	if (!COTFS.CookWorkerClient)
 	{
-		COTFS.PackageDatas->GetRequestQueue().AddRequestFenceListener(GetOwner().GetPackageName());
 		GetOwnerInfo().SavedOnWorker = SourceWorkerId;
 		SetKeepForCompletedAllSavesMessage();
 	}
@@ -909,6 +940,7 @@ void FGenerationHelper::NotifyStartQueueGeneratedPackages(UCookOnTheFlyServer& C
 
 void FGenerationHelper::EndQueueGeneratedPackages(UCookOnTheFlyServer& COTFS)
 {
+	bHasFinishedQueueGeneratedPackages = true;
 	SetKeepForQueueResults();
 	COTFS.WorkerRequests->EndQueueGeneratedPackages(COTFS, *this);
 }
@@ -917,6 +949,14 @@ void FGenerationHelper::EndQueueGeneratedPackagesOnDirector(UCookOnTheFlyServer&
 {
 	// Note this function can be called on an uninitialized Generator; the generator is only needed
 	// on the director so it can serve as the passer of messages.
+	bHasFinishedQueueGeneratedPackages = true;
+	// When we queued locally, this function is called after QueueDiscoveredPackage was called for each package.
+	// When we queued on a remote CookWorker, the replication system from cookworker guarantees that all discovered
+	// packages have been reported via TrackGeneratedPackageListedRemotely before we receive this function call
+	// via the EGeneratorEvent::QueuedGeneratedPackages message (the package discovery messages are replicated
+	// before the EGeneratorEvent). We therefore know that all generated packages have already been requested
+	// or are in the discovery queue, so we can add a request fence listener now and know that when it is called
+	// all generated packages have been queued and assigned.
 	COTFS.PackageDatas->GetRequestQueue().AddRequestFenceListener(GetOwner().GetPackageName());
 	SetKeepForQueueResults();
 
@@ -934,23 +974,46 @@ void FGenerationHelper::EndQueueGeneratedPackagesOnDirector(UCookOnTheFlyServer&
 	}
 }
 
-void FGenerationHelper::OnRequestFencePassedBroadcast(UCookOnTheFlyServer& COTFS)
-{
-	if (COTFS.CookDirector)
-	{
-		FName PackageName = GetOwner().GetPackageName();
-		FGeneratorEventMessage Message(EGeneratorEvent::QueuedGeneratedPackagesFencePassed, PackageName);
-		COTFS.CookDirector->BroadcastGeneratorMessage(MoveTemp(Message));
-	}
-	OnRequestFencePassed(COTFS);
-}
-
 void FGenerationHelper::OnRequestFencePassed(UCookOnTheFlyServer& COTFS)
 {
+	// This function should only be called in response to a subscription that is sent from the cook director
+	check(!COTFS.CookWorkerClient);
+
+	if (OwnerInfo.IsIterativelySkipped())
+	{
+		// PumpRequests has completed and we marked ourselves and all generated packages as iteratively skipped,
+		// so we no longer need the PreviouslyCookedData or this entire GenerationHelper
+		ClearKeepForIterative();
+		PreviousGeneratedPackages.Empty();
+	}
+
+	if (bHasFinishedQueueGeneratedPackages)
+	{
+		// We have finished EndQueueGeneratedPackagesOnDirector, so all generated packages have been requested
+		// and assigned to local ReadyRequests or to a CookWorker. Send OnQueuedGeneratedPackagesFencePassed
+		// to ourselves and all cookworkers.
+
+		// Call ModifyNumSaved to check for whether all packages have already been saved by the time we reach
+		// the request fence. This can happen in iterative cooks, or in race conditions if we sent all packages
+		// out for saving before receiving the EndQueueGeneratedPackagesOnDirector message.
+		ModifyNumSaved(0);
+
+		if (COTFS.CookDirector)
+		{
+			FName PackageName = GetOwner().GetPackageName();
+			FGeneratorEventMessage Message(EGeneratorEvent::QueuedGeneratedPackagesFencePassed, PackageName);
+			COTFS.CookDirector->BroadcastGeneratorMessage(MoveTemp(Message));
+		}
+		OnQueuedGeneratedPackagesFencePassed(COTFS);
+	}
+}
+
+void FGenerationHelper::OnQueuedGeneratedPackagesFencePassed(UCookOnTheFlyServer& COTFS)
+{
 	ClearKeepForQueueResults();
-	// We no longer need PreviousGeneratedPackages or KeepForIterative, because they are used (and cleared) in
-	// StartQueueGeneratedPackages. Clear them as well on the director and any CookWorkers that received it to
-	// free memory.
+	// We no longer need PreviousGeneratedPackages or KeepForIterative, because they are used only in 
+	// StartQueueGeneratedPackages or the request cluster that they end up in in PumpRequests, both of which
+	// are now finished. Clear them on the director and any CookWorkers that received them to free memory.
 	ClearKeepForIterative();
 	PreviousGeneratedPackages.Empty();
 }
@@ -1040,8 +1103,7 @@ void FGenerationHelper::FinishGeneratorPlatformSave(FPackageData& PackageData, b
 }
 
 void FGenerationHelper::FinishGeneratedPlatformSave(FPackageData& PackageData,
-	TArray<FAssetDependency>& OutPackageDependencies,
-	FAssetPackageData& OutAssetPackageData)
+	UE::TargetDomain::FGeneratedPackageResultStruct& OutGeneratedResult)
 {
 	ConditionalInitialize();
 
@@ -1056,7 +1118,7 @@ void FGenerationHelper::FinishGeneratedPlatformSave(FPackageData& PackageData,
 
 	// There should be no package dependencies present for the package from the global assetregistry
 	// because it is newly created. Add on the dependencies declared for it from the CookPackageSplitter.
-	OutPackageDependencies = Info->PackageDependencies;
+	OutGeneratedResult.PackageDependencies = Info->PackageDependencies;
 
 	// Update the AssetPackageData for each requested platform with Guid and ImportedClasses
 	TSet<UClass*> PackageClasses;
@@ -1081,8 +1143,23 @@ void FGenerationHelper::FinishGeneratedPlatformSave(FPackageData& PackageData,
 	}
 	ImportedClasses.Sort(FNameLexicalLess());
 
-	OutAssetPackageData.SetPackageSavedHash(Info->PackageHash);
-	OutAssetPackageData.ImportedClasses = MoveTemp(ImportedClasses);
+	OutGeneratedResult.AssetPackageData.FileVersionUE = GPackageFileUEVersion;
+	OutGeneratedResult.AssetPackageData.FileVersionLicenseeUE = GPackageFileLicenseeUEVersion;
+	OutGeneratedResult.AssetPackageData.SetIsLicenseeVersion(FEngineVersion::Current().IsLicenseeVersion());
+	OutGeneratedResult.AssetPackageData.Extension = FPackagePath::ParseExtension(
+		WriteToString<256>(PackageData.GetFileName()));
+	OutGeneratedResult.AssetPackageData.SetPackageSavedHash(Info->PackageHash);
+	OutGeneratedResult.AssetPackageData.ImportedClasses = MoveTemp(ImportedClasses);
+}
+
+const FAssetPackageData* FGenerationHelper::GetIncrementalCookAssetPackageData(FPackageData& PackageData)
+{
+	return PreviousGeneratedPackages.Find(PackageData.GetPackageName());
+}
+
+const FAssetPackageData* FGenerationHelper::GetIncrementalCookAssetPackageData(FName PackageName)
+{
+	return PreviousGeneratedPackages.Find(PackageName);
 }
 
 void FGenerationHelper::ResetSaveState(FCookGenerationInfo& Info, UPackage* Package,
@@ -1233,7 +1310,7 @@ void FGenerationHelper::FetchExternalActorDependencies()
 	ExternalActorDependencies.Shrink();
 }
 
-void FGenerationHelper::SetPreviousGeneratedPackages(TMap<FName, FIoHash>&& Packages)
+void FGenerationHelper::SetPreviousGeneratedPackages(TMap<FName, FAssetPackageData>&& Packages)
 {
 	SetKeepForIterative();
 	PreviousGeneratedPackages = MoveTemp(Packages);
@@ -1394,7 +1471,8 @@ void FGenerationHelper::PostGarbageCollectGCLifetimeData()
 	}
 }
 
-void FGenerationHelper::TrackGeneratedPackageListedRemotely(UCookOnTheFlyServer& COTFS, FPackageData& PackageData)
+void FGenerationHelper::TrackGeneratedPackageListedRemotely(UCookOnTheFlyServer& COTFS, FPackageData& PackageData,
+	const FIoHash& CurrentPackageHash)
 {
 	if (bGeneratedList)
 	{
@@ -1414,6 +1492,13 @@ void FGenerationHelper::TrackGeneratedPackageListedRemotely(UCookOnTheFlyServer&
 			PackagesToGenerate.Emplace(PackageData, bGenerator);
 		}
 	}
+	FAssetPackageData* PreviousAssetData = PreviousGeneratedPackages.Find(PackageData.GetPackageName());
+	if (PreviousAssetData)
+	{
+		// Copy the current value for the package's hash into the PreviousPackageData, for use by incremental cook's
+		// calculation in FRequestCluster::TryCalculateIterativelyUnmodified
+		PreviousAssetData->SetPackageSavedHash(CurrentPackageHash);
+	}
 }
 
 void FGenerationHelper::MarkPackageSavedRemotely(UCookOnTheFlyServer& COTFS, FPackageData& PackageData,
@@ -1423,6 +1508,24 @@ void FGenerationHelper::MarkPackageSavedRemotely(UCookOnTheFlyServer& COTFS, FPa
 	if (Info)
 	{
 		Info->SetHasSaved(*this, true, SourceWorkerId);
+	}
+}
+
+void FGenerationHelper::MarkPackageIterativelySkipped(FPackageData& PackageData)
+{
+	FCookGenerationInfo* Info = FindInfoNoInitialize(PackageData);
+	if (Info)
+	{
+		Info->SetHasSaved(*this, true, FWorkerId::Local());
+		Info->SetIterativelySkipped(true);
+	}
+
+	if (&PackageData == &GetOwner())
+	{
+		// The entire generator package has been skipped. Wait for the current cluster to complete
+		// so we can mark all of our generated packages as skipped, but then clear the iterative data;
+		// it will no longer be needed.
+		GetOwner().GetPackageDatas().GetRequestQueue().AddRequestFenceListener(GetOwner().GetPackageName());
 	}
 }
 
@@ -1639,6 +1742,7 @@ FCookGenerationInfo::FCookGenerationInfo(FPackageData& InPackageData, bool bInGe
 	, GeneratorSaveState(bInGenerator ? ESaveState::StartSave : ESaveState::StartPopulate)
 	, bCreateAsMap(false), bHasCreatedPackage(false), bHasSaved(false), bTakenOverCachedCookedPlatformData(false)
 	, bIssuedUndeclaredMovedObjectsWarning(false), bGenerator(bInGenerator), bHasCalledPopulate(false)
+	, bIterativelySkipped(false)
 {
 }
 
@@ -1666,6 +1770,7 @@ void FCookGenerationInfo::Uninitialize()
 	bIssuedUndeclaredMovedObjectsWarning = false;
 	// Keep bGenerator; it is allowed in the uninitialized state
 	bHasCalledPopulate = false;
+	// Keep bIterativelySkipped; it is allowed in the uninitialized state
 }
 
 void FCookGenerationInfo::SetSaveStateComplete(ESaveState CompletedState)

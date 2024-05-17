@@ -2,7 +2,10 @@
 
 #include "Cooker/IterativeValidatePackageWriter.h"
 
+#include "Cooker/CookGenerationHelper.h"
+#include "Cooker/CookPackageData.h"
 #include "CookOnTheSide/CookLog.h"
+#include "CookOnTheSide/CookOnTheFlyServer.h"
 #include "HAL/FileManager.h"
 #include "Logging/LogMacros.h"
 #include "Misc/CommandLine.h"
@@ -16,10 +19,11 @@ DEFINE_LOG_CATEGORY_STATIC(LogIterativeValidate, Log, All);
 
 constexpr FStringView IterativeValidateFilename(TEXTVIEW("IterativeValidate.bin"));
 
-FIterativeValidatePackageWriter::FIterativeValidatePackageWriter(TUniquePtr<ICookedPackageWriter>&& InInner,
-	EPhase InPhase, const FString& ResolvedMetadataPath)
+FIterativeValidatePackageWriter::FIterativeValidatePackageWriter(UCookOnTheFlyServer& InCOTFS,
+	TUniquePtr<ICookedPackageWriter>&& InInner, EPhase InPhase, const FString& ResolvedMetadataPath)
 	: FDiffPackageWriter(MoveTemp(InInner))
 	, MetadataPath(ResolvedMetadataPath)
+	, COTFS(InCOTFS)
 	, Phase(InPhase)
 {
 	Indent = FCString::Spc(FOutputDeviceHelper::FormatLogLine(ELogVerbosity::Warning,
@@ -58,16 +62,19 @@ void FIterativeValidatePackageWriter::BeginPackage(const FBeginPackageInfo& Info
 		Super::BeginPackage(Info);
 		break;
 	case EPhase::Phase2:
-		if (IterativeFailed.Contains(Info.PackageName))
+		if (IterativeValidated.Contains(Info.PackageName))
+		{
+			// Already saved in Phase 1; no need to diff it or save it now
+			SaveAction = ESaveAction::IgnoreResults;
+		}
+		else if (IterativeFailed.Contains(Info.PackageName))
 		{
 			SaveAction = ESaveAction::CheckForDiffs;
 			Super::BeginPackage(Info);
 		}
 		else
 		{
-			// This is not an IterativeValidated package (because we don't save those; UpdatePackageModificationStatus
-			// prevents saving it). And it is not an IterativeFailed package (checked above), so it is an
-			// IterativeModified package. It was found during Phase1 to be modified and would in a
+			// This is an IterativeModified package. It was found during Phase1 to be modified and would in a
 			// normal iterative cook be resaved rather than iteratively skipped. Resave it as normal.
 			SaveAction = ESaveAction::SaveToInner;
 			Inner->BeginPackage(Info);
@@ -291,10 +298,28 @@ void FIterativeValidatePackageWriter::Initialize(const FCookInfo& CookInfo)
 void FIterativeValidatePackageWriter::UpdatePackageModificationStatus(FName PackageName, bool bIterativelyUnmodified,
 	bool& bInOutShouldIterativelySkip)
 {
+	// We need to not skip previously cooked generator packages, if they were modified and we're read only we still
+	// need to cook them so we can investigate their generated packages. Look up whether they were a generator in
+	// the previous cook results.
+	bool bKnownGenerator = false;
+	if (bIterativelyUnmodified)
+	{
+		// GenerationHelpers were created for previously cooked generators by UCOTFS::PopulateCookedPackages.
+		UE::Cook::FPackageData* PackageData = COTFS.PackageDatas->FindPackageDataByPackageName(PackageName);
+		if (PackageData)
+		{
+			TRefCountPtr<UE::Cook::FGenerationHelper> GenerationHelper = PackageData->GetGenerationHelper();
+			if (GenerationHelper)
+			{
+				bKnownGenerator = true;
+			}
+		}
+	}
+
 	switch (Phase)
 	{
-	case EPhase::AllInOnePhase:
-		// Save the input value for bIterativelyUnmodified, and report skippable if and only if !unmodified and we're readonly.
+	case EPhase::AllInOnePhase:		
+		// Save the input value for bIterativelyUnmodified, and report skippable for the modified if possible
 		if (bIterativelyUnmodified)
 		{
 			IterativelyUnmodified.Add(PackageName);
@@ -302,7 +327,7 @@ void FIterativeValidatePackageWriter::UpdatePackageModificationStatus(FName Pack
 		}
 		else
 		{
-			if (bReadOnly)
+			if (!bKnownGenerator && bReadOnly)
 			{
 				bInOutShouldIterativelySkip = true;
 				++ModifiedCount; // Only increment here if we're skipping it. Otherwise it is incremented in BeginPackage
@@ -310,17 +335,21 @@ void FIterativeValidatePackageWriter::UpdatePackageModificationStatus(FName Pack
 		}
 		break;
 	case EPhase::Phase1:
-		// Invert what gets skipped: save the iteratively skipped files to record their diffs, but skip the regular files
-		bInOutShouldIterativelySkip = !bIterativelyUnmodified;
+		// Save the iteratively unmodified packages to verify their diffs. Skip the non-generator iteratively
+		// modified packages. Do not skip generator packages; we need to save them to test their generated packages.
+		bInOutShouldIterativelySkip = !bIterativelyUnmodified && !bKnownGenerator;
 		if (!bIterativelyUnmodified)
 		{
 			++ModifiedCount;
 		}
 		break;
 	case EPhase::Phase2:
-		// Ignore the Unmodified flag from this cook phase. Skip only the packages that were found to 
-		// be IterativeValidated from Phase1.
-		bInOutShouldIterativelySkip = IterativeValidated.Contains(PackageName);
+		// Ignore the Unmodified flag from this cook phase. Skip the packages that were found to 
+		// be IterativeValidated from Phase1. Save the packages that phase1 found modified; this phase
+		// is responsible for getting those resaved. Reexecute save for the packages that were IterativeFailed
+		// from phase1, so we can test whether they are indeterministic. Always save generators so we can
+		// test their generated packages.
+		bInOutShouldIterativelySkip = IterativeValidated.Contains(PackageName) && !bKnownGenerator;
 		break;
 	default:
 		checkNoEntry();

@@ -326,12 +326,16 @@ void FKnownCustomVersions::FindGuidsChecked(TArray<FGuid>& OutGuids, TConstArray
 FPackageDigest CalculatePackageDigest(IAssetRegistry& AssetRegistry, FName PackageName)
 {
 	AssetRegistry.WaitForPackage(PackageName.ToString());
-	TOptional<FAssetPackageData> PackageDataOptional = AssetRegistry.GetAssetPackageDataCopy(PackageName);
-	if (!PackageDataOptional)
+	TOptional<FAssetPackageData> PackageData = AssetRegistry.GetAssetPackageDataCopy(PackageName);
+	if (!PackageData)
 	{
 		return FPackageDigest(FPackageDigest::EStatus::DoesNotExistInAssetRegistry);
 	}
-	FAssetPackageData& PackageData = *PackageDataOptional;
+	return CalculatePackageDigest(*PackageData, PackageName);
+}
+
+FPackageDigest CalculatePackageDigest(const FAssetPackageData& PackageData, FName PackageName)
+{
 	FPackageDigest Result;
 	Result.DomainUse = EDomainUse::LoadEnabled | EDomainUse::SaveEnabled;;
 	EnumSetFlagsAnd(Result.DomainUse, EDomainUse::LoadEnabled | EDomainUse::SaveEnabled,
@@ -1917,7 +1921,8 @@ bool TrySavePackage(UPackage* Package)
 	if (bStorageResultValid)
 	{
 		TArray<IPackageWriter::FCommitAttachmentInfo, TInlineAllocator<2>> Attachments;
-		UE::TargetDomain::CollectAndStoreCookAttachments(Package, nullptr, nullptr, TArray<FName>(), Attachments);
+		UE::TargetDomain::CollectAndStoreCookAttachments(Package, nullptr, nullptr, nullptr, TArray<FName>(),
+			Attachments);
 		if (!Attachments.IsEmpty())
 		{
 			UE::TargetDomain::CommitEditorDomainCookAttachments(Package->GetFName(), Attachments);

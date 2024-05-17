@@ -4,6 +4,8 @@
 
 #include "DiffPackageWriter.h"
 
+class UCookOnTheFlyServer;
+
 /**
  * A CookedPackageWriter that diffs the cook results of iteratively-unmodified packages between their last cook
  * results and the current cook.
@@ -18,8 +20,8 @@ public:
 		Phase1,
 		Phase2,
 	};
-	FIterativeValidatePackageWriter(TUniquePtr<ICookedPackageWriter>&& InInner, EPhase InPhase,
-		const FString& ResolvedMetadataPath);
+	FIterativeValidatePackageWriter(UCookOnTheFlyServer& InCOTFS, TUniquePtr<ICookedPackageWriter>&& InInner,
+		EPhase InPhase, const FString& ResolvedMetadataPath);
 
 	// IPackageWriter
 	virtual void BeginPackage(const FBeginPackageInfo& Info) override;
@@ -98,6 +100,7 @@ protected:
 	TSet<FName> IterativelyUnmodified;
 
 	FString MetadataPath;
+	UCookOnTheFlyServer& COTFS;
 	int32 ModifiedCount = 0;
 	EPhase Phase = EPhase::AllInOnePhase;
 	ESaveAction SaveAction = ESaveAction::IgnoreResults;

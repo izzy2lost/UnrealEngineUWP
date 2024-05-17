@@ -703,7 +703,7 @@ void FCookWorkerServer::SendPendingPackages()
 		FAssignPackageExtraData* ExtraData = PackagesToAssignExtraDatas.Find(PackageData);
 		if (ExtraData)
 		{
-			AssignData.GeneratorPreviousGeneratedPackages = ExtraData->GeneratorPreviousGeneratedPackages;
+			AssignData.GeneratorPreviousGeneratedPackages = MoveTemp(ExtraData->GeneratorPreviousGeneratedPackages);
 		}
 	}
 	for (FPackageData* PackageData : PackagesToAssignInfoPackages)
@@ -1075,7 +1075,7 @@ void FCookWorkerServer::QueueDiscoveredPackage(FDiscoveredPackageReplication&& D
 			TRefCountPtr<FGenerationHelper> GenerationHelper =
 				GeneratorPackageData->CreateUninitializedGenerationHelper();
 			GenerationHelper->NotifyStartQueueGeneratedPackages(COTFS, WorkerId);
-			GenerationHelper->TrackGeneratedPackageListedRemotely(COTFS, PackageData);
+			GenerationHelper->TrackGeneratedPackageListedRemotely(COTFS, PackageData, DiscoveredPackage.GeneratedPackageHash);
 		}
 	}
 
@@ -1216,7 +1216,17 @@ void FAssignPackageData::Write(FCbWriter& Writer,
 	Writer << ParentGenerator;
 	Writer << Instigator;
 	WriteToCompactBinary(Writer, NeedCookPlatforms, OrderedSessionPlatforms);
-	Writer << GeneratorPreviousGeneratedPackages;
+	{
+		Writer.BeginArray();
+		for (const TPair<FName, FAssetPackageData>& Pair : GeneratorPreviousGeneratedPackages)
+		{
+			Writer.BeginArray();
+			Writer << Pair.Key;
+			Pair.Value.NetworkWrite(Writer);
+			Writer.EndArray();
+		}
+		Writer.EndArray();
+	}
 	static_assert(sizeof(ICookPackageSplitter::EGeneratedRequiresGenerator) <= sizeof(uint8), "We are storing it in a uint8");
 	Writer << static_cast<uint8>(DoesGeneratedRequireGenerator);
 	Writer.EndArray();
@@ -1230,7 +1240,37 @@ bool FAssignPackageData::TryRead(FCbFieldView Field, TConstArrayView<const ITarg
 	bOk = LoadFromCompactBinary(*It++, ParentGenerator) & bOk;
 	bOk = LoadFromCompactBinary(*It++, Instigator) & bOk;
 	bOk = LoadFromCompactBinary(*It++, NeedCookPlatforms, OrderedSessionPlatforms) & bOk;
-	bOk = LoadFromCompactBinary(*It++, GeneratorPreviousGeneratedPackages) & bOk;
+	{
+		FCbFieldView ArrayFieldView = *It++;
+		bool bGeneratorPreviousGeneratedPackagesOk = false;
+		const uint64 Length = ArrayFieldView.AsArrayView().Num();
+		if (Length <= MAX_int32)
+		{
+			GeneratorPreviousGeneratedPackages.Empty((int32)Length);
+			bGeneratorPreviousGeneratedPackagesOk = !ArrayFieldView.HasError();
+			for (const FCbFieldView& ElementField : ArrayFieldView)
+			{
+				FCbFieldViewIterator PairIt = ElementField.CreateViewIterator();
+				bool bElementOk = false;
+				FName Key;
+				FAssetPackageData Value;
+				if (LoadFromCompactBinary(*PairIt++, Key))
+				{
+					if (Value.TryNetworkRead(*PairIt++))
+					{
+						GeneratorPreviousGeneratedPackages.Add(Key, MoveTemp(Value));
+						bElementOk = true;
+					}
+				}
+				bGeneratorPreviousGeneratedPackagesOk &= bElementOk;
+			}
+		}
+		else
+		{
+			GeneratorPreviousGeneratedPackages.Empty();
+		}
+		bOk &= bGeneratorPreviousGeneratedPackagesOk;
+	}
 	uint8 DoesGeneratedRequireGeneratorInt = It->AsUInt8();
 	if (!(It++)->HasError() && DoesGeneratedRequireGeneratorInt
 		< static_cast<uint8>(ICookPackageSplitter::EGeneratedRequiresGenerator::Count))
@@ -1421,6 +1461,12 @@ void FDiscoveredPackageReplication::Write(FCbWriter& Writer,
 	Writer << static_cast<uint8>(Instigator.Category);
 	Writer << Instigator.Referencer;
 	Writer << static_cast<uint8>(DoesGeneratedRequireGenerator);
+	bool bGeneratedPackageHash = !GeneratedPackageHash.IsZero();
+	Writer << bGeneratedPackageHash;
+	if (bGeneratedPackageHash)
+	{
+		Writer << GeneratedPackageHash;
+	}
 	static_assert(sizeof(ICookPackageSplitter::EGeneratedRequiresGenerator) <= sizeof(uint8), "We are storing it in a uint8");
 	WriteToCompactBinary(Writer, Platforms, OrderedSessionAndSpecialPlatforms);
 	Writer.EndArray();
@@ -1461,6 +1507,16 @@ bool FDiscoveredPackageReplication::TryRead(FCbFieldView Field,
 	else
 	{
 		bOk = false;
+	}
+	bool bGeneratedPackageHash = false;
+	bOk = LoadFromCompactBinary(Iter++, bGeneratedPackageHash) & bOk;
+	if (bGeneratedPackageHash)
+	{
+		bOk = LoadFromCompactBinary(Iter++, GeneratedPackageHash) & bOk;
+	}
+	else
+	{
+		GeneratedPackageHash = FIoHash::Zero;
 	}
 	bOk = LoadFromCompactBinary(Iter++, Platforms, OrderedSessionAndSpecialPlatforms) & bOk;
 	if (!bOk)

@@ -1028,6 +1028,13 @@ void FAssetPackageData::NetworkWrite(FCbWriter& Writer) const
 	{
 		Writer << CookedHash;
 	}
+	FIoHash PackageSavedHash = GetPackageSavedHash();
+	bool bPackageSavedHash = !PackageSavedHash.IsZero();
+	Writer << bPackageSavedHash;
+	if (bPackageSavedHash)
+	{
+		Writer << PackageSavedHash;
+	}
 	Writer << ChunkHashes.Array();
 	Writer << ImportedClasses;
 	Writer << DiskSize;
@@ -1054,6 +1061,14 @@ bool FAssetPackageData::TryNetworkRead(FCbFieldView Field)
 	{
 		CookedHash = FMD5Hash();
 	}
+	bool bPackageSavedHash = false;
+	FIoHash PackageSavedHash;
+	bOk = LoadFromCompactBinary(*Iter++, bPackageSavedHash) & bOk;
+	if (bPackageSavedHash)
+	{
+		bOk = LoadFromCompactBinary(*Iter++, PackageSavedHash) & bOk;
+	}
+	SetPackageSavedHash(PackageSavedHash);
 	TArray<TPair<FIoChunkId, FIoHash>> ChunkHashesArray;
 	if (LoadFromCompactBinary(*Iter++, ChunkHashesArray))
 	{
