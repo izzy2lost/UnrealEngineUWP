@@ -668,9 +668,9 @@ namespace EpicGames.Core
 		ReachabilityFlag1 = 1 << 1,
 
 		/// <summary>
-		/// Flag set on all non-root objects at the beginning of Reachability Analysis
+		/// One of the flags used by Garbage Collector to determine UObject's reachability state
 		/// </summary>
-		MaybeUnreachable = 1 << 19,
+		ReachabilityFlag2 = 1 << 2,
 
 		/// <summary>
 		/// Object is ready to be imported by another package during loading
@@ -730,7 +730,7 @@ namespace EpicGames.Core
 		GarbageCollectionKeepFlags = Native | Async | AsyncLoading | LoaderImport | RefCounted,
 
 		//~ Make sure this is up to date!
-		AllFlags = ReachabilityFlag0 | ReachabilityFlag1 | MaybeUnreachable | LoaderImport | Garbage | ReachableInCluster | ClusterRoot | Native | Async | AsyncLoading | Unreachable | RootSet | PendingConstruction | RefCounted
+		AllFlags = ReachabilityFlag0 | ReachabilityFlag1 | ReachabilityFlag2 | LoaderImport | Garbage | ReachableInCluster | ClusterRoot | Native | Async | AsyncLoading | Unreachable | RootSet | PendingConstruction | RefCounted
 	};
 
 	/// <summary>
