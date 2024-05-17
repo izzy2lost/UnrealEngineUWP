@@ -262,7 +262,7 @@ TSharedRef<ObjectType> MakeSharedUnreal(ArgTypes&&... Args)
 // See comment on UnrealUSDWrapper.Build.cs to understand why we disable these for monolithic builds (everything will still work,
 // they're just unnecessary)
 // clang-format off
-#if !FORCE_ANSI_ALLOCATOR && !IS_MONOLITHIC
+#if !FORCE_ANSI_ALLOCATOR && !IS_MONOLITHIC && !USD_MERGED_MODULES
 	#define REPLACEMENT_OPERATOR_NEW_AND_DELETE_USD \
 		OPERATOR_NEW_MSVC_PRAGMA void* operator new  ( size_t Size                        ) OPERATOR_NEW_THROW_SPEC      { return FUsdMemoryManager::Malloc( Size ); } \
 		OPERATOR_NEW_MSVC_PRAGMA void* operator new[]( size_t Size                        ) OPERATOR_NEW_THROW_SPEC      { return FUsdMemoryManager::Malloc( Size ); } \
@@ -280,7 +280,7 @@ TSharedRef<ObjectType> MakeSharedUnreal(ArgTypes&&... Args)
 	#define REPLACEMENT_OPERATOR_NEW_AND_DELETE_USD
 #endif
 
-#if !FORCE_ANSI_ALLOCATOR && !IS_MONOLITHIC
+#if !FORCE_ANSI_ALLOCATOR && !IS_MONOLITHIC && !USD_MERGED_MODULES
 	#define IMPLEMENT_MODULE_USD( ModuleImplClass, ModuleName ) \
 		\
 		/**/ \

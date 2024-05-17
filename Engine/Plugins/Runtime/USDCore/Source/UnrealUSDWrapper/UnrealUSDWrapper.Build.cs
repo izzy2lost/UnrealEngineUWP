@@ -169,7 +169,11 @@ namespace UnrealBuildTool.Rules
 				PublicDefinitions.Add("USD_USES_SYSTEM_MALLOC=0");
 			}
 
-			PrivateDefinitions.Add("SUPPRESS_PER_MODULE_INLINE_FILE"); // This module does not use core's standard operator new/delete overloads
+			PublicDefinitions.Add("USD_MERGED_MODULES=" + (Target.bMergeModules ? "1" : "0"));
+			if (!Target.bMergeModules)
+			{
+				PrivateDefinitions.Add("SUPPRESS_PER_MODULE_INLINE_FILE"); // This module does not use core's standard operator new/delete overloads
+			}
 		}
 
 		bool EnableUsdSdk(ReadOnlyTargetRules Target)
