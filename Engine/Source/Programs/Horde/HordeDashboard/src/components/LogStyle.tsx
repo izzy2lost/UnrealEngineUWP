@@ -57,8 +57,7 @@ export const getLogStyles = () => {
 
    const logStyleBase = _logStyleBase ?? mergeStyleSets({
       container: {
-         overflow: 'auto',
-         height: 'calc(100vh - 292px)',
+         overflow: 'auto',         
          marginTop: 8,
       },
       logLine: [

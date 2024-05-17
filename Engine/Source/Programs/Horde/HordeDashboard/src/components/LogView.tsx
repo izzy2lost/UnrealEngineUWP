@@ -16,6 +16,7 @@ import { useWindowSize } from '../base/utilities/hooks';
 import { displayTimeZone, getElapsedString } from '../base/utilities/timeUtils';
 import { getHordeStyling } from '../styles/Styles';
 import { getHordeTheme } from '../styles/theme';
+import { AgentTelemetrySparkline } from "./agents/AgentTelemetrySparkline";
 import { JobArtifactsModal } from './artifacts/ArtifactsModal';
 import { Breadcrumbs } from './Breadcrumbs';
 import { ChangeContextMenu, ChangeContextMenuTarget } from './ChangeButton';
@@ -472,6 +473,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
    const [issueHistory, setIssueHistory] = useState(false);
    const [logHistory, setLogHistory] = useState(false);
    const [logArtifacts, setLogArtifacts] = useState("");
+   const [logTelemetry, setLogTelemetry] = useState(false);
    const [logError, setLogError] = useState("")
 
    let [historyAgentId, setHistoryAgentId] = useState<string | undefined>(undefined);
@@ -514,7 +516,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
 
       return () => {
          globalHandler = globalSearchState = undefined;
-         window.removeEventListener("keydown", handler);
+         window.removeEventListener("keydown", handler);         
       };
 
    }, []);
@@ -727,13 +729,24 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
          const eyeColor = modeColors.text + "44";
 
          return (
-            <Stack key={`key_log_line_${item.lineNumber}`} style={{ width: "max-content", height: handler.lineHeight }} onClick={() => {
-               const search = new URLSearchParams(window.location.search);
-               search.set("lineindex", (item.lineNumber - 1).toString());
-               const url = `${window.location.pathname}?` + search.toString();
+            <Stack key={`key_log_line_${item.lineNumber}`} style={{ width: "max-content", height: handler.lineHeight }}
+               onMouseEnter={(ev) => {
 
-               navigate(url, { replace: true })
-            }}>
+                  if (item.line?.time) {
+                     let time = item.line?.time;
+                     if (!time.endsWith("Z")) {
+                        time += "Z";
+                     }
+                     logSource?.agentTelemetry?.setCurrentTime(new Date(time));
+                  }
+               }}
+               onClick={() => {
+                  const search = new URLSearchParams(window.location.search);
+                  search.set("lineindex", (item.lineNumber - 1).toString());
+                  const url = `${window.location.pathname}?` + search.toString();
+
+                  navigate(url, { replace: true })
+               }}>
                <div style={{ position: "relative" }}>
                   <Stack className={styles.logLine} style={{ position: "relative" }} tokens={{ childrenGap: 8 }} horizontal disableShrink={true}>
                      <Stack styles={{ root: { color: "#c0c0c0", width: 80, textAlign: "right", userSelect: "none", fontSize: handler.fontSize } }}>{prefix + item.lineNumber}</Stack>
@@ -742,7 +755,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                         {(!item.issueId || !ev) && <Stack styles={{ root: { color: "#8a8a8a", width: tsWidth, whiteSpace: "nowrap", fontSize: handler.fontSize, userSelect: "none" } }}> {timestamp}</Stack>}
                         {!!item.issueId && !!ev && <IssueButton item={item} event={ev!} />}
                         <div className={styles.logLineOuter}> <Stack styles={{ root: { paddingLeft: 8, paddingRight: 8, position: "relative", verticalAlign: "center" } }}> {renderLine(navigate, item.line, item.lineNumber, handler.lineRenderStyle, searchState.search)}
-                           <Stack id={`callout_target_${item?.lineNumber}`} style={{ position: "absolute", cursor: "pointer", userSelect: "none", left: "-12px", top: "0px" }} onClick={() => {
+                           <Stack id={`callout_target_${item?.lineNumber}`} style={{ position: "absolute", cursor: "pointer", userSelect: "none", left: "-12px", top: "0px", zIndex: 100 }} onClick={() => {
                               handler.infoLine = item.lineNumber;
                               handler.externalUpdate();
                            }}><FontIcon id="infoview" style={{ fontSize: 14, color: eyeColor }} iconName="Eye" /></Stack>
@@ -1005,7 +1018,16 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
          onClick: () => setLogHistory(true)
       })
 
-
+      if (logSource.agentTelemetry) {
+         menuProps.items.push({
+            key: 'jobstep_agent_telemetry',
+            text: logTelemetry ? 'Hide Telemetry' : 'Show Telemetry',
+            onClick: () => {
+               logSource.agentTelemetry?.show(!logTelemetry);
+               setLogTelemetry(!logTelemetry)               
+            }
+         })
+      }
    }
 
    function updateError() {
@@ -1015,7 +1037,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
       let lineIdx = errors[handler.currentError].lineIndex;
       const search = new URLSearchParams(window.location.search);
       search.set("lineindex", (lineIdx).toString());
-      const url = `${window.location.pathname}?` + search.toString();               
+      const url = `${window.location.pathname}?` + search.toString();
       lineIdx -= 10;
       if (lineIdx < 0) {
          lineIdx = 0;
@@ -1059,10 +1081,10 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
       handler.currentError = undefined;
 
       handler.stopTrailing();
-      let lineIdx = warnings[handler.currentWarning].lineIndex ;
+      let lineIdx = warnings[handler.currentWarning].lineIndex;
       const search = new URLSearchParams(window.location.search);
       search.set("lineindex", (lineIdx).toString());
-      const url = `${window.location.pathname}?` + search.toString();               
+      const url = `${window.location.pathname}?` + search.toString();
 
       lineIdx -= 10
       if (lineIdx < 0) {
@@ -1124,6 +1146,12 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
    }
 
    const buttonNoneText = dashboard.darktheme ? "#949898" : "#616e85";
+
+   let heightAdjust = 292;
+   if (logTelemetry) {
+      // sparkline height
+      heightAdjust += 120;
+   }
 
    return <Stack>
       {!!fixme && <IssueModalV2 issueId={query.get("issue")} popHistoryOnClose={issueHistory} />}
@@ -1276,6 +1304,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                         <Markdown>{summaryText}</Markdown>
                      </Stack>
                   </Stack>
+                  {logTelemetry && !! logSource.agentTelemetry && <AgentTelemetrySparkline handler={logSource.agentTelemetry} />}
                   <Stack horizontalAlign="center" style={{ paddingBottom: 12 }}>
                      <Separator styles={{ root: { fontSize: 0, width: "100%", padding: 0, selectors: { '::before': { background: dashboard.darktheme ? '#313638' : '#D3D2D1' } } } }} />
                   </Stack>
@@ -1284,10 +1313,11 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
             </Stack>
          </Stack>
 
+
          <Stack style={{ backgroundColor: hordeTheme.horde.contentBackground, paddingLeft: "24px", paddingRight: "24px" }}>
             <Stack tokens={{ childrenGap: 0 }}>
                <FocusZone direction={FocusZoneDirection.vertical} isInnerZoneKeystroke={() => { return true; }} defaultActiveElement="#LogList" style={{ padding: 0, margin: 0 }} >
-                  <div className={handler.style.container} data-is-scrollable={true}
+                  <div className={handler.style.container} data-is-scrollable={true} style={{ height: `calc(100vh - ${heightAdjust}px)` }}
                      onScroll={(ev) => {
 
                         const element: any = ev.target;

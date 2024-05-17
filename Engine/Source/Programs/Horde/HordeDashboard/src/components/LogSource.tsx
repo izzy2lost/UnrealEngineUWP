@@ -8,6 +8,7 @@ import { getBatchSummaryMarkdown, getStepSummaryMarkdown, JobDetails } from "../
 import { getLeaseElapsed, getStepPercent } from '../base/utilities/timeUtils';
 import { BreadcrumbItem } from './Breadcrumbs';
 import { LogItem } from './LogRender';
+import { AgentTelemetryHandler } from "./agents/AgentTelemetrySparkline";
 
 const stripNewlines = /(\r\n|\n|\r)/gm;
 
@@ -54,6 +55,10 @@ export abstract class LogSource {
    }
 
    get percentComplete(): number | undefined {
+      return undefined;
+   }
+
+   get agentTelemetry(): AgentTelemetryHandler | undefined {
       return undefined;
    }
 
@@ -243,6 +248,7 @@ export abstract class LogSource {
    @action
    setActive(active: boolean) {
       this.active = active;
+      this.agentTelemetry?.setActive(active);
    }
 
    @action
@@ -373,6 +379,7 @@ export class JobLogSource extends LogSource {
    clear() {
       super.clear();
       this.jobDetails.clear();
+      this.agentTelemetry?.stop()
    }
 
    get errors(): GetLogEventResponse[] {
@@ -386,7 +393,6 @@ export class JobLogSource extends LogSource {
    get events(): GetLogEventResponse[] {
       return this.jobDetails.events;
    }
-
 
    get issues(): IssueData[] {
       return this.jobDetails.issues;
@@ -416,6 +422,11 @@ export class JobLogSource extends LogSource {
       }
 
       return undefined;
+   }
+
+   get agentTelemetry(): AgentTelemetryHandler | undefined 
+   {
+      return this._agentTelemety;
    }
 
    getAgentId(): string {
@@ -505,6 +516,8 @@ export class JobLogSource extends LogSource {
       if (this.batch) {
          this.jobName = `Batch-${this.batch.id}`;
       }
+      
+      this.agentTelemetry?.set(this.agentId ?? "", new Date(this.startTime as any), this.step?.finishTime ? new Date(this.step.finishTime) : undefined);      
 
    }
 
@@ -596,6 +609,8 @@ export class JobLogSource extends LogSource {
    step?: StepData;
    
    artifactsV2?: GetArtifactResponseV2[];
+
+   _agentTelemety: AgentTelemetryHandler = new AgentTelemetryHandler();
 
    jobDetails: JobDetails = new JobDetails(undefined, undefined, undefined, true);
 }
