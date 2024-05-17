@@ -18,6 +18,7 @@ struct FMarkStackVisitor;
 struct FGlobalHeapRoot
 {
 	COREUOBJECT_API FGlobalHeapRoot();
+	virtual ~FGlobalHeapRoot() = default;
 
 	// Not used; silences warnings.
 	virtual ~FGlobalHeapRoot() {}
