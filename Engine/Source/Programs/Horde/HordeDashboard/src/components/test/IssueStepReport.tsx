@@ -73,7 +73,8 @@ class ToolHandler {
       }
 
 
-      const stepName = this.stepName = batch.steps.find(s => s.id === stepId)?.name;
+      const stepName = batch.steps.find(s => s.id === stepId)?.name;
+      this.stepName = stepName ?? "";
 
       if (!stepName) {
          console.error("Bad step name");

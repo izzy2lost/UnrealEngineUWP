@@ -395,6 +395,9 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
 
       const getStepsRecursive = (stepId: string) => {
          const rstep = jobDetails.stepById(stepId);
+         if (!rstep) {
+            return;
+         }
          [rstep.inputDependencies, rstep.orderDependencies].flat().forEach(id => {
             const s = jobDetails.stepById(id);
             if (s && !stepFilter.find(s => s.id === id)) {
@@ -515,7 +518,7 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
          return;
       }
 
-      const b = jobDetails.jobData.batches.find(b => b.steps.findIndex(s => s.id === step.id) !== -1);
+      const b = jobDetails.jobData?.batches?.find(b => b.steps.findIndex(s => s.id === step.id) !== -1);
       if (b)
          stepBatches.add(b.id);
    });

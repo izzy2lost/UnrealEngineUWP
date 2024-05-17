@@ -2514,8 +2514,8 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
                </Stack>
             );
          case 'pools':
-            const poolItems = [];
-            const poolSearchNames = [];
+            const poolItems:any = [];
+            const poolSearchNames:string[] = [];
             if (agent.pools) {
                const poolObjs: PoolData[] = [];
                // get actual pool objects
@@ -2589,7 +2589,7 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
             return <Stack horizontal horizontalAlign={"start"} styles={{ root: { overflow: "auto", height: '100%' } }} tokens={{ childrenGap: 4 }}>{poolItems}</Stack>;
          case 'status':
             const leases: any = [];
-            const leaseSearchItems = [];
+            const leaseSearchItems:string[] = [];
             if (agent.leases) {
                agent.leases.forEach(lease => {
 
@@ -2637,7 +2637,9 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
                         <Text key={"statusText_" + agent.id + "_" + lease.id}>{statusText}</Text>
                      </Stack.Item>);
                   }
-                  leaseSearchItems.push(lease.name);
+                  if (lease.name) {
+                     leaseSearchItems.push(lease.name);
+                  }                  
                });
             }
             // if there are no leases, we'll push some other state.

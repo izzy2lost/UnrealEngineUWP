@@ -40,7 +40,7 @@ export const JobOperations: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({
 
    const stepId = query.get("step") ? query.get("step")! : undefined;
    const batchFilter = query.get("batch");
-   let newBuildVersion: string = query.get("newbuildversion") ? query.get("newbuildversion") : "1";
+   let newBuildVersion: string = query.get("newbuildversion") ? query.get("newbuildversion")! : "1";
 
    // show new build version 2 if we have new parameters store
    const hasJobParameters = !!(Object.keys(jobDetails?.jobData?.parameters ?? {}).length)

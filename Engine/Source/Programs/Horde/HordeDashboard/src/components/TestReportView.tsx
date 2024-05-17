@@ -60,7 +60,7 @@ const getTestdataBreadcrumbProps = async (testdata: TestDataWrapper) => {
             link: testdata.getJobLink(),
         },
         {
-            text: stepName,
+            text: stepName ?? "",
             link: testdata.getJobStepLink(),
         },
         {

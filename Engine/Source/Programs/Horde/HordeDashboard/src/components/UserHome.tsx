@@ -911,7 +911,7 @@ const JobsPanel: React.FC<{ includeOtherPreflights: boolean }> = observer(({ inc
       });
 
       const catergories = new Set<string>();
-      view.forEach(label => catergories.add(label.dashboardCategory));
+      view.forEach(label => { if (label.dashboardCategory?.length) { catergories.add(label.dashboardCategory) } });
 
       const sorted = Array.from(catergories).sort((a, b) => { return a < b ? -1 : 1 });
 

@@ -162,7 +162,12 @@ class BuildOptions {
    queryShelvedChange?: number;
    autoSubmit?: boolean;
 
-   static get() { return BuildOptions.instance };
+   static get() {
+      if (!BuildOptions.instance) {
+         throw `Build Options have not been instantiated`;
+      }
+      return BuildOptions.instance!;
+   }
 
    template?: GetTemplateRefResponse;
    templates: GetTemplateRefResponse[] = [];
@@ -354,6 +359,9 @@ class BuildOptions {
 
 
    validate(errors: ValidationError[]): boolean {
+      if (!this.template) {
+         return true;
+      }
 
       if (this.preflightChange && !this.template.allowPreflights) {
          errors.push({ error: `Template "${this.template.name}" does not allow preflights`, paramString: "Shelved Change", value: this.preflightChange.toString() })
@@ -393,6 +401,9 @@ class BuildOptions {
    estimateHeight(previewPanel?: boolean): number {
 
       const template = this.template;
+      if (!template) {
+         return 0;
+      }
       let estimatedHeight = parameterGap * template.parameters.length;
 
       const estimateHeight = (param: ParameterData) => {
@@ -497,7 +508,7 @@ class BuildOptions {
    private setTemplate(templateId: string, notifyChanged = true) {
 
       const template = this.allTemplates.find(t => t.id === templateId);
-      if (template.id === this.template?.id) {
+      if (!template || template.id === this.template?.id) {
          return;
       }
 
@@ -506,7 +517,7 @@ class BuildOptions {
       }
 
       const source = { ...template };
-      source.hash = undefined;
+      source.hash = "";
 
       this.previewSource = JSON.stringify(source, null, 4);
 
@@ -567,7 +578,7 @@ class BuildOptions {
                if (any) {
 
                   list.items.forEach(i => {
-                     this.parameters[i.id] = undefined;
+                     (this.parameters as any)[i.id] = undefined;
                      qid = `id-${i.id}`;
                      if (query.get(qid)) {
                         this.parameters[i.id] = query.get(qid) as string;
@@ -700,7 +711,7 @@ class BuildOptions {
          if (allowtemplatechange) {
             templates = [...this.allTemplates];
          } else {
-            const template = this.allTemplates.find(t => t.name === this.jobDetails.template?.name);
+            const template = this.allTemplates.find(t => t.name === this.jobDetails?.template?.name);
             if (template) {
                templates = [template];
             }
@@ -745,8 +756,8 @@ const BoolParameter: React.FC<{ param: BoolParameterData }> = observer(({ param 
          disabled={options.readOnly}
          checked={options.parameters[param.id] == "true"}
          onChange={(ev, value) => {
-            ev.preventDefault();
-            options.onBooleanChanged(param.id, value);
+            ev?.preventDefault();
+            options.onBooleanChanged(param.id, value ?? false);
          }}
       />
    </Stack>
@@ -769,7 +780,7 @@ const TextParameter: React.FC<{ param: TextParameterData }> = observer(({ param 
          value={options.parameters[param.id] ?? ""}
          disabled={options.readOnly}
          onChange={(ev, value) => {
-            options.onTextChanged(param.id, value);
+            options.onTextChanged(param.id, value ?? "");
          }}
       />
    </Stack>
@@ -1331,7 +1342,7 @@ const AdvancedPanel: React.FC = observer(() => {
          </Stack>
          {showAdditionalArgs && <TextField key={"key_adv_add_args"} multiline style={{ height: 48 }} resizable={false} readOnly={options.readOnly} spellCheck={false} defaultValue={options.advAdditionalArgs} label="Additional Arguments" onChange={(ev, newValue) => options.advAdditionalArgs = newValue} />}
          {showArgumentClipboardButton && <DefaultButton text="Copy Job Arguments to Clipboard" style={{ width: 240 }} onClick={() => copyToClipboard(
-            options.jobDetails.jobData.arguments.map(arg => {
+            options.jobDetails?.jobData?.arguments.map(arg => {
                if (arg.indexOf("=") !== -1) {
                   const components = arg.split("=");
                   if (components[1].indexOf(" ") === -1) {
@@ -1354,7 +1365,7 @@ const AdvancedPanel: React.FC = observer(() => {
                   if (checked) {
                      options.onModeChanged("Basic");
                   }
-                  options.onPreviewChanged(checked);
+                  options.onPreviewChanged(checked ?? false);
                }} />
          </Stack>
 
@@ -1420,7 +1431,7 @@ const BuildModal: React.FC = observer(() => {
          }
       }
 
-      let additionalArgs = [];
+      let additionalArgs:string[] = [];
       if (options!.advAdditionalArgs) {
          const argRegex = /"(\\"|[^"])*?"|[^ ]+/g;
          options.advAdditionalArgs.trim().match(argRegex)?.forEach(arg => additionalArgs.push(arg.replace(/"/g, "")));

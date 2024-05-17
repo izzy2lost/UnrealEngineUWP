@@ -91,7 +91,7 @@ export class TelemetryLineRenderer {
          .selectAll("path")
          .data(gvalues)
          .join("path")
-         .attr("stroke", d => { return d[0][3] !== undefined ? graphColors[d[0][3] as number] : "#8ab8ff" })
+         .attr("stroke", (d:any) => { return d[0][3] !== undefined ? graphColors[d[0][3] as number] : "#8ab8ff" })
          .attr("d", line as any);
 
       svg.append("g")

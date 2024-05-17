@@ -2524,7 +2524,7 @@ const CreateExternalIssueModal: React.FC<{ onClose: () => void }> = ({ onClose }
 
       const project = projects.find(p => p.name === projectName)!;
 
-      let componentName = undefined;
+      let componentName: string | undefined;
       for (let id in project.components) {
          if (project.components[id] === state.componentName) {
             componentName = state.componentName;

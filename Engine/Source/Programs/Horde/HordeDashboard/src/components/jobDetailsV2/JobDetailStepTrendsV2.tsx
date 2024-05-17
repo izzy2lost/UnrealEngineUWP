@@ -337,7 +337,7 @@ class StepTrendsRenderer {
          .attr("markerHeight", 5)
          .attr("orient", 'auto-start-reverse')
          .append("path")
-         .attr('d', d3.line()(arrowPoints))
+         .attr('d', (d3.line() as any)(arrowPoints))
          .style("fill", dashboard.darktheme ? "#6D6C6B" : "#4D4C4B");
 
       //svg.append("g")
@@ -366,7 +366,7 @@ class StepTrendsRenderer {
       const lineI = d3.range(data.length);
 
       const curve = d3.curveLinear;
-      const line = d3.line()
+      const line:any = d3.line()
          .defined(i => true)
          .curve(curve)
          .x(i => { return x(new Date(data[i as any].startTime!).getTime() / 1000) })
@@ -445,7 +445,7 @@ class StepTrendsRenderer {
 
          const strokeWidth = zoomLevel > 4 ? 2 : 1;
 
-         const scaledLine = d3.line()
+         const scaledLine:any = d3.line()
             .defined(i => true)
             .curve(curve)
             .x(i => { return x(new Date(data[i as any].startTime!).getTime() / 1000) })
@@ -472,7 +472,7 @@ class StepTrendsRenderer {
             .attr("height", (d: any) => scaleY(0) - scaleY(dataView.durations.get(d.jobId)!))
 
 
-         const scaledLine = d3.line()
+         const scaledLine:any = d3.line()
             .defined(i => true)
             .curve(curve)
             .x(i => { return x(new Date(data[i as any].startTime!).getTime() / 1000) })

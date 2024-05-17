@@ -88,7 +88,7 @@ export const getBatchText = (item: StepItem): string | undefined => {
 
    const batch = item.batch;
 
-   let statusText = undefined;
+   let statusText: string | undefined;
 
    if (batch) {
 
@@ -131,7 +131,7 @@ export const getBatchText = (item: StepItem): string | undefined => {
 
       if (batch.error === JobStepBatchError.SyncingFailed) {
          statusText = `${item.agentId} : Syncing failed`;
-      }      
+      }
 
       if (batch.error === JobStepBatchError.Cancelled) {
          if (item.agentId) {

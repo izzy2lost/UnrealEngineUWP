@@ -242,7 +242,7 @@ export const StepRetryModal: React.FC<{ stepId: string; jobDetails: JobDetailsV2
 
       const job = jobData;
 
-      const args = [];
+      const args:string[] = [];
       args.push(`-Target=Setup Build`);
       args.push(`-Target=${step!.name}`);
 

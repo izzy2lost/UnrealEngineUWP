@@ -92,7 +92,7 @@ export class JobDetails {
                 return;
             }
 
-            const requests = [];
+            const requests:any = [];
 
             if (this.stepId !== stepId || this.labelIdx !== labelIdx) {
 
@@ -310,6 +310,10 @@ export class JobDetails {
 
     getStepName(stepId: string | undefined, includeRetry: boolean = true): string {
 
+        if (!stepId?.length) {
+            return "";
+        }
+
         const step = this.stepById(stepId);
 
         if (!step?.name) {
@@ -507,7 +511,7 @@ export class JobDetails {
         this.stream = projectStore.streamById(jobdata.streamId);
         this.batches = jobdata.batches ?? [];
 
-        this.labels = jobdata.labels.map((label, index) => {
+        this.labels = jobdata.labels?.map((label, index) => {
 
             return {
                 default: false,
@@ -515,7 +519,7 @@ export class JobDetails {
                 internal: label,
                 timing: undefined
             }
-        });
+        }) ?? [];
 
         const defaultLabel = jobdata.defaultLabel;
         if (defaultLabel) {
@@ -659,7 +663,7 @@ export class JobDetails {
             this.updating = true;
             const cancelID = this.cancelID++;
 
-            let requests = [];
+            let requests:any = [];
 
             requests.push(backend.getJob(this.id));
 

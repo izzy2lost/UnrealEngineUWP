@@ -259,7 +259,7 @@ const renderTags = (navigate: NavigateFunction, line: LogLine, lineNumber: numbe
          return t;
       }
 
-      const rtags = [];
+      const rtags:any = [];
 
       const key = `log_line_${lineNumber}_${idx}_${index}_fragment`;
 

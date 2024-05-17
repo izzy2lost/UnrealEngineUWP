@@ -406,7 +406,7 @@ class StepHistoryRenderer {
          .attr("markerHeight", 5)
          .attr("orient", 'auto-start-reverse')
          .append("path")
-         .attr('d', d3.line()(arrowPoints))
+         .attr('d', (d3.line() as any)(arrowPoints))
          .style("fill", dashboard.darktheme ? "#6D6C6B" : "#4D4C4B");
 
       //svg.append("g")

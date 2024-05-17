@@ -271,7 +271,7 @@ export class Backend {
         return new Promise<GetAgentLeaseResponse[]>((resolve, reject) => {
             this.backend.get(`/api/v1/agents/${agentId}/leases?${paramString}`).then((response) => {
                 (response.data as GetAgentLeaseResponse[]).forEach(s => {
-                    s.startTime = s.startTime ? new Date(s.startTime) : undefined;
+                    s.startTime = s.startTime ? new Date(s.startTime) : new Date();
                     s.finishTime = s.finishTime ? new Date(s.finishTime) : undefined;
                 })
                 resolve(response.data as GetAgentLeaseResponse[]);

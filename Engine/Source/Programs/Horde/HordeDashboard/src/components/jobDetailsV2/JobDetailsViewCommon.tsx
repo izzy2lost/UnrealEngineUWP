@@ -547,7 +547,7 @@ export class JobDetailsV2 extends PollBase {
          return;
       }
 
-      let requests = [];
+      let requests:any[] = [];
 
       const initialRequest = !this.jobData;
 
@@ -678,6 +678,9 @@ export class JobDetailsV2 extends PollBase {
       const getStepsRecursive = (stepId: string) => {
 
          const step = this.stepById(stepId);
+         if (!step) {
+            return;
+         }
 
          [step.inputDependencies, step.orderDependencies].flat().forEach(id => {
             const s = this.stepById(id);

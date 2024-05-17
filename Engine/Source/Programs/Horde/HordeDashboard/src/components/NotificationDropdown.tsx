@@ -480,7 +480,7 @@ export const NotificationDropdown: React.FC<{ jobDetails: JobDetailsV2 }> = obse
    }
    if (label) {
       type = "Label";
-      const aggregate = jobDetails.findLabel(label.stateResponse.dashboardName, label.stateResponse.dashboardCategory)!;
+      const aggregate = jobDetails.findLabel(label.stateResponse.dashboardName ?? "", label.stateResponse.dashboardCategory)!;
       complete = aggregate?.stateResponse?.state === LabelState.Complete;
       subscribed = subHandler.nlabel?.slack ?? false;
    }

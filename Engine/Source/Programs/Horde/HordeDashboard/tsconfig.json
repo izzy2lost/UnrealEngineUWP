@@ -21,7 +21,8 @@
 
     /* Linting */
     "strict": false,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "strictNullChecks": true
     /*
     "noUnusedLocals": true,
     "noUnusedParameters": true,    

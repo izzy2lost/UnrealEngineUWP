@@ -855,7 +855,7 @@ class AuditLine {
             return t;
          }
 
-         const rtags = [];
+         const rtags:any = [];
 
          const key = `log_line_${idx}_${index}_fragment`;
 
