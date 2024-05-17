@@ -1148,12 +1148,16 @@ public:
 	uint32						NetGUIDOutBytes;
 	/** Incoming rate of NetGUID Bunches */
 	uint32						NetGUIDInBytes;
-	/** todo document */
+	/** The number of packets per second that have been received. */
 	uint32						InPackets;
+	/** The number of packets that were received in the previous frame. */
+	uint32 						PrevInPackets;
 	/** Total packets received since the net driver's creation  */
 	uint32						InTotalPackets;
-	/** todo document */
+	/** The number of packets per second that have been sent. */
 	uint32						OutPackets;
+	/** The number of packets that were sent in the previous frame. */
+	uint32 						PrevOutPackets;
 	/** Total packets sent since the net driver's creation  */
 	uint32						OutTotalPackets;
 	/** todo document */
@@ -1168,12 +1172,16 @@ public:
 	uint32						OutTotalReliableBunches;
 	/** Total number of incoming reliable bunches */
 	uint32						InTotalReliableBunches;
-	/** todo document */
+	/** The percentage of incoming packets that have been found to be lost. */
 	uint32						InPacketsLost;
+	/** The number of incoming packets that were found to be lost in the previous frame. */
+	uint32 						PrevInPacketsLost;
 	/** Total packets lost that have been sent by clients since the net driver's creation  */
 	uint32						InTotalPacketsLost;
-	/** todo document */
+	/** The percentage of outgoing packets that have been found to be lost. */
 	uint32						OutPacketsLost;
+	/** The number of outgoing packets that were found to be lost in the previous frame.  */
+	uint32 						PrevOutPacketsLost;
 	/** Total packets lost that have been sent by the server since the net driver's creation  */
 	uint32						OutTotalPacketsLost;
 	/** Tracks the total number of voice packets sent */

@@ -449,6 +449,13 @@ static FAutoConsoleVariableRef CVarNetDisableRandomNetUpdateDelay(
 	TEXT("If 1, the server will not add a random delay to an actors' NextUpdateTime."),
 	ECVF_Default);
 
+static bool GbEnableNetStats = false;
+static FAutoConsoleVariableRef CVarEnableNetStats(
+	TEXT("net.EnableNetStats"),
+	GbEnableNetStats,
+	TEXT("Enable the calculation of network stats and storing them in the network metrics database."),
+	ECVF_Default);
+
 namespace UE::Net
 {
 	static FString GRequiredEncryptionNetDriverDefNames_Internal = TEXT("all");
@@ -552,8 +559,10 @@ UNetDriver::UNetDriver(const FObjectInitializer& ObjectInitializer)
 ,	NetGUIDOutBytes(0)
 ,	NetGUIDInBytes(0)
 ,	InPackets(0)
+,	PrevInPackets(0)
 ,	InTotalPackets(0)
 ,	OutPackets(0)
+,	PrevOutPackets(0)
 ,	OutTotalPackets(0)
 ,	InBunches(0)
 ,	OutBunches(0)
@@ -562,8 +571,10 @@ UNetDriver::UNetDriver(const FObjectInitializer& ObjectInitializer)
 ,	OutTotalReliableBunches(0)
 ,	InTotalReliableBunches(0)
 ,	InPacketsLost(0)
+,	PrevInPacketsLost(0)
 ,	InTotalPacketsLost(0)
 ,	OutPacketsLost(0)
+,	PrevOutPacketsLost(0)
 ,	OutTotalPacketsLost(0)
 ,	StatUpdateTime(0.0)
 ,	StatPeriod(1.f)
@@ -1622,6 +1633,18 @@ void UNetDriver::SetupNetworkMetrics()
 	// The number of outgoing packets per second across all connections.
 	GetMetrics()->CreateInt(UE::Net::Metric::OutPackets, 0);
 
+	// The number of incoming packets per frame across all connections.
+	GetMetrics()->CreateInt(UE::Net::Metric::InPacketsPerFrame, 0);
+
+	// The number of outgoing packets per frame across all connections.
+	GetMetrics()->CreateInt(UE::Net::Metric::OutPacketsPerFrame, 0);
+
+	// The number of incoming packets lost per frame across all connections.
+	GetMetrics()->CreateInt(UE::Net::Metric::InLostPacketsFoundPerFrame, 0);
+
+	// The number of outgoing packets lost per frame across all connections.
+	GetMetrics()->CreateInt(UE::Net::Metric::OutLostPacketsFoundPerFrame, 0);
+
 	// The average/min/max incoming packets per second across all connections.
 	GetMetrics()->CreateInt(UE::Net::Metric::InPacketsClientPerSecondAvg, 0);
 	GetMetrics()->CreateInt(UE::Net::Metric::InPacketsClientPerSecondMax, 0);
@@ -1632,11 +1655,11 @@ void UNetDriver::SetupNetworkMetrics()
 	GetMetrics()->CreateInt(UE::Net::Metric::OutPacketsClientPerSecondMax, 0);
 	GetMetrics()->CreateInt(UE::Net::Metric::OutPacketsClientPerSecondMin, 0);
 	
-	// (Server only) The average/max incoming packets per frame across all connections.
+	// (Server only) The average/max incoming packets per stat period across all connections.
 	GetMetrics()->CreateInt(UE::Net::Metric::InPacketsClientAvg, 0);
 	GetMetrics()->CreateInt(UE::Net::Metric::InPacketsClientMax, 0);
 
-	// (Server only) The average/max outgoing packets per frame across all connections.
+	// (Server only) The average/max outgoing packets per stat period across all connections.
 	GetMetrics()->CreateInt(UE::Net::Metric::OutPacketsClientAvg, 0);
 	GetMetrics()->CreateInt(UE::Net::Metric::OutPacketsClientMax, 0);
 
@@ -5641,8 +5664,8 @@ void UNetDriver::ReportSyncLoad(const FNetSyncLoadReport& Report)
 // -------------------------------------------------------------------------------------------------------------------------
 
 
-// Replication CSV category is enabled by default in server builds
-CSV_DEFINE_CATEGORY(Replication, WITH_SERVER_CODE);
+// Replication CSV category is always enabled (client and server).
+CSV_DEFINE_CATEGORY(Replication, true);
 
 double GReplicationGatherPrioritizeTimeSeconds;
 double GServerReplicateActorTimeSeconds;
@@ -7890,13 +7913,23 @@ void UNetDriver::UpdateNetworkStats()
 	bCollectServerStats = true;
 #endif
 
-	if (bCollectNetStats || bCollectServerStats)
+	if (bCollectNetStats || bCollectServerStats || GbEnableNetStats)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_NetTickFlushGatherStats);
 
 		++StatUpdateFrames;
 
 		NumFramesOverIncomingBunchTimeLimit += HasExceededIncomingBunchFrameProcessingTime() ? 1 : 0;
+
+		GetMetrics()->SetInt(UE::Net::Metric::InPacketsPerFrame, InPackets - PrevInPackets);
+		GetMetrics()->SetInt(UE::Net::Metric::OutPacketsPerFrame, OutPackets - PrevOutPackets);
+		GetMetrics()->SetInt(UE::Net::Metric::InLostPacketsFoundPerFrame, InPacketsLost - PrevInPacketsLost);
+		GetMetrics()->SetInt(UE::Net::Metric::OutLostPacketsFoundPerFrame, OutPacketsLost - PrevOutPacketsLost);
+
+		PrevInPackets = InPackets;
+		PrevOutPackets = OutPackets;
+		PrevInPacketsLost = InPacketsLost;
+		PrevOutPacketsLost = OutPacketsLost;
 
 		const double CurrentRealtimeSeconds = FPlatformTime::Seconds();
 		// Update network stats (only main game net driver for now) if stats or perf counters are used
@@ -7981,7 +8014,7 @@ void UNetDriver::UpdateNetworkStats()
 #if STATS
 				FThreadStats::IsCollectingData() ||
 #endif
-				bCollectNetStats)
+				bCollectNetStats || GbEnableNetStats)
 			{
 				const float RealTime = CurrentRealtimeSeconds - StatUpdateTime;
 
@@ -8278,11 +8311,15 @@ void UNetDriver::UpdateNetworkStats()
 			NetGUIDOutBytes = 0;
 			NetGUIDInBytes = 0;
 			InPackets = 0;
+			PrevInPackets = 0;
 			OutPackets = 0;
+			PrevOutPackets = 0;
 			InBunches = 0;
 			OutBunches = 0;
 			OutPacketsLost = 0;
+			PrevOutPacketsLost = 0;
 			InPacketsLost = 0;
+			PrevInPacketsLost = 0;
 			VoicePacketsSent = 0;
 			VoiceBytesSent = 0;
 			VoicePacketsRecv = 0;
