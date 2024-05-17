@@ -42,6 +42,12 @@ public:
 	/** Toggle visibility of the schematic */
 	TSharedPtr< FUICommandInfo > ToggleSchematicViewportVisibility;
 
+	/** Swap Module (Asset) */
+	TSharedPtr< FUICommandInfo > SwapModuleWithinAsset;
+
+	/** Swap Module (Project) */
+	TSharedPtr< FUICommandInfo > SwapModuleAcrossProject;
+
 	/**
 	 * Initialize commands
 	 */

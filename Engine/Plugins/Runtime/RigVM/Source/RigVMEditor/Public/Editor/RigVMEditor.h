@@ -220,6 +220,7 @@ protected:
 	void ToggleExecutionMode();
 	TSharedRef<SWidget> GenerateEventQueueMenuContent();
 	TSharedRef<SWidget> GenerateExecutionModeMenuContent();
+	virtual FMenuBuilder GenerateBulkEditMenu();
 	TSharedRef<SWidget> GenerateBulkEditMenuContent();
 	virtual void GenerateEventQueueMenuContent(FMenuBuilder& MenuBuilder);
 

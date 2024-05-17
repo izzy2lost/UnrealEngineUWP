@@ -568,6 +568,12 @@ TArray<FRigVMVariantRef> URigVMBuildData::GatherAllAssetVariantRefs()
 		const FString VariantStr = Asset.GetTagValueRef<FString>(AssetVariantPropertyName);
 		FRigVMVariant AssetVariant;
 		AssetVariantProperty->ImportText_Direct(*VariantStr, &AssetVariant, nullptr, EPropertyPortFlags::PPF_None);
+
+		if (!AssetVariant.Guid.IsValid())
+		{
+			AssetVariant.Guid = FRigVMVariant::GenerateGUID(Asset.PackageName.ToString());
+		}
+		
 		FRigVMVariantRef VariantRef(Asset.ToSoftObjectPath(), AssetVariant);
 		Result.Add(VariantRef);
 	}

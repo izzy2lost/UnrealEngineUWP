@@ -94,6 +94,7 @@ public:
 	int32 GetModularRigHierarchyTabCount() const { return ModularRigHierarchyTabCount; }
 
 	bool IsModularRig() const;
+	bool IsRigModule() const;
 
 public:
 	
@@ -164,6 +165,8 @@ public:
 
 	void HandleModularRigModified(EModularRigNotification InNotification, const FRigModuleReference* InModule);
 	void HandlePostCompileModularRigs(URigVMBlueprint* InBlueprint);
+	void SwapModuleWithinAsset();
+	void SwapModuleAcrossProject();
 
 	const FName RigHierarchyToGraphDragAndDropMenuName = TEXT("ControlRigEditor.RigHierarchyToGraphDragAndDropMenu");
 	void CreateRigHierarchyToGraphDragAndDropMenu() const;
@@ -200,6 +203,7 @@ public:
 protected:
 
 	virtual void BindCommands() override;
+	virtual FMenuBuilder GenerateBulkEditMenu() override;
 
 	void OnHierarchyChanged();
 

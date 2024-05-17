@@ -108,6 +108,7 @@
 #include "RigVMModel/Nodes/RigVMAggregateNode.h"
 #include "AnimationEditorViewportClient.h"
 #include "DragAndDrop/AssetDragDropOp.h"
+#include "Editor/RigVMEditorTools.h"
 #include "SchematicGraphPanel/SSchematicGraphPanel.h"
 #include "RigVMCore/RigVMExecuteContext.h"
 #include "Editor/RigVMGraphDetailCustomization.h"
@@ -118,140 +119,6 @@
 
 TAutoConsoleVariable<bool> CVarControlRigShowTestingToolbar(TEXT("ControlRig.Test.EnableTestingToolbar"), false, TEXT("When true we'll show the testing toolbar in Control Rig Editor."));
 TAutoConsoleVariable<bool> CVarShowSchematicPanelOverlay(TEXT("ControlRig.Preview.ShowSchematicPanelOverlay"), true, TEXT("When true we'll add an overlay to the persona viewport to show modular rig information."));
-
-FAutoConsoleCommand FCmdModularRigSwapModuleWidget
-(
-	TEXT("ControlRig.SwapModules"),
-	TEXT("Create swap modules wizard."),
-	FConsoleCommandDelegate::CreateLambda([]()
-	{
-		SRigVMSwapAssetReferencesWidget::FArguments WidgetArgs;
-		WidgetArgs
-			.EnableUndo(true)
-			.CloseOnSuccess(true)
-			.OnGetReferences_Lambda([](const FAssetData& ReferencedAsset) -> TArray<FSoftObjectPath>
-			{
-				TArray<FSoftObjectPath> Result;
-				FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-				IAssetRegistry& AssetRegistry = AssetRegistryModule.GetRegistry();
-
-				UClass* ReferencedClass = nullptr;
-				if (UControlRigBlueprint* ReferencedBlueprint = Cast<UControlRigBlueprint>(ReferencedAsset.GetAsset()))
-				{
-					ReferencedClass = ReferencedBlueprint->GetRigVMBlueprintGeneratedClass();
-				}
-				
-				TArray<FName> PackageDependencies;
-				AssetRegistry.GetReferencers(ReferencedAsset.PackageName, PackageDependencies);
-
-				for (FName& DependencyPath : PackageDependencies)
-				{
-					TArray<FAssetData> Assets;
-					AssetRegistry.GetAssetsByPackageName(DependencyPath, Assets);
-
-					for (const FAssetData& DependencyData : Assets)
-					{
-						if (DependencyData.IsAssetLoaded())
-						{
-							if (UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(DependencyData.GetAsset()))
-							{
-								if (Blueprint->IsModularRig())
-								{
-									TArray<const FRigModuleReference*> Modules = Blueprint->ModularRigModel.FindModuleInstancesOfClass(ReferencedClass);
-									for (const FRigModuleReference* Module : Modules)
-									{
-										FSoftObjectPath ModulePath = DependencyData.GetSoftObjectPath();
-										ModulePath.SetSubPathString(Module->GetPath());
-										Result.Add(ModulePath);
-									}
-								}
-							}
-						}
-						else
-						{
-							// Check only modular rigs
-							{
-								static const FLazyName ControlRigTypeName(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ControlRigType));
-								FProperty* ControlRigTypeProperty = CastField<FProperty>(UControlRigBlueprint::StaticClass()->FindPropertyByName(ControlRigTypeName));
-								const FString ControlRigTypeString = DependencyData.GetTagValueRef<FString>(ControlRigTypeName);
-								if (ControlRigTypeString.IsEmpty())
-								{
-									continue;
-								}
-
-								EControlRigType RigType;
-								ControlRigTypeProperty->ImportText_Direct(*ControlRigTypeString, &RigType, nullptr, EPropertyPortFlags::PPF_None);
-								if (RigType != EControlRigType::ModularRig)
-								{
-									continue;
-								}
-							}
-
-							static const FLazyName ModuleReferenceDataName(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ModuleReferenceData));
-							FArrayProperty* ModuleReferenceDataProperty = CastField<FArrayProperty>(UControlRigBlueprint::StaticClass()->FindPropertyByName(ModuleReferenceDataName));
-							const FString ModularRigDataString = DependencyData.GetTagValueRef<FString>(ModuleReferenceDataName);
-							if (ModularRigDataString.IsEmpty())
-							{
-								continue;
-							}
-
-							TArray<FModuleReferenceData> Modules;
-							ModuleReferenceDataProperty->ImportText_Direct(*ModularRigDataString, &Modules, nullptr, EPropertyPortFlags::PPF_None);
-
-							for (const FModuleReferenceData& Module : Modules)
-							{
-								if (Module.ReferencedModule == ReferencedClass)
-								{
-									FSoftObjectPath ModulePath = DependencyData.GetSoftObjectPath();
-									ModulePath.SetSubPathString(Module.ModulePath);
-									Result.Add(ModulePath);
-								}
-							}
-						}
-					}
-				}
-				
-				return Result;
-			})
-			.OnSwapReference_Lambda([](const FSoftObjectPath& ModulePath, const FAssetData& NewModuleAsset) -> bool
-			{
-				TSubclassOf<UControlRig> NewModuleClass = nullptr;
-				if (const UControlRigBlueprint* ModuleBlueprint = Cast<UControlRigBlueprint>(NewModuleAsset.GetAsset()))
-				{
-					NewModuleClass = ModuleBlueprint->GetRigVMBlueprintGeneratedClass();
-				}
-				if (NewModuleClass)
-				{
-					if (UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(ModulePath.GetWithoutSubPath().ResolveObject()))
-					{
-						return RigBlueprint->GetModularRigController()->SwapModuleClass(ModulePath.GetSubPathString(), NewModuleClass);
-					}
-				}
-				return false;
-			})
-			.ExtraAssetFilter_Lambda([](const FAssetData& AssetData) -> bool
-			{
-				static const FLazyName ControlRigTypeName(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ControlRigType));
-				FProperty* ControlRigTypeProperty = CastField<FProperty>(UControlRigBlueprint::StaticClass()->FindPropertyByName(ControlRigTypeName));
-				const FString ControlRigTypeString = AssetData.GetTagValueRef<FString>(ControlRigTypeName);
-				if (ControlRigTypeString.IsEmpty())
-				{
-					return false;
-				}
-
-				EControlRigType RigType;
-				ControlRigTypeProperty->ImportText_Direct(*ControlRigTypeString, &RigType, nullptr, EPropertyPortFlags::PPF_None);
-				return RigType == EControlRigType::RigModule;
-			});
-
-		const TSharedRef<SRigVMBulkEditDialog<SRigVMSwapAssetReferencesWidget>> SwapModulesDialog =
-		 	SNew(SRigVMBulkEditDialog<SRigVMSwapAssetReferencesWidget>)
-		 	.WindowSize(FVector2D(800.0f, 640.0f))
-		 	.WidgetArgs(WidgetArgs);
-		
-		SwapModulesDialog->ShowNormal();
-	})
-);
 
 const FName FControlRigEditorModes::ControlRigEditorMode = TEXT("Rigging");
 const TArray<FName> FControlRigEditor::ForwardsSolveEventQueue = {FRigUnit_BeginExecution::EventName};
@@ -1710,6 +1577,15 @@ bool FControlRigEditor::IsModularRig() const
 	if(UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(GetBlueprintObj()))
 	{
 		return RigBlueprint->IsModularRig();
+	}
+	return false;
+}
+
+bool FControlRigEditor::IsRigModule() const
+{
+	if(UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(GetBlueprintObj()))
+	{
+		return RigBlueprint->IsControlRigModule();
 	}
 	return false;
 }
@@ -3802,6 +3678,35 @@ void FControlRigEditor::BindCommands()
 		FExecuteAction::CreateSP(this, &FControlRigEditor::HandleToggleSchematicViewport),
 		FCanExecuteAction(),
 		FIsActionChecked::CreateSP(this, &FControlRigEditor::IsSchematicViewportActive));
+
+	GetToolkitCommands()->MapAction(
+		FControlRigEditorCommands::Get().SwapModuleWithinAsset,
+		FExecuteAction::CreateSP(this, &FControlRigEditor::SwapModuleWithinAsset),
+		FCanExecuteAction::CreateSP(this, &FControlRigEditor::IsModularRig));
+
+	GetToolkitCommands()->MapAction(
+		FControlRigEditorCommands::Get().SwapModuleAcrossProject,
+		FExecuteAction::CreateSP(this, &FControlRigEditor::SwapModuleAcrossProject),
+		FCanExecuteAction::CreateSP(this, &FControlRigEditor::IsRigModule));
+}
+
+FMenuBuilder FControlRigEditor::GenerateBulkEditMenu()
+{
+	FMenuBuilder MenuBuilder = IControlRigEditor::GenerateBulkEditMenu();
+	MenuBuilder.BeginSection(TEXT("Asset"), LOCTEXT("Asset", "Asset"));
+	if (UControlRigBlueprint* Blueprint = GetControlRigBlueprint())
+	{
+		if (Blueprint->IsModularRig())
+		{
+			MenuBuilder.AddMenuEntry(FControlRigEditorCommands::Get().SwapModuleWithinAsset, TEXT("SwapModuleWithinAsset"), TAttribute<FText>(), TAttribute<FText>(), FSlateIcon());
+		}
+		else if (Blueprint->IsControlRigModule())
+		{
+			MenuBuilder.AddMenuEntry(FControlRigEditorCommands::Get().SwapModuleAcrossProject, TEXT("SwapModuleAcrossProject"), TAttribute<FText>(), TAttribute<FText>(), FSlateIcon());
+		}
+	}
+	MenuBuilder.EndSection();
+	return MenuBuilder;
 }
 
 void FControlRigEditor::OnHierarchyChanged()
@@ -4281,6 +4186,133 @@ void FControlRigEditor::HandleModularRigModified(EModularRigNotification InNotif
 void FControlRigEditor::HandlePostCompileModularRigs(URigVMBlueprint* InBlueprint)
 {
 	RefreshDetailView();
+}
+
+void FControlRigEditor::SwapModuleWithinAsset()
+{
+	const UControlRigBlueprint* Blueprint = GetControlRigBlueprint();
+	const FAssetData Asset = UE::RigVM::Editor::Tools::FindAssetFromAnyPath(GetRigVMBlueprint()->GetPathName(), true);
+	SRigVMSwapAssetReferencesWidget::FArguments WidgetArgs;
+
+	FRigVMAssetDataFilter FilterModules = FRigVMAssetDataFilter::CreateLambda([](const FAssetData& AssetData)
+	{
+		return UControlRigBlueprint::GetRigType(AssetData) == EControlRigType::RigModule;
+	});
+	FRigVMAssetDataFilter FilterSourceModules = FRigVMAssetDataFilter::CreateLambda([Blueprint](const FAssetData& AssetData)
+	{
+		if (Blueprint)
+		{
+			return !Blueprint->ModularRigModel.FindModuleInstancesOfClass(AssetData).IsEmpty();
+		}
+		return false;
+	});
+
+	TArray<FRigVMAssetDataFilter> SourceFilters = {FilterModules, FilterSourceModules};
+	TArray<FRigVMAssetDataFilter> TargetFilters = {FilterModules};
+	
+	WidgetArgs
+		.EnableUndo(true)
+		.CloseOnSuccess(true)
+		.OnGetReferences_Lambda([Blueprint, Asset](const FAssetData& ReferencedAsset) -> TArray<FSoftObjectPath>
+		{
+			TArray<FSoftObjectPath> Result;
+			FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+			IAssetRegistry& AssetRegistry = AssetRegistryModule.GetRegistry();
+
+			UClass* ReferencedClass = nullptr;
+			if (UControlRigBlueprint* ReferencedBlueprint = Cast<UControlRigBlueprint>(ReferencedAsset.GetAsset()))
+			{
+				ReferencedClass = ReferencedBlueprint->GetRigVMBlueprintGeneratedClass();
+			}
+
+			if (Blueprint)
+			{
+				if (Blueprint->IsModularRig())
+				{
+					TArray<const FRigModuleReference*> Modules = Blueprint->ModularRigModel.FindModuleInstancesOfClass(ReferencedAsset);
+					for (const FRigModuleReference* Module : Modules)
+					{
+						FSoftObjectPath ModulePath = Asset.GetSoftObjectPath();
+						ModulePath.SetSubPathString(Module->GetPath());
+						Result.Add(ModulePath);
+					}
+				}
+			}
+			
+			return Result;
+		})
+		.OnSwapReference_Lambda([](const FSoftObjectPath& ModulePath, const FAssetData& NewModuleAsset) -> bool
+		{
+			TSubclassOf<UControlRig> NewModuleClass = nullptr;
+			if (const UControlRigBlueprint* ModuleBlueprint = Cast<UControlRigBlueprint>(NewModuleAsset.GetAsset()))
+			{
+				NewModuleClass = ModuleBlueprint->GetRigVMBlueprintGeneratedClass();
+			}
+			if (NewModuleClass)
+			{
+				if (UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(ModulePath.GetWithoutSubPath().ResolveObject()))
+				{
+					return RigBlueprint->GetModularRigController()->SwapModuleClass(ModulePath.GetSubPathString(), NewModuleClass);
+				}
+			}
+			return false;
+		})
+		.SourceAssetFilters(SourceFilters)
+		.TargetAssetFilters(TargetFilters);
+
+	const TSharedRef<SRigVMBulkEditDialog<SRigVMSwapAssetReferencesWidget>> SwapModulesDialog =
+		SNew(SRigVMBulkEditDialog<SRigVMSwapAssetReferencesWidget>)
+		.WindowSize(FVector2D(800.0f, 640.0f))
+		.WidgetArgs(WidgetArgs);
+	
+	SwapModulesDialog->ShowNormal();
+}
+
+void FControlRigEditor::SwapModuleAcrossProject()
+{
+	const UControlRigBlueprint* Blueprint = GetControlRigBlueprint();
+	const FAssetData Asset = UE::RigVM::Editor::Tools::FindAssetFromAnyPath(GetRigVMBlueprint()->GetPathName(), true);
+	SRigVMSwapAssetReferencesWidget::FArguments WidgetArgs;
+
+	FRigVMAssetDataFilter FilterModules = FRigVMAssetDataFilter::CreateLambda([](const FAssetData& AssetData)
+	{
+		return UControlRigBlueprint::GetRigType(AssetData) == EControlRigType::RigModule;
+	});
+
+	TArray<FRigVMAssetDataFilter> TargetFilters = {FilterModules};
+	
+	WidgetArgs
+		.EnableUndo(false)
+		.CloseOnSuccess(true)
+		.OnGetReferences_Lambda([Blueprint, Asset](const FAssetData& ReferencedAsset) -> TArray<FSoftObjectPath>
+		{
+			return UControlRigBlueprint::GetReferencesToRigModule(Asset);
+		})
+		.OnSwapReference_Lambda([](const FSoftObjectPath& ModulePath, const FAssetData& NewModuleAsset) -> bool
+		{
+			TSubclassOf<UControlRig> NewModuleClass = nullptr;
+			if (const UControlRigBlueprint* ModuleBlueprint = Cast<UControlRigBlueprint>(NewModuleAsset.GetAsset()))
+			{
+				NewModuleClass = ModuleBlueprint->GetRigVMBlueprintGeneratedClass();
+			}
+			if (NewModuleClass)
+			{
+				if (UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(ModulePath.GetWithoutSubPath().ResolveObject()))
+				{
+					return RigBlueprint->GetModularRigController()->SwapModuleClass(ModulePath.GetSubPathString(), NewModuleClass);
+				}
+			}
+			return false;
+		})
+		.Source(Asset)
+		.TargetAssetFilters(TargetFilters);
+
+	const TSharedRef<SRigVMBulkEditDialog<SRigVMSwapAssetReferencesWidget>> SwapModulesDialog =
+		SNew(SRigVMBulkEditDialog<SRigVMSwapAssetReferencesWidget>)
+		.WindowSize(FVector2D(800.0f, 640.0f))
+		.WidgetArgs(WidgetArgs);
+	
+	SwapModulesDialog->ShowNormal();
 }
 
 void FControlRigEditor::SynchronizeViewportBoneSelection()

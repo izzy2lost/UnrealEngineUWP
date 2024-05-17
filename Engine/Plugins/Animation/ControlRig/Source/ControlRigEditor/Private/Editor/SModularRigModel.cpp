@@ -51,6 +51,7 @@
 #include "Algo/MaxElement.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "DragAndDrop/AssetDragDropOp.h"
+#include "Editor/RigVMEditorTools.h"
 #include "Kismet2/SClassPickerDialog.h"
 #include "RigVMFunctions/Math/RigVMMathLibrary.h"
 #include "Preferences/PersonaOptions.h"
@@ -953,18 +954,20 @@ void SModularRigModel::HandleSwapClassForModules(const TArray<FString>& InPaths)
 		return;
 	}
 
-	TArray<FAssetData> SourceAssets;
-	IAssetRegistry::Get()->GetAssetsByPackageName(*SourceClass->GetPackage()->GetPathName(),SourceAssets);
-	if (SourceAssets.IsEmpty())
-	{
-		return;
-	}
+	const FAssetData SourceAsset = UE::RigVM::Editor::Tools::FindAssetFromAnyPath(SourceClass.GetLongPackageName(), true);
 	
 	SRigVMSwapAssetReferencesWidget::FArguments WidgetArgs;
+	FRigVMAssetDataFilter FilterModules = FRigVMAssetDataFilter::CreateLambda([](const FAssetData& AssetData)
+		{
+			return UControlRigBlueprint::GetRigType(AssetData) == EControlRigType::RigModule;
+		});
+	TArray<FRigVMAssetDataFilter> SourceFilters = {FilterModules};
+	TArray<FRigVMAssetDataFilter> TargetFilters = {FilterModules};
+	
 	WidgetArgs
 		.EnableUndo(true)
 		.CloseOnSuccess(true)
-		.Source(SourceAssets[0])
+		.Source(SourceAsset)
 		.ReferencePaths(ModulePaths)
 		.SkipPickingRefs(true)
 		.OnSwapReference_Lambda([](const FSoftObjectPath& ModulePath, const FAssetData& NewModuleAsset) -> bool
@@ -983,20 +986,8 @@ void SModularRigModel::HandleSwapClassForModules(const TArray<FString>& InPaths)
 			}
 			return false;
 		})
-		.ExtraAssetFilter_Lambda([](const FAssetData& AssetData) -> bool
-		{
-			static const FLazyName ControlRigTypeName(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ControlRigType));
-			FProperty* ControlRigTypeProperty = CastField<FProperty>(UControlRigBlueprint::StaticClass()->FindPropertyByName(ControlRigTypeName));
-			const FString ControlRigTypeString = AssetData.GetTagValueRef<FString>(ControlRigTypeName);
-			if (ControlRigTypeString.IsEmpty())
-			{
-				return false;
-			}
-
-			EControlRigType RigType;
-			ControlRigTypeProperty->ImportText_Direct(*ControlRigTypeString, &RigType, nullptr, EPropertyPortFlags::PPF_None);
-			return RigType == EControlRigType::RigModule;
-		});
+		.SourceAssetFilters(SourceFilters)
+		.TargetAssetFilters(TargetFilters);
 
 	const TSharedRef<SRigVMBulkEditDialog<SRigVMSwapAssetReferencesWidget>> SwapModulesDialog =
 		SNew(SRigVMBulkEditDialog<SRigVMSwapAssetReferencesWidget>)

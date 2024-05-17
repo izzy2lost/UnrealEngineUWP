@@ -1466,16 +1466,22 @@ TSharedRef<SWidget> FRigVMEditor::GenerateExecutionModeMenuContent()
 	return MenuBuilder.MakeWidget();
 }
 
-TSharedRef<SWidget> FRigVMEditor::GenerateBulkEditMenuContent()
+FMenuBuilder FRigVMEditor::GenerateBulkEditMenu()
 {
 	FMenuBuilder MenuBuilder(true, GetToolkitCommands());
 	MenuBuilder.BeginSection(TEXT("Functions"), LOCTEXT("Functions", "Functions"));
 	MenuBuilder.AddMenuEntry(FRigVMEditorCommands::Get().SwapFunctionWithinAsset, TEXT("SwapFunctionWithinAsset"), TAttribute<FText>(), TAttribute<FText>(), FSlateIcon());
 	MenuBuilder.AddMenuEntry(FRigVMEditorCommands::Get().SwapFunctionAcrossProject, TEXT("SwapFunctionAcrossProject"), TAttribute<FText>(), TAttribute<FText>(), FSlateIcon());
 	MenuBuilder.EndSection();
-	MenuBuilder.BeginSection(TEXT("Asset"), LOCTEXT("Asset", "Asset"));
-	MenuBuilder.AddMenuEntry(FRigVMEditorCommands::Get().SwapAssetReferences, TEXT("SwapAssetReferences"), TAttribute<FText>(), TAttribute<FText>(), FSlateIcon());
-	MenuBuilder.EndSection();
+	// MenuBuilder.BeginSection(TEXT("Asset"), LOCTEXT("Asset", "Asset"));
+	// MenuBuilder.AddMenuEntry(FRigVMEditorCommands::Get().SwapAssetReferences, TEXT("SwapAssetReferences"), TAttribute<FText>(), TAttribute<FText>(), FSlateIcon());
+	// MenuBuilder.EndSection();
+	return MenuBuilder;
+}
+
+TSharedRef<SWidget> FRigVMEditor::GenerateBulkEditMenuContent()
+{
+	FMenuBuilder MenuBuilder = GenerateBulkEditMenu();
 	return MenuBuilder.MakeWidget();
 }
 
@@ -3479,16 +3485,11 @@ void FRigVMEditor::SwapFunctionForAssets(const TArray<FAssetData>& InAssets, boo
 
 void FRigVMEditor::SwapAssetReferences()
 {
-	TArray<FAssetData> SourceAssets;
-	IAssetRegistry::Get()->GetAssetsByPackageName(*GetRigVMBlueprint()->GetPackage()->GetPathName(),SourceAssets);
-	if (SourceAssets.IsEmpty())
-	{
-		return;
-	}
+	const FAssetData Asset = UE::RigVM::Editor::Tools::FindAssetFromAnyPath(GetRigVMBlueprint()->GetPathName(), true);
 	
 	SRigVMSwapAssetReferencesWidget::FArguments WidgetArgs;
 	WidgetArgs
-		.Source(SourceAssets[0])
+		.Source(Asset)
 		.EnableUndo(false)
 		.CloseOnSuccess(true);
 

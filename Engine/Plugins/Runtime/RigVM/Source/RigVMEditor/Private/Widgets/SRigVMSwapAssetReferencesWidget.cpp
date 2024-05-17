@@ -29,8 +29,11 @@ TArray<TSharedRef<FRigVMTreeNode>> FRigVMTreeAssetRefAssetNode::GetChildrenImpl(
 		{
 			for (const FSoftObjectPath& Reference : SwapContext->GetReferences())
 			{
-				TSharedRef<FRigVMTreeReferenceNode> RefNode = FRigVMTreeReferenceNode::Create(Reference);
-				AssetRefNodes.Add(RefNode);
+				if (SoftObjectPath == Reference.GetWithoutSubPath())
+				{
+					TSharedRef<FRigVMTreeReferenceNode> RefNode = FRigVMTreeReferenceNode::Create(Reference);
+					AssetRefNodes.Add(RefNode);
+				}
 			}
 		}
 	}
@@ -70,7 +73,7 @@ bool FRigVMTreeAssetVariantFilter::Filters(TSharedRef<FRigVMTreeNode>& InNode, c
 
 				if (!AssetVariant.Guid.IsValid())
 				{
-					AssetVariant.Guid = FRigVMVariant::GenerateGUID(SwapContext->GetSourceAsset().GetPackage()->GetPathName());
+					AssetVariant.Guid = FRigVMVariant::GenerateGUID(SwapContext->GetSourceAsset().PackageName.ToString());
 				}
 
 				SourceVariants.FindOrAdd(SwapContext->GetSourceAsset().GetFullName()) = URigVMBuildData::Get()->FindAssetVariantRefs(AssetVariant.Guid);
@@ -114,7 +117,8 @@ void SRigVMSwapAssetReferencesWidget::Construct(const FArguments& InArgs)
 
 	OnGetReferences = InArgs._OnGetReferences;
 	OnSwapReference = InArgs._OnSwapReference;
-	ExtraAssetFilter = InArgs._ExtraAssetFilter;
+	SourceAssetFilters = InArgs._SourceAssetFilters;
+	TargetAssetFilters = InArgs._TargetAssetFilters;
 	PickTargetContext = FRigVMSwapAssetReferencesContext::Create();
 	PickAssetRefsContext = FRigVMSwapAssetReferencesContext::Create();
 	bSkipPickingRefs = InArgs._SkipPickingRefs;
@@ -131,7 +135,7 @@ void SRigVMSwapAssetReferencesWidget::Construct(const FArguments& InArgs)
 		TSharedRef<FRigVMTreePhase> Phase = FRigVMTreePhase::Create(PHASE_PICKSOURCE, TEXT("Pick Source Asset"), FRigVMTreeContext::Create());
 		Phase->GetContext()->Filters = DefaultFilters;
 		Phase->GetContext()->Filters.Add(DefaultPathFilter);
-		Phase->SetNodes(GetAssetNodes(InArgs));
+		Phase->SetNodes(GetAssetNodes(InArgs, PHASE_PICKSOURCE));
 		Phase->PrimaryButtonText().Set(LOCTEXT("Next", "Next"));
 		Phase->IsPrimaryButtonVisible().BindLambda([this]()
 		{
@@ -163,7 +167,7 @@ void SRigVMSwapAssetReferencesWidget::Construct(const FArguments& InArgs)
 		Phase->GetContext()->Filters.Add(DefaultPathFilter);
 		Phase->GetContext()->Filters.Add(FRigVMTreeTargetAssetFilter::Create());
 		Phase->GetContext()->Filters.Add(FRigVMTreeAssetVariantFilter::Create());
-		Phase->SetNodes(GetAssetNodes(InArgs));
+		Phase->SetNodes(GetAssetNodes(InArgs, PHASE_PICKTARGET));
 		Phase->PrimaryButtonText().Set(LOCTEXT("Next", "Next"));
 		Phase->IsPrimaryButtonVisible().BindLambda([this]()
 		{
@@ -289,16 +293,20 @@ void SRigVMSwapAssetReferencesWidget::Construct(const FArguments& InArgs)
 	];
 }
 
-TArray<TSharedRef<FRigVMTreeNode>> SRigVMSwapAssetReferencesWidget::GetAssetNodes(const FArguments& InArgs)
+TArray<TSharedRef<FRigVMTreeNode>> SRigVMSwapAssetReferencesWidget::GetAssetNodes(const FArguments& InArgs, const int32& InPhase)
 {
 	TArray<TSharedRef<FRigVMTreeNode>> Nodes;
 
 	const TArray<FAssetData> Assets = URigVMEditorBlueprintLibrary::GetAssetsWithFilter(URigVMBlueprint::StaticClass(),
-		FRigVMAssetDataFilter::CreateLambda([this] (const FAssetData& AssetData)
+		FRigVMAssetDataFilter::CreateLambda([this, InPhase] (const FAssetData& AssetData)
 		{
-			if (ExtraAssetFilter.IsBound())
+			TArray<FRigVMAssetDataFilter>& Filters = (InPhase == PHASE_PICKSOURCE) ? SourceAssetFilters : TargetAssetFilters;
+			for (const FRigVMAssetDataFilter& Filter : Filters)
 			{
-				return ExtraAssetFilter.Execute(AssetData);
+				if (!Filter.Execute(AssetData))
+				{
+					return false;
+				}
 			}
 			return true;
 		}));

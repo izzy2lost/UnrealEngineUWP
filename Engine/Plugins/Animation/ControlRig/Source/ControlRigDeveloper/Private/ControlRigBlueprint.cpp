@@ -984,27 +984,15 @@ TArray<FModuleReferenceData> UControlRigBlueprint::FindReferencesToModule() cons
 	TArray<FAssetData> AssetDataList;
 	AssetRegistryModule.Get().GetAssetsByClass(UControlRigBlueprint::StaticClass()->GetClassPathName(), AssetDataList, true);
 
-	static const FLazyName ControlRigTypeName(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ControlRigType));
-	FProperty* ControlRigTypeProperty = CastField<FProperty>(UControlRigBlueprint::StaticClass()->FindPropertyByName(ControlRigTypeName));
 	static const FLazyName ModuleReferenceDataName(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ModuleReferenceData));
 	FArrayProperty* ModuleReferenceDataProperty = CastField<FArrayProperty>(UControlRigBlueprint::StaticClass()->FindPropertyByName(ModuleReferenceDataName));
 
 	for(const FAssetData& AssetData : AssetDataList)
 	{
 		// Check only modular rigs
+		if (UControlRigBlueprint::GetRigType(AssetData) != EControlRigType::ModularRig)
 		{
-			const FString ControlRigTypeString = AssetData.GetTagValueRef<FString>(ControlRigTypeName);
-			if (ControlRigTypeString.IsEmpty())
-			{
-				continue;
-			}
-
-			EControlRigType RigType;
-			ControlRigTypeProperty->ImportText_Direct(*ControlRigTypeString, &RigType, nullptr, EPropertyPortFlags::PPF_None);
-			if (RigType != EControlRigType::ModularRig)
-			{
-				continue;
-			}
+			continue;
 		}
 		
 		const FString ModularRigDataString = AssetData.GetTagValueRef<FString>(ModuleReferenceDataName);
@@ -1025,6 +1013,93 @@ TArray<FModuleReferenceData> UControlRigBlueprint::FindReferencesToModule() cons
 		}
 	}
 
+	return Result;
+}
+
+EControlRigType UControlRigBlueprint::GetRigType(const FAssetData& InAsset)
+{
+	EControlRigType Result = EControlRigType::MAX;
+	static const FLazyName ControlRigTypeName(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ControlRigType));
+	FProperty* ControlRigTypeProperty = CastField<FProperty>(UControlRigBlueprint::StaticClass()->FindPropertyByName(ControlRigTypeName));
+	const FString ControlRigTypeString = InAsset.GetTagValueRef<FString>(ControlRigTypeName);
+	if (ControlRigTypeString.IsEmpty())
+	{
+		return Result;
+	}
+
+	EControlRigType RigType;
+	ControlRigTypeProperty->ImportText_Direct(*ControlRigTypeString, &RigType, nullptr, EPropertyPortFlags::PPF_None);
+	return RigType;
+}
+
+TArray<FSoftObjectPath> UControlRigBlueprint::GetReferencesToRigModule(const FAssetData& InModuleAsset)
+{
+	TArray<FSoftObjectPath> Result;
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+	IAssetRegistry& AssetRegistry = AssetRegistryModule.GetRegistry();
+	
+	TArray<FName> PackageDependencies;
+	AssetRegistry.GetReferencers(InModuleAsset.PackageName, PackageDependencies);
+
+	for (FName& DependencyPath : PackageDependencies)
+	{
+		TArray<FAssetData> Assets;
+		AssetRegistry.GetAssetsByPackageName(DependencyPath, Assets);
+
+		for (const FAssetData& DependencyData : Assets)
+		{
+			if (DependencyData.IsAssetLoaded())
+			{
+				if (UControlRigBlueprint* Blueprint = Cast<UControlRigBlueprint>(DependencyData.GetAsset()))
+				{
+					if (Blueprint->IsModularRig())
+					{
+						TArray<const FRigModuleReference*> Modules = Blueprint->ModularRigModel.FindModuleInstancesOfClass(InModuleAsset);
+						for (const FRigModuleReference* Module : Modules)
+						{
+							FSoftObjectPath ModulePath = DependencyData.GetSoftObjectPath();
+							ModulePath.SetSubPathString(Module->GetPath());
+							Result.Add(ModulePath);
+						}
+					}
+				}
+			}
+			else
+			{
+				// Check only modular rigs
+				if (UControlRigBlueprint::GetRigType(DependencyData) != EControlRigType::ModularRig)
+				{
+					continue;
+				}
+
+				static const FLazyName ModuleReferenceDataName(GET_MEMBER_NAME_CHECKED(UControlRigBlueprint, ModuleReferenceData));
+				FArrayProperty* ModuleReferenceDataProperty = CastField<FArrayProperty>(UControlRigBlueprint::StaticClass()->FindPropertyByName(ModuleReferenceDataName));
+				const FString ModularRigDataString = DependencyData.GetTagValueRef<FString>(ModuleReferenceDataName);
+				if (ModularRigDataString.IsEmpty())
+				{
+					continue;
+				}
+
+				TArray<FModuleReferenceData> Modules;
+				ModuleReferenceDataProperty->ImportText_Direct(*ModularRigDataString, &Modules, nullptr, EPropertyPortFlags::PPF_None);
+
+				for (const FModuleReferenceData& Module : Modules)
+				{
+					FTopLevelAssetPath ModulePath = Module.ReferencedModule.GetAssetPath();
+					FString AssetName = ModulePath.GetAssetName().ToString();
+					AssetName.RemoveFromEnd(TEXT("_C"));
+					ModulePath = FTopLevelAssetPath(ModulePath.GetPackageName(), *AssetName);
+					if (ModulePath == InModuleAsset.GetSoftObjectPath().GetAssetPath())
+					{
+						FSoftObjectPath ResultModulePath = DependencyData.GetSoftObjectPath();
+						ResultModulePath.SetSubPathString(Module.ModulePath);
+						Result.Add(ResultModulePath);
+					}
+				}
+			}
+		}
+	}
+	
 	return Result;
 }
 

@@ -36,7 +36,8 @@ enum class EControlRigType : uint8
 {
 	IndependentRig = 0,
 	RigModule = 1,
-	ModularRig =2,
+	ModularRig = 2,
+	MAX // Invalid
 };
 
 USTRUCT(BlueprintType)
@@ -198,6 +199,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Control Rig Blueprint")
 	TArray<FModuleReferenceData> FindReferencesToModule() const;
+
+	static EControlRigType GetRigType(const FAssetData& InAsset);
+	static TArray<FSoftObjectPath> GetReferencesToRigModule(const FAssetData& InModuleAsset);
 
 protected:
 

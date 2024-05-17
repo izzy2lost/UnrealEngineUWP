@@ -182,7 +182,8 @@ public:
 	SLATE_ARGUMENT(bool, SkipPickingRefs)
 	SLATE_ARGUMENT(bool, EnableUndo)
 	SLATE_ARGUMENT(bool, CloseOnSuccess)
-	SLATE_EVENT(FRigVMAssetDataFilter, ExtraAssetFilter)
+	SLATE_ARGUMENT(TArray<FRigVMAssetDataFilter>, SourceAssetFilters)
+	SLATE_ARGUMENT(TArray<FRigVMAssetDataFilter>, TargetAssetFilters)
 	SLATE_EVENT(FOnGetReferences, OnGetReferences)
 	SLATE_EVENT(FOnSwapReference, OnSwapReference)
 	SLATE_END_ARGS()
@@ -201,11 +202,13 @@ private:
 	TSharedPtr<FRigVMSwapAssetReferencesContext> PickAssetRefsContext;
 	bool bSkipPickingRefs = false;
 
-	FRigVMAssetDataFilter ExtraAssetFilter;
+	TArray<FRigVMAssetDataFilter> SourceAssetFilters;
+	TArray<FRigVMAssetDataFilter> TargetAssetFilters;
+	
 	FOnGetReferences OnGetReferences;
 	FOnSwapReference OnSwapReference;
 
-	TArray<TSharedRef<FRigVMTreeNode>> GetAssetNodes(const FArguments& InArgs);
+	TArray<TSharedRef<FRigVMTreeNode>> GetAssetNodes(const FArguments& InArgs, const int32& InPhase);
 	void OnPhaseActivated(TSharedRef<FRigVMTreePhase> Phase);
 	FReply OnNodeSelected(TSharedRef<FRigVMTreeNode> Node);
 	FReply OnNodeDoubleClicked(TSharedRef<FRigVMTreeNode> Node);
