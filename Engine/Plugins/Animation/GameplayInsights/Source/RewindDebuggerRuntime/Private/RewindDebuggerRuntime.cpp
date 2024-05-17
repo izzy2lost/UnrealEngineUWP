@@ -60,7 +60,9 @@ namespace RewindDebugger
 #if OBJECT_TRACE_ENABLED
 		// Clear caches  (maybe move these to plugins?)
 		FObjectTrace::Reset();
+#if ANIM_TRACE_ENABLED
 		FAnimTrace::Reset();
+#endif
 
 		ClearRecording.Broadcast();
         	
