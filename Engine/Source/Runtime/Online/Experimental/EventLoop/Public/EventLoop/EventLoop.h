@@ -293,10 +293,10 @@ public:
 private:
 	void RunAsyncTasks()
 	{
-		while (FAsyncTask* AsyncTask = AsyncTasks.Peek())
+		FAsyncTask AsyncTask;
+		while (AsyncTasks.Dequeue(AsyncTask))
 		{
-			(*AsyncTask)();
-			AsyncTasks.Pop();
+			AsyncTask();
 		}
 	}
 
