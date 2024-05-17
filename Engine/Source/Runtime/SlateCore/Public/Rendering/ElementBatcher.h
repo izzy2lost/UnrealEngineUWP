@@ -423,7 +423,6 @@ private:
 		const class FShapedGlyphSequence* ShapedGlyphSequence;
 		const class FShapedGlyphSequence* OverflowGlyphSequence;
 		const UObject* FontMaterial;
-		const UObject* OutlineFontMaterial;
 		const struct FFontOutlineSettings* OutlineSettings;
 		const FSlateDrawElement* DrawElement;
 		class FSlateFontCache* FontCache;
@@ -434,17 +433,17 @@ private:
 		float StartLineY;
 		float LocalClipBoundingBoxLeft = 0;
 		float LocalClipBoundingBoxRight = 0;
+		int32 MaxGlyphCountToRender = -1;
 		int32 LayerId;
 		FColor FontTint;
 		ETextOverflowDirection OverflowDirection;
-		bool bEnableOutline : 1;
 		bool bEnableCulling : 1;
 		bool bForceEllipsis : 1;
 		
 	};
 
 	template<ESlateVertexRounding Rounding>
-	void BuildShapedTextSequence(const FShapedTextBuildContext& Context);
+	int32 BuildShapedTextSequence(const FShapedTextBuildContext& Context);
 private:
 	/** Uncached Batch data currently being filled in */
 	FSlateBatchData* BatchData;
