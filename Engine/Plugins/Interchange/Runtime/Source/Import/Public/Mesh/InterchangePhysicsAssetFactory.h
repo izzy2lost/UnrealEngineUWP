@@ -9,7 +9,7 @@
 
 #include "InterchangePhysicsAssetFactory.generated.h"
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGEIMPORT_API UInterchangePhysicsAssetFactory : public UInterchangeFactoryBase
 {
 	GENERATED_BODY()

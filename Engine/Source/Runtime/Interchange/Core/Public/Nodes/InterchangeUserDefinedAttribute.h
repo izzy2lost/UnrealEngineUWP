@@ -40,7 +40,7 @@ struct FInterchangeUserDefinedAttributeInfo
  * Every user-defined attribute has a name, a value, and an optional AnimationPayloadKey: an FRichCurve that is a float curve.
  * The value type must be supported by the UE::Interchange::EAttributeTypes enumeration.
  */
-UCLASS(BlueprintType, Experimental, MinimalAPI)
+UCLASS(BlueprintType, MinimalAPI)
 class UInterchangeUserDefinedAttributesAPI : public UObject
 {
 	GENERATED_BODY()

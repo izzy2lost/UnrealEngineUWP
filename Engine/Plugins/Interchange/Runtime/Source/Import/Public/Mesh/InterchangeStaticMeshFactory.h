@@ -19,7 +19,7 @@ class UInterchangeStaticMeshLodDataNode;
 struct FKAggregateGeom;
 
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGEIMPORT_API UInterchangeStaticMeshFactory : public UInterchangeFactoryBase
 {
 	GENERATED_BODY()

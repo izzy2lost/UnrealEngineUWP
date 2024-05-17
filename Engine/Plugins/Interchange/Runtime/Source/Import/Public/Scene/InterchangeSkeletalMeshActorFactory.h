@@ -13,7 +13,7 @@ class AActor;
 class ASkeletalMeshActor;
 class UInterchangeActorFactoryNode;
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGEIMPORT_API UInterchangeSkeletalMeshActorFactory : public UInterchangeActorFactory
 {
 	GENERATED_BODY()

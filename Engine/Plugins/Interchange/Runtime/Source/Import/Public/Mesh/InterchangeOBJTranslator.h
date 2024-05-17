@@ -15,7 +15,7 @@ class UInterchangeShaderGraphNode;
 struct FObjData;
 
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGEIMPORT_API UInterchangeOBJTranslator : public UInterchangeTranslatorBase,
 	                                                    public IInterchangeMeshPayloadInterface,
 	                                                    public IInterchangeTexturePayloadInterface

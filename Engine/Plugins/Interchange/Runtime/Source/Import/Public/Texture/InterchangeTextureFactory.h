@@ -45,7 +45,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 	};
 }
 
-UCLASS(BlueprintType, Experimental)
+UCLASS(BlueprintType)
 class INTERCHANGEIMPORT_API UInterchangeTextureFactory : public UInterchangeFactoryBase
 {
 	GENERATED_BODY()

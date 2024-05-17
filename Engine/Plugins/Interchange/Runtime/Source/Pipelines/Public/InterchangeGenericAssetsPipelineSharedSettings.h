@@ -145,7 +145,7 @@ public:
 #endif //WITH_EDITOR
 };
 
-UCLASS(BlueprintType, hidedropdown, Experimental)
+UCLASS(BlueprintType, hidedropdown)
 class INTERCHANGEPIPELINES_API UInterchangeGenericCommonSkeletalMeshesAndAnimationsProperties : public UInterchangePipelineBase
 {
 	GENERATED_BODY()
