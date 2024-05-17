@@ -2807,9 +2807,21 @@ FBox FBodyInstance::GetBodyBounds() const
 	FBox OutBox(EForceInit::ForceInitToZero);
 
 	FPhysicsCommand::ExecuteRead(ActorHandle, [&](const FPhysicsActorHandle& Actor)
-	{
-		OutBox = FPhysicsInterface::GetBounds_AssumesLocked(Actor);
-	});
+		{
+			OutBox = FPhysicsInterface::GetBounds_AssumesLocked(Actor);
+		});
+
+	return OutBox;
+}
+
+FBox FBodyInstance::GetBodyBoundsLocal() const
+{
+	FBox OutBox(EForceInit::ForceInitToZero);
+
+	FPhysicsCommand::ExecuteRead(ActorHandle, [&](const FPhysicsActorHandle& Actor)
+		{
+			OutBox = FPhysicsInterface::GetBoundsLocal_AssumesLocked(Actor);
+		});
 
 	return OutBox;
 }

@@ -765,6 +765,22 @@ FBox FChaosEngineInterface::GetBounds_AssumesLocked(const FPhysicsActorHandle& I
 	return FBox(EForceInit::ForceInitToZero);
 }
 
+FBox FChaosEngineInterface::GetBoundsLocal_AssumesLocked(const FPhysicsActorHandle& InActorReference)
+{
+	using namespace Chaos;
+	const Chaos::FRigidBodyHandle_External& Body_External = InActorReference->GetGameThreadAPI();
+	if (const FImplicitObjectRef Geometry = Body_External.GetGeometry())
+	{
+		if (Geometry->HasBoundingBox())
+		{
+			const FAABB3 LocalBounds = Geometry->BoundingBox();
+			return FBox(LocalBounds.Min(), LocalBounds.Max());
+		}
+	}
+
+	return FBox(EForceInit::ForceInitToZero);
+}
+
 void FChaosEngineInterface::SetLinearDamping_AssumesLocked(const FPhysicsActorHandle& InActorReference,float InDrag)
 {
 	if(ensure(FChaosEngineInterface::IsValid(InActorReference)))

@@ -821,8 +821,10 @@ public:
 
 	/** Returns the body's mass */
 	ENGINE_API float GetBodyMass() const;
-	/** Return bounds of physics representation */
+	/** Return bounds of physics representation in world space */
 	ENGINE_API FBox GetBodyBounds() const;
+	/** Return bounds of physics representation in world space */
+	ENGINE_API FBox GetBodyBoundsLocal() const;
 	/** Return the body's inertia tensor. This is returned in local mass space */
 	ENGINE_API FVector GetBodyInertiaTensor() const;
 
