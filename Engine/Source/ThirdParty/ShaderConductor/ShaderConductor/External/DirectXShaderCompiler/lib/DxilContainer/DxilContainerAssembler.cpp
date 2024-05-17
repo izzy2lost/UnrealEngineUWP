@@ -2434,7 +2434,7 @@ void hlsl::SerializeDxilContainerForModule(
   struct UE5CustomData {
     uint32_t FourCC;
     uint64_t Data;
-  } customData;
+  } customData = {};
   
   if (!pPrivateData) {
     
