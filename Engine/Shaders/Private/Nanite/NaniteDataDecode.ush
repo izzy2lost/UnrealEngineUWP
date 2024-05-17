@@ -928,6 +928,7 @@ void WriteRasterizerArgsSWHW(RWBuffer<uint> RasterizerArgsSWHW, uint ArgsOffset,
 	RasterizerArgsSWHW[ArgsOffset + 7] = 0;				// HW: StartInstanceLocation
 }
 
+#if COMPILER_SUPPORTS_HLSL2021
 FNaniteSkinningHeader LoadNaniteSkinningHeader(uint InPrimitiveIndex)
 {
 	const uint Offset = InPrimitiveIndex * (uint)sizeof(FNaniteSkinningHeader);
@@ -943,3 +944,4 @@ float3x4 LoadNaniteBoneObjectSpace(uint BoneIndex)
 {
 	return Scene.NaniteSkinning.BoneObjectSpace.Load<float3x4>(BoneIndex * (uint)sizeof(float3x4));
 }
+#endif

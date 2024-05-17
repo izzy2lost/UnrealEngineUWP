@@ -20,20 +20,20 @@ struct FBoneTransformWithScale
 
 ////
 
-FBoneTransform MakeBoneTransformIdentity()
-{
-	return MakeBoneTransform(
-		QuatIdentity(),
-		float3(0.0f, 0.0f, 0.0f)
-	);
-}
-
 FBoneTransform MakeBoneTransform(FQuat Rotation, float3 Location)
 {
 	FBoneTransform Transform;
 	Transform.Rotation = Rotation;
 	Transform.Location = Location;
 	return Transform;
+}
+
+FBoneTransform MakeBoneTransformIdentity()
+{
+	return MakeBoneTransform(
+		QuatIdentity(),
+		float3(0.0f, 0.0f, 0.0f)
+	);
 }
 
 FBoneTransform MultiplyBoneTransform(FBoneTransform LHS, FBoneTransform RHS)
@@ -72,15 +72,6 @@ float4x4 MatrixFromBoneTransform(FBoneTransform Transform)
 
 ////
 
-FBoneTransformWithScale MakeBoneTransformWithScaleIdentity()
-{
-	return FBoneTransformWithScale(
-		QuatIdentity(),
-		float3(0.0f, 0.0f, 0.0f),
-		float3(1.0f, 1.0f, 1.0f)
-	);
-}
-
 FBoneTransformWithScale MakeBoneTransformWithScale(FQuat Rotation, float3 Location, float3 Scale)
 {
 	FBoneTransformWithScale Transform;
@@ -88,6 +79,11 @@ FBoneTransformWithScale MakeBoneTransformWithScale(FQuat Rotation, float3 Locati
 	Transform.Location = Location;
 	Transform.Scale = Scale;
 	return Transform;
+}
+
+FBoneTransformWithScale MakeBoneTransformWithScaleIdentity()
+{
+	return MakeBoneTransformWithScale(QuatIdentity(), float3(0.0f, 0.0f, 0.0f), float3(1.0f, 1.0f, 1.0f));
 }
 
 FBoneTransformWithScale MultiplyBoneTransformWithScale(FBoneTransformWithScale LHS, FBoneTransformWithScale RHS)

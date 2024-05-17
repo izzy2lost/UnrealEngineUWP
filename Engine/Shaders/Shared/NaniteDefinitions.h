@@ -453,6 +453,7 @@ struct FNanitePickingFeedback
 	UINT_TYPE RuntimeResourceID;
 };
 
+#if defined(__cplusplus) || COMPILER_SUPPORTS_HLSL2021
 struct FNaniteSkinningHeader
 {
 	UINT_TYPE HierarchyBufferOffset		: 16;
@@ -464,6 +465,7 @@ struct FNaniteSkinningHeader
 	UINT_TYPE bHasScale					: 1;
 	UINT_TYPE Padding					: 16;
 };
+#endif
 
 struct FNaniteMaterialDisplacementParams
 {
