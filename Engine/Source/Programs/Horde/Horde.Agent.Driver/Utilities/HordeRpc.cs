@@ -81,18 +81,6 @@ namespace HordeCommon.Rpc
 		}
 	}
 
-	partial class RpcWriteOutputRequest
-	{
-		public RpcWriteOutputRequest(LogId logId, long offset, int lineIndex, ByteString data, bool flush)
-		{
-			LogId = logId.ToString();
-			Offset = offset;
-			LineIndex = lineIndex;
-			Data = data;
-			Flush = flush;
-		}
-	}
-
 	partial class RpcDownloadSoftwareRequest
 	{
 		public RpcDownloadSoftwareRequest(string version)
