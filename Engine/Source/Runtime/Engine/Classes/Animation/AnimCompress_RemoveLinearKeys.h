@@ -59,7 +59,7 @@ class UAnimCompress_RemoveLinearKeys : public UAnimCompress
 	 * A scale value which increases the likelihood that a bone will retain a key if it's parent also had a key at the same time position. 
 	 * Higher values can remove shaking artifacts from the animation, at the cost of compression.
 	 */
-	UPROPERTY(EditAnywhere, Category=LinearKeyRemoval)
+	UPROPERTY(EditAnywhere, Category=LinearKeyRemoval, meta = (ClampMin = "1.0"))
 	float ParentKeyScale;
 
 	/** 
