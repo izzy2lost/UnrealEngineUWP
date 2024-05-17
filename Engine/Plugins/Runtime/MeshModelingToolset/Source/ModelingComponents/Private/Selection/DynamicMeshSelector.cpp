@@ -291,10 +291,12 @@ void FBaseDynamicMeshSelector::UpdateSelectionViaRaycast_MeshTopology(
 	UE::Geometry::UpdateTriangleSelectionViaRaycast(
 		GetColliderMesh(), &SelectionEditor,
 		LocalRay, UpdateConfig, ResultOut);
-	
+
+	// necessary so that edge is recognized from both 'sides' since edge is stored as MeshTriEdgeID.Encoded in SelectionEditor
+	// therefore need to include both of the TriEdgeIDs which the edge belongs to to the SelectionEditor
 	if (SelectionEditor.GetElementType() == EGeometryElementType::Edge)
 	{
-		for (uint64 AddedElement : ResultOut.SelectionDelta.Added)
+		for (const uint64 AddedElement : ResultOut.SelectionDelta.Added)
 		{
 			FMeshTriEdgeID TriEdgeID(FGeoSelectionID(AddedElement).GeometryID);
 			TargetMesh->ProcessMesh([TriEdgeID, &SelectionEditor](const UE::Geometry::FDynamicMesh3& SourceMesh)
@@ -303,28 +305,16 @@ void FBaseDynamicMeshSelector::UpdateSelectionViaRaycast_MeshTopology(
 				const int32 EdgeID = SourceMesh.IsTriangle(TriEdgeID.TriangleID) ? SourceMesh.GetTriEdge(TriEdgeID.TriangleID, TriEdgeID.TriEdgeIndex) : IndexConstants::InvalidID;
 				if (SourceMesh.IsEdge(EdgeID))
 				{
-					const FIndex2i EdgeV = SourceMesh.GetEdgeV(EdgeID);
-					// necessary so that edge is recognized from both 'sides' since edge is stored as MeshTriEdgeID.Encoded in SelectionEditor
-					// therefore need to include both of the Tris which the edge belongs to to the SelectionEditor
-					SourceMesh.EnumerateEdgeTriangles(EdgeID, [&SourceMesh, &EdgeV, &SelectionEditor, &TriEdgeID](const int32 TriangleID)
-					{
-						// avoid adding to selection edge already exists in selection
-						if (TriangleID == TriEdgeID.TriangleID)
+					SourceMesh.EnumerateTriEdgeIDsFromEdgeID(EdgeID,
+						[&SelectionEditor, &TriEdgeID](const FMeshTriEdgeID OtherTriEdgeID)
 						{
-							return;
-						}
-
-						// iterate through all edges of the triangle
-						for (int i = 0; i <= 2; i++)
-						{
-							const int32 OtherEdgeID = SourceMesh.GetTriEdge(TriangleID, i);
-							if (EdgeV == SourceMesh.GetEdgeV(OtherEdgeID))
+							// avoid adding to selection edge already exists in selection
+							if (OtherTriEdgeID.TriangleID == TriEdgeID.TriangleID)
 							{
-								FMeshTriEdgeID MeshTriEdgeToSelect = FMeshTriEdgeID(TriangleID, i);
-								SelectionEditor.Select((uint64)MeshTriEdgeToSelect.Encoded());
+								return;
 							}
-						}
-					});
+							SelectionEditor.Select(OtherTriEdgeID.Encoded());
+						});
 				}
 			});
 		}
