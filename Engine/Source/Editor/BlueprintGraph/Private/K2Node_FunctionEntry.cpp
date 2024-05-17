@@ -884,6 +884,11 @@ void UK2Node_FunctionEntry::PostPasteNode()
 	// If a function entry is being pasted, it should be editable in it's new graph
 	bIsEditable = true;
 
+	for (FBPVariableDescription& LocalVariable : LocalVariables)
+	{
+		LocalVariable.VarGuid = FGuid::NewGuid();
+	}
+
 	// ensure there are UserDefinedPins for all pins except the 'then' pin
 	for (int32 PinIdx = 1; PinIdx < Pins.Num(); ++PinIdx)
 	{
