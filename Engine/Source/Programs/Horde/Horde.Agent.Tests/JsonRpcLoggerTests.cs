@@ -191,19 +191,19 @@ namespace Horde.Agent.Tests
 		{
 			public Dictionary<LogId, BlobLocator> Logs { get; } = new Dictionary<LogId, BlobLocator>();
 
-			public override AsyncUnaryCall<UpdateLogResponse> UpdateLogAsync(UpdateLogRequest request, CallOptions options)
+			public override AsyncUnaryCall<RpcUpdateLogResponse> UpdateLogAsync(RpcUpdateLogRequest request, CallOptions options)
 			{
 				Logs[LogId.Parse(request.LogId)] = new BlobLocator(request.TargetLocator);
-				return new AsyncUnaryCall<UpdateLogResponse>(Task.FromResult(new UpdateLogResponse()), Task.FromResult(new Metadata()), () => Status.DefaultSuccess, () => new Metadata(), () => { });
+				return new AsyncUnaryCall<RpcUpdateLogResponse>(Task.FromResult(new RpcUpdateLogResponse()), Task.FromResult(new Metadata()), () => Status.DefaultSuccess, () => new Metadata(), () => { });
 			}
 
-			public override AsyncDuplexStreamingCall<UpdateLogTailRequest, UpdateLogTailResponse> UpdateLogTail(CallOptions options)
+			public override AsyncDuplexStreamingCall<RpcUpdateLogTailRequest, RpcUpdateLogTailResponse> UpdateLogTail(CallOptions options)
 			{
-				return GrpcHelpers.CreateDuplexCall<UpdateLogTailRequest, UpdateLogTailResponse>(async (reader, writer) =>
+				return GrpcHelpers.CreateDuplexCall<RpcUpdateLogTailRequest, RpcUpdateLogTailResponse>(async (reader, writer) =>
 				{
 					while (await reader.WaitToReadAsync())
 					{
-						reader.TryRead(out UpdateLogTailRequest? request);
+						reader.TryRead(out RpcUpdateLogTailRequest? request);
 					}
 				});
 			}

@@ -95,7 +95,8 @@ namespace Horde.Agent.Tests
 			return Wrap(res);
 		}
 
-		public override AsyncUnaryCall<Empty> CreateEventsAsync(RpcCreateEventsRequest request, CallOptions options)
+		[Obsolete("Use LogRpc.CreateLogEvents instead")]
+		public override AsyncUnaryCall<Empty> CreateEventsAsync(RpcCreateLogEventsRequest request, CallOptions options)
 		{
 			_logger.LogDebug("CreateEventsAsync: {Request}", request);
 			Empty res = new Empty();

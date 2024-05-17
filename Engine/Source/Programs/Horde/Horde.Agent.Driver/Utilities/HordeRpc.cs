@@ -81,25 +81,6 @@ namespace HordeCommon.Rpc
 		}
 	}
 
-	partial class RpcCreateEventRequest
-	{
-		public RpcCreateEventRequest(LogEventSeverity severity, LogId logId, int lineIndex, int lineCount)
-		{
-			Severity = (int)severity;
-			LogId = logId.ToString();
-			LineIndex = lineIndex;
-			LineCount = lineCount;
-		}
-	}
-
-	partial class RpcCreateEventsRequest
-	{
-		public RpcCreateEventsRequest(IEnumerable<RpcCreateEventRequest> events)
-		{
-			Events.AddRange(events);
-		}
-	}
-
 	partial class RpcWriteOutputRequest
 	{
 		public RpcWriteOutputRequest(LogId logId, long offset, int lineIndex, ByteString data, bool flush)

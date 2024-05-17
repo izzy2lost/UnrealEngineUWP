@@ -1,17 +1,22 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
+using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Horde.Common.Rpc;
+using Horde.Server.Server;
 using Horde.Server.Storage;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Horde.Server.Logs
 {
@@ -24,21 +29,23 @@ namespace Horde.Server.Logs
 		readonly ILogCollection _logCollection;
 		readonly LogTailService _logTailService;
 		readonly StorageService _storageService;
+		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 		readonly ILogger<LogRpcService> _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public LogRpcService(ILogCollection logCollection, LogTailService logTailService, StorageService storageService, ILogger<LogRpcService> logger)
+		public LogRpcService(ILogCollection logCollection, LogTailService logTailService, StorageService storageService, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<LogRpcService> logger)
 		{
 			_logCollection = logCollection;
 			_logTailService = logTailService;
 			_storageService = storageService;
+			_globalConfig = globalConfig;
 			_logger = logger;
 		}
 
 		/// <inheritdoc/>
-		public override async Task<UpdateLogResponse> UpdateLog(UpdateLogRequest request, ServerCallContext context)
+		public override async Task<RpcUpdateLogResponse> UpdateLog(RpcUpdateLogRequest request, ServerCallContext context)
 		{
 			ILog? log = await _logCollection.GetAsync(LogId.Parse(request.LogId), context.CancellationToken);
 			if (log == null)
@@ -67,19 +74,19 @@ namespace Horde.Server.Logs
 
 			await _logTailService.FlushAsync(log.Id, request.LineCount);
 
-			return new UpdateLogResponse();
+			return new RpcUpdateLogResponse();
 		}
 
 		/// <inheritdoc/>
-		public override async Task UpdateLogTail(IAsyncStreamReader<UpdateLogTailRequest> requestStream, IServerStreamWriter<UpdateLogTailResponse> responseStream, ServerCallContext context)
+		public override async Task UpdateLogTail(IAsyncStreamReader<RpcUpdateLogTailRequest> requestStream, IServerStreamWriter<RpcUpdateLogTailResponse> responseStream, ServerCallContext context)
 		{
-			UpdateLogTailResponse response = new UpdateLogTailResponse();
+			RpcUpdateLogTailResponse response = new RpcUpdateLogTailResponse();
 			response.TailNext = -1;
 
 			Task<bool> moveNextTask = requestStream.MoveNext();
 			while (await moveNextTask)
 			{
-				UpdateLogTailRequest request = requestStream.Current;
+				RpcUpdateLogTailRequest request = requestStream.Current;
 				LogId logId = LogId.Parse(request.LogId);
 				_logger.LogDebug("Updating log tail for {LogId}: line {LineIdx}, size {Size}", logId, request.TailNext, request.TailData.Length);
 
@@ -117,6 +124,38 @@ namespace Horde.Server.Logs
 			}
 
 			await responseStream.WriteAsync(response);
+		}
+
+		/// <inheritdoc/>
+		public override async Task<Empty> CreateLogEvents(RpcCreateLogEventsRequest request, ServerCallContext context)
+		{
+			if (!_globalConfig.Value.Authorize(LogAclAction.CreateEvent, context.GetHttpContext().User))
+			{
+				throw new StructuredRpcException(StatusCode.PermissionDenied, "Access denied");
+			}
+
+			foreach (IGrouping<string, RpcCreateLogEventRequest> createEventGroup in request.Events.GroupBy(x => x.LogId))
+			{
+				ILog? log = await _logCollection.GetAsync(LogId.Parse(createEventGroup.Key), context.CancellationToken);
+				if (log == null)
+				{
+					throw new StructuredRpcException(StatusCode.NotFound, "Log not found");
+				}
+
+				List<NewLogEventData> newEvents = new List<NewLogEventData>();
+				foreach (RpcCreateLogEventRequest createEvent in createEventGroup)
+				{
+					NewLogEventData newEvent = new NewLogEventData();
+					newEvent.Severity = (LogEventSeverity)createEvent.Severity;
+					newEvent.LineIndex = createEvent.LineIndex;
+					newEvent.LineCount = createEvent.LineCount;
+					newEvents.Add(newEvent);
+				}
+
+				await log.AddEventsAsync(newEvents, context.CancellationToken);
+			}
+
+			return new Empty();
 		}
 	}
 }

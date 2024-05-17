@@ -164,7 +164,7 @@ namespace Horde.Agent.Utility
 
 			// Buffer for events read in a single iteration
 			JsonRpcLogWriter writer = new JsonRpcLogWriter();
-			List<RpcCreateEventRequest> events = new List<RpcCreateEventRequest>();
+			List<RpcCreateLogEventRequest> events = new List<RpcCreateLogEventRequest>();
 
 			// Whether we've written the flush command
 			for (; ; )
@@ -250,11 +250,11 @@ namespace Horde.Agent.Utility
 			}
 		}
 
-		void AddEvent(ReadOnlySpan<byte> span, int lineIndex, int lineCount, LogEventSeverity severity, List<RpcCreateEventRequest> events)
+		void AddEvent(ReadOnlySpan<byte> span, int lineIndex, int lineCount, LogEventSeverity severity, List<RpcCreateLogEventRequest> events)
 		{
 			try
 			{
-				events.Add(new RpcCreateEventRequest(severity, _logId, lineIndex, lineCount));
+				events.Add(new RpcCreateLogEventRequest{ Severity = (int) severity, LogId = _logId.ToString(), LineIndex = lineIndex, LineCount = lineCount });
 			}
 			catch (Exception ex)
 			{
@@ -348,10 +348,14 @@ namespace Horde.Agent.Utility
 		}
 
 		/// <inheritdoc/>
-		public async Task WriteEventsAsync(List<RpcCreateEventRequest> events, CancellationToken cancellationToken)
+		public async Task WriteEventsAsync(List<RpcCreateLogEventRequest> events, CancellationToken cancellationToken)
 		{
-			JobRpc.JobRpcClient jobRpc = await _hordeClient.CreateGrpcClientAsync<JobRpc.JobRpcClient>(cancellationToken);
-			await jobRpc.CreateEventsAsync(new RpcCreateEventsRequest(events), cancellationToken: cancellationToken);
+			LogRpc.LogRpcClient logRpc = await _hordeClient.CreateGrpcClientAsync<LogRpc.LogRpcClient>(cancellationToken);
+
+			RpcCreateLogEventsRequest request = new RpcCreateLogEventsRequest();
+			request.Events.AddRange(events);
+
+			await logRpc.CreateLogEventsAsync(request, cancellationToken: cancellationToken);
 		}
 
 		/// <inheritdoc/>
@@ -376,7 +380,7 @@ namespace Horde.Agent.Utility
 		{
 			_internalLogger.LogInformation("Updating log {LogId} to line {LineCount}, target {Locator}", _logId, lineCount, target.GetLocator());
 
-			UpdateLogRequest request = new UpdateLogRequest();
+			RpcUpdateLogRequest request = new RpcUpdateLogRequest();
 			request.LogId = _logId.ToString();
 			request.LineCount = lineCount;
 			request.TargetHash = target.Hash.ToString();
@@ -393,10 +397,10 @@ namespace Horde.Agent.Utility
 			try
 			{
 				LogRpcClient clientRef = await _hordeClient.CreateGrpcClientAsync<LogRpcClient>(cancellationToken);
-				using AsyncDuplexStreamingCall<UpdateLogTailRequest, UpdateLogTailResponse> call = clientRef.UpdateLogTail(deadline: deadline, cancellationToken: cancellationToken);
+				using AsyncDuplexStreamingCall<RpcUpdateLogTailRequest, RpcUpdateLogTailResponse> call = clientRef.UpdateLogTail(deadline: deadline, cancellationToken: cancellationToken);
 
 				// Write the request to the server
-				UpdateLogTailRequest request = new UpdateLogTailRequest();
+				RpcUpdateLogTailRequest request = new RpcUpdateLogTailRequest();
 				request.LogId = _logId.ToString();
 				request.TailNext = tailNext;
 				request.TailData = UnsafeByteOperations.UnsafeWrap(tailData);
@@ -416,7 +420,7 @@ namespace Horde.Agent.Utility
 				await call.RequestStream.CompleteAsync();
 
 				// Wait for a response or a new update to come in, then close the request stream
-				UpdateLogTailResponse? response = null;
+				RpcUpdateLogTailResponse? response = null;
 				while (await moveNextAsync)
 				{
 					response = call.ResponseStream.Current;

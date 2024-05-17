@@ -663,14 +663,15 @@ namespace Horde.Server.Jobs
 		/// <param name="request">Request arguments</param>
 		/// <param name="context">Context for the RPC call</param>
 		/// <returns>Information about the new agent</returns>
-		public override async Task<Empty> CreateEvents(RpcCreateEventsRequest request, ServerCallContext context)
+		[Obsolete("Use LogRpc.CreateLogEvents instead")]
+		public override async Task<Empty> CreateEvents(RpcCreateLogEventsRequest request, ServerCallContext context)
 		{
 			if (!_globalConfig.Value.Authorize(LogAclAction.CreateEvent, context.GetHttpContext().User))
 			{
 				throw new StructuredRpcException(StatusCode.PermissionDenied, "Access denied");
 			}
 
-			foreach (IGrouping<string, RpcCreateEventRequest> createEventGroup in request.Events.GroupBy(x => x.LogId))
+			foreach (IGrouping<string, RpcCreateLogEventRequest> createEventGroup in request.Events.GroupBy(x => x.LogId))
 			{
 				ILog? log = await _logCollection.GetAsync(LogId.Parse(createEventGroup.Key), context.CancellationToken);
 				if (log == null)
@@ -679,7 +680,7 @@ namespace Horde.Server.Jobs
 				}
 
 				List<NewLogEventData> newEvents = new List<NewLogEventData>();
-				foreach (RpcCreateEventRequest createEvent in createEventGroup)
+				foreach (RpcCreateLogEventRequest createEvent in createEventGroup)
 				{
 					NewLogEventData newEvent = new NewLogEventData();
 					newEvent.Severity = (LogEventSeverity)createEvent.Severity;
