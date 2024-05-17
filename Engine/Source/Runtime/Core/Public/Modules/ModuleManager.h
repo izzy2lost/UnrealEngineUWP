@@ -744,16 +744,35 @@ public:
 	}
 };
 
-
 /**
  * Function pointer type for InitializeModule().
  *
- * All modules must have an InitializeModule() function. Usually this is declared automatically using
- * the IMPLEMENT_MODULE macro below. The function must be declared using as 'extern "C"' so that the
+ * All modules must have a FModuleInitializerEntry instance or an InitializeModule() function. Usually this is declared automatically using
+ * the IMPLEMENT_MODULE macro below. If using the function it must be declared using as 'extern "C"' so that the
  * name remains undecorated. The object returned will be "owned" by the caller, and will be deleted
  * by the caller before the module is unloaded.
  */
 typedef IModuleInterface* ( *FInitializeModuleFunctionPtr )( void );
+
+
+/**
+ * Intrusive linked list containing name and initializer function pointer of loaded modules.
+ * Use this instead of "InitializeModule()" when possible
+ */
+class FModuleInitializerEntry
+{
+public:
+	CORE_API FModuleInitializerEntry(const TCHAR* InName, FInitializeModuleFunctionPtr InFunction);
+	CORE_API ~FModuleInitializerEntry();
+
+	static FInitializeModuleFunctionPtr FindModule(const TCHAR* Name);
+
+private:
+	FModuleInitializerEntry* Prev;
+	FModuleInitializerEntry* Next;
+	const TCHAR* Name;
+	FInitializeModuleFunctionPtr Function;
+};
 
 
 /**
@@ -815,10 +834,11 @@ class FDefaultGameModuleImpl
 		/**/ \
 		/* @return	Returns an instance of this module */ \
 		/**/ \
-		extern "C" DLLEXPORT IModuleInterface* InitializeModule() \
+		static IModuleInterface* Initialize##ModuleName##Module() \
 		{ \
 			return new ModuleImplClass(); \
 		} \
+		static FModuleInitializerEntry ModuleName##InitializerEntry(TEXT(#ModuleName), Initialize##ModuleName##Module); \
 		/* Forced reference to this function is added by the linker to check that each module uses IMPLEMENT_MODULE */ \
 		extern "C" void IMPLEMENT_MODULE_##ModuleName() { } \
 		PER_MODULE_BOILERPLATE_ANYLINK(ModuleImplClass, ModuleName)

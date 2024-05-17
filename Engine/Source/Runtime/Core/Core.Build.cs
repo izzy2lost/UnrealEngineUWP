@@ -350,6 +350,8 @@ public class Core : ModuleRules
 		bAllowAutoRTFMInstrumentation = true;
 
 		PrivateDefinitions.Add("UE_PERSISTENT_ALLOCATOR_RESERVE_SIZE=" + GetPersistentAllocatorReserveSize().ToString() + "ULL");
+
+		PrivateDefinitions.Add("UE_MERGED_MODULES=" + (Target.bMergeModules ? "1" : "0"));
 	}
 
 	protected virtual bool SupportsBinaryConfig(ReadOnlyTargetRules Target)

@@ -37,6 +37,52 @@ DEFINE_LOG_CATEGORY_STATIC(LogModuleManager, Log, All);
 	}
 #endif
 
+FModuleInitializerEntry* GFirstModuleInitializerEntry;
+
+FModuleInitializerEntry::FModuleInitializerEntry(const TCHAR* InName, FInitializeModuleFunctionPtr InFunction)
+:	Name(InName)
+,	Function(InFunction)
+{
+	Prev = nullptr;
+	Next = GFirstModuleInitializerEntry;
+
+	if (GFirstModuleInitializerEntry)
+	{
+		GFirstModuleInitializerEntry->Prev = this;
+	}
+
+	GFirstModuleInitializerEntry = this;
+}
+
+FModuleInitializerEntry::~FModuleInitializerEntry()
+{
+	if (Next)
+	{
+		Next->Prev = Prev;
+	}
+
+	if (Prev)
+	{
+		Prev->Next = Next;
+	}
+	else
+	{
+		GFirstModuleInitializerEntry = Next;
+	}
+}
+
+FInitializeModuleFunctionPtr FModuleInitializerEntry::FindModule(const TCHAR* Name)
+{
+	for (FModuleInitializerEntry* Entry = GFirstModuleInitializerEntry; Entry; Entry = Entry->Next)
+	{
+		if (FCString::Stricmp(Name, Entry->Name) == 0)
+		{
+			return Entry->Function;
+		}
+	}
+	return nullptr;
+}
+
 
 int32 FModuleManager::FModuleInfo::CurrentLoadOrder = 1;
 
@@ -359,6 +405,15 @@ void FModuleManager::RefreshModuleFilenameFromManifestImpl(const FName InModuleN
 	FString ModuleFilename = MoveTemp(TMap<FName, FString>::TIterator(ModulePathMap).Value());
 
 	const int32 MatchPos = ModuleFilename.Find(ModuleNameString, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+
+	// If modules are merged it is likely that binary name will not match module. TODO: Revisit this to see if we can get this to work with hot reloading etc
+	#if UE_MERGED_MODULES
+	if (MatchPos == INDEX_NONE)
+	{
+		return;
+	}
+	#endif
+
 	if (!ensureMsgf(MatchPos != INDEX_NONE, TEXT("Could not find module name '%s' in module filename '%s'"), *InModuleName.ToString(), *ModuleFilename))
 	{
 		return;
@@ -650,9 +705,16 @@ IModuleInterface* FModuleManager::LoadModuleWithFailureReason(const FName InModu
 					ProcessLoadedObjectsCallback.Broadcast(InModuleName, bCanProcessNewlyLoadedObjects);
 				}
 
-				// Find our "InitializeModule" global function, which must exist for all module DLLs
-				FInitializeModuleFunctionPtr InitializeModuleFunctionPtr =
-					(FInitializeModuleFunctionPtr)FPlatformProcess::GetDllExport(ModuleInfo->Handle, TEXT("InitializeModule"));
+
+				// Find our "Initialize<Name>Module" global function, which must exist for all module DLLs
+				FInitializeModuleFunctionPtr InitializeModuleFunctionPtr = FModuleInitializerEntry::FindModule(*InModuleName.ToString());
+
+				if (!InitializeModuleFunctionPtr)
+				{
+					// If not found this might be some special case module so look for "InitializeModule" global function
+					InitializeModuleFunctionPtr = (FInitializeModuleFunctionPtr)FPlatformProcess::GetDllExport(ModuleInfo->Handle, TEXT("InitializeModule"));
+				}
+
 				if (InitializeModuleFunctionPtr != nullptr)
 				{
 					if ( ModuleInfo->Module.IsValid() )

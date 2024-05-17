@@ -288,12 +288,14 @@ TSharedRef<ObjectType> MakeSharedUnreal(ArgTypes&&... Args)
 		/**/ \
 		/* @return	Returns an instance of this module */ \
 		/**/ \
-		extern "C" DLLEXPORT IModuleInterface* InitializeModule() \
+		static IModuleInterface* Initialize##ModuleName##Module() \
 		{ \
 			return new ModuleImplClass(); \
 		} \
+		static FModuleInitializerEntry ModuleName##InitializerEntry(TEXT(#ModuleName), Initialize##ModuleName##Module); \
 		/* Forced reference to this function is added by the linker to check that each module uses IMPLEMENT_MODULE */ \
 		extern "C" void IMPLEMENT_MODULE_##ModuleName() { } \
+		extern "C" DLLEXPORT void ThisIsAnUnrealEngineModule() {} \
 		UE_VISUALIZERS_HELPERS \
 		REPLACEMENT_OPERATOR_NEW_AND_DELETE_USD
 #else
