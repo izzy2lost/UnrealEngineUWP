@@ -217,7 +217,8 @@ TUniquePtr<Ort::SessionOptions> CreateSessionOptionsDefault(const TSharedRef<FEn
 	}
 
 	// Configure Profiling
-	if (CVarNNERuntimeORTEnableProfiling.GetValueOnGameThread())
+	// Note: can be called on game or render thread
+	if (CVarNNERuntimeORTEnableProfiling.GetValueOnAnyThread())
 	{
 		FString ProfilingFilePrefix("NNERuntimeORTProfile_");
 		ProfilingFilePrefix += FString::FromInt(ORTProfilingSessionNumber);

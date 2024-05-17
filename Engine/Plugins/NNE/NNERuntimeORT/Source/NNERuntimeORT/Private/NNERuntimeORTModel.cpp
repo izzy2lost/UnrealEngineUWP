@@ -665,7 +665,24 @@ FModelInstanceORTDmlRDG::ESetInputTensorShapesStatus FModelInstanceORTDmlRDG::Se
 	TConstArrayView<uint8> ModelBuffer = TConstArrayView<uint8>(&(ModelData->GetView().GetData()[GuidSize + VersionSize]), ModelData->GetView().Num() - GuidSize - VersionSize);
 	check(!ModelBuffer.IsEmpty());
 
-	Session = MakeUnique<Ort::Session>(Environment->GetOrtEnv(), ModelBuffer.GetData(), ModelBuffer.Num(), *SessionOptions);
+#if WITH_EDITOR
+	try
+#endif // WITH_EDITOR
+	{
+		Session = MakeUnique<Ort::Session>(Environment->GetOrtEnv(), ModelBuffer.GetData(), ModelBuffer.Num(), *SessionOptions);
+	}
+#if WITH_EDITOR
+	catch (const Ort::Exception& Exception)
+	{
+		UE_LOG(LogNNE, Error, TEXT("%s"), UTF8_TO_TCHAR(Exception.what()));
+		return ESetInputTensorShapesStatus::Fail;
+	}
+	catch (...)
+	{
+		UE_LOG(LogNNE, Error, TEXT("Unknown exception!"));
+		return ESetInputTensorShapesStatus::Fail;
+	}
+#endif // WITH_EDITOR
 
 	// Need to configure output tensors with new session (to apply free dimension overrides)
 	if (!ConfigureTensors(*Session, false))

@@ -14,7 +14,7 @@ enum EExecutionMode : uint8
 	PARALLEL
 };
 
-/** Rigid body error correction data */
+/** Threading options to configure glocal/local thread pools and exection mode */
 USTRUCT()
 struct FThreadingOptions
 {
