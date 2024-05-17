@@ -70,9 +70,6 @@ public:
     void AbortWithoutThrowing();
     bool AttemptToCommit();
 
-    // Should we skip recording for the given address (used by ASan).
-    bool SkipRecord(void* LogicalAddress);
-
     // Record that a write is about to occur at the given LogicalAddress of Size bytes.
     void RecordWrite(void* LogicalAddress, size_t Size);
     void RecordWriteMaxPageSized(void* LogicalAddress, size_t Size);

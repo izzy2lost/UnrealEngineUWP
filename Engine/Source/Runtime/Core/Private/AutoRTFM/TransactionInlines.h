@@ -7,28 +7,8 @@
 
 #include "HAL/Platform.h"
 
-#if PLATFORM_HAS_ASAN_INCLUDE && USING_ADDRESS_SANITISER
-#include <sanitizer/asan_interface.h>
-#endif
-
 namespace AutoRTFM
 {
-
-AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE bool FTransaction::SkipRecord(void* LogicalAddress)
-{
-#if PLATFORM_HAS_ASAN_INCLUDE && USING_ADDRESS_SANITISER
-    // TODO(SOL-5123): Can we detect shadow memory locations at compile-time instead?
-    const char* const Location = __asan_locate_address(LogicalAddress, nullptr, 0, nullptr, nullptr);
-
-    if (strstr(Location, "shadow"))
-    {
-        return true;
-    }
-#endif
-
-    return false;
-}
-
 
 AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWriteMaxPageSized(void* LogicalAddress, size_t Size)
 {
@@ -41,11 +21,6 @@ AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWriteMaxPageSi
 AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* LogicalAddress, size_t Size)
 {
     if (UNLIKELY(0 == Size))
-    {
-        return;
-    }
-
-    if (UNLIKELY(SkipRecord(LogicalAddress)))
     {
         return;
     }
@@ -103,11 +78,6 @@ AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* Lo
 template<unsigned SIZE> AUTORTFM_NO_ASAN UE_AUTORTFM_FORCEINLINE void FTransaction::RecordWrite(void* LogicalAddress)
 {
     static_assert(SIZE <= 8);
-
-    if (UNLIKELY(SkipRecord(LogicalAddress)))
-    {
-        return;
-    }
 
     // If we are recording a stack address that is relative to our current
     // transactions stack location, we do not need to record the data in the
