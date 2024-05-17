@@ -684,6 +684,7 @@ void FRequestCluster::FGraphSearch::StartSearch()
 	{
 		FVertexData& Vertex = FindOrAddVertex(Pair.Key->GetPackageName(), *Pair.Key);
 		check(Vertex.PackageData);
+		Vertex.bPulledIntoCluster = true;
 		AddToVisitVertexQueue(Vertex);
 	}
 }
