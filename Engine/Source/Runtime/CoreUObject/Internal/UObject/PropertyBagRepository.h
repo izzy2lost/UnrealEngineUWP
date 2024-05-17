@@ -23,6 +23,7 @@ class FPropertyBagRepository : public FGCObject
 
 		FPropertyPathNameTree* Tree = nullptr;
 		TObjectPtr<UObject> InstanceDataObject = nullptr;
+		bool bNeedsFixup = false;
 	};
 	// TODO: Make private throughout and extend access permissions here or in wrapper classes? Don't want engine code modifying bags outside of serializers and details panels.
 	//friend UObjectBase;
@@ -95,6 +96,8 @@ public:
 	 * @return			- Does the object's InstanceDataObject contain any loose properties requiring user fixup before the object may be published?
 	 */
 	COREUOBJECT_API bool RequiresFixup(const UObject* Object) const;
+	// set the bNeedsFixup flag for this object's IDO to false
+	COREUOBJECT_API void MarkAsFixedUp(const UObject* Object = nullptr);
 
 	// Accessors
 	COREUOBJECT_API bool HasInstanceDataObject(const UObject* Owner) const;

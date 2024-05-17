@@ -19,6 +19,7 @@
 #define LOCTEXT_NAMESPACE "InstanceDataObjectFixupPanel"
 
 static const FName NAME_IsLooseMetadata(TEXT("IsLoose"));
+static const FName NAME_ContainsLoosePropertiesMetadata(ANSITEXTVIEW("ContainsLooseProperties"));
 
 FRedirectedPropertyNode::FRedirectedPropertyNode(const FRedirectedPropertyNode& Other)
 	: PropertyName(Other.PropertyName)
@@ -210,6 +211,39 @@ FInstanceDataObjectFixupPanel::FInstanceDataObjectFixupPanel(TConstArrayView<TOb
 	, ViewFlags(InViewFlags)
 {
 	InitRedirectedPropertyTree();
+}
+
+static bool ObjectHasLoosePropertiesThatNeedFixup(UObject* Object)
+{
+	bool bNeedsFixup = false;
+	Object->GetClass()->Visit(Object, [&bNeedsFixup](const FPropertyVisitorPath& Path, void* Data)->EPropertyVisitorControlFlow
+	{
+		const FProperty* Property = Path.Top().Property;
+		if (!Property->HasAnyPropertyFlags(CPF_Transient) && Property->GetBoolMetaData(NAME_IsLooseMetadata))
+		{
+			bNeedsFixup = true;
+			return EPropertyVisitorControlFlow::Stop;
+		}
+		if (!Property->GetBoolMetaData(NAME_ContainsLoosePropertiesMetadata))
+		{
+			// if this sub-struct doesn't contain loose properties, it won't need fixup
+			return EPropertyVisitorControlFlow::StepOver;
+		}
+		return EPropertyVisitorControlFlow::StepInto;
+	});
+	return bNeedsFixup;
+}
+
+FInstanceDataObjectFixupPanel::~FInstanceDataObjectFixupPanel()
+{
+	for (UObject* Instance : Instances)
+	{
+		if (!ObjectHasLoosePropertiesThatNeedFixup(Instance))
+		{
+			UE::FPropertyBagRepository& Repository = UE::FPropertyBagRepository::Get();
+			Repository.MarkAsFixedUp(Repository.FindInstanceForDataObject(Instance));
+		}
+	}
 }
 
 int32 FInstanceDataObjectFixupPanel::Find(UObject* Value) const

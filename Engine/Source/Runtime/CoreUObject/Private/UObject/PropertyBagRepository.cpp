@@ -529,8 +529,20 @@ void FPropertyBagRepository::DestroyOuterBag(const UObject* Owner)
 bool FPropertyBagRepository::RequiresFixup(const UObject* Object) const
 {
 	FPropertyBagRepositoryLock LockRepo(this);
-	const FPropertyBagAssociationData* BagData = AssociatedData.Find(Object);
-	return BagData && BagData->Tree && !BagData->Tree->IsEmpty() && BagData->InstanceDataObject;
+	if (const FPropertyBagAssociationData* BagData = AssociatedData.Find(Object))
+	{
+		return BagData->bNeedsFixup;
+	}
+	return false;
+}
+
+void FPropertyBagRepository::MarkAsFixedUp(const UObject* Object)
+{
+	FPropertyBagRepositoryLock LockRepo(this);
+	if (FPropertyBagAssociationData* BagData = AssociatedData.Find(Object))
+	{
+		BagData->bNeedsFixup = false;
+	}
 }
 
 bool FPropertyBagRepository::RemoveAssociationUnsafe(const UObject* Owner)
@@ -606,6 +618,11 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(UObject* Owner, FPro
 	// construct InstanceDataObject class
 	// TODO: should we put the InstanceDataObject or it's class in a package?
 	const UClass* InstanceDataObjectClass = CreateInstanceDataObjectClass(PropertyTree, Owner->GetClass(), GetTransientPackage());
+	
+#if WITH_EDITOR
+	static const FName NAME_ContainsLoosePropertiesMetadata(ANSITEXTVIEW("ContainsLooseProperties"));
+	BagData.bNeedsFixup = InstanceDataObjectClass->GetBoolMetaData(NAME_ContainsLoosePropertiesMetadata);
+#endif
 
 	TObjectPtr<UObject>* OuterPtr;
 	if (FPropertyBagAssociationData* OuterData = AssociatedData.Find(Owner->GetOuter()))

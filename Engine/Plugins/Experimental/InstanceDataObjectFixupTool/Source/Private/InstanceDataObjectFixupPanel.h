@@ -54,6 +54,7 @@ public:
 	};
 	
 	FInstanceDataObjectFixupPanel(TConstArrayView<TObjectPtr<UObject>> InstanceDataObjects, EViewFlags ViewFlags);
+	~FInstanceDataObjectFixupPanel();
 	
 	int32 Find(UObject* Value) const;
 	TSharedPtr<IDetailsView>& GenerateDetailsView(bool bScrollbarOnLeft = false);
