@@ -415,7 +415,8 @@ namespace Gauntlet
 				CleanDeviceArtifacts();
 			}
 
-			if(Globals.IsRunningDev && AppConfig.OverlayExecutable.GetOverlay(ExecutablePath, out string OverlayExecutable))
+			bool bExperimental = Globals.Params.ParseParam("ExperimentalLaunchFlow");
+			if(bExperimental && Globals.IsRunningDev && AppConfig.OverlayExecutable.GetOverlay(ExecutablePath, out string OverlayExecutable))
 			{
 				CommandArguments += string.Format(" -basedir=\"{0}\"", Path.GetDirectoryName(ExecutablePath));
 				ExecutablePath = OverlayExecutable;
