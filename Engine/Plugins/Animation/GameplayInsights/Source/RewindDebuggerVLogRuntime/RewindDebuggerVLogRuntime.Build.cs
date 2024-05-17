@@ -14,7 +14,6 @@ namespace UnrealBuildTool.Rules
 				"Engine",
 				"RewindDebuggerInterface",
 				"TraceLog",
-				"TraceServices",
 				"RewindDebuggerRuntimeInterface",
 			});
 		}

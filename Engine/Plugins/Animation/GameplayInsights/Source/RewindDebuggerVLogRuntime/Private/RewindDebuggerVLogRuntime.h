@@ -14,14 +14,18 @@ namespace RewindDebugger
 	public:
 		virtual void RecordingStarted() override
 		{
+#if ENABLE_VISUAL_LOG	
 			// start recording visual logger data
 			FVisualLogger::Get().SetIsRecordingToTrace(true);
+#endif
 		}
 		
 		virtual void RecordingStopped() override
 		{
+#if ENABLE_VISUAL_LOG	
 			// stop recording visual logger data
 			FVisualLogger::Get().SetIsRecordingToTrace(false);
+#endif
 		}
 	};
 }
