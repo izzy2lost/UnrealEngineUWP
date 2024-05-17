@@ -699,8 +699,13 @@ EPropertyVisitorControlFlow FOptionalProperty::Visit(FPropertyVisitorPath& Path,
 
 	EPropertyVisitorControlFlow RetVal = Super::Visit(Path, Data, InFunc);
 
-	if (RetVal == EPropertyVisitorControlFlow::StepInto && IsSet(Data))
+	if (RetVal == EPropertyVisitorControlFlow::StepInto)
 	{
+		if(!IsSet(Data))
+		{
+			// There is nothing to StepInto, so continue to next property
+			return EPropertyVisitorControlFlow::StepOver;
+		}
 		checkf(ValueProperty, TEXT("Expecting a valid property value"));
 
 		FPropertyVisitorScope Scope(Path, FPropertyVisitorInfo(ValueProperty));

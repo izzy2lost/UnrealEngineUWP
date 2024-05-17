@@ -283,6 +283,7 @@
 #include "UDIMUtilities.h"
 #include "FileHelpers.h"
 #include "StaticMeshOperations.h"
+#include "UObject/OverridableManager.h"
 
 
 DEFINE_LOG_CATEGORY(LogEditorFactories);
@@ -5348,6 +5349,10 @@ void FCustomizableTextObjectFactory::ProcessBuffer(UObject* InParent, EObjectFla
 					ObjArchetype = LoadObject<UObject>(nullptr, *ObjArchetypeName, nullptr, LOAD_None, nullptr);
 				}
 
+				FName OverriddenOperationName = NAME_None;
+				const bool bParsed = FParse::Value(Str,TEXT("OverriddenOperation="),OverriddenOperationName);
+				TOptional<EOverriddenPropertyOperation> OverriddenOperation = bParsed ? GetOverriddenOperationFromName(OverriddenOperationName) : TOptional<EOverriddenPropertyOperation>();
+
 				UObject* ObjectParent = InParent ? InParent : GetParentForNewObject(ObjClass);
 
 				// Make sure we are allowed to create this object
@@ -5362,6 +5367,16 @@ void FCustomizableTextObjectFactory::ProcessBuffer(UObject* InParent, EObjectFla
 
 				// Spawn the object and reset it's archetype
 				UObject* CreatedObject = NewObject<UObject>(ObjectParent, ObjClass, ObjName, Flags, ObjArchetype, !!ObjectParent, &InstanceGraph);
+
+				// Overridable handling
+				if (OverriddenOperation.IsSet())
+				{
+					FOverridableManager::Get().SetOverriddenProperties(*CreatedObject, OverriddenOperation.GetValue());
+				}
+				else
+				{
+					FOverridableManager::Get().Disable(*CreatedObject);
+				}
 
 				// Get property text for the new object.
 				FString PropText, PropLine;

@@ -3303,6 +3303,9 @@ void UScriptStruct::ExportText(FString& ValueStr, const void* Value, const void*
 		{
 			for (int32 Index = 0; Index < It->ArrayDim; Index++)
 			{
+				const bool bStaticArray = It->ArrayDim > 1;
+				FOverridableTextPortPropertyPathScope ScopePath(*It, bStaticArray ? Index : INDEX_NONE, bStaticArray ? EPropertyVisitorInfoType::StaticArrayIndex : EPropertyVisitorInfoType::None);
+
 				FString InnerValue;
 				if (It->ExportText_InContainer(Index, InnerValue, Value, Defaults, OwnerObject, PPF_Delimited | PortFlags, ExportRootScope))
 				{
@@ -3322,13 +3325,27 @@ void UScriptStruct::ExportText(FString& ValueStr, const void* Value, const void*
 
 					const FString PropertyName = (PortFlags & (PPF_ExternalEditor | PPF_BlueprintDebugView)) != 0 ? It->GetAuthoredName() : It->GetName();
 
-					if (It->ArrayDim == 1)
+					FString OverridableOperation;
+					if (FOverriddenPropertySet* OverriddenProperties = FOverridableSerializationLogic::GetOverriddenProperties())
 					{
-						ValueStr += FString::Printf(TEXT("%s="), *PropertyName);
+						FPropertyVisitorPath* Path = FOverridableSerializationLogic::GetOverriddenPortTextPropertyPath();
+						checkf(Path, TEXT("Expecting a path"));
+						FArchiveSerializedPropertyChain Chain = Path->ToSerializedPropertyChain();
+						
+						const EOverriddenPropertyOperation Operation = OverriddenProperties->GetOverriddenPropertyOperation(&Chain, /*Property*/nullptr);
+						if (Operation != EOverriddenPropertyOperation::None)
+						{
+							OverridableOperation = FString::Printf(TEXT("<%s>"), *GetOverriddenOperationString(Operation));
+						}
+					}
+
+					if (!bStaticArray)
+					{
+						ValueStr += FString::Printf(TEXT("%s%s="), *PropertyName, *OverridableOperation);
 					}
 					else
 					{
-						ValueStr += FString::Printf(TEXT("%s[%i]="), *PropertyName, Index);
+						ValueStr += FString::Printf(TEXT("%s[%i]%s="), *PropertyName, Index, *OverridableOperation);
 					}
 					ValueStr += InnerValue;
 				}

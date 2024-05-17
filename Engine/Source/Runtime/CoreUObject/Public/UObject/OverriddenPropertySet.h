@@ -25,7 +25,7 @@ public:
 	 * Call to enable overridable serialization and to set the overridden properties of the current serialized object
 	 * Note this is not re-entrant and it stores information in a thread local storage
 	 * @param InOverriddenProperties of the current serializing object */
-	FORCEINLINE static void Enable(FOverriddenPropertySet* InOverriddenProperties)
+	inline static void Enable(FOverriddenPropertySet* InOverriddenProperties)
 	{
 		checkf(!bUseOverridableSerialization, TEXT("Nobody should use this method if overridable serialization is already enabled"));
 		bUseOverridableSerialization = true;
@@ -35,7 +35,7 @@ public:
 	/**
 	 * Call to disable overridable serialization
 	 * Note this is not re-entrant and it stores information in a thread local storage */
-	FORCEINLINE static void Disable()
+	inline static void Disable()
 	{
 		checkf(bUseOverridableSerialization, TEXT("Expecting overridable serialization to be already enabled"));
 		OverriddenProperties = nullptr;
@@ -45,7 +45,7 @@ public:
 	/**
 	 * Called during the serialization of an object to know to know if it should do overridden serialization logic
 	 * @return true if the overridable serialization is enabled on the current serializing object */
-	FORCEINLINE static bool IsEnabled()
+	inline static bool IsEnabled()
 	{
 		return bUseOverridableSerialization;
 	}
@@ -55,7 +55,7 @@ public:
 	 * Note: Expects the current serialized object to use overridable serialization
 	 * Note this is not re-entrant and it stores information in a thread local storage
 	 * @return the overridden properties of the current object being serialized */
-	FORCEINLINE static FOverriddenPropertySet* GetOverriddenProperties()
+	inline static FOverriddenPropertySet* GetOverriddenProperties()
 	{
 		return OverriddenProperties;
 	}
@@ -67,11 +67,36 @@ public:
 	 * @param DataPtr to the memory of that property
 	 * @param DefaultValue memory pointer of that property
 	 * @return the overridden property operation */
-	static EOverriddenPropertyOperation GetOverriddenPropertyOperation(const FArchive& Ar, FProperty* Property = nullptr, uint8* DataPtr = nullptr, uint8* DefaultValue = nullptr);
+	COREUOBJECT_API static EOverriddenPropertyOperation GetOverriddenPropertyOperation(const FArchive& Ar, FProperty* Property = nullptr, uint8* DataPtr = nullptr, uint8* DefaultValue = nullptr);
+
+	/**
+	 * Use the port text path to retrieve the current overridden property operation to know if it has to be serialized or not
+	 * @param DataPtr to the memory of that property
+	 * @param DefaultValue memory pointer of that property
+	 * @param PortFlags for the import/export text operation
+	 * @return the overridden property operation */
+	COREUOBJECT_API static EOverriddenPropertyOperation GetOverriddenPropertyOperationForPortText(const void* DataPtr, const void* DefaultValue, int32 PortFlags);
+
+	/**
+	 * Call during the import text
+	 * @return the current text import property path */
+	COREUOBJECT_API static FPropertyVisitorPath* GetOverriddenPortTextPropertyPath();
+
+	/**
+	 * Call during the import text to set the property path
+	 * @param Path to start tracking the property path*/
+	COREUOBJECT_API static void SetOverriddenPortTextPropertyPath(FPropertyVisitorPath& Path);
+
+	/** Call during the import text to reset property path */
+	COREUOBJECT_API static void ResetOverriddenPortTextPropertyPath();
 
 private:
+
+	static EOverriddenPropertyOperation GetOverriddenPropertyOperation(const int32 PortFlags, const FArchiveSerializedPropertyChain* CurrentPropertyChain, FProperty* Property, const void* DataPtr, const void* DefaultValue);
+
 	static thread_local bool bUseOverridableSerialization;
 	static thread_local FOverriddenPropertySet* OverriddenProperties;
+	static thread_local FPropertyVisitorPath* OverriddenPortTextPropertyPath;
 };
 
 /*
@@ -82,13 +107,31 @@ private:
 */
 struct FEnableOverridableSerializationScope
 {
-	FEnableOverridableSerializationScope(bool bEnableOverridableSerialization, FOverriddenPropertySet* OverriddenProperties);
-	~FEnableOverridableSerializationScope();
+	COREUOBJECT_API FEnableOverridableSerializationScope(bool bEnableOverridableSerialization, FOverriddenPropertySet* OverriddenProperties);
+	COREUOBJECT_API ~FEnableOverridableSerializationScope();
 
 protected:
 	bool bOverridableSerializationEnabled = false;
 	bool bWasOverridableSerializationEnabled = false;
 	FOverriddenPropertySet* SavedOverriddenProperties = nullptr;
+};
+
+
+/*
+ *************************************************************************************
+ * Overridable serialization is experimental, not supported and use at your own risk *
+ *************************************************************************************
+ * Scope responsible for tracking current property path for text importing
+*/
+struct FOverridableTextPortPropertyPathScope
+{
+	COREUOBJECT_API FOverridableTextPortPropertyPathScope(const FProperty* InProperty, int32 InIndex = INDEX_NONE, EPropertyVisitorInfoType InPropertyInfo = EPropertyVisitorInfoType::None);
+	COREUOBJECT_API ~FOverridableTextPortPropertyPathScope();
+
+protected:
+
+	const FProperty* Property = nullptr;
+	FPropertyVisitorPath DefaultPath;
 };
 
 /*
@@ -103,6 +146,27 @@ enum class EOverriddenPropertyOperation : uint8
 	Add,		/* this element was added in the container */
 	Remove,		/* this element was removed from the container */
 };
+
+inline TOptional<EOverriddenPropertyOperation> GetOverriddenOperationFromString(const FString& OverriddenOperationString)
+{
+	int64 EnumValue = StaticEnum<EOverriddenPropertyOperation>()->GetValueByNameString(StaticEnum<EOverriddenPropertyOperation>()->GetName() + FString(TEXT("::")) + OverriddenOperationString);
+	if (EnumValue == INDEX_NONE)
+	{
+		TOptional<EOverriddenPropertyOperation>();
+	}
+
+	return TOptional((EOverriddenPropertyOperation)EnumValue);
+}
+
+inline TOptional<EOverriddenPropertyOperation> GetOverriddenOperationFromName(const FName OverriddenOperationName)
+{
+	return GetOverriddenOperationFromString(OverriddenOperationName.ToString());
+}
+
+inline FString GetOverriddenOperationString(EOverriddenPropertyOperation Operation)
+{
+	return UEnum::GetValueAsString(Operation).RightChop(StaticEnum<EOverriddenPropertyOperation>()->GetName().Len() + /*::*/2);
+}
 
 USTRUCT()
 struct FOverriddenPropertyNodeID
@@ -319,3 +383,24 @@ private:
 public:
 	bool bNeedsSubobjectTemplateInstantiation = false;
 };
+
+// Utility methods for maps
+namespace UE::OverridableMapUtilities
+{
+	/**
+	 * Find the index of the key id in the specified map
+	 * @param KeyIDToFind in the map
+	 * @param MapHelper the map to search in
+	 * @return INDEX_NONE if it didn't find it
+	 */
+	COREUOBJECT_API int32 FindKeyInternalIndex(const FOverriddenPropertyNodeID& KeyIDToFind, FScriptMapHelper& MapHelper);
+
+	/**
+	 * Retrieve the key id from the key property and value
+	 * NOTE: This method will check if unable to create the key
+	 * @param KeyProp to use while converting to an key id
+	 * @param KeyData to use while converting to an key id
+	 * @return the key id of the specified key
+	 */
+	COREUOBJECT_API FOverriddenPropertyNodeID GetIDFromKey(const FProperty* KeyProp, uint8* KeyData);
+}

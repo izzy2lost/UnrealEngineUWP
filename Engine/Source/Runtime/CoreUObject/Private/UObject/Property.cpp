@@ -10,12 +10,14 @@
 #include "Math/Sphere.h"
 #include "Misc/AsciiSet.h"
 #include "Misc/Guid.h"
+#include "Misc/ScopeExit.h"
 #include "Misc/StringBuilder.h"
 #include "Serialization/TestUndeclaredScriptStructObjectReferences.h"
 #include "Templates/Casts.h"
 #include "UObject/Class.h"
 #include "UObject/CoreNetTypes.h"
 #include "UObject/CoreRedirects.h"
+#include "UObject/OverridableManager.h"
 #include "UObject/Package.h"
 #include "UObject/PropertyHelper.h"
 #include "UObject/PropertyTypeName.h"
@@ -1139,7 +1141,9 @@ bool FProperty::ExportText_Direct
 	UObject*	ExportRootScope
 	) const
 {
-	if( Data==Delta || !Identical(Data,Delta,PortFlags) )
+	if( Data==Delta || 
+		(FOverridableSerializationLogic::IsEnabled() && FOverridableSerializationLogic::GetOverriddenPropertyOperationForPortText(Data, Delta, PortFlags) != EOverriddenPropertyOperation::None)  ||
+		(!FOverridableSerializationLogic::IsEnabled() && !Identical(Data,Delta,PortFlags)) )
 	{
 		ExportText_Internal
 			(
@@ -1552,7 +1556,8 @@ static const int32 ReadArrayIndex(const UStruct* ObjectStruct, const TCHAR*& Str
 		FString IndexText(TEXT(""));
 		while ( *Str && *Str != ')' && *Str != ']' )
 		{
-			if ( *Str == TCHAR('=') )
+			// Stop at either we reach the = or the beginning of the overridable operation ex: <replace>
+			if ( *Str == TCHAR('=') || *Str == TCHAR('<'))
 			{
 				// we've encountered an equals sign before the closing bracket
 				Warn->Logf(ELogVerbosity::Warning, TEXT("Missing ')' in default properties subscript: %s"), Start);
@@ -1614,6 +1619,61 @@ static const int32 ReadArrayIndex(const UStruct* ObjectStruct, const TCHAR*& Str
 	return Index;
 }
 
+/**
+ * Attempts to read an array index (xxx) sequence.  Handles const/enum replacements, etc.
+ * @param	ObjectStruct	the scope of the object/struct containing the property we're currently importing
+ * @param	Str				[out] pointer to the the buffer containing the property value to import
+ * @param	Warn			the output device to send errors/warnings to
+ * @return	the array index for this defaultproperties line.  INDEX_NONE if this line doesn't contains an array specifier, or 0 if there was an error parsing the specifier.
+ */
+static TOptional<EOverriddenPropertyOperation> ReadOverriddenOperation(const TCHAR*& Str, FOutputDevice* Warn)
+{
+	const TCHAR* Start = Str;
+	TOptional<EOverriddenPropertyOperation> Operation;
+	SkipWhitespace(Str);
+
+	if (*Str == '<')
+	{
+		Str++;
+		FString IndexText(TEXT(""));
+		while (*Str && *Str != '>')
+		{
+			if (*Str == TCHAR('='))
+			{
+				// we've encountered an equals sign before the closing bracket
+				Warn->Logf(ELogVerbosity::Warning, TEXT("Missing '>' in default properties subscript: %s"), Start);
+				return Operation;
+			}
+
+			IndexText += *Str++;
+		}
+
+		if (*Str++)
+		{
+			if (IndexText.Len() > 0)
+			{
+				Operation = GetOverriddenOperationFromString(IndexText);
+				if (!Operation.IsSet())
+				{
+					// unknown or invalid identifier specified for array subscript
+					Warn->Logf(ELogVerbosity::Warning, TEXT("Invalid overridable in default properties: %s"), Start);
+				}
+			}
+			else
+			{
+				// nothing was specified between the opening and closing parenthesis
+				Warn->Logf(ELogVerbosity::Warning, TEXT("Empty overridable operation: %s"), Start);
+			}
+		}
+		else
+		{
+			Warn->Logf(ELogVerbosity::Warning, TEXT("Missing '>' in default properties subscript: %s"), Start );
+		}
+	}
+	return Operation;
+}
+
+
 /** 
  * Do not attempt to import this property if there is no value for it - i.e. (Prop1=,Prop2=)
  * This normally only happens for empty strings or empty dynamic arrays, and the alternative
@@ -1639,7 +1699,7 @@ const TCHAR* FProperty::ImportSingleProperty( const TCHAR* Str, void* DestData, 
 	check(ObjectStruct);
 
 	constexpr FAsciiSet Whitespaces(" \t");
-	constexpr FAsciiSet Delimiters("=([.");
+	constexpr FAsciiSet Delimiters("=([.<");
 
 	// strip leading whitespace
 	const TCHAR* Start = FAsciiSet::Skip(Str, Whitespaces);
@@ -1704,6 +1764,8 @@ const TCHAR* FProperty::ImportSingleProperty( const TCHAR* Str, void* DestData, 
 			return Str;
 		}
 
+		FOverridableTextPortPropertyPathScope Scope(Property);
+
 		// Parse an array operation, if present.
 		enum EArrayOp
 		{
@@ -1737,6 +1799,27 @@ const TCHAR* FProperty::ImportSingleProperty( const TCHAR* Str, void* DestData, 
 		}
 
 		FArrayProperty* const ArrayProperty = ExactCastField<FArrayProperty>(Property);
+
+		// Parse overridable info
+		TOptional<EOverriddenPropertyOperation> Operation = ReadOverriddenOperation(Str, Warn);
+		FOverriddenPropertySet* OverriddenProperties = nullptr;
+		FPropertyVisitorPath* Path = nullptr;
+		// Skip add and remove operations as they should be handled independently
+		if (Operation.IsSet())
+		{
+			OverriddenProperties = FOverridableSerializationLogic::GetOverriddenProperties();
+			Path = FOverridableSerializationLogic::GetOverriddenPortTextPropertyPath();
+			if (OverriddenProperties &&
+				!Property->HasAllPropertyFlags(CPF_ExperimentalAlwaysOverriden) &&
+				Operation.GetValue() != EOverriddenPropertyOperation::Add && 
+				Operation.GetValue() != EOverriddenPropertyOperation::Remove)
+			{
+				checkf(Path, TEXT("Expecting a path"));
+				FArchiveSerializedPropertyChain Chain = Path->ToSerializedPropertyChain();
+				OverriddenProperties->SetOverriddenPropertyOperation(Operation.GetValue(), &Chain, /*Property*/nullptr);
+			}
+		}
+
 		FMulticastDelegateProperty* const MulticastDelegateProperty = CastField<FMulticastDelegateProperty>(Property);
 		if( MulticastDelegateProperty != NULL && ArrayOp != ADO_None )
 		{
@@ -1933,8 +2016,270 @@ const TCHAR* FProperty::ImportSingleProperty( const TCHAR* Str, void* DestData, 
 			// try to read an array index
 			int32 Index = ReadArrayIndex(ObjectStruct, Str, Warn);
 
+			// strip whitespace before =
+			SkipWhitespace(Str);
+			if (*Str++ != '=')
+			{
+				Warn->Logf(ELogVerbosity::Warning, TEXT("Missing '=' in default properties assignment: %s"), Start );
+				return Str;
+			}
+			// strip whitespace after =
+			SkipWhitespace(Str);
+
+			auto ImportText = [SubobjectOuter, PortFlags, Warn, Start, ObjectStruct](const TCHAR* Buffer, const FProperty* Property, void* PropertyPtr)
+			{
+				FStringOutputDevice ImportError;
+				const TCHAR* Result = Property->ImportText_Direct(Buffer, PropertyPtr, SubobjectOuter, PortFlags, &ImportError);
+
+				// Spit any error we had while importing property
+				if (ImportError.Len() > 0)
+				{
+					TArray<FString> ImportErrors;
+					ImportError.ParseIntoArray(ImportErrors,LINE_TERMINATOR,true);
+
+					Warn->Logf(ELogVerbosity::Warning, TEXT("While importing text for property '%s' in '%s':"), *Property->GetName(), *ObjectStruct->GetName());
+					for (int32 ErrorIndex = 0; ErrorIndex < ImportErrors.Num(); ErrorIndex++)
+					{
+						Warn->Logf(ELogVerbosity::Warning, TEXT("%s"), *ImportErrors[ErrorIndex]);
+					}
+				}
+				else if (Result == Buffer && *Buffer == TCHAR('\0'))
+				{
+					Warn->Logf(ELogVerbosity::Warning, TEXT("Invalid property value in defaults: %s"), Start);
+				}
+				return Result;
+			};
+
+			// Handle modifying overridable operations on arrays
+			if (Operation.IsSet() && Operation.GetValue() != EOverriddenPropertyOperation::Replace)
+			{
+				if (ArrayProperty)
+				{
+					FScriptArrayHelper_InContainer ArrayHelper(ArrayProperty, DestData);
+					switch(Operation.GetValue())
+					{
+						case EOverriddenPropertyOperation::Remove:
+						{
+							checkf(ArrayProperty->Inner->HasAnyPropertyFlags(CPF_PersistentInstance), TEXT("Only instanced sub object is supporting remove operation"));
+							const FObjectPropertyBase* InnerObjectProperty = CastFieldChecked<FObjectPropertyBase>(ArrayProperty->Inner);
+
+							uint8* TempValueStorage = (uint8*)FMemory_Alloca(InnerObjectProperty->ElementSize);
+							InnerObjectProperty->InitializeValue(TempValueStorage);
+
+							const TCHAR* Result = ImportText(Str, InnerObjectProperty, TempValueStorage);
+							if (UObject* RemovedSubObject = InnerObjectProperty->GetObjectPropertyValue(TempValueStorage))
+							{
+								const int32 ArrayNum = ArrayHelper.Num();
+								for (int i = 0; i < ArrayNum; ++i)
+								{
+									UObject* CurrentObject = InnerObjectProperty->GetObjectPropertyValue(ArrayHelper.GetElementPtr(i));
+									if (CurrentObject->GetArchetype() == RemovedSubObject)
+									{
+										ArrayHelper.RemoveValues(i);
+										break;
+									}
+								}
+
+								if (Path)
+								{
+									// Need to fetch the ArrayOverriddenPropertyNode every loop as the previous iteration might have reallocated the node.
+									FArchiveSerializedPropertyChain Chain = Path->ToSerializedPropertyChain();
+									if (FOverriddenPropertyNode* ArrayOverriddenPropertyNode = OverriddenProperties ? OverriddenProperties->SetOverriddenPropertyOperation(EOverriddenPropertyOperation::Modified, &Chain, /*Property*/nullptr) : nullptr)
+									{
+										// Rebuild the overridden info
+										const FOverriddenPropertyNodeID RemovedSubObjectID(*RemovedSubObject);
+										OverriddenProperties->SetSubPropertyOperation(EOverriddenPropertyOperation::Remove, *ArrayOverriddenPropertyNode, RemovedSubObjectID);
+									}
+								}
+							}
+
+							InnerObjectProperty->DestroyValue(TempValueStorage);
+							return Result;
+						}
+						case EOverriddenPropertyOperation::Add:
+						{
+							// Special case for instanced sub objects
+							if (const FObjectPropertyBase* InnerObjectProperty =  ArrayProperty->Inner->HasAnyPropertyFlags(CPF_PersistentInstance) ? CastField<FObjectPropertyBase>(ArrayProperty->Inner) : nullptr)
+							{
+								uint8* TempValueStorage = (uint8*)FMemory_Alloca(InnerObjectProperty->ElementSize);
+								InnerObjectProperty->InitializeValue(TempValueStorage);
+
+								const TCHAR* Result = ImportText(Str, InnerObjectProperty, TempValueStorage);
+								if (UObject* AddedSubObject = InnerObjectProperty->GetObjectPropertyValue(TempValueStorage))
+								{
+									UObject* AddedSubObjectArchetype = AddedSubObject->GetArchetype();
+									const int32 ArrayNum = ArrayHelper.Num();
+									for (int i = 0; i < ArrayNum; ++i)
+									{
+										UObject* CurrentObject = InnerObjectProperty->GetObjectPropertyValue(ArrayHelper.GetElementPtr(i));
+										if (CurrentObject == AddedSubObject || (CurrentObject == AddedSubObjectArchetype))
+										{
+											Index = i;
+											break;
+										}
+									}
+
+									if (Index == INDEX_NONE)
+									{
+										Index = ArrayHelper.Num();
+										ArrayHelper.ExpandForIndex(Index);
+									}
+
+									InnerObjectProperty->SetObjectPropertyValue(ArrayHelper.GetRawPtr(Index), AddedSubObject);
+
+									if (Path)
+									{
+										// Need to fetch the ArrayOverriddenPropertyNode every loop as the previous iteration might have reallocated the node.
+										FArchiveSerializedPropertyChain Chain = Path->ToSerializedPropertyChain();
+										if (FOverriddenPropertyNode* ArrayOverriddenPropertyNode = OverriddenProperties ? OverriddenProperties->SetOverriddenPropertyOperation(EOverriddenPropertyOperation::Modified, &Chain, /*Property*/nullptr) : nullptr)
+										{
+											// Rebuild the overridden info
+											const FOverriddenPropertyNodeID AddedSubObjectID(*AddedSubObject);
+											OverriddenProperties->SetSubPropertyOperation(EOverriddenPropertyOperation::Add, *ArrayOverriddenPropertyNode, AddedSubObjectID);
+										}
+									}
+								}
+
+								InnerObjectProperty->DestroyValue(TempValueStorage);
+								return Result;
+							}
+
+							Index = ArrayHelper.Num();
+							ArrayHelper.ExpandForIndex(Index);
+							break;
+						}
+
+						default:
+							checkf(false, TEXT("Unsupported array operation while importing text"));
+							return nullptr;
+					}
+				}
+				else if (FMapProperty* const MapProperty = ExactCastField<FMapProperty>(Property))
+				{
+					FScriptMapHelper_InContainer MapHelper(MapProperty, DestData);
+
+					uint8* TempKeyValueStorage = (uint8*)FMemory_Alloca(MapProperty->MapLayout.SetLayout.Size);
+					MapProperty->KeyProp->InitializeValue(TempKeyValueStorage);
+					MapProperty->ValueProp->InitializeValue(TempKeyValueStorage + MapProperty->MapLayout.ValueOffset);
+					ON_SCOPE_EXIT
+					{
+						MapProperty->KeyProp->DestroyValue(TempKeyValueStorage);
+						MapProperty->ValueProp->DestroyValue(TempKeyValueStorage + MapProperty->MapLayout.ValueOffset);
+					};
+
+					switch(Operation.GetValue())
+					{
+						case EOverriddenPropertyOperation::Remove:
+						{
+							const TCHAR* Result = ImportText(Str, MapHelper.KeyProp, TempKeyValueStorage);
+							MapHelper.RemovePair(TempKeyValueStorage);
+
+							if (Path)
+							{
+								// Need to fetch the MapOverriddenPropertyNode every loop as the previous might have reallocated the node.
+								FArchiveSerializedPropertyChain Chain = Path->ToSerializedPropertyChain();
+								if (FOverriddenPropertyNode* MapOverriddenPropertyNode = OverriddenProperties ? OverriddenProperties->SetOverriddenPropertyOperation(EOverriddenPropertyOperation::Modified, &Chain, /*Property*/nullptr) : nullptr)
+								{
+									// Rebuild the overridden info
+									FOverriddenPropertyNodeID RemovedKeyID = UE::OverridableMapUtilities::GetIDFromKey(MapProperty->KeyProp, TempKeyValueStorage);
+									OverriddenProperties->SetSubPropertyOperation(EOverriddenPropertyOperation::Remove, *MapOverriddenPropertyNode, RemovedKeyID);
+								}
+							}
+
+							return Result;
+						}
+						case EOverriddenPropertyOperation::Modified:
+						{
+							const TCHAR* Result = Str;
+
+							SkipWhitespace(Result);
+							if (*Result++ != TCHAR('('))
+							{
+								return nullptr;
+							}
+							SkipWhitespace(Result);
+
+							Result = ImportText(Result, MapHelper.KeyProp, TempKeyValueStorage);
+							const int32 InternalIndex = MapHelper.FindMapPairIndexFromHash(TempKeyValueStorage);
+
+							SkipWhitespace(Result);
+							if (*Result++ != TCHAR(','))
+							{
+								return nullptr;
+							}
+
+							uint8* ValuePtr = InternalIndex != INDEX_NONE ? MapHelper.GetValuePtr(InternalIndex) : TempKeyValueStorage + MapHelper.MapLayout.ValueOffset;
+							Result = ImportText(Result, MapHelper.ValueProp, ValuePtr);
+
+							SkipWhitespace(Result);
+							if (*Result++ != TCHAR(')'))
+							{
+								return nullptr;
+							}
+
+							if (Path)
+							{
+								// Need to fetch the MapOverriddenPropertyNode every loop as the previous might have reallocated the node.
+								FArchiveSerializedPropertyChain Chain = Path->ToSerializedPropertyChain();
+								if (FOverriddenPropertyNode* MapOverriddenPropertyNode = OverriddenProperties ? OverriddenProperties->SetOverriddenPropertyOperation(EOverriddenPropertyOperation::Modified, &Chain, /*Property*/nullptr) : nullptr)
+								{
+									// Rebuild the overridden info
+									FOverriddenPropertyNodeID ModifiedKeyID = UE::OverridableMapUtilities::GetIDFromKey(MapProperty->KeyProp, TempKeyValueStorage);
+									OverriddenProperties->SetSubPropertyOperation(EOverriddenPropertyOperation::Modified, *MapOverriddenPropertyNode, ModifiedKeyID);
+								}
+							}
+							return Result;
+						}
+						case EOverriddenPropertyOperation::Add:
+						{
+							const TCHAR* Result = Str;
+							SkipWhitespace(Result);
+							if (*Result++ != TCHAR('('))
+							{
+								return nullptr;
+							}
+							SkipWhitespace(Result);
+
+							Result = ImportText(Result, MapHelper.KeyProp, TempKeyValueStorage);
+
+							SkipWhitespace(Result);
+							if (*Result++ != TCHAR(','))
+							{
+								return nullptr;
+							}
+							SkipWhitespace(Result);
+
+							void* ValuePtr =  MapHelper.FindOrAdd(TempKeyValueStorage);;
+							Result = ImportText(Result, MapHelper.ValueProp, ValuePtr);
+
+							SkipWhitespace(Result);
+							if (*Result++ != TCHAR(')'))
+							{
+								return nullptr;
+							}
+
+							if (Path)
+							{
+								// Need to fetch the MapOverriddenPropertyNode every loop as the previous might have reallocated the node.
+								FArchiveSerializedPropertyChain Chain = Path->ToSerializedPropertyChain();
+								if (FOverriddenPropertyNode* MapOverriddenPropertyNode = OverriddenProperties ? OverriddenProperties->SetOverriddenPropertyOperation(EOverriddenPropertyOperation::Modified, &Chain, /*Property*/nullptr) : nullptr)
+								{
+									// Rebuild the overridden info
+									FOverriddenPropertyNodeID AddedKeyID = UE::OverridableMapUtilities::GetIDFromKey(MapProperty->KeyProp, TempKeyValueStorage);
+									OverriddenProperties->SetSubPropertyOperation(EOverriddenPropertyOperation::Add, *MapOverriddenPropertyNode, AddedKeyID);
+								}
+							}
+							return Result;
+						}
+						default:
+							checkf(false, TEXT("Unsupported map operation while importing text"));
+							return nullptr;
+					}
+				}
+			}
+
 			// check for out of bounds on static arrays
-			if (ArrayProperty == NULL && Index >= Property->ArrayDim)
+			if (ArrayProperty == nullptr && Index >= Property->ArrayDim)
 			{
 				Warn->Logf(ELogVerbosity::Warning, TEXT("Out of bound array default property (%i/%i): %s"), Index, Property->ArrayDim, Start);
 				return Str;
@@ -1951,16 +2296,6 @@ const TCHAR* FProperty::ImportSingleProperty( const TCHAR* Str, void* DestData, 
 			}
 			DefinedProperties.Add(D);
 
-			// strip whitespace before =
-			SkipWhitespace(Str);
-			if (*Str++ != '=')
-			{
-				Warn->Logf(ELogVerbosity::Warning, TEXT("Missing '=' in default properties assignment: %s"), Start );
-				return Str;
-			}
-			// strip whitespace after =
-			SkipWhitespace(Str);
-
 			if (!IsPropertyValueSpecified(Str) && ArrayProperty == nullptr)
 			{
 				// if we're not importing default properties for classes (i.e. we're pasting something in the editor or something)
@@ -1973,31 +2308,15 @@ const TCHAR* FProperty::ImportSingleProperty( const TCHAR* Str, void* DestData, 
 			// not done above with ShouldPort() check because this is intentionally exported so we don't want it to cause errors on import
 			if (Property->GetFName() != NAME_Name || !Property->GetOwnerVariant().IsUObject() || Property->GetOwner<UObject>()->GetFName() != NAME_Object)
 			{
-				if (Index > -1 && ArrayProperty != NULL) //set single dynamic array element
+				if (Index > -1 && ArrayProperty != nullptr) //set single dynamic array element
 				{
 					FScriptArrayHelper_InContainer ArrayHelper(ArrayProperty, DestData);
 
 					ArrayHelper.ExpandForIndex(Index);
 
-					FStringOutputDevice ImportError;
-					const TCHAR* Result = ArrayProperty->Inner->ImportText_Direct(Str, ArrayHelper.GetRawPtr(Index), SubobjectOuter, PortFlags, &ImportError);
-					// Spit any error we had while importing property
-					if (ImportError.Len() > 0)
-					{
-						TArray<FString> ImportErrors;
-						ImportError.ParseIntoArray(ImportErrors,LINE_TERMINATOR,true);
-
-						for ( int32 ErrorIndex = 0; ErrorIndex < ImportErrors.Num(); ErrorIndex++ )
-						{
-							Warn->Logf(ELogVerbosity::Warning, TEXT("%s"), *ImportErrors[ErrorIndex]);
-						}
-					}
-					else if (Result == Str)
-					{
-						Warn->Logf(ELogVerbosity::Warning, TEXT("Invalid property value in defaults: %s"), Start);
-					}
+					const TCHAR* Result = ImportText(Str, ArrayProperty->Inner, ArrayHelper.GetRawPtr(Index));
 					// in the failure case, don't return NULL so the caller can potentially skip less and get values further in the string
-					if (Result != NULL)
+					if (Result != nullptr)
 					{
 						Str = Result;
 					}
@@ -2009,28 +2328,10 @@ const TCHAR* FProperty::ImportSingleProperty( const TCHAR* Str, void* DestData, 
 						Index = 0;
 					}
 
-					FStringOutputDevice ImportError;
 
-					const TCHAR* Result = Property->ImportText_Direct(Str, Property->ContainerPtrToValuePtr<void>(DestData, Index), SubobjectOuter, PortFlags, &ImportError);
-					
-					// Spit any error we had while importing property
-					if (ImportError.Len() > 0)
-					{
-						TArray<FString> ImportErrors;
-						ImportError.ParseIntoArray(ImportErrors, LINE_TERMINATOR, true);
-
-						Warn->Logf(ELogVerbosity::Warning, TEXT("While importing text for property '%s' in '%s':"), *Property->GetName(), *ObjectStruct->GetName());
-						for ( int32 ErrorIndex = 0; ErrorIndex < ImportErrors.Num(); ErrorIndex++ )
-						{
-							Warn->Logf(ELogVerbosity::Warning, TEXT("%s"), *ImportErrors[ErrorIndex]);
-						}
-					}
-					else if ((Result == NULL && ArrayProperty == nullptr) || Result == Str)
-					{
-						UE_SUPPRESS(LogExec, Verbose, Warn->Logf(TEXT("Unknown property in %s: %s "), *ObjectStruct->GetName(), Start));
-					}
+					const TCHAR* Result = ImportText(Str, Property, Property->ContainerPtrToValuePtr<void>(DestData, Index));
 					// in the failure case, don't return NULL so the caller can potentially skip less and get values further in the string
-					if (Result != NULL)
+					if (Result != nullptr)
 					{
 						Str = Result;
 					}
