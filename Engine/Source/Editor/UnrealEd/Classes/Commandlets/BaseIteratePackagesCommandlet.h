@@ -98,7 +98,7 @@ protected:
 	bool bUseWorldPartitionBuilder;
 
 	/** Initialisation for the FScopedEditorWorld if bUseWorldPartitionBuilder is enabled */
-	UWorld::InitializationValues WorldPartitionInitialisationValues;
+	UWorld::InitializationValues WorldInitialisationValues;
 
 	/** Should we build lighting for the packages we are saving? **/
 	//bool bShouldBuildLighting;
