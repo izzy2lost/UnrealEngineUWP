@@ -143,6 +143,7 @@ private:
 	void MoveCompletingRequestsToCompletedRequests(TArray<IHttpThreadedRequest*>& RequestsToComplete);
 	void StartRequestsWaitingInQueue(TArray<IHttpThreadedRequest*>& RequestsToComplete);
 	void FinishRequestsFromHttpThreadWithCallbacks(TArray<IHttpThreadedRequest*>& RequestsToComplete);
+	void UpdateThreadPriorityIfNeeded();
 
 protected:
 	/** Pointer to Runnable Thread */
@@ -157,6 +158,9 @@ private:
 
 	/** Last time the thread has been processed. Used in the non-game thread. */
 	double LastTime;
+
+	/** Current thread priority of the thread. Used to detect when a priority change is requested */
+	EThreadPriority CurrentThreadPriority;
 
 protected:
 	/** 
