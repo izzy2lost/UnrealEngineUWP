@@ -951,6 +951,14 @@ FValidationContext::FValidationContext(EType InType)
 
 void FValidationContext::RHIBeginFrame()
 {
+	++State.BeginEndFrameCounter;
+	if (State.BeginEndFrameCounter != 1)
+	{
+		ensureMsgf(0, TEXT("RHIBeginFrame called twice in a row! Previous callstack: (void**)0x%p,32"), State.PreviousBeginFrame);
+	}
+	delete [] (uint64*)State.PreviousBeginFrame;
+	State.PreviousBeginFrame = RHIValidation::CaptureBacktrace();
+
 	State.Reset();
 	RHIContext->RHIBeginFrame();
 }
@@ -963,6 +971,15 @@ void FValidationContext::RHIEndFrame()
 	// The RenderThread FrameID is update in RHIAdvanceFrameFence which is called on the RenderThread
 	FValidationRHI* ValidateRHI = (FValidationRHI*)GDynamicRHI;
 	ValidateRHI->RHIThreadFrameID++;
+
+	--State.BeginEndFrameCounter;
+	if (State.BeginEndFrameCounter != 0)
+	{
+		ensureMsgf(0, TEXT("RHIEndFrame called twice in a row! Previous callstack: (void**)0x%p,32"), State.PreviousEndFrame);
+		State.BeginEndFrameCounter = 0;
+	}
+	delete [] (uint64*)State.PreviousEndFrame;
+	State.PreviousEndFrame = RHIValidation::CaptureBacktrace();
 }
 
 namespace RHIValidation

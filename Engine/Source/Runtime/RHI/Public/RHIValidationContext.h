@@ -1209,6 +1209,10 @@ protected:
 		RHIValidation::FStaticUniformBuffers StaticUniformBuffers;
 		RHIValidation::FBoundUniformBuffers BoundUniformBuffers;
 
+		void* PreviousBeginFrame = nullptr;
+		void* PreviousEndFrame = nullptr;
+		int32 BeginEndFrameCounter = 0;
+
 		FRHIRenderPassInfo RenderPassInfo;
 		FString RenderPassName;
 		FString PreviousRenderPassName;

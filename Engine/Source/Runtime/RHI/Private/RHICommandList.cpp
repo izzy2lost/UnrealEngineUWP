@@ -1691,13 +1691,6 @@ void FRHICommandListImmediate::BeginFrame()
 {
 	check(IsImmediate() && IsInRenderingThread());
 
-	++GRHICommandList.BeginFrameCount;
-	if (GRHICommandList.BeginFrameCount > 1)
-	{
-		// Allow nested begin calls, we don't need to do anything if we've already started the frame.
-		return;
-	}
-
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(BeginFrame_Flush);
 		CSV_SCOPED_TIMING_STAT(RHITFlushes, BeginFrame);
@@ -1719,18 +1712,6 @@ void FRHICommandListImmediate::BeginFrame()
 void FRHICommandListImmediate::EndFrame()
 {
 	check(IsImmediate() && IsInRenderingThread());
-
-	if (GRHICommandList.BeginFrameCount <= 0)
-	{
-		checkf(false, TEXT("RHIEndFrame called without a matching RHIBeginFrame!"));
-		return;
-	}
-
-	--GRHICommandList.BeginFrameCount;
-	if (GRHICommandList.BeginFrameCount > 0)
-	{
-		return;
-	}
 
 	if (Bypass())
 	{
