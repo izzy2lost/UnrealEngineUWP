@@ -528,11 +528,11 @@ protected:
 	inline static TStaticArray<FString, 3> SelectedSetIds = {"Selected_Vertices", "Selected_Lines", "Selected_Triangles"};
 
 	UPROPERTY()
-	FMeshElementSelectionParams UnselectedParams {UnselectedSetIds, 5.f, 4.f, 8.f};
+	FMeshElementSelectionParams UnselectedParams {UnselectedSetIds, 5.f, 2.f, 8.f};
 	UPROPERTY()
-	FMeshElementSelectionParams HoverOverSelectedParams {HoverOverSelectedSetIds, 10.f, 8.f, 10.f};
+	FMeshElementSelectionParams HoverOverSelectedParams {HoverOverSelectedSetIds, 10.f, 6.f, 10.f};
 	UPROPERTY()
-	FMeshElementSelectionParams HoverOverUnselectedParams {HoverOverUnselectedSetIds, 10.f, 8.f, 10.f};
+	FMeshElementSelectionParams HoverOverUnselectedParams {HoverOverUnselectedSetIds, 10.f, 6.f, 10.f};
 	UPROPERTY()
 	FMeshElementSelectionParams SelectedParams {SelectedSetIds, 6.f, 6.f, 10.f};
 	
