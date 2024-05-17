@@ -2922,7 +2922,7 @@ public:
 	{
 		if (Bypass())
 		{
-			GetContext().RHIEndUAVOverlap();
+			GetComputeContext().RHIEndUAVOverlap();
 			return;
 		}
 		ALLOC_COMMAND(FRHICommandEndUAVOverlap)();
@@ -5089,6 +5089,8 @@ private:
 #if WITH_RHI_BREADCRUMBS
 	bool bEmitBreadcrumbs = false;
 #endif
+
+	int BeginFrameCount = 0;
 
 	friend class FRHICommandListBase;
 	friend class FRHICommandListImmediate;
