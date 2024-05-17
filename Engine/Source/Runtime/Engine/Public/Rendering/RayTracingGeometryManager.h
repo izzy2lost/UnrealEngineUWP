@@ -63,6 +63,8 @@ private:
 
 	void SetupBuildParams(const FBuildRequest& InBuildRequest, TArray<FRayTracingGeometryBuildParams>& InBuildParams, bool bRemoveFromRequestArray = true);
 
+	void ReleaseRayTracingGeometryGroupReference(RayTracing::GeometryGroupHandle Handle);
+
 	FCriticalSection RequestCS;
 
 	TSparseArray<FBuildRequest> GeometryBuildRequests;
@@ -81,9 +83,10 @@ private:
 
 		TSet<FPrimitiveSceneProxy*> ProxiesWithCachedRayTracingState;
 
-		// flag used to indicate that ReleaseRayTracingGeometryHandle(...) has been called 
-		// group is pending release due to remaining proxies
-		bool bPendingRelease = false;
+		// Due to the way we batch release FRenderResource and SceneProxies, 
+		// ReleaseRayTracingGeometryGroup(...) can end up being called before all FRayTracingGeometry and SceneProxies are actually released.
+		// To deal with this, we keep track of whether the group is still referenced and only release the group handle once all references are released.
+		uint32 NumReferences = 0;
 
 		// TODO: Implement use-after-free checks in RayTracing::GeometryGroupHandle using some bits to identify generation
 	};
