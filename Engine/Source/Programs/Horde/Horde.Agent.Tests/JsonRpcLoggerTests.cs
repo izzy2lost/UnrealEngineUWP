@@ -7,11 +7,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using Amazon.EC2.Model;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Compute;
-using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
@@ -19,7 +17,6 @@ using Grpc.Core;
 using Grpc.Net.Client;
 using Horde.Agent.Utility;
 using Horde.Common.Rpc;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -173,8 +170,8 @@ namespace Horde.Agent.Tests
 					=> await _writer.WriteAsync(message);
 			}
 
-			public static AsyncDuplexStreamingCall<TRequest, TResponse> CreateDuplexCall<TRequest, TResponse>(Func<ChannelReader<TRequest>, ChannelWriter<TResponse>, Task> func) 
-				where TRequest : class 
+			public static AsyncDuplexStreamingCall<TRequest, TResponse> CreateDuplexCall<TRequest, TResponse>(Func<ChannelReader<TRequest>, ChannelWriter<TResponse>, Task> func)
+				where TRequest : class
 				where TResponse : class
 			{
 				Channel<TRequest> requests = Channel.CreateUnbounded<TRequest>();
@@ -277,7 +274,7 @@ namespace Horde.Agent.Tests
 			LogId logId = default;
 
 			const int Count = 20000;
-			await using (ServerLogger logger = new ServerLogger(hordeClient, logId, null, LogLevel.Information, NullLogger.Instance, NullLogger.Instance))
+			await using (ServerLogger logger = new ServerLogger(hordeClient, logId, LogLevel.Information, NullLogger.Instance))
 			{
 				for (int idx = 0; idx < Count; idx++)
 				{

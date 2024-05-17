@@ -48,10 +48,8 @@ namespace Horde.Agent.Utility
 		AsyncEvent _tailTaskStop;
 		readonly AsyncEvent _newTailDataEvent = new AsyncEvent();
 
-		readonly bool _warnings;
 		readonly LogLevel _outputLevel;
-		readonly ILogger _localLogger;
-		readonly ILogger _agentLogger;
+		readonly ILogger _internalLogger;
 		readonly Channel<JsonLogEvent> _dataChannel;
 		Task? _dataWriter;
 
@@ -60,15 +58,13 @@ namespace Horde.Agent.Utility
 		/// </summary>
 		/// <param name="hordeClient">Horde instance to write to</param>
 		/// <param name="logId">The log id to write to</param>
-		/// <param name="warnings">Whether to include warnings in the output</param>
-		/// <param name="outputLevel">Minimum level for output</param>
-		/// <param name="localLogger">Logger to forward log messages to</param>
-		/// <param name="agentLogger">Logger for systemic messages</param>
-		public ServerLogger(IHordeClient hordeClient, LogId logId, bool? warnings, LogLevel outputLevel, ILogger localLogger, ILogger agentLogger)
+		/// <param name="minimumLevel">Minimum level for output</param>
+		/// <param name="internalLogger">Logger for systemic messages</param>
+		public ServerLogger(IHordeClient hordeClient, LogId logId, LogLevel minimumLevel, ILogger internalLogger)
 		{
 			_hordeClient = hordeClient;
 			_logId = logId;
-			_builder = new LogBuilder(LogFormat.Json, agentLogger);
+			_builder = new LogBuilder(LogFormat.Json, internalLogger);
 			_store = _hordeClient.CreateStorageClient(logId);
 			_writer = _store.CreateBlobWriter();
 
@@ -76,10 +72,8 @@ namespace Horde.Agent.Utility
 			_tailTask = Task.Run(() => TickTailAsync());
 
 			_logId = logId;
-			_warnings = warnings ?? true;
-			_outputLevel = outputLevel;
-			_localLogger = localLogger;
-			_agentLogger = agentLogger;
+			_outputLevel = minimumLevel;
+			_internalLogger = internalLogger;
 			_dataChannel = Channel.CreateUnbounded<JsonLogEvent>();
 			_dataWriter = Task.Run(() => RunDataWriterAsync());
 		}
@@ -87,23 +81,16 @@ namespace Horde.Agent.Utility
 		/// <inheritdoc/>
 		public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
 		{
-			_localLogger.Log(logLevel, eventId, state, exception, formatter);
-
-			// Downgrade warnings to information if not required
-			if (logLevel == LogLevel.Warning && !_warnings)
-			{
-				logLevel = LogLevel.Information;
-			}
-
 			JsonLogEvent jsonLogEvent = JsonLogEvent.FromLoggerState(logLevel, eventId, state, exception, formatter);
 			WriteFormattedEvent(jsonLogEvent);
 		}
 
 		/// <inheritdoc/>
-		public bool IsEnabled(LogLevel logLevel) => logLevel >= _outputLevel || _localLogger.IsEnabled(logLevel);
+		public bool IsEnabled(LogLevel logLevel) => logLevel >= _outputLevel;
 
 		/// <inheritdoc/>
-		public IDisposable? BeginScope<TState>(TState state) where TState : notnull => _localLogger.BeginScope(state);
+		public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+			=> null;
 
 		private void WriteFormattedEvent(JsonLogEvent jsonLogEvent)
 		{
@@ -134,7 +121,7 @@ namespace Horde.Agent.Utility
 		{
 			await StopAsync();
 
-			_agentLogger.LogInformation("Disposing json log task");
+			_internalLogger.LogInformation("Disposing json log task");
 
 			if (_tailTaskStop != null)
 			{
@@ -230,7 +217,7 @@ namespace Horde.Agent.Utility
 					}
 					catch (Exception ex)
 					{
-						_agentLogger.LogWarning(ex, "Unable to write data to server (log {LogId}, offset {Offset}, length {Length}, lines {StartLine}-{EndLine})", _logId, packetOffset, packet.Length, packetLineIndex, packetLineIndex + packetLineCount);
+						_internalLogger.LogWarning(ex, "Unable to write data to server (log {LogId}, offset {Offset}, length {Length}, lines {StartLine}-{EndLine})", _logId, packetOffset, packet.Length, packetLineIndex, packetLineIndex + packetLineCount);
 					}
 				}
 
@@ -243,7 +230,7 @@ namespace Horde.Agent.Utility
 					}
 					catch (Exception ex)
 					{
-						_agentLogger.LogWarning(ex, "Unable to create events");
+						_internalLogger.LogWarning(ex, "Unable to create events");
 					}
 				}
 
@@ -256,7 +243,7 @@ namespace Horde.Agent.Utility
 					}
 					catch (Exception ex)
 					{
-						_agentLogger.LogWarning(ex, "Unable to flush data to server (log {LogId}, offset {Offset})", _logId, packetOffset);
+						_internalLogger.LogWarning(ex, "Unable to flush data to server (log {LogId}, offset {Offset})", _logId, packetOffset);
 					}
 					break;
 				}
@@ -271,7 +258,7 @@ namespace Horde.Agent.Utility
 			}
 			catch (Exception ex)
 			{
-				_agentLogger.LogError(ex, "Exception while trying to parse line count from data ({Message})", Encoding.UTF8.GetString(span));
+				_internalLogger.LogError(ex, "Exception while trying to parse line count from data ({Message})", Encoding.UTF8.GetString(span));
 			}
 		}
 
@@ -286,12 +273,12 @@ namespace Horde.Agent.Utility
 				}
 				catch (OperationCanceledException ex)
 				{
-					_agentLogger.LogInformation(ex, "Cancelled log tailing task");
+					_internalLogger.LogInformation(ex, "Cancelled log tailing task");
 					break;
 				}
 				catch (Exception ex)
 				{
-					_agentLogger.LogError(ex, "Exception on log tailing task ({LogId}): {Message}", _logId, ex.Message);
+					_internalLogger.LogError(ex, "Exception on log tailing task ({LogId}): {Message}", _logId, ex.Message);
 					await Task.Delay(TimeSpan.FromSeconds(10.0));
 				}
 			}
@@ -318,7 +305,7 @@ namespace Horde.Agent.Utility
 				// and to make sure that we don't expire the existing tail data.
 				if (tailNext != -1 && tailData.IsEmpty && tailNext == initialTailNext && !tickTask.IsCompleted)
 				{
-					_agentLogger.LogInformation("No tail data available for log {LogId} after line {TailNext}; waiting for more...", _logId, tailNext);
+					_internalLogger.LogInformation("No tail data available for log {LogId} after line {TailNext}; waiting for more...", _logId, tailNext);
 					await Task.WhenAny(newTailDataTask, tickTask);
 					continue;
 				}
@@ -331,20 +318,20 @@ namespace Horde.Agent.Utility
 
 				// Update the next tailing position
 				int numLines = CountLines(tailData.Span);
-				_agentLogger.LogInformation("Setting log {LogId} tail = {TailNext}, data = {TailDataSize} bytes, {NumLines} lines ('{Start}')", _logId, tailNext, tailData.Length, numLines, start);
+				_internalLogger.LogInformation("Setting log {LogId} tail = {TailNext}, data = {TailDataSize} bytes, {NumLines} lines ('{Start}')", _logId, tailNext, tailData.Length, numLines, start);
 
 				int newTailNext = await UpdateLogTailAsync(tailNext, tailData, CancellationToken.None);
-				_agentLogger.LogInformation("Log {LogId} tail next = {TailNext}", _logId, newTailNext);
+				_internalLogger.LogInformation("Log {LogId} tail next = {TailNext}", _logId, newTailNext);
 
 				if (newTailNext != tailNext)
 				{
 					tailNext = newTailNext;
-					_agentLogger.LogInformation("Modified tail position for log {LogId} to {TailNext}", _logId, tailNext);
+					_internalLogger.LogInformation("Modified tail position for log {LogId} to {TailNext}", _logId, tailNext);
 				}
 
 				tickTask = Task.Delay(TimeSpan.FromSeconds(10.0));
 			}
-			_agentLogger.LogInformation("Finishing log tail task");
+			_internalLogger.LogInformation("Finishing log tail task");
 		}
 
 		static int CountLines(ReadOnlySpan<byte> data)
@@ -387,7 +374,7 @@ namespace Horde.Agent.Utility
 
 		async Task UpdateLogAsync(IBlobRef target, int lineCount, bool complete, CancellationToken cancellationToken)
 		{
-			_agentLogger.LogInformation("Updating log {LogId} to line {LineCount}, target {Locator}", _logId, lineCount, target.GetLocator());
+			_internalLogger.LogInformation("Updating log {LogId} to line {LineCount}, target {Locator}", _logId, lineCount, target.GetLocator());
 
 			UpdateLogRequest request = new UpdateLogRequest();
 			request.LogId = _logId.ToString();
@@ -414,7 +401,7 @@ namespace Horde.Agent.Utility
 				request.TailNext = tailNext;
 				request.TailData = UnsafeByteOperations.UnsafeWrap(tailData);
 				await call.RequestStream.WriteAsync(request, cancellationToken);
-				_agentLogger.LogInformation("Writing log data: {LogId}, {TailNext}, {TailData} bytes", _logId, tailNext, tailData.Length);
+				_internalLogger.LogInformation("Writing log data: {LogId}, {TailNext}, {TailData} bytes", _logId, tailNext, tailData.Length);
 
 				// Wait until the server responds or we need to trigger a new update
 				Task<bool> moveNextAsync = call.ResponseStream.MoveNext();
@@ -422,7 +409,7 @@ namespace Horde.Agent.Utility
 				Task task = await Task.WhenAny(moveNextAsync, _tailTaskStop.Task, Task.Delay(TimeSpan.FromMinutes(1.0), CancellationToken.None));
 				if (task == _tailTaskStop.Task)
 				{
-					_agentLogger.LogInformation("Cancelling long poll from client side (complete)");
+					_internalLogger.LogInformation("Cancelling long poll from client side (complete)");
 				}
 
 				// Close the request stream to indicate that we're finished
@@ -439,7 +426,7 @@ namespace Horde.Agent.Utility
 			}
 			catch (RpcException ex) when (ex.StatusCode == StatusCode.DeadlineExceeded)
 			{
-				_agentLogger.LogDebug(ex, "Log tail deadline exceeded, ignoring.");
+				_internalLogger.LogDebug(ex, "Log tail deadline exceeded, ignoring.");
 				return -1;
 			}
 		}

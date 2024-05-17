@@ -24,8 +24,10 @@ namespace Horde.Agent.Driver.Utility
 		readonly JobId _jobId;
 		readonly JobStepBatchId _jobBatchId;
 		readonly JobStepId _jobStepId;
+		readonly bool _warnings;
 
-		readonly ServerLogger _inner;
+		readonly ServerLogger _serverLogger;
+		readonly ILogger _localLogger;
 		JobStepOutcome _outcome;
 		Task _updateOutcomeTask;
 		readonly CancellationTokenSource _cancellationSource;
@@ -40,7 +42,9 @@ namespace Horde.Agent.Driver.Utility
 			_jobId = jobId;
 			_jobBatchId = jobBatchId;
 			_jobStepId = jobStepId;
-			_inner = new ServerLogger(hordeClient, logId, warnings, outputLevel, localLogger, internalLogger);
+			_warnings = warnings ?? true;
+			_serverLogger = new ServerLogger(hordeClient, logId, outputLevel, internalLogger);
+			_localLogger = localLogger;
 			_outcome = JobStepOutcome.Success;
 			_updateOutcomeTask = Task.CompletedTask;
 			_cancellationSource = new CancellationTokenSource();
@@ -49,7 +53,7 @@ namespace Horde.Agent.Driver.Utility
 
 		/// <inheritdoc/>
 		public IDisposable? BeginScope<TState>(TState state) where TState : notnull
-			=> _inner.BeginScope(state);
+			=> _localLogger.BeginScope(state);
 
 		/// <inheritdoc/>
 		public async ValueTask DisposeAsync()
@@ -61,18 +65,27 @@ namespace Horde.Agent.Driver.Utility
 				_cancellationSource.Dispose();
 			}
 
-			await _inner.DisposeAsync();
+			await _serverLogger.DisposeAsync();
 		}
 
 		/// <inheritdoc/>
 		public bool IsEnabled(LogLevel logLevel)
-			=> _inner.IsEnabled(logLevel);
+			=> _serverLogger.IsEnabled(logLevel) || _localLogger.IsEnabled(logLevel);
 
 		/// <inheritdoc/>
 		public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
 		{
+			// Downgrade warnings to information if not required
+			if (logLevel == LogLevel.Warning && !_warnings)
+			{
+				logLevel = LogLevel.Information;
+			}
+
+			// Write to the local logger
+			_localLogger.Log<TState>(logLevel, eventId, state, exception, formatter);
+
 			// Forward the log data to the inner writer
-			_inner.Log<TState>(logLevel, eventId, state, exception, formatter);
+			_serverLogger.Log<TState>(logLevel, eventId, state, exception, formatter);
 
 			// Update the state of this job if this is an error status
 			JobStepOutcome newOutcome = _outcome;
@@ -97,7 +110,7 @@ namespace Horde.Agent.Driver.Utility
 		/// <inheritdoc/>
 		public async Task StopAsync()
 		{
-			await _inner.StopAsync();
+			await _serverLogger.StopAsync();
 			await _updateOutcomeTask;
 		}
 
