@@ -618,11 +618,8 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(UObject* Owner, FPro
 	// construct InstanceDataObject class
 	// TODO: should we put the InstanceDataObject or it's class in a package?
 	const UClass* InstanceDataObjectClass = CreateInstanceDataObjectClass(PropertyTree, Owner->GetClass(), GetTransientPackage());
-	
-#if WITH_EDITOR
-	static const FName NAME_ContainsLoosePropertiesMetadata(ANSITEXTVIEW("ContainsLooseProperties"));
-	BagData.bNeedsFixup = InstanceDataObjectClass->GetBoolMetaData(NAME_ContainsLoosePropertiesMetadata);
-#endif
+
+	BagData.bNeedsFixup = UE::StructContainsLooseProperties(InstanceDataObjectClass);
 
 	TObjectPtr<UObject>* OuterPtr;
 	if (FPropertyBagAssociationData* OuterData = AssociatedData.Find(Owner->GetOuter()))

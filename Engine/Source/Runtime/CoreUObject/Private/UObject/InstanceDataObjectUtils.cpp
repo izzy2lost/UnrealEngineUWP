@@ -160,6 +160,15 @@ namespace UE
 		return bIsEnabled;
 	}
 
+	bool StructContainsLooseProperties(const UStruct* Struct)
+	{
+#if WITH_EDITORONLY_DATA
+		return Struct->GetBoolMetaData(NAME_ContainsLoosePropertiesMetadata);
+#else
+		return false;
+#endif
+	}
+
 	static UStruct* CreateInstanceDataObjectStructRec(const UClass* StructClass, UStruct* TemplateStruct, UObject* Outer, const FPropertyPathNameTree* PropertyTree);
 
 	template <typename StructType>
