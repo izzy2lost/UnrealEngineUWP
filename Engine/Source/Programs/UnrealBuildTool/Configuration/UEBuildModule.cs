@@ -660,7 +660,7 @@ namespace UnrealBuildTool
 						Definitions.Add(ModuleApiDefine + "=");
 					}
 				}
-				else if (Binary == null || SourceBinary != Binary)
+				else if (Binary == null || (Rules.Target.bMergeModules ? (SourceBinary == null || SourceModule != this) : SourceBinary != Binary))
 				{
 					Definitions.Add(ModuleApiDefine + "=DLLIMPORT");
 				}

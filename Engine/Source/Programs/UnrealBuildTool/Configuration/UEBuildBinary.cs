@@ -129,6 +129,16 @@ namespace UnrealBuildTool
 		public readonly List<ModuleRules.RuntimeDependency> RuntimeDependencies = new List<ModuleRules.RuntimeDependency>();
 
 		/// <summary>
+		/// If compiled objects will have unused exports stripped, only affects objects compiled into modular libraries.
+		/// </summary>
+		public bool bStripUnusedExports = false;
+
+		/// <summary>
+		/// List of all objects that would be linked.
+		/// </summary>
+		public readonly HashSet<FileItem> InputObjects = new();
+
+		/// <summary>
 		/// Create an instance of the class with the given configuration data
 		/// </summary>
 		/// <param name="Type"></param>
@@ -775,6 +785,7 @@ namespace UnrealBuildTool
 					// Compile each module.
 					Logger.LogDebug("Compile module: {ModuleName}", Module.Name);
 					List<FileItem> LinkInputFiles = Module.Compile(Target, ToolChain, BinaryCompileEnvironment, WorkingSet, Graph, Logger);
+					InputObjects.UnionWith(LinkInputFiles.Where(x => x.HasExtension(".obj") || x.HasExtension(".o")));
 
 					// Save the module outputs. In monolithic builds, this is just the object files.
 					if (Target.LinkType == TargetLinkType.Monolithic)
@@ -836,6 +847,25 @@ namespace UnrealBuildTool
 			// Setup link output type
 			BinaryLinkEnvironment.bIsBuildingDLL = IsBuildingDll(Type);
 			BinaryLinkEnvironment.bIsBuildingLibrary = IsBuildingLibrary(Type);
+
+			// Setup object export stripping
+			if ((BinaryLinkEnvironment.bIsBuildingDLL || BinaryLinkEnvironment.bIsBuildingLibrary) && Target.bStripExports)
+			{
+				bStripUnusedExports = true;
+				List<FileItem> inputFiles = new();
+				foreach (FileItem item in BinaryLinkEnvironment.InputFiles)
+				{
+					if (InputObjects.Contains(item))
+					{
+						inputFiles.Add(FileItem.GetItemByFileReference(item.Location.ChangeExtension($".strip{item.Location.GetExtension()}")));
+					}
+					else
+					{
+						inputFiles.Add(item);
+					}
+				}
+				BinaryLinkEnvironment.InputFiles = inputFiles;
+			}
 
 			// Code coverage inherited from compile environment
 			BinaryLinkEnvironment.bCodeCoverage = CompileEnvironment.bCodeCoverage;

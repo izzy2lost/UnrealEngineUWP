@@ -696,6 +696,14 @@ namespace UnrealBuildTool
 				Rules.bOmitPCDebugInfoInDevelopment = false;
 			}
 
+			// If merging modules, force modular and strip exports
+			if (Rules.bMergeModules)
+			{
+				Rules.BuildEnvironment = TargetBuildEnvironment.Unique;
+				Rules.LinkType = TargetLinkType.Modular;
+				Rules.bStripExports = true;
+			}
+
 			// Setup utrace for Shader Compiler Worker
 			if (Rules.bShaderCompilerWorkerTrace)
 			{

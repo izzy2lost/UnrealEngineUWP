@@ -529,6 +529,14 @@ namespace UnrealBuildTool
 
 		public TargetLinkType LinkType => Inner.LinkType;
 
+		public bool bStripExports => Inner.bStripExports;
+
+		public bool bMergeModules => Inner.bMergeModules;
+
+		public IReadOnlyList<string> MergePlugins => Inner.MergePlugins;
+
+		public IReadOnlyDictionary<string, IEnumerable<string>> MergePluginsShared => Inner.MergePluginsShared.ToDictionary(k => k.Key, v => v.Value.AsEnumerable());
+
 		public IReadOnlyList<string> GlobalDefinitions => Inner.GlobalDefinitions.AsReadOnly();
 
 		public IReadOnlyList<string> ProjectDefinitions => Inner.ProjectDefinitions.AsReadOnly();

@@ -2435,6 +2435,32 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Experimental: Strip unused exports from libraries. Only applies when LinkType is Modular
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		[CommandLine("-StripExports")]
+		public bool bStripExports { get; set; }
+
+		/// <summary>
+		/// Experimental: Merge modular modules into combined libraries. Sets LinkType to Modular and enables bStripExports
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		[CommandLine("-MergeModules")]
+		public bool bMergeModules { get; set; }
+
+		/// <summary>
+		/// Experimental: List of plugins (and their dependencies) to each merge into separate libraries. Requires bMergeModules to be enabled
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		[CommandLine("-MergePlugins=", ListSeparator = '+')]
+		public List<string> MergePlugins { get; } = new();
+
+		/// <summary>
+		/// Experimental: List of merged plugins to move common dependenceis to a shared library, requires MergePlugins. Can be chained
+		/// </summary>
+		public Dictionary<string, HashSet<string>> MergePluginsShared { get; } = new();
+
+		/// <summary>
 		/// Backing storage for the LinkType property.
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]
