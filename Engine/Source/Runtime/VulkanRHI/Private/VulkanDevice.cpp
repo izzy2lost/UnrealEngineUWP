@@ -1287,6 +1287,7 @@ void FVulkanDevice::Destroy()
 		if (vkDestroyValidationCache)
 		{
 			vkDestroyValidationCache(Device, ValidationCache, VULKAN_CPU_ALLOCATOR);
+			ValidationCache = VK_NULL_HANDLE;
 		}
 	}
 #endif
