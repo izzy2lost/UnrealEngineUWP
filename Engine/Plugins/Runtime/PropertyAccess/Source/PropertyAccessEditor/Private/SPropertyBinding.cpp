@@ -465,8 +465,13 @@ TSharedRef<SWidget> SPropertyBinding::OnGenerateDelegateMenu()
 					PinType.PinSubCategory = NAME_None;
 					PinType.PinSubCategoryObject = ScriptStruct;
 				}
-				Icon = FBlueprintEditorUtils::GetIconFromPin(PinType, true); 
+				Icon = FBlueprintEditorUtils::GetIconFromPin(PinType, true);
 				IconColor = Schema->GetPinTypeColor(PinType);
+			}
+
+			if (ContextStruct.Color.IsSet())
+			{
+				IconColor = ContextStruct.Color.GetValue();
 			}
 			
 			return SNew(SHorizontalBox)

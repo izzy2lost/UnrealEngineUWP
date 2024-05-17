@@ -85,6 +85,9 @@ struct FBindingContextStruct
 	/** Icon to display in the popup menu. */ 
 	const FSlateBrush* Icon = nullptr;
 
+	/** Color of the icon to display in the popup menu. */ 
+	TOptional<FLinearColor> Color;
+
 	/** Text to display for this item in the popup. If left empty, struct's display text will be used. */
 	FText DisplayText;
 
