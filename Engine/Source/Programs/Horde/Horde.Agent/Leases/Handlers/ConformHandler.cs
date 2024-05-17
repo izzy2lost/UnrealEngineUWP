@@ -17,21 +17,19 @@ namespace Horde.Agent.Leases.Handlers
 	class ConformHandler : LeaseHandler<ConformTask>
 	{
 		readonly DriverSettings _driverSettings;
-		readonly IServerLoggerFactory _serverLoggerFactory;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ConformHandler(IOptions<DriverSettings> driverSettings, IServerLoggerFactory serverLoggerFactory)
+		public ConformHandler(IOptions<DriverSettings> driverSettings)
 		{
 			_driverSettings = driverSettings.Value;
-			_serverLoggerFactory = serverLoggerFactory;
 		}
 
 		/// <inheritdoc/>
 		public override async Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, ConformTask conformTask, ILogger localLogger, CancellationToken cancellationToken)
 		{
-			await using IServerLogger serverLogger = _serverLoggerFactory.CreateLogger(session.HordeClient, LogId.Parse(conformTask.LogId)).WithLocalLogger(localLogger);
+			await using IServerLogger serverLogger = session.HordeClient.CreateServerLogger(LogId.Parse(conformTask.LogId)).WithLocalLogger(localLogger);
 			try
 			{
 				LeaseResult result = await ExecuteInternalAsync(session, leaseId, conformTask, serverLogger, cancellationToken);

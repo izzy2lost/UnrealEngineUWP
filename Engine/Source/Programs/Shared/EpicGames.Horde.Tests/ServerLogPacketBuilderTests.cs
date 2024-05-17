@@ -15,7 +15,6 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using Grpc.Core;
 using Grpc.Net.Client;
-//using Horde.Agent.Utility;
 using Horde.Common.Rpc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -262,6 +261,9 @@ namespace EpicGames.Horde.Tests
 			}
 
 			public bool HasValidAccessToken()
+				=> throw new NotImplementedException();
+
+			public IServerLogger CreateServerLogger(LogId logId, LogLevel minimumLevel = LogLevel.Information)
 				=> throw new NotImplementedException();
 		}
 

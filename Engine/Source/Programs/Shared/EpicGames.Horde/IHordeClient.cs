@@ -9,6 +9,7 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Tools;
 using Grpc.Core;
 using Grpc.Net.Client;
+using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde
 {
@@ -64,6 +65,11 @@ namespace EpicGames.Horde
 		/// Creates a storage client for the given base path
 		/// </summary>
 		IStorageClient CreateStorageClient(string relativePath, string? accessToken = null);
+
+		/// <summary>
+		/// Creates a logger device that writes data to the server
+		/// </summary>
+		IServerLogger CreateServerLogger(LogId logId, LogLevel minimumLevel = LogLevel.Information);
 	}
 
 	/// <summary>

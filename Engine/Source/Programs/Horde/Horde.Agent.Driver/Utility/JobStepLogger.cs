@@ -3,7 +3,6 @@
 using EpicGames.Horde;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
-using Horde.Agent.Utility;
 using Horde.Common.Rpc;
 using HordeCommon.Rpc;
 using Microsoft.Extensions.Logging;
@@ -26,7 +25,7 @@ namespace Horde.Agent.Driver.Utility
 		readonly JobStepId _jobStepId;
 		readonly bool _warnings;
 
-		readonly ServerLogger _serverLogger;
+		readonly IServerLogger _serverLogger;
 		readonly ILogger _localLogger;
 		JobStepOutcome _outcome;
 		Task _updateOutcomeTask;
@@ -43,7 +42,7 @@ namespace Horde.Agent.Driver.Utility
 			_jobBatchId = jobBatchId;
 			_jobStepId = jobStepId;
 			_warnings = warnings ?? true;
-			_serverLogger = new ServerLogger(hordeClient, logId, outputLevel, internalLogger);
+			_serverLogger = hordeClient.CreateServerLogger(logId, outputLevel);
 			_localLogger = localLogger;
 			_outcome = JobStepOutcome.Success;
 			_updateOutcomeTask = Task.CompletedTask;

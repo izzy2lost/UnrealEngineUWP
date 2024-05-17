@@ -7,7 +7,6 @@ using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Transports;
 using EpicGames.Horde.Logs;
 using Horde.Agent.Services;
-using Horde.Agent.Utility;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -20,23 +19,21 @@ namespace Horde.Agent.Leases.Handlers
 	class ComputeHandler : LeaseHandler<ComputeTask>
 	{
 		readonly ComputeListenerService _listenerService;
-		readonly IServerLoggerFactory _serverLoggerFactory;
 		readonly AgentSettings _settings;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ComputeHandler(ComputeListenerService listenerService, IServerLoggerFactory serverLoggerFactory, IOptions<AgentSettings> settings)
+		public ComputeHandler(ComputeListenerService listenerService, IOptions<AgentSettings> settings)
 		{
 			_listenerService = listenerService;
-			_serverLoggerFactory = serverLoggerFactory;
 			_settings = settings.Value;
 		}
 
 		/// <inheritdoc/>
 		public override async Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, ComputeTask computeTask, ILogger localLogger, CancellationToken cancellationToken)
 		{
-			await using IServerLogger? serverLogger = (computeTask.LogId != null) ? _serverLoggerFactory.CreateLogger(session.HordeClient, LogId.Parse(computeTask.LogId), LogLevel.Trace).WithLocalLogger(localLogger) : null;
+			await using IServerLogger? serverLogger = (computeTask.LogId != null) ? session.HordeClient.CreateServerLogger(LogId.Parse(computeTask.LogId), LogLevel.Trace).WithLocalLogger(localLogger) : null;
 			ILogger logger = serverLogger ?? localLogger;
 
 			if (!String.IsNullOrEmpty(computeTask.ParentLeaseId))

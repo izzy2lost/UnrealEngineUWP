@@ -7,8 +7,6 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using EpicGames.Horde;
-using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using Google.Protobuf;
 using Grpc.Core;
@@ -17,23 +15,10 @@ using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Logs
 {
-	using ByteString = Google.Protobuf.ByteString;
-
-	/// <summary>
-	/// Interface for a log device
-	/// </summary>
-	public interface IServerLogger : ILogger, IAsyncDisposable
-	{
-		/// <summary>
-		/// Flushes the logger with the server and stops the background work
-		/// </summary>
-		Task StopAsync();
-	}
-
 	/// <summary>
 	/// Class to handle uploading log data to the server in the background
 	/// </summary>
-	public sealed class ServerLogger : IServerLogger
+	sealed class ServerLogger : IServerLogger
 	{
 		const int FlushLength = 1024 * 1024;
 
@@ -213,7 +198,7 @@ namespace EpicGames.Horde.Logs
 					(ReadOnlyMemory<byte> packet, int packetLineCount) = writer.CreatePacket();
 					try
 					{
-						await WriteOutputAsync(_logId, packetOffset, packetLineIndex, packet, false, CancellationToken.None);
+						await WriteOutputAsync(packet, false, CancellationToken.None);
 						packetOffset += packet.Length;
 						packetLineIndex += packetLineCount;
 					}
@@ -241,7 +226,7 @@ namespace EpicGames.Horde.Logs
 				{
 					try
 					{
-						await WriteOutputAsync(_logId, packetOffset, packetLineIndex, ReadOnlyMemory<byte>.Empty, true, CancellationToken.None);
+						await WriteOutputAsync(ReadOnlyMemory<byte>.Empty, true, CancellationToken.None);
 					}
 					catch (Exception ex)
 					{
@@ -256,7 +241,7 @@ namespace EpicGames.Horde.Logs
 		{
 			try
 			{
-				events.Add(new RpcCreateLogEventRequest{ Severity = (int) severity, LogId = _logId.ToString(), LineIndex = lineIndex, LineCount = lineCount });
+				events.Add(new RpcCreateLogEventRequest { Severity = (int)severity, LogId = _logId.ToString(), LineIndex = lineIndex, LineCount = lineCount });
 			}
 			catch (Exception ex)
 			{
@@ -361,7 +346,7 @@ namespace EpicGames.Horde.Logs
 		}
 
 		/// <inheritdoc/>
-		public async Task WriteOutputAsync(LogId logId, long offset, int lineIndex, ReadOnlyMemory<byte> data, bool flush, CancellationToken cancellationToken)
+		public async Task WriteOutputAsync(ReadOnlyMemory<byte> data, bool flush, CancellationToken cancellationToken)
 		{
 			_builder.WriteData(data);
 			_bufferLength += data.Length;

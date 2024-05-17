@@ -58,17 +58,15 @@ namespace Horde.Agent.Leases.Handlers
 		readonly IEnumerable<IJobExecutorFactory> _executorFactories;
 		readonly AgentSettings _agentSettings;
 		readonly DriverSettings _driverSettings;
-		readonly IServerLoggerFactory _serverLoggerFactory;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public JobHandler(IEnumerable<IJobExecutorFactory> executorFactories, IOptions<AgentSettings> agentSettings, IOptions<DriverSettings> driverSettings, IServerLoggerFactory serverLoggerFactory)
+		public JobHandler(IEnumerable<IJobExecutorFactory> executorFactories, IOptions<AgentSettings> agentSettings, IOptions<DriverSettings> driverSettings)
 		{
 			_executorFactories = executorFactories;
 			_agentSettings = agentSettings.Value;
 			_driverSettings = driverSettings.Value;
-			_serverLoggerFactory = serverLoggerFactory;
 		}
 
 		/// <inheritdoc/>
@@ -159,7 +157,7 @@ namespace Horde.Agent.Leases.Handlers
 
 			// Create a storage client for this session
 			RpcJobOptions jobOptions = executeTask.JobOptions;
-			await using IServerLogger logger = _serverLoggerFactory.CreateLogger(session.HordeClient, executeTask.LogId).WithLocalLogger(localLogger);
+			await using IServerLogger logger = session.HordeClient.CreateServerLogger(executeTask.LogId).WithLocalLogger(localLogger);
 
 			logger.LogInformation("Executing job \"{JobName}\", jobId {JobId}, batchId {BatchId}, leaseId {LeaseId}, agentVersion {AgentVersion}", executeTask.JobName, executeTask.JobId, executeTask.BatchId, leaseId, AgentApp.Version);
 

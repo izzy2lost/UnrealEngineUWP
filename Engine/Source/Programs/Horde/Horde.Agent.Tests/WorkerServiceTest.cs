@@ -64,11 +64,6 @@ namespace Horde.Agent.Tests
 			public Task StopAsync() => Task.CompletedTask;
 		}
 
-		class FakeServerLoggerFactory : IServerLoggerFactory
-		{
-			public IServerLogger CreateLogger(IHordeClient hordeClient, LogId logId, LogLevel outputLevel = LogLevel.Information) => new FakeServerLogger();
-		}
-
 		internal static IJobExecutor NullExecutor = new SimpleTestExecutor(async (step, logger, cancellationToken) =>
 		{
 			await Task.Delay(1, cancellationToken);
@@ -80,7 +75,6 @@ namespace Horde.Agent.Tests
 			_serviceCollection = new ServiceCollection();
 			_serviceCollection.AddLogging();
 			_serviceCollection.AddHorde();
-			_serviceCollection.AddSingleton<IServerLoggerFactory, FakeServerLoggerFactory>();
 			_serviceCollection.AddSingleton<BundleCache>();
 			_serviceCollection.AddSingleton<StorageBackendCache>();
 			_serviceCollection.AddSingleton<HttpStorageBackendFactory>();
@@ -353,6 +347,9 @@ namespace Horde.Agent.Tests
 			}
 
 			public bool HasValidAccessToken()
+				=> throw new NotImplementedException();
+
+			public IServerLogger CreateServerLogger(LogId logId, LogLevel minimumLevel = LogLevel.Information)
 				=> throw new NotImplementedException();
 		}
 
