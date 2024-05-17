@@ -3,9 +3,11 @@
 using System.Text;
 using System.Threading.Channels;
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using Google.Protobuf;
+using Horde.Common.Rpc;
 using HordeCommon.Rpc;
 using Microsoft.Extensions.Logging;
 
@@ -19,11 +21,6 @@ namespace Horde.Agent.Utility
 	public interface IServerLogger : ILogger, IAsyncDisposable
 	{
 		/// <summary>
-		/// Outcome of the job step, including any warnings/errors
-		/// </summary>
-		JobStepOutcome Outcome { get; }
-
-		/// <summary>
 		/// Flushes the logger with the server and stops the background work
 		/// </summary>
 		Task StopAsync();
@@ -34,7 +31,7 @@ namespace Horde.Agent.Utility
 	/// </summary>
 	sealed class ServerLogger : IServerLogger
 	{
-		readonly IJsonRpcLogSink _sink;
+		readonly JsonRpcAndStorageLogSink _sink;
 		readonly LogId _logId;
 		readonly bool _warnings;
 		readonly LogLevel _outputLevel;
@@ -44,26 +41,17 @@ namespace Horde.Agent.Utility
 		Task? _dataWriter;
 
 		/// <summary>
-		/// The current outcome for this step. Updated to reflect any errors and warnings that occurred.
-		/// </summary>
-		public JobStepOutcome Outcome
-		{
-			get;
-			private set;
-		}
-
-		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="sink">Sink for log events</param>
+		/// <param name="hordeClient">Horde instance to write to</param>
 		/// <param name="logId">The log id to write to</param>
 		/// <param name="warnings">Whether to include warnings in the output</param>
 		/// <param name="outputLevel">Minimum level for output</param>
 		/// <param name="localLogger">Logger to forward log messages to</param>
 		/// <param name="agentLogger">Logger for systemic messages</param>
-		public ServerLogger(IJsonRpcLogSink sink, LogId logId, bool? warnings, LogLevel outputLevel, ILogger localLogger, ILogger agentLogger)
+		public ServerLogger(IHordeClient hordeClient, LogId logId, bool? warnings, LogLevel outputLevel, ILogger localLogger, ILogger agentLogger)
 		{
-			_sink = sink;
+			_sink = new JsonRpcAndStorageLogSink(hordeClient, logId, agentLogger); 
 			_logId = logId;
 			_warnings = warnings ?? true;
 			_outputLevel = outputLevel;
@@ -71,8 +59,6 @@ namespace Horde.Agent.Utility
 			_agentLogger = agentLogger;
 			_dataChannel = Channel.CreateUnbounded<JsonLogEvent>();
 			_dataWriter = Task.Run(() => RunDataWriterAsync());
-
-			Outcome = JobStepOutcome.Success;
 		}
 
 		/// <inheritdoc/>
@@ -98,18 +84,6 @@ namespace Horde.Agent.Utility
 
 		private void WriteFormattedEvent(JsonLogEvent jsonLogEvent)
 		{
-			// Update the state of this job if this is an error status
-			LogLevel level = jsonLogEvent.Level;
-			if (level == LogLevel.Error || level == LogLevel.Critical)
-			{
-				Outcome = JobStepOutcome.Failure;
-			}
-			else if (level == LogLevel.Warning && Outcome != JobStepOutcome.Failure)
-			{
-				Outcome = JobStepOutcome.Warnings;
-			}
-
-			// Write the event
 			if (!_dataChannel.Writer.TryWrite(jsonLogEvent))
 			{
 				throw new InvalidOperationException("Expected unbounded writer to complete immediately");
@@ -161,9 +135,6 @@ namespace Horde.Agent.Utility
 			// Buffer for events read in a single iteration
 			JsonRpcLogWriter writer = new JsonRpcLogWriter();
 			List<RpcCreateEventRequest> events = new List<RpcCreateEventRequest>();
-
-			// The current jobstep outcome
-			JobStepOutcome postedOutcome = JobStepOutcome.Success;
 
 			// Whether we've written the flush command
 			for (; ; )
@@ -231,20 +202,6 @@ namespace Horde.Agent.Utility
 					{
 						_agentLogger.LogWarning(ex, "Unable to create events");
 					}
-				}
-
-				// Update the outcome of this jobstep
-				if (Outcome != postedOutcome)
-				{
-					try
-					{
-						await _sink.SetOutcomeAsync(Outcome, CancellationToken.None);
-					}
-					catch (Exception ex)
-					{
-						_agentLogger.LogWarning(ex, "Unable to update step outcome to {NewOutcome}", Outcome);
-					}
-					postedOutcome = Outcome;
 				}
 
 				// Wait for more data to be available

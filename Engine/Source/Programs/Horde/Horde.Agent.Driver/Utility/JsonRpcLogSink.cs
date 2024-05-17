@@ -15,21 +15,11 @@ using static Horde.Common.Rpc.LogRpc;
 
 namespace Horde.Agent.Utility
 {
-	interface IJsonRpcLogSink : IAsyncDisposable
-	{
-		Task WriteEventsAsync(List<RpcCreateEventRequest> events, CancellationToken cancellationToken);
-		Task WriteOutputAsync(RpcWriteOutputRequest request, CancellationToken cancellationToken);
-		Task SetOutcomeAsync(JobStepOutcome outcome, CancellationToken cancellationToken);
-	}
-
-	class JsonRpcAndStorageLogSink : IJsonRpcLogSink, IAsyncDisposable
+	class JsonRpcAndStorageLogSink : IAsyncDisposable
 	{
 		const int FlushLength = 1024 * 1024;
 
 		readonly IHordeClient _hordeClient;
-		readonly JobId? _jobId;
-		readonly JobStepBatchId? _jobBatchId;
-		readonly JobStepId? _jobStepId;
 		readonly LogId _logId;
 		readonly LogBuilder _builder;
 		readonly IStorageClient _store;
@@ -43,13 +33,10 @@ namespace Horde.Agent.Utility
 		AsyncEvent _tailTaskStop;
 		readonly AsyncEvent _newTailDataEvent = new AsyncEvent();
 
-		public JsonRpcAndStorageLogSink(IHordeClient hordeClient, LogId logId, JobId? jobId, JobStepBatchId? jobBatchId, JobStepId? jobStepId, ILogger logger)
+		public JsonRpcAndStorageLogSink(IHordeClient hordeClient, LogId logId, ILogger logger)
 		{
 			_hordeClient = hordeClient;
 			_logId = logId;
-			_jobId = jobId;
-			_jobBatchId = jobBatchId;
-			_jobStepId = jobStepId;
 			_builder = new LogBuilder(LogFormat.Json, logger);
 			_store = _hordeClient.CreateStorageClient(logId);
 			_writer = _store.CreateBlobWriter();
@@ -166,24 +153,6 @@ namespace Horde.Agent.Utility
 				}
 			}
 			return lines;
-		}
-
-		/// <inheritdoc/>
-		public async Task SetOutcomeAsync(JobStepOutcome outcome, CancellationToken cancellationToken)
-		{
-			// Update the outcome of this jobstep
-			if (_jobId != null && _jobBatchId != null && _jobStepId != null)
-			{
-				JobRpc.JobRpcClient jobRpc = await _hordeClient.CreateGrpcClientAsync<JobRpc.JobRpcClient>(cancellationToken);
-				try
-				{
-					await jobRpc.UpdateStepAsync(new RpcUpdateStepRequest(_jobId.Value, _jobBatchId.Value, _jobStepId.Value, JobStepState.Unspecified, outcome), cancellationToken: cancellationToken);
-				}
-				catch (Exception ex)
-				{
-					_logger.LogWarning(ex, "Unable to update step outcome to {NewOutcome}", outcome);
-				}
-			}
 		}
 
 		/// <inheritdoc/>

@@ -10,6 +10,7 @@ using EpicGames.Horde.Logs;
 using Google.Protobuf;
 using Grpc.Core;
 using Horde.Agent.Driver;
+using Horde.Agent.Driver.Utility;
 using Horde.Agent.Execution;
 using Horde.Agent.Services;
 using Horde.Agent.Utility;
@@ -18,6 +19,7 @@ using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using OpenTracing;
 using OpenTracing.Util;
@@ -158,7 +160,7 @@ namespace Horde.Agent.Leases.Handlers
 
 			// Create a storage client for this session
 			RpcJobOptions jobOptions = executeTask.JobOptions;
-			await using IServerLogger logger = _serverLoggerFactory.CreateLogger(session.HordeClient, executeTask.LogId, localLogger, executeTask.JobId, executeTask.BatchId, null, null);
+			await using IServerLogger logger = _serverLoggerFactory.CreateLogger(session.HordeClient, executeTask.LogId, localLogger, null);
 
 			logger.LogInformation("Executing job \"{JobName}\", jobId {JobId}, batchId {BatchId}, leaseId {LeaseId}, agentVersion {AgentVersion}", executeTask.JobName, executeTask.JobId, executeTask.BatchId, leaseId, AgentApp.Version);
 
@@ -310,7 +312,7 @@ namespace Horde.Agent.Leases.Handlers
 					{
 						// Start writing to the log file
 #pragma warning disable CA2000 // Dispose objects before losing scope
-						await using (IServerLogger stepLogger = _serverLoggerFactory.CreateLogger(session.HordeClient, step.LogId, localLogger, options.JobId, options.BatchId, step.StepId, step.Warnings))
+						await using (JobStepLogger stepLogger = new JobStepLogger(session.HordeClient, step.LogId, localLogger, options.JobId, options.BatchId, step.StepId, step.Warnings, LogLevel.Debug, logger))
 						{
 							// Execute the task
 							using CancellationTokenSource stepPollCancelSource = new CancellationTokenSource();

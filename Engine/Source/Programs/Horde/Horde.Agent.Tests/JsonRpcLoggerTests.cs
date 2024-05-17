@@ -5,7 +5,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
+using Amazon.EC2.Model;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Compute;
@@ -16,6 +18,8 @@ using EpicGames.Horde.Storage.Bundles;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Horde.Agent.Utility;
+using Horde.Common.Rpc;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -125,30 +129,92 @@ namespace Horde.Agent.Tests
 			Assert.AreEqual(result[0], Msg);
 		}
 
-		class FakeJsonRpcLoggerBackend : JsonRpcAndStorageLogSink
+		class GrpcHelpers
 		{
-			public IBlobRef? Target { get; private set; }
-
-			public FakeJsonRpcLoggerBackend(IHordeClient hordeClient, LogId logId, JobId? jobId, JobStepBatchId? batchId, JobStepId? stepId, ILogger logger)
-				: base(hordeClient, logId, jobId, batchId, stepId, logger)
+			class StreamReader<T> : IAsyncStreamReader<T> where T : class
 			{
+				readonly ChannelReader<T> _reader;
+				T? _current;
+
+				public T Current => _current ?? throw new InvalidOperationException();
+
+				public StreamReader(ChannelReader<T> reader)
+					=> _reader = reader;
+
+				public async Task<bool> MoveNext(CancellationToken cancellationToken)
+				{
+					while (await _reader.WaitToReadAsync(cancellationToken))
+					{
+						if (_reader.TryRead(out _current))
+						{
+							return true;
+						}
+					}
+					return false;
+				}
 			}
 
-			protected override Task UpdateLogAsync(IBlobRef target, int lineCount, bool complete, CancellationToken cancellationToken)
+			class StreamWriter<T> : IClientStreamWriter<T>
 			{
-				Target = target;
-				return Task.CompletedTask;
+				readonly ChannelWriter<T> _writer;
+
+				public StreamWriter(ChannelWriter<T> writer)
+					=> _writer = writer;
+
+				public WriteOptions? WriteOptions { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+
+				public Task CompleteAsync()
+				{
+					_writer.Complete();
+					return Task.CompletedTask;
+				}
+
+				public async Task WriteAsync(T message)
+					=> await _writer.WriteAsync(message);
 			}
 
-			protected override async Task<int> UpdateLogTailAsync(int tailNext, ReadOnlyMemory<byte> tailData, CancellationToken cancellationToken)
+			public static AsyncDuplexStreamingCall<TRequest, TResponse> CreateDuplexCall<TRequest, TResponse>(Func<ChannelReader<TRequest>, ChannelWriter<TResponse>, Task> func) 
+				where TRequest : class 
+				where TResponse : class
 			{
-				await Task.Delay(TimeSpan.FromSeconds(2.0), cancellationToken);
-				return -1;
+				Channel<TRequest> requests = Channel.CreateUnbounded<TRequest>();
+				Channel<TResponse> responses = Channel.CreateUnbounded<TResponse>();
+
+				BackgroundTask runner = BackgroundTask.StartNew(async ctx =>
+				{
+					await func(requests.Reader, responses.Writer);
+					responses.Writer.Complete();
+				});
+
+				return new AsyncDuplexStreamingCall<TRequest, TResponse>(new StreamWriter<TRequest>(requests.Writer), new StreamReader<TResponse>(responses.Reader), Task.FromResult<Metadata>(null!), () => Status.DefaultSuccess, () => null!, () => runner.DisposeAsync().AsTask().Wait());
+			}
+		}
+
+		class FakeLogRpcClient : LogRpc.LogRpcClient
+		{
+			public Dictionary<LogId, BlobLocator> Logs { get; } = new Dictionary<LogId, BlobLocator>();
+
+			public override AsyncUnaryCall<UpdateLogResponse> UpdateLogAsync(UpdateLogRequest request, CallOptions options)
+			{
+				Logs[LogId.Parse(request.LogId)] = new BlobLocator(request.TargetLocator);
+				return new AsyncUnaryCall<UpdateLogResponse>(Task.FromResult(new UpdateLogResponse()), Task.FromResult(new Metadata()), () => Status.DefaultSuccess, () => new Metadata(), () => { });
+			}
+
+			public override AsyncDuplexStreamingCall<UpdateLogTailRequest, UpdateLogTailResponse> UpdateLogTail(CallOptions options)
+			{
+				return GrpcHelpers.CreateDuplexCall<UpdateLogTailRequest, UpdateLogTailResponse>(async (reader, writer) =>
+				{
+					while (await reader.WaitToReadAsync())
+					{
+						reader.TryRead(out UpdateLogTailRequest? request);
+					}
+				});
 			}
 		}
 
 		class FakeHordeClient : IHordeClient
 		{
+			public FakeLogRpcClient LogRpc { get; } = new FakeLogRpcClient();
 			public Dictionary<string, BundleStorageClient> StorageClients { get; } = new Dictionary<string, BundleStorageClient>();
 
 			public Uri ServerUrl => throw new NotImplementedException();
@@ -190,7 +256,13 @@ namespace Horde.Agent.Tests
 				=> throw new NotImplementedException();
 
 			public Task<TClient> CreateGrpcClientAsync<TClient>(CancellationToken cancellationToken = default) where TClient : ClientBase<TClient>
-				=> throw new NotImplementedException();
+			{
+				if (typeof(TClient) == typeof(LogRpc.LogRpcClient))
+				{
+					return Task.FromResult<TClient>((TClient)(object)LogRpc);
+				}
+				throw new NotImplementedException();
+			}
 
 			public bool HasValidAccessToken()
 				=> throw new NotImplementedException();
@@ -202,20 +274,20 @@ namespace Horde.Agent.Tests
 			await using BundleCache cache = new BundleCache();
 			await using FakeHordeClient hordeClient = new FakeHordeClient();
 
-			const int Count = 20000;
+			LogId logId = default;
 
-			LogNode file;
-			await using (FakeJsonRpcLoggerBackend sink = new FakeJsonRpcLoggerBackend(hordeClient, default, null, null, null, NullLogger.Instance))
+			const int Count = 20000;
+			await using (ServerLogger logger = new ServerLogger(hordeClient, logId, null, LogLevel.Information, NullLogger.Instance, NullLogger.Instance))
 			{
-				await using (ServerLogger logger = new ServerLogger(sink, default, null, LogLevel.Information, NullLogger.Instance, NullLogger.Instance))
+				for (int idx = 0; idx < Count; idx++)
 				{
-					for (int idx = 0; idx < Count; idx++)
-					{
-						logger.LogInformation("Testing {Number}", idx);
-					}
+					logger.LogInformation("Testing {Number}", idx);
 				}
-				file = await sink.Target!.ReadBlobAsync<LogNode>();
 			}
+
+			// Read the log
+			using IStorageClient storageClient = hordeClient.CreateStorageClient(logId);
+			LogNode file = await storageClient.CreateBlobHandle(hordeClient.LogRpc.Logs[logId]).ReadBlobAsync<LogNode>();
 
 			// Check the index text
 			List<Utf8String> extractedIndexText = new List<Utf8String>();

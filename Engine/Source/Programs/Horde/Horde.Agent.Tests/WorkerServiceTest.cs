@@ -53,8 +53,6 @@ namespace Horde.Agent.Tests
 
 		class FakeServerLogger : IServerLogger
 		{
-			public JobStepOutcome Outcome => JobStepOutcome.Success;
-
 			public IDisposable? BeginScope<TState>(TState state) where TState : notnull => NullLogger.Instance.BeginScope<TState>(state);
 
 			public ValueTask DisposeAsync() => new ValueTask();
@@ -68,7 +66,7 @@ namespace Horde.Agent.Tests
 
 		class FakeServerLoggerFactory : IServerLoggerFactory
 		{
-			public IServerLogger CreateLogger(IHordeClient hordeClient, LogId logId, ILogger localLogger, JobId? jobId, JobStepBatchId? batchId, JobStepId? stepId, bool? warnings = null, LogLevel outputLevel = LogLevel.Information) => new FakeServerLogger();
+			public IServerLogger CreateLogger(IHordeClient hordeClient, LogId logId, ILogger localLogger, bool? warnings = null, LogLevel outputLevel = LogLevel.Information) => new FakeServerLogger();
 		}
 
 		internal static IJobExecutor NullExecutor = new SimpleTestExecutor(async (step, logger, cancellationToken) =>
