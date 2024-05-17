@@ -95,6 +95,62 @@ public:
 		bool bXrFrameStateUpdated = false;
 	};
 
+	struct FPipelinedFrameStateAccessorReadOnly
+	{
+		FPipelinedFrameStateAccessorReadOnly(FPipelinedFrameState const& InPipelinedFrameState, FRWLock const& InAccessGuard)
+			: PipelinedFrameState(InPipelinedFrameState), AccessGuard(const_cast<FRWLock&>(InAccessGuard))
+		{
+			AccessGuard.ReadLock();
+		}
+
+		// not virtual because we aren't going to delete via a base pointer
+		~FPipelinedFrameStateAccessorReadOnly()
+		{
+			AccessGuard.ReadUnlock();
+		}
+
+		FPipelinedFrameState const& GetFrameState() const
+		{
+			return PipelinedFrameState;
+		}
+
+	private:
+
+		/** The frame state we're guarding the access to. */
+		FPipelinedFrameState const& PipelinedFrameState;
+
+		/** Reference to the guarding lock. */
+		FRWLock& AccessGuard;
+	};
+
+	struct FPipelinedFrameStateAccessorReadWrite
+	{
+		FPipelinedFrameStateAccessorReadWrite(FPipelinedFrameState& InPipelinedFrameState, FRWLock& InAccessGuard)
+			: PipelinedFrameState(InPipelinedFrameState), AccessGuard(InAccessGuard)
+		{
+			AccessGuard.WriteLock();
+		}
+
+		// not virtual because we aren't going to delete via a base pointer
+		~FPipelinedFrameStateAccessorReadWrite()
+		{
+			AccessGuard.WriteUnlock();
+		}
+
+		FPipelinedFrameState& GetFrameState()
+		{
+			return PipelinedFrameState;
+		}
+
+	private:
+
+		/** The frame state we're guarding the access to. */
+		FPipelinedFrameState& PipelinedFrameState;
+
+		/** Reference to the guarding lock. */
+		FRWLock& AccessGuard;
+	};
+
 	struct FEmulatedLayerState
 	{
 		// These layers are used as a target to composite all the emulated face locked layers into
@@ -275,8 +331,8 @@ protected:
 	void BuildOcclusionMeshes();
 	bool BuildOcclusionMesh(XrVisibilityMaskTypeKHR Type, int View, FHMDViewMesh& Mesh);
 
-	const FPipelinedFrameState& GetPipelinedFrameStateForThread() const;
-	FPipelinedFrameState& GetPipelinedFrameStateForThread();
+	FPipelinedFrameStateAccessorReadOnly GetPipelinedFrameStateForThread() const;
+	FPipelinedFrameStateAccessorReadWrite GetPipelinedFrameStateForThread();
 
 	void UpdateDeviceLocations(bool bUpdateOpenXRExtensionPlugins);
 	void EnumerateViews(FPipelinedFrameState& PipelineState);
@@ -478,6 +534,12 @@ private:
 	FPipelinedFrameState	PipelinedFrameStateGame;
 	FPipelinedFrameState	PipelinedFrameStateRendering;
 	FPipelinedFrameState	PipelinedFrameStateRHI;
+
+	/** Arbitrates access to PipelinedFrameStateGame from code on task threads */
+	FRWLock					PipelinedFrameStateGameAccessGuard;
+	/** Arbitrates access to PipelinedFrameStateRendering from code on task threads */
+	FRWLock					PipelinedFrameStateRenderingAccessGuard;
+	// we do not expose PipelineFrameStateRHI in GetPipelinedFrameStateForThread() as of now, so no lock is provided for that one.
 
 	FPipelinedLayerState	PipelinedLayerStateRendering;
 	FPipelinedLayerState	PipelinedLayerStateRHI;
