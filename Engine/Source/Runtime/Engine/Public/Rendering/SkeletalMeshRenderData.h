@@ -44,6 +44,10 @@ public:
 	/** Whether ray tracing acceleration structures should be created for this mesh. Derived from owner USkinnedAsset. */
 	bool bSupportRayTracing;
 
+#if RHI_RAYTRACING
+	RayTracing::GeometryGroupHandle RayTracingGeometryGroupHandle = INDEX_NONE;
+#endif
+
 #if WITH_EDITORONLY_DATA
 	/** UV data used for streaming accuracy debug view modes. In sync for rendering thread */
 	TArray<FMeshUVChannelInfo> UVChannelDataPerMaterial;

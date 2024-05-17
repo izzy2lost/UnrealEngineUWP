@@ -6939,10 +6939,27 @@ void FSkeletalMeshSceneProxy::GetDynamicElementsSection(const TArray<const FScen
 	}
 }
 
+void FSkeletalMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
+{
+#if RHI_RAYTRACING
+	if (IsRayTracingAllowed())
+	{
+		// copy RayTracingGeometryGroupHandle from FSkeletalMeshRenderData since USkeletalMesh can be released before the proxy is destroyed
+		RayTracingGeometryGroupHandle = SkeletalMeshRenderData->RayTracingGeometryGroupHandle;
+	}
+#endif
+}
+
 #if RHI_RAYTRACING
 bool FSkeletalMeshSceneProxy::HasRayTracingRepresentation() const
 {
 	return bRenderStatic;
+}
+
+RayTracing::GeometryGroupHandle FSkeletalMeshSceneProxy::GetRayTracingGeometryGroupHandle() const
+{
+	check(IsInRenderingThread() || IsInParallelRenderingThread());
+	return RayTracingGeometryGroupHandle;
 }
 
 TArray<FRayTracingGeometry*> FSkeletalMeshSceneProxy::GetStaticRayTracingGeometries() const

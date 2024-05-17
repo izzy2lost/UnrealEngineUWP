@@ -113,6 +113,7 @@ void FSkeletalMeshObjectStatic::InitResources(USkinnedMeshComponent* InMeshCompo
 								Initializer.Type = ERayTracingGeometryInitializerType::StreamingDestination;
 							}
 
+							RayTracingGeometry.GroupHandle = SkelMeshRenderData->RayTracingGeometryGroupHandle;
 							RayTracingGeometry.LODIndex = LODIndex;
 
 							RayTracingGeometry.SetInitializer(Initializer);

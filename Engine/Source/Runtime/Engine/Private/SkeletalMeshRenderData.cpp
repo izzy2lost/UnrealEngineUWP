@@ -10,6 +10,7 @@
 #include "EngineLogs.h"
 #include "UObject/Package.h"
 #include "Rendering/RenderCommandPipes.h"
+#include "Rendering/RayTracingGeometryManager.h"
 
 #if WITH_EDITOR
 #include "ProfilingDebugging/CookStats.h"
@@ -618,6 +619,17 @@ void FSkeletalMeshRenderData::InitResources(bool bNeedsVertexColors, TArray<UMor
 {
 	if (!bInitialized)
 	{
+#if RHI_RAYTRACING
+		if (IsRayTracingAllowed())
+		{
+			ENQUEUE_RENDER_COMMAND(SkeletalMeshInitRayTracingGeometryGroup)(UE::RenderCommandPipe::SkeletalMesh,
+				[this, NumLODs = LODRenderData.Num()]
+				{
+					RayTracingGeometryGroupHandle = GRayTracingGeometryManager->RegisterRayTracingGeometryGroup(NumLODs);
+				});
+		}
+#endif
+
 		// initialize resources for each lod
 		for (int32 LODIndex = 0; LODIndex < LODRenderData.Num(); LODIndex++)
 		{
@@ -651,6 +663,18 @@ void FSkeletalMeshRenderData::ReleaseResources()
 		{
 			LODRenderData[LODIndex].ReleaseResources();
 		}
+
+#if RHI_RAYTRACING
+		if (IsRayTracingAllowed())
+		{
+			ENQUEUE_RENDER_COMMAND(SkeletalMeshReleaseRayTracingGeometryGroup)(UE::RenderCommandPipe::SkeletalMesh,
+				[this]
+				{
+					GRayTracingGeometryManager->ReleaseRayTracingGeometryGroup(RayTracingGeometryGroupHandle);
+					RayTracingGeometryGroupHandle = INDEX_NONE;
+				});
+		}
+#endif
 
 		check(NaniteResourcesPtr.IsValid());
 		NaniteResourcesPtr->ReleaseResources();

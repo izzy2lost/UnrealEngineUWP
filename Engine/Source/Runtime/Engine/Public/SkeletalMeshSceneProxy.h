@@ -31,6 +31,8 @@ public:
 	ENGINE_API virtual void DrawStaticElements(FStaticPrimitiveDrawInterface* PDI) override;
 	ENGINE_API virtual void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const override;
 
+	ENGINE_API virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
+
 #if RHI_RAYTRACING
 	ENGINE_API virtual bool HasRayTracingRepresentation() const override;
 
@@ -40,6 +42,8 @@ public:
 	{
 		return bRenderStatic;
 	}
+
+	ENGINE_API virtual RayTracing::GeometryGroupHandle GetRayTracingGeometryGroupHandle() const override;
 
 	ENGINE_API virtual TArray<FRayTracingGeometry*> GetStaticRayTracingGeometries() const override;
 
@@ -198,6 +202,10 @@ protected:
 	
 	/** The primitive's pre-skinned local space bounds. */
 	FBoxSphereBounds PreSkinnedLocalBounds;
+
+#if RHI_RAYTRACING
+	RayTracing::GeometryGroupHandle RayTracingGeometryGroupHandle = INDEX_NONE;
+#endif
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	/** The color we draw this component in if drawing debug bones */
