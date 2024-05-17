@@ -603,7 +603,7 @@ namespace UnrealBuildTool
 					"#include PER_MODULE_INLINE_FILE\r\n" +
 					"#endif";
 
-				bool bMergeModules = false;
+				bool bMergeModules = Target.bMergeModules;
 				FileItem PerModuleFile = Graph.CreateIntermediateTextFile(NewDeleteOverrides, Content, bMergeModules);
 				if (bMergeModules)
 				{

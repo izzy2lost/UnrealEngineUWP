@@ -778,6 +778,8 @@ namespace UnrealBuildTool
 
 			HashSet<FileItem> InputFilesLookup = new();
 
+			FileItem? PerModuleItemToKeep = null;
+
 			foreach (UEBuildModule Module in UEBuildModule.StableTopologicalSort(Modules))
 			{
 				if (Module.Binary == null || Module.Binary == this)
@@ -785,6 +787,23 @@ namespace UnrealBuildTool
 					// Compile each module.
 					Logger.LogDebug("Compile module: {ModuleName}", Module.Name);
 					List<FileItem> LinkInputFiles = Module.Compile(Target, ToolChain, BinaryCompileEnvironment, WorkingSet, Graph, Logger);
+
+
+					// If modules are merged we will have multiple PerModuleInline which will cause duplicated symbols. So let's only keep one of those
+					// Also, some modules might have empty PerModuleInline.gen.cpp therefore it is important that we use Core if it exists
+					if (Target.bMergeModules)
+					{
+						FileItem PerModuleItem = LinkInputFiles.FirstOrDefault(x => x!.Name.Contains("PerModuleInline.gen.cpp"), null);
+						if (PerModuleItem != null)
+						{
+							if (PerModuleItemToKeep == null || Module.Name == "Core")
+							{
+								PerModuleItemToKeep = PerModuleItem;
+							}
+							LinkInputFiles.Remove(PerModuleItem);
+						}
+					}
+
 					InputObjects.UnionWith(LinkInputFiles.Where(x => x.HasExtension(".obj") || x.HasExtension(".o")));
 
 					// Save the module outputs. In monolithic builds, this is just the object files.
@@ -815,6 +834,12 @@ namespace UnrealBuildTool
 
 				// Allow the module to modify the link environment for the binary.
 				Module.SetupPrivateLinkEnvironment(this, BinaryLinkEnvironment, BinaryDependencies, LinkEnvironmentVisitedModules, ExeDir);
+			}
+
+			if (PerModuleItemToKeep != null)
+			{
+				BinaryLinkEnvironment.InputFiles.Add(PerModuleItemToKeep);
+				InputObjects.Add(PerModuleItemToKeep);
 			}
 
 			// Allow the binary dependencies to modify the link environment.
