@@ -3,6 +3,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Security.Cryptography;
 using System.Text;
 using EpicGames.Core;
 using Google.Protobuf.WellKnownTypes;
@@ -561,8 +562,44 @@ class TelemetryService : BackgroundService
 			Architecture = RuntimeInformation.OSArchitecture.ToString(),
 		};
 		e.PoolIds.AddRange(_workerService.PoolIds);
-		e.AgentId = e.CalculateAgentId();
+		e.AgentId = CalculateAgentId(e);
 		return e;
+	}
+
+	/// <summary>
+	/// Calculate an agent ID
+	/// </summary>
+	/// <returns>A unique hash for all fields</returns>
+	private static long CalculateAgentId(RpcAgentMetadataEvent e)
+	{
+		using SHA256 sha256 = SHA256.Create();
+		using MemoryStream ms = new(200);
+		using BinaryWriter bw = new(ms);
+
+		bw.Write(e.Ip ?? "<empty ip>");
+		bw.Write(e.Hostname ?? "<empty hostname>");
+		bw.Write(e.Region ?? "<empty region>");
+		bw.Write(e.AvailabilityZone ?? "<empty az>");
+		bw.Write(e.Environment ?? "<empty env>");
+		bw.Write(e.AgentVersion ?? "<empty version>");
+		bw.Write(e.Os ?? "<empty os>");
+		bw.Write(e.OsVersion ?? "<empty os version>");
+		bw.Write(e.Architecture ?? "<empty os architecture>");
+
+		foreach (KeyValuePair<string, string> pair in e.Properties)
+		{
+			bw.Write(pair.Key ?? "<empty key>");
+			bw.Write(pair.Value ?? "<empty value>");
+		}
+
+		foreach (string poolId in e.PoolIds)
+		{
+			bw.Write(poolId);
+		}
+
+		ms.Position = 0;
+		byte[] hash = sha256.ComputeHash(ms);
+		return BitConverter.ToInt64(hash, 0);
 	}
 
 	private static string GetOs()

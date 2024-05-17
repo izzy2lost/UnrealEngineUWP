@@ -67,12 +67,6 @@ namespace Horde.Agent.Tests
 			return Wrap(res);
 		}
 
-		public override AsyncUnaryCall<RpcGetStreamResponse> GetStreamAsync(RpcGetStreamRequest request, CallOptions options)
-		{
-			RpcGetStreamResponse res = new RpcGetStreamResponse();
-			return Wrap(res);
-		}
-
 		public override AsyncUnaryCall<RpcGetJobResponse> GetJobAsync(RpcGetJobRequest request, CallOptions options)
 		{
 			RpcGetJobResponse res = new RpcGetJobResponse();

@@ -15,70 +15,6 @@ using Google.Protobuf.Collections;
 #pragma warning disable CA1716
 namespace HordeCommon.Rpc
 {
-	partial class RpcProperty
-	{
-		public RpcProperty(string name, string value)
-		{
-			Name = name;
-			Value = value;
-		}
-
-		public RpcProperty(KeyValuePair<string, string> pair)
-		{
-			Name = pair.Key;
-			Value = pair.Value;
-		}
-	}
-
-	partial class RpcPropertyUpdate
-	{
-		public RpcPropertyUpdate(string name, string? value)
-		{
-			Name = name;
-			Value = value;
-		}
-	}
-
-	static class PropertyExtensions
-	{
-		public static string GetValue(this RepeatedField<RpcProperty> properties, string name)
-		{
-			return properties.First(x => x.Name == name).Value;
-		}
-
-		public static bool TryGetValue(this RepeatedField<RpcProperty> properties, string name, [MaybeNullWhen(false)] out string result)
-		{
-			RpcProperty? property = properties.FirstOrDefault(x => x.Name == name);
-			if (property == null)
-			{
-				result = null!;
-				return false;
-			}
-			else
-			{
-				result = property.Value;
-				return true;
-			}
-		}
-	}
-
-	partial class RpcGetStreamRequest
-	{
-		public RpcGetStreamRequest(StreamId streamId)
-		{
-			StreamId = streamId.ToString();
-		}
-	}
-
-	partial class RpcUpdateStreamRequest
-	{
-		public RpcUpdateStreamRequest(StreamId streamId, Dictionary<string, string?> properties)
-		{
-			StreamId = streamId.ToString();
-			Properties.AddRange(properties.Select(x => new RpcPropertyUpdate(x.Key, x.Value)));
-		}
-	}
-
 	partial class RpcGetJobRequest
 	{
 		public RpcGetJobRequest(JobId jobId)
@@ -185,48 +121,6 @@ namespace HordeCommon.Rpc
 		public RpcDownloadSoftwareRequest(string version)
 		{
 			Version = version;
-		}
-	}
-}
-
-namespace HordeCommon.Rpc.Messages.Telemetry
-{
-	partial class RpcAgentMetadataEvent
-	{
-		/// <summary>
-		/// Calculate an agent ID
-		/// </summary>
-		/// <returns>A unique hash for all fields</returns>
-		public long CalculateAgentId()
-		{
-			using SHA256 sha256 = SHA256.Create();
-			using MemoryStream ms = new(200);
-			using BinaryWriter bw = new(ms);
-
-			bw.Write(Ip ?? "<empty ip>");
-			bw.Write(Hostname ?? "<empty hostname>");
-			bw.Write(Region ?? "<empty region>");
-			bw.Write(AvailabilityZone ?? "<empty az>");
-			bw.Write(Environment ?? "<empty env>");
-			bw.Write(AgentVersion ?? "<empty version>");
-			bw.Write(Os ?? "<empty os>");
-			bw.Write(OsVersion ?? "<empty os version>");
-			bw.Write(Architecture ?? "<empty os architecture>");
-
-			foreach (KeyValuePair<string, string> pair in Properties)
-			{
-				bw.Write(pair.Key ?? "<empty key>");
-				bw.Write(pair.Value ?? "<empty value>");
-			}
-
-			foreach (string poolId in PoolIds)
-			{
-				bw.Write(poolId);
-			}
-
-			ms.Position = 0;
-			byte[] hash = sha256.ComputeHash(ms);
-			return BitConverter.ToInt64(hash, 0);
 		}
 	}
 }
