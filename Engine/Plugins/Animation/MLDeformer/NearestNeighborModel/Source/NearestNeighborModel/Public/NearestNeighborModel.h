@@ -203,11 +203,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 protected:
 #if WITH_EDITORONLY_DATA
 	/** Poses of the nearest neighbor ROM. */
-	UPROPERTY(EditAnywhere, Category = "Section")
+	UPROPERTY(EditAnywhere, Category = "Section", meta = (DisplayName = "Neighbor Sequence"))
 	TObjectPtr<UAnimSequence> NeighborPoses;
 
 	/** Geometry cache of the nearest neighbor ROM. */
-	UPROPERTY(EditAnywhere, Category = "Section")
+	UPROPERTY(EditAnywhere, Category = "Section", meta = (DisplayName = "Neighbor Geom Cache"))
 	TObjectPtr<UGeometryCache> NeighborMeshes;
 
 	/** Method to create weight map for this section. */
@@ -417,8 +417,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
 	int32 GetOutputDim() const { return OutputDim; }
 	
+	UE_DEPRECATED(5.5, "GetNumEpochs() is deprecated.")
+	UFUNCTION(meta = (DeprecatedFunction, DeprecationMessage = "GetNumEpochs has been deprecated. Convert from GetNumIterations instead."))
+	int32 GetNumEpochs() const { return 0; }
+
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
-	int32 GetNumEpochs() const { return NumEpochs; }
+	int32 GetNumIterations() const { return NumIterations; }
 	
 	UFUNCTION(BlueprintPure, Category = "Nearest Neighbor Model")
 	int32 GetBatchSize() const { return BatchSize; }
@@ -486,12 +490,13 @@ public:
 
 	bool IsBeforeCustomVersionWasAdded() const;
 	bool IsBeforeTrainedBasisAdded() const;
+	bool IsBeforeDeprecateNumEpochs() const;
 	const TArray<float>& GetVertexWeightSum() const;
 
 	static FName GetInputDimPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, InputDim); }
 	static FName GetHiddenLayerDimsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, HiddenLayerDims); }
 	static FName GetOutputDimPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, OutputDim); }
-	static FName GetNumEpochsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, NumEpochs); }
+	static FName GetNumIterationsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, NumIterations); }
 	static FName GetBatchSizePropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, BatchSize); }
 	static FName GetLearningRatePropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, LearningRate); }
 	static FName GetEarlyStopEpochsPropertyName() { return GET_MEMBER_NAME_CHECKED(UNearestNeighborModel, EarlyStopEpochs); }
@@ -522,8 +527,13 @@ protected:
 	TArray<int32> HiddenLayerDims;
 
 	/** Max number of cycles iterated through the training set. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings", AdvancedDisplay, meta = (ClampMin = "1"))
-	int32 NumEpochs = 2500;
+	UE_DEPRECATED(5.5, "NumEpochs is deprecated. Convert to NumIterations instead.")
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "NumEpochs is deprecated. Convert to NumIterations instead.", ClampMin = "1"))
+	int32 NumEpochs_DEPRECATED = 2500;
+
+	/** The number of iterations to train the model for. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings", meta = (ClampMin = "1", ClampMax = "1000000"))
+	int32 NumIterations = 5000;
 
 	/** Number of data samples processed together as a group in a single pass. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Training Settings", AdvancedDisplay, meta = (ClampMin = "1"))

@@ -54,6 +54,7 @@ namespace UE::NearestNeighborModel
 		{
 			BeforeCustomVersionWasAdded = 0,
 			AddTrainedBasis = 1,
+			DeprecateNumEpochs = 2,
 	
 			VersionPlusOne,
 			LatestVersion = VersionPlusOne - 1
@@ -1182,7 +1183,7 @@ void UNearestNeighborModel::GetAssetRegistryTags(FAssetRegistryTagsContext Conte
 	Super::GetAssetRegistryTags(Context);
 
 	#if WITH_EDITORONLY_DATA
-		Context.AddTag(FAssetRegistryTag("MLDeformer.NearestNeighborModel.NumEpochs", FString::FromInt(NumEpochs), FAssetRegistryTag::TT_Numerical));
+		Context.AddTag(FAssetRegistryTag("MLDeformer.NearestNeighborModel.NumIterations", FString::FromInt(NumIterations), FAssetRegistryTag::TT_Numerical));
 		Context.AddTag(FAssetRegistryTag("MLDeformer.NearestNeighborModel.BatchSize", FString::FromInt(BatchSize), FAssetRegistryTag::TT_Numerical));
 		Context.AddTag(FAssetRegistryTag("MLDeformer.NearestNeighborModel.NumHiddenLayers", FString::FromInt(HiddenLayerDims.Num()), FAssetRegistryTag::TT_Numerical));
 		Context.AddTag(FAssetRegistryTag("MLDeformer.NearestNeighborModel.LearningRate", FString::Printf(TEXT("%f"), LearningRate), FAssetRegistryTag::TT_Numerical));
@@ -1211,7 +1212,7 @@ void UNearestNeighborModel::PostEditChangeProperty(FPropertyChangedEvent& Proper
 		Property->GetFName() == UMLDeformerModel::GetCurveIncludeListPropertyName() ||
 		Property->GetFName() == UMLDeformerModel::GetMaxTrainingFramesPropertyName() ||
 		Property->GetFName() == UNearestNeighborModel::GetHiddenLayerDimsPropertyName() ||
-		Property->GetFName() == UNearestNeighborModel::GetNumEpochsPropertyName() ||
+		Property->GetFName() == UNearestNeighborModel::GetNumIterationsPropertyName() ||
 		Property->GetFName() == UNearestNeighborModel::GetBatchSizePropertyName() ||
 		Property->GetFName() == UNearestNeighborModel::GetLearningRatePropertyName() ||
 		Property->GetFName() == UNearestNeighborModel::GetEarlyStopEpochsPropertyName())
@@ -1393,6 +1394,11 @@ void UNearestNeighborModel::PostLoad()
 	if (IsBeforeTrainedBasisAdded())
 	{
 		bUsePCA = true;
+	}
+
+	if (IsBeforeDeprecateNumEpochs())
+	{
+		NumIterations = 20000;
 	}
 #endif
 }
@@ -1658,6 +1664,12 @@ bool UNearestNeighborModel::IsBeforeTrainedBasisAdded() const
 {
 	using UE::NearestNeighborModel::FNearestNeighborModelCustomVersion;
 	return Version < FNearestNeighborModelCustomVersion::AddTrainedBasis;
+}
+
+bool UNearestNeighborModel::IsBeforeDeprecateNumEpochs() const
+{
+	using UE::NearestNeighborModel::FNearestNeighborModelCustomVersion;
+	return Version < FNearestNeighborModelCustomVersion::DeprecateNumEpochs;
 }
 
 UE::NearestNeighborModel::EOpFlag UNearestNeighborModel::CheckHiddenLayerDims()
