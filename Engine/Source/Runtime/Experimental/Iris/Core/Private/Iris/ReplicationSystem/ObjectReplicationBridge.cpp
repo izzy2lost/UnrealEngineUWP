@@ -169,10 +169,12 @@ void UObjectReplicationBridge::Initialize(UReplicationSystem* InReplicationSyste
 
 	Super::Initialize(InReplicationSystem);
 
-	const uint32 MaxActiveObjectCount = NetRefHandleManager->GetMaxActiveObjectCount();
-	PollFrequencyLimiter->Init(MaxActiveObjectCount);
-	ObjectsWithObjectReferences.Init(MaxActiveObjectCount);
-	GarbageCollectionAffectedObjects.Init(MaxActiveObjectCount);
+	const uint32 CurrentMaxInternalIndex = NetRefHandleManager->GetCurrentMaxInternalNetRefIndex();
+	PollFrequencyLimiter->Init(CurrentMaxInternalIndex);
+	ObjectsWithObjectReferences.Init(CurrentMaxInternalIndex);
+	GarbageCollectionAffectedObjects.Init(CurrentMaxInternalIndex);
+
+	NetRefHandleManager->GetOnMaxInternalNetRefIndexIncreasedDelegate().AddUObject(this, &UObjectReplicationBridge::OnMaxInternalNetRefIndexIncreased);
 
 	LoadConfig();
 
@@ -181,12 +183,21 @@ void UObjectReplicationBridge::Initialize(UReplicationSystem* InReplicationSyste
 
 void UObjectReplicationBridge::Deinitialize()
 {
+	NetRefHandleManager->GetOnMaxInternalNetRefIndexIncreasedDelegate().RemoveAll(this);
+
 	UE::Net::Private::FPropertyConditionDelegates::GetOnPropertyCustomConditionChangedDelegate().Remove(OnCustomConditionChangedHandle);
 	UE::Net::Private::FPropertyConditionDelegates::GetOnPropertyDynamicConditionChangedDelegate().Remove(OnDynamicConditionChangedHandle);
 	OnCustomConditionChangedHandle.Reset();
 	OnDynamicConditionChangedHandle.Reset();
 	PollFrequencyLimiter->Deinit();
 	Super::Deinitialize();
+}
+
+void UObjectReplicationBridge::OnMaxInternalNetRefIndexIncreased(UE::Net::Private::FInternalNetRefIndex NewMaxInternalIndex)
+{
+	PollFrequencyLimiter->OnMaxInternalNetRefIndexIncreased(NewMaxInternalIndex);
+	ObjectsWithObjectReferences.SetNumBits(NewMaxInternalIndex);
+	GarbageCollectionAffectedObjects.SetNumBits(NewMaxInternalIndex);
 }
 
 UObject* UObjectReplicationBridge::GetObjectFromReferenceHandle(FNetRefHandle RefHandle) const

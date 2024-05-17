@@ -392,6 +392,8 @@ private:
 
 	void InitConditionalPropertyDelegates();
 
+	void OnMaxInternalNetRefIndexIncreased(UE::Net::Private::FInternalNetRefIndex NewMaxInternalIndex);
+
 private:
 
 	friend UE::Net::Private::FObjectPoller;
