@@ -709,8 +709,14 @@ public:
 	/** Resets internal data of new Source Bus Sends */
 	ENGINE_API void ResetNewBusSends();
 
-	/* Gives new Modulation Routing settings to the Active Sound. */
+	/* Gives new Modulation Routing settings to the ActiveSound. This overwrites all previous Modulation Routing settings. */
 	ENGINE_API void SetNewModulationRouting(const FSoundModulationDefaultRoutingSettings& NewRouting);
+
+	/* Adds additional Modulators to the ActiveSound, if possible. To replace existing modulators, use SetNewModulationRouting. */
+	ENGINE_API void AddModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination);
+
+	/* Removes given Modulators from the ActiveSound, if possible. */
+	ENGINE_API void RemoveModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination);
 
 	/* Determines which of the provided listeners is the closest to the sound */
 	ENGINE_API int32 FindClosestListener( const TArray<struct FListener>& InListeners ) const;

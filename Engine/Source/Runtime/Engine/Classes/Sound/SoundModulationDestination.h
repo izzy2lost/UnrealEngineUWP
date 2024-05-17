@@ -38,6 +38,24 @@ enum class EModulationRouting : uint8
 	Union
 };
 
+UENUM(BlueprintType)
+enum class EModulationDestination : uint8
+{
+	/* Volume modulation */
+	Volume,
+
+	/* Pitch modulation */
+	Pitch,
+
+	/* Cutoff Frequency of a lowpass filter */
+	Lowpass,
+
+	/* Cutoff Frequency of a highpass filter */
+	Highpass,
+
+	Count UMETA(Hidden)
+};
+
 /** Parameter destination settings allowing modulation control override for parameter destinations opting in to the Modulation System. */
 USTRUCT(BlueprintType)
 struct FSoundModulationDestinationSettings

@@ -125,24 +125,6 @@ enum class EAudioFaderCurve : uint8
 	Count UMETA(Hidden)
 };
 
-UENUM(BlueprintType)
-enum class EModulationDestination : uint8
-{
-	/* Volume modulation */
-	Volume,
-
-	/* Pitch modulation */
-	Pitch,
-
-	/* Cutoff Frequency of a lowpass filter */
-	Lowpass,
-
-	/* Cutoff Frequency of a highpass filter */
-	Highpass,
-
-	Count UMETA(Hidden)
-};
-
 /**
  * Legacy struct used for storing named parameter for a given AudioComponent.
  */
@@ -738,13 +720,32 @@ public:
 	ENGINE_API bool GetCookedEnvelopeDataForAllPlayingSounds(TArray<FSoundWaveEnvelopeDataPerSound>& OutEnvelopeData);
 
 	/**
-	* Sets the routing for one of the given Audio component's Modulation Destinations.
+	* Sets the routing for one of the given Audio component's Modulation Destinations. This will overwrite the current settings.
+	* To Add modulators without removing previously set ones, use AddModulators.
 	* @param Modulators The set of modulators to apply to the given destination on the component.
 	* @param Destination The destination to assign the modulators to.
 	* @param RoutingMethod The routing method to use for the given modulator.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Audio|Components|Audio", DisplayName = "Set Modulation Routing")
 	ENGINE_API void SetModulationRouting(const TSet<USoundModulatorBase*>& Modulators, const EModulationDestination Destination, const EModulationRouting RoutingMethod = EModulationRouting::Inherit);
+
+	/**
+	* Adds the given set of Modulators to the modulators currently set on the Audio Component. This performs a logical Union, so duplicate modulators will not be added.
+	* To completely overwrite existing Modulation settings, use SetModulationRouting.
+	* @param Modulators The set of modulators to add to the given destination on the component.
+	* @param Destination The destination to add the modulators to.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Audio|Components|Audio", DisplayName = "Add Modulation Routing")
+	ENGINE_API void AddModulationRouting(const TSet<USoundModulatorBase*>& Modulators, const EModulationDestination Destination);
+
+	/**
+	* Removes the given set of Modulators to the modulators currently set on the Audio Component. This performs a logical subtraction of the sets, so modulators that are not in the given set will stay.
+	* To completely overwrite current Modulation settings, use SetModulationRouting.
+	* @param Modulators The set of modulators to remove from the given destination on the component.
+	* @param Destination The destination to remove the modulators from.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Audio|Components|Audio", DisplayName = "Remove Modulation Routing")
+	ENGINE_API void RemoveModulationRouting(const TSet<USoundModulatorBase*>& Modulators, const EModulationDestination Destination);
 
 	/**
 	* Gets the set of currently active modulators for a given Modulation Destination.

@@ -467,6 +467,60 @@ void FActiveSound::SetNewModulationRouting(const FSoundModulationDefaultRoutingS
 	bModulationRoutingUpdated = true;
 }
 
+void FActiveSound::AddModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination)
+{
+	switch (Destination)
+	{
+		case EModulationDestination::Volume:
+			ModulationRouting.VolumeModulationDestination.Modulators.Append(NewModulators);
+			break;
+		case EModulationDestination::Pitch:
+			ModulationRouting.PitchModulationDestination.Modulators.Append(NewModulators);
+			break;
+		case EModulationDestination::Lowpass:
+			ModulationRouting.LowpassModulationDestination.Modulators.Append(NewModulators);
+			break;
+		case EModulationDestination::Highpass:
+			ModulationRouting.HighpassModulationDestination.Modulators.Append(NewModulators);
+			break;
+		default:
+		{
+			static_assert(static_cast<int32>(EModulationDestination::Count) == 4, "Possible missing ELiteralType case coverage.");
+			ensureMsgf(false, TEXT("Failed to set input node default: Literal type not supported"));
+			return;
+		}
+	}
+	
+	bModulationRoutingUpdated = true;
+}
+
+void FActiveSound::RemoveModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination)
+{
+	switch (Destination)
+	{
+		case EModulationDestination::Volume:
+			ModulationRouting.VolumeModulationDestination.Modulators = ModulationRouting.VolumeModulationDestination.Modulators.Difference(NewModulators);
+			break;
+		case EModulationDestination::Pitch:
+			ModulationRouting.PitchModulationDestination.Modulators = ModulationRouting.PitchModulationDestination.Modulators.Difference(NewModulators);
+			break;
+		case EModulationDestination::Lowpass:
+			ModulationRouting.LowpassModulationDestination.Modulators = ModulationRouting.LowpassModulationDestination.Modulators.Difference(NewModulators);
+			break;
+		case EModulationDestination::Highpass:
+			ModulationRouting.HighpassModulationDestination.Modulators = ModulationRouting.HighpassModulationDestination.Modulators.Difference(NewModulators);
+			break;
+		default:
+		{
+			static_assert(static_cast<int32>(EModulationDestination::Count) == 4, "Possible missing ELiteralType case coverage.");
+			ensureMsgf(false, TEXT("Failed to set input node default: Literal type not supported"));
+			return;
+		}
+	}
+
+	bModulationRoutingUpdated = true;
+}
+
 void FActiveSound::Stop()
 {
 	if (AudioDevice)
