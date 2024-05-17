@@ -6,10 +6,10 @@
 #include "EngineUtils.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
-#include "IRewindDebuggerExtension.h"
 #include "ProfilingDebugging/TraceAuxiliary.h"
 #include "UObject/UObjectIterator.h"
 #include "RewindDebuggerRuntimeInterface/IRewindDebuggerRuntimeExtension.h"
+#include "Features/IModularFeatures.h"
 
 DEFINE_LOG_CATEGORY(LogRewindDebuggerRuntime)
 

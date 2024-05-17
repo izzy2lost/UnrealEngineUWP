@@ -12,7 +12,6 @@ namespace UnrealBuildTool.Rules
 				"Core",
 				"CoreUObject",
 				"Engine",
-				"RewindDebuggerInterface",
 				"RewindDebuggerRuntimeInterface",
 				"TraceLog",
 			});
