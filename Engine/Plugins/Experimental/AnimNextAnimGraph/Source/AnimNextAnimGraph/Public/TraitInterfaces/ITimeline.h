@@ -58,7 +58,7 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXTANIMGRAPH_API ITimeline : ITraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(ITimeline, TIM, 0x53760727)
+		DECLARE_ANIM_TRAIT_INTERFACE(ITimeline, 0x53760727)
 
 		// Returns the play rate of this timeline
 		virtual float GetPlayRate(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding) const;
@@ -77,6 +77,11 @@ namespace UE::AnimNext
 		// Advances time to the specified progress ratio on this timeline
 		// Progress ratio must be between [0.0, 1.0]
 		virtual void AdvanceToRatio(FExecutionContext& Context, const TTraitBinding<ITimeline>& Binding, float ProgressRatio) const;
+
+#if WITH_EDITOR
+		virtual const FText& GetDisplayName() const override;
+		virtual const FText& GetDisplayShortName() const override;
+#endif // WITH_EDITOR
 	};
 
 	/**

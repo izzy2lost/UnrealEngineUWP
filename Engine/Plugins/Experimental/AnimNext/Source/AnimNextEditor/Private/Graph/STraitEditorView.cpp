@@ -7,6 +7,7 @@
 #include "ScopedTransaction.h"
 #include "WorkspaceSchema.h"
 #include "Framework/Commands/GenericCommands.h"
+#include "TraitCore/TraitInterfaceRegistry.h"
 #include "TraitCore/TraitRegistry.h"
 #include "ObjectEditorUtils.h"
 #include "Graph/AnimNextGraph_EdGraphNode.h"
@@ -384,9 +385,12 @@ void STraitEditorView::UpdateTraitStatusInStack(const TArray<TSharedPtr<FTraitDa
 
 		for (const FTraitInterfaceUID& MissingInterface : TraitData->StackStatus.MissingInterfaces)
 		{
-			const FString InterfaceName(MissingInterface.GetInterfaceName());
-			const FText MissingError = FText::Format(LOCTEXT("TraitStatusInStack_MissingInterface", "Trait {0} requires a parent implementing interface {1}"), TraitData->TraitDisplayName, FText::FromString(InterfaceName));
-			TraitData->StackStatus.StatusMessages.Add(FTraitStackTraitStatus::FStatusMessage(FTraitStackTraitStatus::EStackStatus::Warning, MissingError));
+			if (const ITraitInterface* TraitInterface = FTraitInterfaceRegistry::Get().Find(MissingInterface))
+			{
+				const FText InterfaceName(TraitInterface->GetDisplayName());
+				const FText MissingError = FText::Format(LOCTEXT("TraitStatusInStack_MissingInterface", "Trait {0} requires a parent implementing interface {1}"), TraitData->TraitDisplayName, InterfaceName);
+				TraitData->StackStatus.StatusMessages.Add(FTraitStackTraitStatus::FStatusMessage(FTraitStackTraitStatus::EStackStatus::Warning, MissingError));
+			}
 		}
 	}
 
@@ -450,6 +454,29 @@ TSharedRef<SWidget> STraitEditorView::GetOptionsMenuWidget()
 			FIsActionChecked::CreateLambda([TraitEditorSharedDataLocal]()
 				{
 					return (TraitEditorSharedDataLocal.IsValid()) ? TraitEditorSharedDataLocal->bShowTraitInterfacesIfWarningsOrErrors : false;
+				})
+		),
+		NAME_None,
+		EUserInterfaceActionType::Check
+	);
+	DetailViewOptions.AddMenuEntry(
+		LOCTEXT("TraitEditor_AdvancedView", "Advanced View"),
+		LOCTEXT("TraitEditor_AdvancedView_ToolTip", "Displays all Traits, including hidden ones"),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda([this, TraitEditorSharedDataLocal]()
+				{
+					if (TraitEditorSharedDataLocal.IsValid())
+					{
+						// TODO zzz : Store bShowTraitInterfacesIfWarningsOrErrors in a serialized settings class somewhere
+						TraitEditorSharedDataLocal->bAdvancedView = !TraitEditorSharedDataLocal->bAdvancedView;
+						RefreshWidgets(); //RefreshTraitStack();
+					}
+				}),
+			FCanExecuteAction(),
+			FIsActionChecked::CreateLambda([TraitEditorSharedDataLocal]()
+				{
+					return (TraitEditorSharedDataLocal.IsValid()) ? TraitEditorSharedDataLocal->bAdvancedView : false;
 				})
 		),
 		NAME_None,
@@ -588,7 +615,7 @@ int32 STraitEditorView::GetTraitPinIndex(UAnimNextGraph_EdGraphNode* InEdGraphNo
 
 									for (const FTraitInterfaceUID& TraitInterface : TraitImplementedInterfaces)
 									{
-										if (!FTraitEditorUtils::IsInternalTraitInteface(TraitInterface))
+										if (!FTraitEditorUtils::IsInternal(TraitInterface))
 										{
 											int32 Index = StackUsedInterfaces.Find(TraitInterface);
 											if (Index != INDEX_NONE)
@@ -605,7 +632,7 @@ int32 STraitEditorView::GetTraitPinIndex(UAnimNextGraph_EdGraphNode* InEdGraphNo
 
 									for (const FTraitInterfaceUID& TraitInterface : TraitRequiredInterfaces)
 									{
-										if (!FTraitEditorUtils::IsInternalTraitInteface(TraitInterface))
+										if (!FTraitEditorUtils::IsInternal(TraitInterface))
 										{
 											int32 Index = StackUsedInterfaces.Find(TraitInterface);
 											if (Index != INDEX_NONE)

@@ -11,6 +11,7 @@
 #include "ObjectEditorUtils.h"
 #include "TraitCore/TraitMode.h"
 #include "TraitCore/TraitUID.h"
+#include "TraitCore/TraitInterfaceRegistry.h"
 #include "TraitCore/TraitRegistry.h"
 #include "Common/SCategoryTableRow.h"
 #include "Widgets/Input/SButton.h"
@@ -700,11 +701,14 @@ TSharedRef<ITableRow> STraitListView::HandleGenerateRow(TSharedRef<FTraitListEnt
 															TraitInfoString.Append(LOCTEXT("TraitInfoImplementedInterfaces", "Implements :").ToString())
 																.AppendChar(TEXT('\n'));
 
-															for (const auto& ImplementedInterface : TraitData->ImplementedInterfaces)
+															for (const auto& ImplementedInterfaceUID : TraitData->ImplementedInterfaces)
 															{
-																TraitInfoString.Append(TEXT("- "))
-																	.Append(ImplementedInterface.GetInterfaceName())
-																	.AppendChar(TEXT('\n'));
+																if (const ITraitInterface* ImplementedInterface = FTraitInterfaceRegistry::Get().Find(ImplementedInterfaceUID))
+																{
+																	TraitInfoString.Append(TEXT("- "))
+																		.Append(ImplementedInterface->GetDisplayName().ToString())
+																		.AppendChar(TEXT('\n'));
+																}
 															}
 														}
 
@@ -714,11 +718,14 @@ TSharedRef<ITableRow> STraitListView::HandleGenerateRow(TSharedRef<FTraitListEnt
 															TraitInfoString.Append(LOCTEXT("TraitInfoRequiredInterfaces", "Requires :").ToString())
 															.AppendChar(TEXT('\n'));
 
-															for (const auto& RequiredInterface : TraitData->RequiredInterfaces)
+															for (const auto& RequiredInterfaceUID : TraitData->RequiredInterfaces)
 															{
-																TraitInfoString.Append(TEXT("- "))
-																	.Append(RequiredInterface.GetInterfaceName())
-																	.AppendChar(TEXT('\n'));
+																if (const ITraitInterface* RequiredInterface = FTraitInterfaceRegistry::Get().Find(RequiredInterfaceUID))
+																{
+																	TraitInfoString.Append(TEXT("- "))
+																		.Append(RequiredInterface->GetDisplayName().ToString())
+																		.AppendChar(TEXT('\n'));
+																}
 															}
 														}
 
@@ -796,6 +803,11 @@ void STraitListView::GenerateTraitList()
 	const TArray<const FTrait*> Traits = TraitRegistry.GetTraits();
 	for (const FTrait* Trait : Traits)
 	{
+		if (Trait->IsHidden() && !TraitEditorSharedData->bAdvancedView)
+		{
+			continue;
+		}
+
 		FName Category = NAME_None;
 		FText CategoryText;
 

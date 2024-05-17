@@ -7,6 +7,21 @@
 
 namespace UE::AnimNext
 {
+	AUTO_REGISTER_ANIM_TRAIT_INTERFACE(IGarbageCollection)
+
+#if WITH_EDITOR
+	const FText& IGarbageCollection::GetDisplayName() const
+	{
+		static FText InterfaceName = NSLOCTEXT("TraitInterfaces", "TraitInterface_IGarbageCollection_Name", "Garbage Collection");
+		return InterfaceName;
+	}
+	const FText& IGarbageCollection::GetDisplayShortName() const
+	{
+		static FText InterfaceShortName = NSLOCTEXT("TraitInterfaces", "TraitInterface_IGarbageCollection_ShortName", "GC");
+		return InterfaceShortName;
+	}
+#endif // WITH_EDITOR
+
 	void IGarbageCollection::RegisterWithGC(const FExecutionContext& Context, const FTraitBinding& Binding)
 	{
 		FGCGraphInstanceComponent& Component = Context.GetComponent<FGCGraphInstanceComponent>();

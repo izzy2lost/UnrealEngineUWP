@@ -26,6 +26,7 @@
 #include "Scheduler/Scheduler.h"
 #include "TraitCore/NodeTemplateRegistry.h"
 #include "TraitCore/TraitRegistry.h"
+#include "TraitCore/TraitInterfaceRegistry.h"
 
 #if WITH_ANIMNEXT_CONSOLE_COMMANDS
 #include "HAL/IConsoleManager.h"
@@ -74,6 +75,7 @@ namespace UE::AnimNext
 		RegisterParameterSourceFactory("ObjectProxy", MakeShared<FObjectProxyFactory>());
 		FDataRegistry::Init();
 		FTraitRegistry::Init();
+		FTraitInterfaceRegistry::Init();
 		FNodeTemplateRegistry::Init();
 		FScheduler::Init();
 		FRigVMRuntimeDataRegistry::Init();
@@ -132,6 +134,7 @@ namespace UE::AnimNext
 		FRigVMRuntimeDataRegistry::Destroy();
 		FScheduler::Destroy();
 		FNodeTemplateRegistry::Destroy();
+		FTraitInterfaceRegistry::Destroy();
 		FTraitRegistry::Destroy();
 		FDataRegistry::Destroy();
 		UnregisterParameterSourceFactory("ObjectProxy");

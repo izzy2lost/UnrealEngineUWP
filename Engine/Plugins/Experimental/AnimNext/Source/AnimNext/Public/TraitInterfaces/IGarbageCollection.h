@@ -17,7 +17,8 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXT_API IGarbageCollection : ITraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(IGarbageCollection, GC, 0x231a2017)
+		DECLARE_ANIM_TRAIT_INTERFACE(IGarbageCollection, 0x231a2017)
+
 
 		// Registers the provided binding for GC callback
 		// Once registered, AddReferencedObjects is called during GC to collect references
@@ -29,6 +30,13 @@ namespace UE::AnimNext
 		// Called when garbage collection requests hard/strong object references
 		// @see UObject::AddReferencedObjects
 		virtual void AddReferencedObjects(const FExecutionContext& Context, const TTraitBinding<IGarbageCollection>& Binding, FReferenceCollector& Collector) const;
+
+#if WITH_EDITOR
+		virtual bool IsInternal() const override { return true; }
+
+		virtual const FText& GetDisplayName() const override;
+		virtual const FText& GetDisplayShortName() const override;
+#endif // WITH_EDITOR
 	};
 
 	/**

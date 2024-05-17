@@ -20,7 +20,7 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXT_API IHierarchy : ITraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(IHierarchy, HIE, 0x846d8a37)
+		DECLARE_ANIM_TRAIT_INTERFACE(IHierarchy, 0x846d8a37)
 
 		// Returns the number of children of the trait implementation (not the whole stack)
 		// Includes inactive children
@@ -42,6 +42,11 @@ namespace UE::AnimNext
 
 		// Queries the trait stack of the specified binding and calls GetNumChildren for each trait, accumulating the result.
 		static uint32 GetNumStackChildren(const FExecutionContext& Context, const FTraitBinding& Binding);
+
+#if WITH_EDITOR
+		virtual const FText& GetDisplayName() const override;
+		virtual const FText& GetDisplayShortName() const override;
+#endif // WITH_EDITOR
 	};
 
 	/**

@@ -36,7 +36,7 @@ namespace UE::AnimNext
 
 	struct IInterfaceA : ITraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(IInterfaceA, ITA, 0x34cb8e62)
+		DECLARE_ANIM_TRAIT_INTERFACE(IInterfaceA, 0x34cb8e62)
 
 		virtual void FuncA(const FExecutionContext& Context, const TTraitBinding<IInterfaceA>& Binding) const;
 	};
@@ -66,7 +66,7 @@ namespace UE::AnimNext
 
 	struct IInterfaceB : ITraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(IInterfaceB, ITB, 0x33cb8ccf)
+		DECLARE_ANIM_TRAIT_INTERFACE(IInterfaceB, 0x33cb8ccf)
 
 		virtual void FuncB(const FExecutionContext& Context, const TTraitBinding<IInterfaceB>& Binding) const;
 	};
@@ -96,7 +96,7 @@ namespace UE::AnimNext
 
 	struct IInterfaceC : ITraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(IInterfaceC, ITC, 0x32cb8b3c)
+		DECLARE_ANIM_TRAIT_INTERFACE(IInterfaceC, 0x32cb8b3c)
 
 		virtual void FuncC(const FExecutionContext& Context, const TTraitBinding<IInterfaceC>& Binding) const;
 	};

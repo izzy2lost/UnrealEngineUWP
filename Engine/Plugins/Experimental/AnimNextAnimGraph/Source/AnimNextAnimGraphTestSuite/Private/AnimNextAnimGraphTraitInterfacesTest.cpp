@@ -13,6 +13,7 @@
 #include "TraitCore/Trait.h"
 #include "TraitCore/TraitReader.h"
 #include "TraitCore/TraitRegistry.h"
+#include "TraitCore/TraitInterfaceRegistry.h"
 #include "TraitCore/TraitWriter.h"
 #include "TraitCore/ExecutionContext.h"
 #include "TraitCore/ITraitInterface.h"
@@ -230,7 +231,7 @@ namespace UE::AnimNext
 
 	struct IScopedTagInterface : IScopedTraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(IScopedTagInterface, STG, 0xb8f4b397)
+		DECLARE_ANIM_TRAIT_INTERFACE(IScopedTagInterface, 0xb8f4b397)
 
 		virtual FName GetTag(const FExecutionContext& Context, const TTraitBinding<IScopedTagInterface>& Binding) const;
 
@@ -351,7 +352,119 @@ namespace UE::AnimNext
 
 	GENERATE_ANIM_TRAIT_IMPLEMENTATION(FTestScopedTagTrait, TRAIT_INTERFACE_ENUMERATOR, NULL_ANIM_TRAIT_INTERFACE_ENUMERATOR, NULL_ANIM_TRAIT_EVENT_ENUMERATOR)
 	#undef TRAIT_INTERFACE_ENUMERATOR
+
+
+	static const FText GInterfaceTestAName = FText::FromString(TEXT("Interface Test A"));
+	static const FText GInterfaceTestAShortName = FText::FromString(TEXT("ITA"));
+
+	struct ITraitInterfaceTestA : ITraitInterface
+	{
+		DECLARE_ANIM_TRAIT_INTERFACE(ITraitInterfaceTestA, 0xc6d4bde9)
+
+	#if WITH_EDITOR
+		virtual const FText& GetDisplayName() const override
+		{
+			return GInterfaceTestAName;
+		}
+
+		virtual const FText& GetDisplayShortName() const override
+		{
+			return GInterfaceTestAShortName;
+		}
+	#endif // WITH_EDITOR
+	};
+
+	static const FText GInterfaceTestBName = FText::FromString(TEXT("Interface Test B"));
+	static const FText GInterfaceTestBShortName = FText::FromString(TEXT("ITB"));
+
+	struct ITraitInterfaceTestB : ITraitInterface
+	{
+		DECLARE_ANIM_TRAIT_INTERFACE(ITraitInterfaceTestB, 0xc0eadb31)
+
+	#if WITH_EDITOR
+		virtual const FText& GetDisplayName() const override
+		{
+			return GInterfaceTestBName;
+		}
+
+		virtual const FText& GetDisplayShortName() const override
+		{
+			return GInterfaceTestBShortName;
+		}
+
+		virtual bool IsInternal() const override
+		{
+			return true;
+		}
+	#endif // WITH_EDITOR
+	};
+
+} // end namespace UE::AnimNext
+
+// --- Runtime Test Trait Interface Registry ---
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAnimationAnimNextRuntimeTest_TraitInterfaceRegistry, "Animation.AnimNext.Runtime.TraitInterfaceRegistry", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FAnimationAnimNextRuntimeTest_TraitInterfaceRegistry::RunTest(const FString& InParameters)
+{
+	using namespace UE::AnimNext;
+
+	{
+		FTraitInterfaceRegistry& Registry = FTraitInterfaceRegistry::Get();
+
+		// Some traits already exist in the engine, keep track of them
+		const uint32 NumAutoRegisteredTraitInterfaces = Registry.GetNum();
+
+		AddErrorIfFalse(Registry.Find(ITraitInterfaceTestA::InterfaceUID) == nullptr, "FAnimationAnimNextRuntimeTest_TraitInterfaceRegistry -> Registry should not contain the Test Interface A");
+		AddErrorIfFalse(Registry.Find(ITraitInterfaceTestB::InterfaceUID) == nullptr, "FAnimationAnimNextRuntimeTest_TraitInterfaceRegistry -> Registry should not contain the Test Interface B");
+
+		{
+			AUTO_REGISTER_ANIM_TRAIT_INTERFACE(ITraitInterfaceTestA)
+
+			AddErrorIfFalse(Registry.GetNum() == NumAutoRegisteredTraitInterfaces + 1, "FAnimationAnimNextRuntimeTest_TraitInterfaceRegistry -> Registry should contain 1 new trait interface");
+
+			const ITraitInterface* TraitInterfaceA = Registry.Find(ITraitInterfaceTestA::InterfaceUID);
+			AddErrorIfFalse(TraitInterfaceA->GetInterfaceUID() == ITraitInterfaceTestA::InterfaceUID, "FAnimationAnimNextRuntimeTest_TraitInterfaceRegistry -> Incorrect InterfaceUID for ITraitInterfaceTestA");
+
+#if WITH_EDITOR
+			AddErrorIfFalse(TraitInterfaceA->GetDisplayName().EqualTo(GInterfaceTestAName), "FAnimationAnimNextRuntimeTest_TraitInterfaceRegistry -> Incorrect Interface Display Name for ITraitInterfaceTestA");
+			AddErrorIfFalse(TraitInterfaceA->GetDisplayShortName().EqualTo(GInterfaceTestAShortName), "FAnimationAnimNextRuntimeTest_TraitInterfaceRegistry -> Incorrect Interface Display Short Name for ITraitInterfaceTestA");
+
+			AddErrorIfFalse(TraitInterfaceA->IsInternal() == false, "FAnimationAnimNextRuntimeTest_TraitInterfaceRegistry -> Incorrect Interface Internal flag for ITraitInterfaceTestA");
+#endif // WITH_EDITOR
+
+			{
+				AUTO_REGISTER_ANIM_TRAIT_INTERFACE(ITraitInterfaceTestB)
+
+				AddErrorIfFalse(Registry.GetNum() == NumAutoRegisteredTraitInterfaces + 2, "FAnimationAnimNextRuntimeTest_TraitInterfaceRegistry -> Registry should contain 2 new trait interfaces");
+
+				const ITraitInterface* TraitInterfaceB = Registry.Find(ITraitInterfaceTestB::InterfaceUID);
+				AddErrorIfFalse(TraitInterfaceB->GetInterfaceUID() == ITraitInterfaceTestB::InterfaceUID, "FAnimationAnimNextRuntimeTest_TraitInterfaceRegistry -> Incorrect InterfaceUID for ITraitInterfaceTestB");
+
+#if WITH_EDITOR
+				AddErrorIfFalse(TraitInterfaceB->GetDisplayName().EqualTo(GInterfaceTestBName), "FAnimationAnimNextRuntimeTest_TraitInterfaceRegistry -> Incorrect Interface Display Name for ITraitInterfaceTestB");
+				AddErrorIfFalse(TraitInterfaceB->GetDisplayShortName().EqualTo(GInterfaceTestBShortName), "FAnimationAnimNextRuntimeTest_TraitInterfaceRegistry -> Incorrect Interface Display Short Name for ITraitInterfaceTestB");
+
+				AddErrorIfFalse(TraitInterfaceB->IsInternal() == true, "FAnimationAnimNextRuntimeTest_TraitInterfaceRegistry -> Incorrect Interface Internal flag for ITraitInterfaceTestB");
+#endif // WITH_EDITOR
+			}
+
+			AddErrorIfFalse(Registry.Find(ITraitInterfaceTestB::InterfaceUID) == nullptr, "FAnimationAnimNextRuntimeTest_TraitInterfaceRegistry -> Registry should not contain the Test Interface B");
+
+			AddErrorIfFalse(Registry.GetNum() == NumAutoRegisteredTraitInterfaces + 1, "FAnimationAnimNextRuntimeTest_TraitInterfaceRegistry -> Registry should contain 1 new trait interface");
+		}
+
+		AddErrorIfFalse(Registry.Find(ITraitInterfaceTestA::InterfaceUID) == nullptr, "FAnimationAnimNextRuntimeTest_TraitInterfaceRegistry -> Registry should not contain the Test Interface A");
+
+		AddErrorIfFalse(Registry.GetNum() == NumAutoRegisteredTraitInterfaces, "FAnimationAnimNextRuntimeTest_TraitInterfaceRegistry -> Registry should contain 0 new trait interfaces");
+	}
+
+	Tests::FUtils::CleanupAfterTests();
+
+	return true;
 }
+
+// --- Trait Interfaces IHierarchy Test ---
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAnimationAnimNextRuntimeTest_IHierarchy, "Animation.AnimNext.Runtime.IHierarchy", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -573,6 +686,8 @@ bool FAnimationAnimNextRuntimeTest_IHierarchy::RunTest(const FString& InParamete
 	return true;
 }
 
+// --- Trait Interfaces IUpdate Test ---
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAnimationAnimNextRuntimeTest_IUpdate, "Animation.AnimNext.Runtime.IUpdate", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FAnimationAnimNextRuntimeTest_IUpdate::RunTest(const FString& InParameters)
@@ -713,6 +828,8 @@ bool FAnimationAnimNextRuntimeTest_IUpdate::RunTest(const FString& InParameters)
 	return true;
 }
 
+// --- Trait Interfaces IEvaluate Test ---
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAnimationAnimNextRuntimeTest_IEvaluate, "Animation.AnimNext.Runtime.IEvaluate", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FAnimationAnimNextRuntimeTest_IEvaluate::RunTest(const FString& InParameters)
@@ -849,6 +966,9 @@ bool FAnimationAnimNextRuntimeTest_IEvaluate::RunTest(const FString& InParameter
 
 	return true;
 }
+
+// --- Trait Interfaces IScopedInterface Test ---
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAnimationAnimNextRuntimeTest_IScopedInterface, "Animation.AnimNext.Runtime.IScopedInterface", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FAnimationAnimNextRuntimeTest_IScopedInterface::RunTest(const FString& InParameters)

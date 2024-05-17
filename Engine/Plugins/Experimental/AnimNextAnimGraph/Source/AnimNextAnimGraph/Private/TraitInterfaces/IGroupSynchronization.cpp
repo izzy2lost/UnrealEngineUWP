@@ -6,6 +6,21 @@
 
 namespace UE::AnimNext
 {
+	AUTO_REGISTER_ANIM_TRAIT_INTERFACE(IGroupSynchronization)
+
+#if WITH_EDITOR
+	const FText& IGroupSynchronization::GetDisplayName() const
+	{
+		static FText InterfaceName = NSLOCTEXT("TraitInterfaces", "TraitInterface_IGroupSynchronization_Name", "Group Synchronization");
+		return InterfaceName;
+	}
+	const FText& IGroupSynchronization::GetDisplayShortName() const
+	{
+		static FText InterfaceShortName = NSLOCTEXT("TraitInterfaces", "TraitInterface_IGroupSynchronization_ShortName", "GRS");
+		return InterfaceShortName;
+	}
+#endif // WITH_EDITOR
+
 	FName IGroupSynchronization::GetGroupName(FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding) const
 	{
 		TTraitBinding<IGroupSynchronization> SuperBinding;

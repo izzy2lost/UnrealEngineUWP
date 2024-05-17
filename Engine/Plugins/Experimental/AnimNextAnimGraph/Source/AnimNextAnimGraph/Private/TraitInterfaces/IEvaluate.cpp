@@ -15,6 +15,21 @@ namespace UE::AnimNext
 	{
 	}
 
+	AUTO_REGISTER_ANIM_TRAIT_INTERFACE(IEvaluate)
+
+#if WITH_EDITOR
+	const FText& IEvaluate::GetDisplayName() const
+	{
+		static FText InterfaceName = NSLOCTEXT("TraitInterfaces", "TraitInterface_Evaluate_Name", "Evaluate");
+		return InterfaceName;
+	}
+	const FText& IEvaluate::GetDisplayShortName() const
+	{
+		static FText InterfaceShortName = NSLOCTEXT("TraitInterfaces", "TraitInterface_Evaluate_ShortName", "EVA");
+		return InterfaceShortName;
+	}
+#endif // WITH_EDITOR
+
 	void IEvaluate::PreEvaluate(FEvaluateTraversalContext& Context, const TTraitBinding<IEvaluate>& Binding) const
 	{
 		TTraitBinding<IEvaluate> SuperBinding;

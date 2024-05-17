@@ -48,6 +48,10 @@ namespace UE::AnimNext
 
 		// ISmoothBlend impl
 		virtual float GetBlendTime(FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const override;
+
+#if WITH_EDITOR
+		virtual bool IsHidden() const override { return true; }
+#endif
 	};
 
 	/**
@@ -67,5 +71,9 @@ namespace UE::AnimNext
 
 		// IInertializerBlend impl
 		virtual float GetBlendTime(FExecutionContext& Context, const TTraitBinding<IInertializerBlend>& Binding, int32 ChildIndex) const override;
+
+#if WITH_EDITOR
+		virtual bool IsHidden() const override { return false; } // overrdie the base, as it is hidden
+#endif
 	};
 }

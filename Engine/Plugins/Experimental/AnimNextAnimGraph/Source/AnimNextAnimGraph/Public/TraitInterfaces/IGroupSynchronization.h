@@ -17,7 +17,7 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXTANIMGRAPH_API IGroupSynchronization : ITraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(IGroupSynchronization, GRS, 0xf607d0fd)
+		DECLARE_ANIM_TRAIT_INTERFACE(IGroupSynchronization, 0xf607d0fd)
 
 		// Returns the group name used for synchronization
 		virtual FName GetGroupName(FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding) const;
@@ -32,6 +32,11 @@ namespace UE::AnimNext
 		// Called by the sync group graph instance component once a group has been synchronized to advance time on each follower
 		// Progress ratio must be between [0.0, 1.0]
 		virtual void AdvanceToRatio(FExecutionContext& Context, const TTraitBinding<IGroupSynchronization>& Binding, float ProgressRatio) const;
+	
+#if WITH_EDITOR
+		virtual const FText& GetDisplayName() const override;
+		virtual const FText& GetDisplayShortName() const override;
+#endif // WITH_EDITOR
 	};
 
 	/**

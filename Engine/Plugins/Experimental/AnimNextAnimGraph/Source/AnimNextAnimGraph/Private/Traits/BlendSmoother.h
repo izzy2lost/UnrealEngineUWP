@@ -87,6 +87,10 @@ namespace UE::AnimNext
 
 		// Internal impl
 		static void InitializeInstanceData(FExecutionContext& Context, const FTraitBinding& Binding, const FSharedData* SharedData, FInstanceData* InstanceData);
+
+#if WITH_EDITOR
+		virtual bool IsHidden() const override { return true; }
+#endif
 	};
 
 	/**
@@ -105,5 +109,9 @@ namespace UE::AnimNext
 		virtual float GetBlendTime(FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const override;
 		virtual EAlphaBlendOption GetBlendType(FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const override;
 		virtual UCurveFloat* GetCustomBlendCurve(FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const override;
+
+#if WITH_EDITOR
+		virtual bool IsHidden() const override { return false; } // overrdie the base, as it is hidden
+#endif
 	};
 }

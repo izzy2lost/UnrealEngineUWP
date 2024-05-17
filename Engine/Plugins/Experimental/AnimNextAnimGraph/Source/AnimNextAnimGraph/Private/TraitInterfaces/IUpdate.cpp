@@ -157,6 +157,21 @@ namespace UE::AnimNext
 		}
 	}
 
+	AUTO_REGISTER_ANIM_TRAIT_INTERFACE(IUpdate)
+
+#if WITH_EDITOR
+	const FText& IUpdate::GetDisplayName() const
+	{
+		static FText InterfaceName = NSLOCTEXT("TraitInterfaces", "TraitInterface_IUpdate_Name", "Update");
+		return InterfaceName;
+	}
+	const FText& IUpdate::GetDisplayShortName() const
+	{
+		static FText InterfaceShortName = NSLOCTEXT("TraitInterfaces", "TraitInterface_IUpdate_ShortName", "UPD");
+		return InterfaceShortName;
+	}
+#endif // WITH_EDITOR
+
 	void IUpdate::OnBecomeRelevant(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const
 	{
 		TTraitBinding<IUpdate> SuperBinding;
@@ -183,6 +198,21 @@ namespace UE::AnimNext
 			SuperBinding.PostUpdate(Context, TraitState);
 		}
 	}
+
+	AUTO_REGISTER_ANIM_TRAIT_INTERFACE(IUpdateTraversal)
+
+#if WITH_EDITOR
+	const FText& IUpdateTraversal::GetDisplayName() const
+	{
+		static FText InterfaceName = NSLOCTEXT("TraitInterfaces", "TraitInterface_IUpdateTraversal_Name", "Update Traversal");
+		return InterfaceName;
+	}
+	const FText& IUpdateTraversal::GetDisplayShortName() const
+	{
+		static FText InterfaceShortName = NSLOCTEXT("TraitInterfaces", "TraitInterface_IUpdateTraversal_ShortName", "TRA");
+		return InterfaceShortName;
+	}
+#endif // WITH_EDITOR
 
 	void IUpdateTraversal::QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TTraitBinding<IUpdateTraversal>& Binding, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const
 	{

@@ -15,12 +15,17 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXTANIMGRAPH_API IContinuousBlend : ITraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(IContinuousBlend, CNB, 0xe7d79186)
+		DECLARE_ANIM_TRAIT_INTERFACE(IContinuousBlend, 0xe7d79186)
 
 		// Returns the blend weight for the specified child
 		// Multiple children can have non-zero weight but their sum must be 1.0
 		// Returns -1.0 if the child index is invalid
 		virtual float GetBlendWeight(const FExecutionContext& Context, const TTraitBinding<IContinuousBlend>& Binding, int32 ChildIndex) const;
+
+#if WITH_EDITOR
+		virtual const FText& GetDisplayName() const override;
+		virtual const FText& GetDisplayShortName() const override;
+#endif // WITH_EDITOR
 	};
 
 	/**

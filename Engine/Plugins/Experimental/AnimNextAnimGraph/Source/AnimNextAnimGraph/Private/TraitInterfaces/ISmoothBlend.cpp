@@ -6,6 +6,21 @@
 
 namespace UE::AnimNext
 {
+	AUTO_REGISTER_ANIM_TRAIT_INTERFACE(ISmoothBlend)
+
+#if WITH_EDITOR
+	const FText& ISmoothBlend::GetDisplayName() const
+	{
+		static FText InterfaceName = NSLOCTEXT("TraitInterfaces", "TraitInterface_ISmoothBlend_Name", "Group Synchronization");
+		return InterfaceName;
+	}
+	const FText& ISmoothBlend::GetDisplayShortName() const
+	{
+		static FText InterfaceShortName = NSLOCTEXT("TraitInterfaces", "TraitInterface_ISmoothBlend_ShortName", "SMB");
+		return InterfaceShortName;
+	}
+#endif // WITH_EDITOR
+
 	float ISmoothBlend::GetBlendTime(FExecutionContext& Context, const TTraitBinding<ISmoothBlend>& Binding, int32 ChildIndex) const
 	{
 		TTraitBinding<ISmoothBlend> SuperBinding;

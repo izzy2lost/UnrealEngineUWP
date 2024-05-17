@@ -229,7 +229,7 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXTANIMGRAPH_API IUpdate : ITraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(IUpdate, UPD, 0x59d24dc5)
+		DECLARE_ANIM_TRAIT_INTERFACE(IUpdate, 0x59d24dc5)
 
 		// Called before the first update when a trait stack becomes relevant
 		virtual void OnBecomeRelevant(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const;
@@ -239,6 +239,11 @@ namespace UE::AnimNext
 
 		// Called after a traits children have been updated
 		virtual void PostUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const;
+	
+#if WITH_EDITOR
+		virtual const FText& GetDisplayName() const override;
+		virtual const FText& GetDisplayShortName() const override;
+#endif // WITH_EDITOR
 	};
 
 	/**
@@ -255,10 +260,15 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXTANIMGRAPH_API IUpdateTraversal : ITraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(IUpdateTraversal, TRA, 0x256c21b1)
+		DECLARE_ANIM_TRAIT_INTERFACE(IUpdateTraversal, 0x256c21b1)
 
 		// Called after PreUpdate to request that children be queued with the provided context
 		virtual void QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TTraitBinding<IUpdateTraversal>& Binding, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const;
+
+#if WITH_EDITOR
+		virtual const FText& GetDisplayName() const override;
+		virtual const FText& GetDisplayShortName() const override;
+#endif // WITH_EDITOR
 	};
 
 	/**

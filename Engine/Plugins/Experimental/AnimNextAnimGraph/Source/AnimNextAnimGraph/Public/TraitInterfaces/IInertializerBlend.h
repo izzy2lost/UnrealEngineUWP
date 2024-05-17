@@ -15,10 +15,15 @@ namespace UE::AnimNext
 	 */
 	struct ANIMNEXTANIMGRAPH_API IInertializerBlend : ITraitInterface
 	{
-		DECLARE_ANIM_TRAIT_INTERFACE(IInertializerBlend, IB, 0x3856b8e9)
+		DECLARE_ANIM_TRAIT_INTERFACE(IInertializerBlend, 0x3856b8e9)
 
 		// Returns the desired blend time for the specified child
 		virtual float GetBlendTime(FExecutionContext& Context, const TTraitBinding<IInertializerBlend>& Binding, int32 ChildIndex) const;
+
+#if WITH_EDITOR
+		virtual const FText& GetDisplayName() const override;
+		virtual const FText& GetDisplayShortName() const override;
+#endif // WITH_EDITOR
 	};
 
 	/**

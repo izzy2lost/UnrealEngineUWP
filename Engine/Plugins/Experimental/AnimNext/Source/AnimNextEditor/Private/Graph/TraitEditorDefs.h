@@ -134,6 +134,7 @@ struct FTraitEditorSharedData
 	bool bStackContainsErrors = false;
 	bool bShowTraitInterfaces = false;
 	bool bShowTraitInterfacesIfWarningsOrErrors = false;
+	bool bAdvancedView = false;
 };
 
 struct FTraitEditorUtils
@@ -149,14 +150,13 @@ struct FTraitEditorUtils
 		StackRequired
 	};
 	static TSharedRef<SWidget> GetInterfaceListWidget(EInterfaceDisplayType InterfaceDisplayType, const TSharedPtr<FTraitDataEditorDef>& InTraitDataShared, const TSharedPtr<FTraitEditorSharedData>& InTraitEditorSharedDataShared);
-	static TSharedRef<SWidget> GetInterfaceWidget(EInterfaceDisplayType InterfaceDisplayType, int32 SlotIndex, const TSharedPtr<FTraitDataEditorDef>& InTraitDataShared, const TSharedPtr<FTraitEditorSharedData>& InTraitEditorSharedDataShared);
+	static TSharedRef<SWidget> GetInterfaceWidget(EInterfaceDisplayType InterfaceDisplayType, FTraitInterfaceUID InterfaceUID, const TSharedPtr<FTraitDataEditorDef>& InTraitDataShared, const TSharedPtr<FTraitEditorSharedData>& InTraitEditorSharedDataShared);
 	static void GenerateStackInterfacesUsedIndexes(TSharedPtr<FTraitDataEditorDef>& TraitData, const TSharedPtr<FTraitEditorSharedData>& InTraitEditorSharedData);
 
 	static TSharedPtr<FTraitDataEditorDef> FindTraitInCurrentStackData(const FTraitUID InTraitUID, TSharedPtr<TArray<TSharedPtr<FTraitDataEditorDef>>> CurrentTraitsDataShared, int32* OutIndex = nullptr);
 
 	// Internal Interfaces are not shown in the Traits Editor
-	// TODO zzz : This should be in a TraitInterfaceRegistry
-	static bool IsInternalTraitInteface(const FTraitInterfaceUID& InterfaceUID);
+	static bool IsInternal(const FTraitInterfaceUID& InterfaceUID);
 };
 
 // --- FTraitListDragDropBase ---

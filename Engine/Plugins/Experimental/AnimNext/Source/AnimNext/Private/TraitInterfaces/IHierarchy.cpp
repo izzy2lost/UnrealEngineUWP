@@ -6,6 +6,21 @@
 
 namespace UE::AnimNext
 {
+	AUTO_REGISTER_ANIM_TRAIT_INTERFACE(IHierarchy)
+
+#if WITH_EDITOR
+	const FText& IHierarchy::GetDisplayName() const
+	{
+		static FText InterfaceName = NSLOCTEXT("TraitInterfaces", "TraitInterface_IHierarchy_Name", "Hierarchy");
+		return InterfaceName;
+	}
+	const FText& IHierarchy::GetDisplayShortName() const
+	{
+		static FText InterfaceShortName = NSLOCTEXT("TraitInterfaces", "TraitInterface_IHierarchy_ShortName", "HIE");
+		return InterfaceShortName;
+	}
+#endif // WITH_EDITOR
+
 	uint32 IHierarchy::GetNumChildren(const FExecutionContext& Context, const TTraitBinding<IHierarchy>& Binding) const
 	{
 		// We only wish to count children of the queried trait

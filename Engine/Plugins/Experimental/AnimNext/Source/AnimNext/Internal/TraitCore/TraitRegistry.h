@@ -37,7 +37,7 @@ namespace UE::AnimNext
 		// If the matching trait is not registered, nullptr is returned.
 		const FTrait* Find(const UScriptStruct* TraitSharedDataStruct) const;
 
-		// Finds and returns the trait UID associated with the provided trait name.
+		// Finds and returns the trait associated with the provided trait name.
 		// If the matching trait is not registered, nullptr is returned.
 		const FTrait* Find(FName TraitTypeName) const;
 

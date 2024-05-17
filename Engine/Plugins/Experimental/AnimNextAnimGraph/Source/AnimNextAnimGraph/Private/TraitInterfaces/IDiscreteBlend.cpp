@@ -6,6 +6,21 @@
 
 namespace UE::AnimNext
 {
+	AUTO_REGISTER_ANIM_TRAIT_INTERFACE(IDiscreteBlend)
+
+#if WITH_EDITOR
+	const FText& IDiscreteBlend::GetDisplayName() const
+	{
+		static FText InterfaceName = NSLOCTEXT("TraitInterfaces", "TraitInterface_DiscreteBlend_Name", "Discrete Blend");
+		return InterfaceName;
+	}
+	const FText& IDiscreteBlend::GetDisplayShortName() const
+	{
+		static FText InterfaceShortName = NSLOCTEXT("TraitInterfaces", "TraitInterface_DiscreteBlend_ShortName", "DSB");
+		return InterfaceShortName;
+	}
+#endif // WITH_EDITOR
+
 	float IDiscreteBlend::GetBlendWeight(FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
 	{
 		TTraitBinding<IDiscreteBlend> SuperBinding;

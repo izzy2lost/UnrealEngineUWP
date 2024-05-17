@@ -124,7 +124,7 @@ class FArchive;
 	{ \
 		/* Thread safe cache initialization */ \
 		static TArray<UE::AnimNext::FTraitInterfaceUID> CachedInterfaceList = FTrait::BuildTraitInterfaceList( \
-			TraitSuper::GetTraitInterfaces(), \
+			TraitSuper::GetTraitRequiredInterfaces(), \
 			{ \
 				InterfaceEnumeratorMacro(ANIM_NEXT_IMPL_GET_INTERFACES_IMPL_FOR_INTERFACE) \
 			}); \
@@ -388,6 +388,9 @@ namespace UE::AnimNext
 		TArray<FLatentPropertyMetadata> GetLatentPropertyHandles(
 			bool bFilterEditorOnly,
 			const TFunction<uint16(FName PropertyName)>& GetTraitLatentPropertyIndex) const;
+
+		// Makes the Trait Editor only display this Trait in Advanced view
+		virtual bool IsHidden() const { return false; }
 #endif
 
 	protected:

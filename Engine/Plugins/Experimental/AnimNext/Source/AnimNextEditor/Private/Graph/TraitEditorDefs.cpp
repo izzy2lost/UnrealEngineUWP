@@ -3,6 +3,7 @@
 #include "Graph/TraitEditorDefs.h"
 #include "TraitInterfaces/IGarbageCollection.h"
 #include "Widgets/Layout/SBox.h"
+#include "TraitCore/TraitInterfaceRegistry.h"
 
 #define LOCTEXT_NAMESPACE "TraitListEditor"
 
@@ -85,15 +86,58 @@ namespace UE::AnimNext::Editor
 
 	TSharedRef<SHorizontalBox> InterfaceWidgetsHorizontalBox = SNew(SHorizontalBox);
 
-	const int32 NumSlots = InTraitEditorSharedDataShared->StackUsedInterfaces.Num();
-	for (int32 SlotIndex = 0; SlotIndex < NumSlots; SlotIndex++)
+	switch (InterfaceDisplayType)
 	{
-		InterfaceWidgetsHorizontalBox->AddSlot()
-		.AutoWidth()
-		.Padding(FMargin(4.f, 1.f))
-		[
-			GetInterfaceWidget(InterfaceDisplayType, SlotIndex, InTraitDataShared, InTraitEditorSharedDataShared)
-		];
+		case EInterfaceDisplayType::ListImplemented:
+		{
+			for(const FTraitInterfaceUID& InterfaceUID : InTraitDataShared->ImplementedInterfaces)
+			{
+				// For the trait list just display the interfaces with no spacing, one after another
+				if( !IsInternal(InterfaceUID))
+				{
+					InterfaceWidgetsHorizontalBox->AddSlot()
+						.AutoWidth()
+						.Padding(FMargin(4.f, 1.f))
+						[
+							GetInterfaceWidget(InterfaceDisplayType, InterfaceUID, InTraitDataShared, InTraitEditorSharedDataShared)
+						];
+				}
+			}
+			break;
+		}
+
+		case EInterfaceDisplayType::StackRequired:
+		case EInterfaceDisplayType::StackImplemented:
+		{
+			// For the trait stack display the interfaces aligning them by type, so the same interface is always in the same position
+			const int32 NumSlots = InTraitEditorSharedDataShared->StackUsedInterfaces.Num();
+			for (int32 SlotIndex = 0; SlotIndex < NumSlots; SlotIndex++)
+			{
+				if (SlotIndex < InTraitEditorSharedDataShared->StackUsedInterfaces.Num())
+				{
+					// If the trait contains the slot, display the interface
+					const FTraitInterfaceUID& InterfaceUID = InTraitEditorSharedDataShared->StackUsedInterfaces[SlotIndex];
+
+					InterfaceWidgetsHorizontalBox->AddSlot()
+					.AutoWidth()
+					.Padding(FMargin(4.f, 1.f))
+					[
+						GetInterfaceWidget(InterfaceDisplayType, InterfaceUID, InTraitDataShared, InTraitEditorSharedDataShared)
+					];
+				}
+				else
+				{
+					// else, display an empty space (so we keep the alignment)
+					InterfaceWidgetsHorizontalBox->AddSlot()
+						.AutoWidth()
+						.Padding(FMargin(4.f, 1.f))
+						[
+							SNullWidget::NullWidget
+						];
+				}
+			}
+			break;
+		}
 	}
 
 	return SNew(SBorder)
@@ -108,20 +152,20 @@ namespace UE::AnimNext::Editor
 		];
 }
 
-/*static*/ TSharedRef<SWidget> FTraitEditorUtils::GetInterfaceWidget(EInterfaceDisplayType InterfaceDisplayType, int32 SlotIndex, const TSharedPtr<FTraitDataEditorDef>& InTraitDataShared, const TSharedPtr<FTraitEditorSharedData>& InTraitEditorSharedDataShared)
+/*static*/ TSharedRef<SWidget> FTraitEditorUtils::GetInterfaceWidget(EInterfaceDisplayType InterfaceDisplayType, FTraitInterfaceUID InterfaceUID, const TSharedPtr<FTraitDataEditorDef>& InTraitDataShared, const TSharedPtr<FTraitEditorSharedData>& InTraitEditorSharedDataShared)
 {
 	return SNew(SBorder)
-		.BorderImage_Lambda([InterfaceDisplayType, InTraitDataShared, InTraitEditorSharedDataShared, SlotIndex]()
+		.BorderImage_Lambda([InterfaceDisplayType, InTraitDataShared, InTraitEditorSharedDataShared, InterfaceUID]()
 			{
 				switch (InterfaceDisplayType)
 				{
 					case EInterfaceDisplayType::StackRequired:
 					{
-						if (InTraitEditorSharedDataShared.IsValid() && SlotIndex < InTraitEditorSharedDataShared->StackUsedInterfaces.Num())
+						if (InTraitEditorSharedDataShared.IsValid() && InterfaceUID.IsValid())
 						{
 							if (InTraitDataShared.IsValid())
 							{
-								if (InTraitDataShared->StackStatus.MissingInterfaces.Find(InTraitEditorSharedDataShared->StackUsedInterfaces[SlotIndex]) != INDEX_NONE)
+								if (InTraitDataShared->StackStatus.MissingInterfaces.Find(InterfaceUID) != INDEX_NONE)
 								{
 									return FAppStyle::Get().GetBrush("Brushes.Error");
 								}
@@ -131,11 +175,11 @@ namespace UE::AnimNext::Editor
 					}
 					case EInterfaceDisplayType::ListImplemented:
 					{
-						if (InTraitEditorSharedDataShared.IsValid() && SlotIndex < InTraitEditorSharedDataShared->StackUsedInterfaces.Num())
+						if (InTraitEditorSharedDataShared.IsValid() && InterfaceUID.IsValid())
 						{
 							if (InTraitDataShared.IsValid())
 							{
-								if (InTraitEditorSharedDataShared->StackMissingInterfaces.Find(InTraitEditorSharedDataShared->StackUsedInterfaces[SlotIndex]) != INDEX_NONE)
+								if (InTraitEditorSharedDataShared->StackMissingInterfaces.Find(InterfaceUID) != INDEX_NONE)
 								{
 									return FAppStyle::Get().GetBrush("Brushes.Select");
 								}
@@ -151,16 +195,16 @@ namespace UE::AnimNext::Editor
 
 				return FAppStyle::Get().GetBrush("Brushes.Background");
 			})
-		.Visibility_Lambda([InterfaceDisplayType, InTraitDataShared, InTraitEditorSharedDataShared, SlotIndex]()
+		.Visibility_Lambda([InterfaceDisplayType, InTraitDataShared, InTraitEditorSharedDataShared, InterfaceUID]()
 			{
-				if (InTraitDataShared.IsValid())
+				if (InTraitDataShared.IsValid() && InterfaceUID.IsValid())
 				{
 					switch (InterfaceDisplayType)
 					{
 						case EInterfaceDisplayType::ListImplemented:
 						case EInterfaceDisplayType::StackImplemented:
 						{
-							if (InTraitDataShared->ImplementedInterfacesStackListIndexes.Find(SlotIndex) != INDEX_NONE)
+							if (InTraitDataShared->ImplementedInterfaces.Find(InterfaceUID) != INDEX_NONE)
 							{
 								return EVisibility::Visible;
 							}
@@ -168,7 +212,7 @@ namespace UE::AnimNext::Editor
 						}
 						case EInterfaceDisplayType::StackRequired:
 						{
-							if (InTraitDataShared->RequiredInterfacesStackListIndexes.Find(SlotIndex) != INDEX_NONE)
+							if (InTraitDataShared->RequiredInterfaces.Find(InterfaceUID) != INDEX_NONE)
 							{
 								return EVisibility::Visible;
 							}
@@ -186,29 +230,27 @@ namespace UE::AnimNext::Editor
 			SNew(STextBlock)
 			.Font(FAppStyle::GetFontStyle("PropertyWindow.BoldFont"))
 			.ColorAndOpacity(FSlateColor(FColor::White))
-			.Text_Lambda([InTraitEditorSharedDataShared, SlotIndex]()->FText
+			.Text_Lambda([InTraitEditorSharedDataShared, InterfaceUID]()->FText
 			{
-				if (InTraitEditorSharedDataShared.IsValid())
+				if (InTraitEditorSharedDataShared.IsValid() && InterfaceUID.IsValid())
 				{
-					// TODO zzz : Should the interface names be LOCTEXT in origin?
-					const FString InterfaceShortName(InTraitEditorSharedDataShared->StackUsedInterfaces.IsValidIndex(SlotIndex)
-						? InTraitEditorSharedDataShared->StackUsedInterfaces[SlotIndex].GetInterfaceShortName()
-						: FText(LOCTEXT("MissingInterfaceShortName", "???")).ToString());
-					return FText::FromString(InterfaceShortName);
+					if (const ITraitInterface* TraitInterface = FTraitInterfaceRegistry::Get().Find(InterfaceUID))
+					{
+						return TraitInterface->GetDisplayShortName();
+					}
 				}
-				return FText();
+				return FText(LOCTEXT("MissingInterfaceShortName", "???"));
 			})
-			.ToolTipText_Lambda([InTraitEditorSharedDataShared, SlotIndex]()->FText
+			.ToolTipText_Lambda([InTraitEditorSharedDataShared, InterfaceUID]()->FText
 			{
-				if (InTraitEditorSharedDataShared.IsValid())
+				if (InTraitEditorSharedDataShared.IsValid() && InterfaceUID.IsValid())
 				{
-					// TODO zzz : Should the interface names be LOCTEXT in origin?
-					const FString InterfaceName(InTraitEditorSharedDataShared->StackUsedInterfaces.IsValidIndex(SlotIndex)
-						? InTraitEditorSharedDataShared->StackUsedInterfaces[SlotIndex].GetInterfaceName()
-						: FText(LOCTEXT("MissingInterfaceName", "Invalid or Missing Interface")).ToString());
-					return FText::FromString(InterfaceName);
+					if (const ITraitInterface* TraitInterface = FTraitInterfaceRegistry::Get().Find(InterfaceUID))
+					{
+						return TraitInterface->GetDisplayName();
+					}
 				}
-				return FText();
+				return FText(LOCTEXT("MissingInterfaceName", "Invalid or Missing Interface"));
 			})
 		];
 }
@@ -259,13 +301,14 @@ namespace UE::AnimNext::Editor
 	return nullptr;
 }
 
-/*static*/ bool FTraitEditorUtils::IsInternalTraitInteface(const FTraitInterfaceUID& InTraitInterfaceUID) 
+/*static*/ bool FTraitEditorUtils::IsInternal(const FTraitInterfaceUID& InTraitInterfaceUID) 
 {
-	switch (InTraitInterfaceUID.GetUID())
+	if (const ITraitInterface* ImplementedInterface = FTraitInterfaceRegistry::Get().Find(InTraitInterfaceUID))
 	{
-		case IGarbageCollection::InterfaceUID.GetUID():		return true;
-		default:											return false;
+		return ImplementedInterface->IsInternal();
 	}
+
+	return false;
 }
 
 
