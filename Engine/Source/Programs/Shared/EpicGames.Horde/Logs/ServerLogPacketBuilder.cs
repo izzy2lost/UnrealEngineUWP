@@ -1,19 +1,25 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Utility
+namespace EpicGames.Horde.Logs
 {
 	using JsonObject = System.Text.Json.Nodes.JsonObject;
 
-	class JsonRpcLogWriter
+	/// <summary>
+	/// Utility class to split log events into separate lines and buffer them for writing to the server
+	/// </summary>
+	public class ServerLogPacketBuilder
 	{
 		[DebuggerDisplay("{Format}")]
 		class FormattedLine
@@ -59,7 +65,7 @@ namespace Horde.Agent.Utility
 		/// </summary>
 		/// <param name="maxLineLength">Maximum length for an individual line</param>
 		/// <param name="maxPacketLength">Maximum length for a packet</param>
-		public JsonRpcLogWriter(int maxLineLength = 64 * 1024, int maxPacketLength = 256 * 1024)
+		public ServerLogPacketBuilder(int maxLineLength = 64 * 1024, int maxPacketLength = 256 * 1024)
 		{
 			MaxLineLength = maxLineLength;
 			_lineWriter = new ArrayBufferWriter<byte>(maxLineLength);
@@ -129,7 +135,7 @@ namespace Horde.Agent.Utility
 			}
 		}
 
-		public int SanitizeAndWriteEventInternal(JsonLogEvent jsonLogEvent)
+		int SanitizeAndWriteEventInternal(JsonLogEvent jsonLogEvent)
 		{
 			ReadOnlySpan<byte> span = jsonLogEvent.Data.Span;
 			if (jsonLogEvent.LineCount == 1 && span.IndexOf(s_escapedNewline) != -1)

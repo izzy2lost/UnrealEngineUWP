@@ -15,22 +15,22 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using Grpc.Core;
 using Grpc.Net.Client;
-using Horde.Agent.Utility;
+//using Horde.Agent.Utility;
 using Horde.Common.Rpc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Agent.Tests
+namespace EpicGames.Horde.Tests
 {
 	[TestClass]
-	public class JsonRpcLoggerTests
+	public class ServerLogPacketBuilderTests
 	{
 		class JsonLoggerImpl : ILogger
 		{
 			public List<LogEvent> _lines = new List<LogEvent>();
 
-			public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null!;
+			public IDisposable BeginScope<TState>(TState state) => null!;
 
 			public bool IsEnabled(LogLevel logLevel) => true;
 
@@ -60,7 +60,7 @@ namespace Horde.Agent.Tests
 			JsonLogEvent jsonLogEvent;
 			Assert.IsTrue(JsonLogEvent.TryParse(Encoding.UTF8.GetBytes(message), out jsonLogEvent));
 
-			JsonRpcLogWriter writer = new JsonRpcLogWriter();
+			ServerLogPacketBuilder writer = new ServerLogPacketBuilder();
 			int count = writer.SanitizeAndWriteEvent(jsonLogEvent);
 
 			string[] result = Encoding.UTF8.GetString(writer.CreatePacket().Item1.Span).Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -92,7 +92,7 @@ namespace Horde.Agent.Tests
 			data[idx] = 0xef;
 			data[idx + 1] = 0xbb;
 
-			JsonRpcLogWriter writer = new JsonRpcLogWriter();
+			ServerLogPacketBuilder writer = new ServerLogPacketBuilder();
 			int count = writer.SanitizeAndWriteEvent(JsonLogEvent.Parse(data));
 			Assert.AreEqual(1, count);
 
@@ -340,7 +340,7 @@ namespace Horde.Agent.Tests
 
 			LogEvent baseEvent = new LogEvent(time, LogLevel.Information, default, $"start {longLineA} x {longLineB} y\nz {longLineC} end", "start {LongLineA} x {LongLineB} y\nz {LongLineC} end", properties, null);
 
-			JsonRpcLogWriter writer = new JsonRpcLogWriter();
+			ServerLogPacketBuilder writer = new ServerLogPacketBuilder();
 			writer.SanitizeAndWriteEvent(new JsonLogEvent(baseEvent));
 
 			string[] output = Encoding.UTF8.GetString(writer.CreatePacket().Item1.Span).Split('\n');
@@ -376,7 +376,7 @@ namespace Horde.Agent.Tests
 
 			LogEvent baseEvent = new LogEvent(time, LogLevel.Information, default, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", null, null, null);
 
-			JsonRpcLogWriter writer = new JsonRpcLogWriter(maxPacketLength: 85);
+			ServerLogPacketBuilder writer = new ServerLogPacketBuilder(maxPacketLength: 85);
 			writer.SanitizeAndWriteEvent(new JsonLogEvent(baseEvent));
 			writer.SanitizeAndWriteEvent(new JsonLogEvent(baseEvent));
 
@@ -395,7 +395,7 @@ namespace Horde.Agent.Tests
 
 			LogEvent baseEvent = new LogEvent(time, LogLevel.Information, default, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", null, null, null);
 
-			JsonRpcLogWriter writer = new JsonRpcLogWriter(85);
+			ServerLogPacketBuilder writer = new ServerLogPacketBuilder(85);
 			writer.SanitizeAndWriteEvent(new JsonLogEvent(baseEvent));
 
 			string[] output = Encoding.UTF8.GetString(writer.CreatePacket().Item1.Span).Split('\n');

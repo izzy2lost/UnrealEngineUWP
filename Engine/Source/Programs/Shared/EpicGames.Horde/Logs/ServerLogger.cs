@@ -1,7 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
+using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using System.Threading.Channels;
+using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Logs;
@@ -9,12 +13,10 @@ using EpicGames.Horde.Storage;
 using Google.Protobuf;
 using Grpc.Core;
 using Horde.Common.Rpc;
-using HordeCommon.Rpc;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Utility
+namespace EpicGames.Horde.Logs
 {
-	using static Horde.Common.Rpc.LogRpc;
 	using ByteString = Google.Protobuf.ByteString;
 
 	/// <summary>
@@ -31,7 +33,7 @@ namespace Horde.Agent.Utility
 	/// <summary>
 	/// Class to handle uploading log data to the server in the background
 	/// </summary>
-	sealed class ServerLogger : IServerLogger
+	public sealed class ServerLogger : IServerLogger
 	{
 		const int FlushLength = 1024 * 1024;
 
@@ -89,8 +91,8 @@ namespace Horde.Agent.Utility
 		public bool IsEnabled(LogLevel logLevel) => logLevel >= _outputLevel;
 
 		/// <inheritdoc/>
-		public IDisposable? BeginScope<TState>(TState state) where TState : notnull
-			=> null;
+		public IDisposable BeginScope<TState>(TState state)
+			=> null!;
 
 		private void WriteFormattedEvent(JsonLogEvent jsonLogEvent)
 		{
@@ -163,7 +165,7 @@ namespace Horde.Agent.Utility
 			int numWarnings = 0;
 
 			// Buffer for events read in a single iteration
-			JsonRpcLogWriter writer = new JsonRpcLogWriter();
+			ServerLogPacketBuilder writer = new ServerLogPacketBuilder();
 			List<RpcCreateLogEventRequest> events = new List<RpcCreateLogEventRequest>();
 
 			// Whether we've written the flush command
@@ -387,7 +389,7 @@ namespace Horde.Agent.Utility
 			request.TargetLocator = target.GetLocator().ToString();
 			request.Complete = complete;
 
-			LogRpcClient clientRef = await _hordeClient.CreateGrpcClientAsync<LogRpcClient>(cancellationToken);
+			LogRpc.LogRpcClient clientRef = await _hordeClient.CreateGrpcClientAsync<LogRpc.LogRpcClient>(cancellationToken);
 			await clientRef.UpdateLogAsync(request, cancellationToken: cancellationToken);
 		}
 
@@ -396,7 +398,7 @@ namespace Horde.Agent.Utility
 			DateTime deadline = DateTime.UtcNow.AddMinutes(2.0);
 			try
 			{
-				LogRpcClient clientRef = await _hordeClient.CreateGrpcClientAsync<LogRpcClient>(cancellationToken);
+				LogRpc.LogRpcClient clientRef = await _hordeClient.CreateGrpcClientAsync<LogRpc.LogRpcClient>(cancellationToken);
 				using AsyncDuplexStreamingCall<RpcUpdateLogTailRequest, RpcUpdateLogTailResponse> call = clientRef.UpdateLogTail(deadline: deadline, cancellationToken: cancellationToken);
 
 				// Write the request to the server
