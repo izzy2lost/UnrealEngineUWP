@@ -179,7 +179,7 @@ void INiagaraModule::OnDataChannelsEnabledChanged(IConsoleVariable* Variable)
 namespace NiagaraDebugVisHelper
 {
 	const FNiagaraTypeRegistry* GCoreTypeRegistrySingletonPtr = nullptr;
-	const FNiagaraTypeRegistry*& GTypeRegistrySingletonPtr = GCoreTypeRegistrySingletonPtr;
+	UE_SELECT_ANY const FNiagaraTypeRegistry*& GTypeRegistrySingletonPtr = GCoreTypeRegistrySingletonPtr;
 }
 
 FNiagaraVariable INiagaraModule::Engine_WorldDeltaTime;

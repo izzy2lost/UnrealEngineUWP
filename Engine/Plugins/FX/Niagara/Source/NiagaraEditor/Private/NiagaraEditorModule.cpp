@@ -224,7 +224,7 @@ static FNiagaraShaderQueueTickable NiagaraShaderQueueProcessor;
 #if !IS_MONOLITHIC
 namespace NiagaraDebugVisHelper
 {
-	const FNiagaraTypeRegistry*& GTypeRegistrySingletonPtr = GCoreTypeRegistrySingletonPtr;
+	UE_SELECT_ANY const FNiagaraTypeRegistry*& GTypeRegistrySingletonPtr = GCoreTypeRegistrySingletonPtr;
 }
 #endif
 

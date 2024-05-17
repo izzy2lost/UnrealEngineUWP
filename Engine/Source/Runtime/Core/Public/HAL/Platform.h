@@ -714,6 +714,14 @@
 	#error "Compiler is expected to support [[noreturn]]"
 #endif
 
+/* Use in front of initialized global variable to have link once-semantics
+   When multiple definitions of the variable are encountered by the linker, the first is selected and the remainder are discarded */
+#ifdef _MSC_VER
+    #define UE_SELECT_ANY __declspec(selectany)
+#else
+    #define UE_SELECT_ANY __attribute__((selectany))
+#endif
+
 /* Macro wrapper for the consteval keyword which isn't yet present on all compilers - constexpr
    can be used as a workaround but is less strict and so may let some non-consteval code pass */
 #if defined(__cpp_consteval)
