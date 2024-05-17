@@ -2,17 +2,19 @@
 
 #pragma once
 
-#include "AlphaBlend.h"
 #include "StateTreeNodeBase.h"
-#include "StateTreeTypes.h"
 #include "StateTreeConsiderationBase.generated.h"
 
 struct FStateTreeExecutionContext;
+enum class EAlphaBlendOption : uint8;
+enum class EStateTreeExpressionOperand : uint8;
 
 USTRUCT()
 struct STATETREEMODULE_API FStateTreeConsiderationResponseCurve
 {
 	GENERATED_BODY()
+
+	FStateTreeConsiderationResponseCurve();
 
 	/* Optional Curve used to output the final normalized score.If it is set empty, the final value will be raw score normalized by bounds */
 	UPROPERTY(EditAnywhere, Category = Default)
@@ -20,11 +22,11 @@ struct STATETREEMODULE_API FStateTreeConsiderationResponseCurve
 
 	/* Lower Bound used to normalize the raw score */
 	UPROPERTY(EditAnywhere, Category = Default)
-	float RawScoreLowerBound = .0f;
+	float RawScoreLowerBound;
 
 	/* Upper Bound used to normalize the raw score */
 	UPROPERTY(EditAnywhere, Category = Default)
-	float RawScoreUpperBound = 1.f;
+	float RawScoreUpperBound;
 };
 
 /**
@@ -36,6 +38,8 @@ struct STATETREEMODULE_API FStateTreeConsiderationBase : public FStateTreeNodeBa
 {
 	GENERATED_BODY()
 
+	FStateTreeConsiderationBase();
+
 	float ComputeNormalizedScore(FStateTreeExecutionContext& Context) const;
 
 protected:
@@ -43,10 +47,10 @@ protected:
 
 public:
 	UPROPERTY()
-	EStateTreeExpressionOperand Operand = EStateTreeExpressionOperand::And;
+	EStateTreeExpressionOperand Operand;
 
 	UPROPERTY()
-	int8 DeltaIndent = 0;
+	int8 DeltaIndent;
 
 	//Response Curve used to output the final normalized score.
 	UPROPERTY(EditAnywhere, Category = Default)

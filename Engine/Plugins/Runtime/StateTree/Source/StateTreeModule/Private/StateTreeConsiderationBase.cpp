@@ -1,8 +1,23 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "StateTreeConsiderationBase.h"
+#include "AlphaBlend.h"
+#include "StateTreeTypes.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeConsiderationBase)
+
+FStateTreeConsiderationResponseCurve::FStateTreeConsiderationResponseCurve()
+	: BlendOption(EAlphaBlendOption::Linear)
+	, RawScoreLowerBound(.0f)
+	, RawScoreUpperBound(.1f)
+{
+}
+
+FStateTreeConsiderationBase::FStateTreeConsiderationBase()
+	: Operand(EStateTreeExpressionOperand::And)
+	, DeltaIndent(0)
+{
+}
 
 float FStateTreeConsiderationBase::ComputeNormalizedScore(FStateTreeExecutionContext& Context) const
 {
