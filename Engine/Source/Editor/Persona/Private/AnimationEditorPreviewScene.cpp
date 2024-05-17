@@ -862,9 +862,12 @@ void FAnimationEditorPreviewScene::SetSelectedBone(const FName& BoneName, ESelec
 		// need to get mesh bone base since BonesOfInterest is saved in SkeletalMeshComponent
 		// and it is used by renderer. It is not Skeleton base
 		const int32 MeshBoneIndex = SkeletalMeshComponent->GetBoneIndex(BoneName);
-		SelectedBoneIndex = MeshBoneIndex != INDEX_NONE ? MeshBoneIndex : BoneIndex;
-		SkeletalMeshComponent->BonesOfInterest.Add(SelectedBoneIndex);
-
+		if (MeshBoneIndex != INDEX_NONE)
+		{
+			SelectedBoneIndex = MeshBoneIndex;
+			SkeletalMeshComponent->BonesOfInterest.Add(SelectedBoneIndex);
+		}
+		
 		InvalidateViews();
 
 		OnSelectedBoneChanged.Broadcast(BoneName, InSelectInfo);
