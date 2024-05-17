@@ -43,6 +43,7 @@
 #include "Details/PCGInstancedPropertyBagOverrideDetails.h"
 #include "Details/PCGVolumeDetails.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "LevelEditor.h"
 #include "Framework/Notifications/NotificationManager.h"
 
 #define LOCTEXT_NAMESPACE "FPCGEditorModule"
@@ -61,7 +62,15 @@ void FPCGEditorModule::StartupModule()
 	GraphNodeFactory = MakeShareable(new FPCGEditorGraphNodeFactory());
 	FEdGraphUtilities::RegisterVisualNodeFactory(GraphNodeFactory);
 
-	FCoreDelegates::OnPostEngineInit.AddRaw(this, &FPCGEditorModule::OnPostEngineInit);
+	FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
+	if (TSharedPtr<ILevelEditor> FirstLevelEditor = LevelEditorModule.GetFirstLevelEditor())
+	{
+		OnLevelEditorCreated(FirstLevelEditor);
+	}
+	else
+	{
+		LevelEditorModule.OnLevelEditorCreated().AddRaw(this, &FPCGEditorModule::OnLevelEditorCreated);
+	}
 }
 
 void FPCGEditorModule::ShutdownModule()
@@ -86,17 +95,18 @@ void FPCGEditorModule::ShutdownModule()
 		});
 	}
 
-	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
-	if (!IsRunningCommandlet())
+	if (FModuleManager::Get().IsModuleLoaded("LevelEditor"))
 	{
-		if (GLevelEditorModeToolsIsValid())
+		FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
+		LevelEditorModule.OnLevelEditorCreated().RemoveAll(this);
+		if (TSharedPtr<ILevelEditor> FirstLevelEditor = LevelEditorModule.GetFirstLevelEditor())
 		{
-			GLevelEditorModeTools().OnEditorModeIDChanged().RemoveAll(this);
+			FirstLevelEditor->GetEditorModeManager().OnEditorModeIDChanged().RemoveAll(this);
 		}
 	}
 }
 
-void FPCGEditorModule::OnPostEngineInit()
+void FPCGEditorModule::OnLevelEditorCreated(TSharedPtr<ILevelEditor> InLevelEditor)
 {
 	RegisterOnEditorModeChange();
 
@@ -168,9 +178,10 @@ void FPCGEditorModule::ReleaseProgressNotification(TWeakPtr<IPCGEditorProgressNo
 void FPCGEditorModule::RegisterOnEditorModeChange()
 {
 	// Have a callback that catches changes in the Editor modes, to catch when we exit the landscape edit mode.
-	if (!IsRunningCommandlet() && GLevelEditorModeToolsIsValid())
+	FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
+	if (TSharedPtr<ILevelEditor> FirstLevelEditor = LevelEditorModule.GetFirstLevelEditor())
 	{
-		GLevelEditorModeTools().OnEditorModeIDChanged().AddRaw(this, &FPCGEditorModule::OnEditorModeIDChanged);
+		FirstLevelEditor->GetEditorModeManager().OnEditorModeIDChanged().AddRaw(this, &FPCGEditorModule::OnEditorModeIDChanged);
 	}
 }
 

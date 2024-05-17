@@ -918,6 +918,15 @@ void FLevelInstanceEditorModule::RegisterToFirstLevelEditor()
 	if (FirstLevelEditor.IsValid())
 	{
 		FirstLevelEditor->AddActorDetailsSCSEditorUICustomization(FLevelInstanceActorDetailsSCSEditorUICustomization::GetInstance());
+
+		FEditorModeTools& LevelEditorModeManager = FirstLevelEditor->GetEditorModeManager();
+		LevelEditorModeManager.OnEditorModeIDChanged().AddRaw(this, &FLevelInstanceEditorModule::OnEditorModeIDChanged);
+
+		// Create a Behavior source for the default EdModeTools (when we aren't in the LevelInstanceEditorMode)
+		DefaultBehaviorSource = ULevelInstanceEditorMode::CreateDefaultModeBehaviorSource(LevelEditorModeManager.GetInteractiveToolsContext());
+		LevelEditorModeManager.GetInteractiveToolsContext()->InputRouter->RegisterSource(DefaultBehaviorSource.GetInterface());
+		
+		RegisterLevelInstanceColumn();
 	}
 }
 
@@ -985,17 +994,6 @@ void FLevelInstanceEditorModule::StartupModule()
 		
 	FLevelInstanceEditorModeCommands::Register();
 
-	if (!IsRunningCommandlet())
-	{
-		GLevelEditorModeTools().OnEditorModeIDChanged().AddRaw(this, &FLevelInstanceEditorModule::OnEditorModeIDChanged);
-	
-		// Create a Behavior source for the default EdModeTools (when we aren't in the LevelInstanceEditorMode)
-		DefaultBehaviorSource = ULevelInstanceEditorMode::CreateDefaultModeBehaviorSource(GLevelEditorModeTools().GetInteractiveToolsContext());
-		GLevelEditorModeTools().GetInteractiveToolsContext()->InputRouter->RegisterSource(DefaultBehaviorSource.GetInterface());
-
-		RegisterLevelInstanceColumn();
-	}
-
 	ULevelInstanceSubsystem::RegisterPrimitiveColorHandler();
 }
 
@@ -1010,7 +1008,13 @@ void FLevelInstanceEditorModule::ShutdownModule()
 		if (TSharedPtr<ILevelEditor> FirstLevelEditor = LevelEditorModule.GetFirstLevelEditor())
 		{
 			FirstLevelEditor->RemoveActorDetailsSCSEditorUICustomization(FLevelInstanceActorDetailsSCSEditorUICustomization::GetInstance());
+			FirstLevelEditor->GetEditorModeManager().OnEditorModeIDChanged().RemoveAll(this);
+			FirstLevelEditor->GetEditorModeManager().GetInteractiveToolsContext()->InputRouter->DeregisterSource(DefaultBehaviorSource.GetInterface());
 		}
+
+		DefaultBehaviorSource = nullptr;
+		
+		UnregisterLevelInstanceColumn();
 	}
 
 	if (GEditor)
@@ -1019,17 +1023,6 @@ void FLevelInstanceEditorModule::ShutdownModule()
 	}
 
 	EditorLevelUtils::CanMoveActorToLevelDelegate.RemoveAll(this);
-
-	if (!IsRunningCommandlet())
-	{
-		if (GLevelEditorModeToolsIsValid())
-		{
-			GLevelEditorModeTools().OnEditorModeIDChanged().RemoveAll(this);
-			GLevelEditorModeTools().GetInteractiveToolsContext()->InputRouter->DeregisterSource(DefaultBehaviorSource.GetInterface());
-			DefaultBehaviorSource = nullptr;
-		}
-		UnregisterLevelInstanceColumn();
-	}
 }
 
 TSharedRef<ISceneOutlinerColumn> FLevelInstanceEditorModule::CreateLevelInstanceColumn(ISceneOutliner& SceneOutliner) const
@@ -1074,15 +1067,16 @@ void FLevelInstanceEditorModule::BroadcastTryExitEditorMode()
 
 void FLevelInstanceEditorModule::UpdateEditorMode(bool bActivated)
 {
-	if (!IsRunningCommandlet() && GLevelEditorModeToolsIsValid())
+	FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
+	if (TSharedPtr<ILevelEditor> FirstLevelEditor = LevelEditorModule.GetFirstLevelEditor())
 	{
-		if (bActivated && !GLevelEditorModeTools().IsModeActive(ULevelInstanceEditorMode::EM_LevelInstanceEditorModeId))
+		if (bActivated && !FirstLevelEditor->GetEditorModeManager().IsModeActive(ULevelInstanceEditorMode::EM_LevelInstanceEditorModeId))
 		{
-			GLevelEditorModeTools().ActivateMode(ULevelInstanceEditorMode::EM_LevelInstanceEditorModeId);
+			FirstLevelEditor->GetEditorModeManager().ActivateMode(ULevelInstanceEditorMode::EM_LevelInstanceEditorModeId);
 		}
-		else if (!bActivated && GLevelEditorModeTools().IsModeActive(ULevelInstanceEditorMode::EM_LevelInstanceEditorModeId))
+		else if (!bActivated && FirstLevelEditor->GetEditorModeManager().IsModeActive(ULevelInstanceEditorMode::EM_LevelInstanceEditorModeId))
 		{
-			GLevelEditorModeTools().DeactivateMode(ULevelInstanceEditorMode::EM_LevelInstanceEditorModeId);
+			FirstLevelEditor->GetEditorModeManager().DeactivateMode(ULevelInstanceEditorMode::EM_LevelInstanceEditorModeId);
 		}
 	}
 }
