@@ -983,7 +983,7 @@ namespace Gauntlet
 			foreach (Match TraceInitMatch in Matches)
 			{
 				string TraceID = TraceInitMatch.Groups[1].Value;
-				string EndPattern = @$"=={TraceID}==ABORTING";
+				string EndPattern = @$"(=={TraceID}==ABORTING)|(End of Address Sanitizer report)";
 				int TraceInitIndex = TraceInitMatch.Index + TraceInitMatch.Length;
 
 				UnrealLog.CallstackMessage NewTrace = new UnrealLog.CallstackMessage();
