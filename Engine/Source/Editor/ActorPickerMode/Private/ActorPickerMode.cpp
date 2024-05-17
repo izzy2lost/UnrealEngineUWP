@@ -7,14 +7,11 @@
 #include "EditorModes.h"
 #include "EditorModeActorPicker.h" 
 #include "Framework/Application/SlateApplication.h"
-#include "LevelEditor.h"
 
 IMPLEMENT_MODULE( FActorPickerModeModule, ActorPickerMode );
 
 void FActorPickerModeModule::StartupModule()
 {
-	// Ensure the level editor module is loaded for grabbing the mode manager later
-	FModuleManager::Get().LoadModuleChecked("LevelEditor");
 	FEditorModeRegistry::Get().RegisterMode<FEdModeActorPicker>(FBuiltinEditorModes::EM_ActorPicker);
 
 	if (FSlateApplication::IsInitialized())
@@ -36,19 +33,21 @@ void FActorPickerModeModule::ShutdownModule()
 
 void FActorPickerModeModule::BeginActorPickingMode(FOnGetAllowedClasses InOnGetAllowedClasses, FOnShouldFilterActor InOnShouldFilterActor, FOnActorSelected InOnActorSelected) const
 {
-	if (FEditorModeTools* ModeTools = GetLevelEditorModeManager())
+	if(!GLevelEditorModeToolsIsValid())
 	{
-		// Activate the mode
-		ModeTools->ActivateMode(FBuiltinEditorModes::EM_ActorPicker);
+		return;
+	}
 
-		// Set the required delegates
-		FEdModeActorPicker* Mode = ModeTools->GetActiveModeTyped<FEdModeActorPicker>(FBuiltinEditorModes::EM_ActorPicker);
-		if (ensure(Mode))
-		{
-			Mode->OnActorSelected = InOnActorSelected;
-			Mode->OnGetAllowedClasses = InOnGetAllowedClasses;
-			Mode->OnShouldFilterActor = InOnShouldFilterActor;
-		}
+	// Activate the mode
+	GLevelEditorModeTools().ActivateMode(FBuiltinEditorModes::EM_ActorPicker);
+
+	// Set the required delegates
+	FEdModeActorPicker* Mode = GLevelEditorModeTools().GetActiveModeTyped<FEdModeActorPicker>(FBuiltinEditorModes::EM_ActorPicker);
+	if (ensure(Mode))
+	{
+		Mode->OnActorSelected = InOnActorSelected;
+		Mode->OnGetAllowedClasses = InOnGetAllowedClasses;
+		Mode->OnShouldFilterActor = InOnShouldFilterActor;
 	}
 }
 
@@ -62,29 +61,17 @@ void FActorPickerModeModule::OnApplicationDeactivated(const bool IsActive) const
 
 void FActorPickerModeModule::EndActorPickingMode() const
 {
-	if (FEditorModeTools* ModeTools = GetLevelEditorModeManager())
+	if (IsInActorPickingMode() && GLevelEditorModeToolsIsValid())
 	{
-		ModeTools->DeactivateMode(FBuiltinEditorModes::EM_ActorPicker);
+		GLevelEditorModeTools().DeactivateMode(FBuiltinEditorModes::EM_ActorPicker);
 	}
 }
 
 bool FActorPickerModeModule::IsInActorPickingMode() const
 {
-	if (FEditorModeTools* ModeTools = GetLevelEditorModeManager())
+	if(GLevelEditorModeToolsIsValid())
 	{
-		return ModeTools->IsModeActive(FBuiltinEditorModes::EM_ActorPicker);
+		return GLevelEditorModeTools().IsModeActive(FBuiltinEditorModes::EM_ActorPicker);
 	}
 	return false;
-}
-
-FEditorModeTools* FActorPickerModeModule::GetLevelEditorModeManager()
-{
-	FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
-	TSharedPtr<ILevelEditor> FirstLevelEditor = LevelEditorModule.GetFirstLevelEditor();
-	if (FirstLevelEditor.IsValid())
-	{
-		return &FirstLevelEditor->GetEditorModeManager();
-	}
-
-	return nullptr;
 }

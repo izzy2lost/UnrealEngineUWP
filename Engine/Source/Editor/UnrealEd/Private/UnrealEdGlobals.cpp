@@ -47,22 +47,24 @@ DEFINE_LOG_CATEGORY_STATIC(LogUnrealEd, Log, All);
  */
 namespace Internal
 {
-	static TSharedPtr<FEditorModeTools> EditorModeToolsSingleton;
+	static TSharedPtr<FEditorModeTools>& GetGlobalModeManager()
+	{
+		checkf(!IsRunningCommandlet(), TEXT("The global mode manager should not be created or accessed in a commandlet environment. Check that your mode or module is not accessing the global mode tools or that scriptable features of modes have been moved to subsystems."));
+
+		static TSharedPtr<FEditorModeTools> EditorModeToolsSingleton = MakeShared<FEditorModeTools>();
+		return EditorModeToolsSingleton;
+	}
 };
 
 bool GLevelEditorModeToolsIsValid()
 {
-	return Internal::EditorModeToolsSingleton.IsValid();
+	return Internal::GetGlobalModeManager().IsValid();
 }
 
 FEditorModeTools& GLevelEditorModeTools()
 {
-	checkf(!IsRunningCommandlet(), TEXT("The global mode manager should not be created or accessed in a commandlet environment. Check that your mode or module is not accessing the global mode tools or that scriptable features of modes have been moved to subsystems."));
-	if (!ensureMsgf(Internal::EditorModeToolsSingleton.IsValid(), TEXT("The level editor is not started up yet. If you need to access the global mode manager early in the startup phase, please use FLevelEditorModule::OnLevelEditorCreated to gate the access.")))
-	{
-		Internal::EditorModeToolsSingleton = MakeShared<FEditorModeTools>();
-	}
-	return *Internal::EditorModeToolsSingleton.Get();
+	check(GLevelEditorModeToolsIsValid());
+	return *Internal::GetGlobalModeManager().Get();
 }
 
 FLevelEditorViewportClient* GCurrentLevelEditingViewportClient = NULL;
@@ -127,20 +129,16 @@ int32 EditorInit( IEngineLoop& EngineLoop )
 
 	// Set up the actor folders singleton
 	FActorFolders::Get();
-	if (!Internal::EditorModeToolsSingleton.IsValid())
-	{
-		Internal::EditorModeToolsSingleton = MakeShared<FEditorModeTools>();
-	}
 
 	// Initialize the misc editor
 	FUnrealEdMisc::Get().OnInit();
 	FCoreDelegates::OnExit.AddLambda([]()
 	{
 		// Shutdown the global static mode manager
-		if (Internal::EditorModeToolsSingleton.IsValid())
+		if (Internal::GetGlobalModeManager().IsValid())
 		{
 			GLevelEditorModeTools().SetDefaultMode(FBuiltinEditorModes::EM_Default);
-			Internal::EditorModeToolsSingleton.Reset();
+			Internal::GetGlobalModeManager().Reset();
 		}
 	});
 	
