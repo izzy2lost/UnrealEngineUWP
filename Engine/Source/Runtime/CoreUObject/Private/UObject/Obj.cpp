@@ -5474,9 +5474,13 @@ void StaticExit()
 	IncrementalPurgeGarbage(false);
 
 	{
+		GObjectCountDuringLastMarkPhase.Reset();
+
 		//Repeat GC for every object, including structures and properties.
 		for (FRawObjectIterator It; It; ++It)
 		{
+			GObjectCountDuringLastMarkPhase.Increment();
+
 			// Mark as unreachable so purge phase will kill it.
 			UE::GC::Private::FGCFlags::SetMaybeUnreachable_ForGC(*It);
 		}
