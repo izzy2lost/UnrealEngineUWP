@@ -101,6 +101,7 @@
 #include "ManyLights/ManyLights.h"
 #include "Rendering/CustomRenderPass.h"
 #include "EnvironmentComponentsFlags.h"
+#include "GenerateMips.h"
 
 #if !UE_BUILD_SHIPPING
 #include "RenderCaptureInterface.h"
@@ -390,7 +391,6 @@ FDeferredShadingSceneRenderer::FDeferredShadingSceneRenderer(const FSceneViewFam
 * Renders the view family. 
 */
 DECLARE_CYCLE_STAT(TEXT("Wait RayTracing Add Mesh Batch"), STAT_WaitRayTracingAddMesh, STATGROUP_SceneRendering);
-DECLARE_CYCLE_STAT(TEXT("Wait Ray Tracing Scene Initialization"), STAT_WaitRayTracingSceneInitTask, STATGROUP_SceneRendering);
 
 FGlobalDynamicIndexBuffer FDeferredShadingSceneRenderer::DynamicIndexBufferForInitShadows;
 FGlobalDynamicVertexBuffer FDeferredShadingSceneRenderer::DynamicVertexBufferForInitShadows;
@@ -598,11 +598,6 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 		return false;
 	}
 
-	if (!GRHISupportsRayTracingShaders)
-	{
-		return false;
-	}
-
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates);
 
 	const int32 ReferenceViewIndex = 0;
@@ -624,6 +619,7 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 
 	const bool bIsPathTracing = ViewFamily.EngineShowFlags.PathTracing;
 
+	if (GRHISupportsRayTracingShaders)
 	{
 		// #dxr_todo: UE-72565: refactor ray tracing effects to not be member functions of DeferredShadingRenderer. 
 		// Should register each effect at startup and just loop over them automatically to gather all required shaders.
@@ -693,6 +689,7 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 	}
 
 	// Add Lumen hardware ray tracing materials
+	if (GRHISupportsRayTracingShaders)
 	{
 		TArray<FRHIRayTracingShader*> LumenHardwareRayTracingRayGenShaders;
 
@@ -827,12 +824,9 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 		GRayTracingGeometryManager->ForceBuildIfPending(GraphBuilder.RHICmdList, RayTracingScene.GeometriesToBuild);
 	}
 
-	{
-		SCOPE_CYCLE_COUNTER(STAT_WaitRayTracingSceneInitTask);
+	FTaskGraphInterface::Get().WaitUntilTaskCompletes(ReferenceView.RayTracingSceneInitTask, ENamedThreads::GetRenderThread_Local());
 
-		FTaskGraphInterface::Get().WaitUntilTaskCompletes(ReferenceView.RayTracingSceneInitTask, ENamedThreads::GetRenderThread_Local());
-		ReferenceView.RayTracingSceneInitTask = {};
-	}
+	ReferenceView.RayTracingSceneInitTask = {};
 
 	{
 		Nanite::GRayTracingManager.ProcessUpdateRequests(GraphBuilder, GetSceneUniforms());
@@ -1030,7 +1024,7 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 			{
 				if (ReferenceView.LumenHardwareRayTracingMaterialPipeline)
 				{
-					RHICmdList.SetRayTracingMissShader(ReferenceView.LumenHardwareRayTracingSBT, RAY_TRACING_MISS_SHADER_SLOT_DEFAULT, ReferenceView.LumenHardwareRayTracingMaterialPipeline, 0 /* MissShaderPipelineIndex */, 0, nullptr, 0);
+					RHICmdList.SetRayTracingMissShader(ReferenceView.LumenHardwareRayTracingSBT, ReferenceView.GetRayTracingSceneChecked(), RAY_TRACING_MISS_SHADER_SLOT_DEFAULT, ReferenceView.LumenHardwareRayTracingMaterialPipeline, 0 /* MissShaderPipelineIndex */, 0, nullptr, 0);
 					BindLumenHardwareRayTracingMaterialPipeline(RHICmdList, ReferenceView);
 
 					RHICmdList.CommitShaderBindingTable(ReferenceView.LumenHardwareRayTracingSBT);
@@ -1404,7 +1398,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	GPU_MESSAGE_SCOPE(GraphBuilder);
 
 #if RHI_RAYTRACING
-	if (RendererOutput != FSceneRenderer::ERendererOutput::DepthPrepassOnly)
+	if (RendererOutput == FSceneRenderer::ERendererOutput::FinalSceneColor)
 	{
 		GRayTracingGeometryManager->PreRender();
 
@@ -1424,7 +1418,8 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	const bool bUseVirtualTexturing = UseVirtualTexturing(ShaderPlatform);
 
-	if (bUseVirtualTexturing && RendererOutput == ERendererOutput::FinalSceneColor)
+	// Virtual texturing runs for ERendererOutput::BasePass or ERendererOutput::FinalSceneColor
+	if (bUseVirtualTexturing && RendererOutput != ERendererOutput::DepthPrepassOnly)
 	{
 		FVirtualTextureUpdateSettings Settings;
 		Settings.EnableThrottling(!ViewFamily.bOverrideVirtualTextureThrottle);
@@ -1814,14 +1809,18 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	bool bComputeLightGrid = false;
 	bool bAnyLumenEnabled = false;
 
-	if (RendererOutput == ERendererOutput::FinalSceneColor)
+	// Virtual texturing runs for ERendererOutput::BasePass or ERendererOutput::FinalSceneColor
+	if (RendererOutput != ERendererOutput::DepthPrepassOnly)
 	{
 		if (bUseVirtualTexturing)
 		{
 			// Note, should happen after the GPU-Scene update to ensure rendering to runtime virtual textures is using the correctly updated scene
 			FVirtualTextureSystem::Get().EndUpdate(GraphBuilder, MoveTemp(VirtualTextureUpdater), FeatureLevel);
 		}
+	}
 
+	if (RendererOutput == ERendererOutput::FinalSceneColor)
+	{
 #if RHI_RAYTRACING
 		if (bAnyRayTracingPassEnabled)
 		{
@@ -2034,11 +2033,20 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	FDBufferTextures DBufferTextures = CreateDBufferTextures(GraphBuilder, SceneTextures.Config.Extent, ShaderPlatform);
 
+	// Initialise local fog volume with dummy data before volumetric cloud view initialization (further down) which can bind LFV data.
+	// Also need to do this before custom render passes (included in AllViews), as base pass rendering may bind LFV data.
+	SetDummyLocalFogVolumeForViews(GraphBuilder, AllViews);
+
 	if (CustomRenderPassInfos.Num() > 0)
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_CustomRenderPasses);
 		RDG_EVENT_SCOPE(GraphBuilder, "CustomRenderPasses");
 		RDG_GPU_STAT_SCOPE(GraphBuilder, CustomRenderPasses);
+
+		// We want to reset the scene texture uniform buffer to its original state after custom render passes,
+		// so they can't affect downstream rendering.
+		ESceneTextureSetupMode OriginalSceneTextureSetupMode = SceneTextures.SetupMode;
+		TRDGUniformBufferRef<FSceneTextureUniformParameters> OriginalSceneTextureUniformBuffer = SceneTextures.UniformBuffer;
 
 		for (int32 i = 0; i < CustomRenderPassInfos.Num(); ++i)
 		{
@@ -2060,13 +2068,16 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				FNaniteBasePassVisibility DummyNaniteBasePassVisibility;
 				RenderPrepassAndVelocity(CustomRenderPassViews, DummyNaniteBasePassVisibility, NaniteRasterResults, PrimaryNaniteViews);
 
+				const FSingleLayerWaterPrePassResult* SingleLayerWaterPrePassResult = nullptr;
+				if (ShouldRenderSingleLayerWaterDepthPrepass(CustomRenderPassViews))
+				{
+					SingleLayerWaterPrePassResult = RenderSingleLayerWaterDepthPrepass(GraphBuilder, CustomRenderPassViews, SceneTextures);
+				}
+
 				if (CustomRenderPass->GetRenderMode() == FCustomRenderPassBase::ERenderMode::DepthAndBasePass)
 				{
 					SceneTextures.SetupMode |= ESceneTextureSetupMode::SceneColor;
 					SceneTextures.UniformBuffer = CreateSceneTextureUniformBuffer(GraphBuilder, &SceneTextures, FeatureLevel, SceneTextures.SetupMode);
-
-					// Setup dummy uniform buffer parameters for fog volume.
-					SetDummyLocalFogVolumeForViews(GraphBuilder, CustomRenderPassViews);
 
 					if (bNaniteEnabled)
 					{
@@ -2074,17 +2085,48 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 					}
 
 					RenderBasePass(GraphBuilder, CustomRenderPassViews, SceneTextures, DBufferTextures, BasePassDepthStencilAccess, /*ForwardScreenSpaceShadowMaskTexture=*/nullptr, InstanceCullingManager, bNaniteEnabled, NaniteBasePassShadingCommands, NaniteRasterResults);
+
+					if (ShouldRenderSingleLayerWater(CustomRenderPassViews))
+					{
+						// GBuffer code paths in RenderSingleLayerWater don't use the bIsCameraUnderWater flag, so just pass in false.  Normally this is
+						// computed by a render extension, but those aren't run for custom render passes.
+						FSceneWithoutWaterTextures SceneWithoutWaterTextures;
+						RenderSingleLayerWater(GraphBuilder, CustomRenderPassViews, SceneTextures, SingleLayerWaterPrePassResult, /*bShouldRenderVolumetricCloud=*/false, SceneWithoutWaterTextures, LumenFrameTemporaries, /*bIsCameraUnderWater=*/false);
+					}
+
+					FCustomRenderPassBase::ERenderOutput RenderOutput = CustomRenderPass->GetRenderOutput();
+					if (RenderOutput == FCustomRenderPassBase::ERenderOutput::BaseColor || RenderOutput == FCustomRenderPassBase::ERenderOutput::Normal)
+					{
+						// CopySceneCaptureComponentToTarget uses scene texture uniforms
+						SceneTextures.SetupMode |= ESceneTextureSetupMode::GBuffers;
+						SceneTextures.UniformBuffer = CreateSceneTextureUniformBuffer(GraphBuilder, &SceneTextures, FeatureLevel, SceneTextures.SetupMode);
+					}
 				}
 
 				CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, CustomRenderPass->GetRenderTargetTexture(), ViewFamily, CustomRenderPassViews);
 				CustomRenderPass->PostRender(GraphBuilder);
 
+				// Mips are normally generated in UpdateSceneCaptureContentDeferred_RenderThread, but that doesn't run when the
+				// scene capture runs as a custom render pass.  The function does nothing if the render target doesn't have mips.
+				if (CustomRenderPassViews[0].bIsSceneCapture)
+				{
+					FGenerateMips::Execute(GraphBuilder, FeatureLevel, CustomRenderPass->GetRenderTargetTexture(), FGenerateMipsParams());
+				}
+
 			#if WITH_MGPU
 				DoCrossGPUTransfers(GraphBuilder, CustomRenderPass->GetRenderTargetTexture(), CustomRenderPassViews, false, FRHIGPUMask::All());
 			#endif
+
+				// Materials in the main view renderer will be using this render target, so we need RDG to transition it back to SRV now,
+				// rather than at the end of graph execution.
+				GraphBuilder.UseExternalAccessMode(CustomRenderPass->GetRenderTargetTexture(), ERHIAccess::SRVMask);
 			}
 
 			CustomRenderPass->EndPass(GraphBuilder);
+
+			// Restore original scene texture uniforms
+			SceneTextures.SetupMode = OriginalSceneTextureSetupMode;
+			SceneTextures.UniformBuffer = OriginalSceneTextureUniformBuffer;
 		}
 	}
 
@@ -2093,10 +2135,10 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	RenderPrepassAndVelocity(Views, NaniteBasePassVisibility, NaniteRasterResults, PrimaryNaniteViews);
 
 	// Run Nanite compute commands early in the frame to allow some task overlap on the CPU until the base pass runs.
-	if (bNaniteEnabled && RendererOutput == ERendererOutput::FinalSceneColor && !bHasRayTracedOverlay)
+	if (bNaniteEnabled && RendererOutput != ERendererOutput::DepthPrepassOnly && !bHasRayTracedOverlay)
 	{
 		Nanite::BuildShadingCommands(GraphBuilder, *Scene, ENaniteMeshPass::BasePass, Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass]);
-		if (bAnyLumenEnabled)
+		if (bAnyLumenEnabled && RendererOutput == ERendererOutput::FinalSceneColor)
 		{
 			Nanite::BuildShadingCommands(GraphBuilder, *Scene, ENaniteMeshPass::LumenCardCapture, Scene->NaniteShadingCommands[ENaniteMeshPass::LumenCardCapture]);
 		}
@@ -2134,9 +2176,58 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	FRDGTextureRef ViewFamilyTexture = TryCreateViewFamilyTexture(GraphBuilder, ViewFamily);
 	FRDGTextureRef ViewFamilyDepthTexture = TryCreateViewFamilyDepthTexture(GraphBuilder, ViewFamily);
-	if (RendererOutput == ERendererOutput::DepthPrepassOnly)
+	if (RendererOutput == ERendererOutput::DepthPrepassOnly || RendererOutput == ERendererOutput::BasePass)
 	{
-		RenderOcclusionLambda();
+		const FSingleLayerWaterPrePassResult* SingleLayerWaterPrePassResult = nullptr;
+		if (ShouldRenderSingleLayerWaterDepthPrepass(Views))
+		{
+			SingleLayerWaterPrePassResult = RenderSingleLayerWaterDepthPrepass(GraphBuilder, Views, SceneTextures);
+		}
+
+		bool bOcclusionBeforeBasePass = false;
+		if (RendererOutput == ERendererOutput::BasePass)
+		{
+			// Early occlusion queries
+			bOcclusionBeforeBasePass = ((DepthPass.EarlyZPassMode == EDepthDrawingMode::DDM_AllOccluders) || bIsEarlyDepthComplete);
+			if (bOcclusionBeforeBasePass)
+			{
+				RenderOcclusionLambda();
+			}
+
+			SceneTextures.SetupMode |= ESceneTextureSetupMode::SceneColor;
+			SceneTextures.UniformBuffer = CreateSceneTextureUniformBuffer(GraphBuilder, &SceneTextures, FeatureLevel, SceneTextures.SetupMode);
+
+			for (FSceneViewExtensionRef& ViewExtension : ViewFamily.ViewExtensions)
+			{
+				ViewExtension->PreRenderBasePass_RenderThread(GraphBuilder, ShouldRenderPrePass() /*bDepthBufferIsPopulated*/);
+			}
+
+			RenderBasePass(GraphBuilder, Views, SceneTextures, DBufferTextures, BasePassDepthStencilAccess, /*ForwardScreenSpaceShadowMaskTexture=*/nullptr, InstanceCullingManager, bNaniteEnabled, Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass], NaniteRasterResults);
+
+			if (ShouldRenderSingleLayerWater(Views))
+			{
+				// Virtual shadow map uniforms need to be initialized with dummy data for water.  Their initialization
+				// was skipped above due to (RendererOutput == ERendererOutput::FinalSceneColor) being false.
+				VirtualShadowMapArray.Initialize(GraphBuilder, Scene->GetVirtualShadowMapCache(), /*bEnableVirtualShadowMaps=*/false, ViewFamily.EngineShowFlags);
+
+				FSceneWithoutWaterTextures SceneWithoutWaterTextures;
+				RenderSingleLayerWater(GraphBuilder, Views, SceneTextures, SingleLayerWaterPrePassResult, /*bShouldRenderVolumetricCloud=*/false, SceneWithoutWaterTextures, LumenFrameTemporaries, /*bIsCameraUnderWater=*/false);
+			}
+
+			SceneTextures.SetupMode |= ESceneTextureSetupMode::GBuffers;
+			SceneTextures.UniformBuffer = CreateSceneTextureUniformBuffer(GraphBuilder, &SceneTextures, FeatureLevel, SceneTextures.SetupMode);
+
+			if (bUseVirtualTexturing)
+			{
+				RDG_GPU_STAT_SCOPE(GraphBuilder, VirtualTextureUpdate);
+				VirtualTextureFeedbackEnd(GraphBuilder);
+			}
+		}
+
+		if (!bOcclusionBeforeBasePass)
+		{
+			RenderOcclusionLambda();
+		}
 
 		if (bUpdateNaniteStreaming)
 		{
@@ -2181,9 +2272,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		CSV_CUSTOM_STAT(LightCount, All,  float(SortedLightSet.SortedLights.Num()), ECsvCustomStatOp::Set);
 		CSV_CUSTOM_STAT(LightCount, Batched, float(SortedLightSet.UnbatchedLightStart), ECsvCustomStatOp::Set);
 		CSV_CUSTOM_STAT(LightCount, Unbatched, float(SortedLightSet.SortedLights.Num()) - float(SortedLightSet.UnbatchedLightStart), ECsvCustomStatOp::Set);
-
-		// Initialise local fog volume with dummy data before volumetric cloud view initialization which can bind LFV data.
-		SetDummyLocalFogVolumeForViews(GraphBuilder, Views);
 
 		// Run before RenderSkyAtmosphereLookUpTables for cloud shadows to be valid.
 		InitVolumetricCloudsForViews(GraphBuilder, bShouldRenderVolumetricCloudBase, InstanceCullingManager);
@@ -2510,7 +2598,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		const bool bShouldRenderSingleLayerWaterDepthPrepass = !bHasRayTracedOverlay && ShouldRenderSingleLayerWaterDepthPrepass(Views);
 		if (bShouldRenderSingleLayerWaterDepthPrepass)
 		{
-			SingleLayerWaterPrePassResult = RenderSingleLayerWaterDepthPrepass(GraphBuilder, SceneTextures);
+			SingleLayerWaterPrePassResult = RenderSingleLayerWaterDepthPrepass(GraphBuilder, Views, SceneTextures);
 		}
 
 		FAsyncLumenIndirectLightingOutputs AsyncLumenIndirectLightingOutputs;
@@ -2921,7 +3009,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				EnumRemoveFlags(TranslucencyViewsToRender, ETranslucencyView::UnderWater);
 			}
 
-			RenderSingleLayerWater(GraphBuilder, SceneTextures, SingleLayerWaterPrePassResult, bShouldRenderVolumetricCloud, SceneWithoutWaterTextures, LumenFrameTemporaries, bIsCameraUnderWater);
+			RenderSingleLayerWater(GraphBuilder, Views, SceneTextures, SingleLayerWaterPrePassResult, bShouldRenderVolumetricCloud, SceneWithoutWaterTextures, LumenFrameTemporaries, bIsCameraUnderWater);
 
 			// Replace main depth texture with the output of the SLW depth prepass which contains the scene + water.
 			// Note: Stencil now has all water bits marked with 1. As long as no other passes after this point want to read the depth buffer,

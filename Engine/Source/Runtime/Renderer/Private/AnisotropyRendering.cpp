@@ -295,6 +295,12 @@ bool ShouldRenderAnisotropyPass(const FViewInfo& View)
 		return false;
 	}
 
+	// The anisotropy GBuffer is used for lighting, and not needed for custom render passes, which don't run lighting.
+	if (View.CustomRenderPass)
+	{
+		return false;
+	}
+
 	if (View.ShouldRenderView() && View.ParallelMeshDrawCommandPasses[EMeshPass::AnisotropyPass].HasAnyDraw())
 	{
 		return true;
@@ -324,6 +330,7 @@ END_SHADER_PARAMETER_STRUCT()
 
 void FDeferredShadingSceneRenderer::RenderAnisotropyPass(
 	FRDGBuilder& GraphBuilder, 
+	TArrayView<FViewInfo> InViews,
 	FSceneTextures& SceneTextures,
 	bool bDoParallelPass
 )
@@ -333,9 +340,9 @@ void FDeferredShadingSceneRenderer::RenderAnisotropyPass(
 	SCOPE_CYCLE_COUNTER(STAT_AnisotropyPassDrawTime);
 	RDG_GPU_STAT_SCOPE(GraphBuilder, RenderAnisotropyPass);
 
-	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ViewIndex++)
 	{
-		FViewInfo& View = Views[ViewIndex];
+		FViewInfo& View = InViews[ViewIndex];
 
 		if (View.ShouldRenderView())
 		{
