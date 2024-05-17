@@ -60,7 +60,7 @@ static FAutoConsoleVariableRef CVarHairStrandsBindingBuilderWarningEnable(TEXT("
 FString FGroomBindingBuilder::GetVersion()
 {
 	// Important to update the version when groom building changes
-	return TEXT("4e");
+	return TEXT("4f");
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -105,6 +105,18 @@ float FHairStrandsRootUtils::PackUVsToFloat(const FVector2f& UV)
 	return *((float*)(&Encoded));
 }
 
+static float PackNormalToFloat(const FVector3f& InN)
+{
+	FVector3f N = InN; 
+	N.Normalize();
+	const FVector3f NN = N * 0.5f + 0.5f;
+	const uint32 Encoded = 
+		(uint32(FMath::Clamp(NN.X, 0.f, 1.f) * 1023.0f) & 0x3FF)    |
+		(uint32(FMath::Clamp(NN.Y, 0.f, 1.f) * 1023.0f) & 0x3FF)<<10|
+		(uint32(FMath::Clamp(NN.Z, 0.f, 1.f) * 1023.0f) & 0x3FF)<<20;
+	return *((float*)(&Encoded));
+}
+
 //////////////////////////////////////////////////////////////////////////
 // Intermediate data struct
 
@@ -144,6 +156,7 @@ public:
 	virtual const IMeshSectionData& GetSection(uint32 SectionIndex) const = 0;
 	virtual const FVector3f& GetVertexPosition(uint32 VertexIndex) const = 0;
 	virtual FVector2f GetVertexUV(uint32 VertexIndex, uint32 ChannelIndex) const = 0;
+	virtual FVector3f GetVertexNormal(uint32 VertexIndex) const = 0;
 	virtual int32 GetSectionFromVertexIndex(uint32 InVertIndex) const = 0;
 	virtual ~IMeshLODData() {}
 };
@@ -274,6 +287,13 @@ public:
 		check(MeshData);
 		check(MeshData->LODRenderData.IsValidIndex(LODIndex));
 		return FVector2f(MeshData->LODRenderData[LODIndex].StaticVertexBuffers.StaticMeshVertexBuffer.GetVertexUV(InVertexIndex, InChannelIndex));
+	}
+
+	virtual FVector3f GetVertexNormal(uint32 InVertexIndex) const override
+	{
+		check(MeshData);
+		check(MeshData->LODRenderData.IsValidIndex(LODIndex));
+		return FVector3f(MeshData->LODRenderData[LODIndex].StaticVertexBuffers.StaticMeshVertexBuffer.VertexTangentZ(InVertexIndex));
 	}
 
 	virtual int32 GetSectionFromVertexIndex(uint32 InVertIndex) const override
@@ -473,6 +493,11 @@ public:
 	virtual FVector2f GetVertexUV(uint32 VertexIndex, uint32 ChannelIndex) const override
 	{
 		return FVector2f(MeshData.TextureCoordinates[VertexIndex]);
+	}
+
+	virtual FVector3f GetVertexNormal(uint32 InVertexIndex) const override
+	{
+		return MeshData.TangentsZ[InVertexIndex].ToFVector3f();
 	}
 
 	virtual int32 GetSectionFromVertexIndex(uint32 InVertIndex) const override
@@ -869,6 +894,10 @@ namespace GroomBinding_RootProjection
 			FVector3f P1;
 			FVector3f P2;
 
+			FVector3f N0;
+			FVector3f N1;
+			FVector3f N2;
+
 			FVector2f UV0;
 			FVector2f UV1;
 			FVector2f UV2;
@@ -1238,6 +1267,10 @@ namespace GroomBinding_RootProjection
 					T.UV1 = MeshLODData.GetVertexUV(T.I1, ChannelIndex);
 					T.UV2 = MeshLODData.GetVertexUV(T.I2, ChannelIndex);
 
+					T.N0 = MeshLODData.GetVertexNormal(T.I0);
+					T.N1 = MeshLODData.GetVertexNormal(T.I1);
+					T.N2 = MeshLODData.GetVertexNormal(T.I2);
+
 					MeshBound += T.P0;
 					MeshBound += T.P1;
 					MeshBound += T.P2;
@@ -1321,6 +1354,10 @@ namespace GroomBinding_RootProjection
 					T.UV1 = MeshLODData.GetVertexUV(T.I1, ChannelIndex);
 					T.UV2 = MeshLODData.GetVertexUV(T.I2, ChannelIndex);
 
+					T.N0 = MeshLODData.GetVertexNormal(T.I0);
+					T.N1 = MeshLODData.GetVertexNormal(T.I1);
+					T.N2 = MeshLODData.GetVertexNormal(T.I2);
+
 					bIsGridPopulated = Grid.Insert(T) || bIsGridPopulated;
 				}
 			}
@@ -1397,9 +1434,9 @@ namespace GroomBinding_RootProjection
 				OutRootData[MeshLODIt].RootBarycentricBuffer[CurveIndex] = EncodedBarycentrics;
 
 				RootTriangleIndexBuffer[CurveIndex] = EncodedTriangleIndex;
-				RestRootTrianglePositionBuffer[CurveIndex * 3 + 0] = FVector4f((FVector3f)ClosestTriangle.P0, FHairStrandsRootUtils::PackUVsToFloat(FVector2f(ClosestTriangle.UV0)));	// LWC_TODO: Precision loss
-				RestRootTrianglePositionBuffer[CurveIndex * 3 + 1] = FVector4f((FVector3f)ClosestTriangle.P1, FHairStrandsRootUtils::PackUVsToFloat(FVector2f(ClosestTriangle.UV1)));	// LWC_TODO: Precision loss
-				RestRootTrianglePositionBuffer[CurveIndex * 3 + 2] = FVector4f((FVector3f)ClosestTriangle.P2, FHairStrandsRootUtils::PackUVsToFloat(FVector2f(ClosestTriangle.UV2)));	// LWC_TODO: Precision loss
+				RestRootTrianglePositionBuffer[CurveIndex * 3 + 0] = FVector4f((FVector3f)ClosestTriangle.P0, PackNormalToFloat(ClosestTriangle.N0));
+				RestRootTrianglePositionBuffer[CurveIndex * 3 + 1] = FVector4f((FVector3f)ClosestTriangle.P1, PackNormalToFloat(ClosestTriangle.N1));
+				RestRootTrianglePositionBuffer[CurveIndex * 3 + 2] = FVector4f((FVector3f)ClosestTriangle.P2, PackNormalToFloat(ClosestTriangle.N2));
 			}
 		#if BINDING_PARALLEL_BUILDING
 			);
@@ -1792,6 +1829,11 @@ namespace GroomBinding_Transfer
 				T.UV0 = MeshLODData.GetVertexUV(T.I0, InChannelIndex);
 				T.UV1 = MeshLODData.GetVertexUV(T.I1, InChannelIndex);
 				T.UV2 = MeshLODData.GetVertexUV(T.I2, InChannelIndex);
+
+				// Needed??
+				//T.N0 = MeshLODData.GetVertexNormal(T.I0);
+				//T.N1 = MeshLODData.GetVertexNormal(T.I1);
+				//T.N2 = MeshLODData.GetVertexNormal(T.I2);
 
 				bIsGridPopulated = OutGrid.Insert(T) || bIsGridPopulated;
 			}

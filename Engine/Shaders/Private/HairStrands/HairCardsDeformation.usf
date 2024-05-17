@@ -44,16 +44,15 @@ Buffer<uint>    	GuideRootToUniqueTriangleIndexBuffer;
 float3 ComputeDynamicGeometryOffset(
 	uint GuideIndex,
 	float GuideVertexWeight,
-	FHairMeshTriangle RestTriangle,
-	FHairMeshTriangle DeformedTriangle,
-	float3 RootBarycentric,
+	FHairMeshBasis RestBasis,
+	FHairMeshBasis DeformedBasis,
 	float3 GuideDeformedPositionOffset)
 {
 	const float3 RestGuidePoint = ReadHairControlPointPosition(GuideRestPositionBuffer, GuideIndex, GuideRestPositionOffset);
-	const float3 LocalRestGuidePoint = ToTriangle(RestGuidePoint, RootBarycentric, RestTriangle);
+	const float3 LocalRestGuidePoint = ToTriangle(RestGuidePoint, RestBasis);
 
 	const float3 DeformedGuidePoint = ReadHairControlPointPosition(GuideDeformedPositionBuffer, GuideIndex, GuideDeformedPositionOffset);
-	const float3 LocalDeformedGuidePoint = ToTriangle(DeformedGuidePoint, RootBarycentric, DeformedTriangle);
+	const float3 LocalDeformedGuidePoint = ToTriangle(DeformedGuidePoint, DeformedBasis);
 
 	return (LocalDeformedGuidePoint - LocalRestGuidePoint) * GuideVertexWeight;
 }
@@ -61,12 +60,12 @@ float3 ComputeDynamicGeometryOffset(
 void TransformTangent(
 	uint InVertexId, 
 	uint InOffset,
-	FHairMeshTriangle InRestTriangle,
-	FHairMeshTriangle InDeformedTriangle)
+	FHairMeshBasis InRestBasis,
+	FHairMeshBasis InDeformedBasis)
 {
 	float4 Rest		= CardsRestTangentBuffer[InVertexId * 2 + InOffset];
-	float3 Local	= VectorToTriangle(Rest.xyz, InRestTriangle);
-	float3 Deformed = VectorToWorld(Local, InDeformedTriangle);
+	float3 Local	= VectorToTriangle(Rest.xyz, InRestBasis);
+	float3 Deformed = VectorToWorld(Local, InDeformedBasis);
 	CardsDeformedTangentBuffer[InVertexId * 2 + InOffset] = float4(Deformed, Rest.w);
 }
 #endif
@@ -149,24 +148,24 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 
 	const float3 RootBarycentric = UnpackBarycentrics(GuideRootBarycentricBuffer[GuideCurveIndex]);
 
-	const FHairMeshTriangle RestTriangle = GetTriangleTransformation(TriangleIndex, TriangleRestPositionBuffer);
-	const FHairMeshTriangle DeformedTriangle = GetTriangleTransformation(TriangleIndex, TriangleDeformedPositionBuffer);
+	const FHairMeshBasis RestBasis = GetHairMeshBasis(TriangleIndex, TriangleRestPositionBuffer, RootBarycentric);
+	const FHairMeshBasis DeformedBasis = GetHairMeshBasis(TriangleIndex, TriangleDeformedPositionBuffer, RootBarycentric);
 
-	const float3 Offset0 = ComputeDynamicGeometryOffset(GuidePointIndex0, 1, RestTriangle, DeformedTriangle, RootBarycentric, GuideDeformedPositionOffset);
-	const float3 Offset1 = ComputeDynamicGeometryOffset(GuidePointIndex1, 1, RestTriangle, DeformedTriangle, RootBarycentric, GuideDeformedPositionOffset);
-	const float3 CurrOffset = VectorToWorld(lerp(Offset0, Offset1, GuideData.VertexLerp), DeformedTriangle);
+	const float3 Offset0 = ComputeDynamicGeometryOffset(GuidePointIndex0, 1, RestBasis, DeformedBasis, GuideDeformedPositionOffset);
+	const float3 Offset1 = ComputeDynamicGeometryOffset(GuidePointIndex1, 1, RestBasis, DeformedBasis, GuideDeformedPositionOffset);
+	const float3 CurrOffset = VectorToWorld(lerp(Offset0, Offset1, GuideData.VertexLerp), DeformedBasis);
 
 	// Transform hair from rest post to deformed pose, based triangle deformation + simulation offset (optional depending of the simulation is actual running or not
 	const float4 RestControlPoint = CardsRestPositionBuffer[VertexId];
 	float3 ControlPoint = RestControlPoint.xyz;
-	ControlPoint = ToTriangle(ControlPoint, RootBarycentric, RestTriangle);
-	ControlPoint = ToWorld(ControlPoint, RootBarycentric, DeformedTriangle) + CurrOffset;
+	ControlPoint = ToTriangle(ControlPoint, RestBasis);
+	ControlPoint = ToWorld(ControlPoint, DeformedBasis) + CurrOffset;
 
 	#if DEBUG_ENABLE
 	{
-		float3 WP0 = mul(float4(DeformedTriangle.P0, 1), LocalToWorld).xyz;
-		float3 WP1 = mul(float4(DeformedTriangle.P1, 1), LocalToWorld).xyz;
-		float3 WP2 = mul(float4(DeformedTriangle.P2, 1), LocalToWorld).xyz;
+		float3 WP0 = mul(float4(DeformedBasis.P0, 1), LocalToWorld).xyz;
+		float3 WP1 = mul(float4(DeformedBasis.P1, 1), LocalToWorld).xyz;
+		float3 WP2 = mul(float4(DeformedBasis.P2, 1), LocalToWorld).xyz;
 		AddLineTriangle(WP0, WP1, WP2, ColorOrange);
 	}
 	#endif
@@ -174,8 +173,8 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 	CardsDeformedPositionBuffer[VertexId] = float4(ControlPoint, RestControlPoint.w);
 
 	// Transform tangent
-	TransformTangent(VertexId, 0, RestTriangle, DeformedTriangle);
-	TransformTangent(VertexId, 1, RestTriangle, DeformedTriangle);
+	TransformTangent(VertexId, 0, RestBasis, DeformedBasis);
+	TransformTangent(VertexId, 1, RestBasis, DeformedBasis);
 #endif // PERMUTATION_DYNAMIC_GEOMETRY
 }
 #endif // SHADER_DEFORM_CARDS

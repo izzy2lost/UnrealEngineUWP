@@ -440,6 +440,36 @@ float2 UnPackUVs(float InUV)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Normal
+
+uint PackVertexNormal(float3 In)
+{
+	return
+		(PackUnorm10(In.x * 0.5f + 0.5f)    )|
+		(PackUnorm10(In.y * 0.5f + 0.5f)<<10)|
+		(PackUnorm10(In.z * 0.5f + 0.5f)<<20);
+}
+
+float PackVertexNormalToFloat(float3 In)
+{
+	return asfloat(PackVertexNormal(In));
+}
+
+float3 UnpackVertexNormal(uint In)
+{
+	const float3 N = float3(
+		UnpackUnorm10(In    ) * 2.f - 1.f,
+		UnpackUnorm10(In>>10) * 2.f - 1.f,
+		UnpackUnorm10(In>>20) * 2.f - 1.f);
+	return normalize(N);
+}
+
+float3 UnpackVertexNormal(float In)
+{
+	return UnpackVertexNormal(asuint(In));
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Barycentrics
 
 uint PackBarycentrics(float2 B)

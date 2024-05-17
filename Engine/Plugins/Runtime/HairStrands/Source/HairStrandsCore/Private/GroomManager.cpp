@@ -529,6 +529,7 @@ static void GetOrAllocateCachedGeometry(
 	// Create deformed position buffer (output)
 	FRDGBufferSRVRef DeformedPositionSRV = nullptr;
 	FRDGBufferSRVRef DeformedPreviousPositionSRV = nullptr;
+	FRDGBufferSRVRef DeformedTangentSRV = nullptr; // TODO
 	OutHairGeometryCache.GetOrAdd(GraphBuilder, SkeletalMeshObject, &LODData, LODIndex, UniqueSections, DeformedPositionSRV, DeformedPreviousPositionSRV);
 
 	// Add reference to be sure the data are not streamed out while they are used
@@ -540,6 +541,7 @@ static void GetOrAllocateCachedGeometry(
 		FCachedGeometry::Section& OutSection= Out.Sections.AddDefaulted_GetRef();
 		OutSection.RDGPositionBuffer 		= DeformedPositionSRV;
 		OutSection.RDGPreviousPositionBuffer= DeformedPreviousPositionSRV;
+		OutSection.RDGTangentBuffer			= DeformedTangentSRV;
 		OutSection.PositionBuffer 			= nullptr; // Do not use the SRV slot, but instead use the RDG buffer created above (DeformedPositionSRV)
 		OutSection.PreviousPositionBuffer 	= nullptr; // Do not use the SRV slot, but instead use the RDG buffer created above (DeformedPositionSRV)
 		OutSection.UVsBuffer 				= LODData.StaticVertexBuffers.StaticMeshVertexBuffer.GetTexCoordsSRV();

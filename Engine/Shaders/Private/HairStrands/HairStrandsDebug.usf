@@ -312,9 +312,8 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 #include "HairStrandsBindingCommon.ush" 
 #include "../ShaderPrint.ush"
 
-#define INPUT_ROOT_FRAME 0
-#define INPUT_ROOT_TRIANGLE 1
-#define INPUT_ROOT_SAMPLES 2
+#define INPUT_ROOTS 0
+#define INPUT_SAMPLES 1
 
 uint bSimPass;
 uint bRestPass;
@@ -337,18 +336,17 @@ uint Sim_HairDeformedTriangles;
 uint Sim_HairDeformedFrames;
 uint Sim_HairDeformedSamples;
 
-#if PERMUTATION_INPUT_TYPE == INPUT_ROOT_FRAME
+#if PERMUTATION_INPUT_TYPE == INPUT_ROOTS
 Buffer<uint>   RootBarycentricBuffer;
+Buffer<float4> RestPositionBuffer;
+Buffer<float4> DeformedPositionBuffer;
+Buffer<uint>   RootToUniqueTriangleIndexBuffer;
 #endif
 
-Buffer<uint>  RootToUniqueTriangleIndexBuffer;
-
-Buffer<float4>  RestPositionBuffer;
-Buffer<float4>  DeformedPositionBuffer;
-
+#if PERMUTATION_INPUT_TYPE == INPUT_SAMPLES
 StructuredBuffer<float4> RestSamplePositionsBuffer;
 StructuredBuffer<float4> DeformedSamplePositionsBuffer;
-
+#endif
 
 void Move(inout FShaderPrintContext Ctx, uint2 InPos)
 {
@@ -360,10 +358,51 @@ void Move(inout FShaderPrintContext Ctx, uint2 InPos)
 	}
 }
 
+float2 ToScreenUV(float3 TWSPos)
+{
+	const float4 NDC = mul(float4(TWSPos.xyz, 1), View.TranslatedWorldToClip);
+	const float2 ScreenUv = (NDC.xy / NDC.ww) * float2(0.5f, -0.5f) + 0.5f;
+	return ScreenUv;
+}
+
+float4 GetScreenMinMax(float3 WP0, float3 WP1, float3 WP2)
+{
+	const float3 PreViewTranslation = DFDemote(MakeDFVector3(View.PreViewTranslationHigh, View.PreViewTranslationLow));
+	const float3 TWSP0 = WP0 + PreViewTranslation;
+	const float3 TWSP1 = WP1 + PreViewTranslation;
+	const float3 TWSP2 = WP2 + PreViewTranslation;
+
+	const float2 UV0 = ToScreenUV(TWSP0);
+	const float2 UV1 = ToScreenUV(TWSP1);
+	const float2 UV2 = ToScreenUV(TWSP2);
+
+	float2 MinUV;
+	float2 MaxUV;
+	MinUV.x = min3(UV0.x, UV1.x, UV2.x);
+	MinUV.y = min3(UV0.y, UV1.y, UV2.y);
+	MaxUV.x = max3(UV0.x, UV1.x, UV2.x);
+	MaxUV.y = max3(UV0.y, UV1.y, UV2.y);
+	return float4(MinUV, MaxUV);
+}
+
+bool IsInRect(float4 MinMaxUV, float2 UV)
+{
+	return all(UV >= MinMaxUV.xy) && all(UV <= MinMaxUV.zw);
+}
+
 [numthreads(256, 1, 1)]
 void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
 	ResolvedView = ResolveView();
+	float NormalScale = 0.2f;
+	
+	const float2 CursorPixelCoord = GetCursorPos();
+	const float2 CursorUV = CursorPixelCoord * View.ViewSizeAndInvSize.zw;
+
+
+	bool bDrawTriangle= false;
+	bool bDrawNormal  = false;
+	bool bDrawRoot    = false; 
 
 	// Widgets for draw configuration
 	{	
@@ -376,7 +415,9 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		{
 			bool bRest    = false;
 			bool bDeform  = false;
+
 			bool bTriangle= false;
+			bool bNormal  = false;
 			bool bRoot    = false; 
 
 			Print(Ctx, TEXT("Guides "), FontYellow); Newline(Ctx);
@@ -385,6 +426,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 				bRest    = Sim_HairRestTriangles     || Sim_HairRestFrames;
 				bDeform  = Sim_HairDeformedTriangles || Sim_HairDeformedFrames;
 				bTriangle= Sim_HairRestTriangles     || Sim_HairDeformedTriangles;
+				bNormal  = false;
 				bRoot    = Sim_HairRestFrames        || Sim_HairDeformedFrames;
 
 				Print(Ctx, TEXT("Sim Rest      "), FontWhite);	PrintBool(Ctx, bRest); 		Newline(Ctx);
@@ -392,6 +434,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 				Newline(Ctx);
 	
 				Print(Ctx, TEXT("Sim Triangles "), FontWhite);	PrintBool(Ctx, bTriangle); 	Newline(Ctx);
+				Print(Ctx, TEXT("Sim Normals   "), FontWhite);	PrintBool(Ctx, bNormal); 	Newline(Ctx);
 				Print(Ctx, TEXT("Sim Roots     "), FontWhite); 	PrintBool(Ctx, bRoot);		Newline(Ctx);
 				Newline(Ctx);
 	
@@ -403,29 +446,32 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 				Newline(Ctx);
 		
 				bTriangle = AddCheckbox(Ctx, TEXT("Sim Triangles"), false, FontWhite); Newline(Ctx);
+				bNormal   = AddCheckbox(Ctx, TEXT("Sim Normals"), false, FontWhite); Newline(Ctx);
 				bRoot     = AddCheckbox(Ctx, TEXT("Sim Roots"), false, FontWhite); Newline(Ctx);
 				Newline(Ctx);
 			}
 
 			if (bSimPass == 1)
 			{
-				if (PERMUTATION_INPUT_TYPE == INPUT_ROOT_TRIANGLE)
+				if (PERMUTATION_INPUT_TYPE == INPUT_ROOTS)
 				{
-					bValid = bTriangle  && ((bRestPass==1 && bRest) || (bRestPass==0 && bDeform));
-				}
-				if (PERMUTATION_INPUT_TYPE == INPUT_ROOT_FRAME)
-				{
-					bValid = bRoot && ((bRestPass==1 && bRest) || (bRestPass==0 && bDeform));
+					bValid = (bRoot || bNormal || bTriangle)  && ((bRestPass==1 && bRest) || (bRestPass==0 && bDeform));
+
+					bDrawTriangle = bDrawTriangle || bTriangle;
+					bDrawNormal   = bDrawNormal   || bNormal;
+					bDrawRoot     = bDrawRoot     || bRoot; 
+
 				}
 			}
 		}
-
 		// Strands/Cards
 		{
 			bool bRest    = false;
 			bool bDeform  = false;
+
 			bool bTriangle= false;
-			bool bRoot    = false;
+			bool bNormal  = false;
+			bool bRoot    = false; 
 
 			Move(Ctx, StartPos + OffsetPos);
 			Print(Ctx, TEXT("Strands / Cards"), FontYellow); Newline(Ctx);
@@ -434,6 +480,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 				bRest    = Render_HairRestTriangles     || Render_HairRestFrames;
 				bDeform  = Render_HairDeformedTriangles || Render_HairDeformedFrames;
 				bTriangle= Render_HairRestTriangles     || Render_HairDeformedTriangles;
+				bNormal  = false;
 				bRoot    = Render_HairRestFrames        || Render_HairDeformedFrames;
 	
 				Print(Ctx, TEXT("Ren Rest      "), FontWhite);	PrintBool(Ctx, bRest); 		Newline(Ctx);
@@ -441,6 +488,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 				Newline(Ctx);
 			
 				Print(Ctx, TEXT("Ren Triangles "), FontWhite);	PrintBool(Ctx, bTriangle); 	Newline(Ctx);
+				Print(Ctx, TEXT("Sim Normals   "), FontWhite);	PrintBool(Ctx, bNormal); 	Newline(Ctx);
 				Print(Ctx, TEXT("Ren Roots     "), FontWhite); 	PrintBool(Ctx, bRoot);		Newline(Ctx);
 				Newline(Ctx);
 			}
@@ -451,19 +499,20 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 				Newline(Ctx);
 				
 				bTriangle = AddCheckbox(Ctx, TEXT("Ren Triangles"), false, FontWhite); Newline(Ctx);
+				bNormal   = AddCheckbox(Ctx, TEXT("Ren Normals"), false, FontWhite); Newline(Ctx);
 				bRoot     = AddCheckbox(Ctx, TEXT("Ren Roots"), true, FontWhite); Newline(Ctx);
 				Newline(Ctx);
 			}
 
 			if (bSimPass == 0)
 			{
-				if (PERMUTATION_INPUT_TYPE == INPUT_ROOT_TRIANGLE)
+				if (PERMUTATION_INPUT_TYPE == INPUT_ROOTS)
 				{
-					bValid = bTriangle && ((bRestPass==1 && bRest) || (bRestPass==0 && bDeform));
-				}
-				if (PERMUTATION_INPUT_TYPE == INPUT_ROOT_FRAME)
-				{
-					bValid = bRoot && ((bRestPass==1 && bRest) || (bRestPass==0 && bDeform));
+					bValid = (bRoot || bNormal || bTriangle) && ((bRestPass==1 && bRest) || (bRestPass==0 && bDeform));
+
+					bDrawTriangle = bDrawTriangle || bTriangle;
+					bDrawNormal   = bDrawNormal   || bNormal;
+					bDrawRoot     = bDrawRoot     || bRoot; 
 				}
 			}
 		}
@@ -491,11 +540,15 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 				Newline(Ctx);	
 			}
 
-			if (bSimPass == 1 && (PERMUTATION_INPUT_TYPE == INPUT_ROOT_SAMPLES))
+
+			if (bSimPass == 1 && (PERMUTATION_INPUT_TYPE == INPUT_SAMPLES))
 			{
 				bValid = (bRestPass==1 && bRest) || (bRestPass==0 && bDeform);
 			}
 		}
+
+		// Settings
+		NormalScale = AddSlider(Ctx, TEXT("Size"), 0.02f, FontWhite) * 10.f; 
 
 		if (!bValid)
 		{
@@ -503,101 +556,121 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		}
 	}
 
-#if PERMUTATION_INPUT_TYPE == INPUT_ROOT_FRAME  
+#if PERMUTATION_INPUT_TYPE == INPUT_ROOTS  
 	const uint RootIndex = DispatchThreadId.x;
 	if (RootIndex < MaxRootCount)
 	{
-		const uint TriangleIndex = RootToUniqueTriangleIndexBuffer[RootIndex];
-		const FHairMeshTriangleWithUVs RestTriangle		= GetTriangleWithUVsTransformation(TriangleIndex, RestPositionBuffer);
-		const FHairMeshTriangleWithUVs DeformedTriangle = GetTriangleWithUVsTransformation(TriangleIndex, DeformedPositionBuffer);
-
-		FHairMeshTriangleWithUVs Tri;
-		if (DeformedFrameEnable > 0)
-			Tri = DeformedTriangle;
-		else
-			Tri = RestTriangle;
-
 		const float3 B  = UnpackBarycentrics(RootBarycentricBuffer[RootIndex]);
-		float3 P0 = B.x * Tri.P0 + B.y * Tri.P1 + B.z * Tri.P2;
-		float3 P1 = P0 + Tri.N;
+		const uint TriangleIndex = RootToUniqueTriangleIndexBuffer[RootIndex];
 
-		const float2 UVs = 
-			B.x * Tri.UV0 +
-			B.y * Tri.UV1 +
-			B.z * Tri.UV2;
+		FHairMeshBasis Basis;
+		FHairMeshTriangle Tri;
+		if (DeformedFrameEnable > 0)
+		{		
+			Tri   = GetHairMeshTriangle(TriangleIndex, DeformedPositionBuffer);
+			Basis = GetHairMeshBasis(TriangleIndex, DeformedPositionBuffer, B);
+		}
+		else
+		{
+			Tri   = GetHairMeshTriangle(TriangleIndex, RestPositionBuffer);
+			Basis = GetHairMeshBasis(TriangleIndex, RestPositionBuffer, B);
+		}
 
-		P0 = mul(float4(P0, 1), RootLocalToWorld).xyz;
-		P1 = mul(float4(P1, 1), RootLocalToWorld).xyz;
-
-		const float3 N = normalize(P0 - P1);
-		const float4 Color = float4(UVs, 0, 1);
-		//Color = float4(N* 0.5f + 0.5f, 1);
-		AddLineWS(P0, P1, Color);
-
-		// Add triangle
-		const float4 TriColor = ColorWhite;
+		// Triangle positions
 		const float3 WP0 = mul(float4(Tri.P0, 1), RootLocalToWorld).xyz;
 		const float3 WP1 = mul(float4(Tri.P1, 1), RootLocalToWorld).xyz;
 		const float3 WP2 = mul(float4(Tri.P2, 1), RootLocalToWorld).xyz;
-		AddLineWS(WP0, WP1, TriColor);
-		AddLineWS(WP1, WP2, TriColor);
-		AddLineWS(WP2, WP0, TriColor);
-	}
-#endif // INPUT_ROOT_FRAME
 
-#if PERMUTATION_INPUT_TYPE == INPUT_ROOT_TRIANGLE
-	const uint TriangleIndex = DispatchThreadId.x;
-	if (TriangleIndex < MaxRootCount)
-	{
-		const FHairMeshTriangleWithUVs RestTriangle		= GetTriangleWithUVsTransformation(TriangleIndex, RestPositionBuffer);
-		const FHairMeshTriangleWithUVs DeformedTriangle = GetTriangleWithUVsTransformation(TriangleIndex, DeformedPositionBuffer);
-	
-		FHairMeshTriangleWithUVs Tri;
-		if (DeformedFrameEnable > 0)
-			Tri = DeformedTriangle;
-		else
-			Tri = RestTriangle;
-		
-	
-		// Debug: To test if the rest-triangle-to-deformed-triangle transformation works correctly
-		#if 0
-		if (DeformedFrameEnable > 0)
+		// Triangle normals
+		const float3 WN0 = mul(float4(Tri.N0, 0), RootLocalToWorld).xyz;
+		const float3 WN1 = mul(float4(Tri.N1, 0), RootLocalToWorld).xyz;
+		const float3 WN2 = mul(float4(Tri.N2, 0), RootLocalToWorld).xyz;
+
+		// Basis
+		const float3 WO = mul(float4(Basis.BaseO, 1), RootLocalToWorld).xyz;
+		const float3 WT = mul(float4(Basis.BaseT, 0), RootLocalToWorld).xyz;
+		const float3 WB = mul(float4(Basis.BaseB, 0), RootLocalToWorld).xyz;
+		const float3 WN = mul(float4(Basis.BaseN, 0), RootLocalToWorld).xyz;
+
+		// Face normal
+		float3 WFaceN;
 		{
-			float3 Barycentric = 0;
-			if (TriangleVertex == 0)
-			{
-				P = RestTriangle.P0;
-				Barycentric = float3(1, 0, 0);
-			}
-			if (TriangleVertex == 1)
-			{
-				P = RestTriangle.P1;
-				Barycentric = float3(0, 1, 0);
-			}
-			if (TriangleVertex == 2)
-			{
-				P = RestTriangle.P2;
-				Barycentric = float3(0, 0, 1);
-			}
-			P = TransformPoint(P, Barycentric, RestTriangle, DeformedTriangle);
+			const float3 E0 = (Tri.P1 - Tri.P0).xyz;
+			const float3 E1 = (Tri.P2 - Tri.P0).xyz;
+			const float3 FaceN = normalize(cross(E1, E0));
+			WFaceN = mul(float4(FaceN, 0), RootLocalToWorld).xyz;
 		}
-		#endif
-	
-		float4 Color = float4(Tri.UV0, 0, 1);
-		// Color = float4((Tri.N + 1) * 0.5f, 1);
-	
-		const float3 WP0 = mul(float4(Tri.P0, 1), RootLocalToWorld).xyz;
-		const float3 WP1 = mul(float4(Tri.P1, 1), RootLocalToWorld).xyz; 
-		const float3 WP2 = mul(float4(Tri.P2, 1), RootLocalToWorld).xyz;
-	
-		FShaderPrintContext Ctx = InitShaderPrintContext(true, uint2(0, 0));
-		AddLineWS(WP0, WP1, Color);
-		AddLineWS(WP1, WP2, Color);
-		AddLineWS(WP2, WP0, Color);
-	}
-#endif // INPUT_ROOT_TRIANGLE
 
-#if PERMUTATION_INPUT_TYPE == INPUT_ROOT_SAMPLES 
+		// Selection
+		const float4 MinMaxUV = GetScreenMinMax(WP0, WP1, WP2);
+		const bool bIsInRect = IsInRect(MinMaxUV, CursorUV);
+		if (bIsInRect)
+		{
+			// Selected triangles
+			{
+				AddLineWS(WP0, WP1, ColorYellow);
+				AddLineWS(WP1, WP2, ColorYellow);
+				AddLineWS(WP2, WP0, ColorYellow);
+			}
+
+			// Vertex normal
+			{
+				AddLineWS(WP1, WP1 + WN1 * NormalScale, ColorBlue);
+				AddLineWS(WP2, WP2 + WN2 * NormalScale, ColorBlue);
+				AddLineWS(WP0, WP0 + WN0 * NormalScale, ColorBlue);
+			}
+
+			// Triangle normal
+			if (0)
+			{
+				AddLineWS(WP0, WP0 + WFaceN * NormalScale, ColorGreen);
+				AddLineWS(WP1, WP1 + WFaceN * NormalScale, ColorGreen);
+				AddLineWS(WP2, WP2 + WFaceN * NormalScale, ColorGreen);
+			}
+		
+			// Root basis
+			{
+				AddLineWS(WO, WO + WT * NormalScale * 0.3f, ColorRed);
+				AddLineWS(WO, WO + WB * NormalScale * 0.3f, ColorGreen);
+				AddLineWS(WO, WO + WN * NormalScale * 0.3f, ColorBlue);
+			}
+		}
+		else
+		{
+			if (bDrawTriangle)
+			{
+				AddLineWS(WP0, WP1, ColorWhite);
+				AddLineWS(WP1, WP2, ColorWhite);
+				AddLineWS(WP2, WP0, ColorWhite);
+			}
+
+			// Vertex normal
+			if (bDrawNormal)
+			{
+				AddLineWS(WP1, WP1 + WN1 * NormalScale, ColorBlue);
+				AddLineWS(WP2, WP2 + WN2 * NormalScale, ColorBlue);
+				AddLineWS(WP0, WP0 + WN0 * NormalScale, ColorBlue);
+			}
+
+			// Triangle normal
+			if (bDrawNormal && 0)
+			{
+				AddLineWS(WP0, WP0 + WFaceN * NormalScale, ColorGreen);
+				AddLineWS(WP1, WP1 + WFaceN * NormalScale, ColorGreen);
+				AddLineWS(WP2, WP2 + WFaceN * NormalScale, ColorGreen);
+			}
+		
+			// Root basis
+			if (bDrawRoot)
+			{
+				AddLineWS(WO, WO + WN * NormalScale * 0.3f, ColorYellow);
+			}
+		}
+	}
+
+#endif // INPUT_ROOTS
+
+#if PERMUTATION_INPUT_TYPE == INPUT_SAMPLES
 	const uint PointIndex = DispatchThreadId.x;	
 	if (PointIndex < MaxRootCount)
 	{
@@ -607,7 +680,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		const float4 RBFColor = bRestPass==1 ? ColorPurple : ColorYellow;
 		AddCrossWS(P, 1.f, RBFColor);
 	}
-#endif // INPUT_ROOT_SAMPLES
+#endif // INPUT_SAMPLES
 }
 #endif // SHADER_MESH_PROJECTION_HAIR
 

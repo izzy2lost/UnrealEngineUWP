@@ -153,15 +153,17 @@ private:
 	using FPermutationDomain = TShaderPermutationDomain<FPositionType, FPrevious>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, TangentFormat)
 		SHADER_PARAMETER(uint32, MaxSectionCount)
 		SHADER_PARAMETER(uint32, MaxUniqueTriangleCount)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer, MeshSectionBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RDGMeshPositionBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RDGMeshPreviousPositionBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RDGTangentBuffer)
 		SHADER_PARAMETER_SRV(Buffer, MeshPositionBuffer)
 		SHADER_PARAMETER_SRV(Buffer, MeshPreviousPositionBuffer)
 		SHADER_PARAMETER_SRV(Buffer, MeshIndexBuffer)
-		SHADER_PARAMETER_SRV(Buffer, MeshUVsBuffer)
+		SHADER_PARAMETER_SRV(Buffer, MeshTangentBuffer)
 
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, UniqueTriangleIndices)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OutUniqueTrianglePrevPosition)
@@ -204,12 +206,14 @@ static bool AddHairStrandUpdateMeshTrianglesPass(
 	FHairUpdateMeshTriangleCS::FParameters CommonParameters;
 	CommonParameters.MaxUniqueTriangleCount 		= UniqueTriangleCount;
 	CommonParameters.MaxSectionCount 				= TotalSectionCount;
+	CommonParameters.TangentFormat					= MeshLODData.Sections[0].TangentFormat;
 	CommonParameters.RDGMeshPositionBuffer			= MeshLODData.Sections[0].RDGPositionBuffer;
 	CommonParameters.RDGMeshPreviousPositionBuffer 	= MeshLODData.Sections[0].RDGPreviousPositionBuffer;
+	CommonParameters.RDGTangentBuffer				= MeshLODData.Sections[0].RDGTangentBuffer;
 	CommonParameters.MeshPositionBuffer				= MeshLODData.Sections[0].PositionBuffer;
 	CommonParameters.MeshPreviousPositionBuffer		= MeshLODData.Sections[0].PreviousPositionBuffer;
 	CommonParameters.MeshIndexBuffer				= MeshLODData.Sections[0].IndexBuffer;
-	CommonParameters.MeshUVsBuffer					= MeshLODData.Sections[0].UVsBuffer;
+	CommonParameters.MeshTangentBuffer				= MeshLODData.Sections[0].TangentBuffer;
 	CommonParameters.UniqueTriangleIndices 			= UniqueTriangleIndexSRV;
 	CommonParameters.OutUniqueTriangleCurrPosition	= OutputCurrUAV;
 	CommonParameters.OutUniqueTrianglePrevPosition	= OutputPrevUAV;
@@ -223,8 +227,9 @@ static bool AddHairStrandUpdateMeshTrianglesPass(
 		uint32 IndexBaseIndex;
 		uint32 UVsChannelOffset : 8;
 		uint32 UVsChannelCount : 8;
-		uint32 bIsSwapped : 8;
-		uint32 Pad : 8;
+		uint32 bIsSwapped : 1;
+		uint32 bUseFaceNormal : 1;
+		uint32 Pad = 14;
 	};
 
 	FSectionData Default;
@@ -234,6 +239,7 @@ static bool AddHairStrandUpdateMeshTrianglesPass(
 	Default.UVsChannelOffset  = 0;
 	Default.UVsChannelCount  = 0;
 	Default.bIsSwapped = 0;
+	Default.bUseFaceNormal = 0;
 	Default.Pad = 0;
 
 	// Allocate data for *all* sections, but only fill in the used/valid sections
@@ -251,6 +257,7 @@ static bool AddHairStrandUpdateMeshTrianglesPass(
 		SectionDatas[SectionIndex].bIsSwapped		= bUseRDGPositionBuffer ? 
 			(MeshSectionData.RDGPositionBuffer != CommonParameters.RDGMeshPositionBuffer ? 1u : 0u) :
 			(MeshSectionData.PositionBuffer    != CommonParameters.MeshPositionBuffer    ? 1u : 0u);
+		SectionDatas[SectionIndex].bUseFaceNormal	= 0u;
 
 		// Sanity check
 		check(MeshSectionData.UVsChannelOffset < 255);
@@ -258,7 +265,7 @@ static bool AddHairStrandUpdateMeshTrianglesPass(
 		check(CommonParameters.RDGMeshPositionBuffer == MeshSectionData.RDGPositionBuffer || CommonParameters.RDGMeshPositionBuffer == MeshSectionData.RDGPreviousPositionBuffer);
 		check(CommonParameters.MeshPositionBuffer    == MeshSectionData.PositionBuffer    || CommonParameters.MeshPositionBuffer    == MeshSectionData.PreviousPositionBuffer);
 		check(CommonParameters.MeshIndexBuffer		 == MeshSectionData.IndexBuffer);
-		check(CommonParameters.MeshUVsBuffer		 == MeshSectionData.UVsBuffer);
+		check(CommonParameters.MeshTangentBuffer	 == MeshSectionData.TangentBuffer);
 	}
 
 	// If no previous position buffer available, reusing the current position buffers
@@ -276,11 +283,12 @@ static bool AddHairStrandUpdateMeshTrianglesPass(
 
 	const bool bComputePreviousDeformedPosition = OutputPrevUAV != nullptr;
 	{
-		// UV stream is only used for debugging purpose. On some platform the TextureCoordinateSRV can be null as it is not create by default (requires CPU access flags).
-		// In such a case we bind the index buffer as a dummy data
-		if (CommonParameters.MeshUVsBuffer == nullptr)
+		// On some platform the TangentSRV can be null as it is not create by default (requires CPU access flags).
+		// In such a case we bind the index buffer as a dummy data, and we use face normal.
+		if (CommonParameters.MeshTangentBuffer == nullptr)
 		{
-			CommonParameters.MeshUVsBuffer = CommonParameters.MeshIndexBuffer;
+			CommonParameters.MeshTangentBuffer = CommonParameters.MeshIndexBuffer;
+			Default.bUseFaceNormal = 1u;
 		}
 
 		FHairUpdateMeshTriangleCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FHairUpdateMeshTriangleCS::FParameters>();

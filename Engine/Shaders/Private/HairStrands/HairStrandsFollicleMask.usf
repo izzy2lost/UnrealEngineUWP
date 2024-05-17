@@ -47,12 +47,14 @@ void MainVS(
 		UniqueTriangleIndex = RootToUniqueTriangleIndexBuffer[RootIndex];
 	}
 
+	// TODO -> follicle requires UVs
+
 	if (UniqueTriangleIndex > MaxUniqueTriangleIndex) return;
-	const FHairMeshTriangleWithUVs Tri = GetTriangleWithUVsTransformation(UniqueTriangleIndex, UniqueTrianglePositionBuffer);
+	const FHairMeshBasis Tri = GetHairMeshBasis(UniqueTriangleIndex, UniqueTrianglePositionBuffer, float3(0,0,0));
 
 	const uint EncodedBarycentric = RootBarycentricBuffer[RootIndex];
 	const float3 Barycentric = UnpackBarycentrics(EncodedBarycentric);
-	float2 RootUV = Barycentric.x * Tri.UV0 + Barycentric.y * Tri.UV1 + Barycentric.z * Tri.UV2;
+	float2 RootUV = float2(0, 0);  // TODO Barycentric.x * Tri.UV0 + Barycentric.y * Tri.UV1 + Barycentric.z * Tri.UV2;
 #endif
 
 #if PERMUTATION_UV_TYPE == UV_ROOT
