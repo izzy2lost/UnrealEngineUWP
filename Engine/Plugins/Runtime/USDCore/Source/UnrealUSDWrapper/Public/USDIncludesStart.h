@@ -6,6 +6,12 @@
 
 #if USE_USD_SDK
 
+#ifndef USD_INCLUDES_START
+	#define USD_INCLUDES_START
+#else
+	#error Nesting USDIncludesStart.h is not allowed!
+#endif
+
 #include "CoreMinimal.h"
 
 THIRD_PARTY_INCLUDES_START

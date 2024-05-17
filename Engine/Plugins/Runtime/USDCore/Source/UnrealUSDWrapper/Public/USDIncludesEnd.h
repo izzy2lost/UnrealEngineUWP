@@ -6,7 +6,7 @@
 
 #if USE_USD_SDK
 
-#if !defined(UE_DIRECT_HEADER_COMPILE)
+#ifdef USD_INCLUDES_START
 
 #pragma warning(pop)
 #pragma pop_macro("check")
@@ -27,7 +27,11 @@
 
 THIRD_PARTY_INCLUDES_END
 
-#endif // UE_DIRECT_HEADER_COMPILE
+#undef USD_INCLUDES_START
+
+#else
+	#error Mismatched USDIncludesEnd.h detected.
+#endif // USD_INCLUDES_START
 
 #endif // #if USE_USD_SDK
 
