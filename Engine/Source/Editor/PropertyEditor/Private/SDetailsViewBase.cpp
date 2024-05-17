@@ -757,6 +757,11 @@ void SDetailsViewBase::SetExtensionHandler(TSharedPtr<class IDetailPropertyExten
 	ExtensionHandler = InExtensionHandler;
 }
 
+void SDetailsViewBase::SetChildrenCustomizationHandler(TSharedPtr<IDetailPropertyChildrenCustomizationHandler> InChildrenHandler)
+{
+	ChildrenCustomizationHandler = InChildrenHandler;
+}
+
 void SDetailsViewBase::SetGenericLayoutDetailsDelegate(FOnGetDetailCustomizationInstance OnGetGenericDetails)
 {
 	GenericLayoutDelegate = OnGetGenericDetails;

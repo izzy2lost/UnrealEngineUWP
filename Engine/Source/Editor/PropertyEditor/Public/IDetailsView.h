@@ -18,6 +18,7 @@ class FUICommandList;
 class IClassViewerFilter;
 class IDetailKeyframeHandler;
 class IDetailPropertyExtensionHandler;
+class IDetailPropertyChildrenCustomizationHandler;
 class IDetailRootObjectCustomization;
 class IPropertyTypeIdentifier;
 class FDetailsViewObjectFilter;
@@ -167,6 +168,9 @@ public:
 
 	virtual void SetExtensionHandler(TSharedPtr<IDetailPropertyExtensionHandler> InExtensionHandler) = 0;
 	virtual TSharedPtr<IDetailPropertyExtensionHandler> GetExtensionHandler() const = 0;
+
+	virtual void SetChildrenCustomizationHandler(TSharedPtr<IDetailPropertyChildrenCustomizationHandler> InExtensionHandler) = 0;
+	virtual TSharedPtr<IDetailPropertyChildrenCustomizationHandler> GetChildrenCustomizationHandler() const = 0;
 
 	/**
 	 * @return true if property editing is enabled (based on the FIsPropertyEditingEnabled delegate)

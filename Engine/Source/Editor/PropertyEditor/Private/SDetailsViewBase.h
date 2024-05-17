@@ -36,6 +36,7 @@ class IClassViewerFilter;
 class IDetailCustomization;
 class IDetailKeyframeHandler;
 class IDetailPropertyExtensionHandler;
+class IDetailPropertyChildrenCustomizationHandler;
 class IPropertyGenerationUtilities;
 class IPropertyUtilities;
 class SDetailNameArea;
@@ -109,6 +110,8 @@ public:
 	virtual TSharedPtr<IDetailKeyframeHandler> GetKeyframeHandler() const override { return KeyframeHandler; }
 	virtual void SetExtensionHandler(TSharedPtr<IDetailPropertyExtensionHandler> InExtensionHandler) override;
 	virtual TSharedPtr<IDetailPropertyExtensionHandler> GetExtensionHandler() const override { return ExtensionHandler; }
+	virtual void SetChildrenCustomizationHandler(TSharedPtr<IDetailPropertyChildrenCustomizationHandler> InChildrenHandler) override;
+	virtual TSharedPtr<IDetailPropertyChildrenCustomizationHandler> GetChildrenCustomizationHandler() const override { return ChildrenCustomizationHandler; }
 	virtual bool IsPropertyVisible(const struct FPropertyAndParent& PropertyAndParent) const override;
 	virtual bool IsPropertyReadOnly(const struct FPropertyAndParent& PropertyAndParent) const override;
 	virtual bool IsCustomRowVisible(FName InRowName, FName InParentName) const override;
@@ -481,6 +484,8 @@ protected:
 	TSharedPtr<IDetailKeyframeHandler> KeyframeHandler;
 	/** Property extension handler returns additional UI to apply after the customization is applied to the property. */
 	TSharedPtr<IDetailPropertyExtensionHandler> ExtensionHandler;
+	/** Property children customization handler allows to customize property's children. */
+	TSharedPtr<IDetailPropertyChildrenCustomizationHandler> ChildrenCustomizationHandler;
 	/** The tree node that is currently highlighted, may be none. */
 	TWeakPtr<FDetailTreeNode> CurrentlyHighlightedNode;
 	/** The list of nodes whose widgets should be animating. */

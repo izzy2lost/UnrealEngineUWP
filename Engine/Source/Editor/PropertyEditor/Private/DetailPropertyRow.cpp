@@ -15,6 +15,7 @@
 #include "StructurePropertyNode.h"
 #include "Modules/ModuleManager.h"
 #include "Widgets/Layout/SSpacer.h"
+#include "IDetailPropertyChildrenCustomizationHandler.h"
 
 #include "UObject/PropertyOptional.h"
 
@@ -390,7 +391,13 @@ void FDetailPropertyRow::OnItemNodeInitialized( TSharedRef<FDetailCategoryImpl> 
 		}
 	}
 
-	if( bShowCustomPropertyChildren && CustomTypeInterface.IsValid() )
+	IDetailPropertyChildrenCustomizationHandler* CustomizationHandler = InParentCategory->GetDetailsView()->GetChildrenCustomizationHandler().Get();
+	if (CustomizationHandler && CustomizationHandler->ShouldCustomizeChildren(PropertyHandle.ToSharedRef()))
+	{
+		PropertyTypeLayoutBuilder = MakeShared<FCustomChildrenBuilder>(InParentCategory, InParentGroup);
+		CustomizationHandler->CustomizeChildren(*PropertyTypeLayoutBuilder, PropertyHandle);
+	}
+	else if( bShowCustomPropertyChildren && CustomTypeInterface.IsValid() )
 	{
 		PropertyTypeLayoutBuilder = MakeShared<FCustomChildrenBuilder>(InParentCategory, InParentGroup);
 
