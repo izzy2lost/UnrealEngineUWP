@@ -28,6 +28,9 @@ public:
 	/** Return the max duration of all the caches stored in the collection */
 	CHAOSCACHING_API float GetMaxDuration() const;
 
+	/** Return the max number of frames of all the caches stored in the collection */
+	CHAOSCACHING_API uint32 GetMaxNumFrames() const;
+
 	UPROPERTY(EditAnywhere, Instanced, Category="Caching", meta=(EditFixedOrder))
 	TArray<TObjectPtr<UChaosCache>> Caches;
 };

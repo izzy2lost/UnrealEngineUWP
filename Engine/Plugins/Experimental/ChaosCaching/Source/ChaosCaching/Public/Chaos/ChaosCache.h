@@ -482,4 +482,10 @@ private:
 
 	/** Reverse Lookup for ChannelCurveToParticle. Rebuilt on load.*/
 	TMap<int32,int32> ParticleToChannelCurve;
+
+	/** Min time in case we are not writing to particle/curves/channels datas */
+	float MinTime = TNumericLimits<float>::Max();
+
+	/** Max time in case we are not writing to particle/curves/channels datas */
+	float MaxTime = TNumericLimits<float>::Lowest();
 };

@@ -67,6 +67,7 @@ namespace Chaos
 		virtual void						SetRestState(UPrimitiveComponent* InComponent, UChaosCache* InCache, const FTransform& InRootTransform, Chaos::FReal InTime) const override;
 		virtual bool						InitializeForRecord(UPrimitiveComponent* InComponent, FObservedComponent& InObserved) override;
 		virtual bool						InitializeForPlayback(UPrimitiveComponent* InComponent, FObservedComponent& InObserved, float InTime) override;
+		virtual void						InitializeForLoad(UPrimitiveComponent* InComponent, FObservedComponent& InObserved) override;
 		virtual void						Record_PostSolve(UPrimitiveComponent* InComp, const FTransform& InRootTransform, FPendingFrameWrite& OutFrame, Chaos::FReal InTime) const override;
 		virtual void						Playback_PreSolve(UPrimitiveComponent* InComponent,
 												UChaosCache*										InCache,
@@ -76,27 +77,45 @@ namespace Chaos
 		virtual void						Finalize() override;
 		// ~End FComponentCacheAdapter interface
 
+		/** Get the component deformable solver */
+		static FDeformableSolver* GetDeformableSolver(UPrimitiveComponent* InComponent);
 
-		FDeformableSolver* GetDeformableSolver(UPrimitiveComponent* InComponent) const;
-
-
+		/** Get the particle indices range for the component in the evolution particles list on the physics thread */
+		static FIntVector2 GetParticleRange(UPrimitiveComponent* InComponent, const int32 NumParticles);
+		
 	private:
+
+		/** Load the cache for a given component at a specific time */
+		void LoadCacheAtTime(UPrimitiveComponent* PrimitiveComponent, Chaos::FReal TargetTime, const int32 NumParticles, const bool bNeedsRange,
+				const TFunction<void(const int32, const int32, const FVector3f&, const FVector3f&)>& LoadFunction) const;
+		
 #if USE_USD_SDK && DO_USD_CACHING
 
 		bool bReadOnly = false;
 		bool bUseMonolith = true; // move to cvarparams when value clips is an option
 
-		/**
-		 * Cache files are stored in a "SimCache" directory at the root of the project.
-		 * File name is derived from flesh component name.
-		 */
-		FString FilePath;
-		FString PrimPath;
+		/** Structure holding the per primitive stage datas */
+		struct FPrimitiveStage
+		{
+			/**
+			 * Cache files are stored in a "SimCache" directory at the root of the project.
+			 * File name is derived from flesh component name.
+			 */
+			FString FilePath;
+			FString PrimPath;
 
-		mutable double MinTime = TNumericLimits<double>::Max();
-		mutable double MaxTime = -TNumericLimits<double>::Max();
+			/** Min time in the usd stage */
+			double MinTime = TNumericLimits<double>::Max();
 
-		mutable UE::FUsdStage MonolithStage;
+			/** Max time in the usd stage */
+			double MaxTime = TNumericLimits<double>::Lowest();
+
+			/** USD Monolith stage used to load/record datas */
+			UE::FUsdStage MonolithStage;
+		};
+
+		/** Per primitive stages datas */
+		mutable TMap<UPrimitiveComponent*,FPrimitiveStage> PrimitiveStages;
 
 #else // USE_USD_SDK && DO_USD_CACHING
 

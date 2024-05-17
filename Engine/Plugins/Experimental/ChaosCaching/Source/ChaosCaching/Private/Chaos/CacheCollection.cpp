@@ -122,3 +122,18 @@ float UChaosCacheCollection::GetMaxDuration() const
     }
 	return MaxDuration;
 }
+
+uint32 UChaosCacheCollection::GetMaxNumFrames() const
+{
+	float MaxDuration = 0.0;
+	uint32 MaxFramesCount = 0;
+	for(const UChaosCache* CacheInstance : Caches)
+	{
+		if(CacheInstance->GetDuration() >= MaxDuration)
+		{
+			MaxDuration = CacheInstance->GetDuration();
+			MaxFramesCount = CacheInstance->NumRecordedFrames;
+		}
+	}
+	return MaxFramesCount;
+}

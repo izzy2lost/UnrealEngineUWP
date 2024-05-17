@@ -45,9 +45,12 @@ namespace Chaos
 	FFleshCacheAdapter::~FFleshCacheAdapter()
 	{
 #if USE_USD_SDK && DO_USD_CACHING
-		if (MonolithStage)
+		for(TPair<UPrimitiveComponent*,FPrimitiveStage>& PrimitiveStage : PrimitiveStages)
 		{
-			UE::ChaosCachingUSD::CloseStage(MonolithStage);
+			if(PrimitiveStage.Value.MonolithStage)
+			{
+				UE::ChaosCachingUSD::CloseStage(PrimitiveStage.Value.MonolithStage);
+			}
 		}
 #endif // USE_USD_SDK && DO_USD_CACHING
 	}
@@ -93,28 +96,31 @@ namespace Chaos
 #if USE_USD_SDK && DO_USD_CACHING
 					FScopedUsdAllocs UsdAllocs; // Use USD memory allocator
 
-					// Update time range.
-					MinTime = FMath::Min(InTime, MinTime);
-					MaxTime = FMath::Max(InTime, MaxTime);
+					FPrimitiveStage& PrimitiveStage = PrimitiveStages.FindOrAdd(InComponent);
+					const FIntVector2 ParticleRange = GetParticleRange(InComponent, NumParticles);
 
-					if (MonolithStage)
+					// Update time range.
+					PrimitiveStage.MinTime = FMath::Min(InTime, PrimitiveStage.MinTime);
+					PrimitiveStage.MaxTime = FMath::Max(InTime, PrimitiveStage.MaxTime);
+
+					if (PrimitiveStage.MonolithStage)
 					{
-						if (!UE::ChaosCachingUSD::WritePoints(MonolithStage, PrimPath, InTime, Particles.XArray(), Particles.GetV()))
+						if (!UE::ChaosCachingUSD::WritePoints(PrimitiveStage.MonolithStage, PrimitiveStage.PrimPath, InTime, Particles.XArray(), Particles.GetV(), ParticleRange))
 						{
 							UE_LOG(LogChaosFleshCache, Error,
 								TEXT("Failed to write points '%s' at time %g to file: '%s'"),
-								*PrimPath, InTime, *MonolithStage.GetRootLayer().GetDisplayName());
+								*PrimitiveStage.PrimPath, InTime, *PrimitiveStage.MonolithStage.GetRootLayer().GetDisplayName());
 							return;
 						}
 
-						uint64 NumTimeSamples = UE::ChaosCachingUSD::GetNumTimeSamples(MonolithStage, PrimPath, UE::ChaosCachingUSD::GetPointsAttrName());
+						uint64 NumTimeSamples = UE::ChaosCachingUSD::GetNumTimeSamples(PrimitiveStage.MonolithStage, PrimitiveStage.PrimPath, UE::ChaosCachingUSD::GetPointsAttrName());
 						if (CVarParams.SaveFrequency >= 1 && NumTimeSamples % CVarParams.SaveFrequency == 0)
 						{
-							if (!UE::ChaosCachingUSD::SaveStage(MonolithStage, MinTime, MaxTime))
+							if (!UE::ChaosCachingUSD::SaveStage(PrimitiveStage.MonolithStage, PrimitiveStage.MinTime, PrimitiveStage.MaxTime))
 							{
 								UE_LOG(LogChaosFleshCache, Error,
 									TEXT("Failed to save file: '%s'"),
-									*MonolithStage.GetRootLayer().GetDisplayName());
+									*PrimitiveStage.MonolithStage.GetRootLayer().GetDisplayName());
 							}
 						}
 					}
@@ -162,6 +168,102 @@ namespace Chaos
 		}
 	}
 
+	void FFleshCacheAdapter::LoadCacheAtTime(UPrimitiveComponent* PrimitiveComponent, Chaos::FReal TargetTime, const int32 NumParticles, const bool bNeedsRange,
+		const TFunction<void(const int32, const int32, const FVector3f&, const FVector3f&)>& LoadFunction) const
+	{
+#if USE_USD_SDK && DO_USD_CACHING
+
+		const FPrimitiveStage& PrimitiveStage = PrimitiveStages.FindOrAdd(PrimitiveComponent);
+		if (PrimitiveStage.MonolithStage)
+		{
+			// GetParticleRange only called in play/record mode (not load), so PT only
+			const FIntVector2 ParticleRange = bNeedsRange ? GetParticleRange(PrimitiveComponent, NumParticles) : FIntVector2(0,NumParticles);
+			const int32 NumComponentParticles = ParticleRange[1];
+			
+			FScopedUsdAllocs UEAllocs; // Use USD memory allocator
+			pxr::VtArray<pxr::GfVec3f> Points0, Points1;
+			pxr::VtArray<pxr::GfVec3f> Vels0, Vels1;
+
+			double Prev = -TNumericLimits<double>::Max();
+			double Next = -TNumericLimits<double>::Max();
+			double PrevV = -TNumericLimits<double>::Max();
+			double NextV = -TNumericLimits<double>::Max();
+			
+			if (!UE::ChaosCachingUSD::GetBracketingTimeSamples(
+					PrimitiveStage.MonolithStage, PrimitiveStage.PrimPath, UE::ChaosCachingUSD::GetPointsAttrName(), TargetTime, &Prev, &Next) ||
+				!UE::ChaosCachingUSD::GetBracketingTimeSamples(
+					PrimitiveStage.MonolithStage, PrimitiveStage.PrimPath, UE::ChaosCachingUSD::GetVelocityAttrName(), TargetTime, &PrevV, &NextV) ||
+				Prev != PrevV ||
+				Next != NextV)
+			{
+				UE_LOG(LogChaosFleshCache, Error,
+					TEXT("Inconsistent bracketing time samples for attributes '%s' and '%s' at frame %g from file: '%s'"),
+					*UE::ChaosCachingUSD::GetPointsAttrName(),
+					*UE::ChaosCachingUSD::GetVelocityAttrName(),
+					TargetTime, *PrimitiveStage.MonolithStage.GetRootLayer().GetDisplayName());
+				return;
+			}
+
+			if (!UE::ChaosCachingUSD::ReadPoints(PrimitiveStage.MonolithStage, PrimitiveStage.PrimPath, Prev, Points0, Vels0) ||
+				Points0.size() != Vels0.size())
+			{
+				UE_LOG(LogChaosFleshCache, Error,
+					TEXT("Failed to read points '%s' at time %g from file: '%s'"),
+					*PrimitiveStage.PrimPath, Prev, *PrimitiveStage.MonolithStage.GetRootLayer().GetDisplayName());
+				return;
+			}
+
+			int32 NumCachedParticles = static_cast<int32>(Points0.size());
+			if (NumCachedParticles > NumComponentParticles)
+			{
+				// Cached particles doesn't match solver particles.  Truncate.
+				NumCachedParticles = NumComponentParticles;
+			}
+
+			// < time range start, > time range end, or exact hit
+			if (FMath::IsNearlyEqual(Prev, Next))
+			{
+				// Directly set the result of the cache into the solver particles
+				for (int32 CachedIndex = 0; CachedIndex < NumCachedParticles; ++CachedIndex)
+				{
+					// Note that VtArray::operator[] is non-const access and will cause trigger 
+					// the copy-on-write memcopy!  VtArray::cdata() avoids that.
+					const pxr::GfVec3f& Pos = Points0.cdata()[CachedIndex];
+					const pxr::GfVec3f& Vel = Vels0.cdata()[CachedIndex];
+
+					LoadFunction(CachedIndex, ParticleRange[0], FVector3f(Pos[0], Pos[1], Pos[2]), FVector3f(Vel[0], Vel[1], Vel[2]));
+				}
+				return;
+			}
+
+			if (!UE::ChaosCachingUSD::ReadPoints(PrimitiveStage.MonolithStage, PrimitiveStage.PrimPath, Next, Points1, Vels1) ||
+				Points1.size() != Vels1.size() ||
+				Points0.size() != Points1.size())
+			{
+				UE_LOG(LogChaosFleshCache, Error,
+					TEXT("Failed to read points '%s' at time %g from file: '%s'"),
+					*PrimitiveStage.PrimPath, Next, *PrimitiveStage.MonolithStage.GetRootLayer().GetDisplayName());
+				return;
+			}
+			double Duration = Next - Prev;
+			double Alpha = Duration > UE_SMALL_NUMBER ? (TargetTime - Prev) / Duration : 0.5;
+			for (int32 CachedIndex = 0; CachedIndex < NumCachedParticles; ++CachedIndex)
+			{
+				// Note that VtArray::operator[] is non-const access and will cause trigger 
+				// the copy-on-write memcopy!  VtArray::cdata() avoids that.
+				const pxr::GfVec3f& P0 = Points0.cdata()[CachedIndex];
+				const pxr::GfVec3f& P1 = Points1.cdata()[CachedIndex];
+				const pxr::GfVec3f& V0 = Vels0.cdata()[CachedIndex];
+				const pxr::GfVec3f& V1 = Vels1.cdata()[CachedIndex];
+				pxr::GfVec3f Pos = (1.0 - Alpha) * P0 + Alpha * P1;
+				pxr::GfVec3f Vel = (1.0 - Alpha) * V0 + Alpha * V1;
+				
+				LoadFunction(CachedIndex, ParticleRange[0], FVector3f(Pos[0], Pos[1], Pos[2]), FVector3f(Vel[0], Vel[1], Vel[2]));
+			}
+		}
+	#endif
+	}
+
 	void FFleshCacheAdapter::Playback_PreSolve(UPrimitiveComponent* InComponent, UChaosCache* InCache, Chaos::FReal InTime, FPlaybackTickRecord& TickRecord, TArray<TPBDRigidParticleHandle<Chaos::FReal, 3>*>& OutUpdatedRigids) const
 	{
 		if (FDeformableSolver* Solver = GetDeformableSolver(InComponent))
@@ -171,106 +273,21 @@ namespace Chaos
 			if (FEvolution* Evolution = PhysicsThreadAccess.GetEvolution())
 			{
 #if USE_USD_SDK && DO_USD_CACHING
-				if (MonolithStage)
+
+				FParticles& Particles = Evolution->Particles();
+				const int32 NumParticles = Particles.Size();
+				Softs::FSolverVec3* ParticleXs = &Particles.X(0);
+				Softs::FSolverVec3* ParticleVs = &Particles.V(0);
+				
+				LoadCacheAtTime(InComponent, InTime, NumParticles, true, [&ParticleXs, &ParticleVs](
+					const int32 ParticleIndex, const int32 ParticleOffset, const FVector3f& ParticlePosition, const FVector3f& ParticleVelocity)
 				{
-					FScopedUsdAllocs UEAllocs; // Use USD memory allocator
-					pxr::VtArray<pxr::GfVec3f> Points0, Points1;
-					pxr::VtArray<pxr::GfVec3f> Vels0, Vels1;
-
-					double TargetTime = InTime;// TickRecord.GetTime();
-					double Prev = -TNumericLimits<double>::Max();
-					double Next = -TNumericLimits<double>::Max();
-					double PrevV = -TNumericLimits<double>::Max();
-					double NextV = -TNumericLimits<double>::Max();
-					if (!UE::ChaosCachingUSD::GetBracketingTimeSamples(
-							MonolithStage, PrimPath, UE::ChaosCachingUSD::GetPointsAttrName(), TargetTime, &Prev, &Next) ||
-						!UE::ChaosCachingUSD::GetBracketingTimeSamples(
-							MonolithStage, PrimPath, UE::ChaosCachingUSD::GetVelocityAttrName(), TargetTime, &PrevV, &NextV) ||
-						Prev != PrevV ||
-						Next != NextV)
-					{
-						UE_LOG(LogChaosFleshCache, Error,
-							TEXT("Inconsistent bracketing time samples for attributes '%s' and '%s' at frame %g from file: '%s'"),
-							*UE::ChaosCachingUSD::GetPointsAttrName(),
-							*UE::ChaosCachingUSD::GetVelocityAttrName(),
-							TargetTime, *MonolithStage.GetRootLayer().GetDisplayName());
-						return;
-					}
-
-					if (!UE::ChaosCachingUSD::ReadPoints(MonolithStage, PrimPath, Prev, Points0, Vels0) ||
-						Points0.size() != Vels0.size())
-					{
-						UE_LOG(LogChaosFleshCache, Error,
-							TEXT("Failed to read points '%s' at time %g from file: '%s'"),
-							*PrimPath, Prev, *MonolithStage.GetRootLayer().GetDisplayName());
-						return;
-					}
-
-					FParticles& Particles = Evolution->Particles();
-					const int32 NumParticles = Particles.Size();
-					Softs::FSolverVec3* ParticleXs = &Particles.X(0);
-					Softs::FSolverVec3* ParticleVs = &Particles.V(0);
-					Softs::FSolverReal* ParticleInvMs = &Particles.InvM(0);
-					Softs::FPAndInvM* ParticlePAndInvMs = &Particles.PAndInvM(0);
-
-					if (UFleshComponent* FleshComp = CastChecked<UFleshComponent>(InComponent))
-					{
-						if (Chaos::Softs::FFleshThreadingProxy* FleshProxy = FleshComp->GetPhysicsProxy()->As<Chaos::Softs::FFleshThreadingProxy>())
-						{
-							FIntVector2 ParticleRange = FleshProxy->GetSolverParticleRange();
-
-							int32 NumCachedParticles = static_cast<int32>(Points0.size());
-							if (NumCachedParticles > ParticleRange[1])
-							{
-								// Cached particles doesn't match solver particles.  Truncate.
-								NumCachedParticles = ParticleRange[1];
-							}
-							// < time range start, > time range end, or exact hit
-							if (FMath::IsNearlyEqual(Prev, Next))
-							{
-								// Directly set the result of the cache into the solver particles
-								for (int32 CachedIndex = ParticleRange[0]; CachedIndex < ParticleRange[0] + ParticleRange[1]; ++CachedIndex)
-								{
-									// Note that VtArray::operator[] is non-const access and will cause trigger 
-									// the copy-on-write memcopy!  VtArray::cdata() avoids that.
-									const pxr::GfVec3f& P0 = Points0.cdata()[CachedIndex - ParticleRange[0]];
-									const pxr::GfVec3f& V0 = Vels0.cdata()[CachedIndex - ParticleRange[0]];
-									ParticleXs[CachedIndex].Set(P0[0], P0[1], P0[2]);
-									ParticleVs[CachedIndex].Set(V0[0], V0[1], V0[2]);
-									ParticleInvMs[CachedIndex] = Softs::FSolverReal(0);
-									ParticlePAndInvMs[CachedIndex].InvM = Softs::FSolverReal(0);
-									ParticlePAndInvMs[CachedIndex].P = ParticleXs[CachedIndex];
-								}
-								return;
-							}
-
-							if (!UE::ChaosCachingUSD::ReadPoints(MonolithStage, PrimPath, Next, Points1, Vels1) ||
-								Points1.size() != Vels1.size() ||
-								Points0.size() != Points1.size())
-							{
-								UE_LOG(LogChaosFleshCache, Error,
-									TEXT("Failed to read points '%s' at time %g from file: '%s'"),
-									*PrimPath, Next, *MonolithStage.GetRootLayer().GetDisplayName());
-								return;
-							}
-							double Duration = Next - Prev;
-							double Alpha = Duration > UE_SMALL_NUMBER ? (TargetTime - Prev) / Duration : 0.5;
-							for (int32 CachedIndex = ParticleRange[0]; CachedIndex < ParticleRange[0] + ParticleRange[1]; ++CachedIndex)
-							{
-								// Note that VtArray::operator[] is non-const access and will cause trigger 
-								// the copy-on-write memcopy!  VtArray::cdata() avoids that.
-								const pxr::GfVec3f& P0 = Points0.cdata()[CachedIndex - ParticleRange[0]];
-								const pxr::GfVec3f& P1 = Points1.cdata()[CachedIndex - ParticleRange[0]];
-								const pxr::GfVec3f& V0 = Vels0.cdata()[CachedIndex - ParticleRange[0]];
-								const pxr::GfVec3f& V1 = Vels1.cdata()[CachedIndex - ParticleRange[0]];
-								pxr::GfVec3f Pos = (1.0 - Alpha) * P0 + Alpha * P1;
-								pxr::GfVec3f Vel = (1.0 - Alpha) * V0 + Alpha * V1;
-								ParticleXs[CachedIndex].Set(Pos[0], Pos[1], Pos[2]);
-								ParticleVs[CachedIndex].Set(Vel[0], Vel[1], Vel[2]);
-							}
-						}
-					}
-				}
+					const int32 GlobalIndex = ParticleIndex + ParticleOffset;
+					
+					ParticleXs[GlobalIndex].Set(ParticlePosition[0], ParticlePosition[1], ParticlePosition[2]);
+					ParticleVs[GlobalIndex].Set(ParticleVelocity[0], ParticleVelocity[1], ParticleVelocity[2]);
+				});
+				
 #else // USE_USD_SDK && DO_USD_CACHING
 				FCacheEvaluationContext Context(TickRecord);
 				Context.bEvaluateTransform = false;
@@ -340,7 +357,7 @@ namespace Chaos
 #endif // USE_USD_SDK && DO_USD_CACHING
 	}
 
-	Chaos::Softs::FDeformableSolver* FFleshCacheAdapter::GetDeformableSolver(UPrimitiveComponent* InComponent) const
+	Chaos::Softs::FDeformableSolver* FFleshCacheAdapter::GetDeformableSolver(UPrimitiveComponent* InComponent)
 	{
 		if(InComponent)
 		{
@@ -353,6 +370,25 @@ namespace Chaos
 			}
 		}
 		return nullptr;
+	}
+
+	FIntVector2 FFleshCacheAdapter::GetParticleRange(UPrimitiveComponent* InComponent, const int32 NumParticles)
+	{
+		FIntVector2 ParticleRange(0, NumParticles);
+		if(InComponent)
+		{
+			if(UFleshComponent* FleshComp = CastChecked<UFleshComponent>(InComponent))
+			{
+				if(FleshComp->GetPhysicsProxy())
+				{
+					if (const Chaos::Softs::FFleshThreadingProxy* Proxy = FleshComp->GetPhysicsProxy()->As<Chaos::Softs::FFleshThreadingProxy>())
+					{
+						ParticleRange = Proxy->GetSolverParticleRange();
+					}
+				}
+			}
+		}
+		return ParticleRange;
 	}
 
 	Chaos::FPhysicsSolver* FFleshCacheAdapter::GetComponentSolver(UPrimitiveComponent* InComponent) const
@@ -370,6 +406,30 @@ namespace Chaos
 		}
 		return nullptr;
 	}
+
+	void FFleshCacheAdapter::InitializeForLoad(UPrimitiveComponent* InComponent, FObservedComponent& InObserved)
+	{
+#if USE_USD_SDK && DO_USD_CACHING
+		if(const UFleshComponent* FleshComp = CastChecked<UFleshComponent>(InComponent))
+		{
+			FPrimitiveStage& PrimitiveStage = PrimitiveStages.FindOrAdd(InComponent);
+			
+			PrimitiveStage.PrimPath = UsdUtils::GetPrimPathForObject(FleshComp);
+			PrimitiveStage.FilePath = GetUSDCacheFilePathRO(InObserved, FleshComp);
+			
+			if (!PrimitiveStage.MonolithStage)
+			{
+				FPlatformFileManager& FileManager = FPlatformFileManager::Get();
+				IPlatformFile& PlatformFile = FileManager.GetPlatformFile();
+				
+				if (PlatformFile.FileExists(*PrimitiveStage.FilePath))
+				{
+					UE::ChaosCachingUSD::OpenStage(PrimitiveStage.FilePath, PrimitiveStage.MonolithStage);
+				}
+			}
+		}
+#endif // USE_USD_SDK && DO_USD_CACHING
+	}
 	
 	void FFleshCacheAdapter::SetRestState(UPrimitiveComponent* InComponent, UChaosCache* InCache, const FTransform& InRootTransform, Chaos::FReal InTime) const
 	{
@@ -383,47 +443,29 @@ namespace Chaos
 		if (UFleshComponent* FleshComp = CastChecked<UFleshComponent>(InComponent))
 		{
 #if USE_USD_SDK && DO_USD_CACHING
+			
 			FleshComp->ResetDynamicCollection();
 			if (UFleshDynamicAsset* DynamicCollection = FleshComp->GetDynamicCollection())
 			{
 				TManagedArray<FVector3f>& DynamicVertex = DynamicCollection->GetPositions();
-				//TManagedArray<FVector3f>& DynamicVertex = DynamicCollection->GetVelocities();
 				const int32 NumDynamicVertex = DynamicVertex.Num();
 
-				if (MonolithStage)
+				auto UEVertd = [](Chaos::FVec3 V) { return FVector3d(V.X, V.Y, V.Z); };
+				auto UEVertf = [](FVector3d V) { return FVector3f((float)V.X, (float)V.Y, (float)V.Z); };
+				
+				LoadCacheAtTime(InComponent, InTime, NumDynamicVertex, false, [&DynamicVertex, FleshComp, UEVertd, UEVertf](
+					const int32 ParticleIndex, const int32 ParticleOffset, const FVector3f& ParticlePosition, const FVector3f&)
 				{
-					FScopedUsdAllocs UEAllocs; // Use USD memory allocator
-					pxr::VtArray<pxr::GfVec3f> Points;
-					pxr::VtArray<pxr::GfVec3f> Vels;
+					const int32 GlobalIndex = ParticleIndex + ParticleOffset;
 
-					if (!UE::ChaosCachingUSD::ReadPoints(MonolithStage, PrimPath, -TNumericLimits<double>::Max(), Points, Vels))
-					{
-						UE_LOG(LogChaosFleshCache, Error, 
-							TEXT("Failed to read points '%s' at time 'default' from file: '%s'"), 
-							*PrimPath, *MonolithStage.GetRootLayer().GetDisplayName());
-						return;
-					}
-
-					int32 NumCachedParticles = static_cast<int32>(Points.size());
-					if (NumDynamicVertex == NumCachedParticles)
-					{
-						for (int32 CachedIndex = 0; CachedIndex < NumCachedParticles; ++CachedIndex)
-						{
-							// Note that VtArray::operator[] is non-const access and will cause trigger 
-							// the copy-on-write memcopy!  VtArray::cdata() avoids that.
-							const pxr::GfVec3f& P = Points.cdata()[CachedIndex];
-							DynamicVertex[CachedIndex].Set(P[0], P[1], P[2]);
-
-							auto UEVertd = [](Chaos::FVec3 V) { return FVector3d(V.X, V.Y, V.Z); };
-							auto UEVertf = [](FVector3d V) { return FVector3f((float)V.X, (float)V.Y, (float)V.Z); };
-							DynamicVertex[CachedIndex] =
-								UEVertf(FleshComp->GetComponentTransform().InverseTransformPosition(
-									UEVertd(DynamicVertex[CachedIndex])));
-						}
-					}
-				}
+					DynamicVertex[GlobalIndex].Set(ParticlePosition[0], ParticlePosition[1], ParticlePosition[2]);
+					DynamicVertex[GlobalIndex] =
+									UEVertf(FleshComp->GetComponentTransform().InverseTransformPosition(
+										UEVertd(DynamicVertex[GlobalIndex])));
+				});
 			}
 
+			
 #else // USE_USD_SDK && DO_USD_CACHING
 
 			FPlaybackTickRecord TickRecord;
@@ -566,6 +608,7 @@ namespace Chaos
 		FString FileName = FString::Printf(TEXT("%s.%s"), *CompName, *Ext);
 		FString FilePath = FPaths::Combine(CacheDir, FileName);
 
+		
 		return FilePath;
 	}
 #endif // USE_USD_SDK && DO_USD_CACHING
@@ -606,16 +649,18 @@ namespace Chaos
 					return false;
 				}
 
-				PrimPath = UsdUtils::GetPrimPathForObject(FleshComp);
+				FPrimitiveStage& PrimitiveStage = PrimitiveStages.FindOrAdd(InComponent);
+
+				PrimitiveStage.PrimPath = UsdUtils::GetPrimPathForObject(FleshComp);
 				if (bUseMonolith)
 				{
 					bReadOnly = false;
 					FString Ext = CVarParams.bWriteBinary ? FString(TEXT("usd")) : FString(TEXT("usda"));
 					FString FileName = FString::Printf(TEXT("%s.%s"), *CompName, *Ext);
-					FilePath = FPaths::Combine(CacheDir, FileName);
+					PrimitiveStage.FilePath = FPaths::Combine(CacheDir, FileName);
 					if (CVarParams.bNoClobber)
 					{
-						if (PlatformFile.FileExists(*FilePath))
+						if (PlatformFile.FileExists(*PrimitiveStage.FilePath))
 						{
 							// Rename the file to 'path/to/file.usd' to 'path/to/file_#.usd', where '#' 
 							// is a unique version number.
@@ -626,34 +671,34 @@ namespace Chaos
 								UniqueFilePath = FPaths::Combine(CacheDir, UniqueCompName);
 							} while (PlatformFile.FileExists(*UniqueFilePath));
 
-							if (!PlatformFile.MoveFile(*UniqueFilePath, *FilePath))
+							if (!PlatformFile.MoveFile(*UniqueFilePath, *PrimitiveStage.FilePath))
 							{
-								UE_LOG(LogChaosFleshCache, Error, TEXT("Failed to rename file from '%s' to '%s'."), *FilePath, *UniqueFilePath);
+								UE_LOG(LogChaosFleshCache, Error, TEXT("Failed to rename file from '%s' to '%s'."), *PrimitiveStage.FilePath, *UniqueFilePath);
 								return false;
 							}
 						}
 					}
 					else
 					{
-						if (!PlatformFile.DeleteFile(*FilePath))
+						if (!PlatformFile.DeleteFile(*PrimitiveStage.FilePath))
 						{
-							UE_LOG(LogChaosFleshCache, Error, TEXT("Failed to remove existing cache file: '%s'"), *FilePath);
+							UE_LOG(LogChaosFleshCache, Error, TEXT("Failed to remove existing cache file: '%s'"), *PrimitiveStage.FilePath);
 							return false;
 						}
 					}
 
-					if (MonolithStage)
+					if (PrimitiveStage.MonolithStage)
 					{
-						UE::ChaosCachingUSD::CloseStage(MonolithStage);
+						UE::ChaosCachingUSD::CloseStage(PrimitiveStage.MonolithStage);
 					}
-					if (!UE::ChaosCachingUSD::NewStage(FilePath, MonolithStage))
+					if (!UE::ChaosCachingUSD::NewStage(PrimitiveStage.FilePath, PrimitiveStage.MonolithStage))
 					{
-						UE_LOG(LogChaosFleshCache, Error, TEXT("Failed to create new USD file: '%s'"), *FilePath);
+						UE_LOG(LogChaosFleshCache, Error, TEXT("Failed to create new USD file: '%s'"), *PrimitiveStage.FilePath);
 						return false;
 					}
-					if (!UE::ChaosCachingUSD::WriteTetMesh(MonolithStage, PrimPath, *RestCollection))
+					if (!UE::ChaosCachingUSD::WriteTetMesh(PrimitiveStage.MonolithStage, PrimitiveStage.PrimPath, *RestCollection))
 					{
-						UE_LOG(LogChaosFleshCache, Error, TEXT("Failed to write tetrahedron mesh '%s' to USD file: '%s'"), *PrimPath, *FilePath);
+						UE_LOG(LogChaosFleshCache, Error, TEXT("Failed to write tetrahedron mesh '%s' to USD file: '%s'"), *PrimitiveStage.PrimPath, *PrimitiveStage.FilePath);
 						return false;
 					}
 				}
@@ -685,29 +730,31 @@ namespace Chaos
 				// USD caching
 				//
 
-				PrimPath = UsdUtils::GetPrimPathForObject(FleshComp);
+				FPrimitiveStage& PrimitiveStage = PrimitiveStages.FindOrAdd(InComponent);
+
+				PrimitiveStage.PrimPath = UsdUtils::GetPrimPathForObject(FleshComp);
 				if (bUseMonolith)
 				{
 					bReadOnly = true;
-					FilePath = GetUSDCacheFilePathRO(InObserved, FleshComp);
+					PrimitiveStage.FilePath = GetUSDCacheFilePathRO(InObserved, FleshComp);
 
 					FPlatformFileManager& FileManager = FPlatformFileManager::Get();
 					IPlatformFile& PlatformFile = FileManager.GetPlatformFile();
-					if (PlatformFile.FileExists(*FilePath))
+					if (PlatformFile.FileExists(*PrimitiveStage.FilePath))
 					{
-						if (MonolithStage)
+						if (PrimitiveStage.MonolithStage)
 						{
-							UE::ChaosCachingUSD::CloseStage(MonolithStage);
+							UE::ChaosCachingUSD::CloseStage(PrimitiveStage.MonolithStage);
 						}
-						if (!UE::ChaosCachingUSD::OpenStage(FilePath, MonolithStage))
+						if (!UE::ChaosCachingUSD::OpenStage(PrimitiveStage.FilePath, PrimitiveStage.MonolithStage))
 						{
-							UE_LOG(LogChaosFleshCache, Error, TEXT("Failed to open USD cache file: '%s'"), *FilePath);
+							UE_LOG(LogChaosFleshCache, Error, TEXT("Failed to open USD cache file: '%s'"), *PrimitiveStage.FilePath);
 							return false;
 						}
 					}
 					else
 					{
-						UE_LOG(LogChaosFleshCache, Error, TEXT("USD cache file not found: '%s'"), *FilePath);
+						UE_LOG(LogChaosFleshCache, Error, TEXT("USD cache file not found: '%s'"), *PrimitiveStage.FilePath);
 						return false;
 					}
 				}
@@ -725,21 +772,26 @@ namespace Chaos
 	void FFleshCacheAdapter::Finalize()
 	{
 #if USE_USD_SDK && DO_USD_CACHING
-		// Detach shared memory arrays.
-		if (MonolithStage)
-		{
-			if (!bReadOnly)
-			{
-				UE::ChaosCachingUSD::SaveStage(MonolithStage, MinTime, MaxTime);
-			}
-			UE::ChaosCachingUSD::CloseStage(MonolithStage);
-			MonolithStage = UE::FUsdStage();
-		}
 
-		PrimPath.Empty();
-		FilePath.Empty();
-		MinTime = TNumericLimits<double>::Max();
-		MaxTime = -TNumericLimits<double>::Max();
+		for(TPair<UPrimitiveComponent*,FPrimitiveStage>& PrimitiveStage : PrimitiveStages)
+		{
+			// Detach shared memory arrays.
+			if (PrimitiveStage.Value.MonolithStage)
+			{
+				if (!bReadOnly)
+				{
+					UE::ChaosCachingUSD::SaveStage(PrimitiveStage.Value.MonolithStage, PrimitiveStage.Value.MinTime, PrimitiveStage.Value.MaxTime);
+				}
+				UE::ChaosCachingUSD::CloseStage(PrimitiveStage.Value.MonolithStage);
+				PrimitiveStage.Value.MonolithStage = UE::FUsdStage();
+			}
+
+			PrimitiveStage.Value.PrimPath.Empty();
+			PrimitiveStage.Value.FilePath.Empty();
+			PrimitiveStage.Value.MinTime = TNumericLimits<double>::Max();
+			PrimitiveStage.Value.MaxTime = TNumericLimits<double>::Lowest();
+		}
+		PrimitiveStages.Reset();
 #endif // USE_USD_SDK && DO_USD_CACHING
 	}
 

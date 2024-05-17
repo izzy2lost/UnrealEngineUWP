@@ -624,6 +624,31 @@ UE::ChaosCachingUSD::WritePoints(
 	return WritePoints(Stage, PrimPath, Time, VtPoints, VtVels);
 }
 
+bool UE::ChaosCachingUSD::WritePoints(
+	UE::FUsdStage& Stage, 
+	const FString& PrimPath, 
+	const double Time, 
+	const TArray<Chaos::TVector<float, 3>>& Points, 
+	const TArray<Chaos::TVector<float, 3>>& Vels,
+	const FIntVector2& PointsRange)
+{
+	FScopedUsdAllocs UsdAllocs; // Use USD memory allocator
+
+	const size_t NumPoints = PointsRange[1];
+
+	pxr::VtArray<pxr::GfVec3f> VtPoints(NumPoints);
+	pxr::VtArray<pxr::GfVec3f> VtVels(NumPoints);
+
+	int32 GlobalIndex = PointsRange[0];
+	for (int32 LocalIndex = 0; LocalIndex < NumPoints; ++LocalIndex, ++GlobalIndex)
+	{
+		VtPoints[LocalIndex].Set(Points[GlobalIndex][0], Points[GlobalIndex][1], Points[GlobalIndex][2]);
+		VtVels[LocalIndex].Set(Vels[GlobalIndex][0], Vels[GlobalIndex][1], Vels[GlobalIndex][2]);
+	}
+
+	return WritePoints(Stage, PrimPath, Time, VtPoints, VtVels);
+}
+
 bool
 UE::ChaosCachingUSD::ReadTimeSamples(
 	const UE::FUsdStage& Stage, 

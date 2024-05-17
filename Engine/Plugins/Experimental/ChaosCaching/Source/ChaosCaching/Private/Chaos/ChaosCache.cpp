@@ -218,7 +218,7 @@ bool UChaosCache::FlushPendingFrames_MainPass(TQueue<FPendingFrameWrite, Mode>& 
 		}
 		return false;
 	};
-
+	
 	while (InPendingWrites.Dequeue(NewData))
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(QSTAT_CacheFlushSingleFramePass2);
@@ -279,6 +279,8 @@ bool UChaosCache::FlushPendingFrames_MainPass(TQueue<FPendingFrameWrite, Mode>& 
 				}
 			}
 		}
+		MinTime = FMath::Min(MinTime,NewData.Time);
+		MaxTime = FMath::Max(MaxTime,NewData.Time);
 
 		const int32 ParticleCount = NewData.PendingParticleData.Num();
 
@@ -381,7 +383,14 @@ void UChaosCache::FlushPendingFrames()
 			}
 		}
 
-		RecordedDuration = Max - Min;
+		RecordedDuration =  Max - Min;
+	}
+	// In case we are not recording to channels/particles/curves datas (USD) we can
+	// use the pending writes time to figure out the recorded duration.
+	// Should probably be the unique way of computing it. 
+	if(ParticleTracks.IsEmpty() && ChannelsTracks.IsEmpty() && (MaxTime > MinTime))
+	{
+		RecordedDuration = MaxTime-MinTime;
 	}
 }
 
@@ -397,6 +406,8 @@ FCacheUserToken UChaosCache::BeginRecord(const UPrimitiveComponent* InComponent,
 			// And there's no playbacks, we can proceed
 			// Setup the cache to begin recording
 			RecordedDuration = 0.0f;
+			MinTime = TNumericLimits<float>::Max();
+			MaxTime = TNumericLimits<float>::Lowest();
 			NumRecordedFrames = 0;
 			ParticleTracks.Reset();
 			ChannelsTracks.Reset();
