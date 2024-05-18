@@ -38,6 +38,7 @@
 #include "Misc/Guid.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DynamicMaterialModel.h"
+#include "Model/DynamicMaterialModelEditorOnlyDataVersion.h"
 #include "UObject/Package.h"
 
 #define LOCTEXT_NAMESPACE "MaterialDesignerModel"
@@ -1347,7 +1348,7 @@ void UDynamicMaterialModelEditorOnlyData::NotifyPostChange(const FPropertyChange
 
 void UDynamicMaterialModelEditorOnlyData::PostLoad()
 {
-	Super::PostLoad();
+ 	Super::PostLoad();
 
 	// Backwards compatibility change - materials were originally parented to this object instead of the model.
 	if (IsValid(MaterialModel))
@@ -1422,6 +1423,33 @@ void UDynamicMaterialModelEditorOnlyData::PostEditChangeChainProperty(FPropertyC
 	else if (Property == GET_MEMBER_NAME_CHECKED(ThisClass, bTwoSidedFlag))
 	{
 		OnTwoSidedFlagChanged();
+	}
+}
+
+void UDynamicMaterialModelEditorOnlyData::Serialize(FArchive& Ar)
+{
+	Ar.UsingCustomVersion(FDynamicMaterialModelEditorOnlyDataVersion::GUID);
+
+	Super::Serialize(Ar);
+
+	const int32 Version = Ar.CustomVer(FDynamicMaterialModelEditorOnlyDataVersion::GUID);
+
+	if (Version < FDynamicMaterialModelEditorOnlyDataVersion::GlobalValueRename)
+	{
+		if (ChannelListPreset == NAME_None)
+		{
+			// The default blend mode was translucent and now it's opaque.
+			if (BlendMode == BLEND_Opaque)
+			{
+				BlendMode = BLEND_Translucent;
+				ChannelListPreset = "Translucent";
+			}
+			// If the default blend mode was changed to anything else, set to All preset and let the user figure it out.
+			else
+			{
+				ChannelListPreset = "All";
+			}
+		}
 	}
 }
 

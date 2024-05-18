@@ -195,6 +195,7 @@ public:
 	virtual void PostEditImport() override;
 	virtual void PostDuplicate(bool bDuplicateForPIE) override;
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
+	virtual void Serialize(FArchive& Ar) override;
 	//~ End UObject
 
 	void SaveEditor();

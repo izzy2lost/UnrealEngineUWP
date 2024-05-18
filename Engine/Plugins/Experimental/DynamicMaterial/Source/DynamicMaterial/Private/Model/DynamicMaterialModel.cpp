@@ -67,7 +67,7 @@ UDynamicMaterialModel::UDynamicMaterialModel()
 			Property->ApplyDefaultValue();
 #endif
 
-			UDMMaterialParameter* Parameter = CreateDefaultSubobject<UDMMaterialParameter>(InParameterName);
+			UDMMaterialParameter* Parameter = CreateDefaultSubobject<UDMMaterialParameter>(FName(*(InParameterName.GetPlainNameString() + TEXT("Parameter"))));
 			Parameter->ParameterName = InParameterName;
 			Property->Parameter = Parameter;
 
@@ -84,7 +84,7 @@ UDynamicMaterialModel::UDynamicMaterialModel()
 			Property->ApplyDefaultValue();
 #endif
 
-			UDMMaterialParameter* Parameter = CreateDefaultSubobject<UDMMaterialParameter>(InParameterName);
+			UDMMaterialParameter* Parameter = CreateDefaultSubobject<UDMMaterialParameter>(FName(*(InParameterName.GetPlainNameString() + TEXT("Parameter"))));
 			Parameter->ParameterName = InParameterName;
 			Property->Parameter = Parameter;
 
