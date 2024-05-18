@@ -786,16 +786,12 @@ void FD3D12DescriptorCache::SetExplicitDescriptorCache(FD3D12ExplicitDescriptorC
 	if (!ViewHeapToSet)
 	{
 		check(ExplicitDescriptorCache.ViewHeap.GetParentDevice() == GetParentDevice());
-
-		ExplicitDescriptorCache.ViewHeap.UpdateSyncPoint();
 		ViewHeapToSet = ExplicitDescriptorCache.ViewHeap.D3D12Heap;
 	}
 
 	if (!SamplerHeapToSet)
 	{
 		check(ExplicitDescriptorCache.SamplerHeap.GetParentDevice() == GetParentDevice());
-
-		ExplicitDescriptorCache.SamplerHeap.UpdateSyncPoint();
 		SamplerHeapToSet = ExplicitDescriptorCache.SamplerHeap.D3D12Heap;
 	}
 

@@ -27,12 +27,15 @@ public:
 
 	UE_NONCOPYABLE(FD3D12ExplicitDescriptorHeapCache)
 
-	struct Entry
+	struct FEntry
 	{
 		ID3D12DescriptorHeap* Heap = nullptr;
-		uint64 FenceValue = 0;
 		uint32 NumDescriptors = 0;
 		D3D12_DESCRIPTOR_HEAP_TYPE Type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
+
+		// Information for stale entry release, updated upon adding the entry to the free list
+		uint64 LastUsedFrame = 0;
+		double LastUsedTime = 0.0;
 	};
 
 	FD3D12ExplicitDescriptorHeapCache(FD3D12Device* Device)
@@ -42,17 +45,21 @@ public:
 
 	~FD3D12ExplicitDescriptorHeapCache();
 
-	void ReleaseHeap(Entry& Entry);
+	FEntry AllocateHeap(D3D12_DESCRIPTOR_HEAP_TYPE Type, uint32 NumDescriptors);
+	void DeferredReleaseHeap(FEntry&& Entry);
 
-	Entry AllocateHeap(D3D12_DESCRIPTOR_HEAP_TYPE Type, uint32 NumDescriptors);
+	void FlushFreeList();
 
-	void ReleaseStaleEntries(uint32 MaxAge, uint64 CompletedFenceValue);
+private:
 
-	void Flush();
+	void ReleaseHeap(FEntry&& Entry);
+
+	// Assumes CriticalSection is already locked
+	void ReleaseStaleEntries(uint32 MaxAgeInFrames, float MaxAgeInSeconds);
 
 	FCriticalSection CriticalSection;
-	TArray<Entry> Entries;
-	uint32 AllocatedEntries = 0;
+	TArray<FEntry> FreeList;
+	uint32 NumAllocatedEntries = 0;
 };
 
 struct FD3D12ExplicitDescriptorHeap : public FD3D12DeviceChild
@@ -79,8 +86,6 @@ struct FD3D12ExplicitDescriptorHeap : public FD3D12DeviceChild
 	D3D12_CPU_DESCRIPTOR_HANDLE GetDescriptorCPU(uint32 Index) const;
 	D3D12_GPU_DESCRIPTOR_HANDLE GetDescriptorGPU(uint32 Index) const;
 
-	void UpdateSyncPoint();
-
 	D3D12_DESCRIPTOR_HEAP_TYPE Type = D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES;
 	ID3D12DescriptorHeap* D3D12Heap = nullptr;
 	uint32 MaxNumDescriptors = 0;
@@ -94,7 +99,7 @@ struct FD3D12ExplicitDescriptorHeap : public FD3D12DeviceChild
 	D3D12_CPU_DESCRIPTOR_HANDLE CPUBase = {};
 	D3D12_GPU_DESCRIPTOR_HANDLE GPUBase = {};
 
-	FD3D12ExplicitDescriptorHeapCache::Entry HeapCacheEntry;
+	FD3D12ExplicitDescriptorHeapCache::FEntry HeapCacheEntry;
 
 	TArray<D3D12_CPU_DESCRIPTOR_HANDLE> Descriptors;
 
