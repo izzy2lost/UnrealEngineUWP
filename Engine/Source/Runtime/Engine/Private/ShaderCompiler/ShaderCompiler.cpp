@@ -150,7 +150,7 @@ static TAutoConsoleVariable<bool> CVarJobCacheDDCPolicy(
 
 static TAutoConsoleVariable<bool> CVarJobCacheDDCCookPolicy(
 	TEXT("r.ShaderCompiler.JobCacheDDCCookEnableRemotePolicy"),
-	false,
+	true,
 	TEXT("If true, individual shader jobs will be cached to remote/shared DDC instances in all cook commandlet only; if false they will only cache to DDC instances on the local machine.\n"),
 	ECVF_ReadOnly);
 
@@ -211,7 +211,7 @@ static FAutoConsoleVariableRef CVarShaderCompilerPerShaderDDCGlobal(
 
 static TAutoConsoleVariable<bool> CVarShaderCompilerPerShaderDDCCook(
 	TEXT("r.ShaderCompiler.PerShaderDDCCook"),
-	false,
+	true,
 	TEXT("If true, per-shader DDC caching will be enabled during cooks."),
 	ECVF_Default
 );
