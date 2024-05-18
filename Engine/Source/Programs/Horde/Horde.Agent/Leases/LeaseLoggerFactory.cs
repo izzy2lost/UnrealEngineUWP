@@ -2,7 +2,6 @@
 
 using EpicGames.Core;
 using EpicGames.Horde.Agents.Leases;
-using EpicGames.Horde.Logs;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
