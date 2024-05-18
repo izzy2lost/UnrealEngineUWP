@@ -2444,6 +2444,9 @@ void CollectRasterPSOInitializersForDefaultMaterial(
 						if (bSkinnedMesh && !NaniteSkinnedMeshesSupported())
 							continue;
 
+						if (bSkinnedMesh && bSplineMesh)
+							continue; // Mutually exclusive
+
 						CollectRasterPSOInitializersForPermutation(Material, ShaderPlatform, HardwarePath, bVertexProgrammable, bPixelProgrammable, bIsTwoSided, bSplineMesh, bSkinnedMesh,
 							PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS, PSOCollectorIndex, PSOInitializers);
 					}

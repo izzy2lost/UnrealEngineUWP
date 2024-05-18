@@ -2127,6 +2127,10 @@ FSkinnedSceneProxy::FSkinnedSceneProxy(const FMaterialAudit& MaterialAudit, USki
 	// Skinning is supported by this proxy
 	bSkinnedMesh = true;
 
+	// TODO: Temp until proper GPU driven shadow cache invalidation is implemented, as well as accurate cluster bounds
+	bHasDeformableMesh = true;
+	ShadowCacheInvalidationBehavior = EShadowCacheInvalidationBehavior::Always;
+
 	// Use fast path that does not update static draw lists.
 	bStaticElementsAlwaysUseProxyPrimitiveUniformBuffer = true;
 
@@ -2155,7 +2159,6 @@ FSkinnedSceneProxy::FSkinnedSceneProxy(const FMaterialAudit& MaterialAudit, USki
 	MaxBoneInfluenceCount = RenderData->GetNumBoneInfluences();
 
 	BoneHierarchy.SetNumUninitialized(MaxBoneTransformCount);
-	BoneObjectSpace.SetNumUninitialized(MaxBoneTransformCount);
 
 	bHasScale = false;
 
@@ -2174,8 +2177,42 @@ FSkinnedSceneProxy::FSkinnedSceneProxy(const FMaterialAudit& MaterialAudit, USki
 		Packed.BoneDepth			= uint16(BoneDepth);
 		BoneHierarchy[BoneIndex]	= *reinterpret_cast<uint32*>(&Packed);
 
-		FMatrix44f ObjectSpaceTransform = (FMatrix44f)ComponentTransforms[BoneIndex].ToMatrixWithScale();
-		ObjectSpaceTransform.To3x4MatrixTranspose((float*)BoneObjectSpace[BoneIndex].M);
+		if (!FMath::IsNearlyEqual((float)ComponentTransforms[BoneIndex].GetDeterminant(), 1.0f, UE_KINDA_SMALL_NUMBER))
+		{
+			bHasScale = true;
+		}
+	}
+
+	// TODO: Shrink/compress representation further
+	// Drop one of the rotation components (largest value) and store index in 4 bits to reconstruct
+	// 16b fixed point? Variable rate?
+	const uint32 FloatCount = GetObjectSpaceFloatCount();
+	BoneObjectSpace.SetNumUninitialized(MaxBoneTransformCount * FloatCount);
+	float* WritePtr = BoneObjectSpace.GetData();
+	for (int32 BoneIndex = 0; BoneIndex < MaxBoneTransformCount; ++BoneIndex)
+	{
+		const FTransform& Transform = ComponentTransforms[BoneIndex];
+		const FQuat& Rotation = Transform.GetRotation();
+		const FVector& Translation = Transform.GetTranslation();
+
+		WritePtr[0] = (float)Rotation.X;
+		WritePtr[1] = (float)Rotation.Y;
+		WritePtr[2] = (float)Rotation.Z;
+		WritePtr[3] = (float)Rotation.W;
+
+		WritePtr[4] = (float)Translation.X;
+		WritePtr[5] = (float)Translation.Y;
+		WritePtr[6] = (float)Translation.Z;
+
+		if (bHasScale)
+		{
+			const FVector& Scale = Transform.GetScale3D();
+			WritePtr[7] = (float)Scale.X;
+			WritePtr[8] = (float)Scale.Y;
+			WritePtr[9] = (float)Scale.Z;
+		}
+			
+		WritePtr += FloatCount;
 	}
 
 	const uint32 FirstLODIndex = 0; // Only data from LOD0 is used.

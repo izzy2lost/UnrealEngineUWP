@@ -929,6 +929,7 @@ void WriteRasterizerArgsSWHW(RWBuffer<uint> RasterizerArgsSWHW, uint ArgsOffset,
 }
 
 #if COMPILER_SUPPORTS_HLSL2021
+
 FNaniteSkinningHeader LoadNaniteSkinningHeader(uint InPrimitiveIndex)
 {
 	const uint Offset = InPrimitiveIndex * (uint)sizeof(FNaniteSkinningHeader);
@@ -940,8 +941,16 @@ float3x4 LoadNaniteBoneTransform(uint TransformIndex)
 	return Scene.NaniteSkinning.BoneTransforms.Load<float3x4>(TransformIndex * (uint)sizeof(float3x4));
 }
 
-float3x4 LoadNaniteBoneObjectSpace(uint BoneIndex)
+FBoneTransformWithScale LoadNaniteBoneObjectSpaceWithScale(uint BufferOffset, uint BoneIndex)
 {
-	return Scene.NaniteSkinning.BoneObjectSpace.Load<float3x4>(BoneIndex * (uint)sizeof(float3x4));
+	const uint BufferOffsetBytes = BufferOffset * (uint)sizeof(float);
+	return Scene.NaniteSkinning.BoneObjectSpace.Load<FBoneTransformWithScale>(BufferOffsetBytes + BoneIndex * (uint)sizeof(FBoneTransformWithScale));
 }
+
+FBoneTransform LoadNaniteBoneObjectSpace(uint BufferOffset, uint BoneIndex)
+{
+	const uint BufferOffsetBytes = BufferOffset * (uint)sizeof(float);
+	return Scene.NaniteSkinning.BoneObjectSpace.Load<FBoneTransform>(BufferOffsetBytes + BoneIndex * (uint)sizeof(FBoneTransform));
+}
+
 #endif

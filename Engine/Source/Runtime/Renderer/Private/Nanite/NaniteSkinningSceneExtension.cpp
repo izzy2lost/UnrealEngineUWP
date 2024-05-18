@@ -152,6 +152,7 @@ void FSkinningSceneExtension::FinishSkinningBufferUpload(
 	const uint32 MinHeaderDataSize = (HeaderData.GetMaxIndex() + 1);
 	const uint32 MinTransformDataSize = TransformAllocator.GetMaxSize();
 	const uint32 MinHierarchyDataSize = HierarchyAllocator.GetMaxSize();
+	const uint32 MinObjectSpaceDataSize = ObjectSpaceAllocator.GetMaxSize();
 
 	if (Uploader.IsValid())
 	{
@@ -181,7 +182,7 @@ void FSkinningSceneExtension::FinishSkinningBufferUpload(
 		BoneObjectSpaceBuffer = Uploader->BoneObjectSpaceUploader.ResizeAndUploadTo(
 			GraphBuilder,
 			Buffers->BoneObjectSpaceBuffer,
-			MinHierarchyDataSize
+			MinObjectSpaceDataSize
 		);
 
 		TransformBuffer = Uploader->TransformDataUploader.ResizeAndUploadTo(
@@ -196,7 +197,7 @@ void FSkinningSceneExtension::FinishSkinningBufferUpload(
 	{
 		HeaderBuffer			= Buffers->HeaderDataBuffer.ResizeBufferIfNeeded(GraphBuilder, MinHeaderDataSize);
 		BoneHierarchyBuffer		= Buffers->BoneHierarchyBuffer.ResizeBufferIfNeeded(GraphBuilder, MinHierarchyDataSize);
-		BoneObjectSpaceBuffer	= Buffers->BoneObjectSpaceBuffer.ResizeBufferIfNeeded(GraphBuilder, MinHierarchyDataSize);
+		BoneObjectSpaceBuffer	= Buffers->BoneObjectSpaceBuffer.ResizeBufferIfNeeded(GraphBuilder, MinObjectSpaceDataSize);
 		TransformBuffer			= Buffers->TransformDataBuffer.ResizeBufferIfNeeded(GraphBuilder, MinTransformDataSize);
 	}
 
@@ -212,6 +213,7 @@ void FSkinningSceneExtension::FinishSkinningBufferUpload(
 bool FSkinningSceneExtension::ProcessBufferDefragmentation()
 {
 	// Consolidate spans
+	ObjectSpaceAllocator.Consolidate();
 	HierarchyAllocator.Consolidate();
 	TransformAllocator.Consolidate();
 
@@ -253,6 +255,7 @@ bool FSkinningSceneExtension::ProcessBufferDefragmentation()
 		return false;
 	}
 
+	ObjectSpaceAllocator.Reset();
 	HierarchyAllocator.Reset();
 	TransformAllocator.Reset();
 
@@ -268,6 +271,12 @@ bool FSkinningSceneExtension::ProcessBufferDefragmentation()
 		{
 			Data.HierarchyBufferOffset = INDEX_NONE;
 			Data.HierarchyBufferCount = 0;
+		}
+
+		if (Data.ObjectSpaceBufferOffset != INDEX_NONE)
+		{
+			Data.ObjectSpaceBufferOffset = INDEX_NONE;
+			Data.ObjectSpaceBufferCount = 0;
 		}
 	}
 
@@ -321,6 +330,11 @@ void FSkinningSceneExtension::FUpdater::PreSceneUpdate(FRDGBuilder& GraphBuilder
 				if (SceneData->HeaderData.IsValidIndex(PersistentIndex.Index))
 				{
 					FSkinningSceneExtension::FHeaderData& Data = SceneData->HeaderData[PersistentIndex.Index];
+
+					if (Data.ObjectSpaceBufferOffset != INDEX_NONE)
+					{
+						SceneData->ObjectSpaceAllocator.Free(Data.ObjectSpaceBufferOffset, Data.ObjectSpaceBufferCount);
+					}
 
 					if (Data.HierarchyBufferOffset != INDEX_NONE)
 					{
@@ -447,6 +461,23 @@ void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& Gra
 			Data.UniqueAnimationCount	= SkinnedProxy->GetUniqueAnimationCount();
 
 			bool bRequireUpload = false;
+
+			const uint32 ObjectSpaceNeededSize = Data.MaxTransformCount * SkinnedProxy->GetObjectSpaceFloatCount();
+			if (ObjectSpaceNeededSize != Data.ObjectSpaceBufferCount)
+			{
+				if (Data.ObjectSpaceBufferCount > 0)
+				{
+					SceneData->ObjectSpaceAllocator.Free(Data.ObjectSpaceBufferOffset, Data.ObjectSpaceBufferCount);
+				}
+
+				Data.ObjectSpaceBufferOffset = ObjectSpaceNeededSize > 0 ? SceneData->ObjectSpaceAllocator.Allocate(ObjectSpaceNeededSize) : INDEX_NONE;
+				Data.ObjectSpaceBufferCount = ObjectSpaceNeededSize;
+
+				if (!bForceFullUpload)
+				{
+					bRequireUpload = true;
+				}
+			}
 
 			const uint32 HierarchyNeededSize = Data.MaxTransformCount;
 			if (HierarchyNeededSize != Data.HierarchyBufferCount)
@@ -580,10 +611,11 @@ void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& Gra
 		{
 			auto SkinnedProxy = static_cast<const Nanite::FSkinnedSceneProxy*>(Data.PrimitiveSceneInfo->Proxy);
 			const TArray<uint32>& BoneHierarchy = SkinnedProxy->GetBoneHierarchy();
-			const TArray<FMatrix3x4>& BoneObjectSpace = SkinnedProxy->GetBoneObjectSpace();
+			const TArray<float>& BoneObjectSpace = SkinnedProxy->GetBoneObjectSpace();
 
+			const uint32 FloatCount = SkinnedProxy->GetObjectSpaceFloatCount();
 			check(BoneHierarchy.Num() == Data.MaxTransformCount);
-			check(BoneObjectSpace.Num() == Data.MaxTransformCount);
+			check(BoneObjectSpace.Num() == Data.MaxTransformCount * FloatCount);
 			check(SceneData->Uploader.IsValid());
 
 			// Bone Hierarchy
@@ -603,14 +635,14 @@ void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& Gra
 			// Bone Object Space
 			{
 				auto UploadData = SceneData->Uploader->BoneObjectSpaceUploader.AddMultiple_GetRef(
-					Data.HierarchyBufferOffset,
-					Data.HierarchyBufferCount
+					Data.ObjectSpaceBufferOffset,
+					Data.ObjectSpaceBufferCount
 				);
 
-				FMatrix3x4* DstBoneObjectSpacePtr = UploadData.GetData();
-				for (int32 BoneIndex = 0; BoneIndex < Data.MaxTransformCount; ++BoneIndex)
+				float* DstBoneObjectSpacePtr = UploadData.GetData();
+				for (uint32 BoneFloatIndex = 0; BoneFloatIndex < (Data.MaxTransformCount * FloatCount); ++BoneFloatIndex)
 				{
-					DstBoneObjectSpacePtr[BoneIndex] = BoneObjectSpace[BoneIndex];
+					DstBoneObjectSpacePtr[BoneFloatIndex] = BoneObjectSpace[BoneFloatIndex];
 				}
 			}
 		};

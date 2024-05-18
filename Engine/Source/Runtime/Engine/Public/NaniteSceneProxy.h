@@ -697,7 +697,7 @@ public:
 		return BoneHierarchy;
 	}
 
-	inline const TArray<FMatrix3x4>& GetBoneObjectSpace() const
+	inline const TArray<float>& GetBoneObjectSpace() const
 	{
 		return BoneObjectSpace;
 	}
@@ -705,6 +705,13 @@ public:
 	inline bool HasScale() const
 	{
 		return bHasScale;
+	}
+
+	// TODO: TEMP - Move to shared location with GPU
+	inline uint32 GetObjectSpaceFloatCount() const
+	{
+		const uint32 FloatCount = 4 /* quat */ + 3 /* XYZ translation */ + (HasScale() ? 3 : 0 /* XYZ scale */);
+		return FloatCount;
 	}
 
 protected:
@@ -721,7 +728,7 @@ protected:
 	uint16 UniqueAnimationCount  = 1u;
 
 	TArray<uint32> BoneHierarchy;
-	TArray<FMatrix3x4> BoneObjectSpace;
+	TArray<float> BoneObjectSpace;
 
 	bool bHasScale = false;
 

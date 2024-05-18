@@ -100,6 +100,7 @@ private:
 			FNaniteSkinningHeader Output;
 			Output.HierarchyBufferOffset	= HierarchyBufferOffset;
 			Output.TransformBufferOffset	= TransformBufferOffset;
+			Output.ObjectSpaceBufferOffset	= ObjectSpaceBufferOffset;
 			Output.MaxTransformCount		= MaxTransformCount;
 			Output.MaxInfluenceCount		= MaxInfluenceCount;
 			Output.UniqueAnimationCount		= UniqueAnimationCount;
@@ -116,7 +117,7 @@ private:
 
 		TPersistentByteAddressBuffer<FNaniteSkinningHeader> HeaderDataBuffer;
 		TPersistentByteAddressBuffer<uint32> BoneHierarchyBuffer;
-		TPersistentByteAddressBuffer<FMatrix3x4> BoneObjectSpaceBuffer;
+		TPersistentByteAddressBuffer<float> BoneObjectSpaceBuffer;
 		TPersistentByteAddressBuffer<FMatrix3x4> TransformDataBuffer;
 	};
 	
@@ -125,7 +126,7 @@ private:
 	public:
 		TByteAddressBufferScatterUploader<FNaniteSkinningHeader> HeaderDataUploader;
 		TByteAddressBufferScatterUploader<uint32> BoneHierarchyUploader;
-		TByteAddressBufferScatterUploader<FMatrix3x4> BoneObjectSpaceUploader;
+		TByteAddressBufferScatterUploader<float> BoneObjectSpaceUploader;
 		TByteAddressBufferScatterUploader<FMatrix3x4> TransformDataUploader;
 	};
 	
@@ -141,6 +142,7 @@ private:
 	bool ProcessBufferDefragmentation();
 
 	FScene* Scene = nullptr;
+	FSpanAllocator ObjectSpaceAllocator;
 	FSpanAllocator HierarchyAllocator;
 	FSpanAllocator TransformAllocator;
 	TSparseArray<FHeaderData> HeaderData;
