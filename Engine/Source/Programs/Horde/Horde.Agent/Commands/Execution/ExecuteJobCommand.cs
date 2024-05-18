@@ -46,7 +46,7 @@ namespace Horde.Agent.Commands.Execution
 			IHordeClient hordeClient = _hordeClientFactory.Create(executeTask.Token);
 			await using Session session = new Session(AgentId, SessionId, WorkingDir, hordeClient);
 
-			await _jobHandler.ExecuteInternalAsync(session, LeaseId, executeTask, logger, CancellationToken.None);
+			await _jobHandler.ExecuteInternalAsync(session.HordeClient, session.WorkingDir, LeaseId, executeTask, logger, CancellationToken.None);
 			return 0;
 		}
 	}
