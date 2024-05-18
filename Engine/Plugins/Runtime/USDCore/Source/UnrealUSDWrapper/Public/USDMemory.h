@@ -292,7 +292,7 @@ TSharedRef<ObjectType> MakeSharedUnreal(ArgTypes&&... Args)
 		{ \
 			return new ModuleImplClass(); \
 		} \
-		static FModuleInitializerEntry ModuleName##InitializerEntry(TEXT(#ModuleName), Initialize##ModuleName##Module); \
+		static FModuleInitializerEntry ModuleName##InitializerEntry(TEXT(#ModuleName), Initialize##ModuleName##Module, TEXT(UE_MODULE_NAME)); \
 		/* Forced reference to this function is added by the linker to check that each module uses IMPLEMENT_MODULE */ \
 		extern "C" void IMPLEMENT_MODULE_##ModuleName() { } \
 		extern "C" DLLEXPORT void ThisIsAnUnrealEngineModule() {} \

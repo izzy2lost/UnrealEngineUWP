@@ -39,10 +39,16 @@ DEFINE_LOG_CATEGORY_STATIC(LogModuleManager, Log, All);
 
 FModuleInitializerEntry* GFirstModuleInitializerEntry;
 
-FModuleInitializerEntry::FModuleInitializerEntry(const TCHAR* InName, FInitializeModuleFunctionPtr InFunction)
+FModuleInitializerEntry::FModuleInitializerEntry(const TCHAR* InName, FInitializeModuleFunctionPtr InFunction, const TCHAR* InName2)
 :	Name(InName)
+,	Name2(nullptr)
 ,	Function(InFunction)
 {
+	if (FCString::Stricmp(InName, InName2) != 0)
+	{
+		Name2 = InName2;
+	}
+
 	Prev = nullptr;
 	Next = GFirstModuleInitializerEntry;
 
@@ -76,6 +82,10 @@ FInitializeModuleFunctionPtr FModuleInitializerEntry::FindModule(const TCHAR* Na
 	for (FModuleInitializerEntry* Entry = GFirstModuleInitializerEntry; Entry; Entry = Entry->Next)
 	{
 		if (FCString::Stricmp(Name, Entry->Name) == 0)
+		{
+			return Entry->Function;
+		}
+		if (Entry->Name2 && FCString::Stricmp(Name, Entry->Name2) == 0)
 		{
 			return Entry->Function;
 		}
