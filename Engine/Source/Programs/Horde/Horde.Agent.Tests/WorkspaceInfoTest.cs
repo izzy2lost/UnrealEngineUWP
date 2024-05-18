@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Perforce.Managed;
-using Horde.Agent.Utility;
+using Horde.Agent.Driver.Utility;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Horde.Agent.Tests;
@@ -44,7 +44,7 @@ public class WorkspaceInfoTest
 
 	static ManagedWorkspaceOptions GetMwOptions(string? method, long? minScratchSpace = null)
 	{
-		HordeCommon.Rpc.Messages.RpcAgentWorkspace workspace = new () { Method = method ?? "", MinScratchSpace = minScratchSpace ?? 0 };
+		HordeCommon.Rpc.Messages.RpcAgentWorkspace workspace = new() { Method = method ?? "", MinScratchSpace = minScratchSpace ?? 0 };
 		return WorkspaceInfo.GetMwOptions(workspace);
 	}
 }

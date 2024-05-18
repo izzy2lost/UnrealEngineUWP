@@ -6,7 +6,7 @@ using EpicGames.Core;
 using EpicGames.Perforce;
 using EpicGames.Perforce.Managed;
 using Horde.Agent.Driver.Utility;
-using HordeCommon.Rpc;
+using Horde.Common.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 using OpenTracing;

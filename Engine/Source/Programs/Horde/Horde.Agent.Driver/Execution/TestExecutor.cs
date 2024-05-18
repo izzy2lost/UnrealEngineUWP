@@ -5,7 +5,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Jobs;
 using EpicGames.Perforce;
 using Horde.Agent.Driver.Parser;
-using HordeCommon.Rpc;
+using Horde.Common.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 

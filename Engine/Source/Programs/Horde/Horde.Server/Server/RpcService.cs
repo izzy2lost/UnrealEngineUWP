@@ -17,12 +17,12 @@ using Google.Protobuf;
 using Google.Protobuf.Reflection;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
+using Horde.Common.Rpc;
 using Horde.Server.Acls;
 using Horde.Server.Agents;
-using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Agents.Telemetry;
-using Horde.Server.Tasks;
+using Horde.Server.Jobs;
 using Horde.Server.Telemetry;
 using Horde.Server.Tools;
 using Horde.Server.Utilities;
@@ -30,6 +30,7 @@ using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Messages.Telemetry;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -47,29 +48,27 @@ namespace Horde.Server.Server
 		internal TimeSpan _longPollTimeout = TimeSpan.FromMinutes(9);
 
 		readonly AgentService _agentService;
-		readonly PoolService _poolService;
 		readonly LifetimeService _lifetimeService;
 		readonly ITelemetrySink _telemetrySink;
-		readonly ConformTaskSource _conformTaskSource;
 		readonly IToolCollection _toolCollection;
 		readonly IAgentTelemetryCollection _agentTelemetryCollection;
 		readonly AclService _aclService;
+		readonly IServiceProvider _serviceProvider;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public RpcService(AgentService agentService, PoolService poolService, LifetimeService lifetimeService, ITelemetrySink telemetrySink, ConformTaskSource conformTaskSource, IToolCollection toolCollection, IAgentTelemetryCollection agentTelemetryCollection, AclService aclService, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<RpcService> logger)
+		public RpcService(AgentService agentService, LifetimeService lifetimeService, ITelemetrySink telemetrySink, IToolCollection toolCollection, IAgentTelemetryCollection agentTelemetryCollection, AclService aclService, IServiceProvider serviceProvider, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<RpcService> logger)
 		{
 			_agentService = agentService;
-			_poolService = poolService;
 			_lifetimeService = lifetimeService;
 			_telemetrySink = telemetrySink;
-			_conformTaskSource = conformTaskSource;
 			_toolCollection = toolCollection;
 			_agentTelemetryCollection = agentTelemetryCollection;
 			_aclService = aclService;
+			_serviceProvider = serviceProvider;
 			_globalConfig = globalConfig;
 			_logger = logger;
 		}
@@ -163,42 +162,11 @@ namespace Horde.Server.Server
 			}
 		}
 
-		/// <summary>
-		/// Updates the workspaces synced for an agent
-		/// </summary>
-		/// <param name="request">The request parameters</param>
-		/// <param name="context">Context for the call</param>
-		/// <returns>Response object</returns>
-		public override async Task<RpcUpdateAgentWorkspacesResponse> UpdateAgentWorkspaces(RpcUpdateAgentWorkspacesRequest request, ServerCallContext context)
+		/// <inheritdoc/>
+		public override Task<RpcUpdateAgentWorkspacesResponse> UpdateAgentWorkspaces(RpcUpdateAgentWorkspacesRequest request, ServerCallContext context)
 		{
-			for (; ; )
-			{
-				// Get the current agent state
-				IAgent? agent = await _agentService.GetAgentAsync(new AgentId(request.AgentId));
-				if (agent == null)
-				{
-					throw new StructuredRpcException(StatusCode.OutOfRange, "Agent {AgentId} does not exist", request.AgentId);
-				}
-
-				// Get the new workspaces
-				List<AgentWorkspaceInfo> newWorkspaces = request.Workspaces.Select(x => new AgentWorkspaceInfo(x)).ToList();
-
-				// Get the set of workspaces that are currently required
-				HashSet<AgentWorkspaceInfo> conformWorkspaces = await _poolService.GetWorkspacesAsync(agent, DateTime.UtcNow, _globalConfig.Value, context.CancellationToken);
-				bool pendingConform = !conformWorkspaces.SetEquals(newWorkspaces) || (agent.RequestFullConform && !request.RemoveUntrackedFiles);
-
-				// Update the workspaces
-				if (await _agentService.TryUpdateWorkspacesAsync(agent, newWorkspaces, pendingConform, context.CancellationToken))
-				{
-					RpcUpdateAgentWorkspacesResponse response = new RpcUpdateAgentWorkspacesResponse();
-					if (pendingConform)
-					{
-						response.Retry = await _conformTaskSource.GetWorkspacesAsync(agent, response.PendingWorkspaces, context.CancellationToken);
-						response.RemoveUntrackedFiles = request.RemoveUntrackedFiles || agent.RequestFullConform;
-					}
-					return response;
-				}
-			}
+			JobRpcService jobRpcService = ActivatorUtilities.CreateInstance<JobRpcService>(_serviceProvider);
+			return jobRpcService.UpdateAgentWorkspaces(request, context);
 		}
 
 		static void CopyPropertyToResource(string name, List<string> properties, Dictionary<string, int> resources)

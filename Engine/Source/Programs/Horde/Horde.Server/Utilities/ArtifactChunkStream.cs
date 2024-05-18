@@ -5,7 +5,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
-using HordeCommon.Rpc;
+using Horde.Common.Rpc;
 
 namespace Horde.Server.Utilities
 {

@@ -4,7 +4,6 @@ using EpicGames.Horde;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using Horde.Common.Rpc;
-using HordeCommon.Rpc;
 using Microsoft.Extensions.Logging;
 
 namespace Horde.Agent.Driver.Utility

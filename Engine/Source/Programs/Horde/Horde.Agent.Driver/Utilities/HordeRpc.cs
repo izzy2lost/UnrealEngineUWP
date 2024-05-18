@@ -7,7 +7,7 @@ using EpicGames.Horde.Jobs;
 // Warnings below are disabled to avoid documenting every class touched.
 #pragma warning disable CS1591
 #pragma warning disable CA1716
-namespace HordeCommon.Rpc
+namespace Horde.Common.Rpc
 {
 	partial class RpcGetJobRequest
 	{
@@ -76,14 +76,6 @@ namespace HordeCommon.Rpc
 			Outcome = (int)outcome;
 			State = (int)state;
 			AbortRequested = abortRequested;
-		}
-	}
-
-	partial class RpcDownloadSoftwareRequest
-	{
-		public RpcDownloadSoftwareRequest(string version)
-		{
-			Version = version;
 		}
 	}
 }

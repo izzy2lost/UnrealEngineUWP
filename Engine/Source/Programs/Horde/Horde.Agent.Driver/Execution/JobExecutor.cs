@@ -19,7 +19,6 @@ using Horde.Agent.Driver.Parser;
 using Horde.Agent.Driver.Utility;
 using Horde.Common.Rpc;
 using HordeCommon;
-using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;

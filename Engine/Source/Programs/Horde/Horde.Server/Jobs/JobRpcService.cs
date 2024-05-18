@@ -13,6 +13,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde;
+using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Jobs;
@@ -21,6 +22,8 @@ using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Horde.Common.Rpc;
 using Horde.Server.Acls;
+using Horde.Server.Agents;
+using Horde.Server.Agents.Pools;
 using Horde.Server.Artifacts;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Jobs.Templates;
@@ -28,8 +31,8 @@ using Horde.Server.Jobs.TestData;
 using Horde.Server.Logs;
 using Horde.Server.Server;
 using Horde.Server.Streams;
+using Horde.Server.Tasks;
 using Horde.Server.Utilities;
-using HordeCommon.Rpc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -46,6 +49,9 @@ namespace Horde.Server.Jobs
 	{
 		readonly AclService _aclService;
 		readonly JobService _jobService;
+		readonly AgentService _agentService;
+		readonly PoolService _poolService;
+		readonly ConformTaskSource _conformTaskSource;
 		readonly IArtifactCollection _artifactCollection;
 		readonly IJobCollection _jobCollection;
 		readonly ILogCollection _logCollection;
@@ -61,10 +67,13 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public JobRpcService(AclService aclService, JobService jobService, IArtifactCollection artifactCollection, IJobCollection jobCollection, ILogCollection logCollection, IGraphCollection graphs, ITestDataCollection testData, IJobStepRefCollection jobStepRefCollection, ITemplateCollection templateCollection, HttpClient httpClient, IClock clock, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<JobRpcService> logger)
+		public JobRpcService(AclService aclService, JobService jobService, AgentService agentService, PoolService poolService, ConformTaskSource conformTaskSource, IArtifactCollection artifactCollection, IJobCollection jobCollection, ILogCollection logCollection, IGraphCollection graphs, ITestDataCollection testData, IJobStepRefCollection jobStepRefCollection, ITemplateCollection templateCollection, HttpClient httpClient, IClock clock, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<JobRpcService> logger)
 		{
 			_aclService = aclService;
 			_jobService = jobService;
+			_agentService = agentService;
+			_poolService = poolService;
+			_conformTaskSource = conformTaskSource;
 			_jobCollection = jobCollection;
 			_artifactCollection = artifactCollection;
 			_logCollection = logCollection;
@@ -76,6 +85,39 @@ namespace Horde.Server.Jobs
 			_clock = clock;
 			_globalConfig = globalConfig;
 			_logger = logger;
+		}
+
+		/// <inheritdoc/>
+		public override async Task<RpcUpdateAgentWorkspacesResponse> UpdateAgentWorkspaces(RpcUpdateAgentWorkspacesRequest request, ServerCallContext context)
+		{
+			for (; ; )
+			{
+				// Get the current agent state
+				IAgent? agent = await _agentService.GetAgentAsync(new AgentId(request.AgentId));
+				if (agent == null)
+				{
+					throw new StructuredRpcException(StatusCode.OutOfRange, "Agent {AgentId} does not exist", request.AgentId);
+				}
+
+				// Get the new workspaces
+				List<AgentWorkspaceInfo> newWorkspaces = request.Workspaces.Select(x => new AgentWorkspaceInfo(x)).ToList();
+
+				// Get the set of workspaces that are currently required
+				HashSet<AgentWorkspaceInfo> conformWorkspaces = await _poolService.GetWorkspacesAsync(agent, DateTime.UtcNow, _globalConfig.Value, context.CancellationToken);
+				bool pendingConform = !conformWorkspaces.SetEquals(newWorkspaces) || (agent.RequestFullConform && !request.RemoveUntrackedFiles);
+
+				// Update the workspaces
+				if (await _agentService.TryUpdateWorkspacesAsync(agent, newWorkspaces, pendingConform, context.CancellationToken))
+				{
+					RpcUpdateAgentWorkspacesResponse response = new RpcUpdateAgentWorkspacesResponse();
+					if (pendingConform)
+					{
+						response.Retry = await _conformTaskSource.GetWorkspacesAsync(agent, response.PendingWorkspaces, context.CancellationToken);
+						response.RemoveUntrackedFiles = request.RemoveUntrackedFiles || agent.RequestFullConform;
+					}
+					return response;
+				}
+			}
 		}
 
 		/// <summary>

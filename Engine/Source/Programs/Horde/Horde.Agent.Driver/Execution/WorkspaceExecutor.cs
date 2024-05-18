@@ -3,7 +3,7 @@
 using System.Text.RegularExpressions;
 using EpicGames.Core;
 using Horde.Agent.Driver.Utility;
-using HordeCommon.Rpc;
+using Horde.Common.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 using OpenTracing;
