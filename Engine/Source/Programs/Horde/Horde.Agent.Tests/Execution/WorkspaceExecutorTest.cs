@@ -53,8 +53,7 @@ public sealed class WorkspaceExecutorTest : IAsyncDisposable
 		_workspace.SetFile(1, "main.cpp", "main");
 		_workspace.SetFile(1, "foo/bar/baz.h", "baz");
 
-		RpcBeginBatchResponse batch = new RpcBeginBatchResponse { Change = 1 };
-		JobExecutorOptions executorOptions = new JobExecutorOptions(_session.HordeClient, _session.WorkingDir, null, _jobId, _batchId, batch, new RpcJobOptions());
+		JobExecutorOptions executorOptions = new JobExecutorOptions(_session.HordeClient, _session.WorkingDir, null, _jobId, _batchId, default, default, new RpcJobOptions());
 		_executor = new(executorOptions, _workspace, null, NullLogger.Instance);
 	}
 
@@ -70,7 +69,8 @@ public sealed class WorkspaceExecutorTest : IAsyncDisposable
 	[TestMethod]
 	public async Task RegularWorkspaceAsync()
 	{
-		await _executor.InitializeAsync(_logger, CancellationToken.None);
+		RpcBeginBatchResponse batch = new RpcBeginBatchResponse { Change = 1 };
+		await _executor.InitializeAsync(batch, _logger, CancellationToken.None);
 		AssertWorkspaceFile(_workspace, "main.cpp", "main");
 		AssertWorkspaceFile(_workspace, "foo/bar/baz.h", "baz");
 		await _executor.FinalizeAsync(_logger, CancellationToken.None);
@@ -79,11 +79,11 @@ public sealed class WorkspaceExecutorTest : IAsyncDisposable
 	[TestMethod]
 	public async Task RegularAndAutoSdkWorkspaceAsync()
 	{
-		RpcBeginBatchResponse batch = new RpcBeginBatchResponse { Change = 1 };
-		JobExecutorOptions executorOptions = new JobExecutorOptions(_session.HordeClient, _session.WorkingDir, Array.Empty<ProcessToTerminate>(), _jobId, _batchId, batch, new RpcJobOptions());
+		JobExecutorOptions executorOptions = new JobExecutorOptions(_session.HordeClient, _session.WorkingDir, Array.Empty<ProcessToTerminate>(), _jobId, _batchId, default, default, new RpcJobOptions());
 		using WorkspaceExecutor executor = new(executorOptions, _workspace, _autoSdkWorkspace, NullLogger.Instance);
 
-		await executor.InitializeAsync(_logger, CancellationToken.None);
+		RpcBeginBatchResponse batch = new RpcBeginBatchResponse { Change = 1 };
+		await executor.InitializeAsync(batch, _logger, CancellationToken.None);
 		AssertWorkspaceFile(_autoSdkWorkspace, "HostWin64/Android/base.h", "base");
 		AssertWorkspaceFile(_workspace, "main.cpp", "main");
 		AssertWorkspaceFile(_workspace, "foo/bar/baz.h", "baz");
@@ -93,10 +93,11 @@ public sealed class WorkspaceExecutorTest : IAsyncDisposable
 	[TestMethod]
 	public async Task EnvVarsAsync()
 	{
-		RpcBeginBatchResponse batch = new RpcBeginBatchResponse { Change = 1, StreamName = "//UE5/Main" };
-		JobExecutorOptions executorOptions = new JobExecutorOptions(_session.HordeClient, _session.WorkingDir, Array.Empty<ProcessToTerminate>(), _jobId, _batchId, batch, new RpcJobOptions());
+		JobExecutorOptions executorOptions = new JobExecutorOptions(_session.HordeClient, _session.WorkingDir, Array.Empty<ProcessToTerminate>(), _jobId, _batchId, default, default, new RpcJobOptions());
 		using WorkspaceExecutor executor = new(executorOptions, _workspace, _autoSdkWorkspace, NullLogger.Instance);
-		await executor.InitializeAsync(_logger, CancellationToken.None);
+
+		RpcBeginBatchResponse batch = new RpcBeginBatchResponse { Change = 1, StreamName = "//UE5/Main" };
+		await executor.InitializeAsync(batch, _logger, CancellationToken.None);
 
 		WorkspaceMaterializerSettings settings = await _workspace.GetSettingsAsync(CancellationToken.None);
 		WorkspaceMaterializerSettings autoSdkSettings = await _autoSdkWorkspace.GetSettingsAsync(CancellationToken.None);
@@ -120,11 +121,11 @@ public sealed class WorkspaceExecutorTest : IAsyncDisposable
 		_server.AddJob(preflightJobId, _streamId, 1, 1000);
 		_workspace.SetFile(1000, "New/Feature/Foo.cs", "foo");
 
-		RpcBeginBatchResponse batch = new RpcBeginBatchResponse { Change = 1, PreflightChange = 1000 };
-		JobExecutorOptions executorOptions = new JobExecutorOptions(_session.HordeClient, _session.WorkingDir, Array.Empty<ProcessToTerminate>(), preflightJobId, _batchId, batch, new RpcJobOptions());
+		JobExecutorOptions executorOptions = new JobExecutorOptions(_session.HordeClient, _session.WorkingDir, Array.Empty<ProcessToTerminate>(), preflightJobId, _batchId, default, default, new RpcJobOptions());
 		using WorkspaceExecutor executor = new(executorOptions, _workspace, null, NullLogger.Instance);
 
-		await executor.InitializeAsync(_logger, CancellationToken.None);
+		RpcBeginBatchResponse batch = new RpcBeginBatchResponse { Change = 1, PreflightChange = 1000 };
+		await executor.InitializeAsync(batch, _logger, CancellationToken.None);
 		AssertWorkspaceFile(_workspace, "main.cpp", "main");
 		AssertWorkspaceFile(_workspace, "foo/bar/baz.h", "baz");
 		AssertWorkspaceFile(_workspace, "New/Feature/Foo.cs", "foo");
@@ -137,10 +138,12 @@ public sealed class WorkspaceExecutorTest : IAsyncDisposable
 		JobId noChangeJobId = JobId.Parse("65bd0655591b5d5d7d047b5a");
 
 		_server.AddJob(noChangeJobId, _streamId, 0, 0);
-		RpcBeginBatchResponse batch = new RpcBeginBatchResponse { };
-		JobExecutorOptions executorOptions = new JobExecutorOptions(_session.HordeClient, _session.WorkingDir, Array.Empty<ProcessToTerminate>(), noChangeJobId, _batchId, batch, new RpcJobOptions());
+
+		JobExecutorOptions executorOptions = new JobExecutorOptions(_session.HordeClient, _session.WorkingDir, Array.Empty<ProcessToTerminate>(), noChangeJobId, _batchId, default, default, new RpcJobOptions());
 		using WorkspaceExecutor executor = new(executorOptions, _workspace, null, NullLogger.Instance);
-		await Assert.ThrowsExceptionAsync<WorkspaceMaterializationException>(() => executor.InitializeAsync(_logger, CancellationToken.None));
+
+		RpcBeginBatchResponse batch = new RpcBeginBatchResponse { };
+		await Assert.ThrowsExceptionAsync<WorkspaceMaterializationException>(() => executor.InitializeAsync(batch, _logger, CancellationToken.None));
 	}
 
 	private static void AssertWorkspaceFile(IWorkspaceMaterializer workspace, string relativePath, string expectedContent)

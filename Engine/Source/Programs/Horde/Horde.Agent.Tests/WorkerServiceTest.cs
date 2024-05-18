@@ -63,7 +63,7 @@ namespace Horde.Agent.Tests
 			public Task StopAsync() => Task.CompletedTask;
 		}
 
-		internal static IJobExecutor NullExecutor = new SimpleTestExecutor(async (step, logger, cancellationToken) =>
+		internal static JobExecutor NullExecutor = new SimpleTestExecutor(async (step, logger, cancellationToken) =>
 		{
 			await Task.Delay(1, cancellationToken);
 			return JobStepOutcome.Success;
@@ -112,14 +112,14 @@ namespace Horde.Agent.Tests
 				using CancellationTokenSource cancelSource = new CancellationTokenSource();
 				using CancellationTokenSource stepCancelSource = new CancellationTokenSource();
 
-				using IJobExecutor executor = new SimpleTestExecutor(async (stepResponse, logger, cancelToken) =>
+				using JobExecutor executor = new SimpleTestExecutor(async (stepResponse, logger, cancelToken) =>
 				{
 					cancelSource.CancelAfter(10);
 					await Task.Delay(5000, cancelToken);
 					return JobStepOutcome.Success;
 				});
 
-				await Assert.ThrowsExceptionAsync<TaskCanceledException>(() => JobHandler.ExecuteStepAsync(executor,
+				await Assert.ThrowsExceptionAsync<TaskCanceledException>(() => executor.ExecuteStepAsync(
 					null!, NullLogger.Instance, cancelSource.Token, stepCancelSource.Token));
 			}
 
@@ -127,13 +127,13 @@ namespace Horde.Agent.Tests
 				using CancellationTokenSource cancelSource = new CancellationTokenSource();
 				using CancellationTokenSource stepCancelSource = new CancellationTokenSource();
 
-				using IJobExecutor executor = new SimpleTestExecutor(async (stepResponse, logger, cancelToken) =>
+				using JobExecutor executor = new SimpleTestExecutor(async (stepResponse, logger, cancelToken) =>
 				{
 					stepCancelSource.CancelAfter(10);
 					await Task.Delay(5000, cancelToken);
 					return JobStepOutcome.Success;
 				});
-				(JobStepOutcome stepOutcome, JobStepState stepState) = await JobHandler.ExecuteStepAsync(executor, null!, NullLogger.Instance,
+				(JobStepOutcome stepOutcome, JobStepState stepState) = await executor.ExecuteStepAsync(null!, NullLogger.Instance,
 					cancelSource.Token, stepCancelSource.Token);
 				Assert.AreEqual(JobStepOutcome.Failure, stepOutcome);
 				Assert.AreEqual(JobStepState.Aborted, stepState);
@@ -178,13 +178,10 @@ namespace Horde.Agent.Tests
 			_serviceCollection.AddSingleton<IJobExecutorFactory>(x => new SimpleTestExecutorFactory(executor));
 			await using ServiceProvider serviceProvider = _serviceCollection.BuildServiceProvider();
 
-			JobHandler jobHandler = serviceProvider.GetRequiredService<JobHandler>();
-			jobHandler._stepAbortPollInterval = TimeSpan.FromMilliseconds(1);
+			executor._stepAbortPollInterval = TimeSpan.FromMilliseconds(1);
 
-			LeaseResult result = await jobHandler.ExecuteAsync(session, new LeaseId(default), executeJobTask, NullLogger.Instance, token);
-			LeaseOutcome outcome = result.Outcome;
+			await executor.ExecuteAsync(NullLogger.Instance, token);
 
-			Assert.AreEqual(LeaseOutcome.Success, outcome);
 			Assert.AreEqual(3, client.UpdateStepRequests.Count);
 			Assert.AreEqual(JobStepOutcome.Success, (JobStepOutcome)client.UpdateStepRequests[0].Outcome);
 			Assert.AreEqual(JobStepState.Completed, (JobStepState)client.UpdateStepRequests[0].State);
@@ -198,7 +195,7 @@ namespace Horde.Agent.Tests
 		[TestMethod]
 		public async Task PollForStepAbortFailureTestAsync()
 		{
-			using IJobExecutor executor = new SimpleTestExecutor(async (step, logger, cancelToken) =>
+			using JobExecutor executor = new SimpleTestExecutor(async (step, logger, cancelToken) =>
 			{
 				await Task.Delay(50, cancelToken);
 				return JobStepOutcome.Success;
@@ -208,7 +205,7 @@ namespace Horde.Agent.Tests
 			await using ServiceProvider serviceProvider = _serviceCollection.BuildServiceProvider();
 
 			JobHandler jobHandler = serviceProvider.GetRequiredService<JobHandler>();
-			jobHandler._stepAbortPollInterval = TimeSpan.FromMilliseconds(5);
+			executor._stepAbortPollInterval = TimeSpan.FromMilliseconds(5);
 
 			JobRpcClientStub client = new JobRpcClientStub(NullLogger.Instance);
 
@@ -228,7 +225,7 @@ namespace Horde.Agent.Tests
 			using CancellationTokenSource stepCancelSource = new CancellationTokenSource();
 			TaskCompletionSource<bool> stepFinishedSource = new TaskCompletionSource<bool>();
 
-			await jobHandler.PollForStepAbortAsync(null!, _jobId, _batchId, _stepId2, stepCancelSource, stepFinishedSource.Task, NullLogger.Instance, stepPollCancelSource.Token);
+			await executor.PollForStepAbortAsync(null!, _jobId, _batchId, _stepId2, stepCancelSource, stepFinishedSource.Task, NullLogger.Instance, stepPollCancelSource.Token);
 			Assert.IsTrue(stepCancelSource.IsCancellationRequested);
 		}
 
@@ -236,7 +233,7 @@ namespace Horde.Agent.Tests
 		[Ignore("Does not work with new pure gRPC channel-based UpdateSession")]
 		public async Task ShutdownAsync()
 		{
-			using IJobExecutor executor = new SimpleTestExecutor(async (step, logger, cancellationToken) =>
+			using JobExecutor executor = new SimpleTestExecutor(async (step, logger, cancellationToken) =>
 			{
 				await Task.Delay(50, cancellationToken);
 				return JobStepOutcome.Success;

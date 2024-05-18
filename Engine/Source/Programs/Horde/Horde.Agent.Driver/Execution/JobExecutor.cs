@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde;
+using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
@@ -15,6 +16,7 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
 using Grpc.Core;
 using Horde.Agent.Driver;
+using Horde.Agent.Driver.Utility;
 using Horde.Agent.Parser;
 //using Horde.Agent.Services;
 using Horde.Agent.Utility;
@@ -51,13 +53,6 @@ namespace Horde.Agent.Execution
 		}
 	}
 
-	interface IJobExecutor : IDisposable
-	{
-		Task InitializeAsync(ILogger logger, CancellationToken cancellationToken);
-		Task<JobStepOutcome> RunAsync(JobStepInfo step, ILogger logger, CancellationToken cancellationToken);
-		Task FinalizeAsync(ILogger logger, CancellationToken cancellationToken);
-	}
-
 	class JobExecutorOptions
 	{
 		public IHordeClient HordeClient { get; }
@@ -65,22 +60,24 @@ namespace Horde.Agent.Execution
 		public IReadOnlyList<ProcessToTerminate>? ProcessesToTerminate { get; }
 		public JobId JobId { get; }
 		public JobStepBatchId BatchId { get; }
-		public RpcBeginBatchResponse Batch { get; }
+		public LeaseId LeaseId { get; }
+		public LogId LogId { get; }
 		public RpcJobOptions JobOptions { get; }
 
-		public JobExecutorOptions(IHordeClient hordeClient, DirectoryReference workingDir, IReadOnlyList<ProcessToTerminate>? processesToTerminate, JobId jobId, JobStepBatchId batchId, RpcBeginBatchResponse batch, RpcJobOptions jobOptions)
+		public JobExecutorOptions(IHordeClient hordeClient, DirectoryReference workingDir, IReadOnlyList<ProcessToTerminate>? processesToTerminate, JobId jobId, JobStepBatchId batchId, LeaseId leaseId, LogId logId, RpcJobOptions jobOptions)
 		{
 			HordeClient = hordeClient;
 			WorkingDir = workingDir;
 			ProcessesToTerminate = processesToTerminate;
 			JobId = jobId;
 			BatchId = batchId;
-			Batch = batch;
+			LeaseId = leaseId;
+			LogId = logId;
 			JobOptions = jobOptions;
 		}
 	}
 
-	abstract class JobExecutor : IJobExecutor
+	abstract class JobExecutor : IDisposable
 	{
 		protected class ExportedNode
 		{
@@ -220,31 +217,51 @@ namespace Horde.Agent.Execution
 		/// </summary>
 		protected ILogger Logger { get; }
 
+		protected IHordeClient HordeClient { get; }
+		protected DirectoryReference WorkingDir { get; }
 		protected JobId JobId { get; }
 		protected JobStepBatchId BatchId { get; }
-		protected RpcBeginBatchResponse Batch { get; }
+		protected LeaseId LeaseId { get; }
+		protected IReadOnlyList<ProcessToTerminate>? ProcessesToTerminate { get; }
+
+		protected RpcBeginBatchResponse Batch { get; private set; }
+		private LogId _logId;
 
 		protected List<string> _additionalArguments = new List<string>();
 		protected bool _allowTargetChanges;
 
 		protected bool _compileAutomationTool = true;
 
-		protected JobExecutorOptions Options { get; }
 		protected RpcJobOptions JobOptions { get; }
 
-		protected IHordeClient HordeClient => Options.HordeClient;
+
 		protected JobRpc.JobRpcClient JobRpc { get; private set; }
 		protected Dictionary<string, string> _remapAgentTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
 		protected Dictionary<string, string> _envVars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+		/// <summary>
+		/// How often to poll the server checking if a step has been aborted
+		/// Exposed as internal to ease testing.
+		/// </summary>
+		internal TimeSpan _stepAbortPollInterval = TimeSpan.FromSeconds(5);
+
+		/// <summary>
+		/// How long to wait before retrying a failed step abort check request
+		/// </summary>
+		internal TimeSpan _stepAbortPollRetryDelay = TimeSpan.FromSeconds(30);
+
 		protected JobExecutor(JobExecutorOptions options, ILogger logger)
 		{
-			Options = options;
-
+			HordeClient = options.HordeClient;
+			WorkingDir = options.WorkingDir;
 			JobId = options.JobId;
 			BatchId = options.BatchId;
-			Batch = options.Batch;
+			LeaseId = options.LeaseId;
+			_logId = options.LogId;
+			ProcessesToTerminate = options.ProcessesToTerminate;
+
+			Batch = null!; // Set in InitializeAsync()
 
 			JobOptions = options.JobOptions;
 			JobRpc = null!; // Set in InitializeAsync()
@@ -263,8 +280,300 @@ namespace Horde.Agent.Execution
 		{
 		}
 
-		public virtual async Task InitializeAsync(ILogger logger, CancellationToken cancellationToken)
+		public async Task ExecuteAsync(ILogger localLogger, CancellationToken cancellationToken)
 		{
+			JobRpc.JobRpcClient jobRpc = await HordeClient.CreateGrpcClientAsync<JobRpc.JobRpcClient>(cancellationToken);
+
+			// Create a storage client for this session
+			await using IServerLogger logger = HordeClient.CreateServerLogger(_logId).WithLocalLogger(localLogger);
+			logger.LogInformation("Executing jobId {JobId}, batchId {BatchId}, leaseId {LeaseId} with executor {Name}", JobId, BatchId, LeaseId, JobOptions.Executor);
+
+			// Start executing the current batch
+			RpcBeginBatchResponse batch = await jobRpc.BeginBatchAsync(new RpcBeginBatchRequest(JobId, BatchId, LeaseId), cancellationToken: cancellationToken);
+			try
+			{
+				await ExecuteBatchAsync(batch, logger, localLogger, cancellationToken);
+			}
+			catch (Exception ex)
+			{
+				if (cancellationToken.IsCancellationRequested && IsCancellationException(ex))
+				{
+					if (!HordeClient.HasValidAccessToken())
+					{
+						logger.LogError(ex, "Connection to the server was lost; step aborted.");
+					}
+					else
+					{
+						logger.LogInformation(ex, "Step was aborted");
+					}
+					throw;
+				}
+				else
+				{
+					logger.LogError(ex, "Exception while executing lease {LeaseId}: {Ex}", LeaseId, ex.Message);
+				}
+			}
+
+			// If this lease was cancelled, don't bother updating the job state.
+			cancellationToken.ThrowIfCancellationRequested();
+
+			// Mark the batch as complete
+			await jobRpc.FinishBatchAsync(new RpcFinishBatchRequest(JobId, BatchId, LeaseId), cancellationToken: cancellationToken);
+			logger.LogInformation("Done.");
+		}
+
+		/// <summary>
+		/// Executes a batch
+		/// </summary>
+		async Task ExecuteBatchAsync(RpcBeginBatchResponse batch, ILogger logger, ILogger localLogger, CancellationToken cancellationToken)
+		{
+			JobRpc.JobRpcClient rpcClient = await HordeClient.CreateGrpcClientAsync<JobRpc.JobRpcClient>(cancellationToken);
+
+			await TerminateProcessHelper.TerminateProcessesAsync(TerminateCondition.BeforeBatch, WorkingDir, ProcessesToTerminate, logger, cancellationToken);
+
+			// Try to initialize the executor
+			logger.LogInformation("Initializing executor...");
+			using (logger.BeginIndentScope("  "))
+			{
+				using IScope scope = GlobalTracer.Instance.BuildSpan("Initialize").StartActive();
+				await InitializeAsync(batch, logger, cancellationToken);
+			}
+
+			try
+			{
+				// Execute the steps
+				logger.LogInformation("Executing steps...");
+				for (; ; )
+				{
+					// Get the next step to execute
+					RpcBeginStepResponse stepResponse = await rpcClient.BeginStepAsync(new RpcBeginStepRequest(JobId, BatchId, LeaseId), cancellationToken: cancellationToken);
+					if (stepResponse.State == RpcBeginStepResponse.Types.Result.Waiting)
+					{
+						logger.LogInformation("Waiting for dependency to be ready");
+						await Task.Delay(TimeSpan.FromSeconds(20.0), cancellationToken);
+						continue;
+					}
+					else if (stepResponse.State == RpcBeginStepResponse.Types.Result.Complete)
+					{
+						logger.LogInformation("No more steps to execute; finalizing lease.");
+						break;
+					}
+					else if (stepResponse.State != RpcBeginStepResponse.Types.Result.Ready)
+					{
+						logger.LogError("Unexpected step state: {StepState}", stepResponse.State);
+						break;
+					}
+
+					JobStepInfo step = new JobStepInfo(stepResponse);
+
+					// Get current disk space available. This will allow us to more easily spot steps that eat up a lot of disk space.
+					string? driveName;
+					if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+					{
+						driveName = Path.GetPathRoot(WorkingDir.FullName);
+					}
+					else
+					{
+						driveName = WorkingDir.FullName;
+					}
+
+					float availableFreeSpace = 0;
+					if (driveName != null)
+					{
+						try
+						{
+							DriveInfo info = new DriveInfo(driveName);
+							availableFreeSpace = (1.0f * info.AvailableFreeSpace) / 1024 / 1024 / 1024;
+						}
+						catch (Exception ex)
+						{
+							logger.LogWarning(ex, "Unable to query disk info for path '{DriveName}'", driveName);
+						}
+					}
+
+					// Print the new state
+					Stopwatch stepTimer = Stopwatch.StartNew();
+
+					logger.LogInformation("Starting job {JobId}, batch {BatchId}, step {StepId} (Drive Space Left: {DriveSpaceRemaining} GB)", JobId, BatchId, step.StepId, availableFreeSpace.ToString("F1"));
+
+					// Create a trace span
+					using IScope scope = GlobalTracer.Instance.BuildSpan("Execute").WithTag("resource.name", step.Name).StartActive();
+					scope.Span.SetTag("stepId", step.StepId.ToString());
+					scope.Span.SetTag("logId", step.LogId.ToString());
+					//				using IDisposable TraceProperty = LogContext.PushProperty("dd.trace_id", CorrelationIdentifier.TraceId.ToString());
+					//				using IDisposable SpanProperty = LogContext.PushProperty("dd.span_id", CorrelationIdentifier.SpanId.ToString());
+
+					// Update the context to include information about this step
+					JobStepOutcome stepOutcome;
+					JobStepState stepState;
+					using (logger.BeginIndentScope("  "))
+					{
+						// Start writing to the log file
+#pragma warning disable CA2000 // Dispose objects before losing scope
+						await using (JobStepLogger stepLogger = new JobStepLogger(HordeClient, step.LogId, localLogger, JobId, BatchId, step.StepId, step.Warnings, LogLevel.Debug, logger))
+						{
+							// Execute the task
+							using CancellationTokenSource stepPollCancelSource = new CancellationTokenSource();
+							using CancellationTokenSource stepAbortSource = new CancellationTokenSource();
+							TaskCompletionSource<bool> stepFinishedSource = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+							Task stepPollTask = Task.Run(() => PollForStepAbortAsync(rpcClient, JobId, BatchId, step.StepId, stepAbortSource, stepFinishedSource.Task, logger, stepPollCancelSource.Token), cancellationToken);
+
+							try
+							{
+								ILogger forwardingLogger = new DefaultLoggerIndentHandler(stepLogger);
+								(stepOutcome, stepState) = await ExecuteStepAsync(step, forwardingLogger, cancellationToken, stepAbortSource.Token);
+							}
+							finally
+							{
+								// Will get called even when cancellation token for the lease/batch fires
+								stepFinishedSource.SetResult(true); // Tell background poll task to stop
+								await stepPollTask;
+							}
+
+							// Kill any processes spawned by the step
+							await TerminateProcessHelper.TerminateProcessesAsync(TerminateCondition.AfterStep, WorkingDir, ProcessesToTerminate, logger, cancellationToken);
+
+							// Wait for the logger to finish
+							await stepLogger.StopAsync();
+
+							// Reflect the warnings/errors in the step outcome
+							if (stepOutcome > stepLogger.Outcome)
+							{
+								stepOutcome = stepLogger.Outcome;
+							}
+						}
+#pragma warning restore CA2000 // Dispose objects before losing scope
+
+						// Update the server with the outcome from the step
+						logger.LogInformation("Marking step as complete (Outcome={Outcome}, State={StepState})", stepOutcome, stepState);
+						await rpcClient.UpdateStepAsync(new RpcUpdateStepRequest(JobId, BatchId, step.StepId, stepState, stepOutcome), cancellationToken: cancellationToken);
+					}
+
+					// Print the finishing state
+					stepTimer.Stop();
+					logger.LogInformation("Completed in {Time}", stepTimer.Elapsed);
+				}
+			}
+			catch (Exception ex)
+			{
+				if (cancellationToken.IsCancellationRequested && IsCancellationException(ex))
+				{
+					if (!HordeClient.HasValidAccessToken())
+					{
+						logger.LogError(ex, "Exception while executing batch: {Ex}", ex);
+					}
+					else
+					{
+						logger.LogError("Lease was aborted");
+					}
+				}
+			}
+
+			// Terminate any processes which are still running
+			try
+			{
+				await TerminateProcessHelper.TerminateProcessesAsync(TerminateCondition.AfterBatch, WorkingDir, ProcessesToTerminate, logger, CancellationToken.None);
+			}
+			catch (Exception ex)
+			{
+				logger.LogWarning(ex, "Exception while terminating processes: {Message}", ex.Message);
+			}
+
+			// Clean the environment
+			logger.LogInformation("Finalizing...");
+			using (logger.BeginIndentScope("  "))
+			{
+				using IScope scope = GlobalTracer.Instance.BuildSpan("Finalize").StartActive();
+				await FinalizeAsync(logger, CancellationToken.None);
+			}
+		}
+
+		/// <summary>
+		/// Executes a step
+		/// </summary>
+		/// <param name="step">Step to execute</param>
+		/// <param name="stepLogger">Logger for the step</param>
+		/// <param name="cancellationToken">Cancellation token to abort the batch</param>
+		/// <param name="stepCancellationToken">Cancellation token to abort only this individual step</param>
+		/// <returns>Async task</returns>
+		internal async Task<(JobStepOutcome, JobStepState)> ExecuteStepAsync(JobStepInfo step, ILogger stepLogger, CancellationToken cancellationToken, CancellationToken stepCancellationToken)
+		{
+			using CancellationTokenSource combined = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, stepCancellationToken);
+			try
+			{
+				JobStepOutcome stepOutcome = await RunAsync(step, stepLogger, combined.Token);
+				return (stepOutcome, JobStepState.Completed);
+			}
+			catch (Exception ex)
+			{
+				if (cancellationToken.IsCancellationRequested && IsCancellationException(ex))
+				{
+					stepLogger.LogError("The step was cancelled by batch/lease");
+					throw;
+				}
+
+				if (stepCancellationToken.IsCancellationRequested && IsCancellationException(ex))
+				{
+					stepLogger.LogError("The step was intentionally cancelled");
+					return (JobStepOutcome.Failure, JobStepState.Aborted);
+				}
+
+				stepLogger.LogError(ex, "Exception while executing step: {Ex}", ex);
+				return (JobStepOutcome.Failure, JobStepState.Completed);
+			}
+		}
+
+		/// <summary>
+		/// Determine if the given exception was triggered due to a cancellation event
+		/// </summary>
+		/// <param name="ex">The exception to check</param>
+		/// <returns>True if the exception is a cancellation exception</returns>
+		static bool IsCancellationException(Exception ex)
+		{
+			if (ex is OperationCanceledException)
+			{
+				return true;
+			}
+
+			RpcException? rpcException = ex as RpcException;
+			if (rpcException != null && rpcException.StatusCode == StatusCode.Cancelled)
+			{
+				return true;
+			}
+
+			return false;
+		}
+
+		internal async Task PollForStepAbortAsync(JobRpc.JobRpcClient rpcClient, JobId jobId, JobStepBatchId batchId, JobStepId stepId, CancellationTokenSource stepCancelSource, Task finishedTask, ILogger leaseLogger, CancellationToken cancellationToken)
+		{
+			while (!finishedTask.IsCompleted)
+			{
+				TimeSpan waitTime = _stepAbortPollInterval;
+				try
+				{
+					RpcGetStepResponse res = await rpcClient.GetStepAsync(new RpcGetStepRequest(jobId, batchId, stepId), cancellationToken: cancellationToken);
+					if (res.AbortRequested)
+					{
+						leaseLogger.LogDebug("Step was aborted by server (JobId={JobId} BatchId={BatchId} StepId={StepId})", jobId, batchId, stepId);
+						stepCancelSource.Cancel();
+						break;
+					}
+				}
+				catch (RpcException ex)
+				{
+					// Don't let a single RPC failure abort the running step as there can be intermittent errors on the server
+					// For example temporary downtime or overload
+					leaseLogger.LogError(ex, "Poll for step abort failed (JobId={JobId} BatchId={BatchId} StepId={StepId}). Retrying...", jobId, batchId, stepId);
+					waitTime = _stepAbortPollRetryDelay;
+				}
+
+				await Task.WhenAny(Task.Delay(waitTime, cancellationToken), finishedTask);
+			}
+		}
+
+		public virtual async Task InitializeAsync(RpcBeginBatchResponse batch, ILogger logger, CancellationToken cancellationToken)
+		{
+			Batch = batch;
 			JobRpc = await HordeClient.CreateGrpcClientAsync<JobRpc.JobRpcClient>(cancellationToken);
 
 			_envVars[HordeHttpClient.HordeUrlEnvVarName] = HordeClient.ServerUrl.ToString();
@@ -1271,7 +1580,7 @@ namespace Horde.Agent.Execution
 		{
 			try
 			{
-				await TerminateProcessHelper.TerminateProcessesAsync(condition, Options.WorkingDir, Options.ProcessesToTerminate, logger, CancellationToken.None);
+				await TerminateProcessHelper.TerminateProcessesAsync(condition, WorkingDir, ProcessesToTerminate, logger, CancellationToken.None);
 			}
 			catch (Exception ex)
 			{
@@ -1499,7 +1808,7 @@ namespace Horde.Agent.Execution
 			newEnvVars["UE_HORDE_LEASE_CLEANUP"] = leaseCleanupScript.FullName;
 
 			// Set up the shared working dir
-			newEnvVars["UE_HORDE_SHARED_DIR"] = DirectoryReference.Combine(Options.WorkingDir, "Saved").FullName;
+			newEnvVars["UE_HORDE_SHARED_DIR"] = DirectoryReference.Combine(WorkingDir, "Saved").FullName;
 
 			// Disable the S3DDC. This is technically a Fortnite-specific setting, but affects a large number of branches and is hard to retrofit. 
 			// Setting here for now, since it's likely to be temporary.
@@ -1893,6 +2202,6 @@ namespace Horde.Agent.Execution
 	{
 		string Name { get; }
 
-		IJobExecutor CreateExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options);
+		JobExecutor CreateExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options);
 	}
 }

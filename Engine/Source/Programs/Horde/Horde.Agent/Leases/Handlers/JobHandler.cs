@@ -3,6 +3,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using Amazon.SimpleSystemsManagement.Model.Internal.MarshallTransformations;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Agents.Leases;
@@ -26,21 +27,8 @@ using OpenTracing.Util;
 
 namespace Horde.Agent.Leases.Handlers
 {
-	record class JobTaskInfo(string JobName, JobId JobId, JobStepBatchId BatchId, RpcJobOptions JobOptions, string Token, LogId LogId, RpcAgentWorkspace Workspace, RpcAgentWorkspace? AutoSdkWorkspace);
-
 	class JobHandler : LeaseHandler<ExecuteJobTask>
 	{
-		/// <summary>
-		/// How often to poll the server checking if a step has been aborted
-		/// Exposed as internal to ease testing.
-		/// </summary>
-		internal TimeSpan _stepAbortPollInterval = TimeSpan.FromSeconds(5);
-
-		/// <summary>
-		/// How long to wait before retrying a failed step abort check request
-		/// </summary>
-		internal TimeSpan _stepAbortPollRetryDelay = TimeSpan.FromSeconds(30);
-
 		/// <summary>
 		/// Current lease ID being executed
 		/// </summary>
@@ -148,307 +136,28 @@ namespace Horde.Agent.Leases.Handlers
 
 		internal async Task<LeaseResult> ExecuteInternalAsync(IHordeClient hordeClient, DirectoryReference workingDir, LeaseId leaseId, ExecuteJobTask executeTask, ILogger localLogger, CancellationToken cancellationToken)
 		{
-			JobTaskInfo jobTaskInfo = new JobTaskInfo(executeTask.JobName, JobId.Parse(executeTask.JobId), JobStepBatchId.Parse(executeTask.BatchId), executeTask.JobOptions, executeTask.Token, LogId.Parse(executeTask.LogId), executeTask.Workspace, executeTask.AutoSdkWorkspace);
-			return await ExecuteInternalAsync(hordeClient, workingDir, leaseId, jobTaskInfo, localLogger, cancellationToken);
-		}
+			// Create an executor for this job
+			string executorName = String.IsNullOrEmpty(executeTask.JobOptions.Executor) ? _driverSettings.Executor : executeTask.JobOptions.Executor;
 
-		internal async Task<LeaseResult> ExecuteInternalAsync(IHordeClient hordeClient, DirectoryReference workingDir, LeaseId leaseId, JobTaskInfo executeTask, ILogger localLogger, CancellationToken cancellationToken)
-		{
-			JobRpc.JobRpcClient jobRpc = await hordeClient.CreateGrpcClientAsync<JobRpc.JobRpcClient>(cancellationToken);
-
-			// Create a storage client for this session
-			RpcJobOptions jobOptions = executeTask.JobOptions;
-			await using IServerLogger logger = hordeClient.CreateServerLogger(executeTask.LogId).WithLocalLogger(localLogger);
-
-			logger.LogInformation("Executing job \"{JobName}\", jobId {JobId}, batchId {BatchId}, leaseId {LeaseId}, agentVersion {AgentVersion}", executeTask.JobName, executeTask.JobId, executeTask.BatchId, leaseId, AgentApp.Version);
+			IJobExecutorFactory? executorFactory = _executorFactories.FirstOrDefault(x => x.Name.Equals(executorName, StringComparison.OrdinalIgnoreCase));
+			if (executorFactory == null)
+			{
+				throw new InvalidOperationException($"Unable to find executor '{executorName}'");
+			}
 
 			GlobalTracer.Instance.ActiveSpan?.SetTag("jobId", executeTask.JobId.ToString());
 			GlobalTracer.Instance.ActiveSpan?.SetTag("jobName", executeTask.JobName.ToString());
 			GlobalTracer.Instance.ActiveSpan?.SetTag("batchId", executeTask.BatchId.ToString());
 
-			logger.LogInformation("Executor: {Name}", jobOptions.Executor);
+			JobId jobId = JobId.Parse(executeTask.JobId);
+			JobStepBatchId batchId = JobStepBatchId.Parse(executeTask.BatchId);
+			LogId logId = LogId.Parse(executeTask.LogId);
 
-			// Start executing the current batch
-			RpcBeginBatchResponse batch = await jobRpc.BeginBatchAsync(new RpcBeginBatchRequest(executeTask.JobId, executeTask.BatchId, leaseId), cancellationToken: cancellationToken);
-			try
-			{
-				JobExecutorOptions options = new JobExecutorOptions(hordeClient, workingDir, _driverSettings.ProcessesToTerminate, executeTask.JobId, executeTask.BatchId, batch, jobOptions);
-				await ExecuteBatchAsync(hordeClient, workingDir, leaseId, executeTask.Workspace, executeTask.AutoSdkWorkspace, options, logger, localLogger, cancellationToken);
-			}
-			catch (Exception ex)
-			{
-				if (cancellationToken.IsCancellationRequested && ex.IsCancellationException())
-				{
-					if (!hordeClient.HasValidAccessToken())
-					{
-						logger.LogError(ex, "Connection to the server was lost; step aborted.");
-					}
-					else
-					{
-						logger.LogInformation(ex, "Step was aborted");
-					}
-					throw;
-				}
-				else
-				{
-					logger.LogError(ex, "Exception while executing lease {LeaseId}: {Ex}", leaseId, ex.Message);
-				}
-			}
+			JobExecutorOptions options = new JobExecutorOptions(hordeClient, workingDir, _driverSettings.ProcessesToTerminate, jobId, batchId, leaseId, logId, executeTask.JobOptions);
+			using JobExecutor executor = executorFactory.CreateExecutor(executeTask.Workspace, executeTask.AutoSdkWorkspace, options);
 
-			// If this lease was cancelled, don't bother updating the job state.
-			if (cancellationToken.IsCancellationRequested)
-			{
-				logger.LogInformation("Lease was cancelled.");
-				return LeaseResult.Cancelled;
-			}
-
-			// Mark the batch as complete
-			await jobRpc.FinishBatchAsync(new RpcFinishBatchRequest(executeTask.JobId, executeTask.BatchId, leaseId), cancellationToken: cancellationToken);
-			logger.LogInformation("Done.");
-
+			await executor.ExecuteAsync(localLogger, cancellationToken);
 			return LeaseResult.Success;
-		}
-
-		/// <summary>
-		/// Executes a batch
-		/// </summary>
-		async Task ExecuteBatchAsync(IHordeClient hordeClient, DirectoryReference workingDir, LeaseId leaseId, RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options, ILogger logger, ILogger localLogger, CancellationToken cancellationToken)
-		{
-			JobRpc.JobRpcClient rpcClient = await hordeClient.CreateGrpcClientAsync<JobRpc.JobRpcClient>(cancellationToken);
-
-			// Create an executor for this job
-			string executorName = String.IsNullOrEmpty(options.JobOptions.Executor) ? _driverSettings.Executor : options.JobOptions.Executor;
-
-			logger.LogInformation("Executing batch {BatchId} using {Executor} executor", options.BatchId, executorName);
-			await TerminateProcessHelper.TerminateProcessesAsync(TerminateCondition.BeforeBatch, workingDir, _driverSettings.ProcessesToTerminate, logger, cancellationToken);
-
-			IJobExecutorFactory? executorFactory = _executorFactories.FirstOrDefault(x => x.Name.Equals(executorName, StringComparison.OrdinalIgnoreCase));
-			if (executorFactory == null)
-			{
-				logger.LogError("Unable to find executor '{ExecutorName}'", executorName);
-				return;
-			}
-
-			using IJobExecutor executor = executorFactory.CreateExecutor(workspaceInfo, autoSdkWorkspaceInfo, options);
-
-			// Try to initialize the executor
-			logger.LogInformation("Initializing executor...");
-			using (logger.BeginIndentScope("  "))
-			{
-				using IScope scope = GlobalTracer.Instance.BuildSpan("Initialize").StartActive();
-				await executor.InitializeAsync(logger, cancellationToken);
-			}
-
-			try
-			{
-				// Execute the steps
-				logger.LogInformation("Executing steps...");
-				for (; ; )
-				{
-					// Get the next step to execute
-					RpcBeginStepResponse stepResponse = await rpcClient.BeginStepAsync(new RpcBeginStepRequest(options.JobId, options.BatchId, leaseId), cancellationToken: cancellationToken);
-					if (stepResponse.State == RpcBeginStepResponse.Types.Result.Waiting)
-					{
-						logger.LogInformation("Waiting for dependency to be ready");
-						await Task.Delay(TimeSpan.FromSeconds(20.0), cancellationToken);
-						continue;
-					}
-					else if (stepResponse.State == RpcBeginStepResponse.Types.Result.Complete)
-					{
-						logger.LogInformation("No more steps to execute; finalizing lease.");
-						break;
-					}
-					else if (stepResponse.State != RpcBeginStepResponse.Types.Result.Ready)
-					{
-						logger.LogError("Unexpected step state: {StepState}", stepResponse.State);
-						break;
-					}
-
-					JobStepInfo step = new JobStepInfo(stepResponse);
-
-					// Get current disk space available. This will allow us to more easily spot steps that eat up a lot of disk space.
-					string? driveName;
-					if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-					{
-						driveName = Path.GetPathRoot(workingDir.FullName);
-					}
-					else
-					{
-						driveName = workingDir.FullName;
-					}
-
-					float availableFreeSpace = 0;
-					if (driveName != null)
-					{
-						try
-						{
-							DriveInfo info = new DriveInfo(driveName);
-							availableFreeSpace = (1.0f * info.AvailableFreeSpace) / 1024 / 1024 / 1024;
-						}
-						catch (Exception ex)
-						{
-							logger.LogWarning(ex, "Unable to query disk info for path '{DriveName}'", driveName);
-						}
-					}
-
-					// Print the new state
-					Stopwatch stepTimer = Stopwatch.StartNew();
-
-					logger.LogInformation("Starting job {JobId}, batch {BatchId}, step {StepId} (Drive Space Left: {DriveSpaceRemaining} GB)", options.JobId, options.BatchId, step.StepId, availableFreeSpace.ToString("F1"));
-
-					// Create a trace span
-					using IScope scope = GlobalTracer.Instance.BuildSpan("Execute").WithResourceName(step.Name).StartActive();
-					scope.Span.SetTag("stepId", step.StepId.ToString());
-					scope.Span.SetTag("logId", step.LogId.ToString());
-					//				using IDisposable TraceProperty = LogContext.PushProperty("dd.trace_id", CorrelationIdentifier.TraceId.ToString());
-					//				using IDisposable SpanProperty = LogContext.PushProperty("dd.span_id", CorrelationIdentifier.SpanId.ToString());
-
-					// Update the context to include information about this step
-					JobStepOutcome stepOutcome;
-					JobStepState stepState;
-					using (logger.BeginIndentScope("  "))
-					{
-						// Start writing to the log file
-#pragma warning disable CA2000 // Dispose objects before losing scope
-						await using (JobStepLogger stepLogger = new JobStepLogger(hordeClient, step.LogId, localLogger, options.JobId, options.BatchId, step.StepId, step.Warnings, LogLevel.Debug, logger))
-						{
-							// Execute the task
-							using CancellationTokenSource stepPollCancelSource = new CancellationTokenSource();
-							using CancellationTokenSource stepAbortSource = new CancellationTokenSource();
-							TaskCompletionSource<bool> stepFinishedSource = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-							Task stepPollTask = Task.Run(() => PollForStepAbortAsync(rpcClient, options.JobId, options.BatchId, step.StepId, stepAbortSource, stepFinishedSource.Task, logger, stepPollCancelSource.Token), cancellationToken);
-
-							try
-							{
-								ILogger forwardingLogger = new DefaultLoggerIndentHandler(stepLogger);
-								(stepOutcome, stepState) = await ExecuteStepAsync(executor, step, forwardingLogger, cancellationToken, stepAbortSource.Token);
-							}
-							finally
-							{
-								// Will get called even when cancellation token for the lease/batch fires
-								stepFinishedSource.SetResult(true); // Tell background poll task to stop
-								await stepPollTask;
-							}
-
-							// Kill any processes spawned by the step
-							await TerminateProcessHelper.TerminateProcessesAsync(TerminateCondition.AfterStep, workingDir, _driverSettings.ProcessesToTerminate, logger, cancellationToken);
-
-							// Wait for the logger to finish
-							await stepLogger.StopAsync();
-
-							// Reflect the warnings/errors in the step outcome
-							if (stepOutcome > stepLogger.Outcome)
-							{
-								stepOutcome = stepLogger.Outcome;
-							}
-						}
-#pragma warning restore CA2000 // Dispose objects before losing scope
-
-						// Update the server with the outcome from the step
-						logger.LogInformation("Marking step as complete (Outcome={Outcome}, State={StepState})", stepOutcome, stepState);
-						await rpcClient.UpdateStepAsync(new RpcUpdateStepRequest(options.JobId, options.BatchId, step.StepId, stepState, stepOutcome), cancellationToken: cancellationToken);
-					}
-
-					// Print the finishing state
-					stepTimer.Stop();
-					logger.LogInformation("Completed in {Time}", stepTimer.Elapsed);
-				}
-			}
-			catch (Exception ex)
-			{
-				if (cancellationToken.IsCancellationRequested && ex.IsCancellationException())
-				{
-					if (!hordeClient.HasValidAccessToken())
-					{
-						logger.LogError(ex, "Exception while executing batch: {Ex}", ex);
-					}
-					else
-					{
-						logger.LogError("Lease was aborted");
-					}
-				}
-			}
-
-			// Terminate any processes which are still running
-			try
-			{
-				await TerminateProcessHelper.TerminateProcessesAsync(TerminateCondition.AfterBatch, workingDir, _driverSettings.ProcessesToTerminate, logger, CancellationToken.None);
-			}
-			catch (Exception ex)
-			{
-				logger.LogWarning(ex, "Exception while terminating processes: {Message}", ex.Message);
-			}
-
-			// Clean the environment
-			logger.LogInformation("Finalizing...");
-			using (logger.BeginIndentScope("  "))
-			{
-				using IScope scope = GlobalTracer.Instance.BuildSpan("Finalize").StartActive();
-				await executor.FinalizeAsync(logger, CancellationToken.None);
-			}
-		}
-
-		/// <summary>
-		/// Executes a step
-		/// </summary>
-		/// <param name="executor">The executor to run this step</param>
-		/// <param name="step">Step to execute</param>
-		/// <param name="stepLogger">Logger for the step</param>
-		/// <param name="cancellationToken">Cancellation token to abort the batch</param>
-		/// <param name="stepCancellationToken">Cancellation token to abort only this individual step</param>
-		/// <returns>Async task</returns>
-		internal static async Task<(JobStepOutcome, JobStepState)> ExecuteStepAsync(IJobExecutor executor, JobStepInfo step, ILogger stepLogger, CancellationToken cancellationToken, CancellationToken stepCancellationToken)
-		{
-			using CancellationTokenSource combined = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, stepCancellationToken);
-			try
-			{
-				JobStepOutcome stepOutcome = await executor.RunAsync(step, stepLogger, combined.Token);
-				return (stepOutcome, JobStepState.Completed);
-			}
-			catch (Exception ex)
-			{
-				if (cancellationToken.IsCancellationRequested && ex.IsCancellationException())
-				{
-					stepLogger.LogError("The step was cancelled by batch/lease");
-					throw;
-				}
-
-				if (stepCancellationToken.IsCancellationRequested && ex.IsCancellationException())
-				{
-					stepLogger.LogError("The step was intentionally cancelled");
-					return (JobStepOutcome.Failure, JobStepState.Aborted);
-				}
-
-				stepLogger.LogError(ex, "Exception while executing step: {Ex}", ex);
-				return (JobStepOutcome.Failure, JobStepState.Completed);
-			}
-		}
-
-		internal async Task PollForStepAbortAsync(JobRpc.JobRpcClient rpcClient, JobId jobId, JobStepBatchId batchId, JobStepId stepId, CancellationTokenSource stepCancelSource, Task finishedTask, ILogger leaseLogger, CancellationToken cancellationToken)
-		{
-			while (!finishedTask.IsCompleted)
-			{
-				TimeSpan waitTime = _stepAbortPollInterval;
-				try
-				{
-					RpcGetStepResponse res = await rpcClient.GetStepAsync(new RpcGetStepRequest(jobId, batchId, stepId), cancellationToken: cancellationToken);
-					if (res.AbortRequested)
-					{
-						leaseLogger.LogDebug("Step was aborted by server (JobId={JobId} BatchId={BatchId} StepId={StepId})", jobId, batchId, stepId);
-						stepCancelSource.Cancel();
-						break;
-					}
-				}
-				catch (RpcException ex)
-				{
-					// Don't let a single RPC failure abort the running step as there can be intermittent errors on the server
-					// For example temporary downtime or overload
-					leaseLogger.LogError(ex, "Poll for step abort failed (JobId={JobId} BatchId={BatchId} StepId={StepId}). Retrying...", jobId, batchId, stepId);
-					waitTime = _stepAbortPollRetryDelay;
-				}
-
-				await Task.WhenAny(Task.Delay(waitTime, cancellationToken), finishedTask);
-			}
 		}
 	}
 }

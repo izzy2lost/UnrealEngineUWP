@@ -57,9 +57,9 @@ namespace Horde.Agent.Execution
 			base.Dispose(disposing);
 		}
 
-		public override async Task InitializeAsync(ILogger logger, CancellationToken cancellationToken)
+		public override async Task InitializeAsync(RpcBeginBatchResponse batch, ILogger logger, CancellationToken cancellationToken)
 		{
-			await base.InitializeAsync(logger, cancellationToken);
+			await base.InitializeAsync(batch, logger, cancellationToken);
 
 			// Setup and sync the AutoSDK workspace
 			if (_autoSdkWorkspaceInfo != null)
@@ -438,7 +438,7 @@ namespace Horde.Agent.Execution
 			_logger = logger;
 		}
 
-		public IJobExecutor CreateExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options)
+		public JobExecutor CreateExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options)
 		{
 			return new PerforceExecutor(workspaceInfo, autoSdkWorkspaceInfo, options, _logger);
 		}

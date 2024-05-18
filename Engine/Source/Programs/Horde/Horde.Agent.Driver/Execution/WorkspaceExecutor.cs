@@ -3,6 +3,7 @@
 using System.Text.RegularExpressions;
 using EpicGames.Core;
 using Horde.Agent.Utility;
+using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 using OpenTracing;
@@ -36,9 +37,9 @@ namespace Horde.Agent.Execution
 			base.Dispose(disposing);
 		}
 
-		public override async Task InitializeAsync(ILogger logger, CancellationToken cancellationToken)
+		public override async Task InitializeAsync(RpcBeginBatchResponse batch, ILogger logger, CancellationToken cancellationToken)
 		{
-			await base.InitializeAsync(logger, cancellationToken);
+			await base.InitializeAsync(batch, logger, cancellationToken);
 
 			if (Batch.Change == 0)
 			{
@@ -170,7 +171,7 @@ namespace Horde.Agent.Execution
 			_loggerFactory = loggerFactory;
 		}
 
-		public IJobExecutor CreateExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options)
+		public JobExecutor CreateExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options)
 		{
 			IWorkspaceMaterializer? workspaceMaterializer = null;
 			IWorkspaceMaterializer? autoSdkMaterializer = null;

@@ -15,29 +15,11 @@ namespace Horde.Agent.Execution
 	{
 		public const string Name = "Test";
 
-		readonly IReadOnlyDictionary<string, string> _arguments;
+		Dictionary<string, string> _arguments = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
 		public TestExecutor(JobExecutorOptions options, ILogger logger)
 			: base(options, logger)
 		{
-			Dictionary<string, string> arguments = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-			foreach (string argument in options.Batch.Arguments)
-			{
-				const string ArgumentPrefix = "-set:";
-				if (argument.StartsWith(ArgumentPrefix, StringComparison.OrdinalIgnoreCase))
-				{
-					int keyIdx = ArgumentPrefix.Length;
-					int valueIdx = argument.IndexOf('=', keyIdx);
-
-					if (valueIdx != -1)
-					{
-						string key = argument.Substring(keyIdx, valueIdx - keyIdx);
-						string value = argument.Substring(valueIdx + 1);
-						arguments[key] = value;
-					}
-				}
-			}
-			_arguments = arguments;
 		}
 
 		[return: NotNullIfNotNull("defaultValue")]
@@ -61,9 +43,27 @@ namespace Horde.Agent.Execution
 			return result;
 		}
 
-		public override Task InitializeAsync(ILogger logger, CancellationToken cancellationToken)
+		public override Task InitializeAsync(RpcBeginBatchResponse batch, ILogger logger, CancellationToken cancellationToken)
 		{
 			logger.LogInformation("Initializing");
+
+			foreach (string argument in batch.Arguments)
+			{
+				const string ArgumentPrefix = "-set:";
+				if (argument.StartsWith(ArgumentPrefix, StringComparison.OrdinalIgnoreCase))
+				{
+					int keyIdx = ArgumentPrefix.Length;
+					int valueIdx = argument.IndexOf('=', keyIdx);
+
+					if (valueIdx != -1)
+					{
+						string key = argument.Substring(keyIdx, valueIdx - keyIdx);
+						string value = argument.Substring(valueIdx + 1);
+						_arguments[key] = value;
+					}
+				}
+			}
+
 			return Task.CompletedTask;
 		}
 
@@ -232,7 +232,7 @@ namespace Horde.Agent.Execution
 			_logger = logger;
 		}
 
-		public IJobExecutor CreateExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options)
+		public JobExecutor CreateExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options)
 		{
 			return new TestExecutor(options, _logger);
 		}
