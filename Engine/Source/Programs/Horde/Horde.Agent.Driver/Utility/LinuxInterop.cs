@@ -2,24 +2,25 @@
 
 using System.Runtime.InteropServices;
 
-namespace Horde.Agent.Utility;
-
-/// <summary>
-/// Linux specific P/Invoke calls
-/// </summary>
-static class LinuxInterop
+namespace Horde.Agent.Driver.Utility
 {
 	/// <summary>
-	/// Get user identity
+	/// Linux specific P/Invoke calls
 	/// </summary>
-	/// <returns>Real user ID of the calling process</returns>
-	[DllImport("libc", SetLastError = true)]
-	internal static extern uint getuid();
+	static class LinuxInterop
+	{
+		/// <summary>
+		/// Get user identity
+		/// </summary>
+		/// <returns>Real user ID of the calling process</returns>
+		[DllImport("libc", SetLastError = true)]
+		internal static extern uint getuid();
 
-	/// <summary>
-	/// Get group identity
-	/// </summary>
-	/// <returns>Real group ID of the calling process</returns>
-	[DllImport("libc", SetLastError = true)]
-	internal static extern uint getgid();
+		/// <summary>
+		/// Get group identity
+		/// </summary>
+		/// <returns>Real group ID of the calling process</returns>
+		[DllImport("libc", SetLastError = true)]
+		internal static extern uint getgid();
+	}
 }

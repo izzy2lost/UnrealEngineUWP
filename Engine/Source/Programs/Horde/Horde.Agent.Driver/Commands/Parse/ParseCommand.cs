@@ -3,10 +3,10 @@
 using System.ComponentModel;
 using EpicGames.Core;
 using EpicGames.Perforce;
-using Horde.Agent.Parser;
+using Horde.Agent.Driver.Parser;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Commands.Parse
+namespace Horde.Agent.Driver.Commands.Parse
 {
 	/// <summary>
 	/// Installs the agent as a service

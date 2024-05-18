@@ -10,7 +10,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace Horde.Agent.Properties {
+namespace Horde.Agent.Driver.Properties {
     using System;
     
     

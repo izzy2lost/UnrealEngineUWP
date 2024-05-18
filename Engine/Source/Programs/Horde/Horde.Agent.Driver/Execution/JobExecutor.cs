@@ -15,13 +15,9 @@ using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
 using Grpc.Core;
-using Horde.Agent.Driver;
+using Horde.Agent.Driver.Parser;
 using Horde.Agent.Driver.Utility;
-using Horde.Agent.Parser;
-//using Horde.Agent.Services;
-using Horde.Agent.Utility;
 using Horde.Common.Rpc;
-using Horde.Storage.Utility;
 using HordeCommon;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
@@ -30,7 +26,7 @@ using Microsoft.Extensions.Logging;
 using OpenTracing;
 using OpenTracing.Util;
 
-namespace Horde.Agent.Execution
+namespace Horde.Agent.Driver.Execution
 {
 	record class JobStepInfo
 	(
@@ -225,7 +221,7 @@ namespace Horde.Agent.Execution
 		protected IReadOnlyList<ProcessToTerminate>? ProcessesToTerminate { get; }
 
 		protected RpcBeginBatchResponse Batch { get; private set; }
-		private LogId _logId;
+		private readonly LogId _logId;
 
 		protected List<string> _additionalArguments = new List<string>();
 		protected bool _allowTargetChanges;
@@ -233,7 +229,6 @@ namespace Horde.Agent.Execution
 		protected bool _compileAutomationTool = true;
 
 		protected RpcJobOptions JobOptions { get; }
-
 
 		protected JobRpc.JobRpcClient JobRpc { get; private set; }
 		protected Dictionary<string, string> _remapAgentTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -2203,5 +2198,29 @@ namespace Horde.Agent.Execution
 		string Name { get; }
 
 		JobExecutor CreateExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options);
+	}
+
+	static class JobExecutorHelpers
+	{
+		public static async Task ExecuteAsync(IHordeClient hordeClient, DirectoryReference workingDir, LeaseId leaseId, ExecuteJobTask executeTask, IEnumerable<IJobExecutorFactory> executorFactories, DriverSettings driverSettings, ILogger logger, CancellationToken cancellationToken)
+		{
+			// Create an executor for this job
+			string executorName = String.IsNullOrEmpty(executeTask.JobOptions.Executor) ? driverSettings.Executor : executeTask.JobOptions.Executor;
+
+			IJobExecutorFactory? executorFactory = executorFactories.FirstOrDefault(x => x.Name.Equals(executorName, StringComparison.OrdinalIgnoreCase));
+			if (executorFactory == null)
+			{
+				throw new InvalidOperationException($"Unable to find executor '{executorName}'");
+			}
+
+			JobId jobId = JobId.Parse(executeTask.JobId);
+			JobStepBatchId batchId = JobStepBatchId.Parse(executeTask.BatchId);
+			LogId logId = LogId.Parse(executeTask.LogId);
+
+			JobExecutorOptions options = new JobExecutorOptions(hordeClient, workingDir, driverSettings.ProcessesToTerminate, jobId, batchId, leaseId, logId, executeTask.JobOptions);
+
+			using JobExecutor executor = executorFactory.CreateExecutor(executeTask.Workspace, executeTask.AutoSdkWorkspace, options);
+			await executor.ExecuteAsync(logger, cancellationToken);
+		}
 	}
 }

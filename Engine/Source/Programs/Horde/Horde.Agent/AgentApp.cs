@@ -12,7 +12,7 @@ using Datadog.Trace.OpenTracing;
 using EpicGames.Core;
 using EpicGames.Horde;
 using Horde.Agent.Driver;
-using Horde.Agent.Execution;
+using Horde.Agent.Driver.Execution;
 using Horde.Agent.Leases;
 using Horde.Agent.Leases.Handlers;
 using Horde.Agent.Services;

@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Parser
+namespace Horde.Agent.Driver.Parser
 {
 	/// <summary>
 	/// Turns raw text output into structured logging events

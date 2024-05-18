@@ -5,11 +5,9 @@ using System.Reflection;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Agents.Leases;
-using EpicGames.Horde.Jobs;
-using EpicGames.Horde.Logs;
 using Google.Protobuf;
 using Horde.Agent.Driver;
-using Horde.Agent.Execution;
+using Horde.Agent.Driver.Execution;
 using Horde.Agent.Services;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
@@ -127,28 +125,11 @@ namespace Horde.Agent.Leases.Handlers
 
 		internal async Task<LeaseResult> ExecuteInternalAsync(IHordeClient hordeClient, DirectoryReference workingDir, LeaseId leaseId, ExecuteJobTask executeTask, ILogger localLogger, CancellationToken cancellationToken)
 		{
-			// Create an executor for this job
-			string executorName = String.IsNullOrEmpty(executeTask.JobOptions.Executor) ? _driverSettings.Executor : executeTask.JobOptions.Executor;
-
-			IJobExecutorFactory? executorFactory = _executorFactories.FirstOrDefault(x => x.Name.Equals(executorName, StringComparison.OrdinalIgnoreCase));
-			if (executorFactory == null)
-			{
-				throw new InvalidOperationException($"Unable to find executor '{executorName}'");
-			}
-
 			GlobalTracer.Instance.ActiveSpan?.SetTag("jobId", executeTask.JobId.ToString());
 			GlobalTracer.Instance.ActiveSpan?.SetTag("jobName", executeTask.JobName.ToString());
 			GlobalTracer.Instance.ActiveSpan?.SetTag("batchId", executeTask.BatchId.ToString());
 
-			JobId jobId = JobId.Parse(executeTask.JobId);
-			JobStepBatchId batchId = JobStepBatchId.Parse(executeTask.BatchId);
-			LogId logId = LogId.Parse(executeTask.LogId);
-
-			JobExecutorOptions options = new JobExecutorOptions(hordeClient, workingDir, _driverSettings.ProcessesToTerminate, jobId, batchId, leaseId, logId, executeTask.JobOptions);
-
-			using JobExecutor executor = executorFactory.CreateExecutor(executeTask.Workspace, executeTask.AutoSdkWorkspace, options);
-			await executor.ExecuteAsync(localLogger, cancellationToken);
-
+			await JobExecutorHelpers.ExecuteAsync(hordeClient, workingDir, leaseId, executeTask, _executorFactories, _driverSettings, localLogger, cancellationToken);
 			return LeaseResult.Success;
 		}
 	}

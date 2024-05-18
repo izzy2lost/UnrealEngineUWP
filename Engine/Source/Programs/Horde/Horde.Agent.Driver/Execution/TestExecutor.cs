@@ -4,18 +4,18 @@ using System.Diagnostics.CodeAnalysis;
 using EpicGames.Core;
 using EpicGames.Horde.Jobs;
 using EpicGames.Perforce;
-using Horde.Agent.Parser;
+using Horde.Agent.Driver.Parser;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Execution
+namespace Horde.Agent.Driver.Execution
 {
 	class TestExecutor : JobExecutor
 	{
 		public const string Name = "Test";
 
-		Dictionary<string, string> _arguments = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+		readonly Dictionary<string, string> _arguments = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
 		public TestExecutor(JobExecutorOptions options, ILogger logger)
 			: base(options, logger)

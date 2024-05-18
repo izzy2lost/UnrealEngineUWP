@@ -11,7 +11,7 @@ using EpicGames.Perforce.Managed;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Utility
+namespace Horde.Agent.Driver.Utility
 {
 	/// <summary>
 	/// Stores information about a managed Perforce workspace

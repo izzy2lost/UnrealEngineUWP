@@ -1,7 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-using Horde.Agent.Execution;
-using Horde.Agent.Utility;
+using Horde.Agent.Driver.Execution;
+using Horde.Agent.Driver.Utility;
 
 namespace Horde.Agent.Driver
 {
@@ -13,7 +13,7 @@ namespace Horde.Agent.Driver
 		/// <summary>
 		/// The executor to use for jobs
 		/// </summary>
-		public string Executor { get; set; } = Execution.WorkspaceExecutor.Name;
+		public string Executor { get; set; } = WorkspaceExecutor.Name;
 
 		/// <summary>
 		/// Settings for the local executor

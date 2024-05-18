@@ -16,7 +16,7 @@ using Microsoft.Extensions.Logging;
 
 #pragma warning disable CA1819 // Properties should not return arrays
 
-namespace Horde.Storage.Utility
+namespace Horde.Agent.Driver.Utility
 {
 	/// <summary>
 	/// Exception thrown by the temp storage system

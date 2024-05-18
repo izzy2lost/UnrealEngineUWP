@@ -2,14 +2,14 @@
 
 using System.Text.RegularExpressions;
 using EpicGames.Core;
-using Horde.Agent.Utility;
+using Horde.Agent.Driver.Utility;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 using OpenTracing;
 using OpenTracing.Util;
 
-namespace Horde.Agent.Execution
+namespace Horde.Agent.Driver.Execution
 {
 	class WorkspaceExecutor : JobExecutor
 	{

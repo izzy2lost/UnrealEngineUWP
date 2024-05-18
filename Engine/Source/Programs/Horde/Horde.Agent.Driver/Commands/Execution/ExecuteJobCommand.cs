@@ -5,14 +5,14 @@ using EpicGames.Horde;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Sessions;
-using Horde.Agent.Leases.Handlers;
-using Horde.Agent.Services;
+using Horde.Agent.Driver.Execution;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
-namespace Horde.Agent.Commands.Execution
+namespace Horde.Agent.Driver.Commands.Execution
 {
-	[Command("Execute", "Job", "Executes a job", Advertise = false)]
+	[Command("Execute", "Job", "Executes a job")]
 	class ExecuteJobCommand : Command
 	{
 		[CommandLine("-AgentId=", Required = true)]
@@ -31,12 +31,14 @@ namespace Horde.Agent.Commands.Execution
 		public DirectoryReference WorkingDir { get; set; } = null!;
 
 		readonly IHordeClientFactory _hordeClientFactory;
-		readonly JobHandler _jobHandler;
+		readonly IEnumerable<IJobExecutorFactory> _jobExecutorFactories;
+		readonly IOptions<DriverSettings> _driverSettings;
 
-		public ExecuteJobCommand(IHordeClientFactory hordeClientFactory, JobHandler jobHandler)
+		public ExecuteJobCommand(IHordeClientFactory hordeClientFactory, IEnumerable<IJobExecutorFactory> jobExecutorFactories, IOptions<DriverSettings> driverSettings)
 		{
 			_hordeClientFactory = hordeClientFactory;
-			_jobHandler = jobHandler;
+			_jobExecutorFactories = jobExecutorFactories;
+			_driverSettings = driverSettings;
 		}
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
@@ -44,9 +46,8 @@ namespace Horde.Agent.Commands.Execution
 			ExecuteJobTask executeTask = ExecuteJobTask.Parser.ParseFrom(Convert.FromBase64String(Task));
 
 			IHordeClient hordeClient = _hordeClientFactory.Create(executeTask.Token);
-			await using Session session = new Session(AgentId, SessionId, WorkingDir, hordeClient);
 
-			await _jobHandler.ExecuteInternalAsync(session.HordeClient, session.WorkingDir, LeaseId, executeTask, logger, CancellationToken.None);
+			await JobExecutorHelpers.ExecuteAsync(hordeClient, WorkingDir, LeaseId, executeTask, _jobExecutorFactories, _driverSettings.Value, logger, CancellationToken.None);
 			return 0;
 		}
 	}

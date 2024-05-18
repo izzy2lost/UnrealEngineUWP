@@ -1,10 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
-using Horde.Agent.Driver;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Utility
+namespace Horde.Agent.Driver.Utility
 {
 	/// <summary>
 	/// Flags for processes to terminate

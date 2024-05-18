@@ -5,7 +5,7 @@ using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Agent.Execution
+namespace Horde.Agent.Driver.Execution
 {
 	/// <summary>
 	/// Settings for the local executor
