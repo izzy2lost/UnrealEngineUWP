@@ -307,6 +307,8 @@ void FStorageServerResponse::Serialize(void* V, int64 Length)
 		Position += BytesRead;
 	}
 
+	check(ContentType == EStorageServerContentType::Binary);
+
 	TRACE_COUNTER_ADD(ZenHttpClientSerializedBytes, Length);
 	
 	if (Position == ContentLength)
@@ -544,10 +546,10 @@ void FStorageServerConnection::PackageStoreRequest(TFunctionRef<void(FPackageSto
 	}
 }
 
-void FStorageServerConnection::FileManifestRequest(TFunctionRef<void(FIoChunkId Id, FStringView Path)> Callback)
+void FStorageServerConnection::FileManifestRequest(TFunctionRef<void(FIoChunkId Id, FStringView Path, int64 RawSize)> Callback)
 {
 	TAnsiStringBuilder<256> ResourceBuilder;
-	ResourceBuilder.Append(OplogPath).Append("/files?filter=client");
+	ResourceBuilder.Append(OplogPath).Append("/files?fieldnames=id,clientpath,rawsize");
 	FStorageServerRequest Request("GET", *ResourceBuilder, Hostname, EStorageServerContentType::CbObject);
 	IStorageConnectionSocket* Socket = Request.Send(*this);
 	if (!Socket)
@@ -565,6 +567,7 @@ void FStorageServerConnection::FileManifestRequest(TFunctionRef<void(FIoChunkId 
 		{
 			FCbObject Entry = FileArrayEntry.AsObject();
 			FCbObjectId Id = Entry["id"].AsObjectId();
+			int64 ResponseRawSize = Entry["rawsize"].AsInt64();
 
 			TStringBuilder<128> WidePath;
 			WidePath.Append(FUTF8ToTCHAR(Entry["clientpath"].AsString()));
@@ -572,7 +575,8 @@ void FStorageServerConnection::FileManifestRequest(TFunctionRef<void(FIoChunkId 
 			FIoChunkId ChunkId;
 			ChunkId.Set(Id.GetView());
 
-			Callback(ChunkId, WidePath);
+
+			Callback(ChunkId, WidePath, ResponseRawSize);
 		}
 	}
 	else
