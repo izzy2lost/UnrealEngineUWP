@@ -145,5 +145,5 @@ private:
 	TMap<FObjectKey, int32> LastSortPriorities;
 
 	/** Used to avoid querying again the full list of component states */
-	TArray<const FAvaTranslucentPriorityModifierComponentState*> CachedSortedComponentStates;
+	TArray<FAvaTranslucentPriorityModifierComponentState> CachedSortedComponentStates;
 };

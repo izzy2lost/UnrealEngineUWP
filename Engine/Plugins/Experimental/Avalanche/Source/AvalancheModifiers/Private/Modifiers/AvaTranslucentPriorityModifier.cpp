@@ -176,11 +176,11 @@ void UAvaTranslucentPriorityModifier::Apply()
 		int32 TranslucentSortPriority = GlobalOffset + SortPriority;
 
 		// Sets all components with the same priority
-		for (const FAvaTranslucentPriorityModifierComponentState* SortedComponentState : CachedSortedComponentStates)
+		for (const FAvaTranslucentPriorityModifierComponentState& SortedComponentState : CachedSortedComponentStates)
 		{
-			if (SortedComponentState && SortedComponentState->ModifierWeak == this)
+			if (SortedComponentState.ModifierWeak == this)
 			{
-				if (UPrimitiveComponent* Component = SortedComponentState->PrimitiveComponentWeak.Get())
+				if (UPrimitiveComponent* Component = SortedComponentState.PrimitiveComponentWeak.Get())
 				{
 					LastSortPriorities.Add(Component, TranslucentSortPriority);
 					Component->SetTranslucentSortPriority(TranslucentSortPriority);
@@ -195,15 +195,10 @@ void UAvaTranslucentPriorityModifier::Apply()
 		int32 TranslucentSortPriority = GlobalOffset;
 
 		// Increment sort priority for each component that this modifier handles
-		for (const FAvaTranslucentPriorityModifierComponentState* SortedComponentState : CachedSortedComponentStates)
+		for (const FAvaTranslucentPriorityModifierComponentState& SortedComponentState : CachedSortedComponentStates)
 		{
-			if (!SortedComponentState)
-			{
-				continue;
-			}
-
-			UPrimitiveComponent* Component = SortedComponentState->PrimitiveComponentWeak.Get();
-			UAvaTranslucentPriorityModifier* ComponentModifier = SortedComponentState->ModifierWeak.Get();
+			UPrimitiveComponent* Component = SortedComponentState.PrimitiveComponentWeak.Get();
+			UAvaTranslucentPriorityModifier* ComponentModifier = SortedComponentState.ModifierWeak.Get();
 
 			if (!Component || !ComponentModifier)
 			{

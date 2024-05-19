@@ -89,7 +89,7 @@ public:
 	UAvaTranslucentPriorityModifier* FindModifierContext(UPrimitiveComponent* InComponent) const;
 
 	/** Get sorted components state based on modifier context */
-	TArray<const FAvaTranslucentPriorityModifierComponentState*> GetSortedComponentStates(UAvaTranslucentPriorityModifier* InModifierContext) const;
+	TArray<FAvaTranslucentPriorityModifierComponentState> GetSortedComponentStates(UAvaTranslucentPriorityModifier* InModifierContext) const;
 
 	void SetSortPriorityOffset(int32 InOffset);
 

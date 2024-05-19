@@ -142,9 +142,9 @@ UAvaTranslucentPriorityModifier* UAvaTranslucentPriorityModifierShared::FindModi
 	return ModifierContext;
 }
 
-TArray<const FAvaTranslucentPriorityModifierComponentState*> UAvaTranslucentPriorityModifierShared::GetSortedComponentStates(UAvaTranslucentPriorityModifier* InModifierContext) const
+TArray<FAvaTranslucentPriorityModifierComponentState> UAvaTranslucentPriorityModifierShared::GetSortedComponentStates(UAvaTranslucentPriorityModifier* InModifierContext) const
 {
-	TArray<const FAvaTranslucentPriorityModifierComponentState*> SortedComponentStates;
+	TArray<FAvaTranslucentPriorityModifierComponentState> SortedComponentStates;
 
 	if (!InModifierContext)
 	{
@@ -168,7 +168,7 @@ TArray<const FAvaTranslucentPriorityModifierComponentState*> UAvaTranslucentPrio
 
 			if (ModifierContext == InModifierContext)
 			{
-				SortedComponentStates.Add(&ComponentState);
+				SortedComponentStates.Add(ComponentState);
 			}
 		}
 	}
@@ -195,7 +195,7 @@ TArray<const FAvaTranslucentPriorityModifierComponentState*> UAvaTranslucentPrio
 			if (ModifierContext->GetMode() == InModifierContext->GetMode()
 				&& ModifierContext->CameraActorWeak == CameraActor)
 			{
-				SortedComponentStates.Add(&ComponentState);
+				SortedComponentStates.Add(ComponentState);
 			}
 		}
 
@@ -235,7 +235,7 @@ TArray<const FAvaTranslucentPriorityModifierComponentState*> UAvaTranslucentPrio
 			if (ModifierContext->GetMode() == InModifierContext->GetMode()
 				&& OwningActor->GetTypedOuter<UWorld>() == World)
 			{
-				SortedComponentStates.Add(&ComponentState);
+				SortedComponentStates.Add(ComponentState);
 			}
 		}
 
