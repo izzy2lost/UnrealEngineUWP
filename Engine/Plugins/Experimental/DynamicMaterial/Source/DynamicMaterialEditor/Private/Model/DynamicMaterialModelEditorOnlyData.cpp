@@ -1438,16 +1438,23 @@ void UDynamicMaterialModelEditorOnlyData::Serialize(FArchive& Ar)
 	{
 		if (ChannelListPreset == NAME_None)
 		{
-			// The default blend mode was translucent and now it's opaque.
-			if (BlendMode == BLEND_Opaque)
+			// The default blend mode was changed from translucent and to opaque. If we have a
+			// transparent channel, let's set it back to translucent.
+			if (GetSlotForMaterialProperty(EDMMaterialPropertyType::Opacity))
 			{
-				BlendMode = BLEND_Translucent;
 				ChannelListPreset = "Translucent";
+				BlendMode = BLEND_Translucent;
 			}
-			// If the default blend mode was changed to anything else, set to All preset and let the user figure it out.
+			else if (GetSlotForMaterialProperty(EDMMaterialPropertyType::OpacityMask))
+			{
+				ChannelListPreset = "Translucent";
+				BlendMode = BLEND_Masked;
+			}
+			// Else let's stay on opaque
 			else
 			{
-				ChannelListPreset = "All";
+				BlendMode = BLEND_Opaque;
+				ChannelListPreset = "Opaque";
 			}
 		}
 	}
