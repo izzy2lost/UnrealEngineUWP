@@ -5,13 +5,13 @@
 #include "Components/PrimitiveComponent.h"
 #include "Containers/Set.h"
 #include "Modifiers/ActorModifierCoreSharedObject.h"
-#include "Modifiers/AvaTranslucentPriorityModifier.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtr.h"
 #include "AvaTranslucentPriorityModifierShared.generated.h"
 
 class AActor;
 class ACameraActor;
+class UAvaTranslucentPriorityModifier;
 
 USTRUCT()
 struct FAvaTranslucentPriorityModifierComponentState

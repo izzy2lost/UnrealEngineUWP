@@ -4,9 +4,9 @@
 
 #include "AvaArrangeBaseModifier.h"
 #include "AvaBaseModifier.h"
+#include "Shared/AvaTranslucentPriorityModifierShared.h"
 #include "AvaTranslucentPriorityModifier.generated.h"
 
-struct FAvaTranslucentPriorityModifierComponentState;
 class ACameraActor;
 class UPrimitiveComponent;
 

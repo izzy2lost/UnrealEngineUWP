@@ -9,6 +9,7 @@
 #include "Camera/CameraComponent.h"
 #include "Framework/AvaGameInstance.h"
 #include "IAvaSceneInterface.h"
+#include "Modifiers/AvaTranslucentPriorityModifier.h"
 
 #if WITH_EDITOR
 #include "AvaOutlinerUtils.h"
