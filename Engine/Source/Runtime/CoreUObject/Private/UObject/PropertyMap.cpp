@@ -308,6 +308,26 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 		{
 			checkf(!UnderlyingArchive.ArUseCustomPropertyList, TEXT("Using custom property list is not supported by overridable serialization"));
 
+			auto GetIDFromKey = [&](uint8* KeyData) -> FOverriddenPropertyNodeID
+			{
+				if (FObjectProperty* KeyObjectProperty = CastField<FObjectProperty>(KeyProp))
+				{
+					if (const UObject* Object = KeyObjectProperty->GetObjectPropertyValue(KeyData))
+					{
+						return FOverriddenPropertyNodeID(*Object);
+					}
+				}
+				else
+				{
+					FString KeyString;
+					KeyProp->ExportTextItem_Direct(KeyString, KeyData, /*DefaultValue*/nullptr, /*Parent*/nullptr, PPF_None);
+					return FOverriddenPropertyNodeID(FName(KeyString));
+				}
+		
+				checkf(false, TEXT("This case is not handled"))
+				return FOverriddenPropertyNodeID();
+			};
+
 			if (UnderlyingArchive.IsLoading())
 			{
 				int32 NumReplaced = 0;
@@ -373,7 +393,7 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 							if (FOverriddenPropertyNode* MapOverriddenPropertyNode = OverriddenProperties ? OverriddenProperties->SetOverriddenPropertyOperation(EOverriddenPropertyOperation::Modified, UnderlyingArchive.GetSerializedPropertyChain(), /*Property*/nullptr) : nullptr)
 							{
 								// Rebuild the overridden info
-								FOverriddenPropertyNodeID RemovedKeyID = UE::OverridableMapUtilities::GetIDFromKey(KeyProp, TempKeyValueStorage);
+								FOverriddenPropertyNodeID RemovedKeyID = GetIDFromKey(TempKeyValueStorage);
 								OverriddenProperties->SetSubPropertyOperation(EOverriddenPropertyOperation::Remove, *MapOverriddenPropertyNode, RemovedKeyID);
 							}
 						}
@@ -447,7 +467,7 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 							if (FOverriddenPropertyNode* MapOverriddenPropertyNode = OverriddenProperties ? OverriddenProperties->SetOverriddenPropertyOperation(EOverriddenPropertyOperation::Modified, UnderlyingArchive.GetSerializedPropertyChain(), /*Property*/nullptr) : nullptr)
 							{
 								// Rebuild the overridden info
-								FOverriddenPropertyNodeID AddedKeyID = UE::OverridableMapUtilities::GetIDFromKey(KeyProp, TempKeyValueStorage);
+								FOverriddenPropertyNodeID AddedKeyID = GetIDFromKey(TempKeyValueStorage);
 								OverriddenProperties->SetSubPropertyOperation(EOverriddenPropertyOperation::Add, *MapOverriddenPropertyNode, AddedKeyID);
 							}
 						}
@@ -456,6 +476,39 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 			}
 			else
 			{
+				auto FindKeyInternalIndex = [this](const FOverriddenPropertyNodeID& KeyIDToFind, FScriptMapHelper& MapHelper) -> int32
+				{
+					if (const FObjectProperty* KeyObjectProperty = CastField<FObjectProperty>(KeyProp))
+					{
+						for (FScriptMapHelper::FIterator It(MapHelper); It; ++It) 
+						{
+							if (UObject* CurrentObject = KeyObjectProperty->GetObjectPropertyValue(MapHelper.GetKeyPtr(It.GetInternalIndex())))
+							{
+								if (KeyIDToFind == FOverriddenPropertyNodeID(*CurrentObject))
+								{
+									return It.GetInternalIndex();
+								}
+							}
+						}
+					}
+					else
+					{
+						void* TempKeyValueStorage = FMemory::Malloc(MapLayout.SetLayout.Size);
+						KeyProp->InitializeValue(TempKeyValueStorage);
+
+						FString KeyToFind(KeyIDToFind.ToString());
+						KeyProp->ImportText_Direct(*KeyToFind, TempKeyValueStorage, nullptr, PPF_None);
+
+						const int32 InternalIndex = MapHelper.FindMapPairIndexFromHash(TempKeyValueStorage);
+
+						KeyProp->DestroyValue(TempKeyValueStorage);
+						FMemory::Free(TempKeyValueStorage);
+
+						return InternalIndex;
+					}
+					return INDEX_NONE;
+				};
+
 				// Container for temporarily tracking some indices
 				TArray<int32> RemovedIndices;
 				TArray<int32> AddedIndices;
@@ -508,33 +561,35 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 									const EOverriddenPropertyOperation OverrideOp = OverriddenProperties->GetSubPropertyOperation(Pair.Value);
 									switch (OverrideOp)
 									{
-										case EOverriddenPropertyOperation::Remove:
+									case EOverriddenPropertyOperation::Remove:
 										{
-											const int32 InternalIndex = UE::OverridableMapUtilities::FindKeyInternalIndex(Pair.Key, DefaultsMapHelper);
+											const int32 InternalIndex = FindKeyInternalIndex(Pair.Key, DefaultsMapHelper);
 											if (InternalIndex != INDEX_NONE)
 											{
 												RemovedIndices.Add(InternalIndex);
 											}
 											break;
 										}
-										case EOverriddenPropertyOperation::Add:
+									case EOverriddenPropertyOperation::Add:
 										{
-											const int32 InternalIndex = UE::OverridableMapUtilities::FindKeyInternalIndex(Pair.Key, MapHelper);
+											const int32 InternalIndex = FindKeyInternalIndex(Pair.Key, MapHelper);
 											if (InternalIndex != INDEX_NONE)
 											{
 												AddedIndices.Add(InternalIndex);
+												ModifiedIndices.Remove(InternalIndex);
 											}
 											break;
 										}
-										case EOverriddenPropertyOperation::Modified:
+									case EOverriddenPropertyOperation::Modified:
+										if (!bAreValuesInstancedSubObjects)
 										{
-											const int32 InternalIndex = UE::OverridableMapUtilities::FindKeyInternalIndex(Pair.Key, MapHelper);
+											const int32 InternalIndex = FindKeyInternalIndex(Pair.Key, MapHelper);
 											if (InternalIndex != INDEX_NONE)
 											{
 												ModifiedIndices.Add(InternalIndex);
 											}
-											break;
 										}
+										break;
 									default:
 										checkf(false, TEXT("Unsupported map operation"));
 										break;

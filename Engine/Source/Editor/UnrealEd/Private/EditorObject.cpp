@@ -33,8 +33,6 @@
 #include "InstancedFoliage.h"
 #include "Components/BrushComponent.h"
 #include "Algo/Transform.h"
-#include "UObject/OverridableManager.h"
-#include "UObject/OverriddenPropertySet.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogEditorObject, Log, All);
 
@@ -261,9 +259,6 @@ static const TCHAR* ImportProperties(
 
 	if ( SourceText == NULL )
 		return NULL;
-
-	FOverriddenPropertySet* OverriddenProperties = SubobjectOuter ? FOverridableManager::Get().GetOverriddenProperties(*SubobjectOuter) : nullptr;
-	FEnableOverridableSerializationScope Scope(OverriddenProperties != nullptr, OverriddenProperties);
 
 	// Cannot create subobjects when importing struct defaults, or if SubobjectOuter (used as the Outer for any subobject declarations encountered) is NULL
 	bool bSubObjectsAllowed = !ObjectStruct->IsA(UScriptStruct::StaticClass()) && SubobjectOuter != NULL;
@@ -513,10 +508,6 @@ static const TCHAR* ImportProperties(
 			}
 			else 
 			{
-				FName OverriddenOperationName = NAME_None;
-				FParse::Value(Str,TEXT("OverriddenOperation="), OverriddenOperationName);
-				TOptional<EOverriddenPropertyOperation> OverriddenOperation = GetOverriddenOperationFromName(OverriddenOperationName);
-
 				UObject* Archetype = NULL;
 				UObject* ComponentTemplate = NULL;
 
@@ -682,15 +673,6 @@ static const TCHAR* ImportProperties(
 					ReplacementMap.Add(OldComponent, ComponentTemplate);
 				}
 				FArchiveReplaceObjectRef<UObject> ReplaceAr(SubobjectOuter, ReplacementMap, EArchiveReplaceObjectFlags::IgnoreArchetypeRef);
-
-				if (OverriddenOperation.IsSet())
-				{
-					FOverridableManager::Get().SetOverriddenProperties(*ComponentTemplate, OverriddenOperation.GetValue());
-				}
-				else
-				{
-					FOverridableManager::Get().Disable(*ComponentTemplate);
-				}
 
 				// import the properties for the subobject
 				SourceText = ImportObjectProperties(
@@ -1056,10 +1038,6 @@ static const TCHAR* ImportCreateSubObjectsStep(
 			FString ExportedObjectFullName;
 			FParse::Value(Str, TEXT("ExportPath="), ExportedObjectFullName);
 
-			FName OverriddenOperationName = NAME_None;
-			const bool bParsed = FParse::Value(Str,TEXT("OverriddenOperation="), OverriddenOperationName);
-			TOptional<EOverriddenPropertyOperation> OverriddenOperation = bParsed ? GetOverriddenOperationFromName(OverriddenOperationName) : TOptional<EOverriddenPropertyOperation>();
-
 			// points to the parent class's template subobject/component, if we are overriding a subobject/component declared in our parent class
 			UObject* BaseTemplate = nullptr;
 			bool bRedefiningSubobject = false;
@@ -1289,15 +1267,6 @@ static const TCHAR* ImportCreateSubObjectsStep(
 					ObjectRemapper->Add(MoveTemp(ExportedObjectFullName), ComponentTemplate);
 				}
 
-				if (OverriddenOperation.IsSet())
-				{
-					FOverridableManager::Get().SetOverriddenProperties(*ComponentTemplate, OverriddenOperation.GetValue());
-				}
-				else
-				{
-					FOverridableManager::Get().Disable(*ComponentTemplate);
-				}
-
 				// Create the subobjects for the subobject
 				CurrentSourceText = ImportCreateObjectsStep(Params);
 			}
@@ -1349,9 +1318,6 @@ static const TCHAR* ImportPropertiesStep(
 	{
 		return nullptr;
 	}
-
-	FOverriddenPropertySet* OverriddenProperties = SubobjectOuter ? FOverridableManager::Get().GetOverriddenProperties(*SubobjectOuter) : nullptr;
-	FEnableOverridableSerializationScope Scope(OverriddenProperties != nullptr, OverriddenProperties);
 
 	// Cannot create subobjects when importing struct defaults, or if SubobjectOuter (used as the Outer for any subobject declarations encountered) is NULL
 	bool bSubObjectsAllowed = !ObjectStruct->IsA(UScriptStruct::StaticClass()) && SubobjectOuter != NULL;

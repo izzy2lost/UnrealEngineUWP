@@ -16,11 +16,8 @@
 #include "Model.h"
 #include "Misc/FeedbackContext.h"
 #include "AssetExportTask.h"
-#include "DataTableUtils.h"
 #include "Misc/AsciiSet.h"
 #include "UObject/GCObjectScopeGuard.h"
-#include "UObject/OverridableManager.h"
-#include "UObject/OverriddenPropertySet.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -474,12 +471,6 @@ void UExporter::EmitBeginObject( FOutputDevice& Ar, UObject* Obj, uint32 PortFla
 			// we need the fully qualified path for the archetype (so we don't get confused when unpacking this)
 			Ar.Logf(TEXT(" Archetype=%s"), *FObjectPropertyBase::GetExportPath(Archetype, nullptr, /*ExportRootScope =*/nullptr, (PortFlags | PPF_Delimited) & ~PPF_ExportsNotFullyQualified));
 		}
-
-		if (FOverriddenPropertySet* ObjectOverriddenProperties = FOverridableManager::Get().GetOverriddenProperties(*Obj))
-		{
-			const EOverriddenPropertyOperation Operation = ObjectOverriddenProperties->GetOverriddenPropertyOperation((FArchiveSerializedPropertyChain*)nullptr, (FProperty*)nullptr);
-			Ar.Logf(TEXT(" OverriddenOperation=%s"), *GetOverriddenOperationString(Operation));
-		}
 	}
 
 	// When exporting for diffs, export paths can cause false positives. since diff files don't get imported, we can
@@ -681,7 +672,7 @@ void ExportProperties
 	FOutputDevice&	Out,
 	UClass*			ObjectClass,
 	uint8*			Object,
-	int32			Indent,
+	int32				Indent,
 	UClass*			DiffClass,
 	uint8*			Diff,
 	UObject*		Parent,
@@ -691,15 +682,10 @@ void ExportProperties
 {
 	check(ObjectClass != NULL);
 
-	FOverriddenPropertySet* OverriddenProperties = Object ? FOverridableManager::Get().GetOverriddenProperties(*(UObject*)Object) : nullptr;
-	FEnableOverridableSerializationScope Scope(OverriddenProperties!= nullptr, OverriddenProperties);
-
-	for (FProperty* Property = ObjectClass->PropertyLink; Property; Property = Property->PropertyLinkNext)
+	for( FProperty* Property = ObjectClass->PropertyLink; Property; Property = Property->PropertyLinkNext )
 	{
 		if (!Property->ShouldPort(PortFlags))
-		{
 			continue;
-		}
 
 		FString SanitizedPropertyName = Property->GetName();
 		constexpr FAsciiSet Whitespace("\t ");
@@ -711,110 +697,48 @@ void ExportProperties
 		}
 
 		FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property);
-		FMapProperty* MapProperty = CastField<FMapProperty>(Property);
-
 		FObjectPropertyBase* ExportObjectProp = (Property->PropertyFlags & CPF_ExportObject) != 0 ? CastField<FObjectPropertyBase>(Property) : NULL;
 		const uint32 ExportFlags = PortFlags | PPF_Delimited;
-		auto HandleExportObject = [Context, &Out, Indent, Parent, PortFlags, ExportObjectProp](const FProperty* Property, uint8* Data)
-		{
-			if (ExportObjectProp)
-			{
-				UObject* Obj = ExportObjectProp->GetObjectPropertyValue(Data);
-				check(!Obj || Obj->IsValidLowLevel());
-				if (Obj && !Obj->HasAnyMarks(OBJECTMARK_TagImp))
-				{
-					// only export the BEGIN OBJECT block for a component if Parent is the component's Outer....when importing subobject definitions,
-					// (i.e. BEGIN OBJECT), whichever BEGIN OBJECT block a component's BEGIN OBJECT block is located within is the object that will be
-					// used as the Outer to create the component
 
-					// Is this an array of components?
-					if (Property->HasAnyPropertyFlags(CPF_InstancedReference))
-					{
-						if (Obj->GetOuter() == Parent)
-						{
-							// Don't export more than once.
-							Obj->Mark(OBJECTMARK_TagImp);
-							UExporter::ExportToOutputDevice(Context, Obj, NULL, Out, TEXT("T3D"), Indent, PortFlags);
-						}
-						else
-						{
-							// set the OBJECTMARK_TagExp flag so that the calling code knows we wanted to export this object
-							Obj->Mark(OBJECTMARK_TagExp);
-						}
-					}
-					else
-					{
-						// Don't export more than once.
-						Obj->Mark(OBJECTMARK_TagImp);
-						UExporter::ExportToOutputDevice(Context, Obj, NULL, Out, TEXT("T3D"), Indent, PortFlags);
-					}
-				}
+		if ( ArrayProperty != NULL )
+		{
+			// Export dynamic array.
+			FProperty* InnerProp = ArrayProperty->Inner;
+			ExportObjectProp = (Property->PropertyFlags & CPF_ExportObject) != 0 ? CastField<FObjectPropertyBase>(InnerProp) : NULL;
+			// This is used as the default value in the case of an array property that has
+			// fewer elements than the exported object.
+			uint8* StructDefaults = NULL;
+			FStructProperty* StructProperty = CastField<FStructProperty>(InnerProp);
+			if ( StructProperty != NULL )
+			{
+				checkSlow(StructProperty->Struct);
+				StructDefaults = (uint8*)FMemory::Malloc(StructProperty->Struct->GetStructureSize());
+				StructProperty->InitializeValue(StructDefaults);
 			}
-		};
 
-		for (int32 PropertyArrayIndex=0; PropertyArrayIndex<Property->ArrayDim; PropertyArrayIndex++)
-		{
-			// Array special case
-			if (ArrayProperty != nullptr)
+			for( int32 PropertyArrayIndex=0; PropertyArrayIndex<Property->ArrayDim; PropertyArrayIndex++ )
 			{
-				// Export dynamic array.
-				FProperty* InnerProp = ArrayProperty->Inner;
-				ExportObjectProp = (Property->PropertyFlags & CPF_ExportObject) != 0 ? CastField<FObjectPropertyBase>(InnerProp) : NULL;
-				// This is used as the default value in the case of an array property that has
-				// fewer elements than the exported object.
-				uint8* StructDefaults = nullptr;
-				FStructProperty* StructProperty = CastField<FStructProperty>(InnerProp);
-				if (StructProperty != nullptr)
-				{
-					checkSlow(StructProperty->Struct);
-					StructDefaults = (uint8*)FMemory::Malloc(StructProperty->Struct->GetStructureSize());
-					StructProperty->InitializeValue(StructDefaults);
-				}
-				ON_SCOPE_EXIT
-				{
-					if (StructDefaults)
-					{
-						StructProperty->DestroyValue(StructDefaults);
-						FMemory::Free(StructDefaults);
-					}
-				};
-
 				void* Arr = Property->ContainerPtrToValuePtr<void>(Object, PropertyArrayIndex);
 				FScriptArrayHelper ArrayHelper(ArrayProperty, Arr);
 
-				void* DiffArr = nullptr;
-				if (DiffClass)
+				void*	DiffArr = NULL;
+				if( DiffClass )
 				{
 					DiffArr = Property->ContainerPtrToValuePtrForDefaults<void>(DiffClass, Diff, PropertyArrayIndex);
 				}
 				// we won't use this if DiffArr is NULL, but we have to set it up to something
 				FScriptArrayHelper DiffArrayHelper(ArrayProperty, DiffArr);
 
-				EOverriddenPropertyOperation Operation = EOverriddenPropertyOperation::None;
-				FArchiveSerializedPropertyChain Chain;
-				if (OverriddenProperties)
+				// If the current size of the array is 0 and the default one is not, add in an empty item so on import it will be empty
+				if( ArrayHelper.Num() == 0 && DiffArrayHelper.Num() != 0 )
 				{
-					FOverridableTextPortPropertyPathScope ScopePath(Property);
-					Operation = FOverridableSerializationLogic::GetOverriddenPropertyOperationForPortText(Arr, DiffArr, PortFlags);
-					FPropertyVisitorPath* Path = FOverridableSerializationLogic::GetOverriddenPortTextPropertyPath();
-					checkf(Path, TEXT("Expecting a path"));
-					Chain = Path->ToSerializedPropertyChain();
+					Out.Logf(TEXT("%s%s=\r\n"), FCString::Spc(Indent), *SanitizedPropertyName);
 				}
-
-				if(!OverriddenProperties && !Property->HasAnyPropertyFlags(CPF_ExperimentalOverridableLogic))
+				else
 				{
-					// If the current size of the array is 0 and the default one is not, add in an empty item so on import it will be empty
-					if (ArrayHelper.Num() == 0 && DiffArrayHelper.Num() != 0)
-					{
-						Out.Logf(TEXT("%s%s=\r\n"), FCString::Spc(Indent), *SanitizedPropertyName);
-						continue;
-					}
-
 					// If the array sizes are different, we will need to export each index so on import we maintain the size
 					for (int32 DynamicArrayIndex = 0; DynamicArrayIndex < ArrayHelper.Num(); DynamicArrayIndex++)
 					{
-						FOverridableTextPortPropertyPathScope ScopePath(Property, DynamicArrayIndex, EPropertyVisitorInfoType::ContainerIndex);
-
 						FString	Value;
 
 						// compare each element's value manually so that elements which match the NULL value for the array's inner property type
@@ -829,7 +753,39 @@ void ExportProperties
 						if (bExportItem)
 						{
 							InnerProp->ExportTextItem_Direct(Value, SourceData, DiffData, Parent, ExportFlags, ExportRootScope);
-							HandleExportObject(InnerProp, ArrayHelper.GetRawPtr(DynamicArrayIndex));
+							if (ExportObjectProp)
+							{
+								UObject* Obj = ExportObjectProp->GetObjectPropertyValue(ArrayHelper.GetRawPtr(DynamicArrayIndex));
+								check(!Obj || Obj->IsValidLowLevel());
+								if (Obj && !Obj->HasAnyMarks(OBJECTMARK_TagImp))
+								{
+									// only export the BEGIN OBJECT block for a component if Parent is the component's Outer....when importing subobject definitions,
+									// (i.e. BEGIN OBJECT), whichever BEGIN OBJECT block a component's BEGIN OBJECT block is located within is the object that will be
+									// used as the Outer to create the component
+
+									// Is this an array of components?
+									if (InnerProp->HasAnyPropertyFlags(CPF_InstancedReference))
+									{
+										if (Obj->GetOuter() == Parent)
+										{
+											// Don't export more than once.
+											Obj->Mark(OBJECTMARK_TagImp);
+											UExporter::ExportToOutputDevice(Context, Obj, NULL, Out, TEXT("T3D"), Indent, PortFlags);
+										}
+										else
+										{
+											// set the OBJECTMARK_TagExp flag so that the calling code knows we wanted to export this object
+											Obj->Mark(OBJECTMARK_TagExp);
+										}
+									}
+									else
+									{
+										// Don't export more than once.
+										Obj->Mark(OBJECTMARK_TagImp);
+										UExporter::ExportToOutputDevice(Context, Obj, NULL, Out, TEXT("T3D"), Indent, PortFlags);
+									}
+								}
+							}
 
 							Out.Logf(TEXT("%s%s(%i)=%s\r\n"), FCString::Spc(Indent), *SanitizedPropertyName, DynamicArrayIndex, *Value);
 						}
@@ -838,236 +794,63 @@ void ExportProperties
 					{
 						Out.Logf(TEXT("%s%s.RemoveIndex(%d)\r\n"), FCString::Spc(Indent), *SanitizedPropertyName, DynamicArrayIndex);
 					}
-					continue;
-				}
-
-				// Replaced operation goes through the generic property export code
-				if (Operation == EOverriddenPropertyOperation::Modified)
-				{
-					if (const FOverriddenPropertyNode* ArrayOverriddenPropertyNode = OverriddenProperties->GetOverriddenPropertyNode(&Chain))
-					{
-						checkf(Arr && DiffArr, TEXT("Expecting a memory ptr to Array and its default"));
-
-						const FObjectProperty* InnerObjectProperty = CastField<FObjectProperty>(InnerProp);
-
-						// Only array of instanced subobjects are handled here as sort of a set where the matching key is done using the archetype
-						checkf(InnerObjectProperty&& InnerObjectProperty->HasAnyPropertyFlags(CPF_PersistentInstance), TEXT("Expecting only arrays of instanced subobjects"));
-
-						auto FindObject = [InnerObjectProperty](const FOverriddenPropertyNodeID ObjectToFind, FScriptArrayHelper& ArrayHelper) -> int32
-						{
-							const int32 ArrayNum = ArrayHelper.Num();
-							for (int i = 0; i < ArrayNum; ++i)
-							{
-								if (UObject* CurrentObject = InnerObjectProperty->GetObjectPropertyValue(ArrayHelper.GetElementPtr(i)))
-								{
-									if (ObjectToFind == FOverriddenPropertyNodeID(*CurrentObject))
-									{
-										return i;
-									}
-								}
-							}
-							return INDEX_NONE;
-						};
-
-						FScriptArrayHelper DefaultsArrayHelper(ArrayProperty, DiffArr);
-
-						TArray<int32> RemovedIndices;
-						TArray<int32> AddedIndices;
-
-						for (const auto& Pair : ArrayOverriddenPropertyNode->SubPropertyNodeKeys)
-						{
-							const EOverriddenPropertyOperation OverrideOp = OverriddenProperties->GetSubPropertyOperation(Pair.Value);
-							switch (OverrideOp)
-							{
-							case EOverriddenPropertyOperation::Remove:
-								{
-									const int32 DefaultIndex = FindObject(Pair.Key, DefaultsArrayHelper);
-									if (DefaultIndex != INDEX_NONE)
-									{
-										RemovedIndices.Add(DefaultIndex);
-									}
-									break;
-								}
-							case EOverriddenPropertyOperation::Add:
-								{
-									const int32 Index = FindObject(Pair.Key, ArrayHelper);
-									if (Index != INDEX_NONE)
-									{
-										AddedIndices.Add(Index);
-									}
-									break;
-								}
-							default:
-								checkf(false, TEXT("Unsupported operation type"));
-								break;
-							}
-						}
-
-						for (int32 i : RemovedIndices)
-						{
-							FString Value;
-							InnerProp->ExportTextItem_Direct(Value, DiffArrayHelper.GetRawPtr(i), nullptr, Parent, ExportFlags, ExportRootScope);
-
-							Out.Logf(TEXT("%s%s<%s>=%s\r\n"), FCString::Spc(Indent), *SanitizedPropertyName, *GetOverriddenOperationString(EOverriddenPropertyOperation::Remove), *Value);
-						}
-
-						for (int32 i : AddedIndices)
-						{
-							FOverridableTextPortPropertyPathScope ScopePath(Property, i, EPropertyVisitorInfoType::ContainerIndex);
-
-							FString Value;
-							InnerProp->ExportTextItem_Direct(Value, ArrayHelper.GetRawPtr(i), nullptr, Parent, ExportFlags, ExportRootScope);
-							HandleExportObject(InnerProp, ArrayHelper.GetRawPtr(i));
-
-							Out.Logf(TEXT("%s%s<%s>=%s\r\n"), FCString::Spc(Indent), *SanitizedPropertyName, *GetOverriddenOperationString(EOverriddenPropertyOperation::Add), *Value);
-						}
-					}
-					continue;
 				}
 			}
-
-			// Map special case
-			if (MapProperty != nullptr)
+			if (StructDefaults)
 			{
+				StructProperty->DestroyValue(StructDefaults);
+				FMemory::Free(StructDefaults);
+			}
+		}
+		else
+		{
+			for( int32 PropertyArrayIndex=0; PropertyArrayIndex<Property->ArrayDim; PropertyArrayIndex++ )
+			{
+				FString	Value;
+				// Export single element.
 
-				void* Map = Property->ContainerPtrToValuePtr<void>(Object, PropertyArrayIndex);
-				void* DiffMap = nullptr;
-				if (DiffClass)
+				uint8* DiffData = (DiffClass && Property->IsInContainer(DiffClass->GetPropertiesSize())) ? Diff : NULL;
+				if( Property->ExportText_InContainer( PropertyArrayIndex, Value, Object, DiffData, Parent, ExportFlags, ExportRootScope ) )
 				{
-					DiffMap = Property->ContainerPtrToValuePtrForDefaults<void>(DiffClass, Diff, PropertyArrayIndex);
-				}
-
-				EOverriddenPropertyOperation Operation = EOverriddenPropertyOperation::None;
-				FArchiveSerializedPropertyChain Chain;
-				if (OverriddenProperties)
-				{
-					FOverridableTextPortPropertyPathScope ScopePath(Property);
-					Operation = FOverridableSerializationLogic::GetOverriddenPropertyOperationForPortText(Map, DiffMap, PortFlags);
-					FPropertyVisitorPath* Path = FOverridableSerializationLogic::GetOverriddenPortTextPropertyPath();
-					checkf(Path, TEXT("Expecting a path"));
-					Chain = Path->ToSerializedPropertyChain();
-				}
-
-				// Replaced operation goes through the generic property export code
-				if (Operation == EOverriddenPropertyOperation::Modified)
-				{
-					if (const FOverriddenPropertyNode* MapOverriddenPropertyNode = OverriddenProperties->GetOverriddenPropertyNode(&Chain))
+					if ( ExportObjectProp )
 					{
-						checkf(Map && DiffMap, TEXT("Expecting memory ptr to the map and its defaults"));
-
-						FScriptMapHelper MapHelper(MapProperty, Map);
-						FScriptMapHelper DiffMapHelper(MapProperty, DiffMap);
-
-						TArray<int32> RemovedIndices;
-						TArray<int32> ModifiedIndices;
-						TArray<int32> AddedIndices;
-
-
-						// Figure out the modifications of the map
-						for (const auto& Pair : MapOverriddenPropertyNode->SubPropertyNodeKeys)
+						UObject* Obj = ExportObjectProp->GetObjectPropertyValue(Property->ContainerPtrToValuePtr<void>(Object, PropertyArrayIndex));
+						if( Obj && !Obj->HasAnyMarks(OBJECTMARK_TagImp) )
 						{
-							const EOverriddenPropertyOperation OverrideOp = OverriddenProperties->GetSubPropertyOperation(Pair.Value);
-							switch (OverrideOp)
+							// only export the BEGIN OBJECT block for a component if Parent is the component's Outer....when importing subobject definitions,
+							// (i.e. BEGIN OBJECT), whichever BEGIN OBJECT block a component's BEGIN OBJECT block is located within is the object that will be
+							// used as the Outer to create the component
+							if ( Property->HasAnyPropertyFlags(CPF_InstancedReference) )
 							{
-							case EOverriddenPropertyOperation::Remove:
+								if ( Obj->GetOuter() == Parent )
 								{
-									const int32 InternalIndex = UE::OverridableMapUtilities::FindKeyInternalIndex(Pair.Key, DiffMapHelper);
-									if (InternalIndex != INDEX_NONE)
-									{
-										RemovedIndices.Add(InternalIndex);
-									}
-									break;
+									// Don't export more than once.
+									Obj->Mark(OBJECTMARK_TagImp);
+									UExporter::ExportToOutputDevice( Context, Obj, NULL, Out, TEXT("T3D"), Indent, PortFlags );
 								}
-							case EOverriddenPropertyOperation::Add:
+								else
 								{
-									const int32 InternalIndex = UE::OverridableMapUtilities::FindKeyInternalIndex(Pair.Key, MapHelper);
-									if (InternalIndex != INDEX_NONE)
-									{
-										AddedIndices.Add(InternalIndex);
-									}
-									break;
+									// set the OBJECTMARK_TagExp flag so that the calling code knows we wanted to export this object
+									Obj->Mark(OBJECTMARK_TagExp);
 								}
-							case EOverriddenPropertyOperation::Modified:
-								{
-									const int32 InternalIndex = UE::OverridableMapUtilities::FindKeyInternalIndex(Pair.Key, MapHelper);
-									if (InternalIndex != INDEX_NONE)
-									{
-										ModifiedIndices.Add(InternalIndex);
-									}
-									break;
-								}
-							default:
-								checkf(false, TEXT("Unsupported map operation"));
-								break;
+							}
+							else
+							{
+								// Don't export more than once.
+								Obj->Mark(OBJECTMARK_TagImp);
+								UExporter::ExportToOutputDevice( Context, Obj, NULL, Out, TEXT("T3D"), Indent, PortFlags );
 							}
 						}
-
-						auto ExportItem = [&MapHelper, &DiffMapHelper, Parent, ExportRootScope, Indent, SanitizedPropertyName, ExportFlags, &Out](int32 i, EOverriddenPropertyOperation Operation)
-						{
-							FString Key;
-							MapHelper.KeyProp->ExportTextItem_Direct(Key, MapHelper.GetKeyPtr(i), Operation == EOverriddenPropertyOperation::Modified ? DiffMapHelper.GetKeyPtr(i) : nullptr, Parent, ExportFlags, ExportRootScope);
-
-							FString Value;
-							MapHelper.ValueProp->ExportTextItem_Direct(Value, MapHelper.GetValuePtr(i), Operation == EOverriddenPropertyOperation::Modified ? DiffMapHelper.GetValuePtr(i) : nullptr, Parent, ExportFlags, ExportRootScope);
-
-							Out.Logf(TEXT("%s%s<%s>=(%s,%s)\r\n"), FCString::Spc(Indent), *SanitizedPropertyName, *GetOverriddenOperationString(Operation), *Key, *Value);
-						};
-
-						for (int32 i : RemovedIndices)
-						{
-							FString Value;
-							DiffMapHelper.KeyProp->ExportTextItem_Direct(Value, DiffMapHelper.GetKeyPtr(i), nullptr, Parent, ExportFlags, ExportRootScope);
-
-							Out.Logf(TEXT("%s%s<%s>=%s\r\n"), FCString::Spc(Indent), *SanitizedPropertyName, *GetOverriddenOperationString(EOverriddenPropertyOperation::Remove), *Value);
-						}
-
-						for (int32 i : ModifiedIndices)
-						{
-							FOverridableTextPortPropertyPathScope ScopePath(Property, i, EPropertyVisitorInfoType::ContainerIndex);
-
-							ExportItem(i, EOverriddenPropertyOperation::Modified);
-						}
-
-						for (int32 i : AddedIndices)
-						{
-							FOverridableTextPortPropertyPathScope ScopePath(Property, i, EPropertyVisitorInfoType::ContainerIndex);
-
-							ExportItem(i, EOverriddenPropertyOperation::Add);
-						}
 					}
 
-					continue;
-				}
-			}
-
-
-			// Generic property export code
-			FString	Value;
-			const bool bStaticArray = Property->ArrayDim > 1;
-			FOverridableTextPortPropertyPathScope ScopePath(Property, bStaticArray ? PropertyArrayIndex : INDEX_NONE, bStaticArray ? EPropertyVisitorInfoType::StaticArrayIndex : EPropertyVisitorInfoType::None);
-
-			uint8* DiffData = (DiffClass && Property->IsInContainer(DiffClass->GetPropertiesSize())) ? Diff : NULL;
-			if (Property->ExportText_InContainer(PropertyArrayIndex, Value, Object, DiffData, Parent, ExportFlags, ExportRootScope))
-			{
-				HandleExportObject(Property, Property->ContainerPtrToValuePtr<uint8>(Object, PropertyArrayIndex));
-
-				FString OverridableOperation;
-				if (OverriddenProperties)
-				{
-					const EOverriddenPropertyOperation Operation = FOverridableSerializationLogic::GetOverriddenPropertyOperationForPortText(Object, DiffData, PortFlags);
-					if (Operation!=EOverriddenPropertyOperation::None)
+					if( Property->ArrayDim == 1 )
 					{
-						OverridableOperation = FString::Printf(TEXT("<%s>"), *GetOverriddenOperationString(Operation));
+						Out.Logf( TEXT("%s%s=%s\r\n"), FCString::Spc(Indent), *SanitizedPropertyName, *Value );
 					}
-				}
-
-				if (!bStaticArray)
-				{
-					Out.Logf( TEXT("%s%s%s=%s\r\n"), FCString::Spc(Indent), *SanitizedPropertyName, *OverridableOperation, *Value );
-				}
-				else
-				{
-					Out.Logf( TEXT("%s%s(%i)%s=%s\r\n"), FCString::Spc(Indent), *SanitizedPropertyName, PropertyArrayIndex, *OverridableOperation, *Value );
+					else
+					{
+						Out.Logf( TEXT("%s%s(%i)=%s\r\n"), FCString::Spc(Indent), *SanitizedPropertyName, PropertyArrayIndex, *Value );
+					}
 				}
 			}
 		}

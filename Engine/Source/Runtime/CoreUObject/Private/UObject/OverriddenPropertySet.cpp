@@ -21,12 +21,12 @@ DEFINE_LOG_CATEGORY(LogOverridableObject);
 //----------------------------------------------------------------------//
 thread_local bool FOverridableSerializationLogic::bUseOverridableSerialization = false;
 thread_local FOverriddenPropertySet* FOverridableSerializationLogic::OverriddenProperties = nullptr;
-thread_local FPropertyVisitorPath* FOverridableSerializationLogic::OverriddenPortTextPropertyPath = nullptr;
 
-EOverriddenPropertyOperation FOverridableSerializationLogic::GetOverriddenPropertyOperation(const int32 PortFlags, const FArchiveSerializedPropertyChain* CurrentPropertyChain, FProperty* Property, const void* DataPtr, const void* DefaultValue)
+EOverriddenPropertyOperation FOverridableSerializationLogic::GetOverriddenPropertyOperation(const FArchive& Ar, FProperty* Property /*= nullptr*/, uint8* DataPtr /*= nullptr*/, uint8* DefaultValue)
 {
-	checkf(FOverridableSerializationLogic::bUseOverridableSerialization, TEXT("Nobody should use this method if it is not setup to use overridable serialization"));
+	checkf(bUseOverridableSerialization, TEXT("Nobody should use this method if it is not setup to use overridable serialization"));
 
+	const FArchiveSerializedPropertyChain* CurrentPropertyChain = Ar.GetSerializedPropertyChain();
 	const EOverriddenPropertyOperation OverriddenOperation = OverriddenProperties ? OverriddenProperties->GetOverriddenPropertyOperation(CurrentPropertyChain, Property) : EOverriddenPropertyOperation::None;
 	if (OverriddenOperation != EOverriddenPropertyOperation::None)
 	{
@@ -45,7 +45,7 @@ EOverriddenPropertyOperation FOverridableSerializationLogic::GetOverriddenProper
 		if (OverriddenProperties && OverriddenProperties->IsCDOOwningProperty(*CurrentProperty))
 		{
 			// Only need serialize this value if it is different from the default property value
-			if (!CurrentProperty->Identical(DataPtr, DefaultValue, PortFlags))
+			if (!CurrentProperty->Identical(DataPtr, DefaultValue, Ar.GetPortFlags()))
 			{
 				return 	EOverriddenPropertyOperation::Replace;
 			}
@@ -53,36 +53,6 @@ EOverriddenPropertyOperation FOverridableSerializationLogic::GetOverriddenProper
 	}
 	
 	return EOverriddenPropertyOperation::None;
-}
-
-EOverriddenPropertyOperation FOverridableSerializationLogic::GetOverriddenPropertyOperation(const FArchive& Ar, FProperty* Property /*= nullptr*/, uint8* DataPtr /*= nullptr*/, uint8* DefaultValue /*= nullptr*/)
-{
-	const FArchiveSerializedPropertyChain* CurrentPropertyChain = Ar.GetSerializedPropertyChain();
-	return GetOverriddenPropertyOperation(Ar.GetPortFlags(), CurrentPropertyChain, Property, DataPtr, DefaultValue);
-}
-
-EOverriddenPropertyOperation FOverridableSerializationLogic::GetOverriddenPropertyOperationForPortText(const void* DataPtr, const void* DefaultValue, int32 PortFlags)
-{
-	checkf(OverriddenPortTextPropertyPath, TEXT("Expecting an overridden port text path"));
-
-	const FArchiveSerializedPropertyChain CurrentPropertyChain = OverriddenPortTextPropertyPath->ToSerializedPropertyChain();
-	return GetOverriddenPropertyOperation(PortFlags,  &CurrentPropertyChain, nullptr, DataPtr, DefaultValue);
-}
-
-FPropertyVisitorPath* FOverridableSerializationLogic::GetOverriddenPortTextPropertyPath()
-{
-	return OverriddenPortTextPropertyPath;
-}
-
-void FOverridableSerializationLogic::SetOverriddenPortTextPropertyPath(FPropertyVisitorPath& Path)
-{
-	checkf(OverriddenPortTextPropertyPath == nullptr, TEXT("Should not set a path on top of an existing one"));
-	OverriddenPortTextPropertyPath = &Path;
-}
-
-void FOverridableSerializationLogic::ResetOverriddenPortTextPropertyPath()
-{
-	OverriddenPortTextPropertyPath = nullptr;
 }
 
 //----------------------------------------------------------------------//
@@ -111,46 +81,6 @@ FEnableOverridableSerializationScope::~FEnableOverridableSerializationScope()
 		if (bWasOverridableSerializationEnabled)
 		{
 			FOverridableSerializationLogic::Enable(SavedOverriddenProperties);
-		}
-	}
-}
-
-//----------------------------------------------------------------------//
-// FOverridableTextImportPropertyPathScope
-//----------------------------------------------------------------------//
-FOverridableTextPortPropertyPathScope::FOverridableTextPortPropertyPathScope(const FProperty* InProperty, int32 InIndex/* = INDEX_NONE*/, EPropertyVisitorInfoType InPropertyInfo /*= EPropertyVisitorInfoType::None*/)
-{
-	if (!FOverridableSerializationLogic::IsEnabled())
-	{
-		return;
-	}
-
-	checkf(InProperty, TEXT("Expecting a valid property ptr"));
-
-	// Save property for comparison in the destructor
-	Property = InProperty;
-
-	FPropertyVisitorPath* Path = FOverridableSerializationLogic::GetOverriddenPortTextPropertyPath();
-	if (!Path)
-	{
-		FOverridableSerializationLogic::SetOverriddenPortTextPropertyPath(DefaultPath);
-		Path = &DefaultPath;
-	}
-
-	Path->Push(FPropertyVisitorInfo(InProperty, InIndex, InPropertyInfo));
-}
-
-FOverridableTextPortPropertyPathScope::~FOverridableTextPortPropertyPathScope()
-{
-	if (Property)
-	{
-		FPropertyVisitorPath* Path = FOverridableSerializationLogic::GetOverriddenPortTextPropertyPath();
-		checkf(Path, TEXT("Expecting a valid path "));
-		checkf(Path->Num(), TEXT("Expecting at least one property in the path"));
-		verifyf(Path->Pop().Property == Property, TEXT("Expecting at the top property to match the one we pushed in the constructor"));
-		if (!Path->Num())
-		{
-			FOverridableSerializationLogic::ResetOverriddenPortTextPropertyPath();
 		}
 	}
 }
@@ -229,8 +159,8 @@ EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperat
 		}
 
 
-		// Special handling for instanced subobjects 
-		if (const FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(CurrentProperty))
+		// Special handling for for instanced subobjects 
+		if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(CurrentProperty))
 		{
 			if (PropertyIterator->GetNextNode())
 			{
@@ -249,7 +179,7 @@ EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperat
 
 			// Only special case is instanced subobjects, otherwise we fallback to full array override
 			checkf(ArrayProperty->Inner, TEXT("Expecting an inner type for Arrays"));
-			if (const FObjectPropertyBase* InnerObjectProperty = ArrayProperty->Inner->HasAnyPropertyFlags(CPF_PersistentInstance) ? CastField<FObjectPropertyBase>(ArrayProperty->Inner) : nullptr)
+			if (const FObjectProperty* InnerObjectProperty = ArrayProperty->Inner->HasAnyPropertyFlags(CPF_PersistentInstance) ? CastField<FObjectProperty>(ArrayProperty->Inner) : nullptr)
 			{
 				FScriptArrayHelper ArrayHelper(ArrayProperty, SubValuePtr);
 				if(ArrayHelper.IsValidIndex(ArrayIndex))
@@ -294,7 +224,7 @@ EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperat
 				if (PropertyIterator->GetNextNode())
 				{
 					// Forward any sub queries to the subobject
-					if (const FObjectPropertyBase* ValueInstancedObjectProperty = MapProperty->ValueProp->HasAnyPropertyFlags(CPF_PersistentInstance) ? CastField<FObjectPropertyBase>(MapProperty->ValueProp) : nullptr)
+					if (const FObjectProperty* ValueInstancedObjectProperty = MapProperty->ValueProp->HasAnyPropertyFlags(CPF_PersistentInstance) ? CastField<FObjectProperty>(MapProperty->ValueProp) : nullptr)
 					{
 						if (UObject* ValueSubObject = ValueInstancedObjectProperty->GetObjectPropertyValue(MapHelper.GetValuePtr(InternalMapIndex)))
 						{
@@ -306,7 +236,7 @@ EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperat
 				{
 					// Caller wants to know about any override state on the reference of the map pair itself
 					checkf(MapProperty->KeyProp, TEXT("Expecting a key type for Maps"));
-					FObjectPropertyBase* KeyObjectProperty = CastField<FObjectPropertyBase>(MapProperty->KeyProp);
+					FObjectProperty* KeyObjectProperty = CastField<FObjectProperty>(MapProperty->KeyProp);
 
 					FOverriddenPropertyNodeID OverriddenKeyID;
 					if (const UObject* OverriddenKeyObject = KeyObjectProperty ? KeyObjectProperty->GetObjectPropertyValue(MapHelper.GetKeyPtr(InternalMapIndex)) : nullptr)
@@ -376,7 +306,7 @@ bool FOverriddenPropertySet::ClearOverriddenProperty(FOverriddenPropertyNode& Pa
 		}
 
 		// Special handling for for instanced subobjects 
-		if (const FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(CurrentProperty))
+		if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(CurrentProperty))
 		{
 			if (UObject* SubObject = ObjectProperty->GetObjectPropertyValue(SubValuePtr))
 			{
@@ -397,7 +327,7 @@ bool FOverriddenPropertySet::ClearOverriddenProperty(FOverriddenPropertyNode& Pa
 			ArrayIndex = PropertyEvent.GetArrayIndex(CurrentProperty->GetName());
 
 			// Only special case is instanced subobjects, otherwise we fallback to full array override
-			if (FObjectPropertyBase* InnerObjectProperty = CastField<FObjectPropertyBase>(ArrayProperty->Inner))
+			if (FObjectProperty* InnerObjectProperty = CastField<FObjectProperty>(ArrayProperty->Inner))
 			{
 				if (InnerObjectProperty->HasAnyPropertyFlags(CPF_PersistentInstance))
 				{
@@ -448,7 +378,7 @@ bool FOverriddenPropertySet::ClearOverriddenProperty(FOverriddenPropertyNode& Pa
 			FScriptMapHelper MapHelper(MapProperty, SubValuePtr);
 
 			const int32 InternalMapIndex = ArrayIndex != INDEX_NONE ? MapHelper.FindInternalIndex(ArrayIndex) : INDEX_NONE;
-			const FObjectPropertyBase* ValueInstancedObjectProperty = MapProperty->ValueProp->HasAnyPropertyFlags(CPF_PersistentInstance) ? CastField<FObjectPropertyBase>(MapProperty->ValueProp) : nullptr;
+			const FObjectProperty* ValueInstancedObjectProperty = MapProperty->ValueProp->HasAnyPropertyFlags(CPF_PersistentInstance) ? CastField<FObjectProperty>(MapProperty->ValueProp) : nullptr;
 
 			// If there is a next node, it is probably because the map value is holding a instanced subobject and the user is changing value on it.
 			// So forward the call to the instanced subobject
@@ -483,7 +413,7 @@ bool FOverriddenPropertySet::ClearOverriddenProperty(FOverriddenPropertyNode& Pa
 			else if (MapHelper.IsValidIndex(InternalMapIndex) && CurrentOverriddenPropertyNode)
 			{
 				checkf(MapProperty->KeyProp, TEXT("Expecting a key type for Maps"));
-				FObjectPropertyBase* KeyObjectProperty = CastField<FObjectPropertyBase>(MapProperty->KeyProp);
+				FObjectProperty* KeyObjectProperty = CastField<FObjectProperty>(MapProperty->KeyProp);
 
 				// Calculate the node from the key
 				FOverriddenPropertyNodeID OverriddenKeyID;
@@ -605,7 +535,7 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 	if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
 	{
 		// Only special case is instanced subobjects, otherwise we fallback to full array override
-		if (FObjectPropertyBase* InnerObjectProperty = CastField<FObjectPropertyBase>(ArrayProperty->Inner))
+		if (FObjectProperty* InnerObjectProperty = CastField<FObjectProperty>(ArrayProperty->Inner))
 		{
 			if (InnerObjectProperty->HasAnyPropertyFlags(CPF_PersistentInstance))
 			{
@@ -789,13 +719,13 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 	{
 		// Special handling of instanced subobjects
 		checkf(MapProperty->KeyProp, TEXT("Expecting a key type for Maps"));
-		FObjectPropertyBase* KeyObjectProperty = CastField<FObjectPropertyBase>(MapProperty->KeyProp);
+		FObjectProperty* KeyObjectProperty = CastField<FObjectProperty>(MapProperty->KeyProp);
 
 		// SubObjects
 		checkf(!KeyObjectProperty || !MapProperty->KeyProp->HasAnyPropertyFlags(CPF_PersistentInstance) || CastField<FClassProperty>(MapProperty->KeyProp), TEXT("Keys as a instanced subobject is not supported yet"));
 
 		checkf(MapProperty->ValueProp, TEXT("Expecting a value type for Maps"));
-		FObjectPropertyBase* ValueInstancedObjectProperty = MapProperty->ValueProp->HasAnyPropertyFlags(CPF_PersistentInstance) ? CastField<FObjectPropertyBase>(MapProperty->ValueProp) : nullptr;
+		FObjectProperty* ValueInstancedObjectProperty = MapProperty->ValueProp->HasAnyPropertyFlags(CPF_PersistentInstance) ? CastField<FObjectProperty>(MapProperty->ValueProp) : nullptr;
 
 		FScriptMapHelper MapHelper(MapProperty, SubValuePtr);
 		int32 LogicalMapIndex = PropertyEvent.GetArrayIndex(Property->GetName());
@@ -1040,7 +970,7 @@ void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* Paren
 		}
 		return;
 	}
-	else if (const FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(Property))
+	else if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
 	{
 		if (!PropertyNode->GetNextNode())
 		{
@@ -1111,7 +1041,7 @@ bool FOverriddenPropertySet::ClearOverriddenProperty(const FPropertyChangedEvent
 	{
 		return ClearOverriddenProperty(*RootNode, PropertyEvent, PropertyNode, Owner);
 	}
-	return true;
+	return false;
 }
 
 void FOverriddenPropertySet::OverrideProperty(const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, const void* Data)
@@ -1298,59 +1228,3 @@ const FOverriddenPropertyNode* FOverriddenPropertySet::GetOverriddenPropertyNode
 
 	return OverriddenPropertyNode;
 }
-
-int32 UE::OverridableMapUtilities::FindKeyInternalIndex(const FOverriddenPropertyNodeID& KeyIDToFind, FScriptMapHelper& MapHelper)
-{
-	// Special case for object we didn't use the pointer to create the key
-	if (const FObjectProperty* KeyObjectProperty = CastField<FObjectProperty>(MapHelper.KeyProp))
-	{
-		for (FScriptMapHelper::FIterator It(MapHelper); It; ++It) 
-		{
-			if (UObject* CurrentObject = KeyObjectProperty->GetObjectPropertyValue(MapHelper.GetKeyPtr(It)))
-			{
-				if (KeyIDToFind == FOverriddenPropertyNodeID(*CurrentObject))
-				{
-					return It.GetInternalIndex();
-				}
-			}
-		}
-	}
-	else
-	{
-		// Default case, just import the text as key value for comparison
-		void* TempKeyValueStorage = FMemory_Alloca(MapHelper.MapLayout.SetLayout.Size);
-		MapHelper.KeyProp->InitializeValue(TempKeyValueStorage);
-
-		FString KeyToFind(KeyIDToFind.ToString());
-		MapHelper.KeyProp->ImportText_Direct(*KeyToFind, TempKeyValueStorage, nullptr, PPF_None);
-
-		const int32 InternalIndex = MapHelper.FindMapPairIndexFromHash(TempKeyValueStorage);
-
-		MapHelper.KeyProp->DestroyValue(TempKeyValueStorage);
-
-		return InternalIndex;
-	}
-	return INDEX_NONE;
-}
-
-FOverriddenPropertyNodeID UE::OverridableMapUtilities::GetIDFromKey(const FProperty* KeyProp, uint8* KeyData)
-{
-	// Special case for object as we cannot save the pointer value as a key
-	if (const FObjectProperty* KeyObjectProperty = CastField<FObjectProperty>(KeyProp))
-	{
-		if (const UObject* Object = KeyObjectProperty->GetObjectPropertyValue(KeyData))
-		{
-			return FOverriddenPropertyNodeID(*Object);
-		}
-	}
-	else
-	{
-		// Default case, just export key value as text
-		FString KeyString;
-		KeyProp->ExportTextItem_Direct(KeyString, KeyData, /*DefaultValue*/nullptr, /*Parent*/nullptr, PPF_None);
-		return FOverriddenPropertyNodeID(FName(KeyString));
-	}
-
-	checkf(false, TEXT("This case is not handled"))
-	return FOverriddenPropertyNodeID();
-};
