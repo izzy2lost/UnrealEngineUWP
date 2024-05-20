@@ -88,7 +88,11 @@ bool FAvaMaterialDesignerExtension::SetDynamicMaterialValue(const FDMObjectMater
 			UAvaShapeDynamicMeshBase* const DynamicMesh = ShapeActor->GetDynamicMesh();
 			if (DynamicMesh && DynamicMesh->GetMeshesIndexes().Contains(InObjectMaterialProperty.Index))
 			{
-				InMaterial->Rename(nullptr, DynamicMesh);
+				if (!InMaterial->IsAsset())
+				{
+					InMaterial->Rename(nullptr, DynamicMesh);
+				}
+
 				DynamicMesh->SetMaterial(InObjectMaterialProperty.Index, InMaterial);
 				return true;
 			}

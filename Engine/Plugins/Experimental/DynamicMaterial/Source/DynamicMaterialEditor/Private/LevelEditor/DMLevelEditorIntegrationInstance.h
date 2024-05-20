@@ -63,6 +63,4 @@ private:
 	void OnActorSelected(AActor* InActor);
 
 	void OnObjectSelectionChanged(const UTypedElementSelectionSet* InSelectionSet);
-
-	void OnMaterialModelSelected(UDynamicMaterialModel* InMaterialModel);
 };

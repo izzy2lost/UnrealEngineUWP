@@ -51,6 +51,7 @@ public:
 	static void ClearPropertyHandles(const SWidget* InOwningWidget);
 
 	void Construct(const FArguments& InArgs, TWeakObjectPtr<UDynamicMaterialModel> InModelWeak);
+
 	virtual ~SDMEditor() override;
 
 	UDynamicMaterialModel* GetMaterialModel() const { return MaterialModelWeak.Get(); }
@@ -59,7 +60,14 @@ public:
 	const FDMObjectMaterialProperty& GetMaterialObjectProperty() const { return ObjectProperty; }
 	void SetMaterialObjectProperty(const FDMObjectMaterialProperty& InObjectProperty);
 
+	AActor* GetMaterialActor() const;
 	void SetMaterialActor(AActor* InActor);
+
+	void OnMaterialModelSelected(UDynamicMaterialModel* InMaterialModel);
+
+	void OnMaterialInstanceSelected(UDynamicMaterialInstance* InMaterialInstance);
+
+	void OnActorSelected(AActor* InActor);
 
 	TSharedPtr<SDMSlot> GetActiveSlotWidget() const;
 
@@ -80,6 +88,8 @@ public:
 	//~ End SWidget
 
 	void ClearEditor();
+
+	void ResetEditor();
 
 	int32 GetActiveSlotIndex() const { return ActiveSlotIndex; }
 	void SetActiveSlotIndex(int InSlotIndex);
@@ -175,4 +185,6 @@ protected:
 	void OnUndo();
 
 	UDMMaterialSlot* GetSlotForMaterialProperty(EDMMaterialPropertyType InProperty) const;
+
+	void SetEmptyLayout();
 };

@@ -56,7 +56,7 @@ namespace UE::DynamicMaterialEditor::Private
 			return;
 		}
 
-		Editor->SetMaterialModel(nullptr);
+		Editor->ResetEditor();
 
 		const FString WorldPath = InWorld->GetPathName();
 		const int WorldPathLength = WorldPath.Len();

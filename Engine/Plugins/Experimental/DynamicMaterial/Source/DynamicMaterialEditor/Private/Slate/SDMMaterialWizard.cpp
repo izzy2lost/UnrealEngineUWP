@@ -253,9 +253,21 @@ FReply SDMMaterialWizard::Accept_OnClick()
 		{
 			if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 			{
+				FDMObjectMaterialProperty MaterialProperty = Editor->GetMaterialObjectProperty();
+				Editor->ClearEditor();
+
 				EditorOnlyData->SetChannelListPreset(CurrentPreset);
 				EditorOnlyData->OnWizardComplete();
-				Editor->SetMaterialModel(MaterialModel); // Refresh display
+
+				// Refresh display
+				if (MaterialProperty.IsValid())
+				{
+					Editor->SetMaterialObjectProperty(MaterialProperty);
+				}
+				else
+				{
+					Editor->SetMaterialModel(MaterialModel);
+				}
 			}
 		}
 	}

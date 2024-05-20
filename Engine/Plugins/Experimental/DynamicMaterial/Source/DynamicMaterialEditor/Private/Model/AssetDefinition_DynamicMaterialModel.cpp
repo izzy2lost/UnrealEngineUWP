@@ -52,7 +52,7 @@ EAssetCommandResult UAssetDefinition_DynamicMaterialModel::OpenAssets(const FAss
 			World = InOpenArgs.ToolkitHost->GetWorld();
 		}
 
-		FDynamicMaterialEditorModule::Get().SetDynamicMaterialModel(
+		FDynamicMaterialEditorModule::Get().OpenMaterialModel(
 			MaterialModel,
 			World,
 			/* Invoke Tab */ true

@@ -287,36 +287,7 @@ void FDMLevelEditorIntegrationInstance::OnActorSelected(AActor* InActor)
 		return;
 	}
 
-	UDynamicMaterialInstance* Instance = nullptr;
-
-	InActor->ForEachComponent<UPrimitiveComponent>(false, [&Instance](const UPrimitiveComponent* InPrimComp)
-		{
-			// Can't break this, so just skip every component
-			if (Instance)
-			{
-				return;
-			}
-
-			for (int32 MaterialIdx = 0; MaterialIdx < InPrimComp->GetNumMaterials(); ++MaterialIdx)
-			{
-				if (UDynamicMaterialInstance* MDI = Cast<UDynamicMaterialInstance>(InPrimComp->GetMaterial(MaterialIdx)))
-				{
-					Instance = MDI;
-					return;
-				}
-			}
-		});
-
-	UDynamicMaterialModel* MaterialModel = Instance ? Instance->GetMaterialModel() : nullptr;
-
-	if (!MaterialModel)
-	{
-		Editor->SetMaterialActor(InActor);
-	}
-	else
-	{
-		OnMaterialModelSelected(MaterialModel);
-	}
+	Editor->OnActorSelected(InActor);
 }
 
 void FDMLevelEditorIntegrationInstance::OnObjectSelectionChanged(const UTypedElementSelectionSet* InSelectionSet)
@@ -336,7 +307,7 @@ void FDMLevelEditorIntegrationInstance::OnObjectSelectionChanged(const UTypedEle
 
 	if (NewSelectedMaterialModel)
 	{
-		OnMaterialModelSelected(NewSelectedMaterialModel);
+		Editor->OnMaterialModelSelected(NewSelectedMaterialModel);
 		return;
 	}
 
@@ -355,16 +326,7 @@ void FDMLevelEditorIntegrationInstance::OnObjectSelectionChanged(const UTypedEle
 
 	if (NewSelectedMaterialInstance)
 	{
-		OnMaterialModelSelected(NewSelectedMaterialInstance->GetMaterialModel());
-		return;
-	}
-}
-
-void FDMLevelEditorIntegrationInstance::OnMaterialModelSelected(UDynamicMaterialModel* InMaterialModel)
-{
-	if (InMaterialModel)
-	{
-		Editor->SetMaterialModel(InMaterialModel);
+		Editor->OnMaterialModelSelected(NewSelectedMaterialInstance->GetMaterialModel());
 	}
 }
 

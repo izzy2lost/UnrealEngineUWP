@@ -33,6 +33,7 @@
 #include "Slate/SDMSlot.h"
 #include "Slate/SDMToolBar.h"
 #include "SlateOptMacros.h"
+#include "Material/DynamicMaterialInstance.h"
 #include "Styling/StyleColors.h"
 #include "ThumbnailRendering/ThumbnailManager.h"
 #include "Utils/DMBlueprintFunctionLibrary.h"
@@ -264,6 +265,8 @@ void SDMEditor::Construct(const FArguments& InArgs, TWeakObjectPtr<UDynamicMater
 		]
 	];
 
+	SetEmptyLayout();
+
 	SetMaterialModel(InModelWeak.Get());
 
 	UDynamicMaterialEditorSettings::Get()->OnSettingsChanged.AddSP(this, &SDMEditor::OnSettingsChanged);
@@ -305,7 +308,22 @@ SDMEditor::~SDMEditor()
 
 void SDMEditor::ClearEditor()
 {
-	SetMaterialModel(nullptr);
+	MaterialModelWeak.Reset();
+	ObjectProperty.Reset();
+
+	SlotPickerContainer.Reset();
+	SlotContainer.Reset();
+	ActiveSlotWidget.Reset();
+	ComponentEditContainer.Reset();
+	SplitterContainer.Reset();
+
+	bInvalidateComponentEditWidget = false;
+}
+
+void SDMEditor::ResetEditor()
+{
+	ClearEditor();
+	SetEmptyLayout();
 }
 
 void SDMEditor::SetActiveSlotIndex(int InSlotIndex)
@@ -420,22 +438,27 @@ FDMPropertyHandle SDMEditor::CreatePropertyHandle(const void* InOwningWidget, UO
 
 void SDMEditor::SetMaterialModel(UDynamicMaterialModel* InMaterialModel)
 {
+	if (InMaterialModel && !UE::DynamicMaterialEditor::Private::CheckMaterialModelValidity(InMaterialModel))
+	{
+		InMaterialModel = nullptr;
+	}
+
+	if (MaterialModelWeak.Get() == InMaterialModel)
+	{
+		return;
+	}
+
+	ClearEditor();
+
 	MaterialModelWeak = InMaterialModel;
 
-	SlotPickerContainer.Reset();
-	SlotContainer.Reset();
-	ActiveSlotWidget.Reset();
-	ComponentEditContainer.Reset();
-	SplitterContainer.Reset();
-	bInvalidateComponentEditWidget = false;
-
 	Toolbar->SetMaterialModel(InMaterialModel);
+
 	SetEditedComponent(nullptr);
 
 	if (!InMaterialModel)
 	{
-		Container->SetContent(SDMEditor::GetEmptyContent());
-		bHasActiveLayout = false;
+		SetEmptyLayout();
 		return;
 	}
 
@@ -462,24 +485,110 @@ void SDMEditor::SetMaterialModel(UDynamicMaterialModel* InMaterialModel)
 
 void SDMEditor::SetMaterialObjectProperty(const FDMObjectMaterialProperty& InObjectProperty)
 {
+	if (!InObjectProperty.IsValid())
+	{
+		ResetEditor();
+		return;
+	}
+
 	UDynamicMaterialModel* MaterialModel = InObjectProperty.GetMaterialModel();
 
-	if (IsValid(MaterialModel))
+	if (!IsValid(MaterialModel))
 	{
-		ObjectProperty = InObjectProperty;
-		SetMaterialModel(MaterialModel);
+		ResetEditor();
+		return;
 	}
-	else
+
+	SetMaterialModel(MaterialModel);
+	ObjectProperty = InObjectProperty;
+
+	if (AActor* Actor = ObjectProperty.GetTypedOuter<AActor>())
 	{
-		ObjectProperty.Reset();
+		SetMaterialActor(Actor);
 	}
+}
+
+AActor* SDMEditor::GetMaterialActor() const
+{
+	if (Toolbar.IsValid())
+	{
+		return Toolbar->GetMaterialActor();
+	}
+
+	return nullptr;
 }
 
 void SDMEditor::SetMaterialActor(AActor* InActor)
 {
-	if (UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get())
+	if (!IsValid(InActor))
 	{
-		if (!Settings->bFollowSelection)
+		return;
+	}
+
+	if (!GetMaterialModel())
+	{
+		Container->SetContent(
+			SNew(SBox)
+			.HAlign(HAlign_Center)
+			.Padding(5.0f, 5.0f, 5.0f, 5.0f)
+			[
+				CreateActorMaterialSlotSelector(InActor)
+			]
+		);
+	}
+
+
+	if (Toolbar->GetMaterialActor() != InActor)
+	{
+		Toolbar->SetMaterialActor(InActor);
+	}
+}
+
+void SDMEditor::SetEmptyLayout()
+{
+	bHasActiveLayout = false;
+	Container->SetContent(SDMEditor::GetEmptyContent());
+}
+
+void SDMEditor::OnMaterialModelSelected(UDynamicMaterialModel* InMaterialModel)
+{
+	if (!IsValid(InMaterialModel))
+	{
+		return;
+	}
+
+	// Only check this setting if we have an active material model.
+	if (GetMaterialModel())
+	{
+		UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get();
+
+		if (!Settings || !Settings->bFollowSelection)
+		{
+			return;
+		}
+	}
+
+	SetMaterialModel(InMaterialModel);
+}
+
+void SDMEditor::OnMaterialInstanceSelected(UDynamicMaterialInstance* InMaterialInstance)
+{
+	if (!IsValid(InMaterialInstance))
+	{
+		return;
+	}
+
+	OnMaterialModelSelected(InMaterialInstance->GetMaterialModel());
+}
+
+void SDMEditor::OnActorSelected(AActor* InActor)
+{
+	// Only check this setting if we have an active material model.
+	if (GetMaterialModel())
+	{
+		UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get();
+
+		if (!Settings || !Settings->bFollowSelection)
 		{
 			return;
 		}
@@ -490,22 +599,36 @@ void SDMEditor::SetMaterialActor(AActor* InActor)
 		return;
 	}
 
+	ClearEditor();
+
 	if (!IsValid(InActor))
 	{
-		Container->SetContent(SDMEditor::GetEmptyContent());
+		SetEmptyLayout();
 		return;
 	}
 
-	Toolbar->SetMaterialActor(InActor);
+	TArray<FDMObjectMaterialProperty> ActorProperties = UDMBlueprintFunctionLibrary::GetActorMaterialProperties(InActor);
 
-	Container->SetContent(
-		SNew(SBox)
-		.HAlign(HAlign_Center)
-		.Padding(5.0f, 5.0f, 5.0f, 5.0f)
-		[
-			CreateActorMaterialSlotSelector(InActor)
-		]
-	);
+	for (int32 MaterialPropertyIdx = 0; MaterialPropertyIdx < ActorProperties.Num(); ++MaterialPropertyIdx)
+	{
+		const FDMObjectMaterialProperty& MaterialProperty = ActorProperties[MaterialPropertyIdx];
+		UDynamicMaterialModel* Model = MaterialProperty.GetMaterialModel();
+
+		if (UDynamicMaterialModel* MaterialModel = Model)
+		{
+			SetMaterialObjectProperty(MaterialProperty);
+		}
+	}
+
+	if (!ActorProperties.IsEmpty() && !GetMaterialModel())
+	{
+		SetMaterialObjectProperty(ActorProperties[0]);
+	}
+
+	if (GetMaterialActor() != InActor)
+	{
+		SetMaterialActor(InActor);
+	}
 }
 
 TSharedPtr<SDMSlot> SDMEditor::GetActiveSlotWidget() const
@@ -718,7 +841,7 @@ TSharedRef<SWidget> SDMEditor::CreateMainLayout()
 		.HAlign(HAlign_Fill)
 		.VAlign(VAlign_Top)
 		[
-			SAssignNew(Toolbar, SDMToolBar)
+			SAssignNew(Toolbar, SDMToolBar, SharedThis(this))
 			.MaterialModel(MaterialModelWeak.Get())
 			.OnSlotChanged(this, &SDMEditor::OnToolBarPropertyChanged)
 			.OnGetSettingsMenu(this, &SDMEditor::MakeToolBarSettingsMenu)
@@ -960,9 +1083,14 @@ void SDMEditor::Tick(const FGeometry& AllottedGeometry, const double InCurrentTi
 	{
 		if (bHasActiveLayout)
 		{
-			ClearEditor();
+			ResetEditor();
 		}
 
+		return;
+	}
+
+	if (!bHasActiveLayout)
+	{
 		return;
 	}
 
@@ -985,30 +1113,42 @@ void SDMEditor::Tick(const FGeometry& AllottedGeometry, const double InCurrentTi
 			}
 			else
 			{
-				ClearEditor();
+				ResetEditor();
 				return;
 			}
 		}
 	}
-	else 
+	else if (!UE::DynamicMaterialEditor::Private::CheckMaterialModelValidity(MaterialModel))
 	{
-		if (!UE::DynamicMaterialEditor::Private::CheckMaterialModelValidity(MaterialModel))
+		ResetEditor();
+		return;
+	}
+
+	if (Toolbar.IsValid())
+	{
+		if (Toolbar->GetMaterialModel() != MaterialModel)
 		{
-			ClearEditor();
-			return;
+			Toolbar->SetMaterialModel(MaterialModel);
+		}
+
+		if (ObjectProperty.IsValid())
+		{
+			AActor* Actor = ObjectProperty.GetTypedOuter<AActor>();
+
+			if (Toolbar->GetMaterialActor() != Actor)
+			{
+				Toolbar->SetMaterialActor(Actor);
+			}
+		}
+		else if (Toolbar->GetMaterialActor())
+		{
+			Toolbar->SetMaterialActor(nullptr);
 		}
 	}
 
-	if (Toolbar.IsValid() && Toolbar->GetMaterialModel() != MaterialModel)
+	if (ActiveSlotWidget.IsValid() && !ActiveSlotWidget->CheckValidity())
 	{
-		Toolbar->SetMaterialModel(MaterialModel);
-	}
-	else if (bHasActiveLayout && ActiveSlotWidget.IsValid())
-	{
-		if (!ActiveSlotWidget->CheckValidity())
-		{
-			RefreshSlotWidget();
-		}
+		RefreshSlotWidget();
 	}
 
 	if (bInvalidateComponentEditWidget)
@@ -1175,6 +1315,14 @@ FReply SDMEditor::OnCreateMaterialButtonClicked(TWeakPtr<FDMObjectMaterialProper
 			{
 				Toolbar->SetMaterialModel(NewModel);
 			}
+
+			if (AActor* Actor = MaterialProperty->GetTypedOuter<AActor>())
+			{
+				if (Toolbar->GetMaterialActor() != Actor)
+				{
+					Toolbar->SetMaterialActor(Actor);
+				}
+			}
 		}
 	}
 
@@ -1196,6 +1344,7 @@ TSharedRef<SWidget> SDMEditor::MakeToolBarSettingsMenu()
 
 void SDMEditor::OnSettingsChanged(const FPropertyChangedEvent& InPropertyChangedEvent)
 {
+	ClearEditor();
 	SetMaterialModel(MaterialModelWeak.Get());
 }
 

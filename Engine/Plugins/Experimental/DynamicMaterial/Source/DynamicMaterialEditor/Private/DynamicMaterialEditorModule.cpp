@@ -341,7 +341,7 @@ void FDynamicMaterialEditorModule::ShutdownModule()
 	FDMValueDetailsRowExtensions::Get().UnregisterRowExtensions();
 }
 
-void FDynamicMaterialEditorModule::SetDynamicMaterialModel(UDynamicMaterialModel* InMaterialModel, UWorld* InWorld, bool bInInvokeTab)
+void FDynamicMaterialEditorModule::OpenMaterialModel(UDynamicMaterialModel* InMaterialModel, UWorld* InWorld, bool bInInvokeTab) const
 {
 	using namespace UE::DynamicMaterialEditor::Private;
 
@@ -368,8 +368,8 @@ void FDynamicMaterialEditorModule::SetDynamicMaterialModel(UDynamicMaterialModel
 	}
 }
 
-void FDynamicMaterialEditorModule::SetDynamicMaterialObjectProperty(const FDMObjectMaterialProperty& InObjectProperty,
-	UWorld* InWorld, bool bInInvokeTab)
+void FDynamicMaterialEditorModule::OpenMaterialObjectProperty(const FDMObjectMaterialProperty& InObjectProperty,
+	UWorld* InWorld, bool bInInvokeTab) const
 {
 	using namespace UE::DynamicMaterialEditor::Private;
 
@@ -396,19 +396,19 @@ void FDynamicMaterialEditorModule::SetDynamicMaterialObjectProperty(const FDMObj
 	}
 }
 
-void FDynamicMaterialEditorModule::SetDynamicMaterialInstance(UDynamicMaterialInstance* InInstance, UWorld* InWorld, 
-	bool bInInvokeTab)
+void FDynamicMaterialEditorModule::OpenMaterialInstance(UDynamicMaterialInstance* InInstance, UWorld* InWorld, 
+	bool bInInvokeTab) const
 {
 	if (IsValid(InInstance))
 	{
 		if (UDynamicMaterialModel* InstanceModel = InInstance->GetMaterialModel())
 		{
-			SetDynamicMaterialModel(InstanceModel, InWorld, bInInvokeTab);
+			OpenMaterialModel(InstanceModel, InWorld, bInInvokeTab);
 		}
 	}
 }
 
-void FDynamicMaterialEditorModule::SetDynamicMaterialActor(AActor* InActor, UWorld* InWorld, bool bInInvokeTab)
+void FDynamicMaterialEditorModule::OnActorSelected(AActor* InActor, UWorld* InWorld, bool bInInvokeTab) const
 {
 	using namespace UE::DynamicMaterialEditor::Private;
 
@@ -419,7 +419,7 @@ void FDynamicMaterialEditorModule::SetDynamicMaterialActor(AActor* InActor, UWor
 			FDMLevelEditorIntegration::InvokeTabForWorld(InWorld);
 		}
 
-		Editor->SetMaterialActor(InActor);
+		Editor->OnActorSelected(InActor);
 	}
 	else if (IsValid(InWorld))
 	{
@@ -435,9 +435,9 @@ void FDynamicMaterialEditorModule::SetDynamicMaterialActor(AActor* InActor, UWor
 	}
 }
 
-void FDynamicMaterialEditorModule::ClearDynamicMaterialModel(UWorld* InWorld)
+void FDynamicMaterialEditorModule::ClearDynamicMaterialModel(UWorld* InWorld) const
 {
-	SetDynamicMaterialModel(nullptr, InWorld, /* Invoke tab */ false);
+	OpenMaterialModel(nullptr, InWorld, /* Invoke tab */ false);
 }
 
 TSharedRef<SWidget> FDynamicMaterialEditorModule::CreateEditor(UDynamicMaterialModel* InMaterialModel, UWorld* InAssetEditorWorld)
@@ -452,7 +452,7 @@ TSharedRef<SWidget> FDynamicMaterialEditorModule::CreateEditor(UDynamicMaterialM
 		{
 			WorldSubsystem->GetSetCustomEditorModelDelegate().BindSP(NewEditor, &SDMEditor::SetMaterialModel);
 			WorldSubsystem->GetCustomObjectPropertyEditorDelegate().BindSP(NewEditor, &SDMEditor::SetMaterialObjectProperty);
-			WorldSubsystem->GetSetCustomEditorActorDelegate().BindSP(NewEditor, &SDMEditor::SetMaterialActor);
+			WorldSubsystem->GetSetCustomEditorActorDelegate().BindSP(NewEditor, &SDMEditor::OnActorSelected);
 		}
 	}
 
@@ -539,7 +539,7 @@ void FDynamicMaterialEditorModule::RemoveBuildRequestForOuter(UObject* InOuter)
 	}
 }
 
-void FDynamicMaterialEditorModule::OpenEditor(UWorld* InWorld)
+void FDynamicMaterialEditorModule::OpenEditor(UWorld* InWorld) const
 {
 	if (!IsValid(InWorld))
 	{

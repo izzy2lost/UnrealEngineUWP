@@ -6,7 +6,6 @@
 #include "Components/DMMaterialStage.h"
 #include "Components/DMTextureUV.h"
 #include "DynamicMaterialEditorModule.h"
-#include "DynamicMaterialEditorSettings.h"
 #include "Editor.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Materials/MaterialInterface.h"

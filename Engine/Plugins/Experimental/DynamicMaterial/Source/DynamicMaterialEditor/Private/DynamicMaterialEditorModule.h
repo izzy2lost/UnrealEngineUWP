@@ -88,22 +88,21 @@ public:
 	FDynamicMaterialEditorModule();
 
 	//~ Begin IDynamicMaterialEditorModule
-	virtual void OpenEditor(UWorld* InWorld) override;
 	virtual void RegisterCustomMaterialPropertyGenerator(UClass* InClass, FDMGetObjectMaterialPropertiesDelegate InGenerator) override;
 	virtual void RegisterMaterialModelCreatedCallback(const TSharedRef<IDMOnWizardCompleteCallback> InCallback)  override;
 	virtual void UnregisterMaterialModelCreatedCallback(const TSharedRef<IDMOnWizardCompleteCallback> InCallback) override;
+	virtual void OpenEditor(UWorld* InWorld) const override;
+	virtual void OpenMaterialModel(UDynamicMaterialModel* InMaterialModel, UWorld* InWorld, bool bInInvokeTab) const override;
+	virtual void OpenMaterialObjectProperty(const FDMObjectMaterialProperty& InObjectProperty, UWorld* InWorld, bool bInInvokeTab) const override;
+	virtual void OpenMaterialInstance(UDynamicMaterialInstance* InInstance, UWorld* InWorld, bool bInInvokeTab) const override;
+	virtual void OnActorSelected(AActor* InActor, UWorld* InWorld, bool bInInvokeTab) const override;
+	virtual void ClearDynamicMaterialModel(UWorld* InWorld) const override;
 	//~ End IDynamicMaterialEditorModule
 
 	//~ Begin IModuleInterface
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 	//~ End IModuleInterface
-
-	void SetDynamicMaterialModel(UDynamicMaterialModel* InMaterialModel, UWorld* InWorld, bool bInInvokeTab);
-	void SetDynamicMaterialObjectProperty(const FDMObjectMaterialProperty& InObjectProperty, UWorld* InWorld, bool bInInvokeTab);
-	void SetDynamicMaterialInstance(UDynamicMaterialInstance* InInstance, UWorld* InWorld, bool bInInvokeTab);
-	void SetDynamicMaterialActor(AActor* InActor, UWorld* InWorld, bool bInInvokeTab);
-	void ClearDynamicMaterialModel(UWorld* InWorld);
 
 	//~ Begin FTickableEditorObject
 	virtual void Tick(float DeltaTime) override;

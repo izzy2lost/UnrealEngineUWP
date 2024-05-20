@@ -1,9 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DetailsPanel/Slate/SDMDetailsPanelMaterialInterfaceWidget.h"
-#include "AssetToolsModule.h"
+#include "Components/PrimitiveComponent.h"
+#include "DMObjectMaterialProperty.h"
 #include "DynamicMaterialEditorStyle.h"
-#include "IAssetTools.h"
+#include "IDynamicMaterialEditorModule.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Material/DynamicMaterialInstanceFactory.h"
 #include "PropertyCustomizationHelpers.h"
@@ -196,9 +197,39 @@ FReply SDMDetailsPanelMaterialInterfaceWidget::OpenDynamicMaterialInstanceTab()
 		return FReply::Unhandled();
 	}
 
-	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
-	AssetTools.OpenEditorForAssets({Instance});
+	const IDynamicMaterialEditorModule& MaterialDesignerModule = IDynamicMaterialEditorModule::Get();
+	constexpr bool bInvokeTab = true;
 
+	TArray<UObject*> Outers;
+	PropertyHandle->GetOuterObjects(Outers);
+
+	if (Outers.Num() == 0)
+	{
+		MaterialDesignerModule.OpenMaterialModel(Instance->GetMaterialModel(), nullptr, bInvokeTab);
+		return FReply::Handled();
+	}
+
+	UWorld* OuterWorld = Outers[0]->GetWorld();
+	UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Outers[0]);
+
+	if (!PrimitiveComponent)
+	{
+		MaterialDesignerModule.OpenMaterialModel(Instance->GetMaterialModel(), OuterWorld, bInvokeTab);
+		return FReply::Handled();
+	}
+
+	const int32 NumMaterials = PrimitiveComponent->GetNumMaterials();
+
+	for (int32 Index = 0; Index < NumMaterials; ++Index)
+	{
+		if (PrimitiveComponent->GetMaterial(Index) == Instance)
+		{
+			MaterialDesignerModule.OpenMaterialObjectProperty({PrimitiveComponent, Index}, OuterWorld, bInvokeTab);
+			return FReply::Handled();
+		}
+	}
+
+	MaterialDesignerModule.OpenMaterialModel(Instance->GetMaterialModel(), OuterWorld, bInvokeTab);
 	return FReply::Handled();
 }
 

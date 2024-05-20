@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SDMMaterialListExtensionWidget.h"
-#include "AssetToolsModule.h"
 #include "Components/PrimitiveComponent.h"
 #include "DMObjectMaterialProperty.h"
 #include "DMWorldSubsystem.h"
 #include "DynamicMaterialEditorStyle.h"
+#include "Editor.h"
 #include "Engine/World.h"
-#include "IAssetTools.h"
+#include "IDynamicMaterialEditorModule.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Material/DynamicMaterialInstanceFactory.h"
 #include "MaterialList.h"
@@ -193,16 +193,20 @@ FReply SDMMaterialListExtensionWidget::ClearDynamicMaterialInstance()
 
 FReply SDMMaterialListExtensionWidget::OpenDynamicMaterialInstanceTab()
 {
-	UDynamicMaterialInstance* Instance = GetDynamicMaterialInstance();
-
-	// We don't have an instance, so we can't open it
-	if (!Instance)
+	UPrimitiveComponent* CurrentComponent = CurrentComponentWeak.Get();
+	if (!ensure(CurrentComponent))
 	{
-		return FReply::Unhandled();
+		return FReply::Handled();
 	}
 
-	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
-	AssetTools.OpenEditorForAssets({Instance});
+	const TSharedPtr<FMaterialItemView> MaterialItemView = MaterialItemViewWeak.Pin();
+	if (!ensure(MaterialItemView.IsValid()))
+	{
+		return FReply::Handled();
+	}
+
+	IDynamicMaterialEditorModule::Get().OpenMaterialObjectProperty({CurrentComponent, MaterialItemView->GetMaterialListItem().SlotIndex},
+		CurrentComponent->GetWorld(), /* Invoke Tab */ true);
 
 	return FReply::Handled();
 }

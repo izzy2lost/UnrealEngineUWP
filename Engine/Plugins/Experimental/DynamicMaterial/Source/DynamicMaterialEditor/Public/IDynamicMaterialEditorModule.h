@@ -5,8 +5,11 @@
 #include "Containers/ContainersFwd.h"
 #include "Delegates/Delegate.h"
 #include "Modules/ModuleManager.h"
+#include "Templates/SharedPointerFwd.h"
 
+class AActor;
 class UClass;
+class UDynamicMaterialInstance;
 class UDynamicMaterialModel;
 class UObject;
 struct FDMObjectMaterialProperty;
@@ -31,8 +34,6 @@ public:
 		return FModuleManager::LoadModuleChecked<IDynamicMaterialEditorModule>(ModuleName);
 	}
 
-	virtual void OpenEditor(UWorld* InWorld) = 0;
-
 	virtual void RegisterCustomMaterialPropertyGenerator(UClass* InClass, FDMGetObjectMaterialPropertiesDelegate InGenerator) = 0;
 
 	virtual void RegisterMaterialModelCreatedCallback(const TSharedRef<IDMOnWizardCompleteCallback> InCallback) = 0;
@@ -47,4 +48,16 @@ public:
 		RegisterMaterialModelCreatedCallback(NewCallback);
 		return NewCallback;
 	}
+
+	virtual void OpenEditor(UWorld* InWorld) const = 0;
+
+	virtual void OpenMaterialModel(UDynamicMaterialModel* InMaterialModel, UWorld* InWorld, bool bInInvokeTab) const = 0;
+
+	virtual void OpenMaterialObjectProperty(const FDMObjectMaterialProperty& InObjectProperty, UWorld* InWorld, bool bInInvokeTab) const = 0;
+
+	virtual void OpenMaterialInstance(UDynamicMaterialInstance* InInstance, UWorld* InWorld, bool bInInvokeTab) const = 0;
+
+	virtual void OnActorSelected(AActor* InActor, UWorld* InWorld, bool bInInvokeTab) const = 0;
+
+	virtual void ClearDynamicMaterialModel(UWorld* InWorld) const = 0;
 };

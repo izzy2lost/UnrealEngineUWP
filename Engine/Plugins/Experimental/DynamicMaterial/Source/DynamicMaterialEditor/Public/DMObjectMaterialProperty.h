@@ -54,4 +54,20 @@ struct DYNAMICMATERIALEDITOR_API FDMObjectMaterialProperty
 	FText GetPropertyName(bool bInIgnoreNewStatus) const;
 
 	void Reset();
+
+	template<typename InClass>
+	InClass* GetTypedOuter() const
+	{
+		if (UObject* Outer = OuterWeak.Get())
+		{
+			if (InClass* CastOuter = Cast<InClass>(Outer))
+			{
+				return CastOuter;
+			}
+
+			return Outer->GetTypedOuter<InClass>();
+		}
+
+		return nullptr;
+	}
 };

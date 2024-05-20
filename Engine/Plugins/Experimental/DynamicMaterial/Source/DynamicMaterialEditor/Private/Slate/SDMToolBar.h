@@ -3,9 +3,11 @@
 #pragma once
 
 #include "Framework/SlateDelegates.h"
+#include "Model/DynamicMaterialModel.h"
 #include "Widgets/SCompoundWidget.h"
 
 class AActor;
+class SDMEditor;
 class SWidget;
 class UDMMaterialStageExpression;
 class UDynamicMaterialModel;
@@ -31,12 +33,12 @@ public:
 
 	virtual ~SDMToolBar() {}
 
-	void Construct(const FArguments& InArgs);
+	void Construct(const FArguments& InArgs, const TSharedRef<SDMEditor>& InEditor);
 
 	const TArray<TSharedPtr<FDMObjectMaterialProperty>>& GetMaterialProperties() const { return ActorMaterialProperties; }
 	void SetMaterialProperties(const TArray<TSharedPtr<FDMObjectMaterialProperty>>& InActorMaterialProperties);
 
-	const AActor* GetMaterialActor() const { return MaterialActorWeak.Get(); }
+	AActor* GetMaterialActor() const { return MaterialActorWeak.Get(); }
 	void SetMaterialActor(AActor* InActor, const int32 InActiveSlotIndex = 0);
 
 	UDynamicMaterialModel* GetMaterialModel() const { return MaterialModelWeak.Get(); }
@@ -45,6 +47,7 @@ public:
 	FText GetSlotActorDisplayName() const;
 
 protected:
+	TWeakPtr<SDMEditor> EditorWeak;
 	TWeakObjectPtr<AActor> MaterialActorWeak;
 	TWeakObjectPtr<UDynamicMaterialModel> MaterialModelWeak;
 	FDMOnActorMaterailSlotChanged OnSlotChanged;
@@ -52,6 +55,9 @@ protected:
 
 	TArray<TSharedPtr<FDMObjectMaterialProperty>> ActorMaterialProperties;
 	int32 SelectedMaterialSlotIndex;
+
+	TSharedPtr<SWidget> BrowseButton;
+	TSharedPtr<SWidget> UseButton;
 
 	TSharedRef<SWidget> CreateToolBarEntries();
 
@@ -66,6 +72,9 @@ protected:
 	const FMargin GetDefaultToolBarButtonContentPadding() const { return FMargin(2.0f); }
 	const FVector2D GetDefaultToolBarButtonSize() const { return FVector2D(20.0f); }
 
+	const FMargin GetLargeIconToolBarButtonContentPadding() const { return FMargin(4.0f); }
+	const FVector2D GetLargeIconToolBarButtonSize() const { return FVector2D(16.0f); }
+
 	EVisibility GetSlotsComboBoxWidgetVisibiltiy() const;
 
 	const FSlateBrush* GetFollowSelectionBrush() const;
@@ -74,4 +83,8 @@ protected:
 
 	EVisibility GetExportMaterialInstanceButtonVisibility() const;
 	FReply OnExportMaterialInstanceButtonClicked();
+
+	FReply OnBrowseClicked();
+
+	FReply OnUseClicked();
 };

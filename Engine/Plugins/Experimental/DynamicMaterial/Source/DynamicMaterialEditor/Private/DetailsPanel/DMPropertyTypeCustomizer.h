@@ -12,19 +12,16 @@ class IPropertyTypeCustomizationUtils;
 
 class FDMPropertyTypeCustomizer : public IPropertyTypeCustomization
 {
-
 public:
-
 	static TSharedRef<IPropertyTypeCustomization> MakeInstance();
 
 	FDMPropertyTypeCustomizer();
 
-	/** BEGIN IPropertyTypeCustomization interface */
+	/** Begin IPropertyTypeCustomization interface */
 	virtual void CustomizeHeader(TSharedRef<IPropertyHandle> EditorPropertyHandle, class FDetailWidgetRow& HeaderRow,
 		IPropertyTypeCustomizationUtils& CustomizationUtils) override;
 
 	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> EditorPropertyHandle, class IDetailChildrenBuilder& ChildBuilder,
 		IPropertyTypeCustomizationUtils& CustomizationUtils) override;
-	/** END IPropertyTypeCustomization interface */
-
+	/** End IPropertyTypeCustomization interface */
 };
