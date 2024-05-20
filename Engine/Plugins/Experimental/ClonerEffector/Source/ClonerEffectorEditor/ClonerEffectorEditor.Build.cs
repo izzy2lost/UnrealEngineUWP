@@ -13,6 +13,7 @@ public class ClonerEffectorEditor : ModuleRules
 	        {
 		        "Core",
 		        "CoreUObject",
+				"EditorSubsystem",
 		        "Engine",
 		        "Slate",
 		        "SlateCore",
@@ -26,6 +27,7 @@ public class ClonerEffectorEditor : ModuleRules
 		        "ClonerEffector",
 		        "InputCore",
 		        "Projects",
+				"ToolMenus"
 	        }
         );
 

@@ -19,10 +19,17 @@
 #include "Effector/Types/CEEffectorTorusType.h"
 #include "Effector/Types/CEEffectorUnboundType.h"
 
+#if WITH_EDITOR
+#include "ScopedTransaction.h"
+#endif
+
 DEFINE_LOG_CATEGORY_STATIC(LogACEEffectorSubsystem, Log, All);
 
 UCEEffectorSubsystem::FOnSubsystemInitialized UCEEffectorSubsystem::OnSubsystemInitializedDelegate;
 UCEEffectorSubsystem::FOnEffectorIdentifierChanged UCEEffectorSubsystem::OnEffectorIdentifierChangedDelegate;
+UCEEffectorSubsystem::FOnEffectorSetEnabled UCEEffectorSubsystem::OnEffectorSetEnabledDelegate;
+
+#define LOCTEXT_NAMESPACE "CEEffectorSubsystem"
 
 UCEEffectorSubsystem* UCEEffectorSubsystem::Get()
 {
@@ -236,6 +243,54 @@ UCEEffectorExtensionBase* UCEEffectorSubsystem::CreateNewExtension(FName InExten
 	return NewObject<UCEEffectorExtensionBase>(InEffector, ExtensionClass->Get(), NAME_None, RF_Transactional);
 }
 
+void UCEEffectorSubsystem::SetEffectorsEnabled(const TSet<UCEEffectorComponent*>& InEffectors, bool bInEnable, bool bInShouldTransact)
+{
+	if (InEffectors.IsEmpty())
+	{
+		return;
+	}
+
+#if WITH_EDITOR
+	const FText TransactionText = bInEnable
+		? LOCTEXT("SetEffectorsEnabled", "Effectors enabled")
+		: LOCTEXT("SetEffectorsDisabled", "Effectors disabled");
+
+	FScopedTransaction Transaction(TransactionText, bInShouldTransact);
+#endif
+
+	for (UCEEffectorComponent* Effector : InEffectors)
+	{
+		if (!IsValid(Effector))
+		{
+			continue;
+		}
+
+#if WITH_EDITOR
+		Effector->Modify();
+#endif
+
+		Effector->SetEnabled(bInEnable);
+	}
+}
+
+void UCEEffectorSubsystem::SetLevelEffectorsEnabled(const UWorld* InWorld, bool bInEnable, bool bInShouldTransact)
+{
+	if (!IsValid(InWorld))
+	{
+		return;
+	}
+
+#if WITH_EDITOR
+	const FText TransactionText = bInEnable
+		? LOCTEXT("SetLevelEffectorsEnabled", "Level effectors enabled")
+		: LOCTEXT("SetLevelEffectorsDisabled", "Level effectors disabled");
+
+	FScopedTransaction Transaction(TransactionText, bInShouldTransact);
+#endif
+
+	OnEffectorSetEnabledDelegate.Broadcast(InWorld, bInEnable, bInShouldTransact);
+}
+
 void UCEEffectorSubsystem::UpdateEffectorChannel(const UWorld* InWorld)
 {
 	if (!IsValid(InWorld))
@@ -334,3 +389,5 @@ bool UCEEffectorSubsystem::IsTickable() const
 {
 	return !EffectorsWeak.IsEmpty();
 }
+
+#undef LOCTEXT_NAMESPACE

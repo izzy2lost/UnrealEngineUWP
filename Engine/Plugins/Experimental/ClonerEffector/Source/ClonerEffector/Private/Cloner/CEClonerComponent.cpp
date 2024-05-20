@@ -60,6 +60,8 @@ UCEClonerComponent::UCEClonerComponent()
 
 	if (!IsTemplate())
 	{
+		UCEClonerSubsystem::OnClonerSetEnabled().AddUObject(this, &UCEClonerComponent::OnClonerSetEnabled);
+
 		// Bind to delegate to detect material changes
 #if WITH_EDITOR
 		FCoreUObjectDelegates::OnObjectPropertyChanged.RemoveAll(this);

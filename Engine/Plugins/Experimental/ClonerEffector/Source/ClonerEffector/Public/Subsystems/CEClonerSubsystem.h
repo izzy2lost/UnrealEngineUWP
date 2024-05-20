@@ -20,6 +20,11 @@ public:
 		return OnSubsystemInitializedDelegate;
 	}
 
+	static TMulticastDelegateRegistration<void(const UWorld*, bool, bool)>& OnClonerSetEnabled()
+	{
+		return OnClonerSetEnabledDelegate;
+	}
+
 	/** Get this subsystem instance */
 	CLONEREFFECTOR_API static UCEClonerSubsystem* Get();
 
@@ -60,9 +65,26 @@ public:
 	/** Creates a new extension instance for a cloner */
 	UCEClonerExtensionBase* CreateNewExtension(FName InExtensionName, UCEClonerComponent* InCloner);
 
+	/** Set cloners state and optionally transact */
+	CLONEREFFECTOR_API void SetClonersEnabled(const TSet<UCEClonerComponent*>& InCloners, bool bInEnable, bool bInShouldTransact);
+
+	/** Set cloners state in world and optionally transact */
+	CLONEREFFECTOR_API void SetLevelClonersEnabled(const UWorld* InWorld, bool bInEnable, bool bInShouldTransact);
+
+#if WITH_EDITOR
+	/** Converts cloners simulation to a mesh */
+	CLONEREFFECTOR_API void ConvertCloners(const TSet<UCEClonerComponent*>& InCloners, ECEClonerMeshConversion InMeshConversion);
+
+	/** Create cloners linked effector */
+	CLONEREFFECTOR_API void CreateLinkedEffector(const TSet<UCEClonerComponent*>& InCloners);
+#endif
 protected:
 	DECLARE_MULTICAST_DELEGATE(FOnSubsystemInitialized)
 	CLONEREFFECTOR_API static FOnSubsystemInitialized OnSubsystemInitializedDelegate;
+
+	/** Delegate to change state of cloners in a world */
+	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnClonerSetEnabled, const UWorld* /** InWorld */, bool /** bInEnabled */, bool /** bInTransact */)
+	static FOnClonerSetEnabled OnClonerSetEnabledDelegate;
 
 	//~ Begin USubsystem
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;

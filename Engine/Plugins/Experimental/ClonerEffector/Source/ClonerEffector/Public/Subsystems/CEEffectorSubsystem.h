@@ -27,8 +27,13 @@ public:
 		return OnEffectorIdentifierChangedDelegate;
 	}
 
+	static TMulticastDelegateRegistration<void(const UWorld*, bool, bool)>& OnEffectorSetEnabled()
+	{
+		return OnEffectorSetEnabledDelegate;
+	}
+
 	/** Get this subsystem instance */
-	static UCEEffectorSubsystem* Get();
+	CLONEREFFECTOR_API static UCEEffectorSubsystem* Get();
 
 	/** Registers an effector actor to use it within a effector channel */
 	bool RegisterChannelEffector(UCEEffectorComponent* InEffector);
@@ -59,6 +64,12 @@ public:
 	/** Creates a new extension instance for an effector */
 	UCEEffectorExtensionBase* CreateNewExtension(FName InExtensionName, UCEEffectorComponent* InEffector);
 
+	/** Set effectors state and optionally transact */
+	CLONEREFFECTOR_API void SetEffectorsEnabled(const TSet<UCEEffectorComponent*>& InEffectors, bool bInEnable, bool bInShouldTransact);
+
+	/** Set effectors state in world and optionally transact */
+	CLONEREFFECTOR_API void SetLevelEffectorsEnabled(const UWorld* InWorld, bool bInEnable, bool bInShouldTransact);
+
 protected:
 	static constexpr TCHAR DataChannelAssetPath[] = TEXT("/Script/Niagara.NiagaraDataChannelAsset'/ClonerEffector/Channels/NDC_Effector.NDC_Effector'");
 
@@ -69,6 +80,10 @@ protected:
 	/** Broadcasted when this effector identifier changed to update linked cloners */
 	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnEffectorIdentifierChanged, UCEEffectorComponent* /** InEffector */, int32 /** OldIdentifier */, int32 /** NewIdentifier */)
 	static FOnEffectorIdentifierChanged OnEffectorIdentifierChangedDelegate;
+
+	/** Delegate to change state of effectors in a world */
+	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnEffectorSetEnabled, const UWorld* /** InWorld */, bool /** bInEnabled */, bool /** bInTransact */)
+	static FOnEffectorSetEnabled OnEffectorSetEnabledDelegate;
 
 	//~ Begin USubsystem
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;

@@ -38,6 +38,7 @@ UCEEffectorComponent::UCEEffectorComponent()
 		const TArray<FName> ModeNames = GetEffectorModeNames();
 		ModeName = !ModeNames.IsEmpty() ? FName(ModeNames[0]) : NAME_None;
 
+		UCEEffectorSubsystem::OnEffectorSetEnabled().AddUObject(this, &UCEEffectorComponent::OnEffectorSetEnabled);
 		TransformUpdated.AddUObject(this, &UCEEffectorComponent::OnTransformUpdated);
 
 #if WITH_EDITOR

@@ -3,6 +3,7 @@
 #include "Subsystems/CEClonerSubsystem.h"
 
 #include "Cloner/CEClonerComponent.h"
+#include "Cloner/Extensions/CEClonerEffectorExtension.h"
 #include "Cloner/Extensions/CEClonerExtensionBase.h"
 #include "Cloner/Layouts/CEClonerCircleLayout.h"
 #include "Cloner/Layouts/CEClonerCylinderLayout.h"
@@ -18,7 +19,14 @@
 #include "UObject/Class.h"
 #include "UObject/UObjectIterator.h"
 
+#if WITH_EDITOR
+#include "ScopedTransaction.h"
+#endif
+
 UCEClonerSubsystem::FOnSubsystemInitialized UCEClonerSubsystem::OnSubsystemInitializedDelegate;
+UCEClonerSubsystem::FOnClonerSetEnabled UCEClonerSubsystem::OnClonerSetEnabledDelegate;
+
+#define LOCTEXT_NAMESPACE "CEEffectorSubsystem"
 
 UCEClonerSubsystem* UCEClonerSubsystem::Get()
 {
@@ -240,6 +248,120 @@ UCEClonerExtensionBase* UCEClonerSubsystem::CreateNewExtension(FName InExtension
 	return NewObject<UCEClonerExtensionBase>(InCloner, ExtensionClass->Get(), NAME_None, RF_Transactional);
 }
 
+void UCEClonerSubsystem::SetClonersEnabled(const TSet<UCEClonerComponent*>& InCloners, bool bInEnable, bool bInShouldTransact)
+{
+	if (InCloners.IsEmpty())
+	{
+		return;
+	}
+
+#if WITH_EDITOR
+	const FText TransactionText = bInEnable
+		? LOCTEXT("SetClonersEnabled", "Cloners enabled")
+		: LOCTEXT("SetClonersDisabled", "Cloners disabled");
+
+	FScopedTransaction Transaction(TransactionText, bInShouldTransact);
+#endif
+
+	for (UCEClonerComponent* Cloner : InCloners)
+	{
+		if (!IsValid(Cloner))
+		{
+			continue;
+		}
+
+#if WITH_EDITOR
+		Cloner->Modify();
+#endif
+
+		Cloner->SetEnabled(bInEnable);
+	}
+}
+
+void UCEClonerSubsystem::SetLevelClonersEnabled(const UWorld* InWorld, bool bInEnable, bool bInShouldTransact)
+{
+	if (!IsValid(InWorld))
+	{
+		return;
+	}
+
+#if WITH_EDITOR
+	const FText TransactionText = bInEnable
+		? LOCTEXT("SetLevelClonersEnabled", "Level cloners enabled")
+		: LOCTEXT("SetLevelClonersDisabled", "Level cloners disabled");
+
+	FScopedTransaction Transaction(TransactionText, bInShouldTransact);
+#endif
+
+	OnClonerSetEnabledDelegate.Broadcast(InWorld, bInEnable, bInShouldTransact);
+}
+
+#if WITH_EDITOR
+void UCEClonerSubsystem::ConvertCloners(const TSet<UCEClonerComponent*>& InCloners, ECEClonerMeshConversion InMeshConversion)
+{
+	if (InCloners.IsEmpty())
+	{
+		return;
+	}
+
+	using namespace UE::ClonerEffector::Conversion;
+
+	for (UCEClonerComponent* ClonerComponent : InCloners)
+	{
+		if (!IsValid(ClonerComponent) || !ClonerComponent->GetEnabled())
+		{
+			continue;
+		}
+
+		switch(InMeshConversion)
+		{
+			case ECEClonerMeshConversion::StaticMesh:
+				ClonerComponent->ConvertToStaticMesh();
+			break;
+
+			case ECEClonerMeshConversion::StaticMeshes:
+				ClonerComponent->ConvertToStaticMeshes();
+			break;
+
+			case ECEClonerMeshConversion::DynamicMesh:
+				ClonerComponent->ConvertToDynamicMesh();
+			break;
+
+			case ECEClonerMeshConversion::DynamicMeshes:
+				ClonerComponent->ConvertToDynamicMeshes();
+			break;
+
+			case ECEClonerMeshConversion::InstancedStaticMesh:
+				ClonerComponent->ConvertToInstancedStaticMeshes();
+			break;
+
+			default:;
+		}
+	}
+}
+
+void UCEClonerSubsystem::CreateLinkedEffector(const TSet<UCEClonerComponent*>& InCloners)
+{
+	if (InCloners.IsEmpty())
+	{
+		return;
+	}
+
+	for (UCEClonerComponent* ClonerComponent : InCloners)
+	{
+		if (!IsValid(ClonerComponent))
+		{
+			continue;
+		}
+
+		if (UCEClonerEffectorExtension* EffectorExtension = ClonerComponent->GetExtension<UCEClonerEffectorExtension>())
+		{
+			EffectorExtension->CreateLinkedEffector();
+		}
+	}
+}
+#endif
+
 TArray<FName> UCEClonerSubsystem::GetLayoutNames() const
 {
 	TArray<FName> LayoutNames;
@@ -296,3 +418,5 @@ void UCEClonerSubsystem::ScanForRegistrableClasses()
 		}
 	}
 }
+
+#undef LOCTEXT_NAMESPACE
