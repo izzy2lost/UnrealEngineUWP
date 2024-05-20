@@ -231,6 +231,7 @@ void SCreateGeometryCollectionFromObject::Construct(const FArguments& InArgs, TS
 	bIsReportingError = false;
 
 	FPathPickerConfig PathPickerConfig;
+	PathPickerConfig.bShowViewOptions = true;
 	PathPickerConfig.DefaultPath = AssetPath;
 	PathPickerConfig.OnPathSelected = FOnPathSelected::CreateRaw(this, &SCreateGeometryCollectionFromObject::OnSelectAssetPath);
 
