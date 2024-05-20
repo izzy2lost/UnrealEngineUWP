@@ -1444,16 +1444,19 @@ void UDynamicMaterialModelEditorOnlyData::Serialize(FArchive& Ar)
 			{
 				ChannelListPreset = "Translucent";
 				BlendMode = BLEND_Translucent;
+				ShadingModel = EDMMaterialShadingModel::Unlit;
 			}
 			else if (GetSlotForMaterialProperty(EDMMaterialPropertyType::OpacityMask))
 			{
 				ChannelListPreset = "Translucent";
 				BlendMode = BLEND_Masked;
+				ShadingModel = EDMMaterialShadingModel::Unlit;
 			}
 			// Else let's stay on opaque
 			else
 			{
 				BlendMode = BLEND_Opaque;
+				ShadingModel = EDMMaterialShadingModel::DefaultLit;
 				ChannelListPreset = "Opaque";
 			}
 		}
