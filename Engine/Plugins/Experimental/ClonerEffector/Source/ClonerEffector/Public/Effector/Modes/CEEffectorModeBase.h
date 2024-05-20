@@ -19,7 +19,12 @@ public:
 	{}
 
 	UCEEffectorModeBase(FName InModeName, int32 InModeIdentifier)
-		: UCEEffectorExtensionBase(InModeName, TEXT("Mode"))
+		: UCEEffectorExtensionBase(
+			InModeName
+#if WITH_EDITOR
+			, UE::ClonerEffector::EffectorSection::ModeSection
+#endif
+		)
 		, ModeIdentifier(InModeIdentifier)
 	{}
 

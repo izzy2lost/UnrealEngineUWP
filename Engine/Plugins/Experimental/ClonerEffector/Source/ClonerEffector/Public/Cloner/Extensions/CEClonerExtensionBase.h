@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "CEClonerEffectorShared.h"
 #include "UObject/Object.h"
 #include "CEClonerExtensionBase.generated.h"
 
@@ -20,8 +21,7 @@ public:
 			NAME_None
 			, 0
 #if WITH_EDITOR
-			, NAME_None
-			, 0
+			, FCEExtensionSection(NAME_None, INDEX_NONE)
 #endif
 		)
 	{}
@@ -30,15 +30,13 @@ public:
 		FName InExtensionName
 		, int32 InExtensionPriority
 #if WITH_EDITOR
-		, FName InExtensionCategory
-		, int32 InExtensionCategoryOrder
+		, const FCEExtensionSection& InExtensionSection
 #endif
 		)
 		: ExtensionName(InExtensionName)
 		, ExtensionPriority(InExtensionPriority)
 #if WITH_EDITOR
-		, ExtensionCategory(InExtensionCategory)
-		, ExtensionCategoryOrder(InExtensionCategoryOrder)
+		, ExtensionSection(InExtensionSection)
 #endif
 	{}
 
@@ -53,14 +51,9 @@ public:
 	}
 
 #if WITH_EDITOR
-	FName GetExtensionCategory() const
+	const FCEExtensionSection& GetExtensionSection() const
 	{
-		return ExtensionCategory;
-	}
-
-	int32 GetExtensionCategoryOrder() const
-	{
-		return ExtensionCategoryOrder;
+		return ExtensionSection;
 	}
 #endif
 
@@ -121,12 +114,8 @@ private:
 
 	bool bExtensionActive = false;
 
-#if WITH_EDITORONLY_DATA
+#if WITH_EDITOR
 	/** Used for editor UI */
-	UPROPERTY(Transient)
-	FName ExtensionCategory = NAME_None;
-
-	/** Used to reorder categories in editor UI */
-	int32 ExtensionCategoryOrder = 0;
+	FCEExtensionSection ExtensionSection;
 #endif
 };

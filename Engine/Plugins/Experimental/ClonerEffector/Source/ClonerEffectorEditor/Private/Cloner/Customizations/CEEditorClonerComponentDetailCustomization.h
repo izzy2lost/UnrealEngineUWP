@@ -20,11 +20,18 @@ public:
 		return MakeShared<FCEEditorClonerComponentDetailCustomization>();
 	}
 
+	explicit FCEEditorClonerComponentDetailCustomization()
+	{
+		RemoveEmptySections();
+	}
+
 	//~ Begin IDetailCustomization
 	virtual void CustomizeDetails(IDetailLayoutBuilder& InDetailBuilder) override;
 	//~ End IDetailCustomization
 
 protected:
+	static void RemoveEmptySections();
+
 	/** Execute ufunction with that name on selected objects */
 	FReply OnFunctionButtonClicked(FName InFunctionName);
 

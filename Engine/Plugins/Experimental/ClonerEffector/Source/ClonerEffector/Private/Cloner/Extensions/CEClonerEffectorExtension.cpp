@@ -15,17 +15,6 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogCEClonerEffectorExtension, Log, All);
 
-void UCEClonerEffectorExtension::SetColor(const FLinearColor& InColor)
-{
-	if (InColor.Equals(Color))
-	{
-		return;
-	}
-
-	Color = InColor;
-	UpdateExtensionParameters(/** UpdateCloner */false);
-}
-
 bool UCEClonerEffectorExtension::LinkEffector(AActor* InEffectorActor)
 {
 	if (!IsValid(InEffectorActor)
@@ -96,13 +85,6 @@ void UCEClonerEffectorExtension::OnExtensionDeactivated()
 	Super::OnExtensionDeactivated();
 
 	UCEEffectorSubsystem::OnEffectorIdentifierChanged().RemoveAll(this);
-}
-
-void UCEClonerEffectorExtension::OnExtensionParametersChanged(UCEClonerComponent* InComponent)
-{
-	Super::OnExtensionParametersChanged(InComponent);
-
-	InComponent->SetColorParameter(TEXT("EffectorDefaultColor"), Color);
 }
 
 void UCEClonerEffectorExtension::OnEffectorIdentifierChanged(UCEEffectorComponent* InEffector, int32 InOldIdentifier, int32 InNewIdentifier)
@@ -257,7 +239,6 @@ void UCEClonerEffectorExtension::CreateLinkedEffector()
 
 const TCEPropertyChangeDispatcher<UCEClonerEffectorExtension> UCEClonerEffectorExtension::PropertyChangeDispatcher =
 {
-	{ GET_MEMBER_NAME_CHECKED(UCEClonerEffectorExtension, Color), &UCEClonerEffectorExtension::OnExtensionPropertyChanged },
 	{ GET_MEMBER_NAME_CHECKED(UCEClonerEffectorExtension, EffectorActorsWeak), &UCEClonerEffectorExtension::OnEffectorActorsChanged }
 };
 

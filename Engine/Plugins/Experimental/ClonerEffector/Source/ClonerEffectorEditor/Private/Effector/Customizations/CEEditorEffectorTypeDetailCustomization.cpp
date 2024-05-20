@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Effector/CEEditorEffectorTypeDetailCustomization.h"
+#include "Effector/Customizations/CEEditorEffectorTypeDetailCustomization.h"
 
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"

@@ -16,7 +16,12 @@ class UCEEffectorForceExtension : public UCEEffectorExtensionBase
 
 public:
 	UCEEffectorForceExtension()
-		: UCEEffectorExtensionBase(TEXT("Forces"), TEXT("Forces"))
+		: UCEEffectorExtensionBase(
+			TEXT("Forces")
+#if WITH_EDITOR
+			, UE::ClonerEffector::EffectorSection::ForcesSection
+#endif
+		)
 	{}
 
 	UFUNCTION(BlueprintCallable, Category="Effector")

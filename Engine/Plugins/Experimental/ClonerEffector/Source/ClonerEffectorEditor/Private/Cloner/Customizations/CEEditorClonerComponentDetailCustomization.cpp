@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Cloner/CEEditorClonerComponentDetailCustomization.h"
+#include "Cloner/Customizations/CEEditorClonerComponentDetailCustomization.h"
 
 #include "Cloner/CEClonerComponent.h"
 #include "Cloner/Extensions/CEClonerExtensionBase.h"
@@ -21,11 +21,7 @@
 void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& InDetailBuilder)
 {
 	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
-	const FName ClassName = UCEClonerComponent::StaticClass()->GetFName();
-
-	// Remove sections
-	PropertyModule.RemoveSection(ClassName, TEXT("Rendering"));
-	PropertyModule.RemoveSection(ClassName, TEXT("Effects"));
+	const FName ComponentClassName = UCEClonerComponent::StaticClass()->GetFName();
 
 	// Remove exposed user parameters
 	InDetailBuilder.HideCategory(TEXT("NiagaraComponent_Parameters"));
@@ -48,7 +44,7 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 	ActiveExtensionArrayProperty->GetNumElements(NumElements);
 
 	// Everything needs to be below Cloner category
-	const int32 StartOrder = InDetailBuilder.EditCategory(TEXT("Cloner")).GetSortOrder() + 1;
+	int32 StartOrder = InDetailBuilder.EditCategory(TEXT("Cloner")).GetSortOrder() + 1;
 
 	TSharedRef<IPropertyHandle> ActiveLayoutProperty = InDetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UCEClonerComponent, ActiveLayout), UCEClonerComponent::StaticClass());
 
@@ -57,7 +53,12 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 		return;
 	}
 
-	InDetailBuilder.EditCategory(ActiveLayoutProperty->GetDefaultCategoryName()).SetSortOrder(StartOrder);
+	const FName LayoutCategoryName = ActiveLayoutProperty->GetDefaultCategoryName();
+	IDetailCategoryBuilder& LayoutCategory = InDetailBuilder.EditCategory(LayoutCategoryName);
+	LayoutCategory.SetSortOrder(StartOrder++);
+
+	const TSharedRef<FPropertySection> ClonerSection = PropertyModule.FindOrCreateSection(ComponentClassName, UE::ClonerEffector::ClonerSection::ClonerSection.SectionName, FText::FromName(UE::ClonerEffector::ClonerSection::ClonerSection.SectionName));
+	ClonerSection->AddCategory(LayoutCategoryName);
 
 	const TArray<TWeakObjectPtr<UCEClonerComponent>> ClonerComponentsWeak = InDetailBuilder.GetObjectsOfTypeBeingCustomized<UCEClonerComponent>();
 
@@ -76,10 +77,10 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 		}
 
 		IDetailCategoryBuilder& ExtensionCategoryBuilder = InDetailBuilder.EditCategory(ActiveExtension->GetExtensionName());
-		ExtensionCategoryBuilder.SetSortOrder(StartOrder + ActiveExtension->GetExtensionCategoryOrder());
+		ExtensionCategoryBuilder.SetSortOrder(StartOrder + ActiveExtension->GetExtensionSection().SectionOrder);
 
-		const FName ExtensionSectionName = ActiveExtension->GetExtensionCategory();
-		const TSharedRef<FPropertySection> ExtensionSection = PropertyModule.FindOrCreateSection(ClassName, ExtensionSectionName, FText::FromName(ExtensionSectionName));
+		const FName ExtensionSectionName = ActiveExtension->GetExtensionSection().SectionName;
+		const TSharedRef<FPropertySection> ExtensionSection = PropertyModule.FindOrCreateSection(ComponentClassName, ExtensionSectionName, FText::FromName(ExtensionSectionName));
 		ExtensionSection->AddCategory(ActiveExtension->GetExtensionName());
 
 		TFunction<void(const TSharedPtr<IPropertyHandle>&)> AddObjectProperty = [&ExtensionCategoryBuilder, &AddObjectProperty](const TSharedPtr<IPropertyHandle>& InPropertyHandle)
@@ -138,6 +139,8 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 		}
 	}
 
+	// Handle ufunctions
+	TMap<FName, FName> FunctionToCategory;
 	for (const TWeakObjectPtr<UCEClonerComponent>& ClonerComponentWeak : ClonerComponentsWeak)
 	{
 		UCEClonerComponent* ClonerComponent = ClonerComponentWeak.Get();
@@ -156,6 +159,7 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 				FName FunctionName = Function->GetFName();
 				TMap<TWeakObjectPtr<UObject>, TWeakObjectPtr<UFunction>>& ObjectFunctions = LayoutFunctionNames.FindOrAdd(FunctionName);
 				ObjectFunctions.Add(ClonerComponent, Function);
+				FunctionToCategory.Add(FunctionName, FName(Function->GetMetaData(TEXT("Category"))));
 			}
 		}
 
@@ -171,6 +175,7 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 					FName FunctionName = Function->GetFName();
 					TMap<TWeakObjectPtr<UObject>, TWeakObjectPtr<UFunction>>& ObjectFunctions = LayoutFunctionNames.FindOrAdd(FunctionName);
 					ObjectFunctions.Add(ActiveLayout, Function);
+					FunctionToCategory.Add(FunctionName, FName(Function->GetMetaData(TEXT("Category"))));
 				}
 			}
 		}
@@ -187,6 +192,7 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 					FName FunctionName = Function->GetFName();
 					TMap<TWeakObjectPtr<UObject>, TWeakObjectPtr<UFunction>>& ObjectFunctions = LayoutFunctionNames.FindOrAdd(FunctionName);
 					ObjectFunctions.Add(ActiveExtension, Function);
+					FunctionToCategory.Add(FunctionName, FName(Function->GetMetaData(TEXT("Category"))));
 				}
 			}
 		}
@@ -194,21 +200,35 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 
 	if (!LayoutFunctionNames.IsEmpty())
 	{
-		// Add buttons for selected cloners
-		const TSharedPtr<SVerticalBox> FunctionsWidget = SNew(SVerticalBox);
+		TMap<FName, const TSharedPtr<SVerticalBox>> FunctionToWidget;
 
-		IDetailCategoryBuilder& UtilitiesCategory = InDetailBuilder.EditCategory(TEXT("ClonerComponent_Utilities"), LOCTEXT("ClonerComponent_Utilities", "Cloner Utilities"), ECategoryPriority::Important);
+		// Add buttons for ufunctions based on their category
+		for (const TPair<FName, FName>& FunctionToCategoryPair : FunctionToCategory)
+		{
+			const FName FunctionsCategoryName = FunctionToCategoryPair.Value;
 
-		UtilitiesCategory.AddCustomRow(FText::GetEmpty())
-			.WholeRowContent()
-			.HAlign(HAlign_Left)
-			[
-				FunctionsWidget.ToSharedRef()
-			];
+			const TSharedPtr<SVerticalBox> FunctionsWidget = SNew(SVerticalBox);
+
+			IDetailCategoryBuilder& FunctionsCategory = InDetailBuilder.EditCategory(FunctionsCategoryName, FText::FromName(FunctionsCategoryName), ECategoryPriority::Uncommon);
+
+			FunctionsCategory.AddCustomRow(FText::GetEmpty())
+				.WholeRowContent()
+				.HAlign(HAlign_Left)
+				[
+					FunctionsWidget.ToSharedRef()
+				];
+
+			const TSharedRef<FPropertySection> FunctionsSection = PropertyModule.FindOrCreateSection(ComponentClassName, FunctionsCategoryName, FText::FromName(FunctionsCategoryName));
+			FunctionsSection->AddCategory(FunctionsCategoryName);
+
+			FunctionToWidget.Add(FunctionToCategoryPair.Key, FunctionsWidget);
+		}
 
 		for (const TPair<FName, TMap<TWeakObjectPtr<UObject>, TWeakObjectPtr<UFunction>>>& LayoutFunctionNamesPair : LayoutFunctionNames)
 		{
 			const FText ButtonLabel = FText::FromString(FName::NameToDisplayString(LayoutFunctionNamesPair.Key.ToString(), false));
+
+			const TSharedPtr<SVerticalBox>& FunctionsWidget = FunctionToWidget.FindChecked(LayoutFunctionNamesPair.Key);
 
 			FunctionsWidget->AddSlot()
 				.Padding(0.f, 3.f)
@@ -216,10 +236,23 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 				[
 					SNew(SButton)
 					.Text(ButtonLabel)
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Fill)
 					.OnClicked(this, &FCEEditorClonerComponentDetailCustomization::OnFunctionButtonClicked, LayoutFunctionNamesPair.Key)
 				];
 		}
 	}
+}
+
+void FCEEditorClonerComponentDetailCustomization::RemoveEmptySections()
+{
+	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
+	const FName ComponentClassName = UCEClonerComponent::StaticClass()->GetFName();
+
+	// Remove sections
+	PropertyModule.RemoveSection(ComponentClassName, TEXT("Rendering"));
+	PropertyModule.RemoveSection(ComponentClassName, TEXT("Effects"));
+	PropertyModule.RemoveSection(ComponentClassName, TEXT("Streaming"));
 }
 
 FReply FCEEditorClonerComponentDetailCustomization::OnFunctionButtonClicked(FName InFunctionName)

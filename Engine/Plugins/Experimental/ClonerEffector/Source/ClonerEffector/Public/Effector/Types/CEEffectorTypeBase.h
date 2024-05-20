@@ -29,7 +29,12 @@ public:
 	{}
 
 	UCEEffectorTypeBase(FName InTypeName, int32 InTypeIdentifier)
-		: UCEEffectorExtensionBase(InTypeName, TEXT("Shape"))
+		: UCEEffectorExtensionBase(
+			InTypeName
+#if WITH_EDITOR
+			, UE::ClonerEffector::EffectorSection::ShapeSection
+#endif
+		)
 		, TypeIdentifier(InTypeIdentifier)
 	{}
 

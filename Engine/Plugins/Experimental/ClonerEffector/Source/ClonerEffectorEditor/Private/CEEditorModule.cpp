@@ -2,11 +2,15 @@
 
 #include "CEEditorModule.h"
 
-#include "Cloner/CEEditorClonerComponentDetailCustomization.h"
 #include "Cloner/CEClonerComponent.h"
-#include "Effector/CEEditorEffectorComponentDetailCustomization.h"
-#include "Effector/CEEditorEffectorTypeDetailCustomization.h"
+#include "Cloner/CEClonerActor.h"
+#include "Cloner/Customizations/CEEditorClonerComponentDetailCustomization.h"
+#include "Cloner/Customizations/CEEditorClonerActorDetailCustomization.h"
+#include "Effector/Customizations/CEEditorEffectorComponentDetailCustomization.h"
+#include "Effector/Customizations/CEEditorEffectorTypeDetailCustomization.h"
+#include "Effector/CEEffectorActor.h"
 #include "Effector/CEEffectorComponent.h"
+#include "Effector/Customizations/CEEditorEffectorActorDetailCustomization.h"
 #include "Effector/Types/CEEffectorBoundType.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
@@ -19,8 +23,12 @@ void FCEEditorModule::StartupModule()
 	// Load styles
 	FCEEditorStyle::Get();
 
-	// Cloner/effector customization
+	// Cloner customization
+	PropertyModule.RegisterCustomClassLayout(ACEClonerActor::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorClonerActorDetailCustomization::MakeInstance));
 	PropertyModule.RegisterCustomClassLayout(UCEClonerComponent::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorClonerComponentDetailCustomization::MakeInstance));
+
+	// Effector customization
+	PropertyModule.RegisterCustomClassLayout(ACEEffectorActor::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorEffectorActorDetailCustomization::MakeInstance));
 	PropertyModule.RegisterCustomClassLayout(UCEEffectorComponent::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorEffectorComponentDetailCustomization::MakeInstance));
 	PropertyModule.RegisterCustomClassLayout(UCEEffectorBoundType::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorEffectorTypeDetailCustomization::MakeInstance));
 }
@@ -31,8 +39,12 @@ void FCEEditorModule::ShutdownModule()
 	{
 		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(PropertyEditorName);
 
-		// Cloner/effector
+		// Cloner customization
+		PropertyModule.UnregisterCustomClassLayout(ACEClonerActor::StaticClass()->GetFName());
 		PropertyModule.UnregisterCustomClassLayout(UCEClonerComponent::StaticClass()->GetFName());
+
+		// Effector customization
+		PropertyModule.UnregisterCustomClassLayout(ACEEffectorActor::StaticClass()->GetFName());
 		PropertyModule.UnregisterCustomClassLayout(UCEEffectorComponent::StaticClass()->GetFName());
 		PropertyModule.UnregisterCustomClassLayout(UCEEffectorBoundType::StaticClass()->GetFName());
 	}

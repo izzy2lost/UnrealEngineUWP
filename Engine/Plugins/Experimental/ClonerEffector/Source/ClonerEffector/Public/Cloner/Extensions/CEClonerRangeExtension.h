@@ -18,8 +18,7 @@ public:
 			TEXT("Range")
 			, 0
 #if WITH_EDITOR
-			, TEXT("Range")
-			, 5
+			, UE::ClonerEffector::ClonerSection::ClonerSection
 #endif
 		)
 	{}
@@ -142,7 +141,7 @@ protected:
 	FRotator RangeRotationMax = FRotator::ZeroRotator;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetRangeScaleUniform", Getter="GetRangeScaleUniform", DisplayName="ScaleUniformEnabled", Category="Range", meta=(EditCondition="bRangeEnabled", EditConditionHides))
-	bool bRangeScaleUniform = false;
+	bool bRangeScaleUniform = true;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetRangeScaleMin", Getter="GetRangeScaleMin", DisplayName="ScaleMin", Category="Range", meta=(AllowPreserveRatio, Delta="0.0001", ClampMin="0", EditCondition="bRangeEnabled && !bRangeScaleUniform", EditConditionHides))
 	FVector RangeScaleMin = FVector::OneVector;

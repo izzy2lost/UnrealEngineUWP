@@ -13,7 +13,15 @@ public:
 		return MakeShared<FCEEditorEffectorComponentDetailCustomization>();
 	}
 
+	explicit FCEEditorEffectorComponentDetailCustomization()
+	{
+		RemoveEmptySections();
+	}
+
 	//~ Begin IDetailCustomization
 	virtual void CustomizeDetails(IDetailLayoutBuilder& InDetailBuilder) override;
 	//~ End IDetailCustomization
+
+protected:
+	static void RemoveEmptySections();
 };

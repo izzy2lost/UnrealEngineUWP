@@ -18,8 +18,7 @@ public:
 			TEXT("Step")
 			, 0
 #if WITH_EDITOR
-			, TEXT("Step")
-			, 5
+			, UE::ClonerEffector::ClonerSection::ClonerSection
 #endif
 		)
 	{}

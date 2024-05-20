@@ -18,8 +18,7 @@ public:
 			TEXT("Progress")
 			, 0
 #if WITH_EDITOR
-			, TEXT("Emitter")
-			, 4
+			, UE::ClonerEffector::ClonerSection::EmissionSection
 #endif
 		)
 	{}

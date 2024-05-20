@@ -19,8 +19,7 @@ public:
 			TEXT("Collisions")
 			, 0
 #if WITH_EDITOR
-			, TEXT("Collisions")
-			, 3
+			, UE::ClonerEffector::ClonerSection::PhysicsSection
 #endif
 		)
 	{}

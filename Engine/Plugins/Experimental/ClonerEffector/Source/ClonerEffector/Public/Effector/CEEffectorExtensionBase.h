@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "CEClonerEffectorShared.h"
 #include "UObject/Object.h"
 #include "CEEffectorExtensionBase.generated.h"
 
@@ -15,13 +16,23 @@ class UCEEffectorExtensionBase : public UObject
 
 public:
 	UCEEffectorExtensionBase()
-		: UCEEffectorExtensionBase(NAME_None, NAME_None)
+		: UCEEffectorExtensionBase(
+			NAME_None
+#if WITH_EDITOR
+			, FCEExtensionSection(NAME_None, INDEX_NONE)
+#endif
+		)
 	{}
 
-	UCEEffectorExtensionBase(FName InExtensionName, FName InExtensionCategory)
+	UCEEffectorExtensionBase(
+		FName InExtensionName
+#if WITH_EDITOR
+		, const FCEExtensionSection& InExtensionSection
+#endif
+		)
 		: ExtensionName(InExtensionName)
-#if WITH_EDITORONLY_DATA
-		, ExtensionCategory(InExtensionCategory)
+#if WITH_EDITOR
+		, ExtensionSection(InExtensionSection)
 #endif
 	{}
 
@@ -31,9 +42,9 @@ public:
 	}
 
 #if WITH_EDITOR
-	FName GetExtensionCategory() const
+	const FCEExtensionSection& GetExtensionSection() const
 	{
-		return ExtensionCategory;
+		return ExtensionSection;
 	}
 #endif
 
@@ -79,6 +90,6 @@ private:
 	bool bExtensionActive = false;
 
 #if WITH_EDITOR
-	FName ExtensionCategory = NAME_None;
+	FCEExtensionSection ExtensionSection;
 #endif
 };

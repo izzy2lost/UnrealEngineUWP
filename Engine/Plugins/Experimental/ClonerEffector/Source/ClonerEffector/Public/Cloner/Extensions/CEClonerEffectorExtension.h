@@ -23,20 +23,10 @@ public:
 			TEXT("Effector")
 			, 0
 #if WITH_EDITOR
-			, TEXT("Effector")
-			, 1
+			, UE::ClonerEffector::ClonerSection::EffectorSection
 #endif
 		)
 	{}
-
-	UFUNCTION(BlueprintCallable, Category="Cloner")
-	CLONEREFFECTOR_API void SetColor(const FLinearColor& InColor);
-
-	UFUNCTION(BlueprintPure, Category="Cloner")
-	const FLinearColor& GetColor() const
-	{
-		return Color;
-	}
 
 	/** Gets the number of effectors applied on this cloner */
 	UFUNCTION(BlueprintPure, Category="Cloner")
@@ -71,16 +61,11 @@ protected:
 	//~ Begin UCEClonerExtensionBase
 	virtual void OnExtensionActivated() override;
 	virtual void OnExtensionDeactivated() override;
-	virtual void OnExtensionParametersChanged(UCEClonerComponent* InComponent) override;
 	//~ End UCEClonerExtensionBase
 
 	void OnEffectorIdentifierChanged(UCEEffectorComponent* InEffector, int32 InOldIdentifier, int32 InNewIdentifier);
 	void OnEffectorsChanged();
 	void OnEffectorActorsChanged();
-
-	/** Cloner color when unaffected by effectors, color will be passed down to the material (ParticleColor) */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Effector")
-	FLinearColor Color = FLinearColor::White;
 
 	/** Effectors actors linked to this cloner */
 	UPROPERTY(EditInstanceOnly, Category="Effector", meta=(DisplayName="Effectors"))

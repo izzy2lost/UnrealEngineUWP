@@ -16,8 +16,7 @@ UCEClonerMeshRendererExtension::UCEClonerMeshRendererExtension()
 		TEXT("MeshRenderer")
 		, 1
 #if WITH_EDITOR
-		, TEXT("MeshRenderer")
-		, 2
+		, UE::ClonerEffector::ClonerSection::RenderingSection
 #endif
 		)
 {
