@@ -874,6 +874,9 @@ public:
 	*/
 	static ENGINE_API ITargetPlatform* GetRunningPlatform();
 
+	/** Used to ensure that we recook USoundWaves if the default loading behavior has changed */
+	static ENGINE_API const TCHAR* GetDefaultLoadingBehaviorCVarName();
+
 	static ENGINE_API ESoundWaveLoadingBehavior GetDefaultLoadingBehavior();
 
 	/** Async worker that decompresses the audio data on a different thread */

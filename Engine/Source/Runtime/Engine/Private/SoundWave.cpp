@@ -42,9 +42,12 @@
 #include "UObject/ArchiveCookContext.h"
 #endif
 
+// WARNING: This cvar is used as part of incremental cook invalidation. Changing the name of the variable
+// will invalidate all cooked sound wave packages.
+static const TCHAR* SoundWaveDefaultLoadingBehaviorCVarName = TEXT("au.streamcache.SoundWaveDefaultLoadingBehavior");
 static int32 SoundWaveDefaultLoadingBehaviorCVar = static_cast<int32>(ESoundWaveLoadingBehavior::LoadOnDemand);
 FAutoConsoleVariableRef CVarSoundWaveDefaultLoadingBehavior(
-	TEXT("au.streamcache.SoundWaveDefaultLoadingBehavior"),
+	SoundWaveDefaultLoadingBehaviorCVarName,
 	SoundWaveDefaultLoadingBehaviorCVar,
 	TEXT("This can be set to define the default behavior when a USoundWave is loaded.\n")
 	TEXT("1: Retain audio data on load, 2: prime audio data on load, 3: load on demand (No audio data is loaded until a USoundWave is played or primed)."),
@@ -98,6 +101,11 @@ inline FArchive& operator<<(FArchive& Ar, FSoundWaveCuePoint& CuePoint)
 
 namespace SoundWave_Private
 {
+	static const TCHAR* GetDefaultLoadingBehaviorCVarName()
+	{
+		return SoundWaveDefaultLoadingBehaviorCVarName;
+	}
+
 	static ESoundWaveLoadingBehavior GetDefaultLoadingBehaviorCVar()
 	{
 		// query the default loading behavior CVar
@@ -742,6 +750,11 @@ ITargetPlatform* USoundWave::GetRunningPlatform()
 	{
 		return nullptr;
 	}
+}
+
+ENGINE_API const TCHAR* USoundWave::GetDefaultLoadingBehaviorCVarName()
+{
+	return SoundWave_Private::GetDefaultLoadingBehaviorCVarName();
 }
 
 ENGINE_API ESoundWaveLoadingBehavior USoundWave::GetDefaultLoadingBehavior() 
@@ -2394,6 +2407,7 @@ void USoundWave::PreSave(FObjectPreSaveContext InSaveContext)
 	{
 		// Populate our cache ahead of Serialize, where we can't do any AssetRegistry queries safely.
 		GetOwnerLoadingBehavior(InSaveContext.GetTargetPlatform());
+		UE::SoundWaveLoadingUtil::Private::RecordSoundWaveLoadingBehaviorDependenciesForCook(InSaveContext, this);
 	}
 	Super::PreSave(InSaveContext);
 }

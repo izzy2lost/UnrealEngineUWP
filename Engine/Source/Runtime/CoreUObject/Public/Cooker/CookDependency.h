@@ -24,7 +24,7 @@ struct FCookDependencyContext
 {
 public:
 	/** InHasher is void* to mask the implementation details of the hashbuilder. See Update function. */
-	explicit FCookDependencyContext(void* InHasher, TUniqueFunction<void(FString&&)>&& InOnLogError);
+	explicit FCookDependencyContext(void* InHasher, TUniqueFunction<void(FString&&)>&& InOnLogError, FName InPackageName);
 
 	/**
 	 * Update the hashbuilder for the key being constructed (e.g. TargetDomainKey for cooked packages)
@@ -63,9 +63,14 @@ public:
 	[[nodiscard]] COREUOBJECT_API FErrorHandlerScope ErrorHandlerScope(
 		TUniqueFunction<FString(FString&&)>&& ErrorHandler);
 
+	/**
+	 * Get the name of the package being considered
+	 */
+	COREUOBJECT_API FName GetPackageName() const { return PackageName; }
 private:
 	TUniqueFunction<void(FString&&)> OnLogError;
 	TArray<TUniqueFunction<FString(FString&&)>, TInlineAllocator<1>> ErrorHandlers;
+	FName PackageName;
 	void* Hasher; // Type is void* to mask the implementation detail
 };
 
@@ -79,6 +84,8 @@ enum class ECookDependency : uint8
 	File = 0x01,
 	Function = 0x02,
 	TransitiveBuild = 0x03,
+	Package = 0x4,
+	ConsoleVariable = 0x5
 };
 
 /**
@@ -119,6 +126,18 @@ public:
 	 */
 	COREUOBJECT_API static FCookDependency TransitiveBuildAndRuntime(FName PackageName);
 
+	/**
+	 * Create a build dependency on the contents of a package.
+	 * Only the bytes of the .uasset/.umap file are considered.
+	 */
+	COREUOBJECT_API static FCookDependency Package(FName PackageName);
+
+	/**
+	 * Create a dependency on the value of a cvar. The cvar will be read and its value (as a string) will be hashed into the oplog data
+	 * If the cvar value is changed, the packages that depend on it will be invalidated
+	 */
+	COREUOBJECT_API static FCookDependency ConsoleVariable(FStringView VariableName);
+
 	/** Construct an empty dependency; it will never be invalidated. */
 	COREUOBJECT_API FCookDependency();
 
@@ -139,7 +158,7 @@ public:
 	/** FunctionArgs if GetType() == Function, else FCbFieldViewIterator(). */
 	FCbFieldViewIterator GetFunctionArgs() const;
 
-	/** PackageName if GetType() == TransitiveBuild, else NAME_None. */
+	/** PackageName if GetType() == TransitiveBuild or GetType() == Package, else NAME_None. */
 	FName GetPackageName() const;
 	/** If GetType() == TransitiveBuild, whether AlsoAddRuntimeDependency was selected, otherwise false. */
 	bool IsAlsoAddRuntimeDependency() const;
@@ -186,9 +205,10 @@ private:
 	};
 	union
 	{
-		FString FileName;
+		FString StringData;
 		FFunctionData FunctionData;
 		FTransitiveBuildData TransitiveBuildData;
+		FName NameData;
 	};
 };
 
@@ -273,7 +293,7 @@ inline ECookDependency FCookDependency::GetType() const
 
 inline FStringView FCookDependency::GetFileName() const
 {
-	return Type == ECookDependency::File ? FileName : FStringView();
+	return Type == ECookDependency::File ? StringData : FStringView();
 }
 
 inline FName FCookDependency::GetFunctionName() const
@@ -288,7 +308,15 @@ inline FCbFieldViewIterator FCookDependency::GetFunctionArgs() const
 
 inline FName FCookDependency::GetPackageName() const
 {
-	return Type == ECookDependency::TransitiveBuild ? TransitiveBuildData.PackageName : NAME_None;
+	switch (GetType())
+	{
+	case ECookDependency::TransitiveBuild:
+		return TransitiveBuildData.PackageName;
+	case ECookDependency::Package:
+		return NameData;
+	default:
+		return NAME_None;
+	};
 }
 
 inline bool FCookDependency::IsAlsoAddRuntimeDependency() const
@@ -308,7 +336,8 @@ inline bool FCookDependency::operator<(const FCookDependency& Other) const
 	case ECookDependency::None:
 		return false;
 	case ECookDependency::File:
-		return FileName.Compare(Other.FileName, ESearchCase::IgnoreCase) < 0;
+	case ECookDependency::ConsoleVariable:
+		return StringData.Compare(Other.StringData, ESearchCase::IgnoreCase) < 0;
 	case ECookDependency::Function:
 	{
 		int32 Compare = FunctionData.Name.Compare(Other.FunctionData.Name);
@@ -340,14 +369,17 @@ inline bool FCookDependency::operator<(const FCookDependency& Other) const
 		}
 		return false;
 	}
+	case ECookDependency::Package:
+		return NameData.Compare(Other.NameData) <  0;
 	default:
 		checkNoEntry();
 		return false;
 	}
 }
 
-inline FCookDependencyContext::FCookDependencyContext(void* InHasher, TUniqueFunction<void(FString&&)>&& InOnLogError)
+inline FCookDependencyContext::FCookDependencyContext(void* InHasher, TUniqueFunction<void(FString&&)>&& InOnLogError, FName InPackageName)
 	: OnLogError(MoveTemp(InOnLogError))
+	, PackageName(InPackageName)
 	, Hasher(InHasher)
 {
 }

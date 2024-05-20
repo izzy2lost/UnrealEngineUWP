@@ -7,6 +7,7 @@
 #include "Containers/Map.h"
 #include "CoreGlobals.h"
 #include "HAL/FileManager.h"
+#include "HAL/IConsoleManager.h"
 #include "HAL/PlatformMath.h"
 #include "Hash/Blake3.h"
 #include "Misc/AssertionMacros.h"
@@ -37,7 +38,7 @@ namespace UE::Cook
 FCookDependency FCookDependency::File(FStringView InFileName)
 {
 	FCookDependency Result(ECookDependency::File);
-	Result.FileName = InFileName;
+	Result.StringData = InFileName;
 	return Result;
 }
 
@@ -55,6 +56,20 @@ FCookDependency FCookDependency::TransitiveBuildAndRuntime(FName PackageName)
 	FCookDependency Result(ECookDependency::TransitiveBuild);
 	Result.TransitiveBuildData.PackageName = PackageName;
 	Result.TransitiveBuildData.bAlsoAddRuntimeDependency = true;
+	return Result;
+}
+
+FCookDependency FCookDependency::Package(FName PackageName)
+{
+	FCookDependency Result(ECookDependency::Package);
+	Result.NameData = PackageName;
+	return Result;
+}
+
+FCookDependency FCookDependency::ConsoleVariable(FStringView VariableName)
+{
+	FCookDependency Result(ECookDependency::ConsoleVariable);
+	Result.StringData = VariableName;
 	return Result;
 }
 
@@ -96,13 +111,17 @@ FCookDependency& FCookDependency::operator=(const FCookDependency& Other)
 	case ECookDependency::None:
 		break;
 	case ECookDependency::File:
-		FileName = Other.FileName;
+	case ECookDependency::ConsoleVariable:
+		StringData = Other.StringData;
 		break;
 	case ECookDependency::Function:
 		FunctionData = Other.FunctionData;
 		break;
 	case ECookDependency::TransitiveBuild:
 		TransitiveBuildData = Other.TransitiveBuildData;
+		break;
+	case ECookDependency::Package:
+		NameData = Other.NameData;
 		break;
 	default:
 		checkNoEntry();
@@ -121,13 +140,17 @@ FCookDependency& FCookDependency::operator=(FCookDependency&& Other)
 	case ECookDependency::None:
 		break;
 	case ECookDependency::File:
-		FileName = MoveTemp(Other.FileName);
+	case ECookDependency::ConsoleVariable:
+		StringData = MoveTemp(Other.StringData);
 		break;
 	case ECookDependency::Function:
 		FunctionData = MoveTemp(Other.FunctionData);
 		break;
 	case ECookDependency::TransitiveBuild:
 		TransitiveBuildData = MoveTemp(Other.TransitiveBuildData);
+		break;
+	case ECookDependency::Package:
+		NameData = MoveTemp(Other.NameData);
 		break;
 	default:
 		checkNoEntry();
@@ -191,10 +214,28 @@ void FCookDependency::UpdateHash(FCookDependencyContext& Context) const
 		return;
 	}
 	case ECookDependency::TransitiveBuild:
-		// Transitive Build dependencies do not impact the hash; they instead operate by marking the package
+		// Build dependencies do not impact the hash; they instead operate by marking the package
 		// as invalidated based on the invalidation of other packages, in a separate pass after its hash is compared
 		return;
-
+	case ECookDependency::Package:
+		Context.LogError(FString::Printf(
+			TEXT("FCookDependency::Package('%s') failed to UpdateHash: Package dependencies do not implement UpdateHash and it should not be called on them."),
+			*NameData.ToString()));
+		return;
+	case ECookDependency::ConsoleVariable:
+	{
+		IConsoleVariable* VariableInstance = IConsoleManager::Get().FindConsoleVariable(*StringData);
+		if (VariableInstance == nullptr)
+		{
+			Context.LogError(FString::Printf(
+				TEXT("FCookDependency::ConsoleVariable('%s') failed to UpdateHash: could not find console variable."),
+				*StringData));
+			return;
+		}
+		FString VariableAsString = VariableInstance->GetString();
+		Context.Update(VariableAsString.GetCharArray().GetData(), VariableAsString.GetCharArray().Num() * sizeof(FString::ElementType));
+		return;
+	}
 	default:
 		checkNoEntry();
 		return;
@@ -208,13 +249,17 @@ void FCookDependency::Construct()
 	case ECookDependency::None:
 		break;
 	case ECookDependency::File:
-		new(&FileName) FString();
+	case ECookDependency::ConsoleVariable:
+		new(&StringData) FString();
 		break;
 	case ECookDependency::Function:
 		new(&FunctionData) FFunctionData();
 		break;
 	case ECookDependency::TransitiveBuild:
 		new(&TransitiveBuildData) FTransitiveBuildData();
+		break;
+	case ECookDependency::Package:
+		new(&NameData) FName();
 		break;
 	default:
 		checkNoEntry();
@@ -229,13 +274,17 @@ void FCookDependency::Destruct()
 	case ECookDependency::None:
 		break;
 	case ECookDependency::File:
-		FileName.~FString();
+	case ECookDependency::ConsoleVariable:
+		StringData.~FString();
 		break;
 	case ECookDependency::Function:
 		FunctionData.~FFunctionData();
 		break;
 	case ECookDependency::TransitiveBuild:
 		TransitiveBuildData.~FTransitiveBuildData();
+		break;
+	case ECookDependency::Package:
+		NameData.~FName();
 		break;
 	default:
 		checkNoEntry();
@@ -252,7 +301,8 @@ void FCookDependency::Save(FCbWriter& Writer) const
 	case ECookDependency::None:
 		break;
 	case ECookDependency::File:
-		Writer << FileName;
+	case ECookDependency::ConsoleVariable:
+		Writer << StringData;
 		break;
 	case ECookDependency::Function:
 		Writer << FunctionData.Name;
@@ -264,6 +314,9 @@ void FCookDependency::Save(FCbWriter& Writer) const
 	case ECookDependency::TransitiveBuild:
 		Writer << TransitiveBuildData.PackageName;
 		Writer << TransitiveBuildData.bAlsoAddRuntimeDependency;
+		break;
+	case ECookDependency::Package:
+		Writer << NameData;
 		break;
 	default:
 		checkNoEntry();
@@ -326,6 +379,26 @@ bool FCookDependency::Load(FCbFieldView Value)
 		}
 		*this = FCookDependency::TransitiveBuildAndRuntime(LocalPackageName);
 		TransitiveBuildData.bAlsoAddRuntimeDependency = bLocalAlsoAddRuntimeDependency;
+		return true;
+	}
+	case ECookDependency::Package:
+	{
+		FName LocalPackageName;
+		if (!LoadFromCompactBinary(Field++, LocalPackageName))
+		{
+			return false;
+		}
+		*this = FCookDependency::Package(LocalPackageName);
+		return true;
+	}
+	case ECookDependency::ConsoleVariable:
+	{
+		FString LocalConsoleVariableName;
+		if (!LoadFromCompactBinary(Field++, LocalConsoleVariableName))
+		{
+			return false;
+		}
+		*this = FCookDependency::ConsoleVariable(LocalConsoleVariableName);
 		return true;
 	}
 	default:

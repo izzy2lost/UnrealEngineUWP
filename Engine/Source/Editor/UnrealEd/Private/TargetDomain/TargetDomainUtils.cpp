@@ -208,7 +208,7 @@ bool FCookDependencies::TryCalculateCurrentKey(const FAssetPackageData* Override
 					}
 				}
 				bError = true;
-			});
+			}, PackageName);
 
 		for (UE::Cook::FCookDependency& CookDependency : CookDependencies)
 		{
@@ -330,10 +330,6 @@ FCookDependencies FCookDependencies::Collect(UPackage* Package, const ITargetPla
 		BuildDependenciesSet.Append(AssetDependencies);
 	}
 
-	Result.BuildPackageDependencies = BuildDependenciesSet.Array();
-	Result.BuildPackageDependencies.RemoveAllSwap(IsDisallowedBuildDependencyName, EAllowShrinking::Yes);
-	Result.BuildPackageDependencies.Sort(FNameLexicalLess());
-
 #if UE_WITH_CONFIG_TRACKING
 	{
 		using namespace UE::ConfigAccessTracking;
@@ -372,6 +368,10 @@ FCookDependencies FCookDependencies::Collect(UPackage* Package, const ITargetPla
 				}
 				Result.TransitiveBuildDependencies.Add(MoveTemp(CookDependency));
 			}
+			else if (CookDependency.GetType() == UE::Cook::ECookDependency::Package)
+			{
+				BuildDependenciesSet.Add(CookDependency.GetPackageName());
+			}
 			else
 			{
 				Result.CookDependencies.Add(MoveTemp(CookDependency));
@@ -381,6 +381,10 @@ FCookDependencies FCookDependencies::Collect(UPackage* Package, const ITargetPla
 		Algo::Sort(Result.CookDependencies);
 		Algo::Sort(Result.TransitiveBuildDependencies);
 	}
+
+	Result.BuildPackageDependencies = BuildDependenciesSet.Array();
+	Result.BuildPackageDependencies.RemoveAllSwap(IsDisallowedBuildDependencyName, EAllowShrinking::Yes);
+	Result.BuildPackageDependencies.Sort(FNameLexicalLess());
 
 	RuntimeDependencies.RemoveAllSwap(IsDisallowedRuntimeDependencyName, EAllowShrinking::No);
 	RuntimeDependencies.Sort(FNameLexicalLess());
