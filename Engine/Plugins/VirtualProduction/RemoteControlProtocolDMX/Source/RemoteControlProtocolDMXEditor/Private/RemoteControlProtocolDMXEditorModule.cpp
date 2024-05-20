@@ -44,4 +44,4 @@ void FRemoteControlProtocolDMXEditorModule::ShutdownModule()
 }
 
 
-IMPLEMENT_MODULE(FRemoteControlProtocolDMXEditorModule, RemoteControlProtocolDMXEditorModule);
+IMPLEMENT_MODULE(FRemoteControlProtocolDMXEditorModule, RemoteControlProtocolDMXEditor);
