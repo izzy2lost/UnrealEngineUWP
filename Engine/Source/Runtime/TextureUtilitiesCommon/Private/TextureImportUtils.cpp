@@ -616,10 +616,7 @@ bool UE::TextureUtilitiesCommon::IsImportResolutionValid(int64 Width, int64 Heig
 
 	if (Width > MaximumSupportedResolutionNonVT || Height > MaximumSupportedResolutionNonVT)
 	{
-		const TConsoleVariableData<int32>* CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures")); check(CVarVirtualTexturesEnabled);
-		check(CVarVirtualTexturesEnabled != nullptr);
-
-		if (!CVarVirtualTexturesEnabled->GetValueOnAnyThread())
+		if (! UTexture::IsVirtualTexturingEnabled() )
 		{
 			const FText VTMessage = NSLOCTEXT("Interchange", "Warning_LargeTextureVTDisabled", "\nWarning: Virtual Textures are disabled in this project.");
 

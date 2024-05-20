@@ -1104,7 +1104,6 @@ static void GetTextureBuildSettings(
 	)
 {
 	const bool bPlatformSupportsTextureStreaming = TargetPlatform.SupportsFeature(ETargetPlatformFeatures::TextureStreaming);
-	const bool bPlatformSupportsVirtualTextureStreaming = TargetPlatform.SupportsFeature(ETargetPlatformFeatures::VirtualTextureStreaming);
 
 	if (OutBuildResultMetadata)
 	{
@@ -1215,18 +1214,43 @@ static void GetTextureBuildSettings(
 		bBorderColorBlack
 		);
 
-	static const auto CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures")); check(CVarVirtualTexturesEnabled);
-	// A ULightMapVirtualTexture2D with multiple layers saved in MapBuildData could be loaded with the r.VirtualTexture disabled, it will generate DDC before we decide to invalidate the light map data, to skip the ensure failure let it generate VT DDC anyway.
-	const bool bForVirtualTextureStreamingBuild = ULightMapVirtualTexture2D::StaticClass() == Texture.GetClass();
-	bool bVirtualTextureStreaming = bForVirtualTextureStreamingBuild || (CVarVirtualTexturesEnabled->GetValueOnAnyThread() && bPlatformSupportsVirtualTextureStreaming && Texture.VirtualTextureStreaming);
-	if (Texture.Availability == ETextureAvailability::CPU && TextureClass == ETextureClass::TwoD)
+	bool bVirtualTextureStreaming = Texture.VirtualTextureStreaming;
+
+	if ( !bVirtualTextureStreaming && Texture.GetClass() == ULightMapVirtualTexture2D::StaticClass() )
+	{
+		// A ULightMapVirtualTexture2D with multiple layers saved in MapBuildData could be loaded with the r.VirtualTexture disabled, it will generate DDC before we decide to invalidate the light map data, to skip the ensure failure let it generate VT DDC anyway.
+		// @@ pretty ugly hack here, this should have been fixed in PostLoad or something
+		bVirtualTextureStreaming = true;
+	}
+	
+	if ( bVirtualTextureStreaming && ! UTexture::IsVirtualTexturingEnabled(&TargetPlatform) )
+	{
+		bVirtualTextureStreaming = false;
+	}
+
+	if ( Texture.RequiresVirtualTexturing() && ! bVirtualTextureStreaming )
+	{
+		// should not get here; earlier call to CanBuildPlatformData() should have returned false
+		UE_LOG(LogTexture, Error, TEXT("Texture RequiresVirtualTexturing but VT is off (%s)"),*Texture.GetName());
+
+		// no way to error out and abort the build from here (this function returns void)
+		// return false;
+		
+		// turn it back on to avoid crashes?
+		//	otherwise you will hit checks on NumLayers because we expect non-VT to always have 1 layer
+		bVirtualTextureStreaming = true;
+	}
+
+	if (Texture.Availability == ETextureAvailability::CPU && TextureClass == ETextureClass::TwoD && 
+		! Texture.RequiresVirtualTexturing())
 	{
 		// We are swapping with a placeholder - don't VT it.
 		OutBuildSettings.bCPUAccessible = true;
 		bVirtualTextureStreaming = false;
 		MipGenSettings = TMGS_NoMipmaps;
 	}
-
+	
+	OutBuildSettings.bVirtualStreamable = bVirtualTextureStreaming;
 
 	// Virtual textures must have mips as VT memory management relies on a 1:1 texel/pixel mapping, which in turn
 	// requires that we be able to swap in lower mips when that density gets too high for a given texture.
@@ -1255,6 +1279,12 @@ static void GetTextureBuildSettings(
 			}
 		}
 	}
+	if ( Texture.Source.GetNumBlocks() > 1 && !bVirtualTextureStreaming )
+	{
+		UE_LOG(LogTexture, Warning, TEXT("Texture %s has UDIM Blocks, but bVirtualTextureStreaming is off; will build just the first block."), 
+			*Texture.GetPathName()
+			);
+	}
 
 	const FIntPoint SourceSize = Texture.Source.GetLogicalSize();
 
@@ -1277,7 +1307,6 @@ static void GetTextureBuildSettings(
 
 	OutBuildSettings.LODBias = TextureLODSettings.CalculateLODBias(SourceSize.X, SourceSize.Y, Texture.MaxTextureSize, Texture.LODGroup, Texture.LODBias, Texture.NumCinematicMipLevels, Texture.MipGenSettings, bVirtualTextureStreaming);
 	OutBuildSettings.LODBiasWithCinematicMips = TextureLODSettings.CalculateLODBias(SourceSize.X, SourceSize.Y, Texture.MaxTextureSize, Texture.LODGroup, Texture.LODBias, 0, Texture.MipGenSettings, bVirtualTextureStreaming);
-	OutBuildSettings.bVirtualStreamable = bVirtualTextureStreaming;
 	OutBuildSettings.PowerOfTwoMode = Texture.PowerOfTwoMode;
 	OutBuildSettings.PaddingColor = Texture.PaddingColor;
 	OutBuildSettings.bPadWithBorderColor = Texture.bPadWithBorderColor;
@@ -3426,6 +3455,35 @@ void UTextureCube::GetMipData(int32 FirstMipToLoad, void** OutMipData)
 	}
 }
 
+#if WITH_EDITORONLY_DATA
+bool UTexture::RequiresVirtualTexturing() const
+{
+	if ( ! Source.IsValid() )
+	{
+		return false;
+	}
+
+	if ( Source.GetNumLayers() > 1 )
+	{
+		return true;
+	}
+	
+	// NOTE: optional: if NumBlocks() > 1 , for UDIM
+	//	it does work as a non-VT and will just show the first block
+	//	we can either say RequiresVirtualTexturing or not in that case
+	/*
+	if ( Source.GetNumBlocks() > 1 )
+	{
+		return true;
+	}
+	*/
+
+	// also check class == ULightMapVirtualTexture2D ?
+
+	return false;
+}
+#endif
+
 int32 UTexture::CalculateLODBias(bool bWithCinematicMipBias) const
 {
 	// Async caching of PlatformData must be done before calling this
@@ -3435,6 +3493,25 @@ int32 UTexture::CalculateLODBias(bool bWithCinematicMipBias) const
 }
 
 #if WITH_EDITOR
+
+bool UTexture::CanBuildPlatformData(const ITargetPlatformSettings * TargetPlatform) const
+{
+	if ( ! Source.IsValid() )
+	{
+		return false;
+	}
+
+	if ( RequiresVirtualTexturing() )
+	{
+		if ( ! IsVirtualTexturingEnabled(TargetPlatform) )
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 void UTexture::CachePlatformData(bool bAsyncCache, bool bAllowAsyncBuild, bool bAllowAsyncLoading, ITextureCompressorModule* Compressor)
 {
 	//
@@ -3448,7 +3525,7 @@ void UTexture::CachePlatformData(bool bAsyncCache, bool bAllowAsyncBuild, bool b
 	if (PlatformDataLinkPtr)
 	{
 		FTexturePlatformData*& PlatformDataLink = *PlatformDataLinkPtr;
-		if (Source.IsValid() && FApp::CanEverRender())
+		if ( FApp::CanEverRender() && CanBuildPlatformData() )
 		{
 			bool bPerformCache = false;
 
@@ -3649,6 +3726,11 @@ void UTexture::BeginCacheForCookedPlatformData( const ITargetPlatform *TargetPla
 {
 	// @todo Oodle : if TargetPlatform->IsServerOnly() early exit?
 
+	if ( ! CanBuildPlatformData(TargetPlatform) )
+	{
+		return;
+	}
+
 	TMap<FString, FTexturePlatformData*>* CookedPlatformDataPtr = GetCookedPlatformData();
 	if (CookedPlatformDataPtr && !GetOutermost()->HasAnyPackageFlags(PKG_FilterEditorOnly))
 	{
@@ -3815,6 +3897,11 @@ bool UTexture::IsCachedCookedPlatformDataLoaded(const ITargetPlatform* TargetPla
 		return true; 
 	}
 
+	if ( ! CanBuildPlatformData(TargetPlatform) )
+	{
+		return false;
+	}
+
 	// CookedPlatformData is keyed off of FetchOrBuild settings.
 	ETextureEncodeSpeed EncodeSpeed = GetDesiredEncodeSpeed();
 
@@ -3938,7 +4025,7 @@ void UTexture::FinishCachePlatformData()
 	{
 		FTexturePlatformData*& RunningPlatformData = *RunningPlatformDataPtr;
 		
-		if (Source.IsValid() && FApp::CanEverRender())
+		if (CanBuildPlatformData() && FApp::CanEverRender())
 		{
 			if ( RunningPlatformData == NULL )
 			{

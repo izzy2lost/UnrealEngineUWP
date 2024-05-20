@@ -34,6 +34,7 @@ namespace FOodleDataCompression {enum class ECompressor : uint8; enum class ECom
 class FTextureReference;
 class FTextureResource;
 class ITargetPlatform;
+class ITargetPlatformSettings;
 class UAssetUserData;
 struct FPropertyChangedEvent;
 
@@ -1708,6 +1709,16 @@ public:
 	/** Returns the virtual texture build settings. */
 	ENGINE_API virtual void GetVirtualTextureBuildSettings(struct FVirtualTextureBuildSettings& OutSettings) const;
 
+#if WITH_EDITORONLY_DATA
+	/** Returns true if this Texture cannot be built unless it has VT enabled.
+	Does not check the VirtualTextureStreaming bool on the texture, this is telling you if that bool must be true. **/
+	ENGINE_API bool RequiresVirtualTexturing() const;
+#endif
+
+	/** Check the Project settings to see if VT is enabled.
+	Optionally also checks the TargetPlatform. **/
+	ENGINE_API static bool IsVirtualTexturingEnabled( const ITargetPlatformSettings * TargetPlatform = nullptr );
+
 	/**
 	 * Textures that use the derived data cache must override this function and
 	 * provide a pointer to the linked list of platform data.
@@ -1759,6 +1770,12 @@ public:
 	 * This is called optionally from worker threads via the FAsyncEncode class (LightMaps, ShadowMaps)
 	 */
 	void CachePlatformData(bool bAsyncCache = false, bool bAllowAsyncBuild = false, bool bAllowAsyncLoading = false, class ITextureCompressorModule* Compressor = nullptr);
+
+	/* Returns if it is possible to build this texture for a given TargetPlatform (or any).
+	This supercedes checking Source.IsValid()
+	When this returns false, CachePlatformData will not attempt to build or cache the PlatformData.
+	*/
+	bool CanBuildPlatformData(const ITargetPlatformSettings * TargetPlatform = nullptr) const;
 
 	/**
 	 * Begins caching platform data in the background for the platform requested

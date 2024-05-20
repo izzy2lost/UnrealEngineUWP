@@ -464,6 +464,33 @@ bool UTexture::IsPostLoadThreadSafe() const
 	return false;
 }
 
+/*static*/ bool UTexture::IsVirtualTexturingEnabled( const ITargetPlatformSettings * TargetPlatform /*= nullptr*/ )
+{
+	// check the project setting cvar for overall VT being on/off :
+	//	(this is in the host platform config)
+	if ( ! CVarVirtualTextures.GetValueOnAnyThread() )
+	{
+		return false;
+	}
+	
+	// note: rendering code (UseVirtualTexturing) also checks FPlatformProperties::SupportsVirtualTextureStreaming()
+	//	that has historically not been checked in the texture code, so we continue to not check it here
+
+	// optionally could do: if ! TargetPlatform , TargetPlatform = CurrentRunning ?
+
+	if ( TargetPlatform )
+	{
+		// this will wind up checking "r.Mobile.VirtualTextures" if TargetPlatform is a mobile platform
+		const bool bPlatformSupportsVirtualTextureStreaming = TargetPlatform->SupportsFeature(ETargetPlatformFeatures::VirtualTextureStreaming);
+		if ( ! bPlatformSupportsVirtualTextureStreaming )
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 #if WITH_EDITOR
 
 bool UTexture::IsDefaultTexture() const
@@ -562,7 +589,6 @@ void UTexture::UpdateOodleTextureSdkVersionToLatest(bool bDoPrePostEditChangeIfC
 	}
 }
 
-
 // we're in WITH_EDITOR but not sure that's right, maybe move out?
 // Beware: while ValidateSettingsAfterImportOrEdit should have been called on all Textures,
 //	 it is not called on load at runtime
@@ -646,7 +672,7 @@ void UTexture::ValidateSettingsAfterImportOrEdit(bool * pRequiresNotifyMaterials
 		// note : checking the VirtualTextureStreaming without checking the TargetPlatform is potentially buggy
 		//	if the VT-enabled-ness of the platforms is not all the same as the Editor host platform
 
-		if ( VirtualTextureStreaming && ! CVarVirtualTextures.GetValueOnAnyThread() )
+		if ( VirtualTextureStreaming && ! IsVirtualTexturingEnabled() )
 		{
 			// VT was turned on for this texture, but off for the project
 			//	fix it now, turn off on the texture:
@@ -657,7 +683,7 @@ void UTexture::ValidateSettingsAfterImportOrEdit(bool * pRequiresNotifyMaterials
 
 		if ( bLargeTextureMustBeVT && ! VirtualTextureStreaming && ( MaxTextureSize == 0 || MaxTextureSize > RHIMaximumDimension ) )
 		{
-			if ( CVarVirtualTextures.GetValueOnAnyThread() )
+			if ( IsVirtualTexturingEnabled() )
 			{
 				if ( GetTextureClass() == ETextureClass::TwoD )
 				{
@@ -2409,12 +2435,12 @@ void FTextureSource::Compress()
 		if ( CompressionFormat != TSCF_UEDELTA )
 		{
 			// change to TSCF_UEDELTA
-
+			
 			// can't just call RemoveCompression here because it uses slow BulkData funcs
 			// RemoveCompression();
 			
 			FSharedBuffer Buffer = Decompress();
-
+			
 			if ( CompressionFormat != TSCF_None )
 			{
 				// set BulkData to the uncompressed data so we can get the hash before compression :
@@ -2425,7 +2451,7 @@ void FTextureSource::Compress()
 
 			// update the Id from the decompressed data :
 			UseHashAsGuid();
-		
+					
 			if ( ! HasLayerColorInfo() )
 			{
 				// since we're changing compression, go ahead and also update channel minmax now if not done
@@ -2445,7 +2471,7 @@ void FTextureSource::Compress()
 			//	we try to keep "Id" == to the hash of the BulkData when it was the raw data
 			//	the invariant
 			//	( Id == UE::Serialization::IoHashToGuid(BulkData.GetPayloadId()) )
-			//	is no longer true after this			
+			//	is no longer true after this	
 		}
 	}
 	else // not ShouldUseUEDeltaForFormat
@@ -3903,8 +3929,7 @@ void UTexture::GetBuiltTextureSize(const ITargetPlatformSettings* TargetPlatform
 		}
 	}
 	
-	// bug? this queries CVarVirtualTextures, but should be asking for that in the TargetPlatform config
-	const bool bVirtualTextureStreaming = CVarVirtualTextures.GetValueOnAnyThread() && TargetPlatformSettings->SupportsFeature(ETargetPlatformFeatures::VirtualTextureStreaming) && VirtualTextureStreaming;
+	const bool bVirtualTextureStreaming = VirtualTextureStreaming && IsVirtualTexturingEnabled(TargetPlatformSettings);
 
 	const UTextureLODSettings& LODSettings = TargetPlatformSettings->GetTextureLODSettings();
  	const uint32 LODBiasNoCinematics = FMath::Max<int32>(LODSettings.CalculateLODBias(SizeX, SizeY, MaxTextureSize, LODGroup, LODBias, 0, MipGenSettings, bVirtualTextureStreaming), 0);

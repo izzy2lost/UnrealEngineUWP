@@ -56,13 +56,15 @@ bool UTextureImportSettings::IsImportAutoVTEnabled() const
 		return false;
 	}
 
-	static const TConsoleVariableData<int32>* CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures"));
-	check(CVarVirtualTexturesEnabled);
+	if ( ! UTexture::IsVirtualTexturingEnabled() )
+	{
+		return false;
+	}
 
 	static const auto CVarVirtualTexturesAutoImportEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VT.EnableAutoImport"));
 	check(CVarVirtualTexturesAutoImportEnabled);
 
-	return ( CVarVirtualTexturesEnabled->GetValueOnAnyThread() && CVarVirtualTexturesAutoImportEnabled->GetValueOnAnyThread() );
+	return !! CVarVirtualTexturesAutoImportEnabled->GetValueOnAnyThread();
 }
 
 int64 UTextureImportSettings::GetAutoLimitPixelCount() const
