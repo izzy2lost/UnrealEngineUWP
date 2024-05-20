@@ -85,6 +85,7 @@ void FRendererModule::StartupModule()
 		ENQUEUE_RENDER_COMMAND(FSceneRendererCleanUp)(
 			[](FRHICommandListImmediate& RHICmdList)
 		{
+			FRDGBuilder::WaitForAsyncDeleteTask();
 			FSceneRenderer::CleanUp(RHICmdList);
 		});
 	}));
