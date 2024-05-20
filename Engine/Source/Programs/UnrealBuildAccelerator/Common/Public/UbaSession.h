@@ -149,6 +149,8 @@ namespace uba
 		void WriteSummary(BinaryWriter& writer, const Function<void(Logger& logger)>& summaryFunc);
 		float UpdateCpuLoad();
 
+		bool ExtractSymbolsFromObjectFile(const CloseFileMessage& msg, const tchar* fileName, u64 fileSize);
+
 		void ThreadTraceLoop();
 		virtual void TraceSessionUpdate();
 
@@ -174,6 +176,7 @@ namespace uba
 		bool m_detailedTrace;
 		bool m_logToFile;
 		bool m_storeObjFilesCompressed;
+		bool m_extractObjFilesSymbols;
 
 		u64 m_keepOutputFileMemoryMapsThreshold;
 

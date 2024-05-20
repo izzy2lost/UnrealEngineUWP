@@ -796,6 +796,20 @@ namespace uba
 #endif
 	}
 
+	u64 GetNowFileTime()
+	{
+		#if PLATFORM_WINDOWS
+		FILETIME ft;
+		SYSTEMTIME st;
+		GetSystemTime(&st);
+		SystemTimeToFileTime(&st, &ft);
+		return (u64&)ft;
+		#else
+		// TODO
+		return 0ull;
+		#endif
+	}
+
 	bool GetCurrentDirectoryW(StringBufferBase& out)
 	{
 #if PLATFORM_WINDOWS

@@ -11,9 +11,12 @@ namespace uba
 	constexpr u16 ImageSymUndefined = 0; // IMAGE_SYM_UNDEFINED
 
 	constexpr u32 ImageScnCntCode = 0x00000020; // IMAGE_SCN_CNT_CODE
+	constexpr u32 ImageScnLnkInfo = 0x00000200; // IMAGE_SCN_LNK_INFO
+	constexpr u32 ImageScnLnkRemove = 0x00000800; // IMAGE_SCN_LNK_REMOVE
+	constexpr u32 ImageScnLnkComdat = 0x00001000; // IMAGE_SCN_LNK_COMDAT
+	constexpr u32 ImageScnAlign1Bytes = 0x00100000; // IMAGE_SCN_ALIGN_1BYTES
 	constexpr u32 ImageScnMemExecute = 0x20000000; // IMAGE_SCN_MEM_EXECUTE
 	constexpr u32 ImageScnMemRead = 0x40000000; // IMAGE_SCN_MEM_READ
-	constexpr u32 ImageScnLnkComdat = 0x00001000; // IMAGE_SCN_LNK_COMDAT
 
 	const u16 ImageRelAmd64Addr64 = 0x0001; // IMAGE_REL_AMD64_ADDR64
 
@@ -126,7 +129,7 @@ namespace uba
 	// When merging dlls we need to remove duplicates of these
 	UnorderedSymbols ObjectFileCoff::PotentiallyDuplicatedSymbols = 
 	{
-		/*
+#if 0 // This is not needed anymore
 		// REPLACEMENT_OPERATOR_NEW_AND_DELETE
 		"??2@YAPEAX_K@Z",
 		"??2@YAPEAX_KAEBUnothrow_t@std@@@Z",
@@ -168,15 +171,15 @@ namespace uba
 		// Have no idea why these are duplicated
 		"??_GIFunction_OwnedObject@Function@Private@Core@UE@@UEAAPEAXI@Z",
 		"??_GIDelegateInstance@@UEAAPEAXI@Z",
-		*/
+#endif
 	};
 
 	template<typename SymbolType>
-	StringView GetSymbolName(SymbolType& symbol, u8* stringTableMem)
+	StringView GetSymbolName(SymbolType& symbol, const u8* data, u32 stringTableMemPos)
 	{
 		if (symbol.N.Name.Short == 0)
 		{
-			const char* name = (char*)stringTableMem + symbol.N.Name.Long;
+			auto name = (const char*)(data + stringTableMemPos + symbol.N.Name.Long);
 			return { name, name + strlen(name) };
 		}
 		auto shortName = (char*)symbol.N.ShortName;
@@ -209,7 +212,7 @@ namespace uba
 			auto& header = *(AnonObjectHeaderBigobj*)m_data;
 			m_info.symbolsMemPos = header.PointerToSymbolTable;
 			m_info.symbolCount = header.NumberOfSymbols;
-			m_info.stringTableMem = m_data + header.PointerToSymbolTable + header.NumberOfSymbols * sizeof(ImageSymbolEx);
+			m_info.stringTableMemPos = header.PointerToSymbolTable + header.NumberOfSymbols * sizeof(ImageSymbolEx);
 			m_info.sectionsMemOffset = sizeof(AnonObjectHeaderBigobj);
 			m_info.sectionCount = header.NumberOfSections;
 		}
@@ -218,7 +221,7 @@ namespace uba
 			auto& header = *(ImageFileHeader*)m_data;
 			m_info.symbolsMemPos = header.PointerToSymbolTable;
 			m_info.symbolCount = header.NumberOfSymbols;
-			m_info.stringTableMem = m_data + header.PointerToSymbolTable + header.NumberOfSymbols * sizeof(ImageSymbol);
+			m_info.stringTableMemPos = header.PointerToSymbolTable + header.NumberOfSymbols * sizeof(ImageSymbol);
 			m_info.sectionsMemOffset = sizeof(ImageFileHeader);
 			m_info.sectionCount = header.NumberOfSections;
 		}
@@ -236,7 +239,7 @@ namespace uba
 
 	bool ObjectFileCoff::CreateStripped(Logger& logger, const tchar* newFilename, const UnorderedSymbols& allNeededImports, u32& outKeptExportCount)
 	{
-		UBA_ASSERT(m_file);
+		UBA_ASSERT(m_data);
 
 		Vector<u32> symbolsToAdd;
 		if (m_isBigObj)
@@ -278,12 +281,12 @@ namespace uba
 		else
 			RemoveSymbols<ImageSymbol>(logger, newData, newInfo);
 
-		WriteExports(logger, newData, allNeededImports, outKeptExportCount);
+		StripExports(logger, newData, allNeededImports, outKeptExportCount);
 
 		return newFile.Close();
 	}
 
-	bool ObjectFileCoff::ComputeLoopbacksAndDuplicates(UnorderedSymbols& allSharedExports, UnorderedSymbols& duplicates)
+	bool ObjectFileCoff::ComputeLoopbacksAndDuplicates(UnorderedExports& allSharedExports, UnorderedSymbols& duplicates)
 	{
 		for (auto& importSymbol : m_imports)
 		{
@@ -336,10 +339,16 @@ namespace uba
 				exportEnd = exportStr + strlen(exportStr);
 			else
 				++str;
-			if (strncmp(exportEnd-5, ",DATA", 5) == 0)
-				exportEnd -= 5;
+
+			std::string tmp(exportStr, exportEnd);
+			std::string extra;
+			if (const char* comma = strchr(tmp.c_str(), ','))
+			{
+				extra = comma;
+				tmp = tmp.substr(0, comma - tmp.data());
+			}
 					
-			m_exports.emplace(std::string(exportStr, exportEnd));
+			m_exports.emplace(tmp, extra);
 		}
 		return true;
 	}
@@ -355,7 +364,7 @@ namespace uba
 			if (symbol.StorageClass != ImageSymClassExternal)
 				continue;
 
-			StringView symbolName = GetSymbolName(symbol, m_info.stringTableMem);
+			StringView symbolName = GetSymbolName(symbol, m_data, m_info.stringTableMemPos);
 			std::string symbolString = symbolName.ToString();
 
 			if (symbol.SectionNumber != ImageSymUndefined)
@@ -372,14 +381,14 @@ namespace uba
 		}
 	}
 
-	void ObjectFileCoff::WriteExports(Logger& logger, u8* newData, const UnorderedSymbols& allNeededImports, u32& outKeptExportCount)
+	bool ObjectFileCoff::StripExports(Logger& logger, u8* newData, const UnorderedSymbols& allNeededImports, u32& outKeptExportCount)
 	{
 		if (!m_info.directiveSectionMemOffset)
-			return;
+			return true;
 
 		auto directiveSection = (const ImageSectionHeader*)(m_data + m_info.directiveSectionMemOffset);
 		if (directiveSection->SizeOfRawData < 10)
-			return;
+			return true;
 
 		const u8* directiveData = m_data + directiveSection->PointerToRawData;
 
@@ -437,10 +446,6 @@ namespace uba
 			if (allNeededImports.find(temp) != allNeededImports.end())
 				continue;
 			
-			// TODO: Use exclusion list provided from command line
-			if (strstr(exportStr, "Initialize") == exportStr && strstr(exportStr, "Module"))
-				continue;
-
 			--exportCount;
 
 			u64 toCopy = startPos - lastCopyPos - 1;
@@ -456,13 +461,132 @@ namespace uba
 		writePos += toCopy;
 		*writePos = 0;
 
+		u32 sizeOfRawData = directiveSection->SizeOfRawData;
 		newDirectiveSection->SizeOfRawData = u32((u8*)writePos - newDirectiveData);
-		UBA_ASSERT(newDirectiveSection->SizeOfRawData <= directiveSection->SizeOfRawData);
+		UBA_ASSERT(newDirectiveSection->SizeOfRawData <= sizeOfRawData);
 
-		memset(writePos, 0, directiveSection->SizeOfRawData - newDirectiveSection->SizeOfRawData);
+		memset(writePos, 0, sizeOfRawData - newDirectiveSection->SizeOfRawData);
 
 		outKeptExportCount = exportCount;
+
+		return true;
 	}
+
+	bool ObjectFileCoff::CreateExtraFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports)
+	{
+		std::string tmp;
+
+		u32 totalStringSize = 0;
+		UnorderedSymbols neededLoopbacks;
+		for (auto& symbol : allSharedImports)
+		{
+			if (strncmp(symbol.data(), "__imp_", 6) != 0)
+				continue;
+			tmp = symbol.substr(6);
+			if (allSharedExports.find(tmp) == allSharedExports.end())
+				continue;
+			if (neededLoopbacks.insert(symbol).second)
+				totalStringSize += u32(symbol.size()) + 1;
+		}
+		u32 loopbackCount = u32(neededLoopbacks.size());
+		UBA_ASSERT(loopbackCount < 65536);
+
+
+		auto allocate = [&](u64 size) { return memoryBlock.Allocate(size, 1, TC("")); };
+		auto write = [&](const void* data, u64 size) { memcpy(allocate(size), data, size); };
+
+
+		// Header
+		auto& header = *(ImageFileHeader*)allocate(sizeof(ImageFileHeader));
+		header.NumberOfSections = 2;
+
+		// Directive section
+		auto& directiveSection = *(ImageSectionHeader*)allocate(sizeof(ImageSectionHeader));
+		memcpy(directiveSection.Name, ".drectve", 8);
+		directiveSection.Characteristics = ImageScnAlign1Bytes|ImageScnLnkInfo|ImageScnLnkRemove;
+
+		// Session for loopbacks
+		auto& textSection = *(ImageSectionHeader*)allocate(sizeof(ImageSectionHeader));
+		memcpy(textSection.Name, ".text$mn", 8);
+		textSection.Characteristics = ImageScnCntCode | ImageScnMemExecute | ImageScnMemRead;
+
+
+		// Directive raw data
+		u32 directiveRawDataStart = u32(memoryBlock.writtenSize);
+		directiveSection.PointerToRawData = directiveRawDataStart;
+		char slashExport[] = "/EXPORT:";
+		for (auto& kv : allSharedExports)
+		{
+			auto& symbol = kv.first;
+
+			if (allNeededImports.find(symbol) == allNeededImports.end())
+			{
+				std::string temp = "__imp_" + symbol;
+				if (allNeededImports.find(temp) == allNeededImports.end())
+					continue;
+			}
+
+			write(slashExport, sizeof(slashExport) - 1);
+			write(symbol.data(), symbol.size());
+			write(kv.second.data(), kv.second.size());
+			write(" ", 1);
+		}
+		write("", 1);
+		directiveSection.SizeOfRawData = u32(memoryBlock.writtenSize) - directiveRawDataStart;
+
+		// Memory for relocations and write relocations
+		u32 relocationsRawDataPos = u32(memoryBlock.writtenSize);
+		allocate(loopbackCount * 8);
+		u32 relocationsMemPos = u32(memoryBlock.writtenSize);
+		auto relocations = (ImageRelocation*)allocate(loopbackCount * sizeof(ImageRelocation));
+		textSection.PointerToRelocations = relocationsMemPos;
+		textSection.NumberOfRelocations = u16(loopbackCount);
+		textSection.PointerToRawData = relocationsRawDataPos;
+		textSection.SizeOfRawData = loopbackCount * 8;
+		for (u32 i=0; i!=loopbackCount; ++i)
+		{
+			auto& relocation = relocations[i];
+			relocation.VirtualAddress = 8 * i;
+			relocation.SymbolTableIndex = i;
+			relocation.Type = ImageRelAmd64Addr64;
+		}
+
+		// Memory for symbols
+		header.PointerToSymbolTable = u32(memoryBlock.writtenSize);
+		header.NumberOfSymbols = loopbackCount * 2;
+		auto symbols = (ImageSymbol*)allocate(header.NumberOfSymbols * sizeof(ImageSymbol));
+
+		// Write string table
+		u64 stringStart = memoryBlock.writtenSize;
+		auto& stringTableSize = *(u32*)allocate(4);
+		Vector<u32> symbolsToAdd;
+		for (auto& str : neededLoopbacks)
+		{
+			symbolsToAdd.push_back(u32(memoryBlock.writtenSize - stringStart));
+			write(str.data(), str.size()+1);
+		}
+		stringTableSize = u32(memoryBlock.writtenSize - stringStart);
+		
+		// Write symbols
+		for (u32 i=0; i!=loopbackCount; ++i)
+		{
+			auto& symbol = symbols[i];
+			symbol.N.Name.Long = symbolsToAdd[i] + 6; // Remove __imp_
+			symbol.SectionNumber = ImageSymUndefined;
+			symbol.StorageClass = ImageSymClassExternal;
+		}
+		for (u32 i=0; i!=loopbackCount; ++i)
+		{
+			auto& symbol = symbols[i + loopbackCount];
+			symbol.N.Name.Long = symbolsToAdd[i];
+			symbol.SectionNumber = 1 + 1;
+			symbol.StorageClass = ImageSymClassExternal;
+			symbol.Value = i * 8;
+		}
+
+		return true;
+	}
+
 
 	template<typename SymbolType> void ObjectFileCoff::CalculateImports(Logger& logger, Vector<u32>& outImports)
 	{
@@ -476,7 +600,7 @@ namespace uba
 				continue;
 			if (symbol.SectionNumber != ImageSymUndefined)
 				continue;
-			StringView symbolName = GetSymbolName(symbol, m_info.stringTableMem);
+			StringView symbolName = GetSymbolName(symbol, m_data, m_info.stringTableMemPos);
 			if (!symbolName.StartsWith("__imp_", 6))
 				continue;
 			symbolName.strBegin += 6;
@@ -580,8 +704,8 @@ namespace uba
 			symbol.Value = i * 8;
 		}
 
-		u64 lastToCopySize = m_dataSize - (m_info.stringTableMem - m_data);
-		memcpy(newData + newSymbolsPos + newSymbolsSize, m_info.stringTableMem, lastToCopySize);
+		u64 lastToCopySize = m_dataSize - m_info.stringTableMemPos;
+		memcpy(newData + newSymbolsPos + newSymbolsSize, m_data + m_info.stringTableMemPos, lastToCopySize);
 
 
 		// Traverse all sections and update their PointerToRawData
@@ -622,7 +746,7 @@ namespace uba
 			if (!symbol.SectionNumber)
 				continue;
 
-			StringView symbolName = GetSymbolName(symbol, m_info.stringTableMem);
+			StringView symbolName = GetSymbolName(symbol, m_data, m_info.stringTableMemPos);
 			auto findIt = m_toRemove.find(symbolName.ToString());
 			if (findIt == m_toRemove.end())
 				continue;

@@ -4,6 +4,7 @@
 #include "UbaBottleneck.h"
 #include "UbaCompressedObjFileHeader.h"
 #include "UbaFileAccessor.h"
+#include "UbaObjectFile.h"
 #include "UbaProcess.h"
 #include "UbaStorage.h"
 #include "UbaDirectoryIterator.h"
@@ -968,6 +969,7 @@ namespace uba
 		UBA_ASSERTF(m_shouldWriteToDisk || m_allowMemoryMaps, TC("Can't disable both should write to disk and allow memory maps"));
 
 		m_storeObjFilesCompressed = info.storeObjFilesCompressed;
+		m_extractObjFilesSymbols = info.extractObjFilesSymbols;
 
 		m_detailedTrace = info.detailedTrace;
 		m_logToFile = info.logToFile;
@@ -1897,19 +1899,6 @@ namespace uba
 			writtenFile.owner = &msg.process;
 			writtenFile.attributes = msg.attributes;
 
-			auto GetNowFileTime = []()
-				{
-					#if PLATFORM_WINDOWS
-					FILETIME ft;
-					SYSTEMTIME st;
-					GetSystemTime(&st);
-					SystemTimeToFileTime(&st, &ft);
-					return (u64&)ft;
-					#else
-					return 0ull;
-					#endif
-				};
-
 			bool addMapping = true;
 			if (!insres.second)
 			{
@@ -1962,6 +1951,10 @@ namespace uba
 				fileSize = writtenFile.mappingWritten;
 				lastWriteTime = writtenFile.lastWriteTime;
 			}
+
+			if (m_extractObjFilesSymbols && EndsWith(file.name.c_str(), file.name.size(), TC(".obj")) && !EndsWith(file.name.c_str(), file.name.size(), TC(".extra.obj")))
+				if (!ExtractSymbolsFromObjectFile(msg, name, fileSize))
+					return false;
 		}
 
 		if (!msg.newName.IsEmpty())
@@ -2096,8 +2089,7 @@ namespace uba
 
 				auto memClose = MakeGuard([&](){ UnmapViewOfFile(mem, fileSize, file.name.c_str()); });
 
-
-				if (m_storeObjFilesCompressed && EndsWith(file.name.c_str(), file.name.size(), TC(".obj")))
+				if (m_storeObjFilesCompressed && process.m_startInfo.rules->StoreFileCompressed(file.name.c_str(), file.name.size()))
 				{
 					Storage::WriteResult res;
 					CompressedObjFileHeader header { CalculateCasKey(mem, fileSize, true, m_workManager) };
@@ -2627,6 +2619,69 @@ namespace uba
 		return m_cpuLoad;
 	}
 
+	bool Session::ExtractSymbolsFromObjectFile(const CloseFileMessage& msg, const tchar* fileName, u64 fileSize)
+	{
+		FileMappingHandle source;
+		source.FromU64(msg.mappingHandle);
+		FileMappingHandle objectFileMappingHandle;
+
+		if (!DuplicateFileMapping(msg.process.m_nativeProcessHandle, source, GetCurrentProcessHandle(), &objectFileMappingHandle, FILE_MAP_ALL_ACCESS, false, 0))
+			return m_logger.Error(TC("Failed to duplicate file mapping handle for %s"), fileName);
+		auto ofmh = MakeGuard([&]() { CloseFileMapping(objectFileMappingHandle); });
+
+		u8* mem = MapViewOfFile(objectFileMappingHandle, FILE_MAP_ALL_ACCESS, 0, fileSize);
+		if (!mem)
+			return m_logger.Error(TC("Failed to map view of filehandle for read %s (%s)"), fileName, LastErrorToText().data);
+		auto memClose = MakeGuard([&](){ UnmapViewOfFile(mem, fileSize, fileName); });
+
+		ObjectFile* objectFile = ObjectFile::Parse(m_logger, mem, fileSize, fileName);
+		if (!objectFile)
+			return false;
+		auto ofg = MakeGuard([&]() { delete objectFile; });
+
+		if (!objectFile->StripExports(m_logger))
+			return false;
+
+		const tchar* lastDot = TStrrchr(fileName, '.');
+		UBA_ASSERT(lastDot);
+		StringBuffer<> exportsFile;
+		exportsFile.Append(fileName, lastDot - fileName).Append(TC(".sym"));
+
+		MemoryBlock memoryBlock(1*1024*1024);
+		if (!objectFile->WriteSymbols(m_logger, memoryBlock))
+			return false;
+
+		FileMappingHandle symHandle = CreateMemoryMappingW(m_logger, PAGE_READWRITE, memoryBlock.writtenSize);
+		if (!symHandle.IsValid())
+			return false;
+
+		u8* mem2 = MapViewOfFile(symHandle, FILE_MAP_ALL_ACCESS, 0, memoryBlock.writtenSize);
+		if (!mem2)
+			return false;
+
+		memcpy(mem2, memoryBlock.memory, memoryBlock.writtenSize);
+		UnmapViewOfFile(mem2, memoryBlock.writtenSize, TC(""));
+
+		StringKey symFileKey = CaseInsensitiveFs ? ToStringKeyLower(exportsFile) : ToStringKey(exportsFile);
+		u64 lastWriteTime = GetNowFileTime();
+
+		if (!RegisterCreateFileForWrite(symFileKey, exportsFile.data, exportsFile.count, false, memoryBlock.writtenSize, lastWriteTime))
+			return false;
+
+		auto insres = msg.process.m_writtenFiles.try_emplace(exportsFile.data);
+		WrittenFile& writtenFile = insres.first->second;
+
+		UBA_ASSERT(writtenFile.owner == nullptr || writtenFile.owner == &msg.process);
+		writtenFile.key = symFileKey;
+		writtenFile.owner = &msg.process;
+		writtenFile.attributes = msg.attributes;
+		writtenFile.mappingHandle = symHandle;
+		writtenFile.mappingWritten = memoryBlock.writtenSize;
+		writtenFile.lastWriteTime = lastWriteTime;
+		writtenFile.name = insres.first->first;
+
+		return true;
+	}
 
 	void Session::ThreadTraceLoop()
 	{

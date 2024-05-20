@@ -129,6 +129,11 @@ namespace uba
 			return false;
 		}
 
+		virtual bool StoreFileCompressed(const tchar* fileName, u64 fileNameLen) const
+		{
+			return false;
+		}
+
 		u32 index = ~0u;
 	};
 

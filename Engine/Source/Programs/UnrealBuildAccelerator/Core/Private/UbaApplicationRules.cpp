@@ -82,6 +82,11 @@ namespace uba
 		{
 			return true;
 		}
+
+		virtual bool StoreFileCompressed(const tchar* fileName, u64 fileNameLen) const
+		{
+			return EndsWith(fileName, fileNameLen, TC(".obj"));
+		}
 	};
 
 	class ApplicationRulesLinkExe : public ApplicationRulesVC
@@ -196,6 +201,11 @@ namespace uba
 		virtual bool IsCacheable() const override
 		{
 			return true;
+		}
+
+		virtual bool StoreFileCompressed(const tchar* fileName, u64 fileNameLen) const
+		{
+			return EndsWith(fileName, fileNameLen, TC(".obj"));
 		}
 	};
 

@@ -70,6 +70,7 @@ namespace uba
 	// When merging dlls we need to remove duplicates of these
 	UnorderedSymbols ObjectFileElf::PotentiallyDuplicatedSymbols = 
 	{
+#if 0 // This is not needed anymore
 		// REPLACEMENT_OPERATOR_NEW_AND_DELETE
 		"_Znwm",
 		"_Znam",
@@ -107,6 +108,7 @@ namespace uba
 		"GObjectArrayForDebugVisualizers",
 		"GComplexObjectPathDebug",
 		"GObjectHandlePackageDebug",
+#endif
 	};
 
 
@@ -172,7 +174,7 @@ namespace uba
 		return true;
 	}
 
-	bool ObjectFileElf::ComputeLoopbacksAndDuplicates(UnorderedSymbols& allSharedExports, UnorderedSymbols& duplicates)
+	bool ObjectFileElf::ComputeLoopbacksAndDuplicates(UnorderedExports& allSharedExports, UnorderedSymbols& duplicates)
 	{
 		for (auto& dupSymbol : m_potentialDuplicates)
 			if (!duplicates.insert(dupSymbol).second)
@@ -221,5 +223,15 @@ namespace uba
 		}
 
 		return newFile.Close();
+	}
+
+	bool ObjectFileElf::StripExports(Logger& logger, u8* newData, const UnorderedSymbols& allNeededImports, u32& outKeptExportCount)
+	{
+		return true;
+	}
+
+	bool ObjectFileElf::CreateExtraFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports)
+	{
+		return true;
 	}
 }
