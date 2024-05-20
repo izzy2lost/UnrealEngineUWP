@@ -369,12 +369,6 @@ struct FWindowsPlatformAtomics
 		#endif
 	}
 
-	UE_DEPRECATED(4.19, "AtomicRead64 has been deprecated, please use AtomicRead's overload instead")
-	static FORCEINLINE int64 AtomicRead64(volatile const int64* Src)
-	{
-		return AtomicRead(Src);
-	}
-
 	/**
 	 *	The function compares the Destination value with the Comparand value:
 	 *		- If the Destination value is equal to the Comparand value, the Exchange value is stored in the address specified by Destination, 
