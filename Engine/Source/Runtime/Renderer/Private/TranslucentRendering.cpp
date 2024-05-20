@@ -774,7 +774,10 @@ void SetupDownsampledTranslucencyViewParameters(
 	{
 		// Remove jitter from this pass
 		ViewMatrices.HackRemoveTemporalAAProjectionJitter();
-		PrevViewMatrices.HackRemoveTemporalAAProjectionJitter();
+		PrevViewMatrices = ViewMatrices;
+
+		FBox VolumeBounds[TVC_MAX];
+		View.SetupUniformBufferParameters(ViewMatrices, PrevViewMatrices, VolumeBounds, TVC_MAX, DownsampledTranslucencyViewParameters);
 	}
 
 	// Update the parts of DownsampledTranslucencyParameters which are dependent on the buffer size and view rect
