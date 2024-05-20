@@ -176,7 +176,7 @@ public:
 	bool operator!=(const FCommonInputActionDataBase& Other) const
 	{
 		check(this);
-		return *this == Other;
+		return !(*this == Other);
 	}
 };
 
