@@ -216,6 +216,8 @@ private:
 	void OnEnabledChanged();
 	void OnEffectorEnabled();
 	void OnEffectorDisabled();
+	void OnEffectorSetEnabled(const UWorld* InWorld, bool bInEnabled, bool bInTransact);
+
 	void OnEffectorOptionsChanged();
 	void OnTypeNameChanged();
 	void OnModeNameChanged();

@@ -21,6 +21,7 @@
 #include "Cloner/Layouts/CEClonerSphereRandomLayout.h"
 #include "Cloner/Layouts/CEClonerSphereUniformLayout.h"
 #include "Cloner/Layouts/CEClonerSplineLayout.h"
+#include "Containers/Ticker.h"
 #include "Effector/CEEffectorActor.h"
 #include "Materials/MaterialInterface.h"
 #include "UObject/ConstructorHelpers.h"
@@ -55,7 +56,7 @@ FCustomVersionRegistration GRegisterCEClonerActorVersion(FCEClonerActorVersion::
 ACEClonerActor::ACEClonerActor()
 {
 	SetCanBeDamaged(false);
-	PrimaryActorTick.bCanEverTick          = false;
+	PrimaryActorTick.bCanEverTick = false;
 
 	ClonerComponent = CreateDefaultSubobject<UCEClonerComponent>(TEXT("AvaClonerComponent"));
 	SetRootComponent(ClonerComponent);
@@ -113,11 +114,8 @@ void ACEClonerActor::PostActorCreated()
 void ACEClonerActor::OnClonerInitialized(UCEClonerComponent* InClonerComponent)
 {
 #if WITH_EDITOR
-	if (bSpawnDefaultActorAttached)
-	{
-		bSpawnDefaultActorAttached = false;
-		ClonerComponent->CreateDefaultActorAttached();
-	}
+	// PostActorCreated is sometimes called after the cloner is initialized
+	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this, &ACEClonerActor::SpawnDefaultActorAttached));
 #endif
 }
 
@@ -128,7 +126,7 @@ void ACEClonerActor::MigrateDeprecatedProperties()
 		return;
 	}
 
-	UE_LOG(LogCEClonerActor, Warning, TEXT("%s : Cloner migrating from version %i to latest %i"), *GetActorNameOrLabel(), MigrateToVersion, FCEClonerActorVersion::LatestVersion);
+	UE_LOG(LogCEClonerActor, Warning, TEXT("%s : Cloner migrating from version %i to latest %i, please re-save this asset"), *GetActorNameOrLabel(), MigrateToVersion, FCEClonerActorVersion::LatestVersion);
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
@@ -137,6 +135,7 @@ void ACEClonerActor::MigrateDeprecatedProperties()
 		ClonerComponent->SetEnabled(bEnabled);
 		ClonerComponent->SetTreeUpdateInterval(TreeUpdateInterval);
 		ClonerComponent->SetSeed(Seed);
+		ClonerComponent->SetColor(Color);
 		ClonerComponent->SetLayoutName(LayoutName);
 
 #if WITH_EDITOR
@@ -214,8 +213,6 @@ void ACEClonerActor::MigrateDeprecatedProperties()
 
 		if (UCEClonerEffectorExtension* EffectorExtension = ClonerComponent->FindOrAddExtension<UCEClonerEffectorExtension>())
 		{
-			EffectorExtension->SetColor(Color);
-
 			for (const TWeakObjectPtr<ACEEffectorActor>& EffectorWeak : EffectorsWeak)
 			{
 				if (ACEEffectorActor* Effector = EffectorWeak.Get())
@@ -356,6 +353,17 @@ void ACEClonerActor::MigrateDeprecatedProperties()
 }
 
 #if WITH_EDITOR
+bool ACEClonerActor::SpawnDefaultActorAttached(float)
+{
+	if (bSpawnDefaultActorAttached)
+	{
+		bSpawnDefaultActorAttached = false;
+		ClonerComponent->CreateDefaultActorAttached();
+	}
+
+	return false;
+}
+
 void ACEClonerActor::OnEditorSelectionChanged(UObject* InSelection)
 {
 	if (const USelection* ActorSelection = Cast<USelection>(InSelection))

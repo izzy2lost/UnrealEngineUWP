@@ -17,20 +17,34 @@
 #include "GeometryScript/MeshBasicEditFunctions.h"
 #include "GeometryScript/SceneUtilityFunctions.h"
 #include "Materials/MaterialInterface.h"
+#include "NiagaraComponent.h"
+#include "NiagaraEmitter.h"
+#include "NiagaraMeshRendererProperties.h"
+#include "NiagaraSimCacheFunctionLibrary.h"
+#include "NiagaraSystem.h"
 #include "ProceduralMeshComponent.h"
 #include "StaticMeshOperations.h"
 #include "UDynamicMesh.h"
+
+const FCEClonerMeshBuilder::FCEClonerMeshBuilderParams FCEClonerMeshBuilder::DefaultParams;
 
 FCEClonerMeshBuilder::FCEClonerMeshBuilder()
 {
 	OutputDynamicMesh = NewObject<UDynamicMesh>();
 }
 
+TArray<uint32> FCEClonerMeshBuilder::GetMeshIndexes() const
+{
+	TArray<uint32> MeshIndexes;
+	Meshes.GenerateKeyArray(MeshIndexes);
+	return MeshIndexes;
+}
+
 void FCEClonerMeshBuilder::Reset()
 {
-	OutputDynamicMesh->EditMesh([](FDynamicMesh3& EditMesh){ EditMesh.Clear(); });
-	ConvertedMeshes.Empty();
-	OutputMeshMaterials.Empty();
+	ClearOutputMesh();
+	Meshes.Empty();
+	MeshInstances.Empty();
 }
 
 int32 FCEClonerMeshBuilder::AppendActor(const AActor* InActor)
@@ -103,6 +117,13 @@ int32 FCEClonerMeshBuilder::AppendActor(const AActor* InActor)
 				ComponentConverted++;
 			}
 		}
+		else if (UNiagaraComponent* NiagaraComponent = Cast<UNiagaraComponent>(PrimitiveComponent))
+		{
+			if (AppendComponent(NiagaraComponent, SourceTransform))
+			{
+				ComponentConverted++;
+			}
+		}
 	}
 
 	return ComponentConverted;
@@ -110,23 +131,60 @@ int32 FCEClonerMeshBuilder::AppendActor(const AActor* InActor)
 
 bool FCEClonerMeshBuilder::AppendMesh(const UDynamicMesh* InMesh, const TArray<TWeakObjectPtr<UMaterialInterface>>& InMaterials, const FTransform& InTransform)
 {
-	if (!IsValid(InMesh))
+	if (!IsValid(InMesh) || InMesh->GetTriangleCount() == 0)
 	{
 		return false;
 	}
 
-	// Create a copy of the mesh
-	InMesh->ProcessMesh([this, &InTransform](const FDynamicMesh3& EditMesh)
+	return !!AddMeshInstance(InMesh->GetUniqueID(), InTransform, InMaterials, [&InMesh](FDynamicMesh3& InCreateMesh)->bool
 	{
-		FDynamicMesh3 CopyMesh = EditMesh;
-		MeshTransforms::ApplyTransform(CopyMesh, InTransform);
+		// Create a copy of the mesh
+		InMesh->ProcessMesh([&InCreateMesh](const FDynamicMesh3& EditMesh)
+		{
+			InCreateMesh = EditMesh;
+		});
 
-		ConvertedMeshes.Add(MoveTemp(CopyMesh));
+		return true;
 	});
+}
 
-	OutputMeshMaterials.Append(InMaterials);
+bool FCEClonerMeshBuilder::AppendMesh(UStaticMesh* InMesh, const TArray<TWeakObjectPtr<UMaterialInterface>>& InMaterials, const FTransform& InSourceTransform)
+{
+	if (!IsValid(InMesh) || InMesh->GetNumTriangles(/** LOD*/ 0) == 0)
+	{
+		return false;
+	}
 
-	return true;
+	return !!AddMeshInstance(InMesh->GetUniqueID(), InSourceTransform, InMaterials, [this, &InMesh](FDynamicMesh3& InCreateMesh)->bool
+	{
+		// convert to dynamic mesh
+		FGeometryScriptMeshReadLOD StaticMeshLOD;
+		StaticMeshLOD.LODType = EGeometryScriptLODType::RenderData;
+
+		FGeometryScriptCopyMeshFromAssetOptions OutputMeshOptions;
+		OutputMeshOptions.bIgnoreRemoveDegenerates = false;
+		OutputMeshOptions.bRequestTangents = false;
+		OutputMeshOptions.bApplyBuildSettings = false;
+
+		EGeometryScriptOutcomePins OutResult;
+		UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshFromStaticMesh(InMesh, OutputDynamicMesh, OutputMeshOptions, StaticMeshLOD, OutResult);
+
+		if (OutResult != EGeometryScriptOutcomePins::Success)
+		{
+			return false;
+		}
+
+		OutputDynamicMesh->EditMesh([this, &InCreateMesh](FDynamicMesh3& EditMesh)
+		{
+			InCreateMesh = MoveTemp(EditMesh);
+
+			// replace by empty mesh
+			FDynamicMesh3 EmptyMesh;
+			EditMesh = MoveTemp(EmptyMesh);
+		}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, true);
+
+		return true;
+	});
 }
 
 bool FCEClonerMeshBuilder::AppendComponent(const UStaticMeshComponent* InComponent, const FTransform& InSourceTransform)
@@ -143,36 +201,15 @@ bool FCEClonerMeshBuilder::AppendComponent(const UStaticMeshComponent* InCompone
 		return false;
 	}
 
-	// convert to dynamic mesh
-	FGeometryScriptMeshReadLOD StaticMeshLOD;
-	StaticMeshLOD.LODType = EGeometryScriptLODType::RenderData;
-
-	FGeometryScriptCopyMeshFromAssetOptions OutputMeshOptions;
-	OutputMeshOptions.bIgnoreRemoveDegenerates = false;
-	OutputMeshOptions.bRequestTangents = false;
-	OutputMeshOptions.bApplyBuildSettings = false;
-
-	EGeometryScriptOutcomePins OutResult;
-	UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshFromStaticMesh(StaticMesh, OutputDynamicMesh, OutputMeshOptions, StaticMeshLOD, OutResult);
-
-	if (OutResult != EGeometryScriptOutcomePins::Success)
-	{
-		return false;
-	}
-
-	// Transform the new mesh relative to the component
 	const FTransform RelativeTransform = InComponent->GetComponentTransform().GetRelativeTransform(InSourceTransform);
-	OutputMeshMaterials.Append(InComponent->GetMaterials());
-	OutputDynamicMesh->EditMesh([this, RelativeTransform](FDynamicMesh3& EditMesh)
-	{
-		MeshTransforms::ApplyTransform(EditMesh, RelativeTransform);
-		ConvertedMeshes.Add(MoveTemp(EditMesh));
-		// replace by empty mesh
-		FDynamicMesh3 EmptyMesh;
-		EditMesh = MoveTemp(EmptyMesh);
-	}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, true);
 
-	return true;
+	TArray<TWeakObjectPtr<UMaterialInterface>> Materials;
+	Algo::Transform(InComponent->GetMaterials(), Materials, [](UMaterialInterface* InMaterial)
+	{
+		return InMaterial;
+	});
+
+	return AppendMesh(StaticMesh, Materials, RelativeTransform);
 }
 
 bool FCEClonerMeshBuilder::AppendComponent(UProceduralMeshComponent* InComponent, const FTransform& InSourceTransform)
@@ -192,104 +229,106 @@ bool FCEClonerMeshBuilder::AppendComponent(UProceduralMeshComponent* InComponent
 	// Transform the new mesh relative to the component
 	const FTransform RelativeTransform = InComponent->GetComponentTransform().GetRelativeTransform(InSourceTransform);
 
-	FDynamicMesh3 Mesh;
-	Mesh.EnableAttributes();
-	Mesh.Attributes()->EnablePrimaryColors();
-	Mesh.Attributes()->EnableMaterialID();
-	Mesh.Attributes()->SetNumNormalLayers(1);
-	Mesh.Attributes()->SetNumUVLayers(1);
-	Mesh.Attributes()->SetNumPolygroupLayers(1);
-	Mesh.Attributes()->EnableTangents();
-
-	using namespace UE::Geometry;
-
-	FDynamicMeshColorOverlay* ColorOverlay = Mesh.Attributes()->PrimaryColors();
-	FDynamicMeshNormalOverlay* NormalOverlay = Mesh.Attributes()->PrimaryNormals();
-	FDynamicMeshUVOverlay* UVOverlay = Mesh.Attributes()->PrimaryUV();
-	FDynamicMeshMaterialAttribute* MaterialAttr = Mesh.Attributes()->GetMaterialID();
-	FDynamicMeshPolygroupAttribute* GroupAttr = Mesh.Attributes()->GetPolygroupLayer(0);
-	FDynamicMeshNormalOverlay* TangentOverlay = Mesh.Attributes()->PrimaryTangents();
-
-	for (int32 SectionIdx = 0; SectionIdx < SectionCount; SectionIdx++)
+	TArray<TWeakObjectPtr<UMaterialInterface>> Materials;
+	Algo::Transform(InComponent->GetMaterials(), Materials, [](UMaterialInterface* InMaterial)
 	{
-		if (FProcMeshSection* Section = InComponent->GetProcMeshSection(SectionIdx))
+		return InMaterial;
+	});
+
+	const uint32 MeshIndex = InComponent->GetUniqueID();
+
+	return !!AddMeshInstance(MeshIndex, RelativeTransform, Materials, [this, &InComponent, &SectionCount](FDynamicMesh3& InCreateMesh)->bool
+	{
+		InCreateMesh.EnableAttributes();
+		InCreateMesh.Attributes()->EnablePrimaryColors();
+		InCreateMesh.Attributes()->EnableMaterialID();
+		InCreateMesh.Attributes()->SetNumNormalLayers(1);
+		InCreateMesh.Attributes()->SetNumUVLayers(1);
+		InCreateMesh.Attributes()->SetNumPolygroupLayers(1);
+		InCreateMesh.Attributes()->EnableTangents();
+
+		using namespace UE::Geometry;
+
+		FDynamicMeshColorOverlay* ColorOverlay = InCreateMesh.Attributes()->PrimaryColors();
+		FDynamicMeshNormalOverlay* NormalOverlay = InCreateMesh.Attributes()->PrimaryNormals();
+		FDynamicMeshUVOverlay* UVOverlay = InCreateMesh.Attributes()->PrimaryUV();
+		FDynamicMeshMaterialAttribute* MaterialAttr = InCreateMesh.Attributes()->GetMaterialID();
+		FDynamicMeshPolygroupAttribute* GroupAttr = InCreateMesh.Attributes()->GetPolygroupLayer(0);
+		FDynamicMeshNormalOverlay* TangentOverlay = InCreateMesh.Attributes()->PrimaryTangents();
+
+		for (int32 SectionIdx = 0; SectionIdx < SectionCount; SectionIdx++)
 		{
-			if (Section->bSectionVisible)
+			if (FProcMeshSection* Section = InComponent->GetProcMeshSection(SectionIdx))
 			{
-				TArray<int32> VtxIds;
-				TArray<int32> NormalIds;
-				TArray<int32> ColorIds;
-				TArray<int32> UVIds;
-				TArray<int32> TaIds;
-
-				// copy vertices data (position, normal, color, UV, tangent)
-				for (FProcMeshVertex& SectionVertex : Section->ProcVertexBuffer)
+				if (Section->bSectionVisible)
 				{
-					int32 VId = Mesh.AppendVertex(SectionVertex.Position);
-					VtxIds.Add(VId);
+					TArray<int32> VtxIds;
+					TArray<int32> NormalIds;
+					TArray<int32> ColorIds;
+					TArray<int32> UVIds;
+					TArray<int32> TaIds;
 
-					int32 NId = NormalOverlay->AppendElement(static_cast<FVector3f>(SectionVertex.Normal));
-					NormalIds.Add(NId);
+					// copy vertices data (position, normal, color, UV, tangent)
+					for (FProcMeshVertex& SectionVertex : Section->ProcVertexBuffer)
+					{
+						int32 VId = InCreateMesh.AppendVertex(SectionVertex.Position);
+						VtxIds.Add(VId);
 
-					int32 CId = ColorOverlay->AppendElement(static_cast<FVector4f>(SectionVertex.Color));
-					ColorIds.Add(CId);
+						int32 NId = NormalOverlay->AppendElement(static_cast<FVector3f>(SectionVertex.Normal));
+						NormalIds.Add(NId);
 
-					int32 UVId = UVOverlay->AppendElement(static_cast<FVector2f>(SectionVertex.UV0));
-					UVIds.Add(UVId);
+						int32 CId = ColorOverlay->AppendElement(static_cast<FVector4f>(SectionVertex.Color));
+						ColorIds.Add(CId);
 
-					int32 TaId = TangentOverlay->AppendElement(static_cast<FVector3f>(SectionVertex.Tangent.TangentX));
-					TaIds.Add(TaId);
-				}
+						int32 UVId = UVOverlay->AppendElement(static_cast<FVector2f>(SectionVertex.UV0));
+						UVIds.Add(UVId);
 
-				// copy tris data
-				if (Section->ProcIndexBuffer.Num() % 3 != 0)
-				{
-					continue;
-				}
-				for (int32 Idx = 0; Idx < Section->ProcIndexBuffer.Num(); Idx+=3)
-				{
-					int32 VIdx1 = Section->ProcIndexBuffer[Idx];
-					int32 VIdx2 = Section->ProcIndexBuffer[Idx + 1];
-					int32 VIdx3 = Section->ProcIndexBuffer[Idx + 2];
+						int32 TaId = TangentOverlay->AppendElement(static_cast<FVector3f>(SectionVertex.Tangent.TangentX));
+						TaIds.Add(TaId);
+					}
 
-					int32 VId1 = VtxIds[VIdx1];
-					int32 VId2 = VtxIds[VIdx2];
-					int32 VId3 = VtxIds[VIdx3];
-
-					int32 TId = Mesh.AppendTriangle(VId1, VId2, VId3, SectionIdx);
-					if (TId < 0)
+					// copy tris data
+					if (Section->ProcIndexBuffer.Num() % 3 != 0)
 					{
 						continue;
 					}
 
-					NormalOverlay->SetTriangle(TId, FIndex3i(NormalIds[VIdx1], NormalIds[VIdx2], NormalIds[VIdx3]), true);
-					ColorOverlay->SetTriangle(TId, FIndex3i(ColorIds[VIdx1], ColorIds[VIdx2], ColorIds[VIdx3]), true);
-					UVOverlay->SetTriangle(TId, FIndex3i(UVIds[VIdx1], UVIds[VIdx2], UVIds[VIdx3]), true);
-					TangentOverlay->SetTriangle(TId, FIndex3i(TaIds[VIdx1], TaIds[VIdx2], TaIds[VIdx3]), true);
+					for (int32 Idx = 0; Idx < Section->ProcIndexBuffer.Num(); Idx+=3)
+					{
+						int32 VIdx1 = Section->ProcIndexBuffer[Idx];
+						int32 VIdx2 = Section->ProcIndexBuffer[Idx + 1];
+						int32 VIdx3 = Section->ProcIndexBuffer[Idx + 2];
 
-					MaterialAttr->SetValue(TId, SectionIdx);
-					GroupAttr->SetValue(TId, SectionIdx);
+						int32 VId1 = VtxIds[VIdx1];
+						int32 VId2 = VtxIds[VIdx2];
+						int32 VId3 = VtxIds[VIdx3];
+
+						int32 TId = InCreateMesh.AppendTriangle(VId1, VId2, VId3, SectionIdx);
+
+						if (TId < 0)
+						{
+							continue;
+						}
+
+						NormalOverlay->SetTriangle(TId, FIndex3i(NormalIds[VIdx1], NormalIds[VIdx2], NormalIds[VIdx3]), true);
+						ColorOverlay->SetTriangle(TId, FIndex3i(ColorIds[VIdx1], ColorIds[VIdx2], ColorIds[VIdx3]), true);
+						UVOverlay->SetTriangle(TId, FIndex3i(UVIds[VIdx1], UVIds[VIdx2], UVIds[VIdx3]), true);
+						TangentOverlay->SetTriangle(TId, FIndex3i(TaIds[VIdx1], TaIds[VIdx2], TaIds[VIdx3]), true);
+
+						MaterialAttr->SetValue(TId, SectionIdx);
+						GroupAttr->SetValue(TId, SectionIdx);
+					}
 				}
 			}
 		}
-	}
 
-	if (Mesh.TriangleCount() == 0)
-	{
-		return false;
-	}
-
-	MeshTransforms::ApplyTransform(Mesh, RelativeTransform);
-
-	OutputMeshMaterials.Append(InComponent->GetMaterials());
-	ConvertedMeshes.Add(MoveTemp(Mesh));
-
-	return true;
+		return true;
+	});
 }
 
 bool FCEClonerMeshBuilder::AppendComponent(UBrushComponent* InComponent, const FTransform& InSourceTransform)
 {
-	return AppendPrimitiveComponent(InComponent, InSourceTransform);
+	return AppendPrimitiveComponent(nullptr, InComponent, InSourceTransform);
 }
 
 bool FCEClonerMeshBuilder::AppendComponent(const USkeletalMeshComponent* InComponent, const FTransform& InSourceTransform)
@@ -306,40 +345,45 @@ bool FCEClonerMeshBuilder::AppendComponent(const USkeletalMeshComponent* InCompo
 		return false;
 	}
 
-	// convert to dynamic mesh
-	FGeometryScriptMeshReadLOD SkeletalMeshLOD;
-	SkeletalMeshLOD.LODType = EGeometryScriptLODType::SourceModel;
-
-	FGeometryScriptCopyMeshFromAssetOptions OutputMeshOptions;
-	OutputMeshOptions.bIgnoreRemoveDegenerates = false;
-	OutputMeshOptions.bRequestTangents = false;
-	OutputMeshOptions.bApplyBuildSettings = false;
-
-	EGeometryScriptOutcomePins OutResult;
-	UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshFromSkeletalMesh(SkeletalMesh, OutputDynamicMesh, OutputMeshOptions, SkeletalMeshLOD, OutResult);
-
-	if (OutResult != EGeometryScriptOutcomePins::Success)
-	{
-		return false;
-	}
-
 	// Transform the new mesh relative to the component
 	const FTransform RelativeTransform = InComponent->GetComponentTransform().GetRelativeTransform(InSourceTransform);
 
-	// Copy materials
-	OutputMeshMaterials.Append(InComponent->GetMaterials());
-
-	OutputDynamicMesh->EditMesh([this, RelativeTransform](FDynamicMesh3& EditMesh)
+	TArray<TWeakObjectPtr<UMaterialInterface>> Materials;
+	Algo::Transform(InComponent->GetMaterials(), Materials, [](UMaterialInterface* InMaterial)
 	{
-		MeshTransforms::ApplyTransform(EditMesh, RelativeTransform);
-		ConvertedMeshes.Add(MoveTemp(EditMesh));
+		return InMaterial;
+	});
 
-		// replace by empty mesh for next usage
-		FDynamicMesh3 EmptyMesh;
-		EditMesh = MoveTemp(EmptyMesh);
-	}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, /** bDeferChanges */true);
+	return !!AddMeshInstance(SkeletalMesh->GetUniqueID(), RelativeTransform, Materials, [this, &SkeletalMesh](FDynamicMesh3& InCreateMesh)->bool
+	{
+		// convert to dynamic mesh
+		FGeometryScriptMeshReadLOD SkeletalMeshLOD;
+		SkeletalMeshLOD.LODType = EGeometryScriptLODType::SourceModel;
 
-	return true;
+		FGeometryScriptCopyMeshFromAssetOptions OutputMeshOptions;
+		OutputMeshOptions.bIgnoreRemoveDegenerates = false;
+		OutputMeshOptions.bRequestTangents = false;
+		OutputMeshOptions.bApplyBuildSettings = false;
+
+		EGeometryScriptOutcomePins OutResult;
+		UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshFromSkeletalMesh(SkeletalMesh, OutputDynamicMesh, OutputMeshOptions, SkeletalMeshLOD, OutResult);
+
+		if (OutResult != EGeometryScriptOutcomePins::Success)
+		{
+			return false;
+		}
+
+		OutputDynamicMesh->EditMesh([&InCreateMesh](FDynamicMesh3& EditMesh)
+		{
+			InCreateMesh = MoveTemp(EditMesh);
+
+			// replace by empty mesh for next usage
+			FDynamicMesh3 EmptyMesh;
+			EditMesh = MoveTemp(EmptyMesh);
+		}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, /** bDeferChanges */true);
+
+		return true;
+	});
 }
 
 bool FCEClonerMeshBuilder::AppendComponent(UDynamicMeshComponent* InComponent, const FTransform& InSourceTransform)
@@ -351,7 +395,7 @@ bool FCEClonerMeshBuilder::AppendComponent(UDynamicMeshComponent* InComponent, c
 
 	const UDynamicMesh* DynamicMesh = InComponent->GetDynamicMesh();
 
-	if (!IsValid(DynamicMesh))
+	if (!IsValid(DynamicMesh) || DynamicMesh->GetTriangleCount() == 0)
 	{
 		return false;
 	}
@@ -360,17 +404,13 @@ bool FCEClonerMeshBuilder::AppendComponent(UDynamicMeshComponent* InComponent, c
 	const FTransform RelativeTransform = InComponent->GetComponentTransform().GetRelativeTransform(InSourceTransform);
 
 	// Copy all materials
-	OutputMeshMaterials.Append(InComponent->GetMaterials());
-
-	// Create a copy of the mesh
-	DynamicMesh->ProcessMesh([this, RelativeTransform](const FDynamicMesh3& EditMesh)
+	TArray<TWeakObjectPtr<UMaterialInterface>> Materials;
+	Algo::Transform(InComponent->GetMaterials(), Materials, [](UMaterialInterface* InMaterial)
 	{
-		FDynamicMesh3 CopyMesh = EditMesh;
-		MeshTransforms::ApplyTransform(CopyMesh, RelativeTransform);
-		ConvertedMeshes.Add(MoveTemp(CopyMesh));
+		return InMaterial;
 	});
 
-	return true;
+	return AppendMesh(DynamicMesh, Materials, RelativeTransform);
 }
 
 bool FCEClonerMeshBuilder::AppendComponent(UInstancedStaticMeshComponent* InComponent, const FTransform& InSourceTransform)
@@ -380,7 +420,7 @@ bool FCEClonerMeshBuilder::AppendComponent(UInstancedStaticMeshComponent* InComp
 		return false;
 	}
 
-	return AppendPrimitiveComponent(InComponent, InSourceTransform);
+	return AppendPrimitiveComponent(nullptr, InComponent, InSourceTransform);
 }
 
 bool FCEClonerMeshBuilder::AppendComponent(USplineMeshComponent* InComponent, const FTransform& InSourceTransform)
@@ -390,18 +430,170 @@ bool FCEClonerMeshBuilder::AppendComponent(USplineMeshComponent* InComponent, co
 		return false;
 	}
 
-	return AppendPrimitiveComponent(InComponent, InSourceTransform);
+	return AppendPrimitiveComponent(nullptr, InComponent, InSourceTransform);
 }
 
-bool FCEClonerMeshBuilder::BuildDynamicMesh(UDynamicMesh* OutMesh, TArray<TWeakObjectPtr<UMaterialInterface>>& OutMaterials)
+bool FCEClonerMeshBuilder::AppendComponent(UNiagaraComponent* InComponent, const FTransform& InSourceTransform)
+{
+	if (!IsValid(InComponent))
+	{
+		return false;
+	}
+
+	UNiagaraSystem* System = InComponent->GetAsset();
+
+	if (!IsValid(System))
+	{
+		return false;
+	}
+
+	struct FNiagaraSimCacheEmitterData
+	{
+		TArray<UNiagaraMeshRendererProperties*> MeshRenderers;
+		TArray<FVector> ParticlePositions;
+		TArray<FQuat> ParticleRotations;
+		TArray<FVector> ParticleScales;
+		TArray<int32> ParticleMeshIndexes;
+	};
+
+	TMap<FName, FNiagaraSimCacheEmitterData> EmittersData;
+
+	// Set attributes to capture
+	FNiagaraSimCacheCreateParameters Params;
+	Params.AttributeCaptureMode = ENiagaraSimCacheAttributeCaptureMode::ExplicitAttributes;
+	Params.bAllowDataInterfaceCaching = false;
+
+	for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
+	{
+		const FString EmitterName = EmitterHandle.GetUniqueInstanceName();
+
+		Params.ExplicitCaptureAttributes.Add(FName(EmitterName + TEXT(".Particles.Position")));
+		Params.ExplicitCaptureAttributes.Add(FName(EmitterName + TEXT(".Particles.MeshOrientation")));
+		Params.ExplicitCaptureAttributes.Add(FName(EmitterName + TEXT(".Particles.Scale")));
+		Params.ExplicitCaptureAttributes.Add(FName(EmitterName + TEXT(".Particles.MeshIndex")));
+
+		if (const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData())
+		{
+			for (UNiagaraRendererProperties* EmitterRenderer : EmitterData->GetRenderers())
+			{
+				if (UNiagaraMeshRendererProperties* MeshRenderer = Cast<UNiagaraMeshRendererProperties>(EmitterRenderer))
+				{
+					FNiagaraSimCacheEmitterData& CacheEmitterData = EmittersData.FindOrAdd(FName(EmitterName));
+					CacheEmitterData.MeshRenderers.Add(MeshRenderer);
+				}
+			}
+		}
+	}
+
+	if (EmittersData.IsEmpty())
+	{
+		return false;
+	}
+
+	UNiagaraSimCache* SimCache = UNiagaraSimCacheFunctionLibrary::CreateNiagaraSimCache(InComponent);
+
+	if (!IsValid(SimCache))
+	{
+		return false;
+	}
+
+	const bool bSuccess = UNiagaraSimCacheFunctionLibrary::CaptureNiagaraSimCacheImmediate(SimCache, Params, InComponent, SimCache, /** AdvanceSim */ false);
+
+	if (!bSuccess)
+	{
+		return false;
+	}
+
+	for (const FNiagaraEmitterHandle& Handle : System->GetEmitterHandles())
+	{
+		constexpr int32 FrameIndex = 0;
+		constexpr bool bLocalToWorld = false;
+		const FName EmitterName(Handle.GetUniqueInstanceName());
+
+		FNiagaraSimCacheEmitterData& CacheEmitterData = EmittersData.FindChecked(EmitterName);
+
+		SimCache->ReadPositionAttribute(CacheEmitterData.ParticlePositions, TEXT("Position"), EmitterName, bLocalToWorld, FrameIndex);
+		SimCache->ReadQuatAttribute(CacheEmitterData.ParticleRotations, TEXT("MeshOrientation"), EmitterName, bLocalToWorld, FrameIndex);
+		SimCache->ReadVectorAttribute(CacheEmitterData.ParticleScales, TEXT("Scale"), EmitterName, FrameIndex);
+		SimCache->ReadIntAttribute(CacheEmitterData.ParticleMeshIndexes, TEXT("MeshIndex"), EmitterName, FrameIndex);
+
+		if (!(CacheEmitterData.ParticlePositions.Num() == CacheEmitterData.ParticleRotations.Num()
+			&& CacheEmitterData.ParticleRotations.Num() == CacheEmitterData.ParticleScales.Num()
+			&& CacheEmitterData.ParticleScales.Num() == CacheEmitterData.ParticleMeshIndexes.Num()))
+		{
+			return false;
+		}
+	}
+
+	const FTransform RelativeTransform = InComponent->GetComponentTransform().GetRelativeTransform(InSourceTransform);
+
+	bool bResult = false;
+
+	for (const TPair<FName, FNiagaraSimCacheEmitterData>& CacheEmitterDataPair : EmittersData)
+	{
+		const FNiagaraSimCacheEmitterData& CacheEmitterData = CacheEmitterDataPair.Value;
+
+		for (int32 Index = 0; Index < CacheEmitterData.ParticlePositions.Num(); Index++)
+		{
+			const FVector& ParticlePosition = CacheEmitterData.ParticlePositions[Index];
+			const FVector& ParticleScale = CacheEmitterData.ParticleScales[Index];
+			const FQuat& ParticleRotation = CacheEmitterData.ParticleRotations[Index];
+			const int32& ParticleMeshIndex = CacheEmitterData.ParticleMeshIndexes[Index];
+
+			FTransform ParticleTransform(ParticleRotation, ParticlePosition, ParticleScale);
+
+			if (ParticleMeshIndex >= 0)
+			{
+				for (UNiagaraMeshRendererProperties* MeshRenderer : CacheEmitterData.MeshRenderers)
+				{
+					if (!IsValid(MeshRenderer))
+					{
+						continue;
+					}
+
+					if (!MeshRenderer->Meshes.IsValidIndex(ParticleMeshIndex))
+					{
+						continue;
+					}
+
+					FNiagaraMeshRendererMeshProperties& Mesh = MeshRenderer->Meshes[ParticleMeshIndex];
+					if (!IsValid(Mesh.Mesh))
+					{
+						continue;
+					}
+
+					FTransform MeshTransform(Mesh.Rotation.Quaternion(), Mesh.PivotOffset, Mesh.Scale);
+					MeshTransform.Accumulate(ParticleTransform);
+					MeshTransform.Accumulate(RelativeTransform);
+
+					TArray<TWeakObjectPtr<UMaterialInterface>> Materials;
+					for (int32 SectionIndex = 0; SectionIndex < Mesh.Mesh->GetNumSections(0); SectionIndex++)
+					{
+						Materials.Add(Mesh.Mesh->GetMaterial(SectionIndex));
+					}
+
+					bResult |= AppendMesh(Mesh.Mesh, Materials, MeshTransform);
+				}
+			}
+		}
+	}
+
+	SimCache->MarkAsGarbage();
+
+	return bResult;
+}
+
+bool FCEClonerMeshBuilder::BuildDynamicMesh(UDynamicMesh* OutMesh, TArray<TWeakObjectPtr<UMaterialInterface>>& OutMaterials, const FCEClonerMeshBuilderParams& InParams)
 {
 	if (!IsValid(OutMesh))
 	{
 		return false;
 	}
 
+	OutMaterials.Empty();
+
 	// Lets combine all meshes components from this actor together
-	OutMesh->EditMesh([this](FDynamicMesh3& InMergedMesh)
+	OutMesh->EditMesh([this, &OutMaterials, &InParams](FDynamicMesh3& InMergedMesh)
 	{
 		using namespace UE::Geometry;
 
@@ -414,10 +606,26 @@ bool FCEClonerMeshBuilder::BuildDynamicMesh(UDynamicMesh* OutMesh, TArray<TWeakO
 		AppendOptions.CombineMode = EGeometryScriptCombineAttributesMode::EnableAllMatching;
 		int32 MaterialCount = 0;
 
+		// Mesh index to material forward map to merge same meshes materials into same slot
+		TMap<uint32, TMap<int32, int32>> MeshToMaterialMap;
+
 		// Convert meshes
-		for (int32 MeshIdx = 0; MeshIdx < ConvertedMeshes.Num(); MeshIdx++)
+		for (const FCEClonerMeshInstance& MeshInstance : MeshInstances)
 		{
-			const FDynamicMesh3& ConvertedMesh = ConvertedMeshes[MeshIdx];
+			if (!MeshInstance.Mesh || MeshInstance.Mesh->TriangleCount() == 0)
+			{
+				continue;
+			}
+
+			// Apply transform
+			FDynamicMesh3 ConvertedMesh = *MeshInstance.Mesh;
+			MeshTransforms::ApplyTransform(ConvertedMesh, MeshInstance.MeshData.Transform);
+
+			// Get materials
+			if (!InParams.bMergeMaterials || !MeshToMaterialMap.Contains(MeshInstance.MeshIndex))
+			{
+				OutMaterials.Append(MeshInstance.MeshData.MeshMaterials);
+			}
 
 			// Enable matching attributes & append mesh
 			FMeshIndexMappings TmpMappings;
@@ -429,15 +637,29 @@ bool FCEClonerMeshBuilder::BuildDynamicMesh(UDynamicMesh* OutMesh, TArray<TWeakO
 			{
 				const FDynamicMeshMaterialAttribute* FromMaterialIDAttrib = ConvertedMesh.Attributes()->GetMaterialID();
 				FDynamicMeshMaterialAttribute* ToMaterialIDAttrib = InMergedMesh.Attributes()->GetMaterialID();
-				TMap<int32, int32> MaterialMap;
+
+				TMap<int32, int32>& MaterialMap = MeshToMaterialMap.FindOrAdd(MeshInstance.MeshIndex);
 				for (const TPair<int32, int32>& FromToTId : TmpMappings.GetTriangleMap().GetForwardMap())
 				{
 					const int32 FromMatId = FromMaterialIDAttrib->GetValue(FromToTId.Key);
-					const int32 ToMatId = FromMatId + MaterialCount;
+					int32 ToMatId = FromMatId + MaterialCount;
+
+					// used to merge materials for same mesh index
+					if (const int32* MatId = MaterialMap.Find(FromMatId))
+					{
+						ToMatId = *MatId;
+					}
+
 					MaterialMap.Add(FromMatId, ToMatId);
 					ToMaterialIDAttrib->SetNewValue(FromToTId.Value, ToMatId);
 				}
+
 				MaterialCount += MaterialMap.Num();
+
+				if (!InParams.bMergeMaterials)
+				{
+					MaterialMap.Empty();
+				}
 			}
 		}
 
@@ -449,34 +671,182 @@ bool FCEClonerMeshBuilder::BuildDynamicMesh(UDynamicMesh* OutMesh, TArray<TWeakO
 		}
 	}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, /** bDeferChange */true);
 
-	OutMaterials = MoveTemp(OutputMeshMaterials);
-
-	ConvertedMeshes.Empty();
-	OutputMeshMaterials = {};
-
 	return true;
 }
 
-bool FCEClonerMeshBuilder::BuildStaticMesh(UStaticMesh* OutMesh, TArray<TWeakObjectPtr<UMaterialInterface>>& OutMaterials)
+bool FCEClonerMeshBuilder::BuildStaticMesh(UStaticMesh* OutMesh, TArray<TWeakObjectPtr<UMaterialInterface>>& OutMaterials, const FCEClonerMeshBuilderParams& InParams)
 {
 	if (!IsValid(OutMesh))
 	{
 		return false;
 	}
 
-	UDynamicMesh* OutDynamicMesh = OutputDynamicMesh;
-	if (!BuildDynamicMesh(OutDynamicMesh, OutMaterials))
+	ClearOutputMesh();
+
+	if (!BuildDynamicMesh(OutputDynamicMesh, OutMaterials, InParams))
 	{
 		return false;
 	}
 
-	if (OutDynamicMesh->GetTriangleCount() == 0)
+	return DynamicMeshToStaticMesh(OutputDynamicMesh, OutMesh, OutMaterials);
+}
+
+bool FCEClonerMeshBuilder::BuildStaticMesh(int32 InInstanceIndex, UStaticMesh* OutMesh, FCEClonerMeshInstanceData& OutMeshInstance)
+{
+	if (!IsValid(OutMesh) || !MeshInstances.IsValidIndex(InInstanceIndex))
 	{
 		return false;
 	}
 
+	FCEClonerMeshInstance& MeshInstance = MeshInstances[InInstanceIndex];
+
+	if (!MeshInstance.Mesh || MeshInstance.Mesh->TriangleCount() == 0)
+	{
+		return false;
+	}
+
+	OutMeshInstance.MeshMaterials.Empty(MeshInstance.MeshData.MeshMaterials.Num());
+	OutMeshInstance.MeshMaterials.Append(MeshInstance.MeshData.MeshMaterials);
+
+	OutMeshInstance.Transform = MeshInstance.MeshData.Transform;
+
+	OutputDynamicMesh->SetMesh(*MeshInstance.Mesh);
+
+	return DynamicMeshToStaticMesh(OutputDynamicMesh, OutMesh, OutMeshInstance.MeshMaterials);
+}
+
+bool FCEClonerMeshBuilder::BuildDynamicMesh(int32 InInstanceIndex, UDynamicMesh* OutMesh, FCEClonerMeshInstanceData& OutMeshInstance)
+{
+	if (!IsValid(OutMesh) || !MeshInstances.IsValidIndex(InInstanceIndex))
+	{
+		return false;
+	}
+
+	FCEClonerMeshInstance& MeshInstance = MeshInstances[InInstanceIndex];
+
+	if (!MeshInstance.Mesh || MeshInstance.Mesh->TriangleCount() == 0)
+	{
+		return false;
+	}
+
+	OutMeshInstance.MeshMaterials.Empty(MeshInstance.MeshData.MeshMaterials.Num());
+	OutMeshInstance.MeshMaterials.Append(MeshInstance.MeshData.MeshMaterials);
+
+	OutMeshInstance.Transform = MeshInstance.MeshData.Transform;
+
+	OutMesh->SetMesh(*MeshInstance.Mesh);
+
+	return true;
+}
+
+bool FCEClonerMeshBuilder::BuildStaticMesh(uint32 InMeshIndex, UStaticMesh* OutMesh, TArray<FCEClonerMeshInstanceData>& OutMeshInstances)
+{
+	const FDynamicMesh3* Mesh = Meshes.Find(InMeshIndex);
+
+	if (!IsValid(OutMesh) || !Mesh)
+	{
+		return false;
+	}
+
+	OutMeshInstances.Empty(MeshInstances.Num());
+	for (const FCEClonerMeshInstance& MeshInstance : MeshInstances)
+	{
+		if (MeshInstance.MeshIndex == InMeshIndex)
+		{
+			OutMeshInstances.Add(MeshInstance.MeshData);
+		}
+	}
+
+	if (OutMeshInstances.IsEmpty())
+	{
+		return false;
+	}
+
+	OutputDynamicMesh->SetMesh(*Mesh);
+
+	return DynamicMeshToStaticMesh(OutputDynamicMesh, OutMesh, OutMeshInstances[0].MeshMaterials);
+}
+
+bool FCEClonerMeshBuilder::BuildDynamicMesh(uint32 InMeshIndex, UDynamicMesh* OutMesh, TArray<FCEClonerMeshInstanceData>& OutMeshInstances)
+{
+	const FDynamicMesh3* Mesh = Meshes.Find(InMeshIndex);
+
+	if (!IsValid(OutMesh) || !Mesh)
+	{
+		return false;
+	}
+
+	OutMeshInstances.Empty(MeshInstances.Num());
+	for (const FCEClonerMeshInstance& MeshInstance : MeshInstances)
+	{
+		if (MeshInstance.MeshIndex == InMeshIndex)
+		{
+			OutMeshInstances.Add(MeshInstance.MeshData);
+		}
+	}
+
+	if (OutMeshInstances.IsEmpty())
+	{
+		return false;
+	}
+
+	OutMesh->SetMesh(*Mesh);
+
+	return true;
+}
+
+bool FCEClonerMeshBuilder::AppendPrimitiveComponent(const UObject* InMeshObject, UPrimitiveComponent* InComponent, const FTransform& InSourceTransform)
+{
+	if (!IsValid(InComponent))
+	{
+		return false;
+	}
+
+	// Transform the new mesh relative to the component
+	const FTransform RelativeTransform = InComponent->GetComponentTransform().GetRelativeTransform(InSourceTransform);
+
+	// Copy all materials
+	TArray<TWeakObjectPtr<UMaterialInterface>> Materials;
+	Materials.Reserve(InComponent->GetNumMaterials());
+	for (int32 Index = 0; Index < InComponent->GetNumMaterials(); Index++)
+	{
+		Materials.Add(InComponent->GetMaterial(Index));
+	}
+
+	// Take mesh id or component id to find already converted mesh
+	const uint32 MeshIndex = InMeshObject ? InMeshObject->GetUniqueID() : InComponent->GetUniqueID();
+
+	return !!AddMeshInstance(MeshIndex, RelativeTransform, Materials, [this, &InComponent](FDynamicMesh3& InCreateMesh)->bool
+	{
+		constexpr FGeometryScriptCopyMeshFromComponentOptions Options;
+		FTransform LocalToWorld = FTransform::Identity;
+
+		// convert to dynamic mesh
+		EGeometryScriptOutcomePins OutResult;
+		UGeometryScriptLibrary_SceneUtilityFunctions::CopyMeshFromComponent(InComponent, OutputDynamicMesh, Options, false, LocalToWorld, OutResult);
+
+		if (OutResult != EGeometryScriptOutcomePins::Success)
+		{
+			return false;
+		}
+
+		OutputDynamicMesh->EditMesh([&InCreateMesh](FDynamicMesh3& EditMesh)
+		{
+			InCreateMesh = MoveTemp(EditMesh);
+
+			// replace by empty mesh
+			FDynamicMesh3 EmptyMesh;
+			EditMesh = MoveTemp(EmptyMesh);
+		}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, /** bDeferChange */true);
+
+		return true;
+	});
+}
+
+bool FCEClonerMeshBuilder::DynamicMeshToStaticMesh(UDynamicMesh* InMesh, UStaticMesh* OutMesh, const TArray<TWeakObjectPtr<UMaterialInterface>>& InMaterials)
+{
 	TArray<TObjectPtr<UMaterialInterface>> NewMaterials;
-	Algo::Transform(OutMaterials, NewMaterials, [](const TWeakObjectPtr<UMaterialInterface>& InMaterialWeak)
+	Algo::Transform(InMaterials, NewMaterials, [](const TWeakObjectPtr<UMaterialInterface>& InMaterialWeak)
 	{
 		return InMaterialWeak.Get();
 	});
@@ -499,7 +869,7 @@ bool FCEClonerMeshBuilder::BuildStaticMesh(UStaticMesh* OutMesh, TArray<TWeakObj
 
 	// Convert merged mesh to static mesh
 	EGeometryScriptOutcomePins OutResult;
-	UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshToStaticMesh(OutDynamicMesh, OutMesh, AssetOptions, TargetLOD, OutResult);
+	UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshToStaticMesh(InMesh, OutMesh, AssetOptions, TargetLOD, OutResult);
 
 #if WITH_EDITORONLY_DATA
 	// Compute normals and tangents
@@ -508,48 +878,43 @@ bool FCEClonerMeshBuilder::BuildStaticMesh(UStaticMesh* OutMesh, TArray<TWeakObj
 	FStaticMeshOperations::ComputeTangentsAndNormals(*MeshDescription, EComputeNTBsFlags::Normals);
 #endif
 
-	OutDynamicMesh->EditMesh([](FDynamicMesh3& EditMesh){ EditMesh.Clear(); });
-
-	return true;
+	return OutResult == EGeometryScriptOutcomePins::Success;
 }
 
-bool FCEClonerMeshBuilder::AppendPrimitiveComponent(UPrimitiveComponent* InComponent, const FTransform& InSourceTransform)
+void FCEClonerMeshBuilder::ClearOutputMesh() const
 {
-	if (!IsValid(InComponent))
+	if (OutputDynamicMesh)
 	{
-		return false;
+		OutputDynamicMesh->EditMesh([](FDynamicMesh3& EditMesh){ EditMesh.Clear(); });
+	}
+}
+
+FCEClonerMeshBuilder::FCEClonerMeshInstance* FCEClonerMeshBuilder::AddMeshInstance(uint32 InMeshIndex, const FTransform& InTransform, const TArray<TWeakObjectPtr<UMaterialInterface>>& InMaterials, TFunctionRef<bool(UE::Geometry::FDynamicMesh3&)> InCreateMeshFunction)
+{
+	FCEClonerMeshInstance MeshInstance;
+	MeshInstance.MeshIndex = InMeshIndex;
+	MeshInstance.Mesh = Meshes.Find(InMeshIndex);
+	MeshInstance.MeshData.Transform = InTransform;
+	MeshInstance.MeshData.MeshMaterials = InMaterials;
+
+	if (!MeshInstance.Mesh)
+	{
+		FDynamicMesh3 Mesh;
+
+		ClearOutputMesh();
+
+		if (InCreateMeshFunction(Mesh) && Mesh.TriangleCount() > 0)
+		{
+			MeshInstance.Mesh = &Meshes.Add(InMeshIndex, MoveTemp(Mesh));
+		}
+
+		ClearOutputMesh();
 	}
 
-	constexpr FGeometryScriptCopyMeshFromComponentOptions Options;
-	FTransform LocalToWorld = FTransform::Identity;
-
-	// convert to dynamic mesh
-	EGeometryScriptOutcomePins OutResult;
-	UGeometryScriptLibrary_SceneUtilityFunctions::CopyMeshFromComponent(InComponent, OutputDynamicMesh, Options, false, LocalToWorld, OutResult);
-
-	if (OutResult != EGeometryScriptOutcomePins::Success)
+	if (MeshInstance.Mesh)
 	{
-		return false;
+		return &MeshInstances.Add_GetRef(MeshInstance);
 	}
 
-	// Transform the new mesh relative to the component
-	const FTransform RelativeTransform = InComponent->GetComponentTransform().GetRelativeTransform(InSourceTransform);
-
-	// Copy all materials
-	for (int32 Index = 0; Index < InComponent->GetNumMaterials(); Index++)
-	{
-		OutputMeshMaterials.Add(InComponent->GetMaterial(Index));
-	}
-
-	OutputDynamicMesh->EditMesh([this, RelativeTransform](FDynamicMesh3& EditMesh)
-	{
-		MeshTransforms::ApplyTransform(EditMesh, RelativeTransform);
-		ConvertedMeshes.Add(MoveTemp(EditMesh));
-
-		// replace by empty mesh
-		FDynamicMesh3 EmptyMesh;
-		EditMesh = MoveTemp(EmptyMesh);
-	}, EDynamicMeshChangeType::GeneralEdit, EDynamicMeshAttributeChangeFlags::Unknown, /** bDeferChange */true);
-
-	return true;
+	return nullptr;
 }

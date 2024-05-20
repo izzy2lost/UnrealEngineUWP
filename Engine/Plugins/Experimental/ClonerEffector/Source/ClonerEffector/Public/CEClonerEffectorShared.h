@@ -8,9 +8,12 @@
 #include "NiagaraDataInterfaceArrayInt.h"
 #include "CEClonerEffectorShared.generated.h"
 
+class AActor;
+class ADynamicMeshActor;
+class AStaticMeshActor;
+class UCEClonerComponent;
 class UNiagaraDataChannelReader;
 class UNiagaraDataChannelWriter;
-class AActor;
 class UDynamicMesh;
 class UNiagaraSystem;
 class USplineComponent;
@@ -247,6 +250,16 @@ enum class ECEClonerCollisionRadiusMode : uint8
 	MaxExtent,
 	/** Collision radius will be calculated automatically based on the extent length, mesh scale included */
 	ExtentLength
+};
+
+/** Enumerates all conversion possible for cloner simulation */
+enum class ECEClonerMeshConversion : uint8
+{
+	StaticMesh,
+	StaticMeshes,
+	DynamicMesh,
+	DynamicMeshes,
+	InstancedStaticMesh
 };
 
 USTRUCT()
@@ -490,8 +503,79 @@ struct CLONEREFFECTOR_API FCEClonerGridConstraintTexture
 	float Threshold = 0.f;
 };
 
+#if WITH_EDITOR
+struct FCEExtensionSection
+{
+	FCEExtensionSection()
+	{}
+
+	explicit FCEExtensionSection(FName InSectionName, int32 InSectionOrder)
+		: SectionName(InSectionName)
+		, SectionOrder(InSectionOrder)
+	{}
+
+	/** Used for editor details UI */
+	FName SectionName = NAME_None;
+
+	/** Used to reorder categories in editor UI */
+	int32 SectionOrder = 0;
+};
+#endif
+
 namespace UE::ClonerEffector
 {
-	void SetBillboardComponentSprite(const AActor* InActor, const FString& InTexturePath);
-	void SetBillboardComponentVisibility(const AActor* InActor, bool bInVisibility);
+#if WITH_EDITOR
+	namespace ClonerSection
+	{
+		const FCEExtensionSection ClonerSection(TEXT("Cloner"), 0);
+		const FCEExtensionSection EffectorSection(TEXT("Effector"), 1);
+		const FCEExtensionSection EmissionSection(TEXT("Emission"), 2);
+		const FCEExtensionSection PhysicsSection(TEXT("Physics"), 3);
+		const FCEExtensionSection RenderingSection(TEXT("Rendering"), 4);
+	}
+
+	namespace EffectorSection
+	{
+		const FCEExtensionSection EffectorSection(TEXT("Effector"), 0);
+		const FCEExtensionSection ModeSection(TEXT("Mode"), 1);
+		const FCEExtensionSection ShapeSection(TEXT("Shape"), 2);
+		const FCEExtensionSection ForcesSection(TEXT("Forces"), 3);
+	}
+#endif
+
+	namespace Conversion
+	{
+		/** Convert a cloner to a single merged static mesh actor */
+		AStaticMeshActor* ConvertClonerToStaticMesh(UCEClonerComponent* InCloner);
+
+		/** Convert a cloner to a single merged dynamic mesh actor */
+		ADynamicMeshActor* ConvertClonerToDynamicMesh(UCEClonerComponent* InCloner);
+
+		/** Convert a cloner to multiple static mesh actors */
+		TArray<AStaticMeshActor*> ConvertClonerToStaticMeshes(UCEClonerComponent* InCloner);
+
+		/** Convert a cloner to multiple dynamic mesh actors */
+		TArray<ADynamicMeshActor*> ConvertClonerToDynamicMeshes(UCEClonerComponent* InCloner);
+
+		/** Convert a cloner to multiple instanced static mesh actors */
+		TArray<AActor*> ConvertClonerToInstancedStaticMeshes(UCEClonerComponent* InCloner);
+
+		UActorComponent* CreateComponent(AActor* InActor, TSubclassOf<USceneComponent> InComponentClass);
+
+#if WITH_EDITOR
+		/** Pick assets location */
+		bool PickAssetPath(const FString& InDefaultPath, FString& OutPickedPath);
+
+		/** Create a specific asset in a package */
+		UObject* CreateAssetPackage(TSubclassOf<UObject> InAssetClass, const FString& InAssetPath);
+
+		template<typename InClass
+			UE_REQUIRES(TIsDerivedFrom<InClass, UObject>::Value)>
+		InClass* CreateAssetPackage(const FString& InAssetPath)
+		{
+			return Cast<InClass>(CreateAssetPackage(InClass::StaticClass(), InAssetPath));
+		}
+#endif
+
+	}
 }

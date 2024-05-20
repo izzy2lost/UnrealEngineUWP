@@ -98,7 +98,7 @@ void ACEEffectorActor::MigrateDeprecatedProperties()
 		return;
 	}
 
-	UE_LOG(LogCEEffectorActor, Warning, TEXT("%s : Effector migrating from version %i to latest %i"), *GetActorNameOrLabel(), MigrateToVersion, FCEEffectorActorVersion::LatestVersion);
+	UE_LOG(LogCEEffectorActor, Warning, TEXT("%s : Effector migrating from version %i to latest %i, please re-save this asset"), *GetActorNameOrLabel(), MigrateToVersion, FCEEffectorActorVersion::LatestVersion);
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 

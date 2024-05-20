@@ -27,6 +27,7 @@
 #include "Framework/Notifications/NotificationManager.h"
 #include "Materials/Material.h"
 #include "Misc/MessageDialog.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #endif
 
@@ -37,11 +38,6 @@ DEFINE_LOG_CATEGORY_STATIC(LogCEClonerComponent, Log, All);
 UCEClonerComponent::UCEClonerComponent()
 	: UNiagaraComponent()
 {
-	PrimaryComponentTick.bCanEverTick          = true;
-	PrimaryComponentTick.bStartWithTickEnabled = true;
-	PrimaryComponentTick.bTickEvenWhenPaused   = true;
-	PrimaryComponentTick.bHighPriority         = true;
-
 	CastShadow = true;
 	bReceivesDecals = true;
 	bAutoActivate = true;
@@ -107,8 +103,6 @@ void UCEClonerComponent::PostInitProperties()
 
 void UCEClonerComponent::PostLoad()
 {
-	SetAsset(nullptr);
-
 	Super::PostLoad();
 
 	InitializeCloner();
@@ -119,6 +113,9 @@ void UCEClonerComponent::PostEditUndo()
 {
 	Super::PostEditUndo();
 
+	// Reregister ticker in case this object was destroyed then undo
+	RegisterTicker();
+
 	ForceUpdateCloner();
 }
 
@@ -126,6 +123,7 @@ const TCEPropertyChangeDispatcher<UCEClonerComponent> UCEClonerComponent::Proper
 {
 	{ GET_MEMBER_NAME_CHECKED(UCEClonerComponent, bEnabled), &UCEClonerComponent::OnEnabledChanged },
 	{ GET_MEMBER_NAME_CHECKED(UCEClonerComponent, Seed), &UCEClonerComponent::OnSeedChanged },
+	{ GET_MEMBER_NAME_CHECKED(UCEClonerComponent, Color), &UCEClonerComponent::OnColorChanged },
 	/** Layout */
 	{ GET_MEMBER_NAME_CHECKED(UCEClonerComponent, LayoutName), &UCEClonerComponent::OnLayoutNameChanged },
 	{ GET_MEMBER_NAME_CHECKED(UCEClonerComponent, bVisualizerSpriteVisible), &UCEClonerComponent::OnVisualizerSpriteVisibleChanged },
@@ -138,6 +136,13 @@ void UCEClonerComponent::PostEditChangeProperty(FPropertyChangedEvent& InPropert
 	PropertyChangeDispatcher.OnPropertyChanged(this, InPropertyChangedEvent);
 }
 #endif
+
+void UCEClonerComponent::OnComponentCreated()
+{
+	Super::OnComponentCreated();
+
+	InitializeCloner();
+}
 
 void UCEClonerComponent::UpdateClonerRenderState()
 {
@@ -807,6 +812,7 @@ void UCEClonerComponent::UpdateActorBakedDynamicMesh(AActor* InActor)
 
 	MeshBuilder.AppendActor(InActor);
 	MeshBuilder.BuildDynamicMesh(Mesh, MeshMaterials);
+	MeshBuilder.Reset();
 
 	AttachmentItem->BakedMesh = Mesh;
 	AttachmentItem->BakedMaterials = MoveTemp(MeshMaterials);
@@ -904,6 +910,7 @@ void UCEClonerComponent::UpdateRootActorBakedStaticMesh(AActor* InRootActor)
 	UStaticMesh* Mesh = NewObject<UStaticMesh>();
 	TArray<TWeakObjectPtr<UMaterialInterface>> MeshMaterials;
 	bClonerMeshesDirty = MeshBuilder.BuildStaticMesh(Mesh, MeshMaterials);
+	MeshBuilder.Reset();
 
 	ClonerTree.MergedBakedMeshes[RootIdx] = Mesh;
 
@@ -996,13 +1003,6 @@ void UCEClonerComponent::ShowMaterialWarning(int32 InMaterialCount)
 }
 #endif // WITH_EDITOR
 
-void UCEClonerComponent::TickComponent(float InDeltaTime, ELevelTick InTickType, FActorComponentTickFunction* InThisTickFunction)
-{
-	TickCloner(InDeltaTime);
-
-	Super::TickComponent(InDeltaTime, InTickType, InThisTickFunction);
-}
-
 void UCEClonerComponent::InitializeCloner()
 {
 	if (bClonerInitialized)
@@ -1012,8 +1012,7 @@ void UCEClonerComponent::InitializeCloner()
 
 	bClonerInitialized = true;
 
-	/** Allow tick in editor without hitting check */
-	SetForceSolo(true);
+	SetAsset(nullptr);
 
 	OnLayoutNameChanged();
 
@@ -1022,13 +1021,22 @@ void UCEClonerComponent::InitializeCloner()
 #endif
 
 	OnClonerInitializedDelegate.Broadcast(this);
+
+	/** Register a custom ticker to avoid using the component tick that needs the simulation to be solo */
+	RegisterTicker();
 }
 
-void UCEClonerComponent::TickCloner(float InDelta)
+void UCEClonerComponent::RegisterTicker()
+{
+	FTSTicker::GetCoreTicker().RemoveTicker(ClonerTickerHandle);
+	ClonerTickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this, &UCEClonerComponent::TickCloner));
+}
+
+bool UCEClonerComponent::TickCloner(float InDelta)
 {
 	if (!bClonerInitialized)
 	{
-		InitializeCloner();
+		return false;
 	}
 
 	if (bEnabled)
@@ -1049,6 +1057,8 @@ void UCEClonerComponent::TickCloner(float InDelta)
 			RequestClonerUpdate(true);
 		}
 	}
+
+	return true;
 }
 
 void UCEClonerComponent::SetEnabled(bool bInEnable)
@@ -1081,6 +1091,17 @@ void UCEClonerComponent::SetSeed(int32 InSeed)
 
 	Seed = InSeed;
 	OnSeedChanged();
+}
+
+void UCEClonerComponent::SetColor(const FLinearColor& InColor)
+{
+	if (InColor.Equals(Color))
+	{
+		return;
+	}
+
+	Color = InColor;
+	OnColorChanged();
 }
 
 void UCEClonerComponent::SetLayoutName(FName InLayoutName)
@@ -1150,7 +1171,10 @@ void UCEClonerComponent::CreateDefaultActorAttached()
 	// Only spawn if world is valid and not a preview actor
 	UWorld* World = GetWorld();
 	AActor* Owner = GetOwner();
-	if (!World || !Owner || Owner->bIsEditorPreviewActor)
+
+	if (!IsValid(World)
+		|| !IsValid(Owner)
+		|| Owner->bIsEditorPreviewActor)
 	{
 		return;
 	}
@@ -1193,6 +1217,116 @@ void UCEClonerComponent::CreateDefaultActorAttached()
 		DefaultActorAttached->AttachToActor(GetOwner(), FAttachmentTransformRules::KeepWorldTransform);
 
 		FActorLabelUtilities::SetActorLabelUnique(DefaultActorAttached, TEXT("DefaultClone"));
+	}
+}
+
+void UCEClonerComponent::ConvertToStaticMesh()
+{
+	if (!IsValid(this) || !bEnabled)
+	{
+		return;
+	}
+
+	FScopedSlowTask SlowTask(0.0f, LOCTEXT("ConvertToStaticMesh", "Converting cloner to static mesh"));
+	SlowTask.MakeDialog();
+
+	UE_LOG(LogCEClonerComponent, Log, TEXT("%s : Request ConvertToStaticMesh..."), *GetOwner()->GetActorNameOrLabel())
+
+	if (UE::ClonerEffector::Conversion::ConvertClonerToStaticMesh(this))
+	{
+		UE_LOG(LogCEClonerComponent, Log, TEXT("%s : ConvertToStaticMesh Completed"), *GetOwner()->GetActorNameOrLabel())
+	}
+	else
+	{
+		UE_LOG(LogCEClonerComponent, Warning, TEXT("%s : ConvertToStaticMesh Failed"), *GetOwner()->GetActorNameOrLabel())
+	}
+}
+
+void UCEClonerComponent::ConvertToDynamicMesh()
+{
+	if (!IsValid(this) || !bEnabled)
+	{
+		return;
+	}
+
+	FScopedSlowTask SlowTask(0.0f, LOCTEXT("ConvertToDynamicMesh", "Converting cloner to dynamic mesh"));
+	SlowTask.MakeDialog();
+
+	UE_LOG(LogCEClonerComponent, Log, TEXT("%s : Request ConvertToDynamicMesh..."), *GetOwner()->GetActorNameOrLabel())
+
+	if (UE::ClonerEffector::Conversion::ConvertClonerToDynamicMesh(this))
+	{
+		UE_LOG(LogCEClonerComponent, Log, TEXT("%s : ConvertToDynamicMesh Completed"), *GetOwner()->GetActorNameOrLabel())
+	}
+	else
+	{
+		UE_LOG(LogCEClonerComponent, Warning, TEXT("%s : ConvertToDynamicMesh Failed"), *GetOwner()->GetActorNameOrLabel())
+	}
+}
+
+void UCEClonerComponent::ConvertToStaticMeshes()
+{
+	if (!IsValid(this) || !bEnabled)
+	{
+		return;
+	}
+
+	FScopedSlowTask SlowTask(0.0f, LOCTEXT("ConvertToStaticMeshes", "Converting cloner to static meshes"));
+	SlowTask.MakeDialog();
+
+	UE_LOG(LogCEClonerComponent, Log, TEXT("%s : Request ConvertToStaticMeshes..."), *GetOwner()->GetActorNameOrLabel())
+
+	if (!UE::ClonerEffector::Conversion::ConvertClonerToStaticMeshes(this).IsEmpty())
+	{
+		UE_LOG(LogCEClonerComponent, Log, TEXT("%s : ConvertToStaticMeshes Completed"), *GetOwner()->GetActorNameOrLabel())
+	}
+	else
+	{
+		UE_LOG(LogCEClonerComponent, Warning, TEXT("%s : ConvertToStaticMeshes Failed"), *GetOwner()->GetActorNameOrLabel())
+	}
+}
+
+void UCEClonerComponent::ConvertToDynamicMeshes()
+{
+	if (!IsValid(this) || !bEnabled)
+	{
+		return;
+	}
+
+	FScopedSlowTask SlowTask(0.0f, LOCTEXT("ConvertToDynamicMeshes", "Converting cloner to dynamic meshes"));
+	SlowTask.MakeDialog();
+
+	UE_LOG(LogCEClonerComponent, Log, TEXT("%s : Request ConvertToDynamicMeshes..."), *GetOwner()->GetActorNameOrLabel())
+
+	if (!UE::ClonerEffector::Conversion::ConvertClonerToDynamicMeshes(this).IsEmpty())
+	{
+		UE_LOG(LogCEClonerComponent, Log, TEXT("%s : ConvertToDynamicMeshes Completed"), *GetOwner()->GetActorNameOrLabel())
+	}
+	else
+	{
+		UE_LOG(LogCEClonerComponent, Warning, TEXT("%s : ConvertToDynamicMeshes Failed"), *GetOwner()->GetActorNameOrLabel())
+	}
+}
+
+void UCEClonerComponent::ConvertToInstancedStaticMeshes()
+{
+	if (!IsValid(this) || !bEnabled)
+	{
+		return;
+	}
+
+	FScopedSlowTask SlowTask(0.0f, LOCTEXT("ConvertToInstancedStaticMeshes", "Converting cloner to instanced static meshes"));
+	SlowTask.MakeDialog();
+
+	UE_LOG(LogCEClonerComponent, Log, TEXT("%s : Request ConvertToInstancedStaticMeshes..."), *GetOwner()->GetActorNameOrLabel())
+
+	if (!UE::ClonerEffector::Conversion::ConvertClonerToInstancedStaticMeshes(this).IsEmpty())
+	{
+		UE_LOG(LogCEClonerComponent, Log, TEXT("%s : ConvertToInstancedStaticMeshes Completed"), *GetOwner()->GetActorNameOrLabel())
+	}
+	else
+	{
+		UE_LOG(LogCEClonerComponent, Warning, TEXT("%s : ConvertToInstancedStaticMeshes Failed"), *GetOwner()->GetActorNameOrLabel())
 	}
 }
 #endif
@@ -1248,6 +1382,21 @@ void UCEClonerComponent::OnClonerDisabled()
 	SetAsset(nullptr);
 }
 
+void UCEClonerComponent::OnClonerSetEnabled(const UWorld* InWorld, bool bInEnabled, bool bInTransact)
+{
+	if (GetWorld() == InWorld)
+	{
+#if WITH_EDITOR
+		if (bInTransact)
+		{
+			Modify();
+		}
+#endif
+
+		SetEnabled(bInEnabled);
+	}
+}
+
 void UCEClonerComponent::OnSeedChanged()
 {
 	if (!bEnabled)
@@ -1258,6 +1407,11 @@ void UCEClonerComponent::OnSeedChanged()
 	SetRandomSeedOffset(Seed);
 
 	RequestClonerUpdate();
+}
+
+void UCEClonerComponent::OnColorChanged()
+{
+	SetColorParameter(TEXT("EffectorDefaultColor"), Color);
 }
 
 void UCEClonerComponent::OnLayoutNameChanged()
@@ -1510,6 +1664,7 @@ void UCEClonerComponent::OnActiveLayoutChanged()
 	}
 
 	OnSeedChanged();
+	OnColorChanged();
 
 	Layout->UpdateLayoutParameters();
 

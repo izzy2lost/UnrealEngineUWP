@@ -5,6 +5,7 @@
 #include "CEClonerEffectorShared.h"
 #include "CEClonerMeshBuilder.h"
 #include "CEPropertyChangeDispatcher.h"
+#include "Containers/Ticker.h"
 #include "Layouts/CEClonerLayoutBase.h"
 #include "NiagaraComponent.h"
 #include "CEClonerComponent.generated.h"
@@ -83,6 +84,15 @@ public:
 	}
 
 	UFUNCTION(BlueprintCallable, Category="Cloner")
+	CLONEREFFECTOR_API void SetColor(const FLinearColor& InColor);
+
+	UFUNCTION(BlueprintPure, Category="Cloner")
+	const FLinearColor& GetColor() const
+	{
+		return Color;
+	}
+
+	UFUNCTION(BlueprintCallable, Category="Cloner")
 	CLONEREFFECTOR_API void SetLayoutName(FName InLayoutName);
 
 	UFUNCTION(BlueprintPure, Category="Cloner")
@@ -142,30 +152,38 @@ public:
 	UFUNCTION(CallInEditor, Category="Cloner")
 	void ForceUpdateCloner();
 
-	/** This will create a new default actor attached to this cloner */
-	UFUNCTION(CallInEditor, Category="Cloner")
+	/** This will create a new default actor attached to this cloner if nothing is attached to this cloner */
+	UFUNCTION(CallInEditor, Category="Utilities")
 	void CreateDefaultActorAttached();
+
+	/** Converts the cloner simulation into a single static mesh, this is a heavy operation */
+	UFUNCTION(CallInEditor, Category="Utilities")
+	void ConvertToStaticMesh();
+
+	/** Converts the cloner simulation into a single dynamic mesh, this is a heavy operation */
+	UFUNCTION(CallInEditor, Category="Utilities")
+	void ConvertToDynamicMesh();
+
+	/** Converts the cloner simulation into static meshes, this is a heavy operation */
+	UFUNCTION(CallInEditor, Category="Utilities")
+	void ConvertToStaticMeshes();
+
+	/** Converts the cloner simulation into dynamic meshes, this is a heavy operation */
+	UFUNCTION(CallInEditor, Category="Utilities")
+	void ConvertToDynamicMeshes();
+
+	/** Converts the cloner simulation into instanced static meshes, this is a heavy operation */
+	UFUNCTION(CallInEditor, Category="Utilities")
+	void ConvertToInstancedStaticMeshes();
 #endif
 
 	/** Will force a system update to refresh user parameters */
 	void RequestClonerUpdate(bool bInImmediate = false);
 
-	/**
-	 * Triggers an update of the attachment tree to detect updated items
-	 * If reset is true, clears the attachment tree and rebuilds it otherwise diff update
-	 */
-	void UpdateClonerAttachmentTree(bool bInReset = false);
-
-	/** Called to trigger an update of cloner rendering state tree */
-	void UpdateClonerRenderState();
-
 	UCEClonerLayoutBase* GetClonerActiveLayout() const
 	{
 		return ActiveLayout;
 	}
-
-	/** Forces a refresh of the active system parameters in niagara store */
-	void RefreshUserParameters() const;
 
 	/** Forces a refresh of the meshes used */
 	void RefreshClonerMeshes();
@@ -199,11 +217,6 @@ protected:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnClonerInitialized, UCEClonerComponent* /** ClonerComponent */)
 	FOnClonerInitialized OnClonerInitializedDelegate;
 
-	//~ Begin UActorComponent
-	/** Tick needed to keep the attachment tree updated */
-	virtual void TickComponent(float InDeltaTime, ELevelTick InTickType, FActorComponentTickFunction* InThisTickFunction) override;
-	//~ End UActorComponent
-
 	//~ Begin UObject
 	virtual void PostInitProperties() override;
 	virtual void PostLoad() override;
@@ -212,6 +225,10 @@ protected:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 #endif
 	//~ End UObject
+
+	//~ Begin UActorComponent
+	virtual void OnComponentCreated() override;
+	//~ End UActorComponent
 
 	void UpdateAttachmentTree();
 	void UpdateActorAttachment(AActor* InActor, AActor* InParent);
@@ -283,6 +300,10 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Cloner")
 	int32 Seed = 0;
 
+	/** Cloner color when unaffected by effectors, color will be passed down to the material (ParticleColor) */
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Cloner")
+	FLinearColor Color = FLinearColor::White;
+
 	/** Name of the layout to use */
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Layout", meta=(GetOptions="GetClonerLayoutNames"))
 	FName LayoutName = NAME_None;
@@ -314,12 +335,28 @@ private:
 
 	/** Initiate and perform operation */
 	void InitializeCloner();
-	void TickCloner(float InDelta);
+	void RegisterTicker();
+	bool TickCloner(float InDelta);
+
+	/**
+	* Triggers an update of the attachment tree to detect updated items
+	* If reset is true, clears the attachment tree and rebuilds it otherwise diff update
+	*/
+	void UpdateClonerAttachmentTree(bool bInReset = false);
+
+	/** Called to trigger an update of cloner rendering state tree */
+	void UpdateClonerRenderState();
+
+	/** Forces a refresh of the active system parameters in niagara store */
+	void RefreshUserParameters() const;
 
 	void OnEnabledChanged();
 	void OnClonerEnabled();
 	void OnClonerDisabled();
+	void OnClonerSetEnabled(const UWorld* InWorld, bool bInEnabled, bool bInTransact);
+
 	void OnSeedChanged();
+	void OnColorChanged();
 	void OnLayoutNameChanged();
 
 #if WITH_EDITOR
@@ -376,6 +413,8 @@ private:
 	bool bNeedsRefresh = false;
 
 	bool bClonerInitialized = false;
+
+	FTSTicker::FDelegateHandle ClonerTickerHandle;
 
 #if WITH_EDITOR
 	/** Used for PECP */

@@ -436,6 +436,21 @@ void UCEEffectorComponent::OnEffectorDisabled()
 #endif
 }
 
+void UCEEffectorComponent::OnEffectorSetEnabled(const UWorld* InWorld, bool bInEnabled, bool bInTransact)
+{
+	if (GetWorld() == InWorld)
+	{
+#if WITH_EDITOR
+		if (bInTransact)
+		{
+			Modify();
+		}
+#endif
+
+		SetEnabled(bInEnabled);
+	}
+}
+
 void UCEEffectorComponent::OnEffectorOptionsChanged()
 {
 	RegisterToChannel();

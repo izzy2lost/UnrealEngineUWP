@@ -11,6 +11,7 @@ class UDynamicMesh;
 class UDynamicMeshComponent;
 class UInstancedStaticMeshComponent;
 class UMaterialInterface;
+class UNiagaraComponent;
 class UProceduralMeshComponent;
 class USkeletalMeshComponent;
 class USplineMeshComponent;
@@ -23,7 +24,36 @@ struct FCEClonerMeshBuilder
 {
 	GENERATED_BODY()
 
+	struct FCEClonerMeshInstanceData
+	{
+		/** Transform to apply on the mesh instance */
+		FTransform Transform;
+
+		/** Materials applied on this instance */
+		TArray<TWeakObjectPtr<UMaterialInterface>> MeshMaterials;
+	};
+
+	struct FCEClonerMeshBuilderParams
+	{
+		/** Merge same meshes material slot in the final result */
+		bool bMergeMaterials = false;
+	};
+
+	static const FCEClonerMeshBuilderParams DefaultParams;
+
 	FCEClonerMeshBuilder();
+
+	int32 GetMeshInstanceCount() const
+	{
+		return MeshInstances.Num();
+	}
+
+	int32 GetMeshCount() const
+	{
+		return Meshes.Num();
+	}
+
+	TArray<uint32> GetMeshIndexes() const;
 
 	/** Resets the builder and clears data */
 	void Reset();
@@ -52,21 +82,57 @@ struct FCEClonerMeshBuilder
 	/** Appends Spline Mesh component */
 	bool AppendComponent(USplineMeshComponent* InComponent, const FTransform& InTransform = FTransform::Identity);
 
+	/** Appends Niagara component */
+	bool AppendComponent(UNiagaraComponent* InComponent, const FTransform& InTransform = FTransform::Identity);
+
 	/** Appends a dynamic mesh */
 	bool AppendMesh(const UDynamicMesh* InMesh, const TArray<TWeakObjectPtr<UMaterialInterface>>& InMaterials, const FTransform& InTransform = FTransform::Identity);
 
-	/** Builds a dynamic mesh by merging the mesh data imported */
-	bool BuildDynamicMesh(UDynamicMesh* OutMesh, TArray<TWeakObjectPtr<UMaterialInterface>>& OutMaterials);
+	/** Appends a static mesh */
+	bool AppendMesh(UStaticMesh* InMesh, const TArray<TWeakObjectPtr<UMaterialInterface>>& InMaterials, const FTransform& InTransform = FTransform::Identity);
 
-	/** Builds a static mesh by merging the mesh data imported */
-	bool BuildStaticMesh(UStaticMesh* OutMesh, TArray<TWeakObjectPtr<UMaterialInterface>>& OutMaterials);
+	/** Builds a dynamic mesh by merging all the mesh data imported */
+	bool BuildDynamicMesh(UDynamicMesh* OutMesh, TArray<TWeakObjectPtr<UMaterialInterface>>& OutMaterials, const FCEClonerMeshBuilderParams& InParams = DefaultParams);
+
+	/** Builds a static mesh by merging all the mesh data imported */
+	bool BuildStaticMesh(UStaticMesh* OutMesh, TArray<TWeakObjectPtr<UMaterialInterface>>& OutMaterials, const FCEClonerMeshBuilderParams& InParams = DefaultParams);
+
+	/** Builds a static mesh for the specific instance index */
+	bool BuildStaticMesh(int32 InInstanceIndex, UStaticMesh* OutMesh, FCEClonerMeshInstanceData& OutMeshInstance);
+
+	/** Builds a dynamic mesh for the specific instance index */
+	bool BuildDynamicMesh(int32 InInstanceIndex, UDynamicMesh* OutMesh, FCEClonerMeshInstanceData& OutMeshInstance);
+
+	/** Builds a static mesh for the specific mesh index */
+	bool BuildStaticMesh(uint32 InMeshIndex, UStaticMesh* OutMesh, TArray<FCEClonerMeshInstanceData>& OutMeshInstances);
+
+	/** Builds a dynamic mesh for the specific mesh index */
+	bool BuildDynamicMesh(uint32 InMeshIndex, UDynamicMesh* OutMesh, TArray<FCEClonerMeshInstanceData>& OutMeshInstances);
 
 private:
-	bool AppendPrimitiveComponent(UPrimitiveComponent* InComponent, const FTransform& InTransform);
+	static bool DynamicMeshToStaticMesh(UDynamicMesh* InMesh, UStaticMesh* OutMesh, const TArray<TWeakObjectPtr<UMaterialInterface>>& InMaterials);
 
-	TArray<UE::Geometry::FDynamicMesh3> ConvertedMeshes;
+	struct FCEClonerMeshInstance
+	{
+		/** Index of the mesh to use for this instance */
+		uint32 MeshIndex;
 
-	TArray<TWeakObjectPtr<UMaterialInterface>> OutputMeshMaterials;
+		/** Data linked to this mesh instance */
+		FCEClonerMeshInstanceData MeshData;
+
+		/** Ptr to the actual mesh, equivalent to Meshes[MeshIndex] */
+		UE::Geometry::FDynamicMesh3* Mesh;
+	};
+
+	FCEClonerMeshInstance* AddMeshInstance(uint32 InMeshIndex, const FTransform& InTransform, const TArray<TWeakObjectPtr<UMaterialInterface>>& InMaterials, TFunctionRef<bool(UE::Geometry::FDynamicMesh3&)> InCreateMeshFunction);
+
+	bool AppendPrimitiveComponent(const UObject* InMeshObject, UPrimitiveComponent* InComponent, const FTransform& InTransform);
+
+	void ClearOutputMesh() const;
+
+	TMap<uint32, UE::Geometry::FDynamicMesh3> Meshes;
+
+	TArray<FCEClonerMeshInstance> MeshInstances;
 
 	UPROPERTY()
 	TObjectPtr<UDynamicMesh> OutputDynamicMesh;
