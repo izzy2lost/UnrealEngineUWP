@@ -130,7 +130,12 @@ struct FNameDeclaration
 	}
 };
 
-struct FNameBinding : public ICustomBinding
+struct FTestCustomBinding : public ICustomBinding
+{
+	virtual FStructSchemaId GetId() const = 0;
+};
+
+struct FNameBinding : public FTestCustomBinding
 {
 	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, void*, const FDebugIds& Debug) override
 	{
@@ -143,6 +148,8 @@ struct FNameBinding : public ICustomBinding
 		FSetElementId Idx = FSetElementId::FromInteger(FMemberReader(Src).GrabLeaf().AsS32());
 		*static_cast<FName*>(Dst) = Names.Get(Idx);
 	}
+
+	virtual FStructSchemaId GetId() const override { return Declaration.Id; }
 
 	FNameDeclaration	Declaration;
 	TSet<FName>			Names;
@@ -326,7 +333,7 @@ private:
 };
 
 
-static void TestSaveAndLoad(void (*Save)(FBatchSaver&), void (*Load)(FBatchLoader&))
+static void Run(void (*Save)(FBatchSaver&), void (*Load)(FBatchLoader&))
 {
 	TArray64<uint8> Data;
 	{
@@ -425,6 +432,13 @@ struct FNames
 };
 PP_REFLECT_STRUCT(PlainProps::UE::Test, FNames, void, Name, Names);
 static bool operator==(const FNames& A, const FNames& B) { return A.Name == B.Name && A.Names == B.Names; }
+
+struct FStr
+{
+	FString S;
+};
+PP_REFLECT_STRUCT(PlainProps::UE::Test, FStr, void, S);
+
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -537,8 +551,7 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 	SECTION("Basic")
 	{
 		TScopedStructBinding<FInt> Int;
-		TestSaveAndLoad(
-			[](FBatchSaver& Batch)
+		Run([](FBatchSaver& Batch)
 			{
 				Batch.Save(FInt{1234});
 			}, 
@@ -555,8 +568,7 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 		TScopedEnumDeclaration<EFlag1, EEnumMode::Flag> Flag1;
 		TScopedEnumDeclaration<EFlag2, EEnumMode::Flag> Flag2;
 		TScopedStructBinding<FEnums> Int;
-		TestSaveAndLoad(
-			[](FBatchSaver& Batch)
+		Run([](FBatchSaver& Batch)
 			{
 				Batch.Save(FEnums{EFlat1::A, EFlat2::A, EFlag1::A, EFlag2::A});
 				Batch.Save(FEnums{EFlat1::A, EFlat2::A, EFlag1::B, EFlag2::B});
@@ -574,11 +586,10 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 			});
 	}
 
-	SECTION("TArrayBasic")
+	SECTION("TArray")
 	{
 		TScopedStructBinding<FLeafArrays> LeafArrays;
-		TestSaveAndLoad(
-			[](FBatchSaver& Batch)
+		Run([](FBatchSaver& Batch)
 			{
 				Batch.Save(FLeafArrays{{}, {}});
 				Batch.Save(FLeafArrays{{false}, {1, 2}});
@@ -594,13 +605,12 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 			});
 	}
 
-	SECTION("TArrayComplex")
+	SECTION("Nesting")
 	{
 		TScopedEnumDeclaration<EFlat1, EEnumMode::Flat> Flat1;
 		TScopedStructBinding<FLeafArrays> LeafArrays;
 		TScopedStructBinding<FComplexArrays> ComplexArrays;
-		TestSaveAndLoad(
-			[](FBatchSaver& Batch)
+		Run([](FBatchSaver& Batch)
 			{
 				Batch.Save(FComplexArrays{});
 				Batch.Save(FComplexArrays{{'a', 'b'}, {EFlat1::A}, {{}, {{true}, {2}}}, {{EFlat1::B}, {}} });
@@ -616,8 +626,7 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 	{
 		TScopedStructBinding<FInt> Int;
 		TScopedStructBinding<FUniquePtrs> UniquePtrs;
-		TestSaveAndLoad(
-			[](FBatchSaver& Batch)
+		Run([](FBatchSaver& Batch)
 			{
 				Batch.Save(FUniquePtrs{});
 				Batch.Save(FUniquePtrs{MakeOne(true), MakeOne(FInt{3}), MakeOne(MakeOne(2)), MakeTwo(1.0, 2.0)});
@@ -632,8 +641,7 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 	SECTION("FName")
 	{
 		TScopedStructBinding<FNames> Names;
-		TestSaveAndLoad(
-			[](FBatchSaver& Batch)
+		Run([](FBatchSaver& Batch)
 			{
 				Batch.Save(FNames{ FName("A"), {FName("Y"), FName("A")} });
 			}, 
@@ -643,53 +651,47 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 			});
 	}
 
-	SECTION("Reference")
-	{}
-
 	SECTION("FString")
-	{}
+	{
+		TScopedStructBinding<FStr> Str;
+		Run([](FBatchSaver& Batch)
+			{
+				Batch.Save(FStr{});
+				Batch.Save(FStr{"ABC"});
+				if constexpr (sizeof(TCHAR) > 1)
+				{
+					Batch.Save(FStr{TEXT("\x7FF")});
+					Batch.Save(FStr{TEXT("\x3300")});
+					Batch.Save(FStr{TEXT("\xFE30")});
+					Batch.Save(FStr{TEXT("\xD83D\xDC69")});
+				}
+			}, 
+			[](FBatchLoader& Batch)
+			{
+				CHECK(Batch.Load<FStr>().S.IsEmpty());
+				CHECK(Batch.Load<FStr>().S == "ABC");
+				if constexpr (sizeof(TCHAR) > 1)
+				{
+					CHECK(Batch.Load<FStr>().S == TEXT("\x7FF"));
+					CHECK(Batch.Load<FStr>().S == TEXT("\x3300"));
+					CHECK(Batch.Load<FStr>().S == TEXT("\xFE30"));
+					CHECK(Batch.Load<FStr>().S == TEXT("\xD83D\xDC69"));
+				}
+			});	
+	}
 		
 	SECTION("TSet")
 	{}
 
 	SECTION("NestedContainer")
 	{}
-	
-	SECTION("TSetDelta")
+
+	SECTION("Reference")
 	{}
 
 	//SECTION("LeafOptional")
 	//{}
-	//
-	//SECTION("LeafSmartPtr")
-	//{}
 
-	//SECTION("LeafSetWhole")
-	//{}
-
-	//SECTION("LeafSparseArrayAppends")
-	//{}
-
-	//SECTION("LeafSetOps")
-	//{}
-	//
-	//SECTION("SparseStructArray")
-	//{}
-
-	//SECTION("DenseStructArray")
-	//{}
-	//
-	//SECTION("SubStructArray")
-	//{}
-
-	//SECTION("NestedLeafArray")
-	//{}
-
-	//SECTION("NestedStructArray")
-	//{}
-
-	//SECTION("StructToSubStructMapOps")
-	//{}
 }
 
 } // namespace PlainProps::UE::Test

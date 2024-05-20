@@ -318,7 +318,7 @@ struct FUnpackedLeafType
 	constexpr FUnpackedLeafType(ELeafType InType, ELeafWidth InWidth) : Type(InType), Width(InWidth) {}
 	constexpr FUnpackedLeafType(FLeafType In) : Type(In.Type), Width(In.Width) {}
 
-	constexpr bool operator==(FUnpackedLeafType O) { return Type == O.Type && Width == O.Width; }
+	constexpr bool operator==(FUnpackedLeafType O) const { return Type == O.Type && Width == O.Width; }
 	FMemberType Pack() const { return FMemberType(Type, Width); }
 };
 

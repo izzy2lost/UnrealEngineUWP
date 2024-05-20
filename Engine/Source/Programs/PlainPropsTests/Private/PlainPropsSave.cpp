@@ -48,150 +48,19 @@ static uint64 SaveLeaf(const uint8* Member, FUnpackedLeafBindType Leaf)
 	return uint64(0);
 }
 
-//FBuiltRange* SaveLeafRange(const void* Range, const IRangeBinding& Binding, FUnpackedLeafType Leaf)
-//{
-//	FSaveRangeContext Ctx = { { Range } };
-//
-//	Binding.ReadItems(Ctx);
-//
-//	if (const uint64 NumTotal = Ctx.Items.NumTotal)
-//	{
-//		FBuiltRange* Out = new (FMemory::Malloc(sizeof(FBuiltRange) + NumTotal * SizeOf(Leaf.Width))) FBuiltRange;
-//		Out->Num = NumTotal;
-//
-//		for (uint64 NumRead = 0; true; NumRead += Ctx.Items.Slice.Num)
-//		{
-//			check(Ctx.Items.Slice.Num > 0);
-//
-//			FMemory::Memcpy(Out->Data + NumRead, Ctx.Items.Slice.Data,  Ctx.Items.Slice.Num * SizeOf(Leaf.Width));
-//
-//			if (NumRead >= NumTotal)
-//			{
-//				check(NumRead == NumTotal);	
-//				break;
-//			}
-//
-//			Binding.ReadItems(Ctx);	
-//		}
-//
-//		return Out;
-//	}
-//	
-//	return nullptr;
-//}
-//
-//FBuiltRange* SaveStructRange(const void* Range, const IRangeBinding& Binding, FStructType Type, FStructSchemaId Id, const FSaveContext& OuterCtx)
-//{
-//	FSaveRangeContext Ctx = { { Range } };
-//
-//	Binding.ReadItems(Ctx);
-//
-//	if (const uint64 NumTotal = Ctx.Items.NumTotal)
-//	{
-//		TArray64<TUniquePtr<FBuiltStruct>> Structs;
-//		Structs.Reserve(NumTotal);
-//
-//		for (uint64 NumRead = 0; true; NumRead += Ctx.Items.Slice.Num)
-//		{
-//			check(Ctx.Items.Slice.Num > 0);
-//
-//			for (uint64 Idx = 0, Num = Ctx.Items.Slice.Num; Idx < Num; ++Idx)
-//			{
-//				Structs.Emplace(SaveStruct(Ctx.Items.Slice.At(Idx, Ctx.Items.Stride), Id, OuterCtx));
-//			}
-//
-//			if (NumRead >= NumTotal)
-//			{
-//				check(NumRead == NumTotal);	
-//				break;
-//			}
-//
-//			Binding.ReadItems(Ctx);	
-//		}
-//
-//		return Private::BuildStructRange(/* ownership xfer */ Structs);
-//	}
-//	
-//	return nullptr;
-//}
-
-
-
-//
-//static FBuiltRange* SaveNestedRange(const void* Range, const IRangeBinding& Binding, FRangeType Type, FRangeMemberBinding InnerBinding, const FSaveContext& OuterCtx)
-//{
-//	FSaveRangeContext Ctx = { { Range } };
-//
-//	Binding.ReadItems(Ctx);
-//
-//	if (const uint64 NumTotal = Ctx.Items.NumTotal)
-//	{
-//		TArray64<FBuiltRange*> Ranges;
-//		Ranges.Reserve(NumTotal);
-//
-//		for (uint64 NumRead = 0; true; NumRead += Ctx.Items.Slice.Num)
-//		{
-//			check(Ctx.Items.Slice.Num > 0);
-//
-//			for (uint64 Idx = 0, Num = Ctx.Items.Slice.Num; Idx < Num; ++Idx)
-//			{
-//				Ranges.Emplace(SaveRange(Ctx.Items.Slice.At(Idx, Ctx.Items.Stride), InnerBinding, OuterCtx));
-//			}
-//
-//			if (NumRead >= NumTotal)
-//			{
-//				check(NumRead == NumTotal);	
-//				break;
-//			}
-//
-//			Binding.ReadItems(Ctx);	
-//		}
-//
-//		return Private::BuildNestedRange(/* ownership xfer */ Ranges);
-//	}
-//	
-//	return nullptr;
-//}
-
-
-//struct FStructRangeSaver
-//{
-//	FStructSchemaId Id;
-//	TArray64<TUniquePtr<FBuiltStruct>> Structs;
-//
-//	void Init(uint64 Num)
-//	{ 
-//		Ranges.Reserve(NumTotal);
-//	}
-//
-//	void Append(FExistingItemSlice Slice, uint32 Stride, FSaveContext& OuterCtx)
-//	{
-//		for (uint64 Idx = 0; Idx < Slice.Num; ++Idx)
-//		{
-//			Ranges.Emplace(SaveRange(Slice.At(Idx, Stride), Id, OuterCtx));
-//		}
-//	}
-//
-//	FBuiltRange* Build()
-//	{
-//		Private::BuildStructRange(/* ownership xfer */ Structs);
-//	}
-//};
-
 struct FLeafRangeSaver
 {
 	FBuiltRange* Out;
 	uint8* OutIt;
 
 	FLeafRangeSaver(uint64 Num, SIZE_T LeafSize)
-	: Out(new (FMemory::Malloc(sizeof(FBuiltRange) + Num * LeafSize)) FBuiltRange)
+	: Out(FBuiltRange::Create(Num, LeafSize))
 	, OutIt(Out->Data)
-	{ 
-		Out->Num = Num;
-	}
+	{}
 
-	void Append(FExistingItemSlice Slice, uint32, SIZE_T LeafSize, const FSaveContext&)
+	void Append(FExistingItemSlice Slice, uint32 Stride, SIZE_T LeafSize, const FSaveContext&)
 	{
+		check(Stride == LeafSize);
 		FMemory::Memcpy(OutIt, Slice.Data, Slice.Num * LeafSize);
 		OutIt += Slice.Num * LeafSize;
 	}
@@ -201,6 +70,8 @@ struct FLeafRangeSaver
 		return Out;
 	}
 };
+
+//////////////////////////////////////////////////////////////////////////
 
 template<typename BuiltItemType, typename ItemSchemaType>
 struct TStructuralRangeSaver
@@ -229,8 +100,10 @@ struct TStructuralRangeSaver
 using FNestedRangeSaver = TStructuralRangeSaver<FBuiltRange*, FRangeMemberBinding>;
 using FStructRangeSaver = TStructuralRangeSaver<TUniquePtr<FBuiltStruct>, FStructSchemaId>;
 
+//////////////////////////////////////////////////////////////////////////
+
 template<class SaverType, typename InnerContextType>
-[[nodiscard]] FBuiltRange* SaveRange(const void* Range, const IRangeBinding& Binding, const FSaveContext& OuterCtx, InnerContextType InnerCtx)
+[[nodiscard]] FBuiltRange* SaveRange(const void* Range, const IItemRangeBinding& Binding, const FSaveContext& OuterCtx, InnerContextType InnerCtx)
 {
 	FSaveRangeContext ReadCtx = { { Range } };
 	Binding.ReadItems(ReadCtx);
@@ -243,10 +116,10 @@ template<class SaverType, typename InnerContextType>
 			check(ReadCtx.Items.Slice.Num > 0);
 			Saver.Append(ReadCtx.Items.Slice, ReadCtx.Items.Stride, InnerCtx, OuterCtx);
 		
-			ReadCtx.Request.Index += ReadCtx.Items.Slice.Num;
-			if (ReadCtx.Request.Index >= NumTotal)
+			ReadCtx.Request.NumRead += ReadCtx.Items.Slice.Num;
+			if (ReadCtx.Request.NumRead >= NumTotal)
 			{
-				check(ReadCtx.Request.Index == NumTotal);	
+				check(ReadCtx.Request.NumRead == NumTotal);	
 				return Saver.Finish();
 			}
 
@@ -270,20 +143,36 @@ template<class SaverType, typename InnerContextType>
 	return Leaf.Arithmetic.Width;
  }
 
+[[nodiscard]] static FBuiltRange* SaveLeafRange(const uint8* Range, const ILeafRangeBinding& Binding, FUnpackedLeafType Leaf)
+{
+	FLeafRangeAllocator Allocator(Leaf);
+	Binding.SaveLeaves(Range, Allocator);
+	return Allocator.GetAllocatedRange();
+}
+
 [[nodiscard]] static FBuiltRange* SaveRange(const uint8* Range, FRangeMemberBinding Member, const FSaveContext& Ctx)
 {
-	const IRangeBinding& Binding = Member.RangeBindings[0].GetBinding();
+	FRangeBinding Binding = Member.RangeBindings[0];
 	FMemberBindType InnerType = Member.InnerTypes[0];
+
+	if (Binding.IsLeafBinding())
+	{
+		return SaveLeafRange(Range, Binding.AsLeafBinding(), UnpackNonBitfield(InnerType.AsLeaf()));
+	}
+
+	const IItemRangeBinding& ItemBinding = Binding.AsItemBinding();
 	switch (InnerType.GetKind())
 	{
-	case EMemberKind::Leaf:		return SaveRange<FLeafRangeSaver>(  Range, Binding, Ctx, SizeOf(GetArithmeticWidth(InnerType.AsLeaf())));
-	case EMemberKind::Range:	return SaveRange<FNestedRangeSaver>(Range, Binding, Ctx, GetInnerRange(Member));
-	case EMemberKind::Struct:	return SaveRange<FStructRangeSaver>(Range, Binding, Ctx, static_cast<FStructSchemaId>(Member.InnermostSchema.Get()));
+	case EMemberKind::Leaf:		return SaveRange<FLeafRangeSaver>(  Range, ItemBinding, Ctx, SizeOf(GetArithmeticWidth(InnerType.AsLeaf())));
+	case EMemberKind::Range:	return SaveRange<FNestedRangeSaver>(Range, ItemBinding, Ctx, GetInnerRange(Member));
+	case EMemberKind::Struct:	return SaveRange<FStructRangeSaver>(Range, ItemBinding, Ctx, static_cast<FStructSchemaId>(Member.InnermostSchema.Get()));
 	}
 
 	check(false);
 	return nullptr;
 }
+
+//////////////////////////////////////////////////////////////////////////
 
 [[nodiscard]] static FBuiltRange* SaveRangeItem(const uint8* Range, FRangeMemberBinding Member, const FSaveContext& Ctx)
 { 

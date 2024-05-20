@@ -97,10 +97,10 @@ PP_API FMemberSchema MakeNestedRangeSchema(ERangeSizeType SizeType, const FMembe
 
 namespace Private
 {
-	PP_API [[nodiscard]] FBuiltRange* BuildStructuralRange(/* in-out */ TArrayView64<FBuiltRange*> Structs);
-	PP_API [[nodiscard]] FBuiltRange* BuildStructuralRange(/* in-out */ TArrayView64<TUniquePtr<FBuiltStruct>> Structs);
-	PP_API [[nodiscard]] FBuiltRange* BuildLeafRange(FUnpackedLeafType Leaf, uint64 Num, FMemoryView Values);
-	PP_API void						NormalizeLeafRange(FUnpackedLeafType Leaf, FBuiltRange& Out);
+	PP_API [[nodiscard]] FBuiltRange*	BuildStructuralRange(/* in-out */ TArrayView64<FBuiltRange*> Structs);
+	PP_API [[nodiscard]] FBuiltRange*	BuildStructuralRange(/* in-out */ TArrayView64<TUniquePtr<FBuiltStruct>> Structs);
+	PP_API [[nodiscard]] FBuiltRange*	BuildLeafRange(FUnpackedLeafType Leaf, uint64 Num, FMemoryView Values);
+	PP_API void							NormalizeLeafRange(FUnpackedLeafType Leaf, FBuiltRange& Out);
 
 	template<typename LeafType, typename SizeType>
 	[[nodiscard]] FBuiltRange* BuildLeafRange(const LeafType* Values, SizeType InNum)

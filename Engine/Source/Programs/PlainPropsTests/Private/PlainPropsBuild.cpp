@@ -11,6 +11,16 @@
 namespace PlainProps
 {
 
+FBuiltRange* FBuiltRange::Create(uint64 NumItems, SIZE_T ItemSize)
+{
+	check(NumItems > 0);
+	FBuiltRange* Out = new (FMemory::Malloc(sizeof(FBuiltRange) + NumItems * ItemSize)) FBuiltRange;
+	Out->Num = NumItems;
+	return Out;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
 FMemberSchema MakeNestedRangeSchema(ERangeSizeType SizeType, const FMemberSchema& InnerRangeSchema)
 {
 	FMemberSchema Out = { FMemberType(SizeType), InnerRangeSchema.InnerSchema };
@@ -25,10 +35,8 @@ FMemberSchema MakeNestedRangeSchema(ERangeSizeType SizeType, const FMemberSchema
 template<typename BuiltType>
 FBuiltRange* BuildStructuralRangeImpl(/* in-out */ TArrayView64<BuiltType> Values)
 {
-	check(Values.Num() > 0);
 	static_assert(alignof(FBuiltRange) >= alignof(BuiltType));
-	FBuiltRange* Out = new (FMemory::Malloc(sizeof(FBuiltRange) + Values.Num() * sizeof(BuiltType))) FBuiltRange;
-	Out->Num = Values.Num();
+	FBuiltRange* Out = FBuiltRange::Create(Values.Num(), sizeof(FBuiltRange));
 	BuiltType* DataIt = reinterpret_cast<BuiltType*>(Out->Data);
 	for (BuiltType& Value : Values)
 	{
@@ -52,11 +60,8 @@ namespace Private
 
 	FBuiltRange* BuildLeafRange(FUnpackedLeafType Leaf, uint64 Num, FMemoryView Values)
 	{
-		check(Num > 0);
 		check(Values.GetSize() == Num * SizeOf(Leaf.Width));
-
-		FBuiltRange* Out = new (FMemory::Malloc(sizeof(FBuiltRange) + Values.GetSize())) FBuiltRange;
-		Out->Num = Num;
+		FBuiltRange* Out = FBuiltRange::Create(Num, SizeOf(Leaf.Width));
 		FMemory::Memcpy(Out->Data, Values.GetData(), Values.GetSize());
 		return Out;
 	}

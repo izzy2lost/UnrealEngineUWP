@@ -2,6 +2,7 @@
 
 #include  "PlainPropsBind.h"
 #include  "PlainPropsIndex.h"
+#include  "PlainPropsInternalBuild.h"
 #include  "PlainPropsInternalFormat.h"
 #include  "PlainPropsInternalRead.h"
 
@@ -113,11 +114,29 @@ FSchemaId FMemberVisitor::GrabInnerSchema()
 	return Schema.GetInnerSchemas()[InnerSchemaIdx++];
 }
 
-FRangeBinding::FRangeBinding(const IRangeBinding& Binding, ERangeSizeType SizeType)
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+FRangeBinding::FRangeBinding(const IItemRangeBinding& Binding, ERangeSizeType SizeType)
 : Handle(uint64(&Binding) | uint8(SizeType))
 {
-	check(&Binding == &GetBinding());
+	check(&Binding == &AsItemBinding());
 	check(SizeType == GetSizeType());
+}
+
+FRangeBinding::FRangeBinding(const ILeafRangeBinding& Binding, ERangeSizeType SizeType)
+: Handle(uint64(&Binding) | uint8(SizeType) | LeafMask)
+{
+	check(&Binding == &AsLeafBinding());
+	check(SizeType == GetSizeType());
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+void* FLeafRangeAllocator::Allocate(FUnpackedLeafType Leaf, uint64 Num)
+{
+	check(!Range);
+	Range = FBuiltRange::Create(Num, SizeOf(Leaf.Width));
+	return Range->Data;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////

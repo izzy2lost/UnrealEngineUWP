@@ -51,18 +51,6 @@ public:
 	const FSchemaBinding&		AsSchema() const		{ check(IsSchema()); return *AsPtr<FSchemaBinding>(); }
 
 private:
-	// This bit is always zero in user mode addresses and most likely won't be used by current or future
-	// CPU features like ARM's PAC / Top-Byte Ignore or Intel's Linear Address Masking / 5-Level Paging
-#if defined(__x86_64__) || defined(_M_X64)
-	static constexpr uint32 KernelAddressBit = 63;
-#elif defined(__aarch64__) || defined(_M_ARM64)
-	static constexpr uint32 KernelAddressBit = 55;
-#else
-	#error Unsupported architecture, please declare which address bit distinguish user space from kernel space
-#endif
-	// todo handle WASM, copy updated KernelAddressBit from AssetDataTagMap.h
-
-	
 	static constexpr uint64 SparseMask			= uint64(1) << KernelAddressBit;
 	static constexpr uint64 PtrMask				= ~(SparseMask | 0b111);
 	static constexpr uint64 LoMask				= 0b11;
@@ -386,27 +374,39 @@ public:
 
 	static void LoadRange(uint8* Member, FByteReader& ByteIt, FBitCacheReader& BitIt, const FLoadBatch& Batch, const FLoadRangePlan& Range)
 	{
+		uint64 Num = GrabRangeNum(Range.MaxSize, ByteIt, BitIt);
+		FRangeBinding Binding = Range.Bindings[0];
 		FMemberBindType InnerType = Range.InnerTypes[0];
-		const IRangeBinding& Binding = Range.Bindings[0].GetBinding();
-
-		if (uint64 Num = GrabRangeNum(Range.MaxSize, ByteIt, BitIt))
+		
+		if (Binding.IsLeafBinding())
 		{
+			LoadLeafRange(Member, Num, Binding.AsLeafBinding(), ByteIt, UnpackNonBitfield(InnerType.AsLeaf()));
+		}
+		else if (Num)
+		{
+			const IItemRangeBinding& ItemBinding = Binding.AsItemBinding();
 			switch (InnerType.GetKind())
 			{
-				case EMemberKind::Leaf:		LoadRangeValues(Member, Num, Binding, ByteIt, Batch, InnerType.AsLeaf()); break;
-				case EMemberKind::Range:	LoadRangeValues(Member, Num, Binding, ByteIt, Batch, Range.Tail()); break;
-				case EMemberKind::Struct:	LoadRangeValues(Member, Num, Binding, ByteIt, Batch, Range.InnermostStruct.Get()); break;
+				case EMemberKind::Leaf:		LoadRangeValues(Member, Num, ItemBinding, ByteIt, Batch, UnpackNonBitfield(InnerType.AsLeaf())); break;
+				case EMemberKind::Range:	LoadRangeValues(Member, Num, ItemBinding, ByteIt, Batch, Range.Tail()); break;
+				case EMemberKind::Struct:	LoadRangeValues(Member, Num, ItemBinding, ByteIt, Batch, Range.InnermostStruct.Get()); break;
 			}
 		}
 		else
 		{
 			FLoadRangeContext NoItemsCtx{.Request = {Member, 0}};
-			(Binding.MakeItems)(NoItemsCtx);
+			(Binding.AsItemBinding().MakeItems)(NoItemsCtx);
 		}
+	}	
+	
+	static void LoadLeafRange(uint8* Member, uint64 Num, const ILeafRangeBinding& Binding, FByteReader& ByteIt, FUnpackedLeafType Leaf)
+	{
+		FMemoryView Values = Num ? GrabRangeValues(ByteIt, Num, Leaf) : FMemoryView();
+		Binding.LoadLeaves(Member, FLeafRangeLoadView(Values.GetData(), Num, Leaf));
 	}
 
 	template<class SchemaType>
-	static void LoadRangeValues(uint8* Member, uint64 Num, const IRangeBinding& Binding, FByteReader& ByteIt, const FLoadBatch& Batch, SchemaType&& Schema)
+	static void LoadRangeValues(uint8* Member, uint64 Num, const IItemRangeBinding& Binding, FByteReader& ByteIt, const FLoadBatch& Batch, SchemaType&& Schema)
 	{
 		FByteReader ValueIt(GrabRangeValues(ByteIt, Num, Schema));
 		FBitCacheReader BitIt; // Only used by ranges of ERangeSizeType::Uni ranges
@@ -426,10 +426,10 @@ public:
 		}
 	}
 
-	static FMemoryView GrabRangeValues(FByteReader& ByteIt, uint64 Num, FLeafBindType Schema)
+	static FMemoryView GrabRangeValues(FByteReader& ByteIt, uint64 Num, FUnpackedLeafType Leaf)
 	{
 		check(Num > 0);
-		return ByteIt.GrabSlice(GetLeafRangeSize(Num, ToLeafType(Schema)));
+		return ByteIt.GrabSlice(GetLeafRangeSize(Num, Leaf));
 	}
 
 	template<class SchemaType>
@@ -438,27 +438,21 @@ public:
 		return ByteIt.GrabSkippableSlice();
 	}
 		
-	static void CopyRangeValues(const FConstructedItems& Items, FByteReader& ByteIt, FBitCacheReader&, const FLoadBatch& Batch, FLeafBindType Leaf)
+	static void CopyRangeValues(const FConstructedItems& Items, FByteReader& ByteIt, FBitCacheReader&, const FLoadBatch& Batch, FUnpackedLeafType Leaf)
 	{
-		switch (Leaf.Bind.Type)
+		check(Items.Size == SizeOf(Leaf.Width));
+		if (Leaf.Type != ELeafType::Bool)
 		{
-		case ELeafBindType::Bool:
+			FMemory::Memcpy(Items.Data, ByteIt.GrabBytes(Items.NumBytes()), Items.NumBytes());
+		}
+		else
 		{
-			check(Items.Size == sizeof(bool));
 			FBoolRangeView Bits(ByteIt.GrabBytes(Align(Items.Num, 8)/8), Items.Num);
 			uint8* It = Items.Data;
 			for (bool bBit : Bits)
 			{
 				reinterpret_cast<bool&>(*It++) = bBit;
 			}
-
-			break;
-		}
-		default:
-			checkf(Leaf.Bind.Type != ELeafBindType::BitfieldBool, TEXT("Loading to bitfield array is unsupported"));
-			check(Items.Size == SizeOf(Leaf.Arithmetic.Width));
-			FMemory::Memcpy(Items.Data, ByteIt.GrabBytes(Items.NumBytes()), Items.NumBytes());
-			break;
 		}
 	}
 	

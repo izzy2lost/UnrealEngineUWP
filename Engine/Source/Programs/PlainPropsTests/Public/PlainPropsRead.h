@@ -250,8 +250,8 @@ public:
 	bool						IsNestedRange() const	{ return Schema.ItemType.GetKind() == EMemberKind::Range; }
 
 	PP_API FLeafRangeView		AsLeaves() const;		// @pre IsLeafRange()
-	PP_API FStructRangeView	AsStructs() const;		// @pre IsStructRange()
-	PP_API FNestedRangeView	AsRanges() const;		// @pre IsNestedRange()
+	PP_API FStructRangeView		AsStructs() const;		// @pre IsStructRange()
+	PP_API FNestedRangeView		AsRanges() const;		// @pre IsNestedRange()
 
 private:
 	friend FMemberReader;
@@ -401,6 +401,7 @@ public:
 	template<typename LeafType>
 	TRangeView<LeafType> As() const
 	{
+		static_assert(!std::is_same_v<LeafType, bool>);
 		check(FUnpackedLeafType(Type, Width) == ReflectLeaf<LeafType>);
 		return TRangeView<LeafType>(reinterpret_cast<const LeafType*>(Values), NumItems);
 	}

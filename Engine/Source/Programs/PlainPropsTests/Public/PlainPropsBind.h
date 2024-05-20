@@ -5,23 +5,24 @@
 #include "Containers/ArrayView.h"
 #include "Memory/MemoryFwd.h"
 #include "Memory/MemoryView.h"
-#include  "PlainPropsTypes.h"
 #include  "PlainPropsCtti.h"
 #include  "PlainPropsDeclare.h"
+#include  "PlainPropsRead.h"
+#include  "PlainPropsTypes.h"
 
 namespace PlainProps 
 {
 
+struct FBuiltRange;
 struct FBuiltStruct;
 class FIdIndexerBase;
 struct FLoadBatch;
 class FMemberBuilder;
 struct FSchemaBatch;
 class FStructBinding;
-struct FStructView;
 class FRangeBinding;
 struct FTypedRange;
-class IRangeBinding;
+class IItemRangeBinding;
 template<class T> class TIdIndexer;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -163,6 +164,13 @@ struct FUnpackedLeafBindType
 	}
 };
 
+// @pre Type != ELeafBindType::BitfieldBool
+inline FUnpackedLeafType UnpackNonBitfield(FLeafBindType Packed)
+{
+	FUnpackedLeafBindType Unpacked(Packed);
+	return { ToLeafType(Unpacked.Type), Unpacked.Width };
+}
+
 struct FLeafMemberBinding
 {
 	FUnpackedLeafBindType	Leaf;
@@ -265,7 +273,7 @@ class FConstructionRequest
 	const uint64 Num = 0;
 	uint64 Index = 0;
 
-	friend class FRangeLoader;
+	friend FRangeLoader;
 	FConstructionRequest(void* InRange, uint64 InNum) : Range(InRange), Num(InNum) {}
 	
 public:
@@ -309,7 +317,7 @@ public:
 	}
 
 private:
-	friend class FRangeLoader;
+	friend FRangeLoader;
 	uint8*	Data = nullptr;
 	uint64	Num = 0;			
 	uint32	Size = 0;
@@ -322,8 +330,8 @@ private:
 struct FLoadRangeContext
 {
 	FConstructionRequest	Request;		// Request to construct items to be loaded
-	FConstructedItems		Items;			// Response from IRangeBinding
-	uint64					Scratch[64];	// Scratch memory for IRangeBinding
+	FConstructedItems		Items;			// Response from IItemRangeBinding
+	uint64					Scratch[64];	// Scratch memory for IItemRangeBinding
 };
 
 // todo: switch to class
@@ -332,8 +340,10 @@ struct FGetItemsRequest
 	template<typename T>
 	const T& GetRange() const { return *reinterpret_cast<const T*>(Range); }
 
+	bool IsFirstCall() const { return NumRead == 0;}
+
 	const void* Range = nullptr;
-	uint64 Index = 0;
+	uint64 NumRead = 0;
 };
 
 struct FExistingItemSlice
@@ -372,39 +382,118 @@ struct FExistingItems
 	{
 		SetAll(FExistingItemSlice{Items, NumItems}, sizeof(ItemType));
 	}
-
-	//bool HasAll() const
-	//{
-	//	return NumTotal == Slice.Num;
-	//}
 };
 
+
+// TODO: Consider API changes so that
+//  - Leaf ranges can allocate data and fill it in directly
+//  - Leaf ranges can allocate more capacity than is used
+//  - Maybe separate Finalize function
+//  - Continue hiding intermediate details (e.g. FBuiltRange) and allocator
 struct FSaveRangeContext
 {
-	FGetItemsRequest		Request;	// Request to get items to be saved
-	FExistingItems			Items;		// Response from IRangeBinding
-	uint64					Scratch[8]; // Scratch memory for IRangeBinding
+	FGetItemsRequest		Request;		// Request to get items to be saved
+	FExistingItems			Items;			// Response from IRangeBinding
+	uint64					Scratch[8]; 	// Scratch memory for IRangeBinding
 };
 
-class IRangeBinding
+class alignas(16) IItemRangeBinding
 {
 public:
-	virtual void MakeItems(FLoadRangeContext& Ctx) const = 0;
 	virtual void ReadItems(FSaveRangeContext& Ctx) const = 0;
+	virtual void MakeItems(FLoadRangeContext& Ctx) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Possible save opt: Use paged linear allocator that only allocates on page exhaustion
+class FLeafRangeAllocator
+{
+	const FUnpackedLeafType		Expected;
+	FBuiltRange*				Range = nullptr;
+
+	void* Allocate(FUnpackedLeafType Type, uint64 Num);
+
+public:
+	FLeafRangeAllocator(FUnpackedLeafType InExpected) : Expected(InExpected) {}
+
+	template<typename LeafType, typename SizeType>
+	LeafType* AllocateRange(SizeType Num)
+	{
+		check(ReflectLeaf<LeafType> == Expected);
+		return Num ? static_cast<LeafType*>(Allocate(ReflectLeaf<LeafType>, IntCastChecked<uint64>(Num))) : nullptr;
+	}
+
+	FBuiltRange* GetAllocatedRange() { return Range; }
+};
+
+class FLeafRangeLoadView
+{
+	const void*				Data;
+	uint64					Num;
+	FUnpackedLeafType		Leaf;
+
+public:
+	FLeafRangeLoadView(const void* InData, uint64 InNum, FUnpackedLeafType InLeaf)
+	: Data(InData)
+	, Num(InNum)
+	, Leaf(InLeaf)
+	{}
+	
+	// The returned ranges hide the internal representations so we can change format in the future, 
+	// e.g. store zeroes or 1.0f in some compact fashion or even var int encodings
+	template<typename LeafType>
+	auto As() const
+	{
+		check(Leaf == ReflectLeaf<LeafType>);
+		if constexpr (std::is_same_v<bool, LeafType>)
+		{
+			return FBoolRangeView(static_cast<const uint8*>(Data), Num);
+		}
+		else
+		{
+			return TRangeView<LeafType>(static_cast<const LeafType*>(Data), Num);
+		}
+	}
+};
+
+// Specialized binding for transcoding leaf ranges
+class alignas(16) ILeafRangeBinding
+{
+public:
+	virtual void SaveLeaves(const void* Range, FLeafRangeAllocator& Out) const = 0;
+	virtual void LoadLeaves(void* Range, FLeafRangeLoadView Leaves) const = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Todo: Switch to FPlatformMemory::KernelAddressBit once that is submitted
+//
+// This bit is always zero in user mode addresses and most likely won't be used by current or future
+// CPU features like ARM's PAC / Top-Byte Ignore or Intel's Linear Address Masking / 5-Level Paging
+#if defined(__x86_64__) || defined(_M_X64)
+	static constexpr uint32 KernelAddressBit = 63;
+#elif defined(__aarch64__) || defined(_M_ARM64)
+	static constexpr uint32 KernelAddressBit = 55;
+#else
+	#error Unsupported architecture, please declare which address bit distinguish user space from kernel space
+#endif
+
 class FRangeBinding
 {
-	static constexpr uint64		SizeMask = 0b111;
+	static constexpr uint64		SizeMask = 0b1111;
+	static constexpr uint64		LeafMask = uint64(1) << KernelAddressBit;
+	static constexpr uint64		BindMask = ~(SizeMask | LeafMask);
 	uint64						Handle;
 
 public:
-	FRangeBinding(const IRangeBinding& Binding, ERangeSizeType SizeType);
-
-	const IRangeBinding&		GetBinding() const	{ return *reinterpret_cast<IRangeBinding*>(Handle & ~SizeMask); }
-	ERangeSizeType				GetSizeType() const { return static_cast<ERangeSizeType>(Handle & SizeMask); }
+	FRangeBinding(const IItemRangeBinding& Binding, ERangeSizeType SizeType);
+	FRangeBinding(const ILeafRangeBinding& Binding, ERangeSizeType SizeType);
+	
+	bool						IsLeafBinding() const		{ return !!(LeafMask & Handle); }
+	const IItemRangeBinding&	AsItemBinding() const		{ check(!IsLeafBinding()); return *reinterpret_cast<IItemRangeBinding*>(Handle & BindMask); }
+	const ILeafRangeBinding&	AsLeafBinding() const		{ check( IsLeafBinding()); return *reinterpret_cast<ILeafRangeBinding*>(Handle & BindMask); }
+	ERangeSizeType				GetSizeType() const			{ return static_cast<ERangeSizeType>(Handle & SizeMask); }
 };
 
 template<typename T>
@@ -424,8 +513,6 @@ struct FMemberBinding
 	FOptionalSchemaId				InnermostSchema;	// Enum or struct schema
 	TConstArrayView<FRangeBinding>	RangeBindings;		// Non-empty -> Range
 };
-
-////////////////////////////////////////////////////////////////////////////////////////////////
 
 class FSchemaBindings
 {
@@ -800,4 +887,3 @@ FSchemaBatch*			CreateTranslatedSchemas(const FSchemaBatch& Schemas, FIdBinding 
 void					DestroyTranslatedSchemas(const FSchemaBatch* Schemas);
 
 } // namespace PlainProps
-

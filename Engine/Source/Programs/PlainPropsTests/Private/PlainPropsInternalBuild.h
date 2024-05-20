@@ -50,13 +50,14 @@ struct FBuiltStruct
 struct FBuiltRange
 {
 	~FBuiltRange() = delete;
-	static uint64 Delete(FBuiltRange* Range, FOptionalSchemaId InnerSchema, TConstArrayView<FMemberType> InnerTypes);
+	[[nodiscard]] static FBuiltRange*					Create(uint64 NumItems, SIZE_T ItemSize);
+	static uint64										Delete(FBuiltRange* Range, FOptionalSchemaId InnerSchema, TConstArrayView<FMemberType> InnerTypes);
 
-	uint64				Num;
-	uint8				Data[0];
+	uint64												Num;
+	uint8												Data[0];
 	
-	TConstArrayView64<const FBuiltRange*> AsRanges() const { return { reinterpret_cast<FBuiltRange const* const*>(Data), IntCastChecked<int64>(Num) }; }
-	TConstArrayView64<TUniquePtr<const FBuiltStruct>> AsStructs() const { return { reinterpret_cast<const TUniquePtr<const FBuiltStruct>*>(Data), IntCastChecked<int64>(Num) }; }
+	TConstArrayView64<const FBuiltRange*>				AsRanges() const { return { reinterpret_cast<FBuiltRange const* const*>(Data), IntCastChecked<int64>(Num) }; }
+	TConstArrayView64<TUniquePtr<const FBuiltStruct>>	AsStructs() const { return { reinterpret_cast<const TUniquePtr<const FBuiltStruct>*>(Data), IntCastChecked<int64>(Num) }; }
 };
 
 //////////////////////////////////////////////////////////////////////////

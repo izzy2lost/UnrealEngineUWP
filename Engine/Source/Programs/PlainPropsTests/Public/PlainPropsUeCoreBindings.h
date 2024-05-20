@@ -99,12 +99,13 @@ namespace PlainProps::UE
 
 #include "Containers/Array.h"
 #include "Containers/Set.h"
+#include "Templates/UniquePtr.h"
 
 namespace PlainProps::UE
 {
 
 template <typename T>
-struct TArrayBinding : public IRangeBinding
+struct TArrayBinding : public IItemRangeBinding
 {
 	using SizeType = int32;
 	using ItemType = T;
@@ -134,8 +135,63 @@ struct TArrayBinding : public IRangeBinding
 
 //////////////////////////////////////////////////////////////////////////
 
+struct FStringBinding : public ILeafRangeBinding
+{
+	using SizeType = int32;
+	using ItemType = char8_t;
+
+	virtual void SaveLeaves(const void* Range, FLeafRangeAllocator& Out) const override
+	{
+		const TArray<TCHAR>& Src = static_cast<const FString*>(Range)->GetCharArray();
+		int32 SrcLen = Src.Num() - 1;
+		if (SrcLen <= 0)
+		{
+		}
+		else if constexpr (sizeof(TCHAR) == sizeof(char8_t))
+		{
+			char8_t* Utf8 = Out.AllocateRange<char8_t>(SrcLen);
+			FMemory::Memcpy(Utf8, Src.GetData(), SrcLen);
+		}
+		else
+		{
+			int32 Utf8Len = FPlatformString::ConvertedLength<UTF8CHAR>(Src.GetData(), SrcLen);
+			char8_t* Utf8 = Out.AllocateRange<char8_t>(Utf8Len);
+			UTF8CHAR* Utf8End = FPlatformString::Convert(reinterpret_cast<UTF8CHAR*>(Utf8), Utf8Len, Src.GetData(), SrcLen);	
+			check((char8_t*)Utf8End - Utf8 == Utf8Len);
+		}
+	}
+
+	virtual void LoadLeaves(void* Range, FLeafRangeLoadView Items) const override
+	{
+		TArray<TCHAR>& Dst = static_cast<FString*>(Range)->GetCharArray();
+		TRangeView<char8_t> Utf8 = Items.As<char8_t>();
+		const UTF8CHAR* Src = reinterpret_cast<const UTF8CHAR*>(Utf8.begin());
+		int32 SrcLen = static_cast<int32>(Utf8.Num());
+		if (SrcLen == 0)
+		{
+			Dst.Reset();
+		}
+		else if constexpr (sizeof(TCHAR) == sizeof(char8_t))
+		{
+			Dst.SetNum(SrcLen + 1);
+			FMemory::Memcpy(Dst.GetData(), Src, SrcLen);
+			Dst[SrcLen] = '\0';	
+		}
+		else
+		{
+			int32 DstLen = FPlatformString::ConvertedLength<TCHAR>(Src, SrcLen);
+			Dst.SetNum(DstLen + 1);
+			TCHAR* DstEnd = FPlatformString::Convert(Dst.GetData(), DstLen, Src, SrcLen);
+			check(DstEnd - Dst.GetData() == DstLen);
+			*DstEnd = '\0';
+		}
+	}
+};
+
+//////////////////////////////////////////////////////////////////////////
+
 template <typename T>
-struct TUniquePtrBinding : public IRangeBinding
+struct TUniquePtrBinding : public IItemRangeBinding
 {
 	using SizeType = bool;
 	using ItemType = T;
@@ -177,7 +233,7 @@ struct TUniquePtrBinding : public IRangeBinding
 //////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-struct TSetBinding : public IRangeBinding
+struct TSetBinding : public IItemRangeBinding
 {
 	using SizeType = int32;
 	using ItemType = T;
@@ -279,9 +335,7 @@ struct TSetBinding : public IRangeBinding
 	}
 };
 
-
 //////////////////////////////////////////////////////////////////////////
-
 struct FSetOps
 {
 	union
@@ -312,7 +366,7 @@ struct TSetDeltaBinding : public ICustomBinding
 	
 	static TConstArrayView<FMemberId> GetMemberIds() { return FSetOps::Get<Ids>().All; }
 
-	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, void* UserData, const FDebugIds& Debug) const override;
+	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, void* UserData, const FDebugIds& Debug) override;
 
 	virtual void LoadStruct(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const override
 	{
@@ -394,7 +448,7 @@ struct TSetDeltaBinding : public ICustomBinding
 		else if constexpr (std::is_default_constructible_v<T>())
 		{
 			using Binding = RangeBind<T>;
-			const IRangeBinding* Bindings[] = {};// ... generate somehow ... };
+			const IItemRangeBinding* Bindings[] = {};// ... generate somehow ... };
 			T Tmp;
 			for (FRangeView Item : Items.AsRanges())
 			{
@@ -481,6 +535,12 @@ namespace PlainProps
 	struct TRangeBind<TArray<T>>
 	{
 		using Type = UE::TArrayBinding<T>;
+	};
+
+	template<>
+	struct TRangeBind<FString>
+	{
+		using Type = UE::FStringBinding;
 	};
 
 	template<typename T>
