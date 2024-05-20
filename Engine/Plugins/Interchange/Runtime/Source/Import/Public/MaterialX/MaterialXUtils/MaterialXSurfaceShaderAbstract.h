@@ -118,11 +118,11 @@ protected:
 	 * @param InputShaderName - The name of the input of the shader node to connect to
 	 * @param DefaultValue - The default value of the MaterialX input
 	 * @param bIsTangentSpaceInput - Set the tangent space along the path of an input
+	 * @param bUseDefaultValue - Usually we want to avoid creating default values on direct inputs of shaders (StandardSurface, OpenPBR), but some shaders (UsdPreviewSurface) we need to decide that at run-time
 	 */
 	template<typename T>
 	bool ConnectNodeOutputToInput(const char* InputName, UInterchangeShaderNode* ShaderNode, const FString& InputShaderName, T DefaultValue, bool bIsTangentSpaceInput = false)
 	{
-		MaterialX::DocumentPtr Document = SurfaceShaderNode->getDocument();
 		MaterialX::InputPtr Input = GetInput(SurfaceShaderNode, InputName);
 
 		TGuardValue<bool>InputTypeBeingProcessedGuard(bTangentSpaceInput, bIsTangentSpaceInput);
@@ -144,7 +144,7 @@ protected:
 					bIsConnected = AddLinearColorAttribute(Input, InputShaderName, ShaderNode, DefaultValue);
 				}
 				else if constexpr(std::is_same_v<decltype(DefaultValue), FVector4f> || std::is_same_v<decltype(DefaultValue), FVector3f> || std::is_same_v<decltype(DefaultValue), FVector2f>)
-				{					
+				{
 					bIsConnected = AddVectorAttribute(Input, InputShaderName, ShaderNode, DefaultValue);
 				}
 				if constexpr(std::is_same_v<decltype(DefaultValue), bool>)
@@ -465,6 +465,16 @@ protected:
 	 * @param NewName - the new name of the input.
 	 */
 	void SetAttributeNewName(MaterialX::InputPtr Input, const char* NewName) const;
+
+	/**
+	 * This function should be called first by the Translate method of derived class, SurfaceShaderNode should initialized first by the derived class
+	 * 
+	 * @param ShaderType - the type of ShaderGraphNode to create
+	 * @return The shader node created, usually a function call shader node
+	 */
+	UInterchangeShaderNode* Translate(EInterchangeMaterialXShaders ShaderType);
+
+	virtual void Translate(MaterialX::NodePtr ShaderNode) override = 0;
 
 private:
 	

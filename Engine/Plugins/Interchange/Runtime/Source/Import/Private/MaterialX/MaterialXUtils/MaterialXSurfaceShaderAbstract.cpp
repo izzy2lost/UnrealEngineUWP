@@ -4,10 +4,8 @@
 #include "MaterialX/MaterialXUtils/MaterialXSurfaceShaderAbstract.h"
 
 #include "InterchangeImportLog.h"
-#include "InterchangeManager.h"
 #include "InterchangeTexture2DNode.h"
 #include "InterchangeTextureBlurNode.h"
-#include "InterchangeTranslatorBase.h"
 #include "Materials/MaterialExpressionNoise.h"
 #include "Materials/MaterialExpressionTransform.h"
 #include "Materials/MaterialExpressionTransformPosition.h"
@@ -1489,6 +1487,121 @@ void FMaterialXSurfaceShaderAbstract::SetMatchingInputsNames(MaterialX::NodePtr 
 void FMaterialXSurfaceShaderAbstract::SetAttributeNewName(MaterialX::InputPtr Input, const char* NewName) const
 {
 	Input->setAttribute(mx::Attributes::NewName, NewName);
+}
+
+namespace
+{
+	template<typename T>
+	constexpr T DefaultMaxValue = std::numeric_limits<T>::max();
+
+	template<typename T>
+	std::string ValueToString = TCHAR_TO_ANSI(*FString::SanitizeFloat(DefaultMaxValue<T>));
+
+	template<typename T>
+	T GetValue(const auto& Value)
+	{
+		using Type = std::remove_cvref_t<decltype(Value)>;
+
+		if constexpr(std::is_same_v<mx::Color3, Type>)
+		{
+			return FLinearColor{ Value[0], Value[1], Value[2] };
+		}
+		else if constexpr(std::is_same_v<mx::Color4, Type>)
+		{
+			return FLinearColor{ Value[0], Value[3], Value[2], Value[3] };
+		}
+		else if constexpr(std::is_same_v<mx::Vector2, Type>)
+		{
+			return FVector2f{ Value[0], Value[1] };
+		}
+		else if constexpr(std::is_same_v<mx::Vector3, Type>)
+		{
+			return FVector3f{ Value[0], Value[1], Value[2] };
+		}
+		else if constexpr(std::is_same_v<mx::Vector4, Type>)
+		{
+			return FVector4f{ Value[0], Value[1], Value[2], Value[3] };
+		}
+	}
+}
+UInterchangeShaderNode* FMaterialXSurfaceShaderAbstract::Translate(EInterchangeMaterialXShaders ShaderType)
+{
+	constexpr bool bInputInTangentSpace = true;
+
+	UInterchangeFunctionCallShaderNode* FunctionCallShaderNode = CreateFunctionCallShaderNode(SurfaceShaderNode->getName().c_str(), UE::Interchange::MaterialX::IndexSurfaceShaders, uint8(ShaderType));
+
+	for(mx::InputPtr Input : SurfaceShaderNode->getInputs())
+	{
+		mx::ValuePtr DefaultValue = Input->getDefaultValue();
+
+		//Let's create default values in case there is none
+		if(!DefaultValue)
+		{
+			if(Input->getType() == mx::Type::Float)
+			{
+				DefaultValue = mx::Value::createValueFromStrings(ValueToString<float>, mx::Type::Float);
+			}
+			else if(Input->getType() == mx::Type::Color3)
+			{
+				DefaultValue = mx::Value::createValueFromStrings(ValueToString<float> + "," + ValueToString<float> + "," + ValueToString<float>, mx::Type::Color3);
+			}
+			else if(Input->getType() == mx::Type::Color4)
+			{
+				DefaultValue = mx::Value::createValueFromStrings(ValueToString<float> + "," + ValueToString<float> + "," + ValueToString<float> + "," + ValueToString<float>, mx::Type::Color4);
+			}
+			else if(Input->getType() == mx::Type::Boolean)
+			{
+				DefaultValue = mx::Value::createValueFromStrings("false", mx::Type::Boolean);
+			}
+			else if(Input->getType() == mx::Type::Integer)
+			{
+				DefaultValue = mx::Value::createValueFromStrings(ValueToString<int32>, mx::Type::Integer);
+			}
+			else if(Input->getType() == mx::Type::Vector2)
+			{
+				DefaultValue = mx::Value::createValueFromStrings(ValueToString<float> + "," + ValueToString<float>, mx::Type::Vector2);
+			}
+			else if(Input->getType() == mx::Type::Vector3)
+			{
+				DefaultValue = mx::Value::createValueFromStrings(ValueToString<float> + "," + ValueToString<float> + "," + ValueToString<float>, mx::Type::Vector3);
+			}
+			else if(Input->getType() == mx::Type::Vector4)
+			{
+				DefaultValue = mx::Value::createValueFromStrings(ValueToString<float> + "," + ValueToString<float> + "," + ValueToString<float> + "," + ValueToString<float>, mx::Type::Vector4);
+			}
+		}
+
+		if(DefaultValue->getTypeString() == mx::Type::Float)
+		{
+			ConnectNodeOutputToInput(Input->getName().c_str(), FunctionCallShaderNode, Input->getName().c_str(), mx::fromValueString<float>(DefaultValue->getValueString()));
+		}
+		else if(DefaultValue->getTypeString() == mx::Type::Color3)
+		{
+			ConnectNodeOutputToInput(Input->getName().c_str(), FunctionCallShaderNode, Input->getName().c_str(), GetValue<FLinearColor>(mx::fromValueString<mx::Color3>(DefaultValue->getValueString())));
+		}
+		else if(DefaultValue->getTypeString() == mx::Type::Color4)
+		{
+			ConnectNodeOutputToInput(Input->getName().c_str(), FunctionCallShaderNode, Input->getName().c_str(), GetValue<FLinearColor>(mx::fromValueString<mx::Color4>(DefaultValue->getValueString())));
+		}
+		else if(DefaultValue->getTypeString() == mx::Type::Boolean)
+		{
+			ConnectNodeOutputToInput(Input->getName().c_str(), FunctionCallShaderNode, Input->getName().c_str(), mx::fromValueString<bool>(DefaultValue->getValueString()));
+		}
+		else if(DefaultValue->getTypeString() == mx::Type::Vector2)
+		{
+			ConnectNodeOutputToInput(Input->getName().c_str(), FunctionCallShaderNode, Input->getName().c_str(), FVector4f{ GetValue<FVector2f>(mx::fromValueString<mx::Vector2>(DefaultValue->getValueString())), FVector2f{0,0} }, bInputInTangentSpace);
+		}
+		else if(DefaultValue->getTypeString() == mx::Type::Vector3)
+		{
+			ConnectNodeOutputToInput(Input->getName().c_str(), FunctionCallShaderNode, Input->getName().c_str(), GetValue<FVector3f>(mx::fromValueString<mx::Vector3>(DefaultValue->getValueString())), bInputInTangentSpace);
+		}
+		else if(DefaultValue->getTypeString() == mx::Type::Vector4)
+		{
+			ConnectNodeOutputToInput(Input->getName().c_str(), FunctionCallShaderNode, Input->getName().c_str(), GetValue<FVector4f>(mx::fromValueString<mx::Vector4>(DefaultValue->getValueString())), bInputInTangentSpace);
+		}
+	}
+
+	return FunctionCallShaderNode;
 }
 
 #undef LOCTEXT_NAMESPACE

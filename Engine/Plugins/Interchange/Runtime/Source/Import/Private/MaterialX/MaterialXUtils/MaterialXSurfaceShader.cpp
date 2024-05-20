@@ -24,18 +24,9 @@ void FMaterialXSurfaceShader::Translate(MaterialX::NodePtr SurfaceNode)
 {
 	this->SurfaceShaderNode = SurfaceNode;
 
-	UInterchangeFunctionCallShaderNode* FunctionSurfaceShaderNode = CreateFunctionCallShaderNode(SurfaceNode->getName().c_str(), UE::Interchange::MaterialX::IndexSurfaceShaders, uint8(EInterchangeMaterialXShaders::Surface));
+	UInterchangeShaderNode* FunctionSurfaceShaderNode = FMaterialXSurfaceShaderAbstract::Translate(EInterchangeMaterialXShaders::Surface);
 
 	using namespace UE::Interchange::Materials;
-
-	// BSDF
-	ConnectNodeOutputToInput(mx::Surface::Input::Bsdf, FunctionSurfaceShaderNode, Surface::Parameters::BSDF.ToString(), nullptr);
-
-	// EDF
-	ConnectNodeOutputToInput(mx::Surface::Input::Edf, FunctionSurfaceShaderNode, Surface::Parameters::EDF.ToString(), nullptr);
-
-	// Opacity
-	ConnectNodeOutputToInput(mx::Surface::Input::Opacity, FunctionSurfaceShaderNode, Surface::Parameters::Opacity.ToString(), mx::SurfaceUnlit::DefaultValue::Float::Opacity);
 
 	// Outputs
 	if(!bIsSubstrateEnabled)
