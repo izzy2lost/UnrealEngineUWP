@@ -307,8 +307,6 @@ void FStorageServerResponse::Serialize(void* V, int64 Length)
 		Position += BytesRead;
 	}
 
-	check(ContentType == EStorageServerContentType::Binary);
-
 	TRACE_COUNTER_ADD(ZenHttpClientSerializedBytes, Length);
 	
 	if (Position == ContentLength)
