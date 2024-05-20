@@ -5,14 +5,14 @@ using System.Text;
 using EpicGames.Core;
 using EpicGames.Perforce;
 using EpicGames.Perforce.Managed;
-using Horde.Agent.Driver.Utility;
+using JobDriver.Utility;
 using Horde.Common.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 using OpenTracing;
 using OpenTracing.Util;
 
-namespace Horde.Agent.Driver.Execution
+namespace JobDriver.Execution
 {
 	/// <summary>
 	/// Settings for the perforce executor

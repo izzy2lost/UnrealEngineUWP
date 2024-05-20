@@ -5,12 +5,12 @@ using EpicGames.Horde;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Sessions;
-using Horde.Agent.Driver.Execution;
+using JobDriver.Execution;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Agent.Driver.Commands.Execution
+namespace JobDriver.Commands.Execution
 {
 	[Command("Execute", "Job", "Executes a job")]
 	class ExecuteJobCommand : Command

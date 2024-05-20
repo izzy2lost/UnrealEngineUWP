@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-extern alias HordeAgent;
-extern alias HordeAgentDriver;
+extern alias JobDriver;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
@@ -30,7 +29,7 @@ using Horde.Server.Storage;
 using Horde.Server.Streams;
 using Horde.Server.Tests.Stubs.Services;
 using Horde.Server.Users;
-using HordeAgentDriver.Horde.Agent.Driver.Parser;
+using JobDriver.Horde.Agent.Driver.Parser;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;

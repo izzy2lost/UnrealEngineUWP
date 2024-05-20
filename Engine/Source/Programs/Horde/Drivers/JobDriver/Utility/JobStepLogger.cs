@@ -6,7 +6,7 @@ using EpicGames.Horde.Logs;
 using Horde.Common.Rpc;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Driver.Utility
+namespace JobDriver.Utility
 {
 	/// <summary>
 	/// Logger which updates the job step outcome whenever a warning or error is detected.

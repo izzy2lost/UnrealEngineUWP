@@ -7,10 +7,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using Horde.Agent.Driver.Execution;
+using JobDriver.Execution;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Driver.Tests.Execution;
+namespace JobDriver.Tests.Execution;
 
 class FakeWorkspaceMaterializer : IWorkspaceMaterializer
 {

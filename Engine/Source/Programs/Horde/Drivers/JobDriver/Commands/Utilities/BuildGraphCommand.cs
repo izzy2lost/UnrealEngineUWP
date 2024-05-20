@@ -2,10 +2,10 @@
 
 using System.Diagnostics;
 using EpicGames.Core;
-using Horde.Agent.Driver.Parser;
+using JobDriver.Parser;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Driver.Commands.Utilities
+namespace JobDriver.Commands.Utilities
 {
 	/// <summary>
 	/// Runs a BuildGraph script and captures the processed log output

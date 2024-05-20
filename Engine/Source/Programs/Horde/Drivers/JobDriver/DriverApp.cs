@@ -3,7 +3,7 @@
 using System.Reflection;
 using EpicGames.Core;
 using EpicGames.Horde;
-using Horde.Agent.Driver.Execution;
+using JobDriver.Execution;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -11,7 +11,7 @@ using Serilog;
 using Serilog.Extensions.Logging;
 using Serilog.Formatting.Json;
 
-namespace Horde.Agent.Driver
+namespace JobDriver
 {
 	class DriverApp
 	{

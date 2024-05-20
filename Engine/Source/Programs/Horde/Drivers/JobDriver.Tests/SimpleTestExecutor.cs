@@ -4,13 +4,13 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Jobs;
-using Horde.Agent.Driver.Execution;
+using JobDriver.Execution;
 using Horde.Common.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Horde.Agent.Driver.Tests
+namespace JobDriver.Tests
 {
 	class SimpleTestExecutor : JobExecutor
 	{

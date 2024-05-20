@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Perforce.Managed;
-using Horde.Agent.Driver.Utility;
+using JobDriver.Utility;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Agent.Driver.Tests
+namespace JobDriver.Tests
 {
 	using MWO = ManagedWorkspaceOptions;
 

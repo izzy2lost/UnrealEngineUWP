@@ -11,7 +11,7 @@ using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
 using Grpc.Core;
-using Horde.Agent.Driver.Execution;
+using JobDriver.Execution;
 using Horde.Common.Rpc;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
@@ -20,7 +20,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Agent.Driver.Tests
+namespace JobDriver.Tests
 {
 	[TestClass]
 	public class WorkerServiceTest

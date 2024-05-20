@@ -3,7 +3,7 @@
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Driver.Utility
+namespace JobDriver.Utility
 {
 	/// <summary>
 	/// Flags for processes to terminate

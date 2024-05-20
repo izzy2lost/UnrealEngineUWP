@@ -2,13 +2,13 @@
 
 using EpicGames.Core;
 using EpicGames.Perforce.Managed;
-using Horde.Agent.Driver.Utility;
+using JobDriver.Utility;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 using OpenTracing;
 using OpenTracing.Util;
 
-namespace Horde.Agent.Driver.Execution;
+namespace JobDriver.Execution;
 
 /// <summary>
 /// Workspace materializer wrapping ManagedWorkspace and WorkspaceInfo

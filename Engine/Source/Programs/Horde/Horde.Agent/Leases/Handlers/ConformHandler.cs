@@ -28,7 +28,7 @@ namespace Horde.Agent.Leases.Handlers
 			arguments.Add($"-WorkingDir={session.WorkingDir}");
 			arguments.Add($"-Task={Convert.ToBase64String(conformTask.ToByteArray())}");
 
-			FileReference driverAssembly = FileReference.Combine(new FileReference(Assembly.GetExecutingAssembly().Location).Directory, "JobDriver", "JobDriver.dll");
+			FileReference driverAssembly = FileReference.Combine(new DirectoryReference(AppContext.BaseDirectory), "JobDriver", "JobDriver.dll");
 
 			Dictionary<string, string> environment = ManagedProcess.GetCurrentEnvVars();
 			environment[HordeHttpClient.HordeUrlEnvVarName] = session.HordeClient.ServerUrl.ToString();

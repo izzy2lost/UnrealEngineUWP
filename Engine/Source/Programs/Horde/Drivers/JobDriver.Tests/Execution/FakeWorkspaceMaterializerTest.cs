@@ -4,11 +4,11 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Agent.Driver.Execution;
+using JobDriver.Execution;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Agent.Driver.Tests.Execution;
+namespace JobDriver.Tests.Execution;
 
 [TestClass]
 public sealed class FakeWorkspaceMaterializerTest : IDisposable

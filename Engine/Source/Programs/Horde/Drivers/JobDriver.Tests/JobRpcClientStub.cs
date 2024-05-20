@@ -8,7 +8,7 @@ using Grpc.Core;
 using Horde.Common.Rpc;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Driver.Tests
+namespace JobDriver.Tests
 {
 	class JobRpcClientStub : JobRpc.JobRpcClient
 	{

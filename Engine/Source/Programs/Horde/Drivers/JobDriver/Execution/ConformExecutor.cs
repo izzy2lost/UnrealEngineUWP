@@ -4,13 +4,13 @@ using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
-using Horde.Agent.Driver.Utility;
+using JobDriver.Utility;
 using Horde.Common.Rpc;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Driver.Execution
+namespace JobDriver.Execution
 {
 	class ConformExecutor
 	{

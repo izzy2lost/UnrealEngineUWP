@@ -15,8 +15,8 @@ using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
 using Grpc.Core;
-using Horde.Agent.Driver.Parser;
-using Horde.Agent.Driver.Utility;
+using JobDriver.Parser;
+using JobDriver.Utility;
 using Horde.Common.Rpc;
 using HordeCommon;
 using HordeCommon.Rpc.Messages;
@@ -26,7 +26,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using OpenTracing;
 using OpenTracing.Util;
 
-namespace Horde.Agent.Driver.Execution
+namespace JobDriver.Execution
 {
 	record class JobStepInfo
 	(

@@ -1,9 +1,9 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-using Horde.Agent.Driver.Execution;
-using Horde.Agent.Driver.Utility;
+using JobDriver.Execution;
+using JobDriver.Utility;
 
-namespace Horde.Agent.Driver
+namespace JobDriver
 {
 	/// <summary>
 	/// Settings for the driver

@@ -4,7 +4,7 @@ using EpicGames.Core;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Driver.Execution;
+namespace JobDriver.Execution;
 
 /// <summary>
 /// Exception for workspace materializer
@@ -138,7 +138,7 @@ public interface IWorkspaceMaterializer : IDisposable
 	/// <param name="preflightChangeNum">Preflight change number to add</param>
 	/// <param name="options">Additional options</param>
 	/// <param name="cancellationToken">Cancellation token for the call</param>
-	/// <exception cref="Horde.Agent.Driver.Execution.WorkspaceMaterializationException">Thrown if syncing fails</exception>
+	/// <exception cref="JobDriver.Execution.WorkspaceMaterializationException">Thrown if syncing fails</exception>
 	/// <returns>Async task</returns>
 	public Task SyncAsync(int changeNum, int preflightChangeNum, SyncOptions options, CancellationToken cancellationToken);
 }

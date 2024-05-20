@@ -4,12 +4,12 @@ using System.Diagnostics.CodeAnalysis;
 using EpicGames.Core;
 using EpicGames.Horde.Jobs;
 using EpicGames.Perforce;
-using Horde.Agent.Driver.Parser;
+using JobDriver.Parser;
 using Horde.Common.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Driver.Execution
+namespace JobDriver.Execution
 {
 	class TestExecutor : JobExecutor
 	{

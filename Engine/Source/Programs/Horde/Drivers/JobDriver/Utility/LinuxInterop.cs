@@ -2,7 +2,7 @@
 
 using System.Runtime.InteropServices;
 
-namespace Horde.Agent.Driver.Utility
+namespace JobDriver.Utility
 {
 	/// <summary>
 	/// Linux specific P/Invoke calls

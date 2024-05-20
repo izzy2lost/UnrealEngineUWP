@@ -14,14 +14,14 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
 using Grpc.Core;
 using Grpc.Net.Client;
-using Horde.Agent.Driver.Execution;
+using JobDriver.Execution;
 using Horde.Common.Rpc;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Agent.Driver.Tests.Execution
+namespace JobDriver.Tests.Execution
 {
 	[TestClass]
 	public sealed class WorkspaceExecutorTest : IAsyncDisposable
