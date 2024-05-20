@@ -10,7 +10,7 @@
 #include "SceneOutlinerActorInfoColumn.h"
 #include "SceneOutlinerGutter.h"
 #include "SceneOutlinerItemLabelColumn.h"
-#include "SceneOutlinerActorSCCColumn.h"
+#include "SceneOutlinerSourceControlColumn.h"
 #include "SceneOutlinerPinnedColumn.h"
 #include "SceneOutlinerTextInfoColumn.h"
 #include "SceneOutlinerUnsavedColumn.h"
@@ -56,7 +56,7 @@ void FSceneOutlinerModule::StartupModule()
 	// Register builtin column types which are not active by default
 	RegisterColumnType<FSceneOutlinerGutter>();
 	RegisterColumnType<FTypeInfoColumn>();
-	RegisterColumnType<FSceneOutlinerActorSCCColumn>();
+	RegisterColumnType<FSceneOutlinerSourceControlColumn>();
 	RegisterColumnType<FSceneOutlinerPinnedColumn>();
 	RegisterColumnType<FSceneOutlinerActorUnsavedColumn>();
 }
@@ -67,7 +67,7 @@ void FSceneOutlinerModule::ShutdownModule()
 	UnRegisterColumnType<FSceneOutlinerGutter>();
 	UnRegisterColumnType<FSceneOutlinerItemLabelColumn>();
 	UnRegisterColumnType<FTypeInfoColumn>();
-	UnRegisterColumnType<FSceneOutlinerActorSCCColumn>();
+	UnRegisterColumnType<FSceneOutlinerSourceControlColumn>();
 	UnRegisterColumnType<FSceneOutlinerPinnedColumn>();
 	UnRegisterColumnType<FSceneOutlinerActorUnsavedColumn>();
 }

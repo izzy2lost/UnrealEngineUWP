@@ -7,6 +7,7 @@
 #include "ActorFolderTreeItem.h"
 #include "ISourceControlProvider.h"
 #include "ISourceControlModule.h"
+#include "PackageTools.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "SceneOutlinerHelpers.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
@@ -33,9 +34,8 @@ void FSceneOutlinerTreeItemSCC::Initialize()
 {
 	if (TreeItemPtr.IsValid())
 	{
-		ExternalPackageName = SceneOutliner::FSceneOutlinerHelpers::GetExternalPackageName(*TreeItemPtr.Get());
+		ExternalPackageName = TreeItemPtr->GetPackageName();
 		ExternalPackageFileName = !ExternalPackageName.IsEmpty() ? USourceControlHelpers::PackageFilename(ExternalPackageName) : FString();
-		ExternalPackage = SceneOutliner::FSceneOutlinerHelpers::GetExternalPackage(*TreeItemPtr.Get());
 		
 		if (FActorTreeItem* ActorItem = TreeItemPtr->CastTo<FActorTreeItem>())
 		{
@@ -47,14 +47,12 @@ void FSceneOutlinerTreeItemSCC::Initialize()
 					{
 						ExternalPackageName = InActor->GetExternalPackage()->GetName();
 						ExternalPackageFileName = USourceControlHelpers::PackageFilename(ExternalPackageName);
-						ExternalPackage = InActor->GetExternalPackage();
 						ConnectSourceControl();
 					}
 					else
 					{
 						ExternalPackageName = FString();
 						ExternalPackageFileName = FString();
-						ExternalPackage = nullptr;
 						DisconnectSourceControl();
 					}
 				});
@@ -89,6 +87,16 @@ FSourceControlStatePtr FSceneOutlinerTreeItemSCC::GetSourceControlState()
 FSourceControlStatePtr FSceneOutlinerTreeItemSCC::RefreshSourceControlState()
 {
 	return ISourceControlModule::Get().GetProvider().GetState(ExternalPackageFileName, EStateCacheUsage::ForceUpdate);
+}
+
+UPackage* FSceneOutlinerTreeItemSCC::GetPackage() const
+{
+	return FindPackage(nullptr, *ExternalPackageName);
+}
+
+UPackage* FSceneOutlinerTreeItemSCC::LoadPackage() const
+{
+	return UPackageTools::LoadPackage(ExternalPackageName);
 }
 
 void FSceneOutlinerTreeItemSCC::ConnectSourceControl()

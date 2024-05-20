@@ -402,6 +402,19 @@ void FActorTreeItem::GenerateContextMenu(UToolMenu* Menu, SSceneOutliner& Outlin
 	}
 }
 
+FString FActorTreeItem::GetPackageName() const
+{
+	if (const AActor* ActorPtr = Actor.Get())
+	{
+		if (ActorPtr->IsPackageExternal())
+		{
+			return ActorPtr->GetExternalPackage()->GetName();
+		}
+	}
+	
+	return IActorBaseTreeItem::GetPackageName();
+}
+
 const FGuid& FActorTreeItem::GetGuid() const
 {
 	static const FGuid InvalidGuid;

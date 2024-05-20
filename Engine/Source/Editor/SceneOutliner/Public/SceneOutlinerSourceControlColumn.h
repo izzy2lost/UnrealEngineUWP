@@ -8,18 +8,17 @@
 #include "ISceneOutliner.h"
 #include "SceneOutlinerPublicTypes.h"
 #include "ISceneOutlinerColumn.h"
-#include "SSourceControlWidget.h"
 
 template<typename ItemType> class STableRow;
 
 /** A column for the SceneOutliner that displays the SCC Information */
-class FSceneOutlinerActorSCCColumn : public ISceneOutlinerColumn
+class SCENEOUTLINER_API FSceneOutlinerSourceControlColumn : public ISceneOutlinerColumn
 {
 
 public:
-	FSceneOutlinerActorSCCColumn(ISceneOutliner& SceneOutliner) : WeakSceneOutliner(StaticCastSharedRef<ISceneOutliner>(SceneOutliner.AsShared())) {}
+	FSceneOutlinerSourceControlColumn(ISceneOutliner& SceneOutliner) : WeakSceneOutliner(StaticCastSharedRef<ISceneOutliner>(SceneOutliner.AsShared())) {}
 
-	virtual ~FSceneOutlinerActorSCCColumn() {}
+	virtual ~FSceneOutlinerSourceControlColumn() {}
 
 	static FName GetID() { return FSceneOutlinerBuiltInColumnTypes::SourceControl(); }
 

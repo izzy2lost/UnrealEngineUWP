@@ -25,6 +25,7 @@ namespace UE::Workspace
 		virtual FString GetDisplayString() const override;
 		virtual bool CanInteract() const override { return true; }
 		virtual TSharedRef<SWidget> GenerateLabelWidget(ISceneOutliner& Outliner, const STableRow<FSceneOutlinerTreeItemPtr>& InRow) override;
+		virtual FString GetPackageName() const override;
 		// End ISceneOutlinerTreeItem overrides
 
 		// AssetRegistry export this tree item represents in the Outliner 

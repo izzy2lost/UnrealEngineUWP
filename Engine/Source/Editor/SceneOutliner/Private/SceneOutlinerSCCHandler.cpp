@@ -145,7 +145,7 @@ void FSceneOutlinerSCCHandler::CacheCanExecuteVars()
 				continue;
 			}
 
-			if (!SourceControl->IsExternalPackage())
+			if (!SourceControl->HasValidPackage())
 			{
 				// this isn't an external package so we can't do anything with source control
 				bCanExecuteSCC = false;
@@ -356,7 +356,7 @@ void FSceneOutlinerSCCHandler::GetSelectedPackages(TArray<UPackage*>& OutPackage
 			continue;
 		}
 
-		UPackage* Package = SourceControl->GetPackage();
+		UPackage* Package = SourceControl->LoadPackage();
 		if (Package != nullptr)
 		{
 			OutPackages.Add(Package);

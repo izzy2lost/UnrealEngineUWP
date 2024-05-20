@@ -344,6 +344,16 @@ bool FActorDescTreeItem::GetPinnedState() const
 	return false;
 }
 
+FString FActorDescTreeItem::GetPackageName() const
+{
+	if (const FWorldPartitionActorDescInstance* ActorDescInstance = *ActorDescHandle)
+	{
+		return ActorDescInstance->GetActorPackage().ToString();
+	}
+	
+	return IActorBaseTreeItem::GetPackageName();
+}
+
 UExternalDataLayerAsset* FActorDescTreeItem::GetExternalDataLayerAsset() const
 {
 	if (const FWorldPartitionActorDescInstance* ActorDescInstance = *ActorDescHandle)

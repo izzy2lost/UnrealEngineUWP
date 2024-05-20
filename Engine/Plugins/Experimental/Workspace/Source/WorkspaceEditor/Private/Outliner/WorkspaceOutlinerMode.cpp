@@ -2,6 +2,7 @@
 
 #include "WorkspaceOutlinerMode.h"
 
+#include "ISourceControlModule.h"
 #include "WorkspaceItemMenuContext.h"
 #include "WorkspaceOutlinerHierarchy.h"
 #include "WorkspaceOutlinerTreeItem.h"
@@ -56,7 +57,8 @@ TSharedPtr<SWidget> FWorkspaceOutlinerMode::CreateContextMenu()
 		FToolMenuOwnerScoped ToolMenuOwnerScope(this);
 		if (UToolMenu* Menu = ToolMenus->RegisterMenu(MenuName))
 		{
-			Menu->AddDynamicSection(TEXT("Assets"), FNewToolMenuDelegate::CreateLambda([](UToolMenu* InMenu)
+			TWeakPtr<SSceneOutliner> WeakOutliner = StaticCastSharedRef<SSceneOutliner>(SceneOutliner->AsShared());
+			Menu->AddDynamicSection(TEXT("Assets"), FNewToolMenuDelegate::CreateLambda([WeakOutliner](UToolMenu* InMenu)
 			{
 				const UAssetEditorToolkitMenuContext* EditorContext = InMenu->FindContext<UAssetEditorToolkitMenuContext>();
 				const UWorkspaceItemMenuContext* MenuContext = InMenu->FindContext<UWorkspaceItemMenuContext>();
@@ -126,6 +128,11 @@ TSharedPtr<SWidget> FWorkspaceOutlinerMode::CreateContextMenu()
 							}))
 						);
 					}
+				}
+
+				if (TSharedPtr<SSceneOutliner> SharedOutliner = WeakOutliner.Pin())
+				{
+					SharedOutliner->AddSourceControlMenuOptions(InMenu);
 				}
 			}));
 		}

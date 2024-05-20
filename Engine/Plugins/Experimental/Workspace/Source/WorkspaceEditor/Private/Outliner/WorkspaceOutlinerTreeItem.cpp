@@ -114,6 +114,20 @@ namespace UE::Workspace
 	{
 		return SNew(SWorkspaceOutlinerTreelabel, *this, Outliner, InRow);
 	}
+
+	FString FWorkspaceOutlinerTreeItem::GetPackageName() const
+	{
+		if (const TSharedPtr<IWorkspaceOutlinerItemDetails> SharedFactory = FWorkspaceEditorModule::GetOutlinerItemDetails(MakeOutlinerDetailsId(Export)))
+		{
+			return SharedFactory->GetPackage(Export)->GetName();
+		}
+		else if (Export.ParentIdentifier == NAME_None && Export.AssetPath.IsValid())
+		{
+			return Export.AssetPath.GetLongPackageName();
+		}		
+		
+		return ISceneOutlinerTreeItem::GetPackageName();
+	}
 }
 
 #undef LOCTEXT_NAMESPACE // "WorkspaceOutlinerTreeItem"

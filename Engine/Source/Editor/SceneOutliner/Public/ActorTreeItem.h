@@ -52,6 +52,7 @@ public:
 	virtual bool GetPinnedState() const override;
 	virtual void OnLabelChanged() override;
 	virtual void GenerateContextMenu(UToolMenu* Menu, SSceneOutliner& Outliner) override;
+	virtual FString GetPackageName() const override;
 	/* End ISceneOutlinerTreeItem Implementation */
 
 	/* Begin IActorBaseTreeItem Implementation */

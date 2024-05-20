@@ -49,7 +49,6 @@
 #include "SourceControlOperations.h"
 #include "EditorLevelUtils.h"
 #include "EditorViewportCommands.h"
-#include "SceneOutlinerActorSCCColumn.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
 #include "Elements/Framework/TypedElementHandle.h"

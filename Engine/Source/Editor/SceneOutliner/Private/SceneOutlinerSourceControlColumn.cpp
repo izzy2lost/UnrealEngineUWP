@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SceneOutlinerActorSCCColumn.h"
+#include "SceneOutlinerSourceControlColumn.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Images/SLayeredImage.h"
 #include "Widgets/Views/STreeView.h"
@@ -9,23 +9,25 @@
 #include "ActorFolderTreeItem.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
 #include "ISourceControlModule.h"
+#include "SceneOutlinerTreeItemSCC.h"
+#include "SSourceControlWidget.h"
 #include "Misc/MessageDialog.h"
 #include "RevisionControlStyle/RevisionControlStyle.h"
 
 #define LOCTEXT_NAMESPACE "SceneOutlinerSourceControlColumn"
 
-FName FSceneOutlinerActorSCCColumn::GetColumnID()
+FName FSceneOutlinerSourceControlColumn::GetColumnID()
 {
 	return GetID();
 }
 
-SHeaderRow::FColumn::FArguments FSceneOutlinerActorSCCColumn::ConstructHeaderRowColumn()
+SHeaderRow::FColumn::FArguments FSceneOutlinerSourceControlColumn::ConstructHeaderRowColumn()
 {
 	TSharedRef<SLayeredImage> HeaderRowIcon = SNew(SLayeredImage)
 			.ColorAndOpacity(FSlateColor::UseForeground())
 			.Image(FRevisionControlStyleManager::Get().GetBrush("RevisionControl.Icon"));
 	
-	HeaderRowIcon->AddLayer(TAttribute<const FSlateBrush*>::CreateSP(this, &FSceneOutlinerActorSCCColumn::GetHeaderIconBadge));
+	HeaderRowIcon->AddLayer(TAttribute<const FSlateBrush*>::CreateSP(this, &FSceneOutlinerSourceControlColumn::GetHeaderIconBadge));
 	
 	return SHeaderRow::Column(GetColumnID())
 		.FixedWidth(24.f)
@@ -39,30 +41,25 @@ SHeaderRow::FColumn::FArguments FSceneOutlinerActorSCCColumn::ConstructHeaderRow
 		];
 }
 
-const TSharedRef<SWidget> FSceneOutlinerActorSCCColumn::ConstructRowWidget(FSceneOutlinerTreeItemRef TreeItem, const STableRow<FSceneOutlinerTreeItemPtr>& Row)
+const TSharedRef<SWidget> FSceneOutlinerSourceControlColumn::ConstructRowWidget(FSceneOutlinerTreeItemRef TreeItem, const STableRow<FSceneOutlinerTreeItemPtr>& Row)
 {
-	if (TreeItem->IsA<FActorTreeItem>() || 
-		TreeItem->IsA<FActorDescTreeItem>() || 
-		(TreeItem->IsA<FActorFolderTreeItem>() && TreeItem->CastTo<FActorFolderTreeItem>()->GetActorFolder()))
+	TSharedPtr<FSceneOutlinerTreeItemSCC> SourceControl = WeakSceneOutliner.Pin()->GetItemSourceControl(TreeItem);
+	if (SourceControl.IsValid() && SourceControl->HasValidPackage())
 	{
-		TSharedPtr<FSceneOutlinerTreeItemSCC> SourceControl = WeakSceneOutliner.Pin()->GetItemSourceControl(TreeItem);
-		if (SourceControl.IsValid())
-		{
-			TSharedRef<SSourceControlWidget> Widget = SNew(SSourceControlWidget, SourceControl);
-			
-			return SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(VAlign_Center)
-				[
-					Widget
-				];
-		}
+		TSharedRef<SSourceControlWidget> Widget = SNew(SSourceControlWidget, SourceControl);
+		
+		return SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			[
+				Widget
+			];
 	}
 	return SNullWidget::NullWidget;
 }
 
-const FSlateBrush* FSceneOutlinerActorSCCColumn::GetHeaderIconBadge() const
+const FSlateBrush* FSceneOutlinerSourceControlColumn::GetHeaderIconBadge() const
 {
 	if (ISourceControlModule::Get().IsEnabled())
 	{
