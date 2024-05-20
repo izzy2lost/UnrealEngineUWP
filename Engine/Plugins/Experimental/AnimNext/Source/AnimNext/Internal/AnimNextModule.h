@@ -37,9 +37,9 @@ public:
 	// Factory method used to create a parameter source to access the specified instance ID, with a set of parameters that are initially required
 	// @param   InContext             Context used to set up the parameter source
 	// @param   InInstanceId          The instance identifier associated with the parameters that are required
-	// @param   InRequiredParameters  Any required parameters that the source should initially supply, can be empty
+	// @param   InRequiredParameters  Any required parameters that the source should initially supply, can be empty, in which ase all parameters are created
 	// @return a new parameter source, or nullptr if the instance ID could not be handled
-	ANIMNEXT_API TUniquePtr<IParameterSource> CreateParameterSource(const FParameterSourceContext& InContext, const TInstancedStruct<FAnimNextParamInstanceIdentifier>& InInstanceId, TConstArrayView<FName> InRequiredParameters) const;
+	ANIMNEXT_API TUniquePtr<IParameterSource> CreateParameterSource(const FParameterSourceContext& InContext, const TInstancedStruct<FAnimNextParamInstanceIdentifier>& InInstanceId, TConstArrayView<FName> InRequiredParameters = TConstArrayView<FName>()) const;
 
 	// Register a factory that can be used to generate parameter sources
 	// @param   InName                Identifier for the factory

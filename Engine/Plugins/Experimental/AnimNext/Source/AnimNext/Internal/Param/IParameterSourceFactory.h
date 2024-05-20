@@ -38,9 +38,9 @@ public:
 	// Factory method used to create a parameter source of the specified name, with a set of parameters that are initially required
 	// @param  InContext              Context used to resolve the scope
 	// @param  InInstanceId           The instance identifier associated with the parameters that are required
-	// @param  InRequiredParameters   Any required parameters that the source should initially supply, can be empty
+	// @param  InRequiredParameters   Any required parameters that the source should initially supply, can be empty, in which case all parameters are created
 	// @return a new parameter source, or nullptr if the source was not found
-	virtual TUniquePtr<IParameterSource> CreateParameterSource(const FParameterSourceContext& InContext, const TInstancedStruct<FAnimNextParamInstanceIdentifier>& InInstanceId, TConstArrayView<FName> InRequiredParameters) const = 0;
+	virtual TUniquePtr<IParameterSource> CreateParameterSource(const FParameterSourceContext& InContext, const TInstancedStruct<FAnimNextParamInstanceIdentifier>& InInstanceId, TConstArrayView<FName> InRequiredParameters = TConstArrayView<FName>()) const = 0;
 };
 
 }

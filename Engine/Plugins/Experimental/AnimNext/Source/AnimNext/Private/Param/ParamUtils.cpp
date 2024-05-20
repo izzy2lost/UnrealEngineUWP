@@ -408,7 +408,7 @@ FParamCompatibility FParamUtils::GetCompatibility(const FAnimNextParamType& InLH
 	return GetCompatibility(InLHS.GetHandle(), InRHS.GetHandle());
 }
 
-bool FParamUtils::CanUseFunction(const UFunction* InFunction, const UClass* InExpectedClass)
+static bool CanUseFunctionInternal(const UFunction* InFunction, const UClass* InExpectedClass, FProperty*& OutReturnProperty)
 {
 	UClass* FunctionClass = InFunction->GetOuterUClass();
 	if(FunctionClass->IsChildOf(UBlueprintFunctionLibrary::StaticClass()))
@@ -441,7 +441,8 @@ bool FParamUtils::CanUseFunction(const UFunction* InFunction, const UClass* InEx
 #if WITH_EDITORONLY_DATA
 				if(InExpectedClass != nullptr)
 				{
-					if(!InExpectedClass->IsChildOf(ObjectProperty->PropertyClass))
+					// It its just a UObject, check the metadata
+					if(ObjectProperty->PropertyClass == UObject::StaticClass())
 					{
 						const FString& AllowedClassMeta = ObjectProperty->GetMetaData("AllowedClass");
 						if(AllowedClassMeta.Len() == 0)
@@ -450,10 +451,14 @@ bool FParamUtils::CanUseFunction(const UFunction* InFunction, const UClass* InEx
 						}
 
 						const UClass* AllowedClass = FindObject<UClass>(nullptr, *AllowedClassMeta);
-						if(AllowedClass == nullptr || !AllowedClass->IsChildOf(InExpectedClass))
+						if(AllowedClass == nullptr || !InExpectedClass->IsChildOf(AllowedClass))
 						{
 							return false;
 						}
+					}
+					else if(!InExpectedClass->IsChildOf(ObjectProperty->PropertyClass))
+					{
+						return false;
 					}
 				}
 #endif
@@ -464,22 +469,42 @@ bool FParamUtils::CanUseFunction(const UFunction* InFunction, const UClass* InEx
 			{
 				return false;
 			}
+
+			OutReturnProperty = *It;
 		}
 	}
 	else
 	{
 		// We add only 'accessor' functions (no params apart from the return value) that have valid return types
-		const FProperty* ReturnProperty = InFunction->GetReturnProperty();
-		if(ReturnProperty == nullptr || InFunction->NumParms != 1 || !InFunction->HasAnyFunctionFlags(FUNC_BlueprintCallable))
+		OutReturnProperty = InFunction->GetReturnProperty();
+		if(OutReturnProperty == nullptr || InFunction->NumParms != 1 || !InFunction->HasAnyFunctionFlags(FUNC_BlueprintCallable))
 		{
 			return false;
 		}
+	}
 
-		const FParamTypeHandle TypeHandle = FParamTypeHandle::FromProperty(ReturnProperty);
-		if(!TypeHandle.IsValid())
-		{
-			return false;
-		}
+	return true;
+}
+
+bool FParamUtils::CanUseFunction(const UFunction* InFunction, const UClass* InExpectedClass)
+{
+	FProperty* ReturnProperty = nullptr;
+	return CanUseFunctionInternal(InFunction, InExpectedClass, ReturnProperty);
+}
+
+bool FParamUtils::CanUseFunction(const UFunction* InFunction, const UClass* InExpectedClass, FParamTypeHandle& OutTypeHandle)
+{
+	FProperty* ReturnProperty = nullptr;
+	if(!CanUseFunctionInternal(InFunction, InExpectedClass, ReturnProperty))
+	{
+		return false;
+	}
+
+	check(ReturnProperty);
+	OutTypeHandle = FParamTypeHandle::FromProperty(ReturnProperty);
+	if(!OutTypeHandle.IsValid())
+	{
+		return false;
 	}
 
 	return true;
@@ -491,9 +516,18 @@ bool FParamUtils::CanUseProperty(const FProperty* InProperty)
 	{
 		return false;
 	}
+	return true;
+}
 
-	const FParamTypeHandle TypeHandle = FParamTypeHandle::FromProperty(InProperty);
-	if(!TypeHandle.IsValid())
+bool FParamUtils::CanUseProperty(const FProperty* InProperty, FParamTypeHandle& OutTypeHandle)
+{
+	if(!CanUseProperty(InProperty))
+	{
+		return false;
+	}
+
+	OutTypeHandle = FParamTypeHandle::FromProperty(InProperty);
+	if(!OutTypeHandle.IsValid())
 	{
 		return false;
 	}

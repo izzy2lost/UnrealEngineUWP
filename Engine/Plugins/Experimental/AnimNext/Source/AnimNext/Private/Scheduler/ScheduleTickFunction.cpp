@@ -32,11 +32,13 @@ void FScheduleBeginTickFunction::Run(float DeltaTime)
 	}
 
 	// Push any user layers we have at the root
+	// TODO: This is potentially thread-unsafe - need to add a GT/WT split here to split unsafe/safe parameter sources
 	FScheduleInstanceData& InstanceData = Entry.Context.GetInstanceData();
 	for(const TUniquePtr<IParameterSource>& RootUserScope : InstanceData.RootUserScopes)
 	{
 		if(RootUserScope.IsValid())
 		{
+			RootUserScope->Update(DeltaTime);
 			InstanceData.PushedRootUserLayers.Add(InstanceData.RootParamStack->PushLayer(RootUserScope->GetLayerHandle()));
 		}
 	}

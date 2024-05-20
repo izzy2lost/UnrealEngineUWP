@@ -25,13 +25,22 @@ struct FParamUtils
 	// occurs, but IsCompatible((int32)InLHS, (int64)InRHS) is not as B could be truncated.
 	static ANIMNEXT_API FParamCompatibility GetCompatibility(const FAnimNextParamType& InLHS, const FAnimNextParamType& InRHS);
 
-	// Check whether the supplied function can be used to access/map parameters
+	// Check whether the supplied function can be used to access/map parameters. Does not check type for validity.
 	// @param	InFunction	The function to check
 	// @param	InClass		The expected class to check - used to determine if hoisted functions are valid in this context.
 	static ANIMNEXT_API bool CanUseFunction(const UFunction* InFunction, const UClass* InExpectedClass);
 
-	// Check whether the supplied property can be used to access/map parameters
+	// Check whether the supplied function can be used to access/map parameters. Checks type and returns it in OutTypeHandle
+	// @param	InFunction		The function to check
+	// @param	InClass			The expected class to check - used to determine if hoisted functions are valid in this context.
+	// @param	OutTypeHandle	Type handle of the function's return value
+	static ANIMNEXT_API bool CanUseFunction(const UFunction* InFunction, const UClass* InExpectedClass, FParamTypeHandle& OutTypeHandle);
+	
+	// Check (via flags only) the supplied property can be used to access/map parameters
 	static ANIMNEXT_API bool CanUseProperty(const FProperty* InProperty);
+
+	// Check whether the supplied property can be used to access/map parameters. Checks type and returns it in OutTypeHandle
+	static ANIMNEXT_API bool CanUseProperty(const FProperty* InProperty, FParamTypeHandle& OutTypeHandle);
 
 	// Convert a UOL to an FName
 	static ANIMNEXT_API FName LocatorToName(const FUniversalObjectLocator& InLocator);

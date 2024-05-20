@@ -4,6 +4,8 @@
 
 #include "Param/ClassProxy.h"
 #include "ObjectProxy.h"
+#include "Engine/Blueprint.h"
+#include "Engine/BlueprintGeneratedClass.h"
 #include "Param/AnimNextParamUniversalObjectLocator.h"
 
 namespace UE::AnimNext
@@ -57,7 +59,8 @@ TUniquePtr<IParameterSource> FObjectProxyFactory::CreateParameterSource(const FP
 		// We shouldn't be loading as part of this call - if this hits we need to consider loading objects up front somehow
 		check(!(ResultData.Flags.bWasLoaded || ResultData.Flags.bWasLoadedIndirectly));	
 
-		if(ResultData.Object)
+		// We only support UClass/UBlueprintGeneratedClass here, not other subclasses (e.g. Verse classes)
+		if(ResultData.Object != nullptr && (ExactCast<UClass>(ResultData.Object->GetClass()) != nullptr || ExactCast<UBlueprintGeneratedClass>(ResultData.Object->GetClass()) != nullptr))
 		{
 			TStringBuilder<256> ScopeAsString;
 			Locator->Locator.ToString(ScopeAsString);
