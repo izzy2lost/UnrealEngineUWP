@@ -102,7 +102,12 @@ void FCEEditorEffectorComponentDetailCustomization::CustomizeDetails(IDetailLayo
 		TSharedPtr<IPropertyHandle> ActiveExtensionProperty = ActiveExtensionArrayProperty->GetElement(ElementIndex);
 
 		UObject* ObjectValue;
-		ActiveExtensionProperty->GetValue(ObjectValue);
+		FPropertyAccess::Result ReadResult = ActiveExtensionProperty->GetValue(ObjectValue);
+
+		if (ReadResult != FPropertyAccess::Success)
+		{
+			continue;
+		}
 
 		UCEEffectorExtensionBase* ActiveExtension = Cast<UCEEffectorExtensionBase>(ObjectValue);
 

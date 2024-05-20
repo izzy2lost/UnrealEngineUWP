@@ -67,7 +67,12 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 		TSharedPtr<IPropertyHandle> ActiveExtensionProperty = ActiveExtensionArrayProperty->GetElement(ElementIndex);
 
 		UObject* ObjectValue;
-		ActiveExtensionProperty->GetValue(ObjectValue);
+		FPropertyAccess::Result ReadResult = ActiveExtensionProperty->GetValue(ObjectValue);
+
+		if (ReadResult != FPropertyAccess::Success)
+		{
+			continue;
+		}
 
 		UCEClonerExtensionBase* ActiveExtension = Cast<UCEClonerExtensionBase>(ObjectValue);
 
