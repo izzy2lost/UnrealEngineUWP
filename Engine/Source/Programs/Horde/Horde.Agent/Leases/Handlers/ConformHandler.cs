@@ -28,11 +28,12 @@ namespace Horde.Agent.Leases.Handlers
 			arguments.Add($"-WorkingDir={session.WorkingDir}");
 			arguments.Add($"-Task={Convert.ToBase64String(conformTask.ToByteArray())}");
 
-			FileReference driverAssembly = FileReference.Combine(new FileReference(Assembly.GetExecutingAssembly().Location).Directory, "Driver", "HordeAgent.Driver.dll");
+			FileReference driverAssembly = FileReference.Combine(new FileReference(Assembly.GetExecutingAssembly().Location).Directory, "JobDriver", "JobDriver.dll");
 
 			Dictionary<string, string> environment = ManagedProcess.GetCurrentEnvVars();
 			environment[HordeHttpClient.HordeUrlEnvVarName] = session.HordeClient.ServerUrl.ToString();
 			environment[HordeHttpClient.HordeTokenEnvVarName] = await session.HordeClient.GetAccessTokenAsync(false, cancellationToken) ?? String.Empty;
+			environment["UE_LOG_JSON_TO_STDOUT"] = "1";
 
 			int exitCode = await RunDotNetProcessAsync(driverAssembly, arguments, environment, false, serverLogger, cancellationToken);
 			serverLogger.LogInformation("Driver finished with exit code {ExitCode}", exitCode);

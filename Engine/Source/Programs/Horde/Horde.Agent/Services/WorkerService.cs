@@ -119,7 +119,7 @@ namespace Horde.Agent.Services
 						}
 
 						TimeSpan backOffTime = s_sessionBackOffTime[Math.Min(failureCount - 1, s_sessionBackOffTime.Length - 1)];
-						_logger.LogInformation("Session failure #{FailureNum}. Waiting {Time} and restarting. ({Message})", failureCount, backOffTime, ex.Message);
+						_logger.LogInformation(ex, "Session failure #{FailureNum}. Waiting {Time} and restarting. ({Message})", failureCount, backOffTime, ex.Message);
 						_statusService.Set(false, 0, $"Unable to start session: {ex.Message}");
 						await Task.Delay(backOffTime, stoppingToken);
 					}

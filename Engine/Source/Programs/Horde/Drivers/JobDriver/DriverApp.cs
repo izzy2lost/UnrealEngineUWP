@@ -28,7 +28,7 @@ namespace Horde.Agent.Driver
 			// Create the services 
 			IServiceCollection services = new ServiceCollection();
 			services.AddOptions<DriverSettings>().Configure(options => configuration.GetSection("Driver").Bind(options)).ValidateDataAnnotations();
-			services.AddLogging(builder => builder.AddProvider(CreateLoggerProvider(configuration)));
+			services.AddLogging(builder => builder.AddEpicDefault());
 			services.AddHorde(options => options.AllowAuthPrompt = false);
 
 			services.AddSingleton<IJobExecutorFactory, PerforceExecutorFactory>();

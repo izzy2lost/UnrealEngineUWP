@@ -5,7 +5,7 @@
     <TargetFramework>net6.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyName>HordeAgent.Driver</AssemblyName>
+    <AssemblyName>JobDriver</AssemblyName>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>false</EmbedUntrackedSources>
     <DebugType>pdbonly</DebugType>
@@ -31,22 +31,22 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\AutomationTool\AutomationUtils\Matchers\*.cs">
+    <Compile Include="..\..\..\AutomationTool\AutomationUtils\Matchers\*.cs">
       <Link>Parser\Matchers\%(FileName)%(Extension)</Link>
     </Compile>
-    <Compile Include="..\..\UnrealBuildTool\Matchers\*.cs">
+    <Compile Include="..\..\..\UnrealBuildTool\Matchers\*.cs">
       <Link>Parser\Matchers\%(FileName)%(Extension)</Link>
     </Compile>
-    <Content Include="..\Horde.Server\Protos\horde\*.proto">
+    <Content Include="..\..\Horde.Server\Protos\horde\*.proto">
       <Link>Protos\%(FileName)%(Extension)</Link>
     </Content>
-    <Content Include="..\Horde.Server\Protos\horde\common\**\*.proto">
+    <Content Include="..\..\Horde.Server\Protos\horde\common\**\*.proto">
       <Link>Protos\horde\common\%(RecursiveDir)%(FileName)%(Extension)</Link>
     </Content>
-    <Content Include="..\Horde.Server\Protos\horde\messages\**\*.proto">
+    <Content Include="..\..\Horde.Server\Protos\horde\messages\**\*.proto">
       <Link>Protos\horde\messages\%(RecursiveDir)%(FileName)%(Extension)</Link>
     </Content>
-    <Content Include="..\Horde.Server\Protos\horde\tasks\**\*.proto">
+    <Content Include="..\..\Horde.Server\Protos\horde\tasks\**\*.proto">
       <Link>Protos\horde\tasks\%(RecursiveDir)%(FileName)%(Extension)</Link>
     </Content>
   </ItemGroup>
@@ -91,19 +91,19 @@
   </ItemGroup>
   
   <ItemGroup>
-    <Protobuf Include="..\Horde.Server\Protos\horde\job_rpc.proto" ProtoRoot="..\Horde.Server\Protos" GrpcServices="Client" Access="Public" AdditionalImportDirs="..\..\Shared\EpicGames.Horde\Protos"/>
-    <Protobuf Include="..\Horde.Server\Protos\horde\job_rpc_messages.proto" ProtoRoot="..\Horde.Server\Protos" Access="Public" />
-    <Protobuf Include="..\Horde.Server\Protos\horde\common\label_change.proto" ProtoRoot="..\Horde.Server\Protos" Access="Public" />
-    <Protobuf Include="..\Horde.Server\Protos\horde\messages\agent_workspace.proto" ProtoRoot="..\Horde.Server\Protos" Access="Public" />
-    <Protobuf Include="..\Horde.Server\Protos\horde\tasks\conform_task.proto" ProtoRoot="..\Horde.Server\Protos" Access="Public" />
-    <Protobuf Include="..\Horde.Server\Protos\horde\tasks\job_task.proto" ProtoRoot="..\Horde.Server\Protos" Access="Public" />
+    <Protobuf Include="..\..\Horde.Server\Protos\horde\job_rpc.proto" ProtoRoot="..\..\Horde.Server\Protos" GrpcServices="Client" Access="Public" AdditionalImportDirs="..\..\..\Shared\EpicGames.Horde\Protos"/>
+    <Protobuf Include="..\..\Horde.Server\Protos\horde\job_rpc_messages.proto" ProtoRoot="..\..\Horde.Server\Protos" Access="Public" />
+    <Protobuf Include="..\..\Horde.Server\Protos\horde\common\label_change.proto" ProtoRoot="..\..\Horde.Server\Protos" Access="Public" />
+    <Protobuf Include="..\..\Horde.Server\Protos\horde\messages\agent_workspace.proto" ProtoRoot="..\..\Horde.Server\Protos" Access="Public" />
+    <Protobuf Include="..\..\Horde.Server\Protos\horde\tasks\conform_task.proto" ProtoRoot="..\..\Horde.Server\Protos" Access="Public" />
+    <Protobuf Include="..\..\Horde.Server\Protos\horde\tasks\job_task.proto" ProtoRoot="..\..\Horde.Server\Protos" Access="Public" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Shared\EpicGames.Core\EpicGames.Core.csproj" />
-    <ProjectReference Include="..\..\Shared\EpicGames.Horde\EpicGames.Horde.csproj" />
-    <ProjectReference Include="..\..\Shared\EpicGames.Perforce.Managed\EpicGames.Perforce.Managed.csproj" />
-    <ProjectReference Include="..\..\Shared\EpicGames.Perforce\EpicGames.Perforce.csproj" />
+    <ProjectReference Include="..\..\..\Shared\EpicGames.Core\EpicGames.Core.csproj" />
+    <ProjectReference Include="..\..\..\Shared\EpicGames.Horde\EpicGames.Horde.csproj" />
+    <ProjectReference Include="..\..\..\Shared\EpicGames.Perforce.Managed\EpicGames.Perforce.Managed.csproj" />
+    <ProjectReference Include="..\..\..\Shared\EpicGames.Perforce\EpicGames.Perforce.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -124,9 +124,15 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.Build", "..\Share
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.Jupiter", "..\Shared\EpicGames.Jupiter\EpicGames.Jupiter.csproj", "{A268552F-03EE-4761-AED1-C69B8AD733B7}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Horde.Agent.Driver", "Horde.Agent.Driver\Horde.Agent.Driver.csproj", "{25C42F8C-6D36-4595-8B02-130F3566DA06}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "JobDriver", "Drivers\JobDriver\JobDriver.csproj", "{25C42F8C-6D36-4595-8B02-130F3566DA06}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Horde.Agent.Driver.Tests", "Horde.Agent.Driver.Tests\Horde.Agent.Driver.Tests.csproj", "{D475A94A-C87B-4E55-BC7F-A54F14364B16}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "JobDriver.Tests", "Drivers\JobDriver.Tests\JobDriver.Tests.csproj", "{D475A94A-C87B-4E55-BC7F-A54F14364B16}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Drivers", "Drivers", "{9C8DF7BD-3F47-4222-9018-7D16AEBDE773}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EpicGames.Serilog", "..\Shared\EpicGames.Serilog\EpicGames.Serilog.csproj", "{0C213F10-F6A8-45AE-A2E5-9E1A1F607374}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.Serilog.Tests", "..\Shared\EpicGames.Serilog.Tests\EpicGames.Serilog.Tests.csproj", "{3B772540-686E-4D6B-BB0B-0262068CD7B6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -690,6 +696,30 @@ Global
 		{D475A94A-C87B-4E55-BC7F-A54F14364B16}.Release|Any CPU.Build.0 = Release|Any CPU
 		{D475A94A-C87B-4E55-BC7F-A54F14364B16}.ReleaseAutoUpdate|Any CPU.ActiveCfg = Release|Any CPU
 		{D475A94A-C87B-4E55-BC7F-A54F14364B16}.ReleaseAutoUpdate|Any CPU.Build.0 = Release|Any CPU
+		{0C213F10-F6A8-45AE-A2E5-9E1A1F607374}.Analyze|Any CPU.ActiveCfg = Debug|Any CPU
+		{0C213F10-F6A8-45AE-A2E5-9E1A1F607374}.Analyze|Any CPU.Build.0 = Debug|Any CPU
+		{0C213F10-F6A8-45AE-A2E5-9E1A1F607374}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0C213F10-F6A8-45AE-A2E5-9E1A1F607374}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0C213F10-F6A8-45AE-A2E5-9E1A1F607374}.DebugAutoUpdate|Any CPU.ActiveCfg = Debug|Any CPU
+		{0C213F10-F6A8-45AE-A2E5-9E1A1F607374}.DebugAutoUpdate|Any CPU.Build.0 = Debug|Any CPU
+		{0C213F10-F6A8-45AE-A2E5-9E1A1F607374}.Development|Any CPU.ActiveCfg = Debug|Any CPU
+		{0C213F10-F6A8-45AE-A2E5-9E1A1F607374}.Development|Any CPU.Build.0 = Debug|Any CPU
+		{0C213F10-F6A8-45AE-A2E5-9E1A1F607374}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0C213F10-F6A8-45AE-A2E5-9E1A1F607374}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0C213F10-F6A8-45AE-A2E5-9E1A1F607374}.ReleaseAutoUpdate|Any CPU.ActiveCfg = Release|Any CPU
+		{0C213F10-F6A8-45AE-A2E5-9E1A1F607374}.ReleaseAutoUpdate|Any CPU.Build.0 = Release|Any CPU
+		{3B772540-686E-4D6B-BB0B-0262068CD7B6}.Analyze|Any CPU.ActiveCfg = Analyze|Any CPU
+		{3B772540-686E-4D6B-BB0B-0262068CD7B6}.Analyze|Any CPU.Build.0 = Analyze|Any CPU
+		{3B772540-686E-4D6B-BB0B-0262068CD7B6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3B772540-686E-4D6B-BB0B-0262068CD7B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3B772540-686E-4D6B-BB0B-0262068CD7B6}.DebugAutoUpdate|Any CPU.ActiveCfg = Development|Any CPU
+		{3B772540-686E-4D6B-BB0B-0262068CD7B6}.DebugAutoUpdate|Any CPU.Build.0 = Development|Any CPU
+		{3B772540-686E-4D6B-BB0B-0262068CD7B6}.Development|Any CPU.ActiveCfg = Development|Any CPU
+		{3B772540-686E-4D6B-BB0B-0262068CD7B6}.Development|Any CPU.Build.0 = Development|Any CPU
+		{3B772540-686E-4D6B-BB0B-0262068CD7B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3B772540-686E-4D6B-BB0B-0262068CD7B6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3B772540-686E-4D6B-BB0B-0262068CD7B6}.ReleaseAutoUpdate|Any CPU.ActiveCfg = Release|Any CPU
+		{3B772540-686E-4D6B-BB0B-0262068CD7B6}.ReleaseAutoUpdate|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -736,6 +766,10 @@ Global
 		{548C7D05-54FE-45D3-A80A-E7C2C07C9C1F} = {84144B9A-C142-4656-96C8-1D23B9A1C63D}
 		{CBC66480-A26D-431A-8990-6C32BAAB6C3F} = {84144B9A-C142-4656-96C8-1D23B9A1C63D}
 		{A268552F-03EE-4761-AED1-C69B8AD733B7} = {84144B9A-C142-4656-96C8-1D23B9A1C63D}
+		{25C42F8C-6D36-4595-8B02-130F3566DA06} = {9C8DF7BD-3F47-4222-9018-7D16AEBDE773}
+		{D475A94A-C87B-4E55-BC7F-A54F14364B16} = {9C8DF7BD-3F47-4222-9018-7D16AEBDE773}
+		{0C213F10-F6A8-45AE-A2E5-9E1A1F607374} = {84144B9A-C142-4656-96C8-1D23B9A1C63D}
+		{3B772540-686E-4D6B-BB0B-0262068CD7B6} = {84144B9A-C142-4656-96C8-1D23B9A1C63D}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {F06D2583-1509-4254-BEE6-5921340022BF}
