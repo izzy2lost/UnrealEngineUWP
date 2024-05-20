@@ -200,8 +200,8 @@ private:
 	/** Context menu handler: Deselect all items in A that are selected in B (Asel-Bsel). */
 	void PageNodes_Menu_OnDeselectAllFromCounterpart(bool bOutputSelection);
 
-	/** Context menu handler: Select all offscreen nodes. */
-	void PageNodes_Menu_OnSelectAllOffscreen(bool bOutputSelection);
+	/** Context menu handler: Select all onscreen/offscreen nodes. */
+	void PageNodes_Menu_OnSelectDeselectAllOnOffscreen(bool bOutputSelection, bool bSelect, bool bOffscreen);
 
 	/** Callback to check if we can switch to the nodes selection page. */
 	bool PageNodes_OnCanShow() const;
@@ -266,6 +266,9 @@ private:
 
 	/** List of all cluster node IDs. */
 	TSet<FString> ClusterNodeIds;
+
+	/** List of all offscreen nodes. */
+	TSet<FString> OffscreenNodes;
 
 	/** Node-to-host map. */
 	TMap<FString, FString> NodeToHostMap;

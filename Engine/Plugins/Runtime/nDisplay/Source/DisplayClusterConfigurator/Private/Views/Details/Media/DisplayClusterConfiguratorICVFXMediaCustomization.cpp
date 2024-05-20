@@ -198,12 +198,12 @@ FReply FDisplayClusterConfiguratorICVFXMediaCustomization::OnSetupButtonClicked(
 	// Process configuration results
 	if (TilesConfigurationDialog->WasConfigurationCompleted())
 	{
-		// Notify tile customizers to re-initialize all media we just generated
-		FDisplayClusterConfiguratorMediaUtils::Get().OnMediaResetToDefaults().Broadcast(EditingObject.Get());
-
 		// Redraw property views
 		FPropertyEditorModule& PropertyEditorModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 		PropertyEditorModule.UpdatePropertyViews({ EditingObject.Get() });
+
+		// Notify tile customizers to re-initialize all media we just generated
+		FDisplayClusterConfiguratorMediaUtils::Get().OnMediaResetToDefaults().Broadcast(EditingObject.Get());
 
 		// Set owning package dirty
 		MarkDirty();
