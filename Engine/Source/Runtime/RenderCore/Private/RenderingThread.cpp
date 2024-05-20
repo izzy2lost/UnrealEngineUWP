@@ -101,6 +101,49 @@ FAutoConsoleVariableRef CVarRenderCommandFenceBundling(
 	TEXT(" 1: enabled (default);\n"),
 	ECVF_Default);
 
+inline ERenderCommandPipeMode GetValidatedRenderCommandPipeMode(int32 CVarValue)
+{
+	ERenderCommandPipeMode Mode = ERenderCommandPipeMode::None;
+
+	switch (CVarValue)
+	{
+	case 1:
+		Mode = ERenderCommandPipeMode::RenderThread;
+		break;
+	case 2:
+		Mode = ERenderCommandPipeMode::All;
+		break;
+	}
+
+	const bool bAllowThreading = !GRHICommandList.Bypass() && FApp::ShouldUseThreadingForPerformance() && GIsThreadedRendering;
+
+	if (Mode == ERenderCommandPipeMode::All && !bAllowThreading)
+	{
+		Mode = ERenderCommandPipeMode::RenderThread;
+	}
+
+	if (!FApp::CanEverRender() || IsMobilePlatform(GMaxRHIShaderPlatform))
+	{
+		Mode = ERenderCommandPipeMode::None;
+	}
+
+	return Mode;
+}
+
+ERenderCommandPipeMode GRenderCommandPipeMode = ERenderCommandPipeMode::None;
+FAutoConsoleVariable CVarRenderCommandPipeMode(
+	TEXT("r.RenderCommandPipeMode"),
+	2,
+	TEXT("Controls behavior of the main render thread command pipe.")
+	TEXT(" 0: Render commands are launched individually as tasks;\n")
+	TEXT(" 1: Render commands are enqueued into a render command pipe for the render thread only.;\n")
+	TEXT(" 2: Render commands are enqueued into a render command pipe for all declared pipes.;\n"),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Variable)
+	{
+		UE::RenderCommandPipe::StopRecording();
+		GRenderCommandPipeMode = GetValidatedRenderCommandPipeMode(Variable->GetInt());
+	}));
+
 /**
  * Tick all rendering thread tickable objects
  */
@@ -600,6 +643,8 @@ static void StartRenderingThread()
 		GIsRunningRHIInTaskThread_InternalUseOnly      = false;
 		break;
 	}
+
+	GRenderCommandPipeMode = GetValidatedRenderCommandPipeMode(CVarRenderCommandPipeMode->GetInt());
 
 	// Turn on the threaded rendering flag.
 	GIsThreadedRendering = true;
@@ -1491,49 +1536,6 @@ static FAutoConsoleCommand CVarRHIThreadEnable(
 	FConsoleCommandWithArgsDelegate::CreateStatic(&HandleRHIThreadEnableChanged)
 	);
 
-inline ERenderCommandPipeMode GetValidatedRenderCommandPipeMode(int32 CVarValue)
-{
-	ERenderCommandPipeMode Mode = ERenderCommandPipeMode::None;
-
-	switch (CVarValue)
-	{
-	case 1:
-		Mode = ERenderCommandPipeMode::RenderThread;
-		break;
-	case 2:
-		Mode = ERenderCommandPipeMode::All;
-		break;
-	}
-
-	const bool bAllowThreading = !GRHICommandList.Bypass() && FApp::ShouldUseThreadingForPerformance() && GIsThreadedRendering;
-
-	if (Mode == ERenderCommandPipeMode::All && !bAllowThreading)
-	{
-		Mode = ERenderCommandPipeMode::RenderThread;
-	}
-
-	if (!FApp::CanEverRender() || IsMobilePlatform(GMaxRHIShaderPlatform))
-	{
-		Mode = ERenderCommandPipeMode::None;
-	}
-
-	return Mode;
-}
-
-ERenderCommandPipeMode GRenderCommandPipeMode = ERenderCommandPipeMode::None;
-FAutoConsoleVariable CVarRenderCommandPipeMode(
-	TEXT("r.RenderCommandPipeMode"),
-	2,
-	TEXT("Controls behavior of the main render thread command pipe.")
-	TEXT(" 0: Render commands are launched individually as tasks;\n")
-	TEXT(" 1: Render commands are enqueued into a render command pipe for the render thread only.;\n")
-	TEXT(" 2: Render commands are enqueued into a render command pipe for all declared pipes.;\n"),
-	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Variable)
-	{
-		UE::RenderCommandPipe::StopRecording();
-		GRenderCommandPipeMode = GetValidatedRenderCommandPipeMode(Variable->GetInt());
-	}));
-
 FRenderThreadCommandPipe FRenderThreadCommandPipe::Instance;
 
 void FRenderThreadCommandPipe::EnqueueAndLaunch(const TCHAR* Name, uint32& SpecId, TStatId StatId, TUniqueFunction<void(FRHICommandListImmediate&)>&& Function)
@@ -1590,8 +1592,6 @@ public:
 
 			AllPipes.Emplace(*PipeIt);
 		}
-
-		GRenderCommandPipeMode = GetValidatedRenderCommandPipeMode(CVarRenderCommandPipeMode->GetInt());
 	}
 
 	void StartRecording()
