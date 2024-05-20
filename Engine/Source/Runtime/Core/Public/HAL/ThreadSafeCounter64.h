@@ -134,7 +134,7 @@ public:
 	*/
 	int64 GetValue() const
 	{
-		return Counter;
+		return FPlatformAtomics::AtomicRead(&Counter);
 	}
 
 private:
