@@ -294,7 +294,7 @@ protected:
 	virtual void SetCollisionState(const FContextualAnimSceneBinding& Binding);
 	virtual void RestoreCollisionState(const FContextualAnimSceneBinding& Binding);
 
-	void SetMovementState(const FContextualAnimSceneBinding& Binding, EMovementMode DesiredMoveMode);
+	void SetMovementState(const FContextualAnimSceneBinding& Binding, EMovementMode DesiredMoveMode, uint8 CustomMode = 0);
 	void RestoreMovementState(const FContextualAnimSceneBinding& Binding);
 
 	UFUNCTION()

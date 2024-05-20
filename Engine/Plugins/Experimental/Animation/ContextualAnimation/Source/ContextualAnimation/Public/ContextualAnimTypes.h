@@ -77,6 +77,9 @@ struct CONTEXTUALANIMATION_API FContextualAnimTrack
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Defaults")
 	TEnumAsByte<enum EMovementMode> MovementMode = EMovementMode::MOVE_Walking;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Defaults", meta = (EditConditionHides, EditCondition = "MovementMode==EMovementMode::MOVE_Custom"))
+	uint8 CustomMovementMode = 0;
+
 	/** Whether the actor that should play this animation is optional */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Defaults")
 	bool bOptional = false;

@@ -323,7 +323,7 @@ void UContextualAnimSceneActorComponent::LateJoinScene(const FContextualAnimScen
 
 		SetCollisionState(*Binding);
 
-		SetMovementState(*Binding, AnimTrack->MovementMode);
+		SetMovementState(*Binding, AnimTrack->MovementMode, AnimTrack->CustomMovementMode);
 
 		OnLateJoinScene(*Binding, SectionIdx, AnimSetIdx);
 	}
@@ -959,7 +959,7 @@ void UContextualAnimSceneActorComponent::JoinScene(const FContextualAnimSceneBin
 
 		SetCollisionState(*Binding);
 
-		SetMovementState(*Binding, AnimTrack.MovementMode);
+		SetMovementState(*Binding, AnimTrack.MovementMode, AnimTrack.CustomMovementMode);
 
 		OnJoinScene(*Binding);
 
@@ -1063,7 +1063,7 @@ void UContextualAnimSceneActorComponent::OnLeaveScene(const FContextualAnimScene
 	// For derived classes to override.
 }
 
-void UContextualAnimSceneActorComponent::SetMovementState(const FContextualAnimSceneBinding& Binding, EMovementMode DesiredMoveMode)
+void UContextualAnimSceneActorComponent::SetMovementState(const FContextualAnimSceneBinding& Binding, EMovementMode DesiredMoveMode, uint8 CustomMode)
 {
 	if (UCharacterMovementComponent* MovementComp = Binding.GetCharacterMovementComponent())
 	{
@@ -1090,7 +1090,7 @@ void UContextualAnimSceneActorComponent::SetMovementState(const FContextualAnimS
 
 		if (MovementComp->MovementMode != DesiredMoveMode)
 		{
-			MovementComp->SetMovementMode(DesiredMoveMode);
+			MovementComp->SetMovementMode(DesiredMoveMode, CustomMode);
 		}
 	}
 }

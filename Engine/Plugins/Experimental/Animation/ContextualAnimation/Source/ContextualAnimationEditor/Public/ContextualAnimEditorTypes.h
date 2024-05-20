@@ -77,6 +77,9 @@ struct FContextualAnimNewAnimSetData
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	TEnumAsByte<enum EMovementMode> MovementMode = EMovementMode::MOVE_Walking;
 
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (EditConditionHides, EditCondition = "MovementMode==EMovementMode::MOVE_Custom"))
+	uint8 CustomMovementMode = 0;
+
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	bool bOptional = false;
 
