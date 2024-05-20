@@ -5,5 +5,6 @@ using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("HordeAgent")]
 [assembly: InternalsVisibleTo("Horde.Agent.Tests")]
+[assembly: InternalsVisibleTo("Horde.Agent.Driver.Tests")]
 [assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]
 [assembly: NeutralResourcesLanguage("en-US")]

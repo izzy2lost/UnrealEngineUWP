@@ -126,6 +126,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EpicGames.Jupiter", "..\Sha
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Horde.Agent.Driver", "Horde.Agent.Driver\Horde.Agent.Driver.csproj", "{25C42F8C-6D36-4595-8B02-130F3566DA06}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Horde.Agent.Driver.Tests", "Horde.Agent.Driver.Tests\Horde.Agent.Driver.Tests.csproj", "{D475A94A-C87B-4E55-BC7F-A54F14364B16}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Analyze|Any CPU = Analyze|Any CPU
@@ -676,6 +678,18 @@ Global
 		{25C42F8C-6D36-4595-8B02-130F3566DA06}.Release|Any CPU.Build.0 = Release|Any CPU
 		{25C42F8C-6D36-4595-8B02-130F3566DA06}.ReleaseAutoUpdate|Any CPU.ActiveCfg = Release|Any CPU
 		{25C42F8C-6D36-4595-8B02-130F3566DA06}.ReleaseAutoUpdate|Any CPU.Build.0 = Release|Any CPU
+		{D475A94A-C87B-4E55-BC7F-A54F14364B16}.Analyze|Any CPU.ActiveCfg = Analyze|Any CPU
+		{D475A94A-C87B-4E55-BC7F-A54F14364B16}.Analyze|Any CPU.Build.0 = Analyze|Any CPU
+		{D475A94A-C87B-4E55-BC7F-A54F14364B16}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D475A94A-C87B-4E55-BC7F-A54F14364B16}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D475A94A-C87B-4E55-BC7F-A54F14364B16}.DebugAutoUpdate|Any CPU.ActiveCfg = Development|Any CPU
+		{D475A94A-C87B-4E55-BC7F-A54F14364B16}.DebugAutoUpdate|Any CPU.Build.0 = Development|Any CPU
+		{D475A94A-C87B-4E55-BC7F-A54F14364B16}.Development|Any CPU.ActiveCfg = Development|Any CPU
+		{D475A94A-C87B-4E55-BC7F-A54F14364B16}.Development|Any CPU.Build.0 = Development|Any CPU
+		{D475A94A-C87B-4E55-BC7F-A54F14364B16}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D475A94A-C87B-4E55-BC7F-A54F14364B16}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D475A94A-C87B-4E55-BC7F-A54F14364B16}.ReleaseAutoUpdate|Any CPU.ActiveCfg = Release|Any CPU
+		{D475A94A-C87B-4E55-BC7F-A54F14364B16}.ReleaseAutoUpdate|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

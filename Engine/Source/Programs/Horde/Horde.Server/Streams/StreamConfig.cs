@@ -22,6 +22,7 @@ using EpicGames.Horde.Replicators;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Telemetry;
 using EpicGames.Perforce;
+using Horde.Common.Rpc;
 using Horde.Server.Acls;
 using Horde.Server.Configuration;
 using Horde.Server.Issues;
@@ -31,7 +32,6 @@ using Horde.Server.Projects;
 using Horde.Server.Replicators;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
-using HordeCommon.Rpc;
 
 namespace Horde.Server.Streams
 {

@@ -7,7 +7,7 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
-using HordeCommon.Rpc;
+using Horde.Common.Rpc;
 
 namespace Horde.Server.Streams
 {
