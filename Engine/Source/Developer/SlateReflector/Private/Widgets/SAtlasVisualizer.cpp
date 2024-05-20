@@ -432,7 +432,7 @@ void SAtlasVisualizer::OnMouseLeave(const FPointerEvent& MouseEvent)
 FReply SAtlasVisualizer::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
 #if WITH_ATLAS_DEBUGGING
-	if (!MouseEvent.GetCursorDelta().IsNearlyZero() && !HasMouseCapture())
+	if (!MouseEvent.GetCursorDelta().IsNearlyZero() && !HasMouseCapture() && !MouseEvent.IsMouseButtonDown(EKeys::RightMouseButton))
 	{
 		FVector2D LocalPos = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition()) / ScrollPanel->GetZoomLevel();
 
