@@ -2399,33 +2399,16 @@ int32 UCustomizableObjectInstance::AddValueToProjectorRange(const FString& Param
 }
 
 
-int32 UCustomizableObjectInstance::RemoveValueFromIntRange(const FString& ParamName)
-{
-	return Descriptor.RemoveValueFromIntRange(ParamName);
-}
-
-
 int32 UCustomizableObjectInstance::RemoveValueFromIntRange(const FString& ParamName, int32 RangeIndex)
 {
 	return Descriptor.RemoveValueFromIntRange(ParamName, RangeIndex);
 
 }
 
-int32 UCustomizableObjectInstance::RemoveValueFromFloatRange(const FString& ParamName)
-{
-	return Descriptor.RemoveValueFromFloatRange(ParamName);
-}
-
 
 int32 UCustomizableObjectInstance::RemoveValueFromFloatRange(const FString& ParamName, const int32 RangeIndex)
 {
 	return Descriptor.RemoveValueFromFloatRange(ParamName, RangeIndex);
-}
-
-
-int32 UCustomizableObjectInstance::RemoveValueFromProjectorRange(const FString& ParamName)
-{
-	return Descriptor.RemoveValueFromProjectorRange(ParamName);
 }
 
 

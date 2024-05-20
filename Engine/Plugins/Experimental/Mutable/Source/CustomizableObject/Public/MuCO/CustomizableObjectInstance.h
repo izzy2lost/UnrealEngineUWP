@@ -511,26 +511,20 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	int32 AddValueToProjectorRange(const FString& ParamName);
 
-	/** Remove the last of the integer range of values from the parameter ParamName, returns the index of the last valid integer, -1 if no values left. */
+	/** Remove the RangeIndex element of the integer range of values from the parameter ParamName. If RangeValue is -1 removes the last of the integer range of values.
+		Returns the index of the last valid integer, -1 if no values left. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
-	int32 RemoveValueFromIntRange(const FString& ParamName);
+	int32 RemoveValueFromIntRange(const FString& ParamName, int32 RangeIndex = -1);
 
-	/** Remove the RangeIndex element of the integer range of values from the parameter ParamName, returns the index of the last valid integer, -1 if no values left. */
-	int32 RemoveValueFromIntRange(const FString& ParamName, int32 RangeIndex);
-
-	/** Remove the last of the float range of values from the parameter ParamName, returns the index of the last valid float, -1 if no values left. */
+	/** Remove the RangeIndex element of the float range of values from the parameter ParamName. If RangeValue is -1 removes the last of the float range of values.
+		Returns the index of the last valid float, -1 if no values left. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
-	int32 RemoveValueFromFloatRange(const FString& ParamName);
+	int32 RemoveValueFromFloatRange(const FString& ParamName, int32 RangeIndex = -1);
 
-	/** Remove the RangeIndex element of the float range of values from the parameter ParamName, returns the index of the last valid float, -1 if no values left. */
-	int32 RemoveValueFromFloatRange(const FString& ParamName, int32 RangeIndex);
-
-	/** Remove the last of the projector range of values from the parameter ParamName, returns the index of the last valid projector, -1 if no values left. */
+	/** Remove the RangeIndex element of the projector range of values from the parameter ParamName. If RangeValue is -1 removes the last of the projector range of values.
+		Returns the index of the last valid projector, -1 if no values left. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
-	int32 RemoveValueFromProjectorRange(const FString& ParamName);
-
-	/** Remove the RangeIndex element of the projector range of values from the parameter ParamName, returns the index of the last valid projector, -1 if no values left. */
-	int32 RemoveValueFromProjectorRange(const FString& ParamName, int32 RangeIndex);
+	int32 RemoveValueFromProjectorRange(const FString& ParamName, int32 RangeIndex = -1);
 
 	// ------------------------------------------------------------
 	// Multilayer Projectors

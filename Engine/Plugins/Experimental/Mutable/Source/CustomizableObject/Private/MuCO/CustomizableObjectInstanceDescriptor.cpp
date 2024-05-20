@@ -2090,22 +2090,6 @@ int32 FCustomizableObjectInstanceDescriptor::AddValueToProjectorRange(const FStr
 }
 
 
-int32 FCustomizableObjectInstanceDescriptor::RemoveValueFromIntRange(const FString& ParamName)
-{
-	const int32 IntParameterIndex = FindTypedParameterIndex(ParamName, EMutableParameterType::Int);
-	if (IntParameterIndex != INDEX_NONE)
-	{
-		FCustomizableObjectIntParameterValue& IntParameter = IntParameters[IntParameterIndex];
-		if (IntParameter.ParameterRangeValueNames.Num() > 0)
-		{
-			IntParameter.ParameterRangeValueNames.Pop();
-			return IntParameter.ParameterRangeValueNames.Num() - 1;
-		}
-	}
-	return -1;
-}
-
-
 int32 FCustomizableObjectInstanceDescriptor::RemoveValueFromIntRange(const FString& ParamName, const int32 RangeIndex)
 {
 	const int32 IntParameterIndex = FindTypedParameterIndex(ParamName, EMutableParameterType::Int);
@@ -2114,24 +2098,9 @@ int32 FCustomizableObjectInstanceDescriptor::RemoveValueFromIntRange(const FStri
 		FCustomizableObjectIntParameterValue& IntParameter = IntParameters[IntParameterIndex];
 		if (IntParameter.ParameterRangeValueNames.Num() > 0)
 		{
-			IntParameter.ParameterRangeValueNames.RemoveAt(RangeIndex);
+			int32 IndexToRemove = IntParameter.ParameterRangeValueNames.IsValidIndex(RangeIndex) ? RangeIndex : IntParameter.ParameterRangeValueNames.Num() - 1;
+			IntParameter.ParameterRangeValueNames.RemoveAt(IndexToRemove);
 			return IntParameter.ParameterRangeValueNames.Num() - 1;
-		}
-	}
-	return -1;
-}
-
-
-int32 FCustomizableObjectInstanceDescriptor::RemoveValueFromFloatRange(const FString& ParamName)
-{
-	const int32 FloatParameterIndex = FindTypedParameterIndex(ParamName, EMutableParameterType::Float);
-	if (FloatParameterIndex != INDEX_NONE)
-	{
-		FCustomizableObjectFloatParameterValue& FloatParameter = FloatParameters[FloatParameterIndex];
-		if (FloatParameter.ParameterRangeValues.Num() > 0)
-		{
-			FloatParameter.ParameterRangeValues.Pop();
-			return FloatParameter.ParameterRangeValues.Num() - 1;
 		}
 	}
 	return -1;
@@ -2146,7 +2115,8 @@ int32 FCustomizableObjectInstanceDescriptor::RemoveValueFromFloatRange(const FSt
 		FCustomizableObjectFloatParameterValue& FloatParameter = FloatParameters[FloatParameterIndex];
 		if (FloatParameter.ParameterRangeValues.Num() > 0)
 		{
-			FloatParameter.ParameterRangeValues.RemoveAt(RangeIndex);
+			int32 IndexToRemove = FloatParameter.ParameterRangeValues.IsValidIndex(RangeIndex) ? RangeIndex : FloatParameter.ParameterRangeValues.Num() - 1;
+			FloatParameter.ParameterRangeValues.RemoveAt(IndexToRemove);
 			return FloatParameter.ParameterRangeValues.Num() - 1;
 		}
 	}
@@ -2186,31 +2156,18 @@ int32 FCustomizableObjectInstanceDescriptor::RemoveValueFromTextureRange(const F
 }
 
 
-int32 FCustomizableObjectInstanceDescriptor::RemoveValueFromProjectorRange(const FString& ParamName)
-{
-	const int32 ProjectorParameterIndex = FindTypedParameterIndex(ParamName, EMutableParameterType::Projector);
-	if (ProjectorParameterIndex != INDEX_NONE)
-	{
-		FCustomizableObjectProjectorParameterValue& ProjectorParameter = ProjectorParameters[ProjectorParameterIndex];
-		if (ProjectorParameter.RangeValues.Num() > 0)
-		{
-			ProjectorParameter.RangeValues.Pop();
-			return ProjectorParameter.RangeValues.Num() - 1;
-		}
-	}
-	return -1;
-}
-
-
 int32 FCustomizableObjectInstanceDescriptor::RemoveValueFromProjectorRange(const FString& ParamName, const int32 RangeIndex)
 {
 	const int32 ProjectorParameterIndex = FindTypedParameterIndex(ParamName, EMutableParameterType::Projector);
 	if (ProjectorParameterIndex != INDEX_NONE)
 	{
 		FCustomizableObjectProjectorParameterValue& ProjectorParameter = ProjectorParameters[ProjectorParameterIndex];
+
 		if (ProjectorParameter.RangeValues.Num() > 0)
 		{
-			ProjectorParameter.RangeValues.RemoveAt(RangeIndex);
+			int32 IndexToRemove = ProjectorParameter.RangeValues.IsValidIndex(RangeIndex) ? RangeIndex : ProjectorParameter.RangeValues.Num() - 1;
+			ProjectorParameter.RangeValues.RemoveAt(IndexToRemove);
+			
 			return ProjectorParameter.RangeValues.Num() - 1;
 		}
 	}
