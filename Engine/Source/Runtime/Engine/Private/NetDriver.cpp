@@ -8109,16 +8109,17 @@ void UNetDriver::UpdateNetworkStats()
 					NumDormantActors -= FMath::Max(0, ClientConnections.Num() - 1) * SharedDormantActors;
 				}
 			}
+			
+			GetMetrics()->SetInt(UE::Net::Metric::Ping, Ping);
+			GetMetrics()->SetInt(UE::Net::Metric::InRate, InBytesPerSecond);
+			GetMetrics()->SetInt(UE::Net::Metric::OutRate, OutBytesPerSecond);
 
 #if STATS
 			if (!bSkipLocalStats)
 			{
 				// Copy the net status values over
-				GetMetrics()->SetInt(UE::Net::Metric::Ping, Ping);
 				GetMetrics()->SetInt(UE::Net::Metric::Channels, NumOpenChannels);
 				GetMetrics()->SetInt(UE::Net::Metric::MaxPacketOverhead, MaxPacketOverhead);
-				GetMetrics()->SetInt(UE::Net::Metric::InRate, InBytesPerSecond);
-				GetMetrics()->SetInt(UE::Net::Metric::OutRate, OutBytesPerSecond);
 
 				GetMetrics()->SetInt(UE::Net::Metric::NetNumClients, NumClients);
 
