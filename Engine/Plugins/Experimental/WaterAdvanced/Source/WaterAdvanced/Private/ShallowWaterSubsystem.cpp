@@ -107,7 +107,9 @@ void UShallowWaterSubsystem::PostInitialize()
 void UShallowWaterSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
 	TArray<ULocalPlayer*> LocalPlayers = InWorld.GetGameInstance() != nullptr ? InWorld.GetGameInstance()->GetLocalPlayers() : TArray<ULocalPlayer*>();
-	if (!LocalPlayers.IsEmpty())
+	
+	// we don't support split screen
+	if (LocalPlayers.Num() == 1)
 	{
 		if (ULocalPlayer* const LocalPlayer = LocalPlayers[0])
 		{
@@ -118,6 +120,10 @@ void UShallowWaterSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 			}
 			LocalPlayer->OnPlayerControllerChanged().AddUObject(this, &UShallowWaterSubsystem::OnLocalPlayerControllerBecomesValid);
 		}
+	}
+	else if (LocalPlayers.Num() > 1)
+	{
+		UE_LOG(LogShallowWater, Warning, TEXT("Shallow Water Simulation is disabled during splitscreen"));
 	}
 }
 
@@ -228,6 +234,13 @@ void UShallowWaterSubsystem::InitializeShallowWater()
 	if (!ensure(WeakPlayerController.IsValid()))
 	{
 		UE_LOG(LogShallowWater, Warning, TEXT("PlayerController is invalid during initialization"));
+		return;
+	}
+
+	// another check to make sure we don't simulate when we have split screen active
+	if (WeakPlayerController->GetSplitscreenPlayerCount() > 1)
+	{
+		UE_LOG(LogShallowWater, Warning, TEXT("Shallow Water Simulation is disabled during splitscreen"));
 		return;
 	}
 
