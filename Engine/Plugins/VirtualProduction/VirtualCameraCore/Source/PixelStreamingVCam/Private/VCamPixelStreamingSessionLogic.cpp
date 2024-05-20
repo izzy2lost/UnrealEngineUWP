@@ -51,7 +51,7 @@ namespace UE::PixelStreamingVCam::Private
 	void FVCamPixelStreamingSessionLogic::OnActivate(DecoupledOutputProvider::IOutputProviderEvent& Args)
 	{
 		UVCamPixelStreamingSession* This = Cast<UVCamPixelStreamingSession>(&Args.GetOutputProvider());
-		AActor* OwningActor = This->GetTypedOuter<AActor>();
+		AActor* OwningActor = This ? This->GetTypedOuter<AActor>() : nullptr;
 		if (!ensure(This && OwningActor))
 		{
 			return;
