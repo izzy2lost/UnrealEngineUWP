@@ -74,7 +74,7 @@ namespace UE::AvaTransitionEditor::Private
 		{
 			UScriptStruct* StateLinkStruct = TBaseStructure<FStateTreeStateLink>::Get();
 
-			for (const TPair<FStructProperty*, const void*>& Pair : TPropertyValueRange<FStructProperty>(InStruct, InStructMemory))
+			for (const TPair<const FStructProperty*, const void*>& Pair : TPropertyValueRange<FStructProperty>(InStruct, InStructMemory))
 			{
 				if (Pair.Key && Pair.Key->Struct == StateLinkStruct)
 				{
