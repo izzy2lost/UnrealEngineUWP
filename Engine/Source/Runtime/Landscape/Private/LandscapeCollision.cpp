@@ -652,10 +652,12 @@ FPrimitiveSceneProxy* ULandscapeHeightfieldCollisionComponent::CreateSceneProxy(
 			// Allocate the static vertex resources now 
 			if (Vertices.Num() > 0)
 			{
+#if RHI_ENABLE_RESOURCE_INFO
 				FName Name = FName(TEXT("FLandscapeHeightfieldCollisionComponentSceneProxy ") + GetOwnerName().ToString());
 				VertexBuffers.SetOwnerName(Name);
 				IndexBuffer.SetOwnerName(Name);
 				VertexFactory.SetOwnerName(Name);
+#endif
 
 				VertexBuffers.InitFromDynamicVertex(&VertexFactory, Vertices);
 				BeginInitResource(&VertexBuffers.PositionVertexBuffer);

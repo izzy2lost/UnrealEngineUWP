@@ -367,8 +367,10 @@ void FSkinWeightProfilesData::SetDynamicDefaultSkinWeightProfile(USkeletalMesh* 
 								bDefaultOverridden = true;
 								DefaultProfileName = Profiles[DefaultProfileIndex].Name;
 								
+#if RHI_ENABLE_RESOURCE_INFO
 								const FName OwnerName(USkinnedAsset::GetLODPathName(Mesh, LODIndex));
 								OverrideBuffer->SetOwnerName(OwnerName);
+#endif
 								OverrideBuffer->BeginInitResources();
 							}
 						}

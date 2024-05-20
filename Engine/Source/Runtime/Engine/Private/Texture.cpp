@@ -396,7 +396,10 @@ void UTexture::UpdateResource()
 			}
 
 			PrivateResource = NewResource;
+
+#if RHI_ENABLE_RESOURCE_INFO
 			NewResource->SetOwnerName(FName(GetPathName()));
+#endif
 
 			// Init the texture reference, which needs to be set from a render command, since TextureReference.TextureReferenceRHI is gamethread coherent.
 			ENQUEUE_RENDER_COMMAND(SetTextureReference)([this, NewResource](FRHICommandListImmediate& RHICmdList)

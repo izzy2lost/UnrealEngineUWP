@@ -181,7 +181,9 @@ void UTextureCollection::UpdateResource()
 		LLM_SCOPE(ELLMTag::Textures);
 
 		PrivateResource = NewResource;
+#if RHI_ENABLE_RESOURCE_INFO
 		NewResource->SetOwnerName(FName(GetPathName()));
+#endif
 
 		ENQUEUE_RENDER_COMMAND(SetTextureCollectionResource)([this, NewResource](FRHICommandListImmediate& RHICmdList)
 		{

@@ -4811,8 +4811,10 @@ void USkinnedMeshComponent::SetSkinWeightOverride(int32 LODIndex, const TArray<F
 			Info.OverrideSkinWeights->SetUse16BitBoneIndex(bUse16BitBoneIndex);
 
 			const USkinnedAsset* Mesh = GetSkinnedAsset();
+#if RHI_ENABLE_RESOURCE_INFO
 			const FName OwnerName(USkinnedAsset::GetLODPathName(Mesh, LODIndex));
 			Info.OverrideSkinWeights->SetOwnerName(OwnerName);
+#endif
 
 			const FReferenceSkeleton& RefSkel = Mesh->GetRefSkeleton();
 			TArray<FSkinWeightInfo> GPUWeights;
