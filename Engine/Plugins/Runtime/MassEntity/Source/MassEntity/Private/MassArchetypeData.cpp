@@ -1353,7 +1353,7 @@ bool FMassArchetypeHelper::DoesArchetypeMatchRequirements(const FMassArchetypeDa
 #if WITH_MASSENTITY_DEBUG
 		if (OutputDevice)
 		{
-			const FMassTagBitSet UnwantedTags = Requirements.GetRequiredAllTags().GetOverlap(Archetype.GetTagBitSet());
+			const FMassTagBitSet UnwantedTags = Requirements.GetRequiredNoneTags().GetOverlap(Archetype.GetTagBitSet());
 			FStringOutputDevice Description;
 			UnwantedTags.DebugGetStringDesc(Description);
 			OutputDevice->Logf(TEXT("Archetype has tags required absent: %s"), *Description);
@@ -1406,7 +1406,7 @@ bool FMassArchetypeHelper::DoesArchetypeMatchRequirements(const FMassArchetypeDa
 #if WITH_MASSENTITY_DEBUG
 		if (OutputDevice)
 		{
-			const FMassFragmentBitSet UnwantedFragments = Requirements.GetRequiredAllFragments().GetOverlap(Archetype.GetFragmentBitSet());
+			const FMassFragmentBitSet UnwantedFragments = Requirements.GetRequiredNoneFragments().GetOverlap(Archetype.GetFragmentBitSet());
 			FStringOutputDevice Description;
 			UnwantedFragments.DebugGetStringDesc(Description);
 			OutputDevice->Logf(TEXT("Archetype has Fragments required absent: %s"), *Description);
