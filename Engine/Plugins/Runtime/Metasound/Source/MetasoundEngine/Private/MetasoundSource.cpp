@@ -1176,12 +1176,22 @@ void UMetaSoundSource::InitParametersInternal(const Metasound::TSortedVertexName
 		FAudioParameter& Parameter = ParametersToInit[i];
 		if (const FRuntimeInput* Input = InInputMap.Find(Parameter.ParamName))
 		{
+			bIsParameterValid = true;
+			
 			if (IsParameterValidInternal(Parameter, Input->TypeName, DataTypeRegistry))
 			{
-				Sanitize(Parameter);
-				constexpr bool bClearUObjectPointers = true; // protect against leaking UObject ptrs to the audio thread 
-				SourcePrivate::CreateUObjectProxies(DataTypeRegistry, Input->TypeName, bClearUObjectPointers, Parameter);
-				bIsParameterValid = true;
+				// note: this was originally called 2x, the 1st call would create the proxy
+				// and clear out the ObjectParam.  The 2nd call would clear out the proxy,
+				// and fail to re-create it because we cleared out the ObjectParam. 
+				
+				// if there is no object param we should assume we have already created a proxy
+				// (there is no point in attempting to create a proxy w/o a UObject.)
+				if(Parameter.ObjectParam) 
+				{
+					Sanitize(Parameter);
+					constexpr bool bClearUObjectPointers = true; // protect against leaking UObject ptrs to the audio thread 
+					SourcePrivate::CreateUObjectProxies(DataTypeRegistry, Input->TypeName, bClearUObjectPointers, Parameter);
+				}
 			}
 		}
 
