@@ -78,18 +78,18 @@ FORCEINLINE Dataflow::FTimestamp LatestTimestamp(const UDataflow* Dataflow, cons
 
 void FDataflowConstructionScene::TickDataflowScene(const float DeltaSeconds)
 {
-	if (TObjectPtr<UDataflowBaseContent> DataflowContent = GetDataflowContent())
+	if (const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
 	{
-		if (const TSharedPtr<Dataflow::FContext> DataflowContext = DataflowContent->GetDataflowContext())
+		if (const TSharedPtr<Dataflow::FContext> DataflowContext = EditorContent->GetDataflowContext())
 		{
-			if (const UDataflow* Dataflow = DataflowContent->GetDataflowAsset())
+			if (const UDataflow* Dataflow = EditorContent->GetDataflowAsset())
 			{
 				const Dataflow::FTimestamp SystemTimestamp = LatestTimestamp(Dataflow, DataflowContext.Get());
-				if (SystemTimestamp >= DataflowContent->GetLastModifiedTimestamp() || DataflowContent->IsDirty())
+				if (SystemTimestamp >= EditorContent->GetLastModifiedTimestamp() || EditorContent->IsDirty())
 				{
-					DataflowContent->SetLastModifiedTimestamp(SystemTimestamp.Value + 1);
+					EditorContent->SetLastModifiedTimestamp(SystemTimestamp.Value + 1);
 
-					if (DataflowContent->IsDirty())
+					if (EditorContent->IsDirty())
 					{
 						UpdateConstructionScene();
 					}
@@ -127,10 +127,10 @@ void FDataflowConstructionScene::UpdateDynamicMeshComponents()
 	// list of UPrimitiveComponents for rendering.
 	ResetDynamicMeshComponents();
 
-	if (TObjectPtr<UDataflowBaseContent> DataflowContent = GetDataflowContent())
+	if (const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
 	{
-		const TObjectPtr<UDataflow>& DataflowAsset = DataflowContent->GetDataflowAsset();
-		const TSharedPtr<Dataflow::FEngineContext>& DataflowContext = DataflowContent->GetDataflowContext();
+		const TObjectPtr<UDataflow>& DataflowAsset = EditorContent->GetDataflowAsset();
+		const TSharedPtr<Dataflow::FEngineContext>& DataflowContext = EditorContent->GetDataflowContext();
 		if(DataflowAsset && DataflowContext)
 		{
 			for (TObjectPtr<const UDataflowEdNode> Target : DataflowAsset->GetRenderTargets())
@@ -151,9 +151,9 @@ void FDataflowConstructionScene::UpdateDynamicMeshComponents()
 
 						if (DynamicMesh.VertexCount())
 						{
-							if (Target == DataflowContent->GetPrimarySelectedNode())
+							if (Target == EditorContent->GetPrimarySelectedNode())
 							{
-								DataflowContent->SetPrimaryRenderCollection(RenderCollection);
+								EditorContent->SetPrimaryRenderCollection(RenderCollection);
 							}
 							const FString MeshName = Facade.GetGeometryName()[MeshIndex];
 							AddDynamicMeshComponent({Target, MeshIndex}, MeshName, MoveTemp(DynamicMesh), {});
@@ -198,9 +198,9 @@ void FDataflowConstructionScene::UpdateDynamicMeshComponents()
 
 							if (DynamicMesh.VertexCount())
 							{
-								if (Target == DataflowContent->GetPrimarySelectedNode())
+								if (Target == EditorContent->GetPrimarySelectedNode())
 								{
-									DataflowContent->SetPrimaryRenderCollection(RenderCollection);
+									EditorContent->SetPrimaryRenderCollection(RenderCollection);
 								}
 								const FString MeshName = Facade.GetGeometryName()[MeshIndex];
 								UDynamicMeshComponent* const NewDynamicMeshComponent = AddDynamicMeshComponent(WireframeDynamicMeshKey, MeshName, MoveTemp(DynamicMesh), {});
@@ -244,10 +244,10 @@ TObjectPtr<UDynamicMeshComponent>& FDataflowConstructionScene::AddDynamicMeshCom
 	DynamicMeshComponent->SetMesh(MoveTemp(DynamicMesh));
 	
 	// @todo(Material) This is just to have a material, we should transfer the materials from the assets if they have them. 
-	TObjectPtr<UDataflowBaseContent> DataflowContent = GetDataflowContent();
-	if (DataflowContent && DataflowContent->GetDataflowAsset() && DataflowContent->GetDataflowAsset()->Material)
+	const  TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent();
+	if (EditorContent && EditorContent->GetDataflowAsset() && EditorContent->GetDataflowAsset()->Material)
 	{
-		DynamicMeshComponent->ConfigureMaterialSet({ DataflowContent->GetDataflowAsset()->Material });
+		DynamicMeshComponent->ConfigureMaterialSet({ EditorContent->GetDataflowAsset()->Material });
 	}
 	else
 	{
@@ -357,7 +357,7 @@ void FDataflowConstructionScene::UpdateConstructionScene()
 	ResetConstructionScene();
 
 	// The preview scene for the construction view will be
-	// cleared and rebuilt from scratch. This will genrate a 
+	// cleared and rebuilt from scratch. This will generate a 
 	// list of UPrimitiveComponents for rendering.
 	UpdateDynamicMeshComponents();
 	
@@ -369,9 +369,14 @@ void FDataflowConstructionScene::UpdateConstructionScene()
 		WireframeElements[DynamicMeshComponent]->Settings->bVisible = true;
 	}
 
-	if (TObjectPtr<UDataflowBaseContent> DataflowContent = GetDataflowContent())
+	if (const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
 	{
-		DataflowContent->SetIsDirty(false);
+		EditorContent->SetIsDirty(false);
+	}
+
+	for(const TObjectPtr<UDataflowBaseContent>& TerminalContent : GetTerminalContents())
+	{
+		TerminalContent->SetIsDirty(false);
 	}
 }
 

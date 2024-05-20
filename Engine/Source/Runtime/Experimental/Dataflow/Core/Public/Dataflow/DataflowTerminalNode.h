@@ -43,7 +43,10 @@ struct FDataflowTerminalNode : public FDataflowNode
 	{ 
 		return InType.ToString().Equals(StaticType().ToString()) 
 			|| Super::IsA(InType); 
-	} 
+	}
+
+	/** Return the terminal asset */
+	virtual TObjectPtr<UObject> GetTerminalAsset() const {return nullptr;}
 
 	//
 	// Error Checking
@@ -61,7 +64,6 @@ private:
 	{
 		Evaluate(Context);
 	};
-
 };
 
 

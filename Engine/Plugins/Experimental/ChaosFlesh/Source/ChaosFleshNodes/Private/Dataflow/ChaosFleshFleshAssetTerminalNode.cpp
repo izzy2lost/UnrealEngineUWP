@@ -7,10 +7,10 @@
 
 void FFleshAssetTerminalDataflowNode::SetAssetValue(TObjectPtr<UObject> Asset, Dataflow::FContext& Context) const
 {
-	if (UFleshAsset* FleshAsset = Cast<UFleshAsset>(Asset.Get()))
+	if (UFleshAsset* InFleshAsset = Cast<UFleshAsset>(Asset.Get()))
 	{
 		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		FleshAsset->SetCollection(InCollection.NewCopy<FFleshCollection>());
+		InFleshAsset->SetCollection(InCollection.NewCopy<FFleshCollection>());
 	}
 }
 

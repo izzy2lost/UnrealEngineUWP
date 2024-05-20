@@ -1844,6 +1844,7 @@ void UGeometryCollection::PostEditChangeProperty(struct FPropertyChangedEvent& P
 	{
 		RebuildRenderData();
 	}
+	InvalidateDataflowContents();
 }
 
 bool UGeometryCollection::Modify(bool bAlwaysMarkDirty /*= true*/)
@@ -2024,6 +2025,27 @@ void UGeometryCollection::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUs
 const TArray<UAssetUserData*>* UGeometryCollection::GetAssetUserDataArray() const
 {
 	return &ToRawPtrTArrayUnsafe(AssetUserData);
+}
+
+TObjectPtr<UDataflowBaseContent> UGeometryCollection::CreateDataflowContent()
+{
+	TObjectPtr<UDataflowBaseContent> BaseContent = NewObject<UDataflowBaseContent>();
+
+	BaseContent->SetDataflowOwner(this);
+	BaseContent->SetTerminalAsset(this);
+	
+	UpdateDataflowContent(BaseContent);
+	
+	return BaseContent;
+}
+
+void UGeometryCollection::UpdateDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const
+{
+	if(const TObjectPtr<UDataflowBaseContent> BaseContent = Cast<UDataflowBaseContent>(DataflowContent))
+	{
+		BaseContent->SetDataflowAsset(DataflowAsset);
+		BaseContent->SetDataflowTerminal(DataflowTerminal);
+	}
 }
 
 #if WITH_EDITOR

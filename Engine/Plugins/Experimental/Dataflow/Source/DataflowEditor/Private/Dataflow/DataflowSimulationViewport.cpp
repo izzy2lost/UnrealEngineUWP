@@ -102,12 +102,12 @@ void SDataflowSimulationViewport::OnFloatingButtonClicked()
 
 float SDataflowSimulationViewport:: GetViewMinInput() const
 {
-	return static_cast<FDataflowPreviewSceneBase*>(Client->GetPreviewScene())->GetDataflowContent()->GetSimulationRange()[0];
+	return 0.0f; //Temp value while the simulation nodes is being pushed
 }
 
 float SDataflowSimulationViewport::GetViewMaxInput() const
 {
-	return static_cast<FDataflowPreviewSceneBase*>(Client->GetPreviewScene())->GetDataflowContent()->GetSimulationRange()[1];
+	return 5.0f; //Temp value while the simulation nodes is being pushed
 }
 
 

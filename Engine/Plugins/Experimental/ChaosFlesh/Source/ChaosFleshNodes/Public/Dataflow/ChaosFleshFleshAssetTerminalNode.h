@@ -28,6 +28,12 @@ public:
 		RegisterInputConnection(&Collection);
 		RegisterOutputConnection(&Collection, &Collection);
 	}
+	
+	UPROPERTY(EditAnywhere, Category = "Dataflow", meta = (DisplayName = "FleshAsset"))
+	TObjectPtr<UFleshAsset> FleshAsset = nullptr;
+
+	/** Return the terminal asset */
+	virtual TObjectPtr<UObject> GetTerminalAsset() const override {return FleshAsset;}
 
 	virtual void SetAssetValue(TObjectPtr<UObject> Asset, Dataflow::FContext& Context) const override;
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;

@@ -166,23 +166,23 @@ namespace DataflowContextDefinitionHelpers
 	}
 
 	/*
-	* CreateNewDataflowContext
+	* CreateNewDataflowContent
 	*
 	*/	
 	template<class T>
-	TObjectPtr<T> CreateNewDataflowContext(const TObjectPtr<UObject>& ContentOwner)
+	TObjectPtr<T> CreateNewDataflowContent(const TObjectPtr<UObject>& ContentOwner)
 	{
 		check(ContentOwner.Get());
 		bool bNeedsNewAsset = true;
 		TObjectPtr<UObject> Asset = nullptr;
-
+		
+		UDataflow* DataflowAsset = Private::GetDataflowAssetFrom(ContentOwner);
 		if (bDataflowEnableContextCaching)
 		{
 			// Setup an asset that lives in the content broswer.
 			FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
 
 			UClass* DataflowClass = T::StaticClass();
-			UDataflow* DataflowAsset = Private::GetDataflowAssetFrom(ContentOwner);
 
 			const FString AssetPackageName = ContentOwner->GetOutermost()->GetName();
 			const FString AssetDefaultPath = FPackageName::GetLongPackagePath(AssetPackageName);
@@ -220,7 +220,8 @@ namespace DataflowContextDefinitionHelpers
 
 				if (UDataflowBaseContent* BaseContent = Cast< UDataflowBaseContent>(Asset.Get()))
 				{
-					BaseContent->BuildBaseContent(ContentOwner);
+					BaseContent->SetDataflowOwner(ContentOwner);
+					BaseContent->SetDataflowAsset(DataflowAsset);
 				}
 			}
 		}
@@ -229,7 +230,8 @@ namespace DataflowContextDefinitionHelpers
 			Asset = NewObject<T>(ContentOwner, T::StaticClass());
 			if (UDataflowBaseContent* BaseContent = Cast< UDataflowBaseContent>(Asset.Get()))
 			{
-				BaseContent->BuildBaseContent(ContentOwner);
+				BaseContent->SetDataflowOwner(ContentOwner);
+				BaseContent->SetDataflowAsset(DataflowAsset);
 			}
 		}
 
@@ -241,8 +243,8 @@ namespace DataflowContextDefinitionHelpers
 		return Cast<T>(Asset.Get());
 	}
 
-	template TObjectPtr<UDataflowBaseContent> CreateNewDataflowContext(const TObjectPtr<UObject>& ContentOwner);
-	template TObjectPtr<UDataflowSkeletalContent> CreateNewDataflowContext(const TObjectPtr<UObject>& ContentOwner);
+	template TObjectPtr<UDataflowBaseContent> CreateNewDataflowContent(const TObjectPtr<UObject>& ContentOwner);
+	template TObjectPtr<UDataflowSkeletalContent> CreateNewDataflowContent(const TObjectPtr<UObject>& ContentOwner);
 }
 
 

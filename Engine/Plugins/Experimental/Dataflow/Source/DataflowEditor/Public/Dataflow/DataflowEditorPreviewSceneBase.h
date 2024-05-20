@@ -23,9 +23,13 @@ public:
 	// FGCObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 
-	/** Dataflow content accessors */
-	TObjectPtr<UDataflowBaseContent> GetDataflowContent();
-		const TObjectPtr<UDataflowBaseContent> GetDataflowContent() const;
+	/** Dataflow editor content accessors */
+	TObjectPtr<UDataflowBaseContent>& GetEditorContent();
+	const TObjectPtr<UDataflowBaseContent>& GetEditorContent() const;
+
+	/** Dataflow terminal contents accessors */
+	TArray<TObjectPtr<UDataflowBaseContent>>& GetTerminalContents();
+	const TArray<TObjectPtr<UDataflowBaseContent>>& GetTerminalContents() const;
 
 	/** Root scene actor accessors */
 	TObjectPtr<AActor> GetRootActor() { return RootSceneActor; }
@@ -50,8 +54,9 @@ public:
 protected:
 	
 	/** Root scene actor */
-	TObjectPtr<AActor> RootSceneActor = nullptr;
+	TObjectPtr<AActor> RootSceneActor = nullptr; 
 
+	/** Dataflow editor linked to that preview scene */
 	UDataflowEditor* DataflowEditor = nullptr;
 
 	/** Mode Manager for selection */

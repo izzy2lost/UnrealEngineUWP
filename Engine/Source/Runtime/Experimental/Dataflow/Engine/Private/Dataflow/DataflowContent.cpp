@@ -20,6 +20,17 @@ void UDataflowContextObject::AddReferencedObjects(UObject* InThis, FReferenceCol
 	Super::AddReferencedObjects(InThis, Collector);
 }
 
+TObjectPtr<UDataflowBaseContent> IDataflowContentOwner::BuildDataflowContent()
+{
+	if(TObjectPtr<UDataflowBaseContent> DataflowContent = CreateDataflowContent())
+	{
+		// Delegate used for notifying owner data invalidation
+		OnContentOwnerChanged.AddUObject(DataflowContent, &UDataflowBaseContent::UpdateContentDatas);
+		return DataflowContent;
+	}
+	return nullptr;
+}
+
 //
 // UDataflowBaseContent
 //
@@ -29,30 +40,61 @@ void UDataflowBaseContent::SetIsDirty(bool InDirty)
 	bIsDirty = InDirty;
 }
 
-
 UDataflowBaseContent::UDataflowBaseContent()
 {
 }
 
+UDataflowBaseContent::~UDataflowBaseContent()
+{
+	if(GetDataflowOwner())
+	{
+		if(IDataflowContentOwner* ContentOwner = Cast<IDataflowContentOwner>(GetDataflowOwner()))
+		{
+			ContentOwner->OnContentOwnerChanged.RemoveAll(this);
+		}
+	}
+}
+
+void UDataflowBaseContent::UpdateContentDatas()
+{
+	if(GetDataflowOwner())
+	{
+		if(const IDataflowContentOwner* ContentOwner = Cast<IDataflowContentOwner>(GetDataflowOwner()))
+		{
+			ContentOwner->UpdateDataflowContent(this);
+		}
+	}
+}
+
 void UDataflowBaseContent::SetDataflowOwner(const TObjectPtr<UObject>& InOwner)
 {
-	DataflowOwner = InOwner;
-	if (DataflowContext)
+	if(!DataflowContext)
 	{
-		DataflowContext->Owner = InOwner;  
-		SetIsDirty(true);
+		DataflowContext = MakeShared<Dataflow::FEngineContext>(nullptr, nullptr, Dataflow::FTimestamp::Invalid);
 	}
+	DataflowContext->Owner = InOwner;  
+	SetIsDirty(true);
 }
 
 TObjectPtr<UObject> UDataflowBaseContent::GetDataflowOwner() const 
 {
-	if (DataflowContext)
-	{
-		ensure(DataflowContext->Owner == DataflowOwner);
-	}
-	return DataflowContext ? DataflowContext->Owner : DataflowOwner; 
+	return DataflowContext ? DataflowContext->Owner : nullptr; 
 }
 
+void UDataflowBaseContent::SetDataflowAsset(const TObjectPtr<UDataflow>& DataflowAsset)
+{
+	if(!DataflowContext)
+	{
+		DataflowContext = MakeShared<Dataflow::FEngineContext>(nullptr, nullptr, Dataflow::FTimestamp::Invalid);
+	}
+	DataflowContext->Graph = DataflowAsset;  
+	SetIsDirty(true);
+}
+
+TObjectPtr<UDataflow> UDataflowBaseContent::GetDataflowAsset() const 
+{
+	return DataflowContext ? DataflowContext->Graph : nullptr; 
+}
 
 void UDataflowBaseContent::SetLastModifiedTimestamp(Dataflow::FTimestamp InTimestamp, bool bMakeDirty) 
 { 
@@ -74,16 +116,6 @@ void UDataflowBaseContent::SetDataflowContext(const TSharedPtr<Dataflow::FEngine
 	MarkPackageDirty();
 }
 
-
-void UDataflowBaseContent::BuildBaseContent(TObjectPtr<UObject> InDataflowOwner)
-{
-	DataflowOwner = InDataflowOwner;
-	DataflowContext = MakeShared<Dataflow::FEngineContext>(InDataflowOwner, DataflowAsset, FPlatformTime::Cycles64());
-	LastModifiedTimestamp = DataflowContext->GetTimestamp();
-	SetIsDirty(true);
-	MarkPackageDirty();
-}
-
 void UDataflowBaseContent::Serialize(FArchive& Ar)
 {
 	Super::Serialize(Ar);
@@ -91,7 +123,7 @@ void UDataflowBaseContent::Serialize(FArchive& Ar)
 
 	if (!DataflowContext)
 	{
-		DataflowContext = MakeShared<Dataflow::FEngineContext>(DataflowOwner, DataflowAsset, LastModifiedTimestamp);
+		DataflowContext = MakeShared<Dataflow::FEngineContext>(nullptr, nullptr, LastModifiedTimestamp);
 	}
 	DataflowContext->Serialize(Ar);
 }
@@ -99,8 +131,11 @@ void UDataflowBaseContent::Serialize(FArchive& Ar)
 void UDataflowBaseContent::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
 	UDataflowBaseContent* This = CastChecked<UDataflowBaseContent>(InThis);
-	Collector.AddReferencedObject(This->DataflowOwner);
-	Collector.AddReferencedObject(This->DataflowAsset);
+	if(This->DataflowContext)
+	{
+		Collector.AddReferencedObject(This->DataflowContext->Owner);
+		Collector.AddReferencedObject(This->DataflowContext->Graph);
+	}
 	Super::AddReferencedObjects(InThis, Collector);
 }
 
@@ -108,79 +143,19 @@ void UDataflowBaseContent::AddReferencedObjects(UObject* InThis, FReferenceColle
 // UDataflowSkeletalContent
 //
 
-
 UDataflowSkeletalContent::UDataflowSkeletalContent() : Super()
 {
-}
-
-
-void UDataflowSkeletalContent::RegisterWorldContent(FPreviewScene* PreviewScene, AActor* RootActor)
-{
-	Super::RegisterWorldContent(PreviewScene, RootActor);
-
-	SkeletalMeshComponent = NewObject<USkeletalMeshComponent>(RootActor);
-	SkeletalMeshComponent->SetDisablePostProcessBlueprint(true);
-	
-	if(SkeletalMesh)
-	{
-		SkeletalMeshComponent->SetSkeletalMeshAsset(SkeletalMesh);
-
-		Skeleton = SkeletalMesh->GetSkeleton();
-		UpdateAnimationInstance();
-	}
-	SkeletalMeshComponent->UpdateBounds();
-	PreviewScene->AddComponent(SkeletalMeshComponent, SkeletalMeshComponent->GetRelativeTransform());
-}
-
-void UDataflowSkeletalContent::UpdateAnimationInstance()
-{
-	if (AnimationAsset && SkeletalMesh && (AnimationAsset->GetSkeleton() == SkeletalMesh->GetSkeleton()))
-	{
-		AnimationNodeInstance = NewObject<UAnimSingleNodeInstance>(SkeletalMeshComponent);
-		AnimationNodeInstance->SetAnimationAsset(AnimationAsset);
-
-		SkeletalMeshComponent->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-		SkeletalMeshComponent->InitAnim(true);
-		SkeletalMeshComponent->AnimationData.PopulateFrom(AnimationNodeInstance);
-		SkeletalMeshComponent->AnimScriptInstance = AnimationNodeInstance;
-		SkeletalMeshComponent->AnimScriptInstance->InitializeAnimation();
-
-#if WITH_EDITOR
-		SkeletalMeshComponent->ValidateAnimation();
-#endif
-	}
-	else
-	{
-		SkeletalMeshComponent->Stop();
-		SkeletalMeshComponent->AnimationData = FSingleAnimationPlayData();
-		SkeletalMeshComponent->AnimScriptInstance = nullptr;
-		AnimationNodeInstance = nullptr;
-		AnimationAsset = nullptr;
-	}
-}
-	
-void UDataflowSkeletalContent::UnregisterWorldContent(FPreviewScene* PreviewScene)
-{
-	Super::UnregisterWorldContent(PreviewScene);
-	if (SkeletalMeshComponent)
-	{
-		SkeletalMeshComponent->TransformUpdated.RemoveAll(this);
-		PreviewScene->RemoveComponent(SkeletalMeshComponent);
-	}
 }
 
 void UDataflowSkeletalContent::SetSkeletalMesh(const TObjectPtr<USkeletalMesh>& SkeletalMeshAsset)
 {
 	SkeletalMesh = SkeletalMeshAsset;
-	if(SkeletalMesh && SkeletalMesh->GetSkeleton())
+	if(SkeletalMesh)
 	{
-		Skeleton = SkeletalMesh->GetSkeleton();
-	}
-	if(SkeletalMeshComponent)
-	{
- 		SkeletalMeshComponent->SetSkeletalMeshAsset(SkeletalMesh);
-
- 		UpdateAnimationInstance();
+		if(SkeletalMesh && (SkeletalMesh->GetSkeleton() != Skeleton))
+		{
+			SetSkeleton(SkeletalMesh->GetSkeleton());
+		}
 	}
 	SetIsDirty(true);
 }
@@ -188,22 +163,23 @@ void UDataflowSkeletalContent::SetSkeletalMesh(const TObjectPtr<USkeletalMesh>& 
 void UDataflowSkeletalContent::SetAnimationAsset(const TObjectPtr<UAnimationAsset>& SkeletalAnimationAsset)
 {
 	AnimationAsset = SkeletalAnimationAsset;
-	if(SkeletalMeshComponent)
+	if(AnimationAsset && (AnimationAsset->GetSkeleton()) != Skeleton)
 	{
- 		UpdateAnimationInstance();
+		SetSkeleton(AnimationAsset->GetSkeleton());
 	}
 	SetIsDirty(true);
 }
 
 void UDataflowSkeletalContent::SetSkeleton(const TObjectPtr<USkeleton>& SkeletonAsset)
 {
-	if(SkeletonAsset)
+	Skeleton = SkeletonAsset;
+	if(SkeletalMesh && (SkeletalMesh->GetSkeleton() != Skeleton))
 	{
-		Skeleton = SkeletonAsset;
-		if(SkeletalMesh && (SkeletalMesh->GetSkeleton() != Skeleton))
-		{
-			SetSkeletalMesh(nullptr);
-		}
+		SetSkeletalMesh(nullptr);
+	}
+	if(AnimationAsset && (AnimationAsset->GetSkeleton() != Skeleton))
+	{
+		SetAnimationAsset(nullptr);
 	}
 	SetIsDirty(true);
 }
@@ -229,23 +205,12 @@ void UDataflowSkeletalContent::PostEditChangeProperty(FPropertyChangedEvent& Pro
 		SetSkeleton(Skeleton);
 	}
 }
+
 #endif //if WITH_EDITOR
 
 void UDataflowSkeletalContent::AddContentObjects(FReferenceCollector& Collector)
 {
 	Super::AddContentObjects(Collector);
-	
-	Collector.AddReferencedObject(SkeletalMeshComponent);
-	Collector.AddReferencedObject(AnimationNodeInstance);
-}
-
-FVector2f UDataflowSkeletalContent::GetSimulationRange() const
-{
-	if(AnimationNodeInstance)
-	{
-		return FVector2f(0.0f, AnimationNodeInstance->GetLength());
-	}
-	return FVector2f(0.0f, 0.0f);
 }
 
 void UDataflowSkeletalContent::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
@@ -254,7 +219,6 @@ void UDataflowSkeletalContent::AddReferencedObjects(UObject* InThis, FReferenceC
 	Collector.AddReferencedObject(This->SkeletalMesh);
 	Collector.AddReferencedObject(This->AnimationAsset);
 	Collector.AddReferencedObject(This->Skeleton);
-	Collector.AddReferencedObject(This->SkeletalMeshComponent);
-	Collector.AddReferencedObject(This->AnimationNodeInstance);
 	Super::AddReferencedObjects(InThis, Collector);
 }
+

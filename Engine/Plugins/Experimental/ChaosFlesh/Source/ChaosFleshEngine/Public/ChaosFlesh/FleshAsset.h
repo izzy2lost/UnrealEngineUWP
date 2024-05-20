@@ -7,6 +7,7 @@
 #include "ChaosFlesh/FleshCollection.h"
 #include "Dataflow/DataflowNodeParameters.h"
 #include "Dataflow/DataflowEngineTypes.h"
+#include "Dataflow/DataflowContent.h"
 #include "Engine/StaticMesh.h"
 #include "UObject/ObjectMacros.h"
 
@@ -50,7 +51,7 @@ private:
 *
 */
 UCLASS(customconstructor)
-class CHAOSFLESHENGINE_API UFleshAsset : public UObject
+class CHAOSFLESHENGINE_API UFleshAsset : public UObject, public IDataflowContentOwner
 {
 	GENERATED_UCLASS_BODY()
 	friend class FFleshAssetEdit;
@@ -80,6 +81,12 @@ public:
 	UFleshAsset(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 
+#if WITH_EDITOR
+	/** Post edit change property */
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif //if WITH_EDITOR
+
+
 	/**Editing the collection should only be through the edit object.*/
 	void SetCollection(FFleshCollection* InCollection);
 	const FFleshCollection* GetCollection() const { return FleshCollection.Get(); }
@@ -94,6 +101,10 @@ public:
 	}
 
 	void Serialize(FArchive& Ar);
+
+	/** IDataflowContentOwner interface */
+	virtual TObjectPtr<UDataflowBaseContent> CreateDataflowContent() override;
+	virtual void UpdateDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const override;
 
 	//
 	// Dataflow

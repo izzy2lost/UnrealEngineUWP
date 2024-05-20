@@ -26,79 +26,144 @@ void UDataflowEditor::Initialize(const TArray<TObjectPtr<UObject>>& InObjects)
 {
 	if(!InObjects.IsEmpty())
 	{
-		InitializeContent(InObjects[0]);
-	}
-}
-
-void UDataflowEditor::InitializeContent(const TObjectPtr<UObject>& ContentOwner)
-{
-	check(DataflowContent == nullptr);
-
-	TArray<TObjectPtr<UObject>> RequiredObjects = { ContentOwner };
-
-	if (UDataflow* DataflowAsset = Cast<UDataflow>(ContentOwner))
-	{
-		DataflowContent = DataflowContextDefinitionHelpers::CreateNewDataflowContext<UDataflowBaseContent>(ContentOwner);
-
-		DataflowContent->SetDataflowAsset(DataflowAsset);
-		DataflowContent->SetDataflowTerminal(FString());
-	}
-	else
-	{
-		if (Private::HasDataflowAsset(ContentOwner))
+		const TObjectPtr<UObject> ContentOwner = InObjects[0];
+		TArray<TObjectPtr<UObject>> RequiredObjects = { ContentOwner };
+		
+		if(!EditorContent)
 		{
-			if (Private::HasSkeletalMesh(ContentOwner))
+			if(UDataflow* DataflowAsset = Cast<UDataflow>(ContentOwner))
 			{
-				DataflowContent = DataflowContextDefinitionHelpers::CreateNewDataflowContext<UDataflowSkeletalContent>(ContentOwner);
-				const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(DataflowContent);
-
-				SkeletalContent->SetSkeletalMesh(Private::GetSkeletalMeshFrom(ContentOwner));
-				SkeletalContent->SetSkeleton(Private::GetSkeletonFrom(ContentOwner));
-				SkeletalContent->SetAnimationAsset(Private::GetAnimationAssetFrom(ContentOwner));
+				EditorContent = DataflowContextDefinitionHelpers::CreateNewDataflowContent<UDataflowBaseContent>(ContentOwner);
+				EditorContent->SetDataflowOwner(DataflowAsset);
+				EditorContent->SetDataflowAsset(DataflowAsset);
 			}
 			else
 			{
-				DataflowContent = DataflowContextDefinitionHelpers::CreateNewDataflowContext<UDataflowBaseContent>(ContentOwner);
+				if(IDataflowContentOwner* EditorContentOwner = Cast<IDataflowContentOwner>(ContentOwner))
+				{
+					EditorContent = EditorContentOwner->BuildDataflowContent();
+					RequiredObjects.Add(EditorContent->GetDataflowAsset());
+				}
 			}
-
-			DataflowContent->SetDataflowAsset(Private::GetDataflowAssetFrom(ContentOwner));
-			DataflowContent->SetDataflowTerminal(Private::GetDataflowTerminalFrom(ContentOwner));
-			RequiredObjects.Add(Private::GetDataflowAssetFrom(ContentOwner));
 		}
+		RequiredObjects.Add(EditorContent);
+
+		// Update the editor datas (skeleton information for the viewer)
+		UpdateEditorContent();
+
+		// Update and build the terminal contents
+		UpdateTerminalContents(Dataflow::FTimestamp::Invalid);
+		
+		// Potentially we could add additional objects to edit here (fields, meshes....)
+		// If these objects have a matching factory we would be able to use geometry tools
+		UBaseCharacterFXEditor::Initialize(RequiredObjects);
 	}
+}
 
-	if (!DataflowContent) return;
-	RequiredObjects.Add(DataflowContent);
-
-	if (const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(DataflowContent))
+void UDataflowEditor::UpdateEditorContent()
+{
+	if(const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(EditorContent))
 	{
-		if (!SkeletalContent->GetSkeletalMesh())
+		// Add a skeleton mesh in case we don't have one
+		if(!SkeletalContent->GetSkeleton() && !SkeletalContent->GetSkeletalMesh())
 		{
 			const FName SkeletalMeshName = MakeUniqueObjectName(SkeletalContent->GetDataflowAsset(), UDataflow::StaticClass(), FName("USkeletalMesh"));
 			USkeletalMesh* SkeletalMesh = NewObject<USkeletalMesh>(SkeletalContent->GetDataflowAsset(), SkeletalMeshName);
 
-			USkeleton* Skeleton = SkeletalContent->GetSkeleton();
-			if (!Skeleton)
-			{
-				const FName SkeletonName = MakeUniqueObjectName(SkeletalContent->GetDataflowAsset(), UDataflow::StaticClass(), FName("USkeleton"));
-				Skeleton = NewObject<USkeleton>(SkeletalContent->GetDataflowAsset(), SkeletonName);
-			}
+			const FName SkeletonName = MakeUniqueObjectName(SkeletalContent->GetDataflowAsset(), UDataflow::StaticClass(), FName("USkeleton"));
+			USkeleton* Skeleton = NewObject<USkeleton>(SkeletalContent->GetDataflowAsset(), SkeletonName);
+			
 			SkeletalMesh->SetSkeleton(Skeleton);
 			SkeletalContent->SetSkeletalMesh(SkeletalMesh);
 		}
-		else if (!SkeletalContent->GetSkeleton())
+	}
+	if(EditorContent && EditorContent->GetDataflowAsset())
+	{
+		EditorContent->GetDataflowAsset()->Schema = UDataflowSchema::StaticClass();
+	}
+}
+
+void UDataflowEditor::RemoveTerminalContents(const TSharedPtr<Dataflow::FGraph>& DataflowGraph, ValidTerminalsType& ValidTerminals)
+{
+	for(int32 ContentIndex = TerminalContents.Num()-1; ContentIndex >= 0; --ContentIndex)
+	{
+		if(TSharedPtr<FDataflowNode> TerminalNode = DataflowGraph->FindTerminalNode(
+			FName(TerminalContents[ContentIndex]->GetDataflowTerminal())))
 		{
-			SkeletalContent->SetSkeleton(SkeletalContent->GetSkeletalMesh()->GetSkeleton());
+			if(Cast<IDataflowContentOwner>(TerminalNode->AsType<FDataflowTerminalNode>()->GetTerminalAsset()))
+			{
+				ValidTerminals.Add(TerminalNode, TerminalContents[ContentIndex]);
+			}
+			else
+			{
+				TerminalContents.RemoveAt(ContentIndex);
+				bHasTerminalsDirty = true;
+			}
+		}
+		else
+		{
+			// Removal of all the contents with invalid nodes
+			TerminalContents.RemoveAt(ContentIndex);
+			bHasTerminalsDirty = true;
 		}
 	}
+}
 
-	if(DataflowContent && DataflowContent->GetDataflowAsset())
+void UDataflowEditor::AddTerminalContents(const TSharedPtr<Dataflow::FGraph>& DataflowGraph, ValidTerminalsType& ValidTerminals)
+{
+	auto BuildTerminalContent = [this](const TObjectPtr<UDataflowBaseContent>& TerminalContent,
+					const FString& TerminalName, const TObjectPtr<UObject>& TerminalAsset)
 	{
-		DataflowContent->GetDataflowAsset()->Schema = UDataflowSchema::StaticClass();
+		// Set the context (owner/asset) onto the terminal content
+		TerminalContent->SetDataflowContext(EditorContent->GetDataflowContext());
+				
+		TerminalContent->SetDataflowTerminal(TerminalName);
+		TerminalContent->SetTerminalAsset(TerminalAsset);
+	};
+			
+	for(const TSharedPtr<FDataflowNode>& DataflowNode : DataflowGraph->GetTerminalNodes())
+	{
+		if(const FDataflowTerminalNode* TerminalNode = DataflowNode->AsType<FDataflowTerminalNode>())
+		{
+			if(IDataflowContentOwner* TerminalOwner = Cast<IDataflowContentOwner>(TerminalNode->GetTerminalAsset()))
+			{
+				const TObjectPtr<UDataflowBaseContent>* TerminalContent = ValidTerminals.Find(DataflowNode);
+				if(!TerminalContent)
+				{
+					TerminalContents.Add(TerminalOwner->BuildDataflowContent());
+					TerminalContent = &TerminalContents.Last();
+							
+					(*TerminalContent)->SetLastModifiedTimestamp(EditorContent->GetLastModifiedTimestamp());
+					bHasTerminalsDirty = true;
+				}
+				if(TerminalNode->GetTerminalAsset() != (*TerminalContent)->GetTerminalAsset())
+				{
+					BuildTerminalContent(*TerminalContent,
+							TerminalNode->GetName().ToString(), TerminalNode->GetTerminalAsset());
+					bHasTerminalsDirty = true;
+				}
+			}
+		}
 	}
+}
+
+void UDataflowEditor::UpdateTerminalContents(const Dataflow::FTimestamp TimeStamp)
+{
+	bHasTerminalsDirty = false;
 	
-	// Potentially we could add additional objects to edit here (fields, meshes....)
-	// If these objects have a matching factory we would be able to use geometry tools
-	UBaseCharacterFXEditor::Initialize(RequiredObjects);
+	// update of the terminal contents only if no terminal asset on the main editor content
+	if(EditorContent && !EditorContent->GetTerminalAsset() && EditorContent->GetDataflowAsset())
+	{
+		if(const TSharedPtr<Dataflow::FGraph> DataflowGraph = EditorContent->GetDataflowAsset()->GetDataflow())
+		{
+			ValidTerminalsType ValidTerminals;
+
+			// Remove invalid terminals
+			RemoveTerminalContents(DataflowGraph, ValidTerminals);
+
+			// Add valid terminals
+			AddTerminalContents(DataflowGraph, ValidTerminals);
+		}
+	}
 }
 

@@ -415,9 +415,10 @@ UAnimSingleNodeInstance* SDataflowSimulationPanel::GetPreviewAnimationInstance()
 {
 	if (const TSharedPtr<const FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
 	{
-		if(const TObjectPtr<UDataflowSkeletalContent> DataflowContent = Cast<UDataflowSkeletalContent>(PreviewScene->GetDataflowContent()))
+		if(const TObjectPtr<UDataflowSkeletalContent> DataflowContent = Cast<UDataflowSkeletalContent>(PreviewScene->GetEditorContent()))
 		{
-			return DataflowContent->GetAnimationInstance();
+			// temporary nullptr while the simulation nodes are pushed 
+			return nullptr;
 		}
 	}
 
@@ -428,9 +429,10 @@ const UAnimSingleNodeInstance* SDataflowSimulationPanel::GetPreviewAnimationInst
 {
 	if (const TSharedPtr<const FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
 	{
-		if(const TObjectPtr<UDataflowSkeletalContent> DataflowContent = Cast<UDataflowSkeletalContent>(PreviewScene->GetDataflowContent()))
+		if(const TObjectPtr<UDataflowSkeletalContent> DataflowContent = Cast<UDataflowSkeletalContent>(PreviewScene->GetEditorContent()))
 		{
-			return DataflowContent->GetAnimationInstance();
+			// temporary nullptr while the simulation nodes are pushed 
+			return nullptr;
 		}
 	}
 
@@ -441,9 +443,9 @@ void SDataflowSimulationPanel::UpdatePreviewAnimationInstance()
 {
 	if (const TSharedPtr<FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
 	{
-		if(TObjectPtr<UDataflowSkeletalContent> DataflowContent = Cast<UDataflowSkeletalContent>(PreviewScene->GetDataflowContent()))
+		if(TObjectPtr<UDataflowSkeletalContent> DataflowContent = Cast<UDataflowSkeletalContent>(PreviewScene->GetEditorContent()))
 		{
-			DataflowContent->UpdateAnimationInstance();
+			// do nothing while the simulation nodes are pushed 
 		}
 	}
 }

@@ -80,15 +80,5 @@ void SDataflowConstructionViewport::OnFloatingButtonClicked()
 {
 }
 
-float SDataflowConstructionViewport:: GetViewMinInput() const
-{
-	return static_cast<FDataflowPreviewSceneBase*>(Client->GetPreviewScene())->GetDataflowContent()->GetSimulationRange()[0];
-}
-
-float SDataflowConstructionViewport::GetViewMaxInput() const
-{
-	return static_cast<FDataflowPreviewSceneBase*>(Client->GetPreviewScene())->GetDataflowContent()->GetSimulationRange()[1];
-}
-
 
 #undef LOCTEXT_NAMESPACE

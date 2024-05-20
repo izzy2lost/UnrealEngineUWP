@@ -6,6 +6,7 @@
 #include "Chaos/ChaosSolverActor.h"
 #include "GeometryCollection/GeometryCollectionDamagePropagationData.h"
 #include "GeometryCollection/GeometryCollectionSimulationTypes.h"
+#include "Dataflow/DataflowContent.h"
 #include "GeometryCollection/ManagedArray.h"
 #include "InstanceUniformShaderParameters.h"
 #include "Interfaces/Interface_AssetUserData.h"
@@ -357,7 +358,7 @@ struct FGeometryCollectionRenderResourceSizeInfo
 *
 */
 UCLASS(BlueprintType, customconstructor, MinimalAPI)
-class UGeometryCollection : public UObject, public IInterface_AssetUserData
+class UGeometryCollection : public UObject, public IInterface_AssetUserData, public IDataflowContentOwner
 {
 	GENERATED_UCLASS_BODY()
 
@@ -826,6 +827,10 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dataflow", DisplayName = "DataFlow Overrides")
 	TMap<FString, FString> Overrides;
+
+	/** IDataflowContentOwner interface */
+	virtual TObjectPtr<UDataflowBaseContent> CreateDataflowContent() override;
+	virtual void UpdateDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const override;
 
 	GEOMETRYCOLLECTIONENGINE_API const TArray<int32>& GetBreadthFirstTransformIndices() const { return BreadthFirstTransformIndices; }
 

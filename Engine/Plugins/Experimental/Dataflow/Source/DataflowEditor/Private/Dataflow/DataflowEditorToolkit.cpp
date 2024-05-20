@@ -272,14 +272,24 @@ FEditorModeID FDataflowEditorToolkit::GetEditorModeId() const
 	return UDataflowEditorMode::EM_DataflowEditorModeId;
 }
 
-TObjectPtr<UDataflowBaseContent> FDataflowEditorToolkit::GetDataflowContent()
+TObjectPtr<UDataflowBaseContent>& FDataflowEditorToolkit::GetEditorContent()
 {
-	return DataflowEditor->DataflowContent;
+	return DataflowEditor->GetEditorContent();
 }
 
-const TObjectPtr<UDataflowBaseContent> FDataflowEditorToolkit::GetDataflowContent() const
+const TObjectPtr<UDataflowBaseContent>& FDataflowEditorToolkit::GetEditorContent() const
 {
-	return DataflowEditor->DataflowContent;
+	return DataflowEditor->GetEditorContent();
+}
+
+TArray<TObjectPtr<UDataflowBaseContent>>& FDataflowEditorToolkit::GetTerminalContents()
+{
+	return DataflowEditor->GetTerminalContents();
+}
+
+const TArray<TObjectPtr<UDataflowBaseContent>>& FDataflowEditorToolkit::GetTerminalContents() const
+{
+	return DataflowEditor->GetTerminalContents();
 }
 
 bool FDataflowEditorToolkit::OnRequestClose(EAssetEditorCloseReason InCloseReason)
@@ -401,9 +411,9 @@ void FDataflowEditorToolkit::GetSaveableObjects(TArray<UObject*>& OutObjects) co
 {
 	FBaseCharacterFXEditorToolkit::GetSaveableObjects(OutObjects);
 
-	if (ensure(GetDataflowContent()))
+	if (ensure(GetEditorContent()))
 	{
-		if (UDataflow* DataflowAsset = GetDataflowContent()->GetDataflowAsset())
+		if (UDataflow* DataflowAsset = GetEditorContent()->GetDataflowAsset())
 		{
 			check(DataflowAsset->IsAsset());
 			OutObjects.Add(DataflowAsset);
@@ -420,12 +430,12 @@ void FDataflowEditorToolkit::CreateWidgets()
 {
 	FBaseCharacterFXEditorToolkit::CreateWidgets();
 
-	if (TObjectPtr<UDataflowBaseContent> DataflowContent = GetDataflowContent())
+	if (const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
 	{
-		if (UDataflow* DataflowAsset = DataflowContent->GetDataflowAsset())
+		if (UDataflow* DataflowAsset = EditorContent->GetDataflowAsset())
 		{
-			NodeDetailsEditor = CreateNodeDetailsEditorWidget(DataflowContent->GetDataflowOwner());
-			AssetDetailsEditor = CreateAssetDetailsEditorWidget(DataflowContent->GetDataflowOwner());
+			NodeDetailsEditor = CreateNodeDetailsEditorWidget(EditorContent->GetDataflowOwner());
+			AssetDetailsEditor = CreateAssetDetailsEditorWidget({EditorContent->GetDataflowOwner(),EditorContent->GetDataflowAsset()});
 			GraphEditor = CreateGraphEditorWidget(DataflowAsset, NodeDetailsEditor);
 			CreateSimulationViewportClient();
 		}
@@ -505,7 +515,7 @@ void FDataflowEditorToolkit::CreateSimulationViewportClient()
 
 void FDataflowEditorToolkit::OnPropertyValueChanged(const FPropertyChangedEvent& PropertyChangedEvent)
 {
-	if (TObjectPtr<UDataflowBaseContent> EditorContent = GetDataflowContent())
+	if (const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
 	{
 		ensure(EditorContent);
 		if (UDataflow* DataflowAsset = EditorContent->GetDataflowAsset())
@@ -523,7 +533,7 @@ void FDataflowEditorToolkit::OnPropertyValueChanged(const FPropertyChangedEvent&
 
 void FDataflowEditorToolkit::OnAssetPropertyValueChanged(const FPropertyChangedEvent& PropertyChangedEvent)
 {
-	if (TObjectPtr<UDataflowBaseContent> EditorContent = GetDataflowContent())
+	if (const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
 	{
 		ensure(EditorContent);	FDataflowEditorCommands::OnAssetPropertyValueChanged(EditorContent, PropertyChangedEvent);
 	}
@@ -625,7 +635,7 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 	// Despite this function's name, we might not have actually changed which node is selected
 	bool bPrimarySelectionChanged = false;
 
-	if (TObjectPtr<UDataflowBaseContent> EditorContent = GetDataflowContent(); EditorContent->GetDataflowAsset())
+	if (const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent(); EditorContent->GetDataflowAsset())
 	{
 		auto AsObjectPointers = [](const TSet<UObject*>& Set) {
 			TSet<TObjectPtr<UObject> > Objs; for (UObject* Elem : Set) Objs.Add(Elem);
@@ -758,7 +768,7 @@ void FDataflowEditorToolkit::OnConstructionViewSelectionChanged(const TArray<UPr
 
 void FDataflowEditorToolkit::Tick(float DeltaTime)
 {
-	if (TObjectPtr<UDataflowBaseContent> EditorContent = GetDataflowContent())
+	if (const TObjectPtr<UDataflowBaseContent> EditorContent = GetEditorContent())
 	{
 		if (EditorContent->GetDataflowAsset())
 		{
@@ -769,9 +779,28 @@ void FDataflowEditorToolkit::Tick(float DeltaTime)
 				TimeStamp = Dataflow::FTimestamp::Invalid;
 			}
 
-			// OnTick evaluation only pulls the termnial nodes. The other evaluations can be specific nodes. 
-			FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->GetDataflowContext().Get(), TimeStamp, EditorContent->GetDataflowAsset(),
-				nullptr, nullptr, EditorContent->GetDataflowOwner(), EditorContent->GetDataflowTerminal());
+			// Update the list of dataflow teminal contents 
+			DataflowEditor->UpdateTerminalContents(TimeStamp);
+			
+			// OnTick evaluation only pulls the terminal nodes. The other evaluations can be specific nodes.
+			// We only evaluate multiple terminal nodes if the dataflow owner is a UDataflow (Owner == Asset)
+			if(!GetTerminalContents().IsEmpty() && (EditorContent->GetDataflowOwner() == EditorContent->GetDataflowAsset()) && EditorContent->GetDataflowContext())
+			{
+				const Dataflow::FTimestamp InitTimeStamp = TimeStamp;
+				for(const TObjectPtr<UDataflowBaseContent>& TerminalContent : GetTerminalContents())
+				{
+					Dataflow::FTimestamp TerminalTimeStamp = InitTimeStamp;
+					FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->GetDataflowContext().Get(), TerminalTimeStamp, EditorContent->GetDataflowAsset(),
+						nullptr, nullptr, TerminalContent->GetTerminalAsset(), TerminalContent->GetDataflowTerminal());
+
+					TimeStamp = FMath::Max(TimeStamp, TerminalTimeStamp);
+				}
+			}
+			else
+			{
+				FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->GetDataflowContext().Get(), TimeStamp, EditorContent->GetDataflowAsset(),
+					nullptr, nullptr, EditorContent->GetTerminalAsset(), EditorContent->GetDataflowTerminal());
+			}
 			EditorContent->SetLastModifiedTimestamp(TimeStamp);
 		}
 	}
@@ -789,25 +818,23 @@ TSharedRef<SDataflowGraphEditor> FDataflowEditorToolkit::CreateGraphEditorWidget
 
 	FDataflowEditorCommands::FGraphEvaluationCallback Evaluate = [&](FDataflowNode* Node, FDataflowOutput* Out)
 	{
-		if (TObjectPtr<UDataflowBaseContent> EditorContent = GetDataflowContent())
+		if (const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
 		{
 			if (EditorContent->GetDataflowAsset())
 			{
-				if (!EditorContent->GetDataflowContext())
-				{
-					EditorContent->SetDataflowContext(MakeShared<Dataflow::FEngineContext>(EditorContent->GetDataflowOwner(), EditorContent->GetDataflowAsset(), Dataflow::FTimestamp::Invalid));
-				}
 				Node->Invalidate();
 				Dataflow::FTimestamp TimeStamp = Dataflow::FTimestamp::Invalid;
 				
 				FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->GetDataflowContext().Get(), TimeStamp, EditorContent->GetDataflowAsset(),
-					Node, Out, EditorContent->GetDataflowOwner(), EditorContent->GetDataflowTerminal());
+					Node, Out, EditorContent->GetTerminalAsset(), EditorContent->GetDataflowTerminal());
 
 				EditorContent->SetLastModifiedTimestamp(TimeStamp);
 			}
 		}
 	};
-
+	
+	DataflowEditor->UpdateTerminalContents(Dataflow::FTimestamp::Invalid);
+	
 	SGraphEditor::FGraphEditorEvents InEvents;
 	InEvents.OnVerifyTextCommit = FOnNodeVerifyTextCommit::CreateSP(this, &FDataflowEditorToolkit::OnNodeVerifyTitleCommit);
 	InEvents.OnTextCommitted = FOnNodeTextCommitted::CreateSP(this, &FDataflowEditorToolkit::OnNodeTitleCommitted);
@@ -857,9 +884,9 @@ TSharedPtr<IStructureDetailsView> FDataflowEditorToolkit::CreateNodeDetailsEdito
 	return LocalDetailsView;
 }
 
-TSharedPtr<IDetailsView> FDataflowEditorToolkit::CreateAssetDetailsEditorWidget(UObject* ObjectToEdit)
+TSharedPtr<IDetailsView> FDataflowEditorToolkit::CreateAssetDetailsEditorWidget(const TArray<UObject*>& ObjectsToEdit)
 {
-	ensure(ObjectToEdit);
+	ensure(ObjectsToEdit.Num() > 0);
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
 
 	FDetailsViewArgs DetailsViewArgs;
@@ -869,10 +896,11 @@ TSharedPtr<IDetailsView> FDataflowEditorToolkit::CreateAssetDetailsEditorWidget(
 		DetailsViewArgs.bUpdatesFromSelection = false;
 		DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 		DetailsViewArgs.NotifyHook = this;
+		DetailsViewArgs.bAllowMultipleTopLevelObjects = true;
 	}
 
 	TSharedPtr<IDetailsView> LocalDetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
-	LocalDetailsView->SetObject(ObjectToEdit);
+	LocalDetailsView->SetObjects(ObjectsToEdit, true);
 
 	OnFinishedChangingAssetPropertiesDelegateHandle = LocalDetailsView->OnFinishedChangingProperties().AddSP(this, &FDataflowEditorToolkit::OnAssetPropertyValueChanged);
 
@@ -929,9 +957,9 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SkeletonView(const FSpawnT
 {
 	check(Args.GetTabId() == SkeletonViewTabId);
 	check(DataflowEditor);
-	check(DataflowEditor->GetDataflowContent());
+	check(DataflowEditor->GetEditorContent());
 
-	SkeletonEditorView = MakeShared<FDataflowSkeletonView>(DataflowEditor->GetDataflowContent());
+	SkeletonEditorView = MakeShared<FDataflowSkeletonView>(DataflowEditor->GetEditorContent());
 	ViewListeners.Add(SkeletonEditorView.Get());
 
 	FSkeletonTreeArgs SkeletonTreeArgs;
@@ -956,11 +984,11 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SelectionView(const FSpawn
 {
 	//	check(Args.GetTabId().TabType == SelectionViewTabId_1);
 	check(DataflowEditor);
-	check(DataflowEditor->GetDataflowContent());
+	check(DataflowEditor->GetEditorContent());
 
 		if (Args.GetTabId() == SelectionViewTabId_1)
 	{
-		DataflowSelectionView_1 = MakeShared<FDataflowSelectionView>(FDataflowSelectionView(DataflowEditor->GetDataflowContent()));
+		DataflowSelectionView_1 = MakeShared<FDataflowSelectionView>(FDataflowSelectionView(DataflowEditor->GetEditorContent()));
 		if (DataflowSelectionView_1.IsValid())
 		{
 			ViewListeners.Add(DataflowSelectionView_1.Get());
@@ -968,7 +996,7 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SelectionView(const FSpawn
 	}
 	else if (Args.GetTabId() == SelectionViewTabId_2)
 	{
-		DataflowSelectionView_2 = MakeShared<FDataflowSelectionView>(FDataflowSelectionView(DataflowEditor->GetDataflowContent()));
+		DataflowSelectionView_2 = MakeShared<FDataflowSelectionView>(FDataflowSelectionView(DataflowEditor->GetEditorContent()));
 		if (DataflowSelectionView_2.IsValid())
 		{
 			ViewListeners.Add(DataflowSelectionView_2.Get());
@@ -976,7 +1004,7 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SelectionView(const FSpawn
 	}
 	else if (Args.GetTabId() == SelectionViewTabId_3)
 	{
-		DataflowSelectionView_3 = MakeShared<FDataflowSelectionView>(FDataflowSelectionView(DataflowEditor->GetDataflowContent()));
+		DataflowSelectionView_3 = MakeShared<FDataflowSelectionView>(FDataflowSelectionView(DataflowEditor->GetEditorContent()));
 		if (DataflowSelectionView_3.IsValid())
 		{
 			ViewListeners.Add(DataflowSelectionView_3.Get());
@@ -984,7 +1012,7 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SelectionView(const FSpawn
 	}
 	else if (Args.GetTabId() == SelectionViewTabId_4)
 	{
-		DataflowSelectionView_4 = MakeShared<FDataflowSelectionView>(FDataflowSelectionView(DataflowEditor->GetDataflowContent()));
+		DataflowSelectionView_4 = MakeShared<FDataflowSelectionView>(FDataflowSelectionView(DataflowEditor->GetEditorContent()));
 		if (DataflowSelectionView_4.IsValid())
 		{
 			ViewListeners.Add(DataflowSelectionView_4.Get());
@@ -1000,7 +1028,7 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SelectionView(const FSpawn
 
 	if (SelectionViewWidget)
 	{
-		if (const TObjectPtr<UDataflowBaseContent> EditorContent = GetDataflowContent())
+		if (const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
 		{
 			if (Args.GetTabId() == SelectionViewTabId_1)
 			{
@@ -1029,11 +1057,11 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SelectionView(const FSpawn
 TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_CollectionSpreadSheet(const FSpawnTabArgs& Args)
 {
 	check(DataflowEditor);
-	check(DataflowEditor->GetDataflowContent());
+	check(DataflowEditor->GetEditorContent());
 
 	if (Args.GetTabId() == CollectionSpreadSheetTabId_1)
 	{
-		DataflowCollectionSpreadSheet_1 = MakeShared<FDataflowCollectionSpreadSheet>(FDataflowCollectionSpreadSheet(DataflowEditor->GetDataflowContent()));
+		DataflowCollectionSpreadSheet_1 = MakeShared<FDataflowCollectionSpreadSheet>(FDataflowCollectionSpreadSheet(DataflowEditor->GetEditorContent()));
 		if (DataflowCollectionSpreadSheet_1.IsValid())
 		{
 			ViewListeners.Add(DataflowCollectionSpreadSheet_1.Get());
@@ -1041,7 +1069,7 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_CollectionSpreadSheet(cons
 	}
 	else if (Args.GetTabId() == CollectionSpreadSheetTabId_2)
 	{
-		DataflowCollectionSpreadSheet_2 = MakeShared<FDataflowCollectionSpreadSheet>(FDataflowCollectionSpreadSheet(DataflowEditor->GetDataflowContent()));
+		DataflowCollectionSpreadSheet_2 = MakeShared<FDataflowCollectionSpreadSheet>(FDataflowCollectionSpreadSheet(DataflowEditor->GetEditorContent()));
 		if (DataflowCollectionSpreadSheet_2.IsValid())
 		{
 			ViewListeners.Add(DataflowCollectionSpreadSheet_2.Get());
@@ -1049,7 +1077,7 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_CollectionSpreadSheet(cons
 	}
 	else if (Args.GetTabId() == CollectionSpreadSheetTabId_3)
 	{
-		DataflowCollectionSpreadSheet_3 = MakeShared<FDataflowCollectionSpreadSheet>(FDataflowCollectionSpreadSheet(DataflowEditor->GetDataflowContent()));
+		DataflowCollectionSpreadSheet_3 = MakeShared<FDataflowCollectionSpreadSheet>(FDataflowCollectionSpreadSheet(DataflowEditor->GetEditorContent()));
 		if (DataflowCollectionSpreadSheet_3.IsValid())
 		{
 			ViewListeners.Add(DataflowCollectionSpreadSheet_3.Get());
@@ -1057,7 +1085,7 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_CollectionSpreadSheet(cons
 	}
 	else if (Args.GetTabId() == CollectionSpreadSheetTabId_4)
 	{
-		DataflowCollectionSpreadSheet_4 = MakeShared<FDataflowCollectionSpreadSheet>(FDataflowCollectionSpreadSheet(DataflowEditor->GetDataflowContent()));
+		DataflowCollectionSpreadSheet_4 = MakeShared<FDataflowCollectionSpreadSheet>(FDataflowCollectionSpreadSheet(DataflowEditor->GetEditorContent()));
 		if (DataflowCollectionSpreadSheet_4.IsValid())
 		{
 			ViewListeners.Add(DataflowCollectionSpreadSheet_4.Get());
@@ -1073,7 +1101,7 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_CollectionSpreadSheet(cons
 
 	if (CollectionSpreadSheetWidget)
 	{
-		if (const TObjectPtr<UDataflowBaseContent> EditorContent = GetDataflowContent())
+		if (const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
 		{
 			if (Args.GetTabId() == CollectionSpreadSheetTabId_1)
 			{
@@ -1246,7 +1274,7 @@ FName FDataflowEditorToolkit::GetToolkitFName() const
 
 FText FDataflowEditorToolkit::GetToolkitName() const
 {
-	if (const TObjectPtr<UDataflowBaseContent> EditorContent = GetDataflowContent())
+	if (const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
 	{
 		if (EditorContent->GetDataflowOwner())
 		{

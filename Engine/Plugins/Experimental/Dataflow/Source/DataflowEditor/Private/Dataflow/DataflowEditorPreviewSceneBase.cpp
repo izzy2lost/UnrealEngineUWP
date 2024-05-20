@@ -19,32 +19,42 @@ FDataflowPreviewSceneBase::FDataflowPreviewSceneBase(FPreviewScene::Construction
 	: FAdvancedPreviewScene(ConstructionValues)
 	, DataflowEditor(InEditor)
 {
+	RootSceneActor = GetWorld()->SpawnActor<AActor>(AActor::StaticClass());
+	
 	check(DataflowEditor);
 	SetFloorVisibility(bDataflowShowFloorDefault, true);
-
-	RootSceneActor = GetWorld()->SpawnActor<AActor>(AActor::StaticClass());
 }
 
 FDataflowPreviewSceneBase::~FDataflowPreviewSceneBase()
 {}
 
-TObjectPtr<UDataflowBaseContent> FDataflowPreviewSceneBase::GetDataflowContent() 
+TObjectPtr<UDataflowBaseContent>& FDataflowPreviewSceneBase::GetEditorContent() 
 { 
-	return DataflowEditor->GetDataflowContent();
+	return DataflowEditor->GetEditorContent();
 }
 
-const TObjectPtr<UDataflowBaseContent> FDataflowPreviewSceneBase::GetDataflowContent() const 
+const TObjectPtr<UDataflowBaseContent>& FDataflowPreviewSceneBase::GetEditorContent() const 
 { 
-	return DataflowEditor->GetDataflowContent();
+	return DataflowEditor->GetEditorContent();
+}
+
+TArray<TObjectPtr<UDataflowBaseContent>>& FDataflowPreviewSceneBase::GetTerminalContents() 
+{ 
+	return DataflowEditor->GetTerminalContents();
+}
+
+const TArray<TObjectPtr<UDataflowBaseContent>>& FDataflowPreviewSceneBase::GetTerminalContents() const 
+{ 
+	return DataflowEditor->GetTerminalContents();
 }
 
 void FDataflowPreviewSceneBase::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	FAdvancedPreviewScene::AddReferencedObjects(Collector);
 	Collector.AddReferencedObject(RootSceneActor);
-	if (GetDataflowContent())
+	if (const TObjectPtr<UDataflowBaseContent> EditorContent = GetEditorContent())
 	{
-		GetDataflowContent()->AddContentObjects(Collector);
+		EditorContent->AddContentObjects(Collector);
 	}
 }
 

@@ -56,10 +56,16 @@ public:
 	static bool HasDataflowAsset(UObject* ObjectToEdit);
 	static UDataflow* GetDataflowAsset(UObject* ObjectToEdit);
 	static const UDataflow* GetDataflowAsset(const UObject* ObjectToEdit);
+	
+	/** Editor dataflow content accessors */
+	const TObjectPtr<UDataflowBaseContent>& GetEditorContent() const;
+	TObjectPtr<UDataflowBaseContent>& GetEditorContent();
 
-	/** Dataflow Content Access */
-	const TObjectPtr<UDataflowBaseContent> GetDataflowContent() const;
-	TObjectPtr<UDataflowBaseContent> GetDataflowContent();
+	/** Terminal dataflow contents accessors */
+	const TArray<TObjectPtr<UDataflowBaseContent>>& GetTerminalContents() const;
+	TArray<TObjectPtr<UDataflowBaseContent>>& GetTerminalContents();
+	
+	/** Dataflow graph editor accessor */
 	const TSharedPtr<SDataflowGraphEditor> GetDataflowGraphEditor() const { return GraphEditor; }
 
 	// IToolkit interface
@@ -163,7 +169,7 @@ private:
 
 	// Utility factory functions to build the widgets
 	TSharedRef<SDataflowGraphEditor> CreateGraphEditorWidget(UDataflow* ObjectToEdit, TSharedPtr<IStructureDetailsView> PropertiesEditor);
-    TSharedPtr<IDetailsView> CreateAssetDetailsEditorWidget(UObject* ObjectToEdit);
+    TSharedPtr<IDetailsView> CreateAssetDetailsEditorWidget(const TArray<UObject*>& ObjectsToEdit);
     TSharedPtr<IStructureDetailsView> CreateNodeDetailsEditorWidget(UObject* ObjectToEdit);
 
 	/** Create the simulation viewport client */

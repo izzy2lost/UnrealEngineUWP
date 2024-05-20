@@ -334,7 +334,7 @@ void UDataflowEditorMode::SetDataflowSimlationScene(FDataflowSimulationScene* In
 void UDataflowEditorMode::CreateToolTargets(const TArray<TObjectPtr<UObject>>& AssetsIn)
 {
 	ToolTargets.Reset();
-	if (TObjectPtr<UDataflowBaseContent> EditorContent = ConstructionScene->GetDataflowContent())
+	if (const TObjectPtr<UDataflowBaseContent>& EditorContent = ConstructionScene->GetEditorContent())
 	{
 		if (UToolTarget* Target = GetInteractiveToolsContext()->TargetManager->BuildTarget(EditorContent, GetToolTargetRequirements()))
 		{
@@ -659,14 +659,14 @@ void UDataflowEditorMode::InitializeContextObject()
 {
 	check(ConstructionScene);
 
-	if (TObjectPtr<UDataflowBaseContent> DataflowContent = ConstructionScene->GetDataflowContent())
+	if (const TObjectPtr<UDataflowBaseContent>& EditorContent = ConstructionScene->GetEditorContent())
 	{
-		UEditorInteractiveToolsContext* const ConstructionToolsContext = GetInteractiveToolsContext();
+		const UEditorInteractiveToolsContext* const ConstructionToolsContext = GetInteractiveToolsContext();
 
 		UDataflowContextObject* ContextObject = ConstructionToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>();
 		if (!ContextObject)
 		{
-			ContextObject = DataflowContent;
+			ContextObject = EditorContent;
 			ConstructionToolsContext->ContextObjectStore->AddContextObject(ContextObject);
 		}
 
@@ -757,9 +757,9 @@ UEdGraphNode* UDataflowEditorMode::CreateNewNode(const FName& NewNodeTypeName)
 		return nullptr;
 	}
 
-	if (TObjectPtr<UDataflowBaseContent> EditorContent = ConstructionScene->GetDataflowContent())
+	if (const TObjectPtr<UDataflowBaseContent>& EditorContent = ConstructionScene->GetEditorContent())
 	{
-		if (TObjectPtr<UDataflow> DataflowGraph = EditorContent->GetDataflowAsset())
+		if (const TObjectPtr<UDataflow>& DataflowGraph = EditorContent->GetDataflowAsset())
 		{
 			const TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> NodeAction =
 				FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode::CreateAction(DataflowGraph, NewNodeTypeName);
@@ -774,9 +774,9 @@ UEdGraphNode* UDataflowEditorMode::CreateNewNode(const FName& NewNodeTypeName)
 
 UEdGraphNode* UDataflowEditorMode::CreateAndConnectNewNode(const FName& NewNodeTypeName, UEdGraphNode& UpstreamNode, const FName& ConnectionTypeName, const FName& NewNodeConnectionName)
 {
-	if (TObjectPtr<UDataflowBaseContent> EditorContent = ConstructionScene->GetDataflowContent())
+	if (const TObjectPtr<UDataflowBaseContent>& EditorContent = ConstructionScene->GetEditorContent())
 	{
-		if (TObjectPtr<UDataflow> DataflowGraph = EditorContent->GetDataflowAsset())
+		if (const TObjectPtr<UDataflow>& DataflowGraph = EditorContent->GetDataflowAsset())
 		{
 			// First find the specified output of the upstream node, plus any pins it's connected to
 

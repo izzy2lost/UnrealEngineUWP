@@ -5,6 +5,8 @@
 =============================================================================*/
 #include "ChaosFlesh/FleshAsset.h"
 #include "ChaosFlesh/FleshCollection.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "GeometryCollection/TransformCollection.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(FleshAsset)
@@ -69,4 +71,55 @@ void UFleshAsset::Serialize(FArchive& Ar)
 	Chaos::FChaosArchive ChaosAr(Ar);
 	FleshCollection->Serialize(ChaosAr);
 }
+
+TObjectPtr<UDataflowBaseContent> UFleshAsset::CreateDataflowContent()
+{
+	TObjectPtr<UDataflowSkeletalContent> SkeletalContent = NewObject<UDataflowSkeletalContent>();
+
+	SkeletalContent->SetDataflowOwner(this);
+	SkeletalContent->SetTerminalAsset(this);
+
+	UpdateDataflowContent(SkeletalContent);
+	
+	return SkeletalContent;
+}
+
+void UFleshAsset::UpdateDataflowContent(const TObjectPtr<UDataflowBaseContent>& DataflowContent) const
+{
+	if(const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(DataflowContent))
+	{
+		SkeletalContent->SetDataflowAsset(DataflowAsset);
+		SkeletalContent->SetDataflowTerminal(DataflowTerminal);
+		
+		SkeletalContent->SetSkeletalMesh(SkeletalMesh);
+		SkeletalContent->SetSkeleton(Skeleton);
+	}
+}
+
+#if WITH_EDITOR
+void UFleshAsset::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	const FName PropertyName = PropertyChangedEvent.Property->GetFName();
+    
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UFleshAsset, SkeletalMesh))
+	{
+		if(SkeletalMesh && (SkeletalMesh->GetSkeleton() != Skeleton))
+		{
+			Skeleton = SkeletalMesh->GetSkeleton();
+		}
+	}
+
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UFleshAsset, Skeleton))
+	{
+		if(SkeletalMesh && (SkeletalMesh->GetSkeleton() != Skeleton))
+		{
+			SkeletalMesh = nullptr;
+		}
+	}
+	InvalidateDataflowContents();
+}
+#endif //if WITH_EDITOR
+
 

@@ -14,34 +14,30 @@
 FDataflowSimulationScene::FDataflowSimulationScene(FPreviewScene::ConstructionValues ConstructionValues, UDataflowEditor* InEditor)
 	: FDataflowPreviewSceneBase(ConstructionValues, InEditor)
 {
-	if (TObjectPtr<UDataflowBaseContent> DataflowContent = GetDataflowContent())
+	if(RootSceneActor)
 	{
-		DataflowContent->RegisterWorldContent(this, RootSceneActor);
-	}
+		TInlineComponentArray<UPrimitiveComponent*> PrimComponents;
+		RootSceneActor->GetComponents(PrimComponents);
 
-	TInlineComponentArray<UPrimitiveComponent*> PrimComponents;
-	RootSceneActor->GetComponents(PrimComponents);
-
-	for(UPrimitiveComponent* PrimComponent : PrimComponents)
-	{
-		PrimComponent->SelectionOverrideDelegate =
-			UPrimitiveComponent::FSelectionOverride::CreateRaw(this, &FDataflowPreviewSceneBase::IsComponentSelected);
+		for(UPrimitiveComponent* PrimComponent : PrimComponents)
+		{
+			PrimComponent->SelectionOverrideDelegate =
+				UPrimitiveComponent::FSelectionOverride::CreateRaw(this, &FDataflowPreviewSceneBase::IsComponentSelected);
+		}
 	}
 }
 
 FDataflowSimulationScene::~FDataflowSimulationScene()
 {
-	TInlineComponentArray<UPrimitiveComponent*> PrimComponents;
-	RootSceneActor->GetComponents(PrimComponents);
-
-	for(UPrimitiveComponent* PrimComponent : PrimComponents)
+	if(RootSceneActor)
 	{
-		PrimComponent->SelectionOverrideDelegate.Unbind();
-	}
+		TInlineComponentArray<UPrimitiveComponent*> PrimComponents;
+		RootSceneActor->GetComponents(PrimComponents);
 
-	if (TObjectPtr<UDataflowBaseContent> DataflowContent = GetDataflowContent())
-	{
-		DataflowContent->UnregisterWorldContent(this);
+		for(UPrimitiveComponent* PrimComponent : PrimComponents)
+		{
+			PrimComponent->SelectionOverrideDelegate.Unbind();
+		}
 	}
 }
 
