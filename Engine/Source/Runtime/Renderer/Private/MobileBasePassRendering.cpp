@@ -253,17 +253,7 @@ void SetupMobileBasePassUniformParameters(
 	const FMobileBasePassTextures& MobileBasePassTextures,
 	FMobileBasePassUniformParameters& BasePassParameters)
 {
-	const FViewInfo* InstancedView = View.GetInstancedView();
-
 	SetupFogUniformParameters(GraphBuilder, View, BasePassParameters.Fog);
-	if (InstancedView && (View.bIsMobileMultiViewEnabled || UE::StereoRenderUtils::FStereoShaderAspects(View.GetShaderPlatform()).IsMobileMultiViewEnabled()))
-	{
-		SetupFogUniformParameters(GraphBuilder, *InstancedView, BasePassParameters.FogMMV);
-	}
-	else
-	{
-		BasePassParameters.FogMMV = BasePassParameters.Fog;
-	}
 
 	if (View.ForwardLightingResources.ForwardLightData)
 	{
@@ -275,6 +265,7 @@ void SetupMobileBasePassUniformParameters(
 	}
 
 	// Setup forward light data for mobile multi-view secondary view if enabled and available
+	const FViewInfo* InstancedView = View.GetInstancedView();
 	const FForwardLightData* InstancedForwardLightData = InstancedView ? InstancedView->ForwardLightingResources.ForwardLightData : nullptr;
 	if (View.bIsMobileMultiViewEnabled && InstancedForwardLightData)
 	{
