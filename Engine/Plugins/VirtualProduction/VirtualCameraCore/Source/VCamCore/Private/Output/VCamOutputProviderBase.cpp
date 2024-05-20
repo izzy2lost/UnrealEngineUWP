@@ -470,39 +470,6 @@ void UVCamOutputProviderBase::NotifyAboutComponentChange()
 	}
 }
 
-UVCamOutputProviderBase* UVCamOutputProviderBase::GetOtherOutputProviderByIndex(int32 Index) const
-{
-	if (Index > INDEX_NONE)
-	{
-		if (const UVCamComponent* OuterComponent = GetTypedOuter<UVCamComponent>())
-		{
-			if (UVCamOutputProviderBase* Provider = OuterComponent->GetOutputProviderByIndex(Index))
-			{
-				return Provider;
-			}
-			
-			UE_LOG(LogVCamOutputProvider, Warning, TEXT("GetOtherOutputProviderByIndex - specified index is out of range"));
-		}
-	}
-
-	return nullptr;
-}
-
-int32 UVCamOutputProviderBase::FindOwnIndexInOwner() const
-{
-	if (const UVCamComponent* OuterComponent = GetTypedOuter<UVCamComponent>())
-	{
-		for (int32 Index = 0; Index < OuterComponent->GetNumberOfOutputProviders(); ++Index)
-		{
-			if (OuterComponent->GetOutputProviderByIndex(Index) == this)
-			{
-				return Index;
-			}
-		}
-	}
-	return INDEX_NONE;
-}
-
 void UVCamOutputProviderBase::Serialize(FArchive& Ar)
 {
 	using namespace UE::VCamCore;

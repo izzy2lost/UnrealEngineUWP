@@ -5,6 +5,7 @@
 #include "CineCameraComponent.h"
 #include "EVCamTargetViewportID.h"
 #include "UI/WidgetSnapshots.h"
+#include "Util/OutputProviderUtils.h"
 #include "Widgets/VPFullScreenUserWidget.h"
 #include "VCamOutputProviderBase.generated.h"
 
@@ -118,10 +119,9 @@ public:
 	UVPFullScreenUserWidget* GetUMGWidget() { return UMGWidget; };
 
 	/** Utility that gets the owning VCam component and gets another output provider by its index. */
-	UVCamOutputProviderBase* GetOtherOutputProviderByIndex(int32 Index) const;
-
+	UVCamOutputProviderBase* GetOtherOutputProviderByIndex(int32 Index) const { return UE::VCamCore::GetOtherOutputProviderByIndex(*this, Index); }
 	/** Gets the index of this output provider in the owning UVCamComponent::OutputProviders array. */
-	int32 FindOwnIndexInOwner() const;
+	int32 FindOwnIndexInOwner() const { return UE::VCamCore::FindOutputProviderIndex(*this); }
 
 	/** Reapplies the override resolution or restores back to the viewport settings. */
 	void ReapplyOverrideResolution();

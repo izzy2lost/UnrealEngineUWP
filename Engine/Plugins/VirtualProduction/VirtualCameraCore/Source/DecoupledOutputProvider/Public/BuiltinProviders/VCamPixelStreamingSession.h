@@ -33,7 +33,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Output", meta = (DisplayPriority = "14"))
 	bool bAutoSetLiveLinkSubject = true;
 
-	/** Set the name of this stream to be reported to the signalling server. If none is supplied a default will be used. If ids are not unique issues can occur. */
+	/** The name of this streamer to be reported to the signalling server. If ids are not unique issues can occur. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Output", meta = (DisplayPriority = "15"))
 	FString StreamerId;
 };

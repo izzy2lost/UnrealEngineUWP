@@ -22,16 +22,23 @@
 #include "PixelStreamingServers.h"
 #include "PixelStreamingVCamLog.h"
 #include "PixelStreamingVCamModule.h"
+#include "Framework/Notifications/NotificationManager.h"
 #include "Math/Matrix.h"
 #include "Serialization/MemoryReader.h"
 #include "Slate/SceneViewport.h"
 #include "Widgets/SVirtualWindow.h"
 #include "Widgets/VPFullScreenUserWidget.h"
 
+#if WITH_EDITOR
+#include "Framework/Application/SlateApplication.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Widgets/Notifications/SNotificationList.h"
+#endif
+
+#define LOCTEXT_NAMESPACE "FVCamPixelStreamingSessionLogic"
+
 namespace UE::PixelStreamingVCam::Private
 {
-	int32 FVCamPixelStreamingSessionLogic::NextDefaultStreamerId = 1;
-
 	void FVCamPixelStreamingSessionLogic::OnDeinitialize(DecoupledOutputProvider::IOutputProviderEvent& Args)
 	{
 		if (MediaOutput)
@@ -44,18 +51,16 @@ namespace UE::PixelStreamingVCam::Private
 	void FVCamPixelStreamingSessionLogic::OnActivate(DecoupledOutputProvider::IOutputProviderEvent& Args)
 	{
 		UVCamPixelStreamingSession* This = Cast<UVCamPixelStreamingSession>(&Args.GetOutputProvider());
-		const TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr = This;
-
-		if (!This->IsInitialized())
+		AActor* OwningActor = This->GetTypedOuter<AActor>();
+		if (!ensure(This && OwningActor))
 		{
-			UE_LOG(LogPixelStreamingVCam, Warning, TEXT("Trying to start Pixel Streaming, but has not been initialized yet"));
-			This->SetActive(false);
 			return;
 		}
-
+		
+		const TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr = This;
 		if (This->StreamerId.IsEmpty())
 		{
-			This->StreamerId = FString::Printf(TEXT("VCam%d"), NextDefaultStreamerId++);
+			This->StreamerId = VCamCore::GenerateUniqueOutputProviderName(*This);
 		}
 
 		// Setup livelink source
@@ -201,6 +206,7 @@ namespace UE::PixelStreamingVCam::Private
 	}
 
 #if WITH_EDITOR
+
 	void FVCamPixelStreamingSessionLogic::OnPostEditChangeProperty(DecoupledOutputProvider::IOutputProviderEvent& Args, FPropertyChangedEvent& PropertyChangedEvent)
 	{
 		UVCamPixelStreamingSession* This = Cast<UVCamPixelStreamingSession>(&Args.GetOutputProvider());
@@ -217,6 +223,30 @@ namespace UE::PixelStreamingVCam::Private
 			{
 				ConditionallySetLiveLinkSubjectToThis(This);
 			}
+			else if (PropertyName == GET_MEMBER_NAME_CHECKED(UVCamPixelStreamingSession, StreamerId))
+			{
+				OnEditStreamId(*This);
+			}
+		}
+	}
+	
+	void FVCamPixelStreamingSessionLogic::OnEditStreamId(UVCamPixelStreamingSession& This)
+	{
+		const TSharedPtr<IPixelStreamingStreamer> Streamer = MediaOutput && MediaOutput->GetStreamer() ? MediaOutput->GetStreamer() : nullptr;
+		if (!Streamer || !This.IsOutputting())
+		{
+			return;
+		}
+		
+		// No changing streamer ID while streaming
+		This.StreamerId = Streamer ? Streamer->GetId() : This.StreamerId;
+
+		if (FSlateApplication::IsInitialized())
+		{
+			FSlateNotificationManager& NotificationManager = FSlateNotificationManager::Get();
+			FNotificationInfo Info(LOCTEXT("CannotEditStreamId.Label", "Cannot edit StreamerId"));
+			Info.SubText = LOCTEXT("CannotEditStreamId.SubText", "Deactivate the output provider first.");
+			NotificationManager.AddNotification(Info);
 		}
 	}
 #endif
@@ -513,3 +543,5 @@ namespace UE::PixelStreamingVCam::Private
 		}
 	}
 }
+
+#undef LOCTEXT_NAMESPACE

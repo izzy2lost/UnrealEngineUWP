@@ -48,6 +48,10 @@ namespace UE::PixelStreamingVCam::Private
 		TObjectPtr<UPixelStreamingMediaOutput> MediaOutput = nullptr;
 		TObjectPtr<UPixelStreamingMediaIOCapture> MediaCapture = nullptr;
 
+#if WITH_EDITOR
+		void OnEditStreamId(UVCamPixelStreamingSession& This);
+#endif
+		
 		void SetupSignallingServer();
 		void StopSignallingServer();
 
