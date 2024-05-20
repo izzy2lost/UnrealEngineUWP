@@ -1,41 +1,26 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
-using EpicGames.Core;
 using EpicGames.Horde;
-using EpicGames.Horde.Compute;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
-using EpicGames.Horde.Streams;
-using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
-using Grpc.Net.Client;
-using Horde.Agent.Driver;
 using Horde.Agent.Driver.Execution;
-using Horde.Agent.Leases;
-using Horde.Agent.Leases.Handlers;
-using Horde.Agent.Services;
 using Horde.Common.Rpc;
-using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Moq;
 
-namespace Horde.Agent.Tests
+namespace Horde.Agent.Driver.Tests
 {
 	[TestClass]
 	public class WorkerServiceTest
@@ -77,31 +62,11 @@ namespace Horde.Agent.Tests
 			_serviceCollection.AddSingleton<StorageBackendCache>();
 			_serviceCollection.AddSingleton<HttpStorageBackendFactory>();
 			_serviceCollection.AddSingleton<HttpStorageClientFactory>();
-			_serviceCollection.AddSingleton<LeaseLoggerFactory>();
-
-			_serviceCollection.Configure<AgentSettings>(settings =>
-			{
-				ServerProfile profile = new();
-				profile.Name = "test";
-				profile.Environment = "test-env";
-				profile.Token = "bogus-token";
-				profile.Url = new Uri("http://localhost");
-
-				settings.ServerProfiles.Add(profile.Name, profile);
-				settings.Server = "test";
-				settings.WorkingDir = new DirectoryReference(Path.GetTempPath());
-			});
 
 			_serviceCollection.Configure<DriverSettings>(settings =>
 			{
 				settings.Executor = TestExecutor.Name; // Not really used since the executor is overridden in the tests
 			});
-
-			_serviceCollection.AddSingleton<WorkerService>();
-			_serviceCollection.AddSingleton<StatusService>();
-
-			_serviceCollection.AddSingleton<JobHandler>();
-			_serviceCollection.AddSingleton<LeaseHandler>(sp => sp.GetRequiredService<JobHandler>());
 		}
 
 		[TestMethod]
@@ -157,8 +122,8 @@ namespace Horde.Agent.Tests
 
 			JobRpcClientStub client = new JobRpcClientStub(NullLogger.Instance);
 
-			await using FakeHordeRpcServer fakeServer = new();
-			await using ISession session = FakeServerSessionFactory.CreateSession(null!);
+			//			await using FakeHordeRpcServer fakeServer = new();
+			//			await using ISession session = FakeServerSessionFactory.CreateSession(null!);
 
 			client.BeginStepResponses.Enqueue(new RpcBeginStepResponse { Name = "stepName1", StepId = _stepId1.ToString() });
 			client.BeginStepResponses.Enqueue(new RpcBeginStepResponse { Name = "stepName2", StepId = _stepId2.ToString() });
@@ -203,7 +168,7 @@ namespace Horde.Agent.Tests
 			_serviceCollection.AddSingleton<IJobExecutorFactory>(x => new SimpleTestExecutorFactory(executor));
 			await using ServiceProvider serviceProvider = _serviceCollection.BuildServiceProvider();
 
-			JobHandler jobHandler = serviceProvider.GetRequiredService<JobHandler>();
+			//			JobHandler jobHandler = serviceProvider.GetRequiredService<JobHandler>();
 			executor._stepAbortPollInterval = TimeSpan.FromMilliseconds(5);
 
 			JobRpcClientStub client = new JobRpcClientStub(NullLogger.Instance);
@@ -227,35 +192,8 @@ namespace Horde.Agent.Tests
 			await executor.PollForStepAbortAsync(null!, _jobId, _batchId, _stepId2, stepCancelSource, stepFinishedSource.Task, NullLogger.Instance, stepPollCancelSource.Token);
 			Assert.IsTrue(stepCancelSource.IsCancellationRequested);
 		}
-
-		[TestMethod]
-		[Ignore("Does not work with new pure gRPC channel-based UpdateSession")]
-		public async Task ShutdownAsync()
-		{
-			using JobExecutor executor = new SimpleTestExecutor(async (step, logger, cancellationToken) =>
-			{
-				await Task.Delay(50, cancellationToken);
-				return JobStepOutcome.Success;
-			});
-
-			_serviceCollection.AddSingleton<IJobExecutorFactory>(x => new SimpleTestExecutorFactory(executor));
-			await using ServiceProvider serviceProvider = _serviceCollection.BuildServiceProvider();
-
-			using CancellationTokenSource cts = new();
-			cts.CancelAfter(20000);
-
-			await using FakeHordeRpcServer fakeServer = new();
-			await using ISession session = FakeServerSessionFactory.CreateSession(fakeServer.GetHordeClient());
-
-			LeaseManager manager = new LeaseManager(session, serviceProvider);
-
-			Task handleSessionTask = Task.Run(() => manager.RunAsync(false, cts.Token), cts.Token);
-			await fakeServer.UpdateSessionReceived.Task.WaitAsync(cts.Token);
-			cts.Cancel();
-			await handleSessionTask; // Ensure it runs to completion and no exceptions are raised
-		}
 	}
-
+	/*
 	internal class FakeServerSessionFactory : ISessionFactory
 	{
 		readonly FakeHordeRpcServer _fakeServer;
@@ -278,7 +216,8 @@ namespace Horde.Agent.Tests
 			return fakeSession.Object;
 		}
 	}
-
+	*/
+#if false
 	/// <summary>
 	/// Fake implementation of a HordeRpc gRPC server.
 	/// Provides a corresponding gRPC client class that can be used with the WorkerService
@@ -296,8 +235,8 @@ namespace Horde.Agent.Tests
 		public readonly TaskCompletionSource<bool> CreateSessionReceived = new();
 		public readonly TaskCompletionSource<bool> UpdateSessionReceived = new();
 
-		private readonly FakeHordeClient _hordeClient;
-
+//		private readonly FakeHordeClient _hordeClient;
+/*
 		private class FakeHordeClient : IHordeClient
 		{
 			readonly FakeHordeRpcServer _server;
@@ -362,7 +301,7 @@ namespace Horde.Agent.Tests
 				return _outer.GetUpdateSessionCall(CancellationToken.None);
 			}
 		}
-
+*/
 		private class FakeJobRpcClient : JobRpc.JobRpcClient
 		{
 			private readonly FakeHordeRpcServer _outer;
@@ -667,4 +606,5 @@ namespace Horde.Agent.Tests
 			}
 		}
 	}
+#endif
 }

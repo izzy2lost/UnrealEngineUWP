@@ -75,6 +75,25 @@ public class FakeAwsImds
 [TestClass]
 public sealed class AwsInstanceLifecycleServiceTests : IAsyncDisposable, IDisposable
 {
+	// Stub for fulfilling IOptionsMonitor interface during testing
+	// Copied from HordeServerTests until a good way to share code between these is decided.
+	class TestOptionsMonitor<T> : IOptionsMonitor<T>
+		where T : class, new()
+	{
+		public TestOptionsMonitor(T value)
+		{
+			CurrentValue = value;
+		}
+
+		public T CurrentValue { get; }
+
+		public T Get(string? name)
+			=> CurrentValue;
+
+		public IDisposable? OnChange(Action<T, string?> listener)
+			=> null;
+	}
+
 	private readonly StatusService _statusService;
 	private readonly HttpClient _httpClient;
 	private readonly FakeAwsImds _fakeImds = new();
