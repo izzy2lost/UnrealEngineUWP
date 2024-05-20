@@ -846,19 +846,23 @@ FObservedComponent& AChaosCacheManager::AddNewObservedComponent(UPrimitiveCompon
 	return NewEntry;
 }
 
-FObservedComponent& AChaosCacheManager::FindOrAddObservedComponent(UPrimitiveComponent* InComponent, const FName& CacheName, const bool bTransferSimulation)
+void AChaosCacheManager::FindOrAddObservedComponent(UPrimitiveComponent* InComponent, const FName& CacheName, const bool bTransferSimulation)
 {
-	FObservedComponent* FoundComponent = FindObservedComponent(InComponent);
-	FObservedComponent* ObservedComponent = FoundComponent ? FoundComponent : &AddNewObservedComponent(InComponent);
-
-	ObservedComponent->bIsSimulating = (InComponent && bTransferSimulation) ? InComponent->BodyInstance.bSimulatePhysics : false;
-
-	if(CacheName != TEXT(""))
+	if(InComponent != nullptr)
 	{
-		ObservedComponent->CacheName = CacheName;
-	}
+		FObservedComponent* FoundComponent = FindObservedComponent(InComponent);
+		FObservedComponent* ObservedComponent = FoundComponent ? FoundComponent : &AddNewObservedComponent(InComponent);
 
-	return *ObservedComponent;
+		if(ObservedComponent)
+		{
+			ObservedComponent->bIsSimulating = bTransferSimulation ? InComponent->BodyInstance.bSimulatePhysics : false;
+
+			if(CacheName != TEXT(""))
+			{
+				ObservedComponent->CacheName = CacheName;
+			}
+		}
+	}
 }
 
 void AChaosCacheManager::RemoveObservedComponent(UPrimitiveComponent* PrimitiveComponent)

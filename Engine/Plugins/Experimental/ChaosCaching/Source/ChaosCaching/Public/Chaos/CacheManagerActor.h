@@ -269,7 +269,7 @@ public:
 	TArray<FObservedComponent>& GetObservedComponents() {return ObservedComponents;}
 	
 	/** Find or add a primitive component to a cache manager */
-	CHAOSCACHING_API FObservedComponent& FindOrAddObservedComponent(UPrimitiveComponent* InComponent, const FName& CacheName = TEXT(""), const bool bTransferSimulationFlag = false);
+	CHAOSCACHING_API void FindOrAddObservedComponent(UPrimitiveComponent* InComponent, const FName& CacheName = TEXT(""), const bool bTransferSimulationFlag = false);
 
 	/** Remove a primitive component from the cache manager */
 	CHAOSCACHING_API void RemoveObservedComponent(UPrimitiveComponent* InComponent);
