@@ -86,7 +86,7 @@ private:
 	 * @param	InOutPropertyPath	The property path of the proepty we will actually key
 	 * @return true if we can key the property
 	 */
-	bool CanKeyProperty_Internal(FCanKeyPropertyParams KeyPropertyParams, FOnAnimatablePropertyChanged& InOutDelegate, FProperty*& InOutProperty, FPropertyPath& InOutPropertyPath) const;
+	bool CanKeyProperty_Internal(FCanKeyPropertyParams KeyPropertyParams, FOnAnimatablePropertyChanged& InOutDelegate, const FProperty*& InOutProperty, FPropertyPath& InOutPropertyPath) const;
 
 private:
 	/** Mapping of object to a listener used to check for property changes */

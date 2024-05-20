@@ -1070,7 +1070,7 @@ void FTranslationEditor::UpdateContextSelection()
 	{
 		TSet<TSharedRef<IPropertyTableRow>> SelectedRows = ContextPropertyTable->GetSelectedRows();
 		TSharedRef<FPropertyPath> InitialPath = ContextPropertyTable->GetRootPath();
-		FProperty* PropertyToFind = InitialPath->GetRootProperty().Property.Get();
+		const FProperty* PropertyToFind = InitialPath->GetRootProperty().Property.Get();
 
 		// Can only really handle single selection
 		if (SelectedRows.Num() == 1)

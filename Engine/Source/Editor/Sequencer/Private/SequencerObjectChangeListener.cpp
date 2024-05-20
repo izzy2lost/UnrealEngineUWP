@@ -65,7 +65,7 @@ void FSequencerObjectChangeListener::BroadcastPropertyChanged( FKeyPropertyParam
 	// both the CameraActor and the CameraComponent.
 	TArray<UObject*> KeyableObjects;
 	FOnAnimatablePropertyChanged Delegate;
-	FProperty* Property = nullptr;
+	const FProperty* Property = nullptr;
 	FPropertyPath PropertyPath;
 	for (auto ObjectToKey : KeyPropertyParams.ObjectsToKey)
 	{
@@ -276,19 +276,19 @@ const FOnAnimatablePropertyChanged* FSequencerObjectChangeListener::FindProperty
 bool FSequencerObjectChangeListener::CanKeyProperty(FCanKeyPropertyParams CanKeyPropertyParams) const
 {
 	FOnAnimatablePropertyChanged Delegate;
-	FProperty* Property = nullptr;
+	const FProperty* Property = nullptr;
 	FPropertyPath PropertyPath;
 	return CanKeyProperty_Internal(CanKeyPropertyParams, Delegate, Property, PropertyPath);
 }
 
 bool FSequencerObjectChangeListener::CanKeyProperty(FCanKeyPropertyParams KeyPropertyParams, FPropertyPath& OutPropertyPath) const
 {
-	FProperty* Property = nullptr;
+	const FProperty* Property = nullptr;
 	FOnAnimatablePropertyChanged Delegate;
 	return CanKeyProperty_Internal(KeyPropertyParams, Delegate, Property, OutPropertyPath);
 }
 
-bool FSequencerObjectChangeListener::CanKeyProperty_Internal(FCanKeyPropertyParams CanKeyPropertyParams, FOnAnimatablePropertyChanged& InOutDelegate, FProperty*& InOutProperty, FPropertyPath& InOutPropertyPath) const
+bool FSequencerObjectChangeListener::CanKeyProperty_Internal(FCanKeyPropertyParams CanKeyPropertyParams, FOnAnimatablePropertyChanged& InOutDelegate, const FProperty*& InOutProperty, FPropertyPath& InOutPropertyPath) const
 {
 	if (CanKeyPropertyParams.PropertyPath.GetNumProperties() == 0)
 	{
@@ -304,7 +304,7 @@ bool FSequencerObjectChangeListener::CanKeyProperty_Internal(FCanKeyPropertyPara
 		// Add this to our 'potentially truncated' path
 		InOutPropertyPath.AddProperty(PropertyInfo);
 
-		FProperty* Property = CanKeyPropertyParams.PropertyPath.GetPropertyInfo(Index).Property.Get();
+		const FProperty* Property = CanKeyPropertyParams.PropertyPath.GetPropertyInfo(Index).Property.Get();
 		if (Property)
 		{
 			if (Property->IsA<FArrayProperty>())
@@ -356,7 +356,7 @@ bool FSequencerObjectChangeListener::CanKeyProperty_Internal(FCanKeyPropertyPara
 				return true;
 			}
 
-			FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(Property);
+			const FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(Property);
 
 			// Check each level of the property hierarchy
 			FFieldClass* PropertyType = Property->GetClass();

@@ -679,7 +679,7 @@ TSharedRef<SWidget> FObjectBindingModel::GetAddTrackMenuContent()
 	TMap<FString, TArray<PropertyMenuData>> KeyablePropertyMenuData;
 	for (const FPropertyPath& KeyablePropertyPath : KeyablePropertyPaths)
 	{
-		FProperty* Property = KeyablePropertyPath.GetRootProperty().Property.Get();
+		const FProperty* Property = KeyablePropertyPath.GetRootProperty().Property.Get();
 		if (Property)
 		{
 			PropertyMenuData KeyableMenuData;
@@ -797,7 +797,7 @@ void FObjectBindingModel::HandleAddTrackSubMenuNew(FMenuBuilder& AddTrackMenuBui
 	// [PostProcessSettings] [ColorGrading]
 
 	// Create property menu data based on keyable property paths
-	TArray<FProperty*> PropertiesTraversed;
+	TArray<const FProperty*> PropertiesTraversed;
 	TArray<int32> ArrayIndicesTraversed;
 	TArray<PropertyMenuData> KeyablePropertyMenuData;
 	for (const FPropertyPath& KeyablePropertyPath : KeyablePropertyPaths)
@@ -809,7 +809,7 @@ void FObjectBindingModel::HandleAddTrackSubMenuNew(FMenuBuilder& AddTrackMenuBui
 		if (KeyablePropertyPath.GetNumProperties() > 1) //@todo
 		{
 			const FPropertyInfo& PropertyInfo = KeyablePropertyPath.GetPropertyInfo(1);
-			FProperty* Property = PropertyInfo.Property.Get();
+			const FProperty* Property = PropertyInfo.Property.Get();
 
 			// Search for any array elements
 			int32 ArrayIndex = INDEX_NONE;

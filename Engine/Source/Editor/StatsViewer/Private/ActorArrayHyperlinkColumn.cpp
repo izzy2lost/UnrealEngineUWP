@@ -125,10 +125,10 @@ bool FActorArrayHyperlinkColumn::Supports( const TSharedRef< IPropertyTableColum
 		if( PropertyPath.IsValid() && PropertyPath->GetNumProperties() > 0 )
 		{
 			const FPropertyInfo& PropertyInfo = PropertyPath->GetRootProperty();
-			FProperty* Property = PropertyInfo.Property.Get();
+			const FProperty* Property = PropertyInfo.Property.Get();
 			if( Property->IsA( FArrayProperty::StaticClass() ) )
 			{
-				FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property);
+				const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property);
 				if( ArrayProperty->Inner->IsA(FWeakObjectProperty::StaticClass()) )
 				{
 					return true;

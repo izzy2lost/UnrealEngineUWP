@@ -687,15 +687,15 @@ void FInstanceDataObjectFixupPanel::RedirectPropertyHelper(const FPropertyPath& 
 		if (DestinationProperty)
 		{
 			if (DestinationProperty->HasAnyPropertyFlags(CPF_Transient) != Info->bWasTransient)
-            {
-            	// toggle transient flag if needed
-            	DestinationProperty->PropertyFlags ^= CPF_Transient;
-            }
-            if (!Info->bWasHidden)
-            {
-            	DestinationProperty->RemoveMetaData(TEXT("Hidden"));
-            }
-            DestinationProperty->RemoveMetaData(TEXT("Redirected"));
+			{
+				// toggle transient flag if needed
+				DestinationProperty->PropertyFlags ^= CPF_Transient;
+			}
+			if (!Info->bWasHidden)
+			{
+				DestinationProperty->RemoveMetaData(TEXT("Hidden"));
+			}
+			DestinationProperty->RemoveMetaData(TEXT("Redirected"));
 		}
 		
 		
@@ -743,7 +743,7 @@ void FInstanceDataObjectFixupPanel::RedirectPropertyHelper(const FPropertyPath& 
 
 void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, const FPropertyPath& To)
 {
-	FProperty* SourceProperty = From.GetLeafMostProperty().Property.Get();
+	const FProperty* SourceProperty = From.GetLeafMostProperty().Property.Get();
 	check(SourceProperty);
 	FProperty* DestinationProperty = To.IsValid() ? To.GetLeafMostProperty().Property.Get() : nullptr;
 	

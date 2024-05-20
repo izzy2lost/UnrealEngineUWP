@@ -231,8 +231,8 @@ TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedir
 	{
 		for (const FPropertyPath& Option : RedirectOptions)
 		{
-			FProperty* ThisProperty = Path.GetLeafMostProperty().Property.Get();
-			FProperty* OptionProperty = Option.GetLeafMostProperty().Property.Get();
+			const FProperty* ThisProperty = Path.GetLeafMostProperty().Property.Get();
+			const FProperty* OptionProperty = Option.GetLeafMostProperty().Property.Get();
 			if (ThisProperty->GetFName() == OptionProperty->GetFName())
 			{
 				if (OptionProperty->SameType(ThisProperty))
@@ -253,8 +253,8 @@ TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedir
 	{
 		for (const FPropertyPath& Option : RedirectOptions)
 		{
-			FProperty* ThisProperty = Path.GetLeafMostProperty().Property.Get();
-			FProperty* OptionProperty = Option.GetLeafMostProperty().Property.Get();
+			const FProperty* ThisProperty = Path.GetLeafMostProperty().Property.Get();
+			const FProperty* OptionProperty = Option.GetLeafMostProperty().Property.Get();
 			if (ThisProperty->GetFName() == OptionProperty->GetFName())
 			{
 				continue; // handled in the "move" category
@@ -276,8 +276,8 @@ TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedir
 	{
 		for (const FPropertyPath& Option : RedirectOptions)
 		{
-			FProperty* ThisProperty = Path.GetLeafMostProperty().Property.Get();
-			FProperty* OptionProperty = Option.GetLeafMostProperty().Property.Get();
+			const FProperty* ThisProperty = Path.GetLeafMostProperty().Property.Get();
+			const FProperty* OptionProperty = Option.GetLeafMostProperty().Property.Get();
 			if (OptionProperty->SameType(ThisProperty))
 			{
 				continue; // same type handled above
@@ -310,8 +310,8 @@ TSharedRef<SWidget> FInstanceDataObjectNameWidgetOverride::GeneratePropertyRedir
 	{
 		for (const FPropertyPath& Option : RedirectOptions)
 		{
-			FProperty* ThisProperty = Path.GetLeafMostProperty().Property.Get();
-			FProperty* OptionProperty = Option.GetLeafMostProperty().Property.Get();
+			const FProperty* ThisProperty = Path.GetLeafMostProperty().Property.Get();
+			const FProperty* OptionProperty = Option.GetLeafMostProperty().Property.Get();
 			if (OptionProperty->SameType(ThisProperty))
 			{
 				continue; // same type handled above

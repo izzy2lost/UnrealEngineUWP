@@ -40,7 +40,7 @@ bool FCustomFontColumn::Supports( const TSharedRef< IPropertyTableColumn >& Colu
 		if( PropertyPath.IsValid() && PropertyPath->GetNumProperties() > 0 )
 		{
 			const FPropertyInfo& PropertyInfo = PropertyPath->GetRootProperty();
-			FProperty* Property = PropertyInfo.Property.Get();
+			const FProperty* Property = PropertyInfo.Property.Get();
 			if (SupportedProperties.Contains(Property))
 			{
 				IsSupported = true;

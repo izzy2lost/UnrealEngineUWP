@@ -478,7 +478,7 @@ FReply SStatsViewer::OnExportClicked()
 				{
 					TSharedPtr< FPropertyPath > PropertyPath = Column->GetDataSource()->AsPropertyPath();
 					const FPropertyInfo& PropertyInfo = PropertyPath->GetRootProperty();
-					const TWeakFieldPtr< FProperty > Property = PropertyInfo.Property;
+					const TWeakFieldPtr< const FProperty > Property = PropertyInfo.Property;
 					FString Name = UEditorEngine::GetFriendlyName(Property.Get());
 					Name.ReplaceInline( *Delimiter, TEXT(" ") );
 					HeaderRow += Name + Delimiter;

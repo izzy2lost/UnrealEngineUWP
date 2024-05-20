@@ -156,7 +156,7 @@ bool FDeviceProfileTextureLODSettingsColumn::Supports(const TSharedRef< IPropert
 		if( PropertyPath.IsValid() && PropertyPath->GetNumProperties() > 0 )
 		{
 			const FPropertyInfo& PropertyInfo = PropertyPath->GetRootProperty();
-			FProperty* Property = PropertyInfo.Property.Get();
+			const FProperty* Property = PropertyInfo.Property.Get();
 			if (Property->GetName() == TEXT("TextureLODGroups") && Property->IsA(FArrayProperty::StaticClass()))
 			{
 				return true;

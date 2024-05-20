@@ -50,7 +50,7 @@ TSharedRef< SColumnHeader > ColumnWidgetFactory::CreateColumnHeaderWidget( const
 	const TSharedPtr< FPropertyPath > Path = ColumnDataSource->AsPropertyPath();
 	if( Path.IsValid() )
 	{
-		TWeakFieldPtr< FProperty > Property = Path->GetLeafMostProperty().Property;
+		TWeakFieldPtr< const FProperty > Property = Path->GetLeafMostProperty().Property;
 		check( Property.IsValid() );
 
 		if ( Property->IsA( FBoolProperty::StaticClass() ) )

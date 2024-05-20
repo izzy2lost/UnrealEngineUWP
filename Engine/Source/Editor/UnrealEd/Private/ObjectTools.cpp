@@ -505,8 +505,8 @@ namespace ObjectTools
 	{
 		for (TPropertyValueIterator<FObjectProperty> PIter(InObject->GetClass(), InObject); PIter; ++PIter)
 		{
-			FObjectProperty* Property = PIter.Key();
-			void* Value = const_cast<void*>(PIter->Value);
+			const FObjectProperty* Property = PIter.Key();
+			const void* Value = PIter->Value;
 			if (const UObject* ValueObject = Property->GetPropertyValue(Value))
 			{
 				if (int32* TimesEncountered = CheckedObjects.Find(ValueObject))

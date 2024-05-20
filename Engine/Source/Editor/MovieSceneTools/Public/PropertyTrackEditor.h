@@ -110,7 +110,7 @@ protected:
 				const FPropertyInfo& Info = PropertyChangedParams.PropertyPath.GetPropertyInfo(PropertyIndex);
 				const FArrayProperty* ParentArrayProperty = PropertyIndex > 0 ? CastField<FArrayProperty>(PropertyChangedParams.PropertyPath.GetPropertyInfo(PropertyIndex - 1).Property.Get()) : nullptr;
 
-				FProperty* ArrayInnerProperty = Info.Property.Get();
+				const FProperty* ArrayInnerProperty = Info.Property.Get();
 				if (ArrayInnerProperty && Info.ArrayIndex != INDEX_NONE)
 				{
 					DisplayText = FText::Format(NSLOCTEXT("PropertyTrackEditor", "DisplayTextArrayFormat", "{0} ({1}[{2}])"),
@@ -208,7 +208,7 @@ private:
 	{
 		FKeyPropertyResult KeyPropertyResult;
 
-		FProperty* Property = PropertyChangedParams.PropertyPath.GetLeafMostProperty().Property.Get();
+		const FProperty* Property = PropertyChangedParams.PropertyPath.GetLeafMostProperty().Property.Get();
 		if (!Property)
 		{
 			return KeyPropertyResult;

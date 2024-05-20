@@ -140,7 +140,7 @@ FText FStatsCustomColumn::GetTotalText( TSharedRef< IPropertyTableColumn > Colum
 	return FText::GetEmpty();
 }
 
-bool FStatsCustomColumn::SupportsProperty( FProperty* Property )
+bool FStatsCustomColumn::SupportsProperty( const FProperty* Property )
 {
 	if( Property->IsA( FFloatProperty::StaticClass() ) || Property->IsA( FIntProperty::StaticClass() ) )
 	{

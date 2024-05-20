@@ -516,7 +516,7 @@ TArray<UPropertyValue*> FVariantManager::CreatePropertyCaptures(const TArray<TSh
 			}
 			default: // Generic
 			{
-				FProperty* LeafProp = PropAndDisplay->Prop.GetLeafMostProperty().Property.Get();
+				const FProperty* LeafProp = PropAndDisplay->Prop.GetLeafMostProperty().Property.Get();
 
 				if (LeafProp && LeafProp->GetClass()->IsChildOf(FSoftObjectProperty::StaticClass()))
 				{

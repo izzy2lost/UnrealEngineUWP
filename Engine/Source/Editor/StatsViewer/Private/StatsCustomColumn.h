@@ -39,7 +39,7 @@ public:
 	 * @param	Property	The property to check
 	 * @returns true if this property is supported for display by this column type
 	 */
-	static bool SupportsProperty( FProperty* Property );
+	static bool SupportsProperty( const FProperty* Property );
 
 	/** 
 	 * Helper function to get the text we would display for this property 

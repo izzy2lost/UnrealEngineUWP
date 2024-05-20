@@ -45,14 +45,14 @@ void FObjectPropertyTrackEditor::InitializeNewTrack(UMovieSceneObjectPropertyTra
 {
 	FPropertyTrackEditor::InitializeNewTrack(NewTrack, PropertyChangedParams);
 
-	FObjectPropertyBase* KeyedProperty = CastField<FObjectPropertyBase>(PropertyChangedParams.PropertyPath.GetLeafMostProperty().Property.Get());
+	const FObjectPropertyBase* KeyedProperty = CastField<FObjectPropertyBase>(PropertyChangedParams.PropertyPath.GetLeafMostProperty().Property.Get());
 	if (KeyedProperty)
 	{
 		NewTrack->PropertyClass = KeyedProperty->PropertyClass;
 
 		if (KeyedProperty->HasAllPropertyFlags(CPF_UObjectWrapper))
 		{
-			FClassProperty* ClassProperty = CastField<FClassProperty>(KeyedProperty);
+			const FClassProperty* ClassProperty = CastField<FClassProperty>(KeyedProperty);
 			if (ClassProperty)
 			{
 				NewTrack->PropertyClass = ClassProperty->MetaClass;
