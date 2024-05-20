@@ -7,7 +7,7 @@
 #include "Algo/Compare.h"
 #include "Widgets/Text/STextBlock.h"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	void SStringSelectionComboBox::Construct(const FArguments& InArgs)
 	{

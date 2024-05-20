@@ -12,7 +12,7 @@
 
 #define LOCTEXT_NAMESPACE "FVCamInputDeviceIDTypeCustomization"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	TSharedRef<IPropertyTypeCustomization> FVCamInputDeviceIDTypeCustomization::MakeInstance()
 	{

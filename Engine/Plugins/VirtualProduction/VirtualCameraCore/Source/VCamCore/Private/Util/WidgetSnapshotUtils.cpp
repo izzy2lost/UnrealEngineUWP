@@ -12,7 +12,7 @@
 #include "UI/WidgetSnapshots.h"
 #include "Util/WidgetTreeUtils.h"
 
-namespace UE::VCamCore::WidgetSnapshotUtils::Private
+namespace UE::VCamCore::WidgetSnapshotUtils
 {
 	bool FWidgetSnapshotSettings::IsClassAllowed(TSubclassOf<UWidget> Widget) const
 	{

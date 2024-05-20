@@ -19,7 +19,7 @@
 
 #define LOCTEXT_NAMESPACE "FWidgetConnectionConfigCustomization"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	TSharedRef<IPropertyTypeCustomization> FWidgetConnectionConfigTypeCustomization::MakeInstance()
 	{

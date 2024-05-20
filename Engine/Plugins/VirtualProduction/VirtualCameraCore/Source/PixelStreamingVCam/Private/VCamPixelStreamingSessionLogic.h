@@ -14,7 +14,7 @@ class UPixelStreamingMediaIOCapture;
 class UPixelStreamingMediaOutput;
 class IPixelStreamingStreamer;
 
-namespace UE::PixelStreamingVCam::Private
+namespace UE::PixelStreamingVCam
 {
 	/** Implements logic for UVCamPixelStreamingSession so it can be loaded on all platforms. */
 	class FVCamPixelStreamingSessionLogic : public DecoupledOutputProvider::IOutputProviderLogic

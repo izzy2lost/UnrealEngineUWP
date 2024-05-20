@@ -16,7 +16,7 @@
 
 #define LOCTEXT_NAMESPACE "UModifierCompilationBlueprintExtension"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	enum class EBreakBehaviour
 	{
@@ -71,7 +71,7 @@ void UModifierCompilationBlueprintExtension::HandleGenerateFunctionGraphs(FKisme
 		return;
 	}
 	
-	using namespace UE::VCamCoreEditor::Private;
+	using namespace UE::VCamCoreEditor;
 	ForEachNode(*CompilerContext->Blueprint, [this, CompilerContext, OldModifierCDO](UEdGraphNode& GraphNode)
 	{
 		if (UK2Node_EnhancedInputAction* EnhancedInputActionNode = Cast<UK2Node_EnhancedInputAction>(&GraphNode))
@@ -92,7 +92,7 @@ bool UModifierCompilationBlueprintExtension::RequiresRecompileToDetectIssues(UBl
 	}
 
 	bool bFoundAnyIssue = false;
-	using namespace UE::VCamCoreEditor::Private;
+	using namespace UE::VCamCoreEditor;
 	ForEachNode(Blueprint, [CDO, &bFoundAnyIssue](UEdGraphNode& GraphNode)
 	{
 		UK2Node_EnhancedInputAction* EnhancedInputActionNode = Cast<UK2Node_EnhancedInputAction>(&GraphNode);

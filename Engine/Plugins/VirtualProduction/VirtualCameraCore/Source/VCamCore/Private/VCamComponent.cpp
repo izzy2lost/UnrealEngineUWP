@@ -47,7 +47,7 @@
 
 DEFINE_LOG_CATEGORY(LogVCamComponent);
 
-namespace UE::VCamCore::Private
+namespace UE::VCamCore
 {
 	template<typename TObjectType>
 	static void ReparentSubobjectToVCam(UVCamComponent* NewOuter, TObjectType* Subobject)
@@ -92,7 +92,7 @@ void UVCamComponent::OnComponentCreated()
 	}
 
 	// ApplyComponentInstanceData will handle initialization if the construction script is being re-run on a Blueprint created component.
-	const bool bIsBlueprintCreatedComponent = UE::VCamCore::Private::IsBlueprintCreated(this);
+	const bool bIsBlueprintCreatedComponent = UE::VCamCore::IsBlueprintCreated(this);
 	if (!bIsBlueprintCreatedComponent || !GIsReconstructingBlueprintInstances)
 	{
 		SetupVCamSystemsIfNeeded();
@@ -116,7 +116,7 @@ void UVCamComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
 
 	// Components that are being destroyed as part of re-running the construction script should not Deinitialize because ApplyComponentInstanceData may want to re-apply the display state later.
 	// Deinitializing here would kill any remote connections.
-	const bool bIsBlueprintCreatedComponent = UE::VCamCore::Private::IsBlueprintCreated(this);
+	const bool bIsBlueprintCreatedComponent = UE::VCamCore::IsBlueprintCreated(this);
 	if (bIsBlueprintCreatedComponent && GIsReconstructingBlueprintInstances)
 	{
 		// GetComponentInstanceData has saved our internal state and ApplyComponentInstanceData will steal it later. For safety, let's not reference the to be stolen objects anymore.
@@ -167,7 +167,7 @@ void UVCamComponent::ApplyComponentInstanceData(FVCamComponentInstanceData& Comp
 	// OnComponentDestroyed makes sure that the old component, which has just been destroyed by the construction script, no longer references the output providers & modifiers.
 	for (UVCamOutputProviderBase* StoredOutputProvider : ComponentInstanceData.StolenOutputProviders)
 	{
-		UE::VCamCore::Private::ReparentSubobjectToVCam(this, StoredOutputProvider);
+		UE::VCamCore::ReparentSubobjectToVCam(this, StoredOutputProvider);
 	}
 	
 	OutputProviders = ComponentInstanceData.StolenOutputProviders;
@@ -269,7 +269,7 @@ void UVCamComponent::PreSave(FObjectPreSaveContext SaveContext)
 	// The goal is to avoid failing LoadPackage warnings in a cooked game for objects that are editor-only
 	if (SaveContext.IsCooking() && !HasAnyFlags(RF_ArchetypeObject | RF_ClassDefaultObject))
 	{
-		using namespace UE::VCamCore::CookingUtils::Private;
+		using namespace UE::VCamCore::CookingUtils;
 		RemoveUnsupportedOutputProviders(OutputProviders, SaveContext);
 		RemoveUnsupportedModifiers(ModifierStack, SaveContext);
 		// We could also iterate the output provider's widget connections an warn if there are any connections to a disabled connection point here
@@ -1476,7 +1476,7 @@ void UVCamComponent::UpdateActorViewportLocks()
 	if (const UCineCameraComponent* Camera = GetTargetCamera()
 		; Camera && ensure(Camera->GetOwner()) && IsEnabled())
 	{
-		UE::VCamCore::LevelViewportUtils::Private::UpdateViewportLocksFromOutputs(OutputProviders, ViewportLocker, *Camera->GetOwner());
+		UE::VCamCore::LevelViewportUtils::UpdateViewportLocksFromOutputs(OutputProviders, ViewportLocker, *Camera->GetOwner());
 	}
 }
 
@@ -1485,7 +1485,7 @@ void UVCamComponent::UnlockAllViewports()
 	if (const UCineCameraComponent* Camera = GetTargetCamera()
 		; Camera && ensure(Camera->GetOwner()))
 	{
-		UE::VCamCore::LevelViewportUtils::Private::UnlockAllViewports(ViewportLocker, *Camera->GetOwner());
+		UE::VCamCore::LevelViewportUtils::UnlockAllViewports(ViewportLocker, *Camera->GetOwner());
 	}
 }
 
@@ -1951,7 +1951,7 @@ void UVCamComponent::OnPostSaveWorld(UWorld* World, FObjectPostSaveContext Objec
 void UVCamComponent::AddAssetUserDataConditionally()
 {
 	if (UE::VCamCore::CanInitVCamInstance(this)
-		&& UE::VCamCore::Private::IsBlueprintCreated(this) 
+		&& UE::VCamCore::IsBlueprintCreated(this) 
 		&& GetAssetUserData<UVCamBlueprintAssetUserData>() == nullptr)
 	{
 		UVCamBlueprintAssetUserData* UserData = NewObject<UVCamBlueprintAssetUserData>(this, NAME_None, RF_Transactional | RF_Transient);

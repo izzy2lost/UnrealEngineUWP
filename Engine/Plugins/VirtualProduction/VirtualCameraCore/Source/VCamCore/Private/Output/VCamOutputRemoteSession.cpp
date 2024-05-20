@@ -25,7 +25,7 @@
 #include "UObject/Package.h"
 #endif
 
-namespace UE::VCamOutputRemoteSession::Private
+namespace UE::VCamOutputRemoteSession
 {
 	static const FSoftClassPath EmptyUMGSoftClassPath(TEXT("/VCamCore/Assets/VCam_EmptyVisibleUMG.VCam_EmptyVisibleUMG_C"));
 }
@@ -58,7 +58,7 @@ void UVCamOutputRemoteSession::OnActivate()
 	if (!GetUMGClass())
 	{
 		bUsingDummyUMG = true;
-		SetUMGClass(UE::VCamOutputRemoteSession::Private::EmptyUMGSoftClassPath.TryLoadClass<UUserWidget>());
+		SetUMGClass(UE::VCamOutputRemoteSession::EmptyUMGSoftClassPath.TryLoadClass<UUserWidget>());
 	}
 
 	CreateRemoteSession();

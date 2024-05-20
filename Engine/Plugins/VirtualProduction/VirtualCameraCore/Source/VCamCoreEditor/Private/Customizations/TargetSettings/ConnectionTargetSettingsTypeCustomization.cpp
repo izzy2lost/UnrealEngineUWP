@@ -20,7 +20,7 @@
 
 #define LOCTEXT_NAMESPACE "FConnectionTargetSettingsTypeCustomization"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	static TArray<FName>& SortNamesAlphabeticallyAndPrependNone(TArray<FName>& Names)
 	{

@@ -5,7 +5,7 @@
 #include "IPropertyUtilities.h"
 #include "PropertyHandle.h"
 
-namespace UE::VCamCoreEditor::Private::ConnectionTargetContextFinding
+namespace UE::VCamCoreEditor::ConnectionTargetContextFinding
 {
 	void FListOfContextFinders::FindAndProcessContext(
 		const TSharedRef<IPropertyHandle>& ConnectionTargetSettingsStructHandle,

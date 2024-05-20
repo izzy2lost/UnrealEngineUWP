@@ -4,7 +4,7 @@
 
 #include "IDetailCustomization.h"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	/** Makes CurrentState a drop-down based on the available states. */
 	class FVCamStateSwitcherWidgetCustomization : public IDetailCustomization

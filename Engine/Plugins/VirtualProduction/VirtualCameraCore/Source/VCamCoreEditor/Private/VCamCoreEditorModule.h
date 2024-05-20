@@ -11,7 +11,7 @@ class UClass;
 class UVCamWidget;
 enum class ETransactionFilterResult : uint8;
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	class FCompilationExtensionManager;
 

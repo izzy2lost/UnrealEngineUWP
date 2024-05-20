@@ -12,7 +12,7 @@
 struct FVCamInputDeviceConfig;
 class UVCamPlayerInput;
 
-namespace UE::VCamCore::Private
+namespace UE::VCamCore
 {
 	class FVCamInputProcessor;
 }
@@ -61,7 +61,7 @@ private:
 	UPROPERTY(Transient, Instanced)
 	TObjectPtr<UVCamPlayerInput> PlayerInput;
 	
-	TSharedPtr<UE::VCamCore::Private::FVCamInputProcessor> InputPreprocessor;
+	TSharedPtr<UE::VCamCore::FVCamInputProcessor> InputPreprocessor;
 	
 	/** Internal. This is the current stack of InputComponents that is being processed by the PlayerInput. */
 	UPROPERTY(Transient)

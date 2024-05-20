@@ -14,7 +14,7 @@ namespace UE::DecoupledOutputProvider
 	class IOutputProviderEvent;
 }
 
-namespace UE::DecoupledOutputProvider::Private
+namespace UE::DecoupledOutputProvider
 {
 	class FDecoupledOutputProviderModule
 		: public IDecoupledOutputProviderModule

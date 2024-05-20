@@ -11,7 +11,7 @@
 
 #define LOCTEXT_NAMESPACE "FConnectionTargetNodeBuilder"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	FConnectionTargetNodeBuilder::FConnectionTargetNodeBuilder(
 		TSharedRef<IPropertyHandle> ConnectionTargets,

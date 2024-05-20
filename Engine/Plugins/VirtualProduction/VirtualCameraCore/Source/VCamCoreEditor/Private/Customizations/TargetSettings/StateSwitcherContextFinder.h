@@ -4,7 +4,7 @@
 
 #include "IContextFinderForConnectionTargetSettings.h"
 
-namespace UE::VCamCoreEditor::Private::ConnectionTargetContextFinding
+namespace UE::VCamCoreEditor::ConnectionTargetContextFinding
 {
 	/** Figures out whether the FConnectionTargetSettings are contained in a FWidgetConnectionConfig */
 	class FStateSwitcherContextFinder : public IContextFinderForConnectionTargetSettings

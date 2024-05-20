@@ -6,7 +6,7 @@
 #include "Blueprint/UserWidget.h"
 #include "UI/VCamWidget.h"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	TSharedRef<IPropertyTypeCustomization> FVCamChildWidgetReferenceCustomization::MakeInstance()
 	{

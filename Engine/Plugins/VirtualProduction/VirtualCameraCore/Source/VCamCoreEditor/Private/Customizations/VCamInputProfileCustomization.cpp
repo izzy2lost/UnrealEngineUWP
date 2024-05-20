@@ -11,7 +11,7 @@
 
 #define LOCTEXT_NAMESPACE "VCamInputProfileCustomization"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	FVCamInputProfileCustomization::FVCamInputProfileCustomization()
 	{

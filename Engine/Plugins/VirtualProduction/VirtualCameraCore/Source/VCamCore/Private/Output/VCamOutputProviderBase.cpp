@@ -41,7 +41,7 @@ DEFINE_LOG_CATEGORY(LogVCamOutputProvider);
 
 #define LOCTEXT_NAMESPACE "UVCamOutputProviderBase"
 
-namespace UE::VCamCore::Private
+namespace UE::VCamCore
 {
 	static bool ValidateOverlayClassAndLogErrors(const TSubclassOf<UUserWidget>& InUMGClass)
 	{
@@ -133,7 +133,7 @@ void UVCamOutputProviderBase::SetTargetViewport(EVCamTargetViewportID Value)
 
 void UVCamOutputProviderBase::SetUMGClass(const TSubclassOf<UUserWidget> InUMGClass)
 {
-	if (UE::VCamCore::Private::ValidateOverlayClassAndLogErrors(InUMGClass))
+	if (UE::VCamCore::ValidateOverlayClassAndLogErrors(InUMGClass))
 	{
 		UMGClass = InUMGClass;
 	}
@@ -312,7 +312,7 @@ void UVCamOutputProviderBase::DisplayUMG()
 
 			if (WidgetSnapshot.HasData())
 			{
-				UE::VCamCore::WidgetSnapshotUtils::Private::ApplyTreeHierarchySnapshot(WidgetSnapshot, *UMGWidget->GetWidget());
+				UE::VCamCore::WidgetSnapshotUtils::ApplyTreeHierarchySnapshot(WidgetSnapshot, *UMGWidget->GetWidget());
 				// Note that NotifyWidgetOfComponentChange will cause InitializeConnections to be called - this is important for the connections to get applied!
 			}
 		}
@@ -337,7 +337,7 @@ void UVCamOutputProviderBase::DestroyUMG()
 			{
 				StopDetectAndSnapshotWhenConnectionsChange();
 				Modify();
-				WidgetSnapshot = UE::VCamCore::WidgetSnapshotUtils::Private::TakeTreeHierarchySnapshot(*Subwidget);
+				WidgetSnapshot = UE::VCamCore::WidgetSnapshotUtils::TakeTreeHierarchySnapshot(*Subwidget);
 			}
 
 			FLevelEditorViewportClient* Client = GetTargetLevelViewportClient();
@@ -490,7 +490,7 @@ void UVCamOutputProviderBase::PostLoad()
 	Super::PostLoad();
 
 	// Class may have been marked deprecated or abstract since the last time it was set
-	if (!UE::VCamCore::Private::ValidateOverlayClassAndLogErrors(UMGClass))
+	if (!UE::VCamCore::ValidateOverlayClassAndLogErrors(UMGClass))
 	{
 		Modify();
 		SetUMGClass(nullptr);
@@ -609,7 +609,7 @@ TSharedPtr<FSceneViewport> UVCamOutputProviderBase::GetSceneViewport(EVCamTarget
 			}
 			else if (Context.WorldType == EWorldType::Editor)
 			{
-				TSharedPtr<SLevelViewport> Viewport = UE::VCamCore::LevelViewportUtils::Private::GetLevelViewport(InTargetViewport);
+				TSharedPtr<SLevelViewport> Viewport = UE::VCamCore::LevelViewportUtils::GetLevelViewport(InTargetViewport);
 				FLevelEditorViewportClient* LevelViewportClient = Viewport
 					? &Viewport->GetLevelViewportClient()
 					: nullptr;
@@ -686,7 +686,7 @@ FLevelEditorViewportClient* UVCamOutputProviderBase::GetTargetLevelViewportClien
 
 TSharedPtr<SLevelViewport> UVCamOutputProviderBase::GetTargetLevelViewport() const
 {
-	return UE::VCamCore::LevelViewportUtils::Private::GetLevelViewport(TargetViewport);
+	return UE::VCamCore::LevelViewportUtils::GetLevelViewport(TargetViewport);
 }
 
 #endif
@@ -802,12 +802,12 @@ void UVCamOutputProviderBase::OnConnectionReinitialized(TWeakObjectPtr<UVCamWidg
 		if (WidgetSnapshot.HasData())
 		{
 			Modify();
-			UE::VCamCore::WidgetSnapshotUtils::Private::RetakeSnapshotForWidgetInHierarchy(WidgetSnapshot, *Widget.Get());
+			UE::VCamCore::WidgetSnapshotUtils::RetakeSnapshotForWidgetInHierarchy(WidgetSnapshot, *Widget.Get());
 		}
 		else if (UMGWidget && ensure(UMGWidget->GetWidget()))
 		{
 			Modify();
-			WidgetSnapshot = UE::VCamCore::WidgetSnapshotUtils::Private::TakeTreeHierarchySnapshot(*UMGWidget->GetWidget());
+			WidgetSnapshot = UE::VCamCore::WidgetSnapshotUtils::TakeTreeHierarchySnapshot(*UMGWidget->GetWidget());
 		}
 	}
 }

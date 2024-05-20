@@ -9,7 +9,7 @@
 class IPropertyTypeCustomizationUtils;
 class IPropertyUtilities;
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	/**
 	 * Customizes the FWidgetConnectionConfig::ConnectionTargets property.

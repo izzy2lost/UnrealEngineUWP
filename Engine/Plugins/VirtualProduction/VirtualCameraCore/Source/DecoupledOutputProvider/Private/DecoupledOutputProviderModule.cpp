@@ -6,7 +6,7 @@
 
 #include "Engine/World.h"
 
-namespace UE::DecoupledOutputProvider::Private
+namespace UE::DecoupledOutputProvider
 {
 	void FDecoupledOutputProviderModule::StartupModule()
 	{
@@ -238,4 +238,4 @@ namespace UE::DecoupledOutputProvider::Private
 	}
 }
 
-IMPLEMENT_MODULE(UE::DecoupledOutputProvider::Private::FDecoupledOutputProviderModule, DecoupledOutputProvider);
+IMPLEMENT_MODULE(UE::DecoupledOutputProvider::FDecoupledOutputProviderModule, DecoupledOutputProvider);

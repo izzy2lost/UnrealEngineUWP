@@ -40,7 +40,7 @@
 
 #define LOCTEXT_NAMESPACE "FVCamCoreEditorModule"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	TSharedPtr<IConnectionRemapCustomization> FVCamCoreEditorModule::CreateConnectionRemapCustomization(TSubclassOf<UVCamWidget> Class) const
 	{
@@ -244,7 +244,7 @@ namespace UE::VCamCoreEditor::Private
 	}
 }
 
-IMPLEMENT_MODULE(UE::VCamCoreEditor::Private::FVCamCoreEditorModule, VCamCoreEditor);
+IMPLEMENT_MODULE(UE::VCamCoreEditor::FVCamCoreEditorModule, VCamCoreEditor);
 
 	
 #undef LOCTEXT_NAMESPACE

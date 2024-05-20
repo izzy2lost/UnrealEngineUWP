@@ -15,7 +15,7 @@
 #include "HAL/ConsoleManager.h"
 #include "UserSettings/EnhancedInputUserSettings.h"
 
-namespace UE::VCamCore::Private
+namespace UE::VCamCore
 {
 #if WITH_EDITOR
 	static int32 GVCamInputSubsystemCount = 0;
@@ -61,14 +61,14 @@ void UInputVCamSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	{
 		// It's dangerous to consume input in editor (imagine typing something into search boxes but all L keys were consumed by VCam input)
 		// whereas probably expected by gameplay code.
-		using namespace UE::VCamCore::Private;
+		using namespace UE::VCamCore;
 		InputPreprocessor = MakeShared<FVCamInputProcessor>(*this);
 		FSlateApplication::Get().RegisterInputPreProcessor(InputPreprocessor, 0);
 
 		// The below things should only be done in Slate applications. Slate is disabled e.g. in commandlets. It makes no sense to have VCam input in such cases.
 #if WITH_EDITOR
 		// Use-case: Person A using gamepad to drive VCam input while Person B clicks stuff in editor > Gamepad may start navigating editor widgets. This CVar prevents that.
-		UE::VCamCore::Private::IncrementAndSetEnableGamepadEditorNavigation();
+		UE::VCamCore::IncrementAndSetEnableGamepadEditorNavigation();
 #endif
 		
 		if (GetDefault<UEnhancedInputDeveloperSettings>()->bEnableUserSettings)
@@ -91,7 +91,7 @@ void UInputVCamSubsystem::Deinitialize()
 		PlayerInput = nullptr;
 
 #if WITH_EDITOR
-		UE::VCamCore::Private::DecrementAndResetEnableGamepadEditorNavigation();
+		UE::VCamCore::DecrementAndResetEnableGamepadEditorNavigation();
 #endif
 	}
 }

@@ -8,7 +8,7 @@
 
 class UVCamPixelStreamingSession;
 
-namespace UE::PixelStreamingVCam::Private
+namespace UE::PixelStreamingVCam
 {
 	class FPixelStreamingVCamModule : public IModuleInterface
 	{

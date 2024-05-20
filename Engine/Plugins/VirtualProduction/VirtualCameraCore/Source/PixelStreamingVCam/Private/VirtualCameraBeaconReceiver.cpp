@@ -14,7 +14,7 @@
 #include "Serialization/ArrayWriter.h"
 #include "VCamCoreUserSettings.h"
 
-namespace UE::PixelStreamingVCam::Private
+namespace UE::PixelStreamingVCam
 {
 	namespace VirtualCameraBeaconReceiverConstants
 	{

@@ -16,7 +16,7 @@
 
 #define LOCTEXT_NAMESPACE "FVCamCoreModule"
 
-namespace UE::VCamCore::Private
+namespace UE::VCamCore
 {
 	void FVCamCoreModule::StartupModule()
 	{
@@ -60,12 +60,12 @@ namespace UE::VCamCore::Private
 #endif
 	}
 
-	WidgetSnapshotUtils::Private::FWidgetSnapshotSettings FVCamCoreModule::GetSnapshotSettings() const
+	WidgetSnapshotUtils::FWidgetSnapshotSettings FVCamCoreModule::GetSnapshotSettings() const
 	{
 		// In the future this could be exposed via project settings or via registration functions on IVCamCoreModule
 		const TSet<TSubclassOf<UWidget>> AllowedWidgetClasses { UVCamWidget::StaticClass() };
 		const TSet<const FProperty*> AllowedProperties { UVCamWidget::StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UVCamWidget, Connections)) };
-		return WidgetSnapshotUtils::Private::FWidgetSnapshotSettings{
+		return WidgetSnapshotUtils::FWidgetSnapshotSettings{
 			AllowedWidgetClasses,
 			AllowedProperties
 		};
@@ -74,4 +74,4 @@ namespace UE::VCamCore::Private
 
 #undef LOCTEXT_NAMESPACE
 	
-IMPLEMENT_MODULE(UE::VCamCore::Private::FVCamCoreModule, VCamCore)
+IMPLEMENT_MODULE(UE::VCamCore::FVCamCoreModule, VCamCore)

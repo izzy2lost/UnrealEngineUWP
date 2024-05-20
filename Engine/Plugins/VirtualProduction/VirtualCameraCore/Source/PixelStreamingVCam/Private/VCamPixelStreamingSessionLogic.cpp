@@ -37,7 +37,7 @@
 
 #define LOCTEXT_NAMESPACE "FVCamPixelStreamingSessionLogic"
 
-namespace UE::PixelStreamingVCam::Private
+namespace UE::PixelStreamingVCam
 {
 	void FVCamPixelStreamingSessionLogic::OnDeinitialize(DecoupledOutputProvider::IOutputProviderEvent& Args)
 	{

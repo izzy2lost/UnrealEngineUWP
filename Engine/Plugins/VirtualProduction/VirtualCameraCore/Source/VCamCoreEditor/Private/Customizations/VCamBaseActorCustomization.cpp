@@ -8,7 +8,7 @@
 #include "Algo/ForEach.h"
 #include "UObject/PropertyIterator.h"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	namespace
 	{

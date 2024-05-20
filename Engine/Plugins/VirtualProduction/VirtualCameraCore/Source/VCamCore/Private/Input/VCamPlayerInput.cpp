@@ -6,7 +6,7 @@
 
 #include "HAL/IConsoleManager.h"
 
-namespace UE::VCamCore::Private
+namespace UE::VCamCore
 {
 	static FString LexInputEvent(EInputEvent InputEvent)
 	{
@@ -73,7 +73,7 @@ bool UVCamPlayerInput::InputKey(const FInputKeyParams& Params)
 	const bool bSkipNonAllowListed = bCanCheckAllowList && !InputDeviceSettings.bAllowAllInputDevices && !InputDeviceSettings.AllowedInputDeviceIds.Contains(FVCamInputDeviceID{ Params.InputDevice.GetId() });
 	const bool bIsFilteredOut = bSkipNonAllowListed || InputDeviceSettings.InputMode == EVCamInputMode::Ignore;
 	
-	UE::VCamCore::Private::LogInput(InputDeviceSettings, Params, bIsFilteredOut);
+	UE::VCamCore::LogInput(InputDeviceSettings, Params, bIsFilteredOut);
 	if (!bIsFilteredOut)
 	{
 		const bool bCanConsumeInput = Super::InputKey(Params)

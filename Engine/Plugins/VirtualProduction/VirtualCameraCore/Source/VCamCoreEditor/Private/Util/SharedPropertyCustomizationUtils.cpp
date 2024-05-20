@@ -13,7 +13,7 @@
 
 #define LOCTEXT_NAMESPACE "VCamCoreEditor::StateSwitcher"
 
-namespace UE::VCamCoreEditor::Private::StateSwitcher
+namespace UE::VCamCoreEditor::StateSwitcher
 {
 	void CustomizeCurrentState(UVCamStateSwitcherWidget& StateSwitcher, IDetailPropertyRow& DetailPropertyRow, TSharedRef<IPropertyHandle> CurrentStatePropertyHandle, const FSlateFontInfo& RegularFont)
 	{

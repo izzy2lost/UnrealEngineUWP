@@ -16,7 +16,7 @@
 
 #define LOCTEXT_NAMESPACE "FWidgetReferenceForBlueprintCustomization"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	static TWeakObjectPtr<UUserWidget> GetWidgetFromEditedObject(UObject* EditedObject)
 	{

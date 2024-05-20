@@ -9,7 +9,7 @@
 class UInputVCamSubsystem;
 struct FInputKeyParams;
 
-namespace UE::VCamCore::Private
+namespace UE::VCamCore
 {
 	/**
 	 * Passes inputs to UVCamPlayerInput::InputKey.

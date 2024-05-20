@@ -13,7 +13,7 @@ struct FModifierStackEntry;
 template<typename T>
 struct TObjectPtr;
 
-namespace UE::VCamCore::CookingUtils::Private
+namespace UE::VCamCore::CookingUtils
 {
 #if WITH_EDITOR
 	/** Removes every entry that is either 1. null or 2. does not satisfy CanIncludeInCookedGame. */

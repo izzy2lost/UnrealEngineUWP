@@ -7,7 +7,7 @@
 class IDetailPropertyRow;
 class UVCamComponent;
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	namespace ConnectionTargetContextFinding
 	{

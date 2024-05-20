@@ -14,7 +14,7 @@ class UVCamOutputProviderBase;
 enum class EVCamTargetViewportID : uint8;
 struct FVCamViewportLocker;
 
-namespace UE::VCamCore::LevelViewportUtils::Private
+namespace UE::VCamCore::LevelViewportUtils
 {
 	/** Locks or unlocks all viewports which are used by OutputProviders depending on the corresponding FVCamViewportLockState::bLockViewportToCamera flag. All other viewports will be unlocked. */
 	void UpdateViewportLocksFromOutputs(TArray<TObjectPtr<UVCamOutputProviderBase>> OutputProviders, FVCamViewportLocker& LockData, AActor& ActorToLockWith);

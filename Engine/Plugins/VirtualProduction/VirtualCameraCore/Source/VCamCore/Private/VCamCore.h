@@ -5,12 +5,12 @@
 #include "IVCamCoreModule.h"
 #include "Modules/ModuleManager.h"
 
-namespace UE::VCamCore::WidgetSnapshotUtils::Private
+namespace UE::VCamCore::WidgetSnapshotUtils
 {
 	struct FWidgetSnapshotSettings;
 }
 
-namespace UE::VCamCore::Private
+namespace UE::VCamCore
 {
 	class FVCamCoreModule : public IVCamCoreModule
 	{
@@ -32,7 +32,7 @@ namespace UE::VCamCore::Private
 		/** Unregister the module's settings object. */
 		void UnregisterSettings();
 
-		WidgetSnapshotUtils::Private::FWidgetSnapshotSettings GetSnapshotSettings() const;
+		WidgetSnapshotUtils::FWidgetSnapshotSettings GetSnapshotSettings() const;
 	};
 }
 

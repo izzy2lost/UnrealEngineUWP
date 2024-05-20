@@ -25,7 +25,7 @@
 
 #define LOCTEXT_NAMESPACE "FOutputProviderCustomization"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	namespace Private
 	{

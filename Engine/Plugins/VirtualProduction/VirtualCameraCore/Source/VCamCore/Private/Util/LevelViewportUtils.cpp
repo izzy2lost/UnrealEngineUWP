@@ -17,7 +17,7 @@
 #include "SLevelViewport.h"
 #endif
 
-namespace UE::VCamCore::LevelViewportUtils::Private
+namespace UE::VCamCore::LevelViewportUtils
 {
 	namespace Locking
 	{

@@ -7,7 +7,7 @@
 #include "UI/VCamConnectionStructs.h"
 #include "Widgets/Text/STextBlock.h"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	FConnectionRemapUtilsImpl::FConnectionRemapUtilsImpl(TSharedRef<IDetailLayoutBuilder> Builder)
 		: Builder(MoveTemp(Builder))

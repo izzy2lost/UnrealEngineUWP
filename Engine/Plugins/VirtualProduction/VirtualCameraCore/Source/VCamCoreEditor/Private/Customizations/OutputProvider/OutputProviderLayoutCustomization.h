@@ -13,7 +13,7 @@ class IPropertyUtilities;
 class UVCamWidget;
 class UVCamOutputProviderBase;
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	/** Exposes all VCam widgets' connection settings for as long as the output provider has a valid widget. */
 	class FOutputProviderLayoutCustomization : public IDetailCustomization

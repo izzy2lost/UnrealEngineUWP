@@ -7,7 +7,7 @@
 #include "Containers/Array.h"
 #include "Templates/UnrealTemplate.h"
 
-namespace UE::VCamCoreEditor::Private::ConnectionTargetContextFinding
+namespace UE::VCamCoreEditor::ConnectionTargetContextFinding
 {
 	/** Goes through array of implementations and calls ProcessWithContext on the first one which finds a FVCamConnection (it is expected that only one will find a struct). */
 	class FListOfContextFinders : public IContextFinderForConnectionTargetSettings

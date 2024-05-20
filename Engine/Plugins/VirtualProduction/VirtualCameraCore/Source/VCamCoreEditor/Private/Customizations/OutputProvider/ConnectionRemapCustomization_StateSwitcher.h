@@ -4,7 +4,7 @@
 
 #include "Customizations/OutputProvider/ConnectionRemapCustomization_VCamWidget.h"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	class FConnectionRemapCustomization_StateSwitcher : public FConnectionRemapCustomization_VCamWidget
 	{

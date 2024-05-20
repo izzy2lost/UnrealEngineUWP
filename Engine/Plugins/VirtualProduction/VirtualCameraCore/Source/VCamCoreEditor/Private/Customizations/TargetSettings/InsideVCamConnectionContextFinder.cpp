@@ -8,7 +8,7 @@
 #include "PropertyHandle.h"
 #include "UObject/UnrealType.h"
 
-namespace UE::VCamCoreEditor::Private::ConnectionTargetContextFinding
+namespace UE::VCamCoreEditor::ConnectionTargetContextFinding
 {
 	void FInsideVCamConnectionContextFinder::FindAndProcessContext(
 		const TSharedRef<IPropertyHandle>& ConnectionTargetSettingsStructHandle,

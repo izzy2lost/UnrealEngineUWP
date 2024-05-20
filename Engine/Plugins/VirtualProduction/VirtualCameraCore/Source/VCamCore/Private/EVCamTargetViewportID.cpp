@@ -9,7 +9,7 @@ namespace UE::VCamCore
 #if WITH_EDITOR
 	TSharedPtr<SLevelViewport> GetLevelViewport(EVCamTargetViewportID TargetViewport)
 	{
-		return LevelViewportUtils::Private::GetLevelViewport(TargetViewport);
+		return LevelViewportUtils::GetLevelViewport(TargetViewport);
 	}
 #endif
 }

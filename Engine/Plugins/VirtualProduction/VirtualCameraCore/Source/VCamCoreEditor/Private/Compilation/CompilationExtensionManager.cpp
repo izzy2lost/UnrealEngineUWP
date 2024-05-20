@@ -6,7 +6,7 @@
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Modifier/VCamModifier.h"
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	FCompilationExtensionManager::~FCompilationExtensionManager()
 	{

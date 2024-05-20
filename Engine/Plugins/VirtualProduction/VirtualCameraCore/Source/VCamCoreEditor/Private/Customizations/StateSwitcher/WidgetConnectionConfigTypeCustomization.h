@@ -8,7 +8,7 @@ class UWidgetTree;
 class UUserWidget;
 class IDetailPropertyRow;
 
-namespace UE::VCamCoreEditor::Private
+namespace UE::VCamCoreEditor
 {
 	/** Makes the "Virtual Camera" category appear first on the actor properties. */
 	class FWidgetConnectionConfigTypeCustomization : public IPropertyTypeCustomization

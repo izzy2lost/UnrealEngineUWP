@@ -4,7 +4,7 @@
 
 #include "DiscoveryBeaconReceiver.h"
 
-namespace UE::PixelStreamingVCam::Private
+namespace UE::PixelStreamingVCam
 {
 	/**
 	 * Receives beacon messages from the VCAM app and replies with connection information.

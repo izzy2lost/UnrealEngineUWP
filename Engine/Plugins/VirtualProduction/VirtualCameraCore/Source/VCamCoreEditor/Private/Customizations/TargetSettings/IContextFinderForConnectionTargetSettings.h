@@ -9,7 +9,7 @@ class IPropertyHandle;
 class IPropertyUtilities;
 struct FVCamConnection;
 
-namespace UE::VCamCoreEditor::Private::ConnectionTargetContextFinding
+namespace UE::VCamCoreEditor::ConnectionTargetContextFinding
 {
 	/**
 	 * Used by FConnectionTargetSettingsTypeCustomization to find a FVCamConnection to limit the options of selectable
