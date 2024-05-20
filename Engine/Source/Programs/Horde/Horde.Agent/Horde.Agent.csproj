@@ -134,7 +134,6 @@
     <ProjectReference Include="..\..\Shared\EpicGames.Horde\EpicGames.Horde.csproj" />
     <ProjectReference Include="..\..\Shared\EpicGames.Perforce.Managed\EpicGames.Perforce.Managed.csproj" />
     <ProjectReference Include="..\..\Shared\EpicGames.Perforce\EpicGames.Perforce.csproj" />
-    <ProjectReference Include="..\Horde.Agent.Driver\Horde.Agent.Driver.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -157,6 +156,12 @@
     <Protobuf Include="..\Horde.Server\Protos\horde\tasks\shutdown_task.proto" ProtoRoot="..\Horde.Server\Protos" Access="Public" />
     <Protobuf Include="..\Horde.Server\Protos\horde\tasks\test_task.proto" ProtoRoot="..\Horde.Server\Protos" Access="Public" />
     <Protobuf Include="..\Horde.Server\Protos\horde\tasks\upgrade_task.proto" ProtoRoot="..\Horde.Server\Protos" Access="Public" />
+
+    <Protobuf Include="..\Horde.Server\Protos\horde\job_rpc_messages.proto" ProtoRoot="..\Horde.Server\Protos" Access="Public" />
+    <Protobuf Include="..\Horde.Server\Protos\horde\common\label_change.proto" ProtoRoot="..\Horde.Server\Protos" Access="Public" />
+    <Protobuf Include="..\Horde.Server\Protos\horde\messages\agent_workspace.proto" ProtoRoot="..\Horde.Server\Protos" Access="Public" />
+    <Protobuf Include="..\Horde.Server\Protos\horde\tasks\conform_task.proto" ProtoRoot="..\Horde.Server\Protos" Access="Public" />
+    <Protobuf Include="..\Horde.Server\Protos\horde\tasks\job_task.proto" ProtoRoot="..\Horde.Server\Protos" Access="Public" />
   </ItemGroup>
 
   <ItemGroup>

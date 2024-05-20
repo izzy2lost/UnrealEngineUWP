@@ -41,6 +41,8 @@ namespace Horde.Agent.Driver.Commands.Execution
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
+			logger.LogInformation("Running conform command in driver");
+
 			ConformTask conformTask = ConformTask.Parser.ParseFrom(Convert.FromBase64String(Task));
 
 			string accessToken = null!;

@@ -90,7 +90,7 @@ namespace EpicGames.Core
 		}
 
 		/// <summary>
-		/// Tries to parse a Json log event from the given 
+		/// Tries to parse a Json log event from the given string
 		/// </summary>
 		/// <param name="data"></param>
 		/// <param name="logEvent"></param>
@@ -106,6 +106,18 @@ namespace EpicGames.Core
 				logEvent = default;
 				return false;
 			}
+		}
+
+		/// <summary>
+		/// Tries to parse a Json log event from the given string
+		/// </summary>
+		/// <param name="text">Text to parse</param>
+		/// <param name="logEvent"></param>
+		/// <returns></returns>
+		public static bool TryParse(string text, out JsonLogEvent logEvent)
+		{
+			byte[] data = Encoding.UTF8.GetBytes(text);
+			return TryParse(data, out logEvent);
 		}
 
 		static bool TryParseInternal(ReadOnlyMemory<byte> data, out JsonLogEvent logEvent)

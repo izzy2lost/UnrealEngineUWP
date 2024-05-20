@@ -19,7 +19,7 @@ namespace Horde.Agent.Driver.Tests
 		private readonly Func<JobStepInfo, ILogger, CancellationToken, Task<JobStepOutcome>> _func;
 
 		public SimpleTestExecutor(Func<JobStepInfo, ILogger, CancellationToken, Task<JobStepOutcome>> func)
-			: base(new JobExecutorOptions(null!, null!, null, default, default, default, default, null!), NullLogger.Instance)
+			: base(new JobExecutorOptions(null!, null!, null, default, default, default, null!), NullLogger.Instance)
 		{
 			_func = func;
 		}

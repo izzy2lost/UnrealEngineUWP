@@ -4,7 +4,6 @@ using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
-using EpicGames.Horde.Logs;
 using Horde.Agent.Driver.Utility;
 using Horde.Common.Rpc;
 using HordeCommon.Rpc.Messages;
@@ -21,9 +20,9 @@ namespace Horde.Agent.Driver.Execution
 		readonly LeaseId _leaseId;
 		readonly ConformTask _conformTask;
 		readonly DriverSettings _driverSettings;
-		readonly ILogger _localLogger;
+		readonly ILogger _logger;
 
-		public ConformExecutor(IHordeClient hordeClient, DirectoryReference workingDir, AgentId agentId, LeaseId leaseId, ConformTask conformTask, DriverSettings driverSettings, ILogger localLogger)
+		public ConformExecutor(IHordeClient hordeClient, DirectoryReference workingDir, AgentId agentId, LeaseId leaseId, ConformTask conformTask, DriverSettings driverSettings, ILogger logger)
 		{
 			_hordeClient = hordeClient;
 			_workingDir = workingDir;
@@ -31,27 +30,26 @@ namespace Horde.Agent.Driver.Execution
 			_leaseId = leaseId;
 			_conformTask = conformTask;
 			_driverSettings = driverSettings;
-			_localLogger = localLogger;
+			_logger = logger;
 		}
 
 		public async Task ExecuteAsync(CancellationToken cancellationToken)
 		{
-			await using IServerLogger serverLogger = _hordeClient.CreateServerLogger(LogId.Parse(_conformTask.LogId)).WithLocalLogger(_localLogger);
 			try
 			{
-				await ExecuteInternalAsync(serverLogger, cancellationToken);
+				await ExecuteInternalAsync(cancellationToken);
 			}
 			catch (Exception ex)
 			{
-				serverLogger.LogError(ex, "Unhandled exception while running conform: {Message}", ex.Message);
+				_logger.LogError(ex, "Unhandled exception while running conform: {Message}", ex.Message);
 				throw;
 			}
 		}
 
-		async Task ExecuteInternalAsync(ILogger logger, CancellationToken cancellationToken)
+		async Task ExecuteInternalAsync(CancellationToken cancellationToken)
 		{
-			logger.LogInformation("Conforming, lease {LeaseId}", _leaseId);
-			await TerminateProcessHelper.TerminateProcessesAsync(TerminateCondition.BeforeConform, _workingDir, _driverSettings.ProcessesToTerminate, logger, cancellationToken);
+			_logger.LogInformation("Conforming, lease {LeaseId}", _leaseId);
+			await TerminateProcessHelper.TerminateProcessesAsync(TerminateCondition.BeforeConform, _workingDir, _driverSettings.ProcessesToTerminate, _logger, cancellationToken);
 
 			bool removeUntrackedFiles = _conformTask.RemoveUntrackedFiles;
 			IList<RpcAgentWorkspace> pendingWorkspaces = _conformTask.Workspaces;
@@ -69,11 +67,11 @@ namespace Horde.Agent.Driver.Execution
 				// Run the conform task
 				if (isExecutorConformCompatible && _driverSettings.PerforceExecutor.RunConform)
 				{
-					await PerforceExecutor.ConformAsync(_workingDir, pendingWorkspaces, removeUntrackedFiles, logger, cancellationToken);
+					await PerforceExecutor.ConformAsync(_workingDir, pendingWorkspaces, removeUntrackedFiles, _logger, cancellationToken);
 				}
 				else
 				{
-					logger.LogInformation("Skipping conform. Executor={Executor} RunConform={RunConform}", _driverSettings.Executor, _driverSettings.PerforceExecutor.RunConform);
+					_logger.LogInformation("Skipping conform. Executor={Executor} RunConform={RunConform}", _driverSettings.Executor, _driverSettings.PerforceExecutor.RunConform);
 				}
 
 				// Update the new set of workspaces
@@ -87,11 +85,11 @@ namespace Horde.Agent.Driver.Execution
 				RpcUpdateAgentWorkspacesResponse response = await hordeRpc.UpdateAgentWorkspacesAsync(request, cancellationToken: cancellationToken);
 				if (!response.Retry)
 				{
-					logger.LogInformation("Conform finished");
+					_logger.LogInformation("Conform finished");
 					break;
 				}
 
-				logger.LogInformation("Pending workspaces have changed - running conform again...");
+				_logger.LogInformation("Pending workspaces have changed - running conform again...");
 				pendingWorkspaces = response.PendingWorkspaces;
 				removeUntrackedFiles = response.RemoveUntrackedFiles;
 			}

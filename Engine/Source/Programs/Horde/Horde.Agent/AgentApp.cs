@@ -11,8 +11,6 @@ using Datadog.Trace.Configuration;
 using Datadog.Trace.OpenTracing;
 using EpicGames.Core;
 using EpicGames.Horde;
-using Horde.Agent.Driver;
-using Horde.Agent.Driver.Execution;
 using Horde.Agent.Leases;
 using Horde.Agent.Leases.Handlers;
 using Horde.Agent.Services;
@@ -158,7 +156,6 @@ namespace Horde.Agent
 			// Add all the default 
 			IConfigurationSection configSection = configuration.GetSection(AgentSettings.SectionName);
 			services.AddOptions<AgentSettings>().Configure(options => configSection.Bind(options)).ValidateDataAnnotations();
-			services.AddOptions<DriverSettings>().Configure(options => configSection.Bind(options)).ValidateDataAnnotations();
 
 			ServerProfile serverProfile = settings.GetCurrentServerProfile();
 			if (String.IsNullOrEmpty(serverProfile.Url.Scheme) || String.IsNullOrEmpty(serverProfile.Url.Host))
@@ -195,13 +192,6 @@ namespace Horde.Agent
 			services.AddSingleton<GrpcService>();
 			services.AddSingleton<TelemetryService>();
 			services.AddHostedService(sp => sp.GetRequiredService<TelemetryService>());
-
-			services.AddSingleton<IJobExecutorFactory, PerforceExecutorFactory>();
-			services.AddSingleton<IJobExecutorFactory, WorkspaceExecutorFactory>();
-			services.AddSingleton<IJobExecutorFactory, LocalExecutorFactory>();
-			services.AddSingleton<IJobExecutorFactory, TestExecutorFactory>();
-
-			services.AddSingleton<IWorkspaceMaterializerFactory, WorkspaceMaterializerFactory>();
 
 			services.AddSingleton<JobHandler>();
 			services.AddSingleton<StatusService>();

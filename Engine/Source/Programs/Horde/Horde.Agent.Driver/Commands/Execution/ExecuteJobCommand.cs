@@ -43,6 +43,8 @@ namespace Horde.Agent.Driver.Commands.Execution
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
+			logger.LogInformation("Running job command in driver");
+
 			ExecuteJobTask executeTask = ExecuteJobTask.Parser.ParseFrom(Convert.FromBase64String(Task));
 
 			IHordeClient hordeClient = _hordeClientFactory.Create(executeTask.Token);

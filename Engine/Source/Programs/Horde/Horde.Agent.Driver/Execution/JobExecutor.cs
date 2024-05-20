@@ -22,6 +22,7 @@ using HordeCommon;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OpenTracing;
 using OpenTracing.Util;
 
@@ -56,10 +57,9 @@ namespace Horde.Agent.Driver.Execution
 		public JobId JobId { get; }
 		public JobStepBatchId BatchId { get; }
 		public LeaseId LeaseId { get; }
-		public LogId LogId { get; }
 		public RpcJobOptions JobOptions { get; }
 
-		public JobExecutorOptions(IHordeClient hordeClient, DirectoryReference workingDir, IReadOnlyList<ProcessToTerminate>? processesToTerminate, JobId jobId, JobStepBatchId batchId, LeaseId leaseId, LogId logId, RpcJobOptions jobOptions)
+		public JobExecutorOptions(IHordeClient hordeClient, DirectoryReference workingDir, IReadOnlyList<ProcessToTerminate>? processesToTerminate, JobId jobId, JobStepBatchId batchId, LeaseId leaseId, RpcJobOptions jobOptions)
 		{
 			HordeClient = hordeClient;
 			WorkingDir = workingDir;
@@ -67,7 +67,6 @@ namespace Horde.Agent.Driver.Execution
 			JobId = jobId;
 			BatchId = batchId;
 			LeaseId = leaseId;
-			LogId = logId;
 			JobOptions = jobOptions;
 		}
 	}
@@ -220,7 +219,6 @@ namespace Horde.Agent.Driver.Execution
 		protected IReadOnlyList<ProcessToTerminate>? ProcessesToTerminate { get; }
 
 		protected RpcBeginBatchResponse Batch { get; private set; }
-		private readonly LogId _logId;
 
 		protected List<string> _additionalArguments = new List<string>();
 		protected bool _allowTargetChanges;
@@ -252,7 +250,6 @@ namespace Horde.Agent.Driver.Execution
 			JobId = options.JobId;
 			BatchId = options.BatchId;
 			LeaseId = options.LeaseId;
-			_logId = options.LogId;
 			ProcessesToTerminate = options.ProcessesToTerminate;
 
 			Batch = null!; // Set in InitializeAsync()
@@ -274,19 +271,18 @@ namespace Horde.Agent.Driver.Execution
 		{
 		}
 
-		public async Task ExecuteAsync(ILogger localLogger, CancellationToken cancellationToken)
+		public async Task ExecuteAsync(ILogger logger, CancellationToken cancellationToken)
 		{
 			JobRpc.JobRpcClient jobRpc = await HordeClient.CreateGrpcClientAsync<JobRpc.JobRpcClient>(cancellationToken);
 
 			// Create a storage client for this session
-			await using IServerLogger logger = HordeClient.CreateServerLogger(_logId).WithLocalLogger(localLogger);
 			logger.LogInformation("Executing jobId {JobId}, batchId {BatchId}, leaseId {LeaseId} with executor {Name}", JobId, BatchId, LeaseId, JobOptions.Executor);
 
 			// Start executing the current batch
 			RpcBeginBatchResponse batch = await jobRpc.BeginBatchAsync(new RpcBeginBatchRequest(JobId, BatchId, LeaseId), cancellationToken: cancellationToken);
 			try
 			{
-				await ExecuteBatchAsync(batch, logger, localLogger, cancellationToken);
+				await ExecuteBatchAsync(batch, logger, NullLogger.Instance, cancellationToken);
 			}
 			catch (Exception ex)
 			{
@@ -2214,9 +2210,8 @@ namespace Horde.Agent.Driver.Execution
 
 			JobId jobId = JobId.Parse(executeTask.JobId);
 			JobStepBatchId batchId = JobStepBatchId.Parse(executeTask.BatchId);
-			LogId logId = LogId.Parse(executeTask.LogId);
 
-			JobExecutorOptions options = new JobExecutorOptions(hordeClient, workingDir, driverSettings.ProcessesToTerminate, jobId, batchId, leaseId, logId, executeTask.JobOptions);
+			JobExecutorOptions options = new JobExecutorOptions(hordeClient, workingDir, driverSettings.ProcessesToTerminate, jobId, batchId, leaseId, executeTask.JobOptions);
 
 			using JobExecutor executor = executorFactory.CreateExecutor(executeTask.Workspace, executeTask.AutoSdkWorkspace, options);
 			await executor.ExecuteAsync(logger, cancellationToken);

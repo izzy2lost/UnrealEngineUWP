@@ -150,7 +150,7 @@ namespace Horde.Agent.Driver.Tests.Execution
 			_workspace.SetFile(1, "main.cpp", "main");
 			_workspace.SetFile(1, "foo/bar/baz.h", "baz");
 
-			JobExecutorOptions executorOptions = new JobExecutorOptions(_hordeClient, _workingDir, null, _jobId, _batchId, default, default, new RpcJobOptions());
+			JobExecutorOptions executorOptions = new JobExecutorOptions(_hordeClient, _workingDir, null, _jobId, _batchId, default, new RpcJobOptions());
 			_executor = new(executorOptions, _workspace, null, NullLogger.Instance);
 		}
 
@@ -175,7 +175,7 @@ namespace Horde.Agent.Driver.Tests.Execution
 		[TestMethod]
 		public async Task RegularAndAutoSdkWorkspaceAsync()
 		{
-			JobExecutorOptions executorOptions = new JobExecutorOptions(_hordeClient, _workingDir, Array.Empty<ProcessToTerminate>(), _jobId, _batchId, default, default, new RpcJobOptions());
+			JobExecutorOptions executorOptions = new JobExecutorOptions(_hordeClient, _workingDir, Array.Empty<ProcessToTerminate>(), _jobId, _batchId, default, new RpcJobOptions());
 			using WorkspaceExecutor executor = new(executorOptions, _workspace, _autoSdkWorkspace, NullLogger.Instance);
 
 			RpcBeginBatchResponse batch = new RpcBeginBatchResponse { Change = 1 };
@@ -189,7 +189,7 @@ namespace Horde.Agent.Driver.Tests.Execution
 		[TestMethod]
 		public async Task EnvVarsAsync()
 		{
-			JobExecutorOptions executorOptions = new JobExecutorOptions(_hordeClient, _workingDir, Array.Empty<ProcessToTerminate>(), _jobId, _batchId, default, default, new RpcJobOptions());
+			JobExecutorOptions executorOptions = new JobExecutorOptions(_hordeClient, _workingDir, Array.Empty<ProcessToTerminate>(), _jobId, _batchId, default, new RpcJobOptions());
 			using WorkspaceExecutor executor = new(executorOptions, _workspace, _autoSdkWorkspace, NullLogger.Instance);
 
 			RpcBeginBatchResponse batch = new RpcBeginBatchResponse { Change = 1, StreamName = "//UE5/Main" };
@@ -217,7 +217,7 @@ namespace Horde.Agent.Driver.Tests.Execution
 			_hordeClient.AddJob(preflightJobId, _streamId, 1, 1000);
 			_workspace.SetFile(1000, "New/Feature/Foo.cs", "foo");
 
-			JobExecutorOptions executorOptions = new JobExecutorOptions(_hordeClient, _workingDir, Array.Empty<ProcessToTerminate>(), preflightJobId, _batchId, default, default, new RpcJobOptions());
+			JobExecutorOptions executorOptions = new JobExecutorOptions(_hordeClient, _workingDir, Array.Empty<ProcessToTerminate>(), preflightJobId, _batchId, default, new RpcJobOptions());
 			using WorkspaceExecutor executor = new(executorOptions, _workspace, null, NullLogger.Instance);
 
 			RpcBeginBatchResponse batch = new RpcBeginBatchResponse { Change = 1, PreflightChange = 1000 };
@@ -235,7 +235,7 @@ namespace Horde.Agent.Driver.Tests.Execution
 
 			_hordeClient.AddJob(noChangeJobId, _streamId, 0, 0);
 
-			JobExecutorOptions executorOptions = new JobExecutorOptions(_hordeClient, _workingDir, Array.Empty<ProcessToTerminate>(), noChangeJobId, _batchId, default, default, new RpcJobOptions());
+			JobExecutorOptions executorOptions = new JobExecutorOptions(_hordeClient, _workingDir, Array.Empty<ProcessToTerminate>(), noChangeJobId, _batchId, default, new RpcJobOptions());
 			using WorkspaceExecutor executor = new(executorOptions, _workspace, null, NullLogger.Instance);
 
 			RpcBeginBatchResponse batch = new RpcBeginBatchResponse { };
