@@ -376,7 +376,7 @@ private:
 	FBackendArray PullEnabledBackends;
 
 	/** Do we have backends that have not yet tried connecting to their services */
-	bool bPendingBackendConnections;
+	std::atomic<bool> bPendingBackendConnections;
 
 	/** Our notification Event */
 	FOnNotification NotificationEvent;

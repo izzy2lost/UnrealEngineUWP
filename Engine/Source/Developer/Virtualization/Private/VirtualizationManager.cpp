@@ -1824,9 +1824,9 @@ void FVirtualizationManager::EnsureBackendConnections()
 	if (bPendingBackendConnections)
 	{
 		// Only allow one thread to initialize the system at a time
-		static FCriticalSection InitCS;
+		static FMutex Mutex;
 
-		FScopeLock _(&InitCS);
+		UE::TUniqueLock _(Mutex);
 		if (bPendingBackendConnections)
 		{
 			for (const TUniquePtr<IVirtualizationBackend>& Backend : AllBackends)
