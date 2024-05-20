@@ -150,13 +150,18 @@ public:
 		checkf(Dispatches.Num() > 0, TEXT("A shader bundle must be dispatched with at least one record."));
 		for (const FRHIShaderBundleComputeDispatch& Dispatch : Dispatches)
 		{
+			if (!Dispatch.IsValid())
+			{
+				continue;
+			}
+
 			State.BoundShader = Dispatch.Shader;
 
 			// Reset the compute UAV tracker since the renderer must re-bind all resources after changing a shader.
 			Tracker->ResetUAVState(RHIValidation::EUAVMode::Compute);
 
-			ValidateShaderParameters(Dispatch.Shader, Tracker, State.StaticUniformBuffers, State.BoundUniformBuffers, Dispatch.Parameters.ResourceParameters, ERHIAccess::SRVCompute, RHIValidation::EUAVMode::Compute);
-			ValidateShaderParameters(Dispatch.Shader, Tracker, State.StaticUniformBuffers, State.BoundUniformBuffers, Dispatch.Parameters.BindlessParameters, ERHIAccess::SRVCompute, RHIValidation::EUAVMode::Compute);
+			ValidateShaderParameters(Dispatch.Shader, Tracker, State.StaticUniformBuffers, State.BoundUniformBuffers, Dispatch.Parameters->ResourceParameters, ERHIAccess::SRVCompute, RHIValidation::EUAVMode::Compute);
+			ValidateShaderParameters(Dispatch.Shader, Tracker, State.StaticUniformBuffers, State.BoundUniformBuffers, Dispatch.Parameters->BindlessParameters, ERHIAccess::SRVCompute, RHIValidation::EUAVMode::Compute);
 
 			if (bEmulated)
 			{
@@ -182,6 +187,11 @@ public:
 		checkf(Dispatches.Num() > 0, TEXT("A shader bundle must be dispatched with at least one record."));
 		for (const FRHIShaderBundleGraphicsDispatch& Dispatch : Dispatches)
 		{
+			if (!Dispatch.IsValid())
+			{
+				continue;
+			}
+
 			// Reset the graphics UAV tracker since the renderer must re-bind all resources after changing a shader.
 			Tracker->ResetUAVState(RHIValidation::EUAVMode::Graphics);
 
@@ -479,8 +489,8 @@ public:
 			// Reset the compute UAV tracker since the renderer must re-bind all resources after changing a shader.
 			Tracker->ResetUAVState(RHIValidation::EUAVMode::Compute);
 
-			ValidateShaderParameters(Dispatch.Shader, Tracker, State.StaticUniformBuffers, BoundUniformBuffers, Dispatch.Parameters.ResourceParameters, ERHIAccess::SRVCompute, RHIValidation::EUAVMode::Compute);
-			ValidateShaderParameters(Dispatch.Shader, Tracker, State.StaticUniformBuffers, BoundUniformBuffers, Dispatch.Parameters.BindlessParameters, ERHIAccess::SRVCompute, RHIValidation::EUAVMode::Compute);
+			ValidateShaderParameters(Dispatch.Shader, Tracker, State.StaticUniformBuffers, BoundUniformBuffers, Dispatch.Parameters->ResourceParameters, ERHIAccess::SRVCompute, RHIValidation::EUAVMode::Compute);
+			ValidateShaderParameters(Dispatch.Shader, Tracker, State.StaticUniformBuffers, BoundUniformBuffers, Dispatch.Parameters->BindlessParameters, ERHIAccess::SRVCompute, RHIValidation::EUAVMode::Compute);
 
 			if (bEmulated)
 			{

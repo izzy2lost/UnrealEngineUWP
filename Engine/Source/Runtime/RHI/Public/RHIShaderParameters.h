@@ -6,6 +6,8 @@
 #include "RHIResources.h"
 #include "RHIResourceCollection.h"
 
+#define RHI_VALIDATE_BATCHED_SHADER_PARAMETERS DO_CHECK
+
 class FRHICommandList;
 class FRHIComputeCommandList;
 
@@ -75,79 +77,268 @@ struct FRHIShaderParameterResource
 	EType         Type = EType::Texture;
 };
 
+struct FRHIBatchedShaderParameters;
+
+enum class ERHIBatchedShaderParameterAllocatorPageSize
+{
+	Small,
+	Large
+};
+
+class FRHIBatchedShaderParametersAllocator
+{
+public:
+	FRHIBatchedShaderParametersAllocator* Next;
+	FRHICommandListBase& RHICmdList;
+
+private:
+	friend class FRHICommandListBase;
+	friend struct FRHIBatchedShaderParameters;
+
+	FMemStackBase ParametersData;
+	FMemStackBase Parameters;
+	FMemStackBase ResourceParameters;
+	FMemStackBase BindlessParameters;
+
+	FRHIBatchedShaderParametersAllocator(FRHIBatchedShaderParametersAllocator*& InOutRootListLink, FRHICommandListBase& InRHICmdList, ERHIBatchedShaderParameterAllocatorPageSize PageSize)
+		: FRHIBatchedShaderParametersAllocator(InOutRootListLink, InRHICmdList, PageSize == ERHIBatchedShaderParameterAllocatorPageSize::Small ? FMemStackBase::EPageSize::Small : FMemStackBase::EPageSize::Large)
+	{}
+
+	FRHIBatchedShaderParametersAllocator(FRHIBatchedShaderParametersAllocator*& InOutRootListLink, FRHICommandListBase& InRHICmdList, FMemStackBase::EPageSize PageSize)
+		: Next(InOutRootListLink)
+		, RHICmdList(InRHICmdList)
+		, ParametersData(PageSize)
+		, Parameters(PageSize)
+		, ResourceParameters(PageSize)
+		, BindlessParameters(PageSize)
+	{
+		InOutRootListLink = this;
+	}
+
+	FORCEINLINE void Attach(const FRHIBatchedShaderParameters* InParameters)
+	{
+#if RHI_VALIDATE_BATCHED_SHADER_PARAMETERS
+		if (AttachedParameters != InParameters)
+		{
+			checkf(!AttachedParameters, TEXT("Only one FRHIBatchedShaderParameters instance can be used at a time with this allocator. You must call FRHIBatchedShaderParameters::{Reset, Finish} to start processing a new one."));
+			AttachedParameters = InParameters;
+		}
+#endif
+	}
+
+	FORCEINLINE void Detach()
+	{
+#if RHI_VALIDATE_BATCHED_SHADER_PARAMETERS
+		AttachedParameters = nullptr;
+#endif
+	}
+
+	template <typename... ArgsType>
+	FORCEINLINE void EmplaceParameter(TArrayView<FRHIShaderParameter>& InOutArray, ArgsType&& ...Args)
+	{
+		Emplace(Parameters, InOutArray, Forward<ArgsType&&>(Args)...);
+	}
+
+	template <typename... ArgsType>
+	FORCEINLINE void AddResourceParameter(TArrayView<FRHIShaderParameterResource>& InOutArray, ArgsType&& ...Args)
+	{
+		Emplace(ResourceParameters, InOutArray, Forward<ArgsType&&>(Args)...);
+	}
+
+	template <typename... ArgsType>
+	FORCEINLINE void AddBindlessParameter(TArrayView<FRHIShaderParameterResource>& InOutArray, ArgsType&& ...Args)
+	{
+		Emplace(BindlessParameters, InOutArray, Forward<ArgsType&&>(Args)...);
+	}
+
+#if RHI_VALIDATE_BATCHED_SHADER_PARAMETERS
+	const FRHIBatchedShaderParameters* AttachedParameters = nullptr;
+#endif
+
+	template <typename ElementType, typename... ArgsType>
+	void Emplace(FMemStackBase& MemStack, TArrayView<ElementType>& InOutArray, ArgsType&& ...Args)
+	{
+		static_assert(sizeof(ElementType) % alignof(ElementType) == 0, "Element size must be a multiple of its alignment");
+
+		const size_t ElementSize = sizeof(ElementType);
+		const size_t Alignment   = alignof(ElementType);
+		const int32 NumElements  = InOutArray.Num() + 1;
+		ElementType* Elements    = InOutArray.GetData();
+
+		if (InOutArray.IsEmpty())
+		{
+			Elements = new (MemStack.Alloc(ElementSize, Alignment)) ElementType(Forward<ArgsType&>(Args)...);
+		}
+		else
+		{
+			// Sanity check that the top of the stack contains the last element that was allocated.
+			check(MemStack.GetTop() == (uint8*)(InOutArray.GetData() + InOutArray.Num()));
+
+			// Try to extend the size of the current array without resizing.
+			if (MemStack.CanFitInPage(ElementSize, 1))
+			{
+				new (MemStack.Alloc(ElementSize, 1)) ElementType(Forward<ArgsType&>(Args)...);
+			}
+			// Reached the end of the page. Reallocate the entire array into a new page.
+			else
+			{
+				Elements = reinterpret_cast<ElementType*>(MemStack.Alloc(NumElements * ElementSize, Alignment));
+				ElementType* LastElement = Elements;
+				for (int32 Index = 0; Index < InOutArray.Num(); ++Index, ++LastElement)
+				{
+					new (LastElement) ElementType(MoveTemp(InOutArray[Index]));
+				}
+				new (LastElement) ElementType(Forward<ArgsType&>(Args)...);
+			}
+		}
+
+		InOutArray = TArrayView<ElementType>(Elements, NumElements);
+	}
+
+	void AppendParametersData(TArrayView<uint8>& InOutArray, uint32 NumBytes, const uint8* Bytes)
+	{
+		constexpr size_t Alignment = 1;
+		const int32 NumArrayBytes  = InOutArray.Num() + NumBytes;
+		uint8* ArrayBytes          = InOutArray.GetData();
+
+		if (InOutArray.IsEmpty())
+		{
+			ArrayBytes = (uint8*)ParametersData.Alloc(NumBytes, Alignment);
+			FMemory::Memcpy(ArrayBytes, Bytes, NumBytes);
+		}
+		else
+		{
+			// Sanity check that the top of the stack contains the last element that was allocated.
+			check(ParametersData.GetTop() == InOutArray.GetData() + InOutArray.Num());
+
+			// Try to extend the size of the current array without resizing.
+			if (ParametersData.CanFitInPage(NumBytes, Alignment))
+			{
+				FMemory::Memcpy(ParametersData.Alloc(NumBytes, Alignment), Bytes, NumBytes);
+			}
+			// Reached the end of the page. Reallocate the entire array into a new page.
+			else
+			{
+				ArrayBytes = (uint8*)ParametersData.Alloc(NumArrayBytes, Alignment);
+				FMemory::Memcpy(ArrayBytes, InOutArray.GetData(), InOutArray.Num());
+				FMemory::Memcpy(ArrayBytes + InOutArray.Num(), Bytes, NumBytes);
+			}
+		}
+
+		InOutArray = TArrayView<uint8>(ArrayBytes, NumArrayBytes);
+	}
+};
+
 /** Collection of parameters to set in the RHI. These parameters aren't bound to any specific shader until SetBatchedShaderParameters is called. */
 struct FRHIBatchedShaderParameters
 {
-	TArray<uint8> ParametersData;
-	TArray<FRHIShaderParameter> Parameters;
-	TArray<FRHIShaderParameterResource> ResourceParameters;
-	TArray<FRHIShaderParameterResource> BindlessParameters;
+	FRHIBatchedShaderParametersAllocator& Allocator;
+	TArrayView<uint8> ParametersData;
+	TArrayView<FRHIShaderParameter> Parameters;
+	TArrayView<FRHIShaderParameterResource> ResourceParameters;
+	TArrayView<FRHIShaderParameterResource> BindlessParameters;
+
+	FRHIBatchedShaderParameters(FRHIBatchedShaderParametersAllocator& InAllocator)
+		: Allocator(InAllocator)
+	{}
 
 	inline bool HasParameters() const
 	{
 		return (Parameters.Num() + ResourceParameters.Num() + BindlessParameters.Num()) > 0;
 	}
 
+	// Marks the parameters as complete and retains the parameter contents.
+	void Finish()
+	{
+		Allocator.Detach();
+	}
+
+	// Resets the parameters back to an empty state.
 	void Reset()
 	{
-		ParametersData.Reset();
-		Parameters.Reset();
-		ResourceParameters.Reset();
-		BindlessParameters.Reset();
+		Allocator.Detach();
+		ParametersData = {};
+		Parameters = {};
+		ResourceParameters = {};
+		BindlessParameters = {};
+	}
+
+	template <typename... ArgsType>
+	FORCEINLINE_DEBUGGABLE void AddResourceParameter(ArgsType&& ...Args)
+	{
+		Allocator.Attach(this);
+		Allocator.AddResourceParameter(ResourceParameters, Forward<ArgsType&>(Args)...);
+	}
+	
+	template <typename... ArgsType>
+	FORCEINLINE_DEBUGGABLE void AddBindlessParameter(ArgsType&& ...Args)
+	{
+		Allocator.Attach(this);
+		Allocator.AddBindlessParameter(BindlessParameters, Forward<ArgsType&>(Args)...);
 	}
 
 	FORCEINLINE_DEBUGGABLE void SetShaderParameter(uint32 BufferIndex, uint32 BaseIndex, uint32 NumBytes, const void* NewValue)
 	{
 		const int32 DestDataOffset = ParametersData.Num();
-		ParametersData.Append((const uint8*)NewValue, NumBytes);
-		Parameters.Emplace((uint16)BufferIndex, (uint16)BaseIndex, (uint16)DestDataOffset, (uint16)NumBytes);
+		Allocator.Attach(this);
+		Allocator.AppendParametersData(ParametersData, NumBytes, (const uint8*)NewValue);
+		Allocator.EmplaceParameter(Parameters, (uint16)BufferIndex, (uint16)BaseIndex, (uint16)DestDataOffset, (uint16)NumBytes);
 	}
 
 	FORCEINLINE_DEBUGGABLE void SetShaderUniformBuffer(uint32 Index, FRHIUniformBuffer* UniformBuffer)
 	{
-		ResourceParameters.Emplace(UniformBuffer, (uint16)Index);
+		Allocator.Attach(this);
+		AddResourceParameter(UniformBuffer, (uint16)Index);
 	}
 
 	FORCEINLINE_DEBUGGABLE void SetShaderTexture(uint32 Index, FRHITexture* Texture)
 	{
-		ResourceParameters.Emplace(Texture, (uint16)Index);
+		AddResourceParameter(Texture, (uint16)Index);
 	}
+
 	FORCEINLINE_DEBUGGABLE void SetShaderResourceViewParameter(uint32 Index, FRHIShaderResourceView* SRV)
 	{
-		ResourceParameters.Emplace(SRV, (uint16)Index);
+		AddResourceParameter(SRV, (uint16)Index);
 	}
+
 	FORCEINLINE_DEBUGGABLE void SetShaderSampler(uint32 Index, FRHISamplerState* State)
 	{
-		ResourceParameters.Emplace(State, (uint16)Index);
+		AddResourceParameter(State, (uint16)Index);
 	}
+
 	FORCEINLINE_DEBUGGABLE void SetUAVParameter(uint32 Index, FRHIUnorderedAccessView* UAV)
 	{
-		ResourceParameters.Emplace(UAV, (uint16)Index);
+		AddResourceParameter(UAV, (uint16)Index);
 	}
+
 	FORCEINLINE_DEBUGGABLE void SetResourceCollection(uint32 Index, FRHIResourceCollection* ResourceCollection)
 	{
-		ResourceParameters.Emplace(ResourceCollection, (uint16)Index);
+		AddResourceParameter(ResourceCollection, (uint16)Index);
 	}
 
 	FORCEINLINE_DEBUGGABLE void SetBindlessTexture(uint32 Index, FRHITexture* Texture)
 	{
-		BindlessParameters.Emplace(Texture, (uint16)Index);
+		AddBindlessParameter(Texture, (uint16)Index);
 	}
+
 	FORCEINLINE_DEBUGGABLE void SetBindlessResourceView(uint32 Index, FRHIShaderResourceView* SRV)
 	{
-		BindlessParameters.Emplace(SRV, (uint16)Index);
+		AddBindlessParameter(SRV, (uint16)Index);
 	}
+
 	FORCEINLINE_DEBUGGABLE void SetBindlessSampler(uint32 Index, FRHISamplerState* State)
 	{
-		BindlessParameters.Emplace(State, (uint16)Index);
+		AddBindlessParameter(State, (uint16)Index);
 	}
+
 	FORCEINLINE_DEBUGGABLE void SetBindlessUAV(uint32 Index, FRHIUnorderedAccessView* UAV)
 	{
-		BindlessParameters.Emplace(UAV, (uint16)Index);
+		AddBindlessParameter(UAV, (uint16)Index);
 	}
+
 	FORCEINLINE_DEBUGGABLE void SetBindlessResourceCollection(uint32 Index, FRHIResourceCollection* ResourceCollection)
 	{
-		BindlessParameters.Emplace(ResourceCollection, (uint16)Index);
+		AddBindlessParameter(ResourceCollection, (uint16)Index);
 	}
 };
 
@@ -203,8 +394,7 @@ struct FRHIShaderBundleComputeDispatch
 	FRHIComputeShader* Shader = nullptr;
 	FRHIWorkGraphShader* WorkGraphShader = nullptr;
 	FRHIComputePipelineState* RHIPipeline = nullptr;
-	FRHIBatchedShaderParameters Parameters;
-
+	TOptional<FRHIBatchedShaderParameters> Parameters;
 	FUint32Vector4 Constants;
 
 	inline bool IsValid() const
@@ -235,8 +425,8 @@ struct FRHIShaderBundleGraphicsDispatch
 
 	FGraphicsPipelineStateInitializer PipelineInitializer;
 
-	FRHIBatchedShaderParameters Parameters_MSVS;
-	FRHIBatchedShaderParameters Parameters_PS;
+	TOptional<FRHIBatchedShaderParameters> Parameters_MSVS;
+	TOptional<FRHIBatchedShaderParameters> Parameters_PS;
 
 	FUint32Vector4 Constants;
 

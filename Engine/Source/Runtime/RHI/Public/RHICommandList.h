@@ -423,6 +423,8 @@ public:
 class FRHICommandListBase
 {
 protected:
+	FMemStackBase MemManager;
+
 	RHI_API FRHICommandListBase(FRHIGPUMask InGPUMask, bool bInImmediate);
 
 public:
@@ -1048,11 +1050,19 @@ public:
 
 	inline FRHIBatchedShaderParameters& GetScratchShaderParameters()
 	{
-		if (!ensureMsgf(!ScratchShaderParameters.HasParameters(), TEXT("Scratch shader parameters left without committed parameters")))
+		FRHIBatchedShaderParameters*& ScratchShaderParameters = ShaderParameterState.ScratchShaderParameters;
+
+		if (!ScratchShaderParameters)
 		{
-			ScratchShaderParameters.Reset();
+			ScratchShaderParameters = new (MemManager) FRHIBatchedShaderParameters(*CreateBatchedShaderParameterAllocator(ERHIBatchedShaderParameterAllocatorPageSize::Small));
 		}
-		return ScratchShaderParameters;
+
+		if (!ensureMsgf(!ScratchShaderParameters->HasParameters(), TEXT("Scratch shader parameters left without committed parameters")))
+		{
+			ScratchShaderParameters->Reset();
+		}
+
+		return *ScratchShaderParameters;
 	}
 
 	inline FRHIBatchedShaderUnbinds& GetScratchShaderUnbinds()
@@ -1068,6 +1078,11 @@ public:
 	bool NeedsShaderUnbinds() const
 	{
 		return GRHIGlobals.NeedsShaderUnbinds;
+	}
+
+	FRHIBatchedShaderParametersAllocator* CreateBatchedShaderParameterAllocator(ERHIBatchedShaderParameterAllocatorPageSize PageSize)
+	{
+		return new (MemManager) FRHIBatchedShaderParametersAllocator(ShaderParameterState.AllocatorsRoot, *this, PageSize);
 	}
 
 protected:
@@ -1094,6 +1109,26 @@ protected:
 		default: checkfSlow(false, TEXT("Unexpected graphics shader type %d"), ShaderRHI->GetFrequency());
 		}
 #endif // DO_GUARD_SLOW
+	}
+
+	FORCEINLINE void ValidateShaderParameters(const FRHIBatchedShaderParameters& ShaderParameters)
+	{
+#if RHI_VALIDATE_BATCHED_SHADER_PARAMETERS
+		check(this == &ShaderParameters.Allocator.RHICmdList);
+#endif
+	}
+
+	FORCEINLINE void ValidateShaderBundleComputeDispatch(TConstArrayView<FRHIShaderBundleComputeDispatch> Dispatches)
+	{
+#if RHI_VALIDATE_BATCHED_SHADER_PARAMETERS
+		for (const FRHIShaderBundleComputeDispatch& Dispatch : Dispatches)
+		{
+			if (Dispatch.IsValid())
+			{
+				ValidateShaderParameters(*Dispatch.Parameters);
+			}
+		}
+#endif
 	}
 
 	void CacheActiveRenderTargets(const FRHIRenderPassInfo& Info)
@@ -1137,9 +1172,6 @@ protected:
 	// These are always set for the immediate command list, see InitializeImmediateContexts().
 	FRHIContextArray Contexts { InPlace, nullptr };
 
-	FRHIBatchedShaderParameters ScratchShaderParameters;
-	FRHIBatchedShaderUnbinds ScratchShaderUnbinds;
-
 	uint32 NumCommands           = 0;
 	bool bExecuting              = false;
 	bool bAllowParallelTranslate = true;
@@ -1161,7 +1193,39 @@ protected:
 	// e.g. PSO async compilation and parallel RHICmdList recording tasks.
 	FGraphEventRef DispatchEvent;
 
-	FMemStackBase MemManager;
+	struct FShaderParameterState
+	{
+		FRHIBatchedShaderParameters* ScratchShaderParameters = nullptr;
+		FRHIBatchedShaderParametersAllocator* AllocatorsRoot = nullptr;
+
+		FShaderParameterState() = default;
+
+		FShaderParameterState(FShaderParameterState&& RHS)
+		{
+			AllocatorsRoot = RHS.AllocatorsRoot;
+			ScratchShaderParameters = RHS.ScratchShaderParameters;
+			RHS.AllocatorsRoot = nullptr;
+			RHS.ScratchShaderParameters = nullptr;
+		}
+
+		~FShaderParameterState()
+		{
+			if (ScratchShaderParameters)
+			{
+				ScratchShaderParameters->~FRHIBatchedShaderParameters();
+				ScratchShaderParameters = nullptr;
+			}
+
+			for (FRHIBatchedShaderParametersAllocator* Node = AllocatorsRoot; Node; Node = Node->Next)
+			{
+				Node->~FRHIBatchedShaderParametersAllocator();
+			}
+			AllocatorsRoot = nullptr;
+		}
+	};
+
+	FShaderParameterState ShaderParameterState;
+	FRHIBatchedShaderUnbinds ScratchShaderUnbinds;
 
 #if WITH_RHI_BREADCRUMBS
 
@@ -2616,15 +2680,20 @@ public:
 	{
 		if (InBatchedParameters.HasParameters())
 		{
-			SetShaderParameters(
-				InShader,
-				InBatchedParameters.ParametersData,
-				InBatchedParameters.Parameters,
-				InBatchedParameters.ResourceParameters,
-				InBatchedParameters.BindlessParameters
-			);
+			ON_SCOPE_EXIT
+			{
+				InBatchedParameters.Reset();
+			};
 
-			InBatchedParameters.Reset();
+			if (Bypass())
+			{
+				GetContext().RHISetShaderParameters(InShader, InBatchedParameters.ParametersData, InBatchedParameters.Parameters, InBatchedParameters.ResourceParameters, InBatchedParameters.BindlessParameters);
+				return;
+			}
+
+			ValidateBoundShader(InShader);
+			ValidateShaderParameters(InBatchedParameters);
+			ALLOC_COMMAND(FRHICommandSetShaderParameters<FRHIComputeShader>)(InShader, InBatchedParameters.ParametersData, InBatchedParameters.Parameters, InBatchedParameters.ResourceParameters, InBatchedParameters.BindlessParameters);
 		}
 	}
 
@@ -2847,6 +2916,7 @@ public:
 			GetContext().RHIDispatchComputeShaderBundle(ShaderBundle, RecordArgBuffer, Dispatches, bEmulated);
 			return;
 		}
+		ValidateShaderBundleComputeDispatch(Dispatches);
 		ALLOC_COMMAND(FRHICommandDispatchComputeShaderBundle)(ShaderBundle, RecordArgBuffer, Dispatches, bEmulated);
 	}
 
@@ -2867,6 +2937,7 @@ public:
 		{
 			FRHICommandDispatchComputeShaderBundle& DispatchBundleCommand = *ALLOC_COMMAND_CL(*this, FRHICommandDispatchComputeShaderBundle);
 			RecordCallback(DispatchBundleCommand);
+			ValidateShaderBundleComputeDispatch(DispatchBundleCommand.Dispatches);
 		}
 	}
 
@@ -3395,15 +3466,20 @@ public:
 	{
 		if (InBatchedParameters.HasParameters())
 		{
-			SetShaderParameters(
-				InShader,
-				InBatchedParameters.ParametersData,
-				InBatchedParameters.Parameters,
-				InBatchedParameters.ResourceParameters,
-				InBatchedParameters.BindlessParameters
-			);
+			ON_SCOPE_EXIT
+			{
+				InBatchedParameters.Reset();
+			};
 
-			InBatchedParameters.Reset();
+			if (Bypass())
+			{
+				GetContext().RHISetShaderParameters(InShader, InBatchedParameters.ParametersData, InBatchedParameters.Parameters, InBatchedParameters.ResourceParameters, InBatchedParameters.BindlessParameters);
+				return;
+			}
+
+			ValidateBoundShader(InShader);
+			ValidateShaderParameters(InBatchedParameters);
+			ALLOC_COMMAND(FRHICommandSetShaderParameters<FRHIGraphicsShader>)(InShader, InBatchedParameters.ParametersData, InBatchedParameters.Parameters, InBatchedParameters.ResourceParameters, InBatchedParameters.BindlessParameters);
 		}
 	}
 

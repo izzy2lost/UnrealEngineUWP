@@ -592,7 +592,7 @@ public:
 		return nullptr;
 	}
 
-	void AddParallelCommandList(FRHICommandList* CmdList, FGraphEventRef& CompletionEvent, int32 InNumDrawsIfKnown = -1);	
+	void AddParallelCommandList(FRHICommandList* CmdList);
 
 	virtual void SetStateOnCommandList(FRHICommandList& CmdList) {}
 };

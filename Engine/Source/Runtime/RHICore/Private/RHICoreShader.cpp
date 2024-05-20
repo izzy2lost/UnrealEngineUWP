@@ -101,14 +101,14 @@ void DispatchShaderBundleEmulation(
 
 		SetComputePipelineState(InRHICmdList, Dispatch.Shader);
 
-		if (Dispatch.Parameters.HasParameters())
+		if (Dispatch.Parameters->HasParameters())
 		{
 			InRHICmdList.SetShaderParameters(
 				Dispatch.Shader,
-				Dispatch.Parameters.ParametersData,
-				Dispatch.Parameters.Parameters,
-				Dispatch.Parameters.ResourceParameters,
-				Dispatch.Parameters.BindlessParameters
+				Dispatch.Parameters->ParametersData,
+				Dispatch.Parameters->Parameters,
+				Dispatch.Parameters->ResourceParameters,
+				Dispatch.Parameters->BindlessParameters
 			);
 		}
 
@@ -163,25 +163,25 @@ void DispatchShaderBundleEmulation(
 
 		SetGraphicsPipelineState(InRHICmdList, Dispatch.PipelineInitializer, BundleState.StencilRef);
 
-		if (Dispatch.Parameters_MSVS.HasParameters())
+		if (Dispatch.Parameters_MSVS->HasParameters())
 		{
 			InRHICmdList.SetShaderParameters(
 				MSVSShader,
-				Dispatch.Parameters_MSVS.ParametersData,
-				Dispatch.Parameters_MSVS.Parameters,
-				Dispatch.Parameters_MSVS.ResourceParameters,
-				Dispatch.Parameters_MSVS.BindlessParameters
+				Dispatch.Parameters_MSVS->ParametersData,
+				Dispatch.Parameters_MSVS->Parameters,
+				Dispatch.Parameters_MSVS->ResourceParameters,
+				Dispatch.Parameters_MSVS->BindlessParameters
 			);
 		}
 
-		if (Dispatch.Parameters_PS.HasParameters())
+		if (Dispatch.Parameters_PS->HasParameters())
 		{
 			InRHICmdList.SetShaderParameters(
 				ShaderState.GetPixelShader(),
-				Dispatch.Parameters_PS.ParametersData,
-				Dispatch.Parameters_PS.Parameters,
-				Dispatch.Parameters_PS.ResourceParameters,
-				Dispatch.Parameters_PS.BindlessParameters
+				Dispatch.Parameters_PS->ParametersData,
+				Dispatch.Parameters_PS->Parameters,
+				Dispatch.Parameters_PS->ResourceParameters,
+				Dispatch.Parameters_PS->BindlessParameters
 			);
 		}
 

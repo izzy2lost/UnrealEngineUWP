@@ -612,32 +612,6 @@ void ValidateShaderParameterResourcesRHI(const void* Contents, const FRHIUniform
 
 #endif // DO_CHECK
 
-static void ExtractShaderParameters(
-	TArray<FRHIShaderParameter>& OutParameters,
-	TConstArrayView<uint8>& OutMinimalParametersData,
-	const FShaderParameterBindings& Bindings,
-	const FShaderParametersMetadata* ParametersMetadata,
-	TConstArrayView<uint8> ParametersData)
-{
-	if (int32 NumParameters = Bindings.Parameters.Num())
-	{
-		OutParameters.Reserve(NumParameters);
-
-		// Keep track of the highest offset of data we need so we can avoid copying everything in the RHI command
-		uint32 MaxParametersSize = 0;
-
-		for (const FShaderParameterBindings::FParameter& Parameter : Bindings.Parameters)
-		{
-			OutParameters.Emplace(Parameter.BufferIndex, Parameter.BaseIndex, Parameter.ByteOffset, Parameter.ByteSize);
-
-			MaxParametersSize = FMath::Max<uint32>(MaxParametersSize, Parameter.ByteOffset + Parameter.ByteSize);
-		}
-		check(MaxParametersSize <= ParametersMetadata->GetSize());
-
-		OutMinimalParametersData = TConstArrayView<uint8>(ParametersData.GetData(), MaxParametersSize);
-	}
-}
-
 template<typename BindingParameterType>
 FRHIShaderParameterResource ExtractShaderParameterResource(FShaderParameterReader Reader, const BindingParameterType& Parameter)
 {
@@ -703,7 +677,6 @@ static void ExtractShaderParameterResources(
 	TArray<FRHIShaderParameterResource>& OutResourceParameters,
 	TArray<FRHIShaderParameterResource>& OutBindlessParameters,
 	const FShaderParameterBindings& Bindings,
-	const FShaderParametersMetadata* ParametersMetadata,
 	TConstArrayView<uint8> ParametersData)
 {
 	const FShaderParameterReader Reader(ParametersData);
@@ -755,6 +728,56 @@ static void ExtractShaderParameterResources(
 	}
 }
 
+static void ExtractShaderParameterResources(
+	FRHIBatchedShaderParameters& BatchedParameters,
+	const FShaderParameterBindings& Bindings,
+	TConstArrayView<uint8> ParametersData)
+{
+	const FShaderParameterReader Reader(ParametersData);
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	if (int32 NumBindings = Bindings.BindlessResourceParameters.Num())
+	{
+		for (const FShaderParameterBindings::FBindlessResourceParameter& Parameter : Bindings.BindlessResourceParameters)
+		{
+			const FRHIShaderParameterResource ShaderParameterResource = ExtractShaderParameterResource(Reader, Parameter);
+			BatchedParameters.AddBindlessParameter(ShaderParameterResource);
+		}
+	}
+#endif
+
+	const int32 NumBindings = Bindings.ResourceParameters.Num() + Bindings.GraphUniformBuffers.Num() + Bindings.ParameterReferences.Num();
+
+	if (NumBindings)
+	{
+		for (const FShaderParameterBindings::FResourceParameter& Parameter : Bindings.ResourceParameters)
+		{
+			const FRHIShaderParameterResource ShaderParameterResource = ExtractShaderParameterResource(Reader, Parameter);
+			BatchedParameters.AddResourceParameter(ShaderParameterResource);
+		}
+
+		for (const FShaderParameterBindings::FParameterStructReference& Parameter : Bindings.GraphUniformBuffers)
+		{
+			const FRDGUniformBufferBinding& UniformBufferBinding = Reader.Read<FRDGUniformBufferBinding>(Parameter);
+			if (UniformBufferBinding.IsShader())
+			{
+				UniformBufferBinding->MarkResourceAsUsed();
+
+				BatchedParameters.AddResourceParameter(UniformBufferBinding->GetRHI(), GetParameterIndex(Parameter));
+			}
+		}
+
+		for (const FShaderParameterBindings::FParameterStructReference& Parameter : Bindings.ParameterReferences)
+		{
+			const FUniformBufferBinding& UniformBufferBinding = Reader.Read<FUniformBufferBinding>(Parameter);
+			if (UniformBufferBinding.IsShader())
+			{
+				BatchedParameters.AddResourceParameter(UniformBufferBinding.GetUniformBuffer(), GetParameterIndex(Parameter));
+			}
+		}
+	}
+}
+
 /** Set batched parameters from a parameters struct. */
 void SetShaderParameters(
 	FRHIBatchedShaderParameters& BatchedParameters,
@@ -769,7 +792,7 @@ void SetShaderParameters(
 		BatchedParameters.SetShaderParameter(Parameter.BufferIndex, Parameter.BaseIndex, Parameter.ByteSize, FullParametersData.GetData() + Parameter.ByteOffset);
 	}
 
-	ExtractShaderParameterResources(BatchedParameters.ResourceParameters, BatchedParameters.BindlessParameters, Bindings, ParametersMetadata, FullParametersData);
+	ExtractShaderParameterResources(BatchedParameters, Bindings, FullParametersData);
 }
 
 /** Set shader's parameters from its parameters struct. */
@@ -782,20 +805,9 @@ inline void SetShaderParametersInternal(
 	const void* InParametersData)
 {
 	checkf(Bindings.RootParameterBufferIndex == FShaderParameterBindings::kInvalidBufferIndex, TEXT("Can't use SetShaderParameters() for root parameter buffer index."));
-
-	// FYI: this code should not use FRHIBatchedShaderParameters so that the original parameter data can be used instead of copying it around a few more times
-
-	TConstArrayView<uint8> FullParametersData((const uint8*)InParametersData, ParametersMetadata->GetSize());
-
-	TArray<FRHIShaderParameter> Parameters;
-	TConstArrayView<uint8> MinimalParametersData;
-	ExtractShaderParameters(Parameters, MinimalParametersData, Bindings, ParametersMetadata, FullParametersData);
-
-	TArray<FRHIShaderParameterResource> ResourceParameters;
-	TArray<FRHIShaderParameterResource> BindlessParameters;
-	ExtractShaderParameterResources(ResourceParameters, BindlessParameters, Bindings, ParametersMetadata, FullParametersData);
-
-	RHICmdList.SetShaderParameters(ShaderRHI, MinimalParametersData, Parameters, ResourceParameters, BindlessParameters);
+	FRHIBatchedShaderParameters& ShaderParameters = RHICmdList.GetScratchShaderParameters();
+	SetShaderParameters(ShaderParameters, Bindings, ParametersMetadata, InParametersData);
+	RHICmdList.SetBatchedShaderParameters(ShaderRHI, ShaderParameters);
 }
 
 void SetShaderParameters(

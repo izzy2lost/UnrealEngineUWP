@@ -121,6 +121,13 @@ public:
 		return (uint8*)Alloc(AllocSize, FMath::Max(AllocSize >= 16 ? (size_t)16 : (size_t)8, Alignment));
 	}
 
+	FORCEINLINE bool CanFitInPage(size_t AllocSize, size_t Alignment) const
+	{
+		const uint8* Result = Align(Top, Alignment);
+		const uint8* NewTop = Result + AllocSize;
+		return NewTop <= End;
+	}
+
 	FORCEINLINE void* Alloc(size_t AllocSize, size_t Alignment)
 	{
 		// Debug checks.
@@ -147,6 +154,11 @@ public:
 			Top = NewTop;
 		}
 		return Result;
+	}
+
+	FORCEINLINE uint8* GetTop() const
+	{
+		return Top;
 	}
 
 	/** return true if this stack is empty. */

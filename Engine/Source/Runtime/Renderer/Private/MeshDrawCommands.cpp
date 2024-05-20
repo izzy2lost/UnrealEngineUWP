@@ -1689,13 +1689,13 @@ void FParallelMeshDrawCommandPass::DispatchDraw(FParallelCommandListSet* Paralle
 
 			FRHICommandList* CmdList = ParallelCommandListSet->NewParallelCommandList();
 
-			FGraphEventRef AnyThreadCompletionEvent = TGraphTask<FDrawVisibleMeshCommandsAnyThreadTask>::CreateTask(&Prereqs, RenderThread)
+			TGraphTask<FDrawVisibleMeshCommandsAnyThreadTask>::CreateTask(&Prereqs, RenderThread)
 				.ConstructAndDispatchWhenReady(*CmdList, TaskContext.InstanceCullingContext, TaskContext.MeshDrawCommands, TaskContext.MinimalPipelineStatePassSet,
 					OverrideArgs,
 					TaskContext.InstanceFactor,
 					TaskIndex, NumTasks);
 
-			ParallelCommandListSet->AddParallelCommandList(CmdList, AnyThreadCompletionEvent, NumDraws);
+			ParallelCommandListSet->AddParallelCommandList(CmdList);
 		}
 	}
 	else

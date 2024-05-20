@@ -869,7 +869,7 @@ FRHICommandList* FParallelCommandListSet::NewParallelCommandList()
 	return Result;
 }
 
-void FParallelCommandListSet::AddParallelCommandList(FRHICommandList* CmdList, FGraphEventRef& /*unused CompletionEvent*/, int32 /*InNumDrawsIfKnown*/)
+void FParallelCommandListSet::AddParallelCommandList(FRHICommandList* CmdList)
 {
 	QueuedCommandLists.Emplace(CmdList);
 }

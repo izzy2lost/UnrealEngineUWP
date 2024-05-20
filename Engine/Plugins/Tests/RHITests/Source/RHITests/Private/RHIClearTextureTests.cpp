@@ -608,7 +608,7 @@ static void DrawTextureTo2DAtlas(FRHICommandListImmediate& RHICmdList, FRHITextu
 	check(DestTexture->GetDesc().Extent.Y >= AtlasViewport.Y);
 
 	SetComputePipelineState(RHICmdList, ComputeShader.GetComputeShader());
-	FRHIBatchedShaderParameters ShaderParameters;
+	FRHIBatchedShaderParameters& ShaderParameters = RHICmdList.GetScratchShaderParameters();
 	SetShaderValue(ShaderParameters, ComputeShader->MipBiasMipNumsViewport, MipBiasMipNumsViewport);
 	if (GUseCustomSRV)
 	{
@@ -836,7 +836,7 @@ static void DrawColoredQuad(FRHICommandListImmediate& RHICmdList, FRHIVertexDecl
 			RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
 			SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
 
-			FRHIBatchedShaderParameters ShaderParameters;
+			FRHIBatchedShaderParameters& ShaderParameters = RHICmdList.GetScratchShaderParameters();
 			SetShaderValue(ShaderParameters, PixelShader->TestFillTextureConstant, ConstColor);
 			RHICmdList.SetBatchedShaderParameters(PixelShader.GetPixelShader(), ShaderParameters);
 

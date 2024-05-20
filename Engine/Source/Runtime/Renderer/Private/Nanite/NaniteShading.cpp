@@ -695,7 +695,7 @@ inline void RecordShadingParameters(
 	FNaniteShadingCommand& ShadingCommand,
 	const uint32 DataByteOffset,
 	const FUint32Vector4& ViewRect,
-	const TArray<FRHIUnorderedAccessView*, TInlineAllocator<8>>& OutputTargets,
+	TConstArrayView<FRHIUnorderedAccessView*> OutputTargets,
 	FRHIUnorderedAccessView* OutputTargetsArray
 )
 {
@@ -801,98 +801,156 @@ inline bool PrepareShadingCommand(FNaniteShadingCommand& ShadingCommand)
 	return !bSkipped;
 }
 
-class FRecordShadingCommandsAnyThreadTask : public FRenderTask
+struct FNaniteShadingPassIntermediates
 {
-	FRHICommandList& RHICmdList;
-	TSharedPtr<TBitArray<SceneRenderingBitArrayAllocator>> VisibilityData;
-	FNaniteShadingCommands& ShadingCommands;
 	TArray<FRHIUnorderedAccessView*, TInlineAllocator<8>> OutputTargets;
 	FRHIUnorderedAccessView* OutputTargetsArray = nullptr;
+	TBitArray<SceneRenderingBitArrayAllocator> VisibilityData;
+	FRHIBuffer* IndirectArgsBuffer = nullptr;
 	FUint32Vector4 ViewRect;
-	FRHIBuffer* IndirectArgs = nullptr;
-	uint32 IndirectArgsStride;
-	uint32 DataByteOffset;
-	uint32 ViewIndex;
-	int32 TaskIndex;
-	int32 TaskNum;
+};
 
-public:
-	FRecordShadingCommandsAnyThreadTask(
-		FRHICommandList& InRHICmdList,
-		FRHIBuffer* InIndirectArgs,
-		uint32 InIndirectArgsStride,
-		uint32 InDataByteOffset,
-		TSharedPtr<TBitArray<SceneRenderingBitArrayAllocator>> InVisibilityData,
-		FNaniteShadingCommands& InShadingCommands,
-		const TConstArrayView<FRHIUnorderedAccessView*> InOutputTargets,
-		FRHIUnorderedAccessView* InOutputTargetsArray,
-		const FUint32Vector4& InViewRect,
-		uint32 InViewIndex,
-		int32 InTaskIndex,
-		int32 InTaskNum
-	)
-		: RHICmdList(InRHICmdList)
-		, VisibilityData(InVisibilityData)
-		, ShadingCommands(InShadingCommands)
-		, OutputTargets(InOutputTargets)
-		, OutputTargetsArray(InOutputTargetsArray)
-		, ViewRect(InViewRect)
-		, IndirectArgs(InIndirectArgs)
-		, IndirectArgsStride(InIndirectArgsStride)
-		, DataByteOffset(InDataByteOffset)
-		, ViewIndex(InViewIndex)
-		, TaskIndex(InTaskIndex)
-		, TaskNum(InTaskNum)
-	{}
+static TSharedPtr<FNaniteShadingPassIntermediates> CreateNaniteShadingPassIntermediates(
+	const FNaniteShadingPassParameters* ShadingPassParameters,
+	const FNaniteShadingCommands& ShadingCommands,
+	const FNaniteVisibilityQuery* VisibilityQuery,
+	FIntRect ViewRect)
+{
+	// This is processed within the RDG pass lambda, so the setup task should be complete by now.
+	check(ShadingCommands.BuildCommandsTask.IsCompleted());
 
-	FORCEINLINE TStatId GetStatId() const
+	TSharedPtr<FNaniteShadingPassIntermediates> Intermediates = MakeShared<FNaniteShadingPassIntermediates>();
+
+	ShadingPassParameters->ShadingBinArgs->MarkResourceAsUsed();
+	Intermediates->IndirectArgsBuffer = ShadingPassParameters->ShadingBinArgs->GetIndirectRHICallBuffer();
+
+	const auto GetOutputTargetRHI = [](const FRDGTextureUAVRef OutputTarget)
 	{
-		RETURN_QUICK_DECLARE_CYCLE_STAT(FRecordShadingCommandsAnyThreadTask, STATGROUP_TaskGraphTasks);
+		FRHIUnorderedAccessView* OutputTargetRHI = nullptr;
+		if (OutputTarget != nullptr)
+		{
+			OutputTarget->MarkResourceAsUsed();
+			OutputTargetRHI = OutputTarget->GetRHI();
+		}
+		return OutputTargetRHI;
+	};
+
+	const FNaniteVisibilityResults* VisibilityResults = Nanite::GetVisibilityResults(VisibilityQuery);
+
+	TSharedPtr<TBitArray<SceneRenderingBitArrayAllocator>> VisibilityData;
+	if (VisibilityResults && VisibilityResults->IsShadingTestValid())
+	{
+		Intermediates->VisibilityData = VisibilityResults->GetShadingBinVisibility();
 	}
 
-	static ESubsequentsMode::Type GetSubsequentsMode() { return ESubsequentsMode::TrackSubsequents; }
+	Intermediates->OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget0));
+	Intermediates->OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget1));
+	Intermediates->OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget2));
+	Intermediates->OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget3));
+	Intermediates->OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget4));
+	Intermediates->OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget5));
+	Intermediates->OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget6));
+	Intermediates->OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget7));
 
-	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+	Intermediates->OutputTargetsArray = GetOutputTargetRHI(ShadingPassParameters->OutTargets);
+
+	Intermediates->ViewRect = FUint32Vector4(
+		(uint32)ViewRect.Min.X,
+		(uint32)ViewRect.Min.Y,
+		(uint32)ViewRect.Max.X,
+		(uint32)ViewRect.Max.Y
+	);
+
+	return Intermediates;
+};
+
+static void DispatchComputeShaderBundle(
+	FRHIComputeCommandList& RHICmdList,
+	FNaniteShadingCommands& ShadingCommands,
+	const FShaderBundleRHIRef& ShaderBundle,
+	const FNaniteShadingPassIntermediates& Intermediates,
+	uint32 DataByteOffset,
+	bool bBundleEmulation,
+	EParallelForFlags ParallelForFlags = EParallelForFlags::None)
+{
+	RHICmdList.DispatchComputeShaderBundle([&](FRHICommandDispatchComputeShaderBundle& Command)
 	{
-		FOptionalTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
-		TRACE_CPUPROFILER_EVENT_SCOPE(RecordShadingCommandsAnyThreadTask);
+		Command.ShaderBundle		= ShaderBundle;
+		Command.bEmulated			= bBundleEmulation;
+		Command.RecordArgBuffer		= Intermediates.IndirectArgsBuffer;
+		Command.Dispatches.SetNum(ShaderBundle->NumRecords);
 
-		// Recompute shading command range.
-		const int32 CommandNum = ShadingCommands.Commands.Num();
-		const int32 NumCommandsPerTask = TaskIndex < CommandNum ? FMath::DivideAndRoundUp(CommandNum, TaskNum) : 0;
-		const int32 StartIndex = TaskIndex * NumCommandsPerTask;
-		const int32 NumCommands = FMath::Min(NumCommandsPerTask, CommandNum - StartIndex);
+		std::atomic<uint32> PendingPSOs{ 0u };
 
-		for (int32 CommandIndex = 0; CommandIndex < NumCommands; ++CommandIndex)
-		{
-			FNaniteShadingCommand& ShadingCommand = ShadingCommands.Commands[StartIndex + CommandIndex];
-			ShadingCommand.bVisible = !VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin));
-			if (ShadingCommand.bVisible && PrepareShadingCommand(ShadingCommand))
+		TArray<FRHIBatchedShaderParametersAllocator*, SceneRenderingAllocator> Allocators; 
+
+		ParallelForWithTaskContext(TEXT("RecordShadingCommands"), Allocators, ShadingCommands.Commands.Num(), 1,
+			[&] (int32, int32)
 			{
-				FRHIBatchedShaderParameters ShadingParameters;
+				// Use the large page size for the allocator to reduce allocations
+				return RHICmdList.CreateBatchedShaderParameterAllocator(ERHIBatchedShaderParameterAllocatorPageSize::Large);
+			},
+			[&](FRHIBatchedShaderParametersAllocator* ParameterAllocator, int32 CommandIndex)
+			{
+				FNaniteShadingCommand& ShadingCommand = ShadingCommands.Commands[CommandIndex];
+				ShadingCommand.bVisible = Intermediates.VisibilityData.IsEmpty() || Intermediates.VisibilityData.AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin));
 
-				RecordShadingParameters(
-					ShadingParameters,
-					ShadingCommand,
-					DataByteOffset,
-					ViewRect,
-					OutputTargets,
-					OutputTargetsArray
-				);
+				if (ShadingCommand.bVisible && PrepareShadingCommand(ShadingCommand))
+				{
+					FRHIShaderBundleComputeDispatch& Dispatch = Command.Dispatches[ShadingCommand.ShadingBin];
 
-				RecordShadingCommand(
-					RHICmdList,
-					IndirectArgs,
-					IndirectArgsStride,
-					ShadingParameters,
-					ShadingCommand
-				);
+					Dispatch.RecordIndex = ShadingCommand.ShadingBin;
+					Dispatch.Parameters.Emplace(*ParameterAllocator);
+					RecordShadingParameters(*Dispatch.Parameters, ShadingCommand, DataByteOffset, Intermediates.ViewRect, Intermediates.OutputTargets, Intermediates.OutputTargetsArray);
+					Dispatch.Parameters->Finish();
+					Dispatch.Shader = ShadingCommand.Pipeline->ComputeShader;
+					Dispatch.WorkGraphShader = ShadingCommand.Pipeline->WorkGraphShader;
+					Dispatch.Constants = ShadingCommand.PassData;
+					Dispatch.PipelineState = Dispatch.Shader ? FindComputePipelineState(Dispatch.Shader) : nullptr;
+
+					if (Dispatch.Shader)
+					{
+						PendingPSOs.fetch_add(1u, std::memory_order_relaxed);
+					}
+				}
+				else
+				{
+					// TODO: Optimization: Send partial dispatch lists, but for now we'll leave the record index invalid so bundle dispatch skips it
+					Command.Dispatches[ShadingCommand.ShadingBin].RecordIndex = ~uint32(0u);
+				}
+			}
+		);
+
+		// Resolve invalid pipeline states
+		if (PendingPSOs.load(std::memory_order_relaxed) > 0)
+		{
+			for (FRHIShaderBundleComputeDispatch& Dispatch : Command.Dispatches)
+			{
+				if (!Dispatch.IsValid() || Dispatch.PipelineState != nullptr)
+				{
+					continue;
+				}
+
+				// If we don't have precaching, then GetComputePipelineState() might return a PipelineState that isn't ready.
+				const bool bSkipDraw = !PipelineStateCache::IsPSOPrecachingEnabled();
+
+				// This cache lookup cannot be parallelized due to the possibility of a fence insertion into the command list during a miss.
+				Dispatch.PipelineState = GetComputePipelineState(RHICmdList, Dispatch.Shader, !bSkipDraw);
+
+				if (bSkipDraw)
+				{
+					Dispatch.RecordIndex = ~uint32(0u);
+					continue;
+				}
+
+				if (Dispatch.Shader && RHICmdList.Bypass())
+				{
+					Dispatch.RHIPipeline = ExecuteSetComputePipelineState(Dispatch.PipelineState);
+				}
 			}
 		}
-
-		RHICmdList.FinishRecording();
-	}
-};
+	});
+}
 
 FNaniteShadingPassParameters CreateNaniteShadingPassParams(
 	FRDGBuilder& GraphBuilder,
@@ -1070,7 +1128,7 @@ void DispatchBasePass(
 
 	FRDGBufferRef VisibleClustersSWHW = RasterResults.VisibleClustersSWHW;
 
-	const uint32 IndirectArgStride = sizeof(FUint32Vector4);
+	const uint32 IndirectArgsStride = sizeof(FUint32Vector4);
 
 	FRDGBufferRef MultiViewIndices = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1), TEXT("Nanite.DummyMultiViewIndices"));
 	FRDGBufferRef MultiViewRectScaleOffsets = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FVector4f), 1), TEXT("Nanite.DummyMultiViewRectScaleOffsets"));
@@ -1166,254 +1224,7 @@ void DispatchBasePass(
 	const bool bBundleShading = ShaderBundle != nullptr && UseShadingShaderBundle(Scene.GetShaderPlatform());
 	const bool bBundleEmulation = bBundleShading && CVarNaniteBundleEmulation.GetValueOnRenderThread() != 0;
 
-	auto ShadePassWork = []
-	(
-		FRDGParallelCommandListSet* ParallelCommandListSet,
-		const FUint32Vector4& ViewRect,
-		const uint32 ViewIndex,
-		const FNaniteVisibilityQuery* VisibilityQuery,
-		FNaniteShadingCommands& ShadingCommands,
-		FShaderBundleRHIRef ShaderBundle,
-		FNaniteShadingPassParameters* ShadingPassParameters,
-		FRHIComputeCommandList& RHICmdList,
-		const uint32 IndirectArgStride,
-		const uint32 DataByteOffset,
-		bool bBundleShading,
-		bool bBundleEmulation
-	)
-	{
-		// This is processed within the RDG pass lambda, so the setup task should be complete by now.
-		check(ShadingCommands.BuildCommandsTask.IsCompleted());
-
-		ShadingPassParameters->ShadingBinArgs->MarkResourceAsUsed();
-
-		TArray<FRHIUnorderedAccessView*, TInlineAllocator<8>> OutputTargets;
-		auto GetOutputTargetRHI = [](const FRDGTextureUAVRef OutputTarget)
-		{
-			FRHIUnorderedAccessView* OutputTargetRHI = nullptr;
-			if (OutputTarget != nullptr)
-			{
-				OutputTarget->MarkResourceAsUsed();
-				OutputTargetRHI = OutputTarget->GetRHI();
-			}
-			return OutputTargetRHI;
-		};
-
-		const FNaniteVisibilityResults* VisibilityResults = Nanite::GetVisibilityResults(VisibilityQuery);
-
-		TSharedPtr<TBitArray<SceneRenderingBitArrayAllocator>> VisibilityData;
-		if (VisibilityResults && VisibilityResults->IsShadingTestValid())
-		{
-			VisibilityData = MakeShared<TBitArray<SceneRenderingBitArrayAllocator>>(VisibilityResults->GetShadingBinVisibility());
-		}
-
-		OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget0));
-		OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget1));
-		OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget2));
-		OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget3));
-		OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget4));
-		OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget5));
-		OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget6));
-		OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget7));
-
-		FRHIUnorderedAccessView* OutputTargetsArray = GetOutputTargetRHI(ShadingPassParameters->OutTargets);
-		FRHIBuffer* IndirectArgsBuffer = ShadingPassParameters->ShadingBinArgs->GetIndirectRHICallBuffer();
-
-		if (ParallelCommandListSet)
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(ParallelRecordShadingCommands);
-
-			// Distribute work evenly to the available task graph workers based on NumPassCommands.
-			const int32 NumPassCommands = ShadingCommands.Commands.Num();
-			const int32 NumThreads = FMath::Min<int32>(FTaskGraphInterface::Get().GetNumWorkerThreads(), ParallelCommandListSet->Width);
-			const int32 NumTasks = FMath::Min<int32>(NumThreads, FMath::DivideAndRoundUp(NumPassCommands, ParallelCommandListSet->MinDrawsPerCommandList));
-			const int32 NumCommandsPerTask = FMath::DivideAndRoundUp(NumPassCommands, NumTasks);
-
-			const ENamedThreads::Type RenderThread = ENamedThreads::GetRenderThread();
-
-			// Assume on demand shader creation is enabled for platforms supporting Nanite
-			// otherwise there might be issues with PSO creation on a task which is not running on the RenderThread
-			// So task prerequisites can be empty (MeshDrawCommands task has prereq on FMeshDrawCommandInitResourcesTask which calls LazilyInitShaders on all shader)
-			ensure(FParallelMeshDrawCommandPass::IsOnDemandShaderCreationEnabled());
-			FGraphEventArray EmptyPrereqs;
-
-			for (int32 TaskIndex = 0; TaskIndex < NumTasks; TaskIndex++)
-			{
-				const int32 StartIndex = TaskIndex * NumCommandsPerTask;
-				const int32 NumCommands = FMath::Min(NumCommandsPerTask, NumPassCommands - StartIndex);
-				checkSlow(NumCommands > 0);
-
-				FRHICommandList* CmdList = ParallelCommandListSet->NewParallelCommandList();
-
-				FGraphEventRef AnyThreadCompletionEvent = TGraphTask<FRecordShadingCommandsAnyThreadTask>::CreateTask(&EmptyPrereqs, RenderThread).
-					ConstructAndDispatchWhenReady(
-						*CmdList,
-						IndirectArgsBuffer,
-						IndirectArgStride,
-						DataByteOffset,
-						VisibilityData,
-						ShadingCommands,
-						OutputTargets,
-						OutputTargetsArray,
-						ViewRect,
-						ViewIndex,
-						TaskIndex,
-						NumTasks
-					);
-
-				ParallelCommandListSet->AddParallelCommandList(CmdList, AnyThreadCompletionEvent, NumCommands);
-			}
-		}
-		else
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(RecordShadingCommands);
-
-			FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-			check(!BatchedParameters.HasParameters());
-
-			if (bBundleShading)
-			{
-				auto RecordDispatches = [&](FRHICommandDispatchComputeShaderBundle& Command)
-				{
-					Command.ShaderBundle	= ShaderBundle;
-					Command.bEmulated		= bBundleEmulation;
-					Command.RecordArgBuffer	= IndirectArgsBuffer;
-
-					Command.Dispatches.SetNum(ShaderBundle->NumRecords);
-
-					const bool bParallel = true;
-					if (bParallel)
-					{
-						std::atomic<uint32> PendingPSOs{ 0u };
-
-						ParallelFor(ShadingCommands.Commands.Num(), [&](int32 CommandIndex)
-						{
-							FNaniteShadingCommand& ShadingCommand = ShadingCommands.Commands[CommandIndex];
-							ShadingCommand.bVisible = !VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin));
-
-							if (ShadingCommand.bVisible && PrepareShadingCommand(ShadingCommand))
-							{
-								FRHIShaderBundleComputeDispatch& Dispatch = Command.Dispatches[ShadingCommand.ShadingBin];
-
-								Dispatch.RecordIndex = ShadingCommand.ShadingBin;
-								RecordShadingParameters(Dispatch.Parameters, ShadingCommand, DataByteOffset, ViewRect, OutputTargets, OutputTargetsArray);
-								Dispatch.Shader = ShadingCommand.Pipeline->ComputeShader;
-								Dispatch.WorkGraphShader = ShadingCommand.Pipeline->WorkGraphShader;
-								Dispatch.Constants = ShadingCommand.PassData;
-								Dispatch.PipelineState = Dispatch.Shader ? FindComputePipelineState(Dispatch.Shader) : nullptr;
-								if (Dispatch.PipelineState != nullptr)
-								{
-									if (RHICmdList.Bypass())
-									{
-										Dispatch.RHIPipeline = ExecuteSetComputePipelineState(Dispatch.PipelineState);
-									}
-								}
-								else if (Dispatch.Shader)
-								{
-									PendingPSOs.fetch_add(1u, std::memory_order_relaxed);
-								}
-							}
-							else
-							{
-								// TODO: Optimization: Send partial dispatch lists, but for now we'll leave the record index invalid so bundle dispatch skips it
-								Command.Dispatches[ShadingCommand.ShadingBin].RecordIndex = ~uint32(0u);
-							}
-						});
-
-						// Resolve invalid pipeline states
-						if (PendingPSOs.load(std::memory_order_relaxed) > 0)
-						{
-							for (FRHIShaderBundleComputeDispatch& Dispatch : Command.Dispatches)
-							{
-								if (!Dispatch.IsValid() || Dispatch.PipelineState != nullptr)
-								{
-									continue;
-								}
-
-								// If we don't have precaching, then GetComputePipelineState() might return a PipelineState that isn't ready.
-								const bool bSkipDraw = !PipelineStateCache::IsPSOPrecachingEnabled();
-
-								// This cache lookup cannot be parallelized due to the possibility of a fence insertion into the command list during a miss.
-								Dispatch.PipelineState = GetComputePipelineState(RHICmdList, Dispatch.Shader, !bSkipDraw);
-
-								if (bSkipDraw)
-								{
-									Dispatch.RecordIndex = ~uint32(0u);
-									continue;
-								}
-								
-								if (RHICmdList.Bypass())
-								{
-									Dispatch.RHIPipeline = ExecuteSetComputePipelineState(Dispatch.PipelineState);
-								}
-							}
-						}
-					}
-					else
-					{
-						for (int32 CommandIndex = 0; CommandIndex < ShadingCommands.Commands.Num(); ++CommandIndex)
-						{
-							FNaniteShadingCommand& ShadingCommand = ShadingCommands.Commands[CommandIndex];
-							ShadingCommand.bVisible = !VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin));
-
-							if (ShadingCommand.bVisible && PrepareShadingCommand(ShadingCommand))
-							{
-								FRHIShaderBundleComputeDispatch& Dispatch = Command.Dispatches[ShadingCommand.ShadingBin];
-
-								Dispatch.RecordIndex = ShadingCommand.ShadingBin;
-								RecordShadingParameters(Dispatch.Parameters, ShadingCommand, DataByteOffset, ViewRect, OutputTargets, OutputTargetsArray);
-								Dispatch.Shader = ShadingCommand.Pipeline->ComputeShader;
-								Dispatch.WorkGraphShader = ShadingCommand.Pipeline->WorkGraphShader;
-								Dispatch.Constants = ShadingCommand.PassData;
-
-								Dispatch.PipelineState = Dispatch.Shader ? FindComputePipelineState(Dispatch.Shader) : nullptr;
-								if (Dispatch.PipelineState == nullptr)
-								{
-									// If we don't have precaching, then GetComputePipelineState() might return a PipelineState that isn't ready.
-									const bool bSkipDraw = !PipelineStateCache::IsPSOPrecachingEnabled();
-
-									Dispatch.PipelineState = GetComputePipelineState(RHICmdList, Dispatch.Shader, !bSkipDraw);
-									
-									if (bSkipDraw)
-									{
-										Dispatch.RecordIndex = ~uint32(0u);
-										continue;
-									}
-								}								
-								
-								if (Dispatch.Shader && RHICmdList.Bypass())
-								{
-									Dispatch.RHIPipeline = ExecuteSetComputePipelineState(Dispatch.PipelineState);
-								}
-							}
-							else
-							{
-								// TODO: Allow for sending partial dispatch lists, but for now we'll leave the record index invalid so bundle dispatch skips it
-								Command.Dispatches[ShadingCommand.ShadingBin].RecordIndex = ~uint32(0u);
-							}
-						}
-					}
-				};
-
-				RHICmdList.DispatchComputeShaderBundle(RecordDispatches);
-			}
-			else // !bDispatchBundle
-			{
-				for (FNaniteShadingCommand& ShadingCommand : ShadingCommands.Commands)
-				{
-					ShadingCommand.bVisible = !VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin));
-					if (ShadingCommand.bVisible && PrepareShadingCommand(ShadingCommand))
-					{
-						FRHIBatchedShaderParameters ShadingParameters;
-						RecordShadingParameters(ShadingParameters, ShadingCommand, DataByteOffset, ViewRect, OutputTargets, OutputTargetsArray);
-						RecordShadingCommand(RHICmdList, IndirectArgsBuffer, IndirectArgStride, ShadingParameters, ShadingCommand);
-					}
-				}
-			}
-		}
-	};
-
-	const bool bParallelDispatch = !bBundleShading && GRHICommandList.UseParallelAlgorithms() && CVarParallelBasePassBuild.GetValueOnRenderThread() != 0 &&
+	const bool bParallelDispatch = GRHICommandList.UseParallelAlgorithms() && CVarParallelBasePassBuild.GetValueOnRenderThread() != 0 &&
 								   FParallelMeshDrawCommandPass::IsOnDemandShaderCreationEnabled();
 	if (bParallelDispatch)
 	{
@@ -1421,33 +1232,84 @@ void DispatchBasePass(
 			RDG_EVENT_NAME("ShadeGBufferCS"),
 			ShadingPassParameters,
 			ERDGPassFlags::Compute,
-			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, IndirectArgStride, DataByteOffset = Binning.DataByteOffset, VisibilityQuery, &View, ViewRect, ViewIndex]
+			[ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgsStride, DataByteOffset = Binning.DataByteOffset, VisibilityQuery, &View, ViewRect, bBundleShading, bBundleEmulation]
 			(const FRDGPass* RDGPass, FRHICommandListImmediate& RHICmdList)
-			{
-				FParallelCommandListBindings CmdListBindings(ShadingPassParameters);
-				FRDGParallelCommandListSet ParallelCommandListSet(RDGPass, RHICmdList, View, CmdListBindings);
-				ParallelCommandListSet.SetHighPriority();
+		{
+			FParallelCommandListBindings CmdListBindings(ShadingPassParameters);
+			FRDGParallelCommandListSet ParallelCommandListSet(RDGPass, RHICmdList, View, CmdListBindings);
+			ParallelCommandListSet.SetHighPriority();
 
-				ShadePassWork(
-					&ParallelCommandListSet,
-					FUint32Vector4(
-						(uint32)ViewRect.Min.X,
-						(uint32)ViewRect.Min.Y,
-						(uint32)ViewRect.Max.X,
-						(uint32)ViewRect.Max.Y
-					),
-					ViewIndex,
-					VisibilityQuery,
-					ShadingCommands,
-					FShaderBundleRHIRef(),
-					ShadingPassParameters,
-					RHICmdList,
-					IndirectArgStride,
-					DataByteOffset,
-					false /* bBundleShading   */,
-					false /* bBundleEmulation */
-				);
-			});
+			TSharedPtr<FNaniteShadingPassIntermediates> Intermediates = CreateNaniteShadingPassIntermediates(ShadingPassParameters, ShadingCommands, VisibilityQuery, ViewRect);
+
+			if (bBundleShading)
+			{
+				FRHICommandList* RHICmdListTask = ParallelCommandListSet.NewParallelCommandList();
+
+				UE::Tasks::Launch(UE_SOURCE_LOCATION, [RHICmdListTask, Intermediates = MoveTemp(Intermediates), &ShadingCommands, ShaderBundle, ViewRect, DataByteOffset, bBundleEmulation]
+				{
+					FOptionalTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
+					TRACE_CPUPROFILER_EVENT_SCOPE(RecordBundleShadingCommandsTask);
+					DispatchComputeShaderBundle(*RHICmdListTask, ShadingCommands, ShaderBundle, *Intermediates, DataByteOffset, bBundleEmulation);
+					RHICmdListTask->FinishRecording();
+				});
+
+				ParallelCommandListSet.AddParallelCommandList(RHICmdListTask);
+			}
+			else
+			{
+				// Distribute work evenly to the available task graph workers based on NumPassCommands.
+				const int32 NumPassCommands = ShadingCommands.Commands.Num();
+				const int32 NumThreads = FMath::Min<int32>(FTaskGraphInterface::Get().GetNumWorkerThreads(), ParallelCommandListSet.Width);
+				const int32 NumTasks = FMath::Min<int32>(NumThreads, FMath::DivideAndRoundUp(NumPassCommands, ParallelCommandListSet.MinDrawsPerCommandList));
+				const int32 NumCommandsPerTask = FMath::DivideAndRoundUp(NumPassCommands, NumTasks);
+
+				for (int32 TaskIndex = 0; TaskIndex < NumTasks; TaskIndex++)
+				{
+					const int32 StartIndex = TaskIndex * NumCommandsPerTask;
+					const int32 NumCommands = FMath::Min(NumCommandsPerTask, NumPassCommands - StartIndex);
+					checkSlow(NumCommands > 0);
+
+					FRHICommandList* RHICmdListTask = ParallelCommandListSet.NewParallelCommandList();
+
+					UE::Tasks::Launch(UE_SOURCE_LOCATION, [RHICmdListTask, &ShadingCommands, Intermediates = Intermediates, IndirectArgsStride, DataByteOffset, StartIndex, NumCommands]
+					{
+						FOptionalTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
+						TRACE_CPUPROFILER_EVENT_SCOPE(RecordShadingCommandsTask);
+
+						for (int32 CommandIndex = 0; CommandIndex < NumCommands; ++CommandIndex)
+						{
+							FNaniteShadingCommand& ShadingCommand = ShadingCommands.Commands[StartIndex + CommandIndex];
+							ShadingCommand.bVisible = Intermediates->VisibilityData.IsEmpty() || Intermediates->VisibilityData.AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin));
+							if (ShadingCommand.bVisible && PrepareShadingCommand(ShadingCommand))
+							{
+								FRHIBatchedShaderParameters& ShadingParameters = RHICmdListTask->GetScratchShaderParameters();
+
+								RecordShadingParameters(
+									ShadingParameters,
+									ShadingCommand,
+									DataByteOffset,
+									Intermediates->ViewRect,
+									Intermediates->OutputTargets,
+									Intermediates->OutputTargetsArray
+								);
+
+								RecordShadingCommand(
+									*RHICmdListTask,
+									Intermediates->IndirectArgsBuffer,
+									IndirectArgsStride,
+									ShadingParameters,
+									ShadingCommand
+								);
+							}
+						}
+
+						RHICmdListTask->FinishRecording();
+					});
+
+					ParallelCommandListSet.AddParallelCommandList(RHICmdListTask);
+				}
+			}
+		});
 	}
 	else
 	{
@@ -1455,30 +1317,31 @@ void DispatchBasePass(
 			RDG_EVENT_NAME("ShadeGBufferCS"),
 			ShadingPassParameters,
 			ERDGPassFlags::Compute,
-			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgStride, DataByteOffset = Binning.DataByteOffset, VisibilityQuery, &View, ViewRect, ViewIndex, bBundleShading, bBundleEmulation]
+			[ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgsStride, DataByteOffset = Binning.DataByteOffset, VisibilityQuery, &View, ViewRect, bBundleShading, bBundleEmulation]
 			(const FRDGPass* RDGPass, FRHIComputeCommandList& RHICmdList)
+		{
+			TSharedPtr<FNaniteShadingPassIntermediates> Intermediates = CreateNaniteShadingPassIntermediates(ShadingPassParameters, ShadingCommands, VisibilityQuery, ViewRect);
+
+			if (bBundleShading)
 			{
-				ShadePassWork(
-					nullptr,
-					FUint32Vector4(
-						(uint32)ViewRect.Min.X,
-						(uint32)ViewRect.Min.Y,
-						(uint32)ViewRect.Max.X,
-						(uint32)ViewRect.Max.Y
-					),
-					ViewIndex,
-					VisibilityQuery,
-					ShadingCommands,
-					ShaderBundle,
-					ShadingPassParameters,
-					RHICmdList,
-					IndirectArgStride,
-					DataByteOffset,
-					bBundleShading,
-					bBundleEmulation
-				);
+				TRACE_CPUPROFILER_EVENT_SCOPE(RecordBundleShadingCommands);
+				DispatchComputeShaderBundle(RHICmdList, ShadingCommands, ShaderBundle, *Intermediates, DataByteOffset, bBundleEmulation, EParallelForFlags::ForceSingleThread);
 			}
-		);
+			else
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(RecordShadingCommands);
+				for (FNaniteShadingCommand& ShadingCommand : ShadingCommands.Commands)
+				{
+					ShadingCommand.bVisible = Intermediates->VisibilityData.IsEmpty() || Intermediates->VisibilityData.AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin));
+					if (ShadingCommand.bVisible && PrepareShadingCommand(ShadingCommand))
+					{
+						FRHIBatchedShaderParameters& ShadingParameters = RHICmdList.GetScratchShaderParameters();
+						RecordShadingParameters(ShadingParameters, ShadingCommand, DataByteOffset, Intermediates->ViewRect, Intermediates->OutputTargets, Intermediates->OutputTargetsArray);
+						RecordShadingCommand(RHICmdList, Intermediates->IndirectArgsBuffer, IndirectArgsStride, ShadingParameters, ShadingCommand);
+					}
+				}
+			}
+		});
 	}
 
 	ExtractShadingDebug(GraphBuilder, View, Binning, ShadingBinCount);
@@ -2613,7 +2476,7 @@ void DispatchLumenMeshCapturePass(
 			#endif
 
 				// Record parameters
-				FRHIBatchedShaderParameters ShadingParameters;
+				FRHIBatchedShaderParameters& ShadingParameters = RHICmdList.GetScratchShaderParameters();
 				Nanite::RecordLumenCardParameters(ShadingParameters, ShadingCommand, OutputTargets);
 
 				// Record dispatch

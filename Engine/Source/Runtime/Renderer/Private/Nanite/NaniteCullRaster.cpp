@@ -2817,6 +2817,8 @@ private:
 							Dispatch.RecordIndex = ~uint32(0u);
 						}
 
+						FRHIBatchedShaderParametersAllocator& ScratchAllocator = RHICmdList.GetScratchShaderParameters().Allocator;
+
 						for (const int32 Indirection : DispatchList.Indirections)
 						{
 							const FRasterizerPass& RasterizerPass = RasterizerPasses[Indirection];
@@ -2840,17 +2842,20 @@ private:
 								PSOCollectorStats::CheckFullPipelineStateInCache(GraphicsPSOInit, EPSOPrecacheResult::Unknown, RasterizerPass.RasterPipeline.RasterMaterial, &FNaniteVertexFactory::StaticType, nullptr, PSOCollectorIndex);
 							}
 						#endif
+							
+							Dispatch.Parameters_PS.Emplace(ScratchAllocator);
+							Dispatch.Parameters_MSVS.Emplace(ScratchAllocator);
 
 							if (IsMeshShaderRasterPath(HardwarePath))
 							{
-								SetShaderParametersMixedMS(Dispatch.Parameters_MSVS, RasterizerPass.RasterMeshShader, Parameters, ViewInfo, RasterizerPass.VertexMaterialProxy, *RasterizerPass.VertexMaterial);
+								SetShaderParametersMixedMS(*Dispatch.Parameters_MSVS, RasterizerPass.RasterMeshShader, Parameters, ViewInfo, RasterizerPass.VertexMaterialProxy, *RasterizerPass.VertexMaterial);
 							}
 							else
 							{
-								SetShaderParametersMixedVS(Dispatch.Parameters_MSVS, RasterizerPass.RasterVertexShader, Parameters, ViewInfo, RasterizerPass.VertexMaterialProxy, *RasterizerPass.VertexMaterial);
+								SetShaderParametersMixedVS(*Dispatch.Parameters_MSVS, RasterizerPass.RasterVertexShader, Parameters, ViewInfo, RasterizerPass.VertexMaterialProxy, *RasterizerPass.VertexMaterial);
 							}
 
-							SetShaderParametersMixedPS(Dispatch.Parameters_PS, RasterizerPass.RasterPixelShader, Parameters, ViewInfo, RasterizerPass.PixelMaterialProxy, *RasterizerPass.PixelMaterial);
+							SetShaderParametersMixedPS(*Dispatch.Parameters_PS, RasterizerPass.RasterPixelShader, Parameters, ViewInfo, RasterizerPass.PixelMaterialProxy, *RasterizerPass.PixelMaterial);
 
 							Dispatch.PipelineInitializer = GraphicsPSOInit;
 							Dispatch.PipelineState = FindGraphicsPipelineState(Dispatch.PipelineInitializer);
@@ -3025,7 +3030,7 @@ private:
 							Dispatch.Shader = ComputeShader->GetComputeShader();
 
 							SetShaderParametersMixedCS(
-								Dispatch.Parameters,
+								*Dispatch.Parameters,
 								*ComputeShader,
 								Parameters,
 								ViewInfo,

@@ -142,7 +142,7 @@ bool FRHIGraphicsUAVTests::Test_GraphicsUAV_PixelShader(FRHICommandListImmediate
 		PixelShader.GetPixelShader(),
 		[&PixelShader, &OutputBufferUAV](FRHICommandListImmediate& RHICmdList)
 	{
-			FRHIBatchedShaderParameters ShaderParameters;
+			FRHIBatchedShaderParameters& ShaderParameters = RHICmdList.GetScratchShaderParameters();
 			SetUAVParameter(ShaderParameters, PixelShader->RWPixelShaderOutput, OutputBufferUAV);
 			RHICmdList.SetBatchedShaderParameters(PixelShader.GetPixelShader(), ShaderParameters);
 			RHICmdList.DrawPrimitive(0, 1, MaxInstances);
@@ -192,7 +192,7 @@ bool FRHIGraphicsUAVTests::Test_GraphicsUAV_VertexShader(FRHICommandListImmediat
 		nullptr, // vertex-only rendering
 	[&VertexShader, &OutputBufferUAV](FRHICommandListImmediate& RHICmdList)
 	{
-		FRHIBatchedShaderParameters ShaderParameters;
+		FRHIBatchedShaderParameters& ShaderParameters = RHICmdList.GetScratchShaderParameters();
 		SetUAVParameter(ShaderParameters, VertexShader->RWVertexShaderOutput, OutputBufferUAV);
 		RHICmdList.SetBatchedShaderParameters(VertexShader.GetVertexShader(), ShaderParameters);
 		RHICmdList.DrawPrimitive(0, 1, 1);

@@ -635,7 +635,7 @@ void FD3D12CommandContext::DispatchWorkGraphShaderBundle(FRHIShaderBundle* Shade
 			BinderOps[Context.WorkerIndex],
 			Context.WorkerIndex,
 			Dispatch.WorkGraphShader,
-			Dispatch.Parameters,
+			*Dispatch.Parameters,
 			Dispatch.Constants,
 			MakeArrayView(&LocalRootArgs[RootArgOffset * Pipeline->RootArgStrideInBytes / 4], Pipeline->RootArgStrideInBytes / 4)
 		);

@@ -184,7 +184,7 @@ bool FRHIDrawTests::InternalDrawBaseVertexAndInstance(FRHICommandListImmediate& 
 	RHICmdList.SetStreamSource(0, Resources.VertexBuffer, 0);
 	RHICmdList.SetStreamSource(1, Resources.InstanceIDBuffer, 0);
 
-	FRHIBatchedShaderParameters ShaderParameters;
+	FRHIBatchedShaderParameters& ShaderParameters = RHICmdList.GetScratchShaderParameters();
 	SetUAVParameter(ShaderParameters, Resources.PixelShader->OutDrawnInstances, Resources.OutputBufferUAV);
 	RHICmdList.SetBatchedShaderParameters(Resources.PixelShader.GetPixelShader(), ShaderParameters);
 
@@ -293,7 +293,7 @@ bool FRHIDrawTests::Test_MultiDrawIndirect(FRHICommandListImmediate& RHICmdList)
 	RHICmdList.SetStreamSource(0, Resources.VertexBuffer, 0);
 	RHICmdList.SetStreamSource(1, Resources.InstanceIDBuffer, 0);
 
-	FRHIBatchedShaderParameters ShaderParameters;
+	FRHIBatchedShaderParameters& ShaderParameters = RHICmdList.GetScratchShaderParameters();
 	SetUAVParameter(ShaderParameters, Resources.PixelShader->OutDrawnInstances, Resources.OutputBufferUAV);
 	RHICmdList.SetBatchedShaderParameters(Resources.PixelShader.GetPixelShader(), ShaderParameters);
 
