@@ -141,3 +141,13 @@ enum class EDMMaterialLayerStage : uint8
 	All  = Base | Mask
 };
 ENUM_CLASS_FLAGS(EDMMaterialLayerStage);
+
+UENUM(BlueprintType)
+enum class EAvaColorChannel : uint8
+{
+	None = 0,
+	Red = 1 << 0,
+	Green = 1 << 1,
+	Blue = 1 << 2,
+	Alpha = 1 << 3
+};

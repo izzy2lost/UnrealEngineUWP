@@ -7,9 +7,9 @@
 #include "Components/DMMaterialStageInput.h"
 #include "Components/MaterialStageExpressions/DMMSETextureSample.h"
 #include "Components/MaterialStageInputs/DMMSIExpression.h"
-#include "Components/MaterialStageInputs/DMMSITextureUV.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
+#include "DMEDefs.h"
 #include "Materials/MaterialExpressionComponentMask.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
@@ -32,6 +32,10 @@ UDMMaterialStageBlend::UDMMaterialStageBlend(const FText& InName)
 {
 	bInputRequired = true;
 	bAllowNestedInputs = true;
+
+	BaseChannelOverride = EAvaColorChannel::None;
+
+	EditableProperties.Add(GET_MEMBER_NAME_CHECKED(UDMMaterialStageBlend, BaseChannelOverride));
  
 	InputConnectors.Add({InputAlpha, LOCTEXT("Opacity", "Opacity"), EDMValueType::VT_Float1});
 	InputConnectors.Add({InputA, LOCTEXT("PreviousStage", "Previous Stage"), EDMValueType::VT_Float3_RGB});
@@ -39,7 +43,197 @@ UDMMaterialStageBlend::UDMMaterialStageBlend(const FText& InName)
  
 	OutputConnectors.Add({0, LOCTEXT("Blend", "Blend"), EDMValueType::VT_Float3_RGB});
 }
- 
+
+bool UDMMaterialStageBlend::CanUseBaseChannelOverride() const
+{
+	return GetDefaultBaseChannelOverrideOutputIndex() != INDEX_NONE;
+}
+
+EAvaColorChannel UDMMaterialStageBlend::GetBaseChannelOverride() const
+{
+	if (CanUseBaseChannelOverride())
+	{
+		PullBaseChannelOverride();
+		return BaseChannelOverride;
+	}
+
+	return EAvaColorChannel::None;
+}
+
+void UDMMaterialStageBlend::SetBaseChannelOverride(EAvaColorChannel InMaskChannel)
+{
+	if (!CanUseBaseChannelOverride())
+	{
+		return;
+	}
+
+	if (GetBaseChannelOverride() == InMaskChannel)
+	{
+		return;
+	}
+
+	BaseChannelOverride = InMaskChannel;
+	PushBaseChannelOverride();
+
+	Update(EDMUpdateType::Structure);
+}
+
+int32 UDMMaterialStageBlend::GetDefaultBaseChannelOverrideOutputIndex() const
+{
+	UDMMaterialStageInput* StageInputB = GetInputB();
+
+	if (!StageInputB)
+	{
+		return INDEX_NONE;
+	}
+
+	const TArray<FDMMaterialStageConnector>& MaskInputOutputConnectors = StageInputB->GetOutputConnectors();
+
+	for (int32 Index = 0; Index < MaskInputOutputConnectors.Num(); ++Index)
+	{
+		if (UDMValueDefinitionLibrary::GetValueDefinition(MaskInputOutputConnectors[Index].Type).GetFloatCount() > 1)
+		{
+			return Index;
+		}
+	}
+
+	return INDEX_NONE;
+}
+
+bool UDMMaterialStageBlend::IsValidBaseChannelOverrideOutputIndex(int32 InIndex) const
+{
+	UDMMaterialStageInput* StageInputB = GetInputB();
+
+	if (!StageInputB)
+	{
+		return false;
+	}
+
+	const TArray<FDMMaterialStageConnector>& MaskInputOutputConnectors = StageInputB->GetOutputConnectors();
+
+	if (!MaskInputOutputConnectors.IsValidIndex(InIndex))
+	{
+		return false;
+	}
+
+	return UDMValueDefinitionLibrary::GetValueDefinition(MaskInputOutputConnectors[InIndex].Type).GetFloatCount() > 1;
+}
+
+void UDMMaterialStageBlend::PullBaseChannelOverride() const
+{
+	BaseChannelOverride = EAvaColorChannel::None;
+
+	if (!CanUseBaseChannelOverride())
+	{
+		return;
+	}
+
+	UDMMaterialStage* Stage = GetStage();
+
+	if (!Stage)
+	{
+		return;
+	}
+
+	const TArray<FDMMaterialStageConnection>& InputMap = Stage->GetInputConnectionMap();
+
+	if (!InputMap.IsValidIndex(UDMMaterialStageBlend::InputB)
+		|| !InputMap[UDMMaterialStageBlend::InputB].Channels.IsValidIndex(0))
+	{
+		return;
+	}
+
+	TArray<UDMMaterialStageInput*> Inputs = Stage->GetInputs();
+	const FDMMaterialStageConnectorChannel& MaskConnectorChannel = InputMap[UDMMaterialStageBlend::InputB].Channels[0];
+
+	switch (MaskConnectorChannel.OutputChannel)
+	{
+		case FDMMaterialStageConnectorChannel::FIRST_CHANNEL:
+			BaseChannelOverride = EAvaColorChannel::Red;
+			break;
+
+		case FDMMaterialStageConnectorChannel::SECOND_CHANNEL:
+			BaseChannelOverride = EAvaColorChannel::Green;
+			break;
+
+		case FDMMaterialStageConnectorChannel::THIRD_CHANNEL:
+			BaseChannelOverride = EAvaColorChannel::Blue;
+			break;
+
+		case FDMMaterialStageConnectorChannel::FOURTH_CHANNEL:
+			BaseChannelOverride = EAvaColorChannel::Alpha;
+			break;
+
+		default:
+			// Do nothing
+			break;
+	}
+}
+
+void UDMMaterialStageBlend::PushBaseChannelOverride()
+{
+	UDMMaterialStage* Stage = GetStage();
+
+	if (!Stage)
+	{
+		return;
+	}
+
+	if (!CanUseBaseChannelOverride())
+	{
+		return;
+	}
+
+	const TArray<FDMMaterialStageConnection>& InputMap = Stage->GetInputConnectionMap();
+
+	if (!InputMap.IsValidIndex(UDMMaterialStageBlend::InputB)
+		|| !InputMap[UDMMaterialStageBlend::InputB].Channels.IsValidIndex(0))
+	{
+		return;
+	}
+
+	TArray<UDMMaterialStageInput*> Inputs = Stage->GetInputs();
+	const FDMMaterialStageConnectorChannel& MaskConnectorChannel = InputMap[UDMMaterialStageBlend::InputB].Channels[0];
+	const int32 MaskInputIdx = MaskConnectorChannel.SourceIndex - FDMMaterialStageConnectorChannel::FIRST_STAGE_INPUT;
+
+	if (!Inputs.IsValidIndex(MaskInputIdx))
+	{
+		return;
+	}
+
+	const int32 OutputIndex = IsValidBaseChannelOverrideOutputIndex(MaskConnectorChannel.OutputIndex)
+		? MaskConnectorChannel.OutputIndex
+		: GetDefaultBaseChannelOverrideOutputIndex();
+
+	int32 OutputChannel;
+
+	switch (BaseChannelOverride)
+	{
+		case EAvaColorChannel::Red:
+			OutputChannel = FDMMaterialStageConnectorChannel::FIRST_CHANNEL;
+			break;
+
+		case EAvaColorChannel::Green:
+			OutputChannel = FDMMaterialStageConnectorChannel::SECOND_CHANNEL;
+			break;
+
+		case EAvaColorChannel::Blue:
+			OutputChannel = FDMMaterialStageConnectorChannel::THIRD_CHANNEL;
+			break;
+
+		case EAvaColorChannel::Alpha:
+			OutputChannel = FDMMaterialStageConnectorChannel::FOURTH_CHANNEL;
+			break;
+
+		default:
+			OutputChannel = FDMMaterialStageConnectorChannel::WHOLE_CHANNEL;
+			break;
+	}
+
+	Stage->UpdateInputMap(UDMMaterialStageBlend::InputB, MaskConnectorChannel.SourceIndex, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+		OutputIndex, OutputChannel, MaskConnectorChannel.MaterialProperty);
+}
+
 UDMMaterialStage* UDMMaterialStageBlend::CreateStage(TSubclassOf<UDMMaterialStageBlend> InMaterialStageBlendClass, UDMMaterialLayerObject* InLayer)
 {
 	check(InMaterialStageBlendClass);
@@ -198,6 +392,27 @@ bool UDMMaterialStageBlend::UpdateStagePreviewMaterial(UDMMaterialStage* InStage
 	OutMaterialExpression = LastExpression;
 
 	return true;
+}
+
+void UDMMaterialStageBlend::NotifyPostChange(const FPropertyChangedEvent& InPropertyChangedEvent, FEditPropertyChain* InPropertyThatChanged)
+{
+	if (!IsComponentValid())
+	{
+		return;
+	}
+
+	static const FName MaskChannelName = GET_MEMBER_NAME_CHECKED(UDMMaterialStageBlend, BaseChannelOverride);
+
+	if (InPropertyChangedEvent.GetPropertyName() == MaskChannelName)
+	{
+		PushBaseChannelOverride();
+	}
+	else
+	{
+		PullBaseChannelOverride();
+	}
+
+	Super::NotifyPostChange(InPropertyChangedEvent, InPropertyThatChanged);
 }
 
 void UDMMaterialStageBlend::AddDefaultInput(int32 InInputIndex) const
@@ -543,5 +758,5 @@ UDMMaterialStageInput* UDMMaterialStageBlend::GetInputB() const
 
 	return nullptr;
 }
- 
+
 #undef LOCTEXT_NAMESPACE

@@ -11,7 +11,7 @@
 #include "Components/MaterialStageInputs/DMMSIExpression.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Components/MaterialValues/DMMaterialValueTexture.h"
-#include "DMDefs.h"
+#include "DMEDefs.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "Materials/MaterialExpressionComponentMask.h"
 #include "Materials/MaterialExpressionConstant3Vector.h"
@@ -1290,8 +1290,9 @@ void UDMMaterialStageThroughputLayerBlend::PushMaskChannelOverride()
 			break;
 	}
 
-	Stage->UpdateInputMap(InputMaskSource, MaskConnectorChannel.SourceIndex, FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
-		OutputIndex, OutputChannel, MaskConnectorChannel.MaterialProperty);
+	Stage->UpdateInputMap(UDMMaterialStageThroughputLayerBlend::InputMaskSource, MaskConnectorChannel.SourceIndex,
+		FDMMaterialStageConnectorChannel::WHOLE_CHANNEL, OutputIndex, OutputChannel, 
+		MaskConnectorChannel.MaterialProperty);
 }
 
 #undef LOCTEXT_NAMESPACE

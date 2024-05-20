@@ -8,16 +8,7 @@
 class UDMMaterialLayerObject;
 class UMaterial;
 class UMaterialExpression;
-
-UENUM(BlueprintType)
-enum class EAvaColorChannel : uint8
-{
-	None =  0,
-	Red =   1,
-	Green = 2,
-	Blue =  3,
-	Alpha = 4
-};
+enum class EAvaColorChannel : uint8;
 
 UCLASS(BlueprintType, ClassGroup = "Material Designer")
 class DYNAMICMATERIALEDITOR_API UDMMaterialStageThroughputLayerBlend : public UDMMaterialStageThroughput
@@ -84,7 +75,7 @@ public:
 
 protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Getter=GetMaskChannelOverride, Setter=SetMaskChannelOverride, BlueprintGetter=GetMaskChannelOverride,
-		Category = "Material Designer", DisplayName = "Channel Override",
+		Category = "Material Designer", DisplayName = "Channel Mask",
 		meta=(NotKeyframeable, ToolTip="Changes the output channel of the mask input."))
 	mutable EAvaColorChannel MaskChannelOverride;
 
