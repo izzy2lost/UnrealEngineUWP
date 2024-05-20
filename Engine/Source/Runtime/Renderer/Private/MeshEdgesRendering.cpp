@@ -167,7 +167,8 @@ const FMeshEdgesViewSettings& GetMeshEdgesViewSettings(const FSceneViewFamily& V
 
 	if (FamilyData->ViewSettings.IsEmpty())
 	{
-		FamilyData->ViewSettings.Init(FMeshEdgesViewSettings{}, ViewFamily.Views.Num());
+		// Allocate 1 extra as a fallback for weird edgecase where the view can't be found in the viewfamily.
+		FamilyData->ViewSettings.Init(FMeshEdgesViewSettings{}, ViewFamily.Views.Num() + 1);
 	}
 
 	return FamilyData->ViewSettings[ViewIndex];
