@@ -159,8 +159,16 @@ enum class EKeyEvent : uint8
 	Held,		// Key generated no event, but is in a held state and wants to continue applying modifiers and triggers
 };
 
-void UEnhancedPlayerInput::ProcessActionMappingEvent(TObjectPtr<const UInputAction> Action, float DeltaTime, bool bGamePaused, FInputActionValue RawKeyValue, EKeyEvent KeyEvent, const TArray<UInputModifier*>& Modifiers, const TArray<UInputTrigger*>& Triggers)
-{
+void UEnhancedPlayerInput::ProcessActionMappingEvent(
+	TObjectPtr<const UInputAction> Action,
+	float DeltaTime,
+	bool bGamePaused,
+	FInputActionValue RawKeyValue,
+	EKeyEvent KeyEvent,
+	const TArray<UInputModifier*>& Modifiers,
+	const TArray<UInputTrigger*>& Triggers,
+	const bool bHasAlwaysTickTrigger /*= false*/)
+{	
 	FInputActionInstance& ActionData = FindOrAddActionEventData(Action);
 
 	// Update values and triggers for all actionable mappings each frame
@@ -169,32 +177,9 @@ void UEnhancedPlayerInput::ProcessActionMappingEvent(TObjectPtr<const UInputActi
 	// Reset action data on the first event processed for the action this tick.
 	bool bResetActionData = !ActionsWithEventsThisTick.Contains(Action);
 	bool bMappingTriggersApplied = false;
-
-	bool bHasAnyAlwaysTickTriggers = false;
-	// checking the input mapping context triggers for any triggers that should tick every frame
-	for (const UInputTrigger* Trigger : Triggers)
-	{
-		if (Trigger && Trigger->bShouldAlwaysTick)
-		{
-			bHasAnyAlwaysTickTriggers = true;
-			break;
-		}
-	}
-	// we also need to check the triggers of the Input Action itself - only if we haven't already found an AlwaysTickTrigger
-	if (!bHasAnyAlwaysTickTriggers)
-	{
-		for (const UInputTrigger* Trigger : Action->Triggers)
-		{
-			if (Trigger && Trigger->bShouldAlwaysTick)
-			{
-				bHasAnyAlwaysTickTriggers = true;
-				break;
-			}
-		}
-	}
 	
 	// If the key state is changing or the key is actuated and being held (and not coming back up this tick) recalculate its value and resulting trigger state.
-	if (KeyEvent != EKeyEvent::None || bHasAnyAlwaysTickTriggers)
+	if (KeyEvent != EKeyEvent::None || bHasAlwaysTickTrigger)
 	{
 		if (bResetActionData)
 		{
@@ -442,7 +427,7 @@ void UEnhancedPlayerInput::EvaluateInputDelegates(const TArray<UInputComponent*>
 		}
 
 		// Perform update
-		ProcessActionMappingEvent(Mapping.Action, NonDilatedDeltaTime, bGamePaused, RawKeyValue, KeyEvent, Mapping.Modifiers, Mapping.Triggers);
+		ProcessActionMappingEvent(Mapping.Action, NonDilatedDeltaTime, bGamePaused, RawKeyValue, KeyEvent, Mapping.Modifiers, Mapping.Triggers, Mapping.bHasAlwaysTickTrigger);
 	}
 
 
@@ -459,7 +444,16 @@ void UEnhancedPlayerInput::EvaluateInputDelegates(const TArray<UInputComponent*>
 		else if (!InputsInjectedThisTick.Contains(InjectedAction))
 		{
 			// Reset action state by "releasing the key".
-			ProcessActionMappingEvent(InjectedAction, NonDilatedDeltaTime, bGamePaused, FInputActionValue(), EKeyEvent::Actuated, {}, {});
+			ProcessActionMappingEvent(
+				InjectedAction,
+				NonDilatedDeltaTime,
+				bGamePaused,
+				FInputActionValue(),
+				EKeyEvent::Actuated,
+				{},
+				{},
+				/* bHasAlwaysTickTrigger= */ false);
+			
 			It.RemoveCurrent();
 		}
 	}

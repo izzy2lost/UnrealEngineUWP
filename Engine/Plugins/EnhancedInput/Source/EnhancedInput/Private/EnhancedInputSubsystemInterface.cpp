@@ -776,11 +776,17 @@ TArray<FEnhancedActionKeyMapping> IEnhancedInputSubsystemInterface::ReorderMappi
 {
 	TSet<const UInputAction*> ChordingActions;
 
-	// Gather all chording actions within a mapping's triggers.
-	auto GatherChordingActions = [&ChordingActions, &DependentChordActions](const FEnhancedActionKeyMapping& Mapping)
+	struct FTriggerEvaluationResults
 	{
 		bool bFoundChordTrigger = false;
-		auto EvaluateTriggers = [&Mapping, &ChordingActions, &bFoundChordTrigger, &DependentChordActions](const TArray<UInputTrigger*>& Triggers)
+		bool bFoundAlwaysTickTrigger = false;
+	};
+	
+	// Gather all chording actions within a mapping's triggers.
+	auto GatherChordingActions = [&ChordingActions, &DependentChordActions](const FEnhancedActionKeyMapping& Mapping) -> FTriggerEvaluationResults
+	{
+		FTriggerEvaluationResults Res = {};
+		auto EvaluateTriggers = [&Mapping, &ChordingActions, &DependentChordActions, &Res](const TArray<UInputTrigger*>& Triggers)-> FTriggerEvaluationResults
 		{
 			for (const UInputTrigger* Trigger : Triggers)
 			{
@@ -791,18 +797,27 @@ TArray<FEnhancedActionKeyMapping> IEnhancedInputSubsystemInterface::ReorderMappi
 					// Keep track of the action itself, and the action it is dependant on
 					DependentChordActions.Emplace(UEnhancedPlayerInput::FDependentChordTracker { Mapping.Action, ChordTrigger->ChordAction });
 					
-					bFoundChordTrigger = true;
+					Res.bFoundChordTrigger = true;
 				}
-			}
-		};
-		EvaluateTriggers(Mapping.Triggers);
-		
-		if(ensureMsgf(Mapping.Action, TEXT("A key mapping has no associated action!")))
-		{
-			EvaluateTriggers(Mapping.Action->Triggers);			
-		}
 
-		return bFoundChordTrigger;
+				// Keep track of if this trigger is marked as being "always tick".
+				// This is not a great thing to do but some custom triggers may require always being ticked, so allow it as an option
+				Res.bFoundAlwaysTickTrigger |= Trigger->bShouldAlwaysTick;
+			}
+			return Res;
+		};
+		
+		const FTriggerEvaluationResults MappingResults = EvaluateTriggers(Mapping.Triggers);
+
+		ensureMsgf(Mapping.Action, TEXT("A key mapping has no associated action!"));
+		const FTriggerEvaluationResults ActionResults = EvaluateTriggers(Mapping.Action->Triggers);
+
+		// returned the combined results of each individual keymapping and it's associated input action.
+		return FTriggerEvaluationResults
+		{
+			.bFoundChordTrigger			= (MappingResults.bFoundChordTrigger || ActionResults.bFoundChordTrigger),
+			.bFoundAlwaysTickTrigger	= (MappingResults.bFoundAlwaysTickTrigger || ActionResults.bFoundAlwaysTickTrigger)
+		};
 	};
 
 	// Split chorded mappings (second priority) from all others whilst building a list of chording actions to use for further prioritization.
@@ -812,10 +827,17 @@ TArray<FEnhancedActionKeyMapping> IEnhancedInputSubsystemInterface::ReorderMappi
 	int32 NumEmptyMappings = 0;
 	for (const FEnhancedActionKeyMapping& Mapping : UnorderedMappings)
 	{
-		if(Mapping.Action)
+		if (Mapping.Action)
 		{
-			TArray<FEnhancedActionKeyMapping>& MappingArray = GatherChordingActions(Mapping) ? ChordedMappings : OtherMappings;
-			MappingArray.Add(Mapping);
+			// Evaluate the triggers on each key mapping to check for chords and also "always tick" input triggers.
+			const FTriggerEvaluationResults TriggerEvalResults = GatherChordingActions(Mapping);
+
+			// Determine which array this mapping should be in based on if it has a chord or not
+			TArray<FEnhancedActionKeyMapping>& MappingArray = TriggerEvalResults.bFoundChordTrigger ? ChordedMappings : OtherMappings;
+
+			// flag this new mapping as being always tick as necessary
+			FEnhancedActionKeyMapping& NewlyAddedMapping = MappingArray.Add_GetRef(Mapping);
+			NewlyAddedMapping.bHasAlwaysTickTrigger = TriggerEvalResults.bFoundAlwaysTickTrigger;
 		}
 		else
 		{
@@ -829,7 +851,8 @@ TArray<FEnhancedActionKeyMapping> IEnhancedInputSubsystemInterface::ReorderMappi
 
 	// Move chording mappings to the front as they need to be evaluated before chord and blocker triggers
 	// TODO: Further ordering of chording mappings may be required should one of them be chorded against another
-	auto ExtractChords = [&OrderedMappings, &ChordingActions](TArray<FEnhancedActionKeyMapping>& Mappings) {
+	auto ExtractChords = [&OrderedMappings, &ChordingActions](TArray<FEnhancedActionKeyMapping>& Mappings)
+	{
 		for (int32 i = 0; i < Mappings.Num();)
 		{
 			if (ChordingActions.Contains(Mappings[i].Action))

@@ -138,7 +138,16 @@ private:
 	FInputActionValue ApplyModifiers(const TArray<UInputModifier*>& Modifiers, FInputActionValue RawValue, float DeltaTime) const;						// Pre-modified (raw) value
 	ETriggerEventInternal GetTriggerStateChangeEvent(ETriggerState LastTriggerState, ETriggerState NewTriggerState) const;
 	ETriggerEvent ConvertInternalTriggerEvent(ETriggerEventInternal Event) const;	// Collapse a detailed internal trigger event into a friendly representation
-	void ProcessActionMappingEvent(TObjectPtr<const UInputAction> Action, float DeltaTime, bool bGamePaused, FInputActionValue RawValue, EKeyEvent KeyEvent, const TArray<UInputModifier*>& Modifiers, const TArray<UInputTrigger*>& Triggers);
+
+	void ProcessActionMappingEvent(
+		TObjectPtr<const UInputAction> Action,
+		float DeltaTime,
+		bool bGamePaused,
+		FInputActionValue RawValue,
+		EKeyEvent KeyEvent,
+		const TArray<UInputModifier*>& Modifiers,
+		const TArray<UInputTrigger*>& Triggers,
+		const bool bHasAlwaysTickTrigger = false);
 
 	FInputActionInstance& FindOrAddActionEventData(TObjectPtr<const UInputAction> Action) const;
 

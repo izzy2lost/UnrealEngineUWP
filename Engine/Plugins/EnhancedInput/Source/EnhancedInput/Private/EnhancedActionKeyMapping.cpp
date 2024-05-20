@@ -47,6 +47,7 @@ FEnhancedActionKeyMapping::FEnhancedActionKeyMapping(const UInputAction* InActio
 	, Action(InAction)
 	, Key(InKey)
 	, bShouldBeIgnored(false)
+	, bHasAlwaysTickTrigger(false)
 	, bIsPlayerMappable(false)
 {}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -57,6 +58,7 @@ FEnhancedActionKeyMapping::FEnhancedActionKeyMapping(const UInputAction* InActio
 	: Action(InAction)
 	, Key(InKey)
 	, bShouldBeIgnored(false)
+	, bHasAlwaysTickTrigger(false)
 {}
 
 #endif	// WITH_EDITORONLY_DATA

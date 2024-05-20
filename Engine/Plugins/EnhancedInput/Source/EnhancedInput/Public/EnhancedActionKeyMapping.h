@@ -160,6 +160,17 @@ struct ENHANCEDINPUT_API FEnhancedActionKeyMapping
 	UPROPERTY(Transient)
 	uint8 bShouldBeIgnored : 1;
 
+	/**
+	 * True if any triggers on this mapping or its associated UInputAction
+	 * are flagged as "always tick" triggers. This is only set when control
+	 * mappings are rebuilt.
+	 *
+	 * @see UInputTrigger::bShouldAlwaysTick
+	 * @see IEnhancedInputSubsystemInterface::ReorderMappings
+	 */
+	UPROPERTY(Transient)
+	uint8 bHasAlwaysTickTrigger : 1;
+
 #if WITH_EDITORONLY_DATA
 
 	/** If true then this ActionKeyMapping will be exposed as a player mappable key */
