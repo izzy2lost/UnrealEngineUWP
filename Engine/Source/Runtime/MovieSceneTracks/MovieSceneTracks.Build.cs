@@ -40,5 +40,7 @@ public class MovieSceneTracks : ModuleRules
 					"UnrealEd"
 				});
 		}
+
+		bAllowAutoRTFMInstrumentation = true;
 	}
 }
