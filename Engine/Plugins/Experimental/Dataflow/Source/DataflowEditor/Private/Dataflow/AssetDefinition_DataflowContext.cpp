@@ -175,8 +175,8 @@ namespace DataflowContextDefinitionHelpers
 		check(ContentOwner.Get());
 		bool bNeedsNewAsset = true;
 		TObjectPtr<UObject> Asset = nullptr;
-		
-		UDataflow* DataflowAsset = Private::GetDataflowAssetFrom(ContentOwner);
+
+		UDataflow* DataflowAsset = UE::Dataflow::Private::GetDataflowAssetFrom(ContentOwner);
 		if (bDataflowEnableContextCaching)
 		{
 			// Setup an asset that lives in the content broswer.

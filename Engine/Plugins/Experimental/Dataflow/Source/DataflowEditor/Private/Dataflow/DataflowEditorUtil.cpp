@@ -16,7 +16,7 @@
 
 using namespace UE::Geometry;
 
-namespace Private
+namespace UE::Dataflow::Private
 {
 	bool HasSkeletalMesh(UObject* InObject)
 	{

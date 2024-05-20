@@ -848,7 +848,7 @@ void UChaosClothAssetEditorMode::ReinitializeDynamicMeshComponents()
 		for (int32 PatternID = 0; PatternID < ClothFacade.GetNumSimPatterns(); ++PatternID)
 		{
 			const FCollectionClothSimPatternConstFacade Pattern = ClothFacade.GetSimPattern(PatternID);
-			const FLinearColor PatternColor = Private::PseudoRandomColor(PatternID);
+			const FLinearColor PatternColor = UE::Chaos::ClothAsset::Private::PseudoRandomColor(PatternID);
 
 			for (int32 TriID = 0; TriID < Pattern.GetNumSimFaces(); ++TriID)
 			{

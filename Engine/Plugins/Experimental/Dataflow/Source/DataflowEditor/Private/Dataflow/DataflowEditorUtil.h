@@ -17,7 +17,7 @@ class USkeleton;
 class UAnimationAsset;
 class UMaterial;
 
-namespace Private
+namespace UE::Dataflow::Private
 {
 	bool HasSkeletalMesh(UObject* InObject);
 
