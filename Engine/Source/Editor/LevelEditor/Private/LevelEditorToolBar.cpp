@@ -63,6 +63,7 @@
 #include "Styling/ToolBarStyle.h"
 #include "PlatformInfo.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "ViewportToolbar/LevelEditorViewportToolbarSections.h"
 
 FName FLevelEditorToolBar::SecondaryModeToolbarName("LevelEditor.SecondaryToolbar");
 
@@ -1650,32 +1651,6 @@ TSharedRef< SWidget > FLevelEditorToolBar::MakeLevelEditorToolBar( const TShared
 		];
 }
 
-static void MakeMaterialQualityLevelMenu( UToolMenu* InMenu )
-{
-	{
-		FToolMenuSection& Section = InMenu->AddSection("LevelEditorMaterialQualityLevel", NSLOCTEXT( "LevelToolBarViewMenu", "MaterialQualityLevelHeading", "Material Quality Level" ) );
-		Section.AddMenuEntry(FLevelEditorCommands::Get().MaterialQualityLevel_Low);
-		Section.AddMenuEntry(FLevelEditorCommands::Get().MaterialQualityLevel_Medium);
-		Section.AddMenuEntry(FLevelEditorCommands::Get().MaterialQualityLevel_High);
-		Section.AddMenuEntry(FLevelEditorCommands::Get().MaterialQualityLevel_Epic);
-	}
-}
-
-static void MakeShaderModelPreviewMenu( UToolMenu* InMenu )
-{
-#define LOCTEXT_NAMESPACE "LevelToolBarViewMenu"
-
-	FToolMenuSection& Section = InMenu->AddSection("EditorPreviewMode", LOCTEXT("EditorPreviewModeDevices", "Preview Devices"));
-
-	// Preview platforms discovered from ITargetPlatforms.
-	for (auto& Item : FLevelEditorCommands::Get().PreviewPlatformOverrides)
-	{
-		Section.AddMenuEntry(Item);
-	}
-
-#undef LOCTEXT_NAMESPACE
-}
-
 static void MakeScalabilityMenu( UToolMenu* InMenu )
 {
 	{
@@ -1774,17 +1749,8 @@ void FLevelEditorToolBar::RegisterQuickSettingsMenu()
 			LOCTEXT( "ScalabilitySubMenu_ToolTip", "Open the engine scalability settings" ),
 			FNewToolMenuDelegate::CreateStatic( &MakeScalabilityMenu ) );
 
-		Section.AddSubMenu(
-			"MaterialQualityLevel",
-			LOCTEXT( "MaterialQualityLevelSubMenu", "Material Quality Level" ),
-			LOCTEXT( "MaterialQualityLevelSubMenu_ToolTip", "Sets the value of the CVar \"r.MaterialQualityLevel\" (low=0, high=1, medium=2, Epic=3). This affects materials via the QualitySwitch material expression." ),
-			FNewToolMenuDelegate::CreateStatic( &MakeMaterialQualityLevelMenu ) );
-
-		Section.AddSubMenu(
-			"FeatureLevelPreview",
-			LOCTEXT("PreviewPlatformSubMenu", "Preview Platform"),
-			LOCTEXT("PreviewPlatformSubMenu_ToolTip", "Sets the preview platform used by the main editor"),
-			FNewToolMenuDelegate::CreateStatic(&MakeShaderModelPreviewMenu));
+		UE::LevelEditor::AddMaterialQualityLevelSubmenu(Section);
+		UE::LevelEditor::AddFeatureLevelPreviewSubmenu(Section);
 	}
 
 	{
