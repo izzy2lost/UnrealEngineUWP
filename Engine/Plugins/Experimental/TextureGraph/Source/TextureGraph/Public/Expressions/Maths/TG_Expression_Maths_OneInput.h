@@ -28,8 +28,8 @@ public:
 	FTG_Variant							Angle;
 
 	// What trigonometric function to apply at the angle
-	UPROPERTY(meta = (TGType = "TG_Input"))
-	TEnumAsByte<ETrigFunction>			Function = ETrigFunction::Sin;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting", RegenPinsOnChange))
+	ETrigFunction						Function = ETrigFunction::Sin;
 
 	virtual FText						GetTooltipText() const override { return FText::FromString(TEXT("A variety of Trigonometric functions.")); } 
 	virtual FName						GetCategory() const override { return TG_Category::Maths; } 

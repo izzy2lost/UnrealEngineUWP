@@ -54,7 +54,7 @@ DECLARE_EMPTY_GLOBAL_SHADER_DERIVED_FROM(FSH_Round, FSH_MathsOp_OneInput);
 /// Trigonometric functions
 //////////////////////////////////////////////////////////////////////////
 UENUM(BlueprintType)
-enum ETrigFunction : int
+enum class ETrigFunction : uint8
 {
 	Sin							UMETA(DisplayName = "Sine"),
 	Cos							UMETA(DisplayName = "Cosine"),
