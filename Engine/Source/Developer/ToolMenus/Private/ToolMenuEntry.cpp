@@ -14,27 +14,29 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ToolMenuEntry)
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-FToolMenuEntry::FToolMenuEntry() :
-	Type(EMultiBlockType::None),
-	UserInterfaceActionType(EUserInterfaceActionType::Button),
-	bShouldCloseWindowAfterMenuSelection(true),
-	ScriptObject(nullptr),
-	StyleNameOverride(NAME_None),
-	bAddedDuringRegister(false),
-	bCommandIsKeybindOnly(false)
+FToolMenuEntry::FToolMenuEntry()
+	: Type(EMultiBlockType::None)
+	, UserInterfaceActionType(EUserInterfaceActionType::Button)
+	, bShouldCloseWindowAfterMenuSelection(true)
+	, ScriptObject(nullptr)
+	, StyleNameOverride(NAME_None)
+	, bAddedDuringRegister(false)
+	, bCommandIsKeybindOnly(false)
+	, bShowInToolbarTopLevel(false)
 {
 }
 
-FToolMenuEntry::FToolMenuEntry(const FToolMenuOwner InOwner, const FName InName, EMultiBlockType InType) :
-	Name(InName),
-	Owner(InOwner),
-	Type(InType),
-	UserInterfaceActionType(EUserInterfaceActionType::Button),
-	bShouldCloseWindowAfterMenuSelection(true),
-	ScriptObject(nullptr),
-	StyleNameOverride(NAME_None),
-	bAddedDuringRegister(false),
-	bCommandIsKeybindOnly(false)
+FToolMenuEntry::FToolMenuEntry(const FToolMenuOwner InOwner, const FName InName, EMultiBlockType InType)
+	: Name(InName)
+	, Owner(InOwner)
+	, Type(InType)
+	, UserInterfaceActionType(EUserInterfaceActionType::Button)
+	, bShouldCloseWindowAfterMenuSelection(true)
+	, ScriptObject(nullptr)
+	, StyleNameOverride(NAME_None)
+	, bAddedDuringRegister(false)
+	, bCommandIsKeybindOnly(false)
+	, bShowInToolbarTopLevel(false)
 {
 }
 
@@ -295,6 +297,11 @@ bool FToolMenuEntry::TryExecuteToolUIAction(const FToolMenuContext& InContext)
 		}
 	}
 	return bCanExecute;
+}
+
+void FToolMenuEntry::SetShowInToolbarTopLevel(bool InTopLevel)
+{
+	bShowInToolbarTopLevel = InTopLevel;
 }
 
 bool FToolMenuEntry::IsScriptObjectDynamicConstruct() const

@@ -1493,6 +1493,11 @@ void UToolMenus::PopulateToolBarBuilder(FToolBarBuilder& ToolBarBuilder, UToolMe
 
 		for (FToolMenuEntry& Block : Section.Blocks)
 		{
+			if (Section.bShowSectionMenu && !Block.bShowInToolbarTopLevel)
+			{
+				continue;
+			}
+
 			if (Block.ToolBarData.ConstructLegacy.IsBound())
 			{
 				Block.ToolBarData.ConstructLegacy.Execute(ToolBarBuilder, MenuData);

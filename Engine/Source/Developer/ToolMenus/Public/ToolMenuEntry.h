@@ -155,6 +155,22 @@ struct TOOLMENUS_API FToolMenuEntry
 	friend struct FToolMenuSection;
 	friend class UToolMenuEntryScript;
 
+	/**
+	 * Show this menu entry in the top-level toolbar section of a toolbar.
+	 *
+	 * A toolbar that has a section menu only shows entries flagged as top-level in the toolbar section itself while the
+	 * others can only be accessed through the section submenu. Use this method to flag a menu entry to show up in that
+	 * top-level toolbar section.
+	 *
+	 * This flag only affects entries of ToolMenus rendered as toolbars that also have a section menu. For ToolMenus
+	 * rendered as menus or toolbar ToolMenus that lack a section menu, the entry is always placed in the top-level
+	 * section itself.
+	 *
+	 * @param InTopLevel Pass true to set this menu entry to appear in the top-level toolbar section for toolbar
+	 * sections with a section menu. Pass false to only show the entry in the section submenu.
+	 */
+	void SetShowInToolbarTopLevel(bool InTopLevel);
+
 private:
 
 	void SetCommand(const TSharedPtr< const FUICommandInfo >& InCommand, TOptional<FName> InName, const TAttribute<FText>& InLabel, const TAttribute<FText>& InToolTip, const TAttribute<FSlateIcon>& InIcon);
@@ -231,4 +247,6 @@ private:
 
 	UPROPERTY()
 	bool bCommandIsKeybindOnly;
+
+	bool bShowInToolbarTopLevel;
 };
