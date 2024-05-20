@@ -166,6 +166,7 @@ static void GetEditorSelectionVisBuffer(
 	{
 		Nanite::FConfiguration CullingConfig = { 0 };
 		CullingConfig.bUpdateStreaming = true;
+		CullingConfig.bEditorShowFlag = true;
 
 		Nanite::FPackedViewParams NaniteViewParams;
 		NaniteViewParams.ViewMatrices = EditorView.ViewMatrices;
