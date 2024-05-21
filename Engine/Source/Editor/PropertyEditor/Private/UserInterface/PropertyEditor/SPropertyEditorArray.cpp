@@ -85,10 +85,11 @@ bool SPropertyEditorArray::CanEdit() const
 
 FReply SPropertyEditorArray::OnDragDropTarget(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent)
 {
-	FObjectProperty* ObjectProperty = nullptr;
+	FObjectPropertyBase* ObjectProperty = nullptr;
+
 	if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(PropertyEditor->GetProperty()))
 	{
-		ObjectProperty = CastField<FObjectProperty>(ArrayProperty->Inner);
+		ObjectProperty = CastField<FObjectPropertyBase>(ArrayProperty->Inner);
 	}
 
 	// Only try to add entries if we are dropping on an asset array
@@ -116,10 +117,11 @@ FReply SPropertyEditorArray::OnDragDropTarget(const FGeometry& InGeometry, const
 
 bool SPropertyEditorArray::IsValidAssetDropOp(TSharedPtr<FDragDropOperation> InOperation)
 {
-	FObjectProperty* ObjectProperty = nullptr;
+	FObjectPropertyBase* ObjectProperty = nullptr;
+
 	if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(PropertyEditor->GetProperty()))
 	{
-		ObjectProperty = CastField<FObjectProperty>(ArrayProperty->Inner);
+		ObjectProperty = CastField<FObjectPropertyBase>(ArrayProperty->Inner);
 	}
 
 	// Only try to add entries if we are dropping on an asset array
@@ -132,11 +134,11 @@ bool SPropertyEditorArray::IsValidAssetDropOp(TSharedPtr<FDragDropOperation> InO
 
 bool SPropertyEditorArray::WillAddValidElements(TSharedPtr<FDragDropOperation> InOperation)
 {
-	FObjectProperty* ObjectProperty = nullptr;
+	FObjectPropertyBase* ObjectProperty = nullptr;
 
 	if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(PropertyEditor->GetProperty()))
 	{
-		ObjectProperty = CastField<FObjectProperty>(ArrayProperty->Inner);
+		ObjectProperty = CastField<FObjectPropertyBase>(ArrayProperty->Inner);
 	}
 
 	// Only try to add entries if we are dropping on an asset array
