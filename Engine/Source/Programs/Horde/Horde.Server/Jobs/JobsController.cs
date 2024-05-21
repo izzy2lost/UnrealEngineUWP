@@ -236,6 +236,13 @@ namespace Horde.Server.Jobs
 				options.Arguments.AddRange(options.AdditionalArguments);
 			}
 
+			// Override the targets for the job if specified
+			if (create.Targets != null && create.Targets.Count > 0)
+			{
+				options.Arguments.RemoveAll(x => x.StartsWith("-Target=", StringComparison.OrdinalIgnoreCase));
+				options.Arguments.AddRange(create.Targets.Select(x => $"-Target={x}"));
+			}
+
 			// Merge the environment variables
 			foreach ((string key, string value) in environment)
 			{
@@ -608,6 +615,7 @@ namespace Horde.Server.Jobs
 			response.Parameters = job.Parameters.ToDictionary();
 			response.Arguments = job.Arguments.ToList();
 			response.AdditionalArguments = job.AdditionalArguments.ToList();
+			response.Targets = (job.Targets != null && job.Targets.Count > 0) ? job.Targets.ToList() : null;
 			response.UpdateTime = new DateTimeOffset(job.UpdateTimeUtc);
 			response.UseArtifactsV2 = true;
 			response.UpdateIssues = job.UpdateIssues;

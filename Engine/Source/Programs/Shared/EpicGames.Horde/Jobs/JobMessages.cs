@@ -249,6 +249,11 @@ namespace EpicGames.Horde.Jobs
 		public List<string>? AdditionalArguments { get; set; }
 
 		/// <summary>
+		/// Targets for the job. Will override any parameters specified in the Arguments or Parameters section if specified.
+		/// </summary>
+		public List<string>? Targets { get; set; }
+
+		/// <summary>
 		/// Private constructor for serialization
 		/// </summary>
 		public CreateJobRequest(StreamId streamId, TemplateId templateId)
@@ -519,6 +524,11 @@ namespace EpicGames.Horde.Jobs
 		/// Additional command line arguments for the job for when using the parameters block
 		/// </summary>
 		public List<string> AdditionalArguments { get; set; } = new List<string>();
+
+		/// <summary>
+		/// Custom list of targets for the job
+		/// </summary>
+		public List<string>? Targets { get; set; }
 
 		/// <summary>
 		/// The last update time for this job

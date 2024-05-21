@@ -182,6 +182,11 @@ namespace Horde.Server.Jobs
 		public IReadOnlyList<string> Arguments { get; }
 
 		/// <summary>
+		/// Custom list of targets for the job. If null or empty, the list of targets is determined from the command line.
+		/// </summary>
+		public IReadOnlyList<string>? Targets { get; }
+
+		/// <summary>
 		/// Additional arguments for the job, when a set of parameters are applied.
 		/// </summary>
 		public IReadOnlyList<string> AdditionalArguments { get; }
