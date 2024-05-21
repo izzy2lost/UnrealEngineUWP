@@ -39,15 +39,10 @@ void FDetailsViewWarningOrErrorCustomization::CustomizeDetails(class IDetailLayo
 			SNew(SVerticalBox)
 				+ SVerticalBox::Slot()
 				.AutoHeight()
-				.HAlign(HAlign_Left)
 				[
 					SNew(SWarningOrErrorBox)
 						.MessageStyle(MessageStyle)
-						[
-							SNew(STextBlock)
-								.Text(WarningOrErrorLabel)
-								.Justification(ETextJustify::Left)
-						]
+						.Message(WarningOrErrorLabel)
 				]
 		];
 }
