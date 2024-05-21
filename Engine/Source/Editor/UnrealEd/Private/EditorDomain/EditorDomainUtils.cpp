@@ -30,6 +30,7 @@
 #include "Misc/CoreDelegates.h"
 #include "Misc/DelayedAutoRegister.h"
 #include "Misc/FileHelper.h"
+#include "Misc/Guid.h"
 #include "Misc/PackageAccessTracking.h"
 #include "Misc/PackageAccessTrackingOps.h"
 #include "Misc/PackagePath.h"
@@ -56,6 +57,15 @@
 #include "UObject/UObjectHash.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "UObject/UObjectIterator.h"
+
+namespace UE::EditorDomain
+{
+
+// Change to a new guid when EditorDomain needs to be invalidated. Note this will also invalidate
+// every TargetDomain key since TargetDomain keys include EditorDomain keys.
+FGuid EditorDomainVersion(TEXT("ED92BBE49F6F4F2E94E9D8BC10AD59A7"));
+
+}
 
 #if !defined(EDITORDOMAINTIMEPROFILERTRACE_ENABLED)
 #if UE_TRACE_ENABLED && !UE_BUILD_SHIPPING
@@ -219,9 +229,6 @@ bool bGUtilsCookInitialized = false;
 FBlake3Hash GGlobalConstructClassesHash;
 int64 GMaxBulkDataSize = -1;
 
-// Change to a new guid when EditorDomain needs to be invalidated
-const TCHAR* EditorDomainVersion = TEXT("4132358BA4F34EFA8294F50D76F1C94F");
-
 // Identifier of the CacheBuckets for EditorDomain tables
 const TCHAR* EditorDomainPackageBucketName = TEXT("EditorDomainPackage");
 const TCHAR* BulkDataListBucketName = TEXT("BulkDataList");
@@ -344,7 +351,7 @@ FPackageDigest CalculatePackageDigest(const FAssetPackageData& PackageData, FNam
 	FBlake3 Writer;
 	FStringView ProjectName(FApp::GetProjectName());
 	Writer.Update(ProjectName.GetData(), ProjectName.Len() * sizeof(ProjectName[0]));
-	Writer.Update(EditorDomainVersion, FCString::Strlen(EditorDomainVersion)*sizeof(EditorDomainVersion[0]));
+	Writer.Update(&EditorDomainVersion, sizeof(EditorDomainVersion));
 	uint8 EditorDomainSaveUnversioned = GetEditorDomainSaveUnversioned() ? 1 : 0;
 	Writer.Update(&EditorDomainSaveUnversioned, sizeof(EditorDomainSaveUnversioned));
 	Writer.Update(&PackageData.GetPackageSavedHash().GetBytes(), sizeof(PackageData.GetPackageSavedHash().GetBytes()));

@@ -25,6 +25,7 @@
 #include "IO/IoDispatcher.h"
 #include "IO/IoHash.h"
 #include "Misc/App.h"
+#include "Misc/Guid.h"
 #include "Misc/ScopeRWLock.h"
 #include "Misc/StringBuilder.h"
 #include "Serialization/CompactBinary.h"
@@ -37,7 +38,13 @@
 namespace UE::TargetDomain
 {
 
+// Change TargetDomainVersion to a new guid when all TargetDomain keys in an incremental cook need to be invalidated
+FGuid TargetDomainVersion(TEXT("C9B0281696234067A3A888CEEAAA50F9"));
+
+// Bump CookDependenciesVersion version when the serialization of CookDependencies has changed and we want to add
+// backwards compatibility rather than invalidating everything.
 constexpr uint32 CookDependenciesVersion = 0x00000002;
+
 static const FUtf8StringView CookDependenciesAttachmentKey = UTF8TEXTVIEW("CookDependencies");
 static const FUtf8StringView BuildDefinitionsAttachmentKey = UTF8TEXTVIEW("BuildDefinitionsAttachmentKey");
 /**
@@ -143,6 +150,8 @@ bool FCookDependencies::TryCalculateCurrentKey(const FAssetPackageData* Override
 		return false;
 	}
 	FBlake3 KeyBuilder;
+	KeyBuilder.Update(&TargetDomainVersion, sizeof(TargetDomainVersion));
+
 	UE::EditorDomain::FPackageDigest PackageDigest = OverrideAssetPackageData ?
 		UE::EditorDomain::CalculatePackageDigest(*OverrideAssetPackageData, PackageName) :
 		EditorDomain->GetPackageDigest(PackageName);
