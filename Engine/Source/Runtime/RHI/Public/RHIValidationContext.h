@@ -124,6 +124,16 @@ public:
 		RHIContext->RHIEndTransitions(Transitions);
 	}
 
+	virtual void SetTrackedAccess(const FRHITrackedAccessInfo& Info) override final
+	{
+		check(Info.Resource != nullptr);
+		check(Info.Access != ERHIAccess::Unknown);
+
+		Tracker->SetTrackedAccess(Info.Resource->GetValidationTrackerResource(), Info.Access);
+
+		RHIContext->SetTrackedAccess(Info);
+	}
+
 	virtual void RHIClearUAVFloat(FRHIUnorderedAccessView* UnorderedAccessViewRHI, const FVector4f& Values) override final
 	{
 		Tracker->Assert(UnorderedAccessViewRHI->GetViewIdentity(), ERHIAccess::UAVCompute);
