@@ -24,6 +24,7 @@
 #include "Chaos/Deformable/ChaosDeformableSolverTypes.h"
 #include "Chaos/Deformable/ChaosDeformableSolverProxy.h"
 #include "Chaos/Deformable/ChaosDeformableCollisionsProxy.h"
+#include "Chaos/Deformable/ChaosDeformableConstraintsProxy.h"
 #include "CoreMinimal.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 #include "Templates/UniquePtr.h"
@@ -60,7 +61,6 @@ namespace Chaos::Softs
 			/* Iteration Advance */
 			CHAOS_API void InitializeSimulationObjects();
 			CHAOS_API void InitializeSimulationObject(FThreadingProxy&);
-			CHAOS_API void InitializeCollisionBodies(FCollisionManagerProxy&);
 			CHAOS_API void InitializeKinematicConstraint();
 			CHAOS_API void InitializeSelfCollisionVariables();
 			CHAOS_API void RemoveSimulationObjects();
@@ -132,14 +132,17 @@ namespace Chaos::Softs
 		CHAOS_API void InitializeWeakConstraint(FFleshThreadingProxy&);
 		CHAOS_API void InitializeKinematicConstraint();
 		CHAOS_API void InitializeCollisionBodies(FCollisionManagerProxy&);
+		CHAOS_API void InitializeConstraintBodies(FConstraintManagerProxy& Proxy);
 		CHAOS_API void InitializeSelfCollisionVariables();
 		CHAOS_API void InitializeGridBasedConstraintVariables();
 		CHAOS_API void InitializeGaussSeidelConstraintVariables();
 		CHAOS_API void InitializeMuscleActivationVariables();
 		CHAOS_API void InitializeMuscleActivation(FFleshThreadingProxy& Proxy);
 		CHAOS_API void UpdateCollisionBodies(FCollisionManagerProxy&, FThreadingProxy::FKey, FSolverReal DeltaTime);
+		CHAOS_API void UpdateConstraintBodies(FConstraintManagerProxy& Proxy, FThreadingProxy::FKey Owner, FSolverReal DeltaTime);
 		CHAOS_API void RemoveSimulationObjects();
 		CHAOS_API TArray<Chaos::TVec3<FSolverReal>> ComputeParticleTargets(const TArray<TArray<int32>>& ParticleIndices);
+
 
 		/*Debug Output*/
 		CHAOS_API void DebugDrawSimulationData();

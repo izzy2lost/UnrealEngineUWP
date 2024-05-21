@@ -7,6 +7,7 @@
 #include "ChaosFlesh/Asset/FleshDeformableInterfaceDetails.h"
 #include "ChaosFlesh/Asset/FleshAssetThumbnailRenderer.h"
 #include "ChaosFlesh/ChaosDeformableCollisionsActor.h"
+#include "ChaosFlesh/ChaosDeformableConstraintsActor.h"
 #include "ChaosFlesh/ChaosDeformableSolverComponent.h"
 #include "ChaosFlesh/Cmd/ChaosFleshCommands.h"
 #include "ChaosFlesh/FleshActor.h"
@@ -61,6 +62,10 @@ void IChaosFleshEditorPlugin::StartupModule()
 
 	PropertyModule.RegisterCustomClassLayout(
 		ADeformableCollisionsActor::StaticClass()->GetFName(),
+		FOnGetDetailCustomizationInstance::CreateStatic(&FDeformableInterfaceDetails::MakeInstance));
+
+	PropertyModule.RegisterCustomClassLayout(
+		ADeformableConstraintsActor::StaticClass()->GetFName(),
 		FOnGetDetailCustomizationInstance::CreateStatic(&FDeformableInterfaceDetails::MakeInstance));
 
 	PropertyModule.RegisterCustomClassLayout(

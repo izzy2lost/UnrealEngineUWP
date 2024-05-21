@@ -3,9 +3,13 @@
 #include "Chaos/Deformable/ChaosDeformableSolver.h"
 #include "Chaos/Deformable/ChaosDeformableSolverTypes.h"
 #include "Chaos/Deformable/ChaosDeformableSolverProxy.h"
+#include "Chaos/Deformable/ChaosDeformableConstraintsProxy.h"
 #include "Chaos/Deformable/ChaosDeformableCollisionsProxy.h"
 
+#include "ChaosLog.h"
+#include "Chaos/BoundingVolumeHierarchy.h"
 #include "Chaos/DebugDrawQueue.h"
+#include "Chaos/Tetrahedron.h"
 #include "Chaos/TriangleMesh.h"
 #include "Chaos/PBDAltitudeSpringConstraints.h"
 #include "Chaos/PBDBendingConstraints.h"
@@ -24,6 +28,7 @@
 #include "Chaos/Plane.h"
 #include "Chaos/Utilities.h"
 #include "Chaos/PBDEvolution.h"
+#include "Containers/ContainersFwd.h"
 #include "Containers/StringConv.h"
 #include "Containers/Set.h"
 #include "CoreMinimal.h"
@@ -33,6 +38,7 @@
 #include "GeometryCollection/Facades/CollectionConstraintOverrideFacade.h"
 #include "GeometryCollection/Facades/CollectionMeshFacade.h"
 #include "GeometryCollection/Facades/CollectionMuscleActivationFacade.h"
+#include "GeometryCollection/Facades/CollectionTetrahedralFacade.h"
 #include "Misc/FileHelper.h"
 #include "HAL/PlatformFileManager.h"
 #include "HAL/IConsoleManager.h"
@@ -60,6 +66,9 @@ DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeGidBasedConstraints")
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeWeakConstraints"), STAT_ChaosDeformableSolver_InitializeWeakConstraints, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeKinematicConstraint"), STAT_ChaosDeformableSolver_InitializeKinematicConstraint, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeCollisionBodies"), STAT_ChaosDeformableSolver_InitializeCollisionBodies, STATGROUP_Chaos);
+DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.UpdateCollisionBodies"), STAT_ChaosDeformableSolver_UpdateCollisionBodies, STATGROUP_Chaos);
+DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeConstraintBodies"), STAT_ChaosDeformableSolver_InitializeConstraintBodies, STATGROUP_Chaos);
+DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.UpdateConstraintBodies"), STAT_ChaosDeformableSolver_UpdateConstraintBodies, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeSelfCollisionVariables"), STAT_ChaosDeformableSolver_InitializeSelfCollisionVariables, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeGridBasedConstraintVariables"), STAT_ChaosDeformableSolver_InitializeGridBasedConstraintVariables, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.Solver.InitializeGaussSeidelConstraintVariables"), STAT_ChaosDeformableSolver_InitializeGaussSeidelConstraintVariables, STATGROUP_Chaos);
@@ -373,6 +382,10 @@ namespace Chaos::Softs
 				{
 					UpdateCollisionBodies(*CollisionManagerProxy, Entry.Key, DeltaTime);
 				}
+				else if (FConstraintManagerProxy* ConstraintManagerProxy = Proxy.As< FConstraintManagerProxy>())
+				{
+					UpdateConstraintBodies(*ConstraintManagerProxy, Entry.Key, DeltaTime);
+				}
 			}
 		}
 
@@ -403,6 +416,11 @@ namespace Chaos::Softs
 		if (FCollisionManagerProxy* CollisionManagerProxy = InProxy.As< FCollisionManagerProxy>())
 		{
 			InitializeCollisionBodies(*CollisionManagerProxy);
+		}
+
+		if (FConstraintManagerProxy* ConstraintManagerProxy = InProxy.As< FConstraintManagerProxy>())
+		{
+			InitializeConstraintBodies(*ConstraintManagerProxy);
 		}
 	}
 
@@ -641,7 +659,7 @@ namespace Chaos::Softs
 
 	void FDeformableSolver::UpdateCollisionBodies(FCollisionManagerProxy& Proxy, FThreadingProxy::FKey Owner, FSolverReal DeltaTime)
 	{
-		PERF_SCOPE(STAT_ChaosDeformableSolver_InitializeCollisionBodies);
+		PERF_SCOPE(STAT_ChaosDeformableSolver_UpdateCollisionBodies);
 
 		FCollisionManagerProxy::FCollisionsInputBuffer* CollisionsInputBuffer = nullptr;
 		if (this->CurrentInputPackage && this->CurrentInputPackage->ObjectMap.Contains(Owner))
@@ -733,7 +751,56 @@ namespace Chaos::Softs
 
 	}
 
+	void FDeformableSolver::InitializeConstraintBodies(FConstraintManagerProxy& Proxy)
+	{
+		PERF_SCOPE(STAT_ChaosDeformableSolver_InitializeConstraintBodies);
+	}
 
+	void FDeformableSolver::UpdateConstraintBodies(FConstraintManagerProxy& Proxy, FThreadingProxy::FKey Owner, FSolverReal DeltaTime)
+	{
+		PERF_SCOPE(STAT_ChaosDeformableSolver_UpdateConstraintBodies);
+
+		FConstraintManagerProxy::FConstraintsInputBuffer* ConstraintsInputBuffer = nullptr;
+		if (this->CurrentInputPackage && this->CurrentInputPackage->ObjectMap.Contains(Owner))
+		{
+			if (this->CurrentInputPackage->ObjectMap[Owner] != nullptr)
+			{
+				ConstraintsInputBuffer = this->CurrentInputPackage->ObjectMap[Owner]->As<FConstraintManagerProxy::FConstraintsInputBuffer>();
+				if (ConstraintsInputBuffer)
+				{
+					for (auto& AddConstraints : ConstraintsInputBuffer->Added)
+					{
+						//@todo (defered initilziation) : Save the added constraint into a buffer for processing later. 
+						UE_LOG(LogChaosDeformableSolver, Log, TEXT("Process Constraint : %s"), *Proxy.GetOwner()->GetName());
+
+						if (Proxies.Contains(AddConstraints.Get<0>()) && Proxies.Contains(AddConstraints.Get<1>()))
+						{
+							FFleshThreadingProxy* SourceProxy = Proxies[AddConstraints.Get<0>()]->As<FFleshThreadingProxy>();
+							FFleshThreadingProxy* TargetProxy = Proxies[AddConstraints.Get<1>()]->As<FFleshThreadingProxy>();
+							if (SourceProxy && TargetProxy)
+							{
+								FIntVector2 SampleRange = SourceProxy->GetSolverParticleRange();
+								TConstArrayView<Softs::FSolverVec3> Samples(&Evolution->Particles().GetX(SampleRange[0]), SampleRange[1]);
+
+								FIntVector2 TargetRange = TargetProxy->GetSolverParticleRange();
+								TConstArrayView<Softs::FSolverVec3> TetVertices(&Evolution->Particles().GetX(TargetRange[0]), TargetRange[1]);
+
+								const GeometryCollection::Facades::FTetrahedralFacade Geom(TargetProxy->GetRestCollection());
+								TArray<GeometryCollection::Facades::TetrahedralParticleEmbedding> Intersections;
+								if (Geom.Intersection(Samples, TetVertices, Intersections))
+								{
+									UE_LOG(LogChaosDeformableSolver, Log, TEXT("... Intersections : %d"), Intersections.Num());
+									//GSWeakConstraints->AddExtraConstraints(PositionTargetIndices, PositionTargetWeights, PositionTargetStiffness, PositionTargetSecondIndices, PositionTargetSecondWeights);
+
+								}
+							}
+						}
+					}
+					ConstraintsInputBuffer->Added.Empty();
+				}
+			}
+		}
+	}
 
 	void FDeformableSolver::DebugDrawTetrahedralParticles(FFleshThreadingProxy& Proxy)
 	{
