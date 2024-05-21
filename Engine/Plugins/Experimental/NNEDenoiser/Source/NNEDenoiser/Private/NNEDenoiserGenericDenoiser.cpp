@@ -77,11 +77,40 @@ void RegisterTextureIfNeeded(FResourceManager& ResourceManager, FRDGTextureRef T
 	ResourceManager.AddTexture(ResourceName, Texture, NumFrames);
 }
 
-bool PrepareAndValidate(IModelInstance& ModelInstance, const IInputProcess& InputProcess, const IOutputProcess& OutputProcess, FIntPoint Extent)
+TArray<NNE::FTensorShape> GetOutputTensorShapes(IModelInstance& ModelInstance)
 {
-	bool Result = InputProcess.PrepareAndValidate(ModelInstance, Extent);
-	Result &= OutputProcess.Validate(ModelInstance, Extent);
+	TConstArrayView<NNE::FTensorShape> InputShapes = ModelInstance.GetInputTensorShapes();
+	check(!InputShapes.IsEmpty());
 
+	TConstArrayView<uint32> InputShapeData = InputShapes[0].GetData();
+	const uint32 Width = InputShapeData[3];
+	const uint32 Height = InputShapeData[2];
+
+	TConstArrayView<NNE::FTensorDesc> OutputDescs = ModelInstance.GetOutputTensorDescs();
+	TConstArrayView<NNE::FTensorShape> OutputShapes = ModelInstance.GetOutputTensorShapes();
+
+	if (OutputDescs.Num() == OutputShapes.Num())
+	{
+		return TArray<NNE::FTensorShape>(OutputShapes);
+	}
+
+	// If output shapes not set yet, try to manually resolve, otherwise they need to be user specified.
+	TArray<NNE::FTensorShape> Result;
+	for (int32 i = 0; i < OutputDescs.Num(); i++)
+	{
+		check(OutputDescs[i].GetShape().Rank() == 4);
+
+		TConstArrayView<int32> SymbolicShapeData = OutputDescs[i].GetShape().GetData();
+		
+		TArray<uint32> ShapeData;
+		ShapeData.SetNumUninitialized(OutputDescs[i].GetShape().Rank());
+		ShapeData[0] = (uint32)SymbolicShapeData[0];
+		ShapeData[1] = (uint32)SymbolicShapeData[1];
+		ShapeData[2] = (uint32)Height;
+		ShapeData[3] = (uint32)Width;
+
+		Result.Add(NNE::FTensorShape::Make(ShapeData));
+	}
 	return Result;
 }
 
@@ -99,7 +128,7 @@ void AddTilePasses(FRDGBuilder& GraphBuilder, IModelInstance& ModelInstance, con
 
 	// 3. Write output based on output buffer
 	FRDGTextureRef OutputTexture = ResourceManager.GetTexture(EResourceName::Output, 0);
-	OutputProcess.AddPasses(GraphBuilder, ModelInstance.GetOutputTensorDescs(), ModelInstance.GetOutputTensorShapes(), ResourceAccess, OutputBuffers, OutputTexture);
+	OutputProcess.AddPasses(GraphBuilder, ModelInstance.GetOutputTensorDescs(), GetOutputTensorShapes(ModelInstance), ResourceAccess, OutputBuffers, OutputTexture);
 }
 
 FGenericDenoiser::FGenericDenoiser(TUniquePtr<IModelInstance> ModelInstance, TUniquePtr<IInputProcess> InputProcess, TUniquePtr<IOutputProcess> OutputProcess, FParameters DenoiserParameters) :
@@ -111,6 +140,40 @@ FGenericDenoiser::FGenericDenoiser(TUniquePtr<IModelInstance> ModelInstance, TUn
 FGenericDenoiser::~FGenericDenoiser()
 {
 
+}
+
+bool FGenericDenoiser::Prepare(FIntPoint Extent)
+{
+	if (Extent == LastExtent)
+	{
+		return true;
+	}
+
+	// Probably would be enough to do this only once at the very beginning...
+	// We just want to be sure that everything up to width and height is correct
+	if (!InputProcess->Validate(*ModelInstance, {-1, -1}))
+	{
+		return false;
+	}
+
+	TConstArrayView<int32> SymbolicInputShape = ModelInstance->GetInputTensorDescs()[0].GetShape().GetData();
+	const FIntPoint TargetTileSize = {SymbolicInputShape[3], SymbolicInputShape[2]};
+
+	Tiling = CreateTiling(TargetTileSize,
+				DenoiserParameters.TilingConfig.MaxSize,
+				DenoiserParameters.TilingConfig.MinSize,
+				DenoiserParameters.TilingConfig.Alignment,
+				DenoiserParameters.TilingConfig.Overlap,
+				Extent);
+
+	if (!InputProcess->Prepare(*ModelInstance, Tiling.TileSize))
+	{
+		return false;
+	}
+
+	LastExtent = Extent;
+
+	return true;
 }
 
 TUniquePtr<FHistory> FGenericDenoiser::AddPasses(
@@ -137,56 +200,48 @@ TUniquePtr<FHistory> FGenericDenoiser::AddPasses(
 
 	TUniquePtr<FHistory> Result;
 
-	if (Extent == LastExtent || PrepareAndValidate(*ModelInstance, *InputProcess, *OutputProcess, Extent))
+	if (!Prepare(Extent))
 	{
-		LastExtent = Extent;
-
-		const TConstArrayView<uint32> InputShapeData = ModelInstance->GetInputTensorShapes()[0].GetData();
-		const FIntPoint ModelInputSize{(int32)InputShapeData[3], (int32)InputShapeData[2]};
-
-		const FTiling Tiling = CreateTiling(ModelInputSize, DenoiserParameters.TileMinimumOverlap, Extent);
-
-		TMap<EResourceName, TArray<TRefCountPtr<IPooledRenderTarget>>> ResourceMap;
-		if (History)
-		{
-			ResourceMap = History->GetResourceMap();
-		}
-
-		FResourceManager ResourceManager(GraphBuilder, Tiling, ResourceMap);
-		RegisterTextureIfNeeded(ResourceManager, ColorTex, EResourceName::Color, *InputProcess);
-		RegisterTextureIfNeeded(ResourceManager, AlbedoTex, EResourceName::Albedo, *InputProcess);
-		RegisterTextureIfNeeded(ResourceManager, NormalTex, EResourceName::Normal, *InputProcess);
-		if (FlowTex != FRDGTextureRef{})
-		{
-			RegisterTextureIfNeeded(ResourceManager, FlowTex, EResourceName::Flow, *InputProcess);
-		}
-		RegisterTextureIfNeeded(ResourceManager, OutputTex, EResourceName::Output, *InputProcess);
-
-		TArray<FRDGBufferRef> InputBuffers = CreateBuffersRDG(GraphBuilder, ModelInstance->GetInputTensorDescs(), ModelInstance->GetInputTensorShapes());
-		TArray<FRDGBufferRef> OutputBuffers = CreateBuffersRDG(GraphBuilder, ModelInstance->GetOutputTensorDescs(), ModelInstance->GetOutputTensorShapes());
-
-		UE_LOG(LogNNEDenoiser, Log, TEXT("Divided work into %dx%d tiles of size %dx%d each..."), Tiling.Count.X, Tiling.Count.Y, Tiling.TileSize.X, Tiling.TileSize.Y);
-
-		for (int32 I = 0; I < Tiling.Tiles.Num(); I++)
-		{
-			ResourceManager.BeginTile(I);
-
-			// Do inference on tile
-			AddTilePasses(GraphBuilder, *ModelInstance, *InputProcess, *OutputProcess, ResourceManager, InputBuffers, OutputBuffers);
-
-			ResourceManager.EndTile();
-		}
-
-		ResourceMap = ResourceManager.MakeHistoryResourceMap();
-		if (!ResourceMap.IsEmpty())
-		{
-			Result = MakeUnique<FHistory>(*DebugName, MoveTemp(ResourceMap));
-		}
-	}
-	else
-	{
-		// If something went wrong, just copy color to output...
 		AddCopyTexturePass(GraphBuilder, ColorTex, OutputTex, FRHICopyTextureInfo{});
+
+		return Result;
+	}
+
+	TMap<EResourceName, TArray<TRefCountPtr<IPooledRenderTarget>>> ResourceMap;
+	if (History)
+	{
+		ResourceMap = History->GetResourceMap();
+	}
+
+	FResourceManager ResourceManager(GraphBuilder, Tiling, ResourceMap);
+	RegisterTextureIfNeeded(ResourceManager, ColorTex, EResourceName::Color, *InputProcess);
+	RegisterTextureIfNeeded(ResourceManager, AlbedoTex, EResourceName::Albedo, *InputProcess);
+	RegisterTextureIfNeeded(ResourceManager, NormalTex, EResourceName::Normal, *InputProcess);
+	if (FlowTex != FRDGTextureRef{})
+	{
+		RegisterTextureIfNeeded(ResourceManager, FlowTex, EResourceName::Flow, *InputProcess);
+	}
+	RegisterTextureIfNeeded(ResourceManager, OutputTex, EResourceName::Output, *InputProcess);
+
+	TArray<FRDGBufferRef> InputBuffers = CreateBuffersRDG(GraphBuilder, ModelInstance->GetInputTensorDescs(), ModelInstance->GetInputTensorShapes());
+	TArray<FRDGBufferRef> OutputBuffers = CreateBuffersRDG(GraphBuilder, ModelInstance->GetOutputTensorDescs(), GetOutputTensorShapes(*ModelInstance));
+
+	UE_LOG(LogNNEDenoiser, Log, TEXT("Divided work of size %dx%d into %dx%d tiles of size %dx%d each..."), Extent.X, Extent.Y, Tiling.Count.X, Tiling.Count.Y, Tiling.TileSize.X, Tiling.TileSize.Y);
+
+	for (int32 I = 0; I < Tiling.Tiles.Num(); I++)
+	{
+		ResourceManager.BeginTile(I);
+
+		// Do inference on tile
+		AddTilePasses(GraphBuilder, *ModelInstance, *InputProcess, *OutputProcess, ResourceManager, InputBuffers, OutputBuffers);
+
+		ResourceManager.EndTile();
+	}
+
+	ResourceMap = ResourceManager.MakeHistoryResourceMap();
+	if (!ResourceMap.IsEmpty())
+	{
+		Result = MakeUnique<FHistory>(*DebugName, MoveTemp(ResourceMap));
 	}
 
 	return Result;

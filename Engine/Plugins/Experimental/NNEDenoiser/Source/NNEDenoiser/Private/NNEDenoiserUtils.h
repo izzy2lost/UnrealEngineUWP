@@ -7,7 +7,6 @@
 #include "NNEDenoiserParameters.h"
 #include "NNEDenoiserShadersDefaultCS.h"
 #include "NNEDenoiserShadersOidnCS.h"
-#include "NNEDenoiserTiling.h"
 #include "NNETypes.h"
 #include "RHICommandList.h"
 #include "RHIResources.h"
@@ -15,6 +14,19 @@
 
 namespace UE::NNEDenoiser::Private
 {
+	// Returns ceil(a / b) for non-negative integers
+	template<typename Int, typename IntB>
+	Int CeilDiv(Int a, IntB b)
+	{
+		return (a + b - 1) / b;
+	}
+
+	// Returns a rounded up to multiple of b
+	template<typename Int, typename IntB>
+	Int RoundUp(Int a, IntB b)
+	{
+		return CeilDiv(a, b) * b;
+	}
 
 	template<class IntType>
 	bool IsTensorShapeValid(TConstArrayView<IntType> ShapeData, TConstArrayView<int32> RequiredShapeData, const FString& Label)
@@ -31,7 +43,7 @@ namespace UE::NNEDenoiser::Private
 		{
 			if (RequiredShapeData[I] >= 0 && (int32)ShapeData[I] != RequiredShapeData[I])
 			{
-				UE_LOG(LogNNEDenoiser, Error, TEXT("%s does not have required shape!"), *Label)
+				UE_LOG(LogNNEDenoiser, Error, TEXT("%s does not have required shape (expected %d, got %d)!"), *Label, RequiredShapeData[I], ShapeData[I])
 				return false;
 			}
 		}

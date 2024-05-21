@@ -8,6 +8,29 @@
 
 #include "NNEDenoiserModelData.generated.h"
 
+/** Tiling configuration for fixed and dynamic size models */
+USTRUCT(BlueprintType)
+struct FTilingConfig
+{
+	GENERATED_BODY()
+
+	/** Tile size alignment (applies only to dynamic size models) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NNEDenoiser)
+	int32 Alignment = 1;
+
+	/** Tile overlap */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NNEDenoiser)
+	int32 Overlap = 0;
+
+	/** Maximum tile size (applies only to dynamic size models) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NNEDenoiser)
+	int32 MaxSize = 0;
+
+	/** Minimum tile size (applies only to dynamic size models) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NNEDenoiser)
+	int32 MinSize = 1;
+};
+
 /** Denoiser model data asset */
 UCLASS(BlueprintType)
 class NNEDENOISER_API UNNEDenoiserModelData : public UDataAsset
@@ -26,4 +49,8 @@ public:
 	/** Output mapping table */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NNEDenoiser)
 	TSoftObjectPtr<UDataTable> OutputMapping;
+
+	/** Tiling configuration */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NNEDenoiser)
+	FTilingConfig TilingConfig{};
 };

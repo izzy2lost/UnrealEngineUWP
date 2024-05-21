@@ -145,44 +145,84 @@ void AddReadInputPassForKind(
 
 } // namespace IOProcessBaseHelper
 
-bool FInputProcessBase::PrepareAndValidate(IModelInstance& ModelInstance, FIntPoint Extent) const
+bool FInputProcessBase::Validate(const IModelInstance& ModelInstance, FIntPoint Extent) const
+{
+	SCOPED_NAMED_EVENT_TEXT("NNEDenoiser.Validate", FColor::Magenta);
+
+	checkf(Extent == FIntPoint(-1, -1) || (Extent.X >= 0 && Extent.Y >= 0), TEXT("Extent should be either fully symbolic or set!"));
+
+	const int32 NumBatches = 1;
+
+	UE_LOG(LogNNEDenoiser, Log, TEXT("Validate model for extent %dx%d..."), Extent.X, Extent.Y);
+
+	if (Extent == FIntPoint(-1, -1))
+	{
+		TConstArrayView<UE::NNE::FTensorDesc> InputTensorDescs = ModelInstance.GetInputTensorDescs();
+		if (InputTensorDescs.Num() != InputLayout.Num())
+		{
+			UE_LOG(LogNNEDenoiser, Error, TEXT("Wrong number of inputs (expected %d, got %d)!"), InputLayout.Num(), InputTensorDescs.Num())
+			return false;
+		}
+
+		TArray<UE::NNE::FTensorShape> InputShapes;
+		for (int32 Idx = 0; Idx < InputTensorDescs.Num(); Idx++)
+		{
+			TConstArrayView<int32> InputSymbolicTensorShapeData = InputTensorDescs[Idx].GetShape().GetData();
+			const TArray<int32, TInlineAllocator<4>> RequiredInputShapeData = { NumBatches, InputLayout.NumChannels(Idx), Extent.Y, Extent.X };
+
+			if (!IsTensorShapeValid(InputSymbolicTensorShapeData, RequiredInputShapeData, TEXT("Input")))
+			{
+				return false;
+			}
+		}
+	}
+	else
+	{
+		TConstArrayView<UE::NNE::FTensorShape> InputTensorShapes = ModelInstance.GetInputTensorShapes();
+		if (InputTensorShapes.Num() != InputLayout.Num())
+		{
+			UE_LOG(LogNNEDenoiser, Error, TEXT("Wrong number of inputs (expected %d, got %d)!"), InputLayout.Num(), InputTensorShapes.Num())
+			return false;
+		}
+
+		for (int32 Idx = 0; Idx < InputTensorShapes.Num(); Idx++)
+		{
+			TConstArrayView<uint32> InputTensorShapeData = InputTensorShapes[Idx].GetData();
+			const TArray<int32, TInlineAllocator<4>> RequiredInputShapeData = { NumBatches, InputLayout.NumChannels(Idx), Extent.Y, Extent.X };
+
+			if (!IsTensorShapeValid(InputTensorShapeData, RequiredInputShapeData, TEXT("Input")))
+			{
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
+bool FInputProcessBase::Prepare(IModelInstance& ModelInstance, FIntPoint Extent) const
 {
 	SCOPED_NAMED_EVENT_TEXT("NNEDenoiser.Prepare", FColor::Magenta);
+
+	if (!Validate(ModelInstance, {-1, -1}))
+	{
+		return false;
+	}
 
 	const int32 NumBatches = 1;
 
 	UE_LOG(LogNNEDenoiser, Log, TEXT("Configure model for extent %dx%d..."), Extent.X, Extent.Y);
 
 	TConstArrayView<UE::NNE::FTensorDesc> InputTensorDescs = ModelInstance.GetInputTensorDescs();
-	if (InputTensorDescs.Num() != InputLayout.Num())
-	{
-		UE_LOG(LogNNEDenoiser, Error, TEXT("Wrong number of inputs (expected %d, got %d)!"), InputLayout.Num(), InputTensorDescs.Num())
-		return false;
-	}
-
+	
 	UE_LOG(LogNNEDenoiser, Log, TEXT("Input shapes (set):"));
 
 	TArray<UE::NNE::FTensorShape> InputShapes;
 	for (int32 Idx = 0; Idx < InputTensorDescs.Num(); Idx++)
 	{
 		TConstArrayView<int32> InputSymbolicTensorShapeData = InputTensorDescs[Idx].GetShape().GetData();
-		const TArray<int32, TInlineAllocator<4>> RequiredInputShapeData = { NumBatches, InputLayout.NumChannels(Idx), -1, -1 };
 
-		if (!IsTensorShapeValid(InputSymbolicTensorShapeData, RequiredInputShapeData, TEXT("Input")))
-		{
-			return false;
-		}
-
-		const int32 ModelInputWidth = InputSymbolicTensorShapeData[3] >= 0 ? InputSymbolicTensorShapeData[3] : Extent.X;
-		const int32 ModelInputHeight = InputSymbolicTensorShapeData[2] >= 0 ? InputSymbolicTensorShapeData[2] : Extent.Y;
-
-		if (Extent.X < ModelInputWidth || Extent.Y < ModelInputHeight)
-		{
-			UE_LOG(LogNNEDenoiser, Error, TEXT("Input image too small (model expects at least size %dx%d, got %dx%d!"), ModelInputWidth, ModelInputHeight, Extent.X, Extent.Y);
-			return false;
-		}
-
-		const FIntVector4 ModelInputShape = { 1, InputSymbolicTensorShapeData[1], ModelInputHeight, ModelInputWidth };
+		const FIntVector4 ModelInputShape = { 1, InputSymbolicTensorShapeData[1], Extent.Y, Extent.X };
 
 		InputShapes.Add(UE::NNE::FTensorShape::Make({ (uint32)ModelInputShape.X, (uint32)ModelInputShape.Y, (uint32)ModelInputShape.Z, (uint32)ModelInputShape.W }));
 
@@ -193,6 +233,11 @@ bool FInputProcessBase::PrepareAndValidate(IModelInstance& ModelInstance, FIntPo
 	if (Status != IModelInstance::ESetInputTensorShapesStatus::Ok)
 	{
 		UE_LOG(LogNNEDenoiser, Error, TEXT("Could not configure model instance (ModelInstance.SetInputTensorShapes() failed)!"))
+		return false;
+	}
+
+	if (!Validate(ModelInstance, Extent))
+	{
 		return false;
 	}
 
@@ -268,7 +313,7 @@ bool FOutputProcessBase::Validate(const IModelInstance& ModelInstance, FIntPoint
 	if (OutputTensorDescs.Num() != OutputLayout.Num())
 	{
 		UE_LOG(LogNNEDenoiser, Error, TEXT("Wrong number of outputs (expected %d, got %d)!"), OutputLayout.Num(), OutputTensorDescs.Num())
-		return true;
+		return false;
 	}
 
 	for (int32 Idx = 0; Idx < OutputTensorDescs.Num(); Idx++)
@@ -283,9 +328,15 @@ bool FOutputProcessBase::Validate(const IModelInstance& ModelInstance, FIntPoint
 	}
 
 	TConstArrayView<UE::NNE::FTensorShape> OutputShapes = ModelInstance.GetOutputTensorShapes();
-	if (OutputShapes.Num() != OutputLayout.Num())
+	if (!OutputShapes.IsEmpty() && OutputShapes.Num() != OutputLayout.Num())
 	{
-		UE_LOG(LogNNEDenoiser, Error, TEXT("Wrong number of output shapes or not resolved yet!"));
+		UE_LOG(LogNNEDenoiser, Error, TEXT("Wrong number of output shapes!"));
+		return false;
+	}
+
+	if (OutputShapes.IsEmpty() && OutputLayout.Num() > 0)
+	{
+		UE_LOG(LogNNEDenoiser, Log, TEXT("Output shapes not resolved yet"));
 		return true;
 	}
 	

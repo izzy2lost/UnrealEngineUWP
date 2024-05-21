@@ -63,11 +63,7 @@ void WriteOutput(in const uint3 DispatchThreadID : SV_DispatchThreadID)
 		return;
 	}
 
-	// nearest neighbour
-	const int X = (int)(DispatchThreadID.x * (OutputBufferWidth - 1.0) / (OutputTextureWidth - 1.0));
-	const int Y = (int)(DispatchThreadID.y * (OutputBufferHeight - 1.0) / (OutputTextureHeight - 1.0));
-
-	const int Idx = Y * OutputBufferWidth + X;
+	const int Idx = DispatchThreadID.y * OutputBufferWidth + DispatchThreadID.x;
 	const int Offset = OutputBufferWidth * OutputBufferHeight;
 
 	for (int I = 0; I < NUM_MAPPED_CHANNELS; I++)

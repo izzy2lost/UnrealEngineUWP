@@ -13,6 +13,7 @@
 #include "NNEDenoiserModelIOMappingData.h"
 #include "NNEDenoiserPathTracingDenoiser.h"
 #include "NNEDenoiserPathTracingSpatialTemporalDenoiser.h"
+#include "NNEDenoiserUtils.h"
 #include "NNEModelData.h"
 #include "PathTracingDenoiser.h"
 
@@ -33,9 +34,9 @@ static TAutoConsoleVariable<int32> CVarNNEDenoiserModelData(
 	TEXT("  1: OIDN Color\n")
 	TEXT("  2: OIDN Color and Albedo\n")
 	TEXT("  3: OIDN Color, Albedo and Normal\n")
-	TEXT("  4: OIDN Color, Half\n")
-	TEXT("  5: OIDN Color and Albedo, Half\n")
-	TEXT("  6: OIDN Color, Albedo and Normal, Half")
+	TEXT("  4: OIDN Color | Float16\n")
+	TEXT("  5: OIDN Color and Albedo | Float16\n")
+	TEXT("  6: OIDN Color, Albedo and Normal | Float16")
 );
 
 static TAutoConsoleVariable<int32> CVarNNEDenoiserRuntimeType(
@@ -67,12 +68,12 @@ FString GetDenoiserModelDataNameFromCVarAndSettings(const UNNEDenoiserSettings* 
 	switch(Idx)
 	{
 		case 0: return !Settings->DenoiserModelData.IsNull() ? Settings->DenoiserModelData.ToString() : FString();
-		case 1: return TEXT("/NNEDenoiser/NNEDNN_Oidn2_Color_720.NNEDNN_Oidn2_Color_720");
-		case 2: return TEXT("/NNEDenoiser/NNEDNN_Oidn2_ColorAlbedo_720.NNEDNN_Oidn2_ColorAlbedo_720");
-		case 3: return TEXT("/NNEDenoiser/NNEDNN_Oidn2_ColorAlbedoNormal_720.NNEDNN_Oidn2_ColorAlbedoNormal_720");
-		case 4: return TEXT("/NNEDenoiser/NNEDNN_Oidn2_Color_720_Float16.NNEDNN_Oidn2_Color_720_Float16");
-		case 5: return TEXT("/NNEDenoiser/NNEDNN_Oidn2_ColorAlbedo_720_Float16.NNEDNN_Oidn2_ColorAlbedo_720_Float16");
-		case 6: return TEXT("/NNEDenoiser/NNEDNN_Oidn2_ColorAlbedoNormal_720_Float16.NNEDNN_Oidn2_ColorAlbedoNormal_720_Float16");
+		case 1: return TEXT("/NNEDenoiser/NNEDNN_Oidn2_Color_Dyn.NNEDNN_Oidn2_Color_Dyn");
+		case 2: return TEXT("/NNEDenoiser/NNEDNN_Oidn2_ColorAlbedo_Dyn.NNEDNN_Oidn2_ColorAlbedo_Dyn");
+		case 3: return TEXT("/NNEDenoiser/NNEDNN_Oidn2_ColorAlbedoNormal_Dyn.NNEDNN_Oidn2_ColorAlbedoNormal_Dyn");
+		case 4: return TEXT("/NNEDenoiser/NNEDNN_Oidn2_Color_Dyn_Float16.NNEDNN_Oidn2_Color_Dyn_Float16");
+		case 5: return TEXT("/NNEDenoiser/NNEDNN_Oidn2_ColorAlbedo_Dyn_Float16.NNEDNN_Oidn2_ColorAlbedo_Dyn_Float16");
+		case 6: return TEXT("/NNEDenoiser/NNEDNN_Oidn2_ColorAlbedoNormal_Dyn_Float16.NNEDNN_Oidn2_ColorAlbedoNormal_Dyn_Float16");
 	}
 	check(false);
 	return FString();
@@ -140,6 +141,57 @@ static FResourceMappingList MakeTensorLayout(UDataTable* DataTable)
 	}
 
 	return Result;
+}
+
+FParameters GetParametersValidated(const UNNEDenoiserModelData& DenoiserModelData)
+{
+	FParameters Parameters{
+		.TilingConfig =
+		{
+			.Alignment = DenoiserModelData.TilingConfig.Alignment,
+			.Overlap = DenoiserModelData.TilingConfig.Overlap,
+			.MaxSize = DenoiserModelData.TilingConfig.MaxSize,
+			.MinSize = DenoiserModelData.TilingConfig.MinSize
+		}
+	};
+
+	if (Parameters.TilingConfig.Alignment < 1)
+	{
+		UE_LOG(LogNNEDenoiser, Warning, TEXT("Tiling alignment should be at least 1!"));
+		Parameters.TilingConfig.Alignment = 1;
+	}
+
+	if (Parameters.TilingConfig.Overlap % Parameters.TilingConfig.Alignment != 0)
+	{
+		UE_LOG(LogNNEDenoiser, Warning, TEXT("Tiling overlap should be aligned by %d!"), Parameters.TilingConfig.Alignment);
+		Parameters.TilingConfig.Overlap = RoundUp(Parameters.TilingConfig.Overlap, Parameters.TilingConfig.Alignment);
+	}
+
+	if (Parameters.TilingConfig.MinSize < Parameters.TilingConfig.Overlap + Parameters.TilingConfig.Alignment)
+	{
+		UE_LOG(LogNNEDenoiser, Warning, TEXT("Minimum tile size should be at least overlap + alignment = %d!"), Parameters.TilingConfig.Overlap + Parameters.TilingConfig.Alignment);
+		Parameters.TilingConfig.MinSize = Parameters.TilingConfig.Overlap + Parameters.TilingConfig.Alignment;
+	}
+
+	if (Parameters.TilingConfig.MinSize % Parameters.TilingConfig.Alignment != 0)
+	{
+		UE_LOG(LogNNEDenoiser, Warning, TEXT("Minimum tile size should be aligned by %d!"), Parameters.TilingConfig.Alignment);
+		Parameters.TilingConfig.MinSize = RoundUp(Parameters.TilingConfig.MinSize, Parameters.TilingConfig.Alignment);
+	}
+
+	if (Parameters.TilingConfig.MaxSize > 0 && Parameters.TilingConfig.MaxSize < Parameters.TilingConfig.MinSize)
+	{
+		UE_LOG(LogNNEDenoiser, Warning, TEXT("Maximum tile size should be at least minimum tile size!"));
+		Parameters.TilingConfig.MaxSize = Parameters.TilingConfig.MinSize;
+	}
+
+	if (Parameters.TilingConfig.MaxSize % Parameters.TilingConfig.Alignment != 0)
+	{
+		UE_LOG(LogNNEDenoiser, Warning, TEXT("Maximum tile size should be aligned by %d!"), Parameters.TilingConfig.Alignment);
+		Parameters.TilingConfig.MaxSize = RoundUp(Parameters.TilingConfig.MaxSize, Parameters.TilingConfig.Alignment);
+	}
+
+	return Parameters;
 }
 
 TUniquePtr<FGenericDenoiser> CreateNNEDenoiserFromAsset(const FString& AssetName, EDenoiserRuntimeType RuntimeType, const FString& RuntimeNameOverride)
@@ -211,7 +263,9 @@ TUniquePtr<FGenericDenoiser> CreateNNEDenoiserFromAsset(const FString& AssetName
 		OutputProcess = MakeUnique<FOutputProcessBase>(MoveTemp(OutputLayout));
 	}
 
-	return CreateNNEDenoiser(*ModelData, RuntimeType, RuntimeNameOverride, MoveTemp(InputProcess), MoveTemp(OutputProcess), {});
+	FParameters Parameters = GetParametersValidated(*DenoiserModelData);
+
+	return CreateNNEDenoiser(*ModelData, RuntimeType, RuntimeNameOverride, MoveTemp(InputProcess), MoveTemp(OutputProcess), MoveTemp(Parameters));
 }
 
 FViewExtension::FViewExtension(const FAutoRegister& AutoRegister) : FSceneViewExtensionBase(AutoRegister)

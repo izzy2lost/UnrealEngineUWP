@@ -24,7 +24,9 @@ class IInputProcess
 public:
 	virtual ~IInputProcess() = default;
 
-	virtual bool PrepareAndValidate(IModelInstance& ModelInstance, FIntPoint Extent) const = 0;
+	virtual bool Validate(const IModelInstance& ModelInstance, FIntPoint Extent) const = 0;
+
+	virtual bool Prepare(IModelInstance& ModelInstance, FIntPoint Extent) const = 0;
 
 	virtual int32 NumFrames(EResourceName Name) const = 0;
 

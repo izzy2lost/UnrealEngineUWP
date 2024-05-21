@@ -18,7 +18,9 @@ public:
 
 	virtual ~FInputProcessBase() = default;
 
-	virtual bool PrepareAndValidate(IModelInstance& ModelInstance, FIntPoint Extent) const override;
+	virtual bool Validate(const IModelInstance& ModelInstance, FIntPoint Extent) const override;
+
+	virtual bool Prepare(IModelInstance& ModelInstance, FIntPoint Extent) const override;
 
 	virtual int32 NumFrames(EResourceName Name) const override;
 

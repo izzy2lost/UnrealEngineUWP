@@ -78,8 +78,9 @@ void FResourceManager::BeginTile(int32 TileIndex)
 
 	// Copy sub region from original input texture to tile input texture
 	FRHICopyTextureInfo CopyInputInfo{};
-	CopyInputInfo.SourcePosition = {Tile.Position.X, Tile.Position.Y, 0};
-	CopyInputInfo.Size = {Tiling.TileSize.X, Tiling.TileSize.Y, 1};
+	CopyInputInfo.SourcePosition = {Tile.Position.X + Tile.InputOffsets.Min.X, Tile.Position.Y + Tile.InputOffsets.Min.Y, 0};
+	CopyInputInfo.DestPosition = {Tile.InputOffsets.Min.X, Tile.InputOffsets.Min.Y, 0};
+	CopyInputInfo.Size = {Tiling.TileSize.X + Tile.InputOffsets.Width(), Tiling.TileSize.Y + Tile.InputOffsets.Height(), 1};
 
 	for (const auto& KeyValue : TextureMap)
 	{

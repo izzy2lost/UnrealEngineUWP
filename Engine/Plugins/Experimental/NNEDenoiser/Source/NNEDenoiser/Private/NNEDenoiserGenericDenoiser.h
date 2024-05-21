@@ -5,6 +5,7 @@
 #include "Containers/UnrealString.h"
 #include "Math/IntPoint.h"
 #include "NNEDenoiserParameters.h"
+#include "NNEDenoiserTiling.h"
 #include "RenderGraphFwd.h"
 #include "Templates/UniquePtr.h"
 
@@ -39,6 +40,8 @@ public:
 		FHistory* History);
 
 private:
+	bool Prepare(FIntPoint Extent);
+
 	inline static const FString DebugName = TEXT("FGenericDenoiser");
 
 	TUniquePtr<IModelInstance> ModelInstance;
@@ -47,6 +50,7 @@ private:
 	FParameters DenoiserParameters;
 
 	FIntPoint LastExtent = { -1, -1 };
+	FTiling Tiling{};
 };
 
 } // namespace UE::NNEDenoiser::Private
