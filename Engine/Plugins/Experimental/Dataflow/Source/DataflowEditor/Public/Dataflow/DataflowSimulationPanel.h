@@ -43,9 +43,7 @@ private:
 	FReply OnClick_Forward();
 	FReply OnClick_Backward();
 	FReply OnClick_PreviewPlaybackMode();
-
-	/** Change the playback settings */
-	void ApplyPlaybackSettings();
+	FReply OnClick_Record();
 
 	/** Main simulation delegates */
 	void OnTickPlayback(double InCurrentTime, float InDeltaTime);
@@ -57,13 +55,6 @@ private:
 
 	/** Get ethe current scrub value */
 	float GetScrubValue() const;
-
-	/** Animation instance accessors */
-	UAnimSingleNodeInstance* GetPreviewAnimationInstance();
-	const UAnimSingleNodeInstance* GetPreviewAnimationInstance() const;
-
-	/** Update the widget based on the modified animation instance*/
-	void UpdatePreviewAnimationInstance();
 
 	/** Get the number of keys */
 	uint32 GetNumberOfKeys() const;
@@ -85,4 +76,7 @@ private:
 
 	/** Preview playback mode (looping...)*/
 	EDataflowPlaybackMode PreviewPlaybackMode = EDataflowPlaybackMode::Looping;
+
+	/** playback mode */
+	EPlaybackMode::Type PlaybackMode = EPlaybackMode::Stopped;
 };

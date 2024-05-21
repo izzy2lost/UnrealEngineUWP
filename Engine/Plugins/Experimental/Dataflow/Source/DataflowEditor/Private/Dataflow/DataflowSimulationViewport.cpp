@@ -1,21 +1,28 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Dataflow/DataflowSimulationViewport.h"
-
 #include "Dataflow/DataflowActor.h"
 #include "Dataflow/DataflowEditorMode.h"
 #include "Dataflow/DataflowSimulationViewportClient.h"
 #include "Dataflow/DataflowEditorToolkit.h"
 #include "EditorModeManager.h"
+#include "Animation/AnimSingleNodeInstance.h"
 #include "Dataflow/DataflowContent.h"
+#include "Dataflow/DataflowEditorCommands.h"
 #include "Dataflow/DataflowSimulationScene.h"
 #include "Dataflow/DataflowSimulationPanel.h"
+#include "Dataflow/DataflowSimulationViewportToolbar.h"
 
 #define LOCTEXT_NAMESPACE "SDataflowSimulationViewport"
 
-
 SDataflowSimulationViewport::SDataflowSimulationViewport()
 {
+}
+
+const TSharedPtr<FDataflowSimulationScene>& SDataflowSimulationViewport::GetSimulationScene() const
+{
+	const TSharedPtr<FDataflowSimulationViewportClient> DataflowClient = StaticCastSharedPtr<FDataflowSimulationViewportClient>(Client);
+	return DataflowClient->GetDataflowEditorToolkit().Pin()->GetSimulationScene();
 }
 
 void SDataflowSimulationViewport::Construct(const FArguments& InArgs, const FAssetEditorViewportConstructionArgs& InViewportConstructionArgs)
@@ -27,8 +34,7 @@ void SDataflowSimulationViewport::Construct(const FArguments& InArgs, const FAss
 
 	if(static_cast<FDataflowSimulationScene*>(Client->GetPreviewScene())->CanRunSimulation())
 	{
-		TSharedPtr<FDataflowSimulationViewportClient> DataflowClient = StaticCastSharedPtr<FDataflowSimulationViewportClient>(Client);
-		TWeakPtr<FDataflowSimulationScene> SimulationScene = DataflowClient->GetDataflowEditorToolkit().Pin()->GetSimulationScene();
+		TWeakPtr<FDataflowSimulationScene> SimulationScene = GetSimulationScene();
             
 		ViewportOverlay->AddSlot()
 		[
@@ -51,6 +57,10 @@ void SDataflowSimulationViewport::Construct(const FArguments& InArgs, const FAss
 			]
 		];
 	}
+}
+TSharedPtr<SWidget> SDataflowSimulationViewport::MakeViewportToolbar()
+{
+	return SNew(SDataflowSimulationViewportToolBar, SharedThis(this)).CommandList(CommandList);
 }
 
 void SDataflowSimulationViewport::OnFocusViewportToSelection()
@@ -77,6 +87,17 @@ UDataflowEditorMode* SDataflowSimulationViewport::GetEdMode() const
 void SDataflowSimulationViewport::BindCommands()
 {
 	SAssetEditorViewport::BindCommands();
+	
+	const FDataflowEditorCommandsImpl& CommandInfos = FDataflowEditorCommands::Get();
+
+	CommandList->MapAction(
+		CommandInfos.UpdateSimulationCache,
+		FExecuteAction::CreateLambda([this]()
+		{
+			static_cast<FDataflowSimulationScene*>(Client->GetPreviewScene())->UpdateSimulationCache();
+		}),
+		FCanExecuteAction::CreateLambda([this]() { return true; }),
+		FIsActionChecked::CreateLambda([this]() { return false; }));
 }
 
 bool SDataflowSimulationViewport::IsVisible() const
@@ -100,14 +121,14 @@ void SDataflowSimulationViewport::OnFloatingButtonClicked()
 {
 }
 
-float SDataflowSimulationViewport:: GetViewMinInput() const
+float SDataflowSimulationViewport::GetViewMinInput() const
 {
-	return 0.0f; //Temp value while the simulation nodes is being pushed
+	return GetSimulationScene()->GetTimeRange()[0];
 }
 
 float SDataflowSimulationViewport::GetViewMaxInput() const
 {
-	return 5.0f; //Temp value while the simulation nodes is being pushed
+	return GetSimulationScene()->GetTimeRange()[1];
 }
 
 

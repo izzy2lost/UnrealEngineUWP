@@ -17,8 +17,6 @@
 #include "SGraphPanel.h"
 #include "SNodePanel.h"
 
-
-
 FDataflowSimulationViewportClient::FDataflowSimulationViewportClient(FEditorModeTools* InModeTools,
                                                              FPreviewScene* InPreviewScene,  const bool bCouldTickScene,
                                                              const TWeakPtr<SEditorViewport> InEditorViewportWidget)
@@ -61,6 +59,34 @@ void FDataflowSimulationViewportClient::Tick(float DeltaSeconds)
 void FDataflowSimulationViewportClient::ProcessClick(FSceneView& View, HHitProxy* HitProxy, FKey Key, EInputEvent Event, uint32 HitX, uint32 HitY)
 {
 	Super::ProcessClick(View, HitProxy, Key, Event, HitX, HitY);
+
+	USelection* SelectedComponents = ModeTools->GetSelectedComponents();
+	
+	TArray<UPrimitiveComponent*> PreviouslySelectedComponents;
+	SelectedComponents->GetSelectedObjects<UPrimitiveComponent>(PreviouslySelectedComponents);
+
+	SelectedComponents->Modify();
+	SelectedComponents->BeginBatchSelectOperation();
+
+	SelectedComponents->DeselectAll();
+
+	if (HitProxy && HitProxy->IsA(HActor::StaticGetType()))
+	{
+		const HActor* ActorProxy = static_cast<HActor*>(HitProxy);
+		if (ActorProxy && ActorProxy->PrimComponent && ActorProxy->Actor)
+		{
+			UPrimitiveComponent* Component = const_cast<UPrimitiveComponent*>(ActorProxy->PrimComponent.Get());
+			SelectedComponents->Select(Component);
+			Component->PushSelectionToProxy();
+		}
+	}
+
+	SelectedComponents->EndBatchSelectOperation();
+
+	for (UPrimitiveComponent* const Component : PreviouslySelectedComponents)
+	{
+		Component->PushSelectionToProxy();
+	}
 }
 
 

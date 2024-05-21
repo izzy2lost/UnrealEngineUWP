@@ -16,8 +16,9 @@ class SDataflowSimulationViewport : public SBaseCharacterFXEditorViewport, publi
 {
 public:
 	SLATE_BEGIN_ARGS(SDataflowSimulationViewport) {}
-	SLATE_ARGUMENT(TSharedPtr<FEditorViewportClient>, ViewportClient)
-		SLATE_END_ARGS()
+		SLATE_ARGUMENT(TSharedPtr<FEditorViewportClient>, ViewportClient)
+		SLATE_ARGUMENT(TSharedPtr<FUICommandList>, CommandList)
+	SLATE_END_ARGS()
 
 	SDataflowSimulationViewport();
 
@@ -26,12 +27,16 @@ public:
 	// SEditorViewport
 	virtual void BindCommands() override;
 	virtual bool IsVisible() const override;
+	virtual TSharedPtr<SWidget> MakeViewportToolbar() override;
 	virtual void OnFocusViewportToSelection() override;
 
 	// ICommonEditorViewportToolbarInfoProvider
 	virtual TSharedRef<class SEditorViewport> GetViewportWidget() override;
 	virtual TSharedPtr<FExtender> GetExtenders() const override;
 	virtual void OnFloatingButtonClicked() override;
+
+	/** Get the simulation scene */
+	const TSharedPtr<class FDataflowSimulationScene>& GetSimulationScene() const;
 
 private:
 	float GetViewMinInput() const;

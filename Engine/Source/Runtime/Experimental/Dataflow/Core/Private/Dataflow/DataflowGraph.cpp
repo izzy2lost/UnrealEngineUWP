@@ -14,6 +14,7 @@ DEFINE_LOG_CATEGORY_STATIC(DATAFLOW_LOG, Error, All);
 
 namespace Dataflow
 {
+	TSet<FName> FGraph::RegisteredFilters = {};
 
 	FGraph::FGraph(FGuid InGuid)
 		: Guid(InGuid)
@@ -51,9 +52,15 @@ namespace Dataflow
 			}
 		}
 		Nodes.Remove(Node);
-		if (Node->IsA(FDataflowTerminalNode::StaticType()))
+		for(const FName& RegisteredType : RegisteredFilters)
 		{
-			TerminalNodes.Remove(Node);
+			if (Node->IsA(RegisteredType))
+			{
+				if(TArray< TSharedPtr<FDataflowNode> >* FoundNodes = FilteredNodes.Find(RegisteredType))
+				{
+					FoundNodes->Remove(Node);
+				}
+			}
 		}
 	}
 
@@ -427,6 +434,11 @@ namespace Dataflow
 		{
 			ConnectionToFix->FixAndPropagateType();
 		}
+	}
+
+	void RegisterNodeFilter(const FName& NodeFilter)
+	{
+		FGraph::RegisteredFilters.Add(NodeFilter);
 	}
 }
 

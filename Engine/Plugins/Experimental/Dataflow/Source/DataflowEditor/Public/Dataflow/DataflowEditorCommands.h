@@ -42,25 +42,27 @@ public:
 	* @param bUnbind if true, commands are removed, otherwise added
 	*/
 	 static void UpdateToolCommandBinding(UInteractiveTool* Tool, TSharedPtr<FUICommandList> UICommandList, bool bUnbind = false);
-
-
-
-	TSharedPtr< FUICommandInfo > EvaluateNode;
-	TSharedPtr< FUICommandInfo > CreateComment;
-	TSharedPtr< FUICommandInfo > ToggleEnabledState;
+	
+	TSharedPtr<FUICommandInfo> EvaluateNode;
+	TSharedPtr<FUICommandInfo> CreateComment;
+	TSharedPtr<FUICommandInfo> ToggleEnabledState;
 	TSharedPtr<FUICommandInfo> ToggleObjectSelection;
 	TSharedPtr<FUICommandInfo> ToggleFaceSelection;
 	TSharedPtr<FUICommandInfo> ToggleVertexSelection;
-	TSharedPtr< FUICommandInfo > AddOptionPin;
-	TSharedPtr< FUICommandInfo > RemoveOptionPin;
-	TSharedPtr< FUICommandInfo > ZoomToFitGraph;
+	TSharedPtr<FUICommandInfo> AddOptionPin;
+	TSharedPtr<FUICommandInfo> RemoveOptionPin;
+	TSharedPtr<FUICommandInfo> ZoomToFitGraph;
 
 	TMap< FName, TSharedPtr<FUICommandInfo> > CreateNodesMap;
 
 	const static FString BeginWeightMapPaintToolIdentifier;
 	TSharedPtr<FUICommandInfo> BeginWeightMapPaintTool;
+	
 	const static FString AddWeightMapNodeIdentifier;
 	TSharedPtr<FUICommandInfo> AddWeightMapNode;
+
+	const static FString UpdateSimulationCacheIdentifier;
+	TSharedPtr<FUICommandInfo> UpdateSimulationCache;
 
 	// @todo(brice) Remove Example Tools
 	//const static FString BeginAttributeEditorToolIdentifier;

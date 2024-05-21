@@ -69,8 +69,10 @@ public:
 	FDataflowConstructionScene* GetDataflowConstructionScene() { return ConstructionScene; }
 	const FDataflowConstructionScene* GetDataflowConstructionScene() const { return ConstructionScene; }
 
+	/** Set the simulation scene to store the simulation components */
 	void SetDataflowSimlationScene(FDataflowSimulationScene* InSimulationScene);
-
+	FDataflowSimulationScene* GetDataflowSimulationScene() { return SimulationScene; }
+	const FDataflowSimulationScene* GetDataflowSimulationScene() const { return SimulationScene; }
 
 	/** Set the data flow graph editor to create nodes once the tools have ended*/
 	void SetDataflowGraphEditor(TSharedPtr<SDataflowGraphEditor> DataflowGraphEditor);
@@ -158,8 +160,10 @@ private:
 	void InitializeContextObject();
 	void DeleteContextObject();
 
-	/** Dataflow preview scene from the toolkit */
+	/** Dataflow construction scene from the toolkit */
 	FDataflowConstructionScene* ConstructionScene = nullptr;
+
+	/** Dataflow simulation scene from the toolkit */
 	FDataflowSimulationScene* SimulationScene = nullptr;
 
 	/** Correspondence between node types and commands to launch tools */

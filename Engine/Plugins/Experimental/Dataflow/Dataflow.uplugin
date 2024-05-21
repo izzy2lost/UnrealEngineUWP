@@ -54,6 +54,10 @@
 		{
 			"Name": "MeshModelingToolsetExp",
 			"Enabled": true
+		},
+		{
+			"Name": "ChaosCaching",
+			"Enabled": true
 		}
 	]
 }

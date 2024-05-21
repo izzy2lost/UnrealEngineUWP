@@ -65,7 +65,8 @@ namespace UnrealBuildTool.Rules
 					"XmlParser",
 					"EditorWidgets",
 					"KismetWidgets",      // SScrubControlPanel
-					"AnimGraph"           // UAnimSingleNodeInstance
+					"AnimGraph", 
+					"ChaosCaching" // UAnimSingleNodeInstance
 				}
 			);
 		}

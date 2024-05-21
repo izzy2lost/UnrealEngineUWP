@@ -50,25 +50,43 @@ namespace Dataflow
 
 		FGuid  Guid;
 		TArray< TSharedPtr<FDataflowNode> > Nodes;
-		TArray< TSharedPtr<FDataflowNode> > TerminalNodes;
+		TMap<FName, TArray<TSharedPtr<FDataflowNode>>> FilteredNodes;
 		TArray< FLink > Connections;
 		TSet< FName > DisabledNodes;
+		
+		/** Node filter type that could be used for fast access*/
+		static TSet<FName> RegisteredFilters;
+
+		/** Friend register function */
+		friend DATAFLOWCORE_API void RegisterNodeFilter(const FName& NodeFilter);
+		
 	public:
 		DATAFLOWCORE_API FGraph(FGuid InGuid = FGuid::NewGuid());
 		virtual ~FGraph() {}
-
-		const TArray< TSharedPtr<FDataflowNode> >& GetTerminalNodes() const { return TerminalNodes; }
+		
+		const TArray< TSharedPtr<FDataflowNode> >& GetFilteredNodes(const FName& NodeFilter) const
+		{
+			static TArray< TSharedPtr<FDataflowNode> > EmptyNodes;
+			if(const TArray< TSharedPtr<FDataflowNode> >* FoundNodes = FilteredNodes.Find(NodeFilter))
+			{
+				return *FoundNodes;
+			}
+			return EmptyNodes;
+		}
 		const TArray< TSharedPtr<FDataflowNode> >& GetNodes() const { return Nodes; }
 		TArray< TSharedPtr<FDataflowNode> >& GetNodes() { return Nodes; }
 		int NumNodes() { return Nodes.Num(); }
-
+		
 		template<class T> TSharedPtr<T> AddNode(T* InNode)
 		{
 			TSharedPtr<T> NewNode(InNode);
 			Nodes.AddUnique(NewNode);
-			if (NewNode->IsA(FDataflowTerminalNode::StaticType()))
+			for(const FName& RegisteredType : RegisteredFilters)
 			{
-				TerminalNodes.AddUnique(NewNode);
+				if (NewNode->IsA(RegisteredType))
+				{
+					FilteredNodes.FindOrAdd(RegisteredType).Add(NewNode);
+				}
 			}
 			return NewNode;
 		}
@@ -77,9 +95,12 @@ namespace Dataflow
 		{
 			TSharedPtr<T> NewNode(InNode.Release());
 			Nodes.AddUnique(NewNode);
-			if (NewNode->IsA(FDataflowTerminalNode::StaticType()))
+			for(const FName& RegisteredType : RegisteredFilters)
 			{
-				TerminalNodes.AddUnique(NewNode);
+				if (NewNode->IsA(RegisteredType))
+				{
+					FilteredNodes.FindOrAdd(RegisteredType).Add(NewNode);
+				}
 			}
 			return NewNode;
 		}
@@ -132,9 +153,9 @@ namespace Dataflow
 			return TSharedPtr<const FDataflowNode>(nullptr);
 		}
 
-		TSharedPtr<FDataflowNode> FindTerminalNode(FName InName)
+		TSharedPtr<FDataflowNode> FindFilteredNode(const FName& NodeFilter, FName InName) const
 		{
-			for (TSharedPtr<FDataflowNode> Node : TerminalNodes)
+			for (TSharedPtr<FDataflowNode> Node : GetFilteredNodes(NodeFilter))
 			{
 				if (Node->GetName().IsEqual(InName))
 				{
@@ -161,7 +182,10 @@ namespace Dataflow
 		DATAFLOWCORE_API static void SerializeForSaving(FArchive& Ar, FGraph* InGraph, TArray<TSharedPtr<FDataflowNode>>& InNodes, TArray<FLink>& InConnections);
 		DATAFLOWCORE_API static void SerializeForLoading(FArchive& Ar, FGraph* InGraph, UObject* OwningObject);
 	};
+
+	DATAFLOWCORE_API void RegisterNodeFilter(const FName& NodeFilter);
 }
+
 
 FORCEINLINE FArchive& operator<<(FArchive& Ar, Dataflow::FLink& Value)
 {

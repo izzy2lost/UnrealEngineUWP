@@ -907,7 +907,7 @@ void FChaosClothAssetEditorToolkit::EvaluateNode(FDataflowNode* Node, bool bForc
 
 		// Set all asset values by visiting the graph from the specified node
 		TArray<FDataflowTerminalNode*> TerminalNodes;
-		TerminalNodes.Reserve(Graph->GetTerminalNodes().Num());
+		TerminalNodes.Reserve(Graph->GetFilteredNodes(FDataflowTerminalNode::StaticType()).Num());
 		
 		TQueue<FDataflowNode*> Queue;
 		Queue.Enqueue(Node);

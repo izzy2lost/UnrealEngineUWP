@@ -7,6 +7,7 @@
 #include "Dataflow/DataflowObjectInterface.h"
 #include "Misc/NotifyHook.h"
 #include "GraphEditor.h"
+#include "SAdvancedPreviewDetailsTab.h"
 #include "TickableEditorObject.h"
 #include "Dataflow/DataflowSelectionView.h"
 #include "Dataflow/DataflowCollectionSpreadSheet.h"
@@ -81,7 +82,6 @@ public:
 	/** Dataflow preview scenes accessor */
 	const TSharedPtr<FDataflowSimulationScene>& GetSimulationScene() const {return SimulationScene;}
 
-
 	// FSerializableObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	virtual FString GetReferencerName() const override
@@ -115,6 +115,7 @@ private:
 	TSharedRef<SDockTab> SpawnTab_CollectionSpreadSheet(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_AssetDetails(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_SimulationViewport(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_PreviewScene(const FSpawnTabArgs& Args);
 	
 	// FTickableEditorObject interface
 	virtual void Tick(float DeltaTime) override;
@@ -150,6 +151,7 @@ private:
 	static const FName CollectionSpreadSheetTabId_3;
 	static const FName CollectionSpreadSheetTabId_4;
 	static const FName SimulationViewportTabId;
+	static const FName PreviewSceneTabId;
 
 	// List of all the widgets shared ptr that will be built in the editor
 	TSharedPtr<SDataflowConstructionViewport> DataflowConstructionViewport;
@@ -166,6 +168,7 @@ private:
 	TSharedPtr<FDataflowCollectionSpreadSheet> DataflowCollectionSpreadSheet_2;
 	TSharedPtr<FDataflowCollectionSpreadSheet> DataflowCollectionSpreadSheet_3;
 	TSharedPtr<FDataflowCollectionSpreadSheet> DataflowCollectionSpreadSheet_4;
+	TSharedPtr<SWidget> AdvancedPreviewSettingsWidget;
 
 	// Utility factory functions to build the widgets
 	TSharedRef<SDataflowGraphEditor> CreateGraphEditorWidget(UDataflow* ObjectToEdit, TSharedPtr<IStructureDetailsView> PropertiesEditor);

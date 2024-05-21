@@ -3,7 +3,9 @@
 #include "Dataflow/DataflowEditorToolkit.h"
 
 #include "AdvancedPreviewScene.h"
+#include "AdvancedPreviewSceneModule.h"
 #include "AssetEditorModeManager.h"
+#include "DetailCategoryBuilder.h"
 #include "Animation/Skeleton.h"
 #include "Dataflow/DataflowCore.h"
 #include "Dataflow/DataflowEditor.h"
@@ -40,6 +42,7 @@
 #include "Framework/Commands/GenericCommands.h"
 #include "GameFramework/Actor.h"
 #include "GraphEditorActions.h"
+#include "IDetailCustomization.h"
 #include "ISkeletonTree.h"
 #include "IStructureDetailsView.h"
 #include "Kismet/GameplayStatics.h"
@@ -61,6 +64,7 @@ FAutoConsoleVariableRef CVARDataflowEnableSkeletonView(TEXT("p.Dataflow.Editor.E
 
 const FName FDataflowEditorToolkit::GraphCanvasTabId(TEXT("DataflowEditor_GraphCanvas"));
 const FName FDataflowEditorToolkit::NodeDetailsTabId(TEXT("DataflowEditor_NodeDetails"));
+const FName FDataflowEditorToolkit::PreviewSceneTabId(TEXT("DataflowEditor_PreviewScene"));
 const FName FDataflowEditorToolkit::SkeletonViewTabId(TEXT("DataflowEditor_SkeletonView"));
 const FName FDataflowEditorToolkit::SelectionViewTabId_1(TEXT("DataflowEditor_SelectionView_1"));
 const FName FDataflowEditorToolkit::SelectionViewTabId_2(TEXT("DataflowEditor_SelectionView_2"));
@@ -438,6 +442,14 @@ void FDataflowEditorToolkit::CreateWidgets()
 			AssetDetailsEditor = CreateAssetDetailsEditorWidget({EditorContent->GetDataflowOwner(),EditorContent->GetDataflowAsset()});
 			GraphEditor = CreateGraphEditorWidget(DataflowAsset, NodeDetailsEditor);
 			CreateSimulationViewportClient();
+
+			FAdvancedPreviewSceneModule& AdvancedPreviewSceneModule = FModuleManager::LoadModuleChecked<FAdvancedPreviewSceneModule>("AdvancedPreviewScene");
+			
+			AdvancedPreviewSettingsWidget = AdvancedPreviewSceneModule.CreateAdvancedPreviewSceneSettingsWidget(SimulationScene.ToSharedRef(), 
+				SimulationScene->GetPreviewSceneDescription(),
+				TArray<FAdvancedPreviewSceneModule::FDetailCustomizationInfo>(), 
+				TArray<FAdvancedPreviewSceneModule::FPropertyTypeCustomizationInfo>(),
+				TArray<FAdvancedPreviewSceneModule::FDetailDelegates>());
 		}
 	}
 }
@@ -495,7 +507,8 @@ void FDataflowEditorToolkit::CreateSimulationViewportClient()
 	SimulationViewportDelegate = [this](FAssetEditorViewportConstructionArgs InArgs)
 	{
 		TSharedRef<SDataflowSimulationViewport> Viewport = SAssignNew(DataflowSimulationViewport, SDataflowSimulationViewport, InArgs)
-			.ViewportClient(StaticCastSharedPtr<FDataflowSimulationViewportClient>(SimulationViewportClient));
+			.ViewportClient(StaticCastSharedPtr<FDataflowSimulationViewportClient>(SimulationViewportClient))
+			.CommandList(GetToolkitCommands().ToSharedPtr());;
 
 		if (UDataflowEditorMode* const DataflowMode = Cast<UDataflowEditorMode>(EditorModeManager->GetActiveScriptableMode(UDataflowEditorMode::EM_DataflowEditorModeId)))
 		{
@@ -929,6 +942,17 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SimulationViewport(const F
 	return DockableTab;
 }
 
+TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_PreviewScene(const FSpawnTabArgs& Args)
+{
+	check(Args.GetTabId() == PreviewSceneTabId);
+
+	return SNew(SDockTab)
+		.Label(LOCTEXT("DataflowEditor_PreviewScene_TabTitle", "PreviewScene"))
+		[
+			AdvancedPreviewSettingsWidget->AsShared()
+		];
+}
+
 TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_GraphCanvas(const FSpawnTabArgs& Args)
 {
 	check(Args.GetTabId() == GraphCanvasTabId);
@@ -986,7 +1010,7 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SelectionView(const FSpawn
 	check(DataflowEditor);
 	check(DataflowEditor->GetEditorContent());
 
-		if (Args.GetTabId() == SelectionViewTabId_1)
+	if (Args.GetTabId() == SelectionViewTabId_1)
 	{
 		DataflowSelectionView_1 = MakeShared<FDataflowSelectionView>(FDataflowSelectionView(DataflowEditor->GetEditorContent()));
 		if (DataflowSelectionView_1.IsValid())
@@ -1149,6 +1173,11 @@ void FDataflowEditorToolkit::RegisterTabSpawners(const TSharedRef<FTabManager>& 
 		.SetDisplayName(LOCTEXT("AssetDetailsTab", "Asset Details"))
 		.SetGroup(EditorMenuCategory.ToSharedRef())
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
+
+	InTabManager->RegisterTabSpawner(PreviewSceneTabId, FOnSpawnTab::CreateSP(this, &FDataflowEditorToolkit::SpawnTab_PreviewScene))
+		.SetDisplayName(LOCTEXT("PreviewSceneTab", "PreviewScene"))
+		.SetGroup(EditorMenuCategory.ToSharedRef())
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.PreviewScene"));
 	
 	InTabManager->RegisterTabSpawner(GraphCanvasTabId, FOnSpawnTab::CreateSP(this, &FDataflowEditorToolkit::SpawnTab_GraphCanvas))
 		.SetDisplayName(LOCTEXT("DataflowTab", "Dataflow Graph"))

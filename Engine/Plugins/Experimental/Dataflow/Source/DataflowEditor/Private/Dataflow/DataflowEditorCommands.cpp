@@ -33,6 +33,7 @@
 
 const FString FDataflowEditorCommandsImpl::BeginWeightMapPaintToolIdentifier = TEXT("BeginWeightMapPaintTool");
 const FString FDataflowEditorCommandsImpl::AddWeightMapNodeIdentifier = TEXT("AddWeightMapNode");
+const FString FDataflowEditorCommandsImpl::UpdateSimulationCacheIdentifier = TEXT("UpdateSimulationCache");
 
 // @todo(brice) Remove Example Tools
 //const FString FDataflowEditorCommandsImpl::BeginAttributeEditorToolIdentifier = TEXT("BeginAttributeEditorTool");
@@ -62,6 +63,7 @@ void FDataflowEditorCommandsImpl::RegisterCommands()
 
 	UI_COMMAND(BeginWeightMapPaintTool, "Add Weight Map", "Paint weight maps on the mesh", EUserInterfaceActionType::None, FInputChord());
 	UI_COMMAND(AddWeightMapNode, "Add Weight Map", "Paint weight maps on the mesh", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(UpdateSimulationCache, "UpdateSimulationCache", "Update Simulation Cache", EUserInterfaceActionType::ToggleButton, FInputChord());
 
 
 	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
@@ -252,7 +254,6 @@ void FDataflowEditorCommands::EvaluateTerminalNode(Dataflow::FContext& Context, 
 		}
 	}
 }
-
 
 bool FDataflowEditorCommands::OnNodeVerifyTitleCommit(const FText& NewText, UEdGraphNode* GraphNode, FText& OutErrorMessage)
 {

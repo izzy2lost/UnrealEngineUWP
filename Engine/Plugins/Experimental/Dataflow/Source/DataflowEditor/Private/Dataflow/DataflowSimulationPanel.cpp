@@ -7,6 +7,7 @@
 #include "Animation/AnimSingleNodeInstance.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/BlendSpace.h"
+#include "Chaos/CacheManagerActor.h"
 #include "Dataflow/DataflowContent.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Images/SImage.h"
@@ -47,6 +48,7 @@ void SDataflowSimulationPanel::Construct( const SDataflowSimulationPanel::FArgum
 			.DisplayDrag(this, &SDataflowSimulationPanel::GetDisplayDrag)
 			.OnValueChanged(this, &SDataflowSimulationPanel::OnValueChanged)
 			.OnBeginSliderMovement(this, &SDataflowSimulationPanel::OnBeginSliderMovement)
+			.OnClickedRecord(this, &SDataflowSimulationPanel::OnClick_Record)
 			.OnClickedForwardPlay(this, &SDataflowSimulationPanel::OnClick_Forward)
 			.OnClickedForwardStep(this, &SDataflowSimulationPanel::OnClick_Forward_Step)
 			.OnClickedForwardEnd(this, &SDataflowSimulationPanel::OnClick_Forward_End)
@@ -63,10 +65,7 @@ void SDataflowSimulationPanel::Construct( const SDataflowSimulationPanel::FArgum
 			.TransportControlWidgetsToCreate(TransportControlWidgets)
 		]
 	];
-	UpdatePreviewAnimationInstance();
-	ApplyPlaybackSettings();
 }
-
 
 TSharedRef<SWidget> SDataflowSimulationPanel::OnCreatePreviewPlaybackModeWidget()
 {
@@ -124,10 +123,10 @@ TSharedRef<SWidget> SDataflowSimulationPanel::OnCreatePreviewPlaybackModeWidget(
 
 FReply SDataflowSimulationPanel::OnClick_Forward_Step()
 {
-	if (UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance())
+	if (const TSharedPtr<FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
 	{
-		PreviewInstance->SetPlaying(false);
-		PreviewInstance->StepForward();
+		const float StepSize = GetSequenceLength() / GetNumberOfKeys();
+		PreviewScene->SimulationTime += StepSize;
 	}
 
 	return FReply::Handled();
@@ -135,10 +134,9 @@ FReply SDataflowSimulationPanel::OnClick_Forward_Step()
 
 FReply SDataflowSimulationPanel::OnClick_Forward_End()
 {
-	if (UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance())
+	if (const TSharedPtr<FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
 	{
-		PreviewInstance->SetPlaying(false);
-		PreviewInstance->SetPosition(PreviewInstance->GetLength(), false);
+		PreviewScene->SimulationTime = GetSequenceLength();
 	}
 
 	return FReply::Handled();
@@ -146,10 +144,10 @@ FReply SDataflowSimulationPanel::OnClick_Forward_End()
 
 FReply SDataflowSimulationPanel::OnClick_Backward_Step()
 {
-	if (UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance())
+	if (const TSharedPtr<FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
 	{
-		PreviewInstance->SetPlaying(false);
-		PreviewInstance->StepBackward();
+		const float StepSize = GetSequenceLength() / GetNumberOfKeys();
+		PreviewScene->SimulationTime -= StepSize;
 	}
 
 	return FReply::Handled();
@@ -157,44 +155,32 @@ FReply SDataflowSimulationPanel::OnClick_Backward_Step()
 
 FReply SDataflowSimulationPanel::OnClick_Backward_End()
 {
-	if (UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance())
+	if (const TSharedPtr<FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
 	{
-		PreviewInstance->SetPlaying(false);
-		PreviewInstance->SetPosition(0.f, false);
+		PreviewScene->SimulationTime = 0.0f;
 	}
 
 	return FReply::Handled();
 }
 
+FReply SDataflowSimulationPanel::OnClick_Record()
+{
+	if (const TSharedPtr<FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
+	{
+		PreviewScene->UpdateSimulationCache();
+	}
+	return FReply::Handled();
+}
+
 FReply SDataflowSimulationPanel::OnClick_Forward()
 {
-	if (UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance())
+	if(PlaybackMode == EPlaybackMode::PlayingForward)
 	{
-		const bool bIsReverse = PreviewInstance->IsReverse();
-		const bool bIsPlaying = PreviewInstance->IsPlaying();
-
-		// if current bIsReverse and bIsPlaying, we'd like to just turn off reverse
-		if (bIsReverse && bIsPlaying)
-		{
-			PreviewInstance->SetReverse(false);
-		}
-		// already playing, simply pause
-		else if (bIsPlaying) 
-		{
-			PreviewInstance->SetPlaying(false);
-		}
-		// if not playing, play forward
-		else 
-		{
-			//if we're at the end of the animation, jump back to the beginning before playing
-			if ( GetScrubValue() >= GetSequenceLength() )
-			{
-				PreviewInstance->SetPosition(0.0f, false);
-			}
-
-			PreviewInstance->SetReverse(false);
-			PreviewInstance->SetPlaying(true);
-		}
+		PlaybackMode = EPlaybackMode::Stopped;
+	}
+	else
+	{
+		PlaybackMode = EPlaybackMode::PlayingForward;
 	}
 
 	return FReply::Handled();
@@ -202,31 +188,13 @@ FReply SDataflowSimulationPanel::OnClick_Forward()
 
 FReply SDataflowSimulationPanel::OnClick_Backward()
 {
-	if (UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance())
+	if(PlaybackMode == EPlaybackMode::PlayingReverse)
 	{
-		const bool bIsReverse = PreviewInstance->IsReverse();
-		const bool bIsPlaying = PreviewInstance->IsPlaying();
-
-		// if currently playing forward, just simply turn on reverse
-		if (!bIsReverse && bIsPlaying)
-		{
-			PreviewInstance->SetReverse(true);
-		}
-		else if (bIsPlaying)
-		{
-			PreviewInstance->SetPlaying(false);
-		}
-		else
-		{
-			// if we're at the beginning of the animation, jump back to the end before playing
-			if ( GetScrubValue() <= 0.0f )
-			{
-				PreviewInstance->SetPosition(GetSequenceLength(), false);
-			}
-
-			PreviewInstance->SetPlaying(true);
-			PreviewInstance->SetReverse(true);
-		}
+		PlaybackMode = EPlaybackMode::Stopped;
+	}
+	else
+	{
+		PlaybackMode = EPlaybackMode::PlayingReverse;
 	}
 
 	return FReply::Handled();
@@ -237,22 +205,6 @@ FReply SDataflowSimulationPanel::OnClick_PreviewPlaybackMode()
 	if (PreviewPlaybackMode == EDataflowPlaybackMode::Default)
 	{
 		PreviewPlaybackMode = EDataflowPlaybackMode::Looping;
-		
-		if (UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance())
-		{
-			// If we paused due to hitting the end point, start playing again when entering loop mode
-			const float CurrentTime = PreviewInstance->GetCurrentTime();
-			const float PlayRate = PreviewInstance->GetPlayRate();
-			const float AssetPlayLength = PreviewInstance->CurrentAsset->GetPlayLength();
-			if (PlayRate < 0.0 && CurrentTime <= 0.0)
-			{
-				PreviewInstance->SetPlaying(true);
-			}
-			else if (PlayRate > 0.0 && CurrentTime >= AssetPlayLength)
-			{
-				PreviewInstance->SetPlaying(true);
-			}
-		}
 	}
 	else if (PreviewPlaybackMode == EDataflowPlaybackMode::Looping)
 	{
@@ -261,120 +213,64 @@ FReply SDataflowSimulationPanel::OnClick_PreviewPlaybackMode()
 	else
 	{
 		PreviewPlaybackMode = EDataflowPlaybackMode::Default;
-
-		if (UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance())
-		{
-			// If we're switching to linear playback, set it to forward mode
-			PreviewInstance->SetReverse(false);
-		}
 	}
-
-	ApplyPlaybackSettings();
 
 	return FReply::Handled();
 }
 
-void SDataflowSimulationPanel::ApplyPlaybackSettings()
-{
-	UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance();
-
-	switch (PreviewPlaybackMode)
-	{
-	case EDataflowPlaybackMode::Default:
-		if (PreviewInstance)
-		{
-			PreviewInstance->SetLooping(false);
-		}
-		break;
-	case EDataflowPlaybackMode::Looping:
-		if (PreviewInstance)
-		{
-			PreviewInstance->SetLooping(true);
-		}
-		break;
-	case EDataflowPlaybackMode::PingPong:
-		if (PreviewInstance)
-		{
-			PreviewInstance->SetLooping(false);
-		}
-		break;
-	}
-}
-
 void SDataflowSimulationPanel::OnTickPlayback(double InCurrentTime, float InDeltaTime)
 {
-	if (UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance())
+	if (const TSharedPtr<FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
 	{
-		const float CurrentTime = PreviewInstance->GetCurrentTime();
-		const float PlayRate = PreviewInstance->GetPlayRate();
-		const float AssetPlayLength = PreviewInstance->CurrentAsset->GetPlayLength();
-
-		if (PreviewPlaybackMode == EDataflowPlaybackMode::PingPong)
+		const float SequenceLength = GetSequenceLength();
+		
+		const float SimulationTime = (PlaybackMode == EPlaybackMode::PlayingForward) ?
+			PreviewScene->SimulationTime + InDeltaTime : PreviewScene->SimulationTime - InDeltaTime;
+		
+		if(PreviewPlaybackMode == EDataflowPlaybackMode::Looping)
 		{
-			if (PlayRate < 0.0 && CurrentTime <= 0.0)
+			PreviewScene->SimulationTime = SimulationTime - SequenceLength * FMath::Floor(SimulationTime / SequenceLength);
+		}
+		else
+		{
+			if(PreviewPlaybackMode == EDataflowPlaybackMode::PingPong)
 			{
-				PreviewInstance->SetReverse(!PreviewInstance->IsReverse());
+				if((PlaybackMode == EPlaybackMode::PlayingForward) && (SimulationTime >= SequenceLength))
+				{
+					PlaybackMode = EPlaybackMode::PlayingReverse;
+				}
+
+				if((PlaybackMode == EPlaybackMode::PlayingReverse) && (SimulationTime <= 0.0f))
+				{
+					PlaybackMode = EPlaybackMode::PlayingForward;
+				}
 			}
-			else if (PlayRate > 0.0 && CurrentTime >= AssetPlayLength)
-			{
-				PreviewInstance->SetReverse(!PreviewInstance->IsReverse());
-			}
+			PreviewScene->SimulationTime = FMath::Clamp(SimulationTime, 0.0f,  SequenceLength);
 		}
 	}
 }
 
 EPlaybackMode::Type SDataflowSimulationPanel::GetPlaybackMode() const
 {
-	if (const UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance())
-	{
-		if (PreviewInstance->IsPlaying())
-		{
-			return PreviewInstance->IsReverse() ? EPlaybackMode::PlayingReverse : EPlaybackMode::PlayingForward;
-		}
-		return EPlaybackMode::Stopped;
-	}
-	
-	return EPlaybackMode::Stopped;
+	return PlaybackMode;
 }
 
 void SDataflowSimulationPanel::OnValueChanged(float NewValue)
 {
-	if (UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance())
+	if (const TSharedPtr<FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
 	{
-		PreviewInstance->SetPosition(NewValue);
+		PreviewScene->SimulationTime = NewValue;
 	}
 }
 
 void SDataflowSimulationPanel::OnBeginSliderMovement()
-{
-	if (UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance())
-	{
-		PreviewInstance->SetPlaying(false);
-	}
-}
+{}
 
 uint32 SDataflowSimulationPanel::GetNumberOfKeys() const
 {
-	if (const UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance())
+	if (const TSharedPtr<const FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
 	{
-		const float Length = const_cast<UAnimSingleNodeInstance*>(PreviewInstance)->GetLength();
-
-		// if anim sequence, use correct num frames
-		int32 NumKeys = (int32)(Length / 0.0333f);
-
-		if (PreviewInstance->CurrentAsset)
-		{
-			if (PreviewInstance->CurrentAsset->IsA(UAnimSequenceBase::StaticClass()))
-			{
-				NumKeys = CastChecked<UAnimSequenceBase>(PreviewInstance->CurrentAsset)->GetNumberOfSampledKeys();
-			}
-			else if (PreviewInstance->CurrentAsset->IsA(UBlendSpace::StaticClass()))
-			{
-				// Blendspaces dont display frame notches, so just return 0 here
-				NumKeys = 0;
-			}
-		}
-		return NumKeys;
+		return PreviewScene->GetNumFrames();
 	}
 
 	return 1;
@@ -382,72 +278,30 @@ uint32 SDataflowSimulationPanel::GetNumberOfKeys() const
 
 float SDataflowSimulationPanel::GetSequenceLength() const
 {
-	if (const UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance())	// non-const because UAnimSingleNodeInstance::GetLength() is non-const
+	if (const TSharedPtr<const FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
 	{
-		return const_cast<UAnimSingleNodeInstance*>(PreviewInstance)->GetLength();
+		return PreviewScene->GetTimeRange()[1]-PreviewScene->GetTimeRange()[0];
 	}
-
-	return 0.f;
+	return 0.0f;
 }
 
 float SDataflowSimulationPanel::GetScrubValue() const
 {
-	if (const UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance())
+	if (const TSharedPtr<const FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
 	{
-		return PreviewInstance->GetCurrentTime(); 
+		return PreviewScene->SimulationTime;
 	}
 
-	return 0.f;
+	return 0.0f;
 }
 
 bool SDataflowSimulationPanel::GetDisplayDrag() const
 {
-	const UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance();
-	if (PreviewInstance && PreviewInstance->CurrentAsset)
+	if (const TSharedPtr<const FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
 	{
-		return true;
+			return true;
 	}
-
 	return false;
-}
-
-UAnimSingleNodeInstance* SDataflowSimulationPanel::GetPreviewAnimationInstance()
-{
-	if (const TSharedPtr<const FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
-	{
-		if(const TObjectPtr<UDataflowSkeletalContent> DataflowContent = Cast<UDataflowSkeletalContent>(PreviewScene->GetEditorContent()))
-		{
-			// temporary nullptr while the simulation nodes are pushed 
-			return nullptr;
-		}
-	}
-
-	return nullptr;
-}
-
-const UAnimSingleNodeInstance* SDataflowSimulationPanel::GetPreviewAnimationInstance() const
-{
-	if (const TSharedPtr<const FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
-	{
-		if(const TObjectPtr<UDataflowSkeletalContent> DataflowContent = Cast<UDataflowSkeletalContent>(PreviewScene->GetEditorContent()))
-		{
-			// temporary nullptr while the simulation nodes are pushed 
-			return nullptr;
-		}
-	}
-
-	return nullptr;
-}
-
-void SDataflowSimulationPanel::UpdatePreviewAnimationInstance()
-{
-	if (const TSharedPtr<FDataflowSimulationScene> PreviewScene = SimulationScene.Pin())
-	{
-		if(TObjectPtr<UDataflowSkeletalContent> DataflowContent = Cast<UDataflowSkeletalContent>(PreviewScene->GetEditorContent()))
-		{
-			// do nothing while the simulation nodes are pushed 
-		}
-	}
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -87,7 +87,7 @@ void UDataflowEditor::RemoveTerminalContents(const TSharedPtr<Dataflow::FGraph>&
 {
 	for(int32 ContentIndex = TerminalContents.Num()-1; ContentIndex >= 0; --ContentIndex)
 	{
-		if(TSharedPtr<FDataflowNode> TerminalNode = DataflowGraph->FindTerminalNode(
+		if(TSharedPtr<FDataflowNode> TerminalNode = DataflowGraph->FindFilteredNode(FDataflowTerminalNode::StaticType(),
 			FName(TerminalContents[ContentIndex]->GetDataflowTerminal())))
 		{
 			if(Cast<IDataflowContentOwner>(TerminalNode->AsType<FDataflowTerminalNode>()->GetTerminalAsset()))
@@ -121,7 +121,7 @@ void UDataflowEditor::AddTerminalContents(const TSharedPtr<Dataflow::FGraph>& Da
 		TerminalContent->SetTerminalAsset(TerminalAsset);
 	};
 			
-	for(const TSharedPtr<FDataflowNode>& DataflowNode : DataflowGraph->GetTerminalNodes())
+	for(const TSharedPtr<FDataflowNode>& DataflowNode : DataflowGraph->GetFilteredNodes(FDataflowTerminalNode::StaticType()))
 	{
 		if(const FDataflowTerminalNode* TerminalNode = DataflowNode->AsType<FDataflowTerminalNode>())
 		{
