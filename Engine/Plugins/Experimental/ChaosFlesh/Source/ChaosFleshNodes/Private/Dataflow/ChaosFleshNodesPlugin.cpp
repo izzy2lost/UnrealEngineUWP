@@ -40,7 +40,7 @@
 
 namespace Dataflow::CVars
 {
-	static bool bRegisterFleshSimulationNodes = true;
+	static bool bRegisterFleshSimulationNodes = false;
 	static FAutoConsoleVariableRef CVarRegisterFleshSimulationNodes(TEXT("p.Dataflow.Flesh.RegisterSimulationNodes"), bRegisterFleshSimulationNodes, TEXT("True to register all the flesh simulation nodes."));
 }
 
