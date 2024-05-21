@@ -33,6 +33,7 @@ struct FRecastInternalDebugData : public duDebugDraw
 	double BuildTime = 0.;
 	double BuildCompressedLayerTime = 0.;
 	double BuildNavigationDataTime = 0.;
+	double BuildLinkTime = 0;
 
 	uint32 TriangleCount = 0;
 	unsigned char Resolution = 0;

@@ -4,6 +4,7 @@
 /** Configuration for generated jump down links. */
 struct dtNavLinkBuilderJumpDownConfig
 {
+	bool enabled = true;
 	float jumpLength = 150.f; 
 	float jumpDistanceFromEdge = 10.f; 
 	float jumpMaxDepth = 150.f;
@@ -14,6 +15,7 @@ struct dtNavLinkBuilderJumpDownConfig
 /** Configuration for generated jump over links. */
 struct dtNavLinkBuilderJumpOverConfig
 {
+	bool enabled = true;
 	float jumpLength = 200.f; 
 	float jumpDistanceFromEdge = 100.f; 
 	float jumpHeight = 100.f; 
