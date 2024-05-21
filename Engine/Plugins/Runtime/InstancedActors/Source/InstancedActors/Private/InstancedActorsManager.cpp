@@ -793,7 +793,7 @@ bool AInstancedActorsManager::ForEachInstance(FInstanceOperationFunc Operation, 
 			if (InstancedActorDataPredicate.IsSet())
 			{
 				const bool bPassedPredicate = ::Invoke(*InstancedActorDataPredicate, *InstanceData);
-				if (UNLIKELY(!bPassedPredicate))
+				if (!bPassedPredicate)
 				{
 					continue;
 				}
@@ -953,6 +953,77 @@ bool AInstancedActorsManager::ForEachInstance<FBox>(const FBox& QueryBounds, FIn
 // Instantiate FBox and FSphere implementations
 template bool AInstancedActorsManager::ForEachInstance<FBox>(const FBox& QueryBounds, AInstancedActorsManager::FInstanceOperationFunc Operation) const;
 template bool AInstancedActorsManager::ForEachInstance<FSphere>(const FSphere& QueryBounds, AInstancedActorsManager::FInstanceOperationFunc Operation) const;
+
+template<>
+bool AInstancedActorsManager::IsInstanceInsideBounds<FBox>(const FBox& QueryBounds, const FInstancedActorsInstanceHandle& InstanceHandle, const FTransform& InstanceTransform)
+{
+	if (QueryBounds.IsInside(InstanceTransform.GetLocation()))
+	{
+		return true;
+	}
+
+	// More expensive bounds test.
+	const FBox InstancedActorBounds = CalculateBounds(InstanceHandle.InstancedActorData->ActorClass).TransformBy(InstanceTransform);
+	if (QueryBounds.Intersect(InstancedActorBounds))
+	{
+		return true;
+	}
+
+	return false;
+}
+
+template<>
+bool AInstancedActorsManager::IsInstanceInsideBounds<FSphere>(const FSphere& QueryBounds, const FInstancedActorsInstanceHandle& InstanceHandle, const FTransform& InstanceTransform)
+{
+	if (QueryBounds.IsInside(InstanceTransform.GetLocation()))
+	{
+		return true;
+	}
+
+	// More expensive bounds test.
+	const FBox InstancedActorBounds = CalculateBounds(InstanceHandle.InstancedActorData->ActorClass);
+	const FSphere TransformedSphere = QueryBounds.TransformBy(InstanceTransform.Inverse());
+	if (FMath::SphereAABBIntersection(TransformedSphere, InstancedActorBounds))
+	{
+		return true;
+	}
+
+	return false;
+}
+
+template<typename TBoundsType>
+bool AInstancedActorsManager::HasInstancesOfClass(const TBoundsType& QueryBounds, TSubclassOf<AActor> ActorClass) const
+{
+	ensure(ActorClass);
+
+	FScopedInstancedActorsIterationContext IterationContext;
+	bool bHasInstance = false;
+
+	auto InstancedActorDataMask = TOptional<AInstancedActorsManager::FInstancedActorDataPredicateFunc>([ActorClass](const UInstancedActorsData& InstancedActorData)
+		{
+			return InstancedActorData.ActorClass->IsChildOf(ActorClass);
+		});
+
+	ForEachInstance([Manager = this, QueryBounds, ActorClass, &bHasInstance](const FInstancedActorsInstanceHandle& InstanceHandle, const FTransform& InstanceTransform, FInstancedActorsIterationContext& IterationContext)
+		{
+			bHasInstance = Manager->IsInstanceInsideBounds(QueryBounds, InstanceHandle, InstanceTransform);
+			UE_IFVLOG(
+			if (bHasInstance)
+			{
+				const FBox InstancedActorBounds = CalculateBounds(InstanceHandle.InstancedActorData->ActorClass).TransformBy(InstanceTransform);
+				UE_VLOG_BOX(Manager, LogInstancedActors, Log, InstancedActorBounds, FColor::Red, TEXT("Instance of class %s"), *GetNameSafe(ActorClass));
+			})
+			const bool bContinue = !bHasInstance;
+			return bContinue;
+		}
+		, IterationContext, InstancedActorDataMask);
+
+	return bHasInstance;
+}
+
+// Instantiate FBox and FSphere implementations
+template bool AInstancedActorsManager::HasInstancesOfClass<FBox>(const FBox& QueryBounds, TSubclassOf<AActor> ActorClass) const;
+template bool AInstancedActorsManager::HasInstancesOfClass<FSphere>(const FSphere& QueryBounds, TSubclassOf<AActor> ActorClass) const;
 
 void AInstancedActorsManager::AuditInstances(FOutputDevice& Ar, bool bDebugDraw, float DebugDrawDuration) const
 {

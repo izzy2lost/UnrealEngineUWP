@@ -72,6 +72,13 @@ public:
 	INSTANCEDACTORS_API void ForEachModifierVolume(const FBox& QueryBounds, TFunctionRef<bool(UInstancedActorsModifierVolumeComponent&)> InOperation) const;
 	INSTANCEDACTORS_API void ForEachInstance(const FBox& QueryBounds, TFunctionRef<bool(const FInstancedActorsInstanceHandle&, const FTransform&, FInstancedActorsIterationContext&)> InOperation) const;
 
+	/** 
+	 * Checks whether there are any instanced actors representing ActorClass or its subclasses inside QueryBounds.
+	 * The check doesn't differentiate between hydrated and dehydrated actors (i.e. whether there's an actor instance 
+	 * associated with the instance or not).
+	 */
+	INSTANCEDACTORS_API bool HasInstancesOfClass(const FBox& QueryBounds, TSubclassOf<AActor> ActorClass) const;
+
 	FInstancedActorsManagerHandle AddManager(AInstancedActorsManager& Manager);
 	void RemoveManager(FInstancedActorsManagerHandle ManagerHandle);
 

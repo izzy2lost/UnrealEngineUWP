@@ -150,6 +150,21 @@ public:
 	template <typename TBoundsType>
 	bool ForEachInstance(const TBoundsType& QueryBounds, FInstanceOperationFunc InOperation, FInstancedActorsIterationContext& IterationContext, TOptional<FInstancedActorDataPredicateFunc> InstancedActorDataPredicate = TOptional<FInstancedActorDataPredicateFunc>()) const;
 
+	/**
+	 * Checks whether there are any instanced actors within this manager, representing ActorClass or its subclasses inside QueryBounds.
+	 * The check doesn't differentiate between hydrated and dehydrated actors (i.e. whether there's an actor instance
+	 * associated with the instance or not).
+	 */
+	template <typename TBoundsType>
+	bool HasInstancesOfClass(const TBoundsType& QueryBounds, TSubclassOf<AActor> ActorClass) const;
+
+	/** 
+	 * Determines whether the actor instance given by InstanceHandle overlaps QueryBounds. The test involves calculating 
+	 * bounding box of the actor representation of the given instance (i.e. it's not only the transform that's being tested).
+	 */
+	template <typename TBoundsType>
+	static bool IsInstanceInsideBounds(const TBoundsType& QueryBounds, const FInstancedActorsInstanceHandle& InstanceHandle, const FTransform& InstanceTransform);
+
 	// Outputs instance metrics to Ar
 	void AuditInstances(FOutputDevice& Ar, bool bDebugDraw = false, float DebugDrawDuration = 10.0f) const;
 
