@@ -4824,11 +4824,11 @@ FFeedbackContext& UClass::GetDefaultPropertiesFeedbackContext()
 */
 FName UClass::GetDefaultObjectName() const
 {
-	FString DefaultName;
-	DefaultName.Reserve(NAME_SIZE);
-	DefaultName += DEFAULT_OBJECT_PREFIX;
-	AppendName(DefaultName);
-	return FName(*DefaultName);
+	FNameBuilder DefaultNameBuilder;
+	DefaultNameBuilder.Append(DEFAULT_OBJECT_PREFIX);
+	GetFName().AppendString(DefaultNameBuilder);
+
+	return FName(*DefaultNameBuilder);
 }
 
 //
