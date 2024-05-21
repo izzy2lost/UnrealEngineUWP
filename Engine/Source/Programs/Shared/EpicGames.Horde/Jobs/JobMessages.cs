@@ -74,6 +74,11 @@ namespace EpicGames.Horde.Jobs
 		public int? ExpireAfterDays { get; set; }
 
 		/// <summary>
+		/// Name of the driver to use
+		/// </summary>
+		public string? Driver { get; set; }
+
+		/// <summary>
 		/// Merge defaults from another options object
 		/// </summary>
 		public void MergeDefaults(JobOptions other)
@@ -84,6 +89,7 @@ namespace EpicGames.Horde.Jobs
 			WorkspaceMaterializer ??= other.WorkspaceMaterializer;
 			Container.MergeDefaults(other.Container);
 			ExpireAfterDays ??= other.ExpireAfterDays;
+			Driver ??= other.Driver;
 		}
 	}
 
