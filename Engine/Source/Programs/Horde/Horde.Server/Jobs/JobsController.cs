@@ -239,6 +239,8 @@ namespace Horde.Server.Jobs
 			// Override the targets for the job if specified
 			if (create.Targets != null && create.Targets.Count > 0)
 			{
+				options.Targets = create.Targets.ToList();
+
 				options.Arguments.RemoveAll(x => x.StartsWith("-Target=", StringComparison.OrdinalIgnoreCase));
 				options.Arguments.AddRange(create.Targets.Select(x => $"-Target={x}"));
 			}

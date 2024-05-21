@@ -454,8 +454,10 @@ namespace Horde.Server.Jobs
 			public Dictionary<ParameterId, string> Parameters { get; set; } = new Dictionary<ParameterId, string>();
 
 			public List<string> Arguments { get; set; } = new List<string>();
-			public List<string>? Targets { get; set; }
 			public List<string> AdditionalArguments { get; set; } = new List<string>();
+
+			[BsonIgnoreIfNull]
+			public List<string>? Targets { get; set; }
 
 			[BsonDictionaryOptions(DictionaryRepresentation.ArrayOfDocuments)]
 			public Dictionary<string, string> Environment { get; set; } = new Dictionary<string, string>();
@@ -518,8 +520,8 @@ namespace Horde.Server.Jobs
 				NotificationChannelFilter = options.NotificationChannelFilter;
 				Parameters = new Dictionary<ParameterId, string>(options.Parameters);
 				Arguments.AddRange(options.Arguments);
-				Targets = (options.Targets != null && options.Targets.Count > 0) ? new List<string>(options.Targets) : null;
 				AdditionalArguments.AddRange(options.AdditionalArguments);
+				Targets = (options.Targets != null && options.Targets.Count > 0) ? new List<string>(options.Targets) : null;
 
 				foreach (KeyValuePair<string, string> pair in options.Environment)
 				{
