@@ -412,7 +412,7 @@ void UDeformableTetrahedralComponent::BeginPlay()
 	}
 	if (PrimarySolverComponent)
 	{
-		PrimaryComponentTick.AddPrerequisite(PrimarySolverComponent, PrimarySolverComponent->PrimaryComponentTick);
+		PrimaryComponentTick.AddPrerequisite(PrimarySolverComponent.Get(), PrimarySolverComponent->PrimaryComponentTick);
 	}
 }
 
@@ -524,7 +524,7 @@ void UDeformableTetrahedralComponent::RenderProceduralMesh()
 								if (GetDynamicCollection())
 								{
 									const TManagedArray<FVector3f>& DynamicVertex = GetDynamicCollection()->GetPositions();
-									if (DynamicVertex.Num()) RenderVertex = DynamicVertex.GetConstArray();
+									if ((DynamicVertex.Num() > 0) && (DynamicVertex.Num() == RenderVertex.Num())) RenderVertex = DynamicVertex.GetConstArray();
 								}
 								auto InRange = [](int32 Size, int32 Val) { return 0 <= Val && Val < Size; };
 

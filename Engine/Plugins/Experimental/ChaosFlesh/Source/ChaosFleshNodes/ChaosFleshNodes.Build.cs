@@ -5,8 +5,9 @@ namespace UnrealBuildTool.Rules
 	public class ChaosFleshNodes : ModuleRules
 	{
         public ChaosFleshNodes(ReadOnlyTargetRules Target) : base(Target)
-		{
-			PublicDependencyModuleNames.AddRange(
+        {
+	        PrivateDependencyModuleNames.AddRange(new string[] {"ChaosCaching"});
+	        PublicDependencyModuleNames.AddRange(
 				new string[]
 				{
 					"Core",
@@ -23,9 +24,10 @@ namespace UnrealBuildTool.Rules
 					"MeshConversion",
 					"MeshConversionEngineTypes",
 					"MeshDescription",
-					"TetMeshing"
+					"TetMeshing", 
+					"DataflowNodes"
 				}
 			);
-		}
+        }
 	}
 }

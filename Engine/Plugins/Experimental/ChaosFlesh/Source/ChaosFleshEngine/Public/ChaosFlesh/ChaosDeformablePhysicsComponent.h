@@ -33,6 +33,9 @@ public:
 	void EnableSimulation(UDeformableSolverComponent* DeformableSolverComponent);
 
 	UFUNCTION(BlueprintCallable, Category = "Physics")
+	void DisableSimulation();
+
+	UFUNCTION(BlueprintCallable, Category = "Physics")
 	void EnableSimulationFromActor(ADeformableSolverActor* DeformableSolverActor);
 
 	virtual FThreadingProxy* NewProxy() { return nullptr; }
@@ -52,11 +55,13 @@ public:
 	UDeformableSolverComponent* GetDeformableSolver();
 	const UDeformableSolverComponent* GetDeformableSolver() const;
 	
-
+	/** Primary solver component in which this flesh component has been registered. 
+	 * Soft object ptr since the UDeformablePhysicsComponent is stored in the chaos cache which requires
+	 * soft ref in order to record itself from another thread
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics", meta = (DisplayPriority = 2))
-	TObjectPtr<UDeformableSolverComponent> PrimarySolverComponent;
-
-
+	TSoftObjectPtr<UDeformableSolverComponent> PrimarySolverComponent;
+	
 	const FThreadingProxy* GetPhysicsProxy() const { return PhysicsProxy; }
 	FThreadingProxy* GetPhysicsProxy() { return PhysicsProxy; }
 

@@ -14,6 +14,7 @@ DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.UDeformableSolverComponent.UpdateDefor
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.UDeformableSolverComponent.TickComponent"), STAT_ChaosDeformable_UDeformableSolverComponent_TickComponent, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.UDeformableSolverComponent.Reset"), STAT_ChaosDeformable_UDeformableSolverComponent_Reset, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.UDeformableSolverComponent.AddDeformableProxy"), STAT_ChaosDeformable_UDeformableSolverComponent_AddDeformableProxy, STATGROUP_Chaos);
+DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.UDeformableSolverComponent.RemoveDeformableProxy"), STAT_ChaosDeformable_UDeformableSolverComponent_RemoveDeformableProxy, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.UDeformableSolverComponent.Simulate"), STAT_ChaosDeformable_UDeformableSolverComponent_Simulate, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.UDeformableSolverComponent.UpdateFromGameThread"), STAT_ChaosDeformable_UDeformableSolverComponent_UpdateFromGameThread, STATGROUP_Chaos);
 DECLARE_CYCLE_STAT(TEXT("Chaos.Deformable.UDeformableSolverComponent.UpdateFromSimulation"), STAT_ChaosDeformable_UDeformableSolverComponent_UpdateFromSimulation, STATGROUP_Chaos);
@@ -162,22 +163,24 @@ void UDeformableSolverComponent::TickComponent(float DeltaTime, enum ELevelTick 
 		UpdateTickGroup();
 
 		UpdateDeformableEndTickState(IsSimulatable());
-
-		UpdateFromGameThread(DeltaTime);
-
-		if (SolverTiming.bDoThreadedAdvance)
+		if(bSimulationTicking)
 		{
-			// see FParallelClothCompletionTask
-			FGraphEventArray Prerequisites;
-			Prerequisites.Add(ParallelDeformableTask);
-			FGraphEventRef DeformableCompletionEvent = TGraphTask<FParallelDeformableTask>::CreateTask(&Prerequisites, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(this, DeltaTime);
-			ThisTickFunction->GetCompletionHandle()->DontCompleteUntil(DeformableCompletionEvent);
-		}
-		else
-		{
-			Simulate(DeltaTime);
+			UpdateFromGameThread(DeltaTime);
 
-			UpdateFromSimulation(DeltaTime);
+			if (SolverTiming.bDoThreadedAdvance)
+			{
+				// see FParallelClothCompletionTask
+				FGraphEventArray Prerequisites;
+				Prerequisites.Add(ParallelDeformableTask);
+				FGraphEventRef DeformableCompletionEvent = TGraphTask<FParallelDeformableTask>::CreateTask(&Prerequisites, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(this, DeltaTime);
+				ThisTickFunction->GetCompletionHandle()->DontCompleteUntil(DeformableCompletionEvent);
+			}
+			else
+			{
+				Simulate(DeltaTime);
+
+				UpdateFromSimulation(DeltaTime);
+			}
 		}
 	}
 }
@@ -235,6 +238,21 @@ void UDeformableSolverComponent::Reset()
 					AddDeformableProxy(DeformableComponent);
 				}
 			}
+		}
+	}
+}
+
+void UDeformableSolverComponent::RemoveDeformableProxy(UDeformablePhysicsComponent* InComponent)
+{
+	SCOPE_CYCLE_COUNTER(STAT_ChaosDeformable_UDeformableSolverComponent_RemoveDeformableProxy);
+	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosDeformable_UDeformableSolverComponent_RemoveDeformableProxy);
+
+	if (Solver && IsSimulating(InComponent))
+	{
+		FDeformableSolver::FGameThreadAccess GameThreadSolver(Solver.Get(), Chaos::Softs::FGameThreadAccessor());
+		if (!GameThreadSolver.HasObject(InComponent))
+		{
+			InComponent->RemoveProxy(GameThreadSolver);
 		}
 	}
 }

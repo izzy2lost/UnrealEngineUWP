@@ -33,9 +33,16 @@
 #include "Dataflow/ChaosFleshVertexConstraintNode.h"
 #include "Dataflow/ChaosFleshVisualizeFiberFieldNode.h"
 #include "Dataflow/GeometryCollectionAppendCollectionTransformNode.h"
+#include "Dataflow/ChaosFleshSimulationNodes.h"
 #include "Modules/ModuleManager.h"
 
 #define LOCTEXT_NAMESPACE "ChaosFleshNodes"
+
+namespace Dataflow::CVars
+{
+	static bool bRegisterFleshSimulationNodes = true;
+	static FAutoConsoleVariableRef CVarRegisterFleshSimulationNodes(TEXT("p.Dataflow.Flesh.RegisterSimulationNodes"), bRegisterFleshSimulationNodes, TEXT("True to register all the flesh simulation nodes."));
+}
 
 
 void IChaosFleshNodesPlugin::StartupModule()
@@ -72,6 +79,15 @@ void IChaosFleshNodesPlugin::StartupModule()
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FTriangleMeshSimulationPropertiesDataflowNodes);
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FVisualizeFiberFieldNode);
 	DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FVisualizePositionTargetsNode);
+
+	// Temporary registry of the simulation nodes for
+	// testing while the simulation graph is being added
+	if(Dataflow::CVars::bRegisterFleshSimulationNodes)
+	{
+		Dataflow::RegisterChaosFleshSimulationNodes();
+		Dataflow::RegisterChaosSkeletonSimulationNodes();
+		Dataflow::RegisterChaosCommonSimulationNodes();
+	}
 }
 
 void IChaosFleshNodesPlugin::ShutdownModule()

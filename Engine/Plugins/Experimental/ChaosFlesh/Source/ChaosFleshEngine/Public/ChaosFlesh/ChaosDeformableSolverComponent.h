@@ -268,9 +268,11 @@ public:
 	bool IsSimulatable() const;
 	void Reset();
 	void AddDeformableProxy(UDeformablePhysicsComponent* InComponent);
+	void RemoveDeformableProxy(UDeformablePhysicsComponent* InComponent);
 	void Simulate(float DeltaTime);
 	void UpdateFromGameThread(float DeltaTime);
 	void UpdateFromSimulation(float DeltaTime);
+	void SetSimulationTicking(const bool InSimulationTicking) {bSimulationTicking = InSimulationTicking;}
 
 	/* Component Thread Management */
 	virtual void BeginPlay() override;
@@ -318,5 +320,8 @@ protected:
 	/** Ref for the deformable solvers parallel task, so we can detect whether or not a sim is running */
 	FGraphEventRef ParallelDeformableTask;
 	FDeformableEndTickFunction DeformableEndTickFunction;
+
+	/** Boolean to check if we can tick the simulation */
+	bool bSimulationTicking = true;
 };
 

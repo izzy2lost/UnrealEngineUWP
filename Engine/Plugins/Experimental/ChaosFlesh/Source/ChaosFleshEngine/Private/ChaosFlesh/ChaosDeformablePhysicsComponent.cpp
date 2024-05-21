@@ -114,11 +114,11 @@ void UDeformablePhysicsComponent::RemoveProxy(Chaos::Softs::FDeformableSolver::F
 
 UDeformableSolverComponent* UDeformablePhysicsComponent::GetDeformableSolver()
 {
-	return PrimarySolverComponent;
+	return PrimarySolverComponent.Get();
 }
 const UDeformableSolverComponent* UDeformablePhysicsComponent::GetDeformableSolver() const
 { 
-	return PrimarySolverComponent;
+	return PrimarySolverComponent.Get();
 }
 
 UDeformablePhysicsComponent::UDeformablePhysicsComponent(const FObjectInitializer& ObjectInitializer)
@@ -126,6 +126,18 @@ UDeformablePhysicsComponent::UDeformablePhysicsComponent(const FObjectInitialize
 {
 }
 
+void UDeformablePhysicsComponent::DisableSimulation()
+{
+	if (PrimarySolverComponent)
+	{
+		if (!PrimarySolverComponent->ConnectedObjects.DeformableComponents.Contains(this))
+		{
+			PrimarySolverComponent->ConnectedObjects.DeformableComponents.Remove(this);
+		}
+		PrimarySolverComponent->RemoveDeformableProxy(this);
+	}
+	PrimarySolverComponent = nullptr;
+}
 
 void UDeformablePhysicsComponent::EnableSimulation(UDeformableSolverComponent* DeformableSolverComponent)
 {
