@@ -488,15 +488,23 @@ typedef TMap<FString, FConfigSection> FConfigFileMap;
 class FConfigModificationTracker
 {
 public:
+	struct FCVarTracker
+	{
+		// this must be an ECVF priority
+		int CVarPriority;
+		TMap<FName, FConfigSection> CVarEntriesPerBranch;
+	};
+	
 	// input
-	TSet<FString> SectionsToTrackContents;
 	bool bTrackModifiedSections = true;
 	bool bTrackLoadedFiles = false;
 
 	// output
-	TSet<FString> ModifiedSections;
-	TMap<FString, class FConfigSection> TrackedSections;
+	TMap<FName, TSet<FString>> ModifiedSectionsPerBranch;
 	TArray<FString> LoadedFiles;
+	
+	// cvars, input/output
+	TMap<FString, FCVarTracker> CVars;
 };
 
 class FConfigCommandStreamSection : public FConfigSectionMap

@@ -230,8 +230,6 @@ TTSMulticastDelegate<void(const FString&, const TSet<FString>&)>& FCoreDelegates
 	return Singleton;
 }
 
-TMulticastDelegate<void(const TSet<FString>& ModifiedSections, const FString& IniFilename)> FCoreDelegates::ReloadObjectsAfterDynamicConfigChange;
-
 TMulticastDelegate<void(const TCHAR*, const TCHAR*, uint32, bool)> FCoreDelegates::OnApplyCVarFromIni;
 TMulticastDelegate<void(uint32, uint32)> FCoreDelegates::OnSystemResolutionChanged;
 

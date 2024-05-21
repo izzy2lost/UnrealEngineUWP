@@ -817,7 +817,7 @@ private:
 	 * Config
 	 *******/
 public:
-	COREUOBJECT_API static void ReloadObjectsFromModifiedConfigSections(const TSet<FString>& ModifiedSections, const FString& IniFilename);
+	COREUOBJECT_API static void ReloadObjectsFromModifiedConfigSections(const class FConfigModificationTracker* ChangeTracker);
 };
 
 /** Returns false if this pointer cannot be a valid pointer to a UObject */

@@ -16,6 +16,7 @@
 #include "Modules/ModuleManager.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/ConfigUtilities.h"
 #include "Containers/VersePath.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/DelayedAutoRegister.h"
@@ -528,72 +529,76 @@ bool UObjectBaseUtility::IsDefaultSubobject() const
 		(GetOuter()->HasAnyFlags(RF_ClassDefaultObject) || ((UObject*)this)->GetArchetype() != GetClass()->GetDefaultObject(false));
 }
 
-void UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections(const TSet<FString>& ModifiedSections, const FString& IniFilename)
-{
-	// resize the classes array to the sections set size as most will be non-PerObjectConfig
+void UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections(const FConfigModificationTracker* ChangeTracker)
+{	
 	TArray<const UClass*> ClassesToReload;
-	ClassesToReload.Empty(ModifiedSections.Num());
 	TArray<UObject*> ObjectsToReload;
 	
 	// Reload configs so objects get the changes
-	for (const FString& SectionName : ModifiedSections)
+	for (const TPair<FName, TSet<FString>>& Pair : ChangeTracker->ModifiedSectionsPerBranch)
 	{
-		UE_LOG(LogConfig, Verbose, TEXT("Found modified section: %s"), *SectionName);
-
-		// @todo: This entire overarching process is very similar in its goals as that of UOnlineHotfixManager::HotfixIniFile.
-		// Could consider a combined refactor of the hotfix manager, the base config cache system, etc. to expose an easier way to support this pattern
-
-		// INI files might be handling per-object config items, so need to handle them specifically
-		const int32 PerObjConfigDelimIdx = SectionName.Find(" ");
-		if (PerObjConfigDelimIdx != INDEX_NONE)
+		for (const FString& SectionName : Pair.Value)
 		{
-			const FString ObjectName = SectionName.Left(PerObjConfigDelimIdx);
-			const FString ClassName = SectionName.Mid(PerObjConfigDelimIdx + 1);
-
-			// TryFindTypeSlow will throw a warning/callstack for short pathnames, so use the function it calls internally
-			UClass* ObjClass = (UClass*)StaticFindFirstObject(UClass::StaticClass(), *ClassName, EFindFirstObjectOptions::EnsureIfAmbiguous | EFindFirstObjectOptions::NativeFirst, ELogVerbosity::Error, TEXT("UGameFeatureData::ReloadConfigs"));
-			if (ObjClass && ObjClass->HasAnyClassFlags(CLASS_Config))
+			UE_LOG(LogConfig, Verbose, TEXT("Found modified section: %s"), *SectionName);
+			
+			// @todo: This entire overarching process is very similar in its goals as that of UOnlineHotfixManager::HotfixIniFile.
+			// Could consider a combined refactor of the hotfix manager, the base config cache system, etc. to expose an easier way to support this pattern
+			
+			// INI files might be handling per-object config items, so need to handle them specifically
+			const int32 PerObjConfigDelimIdx = SectionName.Find(" ");
+			if (PerObjConfigDelimIdx != INDEX_NONE)
 			{
-				// Now try to actually find the object it's referencing specifically and update it
-				// @note: Choosing not to warn on not finding it for now, as Fortnite has transient uses instantiated at run-time (might not be constructed yet)
-				UObject* PerObjConfigObj = StaticFindFirstObject(ObjClass, *ObjectName, EFindFirstObjectOptions::ExactClass, ELogVerbosity::Warning, TEXT("UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections"));
-				if (IsValid(PerObjConfigObj))
+				const FString ObjectName = SectionName.Left(PerObjConfigDelimIdx);
+				const FString ClassName = SectionName.Mid(PerObjConfigDelimIdx + 1);
+				
+				// TryFindTypeSlow will throw a warning/callstack for short pathnames, so use the function it calls internally
+				UClass* ObjClass = (UClass*)StaticFindFirstObject(UClass::StaticClass(), *ClassName, EFindFirstObjectOptions::EnsureIfAmbiguous | EFindFirstObjectOptions::NativeFirst, ELogVerbosity::Error, TEXT("UGameFeatureData::ReloadConfigs"));
+				if (ObjClass && ObjClass->HasAnyClassFlags(CLASS_Config))
 				{
-					ObjectsToReload.Add(PerObjConfigObj);
+					// Now try to actually find the object it's referencing specifically and update it
+					// @note: Choosing not to warn on not finding it for now, as Fortnite has transient uses instantiated at run-time (might not be constructed yet)
+					UObject* PerObjConfigObj = StaticFindFirstObject(ObjClass, *ObjectName, EFindFirstObjectOptions::ExactClass, ELogVerbosity::Warning, TEXT("UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections"));
+					if (IsValid(PerObjConfigObj))
+					{
+						ObjectsToReload.Add(PerObjConfigObj);
+					}
+				}
+				else
+				{
+					UE_LOG(LogCore, Warning, TEXT("[%s]: Couldn't find PerObjectConfig class %s for %s, config changes won't be reloaded."), *Pair.Key.ToString(), *ClassName, *ObjectName);
 				}
 			}
+			// Standard INI section case
 			else
 			{
-				UE_LOG(LogCore, Warning, TEXT("[%s]: Couldn't find PerObjectConfig class %s for %s, config changes won't be reloaded."), *IniFilename, *ClassName, *ObjectName);
+				const FString NativeClassPrefix(TEXT("/Script/"));
+				const FString BPClassPrefix(TEXT("/Game/"));
+				
+				UClass* ObjClass = nullptr;
+				// handle /Script and /Game (/Game is for BP classes)
+				if (SectionName.StartsWith(NativeClassPrefix))
+				{
+					ObjClass = FindFirstObject<UClass>(*SectionName, EFindFirstObjectOptions::ExactClass | EFindFirstObjectOptions::EnsureIfAmbiguous | EFindFirstObjectOptions::NativeFirst);
+				}
+				else if (SectionName.StartsWith(BPClassPrefix))
+				{
+					ObjClass = LoadObject<UClass>(nullptr, *SectionName);
+				}
+				
+				// Find the affected class and push updates to all instances of it, including children
+				// @note:	Intentionally not using the propagation flags inherent in ReloadConfig to handle this, as it utilizes a naive complete object iterator
+				//			and tanks performance pretty badly
+				if (ObjClass && ObjClass->HasAnyClassFlags(CLASS_Config))
+				{
+					ClassesToReload.Add(ObjClass);
+				}
 			}
 		}
-		// Standard INI section case
-		else
-		{
-			const FString NativeClassPrefix(TEXT("/Script/"));
-			const FString BPClassPrefix(TEXT("/Game/"));
-			
-			UClass* ObjClass = nullptr;
-			// handle /Script and /Game (/Game is for BP classes)
-			if (SectionName.StartsWith(NativeClassPrefix))
-			{
-				ObjClass = FindFirstObject<UClass>(*SectionName, EFindFirstObjectOptions::ExactClass | EFindFirstObjectOptions::EnsureIfAmbiguous | EFindFirstObjectOptions::NativeFirst);
-			}
-			else if (SectionName.StartsWith(BPClassPrefix))
-			{
-				ObjClass = LoadObject<UClass>(nullptr, *SectionName);
-			}
-						
-			// Find the affected class and push updates to all instances of it, including children
-			// @note:	Intentionally not using the propagation flags inherent in ReloadConfig to handle this, as it utilizes a naive complete object iterator
-			//			and tanks performance pretty badly
-			if (ObjClass && ObjClass->HasAnyClassFlags(CLASS_Config))
-			{
-				ClassesToReload.Add(ObjClass);
-			}
-		}
+		
+		// @todo: this seems like a convenient place for this, but it's out of the scope of the function name
+		// for each modified branch, broadcast the changes
+		FCoreDelegates::TSOnConfigSectionsChanged().Broadcast(Pair.Key.ToString(), Pair.Value);
 	}
-	
 	
 	
 	int32 NumObjectsReloaded = 0;
@@ -617,20 +622,15 @@ void UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections(const TSet<FStr
 	{
 		ReloadObjectImpl(ReloadObject);
 	}
-
-	// @todo: this seems like a convenient place for this, but it's out of the scope of the function name
-	if (IniFilename.Len() > 0)
-	{
-		FCoreDelegates::TSOnConfigSectionsChanged().Broadcast(IniFilename, ModifiedSections);
-	}
-
-	UE_LOG(LogCore, Log, TEXT("Updating config from %s took %f seconds and reloaded %d objects"),
-		*IniFilename, FPlatformTime::Seconds() - StartTime, NumObjectsReloaded);
+	
+	UE_LOG(LogCore, Log, TEXT("Updating config from took %f seconds and reloaded %d objects"),
+		FPlatformTime::Seconds() - StartTime, NumObjectsReloaded);
 }
 
+// register a callback so non-uobject-knowing config code can still trigger object reloads
 static FDelayedAutoRegisterHelper GSetupReload(EDelayedRegisterRunPhase::ObjectSystemReady, []
 	{
-		FCoreDelegates::ReloadObjectsAfterDynamicConfigChange.AddStatic(&UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections);
+		UE::DynamicConfig::ReloadObjects.AddStatic(&UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections);
 	});
 
 

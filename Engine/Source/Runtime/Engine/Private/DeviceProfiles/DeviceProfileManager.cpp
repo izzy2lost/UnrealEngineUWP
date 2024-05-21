@@ -101,6 +101,15 @@ UDeviceProfileManager& UDeviceProfileManager::Get(bool bFromPostCDOContruct)
 
 		// let any other code that needs the DPManager to run now
 		FDelayedAutoRegisterHelper::RunAndClearDelayedAutoRegisterDelegates(EDelayedRegisterRunPhase::DeviceProfileManagerReady);
+		
+		// when we load/unload dynamic configs, we may need to propagate those changes to the active DP
+		UE::DynamicConfig::UpdateDeviceProfiles.AddLambda([](const TSet<FString>& ModifiedSections)
+			{
+				if (UDeviceProfileManager::Get().DoActiveProfilesReference(ModifiedSections))
+				{
+					UDeviceProfileManager::Get().ReapplyDeviceProfile();
+				}
+			});
 	}
 	return *DeviceProfileManagerSingleton;
 }

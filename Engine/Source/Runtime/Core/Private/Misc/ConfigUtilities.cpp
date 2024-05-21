@@ -15,6 +15,117 @@
 
 #define UE_HOTFIX_FOR_NEXT_BOOT_FILENAME TEXT("HotfixForNextBoot.txt")
 
+
+
+namespace UE::DynamicConfig
+{
+TMulticastDelegate<void(const class FConfigModificationTracker* ChangeTracker)> ReloadObjects;
+TMulticastDelegate<void(const class FConfigModificationTracker* ChangeTracker)> UpdateCVars;
+TMulticastDelegate<void(const TSet<FString>&)> UpdateDeviceProfiles;
+
+void PerformDynamicConfig(FName Tag, TFunction<void(class FConfigModificationTracker*)> PerformModification,
+	TFunction<void(class FConfigModificationTracker*)> PostModification)
+{
+	FConfigModificationTracker ChangeTracker;
+	ChangeTracker.bTrackModifiedSections = true;
+	
+	// run the callback
+	PerformModification(&ChangeTracker);
+	
+	// now update everything if anythign was read in!
+	if (ChangeTracker.ModifiedSectionsPerBranch.Num() > 0)
+	{
+		// reload objects that had their configs changed
+		for (const auto& SectionPair : ChangeTracker.CVars)
+		{
+			const FConfigModificationTracker::FCVarTracker& CVars = SectionPair.Value;
+			EConsoleVariableFlags Priority = (EConsoleVariableFlags)CVars.CVarPriority;
+	
+			// now walk over the updated cvars and set them based on the priority
+			for (const auto& BranchPair : CVars.CVarEntriesPerBranch)
+			{
+				const FConfigSection& Section = BranchPair.Value;
+	
+				for (const auto& CVarPair : Section)
+				{
+//					void OnSetCVarFromIniEntry(const TCHAR *IniFile, const TCHAR *Key, const TCHAR* Value, uint32 SetBy, bool bAllowCheating, bool bNoLogging)
+
+					UE::ConfigUtilities::OnSetCVarFromIniEntry(TEXT("DynamicLayer"), *CVarPair.Key.ToString(),*CVarPair.Value.GetValue(), Priority, false, false, Tag);
+//					IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(*CVarPair.Key.ToString());
+//					CVar->Set(*CVarPair.Value.GetValue(), Priority, Tag);
+				}
+			}
+		}
+
+		// reload any config uobjects that were updated (assuming the uobject system is in use)
+		ReloadObjects.Broadcast(&ChangeTracker);
+		
+		// if we updated GDeviceProfilesIni, then fixup active DP if needed
+		TSet<FString>* DPSections = ChangeTracker.ModifiedSectionsPerBranch.Find(*GDeviceProfilesIni);
+		if (DPSections != nullptr)
+		{
+			UpdateDeviceProfiles.Broadcast(*DPSections);
+		}
+	}
+	
+	if (PostModification != nullptr)
+	{
+		PostModification(&ChangeTracker);
+	}
+	
+#if !UE_BUILD_SHIPPING
+	
+	if (ChangeTracker.bTrackLoadedFiles)
+	{
+		UE_LOG(LogConfig, Verbose, TEXT("Modified Files:"));
+		for (FString& File : ChangeTracker.LoadedFiles)
+		{
+			UE_LOG(LogConfig, Verbose, TEXT("  %s"), *File);
+		}
+	}
+	
+	if (ChangeTracker.bTrackModifiedSections)
+	{
+		UE_LOG(LogConfig, Verbose, TEXT("Modified sections:"));
+		for (auto Pair : ChangeTracker.ModifiedSectionsPerBranch)
+		{
+			UE_LOG(LogConfig, Verbose, TEXT("  Branch: %s"), *Pair.Key.ToString());
+			for (FString& Section : Pair.Value)
+			{
+				UE_LOG(LogConfig, Verbose, TEXT("    %s"), *Section);
+			}
+		}
+		
+		if (ChangeTracker.CVars.Num() > 0)
+		{
+			UE_LOG(LogConfig, Verbose, TEXT("Modified Cvars:"));
+			for (const auto& SectionPair : ChangeTracker.CVars)
+			{
+				const FConfigModificationTracker::FCVarTracker& CVars = SectionPair.Value;
+
+				UE_LOG(LogConfig, Verbose, TEXT("  Branch: %s, SetBy Priority: %d"), *SectionPair.Key, CVars.CVarPriority);
+
+				// now walk over the updated cvars and set them based on the priority
+				for (const auto& BranchPair : CVars.CVarEntriesPerBranch)
+				{
+					UE_LOG(LogConfig, Verbose, TEXT("    Section %s:"), *BranchPair.Key.ToString());
+					const FConfigSection& Section = BranchPair.Value;
+					
+					for (const auto& CVarPair : Section)
+					{
+						UE_LOG(LogConfig, Verbose, TEXT("      %s = %s"), *CVarPair.Key.ToString(), *CVarPair.Value.GetValue());
+					}
+				}
+			}
+		}
+	}
+		 
+#endif
+}
+
+} // namesapce UE::DynamicConfig
+
+
 namespace UE::ConfigUtilities
 {
 
@@ -167,7 +278,7 @@ void ApplyCVarsFromBootHotfix()
 #endif // !UE_SERVER
 }
 
-void OnSetCVarFromIniEntry(const TCHAR *IniFile, const TCHAR *Key, const TCHAR* Value, uint32 SetBy, bool bAllowCheating, bool bNoLogging)
+void OnSetCVarFromIniEntry(const TCHAR *IniFile, const TCHAR *Key, const TCHAR* Value, uint32 SetBy, bool bAllowCheating, bool bNoLogging, FName Tag)
 {
 	check(IniFile && Key && Value);
 	check((SetBy & ECVF_FlagMask) == 0);
@@ -204,11 +315,11 @@ void OnSetCVarFromIniEntry(const TCHAR *IniFile, const TCHAR *Key, const TCHAR* 
 #endif
 			if (SetBy == ECVF_SetByMask)
 			{
-				CVar->SetWithCurrentPriority(Value);
+				CVar->SetWithCurrentPriority(Value, Tag);
 			}
 			else
 			{
-				CVar->Set(Value, (EConsoleVariableFlags)SetBy);
+				CVar->Set(Value, (EConsoleVariableFlags)SetBy, Tag);
 			}
 #if !NO_LOGGING
 			bool bChanged = bFirstSet;
@@ -257,6 +368,11 @@ void OnSetCVarFromIniEntry(const TCHAR *IniFile, const TCHAR *Key, const TCHAR* 
 	}
 	else
 	{
+		if (Tag != NAME_None)
+		{
+			UE_LOG(LogConfig, Warning, TEXT("Setting unregistered CVar %s with Tag %s. This will not be unloaded when the Taqg is unloaded, and it won't be usable until registered in code."), Key, *Tag.ToString());
+		}
+		
 		// Create a dummy that is used when someone registers the variable later on.
 		// this is important for variables created in external modules, such as the game module
 		IConsoleManager::Get().RegisterConsoleVariable(Key, Value, TEXT("IAmNoRealVariable"),

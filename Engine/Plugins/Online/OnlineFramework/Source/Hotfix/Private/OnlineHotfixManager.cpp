@@ -13,6 +13,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/App.h"
+#include "Misc/ConfigUtilities.h"
 
 #include "MoviePlayerProxy.h"
 
@@ -993,14 +994,15 @@ bool UOnlineHotfixManager::HotfixIniFile(const FString& FileName, const FString&
 	static bool bUseNewDynamicLayers = IConsoleManager::Get().FindConsoleVariable(TEXT("ini.UseNewDynamicLayers"))->GetInt() != 0;
 	if (bUseNewDynamicLayers)
 	{
-		FConfigBranch* Branch = GetBranch(FileName);
-		FConfigModificationTracker ChangeTracker;
-		
 		FName Tag = *BuildConfigCacheKey(FileName);
-		Branch->AddDynamicLayerStringToHierarchy(FileName, IniData, Tag, DynamicLayerPriority::Hotfix, &ChangeTracker);
-		
-		UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections(ChangeTracker.ModifiedSections, FileName);
+		UE::DynamicConfig::PerformDynamicConfig(Tag, [this, Tag, FileName, IniData](FConfigModificationTracker* ChangeTracker)
+		{
+			FConfigBranch* Branch = GetBranch(FileName);
+			ChangeTracker->CVars.Add(TEXT("ConsoleVariables")).CVarPriority = (int)ECVF_SetByHotfix;
 
+			Branch->AddDynamicLayerStringToHierarchy(FileName, IniData, Tag, DynamicLayerPriority::Hotfix, ChangeTracker);
+		});
+		
 		return true;
 	}
 
@@ -1237,28 +1239,26 @@ void UOnlineHotfixManager::RestoreBackupIniFiles()
 		// Flush async loading before modifying GConfig.
 		FlushAsyncLoading();
 
-		FConfigModificationTracker ChangeTracker;
-		for (const FCloudFileHeader& FileHeader : ChangedHotfixFileList)
+		// when just unloading, we don't need an actual tag
+		UE::DynamicConfig::PerformDynamicConfig(NAME_None, [this](FConfigModificationTracker* ChangeTracker)
 		{
-			if (FileHeader.FileName.EndsWith(TEXT(".INI")))
+			for (const FCloudFileHeader& FileHeader : ChangedHotfixFileList)
 			{
-				FName Tag = *BuildConfigCacheKey(FileHeader.FileName);
-				FConfigCacheIni::RemoveTagFromAllBranches(Tag, &ChangeTracker);
+				if (FileHeader.FileName.EndsWith(TEXT(".INI")))
+				{
+					FName Tag = *BuildConfigCacheKey(FileHeader.FileName);
+					FConfigCacheIni::RemoveTagFromAllBranches(Tag, ChangeTracker);
+				}
 			}
-		}
-		for (const FCloudFileHeader& FileHeader : RemovedHotfixFileList)
-		{
-			if (FileHeader.FileName.EndsWith(TEXT(".INI")))
+			for (const FCloudFileHeader& FileHeader : RemovedHotfixFileList)
 			{
-				FName Tag = *BuildConfigCacheKey(FileHeader.FileName);
-				FConfigCacheIni::RemoveTagFromAllBranches(Tag, &ChangeTracker);
+				if (FileHeader.FileName.EndsWith(TEXT(".INI")))
+				{
+					FName Tag = *BuildConfigCacheKey(FileHeader.FileName);
+					FConfigCacheIni::RemoveTagFromAllBranches(Tag, ChangeTracker);
+				}
 			}
-		}
-		
-		// @todo: the last param is for passing to a delegate on "SectionsChanged" but we are doing all the files at once -
-		// we could move the delegate out of this function, or call it once per file - but if a class was modified and removed
-		// we will do extra work - and also, the old way wasn't even calling the delegate!
-		UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections(ChangeTracker.ModifiedSections, FString());
+		});
 		
 		return;
 	}

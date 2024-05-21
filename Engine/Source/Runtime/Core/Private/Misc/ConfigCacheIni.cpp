@@ -1493,7 +1493,7 @@ void FillFileFromBuffer(FileType* File, FStringView Buffer, bool bHandleSymbolCo
 		else if( CurrentSection && *Start )
 		{
 			TCHAR* Value = 0;
-
+			
 			// ignore [comment] lines that start with ;
 			if(*Start != (TCHAR)';')
 			{
@@ -3058,13 +3058,14 @@ bool FConfigBranch::AddDynamicLayersToHierarchy(const TArray<FString>& Filenames
 			{
 				for (const TPair<FString, FConfigCommandStreamSection>& Pair : *DynamicLayer)
 				{
-					ModificationTracker->ModifiedSections.Add(Pair.Key);
-					if (ModificationTracker->SectionsToTrackContents.Contains(Pair.Key))
+					TSet<FString>& ModifiedSections = ModificationTracker->ModifiedSectionsPerBranch.FindOrAdd(IniName);
+					ModifiedSections.Add(Pair.Key);
+					if (FConfigModificationTracker::FCVarTracker* CVarTracker = ModificationTracker->CVars.Find(Pair.Key))
 					{
 						FConfigSection NewSection;
 						// copy just the SectionMap parts
 						(FConfigSectionMap&)NewSection = (const FConfigSectionMap&)Pair.Value;
-						ModificationTracker->TrackedSections.Add(Pair.Key, NewSection);
+						CVarTracker->CVarEntriesPerBranch.Add(IniName, NewSection);
 					}
 				}
 			}
@@ -3152,13 +3153,14 @@ bool FConfigBranch::AddDynamicLayerStringToHierarchy(const FString& Filename, co
 		{
 			for (const TPair<FString, FConfigCommandStreamSection>& Pair : *DynamicLayer)
 			{
-				ModificationTracker->ModifiedSections.Add(Pair.Key);
-				if (ModificationTracker->SectionsToTrackContents.Contains(Pair.Key))
+				TSet<FString>& ModifiedSections = ModificationTracker->ModifiedSectionsPerBranch.FindOrAdd(IniName);
+				ModifiedSections.Add(Pair.Key);
+				if (FConfigModificationTracker::FCVarTracker* CVarTracker = ModificationTracker->CVars.Find(Pair.Key))
 				{
 					FConfigSection NewSection;
 					// copy just the SectionMap parts
 					(FConfigSectionMap&)NewSection = (const FConfigSectionMap&)Pair.Value;
-					ModificationTracker->TrackedSections.Add(Pair.Key, NewSection);
+					CVarTracker->CVarEntriesPerBranch.Add(IniName, NewSection);
 				}
 			}
 		}
@@ -3219,7 +3221,8 @@ bool FConfigBranch::RemoveDynamicLayersFromHierarchy(const TArray<FString>& File
 				{
 					for (const TPair<FString,FConfigCommandStreamSection>& Pair : **Node)
 					{
-						ModificationTracker->ModifiedSections.Add(Pair.Key);
+						TSet<FString>& ModifiedSections = ModificationTracker->ModifiedSectionsPerBranch.FindOrAdd(IniName);
+						ModifiedSections.Add(Pair.Key);
 					}
 				}
 
@@ -3312,6 +3315,13 @@ namespace
 {
 	void OnConfigSectionsChanged(const FString& IniFilename, const TSet<FString>& SectionNames)
 	{
+		// when this is on, other code will do this in a way that doesn't force all ConsoleVariables cvars to be Hotfix level (see UE::DynamicConfig::PerformDynamicConfig)
+		static bool bUseNewDynamicLayers = IConsoleManager::Get().FindConsoleVariable(TEXT("ini.UseNewDynamicLayers"))->GetInt() != 0;
+		if (bUseNewDynamicLayers)
+		{
+			return;
+		}
+
 		if (IniFilename == GEngineIni && SectionNames.Contains(TEXT("ConsoleVariables")))
 		{
 			UE::ConfigUtilities::ApplyCVarSettingsFromIni(TEXT("ConsoleVariables"), *GEngineIni, ECVF_SetByHotfix);
@@ -6124,9 +6134,13 @@ class FIniExec : public FSelfRegisteringExec
 				{
 					Branch->AddDynamicLayerToHierarchy(Filename, &ChangeTracker);
 					Ar.Logf(TEXT("Modified sections:"));
-					for (const FString& Section : ChangeTracker.ModifiedSections)
+					for (auto Pair : ChangeTracker.ModifiedSectionsPerBranch)
 					{
-						Ar.Logf(TEXT("  %s"), *Section);
+						Ar.Logf(TEXT("  %s"), *Pair.Key.ToString());
+						for (const FString& Section : Pair.Value)
+						{
+							Ar.Logf(TEXT("    %s"), *Section);
+						}
 					}
 				}
 			}
@@ -6148,9 +6162,13 @@ class FIniExec : public FSelfRegisteringExec
 				{
 					Branch->RemoveDynamicLayerFromHierarchy(Filename, &ChangeTracker);
 					Ar.Logf(TEXT("Modified sections:"));
-					for (const FString& Section : ChangeTracker.ModifiedSections)
+					for (auto Pair : ChangeTracker.ModifiedSectionsPerBranch)
 					{
-						Ar.Logf(TEXT("  %s"), *Section);
+						Ar.Logf(TEXT("  %s"), *Pair.Key.ToString());
+						for (const FString& Section : Pair.Value)
+						{
+							Ar.Logf(TEXT("    %s"), *Section);
+						}
 					}
 				}
 			}
@@ -6210,24 +6228,20 @@ class FIniExec : public FSelfRegisteringExec
 				
 				if (Branch != nullptr)
 				{
-					Branch->AddDynamicLayersToHierarchy({ FileName }, "HotfixTest", DynamicLayerPriority::Hotfix, &ChangeTracker);
-					Ar.Logf(TEXT("HF Modified sections (reloading as needed):"));
-					for (const FString& Section : ChangeTracker.ModifiedSections)
+					UE::DynamicConfig::PerformDynamicConfig("HotFixText", [Branch, FileName](FConfigModificationTracker* ChangeTracker)
 					{
-						Ar.Logf(TEXT("  %s"), *Section);
-					}
-
-					FCoreDelegates::ReloadObjectsAfterDynamicConfigChange.Broadcast(ChangeTracker.ModifiedSections, FileName);
+						Branch->AddDynamicLayersToHierarchy({ FileName }, "HotfixTest", DynamicLayerPriority::Hotfix, ChangeTracker);
+					});
 				}
 			}
 		}
 		
 		if (FParse::Command(&Cmd, TEXT("RemoveHotFixes")))
 		{
-			FConfigModificationTracker ChangeTracker;
-			FConfigCacheIni::RemoveTagFromAllBranches("HotfixTest", &ChangeTracker);
-
-			FCoreDelegates::ReloadObjectsAfterDynamicConfigChange.Broadcast(ChangeTracker.ModifiedSections, "");
+			UE::DynamicConfig::PerformDynamicConfig("HotFixText", [](FConfigModificationTracker* ChangeTracker)
+			{
+				FConfigCacheIni::RemoveTagFromAllBranches("HotfixTest", ChangeTracker);
+			});
 		}
 		
 		if (FParse::Command(&Cmd, TEXT("Timing")))

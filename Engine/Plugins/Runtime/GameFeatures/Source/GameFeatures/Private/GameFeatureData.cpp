@@ -7,6 +7,7 @@
 #include "InstallBundleUtils.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/ConfigContext.h"
+#include "Misc/ConfigUtilities.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/CoreRedirects.h"
 #include "DeviceProfiles/DeviceProfile.h"
@@ -159,45 +160,29 @@ void UGameFeatureData::InitializeBasePluginIniFile(const FString& PluginInstalle
 
 void UGameFeatureData::InitializeHierarchicalPluginIniFiles(const FString& PluginInstalledFilename) const
 {
-	UDeviceProfileManager& DeviceProfileManager = UDeviceProfileManager::Get();
-
 	static bool bUseNewDynamicLayers = IConsoleManager::Get().FindConsoleVariable(TEXT("ini.UseNewDynamicLayers"))->GetInt() != 0;
 	if (bUseNewDynamicLayers)
 	{
-		const FString PluginName = FPaths::GetBaseFilename(PluginInstalledFilename);
-		TSharedPtr<IPlugin> PluginSystemPlugin = IPluginManager::Get().FindPlugin(PluginName);
+		const FName PluginName = *FPaths::GetBaseFilename(PluginInstalledFilename);
+		//TSharedPtr<IPlugin> PluginSystemPlugin = IPluginManager::Get().FindPlugin(PluginName);
 		//	checkf(FPaths::GetPath(PluginInstalledStandardFilename) == PluginSystemPlugin->GetBaseDir(), TEXT("Expected plugin system to have matching BaseDir to GFD plugin"));
 
-		// read the plugin into any configs it is overriding
-		FConfigModificationTracker ChangeTracker;
-		ChangeTracker.SectionsToTrackContents.Add(TEXT("ConsoleVariables"));
-
-		UE_LOG(LogGameFeatures, Verbose, TEXT("Loading GameFeature config modification for %s"), *PluginName);
-
-		FConfigCacheIni::AddPluginToAllBranches(*PluginName, &ChangeTracker);
-
-		const FConfigSection* CVars = ChangeTracker.TrackedSections.Find(TEXT("ConsoleVariables"));
-		if (CVars != nullptr)
-		{
-			for (auto Pair : *CVars)
+		UE_LOG(LogGameFeatures, Verbose, TEXT("Loading GameFeature config modification for %s"), *PluginName.ToString());
+		
+		UE::DynamicConfig::PerformDynamicConfig(PluginName, [PluginName](FConfigModificationTracker* ChangeTracker)
 			{
-				IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(*Pair.Key.ToString());
-				CVar->Set(*Pair.Value.GetValue(), ECVF_SetByPluginLowPriority, *PluginName);
-			}
-		}
+				// set which sections to track for cvars, with their priority
+				ChangeTracker->CVars.Add(TEXT("ConsoleVariables")).CVarPriority = (int)ECVF_SetByPluginLowPriority;
+				ChangeTracker->CVars.Add(TEXT("ConsoleVariables_HighPriority")).CVarPriority = (int)ECVF_SetByPluginHighPriority;
 
-		// reload objects that had their configs changed
-		UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections(ChangeTracker.ModifiedSections, PluginName);
-
-		// update active DP if it was modified (including parents)
-		if (UDeviceProfileManager::Get().DoActiveProfilesReference(ChangeTracker.ModifiedSections))
-		{
-			DeviceProfileManager.ReapplyDeviceProfile();
-		}
+				// apply plugin modifications from this plugin to the everything
+				FConfigCacheIni::AddPluginToAllBranches(PluginName, ChangeTracker);
+			});
 
 		return;
 	}
 
+	UDeviceProfileManager& DeviceProfileManager = UDeviceProfileManager::Get();
 	FString PlatformName = FPlatformProperties::IniPlatformName();
 
 #if ALLOW_OTHER_PLATFORM_CONFIG

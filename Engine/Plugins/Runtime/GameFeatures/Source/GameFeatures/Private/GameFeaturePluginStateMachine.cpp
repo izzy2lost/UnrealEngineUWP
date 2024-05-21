@@ -16,6 +16,7 @@
 #include "Materials/MaterialInterface.h"
 #include "Misc/AsciiSet.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/ConfigUtilities.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/EnumRange.h"
 #include "Misc/FileHelper.h"
@@ -2983,20 +2984,12 @@ struct FGameFeaturePluginState_Deactivating : public FGameFeaturePluginState
 		static bool bUseNewDynamicLayers = IConsoleManager::Get().FindConsoleVariable(TEXT("ini.UseNewDynamicLayers"))->GetInt() != 0;
 		if (bUseNewDynamicLayers)
 		{
-			// we added the plugin in GameFeatureData.cpp, but we don't need to add any complexity into there, since we just unload by PluginName
-			FConfigModificationTracker ChangeTracker;
-			FConfigCacheIni::RemoveTagFromAllBranches(*StateProperties.PluginName, &ChangeTracker);
-
-			IConsoleManager::Get().UnsetAllConsoleVariablesWithTag(*StateProperties.PluginName);
-
-			// reload any modified uobjects
-			UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections(ChangeTracker.ModifiedSections, StateProperties.PluginName);
-			
-			if (UDeviceProfileManager::Get().DoActiveProfilesReference(ChangeTracker.ModifiedSections))
+			FName Tag = *StateProperties.PluginName;
+			UE::DynamicConfig::PerformDynamicConfig(Tag, [Tag](FConfigModificationTracker* ChangeTracker)
 			{
-				UDeviceProfileManager& DeviceProfileManager = UDeviceProfileManager::Get();
-				DeviceProfileManager.ReapplyDeviceProfile();
-			}
+				FConfigCacheIni::RemoveTagFromAllBranches(Tag, ChangeTracker);
+				IConsoleManager::Get().UnsetAllConsoleVariablesWithTag(Tag);
+			});
 		}
 	}
 

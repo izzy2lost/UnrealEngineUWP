@@ -943,7 +943,7 @@ bool FConfigContext::LoadIniFileHierarchy()
 			bReadAnyFile = true;
 		}
 
-		UE_CLOG(bDumpIniLoadInfo, LogConfig, Display, TEXT("   Found!"));
+		UE_CLOG(bDumpIniLoadInfo, LogConfig, Display, TEXT("   Found %s!"), *IniFileName);
 
 		bool bDoEmptyConfig = false;
 		//UE_LOG(LogConfig, Log,  TEXT( "Combining configFile: %s" ), *IniList(IniIndex) );
