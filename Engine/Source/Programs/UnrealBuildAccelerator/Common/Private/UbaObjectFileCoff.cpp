@@ -288,11 +288,13 @@ namespace uba
 
 	bool ObjectFileCoff::ComputeLoopbacksAndDuplicates(UnorderedExports& allSharedExports, UnorderedSymbols& duplicates)
 	{
+		std::string importString;
+
 		for (auto& importSymbol : m_imports)
 		{
 			if (strncmp(importSymbol.c_str(), "__imp_", 6) != 0)
 				continue;
-			std::string importString = importSymbol.substr(6);
+			importString = importSymbol.c_str() + 6;
 			auto findIt = allSharedExports.find(importString);
 			if (findIt == allSharedExports.end())
 				continue;
@@ -326,6 +328,9 @@ namespace uba
 		static constexpr u8 utf8Bom[3] = { 0xef, 0xbb, 0xbf };
 		UBA_ASSERT(memcmp(directiveData, utf8Bom, 3) != 0);
 
+		std::string tmp;
+		std::string extra;
+
 		auto str = (char*)directiveData;
 		while (str)
 		{
@@ -340,8 +345,8 @@ namespace uba
 			else
 				++str;
 
-			std::string tmp(exportStr, exportEnd);
-			std::string extra;
+			tmp.assign(exportStr, exportEnd);
+			extra.clear();
 			if (const char* comma = strchr(tmp.c_str(), ','))
 			{
 				extra = comma;
@@ -356,6 +361,7 @@ namespace uba
 	template<typename SymbolType>
 	void ObjectFileCoff::ParseImports()
 	{
+		std::string symbolString;
 		auto symbols = (SymbolType*)(m_data + m_info.symbolsMemPos);
 		for (u32 i=0; i!=m_info.symbolCount; ++i)
 		{
@@ -365,7 +371,7 @@ namespace uba
 				continue;
 
 			StringView symbolName = GetSymbolName(symbol, m_data, m_info.stringTableMemPos);
-			std::string symbolString = symbolName.ToString();
+			symbolName.ToString(symbolString);
 
 			if (symbol.SectionNumber != ImageSymUndefined)
 			{
@@ -394,6 +400,8 @@ namespace uba
 
 		auto newDirectiveSection = (ImageSectionHeader*)(newData + m_info.directiveSectionMemOffset);
 		u8* newDirectiveData = newData + newDirectiveSection->PointerToRawData;
+
+		std::string tmp;
 
 		char* writePos = (char*)newDirectiveData;
 		const char* lastCopyPos = (const char*)directiveData;
@@ -439,11 +447,11 @@ namespace uba
 			if (strncmp(exportEnd-5, ",DATA", 5) == 0)
 				exportEnd -= 5;
 
-			std::string temp(exportStr, exportEnd - exportStr);
-			if (allNeededImports.find(temp) != allNeededImports.end())
+			tmp.assign(exportStr, exportEnd - exportStr);
+			if (allNeededImports.find(tmp) != allNeededImports.end())
 				continue;
-			temp = "__imp_" + temp;
-			if (allNeededImports.find(temp) != allNeededImports.end())
+			tmp.assign("__imp_").append(exportStr, exportEnd - exportStr);
+			if (allNeededImports.find(tmp) != allNeededImports.end())
 				continue;
 			
 			--exportCount;
@@ -472,7 +480,7 @@ namespace uba
 		return true;
 	}
 
-	bool ObjectFileCoff::CreateExtraFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports)
+	bool ObjectFileCoff::CreateExtraFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile)
 	{
 		std::string tmp;
 
@@ -498,41 +506,46 @@ namespace uba
 
 		// Header
 		auto& header = *(ImageFileHeader*)allocate(sizeof(ImageFileHeader));
-		header.NumberOfSections = 2;
-
-		// Directive section
-		auto& directiveSection = *(ImageSectionHeader*)allocate(sizeof(ImageSectionHeader));
-		memcpy(directiveSection.Name, ".drectve", 8);
-		directiveSection.Characteristics = ImageScnAlign1Bytes|ImageScnLnkInfo|ImageScnLnkRemove;
 
 		// Session for loopbacks
 		auto& textSection = *(ImageSectionHeader*)allocate(sizeof(ImageSectionHeader));
 		memcpy(textSection.Name, ".text$mn", 8);
 		textSection.Characteristics = ImageScnCntCode | ImageScnMemExecute | ImageScnMemRead;
+		u16 textSessionIndex = header.NumberOfSections;
+		++header.NumberOfSections;
 
-
-		// Directive raw data
-		u32 directiveRawDataStart = u32(memoryBlock.writtenSize);
-		directiveSection.PointerToRawData = directiveRawDataStart;
-		char slashExport[] = "/EXPORT:";
-		for (auto& kv : allSharedExports)
+		// Directive section
+		if (includeExportsInFile)
 		{
-			auto& symbol = kv.first;
+			auto& directiveSection = *(ImageSectionHeader*)allocate(sizeof(ImageSectionHeader));
+			memcpy(directiveSection.Name, ".drectve", 8);
+			directiveSection.Characteristics = ImageScnAlign1Bytes|ImageScnLnkInfo|ImageScnLnkRemove;
+			++header.NumberOfSections;
 
-			if (allNeededImports.find(symbol) == allNeededImports.end())
+			// Directive raw data
+			u32 directiveRawDataStart = u32(memoryBlock.writtenSize);
+			directiveSection.PointerToRawData = directiveRawDataStart;
+			char slashExport[] = "/EXPORT:";
+			for (auto& kv : allSharedExports)
 			{
-				std::string temp = "__imp_" + symbol;
-				if (allNeededImports.find(temp) == allNeededImports.end())
-					continue;
-			}
+				auto& symbol = kv.first;
 
-			write(slashExport, sizeof(slashExport) - 1);
-			write(symbol.data(), symbol.size());
-			write(kv.second.data(), kv.second.size());
-			write(" ", 1);
+				if (allNeededImports.find(symbol) == allNeededImports.end())
+				{
+					tmp.assign("__imp_").append(symbol);
+					if (allNeededImports.find(tmp) == allNeededImports.end())
+						continue;
+				}
+
+				write(slashExport, sizeof(slashExport) - 1);
+				write(symbol.data(), symbol.size());
+				write(kv.second.data(), kv.second.size());
+				write(",NONAME ", 8);
+			}
+			write("", 1);
+			directiveSection.SizeOfRawData = u32(memoryBlock.writtenSize) - directiveRawDataStart;
 		}
-		write("", 1);
-		directiveSection.SizeOfRawData = u32(memoryBlock.writtenSize) - directiveRawDataStart;
+
 
 		// Memory for relocations and write relocations
 		u32 relocationsRawDataPos = u32(memoryBlock.writtenSize);
@@ -579,7 +592,7 @@ namespace uba
 		{
 			auto& symbol = symbols[i + loopbackCount];
 			symbol.N.Name.Long = symbolsToAdd[i];
-			symbol.SectionNumber = 1 + 1;
+			symbol.SectionNumber = textSessionIndex + 1;
 			symbol.StorageClass = ImageSymClassExternal;
 			symbol.Value = i * 8;
 		}
@@ -587,11 +600,52 @@ namespace uba
 		return true;
 	}
 
+	bool ObjectFileCoff::CreateDefFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedExports& allSharedExports)
+	{
+		auto allocate = [&](u64 size) { return memoryBlock.Allocate(size, 1, TC("")); };
+		auto write = [&](const void* data, u64 size) { memcpy(allocate(size), data, size); };
+		
+		//write("EXPORTS\n", 8);
+
+		std::string tmp;
+		u32 counter = 0;
+
+		for (auto& kv : allSharedExports)
+		{
+			auto& symbol = kv.first;
+			if (allNeededImports.find(symbol) == allNeededImports.end())
+				if (allNeededImports.find(tmp.assign("__imp_").append(symbol)) == allNeededImports.end())
+					continue;
+
+			char buf[512];
+			u64 len = snprintf(buf, 256, "/EXPORT:_%u,@%s,NONAME\n", ++counter, symbol.data());
+			write(buf, len);
+
+			//write("/EXPORT:@", 9);
+			//write(symbol.data(), symbol.size());
+			//write(kv.second.data(), kv.second.size());
+
+			//char extra[64] = { 0 };
+			//if (!kv.second.empty())
+			//{
+			//	extra[0] = ' ';
+			//	strcpy_s(extra+1, 63, kv.second.c_str() + 1);
+			//}
+
+			//char buf[256];
+			//u64 len = snprintf(buf, 256, " @%u%s\n", ++counter, extra);
+			//write(buf, len);
+			//write("\n", 1);
+		}
+		write("", 0);
+		return true;
+	}
 
 	template<typename SymbolType> void ObjectFileCoff::CalculateImports(Logger& logger, Vector<u32>& outImports)
 	{
 		// Calculate how much more memory we need by counting imports
 		auto symbols = (SymbolType*)(m_data + m_info.symbolsMemPos);
+		std::string tmp;
 
 		for (u32 i=0; i!=m_info.symbolCount; ++i)
 		{
@@ -604,7 +658,7 @@ namespace uba
 			if (!symbolName.StartsWith("__imp_", 6))
 				continue;
 			symbolName.strBegin += 6;
-			auto findIt = m_loopbacksToAdd.find(symbolName.ToString());
+			auto findIt = m_loopbacksToAdd.find(symbolName.ToString(tmp));
 			if (findIt == m_loopbacksToAdd.end())
 				continue;
 			m_loopbacksToAdd.erase(findIt);
@@ -736,6 +790,8 @@ namespace uba
 		auto symbols = (SymbolType*)(newData + newInfo.symbolsMemPos);
 		auto sections = (ImageSectionHeader*)(newData + newInfo.sectionsMemOffset);
 
+		std::string tmp;
+
 		for (u32 i=0; i!=m_info.symbolCount; ++i)
 		{
 			auto& symbol = symbols[i];
@@ -747,7 +803,7 @@ namespace uba
 				continue;
 
 			StringView symbolName = GetSymbolName(symbol, m_data, m_info.stringTableMemPos);
-			auto findIt = m_toRemove.find(symbolName.ToString());
+			auto findIt = m_toRemove.find(symbolName.ToString(tmp));
 			if (findIt == m_toRemove.end())
 				continue;
 

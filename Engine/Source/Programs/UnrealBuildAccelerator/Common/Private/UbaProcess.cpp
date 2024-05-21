@@ -159,6 +159,15 @@ namespace uba
 		m_startInfo.application = m_virtualApplication.c_str();
 
 		m_arguments = startInfo.arguments;
+
+		tchar extractExports[] = TC(" /extractexports");
+		const tchar* pos = nullptr;
+		if (Contains(m_arguments.c_str(), extractExports, true, &pos))
+		{
+			m_arguments.erase(pos - m_arguments.c_str(), sizeof_array(extractExports));
+			m_extractExports = true;
+		}
+
 		m_startInfo.arguments = m_arguments.c_str();
 
 		m_virtualWorkingDir = startInfo.workingDir;

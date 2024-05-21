@@ -180,6 +180,8 @@ namespace uba
 
 		Thread m_messageThread;
 
+		bool m_extractExports = false;
+
 		ProcessImpl(const ProcessImpl&) = delete;
 		void operator=(const ProcessImpl&) = delete;
 	};

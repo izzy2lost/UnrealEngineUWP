@@ -149,12 +149,12 @@ namespace uba
 		return m_potentialDuplicates;
 	}
 
-	bool ObjectFile::CreateExtraFile(Logger& logger, const tchar* extraObjFilename, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports)
+	bool ObjectFile::CreateExtraFile(Logger& logger, const tchar* extraObjFilename, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile)
 	{
 		ObjectFileCoff objectFile;
 		MemoryBlock memoryBlock(16*1024*1024);
 
-		if (!((ObjectFile&)objectFile).CreateExtraFile(logger, memoryBlock, allNeededImports, allSharedImports, allSharedExports))
+		if (!((ObjectFile&)objectFile).CreateExtraFile(logger, memoryBlock, allNeededImports, allSharedImports, allSharedExports, includeExportsInFile))
 			return false;
 
 		FileAccessor extraFile(logger, extraObjFilename);
@@ -165,5 +165,23 @@ namespace uba
 			return false;
 
 		return extraFile.Close();
+	}
+
+	bool ObjectFile::CreateDefFile(Logger& logger, const tchar* defFilename, const UnorderedSymbols& allNeededImports, const UnorderedExports& allSharedExports)
+	{
+		ObjectFileCoff objectFile;
+		MemoryBlock memoryBlock(16*1024*1024);
+
+		if (!((ObjectFile&)objectFile).CreateDefFile(logger, memoryBlock, allNeededImports, allSharedExports))
+			return false;
+
+		FileAccessor defFile(logger, defFilename);
+		if (!defFile.CreateWrite())
+			return false;
+
+		if (!defFile.Write(memoryBlock.memory, memoryBlock.writtenSize))
+			return false;
+
+		return defFile.Close();
 	}
 }

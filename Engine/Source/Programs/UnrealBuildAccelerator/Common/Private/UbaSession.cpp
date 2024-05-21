@@ -969,7 +969,6 @@ namespace uba
 		UBA_ASSERTF(m_shouldWriteToDisk || m_allowMemoryMaps, TC("Can't disable both should write to disk and allow memory maps"));
 
 		m_storeObjFilesCompressed = info.storeObjFilesCompressed;
-		m_extractObjFilesSymbols = info.extractObjFilesSymbols;
 
 		m_detailedTrace = info.detailedTrace;
 		m_logToFile = info.logToFile;
@@ -1952,7 +1951,7 @@ namespace uba
 				lastWriteTime = writtenFile.lastWriteTime;
 			}
 
-			if (m_extractObjFilesSymbols && EndsWith(file.name.c_str(), file.name.size(), TC(".obj")) && !EndsWith(file.name.c_str(), file.name.size(), TC(".extra.obj")))
+			if (msg.process.m_extractExports && msg.process.m_startInfo.rules->ShouldExtractSymbols(file.name.c_str(), file.name.size()))
 				if (!ExtractSymbolsFromObjectFile(msg, name, fileSize))
 					return false;
 		}
@@ -2645,7 +2644,7 @@ namespace uba
 		const tchar* lastDot = TStrrchr(fileName, '.');
 		UBA_ASSERT(lastDot);
 		StringBuffer<> exportsFile;
-		exportsFile.Append(fileName, lastDot - fileName).Append(TC(".sym"));
+		exportsFile.Append(fileName, lastDot - fileName).Append(TC(".exi"));
 
 		MemoryBlock memoryBlock(1*1024*1024);
 		if (!objectFile->WriteSymbols(m_logger, memoryBlock))

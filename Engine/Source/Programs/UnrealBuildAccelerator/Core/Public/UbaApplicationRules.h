@@ -134,6 +134,11 @@ namespace uba
 			return false;
 		}
 
+		virtual bool ShouldExtractSymbols(const tchar* fileName, u64 fileNameLen) const
+		{
+			return false;
+		}
+
 		u32 index = ~0u;
 	};
 

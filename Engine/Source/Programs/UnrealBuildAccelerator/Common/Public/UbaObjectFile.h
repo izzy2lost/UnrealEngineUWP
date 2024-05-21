@@ -30,14 +30,16 @@ namespace uba
 		const UnorderedExports& GetExports() const;
 		const UnorderedSymbols& GetPotentialDuplicates() const;
 
-		static bool CreateExtraFile(Logger& logger, const tchar* extraObjFilename, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports);
+		static bool CreateExtraFile(Logger& logger, const tchar* extraObjFilename, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile);
+		static bool CreateDefFile(Logger& logger, const tchar* defFilename, const UnorderedSymbols& allNeededImports, const UnorderedExports& allSharedExports);
 
 		virtual ~ObjectFile();
 
 	protected:
 		virtual bool Parse(Logger& logger, const tchar* filename) = 0;
 		virtual bool StripExports(Logger& logger, u8* newData, const UnorderedSymbols& allNeededImports, u32& outKeptExportCount) = 0;
-		virtual bool CreateExtraFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports) = 0;
+		virtual bool CreateExtraFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile) = 0;
+		virtual bool CreateDefFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedExports& allSharedExports) = 0;
 
 		FileAccessor* m_file = nullptr;
 		u8* m_data = nullptr;
@@ -90,6 +92,12 @@ namespace uba
 		std::string ToString() const
 		{
 			return std::string(strBegin, strEnd);
+		}
+
+		std::string& ToString(std::string& out) const
+		{
+			out.assign(strBegin, strEnd);
+			return out;
 		}
 	};
 }

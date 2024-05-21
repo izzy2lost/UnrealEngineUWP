@@ -43,6 +43,7 @@ namespace uba
 		logger.Info(TC("    /S:<objfile>             Obj file to strip. Will produce a .strip.obj file. Multiple allowed"));
 		logger.Info(TC("    /D:<objfile>             Obj file depending on obj files to strip. Multiple allowed"));
 		logger.Info(TC("    /O:<objfile>             Obj file to output containing exports and loopbacks"));
+		logger.Info(TC("    /COMPRESS                Write '/O' file compressed"));
 		logger.Info(TC(""));
 		return -1;
 	}
@@ -58,6 +59,7 @@ namespace uba
 		Vector<TString> objFilesToStrip;
 		Vector<TString> objFilesDependencies;
 		TString extraObjFile;
+		TString defFile;
 
 		auto parseArg = [&](const tchar* arg)
 			{
@@ -85,6 +87,10 @@ namespace uba
 				else if (name.StartsWith(TC("/O:")))
 				{
 					extraObjFile = name.data + 3;
+				}
+				else if (name.StartsWith(TC("/E:")))
+				{
+					defFile = name.data + 3;
 				}
 				else if (name.Equals(TC("-printsymbols")))
 				{
@@ -288,9 +294,17 @@ namespace uba
 				if (!success)
 					return -1;
 			}
-			else if (!extraObjFile.empty())
+			
+			if (!extraObjFile.empty())
 			{
-				if (!ObjectFile::CreateExtraFile(logger, extraObjFile.c_str(), allNeededImports, allSharedImports, allSharedExports))
+				bool includeExportsInFile = defFile.empty();
+				if (!ObjectFile::CreateExtraFile(logger, extraObjFile.c_str(), allNeededImports, allSharedImports, allSharedExports, includeExportsInFile))
+					return -1;
+			}
+
+			if (!defFile.empty())
+			{
+				if (!ObjectFile::CreateDefFile(logger, defFile.c_str(), allNeededImports, allSharedExports))
 					return -1;
 			}
 

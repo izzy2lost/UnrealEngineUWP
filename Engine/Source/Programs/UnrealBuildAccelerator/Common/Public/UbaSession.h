@@ -176,7 +176,6 @@ namespace uba
 		bool m_detailedTrace;
 		bool m_logToFile;
 		bool m_storeObjFilesCompressed;
-		bool m_extractObjFilesSymbols;
 
 		u64 m_keepOutputFileMemoryMapsThreshold;
 
