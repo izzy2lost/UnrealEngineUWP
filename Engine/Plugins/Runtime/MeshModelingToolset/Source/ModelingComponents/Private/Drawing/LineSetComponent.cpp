@@ -258,6 +258,21 @@ int32 ULineSetComponent::AddLineInternal(const FRenderableLine& Line)
 	return ID;
 }
 
+int32 ULineSetComponent::AddLines(const TArray<FVector>& InStart, const TArray<FVector>& InEnd, const FColor& InColor, const float InThickness, const float InDepthBias)
+{
+	if(InStart.Num() != InEnd.Num())
+	{
+		FFrame::KismetExecutionMessage(TEXT("InStart and InEnd arrays are not the same size."), ELogVerbosity::Error);
+		return 0;
+	}
+
+	const int NumLines = InStart.Num();
+	for (int Index = 0; Index < NumLines; ++Index)
+	{
+		AddLine(InStart[Index], InEnd[Index], InColor, InThickness, InDepthBias);
+	}
+	return NumLines;
+}
 
 void ULineSetComponent::InsertLine(const int32 ID, const FRenderableLine& OverlayLine)
 {

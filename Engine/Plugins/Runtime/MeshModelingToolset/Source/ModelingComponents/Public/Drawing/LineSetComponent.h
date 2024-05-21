@@ -36,7 +36,7 @@ struct FRenderableLine
 	float DepthBias;
 };
 
-UCLASS()
+UCLASS(meta=(BlueprintSpawnableComponent))
 class MODELINGCOMPONENTS_API ULineSetComponent : public UMeshComponent
 {
 	GENERATED_BODY()
@@ -46,9 +46,11 @@ public:
 	ULineSetComponent();
 
 	/** Specify material which handles lines */
+	UFUNCTION(BlueprintCallable, Category="Line Set")
 	void SetLineMaterial(UMaterialInterface* InLineMaterial);
 
 	/** Clear the line set */
+	UFUNCTION(BlueprintCallable, Category="Line Set")
 	void Clear();
 
 	/** Reserve enough memory for up to the given ID (for inserting via ID) */
@@ -63,6 +65,15 @@ public:
 		// This is just a convenience function to avoid client code having to know about FRenderableLine.
 		return AddLine(FRenderableLine(InStart, InEnd, InColor, InThickness, InDepthBias));
 	}
+
+	/** Add lines to be rendered using the component. */
+	UFUNCTION(BlueprintCallable, Category="Line Set")
+	int32 AddLines(
+		const TArray<FVector>& InStart,
+		const TArray<FVector>& InEnd,
+		const FColor& InColor,
+		const float InThickness,
+		const float InDepthBias = 0.0f);
 
 	/** Insert a line with the given ID to the overlay */
 	void InsertLine(const int32 ID, const FRenderableLine& OverlayLine);
