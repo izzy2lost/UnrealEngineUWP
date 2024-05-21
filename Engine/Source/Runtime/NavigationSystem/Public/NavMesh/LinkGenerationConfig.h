@@ -14,10 +14,6 @@ struct FNavLinkGenerationJumpDownConfig
 {
 	GENERATED_USTRUCT_BODY()
 
-	/** Should this config be used to generate links. */
-	UPROPERTY(EditAnywhere, Config, Category = Settings)
-	bool bEnable = true;
-	
 	// @todo: Rename, describe and find best defaults for those parameters.
 	UPROPERTY(EditAnywhere, Config, Category = Settings, meta=(Units=cm, UIMin=0, ClampMin=0))
 	float JumpLength = 150.f; 
@@ -48,10 +44,6 @@ struct FNavLinkGenerationJumpOverConfig
 {
 	GENERATED_USTRUCT_BODY()
 
-	/** Should this config be used to generate links. */
-	UPROPERTY(EditAnywhere, Config, Category = Settings)
-	bool bEnabled = true;
-	
 	// @todo: Rename, describe and find best defaults for those parameters.
 	UPROPERTY(EditAnywhere, Config, Category = Settings, meta=(Units=cm, UIMin=0, ClampMin=0))
 	float JumpLength = 200.f; 

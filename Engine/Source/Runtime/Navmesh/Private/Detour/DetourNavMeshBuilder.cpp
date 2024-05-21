@@ -293,6 +293,7 @@ bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData,
 	// whose start point is inside the tile.
 	unsigned char* offMeshConClass = 0;
 	int storedOffMeshConCount = 0;
+	int offMeshConLinkCount = 0;
 	int storedOffMeshSegCount = 0;
 
 	if (params->offMeshConCount > 0)
@@ -342,7 +343,6 @@ bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData,
 
 		for (int i = 0; i < params->offMeshConCount; ++i)
 		{
-			
 			const dtOffMeshLinkCreateParams& offMeshCon = params->offMeshCons[i];
 			if (offMeshCon.type & DT_OFFMESH_CON_POINT)
 			{
@@ -358,6 +358,12 @@ bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData,
 						offMeshConClass[i * 2 + 0] = 0;
 					}
 				}
+
+				// Count how many links should be allocated for off-mesh connections.
+				if (offMeshConClass[i*2+0] == 0xff)
+					offMeshConLinkCount++;
+				if (offMeshConClass[i*2+1] == 0xff)
+					offMeshConLinkCount++;
 
 				if (offMeshConClass[i*2+0] == 0xff)
 					storedOffMeshConCount++;

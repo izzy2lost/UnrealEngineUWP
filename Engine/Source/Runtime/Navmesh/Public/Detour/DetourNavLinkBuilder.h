@@ -51,11 +51,11 @@ class dtNavLinkBuilder
 	{
 		dtReal sp[3], sq[3];
 	};
-	TArray<Edge, TInlineAllocator<32>> m_edges;
+	Edge* m_edges = nullptr;
+	int m_nedges = 0;
 	
 public:	
 	static constexpr int MAX_SPINE = 8;
-	int getEdgeCount() const { return m_edges.Num(); }
 	
 	struct TrajectorySample
 	{
@@ -64,11 +64,13 @@ public:
 	
 	struct Trajectory2D
 	{
-		Trajectory2D() : nspine(0) {}
+		Trajectory2D() : samples(nullptr), nsamples(0), nspine(0) {}
+		NAVMESH_API ~Trajectory2D();
 
 		float spine[2*MAX_SPINE];		// [x,y] relative points representing the desired trajectory (2 spines)
-		TArray<TrajectorySample, TInlineAllocator<8>> samples;	// samples along trajectory slices to check for collision
+		TrajectorySample* samples;		// samples along trajectory slices to check for collision
 		
+		unsigned short nsamples;
 		unsigned char nspine;			// @todo: remove (use direclty MAX_SPINE) or make relative to trajectory type and config
 	};
 
@@ -101,7 +103,7 @@ private:
 		NAVMESH_API ~GroundSegment();
 
 		dtReal p[3], q[3];
-		TArray<GroundSample, TInlineAllocator<16>> gsamples;
+		TArray<GroundSample, TInlineAllocator<32>> gsamples;
 		unsigned short ngsamples;
 		unsigned short npass;
 	};
@@ -136,7 +138,9 @@ public:
 		JumpLinkFlag flags;
 		dtNavLinkAction action = DT_LINK_ACTION_UNSET;
 	};
-	TArray<JumpLink, TInlineAllocator<16>> m_links;
+	JumpLink* m_links = nullptr;
+	int m_nlinks = 0;
+	int m_clinks = 0;
 
 private:
 	int m_debugSelectedEdge = -1;
@@ -144,17 +148,20 @@ private:
 	friend NAVMESH_API void duDebugDrawNavLinkBuilder(struct duDebugDraw* dd, const dtNavLinkBuilder& linkBuilder, unsigned int drawFlags, const EdgeSampler* es);
 	
 public:
+	NAVMESH_API ~dtNavLinkBuilder();
+
 	// Loops through contours to store edge points in world coordinates.
 	NAVMESH_API bool findEdges(rcContext& ctx, const rcConfig& cfg, const dtLinkBuilderConfig& builderConfig,
 							   const struct dtTileCacheContourSet& lcset, const dtReal* orig,
 							   const rcHeightfield* solidHF, const rcCompactHeightfield* compactHF);
 
 	// For all edges, sample edges (sampleEdge) and add links to m_links
-	NAVMESH_API void buildForAllEdges(rcContext& ctx, const dtLinkBuilderConfig& acfg, dtNavLinkAction action);
+	NAVMESH_API void buildForAllEdges(const dtLinkBuilderConfig& acfg, dtNavLinkAction action);
 
 	NAVMESH_API void debugBuildEdge(const dtLinkBuilderConfig& acfg, dtNavLinkAction action, int edgeIndex, EdgeSampler& sampler);
 	
 private:
+	void cleanup();
 	void initTrajectory(Trajectory2D* tra) const;
 	bool isTrajectoryClear(const dtReal* pa, const dtReal* pb, const Trajectory2D* tra) const;
 	
@@ -177,9 +184,10 @@ private:
 	
 	void sampleAction(EdgeSampler* es) const;
 	
-	void filterJumpOverLinks();
+	void filterJumpOverLinks() const;
 
 	bool sampleEdge(const dtLinkBuilderConfig& builderConfig, dtNavLinkAction desiredAction, const dtReal* sp, const dtReal* sq, dtNavLinkBuilder::EdgeSampler* sampler) const;
+	JumpLink* addLink();
 	void addEdgeLinks(const dtLinkBuilderConfig& builderConfig, const EdgeSampler* es);
 };
 //@UE END

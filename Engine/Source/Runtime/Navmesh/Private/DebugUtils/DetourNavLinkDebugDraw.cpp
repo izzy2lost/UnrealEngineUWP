@@ -111,15 +111,14 @@ namespace UE::Detour::Private
 		
 		dd->begin(DU_DRAW_QUADS);
 		dtReal p0[3], p1[3], p2[3], p3[3];
-		const int nsamples = trajectory->samples.Num();
-		for (int i = 0; i < nsamples; ++i)
+		for (int i = 0; i < trajectory->nsamples; ++i)
 		{
-			const dtNavLinkBuilder::TrajectorySample& s = trajectory->samples[i];
-			const dtReal u = (float)i / (float)(nsamples-1);
+			const dtNavLinkBuilder::TrajectorySample* s = &trajectory->samples[i];
+			const dtReal u = (float)i / (float)(trajectory->nsamples-1);
 			dtVlerp(p1, pa, pb, u);
 			dtVcopy(p0, p1);
-			p0[1] += s.ymin;
-			p1[1] += s.ymax;
+			p0[1] += s->ymin;
+			p1[1] += s->ymax;
 			
 			if (i > 0)
 			{
@@ -143,16 +142,16 @@ namespace UE::Detour::Private
 		colt = duDarkenCol(colt);
 		
 		dd->begin(DU_DRAW_LINES, 2.0f);
-		for (int i = 0; i < nsamples; ++i)
+		for (int i = 0; i < trajectory->nsamples; ++i)
 		{
-			const dtNavLinkBuilder::TrajectorySample& s = trajectory->samples[i];
-			const float u = (float)i / (float)(nsamples-1);
+			const dtNavLinkBuilder::TrajectorySample* s = &trajectory->samples[i];
+			const float u = (float)i / (float)(trajectory->nsamples-1);
 			dtVlerp(p1, pa, pb, u);
 			dtVcopy(p0, p1);
-			p0[1] += s.ymin;
-			p1[1] += s.ymax;
+			p0[1] += s->ymin;
+			p1[1] += s->ymax;
 			
-			if (i == 0 || i == (nsamples-1))
+			if (i == 0 || i == (trajectory->nsamples-1))
 			{
 				dd->vertex(p0, colb);
 				dd->vertex(p1, colt);
@@ -187,8 +186,8 @@ void duDebugDrawNavLinkBuilder(duDebugDraw* dd, const dtNavLinkBuilder& linkBuil
 
 	if (drawFlags & DRAW_BORDERS)
 	{
-		const TArray<dtNavLinkBuilder::Edge, TInlineAllocator<32>>& edges = linkBuilder.m_edges;
-		const int nedges = linkBuilder.m_edges.Num();
+		const dtNavLinkBuilder::Edge* edges = linkBuilder.m_edges;
+		const int nedges = linkBuilder.m_nedges;
 		const int selectedEdge = linkBuilder.m_debugSelectedEdge;
 		
 		if (nedges)
@@ -252,6 +251,8 @@ void duDebugDrawNavLinkBuilder(duDebugDraw* dd, const dtNavLinkBuilder& linkBuil
 	
 	if (drawFlags & DRAW_LINKS)
 	{
+		const dtNavLinkBuilder::JumpLink* links = linkBuilder.m_links;
+
 		unsigned int jumpDownCol0 = duLerpCol(duColor::blue, duColor::white, 200);
 		unsigned int jumpDownCol1 = duColor::blue;
 		unsigned int jumpOverCol0 = duLerpCol(duColor::lightGrey, duColor::white, 200);
@@ -274,82 +275,87 @@ void duDebugDrawNavLinkBuilder(duDebugDraw* dd, const dtNavLinkBuilder& linkBuil
 		unsigned int col0 = duColor::black;
 		unsigned int col1 = duColor::black;
 		
-		const int nlinks = linkBuilder.m_links.Num();
+		const int nlinks = linkBuilder.m_nlinks;
 		if (nlinks)
 		{
 			dd->begin(DU_DRAW_QUADS);
-			for (const dtNavLinkBuilder::JumpLink& link : linkBuilder.m_links)
+			for (int i = 0; i < nlinks; ++i)
 			{
-				if (link.flags == dtNavLinkBuilder::INVALID)
+				const dtNavLinkBuilder::JumpLink* link = &links[i];
+				
+				if (link->flags == dtNavLinkBuilder::INVALID)
 					continue;
 
-				selectColors(link.action, col0, col1);
+				selectColors(link->action, col0, col1);
 				
-				for (int j = 0; j < link.nspine-1; ++j)
+				for (int j = 0; j < link->nspine-1; ++j)
 				{
-					int u = (j*255)/link.nspine;
+					int u = (j*255)/link->nspine;
 					unsigned int col = duTransCol(duLerpCol(col0,col1,u),128);
-					if (link.flags == dtNavLinkBuilder::INVALID)
+					if (link->flags == dtNavLinkBuilder::INVALID)
 						col = duRGBA(255,0,0,64);
 					
-					dd->vertex(&link.spine1[j*3], col);
-					dd->vertex(&link.spine1[(j+1)*3], col);
-					dd->vertex(&link.spine0[(j+1)*3], col);
-					dd->vertex(&link.spine0[j*3], col);
+					dd->vertex(&link->spine1[j*3], col);
+					dd->vertex(&link->spine1[(j+1)*3], col);
+					dd->vertex(&link->spine0[(j+1)*3], col);
+					dd->vertex(&link->spine0[j*3], col);
 				}
 			}
 			dd->end();
 			
 			dd->begin(DU_DRAW_LINES, 3.0f);
-			for (const dtNavLinkBuilder::JumpLink& link : linkBuilder.m_links)
+			for (int i = 0; i < nlinks; ++i)
 			{
-				if (link.flags == dtNavLinkBuilder::INVALID)
+				const dtNavLinkBuilder::JumpLink* link = &links[i];
+				if (link->flags == dtNavLinkBuilder::INVALID)
 					continue;
 
-				selectColors(link.action, col0, col1);
+				selectColors(link->action, col0, col1);
 				
-				for (int j = 0; j < link.nspine-1; ++j)
+				for (int j = 0; j < link->nspine-1; ++j)
 				{
 					unsigned int col = duTransCol(duDarkenCol(col1),128);
 					
-					dd->vertex(&link.spine0[j*3], col);
-					dd->vertex(&link.spine0[(j+1)*3], col);
-					dd->vertex(&link.spine1[j*3], col);
-					dd->vertex(&link.spine1[(j+1)*3], col);
+					dd->vertex(&link->spine0[j*3], col);
+					dd->vertex(&link->spine0[(j+1)*3], col);
+					dd->vertex(&link->spine1[j*3], col);
+					dd->vertex(&link->spine1[(j+1)*3], col);
 				}
 
-				dd->vertex(&link.spine0[0], duDarkenCol(col1));
-				dd->vertex(&link.spine1[0], duDarkenCol(col1));
+				dd->vertex(&link->spine0[0], duDarkenCol(col1));
+				dd->vertex(&link->spine1[0], duDarkenCol(col1));
 
-				dd->vertex(&link.spine0[(link.nspine-1)*3], duDarkenCol(col1));
-				dd->vertex(&link.spine1[(link.nspine-1)*3], duDarkenCol(col1));
+				dd->vertex(&link->spine0[(link->nspine-1)*3], duDarkenCol(col1));
+				dd->vertex(&link->spine1[(link->nspine-1)*3], duDarkenCol(col1));
 			}
 			dd->end();
 
 			dd->begin(DU_DRAW_POINTS, 8.0f);
-			for (const dtNavLinkBuilder::JumpLink& link : linkBuilder.m_links)
+			for (int i = 0; i < nlinks; ++i)
 			{
-				if (link.flags == dtNavLinkBuilder::INVALID)
+				const dtNavLinkBuilder::JumpLink* link = &links[i];
+				if (link->flags == dtNavLinkBuilder::INVALID)
 					continue;
 
-				selectColors(link.action, col0, col1);
+				selectColors(link->action, col0, col1);
 				
-				dd->vertex(&link.spine0[0], duDarkenCol(col1));
-				dd->vertex(&link.spine1[0], duDarkenCol(col1));
-				dd->vertex(&link.spine0[(link.nspine-1)*3], duDarkenCol(col1));
-				dd->vertex(&link.spine1[(link.nspine-1)*3], duDarkenCol(col1));
+				dd->vertex(&link->spine0[0], duDarkenCol(col1));
+				dd->vertex(&link->spine1[0], duDarkenCol(col1));
+				dd->vertex(&link->spine0[(link->nspine-1)*3], duDarkenCol(col1));
+				dd->vertex(&link->spine1[(link->nspine-1)*3], duDarkenCol(col1));
 			}
 			dd->end();
 			
 			dd->begin(DU_DRAW_POINTS, 4.0f);
-			for (const dtNavLinkBuilder::JumpLink& link : linkBuilder.m_links)
+			for (int i = 0; i < nlinks; ++i)
 			{
-				if (link.flags == dtNavLinkBuilder::INVALID)
+				const dtNavLinkBuilder::JumpLink* link = &links[i];
+				if (link->flags == dtNavLinkBuilder::INVALID)
 					continue;
-				dd->vertex(&link.spine0[0], duColor::lightGrey);
-				dd->vertex(&link.spine1[0], duColor::lightGrey);
-				dd->vertex(&link.spine0[(link.nspine-1)*3], duColor::lightGrey);
-				dd->vertex(&link.spine1[(link.nspine-1)*3], duColor::lightGrey);
+				dd->vertex(&link->spine0[0], duColor::lightGrey);
+				dd->vertex(&link->spine1[0], duColor::lightGrey);
+				dd->vertex(&link->spine0[(link->nspine-1)*3], duColor::lightGrey);
+				dd->vertex(&link->spine1[(link->nspine-1)*3], duColor::lightGrey);
 			}
 			dd->end();
 		}
