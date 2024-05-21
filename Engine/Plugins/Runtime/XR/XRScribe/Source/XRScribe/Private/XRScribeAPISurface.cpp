@@ -793,7 +793,7 @@ public:
 			}
 			else
 			{
-				UE_LOG(LogXRScribeAPI, Warning, TEXT("Emulation Layer disabled"));
+				UE_LOG(LogXRScribeAPI, Log, TEXT("Emulation Layer disabled - unable to load the capture file."));
 			}
 
 			return bEmulationLoadedCapture;

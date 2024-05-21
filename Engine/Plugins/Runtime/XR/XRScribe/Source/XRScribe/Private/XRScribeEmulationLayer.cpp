@@ -293,7 +293,7 @@ bool FOpenXREmulationLayer::LoadCaptureFromFile(const FString& EmulationLoadPath
 	}
 	else
 	{
-		UE_LOG(LogXRScribeEmulate, Error, TEXT("Capture failed to load"));
+		UE_LOG(LogXRScribeEmulate, Log, TEXT("Capture '%s' failed to load."), *EmulationLoadPath);
 		return false;
 	}
 }
