@@ -35,10 +35,10 @@ namespace mu
 		//! Size of the rom
 		uint32 Size;
 
-		//! Index of the resource in its type-sepcific array
+		//! Index of the resource in its type-specific array
 		uint32 ResourceIndex;
 
-		//! Index of the resource in its type-sepcific array (one of DATATYPE values)
+		//! Index of the resource in its type-specific array (one of DATATYPE values)
 		uint32 ResourceType;        
     };
 

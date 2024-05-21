@@ -384,14 +384,14 @@ void FImageOperator::ImagePixelFormat(bool& bOutSuccess, int32 CompressionQualit
 				
 				CompressRLE_L(Base, Result);
 
-#ifdef MUTABLE_DEBUG_RLE		
-				if (bOutSuccess)
-				{
-					// Verify
-					Ptr<Image> Test = ImagePixelFormat(CompressionQuality, Result, EImageFormat::IF_L_UBYTE);
-					check(Test->DataStorage == Base->DataStorage);
-				}
-#endif
+//#ifdef MUTABLE_DEBUG_RLE		
+//				if (bOutSuccess)
+//				{
+//					// Verify
+//					Ptr<Image> Test = ImagePixelFormat(CompressionQuality, Result, EImageFormat::IF_L_UBYTE);
+//					check(Test->DataStorage == Base->DataStorage);
+//				}
+//#endif
 				break;
 			}
 
@@ -418,14 +418,14 @@ void FImageOperator::ImagePixelFormat(bool& bOutSuccess, int32 CompressionQualit
 
 				CompressRLE_L(TempBase.get(), Result);
 
-#ifdef MUTABLE_DEBUG_RLE
-				if (bOutSuccess)
-				{
-					// Verify
-					Ptr<Image> Test = ImagePixelFormat(CompressionQuality, Result, EImageFormat::IF_L_UBYTE);
-					check(Test->DataStorage == TempBase->DataStorage);
-				}
-#endif
+//#ifdef MUTABLE_DEBUG_RLE
+//				if (bOutSuccess)
+//				{
+//					// Verify
+//					Ptr<Image> Test = ImagePixelFormat(CompressionQuality, Result, EImageFormat::IF_L_UBYTE);
+//					check(Test->DataStorage == TempBase->DataStorage);
+//				}
+//#endif
 				ReleaseImage(TempBase);
 
 				break;
@@ -465,14 +465,14 @@ void FImageOperator::ImagePixelFormat(bool& bOutSuccess, int32 CompressionQualit
 				
 				CompressRLE_L1(Base, Result);
 				
-#ifdef MUTABLE_DEBUG_RLE		
-				if (bOutSuccess)
-				{
-					// Verify
-					Ptr<Image> Test = ImagePixelFormat(CompressionQuality, Result, EImageFormat::IF_L_UBYTE);
-					check(Test->DataStorage == Base->DataStorage);
-				}
-#endif
+//#ifdef MUTABLE_DEBUG_RLE		
+//				if (bOutSuccess)
+//				{
+//					// Verify
+//					Ptr<Image> Test = ImagePixelFormat(CompressionQuality, Result, EImageFormat::IF_L_UBYTE);
+//					check(Test->DataStorage == Base->DataStorage);
+//				}
+//#endif
 
 				break;
 			}
@@ -485,14 +485,14 @@ void FImageOperator::ImagePixelFormat(bool& bOutSuccess, int32 CompressionQualit
 				Ptr<Image> TempBase = ImagePixelFormat(CompressionQuality, Base, EImageFormat::IF_L_UBYTE, -1);
 				CompressRLE_L1(TempBase.get(), Result);
 
-#ifdef MUTABLE_DEBUG_RLE
-				if (bOutSuccess)
-				{
-					// Verify
-					Ptr<Image> Test = ImagePixelFormat(CompressionQuality, Result, EImageFormat::IF_L_UBYTE);
-					check(Test->DataStorage == TempBase->DataStorage);
-				}
-#endif
+//#ifdef MUTABLE_DEBUG_RLE
+//				if (bOutSuccess)
+//				{
+//					// Verify
+//					Ptr<Image> Test = ImagePixelFormat(CompressionQuality, Result, EImageFormat::IF_L_UBYTE);
+//					check(Test->DataStorage == TempBase->DataStorage);
+//				}
+//#endif
 				ReleaseImage(TempBase);
 				break;
 			}
