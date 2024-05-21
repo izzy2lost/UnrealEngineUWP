@@ -952,6 +952,7 @@ namespace Horde.Server.Jobs
 			{
 				rpcOptions.Container = GetRpcJobContainerOptions(options.Container);
 			}
+			rpcOptions.Driver = options.Driver;
 			return rpcOptions;
 		}
 
