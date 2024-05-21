@@ -950,7 +950,6 @@ void UWorldPartition::RegisterDelegates()
 			FEditorDelegates::PrePIEEnded.AddUObject(this, &UWorldPartition::OnPrePIEEnded);
 			FEditorDelegates::CancelPIE.AddUObject(this, &UWorldPartition::OnCancelPIE);
 			FGameDelegates::Get().GetEndPlayMapDelegate().AddUObject(this, &UWorldPartition::ShutdownEditorGameWorld);
-			FCoreUObjectDelegates::PostReachabilityAnalysis.AddUObject(this, &UWorldPartition::OnGCPostReachabilityAnalysis);
 			GEditor->OnLevelActorDeleted().AddUObject(this, &UWorldPartition::OnLevelActorDeleted);
 			GEditor->OnPostBugItGoCalled().AddUObject(this, &UWorldPartition::OnPostBugItGoCalled);
 			GEditor->OnEditorClose().AddUObject(this, &UWorldPartition::SavePerUserSettings);
@@ -959,6 +958,7 @@ void UWorldPartition::RegisterDelegates()
 
 		if (!IsRunningCommandlet())
 		{
+			FCoreUObjectDelegates::PostReachabilityAnalysis.AddUObject(this, &UWorldPartition::OnGCPostReachabilityAnalysis);
 			ExternalDirtyActorsTracker = MakeUnique<FWorldPartitionExternalDirtyActorsTracker>(this);
 		}
 	}
@@ -993,11 +993,6 @@ void UWorldPartition::UnregisterDelegates()
 			FEditorDelegates::CancelPIE.RemoveAll(this);
 			FGameDelegates::Get().GetEndPlayMapDelegate().RemoveAll(this);
 
-			if (!IsEngineExitRequested())
-			{
-				FCoreUObjectDelegates::PostReachabilityAnalysis.RemoveAll(this);
-			}
-
 			GEditor->OnLevelActorDeleted().RemoveAll(this);
 			GEditor->OnPostBugItGoCalled().RemoveAll(this);
 			GEditor->OnEditorClose().RemoveAll(this);
@@ -1005,6 +1000,11 @@ void UWorldPartition::UnregisterDelegates()
 
 		if (!IsRunningCommandlet())
 		{
+			if (!IsEngineExitRequested())
+			{
+				FCoreUObjectDelegates::PostReachabilityAnalysis.RemoveAll(this);
+			}
+
 			ExternalDirtyActorsTracker.Reset();
 		}
 	}
