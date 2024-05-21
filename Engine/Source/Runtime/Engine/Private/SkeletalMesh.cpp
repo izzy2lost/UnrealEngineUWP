@@ -7174,6 +7174,7 @@ FPrimitiveViewRelevance FSkeletalMeshSceneProxy::GetViewRelevance(const FSceneVi
 			|| EngineShowFlags.Collision
 			|| EngineShowFlags.VisualizeGPUSkinCache
 			|| (IsSelected() && (EngineShowFlags.VertexColors || EngineShowFlags.Bounds))
+			|| bForceWireframe
 #if WITH_EDITORONLY_DATA
 			|| MeshObject->SelectedEditorMaterial != -1
 			|| MeshObject->SelectedEditorSection != -1
