@@ -5930,12 +5930,12 @@ void FSequencer::SaveCurrentMovieScene()
 	TArray<UPackage*> PackagesToSave;
 	TArray<UMovieScene*> MovieScenesToSave;
 	MovieSceneHelpers::GetDescendantMovieScenes(GetRootMovieSceneSequence(), MovieScenesToSave);
-	for (auto MovieSceneToSave : MovieScenesToSave)
+	for (UMovieScene* MovieSceneToSave : MovieScenesToSave)
 	{
 		UPackage* MovieScenePackageToSave = MovieSceneToSave->GetOuter()->GetOutermost();
 		if (MovieScenePackageToSave->IsDirty())
 		{
-			PackagesToSave.Add(MovieScenePackageToSave);
+			PackagesToSave.AddUnique(MovieScenePackageToSave);
 		}
 	}
 
