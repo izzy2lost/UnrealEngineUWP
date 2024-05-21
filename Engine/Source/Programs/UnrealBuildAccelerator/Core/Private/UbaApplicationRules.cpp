@@ -359,6 +359,16 @@ namespace uba
 		{
 			return true;
 		}
+
+		virtual bool StoreFileCompressed(const tchar* fileName, u64 fileNameLen) const
+		{
+			return EndsWith(fileName, fileNameLen, TC(".obj"));
+		}
+
+		virtual bool ShouldExtractSymbols(const tchar* fileName, u64 fileNameLen) const
+		{
+			return EndsWith(fileName, fileNameLen, TC(".obj"));
+		}
 	};
 
 	class ApplicationRulesUBTDll : public ApplicationRules
