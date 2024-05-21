@@ -299,12 +299,13 @@ public:
 	 * 
 	 * @param TargetMesh The mesh to query.
 	 * @param UVSetIndex The UV channel to query
+	 * @param bHaveValidUVs True, if the mesh has UVs for the given UVSetIndex.
 	 * @param ElementIDs The returned edge element IDs 
 	 * @return The target mesh that was queried. 
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshQueries", meta=(ScriptMethod))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
-	GetAllUVSeamEdges( UDynamicMesh* TargetMesh, UPARAM(DisplayName = "UV Channel") int32 UVSetIndex, FGeometryScriptIndexList& ElementIDs);
+	GetAllUVSeamEdges( UDynamicMesh* TargetMesh, UPARAM(DisplayName = "UV Channel") int32 UVSetIndex, bool& bHaveValidUVs, FGeometryScriptIndexList& ElementIDs);
 
 	
 	//

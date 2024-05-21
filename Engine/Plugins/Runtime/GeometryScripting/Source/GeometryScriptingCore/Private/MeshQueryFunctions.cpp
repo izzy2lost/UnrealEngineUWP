@@ -508,10 +508,10 @@ UDynamicMesh* UGeometryScriptLibrary_MeshQueryFunctions::GetInterpolatedTriangle
 	return TargetMesh;
 }
 
-UDynamicMesh* UGeometryScriptLibrary_MeshQueryFunctions::GetAllUVSeamEdges(UDynamicMesh* TargetMesh, int32 UVSetIndex, FGeometryScriptIndexList& ElementIDs)
+UDynamicMesh* UGeometryScriptLibrary_MeshQueryFunctions::GetAllUVSeamEdges(UDynamicMesh* TargetMesh, int32 UVSetIndex, bool& bHaveValidUVs, FGeometryScriptIndexList& ElementIDs)
 {
 	ElementIDs.Reset(EGeometryScriptIndexType::Edge);
-	bool bIsValidUVSet = SimpleMeshUVSetQuery<bool>(TargetMesh, UVSetIndex, bIsValidUVSet, false,
+	bHaveValidUVs = SimpleMeshUVSetQuery<bool>(TargetMesh, UVSetIndex, bHaveValidUVs, false,
 		[&](const FDynamicMesh3& Mesh, const FDynamicMeshUVOverlay& UVSet)
 		{
 			for (int EID : Mesh.EdgeIndicesItr())
