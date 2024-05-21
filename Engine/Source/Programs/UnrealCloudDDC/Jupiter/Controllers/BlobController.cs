@@ -193,19 +193,12 @@ namespace Jupiter.Controllers
 				Uri? uri = await _storage.MaybePutObjectWithRedirectAsync(ns, id, HttpContext.RequestAborted);
 				if (uri != null)
 				{
-					return Ok(new
-					{
-						Identifier = id.ToString(),
-						RedirectUri = uri,
-					});
+					return Ok(new BlobUploadResponse(id.ToString(), uri));
 				}
 				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request, HttpContext.RequestAborted);
 
 				BlobId identifier = await _storage.PutObjectAsync(ns, payload, id, HttpContext.RequestAborted);
-				return Ok(new
-				{
-					Identifier = identifier.ToString()
-				});
+				return Ok(new BlobUploadResponse(identifier.ToString()));
 			}
 			catch (ResourceHasToManyRequestsException)
 			{
@@ -423,6 +416,23 @@ namespace Jupiter.Controllers
 
 			return Ok(results);
 		}
+	}
+
+	public class BlobUploadResponse
+	{
+		public BlobUploadResponse(string identifier)
+		{
+			Identifier = identifier;
+		}
+
+		public BlobUploadResponse(string identifier, Uri redirectUri)
+		{
+			Identifier = identifier;
+			RedirectUri = redirectUri;
+		}
+
+		public string Identifier { get; set; }
+		public Uri? RedirectUri { get; set; }
 	}
 
 	public class HeadMultipleResponse

@@ -233,7 +233,7 @@ namespace Jupiter.Controllers
 
 				ContentId identifier = await _storage.PutCompressedObjectAsync(ns, payload, id, HttpContext.RequestServices, HttpContext.RequestAborted);
 
-				return Ok(new { Identifier = identifier.ToString() });
+				return Ok(new BlobUploadResponse(identifier.ToString()));
 			}
 			catch (HashMismatchException e)
 			{

@@ -18,6 +18,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
 using Jupiter.Controllers;
+using Jupiter.FunctionalTests.Storage;
 using Jupiter.Implementation;
 using Jupiter.Implementation.Objects;
 using Jupiter.Tests.Functional;
@@ -383,6 +384,176 @@ namespace Jupiter.FunctionalTests.References
 
 				Assert.AreEqual(objectContents, roundTrippedString);
 				Assert.AreEqual(objectHash, BlobId.FromBlob(roundTrippedBuffer));
+			}
+		}
+
+		[TestMethod]
+		public async Task PutGetBlobNewAsync()
+		{
+			const string objectContents = $"This is treated as a opaque blob in {nameof(PutGetBlobAsync)}";
+			byte[] data = Encoding.ASCII.GetBytes(objectContents);
+			BlobId objectHash = BlobId.FromBlob(data);
+			RefId key = RefId.FromName("newBlobObject");
+			using HttpContent requestContent = new ByteArrayContent(data);
+			requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
+			requestContent.Headers.Add(CommonHeaders.HashHeaderName, objectHash.ToString());
+
+			HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}", UriKind.Relative), requestContent);
+			result.EnsureSuccessStatusCode();
+
+			{
+				HttpResponseMessage getResponse = await _httpClient.GetAsync(new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}.raw", UriKind.Relative));
+				getResponse.EnsureSuccessStatusCode();
+				await using MemoryStream ms = new MemoryStream();
+				await getResponse.Content.CopyToAsync(ms);
+
+				byte[] roundTrippedBuffer = ms.ToArray();
+				string roundTrippedPayload = Encoding.ASCII.GetString(roundTrippedBuffer);
+
+				Assert.AreEqual(objectContents, roundTrippedPayload);
+				CollectionAssert.AreEqual(data, roundTrippedBuffer);
+				Assert.AreEqual(objectHash, BlobId.FromBlob(roundTrippedBuffer));
+			}
+
+			{
+				BlobId attachment;
+				{
+					HttpResponseMessage getResponse = await _httpClient.GetAsync(new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}.uecb", UriKind.Relative));
+					getResponse.EnsureSuccessStatusCode();
+					await using MemoryStream ms = new MemoryStream();
+					await getResponse.Content.CopyToAsync(ms);
+
+					byte[] roundTrippedBuffer = ms.ToArray();
+					CbObject cb = new CbObject(roundTrippedBuffer);
+					List<CbField> fields = cb.ToList();
+
+					Assert.AreEqual(2, fields.Count);
+					CbField payloadField = fields[0];
+					Assert.IsNotNull(payloadField);
+					Assert.IsTrue(payloadField.IsBinaryAttachment());
+					attachment = BlobId.FromIoHash(payloadField.AsBinaryAttachment());
+				}
+
+				{
+					HttpResponseMessage getAttachment = await _httpClient.GetAsync(new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}/blobs/{attachment}", UriKind.Relative));
+					getAttachment.EnsureSuccessStatusCode();
+					await using MemoryStream ms = new MemoryStream();
+					await getAttachment.Content.CopyToAsync(ms);
+					byte[] roundTrippedBuffer = ms.ToArray();
+					string roundTrippedString = Encoding.ASCII.GetString(roundTrippedBuffer);
+
+					Assert.AreEqual(objectContents, roundTrippedString);
+					Assert.AreEqual(objectHash, BlobId.FromBlob(roundTrippedBuffer));
+				}
+			}
+
+			{
+				HttpResponseMessage getResponse = await _httpClient.GetAsync(new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}.json", UriKind.Relative));
+				getResponse.EnsureSuccessStatusCode();
+				await using MemoryStream ms = new MemoryStream();
+				await getResponse.Content.CopyToAsync(ms);
+
+				byte[] roundTrippedBuffer = ms.ToArray();
+				string s = Encoding.ASCII.GetString(roundTrippedBuffer);
+				JsonNode? jsonNode = JsonNode.Parse(s);
+				Assert.IsNotNull(jsonNode);
+				Assert.AreEqual(objectHash, new BlobId(jsonNode["RawHash"]!.GetValue<string>()));
+			}
+
+			{
+				// request the object as a json response using accept instead of the format filter
+				using HttpRequestMessage request = new(HttpMethod.Get, new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}", UriKind.Relative));
+				request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(MediaTypeNames.Application.Json));
+				HttpResponseMessage getResponse = await _httpClient.SendAsync(request);
+				getResponse.EnsureSuccessStatusCode();
+				Assert.AreEqual(MediaTypeNames.Application.Json, getResponse.Content.Headers.ContentType?.MediaType);
+
+				await using MemoryStream ms = new MemoryStream();
+				await getResponse.Content.CopyToAsync(ms);
+
+				byte[] roundTrippedBuffer = ms.ToArray();
+				string s = Encoding.ASCII.GetString(roundTrippedBuffer);
+				JsonNode? node = JsonNode.Parse(s);
+				Assert.IsNotNull(node);
+				Assert.AreEqual(objectHash, new BlobId(node["RawHash"]!.ToString()));
+			}
+
+			{
+				// request the object as a jupiter inlined payload
+				using HttpRequestMessage request = new(HttpMethod.Get, new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}", UriKind.Relative));
+				request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(CustomMediaTypeNames.JupiterInlinedPayload));
+				HttpResponseMessage getResponse = await _httpClient.SendAsync(request);
+				getResponse.EnsureSuccessStatusCode();
+				Assert.AreEqual(CustomMediaTypeNames.JupiterInlinedPayload, getResponse.Content.Headers.ContentType?.MediaType);
+
+				await using MemoryStream ms = new MemoryStream();
+				await getResponse.Content.CopyToAsync(ms);
+				byte[] roundTrippedBuffer = ms.ToArray();
+
+				string roundTrippedString = Encoding.ASCII.GetString(roundTrippedBuffer);
+
+				Assert.AreEqual(objectContents, roundTrippedString);
+				Assert.AreEqual(objectHash, BlobId.FromBlob(roundTrippedBuffer));
+			}
+		}
+
+		[TestMethod]
+		public async Task PutGetComplexTextureAsync()
+		{
+			byte[] texturePayload = await File.ReadAllBytesAsync("ContentId/Payloads/UncompressedTexture_CAS_dea81b6c3b565bb5089695377c98ce0f1c13b0c3.udd");
+			BlobId compressedPayloadIdentifier = BlobId.FromBlob(texturePayload);
+			ContentId uncompressedPayloadIdentifier = new ContentId("DEA81B6C3B565BB5089695377C98CE0F1C13B0C3");
+
+			CbWriter writer = new CbWriter();
+			writer.BeginObject();
+			writer.WriteBinaryAttachment("payload", uncompressedPayloadIdentifier.AsIoHash());
+			writer.EndObject();
+
+			byte[] data = writer.ToByteArray();
+			BlobId objectHash = BlobId.FromBlob(data);
+
+			BucketId testBucket = new BucketId("test-bucket");
+			RefId refName = RefId.FromName(nameof(PutGetComplexTextureAsync));
+
+			{
+				using ByteArrayContent content = new(texturePayload);
+				content.Headers.ContentType = new MediaTypeHeaderValue(CustomMediaTypeNames.UnrealCompressedBuffer);
+				HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{TestNamespace}/{testBucket}/{refName}/blobs/{uncompressedPayloadIdentifier}", UriKind.Relative), content);
+				result.EnsureSuccessStatusCode();
+
+				InsertResponse? response = await result.Content.ReadFromJsonAsync<InsertResponse>();
+				Assert.IsNotNull(response);
+				Assert.IsNotNull(response.Identifier);
+				Assert.AreNotEqual(compressedPayloadIdentifier, response.Identifier);
+				Assert.AreEqual(uncompressedPayloadIdentifier, ContentId.FromBlobIdentifier(response.Identifier));
+			}
+
+			{
+				using HttpContent requestContent = new ByteArrayContent(data);
+				requestContent.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
+				requestContent.Headers.Add(CommonHeaders.HashHeaderName, objectHash.ToString());
+
+				HttpResponseMessage result = await _httpClient!.PutAsync(new Uri($"api/v1/refs/{TestNamespace}/{testBucket}/{refName}", UriKind.Relative), requestContent);
+				result.EnsureSuccessStatusCode();
+			}
+
+			{
+				HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/refs/{TestNamespace}/{testBucket}/{refName}/blobs/{uncompressedPayloadIdentifier}", UriKind.Relative));
+				result.EnsureSuccessStatusCode();
+				Assert.AreEqual(CustomMediaTypeNames.UnrealCompressedBuffer, result.Content.Headers.ContentType!.MediaType);
+
+				byte[] blobContent = await result.Content.ReadAsByteArrayAsync();
+				CollectionAssert.AreEqual(texturePayload, blobContent);
+			}
+
+			{
+				// verify the compressed blob can be retrieved in the blob store
+				HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/refs/{TestNamespace}/{testBucket}/{refName}/blobs/{compressedPayloadIdentifier}", UriKind.Relative));
+				result.EnsureSuccessStatusCode();
+				Assert.AreEqual(MediaTypeNames.Application.Octet, result.Content.Headers.ContentType!.MediaType);
+
+				byte[] blobContent = await result.Content.ReadAsByteArrayAsync();
+				CollectionAssert.AreEqual(texturePayload, blobContent);
 			}
 		}
 

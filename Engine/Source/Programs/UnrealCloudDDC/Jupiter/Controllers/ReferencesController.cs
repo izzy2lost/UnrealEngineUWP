@@ -920,6 +920,123 @@ namespace Jupiter.Controllers
 			}
 		}
 
+		[HttpGet("{ns}/{bucket}/{key}/blobs/{id}")]
+		[ProducesResponseType(type: typeof(byte[]), 200)]
+		[ProducesResponseType(type: typeof(ValidationProblemDetails), 400)]
+		[Produces(CustomMediaTypeNames.UnrealCompressedBuffer, MediaTypeNames.Application.Octet)]
+
+		public async Task<IActionResult> GetBlobAsync(
+			[FromRoute][Required] NamespaceId ns,
+			[FromRoute][Required] BucketId bucket,
+			[FromRoute][Required] RefId key,
+			[Required] ContentId id)
+		{
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
+			if (result != null)
+			{
+				return result;
+			}
+
+			try
+			{
+				(BlobContents blobContents, string mediaType) = await _blobStore.GetCompressedObjectAsync(ns, id, HttpContext.RequestServices, supportsRedirectUri: true);
+
+				StringValues acceptHeader = Request.Headers["Accept"];
+				if (!acceptHeader.Contains("*/*") && acceptHeader.Count != 0 && !acceptHeader.Contains(mediaType))
+				{
+					return new UnsupportedMediaTypeResult();
+				}
+
+				if (blobContents.RedirectUri != null)
+				{
+					return Redirect(blobContents.RedirectUri.ToString());
+				}
+
+				if (_nginxRedirectHelper.CanRedirect(Request, blobContents))
+				{
+					return _nginxRedirectHelper.CreateActionResult(blobContents, mediaType);
+				}
+
+				return File(blobContents.Stream, mediaType, enableRangeProcessing: true);
+			}
+			catch (BlobNotFoundException e)
+			{
+				return NotFound(new ValidationProblemDetails { Title = $"Object {e.Blob} not found" });
+			}
+			catch (ContentIdResolveException e)
+			{
+				return NotFound(new ValidationProblemDetails { Title = $"Content Id {e.ContentId} not found" });
+			}
+		}
+
+		[HttpPut("{ns}/{bucket}/{key}/blobs/{id}")]
+		[DisableRequestSizeLimit]
+		[RequiredContentType(CustomMediaTypeNames.UnrealCompressedBuffer, MediaTypeNames.Application.Octet)]
+
+		public async Task<IActionResult> PutBlobAsync(
+			[FromRoute][Required] NamespaceId ns,
+			[FromRoute][Required] BucketId bucket,
+			[FromRoute][Required] RefId key,
+			[Required] BlobId id)
+		{
+			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteObject });
+			if (result != null)
+			{
+				return result;
+			}
+
+			_diagnosticContext.Set("Content-Length", Request.ContentLength ?? -1);
+
+			try
+			{
+
+				if (Request.ContentType == CustomMediaTypeNames.UnrealCompressedBuffer)
+				{
+					ContentId cid = ContentId.FromBlobIdentifier(id);
+					using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request, HttpContext.RequestAborted);
+
+					ContentId identifier = await _blobStore.PutCompressedObjectAsync(ns, payload, cid, HttpContext.RequestServices, HttpContext.RequestAborted);
+
+					return Ok(new { Identifier = identifier.ToString() });
+				}
+				else if (Request.ContentType == MediaTypeNames.Application.Octet)
+				{
+					Uri? uri = await _blobStore.MaybePutObjectWithRedirectAsync(ns, id, HttpContext.RequestAborted);
+					if (uri != null)
+					{
+						return Ok(new BlobUploadResponse(id.ToString(), uri));
+					}
+					using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request, HttpContext.RequestAborted);
+
+					BlobId identifier = await _blobStore.PutObjectAsync(ns, payload, id, HttpContext.RequestAborted);
+					return Ok(new
+					{
+						Identifier = identifier.ToString()
+					});
+				}
+				else
+				{
+					throw new NotImplementedException("Unsupported mediatype: " + Request.ContentType);
+				}
+			}
+			catch (HashMismatchException e)
+			{
+				return BadRequest(new ProblemDetails
+				{
+					Title =
+						$"Incorrect hash, got hash \"{e.SuppliedHash}\" but hash of content was determined to be \"{e.ContentHash}\""
+				});
+			}
+			catch (ResourceHasToManyRequestsException)
+			{
+				return StatusCode(StatusCodes.Status429TooManyRequests);
+			}
+			catch (ClientSendSlowException e)
+			{
+				return Problem(e.Message, null, (int)HttpStatusCode.RequestTimeout);
+			}
+		}
+
 		[HttpPost("{ns}")]
 		[Consumes(CustomMediaTypeNames.UnrealCompactBinary)]
 		[Produces(CustomMediaTypeNames.UnrealCompactBinary)]
