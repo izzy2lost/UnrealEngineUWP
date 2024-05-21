@@ -9,12 +9,14 @@
 #include "UObject/UnrealType.h"
 
 #include "GenericPlatform/GenericPlatformFile.h"
+#include "Hash/Blake3.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/PackageName.h"
 #include "Misc/ScopeRWLock.h"
+#include "RedirectionSummary.h"
 #include "Serialization/DeferredMessageLog.h"
 #include "Templates/Casts.h"
 
@@ -224,6 +226,10 @@ namespace UE::CoreRedirects::Private
 		return MatchWildcardRedirect<SuffixMatcher>(InSuffixRedirect, InUtf8Name, bPartialLHS, bPartialRHS);
 	}
 }
+
+#if WITH_EDITOR
+FRedirectionSummary GRedirectionSummary;
+#endif
 
 FCoreRedirectObjectName::FCoreRedirectObjectName(const FTopLevelAssetPath& TopLevelAssetPath)
 	: FCoreRedirectObjectName(TopLevelAssetPath.GetAssetName(), NAME_None, TopLevelAssetPath.GetPackageName())
@@ -930,6 +936,151 @@ bool FCoreRedirect::IdenticalMatchRules(const FCoreRedirect& Other) const
 	return RedirectFlags == Other.RedirectFlags && OldName == Other.OldName;
 }
 
+void FCoreRedirect::AppendHash(FBlake3& Hasher) const
+{
+	Hasher.Update(&RedirectFlags, sizeof(RedirectFlags));
+	OldName.AppendHash(Hasher);
+	NewName.AppendHash(Hasher);
+	OverrideClassName.AppendHash(Hasher);
+	TArray<TPair<FString, FString>> ValueArray = ValueChanges.Array();
+	Algo::Sort(ValueArray);
+	for (const TPair<FString, FString>& Pair : ValueArray)
+	{
+		Hasher.Update(*Pair.Key, Pair.Key.Len() * sizeof((*Pair.Key)[0]));
+		Hasher.Update(*Pair.Value, Pair.Value.Len() * sizeof((*Pair.Value)[0]));
+	}
+}
+
+template <typename KeyType, typename ValueType>
+int DeterministicCompare(const TMap<KeyType, ValueType>& A, const TMap<KeyType, ValueType>& B)
+{
+	if (A.Num() != B.Num())
+	{
+		return A.Num() < B.Num() ? -1 : 1;
+	}
+	if (A.Num() == 0)
+	{
+		return 0;
+	}
+
+	const KeyType* MinKeyWithDifference = nullptr;
+	bool bMinKeyIsLessInA = false;
+	for (const TPair<KeyType, ValueType>& Pair : A)
+	{
+		const ValueType* BValue = B.Find(Pair.Key);
+		int Compare = 0;
+		if (!BValue)
+		{
+			Compare = -1;
+		}
+		else if (Pair.Value < *BValue)
+		{
+			Compare = -1;
+		}
+		else if (*BValue < Pair.Value)
+		{
+			Compare = 1;
+		}
+		if (Compare != 0)
+		{
+			if (!MinKeyWithDifference || *Pair.Key < *MinKeyWithDifference)
+			{
+				MinKeyWithDifference = &Pair.Key;
+				bMinKeyIsLessInA = Compare < 0;
+			}
+		}
+	}
+	for (const TPair<KeyType, ValueType>& Pair : B)
+	{
+		if (!A.Contains(Pair.Key))
+		{
+			if (!MinKeyWithDifference || *Pair.Key < *MinKeyWithDifference)
+			{
+				MinKeyWithDifference = &Pair.Key;
+				bMinKeyIsLessInA = false;
+			}
+		}
+	}
+	if (MinKeyWithDifference)
+	{
+		return bMinKeyIsLessInA ? -1 : 1;
+	}
+	return 0;
+}
+
+int FCoreRedirect::Compare(const FCoreRedirect& Other) const
+{
+	if (RedirectFlags != Other.RedirectFlags)
+	{
+		return RedirectFlags < Other.RedirectFlags ? -1 : 1;
+	}
+	int Compare = OldName.Compare(Other.OldName);
+	if (Compare != 0)
+	{
+		return Compare;
+	}
+	Compare = NewName.Compare(Other.NewName);
+	if (Compare != 0)
+	{
+		return Compare;
+	}
+	Compare = OverrideClassName.Compare(Other.OverrideClassName);
+	if (Compare != 0)
+	{
+		return Compare;
+	}
+	Compare = DeterministicCompare(ValueChanges, Other.ValueChanges);
+	if (Compare != 0)
+	{
+		return Compare;
+	}
+
+	return 0;
+}
+
+void FCoreRedirectObjectName::AppendHash(FBlake3& Hasher) const
+{
+	FNameBuilder NameStr;
+	int32 Marker = 0xabacadab;
+	if (!PackageName.IsNone())
+	{
+		NameStr << PackageName;
+		Hasher.Update(NameStr.GetData(), NameStr.Len() * sizeof(NameStr.GetData()[0]));
+	}
+	Hasher.Update(&Marker, sizeof(Marker));
+	if (!OuterName.IsNone())
+	{
+		NameStr.Reset();
+		NameStr << OuterName;
+		Hasher.Update(NameStr.GetData(), NameStr.Len() * sizeof(NameStr.GetData()[0]));
+	}
+	Hasher.Update(&Marker, sizeof(Marker));
+	if (!ObjectName.IsNone())
+	{
+		NameStr.Reset();
+		NameStr << ObjectName;
+		Hasher.Update(NameStr.GetData(), NameStr.Len() * sizeof(NameStr.GetData()[0]));
+	}
+	Hasher.Update(&Marker, sizeof(Marker));
+}
+
+int FCoreRedirectObjectName::Compare(const FCoreRedirectObjectName& Other) const
+{
+	if (PackageName != Other.PackageName)
+	{
+		return PackageName.Compare(Other.PackageName);
+	}
+	if (OuterName != Other.OuterName)
+	{
+		return OuterName.Compare(Other.OuterName);
+	}
+	if (ObjectName != Other.ObjectName)
+	{
+		return ObjectName.Compare(Other.ObjectName);
+	}
+	return 0;
+}
+
 bool FCoreRedirects::bInitialized = false;
 bool FCoreRedirects::bInDebugMode = false;
 bool FCoreRedirects::bValidatedOnce = false;
@@ -1314,6 +1465,18 @@ void FCoreRedirects::ClearKnownMissing(ECoreRedirectFlags Type, ECoreRedirectFla
 	}
 }
 
+#if WITH_EDITOR
+void FCoreRedirects::AppendHashOfRedirectsAffectingPackages(FBlake3& Hasher, TConstArrayView<FName> PackageNames)
+{
+	GRedirectionSummary.AppendHashAffectingPackages(Hasher, PackageNames);
+}
+
+void FCoreRedirects::AppendHashOfGlobalRedirects(FBlake3& Hasher)
+{
+	GRedirectionSummary.AppendHashGlobal(Hasher);
+}
+#endif
+
 bool FCoreRedirects::RunTests()
 {
 	bool bSuccess = true;
@@ -1324,6 +1487,10 @@ bool FCoreRedirects::RunTests()
 	bIsInMultithreadedPhase = false;
 #endif
 	RedirectTypeMap.Empty();
+#if WITH_EDITOR
+	FRedirectionSummary BackupSummary = MoveTemp(GRedirectionSummary);
+	GRedirectionSummary = FRedirectionSummary();
+#endif
 
 	TArray<FCoreRedirect> NewRedirects;
 
@@ -1514,6 +1681,9 @@ bool FCoreRedirects::RunTests()
 
 	// Restore old state
 	RedirectTypeMap = MoveTemp(BackupMap);
+#if WITH_EDITOR
+	GRedirectionSummary = MoveTemp(BackupSummary);
+#endif
 #if WITH_COREREDIRECTS_MULTITHREAD_WARNING
 	bIsInMultithreadedPhase = BackupIsInMultithreadedPhase;
 #endif
@@ -1825,6 +1995,9 @@ bool FCoreRedirects::AddSingleRedirect(const FCoreRedirect& NewRedirect, const F
 	{
 		ExistingRedirects->Add(NewRedirect);
 	}
+#if WITH_EDITOR
+	GRedirectionSummary.Add(NewRedirect, bIsWildcardMatch);
+#endif
 
 	return true;
 }
@@ -1926,11 +2099,17 @@ bool FCoreRedirects::RemoveSingleRedirect(const FCoreRedirect& RedirectToRemove,
 		}
 	}
 
-	if (bIsWildcardMatch && bRemovedRedirect)
+	if (bRemovedRedirect)
 	{
-		// We removed a substring redirect so we need to regenerate our prediction 
-		// tables to avoid unnecessary false positives
-		ExistingNameMap->Wildcards->Rebuild();
+		if (bIsWildcardMatch)
+		{
+			// We removed a substring redirect so we need to regenerate our prediction 
+			// tables to avoid unnecessary false positives
+			ExistingNameMap->Wildcards->Rebuild();
+		}
+#if WITH_EDITOR
+		GRedirectionSummary.Remove(RedirectToRemove, bIsWildcardMatch);
+#endif
 	}
 
 	return bRemovedRedirect;

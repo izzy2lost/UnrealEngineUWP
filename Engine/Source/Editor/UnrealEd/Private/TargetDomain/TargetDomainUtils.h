@@ -72,6 +72,8 @@ public:
 
 	// Runtime Dependencies
 	const TArray<FName>& GetRuntimePackageDependencies() const;
+	// Script dependencies, needed for TryCalculateCurrentKey
+	const TArray<FName>& GetScriptPackageDependencies() const;
 
 	// Cook Dependencies
 	const TArray<UE::Cook::FCookDependency>& GetCookDependencies() const;
@@ -109,6 +111,7 @@ private:
 	TArray<FName> BuildPackageDependencies;
 	TArray<FString> ConfigDependencies;
 	TArray<FName> RuntimePackageDependencies;
+	TArray<FName> ScriptPackageDependencies;
 	TArray<UE::Cook::FCookDependency> CookDependencies;
 	TArray<UE::Cook::FCookDependency> TransitiveBuildDependencies;
 	FName PackageName;
@@ -205,6 +208,11 @@ inline const TArray<FString>& FCookDependencies::GetConfigDependencies() const
 inline const TArray<FName>& FCookDependencies::GetRuntimePackageDependencies() const
 {
 	return RuntimePackageDependencies;
+}
+
+inline const TArray<FName>& FCookDependencies::GetScriptPackageDependencies() const
+{
+	return ScriptPackageDependencies;
 }
 
 inline const TArray<UE::Cook::FCookDependency>& FCookDependencies::GetCookDependencies() const

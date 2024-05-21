@@ -31,6 +31,7 @@
 #include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/CompactBinaryWriter.h"
 #include "Serialization/PackageWriter.h"
+#include "UObject/CoreRedirects.h"
 #include "ZenStoreHttpClient.h"
 
 namespace UE::TargetDomain
@@ -169,6 +170,9 @@ bool FCookDependencies::TryCalculateCurrentKey(const FAssetPackageData* Override
 		KeyBuilder.Update(&PackageDigest.Hash, sizeof(PackageDigest.Hash));
 	}
 
+	FCoreRedirects::AppendHashOfRedirectsAffectingPackages(KeyBuilder, RuntimePackageDependencies);
+	FCoreRedirects::AppendHashOfRedirectsAffectingPackages(KeyBuilder, ScriptPackageDependencies);
+
 	if (!ConfigDependencies.IsEmpty())
 	{
 #if UE_WITH_CONFIG_TRACKING
@@ -230,6 +234,7 @@ void FCookDependencies::Reset()
 	BuildPackageDependencies.Reset();
 	ConfigDependencies.Reset();
 	RuntimePackageDependencies.Reset();
+	ScriptPackageDependencies.Reset();
 	PackageName = FName();
 	StoredKey = FIoHash::Zero;
 	CurrentKey = FIoHash::Zero;
@@ -244,34 +249,40 @@ void FCookDependencies::Empty()
 	RuntimePackageDependencies.Empty();
 }
 
+enum class EPackageMountPoint
+{
+	Transient,
+	Script,
+	Content,
+	GeneratedContent,
+};
+EPackageMountPoint GetPackageMountPoint(FName PackageName, FName TransientPackageName)
+{
+	if (PackageName == TransientPackageName)
+	{
+		return EPackageMountPoint::Transient;
+	}
+	TStringBuilder<256> StringBuffer;
+	PackageName.ToString(StringBuffer);
+	if (FPackageName::IsMemoryPackage(StringBuffer))
+	{
+		return EPackageMountPoint::Transient;
+	}
+	if (FPackageName::IsScriptPackage(StringBuffer))
+	{
+		return EPackageMountPoint::Script;
+	}
+	if (ICookPackageSplitter::IsUnderGeneratedPackageSubPath(StringBuffer))
+	{
+		return EPackageMountPoint::GeneratedContent;
+	}
+	return EPackageMountPoint::Content;
+}
+
 FCookDependencies FCookDependencies::Collect(UPackage* Package, const ITargetPlatform* TargetPlatform,
 	FSavePackageResultStruct* SaveResult, const FGeneratedPackageResultStruct* GeneratedResult, 
 	TArray<FName>&& RuntimeDependencies, FString* OutErrorMessage)
 {
-	TStringBuilder<256> StringBuffer;
-	FName TransientPackageName = GetTransientPackage()->GetFName();
-	auto IsDisallowedDependencyName = [&StringBuffer, TransientPackageName](FName InPackageName,
-		bool bAllowGeneratedPackages)
-		{
-			if (InPackageName == TransientPackageName)
-			{
-				return true;
-			}
-			InPackageName.ToString(StringBuffer);
-			FStringView PackageNameStr = StringBuffer.ToView();
-			return FPackageName::IsMemoryPackage(PackageNameStr) ||
-				FPackageName::IsScriptPackage(PackageNameStr) ||
-				(!bAllowGeneratedPackages && ICookPackageSplitter::IsUnderGeneratedPackageSubPath(PackageNameStr));
-		};
-	auto IsDisallowedBuildDependencyName = [&IsDisallowedDependencyName](FName InPackageName)
-		{
-			return IsDisallowedDependencyName(InPackageName, false /* bAllowGeneratedPackages */);
-		};
-	auto IsDisallowedRuntimeDependencyName = [&IsDisallowedDependencyName](FName InPackageName)
-		{
-			return IsDisallowedDependencyName(InPackageName, true /* bAllowGeneratedPackages */);
-		};
-
 	if (!Package)
 	{
 		if (OutErrorMessage) *OutErrorMessage = TEXT("Invalid null package.");
@@ -382,15 +393,35 @@ FCookDependencies FCookDependencies::Collect(UPackage* Package, const ITargetPla
 		Algo::Sort(Result.TransitiveBuildDependencies);
 	}
 
+	FName TransientPackageName = GetTransientPackage()->GetFName();
 	Result.BuildPackageDependencies = BuildDependenciesSet.Array();
-	Result.BuildPackageDependencies.RemoveAllSwap(IsDisallowedBuildDependencyName, EAllowShrinking::Yes);
+	Result.BuildPackageDependencies.RemoveAllSwap([TransientPackageName](FName InPackageName)
+		{
+			return GetPackageMountPoint(InPackageName, TransientPackageName) != EPackageMountPoint::Content;
+		}, EAllowShrinking::Yes);
 	Result.BuildPackageDependencies.Sort(FNameLexicalLess());
 
-	RuntimeDependencies.RemoveAllSwap(IsDisallowedRuntimeDependencyName, EAllowShrinking::No);
-	RuntimeDependencies.Sort(FNameLexicalLess());
-	RuntimeDependencies.SetNum(Algo::Unique(RuntimeDependencies), EAllowShrinking::Yes);
-
-	Result.RuntimePackageDependencies = MoveTemp(RuntimeDependencies);
+	for (TArray<FName>::TIterator Iter(RuntimeDependencies); Iter; ++Iter)
+	{
+		FName PackageName = *Iter;
+		EPackageMountPoint MountPoint = GetPackageMountPoint(PackageName, TransientPackageName);
+		switch (MountPoint)
+		{
+		case EPackageMountPoint::GeneratedContent:
+		case EPackageMountPoint::Content:
+			Result.RuntimePackageDependencies.Add(PackageName);
+			break;
+		case EPackageMountPoint::Script:
+			Result.ScriptPackageDependencies.Add(PackageName);
+			break;
+		default:
+			break;
+		}
+	}
+	Result.RuntimePackageDependencies.Sort(FNameLexicalLess());
+	Result.RuntimePackageDependencies.SetNum(Algo::Unique(Result.RuntimePackageDependencies), EAllowShrinking::Yes);
+	Result.ScriptPackageDependencies.Sort(FNameLexicalLess());
+	Result.ScriptPackageDependencies.SetNum(Algo::Unique(Result.ScriptPackageDependencies), EAllowShrinking::Yes);
 
 	const FAssetPackageData* AssetPackageData = GeneratedResult ? &GeneratedResult->AssetPackageData : nullptr;
 	if (!Result.TryCalculateCurrentKey(AssetPackageData, OutErrorMessage))
@@ -452,6 +483,13 @@ bool LoadFromCompactBinary(FCbObjectView ObjectView, UE::TargetDomain::FCookDepe
 				return false;
 			}
 		}
+		if (FieldView.GetName().Equals(UTF8TEXTVIEW("ScriptPackageDependencies")))
+		{
+			if (!LoadFromCompactBinary(FieldView++, Dependencies.ScriptPackageDependencies))
+			{
+				return false;
+			}
+		}
 		if (FieldView.GetName().Equals(UTF8TEXTVIEW("CookDependencies")))
 		{
 			if (!LoadFromCompactBinary(FieldView++, Dependencies.CookDependencies))
@@ -497,6 +535,10 @@ FCbWriter& operator<<(FCbWriter& Writer, const UE::TargetDomain::FCookDependenci
 	if (!CookDependencies.RuntimePackageDependencies.IsEmpty())
 	{
 		Writer << "RuntimePackageDependencies" << CookDependencies.RuntimePackageDependencies;
+	}
+	if (!CookDependencies.ScriptPackageDependencies.IsEmpty())
+	{
+		Writer << "ScriptPackageDependencies" << CookDependencies.ScriptPackageDependencies;
 	}
 	if (!CookDependencies.CookDependencies.IsEmpty())
 	{

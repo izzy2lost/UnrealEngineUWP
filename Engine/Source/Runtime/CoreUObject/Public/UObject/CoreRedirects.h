@@ -19,6 +19,7 @@
 #include "UObject/UnrealNames.h"
 #include "UObject/CoreRedirects/PM-k.h"
 
+class FBlake3;
 class IPakFile;
 class UClass;
 struct FTopLevelAssetPath;
@@ -118,6 +119,9 @@ struct FCoreRedirectObjectName
 		return !(*this == Other);
 	}
 
+	/** Compares the two names lexically, returning -,0,+ */
+	COREUOBJECT_API int Compare(const FCoreRedirectObjectName& Other) const;
+
 	/** Flags for the Matches function. These flags overlap but are lower-level than ECoreRedirectMatchFlags. */
 	enum class EMatchFlags
 	{
@@ -176,6 +180,9 @@ struct FCoreRedirectObjectName
 
 	/** Returns true if all names have valid characters */
 	COREUOBJECT_API bool HasValidCharacters(ECoreRedirectFlags Type) const;
+
+	/** Update Hasher with all fields from this */
+	COREUOBJECT_API void AppendHash(FBlake3& Hasher) const;
 
 	/** Expand OldName/NewName as needed */
 	static COREUOBJECT_API bool ExpandNames(const FStringView FullString, FName& OutName, FName& OutOuter, FName& OutPackage);
@@ -250,6 +257,11 @@ struct FCoreRedirect
 		return OldName.GetSearchKey(RedirectFlags);
 	}
 
+	/** Update Hasher with all fields from this */
+	COREUOBJECT_API void AppendHash(FBlake3& Hasher) const;
+	/** Returns -,0,+ based on a full lexical-fnames compare of all fields on the two CoreRedirects. */
+	COREUOBJECT_API int Compare(const FCoreRedirect& Other) const;
+
 private:
 	friend struct FCoreRedirects;
 
@@ -281,7 +293,10 @@ private:
  */
 struct FCoreRedirects
 {
-	/** Run initialization steps that are needed before any data can be stored in FCoreRedirects. Reads can occur before this, but no redirects will exist and redirect queries will all return empty. */
+	/**
+	 * Run initialization steps that are needed before any data can be stored in FCoreRedirects.
+	 * Reads can occur before this, but no redirects will exist and redirect queries will all return empty.
+	 */
 	static COREUOBJECT_API void Initialize();
 
 	/** Returns a redirected version of the object name. If there are no valid redirects, it will return the original name */
@@ -356,6 +371,21 @@ struct FCoreRedirects
 
 	/** Goes from UClass Type to the type flag */
 	static COREUOBJECT_API ECoreRedirectFlags GetFlagsForTypeClass(UClass *TypeClass);
+
+#if WITH_EDITOR
+	/**
+	 * Iterate the list of PackageNames and append the hash of all redirects that affect the package, either
+	 * redirecting from or to the package. Used in iterative cooking to invalidate the cooked version of packages when
+	 * CoreRedirects change. 
+	 */
+	static COREUOBJECT_API void AppendHashOfRedirectsAffectingPackages(FBlake3& Hasher,
+		TConstArrayView<FName> PackageNames);
+	/**
+	 * Append the hash of all redirects that can affect multiple packages, or for which the affected packages are unknown.
+	 * Used in iterative cooking to invalidate the cooked version of packages when CoreRedirects change.
+	 */
+	static COREUOBJECT_API void AppendHashOfGlobalRedirects(FBlake3& Hasher);
+#endif
 
 	/** Runs set of redirector tests, returns false on failure */
 	static COREUOBJECT_API bool RunTests();
