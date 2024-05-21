@@ -108,6 +108,8 @@ namespace UnrealBuildTool
 
 		public IReadOnlyList<string> OptionalPlugins => Inner.OptionalPlugins;
 
+		public bool bAllowEnginePluginsEnabledByDefault => Inner.bAllowEnginePluginsEnabledByDefault;
+
 		public WarningLevel DisablePluginsConflictWarningLevel => Inner.DisablePluginsConflictWarningLevel;
 
 		public IReadOnlyList<string> BuildPlugins => Inner.BuildPlugins;

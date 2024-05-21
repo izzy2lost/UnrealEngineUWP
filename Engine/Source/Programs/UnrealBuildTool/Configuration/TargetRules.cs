@@ -787,6 +787,11 @@ namespace UnrealBuildTool
 		public List<string> OptionalPlugins = new();
 
 		/// <summary>
+		/// If false, suppress loading "enabled by default" engine plugins not explicitly enabled by the project or target files.
+		/// </summary>
+		public bool bAllowEnginePluginsEnabledByDefault { get; set; } = true;
+
+		/// <summary>
 		/// How to treat conflicts when a disabled plugin is being enabled by another plugin referencing it
 		/// </summary>
 		public WarningLevel DisablePluginsConflictWarningLevel { get; set; } = WarningLevel.Default;

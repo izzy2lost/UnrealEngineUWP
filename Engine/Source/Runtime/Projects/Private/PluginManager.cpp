@@ -27,6 +27,7 @@
 #include "Async/ParallelFor.h"
 #include "Misc/ScopeRWLock.h"
 #include "Algo/Accumulate.h"
+#include "Algo/Find.h"
 #include "Algo/Reverse.h"
 #include "Containers/VersePath.h"
 #include "Internationalization/TextLocalizationManager.h"
@@ -1591,9 +1592,14 @@ bool FPluginManager::ConfigureEnabledPlugins()
 		{
 			SCOPED_BOOT_TIMING("EnginePlugins");
 
+			// May be overridden later by receipt or project descriptor.
+			bool bAllowEnginePluginsEnabledByDefault = true;
+
 #if READ_TARGET_ENABLED_PLUGINS_FROM_RECEIPT
 			// Configure the plugins that were enabled or disabled from the target file using the target receipt file
-			auto ConfigurePluginsFromFirstMatchingTargetFile = [this, &FindFirstMatchingTargetFile, &ConfiguredPluginNames, &EnabledPlugins, &AllowedOptionalDependencies](const TCHAR* BaseDir, bool& bOutError) -> bool
+			auto ConfigurePluginsFromFirstMatchingTargetFile = [this, &FindFirstMatchingTargetFile, &ConfiguredPluginNames,
+				&EnabledPlugins, &AllowedOptionalDependencies, &bAllowEnginePluginsEnabledByDefault]
+				(const TCHAR* BaseDir, bool& bOutError) -> bool
 			{
 				const FString ReceiptWildcard = FTargetReceipt::GetDefaultPath(BaseDir, TEXT("*"), FPlatformProcess::GetBinariesSubdirectory(), FApp::GetBuildConfiguration(), nullptr);
 				FString SourceDescription = FString::Printf(TEXT("Receipt files %s"), *ReceiptWildcard);
@@ -1601,6 +1607,13 @@ bool FPluginManager::ConfigureEnabledPlugins()
 				TUniquePtr<FTargetReceipt> Receipt = FindFirstMatchingTargetFile(ReceiptWildcard);
 				if (Receipt.IsValid())
 				{
+					FReceiptProperty* AllowDefaultProperty = Algo::FindByPredicate(Receipt->AdditionalProperties,
+						[](const FReceiptProperty& InProp) -> bool { return InProp.Name == TEXT("bAllowEnginePluginsEnabledByDefault"); });
+					if (AllowDefaultProperty && !FCString::Stricmp(*AllowDefaultProperty->Value, TEXT("false")))
+					{
+						bAllowEnginePluginsEnabledByDefault = false;
+					}
+
 					for (const TPair<FString, bool>& Pair : Receipt->PluginNameToEnabledState)
 					{
 						const FString& PluginName = Pair.Key;
@@ -1692,7 +1705,6 @@ bool FPluginManager::ConfigureEnabledPlugins()
 				return true;
 			};
 
-			bool bAllowEnginePluginsEnabledByDefault = true;
 			// Find all the plugin references in the project file
 			const FProjectDescriptor* ProjectDescriptor = IProjectManager::Get().GetCurrentProject();
 			{

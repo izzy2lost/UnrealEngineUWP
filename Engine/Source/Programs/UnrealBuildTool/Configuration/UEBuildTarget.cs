@@ -1527,7 +1527,13 @@ namespace UnrealBuildTool
 			if (ProjectDescriptor?.Modules?.Any(x => x.Name == module.Name) == true)
 			{
 				string projectName = ProjectFile?.FullName ?? TargetRulesFile.GetFileName();
-				bool bAllowEnginePluginsEnabledByDefault = (!ProjectDescriptor?.DisableEnginePluginsByDefault) ?? false;
+
+				// EffectiveAllow = TargetRulesAllow && ProjectAllow;
+				bool bAllowEnginePluginsEnabledByDefault = Rules.bAllowEnginePluginsEnabledByDefault;
+				if (ProjectDescriptor?.DisableEnginePluginsByDefault ?? false)
+				{
+					bAllowEnginePluginsEnabledByDefault = false;
+				}
 
 				// Only warn on modules that can be compiled
 				foreach (UEBuildModuleCPP dependencyModule in referencedModules.Value.OfType<UEBuildModuleCPP>())
@@ -2376,6 +2382,11 @@ namespace UnrealBuildTool
 			foreach (UEBuildPlugin Plugin in BuildPlugins!)
 			{
 				Receipt.BuildPlugins.Add(Plugin.Name);
+			}
+
+			if (!Rules.bAllowEnginePluginsEnabledByDefault)
+			{
+				Receipt.AdditionalProperties.Add(new ReceiptProperty("bAllowEnginePluginsEnabledByDefault", "false"));
 			}
 
 			// Find all the modules which are part of this target
@@ -4596,12 +4607,17 @@ namespace UnrealBuildTool
 				}
 			}
 
-			bool bAllowEnginePluginsEnabledByDefault = true;
+			bool bAllowEnginePluginsEnabledByDefault = Rules.bAllowEnginePluginsEnabledByDefault;
 
 			// Find a map of plugins which are explicitly referenced in the project file
 			if (ProjectDescriptor != null)
 			{
-				bAllowEnginePluginsEnabledByDefault = !ProjectDescriptor.DisableEnginePluginsByDefault;
+				// EffectiveAllow = TargetRulesAllow && ProjectAllow;
+				if (ProjectDescriptor.DisableEnginePluginsByDefault)
+				{
+					bAllowEnginePluginsEnabledByDefault = false;
+				}
+
 				if (ProjectDescriptor.Plugins != null)
 				{
 					string ProjectReferenceChain = ProjectFile!.GetFileName();
