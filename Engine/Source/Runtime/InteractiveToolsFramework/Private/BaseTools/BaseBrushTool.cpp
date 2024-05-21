@@ -225,7 +225,37 @@ void UBaseBrushTool::Setup()
 	{
 		BrushAdjusterBehavior = NewObject<UBrushAdjusterInputBehavior>(this);
 		BrushAdjusterBehavior->Initialize(this);
-		AddInputBehavior(BrushAdjusterBehavior.Get());	
+		AddInputBehavior(BrushAdjusterBehavior.Get());
+
+		ULocalClickDragInputBehavior* BrushAdjusterClickDragBehavior = NewObject<ULocalClickDragInputBehavior>(this);
+		BrushAdjusterClickDragBehavior->Initialize();
+		BrushAdjusterClickDragBehavior->SetDefaultPriority(FInputCapturePriority().MakeHigher());
+		BrushAdjusterClickDragBehavior->ModifierCheckFunc = [this](const FInputDeviceState&)
+		{
+			return BrushAdjusterBehavior.IsValid() ? BrushAdjusterBehavior->IsBrushBeingAdjusted() : false;
+		};
+		BrushAdjusterClickDragBehavior->CanBeginClickDragFunc = [](const FInputDeviceRay&)
+		{
+			// fake screen hit
+			return FInputRayHit(0.f);
+		};
+		BrushAdjusterClickDragBehavior->OnClickPressFunc = [this](const FInputDeviceRay& PressPos)
+		{
+			if (BrushAdjusterBehavior.IsValid())
+			{
+				BrushAdjusterBehavior->OnDragStart(PressPos.ScreenPosition);
+			}
+		};
+		BrushAdjusterClickDragBehavior->OnClickDragFunc = [this](const FInputDeviceRay& DragPos)
+		{
+			if (BrushAdjusterBehavior.IsValid())
+			{
+				BrushAdjusterBehavior->OnDragUpdate(DragPos.ScreenPosition);
+				RecalculateBrushRadius();
+				NotifyOfPropertyChangeByTool(BrushProperties);
+			}
+		};
+		AddInputBehavior(BrushAdjusterClickDragBehavior);
 	}
 }
 
@@ -251,33 +281,9 @@ FInputRayHit UBaseBrushTool::CanBeginClickDragSequence(const FInputDeviceRay& Pr
 		// no hit
 		return FInputRayHit();
 	}
-	
-	if (BrushAdjusterBehavior.IsValid() && BrushAdjusterBehavior->IsBrushBeingAdjusted())
-	{
-		// fake screen hit
-		return FInputRayHit(0.f);
-	}
 
 	// hit-test the tool target
 	return Super::CanBeginClickDragSequence(PressPos);	
-}
-
-void UBaseBrushTool::OnClickPress(const FInputDeviceRay& PressPos)
-{
-	Super::OnClickPress(PressPos);
-	if (BrushAdjusterBehavior.IsValid())
-	{
-		BrushAdjusterBehavior->OnDragStart(PressPos.ScreenPosition);
-	}
-}
-
-void UBaseBrushTool::OnClickDrag(const FInputDeviceRay& DragPos)
-{
-	Super::OnClickDrag(DragPos);
-	if (BrushAdjusterBehavior.IsValid())
-	{
-		BrushAdjusterBehavior->OnDragUpdate(DragPos.ScreenPosition);
-	}
 }
 
 void UBaseBrushTool::IncreaseBrushSizeAction()
@@ -424,12 +430,6 @@ void UBaseBrushTool::RecalculateBrushRadius()
 
 void UBaseBrushTool::OnBeginDrag(const FRay& Ray)
 {
-	if (BrushAdjusterBehavior.IsValid() && BrushAdjusterBehavior->IsBrushBeingAdjusted())
-	{
-		bInBrushStroke = false;
-		return;
-	}
-	
 	FHitResult OutHit;
 	if (HitTest(Ray, OutHit))
 	{
@@ -439,18 +439,14 @@ void UBaseBrushTool::OnBeginDrag(const FRay& Ray)
 		LastBrushStamp.HitResult = OutHit;
 		LastBrushStamp.Falloff = BrushProperties->BrushFalloffAmount;
 	}
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	bInBrushStroke = true;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void UBaseBrushTool::OnUpdateDrag(const FRay& Ray)
 {
-	if (BrushAdjusterBehavior.IsValid() && BrushAdjusterBehavior->IsBrushBeingAdjusted())
-	{
-		RecalculateBrushRadius();
-		NotifyOfPropertyChangeByTool(BrushProperties);
-		return;
-	}
-	
 	FHitResult OutHit;
 	if (HitTest(Ray, OutHit))
 	{
@@ -464,19 +460,30 @@ void UBaseBrushTool::OnUpdateDrag(const FRay& Ray)
 
 void UBaseBrushTool::OnEndDrag(const FRay& Ray)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	bInBrushStroke = false;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void UBaseBrushTool::OnCancelDrag()
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	bInBrushStroke = false;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 bool UBaseBrushTool::OnUpdateHover(const FInputDeviceRay& DevicePos)
 {
-	if (BrushAdjusterBehavior.IsValid() && BrushAdjusterBehavior->IsBrushBeingAdjusted())
+	if (BrushAdjusterBehavior.IsValid())
 	{
-		return true;
+		if (BrushAdjusterBehavior->IsBrushBeingAdjusted())
+		{
+			return true;
+		}
+
+		// When not in adjustment mode, keep the brush & adjustment origin synchronized with
+		// the brush so that the initial BrushAdjuster HUD display tracks the brush stamp.
+		BrushAdjusterBehavior->OnDragStart(DevicePos.ScreenPosition);
 	}
 	
 	FHitResult OutHit;

@@ -69,6 +69,7 @@ public:
 	virtual void OnUpdateDrag(const FRay& Ray) override;
 	virtual void OnEndDrag(const FRay& Ray) override;
 	virtual bool OnUpdateHover(const FInputDeviceRay& DevicePos) override;
+	virtual bool SupportsBrushAdjustmentInput() override { return false; }
 
 	// IInteractiveToolManageGeometrySelectionAPI -- this tool won't update external geometry selection or change selection-relevant mesh IDs
 	virtual bool IsInputSelectionValidOnOutput() override

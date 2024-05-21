@@ -1240,25 +1240,20 @@ void USkinWeightsPaintTool::OnBeginDrag(const FRay& WorldRay)
 {
 	UDynamicMeshBrushTool::OnBeginDrag(WorldRay);
 
-	if (IsInBrushStroke())
-	{
-		bInvertStroke = GetCtrlToggle();
-		BeginChange();
-		StartStamp = UBaseBrushTool::LastBrushStamp;
-		LastStamp = StartStamp;
-		bStampPending = true;
-		LongTransactions.Open(LOCTEXT("PaintWeightChange", "Paint skin weights."), GetToolManager());
-	}
+	bInvertStroke = GetCtrlToggle();
+	BeginChange();
+	StartStamp = UBaseBrushTool::LastBrushStamp;
+	LastStamp = StartStamp;
+	bStampPending = true;
+	LongTransactions.Open(LOCTEXT("PaintWeightChange", "Paint skin weights."), GetToolManager());
 }
 
 void USkinWeightsPaintTool::OnUpdateDrag(const FRay& WorldRay)
 {
 	UDynamicMeshBrushTool::OnUpdateDrag(WorldRay);
-	if (IsInBrushStroke())
-	{
-		LastStamp = UBaseBrushTool::LastBrushStamp;
-		bStampPending = true;
-	}
+	
+	LastStamp = UBaseBrushTool::LastBrushStamp;
+	bStampPending = true;
 }
 
 void USkinWeightsPaintTool::OnEndDrag(const FRay& Ray)

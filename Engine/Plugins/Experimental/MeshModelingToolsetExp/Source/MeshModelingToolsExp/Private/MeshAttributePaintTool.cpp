@@ -328,15 +328,12 @@ void UMeshAttributePaintTool::OnBeginDrag(const FRay& WorldRay)
 	UDynamicMeshBrushTool::OnBeginDrag(WorldRay);
 
 	PreviewBrushROI.Reset();
-	if (IsInBrushStroke())
-	{
-		bInRemoveStroke = GetCtrlToggle();
-		bInSmoothStroke = GetShiftToggle();
-		BeginChange();
-		StartStamp = UBaseBrushTool::LastBrushStamp;
-		LastStamp = StartStamp;
-		bStampPending = true;
-	}
+	bInRemoveStroke = GetCtrlToggle();
+	bInSmoothStroke = GetShiftToggle();
+	BeginChange();
+	StartStamp = UBaseBrushTool::LastBrushStamp;
+	LastStamp = StartStamp;
+	bStampPending = true;
 }
 
 
@@ -344,34 +341,26 @@ void UMeshAttributePaintTool::OnBeginDrag(const FRay& WorldRay)
 void UMeshAttributePaintTool::OnUpdateDrag(const FRay& WorldRay)
 {
 	UDynamicMeshBrushTool::OnUpdateDrag(WorldRay);
-	if (IsInBrushStroke())
-	{
-		LastStamp = UBaseBrushTool::LastBrushStamp;
-		bStampPending = true;
-	}
+
+	LastStamp = UBaseBrushTool::LastBrushStamp;
+	bStampPending = true;
 }
 
 
 
 void UMeshAttributePaintTool::OnEndDrag(const FRay& Ray)
 {
-	// Capture brush stroke state prior to invoking Super::OnEndDrag
-	const bool bWasInBrushStroke = IsInBrushStroke();
-	
 	UDynamicMeshBrushTool::OnEndDrag(Ray);
 
 	bInRemoveStroke = bInSmoothStroke = false;
 	bStampPending = false;
 
-	if (bWasInBrushStroke)
+	// close change record
+	TUniquePtr<FMeshAttributePaintChange> Change = EndChange();
+	if (Change)
 	{
-		// close change record
-		TUniquePtr<FMeshAttributePaintChange> Change = EndChange();
-		if (Change)
-		{
-			GetToolManager()->EmitObjectChange(this, MoveTemp(Change), LOCTEXT("AttributeValuesChange", "Paint"));
-			LongTransactions.Close(GetToolManager());
-		}
+		GetToolManager()->EmitObjectChange(this, MoveTemp(Change), LOCTEXT("AttributeValuesChange", "Paint"));
+		LongTransactions.Close(GetToolManager());
 	}
 }
 

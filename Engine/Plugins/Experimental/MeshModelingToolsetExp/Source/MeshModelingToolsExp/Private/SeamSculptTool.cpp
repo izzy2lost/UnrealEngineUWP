@@ -151,7 +151,7 @@ void USeamSculptTool::OnBeginDrag(const FRay& Ray)
 {
 	UBaseBrushTool::OnBeginDrag(Ray);
 
-	if (IsInBrushStroke() && CurrentSnapVertex >= 0)
+	if (CurrentSnapVertex >= 0)
 	{
 		CaptureState = EActiveCaptureState::DrawNewPath;
 		DrawPathStartVertex = CurrentSnapVertex;
@@ -188,12 +188,9 @@ void USeamSculptTool::OnUpdateDrag(const FRay& Ray)
 
 void USeamSculptTool::OnEndDrag(const FRay& Ray)
 {
-	// Capture brush stroke state prior to invoking Super::OnEndDrag
-	const bool bWasInBrushStroke = IsInBrushStroke();
-	
 	UBaseBrushTool::OnEndDrag(Ray);
 
-	if (bWasInBrushStroke && CaptureState == EActiveCaptureState::DrawNewPath)
+	if (CaptureState == EActiveCaptureState::DrawNewPath)
 	{
 		CreateSeamAlongPath();
 		CurDrawPath.Reset();

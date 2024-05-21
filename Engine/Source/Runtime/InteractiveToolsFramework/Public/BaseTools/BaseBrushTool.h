@@ -165,8 +165,6 @@ public:
 	
 	// IClickDragBehaviorTarget implementation
 	INTERACTIVETOOLSFRAMEWORK_API virtual FInputRayHit CanBeginClickDragSequence(const FInputDeviceRay& PressPos) override;
-	INTERACTIVETOOLSFRAMEWORK_API virtual void OnClickPress(const FInputDeviceRay& PressPos) override;
-	INTERACTIVETOOLSFRAMEWORK_API virtual void OnClickDrag(const FInputDeviceRay& DragPos) override;
 	
 	// UMeshSurfacePointTool implementation
 	INTERACTIVETOOLSFRAMEWORK_API virtual void OnBeginDrag(const FRay& Ray) override;
@@ -182,6 +180,7 @@ public:
 	TObjectPtr<UBrushBaseProperties> BrushProperties;
 
 	/** Set to true by Tool if user is currently in an active brush stroke*/
+	UE_DEPRECATED(5.5, "The bInBrushStroke property is deprecated. This will now always be true in OnBeginDrag/OnUpdateDrag/OnEndDrag.")
 	UPROPERTY()
 	bool bInBrushStroke = false;
 
@@ -202,7 +201,10 @@ public:
 	INTERACTIVETOOLSFRAMEWORK_API virtual void IncreaseBrushFalloffAction();
 	INTERACTIVETOOLSFRAMEWORK_API virtual void DecreaseBrushFalloffAction();
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "The IsInBrushStroke function is deprecated. This will now always be true in OnBeginDrag/OnUpdateDrag/OnEndDrag.")
 	virtual bool IsInBrushStroke() const { return bInBrushStroke; }
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	virtual double GetCurrentBrushRadius() const { return CurrentBrushRadius; }
 	virtual double GetCurrentBrushRadiusLocal() const { return CurrentBrushRadius * WorldToLocalScale; }

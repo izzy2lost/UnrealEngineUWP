@@ -448,15 +448,12 @@ void UMeshSelectionTool::OnBeginDrag(const FRay& WorldRay)
 	UDynamicMeshBrushTool::OnBeginDrag(WorldRay);
 
 	PreviewBrushROI.Reset();
-	if (IsInBrushStroke())
-	{
-		bInRemoveStroke = GetShiftToggle();
-		BeginChange(bInRemoveStroke == false);
-		StartStamp = UBaseBrushTool::LastBrushStamp;
-		LastStamp = StartStamp;
-		bStampPending = true;
-		LongTransactions.Open(LOCTEXT("MeshSelectionChange", "Mesh Selection"), GetToolManager());
-	}
+	bInRemoveStroke = GetShiftToggle();
+	BeginChange(bInRemoveStroke == false);
+	StartStamp = UBaseBrushTool::LastBrushStamp;
+	LastStamp = StartStamp;
+	bStampPending = true;
+	LongTransactions.Open(LOCTEXT("MeshSelectionChange", "Mesh Selection"), GetToolManager());
 }
 
 
@@ -464,11 +461,8 @@ void UMeshSelectionTool::OnBeginDrag(const FRay& WorldRay)
 void UMeshSelectionTool::OnUpdateDrag(const FRay& WorldRay)
 {
 	UDynamicMeshBrushTool::OnUpdateDrag(WorldRay);
-	if (IsInBrushStroke())
-	{
-		LastStamp = UBaseBrushTool::LastBrushStamp;
-		bStampPending = true;
-	}
+	LastStamp = UBaseBrushTool::LastBrushStamp;
+	bStampPending = true;
 }
 
 
@@ -752,23 +746,17 @@ void UMeshSelectionTool::UpdateFaceSelection(const FBrushStampData& Stamp, const
 
 void UMeshSelectionTool::OnEndDrag(const FRay& Ray)
 {
-	// Capture brush stroke state prior to invoking Super::OnEndDrag
-	const bool bWasInBrushStroke = IsInBrushStroke();
-	
 	UDynamicMeshBrushTool::OnEndDrag(Ray);
 
 	bInRemoveStroke = false;
 	bStampPending = false;
 
 	// close change record
-	if (bWasInBrushStroke)
+	TUniquePtr<FToolCommandChange> Change = EndChange();
+	if (Change)
 	{
-		TUniquePtr<FToolCommandChange> Change = EndChange();
-		if (Change)
-		{
-			GetToolManager()->EmitObjectChange(Selection, MoveTemp(Change), LOCTEXT("MeshSelectionChange", "Mesh Selection"));
-			LongTransactions.Close(GetToolManager());
-		}
+		GetToolManager()->EmitObjectChange(Selection, MoveTemp(Change), LOCTEXT("MeshSelectionChange", "Mesh Selection"));
+		LongTransactions.Close(GetToolManager());
 	}
 }
 
