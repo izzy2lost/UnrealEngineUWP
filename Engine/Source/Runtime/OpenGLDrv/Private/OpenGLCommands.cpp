@@ -83,7 +83,12 @@ namespace OpenGLConsoleVariables
 		bUseBufferDiscard,
 		TEXT("If true, use dynamic buffer orphaning hint.")
 		);
-	
+	int32 bUseUnsynchronizedBufferMapping =1;
+	static FAutoConsoleVariableRef CVarUseUnsynchronizedBufferMapping(
+		TEXT("OpenGL.UseUnsynchronizedBufferMapping"),
+		bUseUnsynchronizedBufferMapping,
+		TEXT("If true, use GL_MAP_UNSYNCHRONIZED_BIT when mapping write only buffers.")
+	);
 	int32 bUsePersistentMappingStagingBuffer= 1;
 	static FAutoConsoleVariableRef CVarUsePersistentMappingStagingBuffer(
 		TEXT("OpenGL.UsePersistentMappingStagingBuffer"),

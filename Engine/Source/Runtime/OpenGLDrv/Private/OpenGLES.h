@@ -13,6 +13,11 @@
 #include "OpenGLBase.h"
 #include "OpenGLUtil.h"		// for VERIFY_GL
 
+namespace OpenGLConsoleVariables
+{
+	extern int32 bUseUnsynchronizedBufferMapping;
+}
+
 struct FOpenGLES : public FOpenGLBase
 {
 	static FORCEINLINE bool IsES31Usable()
@@ -160,7 +165,7 @@ struct FOpenGLES : public FOpenGLBase
 			Access = (GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
 			break;
 		case EResourceLockMode::RLM_WriteOnly:
-			Access = (GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+			Access = OpenGLConsoleVariables::bUseUnsynchronizedBufferMapping ? (GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT) : (GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_WRITE_BIT);
 			break;
 		case EResourceLockMode::RLM_WriteOnlyUnsynchronized:
 			Access = (GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
