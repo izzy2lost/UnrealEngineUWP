@@ -130,7 +130,7 @@ FD3D12BindlessResourceManager::FD3D12BindlessResourceManager(FD3D12Device* InDev
 	if (GetConfiguration() == ERHIBindlessConfiguration::AllShaders)
 	{
 		// Always allocate a heap when full bindless
-		AddActiveGPUHeap();
+		ActiveGpuHeapIndex = AddActiveGPUHeap();
 	}
 }
 
