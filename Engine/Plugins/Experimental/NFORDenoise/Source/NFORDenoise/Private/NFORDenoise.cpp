@@ -122,7 +122,7 @@ public:
 
 		void AddFrame(FRDGBuilder& GraphBuilder, const FSceneView& View, const FInputs& Inputs)
 		{
-			const int NumFrames = NFORDenoise::GetFrameCount();
+			const int NumFrames = NFORDenoise::GetFrameCount(View);
 			if (NumFrames <= 0)
 			{
 				return;
@@ -225,11 +225,11 @@ public:
 
 		// Post process DOF replies on the depth buffer to estimate the DOF,
 		// Update the output depth buffer to the depth of the center image if the denoising frame is not the latest.
-		const bool bNeedToUpdateDepth = bDenoised && (NFORDenoise::GetFrameCount() > 1) && NFORDenoise::GetDenoisingFrameIndex(NumberOfHistory) > 0;
+		const bool bNeedToUpdateDepth = bDenoised && (NFORDenoise::GetFrameCount(View) > 1) && NFORDenoise::GetDenoisingFrameIndex(View, NumberOfHistory) > 0;
 		if (bNeedToUpdateDepth)
 		{
 				
-			int32 DenoisingDepthFrameIndex = NumberOfHistory - NFORDenoise::GetDenoisingFrameIndex(NumberOfHistory) - 1;
+			int32 DenoisingDepthFrameIndex = NumberOfHistory - NFORDenoise::GetDenoisingFrameIndex(View,NumberOfHistory) - 1;
 			if (DenoisingDepthFrameIndex >= 0)
 			{
 				const bool bAlphaOnly = true;

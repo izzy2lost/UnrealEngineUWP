@@ -18,8 +18,8 @@
 namespace NFORDenoise
 {
 
-	int32 GetFrameCount();
-	int32 GetDenoisingFrameIndex(int32 NumberOfFrameInBuffer = -1);
+	int32 GetFrameCount(const FSceneView& View);
+	int32 GetDenoisingFrameIndex(const FSceneView& View, int32 NumberOfFrameInBuffer = -1);
 
 	enum class EVarianceType : uint32
 	{
