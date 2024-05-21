@@ -71,7 +71,9 @@ public:
 	FLogMessageCache& GetCache() { return Cache; }
 
 	TSharedPtr<FLogMessage> GetSelectedLogMessage() const;
-	void SelectedLogMessageByLogIndex(int32 LogIndex);
+	void SelectLogMessage(TSharedPtr<FLogMessage> LogMessage);
+	void SelectLogMessageByLogIndex(int32 LogIndex);
+	void SelectLogMessageByClosestTime(double Time);
 
 	FText GetFilterText() const { return FilterTextBox->GetText(); }
 
@@ -83,9 +85,9 @@ protected:
 
 	void InitCommandList();
 
-	void SelectLogMessage(TSharedPtr<FLogMessage> LogMessage);
 	void OnMouseButtonClick(TSharedPtr<FLogMessage> LogMessage);
 	void OnSelectionChanged(TSharedPtr<FLogMessage> LogMessage, ESelectInfo::Type SelectInfo);
+	void OnSelectedLogMessageChanged(TSharedPtr<FLogMessage> LogMessage);
 
 	void FilterTextBox_OnTextChanged(const FText& InFilterText);
 	void OnFilterChanged();
@@ -107,7 +109,7 @@ protected:
 
 	bool ShowHideAllCategories_IsChecked() const;
 	void ShowHideAllCategories_Execute();
-	
+
 	bool IsLogCategoryEnabled(FName InName) const;
 	void ToggleCategory(FName InName);
 
@@ -188,8 +190,8 @@ protected:
 	/** Cached log messages. */
 	mutable FLogMessageCache Cache;
 
-	/** List of trace log messages to show in list view (i.e. filtered). */
-	TArray<TSharedPtr<FLogMessage>> Messages; // TODO: this needs virtualisation (an a new SListView)
+	/** List of trace log messages to show in list view. */
+	TArray<TSharedPtr<FLogMessage>> FilteredMessages;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
