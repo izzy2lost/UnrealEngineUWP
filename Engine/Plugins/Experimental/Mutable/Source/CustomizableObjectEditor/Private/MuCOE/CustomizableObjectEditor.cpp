@@ -1070,24 +1070,45 @@ void FCustomizableObjectEditor::HideGizmoClipMorph()
 
 void FCustomizableObjectEditor::ShowGizmoClipMesh(UCustomizableObjectNodeMeshClipWithMesh& Node)
 {
-	UStaticMesh* ClipMesh = nullptr;
+	UObject* ClipMesh = nullptr;
+	int32 LODIndex = 0;
+	int32 SectionIndex = 0;
+	int32 MaterialSlotIndex = 0;
 
 	if (const UEdGraphPin* ConnectedPin = FollowInputPin(*Node.ClipMeshPin()))
 	{
 		if (const UEdGraphNode* ConnectedNode = ConnectedPin->GetOwningNode())
 		{
-			if (const UCustomizableObjectNodeStaticMesh* TypedNode = Cast<UCustomizableObjectNodeStaticMesh>(ConnectedNode))
+			int32 DummyIndex = 0;
+
+			if (const UCustomizableObjectNodeStaticMesh* StaticMeshNode = Cast<UCustomizableObjectNodeStaticMesh>(ConnectedNode))
 			{
-				ClipMesh = TypedNode->StaticMesh;
+				ClipMesh = StaticMeshNode->GetMesh();
+				StaticMeshNode->GetPinSection(*ConnectedPin, LODIndex, SectionIndex, DummyIndex);
+				MaterialSlotIndex = SectionIndex;
+			}
+			else if (const UCustomizableObjectNodeSkeletalMesh* SkeletalMeshNode = Cast<UCustomizableObjectNodeSkeletalMesh>(ConnectedNode))
+			{
+				ClipMesh = SkeletalMeshNode->GetMesh();
+				SkeletalMeshNode->GetPinSection(*ConnectedPin, LODIndex, SectionIndex, DummyIndex);
+				MaterialSlotIndex = SkeletalMeshNode->GetSkeletalMaterialIndexFor(*ConnectedPin);
 			}
 			else if (const UCustomizableObjectNodeTable* TableNode = Cast<UCustomizableObjectNodeTable>(ConnectedNode))
 			{
-				ClipMesh = TableNode->GetColumnDefaultAssetByType<UStaticMesh>(ConnectedPin);
+				ClipMesh = TableNode->GetColumnDefaultAssetByType<UObject>(ConnectedPin);
+
+				TableNode->GetPinLODAndSection(ConnectedPin, LODIndex, SectionIndex);
+				MaterialSlotIndex = SectionIndex;
+
+				if (TableNode->GetPinMeshType(ConnectedPin) == ETableMeshPinType::SKELETAL_MESH)
+				{
+					MaterialSlotIndex = TableNode->GetDefaultSkeletalMaterialIndexFor(*ConnectedPin);
+				}
 			}
 		}
 	}
 
-	if (ClipMesh)
+	if (ClipMesh && LODIndex >= 0 && MaterialSlotIndex >= 0)
 	{
 		if (GizmoType != EGizmoType::ClipMesh)
 		{
@@ -1097,7 +1118,7 @@ void FCustomizableObjectEditor::ShowGizmoClipMesh(UCustomizableObjectNodeMeshCli
 
 		SelectSingleNode(Node);
 
-		Viewport->ShowGizmoClipMesh(Node, *ClipMesh);
+		Viewport->ShowGizmoClipMesh(Node, *ClipMesh, LODIndex, SectionIndex, MaterialSlotIndex);
 	}
 }
 
@@ -1163,10 +1184,8 @@ void FCustomizableObjectEditor::PostUndo(bool bSuccess)
 {
 	if (bSuccess)
 	{
-		GraphEditor->ClearSelectionSet();
 		GraphEditor->NotifyGraphChanged();
 		CustomizableObject->MarkPackageDirty();
-		//CustomizableObjectDetailsView->Invalidate(EInvalidateWidget::Layout);
 	}
 }
 

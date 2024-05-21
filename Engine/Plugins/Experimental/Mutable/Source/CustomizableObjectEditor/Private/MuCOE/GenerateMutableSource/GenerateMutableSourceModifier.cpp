@@ -156,12 +156,11 @@ mu::NodeModifierPtr GenerateMutableSourceModifier(const UEdGraphPin * Pin, FMuta
 				}
 			}
 
-			if (Cast<UCustomizableObjectNodeStaticMesh>(ConnectedPin->GetOwningNode()))
+			if (FMatrix Matrix = TypedNodeClipMesh->Transform.ToMatrixWithScale(); Matrix != FMatrix::Identity)
 			{
 				mu::NodeMeshTransformPtr TransformMesh = new mu::NodeMeshTransform();
 				TransformMesh->SetSource(ClipMesh.get());
 
-				FMatrix Matrix = TypedNodeClipMesh->Transform.ToMatrixWithScale();
 				TransformMesh->SetTransform(FMatrix44f(Matrix));
 				ClipMesh = TransformMesh;
 			}

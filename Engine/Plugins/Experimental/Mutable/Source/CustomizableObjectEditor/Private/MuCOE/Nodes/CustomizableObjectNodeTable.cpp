@@ -1459,6 +1459,24 @@ FSkeletalMaterial* UCustomizableObjectNodeTable::GetDefaultSkeletalMaterialFor(c
 		return nullptr;
 	}
 
+	const int32 SkeletalMeshMaterialIndex = GetDefaultSkeletalMaterialIndexFor(MeshPin);
+	if (SkeletalMesh->GetMaterials().IsValidIndex(SkeletalMeshMaterialIndex))
+	{
+		return &SkeletalMesh->GetMaterials()[SkeletalMeshMaterialIndex];
+	}
+
+	return nullptr;
+}
+
+int32 UCustomizableObjectNodeTable::GetDefaultSkeletalMaterialIndexFor(const UEdGraphPin& MeshPin) const
+{
+	USkeletalMesh* SkeletalMesh = GetColumnDefaultAssetByType<USkeletalMesh>(&MeshPin);
+
+	if (!SkeletalMesh)
+	{
+		return INDEX_NONE;
+	}
+
 	int32 LODIndex;
 	int32 SectionIndex;
 	GetPinLODAndSection(&MeshPin, LODIndex, SectionIndex);
@@ -1486,12 +1504,7 @@ FSkeletalMaterial* UCustomizableObjectNodeTable::GetDefaultSkeletalMaterialFor(c
 		}
 	}
 
-	if (SkeletalMesh->GetMaterials().IsValidIndex(SkeletalMeshMaterialIndex))
-	{
-		return &SkeletalMesh->GetMaterials()[SkeletalMeshMaterialIndex];
-	}
-
-	return nullptr;
+	return SkeletalMeshMaterialIndex;
 }
 
 

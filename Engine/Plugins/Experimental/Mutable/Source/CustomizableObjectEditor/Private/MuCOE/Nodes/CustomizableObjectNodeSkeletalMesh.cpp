@@ -80,7 +80,7 @@ void UCustomizableObjectNodeSkeletalMesh::AllocateDefaultPins(UCustomizableObjec
 					continue;
 				}
 
-				UMaterialInterface* MaterialInterface = GetMaterialInterfaceFor(LODIndex, SectionIndex, ImportedModel);
+				UMaterialInterface* MaterialInterface = GetMaterialInterfaceFor(LODIndex, SectionIndex);
 				
 				FString SectionFriendlyName = MaterialInterface ? MaterialInterface->GetName() : FString::Printf(TEXT("Section %i"), SectionIndex);
 
@@ -183,21 +183,10 @@ UTexture2D* UCustomizableObjectNodeSkeletalMesh::FindTextureForPin(const UEdGrap
 	{
 		return nullptr;
 	}
-	
-	if (!SkeletalMesh)
-	{
-		return nullptr;
-	}
-
-	const FSkeletalMeshModel* ImportedModel = SkeletalMesh->GetImportedModel();
-	if (!ImportedModel)
-	{
-		return nullptr;
-	}	
 
 	if (const UCustomizableObjectNodeSkeletalMeshPinDataImage* PinData = Cast<UCustomizableObjectNodeSkeletalMeshPinDataImage>(GetPinData(*Pin)))
 	{
-		if (const UMaterialInterface* MaterialInterface = GetMaterialInterfaceFor(PinData->GetLODIndex(), PinData->GetSectionIndex(), ImportedModel))
+		if (const UMaterialInterface* MaterialInterface = GetMaterialInterfaceFor(PinData->GetLODIndex(), PinData->GetSectionIndex()))
 		{
 			const UMaterialInterface* Material = GetMaterialFor(Pin);
 			
@@ -341,12 +330,9 @@ void UCustomizableObjectNodeSkeletalMesh::GetPinSection(const UEdGraphPin& Pin, 
 
 UMaterialInterface* UCustomizableObjectNodeSkeletalMesh::GetMaterialFor(const UEdGraphPin* Pin) const
 {
-	if (SkeletalMesh)
+	if (FSkeletalMaterial* SkeletalMaterial = GetSkeletalMaterialFor(*Pin))
 	{
-		if (FSkeletalMaterial* SkeletalMaterial = GetSkeletalMaterialFor(*Pin))
-		{
-			return SkeletalMaterial->MaterialInterface;
-		}
+		return SkeletalMaterial->MaterialInterface;
 	}
 
 	return nullptr;
@@ -361,6 +347,17 @@ FSkeletalMaterial* UCustomizableObjectNodeSkeletalMesh::GetSkeletalMaterialFor(c
 	GetPinSection(Pin, LODIndex, SectionIndex, LayoutIndex);
 
 	return GetSkeletalMaterialFor(LODIndex, SectionIndex);
+}
+
+
+int32 UCustomizableObjectNodeSkeletalMesh::GetSkeletalMaterialIndexFor(const UEdGraphPin& Pin) const
+{
+	int32 LODIndex;
+	int32 SectionIndex;
+	int32 LayoutIndex;
+	GetPinSection(Pin, LODIndex, SectionIndex, LayoutIndex);
+
+	return GetSkeletalMaterialIndexFor(LODIndex, SectionIndex);
 }
 
 
@@ -430,7 +427,7 @@ bool UCustomizableObjectNodeSkeletalMesh::IsNodeOutDatedAndNeedsRefresh()
 			}
 			else if (const UCustomizableObjectNodeSkeletalMeshPinDataImage* ImagePinData = Cast<UCustomizableObjectNodeSkeletalMeshPinDataImage>(GetPinData(*Pin)))
 			{				
-				const UMaterialInterface* MaterialInterface = GetMaterialInterfaceFor(ImagePinData->GetLODIndex(), ImagePinData->GetSectionIndex(), ImportedModel);
+				const UMaterialInterface* MaterialInterface = GetMaterialInterfaceFor(ImagePinData->GetLODIndex(), ImagePinData->GetSectionIndex());
 				if (!MaterialInterface) // If we had an Image pin for sure we had a MaterialInstance.
 				{
 					return true;
@@ -689,9 +686,9 @@ bool UCustomizableObjectNodeSkeletalMesh::CheckIsValidLayout(const UEdGraphPin* 
 	return !VisitedLayouts.Contains(false);
 }
 
-UMaterialInterface* UCustomizableObjectNodeSkeletalMesh::GetMaterialInterfaceFor(const int32 LODIndex, const int32 SectionIndex, const FSkeletalMeshModel* ImportedModel) const
+UMaterialInterface* UCustomizableObjectNodeSkeletalMesh::GetMaterialInterfaceFor(const int32 LODIndex, const int32 SectionIndex) const
 {
-	if (FSkeletalMaterial* SkeletalMaterial = GetSkeletalMaterialFor(LODIndex, SectionIndex, ImportedModel))
+	if (FSkeletalMaterial* SkeletalMaterial = GetSkeletalMaterialFor(LODIndex, SectionIndex))
 	{
 		return SkeletalMaterial->MaterialInterface;
 	}
@@ -700,16 +697,33 @@ UMaterialInterface* UCustomizableObjectNodeSkeletalMesh::GetMaterialInterfaceFor
 }
 
 
-FSkeletalMaterial* UCustomizableObjectNodeSkeletalMesh::GetSkeletalMaterialFor(const int32 LODIndex, const int32 SectionIndex, const FSkeletalMeshModel* ImportedModel) const
+FSkeletalMaterial* UCustomizableObjectNodeSkeletalMesh::GetSkeletalMaterialFor(const int32 LODIndex, const int32 SectionIndex) const
 {
 	if (!SkeletalMesh)
 	{
 		return nullptr;
 	}
 
+	const int32 SkeletalMeshMaterialIndex = GetSkeletalMaterialIndexFor(LODIndex, SectionIndex);
+	if (SkeletalMesh->GetMaterials().IsValidIndex(SkeletalMeshMaterialIndex))
+	{
+		return &SkeletalMesh->GetMaterials()[SkeletalMeshMaterialIndex];
+	}
+	
+	return nullptr;
+}
+
+
+int32 UCustomizableObjectNodeSkeletalMesh::GetSkeletalMaterialIndexFor(const int32 LODIndex, const int32 SectionIndex) const
+{
+	if (!SkeletalMesh)
+	{
+		return INDEX_NONE;
+	}
+
 	// We assume that LODIndex and MaterialIndex are valid for the imported model
 	int32 SkeletalMeshMaterialIndex = INDEX_NONE;
-	
+
 	// Check if we have lod info map to get the correct material index
 	if (const FSkeletalMeshLODInfo* LodInfo = SkeletalMesh->GetLODInfo(LODIndex))
 	{
@@ -722,30 +736,14 @@ FSkeletalMaterial* UCustomizableObjectNodeSkeletalMesh::GetSkeletalMaterialFor(c
 	// Only deduce index when the explicit mapping is not found or there is no remap
 	if (SkeletalMeshMaterialIndex == INDEX_NONE)
 	{
-	if (ImportedModel && ImportedModel->LODModels.IsValidIndex(LODIndex) && ImportedModel->LODModels[LODIndex].Sections.IsValidIndex(SectionIndex))
-	{
-		SkeletalMeshMaterialIndex = ImportedModel->LODModels[LODIndex].Sections[SectionIndex].MaterialIndex;
-	}
-	else
-	{
-		FSkeletalMeshModel* AuxImportedModel = SkeletalMesh->GetImportedModel();
-
-		if (AuxImportedModel)
+		FSkeletalMeshModel* ImportedModel = SkeletalMesh->GetImportedModel();
+		if (ImportedModel && ImportedModel->LODModels.IsValidIndex(LODIndex) && ImportedModel->LODModels[LODIndex].Sections.IsValidIndex(SectionIndex))
 		{
-			if (AuxImportedModel->LODModels.IsValidIndex(LODIndex) && AuxImportedModel->LODModels[LODIndex].Sections.IsValidIndex(SectionIndex))
-			{
-				SkeletalMeshMaterialIndex = AuxImportedModel->LODModels[LODIndex].Sections[SectionIndex].MaterialIndex;
-			}
+			SkeletalMeshMaterialIndex = ImportedModel->LODModels[LODIndex].Sections[SectionIndex].MaterialIndex;
 		}
 	}
-	}
-	
-	if (SkeletalMesh->GetMaterials().IsValidIndex(SkeletalMeshMaterialIndex))
-	{
-		return &SkeletalMesh->GetMaterials()[SkeletalMeshMaterialIndex];
-	}
-	
-	return nullptr;
+
+	return SkeletalMeshMaterialIndex;
 }
 
 

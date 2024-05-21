@@ -56,6 +56,7 @@ public:
 
 	// UCustomizableObjectNode interface
 	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
+	virtual void ReconstructNode(UCustomizableObjectNodeRemapPins* RemapPinsMode) override;
 	virtual void PinConnectionListChanged(UEdGraphPin* Pin) override;
 	virtual void UpdateReferencedNodeId(const FGuid& NewGuid) override;
 	virtual void BeginPostDuplicate(bool bDuplicateForPIE) override;
