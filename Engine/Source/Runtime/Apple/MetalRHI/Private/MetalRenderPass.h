@@ -8,6 +8,10 @@
 #include "MetalBuffer.h"
 #include "MetalCommandEncoder.h"
 
+#if PLATFORM_VISIONOS
+#import <CompositorServices/CompositorServices.h>
+#endif
+
 class FMetalCommandList;
 class FMetalCommandQueue;
 class FMetalStateCache;
