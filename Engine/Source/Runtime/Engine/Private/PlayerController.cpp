@@ -5106,17 +5106,9 @@ void APlayerController::TickActor( float DeltaSeconds, ELevelTick TickType, FAct
 
 								if (PawnTimeSinceForcingUpdates > PawnTimeForcedUpdateMaxDuration)
 								{
-									if (ServerData->bLastRequestNeedsForcedUpdates)
-									{
-										// No valid updates, don't reset anything but don't mark as exceeded either
-										// Keep forced updates going until new and valid move request is received
-									}
-									else
-									{
-										// Waiting for ServerTimeStamp to advance from a client move.
-										UE_LOG(LogNetPlayerMovement, Log, TEXT("Setting bForcedUpdateDurationExceeded=true (PawnTimeSinceForcingUpdates %.6f > PawnTimeForcedUpdateMaxDuration %.6f)"), PawnTimeSinceForcingUpdates, PawnTimeForcedUpdateMaxDuration);
-										ServerData->bForcedUpdateDurationExceeded = true;
-									}
+									// Waiting for ServerTimeStamp to advance from a client move.
+									UE_LOG(LogNetPlayerMovement, Log, TEXT("Setting bForcedUpdateDurationExceeded=true (PawnTimeSinceForcingUpdates %.6f > PawnTimeForcedUpdateMaxDuration %.6f) (bLastRequestNeedsForcedUpdates:%d)"), PawnTimeSinceForcingUpdates, PawnTimeForcedUpdateMaxDuration, (int32)ServerData->bLastRequestNeedsForcedUpdates);
+									ServerData->bForcedUpdateDurationExceeded = true;
 								}
 							}
 						}
@@ -5135,7 +5127,8 @@ void APlayerController::TickActor( float DeltaSeconds, ELevelTick TickType, FAct
 						{
 							//UE_LOG(LogPlayerController, Warning, TEXT("ForcedMovementTick. PawnTimeSinceUpdate: %f, DeltaSeconds: %f, DeltaSeconds+: %f"), PawnTimeSinceUpdate, DeltaSeconds, DeltaSeconds+0.06f);
 							const USkeletalMeshComponent* PawnMesh = GetPawn()->FindComponentByClass<USkeletalMeshComponent>();
-							if (!ServerData->bForcedUpdateDurationExceeded && (!PawnMesh || !PawnMesh->IsSimulatingPhysics()))
+							const bool bShouldForceUpdate = !ServerData->bForcedUpdateDurationExceeded || ServerData->bLastRequestNeedsForcedUpdates;
+							if (bShouldForceUpdate && (!PawnMesh || !PawnMesh->IsSimulatingPhysics()))
 							{
 								const bool bDidUpdate = NetworkPredictionInterface->ForcePositionUpdate(PawnTimeSinceUpdate);
 

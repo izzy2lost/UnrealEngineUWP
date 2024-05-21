@@ -207,13 +207,20 @@ namespace CharacterMovementCVars
 		TEXT("0: Disable, 1: Enable"),
 		ECVF_Default);
 
-	static bool bNetServerForcePositionUpdateAdvanceClientTimestamp = false;
-	FAutoConsoleVariableRef CVarNetServerForcePositionUpdateAdvanceClientTimestamp(
-		TEXT("p.NetServerForcePositionUpdateAdvanceClientTimestamp"),
-		bNetServerForcePositionUpdateAdvanceClientTimestamp,
-		TEXT("If enabled, the server will advance client timestamps when running ForcePositionUpdate() on client timeout.\n"),
+	static bool bNetServerForcePositionUpdateSyncToClient = false;
+	FAutoConsoleVariableRef CVarNetServerForcePositionUpdateSyncToClient(
+		TEXT("p.NetServerForcePositionUpdateSyncToClient"),
+		bNetServerForcePositionUpdateSyncToClient,
+		TEXT("If enabled, the server will always sync to the client timestamp when receiving a valid move after forcing updates (true is the old default behavior).\n"),
 		ECVF_Default);
 
+	static float NetServerMaxMoveDeltaTimeScalar = 1.75f;
+	FAutoConsoleVariableRef CVarNetServerMaxMoveDeltaTimeScalar(
+		TEXT("p.NetServerMaxMoveDeltaTimeScalar"),
+		NetServerMaxMoveDeltaTimeScalar,
+		TEXT("Multiplier to the MaxMoveDeltaTime allowed on the server, compared to the client. Enforced to be >= 1.0\n")
+		TEXT("Allows the server to accept longer moves than the client is normally allowed to send, to avoid corrections (a value of 1 is old default behavior).\n"),
+		ECVF_Default);
 
 	static int32 ReplayLerpAcceleration = 0;
 	FAutoConsoleVariableRef CVarReplayLerpAcceleration(
@@ -8441,7 +8448,7 @@ bool UCharacterMovementComponent::ForcePositionUpdate(float DeltaTime)
 
 	FNetworkPredictionData_Server_Character* ServerData = GetPredictionData_Server_Character();
 
-	if (CharacterMovementCVars::bNetServerForcePositionUpdateAdvanceClientTimestamp)
+	if (!ServerData->bForcedUpdateDurationExceeded)
 	{
 		// Increment client timestamp so we reject client moves after this new simulated time position.
 		// See handling of CurrentClientTimeStamp in VerifyClientTimeStamp().
@@ -9088,7 +9095,7 @@ bool UCharacterMovementComponent::VerifyClientTimeStamp(float TimeStamp, FNetwor
 			CurrentRootMotion.ApplyTimeStampReset(MinTimeBetweenTimeStampResets);
 		}
 		
-		if (bFirstMoveAfterForcedUpdates)
+		if (bFirstMoveAfterForcedUpdates && (ServerData.bForcedUpdateDurationExceeded || CharacterMovementCVars::bNetServerForcePositionUpdateSyncToClient))
 		{
 			// We have been performing ForcedUpdates because we hadn't received any moves from this connection in a while but we've now received a new move!
 			// Let's sync up to this TimeStamp in order to resolve movement desyncs ASAP
@@ -12137,7 +12144,9 @@ float FNetworkPredictionData_Server_Character::GetServerMoveDeltaTime(float Clie
 
 float FNetworkPredictionData_Server_Character::GetBaseServerMoveDeltaTime(float ClientTimeStamp, float ActorTimeDilation) const
 {
-	const float DeltaTime = FMath::Min(MaxMoveDeltaTime * ActorTimeDilation, ClientTimeStamp - CurrentClientTimeStamp);
+	// Allow server to run longer moves than the client is allowed to send, to avoid corrections when there is a gap in lost client moves.
+	const float ServerScalar = FMath::Max(1.0f, CharacterMovementCVars::NetServerMaxMoveDeltaTimeScalar);
+	const float DeltaTime = FMath::Min(ServerScalar * MaxMoveDeltaTime * ActorTimeDilation, ClientTimeStamp - CurrentClientTimeStamp);
 	return DeltaTime;
 }
 
