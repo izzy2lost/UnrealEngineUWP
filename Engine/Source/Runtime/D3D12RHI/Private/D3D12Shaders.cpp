@@ -247,9 +247,11 @@ FRayTracingShaderRHIRef FD3D12DynamicRHI::RHICreateRayTracingShader(TArrayView<c
 	};
 
 	FD3D12RayTracingShader* Shader = InitStandardShaderWithCustomSerialization(new FD3D12RayTracingShader(ShaderFrequency), Code, CustomSerialization);
-	if (Shader)
+
+	// Setup local root signature (RayGen only has global root signature)
+	if (Shader && ShaderFrequency != SF_RayGen)
 	{
-		Shader->RootSignature = GetAdapter().GetRootSignature(Shader);
+		Shader->LocalRootSignature = GetAdapter().GetLocalRootSignature(Shader);
 	}
 
 	return Shader;

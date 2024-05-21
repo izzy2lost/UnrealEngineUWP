@@ -54,12 +54,16 @@ public:
 
 	inline int8 GetRootConstantsSlot() const { return RootConstantsSlot; }
 	inline int8 GetDiagnosticBufferSlot() const { return DiagnosticBufferSlot; }
+	inline int8 GetStaticShaderBindingSlot() const { return StaticShaderBindingSlot; }
+	inline int8 GetStaticShaderBindingCount() const { return StaticShaderBindingCount; }
 
 private:
 
 	uint32 RootParametersSize;	// The size of all root parameters in the root signature. Size in DWORDs, the limit is 64.
 	int8 RootConstantsSlot = -1;
 	int8 DiagnosticBufferSlot = -1;
+	int8 StaticShaderBindingSlot = -1;
+	int8 StaticShaderBindingCount = -1;
 	CD3DX12_ROOT_PARAMETER1 TableSlots[MaxRootParameters];
 	CD3DX12_DESCRIPTOR_RANGE1 DescriptorRanges[MaxRootParameters];
 	CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC RootDesc;
@@ -213,6 +217,8 @@ public:
 	uint32 GetTotalRootSignatureSizeInBytes() const { return 4 * TotalRootSignatureSizeInDWORDs; }
 
 	inline int8 GetRootConstantsSlot() const { return RootConstantsSlot; }
+	inline int8 GetStaticShaderBindingSlot() const { return StaticShaderBindingSlot; }
+	inline int8 GetStaticShaderBindingCount() const { return StaticShaderBindingCount; }
 
 	// Returns root parameter slot for the internal shader diagnostic buffer (used for asserts, etc.) or -1 if not available.
 	inline int8 GetDiagnosticBufferSlot() const { return DiagnosticBufferSlot; }
@@ -461,6 +467,8 @@ private:
 	uint8 TotalRootSignatureSizeInDWORDs = 0;
 	int8 RootConstantsSlot = -1;
 	int8 DiagnosticBufferSlot = -1;
+	int8 StaticShaderBindingSlot = -1;
+	int8 StaticShaderBindingCount = -1;
 
 	uint8 bHasUAVs : 1;
 	uint8 bHasSRVs : 1;

@@ -236,10 +236,11 @@ public:
 	FORCEINLINE FD3D12PipelineStateCache& GetPSOCache() { return PipelineStateCache; }
 
 	const FD3D12RootSignature* GetRootSignature(const FBoundShaderStateInput& BoundShaderState);
-	const FD3D12RootSignature* GetRootSignature(const class FD3D12RayTracingShader* Shader);
 	const FD3D12RootSignature* GetRootSignature(const class FD3D12ComputeShader* Shader);
 	const FD3D12RootSignature* GetRootSignature(const class FD3D12WorkGraphShader* Shader);
-	const FD3D12RootSignature* GetGlobalRayTracingRootSignature();
+
+	const FD3D12RootSignature* GetLocalRootSignature(const class FD3D12RayTracingShader* Shader);
+	const FD3D12RootSignature* GetGlobalRayTracingRootSignature(const FRHIShaderBindingLayout& ShaderBindingLayout);
 
 #if USE_STATIC_ROOT_SIGNATURE
 	FORCEINLINE const FD3D12RootSignature* GetStaticGraphicsWithConstantsRootSignature() const

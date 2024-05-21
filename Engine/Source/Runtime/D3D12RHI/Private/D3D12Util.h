@@ -88,26 +88,64 @@ struct FShaderRegisterCounts
 	uint8 ConstantBufferCount;
 	uint8 ShaderResourceCount;
 	uint8 UnorderedAccessCount;
+	
+	inline bool operator==(const FShaderRegisterCounts& RHS) const
+	{
+		return SamplerCount == RHS.SamplerCount &&
+			ConstantBufferCount == RHS.ConstantBufferCount &&
+			ShaderResourceCount == RHS.ShaderResourceCount &&
+			UnorderedAccessCount == RHS.UnorderedAccessCount;
+	}
+	
+	friend uint32 GetTypeHash(const FShaderRegisterCounts& Counts)
+	{
+		uint32 Hash = GetTypeHash(Counts.SamplerCount);
+		Hash = HashCombineFast(Hash, GetTypeHash(Counts.ConstantBufferCount));
+		Hash = HashCombineFast(Hash, GetTypeHash(Counts.ShaderResourceCount));
+		Hash = HashCombineFast(Hash, GetTypeHash(Counts.UnorderedAccessCount));
+		return Hash;
+	}
 };
 
 struct FD3D12QuantizedBoundShaderState
 {
-	FShaderRegisterCounts RegisterCounts[SV_ShaderVisibilityCount];
+	FRHIShaderBindingLayout ShaderBindingLayout;
+	TStaticArray<FShaderRegisterCounts, SV_ShaderVisibilityCount> RegisterCounts;
 	ERTRootSignatureType RootSignatureType = RS_Raster;
-	uint8 bAllowIAInputLayout : 1;
-	uint8 bNeedsAgsIntrinsicsSpace : 1;
-	uint8 bUseDiagnosticBuffer : 1;
-	uint8 bUseDirectlyIndexedResourceHeap : 1;
-	uint8 bUseDirectlyIndexedSamplerHeap : 1;
-	uint8 bUseRootConstants : 1;
-	uint8 Padding : 2;
+	union
+	{
+		struct
+		{
+			uint8 bAllowIAInputLayout : 1;
+			uint8 bNeedsAgsIntrinsicsSpace : 1;
+			uint8 bUseDiagnosticBuffer : 1;
+			uint8 bUseDirectlyIndexedResourceHeap : 1;
+			uint8 bUseDirectlyIndexedSamplerHeap : 1;
+			uint8 bUseRootConstants : 1;
+			uint8 Padding : 2;
+		};
+		uint8 Flags;
+	};
 
 	inline bool operator==(const FD3D12QuantizedBoundShaderState& RHS) const
 	{
-		return 0 == FMemory::Memcmp(this, &RHS, sizeof(RHS));
+		return ShaderBindingLayout == RHS.ShaderBindingLayout &&
+			RegisterCounts == RHS.RegisterCounts &&
+			RootSignatureType == RHS.RootSignatureType &&
+			Flags == RHS.Flags;
 	}
-
-	friend uint32 GetTypeHash(const FD3D12QuantizedBoundShaderState& Key);
+	
+	friend uint32 GetTypeHash(const FD3D12QuantizedBoundShaderState& State)
+	{
+		uint32 Hash = GetTypeHash(State.ShaderBindingLayout);
+		for (int32 Index = 0; Index < SV_ShaderVisibilityCount; ++Index)
+		{
+			Hash = HashCombineFast(Hash, GetTypeHash(State.RegisterCounts[Index]));
+		}
+		Hash = HashCombineFast(Hash, GetTypeHash(State.RootSignatureType));
+		Hash = HashCombineFast(Hash, GetTypeHash(State.Flags));
+		return Hash;
+	}
 
 	static void InitShaderRegisterCounts(D3D12_RESOURCE_BINDING_TIER ResourceBindingTier, const FShaderCodePackedResourceCounts& Counts, FShaderRegisterCounts& Shader, bool bAllowUAVs = false);
 };

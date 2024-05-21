@@ -1254,11 +1254,6 @@ uint32 GetTypeHash(const FD3D12SamplerArrayDesc& Key)
 	return FD3D12PipelineStateCache::HashData((void*)Key.SamplerID, Key.Count * sizeof(Key.SamplerID[0]));
 }
 
-uint32 GetTypeHash(const FD3D12QuantizedBoundShaderState& Key)
-{
-	return FD3D12PipelineStateCache::HashData((void*)&Key, sizeof(Key));
-}
-
 uint32 GetTypeHash(const FD3D12UniqueSamplerTable& Table)
 {
 	return FD3D12PipelineStateCache::HashData((void*)Table.Key.SamplerID, Table.Key.Count * sizeof(Table.Key.SamplerID[0]));

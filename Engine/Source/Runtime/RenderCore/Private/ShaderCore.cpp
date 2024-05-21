@@ -784,26 +784,33 @@ FThreadSafeSharedAnsiStringPtr FShaderBindingLayout::GetUniformBufferDeclaration
 	if (Entry)
 	{
 		uint8 UniformBufferIndex = Entry->CBVResourceIndex;
-		return UniformBufferDeclarationsAnsi[UniformBufferIndex];
+		return UniformBufferData[UniformBufferIndex].UniformBufferDeclarationAnsi;
 	}
 
 	// use the shared declaration from the metadata object itself (no fixed register or space defined)
 	return ShaderParametersMetadata->GetUniformBufferDeclarationAnsiPtr();
 }
 
-void FShaderBindingLayout::SetUniformBufferDeclarationAnsiPtr(const FShaderParametersMetadata* ShaderParametersMetadata, FThreadSafeSharedAnsiStringPtr UniformBufferDeclarationAnsi)
+void FShaderBindingLayout::SetUniformBufferDeclarationAnsiPtr(const FShaderParametersMetadata* ShaderParametersMetadata, const FString& UniformBufferName, FThreadSafeSharedAnsiStringPtr UniformBufferDeclarationAnsi)
 {
 	uint32 LayoutHash = ShaderParametersMetadata->GetLayout().GetHash();
 	const FRHIUniformBufferShaderBindingLayout* Entry = RHILayout.FindEntry(LayoutHash);
 	check(Entry);
-	UniformBufferDeclarationsAnsi.SetNum(FMath::Max(UniformBufferDeclarationsAnsi.Num(), int32(Entry->CBVResourceIndex + 1)));
-	UniformBufferDeclarationsAnsi[Entry->CBVResourceIndex] = UniformBufferDeclarationAnsi;
+	UniformBufferData.SetNum(FMath::Max(UniformBufferData.Num(), int32(Entry->CBVResourceIndex + 1)));
+	UniformBufferData[Entry->CBVResourceIndex].UniformBufferName = UniformBufferName;
+	UniformBufferData[Entry->CBVResourceIndex].UniformBufferDeclarationAnsi = UniformBufferDeclarationAnsi;
 }
 
 void FShaderBindingLayout::AddRequiredSymbols(TArray<FString>& RequiredSymbols) const
 {
 	// assume only bindless for now so only need to add the CBuffer declares as required symbols
 	check(EnumHasAllFlags(RHILayout.GetFlags(), EShaderBindingLayoutFlags::BindlessResources | EShaderBindingLayoutFlags::BindlessSamplers));
+
+	// Don't remove unused uniform buffers defined in the fixed shader binding layout because they are required to be declared for certain platforms
+	for (const FUniformBufferData& Data : UniformBufferData)
+	{
+		RequiredSymbols.Add(Data.UniformBufferName);
+	}
 }
 
 #endif // WITH_EDITOR

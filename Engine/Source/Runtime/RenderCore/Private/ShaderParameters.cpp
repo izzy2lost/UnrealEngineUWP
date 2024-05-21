@@ -372,25 +372,48 @@ static FString CreateHLSLUniformBufferDeclaration(const TCHAR* UniformBufferName
 		uint32 HLSLBaseOffset = 0;
 		CreateHLSLUniformBufferStructMembersDeclaration(UniformBufferStruct, UniformBufferName, TEXT(""), TEXT(""), 0, Decl, HLSLBaseOffset);
 
-		// TODO: use UniformBufferSBLayout to generate CB_DEFINITION with fixed register & space
-
-		return FString::Printf(
-			TEXT("#pragma once\n")
-			TEXT("UB_CB_DEFINITION_START(%s)\n")
-			TEXT("%s")
-			TEXT("UB_CB_DEFINITION_END(%s)\n")
-			TEXT("%s")
-			TEXT("UniformBuffer %s\n")
-			TEXT("{\n")
-			TEXT("%s")
-			TEXT("};\n"),
-			UniformBufferName,
-			*Decl.ConstantBufferMembers,
-			UniformBufferName,
-			*Decl.ResourceMembers,
-			UniformBufferName,
-			*Decl.StructMembers
-		);
+		if (UniformBufferSBLayout && UniformBufferSBLayout->RegisterSpace > 0)
+		{	
+			return FString::Printf(
+				TEXT("#pragma once\n")
+				TEXT("UB_STATIC_CB_DEFINITION_START(%s,%d,%d)\n")
+				TEXT("%s")
+				TEXT("UB_CB_DEFINITION_END(%s)\n")
+				TEXT("%s")
+				TEXT("UniformBuffer %s\n")
+				TEXT("{\n")
+				TEXT("%s")
+				TEXT("};\n"),
+				UniformBufferName,
+				UniformBufferSBLayout->CBVResourceIndex,
+				UniformBufferSBLayout->RegisterSpace,
+				*Decl.ConstantBufferMembers,
+				UniformBufferName,
+				*Decl.ResourceMembers,
+				UniformBufferName,
+				*Decl.StructMembers
+			);
+		}
+		else
+		{
+			return FString::Printf(
+				TEXT("#pragma once\n")
+				TEXT("UB_CB_DEFINITION_START(%s)\n")
+				TEXT("%s")
+				TEXT("UB_CB_DEFINITION_END(%s)\n")
+				TEXT("%s")
+				TEXT("UniformBuffer %s\n")
+				TEXT("{\n")
+				TEXT("%s")
+				TEXT("};\n"),
+				UniformBufferName,
+				*Decl.ConstantBufferMembers,
+				UniformBufferName,
+				*Decl.ResourceMembers,
+				UniformBufferName,
+				*Decl.StructMembers
+			);
+		}
 	}
 
 	return FString(TEXT("\n"));

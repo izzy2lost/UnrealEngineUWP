@@ -325,17 +325,21 @@ FD3D12RootSignatureDesc::FD3D12RootSignatureDesc(const FD3D12QuantizedBoundShade
 			Flags |= D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 		}
 
-		for (uint32 ShaderVisibilityIndex = 0; ShaderVisibilityIndex < UE_ARRAY_COUNT(ShaderVisibilityPriorityOrder); ShaderVisibilityIndex++)
+		// don't set deny flags when static shader resource table is used
+		if (QBSS.ShaderBindingLayout.GetNumUniformBufferEntries() == 0)
 		{
-			const EShaderVisibility Visibility = ShaderVisibilityPriorityOrder[ShaderVisibilityIndex];
-			const FShaderRegisterCounts& Shader = QBSS.RegisterCounts[Visibility];
-			if ((Shader.ShaderResourceCount == 0) &&
-				(Shader.ConstantBufferCount == 0) &&
-				(Shader.UnorderedAccessCount == 0) &&
-				(Shader.SamplerCount == 0))
+			for (uint32 ShaderVisibilityIndex = 0; ShaderVisibilityIndex < UE_ARRAY_COUNT(ShaderVisibilityPriorityOrder); ShaderVisibilityIndex++)
 			{
-				// This shader stage doesn't use any descriptors, deny access to the shader stage in the root signature.
-				Flags = (Flags | GetD3D12RootSignatureDenyFlag(Visibility));
+				const EShaderVisibility Visibility = ShaderVisibilityPriorityOrder[ShaderVisibilityIndex];
+				const FShaderRegisterCounts& Shader = QBSS.RegisterCounts[Visibility];
+				if ((Shader.ShaderResourceCount == 0) &&
+					(Shader.ConstantBufferCount == 0) &&
+					(Shader.UnorderedAccessCount == 0) &&
+					(Shader.SamplerCount == 0))
+				{
+					// This shader stage doesn't use any descriptors, deny access to the shader stage in the root signature.
+					Flags = (Flags | GetD3D12RootSignatureDenyFlag(Visibility));
+				}
 			}
 		}
 	}
@@ -349,6 +353,25 @@ FD3D12RootSignatureDesc::FD3D12RootSignatureDesc(const FD3D12QuantizedBoundShade
 		RootParametersSize += RootDescriptorCost;
 	}
 #endif
+	
+	// Add all the static defined uniform buffers
+	if (QBSS.ShaderBindingLayout.GetNumUniformBufferEntries() > 0)
+	{
+		StaticShaderBindingSlot = int8(RootParameterCount);
+		StaticShaderBindingCount = 0;
+		for (uint32 Index = 0; Index < QBSS.ShaderBindingLayout.GetNumUniformBufferEntries(); ++Index)
+		{
+			const FRHIUniformBufferShaderBindingLayout& UniformBufferSBLayout = QBSS.ShaderBindingLayout.GetUniformBufferEntry(Index);
+			
+			check(RootParameterCount < MaxRootParameters);
+			check(UniformBufferSBLayout.RegisterSpace > 0);
+			TableSlots[RootParameterCount].InitAsConstantBufferView(UniformBufferSBLayout.CBVResourceIndex, UniformBufferSBLayout.RegisterSpace, CBVRootDescriptorFlags, D3D12_SHADER_VISIBILITY_ALL);
+			StaticShaderBindingCount = FMath::Max(StaticShaderBindingCount, int8(UniformBufferSBLayout.CBVResourceIndex + 1));
+
+			RootParameterCount++;
+			RootParametersSize += RootDescriptorCost;
+		}
+	}
 
 	if (QBSS.bUseRootConstants)
 	{
@@ -477,6 +500,8 @@ void FD3D12RootSignature::Init(const FD3D12QuantizedBoundShaderState& InQBSS)
 	FD3D12RootSignatureDesc Desc(InQBSS, ResourceBindingTier);
 
 	RootConstantsSlot = Desc.GetRootConstantsSlot();
+	StaticShaderBindingSlot = Desc.GetStaticShaderBindingSlot();
+	StaticShaderBindingCount = Desc.GetStaticShaderBindingCount();
 	DiagnosticBufferSlot = Desc.GetDiagnosticBufferSlot();
 
 	uint32 BindingSpace = 0; // Default binding space for D3D 11 & 12 shaders

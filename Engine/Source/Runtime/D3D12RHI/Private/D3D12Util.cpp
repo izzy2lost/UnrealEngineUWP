@@ -1347,7 +1347,7 @@ const FD3D12RootSignature* FD3D12Adapter::GetRootSignature(const FD3D12WorkGraph
 
 #if D3D12_RHI_RAYTRACING
 
-const FD3D12RootSignature* FD3D12Adapter::GetGlobalRayTracingRootSignature()
+const FD3D12RootSignature* FD3D12Adapter::GetGlobalRayTracingRootSignature(const FRHIShaderBindingLayout& ShaderBindingLayout)
 {
 #if USE_STATIC_ROOT_SIGNATURE
 
@@ -1358,6 +1358,7 @@ const FD3D12RootSignature* FD3D12Adapter::GetGlobalRayTracingRootSignature()
 	FD3D12QuantizedBoundShaderState QBSS{};
 	FShaderRegisterCounts& QBSSRegisterCounts = QBSS.RegisterCounts[SV_All];
 
+	QBSS.ShaderBindingLayout = ShaderBindingLayout;
 	QBSS.RootSignatureType = RS_RayTracingGlobal;
 	QBSS.bUseDiagnosticBuffer = true;
 
@@ -1376,7 +1377,7 @@ const FD3D12RootSignature* FD3D12Adapter::GetGlobalRayTracingRootSignature()
 #endif //! USE_STATIC_ROOT_SIGNATURE
 }
 
-const FD3D12RootSignature* FD3D12Adapter::GetRootSignature(const FD3D12RayTracingShader* RayTracingShader)
+const FD3D12RootSignature* FD3D12Adapter::GetLocalRootSignature(const FD3D12RayTracingShader* RayTracingShader)
 {
 #if USE_STATIC_ROOT_SIGNATURE
 
@@ -1404,9 +1405,10 @@ const FD3D12RootSignature* FD3D12Adapter::GetRootSignature(const FD3D12RayTracin
 	switch (RayTracingShader->GetFrequency())
 	{
 	case SF_RayGen:
-		// Shared conservative root signature layout is used for all raygen and miss shaders.
-		return GetGlobalRayTracingRootSignature();
-
+		// Ray gen only uses global root signature and needs the RHIShaderBindingLayout which is provided through the RTPSO initializer 
+		// and verified against hash stored in the RHIShader data
+		checkNoEntry();
+		break;
 	case SF_RayHitGroup:
 	case SF_RayCallable:
 	case SF_RayMiss:
