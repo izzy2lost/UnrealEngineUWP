@@ -224,7 +224,7 @@ void FCookDependency::UpdateHash(FCookDependencyContext& Context) const
 		return;
 	case ECookDependency::ConsoleVariable:
 	{
-		IConsoleVariable* VariableInstance = IConsoleManager::Get().FindConsoleVariable(*StringData);
+		IConsoleVariable* VariableInstance = IConsoleManager::Get().FindConsoleVariable(*StringData, false /* bTrackFrequentCalls */);
 		if (VariableInstance == nullptr)
 		{
 			Context.LogError(FString::Printf(
