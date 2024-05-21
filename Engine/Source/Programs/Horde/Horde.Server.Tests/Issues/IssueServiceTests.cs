@@ -29,7 +29,7 @@ using Horde.Server.Storage;
 using Horde.Server.Streams;
 using Horde.Server.Tests.Stubs.Services;
 using Horde.Server.Users;
-using JobDriver.Horde.Agent.Driver.Parser;
+using JobDriver.JobDriver.Parser;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
