@@ -1788,7 +1788,7 @@ EDeviceScreenOrientation FGenericPlatformMisc::GetDeviceOrientation()
 
 void FGenericPlatformMisc::SetDeviceOrientation(EDeviceScreenOrientation NewDeviceOrientation)
 {
-	SetAllowedDeviceOrientation(NewDeviceOrientation);
+	FPlatformMisc::SetAllowedDeviceOrientation(NewDeviceOrientation);
 }
 
 EDeviceScreenOrientation FGenericPlatformMisc::GetAllowedDeviceOrientation()
@@ -1803,7 +1803,7 @@ void FGenericPlatformMisc::SetAllowedDeviceOrientation(EDeviceScreenOrientation 
 
 void FGenericPlatformMisc::ForceUpdateDeviceOrientation(EDeviceScreenOrientation NewDeviceOrientation)
 {
-    SetAllowedDeviceOrientation(NewDeviceOrientation);
+    FPlatformMisc::SetAllowedDeviceOrientation(NewDeviceOrientation);
 }
 
 int32 FGenericPlatformMisc::GetDeviceVolume()
