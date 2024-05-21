@@ -780,8 +780,6 @@ void FOXRVisionOSSession::EndSessionInternal()
 	//Close(HMDHandle);
 	HMDHandle = INVALID_DEVICE_HANDLE;
 
-	PipelinedFrameStateGame.CommandListContext = PipelinedFrameStateRendering.CommandListContext = PipelinedFrameStateRHI.CommandListContext = nullptr;
-
 	if (bExitRequested)
 	{
 		SetSessionState(XrSessionState::XR_SESSION_STATE_EXITING);
@@ -994,8 +992,6 @@ XrResult FOXRVisionOSSession::XrBeginFrame(
 		return XrResult::XR_ERROR_CALL_ORDER_INVALID;
 	}
     CachedBeginFlipFrameCounter = PipelinedFrameStateRHI.FrameCounter;
-       
-	PipelinedFrameStateRHI.CommandListContext = RHIGetDefaultContext();
 	
 	if (PipelinedFrameStateRHI.bSynchronizing)
 	{

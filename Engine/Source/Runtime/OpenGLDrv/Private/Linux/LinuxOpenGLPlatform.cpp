@@ -371,7 +371,8 @@ const TCHAR* PlatformDescribeSyncInterval(int32 SyncInterval)
  * Main function for transferring data to on-screen buffers.
  * On Windows it temporarily switches OpenGL context, on Mac only context's output view.
  */
-bool PlatformBlitToViewport(FPlatformOpenGLDevice* Device,
+bool PlatformBlitToViewport(IRHICommandContext& RHICmdContext, 
+	FPlatformOpenGLDevice* Device,
 	const FOpenGLViewport& Viewport,
 	uint32 BackbufferSizeX,
 	uint32 BackbufferSizeY,
@@ -392,7 +393,7 @@ bool PlatformBlitToViewport(FPlatformOpenGLDevice* Device,
 		if (Viewport.GetCustomPresent())
 		{
 			glDisable(GL_FRAMEBUFFER_SRGB);
-			bool bShouldPresent = Viewport.GetCustomPresent()->Present(SyncInterval);
+			bool bShouldPresent = Viewport.GetCustomPresent()->Present(RHICmdContext, SyncInterval);
 			glEnable(GL_FRAMEBUFFER_SRGB);
 			if (!bShouldPresent)
 			{

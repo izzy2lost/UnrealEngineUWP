@@ -562,7 +562,7 @@ void FD3D12Viewport::AdvanceExpectedBackBufferIndex_RenderThread()
 }
 
 /** Presents the swap chain checking the return result. */
-bool FD3D12Viewport::PresentChecked(int32 SyncInterval)
+bool FD3D12Viewport::PresentChecked(IRHICommandContext& RHICmdContext, int32 SyncInterval)
 {
 #if PLATFORM_WINDOWS
 	// We can't call Present if !bIsValid, as it waits a window message to be processed, but the main thread may not be pumping the message handler.
@@ -596,7 +596,7 @@ bool FD3D12Viewport::PresentChecked(int32 SyncInterval)
 	if (IsValidRef(CustomPresent))
 	{
 		SCOPE_CYCLE_COUNTER(STAT_D3D12CustomPresentTime);
-		bNeedNativePresent = CustomPresent->Present(SyncInterval);
+		bNeedNativePresent = CustomPresent->Present(RHICmdContext, SyncInterval);
 	}
 
 	if (bNeedNativePresent)
@@ -618,7 +618,7 @@ bool FD3D12Viewport::PresentChecked(int32 SyncInterval)
 	return bNeedNativePresent;
 }
 
-bool FD3D12Viewport::Present(bool bLockToVsync)
+bool FD3D12Viewport::Present(IRHICommandContext& RHICmdContext, bool bLockToVsync)
 {
 	if (!IsPresentAllowed())
 	{
@@ -676,7 +676,7 @@ bool FD3D12Viewport::Present(bool bLockToVsync)
 	}
 
 	const int32 SyncInterval = bLockToVsync ? RHIGetSyncInterval() : 0;
-	const bool bNativelyPresented = PresentChecked(SyncInterval);
+	const bool bNativelyPresented = PresentChecked(RHICmdContext, SyncInterval);
 
 #if WITH_MGPU
 	if (PresentContext)
@@ -871,7 +871,7 @@ void FD3D12CommandContextBase::RHIEndDrawingViewport(FRHIViewport* ViewportRHI, 
 	check(ParentAdapter->GetDrawingViewport() == Viewport);
 	ParentAdapter->SetDrawingViewport(nullptr);
 
-	bool bNativelyPresented = Viewport->Present(bLockToVsync);
+	bool bNativelyPresented = Viewport->Present(*this, bLockToVsync);
 	
 	// Multi-GPU support : here each GPU wait's for it's own frame completion.
 	if (bNativelyPresented)

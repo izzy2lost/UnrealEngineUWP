@@ -1103,7 +1103,8 @@ bool FVulkanViewport::Present(FVulkanCommandListContext* Context, FVulkanCmdBuff
 	if (bHasCustomPresent)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_VulkanCustomPresentTime);
-		bNeedNativePresent = CustomPresent->Present(SyncInterval);
+		check(Context);
+		bNeedNativePresent = CustomPresent->Present(*Context, SyncInterval);
 	}
 
 	bool bResult = false;

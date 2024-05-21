@@ -361,7 +361,7 @@ static bool IsCompositionEnabled()
 }
 
 /** Presents the swap chain checking the return result. */
-bool FD3D11Viewport::PresentChecked(int32 SyncInterval)
+bool FD3D11Viewport::PresentChecked(IRHICommandContext& RHICmdContext, int32 SyncInterval)
 {
 	HRESULT Result = S_OK;
 	bool bNeedNativePresent = true;
@@ -369,7 +369,7 @@ bool FD3D11Viewport::PresentChecked(int32 SyncInterval)
 	if (IsValidRef(CustomPresent))
 	{
 		SCOPE_CYCLE_COUNTER(STAT_D3D11CustomPresentTime);
-		bNeedNativePresent = CustomPresent->Present(SyncInterval);
+		bNeedNativePresent = CustomPresent->Present(RHICmdContext, SyncInterval);
 	}
 
 	if (bNeedNativePresent)
@@ -472,7 +472,7 @@ bool FD3D11Viewport::PresentChecked(int32 SyncInterval)
 }
 
 /** Blocks the CPU to synchronize with vblank by communicating with DWM. */
-void FD3D11Viewport::PresentWithVsyncDWM()
+void FD3D11Viewport::PresentWithVsyncDWM(IRHICommandContext& RHICmdContext)
 {
 #if D3D11_WITH_DWMAPI
 	LARGE_INTEGER Cycles;
@@ -548,7 +548,7 @@ void FD3D11Viewport::PresentWithVsyncDWM()
 	}
 
 	// Present.
-	PresentChecked(/*SyncInterval=*/ 0);
+	PresentChecked(RHICmdContext, /*SyncInterval=*/ 0);
 
 	// If we are forcing <= 30Hz, block the CPU an additional amount of time if needed.
 	// This second block is only needed when RefreshPercentageBeforePresent < 1.0.
@@ -603,7 +603,7 @@ void FD3D11Viewport::PresentWithVsyncDWM()
 #endif	//D3D11_WITH_DWMAPI
 }
 
-bool FD3D11Viewport::Present(bool bLockToVsync)
+bool FD3D11Viewport::Present(IRHICommandContext& RHICmdContext, bool bLockToVsync)
 {
 	bool bNativelyPresented = true;
 #if	D3D11_WITH_DWMAPI
@@ -638,13 +638,13 @@ bool FD3D11Viewport::Present(bool bLockToVsync)
 	const bool bSyncWithDWM = bLockToVsync && !bIsFullscreen && RHIConsoleVariables::bSyncWithDWM && IsCompositionEnabled();
 	if (bSyncWithDWM)
 	{
-		PresentWithVsyncDWM();
+		PresentWithVsyncDWM(RHICmdContext);
 	}
 	else
 #endif	//D3D11_WITH_DWMAPI
 	{
 		// Present the back buffer to the viewport window.
-		bNativelyPresented = PresentChecked(bLockToVsync ? RHIGetSyncInterval() : 0);
+		bNativelyPresented = PresentChecked(RHICmdContext, bLockToVsync ? RHIGetSyncInterval() : 0);
 	}
 	return bNativelyPresented;
 }
@@ -804,7 +804,7 @@ void FD3D11DynamicRHI::RHIEndDrawingViewport(FRHIViewport* ViewportRHI,bool bPre
 	bool bNativelyPresented = true;
 	if (bPresent)
 	{
-		bNativelyPresented = Viewport->Present(bLockToVsync);
+		bNativelyPresented = Viewport->Present(*this, bLockToVsync);
 	}
 
 	if (bNativelyPresented)

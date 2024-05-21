@@ -179,6 +179,14 @@ public:
 		return nullptr;
 	}
 
+	/**
+	* If true pass the rhi context into some xr functions via XrRHIContextEpic.  Intended to be used where an unreal plugin wraps a XR platform api in the OpenXR api.
+	*/	
+	virtual bool RequiresRHIContext() const
+	{
+		return false;
+	}
+
 
 	/**
 	* Fill the array with extensions required by the plugin
@@ -361,6 +369,14 @@ public:
 	}
 
 	// OpenXRHMD::OnBeginRendering_RHIThread
+	virtual const void* OnBeginFrame_RHIThread(XrSession InSession, XrTime DisplayTime, const void* InNext)	
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return OnBeginFrame(InSession, DisplayTime, InNext);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	UE_DEPRECATED(5.5, "Please replace with OnBeginFrame_RHIThread.")
 	virtual const void* OnBeginFrame(XrSession InSession, XrTime DisplayTime, const void* InNext)
 	{
 		return InNext;

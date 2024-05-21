@@ -3806,10 +3806,19 @@ public:
 
 	// Called from RHI thread to perform custom present.
 	// @param InOutSyncInterval - in out param, indicates if vsync is on (>0) or off (==0).
+	// @param RHICmdContext - the current rhi command context
 	// @return	true if native Present should be also be performed; false otherwise. If it returns
 	// true, then InOutSyncInterval could be modified to switch between VSync/NoVSync for the normal 
 	// Present.  Must match value previously returned by NeedsNativePresent for this frame.
-	virtual bool Present(int32& InOutSyncInterval) = 0;
+	virtual bool Present(IRHICommandContext& RHICmdContext, int32& InOutSyncInterval)
+	{
+	 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	 	return Present(InOutSyncInterval); 
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	 };
+
+	UE_DEPRECATED(5.5, "Please replace with Present(IRHICommandContext& RHICmdContext, int32& InOutSyncInterval).")
+	virtual bool Present(int32& InOutSyncInterval) { check(false); return true; };
 
 	// Called from RHI thread after native Present has been called
 	virtual void PostPresent() {};

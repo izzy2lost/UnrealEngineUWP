@@ -199,7 +199,7 @@ public:
 	void EndScene();
 	
 	void BeginDrawingViewport(FMetalViewport* Viewport);
-	void EndDrawingViewport(FMetalViewport* Viewport, bool bPresent, bool bLockToVsync);
+	void EndDrawingViewport(IRHICommandContext& RHICmdContext, FMetalViewport* Viewport, bool bPresent, bool bLockToVsync);
 	
 	/** Get the index of the bound Metal device in the global list of rendering devices. */
 	uint32 GetDeviceIndex(void) const;

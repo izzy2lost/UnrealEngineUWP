@@ -5,13 +5,13 @@
 #include "OpenXRHMD_Swapchain.h"
 #include "OpenXRCore.h"
 
-bool FOpenXRRenderBridge::Present(int32& InOutSyncInterval)
+bool FOpenXRRenderBridge::Present(IRHICommandContext& RHICmdContext, int32& InOutSyncInterval)
 {
 	bool bNeedsNativePresent = true;
 
 	if (OpenXRHMD)
 	{
-		HMDOnFinishRendering_RHIThread();
+		HMDOnFinishRendering_RHIThread(RHICmdContext);
 		bNeedsNativePresent = !OpenXRHMD->IsStandaloneStereoOnlyDevice();
 	}
 
@@ -20,11 +20,11 @@ bool FOpenXRRenderBridge::Present(int32& InOutSyncInterval)
 	return bNeedsNativePresent;
 }
 
-void FOpenXRRenderBridge::HMDOnFinishRendering_RHIThread()
+void FOpenXRRenderBridge::HMDOnFinishRendering_RHIThread(IRHICommandContext& RHICmdContext)
 {
 	if (OpenXRHMD)
 	{
-		OpenXRHMD->OnFinishRendering_RHIThread();
+		OpenXRHMD->OnFinishRendering_RHIThread(RHICmdContext);
 	}
 }
 

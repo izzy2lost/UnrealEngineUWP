@@ -171,7 +171,7 @@ void FOpenGLDynamicRHI::RHIEndDrawingViewport(FRHIViewport* ViewportRHI,bool bPr
 			glDisable(GL_SCISSOR_TEST);
 		}
 
-		bool bNeedFinishFrame = PlatformBlitToViewport(PlatformDevice,
+		bool bNeedFinishFrame = PlatformBlitToViewport(*this, PlatformDevice,
 			*Viewport, 
 			BackBuffer->GetSizeX(),
 			BackBuffer->GetSizeY(),

@@ -36,7 +36,9 @@ public:
 	virtual void IncrementSwapChainIndex_RHIThread();
 
 	virtual void WaitCurrentImage_RHIThread(int64 TimeoutNanoseconds = 0) {} // Default to no timeout (immediate).
-	virtual void ReleaseCurrentImage_RHIThread() {}
+	virtual void ReleaseCurrentImage_RHIThread(IRHICommandContext* RHICmdContext) {}
+
+	void SetDebugLabel(FStringView NewLabel) { DebugLabel = NewLabel; }
 
 protected:
 	virtual void ReleaseResources_RHIThread();
@@ -44,6 +46,8 @@ protected:
 	FTextureRHIRef RHITexture;
 	TArray<FTextureRHIRef> RHITextureSwapChain;
 	std::atomic_uint32_t SwapChainIndex_RHIThread;
+
+	FString DebugLabel;
 };
 
 typedef TSharedPtr<FXRSwapChain, ESPMode::ThreadSafe> FXRSwapChainPtr;

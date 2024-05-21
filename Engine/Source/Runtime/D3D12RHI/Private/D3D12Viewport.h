@@ -92,7 +92,7 @@ public:
 	/** Presents the swap chain.
 	 * Returns true if Present was done by Engine.
 	 */
-	bool Present(bool bLockToVsync);
+	bool Present(IRHICommandContext& RHICmdContext, bool bLockToVsync);
 
 	// Accessors.
 	FIntPoint GetSizeXY() const
@@ -186,7 +186,7 @@ private:
 	 * Presents the swap chain checking the return result.
 	 * Returns true if Present was done by Engine.
 	 */
-	bool PresentChecked(int32 SyncInterval);
+	bool PresentChecked(IRHICommandContext& RHICmdContext, int32 SyncInterval);
 
 	/**
 	 * Presents the backbuffer to the viewport window.

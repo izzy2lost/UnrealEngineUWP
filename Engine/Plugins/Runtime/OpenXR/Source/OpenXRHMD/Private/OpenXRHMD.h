@@ -447,8 +447,8 @@ public:
 	virtual ~FOpenXRHMD();
 
 	void OnBeginSimulation_GameThread();
-	void OnBeginRendering_RHIThread(const FPipelinedFrameState& InFrameState, FXRSwapChainPtr ColorSwapchain, FXRSwapChainPtr DepthSwapchain, FXRSwapChainPtr EmulationSwapchain);
-	void OnFinishRendering_RHIThread();
+	void OnBeginRendering_RHIThread(IRHICommandContext& RHICmdContext, const FPipelinedFrameState& InFrameState, FXRSwapChainPtr ColorSwapchain, FXRSwapChainPtr DepthSwapchain, FXRSwapChainPtr EmulationSwapchain);
+	void OnFinishRendering_RHIThread(IRHICommandContext& RHICmdContext);
 
 	/** IOpenXRHMD */
 	void SetInputModule(IOpenXRInputModule* InInputModule) override
@@ -478,6 +478,8 @@ public:
 	/** Returns shader platform the plugin is currently configured for, in the editor it can change due to preview platforms. */
 	EShaderPlatform GetConfiguredShaderPlatform() const { check(ConfiguredShaderPlatform != EShaderPlatform::SP_NumPlatforms); return ConfiguredShaderPlatform; }
 	FOpenXRSwapchain* GetColorSwapchain_RenderThread();
+
+	bool RuntimeRequiresRHIContext() const { return bRuntimeRequiresRHIContext; }
 private:
 
 	TArray<XrEnvironmentBlendMode> RetrieveEnvironmentBlendModes() const;
@@ -505,6 +507,7 @@ private:
 	bool					bSpaceAccelerationSupported;
 	bool					bProjectionLayerAlphaEnabled;
 	bool					bIsStandaloneStereoOnlyDevice;
+	bool					bRuntimeRequiresRHIContext;
 	bool					bIsTrackingOnlySession;
 	bool					bIsAcquireOnAnyThreadSupported;
 	bool					bUseWaitCountToAvoidExtraXrBeginFrameCalls;

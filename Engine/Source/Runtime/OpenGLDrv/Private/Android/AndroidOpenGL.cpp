@@ -216,7 +216,7 @@ void* PlatformGetWindow(FPlatformOpenGLContext* Context, void** AddParam)
 	return (void*)&Context->eglContext;
 }
 
-bool PlatformBlitToViewport(FPlatformOpenGLDevice* Device, const FOpenGLViewport& Viewport, uint32 BackbufferSizeX, uint32 BackbufferSizeY, bool bPresent,bool bLockToVsync )
+bool PlatformBlitToViewport(IRHICommandContext& RHICmdContext, FPlatformOpenGLDevice* Device, const FOpenGLViewport& Viewport, uint32 BackbufferSizeX, uint32 BackbufferSizeY, bool bPresent,bool bLockToVsync )
 {
 	SCOPED_NAMED_EVENT(STAT_PlatformBlitToViewportTime, FColor::Red)
 	
@@ -259,7 +259,7 @@ bool PlatformBlitToViewport(FPlatformOpenGLDevice* Device, const FOpenGLViewport
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_FAndroidOpenGL_PlatformBlitToViewport_CustomPresent);
 		int32 SyncInterval = FAndroidPlatformRHIFramePacer::GetLegacySyncInterval();
-		bPresent = Viewport.GetCustomPresent()->Present(SyncInterval);
+		bPresent = Viewport.GetCustomPresent()->Present(RHICmdContext, SyncInterval);
 	}
 	if (bPresent)
 	{

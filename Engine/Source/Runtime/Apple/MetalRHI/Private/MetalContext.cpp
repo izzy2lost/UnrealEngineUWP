@@ -666,7 +666,7 @@ void FMetalDeviceContext::FlushFreeList(bool const bFlushFences)
 	DelayedFreeLists.Add(NewList);
 }
 
-void FMetalDeviceContext::EndDrawingViewport(FMetalViewport* Viewport, bool bPresent, bool bLockToVsync)
+void FMetalDeviceContext::EndDrawingViewport(IRHICommandContext& RHICmdContext, FMetalViewport* Viewport, bool bPresent, bool bLockToVsync)
 {
 	// enqueue a present if desired
 	static bool const bOffscreenOnly = FParse::Param(FCommandLine::Get(), TEXT("MetalOffscreenOnly"));
@@ -682,10 +682,10 @@ void FMetalDeviceContext::EndDrawingViewport(FMetalViewport* Viewport, bool bPre
 			int32 SyncInterval = 0;
 			{
 				SCOPE_CYCLE_COUNTER(STAT_MetalCustomPresentTime);
-                FMetalRHICommandContext* RHICommandContext = static_cast<FMetalRHICommandContext*>(RHIGetDefaultContext());
-                RHICommandContext->SetCustomPresentViewport(Viewport);
-                bNeedNativePresent = CustomPresent->Present(SyncInterval);
-                RHICommandContext->SetCustomPresentViewport(nullptr);
+                FMetalRHICommandContext& MetalRHICmdContext = static_cast<FMetalRHICommandContext&>(RHICmdContext);
+                MetalRHICmdContext.SetCustomPresentViewport(Viewport);
+                bNeedNativePresent = CustomPresent->Present(RHICmdContext, SyncInterval);
+                MetalRHICmdContext.SetCustomPresentViewport(nullptr);
 			}
 			
             FMetalCommandBuffer* CurrentCommandBuffer = GetCurrentCommandBuffer();

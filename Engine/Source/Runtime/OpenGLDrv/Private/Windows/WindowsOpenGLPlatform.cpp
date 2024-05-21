@@ -442,7 +442,7 @@ void PlatformDestroyOpenGLContext(FPlatformOpenGLDevice* Device, FPlatformOpenGL
  * Main function for transferring data to on-screen buffers.
  * On Windows it temporarily switches OpenGL context, on Mac only context's output view.
  */
-bool PlatformBlitToViewport(FPlatformOpenGLDevice* Device, const FOpenGLViewport& Viewport, uint32 BackbufferSizeX, uint32 BackbufferSizeY, bool bPresent, bool bLockToVsync)
+bool PlatformBlitToViewport(IRHICommandContext& RHICmdContext, FPlatformOpenGLDevice* Device, const FOpenGLViewport& Viewport, uint32 BackbufferSizeX, uint32 BackbufferSizeY, bool bPresent, bool bLockToVsync)
 {
 	int32 SyncInterval = RHIGetSyncInterval();
 
@@ -480,7 +480,7 @@ bool PlatformBlitToViewport(FPlatformOpenGLDevice* Device, const FOpenGLViewport
 		{
 			Device->TargetDirty = false;
 			glDisable(GL_FRAMEBUFFER_SRGB);
-			bool bShouldPresent = Viewport.GetCustomPresent()->Present(SyncInterval);
+			bool bShouldPresent = Viewport.GetCustomPresent()->Present(RHICmdContext, SyncInterval);
 			glEnable(GL_FRAMEBUFFER_SRGB);
 			if (!bShouldPresent)
 			{

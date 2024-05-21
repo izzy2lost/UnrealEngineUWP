@@ -124,6 +124,8 @@ public:
 
 	void OnBeginRendering_RenderThread();
 
+	void OnBeginFrame_RHIThread(FRHICommandListImmediate* InRHICommandList);
+
 	XrResult XrBeginFrame(
 		const XrFrameBeginInfo* frameBeginInfo);
 
@@ -154,7 +156,6 @@ public:
 	{
 		int32 FrameCounter = -1;
 		XrTime PredictedDisplayTime = 0;
-		IRHICommandContext* CommandListContext = nullptr;
 		//FTransform HMDPoseInTrackerSpace = FTransform::Identity;
 		//PoseData HmdPose = {};
 		cp_frame_t SwiftFrame = nullptr;

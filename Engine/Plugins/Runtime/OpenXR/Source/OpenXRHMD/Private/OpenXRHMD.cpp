@@ -1512,6 +1512,7 @@ FOpenXRHMD::FOpenXRHMD(const FAutoRegister& AutoRegister, XrInstance InInstance,
 	for (IOpenXRExtensionPlugin* Module : ExtensionPlugins)
 	{
 		Module->BindExtensionPluginDelegates(*this);
+		bRuntimeRequiresRHIContext |= Module->RequiresRHIContext();
 	}
 }
 
@@ -2464,6 +2465,7 @@ bool FOpenXRHMD::AllocateRenderTargetTextures(uint32 SizeX, uint32 SizeY, uint8 
 		{
 			return false;
 		}
+		Swapchain->SetDebugLabel(TEXT("ColorSwapchain"));
 
 		// Image will be acquired by the viewport if supported, if not we acquire it ahead of time here
 		if (!bIsAcquireOnAnyThreadSupported)
@@ -2495,6 +2497,7 @@ bool FOpenXRHMD::AllocateRenderTargetTextures(uint32 SizeX, uint32 SizeY, uint8 
 
 			uint8 UnusedActualFormat = 0;
 			EmulationSwapchain = RenderBridge->CreateSwapchain(Session, IStereoRenderTargetManager::GetStereoLayerPixelFormat(), UnusedActualFormat, SizeX, SizeY, bIsMobileMultiViewEnabled ? 2 : 1, NumMips, NumSamples, EmulationCreateFlags, FClearValueBinding::Transparent);
+			EmulationSwapchain->SetDebugLabel(TEXT("EmulationSwapchain"));
 
 			// Image will be acquired by SetupFrameLayers_RenderThread if supported, if not we acquire it ahead of time here
 			if (!bIsAcquireOnAnyThreadSupported)
@@ -2547,6 +2550,7 @@ void FOpenXRHMD::AllocateDepthTextureInternal(uint32 SizeX, uint32 SizeY, uint32
 		{
 			return;
 		}
+		DepthSwapchain->SetDebugLabel(TEXT("DepthSwapchain"));
 
 		// Image will be acquired by the renderer if supported, if not we acquire it ahead of time here
 		if (!bIsAcquireOnAnyThreadSupported)
@@ -3039,7 +3043,7 @@ void FOpenXRHMD::OnBeginRendering_RenderThread(FRHICommandListImmediate& RHICmdL
 		UE_LOG(LogHMD, VeryVerbose, TEXT("%s WF_%i EnqueueLambda OnBeginRendering_RHIThread"), HMDThreadString(), PipelinedFrameStateRendering.WaitCount);
 		RHICmdList.EnqueueLambda([this, FrameState = PipelinedFrameStateRendering, ColorSwapchain, DepthSwapchain, EmulationSwapchain](FRHICommandListImmediate& InRHICmdList)
 		{
-			OnBeginRendering_RHIThread(FrameState, ColorSwapchain, DepthSwapchain, EmulationSwapchain);
+			OnBeginRendering_RHIThread(InRHICmdList.GetContext(), FrameState, ColorSwapchain, DepthSwapchain, EmulationSwapchain);
 		});
 	}
 }
@@ -3434,7 +3438,7 @@ void FOpenXRHMD::RequestExitApp()
 	}
 }
 
-void FOpenXRHMD::OnBeginRendering_RHIThread(const FPipelinedFrameState& InFrameState, FXRSwapChainPtr ColorSwapchain, FXRSwapChainPtr DepthSwapchain, FXRSwapChainPtr EmulationSwapchain)
+void FOpenXRHMD::OnBeginRendering_RHIThread(IRHICommandContext& RHICmdContext, const FPipelinedFrameState& InFrameState, FXRSwapChainPtr ColorSwapchain, FXRSwapChainPtr DepthSwapchain, FXRSwapChainPtr EmulationSwapchain)
 {
 	ensure(IsInRenderingThread() || IsInRHIThread());
 
@@ -3465,13 +3469,21 @@ void FOpenXRHMD::OnBeginRendering_RHIThread(const FPipelinedFrameState& InFrameS
 	// The layer state will be copied after SetFinalViewRect
 	PipelinedFrameStateRHI = InFrameState;
 
+	void* Next = nullptr;
+	if (RuntimeRequiresRHIContext())
+	{
+		XrRHIContextEPIC RHIContextEPIC = { (XrStructureType)XR_TYPE_RHI_CONTEXT_EPIC };
+		RHIContextEPIC.RHIContext = &RHICmdContext;
+		RHIContextEPIC.next = Next;
+		Next = &RHIContextEPIC;
+	}
 	XrFrameBeginInfo BeginInfo;
 	BeginInfo.type = XR_TYPE_FRAME_BEGIN_INFO;
-	BeginInfo.next = nullptr;
-	XrTime DisplayTime = InFrameState.FrameState.predictedDisplayTime;
+	BeginInfo.next = Next;
+	XrTime DisplayTime = PipelinedFrameStateRHI.FrameState.predictedDisplayTime;
 	for (IOpenXRExtensionPlugin* Module : ExtensionPlugins)
 	{
-		BeginInfo.next = Module->OnBeginFrame(Session, DisplayTime, BeginInfo.next);
+		BeginInfo.next = Module->OnBeginFrame_RHIThread(Session, DisplayTime, BeginInfo.next);
 	}
 	static int BeginCount = 0;
 	PipelinedFrameStateRHI.BeginCount = ++BeginCount;
@@ -3530,7 +3542,7 @@ void FOpenXRHMD::OnBeginRendering_RHIThread(const FPipelinedFrameState& InFrameS
 	}
 }
 
-void FOpenXRHMD::OnFinishRendering_RHIThread()
+void FOpenXRHMD::OnFinishRendering_RHIThread(IRHICommandContext& RHICmdContext)
 {
 	ensure(IsInRenderingThread() || IsInRHIThread());
 
@@ -3546,15 +3558,16 @@ void FOpenXRHMD::OnFinishRendering_RHIThread()
 	// We need to ensure we release the swap chain images even if the session is not running.
 	if (PipelinedLayerStateRHI.ColorSwapchain)
 	{
-		PipelinedLayerStateRHI.ColorSwapchain->ReleaseCurrentImage_RHIThread();
+		IRHICommandContext* const RHICommandContextIfRequired = RuntimeRequiresRHIContext() ? &RHICmdContext : nullptr;
+		PipelinedLayerStateRHI.ColorSwapchain->ReleaseCurrentImage_RHIThread(RHICommandContextIfRequired);
 
 		if (PipelinedLayerStateRHI.DepthSwapchain)
 		{
-			PipelinedLayerStateRHI.DepthSwapchain->ReleaseCurrentImage_RHIThread();
+			PipelinedLayerStateRHI.DepthSwapchain->ReleaseCurrentImage_RHIThread(RHICommandContextIfRequired);
 		}
 		if (PipelinedLayerStateRHI.EmulatedLayerState.EmulationSwapchain)
 		{
-			PipelinedLayerStateRHI.EmulatedLayerState.EmulationSwapchain->ReleaseCurrentImage_RHIThread();
+			PipelinedLayerStateRHI.EmulatedLayerState.EmulationSwapchain->ReleaseCurrentImage_RHIThread(RHICommandContextIfRequired);
 		}
 	}
 
@@ -3620,11 +3633,20 @@ void FOpenXRHMD::OnFinishRendering_RHIThread()
 
 		AddLayersToHeaders(Headers);
 
+		void* Next = nullptr;
+		if (RuntimeRequiresRHIContext())
+		{
+			XrRHIContextEPIC RHIContextEPIC = { (XrStructureType)XR_TYPE_RHI_CONTEXT_EPIC };
+			RHIContextEPIC.RHIContext = &RHICmdContext;
+			RHIContextEPIC.next = Next;
+			Next = &RHIContextEPIC;
+		}
+
 		int32 BlendModeOverride = CVarOpenXREnvironmentBlendMode.GetValueOnRenderThread();
 
 		XrFrameEndInfo EndInfo;
 		EndInfo.type = XR_TYPE_FRAME_END_INFO;
-		EndInfo.next = nullptr;
+		EndInfo.next = Next;
 		EndInfo.displayTime = PipelinedFrameStateRHI.FrameState.predictedDisplayTime;
 		EndInfo.environmentBlendMode = BlendModeOverride ? (XrEnvironmentBlendMode)BlendModeOverride : SelectedEnvironmentBlendMode;
 
@@ -4087,9 +4109,10 @@ void FOpenXRHMD::CopyTexture_RenderThread(FRHICommandListImmediate& RHICmdList, 
 	CopyTexture_RenderThread(RHICmdList, SrcTexture, SrcRect, DstTexture, DstRect, bClearBlack, ERenderTargetActions::Clear_Store, ERHIAccess::SRVMask, SrcTextureCopyModifier);
 
 	// Enqueue a command to release the image after the copy is done
-	RHICmdList.EnqueueLambda([DstSwapChain](FRHICommandListImmediate& InRHICmdList)
+	bool bCapturableRequiresRHIContext = RuntimeRequiresRHIContext();
+	RHICmdList.EnqueueLambda([DstSwapChain, bCapturableRequiresRHIContext](FRHICommandListImmediate& InRHICmdList)
 	{
-		DstSwapChain->ReleaseCurrentImage_RHIThread();
+		DstSwapChain->ReleaseCurrentImage_RHIThread(bCapturableRequiresRHIContext ? &InRHICmdList.GetContext() : nullptr);
 	});
 }
 

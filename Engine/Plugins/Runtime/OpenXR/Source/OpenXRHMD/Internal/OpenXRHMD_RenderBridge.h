@@ -48,7 +48,8 @@ public:
 	}
 
 	/** FRHICustomPresent */
-	virtual bool Present(int32& InOutSyncInterval) override;
+	virtual bool Present(IRHICommandContext& RHICmdContext, int32& InOutSyncInterval) override;
+	virtual bool Present(int32& InOutSyncInterval) override { check(false); return false; }
 
 	virtual bool Support10BitSwapchain() const { return false; }
 
@@ -56,7 +57,7 @@ public:
 
 	virtual void SetSkipRate(uint32 SkipRate) {}
 
-	virtual void HMDOnFinishRendering_RHIThread();
+	virtual void HMDOnFinishRendering_RHIThread(IRHICommandContext& RHICmdContext);
 
 protected:
 	XrInstance Instance;

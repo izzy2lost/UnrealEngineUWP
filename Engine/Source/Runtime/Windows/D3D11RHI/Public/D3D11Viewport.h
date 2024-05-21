@@ -64,7 +64,7 @@ public:
 	/** Presents the swap chain. 
 	 * Returns true if Present was done by Engine.
 	 */
-	D3D11RHI_API bool Present(bool bLockToVsync);
+	D3D11RHI_API bool Present(IRHICommandContext& RHICmdContext, bool bLockToVsync);
 
 	// Accessors.
 	FIntPoint GetSizeXY() const { return FIntPoint(SizeX, SizeY); }
@@ -109,13 +109,13 @@ protected:
 	D3D11RHI_API uint32 GetSwapChainFlags();
 
 	/** Presents the frame synchronizing with DWM. */
-	D3D11RHI_API void PresentWithVsyncDWM();
+	D3D11RHI_API void PresentWithVsyncDWM(IRHICommandContext& RHICmdContext);
 
 	/**
 	 * Presents the swap chain checking the return result. 
 	 * Returns true if Present was done by Engine.
 	 */
-	D3D11RHI_API bool PresentChecked(int32 SyncInterval);
+	D3D11RHI_API bool PresentChecked(IRHICommandContext& RHICmdContext, int32 SyncInterval);
 
 	FD3D11DynamicRHI* D3DRHI;
 	uint64 LastFlipTime;
