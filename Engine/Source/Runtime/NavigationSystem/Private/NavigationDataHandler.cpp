@@ -2,8 +2,9 @@
 
 #include "NavigationDataHandler.h"
 #include "Engine/Level.h"
-#include "NavMesh/RecastNavMeshGenerator.h"
+#include "GameFramework/Actor.h"
 #include "NavAreas/NavArea.h"
+#include "NavMesh/RecastGeometryExport.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogNavOctree, Warning, All);
 
@@ -496,7 +497,7 @@ void FNavigationDataHandler::AddLevelCollisionToOctree(ULevel& Level)
 				BSPElem.Data->bLoadedData = Level.HasVisibilityChangeRequestPending();
 			}
 			
-			FRecastNavMeshGenerator::ExportVertexSoupGeometry(*LevelGeom, *BSPElem.Data);
+			FRecastGeometryExport::ExportVertexSoupGeometry(*LevelGeom, *BSPElem.Data);
 
 			const FBox& Bounds = BSPElem.Data->Bounds;
 			if (!Bounds.GetExtent().IsNearlyZero())

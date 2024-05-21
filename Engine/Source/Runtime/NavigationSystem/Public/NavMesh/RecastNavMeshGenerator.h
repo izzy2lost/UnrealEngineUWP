@@ -841,17 +841,17 @@ public:
 	NAVIGATIONSYSTEM_API virtual void GrabDebugSnapshot(struct FVisualLogEntry* Snapshot, const FBox& BoundingBox, const FName& CategoryName, ELogVerbosity::Type Verbosity) const override;
 #endif
 
-	UE_DEPRECATED(5.4, "Use ExportNavRelevantObjectGeometry")
+	UE_DEPRECATED(5.4, "Use FRecastGeometryExport::ExportNavRelevantObjectGeometry")
 	static NAVIGATIONSYSTEM_API void ExportComponentGeometry(UActorComponent* InOutComponent, FNavigationRelevantData& OutData);
 
-	UE_DEPRECATED(5.4, "Use ExportRigidBodyGeometry that takes bounds as parameter.")
+	UE_DEPRECATED(5.4, "Use FRecastGeometryExport::ExportRigidBodyGeometry.")
 	static NAVIGATIONSYSTEM_API void ExportRigidBodyGeometry(
 		UBodySetup& InOutBodySetup,
 		TNavStatArray<FVector>& OutVertexBuffer,
 		TNavStatArray<int32>& OutIndexBuffer,
 		const FTransform& LocalToWorld = FTransform::Identity);
 
-	UE_DEPRECATED(5.4, "Use ExportRigidBodyGeometry that takes bounds as parameter.")
+	UE_DEPRECATED(5.4, "Use FRecastGeometryExport::ExportRigidBodyGeometry.")
 	static NAVIGATIONSYSTEM_API void ExportRigidBodyGeometry(
 		UBodySetup& InOutBodySetup,
 		TNavStatArray<FVector>& OutTriMeshVertexBuffer,
@@ -861,7 +861,7 @@ public:
 		TNavStatArray<int32>& OutShapeBuffer,
 		const FTransform& LocalToWorld = FTransform::Identity);
 
-	UE_DEPRECATED(5.4, "Use ExportAggregatedGeometry that takes bounds as parameter.")
+	UE_DEPRECATED(5.4, "Use FRecastGeometryExport::ExportAggregatedGeometry.")
 	static NAVIGATIONSYSTEM_API void ExportAggregatedGeometry(
 		const FKAggregateGeom& AggGeom,
 		TNavStatArray<FVector>& OutConvexVertexBuffer,
@@ -869,15 +869,19 @@ public:
 		TNavStatArray<int32>& OutShapeBuffer,
 		const FTransform& LocalToWorld = FTransform::Identity);
 
+	UE_DEPRECATED(5.5, "Use FRecastGeometryExport::ExportNavRelevantObjectGeometry.")
 	static NAVIGATIONSYSTEM_API void ExportNavRelevantObjectGeometry(INavRelevantInterface& InOutNavRelevantInterface, FNavigationRelevantData& OutData);
+	UE_DEPRECATED(5.5, "Use FRecastGeometryExport::ExportVertexSoupGeometry.")
 	static NAVIGATIONSYSTEM_API void ExportVertexSoupGeometry(const TArray<FVector>& InVerts, FNavigationRelevantData& OutData);
 
+	UE_DEPRECATED(5.5, "Use FRecastGeometryExport::ExportRigidBodyGeometry.")
 	static NAVIGATIONSYSTEM_API void ExportRigidBodyGeometry(UBodySetup& InOutBodySetup,
 		TNavStatArray<FVector>& OutVertexBuffer,
 		TNavStatArray<int32>& OutIndexBuffer,
 		FBox& OutBounds,
 		const FTransform& LocalToWorld = FTransform::Identity);
 
+	UE_DEPRECATED(5.5, "Use FRecastGeometryExport::ExportRigidBodyGeometry.")
 	static NAVIGATIONSYSTEM_API void ExportRigidBodyGeometry(
 		UBodySetup& InOutBodySetup,
 		TNavStatArray<FVector>& OutTriMeshVertexBuffer,
@@ -888,6 +892,7 @@ public:
 		FBox& OutBounds,
 		const FTransform& LocalToWorld = FTransform::Identity);
 
+	UE_DEPRECATED(5.5, "Use FRecastGeometryExport::ExportAggregatedGeometry.")
 	static NAVIGATIONSYSTEM_API void ExportAggregatedGeometry(
 		const FKAggregateGeom& AggGeom,
 		TNavStatArray<FVector>& OutConvexVertexBuffer,

@@ -22,6 +22,7 @@
 #include "Chaos/HeightField.h"
 #include "Chaos/TriangleMeshImplicitObject.h"
 #include "NavMesh/PImplRecastNavMesh.h"
+#include "NavMesh/RecastGeometryExport.h"
 #include "VisualLogger/VisualLogger.h"
 
 // recast includes
@@ -222,32 +223,6 @@ static void ExportGeomToOBJFile(const FString& InFileName, const TNavStatArray<F
 #undef USE_COMPRESSION
 #endif
 }
-
-//----------------------------------------------------------------------//
-// 
-// 
-
-struct FRecastGeometryExport : public FNavigableGeometryExport
-{
-	FRecastGeometryExport(FNavigationRelevantData& InData) : Data(&InData) 
-	{
-		Data->Bounds = FBox(ForceInit);
-	}
-
-	FNavigationRelevantData* Data;
-	TNavStatArray<FVector::FReal> VertexBuffer;
-	TNavStatArray<int32> IndexBuffer;
-	FWalkableSlopeOverride SlopeOverride;
-
-	virtual void ExportChaosTriMesh(const Chaos::FTriangleMeshImplicitObject* const TriMesh, const FTransform& LocalToWorld) override;
-	virtual void ExportChaosConvexMesh(const FKConvexElem* const Convex, const FTransform& LocalToWorld) override;
-	virtual void ExportChaosHeightField(const Chaos::FHeightField* const Heightfield, const FTransform& LocalToWorld) override;
-	virtual void ExportChaosHeightFieldSlice(const FNavHeightfieldSamples& PrefetchedHeightfieldSamples, const int32 NumRows, const int32 NumCols, const FTransform& LocalToWorld, const FBox& SliceBox) override;
-	virtual void ExportCustomMesh(const FVector* InVertices, int32 NumVerts, const int32* InIndices, int32 NumIndices, const FTransform& LocalToWorld) override;
-	virtual void ExportRigidBodySetup(UBodySetup& BodySetup, const FTransform& LocalToWorld) override;
-	virtual void AddNavModifiers(const FCompositeNavModifier& Modifiers) override;
-	virtual void SetNavDataPerInstanceTransformDelegate(const FNavDataPerInstanceTransformDelegate& InDelegate) override;
-};
 
 FRecastVoxelCache::FRecastVoxelCache(const uint8* Memory)
 {
@@ -668,6 +643,11 @@ void ExportCustomMesh(const FVector* InVertices, int32 NumVerts, const int32* In
 		return;
 	}
 
+	if (InVertices == nullptr || InIndices == nullptr)
+	{
+		return;
+	}
+
 	int32 VertOffset = VertexBuffer.Num() / 3;
 	VertexBuffer.Reserve(VertexBuffer.Num() + NumVerts*3);
 	IndexBuffer.Reserve(IndexBuffer.Num() + NumIndices);
@@ -1072,8 +1052,13 @@ FORCEINLINE void TransformVertexSoupToRecast(const TArray<FVector>& VertexSoup, 
 	}
 }
 
-FORCEINLINE void CovertCoordDataToRecast(TNavStatArray<FVector::FReal>& Coords)
+FORCEINLINE void ConvertCoordDataToRecast(TNavStatArray<FVector::FReal>& Coords)
 {
+	if (Coords.Num() == 0)
+	{
+		return;
+	}
+
 	FVector::FReal* CoordPtr = Coords.GetData();
 	const int32 MaxIt = Coords.Num() / 3;
 	for (int32 i = 0; i < MaxIt; i++)
@@ -1123,6 +1108,12 @@ void ExportVertexSoup(const TArray<FVector>& VertexSoup, TNavStatArray<FVector::
 
 } // namespace RecastGeometryExport
 
+FRecastGeometryExport::FRecastGeometryExport(FNavigationRelevantData& InData) 
+	: Data(&InData) 
+{
+	Data->Bounds = FBox(ForceInit);
+}
+
 void FRecastGeometryExport::ExportChaosTriMesh(const Chaos::FTriangleMeshImplicitObject* const TriMesh, const FTransform& LocalToWorld)
 {
 	RecastGeometryExport::ExportChaosTriMesh(TriMesh, LocalToWorld, VertexBuffer, IndexBuffer, Data->Bounds);
@@ -1145,6 +1136,12 @@ void FRecastGeometryExport::ExportChaosHeightFieldSlice(const FNavHeightfieldSam
 
 void FRecastGeometryExport::ExportCustomMesh(const FVector* InVertices, int32 NumVerts, const int32* InIndices, int32 NumIndices, const FTransform& LocalToWorld)
 {
+	if (NumIndices % 3 != 0)
+	{
+		UE_LOG(LogNavigation, Warning, TEXT("%hs: InIndices doesn't represent a list of triangles. Skipping it [Data Owner: %s]"), __FUNCTION__, *GetDataOwnerName());
+		return;
+	}
+
 	RecastGeometryExport::ExportCustomMesh(InVertices, NumVerts, InIndices, NumIndices, LocalToWorld, VertexBuffer, IndexBuffer, Data->Bounds);
 }
 
@@ -1161,6 +1158,32 @@ void FRecastGeometryExport::AddNavModifiers(const FCompositeNavModifier& Modifie
 void FRecastGeometryExport::SetNavDataPerInstanceTransformDelegate(const FNavDataPerInstanceTransformDelegate& InDelegate)
 {
 	Data->NavDataPerInstanceTransformDelegate = InDelegate;
+}
+
+void FRecastGeometryExport::ConvertVertexBufferToRecast()
+{
+	if (VertexBuffer.Num() % 3 != 0)
+	{
+		UE_LOG(LogNavigation, Warning, TEXT("%hs: try to convert a vertex buffer that doesn't contain a list of vertex triplets. Skipping it [Data Owner: %s]"), __FUNCTION__, *GetDataOwnerName());
+		return;
+	}
+
+	RecastGeometryExport::ConvertCoordDataToRecast(VertexBuffer);
+}
+
+void FRecastGeometryExport::StoreCollisionCache()
+{
+	RecastGeometryExport::StoreCollisionCache(*this);
+}
+
+void FRecastGeometryExport::TransformVertexSoupToRecast(const TArray<FVector>& VertexSoup, TNavStatArray<FVector>& Verts, TNavStatArray<int32>& Faces)
+{
+	RecastGeometryExport::TransformVertexSoupToRecast(VertexSoup, Verts, Faces);
+}
+
+FString FRecastGeometryExport::GetDataOwnerName() const
+{
+	return Data ? GetNameSafe(Data->GetOwner()) : TEXT("No Data");
 }
 
 FORCEINLINE void GrowConvexHull(const FVector::FReal ExpandBy, const TArray<FVector>& Verts, TArray<FVector>& OutResult)
@@ -2116,7 +2139,7 @@ void FRecastTileGenerator::GatherNavigationDataGeometry(const TSharedRef<FNaviga
 			// overlap landscape's tile bounds
 			NavRelevant->GatherGeometrySlice(GeomExport, TileBBExpandedForAgent);
 
-			RecastGeometryExport::CovertCoordDataToRecast(GeomExport.VertexBuffer);
+			RecastGeometryExport::ConvertCoordDataToRecast(GeomExport.VertexBuffer);
 			RecastGeometryExport::StoreCollisionCache(GeomExport);
 			bDumpGeometryData = true;
 		}
@@ -7101,39 +7124,53 @@ void FRecastNavMeshGenerator::GetDebugGeometry(const FNavigationRelevantData& En
 }
 #endif // !UE_BUILD_SHIPPING
 
+// Deprecated
 void FRecastNavMeshGenerator::ExportComponentGeometry(UActorComponent* InOutComponent, FNavigationRelevantData& OutData)
 {
 	if (INavRelevantInterface* NavRelevantInterface = Cast<INavRelevantInterface>(InOutComponent))
 	{
-		ExportNavRelevantObjectGeometry(*NavRelevantInterface, OutData);
+		FRecastGeometryExport::ExportNavRelevantObjectGeometry(*NavRelevantInterface, OutData);
 	}
 }
 
+// Deprecated
 void FRecastNavMeshGenerator::ExportNavRelevantObjectGeometry(INavRelevantInterface& InOutNavRelevantInterface, FNavigationRelevantData& OutData)
+{
+	FRecastGeometryExport::ExportNavRelevantObjectGeometry(InOutNavRelevantInterface, OutData);
+}
+
+void FRecastGeometryExport::ExportNavRelevantObjectGeometry(INavRelevantInterface& InOutNavRelevantInterface, FNavigationRelevantData& OutData)
 {
 	FRecastGeometryExport GeomExport(OutData);
 	RecastGeometryExport::ExportObject(InOutNavRelevantInterface, GeomExport);
 
-#if !UE_BUILD_SHIPPING	
+#if !UE_BUILD_SHIPPING
 	RecastGeometryExport::ValidateGeometryExport(GeomExport);
 #endif
 	
-	RecastGeometryExport::CovertCoordDataToRecast(GeomExport.VertexBuffer);
+	RecastGeometryExport::ConvertCoordDataToRecast(GeomExport.VertexBuffer);
 	RecastGeometryExport::StoreCollisionCache(GeomExport);
 }
 
+// Deprecated
 void FRecastNavMeshGenerator::ExportVertexSoupGeometry(const TArray<FVector>& InVerts, FNavigationRelevantData& OutData)
+{
+	FRecastGeometryExport::ExportVertexSoupGeometry(InVerts, OutData);
+}
+
+void FRecastGeometryExport::ExportVertexSoupGeometry(const TArray<FVector>& InVerts, FNavigationRelevantData& OutData)
 {
 	FRecastGeometryExport GeomExport(OutData);
 	RecastGeometryExport::ExportVertexSoup(InVerts, GeomExport.VertexBuffer, GeomExport.IndexBuffer, GeomExport.Data->Bounds);
 
-#if !UE_BUILD_SHIPPING	
+#if !UE_BUILD_SHIPPING
 	RecastGeometryExport::ValidateGeometryExport(GeomExport);
 #endif
-	
+
 	RecastGeometryExport::StoreCollisionCache(GeomExport);
 }
 
+// Deprecated
 void FRecastNavMeshGenerator::ExportRigidBodyGeometry(
 	UBodySetup& InOutBodySetup,
 	TNavStatArray<FVector>& OutVertexBuffer,
@@ -7141,15 +7178,21 @@ void FRecastNavMeshGenerator::ExportRigidBodyGeometry(
 	const FTransform& LocalToWorld)
 {
 	FBox TempBounds;
-	ExportRigidBodyGeometry(InOutBodySetup, OutVertexBuffer, OutIndexBuffer, TempBounds, LocalToWorld);
+	FRecastGeometryExport::ExportRigidBodyGeometry(InOutBodySetup, OutVertexBuffer, OutIndexBuffer, TempBounds, LocalToWorld);
 }
 
+// Deprecated
 void FRecastNavMeshGenerator::ExportRigidBodyGeometry(
 	UBodySetup& InOutBodySetup,
 	TNavStatArray<FVector>& OutVertexBuffer,
 	TNavStatArray<int32>& OutIndexBuffer,
 	FBox& OutBounds,
 	const FTransform& LocalToWorld)
+{
+	FRecastGeometryExport::ExportRigidBodyGeometry(InOutBodySetup, OutVertexBuffer, OutIndexBuffer, OutBounds, LocalToWorld);
+}
+
+void FRecastGeometryExport::ExportRigidBodyGeometry(UBodySetup& InOutBodySetup, TNavStatArray<FVector>& OutVertexBuffer, TNavStatArray<int32>& OutIndexBuffer, FBox& OutBounds, const FTransform& LocalToWorld)
 {
 	TNavStatArray<FVector::FReal> VertCoords;
 	RecastGeometryExport::ExportRigidBodySetup(InOutBodySetup, VertCoords, OutIndexBuffer, OutBounds, LocalToWorld);
@@ -7161,6 +7204,7 @@ void FRecastNavMeshGenerator::ExportRigidBodyGeometry(
 	}
 }
 
+// Deprecated
 void FRecastNavMeshGenerator::ExportRigidBodyGeometry(
 	UBodySetup& InOutBodySetup,
 	TNavStatArray<FVector>& OutTriMeshVertexBuffer,
@@ -7171,7 +7215,7 @@ void FRecastNavMeshGenerator::ExportRigidBodyGeometry(
 	const FTransform& LocalToWorld)
 {
 	FBox TempBounds;
-	ExportRigidBodyGeometry(
+	FRecastGeometryExport::ExportRigidBodyGeometry(
 		InOutBodySetup,
 		OutTriMeshVertexBuffer,
 		OutTriMeshIndexBuffer,
@@ -7182,6 +7226,7 @@ void FRecastNavMeshGenerator::ExportRigidBodyGeometry(
 		LocalToWorld);
 }
 
+// Deprecated
 void FRecastNavMeshGenerator::ExportRigidBodyGeometry(
 	UBodySetup& InOutBodySetup,
 	TNavStatArray<FVector>& OutTriMeshVertexBuffer,
@@ -7191,6 +7236,19 @@ void FRecastNavMeshGenerator::ExportRigidBodyGeometry(
 	TNavStatArray<int32>& OutShapeBuffer,
 	FBox& OutBounds,
 	const FTransform& LocalToWorld)
+{
+	FRecastGeometryExport::ExportRigidBodyGeometry(
+		InOutBodySetup,
+		OutTriMeshVertexBuffer,
+		OutTriMeshIndexBuffer,
+		OutConvexVertexBuffer,
+		OutConvexIndexBuffer,
+		OutShapeBuffer,
+		OutBounds,
+		LocalToWorld);
+}
+
+void FRecastGeometryExport::ExportRigidBodyGeometry(UBodySetup& InOutBodySetup, TNavStatArray<FVector>& OutTriMeshVertexBuffer, TNavStatArray<int32>& OutTriMeshIndexBuffer, TNavStatArray<FVector>& OutConvexVertexBuffer, TNavStatArray<int32>& OutConvexIndexBuffer, TNavStatArray<int32>& OutShapeBuffer, FBox& OutBounds, const FTransform& LocalToWorld)
 {
 	InOutBodySetup.CreatePhysicsMeshes();
 
@@ -7217,6 +7275,7 @@ void FRecastNavMeshGenerator::ExportRigidBodyGeometry(
 	}
 }
 
+// Deprecated
 void FRecastNavMeshGenerator::ExportAggregatedGeometry(
 	const FKAggregateGeom& AggGeom,
 	TNavStatArray<FVector>& OutConvexVertexBuffer,
@@ -7225,9 +7284,10 @@ void FRecastNavMeshGenerator::ExportAggregatedGeometry(
 	const FTransform& LocalToWorld)
 {
 	FBox TempBounds;
-	ExportAggregatedGeometry(AggGeom, OutConvexVertexBuffer, OutConvexIndexBuffer, OutShapeBuffer, TempBounds, LocalToWorld);
+	FRecastGeometryExport::ExportAggregatedGeometry(AggGeom, OutConvexVertexBuffer, OutConvexIndexBuffer, OutShapeBuffer, TempBounds, LocalToWorld);
 }
 
+// Deprecated
 void FRecastNavMeshGenerator::ExportAggregatedGeometry(
 	const FKAggregateGeom& AggGeom,
 	TNavStatArray<FVector>& OutConvexVertexBuffer,
@@ -7235,6 +7295,11 @@ void FRecastNavMeshGenerator::ExportAggregatedGeometry(
 	TNavStatArray<int32>& OutShapeBuffer,
 	FBox& OutBounds,
 	const FTransform& LocalToWorld)
+{
+	FRecastGeometryExport::ExportAggregatedGeometry(AggGeom, OutConvexVertexBuffer, OutConvexIndexBuffer, OutShapeBuffer, OutBounds, LocalToWorld);
+}
+
+void FRecastGeometryExport::ExportAggregatedGeometry(const FKAggregateGeom& AggGeom, TNavStatArray<FVector>& OutConvexVertexBuffer, TNavStatArray<int32>& OutConvexIndexBuffer, TNavStatArray<int32>& OutShapeBuffer, FBox& OutBounds, const FTransform& LocalToWorld)
 {
 	TNavStatArray<FVector::FReal> VertCoords;
 	const int32 NumExistingVerts = OutConvexVertexBuffer.Num();

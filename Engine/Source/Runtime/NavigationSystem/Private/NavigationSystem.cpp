@@ -35,7 +35,7 @@
 #if WITH_RECAST
 #include "NavMesh/RecastNavMesh.h"
 #include "NavMesh/RecastHelpers.h"
-#include "NavMesh/RecastNavMeshGenerator.h"
+#include "NavMesh/RecastGeometryExport.h"
 #endif // WITH_RECAST
 #if WITH_EDITOR
 #include "EditorModeManager.h"
@@ -1037,7 +1037,7 @@ bool UNavigationSystemV1::ConditionalPopulateNavOctree()
 			if (bStoreNavGeometry)
 			{
 #if WITH_RECAST
-				DefaultOctreeController.NavOctree->NavRelevantGeometryExportDelegate = FNavigationOctree::FNavRelevantGeometryExportDelegate::CreateStatic(&FRecastNavMeshGenerator::ExportNavRelevantObjectGeometry);
+				DefaultOctreeController.NavOctree->NavRelevantGeometryExportDelegate = FNavigationOctree::FNavRelevantGeometryExportDelegate::CreateStatic(&FRecastGeometryExport::ExportNavRelevantObjectGeometry);
 #endif // WITH_RECAST
 			}
 
