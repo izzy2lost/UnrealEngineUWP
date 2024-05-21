@@ -126,6 +126,12 @@ bool FPCGStaticMeshSpawnerElement::PrepareDataInternal(FPCGContext* InContext) c
 
 			for (UPCGManagedISMComponent* MISMC : MISMCs)
 			{
+				if (!MISMC->IsMarkedUnused())
+				{
+					// TODO: Add Context back in with toggles. Revisit if the stack is added to the managed components at creation
+					PCGLog::LogWarningOnGraph(LOCTEXT("IdenticalISMCSpawn", "Identical ISM Component spawn occurred. It may be beneficial to re-check graph logic for identical spawn conditions (same mesh descriptor at same location, etc) or repeated nodes."), nullptr);
+				}
+
 				MISMC->MarkAsReused();
 			}
 
