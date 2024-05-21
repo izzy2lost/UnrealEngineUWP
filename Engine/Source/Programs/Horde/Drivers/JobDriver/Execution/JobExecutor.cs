@@ -1096,6 +1096,15 @@ namespace JobDriver.Execution
 			{
 				arguments.AppendArgument(ScriptArgumentPrefix, _scriptFileName);
 			}
+
+			if (!_allowTargetChanges)
+			{
+				foreach (string target in _targets)
+				{
+					arguments.AppendArgument(TargetArgumentPrefix + target);
+				}
+			}
+
 			arguments.AppendArgument("-SingleNode=", step.Name);
 			//			Arguments.AppendArgument("-TokenSignature=", JobId.ToString());
 
