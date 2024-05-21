@@ -143,6 +143,12 @@ public class Core : ModuleRules
 
 			// export Core symbols for embedded Dlls
 			ModuleSymbolVisibility = ModuleRules.SymbolVisibility.VisibileForDll;
+			
+			if (Target.Platform == UnrealTargetPlatform.IOS)
+			{
+				PublicDefinitions.Add("USE_MALLOC_BINNED3=1");
+				PublicDefinitions.Add("USE_512MB_MAX_MEMORY_PER_BLOCK_SIZE=1");
+			}
 		}
 		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Android))
 		{
