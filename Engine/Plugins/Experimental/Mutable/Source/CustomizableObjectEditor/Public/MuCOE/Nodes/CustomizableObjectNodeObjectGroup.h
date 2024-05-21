@@ -24,13 +24,13 @@ public:
 
 	UCustomizableObjectNodeObjectGroup();
 
-	UPROPERTY(EditAnywhere, Category=CustomizableObject)
+	UPROPERTY(EditAnywhere, Category=GroupInfo, meta = (DisplayName= "Name"))
 	FString GroupName;
 
-	UPROPERTY(EditAnywhere, Category=CustomizableObject)
+	UPROPERTY(EditAnywhere, Category=GroupInfo, meta = (DisplayName = "Type"))
 	ECustomizableObjectGroupType GroupType;
 	
-	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	UPROPERTY(EditAnywhere, Category=GroupInfo)
 	FString DefaultValue;
 
 	UPROPERTY(EditAnywhere, Category = UI, meta = (DisplayName = "Parameter UI Metadata"))

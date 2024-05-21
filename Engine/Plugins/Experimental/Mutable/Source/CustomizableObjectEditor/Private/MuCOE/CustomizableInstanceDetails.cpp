@@ -107,6 +107,7 @@ void FCustomizableInstanceDetails::CustomizeDetails(const TSharedPtr<IDetailLayo
 	FAddPropertyParams PrivatePropertyParams;
 	PrivatePropertyParams.HideRootObjectNode(true);
 
+	ResourcesCategory.InitiallyCollapsed(true);
 	IDetailPropertyRow* PrivateDataRow = ResourcesCategory.AddExternalObjects(Private, EPropertyLocation::Default, PrivatePropertyParams);
 
 	// Store which Texture Parameter values can be selected.

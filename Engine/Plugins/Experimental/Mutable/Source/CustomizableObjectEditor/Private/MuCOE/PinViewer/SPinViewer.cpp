@@ -338,7 +338,7 @@ void PinViewerAttachToDetailCustomization(IDetailLayoutBuilder& DetailBuilder)
 	{
 		UCustomizableObjectNode* Node = Cast<UCustomizableObjectNode>(SelectedObjects[0].Get());
 
-		IDetailCategoryBuilder& PinViewerCategoryBuilder = DetailBuilder.EditCategory("PinViewer", FText::GetEmpty(), ECategoryPriority::Uncommon);
+		IDetailCategoryBuilder& PinViewerCategoryBuilder = DetailBuilder.EditCategory("PinViewer", LOCTEXT("PinViewer", "Pins"), ECategoryPriority::Uncommon);
 		PinViewerCategoryBuilder.AddCustomRow(LOCTEXT("PinViewerDetailsCategory", "PinViwer")).ShouldAutoExpand(true)
 		[
 			SNew(SPinViewer).Node(Node)

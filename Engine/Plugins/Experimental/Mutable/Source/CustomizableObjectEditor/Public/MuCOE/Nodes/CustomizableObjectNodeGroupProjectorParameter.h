@@ -55,9 +55,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = ProjectorGroup, Meta = (ToolTip = "Only used when connected to a Group node. Specifies which material channel in the Group node's child material nodes will be connected to the projection."))
 	FString MaterialChannelNameToConnect;
 
-	UPROPERTY(EditAnywhere, Category = ProjectorGroup, Meta = (ToolTip = "Only used when connected to a Group node. Specifies which material channel will be used to mask out the projection."))
-	FString MaskedOutAreaMaterialChannelName;
-
 	/** Reference Texture used to decide the texture properties of the mutable-generated textures
 	* connected to this material. If null, it will try to be guessed at compile time from
 	* the graph. */

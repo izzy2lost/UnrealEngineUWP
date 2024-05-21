@@ -37,11 +37,43 @@ void FCustomizableObjectNodeObjectGroupDetails::CustomizeDetails(IDetailLayoutBu
 
 	if (NodeGroup)
 	{
+		DetailBuilder.HideProperty("DefaultValue");
+
+		IDetailCategoryBuilder& GroupInfoCategory = DetailBuilder.EditCategory("GroupInfo");
+
+		// Forcing property order
+		GroupInfoCategory.AddProperty("GroupName");
+		GroupInfoCategory.AddProperty("GroupType");
+
+		// Getting group node children names
+		GenerateChildrenObjectNames();
+
+		GroupInfoCategory.AddCustomRow(LOCTEXT("NodeObjectGroupDetails_ComboBox", "Default Value Selector"))
+			.Visibility(TAttribute<EVisibility>(this, &FCustomizableObjectNodeObjectGroupDetails::DefaultValueSelectorVisibility))
+			.NameContent()
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("NodeObjectGroupDetails_ComboBox_Text", "Default Value"))
+			.ToolTipText(LOCTEXT("NodeObjectGroupDetails_ComboBox_Tooltip", "Select the default value of the group."))
+			.Font(DetailBuilder.GetDetailFont())
+			]
+		.ValueContent()
+			.HAlign(EHorizontalAlignment::HAlign_Left)
+			[
+				SAssignNew(DefaultValueSelector, STextComboBox)
+				.InitiallySelectedItem(InitialNameOption)
+			.OptionsSource(&ChildrenNameOptions)
+			.OnComboBoxOpening(this, &FCustomizableObjectNodeObjectGroupDetails::GenerateChildrenObjectNames)
+			.OnSelectionChanged(this, &FCustomizableObjectNodeObjectGroupDetails::OnSetDefaultValue)
+			.Font(DetailBuilder.GetDetailFont())
+			.ToolTipText(this, &FCustomizableObjectNodeObjectGroupDetails::DefaultValueComboBoxTooltip)
+			];
+
 		if (TSharedPtr<FCustomizableObjectEditor> GraphEditor = StaticCastSharedPtr<FCustomizableObjectEditor>(NodeGroup->GetGraphEditor()))
 		{
 			if (UCustomizableObject* NodeGroupCO = CastChecked<UCustomizableObject>(NodeGroup->GetCustomizableObjectGraph()->GetOuter()))
 			{
-				IDetailCategoryBuilder& BlocksCategory = DetailBuilder.EditCategory("Group Info");
+				IDetailCategoryBuilder& BlocksCategory = DetailBuilder.EditCategory("External Objects");
 
 				TMultiMap<FGuid, UCustomizableObjectNodeObject*> ObjectNodesObjects = GetNodeGroupObjectNodeMapping(NodeGroupCO);
 				TArray<UCustomizableObjectNodeObject*> ChildNodes;
@@ -67,38 +99,6 @@ void FCustomizableObjectNodeObjectGroupDetails::CustomizeDetails(IDetailLayoutBu
 				}
 			}
 		}
-
-		DetailBuilder.HideProperty("DefaultValue");
-
-		IDetailCategoryBuilder& CustomizableObjectCategory = DetailBuilder.EditCategory("CustomizableObject");
-
-		// Forcing property order
-		CustomizableObjectCategory.AddProperty("GroupName");
-		CustomizableObjectCategory.AddProperty("GroupType");
-
-		// Getting group node children names
-		GenerateChildrenObjectNames();
-
-		CustomizableObjectCategory.AddCustomRow(LOCTEXT("NodeObjectGroupDetails_ComboBox", "Default Value Selector"))
-		.Visibility(TAttribute<EVisibility>(this, &FCustomizableObjectNodeObjectGroupDetails::DefaultValueSelectorVisibility))
-		.NameContent()
-		[
-			SNew(STextBlock)
-			.Text(LOCTEXT("NodeObjectGroupDetails_ComboBox_Text", "Default Value"))
-			.ToolTipText(LOCTEXT("NodeObjectGroupDetails_ComboBox_Tooltip", "Select the default value of the group."))
-			.Font(DetailBuilder.GetDetailFont())
-		]
-		.ValueContent()
-		.HAlign(EHorizontalAlignment::HAlign_Left)
-		[
-			SAssignNew(DefaultValueSelector, STextComboBox)
-			.InitiallySelectedItem(InitialNameOption)
-			.OptionsSource(&ChildrenNameOptions)
-			.OnComboBoxOpening(this, &FCustomizableObjectNodeObjectGroupDetails::GenerateChildrenObjectNames)
-			.OnSelectionChanged(this, &FCustomizableObjectNodeObjectGroupDetails::OnSetDefaultValue)
-			.Font(DetailBuilder.GetDetailFont())
-			.ToolTipText(this, &FCustomizableObjectNodeObjectGroupDetails::DefaultValueComboBoxTooltip)
-		];
 	}
 }
 

@@ -417,7 +417,7 @@ TSharedRef<SDockTab> FCustomizableObjectEditor::SpawnTab_Viewport( const FSpawnT
 	check( Args.GetTabId() == ViewportTabId );
 
 	TSharedRef<SDockTab> DockTab = SNew(SDockTab)
-		.Label( FText::FromString( GetTabPrefix() + LOCTEXT("CustomizableObjectViewport_TabTitle", "Preview Inst. Viewport").ToString() ) )
+		.Label( FText::FromString( GetTabPrefix() + LOCTEXT("CustomizableObjectViewport_TabTitle", "Viewport").ToString() ) )
 		[
 			SNew( SVerticalBox )
 
@@ -471,7 +471,7 @@ TSharedRef<SDockTab> FCustomizableObjectEditor::SpawnTab_InstanceProperties( con
 	ScrollBox->SetScrollBarRightClickDragAllowed(true);
 
 	TSharedRef<SDockTab> DockTab = SNew(SDockTab)
-		.Label( FText::FromString( GetTabPrefix() + LOCTEXT( "CustomizableInstanceProperties_TabTitle", "Preview Inst. Properties" ).ToString() ) )
+		.Label( FText::FromString( GetTabPrefix() + LOCTEXT( "CustomizableInstanceProperties_TabTitle", "Preview Instance" ).ToString() ) )
 		[
 			ScrollBox
 		];
@@ -631,7 +631,7 @@ TSharedRef<SDockTab> FCustomizableObjectEditor::SpawnTab_AdvancedPreviewSettings
 {
 	check(Args.GetTabId() == AdvancedPreviewSettingsTabId);
 	TSharedRef<SDockTab> DockTab = SNew(SDockTab)
-		.Label(LOCTEXT("StaticMeshPreviewScene_TabTitle", "Preview Settings"))
+		.Label(LOCTEXT("StaticMeshPreviewScene_TabTitle", "Preview Scene Settings"))
 		[
 			AdvancedPreviewSettingsWidget.ToSharedRef()
 		];

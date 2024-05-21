@@ -174,13 +174,13 @@ public:
 	GENERATED_BODY()
 
 	/** The generated skeletal meshes for this Instance, one for each component */
-	UPROPERTY(Transient, VisibleAnywhere, Category = NoCategory)
+	UPROPERTY(Transient, VisibleAnywhere, Category = NoCategory, meta=(DisplayName = "Meshes"))
 	TArray<TObjectPtr<USkeletalMesh>> SkeletalMeshes;
 
-	UPROPERTY(Transient, VisibleAnywhere, Category = NoCategory)
+	UPROPERTY(Transient, VisibleAnywhere, Category = NoCategory, meta=(DisplayName = "Materials"))
 	TArray<FGeneratedMaterial> GeneratedMaterials;
 
-	UPROPERTY( Transient )
+	UPROPERTY(Transient)
 	TArray<FGeneratedTexture> GeneratedTextures;
 
 	// Indices of the parameters that are relevant for the given parameter values.
