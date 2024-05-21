@@ -29,7 +29,6 @@
 #ifndef SKP_SDK_2019
 #include <SketchUpAPI/application/ruby_api.h>
 #endif
-#include "DatasmithSketchUpSDKCeases.h"
 
 #pragma warning(push)
 // disable(SU2020): "__GNUC__' is not defined as a preprocessor macro, replacing"
@@ -53,6 +52,10 @@
 #undef DEPRECATED
 #include <ruby.h>
 #pragma warning(pop)
+
+#include "DatasmithSketchUpSDKCeases.h"
+
+
 
 // Datasmith SDK.
 #include "Containers/Array.h"

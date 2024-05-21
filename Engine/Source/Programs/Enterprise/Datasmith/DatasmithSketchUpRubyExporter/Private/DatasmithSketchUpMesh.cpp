@@ -377,7 +377,7 @@ namespace DatasmithSketchUp
 		{
 			for (int32 Y = 0; Y < 4; ++Y)
 			{
-				TransformForNormals.values[X + Y*4] = TransformNoTranslation.values[Y + X*4];
+				TransformForNormals.values[X + Y*4] = TransformInverse.values[Y + X*4];
 			}
 		}
 
