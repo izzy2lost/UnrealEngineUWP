@@ -138,7 +138,7 @@ public:
 	static bool IsSM60(const FShaderCompilerInput& Input, ELanguage Language)
 	{
 		return RequiresSM6Features(Input, Language)
-			|| Input.Environment.GetIntegerValue(TEXT("PLATFORM_MAX_SAMPLERS")) > 16
+			|| Input.Environment.GetCompileArgument(TEXT("PLATFORM_MAX_SAMPLERS"), 0) > 16
 			;
 	}
 
