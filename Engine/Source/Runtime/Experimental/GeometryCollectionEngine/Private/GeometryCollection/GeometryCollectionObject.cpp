@@ -144,6 +144,9 @@ UGeometryCollection::UGeometryCollection(const FObjectInitializer& ObjectInitial
 	bStripOnCook = GeometryCollectionAssetForceStripOnCook;
 #endif
 	PhysicsMaterial = GEngine? GEngine->DefaultPhysMaterial: nullptr;
+
+	// make sure we have at least one size specific entry
+	SizeSpecificData.AddDefaulted();
 }
 
 FGeometryCollectionLevelSetData::FGeometryCollectionLevelSetData()

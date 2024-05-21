@@ -33,9 +33,7 @@ UGeometryCollectionFactory::UGeometryCollectionFactory(const FObjectInitializer&
 
 UGeometryCollection* UGeometryCollectionFactory::StaticFactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
 {
-	UGeometryCollection* NewGeometryCollection = static_cast<UGeometryCollection*>(NewObject<UGeometryCollection>(InParent, Class, Name, Flags | RF_Transactional | RF_Public | RF_Standalone));
-	if (!NewGeometryCollection->SizeSpecificData.Num()) NewGeometryCollection->SizeSpecificData.Add(FGeometryCollectionSizeSpecificData());
-	return NewGeometryCollection;
+	return static_cast<UGeometryCollection*>(NewObject<UGeometryCollection>(InParent, Class, Name, Flags | RF_Transactional | RF_Public | RF_Standalone));
 }
 
 void AppendActorComponentsRecursive(
