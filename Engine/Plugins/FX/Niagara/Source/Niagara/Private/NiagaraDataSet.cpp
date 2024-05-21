@@ -445,7 +445,7 @@ void FNiagaraDataSet::Dump(int32 StartIndex, int32 NumInstances, const FString& 
 	}
 }
 
-void FNiagaraDataSet::AllocateGPUFreeIDs(uint32 InNumInstances, FRHICommandList& RHICmdList, ERHIFeatureLevel::Type FeatureLevel, FName DebugSimName)
+void FNiagaraDataSet::AllocateGPUFreeIDs(uint32 InNumInstances, FRHICommandList& RHICmdList, ERHIFeatureLevel::Type FeatureLevel, const TCHAR* DebugSimName)
 {
 	checkSlow(GetSimTarget() == ENiagaraSimTarget::GPUComputeSim && RequiresPersistentIDs());
 
@@ -465,17 +465,14 @@ void FNiagaraDataSet::AllocateGPUFreeIDs(uint32 InNumInstances, FRHICommandList&
 	BufferSizeBytes -= GPUFreeIDs.NumBytes;
 #endif
 
-	SCOPED_DRAW_EVENTF(RHICmdList, NiagaraGPUComputeInitFreeIDs, TEXT("Init Free IDs - %s"), DebugSimName);
+	SCOPED_DRAW_EVENT(RHICmdList, NiagaraGPUComputeInitFreeIDs);
 
-	TCHAR DebugBufferName[128];
-	{
-		TCHAR const Str[] = TEXT("NiagaraFreeIDList_");
-		FCString::Strncpy(DebugBufferName, Str, UE_ARRAY_COUNT(DebugBufferName));
-		DebugSimName.ToString(DebugBufferName + UE_ARRAY_COUNT(Str), UE_ARRAY_COUNT(DebugBufferName) - UE_ARRAY_COUNT(Str));
-	}
+	FNameBuilder DebugBufferName;
+	DebugBufferName.Append(TEXT("NiagaraFreeIDList_"));
+	DebugBufferName.Append(DebugSimName);
 
 	FRWBuffer NewFreeIDsBuffer;
-	NewFreeIDsBuffer.Initialize(RHICmdList, DebugBufferName, sizeof(int32), NumIDsToAlloc, EPixelFormat::PF_R32_SINT, BUF_Static);
+	NewFreeIDsBuffer.Initialize(RHICmdList, DebugBufferName.ToString(), sizeof(int32), NumIDsToAlloc, EPixelFormat::PF_R32_SINT, BUF_Static);
 
 	FRHIShaderResourceView* ExistingBuffer = GPUNumAllocatedIDs > 0 ? GPUFreeIDs.SRV.GetReference() : FNiagaraRenderer::GetDummyIntBuffer();
 
