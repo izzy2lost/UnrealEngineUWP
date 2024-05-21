@@ -173,15 +173,7 @@ namespace uba
 		}
 		return true;
 	}
-
-	bool ObjectFileElf::ComputeLoopbacksAndDuplicates(UnorderedExports& allSharedExports, UnorderedSymbols& duplicates)
-	{
-		for (auto& dupSymbol : m_potentialDuplicates)
-			if (!duplicates.insert(dupSymbol).second)
-				m_toRemove.insert(dupSymbol);
-		return true;
-	}
-
+	/*
 	bool ObjectFileElf::CreateStripped(Logger& logger, const tchar* newFilename, const UnorderedSymbols& allNeededImports, u32& outKeptExportCount)
 	{
 		FileAccessor newFile(logger, newFilename);
@@ -224,18 +216,13 @@ namespace uba
 
 		return newFile.Close();
 	}
-
+	*/
 	bool ObjectFileElf::StripExports(Logger& logger, u8* newData, const UnorderedSymbols& allNeededImports, u32& outKeptExportCount)
 	{
 		return true;
 	}
 
 	bool ObjectFileElf::CreateExtraFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile)
-	{
-		return true;
-	}
-
-	bool ObjectFileElf::CreateDefFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedExports& allSharedExports)
 	{
 		return true;
 	}

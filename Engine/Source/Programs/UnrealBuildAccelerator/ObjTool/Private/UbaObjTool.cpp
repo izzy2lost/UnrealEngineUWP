@@ -59,7 +59,6 @@ namespace uba
 		Vector<TString> objFilesToStrip;
 		Vector<TString> objFilesDependencies;
 		TString extraObjFile;
-		TString defFile;
 
 		auto parseArg = [&](const tchar* arg)
 			{
@@ -87,10 +86,6 @@ namespace uba
 				else if (name.StartsWith(TC("/O:")))
 				{
 					extraObjFile = name.data + 3;
-				}
-				else if (name.StartsWith(TC("/E:")))
-				{
-					defFile = name.data + 3;
 				}
 				else if (name.Equals(TC("-printsymbols")))
 				{
@@ -197,32 +192,16 @@ namespace uba
 			WorkManagerImpl workManager(workerCount);
 			workManager.ParallelFor(workerCount, objFilesDependencies, [&](auto& it)
 				{
-					const TString& objFileName = *it;
+					const TString& exiFilename = *it;
 
-					if (EndsWith(objFileName.c_str(), objFileName.size(), TC(".exi")))
+					SymbolFile symbolFile;
+					if (!symbolFile.ParseFile(logger, exiFilename.c_str()))
 					{
-						SymbolFile symbolFile;
-						if (!symbolFile.ParseFile(logger, objFileName.c_str()))
-						{
-							success = false;
-							return;
-						}
-						ScopedCriticalSection _(cs);
-						allNeededImports.insert(symbolFile.imports.begin(), symbolFile.imports.end());
+						success = false;
+						return;
 					}
-					else
-					{
-						ObjectFile* objectFile = ObjectFile::OpenAndParse(logger, objFileName.c_str());
-						if (!objectFile)
-						{
-							success = false;
-							return;
-						}
-						auto g = MakeGuard([&]() { delete objectFile; });
-
-						ScopedCriticalSection _(cs);
-						allNeededImports.insert(objectFile->GetImports().begin(), objectFile->GetImports().end());
-					}
+					ScopedCriticalSection _(cs);
+					allNeededImports.insert(symbolFile.imports.begin(), symbolFile.imports.end());
 				});
 			if (!success)
 				return -1;
@@ -235,78 +214,23 @@ namespace uba
 
 			workManager.ParallelFor(workerCount, objFilesToStrip, [&](auto& it)
 				{
-					const TString& objFileName = *it;
-
-					if (EndsWith(objFileName.c_str(), objFileName.size(), TC(".exi")))
+					const TString& exiFilename = *it;
+					SymbolFile symbolFile;
+					if (!symbolFile.ParseFile(logger, exiFilename.c_str()))
 					{
-						SymbolFile symbolFile;
-						if (!symbolFile.ParseFile(logger, objFileName.c_str()))
-						{
-							success = false;
-							return;
-						}
-						ScopedCriticalSection _(cs);
-						allSharedImports.insert(symbolFile.imports.begin(), symbolFile.imports.end());
-						allSharedExports.insert(symbolFile.exports.begin(), symbolFile.exports.end());
+						success = false;
+						return;
 					}
-					else
-					{
-						ObjectFile* objectFile = ObjectFile::OpenAndParse(logger, objFileName.c_str());
-						if (!objectFile)
-						{
-							success = false;
-							return;
-						}
-
-						ScopedCriticalSection _(cs);
-						objectFiles.try_emplace(objFileName, objectFile);
-						allSharedExports.insert(objectFile->GetExports().begin(), objectFile->GetExports().end());
-					}
+					ScopedCriticalSection _(cs);
+					allSharedImports.insert(symbolFile.imports.begin(), symbolFile.imports.end());
+					allSharedExports.insert(symbolFile.exports.begin(), symbolFile.exports.end());
 				});
 			if (!success)
 				return -1;
 
-			// Figure out which loopback symbols that should be added to which obj file
-			if (!objectFiles.empty())
-			{
-				UnorderedSymbols duplicates;
-				for (auto& objFileName : objFilesToStrip)
-					if (!objectFiles[objFileName]->ComputeLoopbacksAndDuplicates(allSharedExports, duplicates))
-						return -1;
-
-				Atomic<u32> totalExportCount;
-				Atomic<u32> totalKeptExportCount;
-				workManager.ParallelFor(workerCount, objectFiles, [&](auto& it)
-					{
-						ObjectFile& file = *it->second;
-						const tchar* fileName = file.GetFileName();
-						const tchar* lastDot = TStrrchr(fileName, '.');
-						UBA_ASSERT(lastDot);
-						StringBuffer<> newFilename;
-						newFilename.Append(fileName, lastDot - fileName).Append(TC(".strip")).Append(lastDot);
-						u32 keptExportCount = 0;
-						if (!file.CreateStripped(logger, newFilename.data, allNeededImports, keptExportCount))
-							success = false;
-
-						totalExportCount += u32(file.GetExports().size());
-						totalKeptExportCount += keptExportCount;
-					});
-				if (!success)
-					return -1;
-			}
-			
 			if (!extraObjFile.empty())
-			{
-				bool includeExportsInFile = defFile.empty();
-				if (!ObjectFile::CreateExtraFile(logger, extraObjFile.c_str(), allNeededImports, allSharedImports, allSharedExports, includeExportsInFile))
+				if (!ObjectFile::CreateExtraFile(logger, extraObjFile.c_str(), allNeededImports, allSharedImports, allSharedExports, true))
 					return -1;
-			}
-
-			if (!defFile.empty())
-			{
-				if (!ObjectFile::CreateDefFile(logger, defFile.c_str(), allNeededImports, allSharedExports))
-					return -1;
-			}
 
 			//logger.Info(TC("Reduced export count from %llu to %llu"), totalExportCount.load(), totalKeptExportCount.size());
 		}
@@ -343,12 +267,11 @@ namespace uba
 				if (!objectFile->WriteSymbols(logger, exportsFile.data))
 					return false;
 
-				u32 keptExportCount = 0;
-
-				StringBuffer<> newFilename;
-				newFilename.Append(fileName, lastDot - fileName).Append(TC(".TEST")).Append(lastDot);
-				if (!objectFile->CreateStripped(logger, newFilename.data, {}, keptExportCount))
-					return false;
+				//u32 keptExportCount = 0;
+				//StringBuffer<> newFilename;
+				//newFilename.Append(fileName, lastDot - fileName).Append(TC(".TEST")).Append(lastDot);
+				//if (!objectFile->CreateStripped(logger, newFilename.data, {}, keptExportCount))
+				//	return false;
 			}
 		}
 		return 0;

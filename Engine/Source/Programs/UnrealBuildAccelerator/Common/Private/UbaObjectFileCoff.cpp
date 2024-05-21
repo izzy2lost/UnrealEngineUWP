@@ -237,78 +237,6 @@ namespace uba
 		return true;
 	}
 
-	bool ObjectFileCoff::CreateStripped(Logger& logger, const tchar* newFilename, const UnorderedSymbols& allNeededImports, u32& outKeptExportCount)
-	{
-		UBA_ASSERT(m_data);
-
-		Vector<u32> symbolsToAdd;
-		if (m_isBigObj)
-			CalculateImports<ImageSymbolEx>(logger, symbolsToAdd);
-		else
-			CalculateImports<ImageSymbol>(logger, symbolsToAdd);
-
-		u32 importsToFixCount = u32(symbolsToAdd.size());
-		u32 bytesToAdd = 0;
-
-		if (importsToFixCount)
-		{
-			bytesToAdd = sizeof(ImageSectionHeader);
-			bytesToAdd += (m_isBigObj ? sizeof(ImageSymbolEx) : sizeof(ImageSymbol)) * importsToFixCount * 2; // Symbols
-			bytesToAdd += (sizeof(ImageRelocation) + 8) * importsToFixCount; // relocations plus memory
-		}
-
-		FileAccessor newFile(logger, newFilename);
-		if (!newFile.CreateMemoryWrite(false, DefaultAttributes(), m_dataSize + bytesToAdd))
-			return false;
-
-		u8* newData = newFile.GetData();
-		Info newInfo = m_info;
-
-		if (importsToFixCount)
-		{
-			if (m_isBigObj)
-				WriteImports<ImageSymbolEx>(logger, newData, newInfo, symbolsToAdd);
-			else
-				WriteImports<ImageSymbol>(logger, newData, newInfo, symbolsToAdd);
-		}
-		else
-		{
-			memcpy(newData, m_data, m_dataSize);
-		}
-
-		if (m_isBigObj)
-			RemoveSymbols<ImageSymbolEx>(logger, newData, newInfo);
-		else
-			RemoveSymbols<ImageSymbol>(logger, newData, newInfo);
-
-		StripExports(logger, newData, allNeededImports, outKeptExportCount);
-
-		return newFile.Close();
-	}
-
-	bool ObjectFileCoff::ComputeLoopbacksAndDuplicates(UnorderedExports& allSharedExports, UnorderedSymbols& duplicates)
-	{
-		std::string importString;
-
-		for (auto& importSymbol : m_imports)
-		{
-			if (strncmp(importSymbol.c_str(), "__imp_", 6) != 0)
-				continue;
-			importString = importSymbol.c_str() + 6;
-			auto findIt = allSharedExports.find(importString);
-			if (findIt == allSharedExports.end())
-				continue;
-			m_loopbacksToAdd.emplace(importString);
-			allSharedExports.erase(findIt);
-		}
-
-		for (auto& dupSymbol : m_potentialDuplicates)
-			if (!duplicates.insert(dupSymbol).second)
-				m_toRemove.insert(dupSymbol);
-
-		return true;
-	}
-
 	bool ObjectFileCoff::ParseExports()
 	{
 		auto sections = (ImageSectionHeader*)(m_data + m_info.sectionsMemOffset);
@@ -597,47 +525,6 @@ namespace uba
 			symbol.Value = i * 8;
 		}
 
-		return true;
-	}
-
-	bool ObjectFileCoff::CreateDefFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedExports& allSharedExports)
-	{
-		auto allocate = [&](u64 size) { return memoryBlock.Allocate(size, 1, TC("")); };
-		auto write = [&](const void* data, u64 size) { memcpy(allocate(size), data, size); };
-		
-		//write("EXPORTS\n", 8);
-
-		std::string tmp;
-		u32 counter = 0;
-
-		for (auto& kv : allSharedExports)
-		{
-			auto& symbol = kv.first;
-			if (allNeededImports.find(symbol) == allNeededImports.end())
-				if (allNeededImports.find(tmp.assign("__imp_").append(symbol)) == allNeededImports.end())
-					continue;
-
-			char buf[512];
-			u64 len = snprintf(buf, 256, "/EXPORT:_%u,@%s,NONAME\n", ++counter, symbol.data());
-			write(buf, len);
-
-			//write("/EXPORT:@", 9);
-			//write(symbol.data(), symbol.size());
-			//write(kv.second.data(), kv.second.size());
-
-			//char extra[64] = { 0 };
-			//if (!kv.second.empty())
-			//{
-			//	extra[0] = ' ';
-			//	strcpy_s(extra+1, 63, kv.second.c_str() + 1);
-			//}
-
-			//char buf[256];
-			//u64 len = snprintf(buf, 256, " @%u%s\n", ++counter, extra);
-			//write(buf, len);
-			//write("\n", 1);
-		}
-		write("", 0);
 		return true;
 	}
 

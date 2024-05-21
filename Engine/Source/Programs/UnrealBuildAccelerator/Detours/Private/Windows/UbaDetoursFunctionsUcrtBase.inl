@@ -341,7 +341,7 @@ errno_t Detoured__wsplitpath_s(const wchar_t* path, wchar_t* drive, size_t drive
 
 	g_rules->RepairMalformedLibPath(path);
 	auto res = True__wsplitpath_s(path, drive, driveNumberOfElements, dir, dirNumberOfElements, fname, nameNumberOfElements, ext, extNumberOfElements);
-	DEBUG_LOG_TRUE(L"_wsplitpath_s", L"%ls %ls %ls %ls %ls", path, drive, dir, fname, ext);
+	//DEBUG_LOG_TRUE(L"_wsplitpath_s", L"%ls %ls %ls %ls %ls", path, drive, dir, fname, ext);
 	return res;
 }
 

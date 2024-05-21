@@ -166,22 +166,4 @@ namespace uba
 
 		return extraFile.Close();
 	}
-
-	bool ObjectFile::CreateDefFile(Logger& logger, const tchar* defFilename, const UnorderedSymbols& allNeededImports, const UnorderedExports& allSharedExports)
-	{
-		ObjectFileCoff objectFile;
-		MemoryBlock memoryBlock(16*1024*1024);
-
-		if (!((ObjectFile&)objectFile).CreateDefFile(logger, memoryBlock, allNeededImports, allSharedExports))
-			return false;
-
-		FileAccessor defFile(logger, defFilename);
-		if (!defFile.CreateWrite())
-			return false;
-
-		if (!defFile.Write(memoryBlock.memory, memoryBlock.writtenSize))
-			return false;
-
-		return defFile.Close();
-	}
 }

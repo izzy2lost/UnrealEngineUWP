@@ -412,6 +412,19 @@ namespace uba
 		}
 	};
 
+	class ApplicationRulesUbaObjTool : public ApplicationRules
+	{
+		virtual bool IsOutputFile(const tchar* file, u64 fileLen) const override
+		{
+			return EndsWith(file, fileLen, TC(".obj"));
+		}
+
+		virtual bool StoreFileCompressed(const tchar* fileName, u64 fileNameLen) const
+		{
+			return EndsWith(fileName, fileNameLen, TC(".obj"));
+		}
+	};
+
 	const RulesRec* GetApplicationRules()
 	{
 		// TODO: Add support for data driven rules.
@@ -441,6 +454,7 @@ namespace uba
 			{ TC("UnrealBuildTool.dll"),		new ApplicationRulesUBTDll() },
 			{ TC("PVS-Studio.exe"),				new ApplicationRulesPVSStudio() },
 			{ TC("ShaderCompileWorker.exe"),	new ApplicationRulesShaderCompileWorker() },
+			{ TC("UbaObjTool.exe"),				new ApplicationRulesUbaObjTool() },
 			//{ L"MSBuild.dll"),				new ApplicationRules() },
 			//{ L"BreakpadSymbolEncoder.exe"),	new ApplicationRulesClang() },
 			//{ L"cmd.exe"),		new ApplicationRules() },
