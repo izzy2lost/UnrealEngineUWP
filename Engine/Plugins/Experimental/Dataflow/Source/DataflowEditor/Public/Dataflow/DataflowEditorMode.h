@@ -157,6 +157,9 @@ private:
 	*/
 	UEdGraphNode* CreateAndConnectNewNode(const FName& NewNodeTypeName, UEdGraphNode& UpstreamNode, const FName& ConnectionTypeName, const FName& NewNodeConnectionName);
 
+	/** On all nodes in the graph, set whether the wireframe rendering toggle button is enabled */
+	void SetWireframeRenderToggleEnabled(bool bEnable);
+
 	void InitializeContextObject();
 	void DeleteContextObject();
 

@@ -69,6 +69,14 @@ void SDataflowEdNode::Construct(const FArguments& InArgs, UDataflowEdNode* InNod
 					else
 						DataflowGraphNode->SetShouldWireframeRenderNode(false);
 				}
+			})
+		.IsEnabled_Lambda([this]()->bool
+			{
+				if (DataflowGraphNode)
+				{
+					return DataflowGraphNode->CanEnableWireframeRenderNode();
+				}
+				return false;
 			});
 
 

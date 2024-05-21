@@ -75,6 +75,16 @@ void UDataflowEdNode::SetShouldWireframeRenderNode(bool bInRender)
 	}
 }
 
+void UDataflowEdNode::SetCanEnableWireframeRenderNode(bool bInCanEnable)
+{
+	bCanEnableRenderWireframe = bInCanEnable;
+}
+
+bool UDataflowEdNode::CanEnableWireframeRenderNode() const
+{
+	return bCanEnableRenderWireframe;
+}
+
 TSharedPtr<FDataflowNode> UDataflowEdNode::GetDataflowNode()
 {
 	if(TSharedPtr<Dataflow::FGraph> Dataflow = GetDataflowGraph())

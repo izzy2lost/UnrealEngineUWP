@@ -170,31 +170,17 @@ void UDataflowEditorWeightMapPaintTool::Setup()
 {
 	UMeshSculptToolBase::Setup();
 
-	auto IsolateComponent = [&](UDataflowEditorCollectionComponent* SelectedComponent)
-	{
-		if (FDataflowConstructionScene* Scene = Mode->GetDataflowConstructionScene())
-		{
-			Scene->SetVisibility(false);
-			Scene->SetVisibility(true, SelectedComponent);
-		}
-	};
-	if (TSharedPtr<FDataflowConstructionViewportClient> VC = Mode->GetConstructionViewportClient().Pin())
-	{
-		if (USelection* SelectedComponents = VC->GetSelectedComponents())
-		{
-			if (UDataflowEditorCollectionComponent* DataflowComponent = SelectedComponents->GetBottom<UDataflowEditorCollectionComponent>())
-			{
-				IsolateComponent(DataflowComponent);
-			}
-		}
-	}
-
-
 	// Get the selected weight map node
 	WeightMapNodeToUpdate = DataflowEditorContextObject->GetPrimarySelectedNodeOfType<FDataflowCollectionAddScalarVertexPropertyNode>();
 	checkf(WeightMapNodeToUpdate, TEXT("No Weight Map Node is currently selected, or more than one node is selected"));
 
 	SetToolDisplayName(LOCTEXT("ToolName", "Paint Weight Maps"));
+
+	// Hide all meshes in the DataflowConstructionScene, as we will be painting onto our own Preview mesh
+	if (FDataflowConstructionScene* Scene = Mode->GetDataflowConstructionScene())
+	{
+		Scene->SetVisibility(false);
+	}
 
 	// create dynamic mesh component to use for live preview
 	FActorSpawnParameters SpawnInfo;

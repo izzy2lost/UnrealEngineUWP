@@ -96,6 +96,9 @@ public:
 	DATAFLOWENGINE_API void SetShouldWireframeRenderNode(bool bInRender);
 	bool ShouldWireframeRenderNode() const { return bRenderWireframeInAssetEditor; }
 
+	DATAFLOWENGINE_API void SetCanEnableWireframeRenderNode(bool bInCanEnable);
+	DATAFLOWENGINE_API bool CanEnableWireframeRenderNode() const;
+
 	DATAFLOWENGINE_API TArray<Dataflow::FRenderingParameter> GetRenderParameters() const;
 	DATAFLOWENGINE_API virtual bool Render(GeometryCollection::Facades::FRenderingFacade& RenderData, const TSharedPtr<Dataflow::FContext> Context) const;
 
@@ -106,6 +109,9 @@ private:
 
 	UPROPERTY()
 	bool bRenderWireframeInAssetEditor = false;
+
+	UPROPERTY()
+	bool bCanEnableRenderWireframe = true;
 
 	void OnPinConnection(const UEdGraphPin& Pin, const FEdGraphPinType& Type);
 	void OnPinDisconnection(const UEdGraphPin& Pin);

@@ -232,9 +232,30 @@ void UDataflowEditorMode::CreateToolkit()
 	Toolkit = MakeShared<FDataflowEditorModeToolkit>();
 }
 
+
+void UDataflowEditorMode::SetWireframeRenderToggleEnabled(bool bEnable)
+{
+	if (const TObjectPtr<UDataflowBaseContent> EditorContent = ConstructionScene->GetEditorContent())
+	{
+		if (const TObjectPtr<UDataflow> DataflowGraph = EditorContent->GetDataflowAsset())
+		{
+			for (UEdGraphNode* const EdGraphNode : DataflowGraph->Nodes)
+			{
+				if (UDataflowEdNode* const DataflowEdNode = Cast<UDataflowEdNode>(EdGraphNode))
+				{
+					DataflowEdNode->SetCanEnableWireframeRenderNode(bEnable);
+				}
+			}
+		}
+	}
+}
+
 void UDataflowEditorMode::OnToolStarted(UInteractiveToolManager* Manager, UInteractiveTool* Tool)
 {
 	FDataflowEditorCommandsImpl::UpdateToolCommandBinding(Tool, ToolCommandList, false);
+
+	// Temporarily disable wireframe render toggle switch on all nodes
+	SetWireframeRenderToggleEnabled(false);
 }
 
 void UDataflowEditorMode::OnToolEnded(UInteractiveToolManager* Manager, UInteractiveTool* Tool)
@@ -261,6 +282,9 @@ void UDataflowEditorMode::OnToolEnded(UInteractiveToolManager* Manager, UInterac
 	{
 		GraphEditor->SetEnabled(true);
 	}
+
+	// Re-enable wireframe render toggle switch on all nodes
+	SetWireframeRenderToggleEnabled(true);
 }
 
 void UDataflowEditorMode::BindCommands()

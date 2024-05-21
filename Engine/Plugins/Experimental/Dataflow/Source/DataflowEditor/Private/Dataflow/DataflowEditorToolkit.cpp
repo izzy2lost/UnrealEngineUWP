@@ -655,13 +655,7 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 			return Objs;
 		};
 
-		for (UObject* const PreviouslySelectedNode : SelectedDataflowNodes)
-		{
-			if (UDataflowEdNode* PreviouslySelectedEdNode = Cast<UDataflowEdNode>(PreviouslySelectedNode))
-			{
-				PreviouslySelectedEdNode->SetShouldRenderNode(false);
-			}
-		}
+		const TSet<TObjectPtr<UObject>> PreviouslySelectedNodes = SelectedDataflowNodes;
 
 		// Only keep UDataflowEdNode from NewSelection
 		TSet< TObjectPtr<UObject> > NodeSelection = FindDataflowNodesInSet(AsObjectPointers(InNewSelection));
@@ -710,17 +704,25 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 
 			SelectedDataflowNodes = NodeSelection;
 		}
-
-		for (UObject* const SelectedNode : NodeSelection)
-		{
-			if (UDataflowEdNode* SelectedEdNode = Cast<UDataflowEdNode>(SelectedNode))
-			{
-				SelectedEdNode->SetShouldRenderNode(true);
-			}
-		}
-
+	
 		if (bPrimarySelectionChanged)
 		{
+			for (UObject* const PreviouslySelectedNode : PreviouslySelectedNodes)
+			{
+				if (UDataflowEdNode* PreviouslySelectedEdNode = Cast<UDataflowEdNode>(PreviouslySelectedNode))
+				{
+					PreviouslySelectedEdNode->SetShouldRenderNode(false);
+				}
+			}
+
+			for (UObject* const SelectedNode : NodeSelection)
+			{
+				if (UDataflowEdNode* SelectedEdNode = Cast<UDataflowEdNode>(SelectedNode))
+				{
+					SelectedEdNode->SetShouldRenderNode(true);
+				}
+			}
+
 			EditorContent->SetPrimarySelectedNode(nullptr);
 
 			UDataflowEditorMode* const DataflowMode = CastChecked<UDataflowEditorMode>(EditorModeManager->GetActiveScriptableMode(UDataflowEditorMode::EM_DataflowEditorModeId));
