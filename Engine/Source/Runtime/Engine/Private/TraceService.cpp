@@ -30,6 +30,7 @@ private:
 	void OnResume(const FTraceControlResume& Message, const TSharedRef<IMessageContext>& Context);
 	void OnBookmark(const FTraceControlBookmark& Message, const TSharedRef<IMessageContext>& Context);
 	void OnScreenshot(const FTraceControlScreenshot& Message, const TSharedRef<IMessageContext>& Context);
+	void OnSetStatNamedEvents(const FTraceControlSetStatNamedEvents& Message, const TSharedRef<IMessageContext>& Context);
 	
 	static void FillTraceStatusMessage(FTraceControlStatus* Message);
 
@@ -56,6 +57,7 @@ FTraceServiceImpl::FTraceServiceImpl()
 		.Handling<FTraceControlResume>(this, &FTraceServiceImpl::OnResume)
 		.Handling<FTraceControlBookmark>(this, &FTraceServiceImpl::OnBookmark)
 		.Handling<FTraceControlScreenshot>(this, &FTraceServiceImpl::OnScreenshot)
+		.Handling<FTraceControlSetStatNamedEvents>(this, &FTraceServiceImpl::OnSetStatNamedEvents)
 		.Handling<FTraceControlStatusPing>(this, &FTraceServiceImpl::OnStatusPing)
 		.Handling<FTraceControlSettingsPing>(this, &FTraceServiceImpl::OnSettingsPing)
 		.Handling<FTraceControlChannelsPing>(this, &FTraceServiceImpl::OnChannelsPing);
@@ -79,6 +81,7 @@ FTraceServiceImpl::FTraceServiceImpl()
 	MessageEndpoint->Subscribe<FTraceControlResume>();
 	MessageEndpoint->Subscribe<FTraceControlBookmark>();
 	MessageEndpoint->Subscribe<FTraceControlScreenshot>();
+	MessageEndpoint->Subscribe<FTraceControlSetStatNamedEvents>();
 	
 }
 
@@ -97,7 +100,8 @@ void FTraceServiceImpl::FillTraceStatusMessage(FTraceControlStatus* Message)
 	Message->CacheAllocated = Stats.CacheAllocated;
 	Message->CacheUsed = Stats.CacheUsed;
 	Message->CacheWaste = Stats.CacheWaste;
-
+	Message->bAreStatNamedEventsEnabled = GCycleStatsShouldEmitNamedEvents > 0;
+	Message->bIsPaused = FTraceAuxiliary::IsPaused();
 }
 
 void FTraceServiceImpl::OnChannelSet(const FTraceControlChannelsSet& Message, const TSharedRef<IMessageContext>& Context)
@@ -168,6 +172,17 @@ void FTraceServiceImpl::OnScreenshot(const FTraceControlScreenshot& Message, con
 	FTraceScreenshot::RequestScreenshot(Message.Name, Message.bShowUI);
 }
 
+void FTraceServiceImpl::OnSetStatNamedEvents(const FTraceControlSetStatNamedEvents& Message, const TSharedRef<IMessageContext>& Context)
+{
+	if (Message.bEnabled && GCycleStatsShouldEmitNamedEvents == 0)
+	{
+		++GCycleStatsShouldEmitNamedEvents;
+	}
+	if (!Message.bEnabled && GCycleStatsShouldEmitNamedEvents > 0)
+	{
+		GCycleStatsShouldEmitNamedEvents = 0;
+	}
+}
 
 void FTraceServiceImpl::OnStatusPing(const FTraceControlStatusPing& Message, const TSharedRef<IMessageContext>& Context)
 {
@@ -230,7 +245,6 @@ void FTraceServiceImpl::OnSettingsPing(const FTraceControlSettingsPing& Message,
 	FTraceControlSettings* Response = FMessageEndpoint::MakeMessage<FTraceControlSettings>();
 	UE::Trace::FInitializeDesc const* InitDesc = FTraceAuxiliary::GetInitializeDesc();
 
-	Response->bStatNamedEvents = GCycleStatsShouldEmitNamedEvents > 0;
 	Response->bUseImportantCache = InitDesc->bUseImportantCache;
 	Response->bUseWorkerThread = InitDesc->bUseWorkerThread;
 	Response->TailSizeBytes = InitDesc->TailSizeBytes;

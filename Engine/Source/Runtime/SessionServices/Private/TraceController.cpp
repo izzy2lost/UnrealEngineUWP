@@ -161,15 +161,28 @@ void FTraceController::Screenshot(FStringView Name, bool bShowUI)
 	SendToSelectedSessions(Message);
 }
 
+void FTraceController::SetStatNamedEventsEnabled(bool bEnabled)
+{
+	const auto Message = FMessageEndpoint::MakeMessage<FTraceControlSetStatNamedEvents>();
+	Message->bEnabled = bEnabled;
+
+	SendToSelectedSessions(Message);
+}
+
 void FTraceController::SendStatusUpdateRequest()
 {
-	MessageEndpoint->Publish(FMessageEndpoint::MakeMessage<FTraceControlStatusPing>());
+	// The discovery pong contains the status, so don't send the request twice.
+	if (RediscoverSelectedSession() == false)
+	{
+		MessageEndpoint->Publish(FMessageEndpoint::MakeMessage<FTraceControlStatusPing>());
+	}
 }
 
 void FTraceController::SendChannelUpdateRequest()
 {
 	FReadScopeLock _(InstancesLock);
 	
+	RediscoverSelectedSession();
 	for (const auto& Instance : Instances)
 	{
 		const auto Message = FMessageEndpoint::MakeMessage<FTraceControlChannelsPing>();
@@ -193,7 +206,7 @@ void FTraceController::OnNotification(const FMessageBusNotification& Event)
 		// one we have registered.
 		if(Instances.Remove(Event.RegistrationAddress) > 0)
 		{
-			InstanceToAddress = InstanceToAddress.FilterByPredicate([&](auto It) { return It.Value == Event.RegistrationAddress; } );
+			InstanceToAddress = InstanceToAddress.FilterByPredicate([&](auto It) { return It.Value != Event.RegistrationAddress; } );
 		}
 	}
 }
@@ -293,7 +306,6 @@ void FTraceController::OnSettings(const FTraceControlSettings& Message, const TS
 	if (const auto Status = Instances.Find(Context->GetSender()))
 	{
 		FTraceStatus::FSettings& Settings = Status->Settings;
-		Settings.bStatNamedEvents = Message.bStatNamedEvents;
 		Settings.bUseImportantCache = Message.bUseImportantCache;
 		Settings.bUseWorkerThread = Message.bUseWorkerThread;
 		Settings.TailSizeBytes = Message.TailSizeBytes;
@@ -337,12 +349,7 @@ void FTraceController::OnInstanceSelectionChanged(const TSharedPtr<ISessionInsta
 	}
 	else
 	{
-		// We haven't discovered this instance yet, send a discovery message specifically
-		// to that instance.
-		const auto Message = FMessageEndpoint::MakeMessage<FTraceControlDiscoveryPing>();
-		Message->SessionId = Instance->GetOwnerSession()->GetSessionId();
-		Message->InstanceId = Instance->GetInstanceId();
-		MessageEndpoint->Publish<FTraceControlDiscoveryPing>(Message);
+		SendDiscoveryPing(Instance);
 	}
 }
 
@@ -366,9 +373,40 @@ void FTraceController::UpdateStatus(const FTraceControlStatus& Message, FTraceSt
 	Status.Endpoint = Message.Endpoint;
 	Status.SessionGuid = Message.SessionGuid;
 	Status.TraceGuid = Message.TraceGuid;
+	Status.bIsPaused = Message.bIsPaused;
+	Status.bAreStatNamedEventsEnabled = Message.bAreStatNamedEventsEnabled;
 	Status.Stats.BytesSent = Message.BytesSent;
 	Status.Stats.BytesTraced = Message.BytesTraced;
 	Status.Stats.CacheAllocated = Message.CacheAllocated;
 	Status.Stats.CacheUsed = Message.CacheUsed;
 	Status.Stats.CacheWaste = Message.CacheWaste;
+}
+
+bool FTraceController::RediscoverSelectedSession()
+{
+	if (SelectedInstanceId.IsValid() && !InstanceToAddress.Contains(SelectedInstanceId))
+	{
+		auto& SelectedInstances = SessionManager->GetSelectedInstances();
+		for (auto& Instance : SelectedInstances)
+		{
+			if (Instance->GetInstanceId() == SelectedInstanceId)
+			{
+				SendDiscoveryPing(Instance);
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+void FTraceController::SendDiscoveryPing(const TSharedPtr<ISessionInstanceInfo>& Instance)
+{
+	// We haven't discovered this instance yet, send a discovery message specifically
+	// to that instance.
+
+	const auto Message = FMessageEndpoint::MakeMessage<FTraceControlDiscoveryPing>();
+	Message->SessionId = Instance->GetOwnerSession()->GetSessionId();
+	Message->InstanceId = Instance->GetInstanceId();
+	MessageEndpoint->Publish<FTraceControlDiscoveryPing>(Message);
 }

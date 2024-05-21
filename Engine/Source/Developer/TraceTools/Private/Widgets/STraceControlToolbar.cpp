@@ -270,6 +270,7 @@ bool STraceControlToolbar::ToggleStatNamedEvents_IsChecked() const
 void STraceControlToolbar::ToggleStatNamedEvents_Execute()
 {
 	bAreStatNamedEventsEnabled = !bAreStatNamedEventsEnabled;
+	TraceController->SetStatNamedEventsEnabled(bAreStatNamedEventsEnabled);
 }
 
 FText STraceControlToolbar::GetTraceTargetLabelText() const
@@ -305,6 +306,8 @@ FSlateIcon STraceControlToolbar::GetTraceTargetIcon() const
 void STraceControlToolbar::OnTraceStatusUpdated(const FTraceStatus& InStatus, FTraceStatus::EUpdateType InUpdateType)
 {
 	bIsTracing = InStatus.bIsTracing;
+	bIsPaused = InStatus.bIsPaused;
+	bAreStatNamedEventsEnabled = InStatus.bAreStatNamedEventsEnabled;
 }
 
 } // namespace UE::TraceTools

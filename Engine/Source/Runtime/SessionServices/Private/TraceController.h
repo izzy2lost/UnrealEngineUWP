@@ -37,6 +37,7 @@ private:
 	virtual void Resume() override;
 	virtual void Bookmark(FStringView Label) override;
 	virtual void Screenshot(FStringView Name, bool bShowUI) override;
+	virtual void SetStatNamedEventsEnabled(bool bEnabled) override;
 
 	virtual void SendStatusUpdateRequest() override;
 	virtual void SendChannelUpdateRequest() override;
@@ -67,6 +68,14 @@ private:
 	void SendToSelectedSessions(MessageType* Message);
 
 	TArray<FMessageAddress> GetSelectedSessionAddresses();
+
+	/* A selected instance can end up not discovered, either because the FTraceControlDiscoveryPong was lost
+	*  or because the selected session has been unregistered. Attempt to discover it again.
+	*  Returns true if a discovery ping was sent. 
+	*/
+	bool RediscoverSelectedSession();
+
+	void SendDiscoveryPing(const TSharedPtr<ISessionInstanceInfo>& Instance);
 
 public:
 

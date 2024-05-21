@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -55,6 +55,12 @@ struct FTraceControlStatus
 
 	UPROPERTY(EditAnywhere, Category="Message")
 	uint32 CacheWaste = 0;
+
+	UPROPERTY(EditAnywhere, Category = "Message")
+	bool bAreStatNamedEventsEnabled = false;
+
+	UPROPERTY(EditAnywhere, Category = "Message")
+	bool bIsPaused = false;
 };
 
 /**
@@ -83,9 +89,6 @@ struct FTraceControlSettings
 
 	UPROPERTY(EditAnywhere, Category="Message")
 	uint32 TailSizeBytes = 0;
-	
-	UPROPERTY(EditAnywhere, Category="Message")
-	bool bStatNamedEvents = false;
 };
 
 /**
@@ -254,7 +257,7 @@ struct FTraceControlResume
 };
 
 /**
- * Start tracing to a host
+ * Trace a snapshot to the trace server.
  */
 USTRUCT()
 struct FTraceControlSnapshotSend
@@ -266,7 +269,7 @@ struct FTraceControlSnapshotSend
 };
 
 /**
- * Start tracing to a host
+ * Trace a snapshot to a file.
  */
 USTRUCT()
 struct FTraceControlSnapshotFile
@@ -278,7 +281,7 @@ struct FTraceControlSnapshotFile
 };
 
 /**
- * Start tracing to a host
+ * Trace a bookmark with the given label.
  */
 USTRUCT()
 struct FTraceControlBookmark
@@ -290,7 +293,7 @@ struct FTraceControlBookmark
 };
 
 /**
- * Start tracing to a host
+ * Trace a screenshot with the given label.
  */
 USTRUCT()
 struct FTraceControlScreenshot
@@ -302,4 +305,16 @@ struct FTraceControlScreenshot
 	
 	UPROPERTY(EditAnywhere, Category="Message")
 	bool bShowUI = true;
+};
+
+/**
+ * Set the StatNamedEvents flag.
+ */
+USTRUCT()
+struct FTraceControlSetStatNamedEvents
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "Message")
+	bool bEnabled = false;
 };

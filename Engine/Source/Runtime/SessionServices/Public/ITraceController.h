@@ -29,8 +29,6 @@ struct FTraceStatus
 		bool bUseImportantCache;
 		/** Size of tail buffer */
 		uint32 TailSizeBytes;
-		/** If stats are emitted as named events */
-		bool bStatNamedEvents;
 	};
 
 	struct FChannel
@@ -64,6 +62,10 @@ struct FTraceStatus
 	FGuid InstanceId;
 	/** If tracing is active */
 	bool bIsTracing = false;
+	/** If tracing is paused */
+	bool bIsPaused = false;
+	/** If stats are emitted as named events */
+	bool bAreStatNamedEventsEnabled = false;
 	/** Endpoint of active trace */
 	FString Endpoint;
 	/** Session identifier for the trace. */
@@ -161,6 +163,12 @@ public:
 	 * @param bShowUI If the UI should be visible in the image
 	 */
 	virtual void Screenshot(FStringView Name, bool bShowUI) = 0;
+
+	/**
+	 * Set the StatNamedEvents flag.
+	 * @param bEnabled The value to assign to the StatNamedEvents flag.
+	 */
+	virtual void SetStatNamedEventsEnabled(bool bEnabled) = 0;
 
 	/**
 	 * Request update of the status from all sessions and instances.
