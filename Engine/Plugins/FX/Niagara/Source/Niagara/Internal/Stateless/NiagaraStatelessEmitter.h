@@ -113,6 +113,10 @@ public:
 
 	NIAGARA_API const TArray<TObjectPtr<UNiagaraStatelessModule>>& GetModules() const { return Modules; }
 
+	template<typename TType>
+	const TType* GetModule() const { return (TType*)GetModule(TType::StaticClass()); }
+	NIAGARA_API UNiagaraStatelessModule* GetModule(UClass* Class) const;
+
 	NIAGARA_API FNiagaraPlatformSet& GetPlatformSet() { return Platforms; }
 
 	UNiagaraStatelessEmitter* CreateAsDuplicate(FName InDuplicateName, UNiagaraSystem& InDuplicateOwnerSystem) const;

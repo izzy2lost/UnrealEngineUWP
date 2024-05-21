@@ -653,6 +653,18 @@ FNiagaraStatelessSpawnInfo* UNiagaraStatelessEmitter::GetSpawnInfoByIndex(int32 
 	return SpawnInfo;
 }
 
+UNiagaraStatelessModule* UNiagaraStatelessEmitter::GetModule(UClass* Class) const
+{
+	for (UNiagaraStatelessModule* Module : Modules)
+	{
+		if (Module && Module->GetClass() == Class)
+		{
+			return Module;
+		}
+	}
+	return nullptr;
+}
+
 UNiagaraStatelessEmitter* UNiagaraStatelessEmitter::CreateAsDuplicate(FName InDuplicateName, UNiagaraSystem& InDuplicateOwnerSystem) const
 {
 	UNiagaraStatelessEmitter* NewEmitter = Cast<UNiagaraStatelessEmitter>(StaticDuplicateObject(this, &InDuplicateOwnerSystem));

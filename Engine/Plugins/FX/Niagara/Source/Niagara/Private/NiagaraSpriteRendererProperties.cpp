@@ -395,11 +395,12 @@ void UNiagaraSpriteRendererProperties::CacheFromCompiledData(const FNiagaraDataS
 #if WITH_EDITORONLY_DATA
 	// Build dynamic parameter mask
 	// Serialize in cooked builds
-	const FVersionedNiagaraEmitterData* EmitterData = GetEmitterData();
-	MaterialParamValidMask  = bDynamicParam0Valid ? GetDynamicParameterChannelMask(EmitterData, DynamicMaterialBinding.GetName(),  0xf) <<  0 : 0;
-	MaterialParamValidMask |= bDynamicParam1Valid ? GetDynamicParameterChannelMask(EmitterData, DynamicMaterial1Binding.GetName(), 0xf) <<  4 : 0;
-	MaterialParamValidMask |= bDynamicParam2Valid ? GetDynamicParameterChannelMask(EmitterData, DynamicMaterial2Binding.GetName(), 0xf) <<  8 : 0;
-	MaterialParamValidMask |= bDynamicParam3Valid ? GetDynamicParameterChannelMask(EmitterData, DynamicMaterial3Binding.GetName(), 0xf) << 12 : 0;
+	MaterialParamValidMask = GetDynamicParameterCombinedChannelMask(
+		bDynamicParam0Valid ? DynamicMaterialBinding.GetName() : NAME_None,
+		bDynamicParam1Valid ? DynamicMaterial1Binding.GetName() : NAME_None,
+		bDynamicParam2Valid ? DynamicMaterial2Binding.GetName() : NAME_None,
+		bDynamicParam3Valid ? DynamicMaterial3Binding.GetName() : NAME_None
+	);
 #endif
 }
 

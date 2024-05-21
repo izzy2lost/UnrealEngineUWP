@@ -149,6 +149,17 @@ public:
 		}
 	}
 
+
+	int32 GetRendererChannelMask() const
+	{
+		uint32 ChannelMask = 0;
+		for (int32 iParameter = 0; iParameter < NumParameters; ++iParameter)
+		{
+			ChannelMask |= GetParameterChannelMask(iParameter) << (iParameter * NumChannelPerParameter);
+		}
+		return ChannelMask;
+	}
+
 	virtual void BuildEmitterData(const FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
 	{
 		FModuleBuiltData* BuiltData = BuildContext.AllocateBuiltData<FModuleBuiltData>();
