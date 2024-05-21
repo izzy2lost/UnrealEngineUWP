@@ -1580,7 +1580,7 @@ bool FCoreRedirects::ReadRedirectsFromIni(const FString& IniName)
 					if (bMatchWildcard || bMatchSubstring)
 					{
 						UE_CLOG(bMatchSubstring, LogCoreRedirects, Warning, TEXT("ReadRedirectsFromIni(%s) 'MatchSubstring=' is deprecated. "
-							"Please prefer `MatchWildcard=' instead for redirect %s. "
+							"Please prefer `MatchWildcard=' instead for redirect %s.\n\t"
 							"For more information refer to the documentation in Engine/Config/BaseEngine.ini."), *IniName, *ValueString);
 
 						constexpr FStringView WildcardMarker(TEXTVIEW("..."));
