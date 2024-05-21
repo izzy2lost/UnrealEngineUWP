@@ -27,11 +27,6 @@ namespace EpicGames.Horde.Server
 		/// The current agent version string
 		/// </summary>
 		public string? AgentVersion { get; set; }
-
-		/// <summary>
-		/// The operating system server is hosted on
-		/// </summary>
-		public string OsDescription { get; set; } = String.Empty;
 	}
 
 	/// <summary>

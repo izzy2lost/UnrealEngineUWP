@@ -80,7 +80,6 @@ namespace Horde.Server.Server
 
 			FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
 			response.ServerVersion = versionInfo.ProductVersion ?? String.Empty;
-			response.OsDescription = RuntimeInformation.OSDescription;
 
 			ITool? tool = await _toolCollection.GetAsync(AgentExtensions.AgentToolId, HttpContext.RequestAborted);
 			if (tool != null)
