@@ -79,11 +79,14 @@
 
 static void ResetCopiedTracksFlags(UMovieSceneTrack* Track)
 {
-	TArray<UObject*> SectionSubObjects;
 	Track->ClearFlags(RF_Transient);
+
+	ForEachObjectWithOuter(Track, [](UObject* InObject) {
+		InObject->ClearFlags(RF_Transient);
+	});
+
 	for (UMovieSceneSection* Section : Track->GetAllSections())
 	{
-		Section->ClearFlags(RF_Transient);
 		Section->PostPaste();
 	}
 }
