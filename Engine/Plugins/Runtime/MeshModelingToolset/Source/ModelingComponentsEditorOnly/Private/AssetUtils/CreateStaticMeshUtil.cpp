@@ -54,6 +54,9 @@ UE::AssetUtils::ECreateStaticMeshResult UE::AssetUtils::CreateStaticMeshAsset(
 		return ECreateStaticMeshResult::InvalidPackage;
 	}
 
+	//Make sure the package is fully load.
+	UsePackage->FullyLoad();
+
 	// create new UStaticMesh object
 	EObjectFlags UseFlags = EObjectFlags::RF_Public | EObjectFlags::RF_Standalone;
 	UStaticMesh* NewStaticMesh = NewObject<UStaticMesh>(UsePackage, FName(*NewObjectName), UseFlags);
