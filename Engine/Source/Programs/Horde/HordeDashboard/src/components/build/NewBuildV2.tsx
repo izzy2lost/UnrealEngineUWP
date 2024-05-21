@@ -710,6 +710,7 @@ class BuildOptions {
       }
 
       this.advTargets = undefined;
+      this.disabledParameters.clear();
 
       const source = { ...template };
       source.hash = "";
