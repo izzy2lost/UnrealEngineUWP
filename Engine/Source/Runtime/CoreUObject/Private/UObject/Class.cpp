@@ -1259,6 +1259,7 @@ void UStruct::SerializeBinEx( FStructuredArchive::FSlot Slot, void* Data, void c
 void UStruct::LoadTaggedPropertiesFromText(FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, uint8* Defaults, const UObject* BreakRecursionIfFullyLoad) const
 {
 	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
+	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
 	const bool bUseRedirects = !FPlatformProperties::RequiresCookedData() || UnderlyingArchive.IsSaveGame();
 	int32 NumProperties = 0;
 	FStructuredArchiveMap PropertiesMap = Slot.EnterMap(NumProperties);
@@ -1338,6 +1339,16 @@ void UStruct::LoadTaggedPropertiesFromText(FStructuredArchive::FSlot Slot, uint8
 				Tag.SetProperty(Property);
 				Tag.ArrayIndex = ItemIndex;
 				Tag.Name = PropertyName;
+
+				if (SerializeContext->bTrackInitializedProperties)
+				{
+					UE::SetPropertyValueInitialized(this, Data, Property, ItemIndex);
+				}
+
+				if (Tag.SerializeType == EPropertyTagSerializeType::Skipped)
+				{
+					continue;
+				}
 
 				if (bUseRedirects)
 				{
@@ -1636,6 +1647,16 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					Property = CustomFindProperty(Tag.Name);
 				}
 
+				if (SerializeContext->bTrackInitializedProperties && Property)
+				{
+					UE::SetPropertyValueInitialized(this, Data, Property, Tag.ArrayIndex);
+				}
+
+				if (Tag.SerializeType == EPropertyTagSerializeType::Skipped)
+				{
+					continue;
+				}
+
 				Tag.SetProperty(Property);
 
 				if (bUseRedirects)
@@ -1865,9 +1886,11 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 				{
 					uint8* DataPtr      = Property->ContainerPtrToValuePtr           <uint8>(Data, Idx);
 					uint8* DefaultValue = Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Idx);
-					if (StaticArrayContainer.IsSet() || CustomPropertyNode || !bDoDeltaSerialization ||
+					const bool bSerializeValue = (StaticArrayContainer.IsSet() || CustomPropertyNode || !bDoDeltaSerialization ||
 						(FOverridableSerializationLogic::IsEnabled() && FOverridableSerializationLogic::GetOverriddenPropertyOperation(UnderlyingArchive, Property, DataPtr, DefaultValue) != EOverriddenPropertyOperation::None) ||
-						(!FOverridableSerializationLogic::IsEnabled() && !Property->Identical(DataPtr, DefaultValue, UnderlyingArchive.GetPortFlags())))
+						(!FOverridableSerializationLogic::IsEnabled() && !Property->Identical(DataPtr, DefaultValue, UnderlyingArchive.GetPortFlags())));
+					const bool bInitializedValue = !SerializeContext->bTrackInitializedProperties || UE::IsPropertyValueInitialized(this, Data, Property, Idx);
+					if (bInitializedValue && (bSerializeValue || SerializeContext->bTrackInitializedProperties))
 					{
 						if (bUseAtomicSerialization)
 						{
@@ -1888,11 +1911,22 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 							Tag.SetPropertyGuid(PropertyGuid);
 						}
 
+						if (!bSerializeValue)
+						{
+							Tag.SerializeType = EPropertyTagSerializeType::Skipped;
+						}
+
 						TStringBuilder<256> TagName;
 						Tag.Name.ToString(TagName);
 						FStructuredArchive::FSlot PropertySlot = StaticArrayContainer.IsSet() ? StaticArrayContainer->EnterElement() : PropertiesRecord.EnterField(TagName.ToString());
 
 						PropertySlot << Tag;
+
+						if (!bSerializeValue)
+						{
+							PropertySlot.EnterStream(); // Save an empty value for text format archives.
+							continue;
+						}
 
 						// need to know how much data this call to SerializeTaggedProperty consumes, so mark where we are
 						int64 DataOffset = UnderlyingArchive.Tell();

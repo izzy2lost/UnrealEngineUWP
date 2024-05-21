@@ -45,6 +45,7 @@ FUObjectSerializeContext::FUObjectSerializeContext()
 	, SerializedExportIndex(0)
 	, SerializedExportLinker(nullptr)
 	, bTrackSerializedPropertyPath(false)
+	, bTrackInitializedProperties(false)
 	, bTrackUnknownProperties(false)
 	, bImpersonateProperties(false)
 {}

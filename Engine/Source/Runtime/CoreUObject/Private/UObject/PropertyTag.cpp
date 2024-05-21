@@ -22,6 +22,7 @@ enum class EPropertyTagFlags : uint8
 	HasPropertyExtensions		= 0x04,
 	HasBinaryOrNativeSerialize	= 0x08,
 	BoolTrue					= 0x10,
+	SkippedSerialize			= 0x20,
 };
 
 ENUM_CLASS_FLAGS(EPropertyTagFlags);
@@ -145,7 +146,14 @@ static EPropertyTagExtension CalculatePropertyExtensionFlags(FArchive& Underlyin
 static void SerializePropertyExtensions(FStructuredArchive::FSlot Slot, EPropertyTagExtension PropertyTagExtensions, FPropertyTag& Tag)
 {
 	// Serialize tag extensions, consider doing an init function and context as `EClassSerializationControlExtension` if we add more extensions
-	Slot << SA_ATTRIBUTE(TEXT("PropertyExtensions"), PropertyTagExtensions);
+	if (Slot.GetArchiveState().IsTextFormat())
+	{
+		Slot << SA_OPTIONAL_ATTRIBUTE(TEXT("PropertyExtensions"), PropertyTagExtensions, EPropertyTagExtension::NoExtension);
+	}
+	else
+	{
+		Slot << SA_ATTRIBUTE(TEXT("PropertyExtensions"), PropertyTagExtensions);
+	}
 
 	// OverridableInformation
 	if (EnumHasAnyFlags(PropertyTagExtensions, EPropertyTagExtension::OverridableInformation))
@@ -394,12 +402,16 @@ FORCENOINLINE void SerializePropertyTagAsText(FStructuredArchive::FSlot Slot, FP
 		Tag.SetType(Tag.TypeName);
 	}
 
-	Slot << SA_OPTIONAL_ATTRIBUTE(TEXT("PropertyGuid"), Tag.PropertyGuid, FGuid());
-	Tag.HasPropertyGuid = Tag.PropertyGuid.IsValid();
-
 	bool bHasBinaryOrNativeSerialize = (Tag.SerializeType == EPropertyTagSerializeType::BinaryOrNative);
+	bool bSkippedSerialize = (Tag.SerializeType == EPropertyTagSerializeType::Skipped);
+
+	Slot << SA_OPTIONAL_ATTRIBUTE(TEXT("PropertyGuid"), Tag.PropertyGuid, FGuid());
 	Slot << SA_OPTIONAL_ATTRIBUTE(TEXT("HasBinaryOrNativeSerialize"), bHasBinaryOrNativeSerialize, false);
-	Tag.SerializeType = bHasBinaryOrNativeSerialize ? EPropertyTagSerializeType::BinaryOrNative : EPropertyTagSerializeType::Property;
+	Slot << SA_OPTIONAL_ATTRIBUTE(TEXT("SkippedSerialize"), bSkippedSerialize, false);
+
+	Tag.HasPropertyGuid = Tag.PropertyGuid.IsValid();
+	Tag.SerializeType = bSkippedSerialize ? EPropertyTagSerializeType::Skipped
+		: (bHasBinaryOrNativeSerialize ? EPropertyTagSerializeType::BinaryOrNative : EPropertyTagSerializeType::Property);
 
 	EPropertyTagExtension PropertyTagExtensions = CalculatePropertyExtensionFlags(UnderlyingArchive, Tag);
 	SerializePropertyExtensions(Slot, PropertyTagExtensions, Tag);
@@ -425,6 +437,13 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 	{
 		LoadPropertyTagNoFullType(Slot, Tag);
 		return;
+	}
+
+	if (UnderlyingArchive.IsSaving())
+	{
+		Tag.SerializeType = Tag.SerializeType == EPropertyTagSerializeType::Skipped ? Tag.SerializeType
+			: (Tag.GetProperty()->UseBinaryOrNativeSerialization(UnderlyingArchive)
+				? EPropertyTagSerializeType::BinaryOrNative : EPropertyTagSerializeType::Property);
 	}
 
 	if (UNLIKELY(bIsTextFormat))
@@ -458,9 +477,6 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 
 	if (UnderlyingArchive.IsSaving())
 	{
-		Tag.SerializeType = Tag.GetProperty()->UseBinaryOrNativeSerialization(UnderlyingArchive)
-			? EPropertyTagSerializeType::BinaryOrNative : EPropertyTagSerializeType::Property;
-
 		if (Tag.ArrayIndex != 0)
 		{
 			PropertyTagFlags |= EPropertyTagFlags::HasArrayIndex;
@@ -477,6 +493,10 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 		{
 			PropertyTagFlags |= EPropertyTagFlags::HasBinaryOrNativeSerialize;
 		}
+		if (Tag.SerializeType == EPropertyTagSerializeType::Skipped)
+		{
+			PropertyTagFlags |= EPropertyTagFlags::SkippedSerialize;
+		}
 		if (Tag.BoolVal && Tag.Type == NAME_BoolProperty)
 		{
 			PropertyTagFlags |= EPropertyTagFlags::BoolTrue;
@@ -488,8 +508,10 @@ void operator<<(FStructuredArchive::FSlot Slot, FPropertyTag& Tag)
 	if (UnderlyingArchive.IsLoading())
 	{
 		Tag.HasPropertyGuid = EnumHasAnyFlags(PropertyTagFlags, EPropertyTagFlags::HasPropertyGuid);
-		Tag.SerializeType = EnumHasAnyFlags(PropertyTagFlags, EPropertyTagFlags::HasBinaryOrNativeSerialize)
-			? EPropertyTagSerializeType::BinaryOrNative : EPropertyTagSerializeType::Property;
+		Tag.SerializeType = EnumHasAnyFlags(PropertyTagFlags, EPropertyTagFlags::SkippedSerialize)
+			? EPropertyTagSerializeType::Skipped
+			: (EnumHasAnyFlags(PropertyTagFlags, EPropertyTagFlags::HasBinaryOrNativeSerialize)
+				? EPropertyTagSerializeType::BinaryOrNative : EPropertyTagSerializeType::Property);
 		Tag.BoolVal = EnumHasAnyFlags(PropertyTagFlags, EPropertyTagFlags::BoolTrue);
 	}
 

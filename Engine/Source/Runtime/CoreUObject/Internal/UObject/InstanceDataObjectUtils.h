@@ -4,6 +4,8 @@
 
 #include "HAL/Platform.h"
 
+#define UE_API COREUOBJECT_API
+
 class FFieldVariant;
 class FProperty;
 class UClass;
@@ -33,4 +35,15 @@ bool WasPropertySetBySerialization(const UStruct* Struct, const void* StructData
 /** Copy whether each property was set by serialization from one IDO to another. */
 void CopyPropertySetBySerializationData(const FFieldVariant& OldField, void* OldDataPtr, const FFieldVariant& NewField, void* NewDataPtr);
 
+/** Query whether the property value is initialized for a property in the struct. */
+UE_API bool IsPropertyValueInitialized(const UStruct* Struct, void* StructData, const FProperty* Property, int32 ArrayIndex = 0);
+/** Set the flag that the property value is initialized for a property in the struct. */
+UE_API void SetPropertyValueInitialized(const UStruct* Struct, void* StructData, const FProperty* Property, int32 ArrayIndex = 0);
+/** Clear the flag that the property value is initialized for a property in the struct. */
+UE_API void ClearPropertyValueInitialized(const UStruct* Struct, void* StructData, const FProperty* Property, int32 ArrayIndex = 0);
+/** Reset the property value initialized flags for every property in the struct. */
+UE_API void ResetPropertyValueInitialized(const UStruct* Struct, void* StructData);
+
 } // UE
+
+#undef UE_API

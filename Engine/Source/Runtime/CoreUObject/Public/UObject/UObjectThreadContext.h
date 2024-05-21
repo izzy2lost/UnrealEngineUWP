@@ -172,6 +172,8 @@ public:
 	UE_INTERNAL UE::FPropertyPathName SerializedPropertyPath;
 	/** True when SerializedPropertyPath is being tracked during serialization. */
 	UE_INTERNAL bool bTrackSerializedPropertyPath;
+	/** True when initialized properties will be tracked for the serialized object. */
+	UE_INTERNAL bool bTrackInitializedProperties;
 	/** True when unknown properties will tracked for the serialized object. */
 	UE_INTERNAL bool bTrackUnknownProperties;
 	/** True when the SerializedObject properties are being impersonated. */
