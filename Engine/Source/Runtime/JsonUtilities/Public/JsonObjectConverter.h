@@ -31,6 +31,12 @@ enum class EJsonObjectConversionFlags
 {
 	None = 0,
 	SkipStandardizeCase = 1 << 0,
+
+	/**
+	 * Write text in its complex exported format (eg, NSLOCTEXT(...)) rather than as a simple string.
+	 * @note This is required to correctly support localization
+	 */
+	WriteTextAsComplexString = 1 << 1
 };
 
 ENUM_CLASS_FLAGS(EJsonObjectConversionFlags)

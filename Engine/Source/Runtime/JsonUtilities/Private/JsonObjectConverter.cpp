@@ -86,6 +86,14 @@ TSharedPtr<FJsonValue> ConvertScalarFPropertyToJsonValue(FProperty* Property, co
 	}
 	else if (FTextProperty *TextProperty = CastField<FTextProperty>(Property))
 	{
+		if (EnumHasAnyFlags(ConversionFlags, EJsonObjectConversionFlags::WriteTextAsComplexString))
+		{
+			FString TextValueString;
+			FTextStringHelper::WriteToBuffer(TextValueString, TextProperty->GetPropertyValue(Value));
+
+			return MakeShared<FJsonValueString>(TextValueString);
+		}
+
 		return MakeShared<FJsonValueString>(TextProperty->GetPropertyValue(Value).ToString());
 	}
 	else if (FArrayProperty *ArrayProperty = CastField<FArrayProperty>(Property))
@@ -599,8 +607,15 @@ namespace
 		{
 			if (JsonValue->Type == EJson::String)
 			{
+				FString StringValue = JsonValue->AsString();
+				FText TextValue;
+				if (!FTextStringHelper::ReadFromBuffer(*StringValue, TextValue))
+				{
+					TextValue = FText::FromString(StringValue);
+				}
+
 				// assume this string is already localized, so import as invariant
-				TextProperty->SetPropertyValue(OutValue, FText::FromString(JsonValue->AsString()));
+				TextProperty->SetPropertyValue(OutValue, TextValue);
 			}
 			else if (JsonValue->Type == EJson::Object)
 			{
