@@ -3696,6 +3696,8 @@ dtStatus FRecastTileGenerator::BuildTileCacheLinks(FNavMeshBuildContext& BuildCo
 	const dtTileCacheContourSet& lcset, TArray<FNavigationLink>& OutGeneratedLinks) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRecastTileGenerator::BuildTileCacheLinks);
+	BuildContext.log(RC_LOG_PROGRESS, "Building Links:");
+	const double StartTime = FPlatformTime::Seconds();
 	
 	duDebugDraw* dd = nullptr;
 	int32 DebugEdge = -1;
@@ -3711,8 +3713,18 @@ dtStatus FRecastTileGenerator::BuildTileCacheLinks(FNavMeshBuildContext& BuildCo
 
 	dtAssert(alloc);
 
+	auto LogOnExit = [&]()
+	{
+#if RECAST_INTERNAL_DEBUG_DATA
+		const double LinkBuildTime = FPlatformTime::Seconds()-StartTime;
+		BuildContext.InternalDebugData.BuildLinkTime += LinkBuildTime;
+#endif
+		BuildContext.log(RC_LOG_PROGRESS, "   BuildTileCacheLinks time: %0.3fms.", LinkBuildTime*1000 );
+	};
+
 	if (!SolidHF || !CompactHF)
 	{
+		LogOnExit();
 		return DT_FAILURE;
 	}
 
@@ -3732,22 +3744,32 @@ dtStatus FRecastTileGenerator::BuildTileCacheLinks(FNavMeshBuildContext& BuildCo
 
 		if (!linkBuilder.findEdges(BuildContext, TileConfig, linkBuilderConfig, lcset, orig, SolidHF, CompactHF))
 		{
+			LogOnExit();
 			return DT_FAILURE;
 		}
+
+		BuildContext.log(RC_LOG_PROGRESS, "   Found %i edges.", linkBuilder.getEdgeCount());
 	}
 
+	if (linkBuilder.getEdgeCount() == 0)
+	{
+		LogOnExit();
+		return DT_SUCCESS;	
+	}
+	
 	if (DebugEdge == -1)
 	{
+		rcContext& context = BuildContext;
+		if (linkBuilderConfig.jumpDownConfig.enabled)
 		{
-			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(RecastBuildLinks_JumpDown);
-				linkBuilder.buildForAllEdges(linkBuilderConfig, DT_LINK_ACTION_JUMP_DOWN);
-			}
+			TRACE_CPUPROFILER_EVENT_SCOPE(RecastBuildLinks_JumpDown);
+			linkBuilder.buildForAllEdges(context, linkBuilderConfig, DT_LINK_ACTION_JUMP_DOWN);
+		}
 
-			{
-				TRACE_CPUPROFILER_EVENT_SCOPE(RecastBuildLinks_JumpOver);
-				linkBuilder.buildForAllEdges(linkBuilderConfig, DT_LINK_ACTION_JUMP_OVER);
-			}
+		if (linkBuilderConfig.jumpOverConfig.enabled)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(RecastBuildLinks_JumpOver);
+			linkBuilder.buildForAllEdges(context, linkBuilderConfig, DT_LINK_ACTION_JUMP_OVER);
 		}
 
 #if RECAST_INTERNAL_DEBUG_DATA
@@ -3755,32 +3777,37 @@ dtStatus FRecastTileGenerator::BuildTileCacheLinks(FNavMeshBuildContext& BuildCo
 	}
 	else
 	{
-		dtNavLinkBuilder::EdgeSampler sampler1;
-		linkBuilder.debugBuildEdge(linkBuilderConfig, DT_LINK_ACTION_JUMP_DOWN, DebugEdge, sampler1);
-		duDebugDrawNavLinkBuilder(dd, linkBuilder, DebugFlags, &sampler1);
+		if (linkBuilderConfig.jumpDownConfig.enabled)
+		{
+			dtNavLinkBuilder::EdgeSampler sampler1;
+			linkBuilder.debugBuildEdge(linkBuilderConfig, DT_LINK_ACTION_JUMP_DOWN, DebugEdge, sampler1);
+			duDebugDrawNavLinkBuilder(dd, linkBuilder, DebugFlags, &sampler1);
+		}
 		
-		dtNavLinkBuilder::EdgeSampler sampler2;
-		linkBuilder.debugBuildEdge(linkBuilderConfig, DT_LINK_ACTION_JUMP_OVER, DebugEdge, sampler2);
-		duDebugDrawNavLinkBuilder(dd, linkBuilder, DebugFlags, &sampler2);
+		if (linkBuilderConfig.jumpOverConfig.enabled)
+		{
+			dtNavLinkBuilder::EdgeSampler sampler2;
+			linkBuilder.debugBuildEdge(linkBuilderConfig, DT_LINK_ACTION_JUMP_OVER, DebugEdge, sampler2);
+			duDebugDrawNavLinkBuilder(dd, linkBuilder, DebugFlags, &sampler2);
+		}
 #endif // RECAST_INTERNAL_DEBUG_DATA		
 	}
 
 	// Make FNavigationLinks
-	for (int i = 0; i < linkBuilder.m_nlinks; ++i)
+	for (const dtNavLinkBuilder::JumpLink& link : linkBuilder.m_links)
 	{
-		const dtNavLinkBuilder::JumpLink* link = &linkBuilder.m_links[i];
-		
-		if (link->flags == dtNavLinkBuilder::INVALID)
+		if (link.flags == dtNavLinkBuilder::INVALID)
 			continue;
 
 		// For now, just make a link using the center of the range.
 		dtReal midA[3];
-		dtVlerp(midA, &link->spine0[0], &link->spine1[0], 0.5);
+		dtVlerp(midA, &link.spine0[0], &link.spine1[0], 0.5);
 		dtReal midB[3];
-		dtVlerp(midB, &link->spine0[(link->nspine-1)*3], &link->spine1[(link->nspine-1)*3], 0.5);
+		dtVlerp(midB, &link.spine0[(link.nspine-1)*3], &link.spine1[(link.nspine-1)*3], 0.5);
 		OutGeneratedLinks.Add(FNavigationLink(Recast2UnrealPoint(midA), Recast2UnrealPoint(midB)));
 	}
 	
+	LogOnExit();
 	return DT_SUCCESS;
 }
 
