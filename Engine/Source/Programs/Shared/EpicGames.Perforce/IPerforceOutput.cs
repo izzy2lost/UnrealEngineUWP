@@ -610,9 +610,23 @@ namespace EpicGames.Perforce
 				Utf8String suffix = tag.Slice(suffixIdx);
 				tag = tag.Slice(0, suffixIdx);
 
+				// Count the dimensions in the suffix
+				int rank = 0;
+				if (suffix.Length > 0)
+				{
+					rank++;
+					for (int idx = 0; idx < suffix.Length; idx++)
+					{
+						if (suffix[idx] == (byte)',')
+						{
+							rank++;
+						}
+					}
+				}
+
 				// Try to find the matching field
 				TaggedPropertyInfo? tagInfo;
-				if (recordInfo.NameToInfo.TryGetValue(tag, out tagInfo))
+				if (recordInfo.NameAndRankToInfo.TryGetValue(new TaggedPropertyNameAndRank(tag, rank), out tagInfo))
 				{
 					requiredTagsBitMask |= tagInfo.RequiredTagBitMask;
 				}
@@ -635,7 +649,7 @@ namespace EpicGames.Perforce
 			// Make sure we've got all the required tags we need
 			if (requiredTagsBitMask != recordInfo.RequiredTagsBitMask)
 			{
-				string missingTagNames = String.Join(", ", recordInfo.NameToInfo.Where(x => (requiredTagsBitMask | x.Value.RequiredTagBitMask) != requiredTagsBitMask).Select(x => x.Key));
+				string missingTagNames = String.Join(", ", recordInfo.NameAndRankToInfo.Where(x => (requiredTagsBitMask | x.Value.RequiredTagBitMask) != requiredTagsBitMask).Select(x => x.Key));
 				throw new PerforceException("Missing '{0}' tag when parsing '{1}'", missingTagNames, recordInfo.Type.Name);
 			}
 

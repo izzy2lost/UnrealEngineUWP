@@ -38,6 +38,11 @@ namespace EpicGames.Perforce
 	record struct NestedRecordInfo(PropertyInfo PropertyInfo, CreateRecordDelegate CreateInstance);
 
 	/// <summary>
+	/// Name and rank of a tagged property within a record
+	/// </summary>
+	record struct TaggedPropertyNameAndRank(Utf8String Tag, int Rank);
+
+	/// <summary>
 	/// Stores cached information about a property with a <see cref="PerforceTagAttribute"/> attribute.
 	/// </summary>
 	class TaggedPropertyInfo
@@ -141,7 +146,7 @@ namespace EpicGames.Perforce
 		/// <summary>
 		/// Map of name to tag info
 		/// </summary>
-		public Dictionary<Utf8String, TaggedPropertyInfo> NameToInfo { get; set; } = new Dictionary<Utf8String, TaggedPropertyInfo>();
+		public Dictionary<TaggedPropertyNameAndRank, TaggedPropertyInfo> NameAndRankToInfo { get; set; } = new Dictionary<TaggedPropertyNameAndRank, TaggedPropertyInfo>();
 
 		/// <summary>
 		/// Bitmask of all the required tags. Formed by bitwise-or'ing the RequiredTagBitMask fields for each required CachedTagInfo.
@@ -468,7 +473,7 @@ namespace EpicGames.Perforce
 
 				// Find all the properties in the record
 				AddRecordProperties(recordType, record, Array.Empty<NestedRecordInfo>());
-				record.NameToInfo = record.Properties.ToDictionary(x => x.Tag, x => x);
+				record.NameAndRankToInfo = record.Properties.ToDictionary(x => new TaggedPropertyNameAndRank(x.Tag, x.ParentRecords.Length), x => x);
 
 				// Try to save the record info, or get the version that's already in the cache
 				if (!s_recordTypeToInfo.TryAdd(recordType, record))
