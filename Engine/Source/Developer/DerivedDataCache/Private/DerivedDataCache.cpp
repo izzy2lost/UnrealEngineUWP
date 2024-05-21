@@ -494,6 +494,7 @@ private:
 
 		if (ContinueCounter.fetch_sub(1, std::memory_order_acquire) == 1)
 		{
+			FRequestBarrier Barrier(Owner);
 			EndGet(EBuildThread::Caller);
 		}
 	}
