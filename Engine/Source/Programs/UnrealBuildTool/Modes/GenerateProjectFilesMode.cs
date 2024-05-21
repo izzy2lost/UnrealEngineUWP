@@ -329,7 +329,7 @@ namespace UnrealBuildTool
 				return true;
 			}
 
-			FileReference? InstalledProjectFile = UnrealBuildTool.GetInstalledProjectFile();
+			FileReference? InstalledProjectFile = Unreal.GetInstalledProjectFile();
 			if (InstalledProjectFile != null)
 			{
 				ProjectFile = InstalledProjectFile;

@@ -626,7 +626,7 @@ namespace UnrealBuildTool
 				}
 
 				// Don't check timestamps for individual binaries if we're using the installed version of UHT. It will always be up to date.
-				if (!UnrealBuildTool.IsFileInstalled(ReceiptFile.Location))
+				if (!Unreal.IsFileInstalled(ReceiptFile.Location))
 				{
 					TargetReceipt? Receipt;
 					if (!TargetReceipt.TryRead(ReceiptPath, out Receipt))

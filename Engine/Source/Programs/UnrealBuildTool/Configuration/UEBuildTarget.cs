@@ -2489,7 +2489,7 @@ namespace UnrealBuildTool
 			List<UEBuildBinary> OriginalBinaries = Binaries;
 
 			// For installed builds, filter out all the binaries that aren't in mods
-			if (UnrealBuildTool.IsProjectInstalled())
+			if (Unreal.IsProjectInstalled())
 			{
 				List<DirectoryReference> ModDirectories = EnabledPlugins!.Where(x => x.Type == PluginType.Mod).Select(x => x.Directory).ToList();
 
@@ -2626,7 +2626,7 @@ namespace UnrealBuildTool
 			if (!ShouldCompileMonolithic() & !Rules.bFormalBuild && Platform.IsInGroup(UnrealPlatformGroup.Windows))
 			{
 				FileReference DefaultResourceLocation = FileReference.Combine(Unreal.EngineDirectory, "Build", "Windows", "Resources", "Default.rc2");
-				if (!UnrealBuildTool.IsFileInstalled(DefaultResourceLocation))
+				if (!Unreal.IsFileInstalled(DefaultResourceLocation))
 				{
 					CppCompileEnvironment DefaultResourceCompileEnvironment = new CppCompileEnvironment(GlobalCompileEnvironment);
 
@@ -2685,7 +2685,7 @@ namespace UnrealBuildTool
 
 			foreach (KeyValuePair<FileReference, FileReference> Pair in RuntimeDependencyTargetFileToSourceFile)
 			{
-				if (!UnrealBuildTool.IsFileInstalled(Pair.Key))
+				if (!Unreal.IsFileInstalled(Pair.Key))
 				{
 					Makefile.OutputItems.Add(MakefileBuilder.CreateCopyAction(Pair.Value, Pair.Key));
 				}
@@ -2764,7 +2764,7 @@ namespace UnrealBuildTool
 			// Remove any installed build products that don't exist. They may be part of an optional install.
 			if (Unreal.IsEngineInstalled())
 			{
-				BuildProducts.RemoveAll(x => UnrealBuildTool.IsFileInstalled(x.Key) && !FileReference.Exists(x.Key));
+				BuildProducts.RemoveAll(x => Unreal.IsFileInstalled(x.Key) && !FileReference.Exists(x.Key));
 			}
 
 			// Make sure all the checked headers were valid
@@ -3078,7 +3078,7 @@ namespace UnrealBuildTool
 				ProducedItems.Add(Info.ReceiptFile);
 			}
 
-			if (!ProducedItems.Any(x => UnrealBuildTool.IsFileInstalled(x)))
+			if (!ProducedItems.Any(x => Unreal.IsFileInstalled(x)))
 			{
 				TargetMakefile Makefile = MakefileBuilder.Makefile;
 
@@ -3840,7 +3840,7 @@ namespace UnrealBuildTool
 					List<UEBuildModule> GameModules = Binary.FindHotReloadModules();
 					if (GameModules != null && GameModules.Count > 0)
 					{
-						if (!UnrealBuildTool.IsProjectInstalled() || EnabledPlugins!.Where(x => x.Type == PluginType.Mod).Any(x => Binary.OutputFilePaths[0].IsUnderDirectory(x.Directory)))
+						if (!Unreal.IsProjectInstalled() || EnabledPlugins!.Where(x => x.Type == PluginType.Mod).Any(x => Binary.OutputFilePaths[0].IsUnderDirectory(x.Directory)))
 						{
 							HotReloadModuleNames.UnionWith(GameModules.OfType<UEBuildModuleCPP>().Where(x => !x.Rules.bUsePrecompiled).Select(x => x.Name));
 						}

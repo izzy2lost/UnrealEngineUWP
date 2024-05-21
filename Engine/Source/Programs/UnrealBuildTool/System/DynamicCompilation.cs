@@ -33,7 +33,7 @@ namespace UnrealBuildTool
 		private static bool RequiresCompilation(IEnumerable<FileReference> SourceFiles, FileReference AssemblyManifestFilePath, FileReference OutputAssemblyPath, ILogger Logger)
 		{
 			// Do not compile the file if it's installed
-			if (UnrealBuildTool.IsFileInstalled(OutputAssemblyPath))
+			if (Unreal.IsFileInstalled(OutputAssemblyPath))
 			{
 				Logger.LogDebug("Skipping {OutputAssemblyPath}: File is installed", OutputAssemblyPath);
 				return false;

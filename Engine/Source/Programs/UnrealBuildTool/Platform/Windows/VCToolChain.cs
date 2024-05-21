@@ -1666,7 +1666,7 @@ namespace UnrealBuildTool
 			if (SourceFile.HasExtension(".natvis") || SourceFile.HasExtension(".natstepfilter"))
 			{
 				FileReference IntermediateFile = FileReference.Combine(IntermediateDirectory, SourceFile.Name);
-				if (!UnrealBuildTool.IsFileInstalled(IntermediateFile))
+				if (!Unreal.IsFileInstalled(IntermediateFile))
 				{
 					FileItem Item = FileItem.GetItemByFileReference(IntermediateFile);
 					Graph.CreateCopyAction(SourceFile, Item);

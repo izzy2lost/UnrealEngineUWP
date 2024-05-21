@@ -638,9 +638,9 @@ namespace UnrealBuildTool
 				}
 			}
 
-			if (UnrealBuildTool.IsProjectInstalled())
+			if (Unreal.IsProjectInstalled())
 			{
-				ProjectFile = UnrealBuildTool.GetInstalledProjectFile()!;
+				ProjectFile = Unreal.GetInstalledProjectFile()!;
 				return true;
 			}
 

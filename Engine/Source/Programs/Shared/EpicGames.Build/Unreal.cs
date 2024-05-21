@@ -196,6 +196,16 @@ namespace UnrealBuildBase
 		static private bool? bIsEngineInstalled;
 
 		/// <summary>
+		/// Whether we're running with an installed project (ie. a mod kit)
+		/// </summary>
+		static private bool? bIsProjectInstalled;
+
+		/// <summary>
+		/// If we are running with an installed project, specifies the path to it
+		/// </summary>
+		static private FileReference? InstalledProjectFile;
+
+		/// <summary>
 		/// Returns where another platform's Dotnet is located
 		/// </summary>
 		/// <param name="HostPlatform"></param>
@@ -206,7 +216,7 @@ namespace UnrealBuildBase
 		}
 
 		/// <summary>
-		/// Returns true of UnrealBuildTool is running on a build machine
+		/// Returns true if the application is running on a build machine
 		/// </summary>
 		/// <returns>True if running on a build machine</returns>
 		static public bool IsBuildMachine()
@@ -219,7 +229,7 @@ namespace UnrealBuildBase
 		}
 
 		/// <summary>
-		/// Returns true if UnrealBuildTool is running using installed Engine components
+		/// Returns true if the application is running using installed Engine components
 		/// </summary>
 		/// <returns>True if running using installed Engine components</returns>
 		static public bool IsEngineInstalled()
@@ -231,6 +241,56 @@ namespace UnrealBuildBase
 			return bIsEngineInstalled.Value;
 		}
 
+		/// <summary>
+		/// Returns true if the application is running using an installed project (ie. a mod kit)
+		/// </summary>
+		/// <returns>True if running using an installed project</returns>
+		public static bool IsProjectInstalled()
+		{
+			if (!bIsProjectInstalled.HasValue)
+			{
+				FileReference InstalledProjectLocationFile = FileReference.Combine(EngineDirectory, "Build", "InstalledProjectBuild.txt");
+				if (FileReference.Exists(InstalledProjectLocationFile))
+				{
+					InstalledProjectFile = FileReference.Combine(RootDirectory, FileReference.ReadAllText(InstalledProjectLocationFile).Trim());
+					bIsProjectInstalled = true;
+				}
+				else
+				{
+					InstalledProjectFile = null;
+					bIsProjectInstalled = false;
+				}
+			}
+			return bIsProjectInstalled.Value;
+		}
+
+		/// <summary>
+		/// Gets the installed project file
+		/// </summary>
+		/// <returns>Location of the installed project file</returns>
+		public static FileReference? GetInstalledProjectFile()
+		{
+			return IsProjectInstalled() ? InstalledProjectFile : null;
+		}
+
+		/// <summary>
+		/// Checks whether the given file is under an installed directory, and should not be overridden
+		/// </summary>
+		/// <param name="File">File to test</param>
+		/// <returns>True if the file is part of the installed distribution, false otherwise</returns>
+		public static bool IsFileInstalled(FileReference File)
+		{
+			if (IsEngineInstalled() && File.IsUnderDirectory(EngineDirectory))
+			{
+				return true;
+			}
+			if (IsProjectInstalled() && File.IsUnderDirectory(InstalledProjectFile!.Directory))
+			{
+				return true;
+			}
+			return false;
+		}
+
 		public static class LocationOverride
 		{
 			/// <summary>
@@ -238,7 +298,6 @@ namespace UnrealBuildBase
 			/// </summary>
 			public static DirectoryReference? RootDirectory = null;
 		}
-
 
 		// A subset of the functionality in DataDrivenPlatformInfo.GetAllPlatformInfos() - finds the DataDrivenPlatformInfo.ini files and records their existence, but does not parse them
 		// (perhaps DataDrivenPlatformInfo.GetAllPlatformInfos() could be modified to use this data to avoid an additional search through the filesystem)

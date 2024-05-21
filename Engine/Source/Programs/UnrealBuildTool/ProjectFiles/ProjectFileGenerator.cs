@@ -2911,7 +2911,7 @@ namespace UnrealBuildTool
 					ProjectFile ProjectFile = FindOrAddProject(ProjectFilePath, BaseFolder, IncludeInGeneratedProjects: true, bAlreadyExisted: out bProjectAlreadyExisted);
 					ProjectFile.IsForeignProject = CheckProjectFile != null && !NativeProjects.IsNativeProject(CheckProjectFile, Logger);
 					ProjectFile.IsGeneratedProject = true;
-					ProjectFile.IsStubProject = UnrealBuildTool.IsProjectInstalled();
+					ProjectFile.IsStubProject = Unreal.IsProjectInstalled();
 					ProjectFile.IsHybridContentOnlyProject = CheckProjectFile != null && NativeProjects.IsHybridContentOnlyProject(CheckProjectFile, Logger);
 					if (TargetRulesObject.bBuildInSolutionByDefault.HasValue)
 					{

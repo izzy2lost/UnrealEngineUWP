@@ -49,16 +49,6 @@ namespace UnrealBuildTool
 		public static System.Collections.IDictionary? InitialEnvironment;
 
 		/// <summary>
-		/// Whether we're running with an installed project
-		/// </summary>
-		private static bool? bIsProjectInstalled;
-
-		/// <summary>
-		/// If we are running with an installed project, specifies the path to it
-		/// </summary>
-		static FileReference? InstalledProjectFile;
-
-		/// <summary>
 		/// The full name of the Engine/Source directory
 		/// </summary>
 		[Obsolete("Replace with Unreal.EngineSourceDirectory")]
@@ -140,58 +130,23 @@ namespace UnrealBuildTool
 		/// Returns true if UnrealBuildTool is running using an installed project (ie. a mod kit)
 		/// </summary>
 		/// <returns>True if running using an installed project</returns>
-		public static bool IsProjectInstalled()
-		{
-			if (!bIsProjectInstalled.HasValue)
-			{
-				FileReference InstalledProjectLocationFile = FileReference.Combine(Unreal.RootDirectory, "Engine", "Build", "InstalledProjectBuild.txt");
-				if (FileReference.Exists(InstalledProjectLocationFile))
-				{
-					InstalledProjectFile = FileReference.Combine(Unreal.RootDirectory, File.ReadAllText(InstalledProjectLocationFile.FullName).Trim());
-					bIsProjectInstalled = true;
-				}
-				else
-				{
-					InstalledProjectFile = null;
-					bIsProjectInstalled = false;
-				}
-			}
-			return bIsProjectInstalled.Value;
-		}
+		[Obsolete("Deprecated in UE5.5 - use Unreal.IsProjectInstalled")]
+		public static bool IsProjectInstalled() => Unreal.IsProjectInstalled();
 
 		/// <summary>
 		/// Gets the installed project file
 		/// </summary>
 		/// <returns>Location of the installed project file</returns>
-		public static FileReference? GetInstalledProjectFile()
-		{
-			if (IsProjectInstalled())
-			{
-				return InstalledProjectFile;
-			}
-			else
-			{
-				return null;
-			}
-		}
+		[Obsolete("Deprecated in UE5.5 - use Unreal.GetInstalledProjectFile")]
+		public static FileReference? GetInstalledProjectFile() => Unreal.GetInstalledProjectFile();
 
 		/// <summary>
 		/// Checks whether the given file is under an installed directory, and should not be overridden
 		/// </summary>
 		/// <param name="File">File to test</param>
 		/// <returns>True if the file is part of the installed distribution, false otherwise</returns>
-		public static bool IsFileInstalled(FileReference File)
-		{
-			if (Unreal.IsEngineInstalled() && File.IsUnderDirectory(Unreal.EngineDirectory))
-			{
-				return true;
-			}
-			if (IsProjectInstalled() && File.IsUnderDirectory(InstalledProjectFile!.Directory))
-			{
-				return true;
-			}
-			return false;
-		}
+		[Obsolete("Deprecated in UE5.5 - use Unreal.IsFileInstalled")]
+		public static bool IsFileInstalled(FileReference File) => Unreal.IsFileInstalled(File);
 
 		/// <summary>
 		/// Gets the absolute path to the UBT assembly.
