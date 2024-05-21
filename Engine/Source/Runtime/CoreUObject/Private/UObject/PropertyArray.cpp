@@ -986,6 +986,7 @@ const TCHAR* FArrayProperty::ImportTextInnerItem(const TCHAR* Buffer, const FPro
 		{
 			ArrayHelper->EmptyValues();
 		}
+		++Buffer; // consume closing parenthesis
 		return Buffer;
 	}
 
