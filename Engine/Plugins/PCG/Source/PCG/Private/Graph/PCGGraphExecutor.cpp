@@ -2077,12 +2077,18 @@ namespace PCGGraphExecutor
 				const AActor* ComponentActor = InContext->SourceComponent->GetOwner();
 				if (ComponentActor)
 				{
-					FPCGGridDescriptor GridDescriptor = InContext->SourceComponent->GetGridDescriptor(FromGridSize);
+					const UPCGComponent* OriginalComponent = InContext->SourceComponent->GetOriginalComponent();
+					if (!ensure(OriginalComponent))
+					{
+						return false;
+					}
+
+					const FPCGGridDescriptor GridDescriptor = OriginalComponent->GetGridDescriptor(FromGridSize);
 
 					// Get grid coords using the parent grid (FromGridSize).
 					const FIntVector CellCoords = UPCGActorHelpers::GetCellCoord(ComponentActor->GetActorLocation(), GridDescriptor.GetGridSize(), GridDescriptor.Is2DGrid());
 
-					ComponentWithData = Subsystem->GetLocalComponent(GridDescriptor, CellCoords, InContext->SourceComponent->GetOriginalComponent());
+					ComponentWithData = Subsystem->GetLocalComponent(GridDescriptor, CellCoords, OriginalComponent);
 				}
 			}
 

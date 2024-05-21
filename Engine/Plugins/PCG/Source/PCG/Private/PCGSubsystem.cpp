@@ -1086,6 +1086,8 @@ void UPCGSubsystem::CleanupLocalComponentsImmediate(UPCGComponent* InOriginalCom
 // deprecated
 UPCGComponent* UPCGSubsystem::GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent, bool bTransient) const
 {
+	check(InOriginalComponent);
+
 	FPCGGridDescriptor GridDescriptor = FPCGGridDescriptor()
 		.SetGridSize(GridSize)
 		.SetIsRuntime(bTransient)
@@ -1116,6 +1118,7 @@ APCGPartitionActor* UPCGSubsystem::FindOrCreatePCGPartitionActor(const FGuid& Gu
 
 UPCGComponent* UPCGSubsystem::GetLocalComponent(const FPCGGridDescriptor& GridDescriptor, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent) const
 {
+	check(InOriginalComponent);
 	return ActorAndComponentMapping.GetLocalComponent(GridDescriptor, CellCoords, InOriginalComponent);
 }
 

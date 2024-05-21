@@ -146,7 +146,11 @@ FPCGGridDescriptor UPCGComponent::GetGridDescriptorInternal(uint32 GridSize, boo
 	// Return owner descriptor in case of Partition Actors
 	if (APCGPartitionActor* PartitionActorOwner = Cast<APCGPartitionActor>(GetOwner()))
 	{
-		return PartitionActorOwner->GetGridDescriptor();
+		const FPCGGridDescriptor GridDescriptor = PartitionActorOwner->GetGridDescriptor();
+		// If this is a local component, we only serve grid descriptors of the same grid size.
+		check(GridSize == GridDescriptor.GetGridSize());
+
+		return GridDescriptor;
 	}
 
 	FPCGGridDescriptor PCGGridDescriptor = FPCGGridDescriptor()
