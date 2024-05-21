@@ -2412,8 +2412,19 @@ void FDynamicSkelMeshObjectDataGPUSkin::InitDynamicSkelMeshObjectDataGPUSkin(
 	RayTracingLODIndex = FMath::Clamp(FMath::Max(LODIndex + GetRayTracingSkeletalMeshGlobalLODBias(), InMeshObject->RayTracingMinLOD), LODIndex, InSkeletalMeshRenderData->LODRenderData.Num() - 1);
 #endif
 
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	check(!MeshComponentSpaceTransforms.Num());
+	// append instead of equals to avoid alloc
+	MeshComponentSpaceTransforms.Append(InMeshComponent->GetComponentSpaceTransforms());
+
+	const bool bCalculateComponentSpaceTransformsFromLeader = MeshComponentSpaceTransforms.IsEmpty(); // This will be empty for follower components.
+	TArray<FTransform>* const LeaderBoneMappedMeshComponentSpaceTransforms = bCalculateComponentSpaceTransformsFromLeader ? &MeshComponentSpaceTransforms : nullptr;
+#else
+	TArray<FTransform>* const LeaderBoneMappedMeshComponentSpaceTransforms = nullptr;
+#endif
+
 	// update ReferenceToLocal
-	UpdateRefToLocalMatrices( ReferenceToLocal, InMeshComponent, InSkeletalMeshRenderData, LODIndex, ExtraRequiredBoneIndices );
+	UpdateRefToLocalMatrices( ReferenceToLocal, InMeshComponent, InSkeletalMeshRenderData, LODIndex, ExtraRequiredBoneIndices, LeaderBoneMappedMeshComponentSpaceTransforms);
 #if RHI_RAYTRACING
 	if (RayTracingLODIndex != LODIndex)
 	{
@@ -2446,12 +2457,6 @@ void FDynamicSkelMeshObjectDataGPUSkin::InitDynamicSkelMeshObjectDataGPUSkin(
 	#endif
 		break;
 	}
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	check(!MeshComponentSpaceTransforms.Num());
-	// append instead of equals to avoid alloc
-	MeshComponentSpaceTransforms.Append(InMeshComponent->GetComponentSpaceTransforms());
-#endif
 	SectionIdsUseByActiveMorphTargets.Reset();
 
 	// If we have external morph targets, just include all sections.

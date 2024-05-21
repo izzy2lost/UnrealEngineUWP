@@ -531,7 +531,16 @@ FDynamicSkelMeshObjectDataCPUSkin::FDynamicSkelMeshObjectDataCPUSkin(
 ,	MorphTargetWeights(InMorphTargetWeights)
 ,	ClothBlendWeight(0.0f)
 {
-	UpdateRefToLocalMatrices( ReferenceToLocal, InMeshComponent, InSkelMeshRenderData, LODIndex );
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	MeshComponentSpaceTransforms = InMeshComponent->GetComponentSpaceTransforms();
+
+	const bool bCalculateComponentSpaceTransformsFromLeader = MeshComponentSpaceTransforms.IsEmpty(); // This will be empty for follower components.
+	TArray<FTransform>* const LeaderBoneMappedMeshComponentSpaceTransforms = bCalculateComponentSpaceTransformsFromLeader ? &MeshComponentSpaceTransforms : nullptr;
+#else
+	TArray<FTransform>* const LeaderBoneMappedMeshComponentSpaceTransforms = nullptr;
+#endif
+
+	UpdateRefToLocalMatrices( ReferenceToLocal, InMeshComponent, InSkelMeshRenderData, LODIndex, nullptr, LeaderBoneMappedMeshComponentSpaceTransforms);
 
 	// Update the clothing simulation mesh positions and normals
 	FMatrix LocalToWorld;
@@ -542,10 +551,6 @@ FDynamicSkelMeshObjectDataCPUSkin::FDynamicSkelMeshObjectDataCPUSkin(
 	{
 		ClothBlendWeight = 0.f;
 	}
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	MeshComponentSpaceTransforms = InMeshComponent->GetComponentSpaceTransforms();
-#endif
 }
 
 FDynamicSkelMeshObjectDataCPUSkin::~FDynamicSkelMeshObjectDataCPUSkin() = default;

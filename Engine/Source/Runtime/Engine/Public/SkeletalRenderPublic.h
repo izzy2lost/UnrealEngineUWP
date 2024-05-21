@@ -134,7 +134,7 @@ public:
 	virtual bool IsNaniteMesh() const { return false; }
 
 	/** 
-	 *	Get the array of component-space bone transforms. 
+	 *	Get the array of component-space bone transforms. May include transforms that are inherited by follower components.
 	 *	Not safe to hold this point between frames, because it exists in dynamic data passed from main thread.
 	 */
 	virtual TArray<FTransform>* GetComponentSpaceTransforms() const = 0;

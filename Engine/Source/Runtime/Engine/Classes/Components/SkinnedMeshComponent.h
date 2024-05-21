@@ -531,7 +531,14 @@ public:
 
 #if UE_ENABLE_DEBUG_DRAWING
 	/** Get whether to draw this mesh's debug skeleton */
-	bool ShouldDrawDebugSkeleton() const { return bDrawDebugSkeleton; }
+	bool ShouldDrawDebugSkeleton() const
+	{
+		return bDrawDebugSkeleton
+#if WITH_EDITORONLY_DATA
+		|| bDisplayBones
+#endif
+		; 
+	}
 
 	/** Set whether to draw this mesh's debug skeleton */
 	void SetDrawDebugSkeleton(bool bInDraw) { bDrawDebugSkeleton = bInDraw; }
@@ -717,8 +724,8 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	/** Draw the skeleton hierarchy for this skel mesh. */
-	UPROPERTY()
-	uint8 bDisplayBones_DEPRECATED:1;
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Rendering)
+	uint8 bDisplayBones:1;
 #endif
 
 	/** Disable Morphtarget for this component. */

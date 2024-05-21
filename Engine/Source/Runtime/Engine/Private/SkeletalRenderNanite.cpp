@@ -23,7 +23,17 @@ FDynamicSkelMeshObjectDataNanite::FDynamicSkelMeshObjectDataNanite(
 )
 :	LODIndex(InLODIndex)
 {
-	UpdateRefToLocalMatrices(ReferenceToLocal, InComponent, InRenderData, LODIndex);
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	ComponentSpaceTransforms = InComponent->GetComponentSpaceTransforms();
+
+	const bool bCalculateComponentSpaceTransformsFromLeader = ComponentSpaceTransforms.IsEmpty(); // This will be empty for follower components.
+	TArray<FTransform>* const LeaderBoneMappedMeshComponentSpaceTransforms = bCalculateComponentSpaceTransformsFromLeader ? &ComponentSpaceTransforms : nullptr;
+#else
+	TArray<FTransform>* const LeaderBoneMappedMeshComponentSpaceTransforms = nullptr;
+#endif
+
+	UpdateRefToLocalMatrices(ReferenceToLocal, InComponent, InRenderData, LODIndex, nullptr, LeaderBoneMappedMeshComponentSpaceTransforms);
 	UpdateBonesRemovedByLOD(ReferenceToLocal, InComponent, ETransformsToUpdate::Current);
 
 	CurrentBoneTransforms.SetNumUninitialized(ReferenceToLocal.Num());
@@ -71,10 +81,6 @@ FDynamicSkelMeshObjectDataNanite::FDynamicSkelMeshObjectDataNanite(
 
 		TransposeTransforms(PreviousBoneTransformsPtr, PrevReferenceToLocalPtr, PrevReferenceToLocalCount);
 	}
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	ComponentSpaceTransforms = InComponent->GetComponentSpaceTransforms();
-#endif
 }
 
 FDynamicSkelMeshObjectDataNanite::~FDynamicSkelMeshObjectDataNanite() = default;
