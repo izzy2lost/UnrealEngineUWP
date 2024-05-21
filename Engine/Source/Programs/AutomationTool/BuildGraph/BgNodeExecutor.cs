@@ -229,7 +229,7 @@ namespace AutomationTool
 						object? FieldValue = ParseValue(Value, Parameter.ValueType);
 						if (FieldValue != null)
 						{
-							Parameter.FieldInfo.SetValue(ParametersObject, FieldValue);
+							Parameter.SetValue(ParametersObject, FieldValue);
 						}
 						else if (!Parameter.Optional)
 						{
@@ -239,11 +239,11 @@ namespace AutomationTool
 					else
 					{
 						// Get the collection, or create one if necessary
-						object? CollectionValue = Parameter.FieldInfo.GetValue(ParametersObject);
+						object? CollectionValue = Parameter.GetValue(ParametersObject);
 						if (CollectionValue == null)
 						{
-							CollectionValue = Activator.CreateInstance(Parameter.FieldInfo.FieldType)!;
-							Parameter.FieldInfo.SetValue(ParametersObject, CollectionValue);
+							CollectionValue = Activator.CreateInstance(Parameter.ParameterType)!;
+							Parameter.SetValue(ParametersObject, CollectionValue);
 						}
 
 						// Parse the values and add them to the collection

@@ -161,6 +161,18 @@ namespace AutomationTool
 					}
 				}
 			}
+			foreach (PropertyInfo Property in Parameters.GetType().GetProperties())
+			{
+				TaskParameterAttribute? ParameterAttribute = Property.GetCustomAttribute<TaskParameterAttribute>();
+				if (ParameterAttribute != null)
+				{
+					object? Value = Property.GetValue(Parameters);
+					if (Value != null)
+					{
+						Writer.WriteAttributeString(Property.Name, Value.ToString());
+					}
+				}
+			}
 
 			Writer.WriteEndElement();
 		}

@@ -27,13 +27,13 @@ namespace AutomationTool.Tasks
 		/// File to update with secrets
 		/// </summary>
 		[TaskParameter]
-		public string File = String.Empty;
+		public string File { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Pairs of strings and secret names to expand in the text file, in the form SOURCE_TEXT=secret-name;SOURCE_TEXT_2=secret-name-2
 		/// </summary>
 		[TaskParameter]
-		public string Replace = String.Empty;
+		public string Replace { get; set; } = String.Empty;
 	}
 
 	/// <summary>
@@ -107,7 +107,7 @@ namespace AutomationTool.Tasks
 			if (secretToReplacementInfo.Count > 0)
 			{
 				ServiceCollection serviceCollection = new ServiceCollection();
-				serviceCollection.AddHorde(options => options.AllowAuthPrompt = !CommandUtils.IsBuildMachine);
+				serviceCollection.AddHorde(options => { options.ServerUrl = new Uri("https://horde.devtools.epicgames.com"); options.AllowAuthPrompt = !CommandUtils.IsBuildMachine; });
 
 				await using (ServiceProvider serviceProvider = serviceCollection.BuildServiceProvider())
 				{

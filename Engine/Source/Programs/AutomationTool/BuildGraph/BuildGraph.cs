@@ -26,21 +26,64 @@ namespace AutomationTool
 	/// <summary>
 	/// Implementation of ScriptTaskParameter corresponding to a field in a parameter class
 	/// </summary>
-	class ScriptTaskParameterBinding : BgScriptTaskParameter
+	abstract class ScriptTaskParameterBinding : BgScriptTaskParameter
 	{
-		/// <summary>
-		/// Field for this parameter
-		/// </summary>
-		public FieldInfo FieldInfo { get; }
+		public abstract Type ParameterType { get; }
 
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public ScriptTaskParameterBinding(string Name, FieldInfo FieldInfo, TaskParameterValidationType ValidationType, bool bOptional)
-			: base(Name, FieldInfo.FieldType, ValidationType, bOptional)
+		public ScriptTaskParameterBinding(string Name, Type ValueType, TaskParameterValidationType ValidationType, bool bOptional)
+			: base(Name, ValueType, ValidationType, bOptional)
 		{
-			this.FieldInfo = FieldInfo;
 		}
+
+		public abstract string GetXmlDocName();
+		public abstract object? GetValue(object SourceObject);
+		public abstract void SetValue(object TargetObject, object? Value);
+	}
+
+	class ScriptTaskParameterPropertyBinding : ScriptTaskParameterBinding
+	{
+		readonly PropertyInfo _propertyInfo;
+
+		public ScriptTaskParameterPropertyBinding(string name, PropertyInfo propertyInfo, TaskParameterValidationType validationType, bool optional)
+			: base(name, propertyInfo.PropertyType, validationType, optional)
+		{
+			_propertyInfo = propertyInfo;
+		}
+
+		public override Type ParameterType
+			=> _propertyInfo.PropertyType;
+
+		public override string GetXmlDocName()
+			=> "P:" + _propertyInfo.DeclaringType!.FullName + "." + Name;
+
+		public override object? GetValue(object SourceObject)
+			=> _propertyInfo.GetValue(SourceObject);
+
+		public override void SetValue(object TargetObject, object? Value)
+			=> _propertyInfo.SetValue(TargetObject, Value);
+	}
+
+	class ScriptTaskParameterFieldBinding : ScriptTaskParameterBinding
+	{
+		readonly FieldInfo _fieldInfo;
+
+		public ScriptTaskParameterFieldBinding(string name, FieldInfo fieldInfo, TaskParameterValidationType validationType, bool optional)
+			: base(name, fieldInfo.FieldType, validationType, optional)
+		{
+			_fieldInfo = fieldInfo;
+		}
+
+		public override Type ParameterType
+			=> _fieldInfo.FieldType;
+
+		public override string GetXmlDocName()
+			=> "F:" + _fieldInfo.DeclaringType!.FullName + "." + Name;
+
+		public override object? GetValue(object SourceObject)
+			=> _fieldInfo.GetValue(SourceObject);
+
+		public override void SetValue(object TargetObject, object? Value)
+			=> _fieldInfo.SetValue(TargetObject, Value);
 	}
 
 	/// <summary>
@@ -51,12 +94,12 @@ namespace AutomationTool
 		/// <summary>
 		/// Type of the task to construct with this info
 		/// </summary>
-		public Type TaskClass;
+		public Type TaskClass { get; }
 
 		/// <summary>
 		/// Type to construct with the parsed parameters
 		/// </summary>
-		public Type ParametersClass;
+		public Type ParametersClass { get; }
 
 		/// <summary>
 		/// Map from name to parameter
@@ -95,8 +138,16 @@ namespace AutomationTool
 					TaskParameterAttribute? ParameterAttribute = Field.GetCustomAttribute<TaskParameterAttribute>();
 					if (ParameterAttribute != null)
 					{
-						ScriptTaskParameters.Add(new ScriptTaskParameterBinding(Field.Name, Field, ParameterAttribute.ValidationType, ParameterAttribute.Optional));
+						ScriptTaskParameters.Add(new ScriptTaskParameterFieldBinding(Field.Name, Field, ParameterAttribute.ValidationType, ParameterAttribute.Optional));
 					}
+				}
+			}
+			foreach (PropertyInfo Property in ParametersClass.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+			{
+				TaskParameterAttribute? ParameterAttribute = Property.GetCustomAttribute<TaskParameterAttribute>();
+				if (ParameterAttribute != null)
+				{
+					ScriptTaskParameters.Add(new ScriptTaskParameterPropertyBinding(Property.Name, Property, ParameterAttribute.ValidationType, ParameterAttribute.Optional));
 				}
 			}
 			return ScriptTaskParameters;
@@ -1345,9 +1396,9 @@ namespace AutomationTool
 
 							// Get the documentation for this parameter
 							XmlElement? ParameterElement;
-							if (MemberNameToElement.TryGetValue("F:" + Parameter.FieldInfo.DeclaringType!.FullName + "." + Parameter.Name, out ParameterElement))
+							if (MemberNameToElement.TryGetValue(Parameter.GetXmlDocName(), out ParameterElement))
 							{
-								Type FieldType = Parameter.FieldInfo.FieldType;
+								Type FieldType = Parameter.ParameterType;
 								if (FieldType.IsGenericType && FieldType.GetGenericTypeDefinition() == typeof(Nullable<>))
 								{
 									FieldType = FieldType.GetGenericArguments()[0];
@@ -1461,9 +1512,9 @@ namespace AutomationTool
 
 							// Get the documentation for this parameter
 							XmlElement? ParameterElement;
-							if (MemberNameToElement.TryGetValue("F:" + Parameter.FieldInfo.DeclaringType!.FullName + "." + Parameter.Name, out ParameterElement))
+							if (MemberNameToElement.TryGetValue(Parameter.GetXmlDocName(), out ParameterElement))
 							{
-								string TypeName = Parameter.FieldInfo.FieldType.Name;
+								string TypeName = Parameter.ParameterType.Name;
 								if (Parameter.ValidationType != TaskParameterValidationType.Default)
 								{
 									StringBuilder NewTypeName = new StringBuilder(Parameter.ValidationType.ToString());
