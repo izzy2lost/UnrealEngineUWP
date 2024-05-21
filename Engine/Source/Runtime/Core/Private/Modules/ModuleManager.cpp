@@ -149,7 +149,7 @@ FModuleManager::FModuleManager(FPrivateToken)
 {
 	check(IsInGameThread());
 
-#if !IS_MONOLITHIC
+#if !IS_MONOLITHIC && !UE_MERGED_MODULES
 	// Modules bootstrapping is useful to avoid costly directory enumeration by reloading
 	// a serialized state of the module manager. Can only be used when run in the exact
 	// same context multiple times (i.e. starting multiple shader compile workers)
