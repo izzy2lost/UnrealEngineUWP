@@ -262,6 +262,8 @@ TypedElementDataStorage::TableHandle UTypedElementDatabaseCompatibility::FindBes
 template<bool bEnableTransactions>
 TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExplicitTransactionable(UObject* Object)
 {
+	check(IsInGameThread());
+
 	using namespace TypedElementDataStorage;
 
 	TypedElementRowHandle Result = FindRowWithCompatibleObjectExplicit(Object);

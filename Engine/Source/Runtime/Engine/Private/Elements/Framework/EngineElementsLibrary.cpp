@@ -45,7 +45,7 @@ void CreateEditorTypedElement(const ObjectClass* Object, TTypedElementOwnerStore
 {
 	if (GIsEditor && !Object->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
 	{
-		ElementOwnerStore.RegisterElementOwner(Object, CreateElement(Object));
+		ElementOwnerStore.FindOrRegisterElementOwner(Object, [Object, &CreateElement]() { return CreateElement(Object); });
 	}
 }
 

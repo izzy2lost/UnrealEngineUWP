@@ -408,7 +408,15 @@ void AActor::PostInitProperties()
 	Super::PostInitProperties();
 
 #if WITH_EDITOR
-	UEngineElementsLibrary::CreateEditorActorElement(this);
+	if (IsInGameThread())
+	{
+		// This will be executed in PostLoad instead during loading
+		UEngineElementsLibrary::CreateEditorActorElement(this);
+	}
+	else
+	{
+		check(IsInAsyncLoadingThread());
+	}
 #endif	// WITH_EDITOR
 
 	RemoteRole = (bReplicates ? ROLE_SimulatedProxy : ROLE_None);
@@ -935,6 +943,10 @@ void AActor::Serialize(FArchive& Ar)
 void AActor::PostLoad()
 {
 	Super::PostLoad();
+
+#if WITH_EDITOR
+	UEngineElementsLibrary::CreateEditorActorElement(this);
+#endif
 
 	// add ourselves to our Owner's Children array
 	if (Owner != nullptr)
