@@ -401,16 +401,14 @@ FMalloc* MemoryTrace_Create(FMalloc* InMalloc)
 	FMalloc* OutMalloc = MemoryTrace_CreateInternal(InMalloc, ArgC, ArgV);
 	::LocalFree(HLOCAL(ArgV));
 
-	if (OutMalloc != nullptr)
+	if (OutMalloc != InMalloc)
 	{
 #if defined(PLATFORM_SUPPORTS_TRACE_WIN32_VIRTUAL_MEMORY_HOOKS)
 		FVirtualWinApiHooks::Initialize(false);
 #endif
-
-		return OutMalloc;
 	}
 
-	return InMalloc;
+	return OutMalloc;
 }
 
 #include "Windows/HideWindowsPlatformTypes.h"
