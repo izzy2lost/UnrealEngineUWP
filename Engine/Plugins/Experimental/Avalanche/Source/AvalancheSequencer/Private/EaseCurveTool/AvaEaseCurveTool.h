@@ -8,7 +8,7 @@
 #include "Curves/KeyHandle.h"
 #include "EaseCurveTool/Widgets/SAvaEaseCurvePreset.h"
 #include "EditorUndoClient.h"
-#include "ScopedTransaction.h"
+#include "Internationalization/Text.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
@@ -81,11 +81,15 @@ public:
 	 * This is different from SetEaseCurveTangents_Internal in that it performs undo/redo transactions and
 	 * optionally sets the selected tangents in the actual sequence.
 	 */
-	void SetEaseCurveTangents(const FAvaEaseCurveTangents& InTangents, const EAvaEaseCurveToolOperation InOperation, const bool bInBroadcastUpdate, const bool bInSetSequencerTangents);
+	void SetEaseCurveTangents(const FAvaEaseCurveTangents& InTangents
+		, const EAvaEaseCurveToolOperation InOperation
+		, const bool bInBroadcastUpdate
+		, const bool bInSetSequencerTangents
+		, const FText& InTransactionText = NSLOCTEXT("AvaEaseCurveTool", "SetEaseCurveTangents", "Set Ease Curve Tangents"));
 
 	void ResetEaseCurveTangents(const EAvaEaseCurveToolOperation InOperation);
 
-	void FlattenOrStraightenTangents(const EAvaEaseCurveToolOperation InOperation, const bool bInFlattenTangents) const;
+	void FlattenOrStraightenTangents(const EAvaEaseCurveToolOperation InOperation, const bool bInFlattenTangents);
 
 	/** Creates a new external float curve from the internet curve editor curve. */
 	UCurveBase* CreateCurveAsset() const;

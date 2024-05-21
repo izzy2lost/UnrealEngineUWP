@@ -3,7 +3,6 @@
 #pragma once
 
 #include "Containers/EnumAsByte.h"
-#include "EaseCurveTool/AvaEaseCurveTangents.h"
 #include "Engine/DeveloperSettings.h"
 #include "Types/SlateEnums.h"
 #include "UObject/Object.h"
@@ -19,9 +18,6 @@ public:
 
 	int32 GetGraphSize() const { return GraphSize; }
 	void SetGraphSize(const int32 InSize) { GraphSize = InSize; }
-
-	EHorizontalAlignment GetGraphHAlign() const { return GraphHAlign.GetValue(); }
-	void SetGraphHAlign(const EHorizontalAlignment InHAlign) { GraphHAlign = InHAlign; }
 
 	bool GetGridSnap() const { return bGridSnap; }
 	void SetGridSnap(const bool bInGridSnap) { bGridSnap = bInGridSnap; }
@@ -48,10 +44,6 @@ private:
 	/** The height of the curve ease tool in the details panel. */
 	UPROPERTY(Config, EditAnywhere, Category = "EaseCurveTool", meta = (DisplayName = "Graph Size", UIMin = 64, ClampMin = 64, UIMax = 256, ClampMax = 256, Delta = 1))
 	int32 GraphSize = 140;
-
-	/** The horizontal alignment of the curve ease tool in the details panel. */
-	UPROPERTY(Config, EditAnywhere, Category = "EaseCurveTool", meta = (DisplayName = "Graph Horizontal Alignment"))
-	TEnumAsByte<EHorizontalAlignment> GraphHAlign = EHorizontalAlignment::HAlign_Fill;
 
 	/** If true, snaps tangents to grid. */
 	UPROPERTY(Config, EditAnywhere, Category = "EaseCurveTool", meta = (DisplayName = "Grid Snap"))

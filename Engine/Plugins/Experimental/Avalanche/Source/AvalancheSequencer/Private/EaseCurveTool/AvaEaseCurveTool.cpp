@@ -16,6 +16,7 @@
 #include "ISequencer.h"
 #include "ISettingsModule.h"
 #include "Math/UnrealMathUtility.h"
+#include "ScopedTransaction.h"
 #include "Settings/AvaSequencerSettings.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
@@ -112,15 +113,18 @@ void FAvaEaseCurveTool::SetEaseCurveTangents_Internal(const FAvaEaseCurveTangent
 	}
 }
 
-void FAvaEaseCurveTool::SetEaseCurveTangents(const FAvaEaseCurveTangents& InTangents, const EAvaEaseCurveToolOperation InOperation
-	, const bool bInBroadcastUpdate, const bool bInSetSequencerTangents)
+void FAvaEaseCurveTool::SetEaseCurveTangents(const FAvaEaseCurveTangents& InTangents
+	, const EAvaEaseCurveToolOperation InOperation
+	, const bool bInBroadcastUpdate
+	, const bool bInSetSequencerTangents
+	, const FText& InTransactionText)
 {
 	if (InTangents == GetEaseCurveTangents())
 	{
 		return;
 	}
 
-	const FScopedTransaction Transaction(LOCTEXT("SetEaseCurveTangents", "Set Ease Curve Tangents"), !GIsTransacting);
+	const FScopedTransaction Transaction(InTransactionText, !GIsTransacting);
 	EaseCurve->Modify();
 
 	SetEaseCurveTangents_Internal(InTangents, InOperation, bInBroadcastUpdate);
@@ -129,6 +133,8 @@ void FAvaEaseCurveTool::SetEaseCurveTangents(const FAvaEaseCurveTangents& InTang
 	{
 		SetSequencerKeySelectionTangents(InTangents, InOperation);
 	}
+
+	KeyCache = FAvaEaseCurveKeySelection(AvaSequencerWeak.Pin());
 }
 
 void FAvaEaseCurveTool::ResetEaseCurveTangents(const EAvaEaseCurveToolOperation InOperation)
@@ -152,11 +158,16 @@ void FAvaEaseCurveTool::ResetEaseCurveTangents(const EAvaEaseCurveToolOperation 
 	EaseCurve->ModifyOwner();
 
 	const FAvaEaseCurveTangents ZeroTangents;
-	SetEaseCurveTangents_Internal(ZeroTangents, InOperation, /*bInBroadcastUpdate=*/true);
-	SetSequencerKeySelectionTangents(ZeroTangents, InOperation);
+	SetEaseCurveTangents(ZeroTangents, InOperation, /*bInBroadcastUpdate=*/true, /*bInSetSequencerTangents=*/true, TransactionText);
+
+	// Update ease curve combobox widget and zoom graph editor
+	if (ToolWidget.IsValid())
+	{
+		ToolWidget->SetTangents(ZeroTangents, InOperation, /*bInSetEaseCurve=*/false, /*bInBroadcastUpdate=*/false, /*bInSetSequencerTangents=*/false);
+	}
 }
 
-void FAvaEaseCurveTool::FlattenOrStraightenTangents(const EAvaEaseCurveToolOperation InOperation, const bool bInFlattenTangents) const
+void FAvaEaseCurveTool::FlattenOrStraightenTangents(const EAvaEaseCurveToolOperation InOperation, const bool bInFlattenTangents)
 {
 	FText TransactionText;
 	if (bInFlattenTangents)
@@ -201,7 +212,14 @@ void FAvaEaseCurveTool::FlattenOrStraightenTangents(const EAvaEaseCurveToolOpera
 		EaseCurve->FlattenOrStraightenTangents(EaseCurve->GetEndKeyHandle(), bInFlattenTangents);
 	}
 
-	EaseCurve->BroadcastUpdate();
+	const FAvaEaseCurveTangents NewTangents = EaseCurve->GetTangents();
+	SetEaseCurveTangents(NewTangents, InOperation, /*bInBroadcastUpdate=*/true, /*bInSetSequencerTangents=*/true, TransactionText);
+
+	// Update ease curve combobox widget and zoom graph editor
+	if (ToolWidget.IsValid())
+	{
+		ToolWidget->SetTangents(NewTangents, InOperation, /*bInSetEaseCurve=*/false, /*bInBroadcastUpdate=*/false, /*bInSetSequencerTangents=*/false);
+	}
 }
 
 void FAvaEaseCurveTool::ApplyQuickEaseToSequencerKeySelections(const EAvaEaseCurveToolOperation InOperation)
@@ -467,9 +485,11 @@ void FAvaEaseCurveTool::PostRedo(bool bInSuccess)
 
 void FAvaEaseCurveTool::OpenToolSettings() const
 {
-	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>(TEXT("Settings")))
+	if (ISettingsModule* const SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>(TEXT("Settings")))
 	{
-		SettingsModule->ShowViewer(TEXT("Editor"), TEXT("Motion Design"), TEXT("Ease Curve Tool"));
+		const UAvaEaseCurveToolSettings* const Settings = GetDefault<UAvaEaseCurveToolSettings>();
+		check(IsValid(Settings));
+		SettingsModule->ShowViewer(Settings->GetContainerName(), Settings->GetCategoryName(), Settings->GetSectionName());
 	}
 }
 

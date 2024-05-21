@@ -39,6 +39,8 @@ void SAvaEaseCurveTool::Construct(const FArguments& InArgs, const TSharedRef<FAv
 
 	EaseCurveTool = InEaseCurveTool;
 
+	BindCommands();
+
 	ChildSlot
 		[
 			SNew(SVerticalBox)
@@ -84,8 +86,6 @@ void SAvaEaseCurveTool::Construct(const FArguments& InArgs, const TSharedRef<FAv
 					})
 			]
 		];
-
-	BindCommands();
 
 	if (GEditor)
 	{
