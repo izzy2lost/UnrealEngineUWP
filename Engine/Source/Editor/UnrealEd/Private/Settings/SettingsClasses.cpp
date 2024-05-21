@@ -513,7 +513,10 @@ ULevelEditorPlaySettings::ULevelEditorPlaySettings( const FObjectInitializer& Ob
 	ServerDebugDrawingColorTintStrength = 0.0f;
 	ServerDebugDrawingColorTint = FLinearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
-	bOneHeadsetEachProcess = false;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	bOneHeadsetEachProcess_DEPRECATED = false;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	bHMDForPrimaryProcessOnly = true;
 }
 
 void ULevelEditorPlaySettings::PushDebugDrawingSettings()
@@ -582,6 +585,15 @@ void ULevelEditorPlaySettings::PostEditChangeProperty(struct FPropertyChangedEve
 void ULevelEditorPlaySettings::PostInitProperties()
 {
 	Super::PostInitProperties();
+
+	// If the deprecated bOneHeadsetEachProcess setting is on, translate it to bHMDForPrimaryProcessOnly value
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (bOneHeadsetEachProcess_DEPRECATED && !GetClass()->HasAnyClassFlags(EClassFlags::CLASS_Abstract))
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	{
+		bHMDForPrimaryProcessOnly = false;
+		UpdateSinglePropertyInConfigFile(GetClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(ULevelEditorPlaySettings, bHMDForPrimaryProcessOnly)), GEditorPerProjectIni);
+	};
 
 	NewWindowWidth = FMath::Max(0, NewWindowWidth);
 	NewWindowHeight = FMath::Max(0, NewWindowHeight);
