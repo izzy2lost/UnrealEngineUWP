@@ -20,6 +20,10 @@
 		{
 			"Name": "AnimNext",
 			"Enabled": true
+		},
+		{
+			"Name": "Chooser",
+			"Enabled": true
 		}
 	],
 	"Modules" :

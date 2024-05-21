@@ -14,6 +14,8 @@ namespace UnrealBuildTool.Rules
 					"RigVM",
 					"Engine",
 					"AnimNext",
+					"Chooser",
+					"StructUtils",
 				}
 			);
 		}
