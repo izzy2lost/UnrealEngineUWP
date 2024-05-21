@@ -16,7 +16,13 @@ struct FCellCoord
 
 	static FCellCoord Invalid;
 
-	inline FString ToString() const
+	inline FString ToString2D() const
+	{
+		check(!Z);
+		return FString::Printf(TEXT("L%d_X%" INT64_FMT "_Y%" INT64_FMT), Level, X, Y);
+	}
+
+	inline FString ToString3D() const
 	{
 		return FString::Printf(TEXT("L%d_X%" INT64_FMT "_Y%" INT64_FMT "_Z%" INT64_FMT), Level, X, Y, Z);
 	}
@@ -189,7 +195,7 @@ bool URuntimePartitionLHGrid::GenerateStreaming(const FGenerateStreamingParams& 
 	{
 		const bool bIsSpatiallyLoaded = CellCoord != FCellCoord::Invalid;
 
-		URuntimePartition::FCellDesc& CellDesc = OutResult.RuntimeCellDescs.Emplace_GetRef(CreateCellDesc(CellCoord.ToString(), bIsSpatiallyLoaded, CellCoord.Level, CellActorSetInstances));
+		URuntimePartition::FCellDesc& CellDesc = OutResult.RuntimeCellDescs.Emplace_GetRef(CreateCellDesc(bIs2D ? CellCoord.ToString2D() : CellCoord.ToString3D(), bIsSpatiallyLoaded, CellCoord.Level, CellActorSetInstances));
 
 		if (bIsSpatiallyLoaded)
 		{

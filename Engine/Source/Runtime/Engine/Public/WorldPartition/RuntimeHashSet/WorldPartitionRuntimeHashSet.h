@@ -212,6 +212,7 @@ private:
 	struct FCellUniqueId
 	{
 		FString Name;
+		FString InstanceSuffix;
 		FGuid Guid;
 	};
 

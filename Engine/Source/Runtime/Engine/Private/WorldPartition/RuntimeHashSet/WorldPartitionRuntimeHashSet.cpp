@@ -749,13 +749,13 @@ FGuid UWorldPartitionRuntimeHashSet::RegisterWorldAssetStreaming(const UWorldPar
 			}
 			else
 			{
-				UE_LOG(LogWorldPartition, Error, TEXT("Error creating streaming cell %s for world asset %s at %s"), *RuntimeCell->GetName(), *WorldAsset.ToString(), *InParams.Transform.ToString());StreamingData.CreatePartitionsSpatialIndex();
+				UE_LOG(LogWorldPartition, Error, TEXT("Error creating streaming cell %s for world asset %s at %s"), *RuntimeCell->GetName(), *WorldAsset.ToString(), *InParams.Transform.ToString());
 				return FGuid();
 			}
 		}		
 		else
 		{
-			UE_LOG(LogWorldPartition, Error, TEXT("Error creating streaming cell %s for world asset %s at %s"), *CellName, *WorldAsset.ToString(), *InParams.Transform.ToString());StreamingData.CreatePartitionsSpatialIndex();
+			UE_LOG(LogWorldPartition, Error, TEXT("Error creating streaming cell %s for world asset %s at %s"), *CellName, *WorldAsset.ToString(), *InParams.Transform.ToString());
 			return FGuid();
 		}
 	}
@@ -1012,7 +1012,6 @@ UWorldPartitionRuntimeHashSet::FCellUniqueId UWorldPartitionRuntimeHashSet::GetC
 		UWorld* OuterWorld = GetTypedOuter<UWorld>();
 		check(OuterWorld);
 
-		FString InstanceSuffix;
 		FString WorldName = FPackageName::GetShortName(OuterWorld->GetPackage());
 
 		if (!IsRunningCookCommandlet() && OuterWorld->IsGameWorld())
@@ -1032,7 +1031,7 @@ UWorldPartitionRuntimeHashSet::FCellUniqueId UWorldPartitionRuntimeHashSet::GetC
 
 				if (int32 Index = InstancePackageName.Find(SourcePackageName); Index != INDEX_NONE)
 				{
-					InstanceSuffix = InstancePackageName.Mid(Index + SourcePackageName.Len());
+					CellUniqueId.InstanceSuffix = InstancePackageName.Mid(Index + SourcePackageName.Len());
 				}
 			}
 		}
@@ -1050,11 +1049,6 @@ UWorldPartitionRuntimeHashSet::FCellUniqueId UWorldPartitionRuntimeHashSet::GetC
 			CellNameBuilder.Appendf(TEXT("_c%s"), *UContentBundleDescriptor::GetContentBundleCompactString(ContentBundleID));
 		}
 
-		if (!InstanceSuffix.IsEmpty())
-		{
-			CellNameBuilder.Appendf(TEXT("_i%s"), *InstanceSuffix);
-		}
-	
 		CellUniqueId.Name = CellNameBuilder.ToString();
 	}
 
