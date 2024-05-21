@@ -67,6 +67,36 @@
             </summary>
             <param name="fileSpec">The single filespec to construct from</param>
         </member>
+        <member name="M:EpicGames.Perforce.FileSpecList.ToString">
+            <inheritdoc/>
+        </member>
+        <member name="T:EpicGames.Perforce.HangMonitor">
+            <summary>
+            Runs a background task that logs warnings if the Tick method isn't called within a certain time period
+            </summary>
+        </member>
+        <member name="M:EpicGames.Perforce.HangMonitor.#ctor(System.TimeSpan,System.String,Microsoft.Extensions.Logging.ILogger)">
+            <summary>
+            Constructor
+            </summary>
+            <param name="interval">Interval after which to log a message</param>
+            <param name="context">Context for hang messages</param>
+            <param name="logger">Logger to write to </param>
+        </member>
+        <member name="M:EpicGames.Perforce.HangMonitor.Dispose">
+            <inheritdoc/>
+        </member>
+        <member name="M:EpicGames.Perforce.HangMonitor.Start(System.String)">
+            <summary>
+            Start monitoring for hangs.
+            </summary>
+            <param name="activity">Activity to log if a hang is detected</param>
+        </member>
+        <member name="M:EpicGames.Perforce.HangMonitor.Tick">
+            <summary>
+            Marks the operation as ongoing
+            </summary>
+        </member>
         <member name="T:EpicGames.Perforce.IPerforceConnection">
             <summary>
             Base interface for Perforce clients
@@ -220,18 +250,17 @@
             <param name="response">Receives the response object on success</param>
             <returns>True if a response was read, false if the buffer needs more data</returns>
         </member>
-        <member name="M:EpicGames.Perforce.PerforceOutput.TryReadTypedRecord(System.ReadOnlyMemory{System.Byte},System.Int32@,EpicGames.Core.Utf8String,EpicGames.Perforce.CachedRecordInfo,System.Object@)">
+        <member name="M:EpicGames.Perforce.PerforceOutput.TryReadTypedRecord(System.ReadOnlyMemory{System.Byte},System.Int32@,EpicGames.Perforce.CachedRecordInfo,System.Object@)">
             <summary>
             Parse an individual record from the server.
             </summary>
             <param name="buffer">The buffer to read from</param>
             <param name="bufferPos">Current read position within the buffer</param>
-            <param name="requiredSuffix">The required suffix for any subobject arrays.</param>
             <param name="recordInfo">Reflection information for the type being serialized into.</param>
             <param name="record">Receives the record on success</param>
             <returns>The parsed object.</returns>
         </member>
-        <member name="M:EpicGames.Perforce.PerforceOutput.TryReadValue(System.ReadOnlyMemory{System.Byte},System.Int32@,System.Object,EpicGames.Perforce.CachedTagInfo)">
+        <member name="M:EpicGames.Perforce.PerforceOutput.TryReadValue(System.ReadOnlyMemory{System.Byte},System.Int32@,System.Object,EpicGames.Perforce.TaggedPropertyInfo)">
             <summary>
             Reads a value from the input buffer
             </summary>
@@ -265,18 +294,8 @@
             </summary>
             <param name="buffer">The buffer to read from</param>
             <param name="bufferPos">Current read position within the buffer</param>
-            <param name="string">Receives the value that was read</param>
+            <param name="result">Receives the value that was read</param>
             <returns>True if a string was read from the buffer, false if there was not enough data</returns>
-        </member>
-        <member name="M:EpicGames.Perforce.PerforceOutput.ReadIndex(EpicGames.Core.Utf8String,EpicGames.Core.Utf8String,EpicGames.Core.Utf8String,System.Int32)">
-            <summary>
-            Checks that the given field suffix starts with the given required suffix and index.
-            </summary>
-            <param name="tag">The tag name</param>
-            <param name="suffix">The text to check</param>
-            <param name="requiredSuffix">The required prefix</param>
-            <param name="index">The required index</param>
-            <returns>True if the index is correct</returns>
         </member>
         <member name="T:EpicGames.Perforce.NativePerforceConnection">
             <summary>
@@ -2708,6 +2727,44 @@
             The message text
             </summary>
         </member>
+        <member name="T:EpicGames.Perforce.PerforceMetadataLogger">
+            <summary>
+            Logger which adds Perforce depot path and changelist information to file annotations
+            </summary>
+        </member>
+        <member name="P:EpicGames.Perforce.PerforceMetadataLogger.Inner">
+            <summary>
+            Accessor for the inner logger
+            </summary>
+        </member>
+        <member name="M:EpicGames.Perforce.PerforceMetadataLogger.#ctor(Microsoft.Extensions.Logging.ILogger)">
+            <summary>
+            Constructor
+            </summary>
+            <param name="inner"></param>
+        </member>
+        <member name="M:EpicGames.Perforce.PerforceMetadataLogger.AddClientView(EpicGames.Core.DirectoryReference,System.String,System.Int32)">
+            <summary>
+            Adds a new client to be included in the mapping
+            </summary>
+            <param name="baseDir">Base directory for the client</param>
+            <param name="depotPath">Depot path for the workspace mapping, in the form //foo/bar...</param>
+            <param name="change">Changelist for the client</param>
+        </member>
+        <member name="M:EpicGames.Perforce.PerforceMetadataLogger.AddClientView(EpicGames.Core.DirectoryReference,EpicGames.Perforce.PerforceViewMap,System.Int32)">
+            <summary>
+            Adds a new client to be included in the mapping
+            </summary>
+        </member>
+        <member name="M:EpicGames.Perforce.PerforceMetadataLogger.Log``1(Microsoft.Extensions.Logging.LogLevel,Microsoft.Extensions.Logging.EventId,``0,System.Exception,System.Func{``0,System.Exception,System.String})">
+            <inheritdoc/>
+        </member>
+        <member name="M:EpicGames.Perforce.PerforceMetadataLogger.IsEnabled(Microsoft.Extensions.Logging.LogLevel)">
+            <inheritdoc/>
+        </member>
+        <member name="M:EpicGames.Perforce.PerforceMetadataLogger.BeginScope``1(``0)">
+            <inheritdoc/>
+        </member>
         <member name="T:EpicGames.Perforce.PerforceValueType">
             <summary>
             The type of a value returned by Perforce
@@ -2847,65 +2904,94 @@
             String constants for perforce values
             </summary>
         </member>
-        <member name="T:EpicGames.Perforce.CachedTagInfo">
+        <member name="T:EpicGames.Perforce.CreateRecordDelegate">
+            <summary>
+            Delegate type for creating a record instance
+            </summary>
+            <returns>New instance</returns>
+        </member>
+        <member name="T:EpicGames.Perforce.NestedRecordInfo">
+            <summary>
+            Information about a nested record
+            </summary>
+        </member>
+        <member name="M:EpicGames.Perforce.NestedRecordInfo.#ctor(System.Reflection.PropertyInfo,EpicGames.Perforce.CreateRecordDelegate)">
+            <summary>
+            Information about a nested record
+            </summary>
+        </member>
+        <member name="T:EpicGames.Perforce.TaggedPropertyNameAndRank">
+            <summary>
+            Name and rank of a tagged property within a record
+            </summary>
+        </member>
+        <member name="M:EpicGames.Perforce.TaggedPropertyNameAndRank.#ctor(EpicGames.Core.Utf8String,System.Int32)">
+            <summary>
+            Name and rank of a tagged property within a record
+            </summary>
+        </member>
+        <member name="T:EpicGames.Perforce.TaggedPropertyInfo">
             <summary>
             Stores cached information about a property with a <see cref="T:EpicGames.Perforce.PerforceTagAttribute"/> attribute.
             </summary>
         </member>
-        <member name="P:EpicGames.Perforce.CachedTagInfo.Name">
+        <member name="P:EpicGames.Perforce.TaggedPropertyInfo.Tag">
             <summary>
             Name of the tag. Specified in the attribute or inferred from the field name.
             </summary>
         </member>
-        <member name="P:EpicGames.Perforce.CachedTagInfo.Optional">
+        <member name="P:EpicGames.Perforce.TaggedPropertyInfo.Optional">
             <summary>
             Whether this tag is optional or not.
             </summary>
         </member>
-        <member name="P:EpicGames.Perforce.CachedTagInfo.PropertyInfo">
+        <member name="P:EpicGames.Perforce.TaggedPropertyInfo.ParentRecords">
+            <summary>
+            List of nested records before getting to the target object
+            </summary>
+        </member>
+        <member name="P:EpicGames.Perforce.TaggedPropertyInfo.PropertyInfo">
             <summary>
             The property containing the value of this data.
             </summary>
         </member>
-        <member name="P:EpicGames.Perforce.CachedTagInfo.Write">
+        <member name="P:EpicGames.Perforce.TaggedPropertyInfo.Write">
             <summary>
             Writes an instance of this field from an object
             </summary>
         </member>
-        <member name="P:EpicGames.Perforce.CachedTagInfo.ReadFromInteger">
+        <member name="P:EpicGames.Perforce.TaggedPropertyInfo.ReadFromInteger">
             <summary>
             Parser for this field type
             </summary>
         </member>
-        <member name="P:EpicGames.Perforce.CachedTagInfo.ReadFromString">
+        <member name="P:EpicGames.Perforce.TaggedPropertyInfo.ReadFromString">
             <summary>
             Parser for this field type
             </summary>
         </member>
-        <member name="P:EpicGames.Perforce.CachedTagInfo.RequiredTagBitMask">
+        <member name="P:EpicGames.Perforce.TaggedPropertyInfo.RequiredTagBitMask">
             <summary>
             Index into the bitmask of required types
             </summary>
         </member>
-        <member name="M:EpicGames.Perforce.CachedTagInfo.#ctor(EpicGames.Core.Utf8String,System.Boolean,System.Reflection.PropertyInfo,System.UInt64)">
+        <member name="M:EpicGames.Perforce.TaggedPropertyInfo.#ctor(EpicGames.Core.Utf8String,System.Boolean,EpicGames.Perforce.NestedRecordInfo[],System.Reflection.PropertyInfo,System.UInt64)">
             <summary>
             Constructor
             </summary>
             <param name="name"></param>
             <param name="optional"></param>
+            <param name="parentRecords"></param>
             <param name="propertyInfo"></param>
             <param name="requiredTagBitMask"></param>
+        </member>
+        <member name="M:EpicGames.Perforce.TaggedPropertyInfo.ToString">
+            <inheritdoc/>
         </member>
         <member name="T:EpicGames.Perforce.CachedRecordInfo">
             <summary>
             Stores cached information about a record
             </summary>
-        </member>
-        <member name="T:EpicGames.Perforce.CachedRecordInfo.CreateRecordDelegate">
-            <summary>
-            Delegate type for creating a record instance
-            </summary>
-            <returns>New instance</returns>
         </member>
         <member name="P:EpicGames.Perforce.CachedRecordInfo.Type">
             <summary>
@@ -2922,7 +3008,7 @@
             List of fields in the record. These should be ordered to match P4 output for maximum efficiency.
             </summary>
         </member>
-        <member name="P:EpicGames.Perforce.CachedRecordInfo.NameToInfo">
+        <member name="P:EpicGames.Perforce.CachedRecordInfo.NameAndRankToInfo">
             <summary>
             Map of name to tag info
             </summary>
@@ -2932,26 +3018,12 @@
             Bitmask of all the required tags. Formed by bitwise-or'ing the RequiredTagBitMask fields for each required CachedTagInfo.
             </summary>
         </member>
-        <member name="P:EpicGames.Perforce.CachedRecordInfo.SubElementType">
-            <summary>
-            The type of records to create for subelements
-            </summary>
-        </member>
-        <member name="P:EpicGames.Perforce.CachedRecordInfo.SubElementRecordInfo">
-            <summary>
-            The cached record info for the subelement type
-            </summary>
-        </member>
-        <member name="P:EpicGames.Perforce.CachedRecordInfo.SubElementProperty">
-            <summary>
-            Property containing subelements
-            </summary>
-        </member>
-        <member name="M:EpicGames.Perforce.CachedRecordInfo.#ctor(System.Type)">
+        <member name="M:EpicGames.Perforce.CachedRecordInfo.#ctor(System.Type,EpicGames.Perforce.CreateRecordDelegate)">
             <summary>
             Constructor
             </summary>
             <param name="type">The record type</param>
+            <param name="createInstance">Method used to create an instance of this record</param>
         </member>
         <member name="T:EpicGames.Perforce.CachedEnumInfo">
             <summary>
@@ -3299,6 +3371,11 @@
             Whether to create a native client rather than running the p4 child process, if possible
             </summary>
         </member>
+        <member name="P:EpicGames.Perforce.IPerforceSettings.EnableHangMonitor">
+            <summary>
+            Whether to monitor the connection for commands that are not producing any output
+            </summary>
+        </member>
         <member name="T:EpicGames.Perforce.PerforceSettings">
             <summary>
             Settings for a new Perforce connection
@@ -3341,6 +3418,9 @@
             <inheritdoc/>
         </member>
         <member name="P:EpicGames.Perforce.PerforceSettings.PreferNativeClient">
+            <inheritdoc/>
+        </member>
+        <member name="P:EpicGames.Perforce.PerforceSettings.EnableHangMonitor">
             <inheritdoc/>
         </member>
         <member name="M:EpicGames.Perforce.PerforceSettings.#ctor(EpicGames.Perforce.IPerforceEnvironment)">
