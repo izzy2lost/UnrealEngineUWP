@@ -437,6 +437,12 @@ namespace Electra
 	/***************************************************************************************************************************************************/
 	/***************************************************************************************************************************************************/
 
+	FString IElectraHttpManager::GetDefaultUserAgent()
+	{
+		return FString(ELECTRA_HTTPMANAGER_USER_AGENT);
+	}
+
+
 	TSharedPtrTS<IElectraHttpManager> IElectraHttpManager::Create()
 	{
 		return FElectraHttpManager::Create();
@@ -717,7 +723,7 @@ namespace Electra
 			}
 			else
 			{
-				Handle->HttpRequest->SetUserAgent(ELECTRA_HTTPMANAGER_USER_AGENT);
+				Handle->HttpRequest->SetUserAgent(GetDefaultUserAgent());
 			}
 			Handle->HttpRequest->AllowCompression(!Request->Parameters.AcceptEncoding.GetWithDefault(TEXT("")).Equals(TEXT("identity")));
 			#if defined(ELECTRA_HTTPMANAGER_ALLOW_UNSAFE_CONNECTIONS) && ELECTRA_HTTPMANAGER_ALLOW_UNSAFE_CONNECTIONS

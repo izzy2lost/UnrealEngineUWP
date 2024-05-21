@@ -179,6 +179,8 @@ namespace Electra
 	public:
 		static TSharedPtrTS<IElectraHttpManager> Create();
 
+		static FString GetDefaultUserAgent();
+
 		virtual ~IElectraHttpManager() = default;
 
 		struct FRequest;
