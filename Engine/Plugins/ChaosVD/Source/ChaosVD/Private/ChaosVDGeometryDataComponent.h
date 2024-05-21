@@ -98,7 +98,7 @@ struct FChaosVDMeshDataInstanceState
 	EChaosVDMeshComponent MeshComponentType = EChaosVDMeshComponent::Invalid;
 
 	/* CVD Debug - Pointer to the mesh component used to render this Mesh */
-	UPROPERTY(VisibleAnywhere, Category="CVD GeometryData")
+	UPROPERTY()
 	TObjectPtr<UMeshComponent> MeshComponent;
 
 	/* CVD Debug - Instance index of mesh component used to render this Mesh */
