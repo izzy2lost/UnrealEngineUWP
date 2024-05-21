@@ -334,11 +334,12 @@ bool FCookDependency::Load(FCbFieldView Value)
 		return false;
 	}
 	FCbFieldViewIterator Field(Value.CreateViewIterator());
-	ECookDependency LocalType = static_cast<ECookDependency>(Field.AsUInt8());
-	if ((Field++).HasError())
+	int32 LocalTypeAsInt = Field.AsUInt8();
+	if ((Field++).HasError() || LocalTypeAsInt >= static_cast<uint8>(ECookDependency::Count))
 	{
 		return false;
 	}
+	ECookDependency LocalType = static_cast<ECookDependency>(LocalTypeAsInt);
 
 	switch (LocalType)
 	{

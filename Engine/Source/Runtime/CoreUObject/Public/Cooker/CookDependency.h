@@ -85,7 +85,9 @@ enum class ECookDependency : uint8
 	Function = 0x02,
 	TransitiveBuild = 0x03,
 	Package = 0x4,
-	ConsoleVariable = 0x5
+	ConsoleVariable = 0x5,
+
+	Count,
 };
 
 /**
