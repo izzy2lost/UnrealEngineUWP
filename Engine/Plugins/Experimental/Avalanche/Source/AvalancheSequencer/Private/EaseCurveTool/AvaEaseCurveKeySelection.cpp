@@ -8,6 +8,7 @@
 #include "EaseCurveTool/AvaEaseCurveTangents.h"
 #include "EaseCurveTool/AvaEaseCurveTool.h"
 #include "IKeyArea.h"
+#include "ScopedTransaction.h"
 #include "MVVM/ViewModels/ChannelModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 
