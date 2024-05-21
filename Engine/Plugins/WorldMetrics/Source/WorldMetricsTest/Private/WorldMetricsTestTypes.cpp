@@ -27,14 +27,18 @@ void UMockWorldMetricBase::Update(float /*DeltaTimeInSeconds*/)
 // UMockWorldMetricsExtensionBase
 //---------------------------------------------------------------------------------------------------------------------
 
+UMockWorldMetricsExtensionBase::FInitializeDeinitializeDelegate UMockWorldMetricsExtensionBase::OnInitializeDeinitialize;
+
 void UMockWorldMetricsExtensionBase::Initialize()
 {
 	++InitializeCount;
+	OnInitializeDeinitialize.ExecuteIfBound(this, true);
 }
 
 void UMockWorldMetricsExtensionBase::Deinitialize()
 {
 	++DeinitializeCount;
+	OnInitializeDeinitialize.ExecuteIfBound(this, false);
 }
 
 void UMockWorldMetricsExtensionBase::OnAcquire(UObject* InOwner)
