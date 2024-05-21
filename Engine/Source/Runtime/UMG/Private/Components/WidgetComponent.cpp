@@ -1730,10 +1730,6 @@ ULocalPlayer* UWidgetComponent::GetOwnerPlayer() const
 		{
 			return GameInstance->GetFirstGamePlayer();
 		}
-		else
-		{
-			int32 a = 5;
-		}
 	}
 
 	return nullptr;
