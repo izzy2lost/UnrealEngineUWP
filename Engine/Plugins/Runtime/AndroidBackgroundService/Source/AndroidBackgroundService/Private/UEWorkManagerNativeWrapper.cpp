@@ -139,7 +139,7 @@ FUEWorkManagerNativeWrapper::FWorkRequestParametersNative::FWorkRequestParameter
 
 	//Set meaningful defaults
 	{
-		bRequireBatteryNotLow = true;
+		bRequireBatteryNotLow = false;
 		bRequireCharging = false;
 		bRequireDeviceIdle = false;
 		bRequireWifi = false;

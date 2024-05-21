@@ -107,6 +107,20 @@ void FModularFeaturePlatformBackgroundHttp::CacheModularFeature()
 		{
 			GConfig->GetString(TEXT("BackgroundHttp"), TEXT("PlatformModularFeatureName"), ModuleName, GEngineIni);
 		}
+#if PLATFORM_ANDROID
+		const FString* BackgroundModuleConfigVar = FAndroidMisc::GetConfigRulesVariable(TEXT("BackgroundHttpModularFeatureNameOverride"));
+		if (BackgroundModuleConfigVar)
+		{
+			if (BackgroundModuleConfigVar->Equals("null", ESearchCase::IgnoreCase))
+			{
+				ModuleName.Empty();
+			}
+			else
+			{
+				ModuleName = *BackgroundModuleConfigVar;
+			}
+		}
+#endif
 
 		//If we don't have any expected module then we don't want to cache any modular features
 		if (ModuleName.IsEmpty())
