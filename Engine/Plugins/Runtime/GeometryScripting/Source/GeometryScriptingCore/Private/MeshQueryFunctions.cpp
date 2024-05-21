@@ -391,6 +391,34 @@ UDynamicMesh* UGeometryScriptLibrary_MeshQueryFunctions::GetVertexConnectedVerti
 }
 
 
+UDynamicMesh* UGeometryScriptLibrary_MeshQueryFunctions::GetAllVertexPositionsAtEdges(UDynamicMesh* TargetMesh, const FGeometryScriptIndexList& EdgeIDs, FGeometryScriptVectorList& Start, FGeometryScriptVectorList& End)
+{
+	Start.Reset();
+	End.Reset();
+	
+	if (!EdgeIDs.IsCompatibleWith(EGeometryScriptIndexType::Edge) && EdgeIDs.List.IsValid() && EdgeIDs.List->Num() > 0)
+	{
+		return TargetMesh;
+	}
+
+	SimpleMeshQuery<bool>(TargetMesh, false,
+		[&EdgeIDs, &Start, &End](const FDynamicMesh3& Mesh)
+		{
+			for (const int EID : *EdgeIDs.List)
+			{
+				if (Mesh.IsEdge(EID))
+				{
+					FIndex2i VIDs = Mesh.GetEdgeV(EID);
+					Start.List->Add(Mesh.GetVertex(VIDs[0]));
+					End.List->Add(Mesh.GetVertex(VIDs[1]));
+				}
+			}
+			return true;
+		});
+	return TargetMesh;
+}
+
+
 int32 UGeometryScriptLibrary_MeshQueryFunctions::GetNumUVSets( UDynamicMesh* TargetMesh )
 {
 	return SimpleMeshQuery<int32>(TargetMesh, 0, [&](const FDynamicMesh3& Mesh) { 
@@ -477,6 +505,24 @@ UDynamicMesh* UGeometryScriptLibrary_MeshQueryFunctions::GetInterpolatedTriangle
 		}
 		return false;
 	});
+	return TargetMesh;
+}
+
+UDynamicMesh* UGeometryScriptLibrary_MeshQueryFunctions::GetAllUVSeamEdges(UDynamicMesh* TargetMesh, int32 UVSetIndex, FGeometryScriptIndexList& ElementIDs)
+{
+	ElementIDs.Reset(EGeometryScriptIndexType::Edge);
+	bool bIsValidUVSet = SimpleMeshUVSetQuery<bool>(TargetMesh, UVSetIndex, bIsValidUVSet, false,
+		[&](const FDynamicMesh3& Mesh, const FDynamicMeshUVOverlay& UVSet)
+		{
+			for (int EID : Mesh.EdgeIndicesItr())
+			{
+				if (UVSet.IsSeamEdge(EID))
+				{
+					ElementIDs.List->Add(EID);
+				}
+			}
+			return true;
+		});
 	return TargetMesh;
 }
 

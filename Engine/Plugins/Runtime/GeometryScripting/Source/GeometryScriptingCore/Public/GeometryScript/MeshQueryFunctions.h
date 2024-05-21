@@ -217,6 +217,18 @@ public:
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
 	GetAllVertexPositions( UDynamicMesh* TargetMesh, FGeometryScriptVectorList& PositionList, bool bSkipGaps, bool& bHasVertexIDGaps );
 
+	/**
+	 * Returns the vertex positions for each edge in the given index list.
+	 * 
+	 * @param TargetMesh The mesh to query
+	 * @param EdgeIDs The edge IDs to query
+	 * @param Start The output list of start vertex positions
+	 * @param End The output list of end vertex positions
+	 * @return The target mesh that was queried
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshQueries", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	GetAllVertexPositionsAtEdges( UDynamicMesh* TargetMesh, const FGeometryScriptIndexList& EdgeIDs, FGeometryScriptVectorList& Start, FGeometryScriptVectorList& End);
 
 	/**
 	 * Return array of Triangle IDs connected to the given VertexID, ie the triangle one-ring
@@ -282,6 +294,19 @@ public:
 		FVector2D& InterpolatedUV );
 
 
+	/**
+	 * Returns all edge element IDs that are UV seam edges for a given UV channel.
+	 * 
+	 * @param TargetMesh The mesh to query.
+	 * @param UVSetIndex The UV channel to query
+	 * @param ElementIDs The returned edge element IDs 
+	 * @return The target mesh that was queried. 
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshQueries", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	GetAllUVSeamEdges( UDynamicMesh* TargetMesh, UPARAM(DisplayName = "UV Channel") int32 UVSetIndex, FGeometryScriptIndexList& ElementIDs);
+
+	
 	//
 	// Normal queries
 	//

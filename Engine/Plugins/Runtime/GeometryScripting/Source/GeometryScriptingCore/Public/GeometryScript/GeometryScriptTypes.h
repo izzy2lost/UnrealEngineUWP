@@ -304,6 +304,7 @@ enum class EGeometryScriptIndexType : uint8
 	// Index lists of Any type are compatible with any other index list type
 	Any,
 	Triangle,
+	Edge,
 	Vertex,
 	MaterialID,
 	PolygroupID UMETA(DisplayName = "PolyGroup ID")
