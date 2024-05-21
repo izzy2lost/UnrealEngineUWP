@@ -188,7 +188,7 @@ SHeaderRow::FColumn::FArguments FSceneOutlinerPinnedColumn::ConstructHeaderRowCo
 		.VAlignHeader(VAlign_Center)
 		.HAlignCell(HAlign_Center)
 		.VAlignCell(VAlign_Center)
-		.ToolTip(IDocumentation::Get()->CreateToolTip(LOCTEXT("SceneOutlinerPinnedColumnToolTip", "Pinned: always loaded in editor"), nullptr, "Shared/MenuEntries/SceneOutliner_ActorBrowsingMode", "PinTooltip"))
+		.ToolTip(IDocumentation::Get()->CreateToolTip(LOCTEXT("SceneOutlinerForceLoadColumnToolTip", "Force Load: Keep the selected items loaded in the editor even when they don't overlap a loaded World Partition region."), nullptr, "Shared/MenuEntries/SceneOutliner_ActorBrowsingMode", "ForceLoadTooltip"))
 		[
 			SNew(SImage)
 			.ColorAndOpacity(FSlateColor::UseForeground())
@@ -206,7 +206,7 @@ const TSharedRef<SWidget> FSceneOutlinerPinnedColumn::ConstructRowWidget(FSceneO
 		.VAlign(VAlign_Center)
 		[
 			SNew(SPinnedWidget, WeakSceneOutliner, TreeItem, SharedThis(this), &Row)
-			.ToolTip(IDocumentation::Get()->CreateToolTip(LOCTEXT("SceneOutlinerPinnedWidgetTooltip", "Toggles whether this object is pinned (always loaded) in the editor."), nullptr, "Shared/MenuEntries/SceneOutliner_ActorBrowsingMode", "PinTooltip"))
+			.ToolTip(IDocumentation::Get()->CreateToolTip(LOCTEXT("SceneOutlinerForceLoadWidgetTooltip", "Toggles Force Load: Keep the selected items loaded in the editor even when they don't overlap a loaded World Partition region."), nullptr, "Shared/MenuEntries/SceneOutliner_ActorBrowsingMode", "ForceLoadTooltip"))
 		];
 	}
 	return SNullWidget::NullWidget;

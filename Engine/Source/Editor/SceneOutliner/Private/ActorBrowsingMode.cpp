@@ -761,9 +761,9 @@ void FActorBrowsingMode::FillDefaultContextBaseMenu(UToolMenu* InMenu)
 			if (!Context->bRepresentingGameWorld && Context->bRepresentingPartitionedWorld)
 			{
 				MainSection.AddMenuEntry(
-					"PinItems",
-					LOCTEXT("Pin", "Pin"),
-					LOCTEXT("PinTooltip", "Keep the selected items loaded in the editor even when they don't overlap a loaded World Partition region"),
+					"ForceLoadItems",
+					LOCTEXT("ForceLoad", "Force Load"),
+					LOCTEXT("ForceLoadTooltip", "Keep the selected items loaded in the editor even when they don't overlap a loaded World Partition region"),
 					FSlateIcon(),
 					FUIAction(
 						FExecuteAction::CreateSP(SceneOutliner, &SSceneOutliner::PinSelectedItems),
@@ -777,9 +777,9 @@ void FActorBrowsingMode::FillDefaultContextBaseMenu(UToolMenu* InMenu)
 				})));
 
 				MainSection.AddMenuEntry(
-					"UnpinItems",
-					LOCTEXT("Unpin", "Unpin"),
-					LOCTEXT("UnpinTooltip", "Allow the World Partition system to load and unload the selected items automatically"),
+					"ReleaseForceLoadItems",
+					LOCTEXT("ReleaseForceLoad", "Release Force Load"),
+					LOCTEXT("ReleaseForceLoadTooltip", "Allow the World Partition system to load and unload the selected items automatically"),
 					FSlateIcon(),
 					FUIAction(
 						FExecuteAction::CreateSP(SceneOutliner, &SSceneOutliner::UnpinSelectedItems),
