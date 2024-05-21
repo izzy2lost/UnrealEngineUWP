@@ -33,22 +33,16 @@ namespace UE::Interchange::Private
 		const UInterchangeSourceData* SourceData = AsyncHelper.SourceDatas[SourceIndex];
 		check(SourceData);
 		FString NodeDisplayName = FactoryNode->GetAssetName();
-
+		
 		// Set the asset name and the package name
 		OutAssetName = NodeDisplayName;
-		SanitizeObjectName(OutAssetName);
-
-		FString SanitizedPackageBasePath = PackageBasePath;
-		SanitizeObjectPath(SanitizedPackageBasePath);
-
+		UInterchangeManager::GetInterchangeManager().SanitizeNameInline(OutAssetName, ESanitizeNameTypeFlags::ObjectName | ESanitizeNameTypeFlags::ObjectPath | ESanitizeNameTypeFlags::LongPackage);
 		FString SubPath;
-		if (FactoryNode->GetCustomSubPath(SubPath))
-		{
-			SanitizeObjectPath(SubPath);
-		}
-
-		OutPackageName = FPaths::Combine(*SanitizedPackageBasePath, *SubPath, *OutAssetName);
+		FactoryNode->GetCustomSubPath(SubPath);
+		OutPackageName = FPaths::Combine(*PackageBasePath, *SubPath, *OutAssetName);
+		UInterchangeManager::GetInterchangeManager().SanitizeNameInline(OutPackageName, ESanitizeNameTypeFlags::ObjectPath | ESanitizeNameTypeFlags::LongPackage);
 	}
+
 	bool ShouldReimportFactoryNode(UInterchangeFactoryBaseNode* FactoryNode, const UInterchangeBaseNodeContainer* NodeContainer, UObject* ReimportObject)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::Private::ShouldReimportFactoryNode)

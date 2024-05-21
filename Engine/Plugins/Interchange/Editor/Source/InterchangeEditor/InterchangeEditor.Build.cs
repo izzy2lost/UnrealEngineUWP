@@ -22,6 +22,7 @@ namespace UnrealBuildTool.Rules
 				new string[]
 				{
 					"AssetDefinition",
+					"AssetTools",
 					"ContentBrowser",
 					"InterchangeCommonParser",
 					"InterchangeCore",

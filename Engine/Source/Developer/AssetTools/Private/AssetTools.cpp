@@ -6515,6 +6515,27 @@ void UAssetToolsImpl::UnregisterIsNameAllowedDelegate(const FName OwnerName)
 	IsNameAllowedDelegates.Remove(OwnerName);
 }
 
+bool UAssetToolsImpl::SanitizeName(FString& NameToSanitize)
+{
+	//Call the delegates
+	for (const TPair<FName, FSanitizeName>& DelegatePair : SanitizeNameDelegates)
+	{
+		DelegatePair.Value.Execute(NameToSanitize);
+	}
+
+	return ensure(IsNameAllowed(NameToSanitize, nullptr));
+}
+
+void UAssetToolsImpl::RegisterSanitizeNameDelegate(const FName OwnerName, FSanitizeName Delegate)
+{
+	SanitizeNameDelegates.Add(OwnerName, Delegate);
+}
+
+void UAssetToolsImpl::UnregisterSanitizeNameDelegate(const FName OwnerName)
+{
+	SanitizeNameDelegates.Remove(OwnerName);
+}
+
 void UAssetToolsImpl::RegisterCanMigrateAsset(const FName OwnerName, UE::AssetTools::FCanMigrateAsset Delegate)
 {
 	CanMigrateAssetDelegates.Add(OwnerName, MoveTemp(Delegate));

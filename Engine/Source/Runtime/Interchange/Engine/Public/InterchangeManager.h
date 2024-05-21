@@ -48,6 +48,19 @@ DECLARE_MULTICAST_DELEGATE(FOnImportStarted);
 /** Delegate Type that is fired when Interchange finished importing. Won't fire when an import process finishes while one is still in progress. Primarily Used for AutoSave setting. */
 DECLARE_MULTICAST_DELEGATE(FOnImportFinished);
 
+enum class ESanitizeNameTypeFlags : uint8
+{
+	None = 0x00,
+	Name = 0x01,
+	ObjectName = 0x02,
+	ObjectPath = 0x04,
+	LongPackage = 0x08
+};
+ENUM_CLASS_FLAGS(ESanitizeNameTypeFlags)
+
+//Thread safe delegate since this can be broadcast in any thread
+DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnSanitizeName, FString& /*NameToSanitize*/, const ESanitizeNameTypeFlags /*TypeName*/);
+
 namespace UE
 {
 	namespace Interchange
@@ -312,13 +325,9 @@ namespace UE
 			TMap<int32, TArray<FImportedObjectInfo>> ImportedSceneObjectsPerSourceIndex;
 		};
 
-		void SanitizeObjectPath(FString& ObjectPath);
-
-		void SanitizeObjectName(FString& ObjectName);
-
 		/* This function takes an asset that represents a pipeline and generates a UInterchangePipelineBase asset. */
 		INTERCHANGEENGINE_API UInterchangePipelineBase* GeneratePipelineInstance(const FSoftObjectPath& PipelineInstance);
-	} //ns interchange
+	} //ns Interchange
 } //ns UE
 
 /**
@@ -457,9 +466,14 @@ public:
 	FOnImportStarted OnImportStarted;
 	//Fires when the last import process finishes.
 	FOnImportFinished OnImportFinished;
+
+	//Fire when we need to sanitize a name, make sure your delegate code is thread safe, since it will be broadcast in any thread.
+	FOnSanitizeName OnSanitizeName;
+
 	// Called when before the application is exiting.
 	FSimpleMulticastDelegate OnPreDestroyInterchangeManager;
 
+	INTERCHANGEENGINE_API void SanitizeNameInline(FString& NameToSanitize, const ESanitizeNameTypeFlags NameType);
 	/**
 	 * All translators must be registered with the manager.
 	 * @Param Translator - The UClass of the translator you want to register.

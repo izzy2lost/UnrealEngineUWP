@@ -150,6 +150,9 @@ public:
 	virtual bool IsNameAllowed(const FString& Name, FText* OutErrorMessage = nullptr) const override;
 	virtual void RegisterIsNameAllowedDelegate(const FName OwnerName, FIsNameAllowed Delegate) override;
 	virtual void UnregisterIsNameAllowedDelegate(const FName OwnerName) override;
+	virtual bool SanitizeName(FString& NameToSanitize) override;
+	virtual void RegisterSanitizeNameDelegate(const FName OwnerName, FSanitizeName Delegate) override;
+	virtual void UnregisterSanitizeNameDelegate(const FName OwnerName) override;
 	virtual void RegisterCanMigrateAsset(const FName OwnerName, UE::AssetTools::FCanMigrateAsset Delegate) override;
 	virtual void UnregisterCanMigrateAsset(const FName OwnerName) override;
 	virtual bool CanAssetBePublic(FStringView AssetPath) const override;
@@ -272,6 +275,7 @@ private:
 	bool CreateAssetsAsExternallyReferenceable;
 
 	TMap<FName, FIsNameAllowed> IsNameAllowedDelegates;
+	TMap<FName, FSanitizeName> SanitizeNameDelegates;
 
 	UE::AssetTools::FOnPackageMigration OnPackageMigration;
 

@@ -132,7 +132,7 @@ DECLARE_DYNAMIC_DELEGATE_TwoParams(FAdvancedCopyCompletedEvent, bool, bSuccess, 
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FAssetPostRenameEvent, const TArray<FAssetRenameData>&);
 DECLARE_DELEGATE_RetVal_TwoParams(bool, FIsNameAllowed, const FString& /*Name*/, FText* /*OutErrorMessage*/);
-
+DECLARE_DELEGATE_OneParam(FSanitizeName, FString& /*NameToSanitize*/);
 
 struct FAdvancedAssetCategory
 {
@@ -636,6 +636,13 @@ public:
 	virtual void RegisterIsNameAllowedDelegate(const FName OwnerName, FIsNameAllowed Delegate) = 0;
 	/** Remove a previously-set global name filter */
 	virtual void UnregisterIsNameAllowedDelegate(const FName OwnerName) = 0;
+
+	/** Sanitize the name by calling all registered delegates. */
+	virtual bool SanitizeName(FString& NameToSanitize) = 0;
+	/** Allows setting of a global name filter that is applied to assets and folders */
+	virtual void RegisterSanitizeNameDelegate(const FName OwnerName, FSanitizeName Delegate) = 0;
+	/** Remove a previously-set global name filter */
+	virtual void UnregisterSanitizeNameDelegate(const FName OwnerName) = 0;
 
 	/** Show notification that writable folder filter blocked an action */
 	virtual void NotifyBlockedByWritableFolderFilter() const = 0;

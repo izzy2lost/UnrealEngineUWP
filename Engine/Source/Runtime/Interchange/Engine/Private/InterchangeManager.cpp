@@ -809,27 +809,6 @@ void UE::Interchange::FImportResult::AddReferencedObjects(FReferenceCollector& C
 	Collector.AddReferencedObject(Results);
 }
 
-void UE::Interchange::SanitizeObjectPath(FString& ObjectPath)
-{
-	const TCHAR* InvalidChar = INVALID_OBJECTPATH_CHARACTERS INVALID_LONGPACKAGE_CHARACTERS;
-
-	while (*InvalidChar)
-	{
-		ObjectPath.ReplaceCharInline(*InvalidChar, TCHAR('_'), ESearchCase::CaseSensitive);
-		++InvalidChar;
-	}
-}
-
-void UE::Interchange::SanitizeObjectName(FString& ObjectName)
-{
-	const TCHAR* InvalidChar = INVALID_OBJECTNAME_CHARACTERS;
-	while (*InvalidChar)
-	{
-		ObjectName.ReplaceCharInline(*InvalidChar, TCHAR('_'), ESearchCase::CaseSensitive);
-		++InvalidChar;
-	}
-}
-
 UInterchangePipelineBase* UE::Interchange::GeneratePipelineInstance(const FSoftObjectPath& PipelineInstance)
 {
 	UPackage* PipelineInstancePackage = GetTransientPackage();
@@ -1700,8 +1679,8 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 	{
 		FString AssetpackageName = ImportAssetParameters.DestinationName.IsEmpty() ? FPaths::GetCleanFilename(SourceData->GetFilename()) : ImportAssetParameters.DestinationName;
 		FString PackageBasePath = ContentPath;
-		UE::Interchange::SanitizeObjectName(AssetpackageName);
-		UE::Interchange::SanitizeObjectPath(PackageBasePath);
+		SanitizeNameInline(AssetpackageName, ESanitizeNameTypeFlags::ObjectName | ESanitizeNameTypeFlags::ObjectPath | ESanitizeNameTypeFlags::LongPackage);
+		SanitizeNameInline(PackageBasePath, ESanitizeNameTypeFlags::ObjectPath | ESanitizeNameTypeFlags::LongPackage);
 		FString FullPackagePath = FPaths::Combine(*PackageBasePath, *AssetpackageName);
 		if (!UE::Interchange::FPackageUtils::IsMapPackageAsset(FullPackagePath))
 		{
@@ -1776,7 +1755,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 	FString ContentBasePath = ContentPath;
 	if (!ImportAssetParameters.ReimportAsset)
 	{
-		UE::Interchange::SanitizeObjectPath(ContentBasePath);
+		SanitizeNameInline(ContentBasePath, ESanitizeNameTypeFlags::ObjectPath | ESanitizeNameTypeFlags::LongPackage);
 	}
 	else
 	{
@@ -2315,6 +2294,51 @@ bool UInterchangeManager::IsImporting()
 {
 	return UE::Interchange::Private::StaticHelpers::AsyncHelperCounter > 0;
 }
+
+void UInterchangeManager::SanitizeNameInline(FString& NameToSanitize, const ESanitizeNameTypeFlags NameType)
+{
+	//Default behavior don't use the delegates
+	auto SanitizeCharacters = [&NameToSanitize](const TCHAR* InvalidCharacters)
+		{
+			while (*InvalidCharacters)
+			{
+				NameToSanitize.ReplaceCharInline(*InvalidCharacters, TCHAR('_'), ESearchCase::CaseSensitive);
+				++InvalidCharacters;
+			}
+		};
+
+	//Sanitize all Name type users ask for
+
+	bool bBroadcastSanitizeName = false;
+	if ((NameType & ESanitizeNameTypeFlags::Name) != ESanitizeNameTypeFlags::None)
+	{
+		SanitizeCharacters(INVALID_NAME_CHARACTERS);
+		bBroadcastSanitizeName = true;
+	}
+
+	if ((NameType & ESanitizeNameTypeFlags::ObjectName) != ESanitizeNameTypeFlags::None)
+	{
+		SanitizeCharacters(INVALID_OBJECTNAME_CHARACTERS);
+		bBroadcastSanitizeName = true;
+	}
+
+	if ((NameType & ESanitizeNameTypeFlags::ObjectPath) != ESanitizeNameTypeFlags::None)
+	{
+		SanitizeCharacters(INVALID_OBJECTPATH_CHARACTERS);
+	}
+
+	if ((NameType & ESanitizeNameTypeFlags::LongPackage) != ESanitizeNameTypeFlags::None)
+	{
+		SanitizeCharacters(INVALID_LONGPACKAGE_CHARACTERS);
+	}
+
+	if (bBroadcastSanitizeName)
+	{
+		//Call the delegates which will add extra sanitize rules, this is a thread safe delegate
+		OnSanitizeName.Broadcast(NameToSanitize, NameType);
+	}
+}
+
 
 bool UInterchangeManager::ExportAsset(const UObject* Asset, bool bIsAutomated)
 {

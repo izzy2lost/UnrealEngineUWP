@@ -1,13 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "InterchangeEditorModule.h"
 
-#include "InterchangeEditorLog.h"
-
-#include "InterchangeManager.h"
-#include "InterchangeFbxAssetImportDataConverter.h"
-
+#include "AssetToolsModule.h"
 #include "Engine/Engine.h"
 #include "IMessageLogListing.h"
+#include "InterchangeEditorLog.h"
+#include "InterchangeFbxAssetImportDataConverter.h"
+#include "InterchangeManager.h"
 #include "MessageLogModule.h"
 #include "Misc/App.h"
 #include "Misc/CoreDelegates.h"
@@ -83,7 +82,7 @@ namespace UE::Interchange::InterchangeEditorModule
 		UEditorLoadingSavingSettings* LoadingSavingSettings = GetMutableDefault<UEditorLoadingSavingSettings>();
 		LoadingSavingSettings->bAutoSaveEnable = bOldAutoSaveState;
 	}
-}
+} //ns UE::Interchange::InterchangeEditorModule
 
 FInterchangeEditorModule& FInterchangeEditorModule::Get()
 {
@@ -104,6 +103,7 @@ void FInterchangeEditorModule::StartupModule()
 		FDelegateHandle InterchangeEditorModuleDelegate;
 		FDelegateHandle InterchangeEditorModuleDelegateOnImportStarted;
 		FDelegateHandle InterchangeEditorModuleDelegateOnImportFinished;
+		FDelegateHandle InterchangeEditorModuleDelegateOnSanitizeName;
 
 		UInterchangeManager& InterchangeManager = UInterchangeManager::GetInterchangeManager();
 		InterchangeEditorModuleDelegate = InterchangeManager.OnBatchImportComplete.AddStatic(&InterchangeEditorModule::LogErrors);
@@ -111,12 +111,23 @@ void FInterchangeEditorModule::StartupModule()
 		InterchangeEditorModuleDelegateOnImportFinished = InterchangeManager.OnImportFinished.AddStatic(&InterchangeEditorModule::ImportFinished);
 		InterchangeManager.RegisterImportDataConverter(UInterchangeFbxAssetImportDataConverter::StaticClass());
 
-		auto UnregisterItems = [InterchangeEditorModuleDelegate, InterchangeEditorModuleDelegateOnImportStarted, InterchangeEditorModuleDelegateOnImportFinished]()
+		InterchangeEditorModuleDelegateOnSanitizeName = InterchangeManager.OnSanitizeName.AddLambda([](FString& SanitizeName, const ESanitizeNameTypeFlags NameType)
+			{
+				//Call the asset tools sanitize
+				IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+				AssetTools.SanitizeName(SanitizeName);
+			});
+
+		auto UnregisterItems = [InterchangeEditorModuleDelegate
+			, InterchangeEditorModuleDelegateOnImportStarted
+			, InterchangeEditorModuleDelegateOnImportFinished
+			, InterchangeEditorModuleDelegateOnSanitizeName]()
 		{
 			UInterchangeManager& InterchangeManager = UInterchangeManager::GetInterchangeManager();
 			InterchangeManager.OnBatchImportComplete.Remove(InterchangeEditorModuleDelegate);
 			InterchangeManager.OnImportStarted.Remove(InterchangeEditorModuleDelegateOnImportStarted);
 			InterchangeManager.OnImportFinished.Remove(InterchangeEditorModuleDelegateOnImportFinished);
+			InterchangeManager.OnSanitizeName.Remove(InterchangeEditorModuleDelegateOnSanitizeName);
 		};
 
 		InterchangeManager.OnPreDestroyInterchangeManager.AddLambda(UnregisterItems);
