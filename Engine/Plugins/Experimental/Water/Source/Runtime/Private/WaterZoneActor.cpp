@@ -60,11 +60,11 @@ void OnSkipWaterInfoTextureRenderWhenWorldRenderingDisabled_Callback(IConsoleVar
 	if (CVarSkipWaterInfoTextureRenderWhenWorldRenderingDisabled.GetValueOnAnyThread() == 0)
 	{
 		PreviousWaterInfoRenderMethodValue = WaterInfoRenderMethodCVar->GetInt();
-		WaterInfoRenderMethodCVar->Set(2);
+		WaterInfoRenderMethodCVar->SetWithCurrentPriority(2);
 	}
 	else
 	{
-		WaterInfoRenderMethodCVar->Set(PreviousWaterInfoRenderMethodValue);
+		WaterInfoRenderMethodCVar->SetWithCurrentPriority(PreviousWaterInfoRenderMethodValue);
 	}
 
 }

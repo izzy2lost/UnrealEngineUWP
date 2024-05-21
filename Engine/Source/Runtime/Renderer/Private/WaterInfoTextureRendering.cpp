@@ -789,7 +789,7 @@ void RenderWaterInfoTexture(
 	if (RenderCaptureNextWaterInfoDraws != 0)
 	{
 		RenderCaptureNextWaterInfoDraws = FMath::Max(0, RenderCaptureNextWaterInfoDraws - 1);
-		CVarRenderCaptureNextWaterInfoDraws->Set(RenderCaptureNextWaterInfoDraws);
+		CVarRenderCaptureNextWaterInfoDraws->SetWithCurrentPriority(RenderCaptureNextWaterInfoDraws);
 	}
 	
 
