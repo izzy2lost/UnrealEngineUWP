@@ -20,6 +20,10 @@ public class LiveLinkHubTarget : TargetRules
 	[CommandLine("-EnableThirdPartyPlugins=")]
 	public bool bEnableThirdPartyPlugins = true;
 
+	// Whether to disable building Capture Manager plugin.
+	[CommandLine("-EnableCaptureManagerPlugin=")]
+	public bool bEnableCaptureManagerPlugin = false;
+
 	public LiveLinkHubTarget(TargetInfo Target) : base(Target)
 	{
 		Type = TargetType.Program;
@@ -57,6 +61,14 @@ public class LiveLinkHubTarget : TargetRules
 				"MocopiLiveLink",
 				"PoseAILiveLink",
 				"Smartsuit"
+			});
+		}
+
+		if (bEnableCaptureManagerPlugin)
+		{
+			OptionalPlugins.AddRange(new string[]
+			{
+				"CaptureManager"
 			});
 		}
 
