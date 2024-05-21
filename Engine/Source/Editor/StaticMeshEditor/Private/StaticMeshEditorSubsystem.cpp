@@ -668,8 +668,8 @@ int32 UStaticMeshEditorSubsystem::ImportLOD(UStaticMesh* BaseStaticMesh, const i
 		return INDEX_NONE;
 	}
 
-
-	if (!FbxMeshUtils::ImportStaticMeshLOD(BaseStaticMesh, ResolveFilename, LODIndex))
+	constexpr bool bAsyncFalse = false;
+	if (!FbxMeshUtils::ImportStaticMeshLOD(BaseStaticMesh, ResolveFilename, LODIndex, bAsyncFalse))
 	{
 		UE_LOG(LogStaticMeshEditorSubsystem, Error, TEXT("StaticMesh ImportLOD: Cannot import mesh LOD."));
 		return INDEX_NONE;

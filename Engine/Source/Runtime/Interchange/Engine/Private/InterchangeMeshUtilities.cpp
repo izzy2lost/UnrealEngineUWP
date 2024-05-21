@@ -99,14 +99,14 @@ bool FInterchangeSkeletalMeshAlternateSkinWeightPostImportTask::AddLodToReimport
 	return true;
 }
 
-TFuture<bool> UInterchangeMeshUtilities::ImportCustomLod(UObject* MeshObject, const int32 LodIndex, const UInterchangeSourceData* SourceData)
+TFuture<bool> UInterchangeMeshUtilities::ImportCustomLod(UObject* MeshObject, const int32 LodIndex, const UInterchangeSourceData* SourceData, bool bAsync)
 {
 	TSharedPtr<TPromise<bool>> Promise = MakeShared<TPromise<bool>>();
 	
-	return InternalImportCustomLod(Promise, MeshObject, LodIndex, SourceData);
+	return InternalImportCustomLod(Promise, MeshObject, LodIndex, SourceData, bAsync);
 }
 
-TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLod(TSharedPtr<TPromise<bool>> Promise, UObject* MeshObject, const int32 LodIndex, const UInterchangeSourceData* SourceData)
+TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLod(TSharedPtr<TPromise<bool>> Promise, UObject* MeshObject, const int32 LodIndex, const UInterchangeSourceData* SourceData, bool bAsync)
 {
 #if WITH_EDITOR
 	UInterchangeManager& InterchangeManager = UInterchangeManager::GetInterchangeManager();
@@ -240,7 +240,10 @@ TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLod(TSharedPtr<TPro
 			}
 		};
 
-	UE::Interchange::FAssetImportResultRef AssetImportResult = InterchangeManager.ImportAssetAsync(ImportAssetPath, SourceData, ImportAssetParameters);
+	UE::Interchange::FAssetImportResultRef AssetImportResult = bAsync 
+		? InterchangeManager.ImportAssetAsync(ImportAssetPath, SourceData, ImportAssetParameters)
+		: InterchangeManager.ImportAssetWithResult(ImportAssetPath, SourceData, ImportAssetParameters);
+
 	FString SourceDataFilename = SourceData->GetFilename();
 	if (SkeletalMesh)
 	{

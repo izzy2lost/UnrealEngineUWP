@@ -20,7 +20,7 @@ namespace FbxMeshUtils
 	 * @param LODLevel			The level of the lod to import
 	 * @return					Whether or not the import succeeded
 	 */
-	UNREALED_API bool ImportStaticMeshLOD( UStaticMesh* BaseStaticMesh, const FString& Filename, int32 LODLevel );
+	UNREALED_API bool ImportStaticMeshLOD( UStaticMesh* BaseStaticMesh, const FString& Filename, int32 LODLevel, bool bAsync);
 
 	/**
 	 * Imports a mesh as the high res source model of the given static mesh
@@ -29,7 +29,7 @@ namespace FbxMeshUtils
 	 * @param Filename			The filename of the FBX file containing the mesh
 	 * @return					Whether or not the import succeeded
 	 */
-	UNREALED_API bool ImportStaticMeshHiResSourceModel( UStaticMesh* BaseStaticMesh, const FString& Filename );
+	UNREALED_API bool ImportStaticMeshHiResSourceModel( UStaticMesh* BaseStaticMesh, const FString& Filename, bool bAsync);
 
 	/**
 	 * Imports a skeletal mesh LOD to the given skeletal mesh
@@ -39,7 +39,7 @@ namespace FbxMeshUtils
 	 * @param LODLevel			The level of the lod to import
 	 * @return					Whether or not the import succeeded
 	 */
-	UNREALED_API bool ImportSkeletalMeshLOD( USkeletalMesh* Mesh, const FString& Filename, int32 LODLevel );
+	UNREALED_API bool ImportSkeletalMeshLOD( USkeletalMesh* Mesh, const FString& Filename, int32 LODLevel, bool bAsync);
 
 	/**
 	 * Imports a mesh LOD to the given mesh

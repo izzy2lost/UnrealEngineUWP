@@ -670,8 +670,8 @@ int32 USkeletalMeshEditorSubsystem::ImportLOD(USkeletalMesh* BaseMesh, const int
 
 		BaseMesh->GetLODInfo(LODIndex)->bHasBeenSimplified = false;
 	}
-
-	if (!FbxMeshUtils::ImportSkeletalMeshLOD(BaseMesh, ResolveFilename, LODIndex))
+	constexpr bool bAsyncFalse = false;
+	if (!FbxMeshUtils::ImportSkeletalMeshLOD(BaseMesh, ResolveFilename, LODIndex, bAsyncFalse))
 	{
 		UE_LOG(LogSkeletalMeshEditorSubsystem, Error, TEXT("SkeletalMesh ImportLOD: Cannot import mesh LOD."));
 		return INDEX_NONE;

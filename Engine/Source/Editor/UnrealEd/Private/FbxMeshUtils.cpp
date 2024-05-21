@@ -186,7 +186,7 @@ namespace FbxMeshUtils
 		}
 	}
 
-	bool ImportStaticMeshLOD( UStaticMesh* BaseStaticMesh, const FString& Filename, int32 LODLevel )
+	bool ImportStaticMeshLOD( UStaticMesh* BaseStaticMesh, const FString& Filename, int32 LODLevel, bool bAsync)
 	{
 		if (!BaseStaticMesh)
 		{
@@ -200,10 +200,10 @@ namespace FbxMeshUtils
 		if (bInterchangeCanImportSourceData)
 		{
 			//Call interchange mesh utilities to import custom LOD
-			UInterchangeMeshUtilities::ImportCustomLod(BaseStaticMesh, LODLevel, SourceData).Then([BaseStaticMesh, LODLevel](TFuture<bool> Result)
+			UInterchangeMeshUtilities::ImportCustomLod(BaseStaticMesh, LODLevel, SourceData, bAsync).Then([BaseStaticMesh, LODLevel, bAsync](TFuture<bool> Result)
 				{
 					bool bResult = Result.Get();
-					Async(EAsyncExecution::TaskGraphMainThread, [BaseStaticMesh, LODLevel, bResult]()
+					auto OnImportCustomLodDone = [BaseStaticMesh, LODLevel, bResult]()
 						{
 							if (bResult)
 							{
@@ -221,7 +221,17 @@ namespace FbxMeshUtils
 								NotificationInfo.ExpireDuration = 5.0f;
 								FSlateNotificationManager::Get().AddNotification(NotificationInfo);
 							}
-						});
+						};
+
+					if (IsInGameThread())
+					{
+						OnImportCustomLodDone();
+					}
+					else
+					{
+						ensure(bAsync);
+						Async(EAsyncExecution::TaskGraphMainThread, OnImportCustomLodDone);
+					}
 				});
 
 			return true;
@@ -358,7 +368,7 @@ namespace FbxMeshUtils
 		return bSuccess;
 	}
 
-	bool ImportStaticMeshHiResSourceModel(UStaticMesh* BaseStaticMesh, const FString& Filename)
+	bool ImportStaticMeshHiResSourceModel(UStaticMesh* BaseStaticMesh, const FString& Filename, bool bAsync)
 	{
 		if (!BaseStaticMesh)
 		{
@@ -376,39 +386,48 @@ namespace FbxMeshUtils
 			//Set the asset import data to pass the correct import options
 			TempStaticMesh->SetAssetImportData(BaseStaticMesh->GetAssetImportData());
 			//Call interchange mesh utilities to import custom LOD
-			UInterchangeMeshUtilities::ImportCustomLod(TempStaticMesh, 0, SourceData).Then([BaseStaticMesh,TempStaticMesh, Filename](TFuture<bool> Result)
+			UInterchangeMeshUtilities::ImportCustomLod(TempStaticMesh, 0, SourceData, bAsync).Then([BaseStaticMesh,TempStaticMesh, Filename, bAsync](TFuture<bool> Result)
 			{
 				bool bResult = Result.Get();
-				Async(EAsyncExecution::TaskGraphMainThread, [BaseStaticMesh, TempStaticMesh, Filename, bResult]()
+				auto OnImportCustomLodDone = [BaseStaticMesh, TempStaticMesh, Filename, bResult]()
+					{
+						// Copy high res mesh from temporary static mesh to targeted one
+						if (bResult && Private::CopyHighResMeshDescription(TempStaticMesh, BaseStaticMesh))
+						{
+							FStaticMeshSourceModel& SourceModel = BaseStaticMesh->GetHiResSourceModel();
+							SourceModel.SourceImportFilename = UAssetImportData::SanitizeImportFilename(Filename, nullptr);
+							SourceModel.bImportWithBaseMesh = false;
+
+							// Notification of success
+							FNotificationInfo NotificationInfo(FText::GetEmpty());
+							NotificationInfo.Text = NSLOCTEXT("UnrealEd", "ImportStaticMeshHiResSourceModelSuccessful", "High res mesh imported successfully!");
+							NotificationInfo.ExpireDuration = 5.0f;
+							FSlateNotificationManager::Get().AddNotification(NotificationInfo);
+						}
+						else
+						{
+							// Notification of failure
+							FNotificationInfo NotificationInfo(FText::GetEmpty());
+							NotificationInfo.Text = NSLOCTEXT("UnrealEd", "ImportStaticMeshHiResSourceModelFail", "Failed to import high res mesh!");
+							NotificationInfo.ExpireDuration = 5.0f;
+							FSlateNotificationManager::Get().AddNotification(NotificationInfo);
+						}
+
+						if (TempStaticMesh)
+						{
+							TempStaticMesh->ClearFlags(RF_Public | RF_Standalone);
+							TempStaticMesh->MarkAsGarbage();
+						}
+					};
+				if (IsInGameThread())
 				{
-					// Copy high res mesh from temporary static mesh to targeted one
-					if (bResult && Private::CopyHighResMeshDescription(TempStaticMesh, BaseStaticMesh))
-					{
-						FStaticMeshSourceModel& SourceModel = BaseStaticMesh->GetHiResSourceModel();
-						SourceModel.SourceImportFilename = UAssetImportData::SanitizeImportFilename(Filename, nullptr);
-						SourceModel.bImportWithBaseMesh = false;
-
-						// Notification of success
-						FNotificationInfo NotificationInfo(FText::GetEmpty());
-						NotificationInfo.Text = NSLOCTEXT("UnrealEd", "ImportStaticMeshHiResSourceModelSuccessful", "High res mesh imported successfully!");
-						NotificationInfo.ExpireDuration = 5.0f;
-						FSlateNotificationManager::Get().AddNotification(NotificationInfo);
-					}
-					else
-					{
-						// Notification of failure
-						FNotificationInfo NotificationInfo(FText::GetEmpty());
-						NotificationInfo.Text = NSLOCTEXT("UnrealEd", "ImportStaticMeshHiResSourceModelFail", "Failed to import high res mesh!");
-						NotificationInfo.ExpireDuration = 5.0f;
-						FSlateNotificationManager::Get().AddNotification(NotificationInfo);
-					}
-
-					if(TempStaticMesh)
-					{
-						TempStaticMesh->ClearFlags(RF_Public | RF_Standalone);
-						TempStaticMesh->MarkAsGarbage();
-					}
-				});
+					OnImportCustomLodDone();
+				}
+				else
+				{
+					ensure(bAsync);
+					Async(EAsyncExecution::TaskGraphMainThread, OnImportCustomLodDone);
+				}
 			});
 
 			return true;
@@ -494,7 +513,7 @@ namespace FbxMeshUtils
 		return bSuccess;
 	}
 
-	bool ImportSkeletalMeshLOD( class USkeletalMesh* SelectedSkelMesh, const FString& Filename, int32 LODLevel)
+	bool ImportSkeletalMeshLOD( class USkeletalMesh* SelectedSkelMesh, const FString& Filename, int32 LODLevel, bool bAsync)
 	{
 		//Make sure skeletal mesh is valid
 		if (!SelectedSkelMesh)
@@ -509,15 +528,15 @@ namespace FbxMeshUtils
 		if (bInterchangeCanImportSourceData)
 		{
 			//Call interchange mesh utilities to import custom LOD
-			UInterchangeMeshUtilities::ImportCustomLod(SelectedSkelMesh, LODLevel, SourceData).Then([SelectedSkelMesh, LODLevel](TFuture<bool> Result)
+			UInterchangeMeshUtilities::ImportCustomLod(SelectedSkelMesh, LODLevel, SourceData, bAsync).Then([SelectedSkelMesh, LODLevel, bAsync](TFuture<bool> Result)
 				{
 					bool bResult = Result.Get();
-					Async(EAsyncExecution::TaskGraphMainThread, [SelectedSkelMesh, LODLevel, bResult]()
+					auto OnImportCustomLodDone = [SelectedSkelMesh, LODLevel, bResult]()
 						{
 							if (bResult)
 							{
 								//If we use alternate skinweight, we must re-import all profile for this LOD
-								if(SelectedSkelMesh && !SelectedSkelMesh->GetSkinWeightProfiles().IsEmpty())
+								if (SelectedSkelMesh && !SelectedSkelMesh->GetSkinWeightProfiles().IsEmpty())
 								{
 									//Enqueue the re-import alternate skinning
 									TSharedPtr<FInterchangeSkeletalMeshAlternateSkinWeightPostImportTask> SkeletalMeshPostImportTask = MakeShared<FInterchangeSkeletalMeshAlternateSkinWeightPostImportTask>(SelectedSkelMesh);
@@ -528,7 +547,7 @@ namespace FbxMeshUtils
 									SkeletalMeshPostImportTask->AddLodToReimportAlternate(LODLevel);
 									UInterchangeManager::GetInterchangeManager().EnqueuePostImportTask(SkeletalMeshPostImportTask);
 								}
-								
+
 
 								// Notification of success
 								FNotificationInfo NotificationInfo(FText::GetEmpty());
@@ -544,7 +563,17 @@ namespace FbxMeshUtils
 								NotificationInfo.ExpireDuration = 5.0f;
 								FSlateNotificationManager::Get().AddNotification(NotificationInfo);
 							}
-						});
+						};
+
+					if (IsInGameThread())
+					{
+						OnImportCustomLodDone();
+					}
+					else
+					{
+						ensure(bAsync);
+						Async(EAsyncExecution::TaskGraphMainThread, OnImportCustomLodDone);
+					}
 				});
 			return true;
 		}
@@ -1064,7 +1093,8 @@ namespace FbxMeshUtils
 
 		if (bInterchangeCanImportSourceData)
 		{
-			TFuture<bool> Result = UInterchangeMeshUtilities::ImportCustomLod(SelectedMesh, LODLevel, SourceData);
+			constexpr bool bAsyncTrue = true;
+			TFuture<bool> Result = UInterchangeMeshUtilities::ImportCustomLod(SelectedMesh, LODLevel, SourceData, bAsyncTrue);
 
 			Result.Then([Promise, bNotifyCB, SkeletalMesh, StaticMesh, LODLevel](TFuture<bool> FutureResult)
 				{
@@ -1110,13 +1140,14 @@ namespace FbxMeshUtils
 		bool bImportSuccess = false;
 		if(!FilenameToImport.IsEmpty())
 		{
+			constexpr bool bAsyncFalse = false;
 			if(SkeletalMesh)
 			{
-				bImportSuccess = ImportSkeletalMeshLOD(SkeletalMesh, FilenameToImport, LODLevel);
+				bImportSuccess = ImportSkeletalMeshLOD(SkeletalMesh, FilenameToImport, LODLevel, bAsyncFalse);
 			}
 			else if(StaticMesh)
 			{
-				bImportSuccess = ImportStaticMeshLOD(StaticMesh, FilenameToImport, LODLevel);
+				bImportSuccess = ImportStaticMeshLOD(StaticMesh, FilenameToImport, LODLevel, bAsyncFalse);
 			}
 		}
 
@@ -1182,10 +1213,11 @@ namespace FbxMeshUtils
 		}
 
 		bool bImportSuccess = false;
+		constexpr bool bAsyncFalse = false;
 
 		if (!FilenameToImport.IsEmpty())
 		{
-			bImportSuccess = ImportStaticMeshHiResSourceModel(StaticMesh, FilenameToImport);
+			bImportSuccess = ImportStaticMeshHiResSourceModel(StaticMesh, FilenameToImport, bAsyncFalse);
 		}
 
 		if (!bImportSuccess && bPromptOnFail)
@@ -1197,7 +1229,7 @@ namespace FbxMeshUtils
 
 			if (FilenameToImport.Len() > 0 && FPaths::FileExists(FilenameToImport))
 			{
-				bImportSuccess = ImportStaticMeshHiResSourceModel(StaticMesh, FilenameToImport);
+				bImportSuccess = ImportStaticMeshHiResSourceModel(StaticMesh, FilenameToImport, bAsyncFalse);
 			}
 		}
 
