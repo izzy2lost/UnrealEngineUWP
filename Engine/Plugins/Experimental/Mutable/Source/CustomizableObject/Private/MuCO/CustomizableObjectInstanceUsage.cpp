@@ -374,8 +374,11 @@ void UCustomizableObjectInstanceUsage::EditorUpdateComponent()
 			const int32 ComponentIndex = GetComponentIndex();
 
 			const bool bInstanceGenerated = CustomizableObjectInstance->GetPrivate()->SkeletalMeshStatus != ESkeletalMeshStatus::NotGenerated;
-			USkeletalMesh* GeneratedSkeletalMesh = bInstanceGenerated ? CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex) :
-				CustomizableObjectInstance->GetCustomizableObject()->GetRefSkeletalMesh(ComponentIndex);
+			USkeletalMesh* GeneratedSkeletalMesh = bInstanceGenerated ?
+				CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex) :
+				GetSkipSetReferenceSkeletalMesh() ?
+					nullptr :
+					CustomizableObjectInstance->GetCustomizableObject()->GetRefSkeletalMesh(ComponentIndex);
 
 			if (AttachedSkeletalMesh != GeneratedSkeletalMesh)
 			{

@@ -73,16 +73,13 @@ FCustomizableObjectEditorViewportClient::FCustomizableObjectEditorViewportClient
 	bCameraLock = true;
 	bDrawSky = true;
 
-	bActivateOrbitalCamera = true;
-	bSetOrbitalOnPerspectiveMode = true;
+	bSetOrbitalOnPerspectiveMode = bCameraLock;
 
 	const int32 CameraSpeed = 3;
 	SetCameraSpeedSetting(CameraSpeed);
 
 	bShowBones = false;
-
-	bReferenceMeshMissingWarningMessageVisible = false;
-
+	
 	DrawHelper.bDrawPivot = false;
 	DrawHelper.bDrawWorldBox = false;
 	DrawHelper.bDrawKillZ = false;
@@ -106,8 +103,6 @@ FCustomizableObjectEditorViewportClient::FCustomizableObjectEditorViewportClient
 	EngineShowFlags.Grid = ConfigOption->bShowGrid;
 
 	OverrideNearClipPlane(1.0f);
-
-	SetPreviewComponent(nullptr);
 	
 	// now add the ClipMorph plane
 	ClipMorphNode = nullptr;
@@ -120,9 +115,7 @@ FCustomizableObjectEditorViewportClient::FCustomizableObjectEditorViewportClient
 	ClipMeshComp = NewObject<UStaticMeshComponent>();
 	PreviewScene->AddComponent(ClipMeshComp, FTransform());
 	ClipMeshComp->SetVisibility(false);
-
-	BoundSphere.W = 100.f;
-
+	
 	const float FOVMin = 5.f;
 	const float FOVMax = 170.f;
 	ViewFOV = FMath::Clamp<float>(53.43f, FOVMin, FOVMax);
@@ -158,89 +151,9 @@ FCustomizableObjectEditorViewportClient::FCustomizableObjectEditorViewportClient
 }
 
 
-void FCustomizableObjectEditorViewportClient::UpdateCameraSetup()
-{
-	// Look for any Skeletal Mesh Component that we can focus to.
-	bool bWasValidComponentFound = false;
-	for	(TWeakObjectPtr<UDebugSkelMeshComponent> SkeletalMeshComponent : SkeletalMeshComponents)
-	{
-		if (SkeletalMeshComponent.IsValid() && UE_MUTABLE_GETSKINNEDASSET(SkeletalMeshComponent))
-		{
-			bWasValidComponentFound = true;
-			break;
-		}
-	}
-	
-	static FRotator CustomOrbitRotation(-33.75, -135, 0);
-	if ( bWasValidComponentFound
-		||
-		(StaticMeshComponent.IsValid() && StaticMeshComponent->GetStaticMesh()) )
-	{
-		BoundSphere = GetCameraTarget();
-		FVector CustomOrbitZoom(0, BoundSphere.W / (75.0f * (float)PI / 360.0f), 0);
-		FVector CustomOrbitLookAt = BoundSphere.Center;
-
-		SetCameraSetup(CustomOrbitLookAt, CustomOrbitRotation, CustomOrbitZoom, CustomOrbitLookAt, GetViewLocation(), GetViewRotation() );
-
-		UpdateFloor();
-
-		EnableCameraLock(bActivateOrbitalCamera);
-		FBox Box( BoundSphere.Center - FVector(BoundSphere.W) / 2.0f, BoundSphere.Center + FVector(BoundSphere.W) / 2.0f );
-		FocusViewportOnBox( Box, false );
-	}
-}
-
-
-void FCustomizableObjectEditorViewportClient::UpdateFloor()
-{
-	// Move the floor to the bottom of the bounding box of the mesh, rather than on the origin
-	bool bFoundSkelMesh = false;
-
-	for (TWeakObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent : SkeletalMeshComponents)
-	{
-		if (SkeletalMeshComponent.IsValid() )
-		{
-			SkeletalMeshComponent->bComponentUseFixedSkelBounds = true;
-			SkeletalMeshComponent->UpdateBounds();
-
-			bFoundSkelMesh = true;
-		}
-	}
-
-	// TODO: Optimize
-	if (bFoundSkelMesh)
-	{
-
-	}
-	else if (StaticMeshComponent.IsValid())
-	{
-		StaticMeshComponent->UpdateBounds();
-	}
-
-	FAdvancedPreviewScene* AdvancedScene = static_cast<FAdvancedPreviewScene*>(PreviewScene);
-	if (AdvancedScene != nullptr)
-	{
-		const UStaticMeshComponent* FloorMeshComponent = AdvancedScene->GetFloorMeshComponent();
-		if (FloorMeshComponent != nullptr)
-		{
-			UStaticMeshComponent* FloorMeshComponentCasted = const_cast<UStaticMeshComponent*>(FloorMeshComponent);
-			FloorMeshComponentCasted->SetWorldLocation(FVector(0.0f, 0.0f, -1.0f/* Does not seem to work Bottom.Z*/));
-		}
-	}
-}
-
-
 FCustomizableObjectEditorViewportClient::~FCustomizableObjectEditorViewportClient()
 {
 	UAssetViewerSettings::Get()->OnAssetViewerSettingsChanged().RemoveAll(this);
-}
-
-
-void FCustomizableObjectEditorViewportClient::Tick(float DeltaSeconds)
-{
-	FEditorViewportClient::Tick(DeltaSeconds);
-
-	UpdateFloor();
 }
 
 
@@ -459,17 +372,6 @@ void FCustomizableObjectEditorViewportClient::Draw(FViewport* InViewport, FCanva
 		DrawUVs(InViewport, Canvas, YPos);
 	}
 
-	if (bReferenceMeshMissingWarningMessageVisible)
-	{
-		Canvas->DrawShadowedString(
-			6,
-			2,
-			*NSLOCTEXT("CustomizableObjectEditor", "NoReferenceMeshMutable", "Warning! No reference mesh is set in the Object Properties tab.").ToString(),
-			GEngine->GetSmallFont(),
-			FLinearColor::Red
-			);
-	}
-
 	if (StateChangeShowGeometryDataFlag)
 	{
 		ShowInstanceGeometryInformation(Canvas);
@@ -531,46 +433,7 @@ void FCustomizableObjectEditorViewportClient::DrawUVs(FViewport* InViewport, FCa
 	BatchedElements->AddLine( FVector( Box[ 2 ], 0.0f ), FVector( Box[ 3 ], 0.0f ), BorderColor, HitProxyId );
 	BatchedElements->AddLine( FVector( Box[ 3 ], 0.0f ), FVector( Box[ 0 ], 0.0f ), BorderColor, HitProxyId );
 
-	if (StaticMeshComponent.IsValid() &&
-		StaticMeshComponent->GetStaticMesh() &&
-		StaticMeshComponent->GetStaticMesh()->GetRenderData() &&
-		StaticMeshComponent->GetStaticMesh()->GetRenderData()->LODResources.IsValidIndex(LODLevel))
-	{
-		FStaticMeshLODResources* RenderData = &StaticMeshComponent->GetStaticMesh()->GetRenderData()->LODResources[LODLevel];
-		
-		if (RenderData && UVChannel >= 0 && UVChannel < static_cast<int32>(RenderData->VertexBuffers.StaticMeshVertexBuffer.GetNumTexCoords()))
-		{
-			//draw triangles
-			FIndexArrayView Indices = RenderData->IndexBuffer.GetArrayView();
-			uint32 NumIndices = Indices.Num();
-		
-			BatchedElements->AddReserveLines( NumIndices );
-
-			for (uint32 i = 0; i < NumIndices - 2; i += 3)
-			{
-				FVector2D UV1( RenderData->VertexBuffers.StaticMeshVertexBuffer.GetVertexUV( Indices[ i + 0 ], UVChannel ) );
-				FVector2D UV2( RenderData->VertexBuffers.StaticMeshVertexBuffer.GetVertexUV( Indices[ i + 1 ], UVChannel ) );
-				FVector2D UV3( RenderData->VertexBuffers.StaticMeshVertexBuffer.GetVertexUV( Indices[ i + 2 ], UVChannel ) );
-	
-				// Draw lines in black unless the UVs are outside of the 0.0 - 1.0 range.  For out-of-bounds
-				// UVs, we'll draw the line segment in red
-				
-				// If we are supporting a version lower than LWC get the right real type. 
-				using Vector2DRealType = TDecay<decltype( DeclVal<FVector2D>().X )>::Type;
-				
-				constexpr Vector2DRealType Zero = static_cast<Vector2DRealType>(0);
-
-				UV1 = ClampUVRange(UV1.X, UV1.Y) * UVBoxScale + UVBoxOrigin;
-				UV2 = ClampUVRange(UV2.X, UV2.Y) * UVBoxScale + UVBoxOrigin;
-				UV3 = ClampUVRange(UV3.X, UV3.Y) * UVBoxScale + UVBoxOrigin;
-
-				BatchedElements->AddLine(FVector(UV1, Zero), FVector(UV2, Zero), BorderColor, HitProxyId);
-				BatchedElements->AddLine(FVector(UV2, Zero), FVector(UV3, Zero), BorderColor, HitProxyId);
-				BatchedElements->AddLine(FVector(UV3, Zero), FVector(UV1, Zero), BorderColor, HitProxyId);
-			}
-		}
-	}
-	else if (SkeletalMeshComponents.Num())
+	if (SkeletalMeshComponents.Num())
 	{
 		if (SkeletalMeshComponents.IsValidIndex(ComponentIndex))
 		{
@@ -634,22 +497,6 @@ void FCustomizableObjectEditorViewportClient::DrawUVs(FViewport* InViewport, FCa
 			}
 		}
 	}
-}
-
-
-float FCustomizableObjectEditorViewportClient::GetFloorOffset() const
-{
-	FAdvancedPreviewScene* AdvancedScene = static_cast<FAdvancedPreviewScene*>(PreviewScene);
-	if (AdvancedScene != nullptr)
-	{
-		const UStaticMeshComponent* FloorMeshComponent = AdvancedScene->GetFloorMeshComponent();
-		if (FloorMeshComponent != nullptr)
-		{
-			return FloorMeshComponent->GetComponentLocation().Z;
-		}
-	}
-
-	return 0.0f;
 }
 
 
@@ -768,89 +615,35 @@ void FCustomizableObjectEditorViewportClient::HideGizmoLight()
 }
 
 
-FSphere FCustomizableObjectEditorViewportClient::GetCameraTarget()
+void FCustomizableObjectEditorViewportClient::SetPreviewActor(const TWeakObjectPtr<AActor>& InActor, const TWeakObjectPtr<UCustomizableObjectInstance>& InInstance, const TArray<TWeakObjectPtr<UDebugSkelMeshComponent>>& InSkeletalMeshComponents)
 {
-	bool bFoundTarget = false;
-	FSphere Sphere(FVector(0,0,0), 100.0f); // default
+	SkeletalMeshComponents = InSkeletalMeshComponents;
+	Actor = InActor;
 
-	for (TWeakObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent : SkeletalMeshComponents)
-	{
-		if (SkeletalMeshComponent.IsValid())
-		{
-			FBoxSphereBounds Bounds = SkeletalMeshComponent.Get()->CalcBounds(FTransform::Identity);
-
-			if (!bFoundTarget)
-			{
-				Sphere = Bounds.GetSphere();
-			}
-			else
-			{
-				Sphere += Bounds.GetSphere();
-			}
-
-			bFoundTarget = true;
-		}
-	}
-
-	if(!bFoundTarget && StaticMeshComponent.IsValid())
-	{
-		if( !bFoundTarget )
-		{
-			FBoxSphereBounds Bounds = StaticMeshComponent.Get()->CalcBounds(FTransform::Identity);
-			Sphere = Bounds.GetSphere();
-		}
-	}
-
-	return Sphere;
+	InInstance->UpdatedNativeDelegate.AddSP(SharedThis(this), &FCustomizableObjectEditorViewportClient::OnInstanceUpdate);
 }
 
 
-void FCustomizableObjectEditorViewportClient::SetPreviewComponent(UStaticMeshComponent* InStaticMeshComponent)
+void FCustomizableObjectEditorViewportClient::OnInstanceUpdate(UCustomizableObjectInstance* Instance)
 {
-	StaticMeshComponent = InStaticMeshComponent;
-	SkeletalMeshComponents.Reset();
-
-	if (StaticMeshComponent.IsValid() && StaticMeshComponent->GetStaticMesh())
-	{
-		SetViewLocation( -FVector(0, StaticMeshComponent->GetStaticMesh()->GetBounds().SphereRadius / (75.0f * (float)PI / 360.0f), 0) );
-		SetViewRotation( FRotator(0, 90.f, 0) );
-		//LockLocation = FVector(0,StaticMeshComponent->StaticMesh->ThumbnailDistance,0);
-		//LockRot = StaticMeshComponent->StaticMesh->ThumbnailAngle;
-	}
-
-	UpdateCameraSetup();
-}
-
-
-void FCustomizableObjectEditorViewportClient::SetPreviewComponents(const TArray<UDebugSkelMeshComponent*>& InSkeletalMeshComponents)
-{
-	SkeletalMeshComponents.Reset(InSkeletalMeshComponents.Num());
-	SkeletalMeshComponents.Append(InSkeletalMeshComponents);
+	Invalidate();
+	ReSetAnimation();
 	
-	StaticMeshComponent = nullptr;
-}
-
-void FCustomizableObjectEditorViewportClient::ResetCamera()
-{
-	float MaxSphereRadius = 0.0f;
-	for (const TWeakObjectPtr<UDebugSkelMeshComponent>& SkeletalMeshComponent : SkeletalMeshComponents)
+	// Configure the initial orbital position of the camera
+	if (!bIsCameraSetup)
 	{
-		if (UE_MUTABLE_GETSKINNEDASSET(SkeletalMeshComponent))
-		{
-			MaxSphereRadius = FMath::Max(MaxSphereRadius, UE_MUTABLE_GETSKINNEDASSET(SkeletalMeshComponent)->GetBounds().SphereRadius);
-		}
+		bIsCameraSetup = true;
+		
+		FVector Center;
+		FVector Extents;
+		Actor.Get()->GetActorBounds(false, Center, Extents, true);
+
+		static FRotator CustomOrbitRotation(-33.75, -135, 0);
+		FVector CustomOrbitZoom(0, Extents.GetMax() * 2.5 / (75.0 * PI / 360.0), 0);
+
+		SetCameraSetup(Center, CustomOrbitRotation, CustomOrbitZoom, Center, FVector::Zero(), {} /** Not used since orbital is enable just after. */ );	
+		EnableCameraLock(true);
 	}
-	
-	SetViewLocation(-FVector(0, MaxSphereRadius / (75.0f * (float)PI / 360.0f), 0));
-	SetViewRotation(FRotator(0, 90.f, 0));
-
-	UpdateCameraSetup();
-}
-
-
-void FCustomizableObjectEditorViewportClient::SetReferenceMeshMissingWarningMessage(bool bVisible)
-{
-	bReferenceMeshMissingWarningMessageVisible = bVisible;
 }
 
 
@@ -977,7 +770,12 @@ bool FCustomizableObjectEditorViewportClient::InputKey(const FInputKeyEventArgs&
 	{
 		if (EventArgs.Key == EKeys::F)
 		{
-			UpdateCameraSetup();
+			FVector Center;
+			FVector Extents;
+			Actor.Get()->GetActorBounds(false, Center, Extents, true);
+	
+			FocusViewportOnBox(FBox(Center - Extents, Center + Extents), true);
+			
 			return true;
 		}
 		else if (WidgetType != EWidgetType::Hidden) // Do not change the type when hidden.
@@ -1293,6 +1091,7 @@ bool FCustomizableObjectEditorViewportClient::HandleEndTransform()
 	return false;
 }
 
+
 FVector FCustomizableObjectEditorViewportClient::GetWidgetLocation() const
 {
 	switch (WidgetType)
@@ -1391,7 +1190,7 @@ void FCustomizableObjectEditorViewportClient::SetViewportType(ELevelViewportType
 	// Getting camera mode on perspective view
 	if (ViewportType == ELevelViewportType::LVT_Perspective)
 	{
-		bSetOrbitalOnPerspectiveMode = bActivateOrbitalCamera;
+		bSetOrbitalOnPerspectiveMode = bCameraLock;
 	}
 
 	// Set Camera mode
@@ -1517,26 +1316,6 @@ void FCustomizableObjectEditorViewportClient::RemoveAllLightsFromScene()
 	}
 
 	LightComponents.Empty();
-}
-
-
-void FCustomizableObjectEditorViewportClient::SetFloorOffset(float NewValue)
-{
-	for (TWeakObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent : SkeletalMeshComponents)
-	{
-		USkeletalMesh* Mesh = SkeletalMeshComponent.IsValid() ? Cast<USkeletalMesh>(UE_MUTABLE_GETSKINNEDASSET(SkeletalMeshComponent)) : nullptr;
-
-		if (Mesh)
-		{
-			// This value is saved in a UPROPERTY for the mesh, so changes are transactional
-			FScopedTransaction Transaction(LOCTEXT("SetFloorOffset", "Set Floor Offset"));
-			Mesh->Modify();
-
-			Mesh->SetFloorOffset(NewValue);
-			UpdateCameraSetup(); // This does the actual moving of the floor mesh
-			Invalidate();
-		}
-	}
 }
 
 
@@ -1937,13 +1716,12 @@ void FCustomizableObjectEditorViewportClient::SetEnvironmentMeshVisibility(uint3
 
 bool FCustomizableObjectEditorViewportClient::IsOrbitalCameraActive() const
 {
-	return bActivateOrbitalCamera;
+	return bCameraLock;
 }
 
 void FCustomizableObjectEditorViewportClient::SetCameraMode(bool Value)
 {
-	bActivateOrbitalCamera = Value;
-	UpdateCameraSetup();
+	EnableCameraLock(Value);
 }
 
 

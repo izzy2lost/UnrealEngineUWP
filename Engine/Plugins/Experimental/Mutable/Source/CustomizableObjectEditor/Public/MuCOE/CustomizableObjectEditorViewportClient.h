@@ -75,7 +75,6 @@ public:
 	class UPersonaOptions* ConfigOption;
 
 	// FEditorViewportClient interface
-	virtual void Tick(float DeltaSeconds) override;
 	virtual void Draw(const FSceneView* View,FPrimitiveDrawInterface* PDI) override;
 	virtual void Draw(FViewport* Viewport,FCanvas* Canvas) override;
 
@@ -92,17 +91,9 @@ public:
 	virtual void SetWidgetCoordSystemSpace(ECoordSystem NewCoordSystem) override;
 	virtual void SetViewportType(ELevelViewportType InViewportType) override;
 	// End of FEditorViewportClient
-
-	void UpdateCameraSetup();
-	void UpdateFloor();
-
-	/** */
-	void SetPreviewComponent(UStaticMeshComponent* InPreviewStaticMeshComponent);
-	void SetPreviewComponents(const TArray<UDebugSkelMeshComponent*>& InPreviewSkeletalMeshComponents);
-
-	/** Sets an informative message in the viewport warning the user that the CustomizableObject has no reference mesh */
-	void SetReferenceMeshMissingWarningMessage(bool bVisible);
-
+	
+	void SetPreviewActor(const TWeakObjectPtr<AActor>& InActor, const TWeakObjectPtr<UCustomizableObjectInstance>& InInstance, const TArray<TWeakObjectPtr<UDebugSkelMeshComponent>>& InSkeletalMeshComponents);
+	
 	/**
 	 *	Draws the UV overlay for the current LOD.
 	 *
@@ -165,19 +156,7 @@ public:
 
 	/** Callback for toggling the bounds show flag. */
 	void SetShowBounds();
-		
-	/** Returns the desired target of the camera */
-	FSphere GetCameraTarget();
 
-	/** Point the camera to the Skeletal Mesh Components. */
-	void ResetCamera();
-	
-	/* Returns the floor height offset */	
-	float GetFloorOffset() const;
-
-	/* Sets the floor height offset, saves it to config and invalidates the viewport so it shows up immediately */
-	void SetFloorOffset(float NewValue);
-	
 	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
 	void ShowGizmoClipMorph(UCustomizableObjectNodeMeshClipMorph& ClipPlainNode);
 
@@ -287,9 +266,10 @@ private:
 
 	bool HandleBeginTransform();
 	bool HandleEndTransform();
-	
-	/** Component for the static/skeletal mesh. */
-	TWeakObjectPtr<UStaticMeshComponent> StaticMeshComponent;
+
+	void OnInstanceUpdate(UCustomizableObjectInstance* Instance);
+
+	TWeakObjectPtr<AActor> Actor;
 	TArray<TWeakObjectPtr<UDebugSkelMeshComponent>> SkeletalMeshComponents;
 
 	/** True if the widget is being dragged. */
@@ -307,9 +287,7 @@ private:
 	int32 UVDrawSectionIndex = 0;
 	int32 UVDrawLODIndex = 0;
 	int32 UVDrawUVIndex = 0;
-
-	bool bReferenceMeshMissingWarningMessageVisible;
-
+	
 	UCustomizableObjectNodeMeshClipMorph* ClipMorphNode;
 	TObjectPtr<UMaterial> ClipMorphMaterial;
 	bool bClipMorphLocalStartOffset;
@@ -327,8 +305,6 @@ private:
 	float Radius2;
 	float RotationAngle;
 
-	FSphere BoundSphere;
-
 	/** Light being edited */
 	ULightComponent* SelectedLightComponent;
 
@@ -338,6 +314,9 @@ private:
 	/** To know if an animation ia being played by the Customizable Object and restre it after compilation */
 	bool IsPlayingAnimation;
 
+	/** true if the camera has already being setup. */
+	bool bIsCameraSetup = false;
+
 	/** Animation being played by the Customizable Object, if any */
 	TObjectPtr<UAnimationAsset> AnimationBeingPlayed;
 
@@ -346,10 +325,7 @@ private:
 
 	/** Flag to control whether to show / hide the instance geometry information data */
 	bool StateChangeShowGeometryDataFlag;
-
-	/** To know if the orbital camera is being used or not */
-	bool bActivateOrbitalCamera;
-
+	
 	/** Material for cylinder arc solid render */
 	TObjectPtr<UMaterialInterface> TransparentPlaneMaterialXY;
 

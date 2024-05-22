@@ -179,7 +179,7 @@ public:
 	virtual void HideGizmoProjectorParameter() override;
 	
 	/** Callback to notify the editor when the PreviewInstance has been updated */
-	void OnUpdatePreviewInstance();
+	void OnUpdatePreviewInstance(UCustomizableObjectInstance* Instance);
 
 	/** FTickableGameObject interface */
 	virtual bool IsTickable(void) const override;
@@ -195,16 +195,13 @@ private:
 	TSharedRef<SDockTab> SpawnTab_AdvancedPreviewSettings(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_TextureAnalyzer(const FSpawnTabArgs& Args);
 
-	void CreatePreviewInstance();
+	void SetupPreviewInstance();
 
 	/** Binds commands associated with the Static Mesh Editor. */
 	void BindCommands();
 		
 	/** Callback when selection changes in the Property Tree. */
 	void OnInstancePropertySelectionChanged(FProperty* InProperty);
-
-	/** Updates the visibility of PreviewSkeletalMeshComponent */
-	void UpdatePreviewVisibility();
 
 	/** Save Customizable Object Instance open in the editor */
 	void SaveAsset_Execute() override;
@@ -239,15 +236,17 @@ public:
 		const TSharedPtr<IDetailsView>& InstanceDetailsView);
 	
 private:
-	void CreatePreviewComponents();
+	void CreatePreviewActor();
 	
 	void OnPostCompile();
 	
 	/** The currently viewed object. */
 	TObjectPtr<UCustomizableObjectInstance> CustomizableObjectInstance;
-	TArray<TObjectPtr<UCustomizableSkeletalComponent>> PreviewCustomizableSkeletalComponents;
-	TObjectPtr<UStaticMeshComponent> PreviewStaticMeshComponent;
-	TArray<TObjectPtr<UDebugSkelMeshComponent>> PreviewSkeletalMeshComponents;
+
+	/** Preview Actor. All preview components are attached to this actor. */
+	TStrongObjectPtr<AActor> Actor;
+	
+	TArray<TWeakObjectPtr<UDebugSkelMeshComponent>> PreviewSkeletalMeshComponents;
 
 	/** List of open tool panels; used to ensure only one exists at any one time */
 	TMap<FName, TWeakPtr<SDockableTab>> SpawnedToolPanels;

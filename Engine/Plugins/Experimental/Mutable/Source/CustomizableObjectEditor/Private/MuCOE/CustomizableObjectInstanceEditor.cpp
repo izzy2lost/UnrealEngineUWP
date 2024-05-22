@@ -33,6 +33,7 @@
 #include "Widgets/Notifications/SNotificationList.h"
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
+#include "Animation/SkeletalMeshActor.h"
 #include "MuCO/CustomizableObjectInstancePrivate.h"
 
 class FAdvancedPreviewScene;
@@ -210,26 +211,12 @@ FCustomizableObjectInstanceEditor::~FCustomizableObjectInstanceEditor()
 		HelperCallback = nullptr;
 	}
 
-	for (UCustomizableSkeletalComponent* PreviewCustomizableSkeletalComponent : PreviewCustomizableSkeletalComponents)
-	{
-		if (PreviewCustomizableSkeletalComponent)
-		{
-			PreviewCustomizableSkeletalComponent->DestroyComponent();
-		}
-	}
-
-	PreviewCustomizableSkeletalComponents.Reset();
 	PreviewSkeletalMeshComponents.Reset();
 
 	CustomizableInstanceDetailsView.Reset();
 	Viewport.Reset();
 
 	FCoreUObjectDelegates::OnObjectModified.Remove(OnObjectModifiedHandle);
-	
-	if (const UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject())
-	{
-		CustomizableObject->GetPrivate()->Status.GetOnStateChangedDelegate().RemoveAll(this);		
-	}
 
 	FCoreUObjectDelegates::OnObjectPropertyChanged.RemoveAll(this);
 }
@@ -343,7 +330,7 @@ FText FCustomizableObjectInstanceEditor::GetBaseToolkitName() const
 }
 
 
-void FCustomizableObjectInstanceEditor::CreatePreviewInstance()
+void FCustomizableObjectInstanceEditor::SetupPreviewInstance()
 {
 	check(CustomizableObjectInstance);
 	if (!CustomizableObjectInstance->GetCustomizableObject())
@@ -351,25 +338,12 @@ void FCustomizableObjectInstanceEditor::CreatePreviewInstance()
 		return;
 	}
 
-	CreatePreviewComponents();
+	CreatePreviewActor();
 	
-	// Bind update delegate
-	HelperCallback = NewObject<UUpdateClassWrapperClass>();
-	HelperCallback->Delegate.BindSP(this, &FCustomizableObjectInstanceEditor::OnUpdatePreviewInstance);
-	CustomizableObjectInstance->UpdatedDelegate.AddDynamic(HelperCallback, &UUpdateClassWrapperClass::DelegatedCallback);
-
+	CustomizableObjectInstance->UpdatedNativeDelegate.AddSP(SharedThis(this), &FCustomizableObjectInstanceEditor::OnUpdatePreviewInstance);
+	
+	CustomizableObjectInstance->SetBuildParameterRelevancy(true);
 	CustomizableObjectInstance->UpdateSkeletalMeshAsync(true, true);
-	Viewport->SetPreviewComponents(PreviewSkeletalMeshComponents);
-}
-
-
-void FCustomizableObjectInstanceEditor::UpdatePreviewVisibility()
-{
-	const bool bEnableVisibility = CustomizableObjectInstance->GetPrivate()->SkeletalMeshStatus == ESkeletalMeshStatus::Success;
-	for (UDebugSkelMeshComponent* PreviewSkeletalMeshComponent : PreviewSkeletalMeshComponents)
-	{
-		PreviewSkeletalMeshComponent->SetVisibility(bEnableVisibility, true);
-	}
 }
 
 
@@ -418,17 +392,6 @@ void FCustomizableObjectInstanceEditor::OpenParentInEditor()
 void FCustomizableObjectInstanceEditor::AddReferencedObjects( FReferenceCollector& Collector )
 {
 	Collector.AddReferencedObject( CustomizableObjectInstance );
-	
-	for (auto& PreviewCustomizableSkeletalComponent : PreviewCustomizableSkeletalComponents)
-	{
-		Collector.AddReferencedObject(PreviewCustomizableSkeletalComponent);
-	}
-
-	for (auto& PreviewSkeletalMeshComponent : PreviewSkeletalMeshComponents)
-	{
-		Collector.AddReferencedObject(PreviewSkeletalMeshComponent);
-	}
-
 	Collector.AddReferencedObject( HelperCallback );
 	Collector.AddReferencedObject( ProjectorParameter );
 	Collector.AddReferencedObject( CustomSettings );
@@ -580,7 +543,7 @@ void FCustomizableObjectInstanceEditor::SetPoseAsset(class UPoseAsset* PoseAsset
 	{
 		Viewport->SetAnimation(nullptr, EAnimationMode::AnimationBlueprint);
 
-		for (UDebugSkelMeshComponent* PreviewSkeletalMeshComponent : PreviewSkeletalMeshComponents)
+		for (TWeakObjectPtr<UDebugSkelMeshComponent> PreviewSkeletalMeshComponent : PreviewSkeletalMeshComponents)
 		{
 			PreviewSkeletalMeshComponent->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 			PreviewSkeletalMeshComponent->InitAnim(false);
@@ -638,32 +601,14 @@ void FCustomizableObjectInstanceEditor::OnInstancePropertySelectionChanged(FProp
 }
 
 
-void FCustomizableObjectInstanceEditor::OnUpdatePreviewInstance()
+void FCustomizableObjectInstanceEditor::OnUpdatePreviewInstance(UCustomizableObjectInstance* Instance)
 {
 	check(CustomizableObjectInstance)
 
-	Viewport->GetViewportClient()->Invalidate();
-
-	UpdatePreviewVisibility();
-
-	bool bNeedsToResetPreviewComponents = false;
-	for (UDebugSkelMeshComponent* PreviewSkeletalMeshComponent : PreviewSkeletalMeshComponents)
-	{
-		PreviewSkeletalMeshComponent->bComponentUseFixedSkelBounds = true; // First bounds computed would be using physics asset
-		PreviewSkeletalMeshComponent->UpdateBounds();
-
-		if (!PreviewSkeletalMeshComponent->IsRegistered())
-		{
-			bNeedsToResetPreviewComponents = true;
-			PreviewSkeletalMeshComponent->RegisterComponentWithWorld(PreviewSkeletalMeshComponent->GetWorld());
-		}
-	}
-
-	if(bNeedsToResetPreviewComponents)
-	{
-		Viewport->SetPreviewComponents(ObjectPtrDecay(PreviewSkeletalMeshComponents));
-	}
-
+	const bool bVisible = CustomizableObjectInstance->GetPrivate()->SkeletalMeshStatus == ESkeletalMeshStatus::Success;
+	Actor->GetRootComponent()->SetVisibility(bVisible, true);
+	Actor->GetRootComponent()->UpdateBounds();
+	
 	// Sets which UV material to draw
 	Viewport->SetDrawDefaultUVMaterial();
 
@@ -711,7 +656,7 @@ void FCustomizableObjectInstanceEditor::OnCustomizableObjectStatusChanged(FCusto
 	{
 	case FCustomizableObjectStatus::EState::ModelLoaded:
 		{
-			CreatePreviewInstance();
+			SetupPreviewInstance();
 			break;			
 		}
 		
@@ -741,7 +686,7 @@ void FCustomizableObjectInstanceEditor::OpenTextureAnalyzerTab()
 
 void FCustomizableObjectInstanceEditor::OnPostCompile()
 {
-	CreatePreviewComponents();
+	CreatePreviewActor();
 	CustomizableObjectInstance->UpdateSkeletalMeshAsync(true, true);
 }
 
@@ -1004,7 +949,7 @@ void FCustomizableObjectInstanceEditor::HideGizmoProjectorParameter(const TShare
 }
 
 
-void FCustomizableObjectInstanceEditor::CreatePreviewComponents()
+void FCustomizableObjectInstanceEditor::CreatePreviewActor()
 {
 	const UCustomizableObject* Object = CustomizableObjectInstance->GetCustomizableObject();
 	
@@ -1012,32 +957,37 @@ void FCustomizableObjectInstanceEditor::CreatePreviewComponents()
 	{
 		return;
 	}
+
+	if (Actor)
+	{
+		Viewport->GetViewportClient()->GetWorld()->RemoveActor(Actor.Get(), false);
+	}
 	
-	for (const TObjectPtr<UCustomizableSkeletalComponent>& Component : PreviewCustomizableSkeletalComponents)
-	{
-		Component->DestroyComponent();
-	}
-	PreviewCustomizableSkeletalComponents.Empty();
+	Actor.Reset(Viewport->GetViewportClient()->GetWorld()->SpawnActor<ASkeletalMeshActor>());
 
-	for (const TObjectPtr<UDebugSkelMeshComponent>& Component : PreviewSkeletalMeshComponents)
-	{
-		Component->DestroyComponent();
-	}
-	PreviewSkeletalMeshComponents.Empty();
-
+	PreviewSkeletalMeshComponents.Reset();
+	
 	for (int32 ComponentIndex = 0; ComponentIndex < Object->GetComponentCount(); ++ComponentIndex)
 	{
-		UCustomizableSkeletalComponent* PreviewCustomizableSkeletalComponent = NewObject<UCustomizableSkeletalComponent>(UCustomizableSkeletalComponent::StaticClass());
-		UDebugSkelMeshComponent* PreviewSkeletalMeshComponent = NewObject<UDebugSkelMeshComponent>(GetTransientPackage(), NAME_None, RF_Transient);
-
-		PreviewCustomizableSkeletalComponent->bSkipSetReferenceSkeletalMesh = true;
-		PreviewCustomizableSkeletalComponent->CustomizableObjectInstance = CustomizableObjectInstance;
-		PreviewCustomizableSkeletalComponent->ComponentIndex = ComponentIndex;
-		PreviewCustomizableSkeletalComponent->AttachToComponent(PreviewSkeletalMeshComponent, FAttachmentTransformRules::KeepRelativeTransform);
-
-		PreviewCustomizableSkeletalComponents.Add(PreviewCustomizableSkeletalComponent);
-		PreviewSkeletalMeshComponents.Add(PreviewSkeletalMeshComponent);
+		UDebugSkelMeshComponent* DebugComponent = NewObject<UDebugSkelMeshComponent>(Actor.Get(), NAME_None, RF_Transient);
+		DebugComponent->bCastInsetShadow = true; // For better quality shadows in the editor previews, more similar to the in-game ones
+		DebugComponent->bCanHighlightSelectedSections = false;
+		DebugComponent->bComponentUseFixedSkelBounds = true; // First bounds computed would be using physics asset
+		DebugComponent->MarkRenderStateDirty();
+		DebugComponent->AttachToComponent(Actor->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+		DebugComponent->RegisterComponent();
+		
+		PreviewSkeletalMeshComponents.Add(DebugComponent);
+		
+		UCustomizableSkeletalComponent* CustomizableComponent = NewObject<UCustomizableSkeletalComponent>(DebugComponent);
+		CustomizableComponent->bSkipSetReferenceSkeletalMesh = true;
+		CustomizableComponent->CustomizableObjectInstance = CustomizableObjectInstance;
+		CustomizableComponent->ComponentIndex = ComponentIndex;
+		CustomizableComponent->AttachToComponent(DebugComponent, FAttachmentTransformRules::KeepRelativeTransform);
+		CustomizableComponent->RegisterComponent();
 	}
+	
+	Viewport->SetPreviewActor(Actor.Get(), CustomizableObjectInstance, PreviewSkeletalMeshComponents); // TODO GMT
 }
 
 

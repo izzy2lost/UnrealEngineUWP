@@ -479,22 +479,6 @@ void SCustomizableObjectEditorViewportToolBar::OnFOVValueChanged(float NewValue)
 }
 
 
-TOptional<float> SCustomizableObjectEditorViewportToolBar::OnGetFloorOffset() const
-{
-	TSharedPtr<FCustomizableObjectEditorViewportClient> ViewportClient = Viewport.Pin()->GetViewportClient();
-
-	return ViewportClient->GetFloorOffset();
-}
-
-
-void SCustomizableObjectEditorViewportToolBar::OnFloorOffsetChanged(float NewValue)
-{
-	TSharedPtr<FCustomizableObjectEditorViewportClient> ViewportClient = Viewport.Pin()->GetViewportClient();
-
-	ViewportClient->SetFloorOffset(NewValue);
-}
-
-
 ECheckBoxState SCustomizableObjectEditorViewportToolBar::IsRotationGridSnapChecked() const
 {
 	return GetDefault<ULevelEditorViewportSettings>()->RotGridEnabled ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;

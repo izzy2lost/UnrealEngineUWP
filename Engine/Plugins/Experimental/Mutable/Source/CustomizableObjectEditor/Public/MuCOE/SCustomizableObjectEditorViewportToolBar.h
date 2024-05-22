@@ -93,11 +93,6 @@ private:
 	float OnGetFOVValue() const;
 	/** Called when the FOV slider is adjusted in the perspective viewport */
 	void OnFOVValueChanged(float NewValue) const;
-
-	/** Called by the floor offset slider in the perspective viewport to get the offset value */
-	TOptional<float> OnGetFloorOffset() const;
-	/** Called when the floor offset slider is adjusted in the perspective viewport */
-	void OnFloorOffsetChanged(float NewValue);
 	
 	ECheckBoxState IsRotationGridSnapChecked() const;
 	void HandleToggleRotationGridSnap(ECheckBoxState InState);

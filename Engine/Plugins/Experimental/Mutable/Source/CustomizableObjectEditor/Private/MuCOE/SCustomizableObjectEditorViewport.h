@@ -83,7 +83,7 @@ private:
 /**
  * CustomizableObject Editor Preview viewport widget with toolbars, etc.
  */
-class SCustomizableObjectEditorViewportTabBody : public SCompoundWidget, public FGCObject
+class SCustomizableObjectEditorViewportTabBody : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SCustomizableObjectEditorViewportTabBody){}
@@ -91,20 +91,11 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
-	virtual ~SCustomizableObjectEditorViewportTabBody() override;
 
 	void SetAnimation(class UAnimationAsset* Animation, EAnimationMode::Type AnimationType);
 
 	virtual FReply OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
 	
-	// FSerializableObject interface
-	virtual void AddReferencedObjects( FReferenceCollector& Collector ) override;
-	virtual FString GetReferencerName() const override
-	{
-		return TEXT("SCustomizableObjectEditorViewportTabBody");
-	}
-	// End of FSerializableObject interface
-
 	// SWidget interface
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 	// End of SWidget interface
@@ -154,11 +145,8 @@ public:
 
 	/** Callback to show / hide the state and runtime parameter test in the viewport */
 	TSharedRef<SWidget> ShowStateTestData();
-
-	/** Retrieves the skeletal mesh component. */
-	const TArray<UDebugSkelMeshComponent*>& GetSkeletalMeshComponents() const;
 	
-	void SetPreviewComponents(const TArray<UDebugSkelMeshComponent*>& InSkeletalMeshComponents);
+	void SetPreviewActor(const TWeakObjectPtr<AActor>& InActor, const TWeakObjectPtr<UCustomizableObjectInstance>& InInstance, const TArray<TWeakObjectPtr<UDebugSkelMeshComponent>>& InSkeletalMeshComponents);
 	
 	/** Function to get the number of LOD models associated with the preview skeletal mesh*/
 	int32 GetLODModelCount() const;
@@ -231,7 +219,7 @@ private:
 	bool IsVisible() const;
 	
 	// Components for the preview mesh.
-	TArray<TObjectPtr<UDebugSkelMeshComponent>> PreviewSkeletalMeshComponents;
+	TArray<TWeakObjectPtr<UDebugSkelMeshComponent>> PreviewSkeletalMeshComponents;
 
 	// The scene for this viewport.
 	TSharedPtr<FCustomizableObjectPreviewScene> PreviewScenePtr;
