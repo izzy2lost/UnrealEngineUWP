@@ -117,21 +117,25 @@ namespace AutomationTool.Tasks
 		{
 			for (int baseIdx = 0; baseIdx < environment.Length;)
 			{
-				int equalsIdx = environment.IndexOf('=', baseIdx);
-				if (equalsIdx == -1)
-				{
-					throw new AutomationException("Missing value in environment variable string '{0}'", environment);
-				}
-
-				int endIdx = environment.IndexOf(separator, equalsIdx + 1);
+				int endIdx = environment.IndexOf(separator, baseIdx);
 				if (endIdx == -1)
 				{
 					endIdx = environment.Length;
 				}
 
-				string name = environment.Substring(baseIdx, equalsIdx - baseIdx).Trim();
-				string value = environment.Substring(equalsIdx + 1, endIdx - (equalsIdx + 1)).Trim();
-				envVars[name] = value;
+				string line = environment.Substring(baseIdx, endIdx - baseIdx);
+				if (!String.IsNullOrWhiteSpace(line))
+				{
+					int equalsIdx = line.IndexOf('=');
+					if (equalsIdx == -1)
+					{
+						throw new AutomationException("Missing value in environment variable string '{0}'", environment.Substring(baseIdx, endIdx - baseIdx));
+					}
+
+					string name = line.Substring(0, equalsIdx).Trim();
+					string value = line.Substring(equalsIdx + 1).Trim();
+					envVars[name] = value;
+				}
 
 				baseIdx = endIdx + 1;
 			}

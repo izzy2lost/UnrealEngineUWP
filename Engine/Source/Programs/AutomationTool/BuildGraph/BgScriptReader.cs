@@ -821,6 +821,15 @@ namespace AutomationTool
 							int prefixLen = -1;
 
 							List<string> lines = new List<string>(element.InnerText.Split('\n'));
+							while (lines.Count > 0 && String.IsNullOrWhiteSpace(lines[0]))
+							{
+								lines.RemoveAt(0);
+							}
+							while (lines.Count > 0 && String.IsNullOrWhiteSpace(lines[^1]))
+							{
+								lines.RemoveAt(lines.Count - 1);
+							}
+
 							foreach(string line in lines)
 							{
 								int whitespaceLen = 0;
@@ -831,14 +840,7 @@ namespace AutomationTool
 
 								if (prefixLen == -1)
 								{
-									if (whitespaceLen == line.Length)
-									{
-										continue;
-									}
-									else
-									{
-										prefixLen = whitespaceLen;
-									}
+									prefixLen = whitespaceLen;
 								}
 
 								whitespaceLen = Math.Min(whitespaceLen, prefixLen);
