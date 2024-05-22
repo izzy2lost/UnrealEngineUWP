@@ -19,6 +19,7 @@
 #if WITH_EDITOR
 #include "Engine/Level.h"
 #include "ScopedTransaction.h"
+#include "Subsystems/ActorEditorContextSubsystem.h"
 #include "WorldPartition/DataLayer/DataLayerInstance.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
@@ -482,6 +483,11 @@ AActor* UPCGActorHelpers::SpawnDefaultActor(const FSpawnDefaultActorParams& Para
 		}
 	}
 
+	// Avoid relying on the Editor Context at all
+	UActorEditorContextSubsystem::Get()->PushContext();
+	ON_SCOPE_EXIT{ UActorEditorContextSubsystem::Get()->PopContext(); };
+
+	// Specify EDL we want to use if any for spawning this actor
 	FScopedOverrideSpawningLevelMountPointObject EDLScope(ExternalDataLayerInstance ? ExternalDataLayerInstance->GetExternalDataLayerAsset() : nullptr);
 #endif
 

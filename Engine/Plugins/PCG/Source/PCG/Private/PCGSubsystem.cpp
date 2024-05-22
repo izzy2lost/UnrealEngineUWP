@@ -26,6 +26,7 @@
 #include "PackageSourceControlHelper.h"
 #include "ObjectTools.h"
 #include "Misc/ScopedSlowTask.h"
+#include "Subsystems/ActorEditorContextSubsystem.h"
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
@@ -1192,6 +1193,11 @@ APCGPartitionActor* UPCGSubsystem::FindOrCreatePCGPartitionActor(const FPCGGridD
 			
 	GridDescriptor.GetDataLayerAssets(DataLayerAssets, ExternalDataLayerAsset);
 
+	// Avoid relying on the Editor Context at all
+	UActorEditorContextSubsystem::Get()->PushContext();
+	ON_SCOPE_EXIT{ UActorEditorContextSubsystem::Get()->PopContext(); };
+
+	// Specify EDL we want to use if any for spawning this actor
 	FScopedOverrideSpawningLevelMountPointObject EDLScope(ExternalDataLayerAsset);
 #endif
 
