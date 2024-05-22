@@ -396,6 +396,10 @@ export const AuditLogPanel: React.FC<{ agentId?: string, issueId?: string }> = o
 
    });
 
+   if (issueId) {
+      logItems.reverse();
+   }
+
    const typeItems: IDropdownOption[] = Array.from(entryTypes.keys()).map(type => {
       return {
          key: type,
