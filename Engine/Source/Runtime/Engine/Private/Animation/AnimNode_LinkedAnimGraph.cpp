@@ -337,6 +337,13 @@ void FAnimNode_LinkedAnimGraph::SetAnimClass(TSubclassOf<UAnimInstance> InClass,
 {
 	UClass* NewClass = InClass.Get();
 
+	// Make sure this is a valid blueprint class
+	if (NewClass && NewClass->ClassGeneratedBy == nullptr)
+	{
+		ensure(false);
+		return;
+	}
+
 	// Verified OK, so set it now
 	TSubclassOf<UAnimInstance> OldClass = InstanceClass;
 	InstanceClass = InClass;
