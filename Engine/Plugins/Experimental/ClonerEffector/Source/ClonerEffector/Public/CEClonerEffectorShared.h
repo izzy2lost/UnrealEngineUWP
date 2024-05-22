@@ -560,7 +560,8 @@ namespace UE::ClonerEffector
 		/** Convert a cloner to multiple instanced static mesh actors */
 		TArray<AActor*> ConvertClonerToInstancedStaticMeshes(UCEClonerComponent* InCloner);
 
-		UActorComponent* CreateComponent(AActor* InActor, TSubclassOf<USceneComponent> InComponentClass);
+		/** Creates the root component for an actor */
+		UActorComponent* CreateRootComponent(AActor* InActor, TSubclassOf<USceneComponent> InComponentClass, const FTransform& InWorldTransform);
 
 #if WITH_EDITOR
 		/** Pick assets location */
