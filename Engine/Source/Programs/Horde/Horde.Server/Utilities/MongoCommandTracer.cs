@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using MongoDB.Driver.Core.Configuration;
@@ -92,7 +93,23 @@ public class MongoCommandTracer
 		clusterBuilder.Subscribe<CommandFailedEvent>(OnEvent);
 	}
 	
-	private void OnEvent(CommandStartedEvent ev)
+	internal IReadOnlySet<TelemetrySpan> GetSpans()
+	{
+		HashSet<TelemetrySpan> spans = [.._requestToSpans.Values];
+		return spans.Union(_operationToSpans.Values.Select(x => x.Span)).ToHashSet();
+	}
+
+	internal TelemetrySpan GetSpanByRequestId(int requestId)
+	{
+		return _requestToSpans[requestId];
+	}
+	
+	internal TelemetrySpan GetSpanByOperationId(long operationId)
+	{
+		return _operationToSpans[operationId].Span;
+	}
+	
+	internal void OnEvent(CommandStartedEvent ev)
 	{
 		string? GetString(string fieldName)
 		{
@@ -158,7 +175,7 @@ public class MongoCommandTracer
 		}
 	}
 	
-	private void OnEvent(CommandSucceededEvent ev)
+	internal void OnEvent(CommandSucceededEvent ev)
 	{
 		MongoCommand? command = ResolveCommand(ev.CommandName);
 		if (command == null)
@@ -172,26 +189,42 @@ public class MongoCommandTracer
 			waitedMs = GetBsonDocumentLong(ev.Reply, "waitedMS");
 			long? cursorId = GetCursorId(ev.Reply);
 			bool hasMoreDocuments = cursorId is > 0;
-
-			if (hasMoreDocuments && command.Type == MongoCommandType.Find)
+			if (command.Type == MongoCommandType.Find)
 			{
-				// Don't end the span for "find", keep it open and wait for subsequent "getMore" reply
-				return;
+				if (hasMoreDocuments)
+				{
+					// Don't end the span for "find", keep it open and wait for subsequent "getMore" reply
+					return;
+				}
+				else
+				{
+					// "find" command did not have any more documents
+					EndSpan(ev.RequestId, ev.OperationId, Status.Ok, ev.Duration, waitedMs: waitedMs);
+				}
 			}
 
-			if (!hasMoreDocuments && command.Type == MongoCommandType.GetMore)
+			if (command.Type == MongoCommandType.GetMore)
 			{
-				if (_operationToSpans.TryGetValue(ev.OperationId.Value, out OperationSpanEntry? opSpanEntry))
+				// Always close the "getMore" span
+				EndSpan(ev.RequestId, null, Status.Ok, ev.Duration, waitedMs: waitedMs);
+				
+				if (!hasMoreDocuments)
 				{
-					EndSpan(opSpanEntry.RequestId, ev.OperationId.Value, Status.Ok);
+					if (_operationToSpans.TryGetValue(ev.OperationId.Value, out OperationSpanEntry? opSpanEntry))
+					{
+						// End span for entire operation
+						EndSpan(opSpanEntry.RequestId, ev.OperationId.Value, Status.Ok);
+					}
 				}
 			}
 		}
-		
-		EndSpan(ev.RequestId, opId: null, Status.Ok, ev.Duration, waitedMs: waitedMs);
+		else
+		{
+			EndSpan(ev.RequestId, ev.OperationId, Status.Ok, ev.Duration, waitedMs: waitedMs);
+		}
 	}
 	
-	private void OnEvent(CommandFailedEvent ev)
+	internal void OnEvent(CommandFailedEvent ev)
 	{
 		EndSpan(ev.RequestId, ev.OperationId, Status.Ok, ev.Duration, ev.Failure);
 	}
