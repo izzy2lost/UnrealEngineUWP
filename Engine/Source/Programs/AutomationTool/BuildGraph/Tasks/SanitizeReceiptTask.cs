@@ -1,18 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.BuildGraph;
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
+using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
 using UnrealBuildTool;
-using Microsoft.Extensions.Logging;
-
-using static AutomationTool.CommandUtils;
 
 namespace AutomationTool.Tasks
 {
@@ -40,92 +35,89 @@ namespace AutomationTool.Tasks
 	[TaskElement("SanitizeReceipt", typeof(SanitizeReceiptTaskParameters))]
 	class SanitizeReceiptTask : BgTaskImpl
 	{
-		/// <summary>
-		/// Parameters to this task
-		/// </summary>
-		SanitizeReceiptTaskParameters Parameters;
+		readonly SanitizeReceiptTaskParameters _parameters;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="InParameters">Parameters to select which files to search</param>
-		public SanitizeReceiptTask(SanitizeReceiptTaskParameters InParameters)
+		/// <param name="parameters">Parameters to select which files to search</param>
+		public SanitizeReceiptTask(SanitizeReceiptTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			// Set the Engine directory
-			DirectoryReference EngineDir = Parameters.EngineDir ?? Unreal.EngineDirectory;
+			DirectoryReference engineDir = _parameters.EngineDir ?? Unreal.EngineDirectory;
 
 			// Resolve the input list
-			IEnumerable<FileReference> TargetFiles = ResolveFilespec(Unreal.RootDirectory, Parameters.Files, TagNameToFileSet);
-			await ExecuteAsync(TargetFiles, EngineDir);
+			IEnumerable<FileReference> targetFiles = ResolveFilespec(Unreal.RootDirectory, _parameters.Files, tagNameToFileSet);
+			await Execute(targetFiles, engineDir);
 		}
 
-		public static Task ExecuteAsync(IEnumerable<FileReference> TargetFiles, DirectoryReference EngineDir)
+		public static Task Execute(IEnumerable<FileReference> targetFiles, DirectoryReference engineDir)
 		{
-			EngineDir ??= Unreal.EngineDirectory;
+			engineDir ??= Unreal.EngineDirectory;
 
-			foreach(FileReference TargetFile in TargetFiles)
+			foreach (FileReference targetFile in targetFiles)
 			{
 				// check all files are .target files
-				if (TargetFile.GetExtension() != ".target")
+				if (targetFile.GetExtension() != ".target")
 				{
-					throw new AutomationException("Invalid file passed to TagReceipt task ({0})", TargetFile.FullName);
+					throw new AutomationException("Invalid file passed to TagReceipt task ({0})", targetFile.FullName);
 				}
 
 				// Print the name of the file being scanned
-				Logger.LogInformation("Sanitizing {TargetFile}", TargetFile);
-				using(new LogIndentScope("  "))
+				Logger.LogInformation("Sanitizing {TargetFile}", targetFile);
+				using (new LogIndentScope("  "))
 				{
 					// Read the receipt
-					TargetReceipt Receipt;
-					if (!TargetReceipt.TryRead(TargetFile, EngineDir, out Receipt))
+					TargetReceipt receipt;
+					if (!TargetReceipt.TryRead(targetFile, engineDir, out receipt))
 					{
-						Logger.LogWarning("Unable to load file using TagReceipt task ({Arg0})", TargetFile.FullName);
+						Logger.LogWarning("Unable to load file using TagReceipt task ({Arg0})", targetFile.FullName);
 						continue;
 					}
 
 					// Remove any build products that don't exist
-					List<BuildProduct> NewBuildProducts = new List<BuildProduct>(Receipt.BuildProducts.Count);
-					foreach(BuildProduct BuildProduct in Receipt.BuildProducts)
+					List<BuildProduct> newBuildProducts = new List<BuildProduct>(receipt.BuildProducts.Count);
+					foreach (BuildProduct buildProduct in receipt.BuildProducts)
 					{
-						if(FileReference.Exists(BuildProduct.Path))
+						if (FileReference.Exists(buildProduct.Path))
 						{
-							NewBuildProducts.Add(BuildProduct);
+							newBuildProducts.Add(buildProduct);
 						}
 						else
 						{
-							Logger.LogInformation("Removing build product: {File}", BuildProduct.Path);
+							Logger.LogInformation("Removing build product: {File}", buildProduct.Path);
 						}
 					}
-					Receipt.BuildProducts = NewBuildProducts;
+					receipt.BuildProducts = newBuildProducts;
 
 					// Remove any runtime dependencies that don't exist
-					RuntimeDependencyList NewRuntimeDependencies = new RuntimeDependencyList();
-					foreach(RuntimeDependency RuntimeDependency in Receipt.RuntimeDependencies)
+					RuntimeDependencyList newRuntimeDependencies = new RuntimeDependencyList();
+					foreach (RuntimeDependency runtimeDependency in receipt.RuntimeDependencies)
 					{
-						if(FileReference.Exists(RuntimeDependency.Path))
+						if (FileReference.Exists(runtimeDependency.Path))
 						{
-							NewRuntimeDependencies.Add(RuntimeDependency);
+							newRuntimeDependencies.Add(runtimeDependency);
 						}
 						else
 						{
-							Logger.LogInformation("Removing runtime dependency: {File}", RuntimeDependency.Path);
+							Logger.LogInformation("Removing runtime dependency: {File}", runtimeDependency.Path);
 						}
 					}
-					Receipt.RuntimeDependencies = NewRuntimeDependencies;
-				
+					receipt.RuntimeDependencies = newRuntimeDependencies;
+
 					// Save the new receipt
-					Receipt.Write(TargetFile, EngineDir);
+					receipt.Write(targetFile, engineDir);
 				}
 			}
 			return Task.CompletedTask;
@@ -134,9 +126,9 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -145,7 +137,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are required by this task</returns>
 		public override IEnumerable<string> FindConsumedTagNames()
 		{
-			return FindTagNamesFromFilespec(Parameters.Files);
+			return FindTagNamesFromFilespec(_parameters.Files);
 		}
 
 		/// <summary>
@@ -166,9 +158,9 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Sanitize the given receipt files, removing any files that don't exist in the current workspace
 		/// </summary>
-		public static async Task SanitizeReceiptsAsync(this FileSet TargetFiles, DirectoryReference EngineDir = null)
+		public static async Task SanitizeReceiptsAsync(this FileSet targetFiles, DirectoryReference engineDir = null)
 		{
-			await SanitizeReceiptTask.ExecuteAsync(TargetFiles, EngineDir);
+			await SanitizeReceiptTask.Execute(targetFiles, engineDir);
 		}
 	}
 }

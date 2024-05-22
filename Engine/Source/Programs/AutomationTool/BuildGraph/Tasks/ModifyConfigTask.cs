@@ -1,11 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.BuildGraph;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
@@ -55,64 +51,61 @@ namespace AutomationTool.Tasks
 	[TaskElement("ModifyConfig", typeof(ModifyConfigTaskParameters))]
 	public class ModifyConfigTask : BgTaskImpl
 	{
-		/// <summary>
-		/// Parameters for this task
-		/// </summary>
-		ModifyConfigTaskParameters Parameters;
+		readonly ModifyConfigTaskParameters _parameters;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task</param>
-		public ModifyConfigTask(ModifyConfigTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task</param>
+		public ModifyConfigTask(ModifyConfigTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			FileReference ConfigFileLocation = ResolveFile(Parameters.File);
+			FileReference configFileLocation = ResolveFile(_parameters.File);
 
-			ConfigFile ConfigFile;
-			if(FileReference.Exists(ConfigFileLocation))
+			ConfigFile configFile;
+			if (FileReference.Exists(configFileLocation))
 			{
-				ConfigFile = new ConfigFile(ConfigFileLocation);
+				configFile = new ConfigFile(configFileLocation);
 			}
 			else
 			{
-				ConfigFile = new ConfigFile();
+				configFile = new ConfigFile();
 			}
 
-			ConfigFileSection Section = ConfigFile.FindOrAddSection(Parameters.Section);
-			Section.Lines.RemoveAll(x => String.Equals(x.Key, Parameters.Key, StringComparison.OrdinalIgnoreCase));
-			Section.Lines.Add(new ConfigLine(ConfigLineAction.Set, Parameters.Key, Parameters.Value));
+			ConfigFileSection section = configFile.FindOrAddSection(_parameters.Section);
+			section.Lines.RemoveAll(x => String.Equals(x.Key, _parameters.Key, StringComparison.OrdinalIgnoreCase));
+			section.Lines.Add(new ConfigLine(ConfigLineAction.Set, _parameters.Key, _parameters.Value));
 
-			FileReference.MakeWriteable(ConfigFileLocation);
-			ConfigFile.Write(ConfigFileLocation);
+			FileReference.MakeWriteable(configFileLocation);
+			configFile.Write(configFileLocation);
 
 			// Apply the optional tag to the produced archive
-			foreach (string TagName in FindTagNamesFromList(Parameters.Tag))
+			foreach (string tagName in FindTagNamesFromList(_parameters.Tag))
 			{
-				FindOrAddTagSet(TagNameToFileSet, TagName).Add(ConfigFileLocation);
+				FindOrAddTagSet(tagNameToFileSet, tagName).Add(configFileLocation);
 			}
 
 			// Add the archive to the set of build products
-			BuildProducts.Add(ConfigFileLocation);
+			buildProducts.Add(configFileLocation);
 			return Task.CompletedTask;
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -121,7 +114,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are read by this task</returns>
 		public override IEnumerable<string> FindConsumedTagNames()
 		{
-			return FindTagNamesFromFilespec(Parameters.File);
+			return FindTagNamesFromFilespec(_parameters.File);
 		}
 
 		/// <summary>
@@ -130,7 +123,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are modified by this task</returns>
 		public override IEnumerable<string> FindProducedTagNames()
 		{
-			return FindTagNamesFromList(Parameters.Tag);
+			return FindTagNamesFromList(_parameters.Tag);
 		}
 	}
 }

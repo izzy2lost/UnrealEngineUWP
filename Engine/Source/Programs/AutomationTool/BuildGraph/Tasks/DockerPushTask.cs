@@ -1,15 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.Core;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Xml;
+using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
 namespace AutomationTool.Tasks
@@ -68,58 +64,55 @@ namespace AutomationTool.Tasks
 	[TaskElement("Docker-Push", typeof(DockerPushTaskParameters))]
 	public class DockerPushTask : SpawnTaskBase
 	{
-		/// <summary>
-		/// Parameters for this task
-		/// </summary>
-		DockerPushTaskParameters Parameters;
+		readonly DockerPushTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct a Docker task
 		/// </summary>
-		/// <param name="InParameters">Parameters for the task</param>
-		public DockerPushTask(DockerPushTaskParameters InParameters)
+		/// <param name="parameters">Parameters for the task</param>
+		public DockerPushTask(DockerPushTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			Logger.LogInformation("Pushing Docker image");
-			using (LogIndentScope Scope = new LogIndentScope("  "))
+			using (LogIndentScope scope = new LogIndentScope("  "))
 			{
-				string Exe = DockerTask.GetDockerExecutablePath();
-				Dictionary<string, string> Environment = ParseEnvVars(Parameters.Environment, Parameters.EnvironmentFile);
+				string exe = DockerTask.GetDockerExecutablePath();
+				Dictionary<string, string> environment = ParseEnvVars(_parameters.Environment, _parameters.EnvironmentFile);
 
-				if (Parameters.AwsEcr)
+				if (_parameters.AwsEcr)
 				{
-					IProcessResult Result = await SpawnTaskBase.ExecuteAsync("aws", "ecr get-login-password", EnvVars: Environment, LogOutput: false);
-					await ExecuteAsync(Exe, $"login {Parameters.Repository} --username AWS --password-stdin", Input: Result.Output);
+					IProcessResult result = await SpawnTaskBase.ExecuteAsync("aws", "ecr get-login-password", envVars: environment, logOutput: false);
+					await ExecuteAsync(exe, $"login {_parameters.Repository} --username AWS --password-stdin", input: result.Output);
 				}
-				if (!String.IsNullOrEmpty(Parameters.RepositoryAuthFile))
+				if (!String.IsNullOrEmpty(_parameters.RepositoryAuthFile))
 				{
-					string RepositoryText = CommandUtils.ReadAllText(Parameters.RepositoryAuthFile);
-					Dictionary<string, string> AuthDict = JsonSerializer.Deserialize<Dictionary<string, string>>(RepositoryText);
-					await ExecuteAsync(Exe, $"login {Parameters.Repository} --username {AuthDict["Username"]} --password-stdin", Input: AuthDict["Token"]);
+					string repositoryText = CommandUtils.ReadAllText(_parameters.RepositoryAuthFile);
+					Dictionary<string, string> authDict = JsonSerializer.Deserialize<Dictionary<string, string>>(repositoryText);
+					await ExecuteAsync(exe, $"login {_parameters.Repository} --username {authDict["Username"]} --password-stdin", input: authDict["Token"]);
 				}
 
-				string TargetImage = Parameters.TargetImage ?? Parameters.Image;
-				await ExecuteAsync(Exe, $"tag {Parameters.Image} {Parameters.Repository}/{TargetImage}", EnvVars: Environment);
-				await ExecuteAsync(Exe, $"push {Parameters.Repository}/{TargetImage}", EnvVars: Environment);
+				string targetImage = _parameters.TargetImage ?? _parameters.Image;
+				await ExecuteAsync(exe, $"tag {_parameters.Image} {_parameters.Repository}/{targetImage}", envVars: environment);
+				await ExecuteAsync(exe, $"push {_parameters.Repository}/{targetImage}", envVars: environment);
 			}
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>

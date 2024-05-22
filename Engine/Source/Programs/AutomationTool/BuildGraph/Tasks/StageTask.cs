@@ -1,16 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.BuildGraph;
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
-using UnrealBuildTool;
 using UnrealBuildBase;
+using UnrealBuildTool;
 
 namespace AutomationTool.Tasks
 {
@@ -74,110 +70,107 @@ namespace AutomationTool.Tasks
 	[TaskElement("Stage", typeof(StageTaskParameters))]
 	public class StageTask : BgTaskImpl
 	{
-		/// <summary>
-		/// Parameters for the task
-		/// </summary>
-		StageTaskParameters Parameters;
+		readonly StageTaskParameters _parameters;
 
 		/// <summary>
 		/// Constructor.
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task</param>
-		public StageTask(StageTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task</param>
+		public StageTask(StageTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			// Get the project path, and check it exists
-			FileReference ProjectFile = Parameters.Project;
-			if(Parameters.Project != null && !FileReference.Exists(ProjectFile))
+			FileReference projectFile = _parameters.Project;
+			if (_parameters.Project != null && !FileReference.Exists(projectFile))
 			{
-				throw new AutomationException("Couldn't find project '{0}'", ProjectFile.FullName);
+				throw new AutomationException("Couldn't find project '{0}'", projectFile.FullName);
 			}
 
 			// Get the directories used for staging this project
-			DirectoryReference SourceEngineDir = Unreal.EngineDirectory;
-			DirectoryReference SourceProjectDir = (ProjectFile == null)? SourceEngineDir : ProjectFile.Directory;
+			DirectoryReference sourceEngineDir = Unreal.EngineDirectory;
+			DirectoryReference sourceProjectDir = (projectFile == null) ? sourceEngineDir : projectFile.Directory;
 
 			// Get the output directories. We flatten the directory structure on output.
-			DirectoryReference TargetDir = Parameters.ToDir;
-			DirectoryReference TargetEngineDir = DirectoryReference.Combine(TargetDir, "Engine");
-			DirectoryReference TargetProjectDir = (ProjectFile == null) ? TargetEngineDir : DirectoryReference.Combine(TargetDir, ProjectFile.GetFileNameWithoutExtension());
+			DirectoryReference targetDir = _parameters.ToDir;
+			DirectoryReference targetEngineDir = DirectoryReference.Combine(targetDir, "Engine");
+			DirectoryReference targetProjectDir = (projectFile == null) ? targetEngineDir : DirectoryReference.Combine(targetDir, projectFile.GetFileNameWithoutExtension());
 
 			// Get the path to the receipt
-			FileReference ReceiptFileName = TargetReceipt.GetDefaultPath(SourceProjectDir, Parameters.Target, Parameters.Platform, Parameters.Configuration, UnrealArchitectures.FromString(Parameters.Architecture, Parameters.Platform));
+			FileReference receiptFileName = TargetReceipt.GetDefaultPath(sourceProjectDir, _parameters.Target, _parameters.Platform, _parameters.Configuration, UnrealArchitectures.FromString(_parameters.Architecture, _parameters.Platform));
 
 			// Try to load it
-			TargetReceipt Receipt;
-			if(!TargetReceipt.TryRead(ReceiptFileName, out Receipt))
+			TargetReceipt receipt;
+			if (!TargetReceipt.TryRead(receiptFileName, out receipt))
 			{
-				throw new AutomationException("Couldn't read receipt '{0}'", ReceiptFileName);
+				throw new AutomationException("Couldn't read receipt '{0}'", receiptFileName);
 			}
 
 			// Stage all the build products needed at runtime
-			HashSet<FileReference> SourceFiles = new HashSet<FileReference>();
-			foreach(BuildProduct BuildProduct in Receipt.BuildProducts)
+			HashSet<FileReference> sourceFiles = new HashSet<FileReference>();
+			foreach (BuildProduct buildProduct in receipt.BuildProducts)
 			{
-				SourceFiles.Add(BuildProduct.Path);
+				sourceFiles.Add(buildProduct.Path);
 			}
-			foreach(RuntimeDependency RuntimeDependency in Receipt.RuntimeDependencies.Where(x => x.Type != StagedFileType.UFS))
+			foreach (RuntimeDependency runtimeDependency in receipt.RuntimeDependencies.Where(x => x.Type != StagedFileType.UFS))
 			{
-				SourceFiles.Add(RuntimeDependency.Path);
+				sourceFiles.Add(runtimeDependency.Path);
 			}
 
 			// Get all the target files
-			List<FileReference> TargetFiles = new List<FileReference>();
-			foreach(FileReference SourceFile in SourceFiles)
+			List<FileReference> targetFiles = new List<FileReference>();
+			foreach (FileReference sourceFile in sourceFiles)
 			{
 				// Get the destination file to copy to, mapping to the new engine and project directories as appropriate
-				FileReference TargetFile;
-				if(SourceFile.IsUnderDirectory(SourceEngineDir))
+				FileReference targetFile;
+				if (sourceFile.IsUnderDirectory(sourceEngineDir))
 				{
-					TargetFile = FileReference.Combine(TargetEngineDir, SourceFile.MakeRelativeTo(SourceEngineDir));
+					targetFile = FileReference.Combine(targetEngineDir, sourceFile.MakeRelativeTo(sourceEngineDir));
 				}
 				else
 				{
-					TargetFile = FileReference.Combine(TargetProjectDir, SourceFile.MakeRelativeTo(SourceProjectDir));
+					targetFile = FileReference.Combine(targetProjectDir, sourceFile.MakeRelativeTo(sourceProjectDir));
 				}
 
 				// Only copy the output file if it doesn't already exist. We can stage multiple targets to the same output directory.
-				if(Parameters.Overwrite || !FileReference.Exists(TargetFile))
+				if (_parameters.Overwrite || !FileReference.Exists(targetFile))
 				{
-					DirectoryReference.CreateDirectory(TargetFile.Directory);
-					CommandUtils.CopyFile(SourceFile.FullName, TargetFile.FullName);
+					DirectoryReference.CreateDirectory(targetFile.Directory);
+					CommandUtils.CopyFile(sourceFile.FullName, targetFile.FullName);
 					// Force all destination files to not readonly.
-					CommandUtils.SetFileAttributes(TargetFile.FullName, ReadOnly: false);
+					CommandUtils.SetFileAttributes(targetFile.FullName, ReadOnly: false);
 				}
 
 				// Add it to the list of target files
-				TargetFiles.Add(TargetFile);
+				targetFiles.Add(targetFile);
 			}
 
 			// Apply the optional tag to the build products
-			foreach(string TagName in FindTagNamesFromList(Parameters.Tag))
+			foreach (string tagName in FindTagNamesFromList(_parameters.Tag))
 			{
-				FindOrAddTagSet(TagNameToFileSet, TagName).UnionWith(TargetFiles);
+				FindOrAddTagSet(tagNameToFileSet, tagName).UnionWith(targetFiles);
 			}
 
 			// Add the target file to the list of build products
-			BuildProducts.UnionWith(TargetFiles);
+			buildProducts.UnionWith(targetFiles);
 			return Task.CompletedTask;
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -195,7 +188,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are modified by this task</returns>
 		public override IEnumerable<string> FindProducedTagNames()
 		{
-			return FindTagNamesFromList(Parameters.Tag);
+			return FindTagNamesFromList(_parameters.Tag);
 		}
 	}
 }

@@ -1,16 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.BuildGraph;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
 using UnrealBuildBase;
-using UnrealBuildTool;
 
 namespace AutomationTool.Tasks
 {
@@ -63,134 +58,131 @@ namespace AutomationTool.Tasks
 	[TaskElement("Tag", typeof(TagTaskParameters))]
 	class TagTask : BgTaskImpl
 	{
-		/// <summary>
-		/// Parameters to this task
-		/// </summary>
-		TagTaskParameters Parameters;
+		readonly TagTaskParameters _parameters;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="InParameters">Parameters to select which files to match</param>
-		public TagTask(TagTaskParameters InParameters)
+		/// <param name="parameters">Parameters to select which files to match</param>
+		public TagTask(TagTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			// Get the base directory
-			DirectoryReference BaseDir = Parameters.BaseDir ?? Unreal.RootDirectory;
+			DirectoryReference baseDir = _parameters.BaseDir ?? Unreal.RootDirectory;
 
 			// Parse all the exclude rules
-			List<string> ExcludeRules = ParseRules(BaseDir, Parameters.Except ?? "", TagNameToFileSet);
+			List<string> excludeRules = ParseRules(baseDir, _parameters.Except ?? "", tagNameToFileSet);
 
 			// Resolve the input list
-			HashSet<FileReference> Files = new HashSet<FileReference>();
-			if(!String.IsNullOrEmpty(Parameters.Files))
+			HashSet<FileReference> files = new HashSet<FileReference>();
+			if (!String.IsNullOrEmpty(_parameters.Files))
 			{
-				Files.UnionWith(ResolveFilespecWithExcludePatterns(BaseDir, Parameters.Files, ExcludeRules, TagNameToFileSet));
+				files.UnionWith(ResolveFilespecWithExcludePatterns(baseDir, _parameters.Files, excludeRules, tagNameToFileSet));
 			}
 
 			// Resolve the input file lists
-			if(!String.IsNullOrEmpty(Parameters.FileLists))
+			if (!String.IsNullOrEmpty(_parameters.FileLists))
 			{
-				HashSet<FileReference> FileLists = ResolveFilespec(BaseDir, Parameters.FileLists, TagNameToFileSet);
-				foreach(FileReference FileList in FileLists)
+				HashSet<FileReference> fileLists = ResolveFilespec(baseDir, _parameters.FileLists, tagNameToFileSet);
+				foreach (FileReference fileList in fileLists)
 				{
-					if(!FileReference.Exists(FileList))
+					if (!FileReference.Exists(fileList))
 					{
-						throw new AutomationException("Specified file list '{0}' does not exist", FileList);
+						throw new AutomationException("Specified file list '{0}' does not exist", fileList);
 					}
 
-					string[] Lines = await FileReference.ReadAllLinesAsync(FileList);
-					foreach(string Line in Lines)
+					string[] lines = await FileReference.ReadAllLinesAsync(fileList);
+					foreach (string line in lines)
 					{
-						string TrimLine = Line.Trim();
-						if(TrimLine.Length > 0)
+						string trimLine = line.Trim();
+						if (trimLine.Length > 0)
 						{
-							Files.Add(FileReference.Combine(BaseDir, TrimLine));
+							files.Add(FileReference.Combine(baseDir, trimLine));
 						}
 					}
 				}
 			}
 
 			// Limit to matches against the 'Filter' parameter, if set
-			if(Parameters.Filter != null)
+			if (_parameters.Filter != null)
 			{
-				FileFilter Filter = new FileFilter();
-				Filter.AddRules(ParseRules(BaseDir, Parameters.Filter, TagNameToFileSet));
-				Files.RemoveWhere(x => !Filter.Matches(x.FullName));
+				FileFilter filter = new FileFilter();
+				filter.AddRules(ParseRules(baseDir, _parameters.Filter, tagNameToFileSet));
+				files.RemoveWhere(x => !filter.Matches(x.FullName));
 			}
 
 			// Apply the tag to all the matching files
-			foreach(string TagName in FindTagNamesFromList(Parameters.With))
+			foreach (string tagName in FindTagNamesFromList(_parameters.With))
 			{
-				FindOrAddTagSet(TagNameToFileSet, TagName).UnionWith(Files);
+				FindOrAddTagSet(tagNameToFileSet, tagName).UnionWith(files);
 			}
 		}
 
 		/// <summary>
 		/// Add rules matching a given set of patterns to a file filter. Patterns are added as absolute paths from the root.
 		/// </summary>
-		/// <param name="BaseDir">The base directory for relative paths.</param>
-		/// <param name="DelimitedPatterns">List of patterns to add, separated by semicolons.</param>
-		/// <param name="TagNameToFileSet">Mapping of tag name to a set of files.</param>
+		/// <param name="baseDir">The base directory for relative paths.</param>
+		/// <param name="delimitedPatterns">List of patterns to add, separated by semicolons.</param>
+		/// <param name="tagNameToFileSet">Mapping of tag name to a set of files.</param>
 		/// <returns>List of rules, suitable for adding to a FileFilter object</returns>
-		static List<string> ParseRules(DirectoryReference BaseDir, string DelimitedPatterns, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		static List<string> ParseRules(DirectoryReference baseDir, string delimitedPatterns, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			// Split up the list of patterns
-			List<string> Patterns = SplitDelimitedList(DelimitedPatterns);
+			List<string> patterns = SplitDelimitedList(delimitedPatterns);
 
 			// Parse them into a list of rules
-			List<string> Rules = new List<string>();
-			foreach(string Pattern in Patterns)
+			List<string> rules = new List<string>();
+			foreach (string pattern in patterns)
 			{
-				if(Pattern.StartsWith("#", StringComparison.Ordinal))
+				if (pattern.StartsWith("#", StringComparison.Ordinal))
 				{
 					// Add the files in a specific set to the filter
-					HashSet<FileReference> Files = FindOrAddTagSet(TagNameToFileSet, Pattern);
-					foreach(FileReference File in Files)
+					HashSet<FileReference> files = FindOrAddTagSet(tagNameToFileSet, pattern);
+					foreach (FileReference file in files)
 					{
-						Rules.Add(File.FullName);
+						rules.Add(file.FullName);
 					}
 				}
 				else
 				{
 					// Parse a wildcard filter
-					if(Pattern.StartsWith("...", StringComparison.Ordinal))
+					if (pattern.StartsWith("...", StringComparison.Ordinal))
 					{
-						Rules.Add(Pattern);
+						rules.Add(pattern);
 					}
-					else if(!Pattern.Contains('/', StringComparison.Ordinal))
+					else if (!pattern.Contains('/', StringComparison.Ordinal))
 					{
-						Rules.Add(".../" + Pattern);
+						rules.Add(".../" + pattern);
 					}
-					else if(!Pattern.StartsWith("/", StringComparison.Ordinal))
+					else if (!pattern.StartsWith("/", StringComparison.Ordinal))
 					{
-						Rules.Add(BaseDir.FullName + "/" + Pattern);
+						rules.Add(baseDir.FullName + "/" + pattern);
 					}
 					else
 					{
-						Rules.Add(BaseDir.FullName + Pattern);
+						rules.Add(baseDir.FullName + pattern);
 					}
 				}
 			}
-			return Rules;
+			return rules;
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -199,24 +191,24 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are read by this task</returns>
 		public override IEnumerable<string> FindConsumedTagNames()
 		{
-			foreach(string TagName in FindTagNamesFromFilespec(Parameters.Files))
+			foreach (string tagName in FindTagNamesFromFilespec(_parameters.Files))
 			{
-				yield return TagName;
+				yield return tagName;
 			}
 
-			if(!String.IsNullOrEmpty(Parameters.Filter))
+			if (!String.IsNullOrEmpty(_parameters.Filter))
 			{
-				foreach(string TagName in FindTagNamesFromFilespec(Parameters.Filter))
+				foreach (string tagName in FindTagNamesFromFilespec(_parameters.Filter))
 				{
-					yield return TagName;
+					yield return tagName;
 				}
 			}
 
-			if(!String.IsNullOrEmpty(Parameters.Except))
+			if (!String.IsNullOrEmpty(_parameters.Except))
 			{
-				foreach(string TagName in FindTagNamesFromFilespec(Parameters.Except))
+				foreach (string tagName in FindTagNamesFromFilespec(_parameters.Except))
 				{
-					yield return TagName;
+					yield return tagName;
 				}
 			}
 		}
@@ -227,7 +219,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are modified by this task</returns>
 		public override IEnumerable<string> FindProducedTagNames()
 		{
-			return FindTagNamesFromList(Parameters.With);
+			return FindTagNamesFromList(_parameters.With);
 		}
 	}
 }

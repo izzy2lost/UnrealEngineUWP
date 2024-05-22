@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.BuildGraph;
-using EpicGames.Core;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Xml;
 using System.Xml.Schema;
+using EpicGames.BuildGraph;
+using EpicGames.Core;
 
 #nullable enable
 
@@ -68,12 +68,12 @@ namespace AutomationTool
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BgScriptTaskParameter(string inName, Type inValueType, TaskParameterValidationType inValidationType, bool bInOptional)
+		public BgScriptTaskParameter(string name, Type valueType, TaskParameterValidationType validationType, bool optional)
 		{
-			Name = inName;
-			ValueType = inValueType;
-			ValidationType = inValidationType;
-			Optional = bInOptional;
+			Name = name;
+			ValueType = valueType;
+			ValidationType = validationType;
+			Optional = optional;
 
 			if (ValueType.IsGenericType && ValueType.GetGenericTypeDefinition() == typeof(Nullable<>))
 			{

@@ -1,16 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.BuildGraph;
 using System.Collections.Generic;
-using System.Linq;
-using System.Xml;
 using System.IO;
+using System.Linq;
 using System.Text;
-using EpicGames.Core;
-using UnrealBuildBase;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Xml;
+using EpicGames.Core;
+using UnrealBuildBase;
 
 namespace AutomationTool.Tasks
 {
@@ -44,53 +42,53 @@ namespace AutomationTool.Tasks
 	[TaskElement("ModifyJsonValue", typeof(ModifyJsonValueParameters))]
 	public class ModifyJsonValue : BgTaskImpl
 	{
-		ModifyJsonValueParameters Parameters;
+		readonly ModifyJsonValueParameters _parameters;
 
 		/// <summary>
 		/// Create a new ModifyJsonValue.
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task.</param>
-		public ModifyJsonValue(ModifyJsonValueParameters InParameters)
+		/// <param name="parameters">Parameters for this task.</param>
+		public ModifyJsonValue(ModifyJsonValueParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
 		/// Placeholder comment
 		/// </summary>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			string[] Keys = Parameters.KeyPath.Split('.');
-			if (Keys.Length == 0)
-            {
-				return;
-            }
-			HashSet<FileReference> Files = ResolveFilespec(Unreal.RootDirectory, Parameters.Files, TagNameToFileSet);
-			foreach (var JsonFile in Files.Select(f => f.FullName))
+			string[] keys = _parameters.KeyPath.Split('.');
+			if (keys.Length == 0)
 			{
-				var OldContents = await File.ReadAllTextAsync(JsonFile);
-				var ParamObj = fastJSON.JSON.Instance.Parse(OldContents) as IDictionary<string, object>;
-				var CurrObj = ParamObj;
-				for (int i = 0; i < Keys.Length - 1; i++)
+				return;
+			}
+			HashSet<FileReference> files = ResolveFilespec(Unreal.RootDirectory, _parameters.Files, tagNameToFileSet);
+			foreach (var jsonFile in files.Select(f => f.FullName))
+			{
+				var oldContents = await File.ReadAllTextAsync(jsonFile);
+				var paramObj = fastJSON.JSON.Instance.Parse(oldContents) as IDictionary<string, object>;
+				var currObj = paramObj;
+				for (int i = 0; i < keys.Length - 1; i++)
 				{
-					if (!CurrObj.TryGetValue(Keys[i], out object NextNode))
-						CurrObj[Keys[i]] = NextNode = new Dictionary<string, object>();
-					CurrObj = (IDictionary<string, object>)NextNode;
+					if (!currObj.TryGetValue(keys[i], out object nextNode))
+						currObj[keys[i]] = nextNode = new Dictionary<string, object>();
+					currObj = (IDictionary<string, object>)nextNode;
 				}
 
-				CurrObj[Keys[Keys.Length - 1]] = Parameters.NewValue;
+				currObj[keys[keys.Length - 1]] = _parameters.NewValue;
 
-				var NewContents = JsonSerializer.Serialize(ParamObj, new JsonSerializerOptions { WriteIndented = true });
-				await File.WriteAllTextAsync(JsonFile, NewContents, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+				var newContents = JsonSerializer.Serialize(paramObj, new JsonSerializerOptions { WriteIndented = true });
+				await File.WriteAllTextAsync(jsonFile, newContents, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 			}
 		}
 
 		/// <summary>
 		/// Placeholder comment
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -98,9 +96,9 @@ namespace AutomationTool.Tasks
 		/// </summary>
 		public override IEnumerable<string> FindConsumedTagNames()
 		{
-			foreach (string TagName in FindTagNamesFromFilespec(Parameters.Files))
+			foreach (string tagName in FindTagNamesFromFilespec(_parameters.Files))
 			{
-				yield return TagName;
+				yield return tagName;
 			}
 		}
 

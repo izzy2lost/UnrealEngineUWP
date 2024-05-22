@@ -1,8 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.BuildGraph;
-using EpicGames.Perforce;
-using Microsoft.Extensions.Logging.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,8 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
-using UnrealBuildBase;
-using UnrealBuildTool;
+using EpicGames.Perforce;
 using Microsoft.Extensions.Logging;
 
 namespace AutomationTool.Tasks
@@ -24,7 +20,7 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		///  List of file specifications separated by semicolon (default is ...)
 		/// </summary>
-		[TaskParameter(Optional=true, ValidationType = TaskParameterValidationType.FileSpec)]
+		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
 		public string Path { get; set; } = "...";
 
 		/// <summary>
@@ -61,44 +57,44 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Parameters for the task
 		/// </summary>
-		FindModifiedFilesTaskParameters Parameters;
+		readonly FindModifiedFilesTaskParameters _parameters;
 
 		/// <summary>
 		/// Constructor.
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task</param>
-		public FindModifiedFilesTask(FindModifiedFilesTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task</param>
+		public FindModifiedFilesTask(FindModifiedFilesTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			using IPerforceConnection Connection = await PerforceConnection.CreateAsync(CommandUtils.P4Settings, Log.Logger);
+			using IPerforceConnection connection = await PerforceConnection.CreateAsync(CommandUtils.P4Settings, Log.Logger);
 
-			SortedSet<string> AllLocalFiles = new SortedSet<string>();
-			foreach (string Path in Parameters.Path.Split(";"))
+			SortedSet<string> allLocalFiles = new SortedSet<string>();
+			foreach (string path in _parameters.Path.Split(";"))
 			{
-				StringBuilder Filter = new StringBuilder($"//{Connection.Settings.ClientName}/{Path}");
-				if (Parameters.Change > 0)
+				StringBuilder filter = new StringBuilder($"//{connection.Settings.ClientName}/{path}");
+				if (_parameters.Change > 0)
 				{
-					Filter.Append($"@={Parameters.Change}");
+					filter.Append($"@={_parameters.Change}");
 				}
-				else if (Parameters.MinChange > 0)
+				else if (_parameters.MinChange > 0)
 				{
-					if (Parameters.MaxChange > 0)
+					if (_parameters.MaxChange > 0)
 					{
-						Filter.Append($"@{Parameters.MinChange},{Parameters.MaxChange}");
+						filter.Append($"@{_parameters.MinChange},{_parameters.MaxChange}");
 					}
 					else
 					{
-						Filter.Append($"@>={Parameters.MinChange}");
+						filter.Append($"@>={_parameters.MinChange}");
 					}
 				}
 				else
@@ -106,47 +102,47 @@ namespace AutomationTool.Tasks
 					throw new AutomationException("Change or MinChange must be specified to FindModifiedFiles task");
 				}
 
-				StreamRecord StreamRecord = await Connection.GetStreamAsync(CommandUtils.P4Env.Branch, true);
-				PerforceViewMap ViewMap = PerforceViewMap.Parse(StreamRecord.View);
+				StreamRecord streamRecord = await connection.GetStreamAsync(CommandUtils.P4Env.Branch, true);
+				PerforceViewMap viewMap = PerforceViewMap.Parse(streamRecord.View);
 
-				HashSet<string> LocalFiles = new HashSet<string>();
+				HashSet<string> localFiles = new HashSet<string>();
 
-				List<FilesRecord> Files = await Connection.FilesAsync(FilesOptions.None, Filter.ToString());
-				foreach (FilesRecord File in Files)
+				List<FilesRecord> files = await connection.FilesAsync(FilesOptions.None, filter.ToString());
+				foreach (FilesRecord file in files)
 				{
-					string LocalFile;
-					if (ViewMap.TryMapFile(File.DepotFile, StringComparison.OrdinalIgnoreCase, out LocalFile))
+					string localFile;
+					if (viewMap.TryMapFile(file.DepotFile, StringComparison.OrdinalIgnoreCase, out localFile))
 					{
-						LocalFiles.Add(LocalFile);
+						localFiles.Add(localFile);
 					}
 					else
 					{
-						Logger.LogInformation("Unable to map {DepotFile} to workspace; skipping.", File.DepotFile);
+						Logger.LogInformation("Unable to map {DepotFile} to workspace; skipping.", file.DepotFile);
 					}
 				}
 
-				Logger.LogInformation("Found {NumFiles} modified files matching {Filter}", LocalFiles.Count, Filter.ToString());
-				foreach (string LocalFile in LocalFiles)
+				Logger.LogInformation("Found {NumFiles} modified files matching {Filter}", localFiles.Count, filter.ToString());
+				foreach (string localFile in localFiles)
 				{
-					Logger.LogInformation("  {LocalFile}", LocalFile);
+					Logger.LogInformation("  {LocalFile}", localFile);
 				}
-				AllLocalFiles.UnionWith(LocalFiles);
+				allLocalFiles.UnionWith(localFiles);
 			}
 
-			Logger.LogInformation("Found {NumFiles} total modified files", AllLocalFiles.Count);
-			if (Parameters.Output != null)
+			Logger.LogInformation("Found {NumFiles} total modified files", allLocalFiles.Count);
+			if (_parameters.Output != null)
 			{
-				await FileReference.WriteAllLinesAsync(Parameters.Output, AllLocalFiles);
-				Logger.LogInformation("Written {OutputFile}", Parameters.Output);
+				await FileReference.WriteAllLinesAsync(_parameters.Output, allLocalFiles);
+				Logger.LogInformation("Written {OutputFile}", _parameters.Output);
 			}
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -166,15 +162,15 @@ namespace AutomationTool.Tasks
 		public override IEnumerable<string> FindProducedTagNames()
 		{
 			return Enumerable.Empty<string>();
-/*			foreach (string TagName in FindTagNamesFromList(Parameters.Tag))
-			{
-				yield return TagName;
-			}
+			/*			foreach (string TagName in FindTagNamesFromList(Parameters.Tag))
+						{
+							yield return TagName;
+						}
 
-			foreach (string TagName in FindTagNamesFromList(Parameters.TagReferences))
-			{
-				yield return TagName;
-			}*/
+						foreach (string TagName in FindTagNamesFromList(Parameters.TagReferences))
+						{
+							yield return TagName;
+						}*/
 		}
 	}
 }

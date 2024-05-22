@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
@@ -16,10 +15,10 @@ namespace AutomationTool.Tasks
 	/// </summary>
 	public class MsBuildTaskParameters
 	{
-        /// <summary>
-        /// The C# project file to compile. Using semicolons, more than one project file can be specified.
-        /// </summary>
-        [TaskParameter]
+		/// <summary>
+		/// The C# project file to compile. Using semicolons, more than one project file can be specified.
+		/// </summary>
+		[TaskParameter]
 		public string Project { get; set; }
 
 		/// <summary>
@@ -56,59 +55,59 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Parameters for the task
 		/// </summary>
-		MsBuildTaskParameters Parameters;
+		readonly MsBuildTaskParameters _parameters;
 
 		/// <summary>
 		/// Constructor.
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task</param>
-		public MsBuildTask(MsBuildTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task</param>
+		public MsBuildTask(MsBuildTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			// Get the project file
-			HashSet<FileReference> ProjectFiles = ResolveFilespec(Unreal.RootDirectory, Parameters.Project, TagNameToFileSet);
-			foreach(FileReference ProjectFile in ProjectFiles)
+			HashSet<FileReference> projectFiles = ResolveFilespec(Unreal.RootDirectory, _parameters.Project, tagNameToFileSet);
+			foreach (FileReference projectFile in projectFiles)
 			{
-				if(!FileReference.Exists(ProjectFile))
+				if (!FileReference.Exists(projectFile))
 				{
-					throw new AutomationException("Couldn't find project file '{0}'", ProjectFile.FullName);
+					throw new AutomationException("Couldn't find project file '{0}'", projectFile.FullName);
 				}
 			}
 
 			// Build the argument list
-			List<string> Arguments = new List<string>();
-			if(!String.IsNullOrEmpty(Parameters.Platform))
+			List<string> arguments = new List<string>();
+			if (!String.IsNullOrEmpty(_parameters.Platform))
 			{
-				Arguments.Add(String.Format("/p:Platform={0}", CommandUtils.MakePathSafeToUseWithCommandLine(Parameters.Platform)));
+				arguments.Add(String.Format("/p:Platform={0}", CommandUtils.MakePathSafeToUseWithCommandLine(_parameters.Platform)));
 			}
-			if(!String.IsNullOrEmpty(Parameters.Configuration))
+			if (!String.IsNullOrEmpty(_parameters.Configuration))
 			{
-				Arguments.Add(String.Format("/p:Configuration={0}", CommandUtils.MakePathSafeToUseWithCommandLine(Parameters.Configuration)));
+				arguments.Add(String.Format("/p:Configuration={0}", CommandUtils.MakePathSafeToUseWithCommandLine(_parameters.Configuration)));
 			}
-			if(!String.IsNullOrEmpty(Parameters.Arguments))
+			if (!String.IsNullOrEmpty(_parameters.Arguments))
 			{
-				Arguments.Add(Parameters.Arguments);
+				arguments.Add(_parameters.Arguments);
 			}
-			if(!String.IsNullOrEmpty(Parameters.Verbosity))
+			if (!String.IsNullOrEmpty(_parameters.Verbosity))
 			{
-				Arguments.Add(String.Format("/verbosity:{0}", Parameters.Verbosity));
+				arguments.Add(String.Format("/verbosity:{0}", _parameters.Verbosity));
 			}
-			Arguments.Add("/nologo");
+			arguments.Add("/nologo");
 
 			// Build all the projects
-			foreach(FileReference ProjectFile in ProjectFiles)
+			foreach (FileReference projectFile in projectFiles)
 			{
-				CommandUtils.MsBuild(CommandUtils.CmdEnv, ProjectFile.FullName, String.Join(" ", Arguments), null);
+				CommandUtils.MsBuild(CommandUtils.CmdEnv, projectFile.FullName, String.Join(" ", arguments), null);
 			}
 
 			return Task.CompletedTask;
@@ -117,9 +116,9 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -128,7 +127,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are read by this task</returns>
 		public override IEnumerable<string> FindConsumedTagNames()
 		{
-			return FindTagNamesFromFilespec(Parameters.Project);
+			return FindTagNamesFromFilespec(_parameters.Project);
 		}
 
 		/// <summary>
@@ -139,5 +138,5 @@ namespace AutomationTool.Tasks
 		{
 			return Enumerable.Empty<string>();
 		}
-	}	
+	}
 }

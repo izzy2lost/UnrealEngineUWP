@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using EpicGames.Core;
 using UnrealBuildBase;
 
 #nullable enable
@@ -88,7 +88,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="text"></param>
 		/// <returns>The result of evaluating the condition</returns>
-		public static ValueTask<bool> EvaluateAsync(string text)
+		public static ValueTask<bool> Evaluate(string text)
 		{
 			return new BgCondition(text).EvaluateAsync();
 		}
@@ -99,18 +99,20 @@ namespace AutomationTool
 		/// <returns>The result of evaluating the condition</returns>
 		async ValueTask<bool> EvaluateAsync()
 		{
-			bool bResult = true;
+			bool result = true;
 			if (_tokens.Count > 1)
 			{
 				_idx = 0;
-				string result = await EvaluateOrAsync();
+
+				string value = await EvaluateOrAsync();
 				if (_tokens[_idx] != EndToken)
 				{
 					throw new BgConditionException("Garbage after expression: {0}", String.Join("", _tokens.Skip(_idx)));
 				}
-				bResult = CoerceToBool(result);
+				
+				result = CoerceToBool(value);
 			}
-			return bResult;
+			return result;
 		}
 
 		/// <summary>
@@ -355,13 +357,13 @@ namespace AutomationTool
 		/// <summary>
 		/// Determine if a path exists
 		/// </summary>
-		/// <param name="Path"></param>
+		/// <param name="path"></param>
 		/// <returns></returns>
-		static bool Exists(string Path)
+		static bool Exists(string path)
 		{
 			try
 			{
-				return FileReference.Exists(FileReference.Combine(Unreal.RootDirectory, Path)) || DirectoryReference.Exists(DirectoryReference.Combine(Unreal.RootDirectory, Path));
+				return FileReference.Exists(FileReference.Combine(Unreal.RootDirectory, path)) || DirectoryReference.Exists(DirectoryReference.Combine(Unreal.RootDirectory, path));
 			}
 			catch
 			{
@@ -505,7 +507,7 @@ namespace AutomationTool
 		/// <summary>
 		/// Test cases for conditions.
 		/// </summary>
-		public static async Task TestConditions()
+		public static async Task TestConditionsAsync()
 		{
 			await TestConditionAsync("1 == 2", false);
 			await TestConditionAsync("1 == 1", true);

@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -9,8 +7,9 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Xml;
-using UnrealBuildBase;
+using EpicGames.Core;
 using Microsoft.Extensions.Logging;
+using UnrealBuildBase;
 
 namespace AutomationTool.Tasks
 {
@@ -77,54 +76,54 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Parameters for this task
 		/// </summary>
-		AwsEcsDeployTaskParameters Parameters;
+		readonly AwsEcsDeployTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct an AWS ECS deploy task
 		/// </summary>
-		/// <param name="InParameters">Parameters for the task</param>
-		public AwsEcsDeployTask(AwsEcsDeployTaskParameters InParameters)
+		/// <param name="parameters">Parameters for the task</param>
+		public AwsEcsDeployTask(AwsEcsDeployTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			string TaskDefTemplate = await File.ReadAllTextAsync(ResolveFile(Parameters.TaskDefinitionFile).FullName);
-			string TaskDefRendered = TaskDefTemplate.Replace("%%DOCKER_IMAGE%%", Parameters.DockerImage, StringComparison.Ordinal);
-			if (Parameters.Version != null)
+			string taskDefTemplate = await File.ReadAllTextAsync(ResolveFile(_parameters.TaskDefinitionFile).FullName);
+			string taskDefRendered = taskDefTemplate.Replace("%%DOCKER_IMAGE%%", _parameters.DockerImage, StringComparison.Ordinal);
+			if (_parameters.Version != null)
 			{
-				TaskDefRendered = TaskDefRendered.Replace("%%VERSION%%", Parameters.Version, StringComparison.Ordinal);
+				taskDefRendered = taskDefRendered.Replace("%%VERSION%%", _parameters.Version, StringComparison.Ordinal);
 			}
 
-			FileReference TempTaskDefFile = FileReference.Combine(Unreal.RootDirectory, "Engine", "Intermediate", "Build", "AwsEcsDeployTaskTemp.json");
-			DirectoryReference.CreateDirectory(TempTaskDefFile.Directory);
-			await File.WriteAllTextAsync(TempTaskDefFile.FullName, TaskDefRendered, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-			
-			IProcessResult CreateTaskDefResult = await SpawnTaskBase.ExecuteAsync("aws", $"ecs register-task-definition --cli-input-json \"file://{TempTaskDefFile.FullName}\"", EnvVars: ParseEnvVars(Parameters.Environment, Parameters.EnvironmentFile), LogOutput: Parameters.LogOutput);
+			FileReference tempTaskDefFile = FileReference.Combine(Unreal.RootDirectory, "Engine", "Intermediate", "Build", "AwsEcsDeployTaskTemp.json");
+			DirectoryReference.CreateDirectory(tempTaskDefFile.Directory);
+			await File.WriteAllTextAsync(tempTaskDefFile.FullName, taskDefRendered, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
-			JsonDocument TaskDefJson = JsonDocument.Parse(CreateTaskDefResult.Output);
-			string TaskDefFamily = TaskDefJson.RootElement.GetProperty("taskDefinition").GetProperty("family").GetString();
-			string TaskDefRevision = TaskDefJson.RootElement.GetProperty("taskDefinition").GetProperty("revision").ToString();
+			IProcessResult createTaskDefResult = await SpawnTaskBase.ExecuteAsync("aws", $"ecs register-task-definition --cli-input-json \"file://{tempTaskDefFile.FullName}\"", envVars: ParseEnvVars(_parameters.Environment, _parameters.EnvironmentFile), logOutput: _parameters.LogOutput);
 
-			string Params = $"ecs update-service --cluster {Parameters.Cluster} --service {Parameters.Service} --task-definition {TaskDefFamily}:{TaskDefRevision}";
-			await SpawnTaskBase.ExecuteAsync("aws", Params, EnvVars: ParseEnvVars(Parameters.Environment, Parameters.EnvironmentFile), LogOutput: Parameters.LogOutput);
+			JsonDocument taskDefJson = JsonDocument.Parse(createTaskDefResult.Output);
+			string taskDefFamily = taskDefJson.RootElement.GetProperty("taskDefinition").GetProperty("family").GetString();
+			string taskDefRevision = taskDefJson.RootElement.GetProperty("taskDefinition").GetProperty("revision").ToString();
 
-			Logger.LogInformation("Service {Service} updated to use new task def {TaskDefFamily}:{TaskDefRevision}", Parameters.Service, TaskDefFamily, TaskDefRevision);
+			string @params = $"ecs update-service --cluster {_parameters.Cluster} --service {_parameters.Service} --task-definition {taskDefFamily}:{taskDefRevision}";
+			await SpawnTaskBase.ExecuteAsync("aws", @params, envVars: ParseEnvVars(_parameters.Environment, _parameters.EnvironmentFile), logOutput: _parameters.LogOutput);
+
+			Logger.LogInformation("Service {Service} updated to use new task def {TaskDefFamily}:{TaskDefRevision}", _parameters.Service, taskDefFamily, taskDefRevision);
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>

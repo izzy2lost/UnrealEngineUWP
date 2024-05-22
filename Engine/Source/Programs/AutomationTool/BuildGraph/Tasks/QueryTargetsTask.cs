@@ -1,17 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using AutomationTool.Tasks;
-using EpicGames.BuildGraph;
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
-using UnrealBuildTool;
 using UnrealBuildBase;
+using UnrealBuildTool;
 
 #nullable enable
 
@@ -56,75 +51,75 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Parameters for this task
 		/// </summary>
-		QueryTargetsTaskParameters Parameters;
+		readonly QueryTargetsTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct a spawn task
 		/// </summary>
-		/// <param name="InParameters">Parameters for the task</param>
-		public QueryTargetsTask(QueryTargetsTaskParameters InParameters)
+		/// <param name="parameters">Parameters for the task</param>
+		public QueryTargetsTask(QueryTargetsTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			// Get the output file
-			FileReference? OutputFile = Parameters.OutputFile;
-			if (OutputFile == null)
+			FileReference? outputFile = _parameters.OutputFile;
+			if (outputFile == null)
 			{
-				if (Parameters.ProjectFile == null)
+				if (_parameters.ProjectFile == null)
 				{
-					OutputFile = FileReference.Combine(Unreal.EngineDirectory, "Intermediate", "TargetInfo.json");
+					outputFile = FileReference.Combine(Unreal.EngineDirectory, "Intermediate", "TargetInfo.json");
 				}
 				else
 				{
-					OutputFile = FileReference.Combine(Parameters.ProjectFile.Directory, "Intermediate", "TargetInfo.json");
+					outputFile = FileReference.Combine(_parameters.ProjectFile.Directory, "Intermediate", "TargetInfo.json");
 				}
 			}
-			FileUtils.ForceDeleteFile(OutputFile);
+			FileUtils.ForceDeleteFile(outputFile);
 
 			// Run UBT to generate the target info
-			List<string> Arguments = new List<string> { "-Mode=QueryTargets" };
-			if (Parameters.ProjectFile != null)
+			List<string> arguments = new List<string> { "-Mode=QueryTargets" };
+			if (_parameters.ProjectFile != null)
 			{
-				Arguments.Add($"-Project={Parameters.ProjectFile}");
+				arguments.Add($"-Project={_parameters.ProjectFile}");
 			}
-			if (Parameters.IncludeAllTargets)
+			if (_parameters.IncludeAllTargets)
 			{
-				Arguments.Add("-IncludeAllTargets");
+				arguments.Add("-IncludeAllTargets");
 			}
-			CommandUtils.RunUBT(CommandUtils.CmdEnv, Unreal.UnrealBuildToolDllPath, CommandLineArguments.Join(Arguments));
+			CommandUtils.RunUBT(CommandUtils.CmdEnv, Unreal.UnrealBuildToolDllPath, CommandLineArguments.Join(arguments));
 
 			// Check the output file exists
-			if (!FileReference.Exists(OutputFile))
+			if (!FileReference.Exists(outputFile))
 			{
-				throw new BuildException($"Missing {OutputFile}");
+				throw new BuildException($"Missing {outputFile}");
 			}
 
 			// Apply the optional tag to the build products
-			foreach(string TagName in FindTagNamesFromList(Parameters.Tag))
+			foreach (string tagName in FindTagNamesFromList(_parameters.Tag))
 			{
-				FindOrAddTagSet(TagNameToFileSet, TagName).Add(OutputFile);
+				FindOrAddTagSet(tagNameToFileSet, tagName).Add(outputFile);
 			}
 
 			// Add the target files to the set of build products
-			BuildProducts.Add(OutputFile);
+			buildProducts.Add(outputFile);
 			return Task.CompletedTask;
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -142,7 +137,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are modified by this task</returns>
 		public override IEnumerable<string> FindProducedTagNames()
 		{
-			return FindTagNamesFromList(Parameters.Tag);
+			return FindTagNamesFromList(_parameters.Tag);
 		}
 	}
 }

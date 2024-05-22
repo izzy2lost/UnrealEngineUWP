@@ -1,19 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using AutomationTool.Tasks;
-using EpicGames.BuildGraph;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
-using UnrealBuildTool;
 using Microsoft.Extensions.Logging;
-
-using static AutomationTool.CommandUtils;
+using UnrealBuildTool;
 
 namespace AutomationTool.Tasks
 {
@@ -59,73 +53,70 @@ namespace AutomationTool.Tasks
 	[TaskElement("Strip", typeof(StripTaskParameters))]
 	public class StripTask : BgTaskImpl
 	{
-		/// <summary>
-		/// Parameters for this task
-		/// </summary>
-		StripTaskParameters Parameters;
+		readonly StripTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct a spawn task
 		/// </summary>
-		/// <param name="InParameters">Parameters for the task</param>
-		public StripTask(StripTaskParameters InParameters)
+		/// <param name="parameters">Parameters for the task</param>
+		public StripTask(StripTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			// Get the base directory
-			DirectoryReference BaseDir = Parameters.BaseDir;
+			DirectoryReference baseDir = _parameters.BaseDir;
 
 			// Get the output directory
-			DirectoryReference OutputDir = Parameters.OutputDir;
+			DirectoryReference outputDir = _parameters.OutputDir;
 
 			// Find the matching files
-			FileReference[] SourceFiles = ResolveFilespec(BaseDir, Parameters.Files, TagNameToFileSet).OrderBy(x => x.FullName).ToArray();
+			FileReference[] sourceFiles = ResolveFilespec(baseDir, _parameters.Files, tagNameToFileSet).OrderBy(x => x.FullName).ToArray();
 
 			// Create the matching target files
-			FileReference[] TargetFiles = SourceFiles.Select(x => FileReference.Combine(OutputDir, x.MakeRelativeTo(BaseDir))).ToArray();
+			FileReference[] targetFiles = sourceFiles.Select(x => FileReference.Combine(outputDir, x.MakeRelativeTo(baseDir))).ToArray();
 
 			// Run the stripping command
-			Platform TargetPlatform = Platform.GetPlatform(Parameters.Platform);
-			for (int Idx = 0; Idx < SourceFiles.Length; Idx++)
+			Platform targetPlatform = Platform.GetPlatform(_parameters.Platform);
+			for (int idx = 0; idx < sourceFiles.Length; idx++)
 			{
-				DirectoryReference.CreateDirectory(TargetFiles[Idx].Directory);
-				if (SourceFiles[Idx] == TargetFiles[Idx])
+				DirectoryReference.CreateDirectory(targetFiles[idx].Directory);
+				if (sourceFiles[idx] == targetFiles[idx])
 				{
-					Logger.LogInformation("Stripping symbols: {Arg0}", SourceFiles[Idx].FullName);
+					Logger.LogInformation("Stripping symbols: {Arg0}", sourceFiles[idx].FullName);
 				}
 				else
 				{
-					Logger.LogInformation("Stripping symbols: {Arg0} -> {Arg1}", SourceFiles[Idx].FullName, TargetFiles[Idx].FullName);
+					Logger.LogInformation("Stripping symbols: {Arg0} -> {Arg1}", sourceFiles[idx].FullName, targetFiles[idx].FullName);
 				}
-				TargetPlatform.StripSymbols(SourceFiles[Idx], TargetFiles[Idx]);
+				targetPlatform.StripSymbols(sourceFiles[idx], targetFiles[idx]);
 			}
 
 			// Apply the optional tag to the build products
-			foreach(string TagName in FindTagNamesFromList(Parameters.Tag))
+			foreach (string tagName in FindTagNamesFromList(_parameters.Tag))
 			{
-				FindOrAddTagSet(TagNameToFileSet, TagName).UnionWith(TargetFiles);
+				FindOrAddTagSet(tagNameToFileSet, tagName).UnionWith(targetFiles);
 			}
 
 			// Add the target files to the set of build products
-			BuildProducts.UnionWith(TargetFiles);
+			buildProducts.UnionWith(targetFiles);
 			return Task.CompletedTask;
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -134,7 +125,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are read by this task</returns>
 		public override IEnumerable<string> FindConsumedTagNames()
 		{
-			return FindTagNamesFromFilespec(Parameters.Files);
+			return FindTagNamesFromFilespec(_parameters.Files);
 		}
 
 		/// <summary>
@@ -143,7 +134,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are modified by this task</returns>
 		public override IEnumerable<string> FindProducedTagNames()
 		{
-			return FindTagNamesFromList(Parameters.Tag);
+			return FindTagNamesFromList(_parameters.Tag);
 		}
 	}
 
@@ -152,19 +143,19 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Strips symbols from a set of files.
 		/// </summary>
-		/// <param name="Files"></param>
-		/// <param name="Platform">The platform toolchain to strip binaries.</param>
-		/// <param name="BaseDir">The directory to find files in.</param>
-		/// <param name="OutputDir">Output directory for the stripped files. Defaults to the input path, overwriting the input files.</param>
+		/// <param name="files"></param>
+		/// <param name="platform">The platform toolchain to strip binaries.</param>
+		/// <param name="baseDir">The directory to find files in.</param>
+		/// <param name="outputDir">Output directory for the stripped files. Defaults to the input path, overwriting the input files.</param>
 		/// <returns></returns>
-		public static async Task<FileSet> StripAsync(FileSet Files, UnrealTargetPlatform Platform, DirectoryReference BaseDir = null, DirectoryReference OutputDir = null)
+		public static async Task<FileSet> StripAsync(FileSet files, UnrealTargetPlatform platform, DirectoryReference baseDir = null, DirectoryReference outputDir = null)
 		{
-			StripTaskParameters Parameters = new StripTaskParameters();
-			Parameters.Platform = Platform;
-			Parameters.BaseDir = BaseDir;
-			Parameters.Files = String.Join(";", Files.Flatten().Values.Select(x => x.FullName));
-			Parameters.OutputDir = OutputDir;
-			return await ExecuteAsync(new StripTask(Parameters));
+			StripTaskParameters parameters = new StripTaskParameters();
+			parameters.Platform = platform;
+			parameters.BaseDir = baseDir;
+			parameters.Files = String.Join(";", files.Flatten().Values.Select(x => x.FullName));
+			parameters.OutputDir = outputDir;
+			return await ExecuteAsync(new StripTask(parameters));
 		}
 	}
 }

@@ -1,15 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.Core;
-using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Xml;
+using EpicGames.Core;
 
 namespace AutomationTool.Tasks
 {
@@ -73,73 +70,70 @@ namespace AutomationTool.Tasks
 			public string SessionToken { get; set; }
 		}
 
-		/// <summary>
-		/// Parameters for this task
-		/// </summary>
-		AwsAssumeRoleTaskParameters Parameters;
+		readonly AwsAssumeRoleTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct an AWS CLI task
 		/// </summary>
-		/// <param name="InParameters">Parameters for the task</param>
-		public AwsAssumeRoleTask(AwsAssumeRoleTaskParameters InParameters)
+		/// <param name="parameters">Parameters for the task</param>
+		public AwsAssumeRoleTask(AwsAssumeRoleTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			StringBuilder Arguments = new StringBuilder("sts assume-role");
-			if(Parameters.Arn != null)
+			StringBuilder arguments = new StringBuilder("sts assume-role");
+			if (_parameters.Arn != null)
 			{
-				Arguments.Append($" --role-arn {Parameters.Arn}");
+				arguments.Append($" --role-arn {_parameters.Arn}");
 			}
-			if (Parameters.Session != null)
+			if (_parameters.Session != null)
 			{
-				Arguments.Append($" --role-session-name {Parameters.Session}");
+				arguments.Append($" --role-session-name {_parameters.Session}");
 			}
-			Arguments.Append($" --duration-seconds {Parameters.Duration}");
+			arguments.Append($" --duration-seconds {_parameters.Duration}");
 
-			Dictionary<string, string> Environment = SpawnTaskBase.ParseEnvVars(Parameters.Environment, Parameters.EnvironmentFile);
-			IProcessResult Result = await SpawnTaskBase.ExecuteAsync("aws", Arguments.ToString(), EnvVars: Environment, LogOutput: false);
+			Dictionary<string, string> environment = SpawnTaskBase.ParseEnvVars(_parameters.Environment, _parameters.EnvironmentFile);
+			IProcessResult result = await SpawnTaskBase.ExecuteAsync("aws", arguments.ToString(), envVars: environment, logOutput: false);
 
-			JsonSerializerOptions Options = new JsonSerializerOptions();
-			Options.PropertyNameCaseInsensitive = true;
+			JsonSerializerOptions options = new JsonSerializerOptions();
+			options.PropertyNameCaseInsensitive = true;
 
-			AwsSettings Settings = JsonSerializer.Deserialize<AwsSettings>(Result.Output, Options);
-			if (Settings.Credentials != null)
+			AwsSettings settings = JsonSerializer.Deserialize<AwsSettings>(result.Output, options);
+			if (settings.Credentials != null)
 			{
-				if (Settings.Credentials.AccessKeyId != null)
+				if (settings.Credentials.AccessKeyId != null)
 				{
-					Environment["AWS_ACCESS_KEY_ID"] = Settings.Credentials.AccessKeyId;
+					environment["AWS_ACCESS_KEY_ID"] = settings.Credentials.AccessKeyId;
 				}
-				if (Settings.Credentials.SecretAccessKey != null)
+				if (settings.Credentials.SecretAccessKey != null)
 				{
-					Environment["AWS_SECRET_ACCESS_KEY"] = Settings.Credentials.SecretAccessKey;
+					environment["AWS_SECRET_ACCESS_KEY"] = settings.Credentials.SecretAccessKey;
 				}
-				if (Settings.Credentials.SessionToken != null)
+				if (settings.Credentials.SessionToken != null)
 				{
-					Environment["AWS_SESSION_TOKEN"] = Settings.Credentials.SessionToken;
+					environment["AWS_SESSION_TOKEN"] = settings.Credentials.SessionToken;
 				}
 			}
 
-			FileReference OutputFile = ResolveFile(Parameters.OutputFile);
-			DirectoryReference.CreateDirectory(OutputFile.Directory);
-			await FileReference.WriteAllLinesAsync(OutputFile, Environment.OrderBy(x => x.Key).Select(x => $"{x.Key}={x.Value}"));
+			FileReference outputFile = ResolveFile(_parameters.OutputFile);
+			DirectoryReference.CreateDirectory(outputFile.Directory);
+			await FileReference.WriteAllLinesAsync(outputFile, environment.OrderBy(x => x.Key).Select(x => $"{x.Key}={x.Value}"));
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>

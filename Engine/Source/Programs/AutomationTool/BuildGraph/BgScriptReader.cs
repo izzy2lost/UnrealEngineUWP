@@ -1,8 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.BuildGraph;
-using EpicGames.Core;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -13,6 +10,9 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Schema;
+using EpicGames.BuildGraph;
+using EpicGames.Core;
+using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
 
 #nullable enable
@@ -74,10 +74,10 @@ namespace AutomationTool
 		/// <summary>
 		/// Private constructor. Use ScriptDocument.Load to read an XML document.
 		/// </summary>
-		BgScriptDocument(FileReference inFile, ILogger inLogger)
+		BgScriptDocument(FileReference file, ILogger logger)
 		{
-			File = inFile;
-			Logger = inLogger;
+			File = file;
+			Logger = logger;
 		}
 
 		/// <summary>
@@ -727,14 +727,14 @@ namespace AutomationTool
 		/// <summary>
 		/// Find files matching a pattern
 		/// </summary>
-		/// <param name="Pattern"></param>
+		/// <param name="pattern"></param>
 		/// <returns></returns>
-		static IEnumerable<FileReference> FindMatchingFiles(string Pattern)
+		static IEnumerable<FileReference> FindMatchingFiles(string pattern)
 		{
-			FileFilter Filter = new FileFilter();
-			Filter.AddRule(Pattern, FileFilterType.Include);
+			FileFilter filter = new FileFilter();
+			filter.AddRule(pattern, FileFilterType.Include);
 
-			return Filter.ApplyToDirectory(Unreal.RootDirectory, true);
+			return filter.ApplyToDirectory(Unreal.RootDirectory, true);
 		}
 
 		/// <summary>
@@ -875,7 +875,7 @@ namespace AutomationTool
 						string input = ReadAttribute(element, "Input");
 						Match match = regexValue.Match(input);
 
-						bool optional = await BgCondition.EvaluateAsync(ReadAttribute(element, "Optional"));
+						bool optional = await BgCondition.Evaluate(ReadAttribute(element, "Optional"));
 						if (!match.Success)
 						{
 							if (!optional)
@@ -908,8 +908,6 @@ namespace AutomationTool
 				string method = ReadAttribute(element, "Method");
 				string output = ReadAttribute(element, "Output");
 
-				string operationResult = string.Empty;
-
 				string[] arguments = Array.Empty<string>();
 
 				const string ArgumentsName = "Arguments";
@@ -920,10 +918,15 @@ namespace AutomationTool
 				}
 
 				// Supply more string operations here
+				string operationResult;
 				switch (method)
 				{
-					case "ToLower": operationResult = input.ToLower(); break;
-					case "ToUpper": operationResult = input.ToUpper(); break;
+					case "ToLower":
+						operationResult = input.ToLower();
+						break;
+					case "ToUpper":
+						operationResult = input.ToUpper();
+						break;
 					case "Replace":
 						if (arguments.Length != 2)
 						{
@@ -1371,8 +1374,8 @@ namespace AutomationTool
 				string[] producesNames = ReadListAttribute(element, "Produces");
 				string[] afterNames = ReadListAttribute(element, "After");
 				string[] tokenFileNames = ReadListAttribute(element, "Token");
-				bool bRunEarly = ReadBooleanAttribute(element, "RunEarly", false);
-				bool bNotifyOnWarnings = ReadBooleanAttribute(element, "NotifyOnWarnings", true);
+				bool runEarly = ReadBooleanAttribute(element, "RunEarly", false);
+				bool notifyOnWarnings = ReadBooleanAttribute(element, "NotifyOnWarnings", true);
 				Dictionary<string, string> annotations = ReadAnnotationsAttribute(element, "Annotations");
 				string[] ignoreModified = ReadListAttribute(element, "IgnoreModified");
 
@@ -1440,8 +1443,8 @@ namespace AutomationTool
 				{
 					// Add it to the node lookup
 					BgScriptNode newNode = new BgScriptNode(name, inputs.ToArray(), validOutputNames.ToArray(), inputDependencies.ToArray(), orderDependencies.ToArray(), requiredTokens.ToArray(), ignoreModified.ToArray());
-					newNode.RunEarly = bRunEarly;
-					newNode.NotifyOnWarnings = bNotifyOnWarnings;
+					newNode.RunEarly = runEarly;
+					newNode.NotifyOnWarnings = notifyOnWarnings;
 					foreach ((string key, string value) in annotations)
 					{
 						newNode.Annotations[key] = value;
@@ -1632,18 +1635,18 @@ namespace AutomationTool
 						}
 
 						// Make sure none of the required arguments are missing
-						bool bHasMissingArguments = false;
+						bool hasMissingArguments = false;
 						for (int idx = 0; idx < macro.NumRequiredArguments; idx++)
 						{
 							if (arguments[idx] == null)
 							{
 								LogWarning(element, "Macro '{Name}' is missing argument '{ArgName}'", macro.Name, macro.ArgumentNameToIndex.First(x => x.Value == idx).Key);
-								bHasMissingArguments = true;
+								hasMissingArguments = true;
 							}
 						}
 
 						// Expand the function
-						if (!bHasMissingArguments)
+						if (!hasMissingArguments)
 						{
 							EnterScope();
 							foreach (KeyValuePair<string, int> pair in macro.ArgumentNameToIndex)
@@ -1702,8 +1705,8 @@ namespace AutomationTool
 				string[] reportNames = ReadListAttribute(element, "Reports");
 				string[] users = ReadListAttribute(element, "Users");
 				string[] submitters = ReadListAttribute(element, "Submitters");
-				bool? bWarnings = element.HasAttribute("Warnings") ? (bool?)ReadBooleanAttribute(element, "Warnings", true) : null;
-				bool bAbsolute = element.HasAttribute("Absolute") && ReadBooleanAttribute(element, "Absolute", true);
+				bool? warnings = element.HasAttribute("Warnings") ? (bool?)ReadBooleanAttribute(element, "Warnings", true) : null;
+				bool absolute = element.HasAttribute("Absolute") && ReadBooleanAttribute(element, "Absolute", true);
 
 				// Find the list of targets which are included, and recurse through all their dependencies
 				HashSet<BgNodeDef> nodes = new HashSet<BgNodeDef>();
@@ -1736,7 +1739,7 @@ namespace AutomationTool
 				{
 					if (users != null)
 					{
-						if (bAbsolute)
+						if (absolute)
 						{
 							node.NotifyUsers = new HashSet<string>(users);
 						}
@@ -1747,7 +1750,7 @@ namespace AutomationTool
 					}
 					if (submitters != null)
 					{
-						if (bAbsolute)
+						if (absolute)
 						{
 							node.NotifySubmitters = new HashSet<string>(submitters);
 						}
@@ -1756,9 +1759,9 @@ namespace AutomationTool
 							node.NotifySubmitters.UnionWith(submitters);
 						}
 					}
-					if (bWarnings.HasValue)
+					if (warnings.HasValue)
 					{
-						node.NotifyOnWarnings = bWarnings.Value;
+						node.NotifyOnWarnings = warnings.Value;
 					}
 				}
 
@@ -2096,28 +2099,28 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="element">Element to read the attribute from</param>
 		/// <param name="name">Name of the attribute</param>
-		/// <param name="bDefaultValue">Default value if the attribute is missing</param>
+		/// <param name="defaultValue">Default value if the attribute is missing</param>
 		/// <returns>The value of the attribute field</returns>
-		protected bool ReadBooleanAttribute(BgScriptElement element, string name, bool bDefaultValue)
+		protected bool ReadBooleanAttribute(BgScriptElement element, string name, bool defaultValue)
 		{
-			bool bResult = bDefaultValue;
+			bool result = defaultValue;
 			if (element.HasAttribute(name))
 			{
 				string value = ReadAttribute(element, name).Trim();
 				if (value.Equals("true", StringComparison.OrdinalIgnoreCase))
 				{
-					bResult = true;
+					result = true;
 				}
 				else if (value.Equals("false", StringComparison.OrdinalIgnoreCase))
 				{
-					bResult = false;
+					result = false;
 				}
 				else
 				{
 					LogError(element, "Invalid boolean value '{0}' - expected 'true' or 'false'", value);
 				}
 			}
-			return bResult;
+			return result;
 		}
 
 		/// <summary>
@@ -2216,7 +2219,7 @@ namespace AutomationTool
 			try
 			{
 				string text = ExpandProperties(element, element.GetAttribute("If"));
-				return await BgCondition.EvaluateAsync(text);
+				return await BgCondition.Evaluate(text);
 			}
 			catch (BgConditionException ex)
 			{
@@ -2266,9 +2269,9 @@ namespace AutomationTool
 		}
 
 		/// <inheritdoc/>
-		public static object GetNativePath(string Path)
+		public static object GetNativePath(string path)
 		{
-			return FileReference.Combine(Unreal.RootDirectory, Path).FullName;
+			return FileReference.Combine(Unreal.RootDirectory, path).FullName;
 		}
 	}
 }

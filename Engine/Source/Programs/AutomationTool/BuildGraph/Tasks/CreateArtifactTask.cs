@@ -1,30 +1,22 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.Core;
 using System;
 using System.Collections.Generic;
-using System.Text.Json;
+using System.Data;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
-using UnrealBuildBase;
-using Microsoft.Extensions.Logging;
-using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Storage.Clients;
-using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Nodes;
-using System.Threading;
-using System.Data;
-using EpicGames.Horde.Storage.Backends;
-using Microsoft.Extensions.DependencyInjection;
+using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Artifacts;
-using System.Linq;
-using System.Diagnostics;
+using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Clients;
+using EpicGames.Horde.Storage.Nodes;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 #nullable enable
 
@@ -87,27 +79,24 @@ namespace AutomationTool.Tasks
 			public void Dispose() { }
 		}
 
-		/// <summary>
-		/// Parameters for this task
-		/// </summary>
-		CreateArtifactTaskParameters Parameters;
+		readonly CreateArtifactTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct a Helm task
 		/// </summary>
-		/// <param name="InParameters">Parameters for the task</param>
-		public CreateArtifactTask(CreateArtifactTaskParameters InParameters)
+		/// <param name="parameters">Parameters for the task</param>
+		public CreateArtifactTask(CreateArtifactTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			// Create a DI container for building the graph
 			ServiceCollection serviceCollection = new ServiceCollection();
@@ -118,12 +107,12 @@ namespace AutomationTool.Tasks
 
 			await using ServiceProvider serviceProvider = serviceCollection.BuildServiceProvider();
 
-			ArtifactName artifactName = new ArtifactName(Parameters.Name);
-			ArtifactType artifactType = new ArtifactType(Parameters.Type);
+			ArtifactName artifactName = new ArtifactName(_parameters.Name);
+			ArtifactType artifactType = new ArtifactType(_parameters.Type);
 
 			HordeHttpClient hordeHttpClient = serviceProvider.GetRequiredService<HordeHttpClient>();
-			int? change = (Parameters.Change == 0) ? (int?)null : Parameters.Change;
-			CreateArtifactResponse response = await hordeHttpClient.CreateArtifactAsync(artifactName, artifactType, Parameters.Description, change: change);
+			int? change = (_parameters.Change == 0) ? (int?)null : _parameters.Change;
+			CreateArtifactResponse response = await hordeHttpClient.CreateArtifactAsync(artifactName, artifactType, _parameters.Description, change: change);
 			Logger.LogInformation("Creating artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) (ns: {NamespaceId}, ref: {RefName})", response.ArtifactId, artifactName, artifactType, response.NamespaceId, response.RefName);
 
 			Stopwatch timer = Stopwatch.StartNew();
@@ -133,8 +122,8 @@ namespace AutomationTool.Tasks
 			{
 				await using (IBlobWriter writer = client.CreateBlobWriter(response.RefName))
 				{
-					DirectoryReference baseDir = ResolveDirectory(Parameters.BaseDir);
-					List<FileInfo> files = ResolveFilespec(baseDir, Parameters.Files, TagNameToFileSet).Select(x => x.ToFileInfo()).ToList();
+					DirectoryReference baseDir = ResolveDirectory(_parameters.BaseDir);
+					List<FileInfo> files = ResolveFilespec(baseDir, _parameters.Files, tagNameToFileSet).Select(x => x.ToFileInfo()).ToList();
 
 					int totalCount = files.Count;
 					long totalSize = files.Sum(x => x.Length);
@@ -152,9 +141,9 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -163,7 +152,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are read by this task</returns>
 		public override IEnumerable<string> FindConsumedTagNames()
 		{
-			return FindTagNamesFromList(Parameters.Files);
+			return FindTagNamesFromList(_parameters.Files);
 		}
 
 		/// <summary>

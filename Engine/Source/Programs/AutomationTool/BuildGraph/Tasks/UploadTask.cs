@@ -1,14 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.BuildGraph;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Net.Http;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
@@ -33,7 +27,7 @@ namespace AutomationTool.Tasks
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
 		public string Files { get; set; }
-		
+
 		/// <summary>
 		/// The jupiter namespace used to upload the build. Used to control who has access to the build.
 		/// </summary>
@@ -95,73 +89,70 @@ namespace AutomationTool.Tasks
 	[TaskElement("Upload", typeof(UploadTaskParameters))]
 	public class UploadTask : BgTaskImpl
 	{
-		/// <summary>
-		/// Parameters for this task
-		/// </summary>
-		UploadTaskParameters Parameters;
+		readonly UploadTaskParameters _parameters;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task</param>
-		public UploadTask(UploadTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task</param>
+		public UploadTask(UploadTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			// Find all the input files
-			List<FileReference> Files;
-			if(Parameters.Files == null)
+			List<FileReference> files;
+			if (_parameters.Files == null)
 			{
-				Files = DirectoryReference.EnumerateFiles(Parameters.FromDir, "*", System.IO.SearchOption.AllDirectories).ToList();
+				files = DirectoryReference.EnumerateFiles(_parameters.FromDir, "*", System.IO.SearchOption.AllDirectories).ToList();
 			}
 			else
 			{
-				Files = ResolveFilespec(Parameters.FromDir, Parameters.Files, TagNameToFileSet).ToList();
+				files = ResolveFilespec(_parameters.FromDir, _parameters.Files, tagNameToFileSet).ToList();
 			}
 
 			// Create the jupiter tree
-			Logger.LogInformation("Uploading {NumFiles} files to {Url}...", Files.Count, Parameters.JupiterUrl);
+			Logger.LogInformation("Uploading {NumFiles} files to {Url}...", files.Count, _parameters.JupiterUrl);
 
-			JupiterFileTree FileTree = new JupiterFileTree(Parameters.FromDir, Parameters.LimitMemoryUsage);
-			foreach (FileReference File in Files)
+			JupiterFileTree fileTree = new JupiterFileTree(_parameters.FromDir, _parameters.LimitMemoryUsage);
+			foreach (FileReference file in files)
 			{
-				FileTree.AddFile(File);
+				fileTree.AddFile(file);
 			}
 
-			Dictionary<string, object> Metadata = new Dictionary<string, object>
+			Dictionary<string, object> metadata = new Dictionary<string, object>
 			{
-				{"ArchiveType", Parameters.ArchiveType},
-				{"Project", Parameters.ProjectName},
-				{"Branch", Parameters.Branch},
-				{"Changelist", Parameters.Changelist},
+				{"ArchiveType", _parameters.ArchiveType},
+				{"Project", _parameters.ProjectName},
+				{"Branch", _parameters.Branch},
+				{"Changelist", _parameters.Changelist},
 			};
 
-			if (Parameters.AdditionalMetadata != null)
+			if (_parameters.AdditionalMetadata != null)
 			{
-				string[] KV = Parameters.AdditionalMetadata.Split(';');
-				foreach (string Option in KV)
+				string[] kv = _parameters.AdditionalMetadata.Split(';');
+				foreach (string option in kv)
 				{
-					int SeparatorIndex = Option.IndexOf('=', StringComparison.Ordinal);
-					if (SeparatorIndex == -1)
+					int separatorIndex = option.IndexOf('=', StringComparison.Ordinal);
+					if (separatorIndex == -1)
 						continue;
 
-					string Key = Option.Substring(0, SeparatorIndex);
-					string Value = Option.Substring(SeparatorIndex + 1);
+					string key = option.Substring(0, separatorIndex);
+					string value = option.Substring(separatorIndex + 1);
 
-					Metadata[Key] = Value;
+					metadata[key] = value;
 				}
 			}
 			// Upload the tree to Jupiter
-			Dictionary<FileReference, List<string>> Mapping = await FileTree.UploadToJupiter(Parameters.JupiterUrl, Parameters.JupiterNamespace, Parameters.JupiterKey, Metadata);
+			_ = await fileTree.UploadToJupiter(_parameters.JupiterUrl, _parameters.JupiterNamespace, _parameters.JupiterKey, metadata);
 
 			// Debug output of which files mapped to which blobs, can be useful to determine which files are constantly being uploaded
 			// Json.Save(FileReference.Combine(AutomationTool.Unreal.RootDirectory, "JupiterUpload.json"), Mapping);
@@ -170,9 +161,9 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -181,7 +172,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are read by this task</returns>
 		public override IEnumerable<string> FindConsumedTagNames()
 		{
-			return FindTagNamesFromFilespec(Parameters.Files);
+			return FindTagNamesFromFilespec(_parameters.Files);
 		}
 
 		/// <summary>

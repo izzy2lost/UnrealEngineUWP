@@ -1,11 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
+using EpicGames.Core;
 
 namespace AutomationTool.Tasks
 {
@@ -39,38 +37,35 @@ namespace AutomationTool.Tasks
 	[TaskElement("Git", typeof(GitTaskParameters))]
 	public class GitTask : BgTaskImpl
 	{
-		/// <summary>
-		/// Parameters for this task
-		/// </summary>
-		GitTaskParameters Parameters;
+		readonly GitTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct a Git task
 		/// </summary>
-		/// <param name="InParameters">Parameters for the task</param>
-		public GitTask(GitTaskParameters InParameters)
+		/// <param name="parameters">Parameters for the task</param>
+		public GitTask(GitTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			FileReference ToolFile = CommandUtils.FindToolInPath("git");
-			if(ToolFile == null)
+			FileReference toolFile = CommandUtils.FindToolInPath("git");
+			if (toolFile == null)
 			{
 				throw new AutomationException("Unable to find path to Git. Check you have it installed, and it is on your PATH.");
 			}
 
-			IProcessResult Result = CommandUtils.Run(ToolFile.FullName, Parameters.Arguments, WorkingDir: Parameters.BaseDir);
-			if (Result.ExitCode < 0 || Result.ExitCode >= Parameters.ErrorLevel)
+			IProcessResult result = CommandUtils.Run(toolFile.FullName, _parameters.Arguments, WorkingDir: _parameters.BaseDir);
+			if (result.ExitCode < 0 || result.ExitCode >= _parameters.ErrorLevel)
 			{
-				throw new AutomationException("Git terminated with an exit code indicating an error ({0})", Result.ExitCode);
+				throw new AutomationException("Git terminated with an exit code indicating an error ({0})", result.ExitCode);
 			}
 
 			return Task.CompletedTask;
@@ -79,9 +74,9 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>

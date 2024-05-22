@@ -1,16 +1,12 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.BuildGraph;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
-using UnrealBuildBase;
-using UnrealBuildTool;
 using Microsoft.Extensions.Logging;
+using UnrealBuildBase;
 
 namespace AutomationTool.Tasks
 {
@@ -87,144 +83,141 @@ namespace AutomationTool.Tasks
 	[TaskElement("CsCompile", typeof(CsCompileTaskParameters))]
 	public class CsCompileTask : BgTaskImpl
 	{
-		/// <summary>
-		/// Parameters for the task
-		/// </summary>
-		CsCompileTaskParameters Parameters;
+		readonly CsCompileTaskParameters _parameters;
 
 		/// <summary>
 		/// Constructor.
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task</param>
-		public CsCompileTask(CsCompileTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task</param>
+		public CsCompileTask(CsCompileTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			// Get the project file
-			HashSet<FileReference> ProjectFiles = ResolveFilespec(Unreal.RootDirectory, Parameters.Project, TagNameToFileSet);
-			foreach(FileReference ProjectFile in ProjectFiles)
+			HashSet<FileReference> projectFiles = ResolveFilespec(Unreal.RootDirectory, _parameters.Project, tagNameToFileSet);
+			foreach (FileReference projectFile in projectFiles)
 			{
-				if(!FileReference.Exists(ProjectFile))
+				if (!FileReference.Exists(projectFile))
 				{
-					throw new AutomationException("Couldn't find project file '{0}'", ProjectFile.FullName);
+					throw new AutomationException("Couldn't find project file '{0}'", projectFile.FullName);
 				}
-				if(!ProjectFile.HasExtension(".csproj"))
+				if (!projectFile.HasExtension(".csproj"))
 				{
-					throw new AutomationException("File '{0}' is not a C# project", ProjectFile.FullName);
+					throw new AutomationException("File '{0}' is not a C# project", projectFile.FullName);
 				}
 			}
 
 			// Get the default properties
-			Dictionary<string, string> Properties = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
-			if(!String.IsNullOrEmpty(Parameters.Platform))
+			Dictionary<string, string> properties = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase);
+			if (!String.IsNullOrEmpty(_parameters.Platform))
 			{
-				Properties["Platform"] = Parameters.Platform;
+				properties["Platform"] = _parameters.Platform;
 			}
-			if(!String.IsNullOrEmpty(Parameters.Configuration))
+			if (!String.IsNullOrEmpty(_parameters.Configuration))
 			{
-				Properties["Configuration"] = Parameters.Configuration;
+				properties["Configuration"] = _parameters.Configuration;
 			}
-			if (!String.IsNullOrEmpty(Parameters.Properties))
+			if (!String.IsNullOrEmpty(_parameters.Properties))
 			{
-				foreach (string Property in Parameters.Properties.Split(';'))
+				foreach (string property in _parameters.Properties.Split(';'))
 				{
-					if (!String.IsNullOrWhiteSpace(Property))
+					if (!String.IsNullOrWhiteSpace(property))
 					{
-						int EqualsIdx = Property.IndexOf('=', StringComparison.Ordinal);
-						if (EqualsIdx == -1)
+						int equalsIdx = property.IndexOf('=', StringComparison.Ordinal);
+						if (equalsIdx == -1)
 						{
 							Logger.LogWarning("Missing '=' in property assignment");
 						}
 						else
 						{
-							Properties[Property.Substring(0, EqualsIdx).Trim()] = Property.Substring(EqualsIdx + 1).Trim();
+							properties[property.Substring(0, equalsIdx).Trim()] = property.Substring(equalsIdx + 1).Trim();
 						}
 					}
 				}
 			}
 
 			// Build the arguments and run the build
-			if(!Parameters.EnumerateOnly)
+			if (!_parameters.EnumerateOnly)
 			{
-				List<string> Arguments = new List<string>();
-				foreach(KeyValuePair<string, string> PropertyPair in Properties)
+				List<string> arguments = new List<string>();
+				foreach (KeyValuePair<string, string> propertyPair in properties)
 				{
-					Arguments.Add(String.Format("/property:{0}={1}", CommandUtils.MakePathSafeToUseWithCommandLine(PropertyPair.Key), CommandUtils.MakePathSafeToUseWithCommandLine(PropertyPair.Value)));
+					arguments.Add(String.Format("/property:{0}={1}", CommandUtils.MakePathSafeToUseWithCommandLine(propertyPair.Key), CommandUtils.MakePathSafeToUseWithCommandLine(propertyPair.Value)));
 				}
-				if(!String.IsNullOrEmpty(Parameters.Arguments))
+				if (!String.IsNullOrEmpty(_parameters.Arguments))
 				{
-					Arguments.Add(Parameters.Arguments);
+					arguments.Add(_parameters.Arguments);
 				}
-				if(!String.IsNullOrEmpty(Parameters.Target))
+				if (!String.IsNullOrEmpty(_parameters.Target))
 				{
-					Arguments.Add(String.Format("/target:{0}", CommandUtils.MakePathSafeToUseWithCommandLine(Parameters.Target)));
+					arguments.Add(String.Format("/target:{0}", CommandUtils.MakePathSafeToUseWithCommandLine(_parameters.Target)));
 				}
 
-				Arguments.Add("/restore");
-				Arguments.Add("/verbosity:minimal");
-				Arguments.Add("/nologo");
+				arguments.Add("/restore");
+				arguments.Add("/verbosity:minimal");
+				arguments.Add("/nologo");
 
-				string JoinedArguments = String.Join(" ", Arguments);
+				string joinedArguments = String.Join(" ", arguments);
 
-				foreach(FileReference ProjectFile in ProjectFiles)
+				foreach (FileReference projectFile in projectFiles)
 				{
-					if (!FileReference.Exists(ProjectFile))
+					if (!FileReference.Exists(projectFile))
 					{
-						throw new AutomationException("Project {0} does not exist!", ProjectFile);
+						throw new AutomationException("Project {0} does not exist!", projectFile);
 					}
 
-					if (Parameters.UseSystemCompiler)
+					if (_parameters.UseSystemCompiler)
 					{
-						CommandUtils.MsBuild(CommandUtils.CmdEnv, ProjectFile.FullName, JoinedArguments, null);
+						CommandUtils.MsBuild(CommandUtils.CmdEnv, projectFile.FullName, joinedArguments, null);
 					}
 					else
 					{
-						CommandUtils.RunAndLog(CommandUtils.CmdEnv, CommandUtils.CmdEnv.DotnetMsbuildPath, $"msbuild {CommandUtils.MakePathSafeToUseWithCommandLine(ProjectFile.FullName)} {JoinedArguments}");
+						CommandUtils.RunAndLog(CommandUtils.CmdEnv, CommandUtils.CmdEnv.DotnetMsbuildPath, $"msbuild {CommandUtils.MakePathSafeToUseWithCommandLine(projectFile.FullName)} {joinedArguments}");
 					}
 				}
 			}
 
 			// Try to figure out the output files
-			HashSet<FileReference> ProjectBuildProducts;
-			HashSet<FileReference> ProjectReferences;
-			FindBuildProductsAndReferences(ProjectFiles, Properties, out ProjectBuildProducts, out ProjectReferences);
+			HashSet<FileReference> projectBuildProducts;
+			HashSet<FileReference> projectReferences;
+			FindBuildProductsAndReferences(projectFiles, properties, out projectBuildProducts, out projectReferences);
 
 			// Apply the optional tag to the produced archive
-			foreach(string TagName in FindTagNamesFromList(Parameters.Tag))
+			foreach (string tagName in FindTagNamesFromList(_parameters.Tag))
 			{
-				FindOrAddTagSet(TagNameToFileSet, TagName).UnionWith(ProjectBuildProducts);
+				FindOrAddTagSet(tagNameToFileSet, tagName).UnionWith(projectBuildProducts);
 			}
 
 			// Apply the optional tag to any references
-			if (!String.IsNullOrEmpty(Parameters.TagReferences))
+			if (!String.IsNullOrEmpty(_parameters.TagReferences))
 			{
-				foreach (string TagName in FindTagNamesFromList(Parameters.TagReferences))
+				foreach (string tagName in FindTagNamesFromList(_parameters.TagReferences))
 				{
-					FindOrAddTagSet(TagNameToFileSet, TagName).UnionWith(ProjectReferences);
+					FindOrAddTagSet(tagNameToFileSet, tagName).UnionWith(projectReferences);
 				}
 			}
 
 			// Merge them into the standard set of build products
-			BuildProducts.UnionWith(ProjectBuildProducts);
-			BuildProducts.UnionWith(ProjectReferences);
+			buildProducts.UnionWith(projectBuildProducts);
+			buildProducts.UnionWith(projectReferences);
 			return Task.CompletedTask;
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -233,7 +226,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are read by this task</returns>
 		public override IEnumerable<string> FindConsumedTagNames()
 		{
-			return FindTagNamesFromFilespec(Parameters.Project);
+			return FindTagNamesFromFilespec(_parameters.Project);
 		}
 
 		/// <summary>
@@ -242,86 +235,86 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are modified by this task</returns>
 		public override IEnumerable<string> FindProducedTagNames()
 		{
-			foreach (string TagName in FindTagNamesFromList(Parameters.Tag))
+			foreach (string tagName in FindTagNamesFromList(_parameters.Tag))
 			{
-				yield return TagName;
+				yield return tagName;
 			}
 
-			foreach (string TagName in FindTagNamesFromList(Parameters.TagReferences))
+			foreach (string tagName in FindTagNamesFromList(_parameters.TagReferences))
 			{
-				yield return TagName;
+				yield return tagName;
 			}
 		}
 
 		/// <summary>
 		/// Find all the build products created by compiling the given project file
 		/// </summary>
-		/// <param name="ProjectFiles">Initial project file to read. All referenced projects will also be read.</param>
-		/// <param name="InitialProperties">Mapping of property name to value</param>
-		/// <param name="OutBuildProducts">Receives a set of build products on success</param>
-		/// <param name="OutReferences">Receives a set of non-private references on success</param>
-		static void FindBuildProductsAndReferences(HashSet<FileReference> ProjectFiles, Dictionary<string, string> InitialProperties, out HashSet<FileReference> OutBuildProducts, out HashSet<FileReference> OutReferences)
+		/// <param name="projectFiles">Initial project file to read. All referenced projects will also be read.</param>
+		/// <param name="initialProperties">Mapping of property name to value</param>
+		/// <param name="outBuildProducts">Receives a set of build products on success</param>
+		/// <param name="outReferences">Receives a set of non-private references on success</param>
+		static void FindBuildProductsAndReferences(HashSet<FileReference> projectFiles, Dictionary<string, string> initialProperties, out HashSet<FileReference> outBuildProducts, out HashSet<FileReference> outReferences)
 		{
 			// Find all the build products and references
-			OutBuildProducts = new HashSet<FileReference>();
-			OutReferences = new HashSet<FileReference>();
+			outBuildProducts = new HashSet<FileReference>();
+			outReferences = new HashSet<FileReference>();
 
 			// Read all the project information into a dictionary
-			Dictionary<FileReference, CsProjectInfo> FileToProjectInfo = new Dictionary<FileReference, CsProjectInfo>();
-			foreach(FileReference ProjectFile in ProjectFiles)
+			Dictionary<FileReference, CsProjectInfo> fileToProjectInfo = new Dictionary<FileReference, CsProjectInfo>();
+			foreach (FileReference projectFile in projectFiles)
 			{
 				// Read all the projects
-				ReadProjectsRecursively(ProjectFile, InitialProperties, FileToProjectInfo);
+				ReadProjectsRecursively(projectFile, initialProperties, fileToProjectInfo);
 
 				// Find all the outputs for each project
-				foreach(KeyValuePair<FileReference, CsProjectInfo> Pair in FileToProjectInfo)
+				foreach (KeyValuePair<FileReference, CsProjectInfo> pair in fileToProjectInfo)
 				{
-					CsProjectInfo ProjectInfo = Pair.Value;
+					CsProjectInfo projectInfo = pair.Value;
 
 					// Add all the build projects from this project
-					DirectoryReference OutputDir = ProjectInfo.GetOutputDir(Pair.Key.Directory);
-					ProjectInfo.FindBuildProducts(OutputDir, OutBuildProducts, FileToProjectInfo);
+					DirectoryReference outputDir = projectInfo.GetOutputDir(pair.Key.Directory);
+					projectInfo.FindBuildProducts(outputDir, outBuildProducts, fileToProjectInfo);
 
 					// Add any files which are only referenced
-					foreach (KeyValuePair<FileReference, bool> Reference in ProjectInfo.References)
+					foreach (KeyValuePair<FileReference, bool> reference in projectInfo.References)
 					{
-						CsProjectInfo.AddReferencedAssemblyAndSupportFiles(Reference.Key, OutReferences);
+						CsProjectInfo.AddReferencedAssemblyAndSupportFiles(reference.Key, outReferences);
 					}
 				}
 			}
 
-			OutBuildProducts.RemoveWhere(x => !FileReference.Exists(x));
-			OutReferences.RemoveWhere(x => !FileReference.Exists(x));
+			outBuildProducts.RemoveWhere(x => !FileReference.Exists(x));
+			outReferences.RemoveWhere(x => !FileReference.Exists(x));
 		}
 
 		/// <summary>
 		/// Read a project file, plus all the project files it references.
 		/// </summary>
-		/// <param name="File">Project file to read</param>
-		/// <param name="InitialProperties">Mapping of property name to value for the initial project</param>
-		/// <param name="FileToProjectInfo"></param>
+		/// <param name="file">Project file to read</param>
+		/// <param name="initialProperties">Mapping of property name to value for the initial project</param>
+		/// <param name="fileToProjectInfo"></param>
 		/// <returns>True if the projects were read correctly, false (and prints an error to the log) if not</returns>
-		static void ReadProjectsRecursively(FileReference File, Dictionary<string, string> InitialProperties, Dictionary<FileReference, CsProjectInfo> FileToProjectInfo)
+		static void ReadProjectsRecursively(FileReference file, Dictionary<string, string> initialProperties, Dictionary<FileReference, CsProjectInfo> fileToProjectInfo)
 		{
 			// Early out if we've already read this project
-			if (!FileToProjectInfo.ContainsKey(File))
+			if (!fileToProjectInfo.ContainsKey(file))
 			{
 				// Try to read this project
-				CsProjectInfo ProjectInfo;
-				if (!CsProjectInfo.TryRead(File, InitialProperties, out ProjectInfo))
+				CsProjectInfo projectInfo;
+				if (!CsProjectInfo.TryRead(file, initialProperties, out projectInfo))
 				{
-					throw new AutomationException("Couldn't read project '{0}'", File.FullName);
+					throw new AutomationException("Couldn't read project '{0}'", file.FullName);
 				}
 
 				// Add it to the project lookup, and try to read all the projects it references
-				FileToProjectInfo.Add(File, ProjectInfo);
-				foreach(FileReference ProjectReference in ProjectInfo.ProjectReferences.Keys)
+				fileToProjectInfo.Add(file, projectInfo);
+				foreach (FileReference projectReference in projectInfo.ProjectReferences.Keys)
 				{
-					if(!FileReference.Exists(ProjectReference))
+					if (!FileReference.Exists(projectReference))
 					{
-						throw new AutomationException("Unable to find project '{0}' referenced by '{1}'", ProjectReference, File);
+						throw new AutomationException("Unable to find project '{0}' referenced by '{1}'", projectReference, file);
 					}
-					ReadProjectsRecursively(ProjectReference, InitialProperties, FileToProjectInfo);
+					ReadProjectsRecursively(projectReference, initialProperties, fileToProjectInfo);
 				}
 			}
 		}
@@ -350,10 +343,10 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public CsCompileOutput(FileSet Binaries, FileSet References)
+		public CsCompileOutput(FileSet binaries, FileSet references)
 		{
-			this.Binaries = Binaries;
-			this.References = References;
+			this.Binaries = binaries;
+			this.References = references;
 		}
 
 		/// <summary>
@@ -368,9 +361,9 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Merges two outputs together
 		/// </summary>
-		public static CsCompileOutput operator +(CsCompileOutput Lhs, CsCompileOutput Rhs)
+		public static CsCompileOutput operator +(CsCompileOutput lhs, CsCompileOutput rhs)
 		{
-			return new CsCompileOutput(Lhs.Binaries + Rhs.Binaries, Lhs.References + Rhs.References);
+			return new CsCompileOutput(lhs.Binaries + rhs.Binaries, lhs.References + rhs.References);
 		}
 	}
 
@@ -382,11 +375,11 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// 
 		/// </summary>
-		/// <param name="Task"></param>
+		/// <param name="task"></param>
 		/// <returns></returns>
-		public static async Task<FileSet> MergeAsync(this Task<CsCompileOutput> Task)
+		public static async Task<FileSet> MergeAsync(this Task<CsCompileOutput> task)
 		{
-			return (await Task).Merge();
+			return (await task).Merge();
 		}
 	}
 
@@ -395,42 +388,42 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Compile a C# project
 		/// </summary>
-		/// <param name="Project">The C# project files to compile.</param>
-		/// <param name="Platform">The platform to compile.</param>
-		/// <param name="Configuration">The configuration to compile.</param>
-		/// <param name="Target">The target to build.</param>
-		/// <param name="Properties">Properties for the command.</param>
-		/// <param name="Arguments">Additional options to pass to the compiler.</param>
-		/// <param name="EnumerateOnly">Only enumerate build products -- do not actually compile the projects.</param>
-		public static async Task<CsCompileOutput> CsCompileAsync(FileReference Project, string Platform = null, string Configuration = null, string Target = null, string Properties = null, string Arguments = null, bool? EnumerateOnly = null)
+		/// <param name="project">The C# project files to compile.</param>
+		/// <param name="platform">The platform to compile.</param>
+		/// <param name="configuration">The configuration to compile.</param>
+		/// <param name="target">The target to build.</param>
+		/// <param name="properties">Properties for the command.</param>
+		/// <param name="arguments">Additional options to pass to the compiler.</param>
+		/// <param name="enumerateOnly">Only enumerate build products -- do not actually compile the projects.</param>
+		public static async Task<CsCompileOutput> CsCompileAsync(FileReference project, string platform = null, string configuration = null, string target = null, string properties = null, string arguments = null, bool? enumerateOnly = null)
 		{
-			CsCompileTaskParameters Parameters = new CsCompileTaskParameters();
-			Parameters.Project = Project.FullName;
-			Parameters.Platform = Platform;
-			Parameters.Configuration = Configuration;
-			Parameters.Target = Target;
-			Parameters.Properties = Properties;
-			Parameters.Arguments = Arguments;
-			Parameters.EnumerateOnly = EnumerateOnly ?? Parameters.EnumerateOnly;
-			Parameters.Tag = "#Out";
-			Parameters.TagReferences = "#Refs";
+			CsCompileTaskParameters parameters = new CsCompileTaskParameters();
+			parameters.Project = project.FullName;
+			parameters.Platform = platform;
+			parameters.Configuration = configuration;
+			parameters.Target = target;
+			parameters.Properties = properties;
+			parameters.Arguments = arguments;
+			parameters.EnumerateOnly = enumerateOnly ?? parameters.EnumerateOnly;
+			parameters.Tag = "#Out";
+			parameters.TagReferences = "#Refs";
 
-			HashSet<FileReference> BuildProducts = new HashSet<FileReference>();
-			Dictionary<string, HashSet<FileReference>> TagNameToFileSet = new Dictionary<string, HashSet<FileReference>>();
-			await new CsCompileTask(Parameters).ExecuteAsync(new JobContext(null!, null!), BuildProducts, TagNameToFileSet);
+			HashSet<FileReference> buildProducts = new HashSet<FileReference>();
+			Dictionary<string, HashSet<FileReference>> tagNameToFileSet = new Dictionary<string, HashSet<FileReference>>();
+			await new CsCompileTask(parameters).ExecuteAsync(new JobContext(null!, null!), buildProducts, tagNameToFileSet);
 
-			FileSet Binaries = FileSet.Empty;
-			FileSet References = FileSet.Empty;
-			if (TagNameToFileSet.TryGetValue(Parameters.Tag, out HashSet<FileReference> BinaryFiles))
+			FileSet binaries = FileSet.Empty;
+			FileSet references = FileSet.Empty;
+			if (tagNameToFileSet.TryGetValue(parameters.Tag, out HashSet<FileReference> binaryFiles))
 			{
-				Binaries = FileSet.FromFiles(Unreal.RootDirectory, BinaryFiles);
+				binaries = FileSet.FromFiles(Unreal.RootDirectory, binaryFiles);
 			}
-			if (TagNameToFileSet.TryGetValue(Parameters.TagReferences, out HashSet<FileReference> ReferenceFiles))
+			if (tagNameToFileSet.TryGetValue(parameters.TagReferences, out HashSet<FileReference> referenceFiles))
 			{
-				References = FileSet.FromFiles(Unreal.RootDirectory, ReferenceFiles);
+				references = FileSet.FromFiles(Unreal.RootDirectory, referenceFiles);
 			}
 
-			return new CsCompileOutput(Binaries, References);
+			return new CsCompileOutput(binaries, references);
 		}
 	}
 }

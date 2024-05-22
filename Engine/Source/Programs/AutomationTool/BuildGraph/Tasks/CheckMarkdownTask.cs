@@ -1,14 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml;
+using EpicGames.Core;
+using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
 
 namespace AutomationTool.Tasks
@@ -58,7 +57,7 @@ namespace AutomationTool.Tasks
 			}
 
 			// Find the anchors in any markdown files
-			foreach(FileReference file in markdownFiles)
+			foreach (FileReference file in markdownFiles)
 			{
 				string[] lines = await FileReference.ReadAllLinesAsync(file);
 				foreach (string line in lines)
@@ -134,8 +133,8 @@ namespace AutomationTool.Tasks
 		}
 
 		/// <inheritdoc/>
-		public override void Write(XmlWriter Writer)
-			=> Write(Writer, _parameters);
+		public override void Write(XmlWriter writer)
+			=> Write(writer, _parameters);
 
 		/// <inheritdoc/>
 		public override IEnumerable<string> FindConsumedTagNames()

@@ -1,14 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.BuildGraph;
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
-using UnrealBuildTool;
 using UnrealBuildBase;
 
 namespace AutomationTool.Tasks
@@ -79,48 +74,45 @@ namespace AutomationTool.Tasks
 	[TaskElement("SetVersion", typeof(SetVersionTaskParameters))]
 	public class SetVersionTask : BgTaskImpl
 	{
-		/// <summary>
-		/// Parameters for the task
-		/// </summary>
-		SetVersionTaskParameters Parameters;
+		readonly SetVersionTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct a version task
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task</param>
-		public SetVersionTask(SetVersionTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task</param>
+		public SetVersionTask(SetVersionTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			// Update the version files
-			List<FileReference> VersionFiles = UnrealBuild.StaticUpdateVersionFiles(Parameters.Change, Parameters.CompatibleChange, Parameters.Branch, Parameters.Build, Parameters.BuildURL, Parameters.Licensee, Parameters.Promoted, !Parameters.SkipWrite);
+			List<FileReference> versionFiles = UnrealBuild.StaticUpdateVersionFiles(_parameters.Change, _parameters.CompatibleChange, _parameters.Branch, _parameters.Build, _parameters.BuildURL, _parameters.Licensee, _parameters.Promoted, !_parameters.SkipWrite);
 
 			// Apply the optional tag to them
-			foreach(string TagName in FindTagNamesFromList(Parameters.Tag))
+			foreach (string tagName in FindTagNamesFromList(_parameters.Tag))
 			{
-				FindOrAddTagSet(TagNameToFileSet, TagName).UnionWith(VersionFiles);
+				FindOrAddTagSet(tagNameToFileSet, tagName).UnionWith(versionFiles);
 			}
 
 			// Add them to the list of build products
-			BuildProducts.UnionWith(VersionFiles);
+			buildProducts.UnionWith(versionFiles);
 			return Task.CompletedTask;
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -138,7 +130,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are modified by this task</returns>
 		public override IEnumerable<string> FindProducedTagNames()
 		{
-			return FindTagNamesFromList(Parameters.Tag);
+			return FindTagNamesFromList(_parameters.Tag);
 		}
 	}
 
@@ -148,32 +140,32 @@ namespace AutomationTool.Tasks
 	public static partial class StandardTasks
 	{
 		/// <summary>
-		/// Execute a task instance
+		/// ExecuteAsync a task instance
 		/// </summary>
-		/// <param name="Task"></param>
+		/// <param name="task"></param>
 		/// <returns></returns>
-		public static async Task<FileSet> ExecuteAsync(BgTaskImpl Task)
+		public static async Task<FileSet> ExecuteAsync(BgTaskImpl task)
 		{
-			HashSet<FileReference> BuildProducts = new HashSet<FileReference>();
-			await Task.ExecuteAsync(new JobContext(null!, null!), BuildProducts, new Dictionary<string, HashSet<FileReference>>());
-			return FileSet.FromFiles(Unreal.RootDirectory, BuildProducts);
+			HashSet<FileReference> buildProducts = new HashSet<FileReference>();
+			await task.ExecuteAsync(new JobContext(null!, null!), buildProducts, new Dictionary<string, HashSet<FileReference>>());
+			return FileSet.FromFiles(Unreal.RootDirectory, buildProducts);
 		}
 
 		/// <summary>
 		/// Updates the current engine version
 		/// </summary>
-		public static async Task<FileSet> SetVersionAsync(int Change, string Branch, int? CompatibleChange = null, string Build = null, string BuildURL = null, bool? Licensee = null, bool? Promoted = null, bool? SkipWrite = null)
+		public static async Task<FileSet> SetVersionAsync(int change, string branch, int? compatibleChange = null, string build = null, string buildUrl = null, bool? licensee = null, bool? promoted = null, bool? skipWrite = null)
 		{
-			SetVersionTaskParameters Parameters = new SetVersionTaskParameters();
-			Parameters.Change = Change;
-			Parameters.CompatibleChange = CompatibleChange ?? Parameters.CompatibleChange;
-			Parameters.Branch = Branch ?? Parameters.Branch;
-			Parameters.Build = Build ?? Parameters.Build;
-			Parameters.BuildURL = BuildURL ?? Parameters.BuildURL;
-			Parameters.Licensee = Licensee ?? Parameters.Licensee;
-			Parameters.Promoted = Promoted ?? Parameters.Promoted;
-			Parameters.SkipWrite = SkipWrite ?? Parameters.SkipWrite;
-			return await ExecuteAsync(new SetVersionTask(Parameters));
+			SetVersionTaskParameters parameters = new SetVersionTaskParameters();
+			parameters.Change = change;
+			parameters.CompatibleChange = compatibleChange ?? parameters.CompatibleChange;
+			parameters.Branch = branch ?? parameters.Branch;
+			parameters.Build = build ?? parameters.Build;
+			parameters.BuildURL = buildUrl ?? parameters.BuildURL;
+			parameters.Licensee = licensee ?? parameters.Licensee;
+			parameters.Promoted = promoted ?? parameters.Promoted;
+			parameters.SkipWrite = skipWrite ?? parameters.SkipWrite;
+			return await ExecuteAsync(new SetVersionTask(parameters));
 		}
 	}
 }

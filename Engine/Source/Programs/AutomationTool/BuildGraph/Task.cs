@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.BuildGraph;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -10,13 +9,9 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
+using Microsoft.Extensions.Logging;
 using OpenTracing;
 using UnrealBuildBase;
-using UnrealBuildTool;
-using Microsoft.Extensions.Logging;
-using System.Runtime.InteropServices;
-
-using static AutomationTool.CommandUtils;
 
 #nullable enable
 
@@ -77,25 +72,25 @@ namespace AutomationTool
 
 	/// <summary>
 	/// Proxy to handle executing multiple tasks simultaneously (such as compile tasks). If a task supports simultaneous execution, it can return a separate
-	/// executor an executor instance from GetExecutor() callback. If not, it must implement Execute().
+	/// executor an executor instance from GetExecutor() callback. If not, it must implement ExecuteAsync().
 	/// </summary>
 	public interface ITaskExecutor
 	{
 		/// <summary>
 		/// Adds another task to this executor
 		/// </summary>
-		/// <param name="Task">Task to add</param>
+		/// <param name="task">Task to add</param>
 		/// <returns>True if the task could be added, false otherwise</returns>
-		bool Add(BgTaskImpl Task);
+		bool Add(BgTaskImpl task);
 
 		/// <summary>
-		/// Execute all the tasks added to this executor.
+		/// ExecuteAsync all the tasks added to this executor.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
 		/// <returns>Whether the task succeeded or not. Exiting with an exception will be caught and treated as a failure.</returns>
-		Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet);
+		Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet);
 	}
 
 	/// <summary>
@@ -114,13 +109,13 @@ namespace AutomationTool
 		public BgScriptLocation? SourceLocation { get; set; }
 
 		/// <summary>
-		/// Execute this node.
+		/// ExecuteAsync this node.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
 		/// <returns>Whether the task succeeded or not. Exiting with an exception will be caught and treated as a failure.</returns>
-		public abstract Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet);
+		public abstract Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet);
 
 		/// <summary>
 		/// Creates a proxy to execute this node.
@@ -134,47 +129,47 @@ namespace AutomationTool
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public abstract void Write(XmlWriter Writer);
+		public abstract void Write(XmlWriter writer);
 
 		/// <summary>
 		/// Writes this task to an XML writer, using the given parameters object.
 		/// </summary>
-		/// <param name="Writer">Writer for the XML schema</param>
-		/// <param name="Parameters">Parameters object that this task is constructed with</param>
-		protected void Write(XmlWriter Writer, object Parameters)
+		/// <param name="writer">Writer for the XML schema</param>
+		/// <param name="parameters">Parameters object that this task is constructed with</param>
+		protected void Write(XmlWriter writer, object parameters)
 		{
-			TaskElementAttribute Element = GetType().GetCustomAttribute<TaskElementAttribute>() ?? throw new InvalidOperationException();
-			Writer.WriteStartElement(Element.Name);
+			TaskElementAttribute element = GetType().GetCustomAttribute<TaskElementAttribute>() ?? throw new InvalidOperationException();
+			writer.WriteStartElement(element.Name);
 
-			foreach (FieldInfo Field in Parameters.GetType().GetFields())
+			foreach (FieldInfo field in parameters.GetType().GetFields())
 			{
-				if (Field.MemberType == MemberTypes.Field)
+				if (field.MemberType == MemberTypes.Field)
 				{
-					TaskParameterAttribute? ParameterAttribute = Field.GetCustomAttribute<TaskParameterAttribute>();
-					if (ParameterAttribute != null)
+					TaskParameterAttribute? parameterAttribute = field.GetCustomAttribute<TaskParameterAttribute>();
+					if (parameterAttribute != null)
 					{
-						object? Value = Field.GetValue(Parameters);
-						if (Value != null)
+						object? value = field.GetValue(parameters);
+						if (value != null)
 						{
-							Writer.WriteAttributeString(Field.Name, Value.ToString());
+							writer.WriteAttributeString(field.Name, value.ToString());
 						}
 					}
 				}
 			}
-			foreach (PropertyInfo Property in Parameters.GetType().GetProperties())
+			foreach (PropertyInfo property in parameters.GetType().GetProperties())
 			{
-				TaskParameterAttribute? ParameterAttribute = Property.GetCustomAttribute<TaskParameterAttribute>();
-				if (ParameterAttribute != null)
+				TaskParameterAttribute? parameterAttribute = property.GetCustomAttribute<TaskParameterAttribute>();
+				if (parameterAttribute != null)
 				{
-					object? Value = Property.GetValue(Parameters);
-					if (Value != null)
+					object? value = property.GetValue(parameters);
+					if (value != null)
 					{
-						Writer.WriteAttributeString(Property.Name, Value.ToString());
+						writer.WriteAttributeString(property.Name, value.ToString());
 					}
 				}
 			}
 
-			Writer.WriteEndElement();
+			writer.WriteEndElement();
 		}
 
 		/// <summary>
@@ -182,12 +177,12 @@ namespace AutomationTool
 		/// </summary>
 		public string GetTraceString()
 		{
-			StringBuilder Builder = new StringBuilder();
-			using (XmlWriter Writer = XmlWriter.Create(new StringWriter(Builder), new XmlWriterSettings() { OmitXmlDeclaration = true }))
+			StringBuilder builder = new StringBuilder();
+			using (XmlWriter writer = XmlWriter.Create(new StringWriter(builder), new XmlWriterSettings() { OmitXmlDeclaration = true }))
 			{
-				Write(Writer);
+				Write(writer);
 			}
-			return Builder.ToString();
+			return builder.ToString();
 		}
 
 		/// <summary>
@@ -196,35 +191,35 @@ namespace AutomationTool
 		/// <returns>The trace name</returns>
 		public virtual string GetTraceName()
 		{
-			TaskElementAttribute? TaskElement = GetType().GetCustomAttribute<TaskElementAttribute>();
-			return (TaskElement != null)? TaskElement.Name : "unknown";
+			TaskElementAttribute? taskElement = GetType().GetCustomAttribute<TaskElementAttribute>();
+			return (taskElement != null) ? taskElement.Name : "unknown";
 		}
 
 		/// <summary>
 		/// Get properties to include in tracing info
 		/// </summary>
-		/// <param name="Span">The scope to add properties to</param>
-		/// <param name="Prefix">Prefix for metadata entries</param>
-		public virtual void GetTraceMetadata(ITraceSpan Span, string Prefix)
+		/// <param name="span">The scope to add properties to</param>
+		/// <param name="prefix">Prefix for metadata entries</param>
+		public virtual void GetTraceMetadata(ITraceSpan span, string prefix)
 		{
 			if (SourceLocation != null)
 			{
-				Span.AddMetadata(Prefix + "source.file", SourceLocation.File.FullName);
-				Span.AddMetadata(Prefix + "source.line", SourceLocation.LineNumber.ToString());
+				span.AddMetadata(prefix + "source.file", SourceLocation.File.FullName);
+				span.AddMetadata(prefix + "source.line", SourceLocation.LineNumber.ToString());
 			}
 		}
-		
+
 		/// <summary>
 		/// Get properties to include in tracing info
 		/// </summary>
-		/// <param name="Span">The scope to add properties to</param>
-		/// <param name="Prefix">Prefix for metadata entries</param>
-		public virtual void GetTraceMetadata(ISpan Span, string Prefix)
+		/// <param name="span">The scope to add properties to</param>
+		/// <param name="prefix">Prefix for metadata entries</param>
+		public virtual void GetTraceMetadata(ISpan span, string prefix)
 		{
 			if (SourceLocation != null)
 			{
-				Span.SetTag(Prefix + "source.file", SourceLocation.File.FullName);
-				Span.SetTag(Prefix + "source.line", SourceLocation.LineNumber);
+				span.SetTag(prefix + "source.file", SourceLocation.File.FullName);
+				span.SetTag(prefix + "source.line", SourceLocation.LineNumber);
 			}
 		}
 
@@ -243,17 +238,17 @@ namespace AutomationTool
 		/// <summary>
 		/// Adds tag names from a filespec
 		/// </summary>
-		/// <param name="Filespec">A filespec, as can be passed to ResolveFilespec</param>
+		/// <param name="filespec">A filespec, as can be passed to ResolveFilespec</param>
 		/// <returns>Tag names from this filespec</returns>
-		protected static IEnumerable<string> FindTagNamesFromFilespec(string Filespec)
+		protected static IEnumerable<string> FindTagNamesFromFilespec(string filespec)
 		{
-			if(!String.IsNullOrEmpty(Filespec))
+			if (!String.IsNullOrEmpty(filespec))
 			{
-				foreach(string Pattern in SplitDelimitedList(Filespec))
+				foreach (string pattern in SplitDelimitedList(filespec))
 				{
-					if(Pattern.StartsWith("#", StringComparison.Ordinal))
+					if (pattern.StartsWith("#", StringComparison.Ordinal))
 					{
-						yield return Pattern;
+						yield return pattern;
 					}
 				}
 			}
@@ -262,15 +257,15 @@ namespace AutomationTool
 		/// <summary>
 		/// Enumerates tag names from a list
 		/// </summary>
-		/// <param name="TagList">List of tags separated by semicolons</param>
+		/// <param name="tagList">List of tags separated by semicolons</param>
 		/// <returns>Tag names from this filespec</returns>
-		protected static IEnumerable<string> FindTagNamesFromList(string? TagList)
+		protected static IEnumerable<string> FindTagNamesFromList(string? tagList)
 		{
-			if(!String.IsNullOrEmpty(TagList))
+			if (!String.IsNullOrEmpty(tagList))
 			{
-				foreach(string TagName in SplitDelimitedList(TagList))
+				foreach (string tagName in SplitDelimitedList(tagList))
 				{
-					yield return TagName;
+					yield return tagName;
 				}
 			}
 		}
@@ -278,77 +273,77 @@ namespace AutomationTool
 		/// <summary>
 		/// Resolves a single name to a file reference, resolving relative paths to the root of the current path.
 		/// </summary>
-		/// <param name="Name">Name of the file</param>
+		/// <param name="name">Name of the file</param>
 		/// <returns>Fully qualified file reference</returns>
-		public static FileReference ResolveFile(string Name)
+		public static FileReference ResolveFile(string name)
 		{
-			if(Path.IsPathRooted(Name))
+			if (Path.IsPathRooted(name))
 			{
-				return new FileReference(Name);
+				return new FileReference(name);
 			}
 			else
 			{
-				return new FileReference(Path.Combine(CommandUtils.CmdEnv.LocalRoot, Name));
+				return new FileReference(Path.Combine(CommandUtils.CmdEnv.LocalRoot, name));
 			}
 		}
 
 		/// <summary>
 		/// Resolves a directory reference from the given string. Assumes the root directory is the root of the current branch.
 		/// </summary>
-		/// <param name="Name">Name of the directory. May be null or empty.</param>
+		/// <param name="name">Name of the directory. May be null or empty.</param>
 		/// <returns>The resolved directory</returns>
-		public static DirectoryReference ResolveDirectory(string? Name)
+		public static DirectoryReference ResolveDirectory(string? name)
 		{
-			if(String.IsNullOrEmpty(Name))
+			if (String.IsNullOrEmpty(name))
 			{
 				return Unreal.RootDirectory;
 			}
-			else if(Path.IsPathRooted(Name))
+			else if (Path.IsPathRooted(name))
 			{
-				return new DirectoryReference(Name);
+				return new DirectoryReference(name);
 			}
 			else
 			{
-				return DirectoryReference.Combine(Unreal.RootDirectory, Name);
+				return DirectoryReference.Combine(Unreal.RootDirectory, name);
 			}
 		}
 
 		/// <summary>
 		/// Finds or adds a set containing files with the given tag
 		/// </summary>
-		/// <param name="TagNameToFileSet">Map of tag names to the set of files they contain</param>
-		/// <param name="TagName">The tag name to return a set for. A leading '#' character is required.</param>
+		/// <param name="tagNameToFileSet">Map of tag names to the set of files they contain</param>
+		/// <param name="tagName">The tag name to return a set for. A leading '#' character is required.</param>
 		/// <returns>Set of files</returns>
-		public static HashSet<FileReference> FindOrAddTagSet(Dictionary<string, HashSet<FileReference>> TagNameToFileSet, string TagName)
+		public static HashSet<FileReference> FindOrAddTagSet(Dictionary<string, HashSet<FileReference>> tagNameToFileSet, string tagName)
 		{
 			// Make sure the tag name contains a single leading hash
-			if (TagName.LastIndexOf('#') != 0)
+			if (tagName.LastIndexOf('#') != 0)
 			{
-				throw new AutomationException("Tag name '{0}' is not valid - should contain a single leading '#' character", TagName);
+				throw new AutomationException("Tag name '{0}' is not valid - should contain a single leading '#' character", tagName);
 			}
 
 			// Any spaces should be later than the second char - most likely to be a typo if directly after the # character
-			if (TagName.IndexOf(' ', StringComparison.Ordinal) == 1)
+			if (tagName.IndexOf(' ', StringComparison.Ordinal) == 1)
 			{
-				throw new AutomationException("Tag name '{0}' is not valid - spaces should only be used to separate words", TagName);
+				throw new AutomationException("Tag name '{0}' is not valid - spaces should only be used to separate words", tagName);
 			}
 
 			// Find the files which match this tag
-			HashSet<FileReference>? Files;
-			if(!TagNameToFileSet.TryGetValue(TagName, out Files))
+			HashSet<FileReference>? files;
+			if (!tagNameToFileSet.TryGetValue(tagName, out files))
 			{
-				Files = new HashSet<FileReference>();
-				TagNameToFileSet.Add(TagName, Files);
+				files = new HashSet<FileReference>();
+				tagNameToFileSet.Add(tagName, files);
 			}
 
 			// If we got a null reference, it's because the tag is not listed as an input for this node (see RunGraph.BuildSingleNode). Fill it in, but only with an error.
-			if(Files == null)
+			if (files == null)
 			{
-				Logger.LogError("Attempt to reference tag '{TagName}', which is not listed as a dependency of this node.", TagName);
-				Files = new HashSet<FileReference>();
-				TagNameToFileSet.Add(TagName, Files);
+				Logger.LogError("Attempt to reference tag '{TagName}', which is not listed as a dependency of this node.", tagName);
+				files = new HashSet<FileReference>();
+				tagNameToFileSet.Add(tagName, files);
 			}
-			return Files;
+			return files;
 		}
 
 		/// <summary>
@@ -359,99 +354,99 @@ namespace AutomationTool
 		///   d) A full directory wildcard (eg. Engine/...)
 		/// Note that wildcards may only match the last fragment in a pattern, so matches like "/*/Foo.txt" and "/.../Bar.txt" are illegal.
 		/// </summary>
-		/// <param name="DefaultDirectory">The default directory to resolve relative paths to</param>
-		/// <param name="DelimitedPatterns">List of files, tag names, or file specifications to include separated by semicolons.</param>
-		/// <param name="TagNameToFileSet">Mapping of tag name to fileset, as passed to the Execute() method</param>
+		/// <param name="defaultDirectory">The default directory to resolve relative paths to</param>
+		/// <param name="delimitedPatterns">List of files, tag names, or file specifications to include separated by semicolons.</param>
+		/// <param name="tagNameToFileSet">Mapping of tag name to fileset, as passed to the ExecuteAsync() method</param>
 		/// <returns>Set of matching files.</returns>
-		public static HashSet<FileReference> ResolveFilespec(DirectoryReference DefaultDirectory, string DelimitedPatterns, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		public static HashSet<FileReference> ResolveFilespec(DirectoryReference defaultDirectory, string delimitedPatterns, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			List<string> ExcludePatterns = new List<string>();
-			return ResolveFilespecWithExcludePatterns(DefaultDirectory, DelimitedPatterns, ExcludePatterns, TagNameToFileSet);
+			List<string> excludePatterns = new List<string>();
+			return ResolveFilespecWithExcludePatterns(defaultDirectory, delimitedPatterns, excludePatterns, tagNameToFileSet);
 		}
 
 		/// <summary>
 		/// Resolve a list of files, tag names or file specifications separated by semicolons as above, but preserves any directory references for further processing.
 		/// </summary>
-		/// <param name="DefaultDirectory">The default directory to resolve relative paths to</param>
-		/// <param name="DelimitedPatterns">List of files, tag names, or file specifications to include separated by semicolons.</param>
-		/// <param name="ExcludePatterns">Set of patterns to apply to directory searches. This can greatly speed up enumeration by earlying out of recursive directory searches if large directories are excluded (eg. .../Intermediate/...).</param>
-		/// <param name="TagNameToFileSet">Mapping of tag name to fileset, as passed to the Execute() method</param>
+		/// <param name="defaultDirectory">The default directory to resolve relative paths to</param>
+		/// <param name="delimitedPatterns">List of files, tag names, or file specifications to include separated by semicolons.</param>
+		/// <param name="excludePatterns">Set of patterns to apply to directory searches. This can greatly speed up enumeration by earlying out of recursive directory searches if large directories are excluded (eg. .../Intermediate/...).</param>
+		/// <param name="tagNameToFileSet">Mapping of tag name to fileset, as passed to the ExecuteAsync() method</param>
 		/// <returns>Set of matching files.</returns>
-		public static HashSet<FileReference> ResolveFilespecWithExcludePatterns(DirectoryReference DefaultDirectory, string DelimitedPatterns, List<string> ExcludePatterns, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		public static HashSet<FileReference> ResolveFilespecWithExcludePatterns(DirectoryReference defaultDirectory, string delimitedPatterns, List<string> excludePatterns, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			// Split the argument into a list of patterns
-			List<string> Patterns = SplitDelimitedList(DelimitedPatterns);
-			return ResolveFilespecWithExcludePatterns(DefaultDirectory, Patterns, ExcludePatterns, TagNameToFileSet);
+			List<string> patterns = SplitDelimitedList(delimitedPatterns);
+			return ResolveFilespecWithExcludePatterns(defaultDirectory, patterns, excludePatterns, tagNameToFileSet);
 		}
 
 		/// <summary>
 		/// Resolve a list of files, tag names or file specifications as above, but preserves any directory references for further processing.
 		/// </summary>
-		/// <param name="DefaultDirectory">The default directory to resolve relative paths to</param>
-		/// <param name="FilePatterns">List of files, tag names, or file specifications to include separated by semicolons.</param>
-		/// <param name="ExcludePatterns">Set of patterns to apply to directory searches. This can greatly speed up enumeration by earlying out of recursive directory searches if large directories are excluded (eg. .../Intermediate/...).</param>
-		/// <param name="TagNameToFileSet">Mapping of tag name to fileset, as passed to the Execute() method</param>
+		/// <param name="defaultDirectory">The default directory to resolve relative paths to</param>
+		/// <param name="filePatterns">List of files, tag names, or file specifications to include separated by semicolons.</param>
+		/// <param name="excludePatterns">Set of patterns to apply to directory searches. This can greatly speed up enumeration by earlying out of recursive directory searches if large directories are excluded (eg. .../Intermediate/...).</param>
+		/// <param name="tagNameToFileSet">Mapping of tag name to fileset, as passed to the ExecuteAsync() method</param>
 		/// <returns>Set of matching files.</returns>
-		public static HashSet<FileReference> ResolveFilespecWithExcludePatterns(DirectoryReference DefaultDirectory, List<string> FilePatterns, List<string> ExcludePatterns, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		public static HashSet<FileReference> ResolveFilespecWithExcludePatterns(DirectoryReference defaultDirectory, List<string> filePatterns, List<string> excludePatterns, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
 			// Parse each of the patterns, and add the results into the given sets
-			HashSet<FileReference> Files = new HashSet<FileReference>();
-			foreach(string Pattern in FilePatterns)
+			HashSet<FileReference> files = new HashSet<FileReference>();
+			foreach (string pattern in filePatterns)
 			{
 				// Check if it's a tag name
-				if(Pattern.StartsWith("#", StringComparison.Ordinal))
+				if (pattern.StartsWith("#", StringComparison.Ordinal))
 				{
-					Files.UnionWith(FindOrAddTagSet(TagNameToFileSet, Pattern));
+					files.UnionWith(FindOrAddTagSet(tagNameToFileSet, pattern));
 					continue;
 				}
 
 				// If it doesn't contain any wildcards, just add the pattern directly
-				int WildcardIdx = FileFilter.FindWildcardIndex(Pattern);
-				if(WildcardIdx == -1)
+				int wildcardIdx = FileFilter.FindWildcardIndex(pattern);
+				if (wildcardIdx == -1)
 				{
-					Files.Add(FileReference.Combine(DefaultDirectory, Pattern));
+					files.Add(FileReference.Combine(defaultDirectory, pattern));
 					continue;
 				}
 
 				// Find the base directory for the search. We construct this in a very deliberate way including the directory separator itself, so matches
 				// against the OS root directory will resolve correctly both on Mac (where / is the filesystem root) and Windows (where / refers to the current drive).
-				int LastDirectoryIdx = Pattern.LastIndexOfAny(new char[]{ Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, WildcardIdx);
-				DirectoryReference BaseDir = DirectoryReference.Combine(DefaultDirectory, Pattern.Substring(0, LastDirectoryIdx + 1));
+				int lastDirectoryIdx = pattern.LastIndexOfAny(new char[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, wildcardIdx);
+				DirectoryReference baseDir = DirectoryReference.Combine(defaultDirectory, pattern.Substring(0, lastDirectoryIdx + 1));
 
 				// Construct the absolute include pattern to match against, re-inserting the resolved base directory to construct a canonical path.
-				string IncludePattern = BaseDir.FullName.TrimEnd(new char[]{ Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }) + "/" + Pattern.Substring(LastDirectoryIdx + 1);
+				string includePattern = baseDir.FullName.TrimEnd(new char[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }) + "/" + pattern.Substring(lastDirectoryIdx + 1);
 
 				// Construct a filter and apply it to the directory
-				if(DirectoryReference.Exists(BaseDir))
+				if (DirectoryReference.Exists(baseDir))
 				{
-					FileFilter Filter = new FileFilter();
-					Filter.AddRule(IncludePattern, FileFilterType.Include);
-					if(ExcludePatterns != null && ExcludePatterns.Count > 0)
+					FileFilter filter = new FileFilter();
+					filter.AddRule(includePattern, FileFilterType.Include);
+					if (excludePatterns != null && excludePatterns.Count > 0)
 					{
-						Filter.AddRules(ExcludePatterns, FileFilterType.Exclude);
+						filter.AddRules(excludePatterns, FileFilterType.Exclude);
 					}
-					Files.UnionWith(Filter.ApplyToDirectory(BaseDir, BaseDir.FullName, true));
+					files.UnionWith(filter.ApplyToDirectory(baseDir, baseDir.FullName, true));
 				}
 			}
 
 			// If we have exclude rules, create and run a filter against all the output files to catch things that weren't added from an include
-			if(ExcludePatterns != null && ExcludePatterns.Count > 0)
+			if (excludePatterns != null && excludePatterns.Count > 0)
 			{
-				FileFilter Filter = new FileFilter(FileFilterType.Include);
-				Filter.AddRules(ExcludePatterns, FileFilterType.Exclude);
-				Files.RemoveWhere(x => !Filter.Matches(x.FullName));
+				FileFilter filter = new FileFilter(FileFilterType.Include);
+				filter.AddRules(excludePatterns, FileFilterType.Exclude);
+				files.RemoveWhere(x => !filter.Matches(x.FullName));
 			}
-			return Files;
+			return files;
 		}
 
 		/// <summary>
 		/// Splits a string separated by semicolons into a list, removing empty entries
 		/// </summary>
-		/// <param name="Text">The input string</param>
+		/// <param name="text">The input string</param>
 		/// <returns>Array of the parsed items</returns>
-		public static List<string> SplitDelimitedList(string Text)
+		public static List<string> SplitDelimitedList(string text)
 		{
-			return Text.Split(';').Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
+			return text.Split(';').Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
 		}
 
 		/// <summary>
@@ -467,15 +462,15 @@ namespace AutomationTool
 		/// <summary>
 		/// Add cleanup commands to run after the step completes
 		/// </summary>
-		/// <param name="NewLines">Lines to add to the cleanup script</param>
-		/// <param name="Lease">Whether to add the commands to run on lease termination</param>
-		public static async Task AddCleanupCommandsAsync(IEnumerable<string> NewLines, bool Lease = false)
+		/// <param name="newLines">Lines to add to the cleanup script</param>
+		/// <param name="lease">Whether to add the commands to run on lease termination</param>
+		public static async Task AddCleanupCommandsAsync(IEnumerable<string> newLines, bool lease = false)
 		{
-			string? CleanupScriptEnvVar = Environment.GetEnvironmentVariable(Lease? LeaseCleanupScriptEnvVarName : CleanupScriptEnvVarName);
-			if (!String.IsNullOrEmpty(CleanupScriptEnvVar))
+			string? cleanupScriptEnvVar = Environment.GetEnvironmentVariable(lease ? LeaseCleanupScriptEnvVarName : CleanupScriptEnvVarName);
+			if (!String.IsNullOrEmpty(cleanupScriptEnvVar))
 			{
-				FileReference CleanupScript = new FileReference(CleanupScriptEnvVar);
-				await FileReference.AppendAllLinesAsync(CleanupScript, NewLines);
+				FileReference cleanupScript = new FileReference(cleanupScriptEnvVar);
+				await FileReference.AppendAllLinesAsync(cleanupScript, newLines);
 			}
 		}
 
@@ -487,8 +482,8 @@ namespace AutomationTool
 		/// <summary>
 		/// Updates the graph currently used by Horde
 		/// </summary>
-		/// <param name="Job">Context for the current job that is being executed</param>
-		public static void UpdateGraphForHorde(JobContext Job)
+		/// <param name="job">Context for the current job that is being executed</param>
+		public static void UpdateGraphForHorde(JobContext job)
 		{
 			string? exportGraphFile = Environment.GetEnvironmentVariable(GraphUpdateEnvVarName);
 			if (String.IsNullOrEmpty(exportGraphFile))
@@ -498,7 +493,7 @@ namespace AutomationTool
 
 			List<string> newParams = new List<string>();
 			newParams.Add("BuildGraph");
-			newParams.AddRange(Job.OwnerCommand.Params.Select(x => $"-{x}"));
+			newParams.AddRange(job.OwnerCommand.Params.Select(x => $"-{x}"));
 			newParams.RemoveAll(x => x.StartsWith("-SingleNode=", StringComparison.OrdinalIgnoreCase));
 			newParams.Add($"-HordeExport={exportGraphFile}");
 			newParams.Add($"-ListOnly");
@@ -514,19 +509,19 @@ namespace AutomationTool
 	public abstract class CustomTask : BgTaskImpl
 	{
 		/// <inheritdoc/>
-		public sealed override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		public sealed override Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			Execute(Job, BuildProducts, TagNameToFileSet);
+			Execute(job, buildProducts, tagNameToFileSet);
 			return Task.CompletedTask;
 		}
 
 		/// <summary>
-		/// Execute this node.
+		/// ExecuteAsync this node.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
 		/// <returns>Whether the task succeeded or not. Exiting with an exception will be caught and treated as a failure.</returns>
-		public abstract void Execute(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet);
+		public abstract void Execute(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet);
 	}
 }

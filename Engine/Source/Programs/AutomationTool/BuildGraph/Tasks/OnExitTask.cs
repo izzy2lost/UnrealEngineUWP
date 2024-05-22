@@ -1,12 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using EpicGames.Core;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
+using EpicGames.Core;
 
 namespace AutomationTool.Tasks
 {
@@ -34,31 +33,28 @@ namespace AutomationTool.Tasks
 	[TaskElement("OnExit", typeof(OnExitTaskParameters))]
 	public class OnExitTask : BgTaskImpl
 	{
-		/// <summary>
-		/// Parameters for this task
-		/// </summary>
-		OnExitTaskParameters Parameters;
+		readonly OnExitTaskParameters _parameters;
 
 		/// <summary>
 		/// Construct a spawn task
 		/// </summary>
-		/// <param name="InParameters">Parameters for the task</param>
-		public OnExitTask(OnExitTaskParameters InParameters)
+		/// <param name="parameters">Parameters for the task</param>
+		public OnExitTask(OnExitTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <inheritdoc/>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			string[] commands = Parameters.Command.Split('\n').Select(x => x.Trim()).ToArray();
-			await AddCleanupCommandsAsync(commands, Parameters.Lease);
+			string[] commands = _parameters.Command.Split('\n').Select(x => x.Trim()).ToArray();
+			await AddCleanupCommandsAsync(commands, _parameters.Lease);
 		}
 
 		/// <inheritdoc/>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <inheritdoc/>

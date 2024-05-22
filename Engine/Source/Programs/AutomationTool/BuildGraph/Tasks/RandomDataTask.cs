@@ -1,19 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.BuildGraph;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
-using UnrealBuildTool;
-using UnrealBuildBase;
 using Microsoft.Extensions.Logging;
-using System.Security.Cryptography;
 
 namespace AutomationTool.Tasks
 {
@@ -59,58 +52,55 @@ namespace AutomationTool.Tasks
 	[TaskElement("RandomData", typeof(RandomDataTaskParameters))]
 	public class RandomDataTask : BgTaskImpl
 	{
-		/// <summary>
-		/// Parameters for this task
-		/// </summary>
-		RandomDataTaskParameters Parameters;
+		readonly RandomDataTaskParameters _parameters;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="InParameters">Parameters for this task</param>
-		public RandomDataTask(RandomDataTaskParameters InParameters)
+		/// <param name="parameters">Parameters for this task</param>
+		public RandomDataTask(RandomDataTaskParameters parameters)
 		{
-			Parameters = InParameters;
+			_parameters = parameters;
 		}
 
 		/// <summary>
-		/// Execute the task.
+		/// ExecuteAsync the task.
 		/// </summary>
-		/// <param name="Job">Information about the current job</param>
-		/// <param name="BuildProducts">Set of build products produced by this node.</param>
-		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		/// <param name="job">Information about the current job</param>
+		/// <param name="buildProducts">Set of build products produced by this node.</param>
+		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include</param>
+		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			DirectoryReference OutputDir = ResolveDirectory(Parameters.OutputDir);
+			DirectoryReference outputDir = ResolveDirectory(_parameters.OutputDir);
 
 			byte[] buffer = Array.Empty<byte>();
-			for (int idx = 0; idx < Parameters.Count; idx++)
+			for (int idx = 0; idx < _parameters.Count; idx++)
 			{
-				if (idx == 0 || Parameters.Different)
+				if (idx == 0 || _parameters.Different)
 				{
-					buffer = RandomNumberGenerator.GetBytes(Parameters.Size);
+					buffer = RandomNumberGenerator.GetBytes(_parameters.Size);
 				}
 
-				FileReference file = FileReference.Combine(OutputDir, $"test-{Parameters.Size}-{idx}.dat");
+				FileReference file = FileReference.Combine(outputDir, $"test-{_parameters.Size}-{idx}.dat");
 				await FileReference.WriteAllBytesAsync(file, buffer);
-				BuildProducts.Add(file);
+				buildProducts.Add(file);
 			}
 
-			Logger.LogInformation("Created {NumFiles:n0} files of {Size:n0} bytes in {OutputDir} (Different={Different})", Parameters.Count, Parameters.Size, OutputDir, Parameters.Different);
+			Logger.LogInformation("Created {NumFiles:n0} files of {Size:n0} bytes in {OutputDir} (Different={Different})", _parameters.Count, _parameters.Size, outputDir, _parameters.Different);
 
 			// Apply the optional output tag to them
-			foreach (string TagName in FindTagNamesFromList(Parameters.Tag))
+			foreach (string tagName in FindTagNamesFromList(_parameters.Tag))
 			{
-				FindOrAddTagSet(TagNameToFileSet, TagName).UnionWith(BuildProducts);
+				FindOrAddTagSet(tagNameToFileSet, tagName).UnionWith(buildProducts);
 			}
 		}
 
 		/// <summary>
 		/// Output this task out to an XML writer.
 		/// </summary>
-		public override void Write(XmlWriter Writer)
+		public override void Write(XmlWriter writer)
 		{
-			Write(Writer, Parameters);
+			Write(writer, _parameters);
 		}
 
 		/// <summary>
@@ -128,7 +118,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are modified by this task</returns>
 		public override IEnumerable<string> FindProducedTagNames()
 		{
-			return FindTagNamesFromList(Parameters.Tag);
+			return FindTagNamesFromList(_parameters.Tag);
 		}
 	}
 }
