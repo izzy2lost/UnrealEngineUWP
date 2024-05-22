@@ -21,19 +21,15 @@ namespace UE::Cook
 }
 #endif
 
-#define STORAGE_SERVER_FILE_UNKOWN_SIZE (-1) 
-
 class FStorageServerFileSystemTOC
 {
 public:
 	~FStorageServerFileSystemTOC();
-	void AddFile(const FIoChunkId& FileChunkId, FStringView Path, int64 RawSize);
+	void AddFile(const FIoChunkId& FileChunkId, FStringView Path);
 	bool FileExists(const FString& Path);
 	bool DirectoryExists(const FString& Path);
 	const FIoChunkId* GetFileChunkId(const FString& Path);
-	int64 GetFileSize(const FString& Path);
-	bool GetFileData(const FString& Path, FIoChunkId& OutChunkId, int64& OutRawSize);
-	bool IterateDirectory(const FString& Path, TFunctionRef<bool(const FIoChunkId&, const TCHAR*, int64)> Callback);
+	bool IterateDirectory(const FString& Path, TFunctionRef<bool(const FIoChunkId&, const TCHAR*)> Callback);
 
 private:
 	struct FDirectory
@@ -46,7 +42,6 @@ private:
 	{
 		FIoChunkId FileChunkId;
 		FString FilePath;
-		int64 RawSize;
 	};
 
 	FDirectory* AddDirectoriesRecursive(const FString& DirectoryPath);
@@ -111,7 +106,7 @@ private:
 	bool IsNonServerFilenameAllowed(FStringView InFilename);
 	bool MakeStorageServerPath(const TCHAR* LocalFilenameOrDirectory, FStringBuilderBase& OutPath) const;
 	bool MakeLocalPath(const TCHAR* ServerFilenameOrDirectory, FStringBuilderBase& OutPath) const;
-	IFileHandle* InternalOpenFile(const FIoChunkId& FileChunkId, int64 RawSize, const TCHAR* LocalFilename);
+	IFileHandle* InternalOpenFile(const FIoChunkId& FileChunkId, const TCHAR* LocalFilename);
 	bool SendGetFileListMessage();
 	FFileStatData SendGetStatDataMessage(const FIoChunkId& FileChunkId);
 	int64 SendReadMessage(uint8* Destination, const FIoChunkId& FileChunkId, int64 Offset, int64 BytesToRead);

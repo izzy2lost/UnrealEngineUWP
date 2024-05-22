@@ -544,7 +544,7 @@ void FStorageServerConnection::PackageStoreRequest(TFunctionRef<void(FPackageSto
 	}
 }
 
-void FStorageServerConnection::FileManifestRequest(TFunctionRef<void(FIoChunkId Id, FStringView Path, int64 RawSize)> Callback)
+void FStorageServerConnection::FileManifestRequest(TFunctionRef<void(FIoChunkId Id, FStringView Path)> Callback)
 {
 	TAnsiStringBuilder<256> ResourceBuilder;
 	ResourceBuilder.Append(OplogPath).Append("/files?filter=client");
@@ -565,7 +565,6 @@ void FStorageServerConnection::FileManifestRequest(TFunctionRef<void(FIoChunkId 
 		{
 			FCbObject Entry = FileArrayEntry.AsObject();
 			FCbObjectId Id = Entry["id"].AsObjectId();
-			int64 ResponseRawSize = Entry["rawsize"].AsInt64(-1);
 
 			TStringBuilder<128> WidePath;
 			WidePath.Append(FUTF8ToTCHAR(Entry["clientpath"].AsString()));
@@ -573,8 +572,7 @@ void FStorageServerConnection::FileManifestRequest(TFunctionRef<void(FIoChunkId 
 			FIoChunkId ChunkId;
 			ChunkId.Set(Id.GetView());
 
-
-			Callback(ChunkId, WidePath, ResponseRawSize);
+			Callback(ChunkId, WidePath);
 		}
 	}
 	else
