@@ -1446,6 +1446,38 @@ UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendDelaunayTrian
 	return TargetMesh;
 }
 
+TArray<FIntPoint> UGeometryScriptLibrary_MeshPrimitiveFunctions::CreateConstrainedEdgesLoop(int32 NumVertices, int32 Start)
+{
+	TArray<FIntPoint> Loop;
+	if (NumVertices < 3)
+	{
+		return Loop;
+	}
+
+	Loop.Reserve(NumVertices);
+	for (int32 Idx = 0, Prev = NumVertices - 1; Idx < NumVertices; Prev = Idx++)
+	{
+		Loop.Emplace(Prev + Start, Idx + Start);
+	}
+	return Loop;
+}
+
+TArray<FIntPoint> UGeometryScriptLibrary_MeshPrimitiveFunctions::CreateConstrainedEdgesChain(int32 NumVertices, int32 Start)
+{
+	TArray<FIntPoint> Chain;
+	if (NumVertices < 2)
+	{
+		return Chain;
+	}
+
+	Chain.Reserve(NumVertices - 1);
+	for (int32 Idx = 0; Idx + 1 < NumVertices; ++Idx)
+	{
+		Chain.Emplace(Idx, Idx + 1);
+	}
+	return Chain;
+}
+
 UDynamicMesh* UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendPolygonListTriangulation(
 	UDynamicMesh* TargetMesh,
 	FGeometryScriptPrimitiveOptions PrimitiveOptions,

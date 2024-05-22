@@ -587,6 +587,22 @@ public:
 		bool& bHasDuplicateVertices,
 		UGeometryScriptDebug* Debug = nullptr);
 
+	/**
+	 * Intended for use with AppendDelaunayTriangulation2D:
+	 * Create a loop of edges through sequential vertices
+	 * e.g., a Loop(3,0) will construct edges (2,0), (0,1) and (1,2)
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives")
+	static TArray<FIntPoint> CreateConstrainedEdgesLoop(int32 NumVertices, int32 Start = 0);
+
+	/**
+	 * Intended for use with AppendDelaunayTriangulation2D:
+	 * Create a chain of edges through sequential vertices
+	 * e.g., a Chain(3,0) will construct edges (0,1) and (1,2)
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives")
+	static TArray<FIntPoint> CreateConstrainedEdgesChain(int32 NumVertices, int32 Start = 0);
+
 
 	/**
 	* Generates a Delaunay Triangulation of the provided Polygon List, and appends it to the Target Mesh.
