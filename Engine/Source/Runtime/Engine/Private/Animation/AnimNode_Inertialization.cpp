@@ -14,8 +14,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_Inertialization)
 
-LLM_DEFINE_TAG(Animation_Inertialization);
-
 #define LOCTEXT_NAMESPACE "AnimNode_Inertialization"
 
 IMPLEMENT_ANIMGRAPH_MESSAGE(UE::Anim::IInertializationRequester);
@@ -299,7 +297,6 @@ void FAnimNode_Inertialization::RequestInertialization(const FInertializationReq
 
 void FAnimNode_Inertialization::Initialize_AnyThread(const FAnimationInitializeContext& Context)
 {
-	LLM_SCOPE_BYNAME(TEXT("Animation/Inertialization"));
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(Initialize_AnyThread);
 
 	FAnimNode_Base::Initialize_AnyThread(Context);
@@ -366,7 +363,6 @@ void FAnimNode_Inertialization::CacheBones_AnyThread(const FAnimationCacheBonesC
 
 void FAnimNode_Inertialization::Update_AnyThread(const FAnimationUpdateContext& Context)
 {
-	LLM_SCOPE_BYNAME(TEXT("Animation/Inertialization"));
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(Update_AnyThread);
 
 	const bool bNeedsReset =
@@ -434,7 +430,6 @@ void FAnimNode_Inertialization::Update_AnyThread(const FAnimationUpdateContext& 
 
 void FAnimNode_Inertialization::Evaluate_AnyThread(FPoseContext& Output)
 {
-	LLM_SCOPE_BYNAME(TEXT("Animation/Inertialization"));
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(Evaluate_AnyThread);
 	ANIM_MT_SCOPE_CYCLE_COUNTER_VERBOSE(Inertialization, !IsInGameThread());
 

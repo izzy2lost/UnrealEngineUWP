@@ -437,6 +437,7 @@ void FAnimNode_RigidBodyWithControl::CalculateSimulationSpace(
 
 void FAnimNode_RigidBodyWithControl::RunPhysicsSimulation(float DeltaSeconds, const FVector& SimSpaceGravity)
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/RigidBodyWithControl"));
 	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_Simulation);
 	CSV_SCOPED_TIMING_STAT(Animation, RigidBodyNodeWithControlSimulation);
 	FScopeCycleCounterUObject AdditionalScope(PhysicsAssetToUse, GET_STATID(STAT_RigidBodyNodeWithControl_Simulation));
@@ -495,6 +496,7 @@ void FAnimNode_RigidBodyWithControl::SetupControls(USkeletalMeshComponent* const
 
 void FAnimNode_RigidBodyWithControl::EvaluateSkeletalControl_AnyThread(FComponentSpacePoseContext& Output, TArray<FBoneTransform>& OutBoneTransforms)
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/RigidBodyWithControl"));
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(EvaluateSkeletalControl_AnyThread)
 	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_Eval);
 	CSV_SCOPED_TIMING_STAT(Animation, RigidBodyEval);

@@ -12,8 +12,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_DeadBlending)
 
-LLM_DEFINE_TAG(Animation_DeadBlending);
-
 #define LOCTEXT_NAMESPACE "AnimNode_DeadBlending"
 
 TAutoConsoleVariable<int32> CVarAnimDeadBlendingEnable(TEXT("a.AnimNode.DeadBlending.Enable"), 1, TEXT("Enable / Disable DeadBlending"));
@@ -651,7 +649,6 @@ void FAnimNode_DeadBlending::RequestInertialization(const FInertializationReques
 
 void FAnimNode_DeadBlending::Initialize_AnyThread(const FAnimationInitializeContext& Context)
 {
-	LLM_SCOPE_BYNAME(TEXT("Animation/DeadBlending"));
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(Initialize_AnyThread);
 
 	FAnimNode_Base::Initialize_AnyThread(Context);
@@ -724,7 +721,6 @@ void FAnimNode_DeadBlending::CacheBones_AnyThread(const FAnimationCacheBonesCont
 
 void FAnimNode_DeadBlending::Update_AnyThread(const FAnimationUpdateContext& Context)
 {
-	LLM_SCOPE_BYNAME(TEXT("Animation/DeadBlending"));
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(Update_AnyThread);
 
 	const bool bNeedsReset =
@@ -758,7 +754,6 @@ void FAnimNode_DeadBlending::Update_AnyThread(const FAnimationUpdateContext& Con
 
 void FAnimNode_DeadBlending::Evaluate_AnyThread(FPoseContext& Output)
 {
-	LLM_SCOPE_BYNAME(TEXT("Animation/DeadBlending"));
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(Evaluate_AnyThread);
 
 	// Evaluate the Input and write it to the Output

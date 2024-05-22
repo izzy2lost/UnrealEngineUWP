@@ -492,6 +492,7 @@ DECLARE_CYCLE_STAT(TEXT("FAnimNode_RigidBody::EvaluateSkeletalControl_AnyThread"
 
 void FAnimNode_RigidBody::RunPhysicsSimulation(float DeltaSeconds, const FVector& SimSpaceGravity)
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/RigidBody"));
 	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNode_Simulation);
 	CSV_SCOPED_TIMING_STAT(Animation, RigidBodyNodeSimulation);
 	FScopeCycleCounterUObject AdditionalScope(UsePhysicsAsset, GET_STATID(STAT_RigidBodyNode_Simulation));
@@ -522,6 +523,7 @@ void FAnimNode_RigidBody::DestroyPhysicsSimulation()
 
 void FAnimNode_RigidBody::EvaluateSkeletalControl_AnyThread(FComponentSpacePoseContext& Output, TArray<FBoneTransform>& OutBoneTransforms)
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/RigidBody"));
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(EvaluateSkeletalControl_AnyThread)
 	SCOPE_CYCLE_COUNTER(STAT_RigidBody_Eval);
 	CSV_SCOPED_TIMING_STAT(Animation, RigidBodyEval);
@@ -1777,6 +1779,7 @@ void FAnimNode_RigidBody::PurgeExpiredWorldObjects()
 void FAnimNode_RigidBody::UpdateWorldObjects(const FTransform& SpaceTransform)
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/RigidBody")); 
+
 
 	if (SimulationSpace != ESimulationSpace::WorldSpace)
 	{

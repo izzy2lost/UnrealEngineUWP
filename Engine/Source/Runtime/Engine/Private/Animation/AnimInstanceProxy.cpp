@@ -44,6 +44,8 @@
 
 #undef DO_ANIMSTAT_PROCESSING
 
+LLM_DEFINE_TAG(Animation_Graph);
+
 #define LOCTEXT_NAMESPACE "AnimInstance"
 
 const FName NAME_AnimBlueprintLog(TEXT("AnimBlueprintLog"));
@@ -121,6 +123,8 @@ void FAnimInstanceProxy::UpdateAnimationNode(const FAnimationUpdateContext& InCo
 
 void FAnimInstanceProxy::UpdateAnimationNode_WithRoot(const FAnimationUpdateContext& InContext, FAnimNode_Base* InRootNode, FName InLayerName)
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/Graph"));
+
 	TRACE_SCOPED_ANIM_GRAPH(InContext)
 	TRACE_SCOPED_ANIM_NODE(InContext)
 	
@@ -374,6 +378,8 @@ void FAnimInstanceProxy::InitializeRootNode(bool bInDeferRootNodeInitialization)
 
 void FAnimInstanceProxy::InitializeRootNode_WithRoot(FAnimNode_Base* InRootNode)
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/Graph"));
+
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
 	if (InRootNode != nullptr)
@@ -1411,6 +1417,8 @@ void FAnimInstanceProxy::EvaluateAnimation_WithRoot(FPoseContext& Output, FAnimN
 
 void FAnimInstanceProxy::CacheBones()
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/Graph"));
+
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 
 	// If bone caches have been invalidated, have AnimNodes refresh those.
@@ -1438,6 +1446,8 @@ void FAnimInstanceProxy::CacheBones()
 
 void FAnimInstanceProxy::CacheBones_WithRoot(FAnimNode_Base* InRootNode)
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/Graph"));
+
 	// If bone caches have been invalidated, have AnimNodes refresh those.
 	if (bBoneCachesInvalidated && InRootNode)
 	{
@@ -1468,6 +1478,8 @@ void FAnimInstanceProxy::EvaluateAnimationNode(FPoseContext& Output)
 
 void FAnimInstanceProxy::EvaluateAnimationNode_WithRoot(FPoseContext& Output, FAnimNode_Base* InRootNode)
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/Graph"));
+
 	if (InRootNode != nullptr)
 	{
 		ANIM_MT_SCOPE_CYCLE_COUNTER(EvaluateAnimGraph, !IsInGameThread());
@@ -2145,6 +2157,8 @@ void FAnimInstanceProxy::GatherDebugData(FNodeDebugData& DebugData)
 
 void FAnimInstanceProxy::GatherDebugData_WithRoot(FNodeDebugData& DebugData, FAnimNode_Base* InRootNode, FName InLayerName)
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/Graph"));
+
 	// Gather debug data for Root Node
 	if(InRootNode != nullptr)
 	{
@@ -3216,6 +3230,8 @@ void FAnimInstanceProxy::RecordStateWeight(const int32 InMachineClassIndex, cons
 
 void FAnimInstanceProxy::ResetDynamics(ETeleportType InTeleportType)
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/Graph"));
+
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
 	for(FAnimNode_Base* Node : DynamicResetNodes)
 	{
@@ -3225,6 +3241,8 @@ void FAnimInstanceProxy::ResetDynamics(ETeleportType InTeleportType)
 
 void FAnimInstanceProxy::ResetDynamics()
 {
+	LLM_SCOPE_BYNAME(TEXT("Animation/Graph"));
+
 	ResetDynamics(ETeleportType::ResetPhysics);
 }
 
