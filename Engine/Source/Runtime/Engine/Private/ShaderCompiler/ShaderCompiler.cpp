@@ -2812,11 +2812,9 @@ static void BuildErrorStringAndReport(const FShaderDiagnosticInfo& DiagInfo, FSt
 {
 	bool bReportedDebugInfo = false;
 
-	check(DiagInfo.UniqueErrors.Num() == DiagInfo.UniqueErrorPrefixes.Num());
-
 	for (int32 ErrorIndex = 0; ErrorIndex < DiagInfo.UniqueErrors.Num(); ErrorIndex++)
 	{
-		FString UniqueErrorString = DiagInfo.UniqueErrorPrefixes[ErrorIndex] + DiagInfo.UniqueErrors[ErrorIndex] + TEXT("\n");
+		FString UniqueErrorString = DiagInfo.UniqueErrors[ErrorIndex] + TEXT("\n");
 
 		if (FPlatformMisc::IsDebuggerPresent())
 		{
@@ -10452,9 +10450,8 @@ void ProcessCompiledGlobalShaders(const TArray<FShaderCommonCompileJobPtr>& Comp
 	// Report unique errors for global shaders.
 	for (int32 ErrorIndex = 0; ErrorIndex < ShaderDiagInfo.UniqueErrors.Num(); ++ErrorIndex)
 	{
-		FString ErrorString = ShaderDiagInfo.UniqueErrorPrefixes[ErrorIndex] + ShaderDiagInfo.UniqueErrors[ErrorIndex];
 		UE_LOGFMT_NSLOC(LogShaders, Error, "Shaders", "GlobalShaderCompileError", "{ErrorMessage}", 
-			("ErrorMessage", ErrorString));
+			("ErrorMessage", ShaderDiagInfo.UniqueErrors[ErrorIndex]));
 	}
 
 	for (const FString& WarningString : ShaderDiagInfo.UniqueWarnings)

@@ -31,7 +31,7 @@ static FString ConvertToNativePlatformAbsolutePath(const TCHAR* InPath)
 	return Path;
 }
 
-int32 AddAndProcessErrorsForFailedJobFiltered(FShaderCompileJob& CurrentJob, FShaderDiagnosticInfo& OutShaderDiagInfo, const TCHAR* FilterMessage)
+int32 FShaderDiagnosticInfo::AddAndProcessErrorsForFailedJobFiltered(FShaderCompileJob& CurrentJob, const TCHAR* FilterMessage)
 {
 	int32 NumAddedErrors = 0;
 
@@ -76,7 +76,8 @@ int32 AddAndProcessErrorsForFailedJobFiltered(FShaderCompileJob& CurrentJob, FSh
 				CurrentError.ErrorVirtualFilePath = FString(CurrentJob.Key.ShaderType->GetShaderFilename());
 			}
 
-			if (OutShaderDiagInfo.UniqueErrors.Find(CurrentErrorString) == INDEX_NONE)
+			uint32 ErrorHash = GetTypeHash(CurrentErrorString);
+			if (!UniqueErrorHashes.Contains(ErrorHash))
 			{
 				// build up additional info in a "prefix" string; only do this once for each unique error
 				FString UniqueErrorPrefix;
@@ -108,9 +109,10 @@ int32 AddAndProcessErrorsForFailedJobFiltered(FShaderCompileJob& CurrentJob, FSh
 						*ShaderErrorLineString);
 				}
 
-				OutShaderDiagInfo.UniqueErrors.Add(CurrentErrorString);
-				OutShaderDiagInfo.UniqueErrorPrefixes.Add(UniqueErrorPrefix);
-				OutShaderDiagInfo.ErrorJobs.AddUnique(&CurrentJob);
+				UniqueErrorHashes.Add(ErrorHash);
+
+				UniqueErrors.Add(UniqueErrorPrefix + CurrentErrorString);
+				ErrorJobs.AddUnique(&CurrentJob);
 			}
 			++NumAddedErrors;
 		}
@@ -185,15 +187,16 @@ void FShaderDiagnosticInfo::AddAndProcessErrorsForJob(FShaderCommonCompileJob& J
 			if (Job.Output.Errors.Num() == 0)
 			{
 				// Job hard crashed
-				UniqueErrors.Add(FString::Printf(TEXT("Internal Error!\n\t%s"), *GetSingleJobCompilationDump(&Job)));
-				UniqueErrorPrefixes.Add(TEXT(""));
+				FString InternalErrorStr = FString::Printf(TEXT("Internal Error!\n\t%s"), *GetSingleJobCompilationDump(&Job));
+				UniqueErrors.Add(InternalErrorStr);
+				UniqueErrorHashes.Add(GetTypeHash(InternalErrorStr));
 			}
 
 			// If we filter all error messages because they are interpreted as warnings, we have to assume all error messages are in fact errors and not warnings.
 			// In that case, add jobs again without a filter; e.g. when the stripped message starts with "Internal exception".
-			if (AddAndProcessErrorsForFailedJobFiltered(Job, *this, TEXT("error")) == 0)
+			if (AddAndProcessErrorsForFailedJobFiltered(Job, TEXT("error")) == 0)
 			{
-				AddAndProcessErrorsForFailedJobFiltered(Job, *this, nullptr);
+				AddAndProcessErrorsForFailedJobFiltered(Job, nullptr);
 			}
 
 		});

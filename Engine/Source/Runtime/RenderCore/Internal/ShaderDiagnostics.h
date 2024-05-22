@@ -10,7 +10,6 @@ struct FShaderDiagnosticInfo
 {
 	TArray<FShaderCommonCompileJob*> ErrorJobs;
 	TArray<FString> UniqueErrors;
-	TArray<FString> UniqueErrorPrefixes;
 	TArray<FString> UniqueWarnings;
 	TArray<EShaderPlatform> ErrorPlatforms;
 	FString TargetShaderPlatformString;
@@ -19,7 +18,10 @@ struct FShaderDiagnosticInfo
 
 private:
 	void AddAndProcessErrorsForJob(FShaderCommonCompileJob& Job);
+	int32 AddAndProcessErrorsForFailedJobFiltered(FShaderCompileJob& Job, const TCHAR* FilterMessage);
 	void AddWarningsForJob(const FShaderCommonCompileJob& Job);
+
+	TArray<uint32> UniqueErrorHashes;
 };
 
 RENDERCORE_API FString GetSingleJobCompilationDump(const FShaderCompileJob* SingleJob);
