@@ -385,6 +385,15 @@ private:
 
 	void PopulateMenuBuilder(FMenuBuilder& MenuBuilder, UToolMenu* MenuData);
 	void PopulateMenuBarBuilder(FMenuBarBuilder& MenuBarBuilder, UToolMenu* MenuData);
+
+	void ExtractChildBlocksFromSubMenu(
+		UToolMenu* ParentMenu, FToolMenuEntry& InBlock, TArray<TPair<UToolMenu*, FToolMenuEntry*>>& SubMenuBlockPairs);
+	void PopulateToolBarBuilderWithGrandchildren(
+		FToolBarBuilder& ToolBarBuilder, UToolMenu* ParentMenu, FToolMenuEntry& InBlock);
+	void PopulateToolBarBuilderWithEntry(FToolBarBuilder& PopulateToolBarBuilderWithEntry,
+		UToolMenu* MenuData,
+		bool bSectionHasSubMenu,
+		FToolMenuEntry& Entry);
 	void PopulateToolBarBuilder(FToolBarBuilder& ToolBarBuilder, UToolMenu* MenuData);
 
 	TSharedRef<SWidget> GenerateToolbarComboButtonMenu(TWeakObjectPtr<UToolMenu> InParent, const FName InBlockName);
