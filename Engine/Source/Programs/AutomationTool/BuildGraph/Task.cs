@@ -51,17 +51,17 @@ namespace AutomationTool
 	/// Attribute used to associate an XML element name with a parameter block that can be used to construct tasks
 	/// </summary>
 	[AttributeUsage(AttributeTargets.Class)]
-	public class TaskElementAttribute : Attribute
+	public sealed class TaskElementAttribute : Attribute
 	{
 		/// <summary>
 		/// Name of the XML element that can be used to denote this class
 		/// </summary>
-		public string Name { get; set; }
+		public string Name { get; }
 
 		/// <summary>
 		/// Type to be constructed from the deserialized element
 		/// </summary>
-		public Type ParametersType { get; set; }
+		public Type ParametersType { get; }
 
 		/// <summary>
 		/// Constructor
@@ -328,7 +328,7 @@ namespace AutomationTool
 			}
 
 			// Any spaces should be later than the second char - most likely to be a typo if directly after the # character
-			if (TagName.IndexOf(' ') == 1)
+			if (TagName.IndexOf(' ', StringComparison.Ordinal) == 1)
 			{
 				throw new AutomationException("Tag name '{0}' is not valid - spaces should only be used to separate words", TagName);
 			}

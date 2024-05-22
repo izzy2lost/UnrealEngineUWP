@@ -150,7 +150,7 @@ namespace AutomationTool.Tasks
 				string[] KV = Parameters.AdditionalMetadata.Split(';');
 				foreach (string Option in KV)
 				{
-					int SeparatorIndex = Option.IndexOf('=');
+					int SeparatorIndex = Option.IndexOf('=', StringComparison.Ordinal);
 					if (SeparatorIndex == -1)
 						continue;
 

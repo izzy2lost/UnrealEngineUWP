@@ -397,7 +397,7 @@ namespace AutomationTool.Tasks
 			{
 				if (!IgnoreFailure)
 				{
-					Logger.LogWarning(e.ToString());
+					Logger.LogWarning("{Text}", e.ToString());
 				}
 				return false;
 			}
@@ -686,7 +686,7 @@ namespace AutomationTool.Tasks
 
 			if ((Parameters.SnapshotDescriptorFile != null) && SuccessfullyExportedSources.Any())
 			{
-				if (Parameters.SnapshotDescriptorFile.FullName.Contains("{Platform}"))
+				if (Parameters.SnapshotDescriptorFile.FullName.Contains("{Platform}", StringComparison.OrdinalIgnoreCase))
 				{
 					// Separate descriptor file per platform
 					ExportIndex = 0;

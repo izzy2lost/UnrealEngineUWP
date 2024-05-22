@@ -139,7 +139,7 @@ namespace AutomationTool.Tasks
 				{
 					if (!String.IsNullOrWhiteSpace(Property))
 					{
-						int EqualsIdx = Property.IndexOf('=');
+						int EqualsIdx = Property.IndexOf('=', StringComparison.Ordinal);
 						if (EqualsIdx == -1)
 						{
 							Logger.LogWarning("Missing '=' in property assignment");

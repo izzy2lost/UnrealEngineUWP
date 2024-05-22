@@ -99,8 +99,8 @@ namespace AutomationTool.Tasks
 
 			// Convert the source pattern into a regex
 			string EscapedFromPattern = "^" + Regex.Escape(FromPattern) + "$";
-			EscapedFromPattern = EscapedFromPattern.Replace("\\*", "(.*)");
-			EscapedFromPattern = EscapedFromPattern.Replace("\\?", "(.)");
+			EscapedFromPattern = EscapedFromPattern.Replace("\\*", "(.*)", StringComparison.Ordinal);
+			EscapedFromPattern = EscapedFromPattern.Replace("\\?", "(.)", StringComparison.Ordinal);
 			Regex FromRegex = new Regex(EscapedFromPattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
 			// Split the output pattern into fragments that we can insert captures between

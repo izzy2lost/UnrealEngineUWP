@@ -157,7 +157,7 @@ namespace AutomationTool.Tasks
 			List<DirectoryReference> NuGetPackageDirs = new List<DirectoryReference>();
 			foreach (string Line in NuGetOutput.Output.Split('\n'))
 			{
-				int ColonIdx = Line.IndexOf(':');
+				int ColonIdx = Line.IndexOf(':', StringComparison.Ordinal);
 				if (ColonIdx != -1)
 				{
 					DirectoryReference NuGetPackageDir = new DirectoryReference(Line.Substring(ColonIdx + 1).Trim());

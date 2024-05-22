@@ -97,10 +97,10 @@ namespace AutomationTool.Tasks
 		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
 		{
 			string TaskDefTemplate = File.ReadAllText(ResolveFile(Parameters.TaskDefinitionFile).FullName);
-			string TaskDefRendered = TaskDefTemplate.Replace("%%DOCKER_IMAGE%%", Parameters.DockerImage);
+			string TaskDefRendered = TaskDefTemplate.Replace("%%DOCKER_IMAGE%%", Parameters.DockerImage, StringComparison.Ordinal);
 			if (Parameters.Version != null)
 			{
-				TaskDefRendered = TaskDefRendered.Replace("%%VERSION%%", Parameters.Version);
+				TaskDefRendered = TaskDefRendered.Replace("%%VERSION%%", Parameters.Version, StringComparison.Ordinal);
 			}
 
 			FileReference TempTaskDefFile = FileReference.Combine(Unreal.RootDirectory, "Engine", "Intermediate", "Build", "AwsEcsDeployTaskTemp.json");

@@ -165,15 +165,15 @@ namespace AutomationTool.Tasks
 				else
 				{
 					// Parse a wildcard filter
-					if(Pattern.StartsWith("..."))
+					if(Pattern.StartsWith("...", StringComparison.Ordinal))
 					{
 						Rules.Add(Pattern);
 					}
-					else if(!Pattern.Contains("/"))
+					else if(!Pattern.Contains("/", StringComparison.Ordinal))
 					{
 						Rules.Add(".../" + Pattern);
 					}
-					else if(!Pattern.StartsWith("/"))
+					else if(!Pattern.StartsWith("/", StringComparison.Ordinal))
 					{
 						Rules.Add(BaseDir.FullName + "/" + Pattern);
 					}

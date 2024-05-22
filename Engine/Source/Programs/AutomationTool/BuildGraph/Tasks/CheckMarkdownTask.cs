@@ -96,9 +96,9 @@ namespace AutomationTool.Tasks
 						string link = match.Groups[2].Value;
 						if (!Regex.IsMatch(link, "^(?:[a-z]+:/)?/"))
 						{
-							if (!link.Contains('\\'))
+							if (!link.Contains('\\', StringComparison.Ordinal))
 							{
-								int hashIdx = link.IndexOf('#');
+								int hashIdx = link.IndexOf('#', StringComparison.Ordinal);
 								if (hashIdx == -1)
 								{
 									link = FileReference.Combine(file.Directory, link).FullName;

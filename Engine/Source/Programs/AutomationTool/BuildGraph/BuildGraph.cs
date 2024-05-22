@@ -379,7 +379,7 @@ namespace AutomationTool
 				const string SetPrefix = "set:";
 				if (Param.StartsWith(SetPrefix, StringComparison.InvariantCultureIgnoreCase))
 				{
-					int EqualsIdx = Param.IndexOf('=');
+					int EqualsIdx = Param.IndexOf('=', StringComparison.Ordinal);
 					if (EqualsIdx >= 0)
 					{
 						Arguments[Param.Substring(SetPrefix.Length, EqualsIdx - SetPrefix.Length)] = Param.Substring(EqualsIdx + 1);
@@ -393,7 +393,7 @@ namespace AutomationTool
 				const string AppendPrefix = "append:";
 				if (Param.StartsWith(AppendPrefix, StringComparison.InvariantCultureIgnoreCase))
 				{
-					int EqualsIdx = Param.IndexOf('=');
+					int EqualsIdx = Param.IndexOf('=', StringComparison.Ordinal);
 					if (EqualsIdx >= 0)
 					{
 						string Property = Param.Substring(AppendPrefix.Length, EqualsIdx - AppendPrefix.Length);

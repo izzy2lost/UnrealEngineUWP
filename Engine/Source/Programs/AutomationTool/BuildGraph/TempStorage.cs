@@ -80,7 +80,7 @@ namespace AutomationTool
 		/// <returns>Hash code for the block</returns>
 		public override int GetHashCode()
 		{
-			return ToString().GetHashCode();
+			return ToString().GetHashCode(StringComparison.OrdinalIgnoreCase);
 		}
 
 		/// <summary>
@@ -1339,7 +1339,7 @@ namespace AutomationTool
 			{
 				return true;
 			}
-			if ((FileName.Equals("info.plist", StringComparison.OrdinalIgnoreCase) || FileName.Equals("coderesources", StringComparison.OrdinalIgnoreCase)) && LocalFile.FullName.Contains(".app/"))
+			if ((FileName.Equals("info.plist", StringComparison.OrdinalIgnoreCase) || FileName.Equals("coderesources", StringComparison.OrdinalIgnoreCase)) && LocalFile.FullName.Contains(".app/", StringComparison.OrdinalIgnoreCase))
 			{
 				// xcode can generate plist files and coderesources differently in different stages of compile/cook/stage/package/etc. only allow ones inside a .app bundle
 				return true;

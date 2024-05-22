@@ -151,7 +151,7 @@ namespace AutomationTool.Tasks
 					}
 
 					// Get the latest version of it
-					int NewCL = SubmitP4.CreateChange(Description: Parameters.Description.Replace("\\n", "\n"));
+					int NewCL = SubmitP4.CreateChange(Description: Parameters.Description.Replace("\\n", "\n", StringComparison.Ordinal));
 					foreach(FileReference File in Files)
 					{
 						SubmitP4.Revert(String.Format("-k \"{0}\"", File.FullName), AllowSpew: Parameters.P4Verbose);
