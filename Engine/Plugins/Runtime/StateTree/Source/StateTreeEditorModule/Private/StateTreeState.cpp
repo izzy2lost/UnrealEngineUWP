@@ -8,6 +8,7 @@
 #include "StateTreeTaskBase.h"
 #include "StateTreeDelegates.h"
 #include "StateTreePropertyHelpers.h"
+#include "Customizations/StateTreeEditorNodeUtils.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeState)
 
@@ -405,6 +406,7 @@ void UStateTreeState::PostLoad()
 	{
 		if (FStateTreeNodeBase* ConditionNode = EnterConditionEditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
 		{
+			UE::StateTreeEditor::EditorNodeUtils::ConditionalUpdateNodeInstanceData(EnterConditionEditorNode, *this);
 			ConditionNode->PostLoad(EnterConditionEditorNode.GetInstance());
 		}
 	}
@@ -413,6 +415,7 @@ void UStateTreeState::PostLoad()
 	{
 		if (FStateTreeNodeBase* ConsiderationNode = ConsiderationEditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
 		{
+			UE::StateTreeEditor::EditorNodeUtils::ConditionalUpdateNodeInstanceData(ConsiderationEditorNode, *this);
 			ConsiderationNode->PostLoad(ConsiderationEditorNode.GetInstance());
 		}
 	}
@@ -421,16 +424,29 @@ void UStateTreeState::PostLoad()
 	{
 		if (FStateTreeNodeBase* TaskNode = TaskEditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
 		{
+			UE::StateTreeEditor::EditorNodeUtils::ConditionalUpdateNodeInstanceData(TaskEditorNode, *this);
 			TaskNode->PostLoad(TaskEditorNode.GetInstance());
 		}
 	}
 
 	if (FStateTreeNodeBase* SingleTaskNode = SingleTask.Node.GetMutablePtr<FStateTreeNodeBase>())
 	{
+		UE::StateTreeEditor::EditorNodeUtils::ConditionalUpdateNodeInstanceData(SingleTask, *this);
 		SingleTaskNode->PostLoad(SingleTask.GetInstance());
 	}
-#endif // WITH_EDITOR
 
+	for (FStateTreeTransition& Transition : Transitions)
+	{
+		for (FStateTreeEditorNode& TransitionConditionEditorNode : Transition.Conditions)
+		{
+			if (FStateTreeNodeBase* ConditionNode = TransitionConditionEditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
+			{
+				UE::StateTreeEditor::EditorNodeUtils::ConditionalUpdateNodeInstanceData(TransitionConditionEditorNode, *this);
+				ConditionNode->PostLoad(TransitionConditionEditorNode.GetInstance());
+			}
+		}
+	}
+#endif // WITH_EDITOR
 }
 
 void UStateTreeState::UpdateParametersFromLinkedSubtree()

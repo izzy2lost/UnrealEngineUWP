@@ -232,6 +232,9 @@ private:
 	 */
 	void ResetLinked();
 
+	/** @return true if all the source instance data types match with the node's instance data types */
+	bool ValidateInstanceData() const;
+
 	bool PatchBindings();
 
 	// Data created during compilation, source data in EditorData.

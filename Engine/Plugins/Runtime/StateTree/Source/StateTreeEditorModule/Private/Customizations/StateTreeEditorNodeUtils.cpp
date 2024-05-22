@@ -555,6 +555,84 @@ void SetNodeType(const TSharedPtr<IPropertyHandle>& StructProperty, const UStruc
 	}	
 }
 
+void InstantiateStructSubobjects(UObject& OuterObject, FStructView Struct)
+{
+	// Empty struct, nothing to do.
+	if (!Struct.IsValid())
+	{
+		return;
+	}
+
+	for (TPropertyValueIterator<FProperty> It(Struct.GetScriptStruct(), Struct.GetMemory()); It; ++It)
+	{
+		if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(It->Key))
+		{
+			// Duplicate instanced objects.
+			if (ObjectProperty->HasAnyPropertyFlags(CPF_InstancedReference | CPF_PersistentInstance))
+			{
+				if (UObject* Object = ObjectProperty->GetObjectPropertyValue(It->Value))
+				{
+					UObject* DuplicatedObject = DuplicateObject(Object, &OuterObject);
+					ObjectProperty->SetObjectPropertyValue(const_cast<void*>(It->Value), DuplicatedObject);
+				}
+			}
+		}
+		if (const FStructProperty* StructProperty = CastField<FStructProperty>(It->Key))
+		{
+			// If we encounter instanced struct, recursively handle it too.
+			if (StructProperty->Struct == TBaseStructure<FInstancedStruct>::Get())
+			{
+				FInstancedStruct& InstancedStruct = *static_cast<FInstancedStruct*>(const_cast<void*>(It->Value));
+				InstantiateStructSubobjects(OuterObject, InstancedStruct);
+			}
+		}
+	}
+}
+
+void ConditionalUpdateNodeInstanceData(FStateTreeEditorNode& EditorNode, UObject& InstanceOuter)
+{
+	const FStateTreeNodeBase* Node = EditorNode.Node.GetPtr<FStateTreeNodeBase>();
+	if (!Node)
+	{
+		return;
+	}
+
+	const UStruct* CurrentType = EditorNode.GetInstance().GetStruct();
+	const UStruct* DesiredType = Node->GetInstanceDataType();
+
+	// Nothing to upgrade. Instance Data Type is unchanged
+	if (CurrentType == DesiredType)
+	{
+		return;
+	}
+
+	FStateTreeEditorNode OldEditorNode = EditorNode;
+
+	EditorNode.Instance.Reset();
+	EditorNode.InstanceObject = nullptr;
+
+	if (const UScriptStruct* InstanceType = Cast<UScriptStruct>(DesiredType))
+	{
+		EditorNode.Instance.InitializeAs(InstanceType);
+	}
+	else if (const UClass* InstanceClass = Cast<UClass>(DesiredType))
+	{
+		EditorNode.InstanceObject = NewObject<UObject>(&InstanceOuter, InstanceClass);
+	}
+
+	RetainProperties(OldEditorNode, EditorNode);
+
+	// Ensure that the instanced objects on the nodes are correctly copied over (deep copy)
+	UE::StateTreeEditor::EditorNodeUtils::InstantiateStructSubobjects(InstanceOuter, EditorNode.Node);
+	if (EditorNode.InstanceObject)
+	{
+		EditorNode.InstanceObject = DuplicateObject(EditorNode.InstanceObject, &InstanceOuter);
+	}
+	else
+	{
+		UE::StateTreeEditor::EditorNodeUtils::InstantiateStructSubobjects(InstanceOuter, EditorNode.Instance);
+	}
+}
 
 void OnArrayNodePicked(const UStruct* InStruct, TSharedPtr<SComboButton> PickerCombo, TSharedPtr<IPropertyHandle> ArrayPropertyHandle, TSharedRef<IPropertyUtilities> PropUtils)
 {

@@ -63,44 +63,6 @@ public:
 
 namespace UE::StateTreeEditor::Internal
 {
-	/**
-	 * This function recursively instantiates instanced objects of a given struct.
-	 * It is needed to fixup nodes pasted from clipboard, which seem to give shallow copy.
-	 */
-	void InstantiateStructSubobjects(UObject& OuterObject, FStructView Struct)
-	{
-		// Empty struct, nothing to do.
-		if (!Struct.IsValid())
-		{
-			return;
-		}
-
-		for (TPropertyValueIterator<FProperty> It(Struct.GetScriptStruct(), Struct.GetMemory()); It; ++It)
-		{
-			if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(It->Key))
-			{
-				// Duplicate instanced objects.
-				if (ObjectProperty->HasAnyPropertyFlags(CPF_InstancedReference | CPF_PersistentInstance))
-				{
-					if (UObject* Object = ObjectProperty->GetObjectPropertyValue(It->Value))
-					{
-						UObject* DuplicatedObject = DuplicateObject(Object, &OuterObject);
-						ObjectProperty->SetObjectPropertyValue(const_cast<void*>(It->Value), DuplicatedObject);
-					}
-				}
-			}
-			if (const FStructProperty* StructProperty = CastField<FStructProperty>(It->Key))
-			{
-				// If we encounter instanced struct, recursively handle it too.
-				if (StructProperty->Struct == TBaseStructure<FInstancedStruct>::Get())
-				{
-					FInstancedStruct& InstancedStruct = *static_cast<FInstancedStruct*>(const_cast<void*>(It->Value));
-					InstantiateStructSubobjects(OuterObject, InstancedStruct);
-				}
-			}
-		}
-	}
-
 	/** @return text describing the pin type, matches SPinTypeSelector. */
 	FText GetPinTypeText(const FEdGraphPinType& PinType)
 	{
@@ -770,14 +732,14 @@ void FStateTreeEditorNodeDetails::OnPasteNode()
 				*EditorNode = TempNode;
 
 				// Ensure unique instance value
-				UE::StateTreeEditor::Internal::InstantiateStructSubobjects(*OuterObject, EditorNode->Node);
+				UE::StateTreeEditor::EditorNodeUtils::InstantiateStructSubobjects(*OuterObject, EditorNode->Node);
 				if (EditorNode->InstanceObject)
 				{
 					EditorNode->InstanceObject = DuplicateObject(EditorNode->InstanceObject, OuterObject);
 				}
 				else
 				{
-					UE::StateTreeEditor::Internal::InstantiateStructSubobjects(*OuterObject, EditorNode->Instance);
+					UE::StateTreeEditor::EditorNodeUtils::InstantiateStructSubobjects(*OuterObject, EditorNode->Instance);
 				}
 				
 				const FGuid OldStructID = EditorNode->ID; 

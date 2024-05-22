@@ -10,6 +10,7 @@
 #include "Algo/LevenshteinDistance.h"
 #include "StateTreeEditorModule.h"
 #include "StateTreePropertyHelpers.h"
+#include "Customizations/StateTreeEditorNodeUtils.h"
 
 #if WITH_EDITOR
 #include "Engine/UserDefinedStruct.h"
@@ -820,6 +821,7 @@ void UStateTreeEditorData::CallPostLoadOnNodes()
 	{
 		if (FStateTreeNodeBase* EvaluatorNode = EvaluatorEditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
 		{
+			UE::StateTreeEditor::EditorNodeUtils::ConditionalUpdateNodeInstanceData(EvaluatorEditorNode, *this);
 			EvaluatorNode->PostLoad(EvaluatorEditorNode.GetInstance());
 		}
 	}
@@ -828,6 +830,7 @@ void UStateTreeEditorData::CallPostLoadOnNodes()
 	{
 		if (FStateTreeNodeBase* GlobalTaskNode = GlobalTaskEditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
 		{
+			UE::StateTreeEditor::EditorNodeUtils::ConditionalUpdateNodeInstanceData(GlobalTaskEditorNode, *this);
 			GlobalTaskNode->PostLoad(GlobalTaskEditorNode.GetInstance());
 		}
 	}

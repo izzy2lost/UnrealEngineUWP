@@ -8,6 +8,7 @@
 
 enum class EStateTreeConditionEvaluationMode : uint8;
 struct FStateTreeEditorNode;
+struct FStructView;
 struct EVisibility;
 class FText;
 class IPropertyHandle;
@@ -108,6 +109,21 @@ EVisibility IsIconVisible(const TSharedPtr<IPropertyHandle>& StructProperty);
  * @param NewType New node type to set. 
  */
 void SetNodeType(const TSharedPtr<IPropertyHandle>& StructProperty, const UStruct* NewType);
+
+/**
+ * Recursively instantiates instanced objects of a given struct.
+ * It is needed to fixup nodes pasted from clipboard, which seem to give shallow copy.
+ * @param OuterObject the object the instanced objects should be outered to
+ * @param Struct the struct with the instanced objects
+ */
+void InstantiateStructSubobjects(UObject& OuterObject, FStructView Struct);
+
+/**
+ * Handles updating the Node Instance Data if there is a type mismatch
+ * @param EditorNode the node to check
+ * @param InstanceOuter the outer to use if the instance data is a uobject, or there are instanced uobjects within the instance data
+ */
+void ConditionalUpdateNodeInstanceData(FStateTreeEditorNode& EditorNode, UObject& InstanceOuter);
 
 /**
  * Creates widget combon button with plus icon (+), which summons node picker and adds the selected node to specified array. 

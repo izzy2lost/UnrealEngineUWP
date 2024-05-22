@@ -6,6 +6,7 @@
 #include "StateTreeTaskBase.h"
 #include "StateTreeEvaluatorBase.h"
 #include "StateTreeConditionBase.h"
+#include "StateTreeConsiderationBase.h"
 #include "AssetRegistry/AssetData.h"
 #include "Misc/ScopeRWLock.h"
 #include "StateTreeDelegates.h"
@@ -358,7 +359,10 @@ void UStateTree::PostLoad()
 		{
 			if (Node->InstanceTemplateIndex.IsValid())
 			{
-				FStateTreeInstanceData& SourceInstanceData = NodeView.GetPtr<FStateTreeConditionBase>() != nullptr ? SharedInstanceData : DefaultInstanceData;
+				const bool bUseSharedInstanceData = NodeView.GetPtr<FStateTreeConditionBase>() || NodeView.GetPtr<FStateTreeConsiderationBase>();
+
+				FStateTreeInstanceData& SourceInstanceData = bUseSharedInstanceData ? SharedInstanceData : DefaultInstanceData;
+
 				if (SourceInstanceData.IsObject(Node->InstanceTemplateIndex.Get()))
 				{
 					Node->PostLoad(SourceInstanceData.GetMutableObject(Node->InstanceTemplateIndex.Get()));
@@ -455,11 +459,55 @@ void UStateTree::ResetLinked()
 	PerThreadSharedInstanceData.Reset();
 }
 
+bool UStateTree::ValidateInstanceData() const
+{
+	for (FConstStructView NodeView : Nodes)
+	{
+		const FStateTreeNodeBase* Node = NodeView.GetPtr<const FStateTreeNodeBase>();
+		if (Node && Node->InstanceTemplateIndex.IsValid())
+		{
+			const UStruct* CurrentInstanceDataType;
+			{
+				const bool bUseSharedInstanceData = NodeView.GetPtr<const FStateTreeConditionBase>() || NodeView.GetPtr<const FStateTreeConsiderationBase>();
+
+				const FStateTreeInstanceData& SourceInstanceData = bUseSharedInstanceData ? SharedInstanceData : DefaultInstanceData;
+
+				if (SourceInstanceData.IsObject(Node->InstanceTemplateIndex.Get()))
+				{
+					const UObject* InstanceObject = SourceInstanceData.GetObject(Node->InstanceTemplateIndex.Get());
+					CurrentInstanceDataType = InstanceObject ? InstanceObject->GetClass() : nullptr;
+				}
+				else
+				{
+					CurrentInstanceDataType = SourceInstanceData.GetStruct(Node->InstanceTemplateIndex.Get()).GetScriptStruct();
+				}
+			}
+
+			const UStruct* DesiredInstanceDataType = Node->GetInstanceDataType();
+
+			// Use strict testing so that the users will have option to initialize data mismatch if the type changes (even if potentially compatible).
+			if (CurrentInstanceDataType != DesiredInstanceDataType)
+			{
+				UE_LOG(LogStateTree, Error, TEXT("%s: node '%s' failed. The source Instance Data type '%s' does not match '%s'"), *GetFullName(), *Node->StaticStruct()->GetName(), *GetNameSafe(CurrentInstanceDataType), *GetNameSafe(DesiredInstanceDataType));
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
 bool UStateTree::Link()
 {
 	// Initialize the instance data default value.
 	// This data will be used to allocate runtime instance on all StateTree users.
 	ResetLinked();
+
+	// Validate that all the source instance data types matches the node instance data types
+	if (!ValidateInstanceData())
+	{
+		return false;
+	}
 
 	// Resolves nodes references to other StateTree data
 	FStateTreeLinker Linker(Schema);
@@ -696,9 +744,9 @@ bool UStateTree::PatchBindings()
 	for (FConstStructView NodeView : Nodes)
 	{
 		const FStateTreeNodeBase& Node = NodeView.Get<const FStateTreeNodeBase>();
-		
+
 		FStateTreeInstanceData* SourceInstanceData = &DefaultInstanceData;
-		if (NodeView.GetPtr<const FStateTreeConditionBase>())
+		if (NodeView.GetPtr<const FStateTreeConditionBase>() || NodeView.GetPtr<const FStateTreeConsiderationBase>())
 		{
 			// Conditions are stored in shared instance data.
 			SourceInstanceData = &SharedInstanceData;
