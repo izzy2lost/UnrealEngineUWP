@@ -479,7 +479,15 @@ void FHttpRetrySystem::FManager::RetryHttpRequest(FHttpRetryRequestEntry& Reques
 		++RequestEntry.CurrentRetryCountForConnectionError;
 	}
 	RequestEntry.Request->RetryStatus = FRequest::EStatus::Processing;
-	UE_LOG(LogHttp, Warning, TEXT("Retry %d on %s"), RequestEntry.CurrentRetryCount, *(RequestEntry.Request->GetURL()));
+	if (RequestEntry.Request->GetResponse()->GetResponseCode() >= 400)
+	{
+		UE_LOG(LogHttp, Warning, TEXT("Retry %d on %s"), RequestEntry.CurrentRetryCount, *(RequestEntry.Request->GetURL()));
+	}
+	else
+	{
+		UE_LOG(LogHttp, Log, TEXT("Retry %d on %s"), RequestEntry.CurrentRetryCount, *(RequestEntry.Request->GetURL()));
+	}
+	
 	RequestEntry.Request->HttpRequest->ProcessRequest();
 }
 
