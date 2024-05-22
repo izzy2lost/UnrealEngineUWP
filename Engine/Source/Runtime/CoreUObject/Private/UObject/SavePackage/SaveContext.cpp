@@ -28,106 +28,118 @@ TArray<ESaveRealm> FSaveContext::GetHarvestedRealmsToSave()
 	return HarvestedContextsToSave;
 }
 
-void FSaveContext::MarkUnsaveable(UObject* InObject)
+bool FSaveContext::IsUnsaveable(TObjectPtr<UObject> InObject, bool bEmitWarning)
 {
-	if (IsUnsaveable(InObject))
-	{
-		EMarkedTransientReason& Reason = TransientAssignments.FindOrAdd(InObject);
-		if (Reason == EMarkedTransientReason::Uninitialized)
-		{
-			Reason = EMarkedTransientReason::Unsaveable;
-		}
-	}
-
-	// if this is the class default object, make sure it's not
-	// marked transient for any reason, as we need it to be saved
-	// to disk (unless it's associated with a transient generated class)
-#if WITH_EDITORONLY_DATA
-	ensureAlways(!InObject->HasAllFlags(RF_ClassDefaultObject) || !IsTransient(InObject) || (InObject->GetClass()->ClassGeneratedBy != nullptr && InObject->GetClass()->HasAnyFlags(RF_Transient)));
-#endif
-}
-
-bool FSaveContext::IsUnsaveable(TObjectPtr<UObject> InObject, bool bEmitWarning) const
-{
-	TObjectPtr<UObject> Culprit;
-	ESaveableStatus CulpritStatus;
-	ESaveableStatus Status = GetSaveableStatus(InObject, &Culprit, &CulpritStatus);
-	if (Status == ESaveableStatus::Success)
+	if (!InObject)
 	{
 		return false;
 	}
-	if (Status == ESaveableStatus::OuterUnsaveable && bEmitWarning &&
-		(CulpritStatus == ESaveableStatus::AbstractClass || CulpritStatus == ESaveableStatus::DeprecatedClass || CulpritStatus == ESaveableStatus::NewerVersionExistsClass))
+	UE::SavePackageUtilities::FObjectStatus& ObjectStatus = UpdateSaveableStatus(InObject);
+	check(ObjectStatus.bSaveableStatusValid);
+
+	if (bEmitWarning && ObjectStatus.SaveableStatus != ESaveableStatus::Success)
 	{
-		check(Culprit);
-		// Only warn if the base object is fine but the outer is invalid. If an object is itself unsaveable, the old behavior is to ignore it
-		if (InObject.GetPackage() == GetPackage())
+		// if this is a class default object being exported, make sure it's not unsaveable for any reason,
+		// as we need it to be saved to disk (unless it's associated with a transient generated class)
+#if WITH_EDITORONLY_DATA
+		ensureAlways(!ObjectStatus.bAttemptedExport || !InObject->HasAllFlags(RF_ClassDefaultObject) ||
+			(InObject->GetClass()->ClassGeneratedBy != nullptr && InObject->GetClass()->HasAnyFlags(RF_Transient)));
+#endif
+
+		if (ObjectStatus.SaveableStatus == ESaveableStatus::OuterUnsaveable
+			&& (ObjectStatus.SaveableStatusCulpritStatus == ESaveableStatus::AbstractClass
+				|| ObjectStatus.SaveableStatusCulpritStatus == ESaveableStatus::DeprecatedClass
+				|| ObjectStatus.SaveableStatusCulpritStatus == ESaveableStatus::NewerVersionExistsClass)
+			&& InObject.GetPackage() == GetPackage())
 		{
-			UE_LOG(LogSavePackage, Warning, TEXT("%s has a deprecated or abstract class outer %s, so it will not be saved"),
-				*InObject.GetFullName(), *Culprit.GetFullName());
+			check(ObjectStatus.SaveableStatusCulprit);
+			UE_LOG(LogSavePackage, Warning, TEXT("%s has unsaveable outer %s (outer is %s), so it will not be saved."),
+				*InObject.GetFullName(), *ObjectStatus.SaveableStatusCulprit->GetFullName(),
+				LexToString(ObjectStatus.SaveableStatusCulpritStatus));
 		}
 	}
-	return true;
+
+	return ObjectStatus.SaveableStatus != ESaveableStatus::Success;
 }
 
-ESaveableStatus FSaveContext::GetSaveableStatus(TObjectPtr<UObject> InObject, TObjectPtr<UObject>* OutCulprit, ESaveableStatus* OutCulpritStatus, EIgnoreMarkUnsaveable IgnoreMarkUnsaveable) const
+UE::SavePackageUtilities::FObjectStatus& FSaveContext::UpdateSaveableStatus(TObjectPtr<UObject> InObject)
 {
-	TObjectPtr<UObject> Obj = InObject;
-	while (Obj)
+	UE::SavePackageUtilities::FObjectStatus* ObjectStatus = &ObjectStatusCache.FindOrAdd(InObject);
+	if (ObjectStatus->bSaveableStatusValid)
 	{
-		ESaveableStatus Status = GetSaveableStatusNoOuter(Obj, IgnoreMarkUnsaveable);
-		if (Status != ESaveableStatus::Success)
+		return *ObjectStatus;
+	}
+
+	ObjectStatus->bSaveableStatusValid = true;
+	ObjectStatus->SaveableStatus = ESaveableStatus::Success;
+
+	ESaveableStatus StatusNoOuter = GetSaveableStatusNoOuter(InObject, *ObjectStatus);
+	if (StatusNoOuter != ESaveableStatus::Success)
+	{
+		check(StatusNoOuter != ESaveableStatus::OuterUnsaveable &&
+			StatusNoOuter != ESaveableStatus::ClassUnsaveable);
+		ObjectStatus->SaveableStatus = StatusNoOuter;
+		return *ObjectStatus;
+	}
+
+	if (!InObject.IsResolved())
+	{
+		// We do not test the saveability of the outer of unresolved objects because we cannot get their
+		// outer without resolving them.
+		return *ObjectStatus;
+	}
+
+	UObject* Outer = InObject->GetOuter();
+	if (Outer)
+	{
+		UE::SavePackageUtilities::FObjectStatus& OuterStatus = UpdateSaveableStatus(Outer);
+		// Calling UpdateSaveableStatus on the outer might have modified ObjectStatusCache, so
+		// look up our pointer to ObjectStatus again.
+		ObjectStatus = ObjectStatusCache.Find(InObject);
+		check(ObjectStatus);
+
+		ObjectStatus->bSaveableStatusValid = true;
+		ObjectStatus->SaveableStatus = ESaveableStatus::Success;
+		if (OuterStatus.SaveableStatus != ESaveableStatus::Success)
 		{
-			if (OutCulprit)
+			ObjectStatus->SaveableStatus = ESaveableStatus::OuterUnsaveable;
+			if (OuterStatus.SaveableStatus == ESaveableStatus::OuterUnsaveable)
 			{
-				*OutCulprit = Obj;
+				check(OuterStatus.SaveableStatusCulprit);
+				check(OuterStatus.SaveableStatusCulpritStatus != ESaveableStatus::Success);
+				ObjectStatus->SaveableStatusCulprit = OuterStatus.SaveableStatusCulprit;
+				ObjectStatus->SaveableStatusCulpritStatus = OuterStatus.SaveableStatusCulpritStatus;
 			}
-			if (OutCulpritStatus)
+			else
 			{
-				*OutCulpritStatus = Status;
+				ObjectStatus->SaveableStatusCulprit = Outer;
+				ObjectStatus->SaveableStatusCulpritStatus = OuterStatus.SaveableStatus;
 			}
-			return Obj == InObject ? Status : ESaveableStatus::OuterUnsaveable;
 		}
-		Obj = Obj.GetOuter();
 	}
-	if (OutCulprit)
-	{
-		*OutCulprit = InObject;
-	}
-	if (OutCulpritStatus)
-	{
-		*OutCulpritStatus = ESaveableStatus::Success;
-	}
-	return ESaveableStatus::Success;
+
+	return *ObjectStatus;
 }
 
-ESaveableStatus FSaveContext::GetSaveableStatusNoOuter(TObjectPtr<UObject> Obj, EIgnoreMarkUnsaveable IgnoreMarkUnsaveable) const
+ESaveableStatus FSaveContext::GetSaveableStatusNoOuter(TObjectPtr<UObject> Obj,
+	UE::SavePackageUtilities::FObjectStatus& ObjectStatus) const
 {
-	// pending kill object are unsaveable
+	// pending kill objects are unsaveable
 	if (Obj.IsResolved() && !IsValidChecked(Obj))
 	{
 		return ESaveableStatus::PendingKill;
 	}
 
-	// transient object are considered unsaveable if non native
-	if (Obj.IsResolved() && IsTransient(Obj, IgnoreMarkUnsaveable) && !Obj->IsNative())
+	// transient objects are unsaveable if non-native
+	if (Obj.IsResolved() && !Obj->IsNative())
 	{
-		if (Obj->HasAnyFlags(RF_Transient))
+		if (ObjectStatus.HasTransientFlag(Obj))
 		{
 			return ESaveableStatus::TransientFlag;
 		}
-
-		if (const EMarkedTransientReason* Reason = TransientAssignments.Find(Obj))
+		if (ObjectStatus.bSaveOverrideForcedTransient)
 		{
-			switch (*Reason)
-			{
-			case EMarkedTransientReason::TransientOverride:
-				return ESaveableStatus::TransientOverride;
-			case EMarkedTransientReason::Unsaveable:
-				return ESaveableStatus::MarkedUnsaveable;
-			default:
-				return ESaveableStatus::MarkedUnsaveable;
-			}
+			return ESaveableStatus::TransientOverride;
 		}
 	}
 
@@ -147,7 +159,7 @@ ESaveableStatus FSaveContext::GetSaveableStatusNoOuter(TObjectPtr<UObject> Obj, 
 	return ESaveableStatus::Success;
 }
 
-bool FSaveContext::IsTransient(const TObjectPtr<UObject> InObject, EIgnoreMarkUnsaveable IgnoreMarkUnsaveable) const
+bool FSaveContext::IsTransient(TObjectPtr<UObject> InObject)
 {
 	if (!InObject)
 	{
@@ -159,12 +171,15 @@ bool FSaveContext::IsTransient(const TObjectPtr<UObject> InObject, EIgnoreMarkUn
 		return true;
 	}
 
-	if (const EMarkedTransientReason* Reason = TransientAssignments.Find(InObject))
+	UE::SavePackageUtilities::FObjectStatus& Status = GetCachedObjectStatus(InObject);
+	if (Status.bSaveOverrideForcedTransient)
 	{
-		if (*Reason == EMarkedTransientReason::Unsaveable && IgnoreMarkUnsaveable == EIgnoreMarkUnsaveable::Yes)
-		{
-			return false;
-		}
+		return true;
+	}
+	if (Status.bAttemptedExport && Status.bSaveableStatusValid && Status.SaveableStatus != ESaveableStatus::Success)
+	{
+		// Exports found to be unsaveable are treated the same as transient objects for all the calls to IsTransient
+		// in SavePackage.
 		return true;
 	}
 
@@ -206,6 +221,20 @@ FSavePackageResultStruct FSaveContext::GetFinalResult()
 #endif
 
 	return ResultData;
+}
+
+UE::SavePackageUtilities::EEditorOnlyObjectFlags FSaveContext::GetEditorOnlyObjectFlags() const
+{
+	using namespace UE::SavePackageUtilities;
+
+	// If doing an editor save, HasNonEditorOnlyReferences=true overrides NotForClient, NotForServer,
+	// and virtual IsEditorOnly and marks it as UsedInGame
+	bool bApplyHasNonEditorOnlyReferences = GetTargetPlatform() == nullptr;
+	return
+		EEditorOnlyObjectFlags::CheckRecursive |
+		(bApplyHasNonEditorOnlyReferences
+			? EEditorOnlyObjectFlags::ApplyHasNonEditorOnlyReferences
+			: EEditorOnlyObjectFlags::None);
 }
 
 namespace
@@ -267,14 +296,13 @@ EObjectMark FSaveContext::GetExcludedObjectMarksForGameRealm(const ITargetPlatfo
 
 const TCHAR* LexToString(ESaveableStatus Status)
 {
-	static_assert(static_cast<int32>(ESaveableStatus::__Count) == 11);
+	static_assert(static_cast<int32>(ESaveableStatus::__Count) == 10);
 	switch (Status)
 	{
 	case ESaveableStatus::Success: return TEXT("is saveable");
 	case ESaveableStatus::PendingKill: return TEXT("is pendingkill");
 	case ESaveableStatus::TransientFlag: return TEXT("is transient");
 	case ESaveableStatus::TransientOverride: return TEXT("is Overriden as transient");
-	case ESaveableStatus::MarkedUnsaveable: return TEXT("has been marked unsaveable");
 	case ESaveableStatus::AbstractClass: return TEXT("has a Class with CLASS_Abstract");
 	case ESaveableStatus::DeprecatedClass: return TEXT("has a Class with CLASS_Deprecated");
 	case ESaveableStatus::NewerVersionExistsClass: return TEXT("has a Class with CLASS_NewerVersionExists");

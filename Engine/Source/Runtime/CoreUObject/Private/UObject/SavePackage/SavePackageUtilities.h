@@ -376,9 +376,20 @@ enum class EEditorOnlyObjectFlags
 };
 ENUM_CLASS_FLAGS(EEditorOnlyObjectFlags);
 
-/** Returns result of IsEditorOnlyObjectInternal if Engine:[Core.System]:CanStripEditorOnlyExportsAndImports (ini) is set to true */
-bool IsStrippedEditorOnlyObject(const UObject* InObject, EEditorOnlyObjectFlags Flags);
+enum class EEditorOnlyObjectResult
+{
+	Uninitialized,
+	EditorOnly,
+	NonEditorOnly,
+};
+#if WITH_EDITORONLY_DATA
+bool CanStripEditorOnlyImportsAndExports();
+#endif
 
+/** Returns result of IsEditorOnlyObjectInternal if Engine:[Core.System]:CanStripEditorOnlyExportsAndImports (ini) is set to true */
+bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags Flags,
+	TFunctionRef<EEditorOnlyObjectResult(const UObject*)> LookupInCache,
+	TFunctionRef<void(const UObject*, bool)> AddToCache);
 bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags Flags);
 
 }

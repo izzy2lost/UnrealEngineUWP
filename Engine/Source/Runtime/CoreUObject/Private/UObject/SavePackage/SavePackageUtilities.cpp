@@ -612,10 +612,10 @@ void GetCDOSubobjects(UObject* CDO, TArray<UObject*>& Subobjects)
 		}
 	}
 }
-	
-bool IsStrippedEditorOnlyObject(const UObject* InObject, EEditorOnlyObjectFlags Flags)
+
+#if WITH_EDITORONLY_DATA
+bool CanStripEditorOnlyImportsAndExports()
 {
-#if WITH_EDITOR
 	// Configurable via ini setting
 	static struct FCanStripEditorOnlyExportsAndImports
 	{
@@ -626,17 +626,10 @@ bool IsStrippedEditorOnlyObject(const UObject* InObject, EEditorOnlyObjectFlags 
 			GConfig->GetBool(TEXT("Core.System"), TEXT("CanStripEditorOnlyExportsAndImports"), bCanStripEditorOnlyObjects, GEngineIni);
 		}
 		FORCEINLINE operator bool() const { return bCanStripEditorOnlyObjects; }
-	} CanStripEditorOnlyExportsAndImports;
-	if (!CanStripEditorOnlyExportsAndImports)
-	{
-		return false;
-	}
-	
-	return IsEditorOnlyObjectInternal(InObject, Flags);
-#else
-	return true;
-#endif
+	} CanStripEditorOnlyExportsAndImportsData;
+	return CanStripEditorOnlyExportsAndImportsData;
 }
+#endif
 
 bool IsUpdatingLoadedPath(bool bIsCooking, const FPackagePath& TargetPackagePath, uint32 SaveFlags)
 {
@@ -851,8 +844,12 @@ bool IsEditorOnlyObject(const UObject* InObject, bool bCheckRecursive, bool bChe
 namespace UE::SavePackageUtilities
 {
 
-bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags Flags)
+bool IsEditorOnlyObjectWithoutWritingCache(const UObject* InObject, EEditorOnlyObjectFlags Flags,
+	TFunctionRef<EEditorOnlyObjectResult(const UObject*)> LookupInCache,
+	TFunctionRef<void(const UObject*, bool)> AddToCache)
 {
+	check(InObject);
+
 	bool bCheckRecursive = EnumHasAnyFlags(Flags, EEditorOnlyObjectFlags::CheckRecursive);
 	bool bIgnoreEditorOnlyClass = EnumHasAnyFlags(Flags, EEditorOnlyObjectFlags::ApplyHasNonEditorOnlyReferences) &&
 		InObject->HasNonEditorOnlyReferences();
@@ -861,7 +858,6 @@ bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags 
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 
 	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("IsEditorOnlyObject"), STAT_IsEditorOnlyObject, STATGROUP_LoadTime);
-	check(InObject);
 
 	// CDOs must be included if their class and archetype and outer are included.
 	// Ignore their value of IsEditorOnly
@@ -882,7 +878,8 @@ bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags 
 	{
 		if (InObject->HasAnyFlags(RF_ClassDefaultObject))
 		{
-			// The default package is not editor-only, and it is part of a cycle that would cause infinite recursion: DefaultPackage -> GetOuter() -> Package:/Script/CoreUObject -> GetArchetype() -> DefaultPackage
+			// The default package is not editor-only, and it is part of a cycle that would cause infinite recursion:
+			// DefaultPackage -> GetOuter() -> Package:/Script/CoreUObject -> GetArchetype() -> DefaultPackage
 			return false;
 		}
 		Package = static_cast<const UPackage*>(InObject);
@@ -907,7 +904,7 @@ bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags 
 		UObject* Outer = InObject->GetOuter();
 		if (Outer && Outer != Package)
 		{
-			if (IsEditorOnlyObjectInternal(Outer, Flags))
+			if (IsEditorOnlyObjectInternal(Outer, Flags, LookupInCache, AddToCache))
 			{
 				return true;
 			}
@@ -918,20 +915,20 @@ bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags 
 			if (InStruct)
 			{
 				const UStruct* SuperStruct = InStruct->GetSuperStruct();
-				if (SuperStruct && IsEditorOnlyObjectInternal(SuperStruct, Flags))
+				if (SuperStruct && IsEditorOnlyObjectInternal(SuperStruct, Flags, LookupInCache, AddToCache))
 				{
 					return true;
 				}
 			}
 			else
 			{
-				if (IsEditorOnlyObjectInternal(InObject->GetClass(), Flags))
+				if (IsEditorOnlyObjectInternal(InObject->GetClass(), Flags, LookupInCache, AddToCache))
 				{
 					return true;
 				}
 
 				UObject* Archetype = InObject->GetArchetype();
-				if (Archetype && IsEditorOnlyObjectInternal(Archetype, Flags))
+				if (Archetype && IsEditorOnlyObjectInternal(Archetype, Flags, LookupInCache, AddToCache))
 				{
 					return true;
 				}
@@ -939,6 +936,33 @@ bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags 
 		}
 	}
 	return false;
+}
+
+bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags Flags)
+{
+	return IsEditorOnlyObjectInternal(InObject, Flags,
+		[](const UObject* Object)
+		{
+			return EEditorOnlyObjectResult::Uninitialized;
+		},
+		[](const UObject* Object, bool bEditorOnly)
+		{
+		});
+}
+
+bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags Flags,
+	TFunctionRef<EEditorOnlyObjectResult(const UObject*)> LookupInCache,
+	TFunctionRef<void(const UObject*, bool)> AddToCache)
+{
+	EEditorOnlyObjectResult Result = LookupInCache(InObject);
+	if (Result != EEditorOnlyObjectResult::Uninitialized)
+	{
+		return Result == EEditorOnlyObjectResult::EditorOnly;
+	}
+
+	bool bResult = IsEditorOnlyObjectWithoutWritingCache(InObject, Flags, LookupInCache, AddToCache);
+	AddToCache(InObject, bResult);
+	return bResult;
 }
 
 } // namespace UE::SavePackageUtilities

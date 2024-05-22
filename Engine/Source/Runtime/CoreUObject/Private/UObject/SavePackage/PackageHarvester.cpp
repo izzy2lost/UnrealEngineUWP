@@ -11,7 +11,7 @@
 #include "UObject/UObjectGlobals.h"
 #include "UObject/UObjectHash.h"
 
-EObjectMark GenerateMarksForObject(const UObject* InObject, const ITargetPlatform* TargetPlatform)
+EObjectMark GenerateMarksForObject(const UObject* InObject, FSaveContext& SaveContext)
 {
 	using namespace UE::SavePackageUtilities;
 
@@ -33,6 +33,7 @@ EObjectMark GenerateMarksForObject(const UObject* InObject, const ITargetPlatfor
 		Marks = (EObjectMark)(Marks | OBJECTMARK_NotForServer);
 	}
 #if WITH_ENGINE
+	const ITargetPlatform* TargetPlatform = SaveContext.GetTargetPlatform();
 	bool bCheckTargetPlatform = false;
 	if (TargetPlatform != nullptr)
 	{
@@ -50,15 +51,22 @@ EObjectMark GenerateMarksForObject(const UObject* InObject, const ITargetPlatfor
 	}
 #endif
 	
-	// If doing an editor save, HasNonEditorOnlyReferences=true overrides NotForClient, NotForServer, and virtual IsEditorOnly and marks it as UsedInGame
-	bool bApplyHasNonEditorOnlyReferences = TargetPlatform == nullptr;
-	if (IsStrippedEditorOnlyObject(InObject,
-		EEditorOnlyObjectFlags::CheckRecursive |
-		(bApplyHasNonEditorOnlyReferences ? EEditorOnlyObjectFlags::ApplyHasNonEditorOnlyReferences : EEditorOnlyObjectFlags::None)))
+	EEditorOnlyObjectFlags EditorOnlyObjectFlags = SaveContext.GetEditorOnlyObjectFlags();
+	bool bApplyHasNonEditorOnlyReferences = EnumHasAnyFlags(EditorOnlyObjectFlags,
+		EEditorOnlyObjectFlags::ApplyHasNonEditorOnlyReferences);
+#if WITH_EDITORONLY_DATA
+	bool bIsEditorOnlyObject = UE::SavePackageUtilities::IsEditorOnlyObjectInternal(InObject,
+		EditorOnlyObjectFlags,
+		SaveContext.GetFunctorReadCachedEditorOnlyObject(),
+		SaveContext.GetFunctorWriteCachedEditorOnlyObject());
+	bool bStrippableEditorOnlyObject = bIsEditorOnlyObject
+		&& UE::SavePackageUtilities::CanStripEditorOnlyImportsAndExports();
+	if (bStrippableEditorOnlyObject)
 	{
 		Marks = (EObjectMark)(Marks | OBJECTMARK_EditorOnly);
 	}
 	else
+#endif
 	// If NotForClient and NotForServer, it is implicitly editor only
 	if ((Marks & OBJECTMARK_NotForClient) && (Marks & OBJECTMARK_NotForServer) &&
 		(!bApplyHasNonEditorOnlyReferences || !InObject->HasNonEditorOnlyReferences()))
@@ -92,7 +100,7 @@ bool ConditionallyExcludeObjectForRealm(FSaveContext& SaveContext, TObjectPtr<UO
 
 	const EObjectMark ExcludedObjectMarks = SaveContext.GetExcludedObjectMarks(HarvestingContext);
 	const ITargetPlatform* TargetPlatform = SaveContext.GetTargetPlatform();
-	EObjectMark ObjectMarks = GenerateMarksForObject(Obj, TargetPlatform);
+	EObjectMark ObjectMarks = GenerateMarksForObject(Obj, SaveContext);
 	if (!!(ObjectMarks & ExcludedObjectMarks))
 	{
 		RealmBeingChecked.AddExcluded(Obj);
@@ -100,7 +108,8 @@ bool ConditionallyExcludeObjectForRealm(FSaveContext& SaveContext, TObjectPtr<UO
 	}
 
 	// If the object class is excluded, the object must be excluded too
-	bool bApplyHasNonEditorOnlyReferences = TargetPlatform == nullptr;
+	bool bApplyHasNonEditorOnlyReferences = EnumHasAnyFlags(SaveContext.GetEditorOnlyObjectFlags(),
+		UE::SavePackageUtilities::EEditorOnlyObjectFlags::ApplyHasNonEditorOnlyReferences);
 	bool bIgnoreEditorOnlyClass = bApplyHasNonEditorOnlyReferences && Obj->HasNonEditorOnlyReferences();
 	if (!bIgnoreEditorOnlyClass && ConditionallyExcludeObjectForRealm(SaveContext, Obj->GetClass(), HarvestingContext))
 	{
@@ -415,6 +424,10 @@ FPackageHarvester::FPackageHarvester(FSaveContext& InContext)
 	this->SetUseUnversionedPropertySerialization(SaveContext.IsSaveUnversionedProperties());
 
 	ResolveOverrides();
+	// Clear the SaveContext's Saveable cache. It was used earlier during RoutePreSave, and the PreSave functions
+	// may have modified RF_Transient or other flags on UObjects and therefore invalidated the cached result. It
+	// can also be invalidated by SaveOverrides with bForceTransient.
+	SaveContext.ClearSaveableCache();
 }
 
 FPackageHarvester::FExportWithContext FPackageHarvester::PopExportToProcess()
@@ -599,10 +612,14 @@ void FPackageHarvester::TryHarvestExportInternal(UObject* InObject)
 
 #if WITH_EDITORONLY_DATA
 	// Remove the Game realm if the object is editoronly and does not override it with HasNonEditorOnlyReferences
-	bool bIsEditorOnlyObject = UE::SavePackageUtilities::IsStrippedEditorOnlyObject(InObject,
-		UE::SavePackageUtilities::EEditorOnlyObjectFlags::CheckRecursive)
-		&& !InObject->HasNonEditorOnlyReferences();
-	FHarvestScope EditorOnlyScope = EnterConditionalEditorOnlyScope(bIsEditorOnlyObject);
+	bool bIsEditorOnlyObject = UE::SavePackageUtilities::IsEditorOnlyObjectInternal(InObject,
+		SaveContext.GetEditorOnlyObjectFlags(),
+		SaveContext.GetFunctorReadCachedEditorOnlyObject(),
+		SaveContext.GetFunctorWriteCachedEditorOnlyObject());
+	bool bStrippableEditorOnlyObject = bIsEditorOnlyObject
+		&& !InObject->HasNonEditorOnlyReferences()
+		&& UE::SavePackageUtilities::CanStripEditorOnlyImportsAndExports();
+	FHarvestScope EditorOnlyScope = EnterConditionalEditorOnlyScope(bStrippableEditorOnlyObject);
 #endif
 
 	// Remove realms for which we have already harvested the export
@@ -613,8 +630,8 @@ void FPackageHarvester::TryHarvestExportInternal(UObject* InObject)
 	}
 
 	// Check whether the object is unsaveable and skip adding it as an export to any realm if so
-	SaveContext.MarkUnsaveable(InObject);
-	if (SaveContext.IsTransient(InObject))
+	SaveContext.GetCachedObjectStatus(InObject).bAttemptedExport = true;
+	if (SaveContext.IsUnsaveable(InObject))
 	{
 		return;
 	}
@@ -975,9 +992,9 @@ void FPackageHarvester::ResolveOverrides()
 		{
 			TransientPropertyOverrides.Add(PairObjectOverrides.Key, MoveTemp(Props));
 		}
-		if (!SaveContext.IsTransient(PairObjectOverrides.Key) && PairObjectOverrides.Value.bForceTransient)
+		if (!PairObjectOverrides.Key->HasAnyFlags(RF_Transient) && PairObjectOverrides.Value.bForceTransient)
 		{
-			SaveContext.TransientAssignments.Add(PairObjectOverrides.Key, EMarkedTransientReason::TransientOverride);
+			SaveContext.GetCachedObjectStatus(PairObjectOverrides.Key).bSaveOverrideForcedTransient = true;
 		}
 	}
 }
@@ -1124,27 +1141,28 @@ ESaveableStatus FPackageHarvester::GetSaveableStatusForRealm(UObject* Obj, ESave
 		return ESaveableStatus::Success;
 	}
 
-	ESaveableStatus CulpritStatus;
-	ESaveableStatus Status = SaveContext.GetSaveableStatus(Obj, &OutCulprit, &CulpritStatus, EIgnoreMarkUnsaveable::Yes);
-	if (Status != ESaveableStatus::Success)
+	UE::SavePackageUtilities::FObjectStatus& ObjectStatus = SaveContext.UpdateSaveableStatus(Obj);
+	if (ObjectStatus.SaveableStatus != ESaveableStatus::Success)
 	{
-		if (Status == ESaveableStatus::OuterUnsaveable)
+		if (ObjectStatus.SaveableStatus == ESaveableStatus::OuterUnsaveable)
 		{
-			check(OutCulprit);
-			OutReason = FString::Printf(TEXT("has outer %s which %s"), *OutCulprit->GetPathName(),
-				LexToString(CulpritStatus));
+			check(ObjectStatus.SaveableStatusCulprit != nullptr &&
+				ObjectStatus.SaveableStatusCulpritStatus != ESaveableStatus::Success);
+			OutCulprit = ObjectStatus.SaveableStatusCulprit;
+			OutReason = FString::Printf(TEXT("has outer %s which %s"), *OutCulprit.GetPathName(),
+				LexToString(ObjectStatus.SaveableStatusCulpritStatus));
 		}
 		else
 		{
 			OutCulprit = Obj;
-			OutReason = LexToString(Status);
+			OutReason = LexToString(ObjectStatus.SaveableStatus);
 		}
-		return Status;
+		return ObjectStatus.SaveableStatus;
 	}
 
 	const EObjectMark ExcludedObjectMarks = SaveContext.GetExcludedObjectMarks(RealmInWhichItIsUnsaveable);
 	const ITargetPlatform* TargetPlatform = SaveContext.GetTargetPlatform();
-	EObjectMark ObjectMarks = GenerateMarksForObject(Obj, TargetPlatform);
+	EObjectMark ObjectMarks = GenerateMarksForObject(Obj, SaveContext);
 	if (!!(ObjectMarks & ExcludedObjectMarks))
 	{
 		OutCulprit = Obj;

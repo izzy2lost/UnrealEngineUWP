@@ -109,7 +109,6 @@ enum class ESaveableStatus
 	PendingKill,
 	TransientFlag,
 	TransientOverride,
-	MarkedUnsaveable,
 	AbstractClass,
 	DeprecatedClass,
 	NewerVersionExistsClass,
@@ -119,19 +118,44 @@ enum class ESaveableStatus
 	__Count,
 };
 
-enum class EIgnoreMarkUnsaveable
+namespace UE::SavePackageUtilities
 {
-	No = 0,
-	Yes,
+
+/** Calculated flags about saveable status and other state for UObjects encountered during save. */
+struct FObjectStatus
+{
+	FObjectStatus()
+		: bSaveOverrideForcedTransient(false)
+		, bSaveableStatusValid(false), bEditorOnlyValid(false), bEditorOnly(false), bAttemptedExport(false)
+	{
+	}
+	FObjectStatus(const FObjectStatus&) = default;
+	FObjectStatus(FObjectStatus&&) = default;
+	FObjectStatus& operator=(const FObjectStatus&) = default;
+	FObjectStatus& operator=(FObjectStatus&&) = default;
+	bool HasTransientFlag(const UObject* InObject)
+	{
+		check(InObject);
+		return InObject->HasAnyFlags(RF_Transient);
+	}
+	void ClearSaveableStatus()
+	{
+		SaveableStatus = ESaveableStatus::Success;
+		bSaveableStatusValid = false;
+		SaveableStatusCulprit = nullptr;
+	}
+
+	UObject* SaveableStatusCulprit = nullptr;
+	ESaveableStatus SaveableStatus = ESaveableStatus::Success;
+	ESaveableStatus SaveableStatusCulpritStatus = ESaveableStatus::Success;
+	bool bSaveOverrideForcedTransient : 1;
+	bool bSaveableStatusValid : 1;
+	bool bEditorOnlyValid : 1;
+	bool bEditorOnly : 1;
+	bool bAttemptedExport : 1;
 };
 
-enum class EMarkedTransientReason
-{
-	Uninitialized = 0,
-	Unsaveable,
-	TransientOverride,
-};
-
+}
 /** Hold the harvested exports and imports for a realm */
 struct FHarvestedRealm
 {
@@ -793,13 +817,13 @@ public:
 	/** Returns which save context should be saved. */
 	TArray<ESaveRealm> GetHarvestedRealmsToSave();
 
-	void MarkUnsaveable(UObject* InObject);
-
-	bool IsUnsaveable(TObjectPtr<UObject> InObject, bool bEmitWarning = true) const;
-	ESaveableStatus GetSaveableStatus(TObjectPtr<UObject> InObject, TObjectPtr<UObject>* OutCulprit = nullptr, ESaveableStatus* OutCulpritStatus = nullptr, EIgnoreMarkUnsaveable IgnoreMarkUnsaveable = EIgnoreMarkUnsaveable::No) const;
-	ESaveableStatus GetSaveableStatusNoOuter(TObjectPtr<UObject> InObject, EIgnoreMarkUnsaveable IgnoreMarkUnsaveable = EIgnoreMarkUnsaveable::No) const;
-
-	bool IsTransient(TObjectPtr<UObject> InObject, EIgnoreMarkUnsaveable IgnoreMarkUnsaveable = EIgnoreMarkUnsaveable::No) const;
+	bool IsTransient(TObjectPtr<UObject> InObject);
+	bool IsUnsaveable(TObjectPtr<UObject> InObject, bool bEmitWarning = true);
+	UE::SavePackageUtilities::FObjectStatus& UpdateSaveableStatus(TObjectPtr<UObject> InObject);
+	UE::SavePackageUtilities::FObjectStatus& GetCachedObjectStatus(TObjectPtr<UObject> InObject)
+	{
+		return ObjectStatusCache.FindOrAdd(InObject);
+	}
 
 	void RecordIllegalReference(UObject* InFrom, UObject* InTo, EIllegalRefReason InReason, FString&& InOptionalReasonText = FString())
 	{
@@ -1113,6 +1137,37 @@ public:
 		TransientPropertyOverrides = MoveTemp(InTransientPropertyOverrides);
 	}
 
+	void ClearSaveableCache()
+	{
+		for (TPair<TObjectPtr<UObject>, UE::SavePackageUtilities::FObjectStatus>& Pair : ObjectStatusCache)
+		{
+			Pair.Value.ClearSaveableStatus();
+		}
+	}
+
+	auto GetFunctorReadCachedEditorOnlyObject()
+	{
+		using namespace UE::SavePackageUtilities;
+		return [this](const UObject* Obj)
+			{
+				FObjectStatus& Status = ObjectStatusCache.FindOrAdd(const_cast<UObject*>(Obj));
+				return !Status.bEditorOnlyValid ? EEditorOnlyObjectResult::Uninitialized :
+					Status.bEditorOnly ? EEditorOnlyObjectResult::EditorOnly :
+					EEditorOnlyObjectResult::NonEditorOnly;
+			};
+	}
+	auto GetFunctorWriteCachedEditorOnlyObject()
+	{
+		using namespace UE::SavePackageUtilities;
+		return [this](const UObject* Obj, bool bEditorOnly)
+			{
+				FObjectStatus& Status = ObjectStatusCache.FindOrAdd(const_cast<UObject*>(Obj));
+				Status.bEditorOnlyValid = true;
+				Status.bEditorOnly = bEditorOnly;
+			};
+	}
+	UE::SavePackageUtilities::EEditorOnlyObjectFlags GetEditorOnlyObjectFlags() const;
+
 public:
 	ESavePackageResult Result;
 
@@ -1132,6 +1187,8 @@ private:
 
 	// Create the harvesting contexts and automatic optional context gathering options
 	void SetupHarvestingRealms();
+	ESaveableStatus GetSaveableStatusNoOuter(TObjectPtr<UObject> Obj,
+		UE::SavePackageUtilities::FObjectStatus& ObjectStatus) const;
 	static EObjectMark GetExcludedObjectMarksForGameRealm(const ITargetPlatform* TargetPlatform);
 		
 	friend class FPackageHarvester;
@@ -1190,8 +1247,8 @@ private:
 	// Overridden properties for each export that should be treated as transient, and nulled out when serializing
 	TMap<UObject*, TSet<FProperty*>> TransientPropertyOverrides;
 
-	// Overridden objects that should be treated as transient, and skipped when serializing
-	TMap<UObject*, EMarkedTransientReason> TransientAssignments;
+	// Cache of FObjectStatus for every object encountered during the save
+	TMap<TObjectPtr<UObject>, UE::SavePackageUtilities::FObjectStatus> ObjectStatusCache;
 };
 
 const TCHAR* LexToString(ESaveableStatus Status);
