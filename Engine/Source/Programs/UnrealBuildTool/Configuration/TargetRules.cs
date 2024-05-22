@@ -812,6 +812,11 @@ namespace UnrealBuildTool
 		public string SolutionDirectory { get; set; } = String.Empty;
 
 		/// <summary>
+		/// Force a Target to be treated as a Program for the purposes of project file generation.
+		/// </summary>
+		public bool bGenerateProgramProject { get; set; }
+
+		/// <summary>
 		/// Whether the target should be included in the default solution build configuration
 		/// Setting this to false will skip building when running in the IDE
 		/// </summary>

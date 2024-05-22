@@ -2811,7 +2811,7 @@ namespace UnrealBuildTool
 
 					DirectoryReference? GameFolder = null;
 					string ProjectFileNameBase;
-					if (TargetRulesObject.Type == TargetType.Program)
+					if (TargetRulesObject.Type == TargetType.Program || TargetRulesObject.bGenerateProgramProject)
 					{
 						if (!ForceProgramInProject && !bIncludeEnginePrograms && IsEngineTarget)
 						{
