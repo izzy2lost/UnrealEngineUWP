@@ -1230,10 +1230,10 @@ FPCGGenSourceManager* UPCGSubsystem::GetGenSourceManager() const
 	return RuntimeGenScheduler ? RuntimeGenScheduler->GenSourceManager : nullptr;
 }
 
-bool UPCGSubsystem::GetOutputData(FPCGTaskId TaskId, FPCGDataCollection& OutData)
+bool UPCGSubsystem::GetOutputData(FPCGTaskId TaskId, FPCGDataCollection& OutData, bool bClearDataOnGet)
 {
 	check(GraphExecutor);
-	return GraphExecutor->GetOutputData(TaskId, OutData);
+	return GraphExecutor->GetOutputData(TaskId, OutData, bClearDataOnGet);
 }
 
 #if WITH_EDITOR

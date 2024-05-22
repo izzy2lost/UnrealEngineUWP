@@ -38,6 +38,9 @@ public:
 	/** Flush all cached compiled graphs. */
 	void ClearCache();
 
+	/** Returns the post graph element, which is used to determine results caching behavior */
+	FPCGElementPtr GetSharedTrivialPostGraphElement();
+
 private:
 	TArray<FPCGGraphTask> CompileGraph(UPCGGraph* InGraph, FPCGTaskId& NextId, FPCGStackContext& InOutStackContext);
 
@@ -94,6 +97,7 @@ private:
 	TMap<UPCGGraph*, TMap<uint32, FPCGStackContext>> TopGraphToStackContextMap;
 
 	FPCGElementPtr SharedTrivialElement;
+	FPCGElementPtr SharedTrivialPostGraphElement;
 	mutable FRWLock SharedTrivialElementLock;
 
 #if WITH_EDITOR

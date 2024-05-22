@@ -283,7 +283,7 @@ bool FPCGCollapseSubgraphCombinationOfCollapses::RunTest(const FString& Paramete
 		const FPCGTaskId FinalTaskId = GraphExecutor.ScheduleGeneric([&OutputPoints, &GraphExecutor, TaskId, &bDone]() -> bool
 		{
 			FPCGDataCollection OutputData{};
-			GraphExecutor.GetOutputData(TaskId, OutputData);
+			GraphExecutor.GetOutputData(TaskId, OutputData, /*bClearDataOnGet=*/false);
 
 			if (OutputData.TaggedData.Num() == 1)
 			{

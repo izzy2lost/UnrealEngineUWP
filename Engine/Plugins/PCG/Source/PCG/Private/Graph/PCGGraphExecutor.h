@@ -184,7 +184,7 @@ public:
 	FPCGTaskId ScheduleGenericWithContext(TFunction<bool(FPCGContext*)> InOperation, TFunction<void(FPCGContext*)> InAbortOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies, const TArray<FPCGTaskId>& TaskDataDependencies);
 
 	/** Gets data in the output results. Returns false if data is not ready. */
-	bool GetOutputData(FPCGTaskId InTaskId, FPCGDataCollection& OutData);
+	bool GetOutputData(FPCGTaskId InTaskId, FPCGDataCollection& OutData, bool bClearDataOnGet);
 
 	/** Accessor so PCG tools (e.g. profiler) can easily decode graph task ids **/
 	FPCGGraphCompiler& GetCompiler() { return GraphCompiler; }
@@ -225,8 +225,9 @@ private:
 	void BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollection& TaskInput);
 	/** Combine all param data into one on the Params pin, if any.*/
 	void CombineParams(FPCGTaskId InTaskId, FPCGDataCollection& InTaskInput);
-	void StoreResults(FPCGTaskId InTaskId, const FPCGDataCollection& InTaskOutput);
+	void StoreResults(FPCGTaskId InTaskId, const FPCGDataCollection& InTaskOutput, bool bNeedsManualClear);
 	void ClearResults();
+	void MarkInputResults(TArrayView<const FPCGTaskId> InInputResults);
 
 	/** If the completed task has one or more deactivated pins, delete any downstream tasks that are inactive as a result. */
 	void CullInactiveDownstreamNodes(FPCGTaskId CompletedTaskId, uint64 InInactiveOutputPinBitmask);
@@ -269,7 +270,17 @@ private:
 	TMap<FPCGTaskId, TSet<FPCGTaskId>> TaskSuccessors;
 	/** Map of node instances to their output, could be cleared once execution is done */
 	/** Note: this should at some point unload based on loaded/unloaded proxies, otherwise memory cost will be unbounded */
-	TMap<FPCGTaskId, FPCGDataCollection> OutputData;
+	struct FOutputDataInfo
+	{
+		FPCGDataCollection DataCollection;
+		// Controls whether the results will be expunged from the OutputData as soon as the successor count reaches 0 or not.
+		bool bNeedsManualClear = false;
+		// Successor count, updated after a successor is done executing (MarkInputResults).
+		int32 RemainingSuccessorCount = 0;
+	};
+
+	TMap<FPCGTaskId, FOutputDataInfo> OutputData;
+
 	/** Monotonically increasing id. Should be reset once all tasks are executed, should be protected by the ScheduleLock */
 	FPCGTaskId NextTaskId = 0;
 
@@ -280,8 +291,6 @@ private:
 	TWeakPtr<IPCGEditorProgressNotification> GenerationProgressNotification;
 	double GenerationProgressNotificationStartTime = 0.0;
 	int32 GenerationProgressLastTaskNum = 0;
-
-	int32 TidyCacheCountUntilGC = 100;
 #endif
 
 	TObjectPtr<UWorld> World = nullptr;

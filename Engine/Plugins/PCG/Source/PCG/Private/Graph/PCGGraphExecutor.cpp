@@ -587,12 +587,31 @@ FPCGTaskId FPCGGraphExecutor::ScheduleGenericWithContext(TFunction<bool(FPCGCont
 	return Task.NodeId;
 }
 
-bool FPCGGraphExecutor::GetOutputData(FPCGTaskId TaskId, FPCGDataCollection& OutData)
+void FPCGGraphExecutor::MarkInputResults(TArrayView<const FPCGTaskId> InInputResults)
+{
+	for (FPCGTaskId TaskId : InInputResults)
+	{
+		FOutputDataInfo& OutputDataInfo = OutputData[TaskId];
+		if (!OutputDataInfo.bNeedsManualClear && --OutputDataInfo.RemainingSuccessorCount == 0)
+		{
+			OutputData.Remove(TaskId);
+		}
+	}
+}
+
+bool FPCGGraphExecutor::GetOutputData(FPCGTaskId TaskId, FPCGDataCollection& OutData, bool bClearDataOnGet)
 {
 	// TODO: this is not threadsafe - make threadsafe once we multithread execution
 	if (OutputData.Contains(TaskId))
 	{
-		OutData = OutputData[TaskId];
+		FOutputDataInfo& OutputDataInfo = OutputData[TaskId];
+		OutData = OutputDataInfo.DataCollection;
+
+		if (bClearDataOnGet && ensure(OutputDataInfo.bNeedsManualClear))
+		{
+			OutputData.Remove(TaskId);
+		}
+
 		return true;
 	}
 	else
@@ -854,9 +873,12 @@ void FPCGGraphExecutor::Execute()
 #endif
 						}
 
+						// If the task is a post execute, then we can safely clear the data after getting it from the results.
+						const bool bTaskIsPostExecute = (Task.Element == GraphCompiler.GetSharedTrivialPostGraphElement());
+
 						// Fast-forward cached result to stored results
 						FPCGTaskId SkippedTaskId = Task.NodeId;
-						StoreResults(SkippedTaskId, CachedOutput);
+						StoreResults(SkippedTaskId, CachedOutput, bTaskIsPostExecute);
 						delete Task.Context;
 						ReadyTasks.RemoveAtSwap(ReadyTaskIndex);
 						QueueNextTasks(SkippedTaskId);
@@ -1029,9 +1051,12 @@ void FPCGGraphExecutor::Execute()
 			}
 #endif
 
+			// If the task is a post execute, then we can safely clear the data after getting it from the results.
+			const bool bTaskIsPostExecute = (ActiveTask.Element == GraphCompiler.GetSharedTrivialPostGraphElement());
+
 			// Store output in data map.
 			// TODO - investigate if we should avoid doing this if the task was cancelled.
-			StoreResults(ActiveTask.NodeId, ActiveTask.Context->OutputData);
+			StoreResults(ActiveTask.NodeId, ActiveTask.Context->OutputData, bTaskIsPostExecute);
 
 			// Book-keeping
 			QueueNextTasks(ActiveTask.NodeId);
@@ -1145,19 +1170,10 @@ void FPCGGraphExecutor::Execute()
 		}
 
 		// Purge things from cache if memory usage is too high
-		const bool bSomethingTidied = GraphCache.EnforceMemoryBudget();
-
-#if WITH_EDITOR
-		if (bSomethingTidied && !PCGHelpers::IsRuntimeOrPIE())
+		if (GraphCache.EnforceMemoryBudget())
 		{
-			--TidyCacheCountUntilGC;
-			if (TidyCacheCountUntilGC <= 0)
-			{
-				TidyCacheCountUntilGC = 100;
-				CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS, true);
-			}
+			CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS, true);
 		}
-#endif
 	}
 }
 
@@ -1312,10 +1328,12 @@ void FPCGGraphExecutor::BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollec
 	// Hoisted out of loop for performance reasons.
 	TArray<FPCGTaggedData, TInlineAllocator<16>> InputDataOnPin;
 	TArray<FPCGCrc, TInlineAllocator<16>> InputDataCrcsOnPin;
+	TArray<FPCGTaskId, TInlineAllocator<16>> ResultsToMarkAsRead;
 
 	for (const FPCGGraphTaskInput& Input : Task.Inputs)
 	{
 		check(OutputData.Contains(Input.TaskId));
+		ResultsToMarkAsRead.AddUnique(Input.TaskId);
 
 		// If the input does not provide any data, don't add it to the task input.
 		if (!Input.bProvideData)
@@ -1333,7 +1351,7 @@ void FPCGGraphExecutor::BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollec
 			continue;
 		}
 
-		const FPCGDataCollection& InputCollection = OutputData[Input.TaskId];
+		const FPCGDataCollection& InputCollection = OutputData[Input.TaskId].DataCollection;
 
 		TaskInput.bCancelExecution |= InputCollection.bCancelExecution;
 
@@ -1387,6 +1405,9 @@ void FPCGGraphExecutor::BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollec
 
 	// Then combine params if needed
 	CombineParams(Task.NodeId, TaskInput);
+
+	// Finally, mark inputs we read from so we can release them if we were the last remaining consumer.
+	MarkInputResults(ResultsToMarkAsRead);
 }
 
 void FPCGGraphExecutor::CombineParams(FPCGTaskId InTaskId, FPCGDataCollection& InTaskInput)
@@ -1440,12 +1461,20 @@ void FPCGGraphExecutor::CombineParams(FPCGTaskId InTaskId, FPCGDataCollection& I
 	}
 }
 
-void FPCGGraphExecutor::StoreResults(FPCGTaskId InTaskId, const FPCGDataCollection& InTaskOutput)
+void FPCGGraphExecutor::StoreResults(FPCGTaskId InTaskId, const FPCGDataCollection& InTaskOutput, bool bNeedsManualClear)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphExecutor::StoreResults);
 
+	FOutputDataInfo OutputDataInfo;
+	OutputDataInfo.DataCollection = InTaskOutput;
+	OutputDataInfo.bNeedsManualClear = bNeedsManualClear;
+	if (TSet<FPCGTaskId>* Successors = TaskSuccessors.Find(InTaskId))
+	{
+		OutputDataInfo.RemainingSuccessorCount = Successors->Num();
+	}
+
 	// Store output in map
-	OutputData.Add(InTaskId, InTaskOutput);
+	OutputData.Add(InTaskId, MoveTemp(OutputDataInfo));
 }
 
 void FPCGGraphExecutor::ClearResults()
@@ -1615,7 +1644,7 @@ void FPCGGraphExecutor::AddReferencedObjects(FReferenceCollector& Collector)
 	// Go through all data in the cached output map
 	for (auto& OutputDataEntry : OutputData)
 	{
-		OutputDataEntry.Value.AddReferences(Collector);
+		OutputDataEntry.Value.DataCollection.AddReferences(Collector);
 	}
 
 	// Go through ready tasks, active tasks and sleeping tasks contexts
@@ -1681,7 +1710,7 @@ FPCGTaskId FPCGGraphExecutor::ScheduleDebugWithTaskCallback(UPCGComponent* InCom
 		FPCGTaskId CaptureTaskId = ScheduleGeneric([this, TaskCompleteCallback, CompiledTask]
 		{
 			FPCGDataCollection TaskOutputData;
-			if (CompiledTask.Node && GetOutputData(CompiledTask.NodeId, TaskOutputData))
+			if (CompiledTask.Node && GetOutputData(CompiledTask.NodeId, TaskOutputData, /*bClearDataOnGet=*/false))
 			{
 				TaskCompleteCallback(CompiledTask.NodeId, CompiledTask.Node, TaskOutputData);
 			}

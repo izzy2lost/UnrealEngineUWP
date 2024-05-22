@@ -9,6 +9,11 @@
 #include "HAL/IConsoleManager.h"
 #include "Misc/ScopeRWLock.h"
 
+static TAutoConsoleVariable<bool> CVarCacheEnabled(
+	TEXT("pcg.Cache.Enabled"),
+	true,
+	TEXT("Enables the cache system."));
+
 static TAutoConsoleVariable<bool> CVarCacheDebugging(
 	TEXT("pcg.Cache.EnableDebugging"),
 	false,
@@ -39,6 +44,11 @@ FPCGGraphCache::~FPCGGraphCache()
 
 bool FPCGGraphCache::GetFromCache(const UPCGNode* InNode, const IPCGElement* InElement, const FPCGCrc& InDependenciesCrc, const UPCGComponent* InComponent, FPCGDataCollection& OutOutput) const
 {
+	if (!CVarCacheEnabled.GetValueOnAnyThread())
+	{
+		return false;
+	}
+
 	if(!InDependenciesCrc.IsValid())
 	{
 		UE_LOG(LogPCG, Warning, TEXT("Invalid dependencies passed to FPCGGraphCache::GetFromCache(), lookup aborted."));
@@ -78,6 +88,11 @@ bool FPCGGraphCache::GetFromCache(const UPCGNode* InNode, const IPCGElement* InE
 
 void FPCGGraphCache::StoreInCache(const IPCGElement* InElement, const FPCGCrc& InDependenciesCrc, const FPCGDataCollection& InOutput)
 {
+	if (!CVarCacheEnabled.GetValueOnAnyThread())
+	{
+		return;
+	}
+
 	if (!ensure(InDependenciesCrc.IsValid()))
 	{
 		return;
@@ -113,6 +128,10 @@ void FPCGGraphCache::ClearCache()
 bool FPCGGraphCache::EnforceMemoryBudget()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCache::FPCGGraphCache::EnforceMemoryBudget);
+	if (!CVarCacheEnabled.GetValueOnAnyThread())
+	{
+		return true; // Always return true so we can report that a GC might be needed
+	}
 
 	if (!CVarCacheMemoryBudgetEnabled.GetValueOnAnyThread())
 	{

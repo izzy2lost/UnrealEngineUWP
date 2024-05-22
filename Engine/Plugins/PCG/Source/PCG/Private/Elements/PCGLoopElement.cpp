@@ -359,7 +359,7 @@ bool FPCGLoopElement::ExecuteInternal(FPCGContext* InContext) const
 
 				FPCGDataCollection SubgraphOutput;
 				// While this should be always return true, if a scheduled task was cancelled, this can still happen because the dependency has been removed but this code isn't aware of this
-				if (Subsystem->GetOutputData(SubgraphTaskId, SubgraphOutput))
+				if (Subsystem->GetOutputData(SubgraphTaskId, SubgraphOutput, /*bClearDataOnGet=*/true))
 				{
 					if (FeedbackPinNames.IsEmpty() || bIsLastTask)
 					{
@@ -432,7 +432,7 @@ bool FPCGLoopInputForwardingElement::ExecuteInternal(FPCGContext* Context) const
 		if (UPCGSubsystem* Subsystem = Context->SourceComponent->GetSubsystem())
 		{
 			FPCGDataCollection PreviousTaskOutput;
-			if (Subsystem->GetOutputData(PreviousIterationTaskId, PreviousTaskOutput))
+			if (Subsystem->GetOutputData(PreviousIterationTaskId, PreviousTaskOutput, /*bClearDataOnGet=*/false))
 			{
 				Algo::CopyIf(PreviousTaskOutput.TaggedData, Context->OutputData.TaggedData, [this](const FPCGTaggedData& InTaggedData) { return FeedbackPinNames.Contains(InTaggedData.Pin); });
 			}

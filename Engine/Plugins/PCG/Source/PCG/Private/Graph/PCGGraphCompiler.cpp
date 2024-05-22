@@ -1077,7 +1077,7 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 	}
 
 	FPCGGraphTask& PostExecuteTask = CompiledTasks.Emplace_GetRef();
-	PostExecuteTask.Element = GetSharedTrivialElement();
+	PostExecuteTask.Element = GetSharedTrivialPostGraphElement();
 	PostExecuteTask.NodeId = PostExecuteTaskId;
 
 	// Find end nodes, e.g. all nodes that have no successors.
@@ -1140,6 +1140,27 @@ FPCGElementPtr FPCGGraphCompiler::GetSharedTrivialElement()
 	}
 
 	return SharedTrivialElement;
+}
+
+FPCGElementPtr FPCGGraphCompiler::GetSharedTrivialPostGraphElement()
+{
+	{
+		FReadScopeLock Lock(SharedTrivialElementLock);
+
+		if (SharedTrivialPostGraphElement)
+		{
+			return SharedTrivialPostGraphElement;
+		}
+	}
+
+	FWriteScopeLock Lock(SharedTrivialElementLock);
+
+	if (!SharedTrivialPostGraphElement)
+	{
+		SharedTrivialPostGraphElement = MakeShared<FPCGTrivialElement>();
+	}
+
+	return SharedTrivialPostGraphElement;
 }
 
 void FPCGGraphCompiler::ClearCache()
