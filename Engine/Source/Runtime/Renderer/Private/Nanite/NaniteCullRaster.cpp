@@ -2171,6 +2171,7 @@ static void GetMaterialShaderTypes(
 	bool bSplineMesh,
 	bool bSkinnedMesh,
 	bool bDisplacement,
+	bool bFixedDisplacementFallback,
 	FHWRasterizeVS::FPermutationDomain& PermutationVectorVS,
 	FHWRasterizeMS::FPermutationDomain& PermutationVectorMS,
 	FHWRasterizePS::FPermutationDomain& PermutationVectorPS,
@@ -2198,7 +2199,7 @@ static void GetMaterialShaderTypes(
 		PermutationVectorMS.Set<FHWRasterizeMS::FVertexProgrammableDim>(bVertexProgrammableHW);
 		PermutationVectorMS.Set<FHWRasterizeMS::FPixelProgrammableDim>(bPixelProgrammable);
 		PermutationVectorMS.Set<FHWRasterizeMS::FAllowSvBarycentricsDim>(bUseBarycentricPermutation);
-		PermutationVectorMS.Set<FHWRasterizeMS::FFixedDisplacementFallbackDim>(false);
+		PermutationVectorMS.Set<FHWRasterizeMS::FFixedDisplacementFallbackDim>(bFixedDisplacementFallback);
 		if (bVertexProgrammableHW)
 		{
 			ProgrammableShaderTypes.AddShaderType<FHWRasterizeMS>(PermutationVectorMS.ToDimensionValueId());
@@ -2215,7 +2216,7 @@ static void GetMaterialShaderTypes(
 		PermutationVectorVS.Set<FHWRasterizeVS::FSkinningDim>(bSkinnedMesh);
 		PermutationVectorVS.Set<FHWRasterizeVS::FVertexProgrammableDim>(bVertexProgrammableHW);
 		PermutationVectorVS.Set<FHWRasterizeVS::FPixelProgrammableDim>(bPixelProgrammable);
-		PermutationVectorVS.Set<FHWRasterizeVS::FFixedDisplacementFallbackDim>(false);
+		PermutationVectorVS.Set<FHWRasterizeVS::FFixedDisplacementFallbackDim>(bFixedDisplacementFallback);
 		if (bVertexProgrammableHW)
 		{
 			ProgrammableShaderTypes.AddShaderType<FHWRasterizeVS>(PermutationVectorVS.ToDimensionValueId());
@@ -2247,7 +2248,7 @@ static void GetMaterialShaderTypes(
 	PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FSkinningDim>(bSkinnedMesh);
 	PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FVertexProgrammableDim>(bVertexProgrammable);
 	PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FPixelProgrammableDim>(bPixelProgrammable);
-	PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FFixedDisplacementFallbackDim>(false);
+	PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FFixedDisplacementFallbackDim>(bFixedDisplacementFallback);
 	if (bVertexProgrammable || bPixelProgrammable)
 	{
 		ProgrammableShaderTypes.AddShaderType<FMicropolyRasterizeCS>(PermutationVectorCS_Cluster.ToDimensionValueId());
@@ -2266,47 +2267,9 @@ static void GetMaterialShaderTypes(
 		PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FSkinningDim>(bSkinnedMesh);
 		PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FVertexProgrammableDim>(bVertexProgrammable);
 		PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FPixelProgrammableDim>(bPixelProgrammable);
-		PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FFixedDisplacementFallbackDim>(false);
+		PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FFixedDisplacementFallbackDim>(bFixedDisplacementFallback);
 		PatchShaderTypes.AddShaderType<FMicropolyRasterizeCS>(PermutationVectorCS_Patch.ToDimensionValueId());
 	}
-}
-
-void GetMaterialShaderTypesNoDisplacement(
-	EShaderPlatform ShaderPlatform,
-	const ERasterHardwarePath HardwarePath,
-	bool bVertexProgrammable,
-	bool bPixelProgrammable,
-	bool bIsTwoSided,
-	bool bSplineMesh,
-	bool bSkinnedMesh,
-	FHWRasterizeVS::FPermutationDomain& PermutationVectorVS,
-	FHWRasterizeMS::FPermutationDomain& PermutationVectorMS,
-	FHWRasterizePS::FPermutationDomain& PermutationVectorPS,
-	FMicropolyRasterizeCS::FPermutationDomain& PermutationVectorCS_Cluster,
-	FMaterialShaderTypes& ProgrammableShaderTypes,
-	FMaterialShaderTypes& NonProgrammableShaderTypes)
-{
-	FMaterialShaderTypes PatchShaderTypes;
-	FMicropolyRasterizeCS::FPermutationDomain PermutationVectorCS_Patch;
-	const bool bDisplacement = false;
-	GetMaterialShaderTypes(
-		ShaderPlatform,
-		HardwarePath,
-		bVertexProgrammable,
-		bPixelProgrammable,
-		bIsTwoSided,
-		bSplineMesh,
-		bSkinnedMesh,
-		bDisplacement,
-		PermutationVectorVS,
-		PermutationVectorMS,
-		PermutationVectorPS,
-		PermutationVectorCS_Cluster,
-		PermutationVectorCS_Patch,
-		ProgrammableShaderTypes,
-		NonProgrammableShaderTypes,
-		PatchShaderTypes
-	);
 }
 
 void CollectRasterPSOInitializersForPermutation(
@@ -2318,17 +2281,21 @@ void CollectRasterPSOInitializersForPermutation(
 	bool bIsTwoSided,
 	bool bSplineMesh,
 	bool bSkinnedMesh,
+	bool bDisplacement,
+	bool bFixedDisplacementFallback,
 	FHWRasterizeVS::FPermutationDomain& PermutationVectorVS,
 	FHWRasterizeMS::FPermutationDomain& PermutationVectorMS,
 	FHWRasterizePS::FPermutationDomain& PermutationVectorPS,
 	FMicropolyRasterizeCS::FPermutationDomain& PermutationVectorCS_Cluster,
+	FMicropolyRasterizeCS::FPermutationDomain& PermutationVectorCS_Patch,
 	int32 PSOCollectorIndex,
 	TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	FMaterialShaderTypes ProgrammableShaderTypes;
 	FMaterialShaderTypes NonProgrammableShaderTypes;
+	FMaterialShaderTypes PatchShaderTypes;
 
-	GetMaterialShaderTypesNoDisplacement(
+	GetMaterialShaderTypes(
 		ShaderPlatform,
 		HardwarePath,
 		bVertexProgrammable,
@@ -2336,23 +2303,31 @@ void CollectRasterPSOInitializersForPermutation(
 		bIsTwoSided,
 		bSplineMesh,
 		bSkinnedMesh,
+		bDisplacement,
+		bFixedDisplacementFallback,
 		PermutationVectorVS,
 		PermutationVectorMS,
 		PermutationVectorPS,
 		PermutationVectorCS_Cluster,
+		PermutationVectorCS_Patch,
 		ProgrammableShaderTypes,
-		NonProgrammableShaderTypes
+		NonProgrammableShaderTypes,
+		PatchShaderTypes
 	);
-
-	// TODO: Precaching patch permutations
 	
 	// Retrieve shaders from default material for fixed function vertex or pixel shaders
 	const FMaterialResource* FixedMaterialResource = UMaterial::GetDefaultMaterial(MD_Surface)->GetMaterialResource(Material.GetFeatureLevel(), Material.GetQualityLevel());
 	check(FixedMaterialResource);
-
+	
 	FMaterialShaders ProgrammableShaders;
 	FMaterialShaders NonProgrammableShaders;
-	if (Material.TryGetShaders(ProgrammableShaderTypes, nullptr, ProgrammableShaders) && FixedMaterialResource->TryGetShaders(NonProgrammableShaderTypes, nullptr, NonProgrammableShaders))
+	FMaterialShaders PatchShader;
+
+	const bool bFetchProgrammable = Material.TryGetShaders(ProgrammableShaderTypes, nullptr, ProgrammableShaders);
+	const bool bFetchNonProgrammable = FixedMaterialResource->TryGetShaders(NonProgrammableShaderTypes, nullptr, NonProgrammableShaders);
+	const bool bFetchPatch = !bDisplacement || Material.TryGetShaders(PatchShaderTypes, nullptr, PatchShader);
+
+	if (bFetchProgrammable && bFetchNonProgrammable && bFetchPatch)
 	{		
 		// Graphics PSO setup
 		{
@@ -2408,16 +2383,16 @@ void CollectRasterPSOInitializersForPermutation(
 			PSOInitializers.Add(PSOPrecacheData);
 		}
 
+		// Cluster CS PSO Setup
 		{
-			FMaterialShaders* MicropolyRasterizeShaders = ProgrammableShaders.Shaders[SF_Compute] ? &ProgrammableShaders : &NonProgrammableShaders;
+			FMaterialShaders* ClusterShaders = ProgrammableShaders.Shaders[SF_Compute] ? &ProgrammableShaders : &NonProgrammableShaders;
 
-			// Compute PSO setup
-			TShaderRef<FMicropolyRasterizeCS> MicropolyRasterizeCS;
-			if (MicropolyRasterizeShaders->TryGetComputeShader(&MicropolyRasterizeCS))
+			TShaderRef<FMicropolyRasterizeCS> ClusterCS;
+			if (ClusterShaders->TryGetComputeShader(&ClusterCS))
 			{
 				FPSOPrecacheData ComputePSOPrecacheData;
 				ComputePSOPrecacheData.Type = FPSOPrecacheData::EType::Compute;
-				ComputePSOPrecacheData.ComputeShader = MicropolyRasterizeCS.GetComputeShader();
+				ComputePSOPrecacheData.ComputeShader = ClusterCS.GetComputeShader();
 			#if PSO_PRECACHING_VALIDATE
 				ComputePSOPrecacheData.PSOCollectorIndex = PSOCollectorIndex;
 				ComputePSOPrecacheData.VertexFactoryType = nullptr;
@@ -2427,6 +2402,28 @@ void CollectRasterPSOInitializersForPermutation(
 					ConditionalBreakOnPSOPrecacheShader(ComputePSOPrecacheData.ComputeShader);
 				}
 			#endif
+				PSOInitializers.Add(ComputePSOPrecacheData);
+			}
+		}
+
+		// Patch CS PSO Setup
+		if (bDisplacement)
+		{
+			TShaderRef<FMicropolyRasterizeCS> PatchCS;
+			if (PatchShader.TryGetComputeShader(&PatchCS))
+			{
+				FPSOPrecacheData ComputePSOPrecacheData;
+				ComputePSOPrecacheData.Type = FPSOPrecacheData::EType::Compute;
+				ComputePSOPrecacheData.ComputeShader = PatchCS.GetComputeShader();
+				#if PSO_PRECACHING_VALIDATE
+				ComputePSOPrecacheData.PSOCollectorIndex = PSOCollectorIndex;
+				ComputePSOPrecacheData.VertexFactoryType = nullptr;
+				if (PSOCollectorStats::IsFullPrecachingValidationEnabled())
+				{
+					ComputePSOPrecacheData.bDefaultMaterial = Material.IsDefaultMaterial();
+					ConditionalBreakOnPSOPrecacheShader(ComputePSOPrecacheData.ComputeShader);
+				}
+				#endif
 				PSOInitializers.Add(ComputePSOPrecacheData);
 			}
 		}
@@ -2440,7 +2437,8 @@ void CollectRasterPSOInitializersForDefaultMaterial(
 	FHWRasterizeVS::FPermutationDomain& PermutationVectorVS,
 	FHWRasterizeMS::FPermutationDomain& PermutationVectorMS,
 	FHWRasterizePS::FPermutationDomain& PermutationVectorPS,
-	FMicropolyRasterizeCS::FPermutationDomain& PermutationVectorCS,
+	FMicropolyRasterizeCS::FPermutationDomain& PermutationVectorCluster,
+	FMicropolyRasterizeCS::FPermutationDomain& PermutationVectorPatch,
 	int32 PSOCollectorIndex,
 	TArray<FPSOPrecacheData>& PSOInitializers)
 {
@@ -2460,18 +2458,26 @@ void CollectRasterPSOInitializersForDefaultMaterial(
 					for (uint32 SplineMesh = 0; SplineMesh < 2; ++SplineMesh)
 					{
 						bool bSplineMesh = SplineMesh > 0;
+						for (uint32 DisplacementMesh = 0; DisplacementMesh < 2; ++DisplacementMesh)
+						{
+							bool bDisplacement = DisplacementMesh > 0;
+							for (uint32 FixedDisplacementFallbackMesh = 0; FixedDisplacementFallbackMesh < 2; ++FixedDisplacementFallbackMesh)
+							{
+								bool bFixedDisplacementFallback = FixedDisplacementFallbackMesh > 0;
 
-						if (bSplineMesh && !NaniteSplineMeshesSupported())
-							continue;
+								if (bSplineMesh && !NaniteSplineMeshesSupported())
+									continue;
 
-						if (bSkinnedMesh && !NaniteSkinnedMeshesSupported())
-							continue;
+								if (bSkinnedMesh && !NaniteSkinnedMeshesSupported())
+									continue;
 
-						if (bSkinnedMesh && bSplineMesh)
-							continue; // Mutually exclusive
+								if (bSkinnedMesh && bSplineMesh)
+									continue; // Mutually exclusive
 
-						CollectRasterPSOInitializersForPermutation(Material, ShaderPlatform, HardwarePath, bVertexProgrammable, bPixelProgrammable, bIsTwoSided, bSplineMesh, bSkinnedMesh,
-							PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS, PSOCollectorIndex, PSOInitializers);
+								CollectRasterPSOInitializersForPermutation(Material, ShaderPlatform, HardwarePath, bVertexProgrammable, bPixelProgrammable, bIsTwoSided, bSplineMesh, bSkinnedMesh, bDisplacement, bFixedDisplacementFallback,
+									PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCluster, PermutationVectorPatch, PSOCollectorIndex, PSOInitializers);
+							}
+						}
 					}
 				}
 			}
@@ -2493,15 +2499,13 @@ void CollectRasterPSOInitializersForPipeline(
 	const EOutputBufferMode RasterMode = Pipeline == EPipeline::Shadows ? EOutputBufferMode::DepthOnly : EOutputBufferMode::VisBuffer;
 	const bool bHasVirtualShadowMapArray = Pipeline == EPipeline::Shadows; // true during shadow pass
 	const bool bVisualizeActive = false; // no precache for visualization modes
-	const bool bSplineMesh = false; // no precache for spline meshes
-	const bool bSkinnedMesh = false; // no precache for skinned meshes  (TODO: Nanite-Skinning)
 
 	FHWRasterizeVS::FPermutationDomain PermutationVectorVS;
 	FHWRasterizeMS::FPermutationDomain PermutationVectorMS;
 	FHWRasterizePS::FPermutationDomain PermutationVectorPS;
 
 	FMicropolyRasterizeCS::FPermutationDomain PermutationVectorCS_Cluster;
-	FMicropolyRasterizeCS::FPermutationDomain PermutationVectorCS_Patch; // TODO: Patch precaching
+	FMicropolyRasterizeCS::FPermutationDomain PermutationVectorCS_Patch;
 
 	SetupPermutationVectors(
 		RasterMode,
@@ -2517,37 +2521,41 @@ void CollectRasterPSOInitializersForPipeline(
 
 	if (PreCacheParams.bDefaultMaterial)
 	{
-		CollectRasterPSOInitializersForDefaultMaterial(RasterMaterial, ShaderPlatform, HardwarePath, PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS_Cluster, PSOCollectorIndex, PSOInitializers);
+		CollectRasterPSOInitializersForDefaultMaterial(RasterMaterial, ShaderPlatform, HardwarePath, PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS_Cluster, PermutationVectorCS_Patch, PSOCollectorIndex, PSOInitializers);
 	}
 	else
 	{
-		const auto AddPSOInitializers = [&](bool bForceDisableWPO, bool bForceDisablePixelEvalOrDisplacement)
+		const auto AddPSOInitializers = [&](bool bForceDisableWPOOrDisplacement, bool bForceDisablePixelEval)
 		{
 			// Set up a theoretical RasterPipeline that enables the feature set we're collecting for
 			// NOTE: When we force disable pixel programmable, we also force disable displacement
 			FNaniteRasterPipeline RasterPipeline;
-			RasterPipeline.bWPOEnabled = !bForceDisableWPO;
-			RasterPipeline.bDisplacementEnabled = !bForceDisablePixelEvalOrDisplacement;
-			RasterPipeline.bPerPixelEval = !bForceDisablePixelEvalOrDisplacement;
-			RasterPipeline.bSplineMesh = bSplineMesh;
-			RasterPipeline.bSkinnedMesh = bSkinnedMesh;
+			RasterPipeline.bWPOEnabled = !bForceDisableWPOOrDisplacement;
+			RasterPipeline.bDisplacementEnabled = !bForceDisableWPOOrDisplacement;
+			RasterPipeline.bPerPixelEval = !bForceDisablePixelEval;
+			RasterPipeline.bSplineMesh = false; //bSplineMesh;
+			RasterPipeline.bSkinnedMesh = false; //bSkinnedMesh;
 
 			const uint32 MaterialBitFlags = PackMaterialBitFlags_GameThread(RasterMaterial, RasterPipeline);
 			const bool bVertexProgrammable = FNaniteMaterialShader::IsVertexProgrammable(MaterialBitFlags);
 			const bool bPixelProgrammable = FNaniteMaterialShader::IsPixelProgrammable(MaterialBitFlags);
 			const bool bIsTwoSided = MaterialBitFlags & NANITE_MATERIAL_FLAG_TWO_SIDED;
+			const bool bDisplacement = MaterialBitFlags & NANITE_MATERIAL_FLAG_DISPLACEMENT;
+			const bool bSplineMesh = MaterialBitFlags & NANITE_MATERIAL_FLAG_SPLINE_MESH;
+			const bool bSkinnedMesh = MaterialBitFlags & NANITE_MATERIAL_FLAG_SKINNED_MESH;
+			const bool bFixedDisplacementFallback = false;
 
 			const FMeshPassProcessor::FMeshDrawingPolicyOverrideSettings OverrideSettings = FMeshPassProcessor::ComputeMeshOverrideSettings(PreCacheParams);
 			ERasterizerCullMode MeshCullMode = FMeshPassProcessor::ComputeMeshCullMode(RasterMaterial, OverrideSettings);
 
-			CollectRasterPSOInitializersForPermutation(RasterMaterial, ShaderPlatform, HardwarePath, bVertexProgrammable, bPixelProgrammable, bIsTwoSided, bSplineMesh, bSkinnedMesh,
-				PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS_Cluster, PSOCollectorIndex, PSOInitializers);
+			CollectRasterPSOInitializersForPermutation(RasterMaterial, ShaderPlatform, HardwarePath, bVertexProgrammable, bPixelProgrammable, bIsTwoSided, bSplineMesh, bSkinnedMesh, bDisplacement, bFixedDisplacementFallback,
+				PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS_Cluster, PermutationVectorCS_Patch, PSOCollectorIndex, PSOInitializers);
 		};
 
 		// Add initializers for all features that can be toggled in fallback bins (NOTE: can't disable both)
-		AddPSOInitializers(false /*bForceDisableWPO*/, false /*bForceDisablePixelEvalOrDisplacement*/);
-		AddPSOInitializers(false /*bForceDisableWPO*/, true /*bForceDisablePixelEvalOrDisplacement*/);
-		AddPSOInitializers(true /*bForceDisableWPO*/, false /*bForceDisablePixelEvalOrDisplacement*/);
+		AddPSOInitializers(false /*bForceDisableWPOOrDisplacement*/, false /*bForceDisablePixelEval*/);
+		AddPSOInitializers(false /*bForceDisableWPOOrDisplacement*/, true /*bForceDisablePixelEval*/);
+		AddPSOInitializers(true /*bForceDisableWPOOrDisplacement*/, false /*bForceDisablePixelEval*/);
 	}
 }
 
@@ -4502,6 +4510,7 @@ void FRenderer::PrepareRasterizerPasses(
 					RasterizerPass.RasterPipeline.bSplineMesh,
 					RasterizerPass.RasterPipeline.bSkinnedMesh,
 					RasterizerPass.bDisplacement,
+					false /*bFixedDisplacementFallback*/,
 					PermutationVectorVS,
 					PermutationVectorMS,
 					PermutationVectorPS,
