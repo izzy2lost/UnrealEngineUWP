@@ -573,7 +573,11 @@ struct FShaderCompilerEnvironment
 	RENDERCORE_API void SetDefine(FShaderCompilerDefineNameCache& Name, bool Value);
 	RENDERCORE_API void SetDefine(FShaderCompilerDefineNameCache& Name, float Value);
 
+	UE_DEPRECATED(5.5,	"Accessing definition values via FShaderCompilerEnvironment is no longer allowed outside of the core shader system.\n"
+						"Please use Get/SetCompileArgument mechanism for additional properties required by compilation.")
 	RENDERCORE_API int32 GetIntegerValue(FName Name) const;
+	UE_DEPRECATED(5.5,	"Accessing definition values via FShaderCompilerEnvironment is no longer allowed outside of the core shader system.\n"
+						"Please use Get/SetCompileArgument mechanism for additional properties required by compilation.")
 	RENDERCORE_API int32 GetIntegerValue(FShaderCompilerDefineNameCache& NameCache, int32 ResultIfNotFound = 0) const;
 
 	UE_DEPRECATED(5.5, "ContainsDefinition will be made private in the future and should not be called by downstream code.")
