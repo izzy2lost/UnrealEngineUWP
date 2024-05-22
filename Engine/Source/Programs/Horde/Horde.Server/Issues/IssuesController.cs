@@ -535,6 +535,15 @@ namespace Horde.Server.Issues
 			response.QuarantineTimeUtc = details.QuarantineTimeUtc;
 			response.ForceClosedByUserInfo = details.ForceClosedBy?.ToThinApiResponse();
 			response.WorkflowThreadUrl = issue.WorkflowThreadUrl;
+			
+			if (issue.Fingerprints != null && issue.Fingerprints.Count > 0)
+			{
+				response.FingerprintDescription = String.Join(", ", issue.Fingerprints.Select(x =>
+				{
+					return $"(Type: {x.Type} / Keys: {String.Join(", ", x.Keys)} / RejectKeys: {String.Join(", ", x.RejectKeys ?? new HashSet<IssueKey>())})";
+				}));
+			}
+
 			return response;
 		}
 

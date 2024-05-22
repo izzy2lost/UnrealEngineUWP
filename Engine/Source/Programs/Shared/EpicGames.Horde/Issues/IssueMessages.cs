@@ -275,6 +275,11 @@ namespace EpicGames.Horde.Issues
 		public string? Description { get; set; }
 
 		/// <summary>
+		/// Description of the current fingerprint used for issue identification
+		/// </summary>
+		public string? FingerprintDescription { get; set; }
+
+		/// <summary>
 		/// Severity of this issue
 		/// </summary>
 		public IssueSeverity Severity { get; set; }
