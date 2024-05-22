@@ -354,7 +354,7 @@ namespace AutomationTool.Tasks
 					Writer.WriteValue("type", "cloud");
 					Writer.WriteValue("targetplatform", ExportSource.TargetPlatform);
 					Writer.WriteValue("host", HostName);
-					if (!string.IsNullOrEmpty(HttpVersion) && !HttpVersion.Equals("None", StringComparison.InvariantCultureIgnoreCase))
+					if (!string.IsNullOrEmpty(HttpVersion) && !HttpVersion.Equals("None", StringComparison.OrdinalIgnoreCase))
 					{
 						Writer.WriteValue("httpversion", HttpVersion);
 					}
@@ -542,7 +542,7 @@ namespace AutomationTool.Tasks
 
 					if (!string.IsNullOrEmpty(Parameters.DestinationCloudHttpVersion))
 					{
-						if (Parameters.DestinationCloudHttpVersion.Equals("http2-only", StringComparison.InvariantCultureIgnoreCase))
+						if (Parameters.DestinationCloudHttpVersion.Equals("http2-only", StringComparison.OrdinalIgnoreCase))
 						{
 							OplogExportCommandline.Append(" --assume-http2");
 						}

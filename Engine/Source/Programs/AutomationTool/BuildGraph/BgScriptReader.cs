@@ -1914,7 +1914,7 @@ namespace AutomationTool
 				{
 					nodes.UnionWith(otherNodes);
 				}
-				else if (!referenceName.StartsWith("#") && _graph.TagNameToNodeOutput.ContainsKey("#" + referenceName))
+				else if (!referenceName.StartsWith("#", StringComparison.Ordinal) && _graph.TagNameToNodeOutput.ContainsKey("#" + referenceName))
 				{
 					LogError(element, "Reference to '{Name}' cannot be resolved; did you mean '{PossibleName}'?", referenceName, $"#{referenceName}");
 				}
@@ -1942,7 +1942,7 @@ namespace AutomationTool
 				{
 					inputs.UnionWith(referenceInputs);
 				}
-				else if (!referenceName.StartsWith("#") && _graph.TagNameToNodeOutput.ContainsKey("#" + referenceName))
+				else if (!referenceName.StartsWith("#", StringComparison.Ordinal) && _graph.TagNameToNodeOutput.ContainsKey("#" + referenceName))
 				{
 					LogError(element, "Reference to '{Name}' cannot be resolved; did you mean '{PossibleName}'?", referenceName, $"#{referenceName}");
 				}
@@ -2098,11 +2098,11 @@ namespace AutomationTool
 			if (element.HasAttribute(name))
 			{
 				string value = ReadAttribute(element, name).Trim();
-				if (value.Equals("true", StringComparison.InvariantCultureIgnoreCase))
+				if (value.Equals("true", StringComparison.OrdinalIgnoreCase))
 				{
 					bResult = true;
 				}
-				else if (value.Equals("false", StringComparison.InvariantCultureIgnoreCase))
+				else if (value.Equals("false", StringComparison.OrdinalIgnoreCase))
 				{
 					bResult = false;
 				}
@@ -2229,7 +2229,7 @@ namespace AutomationTool
 		{
 			string result = text;
 			// Iterate in reverse order to handle cases where there are nested expansions like $(Outer$(Inner))
-			for (int idx = result.LastIndexOf("$("); idx != -1; idx = result.LastIndexOf("$(", idx, idx + 1))
+			for (int idx = result.LastIndexOf("$(", StringComparison.Ordinal); idx != -1; idx = result.LastIndexOf("$(", idx, idx + 1, StringComparison.Ordinal))
 			{
 				// Find the end of the variable name
 				int endIdx = result.IndexOf(')', idx + 2);

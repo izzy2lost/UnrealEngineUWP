@@ -121,7 +121,7 @@ namespace AutomationTool
 		{
 			// <Condition> Or <Condition> Or...
 			string result = await EvaluateAndAsync();
-			while (String.Compare(_tokens[_idx], "Or", true) == 0)
+			while (String.Equals(_tokens[_idx], "Or", StringComparison.OrdinalIgnoreCase))
 			{
 				// Evaluate this condition. We use a binary OR here, because we want to parse everything rather than short-circuit it.
 				_idx++;
@@ -140,7 +140,7 @@ namespace AutomationTool
 		{
 			// <Condition> And <Condition> And...
 			string result = await EvaluateComparisonAsync();
-			while (String.Compare(_tokens[_idx], "And", true) == 0)
+			while (String.Equals(_tokens[_idx], "And", StringComparison.OrdinalIgnoreCase))
 			{
 				// Evaluate this condition. We use a binary AND here, because we want to parse everything rather than short-circuit it.
 				_idx++;
@@ -172,7 +172,7 @@ namespace AutomationTool
 				_idx++;
 				string lhs = result;
 				string rhs = await EvaluateScalarAsync();
-				result = (String.Compare(lhs, rhs, true) == 0) ? "true" : "false";
+				result = String.Equals(lhs, rhs, StringComparison.OrdinalIgnoreCase) ? "true" : "false";
 			}
 			else if (_tokens[_idx] == "!=")
 			{
@@ -180,7 +180,7 @@ namespace AutomationTool
 				_idx++;
 				string lhs = result;
 				string rhs = await EvaluateScalarAsync();
-				result = (String.Compare(lhs, rhs, true) != 0) ? "true" : "false";
+				result = String.Equals(lhs, rhs, StringComparison.OrdinalIgnoreCase) ? "true" : "false";
 			}
 			else if (_tokens[_idx] == "<")
 			{
@@ -290,14 +290,14 @@ namespace AutomationTool
 				string rhs = await EvaluateScalarAsync();
 				result = CoerceToBool(rhs) ? "false" : "true";
 			}
-			else if (String.Compare(_tokens[_idx], "Exists", true) == 0 && _tokens[_idx + 1] == "(")
+			else if (String.Equals(_tokens[_idx], "Exists", StringComparison.OrdinalIgnoreCase) && _tokens[_idx + 1] == "(")
 			{
 				// Check whether file or directory exists. Evaluate the argument as a subexpression.
 				_idx++;
 				string argument = await EvaluateScalarAsync();
 				result = Exists(argument) ? "true" : "false";
 			}
-			else if (String.Compare(_tokens[_idx], "HasTrailingSlash", true) == 0 && _tokens[_idx + 1] == "(")
+			else if (String.Equals(_tokens[_idx], "HasTrailingSlash", StringComparison.OrdinalIgnoreCase) && _tokens[_idx + 1] == "(")
 			{
 				// Check whether the given string ends with a slash
 				_idx++;
@@ -415,11 +415,11 @@ namespace AutomationTool
 		static bool CoerceToBool(string scalar)
 		{
 			bool result;
-			if (String.Compare(scalar, "true", true) == 0)
+			if (String.Equals(scalar, "true", StringComparison.OrdinalIgnoreCase))
 			{
 				result = true;
 			}
-			else if (String.Compare(scalar, "false", true) == 0)
+			else if (String.Equals(scalar, "false", StringComparison.OrdinalIgnoreCase))
 			{
 				result = false;
 			}

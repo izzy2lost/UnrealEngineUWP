@@ -79,7 +79,7 @@ namespace AutomationTool.Tasks
 			if (FromPattern == null)
 			{
 				List<string> Patterns = SplitDelimitedList(Parameters.Files);
-				if (Patterns.Count != 1 || Patterns[0].StartsWith("#"))
+				if (Patterns.Count != 1 || Patterns[0].StartsWith("#", StringComparison.Ordinal))
 				{
 					throw new AutomationException("Missing 'From' attribute specifying pattern to match source files against");
 				}
@@ -91,7 +91,7 @@ namespace AutomationTool.Tasks
 				{
 					FromPattern = FromPattern.Substring(SlashIdx + 1);
 				}
-				if (FromPattern.StartsWith("..."))
+				if (FromPattern.StartsWith("...", StringComparison.Ordinal))
 				{
 					FromPattern = "*" + FromPattern.Substring(3);
 				}

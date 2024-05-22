@@ -1271,7 +1271,7 @@ namespace AutomationTool
 		/// <param name="TagName">Name of the tag to get the manifest for</param>
 		static FileReference GetTaggedFileListLocation(DirectoryReference BaseDir, string NodeName, string TagName)
 		{
-			Debug.Assert(TagName.StartsWith("#"));
+			Debug.Assert(TagName.StartsWith("#", StringComparison.Ordinal));
 			return FileReference.Combine(BaseDir, NodeName, String.Format("Tag-{0}.xml", TagName.Substring(1)));
 		}
 

@@ -251,7 +251,7 @@ namespace AutomationTool
 			{
 				foreach(string Pattern in SplitDelimitedList(Filespec))
 				{
-					if(Pattern.StartsWith("#"))
+					if(Pattern.StartsWith("#", StringComparison.Ordinal))
 					{
 						yield return Pattern;
 					}
@@ -399,7 +399,7 @@ namespace AutomationTool
 			foreach(string Pattern in FilePatterns)
 			{
 				// Check if it's a tag name
-				if(Pattern.StartsWith("#"))
+				if(Pattern.StartsWith("#", StringComparison.Ordinal))
 				{
 					Files.UnionWith(FindOrAddTagSet(TagNameToFileSet, Pattern));
 					continue;

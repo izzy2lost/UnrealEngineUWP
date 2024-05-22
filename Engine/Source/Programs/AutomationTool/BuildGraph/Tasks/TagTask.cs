@@ -153,7 +153,7 @@ namespace AutomationTool.Tasks
 			List<string> Rules = new List<string>();
 			foreach(string Pattern in Patterns)
 			{
-				if(Pattern.StartsWith("#"))
+				if(Pattern.StartsWith("#", StringComparison.Ordinal))
 				{
 					// Add the files in a specific set to the filter
 					HashSet<FileReference> Files = FindOrAddTagSet(TagNameToFileSet, Pattern);
