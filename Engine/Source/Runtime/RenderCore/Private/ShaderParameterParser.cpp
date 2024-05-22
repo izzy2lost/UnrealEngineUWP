@@ -1158,7 +1158,7 @@ bool FShaderParameterParser::ParseAndModify(const FShaderCompilerInput& Compiler
 
 	const bool bUseStableConstantBuffer = EnumHasAnyFlags(PlatformConfiguration.Flags, EShaderParameterParserConfigurationFlags::UseStableConstantBuffer);
 	const bool bSupportsBindless = EnumHasAnyFlags(PlatformConfiguration.Flags, EShaderParameterParserConfigurationFlags::SupportsBindless);
-
+	const bool bAlwaysParseParams = EnumHasAnyFlags(PlatformConfiguration.Flags, EShaderParameterParserConfigurationFlags::AlwaysParseParams);
 	const bool bHasRootParameters = (CompilerInput.RootParametersStructure != nullptr);
 	const bool bRootParametersModification = bUseStableConstantBuffer && (CompilerInput.IsRayTracingShader() || CompilerInput.ShouldUseStableConstantBuffer());
 	const bool bBindlessModifications = bSupportsBindless && (bBindlessResources || bBindlessSamplers);
@@ -1166,7 +1166,7 @@ bool FShaderParameterParser::ParseAndModify(const FShaderCompilerInput& Compiler
 	const bool bShouldModify = bRootParametersModification || bBindlessModifications;
 
 	// Always parse if we have root parameters since we need that data during reflection validation
-	const bool bShouldParse = bHasRootParameters || bShouldModify;
+	const bool bShouldParse = bHasRootParameters || bShouldModify || bAlwaysParseParams;
 
 	// The shader doesn't have any parameter binding through shader structure, therefore don't do anything.
 	if (!bShouldParse)

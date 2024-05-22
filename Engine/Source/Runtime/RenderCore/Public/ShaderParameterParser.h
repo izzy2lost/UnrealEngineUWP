@@ -29,6 +29,8 @@ enum class EShaderParameterParserConfigurationFlags
 	SupportsBindless        = 1 << 1,
 	// "Vulkan" style
 	BindlessUsesArrays      = 1 << 2,
+	// Some RHI Validation requires parameters to be parsed
+	AlwaysParseParams		= 1 << 3,
 };
 ENUM_CLASS_FLAGS(EShaderParameterParserConfigurationFlags)
 
