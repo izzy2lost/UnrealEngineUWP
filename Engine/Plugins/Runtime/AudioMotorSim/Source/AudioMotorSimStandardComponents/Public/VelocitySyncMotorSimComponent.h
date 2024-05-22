@@ -19,7 +19,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VelocitySync")
 	float SpeedThreshold = 200.f;
 
-	UPROPERTY(EditAnywhere, Category = "VelocitySync")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VelocitySync")
 	FRuntimeFloatCurve SpeedToRpmCurve;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VelocitySync")

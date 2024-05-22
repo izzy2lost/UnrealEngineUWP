@@ -12,7 +12,7 @@ class UReverseMotorSimComponent : public UAudioMotorSimComponent
 	
 public:
 	// How much to scale engine friction by when reversing
-	UPROPERTY(EditAnywhere, Category = "Reverse")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reverse")
 	float ReverseEngineResistanceModifier = 1.f;
 	
 	virtual void Update(FAudioMotorSimInputContext& Input, FAudioMotorSimRuntimeContext& RuntimeInfo) override;
