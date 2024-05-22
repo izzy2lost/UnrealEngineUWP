@@ -241,6 +241,7 @@ bool FPCGLoopElement::ExecuteInternal(FPCGContext* InContext) const
 
 		FPCGDataCollection PreSubgraphDataCollection;
 		PrepareSubgraphUserParameters(Settings, Context, PreSubgraphDataCollection);
+		Context->AddToReferencedObjects(PreSubgraphDataCollection);
 
 		FPCGElementPtr PreGraphElement = MakeShared<FPCGInputForwardingElement>(PreSubgraphDataCollection);
 
@@ -280,6 +281,8 @@ bool FPCGLoopElement::ExecuteInternal(FPCGContext* InContext) const
 			{
 				Dependencies.Add(PreviousTaskId);
 			}
+
+			Context->AddToReferencedObjects(InputDataCollection);
 
 			FPCGElementPtr InputElement = MakeShared<FPCGLoopInputForwardingElement>(InputDataCollection, PreviousTaskId, FeedbackPinNames);
 			FPCGTaskId SubgraphTaskId = Subsystem->ScheduleGraph(

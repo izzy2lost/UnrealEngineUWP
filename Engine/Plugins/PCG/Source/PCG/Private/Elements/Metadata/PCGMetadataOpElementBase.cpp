@@ -432,6 +432,7 @@ bool FPCGMetadataElementBase::PrepareDataInternal(FPCGContext* Context) const
 	// Set up the iterations on the multiple inputs of the primary pin
 	TimeSlicedContext->InitializePerIterationStates(OperandInputNumMax, [this, Context, OperandNum, Settings, OperandInputNumMax](IterStateType& OutState, const ExecStateType& ExecState, const uint32 IterationIndex)
 	{
+		FPCGMetadataElementBase::ContextType* TimeSlicedContext = static_cast<FPCGMetadataElementBase::ContextType*>(Context);
 		TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 		const uint32 NumberOfResults = Settings->GetResultNum();
 
@@ -472,6 +473,9 @@ bool FPCGMetadataElementBase::PrepareDataInternal(FPCGContext* Context) const
 				}
 				else
 				{
+					// Need to make sure the param data is properly tracked by the context to prevent garbage collection
+					TimeSlicedContext->TrackObject(DefaultData.Data);
+
 					// Need to make sure the param data has at least one entry
 					UPCGMetadata* DefaultParamMetadata = CastChecked<UPCGParamData>(DefaultData.Data)->Metadata;
 					if (DefaultParamMetadata->GetLocalItemCount() == 0)

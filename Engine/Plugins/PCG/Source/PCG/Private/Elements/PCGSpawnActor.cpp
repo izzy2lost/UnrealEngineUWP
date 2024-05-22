@@ -586,6 +586,8 @@ bool FPCGSpawnActorElement::SpawnAndPrepareSubgraphs(FPCGSubgraphContext* Contex
 							FPCGDataCollection SubgraphInputData;
 							SubgraphInputData.TaggedData.Add(PartialInput);
 
+							Context->AddToReferencedObjects(SubgraphInputData);
+
 							// Prepare the invocation stack - which is the stack up to this node, and then this node, then a loop index
 							FPCGStack InvocationStack = ensure(Context->Stack) ? *Context->Stack : FPCGStack();
 

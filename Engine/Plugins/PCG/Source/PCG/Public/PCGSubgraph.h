@@ -164,6 +164,7 @@ struct FPCGSubgraphContext : public FPCGContext
 	TArray<FPCGTaskId> SubgraphTaskIds;
 	bool bScheduledSubgraph = false;
 	FInstancedStruct GraphInstanceParametersOverride;
+	TSet<TObjectPtr<const UPCGData>> ReferencedObjects;
 
 	// Analyze input data to detect if there is any override for the user parameters. If so will duplicate it to gather overrides.
 	void InitializeUserParametersStruct();
@@ -171,8 +172,11 @@ struct FPCGSubgraphContext : public FPCGContext
 	// If we have a subgraph override, update the underlying duplicated parameters with the overrides from the subgraph.
 	void UpdateOverridesWithOverriddenGraph();
 
+	void AddToReferencedObjects(const FPCGDataCollection& InDataCollection);
+
 protected:
 	virtual void* GetUnsafeExternalContainerForOverridableParam(const FPCGSettingsOverridableParam& InParam) override;
+	virtual void AddExtraStructReferencedObjects(FReferenceCollector& Collector);
 };
 
 class FPCGSubgraphElement : public IPCGElement
@@ -188,15 +192,14 @@ protected:
 	void PrepareSubgraphUserParameters(const UPCGSubgraphSettings* Settings, FPCGSubgraphContext* Context, FPCGDataCollection& OutputData) const;
 };
 
+// Implementation note: this node forwards data, but does not keep that data alive. This is the responsibility of the corresponding FPCGSubgraphContext
 class FPCGInputForwardingElement : public IPCGElement
 {
 public:
-	FPCGInputForwardingElement(const FPCGDataCollection& InputToForward);
+	explicit FPCGInputForwardingElement(const FPCGDataCollection& InputToForward);
 
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 	virtual bool IsPassthrough(const UPCGSettings* InSettings) const override { return true; }
 	FPCGDataCollection Input;
-
-	TArray<UPCGData*> RootedData;
 };

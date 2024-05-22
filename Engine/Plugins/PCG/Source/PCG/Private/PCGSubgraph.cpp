@@ -509,6 +509,22 @@ void FPCGSubgraphContext::UpdateOverridesWithOverriddenGraph()
 	}
 }
 
+void FPCGSubgraphContext::AddToReferencedObjects(const FPCGDataCollection& InDataCollection)
+{
+	for (const FPCGTaggedData& TaggedData : InDataCollection.TaggedData)
+	{
+		if (TaggedData.Data)
+		{
+			ReferencedObjects.Add(TaggedData.Data);
+		}
+	}
+}
+
+void FPCGSubgraphContext::AddExtraStructReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddReferencedObjects(ReferencedObjects);
+}
+
 FPCGContext* FPCGSubgraphElement::Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node)
 {
 	FPCGSubgraphContext* Context = new FPCGSubgraphContext();
@@ -642,9 +658,11 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 				// using this node's task id as additional inputs
 				FPCGDataCollection PreSubgraphInputData;
 				PrepareSubgraphUserParameters(Settings, Context, PreSubgraphInputData);
+				Context->AddToReferencedObjects(PreSubgraphInputData);
 
 				FPCGDataCollection SubgraphInputData;
 				PrepareSubgraphData(Settings, Context, Context->InputData, SubgraphInputData);
+				Context->AddToReferencedObjects(SubgraphInputData);
 
 				// At this point, if we're in a recursive context and we have no input, we must terminate execution
 				if (bIsRecursive && SubgraphInputData.TaggedData.IsEmpty())
@@ -753,29 +771,10 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 FPCGInputForwardingElement::FPCGInputForwardingElement(const FPCGDataCollection& InputToForward)
 	: Input(InputToForward)
 {
-	// Root any previously unrooted data, needed here because the context does not exist yet and we need to ensure that the input is not garbage collected
-	for (const FPCGTaggedData& TaggedData : Input.TaggedData)
-	{
-		if (TaggedData.Data && !TaggedData.Data->IsRooted())
-		{
-			UPCGData* DataToRoot = const_cast<UPCGData*>(TaggedData.Data.Get());
-			DataToRoot->AddToRoot();
-			RootedData.Add(DataToRoot);
-		}
-	}
 }
 
 bool FPCGInputForwardingElement::ExecuteInternal(FPCGContext* Context) const
 {
-	// Remove from rootset during the execution if we had previously done so. After execution, the graph cache will keep track of these references
-	for (UPCGData* DataToUnroot : RootedData)
-	{
-		ensure(DataToUnroot->IsRooted());
-		DataToUnroot->RemoveFromRoot();
-	}
-
-	const_cast<FPCGInputForwardingElement*>(this)->RootedData.Reset();
-
 	Context->OutputData = Input;
 	return true;
 }
