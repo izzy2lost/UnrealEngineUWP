@@ -231,25 +231,25 @@ namespace ICVFXTest
 			var ReportConfigDir = Path.Combine(Unreal.RootDirectory.FullName, "Engine", "Plugins", "VirtualProduction", "ICVFXTesting", "Build", "Scripts", "PerfReport");
 			var ReportPath = Path.Combine(ArtifactPath, "Reports", "Performance");
 
-		var CsvsPaths = new[]
-			{
-				Path.Combine(ArtifactPath, "EditorGame", "Profiling", "FPSChartStats"),
-				Path.Combine(ArtifactPath, "EditorGame", "Settings", $"{Context.Options.Project}", "Saved", "Profiling", "FPSChartStats"),
-				Path.Combine(TempDir, "DeviceCache", Platform.ToString(), TestInstance.ClientApps[0].Device.ToString(), "UserDir")
-			};
-
-
-		var DiscoveredCsvs = new List<string>();
-			foreach (var CsvsPath in CsvsPaths)
-			{
-				if (Directory.Exists(CsvsPath))
+			var CsvsPaths = new[]
 				{
-					DiscoveredCsvs.AddRange(
-						from CsvFile in Directory.GetFiles(CsvsPath, "*.csv", SearchOption.AllDirectories)
-						where CsvFile.Contains("csvprofile", StringComparison.InvariantCultureIgnoreCase)
-						select CsvFile);
+					Path.Combine(ArtifactPath, "EditorGame", "Profiling", "FPSChartStats"),
+					Path.Combine(ArtifactPath, "EditorGame", "Settings", $"{Context.Options.Project}", "Saved", "Profiling", "FPSChartStats"),
+					Path.Combine(TempDir, "DeviceCache", Platform.ToString(), TestInstance.ClientApps[0].Device.ToString(), "UserDir")
+				};
+
+
+			var DiscoveredCsvs = new List<string>();
+				foreach (var CsvsPath in CsvsPaths)
+				{
+					if (Directory.Exists(CsvsPath))
+					{
+						DiscoveredCsvs.AddRange(
+							from CsvFile in Directory.GetFiles(CsvsPath, "*.csv", SearchOption.AllDirectories)
+							where CsvFile.Contains("csvprofile", StringComparison.InvariantCultureIgnoreCase)
+							select CsvFile);
+					}
 				}
-			}
 
 			if (DiscoveredCsvs.Count == 0)
 			{
@@ -300,28 +300,10 @@ namespace ICVFXTest
 				Logger.LogError($"PerfReportTool returned error code \"{ErrorCode}\" while generating detailed report.");
 			}
 
-			// Now generate the all-time historic summary report
-			HistoricReport("HistoricReport_AllTime", new[]
+			// Generates HTML & CSV reports to Reports/SaloonPerf
+			void HistoricReport(string Name, IEnumerable<string> Filter)
 			{
-				$"platform={PlatformNameFilter}"
-			});
-
-			// 14 days historic report
-			HistoricReport($"HistoricReport_14Days", new[]
-			{
-				$"platform={PlatformNameFilter}",
-				$"starttimestamp>={DateTimeOffset.Now.ToUnixTimeSeconds() - (14 * 60L * 60L * 24L)}"
-			});
-
-			// 7 days historic report
-			HistoricReport($"HistoricReport_7Days", new[]
-			{
-				$"platform={PlatformNameFilter}",
-				$"starttimestamp>={DateTimeOffset.Now.ToUnixTimeSeconds() - (7 * 60L * 60L * 24L)}"
-			});
-
-			void HistoricReport_Alt(string Name, IEnumerable<string> Filter)
-			{
+				// Generate HTML report
 				var Args = new[]
 				{
 					$"-summarytablecachein \"{ReportCacheDir}\"",
@@ -340,19 +322,37 @@ namespace ICVFXTest
 				CommandUtils.RunAndLog(ToolPath.FullName, ArgStr, out ErrorCode);
 				if (ErrorCode != 0)
 				{
-					Logger.LogError($"PerfReportTool returned error code \"{ErrorCode}\" while generating historic report.");
+					Logger.LogError($"PerfReportTool returned error code \"{ErrorCode}\" while generating HTML for the historic report.");
+				}
+
+
+				// Generate CSV report
+				Args = new[]
+				{
+					$"-summarytablecachein \"{ReportCacheDir}\"",
+					$"-reportxmlbasedir \"{ReportConfigDir}\"",
+					$"-o \"{base.GetConfiguration().SummaryReportPath}\"",
+					$"-metadatafilter \"{string.Join(" and ", Filter)}\"",
+					$"-summaryTableFilename \"{Name  + GetTestSuffix()}\"",
+					"-csvTable",
+					"-summaryTable autoPerfReportStandard",
+					"-condensedSummaryTable autoPerfReportStandard",
+					"-emailtable",
+					"-recurse"
+				};
+
+				ArgStr = string.Join(" ", Args);
+
+				CommandUtils.RunAndLog(ToolPath.FullName, ArgStr, out ErrorCode);
+				if (ErrorCode != 0)
+				{
+					Logger.LogError($"PerfReportTool returned error code \"{ErrorCode}\" while generating CSV for the historic report.");
 				}
 			}
 
-			// 14 days historic report
-			HistoricReport_Alt($"HistoricReport_14Days_Summary", new[]
-			{
-				$"platform={PlatformNameFilter}",
-				$"starttimestamp>={DateTimeOffset.Now.ToUnixTimeSeconds() - (14 * 60L * 60L * 24L)}"
-			});
-
-			void HistoricReport(string Name, IEnumerable<string> Filter)
-			{
+			// Generates HTML report to Reports/SaloonPerf/SaloonWin64SaloonPerf/ICVFXTest.PerformanceReport_PLATFORM/Reports/Performance
+			void HistoricReport_Alt(string Name, IEnumerable<string> Filter)
+			{	
 				var Args = new[]
 				{
 					$"-summarytablecachein \"{ReportCacheDir}\"",
@@ -373,32 +373,27 @@ namespace ICVFXTest
 				{
 					Logger.LogError($"PerfReportTool returned error code \"{ErrorCode}\" while generating historic report.");
 				}
-				else if (!CommandUtils.IsBuildMachine)
-				{
-					/*
-					if (Directory.Exists(ReportPath))
-					{
-						ProcessStartInfo startInfo = new ProcessStartInfo
-						{
-							Arguments = ReportPath,
-							FileName = "explorer.exe"
-						};
-
-						Process.Start(startInfo);
-
-						if (File.Exists(ReportPath + "/index.html"))
-						{
-							ProcessStartInfo chromeInfo = new ProcessStartInfo
-							{
-								Arguments = ReportPath + "/index.html",
-								FileName = "chrome.exe"
-							};
-
-							Process.Start(chromeInfo);
-						}
-					}*/
-				}
 			}
+
+			// All-time historic summary report
+			HistoricReport_Alt("HistoricReport_AllTime", new[]
+			{
+				$"platform={PlatformNameFilter}"
+			});
+
+			// 14 days historic report
+			HistoricReport_Alt($"HistoricReport_14Days", new[]
+			{
+				$"platform={PlatformNameFilter}",
+				$"starttimestamp>={DateTimeOffset.Now.ToUnixTimeSeconds() - (14 * 60L * 60L * 24L)}"
+			});
+
+			// 14 days historic report
+			HistoricReport($"HistoricReport_14Days_Summary", new[]
+			{
+				$"platform={PlatformNameFilter}",
+				$"starttimestamp>={DateTimeOffset.Now.ToUnixTimeSeconds() - (14 * 60L * 60L * 24L)}"
+			});
 		}
 
 		public override ITestReport CreateReport(TestResult Result, UnrealTestContext Context, UnrealBuildSource Build, IEnumerable<UnrealRoleResult> Artifacts, string ArtifactPath)
