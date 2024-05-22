@@ -90,6 +90,14 @@ struct FPCGGraphTask
 
 	int32 StackIndex = INDEX_NONE;
 	TSharedPtr<const FPCGStackContext> StackContext;
+
+	// Contains info around whether the element, context, cache check and more was already done.
+	bool bHasDoneSetup = false;
+
+#if WITH_EDITOR
+	// Can be true when we want to have debug display on a task but have taken the results from the cache
+	bool bIsBypassed = false;
+#endif
 };
 
 struct FPCGGraphScheduleTask
@@ -187,9 +195,6 @@ public:
 #if WITH_EDITOR
 	FPCGTaskId ScheduleDebugWithTaskCallback(UPCGComponent* InComponent, TFunction<void(FPCGTaskId, const UPCGNode*, const FPCGDataCollection&)> TaskCompleteCallback);
 
-	void AddToDirtyActors(AActor* Actor);
-	void AddToUnusedActors(const TSet<FWorldPartitionReference>& UnusedActors);
-
 	/** Notify compiler that graph has changed so it'll be removed from the cache */
 	void NotifyGraphChanged(UPCGGraph* InGraph, EPCGChangeType ChangeType);
 
@@ -239,9 +244,6 @@ private:
 	/** Notify the component that the given pins were deactivated during execution. */
 	void SendInactivePinNotification(const UPCGNode* InNode, const FPCGStack* InStack, uint64 InactiveOutputPinBitmask);
 
-	void SaveDirtyActors();
-	void ReleaseUnusedActors();
-
 	void UpdateGenerationNotification();
 	void ReleaseGenerationNotification();
 	void OnNotificationCancel();
@@ -275,11 +277,6 @@ private:
 	int32 CurrentlyUsedThreads = 0;
 
 #if WITH_EDITOR
-	FCriticalSection ActorsListLock;
-	TSet<AActor*> ActorsToSave;
-	TSet<FWorldPartitionReference> ActorsToRelease;
-
-	int32 ReleaseActorsCountUntilGC = 30;
 	TWeakPtr<IPCGEditorProgressNotification> GenerationProgressNotification;
 	double GenerationProgressNotificationStartTime = 0.0;
 	int32 GenerationProgressLastTaskNum = 0;

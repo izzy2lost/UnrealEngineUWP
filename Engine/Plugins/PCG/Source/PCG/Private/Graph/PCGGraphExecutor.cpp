@@ -774,102 +774,115 @@ void FPCGGraphExecutor::Execute()
 
 				FPCGGraphTask& Task = ReadyTasks[ReadyTaskIndex];
 
-				// Build input
-				FPCGDataCollection TaskInput;
-				BuildTaskInput(Task, TaskInput);
-
-				// Initialize the element if needed (required to know whether it will run on the main thread or not)
-				if (!Task.Element)
+				if (!Task.bHasDoneSetup)
 				{
-					// Get appropriate settings
-					check(Task.Node);
-					const UPCGSettings* Settings = TaskInput.GetSettings(Task.Node->GetSettings());
+					Task.bHasDoneSetup = true;
 
-					if (Settings)
+					// Build input
+					FPCGDataCollection TaskInput;
+					BuildTaskInput(Task, TaskInput);
+
+					// Initialize the element if needed (required to know whether it will run on the main thread or not)
+					if (!Task.Element)
 					{
-						Task.Element = Settings->GetElement();
-					}
-				}
+						// Get appropriate settings
+						check(Task.Node);
+						const UPCGSettings* Settings = TaskInput.GetSettings(Task.Node->GetSettings());
 
-				// At this point, if the task doesn't have an element, we will never be able to execute it, so we can drop it.
-				if (!Task.Element)
-				{
-					check(!Task.Context);
-					ReadyTasks.RemoveAtSwap(ReadyTaskIndex);
-					continue;
-				}
-
-				PCGGraphExecutionLogging::LogTaskExecute(Task);
-
-				// If a task is cacheable and has been cached, then we don't need to create an active task for it unless
-				// there is an execution mode that would prevent us from doing so.
-				const UPCGSettingsInterface* TaskSettingsInterface = TaskInput.GetSettingsInterface(Task.Node ? Task.Node->GetSettingsInterface() : nullptr);
-				const UPCGSettings* TaskSettings = TaskSettingsInterface ? TaskSettingsInterface->GetSettings() : nullptr;
-				const bool bCacheable = Task.Element->IsCacheableInstance(TaskSettingsInterface);
-
-				// Calculate Crc of dependencies (input data Crcs, settings) and use this as the key in the cache lookup
-				FPCGCrc DependenciesCrc;
-				if (TaskSettings && bCacheable)
-				{
-					Task.Element->GetDependenciesCrc(TaskInput, TaskSettings, Task.SourceComponent.Get(), DependenciesCrc);
-				}
-
-				if (!bCacheable)
-				{
-					PCGGraphExecutionLogging::LogTaskExecuteCachingDisabled(Task);
-				}
-
-				FPCGDataCollection CachedOutput;
-				const bool bResultAlreadyInCache = bCacheable && DependenciesCrc.IsValid() && GraphCache.GetFromCache(Task.Node, Task.Element.Get(), DependenciesCrc, Task.SourceComponent.Get(), CachedOutput);
-#if WITH_EDITOR
-				const bool bNeedsToCreateActiveTask = !bResultAlreadyInCache || TaskSettingsInterface->bDebug;
-#else
-				const bool bNeedsToCreateActiveTask = !bResultAlreadyInCache;
-#endif
-
-				if (!bNeedsToCreateActiveTask)
-				{
-#if WITH_EDITOR
-					// Doing this now since we're about to modify ReadyTasks potentially reallocating while Task is a reference. 
-					if (UPCGComponent* SourceComponent = Task.SourceComponent.Get())
-					{
-						if (Task.StackIndex != INDEX_NONE)
+						if (Settings)
 						{
-							const FPCGStack* Stack = Task.GetStack();
-							SourceComponent->StoreInspectionData(Stack, Task.Node, nullptr, TaskInput, CachedOutput, /*bUsedCache=*/true);
+							Task.Element = Settings->GetElement();
 						}
 					}
-#endif
 
-					if (bDynamicTaskCulling && TaskSettings && TaskSettings->OutputPinsCanBeDeactivated() && CachedOutput.InactiveOutputPinBitmask != 0)
+					// At this point, if the task doesn't have an element, we will never be able to execute it, so we can drop it.
+					if (!Task.Element)
 					{
-						CullInactiveDownstreamNodes(Task.NodeId, CachedOutput.InactiveOutputPinBitmask);
-
-#if WITH_EDITOR
-						SendInactivePinNotification(Task.Node, Task.GetStack(), CachedOutput.InactiveOutputPinBitmask);
-#endif
+						check(!Task.Context);
+						ReadyTasks.RemoveAtSwap(ReadyTaskIndex);
+						continue;
 					}
 
-					// Fast-forward cached result to stored results
-					FPCGTaskId SkippedTaskId = Task.NodeId;
-					StoreResults(SkippedTaskId, CachedOutput);
-					delete Task.Context;
-					ReadyTasks.RemoveAtSwap(ReadyTaskIndex);
-					QueueNextTasks(SkippedTaskId);
-					bAnyTaskEnded = true;
+					PCGGraphExecutionLogging::LogTaskExecute(Task);
 
-					continue;
-				}
+					// If a task is cacheable and has been cached, then we don't need to create an active task for it unless
+					// there is an execution mode that would prevent us from doing so.
+					const UPCGSettingsInterface* TaskSettingsInterface = TaskInput.GetSettingsInterface(Task.Node ? Task.Node->GetSettingsInterface() : nullptr);
+					const UPCGSettings* TaskSettings = TaskSettingsInterface ? TaskSettingsInterface->GetSettings() : nullptr;
+					const bool bCacheable = Task.Element->IsCacheableInstance(TaskSettingsInterface);
 
-				// Allocate context if not previously done
-				if (!Task.Context)
-				{
-					Task.Context = Task.Element->Initialize(TaskInput, Task.SourceComponent, Task.Node);
-					Task.Context->InitializeSettings();
-					Task.Context->TaskId = Task.NodeId;
-					Task.Context->CompiledTaskId = Task.CompiledTaskId;
-					Task.Context->DependenciesCrc = DependenciesCrc;
-					Task.Context->Stack = Task.GetStack();
+					// Calculate Crc of dependencies (input data Crcs, settings) and use this as the key in the cache lookup
+					FPCGCrc DependenciesCrc;
+					if (TaskSettings && bCacheable)
+					{
+						Task.Element->GetDependenciesCrc(TaskInput, TaskSettings, Task.SourceComponent.Get(), DependenciesCrc);
+					}
+
+					if (!bCacheable)
+					{
+						PCGGraphExecutionLogging::LogTaskExecuteCachingDisabled(Task);
+					}
+
+					FPCGDataCollection CachedOutput;
+					const bool bResultAlreadyInCache = bCacheable && DependenciesCrc.IsValid() && GraphCache.GetFromCache(Task.Node, Task.Element.Get(), DependenciesCrc, Task.SourceComponent.Get(), CachedOutput);
+#if WITH_EDITOR
+					const bool bNeedsToCreateActiveTask = !bResultAlreadyInCache || TaskSettingsInterface->bDebug;
+#else
+					const bool bNeedsToCreateActiveTask = !bResultAlreadyInCache;
+#endif
+
+					if (!bNeedsToCreateActiveTask)
+					{
+#if WITH_EDITOR
+						// Doing this now since we're about to modify ReadyTasks potentially reallocating while Task is a reference. 
+						if (UPCGComponent* SourceComponent = Task.SourceComponent.Get())
+						{
+							if (Task.StackIndex != INDEX_NONE)
+							{
+								const FPCGStack* Stack = Task.GetStack();
+								SourceComponent->StoreInspectionData(Stack, Task.Node, nullptr, TaskInput, CachedOutput, /*bUsedCache=*/true);
+							}
+						}
+#endif
+
+						if (bDynamicTaskCulling && TaskSettings && TaskSettings->OutputPinsCanBeDeactivated() && CachedOutput.InactiveOutputPinBitmask != 0)
+						{
+							CullInactiveDownstreamNodes(Task.NodeId, CachedOutput.InactiveOutputPinBitmask);
+
+#if WITH_EDITOR
+							SendInactivePinNotification(Task.Node, Task.GetStack(), CachedOutput.InactiveOutputPinBitmask);
+#endif
+						}
+
+						// Fast-forward cached result to stored results
+						FPCGTaskId SkippedTaskId = Task.NodeId;
+						StoreResults(SkippedTaskId, CachedOutput);
+						delete Task.Context;
+						ReadyTasks.RemoveAtSwap(ReadyTaskIndex);
+						QueueNextTasks(SkippedTaskId);
+						bAnyTaskEnded = true;
+
+						continue;
+					}
+
+					// Allocate context if not previously done
+					if (!Task.Context)
+					{
+						Task.Context = Task.Element->Initialize(TaskInput, Task.SourceComponent, Task.Node);
+						Task.Context->InitializeSettings();
+						Task.Context->TaskId = Task.NodeId;
+						Task.Context->CompiledTaskId = Task.CompiledTaskId;
+						Task.Context->DependenciesCrc = DependenciesCrc;
+						Task.Context->Stack = Task.GetStack();
+					}
+
+#if WITH_EDITOR
+					if (bResultAlreadyInCache)
+					{
+						Task.bIsBypassed = true;
+						Task.Context->OutputData = CachedOutput;
+					}
+#endif
 				}
 
 				// Validate that we can start this task now
@@ -884,13 +897,8 @@ void FPCGGraphExecutor::Execute()
 					ActiveTask.Context = TUniquePtr<FPCGContext>(Task.Context);
 					ActiveTask.StackIndex = Task.StackIndex;
 					ActiveTask.StackContext = Task.StackContext;
-
 #if WITH_EDITOR
-					if (bResultAlreadyInCache)
-					{
-						ActiveTask.bIsBypassed = true;
-						ActiveTask.Context->OutputData = CachedOutput;
-					}
+					ActiveTask.bIsBypassed = Task.bIsBypassed;
 #endif
 
 					// Move the task up front if it needs to run on the main thread
@@ -1149,12 +1157,6 @@ void FPCGGraphExecutor::Execute()
 				CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS, true);
 			}
 		}
-#endif
-
-#if WITH_EDITOR
-		// Save & release resources when running in-editor
-		SaveDirtyActors();
-		ReleaseUnusedActors();
 #endif
 	}
 }
@@ -1693,59 +1695,6 @@ FPCGTaskId FPCGGraphExecutor::ScheduleDebugWithTaskCallback(UPCGComponent* InCom
 
 	// Finally, add a task to wait on the graph itself plus the capture tasks
 	return ScheduleGeneric([] { return true; }, InComponent, FinalDependencies);
-}
-
-void FPCGGraphExecutor::AddToDirtyActors(AActor* Actor)
-{
-	ActorsListLock.Lock();
-	ActorsToSave.Add(Actor);
-	ActorsListLock.Unlock();
-}
-
-void FPCGGraphExecutor::AddToUnusedActors(const TSet<FWorldPartitionReference>& UnusedActors)
-{
-	ActorsListLock.Lock();
-	ActorsToRelease.Append(UnusedActors);
-	ActorsListLock.Unlock();
-}
-
-void FPCGGraphExecutor::SaveDirtyActors()
-{
-	ActorsListLock.Lock();
-	TSet<AActor*> ToSave = MoveTemp(ActorsToSave);
-	ActorsToSave.Reset();
-	ActorsListLock.Unlock();
-
-	TSet<UPackage*> PackagesToSave;
-	for (AActor* Actor : ToSave)
-	{
-		PackagesToSave.Add(Actor->GetExternalPackage());
-	}
-
-	if (PackagesToSave.Num() > 0)
-	{
-		UEditorLoadingAndSavingUtils::SavePackages(PackagesToSave.Array(), true);
-	}
-}
-
-void FPCGGraphExecutor::ReleaseUnusedActors()
-{
-	ActorsListLock.Lock();
-	bool bRunGC = ActorsToRelease.Num() > 0;
-	ActorsToRelease.Reset();
-	ActorsListLock.Unlock();
-
-#if WITH_EDITOR
-	if (bRunGC && !PCGHelpers::IsRuntimeOrPIE())
-	{
-		--ReleaseActorsCountUntilGC;
-		if (ReleaseActorsCountUntilGC <= 0)
-		{
-			ReleaseActorsCountUntilGC = 30;
-			CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS, true);
-		}
-	}
-#endif
 }
 
 void FPCGGraphExecutor::NotifyGraphChanged(UPCGGraph* InGraph, EPCGChangeType ChangeType)
