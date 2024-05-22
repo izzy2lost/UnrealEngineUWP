@@ -185,7 +185,7 @@ public:
 	void HideGizmoClipMorph();
 	
 	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
-	void ShowGizmoClipMesh(UCustomizableObjectNodeMeshClipWithMesh& ClipMeshNode, UObject& ClipMesh, int32 LODIndex, int32 SectionIndex, int32 MaterialSlotIndex);
+	void ShowGizmoClipMesh(UCustomizableObjectNodeMeshClipWithMesh& ClipMeshNode, UStaticMesh& ClipMesh);
 
 	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
 	void HideGizmoClipMesh();
@@ -322,9 +322,7 @@ private:
 	float MorphLength;
 	FBoxSphereBounds MorphBounds;
 	UCustomizableObjectNodeMeshClipWithMesh* ClipMeshNode;
-	TObjectPtr<UMaterial> ClipMeshMaterial;
-	UStaticMeshComponent* ClipMeshStaticMeshComp;
-	USkeletalMeshComponent* ClipMeshSkeletalMeshComp;
+	UStaticMeshComponent* ClipMeshComp;
 	float Radius1;
 	float Radius2;
 	float RotationAngle;

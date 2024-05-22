@@ -15,6 +15,7 @@ namespace ENodeTitleType { enum Type : int; }
 class FArchive;
 class FAssetThumbnail;
 class FAssetThumbnailPool;
+class FSkeletalMeshModel;
 class ISinglePropertyView;
 class SOverlay;
 class SVerticalBox;
@@ -227,7 +228,6 @@ public:
 	/** Returns the material associated to the given output pin. */
 	UMaterialInterface* GetMaterialFor(const UEdGraphPin* Pin) const;
 	FSkeletalMaterial* GetSkeletalMaterialFor(const UEdGraphPin& Pin) const;
-	int32 GetSkeletalMaterialIndexFor(const UEdGraphPin& Pin) const;
 
 	virtual bool ProvidesCustomPinRelevancyTest() const override { return true; }
 	virtual bool IsPinRelevant(const UEdGraphPin* Pin) const override;
@@ -248,9 +248,8 @@ public:
 	TWeakPtr< SGraphNodeSkeletalMesh > GraphNodeSkeletalMesh;
 
 private:
-	UMaterialInterface* GetMaterialInterfaceFor(const int32 LODIndex, const int32 MaterialIndex) const;
-	FSkeletalMaterial* GetSkeletalMaterialFor(const int32 LODIndex, const int32 SectionIndex) const;
-	int32 GetSkeletalMaterialIndexFor(const int32 LODIndex, const int32 SectionIndex) const;
+	UMaterialInterface* GetMaterialInterfaceFor(const int32 LODIndex, const int32 MaterialIndex, const FSkeletalMeshModel* ImportedModel = nullptr) const;
+	FSkeletalMaterial* GetSkeletalMaterialFor(const int32 LODIndex, const int32 MaterialIndex, const FSkeletalMeshModel* ImportedModel = nullptr) const;
 
 	// Deprecated
 	

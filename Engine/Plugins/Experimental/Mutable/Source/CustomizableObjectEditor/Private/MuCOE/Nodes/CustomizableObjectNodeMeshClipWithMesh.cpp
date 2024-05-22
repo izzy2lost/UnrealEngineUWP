@@ -56,17 +56,6 @@ void UCustomizableObjectNodeMeshClipWithMesh::AllocateDefaultPins(UCustomizableO
 }
 
 
-void UCustomizableObjectNodeMeshClipWithMesh::ReconstructNode(UCustomizableObjectNodeRemapPins* RemapPinsMode)
-{
-	Super::ReconstructNode(RemapPinsMode);
-
-	if (!CustomizableObjectToClipWith)
-	{
-		CustomizableObjectToClipWith = Cast<UCustomizableObject>(GetOutermostObject());
-	}
-}
-
-
 FText UCustomizableObjectNodeMeshClipWithMesh::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
 	return LOCTEXT("Clip_Mesh_With_Mesh", "Clip Mesh With Mesh");

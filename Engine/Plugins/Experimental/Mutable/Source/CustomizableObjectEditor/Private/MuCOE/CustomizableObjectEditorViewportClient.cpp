@@ -22,12 +22,9 @@
 #include "IContentBrowserSingleton.h"
 #include "InputKeyEventArgs.h"
 #include "ObjectTools.h"
-#include "MaterialDomain.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "Materials/MaterialInstanceConstant.h"
 #include "Misc/MessageDialog.h"
 #include "Misc/PackageName.h"
-#include "Misc/ConfigCacheIni.h"
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuCOE/CustomizableObjectPreviewScene.h"
@@ -42,6 +39,7 @@
 #include "ScopedTransaction.h"
 #include "SkeletalDebugRendering.h"
 #include "UnrealWidget.h"
+#include "Materials/MaterialInstanceConstant.h"
 #include "MuCO/CustomizableObjectMipDataProvider.h"
 #include "MuCOE/CustomizableObjectEditorLogger.h"
 #include "MuCOE/UnrealBakeHelpers.h"
@@ -114,48 +112,14 @@ FCustomizableObjectEditorViewportClient::FCustomizableObjectEditorViewportClient
 	// now add the ClipMorph plane
 	ClipMorphNode = nullptr;
 	bClipMorphLocalStartOffset = true;
+	ClipMorphMaterial = LoadObject<UMaterial>(NULL, TEXT("Material'/Engine/EditorMaterials/LevelGridMaterial.LevelGridMaterial'"), NULL, LOAD_None, NULL);
+	check(ClipMorphMaterial);
 
-	// clip mesh StaticMesh preview
-	ClipMeshStaticMeshComp = NewObject<UStaticMeshComponent>(GetTransientPackage(), NAME_None, RF_Transactional);
-	PreviewScene->AddComponent(ClipMeshStaticMeshComp, FTransform());
-	ClipMeshStaticMeshComp->SetVisibility(false);
-
-	// clip mesh SkeletalMesh preview
-	ClipMeshSkeletalMeshComp = NewObject<USkeletalMeshComponent>(GetTransientPackage(), NAME_None, RF_Transactional);
-	PreviewScene->AddComponent(ClipMeshSkeletalMeshComp, FTransform());
-	ClipMeshStaticMeshComp->SetVisibility(false);
-
-	// Assign ClipMesh and ClipMorph Materials from the plugin config
-	FConfigFile* PluginConfig = GConfig->FindConfigFileWithBaseName("Mutable");
-	if (PluginConfig)
-	{
-		FString ClipMorphMaterialName;
-		PluginConfig->GetString(TEXT("EditorDefaults"), TEXT("ClipMorphMaterialName"), ClipMorphMaterialName);
-		if (!ClipMorphMaterialName.IsEmpty())
-		{
-			ClipMorphMaterial = LoadObject<UMaterial>(NULL, *ClipMorphMaterialName, NULL, LOAD_None, NULL);
-			ensure(ClipMorphMaterial);
-		}
-
-		// Clip mesh with mesh  material
-		FString ClipMeshMaterialName;
-		PluginConfig->GetString(TEXT("EditorDefaults"), TEXT("ClipMeshMaterialName"), ClipMeshMaterialName);
-		if (!ClipMeshMaterialName.IsEmpty())
-		{
-			ClipMeshMaterial = LoadObject<UMaterial>(nullptr, *ClipMeshMaterialName, nullptr, LOAD_None, nullptr);
-			ensure(ClipMeshMaterial);
-		}
-	}
-
-	if (!ClipMorphMaterial)
-	{
-		ClipMorphMaterial = UMaterial::GetDefaultMaterial(MD_Surface);
-	}
-
-	if (!ClipMeshMaterial)
-	{
-		ClipMeshMaterial = UMaterial::GetDefaultMaterial(MD_Surface);
-	}
+	// clip mesh preview
+	ClipMeshNode = nullptr;
+	ClipMeshComp = NewObject<UStaticMeshComponent>();
+	PreviewScene->AddComponent(ClipMeshComp, FTransform());
+	ClipMeshComp->SetVisibility(false);
 
 	BoundSphere.W = 100.f;
 
@@ -727,33 +691,15 @@ void FCustomizableObjectEditorViewportClient::HideGizmoClipMorph()
 }
 
 
-void FCustomizableObjectEditorViewportClient::ShowGizmoClipMesh(UCustomizableObjectNodeMeshClipWithMesh& InClipMeshNode, UObject& ClipMesh, int32 LODIndex, int32 SectionIndex, int32 MaterialSlotIndex)
+void FCustomizableObjectEditorViewportClient::ShowGizmoClipMesh(UCustomizableObjectNodeMeshClipWithMesh& InClipMeshNode, UStaticMesh& ClipMesh)
 {
-	HideGizmoClipMesh();
-
 	SetWidgetType(EWidgetType::ClipMesh);
 
 	ClipMeshNode = &InClipMeshNode;
 
-	if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(&ClipMesh))
-	{
-		ClipMeshStaticMeshComp->SetStaticMesh(StaticMesh);
-		ClipMeshStaticMeshComp->SetVisibility(true);
-		ClipMeshStaticMeshComp->SetWorldTransform(InClipMeshNode.Transform);
-		ClipMeshStaticMeshComp->EmptyOverrideMaterials();
-		ClipMeshStaticMeshComp->SetMaterial(MaterialSlotIndex, ClipMeshMaterial);
-		ClipMeshStaticMeshComp->SetSectionPreview(SectionIndex);
-	}
-	else if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(&ClipMesh))
-	{
-		ClipMeshSkeletalMeshComp->SetSkeletalMesh(SkeletalMesh);
-		ClipMeshSkeletalMeshComp->SetVisibility(true);
-		ClipMeshSkeletalMeshComp->SetWorldTransform(InClipMeshNode.Transform);
-		ClipMeshSkeletalMeshComp->SetForcedLOD(LODIndex);
-		ClipMeshSkeletalMeshComp->EmptyOverrideMaterials();
-		ClipMeshSkeletalMeshComp->SetMaterial(MaterialSlotIndex, ClipMeshMaterial);
-		ClipMeshSkeletalMeshComp->SetSectionPreview(SectionIndex);
-	}
+	ClipMeshComp->SetStaticMesh(&ClipMesh);
+	ClipMeshComp->SetVisibility(true);
+	ClipMeshComp->SetWorldTransform(InClipMeshNode.Transform);
 }
 
 
@@ -761,9 +707,8 @@ void FCustomizableObjectEditorViewportClient::HideGizmoClipMesh()
 {
 	if (WidgetType == EWidgetType::ClipMesh)
 	{
-		ClipMeshStaticMeshComp->SetVisibility(false);
-		ClipMeshSkeletalMeshComp->SetVisibility(false);
-
+		ClipMeshComp->SetVisibility(false);
+		
 		SetWidgetType(EWidgetType::Hidden);
 	}
 }
@@ -1203,10 +1148,7 @@ bool FCustomizableObjectEditorViewportClient::InputWidgetDelta(FViewport* InView
 				ClipMeshNode->Transform.SetScale3D(ClipMeshNode->Transform.GetScale3D() + Scale);
 			}
 
-			ClipMeshStaticMeshComp->Modify();
-			ClipMeshSkeletalMeshComp->Modify();
-			ClipMeshStaticMeshComp->SetWorldTransform(ClipMeshNode->Transform);
-			ClipMeshSkeletalMeshComp->SetWorldTransform(ClipMeshNode->Transform);
+			ClipMeshComp->SetWorldTransform(ClipMeshNode->Transform);
 
 			return true;
 		}
@@ -1797,7 +1739,6 @@ void FCustomizableObjectEditorViewportClient::DrawShadowedString(FCanvas* Canvas
 void FCustomizableObjectEditorViewportClient::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Collector.AddReferencedObject(ClipMorphMaterial);
-	Collector.AddReferencedObject(ClipMeshMaterial);
 	Collector.AddReferencedObject(TransparentPlaneMaterialXY);
 	Collector.AddReferencedObject(AnimationBeingPlayed);
 

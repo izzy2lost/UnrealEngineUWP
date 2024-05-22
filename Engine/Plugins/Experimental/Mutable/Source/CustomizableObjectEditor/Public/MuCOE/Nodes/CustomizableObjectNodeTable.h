@@ -406,9 +406,6 @@ public:
 
 	/** Returns the skeletal material associated to the given skeletal mesh output pin. */
 	FSkeletalMaterial* GetDefaultSkeletalMaterialFor(const UEdGraphPin& MeshPin) const;
-
-	/** Returns the index of the skeletal material associated to the given skeletal mesh output pin. */
-	int32 GetDefaultSkeletalMaterialIndexFor(const UEdGraphPin& MeshPin) const;
 	
 private:
 
