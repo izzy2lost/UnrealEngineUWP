@@ -18,7 +18,7 @@ public:
 		_ShowInitial(true)
 	{}
 		SLATE_ARGUMENT(FString, Identifier)
-		SLATE_ARGUMENT(FString, Description)
+		SLATE_ARGUMENT_DEPRECATED(FString, Description, 5.5, "Description is deprecated, use Identifier instead.")
 		SLATE_ARGUMENT(float, HeightOverride)
 		SLATE_ARGUMENT(float, WidthOverride)
 		SLATE_ARGUMENT(bool, ShowInitial)
@@ -32,6 +32,9 @@ public:
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
 
 private:
+	/** Computes the hash of the identifier with djb2 function*/
+	uint64 Hash() const;
+
 	/** The Identifier of the avatar */
 	FString Identifier;
 

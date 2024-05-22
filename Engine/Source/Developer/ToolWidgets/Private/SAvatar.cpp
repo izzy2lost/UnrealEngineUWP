@@ -14,10 +14,10 @@ void SAvatar::Construct(const FArguments& InArgs)
 
 	bShowInitial = InArgs._ShowInitial;
 
-	const uint32 Hash = GetTypeHash(Identifier);
-	const uint8 H = ((Hash >> 0) & 0xFF) ^ ((Hash >> 8) & 0xFF) ^ ((Hash >> 16) & 0xFF) ^ ((Hash >> 24) & 0xFF);
-	const uint8 S = 128 + ((Hash >> 8) & 0x7F);
-	const uint8 V = 128 + ((Hash >> 16) & 0x7F) / 2;
+	const uint64 Value = Hash();
+	const uint8 H = ((Value >> 0) & 0xFF) ^ ((Value >> 8) & 0xFF) ^ ((Value >> 16) & 0xFF) ^ ((Value >> 24) & 0xFF);
+	const uint8 S = 128 + ((Value >> 8) & 0x7F);
+	const uint8 V = 128 + ((Value >> 16) & 0x7F) / 2;
 	BackgroundColor = FLinearColor::MakeFromHSV8(H, S, V).ToFColor(false);
 	ForegroundColor = FColor::White;
 
@@ -49,11 +49,11 @@ int32 SAvatar::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry
 
 	// Draw foreground text.
 
-	if (Description.Len() > 0 && bShowInitial)
+	if (Identifier.Len() > 0 && bShowInitial)
 	{
 		FSlateFontInfo FontInfo = FCoreStyle::GetDefaultFontStyle("Bold", Radius);
 
-		const FString Text = Description.Left(1).ToUpper();
+		const FString Text = Identifier.Left(1).ToUpper();
 		const FVector2D TextSize = FSlateApplication::Get().GetRenderer()->GetFontMeasureService()->Measure(Text, FontInfo);
 		const FVector2D TextOffset(Radius - TextSize.X / 2, Radius - TextSize.Y / 2);
 
@@ -69,4 +69,15 @@ int32 SAvatar::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry
 	}
 
 	return SCompoundWidget::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled && IsEnabled());
+}
+
+uint64 SAvatar::Hash() const
+{
+	uint64 HashValue = 5381;
+	for (char Char : Identifier.ToLower())
+	{
+		HashValue = ((HashValue << 5) + HashValue) + Char;
+	}
+
+	return HashValue;
 }
