@@ -5382,15 +5382,7 @@ void UNavigationSystemV1::UpdateInvokers()
 #endif // ENABLE_VISUAL_LOG
 		}
 
-#if WITH_RECAST
-		const double UpdateStartTime = FPlatformTime::Seconds();
-		for (TActorIterator<ARecastNavMesh> It(World); It; ++It)
-		{
-			It->UpdateActiveTiles(InvokerLocations);
-		}
-		const double UpdateEndTime = FPlatformTime::Seconds();
-		UE_VLOG(this, LogNavInvokers, Log, TEXT("Marking tiles to update %fms (%d invokers)"), (UpdateEndTime - UpdateStartTime) * 1000, InvokerLocations.Num());
-#endif
+		UpdateNavDataActiveTiles();
 
 		// once per second
 		NextInvokersUpdateTime = CurrentTime + ActiveTilesUpdateInterval;
@@ -5428,6 +5420,19 @@ void UNavigationSystemV1::UpdateInvokers()
 	}
 #endif // CSV_PROFILER
 #endif // !UE_BUILD_SHIPPING
+}
+
+void UNavigationSystemV1::UpdateNavDataActiveTiles()
+{
+#if WITH_RECAST
+	const double UpdateStartTime = FPlatformTime::Seconds();
+	for (TActorIterator<ARecastNavMesh> It(GetWorld()); It; ++It)
+	{
+		It->UpdateActiveTiles(InvokerLocations);
+	}
+	const double UpdateEndTime = FPlatformTime::Seconds();
+	UE_VLOG(this, LogNavInvokers, Log, TEXT("Marking tiles to update %fms (%d invokers)"), (UpdateEndTime - UpdateStartTime) * 1000, InvokerLocations.Num());
+#endif
 }
 
 void UNavigationSystemV1::DirtyTilesInBuildBounds()

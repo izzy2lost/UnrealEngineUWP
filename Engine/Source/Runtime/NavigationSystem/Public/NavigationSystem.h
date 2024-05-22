@@ -466,7 +466,11 @@ private:
 
 	double NextInvokersUpdateTime;
 	NAVIGATIONSYSTEM_API void UpdateInvokers();
+	
+protected:
+	NAVIGATIONSYSTEM_API virtual void UpdateNavDataActiveTiles();
 
+private:
 	NAVIGATIONSYSTEM_API void DirtyTilesInBuildBounds();
 
 	void UnregisterInvoker_Internal(const UObject& Invoker);
