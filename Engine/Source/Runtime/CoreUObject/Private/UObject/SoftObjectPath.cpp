@@ -13,6 +13,7 @@
 #include "Misc/RedirectCollector.h"
 #include "Misc/AutomationTest.h"
 #include "String/Find.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 // Deprecated constructor
 FSoftObjectPath::FSoftObjectPath(FName InAssetPathName, FString InSubPathString)
@@ -535,7 +536,10 @@ UObject* FSoftObjectPath::TryLoad(FUObjectSerializeContext* InLoadContext) const
 			}
 #endif
 
-			LoadedObject = StaticLoadObject(UObject::StaticClass(), nullptr, *PathString, nullptr, LOAD_None, nullptr, true);
+			UE_AUTORTFM_OPEN(
+			{
+				LoadedObject = StaticLoadObject(UObject::StaticClass(), nullptr, *PathString, nullptr, LOAD_None, nullptr, true);
+			});
 
 #if WITH_EDITOR
 			// Look at core redirects if we didn't find the object
