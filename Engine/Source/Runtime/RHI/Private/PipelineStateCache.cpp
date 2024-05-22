@@ -542,7 +542,7 @@ public:
 	virtual ~FPipelineState() 
 	{
 		check(IsComplete());
-		check(!WaitCompletion());
+		verify(!WaitCompletion());
 		check(!PrecompileTask.IsValid());
 	}
 
