@@ -540,7 +540,7 @@ namespace Horde.Server.Issues
 			{
 				response.FingerprintDescription = String.Join(", ", issue.Fingerprints.Select(x =>
 				{
-					return $"(Type: {x.Type} / Keys: {String.Join(", ", x.Keys)} / RejectKeys: {String.Join(", ", x.RejectKeys ?? new HashSet<IssueKey>())})";
+					return $"Type: {x.Type} / Keys: {String.Join(", ", x.Keys)} / RejectKeys: {String.Join(", ", x.RejectKeys ?? new HashSet<IssueKey>())}";
 				}));
 			}
 
