@@ -12,6 +12,7 @@
 #include "ContentBrowserModule.h"
 #include "IContentBrowserSingleton.h"
 #include "ScopedTransaction.h"
+#include "RigVMSettings.h"
 
 #define LOCTEXT_NAMESPACE "RigVMVariantDetailCustomization"
 
@@ -45,6 +46,11 @@ void FRigVMVariantDetailCustomization::CustomizeHeader(TSharedRef<IPropertyHandl
 		.VariantRefs(this, &FRigVMVariantDetailCustomization::GetVariantRefs)
 		.OnVariantChanged(this, &FRigVMVariantDetailCustomization::OnVariantChanged)
 		.OnBrowseVariantRef(this, &FRigVMVariantDetailCustomization::OnBrowseVariantRef)
+		.OnGetTags(this, &FRigVMVariantDetailCustomization::OnGetTags)
+		.OnAddTag(this, &FRigVMVariantDetailCustomization::OnAddTag)
+		.OnRemoveTag(this, &FRigVMVariantDetailCustomization::OnRemoveTag)
+		.CanAddTags(true)
+		.EnableTagContextMenu(true)
 	];
 }
 
@@ -95,6 +101,57 @@ void FRigVMVariantDetailCustomization::OnBrowseVariantRef(const FRigVMVariantRef
 	{
 		const FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
 		ContentBrowserModule.Get().SyncBrowserToAssets({AssetData});
+	}
+}
+
+TArray<FRigVMTag> FRigVMVariantDetailCustomization::OnGetTags() const
+{
+	if(BlueprintBeingCustomized)
+	{
+		return BlueprintBeingCustomized->AssetVariant.Tags;
+	}
+	return {};
+}
+
+void FRigVMVariantDetailCustomization::OnAddTag(const FName& InTagName)
+{
+	if(BlueprintBeingCustomized)
+	{
+		const URigVMProjectSettings* Settings = GetMutableDefault<URigVMProjectSettings>(URigVMProjectSettings::StaticClass());
+		if (Settings)
+		{
+			if (const FRigVMTag* Tag = Settings->FindTag(InTagName))
+			{
+				if(!BlueprintBeingCustomized->AssetVariant.Tags.ContainsByPredicate([InTagName](const FRigVMTag& Tag) -> bool
+				{
+					return Tag.Name == InTagName;
+				}))
+				{
+					FScopedTransaction Transaction(LOCTEXT("AddedBlueprintVariantTag", "Added Blueprint Variant Tag"));
+					BlueprintBeingCustomized->Modify();
+					BlueprintBeingCustomized->AssetVariant.Tags.Add(*Tag);
+				}
+			}
+		}
+	}
+}
+
+void FRigVMVariantDetailCustomization::OnRemoveTag(const FName& InTagName)
+{
+	if(BlueprintBeingCustomized)
+	{
+		if(BlueprintBeingCustomized->AssetVariant.Tags.ContainsByPredicate([InTagName](const FRigVMTag& Tag) -> bool
+			{
+				return Tag.Name == InTagName;
+			}))
+		{
+			FScopedTransaction Transaction(LOCTEXT("RemovedBlueprintVariantTag", "Removed Blueprint Variant Tag"));
+			BlueprintBeingCustomized->Modify();
+			BlueprintBeingCustomized->AssetVariant.Tags.RemoveAll([InTagName](const FRigVMTag& Tag) -> bool
+			{
+				return Tag.Name == InTagName;
+			});
+		}
 	}
 }
 

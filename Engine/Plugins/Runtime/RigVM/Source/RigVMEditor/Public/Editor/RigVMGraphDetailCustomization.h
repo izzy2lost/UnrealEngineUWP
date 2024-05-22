@@ -193,7 +193,7 @@ public:
 	FText GetCurrentAccessSpecifierName() const;
 	void OnAccessSpecifierSelected( TSharedPtr<FRigVMStringWithTag> SpecifierName, ESelectInfo::Type SelectInfo );
 	TSharedRef<ITableRow> HandleGenerateRowAccessSpecifier( TSharedPtr<FRigVMStringWithTag> SpecifierName, const TSharedRef<STableViewBase>& OwnerTable );
-	bool IsFunctionVariant() const;
+	bool IsValidFunction() const;
 	FRigVMVariant GetVariant() const;
 	TArray<FRigVMVariantRef> GetVariantRefs() const;
 
@@ -201,6 +201,9 @@ private:
 
 	void OnVariantChanged(const FRigVMVariant& InVariant);
 	void OnBrowseVariantRef(const FRigVMVariantRef& InVariantRef);
+	TArray<FRigVMTag> OnGetAssignedTags() const;
+	void OnAddAssignedTag(const FName& InTagName);
+	void OnRemoveAssignedTag(const FName& InTagName);
 
 	/** The Blueprint editor we are embedded in */
 	TWeakPtr<FRigVMEditor> RigVMEditorPtr;

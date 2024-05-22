@@ -259,6 +259,16 @@ const FSlateBrush* FRigVMTreeFunctionIdentifierNode::GetIconAndTint(FLinearColor
 	return Icon.GetIcon();
 }
 
+const TArray<FRigVMTag>& FRigVMTreeFunctionIdentifierNode::GetTags() const
+{
+	const FRigVMGraphFunctionHeader Header = FRigVMGraphFunctionHeader::FindGraphFunctionHeader(Identifier);
+	if(Header.IsValid())
+	{
+		Tags = Header.Variant.Tags;
+	}
+	return FRigVMTreeNode::GetTags();
+}
+
 void FRigVMTreeFunctionIdentifierAssetNode::AddChildNode(const TSharedRef<FRigVMTreeNode>& InNode)
 {
 	AddChildImpl(InNode);

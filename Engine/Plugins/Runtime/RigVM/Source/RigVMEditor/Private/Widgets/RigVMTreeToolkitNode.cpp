@@ -332,6 +332,7 @@ FSlateColor FRigVMTreeCategoryNode::GetBackgroundColor(bool bIsHovered, bool bIs
 
 FRigVMTreePackageNode::FRigVMTreePackageNode(const FAssetData& InAssetData)
 	: FRigVMTreeCategoryNode(InAssetData.GetObjectPathString())
+	, bRetrievedTags(false)
 {
 	SoftObjectPath = InAssetData.GetSoftObjectPath();
 	bIsLoaded = InAssetData.IsAssetLoaded();
@@ -372,6 +373,31 @@ bool FRigVMTreePackageNode::IsLoaded() const
 	}
 	
 	return bIsLoaded.GetValue();
+}
+
+const TArray<FRigVMTag>& FRigVMTreePackageNode::GetTags() const
+{
+	if(!bRetrievedTags)
+	{
+		if(IsLoaded())
+		{
+			if(const URigVMBlueprint* Blueprint = GetBlueprint())
+			{
+				Tags = Blueprint->AssetVariant.Tags;
+			}
+			else
+			{
+				const FAssetData AssetData = GetAssetData();
+				if(AssetData.FindTag(GET_MEMBER_NAME_CHECKED(URigVMBlueprint, AssetVariant)))
+				{
+					//const FRigVMVariant& Variant = AssetData.GetTagValueRef<FRigVMVariant>(GET_MEMBER_NAME_CHECKED(URigVMBlueprint, AssetVariant));
+					//Tags = Variant.Tags;
+				}
+			}
+		}
+		bRetrievedTags = true;
+	}
+	return FRigVMTreeCategoryNode::GetTags();
 }
 
 const FSlateBrush* FRigVMTreePackageNode::GetIconAndTint(FLinearColor& OutColor) const

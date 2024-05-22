@@ -75,7 +75,8 @@ public:
 
 	bool IsFunctionPublic(const FName& InFunctionName) const { return PublicFunctionNames.Contains(InFunctionName); }
 
-	const FRigVMVariant* GetFunctionVariant(const FName& InFunctionName) const { return FunctionToVariant.Find(InFunctionName); }
+	const FRigVMVariant* GetFunctionVariant(const FName& InFunctionName) const;
+	FRigVMVariant* GetFunctionVariant(const FName& InFunctionName);
 
 private:
 

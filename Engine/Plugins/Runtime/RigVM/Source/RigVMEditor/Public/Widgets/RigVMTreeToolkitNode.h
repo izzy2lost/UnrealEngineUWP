@@ -4,6 +4,7 @@
 
 #include "RigVMBlueprint.h"
 #include "RigVMTreeToolkitDefines.h"
+#include "RigVMCore/RigVMVariant.h"
 #include "Styling/SlateTypes.h"
 #include "Textures/SlateIcon.h"
 
@@ -50,6 +51,11 @@ public:
 	virtual bool ShouldExpandByDefault() const
 	{
 		return false;
+	}
+	
+	virtual const TArray<FRigVMTag>& GetTags() const
+	{
+		return Tags;
 	}
 	
 	int32 GetDepth() const;
@@ -117,6 +123,7 @@ protected:
 	mutable TArray<TSharedRef<FRigVMTreeNode>> VisibleChildren;
 	mutable bool bIsDirtyingParent = false;
 	TOptional<ECheckBoxState> CheckState;
+	mutable TArray<FRigVMTag> Tags;
 
 	DECLARE_DELEGATE_OneParam(FRefreshDelegate, bool)
 	FRefreshDelegate RefreshDelegate;
@@ -178,6 +185,7 @@ public:
 
 	virtual FText GetLabel() const override;
 	virtual bool IsLoaded() const override;
+	virtual const TArray<FRigVMTag>& GetTags() const override;
 
 	const FSoftObjectPath& GetPackagePath() const { return SoftObjectPath; }
 
@@ -188,4 +196,5 @@ protected:
 	FSoftObjectPath SoftObjectPath;
 	mutable FSlateIcon Icon;
 	mutable TOptional<const FSlateBrush*> IconBrush;
+	mutable bool bRetrievedTags;
 };

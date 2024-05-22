@@ -39,6 +39,7 @@
 #include "RigVMFunctions/RigVMDispatch_Select.h"
 #include "Algo/Copy.h"
 #include "Brushes/SlateColorBrush.h"
+#include "Widgets/SRigVMVariantTagWidget.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -1883,6 +1884,52 @@ void SRigVMGraphNode::UpdatePinTreeView()
 		SNew(SSpacer)
 		.Size(FVector2D(1.f, 2.f))
 	];
+
+	// add the tags this node potentially has
+	if(ModelNode.IsValid())
+	{
+		if(URigVMFunctionReferenceNode* FunctionRefNode = Cast<URigVMFunctionReferenceNode>(ModelNode.Get()))
+		{
+			const FRigVMVariant Variant = FunctionRefNode->GetReferencedFunctionHeader().Variant;
+			if(!Variant.Tags.IsEmpty())
+			{
+				TWeakObjectPtr<URigVMFunctionReferenceNode> WeakFunctionRefNode = FunctionRefNode;
+				
+				LeftNodeBox->AddSlot()
+				.HAlign(HAlign_Fill)
+				.VAlign(VAlign_Center)
+				.AutoHeight()
+				.Padding(2, 0, 2, 2)
+				[
+					SNew(SRigVMVariantTagWidget)
+					.Visibility_Lambda([WeakFunctionRefNode]() -> EVisibility
+					{
+						if(WeakFunctionRefNode.IsValid())
+						{
+							const FRigVMVariant Variant = WeakFunctionRefNode->GetReferencedFunctionHeader().Variant;
+							if(!Variant.Tags.IsEmpty())
+							{
+								return EVisibility::Visible;
+							}
+						}
+						return EVisibility::Collapsed;
+					})
+					.Orientation(EOrientation::Orient_Horizontal)
+					.CanAddTags(false)
+					.EnableContextMenu(false)
+					.OnGetTags_Lambda([WeakFunctionRefNode]() -> TArray<FRigVMTag>
+					{
+						if(WeakFunctionRefNode.IsValid())
+						{
+							const FRigVMVariant Variant = WeakFunctionRefNode->GetReferencedFunctionHeader().Variant;
+							return Variant.Tags;
+						}
+						return {};
+					})
+				];
+			}
+		}
+	}
 
 	auto AddArrayPlusButtonLambda = [this](URigVMPin* InModelPin, TSharedPtr<SHorizontalBox> InSlotLayout, const float InEmptySidePadding)
 	{

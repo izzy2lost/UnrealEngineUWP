@@ -142,6 +142,7 @@ public:
 	virtual FText GetLabel() const override;
 	virtual bool IsCheckable() const override { return false; }
 	virtual const FSlateBrush* GetIconAndTint(FLinearColor& OutColor) const override;
+	virtual const TArray<FRigVMTag>& GetTags() const override;
 
 	const FRigVMGraphFunctionIdentifier& GetIdentifier() const
 	{

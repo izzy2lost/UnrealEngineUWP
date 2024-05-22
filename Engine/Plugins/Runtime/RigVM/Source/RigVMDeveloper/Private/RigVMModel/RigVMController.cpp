@@ -12333,16 +12333,13 @@ URigVMLibraryNode* URigVMController::CreateFunctionVariant(const FName& InFuncti
 
 bool URigVMController::AddDefaultTagToFunctionVariant(const FName& InFunctionName, const FName& InTagName, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
-	URigVMEditorSettings* Settings = GetMutableDefault<URigVMEditorSettings>(URigVMEditorSettings::StaticClass());
+	URigVMProjectSettings* Settings = GetMutableDefault<URigVMProjectSettings>(URigVMProjectSettings::StaticClass());
 	if (!Settings)
 	{
 		return false;
 	}
 
-	const FRigVMTag* Tag = Settings->VariantTags.FindByPredicate([InTagName](const FRigVMTag& Tag)
-	{
-		return InTagName == Tag.Name;
-	});
+	const FRigVMTag* Tag = Settings->FindTag(InTagName);
 	if (!Tag)
 	{
 		ReportErrorf(TEXT("Could not find default tag with name %s."), *InTagName.ToString());
@@ -12394,10 +12391,19 @@ bool URigVMController::AddTagToFunctionVariant(const FName& InFunctionName, cons
 		return false;
 	}
 
-	FRigVMVariant* Variant = FunctionLibrary->FunctionToVariant.Find(InFunctionName);
+	FRigVMVariant* Variant = FunctionLibrary->GetFunctionVariant(InFunctionName);
 	if (!Variant)
 	{
 		ReportErrorf(TEXT("Could not find function variant for function %s."), *InFunctionName.ToString());
+		return false;
+	}
+
+	if(Variant->Tags.ContainsByPredicate([InTag](const FRigVMTag& Tag) -> bool
+	{
+		return Tag.Name == InTag.Name; 
+	}))
+	{
+		ReportErrorf(TEXT("Cannot add tag %s to function %s - tag already applied."), *InFunctionName.ToString());
 		return false;
 	}
 
@@ -12468,7 +12474,7 @@ bool URigVMController::RemoveTagFromFunctionVariant(const FName& InFunctionName,
 		return false;
 	}
 
-	FRigVMVariant* Variant = FunctionLibrary->FunctionToVariant.Find(InFunctionName);
+	FRigVMVariant* Variant = FunctionLibrary->GetFunctionVariant(InFunctionName);
 	if (!Variant)
 	{
 		ReportErrorf(TEXT("Could not find function variant for function %s."), *InFunctionName.ToString());
@@ -12493,7 +12499,10 @@ bool URigVMController::RemoveTagFromFunctionVariant(const FName& InFunctionName,
 		GetActionStack()->AddAction(FRigVMRemoveFunctionVariantTagAction(this, InFunctionName, InTagName));
 	}
 
-	Variant->Tags.RemoveAt(Index);
+	Variant->Tags.RemoveAll([InTagName](const FRigVMTag& Tag) -> bool
+	{
+		return Tag.Name == InTagName;
+	});
 
 	Notify(ERigVMGraphNotifType::VariantTagsChanged, LibraryNode);
 

@@ -966,7 +966,7 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 		.OverrideResetToDefault(FResetToDefaultOverride::Hide())
 		.Visibility(TAttribute<EVisibility>::CreateLambda([this]()
 		{
-			return IsFunctionVariant() ? EVisibility::Visible : EVisibility::Collapsed;
+			return IsValidFunction() ? EVisibility::Visible : EVisibility::Collapsed;
 		}))
 		.NameContent()
 		[
@@ -981,6 +981,11 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 			.VariantRefs(this, &FRigVMGraphDetailCustomization::GetVariantRefs)
 			.OnVariantChanged(this, &FRigVMGraphDetailCustomization::OnVariantChanged)
 			.OnBrowseVariantRef(this, &FRigVMGraphDetailCustomization::OnBrowseVariantRef)
+			.OnGetTags(this, &FRigVMGraphDetailCustomization::OnGetAssignedTags)
+			.OnAddTag(this, &FRigVMGraphDetailCustomization::OnAddAssignedTag)
+			.OnRemoveTag(this, &FRigVMGraphDetailCustomization::OnRemoveAssignedTag)
+			.CanAddTags(true)
+			.EnableTagContextMenu(true)
 		];
 	}
 
@@ -1337,7 +1342,7 @@ TSharedRef<ITableRow> FRigVMGraphDetailCustomization::HandleGenerateRowAccessSpe
         ];
 }
 
-bool FRigVMGraphDetailCustomization::IsFunctionVariant() const
+bool FRigVMGraphDetailCustomization::IsValidFunction() const
 {
 	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
 	{
@@ -1346,7 +1351,7 @@ bool FRigVMGraphDetailCustomization::IsFunctionVariant() const
 		{
 			if (const URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Model->GetOuter()))
 			{
-				return LibraryNode->GetFunctionHeader(Blueprint->GetRigVMGraphFunctionHost()).LibraryPointer.IsVariant(); 
+				return LibraryNode->GetFunctionHeader(Blueprint->GetRigVMGraphFunctionHost()).IsValid(); 
 			}
 		}
 	}
@@ -1408,6 +1413,51 @@ void FRigVMGraphDetailCustomization::OnBrowseVariantRef(const FRigVMVariantRef& 
 					{
 						RigVMEditor->HandleJumpToHyperlink(LibraryNode);
 					}
+				}
+			}
+		}
+	}
+}
+
+TArray<FRigVMTag> FRigVMGraphDetailCustomization::OnGetAssignedTags() const
+{
+	return GetVariant().Tags;
+}
+
+void FRigVMGraphDetailCustomization::OnAddAssignedTag(const FName& InTagName)
+{
+	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	{
+		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
+		if (const URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get()))
+		{
+			if (URigVMGraph* FunctionLibrary = Blueprint->GetLocalFunctionLibrary())
+			{
+				if (const URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Model->GetOuter()))
+				{
+					const FString& FunctionName = LibraryNode->GetFunctionHeader().LibraryPointer.GetFunctionName();
+					URigVMController* FunctionLibraryController = Blueprint->GetOrCreateController(FunctionLibrary);
+					FunctionLibraryController->AddDefaultTagToFunctionVariant(*FunctionName, InTagName);
+				}
+			}
+		}
+	}
+}
+
+void FRigVMGraphDetailCustomization::OnRemoveAssignedTag(const FName& InTagName)
+{
+	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	{
+		URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
+		if (const URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get()))
+		{
+			if (URigVMGraph* FunctionLibrary = Blueprint->GetLocalFunctionLibrary())
+			{
+				if (const URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Model->GetOuter()))
+				{
+					const FString& FunctionName = LibraryNode->GetFunctionHeader().LibraryPointer.GetFunctionName();
+					URigVMController* FunctionLibraryController = Blueprint->GetOrCreateController(FunctionLibrary);
+					FunctionLibraryController->RemoveTagFromFunctionVariant(*FunctionName, InTagName);
 				}
 			}
 		}

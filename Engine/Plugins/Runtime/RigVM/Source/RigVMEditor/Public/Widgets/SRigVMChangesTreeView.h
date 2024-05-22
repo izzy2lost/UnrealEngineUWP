@@ -40,10 +40,12 @@ private:
 	const FSlateBrush* GetExpanderImage() const;
 	FReply OnExpanderMouseButtonDown(const FGeometry& SenderGeometry, const FPointerEvent& MouseEvent);
 	EVisibility GetExpanderVisibility() const;
+	TArray<FRigVMTag> GetVariantTags() const;
 	void RequestRefresh(bool bForce);
 
 	TSharedPtr<FRigVMTreeNode> Node;
 	SRigVMChangesTreeView* OwningWidget = nullptr;
+	mutable TOptional<TArray<FRigVMTag>> Tags;
 };
 
 DECLARE_DELEGATE_RetVal_OneParam(FReply,FOnRigVMTreeNodeSelected,TSharedRef<FRigVMTreeNode>);

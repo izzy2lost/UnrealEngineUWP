@@ -33,10 +33,21 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = Interaction)
 	bool bAutoLinkMutableNodes;
 
-	UPROPERTY(EditAnywhere, config, Category = Variants)
-	TArray<FRigVMTag> VariantTags;
-
 #endif
 };
 
 
+UCLASS(config = Editor, meta=(DisplayName="RigVM Project Settings"))
+class RIGVM_API URigVMProjectSettings : public UDeveloperSettings
+{
+	GENERATED_UCLASS_BODY()
+
+public:
+
+	UPROPERTY(EditAnywhere, config, Category = Variants)
+	TArray<FRigVMTag> VariantTags;
+
+	UFUNCTION(BlueprintPure, Category= Variants)
+	FRigVMTag GetTag(FName InTagName) const;
+	const FRigVMTag* FindTag(FName InTagName) const;
+};

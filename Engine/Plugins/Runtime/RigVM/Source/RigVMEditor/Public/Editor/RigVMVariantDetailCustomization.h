@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "IPropertyTypeCustomization.h"
 #include "RigVMBlueprint.h"
+#include "RigVMCore/RigVMVariant.h"
 #include "Widgets/SRigVMLogWidget.h"
 
 class IPropertyHandle;
@@ -29,6 +30,9 @@ protected:
 
 	void OnVariantChanged(const FRigVMVariant& InNewVariant);
 	void OnBrowseVariantRef(const FRigVMVariantRef& InVariantRef);
+	TArray<FRigVMTag> OnGetTags() const;
+	void OnAddTag(const FName& InTagName);
+	void OnRemoveTag(const FName& InTagName);
 
 	URigVMBlueprint* BlueprintBeingCustomized;
 

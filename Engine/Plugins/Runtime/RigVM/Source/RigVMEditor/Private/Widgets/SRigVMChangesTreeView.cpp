@@ -13,6 +13,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "ContentBrowserModule.h"
 #include "IContentBrowserSingleton.h"
+#include "Widgets/SRigVMVariantWidget.h"
 #define LOCTEXT_NAMESPACE "SRigVMChangesTreeView"
 
 SRigVMChangesTreeRow::~SRigVMChangesTreeRow()
@@ -82,6 +83,21 @@ void SRigVMChangesTreeRow::Construct(const FArguments& InArgs, const TSharedRef<
 				.Text(Node->GetLabel())
 				.ColorAndOpacity(this, &SRigVMChangesTreeRow::GetTextColor)
 			]
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(8, 0, 0, 0)
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SRigVMVariantTagWidget)
+				.Visibility(GetVariantTags().IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible)
+				.CanAddTags(false)
+				.EnableContextMenu(false)
+				.EnableTick(false)
+				.Orientation(EOrientation::Orient_Horizontal)
+				.OnGetTags(this, &SRigVMChangesTreeRow::GetVariantTags)
+			]
+
 			+ SHorizontalBox::Slot()
 			.FillWidth(1)
 			[
@@ -176,6 +192,15 @@ FReply SRigVMChangesTreeRow::OnExpanderMouseButtonDown(const FGeometry& SenderGe
 EVisibility SRigVMChangesTreeRow::GetExpanderVisibility() const
 {
 	return Node->HasVisibleChildren() ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
+TArray<FRigVMTag> SRigVMChangesTreeRow::GetVariantTags() const
+{
+	if(!Tags.IsSet())
+	{
+		Tags = Node->GetTags();
+	}
+	return Tags.GetValue();
 }
 
 void SRigVMChangesTreeRow::RequestRefresh(bool bForce)

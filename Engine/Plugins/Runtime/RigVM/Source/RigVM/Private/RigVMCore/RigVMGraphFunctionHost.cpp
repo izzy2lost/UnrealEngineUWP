@@ -180,6 +180,7 @@ FRigVMGraphFunctionData* FRigVMGraphFunctionStore::UpdateFunctionInterface(const
 		{
 			if (FRigVMGraphFunctionData* NewData = AddFunction(Header, bIsPublic))
 			{
+				NewData->Header.Variant = Header.Variant;
 				NewData->Header.Dependencies = Dependencies;
 				NewData->Header.ExternalVariables = ExternalVariables;
 				return NewData;

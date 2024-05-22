@@ -168,4 +168,14 @@ const FSoftObjectPath URigVMFunctionLibrary::GetFunctionHostObjectPath() const
 	return FSoftObjectPath();
 }
 
+const FRigVMVariant* URigVMFunctionLibrary::GetFunctionVariant(const FName& InFunctionName) const
+{
+	return const_cast<URigVMFunctionLibrary*>(this)->GetFunctionVariant(InFunctionName);
+}
+
+FRigVMVariant* URigVMFunctionLibrary::GetFunctionVariant(const FName& InFunctionName)
+{
+	return FunctionToVariant.Find(InFunctionName);
+}
+
 

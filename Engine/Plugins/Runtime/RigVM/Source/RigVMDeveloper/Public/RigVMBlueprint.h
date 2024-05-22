@@ -828,6 +828,7 @@ private:
 	friend class URigVMBuildData;
 	friend class FRigVMVariantDetailCustomization;
 	friend class FRigVMTreeAssetVariantFilter;
+	friend class FRigVMTreePackageNode;
 };
 
 class RIGVMDEVELOPER_API FRigVMBlueprintCompileScope

@@ -20,8 +20,10 @@ void SRigVMVariantWidget::Construct(
 	const FArguments& InArgs)
 {
 	VariantAttribute = InArgs._Variant;
-	VariantRefsAttribute = InArgs._VariantRefs;
+	
 	OnVariantChanged = InArgs._OnVariantChanged;
+
+	VariantRefsAttribute = InArgs._VariantRefs;
 	OnCreateVariantRefRow = InArgs._OnCreateVariantRefRow;
 	OnBrowseVariantRef = InArgs._OnBrowseVariantRef;
 
@@ -35,6 +37,7 @@ void SRigVMVariantWidget::Construct(
 		SNew(SVerticalBox)
 		+ SVerticalBox::Slot()
 		.AutoHeight()
+		.Padding(0, 8, 0, 0)
 		.HAlign(HAlign_Left)
 		[
 			SNew(STextBlock)
@@ -48,6 +51,20 @@ void SRigVMVariantWidget::Construct(
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		.HAlign(HAlign_Fill)
+		.Padding(0, 8, 0, 0)
+		[
+			SAssignNew(TagWidget, SRigVMVariantTagWidget)
+			.OnGetTags(InArgs._OnGetTags)
+			.OnAddTag(InArgs._OnAddTag)
+			.OnRemoveTag(InArgs._OnRemoveTag)
+			.CanAddTags(InArgs._CanAddTags)
+			.EnableContextMenu(InArgs._EnableTagContextMenu)
+			.MinDesiredLabelWidth(50.f)
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.HAlign(HAlign_Fill)
+		.Padding(0, 8, 0, 0)
 		[
 			SNew(SScrollBox)
 			.Visibility(this, &SRigVMVariantWidget::GetVariantRefListVisibility)

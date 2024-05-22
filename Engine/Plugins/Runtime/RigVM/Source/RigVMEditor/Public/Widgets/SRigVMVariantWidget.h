@@ -5,6 +5,7 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "RigVMCore/RigVMVariant.h"
+#include "Widgets/SRigVMVariantTagWidget.h"
 
 DECLARE_DELEGATE_OneParam(FRigVMVariantWidget_OnVariantChanged, const FRigVMVariant&);
 DECLARE_DELEGATE_RetVal_OneParam(TSharedPtr<SWidget>, FRigVMVariantWidget_OnCreateVariantRefRow, const FRigVMVariantRef&);
@@ -16,6 +17,8 @@ public:
 	
 	SLATE_BEGIN_ARGS(SRigVMVariantWidget)
 		: _MaxVariantRefListHeight(200.f)
+		, _CanAddTags(false)
+		, _EnableTagContextMenu(false)
 	{
 	}
 	SLATE_ATTRIBUTE(FRigVMVariant, Variant)
@@ -24,6 +27,11 @@ public:
 	SLATE_EVENT(FRigVMVariantWidget_OnCreateVariantRefRow, OnCreateVariantRefRow);
 	SLATE_EVENT(FRigVMVariantWidget_OnBrowseVariantRef, OnBrowseVariantRef)
 	SLATE_ATTRIBUTE(float, MaxVariantRefListHeight)
+	SLATE_EVENT(FRigVMVariant_OnGetTags, OnGetTags)
+	SLATE_EVENT(FRigVMVariant_OnAddTag, OnAddTag)
+	SLATE_EVENT(FRigVMVariant_OnRemoveTag, OnRemoveTag)
+	SLATE_ATTRIBUTE(bool, CanAddTags)
+	SLATE_ATTRIBUTE(bool, EnableTagContextMenu)
 	SLATE_END_ARGS()
 
 	SRigVMVariantWidget();
@@ -40,11 +48,13 @@ private:
 	void RebuildVariantRefList();
 
 	TAttribute<FRigVMVariant> VariantAttribute;
-	TAttribute<TArray<FRigVMVariantRef>> VariantRefsAttribute;
 	FRigVMVariantWidget_OnVariantChanged OnVariantChanged;
-	FRigVMVariantWidget_OnCreateVariantRefRow OnCreateVariantRefRow;
-    FRigVMVariantWidget_OnBrowseVariantRef OnBrowseVariantRef;
 
+	TSharedPtr<SRigVMVariantTagWidget> TagWidget;
+
+	TAttribute<TArray<FRigVMVariantRef>> VariantRefsAttribute;
+	FRigVMVariantWidget_OnCreateVariantRefRow OnCreateVariantRefRow;
+	FRigVMVariantWidget_OnBrowseVariantRef OnBrowseVariantRef;
 	TArray<FRigVMVariantRef> VariantRefs;
 	uint32 VariantRefHash;
 	TSharedPtr<SVerticalBox> VariantRefListBox;
