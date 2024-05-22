@@ -1178,7 +1178,9 @@ void UAssetRegistryImpl::InitializeEvents(UE::AssetRegistry::Impl::FInitializeCo
 	UE::AssetDependencyGatherer::Private::FRegisteredAssetDependencyGatherer::OnAssetDependencyGathererRegistered.AddUObject(this, &UAssetRegistryImpl::OnAssetDependencyGathererRegistered);
 #endif // WITH_EDITOR
 
-	FCoreDelegates::OnEnginePreExit.AddUObject(this, &UAssetRegistryImpl::OnEnginePreExit);
+	// We use OnPreExit and not OnEnginePreExit because OnPreExit will be called if there's an error in engine init and 
+	// we never get through OnPostEngineInit.
+	FCoreDelegates::OnPreExit.AddUObject(this, &UAssetRegistryImpl::OnPreExit);
 
 	// Listen for new content paths being added or removed at runtime.  These are usually plugin-specific asset paths that
 	// will be loaded a bit later on.
@@ -1656,7 +1658,7 @@ void UAssetRegistryImpl::OnAssetDependencyGathererRegistered()
 }
 #endif
 
-void UAssetRegistryImpl::OnEnginePreExit()
+void UAssetRegistryImpl::OnPreExit()
 {
 	LLM_SCOPE(ELLMTag::AssetRegistry);
 
@@ -1685,7 +1687,7 @@ void UAssetRegistryImpl::FinishDestroy()
 		FPackageName::OnContentPathMounted().RemoveAll(this);
 		FPackageName::OnContentPathDismounted().RemoveAll(this);
 		FCoreDelegates::OnPostEngineInit.RemoveAll(this);
-		FCoreDelegates::OnEnginePreExit.RemoveAll(this);
+		FCoreDelegates::OnPreExit.RemoveAll(this);
 		IPluginManager::Get().OnLoadingPhaseComplete().RemoveAll(this);
 
 #if WITH_EDITOR
