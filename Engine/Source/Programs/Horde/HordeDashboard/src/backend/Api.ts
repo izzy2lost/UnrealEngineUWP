@@ -3134,6 +3134,9 @@ export type GetIssueResponse = {
 	/**Description of the issue*/
 	description?: string;
 
+	/**Description of the fingerprint used to identify this issue*/
+	fingerprintDescription?: string;
+
 	/** Severity of this issue	*/
 	severity: IssueSeverity;
 

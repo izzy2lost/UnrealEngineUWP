@@ -1330,9 +1330,18 @@ const IssueSummaryPanel: React.FC = () => {
       }
    }
 
+   if (issue.fingerprintDescription) {
+      const components = issue.fingerprintDescription.split(" / ");
+      if (components.length) {         
+         items.push({
+            title: "Fingerprint",
+            text: components[0].replace("Type:", "").trim()
+         })   
+      }
+   }
+
    if (!items.length && !issue.description) {
       return null;
-
    }
 
    return <Stack style={{ flexBasis: "70px", flexShrink: 0 }}>
