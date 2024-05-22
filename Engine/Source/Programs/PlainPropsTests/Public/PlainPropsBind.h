@@ -157,7 +157,7 @@ struct FUnpackedLeafBindType
 		}
 	}
 
-//	constexpr bool operator==(FUnpackedLeafBindType O) { return Type == O.Type && Width == O.Width; }
+//	constexpr bool operator==(FUnpackedLeafBindType O) const { return Type == O.Type && Width == O.Width; }
 	FMemberBindType Pack() const
 	{ 
 		return FMemberBindType(Type == ELeafBindType::BitfieldBool ? FLeafBindType(BitfieldIdx) : FLeafBindType(Type, Width));
@@ -175,7 +175,7 @@ struct FLeafMemberBinding
 {
 	FUnpackedLeafBindType	Leaf;
 	FOptionalEnumSchemaId	Enum;
-	uint64					Offset;
+	SIZE_T					Offset;
 };
 
 struct FRangeMemberBinding
@@ -184,14 +184,14 @@ struct FRangeMemberBinding
 	const FRangeBinding*	RangeBindings;
 	uint32					NumRanges; // At least 1, >1 for nested ranges
 	FOptionalSchemaId		InnermostSchema;
-	uint64					Offset;
+	SIZE_T					Offset;
 };
 
 struct FStructMemberBinding
 {
-	FStructType			Type;
-	FStructSchemaId		Id;
-	uint64				Offset;
+	FStructType				Type;
+	FStructSchemaId			Id;
+	SIZE_T					Offset;
 };
 
 // Iterates over member bindings
@@ -205,6 +205,7 @@ public:
 	
 	EMemberKind					PeekKind() const;		// @pre HasMore()
 	FMemberBindType				PeekType() const;		// @pre HasMore()
+	uint32						PeekOffset() const;		// @pre HasMore()
 
 	FLeafMemberBinding			GrabLeaf();				// @pre PeekKind() == EMemberKind::Leaf
 	FRangeMemberBinding			GrabRange();			// @pre PeekKind() == EMemberKind::Range
@@ -236,8 +237,9 @@ class ICustomBinding
 {
 public:
 	virtual ~ICustomBinding() {}
-	virtual void				SaveStruct(FMemberBuilder& Dst, const void* Src, void* UserData, const FDebugIds& Debug) = 0;
+	virtual void				SaveStruct(FMemberBuilder& Dst, const void* Src, const void* Default, const FDebugIds& Debug) = 0;
 	virtual void				LoadStruct(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const = 0;
+	virtual bool				DiffStruct(const void* StructA, const void* StructB) const = 0;
 };
 
 class FCustomBindings
@@ -461,8 +463,9 @@ public:
 class alignas(16) ILeafRangeBinding
 {
 public:
-	virtual void SaveLeaves(const void* Range, FLeafRangeAllocator& Out) const = 0;
-	virtual void LoadLeaves(void* Range, FLeafRangeLoadView Leaves) const = 0;
+	virtual void	SaveLeaves(const void* Range, FLeafRangeAllocator& Out) const = 0;
+	virtual void	LoadLeaves(void* Range, FLeafRangeLoadView Leaves) const = 0;
+	virtual int64	DiffLeaves(const void* RangeA, const void* RangeB) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////

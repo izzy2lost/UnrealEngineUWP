@@ -176,6 +176,8 @@ public:
 
 	PP_API [[nodiscard]] TUniquePtr<FBuiltStruct> BuildAndReset(const FStructDeclaration& Declared, const FDebugIds& Debug);
 
+	bool IsEmpty() const { return Members.IsEmpty(); }
+
 private:
 	TArray<FBuiltMember>	Members;
 	

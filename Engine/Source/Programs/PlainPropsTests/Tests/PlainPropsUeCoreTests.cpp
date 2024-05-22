@@ -137,7 +137,7 @@ struct FTestCustomBinding : public ICustomBinding
 
 struct FNameBinding : public FTestCustomBinding
 {
-	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, void*, const FDebugIds& Debug) override
+	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, const void*, const FDebugIds& Debug) override
 	{
 		FSetElementId Idx = Names.Add(*static_cast<const FName*>(Src));
 		Dst.Add(Declaration.Idx, Idx.AsInteger());
@@ -147,6 +147,13 @@ struct FNameBinding : public FTestCustomBinding
 	{
 		FSetElementId Idx = FSetElementId::FromInteger(FMemberReader(Src).GrabLeaf().AsS32());
 		*static_cast<FName*>(Dst) = Names.Get(Idx);
+	}
+
+	virtual bool DiffStruct(const void* StructA, const void* StructB) const override
+	{
+		FName A = *static_cast<const FName*>(StructA);
+		FName B = *static_cast<const FName*>(StructB);
+		return A.IsEqual(B, ENameCase::CaseSensitive);
 	}
 
 	virtual FStructSchemaId GetId() const override { return Declaration.Id; }
@@ -166,6 +173,9 @@ public:
 
 	template<class T>
 	void						Save(T&& Object);
+	template<class T>
+	bool						SaveDelta(const T& Object, const T& Default);
+
 	TArray64<uint8>				Write() const;
 
 private:
@@ -185,7 +195,19 @@ template<class T>
 void FBatchSaver::Save(T&& Object) 
 {
 	FStructSchemaId Id = IndexNativeStruct<T, FIds>();
-	SavedObjects.Emplace(Id, SaveStruct(reinterpret_cast<const uint8*>(&Object), Id, {GTypes, GSchemas, Customs}));
+	SavedObjects.Emplace(Id, SaveStruct(&Object, Id, {GTypes, GSchemas, Customs}));
+}
+
+template<class T>
+bool FBatchSaver::SaveDelta(const T& Object, const T& Default) 
+{
+	FStructSchemaId Id = IndexNativeStruct<T, FIds>();
+	if (TUniquePtr<FBuiltStruct> Delta = SaveStructDelta(&Object, &Default, Id, {GTypes, GSchemas, Customs}))
+	{
+		SavedObjects.Emplace(Id, MoveTemp(Delta));
+		return true;
+	}
+	return false;
 }
 
 template<typename ArrayType>
@@ -318,9 +340,15 @@ public:
 	T Load()
 	{
 		T Out;
+		LoadInto(Out);
+		return MoveTemp(Out);
+	}
+
+	template<class T>
+	void LoadInto(T& Out)
+	{
 		FStructView In = Objects[LoadIdx++];
 		LoadStruct(reinterpret_cast<uint8*>(&Out), In, *Plans);
-		return MoveTemp(Out);
 	}
 
 private:
@@ -481,6 +509,19 @@ TArray<TUniquePtr<T>> MakeTwo(T&& A, T&& B)
 }
 
 //////////////////////////////////////////////////////////////////////////
+
+struct FDelta
+{
+	bool		A = true;
+	float		B = 1.0;
+	FInt		C = { 2 };
+	TArray<int> D;
+	FString		E = "!";
+};
+PP_REFLECT_STRUCT(PlainProps::UE::Test, FDelta, void, A, B, C, D, E);
+static bool operator==(const FDelta& A, const FDelta& B) { return A.A == B.A && A.B == B.B && A.C == B.C && A.D == B.D && A.E == B.E; }
+
+//////////////////////////////////////////////////////////////////////////
 //
 //struct FObject
 //{
@@ -501,7 +542,7 @@ TArray<TUniquePtr<T>> MakeTwo(T&& A, T&& B)
 //		return MakeArrayView(Ids, 2);
 //	}
 //
-//	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, void*, const FDebugIds&) const override
+//	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, const void*, const FDebugIds&) const override
 //	{
 //		if (const FObject* Object = reinterpret_cast<const FObject*>(Src))
 //		{
@@ -683,15 +724,40 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 	SECTION("TSet")
 	{}
 
-	SECTION("NestedContainer")
-	{}
+	SECTION("Delta")
+	{
+		TScopedStructBinding<FInt> Int;
+		TScopedStructBinding<FDelta> Delta;
+		Run([](FBatchSaver& Batch)
+			{
+				FDelta Zero = {false, 0, {}, {}, {}};
+				CHECK(!Batch.SaveDelta(FInt{123},FInt{123}));
+				CHECK(!Batch.SaveDelta(FDelta{},FDelta{}));
+				CHECK(!Batch.SaveDelta(Zero, Zero));
+					
+				Batch.SaveDelta({}, Zero);
+				Batch.SaveDelta(Zero, {});
+				Batch.SaveDelta(FDelta{.B = 123}, {});
+				Batch.SaveDelta(FDelta{.C = {321}}, {});
+				Batch.SaveDelta(FDelta{.D = {0}}, {});
+				Batch.SaveDelta(FDelta{.E = "!!"}, {});
+			}, 
+			[](FBatchLoader& Batch)
+			{
+				FDelta Zero = {false, 0, {}, {}, {}};
+				FDelta DefaultOnZero = Zero;
+				Batch.LoadInto(DefaultOnZero);
+				CHECK(DefaultOnZero == FDelta{});
+				CHECK(Batch.Load<FDelta>() == Zero);
+				CHECK(Batch.Load<FDelta>() == FDelta{.B = 123});
+				CHECK(Batch.Load<FDelta>() == FDelta{.C = {321}});
+				CHECK(Batch.Load<FDelta>() == FDelta{.D = {0}});
+				CHECK(Batch.Load<FDelta>() == FDelta{.E = "!!"});
+			});
+	}
 
 	SECTION("Reference")
 	{}
-
-	//SECTION("LeafOptional")
-	//{}
-
 }
 
 } // namespace PlainProps::UE::Test

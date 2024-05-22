@@ -186,6 +186,22 @@ struct FStringBinding : public ILeafRangeBinding
 			*DstEnd = '\0';
 		}
 	}
+
+	virtual int64 DiffLeaves(const void* RangeA, const void* RangeB) const override
+	{
+		const FString& A = *static_cast<const FString*>(RangeA);
+		const FString& B = *static_cast<const FString*>(RangeB);
+		int32 ALen = A.Len();
+		int32 BLen = B.Len();
+
+		if (int32 LenDiff = ALen - BLen)
+		{
+			return LenDiff;
+		}
+
+		// Case-sensitive comparison
+		return ALen ? FMemory::Memcmp(A.GetCharArray().GetData(), B.GetCharArray().GetData(), ALen * sizeof(TCHAR)) : 0;
+	}
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -366,11 +382,11 @@ struct TSetDeltaBinding : public ICustomBinding
 	
 	static TConstArrayView<FMemberId> GetMemberIds() { return FSetOps::Get<Ids>().All; }
 
-	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, void* UserData, const FDebugIds& Debug) override;
+	virtual void SaveStruct(FMemberBuilder& Dst, const void* Src, const void* Default, const FDebugIds& Debug) override;
 
 	virtual void LoadStruct(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const override
 	{
-		Type& Out = *reinterpret_cast<Type*>(Dst);
+		Type& Out = *static_cast<Type*>(Dst);
 		FMemberReader Members(Src);
 
 		if (Method == ECustomLoadMethod::Construct)
@@ -411,6 +427,26 @@ struct TSetDeltaBinding : public ICustomBinding
 		}
 		
 		check(!Members.HasMore());
+	}
+
+	virtual bool DiffStruct(const void* StructA, const void* StructB) const override
+	{
+		const Type& A = *static_cast<const Type*>(StructA);
+		const Type& B = *static_cast<const Type*>(StructB);
+		if (A.Num() != B.Num())
+		{
+			return false;
+		}
+
+		for (const T& AKey : A)
+		{
+			if (!B.Contains(AKey))
+			{
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	void AddItems(Type& Out, FRangeView Items, const FLoadBatch& Batch)

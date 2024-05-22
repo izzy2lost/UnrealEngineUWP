@@ -20,7 +20,8 @@ struct FSaveContext
 	FCustomBindings&			Customs;
 };
 
-[[nodiscard]] TUniquePtr<FBuiltStruct> SaveStruct(const uint8* Struct, FStructSchemaId Id, const FSaveContext& Context);
+[[nodiscard]] TUniquePtr<FBuiltStruct> SaveStruct(const void* Struct, FStructSchemaId Id, const FSaveContext& Context);
+[[nodiscard]] TUniquePtr<FBuiltStruct> SaveStructDelta(const void* Struct, const void* Default, FStructSchemaId Id, const FSaveContext& Context);
 
 } // namespace PlainProps
 

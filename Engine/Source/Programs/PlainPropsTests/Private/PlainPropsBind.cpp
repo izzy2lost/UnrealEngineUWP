@@ -47,6 +47,12 @@ FMemberBindType	FMemberVisitor::PeekType() const
 	return Schema.Members[MemberIdx];
 }
 
+uint32 FMemberVisitor::PeekOffset() const
+{
+	check(HasMore());
+	return Schema.GetOffsets()[MemberIdx];
+}
+
 uint64 FMemberVisitor::GrabMemberOffset()
 {
 	return Schema.GetOffsets()[MemberIdx++];
