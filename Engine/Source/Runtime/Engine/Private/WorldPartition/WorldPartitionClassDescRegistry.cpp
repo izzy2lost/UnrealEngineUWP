@@ -549,7 +549,7 @@ void FWorldPartitionClassDescRegistry::OnObjectPropertyChanged(UObject* InObject
 		if (UBlueprint* Blueprint = Cast<UBlueprint>(InObject))
 		{
 			// The generated class is invalid in some situations, like renaming a blueprint, etc.
-			if (Blueprint->GeneratedClass && Blueprint->GeneratedClass->IsChildOf<AActor>())
+			if (Blueprint->IsUpToDate() && Blueprint->GeneratedClass && Blueprint->GeneratedClass->IsChildOf<AActor>())
 			{
 				PrefetchClassDesc(Blueprint->GeneratedClass);
 				UpdateClassDescriptor(InObject, true);
