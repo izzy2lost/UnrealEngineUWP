@@ -979,6 +979,8 @@ void UTransformGizmo::HandleWidgetModeChanged(UE::Widget::EWidgetMode InWidgetMo
 			UpdateInteractingState(true, DefaultHitPart, true);
 		}
 	}
+	
+	LastHitPart = ETransformGizmoPartIdentifier::Default;
 }
 
 void UTransformGizmo::OnParametersChanged(const FGizmosParameters& InParameters)
