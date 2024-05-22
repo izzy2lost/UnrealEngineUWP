@@ -16,6 +16,8 @@ namespace
 		{
 			AutoRTFM::AbortTransaction();
 		}
+
+		return 43;
 	}
 
 	typedef int (*CStyleType)();
