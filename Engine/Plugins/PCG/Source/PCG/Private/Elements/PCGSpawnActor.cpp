@@ -471,10 +471,10 @@ bool FPCGSpawnActorElement::SpawnAndPrepareSubgraphs(FPCGSubgraphContext* Contex
 
 				for (UPCGManagedISMComponent* MISMC : MISMCs)
 				{
-					if (!MISMC->IsMarkedUnused())
+					if (!MISMC->IsMarkedUnused() && Settings->bWarnOnIdenticalSpawn)
 					{
-						// TODO: Add Context back in with toggles. Revisit if the stack is added to the managed components at creation
-						PCGLog::LogWarningOnGraph(LOCTEXT("IdenticalISMCSpawn", "Identical ISM Component spawn occurred. It may be beneficial to re-check graph logic for identical spawn conditions (same actor at same location, etc) or repeated nodes."), nullptr);
+						// TODO: Revisit if the stack is added to the managed components at creation
+						PCGLog::LogWarningOnGraph(LOCTEXT("IdenticalISMCSpawn", "Identical ISM Component spawn occurred. It may be beneficial to re-check graph logic for identical spawn conditions (same actor at same location, etc) or repeated nodes."), Context);
 					}
 
 					MISMC->MarkAsReused();
@@ -856,11 +856,10 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 		for (UPCGManagedActors* ManagedActors : ReusedManagedActorsResources)
 		{
 			check(ManagedActors);
-
-			if (!ManagedActors->IsMarkedUnused())
+			if (!ManagedActors->IsMarkedUnused() && Settings->bWarnOnIdenticalSpawn)
 			{
-				// TODO: Add Context back in with toggles. Revisit if the stack is added to the managed actors at creation
-				PCGLog::LogWarningOnGraph(LOCTEXT("IdenticalActorSpawn", "Identical actor spawn occurred. It may be beneficial to re-check graph logic for identical spawn conditions (same actor at same location, etc) or repeated nodes."), nullptr);
+				// TODO: Revisit if the stack is added to the managed actors at creation
+				PCGLog::LogWarningOnGraph(LOCTEXT("IdenticalActorSpawn", "Identical actor spawn occurred. It may be beneficial to re-check graph logic for identical spawn conditions (same actor at same location, etc) or repeated nodes."), Context);
 			}
 
 			ManagedActors->MarkAsReused();

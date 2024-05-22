@@ -102,6 +102,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Advanced")
 	bool bSilenceOverrideAttributeNotFoundErrors = false;
 
+	/** Adds a warning to the node on repeated spawning with identical conditions (ie. same mesh descriptor at same spawn location, etc). */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Advanced")
+	bool bWarnOnIdenticalSpawn = true;
+
 protected:
 	void RefreshMeshSelector();
 	void RefreshInstancePacker();
