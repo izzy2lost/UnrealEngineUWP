@@ -2,7 +2,7 @@
 
 #include "ChaosVDCollisionVisualizationSettings.h"
 
-void UChaosVDCollisionDataVisualizationSettings::SetCollisionDataVisualizationFlags(EChaosVDCollisionVisualizationFlags NewFlags)
+void UChaosVDCollisionDataVisualizationSettings::SetDataVisualizationFlags(EChaosVDCollisionVisualizationFlags NewFlags)
 {
 	if (UChaosVDCollisionDataVisualizationSettings* Settings = GetMutableDefault<UChaosVDCollisionDataVisualizationSettings>())
 	{
@@ -11,7 +11,7 @@ void UChaosVDCollisionDataVisualizationSettings::SetCollisionDataVisualizationFl
 	}
 }
 
-EChaosVDCollisionVisualizationFlags UChaosVDCollisionDataVisualizationSettings::GetCollisionDataVisualizationFlags()
+EChaosVDCollisionVisualizationFlags UChaosVDCollisionDataVisualizationSettings::GetDataVisualizationFlags()
 {
 	if (UChaosVDCollisionDataVisualizationSettings* Settings = GetMutableDefault<UChaosVDCollisionDataVisualizationSettings>())
 	{

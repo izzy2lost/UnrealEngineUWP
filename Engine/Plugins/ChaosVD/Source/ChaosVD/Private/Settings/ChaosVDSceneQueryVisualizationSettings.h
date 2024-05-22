@@ -28,8 +28,8 @@ class UChaosVDSceneQueriesVisualizationSettings : public UChaosVDVisualizationSe
 
 public:
 
-	static void SetSceneQueryDataVisualizationFlags(EChaosVDSceneQueryVisualizationFlags NewFlags);
-	static EChaosVDSceneQueryVisualizationFlags GetSceneQueryDataVisualizationFlags();
+	static void SetDataVisualizationFlags(EChaosVDSceneQueryVisualizationFlags NewFlags);
+	static EChaosVDSceneQueryVisualizationFlags GetDataVisualizationFlags();
 
 	/** If true, any debug draw text available will be drawn */
 	UPROPERTY(EditAnywhere, Category=DebugDraw)

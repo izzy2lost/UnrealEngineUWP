@@ -2,102 +2,76 @@
 
 #include "Components/ChaosVDSolverCharacterGroundConstraintDataComponent.h"
 
-#include "Actors/ChaosVDSolverInfoActor.h"
-#include "Components/ChaosVDConstraintDataHelpers.h"
-#include "DataWrappers/ChaosVDCharacterGroundConstraintDataWrappers.h"
+#include "ChaosVDCharacterGroundConstraintDataProviderInterface.h"
+#include "ChaosVDScene.h"
+#include "Selection.h"
+#include "Settings/ChaosVDCharacterConstraintsVisualizationSettings.h"
 
-void FChaosVDCharacterGroundConstraintSelectionHandle::SetIsSelected(bool bNewSelected)
+void UChaosVDSolverCharacterGroundConstraintDataComponent::HandleSceneUpdated()
 {
-	if (const TSharedPtr<FChaosVDCharacterGroundConstraint> ConstraintDataPtr = ConstraintData.Pin())
+	if (const UChaosVDCharacterConstraintsVisualizationSettings* CharacterConstraintsVisualizationSettings = GetDefault<UChaosVDCharacterConstraintsVisualizationSettings>())
 	{
-		ConstraintDataPtr->bIsSelectedInEditor = bNewSelected;
-	}
-}
-
-bool FChaosVDCharacterGroundConstraintSelectionHandle::IsSelected() const
-{
-	if (const TSharedPtr<FChaosVDCharacterGroundConstraint> ConstraintDataPtr = ConstraintData.Pin())
-	{
-		return ConstraintDataPtr->bIsSelectedInEditor;
-	}
-
-	return false;
-}
-
-UChaosVDSolverCharacterGroundConstraintDataComponent::UChaosVDSolverCharacterGroundConstraintDataComponent()
-{
-	SetCanEverAffectNavigation(false);
-	bNavigationRelevant = false;
-	PrimaryComponentTick.bCanEverTick = false;
-}
-
-void UChaosVDSolverCharacterGroundConstraintDataComponent::UpdateConstraintData(const TArray<TSharedPtr<FChaosVDCharacterGroundConstraint>>& InConstraintData)
-{
-	ClearData();
-
-	AllConstraints = InConstraintData;
-
-	ConstraintByCharacterParticle.Reserve(InConstraintData.Num());
-	ConstraintByConstraintIndex.Reserve(InConstraintData.Num());
-
-	for (const TSharedPtr<FChaosVDCharacterGroundConstraint>& Constraint : InConstraintData)
-	{
-		if (!Constraint)
+		if (!CharacterConstraintsVisualizationSettings->bAutoSelectConstraintFromSelectedParticle)
 		{
-			continue;
+			return;
 		}
 
-		ConstraintByConstraintIndex.Add(Constraint->ConstraintIndex, Constraint);
-		Chaos::VisualDebugger::Utils::AddDataDataToParticleIDMap(ConstraintByCharacterParticle, Constraint, Constraint->CharacterParticleIndex);
 	}
-}
 
-const FChaosVDCharacterGroundDataArray* UChaosVDSolverCharacterGroundConstraintDataComponent::GetConstraintsForParticle(int32 ParticleID) const
-{
-	return ConstraintByCharacterParticle.Find(ParticleID);
-}
-
-void UChaosVDSolverCharacterGroundConstraintDataComponent::SelectConstraint(int32 ConstraintIndex)
-{
-	CurrentConstraintSelectionHandle.SetIsSelected(false);
-	CurrentConstraintSelectionHandle = FChaosVDCharacterGroundConstraintSelectionHandle(GetConstraintByIndex(ConstraintIndex));
-	CurrentConstraintSelectionHandle.SetIsSelected(true);
-
-	SelectionChangeDelegate.Broadcast(CurrentConstraintSelectionHandle);
-}
-
-void UChaosVDSolverCharacterGroundConstraintDataComponent::SelectConstraint(const FChaosVDCharacterGroundConstraintSelectionHandle& SelectionHandle)
-{
-	CurrentConstraintSelectionHandle.SetIsSelected(false);
-	CurrentConstraintSelectionHandle = SelectionHandle;
-	CurrentConstraintSelectionHandle.SetIsSelected(true);
+	const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin();
+	if (!ScenePtr)
+	{
+		return;
+	}
 	
-	SelectionChangeDelegate.Broadcast(CurrentConstraintSelectionHandle);
-}
-
-bool UChaosVDSolverCharacterGroundConstraintDataComponent::IsConstraintSelected(int32 ConstraintIndex) const
-{
-	if (const TSharedPtr<FChaosVDCharacterGroundConstraint> ConstraintDataPtr = CurrentConstraintSelectionHandle.GetData().Pin())
+	USelection* ActorSelection = ScenePtr->GetActorSelectionObject();
+	if (!ActorSelection)
 	{
-		return ConstraintDataPtr->bIsSelectedInEditor && ConstraintDataPtr->ConstraintIndex == ConstraintIndex;
+		return;
 	}
 
-	return false;
-}
-
-TSharedPtr<FChaosVDCharacterGroundConstraint> UChaosVDSolverCharacterGroundConstraintDataComponent::GetConstraintByIndex(int32 ConstraintIndex)
-{
-	if (TSharedPtr<FChaosVDCharacterGroundConstraint>* ConstraintPtrPtr = ConstraintByConstraintIndex.Find(ConstraintIndex))
+	TSharedPtr<FChaosVDSolverDataSelection> SolverDataSelection = ScenePtr->GetSolverDataSelectionObject().Pin();
+	if(!SolverDataSelection)
 	{
-		return *ConstraintPtrPtr;
+		return;
 	}
 
-	return nullptr;
+	if (ActorSelection->Num() > 0)
+	{
+		if (IChaosVDCharacterGroundConstraintDataProviderInterface* DataProvider = Cast<IChaosVDCharacterGroundConstraintDataProviderInterface>(ActorSelection->GetSelectedObject(0)))
+		{
+			if (DataProvider->HasCharacterGroundConstraintData())
+			{
+				TArray<TSharedPtr<FChaosVDCharacterGroundConstraint>> FoundConstraintData;
+				DataProvider->GetCharacterGroundConstraintData(FoundConstraintData);
+				SolverDataSelection->SelectData(SolverDataSelection->MakeSelectionHandle(FoundConstraintData[0]));
+			}
+		}
+	}
 }
 
-void UChaosVDSolverCharacterGroundConstraintDataComponent::ClearData()
+void UChaosVDSolverCharacterGroundConstraintDataComponent::BeginDestroy()
 {
-	AllConstraints.Empty();
-	ConstraintByCharacterParticle.Empty();
-	ConstraintByConstraintIndex.Empty();
+	Super::BeginDestroy();
+
+	const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin();
+	if (!ScenePtr)
+	{
+		return;
+	}
+	
+	ScenePtr->OnSceneUpdated().RemoveAll(this);
+}
+
+void UChaosVDSolverCharacterGroundConstraintDataComponent::SetScene(const TWeakPtr<FChaosVDScene>& InSceneWeakPtr)
+{
+	Super::SetScene(InSceneWeakPtr);
+	
+	const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin();
+	if (!ScenePtr)
+	{
+		return;
+	}
+	
+	ScenePtr->OnSceneUpdated().AddUObject(this, &UChaosVDSolverCharacterGroundConstraintDataComponent::HandleSceneUpdated);
 }

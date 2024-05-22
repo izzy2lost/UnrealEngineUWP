@@ -2,7 +2,7 @@
 
 #include "ChaosVDJointConstraintVisualizationSettings.h"
 
-void UChaosVDJointConstraintsVisualizationSettings::SetJointsDataVisualizationFlags(EChaosVDJointsDataVisualizationFlags NewFlags)
+void UChaosVDJointConstraintsVisualizationSettings::SetDataVisualizationFlags(EChaosVDJointsDataVisualizationFlags NewFlags)
 {
 	if (UChaosVDJointConstraintsVisualizationSettings* Settings = GetMutableDefault<UChaosVDJointConstraintsVisualizationSettings>())
 	{
@@ -11,7 +11,7 @@ void UChaosVDJointConstraintsVisualizationSettings::SetJointsDataVisualizationFl
 	}
 }
 
-EChaosVDJointsDataVisualizationFlags UChaosVDJointConstraintsVisualizationSettings::GetJointsDataVisualizationFlags()
+EChaosVDJointsDataVisualizationFlags UChaosVDJointConstraintsVisualizationSettings::GetDataVisualizationFlags()
 {
 	if (UChaosVDJointConstraintsVisualizationSettings* Settings = GetMutableDefault<UChaosVDJointConstraintsVisualizationSettings>())
 	{

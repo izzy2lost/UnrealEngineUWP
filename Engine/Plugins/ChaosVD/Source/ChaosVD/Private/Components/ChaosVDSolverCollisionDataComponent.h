@@ -8,7 +8,7 @@
 #include "Containers/Map.h"
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 #include "GameFramework/Info.h"
-#include "SolverDataComponent.h"
+#include "ChaosVDSolverDataComponent.h"
 #include "Templates/SharedPointer.h"
 
 #include "ChaosVDSolverCollisionDataComponent.generated.h"
@@ -19,7 +19,7 @@ typedef TMap<int32, TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>> FChaosVDMi
 typedef TMap<int32, TArray<FChaosVDConstraint*>> FChaosVDConstraintByParticleMap;
 
 UCLASS()
-class UChaosVDSolverCollisionDataComponent : public USolverDataComponent
+class UChaosVDSolverCollisionDataComponent : public UChaosVDSolverDataComponent
 {
 	GENERATED_BODY()
 

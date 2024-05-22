@@ -362,10 +362,6 @@ struct FChaosVDQueryVisitStep : public FChaosVDWrapperDataBase
 
 	UPROPERTY(VisibleAnywhere, Category="SQ Visit Data")
 	FChaosVDQueryHitData HitData;
-
-	// Editor only properties
-
-	bool bIsSelectedInEditor = false;
 };
 
 inline FArchive& operator<<(FArchive& Ar, FChaosVDQueryVisitStep& Data)
@@ -439,8 +435,6 @@ struct FChaosVDQueryDataWrapper
 	TArray<FChaosVDQueryVisitStep> Hits;
 
 	TArray<int32> SubQueriesIDs;
-
-	bool bIsSelectedInEditor = false;
 
 	int32 CurrentVisitIndex = 0;
 };

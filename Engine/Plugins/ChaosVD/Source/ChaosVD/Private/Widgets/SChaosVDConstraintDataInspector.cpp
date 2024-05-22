@@ -7,8 +7,6 @@
 #include "PropertyEditorModule.h"
 #include "Actors/ChaosVDSolverInfoActor.h"
 #include "Widgets/SChaosVDWarningMessageBox.h"
-#include "Components/ChaosVDSolverJointConstraintDataComponent.h"
-#include "DataWrappers/ChaosVDJointDataWrappers.h"
 #include "Modules/ModuleManager.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBox.h"
@@ -18,6 +16,46 @@
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
+
+FReadOnlyCopyStructOnScope::FReadOnlyCopyStructOnScope(const FStructOnScope& StructToCopy)
+{
+	if (const UStruct* ScriptStructPtr = StructToCopy.GetStruct())
+	{
+		ScriptStruct = ScriptStructPtr;
+		SampleStructMemory = (uint8*)FMemory::Malloc(ScriptStructPtr->GetStructureSize() ? ScriptStructPtr->GetStructureSize() : 1, ScriptStructPtr->GetMinAlignment());
+		ScriptStructPtr->InitializeStruct(SampleStructMemory);
+		OwnsMemory = true;
+
+		if (ensure(SampleStructMemory))
+		{
+			UScriptStruct* AsScript = Cast<UScriptStruct>(const_cast<UStruct*>(ScriptStructPtr));
+			if (ensure(AsScript))
+			{
+				AsScript->CopyScriptStruct(SampleStructMemory,StructToCopy.GetStructMemory());
+			}
+		}
+	}
+}
+
+void FReadOnlyCopyStructOnScope::UpdateFromOther(const FStructOnScope& StructToCopy)
+{
+	const UStruct* StructPtr = StructToCopy.GetStruct();
+	if (StructPtr && ensure(ScriptStruct == StructToCopy.GetStruct()))
+	{
+		if (ensure(SampleStructMemory))
+		{
+			UScriptStruct* AsScript = Cast<UScriptStruct>(const_cast<UStruct*>(StructToCopy.GetStruct()));
+			if (ensure(AsScript))
+			{
+				AsScript->CopyScriptStruct(SampleStructMemory,StructToCopy.GetStructMemory());
+			}
+		}
+	}
+}
+
+SChaosVDConstraintDataInspector::SChaosVDConstraintDataInspector() : CurrentDataSelectionHandle(MakeShared<FChaosVDSolverDataSelectionHandle>())
+{ 
+}
 
 SChaosVDConstraintDataInspector::~SChaosVDConstraintDataInspector()
 {
@@ -30,7 +68,7 @@ void SChaosVDConstraintDataInspector::Construct(const FArguments& InArgs, const 
 
 	RegisterSceneEvents();
 
-	ConstraintDataDetailsView = CreateDataDetailsView();
+	SetupWidgets();
 
 	constexpr float NoPadding = 0.0f;
 	constexpr float OuterBoxPadding = 2.0f;
@@ -43,6 +81,12 @@ void SChaosVDConstraintDataInspector::Construct(const FArguments& InArgs, const 
 	ChildSlot
 	[
 		SNew(SVerticalBox)
+		+SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(OuterInnerPadding)
+		[
+			GenerateHeaderWidget({})
+		]
 		+SVerticalBox::Slot()
 		.AutoHeight()
 		.Padding(OuterInnerPadding)
@@ -69,37 +113,15 @@ void SChaosVDConstraintDataInspector::Construct(const FArguments& InArgs, const 
 			.Visibility_Raw(this, &SChaosVDConstraintDataInspector::GetNothingSelectedMessageVisibility)
 			.Justification(ETextJustify::Center)
 			.TextStyle(FAppStyle::Get(), "DetailsView.BPMessageTextStyle")
-			.Text(LOCTEXT("ConstraintDataNoSelectedMessage", "Select a Joint Constraint in the viewport to see its details..."))
+			.Text(LOCTEXT("ConstraintDataNoSelectedMessage", "Select a Constraint in the viewport to see its details..."))
 			.AutoWrapText(true)
 		]
 		+SVerticalBox::Slot()
 		.Padding(OuterInnerPadding)
 		[
-			SNew(SScrollBox)
-			.Visibility_Raw(this, &SChaosVDConstraintDataInspector::GetDetailsSectionVisibility)
-			+SScrollBox::Slot()
-			.Padding(InnerDetailsPanelsHorizontalPadding,NoPadding,InnerDetailsPanelsHorizontalPadding,InnerDetailsPanelsVerticalPadding)
-			[
-				ConstraintDataDetailsView->GetWidget().ToSharedRef()
-			]
+			GenerateDetailsViewWidget({InnerDetailsPanelsHorizontalPadding,NoPadding,InnerDetailsPanelsHorizontalPadding,InnerDetailsPanelsVerticalPadding})
 		]
 	];
-}
-
-void SChaosVDConstraintDataInspector::RegisterSelectionEventsForSolver(AChaosVDSolverInfoActor* SolverInfo)
-{
-	if (UChaosVDSolverJointConstraintDataComponent* JointDataComponent = SolverInfo ? SolverInfo->GetJointsDataComponent() : nullptr)
-	{
-		JointDataComponent->OnSelectionChanged().AddRaw(this, &SChaosVDConstraintDataInspector::SetConstraintDataToInspect);
-	}
-}
-
-void SChaosVDConstraintDataInspector::UnregisterSelectionEventsForSolver(AChaosVDSolverInfoActor* SolverInfo)
-{
-	if (UChaosVDSolverJointConstraintDataComponent* JointDataComponent = SolverInfo ? SolverInfo->GetJointsDataComponent() : nullptr)
-	{
-		JointDataComponent->OnSelectionChanged().RemoveAll(this);
-	}
 }
 
 void SChaosVDConstraintDataInspector::RegisterSceneEvents()
@@ -107,63 +129,91 @@ void SChaosVDConstraintDataInspector::RegisterSceneEvents()
 	if (const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin())
 	{
 		ScenePtr->OnSceneUpdated().AddRaw(this, &SChaosVDConstraintDataInspector::HandleSceneUpdated);
-		ScenePtr->OnSolverInfoActorCreated().AddRaw(this, &SChaosVDConstraintDataInspector::RegisterSelectionEventsForSolver);
-
-		for (const TPair<int32, AChaosVDSolverInfoActor*> SolverInfos : ScenePtr->GetSolverInfoActorsMap())
+		if (TSharedPtr<FChaosVDSolverDataSelection> SelectionObject = ScenePtr->GetSolverDataSelectionObject().Pin())
 		{
-			RegisterSelectionEventsForSolver(SolverInfos.Value);
+			SelectionObject->GetDataSelectionChangedDelegate().AddRaw(this, &SChaosVDConstraintDataInspector::SetConstraintDataToInspect);
 		}
 	}
 }
 
-void SChaosVDConstraintDataInspector::UnregisterSceneEvents()
+void SChaosVDConstraintDataInspector::UnregisterSceneEvents() const
 {
 	if (const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin())
 	{
 		ScenePtr->OnSceneUpdated().RemoveAll(this);
-		ScenePtr->OnSolverInfoActorCreated().RemoveAll(this);
 
-		for (const TPair<int32, AChaosVDSolverInfoActor*> SolverInfos : ScenePtr->GetSolverInfoActorsMap())
+		if (TSharedPtr<FChaosVDSolverDataSelection> SelectionObject = ScenePtr->GetSolverDataSelectionObject().Pin())
 		{
-			UnregisterSelectionEventsForSolver(SolverInfos.Value);
+			SelectionObject->GetDataSelectionChangedDelegate().RemoveAll(this);
 		}
 	}
 }
 
-void SChaosVDConstraintDataInspector::SetConstraintDataToInspect(const FChaosVDJointConstraintSelectionHandle& InDataSelectionHandle)
+void SChaosVDConstraintDataInspector::SetConstraintDataToInspect(const TSharedPtr<FChaosVDSolverDataSelectionHandle>& InDataSelectionHandle)
 {
-	ClearInspector();
-
-	if (const TSharedPtr<FChaosVDJointConstraint> QueryDataToInspect = InDataSelectionHandle.GetData().Pin())
+	if (InDataSelectionHandle && InDataSelectionHandle->IsA<FChaosVDConstraintDataWrapperBase>())
 	{
-		CurrentDataSelectionHandle = InDataSelectionHandle;
-		const TSharedPtr<FStructOnScope> QueryDataView = MakeShared<FStructOnScope>(FChaosVDJointConstraint::StaticStruct(), reinterpret_cast<uint8*>(QueryDataToInspect.Get()));
-		ConstraintDataDetailsView->SetStructureData(QueryDataView);
+		CurrentDataSelectionHandle = InDataSelectionHandle.ToSharedRef();
+
+		if (HasCompatibleStructScopeView(InDataSelectionHandle.ToSharedRef()))
+		{
+			DataBeingInspectedCopy->UpdateFromOther(*InDataSelectionHandle->GetDataAsStructScope());
+		}
+		else
+		{
+			DataBeingInspectedCopy = MakeShared<FReadOnlyCopyStructOnScope>(*InDataSelectionHandle->GetDataAsStructScope());
+			MainDataDetailsView->SetStructureData(DataBeingInspectedCopy);
+		}
+	}
+	else
+	{
+		ClearInspector();
 	}
 
 	bIsUpToDate = true;
 }
 
-FText SChaosVDConstraintDataInspector::GetParticleName(EChaosVDParticleSelector PairIndex) const
+void SChaosVDConstraintDataInspector::SetupWidgets()
 {
-	const TSharedPtr<FChaosVDJointConstraint> JointConstraintPtr = CurrentDataSelectionHandle.GetData().Pin();
-	if (!JointConstraintPtr)
+	MainDataDetailsView = CreateDataDetailsView();
+}
+
+TSharedRef<SWidget> SChaosVDConstraintDataInspector::GenerateDetailsViewWidget(FMargin Margin)
+{
+	return  SNew(SScrollBox)
+	.Visibility_Raw(this, &SChaosVDConstraintDataInspector::GetDetailsSectionVisibility)
+	+SScrollBox::Slot()
+	.Padding(Margin.Left, Margin.Top, Margin.Right,Margin.Bottom)
+	[
+		MainDataDetailsView->GetWidget().ToSharedRef()
+	];
+}
+
+TSharedRef<SWidget> SChaosVDConstraintDataInspector::GenerateHeaderWidget(FMargin Margin)
+{
+	return SNew(SBox)
+			.Visibility(EVisibility::Collapsed);
+}
+
+FText SChaosVDConstraintDataInspector::GetParticleName(EChaosVDParticlePairIndex ParticleSlot) const
+{
+	return GetParticleName(ParticleSlot, GetCurrentDataBeingInspected());
+}
+
+FText SChaosVDConstraintDataInspector::GetParticleName(const EChaosVDParticlePairIndex ParticleSlot, const TSharedPtr<FChaosVDSolverDataSelectionHandle>& InSelectionHandle) const
+{
+	bool bHasValidSelection = InSelectionHandle && InSelectionHandle->IsValid();
+	if (!bHasValidSelection)
 	{
-		return FText::AsCultureInvariant("UnnamedParticle");
+		return FText::GetEmpty();
 	}
 
-	if (const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin())
+	if (FChaosVDConstraintDataWrapperBase* ConstraintData = GetCurrentDataBeingInspected()->GetData<FChaosVDConstraintDataWrapperBase>())
 	{
-		if (AChaosVDParticleActor* ParticleActor = ScenePtr->GetParticleActor(JointConstraintPtr->SolverID, PairIndex == EChaosVDParticleSelector::Index_0 ? JointConstraintPtr->ParticleParIndexes[0] : JointConstraintPtr->ParticleParIndexes[1]))
-		{
-			if (const FChaosVDParticleDataWrapper* ParticleData = ParticleActor->GetParticleData())
-			{
-				return FText::AsCultureInvariant(ParticleData->DebugName);
-			}
-		}
+		return GetParticleName_Internal(ConstraintData->GetSolverID(), ConstraintData->GetParticleIDAtSlot(ParticleSlot));	
 	}
 
-	return FText::AsCultureInvariant("UnnamedParticle");
+	return FText::GetEmpty();
 }
 
 TSharedRef<SWidget> SChaosVDConstraintDataInspector::GenerateParticleSelectorButtons()
@@ -179,8 +229,8 @@ TSharedRef<SWidget> SChaosVDConstraintDataInspector::GenerateParticleSelectorBut
 				.HAlign(HAlign_Center)
 				.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
 				.Text(LOCTEXT("SelectParticle0", "Select Particle 0"))
-				.ToolTipText_Raw(this, &SChaosVDConstraintDataInspector::GetParticleName, EChaosVDParticleSelector::Index_0)
-				.OnClicked(this, &SChaosVDConstraintDataInspector::SelectParticleForCurrentSelectedData, EChaosVDParticleSelector::Index_0)
+				.ToolTipText_Raw(this, &SChaosVDConstraintDataInspector::GetParticleName, EChaosVDParticlePairIndex::Index_0)
+				.OnClicked(this, &SChaosVDConstraintDataInspector::SelectParticleForCurrentSelectedData, EChaosVDParticlePairIndex::Index_0)
 			]
 			+SUniformGridPanel::Slot(1, 0)
 			[
@@ -188,43 +238,39 @@ TSharedRef<SWidget> SChaosVDConstraintDataInspector::GenerateParticleSelectorBut
 				.HAlign(HAlign_Center)
 				.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
 				.Text(LOCTEXT("SelectParticle1", "Select Particle 1"))
-				.ToolTipText_Raw(this, &SChaosVDConstraintDataInspector::GetParticleName, EChaosVDParticleSelector::Index_1)
-				.OnClicked(this, &SChaosVDConstraintDataInspector::SelectParticleForCurrentSelectedData, EChaosVDParticleSelector::Index_1)
+				.ToolTipText_Raw(this, &SChaosVDConstraintDataInspector::GetParticleName, EChaosVDParticlePairIndex::Index_1)
+				.OnClicked(this, &SChaosVDConstraintDataInspector::SelectParticleForCurrentSelectedData, EChaosVDParticlePairIndex::Index_1)
 			];
 }
 
-FReply SChaosVDConstraintDataInspector::SelectParticleForCurrentSelectedData(EChaosVDParticleSelector ParticlePairIndex)
+FReply SChaosVDConstraintDataInspector::SelectParticleForCurrentSelectedData(EChaosVDParticlePairIndex ParticleSlot)
 {
-	const TSharedPtr<FChaosVDJointConstraint> JointConstraintPtr = CurrentDataSelectionHandle.GetData().Pin();
-	if (!JointConstraintPtr)
+	if (FChaosVDConstraintDataWrapperBase* ConstraintData = GetConstraintDataFromSelectionHandle())
 	{
-		return FReply::Handled();
-	}
-
-	if (const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin())
-	{
-		if (AChaosVDParticleActor* ParticleActor = ScenePtr->GetParticleActor(JointConstraintPtr->SolverID, ParticlePairIndex == EChaosVDParticleSelector::Index_0 ? JointConstraintPtr->ParticleParIndexes[0] : JointConstraintPtr->ParticleParIndexes[1]))
-		{
-			ScenePtr->SetSelectedObject(ParticleActor);
-		}
+		SelectParticle(ConstraintData->GetSolverID(), ConstraintData->GetParticleIDAtSlot(ParticleSlot));
 	}
 	
 	return FReply::Handled();
 }
 
+bool SChaosVDConstraintDataInspector::HasCompatibleStructScopeView(const TSharedRef<FChaosVDSolverDataSelectionHandle>& InSelectionHandle) const
+{
+	return DataBeingInspectedCopy && InSelectionHandle->GetDataAsStructScope() && DataBeingInspectedCopy->GetStruct() == InSelectionHandle->GetDataAsStructScope()->GetStruct();
+}
+
 EVisibility SChaosVDConstraintDataInspector::GetOutOfDateWarningVisibility() const
 {
-	return !bIsUpToDate && CurrentDataSelectionHandle.GetData().IsValid() ? EVisibility::Visible : EVisibility::Collapsed;
+	return !bIsUpToDate && GetCurrentDataBeingInspected()->IsValid() ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 EVisibility SChaosVDConstraintDataInspector::GetDetailsSectionVisibility() const
 {
-	return CurrentDataSelectionHandle.GetData().IsValid() ? EVisibility::Visible : EVisibility::Collapsed;
+	return GetCurrentDataBeingInspected()->IsValid() ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 EVisibility SChaosVDConstraintDataInspector::GetNothingSelectedMessageVisibility() const
 {
-	return !CurrentDataSelectionHandle.GetData().IsValid() ? EVisibility::Visible : EVisibility::Collapsed;
+	return GetCurrentDataBeingInspected()->IsValid() ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
 void SChaosVDConstraintDataInspector::HandleSceneUpdated()
@@ -232,10 +278,9 @@ void SChaosVDConstraintDataInspector::HandleSceneUpdated()
 	// TODO: Disabling the "out of date" message system, it is a little bit confusing with joint constraints as the debug draw position will be updated between frames (because the constraint only has particles IDs)
 	// but the data itself is not updated.
 	// We are clearing out the selection altogether instead for now
-	//bIsUpToDate = false;
-	
-	CurrentDataSelectionHandle.SetIsSelected(false);
-	CurrentDataSelectionHandle = FChaosVDJointConstraintSelectionHandle();
+	bIsUpToDate = false;
+
+	//ClearInspector();
 
 	// TODO: To Keep a selection up to date we need a persistent ID for the constraint
 	// We could hash the pointer for that or add an ID to the Constraint Handle only compiled in when CVD is enabled
@@ -243,8 +288,52 @@ void SChaosVDConstraintDataInspector::HandleSceneUpdated()
 
 void SChaosVDConstraintDataInspector::ClearInspector()
 {
-	ConstraintDataDetailsView->SetStructureData(nullptr);
-	CurrentDataSelectionHandle = FChaosVDJointConstraintSelectionHandle();
+	DataBeingInspectedCopy = nullptr;
+	MainDataDetailsView->SetStructureData(nullptr);
+	CurrentDataSelectionHandle = MakeShared<FChaosVDSolverDataSelectionHandle>();
+}
+
+FText SChaosVDConstraintDataInspector::GetParticleName_Internal(int32 SolverID, int32 ParticleID) const
+{
+	if (const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin())
+	{
+		if (AChaosVDParticleActor* ParticleActor = ScenePtr->GetParticleActor(SolverID, ParticleID))
+		{
+			if (TSharedPtr<const FChaosVDParticleDataWrapper> ParticleData = ParticleActor->GetParticleData())
+			{
+				return FText::AsCultureInvariant(ParticleData->DebugName);
+			}
+		}
+	}
+
+	return FText::GetEmpty();
+}
+
+void SChaosVDConstraintDataInspector::SelectParticle(int32 SolverID, int32 ParticleID) const
+{
+	if (const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin())
+	{
+		if (AChaosVDParticleActor* ParticleActor = ScenePtr->GetParticleActor(SolverID, ParticleID))
+		{
+			ScenePtr->SetSelectedObject(ParticleActor);
+		}
+	}
+}
+
+FChaosVDConstraintDataWrapperBase* SChaosVDConstraintDataInspector::GetConstraintDataFromSelectionHandle() const
+{
+	bool bHasValidSelection = GetCurrentDataBeingInspected()->IsValid();
+	if (!bHasValidSelection)
+	{
+		return nullptr;
+	}
+
+	return GetCurrentDataBeingInspected()->GetData<FChaosVDConstraintDataWrapperBase>();
+}
+
+const TSharedRef<FChaosVDSolverDataSelectionHandle>& SChaosVDConstraintDataInspector::GetCurrentDataBeingInspected() const
+{
+	return CurrentDataSelectionHandle;
 }
 
 TSharedPtr<IStructureDetailsView> SChaosVDConstraintDataInspector::CreateDataDetailsView()

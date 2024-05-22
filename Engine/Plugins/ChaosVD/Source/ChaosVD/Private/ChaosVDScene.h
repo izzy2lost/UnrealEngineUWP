@@ -3,6 +3,8 @@
 #pragma once
 
 #include "ChaosVDRecording.h"
+#include "ChaosVDSolverDataSelection.h"
+#include "Components/ChaosVDSolverDataComponent.h"
 #include "Containers/UnrealString.h"
 #include "Containers/Map.h"
 #include "Elements/Framework/TypedElementListFwd.h"
@@ -141,6 +143,8 @@ public:
 	/** Updates the render state of the hit proxies of an array of actors. This used to update the selection outline state */
 	void UpdateSelectionProxiesForActors(TArrayView<AActor*> SelectedActors);
 
+	TWeakPtr<FChaosVDSolverDataSelection> GetSolverDataSelectionObject() { return SolverDataSelectionObject ? SolverDataSelectionObject : nullptr;}
+
 	TSharedPtr<FChaosVDRecording> LoadedRecording;
 
 private:
@@ -222,6 +226,8 @@ private:
 	FChaosVDSolverVisibilityChangedDelegate SolverVisibilityChangedDelegate;
 
 	TMap<uint32, TArray<IChaosVDGeometryOwnerInterface*>> ObjectsWaitingForGeometry;
+	
+	TSharedPtr<FChaosVDSolverDataSelection> SolverDataSelectionObject;
 
 	friend FChaosVDSelectionCustomization;
 };

@@ -121,13 +121,13 @@ void AChaosVDSolverInfoActor::VisitSelectedParticleData(TCallback VisitCallback)
 	for (const int32 SelectedParticleID : SelectedParticlesID)
 	{
 		AChaosVDParticleActor* ParticleActor = GetParticleActor(SelectedParticleID);
-		const FChaosVDParticleDataWrapper* ParticleDataViewer = ParticleActor ? ParticleActor->GetParticleData() : nullptr;
+		TSharedPtr<const FChaosVDParticleDataWrapper> ParticleDataViewer = ParticleActor ? ParticleActor->GetParticleData() : nullptr;
 		if (!ensure(ParticleDataViewer))
 		{
 			continue;
 		}
 
-		if (!VisitCallback(*ParticleDataViewer))
+		if (!VisitCallback(ParticleDataViewer))
 		{
 			return;
 		}
@@ -140,13 +140,13 @@ void AChaosVDSolverInfoActor::VisitAllParticleData(TCallback VisitCallback)
 	for (const TPair<int32, AChaosVDParticleActor*>& ParticleWithIDPair : SolverParticlesByID)
 	{
 		AChaosVDParticleActor* ParticleActor = ParticleWithIDPair.Value;
-		const FChaosVDParticleDataWrapper* ParticleDataViewer = ParticleActor ? ParticleActor->GetParticleData() : nullptr;
+		TSharedPtr<const FChaosVDParticleDataWrapper> ParticleDataViewer = ParticleActor ? ParticleActor->GetParticleData() : nullptr;
 		if (!ensure(ParticleDataViewer))
 		{
 			continue;
 		}
 
-		if (!VisitCallback(*ParticleDataViewer))
+		if (!VisitCallback(ParticleDataViewer))
 		{
 			return;
 		}

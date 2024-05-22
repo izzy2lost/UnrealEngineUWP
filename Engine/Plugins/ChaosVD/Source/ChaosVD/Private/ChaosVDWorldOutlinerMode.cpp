@@ -94,7 +94,7 @@ void FChaosVDActorTreeItem::UpdateDisplayString()
 {
 	if (AChaosVDParticleActor* CVDActor = Cast<AChaosVDParticleActor>(Actor.Get()))
 	{
-		if (const FChaosVDParticleDataWrapper* ParticleData = CVDActor->GetParticleData())
+		if (TSharedPtr<const FChaosVDParticleDataWrapper> ParticleData = CVDActor->GetParticleData())
 		{
 			const bool bHasDebugName = !ParticleData->DebugName.IsEmpty();
 			DisplayString = bHasDebugName ? ParticleData->DebugName : TEXT("Unnamed Particle - ID : ") + FString::FromInt(ParticleData->ParticleIndex);

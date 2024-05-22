@@ -1,58 +1,43 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+#include "ChaosVDComponentVisualizerBase.h"
+#include "ChaosVDSolverDataSelection.h"
 #include "ComponentVisualizer.h"
 #include "HitProxies.h"
-#include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 
-struct FChaosVDParticlePairMidPhase;
-struct FChaosVDVisualizationContext;
+#include "ChaosVDSolverCollisionDataComponentVisualizer.generated.h"
+
 class FChaosVDScene;
 
-struct FChaosVDCollisionDataFinder
-{
-	TWeakPtr<FChaosVDParticlePairMidPhase> OwningMidPhase;
-	FChaosVDConstraint* OwningConstraint = nullptr;
-	int32 ContactIndex = INDEX_NONE;
+struct FChaosVDConstraint;
+struct FChaosVDParticlePairMidPhase;
+struct FChaosVDVisualizationContext;
 
-	void SetIsSelected(bool bNewSelected);
+USTRUCT()
+struct FChaosVDCollisionDataSelectionContext : public FChaosVDSelectionContext
+{
+	GENERATED_BODY()
+
+	TSharedPtr<FChaosVDParticlePairMidPhase> MidPhase;
+	FChaosVDConstraint* ConstraintDataPtr = nullptr;
+	int32 ContactDataIndex = INDEX_NONE;
 };
 
-struct HChaosVDContactPointProxy : public HComponentVisProxy
-{
-	DECLARE_HIT_PROXY()
-	
-	HChaosVDContactPointProxy(const UActorComponent* Component, const FChaosVDCollisionDataFinder& InContactFinderData) : HComponentVisProxy(Component, HPP_UI), ContactFinder(InContactFinderData)
-	{	
-	}
-
-	virtual EMouseCursor::Type GetMouseCursor() override
-	{
-		return EMouseCursor::Crosshairs;
-	}
-
-	FChaosVDCollisionDataFinder ContactFinder;
-};
-
-class FChaosVDSolverCollisionDataComponentVisualizer : public FComponentVisualizer
+class FChaosVDSolverCollisionDataComponentVisualizer : public FChaosVDComponentVisualizerBase
 {
 public:
 	
 	FChaosVDSolverCollisionDataComponentVisualizer();
 	virtual ~FChaosVDSolverCollisionDataComponentVisualizer() override;
-	
-	void RegisterVisualizerMenus();
+
+	virtual void RegisterVisualizerMenus() override;
 
 	virtual bool ShowWhenSelected() override;
 	virtual void DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI) override;
 
-	virtual bool VisProxyHandleClick(FEditorViewportClient* InViewportClient, HComponentVisProxy* VisProxy, const FViewportClick& Click) override;
+	virtual bool CanHandleClick(const HChaosVDComponentVisProxy& VisProxy) override;
 
 protected:
-	
-	void ClearCurrentSelection();
-
 	void DrawMidPhaseData(const UActorComponent* Component, const TSharedPtr<FChaosVDParticlePairMidPhase>& MidPhase, const FChaosVDVisualizationContext& VisualizationContext, const FSceneView* View, FPrimitiveDrawInterface* PDI);
-
-	FChaosVDCollisionDataFinder CurrentSelectedContactData;
 };

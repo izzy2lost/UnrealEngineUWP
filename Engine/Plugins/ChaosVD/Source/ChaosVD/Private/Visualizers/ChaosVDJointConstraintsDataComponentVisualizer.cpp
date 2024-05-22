@@ -2,10 +2,10 @@
 
 #include "Visualizers/ChaosVDJointConstraintsDataComponentVisualizer.h"
 
+#include "ChaosVDEngine.h"
 #include "ChaosVDScene.h"
 #include "ChaosVDStyle.h"
 #include "ChaosVDTabsIDs.h"
-#include "EditorModeManager.h"
 #include "EditorViewportClient.h"
 #include "SceneManagement.h"
 #include "SceneView.h"
@@ -16,13 +16,8 @@
 #include "ToolMenus.h"
 #include "ToolMenuEntry.h"
 #include "ToolMenuSection.h"
-#include "Utils/ChaosVDUserInterfaceUtils.h"
 #include "Visualizers/ChaosVDDebugDrawUtils.h"
-#include "Widgets/SChaosVDMainTab.h"
 #include "Widgets/SChaosVDViewportToolbar.h"
-#include "Widgets/SChaosVDEnumFlagsMenu.h"
-
-IMPLEMENT_HIT_PROXY(HChaosVDJointConstraintProxy, HComponentVisProxy)
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
@@ -110,39 +105,24 @@ namespace Chaos::VisualDebugger::Utils
 
 FChaosVDJointConstraintsDataComponentVisualizer::FChaosVDJointConstraintsDataComponentVisualizer()
 {
-	RegisterVisualizerMenus();
+	FChaosVDJointConstraintsDataComponentVisualizer::RegisterVisualizerMenus();
+
+	InspectorTabID = FChaosVDTabID::ConstraintsInspector;
 }
 
 void FChaosVDJointConstraintsDataComponentVisualizer::RegisterVisualizerMenus()
 {
-	UToolMenus* ToolMenus = UToolMenus::Get();
+	FName MenuSection("JointConstraintDataVisualization.Show");
+	FText MenuSectionLabel = LOCTEXT("JointConstraintDataVisualizationShowMenuLabel", "Joint Constraint Data Visualization");
+	FText FlagsMenuLabel = LOCTEXT("JointConstraintDataVisualizationFlagsMenuLabel", "Joint Constraints Data Flags");
+	FText FlagsMenuTooltip = LOCTEXT("JointConstraintDataVisualizationFlagsMenuToolTip", "Set of flags to enable/disable visibility of specific types of joint constraint data");
+	FSlateIcon FlagsMenuIcon = FSlateIcon(FChaosVDStyle::Get().GetStyleSetName(), TEXT("ConnectionIcon"));
+
+	FText SettingsMenuLabel = LOCTEXT("JointConstraintDataVisualizationMenuLabel", "Joint Constraint Visualization Settings");
+	FText SettingsMenuTooltip = LOCTEXT("JointConstraintDataVisualizationMenuToolTip", "Options to change how the recorded joint constraint data is debug drawn");
 	
-	if (!ensure(ToolMenus))
-	{
-		return;
-	}
-
-	if (UToolMenu* Menu = ToolMenus->ExtendMenu(SChaosVDViewportToolbar::ShowMenuName))
-	{
-		FToolMenuSection& Section = Menu->AddSection("JointConstraintDataVisualization.Show", LOCTEXT("JointConstraintDataVisualizationShowMenuLabel", "Joint Constraint Data Visualization"));
-		
-		Section.AddSubMenu(TEXT("JointConstraintDataVisualizationFlags"), LOCTEXT("JointConstraintDataVisualizationFlagsMenuLabel", "Joint Constraints Data Flags"), LOCTEXT("JointConstraintDataVisualizationFlagsMenuToolTip", "Set of flags to enable/disable visibility of specific types of joint constraint data"), FNewToolMenuDelegate::CreateLambda([](UToolMenu* Menu)
-		                   {
-			                   TSharedRef<SWidget> VisualizationFlagsWidget = SNew(SChaosVDEnumFlagsMenu<EChaosVDJointsDataVisualizationFlags>)
-				                   .CurrentValue_Static(&UChaosVDJointConstraintsVisualizationSettings::GetJointsDataVisualizationFlags)
-				                   .OnEnumSelectionChanged_Static(&UChaosVDJointConstraintsVisualizationSettings::SetJointsDataVisualizationFlags);
-			
-			                   FToolMenuEntry FlagsMenuEntry = FToolMenuEntry::InitWidget("JointConstraintDataVisualizationFlags", VisualizationFlagsWidget,FText::GetEmpty());
-			                   Menu->AddMenuEntry(NAME_None, FlagsMenuEntry);
-		                   }),
-		                   false, FSlateIcon(FChaosVDStyle::Get().GetStyleSetName(), TEXT("ConnectionIcon")));
-
-		using namespace Chaos::VisualDebugger::Utils;
-		Section.AddSubMenu(TEXT("JointConstraintDataVisualizationSettings"), LOCTEXT("JointConstraintDataVisualizationMenuLabel", "Joint Constraint Visualization Settings"), LOCTEXT("JointConstraintDataVisualizationMenuToolTip", "Options to change how the recorded joint constraint data is debug drawn"), FNewToolMenuDelegate::CreateStatic(&CreateMenuEntryForDefaultObject<UChaosVDJointConstraintsVisualizationSettings>, EChaosVDSaveSettingsOptions::ShowSaveButton),
-		                   false, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("Icons.Toolbar.Settings")));
-	}
+	CreateGenericVisualizerMenu<UChaosVDJointConstraintsVisualizationSettings, EChaosVDJointsDataVisualizationFlags>(SChaosVDViewportToolbar::ShowMenuName, MenuSection, MenuSectionLabel, FlagsMenuLabel, FlagsMenuTooltip, FlagsMenuIcon, SettingsMenuLabel, SettingsMenuTooltip);
 }
-
 
 void FChaosVDJointConstraintsDataComponentVisualizer::DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI)
 {
@@ -182,7 +162,7 @@ void FChaosVDJointConstraintsDataComponentVisualizer::DrawVisualization(const UA
 
 	if (const UChaosVDJointConstraintsVisualizationSettings* EditorSettings = GetDefault<UChaosVDJointConstraintsVisualizationSettings>())
 	{
-		VisualizationContext.VisualizationFlags = static_cast<uint32>(UChaosVDJointConstraintsVisualizationSettings::GetJointsDataVisualizationFlags());
+		VisualizationContext.VisualizationFlags = static_cast<uint32>(UChaosVDJointConstraintsVisualizationSettings::GetDataVisualizationFlags());
 		VisualizationContext.bShowDebugText = EditorSettings->bShowDebugText;
 		VisualizationContext.DebugDrawSettings = EditorSettings;
 	}
@@ -192,59 +172,49 @@ void FChaosVDJointConstraintsDataComponentVisualizer::DrawVisualization(const UA
 		return;
 	}
 
-	// If nothing is selected, fallback to draw all joints
-	const bool bDrawOnlySelected = VisualizationContext.IsVisualizationFlagEnabled(EChaosVDJointsDataVisualizationFlags::OnlyDrawSelected) && JointConstraintDataComponent->GetCurrentSelectionHandle().IsSelected();
+	TSharedPtr<FChaosVDSolverDataSelection> SelectionObject = CVDScene->GetSolverDataSelectionObject().Pin();
+	TSharedPtr<FChaosVDSolverDataSelectionHandle> SelectionHandle;
+	if (SelectionObject)
+	{
+		SelectionHandle = SelectionObject->GetCurrentSelectionHandle();
+	}
+	
+	// If nothing is selected, fallback to draw all 
+	const bool bDrawOnlySelected = VisualizationContext.IsVisualizationFlagEnabled(EChaosVDJointsDataVisualizationFlags::OnlyDrawSelected) && SelectionHandle && SelectionHandle->IsSelected();
 	if (bDrawOnlySelected)
 	{
-		if (const TSharedPtr<FChaosVDJointConstraint> JointConstraint = JointConstraintDataComponent->GetCurrentSelectionHandle().GetData().Pin())
+		if (FChaosVDJointConstraint* JointConstraintData = SelectionHandle->GetData<FChaosVDJointConstraint>())
 		{
-			VisualizationContext.DataSelectionHandle = FChaosVDJointConstraintSelectionHandle(JointConstraint);
-			DrawJointConstraint(Component, *JointConstraint, VisualizationContext, View, PDI);
+			VisualizationContext.DataSelectionHandle = SelectionHandle;
+			DrawJointConstraint(Component, *JointConstraintData, VisualizationContext, View, PDI);
 		}
 	}
 	else
 	{
-		for (const TSharedPtr<FChaosVDJointConstraint>& JointConstraint : JointConstraintDataComponent->GetAllJointConstraints())
+		for (const TSharedPtr<FChaosVDConstraintDataWrapperBase>& Constraint : JointConstraintDataComponent->GetAllConstraints())
 		{
-			if (JointConstraint)
+			static_assert(std::is_base_of_v<FChaosVDConstraintDataWrapperBase, FChaosVDJointConstraint>, "Only FChaosVDJointConstraint is supported");
+
+			if (FChaosVDJointConstraint* JointConstraint = static_cast<FChaosVDJointConstraint*>(Constraint.Get()))
 			{
-				VisualizationContext.DataSelectionHandle = FChaosVDJointConstraintSelectionHandle(JointConstraint);
+				VisualizationContext.DataSelectionHandle = SelectionObject->MakeSelectionHandle(StaticCastSharedPtr<FChaosVDJointConstraint>(Constraint));
+
 				DrawJointConstraint(Component, *JointConstraint, VisualizationContext, View, PDI);
 			}
 		}
 	}
 }
 
-bool FChaosVDJointConstraintsDataComponentVisualizer::VisProxyHandleClick(FEditorViewportClient* InViewportClient, HComponentVisProxy* VisProxy, const FViewportClick& Click)
+bool FChaosVDJointConstraintsDataComponentVisualizer::CanHandleClick(const HChaosVDComponentVisProxy& VisProxy)
 {
-	const HChaosVDJointConstraintProxy* JointDataProxy = HitProxyCast<HChaosVDJointConstraintProxy>(VisProxy);
-	if (JointDataProxy == nullptr)
-	{
-		return false;
-	}
-	
-	if (const UChaosVDSolverJointConstraintDataComponent* JointsDataComponent = Cast<UChaosVDSolverJointConstraintDataComponent>(JointDataProxy->Component.Get()))
-	{
-		// Bring the SQ Inspector into focus if available
-		const TSharedPtr<SChaosVDMainTab> MainTabToolkitHost = InViewportClient->GetModeTools() ? StaticCastSharedPtr<SChaosVDMainTab>(InViewportClient->GetModeTools()->GetToolkitHost()) : nullptr;
-		if (const TSharedPtr<FTabManager> TabManager = MainTabToolkitHost ? MainTabToolkitHost->GetTabManager() : nullptr)
-		{
-			TabManager->TryInvokeTab(FChaosVDTabID::JointsDataDetails);
-		}
-
-		const_cast<UChaosVDSolverJointConstraintDataComponent*>(JointsDataComponent)->SelectJoint(JointDataProxy->DataSelectionHandle);
-
-		return true;
-	}
-
-	return false;
+	return VisProxy.DataSelectionHandle && VisProxy.DataSelectionHandle->IsA<FChaosVDJointConstraint>();
 }
 
-void FChaosVDJointConstraintsDataComponentVisualizer::DebugDrawAllAxis(const FChaosVDJointConstraint& InJointConstraintData, FChaosVDJointVisualizationDataContext& VisualizationContext, FPrimitiveDrawInterface* PDI, const float LineThickness, const FVector& InPosition, const Chaos::FMatrix33& InRotationMatrix, TConstArrayView<FLinearColor> AxisColors)
+void FChaosVDJointConstraintsDataComponentVisualizer::DebugDrawAllAxis(const FChaosVDJointConstraint& InJointConstraintData, FChaosVDJointVisualizationDataContext& VisualizationContext, FPrimitiveDrawInterface* PDI, const float LineThickness, const FVector& InPosition, const Chaos::FMatrix33& InRotationMatrix, TConstArrayView<FLinearColor> AxisColors,  bool bIsSelected)
 {
 	for(int32 AxisIndex = 0; AxisIndex < 3 ; AxisIndex++)
 	{
-		FChaosVDDebugDrawUtils::DrawArrowVector(PDI, InPosition, InPosition + VisualizationContext.DebugDrawSettings->GeneralScale * VisualizationContext.DebugDrawSettings->ConstraintAxisLength * VisualizationContext.SpaceTransform.TransformVector(InRotationMatrix.GetAxis(AxisIndex)), FText::GetEmpty(), Chaos::VisualDebugger::Utils::GenerateSelectionAwareDebugColor(AxisColors[AxisIndex], InJointConstraintData.bIsSelectedInEditor), VisualizationContext.DebugDrawSettings->DepthPriority, LineThickness * 0.2f);
+		FChaosVDDebugDrawUtils::DrawArrowVector(PDI, InPosition, InPosition + VisualizationContext.DebugDrawSettings->GeneralScale * VisualizationContext.DebugDrawSettings->ConstraintAxisLength * VisualizationContext.SpaceTransform.TransformVector(InRotationMatrix.GetAxis(AxisIndex)), FText::GetEmpty(), Chaos::VisualDebugger::Utils::GenerateSelectionAwareDebugColor(AxisColors[AxisIndex], bIsSelected), VisualizationContext.DebugDrawSettings->DepthPriority, LineThickness * 0.2f);
 	}
 }
 
@@ -280,8 +250,8 @@ void FChaosVDJointConstraintsDataComponentVisualizer::DrawJointConstraint(const 
 		return;
 	}
 
-	const FChaosVDParticleDataWrapper* ParticleData0 = nullptr;
-	const FChaosVDParticleDataWrapper* ParticleData1 = nullptr;
+	TSharedPtr<const FChaosVDParticleDataWrapper> ParticleData0 = nullptr;
+	TSharedPtr<const FChaosVDParticleDataWrapper> ParticleData1 = nullptr;
 
 	if (AChaosVDParticleActor* Particle0 = VisualizationContext.SolverInfoActor->GetParticleActor(InJointConstraintData.ParticleParIndexes[0]))
 	{
@@ -324,9 +294,11 @@ void FChaosVDJointConstraintsDataComponentVisualizer::DrawJointConstraint(const 
 		return;
 	}
 
-	PDI->SetHitProxy(new HChaosVDJointConstraintProxy(Component, VisualizationContext.DataSelectionHandle));
+	bool bIsSelected = VisualizationContext.DataSelectionHandle && VisualizationContext.DataSelectionHandle->IsSelected();
 
-	const float LineThickness = InJointConstraintData.bIsSelectedInEditor ?  VisualizationContext.DebugDrawSettings->BaseLineThickness * 1.5f :  VisualizationContext.DebugDrawSettings->BaseLineThickness;
+	PDI->SetHitProxy(new HChaosVDComponentVisProxy(Component, VisualizationContext.DataSelectionHandle));
+
+	const float LineThickness = bIsSelected ? VisualizationContext.DebugDrawSettings->BaseLineThickness * 1.5f :  VisualizationContext.DebugDrawSettings->BaseLineThickness;
 
 	FVector Pa = ParticleData1->ParticlePositionRotation.MX;
 	FVector Pb = ParticleData0->ParticlePositionRotation.MX;
@@ -370,10 +342,10 @@ void FChaosVDJointConstraintsDataComponentVisualizer::DrawJointConstraint(const 
 			Sb = FMath::Lerp(Pb, Xb, FMath::Clamp<double>(CoMSize / Lena, 0., 1.));
 		}
 
-		FChaosVDDebugDrawUtils::DrawLine(PDI, Pa, Sa, GenerateSelectionAwareDebugColor(White, InJointConstraintData.bIsSelectedInEditor), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
-		FChaosVDDebugDrawUtils::DrawLine(PDI, Pb, Sb, GenerateSelectionAwareDebugColor(White, InJointConstraintData.bIsSelectedInEditor), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
-		FChaosVDDebugDrawUtils::DrawLine(PDI, Sa, Xa, GenerateSelectionAwareDebugColor(Red, InJointConstraintData.bIsSelectedInEditor), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
-		FChaosVDDebugDrawUtils::DrawLine(PDI, Sb, Xb, GenerateSelectionAwareDebugColor(Cyan, InJointConstraintData.bIsSelectedInEditor), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
+		FChaosVDDebugDrawUtils::DrawLine(PDI, Pa, Sa, GenerateSelectionAwareDebugColor(White, bIsSelected), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
+		FChaosVDDebugDrawUtils::DrawLine(PDI, Pb, Sb, GenerateSelectionAwareDebugColor(White,bIsSelected), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
+		FChaosVDDebugDrawUtils::DrawLine(PDI, Sa, Xa, GenerateSelectionAwareDebugColor(Red, bIsSelected), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
+		FChaosVDDebugDrawUtils::DrawLine(PDI, Sb, Xb, GenerateSelectionAwareDebugColor(Cyan, bIsSelected), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
 	}
 
 	if (VisualizationContext.IsVisualizationFlagEnabled(EChaosVDJointsDataVisualizationFlags::CenterOfMassConnector))
@@ -394,31 +366,31 @@ void FChaosVDJointConstraintsDataComponentVisualizer::DrawJointConstraint(const 
 			Sb = FMath::Lerp(Cb, Xb, FMath::Clamp<double>(CoMSize / Lena, 0., 1.));
 		}
 
-		FChaosVDDebugDrawUtils::DrawLine(PDI, Ca, Sa, GenerateSelectionAwareDebugColor(Black, InJointConstraintData.bIsSelectedInEditor), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
-		FChaosVDDebugDrawUtils::DrawLine(PDI, Cb, Sb, GenerateSelectionAwareDebugColor(Black, InJointConstraintData.bIsSelectedInEditor), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
-		FChaosVDDebugDrawUtils::DrawLine(PDI, Sa, Xa, GenerateSelectionAwareDebugColor(Red, InJointConstraintData.bIsSelectedInEditor), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
-		FChaosVDDebugDrawUtils::DrawLine(PDI, Sb, Xb, GenerateSelectionAwareDebugColor(Cyan, InJointConstraintData.bIsSelectedInEditor), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
+		FChaosVDDebugDrawUtils::DrawLine(PDI, Ca, Sa, GenerateSelectionAwareDebugColor(Black, bIsSelected), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
+		FChaosVDDebugDrawUtils::DrawLine(PDI, Cb, Sb, GenerateSelectionAwareDebugColor(Black, bIsSelected), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
+		FChaosVDDebugDrawUtils::DrawLine(PDI, Sa, Xa, GenerateSelectionAwareDebugColor(Red, bIsSelected), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
+		FChaosVDDebugDrawUtils::DrawLine(PDI, Sb, Xb, GenerateSelectionAwareDebugColor(Cyan, bIsSelected), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, ConnectorThickness);
 	}
 
 	if (VisualizationContext.IsVisualizationFlagEnabled(EChaosVDJointsDataVisualizationFlags::Stretch))
 	{
 		const float StretchThickness = 3.0f * LineThickness;
-		FChaosVDDebugDrawUtils::DrawLine(PDI, Xa, Xb, GenerateSelectionAwareDebugColor(Magenta, InJointConstraintData.bIsSelectedInEditor), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, StretchThickness);
+		FChaosVDDebugDrawUtils::DrawLine(PDI, Xa, Xb, GenerateSelectionAwareDebugColor(Magenta, bIsSelected), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, StretchThickness);
 	}
 
 	if (VisualizationContext.IsVisualizationFlagEnabled(EChaosVDJointsDataVisualizationFlags::Axes))
 	{
 		const FLinearColor AxisAColors[3] = {Red, Green, Blue};
 		const FLinearColor AxisBColors[3] = {Cyan, Magenta, Yellow};
-		DebugDrawAllAxis(InJointConstraintData, VisualizationContext, PDI, LineThickness, Xa, Ra, AxisAColors);
-		DebugDrawAllAxis(InJointConstraintData, VisualizationContext, PDI, LineThickness, Xb, Rb, AxisBColors);
+		DebugDrawAllAxis(InJointConstraintData, VisualizationContext, PDI, LineThickness, Xa, Ra, AxisAColors, bIsSelected);
+		DebugDrawAllAxis(InJointConstraintData, VisualizationContext, PDI, LineThickness, Xb, Rb, AxisBColors, bIsSelected);
 	}
 
 	// NOTE: GetLinearImpulse is the positional impulse (pushout)
 	if (VisualizationContext.IsVisualizationFlagEnabled(EChaosVDJointsDataVisualizationFlags::PushOut))
 	{
 		FLinearColor PushOutImpulseColor = FColor(0, 250, 250);
-		FChaosVDDebugDrawUtils::DrawLine(PDI, Xa, Xa + VisualizationContext.DebugDrawSettings->LinearImpulseScale * VisualizationContext.SpaceTransform.TransformVectorNoScale(InJointConstraintData.JointState.LinearImpulse), GenerateSelectionAwareDebugColor(PushOutImpulseColor, InJointConstraintData.bIsSelectedInEditor), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, LineThickness);
+		FChaosVDDebugDrawUtils::DrawLine(PDI, Xa, Xa + VisualizationContext.DebugDrawSettings->LinearImpulseScale * VisualizationContext.SpaceTransform.TransformVectorNoScale(InJointConstraintData.JointState.LinearImpulse), GenerateSelectionAwareDebugColor(PushOutImpulseColor, bIsSelected), FText::GetEmpty(), VisualizationContext.DebugDrawSettings->DepthPriority, LineThickness);
 	}
 
 	//TODO: Should we draw the Angular Impulse

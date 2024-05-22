@@ -2,8 +2,10 @@
 
 #pragma once
 
+#include "SChaosVDConstraintDataInspector.h"
 #include "Widgets/SCompoundWidget.h"
 
+struct FChaosVDSolverDataSelectionHandle;
 class AChaosVDParticleActor;
 class FChaosVDScene;
 class IStructureDetailsView;
@@ -13,68 +15,46 @@ class SChaosVDNameListPicker;
 struct FChaosVDCollisionDataFinder;
 struct FChaosVDParticlePairMidPhase;
 
-typedef TSharedPtr<FChaosVDParticlePairMidPhase> FChaosVDMidPhasePtr;
-
-enum class EChaosVDCollisionParticleSelector
-{
-	Index_0,
-	Index_1
-};
-
-class SChaosVDCollisionDataInspector : public SCompoundWidget
+class SChaosVDCollisionDataInspector : public SChaosVDConstraintDataInspector
 {
 public:
 
-	SLATE_BEGIN_ARGS(SChaosVDCollisionDataInspector)
-	{
-	}
-
-	SLATE_END_ARGS()
-
-	virtual ~SChaosVDCollisionDataInspector() override;
-
-	/** Constructs this widget with InArgs */
-	void Construct(const FArguments& InArgs, const TWeakPtr<FChaosVDScene>& InScenePtr);
-
 	void SetCollisionDataProviderObjectToInspect(IChaosVDCollisionDataProviderInterface* CollisionDataProvider);
-	void SetSingleContactDataToInspect(const FChaosVDCollisionDataFinder& InContactFinderData);
+
+	virtual void SetConstraintDataToInspect(const TSharedPtr<FChaosVDSolverDataSelectionHandle>& InDataSelectionHandle) override;
 
 protected:
+	virtual void SetupWidgets() override;
+	virtual void HandleSceneUpdated() override;
 
-	void HandleSceneUpdated();
+	virtual void ClearInspector() override;
 
-	void ClearInspector();
+	virtual TSharedRef<SWidget> GenerateHeaderWidget(FMargin Margin) override;
+	virtual TSharedRef<SWidget> GenerateDetailsViewWidget(FMargin Margin) override;
 
-	FText GetObjectBeingInspectedName() const;
-	TSharedPtr<SWidget> GenerateObjectNameRowWidget();
+	virtual FText GetParticleName(EChaosVDParticlePairIndex ParticleSlot, const TSharedPtr<FChaosVDSolverDataSelectionHandle>& InSelectionHandle) const override;
 
-	TSharedPtr<FChaosVDCollisionDataFinder> GetCurrentDataBeingInspected();
+	void GetParticleIDForSelectedData(const TSharedPtr<FChaosVDSolverDataSelectionHandle>& InSelectionHandle, EChaosVDParticlePairIndex ParticleSlot, int32& OutSolverID, int32& OutParticleID) const;
 
-	EVisibility GetOutOfDateWarningVisibility() const;
+	virtual const TSharedRef<FChaosVDSolverDataSelectionHandle>& GetCurrentDataBeingInspected() const override;
 
 	void HandleCollisionDataEntryNameSelected(TSharedPtr<FName> SelectedName);
 
-	TSharedPtr<FName> GenerateNameForCollisionDataItem(const FChaosVDCollisionDataFinder& InContactFinderData);
+	TSharedRef<FName> GenerateNameForCollisionDataItem(const TSharedPtr<FChaosVDSolverDataSelectionHandle>& InDataSelectionHandle) const;
 
 	TSharedPtr<IStructureDetailsView> CreateCollisionDataDetailsView();
 
-	EVisibility GetDetailsSectionVisibility() const;
+	virtual EVisibility GetDetailsSectionVisibility() const override;
 
-	FReply SelectParticleForCurrentCollisionData(EChaosVDCollisionParticleSelector ParticleSelector);
+	virtual FReply SelectParticleForCurrentSelectedData(EChaosVDParticlePairIndex ParticleSlot) override;
 
-	TWeakPtr<FChaosVDScene> SceneWeakPtr;
+	TSharedPtr<FChaosVDSolverDataSelectionHandle> GetSelectionNameForName(const TSharedPtr<FName>& InName);
 
 	TSharedPtr<SChaosVDNameListPicker> CollisionDataAvailableList;
 	
-	TMap<FName, TSharedPtr<FChaosVDCollisionDataFinder>> CollisionDataByNameMap;
+	TMap<FName, TSharedPtr<FChaosVDSolverDataSelectionHandle>> CollisionDataByNameMap;
 
 	TSharedPtr<FName> CurrentSelectedName;
 
-	TSharedPtr<IStructureDetailsView> MainCollisionDataDetailsView;
-	
 	TSharedPtr<IStructureDetailsView> SecondaryCollisionDataDetailsPanel;
-
-	FName CurrentObjectBeingInspectedName;
-
-	bool bIsUpToDate = true;
 };

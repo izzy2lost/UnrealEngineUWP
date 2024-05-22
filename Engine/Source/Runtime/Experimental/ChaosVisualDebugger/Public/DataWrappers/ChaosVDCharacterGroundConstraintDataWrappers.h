@@ -115,7 +115,7 @@ CVD_IMPLEMENT_SERIALIZER(FChaosVDCharacterGroundConstraintDataDataWrapper)
 
 
 USTRUCT()
-struct FChaosVDCharacterGroundConstraint : public FChaosVDWrapperDataBase
+struct FChaosVDCharacterGroundConstraint : public FChaosVDConstraintDataWrapperBase
 {
 	GENERATED_BODY()
 public:
@@ -141,7 +141,9 @@ public:
 	UPROPERTY(VisibleAnywhere, Category=Data)
 	FChaosVDCharacterGroundConstraintDataDataWrapper Data;
 
-	bool bIsSelectedInEditor = false;
+	CHAOSVDRUNTIME_API virtual int32 GetSolverID() const override { return SolverID; }
+	CHAOSVDRUNTIME_API virtual int32 GetParticleIDAtSlot(EChaosVDParticlePairIndex IndexSlot) const override;
+	CHAOSVDRUNTIME_API virtual int32 GetConstraintIndex () const override {return ConstraintIndex; }
 };
 
 CVD_IMPLEMENT_SERIALIZER(FChaosVDCharacterGroundConstraint)

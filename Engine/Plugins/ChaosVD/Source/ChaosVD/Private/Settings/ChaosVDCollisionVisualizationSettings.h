@@ -43,8 +43,8 @@ public:
 	UPROPERTY(EditAnywhere, config, Category=DebugDraw)
 	float ContactNormalScale = 30.0f;
 
-	static void SetCollisionDataVisualizationFlags(EChaosVDCollisionVisualizationFlags NewFlags);
-	static EChaosVDCollisionVisualizationFlags GetCollisionDataVisualizationFlags();
+	static void SetDataVisualizationFlags(EChaosVDCollisionVisualizationFlags NewFlags);
+	static EChaosVDCollisionVisualizationFlags GetDataVisualizationFlags();
 
 private:
 	/** Set of flags to enable/disable visualization of specific collision data as debug draw */

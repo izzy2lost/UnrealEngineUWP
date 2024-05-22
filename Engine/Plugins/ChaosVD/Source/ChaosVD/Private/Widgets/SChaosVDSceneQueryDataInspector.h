@@ -23,6 +23,8 @@ class SChaosVDSceneQueryDataInspector : public SCompoundWidget
 {
 public:
 	SChaosVDSceneQueryDataInspector();
+	void RegisterSceneEvents();
+	void UnregisterSceneEvents();
 
 	SLATE_BEGIN_ARGS(SChaosVDSceneQueryDataInspector)
 		{
@@ -35,7 +37,7 @@ public:
 	void Construct(const FArguments& InArgs, const TWeakPtr<FChaosVDScene>& InScenePtr, const TWeakPtr<FEditorModeTools>& InEditorModeTools);
 
 	/** Sets a new query data to be inspected */
-	void SetQueryDataToInspect(const FChaosVDSceneQuerySelectionHandle& InQueryDataSelectionHandle);
+	void SetQueryDataToInspect(const TSharedPtr<FChaosVDSolverDataSelectionHandle>& InDataSelectionHandle);
 
 protected:
 
@@ -88,7 +90,7 @@ protected:
 
 	TMap<TSharedPtr<FName>, int32> CurrentSubQueriesByName;
 	
-	FChaosVDSceneQuerySelectionHandle CurrentSceneQueryBeingInspectedHandle;
+	TSharedRef<FChaosVDSolverDataSelectionHandle> CurrentSceneQueryBeingInspectedHandle;
 
 	bool bIsUpToDate = true;
 

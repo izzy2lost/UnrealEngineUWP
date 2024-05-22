@@ -51,6 +51,19 @@ void AChaosVDSolverInfoActor::SetScene(TWeakPtr<FChaosVDScene> InScene)
 	{
 		RegisterSelectionSetObject(ScenePtr->GetElementSelectionSet());
 	}
+
+	TInlineComponentArray<UChaosVDSolverDataComponent*> SolverDataComponents;
+	GetComponents(SolverDataComponents);
+
+	for (UChaosVDSolverDataComponent* Component : SolverDataComponents)
+	{
+		if(!Component)
+		{
+			continue;
+		}
+
+		Component->SetScene(InScene);
+	}
 }
 
 void AChaosVDSolverInfoActor::RegisterParticleActor(int32 ParticleID, AChaosVDParticleActor* ParticleActor)
@@ -257,7 +270,7 @@ void AChaosVDSolverInfoActor::HandlePostSelectionChange(const UTypedElementSelec
 	{
 		if (AChaosVDParticleActor* SelectedParticle = SelectedParticles[0])
 		{
-			if (const FChaosVDParticleDataWrapper* ParticleData = SelectedParticle->GetParticleData())
+			if (TSharedPtr<const FChaosVDParticleDataWrapper> ParticleData = SelectedParticle->GetParticleData())
 			{
 				SelectedParticlesID.Add(ParticleData->ParticleIndex);
 			}

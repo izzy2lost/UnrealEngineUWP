@@ -22,17 +22,13 @@
 #include "Engine/StreamableManager.h"
 #include "Engine/World.h"
 #include "Elements/Actor/ActorElementData.h"
-#include "Elements/Component/ComponentElementData.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
-#include "Elements/Object/ObjectElementData.h"
 #include "Materials/Material.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Selection.h"
-#include "Settings/ChaosVDParticleVisualizationSettings.h"
 #include "Settings/ChaosVDCoreSettings.h"
 #include "UObject/Package.h"
-#include "WorldPersistentFolders.h"
 #include "Actors/ChaosVDGeometryContainer.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
@@ -225,7 +221,7 @@ void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FChao
 		if (bShouldDestroyParticleAnyway || InFrameData.ParticlesDestroyedIDs.Contains(ParticleActorWithID.Key))
 		{
 			// In large maps moving at high speed (like when moving on a vehicle), level streaming adds/removes hundreds of actors (and therefore particles) constantly.
-			// Destroying particle actors is expensive, specially if we need to spawn them again sooner as we will nee to rebuild-them.
+			// Destroying particle actors is expensive, specially if we need to spawn them again sooner as we will need to rebuild-them.
 			// So, we deactivate them instead.
 
 			// TODO: We need an actor pool system, so we can keep memory under control as well.
@@ -691,6 +687,8 @@ void FChaosVDScene::InitializeSelectionSets()
 	FString ObjectSelectionObjectName = FString::Printf(TEXT("CVDSelectedObjects-%s"), *FGuid::NewGuid().ToString());
 	ObjectSelection = USelection::CreateObjectSelection(GetTransientPackage(), *ObjectSelectionObjectName, RF_Transactional);
 	ObjectSelection->SetElementSelectionSet(SelectionSet);
+
+	SolverDataSelectionObject = MakeShared<FChaosVDSolverDataSelection>();
 }
 
 void FChaosVDScene::DeInitializeSelectionSets()

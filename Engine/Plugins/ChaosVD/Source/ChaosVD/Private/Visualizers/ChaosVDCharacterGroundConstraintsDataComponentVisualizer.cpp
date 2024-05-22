@@ -4,7 +4,6 @@
 
 #include "ChaosVDScene.h"
 #include "ChaosVDTabsIDs.h"
-#include "EditorModeManager.h"
 #include "EditorViewportClient.h"
 #include "SceneManagement.h"
 #include "SceneView.h"
@@ -15,10 +14,7 @@
 #include "ToolMenus.h"
 #include "ToolMenuEntry.h"
 #include "ToolMenuSection.h"
-#include "Utils/ChaosVDUserInterfaceUtils.h"
 #include "Visualizers/ChaosVDDebugDrawUtils.h"
-#include "Widgets/SChaosVDEnumFlagsMenu.h"
-#include "Widgets/SChaosVDMainTab.h"
 #include "Widgets/SChaosVDViewportToolbar.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
@@ -29,42 +25,24 @@ bool FChaosVDCharacterGroundConstraintVisualizationDataContext::IsVisualizationF
 	return EnumHasAnyFlags(FlagsAsParticleFlags, Flag);
 }
 
-IMPLEMENT_HIT_PROXY(HChaosVDCharacterGroundConstraintProxy, HComponentVisProxy)
-
-
 FChaosVDCharacterGroundConstraintDataComponentVisualizer::FChaosVDCharacterGroundConstraintDataComponentVisualizer()
 {
-	RegisterVisualizerMenus();
+	FChaosVDCharacterGroundConstraintDataComponentVisualizer::RegisterVisualizerMenus();
+	InspectorTabID = FChaosVDTabID::ConstraintsInspector;
 }
 
 void FChaosVDCharacterGroundConstraintDataComponentVisualizer::RegisterVisualizerMenus()
 {
-		UToolMenus* ToolMenus = UToolMenus::Get();
+	FName MenuSection("CharacterGroundConstraintDataVisualization.Show");
+	FText MenuSectionLabel = LOCTEXT("CharacterConstraintDataVisualizationShowMenuLabel", "Character Ground Constraints Data Visualization");
+	FText FlagsMenuLabel = LOCTEXT("CharacterConstraintDataVisualizationFlagsMenuLabel", "Character Ground Constraints Data Flags");
+	FText FlagsMenuTooltip = LOCTEXT("CharacterConstraintDataVisualizationFlagsMenuToolTip", "Set of flags to enable/disable visibility of specific types of Character Constraints data");
+	FSlateIcon FlagsMenuIcon = FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("ClassIcon.Character"));
+
+	FText SettingsMenuLabel = LOCTEXT("CharacterConstraintDataVisualizationMenuLabel", "Character Ground Constraints Visualization Settings");
+	FText SettingsMenuTooltip = LOCTEXT("CharacterConstraintDataVisualizationMenuToolTip", "Options to change how the recorded Character Constraints data is debug drawn");
 	
-	if (!ensure(ToolMenus))
-	{
-		return;
-	}
-
-	if (UToolMenu* Menu = ToolMenus->ExtendMenu(SChaosVDViewportToolbar::ShowMenuName))
-	{
-		FToolMenuSection& Section = Menu->AddSection("CharacterConstraintDataVisualization.Show", LOCTEXT("CharacterConstraintDataVisualizationShowMenuLabel", "Character Constraints Data Visualization"));
-		
-		Section.AddSubMenu(TEXT("CharacterConstraintDataVisualizationFlags"), LOCTEXT("CharacterConstraintDataVisualizationFlagsMenuLabel", "Character Constraints Data Flags"), LOCTEXT("CharacterConstraintDataVisualizationFlagsMenuToolTip", "Set of flags to enable/disable visibility of specific types of Character Constraints data"), FNewToolMenuDelegate::CreateLambda([](UToolMenu* Menu)
-		                   {
-			                   TSharedRef<SWidget> VisualizationFlagsWidget = SNew(SChaosVDEnumFlagsMenu<EChaosVDCharacterGroundConstraintDataVisualizationFlags>)
-				                   .CurrentValue_Static(&UChaosVDCharacterConstraintsVisualizationSettings::GetCharacterGroundConstraintDataVisualizationFlags)
-				                   .OnEnumSelectionChanged_Static(&UChaosVDCharacterConstraintsVisualizationSettings::SetCharacterGroundConstraintDataVisualizationFlags);
-			
-			                   FToolMenuEntry FlagsMenuEntry = FToolMenuEntry::InitWidget("CharacterConstraintDataVisualizationFlags", VisualizationFlagsWidget,FText::GetEmpty());
-			                   Menu->AddMenuEntry(NAME_None, FlagsMenuEntry);
-		                   }),
-		                   false, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("ClassIcon.Character")));
-
-		using namespace Chaos::VisualDebugger::Utils;
-		Section.AddSubMenu(TEXT("CharacterConstraintDataVisualizationSettings"), LOCTEXT("CharacterConstraintDataVisualizationMenuLabel", "Character Constraints Visualization Settings"), LOCTEXT("CharacterConstraintDataVisualizationMenuToolTip", "Options to change how the recorded Character Constraints data is debug drawn"), FNewToolMenuDelegate::CreateStatic(&CreateMenuEntryForDefaultObject<UChaosVDCharacterConstraintsVisualizationSettings>, EChaosVDSaveSettingsOptions::ShowSaveButton),
-		                   false, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("Icons.Toolbar.Settings")));
-	}
+	CreateGenericVisualizerMenu<UChaosVDCharacterConstraintsVisualizationSettings, EChaosVDCharacterGroundConstraintDataVisualizationFlags>(SChaosVDViewportToolbar::ShowMenuName, MenuSection, MenuSectionLabel, FlagsMenuLabel, FlagsMenuTooltip, FlagsMenuIcon, SettingsMenuLabel, SettingsMenuTooltip);
 }
 
 void FChaosVDCharacterGroundConstraintDataComponentVisualizer::DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI)
@@ -103,60 +81,48 @@ void FChaosVDCharacterGroundConstraintDataComponentVisualizer::DrawVisualization
 	VisualizationContext.SpaceTransform = SolverInfoActor->GetSimulationTransform();
 	VisualizationContext.SolverInfoActor = SolverInfoActor;
 
-	VisualizationContext.VisualizationFlags = static_cast<uint32>(UChaosVDCharacterConstraintsVisualizationSettings::GetCharacterGroundConstraintDataVisualizationFlags());
+	VisualizationContext.VisualizationFlags = static_cast<uint32>(UChaosVDCharacterConstraintsVisualizationSettings::GetDataVisualizationFlags());
 	VisualizationContext.DebugDrawSettings = GetDefault<UChaosVDCharacterConstraintsVisualizationSettings>();
 
 	if (!VisualizationContext.IsVisualizationFlagEnabled(EChaosVDCharacterGroundConstraintDataVisualizationFlags::EnableDraw))
 	{
 		return;
 	}
+	
+	TSharedPtr<FChaosVDSolverDataSelection> SelectionObject = CVDScene->GetSolverDataSelectionObject().Pin();
+	TSharedPtr<FChaosVDSolverDataSelectionHandle> SelectionHandle;
+	if (SelectionObject)
+	{
+		SelectionHandle = SelectionObject->GetCurrentSelectionHandle();
+	}
 
 	// If nothing is selected, fallback to draw all character ground constraints
-	const bool bDrawOnlySelected = VisualizationContext.IsVisualizationFlagEnabled(EChaosVDCharacterGroundConstraintDataVisualizationFlags::OnlyDrawSelected) && ConstraintDataComponent->GetCurrentSelectionHandle().IsSelected();
+	const bool bDrawOnlySelected = VisualizationContext.IsVisualizationFlagEnabled(EChaosVDCharacterGroundConstraintDataVisualizationFlags::OnlyDrawSelected) && SelectionHandle && SelectionHandle->IsSelected();
 	if (bDrawOnlySelected)
 	{
-		if (const TSharedPtr<FChaosVDCharacterGroundConstraint> Constraint = ConstraintDataComponent->GetCurrentSelectionHandle().GetData().Pin())
+		if (FChaosVDCharacterGroundConstraint* Constraint = SelectionHandle->GetData<FChaosVDCharacterGroundConstraint>())
 		{
-			VisualizationContext.DataSelectionHandle = FChaosVDCharacterGroundConstraintSelectionHandle(Constraint);
+			VisualizationContext.DataSelectionHandle = SelectionHandle;
 			DrawConstraint(Component, *Constraint, VisualizationContext, View, PDI);
 		}
 	}
 	else
 	{
-		for (const TSharedPtr<FChaosVDCharacterGroundConstraint>& Constraint : ConstraintDataComponent->GetAllConstraints())
+		for (const TSharedPtr<FChaosVDConstraintDataWrapperBase>& Constraint : ConstraintDataComponent->GetAllConstraints())
 		{
-			if (Constraint)
+			static_assert(std::is_base_of_v<FChaosVDConstraintDataWrapperBase, FChaosVDCharacterGroundConstraint>, "Only FChaosVDCharacterGroundConstraint is supported");
+			if (FChaosVDCharacterGroundConstraint* CharacterGroundConstraint = static_cast<FChaosVDCharacterGroundConstraint*>(Constraint.Get()))
 			{
-				VisualizationContext.DataSelectionHandle = FChaosVDCharacterGroundConstraintSelectionHandle(Constraint);
-				DrawConstraint(Component, *Constraint, VisualizationContext, View, PDI);
+				VisualizationContext.DataSelectionHandle = SelectionObject->MakeSelectionHandle(StaticCastSharedPtr<FChaosVDCharacterGroundConstraint>(Constraint));
+				DrawConstraint(Component, *CharacterGroundConstraint, VisualizationContext, View, PDI);
 			}
 		}
 	}
 }
 
-bool FChaosVDCharacterGroundConstraintDataComponentVisualizer::VisProxyHandleClick(FEditorViewportClient* InViewportClient, HComponentVisProxy* VisProxy, const FViewportClick& Click)
+bool FChaosVDCharacterGroundConstraintDataComponentVisualizer::CanHandleClick(const HChaosVDComponentVisProxy& VisProxy)
 {
-	const HChaosVDCharacterGroundConstraintProxy* ConstraintDataProxy = HitProxyCast<HChaosVDCharacterGroundConstraintProxy>(VisProxy);
-	if (ConstraintDataProxy == nullptr)
-	{
-		return false;
-	}
-	
-	if (const UChaosVDSolverCharacterGroundConstraintDataComponent* ConstraintDataComponent = Cast<UChaosVDSolverCharacterGroundConstraintDataComponent>(ConstraintDataProxy->Component.Get()))
-	{
-		// Bring the constraint details tab into focus if available
-		const TSharedPtr<SChaosVDMainTab> MainTabToolkitHost = InViewportClient->GetModeTools() ? StaticCastSharedPtr<SChaosVDMainTab>(InViewportClient->GetModeTools()->GetToolkitHost()) : nullptr;
-		if (const TSharedPtr<FTabManager> TabManager = MainTabToolkitHost ? MainTabToolkitHost->GetTabManager() : nullptr)
-		{
-			TabManager->TryInvokeTab(FChaosVDTabID::CharacterGroundConstraintDataDetails);
-		}
-
-		const_cast<UChaosVDSolverCharacterGroundConstraintDataComponent*>(ConstraintDataComponent)->SelectConstraint(ConstraintDataProxy->DataSelectionHandle);
-
-		return true;
-	}
-
-	return false;
+	return VisProxy.DataSelectionHandle && VisProxy.DataSelectionHandle->IsA<FChaosVDCharacterGroundConstraint>();
 }
 
 void FChaosVDCharacterGroundConstraintDataComponentVisualizer::DrawConstraint(const UActorComponent* Component, const FChaosVDCharacterGroundConstraint& InConstraintData, FChaosVDCharacterGroundConstraintVisualizationDataContext& VisualizationContext, const FSceneView* View, FPrimitiveDrawInterface* PDI)
@@ -192,7 +158,7 @@ void FChaosVDCharacterGroundConstraintDataComponentVisualizer::DrawConstraint(co
 		return;
 	}
 
-	const FChaosVDParticleDataWrapper* CharacterParticleData = nullptr;
+	TSharedPtr<const FChaosVDParticleDataWrapper> CharacterParticleData = nullptr;
 
 	if (AChaosVDParticleActor* CharacterParticle = VisualizationContext.SolverInfoActor->GetParticleActor(InConstraintData.CharacterParticleIndex))
 	{
@@ -211,9 +177,9 @@ void FChaosVDCharacterGroundConstraintDataComponentVisualizer::DrawConstraint(co
 		return;
 	}
 
-	PDI->SetHitProxy(new HChaosVDCharacterGroundConstraintProxy(Component, VisualizationContext.DataSelectionHandle));
+	PDI->SetHitProxy(new HChaosVDComponentVisProxy(Component, VisualizationContext.DataSelectionHandle));
 
-	const float LineThickness = InConstraintData.bIsSelectedInEditor ?  DebugDrawSettings->BaseLineThickness * 1.5f :  DebugDrawSettings->BaseLineThickness;
+	const float LineThickness = VisualizationContext.DataSelectionHandle && VisualizationContext.DataSelectionHandle->IsSelected() ?  DebugDrawSettings->BaseLineThickness * 1.5f :  DebugDrawSettings->BaseLineThickness;
 
 	const FVector CharacterPos = CharacterParticleData->ParticlePositionRotation.MX;
 	const FVector UpDir = InConstraintData.Settings.VerticalAxis;

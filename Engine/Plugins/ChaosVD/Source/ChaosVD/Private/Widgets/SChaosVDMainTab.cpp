@@ -11,7 +11,6 @@
 #include "ChaosVDPlaybackViewportTab.h"
 #include "ChaosVDScene.h"
 #include "ChaosVDSolversTracksTab.h"
-#include "ChaosVDCharacterGroundConstraintDataInspectorTab.h"
 #include "ChaosVDCollisionDataDetailsTab.h"
 #include "ChaosVDConstraintDataInspectorTab.h"
 #include "ChaosVDSceneQueryDataInspectorTab.h"
@@ -75,8 +74,7 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 	RegisterTabSpawner<FChaosVDSolversTracksTab>(FChaosVDTabID::SolversTrack);
 	RegisterTabSpawner<FChaosVDCollisionDataDetailsTab>(FChaosVDTabID::CollisionDataDetails);
 	RegisterTabSpawner<FChaosVDSceneQueryDataInspectorTab>(FChaosVDTabID::SceneQueryDataDetails);
-	RegisterTabSpawner<FChaosVDConstraintDataInspectorTab>(FChaosVDTabID::JointsDataDetails);
-	RegisterTabSpawner<FChaosVDCharacterGroundConstraintDataInspectorTab>(FChaosVDTabID::CharacterGroundConstraintDataDetails);
+	RegisterTabSpawner<FChaosVDConstraintDataInspectorTab>(FChaosVDTabID::ConstraintsInspector);
 
 	StatusBarID = FName(FChaosVDTabID::StatusBar.ToString() + InChaosVDEngine->GetInstanceGuid().ToString());
 	
@@ -284,8 +282,7 @@ TSharedRef<FTabManager::FLayout> SChaosVDMainTab::GenerateMainLayout()
 					->AddTab(FChaosVDTabID::DetailsPanel, ETabState::OpenedTab)
 					->AddTab(FChaosVDTabID::CollisionDataDetails, ETabState::OpenedTab)
 					->AddTab(FChaosVDTabID::SceneQueryDataDetails, ETabState::OpenedTab)
-					->AddTab(FChaosVDTabID::JointsDataDetails, ETabState::ClosedTab)
-					->AddTab(FChaosVDTabID::CharacterGroundConstraintDataDetails, ETabState::ClosedTab)
+					->AddTab(FChaosVDTabID::ConstraintsInspector, ETabState::ClosedTab)
 				)
 			)
 		);

@@ -2,21 +2,32 @@
 
 #pragma once
 
+#include "ChaosVDComponentVisualizerBase.h"
 #include "ComponentVisualizer.h"
-#include "IChaosVDParticleVisualizationDataProvider.h"
 #include "Chaos/ImplicitFwd.h"
 #include "Chaos/ImplicitObject.h"
 #include "Components/ChaosVDSceneQueryDataComponent.h"
+
+#include "ChaosVDSceneQueryDataComponentVisualizer.generated.h"
 
 struct FChaosVDRecording;
 class FChaosVDGeometryBuilder;
 struct FChaosVDVisualizationContext;
 struct FChaosVDQueryDataWrapper;
 
+/** Struct used to pass data about a specific query to other objects */
+USTRUCT()
+struct FChaosVDSceneQuerySelectionContext : public FChaosVDSelectionContext
+{
+	GENERATED_BODY()
+
+	int32 SQVisitIndex = INDEX_NONE;
+};
+
 /** Visualization context structure specific for Scene Queries visualizations */
 struct FChaosVDSceneQueryVisualizationDataContext : public FChaosVDVisualizationContext
 {
-	FChaosVDSceneQuerySelectionHandle DataSelectionHandle = FChaosVDSceneQuerySelectionHandle(nullptr, INDEX_NONE);
+	TSharedPtr<FChaosVDSolverDataSelectionHandle> DataSelectionHandle = nullptr;
 
 	/** Generates a random color based on the selection state and query ID, which will be used to debug draw the scene query */
 	void GenerateColor(int32 QueryID, bool bIsSelected)
@@ -36,36 +47,21 @@ struct FChaosVDSceneQueryVisualizationDataContext : public FChaosVDVisualization
 	TWeakPtr<FChaosVDGeometryBuilder> GeometryGenerator = nullptr;
 };
 
-/** Custom Hit Proxy for debug drawn scene queries */
-struct HChaosVDSceneQueryProxy : public HComponentVisProxy
-{
-	DECLARE_HIT_PROXY()
-	
-	HChaosVDSceneQueryProxy(const UActorComponent* Component, const FChaosVDSceneQuerySelectionHandle& InContactFinderData) : HComponentVisProxy(Component, HPP_UI), DataSelectionHandle(InContactFinderData)
-	{	
-	}
-
-	virtual EMouseCursor::Type GetMouseCursor() override
-	{
-		return EMouseCursor::Crosshairs;
-	}
-
-	FChaosVDSceneQuerySelectionHandle DataSelectionHandle;
-};
-
 /**
  * Component visualizer in charge of generating debug draw visualizations for scene queries in a ChaosVDSceneQueryDataComponent
  */
-class FChaosVDSceneQueryDataComponentVisualizer final : public FComponentVisualizer
+class FChaosVDSceneQueryDataComponentVisualizer final : public FChaosVDComponentVisualizerBase
 {
 
 public:
 	FChaosVDSceneQueryDataComponentVisualizer();
-	
-	void RegisterVisualizerMenus();
+
+	virtual void RegisterVisualizerMenus() override;
 
 	virtual void DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI) override;
-	virtual bool VisProxyHandleClick(FEditorViewportClient* InViewportClient, HComponentVisProxy* VisProxy, const FViewportClick& Click) override;
+
+
+	virtual bool CanHandleClick(const HChaosVDComponentVisProxy& VisProxy) override;
 
 private:
 
@@ -77,4 +73,6 @@ private:
 	void DrawSceneQuery(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI, const TSharedPtr<FChaosVDScene>& CVDScene, const TSharedPtr<FChaosVDRecording>& CVDRecording, FChaosVDSceneQueryVisualizationDataContext& VisualizationContext, const TSharedPtr<FChaosVDQueryDataWrapper>& Query);
 
 	bool HasEndLocation(const FChaosVDQueryDataWrapper& SceneQueryData) const;
+
+	bool IsHitSelected(int32 SQVisitIndex, const TSharedRef<FChaosVDSolverDataSelectionHandle>& CurrentSelection, const TSharedRef<FChaosVDSolverDataSelectionHandle>& SQVisitSelectionHandle);
 };

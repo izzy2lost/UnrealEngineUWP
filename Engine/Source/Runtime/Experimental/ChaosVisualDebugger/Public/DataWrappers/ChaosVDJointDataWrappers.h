@@ -378,10 +378,9 @@ public:
 CVD_IMPLEMENT_SERIALIZER(FChaosVDJointSettingsDataWrapper)
 
 USTRUCT()
-struct FChaosVDJointConstraint : public FChaosVDWrapperDataBase
+struct FChaosVDJointConstraint : public FChaosVDConstraintDataWrapperBase
 {
 	GENERATED_BODY()
-public:
 
 	inline static FStringView WrapperTypeName = TEXT("FChaosVDJointConstraint");
 
@@ -399,8 +398,10 @@ public:
 	
 	UPROPERTY(VisibleAnywhere, Category=JointSettings)
 	FChaosVDJointSettingsDataWrapper JointSettings;
-
-	bool bIsSelectedInEditor = false;
+	
+	CHAOSVDRUNTIME_API virtual int32 GetSolverID() const override { return SolverID; }
+	CHAOSVDRUNTIME_API virtual int32 GetParticleIDAtSlot(EChaosVDParticlePairIndex IndexSlot) const override { return ParticleParIndexes[static_cast<int32>(IndexSlot)]; }
+	CHAOSVDRUNTIME_API virtual int32 GetConstraintIndex () const override {return ConstraintIndex; }
 };
 
 CVD_IMPLEMENT_SERIALIZER(FChaosVDJointConstraint)

@@ -5,23 +5,33 @@
 #include "Components/ChaosVDSolverJointConstraintDataComponent.h"
 #include "Widgets/SCompoundWidget.h"
 
+struct FChaosVDSolverDataSelectionHandle;
 struct FChaosVDJointConstraintSelectionHandle;
 class FChaosVDScene;
 class IStructureDetailsView;
 class SChaosVDNameListPicker;
 
-enum class EChaosVDParticleSelector : int32
+struct FChaosVDConstraintDataWrapperBase;
+
+/** Version of FStructOnScope that will take another FStructOnScope, and copy its data over.
+ * This allows us update a details panel without making a full rebuild when we want to inspect another struct that is of the same type
+ * As long we don't mind the copy and not being able to edit the source struct (which is 99% of the use cases in CVD)
+ */
+class FReadOnlyCopyStructOnScope : public FStructOnScope
 {
-	Index_0,
-	Index_1
+public:
+	explicit FReadOnlyCopyStructOnScope(const FStructOnScope& StructToCopy);
+
+	void UpdateFromOther(const FStructOnScope& StructToCopy);
 };
 
 class SChaosVDConstraintDataInspector : public SCompoundWidget
 {
 public:
+	SChaosVDConstraintDataInspector();
 
 	SLATE_BEGIN_ARGS(SChaosVDConstraintDataInspector)
-	{
+		{
 	}
 
 	SLATE_END_ARGS()
@@ -30,38 +40,55 @@ public:
 
 	/** Constructs this widget with InArgs */
 	void Construct(const FArguments& InArgs, const TWeakPtr<FChaosVDScene>& InScenePtr);
+
 	/** Sets a new query data to be inspected */
-	void SetConstraintDataToInspect(const FChaosVDJointConstraintSelectionHandle& InDataSelectionHandle);
+	virtual void SetConstraintDataToInspect(const TSharedPtr<FChaosVDSolverDataSelectionHandle>& InDataSelectionHandle);
 
 protected:
 
-	FText GetParticleName(EChaosVDParticleSelector PairIndex) const;
+	virtual void SetupWidgets();
+
+	virtual TSharedRef<SWidget> GenerateDetailsViewWidget(FMargin Margin);
+	virtual TSharedRef<SWidget> GenerateHeaderWidget(FMargin Margin);
+
+	virtual FText GetParticleName(EChaosVDParticlePairIndex ParticleSlot) const;
+	virtual FText GetParticleName(const EChaosVDParticlePairIndex ParticleSlot, const TSharedPtr<FChaosVDSolverDataSelectionHandle>& InSelectionHandle) const;
 
 	TSharedPtr<IStructureDetailsView> CreateDataDetailsView();
 
 	TSharedRef<SWidget> GenerateParticleSelectorButtons();
 	
-	FReply SelectParticleForCurrentSelectedData(EChaosVDParticleSelector ParticlePairIndex);
+	virtual FReply SelectParticleForCurrentSelectedData(EChaosVDParticlePairIndex ParticleSlot);
+
+	bool HasCompatibleStructScopeView(const TSharedRef<FChaosVDSolverDataSelectionHandle>& InSelectionHandle) const;
 
 	EVisibility GetOutOfDateWarningVisibility() const;
-	EVisibility GetDetailsSectionVisibility() const;
+	virtual EVisibility GetDetailsSectionVisibility() const;
 	EVisibility GetNothingSelectedMessageVisibility() const;
 
-	void RegisterSelectionEventsForSolver(AChaosVDSolverInfoActor* SolverInfo);
-	void UnregisterSelectionEventsForSolver(AChaosVDSolverInfoActor* SolverInfo);
-
 	void RegisterSceneEvents();
-	void UnregisterSceneEvents();
+	void UnregisterSceneEvents() const;
 
-	void HandleSceneUpdated();
+	virtual void HandleSceneUpdated();
 
-	void ClearInspector();
+	virtual void ClearInspector();
 
-	TSharedPtr<IStructureDetailsView> ConstraintDataDetailsView;
+	FText GetParticleName_Internal(int32 SolverID, int32 ParticleID) const;
+
+	void SelectParticle(int32 SolverID, int32 ParticleID) const;
+
+	FChaosVDConstraintDataWrapperBase* GetConstraintDataFromSelectionHandle() const;
+	
+	virtual const TSharedRef<FChaosVDSolverDataSelectionHandle>& GetCurrentDataBeingInspected() const;
+
+	TSharedPtr<IStructureDetailsView> MainDataDetailsView;
+	TSharedPtr<IStructureDetailsView> ConstraintSecondaryDataDetailsView;
 	
 	TWeakPtr<FChaosVDScene> SceneWeakPtr;
 
-	FChaosVDJointConstraintSelectionHandle CurrentDataSelectionHandle;
+	mutable TSharedRef<FChaosVDSolverDataSelectionHandle> CurrentDataSelectionHandle;
 
-	bool bIsUpToDate = true;
+	TSharedPtr<FReadOnlyCopyStructOnScope> DataBeingInspectedCopy;
+
+	bool bIsUpToDate = true;;
 };

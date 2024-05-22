@@ -421,7 +421,7 @@ struct CHAOSVDRUNTIME_API FChaosVDParticlePairMidPhase
 	UPROPERTY(VisibleAnywhere, Category=Particle)
 	int32 Particle1Idx = 0;
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, Category=Constraints)
 	TArray<FChaosVDConstraint> Constraints;
 
 	bool Serialize(FArchive& Ar);

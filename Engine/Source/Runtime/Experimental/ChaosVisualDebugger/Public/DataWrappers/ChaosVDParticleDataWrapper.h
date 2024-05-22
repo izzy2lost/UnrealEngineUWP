@@ -2,9 +2,9 @@
 
 #pragma once
 
+#include "ChaosVDCollisionDataWrappers.h"
 #include "UObject/ObjectMacros.h"
 #include "HAL/Platform.h"
-#include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 
 #include "ChaosVDParticleDataWrapper.generated.h"
 
@@ -54,6 +54,24 @@ struct FChaosVDWrapperDataBase
 protected:
 	UPROPERTY()
 	bool bHasValidData = false;
+};
+
+enum class EChaosVDParticlePairIndex : uint8
+{
+	Index_0,
+	Index_1
+};
+
+/** Base struct that declares the interface to be used for any Constraint data to be visualized */
+USTRUCT()
+struct FChaosVDConstraintDataWrapperBase : public FChaosVDWrapperDataBase
+{
+	GENERATED_BODY()
+	virtual ~FChaosVDConstraintDataWrapperBase() override = default;
+
+	CHAOSVDRUNTIME_API virtual int32 GetSolverID() const  { return INDEX_NONE; }
+	CHAOSVDRUNTIME_API virtual int32 GetParticleIDAtSlot (EChaosVDParticlePairIndex IndexSlot) const { return INDEX_NONE;}
+	CHAOSVDRUNTIME_API virtual int32 GetConstraintIndex () const {  return INDEX_NONE; }
 };
 
 USTRUCT()

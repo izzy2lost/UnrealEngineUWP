@@ -84,3 +84,16 @@ bool FChaosVDCharacterGroundConstraint::Serialize(FArchive& Ar)
 
 	return !Ar.IsError();
 }
+
+int32 FChaosVDCharacterGroundConstraint::GetParticleIDAtSlot(EChaosVDParticlePairIndex IndexSlot) const
+{
+	switch (IndexSlot)
+	{
+		case EChaosVDParticlePairIndex::Index_0:
+			return CharacterParticleIndex;
+		case EChaosVDParticlePairIndex::Index_1:
+			return GroundParticleIndex;
+		default:
+			return INDEX_NONE;
+	}
+}

@@ -110,7 +110,7 @@ void FChaosVDParticleActorCustomization::HandleParticleDataUpdated()
 	}
 	else
 	{
-		const FChaosVDParticleDataWrapper* ParticleDataPtr = ParticleActor->GetParticleData();
+		TSharedPtr<const FChaosVDParticleDataWrapper> ParticleDataPtr = ParticleActor->GetParticleData();
 		CachedParticleData = ParticleDataPtr ? *ParticleDataPtr : FChaosVDParticleDataWrapper();
 	}
 }

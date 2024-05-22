@@ -5,6 +5,8 @@
 #include "UObject/Interface.h"
 #include "ChaosVDCollisionDataProviderInterface.generated.h"
 
+struct FChaosVDParticlePairMidPhase;
+struct FChaosVDSolverDataSelectionHandle;
 struct FChaosVDCollisionDataFinder;
 
 // This class does not need to be modified.
@@ -25,9 +27,8 @@ public:
 	
 	/**
 	 * Gathers and populates the provided array with any existing collision data for this object (if any) 
-	 * @param OutCollisionDataFound Array to populate with collision data
 	 */
-	virtual void GetCollisionData(TArray<TSharedPtr<FChaosVDCollisionDataFinder>>& OutCollisionDataFound) PURE_VIRTUAL(IChaosVDCollisionDataProviderInterface::GetCollisionData)
+	virtual TConstArrayView<TSharedPtr<FChaosVDParticlePairMidPhase>> GetCollisionData() PURE_VIRTUAL(IChaosVDCollisionDataProviderInterface::GetCollisionData, return TConstArrayView<TSharedPtr<FChaosVDParticlePairMidPhase>>(););
 
 	/**
 	 * Checks if the object implementing the interface has any collision data available

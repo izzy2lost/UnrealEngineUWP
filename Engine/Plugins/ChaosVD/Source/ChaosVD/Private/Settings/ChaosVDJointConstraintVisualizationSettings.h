@@ -67,8 +67,8 @@ public:
 	UPROPERTY(EditAnywhere, config, Category=DebugDraw)
 	float ConstraintAxisLength = 10.0f;
 
-	static void SetJointsDataVisualizationFlags(EChaosVDJointsDataVisualizationFlags NewFlags);
-	static EChaosVDJointsDataVisualizationFlags GetJointsDataVisualizationFlags();
+	static void SetDataVisualizationFlags(EChaosVDJointsDataVisualizationFlags NewFlags);
+	static EChaosVDJointsDataVisualizationFlags GetDataVisualizationFlags();
 
 private:
 	/** Set of flags to enable/disable visualization of specific joint constraints data as debug draw */

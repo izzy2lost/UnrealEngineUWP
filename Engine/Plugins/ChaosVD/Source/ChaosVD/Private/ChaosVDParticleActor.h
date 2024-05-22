@@ -71,7 +71,7 @@ public:
 
 	virtual void Destroyed() override;
 
-	virtual const FChaosVDParticleDataWrapper* GetParticleData() override { return ParticleDataPtr.Get(); }
+	virtual TSharedPtr<const FChaosVDParticleDataWrapper> GetParticleData() override { return ParticleDataPtr; }
 	
 #if WITH_EDITOR
 	virtual bool IsSelectedInEditor() const override;
@@ -103,7 +103,7 @@ public:
 	virtual FBox GetComponentsBoundingBox(bool bNonColliding, bool bIncludeFromChildActors) const override;
 
 	// BEGIN IChaosVDCollisionDataProvider Interface
-	virtual void GetCollisionData(TArray<TSharedPtr<FChaosVDCollisionDataFinder>>& OutCollisionDataFound) override;
+	virtual TConstArrayView<TSharedPtr<FChaosVDParticlePairMidPhase>> GetCollisionData() override;
 	virtual bool HasCollisionData() override;
 	virtual FName GetProviderName() override;
 	// END IChaosVDCollisionDataProvider Interface
@@ -141,7 +141,7 @@ protected:
 
 	const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* GetCollisionMidPhasesArray() const;
 
-	const TArray<TSharedPtr<FChaosVDCharacterGroundConstraint>>* GetCharacterGroundConstraintArray() const;
+	const TArray<TSharedPtr<FChaosVDConstraintDataWrapperBase>>* GetCharacterGroundConstraintArray() const;
 
 	void UpdateShapeDataComponents();
 

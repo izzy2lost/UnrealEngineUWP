@@ -2,7 +2,7 @@
 
 #include "ChaosVDSceneQueryVisualizationSettings.h"
 
-void UChaosVDSceneQueriesVisualizationSettings::SetSceneQueryDataVisualizationFlags(EChaosVDSceneQueryVisualizationFlags NewFlags)
+void UChaosVDSceneQueriesVisualizationSettings::SetDataVisualizationFlags(EChaosVDSceneQueryVisualizationFlags NewFlags)
 {
 	if (UChaosVDSceneQueriesVisualizationSettings* Settings = GetMutableDefault<UChaosVDSceneQueriesVisualizationSettings>())
 	{
@@ -11,7 +11,7 @@ void UChaosVDSceneQueriesVisualizationSettings::SetSceneQueryDataVisualizationFl
 	}
 }
 
-EChaosVDSceneQueryVisualizationFlags UChaosVDSceneQueriesVisualizationSettings::GetSceneQueryDataVisualizationFlags()
+EChaosVDSceneQueryVisualizationFlags UChaosVDSceneQueriesVisualizationSettings::GetDataVisualizationFlags()
 {
 	if (UChaosVDSceneQueriesVisualizationSettings* Settings = GetMutableDefault<UChaosVDSceneQueriesVisualizationSettings>())
 	{

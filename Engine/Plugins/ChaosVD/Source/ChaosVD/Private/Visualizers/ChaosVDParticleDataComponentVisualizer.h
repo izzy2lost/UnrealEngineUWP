@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "ChaosVDComponentVisualizerBase.h"
 #include "ComponentVisualizer.h"
 #include "HAL/Platform.h"
 #include "IChaosVDParticleVisualizationDataProvider.h"
@@ -10,12 +11,6 @@
 
 class FChaosVDGeometryBuilder;
 struct FChaosParticleDataDebugDrawSettings;
-
-struct FChaosVDVisualizedParticleDataSelectionHandle
-{
-	int32 ParticleIndex = INDEX_NONE;
-	int32 SolverID = INDEX_NONE;
-};
 
 class UChaosVDParticleVisualizationDebugDrawSettings;
 
@@ -34,38 +29,24 @@ struct FChaosVDParticleDataVisualizationContext : public FChaosVDVisualizationCo
 	}
 };
 
-/** Custom Hit Proxy for debug drawn particle data */
-struct HChaosVDParticleDataProxy : public HComponentVisProxy
-{
-	DECLARE_HIT_PROXY()
-	
-	HChaosVDParticleDataProxy(const UActorComponent* Component, const FChaosVDVisualizedParticleDataSelectionHandle& InContactFinderData) : HComponentVisProxy(Component, HPP_UI), DataSelectionHandle(InContactFinderData)
-	{	
-	}
-
-	virtual EMouseCursor::Type GetMouseCursor() override
-	{
-		return EMouseCursor::Crosshairs;
-	}
-
-	FChaosVDVisualizedParticleDataSelectionHandle DataSelectionHandle;
-};
-
 /**
  * Component visualizer in charge of generating debug draw visualizations for for particles
  */
-class FChaosVDParticleDataComponentVisualizer : public FComponentVisualizer
+class FChaosVDParticleDataComponentVisualizer : public FChaosVDComponentVisualizerBase
 {
 public:
 	FChaosVDParticleDataComponentVisualizer();
 
-	void RegisterVisualizerMenus();
+	virtual void RegisterVisualizerMenus() override;
 
 	virtual void DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI) override;
-	virtual bool VisProxyHandleClick(FEditorViewportClient* InViewportClient, HComponentVisProxy* VisProxy, const FViewportClick& Click) override;
+
+	virtual bool CanHandleClick(const HChaosVDComponentVisProxy& VisProxy) override;
+
+	virtual bool SelectVisualizedData(const HChaosVDComponentVisProxy& VisProxy, const TSharedRef<FChaosVDScene>& InCVDScene) override;
 
 protected:
 	
 	void DrawParticleVector(FPrimitiveDrawInterface* PDI, const FVector& StartLocation, const FVector& InVector, EChaosVDParticleDataVisualizationFlags VectorID, const FChaosVDParticleDataVisualizationContext& InVisualizationContext, float LineThickness);
-	void DrawVisualizationForParticleData(const UActorComponent* Component, FPrimitiveDrawInterface* PDI, const FSceneView* View, const FChaosVDParticleDataVisualizationContext& InVisualizationContext, const FChaosVDParticleDataWrapper& InParticleDataViewer);
+	void DrawVisualizationForParticleData(const UActorComponent* Component, FPrimitiveDrawInterface* PDI, const FSceneView* View, const FChaosVDParticleDataVisualizationContext& InVisualizationContext, const TSharedPtr<const FChaosVDParticleDataWrapper>& InParticleDataViewer);
 };

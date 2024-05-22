@@ -105,4 +105,6 @@ private:
 	int32 CurrentGameFrameQueueSize = 0;
 
 	bool bDefaultDataProcessorsRegistered = false;
+
+	double StartLastCommitedFrameTimeSeconds = 0.0;
 };

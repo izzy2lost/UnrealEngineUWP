@@ -73,6 +73,11 @@ void FChaosVDTraceProvider::CommitProcessedGameFramesToRecording()
 		TSharedPtr<FChaosVDGameFrameData> ProcessedGameFrameData;
 		DeQueueGameFrameForProcessing(ProcessedGameFrameData);
 
+		if (StartLastCommitedFrameTimeSeconds == 0.0)
+		{
+			StartLastCommitedFrameTimeSeconds = FPlatformTime::Seconds();
+		}
+
 		if (ProcessedGameFrameData.IsValid())
 		{
 			InternalRecording->GetAvailableSolverIDsAtGameFrame(*ProcessedGameFrameData, SolverIDs);
@@ -207,6 +212,16 @@ void FChaosVDTraceProvider::HandleAnalysisComplete()
 			TotalBytes += ProcessedBytes;
 			UE_LOG(LogChaosVDEditor, Log, TEXT("Data loaded for type [%s]  => [%s] "), DataProcessor.Key.IsEmpty() ? TEXT("Invalid") : DataProcessor.Key.GetData(), *FText::AsMemory(ProcessedBytes, &SizeFormattingOptions,nullptr, EMemoryUnitStandard::IEC).ToString());
 		}
+	}
+
+	if (TSharedPtr<FChaosVDRecording> Recording = GetRecordingForSession())
+	{
+		double TotalTimeProcessingFrames = FPlatformTime::Seconds() - StartLastCommitedFrameTimeSeconds;
+
+		int32 NumOfGameFramesProcessed = Recording->GetAvailableGameFramesNumber();
+		double AvgTimePerFrameSeconds = TotalTimeProcessingFrames / NumOfGameFramesProcessed;
+		
+		UE_LOG(LogChaosVDEditor, Log, TEXT(" [%d] Game frames Processed at [%f] ms per frame on average"), NumOfGameFramesProcessed, AvgTimePerFrameSeconds * 1000.0);
 	}
 
 	UE_LOG(LogChaosVDEditor, Log, TEXT("Total size of loaded data => [%s]"), *FText::AsMemory(TotalBytes, &SizeFormattingOptions,nullptr, EMemoryUnitStandard::IEC).ToString());

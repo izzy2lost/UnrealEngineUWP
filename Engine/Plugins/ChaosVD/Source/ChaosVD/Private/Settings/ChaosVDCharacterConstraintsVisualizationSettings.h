@@ -43,6 +43,10 @@ public:
 	/** If true, any debug draw text available will be drawn */
 	UPROPERTY(EditAnywhere, Category=DebugDraw)
 	bool bShowDebugText = false;
+	
+	/** Color used for torque vector */
+	UPROPERTY(config, EditAnywhere, Category = DetailsPanel)
+	bool bAutoSelectConstraintFromSelectedParticle = false;
 
 	/** The depth priority used for while drawing data. Can be World or Foreground (with this one the shapes will be drawn on top of the geometry and be always visible) */
 	UPROPERTY(config, EditAnywhere, Category=DebugDraw)
@@ -69,8 +73,8 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = DebugDraw)
 	FColor TorqueColor = FColor(255, 0, 255);
 
-	static void SetCharacterGroundConstraintDataVisualizationFlags(EChaosVDCharacterGroundConstraintDataVisualizationFlags NewFlags);
-	static EChaosVDCharacterGroundConstraintDataVisualizationFlags GetCharacterGroundConstraintDataVisualizationFlags();
+	static void SetDataVisualizationFlags(EChaosVDCharacterGroundConstraintDataVisualizationFlags NewFlags);
+	static EChaosVDCharacterGroundConstraintDataVisualizationFlags GetDataVisualizationFlags();
 
 private:
 	/** Set of flags to enable/disable visualization of specific character ground constraint data as debug draw */

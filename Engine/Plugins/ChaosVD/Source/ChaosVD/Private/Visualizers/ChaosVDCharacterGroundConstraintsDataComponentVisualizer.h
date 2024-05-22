@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+#include "ChaosVDComponentVisualizerBase.h"
 #include "ComponentVisualizer.h"
-#include "IChaosVDParticleVisualizationDataProvider.h"
 #include "Chaos/Core.h"
-#include "Components/ChaosVDSolverCharacterGroundConstraintDataComponent.h"
 
+struct FChaosVDSolverDataSelectionHandle;
 class AChaosVDSolverInfoActor;
 enum class EChaosVDCharacterGroundConstraintDataVisualizationFlags : uint32;
 struct FChaosVDCharacterGroundConstraintDebugDrawSettings;
@@ -14,42 +14,26 @@ struct FChaosVDCharacterGroundConstraint;
 /** Visualization context structure specific for character ground constraint visualizations */
 struct FChaosVDCharacterGroundConstraintVisualizationDataContext : public FChaosVDVisualizationContext
 {
-	FChaosVDCharacterGroundConstraintSelectionHandle DataSelectionHandle = FChaosVDCharacterGroundConstraintSelectionHandle(nullptr);
+	TSharedPtr<FChaosVDSolverDataSelectionHandle> DataSelectionHandle = nullptr;
 	
 	AChaosVDSolverInfoActor* SolverInfoActor = nullptr;
 
 	bool IsVisualizationFlagEnabled(EChaosVDCharacterGroundConstraintDataVisualizationFlags Flag) const;
 };
 
-/** Custom Hit Proxy for debug drawn scene queries */
-struct HChaosVDCharacterGroundConstraintProxy : public HComponentVisProxy
-{
-	DECLARE_HIT_PROXY()
-	
-	HChaosVDCharacterGroundConstraintProxy(const UActorComponent* Component, const FChaosVDCharacterGroundConstraintSelectionHandle& InConstraintFinderData) : HComponentVisProxy(Component, HPP_UI), DataSelectionHandle(InConstraintFinderData)
-	{	
-	}
-
-	virtual EMouseCursor::Type GetMouseCursor() override
-	{
-		return EMouseCursor::Crosshairs;
-	}
-
-	FChaosVDCharacterGroundConstraintSelectionHandle DataSelectionHandle;
-};
-
 /**
  * Component visualizer in charge of generating debug draw visualizations for character ground constraints in a UChaosVDSolverCharacterGroundConstraintDataComponent
  */
-class FChaosVDCharacterGroundConstraintDataComponentVisualizer final : public FComponentVisualizer
+class FChaosVDCharacterGroundConstraintDataComponentVisualizer final : public FChaosVDComponentVisualizerBase
 {
 public:
 	FChaosVDCharacterGroundConstraintDataComponentVisualizer();
-	
-	void RegisterVisualizerMenus();
+
+	virtual void RegisterVisualizerMenus() override;
 
 	virtual void DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI) override;
-	virtual bool VisProxyHandleClick(FEditorViewportClient* InViewportClient, HComponentVisProxy* VisProxy, const FViewportClick& Click) override;
+
+	virtual bool CanHandleClick(const HChaosVDComponentVisProxy& VisProxy) override;
 
 protected:
 

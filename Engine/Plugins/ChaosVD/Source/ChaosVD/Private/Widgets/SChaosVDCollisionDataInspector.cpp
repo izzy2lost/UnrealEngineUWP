@@ -10,101 +10,10 @@
 #include "Visualizers/ChaosVDSolverCollisionDataComponentVisualizer.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SScrollBox.h"
-#include "Widgets/Layout/SUniformGridPanel.h"
 #include "Widgets/SChaosVDNameListPicker.h"
-#include "Widgets/SChaosVDWarningMessageBox.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
-
-SChaosVDCollisionDataInspector::~SChaosVDCollisionDataInspector()
-{
-	if (TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin())
-	{
-		ScenePtr->OnSceneUpdated().RemoveAll(this);
-	}
-}
-
-void SChaosVDCollisionDataInspector::Construct(const FArguments& InArgs, const TWeakPtr<FChaosVDScene>& InScenePtr)
-{
-	SceneWeakPtr = InScenePtr;
-
-	if (TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin())
-	{
-		ScenePtr->OnSceneUpdated().AddRaw(this, &SChaosVDCollisionDataInspector::HandleSceneUpdated);
-	}
-
-	MainCollisionDataDetailsView = CreateCollisionDataDetailsView();
-	SecondaryCollisionDataDetailsPanel = CreateCollisionDataDetailsView();
-
-	ChildSlot
-	[
-		SNew(SVerticalBox)
-		+SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(FMargin(10.0f, 10.0f, 10.0f, 0.0f))
-		[
-			GenerateObjectNameRowWidget().ToSharedRef()
-		]
-		+SVerticalBox::Slot()
-		.Padding(FMargin(10.0f, 5.0f, 10.0f, 1.0f))
-		.AutoHeight()
-		[
-			SAssignNew(CollisionDataAvailableList, SChaosVDNameListPicker)
-			.OnNameSleceted_Raw(this, &SChaosVDCollisionDataInspector::HandleCollisionDataEntryNameSelected)
-		]
-		+SVerticalBox::Slot()
-		.Padding(10)
-		[
-			SNew(SScrollBox)
-			.Visibility_Raw(this, &SChaosVDCollisionDataInspector::GetDetailsSectionVisibility)
-			+SScrollBox::Slot()
-			[
-				SNew(SBox)
-				.Padding(4.0f,2.0f,2.0f,10.0f)
-				[
-					SNew(SChaosVDWarningMessageBox)
-					.WarningText(LOCTEXT("CollisionDataOutOfData", "Scene change detected!. Selected collision data is out of date..."))
-					.Visibility_Raw(this, &SChaosVDCollisionDataInspector::GetOutOfDateWarningVisibility)
-				]
-			]
-			+SScrollBox::Slot()
-			.Padding(0.0f,5.0f,0.0f,15.0f)
-			[
-				SNew(SUniformGridPanel)
-				.SlotPadding(FAppStyle::GetMargin("StandardDialog.SlotPadding"))
-				.MinDesiredSlotWidth(FAppStyle::GetFloat("StandardDialog.MinDesiredSlotWidth"))
-				.MinDesiredSlotHeight(FAppStyle::GetFloat("StandardDialog.MinDesiredSlotHeight"))
-				+SUniformGridPanel::Slot(0, 0)
-				[
-					SNew(SButton)
-					.HAlign(HAlign_Center)
-					.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
-					.Text(LOCTEXT("SelectParticle0", "Select Particle 0"))
-					.OnClicked(this, &SChaosVDCollisionDataInspector::SelectParticleForCurrentCollisionData, EChaosVDCollisionParticleSelector::Index_0)
-				]
-				+SUniformGridPanel::Slot(1, 0)
-				[
-					SNew(SButton)
-					.HAlign(HAlign_Center)
-					.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
-					.Text(LOCTEXT("SelectParticle1", "Select Particle 1"))
-					.OnClicked(this, &SChaosVDCollisionDataInspector::SelectParticleForCurrentCollisionData, EChaosVDCollisionParticleSelector::Index_1)
-				]				
-			]
-			+SScrollBox::Slot()
-			.Padding(15.0f,0.0f,15.0f,0.0f)
-			[
-				MainCollisionDataDetailsView->GetWidget().ToSharedRef()
-			]
-			+SScrollBox::Slot()
-			.Padding(15.0f,10.0f,15.0f,5.0f)
-			[
-				SecondaryCollisionDataDetailsPanel->GetWidget().ToSharedRef()
-			]
-		]
-	];
-}
 
 void SChaosVDCollisionDataInspector::SetCollisionDataProviderObjectToInspect(IChaosVDCollisionDataProviderInterface* CollisionDataProvider)
 {
@@ -114,51 +23,74 @@ void SChaosVDCollisionDataInspector::SetCollisionDataProviderObjectToInspect(ICh
 	{
 		return;
 	}
+	
+	TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin();
+	if (!ScenePtr.IsValid())
+	{
+		return;
+	}
+	
+	TSharedPtr<FChaosVDSolverDataSelection> SolverDataSelectionObject = ScenePtr->GetSolverDataSelectionObject().Pin();
 
-	CurrentObjectBeingInspectedName = CollisionDataProvider->GetProviderName();
+	if (!SolverDataSelectionObject)
+	{
+		return;
+	}
 
 	TArray<TSharedPtr<FName>> NewCollisionDataEntriesNameList;
-	TArray<TSharedPtr<FChaosVDCollisionDataFinder>> FoundCollisionData;
+	TConstArrayView<TSharedPtr<FChaosVDParticlePairMidPhase>> FoundCollisionData = CollisionDataProvider->GetCollisionData();
 
-	CollisionDataProvider->GetCollisionData(FoundCollisionData);
-
-	for (const TSharedPtr<FChaosVDCollisionDataFinder>& CollisionData : FoundCollisionData)
+	for (const TSharedPtr<FChaosVDParticlePairMidPhase>& CollisionData : FoundCollisionData)
 	{
-		if (TSharedPtr<FName> CollisionDataEntryName = GenerateNameForCollisionDataItem(*CollisionData))
+		TSharedPtr<FChaosVDSolverDataSelectionHandle> SelectionHandle = SolverDataSelectionObject->MakeSelectionHandle(CollisionData);
+		if (TSharedPtr<FName> CollisionDataEntryName = GenerateNameForCollisionDataItem(SelectionHandle))
 		{
-			CollisionDataByNameMap.Add(*CollisionDataEntryName, CollisionData);
+			CollisionDataByNameMap.Add(*CollisionDataEntryName, SelectionHandle);
 			NewCollisionDataEntriesNameList.Add(CollisionDataEntryName);
+
+			if (!CurrentDataSelectionHandle->IsValid())
+			{
+				CurrentSelectedName = CollisionDataEntryName;
+			}
 		}
 	}
 
 	CollisionDataAvailableList->UpdateNameList(MoveTemp(NewCollisionDataEntriesNameList));
+	CollisionDataAvailableList->SelectName(CurrentSelectedName, ESelectInfo::OnMouseClick);
 	bIsUpToDate = true;
 }
 
-void SChaosVDCollisionDataInspector::SetSingleContactDataToInspect(const FChaosVDCollisionDataFinder& InContactFinderData)
+void SChaosVDCollisionDataInspector::SetConstraintDataToInspect(const TSharedPtr<FChaosVDSolverDataSelectionHandle>& InDataSelectionHandle)
 {
 	ClearInspector();
 
-	TSharedPtr<FChaosVDCollisionDataFinder> ContactFinderDataPtr = MakeShared<FChaosVDCollisionDataFinder>();
-	*ContactFinderDataPtr = InContactFinderData;
-
-	CurrentSelectedName = GenerateNameForCollisionDataItem(*ContactFinderDataPtr);
+	if (!InDataSelectionHandle || !InDataSelectionHandle->IsA<FChaosVDParticlePairMidPhase>())
+	{
+		return;
+	}
 	
-	// TODO: We need a way to provide a name when we receive collision data directly.
-	// Currently this is only possible when clicking contacts in the viewport
-	CurrentObjectBeingInspectedName = TEXT("Contact");
+	CurrentDataSelectionHandle = InDataSelectionHandle.ToSharedRef();
 
-	CollisionDataByNameMap.Add(*CurrentSelectedName, ContactFinderDataPtr);
+	CurrentSelectedName = GenerateNameForCollisionDataItem(InDataSelectionHandle);
+
+	CollisionDataByNameMap.Add(*CurrentSelectedName, InDataSelectionHandle);
 
 	CollisionDataAvailableList->UpdateNameList({ CurrentSelectedName });
 	CollisionDataAvailableList->SelectName(CurrentSelectedName, ESelectInfo::OnMouseClick);
 }
 
+void SChaosVDCollisionDataInspector::SetupWidgets()
+{
+	SChaosVDConstraintDataInspector::SetupWidgets();
+
+	SecondaryCollisionDataDetailsPanel = CreateCollisionDataDetailsView();
+}
+
 void SChaosVDCollisionDataInspector::HandleSceneUpdated()
 {
-	if (TSharedPtr<FChaosVDCollisionDataFinder> DataFinderPtr = GetCurrentDataBeingInspected())
+	if (const TSharedPtr<FChaosVDSolverDataSelectionHandle>& SelectionHandle = GetCurrentDataBeingInspected())
 	{
-		if (DataFinderPtr.IsValid() && DataFinderPtr->OwningMidPhase.Pin())
+		if (SelectionHandle->IsSelected() && SelectionHandle->GetData<FChaosVDParticlePairMidPhase>())
 		{
 			bIsUpToDate = false;
 		}
@@ -171,72 +103,92 @@ void SChaosVDCollisionDataInspector::HandleSceneUpdated()
 
 void SChaosVDCollisionDataInspector::ClearInspector()
 {
-	MainCollisionDataDetailsView->SetStructureData(nullptr);
-	SecondaryCollisionDataDetailsPanel->SetStructureData(nullptr);
-
 	CollisionDataByNameMap.Reset();
 	CollisionDataAvailableList->UpdateNameList({});
 
 	CurrentSelectedName = nullptr;
 
-	CurrentObjectBeingInspectedName = FName();
-
 	bIsUpToDate = true;
+	
+	SecondaryCollisionDataDetailsPanel->SetStructureData(nullptr);
+
+	SChaosVDConstraintDataInspector::ClearInspector();
 }
 
-FText SChaosVDCollisionDataInspector::GetObjectBeingInspectedName() const
+TSharedRef<SWidget> SChaosVDCollisionDataInspector::GenerateHeaderWidget(FMargin Margin)
 {
-	return FText::AsCultureInvariant(CurrentObjectBeingInspectedName.ToString());
-}
-
-TSharedPtr<SWidget> SChaosVDCollisionDataInspector::GenerateObjectNameRowWidget()
-{
-	TSharedPtr<SWidget> RowWidget = SNew(SBorder)
-		.BorderImage(FAppStyle::Get().GetBrush("DetailsView.CategoryMiddle"))
-		.BorderBackgroundColor(FAppStyle::Get().GetSlateColor("Colors.Panel"))
-		.Padding(0)
-		[
-			SNew(SBox)
-			.Padding(2.0f)
+	return SNew(SVerticalBox)
+			+SVerticalBox::Slot()
+			.Padding(Margin)
+			.AutoHeight()
 			[
-				SNew(SSplitter)
-				.Style(FAppStyle::Get(), "DetailsView.Splitter")
-				.PhysicalSplitterHandleSize(1.5f)
-				.HitDetectionSplitterHandleSize(5.0f)
-				+SSplitter::Slot()
-				.Value(0.2)
-				[
-					SNew(SBox)
-					.VAlign(VAlign_Center)
-					.Padding(1.0)
-					.VAlign(VAlign_Center)
-					[
-						SNew(STextBlock)
-						.Text(LOCTEXT("CollisionDataInspectorObject","Object"))
-						.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
-					]	
-				]
-				+SSplitter::Slot()
-				[
-					SNew(SBox)
-					.VAlign(VAlign_Center)
-					.Padding(1.0)
-					[
-						SNew(STextBlock)
-						.Text_Raw(this, &SChaosVDCollisionDataInspector::GetObjectBeingInspectedName)
-						.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
-					]
-				]
-			]
-		];
+				SAssignNew(CollisionDataAvailableList, SChaosVDNameListPicker)
+				.OnNameSleceted_Raw(this, &SChaosVDCollisionDataInspector::HandleCollisionDataEntryNameSelected)
+			];
+}
 
-	return RowWidget;
+TSharedRef<SWidget> SChaosVDCollisionDataInspector::GenerateDetailsViewWidget(FMargin Margin)
+{
+	return SNew(SScrollBox)
+			+SScrollBox::Slot()
+			.Padding(Margin)
+			[
+				MainDataDetailsView->GetWidget().ToSharedRef()
+			]
+			+SScrollBox::Slot()
+			.Padding(Margin)
+			[
+				SecondaryCollisionDataDetailsPanel->GetWidget().ToSharedRef()
+			];
+}
+
+FText SChaosVDCollisionDataInspector::GetParticleName(EChaosVDParticlePairIndex ParticleSlot, const TSharedPtr<FChaosVDSolverDataSelectionHandle>& InSelectionHandle) const
+{
+	int32 OutSolverID = INDEX_NONE;
+	int32 OutParticleID = INDEX_NONE;
+	GetParticleIDForSelectedData(InSelectionHandle, ParticleSlot, OutSolverID, OutParticleID);
+
+	if (const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin())
+	{
+		if (AChaosVDParticleActor* ParticleActor = ScenePtr->GetParticleActor(OutSolverID, OutParticleID))
+		{
+			if (TSharedPtr<const FChaosVDParticleDataWrapper> ParticleData = ParticleActor->GetParticleData())
+			{
+				return FText::AsCultureInvariant(ParticleData->DebugName);
+			}
+		}
+	}
+
+	return FText::GetEmpty();
 }
 
 
-EVisibility SChaosVDCollisionDataInspector::GetOutOfDateWarningVisibility() const
+void SChaosVDCollisionDataInspector::GetParticleIDForSelectedData(const TSharedPtr<FChaosVDSolverDataSelectionHandle>& InSelectionHandle, EChaosVDParticlePairIndex ParticleSlot, int32& OutSolverID, int32& OutParticleID) const
 {
-	return bIsUpToDate ? EVisibility::Collapsed : EVisibility::Visible;
+	if (!InSelectionHandle)
+	{
+		return;
+	}
+
+	if (const FChaosVDParticlePairMidPhase* MidPhasePtr = InSelectionHandle->GetData<FChaosVDParticlePairMidPhase>())
+	{
+		bool bHasConstraintData = false;
+		if (FChaosVDCollisionDataSelectionContext* SelectionContext = InSelectionHandle->GetContextData<FChaosVDCollisionDataSelectionContext>())
+		{
+			if (SelectionContext->ConstraintDataPtr)
+			{
+				bHasConstraintData = true;
+				OutParticleID = ParticleSlot == EChaosVDParticlePairIndex::Index_0 ? SelectionContext->ConstraintDataPtr->Particle0Index : SelectionContext->ConstraintDataPtr->Particle1Index;
+			}
+		}
+		
+		if (!bHasConstraintData)
+		{
+			OutParticleID = ParticleSlot == EChaosVDParticlePairIndex::Index_0 ? MidPhasePtr->Particle0Idx : MidPhasePtr->Particle1Idx;
+		}
+
+		OutSolverID = MidPhasePtr->SolverID;
+	}
 }
 
 void SChaosVDCollisionDataInspector::HandleCollisionDataEntryNameSelected(TSharedPtr<FName> SelectedName)
@@ -248,65 +200,55 @@ void SChaosVDCollisionDataInspector::HandleCollisionDataEntryNameSelected(TShare
 		return;
 	}
 
-	if (TSharedPtr<FChaosVDCollisionDataFinder> DataFinderPtr = GetCurrentDataBeingInspected())
-	{
-		if (DataFinderPtr->OwningConstraint)
-		{
-			FChaosVDConstraint* MutableConstraint = const_cast<FChaosVDConstraint*>(DataFinderPtr->OwningConstraint);
-			TSharedPtr<FStructOnScope> ConstraintView = MakeShared<FStructOnScope>(FChaosVDConstraint::StaticStruct(), reinterpret_cast<uint8*>(MutableConstraint));
-			SecondaryCollisionDataDetailsPanel->SetStructureData(ConstraintView); 
+	CurrentDataSelectionHandle = GetSelectionNameForName(SelectedName).ToSharedRef();
 
-			if (DataFinderPtr->OwningConstraint->ManifoldPoints.IsValidIndex(DataFinderPtr->ContactIndex))
-			{
-				const FChaosVDManifoldPoint* ContactPointData = &DataFinderPtr->OwningConstraint->ManifoldPoints[DataFinderPtr->ContactIndex];
-				TSharedPtr<FStructOnScope> ContactViewView = MakeShared<FStructOnScope>(FChaosVDManifoldPoint::StaticStruct(), reinterpret_cast<uint8*>(const_cast<FChaosVDManifoldPoint*>(ContactPointData)));
-				MainCollisionDataDetailsView->SetStructureData(ContactViewView);
-			}
-			else
-			{
-				MainCollisionDataDetailsView->SetStructureData(nullptr); 
-			}
-		}
-		else if (TSharedPtr<FChaosVDParticlePairMidPhase> MidPhaseData = DataFinderPtr->OwningMidPhase.Pin())
+	if (CurrentDataSelectionHandle->IsValid())
+	{
+		if (FChaosVDParticlePairMidPhase* MidPhasePtr = CurrentDataSelectionHandle->GetData<FChaosVDParticlePairMidPhase>())
 		{
-			// If we have a recorded midphase with not contact data, show that instead
-			const TSharedPtr<FStructOnScope> MidPhaseView = MakeShared<FStructOnScope>(FChaosVDParticlePairMidPhase::StaticStruct(), reinterpret_cast<uint8*>(MidPhaseData.Get()));
-			MainCollisionDataDetailsView->SetStructureData(MidPhaseView); 
+			bool bHasConstraintData = false;
+			if (FChaosVDCollisionDataSelectionContext* SelectionContext = CurrentDataSelectionHandle->GetContextData<FChaosVDCollisionDataSelectionContext>())
+			{
+				if (SelectionContext->ConstraintDataPtr)
+				{
+					bHasConstraintData = true;
+
+					TSharedPtr<FStructOnScope> ConstraintView = MakeShared<FStructOnScope>(FChaosVDConstraint::StaticStruct(), reinterpret_cast<uint8*>(SelectionContext->ConstraintDataPtr));
+					SecondaryCollisionDataDetailsPanel->SetStructureData(ConstraintView); 
+
+					if (SelectionContext->ConstraintDataPtr->ManifoldPoints.IsValidIndex(SelectionContext->ContactDataIndex))
+					{
+						const FChaosVDManifoldPoint* ContactPointData = &SelectionContext->ConstraintDataPtr->ManifoldPoints[SelectionContext->ContactDataIndex];
+						TSharedPtr<FStructOnScope> ContactViewView = MakeShared<FStructOnScope>(FChaosVDManifoldPoint::StaticStruct(), reinterpret_cast<uint8*>(const_cast<FChaosVDManifoldPoint*>(ContactPointData)));
+						MainDataDetailsView->SetStructureData(ContactViewView);
+					}
+					else
+					{
+						MainDataDetailsView->SetStructureData(nullptr); 
+					}
+				}
+			}
+
+			if (!bHasConstraintData)
+			{
+				// If we have a recorded midphase with not contact data, show that instead
+				const TSharedPtr<FStructOnScope> MidPhaseView = MakeShared<FStructOnScope>(FChaosVDParticlePairMidPhase::StaticStruct(), reinterpret_cast<uint8*>(MidPhasePtr));
+				MainDataDetailsView->SetStructureData(MidPhaseView); 
+			}
 		}
 	}
 }
 
-TSharedPtr<FName> SChaosVDCollisionDataInspector::GenerateNameForCollisionDataItem(const FChaosVDCollisionDataFinder& InContactFinderData)
+TSharedRef<FName> SChaosVDCollisionDataInspector::GenerateNameForCollisionDataItem(const TSharedPtr<FChaosVDSolverDataSelectionHandle>& InDataSelectionHandle) const
 {
-	int32 Particle0Index = INDEX_NONE;
-	int32 Particle1Index = INDEX_NONE;
-
-	bool bHasConstraintData = false;
-
-	if (const TSharedPtr<FChaosVDParticlePairMidPhase> MidPhaseData = InContactFinderData.OwningMidPhase.Pin())
+	static TSharedPtr<FName> InvalidName = MakeShared<FName>(NAME_None);
+	if (!InDataSelectionHandle)
 	{
-		if (InContactFinderData.OwningConstraint)
-		{
-			Particle0Index = InContactFinderData.OwningConstraint->Particle0Index;
-			Particle1Index = InContactFinderData.OwningConstraint->Particle1Index;
-			bHasConstraintData = true;
-		}
-		else
-		{
-			Particle0Index = MidPhaseData->Particle0Idx;
-			Particle1Index = MidPhaseData->Particle1Idx;	
-		}
+		return InvalidName.ToSharedRef();
 	}
 
-	if (Particle0Index != INDEX_NONE || Particle1Index != INDEX_NONE)
-	{
-		static FText MidPhaseOnlyText = LOCTEXT("CollisionItemDataTitleMidPhaseOnly", "[MidPhase Only]");
-		static FText ConstraintText = LOCTEXT("CollisionItemDataTitleConstaint", "[Constraint]");
-		const FText GeneratedName = FText::Format(LOCTEXT("CollisionItemDataTitle", "Particle Pair | Index0 [ID {0}] <-> Index1 [{1}] | Type {2}"), Particle0Index, Particle1Index, bHasConstraintData ? ConstraintText: MidPhaseOnlyText);
-		return MakeShared<FName>(GeneratedName.ToString());
-	}
-
-	return nullptr;
+	const FText GeneratedName = FText::Format(LOCTEXT("CollisionItemDataTitle", "Particle Pair | [ {0} ] <-> [ {1} ] "), GetParticleName(EChaosVDParticlePairIndex::Index_0, InDataSelectionHandle), GetParticleName(EChaosVDParticlePairIndex::Index_1, InDataSelectionHandle));
+	return MakeShared<FName>(GeneratedName.ToString());
 }
 
 TSharedPtr<IStructureDetailsView> SChaosVDCollisionDataInspector::CreateCollisionDataDetailsView()
@@ -328,54 +270,41 @@ EVisibility SChaosVDCollisionDataInspector::GetDetailsSectionVisibility() const
 	return CurrentSelectedName ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
-FReply SChaosVDCollisionDataInspector::SelectParticleForCurrentCollisionData(EChaosVDCollisionParticleSelector ParticleSelector)
+FReply SChaosVDCollisionDataInspector::SelectParticleForCurrentSelectedData(EChaosVDParticlePairIndex ParticleSlot)
 {
-	TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin();
-	if (!ScenePtr.IsValid())
-	{
-		return FReply::Handled();
-	}
-	
-	if (const TSharedPtr<FChaosVDCollisionDataFinder> DataFinderPtr = GetCurrentDataBeingInspected())
-	{
-		if (const FChaosVDMidPhasePtr MidPhasePtr = DataFinderPtr->OwningMidPhase.Pin())
-		{
-			int32 ParticleIndex = INDEX_NONE;
-			if (DataFinderPtr->OwningConstraint)
-			{
-				ParticleIndex = ParticleSelector == EChaosVDCollisionParticleSelector::Index_0 ? DataFinderPtr->OwningConstraint->Particle0Index : DataFinderPtr->OwningConstraint->Particle1Index;
-			}
-			else
-			{
-				ParticleIndex = ParticleSelector == EChaosVDCollisionParticleSelector::Index_0 ? MidPhasePtr->Particle0Idx : MidPhasePtr->Particle1Idx;
-			}
+	int32 OutParticleID = INDEX_NONE;
+	int32 OutSolverID = INDEX_NONE;
 
-			if (AChaosVDParticleActor* ParticleActor = ScenePtr->GetParticleActor(MidPhasePtr->SolverID, ParticleIndex))
-			{
-				ScenePtr->SetSelectedObject(ParticleActor);
-			}
-		}
-	}
+	GetParticleIDForSelectedData(GetCurrentDataBeingInspected(), ParticleSlot,OutSolverID,OutParticleID);
+	
+	SelectParticle(OutSolverID, OutParticleID);
 
 	return FReply::Handled();
 }
 
-TSharedPtr<FChaosVDCollisionDataFinder> SChaosVDCollisionDataInspector::GetCurrentDataBeingInspected()
+
+TSharedPtr<FChaosVDSolverDataSelectionHandle> SChaosVDCollisionDataInspector::GetSelectionNameForName(const TSharedPtr<FName>& InName)
 {
-	if (!CurrentSelectedName.IsValid())
+	if (!InName.IsValid())
 	{
-		return nullptr;
+		return MakeShared<FChaosVDSolverDataSelectionHandle>();
 	}
 
-	if (TSharedPtr<FChaosVDCollisionDataFinder>* DataFinderPtrPtr = CollisionDataByNameMap.Find(*CurrentSelectedName))
+	if (const TSharedPtr<FChaosVDSolverDataSelectionHandle>* SelectionHandlePtrPtr = CollisionDataByNameMap.Find(*InName))
 	{
-		if (TSharedPtr<FChaosVDCollisionDataFinder> DataFinderPtr = *DataFinderPtrPtr)
+		if (const TSharedPtr<FChaosVDSolverDataSelectionHandle>& SelectionHandlePtr = *SelectionHandlePtrPtr)
 		{
-			return DataFinderPtr;
+			return SelectionHandlePtr;
 		}
 	}
 
-	return nullptr;
+	return MakeShared<FChaosVDSolverDataSelectionHandle>();
+}
+
+
+const TSharedRef<FChaosVDSolverDataSelectionHandle>& SChaosVDCollisionDataInspector::GetCurrentDataBeingInspected() const
+{
+	return CurrentDataSelectionHandle;
 }
 
 #undef LOCTEXT_NAMESPACE
