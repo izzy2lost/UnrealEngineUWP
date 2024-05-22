@@ -3032,15 +3032,15 @@ namespace UnrealBuildTool
 
 			HashSet<FileItem> allObjects = new(Binaries.SelectMany(x => x.InputObjects));
 
-			void CreateStripAction(string Name, IEnumerable<FileItem> toStrip)
+			void CreateStripAction(string Name, IEnumerable<FileItem> toStrip, DirectoryReference IntermediateDirectory)
 			{
 				HashSet<FileItem> otherObjects = new(allObjects.Except(toStrip));
-				FileItem stripRsp = FileItem.GetItemByFileReference(FileReference.Combine(ProjectIntermediateDirectory!, $"{Name}.strip.rsp"));
+				FileItem stripRsp = FileItem.GetItemByFileReference(FileReference.Combine(IntermediateDirectory, $"{Name}.strip.rsp"));
 				List<string> arguments = new();
-				arguments.AddRange(toStrip.Select(path => $"/S:{path.FullName.Replace(".obj", ".exi")}").OrderBy(x => x));
-				arguments.AddRange(otherObjects.Select(path => $"/D:{path.FullName.Replace(".obj", ".exi")}").OrderBy(x => x));
+				arguments.AddRange(toStrip.Select(path => $"/S:{path.Location.ChangeExtension(".exi")}").OrderBy(x => x));
+				arguments.AddRange(otherObjects.Select(path => $"/D:{path.Location.ChangeExtension(".exi")}").OrderBy(x => x));
 
-				FileReference extraObj = FileReference.Combine(ProjectIntermediateDirectory!, $"{Name}.extra.obj");
+				FileReference extraObj = FileReference.Combine(IntermediateDirectory, $"{Name}.extra.obj");
 				arguments.Add($"/O:{extraObj}");
 
 				MakefileBuilder.CreateIntermediateTextFile(stripRsp, arguments);
@@ -3059,15 +3059,9 @@ namespace UnrealBuildTool
 				Makefile.OutputItems.AddRange(stripAction.ProducedItems);
 			}
 
-			HashSet<FileItem> pchObjects = new(allObjects.Where(x => x.Name.Contains("SharedPCH", StringComparison.Ordinal)));
-			if (pchObjects.Count > 0)
-			{
-				CreateStripAction($"{AppName}-SharedPCH", pchObjects);
-			}
-
 			foreach (UEBuildBinary Binary in Binaries.Where(x => x.bStripUnusedExports))
 			{
-				CreateStripAction(Binary.OutputFilePaths.First().GetFileNameWithoutExtension(), Binary.InputObjects.Where(x => !pchObjects.Contains(x)));
+				CreateStripAction(Binary.OutputFilePaths.First().GetFileNameWithoutExtension(), Binary.InputObjects, Binary.IntermediateDirectory);
 			}
 		}
 

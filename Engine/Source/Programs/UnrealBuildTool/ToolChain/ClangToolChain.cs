@@ -1196,7 +1196,17 @@ namespace UnrealBuildTool
 
 			// Adds the response file to the compiler input.
 			FileItem CompilerResponseFileItem = Graph.CreateIntermediateTextFile(ResponseFileName, ResponseFileContents);
-			CompileAction.CommandArguments = GetResponseFileArgument(CompilerResponseFileItem);
+			string CommandArguments = GetResponseFileArgument(CompilerResponseFileItem);
+
+			if (bMergeModules)
+			{
+				// EXTRACTEXPORTS can only be interpreted by UBA.. so this action won't build outside uba
+				CommandArguments += " /EXTRACTEXPORTS";
+				FileItem SymFile = FileItem.GetItemByFileReference(FileReference.Combine(OutputDir, Path.GetFileName(SourceFile.AbsolutePath) + ".exi"));
+				CompileAction.ProducedItems.Add(SymFile);
+			}
+
+			CompileAction.CommandArguments = CommandArguments;
 			CompileAction.PrerequisiteItems.Add(CompilerResponseFileItem);
 
 			CompileAction.WorkingDirectory = Unreal.EngineSourceDirectory;

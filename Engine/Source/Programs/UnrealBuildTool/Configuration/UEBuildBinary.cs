@@ -874,7 +874,7 @@ namespace UnrealBuildTool
 			BinaryLinkEnvironment.bIsBuildingLibrary = IsBuildingLibrary(Type);
 
 			// Setup object export stripping
-			if ((BinaryLinkEnvironment.bIsBuildingDLL || BinaryLinkEnvironment.bIsBuildingLibrary) && Target.bStripExports)
+			if (Target.bStripExports)
 			{
 				bStripUnusedExports = true;
 
