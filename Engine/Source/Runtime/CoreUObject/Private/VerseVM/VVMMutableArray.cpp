@@ -17,6 +17,11 @@ DEFINE_DERIVED_VCPPCLASSINFO(VMutableArray);
 DEFINE_TRIVIAL_VISIT_REFERENCES(VMutableArray);
 TGlobalTrivialEmergentTypePtr<&VMutableArray::StaticCppClassInfo> VMutableArray::GlobalTrivialEmergentType;
 
+void VMutableArray::Reset(FAllocationContext Context)
+{
+	SetBufferWithStoreBarrier(Context, VBuffer());
+}
+
 void VMutableArray::Append(FAllocationContext Context, VArrayBase& Array)
 {
 	if (!Buffer && Array.Num())

@@ -27,6 +27,11 @@ struct VNameValueMap
 		return NameAndValues->Num() / 2;
 	}
 
+	void Reset(FAllocationContext Context)
+	{
+		NameAndValues->Reset(Context);
+	}
+
 	const VArray& GetName(uint32 Index) const
 	{
 		checkSlow(Index < static_cast<int32>(Num()));

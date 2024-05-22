@@ -23,7 +23,7 @@ struct VTask : VObject
 	, TIntrusiveTree<VTask>
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VObject);
-	COREUOBJECT_API static TGlobalHeapPtr<VEmergentType> EmergentType;
+	COREUOBJECT_API static TGlobalDefaultedObjectEmergentTypePtr<&StaticCppClassInfo> EmergentType;
 
 	// A task is "running" when it is associated with a frame on the native stack.
 	// This includes a running interpreter (even if it is just on the `YieldTask` chain), and native
@@ -67,7 +67,8 @@ struct VTask : VObject
 
 	static VTask& New(FAllocationContext Context, FOp* YieldPC, VFrame* YieldFrame, VTask* YieldTask, VTask* Parent)
 	{
-		return *new (AllocateFastCell(Context, *EmergentType)) VTask(Context, YieldPC, YieldFrame, YieldTask, Parent);
+		VEmergentType& TaskEmergentType = EmergentType.Get(Context);
+		return *new (AllocateFastCell(Context, TaskEmergentType)) VTask(Context, TaskEmergentType, YieldPC, YieldFrame, YieldTask, Parent);
 	}
 
 	COREUOBJECT_API void ResumeInTransaction(FRunningContext Context, VValue ResumeArgument);
@@ -131,8 +132,8 @@ struct VTask : VObject
 	}
 
 private:
-	VTask(FAllocationContext Context, FOp* YieldPC, VFrame* YieldFrame, VTask* YieldTask, VTask* Parent)
-		: VObject(Context, *EmergentType)
+	VTask(FAllocationContext Context, VEmergentType& TaskEmergentType, FOp* YieldPC, VFrame* YieldFrame, VTask* YieldTask, VTask* Parent)
+		: VObject(Context, TaskEmergentType)
 		, TIntrusiveTree(Context, Parent)
 		, ResumeSlot(Context, nullptr)
 		, YieldPC(YieldPC)

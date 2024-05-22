@@ -45,12 +45,12 @@ struct TGlobalTrivialEmergentTypePtr
 		}
 		else
 		{
-			return GetSlow(Context);
+			return Create(Context);
 		}
 	}
 
-private:
-	FORCENOINLINE VEmergentType& GetSlow(FAllocationContext Context)
+protected:
+	FORCENOINLINE VEmergentType& Create(FAllocationContext Context)
 	{
 		VEmergentType* Object = VEmergentType::New(Context, VTrivialType::Singleton.Get(), ClassInfo);
 		VEmergentType* Expected = nullptr;
@@ -70,6 +70,37 @@ private:
 	}
 
 	std::atomic<VEmergentType*> EmergentType = nullptr;
+};
+
+template <VCppClassInfo* ClassInfo>
+struct TGlobalDefaultedObjectEmergentTypePtr : public TGlobalTrivialEmergentTypePtr<ClassInfo>
+{
+	VEmergentType& Get(FAllocationContext Context)
+	{
+		VEmergentType* Result = EmergentType.load(std::memory_order_relaxed);
+		std::atomic_signal_fence(std::memory_order_seq_cst);
+		if (Result)
+		{
+			return *Result;
+		}
+		else
+		{
+			return Create(Context);
+		}
+	}
+
+	void Set(FAllocationContext Context, VEmergentType& NewEmergentType)
+	{
+		EmergentType.store(&NewEmergentType, std::memory_order_seq_cst);
+	}
+
+private:
+	FORCENOINLINE VEmergentType& Create(FAllocationContext Context)
+	{
+		VEmergentType& EmergentType = TGlobalTrivialEmergentTypePtr<ClassInfo>::Create(Context);
+		EmergentType.Shape.Set(Context, VShape::New(Context, {}));
+		return EmergentType;
+	}
 };
 
 } // namespace Verse

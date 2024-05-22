@@ -13,7 +13,7 @@ namespace Verse
 {
 
 DEFINE_DERIVED_VCPPCLASSINFO(VTask);
-TGlobalHeapPtr<VEmergentType> VTask::EmergentType;
+TGlobalDefaultedObjectEmergentTypePtr<&VTask::StaticCppClassInfo> VTask::EmergentType;
 
 FOpResult VTask::ActiveImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
 {

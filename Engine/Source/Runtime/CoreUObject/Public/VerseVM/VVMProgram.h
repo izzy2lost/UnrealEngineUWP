@@ -21,6 +21,7 @@ struct VProgram : VCell
 	VPackage& GetPackage(uint32 Index) const { return Map.GetCell<VPackage>(Index); }
 	void AddPackage(FAllocationContext Context, VArray& Name, VPackage& Package) { Map.AddValue(Context, Name, VValue(Package)); }
 	VPackage* LookupPackage(FUtf8StringView VersePackageName) const { return Map.LookupCell<VPackage>(VersePackageName); }
+	void ResetPackages(FAllocationContext Context) { Map.Reset(Context); }
 
 	const VIntrinsics& GetIntrinsics() const { return *Intrinsics.Get(); }
 

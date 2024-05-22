@@ -19,6 +19,8 @@ struct VMutableArray : VArrayBase
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
 public:
+	void Reset(FAllocationContext Context);
+
 	void AddValue(FAllocationContext Context, VValue Value);
 
 	template <typename T>
