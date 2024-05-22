@@ -489,7 +489,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		if (ensure(ClothSimulationModel->IsValidLodIndex(LodIndex)))
 		{
-			LODModel.RequiredBones.Append(ClothSimulationModel->ClothSimulationLodModels[LodIndex].RequiredExtraBoneIndices);
+			ActiveBoneIndices.Append(ClothSimulationModel->ClothSimulationLodModels[LodIndex].RequiredExtraBoneIndices);
+
+			LODModel.RequiredBones = ActiveBoneIndices.Array();
 
 			ClothAsset.GetRefSkeleton().EnsureParentsExistAndSort(LODModel.RequiredBones);
 			LODModel.RequiredBones.Shrink();
