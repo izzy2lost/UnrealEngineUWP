@@ -789,10 +789,19 @@ void FReplicationWriter::UpdateScope(const FNetBitArrayView& UpdatedScope)
 		const EReplicatedObjectState State = Info.GetState();
 		if (State < EReplicatedObjectState::PendingDestroy)
 		{
-			// We have not sent the object yet so we can just stop replication
 			if (State == EReplicatedObjectState::PendingCreate)
 			{
-				StopReplication(Index);
+				// If we have no data to flush, we can stop replication now.
+				const uint32 FlushFlags = GetFlushStatus(Index, Info, Info.FlushFlags);
+				if (GetFlushStatus(Index, Info, Info.FlushFlags) == FlushFlags_None)
+				{
+					StopReplication(Index);
+				}
+				else
+				{
+					// Mark for destroy.
+					ObjectsPendingDestroy.SetBit(Index);
+				}
 			}
 			else if (State == EReplicatedObjectState::CancelPendingDestroy)
 			{
@@ -1248,9 +1257,10 @@ void FReplicationWriter::HandleDroppedRecord<FReplicationWriter::EReplicatedObje
 
 	if (CurrentState < EReplicatedObjectState::Created)
 	{
-		// Until we have implemented cached creation info we cannot send creation info for destroyed objects
-		// So we just have to StopReplication
-		const bool bCanSendCreationInfo = !ObjectsPendingDestroy.GetBit(InternalIndex);
+		const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectData(InternalIndex);
+
+		// We can resend creation info even if we are marked for destroy if we have cached creation info.
+		const bool bCanSendCreationInfo = !ObjectsPendingDestroy.GetBit(InternalIndex) || ObjectData.bHasCachedCreationInfo;
 		if (bCanSendCreationInfo)
 		{
 			// Mark object as having dirty changes
@@ -1276,7 +1286,6 @@ void FReplicationWriter::HandleDroppedRecord<FReplicationWriter::EReplicatedObje
 			if (Info.IsSubObject)
 			{
 				// Mark owner dirty as well as subobjects only are scheduled together with owner
-				const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectData(InternalIndex);
 				uint32 SubObjectOwnerInternalIndex = ObjectData.SubObjectRootIndex;
 
 				FReplicationInfo& SubObjectOwnerReplicationInfo = GetReplicationInfo(SubObjectOwnerInternalIndex);

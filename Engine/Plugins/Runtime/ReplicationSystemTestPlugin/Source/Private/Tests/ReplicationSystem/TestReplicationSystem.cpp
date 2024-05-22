@@ -7,6 +7,7 @@
 #include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
 #include "Iris/ReplicationSystem/NetTokenStore.h"
 #include "Iris/Core/IrisLog.h"
+#include "Misc/ScopeExit.h"
 
 namespace UE::Net::Private
 {
@@ -1854,6 +1855,13 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestPartialDequan
 	const bool bForceFullDequantizeAndApply = CVarForceFullDequantizeAndApply->GetBool();
 	CVarForceFullDequantizeAndApply->Set(false, ECVF_SetByCode);
 
+	ON_SCOPE_EXIT
+	{
+		// Restore cvars
+		CVarUsePrevReceivedStateForOnReps->Set(bUsePrevReceivedStateForOnReps, ECVF_SetByCode);
+		CVarForceFullDequantizeAndApply->Set(bForceFullDequantizeAndApply, ECVF_SetByCode);
+	};
+
 	// Add a client
 	FReplicationSystemTestClient* Client = CreateClient();
 
@@ -1935,9 +1943,6 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestPartialDequan
 	UE_NET_ASSERT_EQ(ClientObjectA->PrevIntBStoredInOnRep, 1);
 	UE_NET_ASSERT_EQ(ServerObjectA->IntC, ClientObjectA->IntC);
 
-	// Restore cvars
-	CVarUsePrevReceivedStateForOnReps->Set(bUsePrevReceivedStateForOnReps, ECVF_SetByCode);
-	CVarForceFullDequantizeAndApply->Set(bForceFullDequantizeAndApply, ECVF_SetByCode);
 }
 
 } // end namespace UE::Net::Private
