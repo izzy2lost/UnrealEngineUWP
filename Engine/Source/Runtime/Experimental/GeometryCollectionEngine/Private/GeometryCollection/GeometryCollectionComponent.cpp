@@ -5845,11 +5845,6 @@ bool UGeometryCollectionComponent::GetSuppressSelectionMaterial() const
 	return RestCollection->GetGeometryCollection()->HasAttribute("Hide", FGeometryCollection::TransformGroup);
 }
 
-const int UGeometryCollectionComponent::GetBoneSelectedMaterialID() const
-{
-	return RestCollection->GetBoneSelectedMaterialIndex();
-}
-
 FPhysScene_Chaos* UGeometryCollectionComponent::GetInnerChaosScene() const
 {
 	if (ChaosSolverActor)
@@ -6051,18 +6046,24 @@ void UGeometryCollectionComponent::GetUsedMaterials(TArray<UMaterialInterface*>&
 {
 	Super::GetUsedMaterials(OutMaterials, bGetDebugMaterials);
 
-	if (GetRestCollection() && GetRestCollection()->GetBoneSelectedMaterial())
+	if (GetRestCollection())
 	{
-		OutMaterials.Add(GetRestCollection()->GetBoneSelectedMaterial());
+		if (UMaterialInterface* BoneSelectedMaterial = GetRestCollection()->GetBoneSelectedMaterial())
+		{
+			OutMaterials.Add(BoneSelectedMaterial);
+		}
 	}
 }
 
 FMaterialRelevance UGeometryCollectionComponent::GetMaterialRelevance(ERHIFeatureLevel::Type InFeatureLevel) const
 {
 	FMaterialRelevance Result = Super::GetMaterialRelevance(InFeatureLevel);
-	if (RestCollection && RestCollection->GetBoneSelectedMaterial())
+	if (RestCollection)
 	{
-		Result |= RestCollection->GetBoneSelectedMaterial()->GetRelevance_Concurrent(InFeatureLevel);
+		if (UMaterialInterface* BoneSelectedMaterial = GetRestCollection()->GetBoneSelectedMaterial())
+		{
+			Result |= BoneSelectedMaterial->GetRelevance_Concurrent(InFeatureLevel);
+		}
 	}
 	return Result;
 }

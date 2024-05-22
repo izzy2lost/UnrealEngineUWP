@@ -1151,7 +1151,11 @@ public:
 	
 	GEOMETRYCOLLECTIONENGINE_API bool GetSuppressSelectionMaterial() const;
 	
-	GEOMETRYCOLLECTIONENGINE_API const int GetBoneSelectedMaterialID() const;
+	UE_DEPRECATED(5.5, "Bone Selected Material does not have a material ID anymore.")
+	const int GetBoneSelectedMaterialID() const
+	{
+		return INDEX_NONE;
+	}
 	
 #if WITH_EDITORONLY_DATA
 	FORCEINLINE const TArray<int32>& GetSelectedBones() const { return SelectedBones; }

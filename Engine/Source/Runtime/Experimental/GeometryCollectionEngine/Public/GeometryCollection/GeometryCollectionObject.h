@@ -778,12 +778,11 @@ public:
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use remove on break feature instead ( Fracture editor tools )."))
 	TArray<TObjectPtr<UMaterialInterface>> RemoveOnFractureMaterials_DEPRECATED;
 
+	UE_DEPRECATED(5.5, "Bone Selected Material does not have a material index anymore.")
 	FORCEINLINE const int32 GetBoneSelectedMaterialIndex() const { return BoneSelectedMaterialIndex; }
 
-	UMaterialInterface* GetBoneSelectedMaterial() const
-	{
-		return BoneSelectedMaterial;
-	}
+	// Get the material to use for rendering bone selections in the editor, or nullptr
+	static UMaterialInterface* GetBoneSelectedMaterial();
 
 	/** Returns the asset path for the automatically populated selected material. */
 	static GEOMETRYCOLLECTIONENGINE_API const TCHAR* GetSelectedMaterialPath();
@@ -899,15 +898,11 @@ private:
 	UPROPERTY(VisibleAnywhere, Transient, Category = "Clustering")
 	TArray<int32> AutoInstanceTransformRemapIndices;
 
-	// #todo(dmp): rename to be consistent BoneSelectedMaterialID?
 	// Legacy index of the bone selected material in the object's Materials array, or INDEX_NONE if it is not stored there.
 	// Note for new objects the bone selected material should not be stored in the Materials array, so this should be INDEX_NONE
+	// The property is kept solely to support deletion of the bone selected material from the materials list of legacy assets
 	UPROPERTY()
 	int32 BoneSelectedMaterialIndex = INDEX_NONE;
-
-	// The material to use for rendering bone selections in the editor, or nullptr
-	UPROPERTY()
-	TObjectPtr<UMaterialInterface> BoneSelectedMaterial = nullptr;
 
 	TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> GeometryCollection;
 

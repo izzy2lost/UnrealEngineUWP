@@ -656,12 +656,21 @@ void UGeometryCollection::ReindexMaterialSections()
 	InvalidateCollection();
 }
 
+UMaterialInterface* UGeometryCollection::GetBoneSelectedMaterial()
+{
+#if WITH_EDITORONLY_DATA
+	return LoadObject<UMaterialInterface>(nullptr, GetSelectedMaterialPath(), nullptr, LOAD_None, nullptr);
+#else
+	return nullptr;
+#endif
+}
+
 void UGeometryCollection::InitializeMaterials(bool bHasLegacyInternalMaterialsPairs)
 {
 	Modify();
 
 	// Initialize the BoneSelectedMaterial separate from the materials on the collection
-	BoneSelectedMaterial = LoadObject<UMaterialInterface>(nullptr, GetSelectedMaterialPath(), nullptr, LOAD_None, nullptr);
+	UMaterialInterface* BoneSelectedMaterial = GetBoneSelectedMaterial();
 
 	TManagedArray<int32>& MaterialIDs = GeometryCollection->MaterialID;
 
@@ -912,19 +921,6 @@ void UGeometryCollection::Serialize(FArchive& Ar)
 	if ((bIsCookedOrCooking && Ar.IsSaving()) || (Ar.IsCountingMemory() && Ar.IsFilterEditorOnly()))
 	{
 #if WITH_EDITOR
-		if (bIsCookedOrCooking && Ar.IsSaving())
-		{
-			// if we have a valid selection material, let's make sure we replace it with one that will be cooked
-			// this avoid getting warning about the selected material being reference but not cooked
-			const int32 SelectedMaterialIndex = GetBoneSelectedMaterialIndex();
-			if (!Materials.IsEmpty() && Materials.IsValidIndex(SelectedMaterialIndex))
-			{
-				Materials[SelectedMaterialIndex] = Materials[0];
-			}
-			// Likewise remove the direct reference to the BoneSelectedMaterial on cook
-			BoneSelectedMaterial = nullptr;
-		}
-
 		if (bStripOnCook)
 		{
 			// TODO: Since non-nanite path now stores mesh data in cooked build we may be able to unify 
@@ -1220,13 +1216,8 @@ void UGeometryCollection::Serialize(FArchive& Ar)
 
 	if (Ar.IsLoading() && !bIsCookedOrCooking && BoneSelectedMaterialIndex != INDEX_NONE)
 	{
-		BoneSelectedMaterial = LoadObject<UMaterialInterface>(nullptr, GetSelectedMaterialPath(), nullptr, LOAD_None, nullptr);
 		if (Materials.IsValidIndex(BoneSelectedMaterialIndex))
 		{
-			if (!BoneSelectedMaterial)
-			{
-				BoneSelectedMaterial = Materials[BoneSelectedMaterialIndex];
-			}
 			// Remove the material assuming it's the last in the list (otherwise, leave it, as it's not clear why it would be in that state)
 			if (BoneSelectedMaterialIndex == Materials.Num() - 1)
 			{

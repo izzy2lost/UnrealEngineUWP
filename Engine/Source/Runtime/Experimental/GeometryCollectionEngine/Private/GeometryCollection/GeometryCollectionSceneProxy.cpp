@@ -170,14 +170,6 @@ FGeometryCollectionSceneProxy::FGeometryCollectionSceneProxy(UGeometryCollection
 		{
 			BoneSelectedMaterial = Component->GetRestCollection()->GetBoneSelectedMaterial();
 		}
-		if (!BoneSelectedMaterial)
-		{
-			int32 LegacyBoneMaterialID = Component->GetBoneSelectedMaterialID();
-			if (Materials.IsValidIndex(LegacyBoneMaterialID))
-			{
-				BoneSelectedMaterial = Materials[LegacyBoneMaterialID];
-			}
-		}
 		if (BoneSelectedMaterial && !BoneSelectedMaterial->CheckMaterialUsage_Concurrent(MATUSAGE_GeometryCollections))
 		{
 			// If we have an invalid BoneSelectedMaterial, switch it back to null to skip its usage in GetDynamicMeshElements below
