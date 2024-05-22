@@ -155,7 +155,7 @@ void FMetalEventNodeFrame::LogDisjointQuery()
 FGPUProfilerEventNode* FMetalGPUProfiler::CreateEventNode(const TCHAR* InName, FGPUProfilerEventNode* InParent)
 {
 #if ENABLE_METAL_GPUPROFILE
-	FMetalEventNode* EventNode = new FMetalEventNode(FMetalContext::GetCurrentContext(), InName, InParent, false, false);
+	FMetalEventNode* EventNode = new FMetalEventNode(Context, InName, InParent, false, false);
 	return EventNode;
 #else
 	return nullptr;

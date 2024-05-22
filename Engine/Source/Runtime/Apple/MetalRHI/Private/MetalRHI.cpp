@@ -1244,14 +1244,10 @@ void FMetalRHICommandContext::RHIEndFrame()
 
 void FMetalRHICommandContext::RHIBeginScene()
 {
-    MTL_SCOPED_AUTORELEASE_POOL;
-	((FMetalDeviceContext*)Context)->BeginScene();
 }
 
 void FMetalRHICommandContext::RHIEndScene()
 {
-    MTL_SCOPED_AUTORELEASE_POOL;
-	((FMetalDeviceContext*)Context)->EndScene();
 }
 
 #if WITH_RHI_BREADCRUMBS

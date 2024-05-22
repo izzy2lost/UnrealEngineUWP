@@ -444,11 +444,7 @@ void FMetalDeviceContext::Init(void)
 }
 
 void FMetalDeviceContext::BeginFrame()
-{
-#if ENABLE_METAL_GPUPROFILE
-	FPlatformTLS::SetTlsValue(CurrentContextTLSSlot, this);
-#endif
-	
+{	
 	// Wait for the frame semaphore on the immediate context.
 	dispatch_semaphore_wait(CommandBufferSemaphore, DISPATCH_TIME_FOREVER);
 
@@ -595,22 +591,8 @@ void FMetalDeviceContext::EndFrame()
 	InitFrame();
 }
 
-void FMetalDeviceContext::BeginScene()
-{
-#if ENABLE_METAL_GPUPROFILE
-	FPlatformTLS::SetTlsValue(CurrentContextTLSSlot, this);
-#endif
-}
-
-void FMetalDeviceContext::EndScene()
-{
-}
-
 void FMetalDeviceContext::BeginDrawingViewport(FMetalViewport* Viewport)
 {
-#if ENABLE_METAL_GPUPROFILE
-	FPlatformTLS::SetTlsValue(CurrentContextTLSSlot, this);
-#endif
 }
 
 bool FMetalDeviceContext::FMetalDelayedFreeList::IsComplete() const
@@ -925,11 +907,6 @@ bool FMetalDeviceContext::ValidateIsInactiveBuffer(MTL::Buffer* Buffer, const NS
 }
 #endif
 
-
-#if ENABLE_METAL_GPUPROFILE
-uint32 FMetalContext::CurrentContextTLSSlot = FPlatformTLS::AllocTlsSlot();
-#endif
-
 FMetalContext::FMetalContext(MTL::Device* InDevice, FMetalCommandQueue& Queue)
 	: Device(InDevice)
 	, CommandQueue(Queue)
@@ -976,37 +953,8 @@ void FMetalContext::InsertCommandBufferFence(TSharedPtr<FMetalCommandBufferFence
 	RenderPass.InsertCommandBufferFence(Fence, Handler);
 }
 
-#if ENABLE_METAL_GPUPROFILE
-FMetalContext* FMetalContext::GetCurrentContext()
-{
-	FMetalContext* Current = (FMetalContext*)FPlatformTLS::GetTlsValue(CurrentContextTLSSlot);
-	
-	if (!Current)
-	{
-		// If we are executing this outside of a pass we'll return the default.
-		// TODO This needs further investigation. We should fix all the cases that call this without
-		// a context set.
-		FMetalRHICommandContext* CmdContext = static_cast<FMetalRHICommandContext*>(RHIGetDefaultContext());
-		check(CmdContext);
-		Current = &CmdContext->GetInternalContext();
-	}
-	
-	check(Current);
-	return Current;
-}
-
-void FMetalContext::MakeCurrent(FMetalContext* Context)
-{
-	FPlatformTLS::SetTlsValue(CurrentContextTLSSlot, Context);
-}
-#endif
-
 void FMetalContext::InitFrame()
-{
-#if ENABLE_METAL_GPUPROFILE
-	FPlatformTLS::SetTlsValue(CurrentContextTLSSlot, this);
-#endif
-	
+{	
 	// Reset cached state in the encoder
 	StateCache.Reset();
 	
@@ -1035,10 +983,6 @@ void FMetalContext::FinishFrame(bool const bImmediateContext)
 	{
 		StateCache.Reset();
 	}
-
-#if ENABLE_METAL_GPUPROFILE
-	FPlatformTLS::SetTlsValue(CurrentContextTLSSlot, nullptr);
-#endif
 }
 
 void FMetalContext::TransitionResource(FRHIUnorderedAccessView* InResource)

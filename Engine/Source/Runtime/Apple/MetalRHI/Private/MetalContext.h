@@ -111,11 +111,6 @@ public:
 
 	void StartTiming(class FMetalEventNode* EventNode);
 	void EndTiming(class FMetalEventNode* EventNode);
-
-#if ENABLE_METAL_GPUPROFILE
-	static void MakeCurrent(FMetalContext* Context);
-	static FMetalContext* GetCurrentContext();
-#endif
 	
 	void InitFrame();
 	void FinishFrame(bool const bImmediateContext);
@@ -147,11 +142,6 @@ protected:
 	
 	/** A pool of buffers for writing visibility query results. */
 	TSharedPtr<FMetalQueryBufferPool, ESPMode::ThreadSafe> QueryBuffer;
-	
-#if ENABLE_METAL_GPUPROFILE
-	/** the slot to store a per-thread context ref */
-	static uint32 CurrentContextTLSSlot;
-#endif
 	
 	/** Whether the validation layer is enabled */
 	bool bValidationEnabled;
@@ -192,11 +182,6 @@ public:
 	void ClearFreeList();
 	void DrainHeap();
 	void EndFrame();
-	
-	/** RHIBeginScene helper */
-	void BeginScene();
-	/** RHIEndScene helper */
-	void EndScene();
 	
 	void BeginDrawingViewport(FMetalViewport* Viewport);
 	void EndDrawingViewport(IRHICommandContext& RHICmdContext, FMetalViewport* Viewport, bool bPresent, bool bLockToVsync);

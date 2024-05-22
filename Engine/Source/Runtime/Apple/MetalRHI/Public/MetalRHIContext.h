@@ -74,17 +74,9 @@ public:
 	// This method is queued with an RHIThread, otherwise it will flush after it is queued; without an RHI thread there is no benefit to queuing this frame advance commands
 	virtual void RHIEndFrame() override;
 	
-	/**
-		* Signals the beginning of scene rendering. The RHI makes certain caching assumptions between
-		* calls to BeginScene/EndScene. Currently the only restriction is that you can't update texture
-		* references.
-		*/
 	// This method is queued with an RHIThread, otherwise it will flush after it is queued; without an RHI thread there is no benefit to queuing this frame advance commands
 	virtual void RHIBeginScene() override;
-	
-	/**
-		* Signals the end of scene rendering. See RHIBeginScene.
-		*/
+
 	// This method is queued with an RHIThread, otherwise it will flush after it is queued; without an RHI thread there is no benefit to queuing this frame advance commands
 	virtual void RHIEndScene() override;
 	
