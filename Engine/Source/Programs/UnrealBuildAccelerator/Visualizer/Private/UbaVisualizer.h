@@ -69,6 +69,8 @@ namespace uba
 		void GetTitlePrefix(StringBufferBase& out);
 		void ThreadLoop();
 		void Pause(bool pause);
+		void StartDragToScroll(const POINT& anchor);
+		void StopDragToScroll();
 
 		StringBuffer<256> m_namedTrace;
 		StringBuffer<256> m_fileName;
@@ -179,7 +181,7 @@ namespace uba
 		POINT m_mouseAnchor = {};
 		float m_scrollAtAnchorX = 0;
 		float m_scrollAtAnchorY = 0;
-		bool m_middleMouseDown = false;
+		int m_dragToScrollCounter = 0;
 
 		Thread m_thread;
 
