@@ -90,7 +90,8 @@ namespace Metasound
 			Info.PromptIfMissing = PluginNodeMissingPrompt;
 			Info.DefaultInterface = DeclareVertexInterface();
 			Info.CategoryHierarchy.Emplace(NodeCategories::Debug);
-
+			Info.Keywords = { METASOUND_LOCTEXT("WaveInfoNode_DurationKeyword", "Duration"), METASOUND_LOCTEXT("WaveInfoNode_NameKeyword", "Name"), METASOUND_LOCTEXT("WaveInfoNode_PathKeyword", "Path") };
+			
 			return Info;
 		};
 
