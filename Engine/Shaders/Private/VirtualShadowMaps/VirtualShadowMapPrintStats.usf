@@ -63,17 +63,21 @@ StructuredBuffer<FNaniteStats> NaniteStats;
 
 void SendStatsMessage()
 {
-	FGPUMessageWriter Mw = GPUMessageBegin(StatsMessageId, 3U + (MAX_PAGE_AREA_DIAGNOSTIC_SLOTS * 2U));
+	FGPUMessageWriter Mw = GPUMessageBegin(StatsMessageId, 2U  + VSM_STAT_NUM + (MAX_PAGE_AREA_DIAGNOSTIC_SLOTS * 2U));
 
 	// Culling stats
 	GPUMessageWriteItem(Mw, NaniteStats[0].NumTris);
 	GPUMessageWriteItem(Mw, NaniteStats[0].NumMainInstancesPostCull);
-	GPUMessageWriteItem(Mw, InStatsBuffer[VSM_STAT_NON_NANITE_INSTANCES_DRAWN]);
+
+	for (int Stat = 0; Stat < VSM_STAT_NUM; ++Stat)
+	{
+		GPUMessageWriteItem(Mw, InStatsBuffer[Stat]);
+	}
 
 	// Large page area instances
 	for (uint Index = 0; Index < MAX_PAGE_AREA_DIAGNOSTIC_SLOTS * 2U; ++Index)
 	{
-		GPUMessageWriteItem(Mw, InStatsBuffer[VSM_NUM_STATS + Index]);
+		GPUMessageWriteItem(Mw, InStatsBuffer[VSM_STAT_NUM + Index]);
 	}
 }
 
@@ -131,6 +135,12 @@ void LogVirtualSmStatsCS()
 		Print(Context, TEXT("Cleared"), FontWhite);
 		Context.Pos.x = ValueX;
 		PrintLeftAlign(Context, InStatsBuffer[VSM_STAT_NUM_PAGES_TO_CLEAR]);
+		Newline(Context);
+
+		Context.Pos.x = ItemX;
+		Print(Context, TEXT("Tmp1"), FontWhite);
+		Context.Pos.x = ValueX;
+		PrintLeftAlign(Context, InStatsBuffer[VSM_STAT_TMP_1]);
 		Newline(Context);
 
 		Context.Pos.x = ItemX;

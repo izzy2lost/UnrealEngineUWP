@@ -414,12 +414,12 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 			{
 				uint PrevArea = 0U;
 				// Store these after the stats slots
-				InterlockedMax(OutStatsBuffer[VSM_NUM_STATS + 2U * Index], TotalPageArea, PrevArea);
+				InterlockedMax(OutStatsBuffer[VSM_STAT_NUM + 2U * Index], TotalPageArea, PrevArea);
 				// If the area was greater then we store the persistent Primitive ID after the area.
 				// This obviously has a data race, so numbers & IDs will only be approximately correct, could use 64-bit atomics instead...
 				if (PrevArea < TotalPageArea)
 				{
-					OutStatsBuffer[VSM_NUM_STATS + 2U * Index + 1U] = PrimitiveData.PersistentPrimitiveIndex;
+					OutStatsBuffer[VSM_STAT_NUM + 2U * Index + 1U] = PrimitiveData.PersistentPrimitiveIndex;
 					break;
 				}
 			}

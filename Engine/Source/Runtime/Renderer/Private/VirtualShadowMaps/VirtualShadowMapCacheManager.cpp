@@ -133,6 +133,35 @@ FAutoConsoleVariableRef CVarVSMNewInvalidations(
 	ECVF_RenderThreadSafe
 );
 
+static const char *VirtualShadowMap_StatNames[] = 
+{
+	"REQUESTED_THIS_FRAME_PAGES",
+	"STATIC_CACHED_PAGES",
+	"STATIC_INVALIDATED_PAGES",
+	"DYNAMIC_CACHED_PAGES",
+	"DYNAMIC_INVALIDATED_PAGES",
+	"EMPTY_PAGES",
+	"NON_NANITE_INSTANCES_TOTAL",
+	"NON_NANITE_INSTANCES_DRAWN",
+	"NON_NANITE_INSTANCES_HZB_CULLED",
+	"NON_NANITE_INSTANCES_PAGE_MASK_CULLED",
+	"NON_NANITE_INSTANCES_EMPTY_RECT_CULLED",
+	"NON_NANITE_INSTANCES_FRUSTUM_CULLED",
+	"NUM_PAGES_TO_MERGE",
+	"NUM_PAGES_TO_CLEAR",
+	"NUM_HZB_PAGES_BUILT",
+	"ALLOCATED_NEW",
+	"NANITE_TRIANGLES",
+	"NANITE_INSTANCES_MAIN",
+	"NANITE_INSTANCES_POST",
+	"WPO_CONSIDERED_PAGES",
+	"TMP_1",
+	"TMP_2",
+	"TMP_3",
+};
+static_assert(UE_ARRAY_COUNT(VirtualShadowMap_StatNames) == VSM_STAT_NUM, "Stat text name array length mismatch!");
+
+
 namespace Nanite
 {
 	extern bool IsStatFilterActive(const FString& FilterName);
@@ -655,11 +684,37 @@ void FVirtualShadowMapArrayCacheManager::InitExtension(FScene& InScene)
 		// Culling stats
 		int32 NaniteNumTris = Message.Read<int32>(0);
 		int32 NanitePostCullNodeCount = Message.Read<int32>(0);
-		int32 NonNanitePostCullInstanceCount = Message.Read<int32>(0);
+
+		TConstArrayView<uint32> Stats = Message.ReadCount(VSM_STAT_NUM);
 
 		CSV_CUSTOM_STAT(VSM, NaniteNumTris, NaniteNumTris, ECsvCustomStatOp::Set);
 		CSV_CUSTOM_STAT(VSM, NanitePostCullNodeCount, NanitePostCullNodeCount, ECsvCustomStatOp::Set);
-		CSV_CUSTOM_STAT(VSM, NonNanitePostCullInstanceCount, NonNanitePostCullInstanceCount, ECsvCustomStatOp::Set);
+#if CSV_PROFILER
+		CSV_CUSTOM_STAT(VSM, NonNanitePostCullInstanceCount, int32(Stats[VSM_STAT_NON_NANITE_INSTANCES_DRAWN]), ECsvCustomStatOp::Set);
+
+		if (FCsvProfiler::Get()->IsCapturing_Renderthread())
+		{
+			static bool bRegisteredInlineStats = false;
+			auto StatCatIndex = CSV_CATEGORY_INDEX(VSM);
+			if (FCsvProfiler::Get()->IsCategoryEnabled(StatCatIndex))
+			{
+				for (int32 StatIndex = 0; StatIndex < UE_ARRAY_COUNT(VirtualShadowMap_StatNames); ++StatIndex)
+				{
+					const char *StatName = VirtualShadowMap_StatNames[StatIndex];
+#if CSVPROFILERTRACE_ENABLED
+					if (!bRegisteredInlineStats)
+					{
+						FCsvProfilerTrace::OutputInlineStat(StatName, StatCatIndex);
+					}
+#endif
+					FCsvProfiler::RecordCustomStat(StatName, StatCatIndex, int32(Stats[StatIndex]), ECsvCustomStatOp::Set);
+				}
+				bRegisteredInlineStats = true;
+			}
+		}
+#endif
+
+
 
 		// Large page area items
 		LastLoggedPageOverlapAppTime.SetNumZeroed(Scene->GetMaxPersistentPrimitiveIndex());
@@ -1018,7 +1073,6 @@ public:
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, InStatsBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FNaniteStats>, NaniteStatsBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, AccumulatedStatsBufferOut)
-		SHADER_PARAMETER(uint32, NumStats)
 	END_SHADER_PARAMETER_STRUCT()
 	
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -1137,7 +1191,7 @@ void FVirtualShadowMapArrayCacheManager::ExtractStats(FRDGBuilder& GraphBuilder,
 	{
 		if (!AccumulatedStatsBuffer.IsValid())
 		{
-			FRDGBufferDesc Desc = FRDGBufferDesc::CreateBufferDesc(4, 1 + FVirtualShadowMapArray::NumStats * MaxStatFrames);
+			FRDGBufferDesc Desc = FRDGBufferDesc::CreateBufferDesc(4, 1 + VSM_STAT_NUM * MaxStatFrames);
 			Desc.Usage = EBufferUsageFlags(Desc.Usage | BUF_SourceCopy);
 
 			AccumulatedStatsBufferRDG = GraphBuilder.CreateBuffer(Desc, TEXT("Shadow.Virtual.AccumulatedStatsBuffer"));	// TODO: Can't be a structured buffer as EnqueueCopy is only defined for vertex buffers
@@ -1156,7 +1210,6 @@ void FVirtualShadowMapArrayCacheManager::ExtractStats(FRDGBuilder& GraphBuilder,
 
 		PassParameters->InStatsBuffer = GraphBuilder.CreateSRV(VirtualShadowMapArray.StatsBufferRDG, PF_R32_UINT);
 		PassParameters->AccumulatedStatsBufferOut = GraphBuilder.CreateUAV(AccumulatedStatsBufferRDG, PF_R32_UINT);
-		PassParameters->NumStats = FVirtualShadowMapArray::NumStats;
 
 		// Dummy data
 		PassParameters->NaniteStatsBuffer = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer<FNaniteStats>(GraphBuilder));
@@ -1198,10 +1251,10 @@ void FVirtualShadowMapArrayCacheManager::ExtractStats(FRDGBuilder& GraphBuilder,
 	if (GPUBufferReadback && GPUBufferReadback->IsReady())
 	{
 		TArray<uint32> Tmp;
-		Tmp.AddDefaulted(1 + FVirtualShadowMapArray::NumStats * MaxStatFrames);
+		Tmp.AddDefaulted(1 + VSM_STAT_NUM * MaxStatFrames);
 
 		{
-			const uint32* BufferPtr = (const uint32*)GPUBufferReadback->Lock((1 + FVirtualShadowMapArray::NumStats * MaxStatFrames) * sizeof(uint32));
+			const uint32* BufferPtr = (const uint32*)GPUBufferReadback->Lock((1 + VSM_STAT_NUM * MaxStatFrames) * sizeof(uint32));
 			FPlatformMemory::Memcpy(Tmp.GetData(), BufferPtr, Tmp.Num() * Tmp.GetTypeSize());
 			GPUBufferReadback->Unlock();
 
@@ -1219,45 +1272,15 @@ void FVirtualShadowMapArrayCacheManager::ExtractStats(FRDGBuilder& GraphBuilder,
 		ensure(FileToLogTo);
 		if (FileToLogTo)
 		{
-			static const FString StatNames[] =
-			{
-				TEXT("Requested"),
-				TEXT("StaticCached"),
-				TEXT("StaticInvalidated"),
-				TEXT("DynamicCached"),
-				TEXT("DynamicInvalidated"),
-				TEXT("Empty"),
-				TEXT("NonNaniteInstances"),
-				TEXT("NonNaniteInstancesDrawn"),
-				TEXT("NonNaniteInstancesHZBCulled"),
-				TEXT("NonNaniteInstancesPageMaskCulled"),
-				TEXT("NonNaniteInstancesEmptyRectCulled"),
-				TEXT("NonNaniteInstancesFrustumCulled"),
-				TEXT("Merged"),
-				TEXT("Cleared"),
-				TEXT("HZBBuilt"),
-				TEXT("AllocatedNew"),
-				TEXT("NaniteTriangles"),
-				TEXT("NaniteInstancesMain"),
-				TEXT("NaniteInstancesPost"),
-			};
-
 			// Print header
 			FString StringToPrint;
-			for (int32 Index = 0; Index < FVirtualShadowMapArray::NumStats; ++Index)
+			for (int32 Index = 0; Index < VSM_STAT_NUM; ++Index)
 			{
 				if (!StringToPrint.IsEmpty())
 				{
 					StringToPrint += TEXT(",");
 				}
-				if (Index < int32(UE_ARRAY_COUNT(StatNames)))
-				{
-					StringToPrint.Append(StatNames[Index]);
-				}
-				else
-				{
-					StringToPrint.Appendf(TEXT("Stat_%d"), Index);
-				}
+				StringToPrint.Append(VirtualShadowMap_StatNames[Index]);
 			}
 
 			StringToPrint += TEXT("\n");
@@ -1267,14 +1290,14 @@ void FVirtualShadowMapArrayCacheManager::ExtractStats(FRDGBuilder& GraphBuilder,
 			{
 				StringToPrint.Empty();
 
-				for (uint32 StatInd = 0; StatInd < FVirtualShadowMapArray::NumStats; ++StatInd)
+				for (uint32 StatInd = 0; StatInd < VSM_STAT_NUM; ++StatInd)
 				{
 					if (!StringToPrint.IsEmpty())
 					{
 						StringToPrint += TEXT(",");
 					}
 
-					StringToPrint += FString::Printf(TEXT("%d"), Tmp[1 + Ind * FVirtualShadowMapArray::NumStats + StatInd]);
+					StringToPrint += FString::Printf(TEXT("%d"), Tmp[1 + Ind * VSM_STAT_NUM + StatInd]);
 				}
 
 				StringToPrint += TEXT("\n");
