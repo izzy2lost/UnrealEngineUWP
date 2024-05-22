@@ -559,6 +559,40 @@ struct FNaniteTraversalClusterCullCallback
 #endif
 	}
 
+	void EmitVisibleCluster(bool bUseHWRaster, uint2 TotalPrevDrawClusters, uint HWClusterCounterIndex, FVisibleCluster VisibleCluster)
+	{
+		if (bUseHWRaster)
+		{
+			uint ClusterOffsetHW = 0;
+			WaveInterlockedAddScalar_(VisibleClustersArgsSWHW[HWClusterCounterIndex], 1, ClusterOffsetHW);
+
+			uint VisibleClusterOffsetHW = ClusterOffsetHW;
+			VisibleClusterOffsetHW += TotalPrevDrawClusters.y;
+#if CULLING_PASS == CULLING_PASS_OCCLUSION_POST
+			VisibleClusterOffsetHW += OffsetClustersArgsSWHW[HWClusterCounterIndex];
+#endif
+			if (VisibleClusterOffsetHW < MaxVisibleClusters)
+			{
+				StoreVisibleCluster(OutVisibleClustersSWHW, (MaxVisibleClusters - 1) - VisibleClusterOffsetHW, VisibleCluster, VIRTUAL_TEXTURE_TARGET);	// HW clusters written from the top
+			}
+		}
+		else
+		{
+			uint ClusterOffsetSW = 0;
+			WaveInterlockedAddScalar_(VisibleClustersArgsSWHW[0], 1, ClusterOffsetSW);
+
+			uint VisibleClusterOffsetSW = ClusterOffsetSW;
+			VisibleClusterOffsetSW += TotalPrevDrawClusters.x;
+#if CULLING_PASS == CULLING_PASS_OCCLUSION_POST
+			VisibleClusterOffsetSW += OffsetClustersArgsSWHW[0];
+#endif
+			if (VisibleClusterOffsetSW < MaxVisibleClusters)
+			{
+				StoreVisibleCluster(OutVisibleClustersSWHW, VisibleClusterOffsetSW, VisibleCluster, VIRTUAL_TEXTURE_TARGET);	// SW clusters written from the bottom
+			}
+		}	
+	}
+
 	void ProcessCluster(uint4 PackedCluster)
 	{
 		FVisibleCluster VisibleCluster = UnpackVisibleCluster(PackedCluster, false);
@@ -655,183 +689,73 @@ struct FNaniteTraversalClusterCullCallback
 		if( CULLING_PASS != CULLING_PASS_OCCLUSION_MAIN )
 			Cull.bIsVisible &= !Cull.bWasOccluded;
 
-#if VIRTUAL_TEXTURE_TARGET
-		uint4 RectPages = Cull.RectPages;
-
-	#if DEBUG_FLAGS
-		uint PageRectArea = GetInclusiveRectArea(RectPages);
-		if (PageRectArea >= LargePageRectThreshold)
-		{
-			WaveInterlockedAddScalar(OutStatsBuffer[0].NumLargePageRectClusters, 1);
-		}
-	#endif
-
-		uint NumClustersToEmit = 0;
-		FVirtualSMLevelOffset PageTableLevelOffset = (FVirtualSMLevelOffset)0;
 		if (Cull.bIsVisible)
 		{
-			PageTableLevelOffset = CalcPageTableLevelOffset(NaniteView.TargetLayerIndex, NaniteView.TargetMipLevel);
-
-			// Clip rect to the mapped pages.
-			uint4 RectPagesMapped = RectPages.zwxy;
-			for (uint Y = RectPages.y; Y <= RectPages.w; ++Y)
-			{
-				for (uint X = RectPages.x; X <= RectPages.z; ++X)
-				{
-					uint2 vPage = uint2(X, Y);
-					uint PageFlagOffset = CalcPageOffset(PageTableLevelOffset, NaniteView.TargetMipLevel, vPage);
-					uint PageFlag = VirtualShadowMap.PageFlags[PageFlagOffset];
-					if ((PageFlag & Cull.PageFlagMask) != 0)
-					{
-						// Always mark it dirty in case we might start animating in future frames
-						if (VirtualShadowMap.bNewInvalidations || !Cull.bWasOccluded)
-						{
-							VirtualShadowMapMarkPageDirty(PageFlagOffset, bInvalidatePages, bCacheAsStatic, Cull.bIsViewUncached, bWPOAllowed);
-						}
-						if (VirtualShadowMap.bNewInvalidations)
-						{
-							FShadowPhysicalPage PhysicalPageEntry = ShadowGetPhysicalPage(PageFlagOffset);
-							if (!PhysicalPageEntry.bThisLODValidForRendering)
-							{
-								// Skip this page
-								continue;
-							}
-						}
-						RectPagesMapped.xy = min(RectPagesMapped.xy, vPage);
-						RectPagesMapped.zw = max(RectPagesMapped.zw, vPage);
-						++NumClustersToEmit;
-					}
-				}
-			}
-			RectPages = RectPagesMapped;
-
-			if (NumClustersToEmit == 0)
-			{
-				Cull.bIsVisible = false;
-			}
-
-			if ((bUseHWRaster || NANITE_LATE_VSM_PAGE_TRANSLATION) && all(RectPages.xy <= RectPages.zw))
-			{
-				uint WindowSize = bUseHWRaster ? VSM_RASTER_WINDOW_PAGES : NANITE_VSM_PAGE_TABLE_CACHE_DIM;
-				uint2 MacroTiles = (RectPages.zw - RectPages.xy) / WindowSize + 1;
-				NumClustersToEmit = MacroTiles.x * MacroTiles.y;
-			}
-		}
-#endif
-
-		uint ClusterOffsetHW = 0;
-		uint ClusterOffsetSW = 0;
-
-		BRANCH
-		if (Cull.bIsVisible && !Cull.bWasOccluded)
-		{
-#if VIRTUAL_TEXTURE_TARGET
-			// Need full size counters
-			if (bUseHWRaster)
-			{
-				WaveInterlockedAdd_(VisibleClustersArgsSWHW[HWClusterCounterIndex], NumClustersToEmit, ClusterOffsetHW);
-			}
-			else
-			{
-				WaveInterlockedAdd_(VisibleClustersArgsSWHW[0], NumClustersToEmit, ClusterOffsetSW);
-			}
-#else
-			if (bUseHWRaster)
-			{
-				WaveInterlockedAddScalar_(VisibleClustersArgsSWHW[HWClusterCounterIndex], 1, ClusterOffsetHW);
-			}
-			else
-			{
-				WaveInterlockedAddScalar_(VisibleClustersArgsSWHW[0], 1, ClusterOffsetSW);
-			}
-#endif
-		}
-
-		if (Cull.bIsVisible)
-		{
-			const uint2 TotalPrevDrawClusters = (RenderFlags & NANITE_RENDER_FLAG_HAS_PREV_DRAW_DATA) ? InTotalPrevDrawClusters[0] : 0;
-
 			if (!Cull.bWasOccluded)
 			{
+				const uint2 TotalPrevDrawClusters = (RenderFlags & NANITE_RENDER_FLAG_HAS_PREV_DRAW_DATA) ? InTotalPrevDrawClusters[0] : 0;
 #if VIRTUAL_TEXTURE_TARGET
+				uint4 RectPages = Cull.RectPages;
 
-				uint VisibleClusterOffsetHW = ClusterOffsetHW;
-				VisibleClusterOffsetHW += TotalPrevDrawClusters.y;
-#if CULLING_PASS == CULLING_PASS_OCCLUSION_POST
-				VisibleClusterOffsetHW += OffsetClustersArgsSWHW[HWClusterCounterIndex];
+#if DEBUG_FLAGS
+				uint PageRectArea = GetInclusiveRectArea(RectPages);
+				if (PageRectArea >= LargePageRectThreshold)
+				{
+					WaveInterlockedAddScalar(OutStatsBuffer[0].NumLargePageRectClusters, 1);
+				}
 #endif
-
-				uint VisibleClusterOffsetSW = ClusterOffsetSW;
-				VisibleClusterOffsetSW += TotalPrevDrawClusters.x;
-#if CULLING_PASS == CULLING_PASS_OCCLUSION_POST
-				VisibleClusterOffsetSW += OffsetClustersArgsSWHW[0];
-#endif
-
-				uint ClusterIndex;
-				if (bUseHWRaster)
-					ClusterIndex = MaxVisibleClusters - VisibleClusterOffsetHW - NumClustersToEmit;	// HW clusters written from the top
-				else
-					ClusterIndex = VisibleClusterOffsetSW;	// SW clusters written from the bottom
+				FVirtualSMLevelOffset PageTableLevelOffset = CalcPageTableLevelOffset(NaniteView.TargetLayerIndex, NaniteView.TargetMipLevel);
 
 				uint WindowSize = bUseHWRaster ? VSM_RASTER_WINDOW_PAGES : (NANITE_LATE_VSM_PAGE_TRANSLATION ? NANITE_VSM_PAGE_TABLE_CACHE_DIM : 1);
-				for (uint y = RectPages.y; y <= RectPages.w; y += WindowSize)
+				for (uint WY = RectPages.y; WY <= RectPages.w; WY += WindowSize)
 				{
-					for (uint x = RectPages.x; x <= RectPages.z; x += WindowSize)
+					for (uint WX = RectPages.x; WX <= RectPages.z; WX += WindowSize)
 					{
-						if (!bUseHWRaster && !NANITE_LATE_VSM_PAGE_TRANSLATION)
+						uint2 WindowEnd = min(uint2(WX, WY) + WindowSize - 1u, RectPages.zw);
+						bool bEmitForWindow = false;
+						
+						// Clip window rect to the mapped pages.
+						uint4 ClippedWindowRect = uint4(WindowEnd, uint2(WX, WY));
+
+						for (uint Y = WY; Y <= WindowEnd.y; ++Y)
 						{
-							uint PageFlagOffset = CalcPageOffset(PageTableLevelOffset, NaniteView.TargetMipLevel, uint2(x, y));
-							uint PageFlag = VirtualShadowMap.PageFlags[PageFlagOffset];
-							if ((PageFlag & Cull.PageFlagMask) == 0)
+							for (uint X = WX; X <= WindowEnd.x; ++X)
 							{
-								continue;
-							}
-							if (VirtualShadowMap.bNewInvalidations)
-							{
-								FShadowPhysicalPage PhysicalPageEntry = ShadowGetPhysicalPage(PageFlagOffset);
-								if (!PhysicalPageEntry.bThisLODValidForRendering)
+								uint2 vPage = uint2(X, Y);
+								uint PageFlagOffset = CalcPageOffset(PageTableLevelOffset, NaniteView.TargetMipLevel, vPage);
+								uint PageFlag = VirtualShadowMap.PageFlags[PageFlagOffset];
+								if ((PageFlag & Cull.PageFlagMask) != 0)
 								{
-									// Skip this page
-									continue;
+									VirtualShadowMapMarkPageDirty(PageFlagOffset, bInvalidatePages, bCacheAsStatic, Cull.bIsViewUncached, bWPOAllowed);
+
+									if (VirtualShadowMap.bNewInvalidations)
+									{
+										FShadowPhysicalPage PhysicalPageEntry = ShadowGetPhysicalPage(PageFlagOffset);
+										if (!PhysicalPageEntry.bThisLODValidForRendering)
+										{
+											// Skip this page
+											continue;
+										}
+									}
+
+									ClippedWindowRect.xy = min(ClippedWindowRect.xy, vPage);
+									ClippedWindowRect.zw = max(ClippedWindowRect.zw, vPage);
+
+									bEmitForWindow = true;
 								}
 							}
 						}
-						// TODO: Do we need to skip pages based on the PhysicalPageEntry.bThisLODValidForRendering check here too?
-						// But again this is for the entire window, so gets a bit tricky.
-						// Possible to overflow if we don't?
-						VisibleCluster.vPage = uint2(x, y);
-						VisibleCluster.vPageEnd = min(WindowSize - 1 + VisibleCluster.vPage, RectPages.zw);
-						if (ClusterIndex < MaxVisibleClusters)
+						if (bEmitForWindow)
 						{
-							StoreVisibleCluster(OutVisibleClustersSWHW, ClusterIndex++, VisibleCluster, VIRTUAL_TEXTURE_TARGET);
+							// if bEmitForWindow is true we're guaranteed to have set this to a valid rect.
+							VisibleCluster.vPage = ClippedWindowRect.xy;
+							VisibleCluster.vPageEnd = ClippedWindowRect.zw;
+							EmitVisibleCluster(bUseHWRaster, TotalPrevDrawClusters, HWClusterCounterIndex, VisibleCluster);
 						}
 					}
 				}
 #else
-				if (bUseHWRaster)
-				{
-					uint VisibleClusterOffsetHW = ClusterOffsetHW;
-					VisibleClusterOffsetHW += TotalPrevDrawClusters.y;
-#if CULLING_PASS == CULLING_PASS_OCCLUSION_POST
-					VisibleClusterOffsetHW += OffsetClustersArgsSWHW[HWClusterCounterIndex];
-#endif
-					if (VisibleClusterOffsetHW < MaxVisibleClusters)
-					{
-						StoreVisibleCluster(OutVisibleClustersSWHW, (MaxVisibleClusters - 1) - VisibleClusterOffsetHW, VisibleCluster, VIRTUAL_TEXTURE_TARGET);	// HW clusters written from the top
-					}
-				}
-				else
-				{
-					uint VisibleClusterOffsetSW = ClusterOffsetSW;
-					VisibleClusterOffsetSW += TotalPrevDrawClusters.x;
-#if CULLING_PASS == CULLING_PASS_OCCLUSION_POST
-					VisibleClusterOffsetSW += OffsetClustersArgsSWHW[0];
-#endif
-					if (VisibleClusterOffsetSW < MaxVisibleClusters)
-					{
-						StoreVisibleCluster(OutVisibleClustersSWHW, VisibleClusterOffsetSW, VisibleCluster, VIRTUAL_TEXTURE_TARGET);	// SW clusters written from the bottom
-					}
-				}
+				EmitVisibleCluster(bUseHWRaster, TotalPrevDrawClusters, HWClusterCounterIndex, VisibleCluster);
 #endif
 			}
 #if CULLING_PASS == CULLING_PASS_OCCLUSION_MAIN
