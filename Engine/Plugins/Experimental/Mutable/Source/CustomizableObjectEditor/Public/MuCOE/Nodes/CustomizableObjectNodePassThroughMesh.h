@@ -14,14 +14,14 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodePassThroughMesh : publ
 public:
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, Category = Mesh, Meta = (DisplayName = Mesh))
-	TObjectPtr<class USkeletalMesh> Mesh = nullptr;
+	UPROPERTY(EditAnywhere, Category = Mesh, Meta = (DisplayName = Mesh, AllowedClasses = "/Script/Engine.StaticMesh, /Script/Engine.SkeletalMesh"))
+	FSoftObjectPath Mesh;
 
 	// UCustomizableObjectNodeMesh interface
 	virtual TArray<UCustomizableObjectLayout*> GetLayouts(const UEdGraphPin& OutPin) const override { return {}; }
 	virtual UTexture2D* FindTextureForPin(const UEdGraphPin* Pin) const override { return nullptr; }
 	virtual void GetUVChannelForPin(const UEdGraphPin* Pin, TArray<FVector2f>& OutSegments, int32 UVIndex) const override {}
-	virtual UObject* GetMesh() const override { return Mesh.Get(); }
+	virtual UStreamableRenderAsset* GetMesh() const override { return Cast<UStreamableRenderAsset>(Mesh.TryLoad()); }
 	virtual UEdGraphPin* GetMeshPin(int32 LOD, int32 SectionIndex) const override { return {}; }
 	virtual UEdGraphPin* GetLayoutPin(int32 LODIndex, int32 SectionIndex, int32 LayoutIndex) const override { return {}; }
 	virtual void GetPinSection(const UEdGraphPin& Pin, int32& OutLODIndex, int32& OutSectionIndex, int32& OutLayoutIndex) const override {}

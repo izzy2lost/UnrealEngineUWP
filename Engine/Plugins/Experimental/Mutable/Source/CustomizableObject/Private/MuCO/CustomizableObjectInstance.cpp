@@ -2075,11 +2075,19 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 
 		if (Component.Mesh && Component.Mesh->IsReference())
 		{
-			// TODO: This shouldn't happen here synchronosuly. It should have been requested as an async load.
 			int32 ReferenceID = Component.Mesh->GetReferencedMesh();
 			TSoftObjectPtr<USkeletalMesh> Ref = ModelResources.PassThroughMeshes[ReferenceID];
 
-			SkeletalMeshes[Component.Id] = Ref.LoadSynchronous();
+			if (Ref.IsValid())
+			{
+				SkeletalMeshes[Component.Id] = Ref.Get();
+			}
+			else
+			{
+				// This shouldn't happen here synchronosuly. It should have been requested as an async load.
+				SkeletalMeshes[Component.Id] = Ref.LoadSynchronous();
+			}
+
 			break;
 		}		
 
@@ -5364,6 +5372,11 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 		AssetsToStream.Add(TextureRef.ToSoftObjectPath());
 	}
 
+	for (TSoftObjectPtr<UStreamableRenderAsset>& MeshRef : PassThroughMeshesToLoad)
+	{
+		AssetsToStream.Add(MeshRef.ToSoftObjectPath());
+	}
+
 	TArray<UE::Tasks::FTaskEvent> StreamingCompletionEvents;
 	if (AssetsToStream.Num() > 0)
 	{	
@@ -5807,6 +5820,16 @@ void UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded(UCustomizableObje
 
 	PassThroughTexturesToLoad.Empty();
 
+	LoadedPassThroughMeshesPendingSetMaterial.Empty(PassThroughMeshesToLoad.Num());
+
+	for (TSoftObjectPtr<UStreamableRenderAsset>& MeshRef : PassThroughMeshesToLoad)
+	{
+		ensure(MeshRef.IsValid());
+		LoadedPassThroughMeshesPendingSetMaterial.Add(MeshRef.Get());
+	}
+
+	PassThroughMeshesToLoad.Empty();
+
 	// Only Unload in cooked builds. Unloading them when in the editor will trigger an assert. 
 	if (FPlatformProperties::RequiresCookedData())
 	{
@@ -5966,8 +5989,11 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 
 		const bool bReuseMaterials = !OperationData->MeshChanged[ComponentIndex];
 
+		// If the mesh is not transient, it means it's pass-through so it should use material overrides and not be modified in any way
+		const bool bIsTransientMesh = static_cast<bool>(SkeletalMesh->HasAllFlags(EObjectFlags::RF_Transient));
+
 		// It is not safe to replace the materials of a SkeletalMesh whose resources are initialized. Use overrides instead.
-		const bool bUseOverrideMaterialsOnly = OperationData->bUseMeshCache && SkeletalMesh->GetResourceForRendering()->IsInitialized();
+		const bool bUseOverrideMaterialsOnly = !bIsTransientMesh || (OperationData->bUseMeshCache && SkeletalMesh->GetResourceForRendering()->IsInitialized());
 
 		ComponentsData[ComponentIndex].OverrideMaterials.Reset();
 
@@ -5992,8 +6018,10 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 				continue;
 			}
 
-			TArray<int32>& LODMaterialMap = SkeletalMesh->GetLODInfo(LODIndex)->LODMaterialMap;
-			LODMaterialMap.Reset();
+			if (!bUseOverrideMaterialsOnly && LODIndex < SkeletalMesh->GetLODNum())
+			{
+				SkeletalMesh->GetLODInfo(LODIndex)->LODMaterialMap.Reset();
+			}
 
 			const FMutableRefSkeletalMeshData& RefSkeletalMeshData = ModelResources.ReferenceSkeletalMeshesData[Component.Id];
 
@@ -6004,8 +6032,12 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 				// Reuse MaterialSlot from the previous LOD.
 				if (const int32 MaterialIndex = SurfaceIdToMaterialIndex.Find(Surface.SurfaceId); MaterialIndex != INDEX_NONE)
 				{
-					const int32 LODMaterialIndex = LODMaterialMap.Add(MaterialIndex);
-					SkeletalMesh->GetResourceForRendering()->LODRenderData[LODIndex].RenderSections[SurfaceIndex].MaterialIndex = LODMaterialIndex;
+					if (!bUseOverrideMaterialsOnly)
+					{
+						const int32 LODMaterialIndex = SkeletalMesh->GetLODInfo(LODIndex)->LODMaterialMap.Add(MaterialIndex);
+						SkeletalMesh->GetResourceForRendering()->LODRenderData[LODIndex].RenderSections[SurfaceIndex].MaterialIndex = LODMaterialIndex;
+					}
+
 					continue;
 				}
 
@@ -6034,8 +6066,11 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 
 				SetMeshUVChannelDensity(MaterialSlot.UVChannelData, RefSkeletalMeshData.Settings.DefaultUVChannelDensity);
 
-				const int32 LODMaterialIndex = LODMaterialMap.Add(MaterialSlotIndex);
-				SkeletalMesh->GetResourceForRendering()->LODRenderData[LODIndex].RenderSections[SurfaceIndex].MaterialIndex = LODMaterialIndex;
+				if (!bUseOverrideMaterialsOnly)
+				{
+					const int32 LODMaterialIndex = SkeletalMesh->GetLODInfo(LODIndex)->LODMaterialMap.Add(MaterialSlotIndex);
+					SkeletalMesh->GetResourceForRendering()->LODRenderData[LODIndex].RenderSections[SurfaceIndex].MaterialIndex = LODMaterialIndex;
+				}
 
 				FMutableMaterialPlaceholder MutableMaterialPlaceholder;
 				MutableMaterialPlaceholder.ParentMaterialID = MaterialTemplate->GetUniqueID();
@@ -6488,6 +6523,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 			}
 		}
 
+		if(!bUseOverrideMaterialsOnly)
 		{
 			// Copy data from the FirstGeneratedLOD into the LODs below.
 			for (int32 LODIndex = OperationData->FirstLODAvailable; LODIndex < FirstGeneratedLOD; ++LODIndex)
@@ -6508,10 +6544,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 					}
 				}
 			}
-		}
 
-		if (!bUseOverrideMaterialsOnly)
-		{
 			// Force recreate render state after replacing the materials to avoid a crash in the render pipeline if the old materials are GCed while in use.
 			RecreateRenderStateOnComponent[ComponentIndex] = SkeletalMesh->GetResourceForRendering()->IsInitialized() && SkeletalMesh->GetMaterials() != Materials;
 
@@ -6592,8 +6625,9 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 
 		Exchange(GeneratedTextures, NewGeneratedTextures);
 
-		// All pass-through textures have been set, no need to keep referencing them from the instance
+		// All pass-through textures and meshes have been set, no need to keep referencing them from the instance
 		LoadedPassThroughTexturesPendingSetMaterial.Empty();
+		LoadedPassThroughMeshesPendingSetMaterial.Empty();
 	}
 }
 
@@ -7141,6 +7175,14 @@ void UCustomizableInstancePrivate::RegenerateImportedModels()
 	{
 		if (!SkeletalMesh)
 		{
+			continue;
+		}
+
+		const bool bIsTransientMesh = static_cast<bool>(SkeletalMesh->HasAllFlags(EObjectFlags::RF_Transient));
+
+		if (!bIsTransientMesh)
+		{
+			// This must be a pass-through referenced mesh so don't do anything to it
 			continue;
 		}
 

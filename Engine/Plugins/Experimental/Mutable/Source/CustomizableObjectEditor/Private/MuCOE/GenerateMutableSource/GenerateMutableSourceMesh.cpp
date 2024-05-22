@@ -3480,7 +3480,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 
 	else if (const UCustomizableObjectNodePassThroughMesh* TypedNodePassThroughMesh = Cast<UCustomizableObjectNodePassThroughMesh>(Node))
 	{
-		USkeletalMesh* BaseMesh = TypedNodePassThroughMesh->Mesh;
+		UStreamableRenderAsset* BaseMesh = TypedNodePassThroughMesh->GetMesh();
 		if (BaseMesh)
 		{
 			mu::Ptr<mu::NodeMeshConstant> MeshNode = new mu::NodeMeshConstant();

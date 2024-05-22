@@ -176,6 +176,7 @@ namespace CustomizableObjectSystem::ImplDeprecated
 		UCustomizableInstancePrivate* CustomizableObjectInstancePrivateData = OperationData->Instance->GetPrivate();
 
 		CustomizableObjectInstancePrivateData->PassThroughTexturesToLoad.Empty();
+		CustomizableObjectInstancePrivateData->PassThroughMeshesToLoad.Empty();
 
 		if (OperationData->PixelFormatOverride)
 		{

@@ -352,12 +352,17 @@ public:
 
 	// The pass-through assets that will be loaded during an update
 	TArray<TSoftObjectPtr<UTexture>> PassThroughTexturesToLoad;
-	TArray<TSoftObjectPtr<USkeletalMesh>> PassThroughMeshesToLoad;
+	TArray<TSoftObjectPtr<UStreamableRenderAsset>> PassThroughMeshesToLoad;
 
 	// Used during an update to prevent the pass-through textures loaded by LoadAdditionalAssetsAsync() from being unloaded by GC
 	// between AdditionalAssetsAsyncLoaded() and their setting into the generated materials in BuildMaterials()
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UTexture>> LoadedPassThroughTexturesPendingSetMaterial;
+
+	// Used during an update to prevent the pass-through meshes loaded by LoadAdditionalAssetsAsync() from being unloaded by GC
+	// between AdditionalAssetsAsyncLoaded() and their setting into the generated materials in BuildMaterials()
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStreamableRenderAsset>> LoadedPassThroughMeshesPendingSetMaterial;
 
 private:
 	ECOInstanceFlags InstanceFlagsPrivate = ECOInstanceFlags::ECONone;

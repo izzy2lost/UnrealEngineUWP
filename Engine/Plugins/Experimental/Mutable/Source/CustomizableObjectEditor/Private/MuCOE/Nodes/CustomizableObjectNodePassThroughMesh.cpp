@@ -21,10 +21,10 @@ void UCustomizableObjectNodePassThroughMesh::AllocateDefaultPins(UCustomizableOb
 
 FText UCustomizableObjectNodePassThroughMesh::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	if (Mesh)
+	if (Mesh.IsValid())
 	{
 		FFormatNamedArguments Args;
-		Args.Add(TEXT("MeshName"), FText::FromString(Mesh->GetName()));
+		Args.Add(TEXT("MeshName"), FText::FromString(Mesh.GetAssetName()));
 
 		return FText::Format(LOCTEXT("PassThrough Mesh_Title", "{MeshName}\nPassThrough Mesh"), Args);
 	}

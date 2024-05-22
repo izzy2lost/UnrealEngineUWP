@@ -2291,6 +2291,26 @@ namespace impl
 		FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[ComponentIndex];
 
 		Component.Mesh = GetMeshTask.GetResult();
+
+		if (Component.Mesh->IsReference())
+		{
+			const UCustomizableObjectInstance* Instance = OperationData->Instance.Get();
+			const UCustomizableObject* CustomizableObject = Instance->GetCustomizableObject();
+			const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
+
+			uint32 ReferenceID = Component.Mesh->GetReferencedMesh();
+
+			if (ModelResources.PassThroughMeshes.IsValidIndex(ReferenceID))
+			{
+				TSoftObjectPtr<USkeletalMesh> Ref = ModelResources.PassThroughMeshes[ReferenceID];
+				Instance->GetPrivate()->PassThroughMeshesToLoad.Add(Ref);
+			}
+			else
+			{
+				// internal error.
+				UE_LOG(LogMutable, Error, TEXT("Referenced mesh [%d] was not stored in the resource array."), ReferenceID);
+			}
+		}
 			
 		Task_Mutable_GetMeshes_GetMesh_Loop(OperationData, StartTime, StartCycles, GetMeshesData, ++GetMeshIndex);
 	}
@@ -2344,6 +2364,7 @@ namespace impl
 			UCustomizableInstancePrivate* CustomizableObjectInstancePrivateData = OperationData->Instance->GetPrivate();
 
 			CustomizableObjectInstancePrivateData->PassThroughTexturesToLoad.Empty();
+			CustomizableObjectInstancePrivateData->PassThroughMeshesToLoad.Empty();
 
 			if (OperationData->PixelFormatOverride)
 			{
