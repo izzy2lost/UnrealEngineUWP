@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ObjectPropertyTrace.h"
-#include "IGameplayProvider.h"
 #include "Trace/Trace.h"
 #include "Trace/Trace.inl"
 #include "Containers/Ticker.h"
@@ -244,6 +243,7 @@ namespace ObjectPropertyTrace
 
 	static void TraceObjects()
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FObjectPropertyTrace::TraceObjects);
 		for(const TWeakObjectPtr<const UObject>& WeakObject : ObjectPropertyTrace::Objects)
 		{
 			if(const UObject* TracedObject = WeakObject.Get())

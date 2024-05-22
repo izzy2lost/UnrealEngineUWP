@@ -17,7 +17,7 @@
 
 #if OBJECT_PROPERTY_TRACE_ENABLED
 
-struct FObjectPropertyTrace
+struct ENGINE_API FObjectPropertyTrace
 {
 	/** Initialize object property tracing */
 	static void Init();
@@ -40,5 +40,14 @@ struct FObjectPropertyTrace
 	/** Check whether an object is registered */
 	static bool IsObjectRegistered(const UObject* InObject);
 };
+
+
+#define TRACE_OBJECT_PROPERTIES_BEGIN(Object) FObjectPropertyTrace::RegisterObject(Object);
+#define TRACE_OBJECT_PROPERTIES_END(Object) FObjectPropertyTrace::UnregisterObject(Object);
+
+#else
+
+#define TRACE_OBJECT_PROPERTIES_BEGIN(Object)
+#define TRACE_OBJECT_PROPERTIES_END(Object)
 
 #endif

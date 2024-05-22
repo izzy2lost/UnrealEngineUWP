@@ -10,9 +10,12 @@
 #include "Insights/ViewModels/TimingEventSearch.h"
 #include "TraceServices/Model/Frames.h"
 #include "VariantTreeNode.h"
-#include "ObjectPropertyTrace.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/Commands/UICommandInfo.h"
+
+#if WITH_EDITOR
+#include "ObjectPropertyTrace.h"
+#endif
 
 #define LOCTEXT_NAMESPACE "ObjectEventsTrack"
 
@@ -171,6 +174,7 @@ void FObjectEventsTrack::BuildContextMenu(FMenuBuilder& MenuBuilder)
 {
 	FGameplayTimingEventsTrack::BuildContextMenu(MenuBuilder);
 
+#if WITH_EDITOR
 #if OBJECT_PROPERTY_TRACE_ENABLED
 	MenuBuilder.BeginSection("Trace", LOCTEXT("TraceHeader", "Trace"));
 	{
@@ -213,6 +217,7 @@ void FObjectEventsTrack::BuildContextMenu(FMenuBuilder& MenuBuilder)
 		);
 	}
 	MenuBuilder.EndSection();
+#endif
 #endif
 }
 

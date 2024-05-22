@@ -15,7 +15,6 @@
 #include "Widgets/Docking/SDockTab.h"
 #include "Trace/StoreClient.h"
 #include "Stats/Stats.h"
-#include "ObjectPropertyTrace.h"
 #include "SMontageView.h"
 #include "AnimCurvesTrack.h"
 #include "InertializationsTrack.h"
@@ -35,7 +34,7 @@
 #include "GameplayInsightsStyle.h"
 #include "SSubobjectInstanceEditor.h"
 #include "ProfilingDebugging/TraceAuxiliary.h"
-
+#include "ObjectPropertyTrace.h"
 #endif
 
 #if WITH_ENGINE
@@ -207,19 +206,11 @@ void FGameplayInsightsModule::StartupModule()
 	FOnRegisterMajorTabExtensions& TimingProfilerExtension = UnrealInsightsModule.OnRegisterMajorTabExtension(FInsightsManagerTabs::TimingProfilerTabId);
 	TimingProfilerExtension.AddRaw(this, &FGameplayInsightsModule::RegisterTimingProfilerLayoutExtensions);
 #endif
-
-#if OBJECT_PROPERTY_TRACE_ENABLED
-	FObjectPropertyTrace::Init();
-#endif
 }
 
 void FGameplayInsightsModule::ShutdownModule()
 {
 	LLM_SCOPE_BYNAME(TEXT("Insights/GameplayInsights"));
-
-#if OBJECT_PROPERTY_TRACE_ENABLED
-	FObjectPropertyTrace::Destroy();
-#endif
 
 #if WITH_EDITOR
 	IAnimationBlueprintEditorModule* AnimationBlueprintEditorModule = FModuleManager::GetModulePtr<IAnimationBlueprintEditorModule>("AnimationBlueprintEditor");

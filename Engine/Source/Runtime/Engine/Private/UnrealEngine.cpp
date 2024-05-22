@@ -237,6 +237,7 @@ UnrealEngine.cpp: Implements the UEngine class and helpers.
 
 #include "Particles/ParticleSystemManager.h"
 #include "ObjectTrace.h"
+#include "ObjectPropertyTrace.h"
 #include "StudioAnalytics.h"
 #include "Animation/SkinWeightProfileManager.h"
 
@@ -315,6 +316,10 @@ void FEngineModule::StartupModule()
 	FObjectTrace::Init();
 #endif
 
+#if OBJECT_PROPERTY_TRACE_ENABLED
+	FObjectPropertyTrace::Init();
+#endif
+
 #if TRACE_FILTERING_ENABLED
 	FTraceFilter::Init();
 #endif
@@ -360,6 +365,9 @@ void FEngineModule::ShutdownModule()
 
 #if OBJECT_TRACE_ENABLED
 	FObjectTrace::Destroy();
+#endif
+#if OBJECT_PROPERTY_TRACE_ENABLED
+	FObjectPropertyTrace::Destroy();
 #endif
 
 	FParticleSystemWorldManager::OnShutdown();
