@@ -400,13 +400,6 @@ void UDMXControlConsoleEditorGlobalLayoutBase::Unregister(UDMXControlConsoleData
 	bIsRegistered = false;
 }
 
-void UDMXControlConsoleEditorGlobalLayoutBase::BeginDestroy()
-{
-	Super::BeginDestroy();
-
-	ensureMsgf(!bIsRegistered, TEXT("Layout still registered to dmx library delegates before being destroyed."));
-}
-
 void UDMXControlConsoleEditorGlobalLayoutBase::PostLoad()
 {
 	Super::PostLoad();

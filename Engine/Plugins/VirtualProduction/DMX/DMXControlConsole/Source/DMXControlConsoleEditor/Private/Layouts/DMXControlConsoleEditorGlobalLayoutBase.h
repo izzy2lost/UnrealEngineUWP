@@ -108,7 +108,6 @@ public:
 	bool IsRegistered() const { return bIsRegistered; }
 
 	//~ Begin UObject interface
-	virtual void BeginDestroy() override;
 	virtual void PostLoad() override;
 	//~ End UObject interface
 
