@@ -20,7 +20,7 @@ public:
     static bool IsTransactional();
     
     // This is public API
-    ETransactionResult Transact(void (*Function)(void* Arg), void* Arg);
+    ETransactionResult Transact(void (*InstrumentedFunction)(void*), void* Arg);
     
 	EContextStatus CallClosedNest(void (*ClosedFunction)(void* Arg), void* Arg);
 

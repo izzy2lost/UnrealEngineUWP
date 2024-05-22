@@ -120,15 +120,12 @@ namespace AutoRTFM
 namespace AutoRTFM
 {
 
-UE_AUTORTFM_FORCEINLINE autortfm_result TransactThenOpenImpl(void (*Work)(void* Arg), void* Arg)
+UE_AUTORTFM_FORCEINLINE autortfm_result TransactThenOpenImpl(void (*UninstrumentedWork)(void*), void* Arg)
 {
 	return static_cast<autortfm_result>(
 		AutoRTFM::Transact([&]
 		{
-			AutoRTFM::Open([&]
-			{
-				Work(Arg);
-			});
+			autortfm_open(UninstrumentedWork, Arg);
 		}));
 }
 
@@ -148,25 +145,25 @@ extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_is_closed") bool autortfm_is_clos
 }
 
 // First Part - the API exposed outside transactions.
-extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_transact") autortfm_result autortfm_transact(void (*Work)(void* Arg), void* Arg)
+extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_transact") autortfm_result autortfm_transact(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg)
 {
 	if (ForTheRuntime::IsAutoRTFMRuntimeEnabled())
 	{
-	    return static_cast<autortfm_result>(FContext::Get()->Transact(Work, Arg));
+	    return static_cast<autortfm_result>(FContext::Get()->Transact(InstrumentedWork, Arg));
 	}
 
-	Work(Arg);
+	(*UninstrumentedWork)(Arg);
 	return autortfm_committed;
 }
 
-extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_transact_then_open") autortfm_result autortfm_transact_then_open(void (*Work)(void* Arg), void* Arg)
+extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_transact_then_open") autortfm_result autortfm_transact_then_open(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg)
 {
-    return TransactThenOpenImpl(Work, Arg);
+	return TransactThenOpenImpl(UninstrumentedWork, Arg);
 }
 
-extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_commit") void autortfm_commit(void (*Work)(void* Arg), void* Arg)
+extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_commit") void autortfm_commit(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg)
 {
-    autortfm_result Result = autortfm_transact(Work, Arg);
+    autortfm_result Result = autortfm_transact(UninstrumentedWork, InstrumentedWork, Arg);
 	UE_CLOG(Result != autortfm_committed, LogAutoRTFM, Fatal, TEXT("Unexpected transaction result: %u."), Result);
 }
 
@@ -224,21 +221,12 @@ extern "C" UE_AUTORTFM_NOAUTORTFM bool autortfm_current_nest_throw()
 	return true;
 }
 
-extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_abort_if_transactional") void autortfm_abort_if_transactional()
-{
-	UE_CLOG(FContext::IsTransactional(), LogAutoRTFM, Fatal, TEXT("The function `autortfm_abort_if_transactional` was called from an open inside a transaction."));
-}
-
-extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_abort_if_closed") void autortfm_abort_if_closed()
-{
-}
-
-extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_open") void autortfm_open(void (*Work)(void* Arg), void* Arg)
+extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_open") void autortfm_open(void (*Work)(void*), void* Arg)
 {
 	Work(Arg);
 }
 
-extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_close") autortfm_status autortfm_close(void (*Work)(void* Arg), void* Arg)
+extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_close") autortfm_status autortfm_close(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg)
 {
 	autortfm_status Result = autortfm_status_ontrack;
 
@@ -247,15 +235,20 @@ extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_close") autortfm_status autortfm_
 		UE_CLOG(!FContext::IsTransactional(), LogAutoRTFM, Fatal, TEXT("Close called from an outside a transaction."));
 
 		FContext* const Context = FContext::Get();
-		void (*WorkClone)(void* Arg) = FunctionMapLookup(Work, "autortfm_close");
-		if (WorkClone)
+
+		if (InstrumentedWork)
 		{
-			Result = static_cast<autortfm_status>(Context->CallClosedNest(WorkClone, Arg));
+			Result = static_cast<autortfm_status>(Context->CallClosedNest(InstrumentedWork, Arg));
+		}
+		else
+		{
+			UE_LOG(LogAutoRTFM, Fatal, TEXT("Could not find function %p '%s' where '%s'."), UninstrumentedWork, *GetFunctionDescription(UninstrumentedWork), ANSI_TO_TCHAR("autortfm_close"));
+	        Context->AbortByLanguageAndThrow();
 		}
 	}
 	else
 	{
-		Work(Arg);
+		UninstrumentedWork(Arg);
 	}
 
 	return Result;
@@ -275,31 +268,31 @@ extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_register_open_function(void* Ori
     FunctionMapAdd(OriginalFunction, NewFunction);
 }
 
-UE_AUTORTFM_AUTORTFM("RTFM_OnCommit") void OnCommit(TFunction<void()> && Work)
+UE_AUTORTFM_AUTORTFM("RTFM_OnCommitInternal") void ForTheRuntime::OnCommitInternal(TFunction<void()> && Work)
 {
     Work();
 }
 
-UE_AUTORTFM_AUTORTFM("RTFM_OnAbort") void OnAbort(TFunction<void()> && Work)
+UE_AUTORTFM_AUTORTFM("RTFM_OnAbortInternal") void ForTheRuntime::OnAbortInternal(TFunction<void()> && Work)
 {
 }
 
-UE_AUTORTFM_AUTORTFM("RTFM_PushOnAbortHandler") void PushOnAbortHandler(const void* Key, TFunction<void()> && Work)
+UE_AUTORTFM_AUTORTFM("RTFM_PushOnAbortHandlerInternal") void ForTheRuntime::PushOnAbortHandlerInternal(const void* Key, TFunction<void()> && Work)
 {
 }
 
-UE_AUTORTFM_AUTORTFM("RTFM_PopOnAbortHandler") void PopOnAbortHandler(const void* Key)
+UE_AUTORTFM_AUTORTFM("RTFM_PopOnAbortHandlerInternal") void ForTheRuntime::PopOnAbortHandlerInternal(const void* Key)
 {
 }
 
 void OpenCommit(TFunction<void()>&& Work)
 {
-	OnCommit(MoveTemp(Work));
+	ForTheRuntime::OnCommitInternal(MoveTemp(Work));
 }
 
 void OpenAbort(TFunction<void()>&& Work)
 {
-	OnAbort(MoveTemp(Work));
+	ForTheRuntime::OnAbortInternal(MoveTemp(Work));
 }
 
 extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_on_commit") void autortfm_on_commit(void (*Work)(void*), void* Arg)
@@ -405,20 +398,20 @@ extern "C" UE_AUTORTFM_NOAUTORTFM bool RTFM_autortfm_is_closed()
     return true;
 }
 
-extern "C" UE_AUTORTFM_NOAUTORTFM autortfm_result RTFM_autortfm_transact(void (*Work)(void* Arg), void* Arg)
+extern "C" UE_AUTORTFM_NOAUTORTFM autortfm_result RTFM_autortfm_transact(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg)
 {
 	FContext* Context = FContext::Get();
-    return static_cast<autortfm_result>(Context->Transact(Work, Arg));
+    return static_cast<autortfm_result>(Context->Transact(InstrumentedWork, Arg));
 }
 
-extern "C" UE_AUTORTFM_NOAUTORTFM autortfm_result RTFM_autortfm_transact_then_open(void (*Work)(void* Arg), void* Arg)
+extern "C" UE_AUTORTFM_NOAUTORTFM autortfm_result RTFM_autortfm_transact_then_open(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg)
 {
-    return TransactThenOpenImpl(Work, Arg);
+    return TransactThenOpenImpl(UninstrumentedWork, Arg);
 }
 
-extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_commit(void (*Work)(void* Arg), void* Arg)
+extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_commit(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg)
 {
-    autortfm_result Result = autortfm_transact(Work, Arg);
+    autortfm_result Result = autortfm_transact(UninstrumentedWork, InstrumentedWork, Arg);
 	UE_CLOG(Result != autortfm_committed, LogAutoRTFM, Fatal, TEXT("Unexpected transaction result: %u."), Result);
 }
 
@@ -456,21 +449,7 @@ extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_clear_transaction_status()
 	AutoRTFM::Unreachable();
 }
 
-extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_abort_if_transactional()
-{
-    UE_LOG(LogAutoRTFM, Verbose, TEXT("The function `autortfm_abort_if_transactional` was called from inside a transaction."));
-	FContext* Context = FContext::Get();
-    Context->AbortByRequestAndThrow();
-}
-
-extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_abort_if_closed()
-{
-	UE_LOG(LogAutoRTFM, Verbose, TEXT("The function `autortfm_abort_if_closed` was called from closed inside a transaction."));
-	FContext* Context = FContext::Get();
-    Context->AbortByRequestAndThrow();
-}
-
-extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_open(void (*Work)(void* Arg), void* Arg)
+extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_open(void (*Work)(void*), void* Arg)
 {
 	Work(Arg);
 
@@ -481,15 +460,21 @@ extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_open(void (*Work)(void* Arg
 	}
 }
 
-extern "C" UE_AUTORTFM_NOAUTORTFM autortfm_status RTFM_autortfm_close(void (*Work)(void* Arg), void* Arg)
+extern "C" UE_AUTORTFM_NOAUTORTFM autortfm_status RTFM_autortfm_close(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg)
 {
-    void (*WorkClone)(void* Arg) = FunctionMapLookup(Work, "RTFM_autortfm_close");
-    if (WorkClone)
-    {
-        WorkClone(Arg);
-    }
+	FContext* const Context = FContext::Get();
 
-	return static_cast<autortfm_status>(FContext::Get()->GetStatus());
+	if (InstrumentedWork)
+    {
+        InstrumentedWork(Arg);
+    }
+	else
+	{
+		UE_LOG(LogAutoRTFM, Fatal, TEXT("Could not find function %p '%s' where '%s'."), UninstrumentedWork, *GetFunctionDescription(UninstrumentedWork), ANSI_TO_TCHAR("autortfm_close"));
+	    Context->AbortByLanguageAndThrow();
+	}
+
+	return static_cast<autortfm_status>(Context->GetStatus());
 }
 
 extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_record_open_write(void*, size_t)
@@ -497,28 +482,28 @@ extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_record_open_write(void*, si
 	UE_LOG(LogAutoRTFM, Fatal, TEXT("The function `autortfm_record_open_write` was called from closed code."));
 }
 
-extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_OnCommit(TFunction<void()> && Work)
+extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_OnCommitInternal(TFunction<void()> && Work)
 {
 	FContext* Context = FContext::Get();
     ASSERT(Context->GetStatus() == EContextStatus::OnTrack);
     Context->GetCurrentTransaction()->DeferUntilCommit(MoveTemp(Work));
 }
 
-extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_OnAbort(TFunction<void()>&& Work)
+extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_OnAbortInternal(TFunction<void()>&& Work)
 {
 	FContext* Context = FContext::Get();
     ASSERT(Context->GetStatus() == EContextStatus::OnTrack);
     Context->GetCurrentTransaction()->DeferUntilAbort(MoveTemp(Work));
 }
 
-extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_PushOnAbortHandler(const void* Key, TFunction<void()>&& Work)
+extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_PushOnAbortHandlerInternal(const void* Key, TFunction<void()>&& Work)
 {
 	FContext* Context = FContext::Get();
     ASSERT(Context->GetStatus() == EContextStatus::OnTrack);
     Context->GetCurrentTransaction()->PushDeferUntilAbortHandler(Key, MoveTemp(Work));
 }
 
-extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_PopOnAbortHandler(const void* Key)
+extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_PopOnAbortHandlerInternal(const void* Key)
 {
 	FContext* Context = FContext::Get();
     ASSERT(Context->GetStatus() == EContextStatus::OnTrack);
@@ -527,22 +512,22 @@ extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_PopOnAbortHandler(const void* Key)
 
 extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_on_commit(void (*Work)(void*), void* Arg)
 {
-    RTFM_OnCommit([Work, Arg] { Work(Arg); });
+    RTFM_OnCommitInternal([Work, Arg] { Work(Arg); });
 }
 
 extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_on_abort(void (*Work)(void*), void* Arg)
 {
-    RTFM_OnAbort([Work, Arg] { Work(Arg); });
+    RTFM_OnAbortInternal([Work, Arg] { Work(Arg); });
 }
 
 extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_push_on_abort_handler(const void* Key, void (*Work)(void*), void* Arg)
 {
-    RTFM_PushOnAbortHandler(Key, [Work, Arg] { Work(Arg); });
+    RTFM_PushOnAbortHandlerInternal(Key, [Work, Arg] { Work(Arg); });
 }
 
 extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_pop_on_abort_handler(const void* Key)
 {
-    RTFM_PopOnAbortHandler(Key);
+    RTFM_PopOnAbortHandlerInternal(Key);
 }
 
 extern "C" UE_AUTORTFM_NOAUTORTFM void* RTFM_autortfm_did_allocate(void* Ptr, size_t Size)

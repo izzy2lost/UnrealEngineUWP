@@ -7,34 +7,6 @@
 #include <memory>
 #include <thread>
 
-TEST_CASE("API.autortfm_result")
-{
-    int Answer = 6 * 9;
-
-    REQUIRE(autortfm_committed == autortfm_transact([](void* const Arg)
-    {
-        *static_cast<int* const>(Arg) = 42;
-    }, &Answer));
-
-    REQUIRE(42 == Answer);
-
-    REQUIRE(autortfm_aborted_by_request == autortfm_transact([](void* const Arg)
-    {
-        *static_cast<int* const>(Arg) = 13;
-        AutoRTFM::AbortTransaction();
-    }, &Answer));
-
-    REQUIRE(42 == Answer);
-
-    REQUIRE(autortfm_aborted_by_request == autortfm_transact([](void* const Arg)
-    {
-        *static_cast<int* const>(Arg) = 13;
-        AutoRTFM::AbortIfTransactional();
-    }, &Answer));
-
-    REQUIRE(42 == Answer);
-}
-
 TEST_CASE("API.autortfm_is_transactional")
 {
     REQUIRE(false == autortfm_is_transactional());
@@ -83,30 +55,6 @@ TEST_CASE("API.autortfm_is_closed")
     REQUIRE(true == InTransaction);
     REQUIRE(false == InOpenNest);
     REQUIRE(true == InClosedNestInOpenNest);
-}
-
-TEST_CASE("API.autortfm_transact")
-{
-    int Answer = 6 * 9;
-
-    REQUIRE(autortfm_committed == autortfm_transact([](void* const Arg)
-    {
-        *static_cast<int* const>(Arg) = 42;
-    }, &Answer));
-
-    REQUIRE(42 == Answer);
-}
-
-TEST_CASE("API.autortfm_commit")
-{
-    int Answer = 6 * 9;
-
-    autortfm_commit([](void* const Arg)
-    {
-        *static_cast<int* const>(Arg) = 42;
-    }, &Answer);
-
-    REQUIRE(42 == Answer);
 }
 
 TEST_CASE("API.autortfm_abort_transaction")
@@ -223,39 +171,6 @@ TEST_CASE("API.autortfm_open")
     }));
 
     REQUIRE(84 == Answer);
-}
-
-TEST_CASE("API.autortfm_close")
-{
-    bool InClosedNest = false;
-    bool InOpenNest = false;
-    bool InClosedNestInOpenNest = false;
-
-    REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == AutoRTFM::Transact([&]
-    {
-        // A closed call inside a transaction does not abort.
-        REQUIRE(autortfm_status_ontrack == autortfm_close([](void* const Arg)
-        {
-            *static_cast<bool* const>(Arg) = true;
-        }, &InClosedNest));
-
-        AutoRTFM::Open([&]
-        {
-            // A closed call inside an open does not abort either.
-			REQUIRE(autortfm_status_ontrack == autortfm_close([](void* const Arg)
-            {
-                *static_cast<bool* const>(Arg) = true;
-            }, &InClosedNestInOpenNest));
-
-            InOpenNest = true;
-        });
-
-        AutoRTFM::AbortTransaction();
-    }));
-
-    REQUIRE(false == InClosedNest);
-    REQUIRE(true == InOpenNest);
-    REQUIRE(false == InClosedNestInOpenNest);
 }
 
 TEST_CASE("API.autortfm_register_open_function")

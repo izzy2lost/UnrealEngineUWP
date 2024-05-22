@@ -131,31 +131,34 @@ UE_AUTORTFM_FORCEINLINE bool autortfm_is_closed(void)
 #endif
 
 #if UE_AUTORTFM
-UE_AUTORTFM_API autortfm_result autortfm_transact(void (*work)(void* arg), void* arg);
+UE_AUTORTFM_API autortfm_result autortfm_transact(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg);
 #else
-UE_AUTORTFM_FORCEINLINE autortfm_result autortfm_transact(void (*work)(void* arg), void* arg)
+UE_AUTORTFM_FORCEINLINE autortfm_result autortfm_transact(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg)
 {
-	work(arg);
+	UE_AUTORTFM_UNUSED(InstrumentedWork);
+	UninstrumentedWork(Arg);
 	return autortfm_committed;
 }
 #endif
 
 #if UE_AUTORTFM
-UE_AUTORTFM_API autortfm_result autortfm_transact_then_open(void (*work)(void* arg), void* arg);
+UE_AUTORTFM_API autortfm_result autortfm_transact_then_open(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg);
 #else
-UE_AUTORTFM_FORCEINLINE autortfm_result autortfm_transact_then_open(void (*work)(void* arg), void* arg)
+UE_AUTORTFM_FORCEINLINE autortfm_result autortfm_transact_then_open(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg)
 {
-	work(arg);
+	UE_AUTORTFM_UNUSED(InstrumentedWork);
+	UninstrumentedWork(Arg);
     return autortfm_committed;
 }
 #endif
 
 #if UE_AUTORTFM
-UE_AUTORTFM_API void autortfm_commit(void (*work)(void* arg), void* arg);
+UE_AUTORTFM_API void autortfm_commit(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg);
 #else
-UE_AUTORTFM_FORCEINLINE void autortfm_commit(void (*work)(void* arg), void* arg)
+UE_AUTORTFM_FORCEINLINE void autortfm_commit(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg)
 {
-	work(arg);
+	UE_AUTORTFM_UNUSED(InstrumentedWork);
+	UninstrumentedWork(Arg);
 }
 #endif
 
@@ -190,13 +193,25 @@ UE_AUTORTFM_FORCEINLINE void autortfm_clear_transaction_status() {}
 #endif
 
 #if UE_AUTORTFM
-UE_AUTORTFM_API void autortfm_abort_if_transactional(void);
+UE_AUTORTFM_FORCEINLINE void autortfm_abort_if_transactional(void)
+{
+	if (autortfm_is_transactional())
+	{
+		autortfm_abort_transaction();
+	}
+}
 #else
 UE_AUTORTFM_FORCEINLINE void autortfm_abort_if_transactional(void) { }
 #endif
 
 #if UE_AUTORTFM
-void autortfm_abort_if_closed(void);
+UE_AUTORTFM_FORCEINLINE void autortfm_abort_if_closed(void)
+{
+	if (autortfm_is_closed())
+	{
+		autortfm_abort_transaction();
+	}
+}
 #else
 UE_AUTORTFM_FORCEINLINE void autortfm_abort_if_closed(void) { }
 #endif
@@ -208,13 +223,14 @@ UE_AUTORTFM_FORCEINLINE void autortfm_open(void (*work)(void* arg), void* arg) {
 #endif
 
 #if UE_AUTORTFM
-[[nodiscard]] UE_AUTORTFM_API autortfm_status autortfm_close(void (*work)(void* arg), void* arg);
+[[nodiscard]] UE_AUTORTFM_API autortfm_status autortfm_close(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg);
 #else
 PRAGMA_DISABLE_UNREACHABLE_CODE_WARNINGS
-[[nodiscard]] UE_AUTORTFM_FORCEINLINE autortfm_status autortfm_close(void (*work)(void* arg), void* arg)
+[[nodiscard]] UE_AUTORTFM_FORCEINLINE autortfm_status autortfm_close(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg)
 {
-	UE_AUTORTFM_UNUSED(work);
-	UE_AUTORTFM_UNUSED(arg);
+	UE_AUTORTFM_UNUSED(UninstrumentedWork);
+	UE_AUTORTFM_UNUSED(InstrumentedWork);
+	UE_AUTORTFM_UNUSED(Arg);
     abort();
 	return autortfm_status_aborted_by_language;
 }
@@ -394,8 +410,44 @@ enum class EContextStatus
 	AbortedByCascade = autortfm_status_aborted_by_cascade
 };
 
+#if UE_AUTORTFM
+namespace ForTheRuntime
+{
+	UE_AUTORTFM_API void OnCommitInternal(TFunction<void()>&& Work);
+	UE_AUTORTFM_API void OnAbortInternal(TFunction<void()>&& Work);
+	UE_AUTORTFM_API void PushOnAbortHandlerInternal(const void* Key, TFunction<void()>&& Work);
+	UE_AUTORTFM_API void PopOnAbortHandlerInternal(const void* Key);
+} // namespace ForTheRuntime
+#endif
+
+template<typename TFunctor>
+void AutoRTFMFunctorInvoker(void* Arg) { (*static_cast<const TFunctor*>(Arg))(); }
+
+#if UE_AUTORTFM
+extern "C" UE_AUTORTFM_API void* autortfm_lookup_function(void* OriginalFunction, const char* Where);
+
+template<typename TFunctor>
+auto AutoRTFMLookupInstrumentedFunctorInvoker(const TFunctor& Functor) -> void(*)(void*)
+{
+	// keep this as a single expression to help ensure that even Debug builds optimize this.
+	// if we put intermediate results in local variables then the compiler emits loads
+	// and stores to the stack which confuse our custom pass that tries to strip away
+	// the actual call to autortfm_lookup_function
+	void (*Result)(void*) = reinterpret_cast<void(*)(void*)>(autortfm_lookup_function(reinterpret_cast<void*>(&AutoRTFMFunctorInvoker<TFunctor>), "AutoRTFMLookupInstrumentedFunctorInvoker"));
+	return Result;
+}
+#else
+template<typename TFunctor>
+auto AutoRTFMLookupInstrumentedFunctorInvoker(const TFunctor& Functor) -> void(*)(void*)
+{
+	return nullptr;
+}
+#endif
+
 // Tells if we are currently running in a transaction. This will return true in an
-// open nest (see Open).
+// open nest (see Open). This function is handled specially in the compiler, it
+// will be constant folded as 'true' in closed code, or
+// preserved as a function call in open code
 UE_AUTORTFM_FORCEINLINE bool IsTransactional() { return autortfm_is_transactional(); }
 
 // Tells if we are currently running in the closed nest of a transaction. By
@@ -421,9 +473,14 @@ UE_AUTORTFM_FORCEINLINE bool IsClosed() { return autortfm_is_closed(); }
 template<typename TFunctor>
 UE_AUTORTFM_FORCEINLINE ETransactionResult Transact(const TFunctor& Functor)
 {
-    return static_cast<ETransactionResult>(autortfm_transact(
-        [] (void* Arg) { (*static_cast<const TFunctor*>(Arg))(); },
-        const_cast<void*>(static_cast<const void*>(&Functor))));
+	ETransactionResult Result =
+		static_cast<ETransactionResult>(
+			autortfm_transact(
+				&AutoRTFMFunctorInvoker<TFunctor>,
+				AutoRTFMLookupInstrumentedFunctorInvoker<TFunctor>(Functor),
+				const_cast<void*>(static_cast<const void*>(&Functor))));
+
+	return Result;
 }
 
 // This is just like calling Transact([&] { Open([&] { Functor(); }); });  
@@ -433,9 +490,14 @@ UE_AUTORTFM_FORCEINLINE ETransactionResult Transact(const TFunctor& Functor)
 template<typename TFunctor>
 UE_AUTORTFM_FORCEINLINE ETransactionResult TransactThenOpen(const TFunctor& Functor)
 {
-	return static_cast<ETransactionResult>(autortfm_transact_then_open(
-		[] (void* Arg) { (*static_cast<const TFunctor*>(Arg))(); },
-		const_cast<void*>(static_cast<const void*>(&Functor))));
+	ETransactionResult Result =
+		static_cast<ETransactionResult>(
+			autortfm_transact_then_open(
+				&AutoRTFMFunctorInvoker<TFunctor>,
+				AutoRTFMLookupInstrumentedFunctorInvoker<TFunctor>(Functor),
+				const_cast<void*>(static_cast<const void*>(&Functor))));
+
+	return Result;
 }
 
 // Run the callback in a transaction like Transact, but abort program
@@ -445,8 +507,9 @@ template<typename TFunctor>
 UE_AUTORTFM_FORCEINLINE void Commit(const TFunctor& Functor)
 {
     autortfm_commit(
-        [] (void* Arg) { (*static_cast<const TFunctor*>(Arg))(); },
-        const_cast<void*>(static_cast<const void*>(&Functor)));
+		&AutoRTFMFunctorInvoker<TFunctor>,
+		AutoRTFMLookupInstrumentedFunctorInvoker<TFunctor>(Functor),
+		const_cast<void*>(static_cast<const void*>(&Functor)));
 }
 
 // End a transaction and discard all effects.
@@ -490,9 +553,11 @@ template<typename TFunctor> UE_AUTORTFM_FORCEINLINE void Open(const TFunctor& Fu
 // Will crash if called outside of a transaction nest.
 template<typename TFunctor> [[nodiscard]] UE_AUTORTFM_FORCEINLINE EContextStatus Close(const TFunctor& Functor)
 {
-    return static_cast<EContextStatus>(autortfm_close(
-        [] (void* Arg) { (*static_cast<const TFunctor*>(Arg))(); },
-        const_cast<void*>(static_cast<const void*>(&Functor))));
+    return static_cast<EContextStatus>(
+		autortfm_close(
+			&AutoRTFMFunctorInvoker<TFunctor>,
+			AutoRTFMLookupInstrumentedFunctorInvoker<TFunctor>(Functor),
+			const_cast<void*>(static_cast<const void*>(&Functor))));
 }
 
 #if UE_AUTORTFM
@@ -500,7 +565,17 @@ template<typename TFunctor> [[nodiscard]] UE_AUTORTFM_FORCEINLINE EContextStatus
 // this just adds the work to the work deferred until the outer nest's commit.
 // If this is called outside a transaction or from an open nest then the work
 // happens immediately.
-UE_AUTORTFM_API void OnCommit(TFunction<void()>&& Work);
+template<typename TFunctor> UE_AUTORTFM_FORCEINLINE void OnCommit(const TFunctor& Work)
+{
+	if (autortfm_is_closed())
+	{
+		ForTheRuntime::OnCommitInternal(Work);
+	}
+	else
+	{
+		Work();
+	}
+}
 #else
 // Have some work happen when this transaction commits. For nested transactions,
 // this just adds the work to the work deferred until the outer nest's commit.
@@ -512,17 +587,35 @@ template<typename TFunctor> UE_AUTORTFM_FORCEINLINE void OnCommit(const TFunctor
 #if UE_AUTORTFM
 // Have some work happen when this transaction aborts. If this is called
 // outside a transaction or from an open nest then the work is ignored.
-UE_AUTORTFM_API void OnAbort(TFunction<void()>&& Work);
+template<typename TFunctor> UE_AUTORTFM_FORCEINLINE void OnAbort(const TFunctor& Work)
+{
+	if (autortfm_is_closed())
+	{
+		ForTheRuntime::OnAbortInternal(Work);
+	}
+}
 
 // Register a handler for transaction abort. Takes a key parameter so that
 // the handler can be unregistered (see PopOnAbortHandler). This is useful
 // for scoped mutations that need an abort handler present unless execution
 // reaches the end of the relevant scope.
-UE_AUTORTFM_API void PushOnAbortHandler(const void* Key, TFunction<void()>&& Work);
+template<typename TFunctor> UE_AUTORTFM_FORCEINLINE void PushOnAbortHandler(const void* Key, const TFunctor& Work)
+{
+	if (autortfm_is_closed())
+	{
+		ForTheRuntime::PushOnAbortHandlerInternal(Key, Work);
+	}
+}
 
 // Unregister all handlers for transaction abort that were previously pushed
 // via PushOnAbortHandler with the given key
-UE_AUTORTFM_API void PopOnAbortHandler(const void* Key);
+UE_AUTORTFM_FORCEINLINE void PopOnAbortHandler(const void* Key)
+{
+	if (autortfm_is_closed())
+	{
+		ForTheRuntime::PopOnAbortHandlerInternal(Key);
+	}
+}
 #else
 // Have some work happen when this transaction aborts. If this is called
 // outside a transaction or from an open nest then the work is ignored.

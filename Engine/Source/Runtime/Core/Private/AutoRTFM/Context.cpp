@@ -283,7 +283,7 @@ ETransactionResult FContext::ResolveNestedTransaction(FTransaction* NewTransacti
 	}
 }
 
-ETransactionResult FContext::Transact(void (*Function)(void* Arg), void* Arg)
+ETransactionResult FContext::Transact(void (*InstrumentedFunction)(void*), void* Arg)
 {
     constexpr bool bVerbose = false;
 
@@ -305,10 +305,9 @@ ETransactionResult FContext::Transact(void (*Function)(void* Arg), void* Arg)
     
     ASSERT(Status == EContextStatus::Idle || Status == EContextStatus::OnTrack);
 
-    void (*ClonedFunction)(void* Arg) = FunctionMapTryLookup(Function);
-    if (!ClonedFunction)
+    if (!InstrumentedFunction)
     {
-		UE_LOG(LogAutoRTFM, Warning, TEXT("Could not find function %p (%s) in AutoRTFM::FContext::Transact."), Function, *GetFunctionDescription(Function));
+		UE_LOG(LogAutoRTFM, Warning, TEXT("Could not find function in AutoRTFM::FContext::Transact."));
         return ETransactionResult::AbortedByLanguage;
     }
     
@@ -338,7 +337,7 @@ ETransactionResult FContext::Transact(void (*Function)(void* Arg), void* Arg)
         {
             Status = EContextStatus::OnTrack;
             ASSERT(CurrentTransaction->IsFresh());
-			CurrentNest->Try([&] () { ClonedFunction(Arg); });
+			CurrentNest->Try([&] () { InstrumentedFunction(Arg); });
 			ASSERT(CurrentTransaction == NewTransaction); // The transaction lambda should have unwound any nested transactions.
             ASSERT(Status != EContextStatus::Idle);
 
@@ -399,7 +398,7 @@ ETransactionResult FContext::Transact(void (*Function)(void* Arg), void* Arg)
 		PushTransaction(NewTransaction);
 		PushCallNest(NewNest);
 
-		CurrentNest->Try([&]() { ClonedFunction(Arg); });
+		CurrentNest->Try([&]() { InstrumentedFunction(Arg); });
 		ASSERT(CurrentTransaction == NewTransaction);
 
 		Result = ResolveNestedTransaction(NewTransaction);
