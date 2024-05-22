@@ -645,7 +645,7 @@ int32 UNiagaraRendererProperties::GetDynamicParameterChannelMask(const FVersione
 {
 	if (EmitterData == nullptr || BindingName.IsNone())
 	{
-		return DefaultChannelMask;
+		return 0;
 	}
 
 	TOptional<int32> ChannelMask;
