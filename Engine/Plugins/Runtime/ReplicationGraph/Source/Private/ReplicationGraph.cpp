@@ -795,8 +795,6 @@ void UReplicationGraph::RemoveNetworkActor(AActor* Actor)
 		RouteRemoveNetworkActorToNodes(FNewReplicatedActorInfo(Actor));
 	}
 
-	GlobalActorReplicationInfoMap.Remove(Actor);
-
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(UReplicationGraph_RemoveNetworkActor_FromConnectionsMap);
 
@@ -806,6 +804,8 @@ void UReplicationGraph::RemoveNetworkActor(AActor* Actor)
 			ConnectionManager->RemoveActorFromAllPrevDormantActorLists(Actor);
 		}
 	}
+
+	GlobalActorReplicationInfoMap.Remove(Actor);
 }
 
 void UReplicationGraph::RouteRemoveNetworkActorToNodes(const FNewReplicatedActorInfo& ActorInfo)
