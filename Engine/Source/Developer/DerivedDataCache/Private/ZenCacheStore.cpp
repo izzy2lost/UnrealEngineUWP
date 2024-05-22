@@ -219,7 +219,7 @@ private:
 	ICacheStoreOwner* StoreOwner = nullptr;
 	ICacheStoreStats* StoreStats = nullptr;
 	THttpUniquePtr<IHttpConnectionPool> ConnectionPool;
-	FHttpRequestQueue RequestQueue;
+	UE::FHttpRequestQueue RequestQueue;
 	bool bIsUsable = false;
 	bool bIsLocalConnection = false;
 	bool bTryEvaluatePerformance = false;
@@ -1710,7 +1710,7 @@ void FZenCacheStore::Initialize(const FZenCacheStoreParams& Params)
 	ClientParams.LowSpeedLimit = 1;
 	ClientParams.LowSpeedTime = 25;
 	ClientParams.bBypassProxy = Params.bBypassProxy;
-	RequestQueue = FHttpRequestQueue(*ConnectionPool, ClientParams);
+	RequestQueue = UE::FHttpRequestQueue(*ConnectionPool, ClientParams);
 
 	bIsLocalConnection = ZenService.GetInstance().IsServiceRunningLocally() || ZenService.GetInstance().GetServiceSettings().IsAutoLaunch();
 	bIsUsable = true;
