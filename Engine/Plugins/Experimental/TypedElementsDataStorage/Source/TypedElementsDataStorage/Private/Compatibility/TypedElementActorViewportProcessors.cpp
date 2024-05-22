@@ -117,8 +117,8 @@ FAutoConsoleCommandWithArgsAndOutputDevice SetSelectionOverlayColorConsoleComman
 
 				for (TypedElementRowHandle Row : RowHandles)
 				{
+					DataStorage->RemoveColumn<FTypedElementViewportOverlayColorColumn>(Row);
 					DataStorage->AddColumn(Row, FTypedElementViewportOverlayColorColumn{ .OverlayColor = Color });
-					DataStorage->AddColumn<FTypedElementSyncBackToWorldTag>(Row);
 				}
 			}
 		}));
@@ -216,6 +216,7 @@ void UTypedElementActorViewportFactory::RegisterOverlayColorColumnToActor(ITyped
 					ActorInstance->ForEachComponent<UPrimitiveComponent>(bIncludeFromChildActors, [&ViewportColor](UPrimitiveComponent* PrimitiveComponent)
 					{
 						PrimitiveComponent->SetOverlayColor(ViewportColor.OverlayColor);
+						PrimitiveComponent->MarkRenderStateDirty();
 					});
 				}
 			}
@@ -237,6 +238,7 @@ void UTypedElementActorViewportFactory::RegisterOverlayColorColumnToActor(ITyped
 					ActorInstance->ForEachComponent<UPrimitiveComponent>(bIncludeFromChildActors, [](UPrimitiveComponent* PrimitiveComponent)
 					{
 						PrimitiveComponent->RemoveOverlayColor();
+						PrimitiveComponent->MarkRenderStateDirty();
 					});
 				}
 			}
