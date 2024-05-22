@@ -408,7 +408,12 @@ bool FNiagaraScalabilityManager::ApplyScalabilityState(int32 ComponentIndex, ENi
 
 			//We do not allow new activations if it would blow our instance count limits.
 			//Though we do allow currently running but inactive components to (!IsComplete()) to reactivate
-			bool bAllow = GApplyInstanceCountsRigidly == 0 || (Component->IsComplete() == false || (System->GetActiveInstancesCount() < SystemInstanceMax && EffectType->NumInstances < EffectTypeInstanceMax));
+			const FNiagaraSystemScalabilitySettings& ScalabilitySettings = System->GetScalabilitySettings();
+			bool bAllow = GApplyInstanceCountsRigidly == 0;
+			bAllow = bAllow || Component->IsComplete() == false;
+			bAllow = bAllow || (!ScalabilitySettings.bCullMaxInstanceCount || EffectType->NumInstances < EffectTypeInstanceMax);
+			bAllow = bAllow || (!ScalabilitySettings.bCullPerSystemMaxInstanceCount || System->GetActiveInstancesCount() < SystemInstanceMax);
+
 			if(bAllow)
 			{
 				CompState.Apply();

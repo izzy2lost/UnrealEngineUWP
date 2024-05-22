@@ -1776,8 +1776,8 @@ void FNiagaraWorldManager::SortedSignificanceCull(UNiagaraEffectType* EffectType
 			//Grab Adjusted instance counts.
 			System->GetMaxInstanceCounts(SystemInstanceMax, EffectTypeInstanceMax, bBudgetCullEnabled);
 
-			bCull = EffectTypeInstCount >= EffectTypeInstanceMax;
-			bCull |= SystemInstCount >= SystemInstanceMax;
+			bCull = ScalabilitySettings.bCullMaxInstanceCount && EffectTypeInstCount >= EffectTypeInstanceMax;
+			bCull |= ScalabilitySettings.bCullPerSystemMaxInstanceCount && SystemInstCount >= SystemInstanceMax;
 
 #if DEBUG_SCALABILITY_STATE
 			OutState.bCulledByGlobalBudget |= bCull;
