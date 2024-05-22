@@ -125,7 +125,7 @@ FPageTestScreenRect SetupPageHZBRect(FScreenRect ScreenRect, uint ShadowMapID, u
 }
 
 
-bool IsPageVisibleHZB(uint2 vPage, uint PageFlagOffset, FPageTestScreenRect PageTestScreenRect)
+bool IsPageVisibleHZB(uint2 vPage, uint PageFlagOffset, bool bTreatUnmappedAsOccluded, FPageTestScreenRect PageTestScreenRect)
 {
 	FShadowPhysicalPage pPage = ShadowDecodePageTable(HZBPageTable[PageFlagOffset]);
 
@@ -141,11 +141,10 @@ bool IsPageVisibleHZB(uint2 vPage, uint PageFlagOffset, FPageTestScreenRect Page
 		// Translate to physical address space
 		HZBTestRect.HZBTexels += (PhysicalAddress << PageTestScreenRect.HZBLevelPageSizeShift).xyxy;
 
-		// Skip invalidation if the instance is occluded
 		return IsVisibleHZB(HZBTestRect, true);
 	}
 
-	return true;
+	return !bTreatUnmappedAsOccluded;
 }
 
 
@@ -191,7 +190,7 @@ bool IsVisibleMaskedHZB(uint PrevShadowMapID, uint MipLevel, FScreenRect Rect, b
 			if (!bTreatUnmappedAsOccluded || ((PageFlag & TestPageMask) != 0U))
 			{
 				// Treat pages with the VisiblePageMask as visible - can be used to select only cached pages
-				if ((PageFlag & VisiblePageMask) != 0U || IsPageVisibleHZB(uint2(x, y), PageFlagOffset, HZBTestRect))
+				if ((PageFlag & VisiblePageMask) != 0U || IsPageVisibleHZB(uint2(x, y), PageFlagOffset, bTreatUnmappedAsOccluded, HZBTestRect))
 				{
 					return true;
 				}
