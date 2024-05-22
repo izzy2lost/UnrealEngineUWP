@@ -263,14 +263,18 @@ FField* FFieldPath::TryToResolvePath(UStruct* InCurrentStruct, FFieldPath::EPath
 		Owner = TryToResolveOwnerFromStruct(InCurrentStruct, InResolveType);
 	}
 	// At this point the owner should've been fully resolved
-	if (Owner && Path.Num() > 0)
+	if (Owner && Path.Num())
 	{
 		int32 PathIndex = Path.Num() - 1;
-		Result = FindFProperty<FField>(Owner, Path[PathIndex--]);
-		while (Result && PathIndex > 0)
+		check(PathIndex <= 1);
+		Result = FindFProperty<FField>(Owner, Path[PathIndex]);
+		if (Result)
 		{
-			// Nested property
-			Result = Result->GetInnerFieldByName(Path[PathIndex--]);
+			if (PathIndex > 0)
+			{
+				// Nested property
+				Result = Result->GetInnerFieldByName(Path[0]);
+			}
 		}
 	}
 	return Result;
