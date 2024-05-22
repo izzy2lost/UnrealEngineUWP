@@ -44,6 +44,12 @@ public:
 	/** Returns true if there are no points */
 	bool IsEmpty() const;
 
+	/** Gets the curve for the specified parameter, or nullptr if the parameter index is invalid */
+	const FRichCurve* GetCurveForParameter(int32 InParameterIndex) const;
+
+	/** Gets the curve for the specified parameter, or nullptr if the parameter index is invalid */
+	FRichCurve* GetCurveForParameter(int32 InParameterIndex);
+	
 public:
 
 	/** Dimensions of our location offset curves */
@@ -65,6 +71,51 @@ public:
 	FRichCurve RotationOffset[RotationDimension];
 };
 
+/** A curve along the focus axis for a single zoom value */
+USTRUCT()
+struct CAMERACALIBRATIONCORE_API FNodalOffsetFocusCurve : public FBaseFocusCurve
+{
+	GENERATED_BODY()
+
+public:
+	/** Adds a new point to the focus curve, or updates a matching existing point if one is found */
+	void AddPoint(float InFocus, const FNodalPointOffset& InData, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Updates an existing point if one is found */
+	void SetPoint(float InFocus, const FNodalPointOffset& InData, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Removes the point at the specified focus if one is found */
+	void RemovePoint(float InFocus, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Changes the focus value of the point at the specified focus, if one is found */
+	void ChangeFocus(float InExistingFocus, float InNewFocus, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Changes the focus value of the point at the specified focus and optionally replaces any point at the new focus with the old point */
+	void MergeFocus(float InExistingFocus, float InNewFocus, bool bReplaceExisting, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Gets whether the curve is empty */
+	bool IsEmpty() const;
+
+	/** Gets the curve for the specified parameter, or nullptr if the parameter index is invalid */
+	const FRichCurve* GetCurveForParameter(int32 InParameterIndex) const;
+
+	/** Gets the curve for the specified parameter, or nullptr if the parameter index is invalid */
+	FRichCurve* GetCurveForParameter(int32 InParameterIndex);
+	
+public:
+	/** Focus curve for the location parameters of the nodal offset */
+	UPROPERTY()
+	FRichCurve LocationOffset[FNodalOffsetFocusPoint::LocationDimension];
+
+	/** Focus curve for the rotation parameters of the nodal offset */
+	UPROPERTY()
+	FRichCurve RotationOffset[FNodalOffsetFocusPoint::RotationDimension];
+	
+	/** The fixed zoom value of the curve */
+	UPROPERTY()
+	float Zoom = 0.0f;
+};
+
 /**
  * Table containing nodal offset mapping to focus and zoom
  */
@@ -74,6 +125,7 @@ struct CAMERACALIBRATIONCORE_API FNodalOffsetTable : public FBaseLensTable
 	GENERATED_BODY()
 
 	using FocusPointType = FNodalOffsetFocusPoint;
+	using FocusCurveType = FNodalOffsetFocusCurve;
 
 	/** Wrapper for indices of specific parameters for the nodal offset table  */
 	struct FParameters
@@ -125,12 +177,24 @@ public:
 	/** Returns point for a given focus */
 	FNodalOffsetFocusPoint* GetFocusPoint(float InFocus, float InputTolerance = KINDA_SMALL_NUMBER);
 
+	/** Gets the focus curve for the specified zoom, or nullptr if none were found */
+	const FNodalOffsetFocusCurve* GetFocusCurve(float InZoom, float InputTolerance = KINDA_SMALL_NUMBER) const;
+
+	/** Gets the focus curve for the specified zoom, or nullptr if none were found */
+	FNodalOffsetFocusCurve* GetFocusCurve(float InZoom, float InputTolerance = KINDA_SMALL_NUMBER);
+	
 	/** Returns all focus points */
 	TConstArrayView<FNodalOffsetFocusPoint> GetFocusPoints() const;
 
 	/** Returns all focus points */
 	TArray<FNodalOffsetFocusPoint>& GetFocusPoints();
 
+	/** Returns all focus curves */
+	TConstArrayView<FNodalOffsetFocusCurve> GetFocusCurves() const;
+
+	/** Returns all focus curves */
+	TArray<FNodalOffsetFocusCurve>& GetFocusCurves();
+	
 	/** Removes a focus point identified as InFocusIdentifier */
 	void RemoveFocusPoint(float InFocus);
 
@@ -160,11 +224,18 @@ public:
 
 	/** Set a new point into the table */
 	bool SetPoint(float InFocus, float InZoom, const FNodalPointOffset& InData, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Builds the focus curves to match existing data in the table */
+	void BuildFocusCurves();
 	
 public:
 
 	/** Lists of focus points */
 	UPROPERTY()
 	TArray<FNodalOffsetFocusPoint> FocusPoints;
+
+	/** A list of curves along the focus axis for each zoom value */
+	UPROPERTY()
+	TArray<FNodalOffsetFocusCurve> FocusCurves;
 };
 

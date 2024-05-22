@@ -3,6 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Curves/KeyHandle.h"
+#include "Curves/RichCurve.h"
 
 #include "UObject/WeakObjectPtrTemplates.h"
 
@@ -58,6 +60,29 @@ struct TStructOpsTypeTraits<FBaseFocusPoint> : public TStructOpsTypeTraitsBase2<
 	};
 };
 
+/** Base focus curve struct */
+USTRUCT()
+struct FBaseFocusCurve
+{
+	GENERATED_BODY()
+
+protected:
+	/** Adds a new key to the specified curve */
+	FKeyHandle AddPointToCurve(FRichCurve& InCurve, float InFocus, float InValue, float InputTolerance, FKeyHandle InOptionalKeyHandle = FKeyHandle());
+	
+	/** Sets the value of an existing key in the specified curve */
+	FKeyHandle SetPointInCurve(FRichCurve& InCurve, float InFocus, float InValue, float InputTolerance);
+	
+	/** Deletes a key at the specified focus from the specified curve */
+	void DeletePointFromCurve(FRichCurve& InCurve, float InFocus, float InputTolerance);
+	
+	/** Changes the focus of a key in the specified curve */
+	void ChangeFocusInCurve(FRichCurve& InCurve, float InExistingFocus, float InNewFocus, float InputTolerance);
+	
+	/** Changes the focus of a key in the specified curve and optionally replaces any key that already exists at the new focus */
+	void MergeFocusInCurve(FRichCurve& InCurve, float InExistingFocus, float InNewFocus, bool bReplaceExisting, float InputTolerance);
+};
+
 /**
  * Base data table struct
  */
@@ -95,6 +120,12 @@ protected:
 	 */
 	virtual bool DoesZoomPointExists(float InFocus, float InZoom, float InputTolerance = KINDA_SMALL_NUMBER) const PURE_VIRTUAL(FBaseLensTable::DoesZoomPointExists, return false; );
 
+	/** Copies the specified keys from the source curve to the destination curve */
+	void CopyCurveKeys(const FRichCurve& InSourceCurve, FRichCurve& InDestCurve, TArrayView<const FKeyHandle> InKeys);
+
+	/** Propagates the values of a curve to a set of cross curves at the specified time */
+	void PropagateCurveValuesToCrossCurves(const FRichCurve& InCurve, float InCrossCurveTime, TFunctionRef<FRichCurve*(float)> GetCurveFn);
+	
 public:
 	virtual ~FBaseLensTable() = default;
 

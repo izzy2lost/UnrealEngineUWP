@@ -4,6 +4,7 @@
 
 #include "CoreTypes.h"
 #include "Math/Vector2D.h"
+#include "Math/Vector4.h"
 
 class UTextureRenderTarget2D;
 
@@ -16,6 +17,36 @@ enum class EDisplacementMapBlendType :uint8
 	TwoFocusTwoZoom, //Two Besier interp between each pair of zoom points and one linear interp across focus
 };
 
+/** Corner of the blending patch which stores x and y values and x and y tangents */
+struct FDisplacementMapBlendPatchCorner
+{
+	FDisplacementMapBlendPatchCorner(float InX, float InY, float InTangentX, float InTangentY)
+		: X(InX)
+		, Y(InY)
+		, TangentX(InTangentX)
+		, TangentY(InTangentY)
+	{ }
+
+	FDisplacementMapBlendPatchCorner()
+		: FDisplacementMapBlendPatchCorner(0.0f, 0.0f, 0.0f, 0.0f)
+	{ }
+	
+	/** Converts the patch corner values to a vector */
+	FVector4f ToVector() const { return FVector4f(X, Y, TangentX, TangentY); }
+	
+	/** X coordinate of the corner */
+	float X;
+
+	/** Y coordinate of the corner */
+	float Y;
+
+	/** Tangent in the x direction of the corner */
+	float TangentX;
+
+	/** Tangent in the y direction of the corner */
+	float TangentY;
+};
+
 /** Single struct containing blending params for all types */
 struct FDisplacementMapBlendingParams
 {
@@ -23,20 +54,12 @@ struct FDisplacementMapBlendingParams
 	EDisplacementMapBlendType BlendType = EDisplacementMapBlendType::OneFocusOneZoom;
 
 	/** Bezier blend parameters */
-	float EvalTime = 0.0f;
+	float EvalFocus = 0.0f;
+	float EvalZoom = 0.0f;
 
-	float Curve0Key0Time = 0.0f;
-	float Curve0Key1Time = 0.0f;
-	float Curve0Key0Tangent = 0.0f;
-	float Curve0Key1Tangent = 0.0f;
-
-	float Curve1Key0Time = 0.0f;
-	float Curve1Key1Time = 0.0f;
-	float Curve1Key0Tangent = 0.0f;
-	float Curve1Key1Tangent = 0.0f;
-
-	float FocusBlendFactor = 0.0f;
-
+	/** Corners of the blending patch, indexed in the following order: (X0, Y0) -> (X1, Y0) -> (X1, Y1) -> (X0, Y1) */
+	FDisplacementMapBlendPatchCorner PatchCorners[4];
+	
 	/** Scale parameter that allows displacement maps for one sensor size to be applied to camera's with a different sensor size */
 	FVector2D FxFyScale = { 1.0f, 1.0f };
 

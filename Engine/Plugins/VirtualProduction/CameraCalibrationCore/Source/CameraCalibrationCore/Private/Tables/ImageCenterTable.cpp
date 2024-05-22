@@ -90,6 +90,87 @@ bool FImageCenterFocusPoint::IsEmpty() const
 	return Cx.IsEmpty();
 }
 
+const FRichCurve* FImageCenterFocusPoint::GetCurveForParameter(int32 InParameterIndex) const
+{
+	if (FImageCenterTable::FParameters::IsValid(InParameterIndex))
+	{
+		if (InParameterIndex == FImageCenterTable::FParameters::Cx)
+		{
+			return &Cx;
+		}
+
+		if (InParameterIndex == FImageCenterTable::FParameters::Cy)
+		{
+			return &Cy;
+		}
+	}
+
+	return nullptr;
+}
+
+FRichCurve* FImageCenterFocusPoint::GetCurveForParameter(int32 InParameterIndex)
+{
+	return const_cast<FRichCurve*>(const_cast<const FImageCenterFocusPoint*>(this)->GetCurveForParameter(InParameterIndex));
+}
+
+void FImageCenterFocusCurve::AddPoint(float InFocus, const FImageCenterInfo& InData, float InputTolerance)
+{
+	const FKeyHandle KeyHandle = AddPointToCurve(Cx, InFocus, InData.PrincipalPoint.X, InputTolerance);
+	AddPointToCurve(Cy, InFocus, InData.PrincipalPoint.Y, InputTolerance, KeyHandle);
+}
+
+void FImageCenterFocusCurve::SetPoint(float InFocus, const FImageCenterInfo& InData, float InputTolerance)
+{
+	SetPointInCurve(Cx, InFocus, InData.PrincipalPoint.X, InputTolerance);
+	SetPointInCurve(Cy, InFocus, InData.PrincipalPoint.Y, InputTolerance);
+}
+
+void FImageCenterFocusCurve::RemovePoint(float InFocus, float InputTolerance)
+{
+	DeletePointFromCurve(Cx, InFocus, InputTolerance);
+	DeletePointFromCurve(Cy, InFocus, InputTolerance);
+}
+
+void FImageCenterFocusCurve::ChangeFocus(float InExistingFocus, float InNewFocus, float InputTolerance)
+{
+	ChangeFocusInCurve(Cx, InExistingFocus, InNewFocus, InputTolerance);
+	ChangeFocusInCurve(Cy, InExistingFocus, InNewFocus, InputTolerance);
+}
+
+void FImageCenterFocusCurve::MergeFocus(float InExistingFocus, float InNewFocus, bool bReplaceExisting, float InputTolerance)
+{
+	MergeFocusInCurve(Cx, InExistingFocus, InNewFocus, bReplaceExisting, InputTolerance);
+	MergeFocusInCurve(Cy, InExistingFocus, InNewFocus, bReplaceExisting, InputTolerance);
+}
+
+bool FImageCenterFocusCurve::IsEmpty() const
+{
+	return !Cx.GetNumKeys() && !Cy.GetNumKeys();
+}
+
+const FRichCurve* FImageCenterFocusCurve::GetCurveForParameter(int32 InParameterIndex) const
+{
+	if (FImageCenterTable::FParameters::IsValid(InParameterIndex))
+	{
+		if (InParameterIndex == FImageCenterTable::FParameters::Cx)
+		{
+			return &Cx;
+		}
+
+		if (InParameterIndex == FImageCenterTable::FParameters::Cy)
+		{
+			return &Cy;
+		}
+	}
+
+	return nullptr;
+}
+
+FRichCurve* FImageCenterFocusCurve::GetCurveForParameter(int32 InParameterIndex)
+{
+	return const_cast<FRichCurve*>(const_cast<const FImageCenterFocusCurve*>(this)->GetCurveForParameter(InParameterIndex));
+}
+
 void FImageCenterTable::ForEachPoint(FFocusPointCallback InCallback) const
 {
 	for (const FImageCenterFocusPoint& Point : FocusPoints)
@@ -148,21 +229,22 @@ bool FImageCenterTable::BuildParameterCurveAtZoom(float InZoom, int32 InParamete
 	{
 		return false;
 	}
-	
-	for (const FImageCenterFocusPoint& FocusPoint : FocusPoints)
+
+	if (const FImageCenterFocusCurve* FocusCurve = GetFocusCurve(InZoom))
 	{
-		FImageCenterInfo ZoomPoint;
-		if (FocusPoint.GetPoint(InZoom, ZoomPoint))
+		if (InParameterIndex == FParameters::Cx)
 		{
-			const float Value = ZoomPoint.PrincipalPoint[InParameterIndex];
-			const FKeyHandle NewKeyHandle = OutCurve.AddKey(FocusPoint.Focus, Value);
-			FRichCurveKey& NewKey = OutCurve.GetKey(NewKeyHandle);
-			NewKey.TangentMode = ERichCurveTangentMode::RCTM_None;
-			NewKey.InterpMode = ERichCurveInterpMode::RCIM_Linear;
+			OutCurve = FocusCurve->Cx;
 		}
+		else
+		{
+			OutCurve = FocusCurve->Cy;
+		}
+
+		return true;
 	}
 
-	return true;
+	return false;
 }
 
 void FImageCenterTable::SetParameterCurveKeysAtFocus(float InFocus, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys)
@@ -174,27 +256,16 @@ void FImageCenterTable::SetParameterCurveKeysAtFocus(float InFocus, int32 InPara
 	
 	if (FImageCenterFocusPoint* FocusPoint = GetFocusPoint(InFocus))
 	{
-		FRichCurve* ActiveCurve = nullptr;
-		if (InParameterIndex == FParameters::Cx)
+		CopyCurveKeys(InSourceCurve, *FocusPoint->GetCurveForParameter(InParameterIndex), InKeys);
+		PropagateCurveValuesToCrossCurves(*FocusPoint->GetCurveForParameter(InParameterIndex), InFocus, [this, InParameterIndex](float InZoom)->FRichCurve*
 		{
-			ActiveCurve = &FocusPoint->Cx;
-		}
-		else
-		{
-			ActiveCurve = &FocusPoint->Cy;
-		}
-		
-		for (int32 Index = 0; Index < InKeys.Num(); ++Index)
-		{
-			const FKeyHandle Handle = InKeys[Index];
-			const int32 KeyIndex = InSourceCurve.GetIndexSafe(Handle);
-			if (KeyIndex != INDEX_NONE)
+			if (FImageCenterFocusCurve* Curve = GetFocusCurve(InZoom))
 			{
-				ActiveCurve->Keys[KeyIndex] = InSourceCurve.GetKey(Handle);
+				return Curve->GetCurveForParameter(InParameterIndex);
 			}
-		}
 
-		ActiveCurve->AutoSetTangents();
+			return nullptr;
+		});
 	}
 }
 
@@ -205,34 +276,18 @@ void FImageCenterTable::SetParameterCurveKeysAtZoom(float InZoom, int32 InParame
 		return;
 	}
 	
-	for (const FKeyHandle& KeyHandle : InKeys)
+	if (FImageCenterFocusCurve* FocusCurve = GetFocusCurve(InZoom))
 	{
-		// Assume the focus keys are put into the source curve in the same order as they are stored internally
-		const int32 KeyIndex = InSourceCurve.GetIndexSafe(KeyHandle);
-		if (KeyIndex != INDEX_NONE)
+		CopyCurveKeys(InSourceCurve, *FocusCurve->GetCurveForParameter(InParameterIndex), InKeys);
+		PropagateCurveValuesToCrossCurves(*FocusCurve->GetCurveForParameter(InParameterIndex), InZoom, [this, InParameterIndex](float InFocus)->FRichCurve*
 		{
-			if (ensure(FocusPoints.IsValidIndex(KeyIndex)))
+			if (FImageCenterFocusPoint* FocusPoint = GetFocusPoint(InFocus))
 			{
-				FImageCenterFocusPoint& FocusPoint = FocusPoints[KeyIndex];
-				FImageCenterInfo ZoomPoint;
-				if (!FocusPoint.GetPoint(InZoom, ZoomPoint))
-				{
-					continue;
-				}
-
-				ZoomPoint.PrincipalPoint[InParameterIndex] = InSourceCurve.GetKeyValue(KeyHandle);
-				FocusPoint.SetPoint(InZoom, ZoomPoint);
-
-				if (InParameterIndex == FParameters::Cx)
-				{
-					FocusPoint.Cx.AutoSetTangents();
-				}
-				else
-				{
-					FocusPoint.Cy.AutoSetTangents();
-				}
+				return FocusPoint->GetCurveForParameter(InParameterIndex);
 			}
-		}
+
+			return nullptr;
+		});
 	}
 }
 
@@ -251,6 +306,16 @@ FImageCenterFocusPoint* FImageCenterTable::GetFocusPoint(float InFocus, float In
 	return FocusPoints.FindByPredicate([InFocus, InputTolerance](const FImageCenterFocusPoint& Points) { return FMath::IsNearlyEqual(Points.Focus, InFocus, InputTolerance); });
 }
 
+const FImageCenterFocusCurve* FImageCenterTable::GetFocusCurve(float InZoom, float InputTolerance) const
+{
+	return FocusCurves.FindByPredicate([InZoom, InputTolerance](const FImageCenterFocusCurve& Curve) { return FMath::IsNearlyEqual(Curve.Zoom, InZoom, InputTolerance); });
+}
+
+FImageCenterFocusCurve* FImageCenterTable::GetFocusCurve(float InZoom, float InputTolerance)
+{
+	return FocusCurves.FindByPredicate([InZoom, InputTolerance](const FImageCenterFocusCurve& Curve) { return FMath::IsNearlyEqual(Curve.Zoom, InZoom, InputTolerance); });
+}
+
 TConstArrayView<FImageCenterFocusPoint> FImageCenterTable::GetFocusPoints() const
 {
 	return FocusPoints;
@@ -259,6 +324,16 @@ TConstArrayView<FImageCenterFocusPoint> FImageCenterTable::GetFocusPoints() cons
 TArray<FImageCenterFocusPoint>& FImageCenterTable::GetFocusPoints()
 {
 	return FocusPoints;
+}
+
+TConstArrayView<FImageCenterFocusCurve> FImageCenterTable::GetFocusCurves() const
+{
+	return FocusCurves;
+}
+
+TArray<FImageCenterFocusCurve>& FImageCenterTable::GetFocusCurves()
+{
+	return FocusCurves;
 }
 
 bool FImageCenterTable::DoesZoomPointExists(float InFocus, float InZoom, float InputTolerance) const
@@ -297,6 +372,7 @@ TMap<ELensDataCategory, FLinkPointMetadata> FImageCenterTable::GetLinkedCategori
 void FImageCenterTable::RemoveFocusPoint(float InFocus)
 {
 	LensDataTableUtils::RemoveFocusPoint(FocusPoints, InFocus);
+	LensDataTableUtils::RemoveFocusFromFocusCurves(FocusCurves, InFocus);
 }
 
 bool FImageCenterTable::HasFocusPoint(float InFocus, float InputTolerance) const
@@ -307,16 +383,19 @@ bool FImageCenterTable::HasFocusPoint(float InFocus, float InputTolerance) const
 void FImageCenterTable::ChangeFocusPoint(float InExistingFocus, float InNewFocus, float InputTolerance)
 {
 	LensDataTableUtils::ChangeFocusPoint(FocusPoints, InExistingFocus, InNewFocus, InputTolerance);
+	LensDataTableUtils::ChangeFocusInFocusCurves(FocusCurves, InExistingFocus, InNewFocus, InputTolerance);
 }
 
 void FImageCenterTable::MergeFocusPoint(float InSrcFocus, float InDestFocus, bool bReplaceExistingZoomPoints, float InputTolerance)
 {
 	LensDataTableUtils::MergeFocusPoint(FocusPoints, InSrcFocus, InDestFocus, bReplaceExistingZoomPoints, InputTolerance);
+	LensDataTableUtils::MergeFocusInFocusCurves(FocusCurves, InSrcFocus, InDestFocus, bReplaceExistingZoomPoints, InputTolerance);
 }
 
 void FImageCenterTable::RemoveZoomPoint(float InFocus, float InZoom)
 {
 	LensDataTableUtils::RemoveZoomPoint(FocusPoints, InFocus, InZoom);
+	LensDataTableUtils::RemoveZoomFromFocusCurves(FocusCurves, InFocus, InZoom);
 }
 
 bool FImageCenterTable::HasZoomPoint(float InFocus, float InZoom, float InputTolerance)
@@ -327,12 +406,26 @@ bool FImageCenterTable::HasZoomPoint(float InFocus, float InZoom, float InputTol
 void FImageCenterTable::ChangeZoomPoint(float InFocus, float InExistingZoom, float InNewZoom, float InputTolerance)
 {
 	LensDataTableUtils::ChangeZoomPoint(FocusPoints, InFocus, InExistingZoom, InNewZoom, InputTolerance);
+	
+	FImageCenterInfo Data;
+	if (!GetPoint(InFocus, InNewZoom, Data, InputTolerance))
+	{
+		return;
+	}
+
+	LensDataTableUtils::ChangeZoomInFocusCurves(FocusCurves, InFocus, InExistingZoom, InNewZoom, Data, InputTolerance);
 }
 
 bool FImageCenterTable::AddPoint(float InFocus, float InZoom, const FImageCenterInfo& InData, float InputTolerance,
 	bool bIsCalibrationPoint)
 {
-	return LensDataTableUtils::AddPoint(FocusPoints, InFocus, InZoom, InData, InputTolerance, bIsCalibrationPoint);
+	if (!LensDataTableUtils::AddPoint(FocusPoints, InFocus, InZoom, InData, InputTolerance, bIsCalibrationPoint))
+	{
+		return false;
+	}
+
+	LensDataTableUtils::AddPointToFocusCurve(FocusCurves, InFocus, InZoom, InData, InputTolerance);
+	return true;
 }
 
 bool FImageCenterTable::GetPoint(const float InFocus, const float InZoom, FImageCenterInfo& OutData, float InputTolerance) const
@@ -353,5 +446,19 @@ bool FImageCenterTable::GetPoint(const float InFocus, const float InZoom, FImage
 
 bool FImageCenterTable::SetPoint(float InFocus, float InZoom, const FImageCenterInfo& InData, float InputTolerance)
 {
-	return LensDataTableUtils::SetPoint(*this, InFocus, InZoom, InData, InputTolerance);
+	if (!LensDataTableUtils::SetPoint(*this, InFocus, InZoom, InData, InputTolerance))
+	{
+		return false;
+	}
+
+	LensDataTableUtils::SetPointInFocusCurve(FocusCurves, InFocus, InZoom, InData, InputTolerance);
+	
+	return true;
+}
+
+void FImageCenterTable::BuildFocusCurves()
+{
+	// Ensure that the focus curves are empty before building them from the table data
+	FocusCurves.Empty();
+	LensDataTableUtils::BuildFocusCurves(FocusPoints, FocusCurves);
 }

@@ -61,6 +61,9 @@ public:
 	
 	/** Returns true if this point is empty */
 	bool IsEmpty() const;
+
+	/** Gets the curve for the specified parameter, or nullptr if the parameter index is invalid */
+	const FRichCurve* GetCurveForParameter(int32 InParameterIndex) const;
 	
 	void SetParameterValue(int32 InZoomIndex, float InZoomValue, int32 InParameterIndex, float InParameterValue);
 
@@ -79,6 +82,44 @@ public:
 	TArray<FDistortionZoomPoint> ZoomPoints;
 };
 
+/** A curve along the focus axis for a single zoom value */
+USTRUCT()
+struct CAMERACALIBRATIONCORE_API FDistortionFocusCurve : public FBaseFocusCurve
+{
+	GENERATED_BODY()
+
+public:
+	/** Adds a new point to the focus curve, or updates a matching existing point if one is found */
+	void AddPoint(float InFocus, const FDistortionInfo& InData, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Updates an existing point if one is found */
+	void SetPoint(float InFocus, const FDistortionInfo& InData, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Removes the point at the specified focus if one is found */
+	void RemovePoint(float InFocus, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Changes the focus value of the point at the specified focus, if one is found */
+	void ChangeFocus(float InExistingFocus, float InNewFocus, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Changes the focus value of the point at the specified focus and optionally replaces any point at the new focus with the old point */
+	void MergeFocus(float InExistingFocus, float InNewFocus, bool bReplaceExisting, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Gets whether the curve is empty */
+	bool IsEmpty() const;
+
+	/** Gets the curve for the specified parameter, or nullptr if the parameter index is invalid */
+	const FRichCurve* GetCurveForParameter(int32 InParameterIndex) const;
+	
+public:
+	/** Curve describing desired blending between resulting displacement maps */
+	UPROPERTY()
+	FRichCurve MapBlendingCurve;
+
+	/** The fixed zoom value of the curve */
+	UPROPERTY()
+	float Zoom = 0.0f;
+};
+
 /**
  * Distortion table containing list of points for each focus and zoom input
  */
@@ -88,6 +129,7 @@ struct CAMERACALIBRATIONCORE_API FDistortionTable : public FBaseLensTable
 	GENERATED_BODY()
 
 	using FocusPointType = FDistortionFocusPoint;
+	using FocusCurveType = FDistortionFocusCurve;
 
 	/** Wrapper for indices of specific parameters for the distortion table  */
 	struct FParameters
@@ -124,11 +166,23 @@ public:
 	/** Returns point for a given focus */
 	FDistortionFocusPoint* GetFocusPoint(float InFocus, float InputTolerance = KINDA_SMALL_NUMBER);
 
+	/** Gets the focus curve for the specified zoom, or nullptr if none were found */
+	const FDistortionFocusCurve* GetFocusCurve(float InZoom, float InputTolerance = KINDA_SMALL_NUMBER) const;
+
+	/** Gets the focus curve for the specified zoom, or nullptr if none were found */
+	FDistortionFocusCurve* GetFocusCurve(float InZoom, float InputTolerance = KINDA_SMALL_NUMBER);
+	
 	/** Returns all focus points */
 	TConstArrayView<FDistortionFocusPoint> GetFocusPoints() const;
 
 	/** Returns all focus points */
 	TArray<FDistortionFocusPoint>& GetFocusPoints();
+
+	/** Returns all focus curves */
+	TConstArrayView<FDistortionFocusCurve> GetFocusCurves() const;
+
+	/** Returns all focus curves */
+	TArray<FDistortionFocusCurve>& GetFocusCurves();
 	
 	/** Removes a focus point identified as InFocusIdentifier */
 	void RemoveFocusPoint(float InFocus);
@@ -160,10 +214,17 @@ public:
 	/** Set a new point into the table */
 	bool SetPoint(float InFocus, float InZoom, const FDistortionInfo& InData, float InputTolerance = KINDA_SMALL_NUMBER);
 
+	/** Builds the focus curves to match existing data in the table */
+	void BuildFocusCurves();
+	
 public:
 
 	/** Lists of focus points */
 	UPROPERTY()
 	TArray<FDistortionFocusPoint> FocusPoints;
+
+	/** A list of curves along the focus axis for each zoom value */
+	UPROPERTY()
+	TArray<FDistortionFocusCurve> FocusCurves;
 };
 

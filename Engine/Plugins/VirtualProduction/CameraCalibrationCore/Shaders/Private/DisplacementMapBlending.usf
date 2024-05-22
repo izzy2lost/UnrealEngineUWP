@@ -6,16 +6,13 @@
 
 #include "/Engine/Private/Common.ush"
 
-float EvalTime;
-float Curve0Key0Time;
-float Curve0Key1Time;
-float Curve0Key0Tangent;
-float Curve0Key1Tangent;
-float Curve1Key0Time;
-float Curve1Key1Time;
-float Curve1Key0Tangent;
-float Curve1Key1Tangent;
-float FocusBlendFactor;
+
+float EvalZoom;
+float EvalFocus;
+
+// Stores the x and y values and the x and y tangents for each corner of the blending patch
+// Ordered (X0, Y0) -> (X1, Y0) -> (X1, Y1) -> (X0, Y1)
+float4 PatchCorners[4];
 
 float2 FxFyScale;
 float2 PrincipalPoint;
@@ -63,6 +60,32 @@ float4 EvalAtTwoPoints(float EvalTime, float Time0, float Time1, float4 Value0, 
 	return BezierInterp(P0, P1, P2, P3, Alpha);
 }
 
+float4 CoonsPatchBlend(float X, float Y, float4 Values[4])
+{
+	float Alpha = 0.0;
+	if (PatchCorners[0].x != PatchCorners[1].x)
+	{
+		Alpha = (X - PatchCorners[0].x) / (PatchCorners[1].x - PatchCorners[0].x);
+	}
+	
+	float Beta = 0.0;
+	if (PatchCorners[0].y != PatchCorners[3].y)
+	{
+		Beta = (Y - PatchCorners[0].y) / (PatchCorners[3].y - PatchCorners[0].y);
+	}
+	
+	float4 X0Curve = EvalAtTwoPoints(X, PatchCorners[0].x, PatchCorners[1].x, Values[0], Values[1], PatchCorners[0].z, PatchCorners[1].z);
+	float4 X1Curve = EvalAtTwoPoints(X, PatchCorners[3].x, PatchCorners[2].x, Values[3], Values[2], PatchCorners[3].z, PatchCorners[2].z);
+	float4 Y0Curve = EvalAtTwoPoints(Y, PatchCorners[0].y, PatchCorners[3].y, Values[0], Values[3], PatchCorners[0].w, PatchCorners[3].w);
+	float4 Y1Curve = EvalAtTwoPoints(Y, PatchCorners[1].y, PatchCorners[2].y, Values[1], Values[2], PatchCorners[1].w, PatchCorners[2].w);
+	
+	float4 Lx = lerp(X0Curve, X1Curve, Beta);
+	float4 Ly = lerp(Y0Curve, Y1Curve, Alpha);
+	float4 B = lerp(lerp(Values[0], Values[1], Alpha), lerp(Values[3], Values[2], Alpha), Beta);
+
+	return Lx + Ly - B;
+}
+
 void BlendPS(float4 SvPosition : SV_POSITION, out float4 OutColor : SV_Target0)
 {
 	float2 UV = SvPosition.xy / OutputTextureExtent.xy;
@@ -71,31 +94,31 @@ void BlendPS(float4 SvPosition : SV_POSITION, out float4 OutColor : SV_Target0)
 	float4 TexOneColor = Texture2DSampleLevel(SourceTextureOne, SourceTextureSampler, UV, 0);
 	float4 BlendedColor;
 
-// Case - 2 Focus Curves, 1 Zoom Point Each - Just Lerp
+// Case - 2 Focus Curves, 1 Zoom Point Each
 #if BLEND_TYPE == 1
 	
 	float4 TexTwoColor = Texture2DSampleLevel(SourceTextureTwo, SourceTextureSampler, UV, 0);
-	BlendedColor = lerp(TexOneColor, TexTwoColor, FocusBlendFactor);
-
-// Case - 1 Focus Curve, 2 Zoom Points - One Bezier Interp
+	BlendedColor = EvalAtTwoPoints(EvalFocus, PatchCorners[0].y, PatchCorners[1].y, TexOneColor, TexTwoColor, PatchCorners[0].w, PatchCorners[1].w);
+	
+// Case - 1 Focus Curve, 2 Zoom Points
 #elif BLEND_TYPE == 2
 
 	float4 TexTwoColor = Texture2DSampleLevel(SourceTextureTwo, SourceTextureSampler, UV, 0);
-	BlendedColor = EvalAtTwoPoints(EvalTime, Curve0Key0Time, Curve0Key1Time, TexOneColor, TexTwoColor, Curve0Key0Tangent, Curve0Key1Tangent);
+	BlendedColor = EvalAtTwoPoints(EvalZoom, PatchCorners[0].x, PatchCorners[1].x, TexOneColor, TexTwoColor, PatchCorners[0].z, PatchCorners[1].z);
 	
-// Case - 2 Focus Curves, 2 Zoom Points Each - Two Bezier Interps, then Lerp
+// Case - 2 Focus Curves, 2 Zoom Points Each
 #elif BLEND_TYPE == 3
 
-	float4 TexTwoColor = Texture2DSampleLevel(SourceTextureTwo, SourceTextureSampler, UV, 0);
-	float4 TexThreeColor = Texture2DSampleLevel(SourceTextureThree, SourceTextureSampler, UV, 0);
-	float4 TexFourColor = Texture2DSampleLevel(SourceTextureFour, SourceTextureSampler, UV, 0);
-
-	float4 Curve0BlendedColor = EvalAtTwoPoints(EvalTime, Curve0Key0Time, Curve0Key1Time, TexOneColor, TexTwoColor, Curve0Key0Tangent, Curve0Key1Tangent);
-	float4 Curve1BlendedColor = EvalAtTwoPoints(EvalTime, Curve1Key0Time, Curve1Key1Time, TexThreeColor, TexFourColor, Curve1Key0Tangent, Curve1Key1Tangent);
-
-	//Lerp across focus curves
-	BlendedColor = lerp(Curve0BlendedColor, Curve1BlendedColor, FocusBlendFactor);
-
+	float4 TexColors[4] =
+	{
+		TexOneColor,
+		Texture2DSampleLevel(SourceTextureTwo, SourceTextureSampler, UV, 0),
+		Texture2DSampleLevel(SourceTextureThree, SourceTextureSampler, UV, 0),
+		Texture2DSampleLevel(SourceTextureFour, SourceTextureSampler, UV, 0)
+	};
+	
+	BlendedColor = CoonsPatchBlend(EvalZoom, EvalFocus, TexColors);
+	
 #else
 	
 	BlendedColor = TexOneColor;

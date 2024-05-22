@@ -125,6 +125,36 @@ bool FSTMapFocusPoint::IsEmpty() const
 	return MapBlendingCurve.IsEmpty();
 }
 
+void FSTMapFocusCurve::AddPoint(float InFocus, const FSTMapInfo& InData, float InputTolerance)
+{
+	AddPointToCurve(MapBlendingCurve, InFocus, InFocus, InputTolerance);
+}
+
+void FSTMapFocusCurve::SetPoint(float InFocus, const FSTMapInfo& InData, float InputTolerance)
+{
+	// No need to update map curve since x == y
+}
+
+void FSTMapFocusCurve::RemovePoint(float InFocus, float InputTolerance)
+{
+	DeletePointFromCurve(MapBlendingCurve, InFocus, InputTolerance);
+}
+
+void FSTMapFocusCurve::ChangeFocus(float InExistingFocus, float InNewFocus, float InputTolerance)
+{
+	ChangeFocusInCurve(MapBlendingCurve, InExistingFocus, InNewFocus, InputTolerance);
+}
+
+void FSTMapFocusCurve::MergeFocus(float InExistingFocus, float InNewFocus, bool bReplaceExisting, float InputTolerance)
+{
+	MergeFocusInCurve(MapBlendingCurve, InExistingFocus, InNewFocus, bReplaceExisting, InputTolerance);
+}
+
+bool FSTMapFocusCurve::IsEmpty() const
+{
+	return !MapBlendingCurve.GetNumKeys();
+}
+
 void FSTMapTable::ForEachPoint(FFocusPointCallback InCallback) const
 {
 	for (const FSTMapFocusPoint& Point : FocusPoints)
@@ -187,59 +217,28 @@ bool FSTMapTable::BuildParameterCurveAtFocus(float InFocus, int32 InParameterInd
 
 bool FSTMapTable::BuildParameterCurveAtZoom(float InZoom, int32 InParameterIndex, FRichCurve& OutCurve) const
 {
-	for (const FSTMapFocusPoint& FocusPoint : FocusPoints)
+	if (const FSTMapFocusCurve* FocusCurve = GetFocusCurve(InZoom))
 	{
-		FKeyHandle ZoomKeyHandle = FocusPoint.MapBlendingCurve.FindKey(InZoom);
-		if (FocusPoint.MapBlendingCurve.IsKeyHandleValid(ZoomKeyHandle))
-		{
-			const float Value = FocusPoint.MapBlendingCurve.GetKeyValue(ZoomKeyHandle);
-			const FKeyHandle NewKeyHandle = OutCurve.AddKey(FocusPoint.Focus, Value);
-			FRichCurveKey& NewKey = OutCurve.GetKey(NewKeyHandle);
-			NewKey.TangentMode = ERichCurveTangentMode::RCTM_None;
-			NewKey.InterpMode = ERichCurveInterpMode::RCIM_Linear;
-		}
+		OutCurve = FocusCurve->MapBlendingCurve;
+		return true;
 	}
 
-	return true;
+	return false;
 }
 
 void FSTMapTable::SetParameterCurveKeysAtFocus(float InFocus, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys)
 {
 	if (FSTMapFocusPoint* FocusPoint = GetFocusPoint(InFocus))
 	{
-		for (int32 Index = 0; Index < InKeys.Num(); ++Index)
-		{
-			const FKeyHandle Handle = InKeys[Index];
-			const int32 KeyIndex = InSourceCurve.GetIndexSafe(Handle);
-			if (KeyIndex != INDEX_NONE)
-			{
-				//We can't move keys on the time axis so our indices should match
-				const FRichCurveKey& Key = InSourceCurve.GetKey(Handle);
-				FocusPoint->MapBlendingCurve.Keys[KeyIndex] = Key;
-			}
-		}
-
-		FocusPoint->MapBlendingCurve.AutoSetTangents();
+		CopyCurveKeys(InSourceCurve, FocusPoint->MapBlendingCurve, InKeys);
 	}
 }
 
 void FSTMapTable::SetParameterCurveKeysAtZoom(float InZoom, int32 InParameterIndex, const FRichCurve& InSourceCurve, TArrayView<const FKeyHandle> InKeys)
 {
-	for (const FKeyHandle& KeyHandle : InKeys)
+	if (FSTMapFocusCurve* FocusCurve = GetFocusCurve(InZoom))
 	{
-		// Assume the focus keys are put into the source curve in the same order as they are stored internally
-		const int32 KeyIndex = InSourceCurve.GetIndexSafe(KeyHandle);
-		if (KeyIndex != INDEX_NONE)
-		{
-			if (ensure(FocusPoints.IsValidIndex(KeyIndex)))
-			{
-				FSTMapFocusPoint& FocusPoint = FocusPoints[KeyIndex];
-				
-				//We can't move keys on the time axis so our indices should match
-				FocusPoint.MapBlendingCurve.Keys[KeyIndex].Value = InSourceCurve.GetKeyValue(KeyHandle);
-				FocusPoint.MapBlendingCurve.AutoSetTangents();
-			}
-		}
+		CopyCurveKeys(InSourceCurve, FocusCurve->MapBlendingCurve, InKeys);
 	}
 }
 
@@ -253,6 +252,16 @@ FSTMapFocusPoint* FSTMapTable::GetFocusPoint(float InFocus, float InputTolerance
 	return FocusPoints.FindByPredicate([InFocus, InputTolerance](const FSTMapFocusPoint& Point) { return FMath::IsNearlyEqual(Point.Focus, InFocus, InputTolerance); });
 }
 
+const FSTMapFocusCurve* FSTMapTable::GetFocusCurve(float InZoom, float InputTolerance) const
+{
+	return FocusCurves.FindByPredicate([InZoom, InputTolerance](const FSTMapFocusCurve& Curve) { return FMath::IsNearlyEqual(Curve.Zoom, InZoom, InputTolerance); });
+}
+
+FSTMapFocusCurve* FSTMapTable::GetFocusCurve(float InZoom, float InputTolerance)
+{
+	return FocusCurves.FindByPredicate([InZoom, InputTolerance](const FSTMapFocusCurve& Curve) { return FMath::IsNearlyEqual(Curve.Zoom, InZoom, InputTolerance); });
+}
+
 TConstArrayView<FSTMapFocusPoint> FSTMapTable::GetFocusPoints() const
 {
 	return FocusPoints;
@@ -263,9 +272,20 @@ TArrayView<FSTMapFocusPoint> FSTMapTable::GetFocusPoints()
 	return FocusPoints;
 }
 
+TConstArrayView<FSTMapFocusCurve> FSTMapTable::GetFocusCurves() const
+{
+	return FocusCurves;
+}
+
+TArray<FSTMapFocusCurve>& FSTMapTable::GetFocusCurves()
+{
+	return FocusCurves;
+}
+
 void FSTMapTable::RemoveFocusPoint(float InFocus)
 {
 	LensDataTableUtils::RemoveFocusPoint(FocusPoints, InFocus);
+	LensDataTableUtils::RemoveFocusFromFocusCurves(FocusCurves, InFocus);
 }
 
 bool FSTMapTable::HasFocusPoint(float InFocus, float InputTolerance) const
@@ -276,16 +296,19 @@ bool FSTMapTable::HasFocusPoint(float InFocus, float InputTolerance) const
 void FSTMapTable::ChangeFocusPoint(float InExistingFocus, float InNewFocus, float InputTolerance)
 {
 	LensDataTableUtils::ChangeFocusPoint(FocusPoints, InExistingFocus, InNewFocus, InputTolerance);
+	LensDataTableUtils::ChangeFocusInFocusCurves(FocusCurves, InExistingFocus, InNewFocus, InputTolerance);
 }
 
 void FSTMapTable::MergeFocusPoint(float InSrcFocus, float InDestFocus, bool bReplaceExistingZoomPoints, float InputTolerance)
 {
 	LensDataTableUtils::MergeFocusPoint(FocusPoints, InSrcFocus, InDestFocus, bReplaceExistingZoomPoints, InputTolerance);
+	LensDataTableUtils::MergeFocusInFocusCurves(FocusCurves, InSrcFocus, InDestFocus, bReplaceExistingZoomPoints, InputTolerance);
 }
 
 void FSTMapTable::RemoveZoomPoint(float InFocus, float InZoom)
 {
 	LensDataTableUtils::RemoveZoomPoint(FocusPoints, InFocus, InZoom);
+	LensDataTableUtils::RemoveZoomFromFocusCurves(FocusCurves, InFocus, InZoom);
 }
 
 bool FSTMapTable::HasZoomPoint(float InFocus, float InZoom, float InputTolerance)
@@ -296,6 +319,14 @@ bool FSTMapTable::HasZoomPoint(float InFocus, float InZoom, float InputTolerance
 void FSTMapTable::ChangeZoomPoint(float InFocus, float InExistingZoom, float InNewZoom, float InputTolerance)
 {
 	LensDataTableUtils::ChangeZoomPoint(FocusPoints, InFocus, InExistingZoom, InNewZoom, InputTolerance);
+	
+	FSTMapInfo Data;
+	if (!GetPoint(InFocus, InNewZoom, Data, InputTolerance))
+	{
+		return;
+	}
+
+	LensDataTableUtils::ChangeZoomInFocusCurves(FocusCurves, InFocus, InExistingZoom, InNewZoom, Data, InputTolerance);
 }
 
 TMap<ELensDataCategory, FLinkPointMetadata> FSTMapTable::GetLinkedCategories() const
@@ -312,7 +343,13 @@ TMap<ELensDataCategory, FLinkPointMetadata> FSTMapTable::GetLinkedCategories() c
 bool FSTMapTable::AddPoint(float InFocus, float InZoom, const FSTMapInfo& InData, float InputTolerance,
                            bool bIsCalibrationPoint)
 {
-	return LensDataTableUtils::AddPoint(FocusPoints, InFocus, InZoom, InData, InputTolerance, bIsCalibrationPoint);
+	if (!LensDataTableUtils::AddPoint(FocusPoints, InFocus, InZoom, InData, InputTolerance, bIsCalibrationPoint))
+	{
+		return false;
+	}
+
+	LensDataTableUtils::AddPointToFocusCurve(FocusCurves, InFocus, InZoom, InData, InputTolerance);
+	return true;
 }
 
 bool FSTMapTable::GetPoint(const float InFocus, const float InZoom, FSTMapInfo& OutData, float InputTolerance) const
@@ -333,6 +370,20 @@ bool FSTMapTable::GetPoint(const float InFocus, const float InZoom, FSTMapInfo& 
 
 bool FSTMapTable::SetPoint(float InFocus, float InZoom, const FSTMapInfo& InData, float InputTolerance)
 {
-	return LensDataTableUtils::SetPoint(*this, InFocus, InZoom, InData, InputTolerance);
+	if (!LensDataTableUtils::SetPoint(*this, InFocus, InZoom, InData, InputTolerance))
+	{
+		return false;
+	}
+
+	LensDataTableUtils::SetPointInFocusCurve(FocusCurves, InFocus, InZoom, InData, InputTolerance);
+	
+	return true;
+}
+
+void FSTMapTable::BuildFocusCurves()
+{
+	// Ensure that the focus curves are empty before building them from the table data
+	FocusCurves.Empty();
+	LensDataTableUtils::BuildFocusCurves(FocusPoints, FocusCurves);
 }
 

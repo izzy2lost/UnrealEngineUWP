@@ -50,12 +50,6 @@ void FLensDataMultiAxisCurveModel::SetKeyPositions(TArrayView<const FKeyHandle> 
 
 void FLensDataMultiAxisCurveModel::SetKeyAttributes(TArrayView<const FKeyHandle> InKeys, TArrayView<const FKeyAttributes> InAttributes, EPropertyChangeType::Type ChangeType)
 {
-	// For now, don't allow focus axis curves to be editable
-	if (CurveAxis == ELensCurveAxis::Focus)
-	{
-		return;
-	}
-		
 	if (FBaseLensTable* DataTable = LensFile->GetDataTable(Category))
 	{
 		if (!DataTable->CanEditCurveKeyAttributes(ParameterIndex))
@@ -64,8 +58,15 @@ void FLensDataMultiAxisCurveModel::SetKeyAttributes(TArrayView<const FKeyHandle>
 		}
 			
 		FLensDataCurveModel::SetKeyAttributes(InKeys, InAttributes, ChangeType);
-		
-		DataTable->SetParameterCurveKeysAtFocus(CurveValue, ParameterIndex, CurrentCurve, InKeys);
+
+		if (CurveAxis == ELensCurveAxis::Zoom)
+		{
+			DataTable->SetParameterCurveKeysAtFocus(CurveValue, ParameterIndex, CurrentCurve, InKeys);
+		}
+		else if (CurveAxis == ELensCurveAxis::Focus)
+		{
+			DataTable->SetParameterCurveKeysAtZoom(CurveValue, ParameterIndex, CurrentCurve, InKeys);
+		}
 	}
 }
 

@@ -117,6 +117,41 @@ public:
 	TArray<FSTMapZoomPoint> ZoomPoints;
 };
 
+/** A curve along the focus axis for a single zoom value */
+USTRUCT()
+struct CAMERACALIBRATIONCORE_API FSTMapFocusCurve : public FBaseFocusCurve
+{
+	GENERATED_BODY()
+
+public:
+	/** Adds a new point to the focus curve, or updates a matching existing point if one is found */
+	void AddPoint(float InFocus, const FSTMapInfo& InData, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Updates an existing point if one is found */
+	void SetPoint(float InFocus, const FSTMapInfo& InData, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Removes the point at the specified focus if one is found */
+	void RemovePoint(float InFocus, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Changes the focus value of the point at the specified focus, if one is found */
+	void ChangeFocus(float InExistingFocus, float InNewFocus, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Changes the focus value of the point at the specified focus and optionally replaces any point at the new focus with the old point */
+	void MergeFocus(float InExistingFocus, float InNewFocus, bool bReplaceExisting, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Gets whether the curve is empty */
+	bool IsEmpty() const;
+
+public:
+	/** Curve describing desired blending between resulting displacement maps */
+	UPROPERTY()
+	FRichCurve MapBlendingCurve;
+
+	/** The fixed zoom value of the curve */
+	UPROPERTY()
+	float Zoom = 0.0f;
+};
+
 /**
  * STMap table containing list of points for each focus and zoom inputs
  */
@@ -126,6 +161,7 @@ struct CAMERACALIBRATIONCORE_API FSTMapTable : public FBaseLensTable
 	GENERATED_BODY()
 
 	using FocusPointType = FSTMapFocusPoint;
+	using FocusCurveType = FSTMapFocusCurve;
 
 protected:
 	//~ Begin FBaseDataTable Interface
@@ -155,12 +191,24 @@ public:
 	/** Returns point for a given focus */
 	FSTMapFocusPoint* GetFocusPoint(float InFocus, float InputTolerance = KINDA_SMALL_NUMBER);
 
+	/** Gets the focus curve for the specified zoom, or nullptr if none were found */
+	const FSTMapFocusCurve* GetFocusCurve(float InZoom, float InputTolerance = KINDA_SMALL_NUMBER) const;
+
+	/** Gets the focus curve for the specified zoom, or nullptr if none were found */
+	FSTMapFocusCurve* GetFocusCurve(float InZoom, float InputTolerance = KINDA_SMALL_NUMBER);
+	
 	/** Returns all focus points */
 	TConstArrayView<FSTMapFocusPoint> GetFocusPoints() const;
 
 	/** Returns all focus points */
 	TArrayView<FSTMapFocusPoint> GetFocusPoints();
 
+	/** Returns all focus curves */
+	TConstArrayView<FSTMapFocusCurve> GetFocusCurves() const;
+
+	/** Returns all focus curves */
+	TArray<FSTMapFocusCurve>& GetFocusCurves();
+	
 	/** Removes a focus point identified as InFocusIdentifier */
 	void RemoveFocusPoint(float InFocus);
 
@@ -191,10 +239,17 @@ public:
 	/** Set a new point into the table */
 	bool SetPoint(float InFocus, float InZoom, const FSTMapInfo& InData, float InputTolerance = KINDA_SMALL_NUMBER);
 
+	/** Builds the focus curves to match existing data in the table */
+	void BuildFocusCurves();
+	
 public:
 
 	/** Lists of focus points */
 	UPROPERTY()
 	TArray<FSTMapFocusPoint> FocusPoints;
+
+	/** A list of curves along the focus axis for each zoom value */
+	UPROPERTY()
+	TArray<FSTMapFocusCurve> FocusCurves;
 };
 

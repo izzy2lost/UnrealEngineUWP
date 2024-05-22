@@ -68,6 +68,8 @@ public:
 	ULensFile();
 
 	//~Begin UObject interface
+	virtual void Serialize(FArchive& Ar) override;
+	
 #if WITH_EDITOR
 	virtual void PostEditChangeChainProperty( struct FPropertyChangedChainEvent& PropertyChangedEvent ) override;
 #endif //WITH_EDITOR
@@ -257,6 +259,11 @@ protected:
 	
 	/** Evaluates distortion based on InFocus and InZoom using STMaps */
 	bool EvaluateDistortionForSTMaps(float InFocus, float InZoom, FVector2D InFilmback, ULensDistortionModelHandlerBase* LensHandler) const;
+
+#if WITH_EDITOR
+	/** Builds the lens table focus curves to match the existing data in the tables */
+	void BuildLensTableFocusCurves();
+#endif // WITH_EDITOR
 	
 public:
 

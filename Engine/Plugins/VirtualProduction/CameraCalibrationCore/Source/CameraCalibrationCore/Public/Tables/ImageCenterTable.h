@@ -8,7 +8,6 @@
 
 #include "ImageCenterTable.generated.h"
 
-
 /**
  * ImageCenter focus point containing curves for CxCy 
  */
@@ -44,6 +43,12 @@ public:
 	/** Returns true if this point is empty */
 	bool IsEmpty() const;
 
+	/** Gets the curve for the specified parameter, or nullptr if the parameter index is invalid */
+	const FRichCurve* GetCurveForParameter(int32 InParameterIndex) const;
+
+	/** Gets the curve for the specified parameter, or nullptr if the parameter index is invalid */
+	FRichCurve* GetCurveForParameter(int32 InParameterIndex);
+	
 public:
 
 	/** Focus value of this point */
@@ -59,6 +64,51 @@ public:
 	FRichCurve Cy;
 };
 
+/** A curve along the focus axis for a single zoom value */
+USTRUCT()
+struct CAMERACALIBRATIONCORE_API FImageCenterFocusCurve : public FBaseFocusCurve
+{
+	GENERATED_BODY()
+
+public:
+	/** Adds a new point to the focus curve, or updates a matching existing point if one is found */
+	void AddPoint(float InFocus, const FImageCenterInfo& InData, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Updates an existing point if one is found */
+	void SetPoint(float InFocus, const FImageCenterInfo& InData, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Removes the point at the specified focus if one is found */
+	void RemovePoint(float InFocus, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Changes the focus value of the point at the specified focus, if one is found */
+	void ChangeFocus(float InExistingFocus, float InNewFocus, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Changes the focus value of the point at the specified focus and optionally replaces any point at the new focus with the old point */
+	void MergeFocus(float InExistingFocus, float InNewFocus, bool bReplaceExisting, float InputTolerance = KINDA_SMALL_NUMBER);
+
+	/** Gets whether the curve is empty */
+	bool IsEmpty() const;
+
+	/** Gets the curve for the specified parameter, or nullptr if the parameter index is invalid */
+	const FRichCurve* GetCurveForParameter(int32 InParameterIndex) const;
+
+	/** Gets the curve for the specified parameter, or nullptr if the parameter index is invalid */
+	FRichCurve* GetCurveForParameter(int32 InParameterIndex);
+	
+public:
+	/** Focus curve for the x parameter of the image center */
+	UPROPERTY()
+	FRichCurve Cx;
+
+	/** Focus curve for the y parameter of the image center */
+	UPROPERTY()
+	FRichCurve Cy;
+
+	/** The fixed zoom value of the curve */
+	UPROPERTY()
+	float Zoom = 0.0f;
+};
+
 /**
  * Image Center table associating CxCy values to focus and zoom
  */
@@ -68,7 +118,8 @@ struct CAMERACALIBRATIONCORE_API FImageCenterTable : public FBaseLensTable
 	GENERATED_BODY()
 
 	using FocusPointType = FImageCenterFocusPoint;
-
+	using FocusCurveType = FImageCenterFocusCurve;
+	
 	/** Wrapper for indices of specific parameters for the image center table  */
 	struct FParameters
 	{
@@ -108,11 +159,23 @@ public:
 	/** Returns const point for a given focus */
 	FImageCenterFocusPoint* GetFocusPoint(float InFocus, float InputTolerance = KINDA_SMALL_NUMBER);
 
+	/** Gets the focus curve for the specified zoom, or nullptr if none were found */
+	const FImageCenterFocusCurve* GetFocusCurve(float InZoom, float InputTolerance = KINDA_SMALL_NUMBER) const;
+
+	/** Gets the focus curve for the specified zoom, or nullptr if none were found */
+	FImageCenterFocusCurve* GetFocusCurve(float InZoom, float InputTolerance = KINDA_SMALL_NUMBER);
+	
 	/** Returns all focus points */
 	TConstArrayView<FImageCenterFocusPoint> GetFocusPoints() const;
 
 	/** Returns all focus points */
 	TArray<FImageCenterFocusPoint>& GetFocusPoints();
+
+	/** Returns all focus curves */
+	TConstArrayView<FImageCenterFocusCurve> GetFocusCurves() const;
+
+	/** Returns all focus curves */
+	TArray<FImageCenterFocusCurve>& GetFocusCurves();
 	
 	/** Removes a focus point identified as InFocusIdentifier */
 	void RemoveFocusPoint(float InFocus);
@@ -144,10 +207,17 @@ public:
 	/** Set a new point into the table */
 	bool SetPoint(float InFocus, float InZoom, const FImageCenterInfo& InData, float InputTolerance = KINDA_SMALL_NUMBER);
 
-public:
+	/** Builds the focus curves to match existing data in the table */
+	void BuildFocusCurves();
+	
+public:		
 
 	/** Lists of focus points */
 	UPROPERTY()
 	TArray<FImageCenterFocusPoint> FocusPoints;
+
+	/** A list of curves along the focus axis for each zoom value */
+	UPROPERTY()
+	TArray<FImageCenterFocusCurve> FocusCurves;
 };
 
