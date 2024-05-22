@@ -19,6 +19,7 @@ FStaticMeshToCollectionDataflowNode::FStaticMeshToCollectionDataflowNode(const D
 	RegisterInputConnection(&StaticMesh);
 	RegisterOutputConnection(&Collection);
 	RegisterOutputConnection(&Materials);
+	RegisterOutputConnection(&MaterialInstances);
 	RegisterOutputConnection(&InstancedMeshes);
 }
 
@@ -27,18 +28,22 @@ void FStaticMeshToCollectionDataflowNode::Evaluate(Dataflow::FContext& Context, 
 	ensure(Out->IsA(&Collection) || Out->IsA(&Materials) || Out->IsA(&InstancedMeshes));
 
 	FManagedArrayCollection OutCollection;
-	TArray<TObjectPtr<UMaterial>> OutMaterials;
+	TArray<TObjectPtr<UMaterialInterface>> OutMaterialInstances;
 	TArray<FGeometryCollectionAutoInstanceMesh> OutInstancedMeshes;
 
 	TObjectPtr<UStaticMesh> StaticMeshVal = GetValue(Context, &StaticMesh, StaticMesh);
 	if (StaticMeshVal)
 	{
-		FGeometryCollectionEngineConversion::ConvertStaticMeshToGeometryCollection(StaticMeshVal, OutCollection, OutMaterials, OutInstancedMeshes, bSetInternalFromMaterialIndex, bSplitComponents);
+		FGeometryCollectionEngineConversion::ConvertStaticMeshToGeometryCollection(StaticMeshVal, OutCollection, OutMaterialInstances, OutInstancedMeshes, bSetInternalFromMaterialIndex, bSplitComponents);
 	}
+
+	TArray<TObjectPtr<UMaterial>> OutMaterials;
+	FGeometryCollectionEngineConversion::GetMaterialsFromInstances(OutMaterialInstances, OutMaterials);
 
 	// Set Outputs
 	SetValue(Context, MoveTemp(OutCollection), &Collection);
 	SetValue(Context, MoveTemp(OutMaterials), &Materials);
+	SetValue(Context, MoveTemp(OutMaterialInstances), &MaterialInstances);
 	SetValue(Context, MoveTemp(OutInstancedMeshes), &InstancedMeshes);
 }
 

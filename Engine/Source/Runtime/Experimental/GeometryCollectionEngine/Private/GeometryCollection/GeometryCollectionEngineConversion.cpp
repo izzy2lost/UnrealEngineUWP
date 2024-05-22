@@ -1488,12 +1488,24 @@ int32 FGeometryCollectionEngineConversion::AppendSkeletalMeshMaterials(const USk
 
 void FGeometryCollectionEngineConversion::AppendGeometryCollectionSource(const FGeometryCollectionSource& GeometryCollectionSource, FGeometryCollection& GeometryCollectionInOut, TArray<UMaterial*>& MaterialsInOut, bool ReindexMaterials)
 {
+	const int32 StartMaterialIndex = MaterialsInOut.Num();
+	if (AppendGeometryCollectionSourceNoMaterial(GeometryCollectionSource, GeometryCollectionInOut, StartMaterialIndex, ReindexMaterials))
+	{
+		MaterialsInOut.Append(GeometryCollectionSource.SourceMaterial);
+	}
+}
+void FGeometryCollectionEngineConversion::AppendGeometryCollectionSource(const FGeometryCollectionSource& GeometryCollectionSource, FGeometryCollection& GeometryCollectionInOut, TArray<UMaterialInterface*>& MaterialInstancesInOut, bool ReindexMaterials)
+{
+	const int32 StartMaterialIndex = MaterialInstancesInOut.Num();
+	if (AppendGeometryCollectionSourceNoMaterial(GeometryCollectionSource, GeometryCollectionInOut, StartMaterialIndex, ReindexMaterials))
+	{
+		MaterialInstancesInOut.Append(GeometryCollectionSource.SourceMaterial);
+	}
+}
+bool FGeometryCollectionEngineConversion::AppendGeometryCollectionSourceNoMaterial(const FGeometryCollectionSource& GeometryCollectionSource, FGeometryCollection& GeometryCollectionInOut, int32 StartMaterialIndex, bool ReindexMaterials)
+{
 	if (const UObject* SourceObject = GeometryCollectionSource.SourceGeometryObject.TryLoad())
 	{
-		const int32 StartMaterialIndex = MaterialsInOut.Num();
-
-		MaterialsInOut.Append(GeometryCollectionSource.SourceMaterial);
-
 		if (const UStaticMesh* SourceStaticMesh = Cast<UStaticMesh>(SourceObject))
 		{
 			bool bLegacyAddInternal = GeometryCollectionSource.bAddInternalMaterials;
@@ -1507,6 +1519,7 @@ void FGeometryCollectionEngineConversion::AppendGeometryCollectionSource(const F
 				GeometryCollectionSource.bSplitComponents,
 				GeometryCollectionSource.bSetInternalFromMaterialIndex
 				);
+			return true;
 		}
 		else if (const USkeletalMesh* SourceSkeletalMesh = Cast<USkeletalMesh>(SourceObject))
 		{
@@ -1517,6 +1530,7 @@ void FGeometryCollectionEngineConversion::AppendGeometryCollectionSource(const F
 				&GeometryCollectionInOut,
 				ReindexMaterials
 				);
+			return true;
 		}
 		else if (const UGeometryCollection* SourceGeometryCollection = Cast<UGeometryCollection>(SourceObject))
 		{
@@ -1527,11 +1541,20 @@ void FGeometryCollectionEngineConversion::AppendGeometryCollectionSource(const F
 				&GeometryCollectionInOut,
 				ReindexMaterials
 				);
+			return true;
 		}
 	}
+	return false;
 }
 
 void FGeometryCollectionEngineConversion::ConvertStaticMeshToGeometryCollection(const TObjectPtr<UStaticMesh> StaticMesh, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, bool bSetInternalFromMaterialIndex, bool bSplitComponents)
+{
+	TArray<TObjectPtr<UMaterialInterface>> OutMaterialInstances;
+	ConvertStaticMeshToGeometryCollection(StaticMesh, OutCollection, OutMaterialInstances, OutInstancedMeshes, bSetInternalFromMaterialIndex, bSplitComponents);
+	GetMaterialsFromInstances(OutMaterialInstances, OutMaterials);
+}
+
+void FGeometryCollectionEngineConversion::ConvertStaticMeshToGeometryCollection(const TObjectPtr<UStaticMesh> StaticMesh, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterialInterface>>& OutMaterialInstances, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, bool bSetInternalFromMaterialIndex, bool bSplitComponents)
 {
 #if WITH_EDITORONLY_DATA
 	if (UGeometryCollection* NewGeometryCollection = NewObject<UGeometryCollection>())
@@ -1566,10 +1589,7 @@ void FGeometryCollectionEngineConversion::ConvertStaticMeshToGeometryCollection(
 		NewGeometryCollection->InitializeMaterials();
 
 		// Materials
-		for (auto& Material : NewGeometryCollection->Materials)
-		{
-			OutMaterials.Emplace(Material->GetMaterial());
-		}
+		OutMaterialInstances.Append(NewGeometryCollection->Materials);
 
 		TSharedPtr<FGeometryCollection> OutCollectionPtr = NewGeometryCollection->GetGeometryCollection();
 		OutCollectionPtr->CopyTo(&OutCollection);
@@ -1579,15 +1599,19 @@ void FGeometryCollectionEngineConversion::ConvertStaticMeshToGeometryCollection(
 
 void FGeometryCollectionEngineConversion::ConvertGeometryCollectionToGeometryCollection(const TObjectPtr<UGeometryCollection> InGeometryCollectionAssetPtr, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes)
 {
+	TArray<TObjectPtr<UMaterialInterface>> OutMaterialInstances;
+	ConvertGeometryCollectionToGeometryCollection(InGeometryCollectionAssetPtr, OutCollection, OutMaterialInstances, OutInstancedMeshes);
+	GetMaterialsFromInstances(OutMaterialInstances, OutMaterials);
+}
+
+void FGeometryCollectionEngineConversion::ConvertGeometryCollectionToGeometryCollection(const TObjectPtr<UGeometryCollection> InGeometryCollectionAssetPtr, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterialInterface>>& OutMaterialInstances, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes)
+{
 	if (InGeometryCollectionAssetPtr)
 	{
 		const TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> NewGeometryCollectionPtr = InGeometryCollectionAssetPtr->GetGeometryCollection();
 
 		// Materials
-		for (auto& Material : InGeometryCollectionAssetPtr->Materials)
-		{
-			OutMaterials.Emplace(Material->GetMaterial());
-		}
+		OutMaterialInstances = InGeometryCollectionAssetPtr->Materials;
 
 		// InstanceMeshes
 		OutInstancedMeshes = InGeometryCollectionAssetPtr->AutoInstanceMeshes;
@@ -1599,7 +1623,15 @@ void FGeometryCollectionEngineConversion::ConvertGeometryCollectionToGeometryCol
 	}
 }
 
+
 void FGeometryCollectionEngineConversion::ConvertActorToGeometryCollection(const AActor* Actor, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterial>>& OutMaterials, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, const FSkeletalMeshToCollectionConversionParameters& ConversionParameters, bool bSplitComponents)
+{
+	TArray<TObjectPtr<UMaterialInterface>> OutMaterialInstances;
+	ConvertActorToGeometryCollection(Actor, OutCollection, OutMaterialInstances, OutInstancedMeshes, ConversionParameters, bSplitComponents);
+	GetMaterialsFromInstances(OutMaterialInstances, OutMaterials);
+}
+
+void FGeometryCollectionEngineConversion::ConvertActorToGeometryCollection(const AActor* Actor, FManagedArrayCollection& OutCollection, TArray<TObjectPtr<UMaterialInterface>>& OutMaterialInstances, TArray<FGeometryCollectionAutoInstanceMesh>& OutInstancedMeshes, const FSkeletalMeshToCollectionConversionParameters& ConversionParameters, bool bSplitComponents)
 {
 #if WITH_EDITORONLY_DATA
 	const FTransform ActorTransform(Actor->GetTransform());
@@ -1671,10 +1703,7 @@ void FGeometryCollectionEngineConversion::ConvertActorToGeometryCollection(const
 		OutInstancedMeshes.Append(NewGeometryCollection->AutoInstanceMeshes);
 
 		// Materials
-		for (auto& Material : NewGeometryCollection->Materials)
-		{
-			OutMaterials.Emplace(Material->GetMaterial());
-		}
+		OutMaterialInstances = NewGeometryCollection->Materials;
 
 		TSharedPtr<FGeometryCollection> OutCollectionPtr = NewGeometryCollection->GetGeometryCollection();
 		OutCollectionPtr->CopyTo(&OutCollection);
@@ -1748,5 +1777,17 @@ void FGeometryCollectionEngineConversion::ConvertCollectionToSkeleton(const FMan
 	}
 }
 
+void FGeometryCollectionEngineConversion::GetMaterialsFromInstances(const TArray<TObjectPtr<UMaterialInterface>>& MaterialInstances, TArray<TObjectPtr<UMaterial>>& OutMaterials)
+{
+	// somehow append does not like appending to a TArray<ObjectPtr<>>
+	// so we need to store in a array of raw pointers and then transfer over 
+	TArray<UMaterial*> MaterialArray;
+	MaterialArray.Append(MaterialInstances);
+	OutMaterials.Reserve(MaterialInstances.Num());
+	for (UMaterial* Material : MaterialArray)
+	{
+		OutMaterials.Add(Material);
+	}
+}
 
 #undef LOCTEXT_NAMESPACE 

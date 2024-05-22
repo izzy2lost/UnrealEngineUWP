@@ -10,6 +10,7 @@
 #include "GeometryCollection/GeometryCollectionClusteringUtility.h"
 #include "GeometryCollection/Facades/CollectionHierarchyFacade.h"
 #include "GeometryCollection/Facades/CollectionInstancedMeshFacade.h"
+#include "Materials/MaterialInterface.h"
 #include "PreviewScene.h"
 
 namespace Dataflow
@@ -39,7 +40,9 @@ FGeometryCollectionTerminalDataflowNode::FGeometryCollectionTerminalDataflowNode
 	RegisterInputConnection(&Collection);
 	RegisterOutputConnection(&Collection, &Collection);
 	RegisterInputConnection(&Materials);
+	RegisterInputConnection(&MaterialInstances);
 	RegisterOutputConnection(&Materials, &Materials);
+	RegisterOutputConnection(&MaterialInstances, &MaterialInstances);
 	RegisterInputConnection(&InstancedMeshes);
 	RegisterOutputConnection(&InstancedMeshes, &InstancedMeshes);
 }
@@ -50,6 +53,7 @@ void FGeometryCollectionTerminalDataflowNode::SetAssetValue(TObjectPtr<UObject> 
 {
 	using FGeometryCollectionPtr = TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe>;
 	using FMaterialArray = TArray<TObjectPtr<UMaterial>>;
+	using FMaterialInstanceArray = TArray<TObjectPtr<UMaterialInterface>>;
 	using FInstancedMeshesArray = TArray<FGeometryCollectionAutoInstanceMesh>;
 
 	if (UGeometryCollection* CollectionAsset = Cast<UGeometryCollection>(Asset.Get()))
@@ -58,6 +62,7 @@ void FGeometryCollectionTerminalDataflowNode::SetAssetValue(TObjectPtr<UObject> 
 		{
 			const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
 			const FMaterialArray& InMaterials = GetValue(Context, &Materials);
+			const FMaterialInstanceArray& InMaterialInstances = GetValue(Context, &MaterialInstances);
 			const FInstancedMeshesArray& InInstancedMeshes = GetValue(Context, &InstancedMeshes);
 
 			if (InCollection.NumElements(FGeometryCollection::TransformGroup) == 0)
@@ -67,7 +72,14 @@ void FGeometryCollectionTerminalDataflowNode::SetAssetValue(TObjectPtr<UObject> 
 			}
 
 			const bool bHasInternalMaterial = false; // with data flow there's no assumption of internal materials
-			CollectionAsset->ResetFrom(InCollection, InMaterials, false);
+			if (InMaterialInstances.Num() > 0)
+			{
+				CollectionAsset->ResetFrom(InCollection, InMaterialInstances, false);
+			}
+			else
+			{
+				CollectionAsset->ResetFrom(InCollection, InMaterials, false);
+			}
 			CollectionAsset->SetAutoInstanceMeshes(InInstancedMeshes);
 
 #if WITH_EDITOR
@@ -82,16 +94,11 @@ void FGeometryCollectionTerminalDataflowNode::SetAssetValue(TObjectPtr<UObject> 
 
 void FGeometryCollectionTerminalDataflowNode::Evaluate(Dataflow::FContext& Context) const
 {
-	using FMaterialArray = TArray<TObjectPtr<UMaterial>>;
-	using FInstancedMeshesArray = TArray<FGeometryCollectionAutoInstanceMesh>;
-
-	const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
-	const FMaterialArray& InMaterials = GetValue(Context, &Materials);
-	const FInstancedMeshesArray& InInstancedMeshes = GetValue(Context, &InstancedMeshes);
-
-	SetValue(Context, InCollection, &Collection);
-	SetValue(Context, InMaterials, &Materials);
-	SetValue(Context, InInstancedMeshes, &InstancedMeshes);
+	// simply forward all inputs to corresponding outputs
+	ForwardInput(Context, &Collection, &Collection);
+	ForwardInput(Context, &Materials, &Materials);
+	ForwardInput(Context, &MaterialInstances, &MaterialInstances);
+	ForwardInput(Context, &InstancedMeshes, &InstancedMeshes);
 }
 
 // ===========================================================================================================================
@@ -150,6 +157,7 @@ FCreateGeometryCollectionFromSourcesDataflowNode::FCreateGeometryCollectionFromS
 	RegisterInputConnection(&Sources);
 	RegisterOutputConnection(&Collection);
 	RegisterOutputConnection(&Materials);
+	RegisterOutputConnection(&MaterialInstances);
 	RegisterOutputConnection(&InstancedMeshes);
 }
 
@@ -160,7 +168,7 @@ void FCreateGeometryCollectionFromSourcesDataflowNode::Evaluate(Dataflow::FConte
 	const TArray<FGeometryCollectionSource>& InSources = GetValue(Context, &Sources);
 
 	FGeometryCollection OutCollection;
-	TArray<TObjectPtr<UMaterial>> OutMaterials;
+	TArray<TObjectPtr<UMaterialInterface>> OutMaterialInstances;
 	TArray<FGeometryCollectionAutoInstanceMesh> OutInstancedMeshes;
 
 	// make sure we have an attribute for instanced meshes
@@ -174,7 +182,7 @@ void FCreateGeometryCollectionFromSourcesDataflowNode::Evaluate(Dataflow::FConte
 		const int32 NumTransformsBeforeAppending = OutCollection.NumElements(FGeometryCollection::TransformGroup);
 
 		// todo: change AppendGeometryCollectionSource to take a FManagedArrayCollection so we could move the collection when assigning it to the output
-		FGeometryCollectionEngineConversion::AppendGeometryCollectionSource(Source, OutCollection, MutableView(OutMaterials), bReindexMaterialsInLoop);
+		FGeometryCollectionEngineConversion::AppendGeometryCollectionSource(Source, OutCollection, MutableView(OutMaterialInstances), bReindexMaterialsInLoop);
 
 		// todo(chaos) if the source is a geometry collection this will not work properly 
 		FGeometryCollectionAutoInstanceMesh InstancedMesh;
@@ -221,9 +229,13 @@ void FCreateGeometryCollectionFromSourcesDataflowNode::Evaluate(Dataflow::FConte
 	Chaos::Facades::FCollectionHierarchyFacade HierarchyFacade(OutCollection);
 	HierarchyFacade.GenerateLevelAttribute();
 
+	TArray<TObjectPtr<UMaterial>> OutMaterials;
+	FGeometryCollectionEngineConversion::GetMaterialsFromInstances(OutMaterialInstances, OutMaterials);
+
 	// we have to make a copy since we have generated a FGeometryCollection which is inherited from FManagedArrayCollection
 	SetValue(Context, static_cast<const FManagedArrayCollection&>(OutCollection), &Collection);
 	SetValue(Context, MoveTemp(OutMaterials), &Materials);
+	SetValue(Context, MoveTemp(OutMaterialInstances), &MaterialInstances);
 	SetValue(Context, MoveTemp(OutInstancedMeshes), &InstancedMeshes);
 }
 
@@ -234,6 +246,7 @@ FGeometryCollectionToCollectionDataflowNode::FGeometryCollectionToCollectionData
 {
 	RegisterOutputConnection(&Collection);
 	RegisterOutputConnection(&Materials);
+	RegisterOutputConnection(&MaterialInstances);
 	RegisterOutputConnection(&InstancedMeshes);
 }
 
@@ -242,17 +255,21 @@ void FGeometryCollectionToCollectionDataflowNode::Evaluate(Dataflow::FContext& C
 	ensure(Out->IsA(&Collection) || Out->IsA(&Materials) || Out->IsA(&InstancedMeshes));
 
 	FManagedArrayCollection OutCollection;
-	TArray<TObjectPtr<UMaterial>> OutMaterials;
+	TArray<TObjectPtr<UMaterialInterface>> OutMaterialInstances;
 	TArray<FGeometryCollectionAutoInstanceMesh> OutInstancedMeshes;
 
 	if (GeometryCollection)
 	{
-		FGeometryCollectionEngineConversion::ConvertGeometryCollectionToGeometryCollection(GeometryCollection, OutCollection, OutMaterials, OutInstancedMeshes);
+		FGeometryCollectionEngineConversion::ConvertGeometryCollectionToGeometryCollection(GeometryCollection, OutCollection, OutMaterialInstances, OutInstancedMeshes);
 	}
+
+	TArray<TObjectPtr<UMaterial>> OutMaterials;
+	FGeometryCollectionEngineConversion::GetMaterialsFromInstances(OutMaterialInstances, OutMaterials);
 
 	// Set Outputs
 	SetValue(Context, MoveTemp(OutCollection), &Collection);
 	SetValue(Context, MoveTemp(OutMaterials), &Materials);
+	SetValue(Context, MoveTemp(OutMaterialInstances), &MaterialInstances);
 	SetValue(Context, MoveTemp(OutInstancedMeshes), &InstancedMeshes);
 }
 
@@ -263,6 +280,7 @@ FBlueprintToCollectionDataflowNode::FBlueprintToCollectionDataflowNode(const Dat
 {
 	RegisterOutputConnection(&Collection);
 	RegisterOutputConnection(&Materials);
+	RegisterOutputConnection(&MaterialInstances);
 	RegisterOutputConnection(&InstancedMeshes);
 }
 
@@ -271,7 +289,7 @@ void FBlueprintToCollectionDataflowNode::Evaluate(Dataflow::FContext& Context, c
 	ensure(Out->IsA(&Collection) || Out->IsA(&Materials) || Out->IsA(&InstancedMeshes));
 
 	FManagedArrayCollection OutCollection;
-	TArray<TObjectPtr<UMaterial>> OutMaterials;
+	TArray<TObjectPtr<UMaterialInterface>> OutMaterialInstances;
 	TArray<FGeometryCollectionAutoInstanceMesh> OutInstancedMeshes;
 
 	if (Blueprint)
@@ -288,15 +306,19 @@ void FBlueprintToCollectionDataflowNode::Evaluate(Dataflow::FContext& Context, c
 				if (AActor* PreviewActor = PreviewWorld->SpawnActor(Blueprint->GeneratedClass, nullptr, SpawnInfo))
 				{
 					FGeometryCollectionEngineConversion::FSkeletalMeshToCollectionConversionParameters ConversionParameters;
-					FGeometryCollectionEngineConversion::ConvertActorToGeometryCollection(PreviewActor, OutCollection, OutMaterials, OutInstancedMeshes, ConversionParameters, bSplitComponents);
+					FGeometryCollectionEngineConversion::ConvertActorToGeometryCollection(PreviewActor, OutCollection, OutMaterialInstances, OutInstancedMeshes, ConversionParameters, bSplitComponents);
 				}
 			}
 		}
 	}
 
+	TArray<TObjectPtr<UMaterial>> OutMaterials;
+	FGeometryCollectionEngineConversion::GetMaterialsFromInstances(OutMaterialInstances, OutMaterials);
+
 	// Set Outputs
 	SetValue(Context, MoveTemp(OutCollection), &Collection);
 	SetValue(Context, MoveTemp(OutMaterials), &Materials);
+	SetValue(Context, MoveTemp(OutMaterialInstances), &MaterialInstances);
 	SetValue(Context, MoveTemp(OutInstancedMeshes), &InstancedMeshes);
 }
 

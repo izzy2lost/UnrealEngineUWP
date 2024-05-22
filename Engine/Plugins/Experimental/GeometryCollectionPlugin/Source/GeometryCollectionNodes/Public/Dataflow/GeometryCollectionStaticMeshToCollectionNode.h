@@ -43,6 +43,10 @@ public:
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "Materials"))
 	TArray<TObjectPtr<UMaterial>> Materials;
 
+	/** Material instances array from the static mesh */
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "MaterialInstances"))
+	TArray<TObjectPtr<UMaterialInterface>> MaterialInstances;
+
 	/** Array of instanced meshes*/
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "InstancedMeshes"))
 	TArray<FGeometryCollectionAutoInstanceMesh> InstancedMeshes;

@@ -29,6 +29,9 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Materials", DisplayName = "Materials"))
 	TArray<TObjectPtr<UMaterial>> Materials;
 
+	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "MaterialInstances", DisplayName = "MaterialInstances"))
+	TArray<TObjectPtr<UMaterialInterface>> MaterialInstances;
+
 	/** array of instanced meshes*/
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "InstancedMeshes", DisplayName = "InstancedMeshes"))
 	TArray<FGeometryCollectionAutoInstanceMesh> InstancedMeshes;
@@ -109,6 +112,10 @@ public:
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "Materials"))
 	TArray<TObjectPtr<UMaterial>> Materials;
 
+	/** Materials array to use for this asset */
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "MaterialInstances"))
+	TArray<TObjectPtr<UMaterialInterface>> MaterialInstances;
+
 	/** array of instanced meshes*/
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "InstancedMeshes"))
 	TArray<FGeometryCollectionAutoInstanceMesh> InstancedMeshes;
@@ -137,6 +144,10 @@ public:
 	/** Materials array to use for this asset */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "Materials"))
 	TArray<TObjectPtr<UMaterial>> Materials;
+
+	/** Material instances array from the static mesh */
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "MaterialInstances"))
+	TArray<TObjectPtr<UMaterialInterface>> MaterialInstances;
 
 	/** Array of instanced meshes*/
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "InstancedMeshes"))
@@ -174,6 +185,10 @@ public:
  	UPROPERTY(meta = (DataflowOutput, DisplayName = "Materials"))
  	TArray<TObjectPtr<UMaterial>> Materials;
  
+	/** Material instances array from the static mesh */
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "MaterialInstances"))
+	TArray<TObjectPtr<UMaterialInterface>> MaterialInstances;
+
  	/** Array of instanced meshes*/
  	UPROPERTY(meta = (DataflowOutput, DisplayName = "InstancedMeshes"))
  	TArray<FGeometryCollectionAutoInstanceMesh> InstancedMeshes;

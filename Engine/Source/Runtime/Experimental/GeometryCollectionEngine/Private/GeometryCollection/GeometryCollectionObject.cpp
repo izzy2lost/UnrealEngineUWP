@@ -567,6 +567,19 @@ void UGeometryCollection::ResetFrom(const FManagedArrayCollection& InCollection,
 	}
 }
 
+void UGeometryCollection::ResetFrom(const FManagedArrayCollection& InCollection, const TArray<UMaterialInterface*>& InMaterialInstances, bool bHasInternalMaterials)
+{
+	if (GeometryCollection.IsValid())
+	{
+		Reset();
+		InCollection.CopyTo(GeometryCollection.Get());
+		// todo(Chaos) : we could certainly run a "dependent attribute update method here instead of having to known about convex specifically 
+		UpdateConvexGeometryIfMissing();
+		Materials.Append(InMaterialInstances);
+		InitializeMaterials(bHasInternalMaterials);
+	}
+}
+
 /** AppendGeometry */
 int32 UGeometryCollection::AppendGeometry(const UGeometryCollection & Element, bool ReindexAllMaterials, const FTransform& TransformRoot)
 {
