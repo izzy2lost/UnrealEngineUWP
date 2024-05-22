@@ -144,6 +144,7 @@ struct TRACEINSIGHTS_API FCreateSessionBrowserParams
 	bool bAllowDebugTools = false;
 	bool bInitializeTesting = false;
 	bool bStartProcessWithStompMalloc = false;
+	bool bDisableFramerateThrottle = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

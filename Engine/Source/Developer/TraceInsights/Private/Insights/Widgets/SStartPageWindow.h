@@ -355,6 +355,9 @@ public:
 	void SetStartProcessWithStompMalloc(bool InValue) { bStartProcessWithStompMalloc = InValue; };
 	bool GetStartProcessWithStompMalloc() const { return bStartProcessWithStompMalloc; };
 
+	void SetDisableFramerateThrottle(bool InValue) { bDisableFramerateThrottle = InValue; };
+	bool GetDisableFramerateThrottle() const { return bDisableFramerateThrottle; };
+
 	void OnFilterChanged();
 	const TArray<TSharedPtr<FTraceViewModel>>& GetAllAvailableTraces() const;
 	void SetDeleteTraceConfirmationWindowVisibility(bool bIsVisibile);
@@ -698,6 +701,7 @@ private:
 	bool bEnableAutomaticTesting = false;
 	bool bEnableDebugTools = false;
 	bool bStartProcessWithStompMalloc = false;
+	bool bDisableFramerateThrottle = false;
 
 	bool bSetKeyboardFocusOnNextTick = false;
 

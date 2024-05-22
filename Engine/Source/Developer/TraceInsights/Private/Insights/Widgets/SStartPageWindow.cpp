@@ -3823,6 +3823,10 @@ void STraceStoreWindow::GetExtraCommandLineParams(FString& OutParams) const
 	{
 		OutParams.Append(TEXT(" -stompmalloc"));
 	}
+	if (bDisableFramerateThrottle)
+	{
+		OutParams.Append(TEXT(" -DisableFramerateThrottle"));
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

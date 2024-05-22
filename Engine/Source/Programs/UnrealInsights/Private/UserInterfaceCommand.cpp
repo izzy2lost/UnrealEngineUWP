@@ -199,6 +199,8 @@ void FUserInterfaceCommand::Run()
 	SharedPointerTesting::TestSharedPointer<ESPMode::ThreadSafe>();
 #endif
 
+	const bool bDisableFramerateThrottle = FParse::Param(FCommandLine::Get(), TEXT("DisableFramerateThrottle"));
+
 	// Enter main loop.
 	double DeltaTime = 0.0;
 	double LastTime = FPlatformTime::Seconds();
@@ -217,7 +219,9 @@ void FUserInterfaceCommand::Run()
 		FTSTicker::GetCoreTicker().Tick(static_cast<float>(DeltaTime));
 
 		// Throttle frame rate.
-		const float FrameTime = UserInterfaceCommand::IsApplicationBackground() ? BackgroundFrameTime : IdealFrameTime;
+		const float FrameTime = bDisableFramerateThrottle ? IdealFrameTime
+														  : UserInterfaceCommand::IsApplicationBackground() ? BackgroundFrameTime : IdealFrameTime;
+
 		UserInterfaceCommand::AdaptiveSleep(FMath::Max<float>(0.0f, FrameTime - static_cast<float>(FPlatformTime::Seconds() - LastTime)));
 
 		double CurrentTime = FPlatformTime::Seconds();
@@ -369,6 +373,7 @@ void FUserInterfaceCommand::InitializeSlateApplication(bool bOpenTraceFile, cons
 		Params.bAllowDebugTools = bAllowDebugTools;
 		Params.bInitializeTesting = bInitializeTesting;
 		Params.bStartProcessWithStompMalloc = FParse::Param(FCommandLine::Get(), TEXT("stompmalloc"));
+		Params.bDisableFramerateThrottle = FParse::Param(FCommandLine::Get(), TEXT("DisableFramerateThrottle"));
 		TraceInsightsModule.CreateSessionBrowser(Params);
 
 		if (bExecuteCommand)

@@ -327,6 +327,7 @@ void FTraceInsightsModule::CreateSessionBrowser(const FCreateSessionBrowserParam
 		TraceStoreWnd->SetEnableAutomaticTesting(Params.bInitializeTesting);
 		TraceStoreWnd->SetEnableDebugTools(Params.bAllowDebugTools);
 		TraceStoreWnd->SetStartProcessWithStompMalloc(Params.bStartProcessWithStompMalloc);
+		TraceStoreWnd->SetDisableFramerateThrottle(Params.bDisableFramerateThrottle);
 	}
 }
 
