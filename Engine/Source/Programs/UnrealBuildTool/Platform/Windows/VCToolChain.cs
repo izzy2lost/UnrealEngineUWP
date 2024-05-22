@@ -1897,6 +1897,7 @@ namespace UnrealBuildTool
 					if (!ProjectFileGenerator.bGenerateProjectFiles)
 					{
 						CompileDepsAction.WriteResponseFile(Graph, Logger);
+						CompileDepsAction.Arguments.Clear();
 					}
 
 					CompileAction.ActionType = ActionType.CompileModuleInterface;
@@ -1943,6 +1944,16 @@ namespace UnrealBuildTool
 				if (!ProjectFileGenerator.bGenerateProjectFiles)
 				{
 					CompileAction.WriteResponseFile(Graph, Logger);
+					CompileAction.Arguments.Clear();
+				}
+
+				// Must be added after response file is created just to make sure it ends up on the command line and not in the response file
+				if (Target.bMergeModules)
+				{
+					// EXTRACTEXPORTS can only be interpreted by UBA.. so this action won't build outside uba
+					CompileAction.Arguments.Add("/EXTRACTEXPORTS");
+					FileItem SymFile = FileItem.GetItemByFileReference(FileReference.Combine(OutputDir, FileName + ".exi"));
+					CompileAction.AdditionalProducedItems.Add(SymFile);
 				}
 
 				CompileAction.bIsAnalyzing = Target.StaticAnalyzer != StaticAnalyzer.None && !CompileEnvironment.bDisableStaticAnalysis && !(Target.WindowsPlatform.Compiler.IsClang() && CompileEnvironment.PrecompiledHeaderAction == PrecompiledHeaderAction.Create);

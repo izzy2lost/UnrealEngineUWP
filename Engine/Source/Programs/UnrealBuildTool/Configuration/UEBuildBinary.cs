@@ -877,19 +877,10 @@ namespace UnrealBuildTool
 			if ((BinaryLinkEnvironment.bIsBuildingDLL || BinaryLinkEnvironment.bIsBuildingLibrary) && Target.bStripExports)
 			{
 				bStripUnusedExports = true;
-				List<FileItem> inputFiles = new();
-				foreach (FileItem item in BinaryLinkEnvironment.InputFiles)
-				{
-					if (InputObjects.Contains(item))
-					{
-						inputFiles.Add(FileItem.GetItemByFileReference(item.Location.ChangeExtension($".strip{item.Location.GetExtension()}")));
-					}
-					else
-					{
-						inputFiles.Add(item);
-					}
-				}
-				BinaryLinkEnvironment.InputFiles = inputFiles;
+
+				string Name = OutputFilePaths.First().GetFileNameWithoutExtension();
+				FileReference extraObj = FileReference.Combine(IntermediateDirectory!, $"{Name}.extra.obj");
+				BinaryLinkEnvironment.InputFiles.Add(FileItem.GetItemByFileReference(extraObj));
 			}
 
 			// Code coverage inherited from compile environment

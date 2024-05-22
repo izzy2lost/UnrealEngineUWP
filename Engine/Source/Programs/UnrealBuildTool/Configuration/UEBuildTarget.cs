@@ -3037,8 +3037,11 @@ namespace UnrealBuildTool
 				HashSet<FileItem> otherObjects = new(allObjects.Except(toStrip));
 				FileItem stripRsp = FileItem.GetItemByFileReference(FileReference.Combine(ProjectIntermediateDirectory!, $"{Name}.strip.rsp"));
 				List<string> arguments = new();
-				arguments.AddRange(toStrip.Select(path => $"/S:{path.FullName}").OrderBy(x => x));
-				arguments.AddRange(otherObjects.Select(path => $"/D:{path.FullName}").OrderBy(x => x));
+				arguments.AddRange(toStrip.Select(path => $"/S:{path.FullName.Replace(".obj", ".exi")}").OrderBy(x => x));
+				arguments.AddRange(otherObjects.Select(path => $"/D:{path.FullName.Replace(".obj", ".exi")}").OrderBy(x => x));
+
+				FileReference extraObj = FileReference.Combine(ProjectIntermediateDirectory!, $"{Name}.extra.obj");
+				arguments.Add($"/O:{extraObj}");
 
 				MakefileBuilder.CreateIntermediateTextFile(stripRsp, arguments);
 
@@ -3046,10 +3049,10 @@ namespace UnrealBuildTool
 
 				stripAction.PrerequisiteItems.Add(stripRsp);
 				stripAction.PrerequisiteItems.UnionWith(allObjects);
-				stripAction.ProducedItems.UnionWith(toStrip.Select(x => FileItem.GetItemByFileReference(x.Location.ChangeExtension($".strip{x.Location.GetExtension()}"))));
+				stripAction.ProducedItems.Add(FileItem.GetItemByFileReference(extraObj));
 				stripAction.CommandPath = commandPath;
 				stripAction.CommandArguments = "@" + stripRsp.FullName;
-				stripAction.CommandDescription = "Strip Objects";
+				stripAction.CommandDescription = "GenerateExports";
 				stripAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 				stripAction.StatusDescription = Name;
 				stripAction.bCanExecuteRemotely = false;
@@ -3057,7 +3060,11 @@ namespace UnrealBuildTool
 			}
 
 			HashSet<FileItem> pchObjects = new(allObjects.Where(x => x.Name.Contains("SharedPCH", StringComparison.Ordinal)));
-			CreateStripAction($"{AppName}-SharedPCH", pchObjects);
+			if (pchObjects.Count > 0)
+			{
+				CreateStripAction($"{AppName}-SharedPCH", pchObjects);
+			}
+
 			foreach (UEBuildBinary Binary in Binaries.Where(x => x.bStripUnusedExports))
 			{
 				CreateStripAction(Binary.OutputFilePaths.First().GetFileNameWithoutExtension(), Binary.InputObjects.Where(x => !pchObjects.Contains(x)));

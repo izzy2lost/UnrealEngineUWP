@@ -588,7 +588,7 @@ namespace UnrealBuildTool
 				{
 					ResponseFileString = ResponseFile.FullName;
 				}
-				return String.Format("@{0}", Utils.MakePathSafeToUseWithCommandLine(ResponseFileString));
+				return String.Format("@{0} {1}", Utils.MakePathSafeToUseWithCommandLine(ResponseFileString), String.Join(" ", Arguments));
 			}
 		}
 

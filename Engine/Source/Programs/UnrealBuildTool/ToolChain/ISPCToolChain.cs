@@ -18,11 +18,13 @@ namespace UnrealBuildTool
 		}
 
 		protected FileReference? ProjectFile = null;
+		protected bool bMergeModules = false;
 
 		public override void SetUpGlobalEnvironment(ReadOnlyTargetRules Target)
 		{
 			base.SetUpGlobalEnvironment(Target);
 			ProjectFile = Target.ProjectFile;
+			bMergeModules = Target.bMergeModules;
 		}
 
 		/// <summary>
@@ -675,6 +677,8 @@ namespace UnrealBuildTool
 
 				List<FileItem> CompiledISPCObjFiles = new List<FileItem>();
 
+				string FileName = Path.GetFileName(ISPCFile.AbsolutePath);
+
 				string CompiledISPCObjFileSuffix = bByteCodeOutput ? ".bc" : GetISPCObjectFileSuffix(CompileEnvironment.Platform);
 				foreach (string Target in CompileTargets)
 				{
@@ -693,7 +697,7 @@ namespace UnrealBuildTool
 						CompiledISPCObjFile = FileItem.GetItemByFileReference(
 						FileReference.Combine(
 							OutputDir,
-							Path.GetFileName(ISPCFile.AbsolutePath) + "_" + ObjTarget + CompiledISPCObjFileSuffix
+							FileName + "_" + ObjTarget + CompiledISPCObjFileSuffix
 							)
 						);
 					}
@@ -702,7 +706,7 @@ namespace UnrealBuildTool
 						CompiledISPCObjFile = FileItem.GetItemByFileReference(
 						FileReference.Combine(
 							OutputDir,
-							Path.GetFileName(ISPCFile.AbsolutePath) + CompiledISPCObjFileSuffix
+							FileName + CompiledISPCObjFileSuffix
 							)
 						);
 					}
@@ -715,7 +719,7 @@ namespace UnrealBuildTool
 				FileItem CompiledISPCObjFileNoISA = FileItem.GetItemByFileReference(
 					FileReference.Combine(
 						OutputDir,
-						Path.GetFileName(ISPCFile.AbsolutePath) + CompiledISPCObjFileSuffix
+						FileName + CompiledISPCObjFileSuffix
 						)
 					);
 
@@ -738,7 +742,7 @@ namespace UnrealBuildTool
 				Arguments.AddRange(GlobalArguments);
 
 				// Consume the included header dependency list
-				FileItem DependencyListFile = FileItem.GetItemByFileReference(FileReference.Combine(OutputDir, Path.GetFileName(ISPCFile.AbsolutePath) + ".txt"));
+				FileItem DependencyListFile = FileItem.GetItemByFileReference(FileReference.Combine(OutputDir, FileName + ".txt"));
 				CompileAction.DependencyListFile = DependencyListFile;
 				CompileAction.PrerequisiteItems.Add(DependencyListFile);
 
@@ -746,7 +750,18 @@ namespace UnrealBuildTool
 
 				FileReference ResponseFileName = GetResponseFileName(CompileEnvironment, CompiledISPCObjFileNoISA);
 				FileItem ResponseFileItem = Graph.CreateIntermediateTextFile(ResponseFileName, Arguments.Select(x => Utils.ExpandVariables(x)));
-				CompileAction.CommandArguments = $"@\"{ResponseFileName}\"";
+
+				string AdditionalArguments = "";
+				// Must be added after response file is created just to make sure it ends up on the command line and not in the response file
+				if (bMergeModules)
+				{
+					// EXTRACTEXPORTS can only be interpreted by UBA.. so this action won't build outside uba
+					AdditionalArguments = " /EXTRACTEXPORTS";
+					FileItem SymFile = FileItem.GetItemByFileReference(FileReference.Combine(OutputDir, FileName + ".exi"));
+					CompileAction.ProducedItems.Add(SymFile);
+				}
+
+				CompileAction.CommandArguments = $"@\"{ResponseFileName}\"{AdditionalArguments}";
 				CompileAction.PrerequisiteItems.Add(ResponseFileItem);
 
 				// Add the source file and its included files to the prerequisite item list.
