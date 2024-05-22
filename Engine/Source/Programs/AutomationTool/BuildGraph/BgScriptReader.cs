@@ -1672,7 +1672,7 @@ namespace AutomationTool
 				BgTask info = new BgTask(element.Location, element.Name);
 				foreach (XmlAttribute? attribute in element.Attributes)
 				{
-					if (String.Compare(attribute!.Name, "If", StringComparison.InvariantCultureIgnoreCase) != 0)
+					if (String.Compare(attribute!.Name, "If", StringComparison.OrdinalIgnoreCase) != 0)
 					{
 						string expandedValue = ExpandProperties(element, attribute.Value);
 						info.Arguments.Add(attribute.Name, expandedValue);
