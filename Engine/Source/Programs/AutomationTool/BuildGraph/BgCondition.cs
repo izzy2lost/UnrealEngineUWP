@@ -180,7 +180,7 @@ namespace AutomationTool
 				_idx++;
 				string lhs = result;
 				string rhs = await EvaluateScalarAsync();
-				result = String.Equals(lhs, rhs, StringComparison.OrdinalIgnoreCase) ? "true" : "false";
+				result = String.Equals(lhs, rhs, StringComparison.OrdinalIgnoreCase) ? "false" : "true";
 			}
 			else if (_tokens[_idx] == "<")
 			{
