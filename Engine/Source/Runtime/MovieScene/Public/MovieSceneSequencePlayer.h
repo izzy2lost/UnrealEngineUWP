@@ -765,6 +765,9 @@ private:
 	/** The maximum tick rate prior to playing (used for overriding delta time during playback). */
 	TOptional<double> OldMaxTickRate;
 
+	/** Whether dynamic resolution frame time budget is being overridden. */
+	bool bOverridingDynResFrameTimeBudget = false;
+
 	/**
 	* The last world game time at which we were ticked. Game time used is dependent on bTickEvenWhenPaused
 	* Valid only if we've been ticked at least once since having a tick interval

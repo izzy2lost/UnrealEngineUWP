@@ -68,6 +68,13 @@ static FAutoConsoleVariableRef CVarSequencerSmoothedNetSyncDeviationThreshold(
 	TEXT("(Default: 200ms. Defines the acceptable deviation for smoothed net sync samples. Samples outside this deviation will be discarded.")
 	);
 
+int32 GSequencerApplyDisplayRateToDynResFrameTimeBudget = 0;
+static FAutoConsoleVariableRef CVarSequencerApplyDisplayRateToDynResFrameTimeBudget(
+	TEXT("Sequencer.ApplyDisplayRateToDynamicResolutionFrameTimeBudget"),
+	GSequencerApplyDisplayRateToDynResFrameTimeBudget,
+	TEXT("(Whether to override r.DynamicRes.FrameTimeBudget based on sequence display rate when using 'Lock to Display Rate at Runtime'.")
+);
+
 bool FMovieSceneSequenceLoopCount::SerializeFromMismatchedTag( const FPropertyTag& Tag, FStructuredArchive::FSlot Slot )
 {
 	if (Tag.Type == NAME_IntProperty)
@@ -190,6 +197,14 @@ UMovieSceneSequencePlayer::~UMovieSceneSequencePlayer()
 	if (GEngine && OldMaxTickRate.IsSet())
 	{
 		GEngine->SetMaxFPS(OldMaxTickRate.GetValue());
+	}
+
+	if (bOverridingDynResFrameTimeBudget)
+	{
+		static IConsoleVariable* CVarDynResFrameTimeBudget = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DynamicRes.FrameTimeBudget"));
+		CVarDynResFrameTimeBudget->Unset(ECVF_SetByCode);
+
+		bOverridingDynResFrameTimeBudget = false;
 	}
 }
 
@@ -343,6 +358,16 @@ void UMovieSceneSequencePlayer::PlayInternal()
 			}
 
 			GEngine->SetMaxFPS(1.f / PlayPosition.GetInputRate().AsInterval());
+
+			if (GSequencerApplyDisplayRateToDynResFrameTimeBudget)
+			{
+				const float DyResFrameTimeBudget = PlayPosition.GetInputRate().AsInterval() * 1000.0f;
+
+				static IConsoleVariable* CVarDynResFrameTimeBudget = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DynamicRes.FrameTimeBudget"));
+				CVarDynResFrameTimeBudget->Set(DyResFrameTimeBudget, ECVF_SetByCode);
+
+				bOverridingDynResFrameTimeBudget = true;
+			}
 		}
 
 		if (!PlayPosition.GetLastPlayEvalPostition().IsSet() || PlayPosition.GetLastPlayEvalPostition() != PlayPosition.GetCurrentPosition())
@@ -497,6 +522,14 @@ void UMovieSceneSequencePlayer::StopInternal(FFrameTime TimeToResetTo)
 			{
 				GEngine->SetMaxFPS(OldMaxTickRate.GetValue());
 				this->OldMaxTickRate.Reset();
+			}
+
+			if (bOverridingDynResFrameTimeBudget)
+			{
+				static IConsoleVariable* CVarDynResFrameTimeBudget = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DynamicRes.FrameTimeBudget"));
+				CVarDynResFrameTimeBudget->Unset(ECVF_SetByCode);
+
+				bOverridingDynResFrameTimeBudget = false;
 			}
 
 			this->UpdateNetworkSyncProperties();
