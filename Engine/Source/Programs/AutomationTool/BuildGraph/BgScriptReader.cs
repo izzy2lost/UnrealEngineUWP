@@ -814,25 +814,58 @@ namespace AutomationTool
 					string value = ReadAttribute(element, "Value");
 					if (element.HasChildNodes)
 					{
-						// Get the separator character
-						string separator = ";";
-						if (element.HasAttribute("Separator"))
-						{
-							separator = ReadAttribute(element, "Separator");
-						}
-
-						// Read the element content, and append each line to the value as a semicolon delimited list
 						StringBuilder builder = new StringBuilder(value);
-						foreach (string line in element.InnerText.Split('\n'))
+						if (ReadBooleanAttribute(element, "Multiline", false))
 						{
-							string trimLine = ExpandProperties(element, line.Trim());
-							if (trimLine.Length > 0)
+							// Get a hanging indent from the first line, and remove that whitespace from subsequent lines
+							int prefixLen = -1;
+
+							List<string> lines = new List<string>(element.InnerText.Split('\n'));
+							foreach(string line in lines)
 							{
-								if (builder.Length > 0)
+								int whitespaceLen = 0;
+								while (whitespaceLen < line.Length && Char.IsWhiteSpace(line[whitespaceLen]))
 								{
-									builder.Append(separator);
+									whitespaceLen++;
 								}
-								builder.Append(trimLine);
+
+								if (prefixLen == -1)
+								{
+									if (whitespaceLen == line.Length)
+									{
+										continue;
+									}
+									else
+									{
+										prefixLen = whitespaceLen;
+									}
+								}
+
+								whitespaceLen = Math.Min(whitespaceLen, prefixLen);
+								builder.AppendLine(line.Substring(whitespaceLen));
+							}
+						}
+						else
+						{
+							// Get the separator character
+							string separator = ";";
+							if (element.HasAttribute("Separator"))
+							{
+								separator = ReadAttribute(element, "Separator");
+							}
+
+							// Read the element content, and append each line to the value as a semicolon delimited list
+							foreach (string line in element.InnerText.Split('\n'))
+							{
+								string trimLine = ExpandProperties(element, line.Trim());
+								if (trimLine.Length > 0)
+								{
+									if (builder.Length > 0)
+									{
+										builder.Append(separator);
+									}
+									builder.Append(trimLine);
+								}
 							}
 						}
 						value = builder.ToString();
