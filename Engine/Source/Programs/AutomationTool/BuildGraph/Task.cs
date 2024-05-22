@@ -245,7 +245,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="Filespec">A filespec, as can be passed to ResolveFilespec</param>
 		/// <returns>Tag names from this filespec</returns>
-		protected IEnumerable<string> FindTagNamesFromFilespec(string Filespec)
+		protected static IEnumerable<string> FindTagNamesFromFilespec(string Filespec)
 		{
 			if(!String.IsNullOrEmpty(Filespec))
 			{

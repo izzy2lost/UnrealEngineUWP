@@ -404,7 +404,7 @@ namespace AutomationTool.Tasks
 			return true;
 		}
 
-		private bool TryExportOplogCommand(string App, string CommandLine)
+		private static bool TryExportOplogCommand(string App, string CommandLine)
 		{
 			int AttemptLimit = 2;
 			int Attempt = 0;

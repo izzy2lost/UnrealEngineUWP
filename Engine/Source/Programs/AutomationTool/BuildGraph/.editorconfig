@@ -16,3 +16,8 @@ dotnet_diagnostic.CA1309.severity = warning
 # CA1310: Specify StringComparison for correctness
 dotnet_diagnostic.CA1310.severity = warning
 
+# CA1822: Make member static
+dotnet_diagnostic.CA1822.severity = warning
+
+# IDE0005: Using directive is unnecessary
+dotnet_diagnostic.IDE0005.severity = warning

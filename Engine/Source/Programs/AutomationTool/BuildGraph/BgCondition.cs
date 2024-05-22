@@ -15,7 +15,7 @@ namespace AutomationTool
 	/// <summary>
 	/// Exception class thrown due to type and syntax errors in condition expressions
 	/// </summary>
-	class BgConditionException : Exception
+	public class BgConditionException : Exception
 	{
 		/// <summary>
 		/// Constructor; formats the exception message with the given String.Format() style parameters.

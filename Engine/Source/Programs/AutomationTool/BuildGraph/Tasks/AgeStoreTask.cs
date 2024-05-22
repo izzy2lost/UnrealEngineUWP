@@ -133,7 +133,7 @@ namespace AutomationTool.Tasks
 			return true;
 		}
 
-		private void RecurseDirectory(DateTime ExpireTimeUtc, DirectoryInfo CurrentDirectory, string[] DirectoryStructure, int Level, string Filter, HashSet<string> ExistingBuilds, bool bDeleteIndividualFiles)
+		private static void RecurseDirectory(DateTime ExpireTimeUtc, DirectoryInfo CurrentDirectory, string[] DirectoryStructure, int Level, string Filter, HashSet<string> ExistingBuilds, bool bDeleteIndividualFiles)
 		{
 			// Do a file search at the last level.
 			if (Level == DirectoryStructure.Length)

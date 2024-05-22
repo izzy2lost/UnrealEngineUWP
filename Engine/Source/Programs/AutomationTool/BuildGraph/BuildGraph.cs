@@ -757,7 +757,7 @@ namespace AutomationTool
 			return ExitCode.Success;
 		}
 
-		bool BindNodes(BgGraphDef Graph, Dictionary<string, ScriptTaskBinding> NameToTask, Dictionary<BgNodeDef, BgNodeExecutor> NodeToExecutor)
+		static bool BindNodes(BgGraphDef Graph, Dictionary<string, ScriptTaskBinding> NameToTask, Dictionary<BgNodeDef, BgNodeExecutor> NodeToExecutor)
 		{
 			bool bResult = true;
 			foreach (BgAgentDef Agent in Graph.Agents)
@@ -770,7 +770,7 @@ namespace AutomationTool
 			return bResult;
 		}
 
-		bool BindNodes(BgNodeDef Node, Dictionary<string, ScriptTaskBinding> NameToTask, Dictionary<string, BgNodeOutput> TagNameToNodeOutput, Dictionary<BgNodeDef, BgNodeExecutor> NodeToExecutor)
+		static bool BindNodes(BgNodeDef Node, Dictionary<string, ScriptTaskBinding> NameToTask, Dictionary<string, BgNodeOutput> TagNameToNodeOutput, Dictionary<BgNodeDef, BgNodeExecutor> NodeToExecutor)
 		{
 			if (Node is BgScriptNode ScriptNode)
 			{
@@ -782,7 +782,7 @@ namespace AutomationTool
 			{
 				BgBytecodeNodeExecutor executor = new BgBytecodeNodeExecutor(BytecodeNode);
 				NodeToExecutor[Node] = executor;
-				return executor.Bind(Logger);
+				return BgBytecodeNodeExecutor.Bind(Logger);
 			}
 			else
 			{
@@ -866,7 +866,7 @@ namespace AutomationTool
 		/// Reads the contents of the given token
 		/// </summary>
 		/// <returns>Contents of the token, or null if it does not exist</returns>
-		public string? ReadTokenFile(FileReference Location)
+		public static string? ReadTokenFile(FileReference Location)
 		{
 			return FileReference.Exists(Location) ? File.ReadAllText(Location.FullName) : null;
 		}
@@ -875,7 +875,7 @@ namespace AutomationTool
 		/// Attempts to write an owner to a token file transactionally
 		/// </summary>
 		/// <returns>True if the lock was acquired, false otherwise</returns>
-		public bool WriteTokenFile(FileReference Location, string Signature)
+		public static bool WriteTokenFile(FileReference Location, string Signature)
 		{
 			// Check it doesn't already exist
 			if (FileReference.Exists(Location))
@@ -956,7 +956,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="Graph">The graph instance</param>
 		/// <param name="Storage">The temp storage backend which stores the shared state</param>
-		HashSet<BgNodeDef> FindCompletedNodes(BgGraphDef Graph, TempStorage Storage)
+		static HashSet<BgNodeDef> FindCompletedNodes(BgGraphDef Graph, TempStorage Storage)
 		{
 			HashSet<BgNodeDef> CompletedNodes = new HashSet<BgNodeDef>();
 			foreach (BgNodeDef Node in Graph.Agents.SelectMany(x => x.Nodes))

@@ -107,7 +107,7 @@ namespace AutomationTool.Tasks
 		/// <param name="ToolFile"></param>
 		/// <param name="Arguments"></param>
 		/// <param name="WorkingDir"></param>
-		Task RunGitAsync(FileReference ToolFile, string Arguments, DirectoryReference WorkingDir)
+		static Task RunGitAsync(FileReference ToolFile, string Arguments, DirectoryReference WorkingDir)
 		{
 			IProcessResult Result = CommandUtils.Run(ToolFile.FullName, Arguments, WorkingDir: WorkingDir.FullName);
 			if (Result.ExitCode != 0)

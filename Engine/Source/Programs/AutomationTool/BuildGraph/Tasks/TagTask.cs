@@ -144,7 +144,7 @@ namespace AutomationTool.Tasks
 		/// <param name="DelimitedPatterns">List of patterns to add, separated by semicolons.</param>
 		/// <param name="TagNameToFileSet">Mapping of tag name to a set of files.</param>
 		/// <returns>List of rules, suitable for adding to a FileFilter object</returns>
-		List<string> ParseRules(DirectoryReference BaseDir, string DelimitedPatterns, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		static List<string> ParseRules(DirectoryReference BaseDir, string DelimitedPatterns, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
 		{
 			// Split up the list of patterns
 			List<string> Patterns = SplitDelimitedList(DelimitedPatterns);

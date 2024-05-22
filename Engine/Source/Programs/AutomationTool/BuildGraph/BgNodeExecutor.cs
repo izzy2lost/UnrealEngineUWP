@@ -72,7 +72,7 @@ namespace AutomationTool
 			Node = node;
 		}
 
-		public bool Bind(ILogger logger)
+		public static bool Bind(ILogger logger)
 		{
 			return true;
 		}

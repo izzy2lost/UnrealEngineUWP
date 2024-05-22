@@ -112,7 +112,7 @@ namespace AutomationTool.Tasks
 			public FileReference File;
 		}
 
-		LicenseInfo FindOrAddLicense(Dictionary<IoHash, LicenseInfo> Licenses, string Text, string Extension)
+		static LicenseInfo FindOrAddLicense(Dictionary<IoHash, LicenseInfo> Licenses, string Text, string Extension)
 		{
 			string NormalizedText = Text;
 			NormalizedText = Regex.Replace(NormalizedText, @"^\s+", "", RegexOptions.Multiline);

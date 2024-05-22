@@ -723,7 +723,7 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="Pattern"></param>
 		/// <returns></returns>
-		IEnumerable<FileReference> FindMatchingFiles(string Pattern)
+		static IEnumerable<FileReference> FindMatchingFiles(string Pattern)
 		{
 			FileFilter Filter = new FileFilter();
 			Filter.AddRule(Pattern, FileFilterType.Include);
@@ -2260,7 +2260,7 @@ namespace AutomationTool
 		}
 
 		/// <inheritdoc/>
-		public object GetNativePath(string Path)
+		public static object GetNativePath(string Path)
 		{
 			return FileReference.Combine(Unreal.RootDirectory, Path).FullName;
 		}
