@@ -644,7 +644,7 @@ void FDeferredShadingSceneRenderer::RenderPrePass(FRDGBuilder& GraphBuilder, TAr
 bool FMobileSceneRenderer::ShouldRenderPrePass() const
 {
 	// Draw a depth pass to avoid overdraw in the other passes.
-	return Scene->EarlyZPassMode == DDM_MaskedOnly || Scene->EarlyZPassMode == DDM_AllOpaque;
+	return Scene->EarlyZPassMode == DDM_MaskedOnly || Scene->EarlyZPassMode == DDM_AllOpaque || Scene->EarlyZPassMode == DDM_AllOpaqueNoVelocity;
 }
 
 void FMobileSceneRenderer::RenderPrePass(FRHICommandList& RHICmdList, const FViewInfo& View, const FInstanceCullingDrawParams* InstanceCullingDrawParams)
@@ -734,39 +734,6 @@ FMeshDrawCommandSortKey CalculateDepthPassMeshStaticSortKey(bool bIsMasked, cons
 	return SortKey;
 }
 
-void SetMobileDepthPassRenderState(const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, FMeshPassProcessorRenderState& DrawRenderState, const FMeshBatch& RESTRICT MeshBatch, bool bUsesDeferredShading)
-{
-	DrawRenderState.SetDepthStencilState(TStaticDepthStencilState<
-		true, CF_DepthNearOrEqual,
-		true, CF_Always, SO_Keep, SO_Keep, SO_Replace,
-		false, CF_Always, SO_Keep, SO_Keep, SO_Keep,
-		// don't use masking as it has significant performance hit on Mali GPUs (T860MP2)
-		0x00, 0xff >::GetRHI());
-
-	uint8 StencilValue = 0;
-	
-	uint8 ReceiveDecals = (PrimitiveSceneProxy && !PrimitiveSceneProxy->ReceivesDecals() ? 0x01 : 0x00);
-	StencilValue |= GET_STENCIL_BIT_MASK(RECEIVE_DECAL, ReceiveDecals);
-
-	if (bUsesDeferredShading)
-	{
-		extern uint8 GetMobileShadingModelStencilValue(FMaterialShadingModelField ShadingModel);
-
-		// store into [1-3] bits
-		const FMaterial& MaterialResource = MeshBatch.MaterialRenderProxy->GetIncompleteMaterialWithFallback(ERHIFeatureLevel::ES3_1);
-		uint8 ShadingModel = GetMobileShadingModelStencilValue(MaterialResource.GetShadingModels());
-		StencilValue |= GET_STENCIL_MOBILE_SM_MASK(ShadingModel);
-		StencilValue |= STENCIL_LIGHTING_CHANNELS_MASK(PrimitiveSceneProxy ? PrimitiveSceneProxy->GetLightingChannelStencilValue() : 0x00);
-	}
-	else
-	{
-		uint8 CastContactShadows = (PrimitiveSceneProxy && PrimitiveSceneProxy->CastsContactShadow() ? 0x01 : 0x00);
-		StencilValue |= GET_STENCIL_BIT_MASK(MOBILE_CAST_CONTACT_SHADOW, CastContactShadows);
-	}
-
-	DrawRenderState.SetStencilRef(StencilValue);
-}
-
 template<bool bPositionOnly>
 bool FDepthPassMeshProcessor::Process(
 	const FMeshBatch& RESTRICT MeshBatch,
@@ -808,7 +775,11 @@ bool FDepthPassMeshProcessor::Process(
 	// Use StencilMask for DecalOutput on mobile
 	if (FeatureLevel == ERHIFeatureLevel::ES3_1 && !bShadowProjection)
 	{
-		SetMobileDepthPassRenderState(PrimitiveSceneProxy, DrawRenderState, MeshBatch, IsMobileDeferredShadingEnabled(GetFeatureLevelShaderPlatform(FeatureLevel)));
+		extern void SetMobileBasePassDepthState(FMeshPassProcessorRenderState& DrawRenderState, const FPrimitiveSceneProxy* PrimitiveSceneProxy, FMaterialShadingModelField ShadingModels, bool bUsesDeferredShading);
+		
+		FMaterialShadingModelField ShadingModels = MaterialResource.GetShadingModels();
+		bool bUsesDeferredShading = IsMobileDeferredShadingEnabled(GetFeatureLevelShaderPlatform(FeatureLevel));
+		SetMobileBasePassDepthState(DrawRenderState, PrimitiveSceneProxy, ShadingModels, bUsesDeferredShading);
 	}
 
 	FMeshMaterialShaderElementData ShaderElementData;

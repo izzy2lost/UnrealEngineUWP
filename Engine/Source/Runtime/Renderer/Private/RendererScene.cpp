@@ -4749,7 +4749,8 @@ void FScene::GetEarlyZPassMode(ERHIFeatureLevel::Type InFeatureLevel, EDepthDraw
 
 		if (MobileUsesFullDepthPrepass(ShaderPlatform))
 		{
-			OutZPassMode = DDM_AllOpaque;
+			const bool bDepthPassCanOutputVelocity = FVelocityRendering::DepthPassCanOutputVelocity(InFeatureLevel);
+			OutZPassMode = bDepthPassCanOutputVelocity ? DDM_AllOpaqueNoVelocity : DDM_AllOpaque;
 		}
 	}
 }

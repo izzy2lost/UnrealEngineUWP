@@ -176,6 +176,11 @@ void MobileDirectionalLightPS(
 	}
 #endif
 
+#if ENABLE_AMBIENT_OCCLUSION
+	half4 GatheredAmbientOcclusion = Texture2DSample(MobileBasePass.AmbientOcclusionTexture, MobileBasePass.AmbientOcclusionSampler, UVAndScreenPos.xy);
+	GBuffer.GBufferAO *= lerp(1.0, GatheredAmbientOcclusion.r, MobileBasePass.AmbientOcclusionStaticFraction);
+#endif
+
 	// Directional light
 	half4 DynamicShadowFactors = 1.0f;
 	float DirectionalLightShadow = 1.0f;
@@ -328,6 +333,11 @@ void MobileReflectionEnvironmentSkyLightingPS(
 
 	float2 LocalPosition = SvPosition.xy - View.ViewRectMin.xy;
 	uint GridIndex = ComputeLightGridCellIndex(uint2(LocalPosition.x, LocalPosition.y), GBuffer.Depth);
+
+#if ENABLE_AMBIENT_OCCLUSION
+	half4 GatheredAmbientOcclusion = Texture2DSample(MobileBasePass.AmbientOcclusionTexture, MobileBasePass.AmbientOcclusionSampler, UVAndScreenPos.xy);
+	GBuffer.GBufferAO *= lerp(1.0, GatheredAmbientOcclusion.r, MobileBasePass.AmbientOcclusionStaticFraction);
+#endif
 	
 	FLightAccumulator DirectLighting = (FLightAccumulator)0;
 	ReflectionEnvironmentSkyLighting(GBuffer, CameraVector, TranslatedWorldPosition, ReflectionVector, GridIndex, DirectLighting);

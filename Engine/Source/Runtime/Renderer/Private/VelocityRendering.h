@@ -91,6 +91,9 @@ protected:
 		ERasterizerFillMode MeshFillMode,
 		ERasterizerCullMode MeshCullMode,
 		TArray<FPSOPrecacheData>& PSOInitializers);
+
+protected:
+	EDepthDrawingMode EarlyZPassMode = DDM_None;
 };
 
 /**
@@ -104,7 +107,8 @@ public:
 		ERHIFeatureLevel::Type FeatureLevel,
 		const FSceneView* InViewIfDynamicMeshCommand,
 		const FMeshPassProcessorRenderState& InPassDrawRenderState,
-		FMeshPassDrawListContext* InDrawListContext);
+		FMeshPassDrawListContext* InDrawListContext,
+		EDepthDrawingMode InEarlyZPassMode);
 
 	/** Returns true if the object is capable of having velocity for any frame. */
 	static bool PrimitiveCanHaveVelocity(EShaderPlatform ShaderPlatform, const FPrimitiveSceneProxy* PrimitiveSceneProxy);

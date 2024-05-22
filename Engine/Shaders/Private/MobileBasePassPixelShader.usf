@@ -95,14 +95,6 @@
 	#define MOBILE_TRANSLUCENT_COLOR_TRANSMITTANCE_SINGLE_SRC_BLENDING 0
 #endif
 
-// Force FORWARD_SHADING on mobile when MOBILE_DEFERRED_SHADING is disabled
-#ifndef FORWARD_SHADING
-#define FORWARD_SHADING (!MOBILE_DEFERRED_SHADING)
-#elif defined(FORWARD_SHADING)
-#undef  FORWARD_SHADING
-#define FORWARD_SHADING (!MOBILE_DEFERRED_SHADING)
-#endif
-
 // SceneDepthAux always enabled for IOS, on other platforms only enabled when in forward and MobileHDR=true
 #define HAS_SCENE_DEPTH_AUX_OUTPUT (USE_SCENE_DEPTH_AUX && (MATERIALBLENDING_SOLID || MATERIALBLENDING_MASKED) && !MATERIAL_SHADINGMODEL_SINGLELAYERWATER)
 
@@ -1101,7 +1093,7 @@ void Main(
 	OutColor.rgb *= ResolvedView.PreExposure;
 #endif
 
-#if FORWARD_SHADING && MATERIAL_IS_SKY
+#if MATERIAL_IS_SKY
 	if (MobileBasePass.bApplyHalfResLocalFogToSkyMeshes)
 	{
 		// Apply the half resolution texture to the sky dome mesh when needed.

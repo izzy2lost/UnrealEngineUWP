@@ -12,6 +12,8 @@
 #include "LocalLightSceneProxy.h"
 #include "Materials/MaterialRenderProxy.h"
 
+DECLARE_GPU_STAT(DeferredShading);
+
 int32 GMobileUseClusteredDeferredShading = 0;
 static FAutoConsoleVariableRef CVarMobileUseClusteredDeferredShading(
 	TEXT("r.Mobile.UseClusteredDeferredShading"),
@@ -88,6 +90,7 @@ class FMobileDirectionalLightFunctionPS : public FMaterialShader
 		FForwardLightingParameters::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("USE_LIGHT_FUNCTION"), Parameters.MaterialParameters.bIsDefaultMaterial ? 0 : 1);
 		OutEnvironment.SetDefine(TEXT("USE_SHADOWMASKTEXTURE"), MobileUsesShadowMaskTexture(Parameters.Platform) ? 1u : 0u);
+		OutEnvironment.SetDefine(TEXT("ENABLE_AMBIENT_OCCLUSION"), IsMobileAmbientOcclusionEnabled(Parameters.Platform) ? 1u : 0u);
 		OutEnvironment.SetDefine(TEXT("MATERIAL_SHADER"), 1);
 		OutEnvironment.SetDefine(TEXT("IS_MOBILE_DEFERREDSHADING_SUBPASS"), 1u);
 
@@ -314,6 +317,7 @@ public:
 
 		const bool bMobileForceDepthRead = MobileUsesFullDepthPrepass(Parameters.Platform);
 		OutEnvironment.SetDefine(TEXT("FORCE_DEPTH_TEXTURE_READS"), bMobileForceDepthRead ? 1u : 0u);
+		OutEnvironment.SetDefine(TEXT("ENABLE_AMBIENT_OCCLUSION"), IsMobileAmbientOcclusionEnabled(Parameters.Platform) ? 1u : 0u);
 	}
 };
 
@@ -954,6 +958,7 @@ void MobileDeferredShadingPass(
 	const TArray<FVisibleLightInfo, SceneRenderingAllocator>& VisibleLightInfos)
 {
 	SCOPED_DRAW_EVENT(RHICmdList, DeferredShading);
+	SCOPED_GPU_STAT(RHICmdList, DeferredShading);
 	
 	RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 

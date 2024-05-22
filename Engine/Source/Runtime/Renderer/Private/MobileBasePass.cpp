@@ -77,6 +77,37 @@ uint8 GetMobileShadingModelStencilValue(FMaterialShadingModelField ShadingModel)
 	return MobileUsesGBufferCustomData(GMaxRHIShaderPlatform) ? 2u : 1u;
 }
 
+void SetMobileBasePassDepthState(FMeshPassProcessorRenderState& DrawRenderState, const FPrimitiveSceneProxy* PrimitiveSceneProxy, FMaterialShadingModelField ShadingModels, bool bUsesDeferredShading)
+{
+	DrawRenderState.SetDepthStencilState(TStaticDepthStencilState<
+		true, CF_DepthNearOrEqual,
+		true, CF_Always, SO_Keep, SO_Keep, SO_Replace,
+		false, CF_Always, SO_Keep, SO_Keep, SO_Keep,
+		// don't use masking as it has significant performance hit on Mali GPUs (T860MP2)
+		0x00, 0xff >::GetRHI());
+
+	uint8 StencilValue = 0u;
+
+	uint8 ReceiveDecals = (PrimitiveSceneProxy && !PrimitiveSceneProxy->ReceivesDecals() ? 0x01 : 0x00);
+	StencilValue |= GET_STENCIL_BIT_MASK(RECEIVE_DECAL, ReceiveDecals);
+
+	if (bUsesDeferredShading)
+	{
+		// store into [1-3] bits
+		uint8 ShadingModel = GetMobileShadingModelStencilValue(ShadingModels);
+		StencilValue |= GET_STENCIL_MOBILE_SM_MASK(ShadingModel);
+		StencilValue |= STENCIL_LIGHTING_CHANNELS_MASK(PrimitiveSceneProxy ? PrimitiveSceneProxy->GetLightingChannelStencilValue() : 0x00);
+	}
+	else
+	{
+		// TODO: ContactShadows do not work with deferred shading atm
+		uint8 CastContactShadows = (PrimitiveSceneProxy && PrimitiveSceneProxy->CastsContactShadow() ? 0x01 : 0x00);
+		StencilValue |= GET_STENCIL_BIT_MASK(MOBILE_CAST_CONTACT_SHADOW, CastContactShadows);
+	}
+
+	DrawRenderState.SetStencilRef(StencilValue); 
+}
+
 bool MobileUsesNoLightMapPermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
 {
 	const bool bAllowStaticLighting = IsStaticLightingAllowed();
@@ -528,37 +559,17 @@ static FMobileLightMapPolicyTypeList GetUniformLightMapPolicyTypeForPSOCollectio
 	return Result;
 }
 
-void MobileBasePass::SetOpaqueRenderState(FMeshPassProcessorRenderState& DrawRenderState, const FPrimitiveSceneProxy* PrimitiveSceneProxy, const FMaterial& Material, FMaterialShadingModelField ShadingModels, bool bEnableReceiveDecalOutput, bool bUsesDeferredShading)
+void MobileBasePass::SetOpaqueRenderState(FMeshPassProcessorRenderState& DrawRenderState, const FPrimitiveSceneProxy* PrimitiveSceneProxy, const FMaterial& Material, FMaterialShadingModelField ShadingModels, bool bCanUseDepthStencil, bool bUsesDeferredShading)
 {
-	uint8 StencilValue = 0;
-	if (bEnableReceiveDecalOutput)
+	if (bCanUseDepthStencil)
 	{
-		uint8 ReceiveDecals = (PrimitiveSceneProxy && !PrimitiveSceneProxy->ReceivesDecals() ? 0x01 : 0x00);
-		StencilValue |= GET_STENCIL_BIT_MASK(RECEIVE_DECAL, ReceiveDecals);
-	}
-	
-	if (bUsesDeferredShading)
-	{
-		uint8 ShadingModel = GetMobileShadingModelStencilValue(ShadingModels);
-		StencilValue |= GET_STENCIL_MOBILE_SM_MASK(ShadingModel);
-		StencilValue |= STENCIL_LIGHTING_CHANNELS_MASK(PrimitiveSceneProxy ? PrimitiveSceneProxy->GetLightingChannelStencilValue() : 0x00);
-	}
-		
-	if (bEnableReceiveDecalOutput || bUsesDeferredShading)
-	{
-		DrawRenderState.SetDepthStencilState(TStaticDepthStencilState<
-				true, CF_DepthNearOrEqual,
-				true, CF_Always, SO_Keep, SO_Keep, SO_Replace,
-				false, CF_Always, SO_Keep, SO_Keep, SO_Keep,
-				// don't use masking as it has significant performance hit on Mali GPUs (T860MP2)
-				0x00, 0xff >::GetRHI());
-
-		DrawRenderState.SetStencilRef(StencilValue); 
+		SetMobileBasePassDepthState(DrawRenderState, PrimitiveSceneProxy, ShadingModels, bUsesDeferredShading);
 	}
 	else
 	{
 		// default depth state should be already set
 	}
+	
 	const bool bIsMasked = IsMaskedBlendMode(Material);
 	if (bIsMasked && Material.IsUsingAlphaToCoverage())
 	{
@@ -941,6 +952,7 @@ bool FMobileBasePassMeshProcessor::Process(
 
 	const bool bMaskedInEarlyPass = (MaterialResource.IsMasked() || MeshBatch.bDitheredLODTransition) && Scene && MaskedInEarlyPass(Scene->GetShaderPlatform());
 	const bool bForcePassDrawRenderState = ((Flags & EFlags::ForcePassDrawRenderState) == EFlags::ForcePassDrawRenderState);
+	const bool bIsFullDepthPrepassEnabled = Scene && (Scene->EarlyZPassMode == DDM_AllOpaque || Scene->EarlyZPassMode == DDM_AllOpaqueNoVelocity);
 
 	FMeshPassProcessorRenderState DrawRenderState(PassDrawRenderState);
 	if (!bForcePassDrawRenderState)
@@ -949,14 +961,14 @@ bool FMobileBasePassMeshProcessor::Process(
 		{
 			MobileBasePass::SetTranslucentRenderState(DrawRenderState, MaterialResource, ShadingModels);
 		}
-		else if((MeshBatch.bUseForDepthPass && Scene->EarlyZPassMode == DDM_AllOpaque) || bMaskedInEarlyPass)
+		else if((MeshBatch.bUseForDepthPass && bIsFullDepthPrepassEnabled) || bMaskedInEarlyPass)
 		{
 			DrawRenderState.SetDepthStencilState(TStaticDepthStencilState<false, CF_Equal>::GetRHI());
 		}
 		else
 		{
-			const bool bEnableReceiveDecalOutput = ((Flags & EFlags::CanUseDepthStencil) == EFlags::CanUseDepthStencil);
-			MobileBasePass::SetOpaqueRenderState(DrawRenderState, PrimitiveSceneProxy, MaterialResource, ShadingModels, bEnableReceiveDecalOutput && IsMobileHDR(), bPassUsesDeferredShading);
+			const bool bCanUseDepthStencil = ((Flags & EFlags::CanUseDepthStencil) == EFlags::CanUseDepthStencil);
+			MobileBasePass::SetOpaqueRenderState(DrawRenderState, PrimitiveSceneProxy, MaterialResource, ShadingModels, bCanUseDepthStencil, bPassUsesDeferredShading);
 		}
 	}
 

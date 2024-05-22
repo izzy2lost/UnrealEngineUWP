@@ -291,24 +291,26 @@ void SetupMobileBasePassUniformParameters(
 	}
 
 	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
+	const FSceneTextures* SceneTextures = View.GetSceneTexturesChecked();
 
-	SetupMobileSceneTextureUniformParameters(GraphBuilder, View.GetSceneTexturesChecked(), SetupMode, BasePassParameters.SceneTextures);
+	SetupMobileSceneTextureUniformParameters(GraphBuilder, SceneTextures, SetupMode, BasePassParameters.SceneTextures);
 
 	BasePassParameters.PreIntegratedGFTexture = GSystemTextures.PreintegratedGF->GetRHI();
 	BasePassParameters.PreIntegratedGFSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	BasePassParameters.EyeAdaptationBuffer = GraphBuilder.CreateSRV(GetEyeAdaptationBuffer(GraphBuilder, View));
 
-	FRDGTextureRef AmbientOcclusionTexture = SystemTextures.White;
-	if (BasePass == EMobileBasePass::Opaque && MobileBasePassTextures.ScreenSpaceAO != nullptr)
+	if (SceneTextures && HasBeenProduced(SceneTextures->ScreenSpaceAO))
 	{
-		AmbientOcclusionTexture = MobileBasePassTextures.ScreenSpaceAO;
+		BasePassParameters.AmbientOcclusionTexture = SceneTextures->ScreenSpaceAO;
 	}
-	
-	BasePassParameters.DBuffer = GetDBufferParameters(GraphBuilder, MobileBasePassTextures.DBufferTextures, View.GetShaderPlatform());
-
-	BasePassParameters.AmbientOcclusionTexture = AmbientOcclusionTexture;
+	else
+	{
+		BasePassParameters.AmbientOcclusionTexture = SystemTextures.White;
+	}
 	BasePassParameters.AmbientOcclusionSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	BasePassParameters.AmbientOcclusionStaticFraction = FMath::Clamp(View.FinalPostProcessSettings.AmbientOcclusionStaticFraction, 0.0f, 1.0f);
+	
+	BasePassParameters.DBuffer = GetDBufferParameters(GraphBuilder, MobileBasePassTextures.DBufferTextures, View.GetShaderPlatform());
 
 	const bool bMobileUsesShadowMaskTexture = MobileUsesShadowMaskTexture(View.GetShaderPlatform());
 	
