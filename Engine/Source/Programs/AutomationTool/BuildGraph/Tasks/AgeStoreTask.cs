@@ -168,7 +168,9 @@ namespace AutomationTool.Tasks
 
 				// Delete this directory if it is empty, and it is not the root directory.
 				if (level > 0 && !currentDirectory.EnumerateFileSystemInfos().Any())
+				{
 					TryDelete(currentDirectory);
+				}
 			}
 		}
 

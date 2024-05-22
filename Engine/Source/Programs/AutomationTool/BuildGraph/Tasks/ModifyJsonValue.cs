@@ -72,7 +72,9 @@ namespace AutomationTool.Tasks
 				for (int i = 0; i < keys.Length - 1; i++)
 				{
 					if (!currObj.TryGetValue(keys[i], out object nextNode))
+					{
 						currObj[keys[i]] = nextNode = new Dictionary<string, object>();
+					}
 					currObj = (IDictionary<string, object>)nextNode;
 				}
 

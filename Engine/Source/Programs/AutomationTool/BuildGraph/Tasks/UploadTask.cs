@@ -143,7 +143,9 @@ namespace AutomationTool.Tasks
 				{
 					int separatorIndex = option.IndexOf('=', StringComparison.Ordinal);
 					if (separatorIndex == -1)
+					{
 						continue;
+					}
 
 					string key = option.Substring(0, separatorIndex);
 					string value = option.Substring(separatorIndex + 1);

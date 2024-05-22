@@ -392,7 +392,7 @@ namespace AutomationTool
 		/// Load a manifest from disk
 		/// </summary>
 		/// <param name="file">File to load</param>
-		static public TempStorageManifest Load(FileReference file)
+		public static TempStorageManifest Load(FileReference file)
 		{
 			using (StreamReader reader = new(file.FullName))
 			{
@@ -500,7 +500,7 @@ namespace AutomationTool
 		/// Load this list of files from disk
 		/// </summary>
 		/// <param name="file">File to load</param>
-		static public TempStorageTagManifest Load(FileReference file)
+		public static TempStorageTagManifest Load(FileReference file)
 		{
 			using (StreamReader reader = new StreamReader(file.FullName))
 			{

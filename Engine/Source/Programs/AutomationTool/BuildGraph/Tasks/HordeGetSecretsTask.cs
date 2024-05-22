@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -10,6 +9,7 @@ using System.Xml;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Secrets;
+using IdentityModel.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -29,10 +29,17 @@ namespace AutomationTool.Tasks
 		public string File { get; set; } = String.Empty;
 
 		/// <summary>
-		/// Pairs of strings and secret names to expand in the text file, in the form SOURCE_TEXT=secret-name;SOURCE_TEXT_2=secret-name-2
+		/// Text to update with secrets
 		/// </summary>
-		[TaskParameter]
-		public string Replace { get; set; } = String.Empty;
+		[TaskParameter(Optional = true)]
+		public string? Text { get; set; }
+
+		/// <summary>
+		/// Pairs of strings and secret names to expand in the text file, in the form SOURCE_TEXT=secret-name;SOURCE_TEXT_2=secret-name-2. 
+		/// If not specified, secrets embedded inline in the text will be expanded from {{secret-name.value}} strings.
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public string? Replace { get; set; }
 	}
 
 	/// <summary>
@@ -62,44 +69,68 @@ namespace AutomationTool.Tasks
 		/// <param name="tagNameToFileSet">Mapping from tag names to the set of files they include.</param>
 		public override async Task ExecuteAsync(JobContext job, HashSet<FileReference> buildProducts, Dictionary<string, HashSet<FileReference>> tagNameToFileSet)
 		{
-			// Read the input text
 			FileReference file = ResolveFile(_parameters.File);
-			string text = await FileReference.ReadAllTextAsync(file);
+
+			// Read the input text
+			string? text = _parameters.Text;
+			if (String.IsNullOrEmpty(text))
+			{
+				text = await FileReference.ReadAllTextAsync(file);
+			}
 
 			// Parse the secrets to replace
 			Dictionary<SecretId, List<ReplacementInfo>> secretToReplacementInfo = new Dictionary<SecretId, List<ReplacementInfo>>();
-			foreach (string clause in _parameters.Replace.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+			if (String.IsNullOrEmpty(_parameters.Replace))
 			{
-				int idx = clause.LastIndexOf('=');
-				if (idx == -1)
+				int pos = 0;
+				for (; ; )
 				{
-					throw new AutomationException($"Invalid replacement clause in Horde-GetSecrets task: {clause} (expected VARIABLE=Secret.Property)");
-				}
+					pos = text.IndexOf("{{", pos, StringComparison.Ordinal);
+					if (pos == -1)
+					{
+						break;
+					}
 
-				int propertyIdx = clause.IndexOf('.', idx + 1);
-				if (propertyIdx == -1)
+					pos += 2;
+
+					int endPos = text.IndexOf("}}", pos, StringComparison.Ordinal);
+					if (endPos == -1)
+					{
+						continue;
+					}
+
+					string variable = text.Substring(pos - 2, (endPos + 2) - (pos - 2));
+					string replacement = text.Substring(pos, endPos - pos);
+					if (!ParseReplacementInfo(variable, replacement, secretToReplacementInfo))
+					{
+						throw new AutomationException($"Invalid replacement clause for secret in Horde-GetSecrets task: {replacement} (expected VARIABLE=Secret.Property)");
+					}
+
+					pos = endPos + 2;
+				}
+			}
+			else
+			{
+				foreach (string replacement in _parameters.Replace.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
 				{
-					throw new AutomationException($"Invalid replacement clause for secret in Horde-GetSecrets task: {clause} (expected VARIABLE=Secret.Property)");
+					int idx = replacement.LastIndexOf('=');
+					if (idx == -1)
+					{
+						throw new AutomationException($"Invalid replacement clause in Horde-GetSecrets task: {replacement} (expected VARIABLE=Secret.Property)");
+					}
+
+					string variable = replacement.Substring(0, idx);
+					if (!text.Contains(variable, StringComparison.Ordinal))
+					{
+						Logger.LogWarning("Variable '{Variable}' not found in {File}", variable, file);
+						continue;
+					}
+
+					if (!ParseReplacementInfo(variable, replacement.Substring(idx + 1), secretToReplacementInfo))
+					{
+						throw new AutomationException($"Invalid replacement clause for secret in Horde-GetSecrets task: {replacement} (expected VARIABLE=Secret.Property)");
+					}
 				}
-
-				string variable = clause.Substring(0, idx);
-				if (!text.Contains(variable, StringComparison.Ordinal))
-				{
-					Logger.LogWarning("Variable '{Variable}' not found in {File}", variable, file);
-					continue;
-				}
-
-				SecretId secretId = new SecretId(clause.Substring(idx + 1, propertyIdx - (idx + 1)));
-				string propertyName = clause.Substring(propertyIdx + 1);
-
-				List<ReplacementInfo>? replacements;
-				if (!secretToReplacementInfo.TryGetValue(secretId, out replacements))
-				{
-					replacements = new List<ReplacementInfo>();
-					secretToReplacementInfo.Add(secretId, replacements);
-				}
-
-				replacements.Add(new ReplacementInfo(propertyName, variable));
 			}
 
 			// Read the secrets from Horde, and substitute them in the output file
@@ -143,8 +174,31 @@ namespace AutomationTool.Tasks
 			}
 
 			// Write the output file
+			DirectoryReference.CreateDirectory(file.Directory);
 			await FileReference.WriteAllTextAsync(file, text);
 			Logger.LogInformation("Updated {File} with secrets from Horde.", file);
+		}
+
+		static bool ParseReplacementInfo(string variable, string replacement, Dictionary<SecretId, List<ReplacementInfo>> secretToReplacementInfo)
+		{
+			int propertyIdx = replacement.IndexOf('.', StringComparison.Ordinal);
+			if (propertyIdx == -1)
+			{
+				return false;
+			}
+
+			SecretId secretId = new SecretId(replacement.Substring(0, propertyIdx));
+			string propertyName = replacement.Substring(propertyIdx + 1);
+
+			List<ReplacementInfo>? replacements;
+			if (!secretToReplacementInfo.TryGetValue(secretId, out replacements))
+			{
+				replacements = new List<ReplacementInfo>();
+				secretToReplacementInfo.Add(secretId, replacements);
+			}
+
+			replacements.Add(new ReplacementInfo(propertyName, variable));
+			return true;
 		}
 
 		/// <summary>
