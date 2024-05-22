@@ -90,6 +90,13 @@ FAutoConsoleVariableRef CVarVSMMaxPageAgeSinceLastRequest(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarMaxLightAgeSinceLastRequest(
+	TEXT("r.Shadow.Virtual.Cache.MaxLightAgeSinceLastRequest"),
+	10,
+	TEXT("The maximum number of frames to allow lights (and their associated pages) that aren't present in the current frame to live in the cache.\n")
+	TEXT("Larger values can allow pages from offscreen local lights to live longer, but can also increase various page table management overheads."),
+	ECVF_RenderThreadSafe);
+
 static TAutoConsoleVariable<int32> CVarFramesStaticThreshold(
 	TEXT("r.Shadow.Virtual.Cache.StaticSeparate.FramesStaticThreshold"),
 	100,
@@ -950,6 +957,7 @@ void FVirtualShadowMapArrayCacheManager::UpdateUnreferencedCacheEntries(
 	FVirtualShadowMapArray& VirtualShadowMapArray)
 {
 	const uint32 SceneFrameNumber = Scene->GetFrameNumberRenderThread();
+	const int32 MaxLightAge = CVarMaxLightAgeSinceLastRequest.GetValueOnRenderThread();
 
 	for (FEntryMap::TIterator It = CacheEntries.CreateIterator(); It; ++It)
 	{
@@ -960,7 +968,7 @@ void FVirtualShadowMapArrayCacheManager::UpdateUnreferencedCacheEntries(
 			// Active this render, leave it alone
 			check(CacheEntry->ShadowMapEntries.Last().CurrentVirtualShadowMapId < VirtualShadowMapArray.GetNumShadowMapSlots());
 		}
-		else if (int32(SceneFrameNumber - CacheEntry->LastReferencedFrameNumber) <= GVSMMaxPageAgeSinceLastRequest)
+		else if (int32(SceneFrameNumber - CacheEntry->LastReferencedFrameNumber) <= MaxLightAge)
 		{
 			// Not active this render, but still recent enough to keep it and its pages alive
 			int PrevBaseVirtualShadowMapId = CacheEntry->ShadowMapEntries[0].CurrentVirtualShadowMapId;
