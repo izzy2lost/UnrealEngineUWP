@@ -357,6 +357,11 @@ public:
 	int32 GetEntityIndexFromCollisionIndex(const UInstancedStaticMeshComponent& ISMComponent, const int32 CollisionIndex) const;
 
 protected:
+	FMassEntityHandle GetEntityHandleForIndex(const int32 Index) const
+	{
+		return Entities.IsValidIndex(Index) ? Entities[Index] : FMassEntityHandle();
+	}
+
 	//~ Begin UObject Overrides
 	virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;
 	virtual void PostLoad() override;

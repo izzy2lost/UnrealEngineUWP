@@ -22,10 +22,20 @@ struct FMassEntityManager;
 class UInstancedActorsData;
 class UInstancedStaticMeshComponent;
 
-namespace UE::InstancedActors::CVars
+namespace UE::InstancedActors
 {
-	extern INSTANCEDACTORS_API bool bEnablePersistence;
-}
+	enum EInsideBoundsTestResult
+	{
+		NotInside,
+		OverlapLocation,
+		OverlapBounds
+	};
+
+	namespace CVars
+	{
+		extern INSTANCEDACTORS_API bool bEnablePersistence;
+	}
+} // UE::InstancedActors
 
 DECLARE_STATS_GROUP(TEXT("InstanceActor Rendering"), STATGROUP_InstancedActorsRendering, STATCAT_Advanced);
 
@@ -148,22 +158,25 @@ public:
 	template <typename TBoundsType>
 	bool ForEachInstance(const TBoundsType& QueryBounds, FInstanceOperationFunc InOperation) const;
 	template <typename TBoundsType>
-	bool ForEachInstance(const TBoundsType& QueryBounds, FInstanceOperationFunc InOperation, FInstancedActorsIterationContext& IterationContext, TOptional<FInstancedActorDataPredicateFunc> InstancedActorDataPredicate = TOptional<FInstancedActorDataPredicateFunc>()) const;
+	bool ForEachInstance(const TBoundsType& QueryBounds, FInstanceOperationFunc InOperation, FInstancedActorsIterationContext& IterationContext
+		, TOptional<FInstancedActorDataPredicateFunc> InstancedActorDataPredicate = TOptional<FInstancedActorDataPredicateFunc>()) const;
 
 	/**
 	 * Checks whether there are any instanced actors within this manager, representing ActorClass or its subclasses inside QueryBounds.
 	 * The check doesn't differentiate between hydrated and dehydrated actors (i.e. whether there's an actor instance
 	 * associated with the instance or not).
+	 * @param bTestActorsIfSpawned if true then when an instance is found to overlap given bounds, and it has an actor 
+	 *	spawned associated with it, then the actor itself will be tested against the bounds for more precise test.
 	 */
-	template <typename TBoundsType>
-	bool HasInstancesOfClass(const TBoundsType& QueryBounds, TSubclassOf<AActor> ActorClass) const;
+	bool HasInstancesOfClass(const FBox& QueryBounds, TSubclassOf<AActor> ActorClass, const bool bTestActorsIfSpawned = false) const;
 
 	/** 
 	 * Determines whether the actor instance given by InstanceHandle overlaps QueryBounds. The test involves calculating 
 	 * bounding box of the actor representation of the given instance (i.e. it's not only the transform that's being tested).
 	 */
 	template <typename TBoundsType>
-	static bool IsInstanceInsideBounds(const TBoundsType& QueryBounds, const FInstancedActorsInstanceHandle& InstanceHandle, const FTransform& InstanceTransform);
+	static UE::InstancedActors::EInsideBoundsTestResult IsInstanceInsideBounds(const TBoundsType & QueryBounds
+		, const FInstancedActorsInstanceHandle& InstanceHandle, const FTransform & InstanceTransform);
 
 	// Outputs instance metrics to Ar
 	void AuditInstances(FOutputDevice& Ar, bool bDebugDraw = false, float DebugDrawDuration = 10.0f) const;
@@ -241,12 +254,12 @@ protected:
 	//~ End AActor Overrides
 
 	//~ Begin IActorInstanceManagerInterface Overrides
-	virtual int32 ConvertCollisionIndexToInstanceIndex(int32 InIndex, const UPrimitiveComponent* RelevantComponent) const /*override*/;
-	virtual AActor* FindActor(const FActorInstanceHandle& Handle) /*override*/;
-	virtual AActor* FindOrCreateActor(const FActorInstanceHandle& Handle) /*override*/;
-	virtual UClass* GetRepresentedClass(const int32 InstanceIndex) const /*override*/;
-	virtual ULevel* GetLevelForInstance(const int32 InstanceIndex) const /*override*/;
-	virtual FTransform GetTransform(const FActorInstanceHandle& Handle) const /*override*/;
+	virtual int32 ConvertCollisionIndexToInstanceIndex(int32 InIndex, const UPrimitiveComponent* RelevantComponent) const override;
+	virtual AActor* FindActor(const FActorInstanceHandle& Handle) override;
+	virtual AActor* FindOrCreateActor(const FActorInstanceHandle& Handle) override;
+	virtual UClass* GetRepresentedClass(const int32 InstanceIndex) const override;
+	virtual ULevel* GetLevelForInstance(const int32 InstanceIndex) const override;
+	virtual FTransform GetTransform(const FActorInstanceHandle& Handle) const override;
 	//~ End IActorInstanceManagerInterface Overrides
 
 	// Called by Serialize for SaveGame archives to save / load IAD persistence data
@@ -362,7 +375,9 @@ private:
 	 * Try to extract the actor from the provided handle or from associated Mass Entity.
 	 * When unable to retrieve it returns nullptr but also the associated EntityView so caller could reuse it to create the actor.
 	 */
-	AActor* FindActorInternal(const FActorInstanceHandle& Handle, FMassEntityView& OutEntityView, bool bEnsureOnMissingInstanceDataOrMassEntity);
+	AActor* FindActorInternal(const FActorInstanceHandle& Handle, FMassEntityView& OutEntityView, bool bEnsureOnMissingInstanceDataOrMassEntity) const;
+
+	AActor* GetActorForInstance(const UInstancedActorsData& InstanceData, const int32 InstancedActorIndex) const;
 
 	FInstancedActorsInstanceHandle ActorInstanceHandleFromFSMInstanceId(const FSMInstanceId& InstanceId) const;
 };

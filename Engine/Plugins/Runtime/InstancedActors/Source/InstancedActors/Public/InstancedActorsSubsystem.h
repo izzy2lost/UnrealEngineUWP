@@ -76,8 +76,10 @@ public:
 	 * Checks whether there are any instanced actors representing ActorClass or its subclasses inside QueryBounds.
 	 * The check doesn't differentiate between hydrated and dehydrated actors (i.e. whether there's an actor instance 
 	 * associated with the instance or not).
+	 * * @param bTestActorsIfSpawned if true then when an instance is found to overlap given bounds, and it has an actor
+	 *	spawned associated with it, then the actor itself will be tested against the bounds for more precise test.
 	 */
-	INSTANCEDACTORS_API bool HasInstancesOfClass(const FBox& QueryBounds, TSubclassOf<AActor> ActorClass) const;
+	INSTANCEDACTORS_API bool HasInstancesOfClass(const FBox& QueryBounds, TSubclassOf<AActor> ActorClass, const bool bTestActorsIfSpawned = false) const;
 
 	FInstancedActorsManagerHandle AddManager(AInstancedActorsManager& Manager);
 	void RemoveManager(FInstancedActorsManagerHandle ManagerHandle);

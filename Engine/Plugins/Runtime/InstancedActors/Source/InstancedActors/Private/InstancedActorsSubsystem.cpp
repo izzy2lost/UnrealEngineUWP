@@ -575,12 +575,14 @@ void UInstancedActorsSubsystem::ForEachInstance(const FBox& QueryBounds, TFuncti
 	});
 }
 
-bool UInstancedActorsSubsystem::HasInstancesOfClass(const FBox& QueryBounds, TSubclassOf<AActor> ActorClass) const
+bool UInstancedActorsSubsystem::HasInstancesOfClass(const FBox& QueryBounds, TSubclassOf<AActor> ActorClass, const bool bTestActorsIfSpawned) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UInstancedActorsSubsystem::HasInstancesOfClass);
+
 	bool bHasInstances = false;
-	ForEachManager(QueryBounds, [QueryBounds, ActorClass, &bHasInstances](AInstancedActorsManager& Manager)
+	ForEachManager(QueryBounds, [QueryBounds, ActorClass, &bHasInstances, bTestActorsIfSpawned](AInstancedActorsManager& Manager)
 	{
-		bHasInstances = Manager.HasInstancesOfClass(QueryBounds, ActorClass);
+		bHasInstances = Manager.HasInstancesOfClass(QueryBounds, ActorClass, bTestActorsIfSpawned);
 		const bool bContinue = !bHasInstances;
 		return bContinue;
 	});

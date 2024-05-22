@@ -828,7 +828,8 @@ bool AInstancedActorsManager::ForEachInstance(FInstanceOperationFunc Operation, 
 						{
 							return;
 						}
-					} });
+					}
+				});
 
 			if (!bContinue)
 			{
@@ -955,29 +956,30 @@ template bool AInstancedActorsManager::ForEachInstance<FBox>(const FBox& QueryBo
 template bool AInstancedActorsManager::ForEachInstance<FSphere>(const FSphere& QueryBounds, AInstancedActorsManager::FInstanceOperationFunc Operation) const;
 
 template<>
-bool AInstancedActorsManager::IsInstanceInsideBounds<FBox>(const FBox& QueryBounds, const FInstancedActorsInstanceHandle& InstanceHandle, const FTransform& InstanceTransform)
+UE::InstancedActors::EInsideBoundsTestResult AInstancedActorsManager::IsInstanceInsideBounds<FBox>(const FBox& QueryBounds
+	, const FInstancedActorsInstanceHandle& InstanceHandle, const FTransform& InstanceTransform)
 {
 	if (QueryBounds.IsInside(InstanceTransform.GetLocation()))
 	{
-		return true;
+		return UE::InstancedActors::EInsideBoundsTestResult::OverlapLocation;
 	}
 
 	// More expensive bounds test.
 	const FBox InstancedActorBounds = CalculateBounds(InstanceHandle.InstancedActorData->ActorClass).TransformBy(InstanceTransform);
 	if (QueryBounds.Intersect(InstancedActorBounds))
 	{
-		return true;
+		return UE::InstancedActors::EInsideBoundsTestResult::OverlapBounds;
 	}
 
-	return false;
+	return UE::InstancedActors::EInsideBoundsTestResult::NotInside;
 }
 
 template<>
-bool AInstancedActorsManager::IsInstanceInsideBounds<FSphere>(const FSphere& QueryBounds, const FInstancedActorsInstanceHandle& InstanceHandle, const FTransform& InstanceTransform)
+UE::InstancedActors::EInsideBoundsTestResult AInstancedActorsManager::IsInstanceInsideBounds<FSphere>(const FSphere& QueryBounds, const FInstancedActorsInstanceHandle& InstanceHandle, const FTransform& InstanceTransform)
 {
 	if (QueryBounds.IsInside(InstanceTransform.GetLocation()))
 	{
-		return true;
+		return UE::InstancedActors::EInsideBoundsTestResult::OverlapLocation;
 	}
 
 	// More expensive bounds test.
@@ -985,16 +987,18 @@ bool AInstancedActorsManager::IsInstanceInsideBounds<FSphere>(const FSphere& Que
 	const FSphere TransformedSphere = QueryBounds.TransformBy(InstanceTransform.Inverse());
 	if (FMath::SphereAABBIntersection(TransformedSphere, InstancedActorBounds))
 	{
-		return true;
+		return UE::InstancedActors::EInsideBoundsTestResult::OverlapBounds;
 	}
 
-	return false;
+	return UE::InstancedActors::EInsideBoundsTestResult::NotInside;
 }
 
-template<typename TBoundsType>
-bool AInstancedActorsManager::HasInstancesOfClass(const TBoundsType& QueryBounds, TSubclassOf<AActor> ActorClass) const
+bool AInstancedActorsManager::HasInstancesOfClass(const FBox& InQueryBounds, TSubclassOf<AActor> ActorClass, const bool bTestActorsIfSpawned) const
 {
+	using UE::InstancedActors::EInsideBoundsTestResult;
+
 	ensure(ActorClass);
+	check(InstancedActorSubsystem);
 
 	FScopedInstancedActorsIterationContext IterationContext;
 	bool bHasInstance = false;
@@ -1004,15 +1008,62 @@ bool AInstancedActorsManager::HasInstancesOfClass(const TBoundsType& QueryBounds
 			return InstancedActorData.ActorClass->IsChildOf(ActorClass);
 		});
 
-	ForEachInstance([Manager = this, QueryBounds, ActorClass, &bHasInstance](const FInstancedActorsInstanceHandle& InstanceHandle, const FTransform& InstanceTransform, FInstancedActorsIterationContext& IterationContext)
+	struct FQueryBounds
+	{
+		FBox QueryBounds;
+		FVector Center;
+		FVector Extent;
+		FCollisionShape CollistionShape;
+
+		FQueryBounds(const FBox& InQueryBounds)
+			: QueryBounds(InQueryBounds)
 		{
-			bHasInstance = Manager->IsInstanceInsideBounds(QueryBounds, InstanceHandle, InstanceTransform);
-			UE_IFVLOG(
-			if (bHasInstance)
+			InQueryBounds.GetCenterAndExtents(Center, Extent);
+			CollistionShape = FCollisionShape::MakeBox(Extent);
+		}
+	};
+	FQueryBounds CachedQueryBounds(InQueryBounds);
+
+	ForEachInstance([Manager = this, CachedQueryBounds, ActorClass, &bHasInstance, InstancedActorSubsystem=InstancedActorSubsystem, bTestActorsIfSpawned](const FInstancedActorsInstanceHandle& InstanceHandle, const FTransform& InstanceTransform, FInstancedActorsIterationContext& IterationContext)
+		{
+			const EInsideBoundsTestResult OverlapResult = Manager->IsInstanceInsideBounds(CachedQueryBounds.QueryBounds, InstanceHandle, InstanceTransform);
+			
+			// the only case we care about, representation bounds overlap without overlapping the actual instance location
+			if (OverlapResult == EInsideBoundsTestResult::OverlapBounds && bTestActorsIfSpawned)
 			{
-				const FBox InstancedActorBounds = CalculateBounds(InstanceHandle.InstancedActorData->ActorClass).TransformBy(InstanceTransform);
-				UE_VLOG_BOX(Manager, LogInstancedActors, Log, InstancedActorBounds, FColor::Red, TEXT("Instance of class %s"), *GetNameSafe(ActorClass));
-			})
+				// we want to check if the given entity has an actor representation, and if so then test the actor itself
+				UInstancedActorsData& OwningInstanceData = InstanceHandle.GetInstanceActorDataChecked();
+				if (AActor* Actor = Manager->GetActorForInstance(OwningInstanceData, InstanceHandle.GetIndex()))
+				{
+					bHasInstance = false;
+
+					TArray<UPrimitiveComponent*> OutComponents;
+					Actor->GetComponents(UPrimitiveComponent::StaticClass(), OutComponents, /*bIncludeFromChildActors=*/true);
+					for (UPrimitiveComponent* Component : OutComponents)
+					{
+						if (Component->OverlapComponent(CachedQueryBounds.Center, FQuat::Identity, CachedQueryBounds.CollistionShape))
+						{
+							bHasInstance = true;
+							break;
+						}
+					}
+				}
+			}
+			else 
+			{
+				bHasInstance = (OverlapResult != EInsideBoundsTestResult::NotInside);
+			}
+				
+			UE_IFVLOG
+			(
+				if (bHasInstance || OverlapResult == EInsideBoundsTestResult::OverlapBounds)
+				{
+					const FBox InstancedActorBounds = CalculateBounds(InstanceHandle.InstancedActorData->ActorClass).TransformBy(InstanceTransform);
+					UE_VLOG_BOX(Manager, LogInstancedActors, Log, InstancedActorBounds, bHasInstance ? FColor::Red : FColor::Green
+						, TEXT("Instance of class %s"), *GetNameSafe(InstanceHandle.InstancedActorData->ActorClass));
+				}
+			);
+
 			const bool bContinue = !bHasInstance;
 			return bContinue;
 		}
@@ -1020,10 +1071,6 @@ bool AInstancedActorsManager::HasInstancesOfClass(const TBoundsType& QueryBounds
 
 	return bHasInstance;
 }
-
-// Instantiate FBox and FSphere implementations
-template bool AInstancedActorsManager::HasInstancesOfClass<FBox>(const FBox& QueryBounds, TSubclassOf<AActor> ActorClass) const;
-template bool AInstancedActorsManager::HasInstancesOfClass<FSphere>(const FSphere& QueryBounds, TSubclassOf<AActor> ActorClass) const;
 
 void AInstancedActorsManager::AuditInstances(FOutputDevice& Ar, bool bDebugDraw, float DebugDrawDuration) const
 {
@@ -1502,7 +1549,7 @@ int32 AInstancedActorsManager::ConvertCollisionIndexToInstanceIndex(int32 InInde
 	return INDEX_NONE;
 }
 
-AActor* AInstancedActorsManager::FindActorInternal(const FActorInstanceHandle& Handle, FMassEntityView& OutEntityView, const bool bEnsureOnMissingInstanceDataOrMassEntity)
+AActor* AInstancedActorsManager::FindActorInternal(const FActorInstanceHandle& Handle, FMassEntityView& OutEntityView, const bool bEnsureOnMissingInstanceDataOrMassEntity) const
 {
 #if WITH_EDITOR
 	const UWorld* World = GetWorld();
@@ -1510,7 +1557,7 @@ AActor* AInstancedActorsManager::FindActorInternal(const FActorInstanceHandle& H
 	{
 		// In Editor non-game worlds the manager only creates preview ISM components which
 		// are not fully setup with Mass so we simply return this manager as the instance's actor.
-		return this;
+		return const_cast<AInstancedActorsManager*>(this);
 	}
 #endif // WITH_EDITOR
 
@@ -1528,7 +1575,7 @@ AActor* AInstancedActorsManager::FindActorInternal(const FActorInstanceHandle& H
 	{
 		// On clients, where we don't spawn actors directly, we simply return this manager as the
 		// instance's actor.
-		return this;
+		return const_cast<AInstancedActorsManager*>(this);
 	}
 
 	const int32 CompositeIndex = Handle.GetInstanceIndex();
@@ -1574,16 +1621,31 @@ AActor* AInstancedActorsManager::FindActorInternal(const FActorInstanceHandle& H
 	return nullptr;
 }
 
+AActor* AInstancedActorsManager::GetActorForInstance(const UInstancedActorsData& InstanceData, const int32 InstancedActorIndex) const
+{
+	const FMassEntityHandle EntityHandle = InstanceData.GetEntityHandleForIndex(InstancedActorIndex);
+	// note that it's possible that InstancedActorIndex points at a no-longer-valid entity
+	if (EntityHandle.IsValid())
+	{
+		const FMassEntityManager& EntityManager = GetMassEntityManagerChecked();
+		if (FMassActorFragment* ActorFragment = EntityManager.GetFragmentDataPtr<FMassActorFragment>(EntityHandle))
+		{
+			return ActorFragment->GetMutable();
+		}
+	}
+	return nullptr;
+}
+
 AActor* AInstancedActorsManager::FindActor(const FActorInstanceHandle& Handle)
 {
 	FMassEntityView EntityView;
-	return FindActorInternal(Handle, EntityView, /*bEnsureOnMissingInstanceDataOrMassEntity*/ false);
+	return FindActorInternal(Handle, EntityView, /*bEnsureOnMissingInstanceDataOrMassEntity=*/false);
 }
 
 AActor* AInstancedActorsManager::FindOrCreateActor(const FActorInstanceHandle& Handle)
 {
 	FMassEntityView EntityView;
-	AActor* Actor = FindActorInternal(Handle, EntityView, /*bEnsureOnMissingInstanceDataOrMassEntity*/ true);
+	AActor* Actor = FindActorInternal(Handle, EntityView, /*bEnsureOnMissingInstanceDataOrMassEntity=*/true);
 
 	// Create missing actor from Mass if we have a valid EntityView
 	if (Actor == nullptr && EntityView.IsValid())
