@@ -924,7 +924,7 @@ void TEvaluationTreeEntryContainer<ElementType>::Insert(FEvaluationTreeEntryHand
 		const ElementType* OldLocation = &Items[Entry.StartIndex + Index];
 		void* NewLocation = &Items[Entry.StartIndex + Index + 1];
 
-		RelocateConstructItems<ElementType, ElementType>(NewLocation, OldLocation, Entry.Size - Index);
+		RelocateConstructItems<ElementType>(NewLocation, OldLocation, Entry.Size - Index);
 		DefaultConstructItems<ElementType>((void*)OldLocation, 1);
 	}
 
@@ -974,7 +974,7 @@ void TEvaluationTreeEntryContainer<ElementType>::ReserveEntry(FEvaluationTreeEnt
 
 	const ElementType* OldLocation = &Items[Entry.StartIndex];
 	void* NewLocation = &Items[NewStartIndex];
-	RelocateConstructItems<ElementType, ElementType>(NewLocation, OldLocation, Entry.Size);
+	RelocateConstructItems<ElementType>(NewLocation, OldLocation, Entry.Size);
 	DefaultConstructItems<ElementType>((void*)OldLocation, Entry.Size);
 
 	Entry.StartIndex = NewStartIndex;

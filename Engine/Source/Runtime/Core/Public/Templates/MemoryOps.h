@@ -212,13 +212,13 @@ FORCEINLINE void RelocateConstructItem(void* Dest, const SourceElementType* Sour
  * @param	Count		The number of elements to relocate.
  */
 template <typename DestinationElementType, typename SourceElementType, typename SizeType>
-FORCEINLINE void RelocateConstructItems(void* Dest, const SourceElementType* Source, SizeType Count)
+FORCEINLINE void RelocateConstructItems(void* Dest, SourceElementType* Source, SizeType Count)
 {
 	if constexpr (sizeof(DestinationElementType) == 0 || sizeof(SourceElementType) == 0)
 	{
 		// Should never get here, but this construct should improve the error messages we get when we try to call this function with incomplete types
 	}
-	else if constexpr (UE::Core::Private::MemoryOps::TCanBitwiseRelocate_V<DestinationElementType, SourceElementType>)
+	else if constexpr (UE::Core::Private::MemoryOps::TCanBitwiseRelocate_V<DestinationElementType, std::remove_const_t<SourceElementType>>)
 	{
 		/* All existing UE containers seem to assume trivial relocatability (i.e. memcpy'able) of their members,
 		 * so we're going to assume that this is safe here.  However, it's not generally possible to assume this
@@ -237,7 +237,7 @@ FORCEINLINE void RelocateConstructItems(void* Dest, const SourceElementType* Sou
 			// We need a typedef here because VC won't compile the destructor call below if SourceElementType itself has a member called SourceElementType
 			typedef SourceElementType RelocateConstructItemsElementTypeTypedef;
 
-			::new ((void*)Dest) DestinationElementType(*Source);
+			::new ((void*)Dest) DestinationElementType((SourceElementType&&)*Source);
 			++(DestinationElementType*&)Dest;
 			(Source++)->RelocateConstructItemsElementTypeTypedef::~RelocateConstructItemsElementTypeTypedef();
 			--Count;
