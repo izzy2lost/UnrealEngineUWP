@@ -121,37 +121,34 @@ bool FPCGCopyPointsElement::ExecuteInternal(FPCGContext* Context) const
 			{
 				bInheritMetadataFromSource = true;
 				bProcessMetadata = bSourceHasMetadata;
-
-				OutPointData->InitializeFromData(SourcePointData);
 				RootMetadata = SourcePointMetadata;
 				NonRootMetadata = nullptr;
+
+				OutPointData->InitializeFromData(SourcePointData);
 			}
 			else if (AttributeInheritance == EPCGCopyPointsMetadataInheritanceMode::TargetOnly)
 			{
 				bInheritMetadataFromSource = false;
 				bProcessMetadata = bTargetHasMetadata;
-
-				OutPointData->InitializeFromData(TargetPointData);
-
 				RootMetadata = TargetPointMetadata;
 				NonRootMetadata = nullptr;
-			}
-			else if (AttributeInheritance == EPCGCopyPointsMetadataInheritanceMode::SourceFirst)
-			{
-				bInheritMetadataFromSource = bSourceHasMetadata || !bTargetHasMetadata;
-
-				OutPointData->InitializeFromData(SourcePointData);
-				RootMetadata = SourcePointMetadata;
-				NonRootMetadata = TargetPointMetadata;
-			}
-			else if (AttributeInheritance == EPCGCopyPointsMetadataInheritanceMode::TargetFirst)
-			{
-				bInheritMetadataFromSource = !bTargetHasMetadata;
 
 				OutPointData->InitializeFromData(TargetPointData);
+			}
+			else if (AttributeInheritance == EPCGCopyPointsMetadataInheritanceMode::SourceFirst || AttributeInheritance == EPCGCopyPointsMetadataInheritanceMode::TargetFirst)
+			{
+				if (AttributeInheritance == EPCGCopyPointsMetadataInheritanceMode::SourceFirst)
+				{
+					bInheritMetadataFromSource = bSourceHasMetadata || !bTargetHasMetadata;
+				}
+				else // TargetFirst
+				{
+					bInheritMetadataFromSource = !bTargetHasMetadata && bSourceHasMetadata;
+				}
 
-				RootMetadata = TargetPointMetadata;
-				NonRootMetadata = SourcePointMetadata;
+				RootMetadata = bInheritMetadataFromSource ? SourcePointMetadata : TargetPointMetadata;
+				NonRootMetadata = bInheritMetadataFromSource ? TargetPointMetadata : SourcePointMetadata;
+				OutPointData->InitializeFromData(bInheritMetadataFromSource ? SourcePointData : TargetPointData);
 			}
 			else // None
 			{
