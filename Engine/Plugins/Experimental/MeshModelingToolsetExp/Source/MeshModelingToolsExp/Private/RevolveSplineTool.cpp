@@ -34,34 +34,10 @@ void URevolveSplineTool::Setup()
 	ToolActions->Initialize(this);
 	AddToolPropertySource(ToolActions);
 
-	MaterialProperties = NewObject<UNewMeshMaterialProperties>(this);
-	AddToolPropertySource(MaterialProperties);
-	MaterialProperties->RestoreProperties(this);
-
-	OutputTypeProperties = NewObject<UCreateMeshObjectTypeProperties>(this);
-	OutputTypeProperties->InitializeDefault();
-	OutputTypeProperties->RestoreProperties(this);
-	OutputTypeProperties->WatchProperty(OutputTypeProperties->OutputType, [this](FString) { OutputTypeProperties->UpdatePropertyVisibility(); });
-	AddToolPropertySource(OutputTypeProperties);
-
 	SetToolDisplayName(LOCTEXT("RevolveSplineToolName", "Revolve Spline"));
 	GetToolManager()->DisplayMessage(
 		LOCTEXT("RevolveSplineToolDescription", "Revolve the selected spline to create a mesh."),
 		EToolMessageLevel::UserNotification);
-
-	Preview = NewObject<UMeshOpPreviewWithBackgroundCompute>(this);
-	Preview->Setup(GetTargetWorld(), this);
-	Preview->PreviewMesh->EnableWireframe(MaterialProperties->bShowWireframe);
-	Preview->ConfigureMaterials(MaterialProperties->Material.Get(),
-		ToolSetupUtil::GetDefaultWorkingMaterial(GetToolManager()));
-	ToolSetupUtil::ApplyRenderingConfigurationToPreview(Preview->PreviewMesh, nullptr);
-
-	Preview->OnMeshUpdated.AddLambda(
-		[this](const UMeshOpPreviewWithBackgroundCompute* UpdatedPreview)
-		{
-			UpdateAcceptWarnings(UpdatedPreview->HaveEmptyResult() ? EAcceptWarning::EmptyForbidden : EAcceptWarning::NoWarning);
-		}
-	);
 
 	// TODO: We'll probably want a click behavior someday for clicking on the spline to align to a tangent at a point
 
@@ -88,8 +64,6 @@ void URevolveSplineTool::Setup()
 	// don't have a way to pass in a custom alignment raycast, which we would want in order to snap
 	// and align to spline points.
 
-	PollSplineUpdates();
-
 	if (Settings->bResetAxisOnStart)
 	{
 		ResetAxis();
@@ -98,11 +72,14 @@ void URevolveSplineTool::Setup()
 	{
 		UpdateRevolutionAxis();
 	}
+
+	Super::Setup();
 }
 
 void URevolveSplineTool::ResetAxis()
 {
-	if (!Spline.IsValid())
+	USplineComponent* Spline = GetFirstSpline();
+	if (!Spline)
 	{
 		return;
 	}
@@ -131,50 +108,10 @@ void URevolveSplineTool::ResetAxis()
 	UpdateRevolutionAxis();
 }
 
-void URevolveSplineTool::PollSplineUpdates()
+void URevolveSplineTool::OnSplineUpdate()
 {
-	if (bLostInputSpline)
-	{
-		return;
-	}
-
-	if (!Spline.IsValid())
-	{
-		// Attempt to recapture the spline.
-		TArray<USplineComponent*> Splines;
-		if (SplineOwningActor.IsValid())
-		{
-			SplineOwningActor->GetComponents<USplineComponent>(Splines);
-		}
-		if (SplineComponentIndex < Splines.Num() && ensure(SplineComponentIndex >= 0))
-		{
-			Spline = Splines[SplineComponentIndex];
-		}
-		else
-		{
-			GetToolManager()->DisplayMessage(
-				LOCTEXT("LostSpline", "Tool lost reference to the input spline. The spline input will no longer be updated."),
-				EToolMessageLevel::UserWarning);
-			bLostInputSpline = true;
-			return;
-		}
-	}
-
-	if (Spline->SplineCurves.Version == LastSplineVersion && !bForceSplineUpdate)
-	{
-		// No update necessary
-		return;
-	}
-
-	UpdatePointsFromSpline();
-
-	LastSplineVersion = Spline->SplineCurves.Version;
-	bForceSplineUpdate = false;
-}
-
-void URevolveSplineTool::UpdatePointsFromSpline()
-{
-	if (!Spline.IsValid())
+	USplineComponent* Spline = GetFirstSpline();
+	if (!Spline)
 	{
 		return;
 	}
@@ -226,16 +163,11 @@ void URevolveSplineTool::UpdatePointsFromSpline()
 
 void URevolveSplineTool::OnTick(float DeltaTime)
 {
-	PollSplineUpdates();
+	Super::OnTick(DeltaTime);
 
 	if (PlaneMechanic)
 	{
 		PlaneMechanic->Tick(DeltaTime);
-	}
-
-	if (Preview)
-	{
-		Preview->Tick(DeltaTime);
 	}
 }
 
@@ -268,97 +200,45 @@ void URevolveSplineTool::Render(IToolsContextRenderAPI* RenderAPI)
 
 void URevolveSplineTool::OnPropertyModified(UObject* PropertySet, FProperty* Property)
 {
-	if (PropertySet == OutputTypeProperties)
-	{
-		return;
-	}
-
 	if (Property)
 	{
-		if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(UNewMeshMaterialProperties, Material))
-		{
-			Preview->ConfigureMaterials(MaterialProperties->Material.Get(),
-				ToolSetupUtil::GetDefaultWorkingMaterial(GetToolManager()));
-		}
-		else if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(URevolveSplineToolProperties, SampleMode)
+		if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(URevolveSplineToolProperties, SampleMode)
 			|| Property->GetFName() == GET_MEMBER_NAME_CHECKED(URevolveSplineToolProperties, ErrorTolerance)
 			|| Property->GetFName() == GET_MEMBER_NAME_CHECKED(URevolveSplineToolProperties, MaxSampleDistance))
 		{
-			UpdatePointsFromSpline();
+			OnSplineUpdate();
 		}
 
 		// Checking the name for these settings doesn't work, since the reported names are the low level components, like "X" or "Y"
 		// So we'll simply update the axis whenever any property changes. It's overkill but probably not too bad.
 		PlaneMechanic->SetPlaneWithoutBroadcast(FFrame3d(Settings->AxisOrigin,
 			FRotator(Settings->AxisOrientation.X, Settings->AxisOrientation.Y, 0).Quaternion()));
-		UpdateRevolutionAxis();		
+		UpdateRevolutionAxis();
 	}
 
-	Preview->PreviewMesh->EnableWireframe(MaterialProperties->bShowWireframe);
-
-	Preview->InvalidateResult();
+	Super::OnPropertyModified(PropertySet, Property);
 }
 
 void URevolveSplineTool::Shutdown(EToolShutdownType ShutdownType)
 {
 	Settings->SaveProperties(this);
-	OutputTypeProperties->SaveProperties(this);
-	MaterialProperties->SaveProperties(this);
 
-	FDynamicMeshOpResult Result = Preview->Shutdown();
-
-	if (ShutdownType == EToolShutdownType::Accept)
-	{
-		GetToolManager()->BeginUndoTransaction(LOCTEXT("RevolveSplineAction", "Revolve Spline"));
-
-		// Generate the result asset
-		GenerateAsset(Result);
-
-		GetToolManager()->EndUndoTransaction();
-	}
+	Super::Shutdown(ShutdownType);
 
 	PlaneMechanic->Shutdown();
 
-	Preview = nullptr;
 	Settings = nullptr;
-	MaterialProperties = nullptr;
-	OutputTypeProperties = nullptr;
 	ToolActions = nullptr;
 	PlaneMechanic = nullptr;
-
-	Super::Shutdown(ShutdownType);
 }
 
-void URevolveSplineTool::GenerateAsset(const FDynamicMeshOpResult& OpResult)
+FString URevolveSplineTool::GeneratedAssetBaseName() const
 {
-	if (OpResult.Mesh.Get() == nullptr) return;
-
-	if (!ensure(OpResult.Mesh.Get() && OpResult.Mesh->TriangleCount() > 0))
-	{
-		return;
-	}
-
-	GetToolManager()->BeginUndoTransaction(LOCTEXT("RevolveSplineToolTransactionName", "Revolve Spline"));
-
-	FCreateMeshObjectParams NewMeshObjectParams;
-	NewMeshObjectParams.TargetWorld = GetTargetWorld();
-	NewMeshObjectParams.Transform = (FTransform)OpResult.Transform;
-	NewMeshObjectParams.BaseName = TEXT("RevolveSpline");
-	NewMeshObjectParams.Materials.Add(MaterialProperties->Material.Get());
-	NewMeshObjectParams.SetMesh(OpResult.Mesh.Get());
-	OutputTypeProperties->ConfigureCreateMeshObjectParams(NewMeshObjectParams);
-	FCreateMeshObjectResult Result = UE::Modeling::CreateMeshObject(GetToolManager(), MoveTemp(NewMeshObjectParams));
-	if (Result.IsOK() && Result.NewActor != nullptr)
-	{
-		ToolSelectionUtil::SetNewActorSelection(GetToolManager(), Result.NewActor);
-	}
-
-	GetToolManager()->EndUndoTransaction();
+	return TEXT("RevolveSpline");
 }
-
-bool URevolveSplineTool::CanAccept() const
+FText URevolveSplineTool::TransactionName() const
 {
-	return Preview->HaveValidNonEmptyResult();
+	return LOCTEXT("RevolveSplinesAction", "Revolve Spline");
 }
 
 TUniquePtr<FDynamicMeshOperator> URevolveSplineTool::MakeNewOperator()
@@ -410,19 +290,6 @@ void URevolveSplineTool::UpdateRevolutionAxis()
 	}
 }
 
-// To be called by builder
-void URevolveSplineTool::SetSpline(USplineComponent* SplineComponent)
-{
-	Spline = SplineComponent;
-	SplineOwningActor = Spline->GetOwner();
-	bForceSplineUpdate = true;
-
-	TArray<USplineComponent*> Splines;
-	SplineOwningActor->GetComponents<USplineComponent>(Splines);
-
-	SplineComponentIndex = Splines.IndexOfByKey(Spline.Get());
-}
-
 void URevolveSplineTool::RequestAction(ERevolveSplineToolAction Action)
 {
 	if (Action == ERevolveSplineToolAction::ResetAxis)
@@ -434,28 +301,10 @@ void URevolveSplineTool::RequestAction(ERevolveSplineToolAction Action)
 
 /// Tool builder:
 
-bool URevolveSplineToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
-{
-	int32 NumSplines = ToolBuilderUtil::CountComponents(SceneState, [&](UActorComponent* Object) -> bool
-	{
-		return Object->IsA<USplineComponent>();
-	});
-	return NumSplines == 1;
-}
-
 UInteractiveTool* URevolveSplineToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
 {
 	URevolveSplineTool* NewTool = NewObject<URevolveSplineTool>(SceneState.ToolManager);
-	USplineComponent* Spline = Cast<USplineComponent>(ToolBuilderUtil::FindFirstComponent(SceneState, [&](UActorComponent* Object)
-	{
-		return Object->IsA<USplineComponent>();
-	}));
-
-	ensure(Spline);
-	NewTool->SetSpline(Spline);
-
-	NewTool->SetWorld(SceneState.World);
-
+	InitializeNewTool(NewTool, SceneState);
 	return NewTool;
 }
 

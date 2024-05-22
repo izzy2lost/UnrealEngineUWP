@@ -4,25 +4,13 @@
 
 #include "CoreMinimal.h"
 
-#include "Components/SplineComponent.h" // (to use with TWeakObjectPtr)
-#include "Engine/World.h" // (to use with TWeakObjectPtr)
-#include "InteractiveTool.h"
-#include "InteractiveToolBuilder.h"
-#include "InteractiveToolQueryInterfaces.h"
-#include "ModelingOperators.h" // IDynamicMeshOperatorFactory
 #include "Properties/RevolveProperties.h"
+#include "Spline/BaseMeshFromSplinesTool.h"
 
 #include "RevolveSplineTool.generated.h"
 
-class AActor;
-struct FDynamicMeshOpResult;
 class UConstructionPlaneMechanic;
-class UCreateMeshObjectTypeProperties;
-class UMeshOpPreviewWithBackgroundCompute;
-class UNewMeshMaterialProperties;
 class URevolveSplineTool;
-class USplineComponent;
-class UWorld;
 
 //~ TODO: Might want to have some shared enum for sampling splines in a util folder,
 //~ but hesitant to prescribe it until other tools want it.
@@ -124,35 +112,36 @@ public:
  * Revolves a selected spline to create a new mesh.
  */
 UCLASS()
-class MESHMODELINGTOOLSEXP_API URevolveSplineTool : public UInteractiveTool, 
-	public IInteractiveToolEditorGizmoAPI, 
-	public UE::Geometry::IDynamicMeshOperatorFactory
+class MESHMODELINGTOOLSEXP_API URevolveSplineTool : public UBaseMeshFromSplinesTool
 {
 	GENERATED_BODY()
 
 public:
 
-	virtual void SetSpline(USplineComponent* SplineComponent);
-
-	virtual void SetWorld(UWorld* World) { TargetWorld = World; }
-	virtual UWorld* GetTargetWorld() { return TargetWorld.Get(); }
 	virtual void RequestAction(ERevolveSplineToolAction ActionType);
 
 	// UInteractiveTool
 	virtual void Setup() override;
 	virtual void Shutdown(EToolShutdownType ShutdownType) override;
-	virtual void OnTick(float DeltaTime) override;
-	virtual bool HasCancel() const override { return true; }
-	virtual bool HasAccept() const override { return true; }
-	virtual bool CanAccept() const override;
 	virtual void Render(IToolsContextRenderAPI* RenderAPI) override;
 	virtual void OnPropertyModified(UObject* PropertySet, FProperty* Property) override;
+	virtual void OnTick(float DeltaTime) override;
 
 	// IDynamicMeshOperatorFactory
-	virtual TUniquePtr<UE::Geometry::FDynamicMeshOperator> MakeNewOperator();
+	virtual TUniquePtr<UE::Geometry::FDynamicMeshOperator> MakeNewOperator() override;
 
-	// IInteractiveToolEditorGizmoAPI
-	virtual bool GetAllowStandardEditorGizmos() override { return true; }
+	virtual FString GeneratedAssetBaseName() const override;
+	virtual FText TransactionName() const override;
+
+protected:
+	// Update the profile curve and fit plane from spline
+	virtual void OnSplineUpdate() override;
+
+	// Keep the result mesh in the same space as set by the operator result
+	virtual FTransform3d HandleOperatorTransform(const FDynamicMeshOpResult& OpResult) override
+	{
+		return OpResult.Transform;
+	}
 
 private:
 
@@ -160,43 +149,14 @@ private:
 	TObjectPtr<URevolveSplineToolProperties> Settings = nullptr;
 
 	UPROPERTY()
-	TObjectPtr<UNewMeshMaterialProperties> MaterialProperties = nullptr;
-
-	UPROPERTY()
-	TObjectPtr<UCreateMeshObjectTypeProperties> OutputTypeProperties = nullptr;
-
-	UPROPERTY()
 	TObjectPtr<URevolveSplineToolActionPropertySet> ToolActions = nullptr;
-
-	UPROPERTY()
-	TObjectPtr<UMeshOpPreviewWithBackgroundCompute> Preview = nullptr;
 
 	UPROPERTY()
 	TObjectPtr<UConstructionPlaneMechanic> PlaneMechanic = nullptr;
 
-	TWeakObjectPtr<UWorld> TargetWorld = nullptr;
-
-	TWeakObjectPtr<USplineComponent> Spline = nullptr;
-	
-	// Used to try to re-acquire the spline if it is inside a BP actor, where it will be destroyed and recreated
-	// whenever the user edits it.
-	TWeakObjectPtr<AActor> SplineOwningActor = nullptr;
-	int32 SplineComponentIndex;
-	// If failed to reacquire once, used to avoid trying to reaquire again.
-	bool bLostInputSpline = false;
-
 	// The actual points to be resolved, sampled from the spline
 	TArray<FVector3d> ProfileCurve;
 	bool bProfileCurveIsClosed;
-
-	// See if the spline has changed, and update our data if so
-	void PollSplineUpdates();
-	// Track the spline 'Version' integer, which is incremented when splines are changed
-	uint32 LastSplineVersion = 0;
-	// Used to make sure we update when we first get a spline, regardless of LastSplineVersion
-	bool bForceSplineUpdate = true;
-	// Update the profile curve and fit plane from spline
-	void UpdatePointsFromSpline();
 
 	// Axis direction in vector form (since the user modifiable values are a pitch and yaw)
 	FVector3d RevolutionAxisDirection;
@@ -208,21 +168,22 @@ private:
 
 	FVector3d SplineFitPlaneOrigin;
 	FVector3d SplineFitPlaneNormal;
-
-	virtual void GenerateAsset(const FDynamicMeshOpResult& OpResult);
 };
 
 
 
 UCLASS(Transient)
-class MESHMODELINGTOOLSEXP_API URevolveSplineToolBuilder : public UInteractiveToolBuilder
+class MESHMODELINGTOOLSEXP_API URevolveSplineToolBuilder : public UBaseMeshFromSplinesToolBuilder
 {
 	GENERATED_BODY()
 
 public:
-	/** @return true if spline component sources can be found in the active selection */
-	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
-
 	/** @return new Tool instance initialized with selected spline source(s) */
 	virtual UInteractiveTool* BuildTool(const FToolBuilderState& SceneState) const override;
+
+	virtual UE::Geometry::FIndex2i GetSupportedSplineCountRange() const override
+	{
+		return UE::Geometry::FIndex2i(1, 1);
+	}
 };
+
