@@ -59,7 +59,7 @@ void SRigVMVariantCapsule::Construct(
 				.ColorAndOpacity(this, &SRigVMVariantCapsule::GetColor)
 			]
 			+SHorizontalBox::Slot()
-			.HAlign(HAlign_Fill)
+			.HAlign(HAlign_Left)
 			.VAlign(VAlign_Center)
 			.Padding(FMargin(4,1,4,1))
 			.AutoWidth()
@@ -294,6 +294,7 @@ void SRigVMVariantTagWidget::UpdateCapsules()
 		{
 			HorizontalCapsuleBox->AddSlot()
 			.Padding(0, 0, 3, 0)
+			.AutoWidth()
 			[
 				Capsule
 			];
