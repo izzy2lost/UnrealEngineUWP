@@ -9,6 +9,29 @@
 #include "ScenePrivate.h"
 #include "SystemTextures.h"
 #include "UnifiedBuffer.h"
+#include "ComponentRecreateRenderStateContext.h"
+
+static int32 GSkipNaniteLPIs = 1;
+static FAutoConsoleVariableRef CVarSkipNaniteLPIs(
+	TEXT("r.SkipNaniteLPIs"),
+	GSkipNaniteLPIs,
+	TEXT("Skip Nanite primitives in the light-primitive interactions & the primitive octree as they perform GPU-driven culling separately.\n")
+	TEXT(" Values:")
+	TEXT("   1 - (auto, default) Skipping is auto-disabled if r.AllowStaticLighting is enabled for the project as it breaks some associated editor features otherwise.")
+	TEXT("   2 - (forced) Skipping is always enabled regardless of r.AllowStaticLighting. May cause issues with static lighting. Use with care."),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
+	{
+		// Needed because the primitives need to be re-added to the scene to be removed from the octree and to have existing LPIs cleaned up. And vice versa.
+		// The cvar is not expected to be changed during runtime outside of testing.
+		FGlobalComponentRecreateRenderStateContext Context;
+	}),
+	ECVF_RenderThreadSafe);
+
+bool ShouldSkipNaniteLPIs()
+{
+	return GSkipNaniteLPIs > 1 
+		|| ( GSkipNaniteLPIs == 1 && !IsStaticLightingAllowed());
+}
 
 class FRTWriteMaskDecodeCS : public FGlobalShader
 {

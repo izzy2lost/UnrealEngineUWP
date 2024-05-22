@@ -272,6 +272,13 @@ public:
 	void AddToScene();
 
 	/**
+	 * Returns true if the light affects the primitive
+	 * @param LightSceneInfoCompact Compact representation of the light
+	 * @param PrimitiveSceneInfoCompact Compact representation of the primitive
+	 */
+	bool ShouldCreateLightPrimitiveInteraction(const FLightSceneInfoCompact& LightSceneInfoCompact, const FPrimitiveSceneInfoCompact& PrimitiveSceneInfoCompact);
+
+	/**
 	 * If the light affects the primitive, create an interaction, and process children 
 	 * @param LightSceneInfoCompact Compact representation of the light
 	 * @param PrimitiveSceneInfoCompact Compact representation of the primitive

@@ -25,6 +25,19 @@ public:
 
 	/** Creates an interaction for a light-primitive pair. */
 	static void InitializeMemoryPool();
+
+	struct FShouldCreateResult
+	{
+		bool bShouldCreate = false;
+		bool bDynamic = true;
+		bool bRelevant = false;
+		bool bIsLightMapped = true;
+		bool bShadowMapped = false;
+		bool bTranslucentObjectShadow = false;
+		bool bInsetObjectShadow = false;
+	};
+
+	static FShouldCreateResult ShouldCreate(FLightSceneInfo* LightSceneInfo,FPrimitiveSceneInfo* PrimitiveSceneInfo);
 	static void Create(FLightSceneInfo* LightSceneInfo,FPrimitiveSceneInfo* PrimitiveSceneInfo);
 	static void Destroy(FLightPrimitiveInteraction* LightPrimitiveInteraction);
 

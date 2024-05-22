@@ -3643,8 +3643,6 @@ public:
 
 	void DumpMeshDrawCommandMemoryStats();
 
-	void CreateLightPrimitiveInteractionsForPrimitive(FPrimitiveSceneInfo* PrimitiveInfo);
-
 	FORCEINLINE TArray<FCachedShadowMapData>* GetCachedShadowMapDatas(int32 LightID)
 	{
 		return CachedShadowMaps.Find(LightID);
@@ -3802,6 +3800,15 @@ public:
 	 * IF using this to drive an async task, the core light scene info may be used, but primitive scene updates will still be ongoing (e.g., light/primitive interactions may change).
 	 */
 	FSceneLightSceneInfoUpdateDelegate OnPostLightSceneInfoUpdate;
+
+	/**
+	 * Retrieves the lights interacting with the passed in primitive and adds them to the out array.
+	 * Render thread version of function.
+	 * @param	PrimitiveSceneProxy		Proxy of Primitive to retrieve interacting lights for
+	 * @param	RelevantLights	[out]	Array of lights interacting with primitive
+	 */
+	void GetRelevantLights_RenderThread( const FPrimitiveSceneProxy* PrimitiveSceneProxy, TArray<const FLightSceneProxy*> &OutRelevantLights ) const;
+
 protected:
 
 private:
@@ -3828,14 +3835,6 @@ private:
 	 * Ensures the packed primitive arrays contain the same number of elements.
 	 */
 	void CheckPrimitiveArrays(int MaxTypeOffsetIndex = -1);
-
-	/**
-	 * Retrieves the lights interacting with the passed in primitive and adds them to the out array.
-	 * Render thread version of function.
-	 * @param	Primitive				Primitive to retrieve interacting lights for
-	 * @param	RelevantLights	[out]	Array of lights interacting with primitive
-	 */
-	void GetRelevantLights_RenderThread( UPrimitiveComponent* Primitive, TArray<const ULightComponent*>* RelevantLights ) const;
 
 	/**
 	 * Adds a primitive to the scene.  Called in the rendering thread by AddPrimitive.

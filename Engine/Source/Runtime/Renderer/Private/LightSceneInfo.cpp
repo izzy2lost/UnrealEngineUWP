@@ -114,21 +114,24 @@ void FLightSceneInfo::AddToScene()
 	}
 }
 
-/**
- * If the light affects the primitive, create an interaction, and process children 
- * 
- * @param LightSceneInfoCompact Compact representation of the light
- * @param PrimitiveSceneInfoCompact Compact representation of the primitive
- */
+bool FLightSceneInfo::ShouldCreateLightPrimitiveInteraction(const FLightSceneInfoCompact& LightSceneInfoCompact, const FPrimitiveSceneInfoCompact& PrimitiveSceneInfoCompact)
+{
+	if (!Scene->IsPrimitiveBeingRemoved(PrimitiveSceneInfoCompact.PrimitiveSceneInfo) && LightSceneInfoCompact.AffectsPrimitive(FBoxSphereBounds(PrimitiveSceneInfoCompact.Bounds), PrimitiveSceneInfoCompact.Proxy))
+	{
+		// create light interaction and add to light/primitive lists
+		return FLightPrimitiveInteraction::ShouldCreate(this, PrimitiveSceneInfoCompact.PrimitiveSceneInfo).bShouldCreate;
+	}
+	return false;
+}
+
 void FLightSceneInfo::CreateLightPrimitiveInteraction(const FLightSceneInfoCompact& LightSceneInfoCompact, const FPrimitiveSceneInfoCompact& PrimitiveSceneInfoCompact)
 {
-	if(	!Scene->IsPrimitiveBeingRemoved(PrimitiveSceneInfoCompact.PrimitiveSceneInfo) && LightSceneInfoCompact.AffectsPrimitive(FBoxSphereBounds(PrimitiveSceneInfoCompact.Bounds), PrimitiveSceneInfoCompact.Proxy))
+	if (!Scene->IsPrimitiveBeingRemoved(PrimitiveSceneInfoCompact.PrimitiveSceneInfo) && LightSceneInfoCompact.AffectsPrimitive(FBoxSphereBounds(PrimitiveSceneInfoCompact.Bounds), PrimitiveSceneInfoCompact.Proxy))
 	{
 		// create light interaction and add to light/primitive lists
 		FLightPrimitiveInteraction::Create(this,PrimitiveSceneInfoCompact.PrimitiveSceneInfo);
 	}
 }
-
 
 void FLightSceneInfo::RemoveFromScene()
 {

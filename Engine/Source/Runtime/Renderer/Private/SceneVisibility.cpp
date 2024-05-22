@@ -4768,16 +4768,17 @@ void FSceneRenderer::PreVisibilityFrameSetup(FRDGBuilder& GraphBuilder)
 			for (TConstSetBitIterator<> It(Scene->PrimitivesSelected); It; ++It)
 			{
 				const FPrimitiveSceneInfo* PrimitiveSceneInfo = Scene->Primitives[It.GetIndex()];
-				FLightPrimitiveInteraction* LightList = PrimitiveSceneInfo->LightList;
-				while (LightList)
-				{
-					const FLightSceneInfo* LightSceneInfo = LightList->GetLight();
 
+				TArray<const FLightSceneProxy*> RelevantLights;
+				Scene->GetRelevantLights_RenderThread(PrimitiveSceneInfo->Proxy, RelevantLights);
+
+				for (const FLightSceneProxy* LightSceneProxy : RelevantLights)
+				{
 					bool bDynamic = true;
 					bool bRelevant = false;
 					bool bLightMapped = true;
 					bool bShadowMapped = false;
-					PrimitiveSceneInfo->Proxy->GetLightRelevance(LightSceneInfo->Proxy, bDynamic, bRelevant, bLightMapped, bShadowMapped);
+					PrimitiveSceneInfo->Proxy->GetLightRelevance(LightSceneProxy, bDynamic, bRelevant, bLightMapped, bShadowMapped);
 
 					if (bRelevant)
 					{
@@ -4787,10 +4788,9 @@ void FSceneRenderer::PreVisibilityFrameSetup(FRDGBuilder& GraphBuilder)
 						{
 							FViewInfo& View = Views[ViewIndex];
 							FViewElementPDI LightInfluencesPDI(&View, nullptr, &View.DynamicPrimitiveCollector);
-							LightInfluencesPDI.DrawLine(PrimitiveSceneInfo->Proxy->GetBounds().Origin, LightSceneInfo->Proxy->GetLightToWorld().GetOrigin(), LineColor, SDPG_World);
+							LightInfluencesPDI.DrawLine(PrimitiveSceneInfo->Proxy->GetBounds().Origin, LightSceneProxy->GetLightToWorld().GetOrigin(), LineColor, SDPG_World);
 						}
 					}
-					LightList = LightList->GetNextLight();
 				}
 			}
 		}

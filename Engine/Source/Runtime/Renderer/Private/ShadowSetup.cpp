@@ -2427,7 +2427,7 @@ bool FProjectedShadowInfo::HasSubjectPrims() const
 		|| ShadowDepthPass.HasAnyDraw()
 		|| SubjectMeshCommandBuildRequests.Num() > 0
 		|| ShadowDepthPassVisibleCommands.Num() > 0
-		|| (bContainsNaniteSubjects && bNaniteGeometry);
+		|| ((bContainsNaniteSubjects || ShouldSkipNaniteLPIs()) && bNaniteGeometry);
 }
 
 void FProjectedShadowInfo::AddReceiverPrimitive(FPrimitiveSceneInfo* PrimitiveSceneInfo)

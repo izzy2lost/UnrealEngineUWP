@@ -4524,15 +4524,39 @@ FRHIUniformBuffer* FScene::GetSpeedTreeUniformBuffer(const FVertexFactory* Verte
  * @param	Primitive				Primitive to retrieve interacting lights for
  * @param	RelevantLights	[out]	Array of lights interacting with primitive
  */
-void FScene::GetRelevantLights_RenderThread( UPrimitiveComponent* Primitive, TArray<const ULightComponent*>* RelevantLights ) const
+void FScene::GetRelevantLights_RenderThread( const FPrimitiveSceneProxy* PrimitiveSceneProxy, TArray<const FLightSceneProxy*> &OutRelevantLights ) const
 {
-	check( Primitive );
-	check( RelevantLights );
-	if( Primitive->SceneProxy )
+	if (ShouldSkipNaniteLPIs() && PrimitiveSceneProxy->IsNaniteMesh())
 	{
-		for( const FLightPrimitiveInteraction* Interaction=Primitive->SceneProxy->GetPrimitiveSceneInfo()->LightList; Interaction; Interaction=Interaction->GetNextLight() )
+		if (PrimitiveSceneProxy->GetLightingChannelMask() != 0)
 		{
-			RelevantLights->Add( Interaction->GetLight()->Proxy->GetLightComponent() );
+			const FBoxSphereBounds& Bounds = PrimitiveSceneProxy->GetBounds();
+			const FPrimitiveSceneInfoCompact PrimitiveSceneInfoCompact(PrimitiveSceneProxy->GetPrimitiveSceneInfo());
+			auto TestAddLight = [&](const FLightSceneInfoCompact& LightSceneInfoCompact)
+			{
+				if (LightSceneInfoCompact.LightSceneInfo->ShouldCreateLightPrimitiveInteraction(LightSceneInfoCompact, PrimitiveSceneInfoCompact))
+				{
+					OutRelevantLights.Add( LightSceneInfoCompact.LightSceneInfo->Proxy);
+				}
+			};
+
+			if(DoesPlatformNeedLocalLightPrimitiveInteraction(GetShaderPlatform()))
+			{
+				// Find local lights that affect the primitive in the light octree.
+				LocalShadowCastingLightOctree.FindElementsWithBoundsTest(Bounds.GetBox(), TestAddLight);
+			}
+			// Also loop through non-local (directional) shadow-casting lights
+			for (int32 LightID : DirectionalShadowCastingLightIDs)
+			{
+				TestAddLight(Lights[LightID]);
+			}
+		}
+	}
+	else
+	{
+		for( const FLightPrimitiveInteraction* Interaction = PrimitiveSceneProxy->GetPrimitiveSceneInfo()->LightList; Interaction; Interaction=Interaction->GetNextLight() )
+		{
+			OutRelevantLights.Add( Interaction->GetLight()->Proxy);
 		}
 	}
 }
@@ -4548,11 +4572,15 @@ void FScene::GetRelevantLights( UPrimitiveComponent* Primitive, TArray<const ULi
 	if( Primitive && RelevantLights )
 	{
 		// Add interacting lights to the array.
-		const FScene* Scene = this;
 		ENQUEUE_RENDER_COMMAND(FGetRelevantLightsCommand)(
-			[Scene, Primitive, RelevantLights] (FRHICommandListBase&)
+			[this, PrimitiveSceneProxy = Primitive->GetSceneProxy(), RelevantLights] (FRHICommandListBase&)
 			{
-				Scene->GetRelevantLights_RenderThread( Primitive, RelevantLights );
+				TArray<const FLightSceneProxy*> RelevantLightProxies;
+				GetRelevantLights_RenderThread( PrimitiveSceneProxy, RelevantLightProxies );
+				for (const FLightSceneProxy* LightSceneProxy : RelevantLightProxies)
+				{
+					RelevantLights->Add(LightSceneProxy->GetLightComponent());
+				}
 			});
 
 		// We need to block the main thread as the rendering thread needs to finish modifying the array before we can continue.
@@ -6626,9 +6654,37 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 	{
 		SCOPED_NAMED_EVENT(CreateLightPrimitiveInteractions, FColor::Emerald);
 
-		for (FPrimitiveSceneInfo* SceneInfo : SceneInfosWithAddToScene)
+		bool bSkipNaniteLPIs = ShouldSkipNaniteLPIs();
+
+		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : SceneInfosWithAddToScene)
 		{
-			CreateLightPrimitiveInteractionsForPrimitive(SceneInfo);
+			FPrimitiveSceneProxy* Proxy = PrimitiveSceneInfo->Proxy;
+			if (Proxy->GetLightingChannelMask() != 0)
+			{
+				// Don't create LPIs for Nanite
+				if (bSkipNaniteLPIs && Proxy->IsNaniteMesh())
+				{
+					continue;
+				}
+
+				const FBoxSphereBounds& Bounds = Proxy->GetBounds();
+				const FPrimitiveSceneInfoCompact PrimitiveSceneInfoCompact(PrimitiveSceneInfo);
+
+				if(DoesPlatformNeedLocalLightPrimitiveInteraction(GetShaderPlatform()))
+				{
+					// Find local lights that affect the primitive in the light octree.
+					LocalShadowCastingLightOctree.FindElementsWithBoundsTest(Bounds.GetBox(), [&PrimitiveSceneInfoCompact](const FLightSceneInfoCompact& LightSceneInfoCompact)
+					{
+						LightSceneInfoCompact.LightSceneInfo->CreateLightPrimitiveInteraction(LightSceneInfoCompact, PrimitiveSceneInfoCompact);
+					});
+				}
+				// Also loop through non-local (directional) shadow-casting lights
+				for (int32 LightID : DirectionalShadowCastingLightIDs)
+				{
+					const FLightSceneInfoCompact& LightSceneInfoCompact = Lights[LightID];
+					LightSceneInfoCompact.LightSceneInfo->CreateLightPrimitiveInteraction(LightSceneInfoCompact, PrimitiveSceneInfoCompact);
+				}
+			}			
 		}
 
 	}, EnumHasAnyFlags(Parameters.AsyncOps, EUpdateAllPrimitiveSceneInfosAsyncOps::CreateLightPrimitiveInteractions));
@@ -6891,31 +6947,6 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 		checkSlow(PersistentPrimitiveIdToIndexMap[PrimitiveSceneInfo->PersistentIndex.Index] == PrimitiveSceneInfo->PackedIndex);
 	}
 #endif
-}
-
-void FScene::CreateLightPrimitiveInteractionsForPrimitive(FPrimitiveSceneInfo* PrimitiveInfo)
-{
-	FPrimitiveSceneProxy* Proxy = PrimitiveInfo->Proxy;
-	if (Proxy->GetLightingChannelMask() != 0)
-	{
-		const FBoxSphereBounds& Bounds = Proxy->GetBounds();
-		const FPrimitiveSceneInfoCompact PrimitiveSceneInfoCompact(PrimitiveInfo);
-
-		if(DoesPlatformNeedLocalLightPrimitiveInteraction(GetShaderPlatform()))
-		{
-			// Find local lights that affect the primitive in the light octree.
-			LocalShadowCastingLightOctree.FindElementsWithBoundsTest(Bounds.GetBox(), [&PrimitiveSceneInfoCompact](const FLightSceneInfoCompact& LightSceneInfoCompact)
-			{
-				LightSceneInfoCompact.LightSceneInfo->CreateLightPrimitiveInteraction(LightSceneInfoCompact, PrimitiveSceneInfoCompact);
-			});
-		}
-		// Also loop through non-local (directional) shadow-casting lights
-		for (int32 LightID : DirectionalShadowCastingLightIDs)
-		{
-			const FLightSceneInfoCompact& LightSceneInfoCompact = Lights[LightID];
-			LightSceneInfoCompact.LightSceneInfo->CreateLightPrimitiveInteraction(LightSceneInfoCompact, PrimitiveSceneInfoCompact);
-		}
-	}
 }
 
 bool FScene::IsPrimitiveBeingRemoved(FPrimitiveSceneInfo* PrimitiveSceneInfo) const

@@ -38,6 +38,7 @@
 #include "BasePassRendering.h" // TODO: Remove with later refactor (moving Nanite shading into its own files)
 #include "InstanceDataSceneProxy.h"
 #include "DecalRenderingCommon.h"
+#include "RendererPrivateUtils.h"
 
 extern int32 GGPUSceneInstanceClearList;
 
@@ -1640,16 +1641,21 @@ void FPrimitiveSceneInfo::AddToScene(FScene* Scene, TArrayView<FPrimitiveSceneIn
 	}
 
 	{
+		const bool bSkipNaniteInOctree = ShouldSkipNaniteLPIs();
 		SCOPED_NAMED_EVENT(FPrimitiveSceneInfo_AddToScene_AddToPrimitiveOctree, FColor::Red);
 		for (FPrimitiveSceneInfo* SceneInfo : SceneInfos)
 		{
-			// create potential storage for our compact info
-			FPrimitiveSceneInfoCompact CompactPrimitiveSceneInfo(SceneInfo);
+			// doing this check after updating PrimitiveFlagsCompact (next loop) would be more efficient.
+			if (!bSkipNaniteInOctree || !SceneInfo->Proxy->IsNaniteMesh())
+			{
+				// create potential storage for our compact info
+				FPrimitiveSceneInfoCompact CompactPrimitiveSceneInfo(SceneInfo);
 
-			// Add the primitive to the octree.
-			check(!SceneInfo->OctreeId.IsValidId());
-			Scene->PrimitiveOctree.AddElement(CompactPrimitiveSceneInfo);
-			check(SceneInfo->OctreeId.IsValidId());
+				// Add the primitive to the octree.
+				check(!SceneInfo->OctreeId.IsValidId());
+				Scene->PrimitiveOctree.AddElement(CompactPrimitiveSceneInfo);
+				check(SceneInfo->OctreeId.IsValidId());
+			}
 		}
 	}
 
@@ -1810,9 +1816,12 @@ void FPrimitiveSceneInfo::RemoveFromScene(bool bUpdateStaticDrawLists)
 	}
 
 	// Remove the primitive from the octree.
-	check(OctreeId.IsValidId());
-	check(Scene->PrimitiveOctree.GetElementById(OctreeId).PrimitiveSceneInfo == this);
-	Scene->PrimitiveOctree.RemoveElement(OctreeId);
+	if (OctreeId.IsValidId())
+	{
+		check(Scene->PrimitiveOctree.GetElementById(OctreeId).PrimitiveSceneInfo == this);
+		Scene->PrimitiveOctree.RemoveElement(OctreeId);
+	}
+
 	OctreeId = FOctreeElementId2();
 
 	if (LightmapDataOffset != INDEX_NONE && UseGPUScene(GMaxRHIShaderPlatform, Scene->GetFeatureLevel()))
