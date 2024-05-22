@@ -84,7 +84,7 @@ protected:
 	FRotator RotationStrength = FRotator::ZeroRotator;
 
 	/** Amplitude of the noise field for scale */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(ClampMin="0", AllowPreserveRatio, Delta="0.01"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(ClampMin="0", MotionDesignVectorWidget, AllowPreserveRatio="XYZ", Delta="0.01"))
 	FVector ScaleStrength = FVector::OneVector;
 
 	/** Panning to offset the noise field sampling */

@@ -83,7 +83,7 @@ protected:
 	FRotator DeltaStepRotation = FRotator(0.f);
 
 	/** Amount of scale difference between one step and the next one */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetDeltaStepScale", Getter="GetDeltaStepScale", DisplayName="Scale", Category="Step", meta=(AllowPreserveRatio, Delta="0.0001", EditCondition="bDeltaStepEnabled", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetDeltaStepScale", Getter="GetDeltaStepScale", DisplayName="Scale", Category="Step", meta=(MotionDesignVectorWidget, AllowPreserveRatio="XYZ", Delta="0.0001", EditCondition="bDeltaStepEnabled", EditConditionHides))
 	FVector DeltaStepScale = FVector(0.f);
 
 private:

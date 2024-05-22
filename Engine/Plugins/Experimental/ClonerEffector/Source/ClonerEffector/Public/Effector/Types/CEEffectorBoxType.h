@@ -54,11 +54,11 @@ protected:
 	//~ End UObject
 
 	/** Inner extent of box, all clones inside will be affected with a maximum weight */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0", AllowPreserveRatio))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0", MotionDesignVectorWidget, AllowPreserveRatio="XYZ"))
 	FVector InnerExtent = FVector(50.f);
 
 	/** Outer extent of box, all clones outside will not be affected */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0", AllowPreserveRatio))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Shape", meta=(ClampMin="0", MotionDesignVectorWidget, AllowPreserveRatio="XYZ"))
 	FVector OuterExtent = FVector(200.f);
 
 private:

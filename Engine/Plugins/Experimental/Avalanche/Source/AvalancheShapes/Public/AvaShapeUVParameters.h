@@ -76,7 +76,7 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="0.0", ClampMax="1.0", EditCondition="AnchorPreset == EAvaAnchors::Custom", AllowPrivateAccess = "true"))
 	FVector2D Anchor;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="0.01", AllowPreserveRatio, Delta="0.05", AllowPrivateAccess = "true"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(ClampMin="0.01", MotionDesignVectorWidget, AllowPreserveRatio="XY", Delta="0.05", AllowPrivateAccess = "true"))
 	FVector2D Scale;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category="Shape", meta=(Delta="0.05", AllowPrivateAccess = "true"))

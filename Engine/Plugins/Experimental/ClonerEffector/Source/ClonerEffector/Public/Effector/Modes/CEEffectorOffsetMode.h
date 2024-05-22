@@ -66,7 +66,7 @@ protected:
 	FRotator Rotation = FRotator::ZeroRotator;
 
 	/** Scale applied on affected clones */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(ClampMin="0", AllowPreserveRatio, Delta="0.01"))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Mode", meta=(ClampMin="0", MotionDesignVectorWidget, AllowPreserveRatio="XYZ", Delta="0.01"))
 	FVector Scale = FVector::OneVector;
 
 private:

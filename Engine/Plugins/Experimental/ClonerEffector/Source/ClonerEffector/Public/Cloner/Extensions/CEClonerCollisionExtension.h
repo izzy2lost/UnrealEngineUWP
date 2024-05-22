@@ -147,7 +147,7 @@ protected:
 	int32 CollisionGridResolution = 32;
 
 	/** Size of the neighbor grid to detect collision between particles, particles outside this grid will not have collisions */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Collisions", meta=(ClampMin="0", AllowPreserveRatio, EditCondition="bParticleCollisionEnabled", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Collisions", meta=(ClampMin="0", MotionDesignVectorWidget, AllowPreserveRatio="XYZ", EditCondition="bParticleCollisionEnabled", EditConditionHides))
 	FVector CollisionGridSize = FVector(5000.f);
 
 	/** Collision radius calculation mode */
