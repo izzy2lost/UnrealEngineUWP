@@ -344,5 +344,12 @@ TSharedPtr<FJsonValue> FJsonValue::Duplicate(const TSharedPtr<FJsonValue>& Src)
 
 void FJsonValue::ErrorMessage(const FString& InType) const
 {
-	UE_LOG(LogJson, Error, TEXT("Json Value of type '%s' used as a '%s'."), *GetType(), *InType);
+	if (IsNull())
+	{
+		UE_LOG(LogJson, Warning, TEXT("Json Value of type '%s' used as a '%s'."), *GetType(), *InType);
+	}
+	else
+	{
+		UE_LOG(LogJson, Error, TEXT("Json Value of type '%s' used as a '%s'."), *GetType(), *InType);
+	}
 }
