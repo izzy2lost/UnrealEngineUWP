@@ -111,14 +111,17 @@ namespace Jupiter.FunctionalTests.Replication
 
 			List<ReplicationLogEvent> replicationEvents = new();
 			Dictionary<BlobId, byte[]> blobs = new();
+			Dictionary<BlobId, RefId> refs = new();
 
 			const int countOfTestEvents = 100;
 			for (int i = 0; i < countOfTestEvents; i++)
 			{
 				byte[] blobContents = Encoding.UTF8.GetBytes($"random content {i}");
 				BlobId blob = BlobId.FromBlob(blobContents);
+				RefId refId = RefId.FromName($"event-{i}");
 				blobs.Add(blob, blobContents);
-				replicationEvents.Add(new ReplicationLogEvent(TestNamespace, TestBucket, RefId.FromName($"event-{i}"), blob, Guid.NewGuid(), "refs-000", DateTime.Now, ReplicationLogEvent.OpType.Added));
+				refs.Add(blob, refId);
+				replicationEvents.Add(new ReplicationLogEvent(TestNamespace, TestBucket, refId, blob, Guid.NewGuid(), "refs-000", DateTime.Now, ReplicationLogEvent.OpType.Added));
 			}
 			string lastBucket = "refs-000";
 			Guid lastEvent = Guid.NewGuid();
@@ -131,7 +134,8 @@ namespace Jupiter.FunctionalTests.Replication
 
 			foreach (BlobId blob in blobs.Keys)
 			{
-				handler.SetupRequest($"http://localhost/api/v1/objects/{TestNamespace}/{blob}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(Array.Empty<BlobId>())), "application/json").Verifiable();
+				RefId refId = refs[blob];
+				handler.SetupRequest($"http://localhost/api/v1/refs/{TestNamespace}/{TestBucket}/{refId}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(Array.Empty<BlobId>())), "application/json").Verifiable();
 			}
 
 			foreach ((BlobId key, byte[] blobContent) in blobs)
@@ -168,14 +172,16 @@ namespace Jupiter.FunctionalTests.Replication
 
 			List<ReplicationLogEvent> replicationEvents = new();
 			Dictionary<BlobId, byte[]> blobs = new();
-
+			Dictionary<BlobId, RefId> refs = new();
 			const int countOfTestEvents = 100;
 			for (int i = 0; i < countOfTestEvents; i++)
 			{
 				byte[] blobContents = Encoding.UTF8.GetBytes($"random content {i}");
 				BlobId blob = BlobId.FromBlob(blobContents);
+				RefId refId = RefId.FromName($"event-{i}");
 				blobs.Add(blob, blobContents);
-				replicationEvents.Add(new ReplicationLogEvent(TestNamespace, TestBucket, RefId.FromName($"event-{i}"), blob, Guid.NewGuid(), "refs-000", DateTime.Now, ReplicationLogEvent.OpType.Added));
+				refs.Add(blob, refId);
+				replicationEvents.Add(new ReplicationLogEvent(TestNamespace, TestBucket, refId, blob, Guid.NewGuid(), "refs-000", DateTime.Now, ReplicationLogEvent.OpType.Added));
 			}
 
 			// Build snapshot
@@ -205,7 +211,8 @@ namespace Jupiter.FunctionalTests.Replication
 
 			foreach (BlobId blob in blobs.Keys)
 			{
-				handler.SetupRequest($"http://localhost/api/v1/objects/{TestNamespace}/{blob}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(Array.Empty<BlobId>())), "application/json").Verifiable();
+				RefId refId = refs[blob];
+				handler.SetupRequest($"http://localhost/api/v1/refs/{TestNamespace}/{TestBucket}/{refId}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(Array.Empty<BlobId>())), "application/json").Verifiable();
 			}
 
 			foreach ((BlobId key, byte[] blobContent) in blobs)
@@ -244,6 +251,7 @@ namespace Jupiter.FunctionalTests.Replication
 			List<ReplicationLogEvent> snapshotEvents = new();
 			List<ReplicationLogEvent> incrementalEvents = new();
 			Dictionary<BlobId, byte[]> blobs = new();
+			Dictionary<BlobId, RefId> refs = new();
 
 			const int CountOfTestEvents = 100;
 			for (int i = 0; i < CountOfTestEvents; i++)
@@ -251,7 +259,9 @@ namespace Jupiter.FunctionalTests.Replication
 				byte[] blobContents = Encoding.UTF8.GetBytes($"random content in snapshot {i}");
 				BlobId blob = BlobId.FromBlob(blobContents);
 				blobs.Add(blob, blobContents);
-				snapshotEvents.Add(new ReplicationLogEvent(TestNamespace, TestBucket, RefId.FromName($"event-{i}"), blob, Guid.NewGuid(), "refs-000", DateTime.Now, ReplicationLogEvent.OpType.Added));
+				RefId refId = RefId.FromName($"event-{i}");
+				refs.Add(blob, refId);
+				snapshotEvents.Add(new ReplicationLogEvent(TestNamespace, TestBucket, refId, blob, Guid.NewGuid(), "refs-000", DateTime.Now, ReplicationLogEvent.OpType.Added));
 			}
 
 			for (int i = 0; i < CountOfTestEvents; i++)
@@ -259,7 +269,9 @@ namespace Jupiter.FunctionalTests.Replication
 				byte[] blobContents = Encoding.UTF8.GetBytes($"random content {i}");
 				BlobId blob = BlobId.FromBlob(blobContents);
 				blobs.Add(blob, blobContents);
-				incrementalEvents.Add(new ReplicationLogEvent(TestNamespace, TestBucket, RefId.FromName($"incremental-event-{i}"), blob, Guid.NewGuid(), "refs-000", DateTime.Now, ReplicationLogEvent.OpType.Added));
+				RefId refId = RefId.FromName($"incremental-event-{i}");
+				refs.Add(blob, refId);
+				incrementalEvents.Add(new ReplicationLogEvent(TestNamespace, TestBucket, refId , blob, Guid.NewGuid(), "refs-000", DateTime.Now, ReplicationLogEvent.OpType.Added));
 			}
 
 			// Build snapshot
@@ -292,7 +304,8 @@ namespace Jupiter.FunctionalTests.Replication
 
 			foreach (BlobId blob in blobs.Keys)
 			{
-				handler.SetupRequest($"http://localhost/api/v1/objects/{TestNamespace}/{blob}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(Array.Empty<BlobId>())), "application/json").Verifiable();
+				RefId refId = refs[blob];
+				handler.SetupRequest($"http://localhost/api/v1/refs/{TestNamespace}/{TestBucket}/{refId}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(Array.Empty<BlobId>())), "application/json").Verifiable();
 			}
 
 			foreach ((BlobId key, byte[] blobContent) in blobs)
@@ -330,6 +343,7 @@ namespace Jupiter.FunctionalTests.Replication
 
 			List<ReplicationLogEvent> snapshotEvents = new();
 			Dictionary<BlobId, byte[]> blobs = new();
+			Dictionary<BlobId, RefId> refs = new();
 
 			const int CountOfTestEvents = 100;
 			for (int i = 0; i < CountOfTestEvents; i++)
@@ -337,7 +351,9 @@ namespace Jupiter.FunctionalTests.Replication
 				byte[] blobContents = Encoding.UTF8.GetBytes($"random content in snapshot {i}");
 				BlobId blob = BlobId.FromBlob(blobContents);
 				blobs.Add(blob, blobContents);
-				snapshotEvents.Add(new ReplicationLogEvent(TestNamespace, TestBucket, RefId.FromName($"event-{i}"), blob, Guid.NewGuid(), "refs-000", DateTime.Now, ReplicationLogEvent.OpType.Added));
+				RefId refId = RefId.FromName($"event-{i}");
+				refs.Add(blob, refId);
+				snapshotEvents.Add(new ReplicationLogEvent(TestNamespace, TestBucket, refId, blob, Guid.NewGuid(), "refs-000", DateTime.Now, ReplicationLogEvent.OpType.Added));
 			}
 
 			// Build snapshot
@@ -378,7 +394,8 @@ namespace Jupiter.FunctionalTests.Replication
 
 			foreach (BlobId blob in blobs.Keys)
 			{
-				handler.SetupRequest($"http://localhost/api/v1/objects/{TestNamespace}/{blob}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(Array.Empty<BlobId>())), "application/json").Verifiable();
+				RefId refId = refs[blob];
+				handler.SetupRequest($"http://localhost/api/v1/refs/{TestNamespace}/{TestBucket}/{refId}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(Array.Empty<BlobId>())), "application/json").Verifiable();
 			}
 
 			foreach ((BlobId key, byte[] blobContent) in blobs)

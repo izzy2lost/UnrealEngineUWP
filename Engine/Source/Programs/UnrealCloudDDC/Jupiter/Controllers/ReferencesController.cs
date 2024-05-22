@@ -562,6 +562,79 @@ namespace Jupiter.Controllers
 		}
 
 		/// <summary>
+		/// Returns the blobs referenced by this ref
+		/// </summary>
+		/// <param name="ns">Namespace. Each namespace is completely separated from each other. Use for different types of data that is never expected to be similar (between two different games for instance). Example: `uc4.ddc`</param>
+		/// <param name="bucket">The category/type of record you are caching. Is a clustered key together with the actual key, but all records in the same bucket can be dropped easily. Example: `terrainTexture` </param>
+		/// <param name="key">The unique name of this particular key. `iAmAVeryValidKey`</param>
+		[HttpGet("{ns}/{bucket}/{key}/references", Order = 500)]
+		public async Task<IActionResult> GetReferencedBlobsAsync(
+			[FromRoute][Required] NamespaceId ns,
+			[FromRoute][Required] BucketId bucket,
+			[FromRoute][Required] RefId key)
+		{
+			ActionResult? accessResult = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
+			if (accessResult != null)
+			{
+				return accessResult;
+			}
+
+			RefRecord refRecord;
+			BlobContents? blob;
+			try
+			{
+				(refRecord, blob) = await _refService.GetAsync(ns, bucket, key, fields: Array.Empty<string>(), doLastAccessTracking: false, cancellationToken: HttpContext.RequestAborted);
+			}
+			catch (BlobNotFoundException e)
+			{
+				return NotFound(new ProblemDetails { Title = $"Object {e.Blob} not found" });
+			}
+			catch (NamespaceNotFoundException e)
+			{
+				return NotFound(new ProblemDetails { Title = $"Namespace {e.Namespace} did not exist" });
+			}
+			catch (RefNotFoundException e)
+			{
+				return NotFound(new ProblemDetails { Title = $"Object {e.Bucket} {e.Key} did not exist" });
+			}
+
+			if (blob == null)
+			{
+				throw new Exception("Failed to find blob contents for ref");
+			}
+
+			byte[] blobContents = await blob.Stream.ToByteArrayAsync(HttpContext.RequestAborted);
+			if (blobContents.Length == 0)
+			{
+				_logger.LogWarning("0 byte object found for {Id} {Namespace}", refRecord.BlobIdentifier, ns);
+			}
+
+			CbObject compactBinaryObject;
+			try
+			{
+				compactBinaryObject = new CbObject(blobContents);
+			}
+			catch (IndexOutOfRangeException)
+			{
+				return Problem(title: $"{refRecord.BlobIdentifier} was not a proper compact binary object.", detail: "Index out of range");
+			}
+
+			try
+			{
+				BlobId[] references = await _referenceResolver.GetReferencedBlobsAsync(ns, compactBinaryObject).ToArrayAsync();
+				return Ok(new ResolvedReferencesResult(references));
+			}
+			catch (PartialReferenceResolveException e)
+			{
+				return BadRequest(new ValidationProblemDetails { Title = $"Object {bucket} {key} did not exist", Detail = $"Following content ids are invalid: {string.Join(",", e.UnresolvedReferences)}" });
+			}
+			catch (ReferenceIsMissingBlobsException e)
+			{
+				return BadRequest(new ValidationProblemDetails { Title = $"Object {bucket} {key} did not exist", Detail = $"Following blobs are missing: {string.Join(",", e.MissingBlobs)}" });
+			}
+		}
+
+		/// <summary>
 		/// Checks if a object exists
 		/// </summary>
 		/// <param name="ns">Namespace. Each namespace is completely separated from each other. Use for different types of data that is never expected to be similar (between two different games for instance). Example: `uc4.ddc`</param>
@@ -927,8 +1000,10 @@ namespace Jupiter.Controllers
 
 		public async Task<IActionResult> GetBlobAsync(
 			[FromRoute][Required] NamespaceId ns,
+#pragma warning disable IDE0060
 			[FromRoute][Required] BucketId bucket,
 			[FromRoute][Required] RefId key,
+#pragma warning restore IDE0060
 			[Required] ContentId id)
 		{
 			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.ReadObject });
@@ -976,7 +1051,9 @@ namespace Jupiter.Controllers
 		public async Task<IActionResult> PutBlobAsync(
 			[FromRoute][Required] NamespaceId ns,
 			[FromRoute][Required] BucketId bucket,
+#pragma warning disable IDE0060
 			[FromRoute][Required] RefId key,
+#pragma warning restore IDE0060
 			[Required] BlobId id)
 		{
 			ActionResult? result = await _requestHelper.HasAccessToNamespaceAsync(User, Request, ns, new[] { JupiterAclAction.WriteObject });

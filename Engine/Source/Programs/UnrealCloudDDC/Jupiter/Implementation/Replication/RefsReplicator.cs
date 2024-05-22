@@ -340,7 +340,7 @@ namespace Jupiter.Implementation
 						Info.CountOfRunningReplications = countOfObjectsCurrentlyReplicating;
 						Info.LastRun = DateTime.Now;
 
-						bool blobWasReplicated = await ReplicateOpAsync(ns, snapshotLiveObject.Blob, cancellationToken);
+						bool blobWasReplicated = await ReplicateOpAsync(ns, snapshotLiveObject.Bucket, snapshotLiveObject.Key, snapshotLiveObject.Blob, cancellationToken);
 						if (blobWasReplicated)
 						{
 							await AddToReplicationLogAsync(ns, snapshotLiveObject.Bucket, snapshotLiveObject.Key, snapshotLiveObject.Blob);
@@ -425,7 +425,7 @@ namespace Jupiter.Implementation
 								throw new Exception($"Event: {@event.Bucket} {@event.Key} in namespace {@event.Namespace} was missing a blob, unable to replicate it");
 							}
 
-							blobWasReplicated = await ReplicateOpAsync(@event.Namespace, @event.Blob, replicationToken);
+							blobWasReplicated = await ReplicateOpAsync(@event.Namespace, @event.Bucket, @event.Key, @event.Blob, replicationToken);
 						}
 
 						if (blobWasReplicated)
@@ -473,7 +473,7 @@ namespace Jupiter.Implementation
 			return countOfReplicationsDone;
 		}
 
-		private async Task<bool> ReplicateOpAsync(NamespaceId ns, BlobId objectToReplicate, CancellationToken cancellationToken)
+		private async Task<bool> ReplicateOpAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId objectToReplicate, CancellationToken cancellationToken)
 		{
 			using TelemetrySpan scope = _tracer.StartActiveSpan("replicator.replicate_op")
 				.SetAttribute("operation.name", "replicator.replicate_op")
@@ -491,7 +491,7 @@ namespace Jupiter.Implementation
 			const int RetryAttempts = 3;
 			for (int i = 0; i < RetryAttempts; i++)
 			{
-				using HttpRequestMessage referencesRequest = await BuildHttpRequestAsync(HttpMethod.Get, new Uri($"api/v1/objects/{ns}/{objectToReplicate}/references", UriKind.Relative));
+				using HttpRequestMessage referencesRequest = await BuildHttpRequestAsync(HttpMethod.Get, new Uri($"api/v1/refs/{ns}/{bucket}/{key}/references", UriKind.Relative));
 
 				try
 				{
