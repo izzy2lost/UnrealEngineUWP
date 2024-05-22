@@ -400,7 +400,6 @@ class UNiagaraEffectType : public UObject
 	NIAGARA_API virtual void BeginDestroy()override;
 	NIAGARA_API virtual bool IsReadyForFinishDestroy()override;
 	NIAGARA_API virtual void Serialize(FArchive& Ar)override;
-	NIAGARA_API virtual void PostInitProperties()override;
 	NIAGARA_API virtual void PostLoad()override;
 #if WITH_EDITORONLY_DATA
 	static NIAGARA_API void DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstructClasses, const UClass* SpecificSubclass);
@@ -509,6 +508,8 @@ public:
 #endif
 
 #if WITH_PER_FXTYPE_PARTICLE_PERF_STATS
+	void PopulatePerfStatNames();
+
 	//Cached CSV Stat names for this system.
 	FName CSVStat_Count = NAME_None;
 	FName CSVStat_Total = NAME_None;
