@@ -48,6 +48,7 @@ public:
 
 	int32 AddItem(const FText& Text, bool bIsChecked);
 	int32 AddItem(TSharedRef<SWidget> Widget, bool bIsChecked);
+	void RemoveAll();
 	void RemoveItem(int32 Index);
 	bool IsItemChecked(int32 Index) const;
 

@@ -142,6 +142,12 @@ int32 SCheckBoxList::AddItem(TSharedRef<SWidget> Widget, bool bIsChecked)
 	return ReturnValue;
 }
 
+void SCheckBoxList::RemoveAll()
+{
+	Items.Reset();
+	ListView->RebuildList();
+}
+
 void SCheckBoxList::RemoveItem(int32 Index)
 {
 	if (Items.IsValidIndex(Index))
