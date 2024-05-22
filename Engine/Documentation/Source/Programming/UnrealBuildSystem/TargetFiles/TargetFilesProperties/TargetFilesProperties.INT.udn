@@ -138,6 +138,8 @@ $ VSTestRunSettingsFile (FileReference): Set this to reference a VSTest run sett
 
 $ bRuntimeDependenciesComeFromBuildPlugins (Boolean): If this is true, then the BuildPlugins list will be used to populate RuntimeDependencies, rather than EnablePlugins
 
+$ bAllowEnginePluginsEnabledByDefault (Boolean): If false, suppress loading "enabled by default" engine plugins not explicitly enabled by the project or target files.
+
 $ DisablePluginsConflictWarningLevel (WarningLevel): How to treat conflicts when a disabled plugin is being enabled by another plugin referencing it
 
 $ PakSigningKeysFile (String): Path to the set of pak signing keys to embed in the executable.
