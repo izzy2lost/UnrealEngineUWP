@@ -215,6 +215,13 @@ static TAutoConsoleVariable<int32> CVarNaniteBundleRaster(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarNaniteRasterSort(
+	TEXT("r.Nanite.RasterSort"),
+	1,
+	TEXT("Whether to enable sorting of rasterizer dispatches and draws"),
+	ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarNaniteCullingHZB(
 	TEXT("r.Nanite.Culling.HZB"),
 	1,
@@ -2097,6 +2104,22 @@ struct FRasterizerPass
 
 	uint32 IndirectOffset = 0u;
 	uint32 RasterBin = ~uint32(0u);
+
+	uint32 CalcSortKey() const
+	{
+		uint32 Hash = PointerHash(RasterPixelShader.GetPixelShader());
+		Hash = PointerHash(RasterVertexShader.GetVertexShader(), Hash);
+		Hash = PointerHash(RasterMeshShader.GetMeshShader(), Hash);
+		Hash = PointerHash(ClusterComputeShader.GetComputeShader(), Hash);
+		Hash = PointerHash(PatchComputeShader.GetComputeShader(), Hash);
+
+		uint32 SortKey = Hash >> 2;
+		SortKey |= bVertexProgrammable ? (1u << 30) : 0;
+
+		// Make sure z-testing shaders are last
+		SortKey |= bPixelProgrammable ? (1u << 31) : 0;
+		return SortKey;
+	}
 };
 
 void SetupPermutationVectors(
@@ -4781,6 +4804,34 @@ void FRenderer::PrepareRasterizerPasses(
 					Context.Dispatches_SW_Triangles.Indirections.Emplace(PassIndex);
 					Context.Dispatches_HW_Triangles.Indirections.Emplace(PassIndex);
 				}
+			}
+
+			if(CVarNaniteRasterSort.GetValueOnRenderThread())
+			{
+				auto SortIndirections = [&](FDispatchContext::FDispatchList& List)
+				{
+					const uint32 Num = List.Indirections.Num();
+
+					TArray<TPair<uint32, uint32>> SortList;
+					SortList.Reserve(Num);
+
+					for (uint32 PassIndex : List.Indirections)
+					{
+						FRasterizerPass& Pass = Context.RasterizerPasses[PassIndex];
+						SortList.Emplace(Pass.CalcSortKey(), PassIndex);
+					}
+
+					SortList.Sort();
+
+					for (uint32 i = 0; i < Num; i++)
+					{
+						List.Indirections[i] = SortList[i].Value;
+					}
+				};
+
+				SortIndirections(Context.Dispatches_SW_Tessellated);
+				SortIndirections(Context.Dispatches_SW_Triangles);
+				SortIndirections(Context.Dispatches_HW_Triangles);
 			}
 		}
 
