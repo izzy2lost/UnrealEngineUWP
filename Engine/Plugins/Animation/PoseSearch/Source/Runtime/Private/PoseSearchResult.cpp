@@ -18,13 +18,12 @@ void FSearchResult::Update(float NewAssetTime)
 	else
 	{
 		const FSearchIndexAsset& SearchIndexAsset = Database->GetSearchIndex().GetAssetForPose(PoseIdx);
-		const FInstancedStruct& DatabaseAsset = Database->GetAnimationAssetStruct(SearchIndexAsset);
-		if (DatabaseAsset.GetPtr<FPoseSearchDatabaseSequence>() || DatabaseAsset.GetPtr<FPoseSearchDatabaseAnimComposite>())
+		if (Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseSequence>(SearchIndexAsset) || Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimComposite>(SearchIndexAsset))
 		{
 			PoseIdx = Database->GetPoseIndexFromTime(NewAssetTime, SearchIndexAsset);
 			AssetTime = NewAssetTime;
 		}
-		else if (const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = DatabaseAsset.GetPtr<FPoseSearchDatabaseBlendSpace>())
+		else if (const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseBlendSpace>(SearchIndexAsset))
 		{
 			TArray<FBlendSampleData> BlendSamples;
 			int32 TriangulationIndex = 0;
@@ -74,8 +73,7 @@ bool FSearchResult::CanAdvance(float DeltaTime) const
 	if (const FSearchIndexAsset* SearchIndexAsset = GetSearchIndexAsset())
 	{
 		float SteppedTime = AssetTime;
-		const FInstancedStruct& DatabaseAsset = Database->GetAnimationAssetStruct(*SearchIndexAsset);
-		if (const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = DatabaseAsset.GetPtr<FPoseSearchDatabaseBlendSpace>())
+		if (const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseBlendSpace>(*SearchIndexAsset))
 		{
 			if (const UBlendSpace* BlendSpace = DatabaseBlendSpace->BlendSpace.Get())
 			{
@@ -90,7 +88,7 @@ bool FSearchResult::CanAdvance(float DeltaTime) const
 				bCanAdvance = ETAA_Finished != FAnimationRuntime::AdvanceTime(SearchIndexAsset->IsLooping(), DeltaTime, SteppedTime, PlayLength);
 			}
 		}
-		else if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = DatabaseAsset.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
+		else if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(*SearchIndexAsset))
 		{
 			const float AssetLength = DatabaseAnimationAssetBase->GetPlayLength();
 			bCanAdvance = ETAA_Finished != FAnimationRuntime::AdvanceTime(SearchIndexAsset->IsLooping(), DeltaTime, SteppedTime, AssetLength);

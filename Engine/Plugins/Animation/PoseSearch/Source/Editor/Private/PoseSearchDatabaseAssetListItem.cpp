@@ -160,7 +160,7 @@ namespace UE::PoseSearch
 		AssetTypeColor = FColor::White;
 		if (UPoseSearchDatabase* Database = InEditorViewModel->GetPoseSearchDatabase())
 		{
-			if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(WeakAssetTreeNode.Pin()->SourceAssetIdx))
+			if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(WeakAssetTreeNode.Pin()->SourceAssetIdx))
 			{
 				static FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools"));
 				if (TSharedPtr<IAssetTypeActions> AssetTypeActions = AssetToolsModule.Get().GetAssetTypeActionsForClass(DatabaseAnimationAsset->GetAnimationAssetStaticClass()).Pin())
@@ -242,7 +242,7 @@ namespace UE::PoseSearch
 			TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
 			if (const UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase())
 			{
-				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(AssetTreeNode->SourceAssetIdx))
+				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AssetTreeNode->SourceAssetIdx))
 				{
 					if (UAssetEditorSubsystem* AssetEditorSS = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
 					{
@@ -283,7 +283,7 @@ namespace UE::PoseSearch
 		{
 			if (TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
 			{
-				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(AssetTreeNode->SourceAssetIdx))
+				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AssetTreeNode->SourceAssetIdx))
 				{
 					return FText::FromString(DatabaseAnimationAsset->GetName());
 				}
@@ -350,7 +350,7 @@ namespace UE::PoseSearch
 				   {
 					  if (const TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
 					  {
-						 if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetBase(AssetTreeNode->SourceAssetIdx))
+						 if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AssetTreeNode->SourceAssetIdx))
 						 {
 							if (DatabaseAnimationAssetBase->IsSynchronizedWithExternalDependency())
 							{
@@ -373,7 +373,7 @@ namespace UE::PoseSearch
 				TSharedPtr<SImage> ItemIconWidget;
 				if (UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase())
 				{
-					if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(SourceAssetIdx))
+					if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SourceAssetIdx))
 					{
 						SAssignNew(ItemIconWidget, SImage)
 						.Image(FSlateIconFinder::FindIconBrushForClass(DatabaseAnimationAsset->GetAnimationAssetStaticClass()));
@@ -442,7 +442,7 @@ namespace UE::PoseSearch
 			TSharedPtr<SObjectPropertyEntryBox> AssetPickerWidget;
 			if (UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase())
 			{
-				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(SourceAssetIdx))
+				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SourceAssetIdx))
 				{
 					SAssignNew(AssetPickerWidget, SObjectPropertyEntryBox)
 					.AllowClear(false)
@@ -679,7 +679,7 @@ namespace UE::PoseSearch
 		{
 			if (const UPoseSearchDatabase* Database = ViewModelPtr->GetPoseSearchDatabase())
 			{
-				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(AssetTreeNode->SourceAssetIdx))
+				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AssetTreeNode->SourceAssetIdx))
 				{
 					if (const UObject* AnimAsset = DatabaseAnimationAsset->GetAnimationAsset())
 					{
@@ -718,7 +718,7 @@ namespace UE::PoseSearch
 		{
 			if (const TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
 			{
-				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetBase(AssetTreeNode->SourceAssetIdx))
+				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AssetTreeNode->SourceAssetIdx))
 				{
 					if (DatabaseAnimationAssetBase->IsEnabled())
 					{
@@ -742,7 +742,7 @@ namespace UE::PoseSearch
 		{
 			if (const TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
 			{
-				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetBase(AssetTreeNode->SourceAssetIdx))
+				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AssetTreeNode->SourceAssetIdx))
 				{
 					if (DatabaseAnimationAssetBase->IsEnabled())
 					{
@@ -853,7 +853,7 @@ namespace UE::PoseSearch
 		{
 			if (const TSharedPtr<FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
 			{
-				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetBase(AssetTreeNode->SourceAssetIdx))
+				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AssetTreeNode->SourceAssetIdx))
 				{
 					if (DatabaseAnimationAssetBase->IsEnabled())
 					{

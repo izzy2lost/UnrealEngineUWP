@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Engine/DataAsset.h"
+#include "InstancedStruct.h"
 #include "PoseSearch/PoseSearchAssetSampler.h"
 #include "PoseSearch/PoseSearchCost.h"
 #include "PoseSearch/PoseSearchIndex.h"
@@ -10,7 +11,6 @@
 #include "PoseSearch/PoseSearchRole.h"
 #include "PoseSearchDatabase.generated.h"
 
-struct FInstancedStruct;
 class UAnimationAsset;
 class UAnimComposite;
 class UAnimMontage;
@@ -107,6 +107,24 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimationAssetBase
 	UPROPERTY(VisibleAnywhere, Category = "Settings", meta = (DisplayPriority = 20))
 	uint32 BranchInId = 0;
 #endif // WITH_EDITORONLY_DATA
+
+	friend bool operator==(const FPoseSearchDatabaseAnimationAssetBase& A, const FPoseSearchDatabaseAnimationAssetBase& B)
+	{
+#if WITH_EDITORONLY_DATA
+		return A.bEnabled == B.bEnabled &&
+			A.bDisableReselection == B.bDisableReselection &&
+			A.MirrorOption == B.MirrorOption &&
+			A.bSynchronizeWithExternalDependency_DEPRECATED == B.bSynchronizeWithExternalDependency_DEPRECATED &&
+			A.BranchInId == B.BranchInId;
+#else // WITH_EDITORONLY_DATA
+		return true;
+#endif // WITH_EDITORONLY_DATA
+	}
+};
+
+template<> struct TStructOpsTypeTraits<FPoseSearchDatabaseAnimationAssetBase> : public TStructOpsTypeTraitsBase2<FPoseSearchDatabaseAnimationAssetBase>
+{
+	enum { WithIdenticalViaEquality = true };
 };
 
 /** A sequence entry in a UPoseSearchDatabase. */
@@ -116,14 +134,14 @@ struct POSESEARCH_API FPoseSearchDatabaseSequence : public FPoseSearchDatabaseAn
 	GENERATED_BODY()
 	virtual ~FPoseSearchDatabaseSequence() = default;
 
-	UPROPERTY(EditAnywhere, Category="Settings", meta = (DisplayPriority = 0))
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 0))
 	TObjectPtr<UAnimSequence> Sequence;
 
 #if WITH_EDITORONLY_DATA
 	// It allows users to set a time range to an individual animation sequence in the database. 
 	// This is effectively trimming the beginning and end of the animation in the database (not in the original sequence).
 	// If set to [0, 0] it will be the entire frame range of the original sequence.
-	UPROPERTY(EditAnywhere, Category="Settings", meta = (DisplayPriority = 2))
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (ClampToMinMaxLimits, DisplayPriority = 2))
 	FFloatInterval SamplingRange = FFloatInterval(0.f, 0.f);
 
 	virtual UClass* GetAnimationAssetStaticClass() const override;
@@ -133,6 +151,21 @@ struct POSESEARCH_API FPoseSearchDatabaseSequence : public FPoseSearchDatabaseAn
 #endif // WITH_EDITORONLY_DATA
 	
 	virtual UObject* GetAnimationAsset() const override;
+
+	friend bool operator==(const FPoseSearchDatabaseSequence& A, const FPoseSearchDatabaseSequence& B)
+	{
+		return static_cast<const FPoseSearchDatabaseAnimationAssetBase&>(A) == static_cast<const FPoseSearchDatabaseAnimationAssetBase&>(B)
+			&& A.Sequence == B.Sequence
+#if WITH_EDITORONLY_DATA
+			&& A.SamplingRange == B.SamplingRange
+#endif // WITH_EDITORONLY_DATA
+			;
+	}
+};
+
+template<> struct TStructOpsTypeTraits<FPoseSearchDatabaseSequence> : public TStructOpsTypeTraitsBase2<FPoseSearchDatabaseSequence>
+{
+	enum { WithIdenticalViaEquality = true };
 };
 
 /** An blend space entry in a UPoseSearchDatabase. */
@@ -184,6 +217,26 @@ struct POSESEARCH_API FPoseSearchDatabaseBlendSpace : public FPoseSearchDatabase
 #if WITH_EDITOR
 	virtual int32 GetFrameAtTime(float Time) const override;
 #endif // WITH_EDITOR
+
+	friend bool operator==(const FPoseSearchDatabaseBlendSpace& A, const FPoseSearchDatabaseBlendSpace& B)
+	{
+		return static_cast<const FPoseSearchDatabaseAnimationAssetBase&>(A) == static_cast<const FPoseSearchDatabaseAnimationAssetBase&>(B)
+			&& A.BlendSpace == B.BlendSpace
+#if WITH_EDITORONLY_DATA
+			&& A.bUseSingleSample == B.bUseSingleSample
+			&& A.bUseGridForSampling == B.bUseGridForSampling
+			&& A.NumberOfHorizontalSamples == B.NumberOfHorizontalSamples
+			&& A.NumberOfVerticalSamples == B.NumberOfVerticalSamples
+			&& A.BlendParamX == B.BlendParamX
+			&& A.BlendParamY == B.BlendParamY
+#endif // WITH_EDITORONLY_DATA
+			;
+	}
+};
+
+template<> struct TStructOpsTypeTraits<FPoseSearchDatabaseBlendSpace> : public TStructOpsTypeTraitsBase2<FPoseSearchDatabaseBlendSpace>
+{
+	enum { WithIdenticalViaEquality = true };
 };
 
 /** An entry in a UPoseSearchDatabase. */
@@ -200,7 +253,7 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimComposite : public FPoseSearchDatab
 	// It allows users to set a time range to an individual animation sequence in the database. 
 	// This is effectively trimming the beginning and end of the animation in the database (not in the original sequence).
 	// If set to [0, 0] it will be the entire frame range of the original sequence.
-	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 3))
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (ClampToMinMaxLimits, DisplayPriority = 3))
 	FFloatInterval SamplingRange = FFloatInterval(0.f, 0.f);
 
 	virtual UClass* GetAnimationAssetStaticClass() const override;
@@ -210,6 +263,21 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimComposite : public FPoseSearchDatab
 #endif // WITH_EDITORONLY_DATA
 
 	virtual UObject* GetAnimationAsset() const override;
+
+	friend bool operator==(const FPoseSearchDatabaseAnimComposite& A, const FPoseSearchDatabaseAnimComposite& B)
+	{
+		return static_cast<const FPoseSearchDatabaseAnimationAssetBase&>(A) == static_cast<const FPoseSearchDatabaseAnimationAssetBase&>(B)
+			&& A.AnimComposite == B.AnimComposite
+#if WITH_EDITORONLY_DATA
+			&& A.SamplingRange == B.SamplingRange
+#endif // WITH_EDITORONLY_DATA
+			;
+	}
+};
+
+template<> struct TStructOpsTypeTraits<FPoseSearchDatabaseAnimComposite> : public TStructOpsTypeTraitsBase2<FPoseSearchDatabaseAnimComposite>
+{
+	enum { WithIdenticalViaEquality = true };
 };
 
 /** An anim montage entry in a UPoseSearchDatabase. */
@@ -219,14 +287,14 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimMontage : public FPoseSearchDatabas
 	GENERATED_BODY()
 	virtual ~FPoseSearchDatabaseAnimMontage() = default;
 
-	UPROPERTY(EditAnywhere, Category="Settings", meta = (DisplayPriority = 0))
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 0))
 	TObjectPtr<UAnimMontage> AnimMontage;
 
 #if WITH_EDITORONLY_DATA
 	// It allows users to set a time range to an individual animation sequence in the database. 
 	// This is effectively trimming the beginning and end of the animation in the database (not in the original sequence).
 	// If set to [0, 0] it will be the entire frame range of the original sequence.
-	UPROPERTY(EditAnywhere, Category="Settings", meta = (DisplayPriority = 2))
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (ClampToMinMaxLimits, DisplayPriority = 2))
 	FFloatInterval SamplingRange = FFloatInterval(0.f, 0.f);
 
 	virtual UClass* GetAnimationAssetStaticClass() const override;
@@ -236,6 +304,21 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimMontage : public FPoseSearchDatabas
 #endif // WITH_EDITORONLY_DATA
 
 	virtual UObject* GetAnimationAsset() const override;
+
+	friend bool operator==(const FPoseSearchDatabaseAnimMontage& A, const FPoseSearchDatabaseAnimMontage& B)
+	{
+		return static_cast<const FPoseSearchDatabaseAnimationAssetBase&>(A) == static_cast<const FPoseSearchDatabaseAnimationAssetBase&>(B)
+			&& A.AnimMontage == B.AnimMontage
+#if WITH_EDITORONLY_DATA
+			&& A.SamplingRange == B.SamplingRange
+#endif // WITH_EDITORONLY_DATA
+			;
+	}
+};
+
+template<> struct TStructOpsTypeTraits<FPoseSearchDatabaseAnimMontage> : public TStructOpsTypeTraitsBase2<FPoseSearchDatabaseAnimMontage>
+{
+	enum { WithIdenticalViaEquality = true };
 };
 
 USTRUCT(BlueprintType, Category = "Animation|Pose Search")
@@ -244,14 +327,14 @@ struct POSESEARCH_API FPoseSearchDatabaseMultiSequence : public FPoseSearchDatab
 	GENERATED_BODY()
 	virtual ~FPoseSearchDatabaseMultiSequence() = default;
 
-	UPROPERTY(EditAnywhere, Category="Settings", meta = (DisplayPriority = 0))
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 0))
 	TObjectPtr<UPoseSearchMultiSequence> MultiSequence;
 
 #if WITH_EDITORONLY_DATA
 	// It allows users to set a time range to an individual animation sequence in the database. 
 	// This is effectively trimming the beginning and end of the animation in the database (not in the original sequence).
 	// If set to [0, 0] it will be the entire frame range of the original sequence.
-	UPROPERTY(EditAnywhere, Category="Settings", meta = (DisplayPriority = 2))
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (ClampToMinMaxLimits, DisplayPriority = 2))
 	FFloatInterval SamplingRange = FFloatInterval(0.f, 0.f);
 
 	virtual UClass* GetAnimationAssetStaticClass() const override;
@@ -271,6 +354,21 @@ struct POSESEARCH_API FPoseSearchDatabaseMultiSequence : public FPoseSearchDatab
 #if WITH_EDITOR
 	virtual int32 GetFrameAtTime(float Time) const override;
 #endif // WITH_EDITOR
+
+	friend bool operator==(const FPoseSearchDatabaseMultiSequence& A, const FPoseSearchDatabaseMultiSequence& B)
+	{
+		return static_cast<const FPoseSearchDatabaseAnimationAssetBase&>(A) == static_cast<const FPoseSearchDatabaseAnimationAssetBase&>(B)
+			&& A.MultiSequence == B.MultiSequence
+#if WITH_EDITORONLY_DATA
+			&& A.SamplingRange == B.SamplingRange
+#endif // WITH_EDITORONLY_DATA
+			;
+	}
+};
+
+template<> struct TStructOpsTypeTraits<FPoseSearchDatabaseMultiSequence> : public TStructOpsTypeTraitsBase2<FPoseSearchDatabaseMultiSequence>
+{
+	enum { WithIdenticalViaEquality = true };
 };
 
 /** A data asset for indexing a collection of animation sequences. */
@@ -392,15 +490,33 @@ public:
 	void AddAnimationAsset(FInstancedStruct AnimationAsset);
 	void RemoveAnimationAssetAt(int32 AnimationAssetIndex);
 
+	template<typename TDatabaseAnimationAsset> const TDatabaseAnimationAsset* GetDatabaseAnimationAsset(int32 AnimationAssetIndex) const;
+	template<typename TDatabaseAnimationAsset> const TDatabaseAnimationAsset* GetDatabaseAnimationAsset(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) const;
+	template<typename TDatabaseAnimationAsset> TDatabaseAnimationAsset* GetMutableDatabaseAnimationAsset(int32 AnimationAssetIndex);
+	template<typename TDatabaseAnimationAsset> TDatabaseAnimationAsset* GetMutableDatabaseAnimationAsset(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset);
+
+	// @todo: deprecate GetAnimationAssets
+	// UE_DEPRECATED(5.4, "Use GetNumAnimationAssets to iterate over GetDatabaseAnimationAsset instead")
 	const TArray<FInstancedStruct>& GetAnimationAssets() const { return AnimationAssets; }
+
+	UE_DEPRECATED(5.4, "Use GetDatabaseAnimationAsset instead")
 	const FInstancedStruct& GetAnimationAssetStruct(int32 AnimationAssetIndex) const;
+	UE_DEPRECATED(5.4, "Use GetDatabaseAnimationAsset instead")
 	const FInstancedStruct& GetAnimationAssetStruct(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) const;
+	UE_DEPRECATED(5.4, "Use GetMutableDatabaseAnimationAsset instead")
 	FInstancedStruct& GetMutableAnimationAssetStruct(int32 AnimationAssetIndex);
+	UE_DEPRECATED(5.4, "Use GetMutableDatabaseAnimationAsset instead")
 	FInstancedStruct& GetMutableAnimationAssetStruct(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset);
-	const FPoseSearchDatabaseAnimationAssetBase* GetAnimationAssetBase(int32 AnimationAssetIndex) const;
-	const FPoseSearchDatabaseAnimationAssetBase* GetAnimationAssetBase(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) const;
-	FPoseSearchDatabaseAnimationAssetBase* GetMutableAnimationAssetBase(int32 AnimationAssetIndex);
-	FPoseSearchDatabaseAnimationAssetBase* GetMutableAnimationAssetBase(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset);
+	
+	UE_DEPRECATED(5.4, "Use GetDatabaseAnimationAsset instead")
+	const FPoseSearchDatabaseAnimationAssetBase* GetAnimationAssetBase(int32 AnimationAssetIndex) const { return GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AnimationAssetIndex); }
+	UE_DEPRECATED(5.4, "Use GetDatabaseAnimationAsset instead")
+	const FPoseSearchDatabaseAnimationAssetBase* GetAnimationAssetBase(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) const { return GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SearchIndexAsset); }
+	UE_DEPRECATED(5.4, "Use GetMutableDatabaseAnimationAsset instead")
+	FPoseSearchDatabaseAnimationAssetBase* GetMutableAnimationAssetBase(int32 AnimationAssetIndex) { return GetMutableDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AnimationAssetIndex); }
+	UE_DEPRECATED(5.4, "Use GetMutableDatabaseAnimationAsset instead")
+	FPoseSearchDatabaseAnimationAssetBase* GetMutableAnimationAssetBase(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) { return GetMutableDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SearchIndexAsset); }
+
 	float GetRealAssetTime(int32 PoseIdx) const;
 	float GetNormalizedAssetTime(int32 PoseIdx) const;
 
@@ -451,3 +567,35 @@ private:
 	UE::PoseSearch::FSearchResult SearchVPTree(UE::PoseSearch::FSearchContext& SearchContext) const;
 	UE::PoseSearch::FSearchResult SearchBruteForce(UE::PoseSearch::FSearchContext& SearchContext) const;
 };
+
+template<typename TDatabaseAnimationAsset>
+inline const TDatabaseAnimationAsset* UPoseSearchDatabase::GetDatabaseAnimationAsset(int32 AnimationAssetIndex) const
+{
+	if (AnimationAssets.IsValidIndex(AnimationAssetIndex))
+	{
+		return AnimationAssets[AnimationAssetIndex].GetPtr<TDatabaseAnimationAsset>();
+	}
+	return nullptr;
+}
+
+template<typename TDatabaseAnimationAsset>
+inline const TDatabaseAnimationAsset* UPoseSearchDatabase::GetDatabaseAnimationAsset(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) const
+{
+	return GetDatabaseAnimationAsset<TDatabaseAnimationAsset>(SearchIndexAsset.GetSourceAssetIdx());
+}
+
+template<typename TDatabaseAnimationAsset>
+inline TDatabaseAnimationAsset* UPoseSearchDatabase::GetMutableDatabaseAnimationAsset(int32 AnimationAssetIndex)
+{
+	if (AnimationAssets.IsValidIndex(AnimationAssetIndex))
+	{
+		return AnimationAssets[AnimationAssetIndex].GetMutablePtr<TDatabaseAnimationAsset>();
+	}
+	return nullptr;
+}
+
+template<typename TDatabaseAnimationAsset>
+inline TDatabaseAnimationAsset* UPoseSearchDatabase::GetMutableDatabaseAnimationAsset(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset)
+{
+	return GetMutableDatabaseAnimationAsset<TDatabaseAnimationAsset>(SearchIndexAsset.GetSourceAssetIdx());
+}

@@ -216,8 +216,7 @@ static void AddUnfilteredDatabaseRow(const UPoseSearchDatabase* Database,
 			}
 		}
 
-		const FInstancedStruct& DatabaseAssetStruct = Database->GetAnimationAssetStruct(*SearchIndexAsset);
-		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = DatabaseAssetStruct.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
+		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(*SearchIndexAsset))
 		{
 			const float PlayLength = DatabaseAsset->GetPlayLength();
 			UObject* AnimationAsset = DatabaseAsset->GetAnimationAsset();

@@ -246,8 +246,8 @@ namespace UE::PoseSearch
 
 			IndexArray.Sort([Database](int32 SequenceIdxA, int32 SequenceIdxB)
 			{
-				const FPoseSearchDatabaseAnimationAssetBase* A = Database->GetAnimationAssetBase(SequenceIdxA);
-				const FPoseSearchDatabaseAnimationAssetBase* B = Database->GetAnimationAssetBase(SequenceIdxB);
+				const FPoseSearchDatabaseAnimationAssetBase* A = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SequenceIdxA);
+				const FPoseSearchDatabaseAnimationAssetBase* B = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SequenceIdxB);
 
 				//If its null add it to the end of the list 
 				if (!B->GetAnimationAsset())
@@ -269,7 +269,7 @@ namespace UE::PoseSearch
 			{
 				const int32 MappedId = IndexArray[AnimationAssetIdx];
 
-				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(MappedId))
+				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(MappedId))
 				{
 					const bool bFiltered = (DatabaseAnimationAsset->GetAnimationAsset() == nullptr || GetAssetFilterString().IsEmpty()) ? false : !DatabaseAnimationAsset->GetName().Contains(GetAssetFilterString());
 
@@ -890,7 +890,7 @@ namespace UE::PoseSearch
 					{
 						if (UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase())
 						{
-							if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetMutableAnimationAssetBase(SelectedNode->SourceAssetIdx))
+							if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SelectedNode->SourceAssetIdx))
 							{
 								// @todo: Support copying assets added via BranchIn notifies. 
 								if (!DatabaseAnimationAsset->IsSynchronizedWithExternalDependency())
@@ -970,7 +970,7 @@ namespace UE::PoseSearch
 				{
 					if (UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase())
 					{
-						const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(SelectedNode->SourceAssetIdx);
+						const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SelectedNode->SourceAssetIdx);
 						
 						if (DatabaseAnimationAsset && !DatabaseAnimationAsset->IsSynchronizedWithExternalDependency())
 						{
@@ -1071,7 +1071,7 @@ namespace UE::PoseSearch
 				
 				for (const TSharedPtr<FDatabaseAssetTreeNode>& SelectedNode : SelectedNodes)
 				{
-					if (FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = PoseSearchDatabase->GetMutableAnimationAssetBase(SelectedNode->SourceAssetIdx))
+					if (FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = PoseSearchDatabase->GetMutableDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SelectedNode->SourceAssetIdx))
 					{
 						if (UAnimSequenceBase* AnimSequenceBase = Cast<UAnimSequenceBase>(DatabaseAnimationAssetBase->GetAnimationAsset()))
 						{

@@ -563,7 +563,7 @@ namespace UE::PoseSearch
 					continue;
 				}
 
-				const FInstancedStruct& DatabaseAsset = PoseSearchDatabase->GetAnimationAssetStruct(SelectedItem->SourceAssetIdx);
+				const FInstancedStruct& DatabaseAsset = PoseSearchDatabase->GetAnimationAssets()[SelectedItem->SourceAssetIdx];
 				const UScriptStruct* ScriptStruct = DatabaseAsset.GetScriptStruct();
 				FSelectionWidget& SelectionWidget = FindOrAddSelectionWidget(ScriptStruct);
 

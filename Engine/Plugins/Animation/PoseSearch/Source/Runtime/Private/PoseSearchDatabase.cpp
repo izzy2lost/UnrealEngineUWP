@@ -6,7 +6,6 @@
 #include "Animation/AnimSequence.h"
 #include "Animation/BlendSpace.h"
 #include "Animation/BlendSpace1D.h"
-#include "InstancedStruct.h"
 #include "PoseSearch/PoseSearchAnimNotifies.h"
 #include "PoseSearch/PoseSearchContext.h"
 #include "PoseSearch/PoseSearchDefines.h"
@@ -52,7 +51,7 @@ static void PopulateSelectableAssetIdx(FSelectableAssetIdx& SelectableAssetIdx, 
 
 		for (int32 AssetIndex = 0; AssetIndex < SearchIndex.Assets.Num(); ++AssetIndex)
 		{
-			if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetBase(SearchIndex.Assets[AssetIndex]))
+			if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SearchIndex.Assets[AssetIndex]))
 			{
 				if (AssetsToConsider.Contains(DatabaseAnimationAssetBase->GetAnimationAsset()))
 				{
@@ -707,7 +706,8 @@ const FInstancedStruct& UPoseSearchDatabase::GetAnimationAssetStruct(int32 Anima
 
 const FInstancedStruct& UPoseSearchDatabase::GetAnimationAssetStruct(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) const
 {
-	return GetAnimationAssetStruct(SearchIndexAsset.GetSourceAssetIdx());
+	check(AnimationAssets.IsValidIndex(SearchIndexAsset.GetSourceAssetIdx()));
+	return AnimationAssets[SearchIndexAsset.GetSourceAssetIdx()];
 }
 
 FInstancedStruct& UPoseSearchDatabase::GetMutableAnimationAssetStruct(int32 AnimationAssetIndex)
@@ -718,37 +718,8 @@ FInstancedStruct& UPoseSearchDatabase::GetMutableAnimationAssetStruct(int32 Anim
 
 FInstancedStruct& UPoseSearchDatabase::GetMutableAnimationAssetStruct(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset)
 {
-	return GetMutableAnimationAssetStruct(SearchIndexAsset.GetSourceAssetIdx());
-}
-
-const FPoseSearchDatabaseAnimationAssetBase* UPoseSearchDatabase::GetAnimationAssetBase(int32 AnimationAssetIndex) const
-{
-	if (AnimationAssets.IsValidIndex(AnimationAssetIndex))
-	{
-		return AnimationAssets[AnimationAssetIndex].GetPtr<FPoseSearchDatabaseAnimationAssetBase>();
-	}
-
-	return nullptr;
-}
-
-const FPoseSearchDatabaseAnimationAssetBase* UPoseSearchDatabase::GetAnimationAssetBase(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) const
-{
-	return GetAnimationAssetBase(SearchIndexAsset.GetSourceAssetIdx());
-}
-
-FPoseSearchDatabaseAnimationAssetBase* UPoseSearchDatabase::GetMutableAnimationAssetBase(int32 AnimationAssetIndex)
-{
-	if (AnimationAssets.IsValidIndex(AnimationAssetIndex))
-	{
-		return AnimationAssets[AnimationAssetIndex].GetMutablePtr<FPoseSearchDatabaseAnimationAssetBase>();
-	}
-
-	return nullptr;
-}
-
-FPoseSearchDatabaseAnimationAssetBase* UPoseSearchDatabase::GetMutableAnimationAssetBase(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset)
-{
-	return GetMutableAnimationAssetBase(SearchIndexAsset.GetSourceAssetIdx());
+	check(AnimationAssets.IsValidIndex(SearchIndexAsset.GetSourceAssetIdx()));
+	return AnimationAssets[SearchIndexAsset.GetSourceAssetIdx()];
 }
 
 #if WITH_EDITOR
@@ -1211,7 +1182,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchContinuingPose(UE::Pose
 	const FSearchIndex& SearchIndex = GetSearchIndex();
 	const int32 PoseIdx = SearchContext.GetCurrentResult().PoseIdx;
 	const FSearchIndexAsset& SearchIndexAsset = SearchIndex.GetAssetForPose(PoseIdx);
-	const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = GetAnimationAssetStruct(SearchIndexAsset).GetPtr<FPoseSearchDatabaseAnimationAssetBase>();
+	const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SearchIndexAsset);
 	check(DatabaseAnimationAssetBase);
 
 	float UpdatedContinuingPoseCostBias = ContinuingPoseCostBias;
