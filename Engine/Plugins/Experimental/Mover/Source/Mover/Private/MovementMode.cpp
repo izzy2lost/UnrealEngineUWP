@@ -65,6 +65,30 @@ void UBaseMovementMode::DoSimulationTick(const FSimulationTickParams& Params, FM
 	}
 }
 
+void UBaseMovementMode::DoActivate()
+{
+	if (bHasBlueprintOnActivate)
+	{
+		K2_OnActivate();
+	}
+	else
+	{
+		OnActivate();
+	}
+}
+
+void UBaseMovementMode::DoDeactivate()
+{
+	if (bHasBlueprintOnDeactivate)
+	{
+		K2_OnDeactivate();
+	}
+	else
+	{
+		OnDeactivate();
+	}
+}
+
 
 UMoverComponent* UBaseMovementMode::GetMoverComponent() const
 {
@@ -126,6 +150,14 @@ void UBaseMovementMode::OnGenerateMove(const FMoverTickStartData& StartState, co
 }
 
 void UBaseMovementMode::OnSimulationTick(const FSimulationTickParams& Params, FMoverTickEndData& OutputState)
+{
+}
+
+void UBaseMovementMode::OnActivate()
+{
+}
+
+void UBaseMovementMode::OnDeactivate()
 {
 }
 

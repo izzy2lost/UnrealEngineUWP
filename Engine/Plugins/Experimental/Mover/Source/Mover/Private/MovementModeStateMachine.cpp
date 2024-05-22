@@ -406,6 +406,13 @@ void UMovementModeStateMachine::AdvanceToNextMode()
 		const FName PreviousModeName = CurrentModeName;
 		CurrentModeName = NextModeName;
 
+		if (PreviousModeName != NAME_None && Modes.Contains(PreviousModeName))
+		{
+			Modes[PreviousModeName]->DoDeactivate();
+		}
+
+		Modes[CurrentModeName]->DoActivate();
+
 		// signal movement mode change event
 		const UMoverComponent* MoverComp = CastChecked<UMoverComponent>(GetOuter());
 		MoverComp->OnMovementModeChanged.Broadcast(PreviousModeName, NextModeName);

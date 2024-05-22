@@ -29,8 +29,6 @@ public:
 	virtual FString GetDisplayName() const = 0;
 };
 
-
-
 /**
  * Base class for all movement modes, exposing simulation update methods for both C++ and blueprint extension
  */
@@ -45,6 +43,8 @@ public:
 	void DoUnregister();
 	void DoGenerateMove(const FMoverTickStartData& StartState, const FMoverTimeStep& TimeStep, FProposedMove& OutProposedMove) const;
 	void DoSimulationTick(const FSimulationTickParams& Params, FMoverTickEndData& OutputState);
+	void DoActivate();
+	void DoDeactivate();
 
 	UFUNCTION(BlueprintCallable, Category=Mover, meta=(DisplayName="Get Mover Component"))
 	UMoverComponent* GetMoverComponent() const;
@@ -100,9 +100,19 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, DisplayName = "OnSimulationTick", meta = (ScriptName = "OnSimulationTick"))
 	FMoverTickEndData K2_OnSimulationTick(const FSimulationTickParams& Params);
 
+	virtual void OnActivate();
 
+	UFUNCTION(BlueprintImplementableEvent, DisplayName = "OnActivate", meta = (ScriptName = "OnActivate"))
+	void K2_OnActivate();
+
+	virtual void OnDeactivate();
+
+	UFUNCTION(BlueprintImplementableEvent, DisplayName = "OnDeactivate", meta = (ScriptName = "OnDeactivate"))
+	void K2_OnDeactivate();
 
 private:
 	bool bHasBlueprintGenerateMove = false;
 	bool bHasBlueprintSimulationTick = false;
+	bool bHasBlueprintOnActivate = false;
+	bool bHasBlueprintOnDeactivate = false;
 };
