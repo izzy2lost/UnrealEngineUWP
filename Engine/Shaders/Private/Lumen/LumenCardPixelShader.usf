@@ -147,6 +147,11 @@ void Main(
 	}
 #endif
 
+	if (MATERIAL_SHADINGMODEL_UNLIT || ShadingModel == SHADINGMODELID_UNLIT)
+	{
+		DiffuseColor = float3(0, 0, 0);
+	}
+
 #endif // TEMPLATE_USES_SUBSTRATE
 
 	// Normals are stored in local card space

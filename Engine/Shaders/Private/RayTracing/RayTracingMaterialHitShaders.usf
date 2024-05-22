@@ -475,10 +475,21 @@ void GetMaterialPayload(
 	// Restore global mip bias after lightmaps are sampled.
 	GlobalTextureMipBias = OldGlobalMipBias;
 
-	Payload.DiffuseColor = BaseColor - BaseColor * Metallic;
-	Payload.SpecularColor = ComputeF0(Specular, BaseColor, Metallic);
+	if (MATERIAL_SHADINGMODEL_UNLIT || Payload.ShadingModelID == SHADINGMODELID_UNLIT)
+	{
+		Payload.Specular = 0;
+		Payload.BaseColor = 0;
+		Payload.DiffuseColor = 0;
+		Payload.SpecularColor = 0;
+		Payload.IndirectIrradiance = 0;
+	}
+	else
+	{
+		Payload.DiffuseColor = BaseColor - BaseColor * Metallic;
+		Payload.SpecularColor = ComputeF0(Specular, BaseColor, Metallic);
+		Payload.IndirectIrradiance += DiffuseIndirectLighting; // Contains both lightmap & skylight
+	}
 	
-	Payload.IndirectIrradiance += DiffuseIndirectLighting; // Contains both lightmap & skylight
 }
 #endif // SUBSTRATE_ENABLED
 
