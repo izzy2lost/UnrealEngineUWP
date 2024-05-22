@@ -12,15 +12,17 @@ TArray<UAvaSequencePlayer*> FAvaTransitionContinueSequenceTask::ExecuteSequenceT
 		return TArray<UAvaSequencePlayer*>();
 	}
 
-	switch (QueryType)
+	const FInstanceDataType& InstanceData = InContext.GetInstanceData(*this);
+
+	switch (InstanceData.QueryType)
 	{
 	case EAvaTransitionSequenceQueryType::Name:
-		return PlaybackObject->ContinueSequencesByLabel(SequenceName);
+		return PlaybackObject->ContinueSequencesByLabel(InstanceData.SequenceName);
 
 	case EAvaTransitionSequenceQueryType::Tag:
-		if (const FAvaTag* Tag = SequenceTag.GetTag())
+		if (const FAvaTag* Tag = InstanceData.SequenceTag.GetTag())
 		{
-			return PlaybackObject->ContinueSequencesByTag(*Tag, bPerformExactMatch);
+			return PlaybackObject->ContinueSequencesByTag(*Tag, InstanceData.bPerformExactMatch);
 		}
 		return TArray<UAvaSequencePlayer*>();
 	}

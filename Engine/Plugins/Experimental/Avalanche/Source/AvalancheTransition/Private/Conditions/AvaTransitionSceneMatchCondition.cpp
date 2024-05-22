@@ -3,6 +3,7 @@
 #include "Conditions/AvaTransitionSceneMatchCondition.h"
 #include "AvaTransitionContext.h"
 #include "AvaTransitionScene.h"
+#include "AvaTransitionUtils.h"
 #include "Behavior/AvaTransitionBehaviorInstance.h"
 #include "StateTreeExecutionContext.h"
 
@@ -11,11 +12,28 @@
 #if WITH_EDITOR
 FText FAvaTransitionSceneMatchCondition::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
 {
+	const FInstanceDataType& InstanceData = InInstanceDataView.Get<FInstanceDataType>();
+
 	return FText::Format(LOCTEXT("ConditionDescription", "{0} scene in {1}")
-		, UEnum::GetDisplayValueAsText(SceneComparisonType).ToLower()
-		, GetLayerQueryText());
+		, UEnum::GetDisplayValueAsText(InstanceData.SceneComparisonType).ToLower()
+		, GetLayerQueryText(InstanceData));
 }
 #endif
+
+void FAvaTransitionSceneMatchCondition::PostLoad(FStateTreeDataView InInstanceDataView)
+{
+	Super::PostLoad(InInstanceDataView);
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (LayerType_DEPRECATED != EAvaTransitionLayerCompareType::None)
+	{
+		if (FInstanceDataType* InstanceData = UE::AvaTransition::TryGetInstanceData(*this, InInstanceDataView))
+		{
+			InstanceData->SceneComparisonType = SceneComparisonType_DEPRECATED;
+		}
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
 
 bool FAvaTransitionSceneMatchCondition::TestCondition(FStateTreeExecutionContext& InContext) const
 {
@@ -33,8 +51,10 @@ bool FAvaTransitionSceneMatchCondition::TestCondition(FStateTreeExecutionContext
 		return false;
 	}
 
+	const FInstanceDataType& InstanceData = InContext.GetInstanceData(*this);
+
 	bool bHasMatchingInstance = BehaviorInstances.ContainsByPredicate(
-		[TransitionScene, this](const FAvaTransitionBehaviorInstance* InInstance)
+		[TransitionScene, &InstanceData](const FAvaTransitionBehaviorInstance* InInstance)
 		{
 			const FAvaTransitionScene* OtherTransitionScene = InInstance->GetTransitionContext().GetTransitionScene();
 
@@ -42,7 +62,7 @@ bool FAvaTransitionSceneMatchCondition::TestCondition(FStateTreeExecutionContext
 				? TransitionScene->Compare(*OtherTransitionScene)
 				: EAvaTransitionComparisonResult::None;
 
-			return ComparisonResult == SceneComparisonType;
+			return ComparisonResult == InstanceData.SceneComparisonType;
 		});
 
 	return bHasMatchingInstance;

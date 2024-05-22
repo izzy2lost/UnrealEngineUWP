@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Tasks/AvaTransitionWaitForLayerTask.h"
+#include "AvaTransitionLayerUtils.h"
 #include "Behavior/AvaTransitionBehaviorInstance.h"
 #include "StateTreeExecutionContext.h"
 
@@ -9,7 +10,8 @@
 #if WITH_EDITOR
 FText FAvaTransitionWaitForLayerTask::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
 {
-	return FText::Format(LOCTEXT("TaskDescription", "Wait for others in {0} to finish"), GetLayerQueryText());
+	const FInstanceDataType& InstanceData = InInstanceDataView.Get<FInstanceDataType>();
+	return FText::Format(LOCTEXT("TaskDescription", "Wait for others in {0} to finish"), GetLayerQueryText(InstanceData));
 }
 #endif
 

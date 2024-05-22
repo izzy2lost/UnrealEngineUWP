@@ -3,13 +3,15 @@
 #include "Transition/Tasks/AvaSceneAddTagAttributeTask.h"
 #include "AvaSceneState.h"
 #include "IAvaSceneInterface.h"
+#include "StateTreeExecutionContext.h"
 
 #define LOCTEXT_NAMESPACE "AvaSceneAddTagAttributeTask"
 
 #if WITH_EDITOR
 FText FAvaSceneAddTagAttributeTask::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
 {
-	return FText::Format(LOCTEXT("TaskDescription", "Add '{0}' tag attribute to this scene"), FText::FromName(TagAttribute.ToName()));
+	const FInstanceDataType& InstanceData = InInstanceDataView.Get<FInstanceDataType>();
+	return FText::Format(LOCTEXT("TaskDescription", "Add '{0}' tag attribute to this scene"), FText::FromName(InstanceData.TagAttribute.ToName()));
 }
 #endif
 
@@ -27,7 +29,8 @@ EStateTreeRunStatus FAvaSceneAddTagAttributeTask::EnterState(FStateTreeExecution
 		return EStateTreeRunStatus::Failed;
 	}
 
-	if (SceneState->AddTagAttribute(TagAttribute))
+	const FInstanceDataType& InstanceData = InContext.GetInstanceData(*this);
+	if (SceneState->AddTagAttribute(InstanceData.TagAttribute))
 	{
 		return EStateTreeRunStatus::Succeeded;
 	}

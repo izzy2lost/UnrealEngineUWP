@@ -80,9 +80,9 @@ namespace UE::AvaSequencer::Private
 		{
 			if (PlayTaskNode)
 			{
-				const FAvaTransitionPlaySequenceTask& PlayTask = PlayTaskNode->Node.Get<FAvaTransitionPlaySequenceTask>();
+				const FAvaTransitionPlaySequenceTask::FInstanceDataType& PlayTask = PlayTaskNode->Instance.Get<FAvaTransitionPlaySequenceTask::FInstanceDataType>();
 
-				FAvaTransitionInitializeSequence& InitTask = InInitState.AddTask<FAvaTransitionInitializeSequence>().GetNode();
+				FAvaTransitionInitializeSequence::FInstanceDataType& InitTask = InInitState.AddTask<FAvaTransitionInitializeSequence>().GetInstanceData();
 				InitTask.InitializeTime     = PlayTask.PlaySettings.Start;
 				InitTask.PlayMode           = PlayTask.PlaySettings.PlayMode;
 				InitTask.QueryType          = PlayTask.QueryType;

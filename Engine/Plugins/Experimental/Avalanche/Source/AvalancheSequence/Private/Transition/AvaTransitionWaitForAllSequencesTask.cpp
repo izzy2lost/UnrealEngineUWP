@@ -34,7 +34,7 @@ EStateTreeRunStatus FAvaTransitionWaitForAllSequencesTask::Tick(FStateTreeExecut
 
 bool FAvaTransitionWaitForAllSequencesTask::Link(FStateTreeLinker& InLinker)
 {
-	FAvaTransitionTask::Link(InLinker);
+	Super::Link(InLinker);
 	InLinker.LinkExternalData(SequenceSubsystemHandle);
 	return true;
 }
@@ -54,6 +54,6 @@ EStateTreeRunStatus FAvaTransitionWaitForAllSequencesTask::WaitForAllSequences(F
 		return EStateTreeRunStatus::Failed;
 	}
 
-	FAvaTransitionSequenceInstanceData& InstanceData = InContext.GetInstanceData(*this);
+	FInstanceDataType& InstanceData = InContext.GetInstanceData(*this);
 	return FAvaTransitionSequenceUtils::UpdatePlayerRunStatus(*PlaybackObject, InstanceData.ActiveSequences, EAvaTransitionSequenceWaitType::WaitUntilStop);
 }

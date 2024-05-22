@@ -6,6 +6,7 @@
 #include "AvaTransitionLayer.h"
 #include "AvaTransitionLayerUtils.h"
 #include "AvaTransitionSubsystem.h"
+#include "AvaTransitionUtils.h"
 #include "Behavior/AvaTransitionBehaviorInstance.h"
 #include "IAvaSceneInterface.h"
 #include "StateTreeExecutionContext.h"
@@ -16,9 +17,11 @@
 #if WITH_EDITOR
 FText FAvaSceneContainsTagAttributeConditionBase::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
 {
+	const FInstanceDataType& InstanceData = InInstanceDataView.Get<FInstanceDataType>();
+
 	FFormatNamedArguments Arguments;
 
-	switch (SceneType)
+	switch (InstanceData.SceneType)
 	{
 	case EAvaTransitionSceneType::This:
 		Arguments.Add(TEXT("IndefinitePronoun"), FText::GetEmpty());
@@ -31,17 +34,35 @@ FText FAvaSceneContainsTagAttributeConditionBase::GetDescription(const FGuid& In
 	case EAvaTransitionSceneType::Other:
 		Arguments.Add(TEXT("IndefinitePronoun"), bInvertCondition ? LOCTEXT("NoScene", "no ") : LOCTEXT("AnyScene", "a "));
 
-		Arguments.Add(TEXT("Scene"), FText::Format(LOCTEXT("OtherScene", "scene in {0}"), FAvaTransitionLayerUtils::GetLayerQueryText(LayerType, *SpecificLayers.ToString())));
+		Arguments.Add(TEXT("Scene"), FText::Format(LOCTEXT("OtherScene", "scene in {0}"), FAvaTransitionLayerUtils::GetLayerQueryText(InstanceData.LayerType, *InstanceData.SpecificLayers.ToString())));
 
 		Arguments.Add(TEXT("Contains"), LOCTEXT("OtherSceneContains", "contains"));
 		break;
 	}
 
-	Arguments.Add(TEXT("TagAttribute"), FText::FromName(TagAttribute.ToName()));
+	Arguments.Add(TEXT("TagAttribute"), FText::FromName(InstanceData.TagAttribute.ToName()));
 
 	return FText::Format(LOCTEXT("ConditionDescription", "{IndefinitePronoun}{Scene} {Contains} tag attribute '{TagAttribute}'"), Arguments);
 }
 #endif
+
+void FAvaSceneContainsTagAttributeConditionBase::PostLoad(FStateTreeDataView InInstanceDataView)
+{
+	Super::PostLoad(InInstanceDataView);
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (LayerType_DEPRECATED != EAvaTransitionLayerCompareType::None)
+	{
+		if (FInstanceDataType* InstanceData = UE::AvaTransition::TryGetInstanceData(*this, InInstanceDataView))
+		{
+			InstanceData->SceneType      = SceneType_DEPRECATED;
+			InstanceData->LayerType      = LayerType_DEPRECATED;
+			InstanceData->SpecificLayers = SpecificLayers_DEPRECATED;
+			InstanceData->TagAttribute   = TagAttribute_DEPRECATED;
+		}
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
 
 bool FAvaSceneContainsTagAttributeConditionBase::Link(FStateTreeLinker& InLinker)
 {
@@ -63,6 +84,7 @@ bool FAvaSceneContainsTagAttributeConditionBase::ContainsTagAttribute(FStateTree
 		return false;
 	}
 
+	const FInstanceDataType& InstanceData = InContext.GetInstanceData(*this);
 	const UAvaSceneSubsystem& SceneSubsystem = InContext.GetExternalData(SceneSubsystemHandle);
 
 	for (const FAvaTransitionScene* TransitionScene : TransitionScenes)
@@ -79,7 +101,7 @@ bool FAvaSceneContainsTagAttributeConditionBase::ContainsTagAttribute(FStateTree
 		}
 
 		const UAvaSceneState* SceneState = Scene->GetSceneState();
-		if (SceneState && SceneState->ContainsTagAttribute(TagAttribute))
+		if (SceneState && SceneState->ContainsTagAttribute(InstanceData.TagAttribute))
 		{
 			return true;
 		}
@@ -90,23 +112,24 @@ bool FAvaSceneContainsTagAttributeConditionBase::ContainsTagAttribute(FStateTree
 
 TArray<const FAvaTransitionScene*> FAvaSceneContainsTagAttributeConditionBase::GetTransitionScenes(FStateTreeExecutionContext& InContext) const
 {
+	const FInstanceDataType& InstanceData = InContext.GetInstanceData(*this);
 	const FAvaTransitionContext& TransitionContext = InContext.GetExternalData(TransitionContextHandle);
 
-	if (SceneType == EAvaTransitionSceneType::This)
+	if (InstanceData.SceneType == EAvaTransitionSceneType::This)
 	{
 		return { TransitionContext.GetTransitionScene() };
 	}
 
-	ensureMsgf(SceneType == EAvaTransitionSceneType::Other
+	ensureMsgf(InstanceData.SceneType == EAvaTransitionSceneType::Other
 		, TEXT("FAvaSceneContainsAttributeCondition::GetTargetSceneContexts did not recognize the provided transition scene type")
-		, *UEnum::GetValueAsString(SceneType));
+		, *UEnum::GetValueAsString(InstanceData.SceneType));
 
 	// Get all the Behavior Instances from Query 
 	TArray<const FAvaTransitionBehaviorInstance*> BehaviorInstances;
 	{
 		UAvaTransitionSubsystem& TransitionSubsystem = InContext.GetExternalData(TransitionSubsystemHandle);
 
-		FAvaTransitionLayerComparator Comparator = FAvaTransitionLayerUtils::BuildComparator(TransitionContext, LayerType, SpecificLayers);
+		FAvaTransitionLayerComparator Comparator = FAvaTransitionLayerUtils::BuildComparator(TransitionContext, InstanceData.LayerType, InstanceData.SpecificLayers);
 
 		BehaviorInstances = FAvaTransitionLayerUtils::QueryBehaviorInstances(TransitionSubsystem, Comparator);
 	}

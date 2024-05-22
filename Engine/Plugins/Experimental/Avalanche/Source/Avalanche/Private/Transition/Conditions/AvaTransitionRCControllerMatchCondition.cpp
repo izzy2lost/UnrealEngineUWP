@@ -8,6 +8,7 @@
 #include "AvaTransitionLog.h"
 #include "AvaTransitionScene.h"
 #include "AvaTransitionSubsystem.h"
+#include "AvaTransitionUtils.h"
 #include "Behavior/AvaTransitionBehaviorInstance.h"
 #include "IAvaSceneInterface.h"
 #include "RCVirtualProperty.h"
@@ -21,11 +22,29 @@
 #if WITH_EDITOR
 FText FAvaTransitionRCControllerMatchCondition::GetDescription(const FGuid& InId, FStateTreeDataView InInstanceDataView, const IStateTreeBindingLookup& InBindingLookup, EStateTreeNodeFormatting InFormatting) const
 {
+	const FInstanceDataType& InstanceData = InInstanceDataView.Get<FInstanceDataType>();
+
 	return FText::Format(LOCTEXT("ConditionDescription", "'{0}' is {1}")
-		, ControllerId.ToText()
-		, UEnum::GetDisplayValueAsText(ValueComparisonType).ToLower());
+		, InstanceData.ControllerId.ToText()
+		, UEnum::GetDisplayValueAsText(InstanceData.ValueComparisonType).ToLower());
 }
 #endif
+
+void FAvaTransitionRCControllerMatchCondition::PostLoad(FStateTreeDataView InInstanceDataView)
+{
+	Super::PostLoad(InInstanceDataView);
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (ControllerId_DEPRECATED.Name != NAME_None)
+	{
+		if (FInstanceDataType* InstanceData = UE::AvaTransition::TryGetInstanceData(*this, InInstanceDataView))
+		{
+			InstanceData->ControllerId        = ControllerId_DEPRECATED;
+			InstanceData->ValueComparisonType = ValueComparisonType_DEPRECATED;
+		}
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
 
 bool FAvaTransitionRCControllerMatchCondition::Link(FStateTreeLinker& InLinker)
 {
@@ -36,12 +55,13 @@ bool FAvaTransitionRCControllerMatchCondition::Link(FStateTreeLinker& InLinker)
 
 bool FAvaTransitionRCControllerMatchCondition::TestCondition(FStateTreeExecutionContext& InContext) const
 {
+	const FInstanceDataType& InstanceData          = InContext.GetInstanceData(*this);
 	const FAvaTransitionContext& TransitionContext = InContext.GetExternalData(TransitionContextHandle);
 	UAvaTransitionSubsystem& TransitionSubsystem   = InContext.GetExternalData(TransitionSubsystemHandle);
 	const UAvaSceneSubsystem& SceneSubsystem       = InContext.GetExternalData(SceneSubsystemHandle);
 	const FAvaTransitionScene* TransitionScene     = TransitionContext.GetTransitionScene();
 
-	URCVirtualPropertyBase* Controller = GetController(SceneSubsystem, TransitionScene);
+	URCVirtualPropertyBase* Controller = GetController(InstanceData.ControllerId, SceneSubsystem, TransitionScene);
 	if (!Controller)
 	{
 		return false;
@@ -79,7 +99,7 @@ bool FAvaTransitionRCControllerMatchCondition::TestCondition(FStateTreeExecution
 				, *TransitionScene
 				, *OtherTransitionScene);
 		}
-		else if (URCVirtualPropertyBase* OtherController = GetController(SceneSubsystem, OtherTransitionScene))
+		else if (URCVirtualPropertyBase* OtherController = GetController(InstanceData.ControllerId, SceneSubsystem, OtherTransitionScene))
 		{
 			Result = Controller->IsValueEqual(OtherController)
 				? EAvaTransitionComparisonResult::Same
@@ -90,7 +110,7 @@ bool FAvaTransitionRCControllerMatchCondition::TestCondition(FStateTreeExecution
 			Result = EAvaTransitionComparisonResult::None;
 		}
 
-		if (ValueComparisonType == Result)
+		if (InstanceData.ValueComparisonType == Result)
 		{
 			return true;
 		}
@@ -99,7 +119,7 @@ bool FAvaTransitionRCControllerMatchCondition::TestCondition(FStateTreeExecution
 	return false;
 }
 
-URCVirtualPropertyBase* FAvaTransitionRCControllerMatchCondition::GetController(const UAvaSceneSubsystem& InSceneSubsystem, const FAvaTransitionScene* InTransitionScene) const
+URCVirtualPropertyBase* FAvaTransitionRCControllerMatchCondition::GetController(const FAvaRCControllerId& InControllerId, const UAvaSceneSubsystem& InSceneSubsystem, const FAvaTransitionScene* InTransitionScene) const
 {
 	if (!InTransitionScene)
 	{
@@ -114,7 +134,7 @@ URCVirtualPropertyBase* FAvaTransitionRCControllerMatchCondition::GetController(
 
 	if (URemoteControlPreset* RemoteControlPreset = SceneInterface->GetRemoteControlPreset())
 	{
-		return ControllerId.FindController(RemoteControlPreset);
+		return InControllerId.FindController(RemoteControlPreset);
 	}
 
 	return nullptr;

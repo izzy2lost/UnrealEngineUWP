@@ -6,7 +6,7 @@
 #include "AvaTransitionLayerMatchCondition.generated.h"
 
 USTRUCT()
-struct FAvaTransitionLayerMatchConditionInstanceData
+struct FAvaTransitionLayerMatchConditionInstanceData : public FAvaTransitionLayerConditionInstanceData
 {
 	GENERATED_BODY()
 };

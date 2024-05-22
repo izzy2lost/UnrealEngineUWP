@@ -6,7 +6,7 @@
 #include "AvaTransitionWaitForLayerTask.generated.h"
 
 USTRUCT()
-struct FAvaTransitionWaitForLayerTaskInstanceData
+struct FAvaTransitionWaitForLayerTaskInstanceData : public FAvaTransitionLayerTaskInstanceData
 {
 	GENERATED_BODY()
 };
