@@ -581,6 +581,21 @@ namespace Metasound::Frontend
 		}
 	};
 
+	namespace VersioningPrivate
+	{
+		bool VersionBuilderDocument(FMetasoundAssetBase& InAssetBase, FMetaSoundFrontendDocumentBuilder& Builder)
+		{
+			UObject& DocObject = Builder.CastDocumentObjectChecked<UObject>();
+			const FName Name = DocObject.GetFName();
+			const FString Path = DocObject.GetPathName();
+
+			bool bWasUpdated = false;
+			bWasUpdated |= FVersionDocument_1_12(InAssetBase, Name, Path).Transform(Builder);
+
+			return bWasUpdated;
+		}
+	} // namespace VersioningPrivate
+
 	bool VersionDocument(FMetasoundAssetBase& InAssetBase)
 	{
 		bool bWasUpdated = false;
@@ -588,14 +603,13 @@ namespace Metasound::Frontend
 		UObject* OwningAsset = InAssetBase.GetOwningAsset();
 		TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface(OwningAsset);
 		const FMetasoundFrontendDocument& Document = DocumentInterface->GetConstDocument();
+		const FName Name = FName(OwningAsset->GetName());
+		const FString Path = OwningAsset->GetPathName();
 
 		// Copied as value will be mutated with each applicable transform below
 		const FMetasoundFrontendVersionNumber InitVersionNumber = Document.Metadata.Version.Number;
 		if (InitVersionNumber < GetMaxDocumentVersion())
 		{
-			FName Name = FName(OwningAsset->GetName());
-			FString Path = OwningAsset->GetPathName();
-
 			// Controller (Soft Deprecated) Transforms
 			if (InitVersionNumber.Major == 1 && InitVersionNumber.Minor < 12)
 			{
@@ -613,16 +627,16 @@ namespace Metasound::Frontend
 				bWasUpdated |= FVersionDocument_1_9(Name, Path).Transform(DocHandle);
 				bWasUpdated |= FVersionDocument_1_10().Transform(DocHandle);
 				bWasUpdated |= FVersionDocument_1_11().Transform(DocHandle);
+				// No longer supported, new versions should go in VersioningPrivate::VersionBuilderDocument
 			}
 
-			// Builder Transforms
-			{
-				// Mutation of document via both controller & builder systems simultaneously is forbidden as:
-				// 1. Builders were implemented post document version 1.11, so earlier versions are not supported.
-				// 2. Controller mutations are not tracked by analogous builder, which can cause internal cache corruption.
-				FMetaSoundFrontendDocumentBuilder Builder(DocumentInterface);
-				bWasUpdated |= FVersionDocument_1_12(InAssetBase, Name, Path).Transform(Builder);
-			}
+#if WITH_EDITORONLY_DATA
+			FMetaSoundFrontendDocumentBuilder& Builder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(DocumentInterface);
+			bWasUpdated |= VersioningPrivate::VersionBuilderDocument(InAssetBase, Builder);
+#else
+			FMetaSoundFrontendDocumentBuilder Builder(DocumentInterface);
+			bWasUpdated |= VersioningPrivate::VersionBuilderDocument(InAssetBase, Builder);
+#endif // WITH_EDITORONLY_DATA
 
 			if (bWasUpdated)
 			{

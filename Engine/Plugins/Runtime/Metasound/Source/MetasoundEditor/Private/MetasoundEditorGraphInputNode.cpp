@@ -3,6 +3,7 @@
 
 #include "Algo/Count.h"
 #include "Algo/Transform.h"
+#include "AudioParameter.h"
 #include "AudioParameterControllerInterface.h"
 #include "EdGraph/EdGraphNode.h"
 #include "GraphEditorSettings.h"
@@ -158,35 +159,32 @@ void UMetasoundEditorGraphInputNode::ReconstructNode()
 
 void UMetasoundEditorGraphInputNode::Validate(Metasound::Editor::FGraphNodeValidationResult& OutResult)
 {
-#if WITH_EDITOR
 	using namespace Metasound::Editor;
 	using namespace Metasound::Frontend;
 
 	Super::Validate(OutResult);
 
-	FConstNodeHandle NodeHandle = GetConstNodeHandle();
-	const FMetasoundFrontendClassMetadata& Metadata = NodeHandle->GetClassMetadata();
-
-	const FMetasoundFrontendVersion& MetasoundFrontendVersion = NodeHandle->GetInterfaceVersion();
-
-	FName InterfaceNameToValidate = MetasoundFrontendVersion.Name;
-	FMetasoundFrontendInterface InterfaceToValidate;
-	if (ISearchEngine::Get().FindInterfaceWithHighestVersion(InterfaceNameToValidate, InterfaceToValidate))
+	if (const UMetasoundEditorGraphVertex* Vertex = Cast<UMetasoundEditorGraphVertex>(GetMember()))
 	{
-		const FName& NodeName = NodeHandle->GetNodeName();
-		FText RequiredText;
-		if (InterfaceToValidate.IsMemberInputRequired(NodeName, RequiredText))
+		FMetasoundFrontendInterface InterfaceToValidate;
+		if (Vertex->IsInterfaceMember(&InterfaceToValidate))
 		{
-			TArray<FConstOutputHandle> OutputHandles = NodeHandle->GetConstOutputs();
-			if (ensure(!OutputHandles.IsEmpty()))
+			FText RequiredText;
+			if (InterfaceToValidate.IsMemberOutputRequired(Vertex->GetMemberName(), RequiredText))
 			{
-				const FConstOutputHandle& OutputHandle = OutputHandles.Last();
-				if (!OutputHandle->IsConnected())
+				if (const FMetasoundFrontendNode* Node = GetFrontendNode())
 				{
-					OutResult.SetMessage(EMessageSeverity::Warning, *RequiredText.ToString());
+					const TArray<FMetasoundFrontendVertex>& Outputs = Node->Interface.Outputs;
+					if (ensure(!Outputs.IsEmpty()))
+					{
+						const FMetaSoundFrontendDocumentBuilder& Builder = GetBuilderChecked().GetConstBuilder();
+						if (!Builder.IsNodeOutputConnected(Node->GetID(), Outputs.Last().VertexID))
+						{
+							OutResult.SetMessage(EMessageSeverity::Warning, *RequiredText.ToString());
+						}
+					}
 				}
 			}
 		}
 	}
-#endif // #if WITH_EDITOR
 }
