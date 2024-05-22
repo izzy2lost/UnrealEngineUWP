@@ -18,6 +18,8 @@ public:
 	virtual void Initialize(USocialUser* InSocialUser, const FChatRoomId& InChannelId, ESocialChannelType InSourceChannelType) override;
 
 	virtual bool SendMessage(const FString& InMessage) override;
+	
+	USocialUser& GetTargetUser() const;
 
 private:
 	void SetTargetUser(USocialUser& InTargetUser);

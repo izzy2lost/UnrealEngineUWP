@@ -49,3 +49,8 @@ void USocialPrivateMessageChannel::SetTargetUser(USocialUser& InTargetUser)
 	TargetUser = &InTargetUser;
 }
 
+USocialUser& USocialPrivateMessageChannel::GetTargetUser() const
+{
+	check(TargetUser);
+	return *TargetUser;
+}
