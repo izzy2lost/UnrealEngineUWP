@@ -299,11 +299,12 @@ static void ParsePreviewPlatforms(const FConfigFile& IniFile)
 
 
 				FString AllDeviceProfiles = GetSectionString(Section.Value, FName("DeviceProfileName"));
-				FString AllFriendlyName = GetSectionString(Section.Value, FName("FriendlyName"));
+				FText AllFriendlyName;
+				FTextStringHelper::ReadFromBuffer(*GetSectionString(Section.Value, FName("FriendlyName")), AllFriendlyName);
 				TArray<FString> DeviceProfileNames, FriendlyNames;
-				AllDeviceProfiles.ParseIntoArray(DeviceProfileNames, TEXT(","));
-				AllFriendlyName.ParseIntoArray(FriendlyNames, TEXT(","));
-				
+				AllDeviceProfiles.ParseIntoArray(DeviceProfileNames, TEXT("|"));
+				AllFriendlyName.ToString().ParseIntoArray(FriendlyNames, TEXT("|"));
+
 				if (DeviceProfileNames.Num() == 0)
 				{
 					DeviceProfileNames.Add(TEXT(""));
