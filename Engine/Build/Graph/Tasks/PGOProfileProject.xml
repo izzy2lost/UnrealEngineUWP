@@ -6,6 +6,7 @@
 
 	<!-- Common PGO options -->
 	<Option Name="PGOAutoSubmitResults" DefaultValue="false" Restrict="true|false" Description="Auto Submit PGO Profile files"/>
+	<Option Name="UseSampleBasedPGO" DefaultValue="false" Restrict="true|false" Description="Use Sample-Based PGO, if available"/>
 	<Option Name="PGOProfileTimeout" DefaultValue="7200" Description="Maximum length of time to allow PGO profile build to run"/>
 	
 
@@ -59,7 +60,7 @@
 
 			<!-- build a PGO profiling executable and copy the results over to the local staging directory -->
 			<Node Name="$(PreNodeName)Compile PGO Profile $(Platform)" Requires="$(PGOPlatformToolsNodeName);#$(Platform) PGO Build" Produces="#$(Platform) PGO Profile Binaries">
-				<Compile Target="$(TargetName)" Platform="$(Platform)" Configuration="$(PGOConfiguration)" Arguments="-skipdeploy -PGOProfile $(CompileArgs) $(PGOCompileArgs$(Platform))" Tag="#$(Platform) PGOProfile Compile Results"/>
+				<Compile Target="$(TargetName)" Platform="$(Platform)" Configuration="$(PGOConfiguration)" Arguments="-skipdeploy $(CompileArgs) $(PGOProfileCompileArgs$(Platform))" Tag="#$(Platform) PGOProfile Compile Results"/>
 
 				<Log Message="Copying binaries to local staging directory..."/> 
 				<Copy From="$(ProjectPath)/Binaries/$(Platform)/..." To="$(LocalStagingDir)/$(PGOBinaryStagingPath$(Platform))..."/>
@@ -72,7 +73,7 @@
 			<!-- run the basic replay PGO profile build to generate PGO profiling data -->
 			<Node Name="$(PreNodeName)Run PGO Profile $(Platform)" Requires="#$(Platform) PGO Profile Binaries">
 				<Expand Name="PGOPrepareBuildForProfiling$(Platform)" LocalStagingDir="$(LocalStagingDir)" Configuration="$(Configuration)"/>
-				<Command Name="RunUnreal" Arguments="-test=BasicReplayPGONode -project='$(ProjectPath)/$(ProjectName).uproject' -platform=$(Platform) -configuration=$(PGOConfiguration) -build=$(LocalStagingDir) -LocalReplay='$(LocalReplay)' -ProfileOutputDirectory='$(PGOProfileOutput$(Platform))' -PgcFilenamePrefix=$(TargetName) -MaxDuration=$(PGOProfileTimeout) -AdditionalCommandLine='$(LaunchCommandLine) $(PGOProfileCommandLine$(Platform))'"/>
+				<Command Name="RunUnreal" Arguments="-test=BasicReplayPGONode -project='$(ProjectPath)/$(ProjectName).uproject' -platform=$(Platform) -configuration=$(PGOConfiguration) -build=$(LocalStagingDir) -LocalReplay='$(LocalReplay)' -ProfileOutputDirectory='$(PGOProfileOutput$(Platform))' -PgcFilenamePrefix=$(TargetName) -MaxDuration=$(PGOProfileTimeout) $(PGOProfileRunTestArgs$(Platform)) -AdditionalCommandLine='$(LaunchCommandLine) $(PGOProfileCommandLine$(Platform))'"/>
 			</Node>
 
 			<!-- submit the PGO profiling data -->

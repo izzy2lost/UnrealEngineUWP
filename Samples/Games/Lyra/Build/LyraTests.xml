@@ -272,7 +272,7 @@
 		<Agent Name="PGO Optimize Agent $(Platform)" Type="$(HostAgentType)">
 			<Node Name="$(ProjectName) PGO Optimize $(Platform)" Requires="$(PreNodeName)PGO Profile Replay $(Platform)">
 				<ForEach Name="Configuration" Values="$(TargetConfigurations)" Separator="+">
-					<Compile Target="$(TargetName)" Platform="$(Platform)" Configuration="$(Configuration)" Arguments="-PGOOptimize -BuildVersion=&quot;$(BuildVersion)&quot; $(GenericCompileArguments) $(ExtraTargetCompileArguments)" Tag="#PGO Optimized Binaries $(Platform)"/>
+					<Compile Target="$(TargetName)" Platform="$(Platform)" Configuration="$(Configuration)" Arguments="$(PGOOptimizeCompileArgs$(Platform)) -BuildVersion=&quot;$(BuildVersion)&quot; $(GenericCompileArguments) $(ExtraTargetCompileArguments)" Tag="#PGO Optimized Binaries $(Platform)"/>
 				</ForEach>
 			</Node>
 		</Agent>
