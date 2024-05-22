@@ -68,7 +68,7 @@ namespace AutomationTool.Tasks
 			HashSet<FileReference> Files = ResolveFilespec(Unreal.RootDirectory, Parameters.Files, TagNameToFileSet);
 			foreach (var JsonFile in Files.Select(f => f.FullName))
 			{
-				var OldContents = File.ReadAllText(JsonFile);
+				var OldContents = await File.ReadAllTextAsync(JsonFile);
 				var ParamObj = fastJSON.JSON.Instance.Parse(OldContents) as IDictionary<string, object>;
 				var CurrObj = ParamObj;
 				for (int i = 0; i < Keys.Length - 1; i++)

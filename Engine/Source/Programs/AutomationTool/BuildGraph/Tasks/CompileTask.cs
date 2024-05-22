@@ -59,7 +59,7 @@ namespace AutomationTool.Tasks
 		/// No longer necessary as UnrealBuildTool is run to compile targets.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		[Obsolete]
+		[Obsolete("This setting is no longer used")]
 		public bool AllowParallelExecutor { get; set; } = true;
 
 		/// <summary>

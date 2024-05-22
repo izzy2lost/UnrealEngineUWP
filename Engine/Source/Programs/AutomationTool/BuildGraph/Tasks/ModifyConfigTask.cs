@@ -90,7 +90,7 @@ namespace AutomationTool.Tasks
 			}
 
 			ConfigFileSection Section = ConfigFile.FindOrAddSection(Parameters.Section);
-			Section.Lines.RemoveAll(x => String.Compare(x.Key, Parameters.Key, StringComparison.OrdinalIgnoreCase) == 0);
+			Section.Lines.RemoveAll(x => String.Equals(x.Key, Parameters.Key, StringComparison.OrdinalIgnoreCase));
 			Section.Lines.Add(new ConfigLine(ConfigLineAction.Set, Parameters.Key, Parameters.Value));
 
 			FileReference.MakeWriteable(ConfigFileLocation);

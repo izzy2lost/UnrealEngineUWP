@@ -117,7 +117,9 @@ namespace AutomationTool
 				if (method.ReturnType.IsGenericType && method.ReturnType.GetGenericTypeDefinition() == typeof(Task<>))
 				{
 					Type TaskType = Task.GetType();
+#pragma warning disable CA1849 // Task.Result synchronously blocks
 					PropertyInfo Property = TaskType.GetProperty(nameof(Task<int>.Result))!;
+#pragma warning restore CA1849
 					Result = Property!.GetValue(Task);
 				}
 
@@ -320,7 +322,7 @@ namespace AutomationTool
 			}
 			else if (ValueType == typeof(Boolean))
 			{
-				return BgCondition.EvaluateAsync(ValueText).Result;
+				return BgCondition.EvaluateAsync(ValueText).AsTask().Result;
 			}
 			else if (ValueType == typeof(FileReference))
 			{

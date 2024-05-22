@@ -190,7 +190,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are produced by this task</returns>
 		public override IEnumerable<string> FindProducedTagNames()
 		{
-			return new string[] { };
+			return Enumerable.Empty<string>();
 		}
 	}
 }

@@ -379,7 +379,7 @@ namespace AutomationTool
 		{
 			try
 			{
-				return haystack.IndexOf(needle, StringComparison.CurrentCultureIgnoreCase) >= 0;
+				return haystack.Contains(needle, StringComparison.CurrentCultureIgnoreCase);
 			}
 			catch
 			{

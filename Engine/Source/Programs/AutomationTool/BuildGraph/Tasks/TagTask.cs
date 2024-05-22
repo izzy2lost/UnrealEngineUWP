@@ -83,7 +83,7 @@ namespace AutomationTool.Tasks
 		/// <param name="Job">Information about the current job</param>
 		/// <param name="BuildProducts">Set of build products produced by this node.</param>
 		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
 		{
 			// Get the base directory
 			DirectoryReference BaseDir = Parameters.BaseDir ?? Unreal.RootDirectory;
@@ -109,7 +109,7 @@ namespace AutomationTool.Tasks
 						throw new AutomationException("Specified file list '{0}' does not exist", FileList);
 					}
 
-					string[] Lines = FileReference.ReadAllLines(FileList);
+					string[] Lines = await FileReference.ReadAllLinesAsync(FileList);
 					foreach(string Line in Lines)
 					{
 						string TrimLine = Line.Trim();
@@ -134,7 +134,6 @@ namespace AutomationTool.Tasks
 			{
 				FindOrAddTagSet(TagNameToFileSet, TagName).UnionWith(Files);
 			}
-			return Task.CompletedTask;
 		}
 
 		/// <summary>
@@ -169,7 +168,7 @@ namespace AutomationTool.Tasks
 					{
 						Rules.Add(Pattern);
 					}
-					else if(!Pattern.Contains("/", StringComparison.Ordinal))
+					else if(!Pattern.Contains('/', StringComparison.Ordinal))
 					{
 						Rules.Add(".../" + Pattern);
 					}

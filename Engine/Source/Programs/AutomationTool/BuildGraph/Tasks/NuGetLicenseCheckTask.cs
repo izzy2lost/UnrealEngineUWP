@@ -258,7 +258,7 @@ namespace AutomationTool.Tasks
 
 				using (Stream Stream = FileReference.Open(Info.Descriptor, FileMode.Open, FileAccess.Read, FileShare.Read))
 				{
-					XmlTextReader XmlReader = new XmlTextReader(Stream);
+					using XmlTextReader XmlReader = new XmlTextReader(Stream);
 					XmlReader.Namespaces = false;
 
 					XmlDocument XmlDocument = new XmlDocument();

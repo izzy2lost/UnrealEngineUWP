@@ -35,7 +35,7 @@ namespace AutomationTool.Tasks
 			Parameters = InParameters;
 		}
 
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
 		{
 			List<FileReference> CleanupFiles = new List<FileReference>();
 
@@ -43,7 +43,7 @@ namespace AutomationTool.Tasks
 
 			try
 			{
-				var FileBuildProducts = File.ReadAllLines(Parameters.BuildProductsFile);
+				var FileBuildProducts = await File.ReadAllLinesAsync(Parameters.BuildProductsFile);
 				foreach(var BuildProduct in FileBuildProducts)
 				{
 					Logger.LogInformation("Adding file to build products: {BuildProduct}", BuildProduct);
@@ -54,8 +54,6 @@ namespace AutomationTool.Tasks
 			{
 				Logger.LogInformation("Failed to gather build products: {Arg0}", Ex.Message);
 			}
-
-			return Task.CompletedTask;
 		}
 		
 		public override void Write(XmlWriter Writer)

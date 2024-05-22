@@ -68,7 +68,7 @@ namespace AutomationTool.Tasks
 		/// <param name="Job">Information about the current job</param>
 		/// <param name="BuildProducts">Set of build products produced by this node.</param>
 		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
 		{
 			// Print the message
 			if(!String.IsNullOrEmpty(Parameters.Message))
@@ -85,15 +85,14 @@ namespace AutomationTool.Tasks
 					Logger.LogInformation("  {Arg0}", File.FullName);
 					if(Parameters.IncludeContents)
 					{
-						foreach(string Line in System.IO.File.ReadAllLines(File.FullName))
+						string[] lines = await System.IO.File.ReadAllLinesAsync(File.FullName);
+						foreach (string Line in lines)
 						{
 							Logger.LogInformation("    {Line}", Line);
 						}
 					}
 				}
 			}
-
-			return Task.CompletedTask;
 		}
 
 		/// <summary>

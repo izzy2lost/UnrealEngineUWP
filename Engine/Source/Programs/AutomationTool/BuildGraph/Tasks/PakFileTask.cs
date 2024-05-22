@@ -104,7 +104,7 @@ namespace AutomationTool.Tasks
 		/// <param name="Job">Information about the current job</param>
 		/// <param name="BuildProducts">Set of build products produced by this node.</param>
 		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
 		{
 			// Find the directories we're going to rebase relative to
 			HashSet<DirectoryReference> RebaseDirs = new HashSet<DirectoryReference>{ Unreal.RootDirectory };
@@ -138,7 +138,9 @@ namespace AutomationTool.Tasks
 						{
 							throw new AutomationException("Couldn't find relative path for '{0}' - not under any rebase directories", File.FullName);
 						}
-						Writer.WriteLine("\"{0}\" \"{1}\"{2}", File.FullName, RelativePath, Parameters.Compress ? " -compress" : "");
+
+						string compressArg = Parameters.Compress ? " -compress" : "";
+						await Writer.WriteLineAsync($"\"{File.FullName}\" \"{RelativePath}\"{compressArg}");
 					}
 				}
 			}
@@ -184,8 +186,6 @@ namespace AutomationTool.Tasks
 			{
 				FindOrAddTagSet(TagNameToFileSet, TagName).Add(OutputFile);
 			}
-
-			return Task.CompletedTask;
 		}
 
 		/// <summary>

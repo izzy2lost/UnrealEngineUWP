@@ -258,7 +258,10 @@ namespace AutomationTool
 			allArgs[0] = location.File;
 			allArgs[1] = location.LineNumber;
 			args.CopyTo(allArgs, 2);
+
+#pragma warning disable CA2254 // Message templates should be constant
 			logger.LogError(KnownLogEvents.AutomationTool_BuildGraphScript, $"{{Script}}({{Line}}): error: {format}", allArgs);
+#pragma warning restore CA2254
 		}
 
 		/// <summary>
@@ -270,7 +273,10 @@ namespace AutomationTool
 			allArgs[0] = location.File;
 			allArgs[1] = location.LineNumber;
 			args.CopyTo(allArgs, 2);
+
+#pragma warning disable CA2254 // Message templates should be constant
 			logger.LogWarning(KnownLogEvents.AutomationTool_BuildGraphScript, $"{{Script}}({{Line}}): warning: {format}", allArgs);
+#pragma warning restore CA2254
 		}
 	}
 
@@ -611,7 +617,7 @@ namespace AutomationTool
 		protected bool TryGetPropertyValue(string name, out string? value)
 		{
 			int valueLength = 0;
-			if (name.Contains(":", StringComparison.Ordinal))
+			if (name.Contains(':', StringComparison.Ordinal))
 			{
 				string[] tokens = name.Split(':');
 				name = tokens[0];
@@ -859,9 +865,9 @@ namespace AutomationTool
 
 					// make sure the number of property names is the same as the number of match groups
 					// this includes the entire string match group as [0], so don't count that one.
-					if (captureNames.Length != groupNumbers.Count() - 1)
+					if (captureNames.Length != groupNumbers.Length - 1)
 					{
-						LogError(element, "MatchGroup count: {Count} does not match the number of names specified: {NameCount}", groupNumbers.Count() - 1, captureNames.Length);
+						LogError(element, "MatchGroup count: {Count} does not match the number of names specified: {NameCount}", groupNumbers.Length - 1, captureNames.Length);
 					}
 					else
 					{
@@ -880,7 +886,7 @@ namespace AutomationTool
 						else
 						{
 							// assign each property to the group it matches, skip over [0]
-							for (int matchIdx = 1; matchIdx < groupNumbers.Count(); matchIdx++)
+							for (int matchIdx = 1; matchIdx < groupNumbers.Length; matchIdx++)
 							{
 								SetPropertyValue(element, captureNames[matchIdx - 1], match.Groups[matchIdx].Value);
 							}
@@ -904,7 +910,7 @@ namespace AutomationTool
 
 				string operationResult = string.Empty;
 
-				string[] arguments = { };
+				string[] arguments = Array.Empty<string>();
 
 				const string ArgumentsName = "Arguments";
 
@@ -1672,7 +1678,7 @@ namespace AutomationTool
 				BgTask info = new BgTask(element.Location, element.Name);
 				foreach (XmlAttribute? attribute in element.Attributes)
 				{
-					if (String.Compare(attribute!.Name, "If", StringComparison.OrdinalIgnoreCase) != 0)
+					if (!String.Equals(attribute!.Name, "If", StringComparison.OrdinalIgnoreCase))
 					{
 						string expandedValue = ExpandProperties(element, attribute.Value);
 						info.Arguments.Add(attribute.Name, expandedValue);
@@ -1977,7 +1983,7 @@ namespace AutomationTool
 					LogError(element, "Consecutive spaces in object name '{Name}'", name);
 					return false;
 				}
-				if (Char.IsControl(name[idx]) || BgScriptSchema.IllegalNameCharacters.IndexOf(name[idx], StringComparison.Ordinal) != -1)
+				if (Char.IsControl(name[idx]) || BgScriptSchema.IllegalNameCharacters.Contains(name[idx], StringComparison.Ordinal))
 				{
 					LogError(element, "Invalid character in object name '{Name}': '{Character}'", name, name[idx]);
 					return false;

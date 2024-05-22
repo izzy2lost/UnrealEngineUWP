@@ -263,7 +263,7 @@ namespace AutomationTool
 		/// <returns>True if we should compare the file's timestamp, false otherwise</returns>
 		bool RequireMatchingTimestamps()
 		{
-			return RelativePath.IndexOf("/Binaries/DotNET/", StringComparison.InvariantCultureIgnoreCase) == -1 && RelativePath.IndexOf("/Binaries/Mac/", StringComparison.InvariantCultureIgnoreCase) == -1;
+			return !RelativePath.Contains("/Binaries/DotNET/", StringComparison.OrdinalIgnoreCase) && !RelativePath.Contains("/Binaries/Mac/", StringComparison.OrdinalIgnoreCase);
 		}
 
 		/// <summary>
@@ -757,6 +757,7 @@ namespace AutomationTool
 		/// <returns>The set of files</returns>
 		public TempStorageTagManifest? ReadFileList(string NodeName, string TagName)
 		{
+#pragma warning disable CA1508 // False positive; FileList is always null
 			TempStorageTagManifest? FileList = null;
 
 			// Try to read the tag set from the local directory
@@ -805,6 +806,7 @@ namespace AutomationTool
 				FileList?.Save(LocalFileListLocation);
 			}
 			return FileList;
+#pragma warning restore CA1508
 		}
 
 		/// <summary>
@@ -1702,7 +1704,7 @@ namespace AutomationTool
 			{
 				try
 				{
-					if (StreamDirectory.EnumerateDirectories().Count() == 0 && StreamDirectory.EnumerateFiles().Count() == 0)
+					if (!StreamDirectory.EnumerateDirectories().Any() && !StreamDirectory.EnumerateFiles().Any())
 					{
 						try
 						{

@@ -295,7 +295,7 @@ namespace AutomationTool
 			}
 
 			// Create all the task types
-			Dictionary<string, XmlSchemaComplexType>? taskNameToType = new Dictionary<string, XmlSchemaComplexType>();
+			Dictionary<string, XmlSchemaComplexType> taskNameToType = new Dictionary<string, XmlSchemaComplexType>();
 			foreach (BgScriptTask task in tasks)
 			{
 				XmlSchemaComplexType taskType = new XmlSchemaComplexType();
@@ -354,12 +354,10 @@ namespace AutomationTool
 			newSchema.Items.Add(CreateSimpleTypeFromRegex(GetTypeName(ScriptSchemaStandardType.BalancedString), BalancedStringPattern));
 			newSchema.Items.Add(CreateSimpleTypeFromRegex(GetTypeName(ScriptSchemaStandardType.Boolean), "(true|True|false|False|" + StringWithPropertiesPattern + ")"));
 			newSchema.Items.Add(CreateSimpleTypeFromRegex(GetTypeName(ScriptSchemaStandardType.Integer), "(" + "(-?[1-9][0-9]*|0)" + "|" + StringWithPropertiesPattern + ")"));
-			if (taskNameToType != null)
+
+			foreach (XmlSchemaComplexType type in taskNameToType.Values)
 			{
-				foreach (XmlSchemaComplexType type in taskNameToType.Values)
-				{
-					newSchema.Items.Add(type);
-				}
+				newSchema.Items.Add(type);
 			}
 			foreach (XmlSchemaSimpleType type in userTypes)
 			{

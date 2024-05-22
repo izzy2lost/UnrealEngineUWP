@@ -80,7 +80,7 @@ namespace AutomationTool.Tasks
 		/// <param name="Job">Information about the current job</param>
 		/// <param name="BuildProducts">Set of build products produced by this node.</param>
 		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
-		public override Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
+		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
 		{
 			// Ensure running on a mac.
 			if(BuildHostPlatform.Current.Platform != UnrealTargetPlatform.Mac)
@@ -124,7 +124,7 @@ namespace AutomationTool.Tasks
 				else if (NumRetries < MaxNumRetries)
 				{
 					Logger.LogInformation("notarytool failed with exit {ExitCode} attempting retry {NumRetries} of {MaxNumRetries}", ExitCode, NumRetries, MaxNumRetries);
-					Thread.Sleep(2000);
+					await Task.Delay(2000);
 					TimeoutInMilliseconds = MaxTimeoutInMilliseconds - TimeoutStopwatch.ElapsedMilliseconds;
 					continue;
 				}
@@ -182,8 +182,6 @@ namespace AutomationTool.Tasks
 					throw new AutomationException(Ex, "Querying for the notarization result failed, output: {0}", Output);
 				}
 			}
-
-			return Task.CompletedTask;
 		}
 
 		private string GetRequestLogs(string RequestUUID)

@@ -66,12 +66,12 @@ namespace AutomationTool
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="InName">Name of the XML element used to denote this object</param>
-		/// <param name="InParametersType">Type to be constructed from this object</param>
-		public TaskElementAttribute(string InName, Type InParametersType)
+		/// <param name="name">Name of the XML element used to denote this object</param>
+		/// <param name="parametersType">Type to be constructed from this object</param>
+		public TaskElementAttribute(string name, Type parametersType)
 		{
-			Name = InName;
-			ParametersType = InParametersType;
+			Name = name;
+			ParametersType = parametersType;
 		}
 	}
 

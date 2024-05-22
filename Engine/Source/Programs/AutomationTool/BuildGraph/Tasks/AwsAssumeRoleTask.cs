@@ -131,7 +131,7 @@ namespace AutomationTool.Tasks
 
 			FileReference OutputFile = ResolveFile(Parameters.OutputFile);
 			DirectoryReference.CreateDirectory(OutputFile.Directory);
-			FileReference.WriteAllLines(OutputFile, Environment.OrderBy(x => x.Key).Select(x => $"{x.Key}={x.Value}"));
+			await FileReference.WriteAllLinesAsync(OutputFile, Environment.OrderBy(x => x.Key).Select(x => $"{x.Key}={x.Value}"));
 		}
 
 		/// <summary>

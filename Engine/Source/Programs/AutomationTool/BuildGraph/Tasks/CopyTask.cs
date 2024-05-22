@@ -154,7 +154,7 @@ namespace AutomationTool.Tasks
 		/// <param name="TargetFileToSourceFile"></param>
 		/// <param name="Overwrite"></param>
 		/// <returns></returns>
-		public static Task ExecuteAsync(Dictionary<FileReference, FileReference> TargetFileToSourceFile, bool Overwrite)
+		public static async Task ExecuteAsync(Dictionary<FileReference, FileReference> TargetFileToSourceFile, bool Overwrite)
 		{
 			//  If we're not overwriting, remove any files where the destination file already exists.
 			if (!Overwrite)
@@ -172,7 +172,7 @@ namespace AutomationTool.Tasks
 				if(FilteredTargetToSourceFile.Count == 0)
 				{
 					Logger.LogWarning("All files already exist, exiting early.");
-					return Task.CompletedTask;
+					return;
 				}
 				TargetFileToSourceFile = FilteredTargetToSourceFile;
 			}
@@ -199,10 +199,12 @@ namespace AutomationTool.Tasks
 					}
 					catch(Exception Ex)
 					{
+#pragma warning disable CA1508 // False positive about NumRetries alwayws being zero
 						if(NumRetries == 0)
 						{
 							Logger.LogInformation("Unable to create directory '{FirstTargetDirectory}' on first attempt. Retrying {MaxNumRetries} times...", FirstTargetDirectory, MaxNumRetries);
 						}
+#pragma warning restore CA1508
 
 						Logger.LogDebug("  {Ex}", Ex);
 
@@ -211,7 +213,7 @@ namespace AutomationTool.Tasks
 							throw new AutomationException(Ex, "Unable to create target directory '{0}' after {1} retries.", FirstTargetDirectory, NumRetries);
 						}
 
-						Thread.Sleep(2000);
+						await Task.Delay(2000);
 					}
 				}
 			}
@@ -223,7 +225,6 @@ namespace AutomationTool.Tasks
 				Logger.LogDebug("  {Arg0} -> {Arg1}", FilePair.Value, FilePair.Key);
 			}
 			CommandUtils.ThreadedCopyFiles(FilePairs.Select(x => x.Value.FullName).ToList(), FilePairs.Select(x => x.Key.FullName).ToList(), bQuiet: true, bRetry: true);
-			return Task.CompletedTask;
 		}
 
 		/// <summary>

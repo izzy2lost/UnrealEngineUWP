@@ -160,7 +160,7 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Metadata about a snapshot
 		/// </summary>
-		public class SnapshotDescriptor
+		class SnapshotDescriptor
 		{
 			/// <summary>
 			/// Name of the snapshot
@@ -210,13 +210,14 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// A collection of one or more snapshot descriptors
 		/// </summary>
-		public class SnapshotDescriptorCollection
+		class SnapshotDescriptorCollection
 		{
 			/// <summary>
 			/// The list of snapshots contained within this collection.
 			/// </summary>
 			public List<SnapshotDescriptor> Snapshots { get; set; }
 		}
+		
 		private class ExportSourceData
 		{
 			public bool IsLocalHost;
@@ -414,7 +415,7 @@ namespace AutomationTool.Tasks
 				{
 					return true;
 				}
-				Logger.LogWarning("Attempt {0} of exporting the oplog failed, {1}...", Attempt+1, Attempt < (AttemptLimit-1) ? "retrying" : "abandoning");
+				Logger.LogWarning("Attempt {AttemptNum} of exporting the oplog failed, {Action}...", Attempt+1, Attempt < (AttemptLimit-1) ? "retrying" : "abandoning");
 
 				Attempt = Attempt + 1;
 			}
@@ -566,7 +567,7 @@ namespace AutomationTool.Tasks
 							}
 							else
 							{
-								Logger.LogWarning("Base snapshot descriptor was for a snapshot storage type {0}, but we're producing a snapshot of type cloud.  Skipping use of base snapshot.", ExportSource.SnapshotBaseDescriptor.Type);
+								Logger.LogWarning("Base snapshot descriptor was for a snapshot storage type {Type}, but we're producing a snapshot of type cloud.  Skipping use of base snapshot.", ExportSource.SnapshotBaseDescriptor.Type);
 							}
 						}
 
@@ -666,7 +667,7 @@ namespace AutomationTool.Tasks
 							}
 							else
 							{
-								Logger.LogWarning("Base snapshot descriptor was for a snapshot storage type {0}, but we're producing a snapshot of type file.  Skipping use of base snapshot.", ExportSource.SnapshotBaseDescriptor.Type);
+								Logger.LogWarning("Base snapshot descriptor was for a snapshot storage type {Type}, but we're producing a snapshot of type file.  Skipping use of base snapshot.", ExportSource.SnapshotBaseDescriptor.Type);
 							}
 						}
 						ExportSingleSourceCommandline.AppendFormat(" --file {0} --name {1} {2} {3} {4}", CommandUtils.MakePathSafeToUseWithCommandLine(PlatformDestinationFileDir.FullName), DestinationFileName, BaseNameArg, ProjectId, ExportSource.OplogId);

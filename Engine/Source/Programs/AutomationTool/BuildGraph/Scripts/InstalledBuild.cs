@@ -27,29 +27,25 @@ namespace AutomationTool
 		static DirectoryReference TempCsToolsDir => DirectoryReference.Combine(IntermediateDir, "CsTools");
 		static DirectoryReference TempDdcDir = DirectoryReference.Combine(IntermediateDir, "DDC");
 
-		static string[] PluginsExceptions =
-		{
-			"Engine/Plugins/Enterprise/DatasmithCADImporter/...",
-			"Engine/Plugins/Enterprise/DatasmithC4DImporter/...",
-			"Engine/Plugins/Enterprise/AxFImporter/...",
-			"Engine/Plugins/Enterprise/MDLImporter/..."
-		};
+//		static string[] PluginsExceptions =
+//		{
+//			"Engine/Plugins/Enterprise/DatasmithCADImporter/...",
+//			"Engine/Plugins/Enterprise/DatasmithC4DImporter/...",
+//			"Engine/Plugins/Enterprise/AxFImporter/...",
+//			"Engine/Plugins/Enterprise/MDLImporter/..."
+//		};
 
-		static string[] WinSignFilter =
-		{
-			"*.exe",
-			"*.dll"
-		};
+//		static string[] WinSignFilter =
+//		{
+//			"*.exe",
+//			"*.dll"
+//		};
 
 		static string[] WinStripFilter =
 		{
 			"*.pdb",
 			"-/Engine/Binaries/Win64/UnrealEditor*.pdb",
 			"-/Engine/Plugins/.../Binaries/Win64/UnrealEditor*.pdb",
-		};
-
-		static string[] ProjectsToBuildDdc =
-		{
 		};
 
 		static List<string> GetDdcProjects(UnrealTargetPlatform Platform)
@@ -425,7 +421,7 @@ namespace AutomationTool
 			FileSet DependencyListFiles = SourceFiles.Filter(".../DependencyList.txt;.../DependencyList-AllModules.txt");
 			foreach (FileReference DependencyListFile in DependencyListFiles)
 			{
-				string[] Lines = FileReference.ReadAllLines(DependencyListFile);
+				string[] Lines = await FileReference.ReadAllLinesAsync(DependencyListFile);
 				foreach (string Line in Lines)
 				{
 					string TrimLine = Line.Trim();
