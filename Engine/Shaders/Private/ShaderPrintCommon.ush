@@ -1449,3 +1449,9 @@ uint2 GetShaderPrintCurrentPixelCoord()
 {
 	return ShaderPrintCurrentPixelCoord;
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// Helper functions
+
+// Print a value onto a single line
+#define PrintLine(Ctx, Value) Print(Ctx, TEXT(#Value), FontWhite); Print(Ctx, TEXT(" : "), FontWhite); Print(Ctx, Value, FontYellow); Newline(Ctx);
