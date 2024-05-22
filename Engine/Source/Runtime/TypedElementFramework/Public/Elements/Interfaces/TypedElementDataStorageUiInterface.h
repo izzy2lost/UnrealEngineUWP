@@ -257,6 +257,11 @@ public:
 
 	/** Calls the provided callback for all known registered widget purposes. */
 	virtual void ListWidgetPurposes(const WidgetPurposeCallback& Callback) const = 0;
+
+	/** Check if a custom extension is supported. This can be used to check for in-development features, custom extensions, etc. */
+	virtual bool SupportsExtension(FName Extension) const = 0;
+	/** Provides a list of all extensions that are enabled. */
+	virtual void ListExtensions(TFunctionRef<void(FName)> Callback) const = 0;
 };
 
 

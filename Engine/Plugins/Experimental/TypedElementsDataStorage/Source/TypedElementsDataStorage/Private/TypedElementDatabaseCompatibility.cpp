@@ -15,15 +15,48 @@
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
 #include "Elements/Framework/TypedElementIndexHasher.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
+#include "HAL/IConsoleManager.h"
 #include "Memento/TypedElementMementoRowTypes.h"
 #include "TypedElementDatabase.h"
 #include "TypedElementDatabaseEnvironment.h"
 #include "TypedElementDataStorageProfilingMacros.h"
 
+namespace TypedElementDataStorage
+{
+	bool bIntegratedWithGC = false;
+	FAutoConsoleVariableRef CVarIntegratedWithGC(
+		TEXT("TEDS.Feature.IntegrateWithGC"),
+		bIntegratedWithGC,
+		TEXT("Enables TEDS Compatibility integration with the garbage collection. This automatically cleans up garbage collected objects from TEDS."));
+
+	bool bActorsClearedByGC = false;
+	FAutoConsoleVariableRef CVarActorsClearedByGC(
+		TEXT("TEDS.Feature.ActorsClearedByGC"),
+		bActorsClearedByGC,
+		TEXT("Enables actors being removed through the garbage collection instead of requiring explicit removal. Enables `TEDS.Feature.IntegrateWithGC`."));
+
+	bool bEntitiesClearedByGC = false;
+	FAutoConsoleVariableRef CVarEntitiesClearedByGC(
+		TEXT("TEDS.Feature.EntitiesClearedByGC"),
+		bEntitiesClearedByGC,
+		TEXT("Enables entities being removed through the garbage collection instead of requiring explicit removal. Enables `TEDS.Feature.IntegrateWithGC`."));
+}
+
+static const FName IntegratedWithGCExtensionName(TEXT("IntegratedWithGC"));
+static const FName ActorsClearedByGCExtensionName(TEXT("ActorsClearedByGCExtension"));
+static const FName EntitiesClearedByGCExtensionName(TEXT("EntitiesClearedByGCExtension"));
+
 void UTypedElementDatabaseCompatibility::Initialize(UTypedElementDatabase* InStorage)
 {
+	using namespace TypedElementDataStorage;
+
 	checkf(InStorage, TEXT("Typed Element's Database compatibility manager is being initialized with an invalid storage target."));
 	
+	if (bActorsClearedByGC || bEntitiesClearedByGC)
+	{
+		bIntegratedWithGC = true;
+	}
+
 	Storage = InStorage;
 	Environment = InStorage->GetEnvironment();
 	Prepare();
@@ -34,22 +67,38 @@ void UTypedElementDatabaseCompatibility::Initialize(UTypedElementDatabase* InSto
 	PostEditChangePropertyDelegateHandle = FCoreUObjectDelegates::OnObjectPropertyChanged.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPostEditChangeProperty);
 	ObjectModifiedDelegateHandle = FCoreUObjectDelegates::OnObjectModified.AddUObject(this, &UTypedElementDatabaseCompatibility::OnObjectModified);
 	ObjectReinstancedDelegateHandle = FCoreUObjectDelegates::OnObjectsReinstanced.AddUObject(this, &UTypedElementDatabaseCompatibility::OnObjectReinstanced);
-
-
-	PostWorldInitializationDelegateHandle = FWorldDelegates::OnPostWorldInitialization.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPostWorldInitialization);
-	PreWorldFinishDestroyDelegateHandle = FWorldDelegates::OnPreWorldFinishDestroy.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPreWorldFinishDestroy);
+	
+	if (bIntegratedWithGC)
+	{
+		PostGcUnreachableAnalysisHandle = FCoreUObjectDelegates::PostReachabilityAnalysis.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPostGcUnreachableAnalysis);
+	}
+	if (!bActorsClearedByGC)
+	{
+		// Used to get all the worlds and register the actor create/destroy handles on them.
+		PostWorldInitializationDelegateHandle = FWorldDelegates::OnPostWorldInitialization.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPostWorldInitialization);
+		PreWorldFinishDestroyDelegateHandle = FWorldDelegates::OnPreWorldFinishDestroy.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPreWorldFinishDestroy);
+	}
 }
 
 void UTypedElementDatabaseCompatibility::Deinitialize()
 {
-	for (TPair<UWorld*, FDelegateHandle>& It : ActorDestroyedDelegateHandles)
+	using namespace TypedElementDataStorage;
+
+	if (!bActorsClearedByGC)
 	{
-		It.Key->RemoveOnActorDestroyededHandler(It.Value);
+		for (TPair<UWorld*, FDelegateHandle>& It : ActorDestroyedDelegateHandles)
+		{
+			It.Key->RemoveOnActorDestroyededHandler(It.Value);
+		}
+
+		FWorldDelegates::OnPreWorldFinishDestroy.Remove(PreWorldFinishDestroyDelegateHandle);
+		FWorldDelegates::OnPostWorldInitialization.Remove(PostWorldInitializationDelegateHandle);
+	}
+	if (bIntegratedWithGC)
+	{
+		FCoreUObjectDelegates::PostReachabilityAnalysis.Remove(PostGcUnreachableAnalysisHandle);
 	}
 
-	FWorldDelegates::OnPreWorldFinishDestroy.Remove(PreWorldFinishDestroyDelegateHandle);
-	FWorldDelegates::OnPostWorldInitialization.Remove(PostWorldInitializationDelegateHandle);
-	
 	FCoreUObjectDelegates::OnObjectsReinstanced.Remove(ObjectReinstancedDelegateHandle);
 	FCoreUObjectDelegates::OnObjectModified.Remove(ObjectModifiedDelegateHandle);
 	FCoreUObjectDelegates::OnObjectPropertyChanged.Remove(PostEditChangePropertyDelegateHandle);
@@ -175,6 +224,46 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::FindRowWithCompatibleO
 	return (Object && Storage && Storage->IsAvailable()) ? Storage->FindIndexedRow(GenerateIndexHash(Object)) : InvalidRowHandle;
 }
 
+bool UTypedElementDatabaseCompatibility::SupportsExtension(FName Extension) const
+{
+	using namespace TypedElementDataStorage;
+
+	if (Extension == IntegratedWithGCExtensionName)
+	{
+		return bIntegratedWithGC;
+	}
+	else if (Extension == ActorsClearedByGCExtensionName)
+	{
+		return bActorsClearedByGC;
+	}
+	else if (Extension == EntitiesClearedByGCExtensionName)
+	{
+		return bEntitiesClearedByGC;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+void UTypedElementDatabaseCompatibility::ListExtensions(TFunctionRef<void(FName)> Callback) const
+{
+	using namespace TypedElementDataStorage;
+
+	if (bIntegratedWithGC)
+	{
+		Callback(IntegratedWithGCExtensionName);
+	}
+	if (bActorsClearedByGC)
+	{
+		Callback(ActorsClearedByGCExtensionName);
+	}
+	if (bEntitiesClearedByGC)
+	{
+		Callback(EntitiesClearedByGCExtensionName);
+	}
+}
+
 void UTypedElementDatabaseCompatibility::Prepare()
 {
 	CreateStandardArchetypes();
@@ -188,7 +277,7 @@ void UTypedElementDatabaseCompatibility::Reset()
 void UTypedElementDatabaseCompatibility::CreateStandardArchetypes()
 {
 	StandardActorTable = Storage->RegisterTable(TTypedElementColumnTypeList<
-			FTypedElementUObjectColumn, FTypedElementClassTypeInfoColumn,
+			FTypedElementUObjectColumn, FTypedElementUObjectIdColumn, FTypedElementClassTypeInfoColumn,
 			FTypedElementLabelColumn, FTypedElementLabelHashColumn, FTypedElementActorTag,
 			FTypedElementSyncFromWorldTag>(), 
 		FName("Editor_StandardActorTable"));
@@ -198,7 +287,7 @@ void UTypedElementDatabaseCompatibility::CreateStandardArchetypes()
 		FName("Editor_StandardActorWithTransformTable"));
 
 	StandardUObjectTable = Storage->RegisterTable(TTypedElementColumnTypeList<
-			FTypedElementUObjectColumn, FTypedElementClassTypeInfoColumn,
+			FTypedElementUObjectColumn, FTypedElementUObjectIdColumn, FTypedElementClassTypeInfoColumn,
 			FTypedElementSyncFromWorldTag>(), 
 		FName("Editor_StandardUObjectTable"));
 
@@ -224,6 +313,14 @@ void UTypedElementDatabaseCompatibility::RegisterTypeInformationQueries()
 		Select()
 			.ReadWrite<FTypedElementScriptStructTypeInfoColumn>()
 		.Compile());
+
+	if (TypedElementDataStorage::bIntegratedWithGC)
+	{
+		UObjectQuery = Storage->RegisterQuery(
+			Select()
+				.ReadWrite<FTypedElementUObjectIdColumn>()
+			.Compile());
+	}
 }
 
 bool UTypedElementDatabaseCompatibility::ShouldAddObject(const UObject* Object) const
@@ -275,7 +372,7 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExp
 
 		if constexpr (bEnableTransactions)
 		{
-			if (GUndo)
+			if (IsInGameThread() && GUndo)
 			{
 				GUndo->StoreUndo(this, MakeUnique<FRegistrationCommandChange>(this, Object));
 			}
@@ -286,33 +383,46 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExp
 }
 
 template<bool bEnableTransactions>
-void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicitTransactionable(UObject* Object)
+void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicitTransactionable(const UObject* Object)
+{
+	using namespace TypedElementDataStorage;
+
+	checkf(Storage,
+		TEXT("Removing compatible objects is not supported before Typed Element's Database compatibility manager has been initialized."));
+	IndexHash Hash = GenerateIndexHash(Object);
+	RowHandle Row = Storage->FindIndexedRow(Hash);
+
+	if (Storage->IsRowAvailable(Row))
+	{
+		RemoveCompatibleObjectExplicitTransactionable<bEnableTransactions>(Object, Row);
+	}
+}
+
+template<bool bEnableTransactions>
+void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicitTransactionable(
+	const UObject* Object, TypedElementDataStorage::RowHandle ObjectRow)
 {
 	using namespace TypedElementDataStorage;
 
 	checkf(Storage, 
 		TEXT("Removing compatible objects is not supported before Typed Element's Database compatibility manager has been initialized."));
-	IndexHash Hash = GenerateIndexHash(Object);
-	RowHandle Row = Storage->FindIndexedRow(Hash);
-	if (Storage->IsRowAvailable(Row))
+	
+	const FTypedElementClassTypeInfoColumn* TypeInfoColumn = Storage->GetColumn<FTypedElementClassTypeInfoColumn>(ObjectRow);
+	if (Storage->HasRowBeenAssigned(ObjectRow) &&
+		ensureMsgf(TypeInfoColumn, TEXT("Missing type information for removed UObject at ptr 0x%p [%s]"), Object, *Object->GetName()))
 	{
-		const FTypedElementClassTypeInfoColumn* TypeInfoColumn = Storage->GetColumn<FTypedElementClassTypeInfoColumn>(Row);
-		if (Storage->HasRowBeenAssigned(Row) && 
-			ensureMsgf(TypeInfoColumn, TEXT("Missing type information for removed UObject at ptr 0x%p [%s]"), Object, *Object->GetName()))
-		{
-			OnPreObjectRemoved(Object, TypeInfoColumn->TypeInfo.Get(), Row);
+		OnPreObjectRemoved(Object, TypeInfoColumn->TypeInfo.Get(), ObjectRow);
 
-			if constexpr (bEnableTransactions)
+		if constexpr (bEnableTransactions)
+		{
+			if (IsInGameThread() && GUndo)
 			{
-				if (GUndo)
-				{
-					GUndo->StoreUndo(this, MakeUnique<FDeregistrationCommandChange>(this, Object));
-				}
+				GUndo->StoreUndo(this, MakeUnique<FDeregistrationCommandChange>(this, const_cast<UObject*>(Object)));
 			}
 		}
-
-		Storage->RemoveRow(Row);
 	}
+
+	Storage->RemoveRow(ObjectRow);
 }
 
 TypedElementRowHandle UTypedElementDatabaseCompatibility::DealiasObject(const UObject* Object) const
@@ -604,6 +714,11 @@ void UTypedElementDatabaseCompatibility::TickPendingUObjectRegistration()
 			{
 				ITypedElementDataStorageInterface* Interface = Storage;
 				Interface->AddColumn(Row, FTypedElementUObjectColumn{ .Object = Object });
+				Interface->AddColumn(Row, FTypedElementUObjectIdColumn
+					{ 
+						.Id = Object->GetUniqueID(), 
+						.SerialNumber = GUObjectArray.GetSerialNumber(Object->GetUniqueID())
+					});
 				Interface->AddColumn(Row, FTypedElementClassTypeInfoColumn{ .TypeInfo = Object->GetClass() });
 				// Make sure the new row is tagged for update.
 				Interface->AddColumn<FTypedElementSyncFromWorldTag>(Row);
@@ -726,6 +841,36 @@ void UTypedElementDatabaseCompatibility::OnPreObjectRemoved(const void* Object, 
 void UTypedElementDatabaseCompatibility::OnObjectReinstanced(const FCoreUObjectDelegates::FReplacementObjectMap& ReplacedObjects)
 {
 	PendingTypeInformationUpdate.AddTypeInformation(ReplacedObjects);
+}
+
+void UTypedElementDatabaseCompatibility::OnPostGcUnreachableAnalysis()
+{
+	using namespace TypedElementDataStorage;
+	using namespace TypedElementQueryBuilder;
+
+	TArray<TPair<FUObjectItem*, RowHandle>> DeletedObjects;
+
+	TEDS_EVENT_SCOPE(TEXT("Post GC clean up"))
+
+	Storage->RunQuery(UObjectQuery, CreateDirectQueryCallbackBinding(
+		[&DeletedObjects](RowHandle Row, const FTypedElementUObjectIdColumn& ObjectId)
+		{
+			FUObjectItem* Description = GUObjectArray.IndexToObject(ObjectId.Id);
+			if (ensureMsgf(Description && Description->SerialNumber == ObjectId.SerialNumber, 
+				TEXT("The UObject found in TEDS no longer exists. TEDS was likely not informed in an earlier GC pass.")))
+				// Unable to provide additional information such as the UObject's name as the UObject will not be valid.
+			{
+				if (Description->HasAnyFlags(EInternalObjectFlags::Garbage | EInternalObjectFlags::Unreachable))
+				{
+					DeletedObjects.Emplace(Description, Row);
+				}
+			}
+		}));
+
+	for (TPair<FUObjectItem*, RowHandle>& Object : DeletedObjects)
+	{
+		RemoveCompatibleObjectExplicitTransactionable<false>(Cast<UObject>(Object.Key->Object), Object.Value);
+	}
 }
 
 void UTypedElementDatabaseCompatibility::OnPostWorldInitialization(UWorld* World, const UWorld::InitializationValues InitializationValues)

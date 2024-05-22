@@ -1665,24 +1665,27 @@ void FLevelEditorViewportClient::DestroyDropPreviewElements()
 		return;
 	}
 
-	// TODO: This code to remove the object from TEDS should not be necessary, beause the element
+	// TODO: This code to remove the object from TEDS should not be necessary, because the element
 	// deletion code further below should include TEDS deregistration. However, the code path for
 	// deleting preview actors in UUnrealEdEngine::DeleteActors skips explicit handle deregistration,
 	// and although it does still happen in the immediately triggered garbage cleanup, that feels
 	// potentially brittle.
-	DropPreviewElements->ForEachElement<ITypedElementObjectInterface>([this](const TTypedElement<ITypedElementObjectInterface>& InElement)
+	static FName ActorsClearedByGCExtensionName(TEXT("ActorsClearedByGCExtension"));
+	UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance();
+	if (ITypedElementDataStorageCompatibilityInterface* TedsCompat = TypedElementRegistry->GetMutableDataStorageCompatibility();
+		TedsCompat && !TedsCompat->SupportsExtension(ActorsClearedByGCExtensionName))
 	{
-		UObject* PreviewObject = InElement.GetObject();
-		if (PreviewObject && PreviewObject != GetWorld()->GetDefaultBrush())
-		{
-			UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance();
-			if (ITypedElementDataStorageCompatibilityInterface* DataStorageCompatibilityInterface = TypedElementRegistry->GetMutableDataStorageCompatibility())
+		DropPreviewElements->ForEachElement<ITypedElementObjectInterface>(
+			[this, TedsCompat](const TTypedElement<ITypedElementObjectInterface>& InElement)
 			{
-				DataStorageCompatibilityInterface->RemoveCompatibleObject(PreviewObject);
-			}
-		}
-		return true; // true means continue
-	});
+				UObject* PreviewObject = InElement.GetObject();
+				if (PreviewObject && PreviewObject != GetWorld()->GetDefaultBrush())
+				{
+					TedsCompat->RemoveCompatibleObject(PreviewObject);
+				}
+				return true; // true means continue
+			});
+	}
 
 	// Used for special casing BSP backwards compatibility: the builder brush is used as a preview object, and
 	// we don't want to delete it.

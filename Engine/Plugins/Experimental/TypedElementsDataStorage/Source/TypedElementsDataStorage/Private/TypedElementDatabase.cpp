@@ -928,6 +928,15 @@ void* UTypedElementDatabase::GetExternalSystemAddress(UClass* Target)
 	return nullptr;
 }
 
+bool UTypedElementDatabase::SupportsExtension(FName Extension) const
+{
+	return false;
+}
+
+void UTypedElementDatabase::ListExtensions(TFunctionRef<void(FName)> Callback) const
+{
+}
+
 void UTypedElementDatabase::PreparePhase(EQueryTickPhase Phase, float DeltaTime)
 {
 	if (ActiveEditorEntityManager)

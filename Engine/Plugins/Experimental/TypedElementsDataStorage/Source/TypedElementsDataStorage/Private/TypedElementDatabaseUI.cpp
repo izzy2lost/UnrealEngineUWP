@@ -448,6 +448,15 @@ void UTypedElementDatabaseUi::ListWidgetPurposes(const WidgetPurposeCallback& Ca
 	}
 }
 
+bool UTypedElementDatabaseUi::SupportsExtension(FName Extension) const
+{
+	return false;
+}
+
+void UTypedElementDatabaseUi::ListExtensions(TFunctionRef<void(FName)> Callback) const
+{
+}
+
 void UTypedElementDatabaseUi::CreateStandardArchetypes()
 {
 	WidgetTable = Storage->RegisterTable(MakeArrayView(

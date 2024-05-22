@@ -136,6 +136,9 @@ public:
 	FTypedElementOnDataStorageUpdate& OnUpdateCompleted() override;
 	bool IsAvailable() const override;
 	void* GetExternalSystemAddress(UClass* Target) override;
+
+	bool SupportsExtension(FName Extension) const override;
+	void ListExtensions(TFunctionRef<void(FName)> Callback) const override;
 	
 	TSharedPtr<FTypedElementDatabaseEnvironment> GetEnvironment();
 	TSharedPtr<const FTypedElementDatabaseEnvironment> GetEnvironment() const;

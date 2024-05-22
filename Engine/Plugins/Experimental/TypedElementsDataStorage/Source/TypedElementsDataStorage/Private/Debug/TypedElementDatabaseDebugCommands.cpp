@@ -6,6 +6,8 @@
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
+#include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/OutputDevice.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
@@ -166,4 +168,41 @@ FAutoConsoleCommandWithOutputDevice PrintActorLabelsConsoleCommand(
 			Private::PrintObjectLabels<FTypedElementActorTag>(Output);
 			Output.Log(TEXT("End of Typed Elements Data Storage actors list."));
 		}));
+
+FAutoConsoleCommandWithOutputDevice ListExtensionsConsoleCommand(
+	TEXT("TEDS.Debug.ListExtensions"),
+	TEXT("Prints a list for all available extension names."),
+	FConsoleCommandWithOutputDeviceDelegate::CreateLambda([](FOutputDevice& Output)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.ListExtensions);
+
+			FString Message;
+			auto RecordExtensions = [&Message](FName Extension)
+			{
+				Message += TEXT("    ");
+				Extension.AppendString(Message);
+				Message += TEXT('\n');
+			};
+
+			UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+
+			if (const ITypedElementDataStorageInterface* DataStorage = Registry->GetDataStorage())
+			{
+				Message = TEXT("Data Storage Extensions: \n");
+				DataStorage->ListExtensions(RecordExtensions);
+			}
+			if (const ITypedElementDataStorageCompatibilityInterface* DataStorageCompat = Registry->GetDataStorageCompatibility())
+			{
+				Message += TEXT("Data Storage Compatibility Extensions: \n");
+				DataStorageCompat->ListExtensions(RecordExtensions);
+			}
+			if (const ITypedElementDataStorageUiInterface* DataStorageUi = Registry->GetDataStorageUi())
+			{
+				Message += TEXT("Data Storage UI Extensions: \n");
+				DataStorageUi->ListExtensions(RecordExtensions);
+			}
+
+			Output.Log(Message);
+		}
+	));
 

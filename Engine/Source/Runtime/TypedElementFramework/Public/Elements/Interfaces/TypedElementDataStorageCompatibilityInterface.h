@@ -99,6 +99,15 @@ public:
 	virtual TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const UObject* Object) const = 0;
 	/** Finds a previously stored FStruct. If not found an invalid row handle will be returned. */
 	virtual TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const void* Object) const = 0;
+
+	/**
+	 * @section Miscellaneous functions
+	 */
+
+	/** Check if a custom extension is supported. This can be used to check for in-development features, custom extensions, etc. */
+	virtual bool SupportsExtension(FName Extension) const = 0;
+	/** Provides a list of all extensions that are enabled. */
+	virtual void ListExtensions(TFunctionRef<void(FName)> Callback) const = 0;
 };
 
 template<typename Type> Type* GetRawPointer(const TWeakObjectPtr<Type> Object)	{ return Object.Get(); }

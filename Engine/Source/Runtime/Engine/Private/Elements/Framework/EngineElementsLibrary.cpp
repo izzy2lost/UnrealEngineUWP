@@ -389,9 +389,11 @@ void UEngineElementsLibrary::RegisterActorElement(const AActor* InActor)
 
 void UEngineElementsLibrary::UnregisterActorElement(const AActor* InActor)
 {
+	static FName ActorsClearedByGCExtensionName = TEXT("ActorsClearedByGCExtension");
+
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 	ITypedElementDataStorageCompatibilityInterface* Storage = Registry->GetMutableDataStorageCompatibility();
-	if (Storage)
+	if (Storage && !Storage->SupportsExtension(ActorsClearedByGCExtensionName))
 	{
 		Storage->RemoveCompatibleObject(const_cast<AActor*>(InActor));
 	}

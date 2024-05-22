@@ -289,7 +289,7 @@ public:
 	virtual void RemoveIndex(TypedElementDataStorage::IndexHash Index) = 0;
 
 	/**
-	 * @section Misc
+	 * @section Miscellaneous
 	 */
 	
 	/**
@@ -311,10 +311,14 @@ public:
 
 	/** Returns a pointer to the registered external system if found, otherwise null. */
 	virtual void* GetExternalSystemAddress(UClass* Target) = 0;
-
 	/** Returns a pointer to the registered external system if found, otherwise null. */
 	template<typename SystemType>
 	SystemType* GetExternalSystem();
+
+	/** Check if a custom extension is supported. This can be used to check for in-development features, custom extensions, etc. */
+	virtual bool SupportsExtension(FName Extension) const = 0;
+	/** Provides a list of all extensions that are enabled. */
+	virtual void ListExtensions(TFunctionRef<void(FName)> Callback) const = 0;
 };
 
 

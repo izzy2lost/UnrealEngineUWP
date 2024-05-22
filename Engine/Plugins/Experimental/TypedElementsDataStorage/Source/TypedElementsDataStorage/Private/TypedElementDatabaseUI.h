@@ -52,6 +52,9 @@ public:
 
 	void ListWidgetPurposes(const WidgetPurposeCallback& Callback) const override;
 
+	bool SupportsExtension(FName Extension) const override;
+	void ListExtensions(TFunctionRef<void(FName)> Callback) const override;
+
 private:
 	struct FWidgetFactory
 	{

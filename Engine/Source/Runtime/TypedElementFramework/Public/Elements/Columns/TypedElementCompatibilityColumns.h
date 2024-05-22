@@ -20,7 +20,24 @@ struct FTypedElementUObjectColumn final : public FTypedElementDataStorageColumn
 {
 	GENERATED_BODY()
 
+	// If the UObject is accessed during an OnRemove event that is triggered by the garbage collection, the UObject will
+	// already be marked as unreachable and regular functions to retrieve the UObject will return an nullptr. In these cases
+	// use the unreachable versions such as Get(/*bEvenIfPendingKill*/ true) or GetEvenIfUnreachable().
 	TWeakObjectPtr<UObject> Object;
+};
+
+/**
+ * Column containing information to uniquely identify the UObject, e.g. for use by the garbage collection.
+ */
+USTRUCT(meta = (DisplayName = "UObject ID"))
+struct FTypedElementUObjectIdColumn final : public FTypedElementDataStorageColumn
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	uint32 Id;
+	UPROPERTY()
+	int32 SerialNumber;
 };
 
 /**

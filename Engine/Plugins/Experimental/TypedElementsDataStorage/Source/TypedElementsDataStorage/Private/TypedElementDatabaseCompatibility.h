@@ -56,6 +56,9 @@ public:
 
 	TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const UObject* Object) const override;
 	TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const void* Object) const override;
+
+	bool SupportsExtension(FName Extension) const override;
+	void ListExtensions(TFunctionRef<void(FName)> Callback) const override;
 	
 private:
 
@@ -103,7 +106,9 @@ private:
 	template<bool bEnableTransactions>
 	TypedElementRowHandle AddCompatibleObjectExplicitTransactionable(UObject* Object);
 	template<bool bEnableTransactions>
-	void RemoveCompatibleObjectExplicitTransactionable(UObject* Object);
+	void RemoveCompatibleObjectExplicitTransactionable(const UObject* Object);
+	template<bool bEnableTransactions>
+	void RemoveCompatibleObjectExplicitTransactionable(const UObject* Object, TypedElementDataStorage::RowHandle ObjectRow);
 	TypedElementRowHandle DealiasObject(const UObject* Object) const;
 
 	void Tick();
@@ -117,6 +122,8 @@ private:
 	void OnObjectAdded(const void* Object, FTypedElementDatabaseCompatibilityObjectTypeInfo TypeInfo, TypedElementRowHandle Row) const;
 	void OnPreObjectRemoved(const void* Object, FTypedElementDatabaseCompatibilityObjectTypeInfo TypeInfo, TypedElementRowHandle Row) const;
 	void OnObjectReinstanced(const FCoreUObjectDelegates::FReplacementObjectMap& ReplacedObjects);
+
+	void OnPostGcUnreachableAnalysis();
 
 	void OnPostWorldInitialization(UWorld* World, const UWorld::InitializationValues InitializationValues);
 	void OnPreWorldFinishDestroy(UWorld* World);
@@ -177,6 +184,7 @@ private:
 			const TFunctionRef<void(TypedElementRowHandle, const AddressType&)>& SetupRowCallback);
 		void Reset();
 	};
+
 	PendingRegistration<TWeakObjectPtr<UObject>> UObjectsPendingRegistration;
 	PendingRegistration<ExternalObjectRegistration> ExternalObjectsPendingRegistration;
 	TArray<TypedElementDataStorage::RowHandle> RowScratchBuffer;
@@ -220,10 +228,12 @@ private:
 	FDelegateHandle PostWorldInitializationDelegateHandle;
 	FDelegateHandle PreWorldFinishDestroyDelegateHandle;
 	FDelegateHandle ObjectReinstancedDelegateHandle;
+	FDelegateHandle PostGcUnreachableAnalysisHandle;
 	
 	TSharedPtr<FTypedElementDatabaseEnvironment> Environment;
 	TypedElementDataStorage::QueryHandle ClassTypeInfoQuery;
 	TypedElementDataStorage::QueryHandle ScriptStructTypeInfoQuery;
+	TypedElementDataStorage::QueryHandle UObjectQuery;
 };
 
 SIZE_T GetTypeHash(const UTypedElementDatabaseCompatibility::FSyncTagInfo& Column);
