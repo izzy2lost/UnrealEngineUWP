@@ -2073,42 +2073,56 @@ URuntimeHashExternalStreamingObjectBase* UWorldPartition::FlushStreamingToExtern
 	return ExternalStreamingObject;
 }
 
-static void ExtractContentBundleContainerInstances(const FActorDescContainerInstanceCollection* InContainerInstanceCollection, TArray<const UActorDescContainerInstance*>& OutContentBundleContainerInstances, TArray<const UActorDescContainerInstance*>& OutNonContentBundleContainerInstances)
-{
-	InContainerInstanceCollection->ForEachActorDescContainerInstance([&OutContentBundleContainerInstances, &OutNonContentBundleContainerInstances](const UActorDescContainerInstance* InActorDescContainerInstance)
-	{
-		if (InActorDescContainerInstance->GetContentBundleGuid().IsValid())
-		{
-			OutContentBundleContainerInstances.Add(InActorDescContainerInstance);
-		}
-		else
-		{
-			OutNonContentBundleContainerInstances.Add(InActorDescContainerInstance);
-		}
-	});
-}
-
 void UWorldPartition::SetupHLODActors(const FSetupHLODActorsParams& Params)
 {
 	TArray<const UActorDescContainerInstance*> ContentBundleContainerInstances;
 	TArray<const UActorDescContainerInstance*> BaseAndEDLContainerInstances;
-	ExtractContentBundleContainerInstances(this, ContentBundleContainerInstances, BaseAndEDLContainerInstances);
 
-	auto SetupHLODActorsForCollection = [this, &Params](const FStreamingGenerationContainerInstanceCollection& InContainerInstanceCollection)
+	ForEachActorDescContainerInstance([&ContentBundleContainerInstances, &BaseAndEDLContainerInstances](const UActorDescContainerInstance* InActorDescContainerInstance)
+	{
+		// If the content bundle is required, we need to add it to both lists, and we'll filter out all actors so the HLOd generation process can delete HLOD actor files.
+		if (InActorDescContainerInstance->GetContentBundleGuid().IsValid())
+		{
+			ContentBundleContainerInstances.Add(InActorDescContainerInstance);
+		}
+		
+		if (!InActorDescContainerInstance->GetContentBundleGuid().IsValid() || InActorDescContainerInstance->IsContentBundleRequired())
+		{
+			BaseAndEDLContainerInstances.Add(InActorDescContainerInstance);
+		}
+	});
+
+	auto SetupHLODActorsForCollection = [this, &Params](const FStreamingGenerationContainerInstanceCollection& InContainerInstanceCollection, bool bFilterAllActors)
 	{
 		TErrorHandlerSelector<FStreamingGenerationLogErrorHandler> ErrorHandlerSelector;
 		FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams StreamingGeneratorParams = FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams()
 			.SetWorldPartitionContext(this)
 			.SetErrorHandler(ErrorHandlerSelector.Get())
 			.SetEnableStreaming(IsStreamingEnabled())
-			.SetFilteredClasses({ AWorldPartitionHLOD::StaticClass() })
+			.SetFilteredClasses({ bFilterAllActors ? AActor::StaticClass() : AWorldPartitionHLOD::StaticClass() })
 			.SetIsValidGrid([this](FName GridName, const UClass* ActorClass) { return RuntimeHash->IsValidGrid(GridName, ActorClass); })
 			.SetIsValidHLODLayer([this](FName GridName, const FSoftObjectPath& HLODLayerPath) { return RuntimeHash->IsValidHLODLayer(GridName, HLODLayerPath); });
 
 		FWorldPartitionStreamingGenerator StreamingGenerator(StreamingGeneratorParams);
 		StreamingGenerator.PreparationPhase(InContainerInstanceCollection);
 
-		TUniquePtr<FArchive> LogFileAr = FWorldPartitionStreamingGenerator::CreateDumpStateLogArchive(TEXT("HLOD"));
+		const FString ContainerPackageName = InContainerInstanceCollection.GetBaseContainerInstancePackageName().ToString();
+		FString ContainerShortName = FPackageName::GetShortName(ContainerPackageName);
+		if (!ContainerPackageName.StartsWith(TEXT("/Game/")))
+		{
+			TArray<FString> SplitContainerPath;
+			if (ContainerPackageName.ParseIntoArray(SplitContainerPath, TEXT("/")))
+			{
+				ContainerShortName += TEXT(".");
+				ContainerShortName += SplitContainerPath[0];
+			}
+		}
+
+		TStringBuilder<256> StateLogSuffix;
+		StateLogSuffix += TEXT("HLOD_");
+		StateLogSuffix += ContainerShortName;
+
+		TUniquePtr<FArchive> LogFileAr = FWorldPartitionStreamingGenerator::CreateDumpStateLogArchive(*StateLogSuffix);
 		if (LogFileAr.IsValid())
 		{
 			FHierarchicalLogArchive HierarchicalLogAr(*LogFileAr);
@@ -2122,14 +2136,14 @@ void UWorldPartition::SetupHLODActors(const FSetupHLODActorsParams& Params)
 	for (const UActorDescContainerInstance* ContentBundleContainerInstance : ContentBundleContainerInstances)
 	{
 		FStreamingGenerationContainerInstanceCollection ContentBundleCollection({ ContentBundleContainerInstance }, FStreamingGenerationContainerInstanceCollection::ECollectionType::BaseAsContentBundle);
-		SetupHLODActorsForCollection(ContentBundleCollection);
+		SetupHLODActorsForCollection(ContentBundleCollection, ContentBundleContainerInstance->IsContentBundleRequired());
 	}
 
 	// Single pass for base and EDL container instances
 	if (!BaseAndEDLContainerInstances.IsEmpty())
 	{
 		FStreamingGenerationContainerInstanceCollection Collection(BaseAndEDLContainerInstances, FStreamingGenerationContainerInstanceCollection::ECollectionType::BaseAndEDLs);
-		SetupHLODActorsForCollection(Collection);
+		SetupHLODActorsForCollection(Collection, false);
 	}
 }
 
@@ -2232,8 +2246,15 @@ void FStreamingGenerationContainerInstanceCollection::InitializeCollection()
 
 	if (CollectionType == ECollectionType::BaseAsContentBundle)
 	{
+#if DO_CHECK
 		check(GetActorDescContainerCount() == 1);
 		check(GetContentBundleGuid().IsValid());
+		Algo::ForEach(ActorDescContainerInstanceCollection, [](const UActorDescContainerInstance* ActorDescContainerInstance)
+		{
+			check(ActorDescContainerInstance->GetContentBundleGuid().IsValid());
+			check(!ActorDescContainerInstance->IsContentBundleRequired());
+		});
+#endif
 		ContentBundleStartIdx = 0;
 		return;
 	}
@@ -2246,7 +2267,10 @@ void FStreamingGenerationContainerInstanceCollection::InitializeCollection()
 		// When type is set to BaseAndEDL, we remove ContentBundle containers from the collection.
 		// BaseAndEDL type assumes ContentBundle containers are generated separately one at a time.
 		check(!ShouldRegisterDelegates());
-		ActorDescContainerInstanceCollection.SetNum(Algo::RemoveIf(ActorDescContainerInstanceCollection, [](const UActorDescContainerInstance* ActorDescContainerInstance) { return ActorDescContainerInstance->GetContentBundleGuid().IsValid(); }));
+		ActorDescContainerInstanceCollection.SetNum(Algo::RemoveIf(ActorDescContainerInstanceCollection, [](const UActorDescContainerInstance* ActorDescContainerInstance)
+		{
+			return ActorDescContainerInstance->GetContentBundleGuid().IsValid() && !ActorDescContainerInstance->IsContentBundleRequired();
+		}));
 	}
 
 	int32 BaseContainerCount = Algo::CountIf(ActorDescContainerInstanceCollection, [](const UActorDescContainerInstance* ActorDescContainerInstance) { return !ActorDescContainerInstance->HasExternalContent(); });
@@ -2343,7 +2367,18 @@ void UWorldPartition::CheckForErrors(const FCheckForErrorsParams& InParams)
 	// @todo_ow : Once content bundles are remove, we will only do this validation in 1 pass
 	TArray<const UActorDescContainerInstance*> ContentBundleContainerInstances;
 	TArray<const UActorDescContainerInstance*> BaseAndEDLContainerInstances;
-	ExtractContentBundleContainerInstances(InParams.ActorDescContainerInstanceCollection, ContentBundleContainerInstances, BaseAndEDLContainerInstances);
+
+	InParams.ActorDescContainerInstanceCollection->ForEachActorDescContainerInstance([&ContentBundleContainerInstances, &BaseAndEDLContainerInstances](const UActorDescContainerInstance* InActorDescContainerInstance)
+	{
+		if (InActorDescContainerInstance->GetContentBundleGuid().IsValid() && !InActorDescContainerInstance->IsContentBundleRequired())
+		{
+			ContentBundleContainerInstances.Add(InActorDescContainerInstance);
+		}
+		else
+		{
+			BaseAndEDLContainerInstances.Add(InActorDescContainerInstance);
+		}
+	});
 
 	if (!BaseAndEDLContainerInstances.IsEmpty())
 	{
