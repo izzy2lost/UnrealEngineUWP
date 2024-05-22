@@ -5240,13 +5240,13 @@ void FAudioDevice::AddNewActiveSoundInternal(const FActiveSound& InNewActiveSoun
 
 	InitSoundParams(*ActiveSound, MoveTemp(InDefaultParams));
 	ActiveSounds.Add(ActiveSound);
-	NotifyAddActiveSound(*ActiveSound);
-
 	if (ActiveSound->GetAudioComponentID() > 0)
 	{
 		TArray<FActiveSound*>& ActiveSoundArray = AudioComponentIDToActiveSoundMap.FindOrAdd(ActiveSound->GetAudioComponentID());
 		ActiveSoundArray.AddUnique(ActiveSound);
 	}
+
+	NotifyAddActiveSound(*ActiveSound);
 }
 
 void FAudioDevice::ReportSoundFailedToStart(const uint64 AudioComponentID, FAudioVirtualLoop* VirtualLoop)
