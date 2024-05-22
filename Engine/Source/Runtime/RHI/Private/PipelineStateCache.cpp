@@ -2250,14 +2250,6 @@ public:
 					Initializer.DepthStencilState->Release();
 				}
 			}
-
-			// We kicked a task: the event really should be there
-			if (ensure(Pipeline->CompletionEvent))
-			{
-				Pipeline->CompletionEvent->DispatchSubsequents();
-				// At this point, it's not safe to use Pipeline anymore, as it might get picked up by ProcessDelayedCleanup and deleted
-				Pipeline = nullptr;
-			}
 		}
 
 #if WITH_RHI_BREADCRUMBS
@@ -2266,6 +2258,14 @@ public:
 			FRHIBreadcrumbNode::WalkOut(PSOCompilationDebugData.BreadcrumbNode);
 		}
 #endif // WITH_RHI_BREADCRUMBS
+		
+		// We kicked a task: the event really should be there
+		if (ensure(Pipeline->CompletionEvent))
+		{
+			Pipeline->CompletionEvent->DispatchSubsequents();
+			// At this point, it's not safe to use Pipeline anymore, as it might get picked up by ProcessDelayedCleanup and deleted
+			Pipeline = nullptr;
+		}
 	}
 
 	FORCEINLINE TStatId GetStatId() const
