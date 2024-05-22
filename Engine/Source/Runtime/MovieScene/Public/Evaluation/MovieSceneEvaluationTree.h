@@ -921,7 +921,7 @@ void TEvaluationTreeEntryContainer<ElementType>::Insert(FEvaluationTreeEntryHand
 	// Shift anything >= the insert index up one
 	if (Index <= Entry.Size-1)
 	{
-		const ElementType* OldLocation = &Items[Entry.StartIndex + Index];
+		ElementType* OldLocation = &Items[Entry.StartIndex + Index];
 		void* NewLocation = &Items[Entry.StartIndex + Index + 1];
 
 		RelocateConstructItems<ElementType>(NewLocation, OldLocation, Entry.Size - Index);
@@ -972,7 +972,7 @@ void TEvaluationTreeEntryContainer<ElementType>::ReserveEntry(FEvaluationTreeEnt
 	// Reallocate the items to the new entry location
 	Items.SetNum(Items.Num() + Entry.Capacity);
 
-	const ElementType* OldLocation = &Items[Entry.StartIndex];
+	ElementType* OldLocation = &Items[Entry.StartIndex];
 	void* NewLocation = &Items[NewStartIndex];
 	RelocateConstructItems<ElementType>(NewLocation, OldLocation, Entry.Size);
 	DefaultConstructItems<ElementType>((void*)OldLocation, Entry.Size);

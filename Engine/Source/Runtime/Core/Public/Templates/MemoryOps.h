@@ -218,7 +218,11 @@ FORCEINLINE void RelocateConstructItems(void* Dest, SourceElementType* Source, S
 	{
 		// Should never get here, but this construct should improve the error messages we get when we try to call this function with incomplete types
 	}
-	else if constexpr (UE::Core::Private::MemoryOps::TCanBitwiseRelocate_V<DestinationElementType, std::remove_const_t<SourceElementType>>)
+	else if constexpr (std::is_const_v<SourceElementType>)
+	{
+		static_assert(sizeof(SourceElementType) == 0, "RelocateConstructItems: Source cannot be const");
+	}
+	else if constexpr (UE::Core::Private::MemoryOps::TCanBitwiseRelocate_V<DestinationElementType, SourceElementType>)
 	{
 		/* All existing UE containers seem to assume trivial relocatability (i.e. memcpy'able) of their members,
 		 * so we're going to assume that this is safe here.  However, it's not generally possible to assume this

@@ -88,7 +88,7 @@ TEST_CASE_NAMED(FRelocateConstructItemsTest, "UE::Core::RelocateConstructItems",
 	{
 		alignas(FString) char Buffer[sizeof(FString) * 5];
 
-		const FString* TypedBuffer = (const FString*)Buffer;
+		FString* TypedBuffer = (FString*)Buffer;
 
 		new ((void*)(TypedBuffer + 2)) FString(TEXT("String A1"));
 		new ((void*)(TypedBuffer + 3)) FString(TEXT("String B1"));
@@ -109,7 +109,7 @@ TEST_CASE_NAMED(FRelocateConstructItemsTest, "UE::Core::RelocateConstructItems",
 	{
 		alignas(FString) char Buffer[sizeof(FString) * 5];
 
-		const FString* TypedBuffer = (const FString*)Buffer;
+		FString* TypedBuffer = (FString*)Buffer;
 
 		new ((void*)(TypedBuffer + 0)) FString(TEXT("String A2"));
 		new ((void*)(TypedBuffer + 1)) FString(TEXT("String B2"));
