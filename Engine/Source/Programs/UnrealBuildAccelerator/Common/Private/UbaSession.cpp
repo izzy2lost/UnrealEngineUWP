@@ -2647,7 +2647,7 @@ namespace uba
 		exportsFile.Append(fileName, lastDot - fileName).Append(TC(".exi"));
 
 		MemoryBlock memoryBlock(1*1024*1024);
-		if (!objectFile->WriteSymbols(m_logger, memoryBlock))
+		if (!objectFile->WriteImportsAndExports(m_logger, memoryBlock))
 			return false;
 
 		FileMappingHandle symHandle = CreateMemoryMappingW(m_logger, PAGE_READWRITE, memoryBlock.writtenSize);

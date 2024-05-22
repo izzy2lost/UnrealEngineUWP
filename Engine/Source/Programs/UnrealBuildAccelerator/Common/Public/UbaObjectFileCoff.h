@@ -10,6 +10,7 @@ namespace uba
 	class ObjectFileCoff : public ObjectFile
 	{
 	public:
+		ObjectFileCoff();
 		virtual bool Parse(Logger& logger, const tchar* filename) override;
 
 	private:
@@ -42,5 +43,6 @@ namespace uba
 		UnorderedSymbols m_toRemove;
 
 		static UnorderedSymbols PotentiallyDuplicatedSymbols;
+		static UnorderedSymbols ExportsToKeep;
 	};
 }

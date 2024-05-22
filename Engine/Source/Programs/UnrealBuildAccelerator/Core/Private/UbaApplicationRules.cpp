@@ -215,7 +215,7 @@ namespace uba
 
 		virtual bool ShouldExtractSymbols(const tchar* fileName, u64 fileNameLen) const
 		{
-			return EndsWith(fileName, fileNameLen, TC(".obj"));
+			return EndsWith(fileName, fileNameLen, TC(".obj")) || EndsWith(fileName, fileNameLen, TC(".o"));
 		}
 	};
 
@@ -367,7 +367,7 @@ namespace uba
 
 		virtual bool ShouldExtractSymbols(const tchar* fileName, u64 fileNameLen) const
 		{
-			return EndsWith(fileName, fileNameLen, TC(".obj"));
+			return EndsWith(fileName, fileNameLen, TC(".obj")) || EndsWith(fileName, fileNameLen, TC(".o"));
 		}
 	};
 

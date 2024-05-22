@@ -47,6 +47,7 @@ namespace uba
 	  u64	st_size;		/* Symbol size */
 	};
 
+	#define EM_X86_64	62	/* AMD x86-64 architecture */
 
 	#define SHT_SYMTAB	  2		/* Symbol table */
 	#define SHT_DYNSYM	  11		/* Dynamic linker symbol table */
@@ -110,6 +111,11 @@ namespace uba
 		"GObjectHandlePackageDebug",
 #endif
 	};
+
+	ObjectFileElf::ObjectFileElf()
+	{
+		m_type = ObjectFileType_Elf;
+	}
 
 
 	bool ObjectFileElf::Parse(Logger& logger, const tchar* filename)
@@ -224,6 +230,18 @@ namespace uba
 
 	bool ObjectFileElf::CreateExtraFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile)
 	{
+		auto& header = *(Elf64Header*)memoryBlock.Allocate(sizeof(Elf64Header), 1, TC(""));
+
+		header.e_ident[0] = 0x7f;
+		header.e_ident[1] = 'E';
+		header.e_ident[2] = 'L';
+		header.e_ident[3] = 'F';
+		header.e_ident[4] = 2;
+		header.e_ident[5] = 1;
+		header.e_ident[6] = 1;
+		header.e_type = 1;
+		header.e_machine = EM_X86_64;
+		header.e_ehsize = sizeof(Elf64Header);
 		return true;
 	}
 }

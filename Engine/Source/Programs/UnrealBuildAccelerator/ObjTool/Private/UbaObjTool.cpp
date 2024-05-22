@@ -48,6 +48,15 @@ namespace uba
 		return -1;
 	}
 
+	// TODO: Add to rsp file instead
+	const char* NeededImports[] = 
+	{
+		"NvOptimusEnablement",
+		"AmdPowerXpressRequestHighPerformance",
+		"D3D12SDKVersion",
+		"D3D12SDKPath",
+	};
+
 	int WrappedMain(int argc, tchar* argv[])
 	{
 		using namespace uba;
@@ -143,50 +152,19 @@ namespace uba
 				return res;
 		}
 
-		struct SymbolFile
-		{
-			UnorderedSymbols imports;
-			UnorderedExports exports;
-
-			bool ParseFile(Logger& logger, const tchar* filename)
-			{
-				FileAccessor symFile(logger, filename);
-				if (!symFile.OpenMemoryRead())
-					return false;
-				auto readPos = (const char*)symFile.GetData();
-
-				while (*readPos)
-				{
-					auto strEnd = strlen(readPos);
-					imports.insert(std::string(readPos, readPos + strEnd));
-					readPos = readPos + strEnd + 1;
-				}
-				++readPos;
-
-				while (*readPos)
-				{
-					auto strEnd = strlen(readPos);
-					std::string extra;
-					if (const char* comma = strchr(readPos, ','))
-					{
-						strEnd = comma - readPos;
-						extra = comma;
-					}
-					exports.emplace(std::string(readPos, readPos + strEnd), extra);
-					readPos = readPos + strEnd + 1;
-				}
-				return true;
-			}
-		};
-
 		FilteredLogWriter logWriter(g_consoleLogWriter, LogEntryType_Info);
 		LoggerWithWriter logger(logWriter, TC(""));
 
 		if (!objFilesToStrip.empty())
 		{
+			ObjectFileType type = ObjectFileType_Unknown;
+
 			CriticalSection cs;
 			Atomic<bool> success = true;
 			UnorderedSymbols allNeededImports; // Imports needed from the outside of the stripped obj files
+
+			for (auto imp : NeededImports)
+				allNeededImports.insert(imp);
 
 			u32 workerCount = DefaultProcessorCount;
 			WorkManagerImpl workManager(workerCount);
@@ -201,6 +179,9 @@ namespace uba
 						return;
 					}
 					ScopedCriticalSection _(cs);
+					UBA_ASSERT(type == ObjectFileType_Unknown || type == symbolFile.type);
+					if (type == ObjectFileType_Unknown)
+						type = symbolFile.type;
 					allNeededImports.insert(symbolFile.imports.begin(), symbolFile.imports.end());
 				});
 			if (!success)
@@ -222,6 +203,9 @@ namespace uba
 						return;
 					}
 					ScopedCriticalSection _(cs);
+					UBA_ASSERT(type == ObjectFileType_Unknown || type == symbolFile.type);
+					if (type == ObjectFileType_Unknown)
+						type = symbolFile.type;
 					allSharedImports.insert(symbolFile.imports.begin(), symbolFile.imports.end());
 					allSharedExports.insert(symbolFile.exports.begin(), symbolFile.exports.end());
 				});
@@ -229,7 +213,7 @@ namespace uba
 				return -1;
 
 			if (!extraObjFile.empty())
-				if (!ObjectFile::CreateExtraFile(logger, extraObjFile.c_str(), allNeededImports, allSharedImports, allSharedExports, true))
+				if (!ObjectFile::CreateExtraFile(logger, extraObjFile.c_str(), type, allNeededImports, allSharedImports, allSharedExports, true))
 					return -1;
 
 			//logger.Info(TC("Reduced export count from %llu to %llu"), totalExportCount.load(), totalKeptExportCount.size());
@@ -264,7 +248,7 @@ namespace uba
 				StringBuffer<> exportsFile;
 				exportsFile.Append(fileName, lastDot - fileName).Append(TC(".exi"));
 
-				if (!objectFile->WriteSymbols(logger, exportsFile.data))
+				if (!objectFile->WriteImportsAndExports(logger, exportsFile.data))
 					return false;
 
 				//u32 keptExportCount = 0;

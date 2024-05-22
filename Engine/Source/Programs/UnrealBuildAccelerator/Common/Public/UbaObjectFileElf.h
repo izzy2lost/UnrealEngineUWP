@@ -9,6 +9,7 @@ namespace uba
 	class ObjectFileElf : public ObjectFile
 	{
 	public:
+		ObjectFileElf();
 		virtual bool Parse(Logger& logger, const tchar* filename) override;
 
 	private:

@@ -8,6 +8,8 @@
 
 namespace uba
 {
+	u8 SymbolFileVersion = 1;
+
 	ObjectFile* ObjectFile::OpenAndParse(Logger& logger, const tchar* filename)
 	{
 		auto file = new FileAccessor(logger, filename);
@@ -66,9 +68,12 @@ namespace uba
 		return true;
 	}
 
-	bool ObjectFile::WriteSymbols(Logger& logger, MemoryBlock& memoryBlock)
+	bool ObjectFile::WriteImportsAndExports(Logger& logger, MemoryBlock& memoryBlock)
 	{
 		auto write = [&](const void* data, u64 dataSize) { memcpy(memoryBlock.Allocate(dataSize, 1, TC("")), data, dataSize); };
+
+		write(&SymbolFileVersion, 1);
+		write(&m_type, 1);
 
 		// Write all imports
 		for (auto& symbol : m_imports)
@@ -89,7 +94,7 @@ namespace uba
 		return true;
 	}
 
-	bool ObjectFile::WriteSymbols(Logger& logger, const tchar* exportsFilename)
+	bool ObjectFile::WriteImportsAndExports(Logger& logger, const tchar* exportsFilename)
 	{
 		FileAccessor exportsFile(logger, exportsFilename);
 		if (!exportsFile.CreateWrite())
@@ -149,12 +154,17 @@ namespace uba
 		return m_potentialDuplicates;
 	}
 
-	bool ObjectFile::CreateExtraFile(Logger& logger, const tchar* extraObjFilename, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile)
+	bool ObjectFile::CreateExtraFile(Logger& logger, const tchar* extraObjFilename, ObjectFileType type, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile)
 	{
-		ObjectFileCoff objectFile;
+		ObjectFileCoff objectFileCoff;
+		ObjectFileElf objectFileElf;
+		
+		ObjectFile& objectFile = type == ObjectFileType_Coff ? (ObjectFile&)objectFileCoff : (ObjectFile&)objectFileElf;
+
+
 		MemoryBlock memoryBlock(16*1024*1024);
 
-		if (!((ObjectFile&)objectFile).CreateExtraFile(logger, memoryBlock, allNeededImports, allSharedImports, allSharedExports, includeExportsInFile))
+		if (!objectFile.CreateExtraFile(logger, memoryBlock, allNeededImports, allSharedImports, allSharedExports, includeExportsInFile))
 			return false;
 
 		FileAccessor extraFile(logger, extraObjFilename);
@@ -165,5 +175,41 @@ namespace uba
 			return false;
 
 		return extraFile.Close();
+	}
+
+	bool SymbolFile::ParseFile(Logger& logger, const tchar* filename)
+	{
+		FileAccessor symFile(logger, filename);
+		if (!symFile.OpenMemoryRead())
+			return false;
+		auto readPos = (const char*)symFile.GetData();
+
+		u8 version = *(u8*)readPos++;
+		if (SymbolFileVersion != version)
+			return logger.Error(TC("%s - Import/export file version mismatch"), filename);
+
+		type = *(const ObjectFileType*)readPos++;
+
+		while (*readPos)
+		{
+			auto strEnd = strlen(readPos);
+			imports.insert(std::string(readPos, readPos + strEnd));
+			readPos = readPos + strEnd + 1;
+		}
+		++readPos;
+
+		while (*readPos)
+		{
+			auto strEnd = strlen(readPos);
+			std::string extra;
+			if (const char* comma = strchr(readPos, ','))
+			{
+				strEnd = comma - readPos;
+				extra = comma;
+			}
+			exports.emplace(std::string(readPos, readPos + strEnd), extra);
+			readPos = readPos + strEnd + 1;
+		}
+		return true;
 	}
 }

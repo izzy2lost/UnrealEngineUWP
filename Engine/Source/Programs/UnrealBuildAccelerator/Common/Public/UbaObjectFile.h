@@ -12,6 +12,13 @@ namespace uba
 	using UnorderedSymbols = UnorderedSet<std::string>;
 	using UnorderedExports = UnorderedMap<std::string, std::string>;
 
+	enum ObjectFileType : u8
+	{
+		ObjectFileType_Unknown,
+		ObjectFileType_Coff,
+		ObjectFileType_Elf,
+	};
+
 	class ObjectFile
 	{
 	public:
@@ -20,15 +27,15 @@ namespace uba
 
 		virtual bool CopyMemoryAndClose();
 		virtual bool StripExports(Logger& logger);
-		virtual bool WriteSymbols(Logger& logger, MemoryBlock& memoryBlock);
-		virtual bool WriteSymbols(Logger& logger, const tchar* exportsFilename);
+		virtual bool WriteImportsAndExports(Logger& logger, MemoryBlock& memoryBlock);
+		virtual bool WriteImportsAndExports(Logger& logger, const tchar* exportsFilename);
 
 		const tchar* GetFileName() const;
 		const UnorderedSymbols& GetImports() const;
 		const UnorderedExports& GetExports() const;
 		const UnorderedSymbols& GetPotentialDuplicates() const;
 
-		static bool CreateExtraFile(Logger& logger, const tchar* extraObjFilename, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile);
+		static bool CreateExtraFile(Logger& logger, const tchar* extraObjFilename, ObjectFileType type, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile);
 
 		virtual ~ObjectFile();
 
@@ -42,6 +49,7 @@ namespace uba
 		u64 m_dataSize = 0;
 		bool m_ownsData = false;
 
+		ObjectFileType m_type;
 		UnorderedSymbols m_imports;
 		UnorderedExports m_exports;
 		UnorderedSymbols m_potentialDuplicates;
@@ -95,5 +103,14 @@ namespace uba
 			out.assign(strBegin, strEnd);
 			return out;
 		}
+	};
+
+	struct SymbolFile
+	{
+		UnorderedSymbols imports;
+		UnorderedExports exports;
+		ObjectFileType type;
+
+		bool ParseFile(Logger& logger, const tchar* filename);
 	};
 }

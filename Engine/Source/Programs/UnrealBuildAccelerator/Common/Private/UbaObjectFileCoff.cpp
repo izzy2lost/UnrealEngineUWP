@@ -203,6 +203,11 @@ namespace uba
 		return true;
 	}
 
+	ObjectFileCoff::ObjectFileCoff()
+	{
+		m_type = ObjectFileType_Coff;
+	}
+
 	bool ObjectFileCoff::Parse(Logger& logger, const tchar* filename)
 	{
 		m_isBigObj = IsBigObj(m_data, m_dataSize);
@@ -702,5 +707,4 @@ namespace uba
 				memset(&section, 0, sizeof(ImageSectionHeader));
 		}
 	}
-
 }
