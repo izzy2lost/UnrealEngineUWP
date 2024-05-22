@@ -21,67 +21,67 @@ namespace AutomationTool.Tasks
 		/// Helm command line arguments
 		/// </summary>
 		[TaskParameter]
-		public string Chart;
+		public string Chart { get; set; }
 
 		/// <summary>
 		/// Name of the release
 		/// </summary>
 		[TaskParameter]
-		public string Deployment;
+		public string Deployment { get; set; }
 
 		/// <summary>
 		/// The Kubernetes namespace
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Namespace;
+		public string Namespace { get; set; }
 
 		/// <summary>
 		/// The kubectl context
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string KubeContext;
+		public string KubeContext { get; set; }
 
 		/// <summary>
 		/// The kubectl config file to use
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string KubeConfig;
+		public string KubeConfig { get; set; }
 
 		/// <summary>
 		/// Values to set for running the chart
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Values;
+		public string Values { get; set; }
 
 		/// <summary>
 		/// Values to set for running the chart
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string ValuesFile;
+		public string ValuesFile { get; set; }
 
 		/// <summary>
 		/// Environment variables to set
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Environment;
+		public string Environment { get; set; }
 
 		/// <summary>
 		/// File to parse environment variables from
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string EnvironmentFile;
+		public string EnvironmentFile { get; set; }
 
 		/// <summary>
 		/// Additional arguments
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Arguments;
+		public string Arguments { get; set; }
 
 		/// <summary>
 		/// Base directory for running the command
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string WorkingDir;
+		public string WorkingDir { get; set; }
 	}
 
 	/// <summary>

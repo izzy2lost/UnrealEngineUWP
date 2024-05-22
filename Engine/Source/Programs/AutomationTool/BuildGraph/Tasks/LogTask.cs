@@ -27,19 +27,19 @@ namespace AutomationTool.Tasks
 		/// Message to print out.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Message;
+		public string Message { get; set; }
 
 		/// <summary>
 		/// If specified, causes the given list of files to be printed after the given message.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// If specified, causes the contents of the given files to be printed out.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool IncludeContents;
+		public bool IncludeContents { get; set; }
 	}
 
 	/// <summary>

@@ -20,7 +20,7 @@ namespace AutomationTool.Tasks
 		/// Number of seconds to wait.
 		/// </summary>
 		[TaskParameter]
-		public int Seconds;
+		public int Seconds { get; set; }
 	}
 
 	/// <summary>

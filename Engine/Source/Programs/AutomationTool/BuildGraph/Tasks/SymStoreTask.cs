@@ -26,45 +26,45 @@ namespace AutomationTool.Tasks
         /// The platform toolchain required to handle symbol files.
         /// </summary>
         [TaskParameter]
-        public UnrealTargetPlatform Platform;
+        public UnrealTargetPlatform Platform { get; set; }
 
-        /// <summary>
-        /// List of output files. PDBs will be extracted from this list.
-        /// </summary>
-        [TaskParameter]
-        public string Files;
+		/// <summary>
+		/// List of output files. PDBs will be extracted from this list.
+		/// </summary>
+		[TaskParameter]
+        public string Files { get; set; }
 
-        /// <summary>
-        /// Output directory for the compressed symbols.
-        /// </summary>
-        [TaskParameter]
-        public string StoreDir;
+		/// <summary>
+		/// Output directory for the compressed symbols.
+		/// </summary>
+		[TaskParameter]
+        public string StoreDir { get; set; }
 
-        /// <summary>
-        /// Name of the product for the symbol store records.
-        /// </summary>
-        [TaskParameter]
-        public string Product;
+		/// <summary>
+		/// Name of the product for the symbol store records.
+		/// </summary>
+		[TaskParameter]
+        public string Product { get; set; }
 
 		/// <summary>
 		/// Name of the Branch to base all the depot source files from.
 		/// Used when IndexSources is true (may be used only on some platforms).
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Branch;
+		public string Branch { get; set; }
 
 		/// <summary>
 		/// Changelist to which all the depot source files have been synced to.
 		/// Used when IndexSources is true (may be used only on some platforms).
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public int Change;
+		public int Change { get; set; }
 
 		/// <summary>
 		/// BuildVersion associated with these symbols. Used for clean-up in AgeStore by matching this version against a directory name in a build share.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string BuildVersion;
+		public string BuildVersion { get; set; }
 
 		/// <summary>
 		/// Whether to include the source code index in the uploaded symbols.
@@ -72,7 +72,7 @@ namespace AutomationTool.Tasks
 		/// The source server allows debuggers to automatically fetch the matching source code when debbugging builds or analyzing dumps.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool IndexSources = false;
+		public bool IndexSources { get; set; } = false;
 
 		/// <summary>
 		/// Filter for the depot source files that are to be indexed.
@@ -81,7 +81,7 @@ namespace AutomationTool.Tasks
 		/// Used when IndexSources is true (may be used only on some platforms).
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string SourceFiles;
+		public string SourceFiles { get; set; }
 	}
 
     /// <summary>

@@ -27,55 +27,55 @@ namespace AutomationTool.Tasks
 		/// List of files, wildcards, and tag sets to add to the pak file, separated by ';' characters.
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// PAK file to output.
 		/// </summary>
 		[TaskParameter]
-		public FileReference Output;
+		public FileReference Output { get; set; }
 
 		/// <summary>
 		/// Path to a Response File that contains a list of files to add to the pak file -- instead of specifying them individually.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference ResponseFile;
+		public FileReference ResponseFile { get; set; }
 
 		/// <summary>
 		/// Directories to rebase the files relative to. If specified, the shortest path under a listed directory will be used for each file.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public HashSet<DirectoryReference> RebaseDir;
+		public HashSet<DirectoryReference> RebaseDir { get; set; }
 
 		/// <summary>
 		/// Script that gives the order of files.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference Order;
+		public FileReference Order { get; set; }
 
 		/// <summary>
 		/// Encryption keys for this pak file.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference Sign;
+		public FileReference Sign { get; set; }
 
 		/// <summary>
 		/// Whether to compress files.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Compress = true;
+		public bool Compress { get; set; } = true;
 
 		/// <summary>
 		/// Additional arguments to pass to UnrealPak.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Arguments = "";
+		public string Arguments { get; set; } = "";
 
 		/// <summary>
 		/// Tag to be applied to build products of this task.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string Tag;
+		public string Tag { get; set; }
 	}
 
 	/// <summary>

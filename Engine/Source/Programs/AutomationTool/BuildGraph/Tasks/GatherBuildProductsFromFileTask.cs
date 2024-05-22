@@ -24,7 +24,7 @@ namespace AutomationTool.Tasks
 		/// 
 		/// </summary>
 		[TaskParameter]
-		public string BuildProductsFile;
+		public string BuildProductsFile { get; set; }
 	}
 
 	[TaskElement("GatherBuildProductsFromFile", typeof(GatherBuildProductsFromFileTaskParameters))]

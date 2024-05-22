@@ -25,31 +25,31 @@ namespace AutomationTool.Tasks
 		///  List of file specifications separated by semicolon (default is ...)
 		/// </summary>
 		[TaskParameter(Optional=true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Path = "...";
+		public string Path { get; set; } = "...";
 
 		/// <summary>
 		/// The configuration to compile.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public int Change;
+		public int Change { get; set; }
 
 		/// <summary>
 		/// The configuration to compile.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public int MinChange;
+		public int MinChange { get; set; }
 
 		/// <summary>
 		/// The configuration to compile.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public int MaxChange;
+		public int MaxChange { get; set; }
 
 		/// <summary>
 		/// The file to write to
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference Output;
+		public FileReference Output { get; set; }
 	}
 
 	/// <summary>

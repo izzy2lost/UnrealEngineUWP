@@ -35,13 +35,13 @@ namespace AutomationTool
 		/// Name of the node
 		/// </summary>
 		[XmlAttribute]
-		public string NodeName;
+		public string NodeName { get; set; }
 
 		/// <summary>
 		/// Name of the output from this node
 		/// </summary>
 		[XmlAttribute]
-		public string OutputName;
+		public string OutputName { get; set; }
 
 		/// <summary>
 		/// Default constructor, for XML serialization.
@@ -103,25 +103,25 @@ namespace AutomationTool
 		/// The path of the file, relative to the engine root. Stored using forward slashes.
 		/// </summary>
 		[XmlAttribute]
-		public string RelativePath;
+		public string RelativePath { get; set; }
 
 		/// <summary>
 		/// The last modified time of the file, in UTC ticks since the Epoch.
 		/// </summary>
 		[XmlAttribute]
-		public long LastWriteTimeUtcTicks;
+		public long LastWriteTimeUtcTicks { get; set; }
 
 		/// <summary>
 		/// Length of the file
 		/// </summary>
 		[XmlAttribute]
-		public long Length;
+		public long Length { get; set; }
 
 		/// <summary>
 		/// Digest for the file. Not all files are hashed.
 		/// </summary>
 		[XmlAttribute]
-		public string? Digest;
+		public string? Digest { get; set; }
 
 		/// <summary>
 		/// Default constructor, for XML serialization.
@@ -305,13 +305,13 @@ namespace AutomationTool
 		/// Name of this file, including extension
 		/// </summary>
 		[XmlAttribute]
-		public string Name;
+		public string Name { get; set; }
 
 		/// <summary>
 		/// Length of the file in bytes
 		/// </summary>
 		[XmlAttribute]
-		public long Length;
+		public long Length { get; set; }
 
 		/// <summary>
 		/// Default constructor, for XML serialization
@@ -342,14 +342,14 @@ namespace AutomationTool
 		/// </summary>
 		[XmlArray]
 		[XmlArrayItem("File")]
-		public TempStorageFile[] Files;
+		public TempStorageFile[] Files { get; set; }
 
 		/// <summary>
 		/// List of compressed archives containing the given files
 		/// </summary>
 		[XmlArray]
 		[XmlArrayItem("ZipFile")]
-		public TempStorageZipFile[] ZipFiles;
+		public TempStorageZipFile[] ZipFiles { get; set; }
 
 		/// <summary>
 		/// Construct a static Xml serializer to avoid throwing an exception searching for the reflection info at runtime
@@ -430,28 +430,28 @@ namespace AutomationTool
 		/// </summary>
 		[XmlArray]
 		[XmlArrayItem("LocalFile")]
-		public string[] LocalFiles;
+		public string[] LocalFiles { get; set; }
 
 		/// <summary>
 		/// List of files that are in this tag set, but not relative to the root directory
 		/// </summary>
 		[XmlArray]
 		[XmlArrayItem("LocalFile")]
-		public string[] ExternalFiles;
+		public string[] ExternalFiles { get; set; }
 
 		/// <summary>
 		/// List of referenced storage blocks
 		/// </summary>
 		[XmlArray]
 		[XmlArrayItem("Block")]
-		public TempStorageBlock[] Blocks;
+		public TempStorageBlock[] Blocks { get; set; }
 
 		/// <summary>
 		/// List of keys for published artifacts
 		/// </summary>
 		[XmlArray]
 		[XmlArrayItem("ArtifactKey")]
-		public string[] ArtifactKeys;
+		public string[] ArtifactKeys { get; set; }
 
 		/// <summary>
 		/// Construct a static Xml serializer to avoid throwing an exception searching for the reflection info at runtime

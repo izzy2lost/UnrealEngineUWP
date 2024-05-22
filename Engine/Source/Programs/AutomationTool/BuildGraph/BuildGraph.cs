@@ -20,6 +20,7 @@ using UnrealBuildBase;
 using UnrealBuildTool;
 
 #nullable enable
+#pragma warning disable CA1724
 
 namespace AutomationTool
 {

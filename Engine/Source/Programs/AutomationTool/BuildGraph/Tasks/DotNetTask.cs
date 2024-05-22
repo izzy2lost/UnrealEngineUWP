@@ -23,37 +23,37 @@ namespace AutomationTool.Tasks
 		/// Docker command line arguments
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Arguments;
+		public string Arguments { get; set; }
 
 		/// <summary>
 		/// Base directory for running the command
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string BaseDir;
+		public string BaseDir { get; set; }
 
 		/// <summary>
 		/// Environment variables to set
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Environment;
+		public string Environment { get; set; }
 
 		/// <summary>
 		/// File to read environment variables from
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string EnvironmentFile;
+		public string EnvironmentFile { get; set; }
 
 		/// <summary>
 		/// The minimum exit code, which is treated as an error.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public int ErrorLevel = 1;
+		public int ErrorLevel { get; set; } = 1;
 
 		/// <summary>
 		/// Override path to dotnet executable
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference DotNetPath;
+		public FileReference DotNetPath { get; set; }
 	}
 
 	/// <summary>

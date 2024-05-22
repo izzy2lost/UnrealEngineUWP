@@ -21,25 +21,25 @@ namespace AutomationTool.Tasks
 		/// Arguments for the newly created process.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Arguments;
+		public string Arguments { get; set; }
 
 		/// <summary>
 		/// Environment variables
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Environment;
+		public string Environment { get; set; }
 
 		/// <summary>
 		/// File to read environment from
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string EnvironmentFile;
+		public string EnvironmentFile { get; set; }
 
 		/// <summary>
 		/// Write output to the log
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool LogOutput = false;
+		public bool LogOutput { get; set; } = false;
 	}
 
 	/// <summary>

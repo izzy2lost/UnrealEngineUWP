@@ -26,61 +26,61 @@ namespace AutomationTool.Tasks
 		/// The description for the submitted changelist.
 		/// </summary>
 		[TaskParameter]
-		public string Description;
+		public string Description { get; set; }
 
 		/// <summary>
 		/// The files to submit.
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// The Perforce file type for the submitted files (for example, binary+FS32).
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string FileType;
+		public string FileType { get; set; }
 
 		/// <summary>
 		/// The workspace name. If specified, a new workspace will be created using the given stream and root directory to submit the files. If not, the current workspace will be used.
 		/// </summary>
 		[TaskParameter(Optional=true)]
-		public string Workspace;
+		public string Workspace { get; set; }
 
 		/// <summary>
 		/// The stream for the workspace -- defaults to the current stream. Ignored unless the Workspace attribute is also specified.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Stream;
+		public string Stream { get; set; }
 
 		/// <summary>
 		/// Branch for the workspace (legacy P4 depot path). May not be used in conjunction with Stream.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Branch;
+		public string Branch { get; set; }
 
 		/// <summary>
 		/// Root directory for the stream. If not specified, defaults to the current root directory.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public DirectoryReference RootDir;
+		public DirectoryReference RootDir { get; set; }
 
 		/// <summary>
 		/// Whether to revert unchanged files before attempting to submit.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool RevertUnchanged;
+		public bool RevertUnchanged { get; set; }
 
 		/// <summary>
 		/// Force the submit to happen -- even if a resolve is needed (always accept current version).
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Force;
+		public bool Force { get; set; }
 
 		/// <summary>
 		/// Allow verbose P4 output (spew).
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool P4Verbose;
+		public bool P4Verbose { get; set; }
 	}
 
 	/// <summary>

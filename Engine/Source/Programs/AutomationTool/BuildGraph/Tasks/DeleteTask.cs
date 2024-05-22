@@ -27,25 +27,25 @@ namespace AutomationTool.Tasks
 		/// List of file specifications separated by semicolons (for example, *.cpp;Engine/.../*.bat), or the name of a tag set
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// List of directory names
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Directories;
+		public string Directories { get; set; }
 
 		/// <summary>
 		/// Whether to delete empty directories after deleting the files. Defaults to true.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool DeleteEmptyDirectories = true;
+		public bool DeleteEmptyDirectories { get; set; } = true;
 
 		/// <summary>
 		/// Whether or not to use verbose logging.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Verbose = false;
+		public bool Verbose { get; set; } = false;
 	}
 
 	/// <summary>

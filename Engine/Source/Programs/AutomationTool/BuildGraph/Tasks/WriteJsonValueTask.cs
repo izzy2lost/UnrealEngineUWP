@@ -28,7 +28,7 @@ namespace AutomationTool.Tasks
 		/// Json file(s) which will be modified
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.FileSpec)]
-		public string File = null!;
+		public string File { get; set; } = null!;
 
 		/// <summary>
 		/// Json element to set in each file. Syntax for this string is a limited subset of JsonPath notation, and may support object properties and
@@ -36,13 +36,13 @@ namespace AutomationTool.Tasks
 		/// an element to the 'bar' array in the 'foo' object).
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.Default)]
-		public string Key = null!;
+		public string Key { get; set; } = null!;
 
 		/// <summary>
 		/// New value to set. May be any value JSON value (string, array, object, number, boolean or null).
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.Default)]
-		public string Value = null!;
+		public string Value { get; set; } = null!;
 	}
 
 	/// <summary>

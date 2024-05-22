@@ -24,31 +24,31 @@ namespace AutomationTool.Tasks
 		/// Path to the file to write.
 		/// </summary>
 		[TaskParameter]
-		public FileReference File;
+		public FileReference File { get; set; }
 
 		/// <summary>
 		/// Optional, whether or not to append to the file rather than overwrite.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Append;
+		public bool Append { get; set; }
 
 		/// <summary>
 		/// The text to write to the file.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Text;
+		public string Text { get; set; }
 
 		/// <summary>
 		/// If specified, causes the given list of files to be printed after the given message.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// Tag to be applied to build products of this task.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string Tag;
+		public string Tag { get; set; }
 	}
 
 	/// <summary>

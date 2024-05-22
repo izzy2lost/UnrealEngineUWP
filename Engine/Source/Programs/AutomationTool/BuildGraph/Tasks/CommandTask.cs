@@ -36,19 +36,19 @@ namespace AutomationTool.Tasks
 		/// The command name to execute.
 		/// </summary>
 		[TaskParameter]
-		public string Name;
+		public string Name { get; set; }
 
 		/// <summary>
 		/// Arguments to be passed to the command.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Arguments;
+		public string Arguments { get; set; }
 
 		/// <summary>
 		/// If non-null, instructs telemetry from the command to be merged into the telemetry for this UAT instance with the given prefix. May be an empty (non-null) string.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string MergeTelemetryWithPrefix;
+		public string MergeTelemetryWithPrefix { get; set; }
 	}
 
 	/// <summary>

@@ -23,31 +23,31 @@ namespace AutomationTool.Tasks
 		/// Path to the zip file to extract.
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.FileSpec)]
-		public string ZipFile;
+		public string ZipFile { get; set; }
 
 		/// <summary>
 		/// Output directory for the extracted files.
 		/// </summary>
 		[TaskParameter]
-		public DirectoryReference ToDir;
+		public DirectoryReference ToDir { get; set; }
 
 		/// <summary>
 		/// Whether or not to use the legacy unzip code.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool UseLegacyUnzip = false;
+		public bool UseLegacyUnzip { get; set; } = false;
 
 		/// <summary>
 		/// Whether or not to overwrite files during unzip.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool OverwriteFiles = true;
+		public bool OverwriteFiles { get; set; } = true;
 
 		/// <summary>
 		/// Tag to be applied to the extracted files.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string Tag;
+		public string Tag { get; set; }
 	}
 
 	/// <summary>

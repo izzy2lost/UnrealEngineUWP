@@ -20,25 +20,25 @@ namespace AutomationTool.Tasks
 		/// Directory for the repository
 		/// </summary>
 		[TaskParameter]
-		public string Dir;
+		public string Dir { get; set; }
 
 		/// <summary>
 		/// The remote to add
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Remote;
+		public string Remote { get; set; }
 
 		/// <summary>
 		/// The branch to check out on the remote
 		/// </summary>
 		[TaskParameter]
-		public string Branch;
+		public string Branch { get; set; }
 
 		/// <summary>
 		/// Configuration file for the repo. This can be used to set up a remote to be fetched and/or provide credentials.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string ConfigFile;
+		public string ConfigFile { get; set; }
 	}
 
 	/// <summary>

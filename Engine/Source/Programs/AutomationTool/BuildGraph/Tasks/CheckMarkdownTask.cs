@@ -22,7 +22,7 @@ namespace AutomationTool.Tasks
 		/// Optional filter to be applied to the list of input files.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 	}
 
 	/// <summary>

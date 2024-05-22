@@ -26,37 +26,37 @@ namespace AutomationTool.Tasks
 		/// Optional filter to be applied to the list of input files.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// The pattern(s) to copy from (for example, Engine/*.txt).
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.FileSpec)]
-		public string From;
+		public string From { get; set; }
 
 		/// <summary>
 		/// The directory to copy to.
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.FileSpec)]
-		public string To;
+		public string To { get; set; }
 
 		/// <summary>
 		/// Optionally if files should be overwritten, defaults to false.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Overwrite = false;
+		public bool Overwrite { get; set; } = false;
 
 		/// <summary>
 		/// Tag to be applied to build products of this task.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string Tag;
+		public string Tag { get; set; }
 
 		/// <summary>
 		/// Whether or not to throw an error if no files were found to copy
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool ErrorIfNotFound = false;
+		public bool ErrorIfNotFound { get; set; } = false;
 	}
 
 	/// <summary>

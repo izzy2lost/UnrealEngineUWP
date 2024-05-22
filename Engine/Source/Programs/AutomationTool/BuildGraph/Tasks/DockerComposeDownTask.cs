@@ -23,13 +23,13 @@ namespace AutomationTool.Tasks
 		/// Path to the docker-compose file
 		/// </summary>
 		[TaskParameter]
-		public string File;
+		public string File { get; set; }
 
 		/// <summary>
 		/// Arguments for the command
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Arguments;
+		public string Arguments { get; set; }
 	}
 
 	/// <summary>

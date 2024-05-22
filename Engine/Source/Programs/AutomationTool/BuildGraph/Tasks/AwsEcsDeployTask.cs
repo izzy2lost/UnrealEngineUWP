@@ -23,49 +23,49 @@ namespace AutomationTool.Tasks
 		/// Task definition file to use
 		/// </summary>
 		[TaskParameter(Optional = false)]
-		public string TaskDefinitionFile;
+		public string TaskDefinitionFile { get; set; }
 
 		/// <summary>
 		/// Docker image to set in new task definition (will replace %%DOCKER_PATTERN%% with this value)
 		/// </summary>
 		[TaskParameter(Optional = false)]
-		public string DockerImage;
+		public string DockerImage { get; set; }
 
 		/// <summary>
 		/// App version to set in new task definition (will replace %%VERSION%% with this value)
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Version;
+		public string Version { get; set; }
 
 		/// <summary>
 		/// Cluster ARN representing AWS ECS cluster to operate on
 		/// </summary>
 		[TaskParameter(Optional = false)]
-		public string Cluster;
+		public string Cluster { get; set; }
 
 		/// <summary>
 		/// Service name to update and deploy to
 		/// </summary>
 		[TaskParameter(Optional = false)]
-		public string Service;
+		public string Service { get; set; }
 
 		/// <summary>
 		/// Environment variables
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Environment;
+		public string Environment { get; set; }
 
 		/// <summary>
 		/// File to read environment from
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string EnvironmentFile;
+		public string EnvironmentFile { get; set; }
 
 		/// <summary>
 		/// Write output to the log
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool LogOutput = false;
+		public bool LogOutput { get; set; } = false;
 	}
 
 	/// <summary>

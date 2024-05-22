@@ -26,67 +26,67 @@ namespace AutomationTool.Tasks
 		/// The directory to read compressed files from.
 		/// </summary>
 		[TaskParameter]
-		public DirectoryReference FromDir;
+		public DirectoryReference FromDir { get; set; }
 
 		/// <summary>
 		/// List of file specifications separated by semicolons (for example, *.cpp;Engine/.../*.bat), or the name of a tag set. Relative paths are taken from FromDir.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 		
 		/// <summary>
 		/// The jupiter namespace used to upload the build. Used to control who has access to the build.
 		/// </summary>
 		[TaskParameter]
-		public string JupiterNamespace;
+		public string JupiterNamespace { get; set; }
 
 		/// <summary>
 		/// The key of the build as will be used to download the build again. This has to be globally unique for this particular upload.
 		/// </summary>
 		[TaskParameter]
-		public string JupiterKey;
+		public string JupiterKey { get; set; }
 
 		/// <summary>
 		/// The type of archive these files are from, will be added to the metadata
 		/// </summary>
 		[TaskParameter]
-		public string ArchiveType;
+		public string ArchiveType { get; set; }
 
 		/// <summary>
 		/// The name of the project this set of files are associated with, will be added to the metadata
 		/// </summary>
 		[TaskParameter]
-		public string ProjectName;
+		public string ProjectName { get; set; }
 
 		/// <summary>
 		/// The source control branch these files were generated from, will be added to the metadata
 		/// </summary>
 		[TaskParameter]
-		public string Branch;
+		public string Branch { get; set; }
 
 		/// <summary>
 		/// The source control revision these files were generated from, will be added to the metadata
 		/// </summary>
 		[TaskParameter]
-		public string Changelist;
+		public string Changelist { get; set; }
 
 		/// <summary>
 		/// Specify the url to the Jupiter instance to upload to
 		/// </summary>
 		[TaskParameter]
-		public string JupiterUrl;
+		public string JupiterUrl { get; set; }
 
 		/// <summary>
 		/// Semi-colon separated list of '=' separated key value mappings to add to the metadata. E.g. Foo=bar;spam=eggs
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string AdditionalMetadata;
+		public string AdditionalMetadata { get; set; }
 
 		/// <summary>
 		/// If enabled file content is not kept in memory, results in lower memory usage but increased io as file contents needs to be read multiple times (for hashing as well as during upload)
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool LimitMemoryUsage = true;
+		public bool LimitMemoryUsage { get; set; } = true;
 	}
 
 	/// <summary>

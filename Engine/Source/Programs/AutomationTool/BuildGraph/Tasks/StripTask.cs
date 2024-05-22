@@ -26,31 +26,31 @@ namespace AutomationTool.Tasks
 		/// The platform toolchain to strip binaries.
 		/// </summary>
 		[TaskParameter]
-		public UnrealTargetPlatform Platform;
+		public UnrealTargetPlatform Platform { get; set; }
 
 		/// <summary>
 		/// The directory to find files in.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public DirectoryReference BaseDir;
+		public DirectoryReference BaseDir { get; set; }
 
 		/// <summary>
 		/// List of file specifications separated by semicolons (for example, Engine/.../*.pdb), or the name of a tag set.
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// Output directory for the stripped files. Defaults to the input path, overwriting the input files.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public DirectoryReference OutputDir;
+		public DirectoryReference OutputDir { get; set; }
 
 		/// <summary>
 		/// Tag to be applied to build products of this task.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string Tag;
+		public string Tag { get; set; }
 	}
 
 	/// <summary>

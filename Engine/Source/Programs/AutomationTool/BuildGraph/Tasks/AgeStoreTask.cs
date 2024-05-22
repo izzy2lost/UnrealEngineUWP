@@ -24,25 +24,25 @@ namespace AutomationTool.Tasks
 		/// The target platform to age symbols for.
 		/// </summary>
 		[TaskParameter]
-		public UnrealTargetPlatform Platform;
+		public UnrealTargetPlatform Platform { get; set; }
 
 		/// <summary>
 		/// The symbol server directory.
 		/// </summary>
 		[TaskParameter]
-		public string StoreDir;
+		public string StoreDir { get; set; }
 
 		/// <summary>
 		/// Number of days worth of symbols to keep.
 		/// </summary>
 		[TaskParameter]
-		public int Days;
+		public int Days { get; set; }
 
 		/// <summary>
 		/// The root of the build directory to check for existing buildversion named directories.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string BuildDir;
+		public string BuildDir { get; set; }
 
 		/// <summary>
 		/// A substring to match in directory file names before deleting symbols. This allows the "age store" task
@@ -50,7 +50,7 @@ namespace AutomationTool.Tasks
 		/// Specific use of the filter value is determined by the symbol server structure defined by the platform toolchain.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Filter;
+		public string Filter { get; set; }
 	}
 
 	/// <summary>

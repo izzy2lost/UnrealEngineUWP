@@ -25,25 +25,25 @@ namespace AutomationTool.Tasks
 		/// The file or files to rename.
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// The current file name, or pattern to match (for example, *.txt). Should not include any path separators.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string From;
+		public string From { get; set; }
 
 		/// <summary>
 		/// The new name for the file(s). Should not include any path separators.
 		/// </summary>
 		[TaskParameter]
-		public string To;
+		public string To { get; set; }
 
 		/// <summary>
 		/// Tag to be applied to the renamed files.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string Tag;
+		public string Tag { get; set; }
 	}
 
 	/// <summary>

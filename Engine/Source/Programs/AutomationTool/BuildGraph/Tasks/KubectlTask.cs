@@ -19,13 +19,13 @@ namespace AutomationTool.Tasks
 		/// Command line arguments
 		/// </summary>
 		[TaskParameter]
-		public string Arguments;
+		public string Arguments { get; set; }
 
 		/// <summary>
 		/// Base directory for running the command
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string BaseDir;
+		public string BaseDir { get; set; }
 	}
 
 	/// <summary>

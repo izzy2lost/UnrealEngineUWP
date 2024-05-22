@@ -39,37 +39,37 @@ namespace AutomationTool.Tasks
 		/// Name for the artifact
 		/// </summary>
 		[TaskParameter]
-		public string Name = String.Empty;
+		public string Name { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Type of the artifact
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Type = "unknown";
+		public string Type { get; set; } = "unknown";
 
 		/// <summary>
 		/// Description for the artifact
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string? Description;
+		public string? Description { get; set; }
 
 		/// <summary>
 		/// Base directory to resolve relative paths for input files.
 		/// </summary>
 		[TaskParameter]
-		public string? BaseDir;
+		public string? BaseDir { get; set; }
 
 		/// <summary>
 		/// Changelist number for this artifact
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public int? Change;
+		public int? Change { get; set; }
 
 		/// <summary>
 		/// Files to be uploaded.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files = "...";
+		public string Files { get; set; } = "...";
 	}
 
 	/// <summary>

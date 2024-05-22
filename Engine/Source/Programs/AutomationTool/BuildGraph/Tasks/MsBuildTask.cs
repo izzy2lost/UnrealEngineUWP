@@ -20,31 +20,31 @@ namespace AutomationTool.Tasks
         /// The C# project file to compile. Using semicolons, more than one project file can be specified.
         /// </summary>
         [TaskParameter]
-		public string Project;
+		public string Project { get; set; }
 
 		/// <summary>
 		/// The configuration to compile.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Configuration;
+		public string Configuration { get; set; }
 
 		/// <summary>
 		/// The platform to compile.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Platform;
+		public string Platform { get; set; }
 
 		/// <summary>
 		/// Additional options to pass to the compiler.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Arguments;
+		public string Arguments { get; set; }
 
 		/// <summary>
 		/// The MSBuild output verbosity.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Verbosity = "minimal";
+		public string Verbosity { get; set; } = "minimal";
 	}
 
 	/// <summary>
@@ -137,7 +137,7 @@ namespace AutomationTool.Tasks
 		/// <returns>The tag names which are modified by this task</returns>
 		public override IEnumerable<string> FindProducedTagNames()
 		{
-			return new string[0];
+			return Enumerable.Empty<string>();
 		}
 	}	
 }

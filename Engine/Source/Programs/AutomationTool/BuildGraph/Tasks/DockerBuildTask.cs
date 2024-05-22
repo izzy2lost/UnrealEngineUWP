@@ -24,79 +24,79 @@ namespace AutomationTool.Tasks
 		/// Base directory for the build
 		/// </summary>
 		[TaskParameter]
-		public string BaseDir;
+		public string BaseDir { get; set; }
 
 		/// <summary>
 		/// Files to be staged before building the image
 		/// </summary>
 		[TaskParameter]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// Path to the Dockerfile. Uses the root of basedir if not specified.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string DockerFile;
+		public string DockerFile { get; set; }
 
 		/// <summary>
 		/// Path to a .dockerignore. Will be copied to basedir if specified.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string DockerIgnoreFile;
+		public string DockerIgnoreFile { get; set; }
 
 		/// <summary>
 		/// Use BuildKit in Docker
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool UseBuildKit;
+		public bool UseBuildKit { get; set; }
 
 		/// <summary>
 		/// Type of progress output (--progress)
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string ProgressOutput;
+		public string ProgressOutput { get; set; }
 
 		/// <summary>
 		/// Tag for the image
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Tag;
+		public string Tag { get; set; }
 
 		/// <summary>
 		/// Set the target build stage to build (--target)
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Target;
+		public string Target { get; set; }
 
 		/// <summary>
 		/// Custom output exporter. Requires BuildKit (--output)
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Output;
+		public string Output { get; set; }
 
 		/// <summary>
 		/// Optional arguments
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Arguments;
+		public string Arguments { get; set; }
 
 		/// <summary>
 		/// List of additional directories to overlay into the staged input files. Allows credentials to be staged, etc...
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string OverlayDirs;
+		public string OverlayDirs { get; set; }
 
 		/// <summary>
 		/// Environment variables to set
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Environment;
+		public string Environment { get; set; }
 
 		/// <summary>
 		/// File to read environment variables from
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string EnvironmentFile;
+		public string EnvironmentFile { get; set; }
 	}
 
 	/// <summary>

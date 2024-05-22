@@ -23,43 +23,43 @@ namespace AutomationTool.Tasks
 		/// Repository
 		/// </summary>
 		[TaskParameter]
-		public string Repository;
+		public string Repository { get; set; }
 
 		/// <summary>
 		/// Source image to push
 		/// </summary>
 		[TaskParameter]
-		public string Image;
+		public string Image { get; set; }
 
 		/// <summary>
 		/// Name of the target image
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string TargetImage;
+		public string TargetImage { get; set; }
 
 		/// <summary>
 		/// Additional environment variables
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Environment;
+		public string Environment { get; set; }
 
 		/// <summary>
 		/// File to read environment from
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string EnvironmentFile;
+		public string EnvironmentFile { get; set; }
 
 		/// <summary>
 		/// Whether to login to AWS ECR
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool AwsEcr;
+		public bool AwsEcr { get; set; }
 
 		/// <summary>
 		/// Path to a json file for authentication to the repository for pushing.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string RepositoryAuthFile;
+		public string RepositoryAuthFile { get; set; }
 	}
 
 	/// <summary>

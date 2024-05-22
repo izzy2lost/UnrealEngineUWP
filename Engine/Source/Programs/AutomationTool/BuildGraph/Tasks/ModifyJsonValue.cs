@@ -23,19 +23,19 @@ namespace AutomationTool.Tasks
 		/// json file paths which will be modified
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// json key path to find in each file
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.Default)]
-		public string KeyPath;
+		public string KeyPath { get; set; }
 
 		/// <summary>
 		/// new value to apply
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.Default)]
-		public int NewValue;
+		public int NewValue { get; set; }
 	}
 
 	/// <summary>

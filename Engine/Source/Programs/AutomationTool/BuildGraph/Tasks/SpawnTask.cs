@@ -24,43 +24,43 @@ namespace AutomationTool.Tasks
 		/// Executable to spawn.
 		/// </summary>
 		[TaskParameter]
-		public string Exe;
+		public string Exe { get; set; }
 
 		/// <summary>
 		/// Arguments for the newly created process.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Arguments;
+		public string Arguments { get; set; }
 
 		/// <summary>
 		/// Working directory for spawning the new task
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string WorkingDir;
+		public string WorkingDir { get; set; }
 
 		/// <summary>
 		/// Environment variables to set
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Environment;
+		public string Environment { get; set; }
 
 		/// <summary>
 		/// File to read environment from
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string EnvironmentFile;
+		public string EnvironmentFile { get; set; }
 
 		/// <summary>
 		/// Write output to the log
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool LogOutput = true;
+		public bool LogOutput { get; set; } = true;
 
 		/// <summary>
 		/// The minimum exit code, which is treated as an error.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public int ErrorLevel = 1;
+		public int ErrorLevel { get; set; } = 1;
 	}
 
 	/// <summary>

@@ -26,49 +26,49 @@ namespace AutomationTool.Tasks
 		/// Set of receipt files (*.target) to read, including wildcards and tag names, separated by semicolons.
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// Path to the Engine folder, used to expand $(EngineDir) properties in receipt files. Defaults to the Engine directory for the current workspace.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public DirectoryReference EngineDir;
+		public DirectoryReference EngineDir { get; set; }
 
 		/// <summary>
 		/// Path to the project folder, used to expand $(ProjectDir) properties in receipt files. Defaults to the Engine directory for the current workspace -- DEPRECATED.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public DirectoryReference ProjectDir;
+		public DirectoryReference ProjectDir { get; set; }
 
 		/// <summary>
 		/// Whether to tag the Build Products listed in receipts.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool BuildProducts;
+		public bool BuildProducts { get; set; }
 
 		/// <summary>
 		/// Which type of Build Products to tag (see TargetReceipt.cs - UnrealBuildTool.BuildProductType for valid values).
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string BuildProductType;
+		public string BuildProductType { get; set; }
 
 		/// <summary>
 		/// Whether to tag the Runtime Dependencies listed in receipts.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool RuntimeDependencies;
+		public bool RuntimeDependencies { get; set; }
 
 		/// <summary>
 		/// Which type of Runtime Dependencies to tag (see TargetReceipt.cs - UnrealBuildTool.StagedFileType for valid values).
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string StagedFileType;
+		public string StagedFileType { get; set; }
 
 		/// <summary>
 		/// Name of the tag to apply.
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.TagList)]
-		public string With;
+		public string With { get; set; }
 	}
 
 	/// <summary>

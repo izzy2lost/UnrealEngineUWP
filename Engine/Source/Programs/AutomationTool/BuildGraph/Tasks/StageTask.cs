@@ -23,49 +23,49 @@ namespace AutomationTool.Tasks
 		/// The project that this target belongs to.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference Project;
+		public FileReference Project { get; set; }
 
 		/// <summary>
 		/// Name of the target to stage.
 		/// </summary>
 		[TaskParameter]
-		public string Target;
+		public string Target { get; set; }
 
 		/// <summary>
 		/// Platform to stage.
 		/// </summary>
 		[TaskParameter]
-		public UnrealTargetPlatform Platform;
+		public UnrealTargetPlatform Platform { get; set; }
 
 		/// <summary>
 		/// Configuration to be staged.
 		/// </summary>
 		[TaskParameter]
-		public UnrealTargetConfiguration Configuration;
+		public UnrealTargetConfiguration Configuration { get; set; }
 
 		/// <summary>
 		/// Architecture to be staged.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Architecture;
+		public string Architecture { get; set; }
 
 		/// <summary>
 		/// Directory that the receipt files should be staged to.
 		/// </summary>
 		[TaskParameter]
-		public DirectoryReference ToDir;
+		public DirectoryReference ToDir { get; set; }
 
 		/// <summary>
 		/// Whether to overwrite existing files.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Overwrite;
+		public bool Overwrite { get; set; }
 
 		/// <summary>
 		/// Tag to be applied to build products of this task.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string Tag;
+		public string Tag { get; set; }
 	}
 
 	/// <summary>

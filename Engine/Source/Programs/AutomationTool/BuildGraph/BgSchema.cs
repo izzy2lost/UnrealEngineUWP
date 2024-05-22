@@ -195,7 +195,7 @@ namespace AutomationTool
 		/// <summary>
 		/// The inner xml schema
 		/// </summary>
-		public readonly XmlSchema CompiledSchema;
+		public XmlSchema CompiledSchema { get; }
 
 		/// <summary>
 		/// Characters which are not permitted in names.

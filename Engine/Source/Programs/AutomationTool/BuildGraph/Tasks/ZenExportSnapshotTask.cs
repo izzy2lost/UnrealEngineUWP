@@ -51,105 +51,104 @@ namespace AutomationTool.Tasks
 		/// The project from which to export the snapshot
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference Project;
+		public FileReference Project { get; set; }
 
 		/// <summary>
 		/// The target platform(s) to export the snapshot for
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Platform;
+		public string Platform { get; set; }
 
 		/// <summary>
 		/// A file to read with information about the snapshot that should be used as a base when exporting this new snapshot
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference SnapshotBaseDescriptorFile;
+		public FileReference SnapshotBaseDescriptorFile { get; set; }
 
 		/// <summary>
 		/// A file to create with information about the snapshot that was exported
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference SnapshotDescriptorFile;
+		public FileReference SnapshotDescriptorFile { get; set; }
 
 		/// <summary>
 		/// The type of destination to export the snapshot to (cloud, ...)
 		/// </summary>
 		[TaskParameter]
-		public string DestinationStorageType;
+		public string DestinationStorageType { get; set; }
 
 		/// <summary>
 		/// The identifier to use when exporting to a destination
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string DestinationIdentifier;
+		public string DestinationIdentifier { get; set; }
 
 		/// <summary>
 		/// The host name to use when exporting to a cloud destination
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string DestinationCloudHost;
+		public string DestinationCloudHost { get; set; }
 
 		/// <summary>
 		/// The host name to use when writing a snapshot descriptor for a cloud destination
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string SnapshotDescriptorCloudHost;
+		public string SnapshotDescriptorCloudHost { get; set; }
 
 		/// <summary>
 		/// The http version to use when exporting to a cloud destination
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string DestinationCloudHttpVersion;
+		public string DestinationCloudHttpVersion { get; set; }
 
 		/// <summary>
 		/// The http version to use when writing a snapshot descriptor for a cloud destination
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string SnapshotDescriptorCloudHttpVersion;
+		public string SnapshotDescriptorCloudHttpVersion { get; set; }
 
 		/// <summary>
 		/// The namespace to use when exporting to a cloud destination
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string DestinationCloudNamespace;
+		public string DestinationCloudNamespace { get; set; }
 
 		/// <summary>
 		/// A custom bucket name to use when exporting to a cloud destination
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string DestinationCloudBucket;
+		public string DestinationCloudBucket { get; set; }
 
 		/// <summary>
 		/// The host name to use when exporting to a zen destination
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string DestinationZenHost;
+		public string DestinationZenHost { get; set; }
 
 		/// <summary>
 		/// The directory to use when exporting to a file destination
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public DirectoryReference DestinationFileDir;
+		public DirectoryReference DestinationFileDir { get; set; }
 
 		/// <summary>
 		/// The filename to use when exporting to a file destination
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string DestinationFileName;
+		public string DestinationFileName { get; set; }
 
 		/// <summary>
 		/// Optional. Where to look for the ue.projectstore
 		/// The pattern {Platform} can be used for exporting multiple platforms at once.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string OverridePlatformCookedDir;
+		public string OverridePlatformCookedDir { get; set; }
 
 		/// <summary>
 		/// Optional. Whether to force export of data even if the destination claims to have them.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Force = false;
-
+		public bool Force { get; set; } = false;
 	}
 
 	/// <summary>
@@ -384,7 +383,7 @@ namespace AutomationTool.Tasks
 			Writer.WriteObjectEnd();
 		}
 
-		private bool TryRunAndLogWithoutSpew(string App, string CommandLine, bool IgnoreFailure)
+		private static bool TryRunAndLogWithoutSpew(string App, string CommandLine, bool IgnoreFailure)
 		{
 			ProcessResult.SpewFilterCallbackType SilentOutputFilter = new ProcessResult.SpewFilterCallbackType(Line =>
 				{
@@ -422,7 +421,7 @@ namespace AutomationTool.Tasks
 			return false;
 		}
 
-		private string SanitizeBucketName(string InString)
+		private static string SanitizeBucketName(string InString)
 		{
 			return StringId.Sanitize(InString).ToString();
 		}

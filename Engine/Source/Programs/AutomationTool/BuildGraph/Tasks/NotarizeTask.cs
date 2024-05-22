@@ -30,31 +30,31 @@ namespace AutomationTool.Tasks
 		/// Path to the dmg to notarize
 		/// </summary>
 		[TaskParameter]
-		public string DmgPath;
+		public string DmgPath { get; set; }
 
 		/// <summary>
 		/// primary bundle ID
 		/// </summary>
 		[TaskParameter]
-		public string BundleID;
+		public string BundleID { get; set; }
 
 		/// <summary>
 		/// Apple ID Username
 		/// </summary>
 		[TaskParameter]
-		public string UserName;
+		public string UserName { get; set; }
 
 		/// <summary>
 		/// The keychain ID
 		/// </summary>
 		[TaskParameter]
-		public string KeyChainID;
+		public string KeyChainID { get; set; }
 
 		/// <summary>
 		/// When true the notarization ticket will be stapled
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool RequireStapling = false;
+		public bool RequireStapling { get; set; } = false;
 	}
 
 	[TaskElement("Notarize", typeof(NotarizeTaskParameters))]

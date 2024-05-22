@@ -22,37 +22,37 @@ namespace AutomationTool.Tasks
 		/// Role to assume
 		/// </summary>
 		[TaskParameter]
-		public string Arn;
+		public string Arn { get; set; }
 
 		/// <summary>
 		/// Name of this session
 		/// </summary>
 		[TaskParameter]
-		public string Session;
+		public string Session { get; set; }
 
 		/// <summary>
 		/// Duration of the token in seconds
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public int Duration = 1000;
+		public int Duration { get; set; } = 1000;
 
 		/// <summary>
 		/// Environment variables
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Environment;
+		public string Environment { get; set; }
 
 		/// <summary>
 		/// File to read environment variables from
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string EnvironmentFile;
+		public string EnvironmentFile { get; set; }
 
 		/// <summary>
 		/// Output file for the new environment
 		/// </summary>
 		[TaskParameter]
-		public string OutputFile;
+		public string OutputFile { get; set; }
 	}
 
 	/// <summary>

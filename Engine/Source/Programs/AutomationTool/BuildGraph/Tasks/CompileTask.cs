@@ -23,68 +23,68 @@ namespace AutomationTool.Tasks
 		/// The target to compile.
 		/// </summary>
 		[TaskParameter(Optional=true)]
-		public string Target;
+		public string Target { get; set; }
 
 		/// <summary>
 		/// The configuration to compile.
 		/// </summary>
 		[TaskParameter]
-		public UnrealTargetConfiguration Configuration;
+		public UnrealTargetConfiguration Configuration { get; set; }
 
 		/// <summary>
 		/// The platform to compile for.
 		/// </summary>
 		[TaskParameter]
-		public UnrealTargetPlatform Platform;
+		public UnrealTargetPlatform Platform { get; set; }
 
 		/// <summary>
 		/// The project to compile with.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Project;
+		public string Project { get; set; }
 
 		/// <summary>
 		/// Additional arguments for UnrealBuildTool.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Arguments;
+		public string Arguments { get; set; }
 
 		/// <summary>
 		/// Whether to allow using XGE for compilation.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool AllowXGE = true;
+		public bool AllowXGE { get; set; } = true;
 
 		/// <summary>
 		/// No longer necessary as UnrealBuildTool is run to compile targets.
 		/// </summary>
 		[TaskParameter(Optional = true)]
 		[Obsolete]
-		public bool AllowParallelExecutor = true;
+		public bool AllowParallelExecutor { get; set; } = true;
 
 		/// <summary>
 		/// Whether to allow UBT to use all available cores, when AllowXGE is disabled.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool AllowAllCores = false;
+		public bool AllowAllCores { get; set; } = false;
 
 		/// <summary>
 		/// Whether to allow cleaning this target. If unspecified, targets are cleaned if the -Clean argument is passed on the command line.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool? Clean = null;
+		public bool? Clean { get; set; } = null;
 
 		/// <summary>
 		/// Global flag passed to UBT that can be used to generate target files without fully compiling.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool SkipBuild = false;
+		public bool SkipBuild { get; set; } = false;
 
 		/// <summary>
 		/// Tag to be applied to build products of this task.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string Tag;
+		public string Tag { get; set; }
 	}
 
 	/// <summary>
@@ -245,12 +245,12 @@ namespace AutomationTool.Tasks
 		/// <summary>
 		/// Parameters for this task
 		/// </summary>
-		public CompileTaskParameters Parameters;
+		public CompileTaskParameters Parameters { get; set; }
 
 		/// <summary>
 		/// Resolved path to Project file
 		/// </summary>
-		public FileReference ProjectFile = null;
+		public FileReference ProjectFile { get; set; } = null;
 
 		/// <summary>
 		/// Construct a compile task

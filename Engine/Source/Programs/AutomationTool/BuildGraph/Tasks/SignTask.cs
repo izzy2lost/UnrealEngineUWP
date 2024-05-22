@@ -18,25 +18,25 @@ namespace AutomationTool.Tasks
 		/// List of file specifications separated by semicolons (for example, *.cpp;Engine/.../*.bat), or the name of a tag set.
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// Optional description for the signed content
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Description;
+		public string Description { get; set; }
 
 		/// <summary>
 		/// Tag to be applied to build products of this task.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string Tag;
+		public string Tag { get; set; }
 
 		/// <summary>
 		/// If true, the calls to the signing tool will be performed in parallel.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Parallel;
+		public bool Parallel { get; set; }
 	}
 
 	/// <summary>

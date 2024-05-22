@@ -24,82 +24,81 @@ namespace AutomationTool.Tasks
 		/// The type of destination to import from to (cloud, file...)
 		/// </summary>
 		[TaskParameter]
-		public string ImportType;
+		public string ImportType { get; set; }
 
 		/// <summary>
 		/// comma separated full path to the oplog dir to import into the local zen server
 		/// Files="Path1,Path2"
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// The project from which to import for
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference Project;
+		public FileReference Project { get; set; }
 
 		/// <summary>
 		/// The name of the newly created Zen Project we will be importing into
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string ProjectName;
-
+		public string ProjectName { get; set; }
 
 		/// <summary>
 		/// The target platform to import the snapshot for
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Platform;
+		public string Platform { get; set; }
 
 		/// <summary>
 		/// Root dir for the UE project. Used to derive the Enging folder and the Project folder
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string RootDir;
+		public string RootDir { get; set; }
 
 		/// <summary>
 		/// The name of the imported oplog
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string OplogName;
+		public string OplogName { get; set; }
 
 		/// <summary>
 		/// The host URL for the zen server we are importing from
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string HostName = "localhost";
+		public string HostName { get; set; } = "localhost";
 
 		/// <summary>
 		/// The host port for the zen server we are importing from
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string HostPort = "8558";
+		public string HostPort { get; set; } = "8558";
 		
 
 		/// <summary>
 		/// The cloud URL to import from
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string CloudURL;
+		public string CloudURL { get; set; }
 
 		/// <summary>
 		/// what namespace to use when importing from cloud
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Namespace;
+		public string Namespace { get; set; }
 
 		/// <summary>
 		/// what bucket to use when importing from cloud
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Bucket;
+		public string Bucket { get; set; }
 
 		/// <summary>
 		/// What key to use when importing from cloud
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Key;
+		public string Key { get; set; }
 	}
 
 	/// <summary>

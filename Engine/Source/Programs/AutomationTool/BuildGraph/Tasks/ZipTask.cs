@@ -25,31 +25,31 @@ namespace AutomationTool.Tasks
 		/// The directory to read compressed files from.
 		/// </summary>
 		[TaskParameter]
-		public DirectoryReference FromDir;
+		public DirectoryReference FromDir { get; set; }
 
 		/// <summary>
 		/// List of file specifications separated by semicolons (for example, *.cpp;Engine/.../*.bat), or the name of a tag set. Relative paths are taken from FromDir.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// List of files that should have an executable bit set.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string ExecutableFiles;
+		public string ExecutableFiles { get; set; }
 
 		/// <summary>
 		/// The zip file to create.
 		/// </summary>
 		[TaskParameter]
-		public FileReference ZipFile;
+		public FileReference ZipFile { get; set; }
 
 		/// <summary>
 		/// Tag to be applied to the created zip file.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string Tag;
+		public string Tag { get; set; }
 	}
 
 	/// <summary>

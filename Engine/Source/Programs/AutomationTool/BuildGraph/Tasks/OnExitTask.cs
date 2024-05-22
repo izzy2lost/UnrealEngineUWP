@@ -19,13 +19,13 @@ namespace AutomationTool.Tasks
 		/// Executable to spawn.
 		/// </summary>
 		[TaskParameter]
-		public string Command = String.Empty;
+		public string Command { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Whether to execute on lease termination
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Lease = false;
+		public bool Lease { get; set; } = false;
 	}
 
 	/// <summary>

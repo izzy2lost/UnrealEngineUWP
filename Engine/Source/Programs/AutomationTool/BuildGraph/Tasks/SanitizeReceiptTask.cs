@@ -25,13 +25,13 @@ namespace AutomationTool.Tasks
 		/// Set of receipt files (*.target) to read, including wildcards and tag names, separated by semicolons.
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// Path to the Engine folder, used to expand $(EngineDir) properties in receipt files. Defaults to the Engine directory for the current workspace.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public DirectoryReference EngineDir;
+		public DirectoryReference EngineDir { get; set; }
 	}
 
 	/// <summary>

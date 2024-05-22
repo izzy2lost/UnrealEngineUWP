@@ -23,31 +23,31 @@ namespace AutomationTool.Tasks
 		/// The commandlet name to execute.
 		/// </summary>
 		[TaskParameter]
-		public string Name;
+		public string Name { get; set; }
 
 		/// <summary>
 		/// The project to run the editor with.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Project;
+		public string Project { get; set; }
 
 		/// <summary>
 		/// Arguments to be passed to the commandlet.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Arguments;
+		public string Arguments { get; set; }
 
 		/// <summary>
 		/// The editor executable to use. Defaults to the development UnrealEditor executable for the current platform.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference EditorExe;
+		public FileReference EditorExe { get; set; }
 
 		/// <summary>
 		/// The minimum exit code, which is treated as an error.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public int ErrorLevel = 1;
+		public int ErrorLevel { get; set; } = 1;
 	}
 
 	/// <summary>

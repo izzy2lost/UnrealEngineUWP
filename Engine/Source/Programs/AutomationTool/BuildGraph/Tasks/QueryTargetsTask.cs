@@ -26,25 +26,25 @@ namespace AutomationTool.Tasks
 		/// Path to the project file to query
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference? ProjectFile;
+		public FileReference? ProjectFile { get; set; }
 
 		/// <summary>
 		/// Path to the output file to receive information about the targets
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference? OutputFile = null;
+		public FileReference? OutputFile { get; set; } = null;
 
 		/// <summary>
 		/// Write out all targets, even if a default is specified in the BuildSettings section of the Default*.ini files. 
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool IncludeAllTargets = false;
+		public bool IncludeAllTargets { get; set; } = false;
 
 		/// <summary>
 		/// Tag to be applied to build products of this task.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string? Tag;
+		public string? Tag { get; set; }
 	}
 
 	/// <summary>

@@ -30,31 +30,31 @@ namespace AutomationTool.Tasks
 		/// Base directory for running the command
 		/// </summary>
 		[TaskParameter]
-		public string BaseDir;
+		public string BaseDir { get; set; }
 
 		/// <summary>
 		/// Specifies a list of packages to ignore for version checks, separated by semicolons. Optional version number may be specified with 'name@version' syntax.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string IgnorePackages;
+		public string IgnorePackages { get; set; }
 
 		/// <summary>
 		/// Directory containing allowed licenses
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public DirectoryReference LicenseDir;
+		public DirectoryReference LicenseDir { get; set; }
 
 		/// <summary>
 		/// Path to a csv file to write with list of packages and their licenses
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference CsvFile;
+		public FileReference CsvFile { get; set; }
 
 		/// <summary>
 		/// Override path to dotnet executable
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public FileReference DotNetPath;
+		public FileReference DotNetPath { get; set; }
 	}
 
 	/// <summary>

@@ -23,62 +23,62 @@ namespace AutomationTool.Tasks
 		/// The C# project file to compile. Using semicolons, more than one project file can be specified.
 		/// </summary>
 		[TaskParameter]
-		public string Project;
+		public string Project { get; set; }
 
 		/// <summary>
 		/// The configuration to compile.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Configuration;
+		public string Configuration { get; set; }
 
 		/// <summary>
 		/// The platform to compile.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Platform;
+		public string Platform { get; set; }
 
 		/// <summary>
 		/// The target to build.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Target;
+		public string Target { get; set; }
 
 		/// <summary>
 		/// Properties for the command
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Properties;
+		public string Properties { get; set; }
 
 		/// <summary>
 		/// Additional options to pass to the compiler.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Arguments;
+		public string Arguments { get; set; }
 
 		/// <summary>
 		/// Only enumerate build products -- do not actually compile the projects.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool EnumerateOnly;
+		public bool EnumerateOnly { get; set; }
 
 		/// <summary>
 		/// Tag to be applied to build products of this task.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string Tag;
+		public string Tag { get; set; }
 
 		/// <summary>
 		/// Tag to be applied to any non-private references the projects have.
 		/// (for example, those that are external and not copied into the output directory).
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string TagReferences;
+		public string TagReferences { get; set; }
 
 		/// <summary>
 		/// Whether to use the system toolchain rather than the bundled UE SDK
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool UseSystemCompiler;
+		public bool UseSystemCompiler { get; set; }
 	}
 
 	/// <summary>

@@ -26,31 +26,31 @@ namespace AutomationTool.Tasks
 		/// The size of each file.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public int Size = 1024;
+		public int Size { get; set; } = 1024;
 
 		/// <summary>
 		/// Number of files to write.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public int Count = 50;
+		public int Count { get; set; } = 50;
 
 		/// <summary>
 		/// Whether to generate different data for each output file.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Different = true;
+		public bool Different { get; set; } = true;
 
 		/// <summary>
 		/// Output directory
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string OutputDir;
+		public string OutputDir { get; set; }
 
 		/// <summary>
 		/// Optional filter to be applied to the list of input files.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Tag;
+		public string Tag { get; set; }
 	}
 
 	/// <summary>

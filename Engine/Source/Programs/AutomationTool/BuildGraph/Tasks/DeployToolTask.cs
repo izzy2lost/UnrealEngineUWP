@@ -38,43 +38,43 @@ namespace AutomationTool.Tasks
 		/// Identifier for the tool
 		/// </summary>
 		[TaskParameter]
-		public string Id = String.Empty;
+		public string Id { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Settings file to use for the deployment. Should be a JSON file containing server name and access token.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Settings = String.Empty;
+		public string Settings { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Version number for the new tool
 		/// </summary>
 		[TaskParameter]
-		public string Version = String.Empty;
+		public string Version { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Duration over which to roll out the tool, in minutes.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public int Duration = 0;
+		public int Duration { get; set; } = 0;
 
 		/// <summary>
 		/// Whether to create the deployment as paused
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Paused = false;
+		public bool Paused { get; set; } = false;
 
 		/// <summary>
 		/// Zip file containing files to upload
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string? File = null!;
+		public string? File { get; set; } = null!;
 
 		/// <summary>
 		/// Directory to upload for the tool
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string? Directory = null!;
+		public string? Directory { get; set; } = null!;
 	}
 
 	/// <summary>

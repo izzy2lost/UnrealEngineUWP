@@ -26,7 +26,7 @@ namespace AutomationTool
 	/// Attribute to mark parameters to a task, which should be read as XML attributes from the script file.
 	/// </summary>
 	[AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
-	public class TaskParameterAttribute : Attribute
+	public sealed class TaskParameterAttribute : Attribute
 	{
 		/// <summary>
 		/// Whether the parameter can be omitted
@@ -56,12 +56,12 @@ namespace AutomationTool
 		/// <summary>
 		/// Name of the XML element that can be used to denote this class
 		/// </summary>
-		public string Name;
+		public string Name { get; set; }
 
 		/// <summary>
 		/// Type to be constructed from the deserialized element
 		/// </summary>
-		public Type ParametersType;
+		public Type ParametersType { get; set; }
 
 		/// <summary>
 		/// Constructor

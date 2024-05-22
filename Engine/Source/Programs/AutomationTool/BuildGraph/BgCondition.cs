@@ -304,7 +304,7 @@ namespace AutomationTool
 				string argument = await EvaluateScalarAsync();
 				result = (argument.Length > 0 && (argument[^1] == Path.DirectorySeparatorChar || argument[^1] == Path.AltDirectorySeparatorChar)) ? "true" : "false";
 			}
-			else if (String.Compare(_tokens[_idx], "Contains", true) == 0 && _tokens[_idx + 1] == "(")
+			else if (String.Equals(_tokens[_idx], "Contains", StringComparison.OrdinalIgnoreCase) && _tokens[_idx + 1] == "(")
 			{
 				// Check a string contains a substring. If a separator is supplied the string is first split
 				_idx++;
@@ -317,7 +317,7 @@ namespace AutomationTool
 
 				result = Contains(arguments.ElementAt(0), arguments.ElementAt(1)) ? "true" : "false";
 			}
-			else if (String.Compare(_tokens[_idx], "ContainsItem", true) == 0 && _tokens[_idx + 1] == "(")
+			else if (String.Equals(_tokens[_idx], "ContainsItem", StringComparison.OrdinalIgnoreCase) && _tokens[_idx + 1] == "(")
 			{
 				// Check a string contains a substring. If a separator is supplied the string is first split
 				_idx++;

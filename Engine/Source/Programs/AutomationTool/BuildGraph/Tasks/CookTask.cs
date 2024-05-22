@@ -1,18 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using AutomationTool;
-using EpicGames.BuildGraph;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
 using EpicGames.Core;
 using OpenTracing;
 using OpenTracing.Util;
-using UnrealBuildTool;
 
 namespace AutomationTool.Tasks
 {
@@ -25,50 +21,49 @@ namespace AutomationTool.Tasks
 		/// Project file to be cooked.
 		/// </summary>
 		[TaskParameter]
-		public string Project;
+		public string Project { get; set; }
 
 		/// <summary>
 		/// The cook platform to target (for example, Windows).
 		/// </summary>
 		[TaskParameter]
-		public string Platform;
+		public string Platform { get; set; }
 
 		/// <summary>
 		/// List of maps to be cooked, separated by '+' characters.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Maps;
+		public string Maps { get; set; }
 
 		/// <summary>
 		/// Additional arguments to be passed to the cooker.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Versioned = false;
-	
+		public bool Versioned { get; set; } = false;
+
 		/// <summary>
 		/// Additional arguments to be passed to the cooker.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Arguments = "";
-
+		public string Arguments { get; set; } = "";
 
 		/// <summary>
 		/// Optional path to what editor executable to run for cooking.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string EditorExe = "";
+		public string EditorExe { get; set; } = "";
 
 		/// <summary>
 		/// Whether to tag the output from the cook. Since cooks produce a lot of files, it can be detrimental to spend time tagging them if we don't need them in a dependent node.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool TagOutput = true;
+		public bool TagOutput { get; set; } = true;
 
 		/// <summary>
 		/// Tag to be applied to build products of this task.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string Tag;
+		public string Tag { get; set; }
 	}
 
 	/// <summary>

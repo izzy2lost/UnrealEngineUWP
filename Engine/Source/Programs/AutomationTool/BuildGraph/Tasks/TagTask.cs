@@ -23,37 +23,37 @@ namespace AutomationTool.Tasks
 		/// Set the base directory to resolve relative paths and patterns against. If set, any absolute patterns (for example, /Engine/Build/...) are taken to be relative to this path. If not, they are taken to be truly absolute.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public DirectoryReference BaseDir;
+		public DirectoryReference BaseDir { get; set; }
 
 		/// <summary>
 		/// Set of files to work from, including wildcards and tag names, separated by semicolons. If set, resolved relative to BaseDir, otherwise resolved to the branch root directory.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Files;
+		public string Files { get; set; }
 
 		/// <summary>
 		/// Set of text files to add additional files from. Each file list should have one file per line.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string FileLists;
+		public string FileLists { get; set; }
 
 		/// <summary>
 		/// Patterns to filter the list of files by, including tag names or wildcards. If set, may include patterns that apply to the base directory. If not specified, defaults to all files.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Filter;
+		public string Filter { get; set; }
 
 		/// <summary>
 		/// Set of patterns to exclude from the matched list. May include tag names of patterns that apply to the base directory.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.FileSpec)]
-		public string Except;
+		public string Except { get; set; }
 
 		/// <summary>
 		/// Name of the tag to apply.
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.TagList)]
-		public string With;
+		public string With { get; set; }
 	}
 
 	/// <summary>

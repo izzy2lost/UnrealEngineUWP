@@ -22,55 +22,55 @@ namespace AutomationTool.Tasks
 		/// The changelist to set in the version files.
 		/// </summary>
 		[TaskParameter]
-		public int Change;
+		public int Change { get; set; }
 
 		/// <summary>
 		/// The engine compatible changelist to set in the version files.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public int CompatibleChange;
+		public int CompatibleChange { get; set; }
 
 		/// <summary>
 		/// The branch string.
 		/// </summary>
 		[TaskParameter]
-		public string Branch;
+		public string Branch { get; set; }
 
 		/// <summary>
 		/// The build version string.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string Build;
+		public string Build { get; set; }
 
 		/// <summary>
 		/// The URL for a running continuous integration job.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public string BuildURL;
+		public string BuildURL { get; set; }
 
 		/// <summary>
 		/// Whether to set the IS_LICENSEE_VERSION flag to true.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Licensee;
+		public bool Licensee { get; set; }
 
 		/// <summary>
 		/// Whether to set the ENGINE_IS_PROMOTED_BUILD flag to true.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool Promoted = true;
+		public bool Promoted { get; set; } = true;
 
 		/// <summary>
 		/// If set, do not write to the files -- just return the version files that would be updated. Useful for local builds.
 		/// </summary>
 		[TaskParameter(Optional = true)]
-		public bool SkipWrite;
+		public bool SkipWrite { get; set; }
 
 		/// <summary>
 		/// Tag to be applied to build products of this task.
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string Tag;
+		public string Tag { get; set; }
 	}
 
 	/// <summary>

@@ -22,25 +22,25 @@ namespace AutomationTool.Tasks
 		/// Name for the report
 		/// </summary>
 		[TaskParameter]
-		public string Name;
+		public string Name { get; set; }
 
 		/// <summary>
 		/// Where to display the report
 		/// </summary>
 		[TaskParameter]
-		public string Scope;
+		public string Scope { get; set; }
 
 		/// <summary>
 		/// Where to show the report
 		/// </summary>
 		[TaskParameter]
-		public string Placement;
+		public string Placement { get; set; }
 
 		/// <summary>
 		/// Text to be displayed
 		/// </summary>
 		[TaskParameter]
-		public string Text;
+		public string Text { get; set; }
 	}
 
 	/// <summary>

@@ -22,31 +22,31 @@ namespace AutomationTool.Tasks
 		/// Path to the config file
 		/// </summary>
 		[TaskParameter(ValidationType = TaskParameterValidationType.FileSpec)]
-		public string File;
+		public string File { get; set; }
 
 		/// <summary>
 		/// The section name to modify
 		/// </summary>
 		[TaskParameter]
-		public string Section;
+		public string Section { get; set; }
 
 		/// <summary>
 		/// The property name to set
 		/// </summary>
 		[TaskParameter]
-		public string Key;
+		public string Key { get; set; }
 
 		/// <summary>
 		/// The property value to set
 		/// </summary>
 		[TaskParameter]
-		public string Value;
+		public string Value { get; set; }
 
 		/// <summary>
 		/// Tag to be applied to the extracted files
 		/// </summary>
 		[TaskParameter(Optional = true, ValidationType = TaskParameterValidationType.TagList)]
-		public string Tag;
+		public string Tag { get; set; }
 	}
 
 	/// <summary>
