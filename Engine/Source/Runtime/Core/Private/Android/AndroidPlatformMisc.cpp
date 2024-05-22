@@ -146,9 +146,8 @@ extern void AndroidThunkCpp_ForceQuit();
 
 extern void AndroidThunkCpp_SetOrientation(int32 Value);
 
-extern void AndroidThunkCpp_SetCellularPreference(int32 Value);
-
-extern int32 AndroidThunkCpp_GetCellularPreference();
+extern void AndroidThunkCpp_SetSharedPreferenceInt(const FString& Group, const FString& Key, int32 Value);
+extern int32 AndroidThunkCpp_GetSharedPreferenceInt(const FString& Group, const FString& Key, int32 DefaultValue);
 
 // From AndroidFile.cpp
 extern FString GFontPathBase;
@@ -3125,17 +3124,17 @@ void FAndroidMisc::SetDeviceOrientation(EDeviceScreenOrientation NewDeviceOrenta
 void FAndroidMisc::SetCellularPreference(int32 Value)
 {
 #if USE_ANDROID_JNI
-	AndroidThunkCpp_SetCellularPreference(Value);
+	AndroidThunkCpp_SetSharedPreferenceInt(TEXT("CellularNetworkPreferences"), TEXT("AllowCellular"), Value);
 #endif // USE_ANDROID_JNI
 }
 
 int32 FAndroidMisc::GetCellularPreference()
 {
-	int32 value = 0;
+	int32 Result = 0;
 #if USE_ANDROID_JNI
-	value = AndroidThunkCpp_GetCellularPreference();
+	Result = AndroidThunkCpp_GetSharedPreferenceInt(TEXT("CellularNetworkPreferences"), TEXT("AllowCellular"), Result);
 #endif // USE_ANDROID_JNI
-	return value;
+	return Result;
 }
 
 void FAndroidMisc::SetAllowedDeviceOrientation(EDeviceScreenOrientation NewAllowedDeviceOrientation)

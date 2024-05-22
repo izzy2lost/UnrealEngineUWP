@@ -4760,20 +4760,59 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		});
 	}
 
-	public void AndroidThunkJava_SetCellularPreference(int value)
+	public boolean AndroidThunkJava_HasSharedPreference(String group, String key)
 	{
 		Context context = getApplicationContext();
-		SharedPreferences preferences = context.getSharedPreferences("CellularNetworkPreferences", context.MODE_PRIVATE);
+		SharedPreferences preferences = context.getSharedPreferences(group, context.MODE_PRIVATE);
+		return preferences.contains(key);
+	}
+
+	public void AndroidThunkJava_SetSharedPreferenceBoolean(String group, String key, boolean value)
+	{
+		Context context = getApplicationContext();
+		SharedPreferences preferences = context.getSharedPreferences(group, context.MODE_PRIVATE);
 		SharedPreferences.Editor editor = preferences.edit();
-		editor.putInt("AllowCellular", value);
+		editor.putBoolean(key, value);
 		editor.commit();
 	}
 
-	public int AndroidThunkJava_GetCellularPreference()
+	public boolean AndroidThunkJava_GetSharedPreferenceBoolean(String group, String key, boolean defaultValue)
 	{
 		Context context = getApplicationContext();
-		SharedPreferences preferences = context.getSharedPreferences("CellularNetworkPreferences", context.MODE_PRIVATE);
-		return preferences.getInt("AllowCellular", 0 );
+		SharedPreferences preferences = context.getSharedPreferences(group, context.MODE_PRIVATE);
+		return preferences.getBoolean(key, defaultValue);
+	}
+
+	public void AndroidThunkJava_SetSharedPreferenceInt(String group, String key, int value)
+	{
+		Context context = getApplicationContext();
+		SharedPreferences preferences = context.getSharedPreferences(group, context.MODE_PRIVATE);
+		SharedPreferences.Editor editor = preferences.edit();
+		editor.putInt(key, key, value);
+		editor.commit();
+	}
+
+	public int AndroidThunkJava_GetSharedPreferenceInt(String group, String key, int defaultValue)
+	{
+		Context context = getApplicationContext();
+		SharedPreferences preferences = context.getSharedPreferences(group, context.MODE_PRIVATE);
+		return preferences.getInt(key, defaultValue);
+	}
+
+	public void AndroidThunkJava_SetSharedPreferenceString(String group, String key, String value)
+	{
+		Context context = getApplicationContext();
+		SharedPreferences preferences = context.getSharedPreferences(group, context.MODE_PRIVATE);
+		SharedPreferences.Editor editor = preferences.edit();
+		editor.putString(key, value);
+		editor.commit();
+	}
+
+	public String AndroidThunkJava_GetSharedPreferenceString(String group, String key, string defaultValue)
+	{
+		Context context = getApplicationContext();
+		SharedPreferences preferences = context.getSharedPreferences(group, context.MODE_PRIVATE);
+		return preferences.getString(key, defaultValue);
 	}
 
 	// call back into native code from the Java UI thread, initializing any available VR HMD modules
