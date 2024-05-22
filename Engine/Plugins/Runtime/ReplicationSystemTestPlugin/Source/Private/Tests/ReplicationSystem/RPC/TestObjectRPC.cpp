@@ -70,6 +70,11 @@ namespace UE::Net::Private
 		// Call an RPC client->server
 		ClientObject->ServerRPCWithParam(IntParam);
 
+		// Call an RPC client->server with hidden virtual base
+		FReplicatedStructWithHiddenVirtualBase TestRpc;
+		TestRpc.TestString = TEXT("TestString");
+		ClientObject->ServerRPCWithParamWithHiddenVirtualBase(TestRpc);
+
 		// Send and deliver client packet
 		Client->UpdateAndSend(Server);
 

@@ -6,6 +6,32 @@
 
 #include "ReplicatedTestObjectWithRPC.generated.h"
 
+USTRUCT()
+struct FReplicatedStructVirtualBase
+{
+	GENERATED_BODY()
+	virtual ~FReplicatedStructVirtualBase() = default;
+
+protected:
+	int32 NotReplicatedVar;
+};
+
+// Exercise special case found in game code.
+USTRUCT()
+struct FReplicatedStructWithHiddenVirtualBase
+#if CPP
+: public FReplicatedStructVirtualBase
+#endif
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString TestString;
+
+	UPROPERTY()
+	bool bTestBool;
+};
+
 /**
  *  A test class for testing RPC replication
  */
@@ -62,6 +88,10 @@ public:
 	int32 ServerRPCWithParamCalled = 0;
 	int32 ServerRPCWithParamCallOrder = 0;
 
+	UFUNCTION(Reliable, Server)
+	void ServerRPCWithParamWithHiddenVirtualBase(const FReplicatedStructWithHiddenVirtualBase& StructParam);
+	FReplicatedStructWithHiddenVirtualBase LocalStructWithHiddenVirtualBaseParam;
+	
 	UFUNCTION(Unreliable, Server)
 	void ServerUnreliableRPC();
 	bool bServerUnreliableRPCCalled = false;

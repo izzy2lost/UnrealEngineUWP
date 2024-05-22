@@ -554,16 +554,6 @@ void FPropertyReplicationStateDescriptorBuilder::BuildMemberCache(FBuilderContex
 				Member.Traits |= EMemberPropertyTraits::HasDynamicState;
 			}
 
-			if (EnumHasAnyFlags(Descriptor->Traits, EReplicationStateTraits::IsSourceTriviallyConstructible))
-			{
-				Member.Traits |= EMemberPropertyTraits::IsSourceTriviallyConstructible;
-			}
-
-			if (EnumHasAnyFlags(Descriptor->Traits, EReplicationStateTraits::IsSourceTriviallyDestructible))
-			{
-				Member.Traits |= EMemberPropertyTraits::IsSourceTriviallyDestructible;
-			}
-
 			if (EnumHasAnyFlags(Descriptor->Traits, EReplicationStateTraits::HasConnectionSpecificSerialization))
 			{
 				Member.Traits |= EMemberPropertyTraits::HasConnectionSpecificSerialization;
@@ -1490,15 +1480,25 @@ EReplicationStateTraits FPropertyReplicationStateDescriptorBuilder::BuildReplica
 	// Special traits when all members are replicated
 	if (Context.BuildParams.bAllMembersAreReplicated)
 	{
+		const UScriptStruct* ScriptStruct = Cast<UScriptStruct>(StructInfo.Struct);
+		
 		// We cannot determine whether all properties are trivially constructible or destructible unless they're all replicated.
 		if (EnumHasAnyFlags(SharedPropertyTraits, EMemberPropertyTraits::IsSourceTriviallyConstructible))
 		{
-			Traits |= EReplicationStateTraits::IsSourceTriviallyConstructible;
+			const bool bPropagateSourceIsTrivallyConstructible = !ScriptStruct || ((ScriptStruct->StructFlags & (STRUCT_IsPlainOldData | STRUCT_ZeroConstructor)) != STRUCT_NoFlags);
+			if (bPropagateSourceIsTrivallyConstructible)
+			{
+				Traits |= EReplicationStateTraits::IsSourceTriviallyConstructible;
+			}
 		}
 
 		if (EnumHasAnyFlags(SharedPropertyTraits, EMemberPropertyTraits::IsSourceTriviallyDestructible))
 		{
-			Traits |= EReplicationStateTraits::IsSourceTriviallyDestructible;
+			const bool bPropagateSourceIsSourceTriviallyDestructible = !ScriptStruct || ((ScriptStruct->StructFlags & (STRUCT_IsPlainOldData | STRUCT_NoDestructor)) != STRUCT_NoFlags);
+			if (bPropagateSourceIsSourceTriviallyDestructible)
+			{
+				Traits |= EReplicationStateTraits::IsSourceTriviallyDestructible;
+			}
 		}
 
 		Traits |= EReplicationStateTraits::AllMembersAreReplicated;
