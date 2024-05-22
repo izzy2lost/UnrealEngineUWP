@@ -14,7 +14,7 @@ namespace Gauntlet
 {
 	public class AppleBuild : IBuild
 	{
-		public int PreferenceOrder { get { return 0; } }
+		public int PreferenceOrder => 0;
 
 		public UnrealTargetConfiguration Configuration { get; protected set; }
 
@@ -28,7 +28,7 @@ namespace Gauntlet
 
 		public BuildFlags Flags { get; protected set; }
 
-		public string Flavor { get { return ""; } }
+		public string Flavor => string.Empty;
 
 		public virtual UnrealTargetPlatform Platform { get; }
 
@@ -76,7 +76,7 @@ namespace Gauntlet
 		}
 
 		// There are issues with IPA Zip64 files being created with Ionic.Zip possibly limited to when running on mono (see IOSPlatform.PackageIPA)
-		// This manifests as header overflow errors, etc in 7zip, Ionic.Zip, System.IO.Compression, and OSX system unzip		
+		// This manifests as header overflow errors, etc in 7zip, Ionic.Zip, System.IO.Compression, and OSX system unzip
 		internal static bool ExecuteIPAZipCommand(String Arguments, out String Output, String ShouldExist = "")
 		{
 			using (new ScopedSuspendECErrorParsing())
@@ -95,7 +95,7 @@ namespace Gauntlet
 						}
 					}
 
-					Log.Info(String.Format("unzip encountered an issue procesing IPA, possibly due to Zip64. Future steps may fail."));
+					Log.Info("unzip encountered an issue procesing IPA, possibly due to Zip64. Future steps may fail.");
 				}
 			}
 
@@ -112,16 +112,16 @@ namespace Gauntlet
 
 				if (Result.ExitCode != 0)
 				{
-					if (!String.IsNullOrEmpty(ShouldExist))
+					if (!string.IsNullOrEmpty(ShouldExist))
 					{
 						if (!File.Exists(ShouldExist) && !Directory.Exists(ShouldExist))
 						{
-							Log.Error(String.Format("ditto encountered an error or warning procesing IPA, {0} missing", ShouldExist));
+							Log.Error("ditto encountered an error or warning procesing IPA, {ShouldExist} missing", ShouldExist);
 							return false;
 						}
 					}
 
-					Log.Error(String.Format("ditto encountered an issue procesing IPA"));
+					Log.Error("ditto encountered an issue procesing IPA");
 					return false;
 
 				}
@@ -132,55 +132,44 @@ namespace Gauntlet
 
 		private static PlistInfo GetPlistInfo(string Source)
 		{
-			PlistInfo Info = null;
 			bool IsIPAFile = Path.GetExtension(Source).Equals(".ipa", StringComparison.OrdinalIgnoreCase);
-
 			if (IsIPAFile)
 			{
-				string Output;
-
 				// Get a list of files in the IPA
-				if (!ExecuteIPAZipCommand(String.Format("-Z1 {0}", Source), out Output))
+				if (!ExecuteIPAZipCommand(string.Format("-Z1 {0}", Source), out string Output))
 				{
-					Log.Warning(String.Format("Unable to list files for IPA {0}", Source));
+					Log.Info("Unable to list files for IPA {IPAPath}", Source);
 					return null;
 				}
 
-
 				string[] Filenames = Regex.Split(Output, "\r\n|\r|\n");
-				string PList = Filenames.Where(F => Regex.IsMatch(F.ToLower().Trim(), @"(payload\/)([^\/]+)(\/info\.plist)")).FirstOrDefault();
-
-				if (String.IsNullOrEmpty(PList))
+				string PListFile = Filenames.Where(F => Regex.IsMatch(F.ToLower().Trim(), @"(payload\/)([^\/]+)(\/info\.plist)")).FirstOrDefault();
+				if (string.IsNullOrEmpty(PListFile))
 				{
-					Log.Warning(String.Format("Unable to find plist for IPA {0}", Source));
+					Log.Info("Unable to find plist for IPA {IPAPath}", Source);
 					return null;
 				}
 
 				// Get the plist info
-				if (!ExecuteIPAZipCommand(String.Format("-p '{0}' '{1}'", Source, PList), out Output))
+				if (!ExecuteIPAZipCommand(string.Format("-p '{0}' '{1}'", Source, PListFile), out Output))
 				{
-					Log.Warning(String.Format("Unable to extract plist data for IPA {0}", Source));
+					Log.Info("Unable to extract plist data for IPA {IPAPath}", Source);
 					return null;
 				}
 
-				Info = new PlistInfo(Output);
+				return new PlistInfo(Output);
 			}
 			else
 			{
-				// Find plist file
-				DirectoryInfo Di = new DirectoryInfo(Source);
-				FileInfo PlistFile = new FileInfo(Path.Combine(Di.FullName, "Info.plist"));
-				if (!PlistFile.Exists)
+				string PlistFile = Path.Combine(Source, "Info.plist");
+				if (!File.Exists(PlistFile))
 				{
-					Log.Warning(String.Format("Unable to find plist from {0}", Source));
+					Log.Info("Unable to find plist from {IPAPath}. Skipping.", Source);
 					return null;
 				}
 
-				StreamReader PListStream = new StreamReader(PlistFile.FullName);
-				Info = new PlistInfo(PListStream.ReadToEnd());
+				return new PlistInfo(File.ReadAllText(PlistFile));
 			}
-
-			return Info;
 		}
 
 		private class PlistInfo
@@ -263,142 +252,178 @@ namespace Gauntlet
 		public static T CreateFromPath<T>(string InProjectName, string InPath, AppleBuildSource<T> BuildSource)
 			where T : AppleBuild
 		{
-			T DiscoveredBuild = null;
-
-			DirectoryInfo Di = new DirectoryInfo(InPath);
-
-			var UnrealConfig = UnrealHelpers.GetConfigurationFromExecutableName(InProjectName, Di.Name);
-
-			if (UnrealConfig != UnrealTargetConfiguration.Unknown)
+			FileSystemInfo BuildPath;
+			if (Directory.Exists(InPath))
 			{
-				// check there's an executable with the right name 
-				string ShortName = Regex.Replace(InProjectName, "Game", "", RegexOptions.IgnoreCase);
-				FileInfo Executable = new DirectoryInfo(InPath).GetFiles().Where(Fi => Fi.Name.StartsWith(ShortName, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
-				if (Executable != null)
+				BuildPath = new DirectoryInfo(InPath);
+			}
+			else if (File.Exists(InPath))
+			{
+				BuildPath = new FileInfo(InPath);
+			}
+			else
+			{
+				Log.Verbose("Build path does not exist! Skipping.");
+				return null;
+			}
+
+			UnrealTargetConfiguration Configuration = UnrealHelpers.GetConfigurationFromExecutableName(InProjectName, InPath);
+			if (Configuration == UnrealTargetConfiguration.Unknown)
+			{
+				Log.Verbose("Could not deduce iOS build configuration from build at path {BuildPath}. Skipping.", InPath);
+				return null;
+			}
+
+			// Check there's an executable with the right name
+			string AppShortName = Regex.Replace(InProjectName, "Game", string.Empty, RegexOptions.IgnoreCase);
+			if (BuildPath is DirectoryInfo App)
+			{
+				if (App.GetFiles(AppShortName + '*', SearchOption.TopDirectoryOnly).FirstOrDefault() == null)
 				{
-					Log.Verbose("Pulling package data from {0}", Di.FullName);
+					Log.Verbose("Could not find an executable within build path {BuildPath}. Skipping", InPath);
+					return null;
+				}
+			}
+			else
+			{
+				// Get a list of files in the IPA
+				if (!ExecuteIPAZipCommand(string.Format("-Z1 {0}", InPath), out string Output))
+				{
+					Log.Info("Unable to list files for IPA {IPAPath}", InPath);
+					return null;
+				}
 
-					string AbsPath = Di.FullName;
+				bool bFoundExecutable = false;
+				IEnumerable<string> FileNames = Regex.Split(Output, "\r\n|\r|\n").Select(File => Path.GetFileName(File));
 
-					// IOS builds are always packaged, and can always replace the command line and executable as we cache the unzip'd IPA
-					BuildFlags Flags = BuildFlags.Packaged | BuildFlags.CanReplaceCommandLine | BuildFlags.CanReplaceExecutable;
-
-					if (AbsPath.Contains("Bulk"))
+				foreach(string File in FileNames)
+				{
+					if(File.Contains(AppShortName, StringComparison.OrdinalIgnoreCase))
 					{
-						Flags |= BuildFlags.Bulk;
+						bFoundExecutable = true;
+						break;
 					}
-					else
-					{
-						Flags |= BuildFlags.NotBulk;
-					}
+				}
 
-					PlistInfo Info = GetPlistInfo(Di.FullName);
-					if (Info != null)
-					{
-						IEnumerable<string> CFBundlePlatformNames = Info.GetAllValues("CFBundleSupportedPlatforms");
-						if (CFBundlePlatformNames != null && CFBundlePlatformNames.Contains(BuildSource.CFBundlePlatformName))
-						{
-							string PackageName = Info.GetFirstValue("CFBundleIdentifier");
-
-							if (!String.IsNullOrEmpty(PackageName))
-							{
-								Dictionary<string, string> FilesToInstall = new Dictionary<string, string>();
-
-								DiscoveredBuild = Activator.CreateInstance(typeof(T), new object[] { UnrealConfig, PackageName, Di.FullName, FilesToInstall, Flags }) as T;
-
-								Log.Verbose("Found bundle id: {0}", PackageName);
-								Log.Verbose("Found {0} {1} build at {2}", UnrealConfig, ((Flags & BuildFlags.Bulk) == BuildFlags.Bulk) ? "(bulk)" : "(not bulk)", AbsPath);
-							}
-							else
-							{
-								Log.Warning(String.Format("Unable to find CFBundleIdentifier in plist info for App {0}", Di.FullName));
-							}
-						}
-						else
-						{
-							Log.Verbose("Unable to find matching platform '{0}' for CFBundleSupportedPlatforms in plist info for App {1}", BuildSource.CFBundlePlatformName, Di.FullName);
-						}
-					}
+				if (!bFoundExecutable)
+				{
+					Log.Verbose("Could not find an executable within build path {BuildPath}. Skipping", InPath);
+					return null;
 				}
 			}
 
-			return DiscoveredBuild;
+			Log.Verbose("Pulling package data from {BuildPath}", BuildPath);
+
+			// IOS builds are always packaged, and can always replace the command line and executable (even as IPAs because we cache the unzipped app)
+			BuildFlags Flags = BuildFlags.Packaged | BuildFlags.CanReplaceCommandLine | BuildFlags.CanReplaceExecutable;
+			if (BuildPath.FullName.Contains("Bulk"))
+			{
+				Flags |= BuildFlags.Bulk;
+			}
+			else
+			{
+				Flags |= BuildFlags.NotBulk;
+			}
+
+			PlistInfo Info = GetPlistInfo(BuildPath.FullName);
+			if(Info == null)
+			{
+				Log.Info("Unable to parse PlistInfo for '{BuildPath}'. Skipping", BuildPath.FullName);
+			}
+
+			IEnumerable<string> CFBundlePlatformNames = Info.GetAllValues("CFBundleSupportedPlatforms");
+			if(CFBundlePlatformNames == null || !CFBundlePlatformNames.Contains(BuildSource.CFBundlePlatformName))
+			{
+				Log.Info("Unable to find matching platform '{BundlePlatform}' for CFBundleSupportedPlatforms in PlistInfo for App {BuildPath}. Skipping", BuildSource.CFBundlePlatformName, BuildPath.FullName);
+				return null;
+			}
+
+			string PackageName = Info.GetFirstValue("CFBundleIdentifier");
+			if (string.IsNullOrEmpty(PackageName))
+			{
+				Log.Info("Unable to find CFBundleIdentifier in PlistInfo for App {BuildPath}. Skipping.", BuildPath);
+				return null;
+			}
+
+			Log.Verbose("Found bundle id: {PackageName}", PackageName);
+			Log.Verbose("Found {Configuration} {Flags} build at {BuildPath}", Configuration, ((Flags & BuildFlags.Bulk) == BuildFlags.Bulk) ? "(bulk)" : "(not bulk)", BuildPath);
+
+			// Todo: Consider handling Bulk content copies here?
+			Dictionary<string, string> FilesToInstall = new Dictionary<string, string>();
+			return Activator.CreateInstance(typeof(T), new object[] { Configuration, PackageName, BuildPath.FullName, FilesToInstall, Flags }) as T;
 		}
 	}
 
 	public abstract class AppleBuildSource<T> : IFolderBuildSource
 		where T : AppleBuild
 	{
-		protected abstract UnrealTargetPlatform Platform { get; }
+		public string ProjectName { get; protected set; }
 
 		public abstract string CFBundlePlatformName { get; }
 
-		public string BuildName { get { return $"{Platform}BuildSource"; } }
+		public string BuildName => Platform.ToString() + "BuildSource";
+
+		protected abstract UnrealTargetPlatform Platform { get; }
+
+		protected string BuildFilter;
+
+		public AppleBuildSource()
+		{
+			BuildFilter = Globals.Params.ParseValue(Platform.ToString() + "BuildFilter", null);
+		}
 
 		public bool CanSupportPlatform(UnrealTargetPlatform InPlatform)
 		{
 			return InPlatform == Platform;
 		}
 
-		public string ProjectName { get; protected set; }
-
 		public virtual List<IBuild> GetBuildsAtPath(string InProjectName, string InPath, int MaxRecursion = 3)
 		{
 			// We only want iOS builds on Mac host
+			List<IBuild> Builds = new List<IBuild>();
 			if (BuildHostPlatform.Current.Platform != UnrealTargetPlatform.Mac)
 			{
 				return new List<IBuild>();
 			}
 
-			List<IBuild> Builds = new List<IBuild>();
+			// Interface default parameters don't let us modify the default if calling from an interface cast...
+			// IOS builds are often located deeper within a client directory, so increase the depth here
+			MaxRecursion = MaxRecursion > 5 ? MaxRecursion : 5;
 
-			// c:\path\to\build
-			DirectoryInfo PathDI = new DirectoryInfo(InPath);
-
-			if (PathDI.Exists)
+			DirectoryInfo BuildDirectory = new DirectoryInfo(InPath);
+			if (BuildDirectory.Exists)
 			{
 				List<DirectoryInfo> SearchDirs = new List<DirectoryInfo>();
 
-				if (PathDI.Name.IndexOf(Platform.ToString(), StringComparison.OrdinalIgnoreCase) >= 0)
-				{
-					SearchDirs.Add(PathDI);
-				}
-				else
-				{
-					// find all directories that begin with IOS
-					SearchDirs.AddRange(PathDI.GetDirectories($"{Platform}*", SearchOption.TopDirectoryOnly));
-				}
+				// Find the first folder in the build directory containing the platform name
+				DirectoryInfo[] SubDirectories = BuildDirectory.Name.Contains(Platform.ToString(), StringComparison.OrdinalIgnoreCase)
+					? new[] { BuildDirectory }
+					: BuildDirectory.GetDirectories(Platform.ToString() + '*', SearchOption.TopDirectoryOnly).ToArray();
 
-				IEnumerable<DirectoryInfo> DirsToRecurse = new List<DirectoryInfo>(SearchDirs);
-
-				List<DirectoryInfo> AllDirs = new List<DirectoryInfo>();
-
-				// get subdirs
+				// Now, recursively search the IOS directory for any .app folders
+				// We also discard any apps that don't include the IOSBuildFilter
+				List<FileSystemInfo> Apps = new();
 				while (MaxRecursion-- > 0)
 				{
-					IEnumerable<DirectoryInfo> DiscoveredDirs = DirsToRecurse.SelectMany(D => D.GetDirectories("*", SearchOption.TopDirectoryOnly));
+					IEnumerable<DirectoryInfo> ValidApps = SubDirectories
+						.Where(Directory => Directory.Extension.Equals(".app", StringComparison.OrdinalIgnoreCase) || Directory.Extension.Equals(".ipa", StringComparison.OrdinalIgnoreCase))
+						.Where(Directory => string.IsNullOrEmpty(BuildFilter) || Directory.FullName.Contains(BuildFilter, StringComparison.OrdinalIgnoreCase));
 
-					// mac packages are folders so we only want things that end with .app
-					IEnumerable<DirectoryInfo> Packages = DiscoveredDirs.Where(D => Path.GetExtension(D.Name).Equals(".app", StringComparison.OrdinalIgnoreCase));
+					IEnumerable<FileInfo> ValidIPAs = SubDirectories
+						.SelectMany(Directory => Directory.GetFiles("*.ipa", SearchOption.TopDirectoryOnly))
+						.Where(File => string.IsNullOrEmpty(BuildFilter) || File.FullName.Contains(BuildFilter, StringComparison.OrdinalIgnoreCase));
 
-					AllDirs.AddRange(Packages);
-
-					// don't recurse into the dirs that end with .app since those are builds we'll look at
-					DirsToRecurse = DiscoveredDirs.Except(Packages);
+					Apps.AddRange(ValidApps);
+					Apps.AddRange(ValidIPAs);
+					SubDirectories = SubDirectories.SelectMany(Directory => Directory.GetDirectories("*", SearchOption.TopDirectoryOnly)).ToArray();
 				}
 
-				string IOSBuildFilter = Globals.Params.ParseValue($"{Platform}BuildFilter", "");
-				foreach (DirectoryInfo Di in AllDirs)
+				foreach (FileSystemInfo App in Apps)
 				{
-					AppleBuild FoundBuild = AppleBuild.CreateFromPath<T>(InProjectName, Di.FullName, this);
-
-					if (FoundBuild != null)
+					AppleBuild Build = AppleBuild.CreateFromPath(InProjectName, App.FullName, this);
+					if (Build != null)
 					{
-						if (!string.IsNullOrEmpty(IOSBuildFilter) && FoundBuild.SourcePath.IndexOf(IOSBuildFilter, StringComparison.OrdinalIgnoreCase) >= 0)
-						{
-							continue;
-						}
-						Builds.Add(FoundBuild);
+						Builds.Add(Build);
 					}
 				}
 			}

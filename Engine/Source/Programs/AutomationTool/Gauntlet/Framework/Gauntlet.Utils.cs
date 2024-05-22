@@ -833,10 +833,9 @@ namespace Gauntlet
 				{
 					ConstructorInfo TypeConstructor = FoundType.GetConstructor(Type.EmptyTypes);
 
-					if (TypeConstructor != null)
+					if (TypeConstructor != null && !FoundType.IsAbstract)
 					{
 						InterfaceType NewInstance = TypeConstructor.Invoke(null) as InterfaceType;
-
 						ConstructedTypes.Add(NewInstance);
 					}
 				}
