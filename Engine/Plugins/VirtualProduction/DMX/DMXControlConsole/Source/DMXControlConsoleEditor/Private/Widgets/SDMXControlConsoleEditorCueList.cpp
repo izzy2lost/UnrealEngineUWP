@@ -2,6 +2,7 @@
 
 #include "SDMXControlConsoleEditorCueList.h"
 
+#include "Algo/AllOf.h"
 #include "DMXControlConsoleData.h"
 #include "DMXControlConsoleEditorData.h"
 #include "DMXControlConsoleFaderBase.h"
@@ -254,10 +255,23 @@ namespace UE::DMX::Private
 				continue;
 			}
 
-			const uint32 Value = FaderToValue.Value;
-			const bool bHasSingleElement = ElementController->GetElements().Num() == 1;
-			if (bHasSingleElement)
+			const TArray<UDMXControlConsoleFaderBase*> Faders = ElementController->GetFaders();
+			if (Faders.IsEmpty())
 			{
+				continue;
+			}
+
+			const UDMXControlConsoleFaderBase* FirstFader = Faders[0];
+			const bool bHasUniformDataType = Algo::AllOf(Faders,
+				[FirstFader](const UDMXControlConsoleFaderBase* Fader)
+				{
+					return Fader && Fader->GetDataType() == FirstFader->GetDataType();
+				});
+
+			// Synch only if all faders in the controller have the same data type
+			if (bHasUniformDataType)
+			{
+				const uint32 Value = FaderToValue.Value;
 				const uint8 NumChannels = static_cast<uint8>(Fader->GetDataType()) + 1;
 				const uint32 ValueRange = static_cast<uint32>(FMath::Pow(2.f, 8.f * NumChannels) - 1);
 				const float NormalizedValue = static_cast<float>(Value) / ValueRange;
