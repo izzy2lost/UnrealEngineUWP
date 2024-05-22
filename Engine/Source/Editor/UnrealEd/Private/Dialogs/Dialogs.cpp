@@ -5,6 +5,7 @@
 
 #include "Dialog/DialogUtils.h"
 #include "Dialogs/DialogsPrivate.h"
+#include "Interfaces/IMainFrameModule.h"
 #include "Misc/App.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/MessageDialog.h"
@@ -1151,6 +1152,19 @@ TSharedRef<SWindow> UE::Private::CreateModalDialogWindow(
 void UE::Private::ShowModalDialogWindow(TSharedRef<SWindow> Window)
 {
 	GEditor->EditorAddModalWindow(Window);
+}
+
+void UE::Private::ShowNonModalDialogWindow(TSharedRef<SWindow> Window)
+{
+	IMainFrameModule& MainFrameModule = FModuleManager::LoadModuleChecked<IMainFrameModule>(TEXT("MainFrame"));
+	if (MainFrameModule.GetParentWindow().IsValid())
+	{
+		FSlateApplication::Get().AddWindowAsNativeChild(Window, MainFrameModule.GetParentWindow().ToSharedRef());
+	}
+	else
+	{
+		FSlateApplication::Get().AddWindow(Window);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE 
