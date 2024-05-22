@@ -55,6 +55,7 @@ public class AvalancheEditor : ModuleRules
 				"AvalancheViewport",
 				"BlueprintGraph",
 				"CinematicCamera",
+				"ClonerEffector",
 				"CommonMenuExtensions",
 				"ContentBrowser",
 				"CustomDetailsView",

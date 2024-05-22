@@ -16,6 +16,7 @@ public:
 	void RegisterToolsCommands();
 	void RegisterAdvancedRenamerCommands();
 	void RegisterAnimatorCommands();
+	void RegisterClonerEffectorCommands();
 
 	/** Switches between Camera "2D" viewport and 3D viewport. */
 	TSharedPtr<FUICommandInfo> SwitchViewports;
@@ -98,4 +99,10 @@ public:
 	// Animator
 	TSharedPtr<FUICommandInfo> DisableAnimators;
 	TSharedPtr<FUICommandInfo> EnableAnimators;
+
+	// ClonerEffector
+	TSharedPtr<FUICommandInfo> DisableCloners;
+	TSharedPtr<FUICommandInfo> EnableCloners;
+	TSharedPtr<FUICommandInfo> DisableEffectors;
+	TSharedPtr<FUICommandInfo> EnableEffectors;
 };

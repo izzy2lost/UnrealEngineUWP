@@ -2,6 +2,7 @@
 
 #include "AvaEditorIntegration.h"
 #include "AdvancedRenamer/AvaAdvancedRenamerExtension.h"
+#include "ClonerEffector/AvaClonerEffectorExtension.h"
 #include "ComponentVisualizer/AvaComponentVisualizerExtension.h"
 #include "DetailView/AvaDetailsExtension.h"
 #include "EditorProvider/AvaEditorProvider.h"
@@ -38,5 +39,6 @@ TSharedRef<IAvaEditor> FAvaLevelEditorIntegration::BuildEditor()
 		.AddExtension<FAvaTransitionExtension>()
 		.AddExtension<FAvaAdvancedRenamerExtension>()
 		.AddExtension<FAvaComponentVisualizerExtension>()
+		.AddExtension<FAvaClonerEffectorExtension>()
 		.Build();
 }
