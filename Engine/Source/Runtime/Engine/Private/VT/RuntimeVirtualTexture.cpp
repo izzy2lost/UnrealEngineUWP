@@ -484,14 +484,17 @@ bool URuntimeVirtualTexture::IsLayerSRGB(int32 LayerIndex) const
 	switch (MaterialType)
 	{
 	case ERuntimeVirtualTextureMaterialType::BaseColor:
-	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Roughness:
 	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular:
-		// Only BaseColor layer is sRGB
+		// Only BaseColor layer is sRGB.
 		return LayerIndex == 0;
+	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Roughness:
+		// This format encodes/decodes sRGB on write/read.
 	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_YCoCg:
 	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_Mask_YCoCg:
+		// These formats have YCoCg packing which can't use sRGB.
 	case ERuntimeVirtualTextureMaterialType::WorldHeight:
 	case ERuntimeVirtualTextureMaterialType::Displacement:
+		// These formats require linear encoding.
 		return false;
 	default:
 		break;
