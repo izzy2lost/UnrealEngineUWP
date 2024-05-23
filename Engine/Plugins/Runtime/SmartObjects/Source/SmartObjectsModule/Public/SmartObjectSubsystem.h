@@ -764,7 +764,7 @@ public:
 	 * @param DefinitionClass The type of behavior definition.
 	 * @return The base class pointer of the requested behavior definition class associated to the slotClaim handle
 	 */
-	UFUNCTION(BlueprintCallable, Category = "SmartObject")
+	UFUNCTION(BlueprintCallable, Category = "SmartObject", meta=(DeterminesOutputType = "DefinitionClass"))
 	const USmartObjectBehaviorDefinition* GetBehaviorDefinition(
 		const FSmartObjectClaimHandle& ClaimHandle,
 		TSubclassOf<USmartObjectBehaviorDefinition> DefinitionClass
@@ -788,7 +788,7 @@ public:
 	 * @param DefinitionClass The type of behavior definition.
 	 * @return The base class pointer of the requested behavior definition class associated to the request result
 	 */
-	UFUNCTION(BlueprintCallable, Category = "SmartObject")
+	UFUNCTION(BlueprintCallable, Category = "SmartObject", meta = (DeterminesOutputType = "DefinitionClass"))
 	const USmartObjectBehaviorDefinition* GetBehaviorDefinitionByRequestResult(
 		const FSmartObjectRequestResult& RequestResult,
 		TSubclassOf<USmartObjectBehaviorDefinition> DefinitionClass
