@@ -1362,7 +1362,22 @@ FPCGTaskId UPCGComponent::CreateCleanupTask(bool bRemoveComponents, const TArray
 		return true;
 	};
 
-	return GetSubsystem()->ScheduleGeneric(CleanupTask, this, *AllDependencies);
+#if WITH_EDITOR
+	if (!PCGHelpers::IsRuntimeOrPIE())
+	{
+		auto SuperCleanupTask = [CleanupTask]()
+		{
+			while (!CleanupTask()) {}
+			return true;
+		};
+
+		return GetSubsystem()->ScheduleGeneric(SuperCleanupTask, this, *AllDependencies);
+	}
+	else
+#endif
+	{
+		return GetSubsystem()->ScheduleGeneric(CleanupTask, this, *AllDependencies);
+	}
 }
 
 void UPCGComponent::CleanupUnusedManagedResources()
