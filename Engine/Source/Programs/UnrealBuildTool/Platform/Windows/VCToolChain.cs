@@ -1897,7 +1897,6 @@ namespace UnrealBuildTool
 					if (!ProjectFileGenerator.bGenerateProjectFiles)
 					{
 						CompileDepsAction.WriteResponseFile(Graph, Logger);
-						CompileDepsAction.Arguments.Clear();
 					}
 
 					CompileAction.ActionType = ActionType.CompileModuleInterface;
@@ -1944,7 +1943,6 @@ namespace UnrealBuildTool
 				if (!ProjectFileGenerator.bGenerateProjectFiles)
 				{
 					CompileAction.WriteResponseFile(Graph, Logger);
-					CompileAction.Arguments.Clear();
 				}
 
 				// Must be added after response file is created just to make sure it ends up on the command line and not in the response file

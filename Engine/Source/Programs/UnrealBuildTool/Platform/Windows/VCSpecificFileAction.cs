@@ -113,6 +113,7 @@ namespace UnrealBuildTool
 			}
 			Action.ResponseFile = FileItem.GetItemByFileReference(FileReference.Combine(IntermediateDirectory, $"{Filename}.rsp"));
 			File.WriteAllLines(Action.ResponseFile.FullName, Action.GetCompilerArguments(Logger));
+			Action.Arguments.Clear();
 
 			return Action;
 		}

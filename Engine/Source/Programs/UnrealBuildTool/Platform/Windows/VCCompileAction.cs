@@ -490,6 +490,7 @@ namespace UnrealBuildTool
 			if (ResponseFile != null)
 			{
 				Graph.CreateIntermediateTextFile(ResponseFile, GetCompilerArguments(Logger));
+				Arguments.Clear();
 			}
 		}
 
