@@ -47,6 +47,13 @@ FAutoConsoleVariableRef GVarLumenScreenProbeGatherHierarchicalScreenTracesSkipFo
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> GVarLumenScreenProbeGatherHierarchicalScreenTracesSkipHairHits(
+	TEXT("r.Lumen.ScreenProbeGather.ScreenTraces.HZBTraversal.SkipHairHits"),
+	1,
+	TEXT("Whether to allow screen traces to hit hair shading models.  Can be used to work around aliasing from high frequency hair cards geometry."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 int32 GLumenScreenProbeGatherHierarchicalScreenTracesMaxIterations = 50;
 FAutoConsoleVariableRef GVarLumenScreenProbeGatherHierarchicalScreenTracesMaxIterations(
 	TEXT("r.Lumen.ScreenProbeGather.ScreenTraces.HZBTraversal.MaxIterations"),
@@ -181,6 +188,7 @@ class FScreenProbeTraceScreenTexturesCS : public FGlobalShader
 		SHADER_PARAMETER(float, NumThicknessStepsToDetermineCertainty)
 		SHADER_PARAMETER(uint32, MinimumTracingThreadOccupancy)
 		SHADER_PARAMETER(uint32, SkipFoliageHits)
+		SHADER_PARAMETER(uint32, SkipHairHits)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FScreenProbeParameters, ScreenProbeParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenIndirectTracingParameters, IndirectTracingParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(LumenRadianceCache::FRadianceCacheInterpolationParameters, RadianceCacheParameters)
@@ -761,6 +769,7 @@ void TraceScreenProbes(
 			PassParameters->NumThicknessStepsToDetermineCertainty = GLumenScreenProbeGatherHierarchicalScreenTracesSkipFoliageHits ? 0 : GLumenScreenProbeGatherNumThicknessStepsToDetermineCertainty;
 			PassParameters->MinimumTracingThreadOccupancy = GLumenScreenProbeGatherScreenTracesMinimumOccupancy;
 			PassParameters->SkipFoliageHits = GLumenScreenProbeGatherHierarchicalScreenTracesSkipFoliageHits;
+			PassParameters->SkipHairHits = GVarLumenScreenProbeGatherHierarchicalScreenTracesSkipHairHits.GetValueOnRenderThread();
 
 			PassParameters->ScreenProbeParameters = ScreenProbeParameters;
 			PassParameters->IndirectTracingParameters = IndirectTracingParameters;

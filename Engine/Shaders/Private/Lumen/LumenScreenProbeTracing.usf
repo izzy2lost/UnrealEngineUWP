@@ -62,7 +62,7 @@ float HistoryDepthTestRelativeThickness;
 float NumThicknessStepsToDetermineCertainty;
 uint MinimumTracingThreadOccupancy;
 uint SkipFoliageHits;
-
+uint SkipHairHits;
 #ifdef ScreenProbeTraceScreenTexturesCS
 
 [numthreads(PROBE_THREADGROUP_SIZE_2D, PROBE_THREADGROUP_SIZE_2D, 1)]
@@ -325,10 +325,12 @@ void ScreenProbeTraceScreenTexturesCS(
 						bHit = abs(HistoryDeviceZ - PrevDeviceZ) < HistoryDepthTestRelativeThickness * lerp(.5f, 2.0f, Noise);
 					}
 
-					if (bHit && SkipFoliageHits > 0)
+					if (bHit && (SkipFoliageHits > 0 || SkipHairHits > 0))
 					{
 						FLumenMaterialData LumenMaterial = ReadMaterialDataFromSceneTextures(HitScreenUV * View.BufferSizeAndInvSize.xy, HitScreenUV);
-						if (LumenMaterial.bHasBackfaceDiffuse)
+						const bool bSkipFoliage = LumenMaterial.bHasBackfaceDiffuse && SkipFoliageHits > 0;
+						const bool bSkipHair = IsHair(LumenMaterial) && SkipHairHits > 0;
+						if (bSkipFoliage || bSkipHair)
 						{
 							bHit = false;
 						}
