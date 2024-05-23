@@ -23,8 +23,11 @@ namespace Metasound::Frontend
 		// MetaSound Interface definition
 		virtual const FMetasoundFrontendInterface& GetInterface() const = 0;
 
-		//  Whether or not entry is deprecated or not
-		virtual bool IsDeprecated() const = 0;
+		UE_DEPRECATED(5.3, "UClass name must now be provided to determine if interface is to be apply by default.")
+		virtual bool IsDefault() const { return false; }
+
+		UE_DEPRECATED(5.3, "Option (renamed 'IsModifiable') is now data driven and accessibly from the interface (via GetInterface) per UClass option. If no class options found, addition/removal is now considered to be implicitly true")
+		virtual bool EditorCanAddOrRemove() const { return false; }
 
 		// Name of routing system used to update interface inputs (ex. ParameterInterface or DataReference).
 		virtual FName GetRouterName() const = 0;

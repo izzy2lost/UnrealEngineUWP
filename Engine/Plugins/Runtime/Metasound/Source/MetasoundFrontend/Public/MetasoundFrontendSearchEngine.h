@@ -27,10 +27,8 @@ namespace Metasound::Frontend
 			/** Find the class with the given ClassName & Major Version. Returns false if not found, true if found. */
 			virtual bool FindClassWithHighestMinorVersion(const FMetasoundFrontendClassName& InName, int32 InMajorVersion, FMetasoundFrontendClass& OutClass) = 0;
 
-			/** Finds all registered interfaces with the given name. */
 			virtual TArray<FMetasoundFrontendVersion> FindAllRegisteredInterfacesWithName(FName InInterfaceName) = 0;
 
-			/** Finds the registered interface with the highest version of the given name. Returns true if found, false if not. */
 			virtual bool FindInterfaceWithHighestVersion(FName InInterfaceName, FMetasoundFrontendInterface& OutInterface) = 0;
 
 			UE_DEPRECATED(5.3, "Use ISearchEngine::FindUClassDefaultInterfaceVersions using TopLevelAssetPath instead.")

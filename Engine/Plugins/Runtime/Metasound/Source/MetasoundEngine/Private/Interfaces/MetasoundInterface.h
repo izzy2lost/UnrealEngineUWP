@@ -19,7 +19,6 @@ namespace Metasound::Engine
 
 		virtual FName GetRouterName() const override;
 		virtual const FMetasoundFrontendInterface& GetInterface() const override;
-		virtual bool IsDeprecated() const override;
 		virtual bool UpdateRootGraphInterface(Frontend::FDocumentHandle InDocument) const override;
 
 	private:

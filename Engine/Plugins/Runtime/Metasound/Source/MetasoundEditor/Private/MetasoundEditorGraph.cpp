@@ -18,7 +18,6 @@
 #include "MetasoundEditorSubsystem.h"
 #include "MetasoundFrontendDocumentBuilder.h"
 #include "MetasoundFrontendNodeTemplateRegistry.h"
-#include "MetasoundFrontendSearchEngine.h"
 #include "MetasoundLog.h"
 #include "MetasoundUObjectRegistry.h"
 #include "MetasoundVariableNodes.h"
@@ -100,15 +99,6 @@ namespace Metasound::Editor
 	} // namespace GraphPrivate
 } // namespace Metasound::Editor
 
-FMetaSoundFrontendDocumentBuilder& UMetasoundEditorGraphMember::GetFrontendBuilderChecked() const
-{
-	using namespace Metasound::Frontend;
-
-	const UMetasoundEditorGraph* Graph = GetOwningGraph();
-	check(Graph);
-	UObject& MetaSound = Graph->GetMetasoundChecked();
-	return IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(&MetaSound);
-}
 
 UMetasoundEditorGraph* UMetasoundEditorGraphMember::GetOwningGraph()
 {
@@ -145,7 +135,10 @@ void UMetasoundEditorGraphMember::InitializeLiteral()
 
 	if (!Literal || Literal->GetClass() != LiteralClass)
 	{
-		FMetaSoundFrontendDocumentBuilder& Builder = GetFrontendBuilderChecked();
+		UMetasoundEditorGraph* Graph = GetOwningGraph();
+		check(Graph);
+		UObject& MetaSound = Graph->GetMetasoundChecked();
+		FMetaSoundFrontendDocumentBuilder& Builder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(&MetaSound);
 		const bool bIsNew = UMetaSoundEditorSubsystem::GetChecked().BindMemberMetadata(Builder, *this, LiteralClass);
 		if (bIsNew)
 		{
@@ -211,19 +204,6 @@ void UMetasoundEditorGraphVertex::InitMember(FName InDataType, const FMetasoundF
 	}
 }
 
-const FMetasoundFrontendNode* UMetasoundEditorGraphVertex::GetFrontendNode() const
-{
-	using namespace Metasound::Engine;
-
-	if (const UMetasoundEditorGraph* Graph = GetOwningGraph())
-	{
-		const FMetaSoundFrontendDocumentBuilder& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(&Graph->GetMetasoundChecked());
-		return Builder.FindNode(NodeID);
-	}
-
-	return nullptr;
-}
-
 TArray<UMetasoundEditorGraphMemberNode*> UMetasoundEditorGraphVertex::GetNodes() const
 {
 	TArray<UMetasoundEditorGraphMemberNode*> Nodes;
@@ -243,6 +223,13 @@ TArray<UMetasoundEditorGraphMemberNode*> UMetasoundEditorGraphVertex::GetNodes()
 	}
 
 	return Nodes;
+}
+
+FText UMetasoundEditorGraphVertex::GetDescription() const
+{
+	// TODO: should be getting description directly from vertex instead of from
+	// node handle.
+	return GetConstNodeHandle()->GetDescription();
 }
 
 void UMetasoundEditorGraphVertex::SetDescription(const FText& InDescription, bool bPostTransaction)
@@ -278,12 +265,8 @@ FName UMetasoundEditorGraphVertex::GetMemberName() const
 {
 	using namespace Metasound::Frontend;
 
-	if (const FMetasoundFrontendNode* FrontendNode = GetFrontendNode())
-	{
-		return FrontendNode->Name;
-	}
-
-	return FName();
+	FConstNodeHandle NodeHandle = GetConstNodeHandle();
+	return NodeHandle->GetNodeName();
 }
 
 void UMetasoundEditorGraphVertex::SetMemberName(const FName& InNewName, bool bPostTransaction)
@@ -409,31 +392,11 @@ const FMetasoundFrontendVersion& UMetasoundEditorGraphVertex::GetInterfaceVersio
 	return GetConstNodeHandle()->GetInterfaceVersion();
 }
 
-bool UMetasoundEditorGraphVertex::IsInterfaceMember(FMetasoundFrontendInterface* OutInterface) const
+bool UMetasoundEditorGraphVertex::IsInterfaceMember() const
 {
-	using namespace Metasound::Frontend;
+	using namespace Metasound;
 
-	const FName MemberName = GetMemberName();
-	FName InterfaceNamespace;
-	FName ParamName;
-	Audio::FParameterPath::SplitName(MemberName, InterfaceNamespace, ParamName);
-
-	FMetasoundFrontendInterface InterfaceToValidate;
-	if (InterfaceNamespace.IsNone() && ISearchEngine::Get().FindInterfaceWithHighestVersion(InterfaceNamespace, InterfaceToValidate))
-	{
-		if (OutInterface)
-		{
-			*OutInterface = MoveTemp(InterfaceToValidate);
-		}
-
-		return true;
-	}
-
-	if (OutInterface)
-	{
-		*OutInterface = { };
-	}
-	return false;
+	return GetConstNodeHandle()->IsInterfaceMember();
 }
 
 bool UMetasoundEditorGraphVertex::CanRename() const
@@ -615,17 +578,6 @@ const FText& UMetasoundEditorGraphInput::GetGraphMemberLabel() const
 {
 	static const FText Label = LOCTEXT("GraphMemberLabel_Input", "Input");
 	return Label;
-}
-
-FText UMetasoundEditorGraphInput::GetDescription() const
-{
-	const FMetaSoundFrontendDocumentBuilder& Builder = GetFrontendBuilderChecked();
-	if (const FMetasoundFrontendClassInput* Input = Builder.FindGraphInput(GetMemberName()))
-	{
-		return Input->Metadata.GetDescription();
-	}
-
-	return { };
 }
 
 int32 UMetasoundEditorGraphInput::GetSortOrderIndex() const
@@ -865,17 +817,6 @@ UMetasoundEditorGraphNode* UMetasoundEditorGraphOutput::AddNode(Metasound::Front
 	UMetasoundEditorGraph* Graph = GetOwningGraph();
 	check(Graph);
 	return FGraphBuilder::AddOutputNode(Graph->GetMetasoundChecked(), InNodeHandle, bInSelectNewNode);
-}
-
-FText UMetasoundEditorGraphOutput::GetDescription() const
-{
-	const FMetaSoundFrontendDocumentBuilder& Builder = GetFrontendBuilderChecked();
-	if (const FMetasoundFrontendClassOutput* Output = Builder.FindGraphOutput(GetMemberName()))
-	{
-		return Output->Metadata.GetDescription();
-	}
-
-	return { };
 }
 
 int32 UMetasoundEditorGraphOutput::GetSortOrderIndex() const
@@ -1571,10 +1512,10 @@ void UMetasoundEditorGraph::PreSave(FObjectPreSaveContext InSaveContext)
 	Super::PreSave(InSaveContext);
 }
 
-UMetaSoundBuilderBase& UMetasoundEditorGraph::GetBuilderChecked() const
+UMetaSoundBuilderBase& UMetasoundEditorGraph::GetBuilderChecked()
 {
 	using namespace Metasound::Engine;
-	return FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(GetMetasoundChecked());
+	return FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*GetOutermostObject());
 }
 
 UObject* UMetasoundEditorGraph::GetMetasound() const

@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Interfaces/MetasoundFrontendInterfaceRegistry.h"
 
-#include "AudioParameter.h"
 #include "HAL/PlatformTime.h"
 #include "Interfaces/MetasoundFrontendInterfaceBindingRegistry.h"
 #include "MetasoundFrontendInterfaceRegistryPrivate.h"
@@ -23,7 +22,7 @@ namespace Metasound::Frontend
 		FInterfaceRegistryTransaction::FTimeType TransactionTime = FPlatformTime::Cycles64();
 		if (InEntry.IsValid())
 		{
-			const FInterfaceRegistryKey Key = GetInterfaceRegistryKey(InEntry->GetInterface());
+			FInterfaceRegistryKey Key = GetInterfaceRegistryKey(InEntry->GetInterface());
 			if (IsValidInterfaceRegistryKey(Key))
 			{
 				if (const IInterfaceRegistryEntry* Entry = FindInterfaceRegistryEntry(Key))
@@ -33,36 +32,7 @@ namespace Metasound::Frontend
 					FInterfaceRegistryTransaction Transaction{FInterfaceRegistryTransaction::ETransactionType::InterfaceUnregistration, Key, Entry->GetInterface().Version, TransactionTime};
 					TransactionBuffer->AddTransaction(MoveTemp(Transaction));
 				}
-
-#if WITH_EDITOR
-			// Don't run vertex name validation warning for deprecated registry entries. Some of these may be
-			// versioning schema that have a subsequent version or versions fixing the very problem this log is reporting.
-			if (!InEntry->IsDeprecated())
-			{
-				const FName InterfaceNamespace = InEntry->GetInterface().Version.Name;
-				auto LogIfMismatch = [this, &InterfaceNamespace](FName VertexName)
-				{
-					FName VertexNamespace;
-					if (!IsInterfaceVertexNameValid(InterfaceNamespace, VertexName, &VertexNamespace))
-					{
-						UE_LOG(LogMetaSound, Warning, TEXT("Interface '%s' contains vertex '%s' with mismatched namespace '%s': "
-							"All interface-defined vertices' must start with matching interface namespace (See AUDIO_PARAMETER_INTERFACE_MEMBER_DEFINE/AUDIO_PARAMETER_INTERFACE_NAMESPACE macro to ensure convention is followed). "
-							"Failing to fix relationship via interface versioning will fail validation/cook in future builds."), *InterfaceNamespace.ToString(), *VertexName.ToString(), *VertexNamespace.ToString());
-					}
-				};
-
-				for (const FMetasoundFrontendClassVertex& Vertex : InEntry->GetInterface().Inputs)
-				{
-					LogIfMismatch(Vertex.Name);
-				}
-
-				for (const FMetasoundFrontendClassVertex& Vertex : InEntry->GetInterface().Outputs)
-				{
-					LogIfMismatch(Vertex.Name);
-				}
-			}
-#endif // WITH_EDITOR
-
+					
 				FInterfaceRegistryTransaction Transaction{FInterfaceRegistryTransaction::ETransactionType::InterfaceRegistration, Key, InEntry->GetInterface().Version, TransactionTime};
 				TransactionBuffer->AddTransaction(MoveTemp(Transaction));
 				Entries.Add(Key, MoveTemp(InEntry));
@@ -146,18 +116,6 @@ namespace Metasound::Frontend
 	{
 		static FInterfaceRegistry Registry;
 		return Registry;
-	}
-
-	bool FInterfaceRegistry::IsInterfaceVertexNameValid(FName InterfaceNamespace, FName FullVertexName, FName* VertexNamespace) const
-	{
-		FName Namespace;
-		FName Name;
-		Audio::FParameterPath::SplitName(FullVertexName, Namespace, Name);
-		if (VertexNamespace)
-		{
-			*VertexNamespace = Namespace;
-		}
-		return InterfaceNamespace == Namespace;
 	}
 
 	IInterfaceRegistry& IInterfaceRegistry::Get()

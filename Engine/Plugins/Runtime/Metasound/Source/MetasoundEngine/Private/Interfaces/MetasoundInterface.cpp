@@ -55,11 +55,6 @@ namespace Metasound::Engine
 		return Interface;
 	}
 
-	bool FInterfaceRegistryEntry::IsDeprecated() const
-	{
-		return UpdateTransform.IsValid();
-	}
-
 	bool FInterfaceRegistryEntry::UpdateRootGraphInterface(Frontend::FDocumentHandle InDocument) const
 	{
 		if (UpdateTransform.IsValid())

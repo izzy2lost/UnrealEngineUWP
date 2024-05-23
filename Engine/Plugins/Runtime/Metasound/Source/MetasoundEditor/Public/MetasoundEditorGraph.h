@@ -134,8 +134,6 @@ public:
 	 */
 	virtual void UpdateFrontendDefaultLiteral(bool bPostTransaction) PURE_VIRTUAL(UMetasoundEditorGraphMember::UpdateFrontendDefaultLiteral, );
 
-	FMetaSoundFrontendDocumentBuilder& GetFrontendBuilderChecked() const;
-
 	/** Returns the parent MetaSound Graph. If the Outer object of the member is non
 	 * a UMetasoundEditorGraph, returns a nullptr. */
 	UMetasoundEditorGraph* GetOwningGraph();
@@ -190,8 +188,6 @@ protected:
 	/** Adds the node handle for a newly created vertex. */
 	virtual Metasound::Frontend::FNodeHandle AddNodeHandle(const FName& InNodeName, const Metasound::Editor::FCreateNodeVertexParams& InParams) PURE_VIRTUAL(UMetasoundEditorGraphVertex::AddNodeHandle, return Metasound::Frontend::INodeController::GetInvalidHandle(); )
 
-	const FMetasoundFrontendNode* GetFrontendNode() const;
-
 public:
 	/** Initializes all properties with the given parameters required to identify the frontend member from this editor graph member. */
 	void InitMember(FName InDataType, const FMetasoundFrontendLiteral& InDefaultLiteral, FGuid InNodeID, FMetasoundFrontendClassName&& InClassName);
@@ -207,6 +203,7 @@ public:
 	/* ~Begin UMetasoundEditorGraphMember interface */
 	virtual FGuid GetMemberID() const override;
 	virtual FName GetMemberName() const override;
+	virtual FText GetDescription() const override;
 	virtual FText GetDisplayName() const override;
 
 	virtual bool CanRename(const FText& InNewName, FText& OutError) const override;
@@ -219,8 +216,8 @@ public:
 	/** Version of interface membership, or invalid version if not an interface member. */
 	virtual const FMetasoundFrontendVersion& GetInterfaceVersion() const;
 
-	/** Returns true if member is part of an interface. If supplied interface pointer, sets pointer's data to the interface vertex is member of. */
-	virtual bool IsInterfaceMember(FMetasoundFrontendInterface* OutInterface = nullptr) const;
+	/** Returns true if member is part of an interface. */
+	virtual bool IsInterfaceMember() const;
 
 	/** Returns the Metasound class type of the associated node */
 	virtual EMetasoundFrontendClassType GetClassType() const PURE_VIRTUAL(UMetasoundEditorGraphVertex::GetClassType, return EMetasoundFrontendClassType::Invalid; )
@@ -256,7 +253,6 @@ class METASOUNDEDITOR_API UMetasoundEditorGraphInput : public UMetasoundEditorGr
 	GENERATED_BODY()
 
 public:
-	virtual FText GetDescription() const override;
 	virtual int32 GetSortOrderIndex() const override;
 	virtual void SetSortOrderIndex(int32 InSortOrderIndex) override;
 	virtual TArray<UMetasoundEditorGraphMemberNode*> GetNodes() const override;
@@ -284,7 +280,6 @@ class METASOUNDEDITOR_API UMetasoundEditorGraphOutput : public UMetasoundEditorG
 	GENERATED_BODY()
 
 public:
-	virtual FText GetDescription() const override;
 	virtual int32 GetSortOrderIndex() const override;
 	virtual void SetSortOrderIndex(int32 InSortOrderIndex) override;
 	virtual const FText& GetGraphMemberLabel() const override;
@@ -382,7 +377,7 @@ public:
 
 	virtual void PreSave(FObjectPreSaveContext InSaveContext) override;
 
-	UMetaSoundBuilderBase& GetBuilderChecked() const;
+	UMetaSoundBuilderBase& GetBuilderChecked();
 	UObject* GetMetasound() const;
 	UObject& GetMetasoundChecked() const;
 

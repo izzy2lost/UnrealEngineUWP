@@ -903,31 +903,30 @@ void UMetasoundEditorGraphOutputNode::Validate(Metasound::Editor::FGraphNodeVali
 
 	Super::Validate(OutResult);
 
-	if (const UMetasoundEditorGraphVertex* Vertex = Cast<UMetasoundEditorGraphVertex>(GetMember()))
+	// 2. Check if node is invalid, version is missing and cache if interface changes exist between the document's records and the registry
+	FNodeHandle NodeHandle = GetNodeHandle();
+	const FMetasoundFrontendVersion& MetasoundFrontendVersion = NodeHandle->GetInterfaceVersion();
+
+	FName InterfaceNameToValidate = MetasoundFrontendVersion.Name;
+	FMetasoundFrontendInterface InterfaceToValidate;
+	if (ISearchEngine::Get().FindInterfaceWithHighestVersion(InterfaceNameToValidate, InterfaceToValidate))
 	{
-		FMetasoundFrontendInterface InterfaceToValidate;
-		if (Vertex->IsInterfaceMember(&InterfaceToValidate))
+		const FName& NodeName = NodeHandle->GetNodeName();
+		FText RequiredText;
+		if (InterfaceToValidate.IsMemberOutputRequired(NodeName, RequiredText))
 		{
-			FText RequiredText;
-			if (InterfaceToValidate.IsMemberOutputRequired(Vertex->GetMemberName(), RequiredText))
+			TArray<FConstInputHandle> InputHandles = NodeHandle->GetConstInputs();
+			if (ensure(!InputHandles.IsEmpty()))
 			{
-				if (const FMetasoundFrontendNode* Node = GetFrontendNode())
+				bool bIsConnected = InputHandles.Last()->IsConnected();
+				if (!bIsConnected)
 				{
-					const TArray<FMetasoundFrontendVertex>& Inputs = Node->Interface.Inputs;
-					if (ensure(!Inputs.IsEmpty()))
-					{
-						const FMetaSoundFrontendDocumentBuilder& Builder = GetBuilderChecked().GetConstBuilder();
-						if (!Builder.IsNodeInputConnected(Node->GetID(), Inputs.Last().VertexID))
-						{
-							OutResult.SetMessage(EMessageSeverity::Warning, *RequiredText.ToString());
-						}
-					}
+					OutResult.SetMessage(EMessageSeverity::Warning, *RequiredText.ToString());
 				}
 			}
 		}
 	}
 }
-
 
 const FMetasoundEditorGraphNodeBreadcrumb& UMetasoundEditorGraphOutputNode::GetBreadcrumb() const
 {
@@ -977,13 +976,7 @@ FGuid UMetasoundEditorGraphOutputNode::GetNodeID() const
 
 bool UMetasoundEditorGraphOutputNode::CanUserDeleteNode() const
 {
-	if (const UMetasoundEditorGraphVertex* Vertex = Cast<UMetasoundEditorGraphVertex>(GetMember()))
-	{
-		return Vertex->IsInterfaceMember();
-	}
-	
-	return true;	
-
+	return !GetNodeHandle()->IsInterfaceMember();
 }
 
 void UMetasoundEditorGraphOutputNode::SetNodeID(FGuid InNodeID)
