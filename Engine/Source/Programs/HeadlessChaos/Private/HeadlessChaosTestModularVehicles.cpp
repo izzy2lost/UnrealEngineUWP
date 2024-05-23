@@ -10,7 +10,6 @@
 #include "SimModule/ClutchModule.h"
 #include "SimModule/TransmissionModule.h"
 #include "SimModule/WheelModule.h"
-#include "SimModule/SuspensionModule.h"
 #include "SimModule/SimModuleTree.h"
 #include "SimModule/ModuleInput.h"
 
