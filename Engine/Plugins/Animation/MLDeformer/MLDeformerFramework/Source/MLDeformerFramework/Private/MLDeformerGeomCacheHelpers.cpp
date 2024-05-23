@@ -294,6 +294,67 @@ namespace UE::MLDeformer
 	void SampleGeomCachePositions(
 		int32 InLODIndex,
 		float InSampleTime,
+		const TArray<FMLDeformerGeomCacheMeshMapping>& InMeshMappings,
+		const USkeletalMesh* InSkelMesh,
+		const UGeometryCache* InGeometryCache,
+		const FTransform& InAlignmentTransform,
+		TArray<FVector3f>& OutPositions)
+	{
+		if (InGeometryCache == nullptr)
+		{
+			return;
+		}
+
+		if (!ensure(InSkelMesh != nullptr))
+		{
+			return;
+		}
+
+		const FMeshDescription* MeshDescription = InSkelMesh->GetMeshDescription(InLODIndex);
+		if (!ensure(MeshDescription))
+		{
+			return;
+		}
+
+		const FSkeletalMeshConstAttributes MeshAttributes(*MeshDescription);
+		const FSkeletalMeshAttributes::FSourceGeometryPartVertexOffsetAndCountConstRef GeoPartOffsetAndCounts = MeshAttributes.GetSourceGeometryPartVertexOffsetAndCounts();
+
+		const uint32 NumVertices = MeshDescription->Vertices().Num();
+		OutPositions.Reset(NumVertices);
+		OutPositions.AddZeroed(NumVertices);
+
+		// For all mesh mappings we found.
+		for (int32 MeshMappingIndex = 0; MeshMappingIndex < InMeshMappings.Num(); ++MeshMappingIndex)
+		{
+			const UE::MLDeformer::FMLDeformerGeomCacheMeshMapping& MeshMapping = InMeshMappings[MeshMappingIndex];
+			TArrayView<const int32> GeoPartInfo = GeoPartOffsetAndCounts.Get(MeshMapping.MeshIndex);
+			const int32 StartImportedVertex = GeoPartInfo[0];
+			const int32 NumImportedVertices = GeoPartInfo[1];
+
+			UGeometryCacheTrack* Track = InGeometryCache->Tracks[MeshMapping.TrackIndex];
+
+			FGeometryCacheMeshData GeomCacheMeshData;
+			if (!Track->GetMeshDataAtTime(InSampleTime, GeomCacheMeshData))
+			{
+				continue;
+			}
+
+			for (int32 VertexIndex = 0; VertexIndex < NumImportedVertices; ++VertexIndex)
+			{
+				const int32 SkinnedVertexIndex = StartImportedVertex + VertexIndex;
+				const int32 GeomCacheVertexIndex = MeshMapping.SkelMeshToTrackVertexMap[VertexIndex];
+				if (GeomCacheVertexIndex != INDEX_NONE && GeomCacheMeshData.Positions.IsValidIndex(GeomCacheVertexIndex))
+				{
+					const FVector3f GeomCacheVertexPos = (FVector3f)InAlignmentTransform.TransformPosition((FVector)GeomCacheMeshData.Positions[GeomCacheVertexIndex]);
+					OutPositions[SkinnedVertexIndex] = GeomCacheVertexPos;
+				}
+			}
+		}
+	}
+
+	void SampleGeomCachePositionsAtFrame(
+		int32 InLODIndex,
+		int32 FrameIndex,
 		const TArray<UE::MLDeformer::FMLDeformerGeomCacheMeshMapping>& InMeshMappings,
 		const USkeletalMesh* InSkelMesh,
 		const UGeometryCache* InGeometryCache,
@@ -318,7 +379,7 @@ namespace UE::MLDeformer
 
 		const FSkeletalMeshConstAttributes MeshAttributes(*MeshDescription);
 		const FSkeletalMeshAttributes::FSourceGeometryPartVertexOffsetAndCountConstRef GeoPartOffsetAndCounts = MeshAttributes.GetSourceGeometryPartVertexOffsetAndCounts();
-		
+
 		const uint32 NumVertices = MeshDescription->Vertices().Num();
 		OutPositions.Reset(NumVertices);
 		OutPositions.AddZeroed(NumVertices);
@@ -330,11 +391,11 @@ namespace UE::MLDeformer
 			TArrayView<const int32> GeoPartInfo = GeoPartOffsetAndCounts.Get(MeshMapping.MeshIndex);
 			const int32 StartImportedVertex = GeoPartInfo[0];
 			const int32 NumImportedVertices = GeoPartInfo[1];
-			
+
 			UGeometryCacheTrack* Track = InGeometryCache->Tracks[MeshMapping.TrackIndex];
 
 			FGeometryCacheMeshData GeomCacheMeshData;
-			if (!Track->GetMeshDataAtTime(InSampleTime, GeomCacheMeshData))
+			if (!Track->GetMeshDataAtSampleIndex(FrameIndex, GeomCacheMeshData))
 			{
 				continue;
 			}

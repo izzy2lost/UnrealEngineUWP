@@ -121,6 +121,35 @@ bool UMLDeformerGeomCacheModel::HasTrainingGroundTruth() const
 	return false;
 }
 
+void UMLDeformerGeomCacheModel::SampleGroundTruthPositionsAtFrame(int32 FrameIndex, TArray<FVector3f>& OutPositions)
+{
+	const UMLDeformerGeomCacheVizSettings* GeomCacheVizSettings = GetGeomCacheVizSettings();
+	check(GeomCacheVizSettings);
+
+	UGeometryCache* GeomCache = GeomCacheVizSettings->GetTestGroundTruth();
+	if (GeomCache == nullptr)
+	{
+		OutPositions.Reset();
+		return;
+	}
+
+	if (MeshMappings.IsEmpty())
+	{
+		TArray<FString> FailedImportedMeshNames;
+		TArray<FString> VertexMisMatchNames;
+		UE::MLDeformer::GenerateGeomCacheMeshMappings(GetSkeletalMesh(), GeomCache, MeshMappings, FailedImportedMeshNames, VertexMisMatchNames, /**bSuppressLog*/true);
+	}
+
+	UE::MLDeformer::SampleGeomCachePositionsAtFrame(
+		0,
+		FrameIndex,
+		MeshMappings,
+		GetSkeletalMesh(),
+		GeomCache,
+		GetAlignmentTransform(),
+		OutPositions);
+}
+
 void UMLDeformerGeomCacheModel::SampleGroundTruthPositions(float SampleTime, TArray<FVector3f>& OutPositions)
 {
 	const UMLDeformerGeomCacheVizSettings* GeomCacheVizSettings = GetGeomCacheVizSettings();
@@ -140,6 +169,7 @@ void UMLDeformerGeomCacheModel::SampleGroundTruthPositions(float SampleTime, TAr
 		UE::MLDeformer::GenerateGeomCacheMeshMappings(GetSkeletalMesh(), GeomCache, MeshMappings, FailedImportedMeshNames, VertexMisMatchNames, /**bSuppressLog*/true);
 	}
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	UE::MLDeformer::SampleGeomCachePositions(
 		0,
 		SampleTime,
@@ -148,7 +178,9 @@ void UMLDeformerGeomCacheModel::SampleGroundTruthPositions(float SampleTime, TAr
 		GeomCache,
 		GetAlignmentTransform(),
 		OutPositions);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 }
+
 #endif
 
 #undef LOCTEXT_NAMESPACE

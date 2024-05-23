@@ -133,8 +133,8 @@ FComputeDataProviderRenderProxy* UMLDeformerGraphDebugDataProvider::GetRenderPro
 		UMLDeformerModel* Model = DeformerAsset->GetModel();
 		if (Model->GetVizSettings()->GetHeatMapMode() == EMLDeformerHeatMapMode::GroundTruth)
 		{
-			const float SampleTime = DeformerComponent->GetModelInstance()->GetSkeletalMeshComponent()->GetPosition();
-			Model->SampleGroundTruthPositions(SampleTime, Proxy->GetGroundTruthPositions());
+			const int32 GroundTruthFrame = DeformerComponent->GetModelInstance()->GetGroundTruthFrameIndex();
+			Model->SampleGroundTruthPositionsAtFrame(GroundTruthFrame, Proxy->GetGroundTruthPositions());
 		}
 		Proxy->HandleZeroGroundTruthPositions();
 		return Proxy;

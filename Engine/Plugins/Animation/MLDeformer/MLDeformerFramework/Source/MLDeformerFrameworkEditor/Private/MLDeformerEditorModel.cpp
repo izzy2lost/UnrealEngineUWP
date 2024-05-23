@@ -1003,6 +1003,14 @@ namespace UE::MLDeformer
 				if (EditorActor && EditorActor->IsTestActor())
 				{
 					EditorActor->SetPlayPosition(PlayOffset);
+					UMLDeformerComponent* MLDComponent = EditorActor->GetMLDeformerComponent();
+					if (MLDComponent)
+					{
+						if (MLDComponent->GetModelInstance())
+						{
+							MLDComponent->GetModelInstance()->SetGroundTruthFrameIndex(TargetFrame);
+						}
+					}
 				}
 			}
 			VizSettings->SetTestingFrameNumber(TargetFrame);
@@ -1309,6 +1317,18 @@ namespace UE::MLDeformer
 			{
 				EditorActor->SetPlaySpeed(VizSettings->GetAnimPlaySpeed());
 				EditorActor->Pause(bMustPause);
+			}
+		}
+
+		if (VizSettings->GetShowHeatMap() && VizSettings->GetHeatMapMode() == EMLDeformerHeatMapMode::GroundTruth)
+		{
+			if (!bMustPause)
+			{
+				SetHeatMapMaterialEnabled(false);
+			}
+			else
+			{
+				SetHeatMapMaterialEnabled(VizSettings->GetShowHeatMap());
 			}
 		}
 	}

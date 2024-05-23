@@ -52,7 +52,10 @@ enum class ETrainingResult : uint8
 	FailOnData,
 
 	/** The python script has some error (see output log). Or it's missing some required model training class. */
-	FailPythonError
+	FailPythonError,
+
+	/** Any other error, for example when some exception got thrown during training. */
+	Other
 };
 
 namespace UE::MLDeformer

@@ -747,6 +747,14 @@ namespace UE::MLDeformer
 			}
 			break;
 
+			// There is an error another error, some exception got thrown while training.
+			case ETrainingResult::Other:
+			{
+				GEditor->PlayEditorSound(TEXT("/Engine/EditorSounds/Notifications/CompileFailed_Cue.CompileFailed_Cue"));
+				WindowMessage = LOCTEXT("TrainingOtherError", "Training failed!\nPlease check the output log.\n");
+			}
+			break;
+
 			// Unhandled error codes.
 			default:
 				checkf(false, TEXT("Unknown error code"));

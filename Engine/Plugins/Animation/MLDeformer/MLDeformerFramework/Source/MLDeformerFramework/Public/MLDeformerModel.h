@@ -249,12 +249,15 @@ public:
 	 */
 	virtual bool HasTrainingGroundTruth() const				{ return false; }
 
+	UE_DEPRECATED(5.5, "Please use SampleGroundTruthPositionAtFrame instead.")
+	virtual void SampleGroundTruthPositions(float SampleTime, TArray<FVector3f>& OutPositions) {}
+
 	/**
-	 * Sample the positions from the target (ground truth) mesh, at a specific time (in seconds).
-	 * @param SampleTime The time to sample the positions at, in seconds.
+	 * Sample the positions from the target (ground truth) mesh, at a specific frame.
+	 * @param FrameIndex The frame number to sample the positions at.
 	 * @param OutPositions The array that will receive the resulting vertex positions. This array will automatically be resized internally.
 	 */
-	virtual void SampleGroundTruthPositions(float SampleTime, TArray<FVector3f>& OutPositions) {}
+	virtual void SampleGroundTruthPositionsAtFrame(int32 FrameIndex, TArray<FVector3f>& OutPositions) {}
 #endif
 
 #if WITH_EDITOR

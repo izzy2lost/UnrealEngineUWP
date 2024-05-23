@@ -444,4 +444,14 @@ void UMLDeformerModelInstance::Tick(float DeltaTime, float ModelWeight)
 			CopyDataFromDebugActor(DebugActor, DebugMLDeformerComponent);
 		}
 	}
+
+	void UMLDeformerModelInstance::SetGroundTruthFrameIndex(int32 FrameIndex)
+	{ 
+		GroundTruthFrameIndex = FrameIndex;
+	}
+
+	int32 UMLDeformerModelInstance::GetGroundTruthFrameIndex() const
+	{ 
+		return GroundTruthFrameIndex;
+	}
 #endif

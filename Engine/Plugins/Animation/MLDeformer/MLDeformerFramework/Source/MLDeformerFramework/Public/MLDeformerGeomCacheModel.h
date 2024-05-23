@@ -38,7 +38,8 @@ public:
 	// UMLDeformerModel overrides.
 #if WITH_EDITORONLY_DATA
 	virtual bool HasTrainingGroundTruth() const override;
-	virtual void SampleGroundTruthPositions(float SampleTime, TArray<FVector3f>& OutPositions) override;
+	virtual void SampleGroundTruthPositionsAtFrame(int32 FrameIndex, TArray<FVector3f>& OutPositions) override;
+	virtual void SampleGroundTruthPositions(float SampleTime, TArray<FVector3f>& OutPositions) override;	// Deprecated in base class, will be removed soon.
 #endif
 #if WITH_EDITOR
 	virtual void UpdateNumTargetMeshVertices() override;
