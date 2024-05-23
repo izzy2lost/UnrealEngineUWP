@@ -1966,7 +1966,7 @@ namespace Horde.Server.Tests.Issues
 
 				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
-				Assert.AreEqual("Gauntlet", issues[0].Fingerprints[0].Type);
+				Assert.AreEqual("Gauntlet:test", issues[0].Fingerprints[0].Type);
 				Assert.AreEqual(new IssueKey($"{job.StreamId}:Update Version Files", IssueKeyType.None), issues[0].Fingerprints[0].Keys.First());
 				Assert.AreEqual("Automation test errors in Update Version Files", issues[0].Summary);
 			}
@@ -2007,14 +2007,14 @@ namespace Horde.Server.Tests.Issues
 
 				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
-				Assert.AreEqual("Gauntlet", issues[0].Fingerprints[0].Type);
+				Assert.AreEqual("Gauntlet:fatal:with-callstack", issues[0].Fingerprints[0].Type);
 				Assert.AreEqual("hash:", issues[0].Fingerprints[0].Keys.First().Name.Substring(0, 5));
 				Assert.AreEqual(37, issues[0].Fingerprints[0].Keys.First().Name.Length);
 				Assert.AreEqual("Automation fatal errors in Update Version Files", issues[0].Summary);
 			}
 			// #3
-			// Scenario: Gauntlet Test event
-			// Expected: Gauntlet fingerprint using hash prefix and job step salt
+			// Scenario: Gauntlet Test + Fatal event
+			// Expected: Gauntlet Test fingerprint using hash prefix and job step salt, Gauntlet Fatal is a separated issue
 			{
 				string[] logErrors =
 				{
@@ -2033,6 +2033,7 @@ namespace Horde.Server.Tests.Issues
 				IJob job = CreateJob(_mainStreamId, 130, "Test Build", _graph);
 				await using (TestJsonLogger logger = await CreateLoggerAsync(job, 0, 0))
 				{
+					logger.LogError(KnownLogEvents.Gauntlet_FatalEvent, "Some critical error");
 					foreach (string error in logErrors)
 					{
 						logger.LogError(KnownLogEvents.Gauntlet_TestEvent, "{Error}", error);
@@ -2041,8 +2042,9 @@ namespace Horde.Server.Tests.Issues
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 
 				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
-				Assert.AreEqual(1, issues.Count);
-				Assert.AreEqual("Gauntlet", issues[0].Fingerprints[0].Type);
+				Assert.AreEqual(2, issues.Count);
+				Assert.AreEqual("Gauntlet:test", issues[0].Fingerprints[0].Type);
+				Assert.AreEqual("Gauntlet:fatal", issues[1].Fingerprints[0].Type);
 				Assert.AreEqual(10, issues[0].Fingerprints[0].Keys.Count);
 				Assert.AreEqual("hash:", issues[0].Fingerprints[0].Keys.First().Name.Substring(0, 5));
 				Assert.AreEqual($":{job.StreamId}:Update Version Files", issues[0].Fingerprints[0].Keys.First().Name.Substring(37));

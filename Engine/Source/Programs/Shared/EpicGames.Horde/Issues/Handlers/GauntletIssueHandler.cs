@@ -98,12 +98,15 @@ namespace EpicGames.Horde.Issues.Handlers
 		/// <param name="issueEvent">The issue event</param>
 		/// <param name="keys">Receives a set of the keys</param>
 		/// <param name="metadata">Receives a set of metadata</param>
-		private void GetHash(IssueEvent issueEvent, HashSet<IssueKey> keys, HashSet<IssueMetadata> metadata)
+		/// <param name="hasCallstack">Set true if a callstack property was found</param>
+		private void GetHash(IssueEvent issueEvent, HashSet<IssueKey> keys, HashSet<IssueMetadata> metadata, out bool hasCallstack)
 		{
+			hasCallstack = false;
 			if (TryGetHash(issueEvent, out Md5Hash hash))
 			{
 				string key = $"hash:{hash}";
-				if (!EventHasCallstackProperty(issueEvent))
+				hasCallstack = EventHasCallstackProperty(issueEvent);
+				if (!hasCallstack)
 				{
 					// add job step salt if no Callstack property was found
 					key += $":{_context.StreamId}:{_context.NodeName}";
@@ -166,10 +169,16 @@ namespace EpicGames.Horde.Issues.Handlers
 		{
 			if (issueEvent.EventId != null && IsMatchingEventId(issueEvent.EventId.Value))
 			{
-				IssueEventGroup issue = new IssueEventGroup("Gauntlet", "Automation {Meta:GauntletType} {Severity} in {Meta:Node}", IssueChangeFilter.All);
+				string gauntletType = GetEventPrefix(issueEvent.EventId!.Value);
+				IssueEventGroup issue = new IssueEventGroup($"Gauntlet:{gauntletType}", "Automation {Meta:GauntletType} {Severity} in {Meta:Node}", IssueChangeFilter.All);
 				issue.Events.Add(issueEvent);
-				GetHash(issueEvent, issue.Keys, issue.Metadata);
-				issue.Metadata.Add("GauntletType", GetEventPrefix(issueEvent.EventId.Value));
+				bool hasCallstack;
+				GetHash(issueEvent, issue.Keys, issue.Metadata, out hasCallstack);
+				issue.Metadata.Add("GauntletType", gauntletType);
+				if (hasCallstack)
+				{
+					issue.Type = $"{issue.Type}:with-callstack";
+				}
 				_issues.Add(issue);
 
 				return true;
