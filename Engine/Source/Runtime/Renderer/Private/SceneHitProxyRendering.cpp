@@ -1022,15 +1022,6 @@ int32 FEditorSelectionMeshProcessor::GetStencilValue(const FSceneView* View, con
 
 	const int32* ExistingStencilValue = PrimitiveSceneProxy->IsIndividuallySelected() ? ProxyToStencilIndex.Find(PrimitiveSceneProxy) : ActorNameToStencilIndex.Find(PrimitiveSceneProxy->GetOwnerName());
 
-	// Reserved values for the stencil buffer that carry specific meaning
-	enum ESelectionStencilValues : int32
-	{
-		NotSelected = 0,
-		BSP = 1, // The outlines of all BSPs should be merged
-
-		COUNT,
-	};
-
 	static constexpr int BitsAvailable = 8; // Stencil buffer is 8-bit
 	static constexpr int ColorBits = 3; // Can be changed
 	static constexpr int UniqueIdBits = BitsAvailable - ColorBits;
@@ -1047,7 +1038,7 @@ int32 FEditorSelectionMeshProcessor::GetStencilValue(const FSceneView* View, con
 		// Allow all colors except one to use the full range of unreserved values
 		if (ColorIndex == 0)
 		{
-			Bits |= (UniqueId % (MaxUniqueId - ESelectionStencilValues::COUNT) + ESelectionStencilValues::COUNT) & UniqueIdMask;
+			Bits |= (UniqueId % (MaxUniqueId - EEditorSelectionStencilValues::COUNT) + EEditorSelectionStencilValues::COUNT) & UniqueIdMask;
 		}
 		else
 		{
@@ -1056,11 +1047,11 @@ int32 FEditorSelectionMeshProcessor::GetStencilValue(const FSceneView* View, con
 		return Bits;
 	};
 	
-	int32 StencilValue = ESelectionStencilValues::NotSelected;
+	int32 StencilValue = EEditorSelectionStencilValues::NotSelected;
 
 	if (PrimitiveSceneProxy->GetOwnerName() == NAME_BSP)
 	{
-		StencilValue = ESelectionStencilValues::BSP;
+		StencilValue = EEditorSelectionStencilValues::BSP;
 	}
 	else if (ExistingStencilValue != nullptr)
 	{
@@ -1094,7 +1085,7 @@ FEditorSelectionMeshProcessor::FEditorSelectionMeshProcessor(const FScene* Scene
 {
 	checkf(InViewIfDynamicMeshCommand, TEXT("Editor selection mesh process required dynamic mesh command mode."));
 
-	ActorNameToStencilIndex.Add(NAME_BSP, 1);
+	ActorNameToStencilIndex.Add(NAME_BSP, EEditorSelectionStencilValues::BSP);
 
 	PassDrawRenderState.SetDepthStencilState(TStaticDepthStencilState<true, CF_DepthNearOrEqual, true, CF_Always, SO_Keep, SO_Keep, SO_Replace>::GetRHI());
 	PassDrawRenderState.SetBlendState(TStaticBlendState<>::GetRHI());
@@ -1212,8 +1203,7 @@ bool FEditorLevelInstanceMeshProcessor::Process(
 
 int32 FEditorLevelInstanceMeshProcessor::GetStencilValue(const FSceneView* View, const FPrimitiveSceneProxy* PrimitiveSceneProxy)
 {
-	// Set the stencil value to 1 for primitives which belong to an editing level instance, 0 otherwise
-	return PrimitiveSceneProxy->IsEditingLevelInstanceChild() ? 1 : 0;
+	return PrimitiveSceneProxy->IsEditingLevelInstanceChild() ? EEditorSelectionStencilValues::VisualizeLevelInstances : EEditorSelectionStencilValues::NotSelected;
 }
 
 FEditorLevelInstanceMeshProcessor::FEditorLevelInstanceMeshProcessor(const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)

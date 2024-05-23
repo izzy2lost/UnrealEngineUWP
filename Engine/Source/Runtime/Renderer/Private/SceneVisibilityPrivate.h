@@ -743,6 +743,7 @@ private:
 #if WITH_EDITOR
 	TArray<Nanite::FInstanceDraw> EditorVisualizeLevelInstancesNanite;
 	TArray<Nanite::FInstanceDraw> EditorSelectedInstancesNanite;
+	TArray<Nanite::FInstanceDraw> EditorOverlaidInstancesNanite;
 	TArray<uint32> EditorSelectedNaniteHitProxyIds;
 #endif
 

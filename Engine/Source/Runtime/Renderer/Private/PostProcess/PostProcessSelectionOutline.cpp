@@ -195,7 +195,7 @@ FScreenPassTexture AddSelectionOutlinePass(
 		if (bNaniteEnabled)
 		{
 			// Update editor view to true target view rect
-			Nanite::DrawEditorSelection(GraphBuilder, DepthStencilTexture, *Scene, View, *EditorView, SceneUniformBuffer, NaniteRasterResults);
+			Nanite::DrawEditorSelection(GraphBuilder, DepthStencilTexture, OverlayColorTexture, *Scene, View, *EditorView, SceneUniformBuffer, NaniteRasterResults);
 		}
 
 		// Render HairStrands outlines

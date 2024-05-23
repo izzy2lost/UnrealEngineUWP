@@ -970,7 +970,7 @@ FPrimitiveViewRelevance FSceneProxy::GetViewRelevance(const FSceneView* View) co
 	#if WITH_EDITOR
 		//only check these in the editor
 		Result.bEditorVisualizeLevelInstanceRelevance = IsEditingLevelInstanceChild();
-		Result.bEditorStaticSelectionRelevance = (IsSelected() || IsHovered());
+		Result.bEditorStaticSelectionRelevance = (WantsEditorEffects() || IsSelected() || IsHovered());
 	#endif
 
 	#if NANITE_ENABLE_DEBUG_RENDERING
@@ -1267,7 +1267,7 @@ void FSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views,
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_NaniteSceneProxy_GetMeshElements);
 
 	const bool bIsLightmapSettingError = HasStaticLighting() && !HasValidSettingsForStaticLighting();
-	const bool bProxyIsSelected = IsSelected();
+	const bool bProxyIsSelected = WantsEditorEffects() || IsSelected();
 	const FEngineShowFlags& EngineShowFlags = ViewFamily.EngineShowFlags;
 
 	bool bDrawSimpleCollision = false, bDrawComplexCollision = false;

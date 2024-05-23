@@ -1259,6 +1259,7 @@ void FRelevancePacket::Finalize()
 #if WITH_EDITOR
 	WriteView.EditorVisualizeLevelInstancesNanite.Append(EditorVisualizeLevelInstancesNanite);
 	WriteView.EditorSelectedInstancesNanite.Append(EditorSelectedInstancesNanite);
+	WriteView.EditorSelectedInstancesNanite.Append(EditorOverlaidInstancesNanite);
 	WriteView.EditorSelectedNaniteHitProxyIds.Append(EditorSelectedNaniteHitProxyIds);
 #endif
 
@@ -1821,10 +1822,11 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 		}
 
 #if WITH_EDITOR
-		auto CollectSelectedNaniteInstanceDraws = [](
+		auto CollectNaniteInstanceDraws = [](
 			const FPrimitiveSceneInfo& PrimitiveSceneInfo,
 			const FPrimitiveSceneProxy* PrimitiveSceneProxy,
-			TArray<Nanite::FInstanceDraw>& OutInstanceDraws,
+			TArray<Nanite::FInstanceDraw>& OutSelectedInstanceDraws,
+			TArray<Nanite::FInstanceDraw>* OutOverlaidInstanceDraws,
 			TArray<uint32>* OutSelectedInstanceHitProxyIDs,
 			bool bSelectedInstancesOnly
 		)
@@ -1838,12 +1840,12 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 
 			if (bSelectedInstancesOnly)
 			{
-				if (!NaniteProxy->IsSelected())
+				if (!NaniteProxy->IsSelected() && !NaniteProxy->WantsEditorEffects())
 				{
-					// We're only concerned with selected instances
+					// We're only concerned with selected instances or those with editor effects
 					return;
 				}
-				else if (!NaniteProxy->HasSelectedInstances() && OutSelectedInstanceHitProxyIDs != nullptr)
+				if (NaniteProxy->IsSelected() && !NaniteProxy->HasSelectedInstances() && OutSelectedInstanceHitProxyIDs != nullptr)
 				{
 					// Primitive is selected but not individual instances, so just add the primitive's hit proxy IDs
 					for (auto& HitProxyId : NaniteProxy->GetHitProxyIds())
@@ -1855,12 +1857,18 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 			}
 
 			const int32 MaxInstances = PrimitiveSceneInfo.GetNumInstanceSceneDataEntries();
-			OutInstanceDraws.Reserve(OutInstanceDraws.Num() + MaxInstances);
+			OutSelectedInstanceDraws.Reserve(OutSelectedInstanceDraws.Num() + MaxInstances);
+			if (OutOverlaidInstanceDraws)
+			{
+				OutOverlaidInstanceDraws->Reserve(OutOverlaidInstanceDraws->Num() + MaxInstances);
+			}
 			const FInstanceSceneDataBuffers* InstanceSceneDataBuffers = PrimitiveSceneInfo.GetInstanceSceneDataBuffers();
 			const bool bCollectInstanceHitProxyIds = bSelectedInstancesOnly &&
 				NaniteProxy->HasSelectedInstances() &&
 				OutSelectedInstanceHitProxyIDs != nullptr &&
 				InstanceSceneDataBuffers != nullptr;
+			const bool bIsSelected = NaniteProxy->IsSelected();
+			const bool bWantsEditorEffects = NaniteProxy->WantsEditorEffects() && OutOverlaidInstanceDraws;
 			for (int32 Idx = 0; Idx < MaxInstances; ++Idx)
 			{
 				if (bCollectInstanceHitProxyIds)
@@ -1883,23 +1891,35 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 					}
 				}
 
-				OutInstanceDraws.Add(
-					Nanite::FInstanceDraw {
-						uint32(PrimitiveSceneInfo.GetInstanceSceneDataOffset() + Idx),
-						0u
-					}
-				);
+				if (bIsSelected)
+				{
+					OutSelectedInstanceDraws.Add(
+						Nanite::FInstanceDraw {
+							uint32(PrimitiveSceneInfo.GetInstanceSceneDataOffset() + Idx),
+							0u
+						}
+					);
+				}
+				else if (bWantsEditorEffects)
+				{
+					OutOverlaidInstanceDraws->Add(
+						Nanite::FInstanceDraw {
+							uint32(PrimitiveSceneInfo.GetInstanceSceneDataOffset() + Idx),
+							0u
+						}
+					);
+				}
 			}
 		};
 
 		if (bEditorVisualizeLevelInstanceRelevance)
 		{
-			CollectSelectedNaniteInstanceDraws(*PrimitiveSceneInfo, PrimitiveSceneProxy, EditorVisualizeLevelInstancesNanite, nullptr, false);
+			CollectNaniteInstanceDraws(*PrimitiveSceneInfo, PrimitiveSceneProxy, EditorVisualizeLevelInstancesNanite, nullptr, nullptr, false);
 		}
 
 		if (bEditorSelectionRelevance)
 		{
-			CollectSelectedNaniteInstanceDraws(*PrimitiveSceneInfo, PrimitiveSceneProxy, EditorSelectedInstancesNanite, &EditorSelectedNaniteHitProxyIds, true);
+			CollectNaniteInstanceDraws(*PrimitiveSceneInfo, PrimitiveSceneProxy, EditorSelectedInstancesNanite, &EditorOverlaidInstancesNanite, &EditorSelectedNaniteHitProxyIds, true);
 		}
 #endif
 

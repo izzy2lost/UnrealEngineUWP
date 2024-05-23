@@ -240,9 +240,10 @@ struct FNaniteMaterialPrimitiveData
 	uint MeshPassMask;
 	bool bHasUVDensities;
 	uint HitProxyBufferOffset;
+	float4 OverlayColor;
 };
 
-FNaniteMaterialPrimitiveData UnpackNaniteMaterialPrimitiveData(uint3 Data)
+FNaniteMaterialPrimitiveData UnpackNaniteMaterialPrimitiveData(uint4 Data)
 {
 	FNaniteMaterialPrimitiveData Output;
 	Output.MaterialBufferOffset	= Data.x;
@@ -250,6 +251,7 @@ FNaniteMaterialPrimitiveData UnpackNaniteMaterialPrimitiveData(uint3 Data)
 	Output.MeshPassMask			= BitFieldExtractU32(Data.y, 8u,  8u);
 	Output.bHasUVDensities		= BitFieldExtractU32(Data.y, 1u, 16u);
 	Output.HitProxyBufferOffset = Data.z;
+	Output.OverlayColor			= float4(UnpackToUint4(Data.w, 8)) * (1.0f / 255.0f);
 
 	return Output;
 }
@@ -258,13 +260,13 @@ FNaniteMaterialPrimitiveData LoadNaniteMaterialPrimitiveData(uint InPrimitiveInd
 {
 	const uint ElementStride = Scene.NaniteMaterials.PrimitiveMaterialElementStride;
 	const uint Offset = InPrimitiveIndex * ElementStride;
-	uint3 Data = (uint3)0xFFFFFFFFu;
+	uint4 Data = (uint4)0xFFFFFFFFu;
 	
 #if USE_EDITOR_SHADERS
 	// Check to load the hit proxy buffer offset
-	if (ElementStride / 4u >= 3u)
+	if (ElementStride / 4u >= 4u)
 	{
-		Data = Scene.NaniteMaterials.PrimitiveMaterialData.Load3(Offset);
+		Data = Scene.NaniteMaterials.PrimitiveMaterialData.Load4(Offset);
 	}
 	else
 #endif
@@ -467,6 +469,12 @@ uint GetMaterialHitProxyId(
 	const uint RelativeMaterialIndex = GetRelativeMaterialIndex(InCluster, InTriIndex);
 	const uint MaterialHitProxyId = LoadMaterialHitProxyId(InPrimitiveIndex, RelativeMaterialIndex, InMaterialHitProxyTable);
 	return MaterialHitProxyId;
+}
+
+float4 LoadNaniteMaterialOverlayColor(uint InPrimitiveIndex)
+{
+	FNaniteMaterialPrimitiveData PrimitiveData = LoadNaniteMaterialPrimitiveData(InPrimitiveIndex);
+	return PrimitiveData.OverlayColor;
 }
 
 uint GetMaterialBucketIdFromDepth(float Depth)

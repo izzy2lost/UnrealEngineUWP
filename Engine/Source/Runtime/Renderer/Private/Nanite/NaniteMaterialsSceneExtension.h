@@ -105,6 +105,7 @@ private:
 		uint32 bHasUVDensities : 1;
 	#if WITH_EDITOR
 		uint32 HitProxyBufferOffset;
+		uint32 OverlayColor;
 	#endif
 	};
 
@@ -119,6 +120,7 @@ private:
 		bool bHasUVDensities = false;
 	#if WITH_EDITOR
 		uint32 HitProxyBufferOffset = INDEX_NONE;
+		uint32 OverlayColor = 0;
 	#endif
 
 		FPackedPrimitiveData Pack() const
@@ -130,6 +132,7 @@ private:
 			Output.bHasUVDensities = bHasUVDensities;
 		#if WITH_EDITOR
 			Output.HitProxyBufferOffset = HitProxyBufferOffset;
+			Output.OverlayColor = OverlayColor;
 		#endif
 			return Output;
 		}

@@ -27,6 +27,8 @@ BEGIN_SHADER_PARAMETER_STRUCT(FNaniteSelectionOutlineParameters, )
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint2>, VisBuffer64)
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, MaterialHitProxyTable)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, EditorSelectedHitProxyIds)
+	SHADER_PARAMETER(uint32, NumEditorSelectedHitProxyIds)
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
 
@@ -65,6 +67,10 @@ public:
 
 	using FParameters = FNaniteSelectionOutlineParameters;
 
+	class FEmitOverlayDim : SHADER_PERMUTATION_BOOL("EMIT_OVERLAY");
+	class FOnlySelectedDim : SHADER_PERMUTATION_BOOL("ONLY_SELECTED");
+	using FPermutationDomain = TShaderPermutationDomain<FEmitOverlayDim, FOnlySelectedDim>;
+	
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
 		return DoesPlatformSupportNanite(Parameters.Platform);
@@ -128,10 +134,31 @@ void DrawHitProxies(
 #endif
 }
 
+FRDGBufferSRVRef GetEditorSelectedHitProxyIdsSRV(FRDGBuilder& GraphBuilder, const FViewInfo& View)
+{
+	FRDGBufferRef HitProxyIdsBuffer = nullptr;
+
+#if WITH_EDITOR
+	TConstArrayView<uint32> HitProxyIds = View.EditorSelectedNaniteHitProxyIds;
+	uint32 BufferCount = HitProxyIds.Num();
+	if (BufferCount > 0)
+	{
+		HitProxyIdsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateUploadDesc(sizeof(uint32), BufferCount), TEXT("EditorSelectedNaniteHitProxyIds"));
+		GraphBuilder.QueueBufferUpload(HitProxyIdsBuffer, HitProxyIds);
+	}
+	else
+#endif
+	{
+		HitProxyIdsBuffer = GSystemTextures.GetDefaultBuffer<uint32>(GraphBuilder);
+	}
+
+	return GraphBuilder.CreateSRV(HitProxyIdsBuffer, PF_R32_UINT);
+}
+
 #if WITH_EDITOR
 
 using FInstanceDrawList = TArray<FInstanceDraw, SceneRenderingAllocator>;
-
+	
 static void GetEditorSelectionVisBuffer(
 	FRDGBuilder& GraphBuilder,
 	FScene& Scene,
@@ -212,6 +239,7 @@ static void GetEditorSelectionVisBuffer(
 static void AddEditorSelectionDepthPass(
 	FRDGBuilder& GraphBuilder,
 	FRDGTextureRef DepthTarget,
+	FRDGTextureRef OverlayTarget,
 	FScene& Scene,
 	const FViewInfo& SceneView,
 	const FViewInfo& EditorView,
@@ -248,26 +276,52 @@ static void AddEditorSelectionDepthPass(
 		ERenderTargetLoadAction::ELoad,
 		ERenderTargetLoadAction::ELoad,
 		FExclusiveDepthStencil::DepthWrite_StencilWrite);
+	
+	auto AddPass = [&GraphBuilder, &SceneView, &EditorView](FNaniteSelectionOutlineParameters* PassParameters, int32 StencilValue, bool bEmitOverlay = false, bool bOnlySelected = false)
+	{
+		FEmitEditorSelectionDepthPS::FPermutationDomain PermutationVectorPS;
+		PermutationVectorPS.Set<FEmitEditorSelectionDepthPS::FEmitOverlayDim>(bEmitOverlay);
+		PermutationVectorPS.Set<FEmitEditorSelectionDepthPS::FOnlySelectedDim>(bOnlySelected);
+		
+		auto PixelShader = SceneView.ShaderMap->GetShader<FEmitEditorSelectionDepthPS>(PermutationVectorPS);
 
-	auto PixelShader = SceneView.ShaderMap->GetShader<FEmitEditorSelectionDepthPS>();
+		FPixelShaderUtils::AddFullscreenPass(
+			GraphBuilder,
+			SceneView.ShaderMap,
+			RDG_EVENT_NAME("EditorSelectionDepth"),
+			PixelShader,
+			PassParameters,
+			EditorView.ViewRect,
+			TStaticBlendState<>::GetRHI(),
+			TStaticRasterizerState<>::GetRHI(),
+			TStaticDepthStencilState<true, CF_DepthNearOrEqual, true, CF_Always, SO_Keep, SO_Keep, SO_Replace>::GetRHI(),
+			StencilValue
+		);
+	};
 
-	FPixelShaderUtils::AddFullscreenPass(
-		GraphBuilder,
-		SceneView.ShaderMap,
-		RDG_EVENT_NAME("EditorSelectionDepth"),
-		PixelShader,
-		PassParameters,
-		EditorView.ViewRect,
-		TStaticBlendState<>::GetRHI(),
-		TStaticRasterizerState<>::GetRHI(),
-		TStaticDepthStencilState<true, CF_DepthNearOrEqual, true, CF_Always, SO_Keep, SO_Keep, SO_Replace>::GetRHI(),
-		StencilRefValue
-	);
+	if (OverlayTarget)
+	{
+		PassParameters->RenderTargets[0] = FRenderTargetBinding(OverlayTarget, ERenderTargetLoadAction::ELoad);
+		PassParameters->EditorSelectedHitProxyIds = GetEditorSelectedHitProxyIdsSRV(GraphBuilder, EditorView);
+		PassParameters->NumEditorSelectedHitProxyIds = EditorView.EditorSelectedNaniteHitProxyIds.Num();
+		// Copy pass parameters to avoid running Nanite pipeline again
+		auto PassParameters2 = GraphBuilder.AllocParameters<FNaniteSelectionOutlineParameters>();
+		*PassParameters2 = *PassParameters;
+		const bool bEmitOverlay = true;
+		const bool bOnlySelected = true;
+		AddPass(PassParameters, EEditorSelectionStencilValues::NotSelected, bEmitOverlay);
+		AddPass(PassParameters2, StencilRefValue, bEmitOverlay, bOnlySelected);
+	}
+	else
+	{
+		AddPass(PassParameters, StencilRefValue);
+	}
 }
 
 void DrawEditorSelection(
 	FRDGBuilder& GraphBuilder,
 	FRDGTextureRef DepthTarget,
+	FRDGTextureRef OverlayTarget,
 	FScene& Scene,
 	const FViewInfo& SceneView,
 	const FViewInfo& EditorView,
@@ -284,13 +338,14 @@ void DrawEditorSelection(
 	AddEditorSelectionDepthPass(
 		GraphBuilder,
 		DepthTarget,
+		OverlayTarget,
 		Scene,
 		SceneView,
 		EditorView,
 		SceneUniformBuffer,
 		*NaniteRasterResults,
 		SceneView.EditorSelectedInstancesNanite,
-		3
+		EEditorSelectionStencilValues::Nanite
 	);
 }
 
@@ -313,13 +368,14 @@ void DrawEditorVisualizeLevelInstance(
 	AddEditorSelectionDepthPass(
 		GraphBuilder,
 		DepthTarget,
+		nullptr,
 		Scene,
 		SceneView,
 		EditorView,
 		SceneUniformBuffer,
 		*NaniteRasterResults,
 		SceneView.EditorVisualizeLevelInstancesNanite,
-		2
+		EEditorSelectionStencilValues::VisualizeLevelInstances
 	);
 }
 

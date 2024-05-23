@@ -2765,6 +2765,21 @@ public:
 	FRenderTarget* RenderTargetBufferA[2];
 	FRenderTarget* RenderTargetBufferBCDEF[2];
 };
+
+// Reserved values for the stencil buffer that carry specific meaning
+namespace EEditorSelectionStencilValues
+{
+	enum Type : int32
+	{
+		NotSelected = 0,
+		BSP = 1, // The outlines of all BSPs should be merged
+		VisualizeLevelInstances = 2,
+		Nanite = 3, // Nanite can use only a single value
+
+		COUNT,
+	};
+}
+
 #endif //WITH_EDITOR
 
 class FPersistentUniformBuffers

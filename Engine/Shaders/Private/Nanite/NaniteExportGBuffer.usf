@@ -9,9 +9,9 @@
 #include "NaniteDataDecode.ush"
 #include "NaniteAttributeDecode.ush"
 #include "NaniteSceneCommon.ush"
+#include "NaniteEditorCommon.ush"
 #include "NaniteVertexDeformation.ush"
 
-ByteAddressBuffer MaterialHitProxyTable;
 
 uint DummyZero; // TODO: Remove me
 uint StencilClear;
@@ -326,7 +326,7 @@ void EmitCustomDepthStencilPS
 	}
 }
 
-float ViewToClip22;
+float ViewToClip22; 
 float DepthBias;
 
 Texture2D< uint > DepthBuffer;
@@ -416,14 +416,17 @@ float2 OutputToInputScale;
 float2 OutputToInputBias;
 
 // This shader is used to output depth (and stencil) for both editor selection outlines and visualize level instances.
-// NOTE: In the case of outlines, all unselected instances have been culled from the VisBuffer to prevent issues with
-// selected instances being occluded, so we don't need to further check their selection state in this shader.
+// Additionally, it is used to output editor overlay colors.
 void EmitEditorSelectionDepthPS(
-	float4 SvPosition  : SV_Position,
-	out float OutDepth : SV_Depth
+	float4 SvPosition  : SV_Position
+#if EMIT_OVERLAY
+	, out float4 OutOverlay : SV_Target0
+#endif
+	, out float OutDepth : SV_Depth
 )
 {
 	uint DepthInt = 0;
+	float4 OverlayColor = 0;
 	bool bValidExport = false;
 
 #if USE_EDITOR_SHADERS
@@ -435,8 +438,28 @@ void EmitEditorSelectionDepthPS(
 	UnpackVisPixel(VisPixel, DepthInt, VisibleClusterIndex, TriIndex);
 
 	bValidExport = VisibleClusterIndex != 0xFFFFFFFF;
+
+	if (bValidExport)
+	{
+		FVisibleCluster VisibleCluster = GetVisibleCluster(VisibleClusterIndex);
+		const FInstanceSceneData InstanceData = GetInstanceSceneData(VisibleCluster, false);
+#if ONLY_SELECTED
+		const bool bIsSelected = IsInstanceSelected(InstanceData, VisibleCluster, TriIndex);
+		if (!bIsSelected)
+		{
+			discard;
+		}
+#endif // ONLY_SELECTED
+#if EMIT_OVERLAY
+		OverlayColor = LoadNaniteMaterialOverlayColor(InstanceData.PrimitiveId);
+#endif // EMIT_OVERLAY
+	}
+	
 #endif // USE_EDITOR_SHADERS
 
+#if EMIT_OVERLAY
+	OutOverlay = OverlayColor;
+#endif
 	OutDepth = asfloat(DepthInt);
 	if (!bValidExport)
 	{

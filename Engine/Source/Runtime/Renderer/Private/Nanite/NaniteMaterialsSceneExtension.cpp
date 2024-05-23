@@ -478,7 +478,9 @@ void FMaterialsSceneExtension::FUpdater::PostSceneUpdate(FRDGBuilder& GraphBuild
 
 		auto NaniteProxy = static_cast<Nanite::FSceneProxyBase*>(Data.PrimitiveSceneInfo->Proxy);	
 		auto& MaterialSections = NaniteProxy->GetMaterialSections();	
-	
+
+		Data.OverlayColor = NaniteProxy->GetOverlayColor().ToPackedABGR();
+		
 		// Check to allocate space in the hit proxy ID buffer
 		const bool bNeedsMaterialHitProxies = Data.NumMaterials > 0 &&
 			NaniteProxy->GetHitProxyMode() == Nanite::FSceneProxyBase::EHitProxyMode::MaterialSection;

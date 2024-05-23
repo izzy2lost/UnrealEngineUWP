@@ -19,6 +19,7 @@
 #include "ShaderPrint.h"
 #include "InstanceDataSceneProxy.h"
 #include "Nanite/NaniteMaterialsSceneExtension.h"
+#include "NaniteEditor.h"
 
 // Specifies if visualization only shows Nanite information that passes full scene depth test
 // -1: Use default composition specified the each mode
@@ -76,29 +77,6 @@ FAutoConsoleVariableRef CVarNanitePixelProgrammableVisMode(
 	TEXT("2: Show pixel depth offset only.\n")
 	TEXT("3: Show dynamic displacement only.")
 );
-
-
-static FRDGBufferSRVRef GetEditorSelectedHitProxyIdsSRV(FRDGBuilder& GraphBuilder, const FViewInfo& View)
-{
-	FRDGBufferRef HitProxyIdsBuffer = nullptr;
-
-#if WITH_EDITOR
-	TConstArrayView<uint32> HitProxyIds = View.EditorSelectedNaniteHitProxyIds;
-	uint32 BufferCount = HitProxyIds.Num();
-	if (BufferCount > 0)
-	{
-		HitProxyIdsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateUploadDesc(sizeof(uint32), BufferCount), TEXT("EditorSelectedNaniteHitProxyIds"));
-		GraphBuilder.QueueBufferUpload(HitProxyIdsBuffer, HitProxyIds);
-	}
-	else
-#endif
-	{
-		HitProxyIdsBuffer = GSystemTextures.GetDefaultBuffer<uint32>(GraphBuilder);
-	}
-
-	return GraphBuilder.CreateSRV(HitProxyIdsBuffer, PF_R32_UINT);
-}
-
 static FIntVector4 GetVisualizeConfig(int32 ModeID, bool bCompositeScene, bool bEdgeDetect)
 {
 	if (ModeID != INDEX_NONE)
@@ -920,7 +898,7 @@ void RenderDebugViewMode(
 	PassParameters->SceneDepth = InputDepthTexture;
 	PassParameters->ShadingMask = RasterResults.ShadingMask;
 	PassParameters->DebugViewData = GraphBuilder.CreateSRV(Scene.GetExtension<Nanite::FMaterialsSceneExtension>().CreateDebugViewModeBuffer(GraphBuilder));
-	PassParameters->EditorSelectedHitProxyIds = GetEditorSelectedHitProxyIdsSRV(GraphBuilder, View);
+	PassParameters->EditorSelectedHitProxyIds = Nanite::GetEditorSelectedHitProxyIdsSRV(GraphBuilder, View);
 	PassParameters->ShadingBinData = GetShadingBinDataSRV(GraphBuilder);
 	PassParameters->MaterialHitProxyTable = GraphBuilder.CreateSRV(
 	#if WITH_EDITOR
