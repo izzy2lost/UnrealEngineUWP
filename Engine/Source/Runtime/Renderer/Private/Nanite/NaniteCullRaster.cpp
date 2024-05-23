@@ -2941,7 +2941,7 @@ private:
 								PSOCollectorStats::CheckFullPipelineStateInCache(GraphicsPSOInit, EPSOPrecacheResult::Unknown, RasterizerPass.RasterPipeline.RasterMaterial, &FNaniteVertexFactory::StaticType, nullptr, PSOCollectorIndex);
 							}
 						#endif
-							
+
 							Dispatch.Parameters_MSVS.Emplace(ScratchAllocator);
 							if (IsMeshShaderRasterPath(HardwarePath))
 							{
@@ -2965,20 +2965,14 @@ private:
 								const bool bSkipDraw = !PipelineStateCache::IsPSOPrecachingEnabled();
 
 								Dispatch.PipelineState = GetGraphicsPipelineState(RHICmdList, Dispatch.PipelineInitializer, !bSkipDraw);
-									
+
 								if (bSkipDraw)
 								{
 									Dispatch.RecordIndex = ~uint32(0u);
 									continue;
 								}
 							}
-								
-							if (RHICmdList.Bypass())
-							{
-								Dispatch.RHIPipeline = ExecuteSetGraphicsPipelineState(Dispatch.PipelineState);
-							}
 						}
-						
 					};
 
 					RHICmdList.DispatchGraphicsShaderBundle(RecordDispatches);
@@ -3132,7 +3126,7 @@ private:
 							const EShaderFrequency ShaderFrequency = Shader->GetShader()->GetFrequency();
 							Dispatch.Shader = ShaderFrequency == SF_Compute ? Shader->GetComputeShader() : nullptr;
 							Dispatch.WorkGraphShader = ShaderFrequency == SF_WorkGraphComputeNode ? Shader->GetWorkGraphShader() : nullptr;
-							
+
 							Dispatch.Parameters.Emplace(ScratchAllocator);
 
 							SetShaderParametersMixed(
@@ -3164,17 +3158,12 @@ private:
 								const bool bSkipDraw = !PipelineStateCache::IsPSOPrecachingEnabled();
 
 								Dispatch.PipelineState = GetComputePipelineState(RHICmdList, Dispatch.Shader, !bSkipDraw);
-									
+
 								if (bSkipDraw)
 								{
 									Dispatch.RecordIndex = ~uint32(0u);
 									continue;
 								}
-							}
-
-							if (Dispatch.PipelineState != nullptr && RHICmdList.Bypass())
-							{
-								Dispatch.RHIPipeline = ExecuteSetComputePipelineState(Dispatch.PipelineState);
 							}
 						}
 					};

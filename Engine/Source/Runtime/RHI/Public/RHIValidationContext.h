@@ -494,6 +494,11 @@ public:
 
 		for (const FRHIShaderBundleComputeDispatch& Dispatch : Dispatches)
 		{
+			if (!Dispatch.IsValid())
+			{
+				continue;
+			}
+
 			State.BoundShaders[SF_Compute] = Dispatch.Shader;
 			
 			// Reset the compute UAV tracker since the renderer must re-bind all resources after changing a shader.
@@ -526,6 +531,11 @@ public:
 		checkf(Dispatches.Num() > 0, TEXT("A shader bundle must be dispatched with at least one record."));
 		for (const FRHIShaderBundleGraphicsDispatch& Dispatch : Dispatches)
 		{
+			if (!Dispatch.IsValid())
+			{
+				continue;
+			}
+
 			//State.bComputePSOSet = true;
 
 			// Reset the compute UAV tracker since the renderer must re-bind all resources after changing a shader.
