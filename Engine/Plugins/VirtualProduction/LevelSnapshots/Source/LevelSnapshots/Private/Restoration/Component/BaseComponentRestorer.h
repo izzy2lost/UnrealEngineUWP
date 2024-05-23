@@ -76,7 +76,7 @@ namespace UE::LevelSnapshots::Private
 				bool bIsOwnedByComponent;
 				const FSoftObjectPath& ComponentOuterPath = WorldData.SerializedObjectReferences[SubobjectData.OuterIndex];
 				const TOptional<TNonNullPtr<FActorSnapshotData>> ComponentOuterData = UE::LevelSnapshots::Private::FindSavedActorDataUsingObjectPath(WorldData.ActorData, ComponentOuterPath, bIsOwnedByComponent);
-				const bool bIsOwnedByOtherActor = ComponentOuterData.Get(nullptr) != &SnapshotData;
+				const bool bIsOwnedByOtherActor = GetRawPointerOrNull(ComponentOuterData) != &SnapshotData;
 				if (!ensureAlwaysMsgf(ComponentOuterData, TEXT("Failed to recreate component %s because its outer %s did not have any associated actor data. Investigate."), *ComponentPath.ToString(), *ComponentOuterPath.ToString())
 					|| !ensureMsgf(!bIsOwnedByOtherActor, TEXT("Failed to recreate component %s because saved data indicates it is owned by another actor %s. Components normally are owned by the actor they're attached to. Investigate."), *ComponentPath.ToString(), *ComponentOuterPath.ToString()))
 				{

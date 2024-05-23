@@ -30,7 +30,7 @@ TWeakObjectPtr<AActor> FFilterListData::GetSnapshotCounterpartFor(const AActor* 
 {
 	const TOptional<TNonNullPtr<AActor>> DeserializedActor = RelatedSnapshot->GetDeserializedActor(WorldActor);
 	return ensureAlwaysMsgf(DeserializedActor, TEXT("Deserialized actor does no exist. Either the snapshots's container world was deleted or the snapshot has no counterpart for this actor"))
-		? DeserializedActor.GetValue() : nullptr;
+		? DeserializedActor->Get() : nullptr;
 }
 
 void FFilterListData::ForEachModifiedActor(TFunctionRef<void(AActor*)> Callback) const

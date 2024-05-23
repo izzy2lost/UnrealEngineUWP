@@ -72,10 +72,10 @@ namespace UE::MultiUserServer
 		const TOptional<FConcertSyncSessionDatabaseNonNullPtr> SessionDatabase = InSyncServer->GetArchivedSessionDatabase(InSessionId);
 		check(SessionDatabase);
 		
-		ConcertSyncCore::FActivityDependencyGraph DependencyGraph = ConcertSyncCore::BuildDependencyGraphFrom(*SessionDatabase);
+		ConcertSyncCore::FActivityDependencyGraph DependencyGraph = ConcertSyncCore::BuildDependencyGraphFrom(**SessionDatabase);
 		if (ConsoleVariables::CVarLogActivityDependencyGraphOnDelete.GetValueOnGameThread())
 		{
-			UE_LOG(LogConcert, Log, TEXT("Analysed graph: %s"), *UE::ConcertSyncCore::Graphviz::ExportToGraphviz(DependencyGraph, *SessionDatabase));
+			UE_LOG(LogConcert, Log, TEXT("Analysed graph: %s"), *UE::ConcertSyncCore::Graphviz::ExportToGraphviz(DependencyGraph, **SessionDatabase));
 		}
 		
 		return SAssignNew(DependencyView, SActivityDependencyView, MoveTemp(DependencyGraph))

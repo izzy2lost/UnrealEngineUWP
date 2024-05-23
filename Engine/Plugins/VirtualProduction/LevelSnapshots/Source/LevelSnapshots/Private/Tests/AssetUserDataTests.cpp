@@ -236,7 +236,7 @@ namespace UE::LevelSnapshots::Private::Tests
 		{
 			UActorComponent* Component = Cast<UActorComponent>(MainWorldObject.GetObject());
 			TOptional<TNonNullPtr<AActor>> SnapshotActor = Snapshot->GetDeserializedActor(Component->GetOwner());
-			return SnapshotActor ? Cast<ASnapshotTestActor>(SnapshotActor.GetValue())->TestComponent : nullptr;
+			return SnapshotActor ? Cast<ASnapshotTestActor>(SnapshotActor->Get())->TestComponent : nullptr;
 		}
 	};
 	

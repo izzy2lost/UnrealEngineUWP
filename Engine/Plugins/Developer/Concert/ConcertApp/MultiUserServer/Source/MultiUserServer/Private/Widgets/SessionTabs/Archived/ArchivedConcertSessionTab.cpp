@@ -357,7 +357,7 @@ void FArchivedConcertSessionTab::SpawnDialogForMutingOrUnmuting(bool bShouldMute
 				// Because the dialog is non-modal, the user may have closed the program in the mean time
 				if (const TSharedPtr<const FArchivedConcertSessionTab> PinnedThis = WeakTabThis.Pin())
 				{
-					const bool bSuccess = PinnedThis->SyncServer->GetArchivedSessionDatabase(PinnedThis->InspectedSessionID)->SetActivities(Selection, [bShouldMute](FConcertSyncActivity& Activity)
+					const bool bSuccess = (*PinnedThis->SyncServer->GetArchivedSessionDatabase(PinnedThis->InspectedSessionID))->SetActivities(Selection, [bShouldMute](FConcertSyncActivity& Activity)
 					{
 						if (bShouldMute)
 						{

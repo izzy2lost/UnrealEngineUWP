@@ -20,7 +20,7 @@ FConcertSessionPackageViewerController::FConcertSessionPackageViewerController(T
 	
 	if (const TOptional<FConcertSyncSessionDatabaseNonNullPtr> Database = SyncServer->GetLiveSessionDatabase(InspectedSession->GetId()))
 	{
-		Database->OnActivityProduced().AddRaw(this, &FConcertSessionPackageViewerController::OnSessionProduced);
+		(*Database)->OnActivityProduced().AddRaw(this, &FConcertSessionPackageViewerController::OnSessionProduced);
 	}
 }
 
@@ -33,7 +33,7 @@ FConcertSessionPackageViewerController::~FConcertSessionPackageViewerController(
 	
 	if (const TOptional<FConcertSyncSessionDatabaseNonNullPtr> Database = SyncServer->GetLiveSessionDatabase(InspectedSession->GetId()))
 	{
-		Database->OnActivityProduced().RemoveAll(this);
+		(*Database)->OnActivityProduced().RemoveAll(this);
 	}
 }
 
@@ -50,7 +50,7 @@ void FConcertSessionPackageViewerController::ReloadActivities() const
 		};
 		
 		TMap<FName, FPackageActivity> LatestPackageActivities;
-		Database->EnumeratePackageActivities([this, &LatestPackageActivities](FConcertSyncActivity&& BasePart, FConcertSyncPackageEventData& EventData)
+		(*Database)->EnumeratePackageActivities([this, &LatestPackageActivities](FConcertSyncActivity&& BasePart, FConcertSyncPackageEventData& EventData)
 		{
 			FStructOnScope ActivitySummary;
 			if (BasePart.EventSummary.GetPayload(ActivitySummary))
@@ -89,7 +89,7 @@ TOptional<FConcertClientInfo> FConcertSessionPackageViewerController::GetClientI
 {
 	const TOptional<FConcertSyncSessionDatabaseNonNullPtr> Database = SyncServer->GetLiveSessionDatabase(InspectedSession->GetId());
 	FConcertSyncEndpointData Result;
-	if (Database && Database->GetEndpoint(ClientId, Result))
+	if (Database && (*Database)->GetEndpoint(ClientId, Result))
 	{
 		return Result.ClientInfo;
 	}
@@ -100,7 +100,7 @@ bool FConcertSessionPackageViewerController::GetPackageEvent(const FConcertSessi
 {
 	if (const TOptional<FConcertSyncSessionDatabaseNonNullPtr> Database = SyncServer->GetLiveSessionDatabase(InspectedSession->GetId()))
 	{
-		return Database->GetPackageEventMetaData(Activity.Activity.EventId, OutPackageEvent.PackageRevision, OutPackageEvent.PackageInfo);
+		return (*Database)->GetPackageEventMetaData(Activity.Activity.EventId, OutPackageEvent.PackageRevision, OutPackageEvent.PackageInfo);
 	}
 	return false;
 }
@@ -115,13 +115,13 @@ TOptional<int64> FConcertSessionPackageViewerController::GetSizeOfPackageEvent(c
 
 	const TSet<EConcertPackageUpdateType> PackageTypesWithSize { EConcertPackageUpdateType::Added, EConcertPackageUpdateType::Renamed, EConcertPackageUpdateType::Saved };
 	FConcertSyncPackageEventMetaData PackageEventMetaData;
-	if (Database->GetPackageEventMetaData(Activity.Activity.EventId, PackageEventMetaData.PackageRevision, PackageEventMetaData.PackageInfo)
+	if ((*Database)->GetPackageEventMetaData(Activity.Activity.EventId, PackageEventMetaData.PackageRevision, PackageEventMetaData.PackageInfo)
 		; PackageTypesWithSize.Contains(PackageEventMetaData.PackageInfo.PackageUpdateType))
 	{
 		const FName PackageName = PackageEventMetaData.PackageInfo.PackageUpdateType == EConcertPackageUpdateType::Renamed
 			?  PackageEventMetaData.PackageInfo.NewPackageName
 			: PackageEventMetaData.PackageInfo.PackageName;
-		return Database->GetPackageSizeForRevision(PackageName);
+		return (*Database)->GetPackageSizeForRevision(PackageName);
 	}
 	return {};
 }

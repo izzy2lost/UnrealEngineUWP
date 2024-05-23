@@ -87,8 +87,8 @@ namespace UE::LevelSnapshots::Private::Internal
 			return nullptr;
 		}
 		
-		const UClass* Class = Archetype->GetClass();
-		UObject* Subobject = NewObject<UObject>(SubobjectOuter, Class, SubobjectName, SubobjectData->GetObjectFlags(), Archetype.GetValue());
+		const UClass* Class = (*Archetype)->GetClass();
+		UObject* Subobject = NewObject<UObject>(SubobjectOuter, Class, SubobjectName, SubobjectData->GetObjectFlags(), Archetype->Get());
 		FSubobjectSnapshotCache& SubobjectCache = Cache.SubobjectCache.FindOrAdd(WorldData.SerializedObjectReferences[ObjectPathIndex]);
 		SubobjectCache.SnapshotObject = Subobject;
 		FLoadSnapshotObjectArchive::ApplyToSnapshotWorldObject(*SubobjectData, WorldData, Cache, Subobject, ProcessObjectDependency, LocalisationNamespace)	;

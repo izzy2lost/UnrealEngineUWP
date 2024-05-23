@@ -816,7 +816,7 @@ namespace UE::LevelSnapshots::Private::Tests
 					return;
 				}
 			
-				ASnapshotTestActor* ActorB_Snapshot = Cast<ASnapshotTestActor>(OptionalActorB_Snapshot.GetValue());
+				ASnapshotTestActor* ActorB_Snapshot = Cast<ASnapshotTestActor>(OptionalActorB_Snapshot->Get());
 				TestTrue(TEXT("ObjectArray contains null"), ActorB_Snapshot->ObjectArray.Num() == 1 && ActorB_Snapshot->ObjectArray[0] == nullptr);
 				TestTrue(TEXT("ObjectSet contains null"), ActorB_Snapshot->ObjectSet.Num() == 1 && ActorB_Snapshot->ObjectSet.begin().ElementIt->Value == nullptr);
 				TestTrue(TEXT("ObjectMap contains null"), ActorB_Snapshot->ObjectMap.Num() == 1 && ActorB_Snapshot->ObjectMap.Find("MapKey") && ActorB_Snapshot->ObjectMap["MapKey"] == nullptr);

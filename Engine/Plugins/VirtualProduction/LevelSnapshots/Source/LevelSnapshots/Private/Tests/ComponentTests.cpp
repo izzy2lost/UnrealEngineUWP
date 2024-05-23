@@ -280,7 +280,7 @@ namespace UE::LevelSnapshots::Private::Tests
 				}
 
 				USceneComponent* AsSceneComponent = Cast<USceneComponent>(*CounterpartComponent);
-				ASnapshotTestActor* CastedCounterpartActor = Cast<ASnapshotTestActor>(CounterpartActor.GetValue());
+				ASnapshotTestActor* CastedCounterpartActor = Cast<ASnapshotTestActor>(CounterpartActor->Get());
 				check(AsSceneComponent);
 				TestTrue(TEXT("Snapshot attach parent correct"), AsSceneComponent->GetAttachParent() == CastedCounterpartActor->GetMesh());
 			})

@@ -30,7 +30,7 @@ FLiveServerSessionHistoryController::FLiveServerSessionHistoryController(TShared
 
 	if (const TOptional<FConcertSyncSessionDatabaseNonNullPtr> Database = SyncServer->GetLiveSessionDatabase(GetSessionId()))
 	{
-		Database->OnActivityProduced().AddRaw(this, &FLiveServerSessionHistoryController::OnSessionProduced);
+		(*Database)->OnActivityProduced().AddRaw(this, &FLiveServerSessionHistoryController::OnSessionProduced);
 	}
 }
 
@@ -42,7 +42,7 @@ FLiveServerSessionHistoryController::~FLiveServerSessionHistoryController()
 	}
 	if (const TOptional<FConcertSyncSessionDatabaseNonNullPtr> Database = SyncServer->GetLiveSessionDatabase(GetSessionId()))
 	{
-		Database->OnActivityProduced().RemoveAll(this);
+		(*Database)->OnActivityProduced().RemoveAll(this);
 	}
 }
 

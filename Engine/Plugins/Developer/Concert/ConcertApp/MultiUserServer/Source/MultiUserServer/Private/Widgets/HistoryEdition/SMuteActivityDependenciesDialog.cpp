@@ -107,7 +107,7 @@ namespace UE::MultiUserServer
 		if (TSharedPtr<IConcertSyncServer> PinnedSyncServer = SyncServer.Pin())
 		{
 			FConcertSyncActivity Activity;
-			const bool bGotActivity = PinnedSyncServer->GetArchivedSessionDatabase(SessionId)->GetActivity(ActivityId, Activity);
+			const bool bGotActivity = (*PinnedSyncServer->GetArchivedSessionDatabase(SessionId))->GetActivity(ActivityId, Activity);
 			check(bGotActivity);
 			
 			const bool bIsMuted = (Activity.Flags & EConcertSyncActivityFlags::Muted) != EConcertSyncActivityFlags::None;

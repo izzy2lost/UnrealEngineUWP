@@ -395,7 +395,7 @@ namespace UE::LevelSnapshots::Private::Internal
 		}
 
 		// Are the two subobjects owned by equivalent actors
-		const AActor* EquivalentSnapshotActor = UE::LevelSnapshots::Private::GetPreallocatedIfCached(OriginalOwningActor, Cache).Get(nullptr);
+		const AActor* EquivalentSnapshotActor = GetRawPointerOrNull(UE::LevelSnapshots::Private::GetPreallocatedIfCached(OriginalOwningActor, Cache));
 		const bool bAreOwnedByEquivalentActors = EquivalentSnapshotActor == SnapshotOwningActor; 
 		if (!bAreOwnedByEquivalentActors)
 		{
@@ -489,5 +489,5 @@ bool UE::LevelSnapshots::Private::AreActorsEquivalent(UObject* SnapshotPropertyV
 
 	// The snapshot actor was already allocated, if some other snapshot actor is referencing it
 	const TOptional<TNonNullPtr<AActor>> PreallocatedSnapshotVersion = UE::LevelSnapshots::Private::GetPreallocatedIfCached(OriginalActorReference, Cache);
-	return PreallocatedSnapshotVersion.Get(nullptr) == SnapshotPropertyValue;
+	return GetRawPointerOrNull(PreallocatedSnapshotVersion) == SnapshotPropertyValue;
 }
