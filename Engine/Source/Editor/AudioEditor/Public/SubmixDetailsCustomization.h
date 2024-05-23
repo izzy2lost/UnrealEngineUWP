@@ -23,8 +23,12 @@ class SWidget;
 // Utility class to build combo boxes out of arrays of names.
 class FNameSelectorGenerator
 {
+protected:
+	struct FProtectedToken { explicit FProtectedToken() = default; };
 
 public:
+	FNameSelectorGenerator(FProtectedToken);
+
 	struct FNameSelectorCallbacks
 	{
 		TUniqueFunction<void(FName)> OnNewNameSelected;
@@ -56,7 +60,12 @@ private:
 
 class AUDIOEDITOR_API FSoundfieldSubmixDetailsCustomization : public IDetailCustomization
 {
+protected:
+	struct FPrivateToken { explicit FPrivateToken() = default; };
+
 public:
+	FSoundfieldSubmixDetailsCustomization(FPrivateToken);
+
 	// Makes a new instance of this detail layout class
 	static TSharedRef<IDetailCustomization> MakeInstance();
 
@@ -71,6 +80,8 @@ private:
 class AUDIOEDITOR_API FEndpointSubmixDetailsCustomization : public IDetailCustomization, public FNameSelectorGenerator
 {
 public:
+	FEndpointSubmixDetailsCustomization(FProtectedToken);
+
 	// Makes a new instance of this detail layout class
 	static TSharedRef<IDetailCustomization> MakeInstance();
 
@@ -85,6 +96,8 @@ private:
 class AUDIOEDITOR_API FSoundfieldEndpointSubmixDetailsCustomization : public IDetailCustomization, public FNameSelectorGenerator
 {
 public:
+	FSoundfieldEndpointSubmixDetailsCustomization(FProtectedToken);
+
 	// Makes a new instance of this detail layout class
 	static TSharedRef<IDetailCustomization> MakeInstance();
 

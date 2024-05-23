@@ -104,16 +104,24 @@ TSharedRef<SWidget> FNameSelectorGenerator::HandleResponseComboBoxGenerateWidget
 		.Font(IDetailLayoutBuilder::GetDetailFont());
 }
 
+FNameSelectorGenerator::FNameSelectorGenerator(FProtectedToken)
+{
+}
+
 TSharedRef<FNameSelectorGenerator> FNameSelectorGenerator::MakeInstance()
 {
-	TSharedRef<FNameSelectorGenerator> Result = MakeShared<FNameSelectorGenerator>();
+	TSharedRef<FNameSelectorGenerator> Result = MakeShared<FNameSelectorGenerator>(FProtectedToken{});
 	Result->SetWeakThis(Result.ToWeakPtr());
 	return Result;
 }
 
+FSoundfieldSubmixDetailsCustomization::FSoundfieldSubmixDetailsCustomization(FPrivateToken)
+{
+}
+
 TSharedRef<IDetailCustomization> FSoundfieldSubmixDetailsCustomization::MakeInstance()
 {
-	return MakeShareable(new FSoundfieldSubmixDetailsCustomization);
+	return MakeShared<FSoundfieldSubmixDetailsCustomization>(FPrivateToken{});
 }
 
 void FSoundfieldSubmixDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayout)
@@ -176,9 +184,14 @@ void FSoundfieldSubmixDetailsCustomization::CustomizeDetails(IDetailLayoutBuilde
 		];
 }
 
+FEndpointSubmixDetailsCustomization::FEndpointSubmixDetailsCustomization(FProtectedToken ProtectedToken)
+	: FNameSelectorGenerator(ProtectedToken)
+{
+}
+
 TSharedRef<IDetailCustomization> FEndpointSubmixDetailsCustomization::MakeInstance()
 {
-	TSharedRef<FEndpointSubmixDetailsCustomization> Result = MakeShared<FEndpointSubmixDetailsCustomization>();
+	TSharedRef<FEndpointSubmixDetailsCustomization> Result = MakeShared<FEndpointSubmixDetailsCustomization>(FProtectedToken{});
 	Result->SetWeakThis(StaticCastWeakPtr<FNameSelectorGenerator>(Result.ToWeakPtr()));
 	return Result;
 }
@@ -187,7 +200,7 @@ void FEndpointSubmixDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder&
 {
 	if (!EndpointTypeNameSelectorGenerator)
 	{
-		EndpointTypeNameSelectorGenerator = MakeShareable(new FNameSelectorGenerator());
+		EndpointTypeNameSelectorGenerator = FNameSelectorGenerator::MakeInstance();
 	}
 
 	IDetailCategoryBuilder& EndpointCategory = DetailLayout.EditCategory(TEXT("Endpoint"));
@@ -236,9 +249,14 @@ void FEndpointSubmixDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder&
 		];
 }
 
+FSoundfieldEndpointSubmixDetailsCustomization::FSoundfieldEndpointSubmixDetailsCustomization(FProtectedToken ProtectedToken)
+	: FNameSelectorGenerator(ProtectedToken)
+{
+}
+
 TSharedRef<IDetailCustomization> FSoundfieldEndpointSubmixDetailsCustomization::MakeInstance()
 {
-	TSharedRef<FSoundfieldEndpointSubmixDetailsCustomization> Result = MakeShared<FSoundfieldEndpointSubmixDetailsCustomization>();
+	TSharedRef<FSoundfieldEndpointSubmixDetailsCustomization> Result = MakeShared<FSoundfieldEndpointSubmixDetailsCustomization>(FProtectedToken{});
 	Result->SetWeakThis(StaticCastWeakPtr<FNameSelectorGenerator>(Result.ToWeakPtr()));
 	return Result;
 }
@@ -247,7 +265,7 @@ void FSoundfieldEndpointSubmixDetailsCustomization::CustomizeDetails(IDetailLayo
 {
 	if (!EndpointTypeNameSelectorGenerator)
 	{
-		EndpointTypeNameSelectorGenerator = MakeShareable(new FNameSelectorGenerator());
+		EndpointTypeNameSelectorGenerator = FNameSelectorGenerator::MakeInstance();
 	}
 
 	IDetailCategoryBuilder& EndpointCategory = DetailLayout.EditCategory(TEXT("Endpoint"));
