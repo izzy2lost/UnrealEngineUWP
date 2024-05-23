@@ -2358,7 +2358,7 @@ void FPathExistence::LoadExistenceData()
 		}
 		else
 		{
-			UE_LOG(LogAssetRegistry, Error,
+			UE_LOG(LogAssetRegistry, Warning,
 				TEXT("FPathExistence failed to gather correct capitalization from disk for %s, because GetFilenameOnDisk returned non-matching filename '%s'."),
 				*LocalAbsPath, *CorrectedCapitalization);
 		}
@@ -2382,7 +2382,7 @@ void FPathExistence::LoadExistenceData()
 			}
 			else
 			{
-				UE_LOG(LogAssetRegistry, Error,
+				UE_LOG(LogAssetRegistry, Warning,
 					TEXT("FPathExistence failed to gather correct capitalization from disk for %s, because GetFilenameOnDisk returned non-matching filename '%s'."),
 					*LocalAbsPath, *CorrectedCapitalization);
 			}
