@@ -872,7 +872,7 @@ class SbListenerHelper:
             if quick_lower > 0:
                 quick_range = f'{quick_lower},{upper_cl}'
                 check_lower = p4_utils.p4_latest_code_change(
-                    paths, range=quick_range, exts=['.cpp'], **p4opts)
+                    paths, in_range=quick_range, exts=['.cpp'], **p4opts)
 
                 if check_lower:
                     if in_lower_cl:
@@ -903,14 +903,14 @@ class SbListenerHelper:
             eng_code_cl = eng_upper_bound_cl
         else:
             eng_code_cl = p4_utils.p4_latest_code_change(
-                engine_paths, range=eng_range, **p4opts)
+                engine_paths, in_range=eng_range, **p4opts)
 
         if proj_upper_bound_cl:
             if lower_bound_cl and (lower_bound_cl >= proj_upper_bound_cl):
                 proj_code_cl = proj_upper_bound_cl
             else:
                 proj_code_cl = p4_utils.p4_latest_code_change(
-                    project_paths, range=proj_range, **p4opts)
+                    project_paths, in_range=proj_range, **p4opts)
         else:
             proj_code_cl = None
 

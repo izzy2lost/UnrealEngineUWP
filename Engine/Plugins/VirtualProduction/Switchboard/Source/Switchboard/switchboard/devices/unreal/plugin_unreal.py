@@ -697,6 +697,12 @@ class DeviceUnreal(Device):
                 "On Windows, the default install location is '${LOCALAPPDATA}/UnrealGameSync/Latest/'.")
         )
 
+    # A stand-in QObject to emit signals from classmethods.
+    class StaticSignals(QtCore.QObject):
+        ugs_config_updated_signal = QtCore.Signal(ugs_utils.IniParser)
+
+    static_signals = StaticSignals()
+
     unreal_started_signal = QtCore.Signal()
 
     mu_server = switchboard_application.get_multi_user_server_instance()
@@ -790,6 +796,8 @@ class DeviceUnreal(Device):
         for category in sync_filters.categories.values():
             option = SyncCategoryOption(category.catid, category.name)
             include_setting.possible_values.append(option)
+
+        cls.static_signals.ugs_config_updated_signal.emit(ugs_config)
 
     @classmethod
     def get_designated_local_builder(cls) -> Optional[DeviceUnreal]:

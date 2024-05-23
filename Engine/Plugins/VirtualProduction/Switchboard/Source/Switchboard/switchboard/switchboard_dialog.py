@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+from itertools import count
 import logging
 import os
 import threading
@@ -342,7 +343,7 @@ class SwitchboardDialog(QtCore.QObject):
 
         self.refresh_levels_button = sb_widgets.ControlQPushButton()
         self.refresh_levels_button.setMaximumSize(22, 22)
-        self.refresh_levels_button.setIcon(QtGui.QIcon("icon_refresh.png"))
+        self.refresh_levels_button.setIcon(QtGui.QIcon(':/icons/images/icon_refresh.png'))
         self.refresh_levels_button.setProperty("frameless", True)
         self.refresh_levels_button.setToolTip("Refresh level list")
 
@@ -509,6 +510,10 @@ class SwitchboardDialog(QtCore.QObject):
 
         self.script_manager.on_postinit(self)
         self.have_warned_about_muserver = False
+
+        DeviceUnreal.static_signals.ugs_config_updated_signal.connect(
+            lambda _: self.p4_refresh_project_cl()
+        )
 
     def _try_change_address(self):
         new_value = self.window.current_address_value.text()
@@ -1934,7 +1939,9 @@ class SwitchboardDialog(QtCore.QObject):
 
         sync_method = CONFIG.ENGINE_SYNC_METHOD.get_value()
 
-        changelists = None
+        changelists: Optional[list[int]] = None
+        descriptions: Optional[list[str]] = None
+
         # If we're syncing 'Precompiled Binaries', then that implies that we should be using UGS:
         if ENABLE_UGS_SUPPORT:
             if sync_method == EngineSyncMethod.Sync_PCBs.value or sync_method == EngineSyncMethod.Sync_From_UGS.value:
@@ -1945,14 +1952,30 @@ class SwitchboardDialog(QtCore.QObject):
 
         if not changelists:
             LOGGER.info("Refreshing p4 project changelists")
-            working_dir = os.path.dirname(CONFIG.UPROJECT_PATH.get_value())
-            changelists = p4_utils.p4_latest_changelist(CONFIG.P4_PROJECT_PATH.get_value(), working_dir)
+            client = CONFIG.SOURCE_CONTROL_WORKSPACE.get_value()
+            paths = [f'{CONFIG.P4_PROJECT_PATH.get_value()}/...']
+
+            if DeviceUnreal.ugs_config:
+                if addpaths := DeviceUnreal.ugs_config.try_get(
+                    'Perforce', 'AdditionalPathsToSync'
+                ):
+                    paths.extend([f'//{client}{x}' for x in addpaths])
+
+            cl_descs = p4_utils.p4_latest_changelists(paths, client=client)
+            changelists = [str(cl[0]) for cl in cl_descs]
+            descriptions = [cl[1] for cl in cl_descs]
 
         self.window.project_cl_combo_box.clear()
 
         if changelists:
             self.window.project_cl_combo_box.addItems(changelists)
             self.window.project_cl_combo_box.setCurrentIndex(0)
+
+        if descriptions:
+            for (idx, desc) in zip(count(), descriptions):
+                self.window.project_cl_combo_box.setItemData(
+                    idx, desc, QtCore.Qt.ItemDataRole.ToolTipRole)
+
         self.window.project_cl_combo_box.addItem(EMPTY_SYNC_ENTRY)
 
     def p4_refresh_engine_cl(self):
@@ -1970,11 +1993,20 @@ class SwitchboardDialog(QtCore.QObject):
 
             engine_p4_path = CONFIG.P4_ENGINE_PATH.get_value()
             if engine_p4_path:
-                working_dir = os.path.dirname(CONFIG.UPROJECT_PATH.get_value())
-                changelists = p4_utils.p4_latest_changelist(engine_p4_path, working_dir)
+                client = CONFIG.SOURCE_CONTROL_WORKSPACE.get_value()
+                cl_descs = p4_utils.p4_latest_changelists(
+                    engine_p4_path+'/...', client=client)
+                changelists = [str(cl[0]) for cl in cl_descs]
+                descriptions = [cl[1] for cl in cl_descs]
+
                 if changelists:
                     self.window.engine_cl_combo_box.addItems(changelists)
                     self.window.engine_cl_combo_box.setCurrentIndex(0)
+
+                if descriptions:
+                    for (idx, desc) in zip(count(), descriptions):
+                        self.window.engine_cl_combo_box.setItemData(
+                            idx, desc, QtCore.Qt.ItemDataRole.ToolTipRole)
             else:
                 LOGGER.warning('"Build Engine" is enabled in the settings but the engine does not seem to be under perforce control.')
                 LOGGER.warning("Please check your perforce settings.")
