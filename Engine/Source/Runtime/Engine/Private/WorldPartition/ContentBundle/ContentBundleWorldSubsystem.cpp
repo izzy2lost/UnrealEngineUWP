@@ -15,6 +15,8 @@
 #if WITH_EDITOR
 #include "WorldPartition/ContentBundle/ContentBundleEditor.h"
 #include "Editor.h"
+#include "Logging/MessageLog.h"
+#include "Misc/MapErrors.h"
 #else
 #include "Engine/Engine.h"
 #endif
@@ -169,6 +171,28 @@ TSharedPtr<FContentBundleEditor> UContentBundleManager::GetEditorContentBundle(c
 	}
 
 	return nullptr;
+}
+
+void UContentBundleManager::CheckForErrors() const
+{
+	TMap<FGuid, const TSharedPtr<FContentBundleEditor>> ContentBundlesEditor;
+
+	for (const TUniquePtr<FContentBundleContainer>& ContentBundleContainer : ContentBundleContainers)
+	{
+		for (const TSharedPtr<FContentBundleEditor>& ContentBundleEditor : ContentBundleContainer->GetEditorContentBundles())
+		{
+			const TSharedPtr<FContentBundleEditor>& ExistingValue = ContentBundlesEditor.FindOrAdd(ContentBundleEditor->GetDescriptor()->GetGuid(), ContentBundleEditor);
+			if (ExistingValue.Get() != ContentBundleEditor.Get())
+			{
+				const FText DuplicateGuidText = FText::FromString(ContentBundleEditor->GetDescriptor()->GetGuid().ToString());
+
+				FMessageLog("MapCheck").Error()
+					->AddToken(FTextToken::Create(FText::Format(NSLOCTEXT("ContentBundle", "ContentBundleErrorDuplicateGUIDs", "Found content bundles sharing the same GUID ({0}):"), DuplicateGuidText)))
+					->AddToken(FAssetNameToken::Create(ExistingValue->GetDescriptor()->GetPathName()))
+					->AddToken(FAssetNameToken::Create(ContentBundleEditor->GetDescriptor()->GetPathName()));
+			}
+		}
+	}
 }
 
 #endif

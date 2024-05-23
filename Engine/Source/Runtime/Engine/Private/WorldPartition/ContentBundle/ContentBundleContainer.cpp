@@ -241,6 +241,11 @@ FContentBundleBase& FContentBundleContainer::InitializeContentBundle(TSharedPtr<
 #if WITH_EDITOR
 	if (UseEditorContentBundle())
 	{
+		if (TSharedPtr<FContentBundleEditor> CBE = GetEditorContentBundle(ContentBundleClient->GetDescriptor()->GetGuid()))
+		{
+			UE_LOG(LogContentBundle, Error, TEXT("Found duplicate content bundle GUIDs: %s for content bundles %s AND %s"), *ContentBundleClient->GetDescriptor()->GetGuid().ToString(), *CBE->GetDescriptor()->GetPackage()->GetPathName(), *ContentBundleClient->GetDescriptor()->GetPackage()->GetPathName());
+		}
+
 		ContentBundle = GetEditorContentBundles().Emplace_GetRef(MakeShared<FContentBundleEditor>(ContentBundleClient, GetInjectedWorld())).Get();
 	}
 	else

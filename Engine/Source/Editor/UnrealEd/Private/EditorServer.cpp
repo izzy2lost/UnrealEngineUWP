@@ -124,6 +124,7 @@
 #include "MovieSceneCaptureModule.h"
 
 #include "WorldPartition/WorldPartition.h"
+#include "WorldPartition/ContentBundle/ContentBundleWorldSubsystem.h"
 #include "WorldPartition/ErrorHandling/WorldPartitionStreamingGenerationMapCheckErrorHandler.h"
 
 #include "Kismet2/KismetEditorUtilities.h"
@@ -3931,6 +3932,11 @@ bool UEditorEngine::Map_Check( UWorld* InWorld, const TCHAR* Str, FOutputDevice&
 	{
 		FStreamingGenerationMapCheckErrorHandler MapCheckErrorHandler;
 		WorldPartition->CheckForErrors(&MapCheckErrorHandler);
+	}
+
+	if (InWorld->ContentBundleManager)
+	{
+		InWorld->ContentBundleManager->CheckForErrors();
 	}
 
 	GWarn->StatusUpdate( 0, ProgressDenominator, CheckMapLocText );
