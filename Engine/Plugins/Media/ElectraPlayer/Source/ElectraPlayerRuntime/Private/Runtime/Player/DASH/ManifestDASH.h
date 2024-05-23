@@ -32,9 +32,11 @@ public:
 	void ClearDefaultEndTime() override;
 	FTimeValue GetMinBufferTime() const override;
 	FTimeValue GetDesiredLiveLatency() const override;
+	ELiveEdgePlayMode GetLiveEdgePlayMode() const override;
 	TRangeSet<double> GetPossiblePlaybackRates(EPlayRateType InForType) const override;
 	TSharedPtrTS<IProducerReferenceTimeInfo> GetProducerReferenceTimeInfo(int64 ID) const override;
 	void GetTrackMetadata(TArray<FTrackMetadata>& OutMetadata, EStreamType StreamType) const override;
+	void UpdateRunningMetaData(TSharedPtrTS<UtilsMP4::FMetadataParser> InUpdatedMetaData) override;
 	void UpdateDynamicRefetchCounter() override;
 	void TriggerClockSync(IManifest::EClockSyncType InClockSyncType) override;
 	void TriggerPlaylistRefresh() override;

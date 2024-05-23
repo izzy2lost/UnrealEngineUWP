@@ -54,6 +54,39 @@ FString UtilsMP4::FMetadataParser::PrintableBoxAtom(const uint32 InAtom)
 	return Out;
 }
 
+void UtilsMP4::FMetadataParser::AddItem(const FString& InType, const FString& InValue)
+{
+	// Add a string item.
+	TSharedPtr<FItem, ESPMode::ThreadSafe> Item = MakeShared<FItem, ESPMode::ThreadSafe>();
+	Item->Type = 1;
+	Item->Value = FVariant(InValue);
+	++NumTotalItems;
+	Items.FindOrAdd(InType).Emplace(MoveTemp(Item));
+}
+
+void UtilsMP4::FMetadataParser::AddItem(const FString& InType, const FString& InMimeType, const TArray<uint8>& InValue)
+{
+	if (InMimeType.Equals(TEXT("image/jpeg")))
+	{
+		TSharedPtr<FItem, ESPMode::ThreadSafe> Item = MakeShared<FItem, ESPMode::ThreadSafe>();
+		Item->MimeType = InMimeType;
+		Item->Type = 13;
+		Item->Value = FVariant(InValue);
+		++NumTotalItems;
+		Items.FindOrAdd(InType).Emplace(MoveTemp(Item));
+	}
+	else if (InMimeType.Equals(TEXT("image/png")))
+	{
+		TSharedPtr<FItem, ESPMode::ThreadSafe> Item = MakeShared<FItem, ESPMode::ThreadSafe>();
+		Item->MimeType = InMimeType;
+		Item->Type = 14;
+		Item->Value = FVariant(InValue);
+		++NumTotalItems;
+		Items.FindOrAdd(InType).Emplace(MoveTemp(Item));
+	}
+}
+
+
 UtilsMP4::FMetadataParser::EResult UtilsMP4::FMetadataParser::Parse(uint32 InHandler, uint32 InHandlerReserved0, const TArray<UtilsMP4::FMetadataParser::FBoxInfo>& InBoxes)
 {
 	// We only support the Apple iTunes metadata at the moment.

@@ -123,6 +123,11 @@ namespace Electra
 		 * individual representations.
 		 */
 		virtual void GetMetaData(TArray<FTrackMetadata>& OutMetadata, EStreamType OfStreamType) const = 0;
+
+		/**
+		 * Updates asset metadata on long running Livestreams.
+		 */
+		virtual void UpdateRunningMetaData(const FString& InKindOfValue, const FVariant& InNewValue) = 0;
 	};
 
 

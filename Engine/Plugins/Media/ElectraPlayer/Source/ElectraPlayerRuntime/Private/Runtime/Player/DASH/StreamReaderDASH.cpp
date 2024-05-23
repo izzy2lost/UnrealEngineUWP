@@ -1260,7 +1260,7 @@ void FStreamReaderDASH::FStreamHandler::HandleRequestMP4()
 							{
 								FTimeValue StartTime = md == MoofMetadata ? Request->GetFirstPTS() : TimeOffset;
 								StartTime.SetSequenceIndex(Request->TimestampSequenceIndex);
-  								PlayerSessionService->SendMessageToPlayer(FPlaylistMetadataUpdateMessage::Create(StartTime, MediaMetadata));
+  								PlayerSessionService->SendMessageToPlayer(FPlaylistMetadataUpdateMessage::Create(StartTime, MediaMetadata, false));
 							}
 						}
 

@@ -2003,8 +2003,26 @@ void FAdaptiveStreamingPlayer::HandleMetadataChanges()
 	}
 
 	// Handle media metadata updates.
-	if (MediaMetadataUpdates.Handle(CurrentTime))
+	FMediaMetadataUpdate::EResult MetaResult = MediaMetadataUpdates.Handle(CurrentTime);
+	if (MetaResult != FMediaMetadataUpdate::EResult::NoChange)
 	{
+		if (MetaResult == FMediaMetadataUpdate::EResult::ChangedAndUpdate && Manifest.IsValid())
+		{
+			Manifest->UpdateRunningMetaData(MediaMetadataUpdates.GetActive());
+			if (ActivePeriods.Num())
+			{
+				TArray<FTrackMetadata> MetadataVideo;
+				TArray<FTrackMetadata> MetadataAudio;
+				TArray<FTrackMetadata> MetadataSubtitle;
+				// FIXME: We are currently assuming that this happens only for audio casts where
+				//        we won't have more than just one period.
+				ActivePeriods[0].Period->GetMetaData(MetadataVideo, EStreamType::Video);
+				ActivePeriods[0].Period->GetMetaData(MetadataAudio, EStreamType::Audio);
+				ActivePeriods[0].Period->GetMetaData(MetadataSubtitle, EStreamType::Subtitle);
+				PlaybackState.SetTrackMetadata(MetadataVideo, MetadataAudio, MetadataSubtitle);
+				PlaybackState.SetHaveMetadata(true);
+			}
+		}
 		DispatchEvent(FMetricEvent::ReportMediaMetadataChanged(MediaMetadataUpdates.GetActive()));
 	}
 }
@@ -2085,7 +2103,7 @@ void FAdaptiveStreamingPlayer::HandleSessionMessage(TSharedPtrTS<IPlayerMessage>
 	else if (SessionMessage->GetType() == FPlaylistMetadataUpdateMessage::Type())
 	{
 		FPlaylistMetadataUpdateMessage* pMsg = static_cast<FPlaylistMetadataUpdateMessage*>(SessionMessage.Get());
-		MediaMetadataUpdates.AddEntry(pMsg->GetValidFrom(), pMsg->GetMetadata());
+		MediaMetadataUpdates.AddEntry(pMsg->GetValidFrom(), pMsg->GetMetadata(), pMsg->GetTriggerInternalRefresh());
 	}
 	// License key?
 	else if (SessionMessage->GetType() == FLicenseKeyMessage::Type())
@@ -2623,10 +2641,18 @@ void FAdaptiveStreamingPlayer::InternalHandlePendingStartRequest(const FTimeValu
 
 						check(Seekable.End.IsValid());
 						StartAt.Time = Seekable.End;
-						// DASH Live streams provide the means to join at an exact wallclock time, so enable this.
-						if (ManifestType == EMediaFormatType::DASH)
+						switch(Manifest->GetLiveEdgePlayMode())
 						{
-							PlaybackState.SetShouldPlayOnLiveEdge(true);
+							case IManifest::ELiveEdgePlayMode::Default:
+							case IManifest::ELiveEdgePlayMode::Always:
+							{
+								PlaybackState.SetShouldPlayOnLiveEdge(true);
+								break;
+							}
+							default:
+							{
+								break;
+							}
 						}
 					}
 				}

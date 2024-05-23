@@ -435,6 +435,11 @@ FTimeValue FManifestDASH::GetDesiredLiveLatency() const
 	return Manifest.IsValid() ? Manifest->GetDesiredLiveLatency() : FTimeValue();
 }
 
+IManifest::ELiveEdgePlayMode FManifestDASH::GetLiveEdgePlayMode() const
+{
+	return IManifest::ELiveEdgePlayMode::Default;
+}
+
 
 TSharedPtrTS<IProducerReferenceTimeInfo> FManifestDASH::GetProducerReferenceTimeInfo(int64 ID) const
 {
@@ -468,6 +473,10 @@ void FManifestDASH::GetTrackMetadata(TArray<FTrackMetadata>& OutMetadata, EStrea
 		Manifest->PreparePeriodAdaptationSets(Manifest->GetPeriods()[0], false);
 		Manifest->GetPeriods()[0]->GetMetaData(OutMetadata, StreamType);
 	}
+}
+void FManifestDASH::UpdateRunningMetaData(TSharedPtrTS<UtilsMP4::FMetadataParser> InUpdatedMetaData)
+{
+	// No-op.
 }
 
 void FManifestDASH::UpdateDynamicRefetchCounter()

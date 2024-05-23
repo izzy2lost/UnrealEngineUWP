@@ -331,8 +331,8 @@ bool FAdaptiveStreamingPlayer::SelectManifest()
 
 			double minBufTimeMPD = Manifest->GetMinBufferTime().GetAsSeconds();
 			PlayerConfig.InitialBufferMinTimeAvailBeforePlayback = Utils::Min(minBufTimeMPD, PlayerConfig.InitialBufferMinTimeAvailBeforePlayback);
-			PlayerConfig.SeekBufferMinTimeAvailBeforePlayback    = Utils::Min(minBufTimeMPD, PlayerConfig.SeekBufferMinTimeAvailBeforePlayback);
-			PlayerConfig.RebufferMinTimeAvailBeforePlayback 	 = Utils::Min(minBufTimeMPD, PlayerConfig.RebufferMinTimeAvailBeforePlayback);
+			PlayerConfig.SeekBufferMinTimeAvailBeforePlayback = Utils::Min(minBufTimeMPD, PlayerConfig.SeekBufferMinTimeAvailBeforePlayback);
+			PlayerConfig.RebufferMinTimeAvailBeforePlayback = Utils::Min(minBufTimeMPD, PlayerConfig.RebufferMinTimeAvailBeforePlayback);
 
 			// For an mp4 or mkv stream we can now get rid of the manifest reader. It is no longer needed and we don't need to have it linger.
 			if (ManifestType == EMediaFormatType::ISOBMFF || ManifestType == EMediaFormatType::MKV)
@@ -378,11 +378,11 @@ void FAdaptiveStreamingPlayer::UpdateManifest()
 	}
 }
 
-
-bool FAdaptiveStreamingPlayer::FMediaMetadataUpdate::Handle(const FTimeValue& InAtTime)
+FAdaptiveStreamingPlayer::FMediaMetadataUpdate::EResult FAdaptiveStreamingPlayer::FMediaMetadataUpdate::Handle(const FTimeValue& InAtTime)
 {
 	TSharedPtrTS<UtilsMP4::FMetadataParser> NextMetadata;
 	FTimeValue NextActiveTime;
+	bool bTriggerInternalRefresh = false;
 	while(NextEntries.Num())
 	{
 		// Make the first metadata available right away if there is none yet and the time is not valid either.
@@ -390,6 +390,7 @@ bool FAdaptiveStreamingPlayer::FMediaMetadataUpdate::Handle(const FTimeValue& In
 		{
 			NextMetadata = NextEntries[0].Metadata;
 			NextActiveTime = NextEntries[0].ValidFrom;
+			bTriggerInternalRefresh = NextEntries[0].bTriggerInternalRefresh;
 			break;
 		}
 		else
@@ -409,6 +410,7 @@ bool FAdaptiveStreamingPlayer::FMediaMetadataUpdate::Handle(const FTimeValue& In
 					{
 						NextMetadata = NextEntries[0].Metadata;
 						NextActiveTime = NextEntries[0].ValidFrom;
+						bTriggerInternalRefresh = NextEntries[0].bTriggerInternalRefresh;
 					}
 					NextEntries.RemoveAt(0);
 				}
@@ -428,12 +430,11 @@ bool FAdaptiveStreamingPlayer::FMediaMetadataUpdate::Handle(const FTimeValue& In
 		bool bChanged = !ActiveMetadata.IsValid() || ActiveMetadata->IsDifferentFrom(*NextMetadata);
 		ActiveMetadata = MoveTemp(NextMetadata);
 		ActiveSince = NextActiveTime;
-		return bChanged;
+		return bChanged ? bTriggerInternalRefresh ? EResult::ChangedAndUpdate : EResult::Changed : EResult::NoChange;
 	}
-	return false;
+
+	return EResult::NoChange;
 }
 
 
 } // namespace Electra
-
-

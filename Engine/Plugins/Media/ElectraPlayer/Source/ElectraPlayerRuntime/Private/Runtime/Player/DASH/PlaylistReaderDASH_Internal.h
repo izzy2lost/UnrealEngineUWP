@@ -764,6 +764,9 @@ public:
 			}
 		}
 
+		void UpdateRunningMetaData(const FString& InKindOfValue, const FVariant& InNewValue) override
+		{ }
+
 	private:
 		friend class FManifestDASHInternal;
 		TArray<TSharedPtrTS<FAdaptationSet>> AdaptationSets;

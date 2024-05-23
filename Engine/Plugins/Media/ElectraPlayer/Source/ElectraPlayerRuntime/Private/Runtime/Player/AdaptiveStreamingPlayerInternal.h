@@ -2030,11 +2030,12 @@ private:
 			// Do NOT reset the active metadata, but the time it became valid!
 			ActiveSince.SetToInvalid();
 		}
-		void AddEntry(const FTimeValue& InValidFrom, const TSharedPtrTS<UtilsMP4::FMetadataParser>& InMetadata)
+		void AddEntry(const FTimeValue& InValidFrom, const TSharedPtrTS<UtilsMP4::FMetadataParser>& InMetadata, bool bInTriggerInternalRefresh)
 		{
 			FEntry& e = NextEntries.Emplace_GetRef();
 			e.ValidFrom = InValidFrom.IsValid() ? InValidFrom : FTimeValue::GetZero();
 			e.Metadata = InMetadata;
+			e.bTriggerInternalRefresh = bInTriggerInternalRefresh;
 			NextEntries.StableSort([](const FEntry& a, const FEntry& b)
 			{
 				const FTimeValue& t1 = a.ValidFrom;
@@ -2044,7 +2045,13 @@ private:
 				return (s1 == s2 && t1 < t2) || (s1 < s2);
 			});
 		}
-		bool Handle(const FTimeValue& InAtTime);
+		enum class EResult
+		{
+			NoChange,
+			Changed,
+			ChangedAndUpdate
+		};
+		EResult Handle(const FTimeValue& InAtTime);
 		TSharedPtrTS<UtilsMP4::FMetadataParser> GetActive() const
 		{
 			return ActiveMetadata;
@@ -2054,6 +2061,7 @@ private:
 		{
 			FTimeValue ValidFrom;
 			TSharedPtrTS<UtilsMP4::FMetadataParser> Metadata;
+			bool bTriggerInternalRefresh = false;
 		};
 		TArray<FEntry> NextEntries;
 		TSharedPtrTS<UtilsMP4::FMetadataParser> ActiveMetadata;

@@ -489,7 +489,7 @@ public:
 		return Bitrate;
 	}
 	int32 GetQualityIndex() const override
-	{ 
+	{
 		return QualityIndex;
 	}
 	bool CanBePlayed() const override
@@ -638,6 +638,9 @@ public:
 			}
 		}
 	}
+
+	void UpdateRunningMetaData(const FString& InKindOfValue, const FVariant& InNewValue) override
+	{ }
 
 	TSharedPtrTS<IPlaybackAssetAdaptationSet> GetAdaptationSetByTypeAndUniqueIdentifier(EStreamType OfStreamType, const FString& InUniqueIdentifier) const
 	{

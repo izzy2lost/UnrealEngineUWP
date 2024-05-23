@@ -46,6 +46,9 @@ public:
 		bool IsDifferentFrom(const FMetadataParser& Other);
 		FString GetAsJSON() const;
 		TSharedPtr<TMap<FString, TArray<TSharedPtr<IMediaStreamMetadata::IItem, ESPMode::ThreadSafe>>>, ESPMode::ThreadSafe> GetMediaStreamMetadata() const;
+
+		void AddItem(const FString& InType, const FString& InValue);
+		void AddItem(const FString& InType, const FString& InMimeType, const TArray<uint8>& InValue);
 	private:
 		FString PrintableBoxAtom(const uint32 InAtom);
 		void Parse(const FBoxInfo& InBox);

@@ -200,6 +200,7 @@ namespace Electra
 			SizeAvailableSignal.Signal();
 		}
 
+#if 0
 		// "Pops" data from the buffer to a destination. At most the specified number of bytes are popped, or fewer if not as many are available.
 		int64 PopData(uint8* OutData, int64 MaxElementsWanted)
 		{
@@ -218,6 +219,24 @@ namespace Electra
 			ReadPos += MaxElementsWanted;
 			return MaxElementsWanted;
 		}
+#endif
+
+		void RemoveFromBeginning(int64 InNumBytesToRemove)
+		{
+			FScopeLock Lock(&AccessLock);
+			check(ExternalBuffer == nullptr);
+			check(InNumBytesToRemove >= 0);
+			check(ReadPos == 0);
+			check(InNumBytesToRemove <= (int64)WritePos);
+			int64 InNow = WritePos - ReadPos;
+			check(InNow - InNumBytesToRemove >= 0);
+			if (InNumBytesToRemove > 0)
+			{
+				uint8 *Base = GetBufferBase();
+				FMemory::Memmove(Base, Base + InNumBytesToRemove, InNow - InNumBytesToRemove);
+				WritePos -= (uint64)InNumBytesToRemove;
+			}
+		}
 
 		void Lock()
 		{
@@ -227,6 +246,12 @@ namespace Electra
 		void Unlock()
 		{
 			AccessLock.Unlock();
+		}
+
+		// For use with an external FScopeLock
+		FCriticalSection* GetLock()
+		{
+			return &AccessLock;
 		}
 
 		int64 GetLinearReadSize() const
@@ -365,7 +390,7 @@ namespace Electra
 		// If set a buffer is provided externally to read into directly.
 		uint8* ExternalBuffer = nullptr;
 		// Flag indicating that no additional data will be added to the buffer.
-		volatile bool bEOD = false;	
+		volatile bool bEOD = false;
 		// Flag indicating that reading into the buffer has been aborted.
 		volatile bool bWasAborted = false;
 	};

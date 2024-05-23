@@ -143,7 +143,7 @@ IManifest::EType FManifestHLS::GetPresentationType() const
 
 TSharedPtrTS<const FLowLatencyDescriptor> FManifestHLS::GetLowLatencyDescriptor() const
 {
-	return nullptr; 
+	return nullptr;
 }
 
 FTimeValue FManifestHLS::GetAnchorTime() const
@@ -229,6 +229,11 @@ void FManifestHLS::GetTrackMetadata(TArray<FTrackMetadata>& OutMetadata, EStream
 	}
 }
 
+void FManifestHLS::UpdateRunningMetaData(TSharedPtrTS<UtilsMP4::FMetadataParser> InUpdatedMetaData)
+{
+	// No-op.
+}
+
 
 void FManifestHLS::UpdateDynamicRefetchCounter()
 {
@@ -261,6 +266,12 @@ FTimeValue FManifestHLS::GetDesiredLiveLatency() const
 	}
 	return ll;
 }
+
+IManifest::ELiveEdgePlayMode FManifestHLS::GetLiveEdgePlayMode() const
+{
+	return IManifest::ELiveEdgePlayMode::Never;
+}
+
 
 TRangeSet<double> FManifestHLS::GetPossiblePlaybackRates(EPlayRateType InForType) const
 {
