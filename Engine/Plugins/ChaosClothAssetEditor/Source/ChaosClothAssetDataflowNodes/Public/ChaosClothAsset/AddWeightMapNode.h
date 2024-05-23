@@ -38,9 +38,12 @@ enum class EChaosClothAssetWeightMapOverrideType : uint8
 };
 
 
-/** Painted weight map attributes node. */
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // For deprecated VertexWeights in copy constructor (Clang)
-USTRUCT(Meta = (DataflowCloth))
+/** 
+* Painted weight map attributes node.
+* Deprecated, use FChaosClothAssetWeightMapNode instead.
+*/
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+USTRUCT(Meta = (DataflowCloth, Deprecated="5.5"))
 struct FChaosClothAssetAddWeightMapNode : public FDataflowTerminalNode
 {
 	GENERATED_USTRUCT_BODY()
@@ -59,34 +62,34 @@ public:
 	 * Note this operation only happens once when the TransferCollection is first connected, or updated.
 	 * Changing the InputName or the TransferType will also redo the transfer operation.
 	 */
-	UPROPERTY(Meta = (DataflowInput))
+	UPROPERTY(VisibleAnywhere, Category = "Add Weight Map", Meta = (DataflowInput))
 	FManagedArrayCollection TransferCollection;
 
 	/** The name to be set as a weight map attribute. */
-	UPROPERTY(EditAnywhere, Category = "Add Weight Map", Meta = (DataflowOutput))
+	UPROPERTY(VisibleAnywhere, Category = "Add Weight Map", Meta = (DataflowOutput))
 	FString Name;
 
 	/** The name to populate this map from and override based on Map Override Type. Name will be used if Input Name is empty.*/
-	UPROPERTY(EditAnywhere, Category = "Add Weight Map")
+	UPROPERTY(VisibleAnywhere, Category = "Add Weight Map")
 	FChaosClothAssetConnectableIStringValue InputName = {TEXT("")};
 
 	/** How to apply this node's weight values onto existing maps. Changing this value will change the output map. 
 	 *  To change how the node's stored weights are calculated, change the equivalent value on the Weight Map Paint Tool context.*/
-	UPROPERTY(EditAnywhere, Category = "Add Weight Map")
+	UPROPERTY(VisibleAnywhere, Category = "Add Weight Map")
 	EChaosClothAssetWeightMapOverrideType MapOverrideType = EChaosClothAssetWeightMapOverrideType::ReplaceAll;
 
 	/**
 	 * The type of transfer used to transfer the weight map when a TransferCollection is connected.
 	 * This property is disabled when no TransferCollection input has been conencted.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Add Weight Map", Meta = (EditCondition = "TransferCollectionHash != 0"))
+	UPROPERTY(VisibleAnywhere, Category = "Add Weight Map", Meta = (EditCondition = "TransferCollectionHash != 0"))
 	EChaosClothAssetWeightMapTransferType TransferType = EChaosClothAssetWeightMapTransferType::Use2DSimMesh;
 
 	UE_DEPRECATED(5.4, "This property will be made private.")
 	UPROPERTY()
 	TArray<float> VertexWeights;
 
-	UPROPERTY(EditAnywhere, Category = "Add Weight Map")
+	UPROPERTY(VisibleAnywhere, Category = "Add Weight Map")
 	EChaosClothAssetWeightMapMeshType MeshTarget = EChaosClothAssetWeightMapMeshType::Simulation;
 
 	FChaosClothAssetAddWeightMapNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());

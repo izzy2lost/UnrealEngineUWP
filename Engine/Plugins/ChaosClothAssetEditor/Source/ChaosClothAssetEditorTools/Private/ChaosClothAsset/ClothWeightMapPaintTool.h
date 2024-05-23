@@ -30,7 +30,7 @@ class UWeightMapPaintBrushOpProps;
 class UWeightMapSmoothBrushOpProps;
 class UClothEditorContextObject;
 class UPolygonSelectionMechanic;
-struct FChaosClothAssetAddWeightMapNode;
+struct FChaosClothAssetWeightMapNode;
 enum class EChaosClothAssetWeightMapOverrideType : uint8;
 
 DECLARE_STATS_GROUP(TEXT("WeightMapPaintTool"), STATGROUP_WeightMapPaintTool, STATCAT_Advanced);
@@ -555,7 +555,7 @@ protected:
 
 	// Node graph editor support
 
-	FChaosClothAssetAddWeightMapNode* WeightMapNodeToUpdate = nullptr;
+	FChaosClothAssetWeightMapNode* WeightMapNodeToUpdate = nullptr;
 
 	void UpdateSelectedNode();
 

@@ -58,7 +58,9 @@
 #include "ChaosClothAsset/TransformPositionsNode.h"
 #include "ChaosClothAsset/TransformUVsNode.h"
 #include "ChaosClothAsset/USDImportNode.h"
+#include "ChaosClothAsset/WeightMapNode.h"
 #include "ChaosClothAsset/WeightedValueCustomization.h"
+
 #include "ChaosClothAsset/ImportedValueCustomization.h"
 #include "ChaosClothAsset/WeightMapToSelectionNode.h"
 #include "ChaosClothAsset/ConnectableValueCustomization.h"
@@ -75,6 +77,7 @@ namespace UE::Chaos::ClothAsset
 		{
 			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetAddStitchNode);
 			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetAddWeightMapNode);
+			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetWeightMapNode);
 			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetAttributeNode);
 			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetBindToRootBoneNode);
 			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetCopySimulationToRenderMeshNode);

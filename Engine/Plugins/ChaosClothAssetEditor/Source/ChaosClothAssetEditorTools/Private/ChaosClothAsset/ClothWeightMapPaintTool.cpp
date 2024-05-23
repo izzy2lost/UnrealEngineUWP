@@ -39,7 +39,7 @@
 #include "ContextObjectStore.h"
 #include "Dataflow/DataflowEdNode.h"
 #include "Dataflow/DataflowObject.h"
-#include "ChaosClothAsset/AddWeightMapNode.h"
+#include "ChaosClothAsset/WeightMapNode.h"
 #include "GraphEditor.h"
 #include "Dataflow/DataflowSNode.h"
 #include "Dataflow/DataflowGraphEditor.h"
@@ -109,7 +109,7 @@ void UClothEditorWeightMapPaintTool::Setup()
 	UMeshSculptToolBase::Setup();
 
 	// Get the selected weight map node
-	WeightMapNodeToUpdate = ClothEditorContextObject->GetSingleSelectedNodeOfType<FChaosClothAssetAddWeightMapNode>();
+	WeightMapNodeToUpdate = ClothEditorContextObject->GetSingleSelectedNodeOfType<FChaosClothAssetWeightMapNode>();
 	checkf(WeightMapNodeToUpdate, TEXT("No Weight Map Node is currently selected, or more than one node is selected"));
 
 	SetToolDisplayName(LOCTEXT("ToolName", "Paint Weight Maps"));
@@ -464,14 +464,7 @@ void UClothEditorWeightMapPaintTool::Setup()
 	const int32 NumExpectedWeights = bHaveDynamicMeshToWeightConversion ? WeightToDynamicMesh.Num() : Mesh->MaxVertexID();
 	TArray<float> CurrentWeights;
 	CurrentWeights.SetNumZeroed(NumExpectedWeights);
-	if (bIsRenderMode)
-	{
-		WeightMapNodeToUpdate->CalculateFinalRenderVertexWeightValues(InputWeightMap, TArrayView<float>(CurrentWeights));
-	}
-	else
-	{
-		WeightMapNodeToUpdate->CalculateFinalVertexWeightValues(InputWeightMap, TArrayView<float>(CurrentWeights));
-	}
+	WeightMapNodeToUpdate->CalculateFinalVertexWeightValues(InputWeightMap, TArrayView<float>(CurrentWeights));
 	
 	if (bHaveDynamicMeshToWeightConversion)
 	{
@@ -1980,7 +1973,7 @@ void UClothEditorWeightMapPaintTool::UpdateSelectedNode()
 	if (UDataflow* const Dataflow = ClothEditorContextObject->GetDataflowAsset())
 	{
 		GetToolManager()->GetContextTransactionsAPI()->AppendChange(Dataflow, 
-			FChaosClothAssetAddWeightMapNode::MakeWeightMapNodeChange(*WeightMapNodeToUpdate),
+			FChaosClothAssetWeightMapNode::MakeWeightMapNodeChange(*WeightMapNodeToUpdate),
 			LOCTEXT("WeightMapNodeChangeDescription", "Update Weight Map Node"));
 	}
 
@@ -1998,26 +1991,11 @@ void UClothEditorWeightMapPaintTool::UpdateSelectedNode()
 		{
 			NodeWeights[DynamicMeshToWeight[DynamicMeshIdx]] = CurrentWeights[DynamicMeshIdx];
 		}
-
-		if (bIsRenderMode)
-		{
-			WeightMapNodeToUpdate->SetRenderVertexWeights(InputWeightMap, NodeWeights);
-		}
-		else
-		{
-			WeightMapNodeToUpdate->SetVertexWeights(InputWeightMap, NodeWeights);
-		}
+		WeightMapNodeToUpdate->SetVertexWeights(InputWeightMap, NodeWeights);
 	}
 	else
 	{
-		if (bIsRenderMode)
-		{
-			WeightMapNodeToUpdate->SetRenderVertexWeights(InputWeightMap, CurrentWeights);
-		}
-		else
-		{
-			WeightMapNodeToUpdate->SetVertexWeights(InputWeightMap, CurrentWeights);
-		}
+		WeightMapNodeToUpdate->SetVertexWeights(InputWeightMap, CurrentWeights);
 	}
 	
 	WeightMapNodeToUpdate->Invalidate();
