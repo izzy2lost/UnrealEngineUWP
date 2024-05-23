@@ -56,12 +56,9 @@ namespace UE::AvaTransitionEditor::Private
 		InEditorData.VisitStateNodes(*InState,
 			[&InEditorData, &InCopyData](const UStateTreeState*, const FStateTreeBindableStructDesc& InDesc, const FStateTreeDataView)
 			{
-				TArray<const FStateTreePropertyPathBinding*> NodeBindings;
+				TArray<FStateTreePropertyPathBinding> NodeBindings;
 				InEditorData.GetPropertyEditorBindings()->GetPropertyBindingsFor(InDesc.ID, NodeBindings);
-				for (const FStateTreePropertyPathBinding* Binding : NodeBindings)
-				{
-					InCopyData.Bindings.Add(*Binding);
-				}
+				InCopyData.Bindings.Append(NodeBindings);
 				return EStateTreeVisitor::Continue;				
 			});
 

@@ -49,7 +49,7 @@ namespace UE::StateTree::Editor
 	};
 
 
-	void CollectBindingsCopiesRecursive(UStateTreeEditorData* TreeData, UStateTreeState* State, TArray<FStateTreePropertyPathBinding>& AllBindings)
+	void CollectBindingsRecursive(UStateTreeEditorData* TreeData, UStateTreeState* State, TArray<FStateTreePropertyPathBinding>& AllBindings)
 	{
 		if (!State)
 		{
@@ -58,15 +58,15 @@ namespace UE::StateTree::Editor
 		
 		TreeData->VisitStateNodes(*State, [TreeData, &AllBindings](const UStateTreeState* State, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)
 		{
-			TArray<const FStateTreePropertyPathBinding*> NodeBindings;
+			TArray<FStateTreePropertyPathBinding> NodeBindings;
 			TreeData->GetPropertyEditorBindings()->GetPropertyBindingsFor(Desc.ID, NodeBindings);
-			Algo::Transform(NodeBindings, AllBindings, [](const FStateTreePropertyPathBinding* BindingPtr) { return *BindingPtr; });
+			AllBindings.Append(NodeBindings);
 			return EStateTreeVisitor::Continue;				
 		});
 
 		for (UStateTreeState* ChildState : State->Children)
 		{
-			CollectBindingsCopiesRecursive(TreeData, ChildState, AllBindings);
+			CollectBindingsRecursive(TreeData, ChildState, AllBindings);
 		}
 	}
 
@@ -91,7 +91,7 @@ namespace UE::StateTree::Editor
 			UObject* ThisOuter = State->GetOuter();
 			UExporter::ExportToOutputDevice(&Context, State, nullptr, Archive, TEXT("copy"), 0, PPF_ExportsNotFullyQualified | PPF_Copy | PPF_Delimited, false, ThisOuter);
 
-			CollectBindingsCopiesRecursive(TreeData, State, ClipboardBindings->Bindings);
+			CollectBindingsRecursive(TreeData, State, ClipboardBindings->Bindings);
 		}
 
 		UExporter::ExportToOutputDevice(&Context, ClipboardBindings, nullptr, Archive, TEXT("copy"), 0, PPF_ExportsNotFullyQualified | PPF_Copy | PPF_Delimited, false);
@@ -952,31 +952,25 @@ void FStateTreeViewModel::PasteStatesAsChildrenFromText(const FString& TextToImp
 	// Copy property bindings for the duplicated states.
 	if (Factory.ClipboardBindings)
 	{
-		for (FStateTreePropertyPathBinding& Binding : Factory.ClipboardBindings->Bindings)
-		{
-			if (Binding.GetPropertyFunctionNode().IsValid())
-			{
-				UE::StateTree::Editor::FixNodesAfterDuplication(TArrayView<FStateTreeEditorNode>(Binding.GetMutablePropertyFunctionNode().GetPtr<FStateTreeEditorNode>(), 1), IDsMap, Links);
-			}
-		}
-
 		for (const TPair<FGuid, FGuid>& Entry : IDsMap)
 		{
 			const FGuid OldTargetID = Entry.Key;
 			const FGuid NewTargetID = Entry.Value;
 			
-			for (FStateTreePropertyPathBinding& Binding : Factory.ClipboardBindings->Bindings)
+			for (const FStateTreePropertyPathBinding& Binding : Factory.ClipboardBindings->Bindings)
 			{
 				if (Binding.GetTargetPath().GetStructID() == OldTargetID)
 				{
-					Binding.GetMutableTargetPath().SetStructID(NewTargetID);
-
+					FStateTreePropertyPath TargetPath(Binding.GetTargetPath());
+					TargetPath.SetStructID(NewTargetID);
+					
+					FStateTreePropertyPath SourcePath(Binding.GetSourcePath());
 					if (const FGuid* NewSourceID = IDsMap.Find(Binding.GetSourcePath().GetStructID()))
 					{
-						Binding.GetMutableSourcePath().SetStructID(*NewSourceID);
+						SourcePath.SetStructID(*NewSourceID);
 					}
 					
-					TreeData->GetPropertyEditorBindings()->AddPropertyBinding(MoveTemp(Binding));
+					TreeData->GetPropertyEditorBindings()->AddPropertyBinding(SourcePath, TargetPath);
 				}
 			}
 		}

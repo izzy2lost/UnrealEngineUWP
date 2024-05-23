@@ -4,7 +4,6 @@
 #include "StateTreeTaskBase.h"
 #include "StateTreeEvaluatorBase.h"
 #include "StateTreeConditionBase.h"
-#include "StateTreePropertyFunctionBase.h"
 #include "StateTreeReference.h"
 #include "Containers/StaticArray.h"
 #include "Debugger/StateTreeTrace.h"
@@ -1293,12 +1292,6 @@ bool FStateTreeExecutionContext::CopyBatchOnActiveInstances(const FStateTreeExec
 	const FStateTreePropertyCopyBatch& Batch = CurrentFrame.StateTree->PropertyBindings.GetBatch(BindingsBatch);
 	check(TargetView.GetStruct() == Batch.TargetStruct.Struct);
 
-	if (Batch.PropertyFunctionsBegin != Batch.PropertyFunctionsEnd)
-	{
-		check(Batch.PropertyFunctionsBegin.IsValid() && Batch.PropertyFunctionsEnd.IsValid());
-		EvaluatePropertyFunctionsOnActiveInstances(ParentFrame, CurrentFrame, Batch.PropertyFunctionsBegin, Batch.PropertyFunctionsEnd.Get() - Batch.PropertyFunctionsBegin.Get());
-	}
-
 	bool bSucceed = true;
 	for (const FStateTreePropertyCopy& Copy : CurrentFrame.StateTree->PropertyBindings.GetBatchCopies(Batch))
 	{
@@ -1312,12 +1305,6 @@ bool FStateTreeExecutionContext::CopyBatchWithValidation(const FStateTreeExecuti
 {
 	const FStateTreePropertyCopyBatch& Batch = CurrentFrame.StateTree->PropertyBindings.GetBatch(BindingsBatch);
 	check(TargetView.GetStruct() == Batch.TargetStruct.Struct);
-
-	if (Batch.PropertyFunctionsBegin != Batch.PropertyFunctionsEnd)
-	{
-		check(Batch.PropertyFunctionsBegin.IsValid() && Batch.PropertyFunctionsEnd.IsValid());
-		EvaluatePropertyFunctionsWithValidation(ParentFrame, CurrentFrame, Batch.PropertyFunctionsBegin, Batch.PropertyFunctionsEnd.Get() - Batch.PropertyFunctionsBegin.Get());
-	}
 
 	bool bSucceed = true;
 	for (const FStateTreePropertyCopy& Copy : CurrentFrame.StateTree->PropertyBindings.GetBatchCopies(Batch))
@@ -2612,56 +2599,6 @@ bool FStateTreeExecutionContext::TestAllConditions(const FStateTreeExecutionFram
 	}
 	
 	return Values[0];
-}
-
-void FStateTreeExecutionContext::EvaluatePropertyFunctionsOnActiveInstances(const FStateTreeExecutionFrame* CurrentParentFrame, const FStateTreeExecutionFrame& CurrentFrame, FStateTreeIndex16 FuncsBegin, uint16 FuncsNum)
-{
-	for (int32 FuncIndex = FuncsBegin.Get(); FuncIndex < FuncsBegin.Get() + FuncsNum; ++FuncIndex)
-	{
-		const FStateTreePropertyFunctionBase& Func = CurrentFrame.StateTree->Nodes[FuncIndex].Get<const FStateTreePropertyFunctionBase>();
-		const FStateTreeDataView FuncInstanceView = GetDataView(CurrentParentFrame, CurrentFrame, Func.InstanceDataHandle);
-		FNodeInstanceDataScope DataScope(*this, Func.InstanceDataHandle, FuncInstanceView);
-
-		// Copy bound properties.
-		if (Func.BindingsBatch.IsValid())
-		{
-			// Use validated copy, since we test in situations where the sources are not always valid (e.g. enter conditions may try to access inactive parent state). 
-			CopyBatchOnActiveInstances(CurrentParentFrame, CurrentFrame, FuncInstanceView, Func.BindingsBatch);
-		}
-			
-		Func.Execute(*this);
-			
-		// Reset copied properties that might contain object references.
-		if (Func.BindingsBatch.IsValid())
-		{
-			CurrentFrame.StateTree->PropertyBindings.ResetObjects(Func.BindingsBatch, FuncInstanceView);
-		}
-	}
-}
-
-void FStateTreeExecutionContext::EvaluatePropertyFunctionsWithValidation(const FStateTreeExecutionFrame* CurrentParentFrame, const FStateTreeExecutionFrame& CurrentFrame, FStateTreeIndex16 FuncsBegin, uint16 FuncsNum)
-{
-	for (int32 FuncIndex = FuncsBegin.Get(); FuncIndex < FuncsBegin.Get() + FuncsNum; ++FuncIndex)
-	{
-		const FStateTreePropertyFunctionBase& Func = CurrentFrame.StateTree->Nodes[FuncIndex].Get<const FStateTreePropertyFunctionBase>();
-		const FStateTreeDataView FuncInstanceView = GetDataView(CurrentParentFrame, CurrentFrame, Func.InstanceDataHandle);
-		FNodeInstanceDataScope DataScope(*this, Func.InstanceDataHandle, FuncInstanceView);
-
-		// Copy bound properties.
-		if (Func.BindingsBatch.IsValid())
-		{
-			// Use validated copy, since we test in situations where the sources are not always valid (e.g. enter conditions may try to access inactive parent state). 
-			CopyBatchWithValidation(CurrentParentFrame, CurrentFrame, FuncInstanceView, Func.BindingsBatch);
-		}
-			
-		Func.Execute(*this);
-			
-		// Reset copied properties that might contain object references.
-		if (Func.BindingsBatch.IsValid())
-		{
-			CurrentFrame.StateTree->PropertyBindings.ResetObjects(Func.BindingsBatch, FuncInstanceView);
-		}
-	}
 }
 
 FString FStateTreeExecutionContext::DebugGetEventsAsString() const

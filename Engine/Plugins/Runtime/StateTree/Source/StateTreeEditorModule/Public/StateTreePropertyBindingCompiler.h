@@ -29,12 +29,10 @@ struct STATETREEEDITORMODULE_API FStateTreePropertyBindingCompiler
 	  * Compiles a batch of property copies.
 	  * @param TargetStruct - Description of the structs which contains the target properties.
 	  * @param PropertyBindings - Array of bindings to compile, all bindings that point to TargetStructs will be added to the batch.
-	  * @param PropertyFuncsBegin - Index of the first PropertyFunction belonging to this batch.
-	  * @param PropertyFuncsEnd - Index of the last PropertyFunction belonging to this batch.
 	  * @param OutBatchIndex - Resulting batch index, if index is INDEX_NONE, no bindings were found and no batch was generated.
 	  * @return True on success, false on failure.
 	 */
-	[[nodiscard]] bool CompileBatch(const FStateTreeBindableStructDesc& TargetStruct, TConstArrayView<FStateTreePropertyPathBinding> PropertyBindings, FStateTreeIndex16 PropertyFuncsBegin, FStateTreeIndex16 PropertyFuncsEnd, int32& OutBatchIndex);
+	[[nodiscard]] bool CompileBatch(const FStateTreeBindableStructDesc& TargetStruct, TConstArrayView<FStateTreePropertyPathBinding> PropertyBindings, int32& OutBatchIndex);
 
 	/**
 	  * Compiles references for selected struct
@@ -101,12 +99,6 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	 */
 	UE_DEPRECATED(5.3, "Use FStateTreePropertyBindings::GetPropertyCompatibility instead.")
 	static EPropertyAccessCompatibility GetPropertyCompatibility(const FProperty* FromProperty, const FProperty* ToProperty);
-
-	UE_DEPRECATED(5.5, "Use CompileBatch with PropertyFuncsBegin and PropertyFuncsEnd instead.")
-	[[nodiscard]] bool CompileBatch(const FStateTreeBindableStructDesc& InTargetStruct, TConstArrayView<FStateTreePropertyPathBinding> InPropertyBindings, int32& OutBatchIndex) 
-	{
-		return CompileBatch(InTargetStruct, InPropertyBindings, FStateTreeIndex16::Invalid, FStateTreeIndex16::Invalid, OutBatchIndex);
-	}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 protected:

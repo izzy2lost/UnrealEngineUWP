@@ -8,7 +8,6 @@
 
 struct FGuid;
 struct FSlateBrush;
-class UStateTreeEditorData;
 
 #define LOCTEXT_NAMESPACE "StateTreeEditor"
 
@@ -18,7 +17,7 @@ namespace UE::StateTree::PropertyHelpers {
  * Dispatches PostEditChange to all FState
  * Assumes property chain head is member property of Owner. 
  */
-void DispatchPostEditToNodes(UObject& Owner, FPropertyChangedChainEvent& PropertyChangedEvent, UStateTreeEditorData& EditorData);
+void DispatchPostEditToNodes(UObject& Owner, FPropertyChangedChainEvent& PropertyChangedEvent);
 
 /** Makes deterministic ID from the owners property path, a property path (or any string), and a seed value (e.g. array index). */
 FGuid MakeDeterministicID(const UObject& Owner, const FString& PropertyPath, const uint64 Seed);

@@ -357,10 +357,7 @@ void UStateTreeState::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pr
 		}
 	}
 
-	if (UStateTreeEditorData* TreeData = GetTypedOuter<UStateTreeEditorData>())
-	{
-		UE::StateTree::PropertyHelpers::DispatchPostEditToNodes(*this, PropertyChangedEvent, *TreeData);
-	}
+	UE::StateTree::PropertyHelpers::DispatchPostEditToNodes(*this, PropertyChangedEvent);
 }
 
 void UStateTreeState::PostLoad()

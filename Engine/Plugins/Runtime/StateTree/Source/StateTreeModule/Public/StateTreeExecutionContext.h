@@ -575,13 +575,6 @@ protected:
 	 */
 	bool TestAllConditions(const FStateTreeExecutionFrame* CurrentParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const int32 ConditionsOffset, const int32 ConditionsNum);
 
-	/* Evaluate all function at given range. Should be used only on active instances, assumes valid handles and does not consider temporary instances. */
-	void EvaluatePropertyFunctionsOnActiveInstances(const FStateTreeExecutionFrame* CurrentParentFrame, const FStateTreeExecutionFrame& CurrentFrame, FStateTreeIndex16 FuncsBegin, uint16 FuncsNum);
-
-
-	/* Evaluate all function at given range. This version validates the data handles and looks up temporary instances. */
-	void EvaluatePropertyFunctionsWithValidation(const FStateTreeExecutionFrame* CurrentParentFrame, const FStateTreeExecutionFrame& CurrentFrame, FStateTreeIndex16 FuncsBegin, uint16 FuncsNum);
-
 	/**
 	 * Requests transition to a specified state with specified priority.
 	 */

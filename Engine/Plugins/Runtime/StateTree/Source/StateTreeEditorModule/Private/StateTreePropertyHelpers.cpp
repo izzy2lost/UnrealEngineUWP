@@ -5,80 +5,13 @@
 #include "Hash/Blake3.h"
 #include "Misc/StringBuilder.h"
 #include "UObject/Field.h"
-#include "StateTreePropertyBindings.h"
-#include "StateTreeEditorData.h"
 
 namespace UE::StateTree::PropertyHelpers
 {
-namespace Internal
+
+void DispatchPostEditToNodes(UObject& Owner, FPropertyChangedChainEvent& InPropertyChangedEvent)
 {
-	void DispatchPostEditToEditorNode(FPropertyChangedChainEvent& InPropertyChangedEvent, const TDoubleLinkedList<FProperty*>::TDoubleLinkedListNode* InEditorNodeInChain, FStateTreeEditorNode& InEditorNode)
-	{
-		if (FStateTreeNodeBase* StateTreeNode = InEditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
-		{
-			// Check that the path contains EditorNode's: Node, Instance or Instance Object
-			if (const TDoubleLinkedList<FProperty*>::TDoubleLinkedListNode* EditorNodeMemberPropNode = InEditorNodeInChain->GetNextNode())
-			{
-				// Check that we have a changed property on one of the above properties.
-				if (const TDoubleLinkedList<FProperty*>::TDoubleLinkedListNode* ActiveMemberPropNode = EditorNodeMemberPropNode->GetNextNode()) 
-				{
-					// Update the event
-					const FProperty* EditorNodeChildMember = EditorNodeMemberPropNode->GetValue();
-					check(EditorNodeChildMember);
-
-					// Take copy of the event, we'll modify it.
-					FEditPropertyChain PropertyChainCopy;
-					for (const TDoubleLinkedList<FProperty*>::TDoubleLinkedListNode* Node = InPropertyChangedEvent.PropertyChain.GetHead(); Node; Node = Node->GetNextNode())
-					{
-						PropertyChainCopy.AddTail(Node->GetValue());
-					}
-					FPropertyChangedChainEvent PropertyChangedEvent(PropertyChainCopy, InPropertyChangedEvent);
-
-					PropertyChangedEvent.SetActiveMemberProperty(ActiveMemberPropNode->GetValue());
-					PropertyChangedEvent.PropertyChain.SetActiveMemberPropertyNode(PropertyChangedEvent.MemberProperty);
-
-					// To be consistent with the other property chain callbacks, do not cross object boundary.
-					const TDoubleLinkedList<FProperty*>::TDoubleLinkedListNode* ActivePropNode = ActiveMemberPropNode;
-					while (ActivePropNode->GetNextNode())
-					{
-						if (CastField<FObjectProperty>(ActivePropNode->GetValue()))
-						{
-							break;
-						}
-						ActivePropNode = ActivePropNode->GetNextNode();
-					}
-							
-					PropertyChangedEvent.Property = ActivePropNode->GetValue();
-					PropertyChangedEvent.PropertyChain.SetActivePropertyNode(PropertyChangedEvent.Property);
-
-					if (EditorNodeChildMember->GetFName() == GET_MEMBER_NAME_CHECKED(FStateTreeEditorNode, Node))
-					{
-						StateTreeNode->PostEditNodeChangeChainProperty(PropertyChangedEvent, InEditorNode.GetInstance());
-					}
-					else if (EditorNodeChildMember->GetFName() == GET_MEMBER_NAME_CHECKED(FStateTreeEditorNode, Instance))
-					{
-						if (InEditorNode.Instance.IsValid())
-						{
-							StateTreeNode->PostEditInstanceDataChangeChainProperty(PropertyChangedEvent, FStateTreeDataView(InEditorNode.Instance));
-						}
-					}
-					else if (EditorNodeChildMember->GetFName() == GET_MEMBER_NAME_CHECKED(FStateTreeEditorNode, InstanceObject))
-					{
-						if (InEditorNode.InstanceObject)
-						{
-							StateTreeNode->PostEditInstanceDataChangeChainProperty(PropertyChangedEvent, FStateTreeDataView(InEditorNode.InstanceObject));
-						}
-					}
-				}
-			}
-		}
-	}
-}
-
-
-void DispatchPostEditToNodes(UObject& Owner, FPropertyChangedChainEvent& InPropertyChangedEvent, UStateTreeEditorData& EditorData)
-{
-	// Walk through changed property chain and look for first FStateTreeEditorNode, and call the node specific post edit methods.
+	// Walk back from the changed property and look for first FStateTreeEditorNode, and call the node specific post edit methods.
 	
 	const TDoubleLinkedList<FProperty*>::TDoubleLinkedListNode* CurrentPropNode = InPropertyChangedEvent.PropertyChain.GetHead();
 	const FProperty* HeadProperty = CurrentPropNode->GetValue();
@@ -88,11 +21,7 @@ void DispatchPostEditToNodes(UObject& Owner, FPropertyChangedChainEvent& InPrope
 		return;
 	}
 	
-	FStateTreeEditorNode* LastEditorNode = nullptr;
-	const TDoubleLinkedList<FProperty*>::TDoubleLinkedListNode* LastEditorNodeInChain = nullptr;
-
 	uint8* CurrentAddress = reinterpret_cast<uint8*>(&Owner);
-	FStateTreePropertyPath TargetPath;
 	while (CurrentPropNode)
 	{
 		const FProperty* CurrentProperty = CurrentPropNode->GetValue();
@@ -108,111 +37,88 @@ void DispatchPostEditToNodes(UObject& Owner, FPropertyChangedChainEvent& InPrope
 				return;
 			}
 
-			if (TargetPath.GetStructID().IsValid())
-			{
-				TargetPath.AddPathSegment(ArrayProperty->GetFName(), Index);
-			}
-
 			CurrentAddress = Helper.GetRawPtr(Index);
 			CurrentProperty = ArrayProperty->Inner;
 		}
 
-		FStateTreePropertyPathSegment PathSegment(CurrentProperty->GetFName());
 		if (const FStructProperty* StructProperty = CastField<FStructProperty>(CurrentProperty))
 		{
 			if (StructProperty->Struct == FInstancedStruct::StaticStruct())
 			{
 				FInstancedStruct& InstancedStruct = *reinterpret_cast<FInstancedStruct*>(CurrentAddress);
 				CurrentAddress = InstancedStruct.GetMutableMemory();
-
-				PathSegment.SetInstanceStruct(InstancedStruct.GetScriptStruct());
 			}
 			else if (StructProperty->Struct == FStateTreeEditorNode::StaticStruct())
 			{
-				if (TargetPath.GetStructID().IsValid())
+				FStateTreeEditorNode& EditorNode = *reinterpret_cast<FStateTreeEditorNode*>(CurrentAddress);
+				if (FStateTreeNodeBase* StateTreeNode = EditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
 				{
-					FStateTreePropertyPathBinding* FoundBinding = EditorData.GetPropertyEditorBindings()->GetMutableBindings().FindByPredicate([&TargetPath](const FStateTreePropertyPathBinding& Binding)
+					// Check that the path contains EditorNode's: Node, Instance or Instance Object
+					if (const TDoubleLinkedList<FProperty*>::TDoubleLinkedListNode* EditorNodeMemberPropNode = CurrentPropNode->GetNextNode())
 					{
-						return TargetPath == Binding.GetTargetPath();
-					});
+						// Check that we have a changed property on one of the above properties.
+						if (const TDoubleLinkedList<FProperty*>::TDoubleLinkedListNode* ActiveMemberPropNode = EditorNodeMemberPropNode->GetNextNode()) 
+						{
+							// Update the event
+							const FProperty* EditorNodeChildMember = EditorNodeMemberPropNode->GetValue();
+							check(EditorNodeChildMember);
 
-					if (!ensure(FoundBinding && FoundBinding->GetPropertyFunctionNode().IsValid()))
-					{
-						return;
-					}
+							// Take copy of the event, we'll modify it.
+							FEditPropertyChain PropertyChainCopy;
+							for (const TDoubleLinkedList<FProperty*>::TDoubleLinkedListNode* Node = InPropertyChangedEvent.PropertyChain.GetHead(); Node; Node = Node->GetNextNode())
+							{
+								PropertyChainCopy.AddTail(Node->GetValue());
+							}
+							FPropertyChangedChainEvent PropertyChangedEvent(PropertyChainCopy, InPropertyChangedEvent);
 
-					CurrentAddress = FoundBinding->GetMutablePropertyFunctionNode().GetMemory();
-					TargetPath.Reset();
-				}
+							PropertyChangedEvent.SetActiveMemberProperty(ActiveMemberPropNode->GetValue());
+							PropertyChangedEvent.PropertyChain.SetActiveMemberPropertyNode(PropertyChangedEvent.MemberProperty);
 
-				LastEditorNode = reinterpret_cast<FStateTreeEditorNode*>(CurrentAddress);
-				LastEditorNodeInChain = CurrentPropNode;
-				TargetPath.SetStructID(LastEditorNode->ID);
+							// To be consistent with the other property chain callbacks, do not cross object boundary.
+							const TDoubleLinkedList<FProperty*>::TDoubleLinkedListNode* ActivePropNode = ActiveMemberPropNode;
+							while (ActivePropNode->GetNextNode())
+							{
+								if (CastField<FObjectProperty>(ActivePropNode->GetValue()))
+								{
+									break;
+								}
+								ActivePropNode = ActivePropNode->GetNextNode();
+							}
+							
+							PropertyChangedEvent.Property = ActivePropNode->GetValue();
+							PropertyChangedEvent.PropertyChain.SetActivePropertyNode(PropertyChangedEvent.Property);
 
-				CurrentPropNode = CurrentPropNode->GetNextNode();
-				if (CurrentPropNode)
-				{
-					const FName EditorNodeChildMemberName = CurrentPropNode->GetValue()->GetFName();
-					if (EditorNodeChildMemberName == GET_MEMBER_NAME_CHECKED(FStateTreeEditorNode, Instance) || EditorNodeChildMemberName == GET_MEMBER_NAME_CHECKED(FStateTreeEditorNode, InstanceObject))
-					{
-						CurrentAddress = LastEditorNode->GetInstance().GetMutableMemory();
-						CurrentPropNode = CurrentPropNode->GetNextNode();
-						continue;
+							if (EditorNodeChildMember->GetFName() == GET_MEMBER_NAME_CHECKED(FStateTreeEditorNode, Node))
+							{
+								StateTreeNode->PostEditNodeChangeChainProperty(PropertyChangedEvent, EditorNode.GetInstance());
+							}
+							else if (EditorNodeChildMember->GetFName() == GET_MEMBER_NAME_CHECKED(FStateTreeEditorNode, Instance))
+							{
+								if (EditorNode.Instance.IsValid())
+								{
+									StateTreeNode->PostEditInstanceDataChangeChainProperty(PropertyChangedEvent, FStateTreeDataView(EditorNode.Instance));
+								}
+							}
+							else if (EditorNodeChildMember->GetFName() == GET_MEMBER_NAME_CHECKED(FStateTreeEditorNode, InstanceObject))
+							{
+								if (EditorNode.InstanceObject)
+								{
+									StateTreeNode->PostEditInstanceDataChangeChainProperty(PropertyChangedEvent, FStateTreeDataView(EditorNode.InstanceObject));
+								}
+							}
+						}
 					}
 				}
 
 				break;
 			}
-			else if (StructProperty->Struct == FStateTreeStateParameters::StaticStruct())
-			{
-				FStateTreeStateParameters& StateParameters = *reinterpret_cast<FStateTreeStateParameters*>(CurrentAddress);
-				check(!TargetPath.GetStructID().IsValid());
-				TargetPath.SetStructID(StateParameters.ID);
 
-				CurrentPropNode = CurrentPropNode->GetNextNode();
-				if (CurrentPropNode && CurrentPropNode->GetValue()->GetFName() == GET_MEMBER_NAME_CHECKED(FStateTreeStateParameters, Parameters))
-				{
-					CurrentPropNode = CurrentPropNode->GetNextNode();
-					if (CurrentPropNode && CurrentPropNode->GetValue()->GetFName() == TEXT("Value"))
-					{
-						CurrentAddress = StateParameters.Parameters.GetMutableValue().GetMemory();
-						CurrentPropNode = CurrentPropNode->GetNextNode();
-						continue;
-					}
-				}
-
-				return;
-			}
+			CurrentPropNode = CurrentPropNode->GetNextNode();
 		}
-		else if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(CurrentProperty))
+		else
 		{
-			if (!TargetPath.GetStructID().IsValid())
-			{
-				return;
-			}
-
-			if (UObject* Object = *reinterpret_cast<UObject**>(CurrentAddress))
-			{
-				CurrentAddress = reinterpret_cast<uint8*>(Object);
-				PathSegment.SetInstanceStruct(Object->GetClass());
-			}
-			else
-			{
-				break;
-			}
+			break;
 		}
-
-		if (TargetPath.GetStructID().IsValid())
-		{
-			TargetPath.AddPathSegment(PathSegment);
-		}
-
-		CurrentPropNode = CurrentPropNode->GetNextNode();
-	}
-
-	if (LastEditorNode && LastEditorNodeInChain)
-	{
-		Internal::DispatchPostEditToEditorNode(InPropertyChangedEvent, LastEditorNodeInChain, *LastEditorNode);
 	}
 }
 

@@ -234,7 +234,6 @@ namespace UE::StateTree::PropertyRefHelpers
 		case EStateTreeBindableStructSource::Context:
 		case EStateTreeBindableStructSource::Condition:
 		case EStateTreeBindableStructSource::Consideration:
-		case EStateTreeBindableStructSource::PropertyFunction:
 			return false;
 
 		case EStateTreeBindableStructSource::GlobalTask:

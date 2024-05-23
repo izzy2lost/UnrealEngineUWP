@@ -13,7 +13,6 @@ enum class EStateTreeNodeType : uint8
 	Task,
 	TransitionCondition,
 	StateParameters,
-	PropertyFunction,
 };
 
 /**

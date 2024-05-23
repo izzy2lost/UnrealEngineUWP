@@ -8,7 +8,6 @@
 #include "StateTreeExecutionContext.h"
 #include "StateTreeLinker.h"
 #include "StateTreePropertyRef.h"
-#include "StateTreePropertyFunctionBase.h"
 #include "StateTreeTestTypes.generated.h"
 
 class UStateTree;
@@ -249,30 +248,6 @@ struct FTestTask_PrintValue : public FStateTreeTaskBase
 	}
 	
 	TStateTreeExternalDataHandle<FStateTreeTestLog> LogHandle;
-};
-
-USTRUCT()
-struct FTestTask_PrintAndResetValue : public FTestTask_PrintValue
-{
-	GENERATED_BODY()
-
-	using FTestTask_PrintValue::FTestTask_PrintValue;
-
-	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override
-	{
-		EStateTreeRunStatus Status = Super::EnterState(Context, Transition);
-		FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
-		InstanceData.Value = 0;
-		return Status;
-	}
-
-	virtual EStateTreeRunStatus Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const override
-	{
-		EStateTreeRunStatus Status = Super::Tick(Context, DeltaTime);
-		FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
-		InstanceData.Value = 0;
-		return Status;
-	};
 };
 
 
@@ -616,35 +591,4 @@ struct FStateTreeTest_PropertyCopyObjects
 
 	UPROPERTY(EditAnywhere, Category = "")
 	TSoftClassPtr<UObject> SoftClass;
-};
-
-USTRUCT()
-struct FTestPropertyFunction_InstanceData
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	int32 Input = 0;
-
-	UPROPERTY()
-	int32 Result = 0;
-};
-
-USTRUCT()
-struct FTestPropertyFunction : public FStateTreePropertyFunctionBase
-{
-	GENERATED_BODY()
-
-	using FInstanceDataType = FTestPropertyFunction_InstanceData;
-
-	FTestPropertyFunction() = default;
-	FTestPropertyFunction(const FName InName) { Name = InName; }
-	
-	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
-
-	virtual void Execute(FStateTreeExecutionContext& Context) const override
-	{
-		FTestPropertyFunction_InstanceData& InstanceData = Context.GetInstanceData<FTestPropertyFunction_InstanceData>(*this);
-		InstanceData.Result = InstanceData.Input + 1;
-	}
 };

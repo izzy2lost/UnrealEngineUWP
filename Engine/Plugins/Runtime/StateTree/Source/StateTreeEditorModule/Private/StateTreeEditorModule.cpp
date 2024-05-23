@@ -5,7 +5,6 @@
 #include "Blueprint/StateTreeConsiderationBlueprintBase.h"
 #include "Blueprint/StateTreeEvaluatorBlueprintBase.h"
 #include "Blueprint/StateTreeTaskBlueprintBase.h"
-#include "StateTreePropertyFunctionBase.h"
 #include "Customizations/StateTreeAnyEnumDetails.h"
 #include "Customizations/StateTreeEditorColorDetails.h"
 #include "Customizations/StateTreeEditorDataDetails.h"
@@ -157,7 +156,6 @@ TSharedPtr<FStateTreeNodeClassCache> FStateTreeEditorModule::GetNodeClassCache()
 		NodeClassCache->AddRootScriptStruct(FStateTreeTaskBase::StaticStruct());
 		NodeClassCache->AddRootScriptStruct(FStateTreeConditionBase::StaticStruct());
 		NodeClassCache->AddRootScriptStruct(FStateTreeConsiderationBase::StaticStruct());
-		NodeClassCache->AddRootScriptStruct(FStateTreePropertyFunctionBase::StaticStruct());
 		NodeClassCache->AddRootClass(UStateTreeEvaluatorBlueprintBase::StaticClass());
 		NodeClassCache->AddRootClass(UStateTreeTaskBlueprintBase::StaticClass());
 		NodeClassCache->AddRootClass(UStateTreeConditionBlueprintBase::StaticClass());

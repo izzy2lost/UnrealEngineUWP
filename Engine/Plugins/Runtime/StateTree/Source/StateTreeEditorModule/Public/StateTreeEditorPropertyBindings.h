@@ -4,12 +4,10 @@
 
 #include "UObject/Interface.h"
 #include "StateTreePropertyBindings.h"
-#include "StateTreeEditorNode.h"
 #include "StateTreeEditorPropertyBindings.generated.h"
 
 enum EStateTreeNodeFormatting : uint8;
 class IStateTreeEditorPropertyBindingsOwner;
-enum class EStateTreeVisitor : uint8;
 
 /**
  * Editor representation of a all property bindings in a StateTree
@@ -29,21 +27,6 @@ struct STATETREEEDITORMODULE_API FStateTreeEditorPropertyBindings
 	 */
 	void AddPropertyBinding(const FStateTreePropertyPath& SourcePath, const FStateTreePropertyPath& TargetPath);
 	
-	/**
-	 * Adds binding.
-	 * @param Binding Binding to be added.
-	*/
-	void AddPropertyBinding(const FStateTreePropertyPathBinding& Binding);
-
-	/**
-	 * Adds binding between PropertyFunction of the provided type and destination path.
-	 * @param PropertyFunctionNodeStruct Struct of PropertyFunction.
-	 * @param SourcePathSegments Binding source property path segments.
-	 * @param TargetPath Binding target property path.
-	 * @return Constructed binding source property path.
-	 */
-	FStateTreePropertyPath AddFunctionPropertyBinding(const UScriptStruct* PropertyFunctionNodeStruct, TConstArrayView<FStateTreePropertyPathSegment> SourcePathSegments, const FStateTreePropertyPath& TargetPath);
-
 	/**
 	 * Removes all bindings to target path.
 	 * @param TargetPath Target property path.
@@ -70,11 +53,11 @@ struct STATETREEEDITORMODULE_API FStateTreeEditorPropertyBindings
 	const FStateTreePropertyPath* GetPropertyBindingSource(const FStateTreePropertyPath& TargetPath) const;
 	
 	/**
-	 * Returns all pointers to bindings for a specified structs based in struct ID.
+	 * Returns all bindings for a specified structs based in struct ID.
 	 * @param StructID ID of the struct to find bindings for.
 	 * @param OutBindings Bindings for specified struct.
 	 */
-	void GetPropertyBindingsFor(const FGuid StructID, TArray<const FStateTreePropertyPathBinding*>& OutBindings) const;
+	void GetPropertyBindingsFor(const FGuid StructID, TArray<FStateTreePropertyPathBinding>& OutBindings) const;
 	
 	/**
 	 * Removes bindings which do not point to valid structs IDs.
@@ -105,9 +88,6 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 	UE_DEPRECATED(5.3, "Use RemoveUnusedBindings with values instead.")
 	void RemoveUnusedBindings(const TMap<FGuid, const UStruct*>& ValidStructs);
-
-	UE_DEPRECATED(5.5, "Use GetPropertyBindingsFor returning pointers instead.")
-	void GetPropertyBindingsFor(const FGuid StructID, TArray<FStateTreePropertyPathBinding>& OutBindings) const;
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	
 private:
@@ -164,8 +144,6 @@ class STATETREEEDITORMODULE_API IStateTreeEditorPropertyBindingsOwner
 
 	/** @return Pointer to editor property bindings. */
 	virtual const FStateTreeEditorPropertyBindings* GetPropertyEditorBindings() const PURE_VIRTUAL(IStateTreeEditorPropertyBindingsOwner::GetPropertyEditorBindings, return nullptr; );
-
-	virtual EStateTreeVisitor EnumerateBindablePropertyFunctionNodes(TFunctionRef<EStateTreeVisitor(const UScriptStruct* NodeStruct, const FStateTreeBindableStructDesc& Desc, const FStateTreeDataView Value)> InFunc) const PURE_VIRTUAL(IStateTreeEditorPropertyBindingsOwner::EnumerateBindablePropertyFunctionNodes, return static_cast<EStateTreeVisitor>(0); );
 };
 
 // TODO: We should merge this with IStateTreeEditorPropertyBindingsOwner and FStateTreeEditorPropertyBindings.
