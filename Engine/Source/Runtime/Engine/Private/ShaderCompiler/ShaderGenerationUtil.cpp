@@ -372,6 +372,11 @@ static FShaderGlobalDefines FetchShaderGlobalDefines(EShaderPlatform TargetPlatf
 	}
 #endif
 
+	if (bIsMobilePlatform)
+	{
+		Ret.FORWARD_SHADING = !IsMobileDeferredShadingEnabled((EShaderPlatform)TargetPlatform);
+	}
+
 	{
 		static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VertexFoggingForOpaque"));
 		Ret.PROJECT_VERTEX_FOGGING_FOR_OPAQUE = Ret.FORWARD_SHADING && (CVar ? (CVar->GetInt() != 0) : 0);

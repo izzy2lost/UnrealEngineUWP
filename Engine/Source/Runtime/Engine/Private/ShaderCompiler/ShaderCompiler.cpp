@@ -8211,7 +8211,11 @@ void GlobalBeginCompileShader(
 
 	bool bForwardShading = false;
 	{
-		if (TargetPlatform)
+		if (bIsMobilePlatform)
+		{
+			bForwardShading = !IsMobileDeferredShadingEnabled((EShaderPlatform)Target.Platform);
+		}
+		else if (TargetPlatform)
 		{
 			bForwardShading = TargetPlatform->UsesForwardShading();
 		}
