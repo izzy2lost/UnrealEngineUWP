@@ -61,10 +61,12 @@ FSquare2DGridHelper::FSquare2DGridHelper(const FBox& InWorldBounds, const FVecto
 			{
 				GridSize = FMath::Pow(2, FMath::CeilToDouble(FMath::Log2(static_cast<double>(GridSize))));
 			}
+			GridSize = FMath::Max(GridSize, 1);
 			GridLevelCount = FMath::FloorLog2_64(GridSize) + 1;
 		}
 	}
 
+	check(GridSize);
 	check(FMath::IsPowerOfTwo(GridSize));
 
 	Levels.Reserve(GridLevelCount);
