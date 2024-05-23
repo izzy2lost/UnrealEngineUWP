@@ -489,7 +489,7 @@ private:
 	
 	void UpdateLayerSwapchainTexture(const FOpenXRLayer& Layer, FRHICommandListImmediate& RHICmdList);
 	void ConfigureLayerSwapchain(FOpenXRLayer& Layer, TArray<FOpenXRLayer>& BackupLayers);
-	void AddLayersToHeaders(TArray<const XrCompositionLayerBaseHeader*>& Headers);
+	void AddLayersToHeaders(TArray<XrCompositionLayerBaseHeader*>& Headers);
 
 	bool					bStereoEnabled;
 	TAtomic<bool>			bIsRunning;

@@ -525,10 +525,6 @@ bool FOpenXRInputPlugin::FOpenXRInput::BuildActions(XrSession Session)
 	for (IOpenXRExtensionPlugin* Plugin : OpenXRHMD->GetExtensionPlugins())
 	{
 		TArray<XrActiveActionSet> PluginAttachArray_Deprecated;
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-		// TODO?: Log deprecation warning at runtime, since overridden deprecated interface methods don't warn at compile time?
-		Plugin->AddActionSets(PluginAttachArray_Deprecated);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 		for (const XrActiveActionSet& ActiveSet : PluginAttachArray_Deprecated)
 		{
 			AttachSet.Add(ActiveSet.actionSet);
@@ -585,22 +581,6 @@ void FOpenXRInputPlugin::FOpenXRInput::BuildLegacyActions(TMap<FString, FInterac
 		{
 			XR_ENSURE(xrDestroyAction(Action.Handle));
 		}
-	}
-
-	// Query extension plugins for actions
-	for (IOpenXRExtensionPlugin* Plugin : OpenXRHMD->GetExtensionPlugins())
-	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-		Plugin->AddActions(Instance,
-			[this, &ActionSet](XrActionType InActionType, const FName& InName, const TArray<XrPath>& InSubactionPaths)
-			{
-				// TODO?: Log deprecation warning at runtime, since overridden deprecated interface methods don't warn at compile time?
-				FOpenXRAction Action(ActionSet.Handle, InActionType, InName, InName.ToString(), InSubactionPaths);
-				LegacyActions.Add(Action);
-				return Action.Handle;
-			}
-		);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 	}
 
 	ActionSets.Emplace(MoveTemp(ActionSet));

@@ -256,20 +256,6 @@ public:
 	}
 
 	/**
-	* Add any actions provided by the plugin to Actions.
-	* This allows a plugin to 'hard code' an action so that the plugin can use it.
-	*/
-	UE_DEPRECATED(5.1, "Use Enhanced Input through IMotionController::SetPlayerMappableInputConfig instead.")
-	virtual void AddActions(XrInstance Instance, TFunction<XrAction(XrActionType InActionType, const FName& InName, const TArray<XrPath>& InSubactionPaths)> AddAction)
-	{
-	}
-
-	UE_DEPRECATED(5.1, "Functionality moved to AttachActionSets().")
-	virtual void AddActionSets(TArray<XrActiveActionSet>& OutActionSets)
-	{
-	}
-
-	/**
 	* Add any action sets provided by the plugin to be attached as active to the session
 	* This allows a plugin to manage a custom actionset that will be active in xrSyncActions
 	*/
@@ -397,9 +383,17 @@ public:
 	{
 	}
 
-	// FOpenXRHMD::OnFinishRendering_RHIThread
+	UE_DEPRECATED(5.5, "Please replace with the version that takes an array of non-const XrCompositionLayerBaseHeader*, which allows chain structs to be added via the next pointer.")
 	virtual void UpdateCompositionLayers(XrSession InSession, TArray<const XrCompositionLayerBaseHeader*>& Headers)
 	{
+	}
+	
+	// FOpenXRHMD::OnFinishRendering_RHIThread
+	virtual void UpdateCompositionLayers(XrSession InSession, TArray<XrCompositionLayerBaseHeader*>& Headers)
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		UpdateCompositionLayers(InSession, reinterpret_cast<TArray<const XrCompositionLayerBaseHeader*>&>(Headers));
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	virtual const void* OnEndProjectionLayer(XrSession InSession, int32 InLayerIndex, const void* InNext, XrCompositionLayerFlags& OutFlags)

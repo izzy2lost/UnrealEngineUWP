@@ -3470,9 +3470,9 @@ void FOpenXRHMD::OnBeginRendering_RHIThread(IRHICommandContext& RHICmdContext, c
 	PipelinedFrameStateRHI = InFrameState;
 
 	void* Next = nullptr;
+	XrRHIContextEPIC RHIContextEPIC = { (XrStructureType)XR_TYPE_RHI_CONTEXT_EPIC };
 	if (RuntimeRequiresRHIContext())
 	{
-		XrRHIContextEPIC RHIContextEPIC = { (XrStructureType)XR_TYPE_RHI_CONTEXT_EPIC };
 		RHIContextEPIC.RHIContext = &RHICmdContext;
 		RHIContextEPIC.next = Next;
 		Next = &RHIContextEPIC;
@@ -3574,7 +3574,7 @@ void FOpenXRHMD::OnFinishRendering_RHIThread(IRHICommandContext& RHICmdContext)
 	FReadScopeLock Lock(SessionHandleMutex);
 	if (bIsRunning)
 	{
-		TArray<const XrCompositionLayerBaseHeader*> Headers;
+		TArray<XrCompositionLayerBaseHeader*> Headers;
 		XrCompositionLayerProjection Layer = {};
 		XrCompositionLayerAlphaBlendFB LayerAlphaBlend = { XR_TYPE_COMPOSITION_LAYER_ALPHA_BLEND_FB };
 		XrCompositionLayerColorScaleBiasKHR ColorScaleBias = { XR_TYPE_COMPOSITION_LAYER_COLOR_SCALE_BIAS_KHR };
@@ -3586,7 +3586,7 @@ void FOpenXRHMD::OnFinishRendering_RHIThread(IRHICommandContext& RHICmdContext)
 			Layer.space = PipelinedFrameStateRHI.TrackingSpace->Handle;
 			Layer.viewCount = PipelinedLayerStateRHI.ProjectionLayers.Num();
 			Layer.views = PipelinedLayerStateRHI.ProjectionLayers.GetData();
-			Headers.Add(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&Layer));
+			Headers.Add(reinterpret_cast<XrCompositionLayerBaseHeader*>(&Layer));
 
 			if(IsExtensionEnabled(XR_FB_COMPOSITION_LAYER_ALPHA_BLEND_EXTENSION_NAME) &&
 				bOpenXRInvertAlphaCvarCachedValue)
@@ -3628,15 +3628,15 @@ void FOpenXRHMD::OnFinishRendering_RHIThread(IRHICommandContext& RHICmdContext)
 			}
 			CompositedLayer.viewCount = PipelinedLayerStateRHI.EmulatedLayerState.CompositedProjectionLayers.Num();
 			CompositedLayer.views = PipelinedLayerStateRHI.EmulatedLayerState.CompositedProjectionLayers.GetData();
-			Headers.Add(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&CompositedLayer));
+			Headers.Add(reinterpret_cast<XrCompositionLayerBaseHeader*>(&CompositedLayer));
 		}
 
 		AddLayersToHeaders(Headers);
 
 		void* Next = nullptr;
+		XrRHIContextEPIC RHIContextEPIC = { (XrStructureType)XR_TYPE_RHI_CONTEXT_EPIC };
 		if (RuntimeRequiresRHIContext())
 		{
-			XrRHIContextEPIC RHIContextEPIC = { (XrStructureType)XR_TYPE_RHI_CONTEXT_EPIC };
 			RHIContextEPIC.RHIContext = &RHICmdContext;
 			RHIContextEPIC.next = Next;
 			Next = &RHIContextEPIC;
@@ -3674,11 +3674,11 @@ void FOpenXRHMD::OnFinishRendering_RHIThread(IRHICommandContext& RHICmdContext)
 	bIsRendering = false;
 }
 
-void FOpenXRHMD::AddLayersToHeaders(TArray<const XrCompositionLayerBaseHeader*>& Headers)
+void FOpenXRHMD::AddLayersToHeaders(TArray<XrCompositionLayerBaseHeader*>& Headers)
 {
-	for (const FXrCompositionLayerUnion& Layer : PipelinedLayerStateRHI.NativeOverlays)
+	for (FXrCompositionLayerUnion& Layer : PipelinedLayerStateRHI.NativeOverlays)
 	{
-		Headers.Add(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&Layer.Header));
+		Headers.Add(reinterpret_cast<XrCompositionLayerBaseHeader*>(&Layer.Header));
 	}
 
 	for (IOpenXRExtensionPlugin* Module : ExtensionPlugins)

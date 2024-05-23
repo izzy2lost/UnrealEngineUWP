@@ -112,9 +112,9 @@ void FOpenXRSwapchain::ReleaseCurrentImage_RHIThread(IRHICommandContext* RHICmdC
 	SCOPED_NAMED_EVENT(ReleaseImage, FColor::Red);
 
 	void* Next = nullptr;
+	XrRHIContextEPIC RHIContextEPIC = { (XrStructureType)XR_TYPE_RHI_CONTEXT_EPIC };
 	if (RHICmdContext != nullptr)
 	{
-		XrRHIContextEPIC RHIContextEPIC = { (XrStructureType)XR_TYPE_RHI_CONTEXT_EPIC };
 		RHIContextEPIC.RHIContext = RHICmdContext;
 		RHIContextEPIC.next = Next;
 		Next = &RHIContextEPIC;
