@@ -102,10 +102,11 @@ namespace Horde.Server.Projects
 		/// Retrieve information about a specific project
 		/// </summary>
 		/// <param name="projectId">Id of the project to get information about</param>
+		/// <param name="darkTheme">Whether to prefer darktheme logo, if available</param>
 		/// <returns>Information about the requested project</returns>
 		[HttpGet]
 		[Route("/api/v1/projects/{projectId}/logo")]
-		public ActionResult<object> GetProjectLogo(ProjectId projectId)
+		public ActionResult<object> GetProjectLogo(ProjectId projectId, [FromQuery] bool darkTheme = false)
 		{
 			ProjectConfig? projectConfig;
 			if (!_globalConfig.Value.TryGetProject(projectId, out projectConfig))
@@ -117,7 +118,7 @@ namespace Horde.Server.Projects
 				return Forbid(ProjectAclAction.ViewProject, projectId);
 			}
 
-			ConfigResource? logoResource = projectConfig.Logo;
+			ConfigResource? logoResource = darkTheme ? projectConfig.LogoDarkTheme ?? projectConfig.Logo : projectConfig.Logo;
 			if (logoResource == null || logoResource.Path == null || logoResource.Data.Length == 0)
 			{
 				return NotFound("Missing logo resource data");

@@ -72,6 +72,11 @@ namespace Horde.Server.Projects
 		public ConfigResource? Logo { get; set; }
 
 		/// <summary>
+		/// Optional path to the project logo for the dark theme 
+		/// </summary>
+		public ConfigResource? LogoDarkTheme { get; set; }
+
+		/// <summary>
 		/// List of pools for this project
 		/// </summary>
 		public List<PoolConfig> Pools { get; set; } = new List<PoolConfig>();
