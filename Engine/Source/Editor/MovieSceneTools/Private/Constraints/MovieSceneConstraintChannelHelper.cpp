@@ -970,7 +970,8 @@ bool FMovieSceneConstraintChannelHelper::SmartConstraintKey(
 void FMovieSceneConstraintChannelHelper::Compensate(
 	const TSharedPtr<ISequencer>& InSequencer,
 	const UTickableTransformConstraint* InConstraint,
-	const TOptional<FFrameNumber>& InOptTime)
+	const TOptional<FFrameNumber>& InOptTime,
+	const bool bCompPreviousTick)
 {
 	if (!InSequencer.IsValid() || !InSequencer->GetFocusedMovieSceneSequence())
 	{
@@ -993,13 +994,14 @@ void FMovieSceneConstraintChannelHelper::Compensate(
 		return;
 	}
 
-	CompensateIfNeeded(InSequencer, Section, InOptTime, Handle->GetHash());
+	CompensateIfNeeded(InSequencer, Section, InOptTime, bCompPreviousTick, Handle->GetHash());
 }
 
 void FMovieSceneConstraintChannelHelper::CompensateIfNeeded(
 	const TSharedPtr<ISequencer>& InSequencer,
 	IMovieSceneConstrainedSection* ConstraintSection,
 	const TOptional<FFrameNumber>& OptionalTime,
+	const bool bCompPreviousTick,
 	const int32 InChildHash)
 {
 	if (bDoNotCompensate)
@@ -1101,14 +1103,15 @@ void FMovieSceneConstraintChannelHelper::CompensateIfNeeded(
 			const EMovieSceneTransformChannel ChannelsToKey = Constraint->GetChannelsToKey();
 			for (const FFrameNumber& Time : Data.Value)
 			{
+				const FFrameNumber EvalTime = bCompPreviousTick ? Time : Time - 1;
+				const FFrameNumber SetTime = bCompPreviousTick ? Time - 1 : Time;
 				// compute transform to set
 				// if switching from active to inactive then we must add a key at T-1 in the constraint space
 				// if switching from inactive to active then we must add a key at T-1 in the previous constraint or parent space
-				Evaluator.ComputeCompensation(World, InSequencer, Time);
+				Evaluator.ComputeCompensation(World, InSequencer, EvalTime);
 				const TArray<FTransform>& LocalTransforms = Evaluator.ChildLocals;
 
-				const FFrameNumber TimeMinusOne(Time - 1);
-				Interface->AddHandleTransformKeys(InSequencer, Handle, { TimeMinusOne }, LocalTransforms, ChannelsToKey);
+				Interface->AddHandleTransformKeys(InSequencer, Handle, { SetTime }, LocalTransforms, ChannelsToKey);
 
 				bNeedsEvaluation = true;
 			}

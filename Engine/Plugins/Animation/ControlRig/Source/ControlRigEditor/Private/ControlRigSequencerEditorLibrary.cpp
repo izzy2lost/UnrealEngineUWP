@@ -549,7 +549,7 @@ bool UControlRigSequencerEditorLibrary::Compensate(UTickableConstraint* InConstr
 			InTime = FFrameRate::TransformTime(FFrameTime(InTime, 0), DisplayRate, TickResolution).RoundToFrame();
 		}
 		TOptional<FFrameNumber> OptTime(InTime);
-		FMovieSceneConstraintChannelHelper::Compensate(Sequencer, Constraint, OptTime);
+		FMovieSceneConstraintChannelHelper::Compensate(Sequencer, Constraint, OptTime, true /*bCompPreviousTick*/);
 		return true;
 	}
 	else
@@ -569,7 +569,7 @@ bool UControlRigSequencerEditorLibrary::CompensateAll(UTickableConstraint* InCon
 	}
 	if (UTickableTransformConstraint* Constraint = Cast<UTickableTransformConstraint>(InConstraint))
 	{
-		FMovieSceneConstraintChannelHelper::Compensate(WeakSequencer.Pin(), Constraint, TOptional<FFrameNumber>());
+		FMovieSceneConstraintChannelHelper::Compensate(WeakSequencer.Pin(), Constraint, TOptional<FFrameNumber>(), true /*bCompPreviousTick*/);
 		return true;
 	}
 	else
@@ -2758,6 +2758,60 @@ bool UControlRigSequencerEditorLibrary::SetControlRigSpace(ULevelSequence* Level
 		}
 	}
 	return bValid;
+}
+
+
+bool UControlRigSequencerEditorLibrary::SpaceCompensate(UControlRig* InControlRig, FFrameNumber InTime, EMovieSceneTimeUnit TimeUnit)
+{
+	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
+	if (WeakSequencer.IsValid() && InControlRig)
+	{
+		TSharedPtr<ISequencer>  Sequencer = WeakSequencer.Pin();
+		TOptional<FFrameNumber> OptionalTime;
+		if (TimeUnit == EMovieSceneTimeUnit::DisplayRate)
+		{
+			const FFrameRate TickResolution = Sequencer->GetFocusedTickResolution();
+			const FFrameRate& FrameRate = Sequencer->GetFocusedDisplayRate();
+			OptionalTime = FFrameRate::TransformTime(FFrameTime(InTime, 0), FrameRate, TickResolution).RoundToFrame();
+		}
+		else
+		{
+			OptionalTime = InTime;
+		}
+		FScopedTransaction Transaction(LOCTEXT("SpacecCompensate", "Space Compensate"));
+		// compensate spaces
+		if (UMovieSceneControlRigParameterSection* CRSection = FControlRigSpaceChannelHelpers::GetControlRigSection(Sequencer.Get(), InControlRig))
+		{
+			// compensate spaces
+			FControlRigSpaceChannelHelpers::CompensateIfNeeded(
+				InControlRig, Sequencer.Get(), CRSection,
+				OptionalTime, true /*comp previous*/);
+		}
+		return true;
+	}
+	return false;
+}
+
+bool UControlRigSequencerEditorLibrary::SpaceCompensateAll(UControlRig* InControlRig)
+{
+	TWeakPtr<ISequencer> WeakSequencer = GetSequencerFromAsset();
+	bool bValid = false;
+	TSharedPtr<ISequencer>  Sequencer = WeakSequencer.Pin();
+	if (WeakSequencer.IsValid() && InControlRig)
+	{
+		TOptional<FFrameNumber> OptionalTime;
+		FScopedTransaction Transaction(LOCTEXT("SpacecCompensateAll", "Space Compensate All"));
+		// compensate spaces
+		if (UMovieSceneControlRigParameterSection* CRSection = FControlRigSpaceChannelHelpers::GetControlRigSection(Sequencer.Get(), InControlRig))
+		{
+			// compensate spaces
+			FControlRigSpaceChannelHelpers::CompensateIfNeeded(
+				InControlRig, Sequencer.Get(), CRSection,
+				OptionalTime, true /*comp previous*/);
+		}
+		return true;
+	}
+	return false;
 }
 
 bool UControlRigSequencerEditorLibrary::BakeControlRigSpace(ULevelSequence* InSequence, UControlRig* InControlRig, const TArray<FName>& InControlNames, FRigSpacePickerBakeSettings InSettings, EMovieSceneTimeUnit TimeUnit)

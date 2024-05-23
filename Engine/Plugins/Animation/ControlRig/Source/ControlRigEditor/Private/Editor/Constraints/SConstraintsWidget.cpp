@@ -1476,7 +1476,7 @@ TSharedPtr<SWidget> SConstraintsEditionWidget::CreateContextMenu()
 					const FFrameRate TickResolution = Sequencer->GetFocusedTickResolution();
 					const FFrameTime FrameTime = Sequencer->GetLocalTime().ConvertTo(TickResolution);
 					const FFrameNumber Time = FrameTime.GetFrame();
-					FMovieSceneConstraintChannelHelper::Compensate(WeakSequencer.Pin(), TransformConstraint, TOptional<FFrameNumber>(Time));
+					FMovieSceneConstraintChannelHelper::Compensate(WeakSequencer.Pin(), TransformConstraint, TOptional<FFrameNumber>(Time), true /*bCompPreviousTick*/);
 				}), IsCompensationEnabled),
 				NAME_None,
 				EUserInterfaceActionType::Button);
@@ -1487,7 +1487,7 @@ TSharedPtr<SWidget> SConstraintsEditionWidget::CreateContextMenu()
 				FSlateIcon(),
 				FUIAction(FExecuteAction::CreateLambda([TransformConstraint, this]()
 				{
-					FMovieSceneConstraintChannelHelper::Compensate(WeakSequencer.Pin(), TransformConstraint, TOptional<FFrameNumber>());
+					FMovieSceneConstraintChannelHelper::Compensate(WeakSequencer.Pin(), TransformConstraint, TOptional<FFrameNumber>(), true /*bCompPreviousTick*/);
 				}), IsCompensationEnabled),
 				NAME_None,
 				EUserInterfaceActionType::Button);

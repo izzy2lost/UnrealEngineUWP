@@ -364,12 +364,13 @@ void SControlRigEditModeTools::Construct(const FArguments& InArgs, TSharedPtr<FC
 					.AllowDelete(true)
 					.AllowReorder(true)
 					.AllowAdd(false)
-					.ShowBakeButton(true)
+					.ShowBakeAndCompensateButton(true)
 					.GetControlCustomization(this, &SControlRigEditModeTools::HandleGetControlElementCustomization)
 					.OnActiveSpaceChanged(this, &SControlRigEditModeTools::HandleActiveSpaceChanged)
 					.OnSpaceListChanged(this, &SControlRigEditModeTools::HandleSpaceListChanged)
-					.OnBakeButtonClicked(this, &SControlRigEditModeTools::OnBakeControlsToNewSpaceButtonClicked)
-					// todo: implement GetAdditionalSpacesDelegate to pull spaces from sequencer
+					.OnCompensateKeyButtonClicked(this, &SControlRigEditModeTools::OnCompensateKeyClicked)
+					.OnCompensateAllButtonClicked(this, &SControlRigEditModeTools::OnCompensateAllClicked)
+					.OnBakeButtonClicked(this, &SControlRigEditModeTools::OnBakeControlsToNewSpaceButtonClicked)					// todo: implement GetAdditionalSpacesDelegate to pull spaces from sequencer
 				]
 			]
 
@@ -1008,19 +1009,19 @@ bool SControlRigEditModeTools::IsSpaceSwitchingRestricted() const
 	return SpacePickerWidget->IsRestricted();
 }
 
-FReply SControlRigEditModeTools::OnBakeControlsToNewSpaceButtonClicked()
+bool SControlRigEditModeTools::ReadyForBakeOrCompensation() const
 {
 	if (SpacePickerWidget->GetHierarchy() == nullptr)
 	{
-		return FReply::Unhandled();
+		return false;
 	}
 	if (SpacePickerWidget->GetControls().Num() == 0)
 	{
-		return FReply::Unhandled();
+		return false;
 	}
 
 	bool bNoValidControlRig = true;
-	for (TWeakObjectPtr<UControlRig>& ControlRig : ControlRigs)
+	for (const TWeakObjectPtr<UControlRig>& ControlRig : ControlRigs)
 	{
 		if (ControlRig.IsValid() && SpacePickerWidget->GetHierarchy() == ControlRig->GetHierarchy())
 		{
@@ -1031,27 +1032,82 @@ FReply SControlRigEditModeTools::OnBakeControlsToNewSpaceButtonClicked()
 
 	if (bNoValidControlRig)
 	{
-		return FReply::Unhandled();
+		return false;
 	}
 	ISequencer* Sequencer = WeakSequencer.Pin().Get();
 	if (Sequencer == nullptr || Sequencer->GetFocusedMovieSceneSequence() == nullptr || Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene() == nullptr)
 	{
+		return false;
+	}
+	return true;
+}
+
+FReply SControlRigEditModeTools::OnCompensateKeyClicked()
+{
+	if (ReadyForBakeOrCompensation() == false)
+	{
 		return FReply::Unhandled();
 	}
+	ISequencer* Sequencer = WeakSequencer.Pin().Get();
+	const FFrameRate TickResolution = Sequencer->GetFocusedTickResolution();
+	const FFrameTime FrameTime = Sequencer->GetLocalTime().ConvertTo(TickResolution);
+	const TOptional<FFrameNumber> OptionalKeyTime = FrameTime.GetFrame();
+	const bool bSetPreviousKey = true;
+	Compensate(OptionalKeyTime, bSetPreviousKey);
+	return FReply::Handled();
+}
+
+FReply SControlRigEditModeTools::OnCompensateAllClicked()
+{
+	if (ReadyForBakeOrCompensation() == false)
+	{
+		return FReply::Unhandled();
+	}
+	const TOptional<FFrameNumber> OptionalKeyTime;
+	ISequencer* Sequencer = WeakSequencer.Pin().Get();
+	const bool bSetPreviousKey = true;
+	Compensate(OptionalKeyTime, bSetPreviousKey);
+	return FReply::Handled();
+}
+
+void SControlRigEditModeTools::Compensate(TOptional<FFrameNumber> OptionalKeyTime, bool bSetPreviousTick)
+{
+	if (ReadyForBakeOrCompensation() == false)
+	{
+		return;
+	}
+	ISequencer* Sequencer = WeakSequencer.Pin().Get();
+	for (TWeakObjectPtr<UControlRig>& ControlRig : ControlRigs)
+	{
+		if (ControlRig.IsValid() && SpacePickerWidget->GetHierarchy() == ControlRig->GetHierarchy())
+		{
+			// compensate spaces
+			if(UMovieSceneControlRigParameterSection* CRSection = FControlRigSpaceChannelHelpers::GetControlRigSection(Sequencer, ControlRig.Get()))
+			{	
+				// compensate spaces
+				FControlRigSpaceChannelHelpers::CompensateIfNeeded(
+					ControlRig.Get(), Sequencer, CRSection,
+				OptionalKeyTime, bSetPreviousTick);
+			}
+		}
+	}
+}
+
+FReply SControlRigEditModeTools::OnBakeControlsToNewSpaceButtonClicked()
+{
+	if (ReadyForBakeOrCompensation() == false)
+	{
+		return FReply::Unhandled();
+	}
+	ISequencer* Sequencer = WeakSequencer.Pin().Get();
+
 	for (TWeakObjectPtr<UControlRig>& ControlRig : ControlRigs)
 	{
 		if (ControlRig.IsValid() && SpacePickerWidget->GetHierarchy() == ControlRig->GetHierarchy())
 		{
 
-			//Find default target space, just use first control and find space at current sequencer time
-			//Then Find range
-
-			// FindSpaceChannelAndSectionForControl() will trigger RecreateCurveEditor(), which will deselect the controls
-			// but in theory the selection will be recovered in the next tick, so here we just cache the selected controls
-			// and use it throughout this function. If this deselection is causing other problems, this part could use a revisit.
 			TArray<FRigElementKey> ControlKeys = SpacePickerWidget->GetControls();
-
-			FSpaceChannelAndSection SpaceChannelAndSection = FControlRigSpaceChannelHelpers::FindSpaceChannelAndSectionForControl(ControlRig.Get(), ControlKeys[0].Name, Sequencer, true /*bCreateIfNeeded*/);
+			FSpaceChannelAndSection SpaceChannelAndSection = FControlRigSpaceChannelHelpers::FindSpaceChannelAndSectionForControl(ControlRig.Get(), ControlKeys[0].Name, Sequencer, false /*bCreateIfNeeded*/);
 			if (SpaceChannelAndSection.SpaceChannel != nullptr)
 			{
 				const FFrameRate TickResolution = Sequencer->GetFocusedTickResolution();

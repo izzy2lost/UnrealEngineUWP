@@ -121,7 +121,10 @@ private:
 	EVisibility GetAddSpaceButtonVisibility() const;
 	bool IsSpaceSwitchingRestricted() const;
 	FReply OnBakeControlsToNewSpaceButtonClicked();
-
+	FReply OnCompensateKeyClicked();
+	FReply OnCompensateAllClicked();
+	void Compensate(TOptional<FFrameNumber> OptionalKeyTime, bool bSetPreviousTick);
+	bool ReadyForBakeOrCompensation() const;
 	FReply HandleAddConstraintClicked();
 
 	EVisibility GetRigOptionExpanderVisibility() const;

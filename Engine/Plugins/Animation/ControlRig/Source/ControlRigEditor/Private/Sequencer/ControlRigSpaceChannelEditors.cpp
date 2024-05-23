@@ -1273,13 +1273,40 @@ void FControlRigSpaceChannelHelpers::HandleSpaceKeyTimeChanged(UControlRig* Cont
 	}
 }
 
+UMovieSceneControlRigParameterSection* FControlRigSpaceChannelHelpers::GetControlRigSection(ISequencer* Sequencer, const UControlRig* ControlRig)
+{
+
+	if (ControlRig == nullptr || Sequencer == nullptr)
+	{
+		return nullptr;
+	}
+	UMovieScene* MovieScene = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
+	if (!MovieScene)
+	{
+		return nullptr;
+	}
+	const TArray<FMovieSceneBinding>& Bindings = MovieScene->GetBindings();
+	for (const FMovieSceneBinding& Binding : Bindings)
+	{
+		UMovieSceneControlRigParameterTrack* ControlRigParameterTrack = Cast<UMovieSceneControlRigParameterTrack>(MovieScene->FindTrack(UMovieSceneControlRigParameterTrack::StaticClass(), Binding.GetObjectGuid(), NAME_None));
+		if (ControlRigParameterTrack && ControlRigParameterTrack->GetControlRig() == ControlRig)
+		{
+			UMovieSceneControlRigParameterSection* ActiveSection = Cast<UMovieSceneControlRigParameterSection>(ControlRigParameterTrack->GetSectionToKey());
+			if (ActiveSection)
+			{
+				return ActiveSection;
+			}
+		}
+	}
+	return nullptr;
+}
 
 void FControlRigSpaceChannelHelpers::CompensateIfNeeded(
 	UControlRig* ControlRig,
 	ISequencer* Sequencer,
 	UMovieSceneControlRigParameterSection* Section,
-	FName ControlName,
-	TOptional<FFrameNumber>& OptionalTime)
+	TOptional<FFrameNumber>& OptionalTime, 
+	bool bCompPreviousTick)
 {
 	if (bDoNotCompensate == true)
 	{
@@ -1315,7 +1342,7 @@ void FControlRigSpaceChannelHelpers::CompensateIfNeeded(
 	const TArray<FRigControlElement*> Controls = RigHierarchy->GetControls();
 	for (const FRigControlElement* Control: Controls)
 	{ 
-		if(Control)// ac && Control->GetName() != ControlName)
+		if(Control)
 		{ 
 			//only if we have a channel
 			if (FSpaceControlNameAndChannel* Channel = Section->GetSpaceChannel(Control->GetFName()))
@@ -1325,10 +1352,12 @@ void FControlRigSpaceChannelHelpers::CompensateIfNeeded(
 				{
 					for (const FFrameNumber& Time : FramesToCompensate)
 					{
+						const FFrameNumber TimeToCompensate = bCompPreviousTick ? (Time - 1) : Time;
+						const FFrameNumber TimeToCompare = bCompPreviousTick ? Time : (Time - 1);
 						FMovieSceneControlRigSpaceBaseKey ExistingValue, PreviousValue;
 						using namespace UE::MovieScene;
-						EvaluateChannel(&(Channel->SpaceCurve), Time - 1, PreviousValue);
-						EvaluateChannel(&(Channel->SpaceCurve), Time, ExistingValue);
+						EvaluateChannel(&(Channel->SpaceCurve), TimeToCompensate, PreviousValue);
+						EvaluateChannel(&(Channel->SpaceCurve), TimeToCompare, ExistingValue);
 
 						if (ExistingValue != PreviousValue) //if they are the same no need to do anything
 						{
@@ -1340,7 +1369,7 @@ void FControlRigSpaceChannelHelpers::CompensateIfNeeded(
 							FControlRigSnapper Snapper;
 							Snapper.GetControlRigControlTransforms(
 								Sequencer, ControlRig, Control->GetFName(),
-								{Time},
+								{ TimeToCompare },
 								ControlRigParentWorldTransforms, ControlWorldTransforms);
 
 							//set space to previous space value that's different.
@@ -1360,7 +1389,7 @@ void FControlRigSpaceChannelHelpers::CompensateIfNeeded(
 							
 							//now set time -1 frame value
 							ControlRig->Evaluate_AnyThread();
-							KeyframeContext.LocalTime = TickResolution.AsSeconds(FFrameTime(Time - 1));
+							KeyframeContext.LocalTime = TickResolution.AsSeconds(FFrameTime(TimeToCompensate));
 							ControlRig->SetControlGlobalTransform(Control->GetFName(), ControlWorldTransforms[0], true, KeyframeContext, false /*undo*/, false /*bPrintPython*/, true/* bFixEulerFlips*/);
 							
 							bDidIt = true;

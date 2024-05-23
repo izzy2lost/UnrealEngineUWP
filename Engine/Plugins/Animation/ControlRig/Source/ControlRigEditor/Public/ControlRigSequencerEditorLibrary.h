@@ -1009,6 +1009,21 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
 	static bool BakeControlRigSpace(ULevelSequence* InSequence, UControlRig* InControlRig, const TArray<FName>& InControlNames, FRigSpacePickerBakeSettings InSettings, EMovieSceneTimeUnit TimeUnit = EMovieSceneTimeUnit::DisplayRate);
 	
+	/** Perform compensation for any spaces at the specified time for the specified control rig
+	* @param InControlRig Control Rig to compensate
+	* @param InTime  The time to look for a space key to compensate
+	* @param TimeUnit Unit for the InTime
+	* @return Will return false if function fails
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Control Rig")
+	static bool SpaceCompensate(UControlRig* InControlRig, FFrameNumber InTime, EMovieSceneTimeUnit TimeUnit = EMovieSceneTimeUnit::DisplayRate);
+
+	/** Perform compensation for all spaces for the specified control rig
+	* @param InControlRig Control Rig to compensate
+	* @return Will return false if function fails
+	*/
+	static bool SpaceCompensateAll(UControlRig* InControlRig);
+
 	/** Delete the Control Rig Space Key for the Control at the specified time. This will delete any attached Control Rig keys at this time and will perform any needed compensation to the new space.
 	*
 	* @param InSequence Sequence to set the space

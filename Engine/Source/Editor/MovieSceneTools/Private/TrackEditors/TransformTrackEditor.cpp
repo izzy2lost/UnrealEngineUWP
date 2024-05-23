@@ -1014,7 +1014,7 @@ void F3DTransformTrackEditor::AddTransformKeys( UObject* ObjectToKey, const TOpt
 			{
 				if (UMovieScene3DTransformSection* Section = Cast< UMovieScene3DTransformSection>(WeakSection.Get()))
 				{
-					FMovieSceneConstraintChannelHelper::CompensateIfNeeded(GetSequencer(), Section, Time);
+					FMovieSceneConstraintChannelHelper::CompensateIfNeeded(GetSequencer(), Section, Time, true /*bCompPreviousTick*/);
 				}
 			}
 		}
@@ -1429,7 +1429,7 @@ void F3DTransformTrackEditor::OnTransformPropertyChanged(const FPropertyChangedP
 		{
 			if (UMovieScene3DTransformSection* Section = Cast<UMovieScene3DTransformSection>(WeakSection.Get()))
 			{
-				FMovieSceneConstraintChannelHelper::CompensateIfNeeded(GetSequencer(), Section, KeyTime);
+				FMovieSceneConstraintChannelHelper::CompensateIfNeeded(GetSequencer(), Section, KeyTime, true /*bCompPreviousTick*/);
 			}
 		}
 

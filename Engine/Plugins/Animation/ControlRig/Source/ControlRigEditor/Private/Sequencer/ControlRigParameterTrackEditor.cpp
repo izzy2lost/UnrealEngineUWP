@@ -3782,11 +3782,11 @@ FKeyPropertyResult FControlRigParameterTrackEditor::AddKeysToControlRigHandle(UO
 				// compensate spaces
 				FControlRigSpaceChannelHelpers::CompensateIfNeeded(
 					SectionControlRig, GetSequencer().Get(), ParamSection,
-					RigControlName, OptionalKeyTime);
+					OptionalKeyTime, true /*comp previous*/);
 
 				// compensate constraints
 				const uint32 ControlHash = UTransformableControlHandle::ComputeHash(SectionControlRig, RigControlName);
-				FMovieSceneConstraintChannelHelper::CompensateIfNeeded(GetSequencer(), ParamSection, OptionalKeyTime, ControlHash);
+				FMovieSceneConstraintChannelHelper::CompensateIfNeeded(GetSequencer(), ParamSection, OptionalKeyTime, true /*bCompPreviousTick*/, ControlHash);
 			}
 		}
 	}
