@@ -245,6 +245,7 @@ class FHairEnvironmentLightingPS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(LumenRadianceCache::FRadianceCacheInterpolationParameters, RadianceCache)
 		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FHairStrandsDebugData::FWriteParameters, DebugData)
+		SHADER_PARAMETER_STRUCT_REF(FBlueNoise, BlueNoise)
 
 		SHADER_PARAMETER(uint32, bDynamicSkyLight)
 		SHADER_PARAMETER(uint32, bHasStaticLighting)
@@ -398,6 +399,9 @@ static void AddHairStrandsEnvironmentLightingPassPS(
 	ParametersPS->ReflectionCaptureData = View.ReflectionCaptureUniformBuffer;
 	ParametersPS->ReflectionsParameters = CreateReflectionUniformBuffer(GraphBuilder, View);
 	
+	FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
+	ParametersPS->BlueNoise = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
+
 	const bool bScreenTrace = View.HZB && GHairStrandsSkyLighting_ScreenTraceOcclusion && IntegrationType != EHairLightingIntegrationType::SceneColor;
 	ParametersPS->FurthestHZBTexture = GSystemTextures.GetDepthDummy(GraphBuilder);
 	ParametersPS->FurthestHZBTextureSampler = TStaticSamplerState<SF_Point>::GetRHI();

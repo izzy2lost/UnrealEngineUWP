@@ -77,6 +77,10 @@
 #define VOXEL_TRAVERSAL_DEBUG 0
 #include "HairStrandsVoxelPageTraversal.ush"
 
+#define USE_BLUE_NOISE 1
+#include "../BlueNoise.ush"
+DEFINE_HAIR_BLUE_NOISE_JITTER_FUNCTION
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Defines
 
@@ -688,7 +692,11 @@ float3 ReflectionEnvironmentUniformSampling(
 	float3 AccLighting = 0;
 	for (uint SampleIt = 0; SampleIt < SampleCount; ++SampleIt)
 	{
+		#if USE_BLUE_NOISE
+		const float4 Random4 = GetHairBlueNoiseJitter(PixelPosition, SampleIt, SampleCount, View.StateFrameIndexMod8);
+		#else
 		const float4 Random4 = ComputeRandom4(PixelPosition, SampleIt, SampleCount, View.StateFrameIndexMod8);
+		#endif
 
 		// Depth bias
 		const float3 SampleL    = UniformSampleSphere(frac(Random4.xy)).xyz;
