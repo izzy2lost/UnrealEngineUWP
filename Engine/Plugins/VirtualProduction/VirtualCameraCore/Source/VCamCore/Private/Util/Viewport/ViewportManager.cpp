@@ -19,11 +19,11 @@ namespace UE::VCamCore
 		, OverrideShouldHaveOwnership(MoveTemp(OverrideShouldHaveOwnership))
 		, LockManager(
 			ViewportLocker,
-			FViewportLockManager::FHasViewportOwnership::CreateRaw(this, &FViewportManager::HasViewportOwnership)
+			FViewportLockManager::FHasViewportOwnership::CreateRaw(this, &FViewportManagerBase::HasViewportOwnership)
 		)
 		, ResolutionManager(
 			ResolutionChanger,
-			FViewportLockManager::FHasViewportOwnership::CreateRaw(this, &FViewportManager::HasViewportOwnership)
+			FViewportLockManager::FHasViewportOwnership::CreateRaw(this, &FViewportManagerBase::HasViewportOwnership)
 		)
 	{
 		FCoreDelegates::OnEndFrame.AddRaw(this, &FViewportManagerBase::OnEndOfFrame);

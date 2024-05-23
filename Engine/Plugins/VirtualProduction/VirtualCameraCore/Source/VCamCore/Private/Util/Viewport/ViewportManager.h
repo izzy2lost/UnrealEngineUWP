@@ -45,7 +45,7 @@ namespace UE::VCamCore
 			IViewportResolutionChanger& ResolutionChanger UE_LIFETIMEBOUND,
 			FOverrideShouldHaveOwnership OverrideShouldHaveOwnership = {}
 			);
-		virtual ~FViewportManagerBase();
+		~FViewportManagerBase();
 
 		/**
 		 * Registers Component, so it is now considered for locking the viewport.
@@ -120,11 +120,24 @@ namespace UE::VCamCore
 	 * Adds look-up functions for special UI constructs (e.g. FSceneViewport, input window, and level editor client) to the manager.
 	 * Not unit tested.
 	 */
-	class FViewportManager : public FViewportManagerBase
+	class FViewportManager : public FNoncopyable
 	{
 	public:
 
-		FViewportManager() : FViewportManagerBase(ViewportSystemSwitcher, ViewportSystemSwitcher) {}
+		FViewportManager() : Implementation(ViewportSystemSwitcher, ViewportSystemSwitcher) {}
+
+		/**
+		 * Registers Component, so it is now considered for locking the viewport.
+		 * A viewport will only be locked if one of its output providers has acquired ownership.
+		 */
+		void RegisterVCamComponent(UVCamComponent& Component) { Implementation.RegisterVCamComponent(Component); }
+		/** Component will no longer be considered for viewport locking anymore.*/
+		void UnregisterVCamComponent(UVCamComponent& Component) { Implementation.UnregisterVCamComponent(Component); }
+		
+		/** Called when something about the lock state has changed and needs refreshing. */
+		void RequestLockRefresh() { Implementation.RequestLockRefresh(); }
+		/** Called when UVCamOutputProviderBase::OverrideResolution, bUseOverrideResolution, or TargetViewport change. */
+		void RequestResolutionRefresh() { Implementation.RequestResolutionRefresh(); }
 		
 		/** Gets the scene viewport identified by ViewportID. */
 		TSharedPtr<FSceneViewport> GetSceneViewport(EVCamTargetViewportID ViewportID) const { return ViewportSystemSwitcher.GetSceneViewport(ViewportID); }
@@ -141,7 +154,7 @@ namespace UE::VCamCore
 		 * the post process material in the target camera because there is only one viewport.
 		 * Hence, there is no implementation for games.
 		 */
-		virtual FLevelEditorViewportClient* GetEditorViewportClient(EVCamTargetViewportID ViewportID) const { return ViewportSystemSwitcher.GetEditorViewportClient(ViewportID); }
+		FLevelEditorViewportClient* GetEditorViewportClient(EVCamTargetViewportID ViewportID) const { return ViewportSystemSwitcher.GetEditorViewportClient(ViewportID); }
 #endif
 		
 	private:
@@ -152,6 +165,14 @@ namespace UE::VCamCore
 		 * See the class docu for further info.
 		 */
 		FViewportSystemSwitcher ViewportSystemSwitcher;
+
+		/**
+		 * Composition instead of inheritance so we can fully initialize ViewportSystemSwitcher before passing it down.
+		 * 
+		 * (Even though it'd be valid C++ passing uninitialized ViewportSystemSwitcher to parent constructor, it's dangerous if somebody in the future
+		 * changes that constructor to call a function on it.)
+		 */
+		FViewportManagerBase Implementation;
 	};
 }
 
