@@ -131,6 +131,14 @@ public:
 	static MOVIESCENE_API void GetSubsequentSystems(uint16 FromGlobalNodeID, TArray<uint16>& OutSubsequentGlobalNodeIDs);
 
 	/**
+	 * Print the global system graph in graphviz format filtered by the specified global system IDs, one filter per phase
+	 * *
+	 * @param GroupFilters  Array of bit filters, one per phase, defining which systems to include in the output string
+	 * @param OutString     String builder to add the output graph to
+	 */
+	static MOVIESCENE_API void PrintFilteredFlowGraph(TArrayView<const TBitArray<>> GroupFilters, FStringBuilderBase& OutString);
+
+	/**
 	 * Prints a graphviz markup for the global system dependency graph
 	 */
 	static MOVIESCENE_API void DebugPrintGlobalDependencyGraph(bool bUpdateCache = true);

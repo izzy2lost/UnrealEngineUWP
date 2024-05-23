@@ -238,7 +238,8 @@ FString FMovieSceneEntitySystemGraph::ToString() const
 {
 	using namespace UE::MovieScene;
 
-	FString String;
+	TStringBuilder<1024> String;
+
 	String += TEXT("\ndigraph FMovieSceneEntitySystemGraph {\n");
 	String += TEXT("\tnode [shape=record,height=.1];\n");
 
@@ -252,6 +253,9 @@ FString FMovieSceneEntitySystemGraph::ToString() const
 
 	FString ReferenceGraphString = TEXT("\tsubgraph cluster_references { label=\"Explicit Reference Graph (connections imply ownership)\"; color=\"#bfc74c\";\n");
 
+	TBitArray<> FlowFilter[4];
+	TBitArray<> ReferencedSystems;
+
 	for (int32 SystemIndex = 0; SystemIndex < this->Nodes.Array.GetMaxIndex(); ++SystemIndex)
 	{
 		if (Nodes.Array.IsAllocated(SystemIndex))
@@ -259,26 +263,54 @@ FString FMovieSceneEntitySystemGraph::ToString() const
 			UMovieSceneEntitySystem* System = Nodes.Array[SystemIndex].System;
 
 			ESystemPhase SystemPhase = System->GetPhase();
+			const uint16 GlobalIndex = System->GetGlobalDependencyGraphID();
 
 			if (EnumHasAnyFlags(SystemPhase, ESystemPhase::Spawn))
 			{
-				FlowStrings[0] += FString::Printf(TEXT("\t\tflow_node%d_0[label=\"%s\"];\n"), SystemIndex, *System->GetName());
+				FlowStrings[0] += FString::Printf(TEXT("\t\tflow_node%d_0[label=\"%s\"];\n"), GlobalIndex, *System->GetName());
+				FlowFilter[0].PadToNum(GlobalIndex+1, false);
+				FlowFilter[0][GlobalIndex] = true;
 			}
 			if (EnumHasAnyFlags(SystemPhase, ESystemPhase::Instantiation))
 			{
-				FlowStrings[1] += FString::Printf(TEXT("\t\tflow_node%d_1[label=\"%s\"];\n"), SystemIndex, *System->GetName());
+				FlowStrings[1] += FString::Printf(TEXT("\t\tflow_node%d_1[label=\"%s\"];\n"), GlobalIndex, *System->GetName());
+				FlowFilter[1].PadToNum(GlobalIndex+1, false);
+				FlowFilter[1][GlobalIndex] = true;
 			}
-			if (EnumHasAnyFlags(SystemPhase, ESystemPhase::Evaluation))
+			if (EnumHasAnyFlags(SystemPhase, ESystemPhase::Evaluation | ESystemPhase::Scheduling))
 			{
-				FlowStrings[2] += FString::Printf(TEXT("\t\tflow_node%d_2[label=\"%s\"];\n"), SystemIndex, *System->GetName());
+				FlowStrings[2] += FString::Printf(TEXT("\t\tflow_node%d_2[label=\"%s\"];\n"), GlobalIndex, *System->GetName());
+				FlowFilter[2].PadToNum(GlobalIndex+1, false);
+				FlowFilter[2][GlobalIndex] = true;
 			}
 			if (EnumHasAnyFlags(SystemPhase, ESystemPhase::Finalization))
 			{
-				FlowStrings[3] += FString::Printf(TEXT("\t\tflow_node%d_3[label=\"%s\"];\n"), SystemIndex, *System->GetName());
+				FlowStrings[3] += FString::Printf(TEXT("\t\tflow_node%d_3[label=\"%s\"];\n"), GlobalIndex, *System->GetName());
+				FlowFilter[3].PadToNum(GlobalIndex+1, false);
+				FlowFilter[3][GlobalIndex] = true;
 			}
 
-			ReferenceGraphString += FString::Printf(TEXT("\t\treference_node%d[label=\"%s\"];\n"), SystemIndex, *System->GetName());
+			TArrayView<const FDirectionalEdge> ReferenceEdges = ReferenceGraph.GetEdgesFrom(SystemIndex);
+			if (ReferenceEdges.Num() > 0)
+			{
+				ReferencedSystems.PadToNum(SystemIndex+1, false);
+				ReferencedSystems[SystemIndex] = true;
+
+				for (FDirectionalEdge Edge : ReferenceEdges)
+				{
+					ReferencedSystems.PadToNum(Edge.ToNode+1, false);
+					ReferencedSystems[Edge.ToNode] = true;
+				}
+			}
 		}
+	}
+
+	for (TConstSetBitIterator<> ReferencedSystemIt(ReferencedSystems); ReferencedSystemIt; ++ReferencedSystemIt)
+	{
+		UMovieSceneEntitySystem* System = Nodes.Array[ReferencedSystemIt.GetIndex()].System;
+		const uint16 GlobalIndex = System->GetGlobalDependencyGraphID();
+
+		ReferenceGraphString += FString::Printf(TEXT("\t\treference_node%d[label=\"%s\"];\n"), GlobalIndex, *System->GetName());
 	}
 
 	for (FString& FlowString : FlowStrings)
@@ -288,6 +320,8 @@ FString FMovieSceneEntitySystemGraph::ToString() const
 	}
 	String += ReferenceGraphString;
 	String += TEXT("\t}\n");
+
+	UMovieSceneEntitySystem::PrintFilteredFlowGraph(FlowFilter, String);
 
 	{
 		FDirectedGraph::FDiscoverCyclicEdges CyclicEdges(&ReferenceGraph);
@@ -299,12 +333,14 @@ FString FMovieSceneEntitySystemGraph::ToString() const
 			FDirectionalEdge Edge = ReferenceEdges[EdgeIndex];
 			const bool bIsCyclic = CyclicEdges.IsCyclic(EdgeIndex);
 
-			String += FString::Printf(TEXT("\treference_node%d -> reference_node%d [color=\"%s\"];\n"), (int32)Edge.FromNode, (int32)Edge.ToNode, bIsCyclic ? TEXT("#FF0000") : TEXT("#3992ad"));
+			const uint16 FromGlobalIndex = Nodes.Array[Edge.FromNode].System->GetGlobalDependencyGraphID();
+			const uint16 ToGlobalIndex   = Nodes.Array[Edge.ToNode].System->GetGlobalDependencyGraphID();
+			String += FString::Printf(TEXT("\treference_node%d -> reference_node%d [color=\"%s\"];\n"), (int32)FromGlobalIndex, (int32)ToGlobalIndex, bIsCyclic ? TEXT("#FF0000") : TEXT("#3992ad"));
 		}
 	}
 
 	String += TEXT("}");
-	return String;
+	return String.ToString();
 }
 
 TArray<UMovieSceneEntitySystem*> FMovieSceneEntitySystemGraph::GetSystems() const
