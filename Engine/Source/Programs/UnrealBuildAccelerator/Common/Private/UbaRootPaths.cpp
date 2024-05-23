@@ -129,8 +129,8 @@ namespace uba
 
 		if (wasNormalized)
 		{
-			u64 magic = 0xFAFAFAFAFAFAFAFAull; // We add some magic to make sure this does not match cas key of non-normalized files
-			hasher.Update(&magic, 8);
+			u16 magic = 0xFFFF; // We add some magic to make sure this does not match cas key of non-normalized files
+			hasher.Update(&magic, sizeof(u16));
 		}
 
 		return ToCasKey(hasher, false);
