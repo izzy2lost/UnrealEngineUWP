@@ -90,13 +90,6 @@ struct TStructOpsTypeTraits<FMovieSceneSequenceID> : public TStructOpsTypeTraits
 	static constexpr EPropertyObjectReferenceType WithSerializerObjectReferences = EPropertyObjectReferenceType::None;
 };
 
-#if UE_MOVIESCENE_ENTITY_DEBUG
-namespace UE::MovieScene
-{
-	template<> struct TComponentDebugType<FMovieSceneSequenceID> { static const EComponentDebugType Type = EComponentDebugType::SequenceID; };
-}
-#endif
-
 typedef TCallTraits<FMovieSceneSequenceID>::ParamType FMovieSceneSequenceIDRef;
 
 namespace MovieSceneSequenceID

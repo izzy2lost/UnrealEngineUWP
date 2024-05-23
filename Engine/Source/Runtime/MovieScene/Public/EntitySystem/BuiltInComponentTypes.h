@@ -808,9 +808,5 @@ private:
 	TMap<FComponentTypeID, FComponentTypeID> ResultToBase;
 };
 
-#if UE_MOVIESCENE_ENTITY_DEBUG
-template<> struct TComponentDebugType<FEntityGroupID> { static const EComponentDebugType Type = EComponentDebugType::GroupID; };
-#endif
-
 } // namespace MovieScene
 } // namespace UE

@@ -6,6 +6,7 @@
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
 #include "Containers/BitArray.h"
+#include "MovieSceneFwd.h"
 #include "EntitySystem/MovieSceneEntityIDs.h"
 #include "HAL/CriticalSection.h"
 #include "Math/NumericLimits.h"
@@ -21,10 +22,6 @@
 
 class UMovieSceneSequence;
 namespace UE { namespace MovieScene { class FEntityManager; } }
-
-#ifndef UE_MOVIESCENE_ENTITY_DEBUG
-	#define UE_MOVIESCENE_ENTITY_DEBUG !UE_BUILD_SHIPPING
-#endif
 
 
 DECLARE_STATS_GROUP(TEXT("Movie Scene Evaluation Systems"), STATGROUP_MovieSceneECS, STATCAT_Advanced)
@@ -459,23 +456,52 @@ private:
 	uint64 SystemSerial;
 };
 
-
-
 struct FComponentHeader
 {
+	FComponentHeader() = default;
+
+	FComponentHeader(FComponentHeader&&) = delete;
+	FComponentHeader& operator=(FComponentHeader&&) = delete;
+
+	FComponentHeader(const FComponentHeader&) = delete;
+	FComponentHeader& operator=(const FComponentHeader&) = delete;
+
+#if UE_MOVIESCENE_ENTITY_DEBUG
+
+	// This virtual destructor exists in order to create a vftable for this type
+	//    that is used by the debugger to locate and display the derived TComponentHeader<T> type
+	//    enabling visualization of the concrete type in the debugger. It is completely compiled
+	//    out when UE_MOVIESCENE_ENTITY_DEBUG is disabled ensuring this type is not polymorphic.
+	MOVIESCENE_API virtual ~FComponentHeader();
+
+	/** Pointer to a polymorphic view of the component data used for debugging purposes - only populated when GRichComponentDebugging is enabled */
+	struct IComponentDebuggingTypedPtr* DebugComponents = nullptr;
+
+	/** Pointer to this header's owning FEntityAllocation::Size member. Only required and used for debugging. */
+	const uint16* Size = nullptr;
+
+#endif // UE_MOVIESCENE_ENTITY_DEBUG
+
+	/** Pointer to the first component of this header's type, with array size == FEntityAllocation::Capacity, and stride == FComponentHeader::Sizeof */
 	mutable uint8* Components;
 
+	/** Legacy mutex used for locked threaded evaluation */
 	mutable FRWLock ReadWriteLock;
 
 private:
 
+	/** Serial number that is increased after every time this header is opened for write access. Not currently meaningfully used but may be used for caching in future. */
 	mutable uint64 SerialNumber;
 
 public:
 
+	/** Atomic access count used for verifying write exclusivity at runtime. */
 	mutable std::atomic<int32> ScheduledAccessCount;
 
+	/** sizeof(T) for the component type this header represents (ie: the stride of our component data). 0 if this header represents a tag. */
 	uint8 Sizeof;
+
+	/** Component type identifier */
 	FComponentTypeID ComponentType;
 
 	/**

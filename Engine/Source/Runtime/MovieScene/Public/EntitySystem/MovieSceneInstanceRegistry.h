@@ -8,6 +8,7 @@
 #include "Containers/SparseArray.h"
 #include "Evaluation/MovieScenePlayback.h"
 #include "EntitySystem/MovieSceneSequenceInstance.h"
+#include "EntitySystem/MovieSceneSequenceInstanceHandle.h"
 #include "EntitySystem/MovieSceneComponentDebug.h"
 #include "EntitySystem/MovieSceneSharedPlaybackState.h"
 #include "MovieSceneSequenceID.h"

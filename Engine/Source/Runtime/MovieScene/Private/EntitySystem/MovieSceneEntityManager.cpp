@@ -53,6 +53,15 @@ FAutoConsoleVariableRef CVarThreadedEvaluationEntityThreshold(
 	ECVF_Default
 );
 
+#if UE_MOVIESCENE_ENTITY_DEBUG
+bool GRichComponentDebugging = false;
+FAutoConsoleVariableRef CVarRichComponentDebugging(
+	TEXT("Sequencer.RichComponentDebugging"),
+	GRichComponentDebugging,
+	TEXT("(Default: false. Whether to enable rich component debugging within Sequencer.")
+	);
+#endif // UE_MOVIESCENE_ENTITY_DEBUG
+
 FEntityManager* GEntityManagerForDebuggingVisualizers = nullptr;
 
 static bool IsValidUint16(int32 Test)
@@ -211,10 +220,23 @@ struct FEntityInitializer
 
 			for (FComponentMaskIterator It = EntityComponentMask.Iterate(); It; ++It, ++Header)
 			{
-				new (Header) FComponentHeader();
-
 				FComponentTypeID ComponentTypeID = FComponentTypeID::FromBitIndex(It.GetIndex());
 				const FComponentTypeInfo& TypeInfo = EntityManager.GetComponents()->GetComponentTypeChecked(ComponentTypeID);
+
+
+#if UE_MOVIESCENE_ENTITY_DEBUG
+				if (GRichComponentDebugging)
+				{
+					TypeInfo.DebugInfo->InitializeComponentHeader(Header);
+					Header->Size = &Allocation->Size;
+				}
+				else
+				{
+					new (Header) FComponentHeader();
+				}
+#else
+				new (Header) FComponentHeader();
+#endif
 
 				Header->ComponentType = ComponentTypeID;
 				Header->Sizeof = TypeInfo.Sizeof;
@@ -235,6 +257,13 @@ struct FEntityInitializer
 					check(IsAligned(Header->Components, TypeInfo.Alignment));
 
 					ComponentDataPtr += TypeInfo.Sizeof * InitInfo.InitialCapacity;
+
+#if UE_MOVIESCENE_ENTITY_DEBUG
+					if (GRichComponentDebugging)
+					{
+						TypeInfo.DebugInfo->InitializeDebugComponentData(*Header, InitInfo.InitialCapacity);
+					}
+#endif
 				}
 			}
 		}

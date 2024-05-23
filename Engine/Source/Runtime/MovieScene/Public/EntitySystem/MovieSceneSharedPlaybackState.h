@@ -10,6 +10,7 @@
 #include "Evaluation/MovieScenePreAnimatedState.h"
 #include "MovieSceneSequenceID.h"
 
+class UMovieSceneSequence;
 class FMovieSceneEntitySystemRunner;
 class UMovieSceneCompiledDataManager;
 class UMovieSceneEntitySystemLinker;

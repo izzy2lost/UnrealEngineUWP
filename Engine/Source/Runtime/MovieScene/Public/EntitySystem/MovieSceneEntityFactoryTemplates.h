@@ -230,10 +230,9 @@ FComponentTypeInfo FComponentRegistry::MakeComponentTypeInfoWithoutComponentOps(
 	NewTypeInfo.bHasReferencedObjects = false;
 
 #if UE_MOVIESCENE_ENTITY_DEBUG
-	NewTypeInfo.DebugInfo = MakeUnique<FComponentTypeDebugInfo>();
+	NewTypeInfo.DebugInfo = MakeUnique<TComponentTypeDebugInfo<T>>();
 	NewTypeInfo.DebugInfo->DebugName = DebugName;
 	NewTypeInfo.DebugInfo->DebugTypeName = GetGeneratedTypeName<T>();
-	NewTypeInfo.DebugInfo->Type = TComponentDebugType<T>::Type;
 #endif
 
 	return NewTypeInfo;
