@@ -42,28 +42,6 @@ static TAutoConsoleVariable<int32> CVarNaniteMultipleSceneViewsInOnePass(
 
 extern int32 GNaniteShowStats;
 
-BEGIN_SHADER_PARAMETER_STRUCT(FNaniteMaterialPassParameters, )
-	RDG_BUFFER_ACCESS(ShadingBinArgs, ERHIAccess::IndirectArgs)
-
-	SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)	// To access VTFeedbackBuffer
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteRasterUniformParameters, NaniteRaster)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FNaniteShadingUniformParameters, NaniteShading)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FOpaqueBasePassUniformParameters, BasePass)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FLumenCardPassUniformParameters, CardPass)
-	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget0)
-	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget1)
-	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget2)
-	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget3)
-	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget4)
-	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget5)
-	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget6)
-	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutTarget7)
-	SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, OutTargets)
-
-	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, RecordArgBuffer)
-END_SHADER_PARAMETER_STRUCT()
-
 TRDGUniformBufferRef<FNaniteShadingUniformParameters> CreateDebugNaniteShadingUniformBuffer(FRDGBuilder& GraphBuilder)
 {
 	FNaniteShadingUniformParameters* UniformParameters = GraphBuilder.AllocParameters<FNaniteShadingUniformParameters>();
