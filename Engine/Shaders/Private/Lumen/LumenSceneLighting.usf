@@ -449,18 +449,6 @@ void RasterizeToCardsVS(
 	}
 }
 
-float3 CombineFinalLighting(float3 Albedo, float3 Emissive, float3 DirectLighting, float3 IndirectLighting)
-{
-	Albedo = DecodeSurfaceCacheAlbedo(Albedo);
-
-	float3 FinalLighting = (DirectLighting + IndirectLighting) * Diffuse_Lambert(Albedo) + Emissive;
-
-	// Secure against strange values, as we are writing it to a persistent atlas with a feedback loop
-	FinalLighting = max(MakeFinite(FinalLighting), float3(0.0f, 0.0f, 0.0f));
-
-	return FinalLighting;
-}
-
 SamplerState BilinearClampedSampler;
 StructuredBuffer<uint> CardTiles;
 RWTexture2D<float3> RWFinalLightingAtlas;
