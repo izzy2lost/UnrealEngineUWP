@@ -138,16 +138,22 @@ namespace UE
 		TEXT("Allows property bags and IDOs to be created for supported classes.")
 	);
 
-	bool IsInstanceDataObjectSupportEnabled(UObject* InObject)
+	bool IsInstanceDataObjectSupportEnabled(const UObject* InObject)
 	{
 		// Note: NULL is a valid (default) input here; in that case we just return the enable flag.
 		bool bIsEnabled = bEnableIDOSupport;
-		if (bIsEnabled && InObject && !InObject->IsInPackage(GetTransientPackage()))
+		if (bIsEnabled && InObject)
 		{
 			// Property bag placeholder objects are always enabled for IDO support
 			if (UE::FPropertyBagRepository::IsPropertyBagPlaceholderObject(InObject))
 			{
 				return true;
+			}
+
+			// reinst classes shouldn't use IDOs
+			if (InObject->GetClass()->HasAnyClassFlags(CLASS_NewerVersionExists))
+			{
+				return false;
 			}
 
 			//@todo FH: change to check trait when available or use config object

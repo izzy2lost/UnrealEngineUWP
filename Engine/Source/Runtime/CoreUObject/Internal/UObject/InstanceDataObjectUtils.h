@@ -22,7 +22,7 @@ namespace UE
  *
  * Pass nullptr to query if the system is enabled.
  */
-bool IsInstanceDataObjectSupportEnabled(UObject* Object = nullptr);
+bool IsInstanceDataObjectSupportEnabled(const UObject* Object = nullptr);
 bool StructContainsLooseProperties(const UStruct* Struct);
 
 /** Generate a UClass that contains the union of the properties of PropertyTree and OwnerClass. */

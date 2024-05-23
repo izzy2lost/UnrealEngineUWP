@@ -1304,7 +1304,7 @@ void UObject::ConditionalPostLoad()
 		const bool bIDOEnabled = PropertyBagRepository.IsInstanceDataObjectSupportEnabled(this) && !LoadContext->bImpersonateProperties;
 		if (bIDOEnabled)
 		{
-			PropertyBagRepository.CreateInstanceDataObject(this);
+			PropertyBagRepository.PostLoadInstanceDataObject(this);
 		}
 
 		{
@@ -1875,7 +1875,6 @@ void UObject::SerializeScriptProperties( FStructuredArchive::FSlot Slot ) const
 		const UObject* ThisObject = this;
 		if (const UObject* Impersonator = UE::Private::GetDataImpersonator(ThisObject))
 		{
-			ensureAlwaysMsgf(!HasAnyFlags(RF_ClassDefaultObject), TEXT("CDO '%s' shoudn't be impersonated"), *ThisObject->GetPathName());
 			ThisObject = Impersonator;
 			ObjClass = ThisObject->GetClass();
 

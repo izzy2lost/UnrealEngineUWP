@@ -8,6 +8,7 @@
 #include "UObject/GCObject.h"
 
 class UObject;
+class FMemoryArchive;
 
 namespace UE
 {
@@ -71,6 +72,10 @@ public:
 	 * @return				- Custom InstanceDataObject object, UClass derived from associated bag.
 	 */
 	COREUOBJECT_API UObject* CreateInstanceDataObject(UObject* Owner, FArchive* Archive = nullptr);
+	COREUOBJECT_API UObject* DuplicateInstanceDataObject(UObject* SourceOwner, UObject* DestOwner);
+
+	// called at the end of postload to copy data from Owner to its IDO
+	COREUOBJECT_API void PostLoadInstanceDataObject(const UObject* Owner);
 
 	// TODO: Restrict property bag  destruction to within UObject::BeginDestroy() & FPropertyBagProperty destructor.
 	// Removes bag, InstanceDataObject, and all associated data for this object.
@@ -154,6 +159,33 @@ private:
 
 	// Instantiate InstanceDataObject within BagData. Returns InstanceDataObject object. 
 	void CreateInstanceDataObjectUnsafe(UObject* Owner, FPropertyBagAssociationData& BagData, FArchive* Archive = nullptr);
+
+	static void CopyTaggedProperties (const UObject* Source, UObject* Dest);
+};
+
+// construct this context in the same scope as an object is being serialized to support InstanceDataObjects.
+// if saving, this will simply set flags. If loading, an IDO will be constructed at the end of the scope when needed
+struct FScopedIDOSerializationContext
+{
+	COREUOBJECT_API FScopedIDOSerializationContext(UObject* InObject, FArchive& Archive);
+	explicit COREUOBJECT_API FScopedIDOSerializationContext(UObject* InObject); // assumes save
+	COREUOBJECT_API ~FScopedIDOSerializationContext();
+
+	bool bHasIDOSupport;
+	bool bCreateIDO;
+	FArchive* Archive;
+	UObject* const Object;
+	const int64 PreSerializeOffset;
+	TOptional<TGuardValue<bool>> ScopedTrackSerializedPropertyPath;
+	TOptional<TGuardValue<bool>> ScopedSerializeUnknownProperty;
+	TOptional<TGuardValue<bool>> ScopedImpersonateProperties;
+	TOptional<TGuardValue<UObject*>> ScopedSerializedObject;
+private:
+	// if we're loading and IDO should be created, this will be called when the context falls out of scope
+	void FinishCreatingInstanceDataObject() const;
+	
+	FScopedIDOSerializationContext(const FScopedIDOSerializationContext&) = delete;
+	FScopedIDOSerializationContext& operator=(const FScopedIDOSerializationContext&) = delete;
 };
 
 } // UE

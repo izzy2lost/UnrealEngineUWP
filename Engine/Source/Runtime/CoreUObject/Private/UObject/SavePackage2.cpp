@@ -3,6 +3,7 @@
 
 #include "UObject/SavePackage.h"
 #include "UObject/LinkerLoad.h"
+#include "UObject/PropertyBagRepository.h"
 
 #if UE_WITH_SAVEPACKAGE
 #include "AssetRegistry/AssetData.h"
@@ -2950,11 +2951,7 @@ ESavePackageResult InnerSave(FSaveContext& SaveContext)
 	SaveContext.SetSerializeContext(SerializeContext);
 	SaveContext.SetEDLCookChecker(&FEDLCookCheckerThreadState::Get());
 
-	TOptional<TGuardValue<bool>> IDOImpersonationScope;
-	if (UE::IsInstanceDataObjectSupportEnabled())
-	{
-		IDOImpersonationScope.Emplace(SerializeContext->bImpersonateProperties, true);
-	}
+	UE::FScopedIDOSerializationContext IDOSaveContext(nullptr);
 
 	// Create slow task dialog if needed
 	const int32 TotalSaveSteps = 3;

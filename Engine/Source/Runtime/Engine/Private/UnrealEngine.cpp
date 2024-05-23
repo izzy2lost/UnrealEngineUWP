@@ -17075,12 +17075,7 @@ public:
 		}
 #endif // USE_STABLE_LOCALIZATION_KEYS
 
-		TOptional<TGuardValue<bool>> ScopedImpersonateProperties;
-		if (UE::FPropertyBagRepository::IsInstanceDataObjectSupportEnabled(SrcObject))
-		{
-			FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
-			ScopedImpersonateProperties.Emplace(SerializeContext->bImpersonateProperties, true);
-		}
+		UE::FScopedIDOSerializationContext IDOSaveContext(SrcObject, *this);
 
 		SrcObject->Serialize(*this);
 	}
@@ -17148,6 +17143,9 @@ public:
 		}
 #endif // USE_STABLE_LOCALIZATION_KEYS
 
+		// Enable IDO, if needed
+		UE::FScopedIDOSerializationContext IDOLoadContext(Obj, *this);
+		
 		Obj->Serialize(*this);
 	}
 
@@ -17246,36 +17244,9 @@ public:
 #endif // USE_STABLE_LOCALIZATION_KEYS
 
 		// Enable IDO, if needed
-		FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
-		TOptional<TGuardValue<bool>> ScopedTrackSerializedPropertyPath;
-		TOptional<TGuardValue<bool>> ScopedSerializeUnknownProperty;
-		TOptional<TGuardValue<UObject*>> ScopedSerializedObject;
-
-		// Do not enable IDO when impersonation is enabled as we are probably deserializing an IDO already at that point
-		bool bIDOEnabled = UE::FPropertyBagRepository::IsInstanceDataObjectSupportEnabled(DstObject) && !LoadContext->bImpersonateProperties;
-		if (bIDOEnabled)
-		{
-			// this will had property path tracking and create a property bag to hold data not matching the current class schema
-			ScopedTrackSerializedPropertyPath.Emplace(LoadContext->bTrackSerializedPropertyPath, true);
-			ScopedSerializeUnknownProperty.Emplace(LoadContext->bTrackUnknownProperties, true);
-			ScopedSerializedObject.Emplace(LoadContext->SerializedObject, DstObject);
-		}
-
-		const int64 PreSerializeOffset = Tell();
+		UE::FScopedIDOSerializationContext IDOLoadContext(DstObject, *this);
+		
 		DstObject->Serialize(*this);
-		const int64 PostSerializeOffset = Tell();
-
-		if (bIDOEnabled)
-		{
-			// CreateInstanceDataObject will re-call DstObject->Serialize(*this) so set the seek pointer back before DestObject in the archive
-			Seek(PreSerializeOffset);
-			UE::FPropertyBagRepository::Get().CreateInstanceDataObject(DstObject, this);
-			if (!ensure(Tell() == PostSerializeOffset))
-			{
-				// for some reason CreateInstanceDataObject read a different amount of data than expected... reset seek pointer back to where it should be
-				Seek(PostSerializeOffset);
-			}
-		}
 	}
 
 	//~ Begin FArchive Interface
@@ -17456,6 +17427,9 @@ void UEngine::CopyPropertiesForUnrelatedObjects(UObject* OldObject, UObject* New
 			pRecord->OldInstance = OldInstance;
 			OldInstanceMap.Add(OldInstance->GetPathName(OldObject), SavedInstances.Num() - 1);
 			const uint32 AdditionalPortFlags = Params.bCopyDeprecatedProperties ? PPF_UseDeprecatedProperties : PPF_None;
+			
+			UE::FScopedIDOSerializationContext IDOSaveContext(OldInstance);
+			
 			FObjectWriter SubObjWriter(OldInstance, pRecord->SavedProperties, true, true, Params.bDoDelta, AdditionalPortFlags);
 		}
 	}

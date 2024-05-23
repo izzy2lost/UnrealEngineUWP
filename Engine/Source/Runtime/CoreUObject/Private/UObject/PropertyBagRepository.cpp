@@ -519,6 +519,59 @@ UObject* FPropertyBagRepository::CreateInstanceDataObject(UObject* Owner, FArchi
 	return BagData.InstanceDataObject;
 }
 
+UObject* FPropertyBagRepository::DuplicateInstanceDataObject(UObject* SourceOwner, UObject* DestOwner)
+{
+	if (FPropertyBagAssociationData* SourceData = AssociatedData.Find(SourceOwner))
+	{
+		check(SourceData->InstanceDataObject);
+		FPropertyBagAssociationData& DestData = AssociatedData.FindOrAdd(DestOwner);
+		ensure(!DestData.InstanceDataObject);
+
+		// get outer pointer for new IDO
+		TObjectPtr<UObject>* OuterPtr = nullptr;
+		if (FPropertyBagAssociationData* OuterData = AssociatedData.Find(DestOwner->GetOuter()))
+		{
+			OuterPtr = &OuterData->InstanceDataObject;
+		}
+		if (!OuterPtr || !*OuterPtr)
+		{
+			OuterPtr = &Namespaces.FindOrAdd(DestOwner->GetOuter());
+			if (*OuterPtr == nullptr)
+			{
+				*OuterPtr = CreatePackage(nullptr); // TODO: replace with dummy object
+			}
+		}
+
+		// construct InstanceDataObject
+		FStaticConstructObjectParameters Params(SourceData->InstanceDataObject->GetClass());
+		Params.SetFlags |= EObjectFlags::RF_Transactional;
+		Params.Name = DestOwner->GetFName();
+		Params.Outer = *OuterPtr;
+		DestData.InstanceDataObject = StaticConstructObject_Internal(Params);
+		InstanceDataObjectToOwner.Add(DestData.InstanceDataObject, DestOwner);
+
+		CopyTaggedProperties(SourceData->InstanceDataObject, DestData.InstanceDataObject);
+
+		DestData.bNeedsFixup = SourceData->bNeedsFixup;
+		return DestData.InstanceDataObject;
+	}
+	return nullptr;
+}
+
+void FPropertyBagRepository::PostLoadInstanceDataObject(const UObject* Owner)
+{
+	// fixups may have been applied to the instance during PostLoad and they need to be copied to its IDO
+	FPropertyBagRepositoryLock LockRepo(this);
+	if (FPropertyBagAssociationData* BagData = AssociatedData.Find(Owner))
+	{
+		if (BagData->InstanceDataObject)
+		{
+			// copy data from owner to IDO
+			CopyTaggedProperties(Owner, BagData->InstanceDataObject);
+		}
+	}
+}
+
 // TODO: Remove this? Bag destruction to be handled entirely via UObject::BeginDestroy() (+ FPropertyBagProperty destructor)?
 void FPropertyBagRepository::DestroyOuterBag(const UObject* Owner)
 {
@@ -621,12 +674,12 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(UObject* Owner, FPro
 
 	BagData.bNeedsFixup = UE::StructContainsLooseProperties(InstanceDataObjectClass);
 
-	TObjectPtr<UObject>* OuterPtr;
+	TObjectPtr<UObject>* OuterPtr = nullptr;
 	if (FPropertyBagAssociationData* OuterData = AssociatedData.Find(Owner->GetOuter()))
 	{
 		OuterPtr = &OuterData->InstanceDataObject;
 	}
-	else
+	if (!OuterPtr || !*OuterPtr)
 	{
 		OuterPtr = &Namespaces.FindOrAdd(Owner->GetOuter());
 		if (*OuterPtr == nullptr)
@@ -653,25 +706,14 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(UObject* Owner, FPro
 	// setup load context to mark properties the that were set by serialization
 	FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
 	TGuardValue<bool> ScopedImpersonateProperties(LoadContext->bImpersonateProperties, true);
-	
-	auto CopyTaggedProperties = [](const UObject* Source, UObject* Dest)
-	{
-		TArray<uint8> Buffer;
-		Buffer.Reserve(Source->GetClass()->GetStructureSize());
-		FObjectWriter Writer(Buffer);
-		Source->GetClass()->SerializeTaggedProperties(Writer, (uint8*)Source, Source->GetClass(), (uint8*)Source->GetArchetype());
-		
-		FObjectReader Reader(Buffer);
-		Reader.ArMergeOverrides = true;
-		Dest->GetClass()->SerializeTaggedProperties(Reader, (uint8*)Dest, Dest->GetClass(), (uint8*)Dest->GetArchetype());
-	};
-	
-	if (Archive)
+
+	FLinkerLoad* Linker = Owner->GetLinker();
+	if (Archive && Archive != Linker)
 	{
 		// re-deserialize Owner but redirect it into the IDO instead using impersonation
 		Owner->Serialize(*Archive);
 	}
-	else if (FLinkerLoad* Linker = Owner->GetLinker())
+	else if (Linker)
 	{
 		// TODO: @jordan.hoffmann - this is very inefficient! We should remove this call to Preload. To do so, we'd need to change MarkPropertySetBySerialization
 		// to cache the serialized property list in the property bag instead of the structs. We'd also need to copy the property bag values to the IDO
@@ -692,6 +734,93 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(UObject* Owner, FPro
 			*Owner->GetPathName());
 		// copy data from owner to IDO
 		CopyTaggedProperties(Owner, BagData.InstanceDataObject);
+	}
+}
+
+void FPropertyBagRepository::CopyTaggedProperties(const UObject* Source, UObject* Dest)
+{
+	TArray<uint8> Buffer;
+	Buffer.Reserve(Source->GetClass()->GetStructureSize());
+	FObjectWriter Writer(Buffer);
+	Source->GetClass()->SerializeTaggedProperties(Writer, (uint8*)Source, Source->GetClass(), nullptr);
+		
+	FObjectReader Reader(Buffer);
+	Reader.ArMergeOverrides = true;
+	Dest->GetClass()->SerializeTaggedProperties(Reader, (uint8*)Dest, Dest->GetClass(), nullptr);
+}
+
+FScopedIDOSerializationContext::FScopedIDOSerializationContext(UObject* InObject, FArchive& InArchive)
+	: Archive(&InArchive)
+    , Object(InObject)
+	, PreSerializeOffset(InArchive.Tell())
+{
+	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
+	bHasIDOSupport = FPropertyBagRepository::IsInstanceDataObjectSupportEnabled(Object);
+	bCreateIDO = bHasIDOSupport && !SerializeContext->bImpersonateProperties && Archive->IsLoading();
+	
+	if (bHasIDOSupport)
+	{
+		if (Archive->IsLoading())
+		{
+			// Enable creation of a property path name tree to track any property that does not match the current class schema,
+			// except when impersonation is enabled because that implies we are deserializing an IDO.
+			ScopedTrackSerializedPropertyPath.Emplace(SerializeContext->bTrackSerializedPropertyPath, bCreateIDO);
+			ScopedSerializeUnknownProperty.Emplace(SerializeContext->bTrackUnknownProperties, bCreateIDO);
+			ScopedSerializedObject.Emplace(SerializeContext->SerializedObject, Object);
+			
+			// Enable tracking of initialized properties when loading an IDO, which is implied by impersonation being enabled.
+			const bool bLoadingIDO = bHasIDOSupport && SerializeContext->bImpersonateProperties;
+			TGuardValue<bool> ScopedTrackInitializedProperties(SerializeContext->bTrackInitializedProperties, bLoadingIDO);
+		}
+		else
+		{
+			ScopedImpersonateProperties.Emplace(SerializeContext->bImpersonateProperties, bHasIDOSupport);
+		}
+	}
+}
+
+FScopedIDOSerializationContext::FScopedIDOSerializationContext(UObject* InObject)
+	: bCreateIDO(false)
+	, Archive(nullptr)
+	, Object(InObject)
+	, PreSerializeOffset(0)
+{
+	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
+	bHasIDOSupport = FPropertyBagRepository::IsInstanceDataObjectSupportEnabled(Object);
+	ScopedImpersonateProperties.Emplace(SerializeContext->bImpersonateProperties, true);
+}
+
+FScopedIDOSerializationContext::~FScopedIDOSerializationContext()
+{
+	if (bCreateIDO)
+	{
+		FinishCreatingInstanceDataObject();
+	}
+}
+
+void FScopedIDOSerializationContext::FinishCreatingInstanceDataObject() const
+{
+	if (Archive == Object->GetLinker())
+	{
+		// when using the linker, the repository will handle offsets
+		FPropertyBagRepository::Get().CreateInstanceDataObject(Object, Archive);
+	}
+	else
+	{
+		check(Archive);
+		const int64 PostSerializeOffset = Archive->Tell();
+	
+		// CreateInstanceDataObject will re-call DstObject->Serialize(*this) so set the seek pointer back before DestObject in the archive
+		Archive->Seek(PreSerializeOffset);
+			
+		FPropertyBagRepository::Get().CreateInstanceDataObject(Object, Archive);
+
+		// make sure seek pointer is back to where it should be
+		if (!ensure(Archive->Tell() == PostSerializeOffset))
+		{
+			// for some reason CreateInstanceDataObject read a different amount of data than expected... reset seek pointer back to where it should be
+			Archive->Seek(PostSerializeOffset);
+		}
 	}
 }
 
