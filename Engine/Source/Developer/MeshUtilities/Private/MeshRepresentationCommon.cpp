@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MeshRepresentationCommon.h"
+
+#include "HAL/PlatformMemory.h"
 #include "MaterialShared.h"
 #include "MeshUtilities.h"
 #include "MeshUtilitiesPrivate.h"
@@ -149,6 +151,12 @@ void MeshRepresentation::SetupEmbreeScene(
 		rtcSetDeviceErrorFunction(EmbreeScene.EmbreeDevice, EmbreeErrorFunc, nullptr);
 
 		RTCError ReturnErrorNewDevice = rtcGetDeviceError(EmbreeScene.EmbreeDevice);
+		if (ReturnErrorNewDevice == RTC_ERROR_OUT_OF_MEMORY)
+		{
+			UE_LOG(LogMeshUtilities, Warning, TEXT("GenerateSignedDistanceFieldVolumeData failed for %s. Embree rtcNewDevice failed to allocate memory."), *MeshName);
+			FPlatformMemory::OnOutOfMemory(0, 16);
+			return;
+		}
 		if (ReturnErrorNewDevice != RTC_ERROR_NONE)
 		{
 			UE_LOG(LogMeshUtilities, Warning, TEXT("GenerateSignedDistanceFieldVolumeData failed for %s. Embree rtcNewDevice failed. Code: %d"), *MeshName, (int32)ReturnErrorNewDevice);
@@ -159,6 +167,12 @@ void MeshRepresentation::SetupEmbreeScene(
 		rtcSetSceneFlags(EmbreeScene.EmbreeScene, RTC_SCENE_FLAG_NONE);
 
 		RTCError ReturnErrorNewScene = rtcGetDeviceError(EmbreeScene.EmbreeDevice);
+		if (ReturnErrorNewScene == RTC_ERROR_OUT_OF_MEMORY)
+		{
+			UE_LOG(LogMeshUtilities, Warning, TEXT("GenerateSignedDistanceFieldVolumeData failed for %s. Embree rtcNewScene failed to allocate memory."), *MeshName);
+			FPlatformMemory::OnOutOfMemory(0, 16);
+			return;
+		}
 		if (ReturnErrorNewScene != RTC_ERROR_NONE)
 		{
 			UE_LOG(LogMeshUtilities, Warning, TEXT("GenerateSignedDistanceFieldVolumeData failed for %s. Embree rtcNewScene failed. Code: %d"), *MeshName, (int32)ReturnErrorNewScene);
@@ -336,6 +350,12 @@ void MeshRepresentation::SetupEmbreeScene(
 		rtcCommitScene(EmbreeScene.EmbreeScene);
 
 		RTCError ReturnError = rtcGetDeviceError(EmbreeScene.EmbreeDevice);
+		if (ReturnError == RTC_ERROR_OUT_OF_MEMORY)
+		{
+			UE_LOG(LogMeshUtilities, Warning, TEXT("GenerateSignedDistanceFieldVolumeData failed for %s. Embree rtcCommitScene failed to allocate memory."), *MeshName);
+			FPlatformMemory::OnOutOfMemory(0, 16);
+			return;
+		}
 		if (ReturnError != RTC_ERROR_NONE)
 		{
 			UE_LOG(LogMeshUtilities, Warning, TEXT("GenerateSignedDistanceFieldVolumeData failed for %s. Embree rtcCommitScene failed. Code: %d"), *MeshName, (int32)ReturnError);
