@@ -189,31 +189,6 @@ bool FLogProvider::ReadMessage(uint64 Index, TFunctionRef<void(const FLogMessage
 	return true;
 }
 
-void FLogProvider::EnumerateMessages(double StartTime, double EndTime, TFunctionRef<void(const FLogMessageInfo&)> Callback) const
-{
-	Session.ReadAccessCheck();
-
-	if (StartTime > EndTime)
-	{
-		return;
-	}
-
-	uint64 MessageCount = Messages.Num();
-	if (MessageCount == 0)
-	{
-		return;
-	}
-
-	for (auto It = Messages.GetIteratorFromItem(0); It; ++It)
-	{
-		double Time = It.GetCurrentItem()->Time;
-		if (StartTime <= Time && Time <= EndTime)
-		{
-			ConstructMessage(*It.GetCurrentItem(), It.GetCurrentItemIndex(), Callback);
-		}
-	}
-}
-
 void FLogProvider::EnumerateMessagesByIndex(uint64 StartIndex, uint64 EndIndex, TFunctionRef<void(const FLogMessageInfo&)> Callback) const
 {
 	Session.ReadAccessCheck();
@@ -230,6 +205,41 @@ void FLogProvider::EnumerateMessagesByIndex(uint64 StartIndex, uint64 EndIndex, 
 
 	for (auto It = Messages.GetIteratorFromItem(StartIndex); It && It.GetCurrentItemIndex() < EndIndex; ++It)
 	{
+		ConstructMessage(*It.GetCurrentItem(), It.GetCurrentItemIndex(), Callback);
+	}
+}
+
+void FLogProvider::EnumerateMessages(double StartTime, double EndTime, TFunctionRef<void(const FLogMessageInfo&)> Callback) const
+{
+	Session.ReadAccessCheck();
+
+	if (StartTime > EndTime)
+	{
+		return;
+	}
+
+	uint64 MessageCount = Messages.Num();
+	if (MessageCount == 0)
+	{
+		return;
+	}
+
+	// Find the first log message with Time >= StartTime.
+	uint64 StartIndex = TraceServices::PagedArrayAlgo::LowerBoundBy(Messages, StartTime,
+		[](const FLogMessageInternal& Item) { return Item.Time; });
+	if (StartIndex >= Messages.Num())
+	{
+		return;
+	}
+
+	// Iterate from StartIndex and stop at first log message with Time > EndTime.
+	for (auto It = Messages.GetIteratorFromItem(StartIndex); It; ++It)
+	{
+		double Time = It.GetCurrentItem()->Time;
+		if (Time > EndTime)
+		{
+			break;
+		}
 		ConstructMessage(*It.GetCurrentItem(), It.GetCurrentItemIndex(), Callback);
 	}
 }

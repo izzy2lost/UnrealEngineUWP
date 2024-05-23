@@ -92,14 +92,12 @@ void FMarkersTimingTrack::UpdateTrackNameAndHeight()
 {
 	if (bUseOnlyBookmarks)
 	{
-		const FString NameString = TEXT("Bookmarks");
-		SetName(NameString);
+		SetName(TEXT("Bookmarks"));
 		SetHeight(14.0f);
 	}
 	else
 	{
-		const FString NameString = TEXT("Logs");
-		SetName(NameString);
+		SetName(TEXT("Logs"));
 		SetHeight(28.0f);
 	}
 
@@ -675,10 +673,10 @@ void FTimeMarkerTrackBuilder::AddLogMessage(const TraceServices::FLogMessageInfo
 {
 	Track.NumLogMessages++;
 
-	// Add also the log message imediately on the left of the screen (if any).
+	// Add also the log message immediately on the left of the screen (if any).
 	if (Track.NumLogMessages == 1 && Message.Index > 0)
 	{
-		// Note: Reading message at Index-1 will not work as expected when using filter!
+		// Note: The log message at Index-1 may fail the filter (i.e. not a bookmark or screenshot), so it might not be displayed!
 		//TODO: Search API like: LogProviderPtr->SearchMessage(StartIndex, ESearchDirection::Backward, LambdaPredicate, bResolveFormatString);
 		LogProviderPtr->ReadMessage(
 			Message.Index - 1,
@@ -686,7 +684,9 @@ void FTimeMarkerTrackBuilder::AddLogMessage(const TraceServices::FLogMessageInfo
 	}
 
 	check(Message.Category != nullptr);
-	if (!Track.bUseOnlyBookmarks || Message.Category == Track.BookmarkCategory || Message.Category == Track.ScreenshotCategory)
+	if (!Track.bUseOnlyBookmarks ||
+		Message.Category == Track.BookmarkCategory ||
+		Message.Category == Track.ScreenshotCategory)
 	{
 		float X = Viewport.TimeToSlateUnitsRounded(Message.Time);
 		if (X < 0.0f)
@@ -704,14 +704,14 @@ void FTimeMarkerTrackBuilder::AddLogMessage(const TraceServices::FLogMessageInfo
 FLinearColor FTimeMarkerTrackBuilder::GetColorByCategory(const TCHAR* const Category)
 {
 	// Strip the "Log" prefix.
-	FString CategoryStr(Category);
+	FStringView CategoryStr(Category);
 	if (CategoryStr.StartsWith(TEXT("Log")))
 	{
-		CategoryStr.RightChopInline(3, EAllowShrinking::No);
+		CategoryStr.RightChopInline(3);
 	}
 
 	uint32 Hash = 0;
-	for (const TCHAR* c = *CategoryStr; *c; ++c)
+	for (const TCHAR* c = CategoryStr.GetData(); *c; ++c)
 	{
 		Hash = (Hash + *c) * 0x2c2c57ed;
 	}
@@ -777,10 +777,10 @@ void FTimeMarkerTrackBuilder::Flush(float AvailableTextW)
 		if (AvailableTextW > 6.0f)
 		{
 			// Strip the "Log" prefix.
-			FString CategoryStr(LastCategory);
+			FStringView CategoryStr(LastCategory);
 			if (CategoryStr.StartsWith(TEXT("Log")))
 			{
-				CategoryStr.RightChopInline(3, EAllowShrinking::No);
+				CategoryStr.RightChopInline(3);
 			}
 
 			const int32 HorizontalOffset = FMath::RoundToInt((AvailableTextW - 2.0f) * FontScale);
@@ -797,7 +797,7 @@ void FTimeMarkerTrackBuilder::Flush(float AvailableTextW)
 				TextInfo.LogIndex = LastLogIndex;
 				if (LastWholeCharacterIndexCategory >= 0)
 				{
-					TextInfo.Category.AppendChars(*CategoryStr, LastWholeCharacterIndexCategory + 1);
+					TextInfo.Category.AppendChars(CategoryStr.GetData(), LastWholeCharacterIndexCategory + 1);
 				}
 				if (LastWholeCharacterIndexMessage >= 0)
 				{
