@@ -4,7 +4,7 @@
 #include "PathTracingAdaptiveUtils.ush"
 
 
-RWBuffer<int> NextActivePaths;
+RWBuffer<uint> NextActivePaths;
 RWBuffer<uint> NumPathStates;
 int2 TileTextureOffset;
 uint2 DispatchDim;

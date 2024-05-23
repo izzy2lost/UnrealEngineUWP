@@ -1163,9 +1163,9 @@ class FPathTracingRG : public FGlobalShader
 		// extra parameters required for path compacting kernel
 		SHADER_PARAMETER(int, Bounce)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FPathTracingPackedPathState>, PathStateData)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<int>, ActivePaths)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<int>, NextActivePaths)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<int>, NumPathStates)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, ActivePaths)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, NextActivePaths)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, NumPathStates)
 
 		RDG_BUFFER_ACCESS(PathTracingIndirectArgs, ERHIAccess::IndirectArgs | ERHIAccess::SRVCompute)
 	END_SHADER_PARAMETER_STRUCT()
@@ -3414,7 +3414,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 			const int FlushRenderingCommands = CVarPathTracingFlushDispatch.GetValueOnRenderThread();
 
 			FRDGBuffer* ActivePaths[2] = {};
-			FRDGBuffer* NumActivePaths[2] = {};
+			FRDGBuffer* NumActivePaths = nullptr;
 			FRDGBuffer* PathStateData = nullptr;
 			if (bUseCompaction || Config.UseAdaptiveSampling)
 			{
@@ -3424,15 +3424,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 				);
 				ActivePaths[0] = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(int32), NumPaths), TEXT("PathTracer.ActivePaths0"));
 				ActivePaths[1] = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(int32), NumPaths), TEXT("PathTracer.ActivePaths1"));
-				if (bUseIndirectDispatch)
-				{
-					NumActivePaths[0] = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<int32>(3), TEXT("PathTracer.NumActivePaths0"));
-					NumActivePaths[1] = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<int32>(3), TEXT("PathTracer.NumActivePaths1"));
-				}
-				else
-				{
-					NumActivePaths[0] = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(int32), 3), TEXT("PathTracer.NumActivePaths"));
-				}
+				NumActivePaths = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<uint32>(3 * (Config.PathTracingData.MaxBounces + 1)), TEXT("PathTracer.NumActivePaths"));
 				PathStateData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FPathTracingPackedPathState), NumPaths), TEXT("PathTracer.PathStateData"));
 			}
 
@@ -3476,9 +3468,8 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 							PassParameters->AdaptiveSamplingErrorThreshold = Config.AdaptiveSamplingThreshold;
 							PassParameters->ViewPreExposure = View.PreExposure;
 
-							PassParameters->NextActivePaths = GraphBuilder.CreateUAV(ActivePaths[0], PF_R32_SINT);
-							PassParameters->NumPathStates = GraphBuilder.CreateUAV(NumActivePaths[0], PF_R32_UINT);
-							AddClearUAVPass(GraphBuilder, PassParameters->NextActivePaths, -1); // make sure everything is initialized to -1 since paths that go inactive don't write anything
+							PassParameters->NextActivePaths = GraphBuilder.CreateUAV(ActivePaths[0], PF_R32_UINT);
+							PassParameters->NumPathStates = GraphBuilder.CreateUAV(NumActivePaths, PF_R32_UINT);
 							AddClearUAVPass(GraphBuilder, PassParameters->NumPathStates, 0);
 
 							PassParameters->TileTextureOffset.X = TileX;
@@ -3494,7 +3485,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 						}
 						else if (bUseCompaction)
 						{
-							AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ActivePaths[0], PF_R32_UINT), 0);
+							AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(NumActivePaths, PF_R32_UINT), 0);
 						}
 
 						// When using path compaction, we need to run the path tracer once per bounce
@@ -3603,20 +3594,14 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 							PassParameters->Bounce = Bounce;
 							if (bUseCompaction)
 							{
-								PassParameters->ActivePaths = GraphBuilder.CreateSRV(ActivePaths[Bounce & 1], PF_R32_SINT);
-								PassParameters->NextActivePaths = GraphBuilder.CreateUAV(ActivePaths[(Bounce & 1) ^ 1], PF_R32_SINT);
+								PassParameters->ActivePaths = GraphBuilder.CreateUAV(ActivePaths[Bounce & 1], PF_R32_UINT);
+								PassParameters->NextActivePaths = GraphBuilder.CreateUAV(ActivePaths[(Bounce & 1) ^ 1], PF_R32_UINT);
 								PassParameters->PathStateData = GraphBuilder.CreateUAV(PathStateData);
+								PassParameters->NumPathStates = GraphBuilder.CreateUAV(NumActivePaths, PF_R32_UINT);
 								if (bUseIndirectDispatch)
 								{
-									PassParameters->NumPathStates = GraphBuilder.CreateUAV(NumActivePaths[Bounce & 1], PF_R32_UINT);
-									PassParameters->PathTracingIndirectArgs = NumActivePaths[(Bounce & 1) ^ 1];
+									PassParameters->PathTracingIndirectArgs = NumActivePaths;
 								}
-								else
-								{
-									PassParameters->NumPathStates = GraphBuilder.CreateUAV(NumActivePaths[0], PF_R32_UINT);
-									AddClearUAVPass(GraphBuilder, PassParameters->NextActivePaths, -1); // make sure everything is initialized to -1 since paths that go inactive don't write anything
-								}
-								AddClearUAVPass(GraphBuilder, PassParameters->NumPathStates, 0);
 							}
 							ClearUnusedGraphResources(RayGenShader, PassParameters);
 							const bool bFlushRenderingCommands = FlushRenderingCommands == 1 || (FlushRenderingCommands == 2 && Bounce == MaxBounces);
@@ -3640,7 +3625,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 											View.RayTracingMaterialPipeline,
 											RayGenShader.GetRayTracingShader(),
 											RayTracingSceneRHI, View.RayTracingSBT, GlobalResources,
-											PassParameters->PathTracingIndirectArgs->GetIndirectRHICallBuffer(), 0
+											PassParameters->PathTracingIndirectArgs->GetIndirectRHICallBuffer(), 3 * PassParameters->Bounce
 										);
 									}
 									else
