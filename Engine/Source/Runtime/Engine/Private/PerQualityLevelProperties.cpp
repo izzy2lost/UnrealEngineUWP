@@ -174,7 +174,7 @@ namespace QualityLevelProperty
 	template <typename ValueType>
 	struct FSavedData
 	{
-		int32 Default = 0;
+		ValueType Default = 0;
 		TMap<int32, ValueType> PerQuality;
 	};
 	template<typename StructType, typename ValueType>
