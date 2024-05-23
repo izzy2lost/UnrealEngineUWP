@@ -92,6 +92,18 @@ public:
 
 private:
 
+	virtual FSlateColor GetForegroundColor() const override
+	{
+		if (KeyEditor.GetEditingKeySelection())
+		{
+			return FLinearColor::Yellow;
+		}
+		else
+		{
+			return FSlateColor::UseForeground();
+		}
+	}
+
 	void OnBeginSliderMovement()
 	{
 		GEditor->BeginTransaction(LOCTEXT("SetNumericKey", "Set Key Value"));
