@@ -143,8 +143,8 @@ namespace Chaos
 		CHAOS_API void SyncRemoteData(FDirtyPropertiesManager& Manager, int32 DataIdx, FDirtyChaosProperties& RemoteData) const;
 		CHAOS_API void ClearAccumulatedData();
 
-		FProxyInterpolationBase& GetInterpolationData() { return InterpolationData; }
-		const FProxyInterpolationBase& GetInterpolationData() const { return InterpolationData; }
+		FProxyInterpolationBase* GetInterpolationData() { return InterpolationData.Get(); }
+		const FProxyInterpolationBase* GetInterpolationData() const { return InterpolationData.Get(); }
 
 		FClusterUnionIndex GetClusterUnionIndex() const { return ClusterUnionIndex; }
 
@@ -167,7 +167,23 @@ namespace Chaos
 		FInternalParticle* Particle_Internal = nullptr;
 		FClusterUnionIndex ClusterUnionIndex = INDEX_NONE;
 
-		FProxyInterpolationError InterpolationData;
+		TUniquePtr<FProxyInterpolationBase> InterpolationData;
+
+		/** Get or create a derived FProxyInterpolationBase that handles error corrections */
+		template<typename ErrorDataType>
+		ErrorDataType* GetOrCreateErrorInterpolationData()
+		{
+			if (!InterpolationData.IsValid())
+			{
+				InterpolationData = MakeUnique<ErrorDataType>();
+			}
+			else if (InterpolationData.Get()->GetInterpolationType() != ErrorDataType::InterpolationType)
+			{
+				InterpolationData = MakeUnique<ErrorDataType>(InterpolationData.Get()->GetPullDataInterpIdx_External(), InterpolationData.Get()->GetInterpChannel_External());
+			}
+
+			return static_cast<ErrorDataType*>(InterpolationData.Get());
+		}
 
 		// An array of a particles that exist in the external implicit object union.
 		// Note that this array should only be used for book-keeping. It is generally

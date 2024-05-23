@@ -2158,18 +2158,20 @@ namespace ChaosTest {
 						const FReal ExpectedValue = ZStart + ZVel * InterpolatedTime;
 					//	const FReal TargetValue = ZStart + ZVel * NextSimStepTime;
 
-						if (Proxy->GetInterpolationData().IsErrorSmoothing())
+						FProxyInterpolationBase* InterpolationData = Proxy->GetInterpolationData();
+						if (InterpolationData && InterpolationData->IsErrorSmoothing())
 						{
-#if !RENDERINTERP_ERRORVELOCITYSMOOTHING
-							const FReal CorrectionStep = Particle.X()[2] - PrevZ;
-							if (LastCorrectionStep != 0)
+							if (!InterpolationData->IsErrorVelocitySmoothing())
 							{
-								// Make sure we have a linear correction
-								EXPECT_NEAR(LastCorrectionStep, CorrectionStep, 1e-2);
-							}
+								const FReal CorrectionStep = Particle.X()[2] - PrevZ;
+								if (LastCorrectionStep != 0)
+								{
+									// Make sure we have a linear correction
+									EXPECT_NEAR(LastCorrectionStep, CorrectionStep, 1e-2);
+								}
 
-							LastCorrectionStep = CorrectionStep;
-#endif
+								LastCorrectionStep = CorrectionStep;
+							}
 						}
 						else
 						{
@@ -4346,7 +4348,10 @@ namespace ChaosTest {
 			Particle2.SetGeometry(Sphere2);
 			Particle2.SetV(FVec3(0, 0, 1));
 			Particle2.SetGravityEnabled(false);
-			Proxy2->GetInterpolationData().SetInterpChannel_External(1);
+			if (FProxyInterpolationBase* InterpolationData = Proxy2->GetInterpolationData())
+			{
+				InterpolationData->SetInterpChannel_External(1);
+			}
 			Solver->RegisterObject(Proxy2);
 
 			FReal Time = 0;

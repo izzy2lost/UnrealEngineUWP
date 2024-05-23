@@ -479,8 +479,8 @@ public:
 
 	CHAOS_API float ComputeMaterialBasedDamageThreshold_Internal(Chaos::FPBDRigidClusteredParticleHandle& ClusteredParticle) const;
 
-	FProxyInterpolationBase& GetInterpolationData() { return InterpolationData; }
-	const FProxyInterpolationBase& GetInterpolationData() const { return InterpolationData; }
+	FProxyInterpolationBase* GetInterpolationData() { return InterpolationData.Get(); }
+	const FProxyInterpolationBase* GetInterpolationData() const { return InterpolationData.Get(); }
 
 	enum class EReplicationMode: uint8
 	{
@@ -750,7 +750,23 @@ private:
 	// paradigm, at least for this component of the handshake.
 	Chaos::FGuardedTripleBuffer<FGeometryCollectionResults> PhysToGameInterchange;
 
-	FProxyInterpolationError InterpolationData;
+	TUniquePtr<FProxyInterpolationBase> InterpolationData;
+
+	/** Get or create a derived FProxyInterpolationBase that handles error corrections */
+	template<typename ErrorDataType>
+	ErrorDataType* GetOrCreateErrorInterpolationData()
+	{
+		if (!InterpolationData.IsValid())
+		{
+			InterpolationData = MakeUnique<ErrorDataType>();
+		}
+		else if (InterpolationData.Get()->GetInterpolationType() != ErrorDataType::InterpolationType)
+		{
+			InterpolationData = MakeUnique<ErrorDataType>(InterpolationData.Get()->GetPullDataInterpIdx_External(), InterpolationData.Get()->GetInterpChannel_External());
+		}
+
+		return static_cast<ErrorDataType*>(InterpolationData.Get());
+	}
 
 	// this is used as a unique ID when collecting data from runtime
 	FGuid CollectorGuid;

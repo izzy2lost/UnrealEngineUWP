@@ -67,8 +67,8 @@ public:
 	FSingleParticlePhysicsProxy(FSingleParticlePhysicsProxy&&) = delete;
 	CHAOS_API virtual ~FSingleParticlePhysicsProxy();
 
-	const FProxyInterpolationBase& GetInterpolationData() const { return InterpolationData; }
-	FProxyInterpolationBase& GetInterpolationData() { return InterpolationData; }
+	FProxyInterpolationBase* GetInterpolationData() { return InterpolationData.Get(); }
+	const FProxyInterpolationBase* GetInterpolationData() const { return InterpolationData.Get(); }
 
 	FORCEINLINE FRigidBodyHandle_External& GetGameThreadAPI()
 	{
@@ -178,11 +178,23 @@ protected:
 	FPhysicsObjectUniquePtr Reference;
 
 private:
-#if RENDERINTERP_ERRORVELOCITYSMOOTHING
-	FProxyInterpolationErrorVelocity InterpolationData;
-#else
-	FProxyInterpolationError InterpolationData;
-#endif
+	TUniquePtr<FProxyInterpolationBase> InterpolationData;
+
+	/** Get or create a derived FProxyInterpolationBase that handles error corrections */
+	template<typename ErrorDataType>
+	ErrorDataType* GetOrCreateErrorInterpolationData()
+	{
+		if (!InterpolationData.IsValid())
+		{
+			InterpolationData = MakeUnique<ErrorDataType>();
+		}
+		else if (InterpolationData.Get()->GetInterpolationType() != ErrorDataType::InterpolationType)
+		{
+			InterpolationData = MakeUnique<ErrorDataType>(InterpolationData.Get()->GetPullDataInterpIdx_External(), InterpolationData.Get()->GetInterpChannel_External());
+		}
+
+		return static_cast<ErrorDataType*>(InterpolationData.Get());
+	}
 
 	//use static Create
 	CHAOS_API FSingleParticlePhysicsProxy(TUniquePtr<PARTICLE_TYPE>&& InParticle, FParticleHandle* InHandle, UObject* InOwner = nullptr);

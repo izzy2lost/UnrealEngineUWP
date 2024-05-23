@@ -534,6 +534,7 @@ FGeometryCollectionPhysicsProxy::FGeometryCollectionPhysicsProxy(
 {
 	// We rely on a guarded buffer.
 	check(BufferMode == Chaos::EMultiBufferMode::TripleGuarded);
+	InterpolationData = MakeUnique<FProxyInterpolationBase>();
 }
 
 
@@ -4295,17 +4296,22 @@ bool FGeometryCollectionPhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyGe
 		return false;
 	}
 
+	FProxyInterpolationBase* InterpData = GetInterpolationData();
 	if (Error)
 	{
-		const Chaos::FReal ErrorMagSq = Error->ErrorX.SizeSquared();
+		InterpData = GetOrCreateErrorInterpolationData<FProxyInterpolationError>();
+		check(InterpData);
+
+		// If error is within interpolation limit, set the number of physics frames to interpolate over, else leave at 0 frames to instantly correct the error.
 		const Chaos::FReal MaxErrorCorrection = RenderInterpolationCVars::RenderInterpMaximumErrorCorrectionBeforeSnapping;
 		int32 RenderInterpErrorCorrectionDurationTicks = 0;
-		if (ErrorMagSq < MaxErrorCorrection * MaxErrorCorrection)
+		if (Error->ErrorX.SizeSquared() < (MaxErrorCorrection * MaxErrorCorrection))
 		{
 			RenderInterpErrorCorrectionDurationTicks = FMath::FloorToInt32(RenderInterpolationCVars::RenderInterpErrorCorrectionDuration / AsyncFixedTimeStep); // Convert duration from seconds to simulation ticks
 		}
-		InterpolationData.AccumlateErrorXR(Error->ErrorX, Error->ErrorR, SolverSyncTimestamp, RenderInterpErrorCorrectionDurationTicks);
+		InterpData->AccumlateErrorXR(Error->ErrorX, Error->ErrorR, SolverSyncTimestamp, RenderInterpErrorCorrectionDurationTicks);
 	}
+	const bool bHasInterpolationData = InterpData != nullptr;
 
 	check(NumTransforms == GameThreadCollection.GetNumTransforms());
 	const bool bNeedInterpolation = (NextPullData != nullptr);
@@ -4333,10 +4339,14 @@ bool FGeometryCollectionPhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyGe
 			const FGeometryCollectionResults& PrevResults = PullData.Results();
 			const FGeometryCollectionResults& NextResults = NextPullData->Results();
 
-			InterpolationData.UpdateError(SolverSyncTimestamp, AsyncFixedTimeStep);
-			if (RenderInterpolationCVars::RenderInterpErrorDirectionalDecayMultiplier > 0.0f && PrevResults.GetNumEntries() && NextResults.GetNumEntries())
+			if (bHasInterpolationData)
 			{
-				InterpolationData.DirectionalDecay(NextResults.GetPositions(0).ParticleX - PrevResults.GetPositions(0).ParticleX);
+				InterpData->UpdateError(SolverSyncTimestamp, AsyncFixedTimeStep);
+
+				if (RenderInterpolationCVars::RenderInterpErrorDirectionalDecayMultiplier > 0.0f && PrevResults.GetNumEntries() && NextResults.GetNumEntries())
+				{
+					InterpData->DirectionalDecay(NextResults.GetPositions(0).ParticleX - PrevResults.GetPositions(0).ParticleX);
+				}
 			}
 
 			TManagedArray<FVector3f>* LinearVelocities = GameThreadCollection.GetLinearVelocitiesAttribute();
@@ -4377,10 +4387,10 @@ bool FGeometryCollectionPhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyGe
 					Chaos::FRotation3 NewR;
 					ResultInterpolator.GetPositions(NewX, NewR);
 
-					if (InterpolationData.IsErrorSmoothing())
+					if (bHasInterpolationData && InterpData->IsErrorSmoothing())
 					{
-						NewX = NewX + InterpolationData.GetErrorX(*Alpha);
-						NewR = InterpolationData.GetErrorR(*Alpha) * NewR;
+						NewX = NewX + InterpData->GetErrorX(*Alpha);
+						NewR = InterpData->GetErrorR(*Alpha) * NewR;
 					}
 
 					const bool XRModified = UpdateGTParticleXR(GTParticle, NewX, NewR);

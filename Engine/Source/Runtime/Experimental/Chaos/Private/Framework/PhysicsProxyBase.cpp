@@ -19,6 +19,9 @@ namespace RenderInterpolationCVars
 
 	bool bRenderInterpDebugDraw = false;
 	static FAutoConsoleVariableRef CVarRenderInterpDebugDraw(TEXT("p.RenderInterp.DebugDraw"), bRenderInterpDebugDraw, TEXT("Draw debug lines for physics render interpolation, also needs p.Chaos.DebugDraw.Enabled set"));
+
+	bool bRenderInterpErrorVelocityCorrection = false;
+	static FAutoConsoleVariableRef CVarRenderInterpErrorVelocityCorrection(TEXT("p.RenderInterp.ErrorVelocityCorrection"), bRenderInterpErrorVelocityCorrection, TEXT("EXPERIMENTAL - Take incoming velocity into consideration when performing render interpolation, the correction will be more organic but might result in clipping and it's heavier for memory and CPU."));
 }
 
 IPhysicsProxyBase::~IPhysicsProxyBase()
