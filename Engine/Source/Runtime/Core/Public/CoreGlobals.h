@@ -649,10 +649,11 @@ enum class ETaskTag : int32
 	ERenderingThread			= 1 << 4,
 	ERhiThread					= 1 << 5,
 	EAsyncLoadingThread			= 1 << 6,
+	EEventThread				= 1 << 7,
 
-	ENamedThreadBits			= (EAsyncLoadingThread << 1) - 1,
-	EParallelThread				= 1 << 8, //This can be used when multipe threads or jobs are involved (usually a parallel for) It will avoid the check for uniqieness of the named thread tag.
-	EWorkerThread				= 1 << 7 | EParallelThread,
+	ENamedThreadBits			= (EEventThread << 1) - 1,
+	EParallelThread				= 1 << 30, //This can be used when multiple threads or jobs are involved (usually a parallel for) It will avoid the check for uniqueness of the named thread tag.
+	EWorkerThread				= 1 << 29 | EParallelThread,
 	EParallelRenderingThread	= ERenderingThread | EParallelThread,
 	EParallelGameThread			= EGameThread | EParallelThread,
 	EParallelRhiThread			= ERhiThread | EParallelThread,

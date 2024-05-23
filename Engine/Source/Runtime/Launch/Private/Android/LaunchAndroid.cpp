@@ -524,6 +524,7 @@ static void ApplyAndroidCompatConfigRules()
 //Main function called from the android entry point
 int32 AndroidMain(struct android_app* state);
 
+// The function is used only for ASIS
 void* AndroidMain(void* param)
 {
 	struct android_app* state = (struct android_app*)param;
@@ -535,11 +536,6 @@ void* AndroidMain(void* param)
 		STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("AndroidMain set current GGameThreadId=%d"), GGameThreadId);
 	}
 
-	if (EventThreadID == 0)
-	{
-		EventThreadID = GGameThreadId;
-		STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("AndroidMain set current EventThreadID=%d"), EventThreadID);
-	}
 	AndroidMain(state);
 	return nullptr;
 }
@@ -901,17 +897,13 @@ bool IsInAndroidEventThread()
 	// Note: leave the commented out line for debug purposes.
 	//STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("IsInAndroidEventThread(), GGameThreadId=%d, EventThreadID=%d, FPlatformTLS::GetCurrentThreadId()=%d"), GGameThreadId, EventThreadID, FPlatformTLS::GetCurrentThreadId());
 
-#if USE_ANDROID_STANDALONE
-	//@TODO: for now always return true to avoid check failures
-	return true;
-#else
 	check(EventThreadID != 0);
 	return EventThreadID == FPlatformTLS::GetCurrentThreadId();
-#endif
 }
 
 static void* AndroidEventThreadWorker( void* param )
 {
+	FTaskTagScope Scope(ETaskTag::EEventThread);
 	pthread_setname_np(pthread_self(), "EventWorker");
 	STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("AndroidEventThreadWorker(begin), GGameThreadId=%d, EventThreadID=%d, FPlatformTLS::GetCurrentThreadId()=%d"), GGameThreadId, EventThreadID, FPlatformTLS::GetCurrentThreadId());
 
@@ -2160,6 +2152,13 @@ JNI_METHOD void Java_com_epicgames_makeaar_GameActivityForMakeAAR_nativeMain(JNI
 	FString projectModuleName = FJavaHelper::FStringFromParam(jenv, projectModule);
 
 	STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("Java_com_epicgames_makeaar_GameActivityForMakeAAR_nativeMain : use current!, requesting ProjectModule: %s"), *projectModuleName);
+
+	if (EventThreadID == 0)
+	{
+		FTaskTagScope::SwapTag(ETaskTag::EEventThread);
+		EventThreadID = FPlatformTLS::GetCurrentThreadId();
+		STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("AndroidMain set current EventThreadID=%d"), EventThreadID);
+	}
 
 	// register some delegates we want to pass back
 	FCoreDelegates::OnInit.AddStatic(InitEvent);
