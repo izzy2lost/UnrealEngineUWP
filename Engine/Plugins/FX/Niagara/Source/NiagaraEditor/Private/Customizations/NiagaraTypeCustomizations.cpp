@@ -2462,15 +2462,17 @@ TSharedRef<SWidget> FNiagaraRendererMaterialStaticBoolParameterCustomization::On
 				}
 			};
 
-		if (UNiagaraSystem* NiagaraSystem = RenderProperties->GetTypedOuter<UNiagaraSystem>())
-		{
-			AddStaticVariables(NiagaraSystem->GetSystemSpawnScript());
-			AddStaticVariables(NiagaraSystem->GetSystemUpdateScript());
-		}
+		// We must add the emitter alias context before the system scripts as they will contain the emitter spawn & update script
 		if (FVersionedNiagaraEmitterData* EmitterData = NiagaraEmitter.GetEmitterData())
 		{
 			AliasContext.ChangeEmitterNameToEmitter(NiagaraEmitter.Emitter->GetUniqueEmitterName());
 			EmitterData->ForEachScript(AddStaticVariables);
+		}
+
+		if (UNiagaraSystem* NiagaraSystem = RenderProperties->GetTypedOuter<UNiagaraSystem>())
+		{
+			AddStaticVariables(NiagaraSystem->GetSystemSpawnScript());
+			AddStaticVariables(NiagaraSystem->GetSystemUpdateScript());
 		}
 	}
 
