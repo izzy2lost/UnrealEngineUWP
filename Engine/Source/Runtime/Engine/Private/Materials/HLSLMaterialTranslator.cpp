@@ -1821,7 +1821,7 @@ void FHLSLMaterialTranslator::DoTranslate()
 		}
 	}
 
-	if (IsAlphaHoldoutBlendMode(BlendMode))
+	if (IsAlphaHoldoutBlendMode(BlendMode) && !Material->IsPostProcessMaterial())
 	{
 		if (!MaterialShadingModels.IsUnlit())
 		{
