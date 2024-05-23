@@ -30,12 +30,12 @@ private:
 	FORCEINLINE void VisitImpl(TVisitor&);
 };
 
-template <VCppClassInfo* ClassInfo>
-struct TGlobalTrivialEmergentTypePtr
+struct FGlobalTrivialEmergentTypePtr
 {
-	TGlobalTrivialEmergentTypePtr() = default;
+	FGlobalTrivialEmergentTypePtr() = default;
 
-	VEmergentType& Get(FAllocationContext Context)
+protected:
+	VEmergentType& Get(FAllocationContext Context, VCppClassInfo* ClassInfo, bool bWithShape)
 	{
 		VEmergentType* Result = EmergentType.load(std::memory_order_relaxed);
 		std::atomic_signal_fence(std::memory_order_seq_cst);
@@ -45,64 +45,40 @@ struct TGlobalTrivialEmergentTypePtr
 		}
 		else
 		{
-			return Create(Context);
+			return Create(Context, ClassInfo, bWithShape);
 		}
 	}
 
-protected:
-	FORCENOINLINE VEmergentType& Create(FAllocationContext Context)
-	{
-		VEmergentType* Object = VEmergentType::New(Context, VTrivialType::Singleton.Get(), ClassInfo);
-		VEmergentType* Expected = nullptr;
-		EmergentType.compare_exchange_strong(Expected, Object);
-		VEmergentType* Result;
-		if (Expected)
-		{
-			Result = Expected;
-		}
-		else
-		{
-			Result = Object;
-			new FGlobalTrivialEmergentTypePtrRoot(Context, Object);
-		}
-		V_DIE_UNLESS(EmergentType.load() == Result);
-		return *Result;
-	}
+	COREUOBJECT_API VEmergentType& Create(FAllocationContext Context, VCppClassInfo* ClassInfo, bool bWithShape);
 
 	std::atomic<VEmergentType*> EmergentType = nullptr;
 };
 
 template <VCppClassInfo* ClassInfo>
-struct TGlobalDefaultedObjectEmergentTypePtr : public TGlobalTrivialEmergentTypePtr<ClassInfo>
+struct TGlobalTrivialEmergentTypePtr : public FGlobalTrivialEmergentTypePtr
 {
+	TGlobalTrivialEmergentTypePtr() = default;
+
 	VEmergentType& Get(FAllocationContext Context)
 	{
-		VEmergentType* Result = EmergentType.load(std::memory_order_relaxed);
-		std::atomic_signal_fence(std::memory_order_seq_cst);
-		if (Result)
-		{
-			return *Result;
-		}
-		else
-		{
-			return Create(Context);
-		}
+		return FGlobalTrivialEmergentTypePtr::Get(Context, ClassInfo, false);
+	}
+};
+
+template <VCppClassInfo* ClassInfo>
+struct TGlobalDefaultedObjectEmergentTypePtr : public FGlobalTrivialEmergentTypePtr
+{
+	TGlobalDefaultedObjectEmergentTypePtr() = default;
+
+	VEmergentType& Get(FAllocationContext Context)
+	{
+		return FGlobalTrivialEmergentTypePtr::Get(Context, ClassInfo, true);
 	}
 
 	void Set(FAllocationContext Context, VEmergentType& NewEmergentType)
 	{
 		EmergentType.store(&NewEmergentType, std::memory_order_seq_cst);
 	}
-
-private:
-	FORCENOINLINE VEmergentType& Create(FAllocationContext Context)
-	{
-		VEmergentType& ET = TGlobalTrivialEmergentTypePtr<ClassInfo>::Create(Context);
-		ET.Shape.Set(Context, VShape::New(Context, {}));
-		return ET;
-	}
-
-	using TGlobalTrivialEmergentTypePtr<ClassInfo>::EmergentType;
 };
 
 } // namespace Verse
