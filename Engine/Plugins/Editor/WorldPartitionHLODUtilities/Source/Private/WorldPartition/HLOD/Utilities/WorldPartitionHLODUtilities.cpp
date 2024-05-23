@@ -46,7 +46,7 @@ static uint32 ComputeHLODHash(AWorldPartitionHLOD* InHLODActor, const TArray<UAc
 	FArchiveCrc32 Ar;
 
 	// Base key, changing this will force a rebuild of all HLODs
-	FString HLODBaseKey = "95D53D3FC3154822BC00C466E8416BDB";
+	FString HLODBaseKey = "0D33837AB1A04CC2AEEB04C5C217DE96";
 	Ar << HLODBaseKey;
 
 	// HLOD Source Actors
@@ -776,25 +776,25 @@ uint32 FWorldPartitionHLODUtilities::BuildHLOD(AWorldPartitionHLOD* InHLODActor)
 			}
 
 			// Build
-			TArray<UActorComponent*> HLODComponents;
+			FHLODBuildResult BuildResult;
 			{
 				FAutoScopedDurationTimer BuildTimeScope;
-				HLODComponents = HLODBuilder->Build(HLODBuildContext);
+				BuildResult = HLODBuilder->Build(HLODBuildContext);
 				BuildTimeMS = FMath::RoundToInt(BuildTimeScope.GetTime() * 1000);
 			}
 
 			if (HLODModifier)
 			{
-				HLODModifier->EndHLODBuild(HLODComponents);
+				HLODModifier->EndHLODBuild(BuildResult.HLODComponents);
 			}
 
-			if (HLODComponents.IsEmpty())
+			if (BuildResult.HLODComponents.IsEmpty())
 			{
 				UE_LOG(LogHLODBuilder, Warning, TEXT("HLOD generation created no component for %s"), *InHLODActor->GetActorLabel());
 			}
 
 			// Ideally, this should be performed elsewhere, to allow more flexibility in the HLOD generation
-			for (UActorComponent* HLODComponent : HLODComponents)
+			for (UActorComponent* HLODComponent : BuildResult.HLODComponents)
 			{
 				HLODComponent->SetCanEverAffectNavigation(false);
 
@@ -859,7 +859,8 @@ uint32 FWorldPartitionHLODUtilities::BuildHLOD(AWorldPartitionHLOD* InHLODActor)
 				}
 			}
 
-			InHLODActor->SetHLODComponents(HLODComponents);
+			InHLODActor->SetInputStats(BuildResult.InputStats);
+			InHLODActor->SetHLODComponents(BuildResult.HLODComponents);
 		}
 	}
 

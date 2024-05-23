@@ -31,7 +31,7 @@
 #include "WorldPartition/HLOD/HLODActorDesc.h"
 #include "WorldPartition/HLOD/HLODLayer.h"
 #include "WorldPartition/HLOD/HLODProviderInterface.h"
-#include "WorldPartition/HLOD/HLODRuntimeSubsystem.h"
+#include "WorldPartition/IWorldPartitionEditorModule.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogWorldPartitionHLODsBuilder, All, All);
 
@@ -566,7 +566,12 @@ bool UWorldPartitionHLODsBuilder::SubmitHLODActors()
 bool UWorldPartitionHLODsBuilder::DumpStats()
 {
 	const FString HLODStatsOutputFilename = FPaths::ProjectSavedDir() / TEXT("WorldPartition") / FString::Printf(TEXT("HLODStats-%08x.csv"), FPlatformProcess::GetCurrentProcessId());
-	return UWorldPartitionHLODRuntimeSubsystem::WriteHLODStatsCSV(World, HLODStatsOutputFilename);
+
+	IWorldPartitionEditorModule::FWriteHLODStatsParams StatsParams;
+	StatsParams.Filename = HLODStatsOutputFilename;
+	StatsParams.World = World;
+	StatsParams.StatsType = IWorldPartitionEditorModule::FWriteHLODStatsParams::EStatsType::Default;
+	return IWorldPartitionEditorModule::Get().WriteHLODStats(StatsParams);
 }
 
 bool UWorldPartitionHLODsBuilder::GetHLODActorsToBuild(TArray<FGuid>& HLODActorsToBuild) const

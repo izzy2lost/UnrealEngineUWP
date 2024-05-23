@@ -14,6 +14,9 @@
 #include "UObject/Package.h"
 #include "WorldPartition/HLOD/HLODInstancedStaticMeshComponent.h"
 
+#include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(HLODBuilder)
 
 
@@ -246,7 +249,7 @@ static bool ShouldBatchComponent(UActorComponent* ActorComponent)
 	return bShouldBatch;
 }
 
-TArray<UActorComponent*> UHLODBuilder::Build(const FHLODBuildContext& InHLODBuildContext) const
+FHLODBuildResult UHLODBuilder::Build(const FHLODBuildContext& InHLODBuildContext) const
 {
 	// Handle components using a batching policy separately
 	TArray<UActorComponent*> InputComponents;
@@ -279,7 +282,36 @@ TArray<UActorComponent*> UHLODBuilder::Build(const FHLODBuildContext& InHLODBuil
 		TSubclassOf<UHLODBuilder> HLODBuilderClass = SourceComponent->GetCustomHLODBuilderClass();
 		HLODBuildersForComponents.FindOrAdd(HLODBuilderClass).Add(SourceComponent);
 	}
+	
+	FHLODBuildResult BuildResult;
 
+	auto AddReferencedAssetsToStats = [&BuildResult](FName HLODBuilderClassName, TArray<UActorComponent*> InSourceComponents)
+	{
+		FAssetRegistryModule& AssetRegistryModule = FModuleManager::GetModuleChecked<FAssetRegistryModule>("AssetRegistry");
+		IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+		const FTopLevelAssetPath StaticMeshAssetClassPath(UStaticMesh::StaticClass());
+
+		FHLODBuildInputReferencedAssets& ReferencedAssetsStats = BuildResult.InputStats.BuildersReferencedAssets.FindOrAdd(HLODBuilderClassName);
+
+		for (UActorComponent* SourceComponent : InSourceComponents)
+		{
+			// At the moment we only care about static meshes for our stats
+			if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(SourceComponent))
+			{
+				FAssetData AssetData = AssetRegistry.GetAssetByObjectPath(FSoftObjectPath(StaticMeshComponent->GetStaticMesh()));
+				if (AssetData.IsUAsset())
+				{					
+					if (AssetData.AssetClassPath == StaticMeshAssetClassPath)
+					{
+						FTopLevelAssetPath StaticMeshAssetPath(AssetData.PackageName, AssetData.AssetName);
+						ReferencedAssetsStats.StaticMeshes.FindOrAdd(StaticMeshAssetPath)++;
+					}
+				}
+			}
+		}	
+	};
+	
 	// Build HLOD components by sending source components to the individual builders, in batch
 	TArray<UActorComponent*> HLODComponents;
 	for (const auto& HLODBuilderPair : HLODBuildersForComponents)
@@ -288,17 +320,24 @@ TArray<UActorComponent*> UHLODBuilder::Build(const FHLODBuildContext& InHLODBuil
 		const UHLODBuilder* HLODBuilder = HLODBuilderPair.Key ? HLODBuilderPair.Key->GetDefaultObject<UHLODBuilder>() : this;
 		const TArray<UActorComponent*>& SourceComponents = HLODBuilderPair.Value;
 
+		AddReferencedAssetsToStats(HLODBuilder->GetClass()->GetFName(), SourceComponents);
+
 		TArray<UActorComponent*> NewComponents = HLODBuilder->Build(InHLODBuildContext, SourceComponents);
-		HLODComponents.Append(NewComponents);
+		BuildResult.HLODComponents.Append(NewComponents);
 	}
 
 	// Append batched components
-	HLODComponents.Append(BatchInstances(ComponentsToBatch));
+	if (!ComponentsToBatch.IsEmpty())
+	{
+		FName HLODBuilderInstancingClassName("HLODBuilderInstancing");
+		AddReferencedAssetsToStats(HLODBuilderInstancingClassName, ComponentsToBatch);
+		BuildResult.HLODComponents.Append(BatchInstances(ComponentsToBatch));
+	}
 
 	// In case a builder returned null entries, clean the array.
-	HLODComponents.RemoveSwap(nullptr);
+	BuildResult.HLODComponents.RemoveSwap(nullptr);
 
-	return HLODComponents;
+	return BuildResult;
 }
 
 #endif // WITH_EDITOR

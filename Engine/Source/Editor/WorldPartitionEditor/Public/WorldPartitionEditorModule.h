@@ -92,6 +92,11 @@ public:
 	virtual bool IsHLODInEditorAllowed(UWorld* InWorld, FText* OutDisallowedReason) const override;
 
 	/**
+     * Writes various HLOD stats to a file.
+     */ 
+	virtual bool WriteHLODStats(const FWriteHLODStatsParams& Params) const override;
+
+	/**
 	 * Convert the specified map to a world partition map.
 	 */
 	virtual bool ConvertMap(const FString& InLongPackageName) override;

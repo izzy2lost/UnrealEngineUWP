@@ -57,6 +57,38 @@ struct FHLODBuildContext
 	double MinVisibleDistance;
 };
 
+/**
+ * Keep track of assets used as input to the HLOD generation of a given HLOD actor, along with the number of occurences.
+ */
+USTRUCT()
+struct FHLODBuildInputReferencedAssets
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TMap<FTopLevelAssetPath, uint32> StaticMeshes;
+};
+
+/**
+ * Referenced assets per HLOD builder.
+ */
+USTRUCT()
+struct FHLODBuildInputStats
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TMap<FName, FHLODBuildInputReferencedAssets> BuildersReferencedAssets;
+};
+
+/**
+ * Result of the HLOD build of a single actor.
+ */
+struct FHLODBuildResult
+{
+	FHLODBuildInputStats		InputStats;
+	TArray<UActorComponent*>	HLODComponents;
+};
 
 /**
  * Base class for all HLOD builders
@@ -78,10 +110,10 @@ public:
 	 * Build an HLOD representation of the input actors.
 	 * Components returned by this method needs to be properly outered & assigned to your target (HLOD) actor.
 	 */
-	ENGINE_API TArray<UActorComponent*> Build(const FHLODBuildContext& InHLODBuildContext) const;
+	ENGINE_API FHLODBuildResult Build(const FHLODBuildContext& InHLODBuildContext) const;
 
 	UE_DEPRECATED(5.2, "Use Build() method that takes a single FHLODBuildContext parameter.")
-	TArray<UActorComponent*> Build(const FHLODBuildContext& InHLODBuildContext, const TArray<AActor*>& InSourceActors) const { return Build(InHLODBuildContext); }
+	ENGINE_API TArray<UActorComponent*> Build(const FHLODBuildContext& InHLODBuildContext, const TArray<AActor*>& InSourceActors) const { return Build(InHLODBuildContext).HLODComponents; }
 
 	/**
 	 * Return the setting subclass associated with this builder.

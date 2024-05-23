@@ -8,6 +8,7 @@
 #include "WorldPartition/WorldPartitionRuntimeCell.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
 #include "WorldPartition/HLOD/HLODStats.h"
+#include "WorldPartition/HLOD/HLODBuilder.h"
 
 #if WITH_EDITOR
 #include "UObject/ObjectSaveContext.h"
@@ -44,6 +45,9 @@ public:
 	ENGINE_API void SetSourceActors(UWorldPartitionHLODSourceActors* InSourceActors);
 	ENGINE_API UWorldPartitionHLODSourceActors* GetSourceActors();
 	ENGINE_API const UWorldPartitionHLODSourceActors* GetSourceActors() const;
+
+	ENGINE_API void SetInputStats(const FHLODBuildInputStats& InInputStats);
+	ENGINE_API const FHLODBuildInputStats& GetInputStats() const;
 
 	void SetRequireWarmup(bool InRequireWarmup) { bRequireWarmup = InRequireWarmup; }
 
@@ -105,6 +109,9 @@ private:
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	TObjectPtr<UWorldPartitionHLODSourceActors> SourceActors;
+
+	UPROPERTY()
+	FHLODBuildInputStats InputStats;
 
 	UPROPERTY()
 	FBox HLODBounds;

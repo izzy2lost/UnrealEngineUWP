@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Subsystems/WorldSubsystem.h"
+#include "WorldPartition/IWorldPartitionEditorModule.h"
 #include "WorldPartition/WorldPartitionActorLoaderInterface.h"
 #include "WorldPartition/WorldPartitionHandle.h"
 #include "Templates/PimplPtr.h"
@@ -54,6 +55,8 @@ public:
 	virtual TStatId GetStatId() const override;
 	//~ End FTickableGameObject Interface
 
+	virtual bool WriteHLODStats(const IWorldPartitionEditorModule::FWriteHLODStatsParams& Params) const;
+
 	static void AddHLODSettingsFilter(EHLODSettingsVisibility InSettingsVisibility, TSoftObjectPtr<UStruct> InStruct, FName InPropertyName);
 	
 private:
@@ -67,6 +70,9 @@ private:
 
 	void ForceHLODStateUpdate();
 
+	bool WriteHLODStats(const FString& InFilename) const;
+	bool WriteHLODInputStats(const FString& InFilename) const;
+	
 	void OnWorldPartitionEditorSettingsChanged(const FName& PropertyName, const UWorldPartitionEditorSettings& WorldPartitionEditorSettings);
 	void ApplyHLODSettingsFiltering();
 

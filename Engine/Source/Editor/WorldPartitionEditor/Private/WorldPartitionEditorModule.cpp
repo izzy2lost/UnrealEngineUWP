@@ -20,6 +20,7 @@
 #include "WorldPartition/WorldPartitionEditorSettings.h"
 #include "WorldPartition/HLOD/HLODActor.h"
 #include "WorldPartition/HLOD/SWorldPartitionBuildHLODsDialog.h"
+#include "WorldPartition/HLOD/HLODEditorSubsystem.h"
 #include "WorldPartition/WorldPartitionClassDescRegistry.h"
 
 #include "LevelEditor.h"
@@ -473,6 +474,16 @@ bool FWorldPartitionEditorModule::IsHLODInEditorAllowed(UWorld* InWorld, FText* 
 	}
 
 	return true;
+}
+
+bool FWorldPartitionEditorModule::WriteHLODStats(const FWriteHLODStatsParams& Params) const
+{
+	UWorldPartitionHLODEditorSubsystem* HLODEditorSubsystem = Params.World->GetSubsystem<UWorldPartitionHLODEditorSubsystem>();
+	if (ensure(HLODEditorSubsystem))
+	{
+		return HLODEditorSubsystem->WriteHLODStats(Params);
+	}
+	return false;
 }
 
 void FWorldPartitionEditorModule::OnConvertMap()

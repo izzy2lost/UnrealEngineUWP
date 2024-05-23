@@ -430,6 +430,7 @@ void AWorldPartitionHLOD::SetHLODComponents(const TArray<UActorComponent*>& InHL
 void AWorldPartitionHLOD::SetSourceActors(UWorldPartitionHLODSourceActors* InHLODSourceActors)
 {
 	SourceActors = InHLODSourceActors;
+	InputStats.BuildersReferencedAssets.Reset();
 }
 
 const UWorldPartitionHLODSourceActors* AWorldPartitionHLOD::GetSourceActors() const
@@ -440,6 +441,16 @@ const UWorldPartitionHLODSourceActors* AWorldPartitionHLOD::GetSourceActors() co
 UWorldPartitionHLODSourceActors* AWorldPartitionHLOD::GetSourceActors()
 {
 	return SourceActors;
+}
+
+void AWorldPartitionHLOD::SetInputStats(const FHLODBuildInputStats& InInputStats)
+{
+	InputStats = InInputStats;
+}
+
+const FHLODBuildInputStats& AWorldPartitionHLOD::GetInputStats() const
+{
+	return InputStats;
 }
 
 void AWorldPartitionHLOD::SetSourceCellGuid(const FGuid& InSourceCellGuid)
