@@ -44,6 +44,8 @@ public:
 	static void RegisterCategoryFactory(FName InCategory, FCategoryWidgetFactoryFunction&& InFunction);
 	static void UnregisterCategoryFactory(FName InCategory);
 
+	void ClearSelection();
+	void SetOnSelectionChanged(SRigVMAssetView::FOnSelectionChanged InDelegate);
 private:
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 

@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -9,6 +9,9 @@ class UWorkspaceSchema;
 
 namespace UE::Workspace
 {
+
+typedef TWeakPtr<SWidget> FGlobalSelectionId;
+using FOnClearGlobalSelection = FSimpleDelegate;
 
 class IWorkspaceEditor : public FBaseAssetToolkit
 {
@@ -32,6 +35,9 @@ public:
 
 	// Exposes the editor WorkspaceSchema
 	virtual UWorkspaceSchema* GetSchema() const = 0;
+
+	// Set the _current_ global selection (last SWidget with selection set) with delegate to clear it selection on next SetGlobalSelection()
+	virtual void SetGlobalSelection(FGlobalSelectionId SelectionId, FOnClearGlobalSelection OnClearSelectionDelegate) = 0;
 };
 
 }

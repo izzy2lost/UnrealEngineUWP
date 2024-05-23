@@ -359,14 +359,7 @@ void FModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& 
 
 				TWeakPtr<Workspace::IWorkspaceEditor> WeakWorkspaceEditor = InContext.WorkspaceEditor;
 
-				return SNew(SRigVMAssetView, EditorData)
-					.OnSelectionChanged_Lambda([WeakWorkspaceEditor](const TArray<UObject*>& InEntries)
-					{
-						if(TSharedPtr<Workspace::IWorkspaceEditor> WorkspaceEditor = WeakWorkspaceEditor.Pin())
-						{
-							WorkspaceEditor->SetDetailsObjects(InEntries);
-						}
-					})
+				TSharedPtr<SRigVMAssetView> SharedAssetView = SNew(SRigVMAssetView, EditorData)
 					.OnOpenGraph_Lambda([WeakWorkspaceEditor](URigVMGraph* InGraph)
 					{
 						if(TSharedPtr<Workspace::IWorkspaceEditor> WorkspaceEditor = WeakWorkspaceEditor.Pin())
@@ -403,6 +396,21 @@ void FModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& 
 							}
 						}
 					});
+				
+				TWeakPtr<SRigVMAssetView> WeakAssetView = SharedAssetView;
+				SharedAssetView->SetOnSelectionChanged(SRigVMAssetView::FOnSelectionChanged::CreateLambda([WeakWorkspaceEditor, WeakAssetView](const TArray<UObject*>& InEntries)
+				{
+					if(TSharedPtr<SRigVMAssetView> SharedAssetView = WeakAssetView.Pin())
+					{
+						if(TSharedPtr<Workspace::IWorkspaceEditor> WorkspaceEditor = WeakWorkspaceEditor.Pin())
+						{	
+							WorkspaceEditor->SetGlobalSelection(SharedAssetView, UE::Workspace::FOnClearGlobalSelection::CreateLambda([WeakAssetView](){ if (const TSharedPtr<SRigVMAssetView> SharedAssetView = WeakAssetView.Pin()) { SharedAssetView->ClearSelection(); } }));
+							WorkspaceEditor->SetDetailsObjects(InEntries);
+						}
+				}}));
+
+
+				return SharedAssetView.ToSharedRef();
 			}),
 			Workspace::WorkspaceTabs::TopMiddleDocumentArea);
 	AnimNextGraphDocumentArgs.OnGetTabName = Workspace::FOnGetTabName::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext)

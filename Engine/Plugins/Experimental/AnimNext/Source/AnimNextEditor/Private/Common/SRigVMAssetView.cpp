@@ -118,6 +118,16 @@ void SRigVMAssetView::UnregisterCategoryFactory(FName InCategory)
 	CategoryFactories.Remove(InCategory);
 }
 
+void SRigVMAssetView::ClearSelection()
+{
+	EntriesList->ClearSelection();
+}
+
+void SRigVMAssetView::SetOnSelectionChanged(SRigVMAssetView::FOnSelectionChanged InDelegate)
+{
+	OnSelectionChangedDelegate = InDelegate;
+}
+
 void SRigVMAssetView::Construct(const FArguments& InArgs, UAnimNextRigVMAssetEditorData* InEditorData)
 {
 	using namespace RigVMAssetView;

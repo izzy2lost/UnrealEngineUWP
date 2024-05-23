@@ -283,6 +283,18 @@ UWorkspaceSchema* FWorkspaceEditor::GetSchema() const
 	return Workspace.Get() != nullptr ? Workspace->GetSchema() : nullptr;
 }
 
+void FWorkspaceEditor::SetGlobalSelection(FGlobalSelectionId SelectionId, FOnClearGlobalSelection OnClearSelectionDelegate)
+{
+	// Only execute if widget is still valid, and it is not the same as the previous call 
+	if (LastGlobalSelectionId.IsValid() && SelectionId != LastGlobalSelectionId)
+	{		
+		LastOnClearSelectionDelegate.ExecuteIfBound();
+	}
+
+	LastGlobalSelectionId = SelectionId;
+	LastOnClearSelectionDelegate = OnClearSelectionDelegate;
+}
+
 void FWorkspaceEditor::BindCommands()
 {	
 	FWorkspaceAssetEditorCommands::Register();

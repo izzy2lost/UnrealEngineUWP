@@ -71,6 +71,7 @@ class SGraphDocument : public SCompoundWidget
 
 
 	bool IsEditable(UEdGraph* InGraph) const;
+	void OnResetSelection();
 
 	// The graph we are editing
 	UEdGraph* EdGraph = nullptr;

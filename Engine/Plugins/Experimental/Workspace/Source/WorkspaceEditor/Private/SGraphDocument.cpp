@@ -40,6 +40,11 @@ void SGraphDocument::Construct(const FArguments& InArgs, TSharedRef<FWorkspaceEd
 	Events.OnSelectionChanged = SGraphEditor::FOnSelectionChanged::CreateLambda([this, OnGraphSelectionChanged = InArgs._OnGraphSelectionChanged](const TSet<UObject*>& NewSelection)
 	{
 		OnGraphSelectionChanged.ExecuteIfBound(FWorkspaceEditorContext(HostingAppPtr.Pin().ToSharedRef(), EdGraph), NewSelection);
+
+		if (const TSharedPtr<FWorkspaceEditor> SharedWorkspaceEditor = HostingAppPtr.Pin())
+		{
+			SharedWorkspaceEditor->SetGlobalSelection(AsShared(), FOnClearGlobalSelection::CreateRaw(this, &SGraphDocument::OnResetSelection));
+		}
 	});
 	Events.OnTextCommitted = ::FOnNodeTextCommitted::CreateLambda([this, OnNodeTextCommitted = InArgs._OnNodeTextCommitted](const FText& NewText, ETextCommit::Type CommitInfo, UEdGraphNode* NodeBeingChanged)
 	{
@@ -180,4 +185,8 @@ bool SGraphDocument::IsEditable(UEdGraph* InGraph) const
 	return InGraph && HostingAppPtr.Pin()->InEditingMode() && InGraph->bEditable;
 }
 
+void SGraphDocument::OnResetSelection()
+{
+	GraphEditor->ClearSelectionSet();
+}
 };

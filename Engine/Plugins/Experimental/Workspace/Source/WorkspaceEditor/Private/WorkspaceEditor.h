@@ -90,6 +90,8 @@ private:
 	virtual void RefreshDetails() override;
 	virtual UWorkspaceSchema* GetSchema() const override;
 
+	virtual void SetGlobalSelection(FGlobalSelectionId SelectionId, FOnClearGlobalSelection OnClearSelectionDelegate) override;
+
 	void BindCommands();
 
 	void ExtendMenu();
@@ -124,6 +126,9 @@ private:
 
 	bool bSavingWorkspaceOnly = false;
 	bool bClosingDown = false;
+
+	FGlobalSelectionId LastGlobalSelectionId = nullptr;
+	FOnClearGlobalSelection LastOnClearSelectionDelegate = nullptr;
 };
 
 }

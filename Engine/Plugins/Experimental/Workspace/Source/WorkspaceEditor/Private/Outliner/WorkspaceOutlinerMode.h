@@ -30,6 +30,7 @@ namespace UE::Workspace
 		// End ISceneOutlinerMode overrides
 
 		void OnWorkspaceModified(UWorkspace* InWorkspace);
+		void ResetOutlinerSelection();
 
 		void OpenItems(TArrayView<const FSceneOutlinerTreeItemPtr> Items) const;
 		void DeleteItems(TArrayView<const FSceneOutlinerTreeItemPtr> Items) const;

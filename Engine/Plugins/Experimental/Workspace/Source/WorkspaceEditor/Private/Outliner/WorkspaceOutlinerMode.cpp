@@ -215,6 +215,11 @@ void FWorkspaceOutlinerMode::HandleItemSelection(const FSceneOutlinerItemSelecti
 void FWorkspaceOutlinerMode::OnItemSelectionChanged(FSceneOutlinerTreeItemPtr Item, ESelectInfo::Type SelectionType, const FSceneOutlinerItemSelection& Selection)
 {
 	HandleItemSelection(Selection);
+
+	if (TSharedPtr<IWorkspaceEditor> SharedWorkspaceEditor = WeakWorkspaceEditor.Pin())
+	{
+		SharedWorkspaceEditor->SetGlobalSelection(SceneOutliner->AsShared(), FOnClearGlobalSelection::CreateRaw(this, &FWorkspaceOutlinerMode::ResetOutlinerSelection));
+	}
 }
 
 TUniquePtr<ISceneOutlinerHierarchy> FWorkspaceOutlinerMode::CreateHierarchy()
@@ -226,6 +231,11 @@ void FWorkspaceOutlinerMode::OnWorkspaceModified(UWorkspace* InWorkspace)
 {
 	ensure(InWorkspace == WeakWorkspace.Get());
 	SceneOutliner->FullRefresh();
+}
+
+void FWorkspaceOutlinerMode::ResetOutlinerSelection()
+{
+	SceneOutliner->ClearSelection();
 }
 
 void FWorkspaceOutlinerMode::OpenItems(TArrayView<const FSceneOutlinerTreeItemPtr> Items) const
