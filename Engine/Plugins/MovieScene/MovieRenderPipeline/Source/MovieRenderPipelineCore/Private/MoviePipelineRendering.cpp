@@ -46,6 +46,12 @@ static TAutoConsoleVariable<bool> CVarMoviePipelineDisableShaderFlushing(
 	TEXT("If true, rendered frames may be missing objects (meshes, particles, etc.) or objects may show the default checkerboard material."),
 	ECVF_Default);
 
+static TAutoConsoleVariable<int> CVarMoviePipelineThrottleFrameCount(
+	TEXT("MoviePipeline.ThrottleFrameCount"), 2,
+	TEXT("Number of rendered frames that can be submitted to the rendering thread before waiting. A value of 0 will allow the CPU to submit all work without waiting on the GPU.\n")
+	TEXT("The default value of 2 tries to balance between performance and memory usage. The maximum value is 4."),
+	ECVF_Default);
+
 #define LOCTEXT_NAMESPACE "MoviePipeline"
 
 void UMoviePipeline::SetupRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot)
@@ -290,6 +296,11 @@ void UMoviePipeline::RenderFrame()
 	}
 #endif
 
+	constexpr int FenceBufferMax = 4;
+	const int FrameThrotteCount = FMath::Clamp(CVarMoviePipelineThrottleFrameCount.GetValueOnGameThread(), 0, FenceBufferMax);
+	FGPUFenceRHIRef MRQThrottleFence[FenceBufferMax];
+	int FenceIndex = 0;
+	
 	for (int32 TileY = 0; TileY < TileCount.Y; TileY++)
 	{
 		for (int32 TileX = 0; TileX < TileCount.X; TileX++)
@@ -381,6 +392,35 @@ void UMoviePipeline::RenderFrame()
 				SampleState.OCIOConfiguration = ColorSettings ? &ColorSettings->OCIOConfiguration : nullptr;
 				SampleState.GlobalScreenPercentageFraction = FLegacyScreenPercentageDriver::GetCVarResolutionFraction();
 				SampleState.OverscanPercentage = FMath::Clamp(CameraSettings->OverscanPercentage, 0.0f, 1.0f);
+
+				if (FrameThrotteCount > 0)
+				{
+					// Before we render, wait for previous samples to have completed so the GPU command list doesn't get too far behind
+					if (MRQThrottleFence[FenceIndex] && !MRQThrottleFence[FenceIndex]->Poll())
+					{
+						TRACE_CPUPROFILER_EVENT_SCOPE(MRQFrameThrottle);
+						for (;;)
+						{
+							FPlatformProcess::SleepNoStats(0.001f);
+							if (MRQThrottleFence[FenceIndex]->Poll())
+							{
+								break;
+							}
+						}
+					}
+
+					// Create a fence for this frame and insert a signal to it
+					MRQThrottleFence[FenceIndex] = RHICreateGPUFence(TEXT("MRQThrottleFence"));
+					ENQUEUE_RENDER_COMMAND(MRQFrameThrottle)([Fence = MRQThrottleFence[FenceIndex]]
+						(FRHICommandListImmediate& RHICmdList)
+						{
+							RHICmdList.WriteGPUFence(Fence);
+							RHICmdList.SubmitCommandsHint();
+						});
+
+					// Switch fences for the next frame (this makes us wait on a different frame than what we just made the signal for)
+					FenceIndex = (FenceIndex + 1) % FrameThrotteCount;
+				}
 
 				// Render each output pass
 				FMoviePipelineRenderPassMetrics SampleStateForCurrentResolution = UE::MoviePipeline::GetRenderPassMetrics(GetPipelinePrimaryConfig(), ActiveShotList[CurrentShotIndex], SampleState, OutputResolution);

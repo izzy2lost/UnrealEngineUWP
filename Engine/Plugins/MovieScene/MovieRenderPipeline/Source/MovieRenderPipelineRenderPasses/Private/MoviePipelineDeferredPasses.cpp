@@ -411,7 +411,8 @@ FSceneViewStateInterface* UMoviePipelineDeferredPassBase::GetSceneViewStateInter
 	int32 LocalCameraIndex = FMath::Clamp(Payload->CameraIndex, 0, Payload->CameraIndex);
 
 	FMultiCameraViewStateData& CameraData = CameraViewStateData[LocalCameraIndex];
-	if (FMultiCameraViewStateData::FPerTile* TileData = CameraData.TileData.Find(Payload->TileIndex))
+	FIntPoint TileIndex = CameraData.TileData.Num() == 1 ? FIntPoint(0, 0) : Payload->TileIndex;
+	if (FMultiCameraViewStateData::FPerTile* TileData = CameraData.TileData.Find(TileIndex))
 	{
 		return TileData->SceneViewStates[Payload->SceneViewIndex].GetReference();
 	}
