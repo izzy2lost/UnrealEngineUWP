@@ -182,6 +182,8 @@ public:
 		SupportedFileExtensions.Add(TEXT("mkv"));
 		SupportedFileExtensions.Add(TEXT("mka"));
 		SupportedFileExtensions.Add(TEXT("webm"));
+		SupportedFileExtensions.Add(TEXT("mp3"));
+		SupportedFileExtensions.Add(TEXT("mpa"));
 #endif
 
 		// register player factory

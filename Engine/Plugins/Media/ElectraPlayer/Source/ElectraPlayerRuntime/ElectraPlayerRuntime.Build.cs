@@ -26,7 +26,8 @@ namespace UnrealBuildTool.Rules
 					"ElectraCDM",
 					"ElectraSubtitles",
 					"XmlParser",
-					"SoundTouchZ"
+					"SoundTouchZ",
+                    "HTTP"
 				});
 			if (Target.bCompileAgainstEngine)
 			{
@@ -47,8 +48,6 @@ namespace UnrealBuildTool.Rules
 				PublicDependencyModuleNames.Add("DirectX");
 
 				PrivateDefinitions.Add("_CRT_SECURE_NO_WARNINGS=1");
-
-				AddEngineThirdPartyPrivateStaticDependencies(Target, "WinHttp");
 
 				PrivateDependencyModuleNames.AddAll("D3D11RHI", "D3D12RHI");
 				AddEngineThirdPartyPrivateStaticDependencies(Target, "DX11", "DX12");
@@ -95,26 +94,12 @@ namespace UnrealBuildTool.Rules
 			}
 			else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Android) )
 			{
-				PublicDefinitions.Add("CURL_ENABLE_DEBUG_CALLBACK=1");
-
-				if (Target.Configuration != UnrealTargetConfiguration.Shipping)
-				{
-					PublicDefinitions.Add("CURL_ENABLE_NO_TIMEOUTS_OPTION=1");
-				}
-
 				PublicIncludePaths.Add("$(ModuleDir)/Public/Android");
 
 				PrivateIncludePaths.Add("ElectraPlayerRuntime/Private/Runtime/Decoder/Android");
 			}
 			else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix) )
 			{
-				PublicDefinitions.Add("CURL_ENABLE_DEBUG_CALLBACK=1");
-
-				if (Target.Configuration != UnrealTargetConfiguration.Shipping)
-				{
-					PublicDefinitions.Add("CURL_ENABLE_NO_TIMEOUTS_OPTION=1");
-				}
-
 				PublicIncludePaths.Add("$(ModuleDir)/Public/Linux");
 				PrivateIncludePaths.Add("ElectraPlayerRuntime/Private/Runtime/Decoder/Linux");
 

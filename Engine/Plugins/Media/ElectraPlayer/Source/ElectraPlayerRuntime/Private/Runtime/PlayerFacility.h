@@ -40,6 +40,9 @@ namespace Electra
 			DASHMPDBuilder,
 			DASHManifest,
 			DASHStreamReader,
+			MPEGAudioPlaylistReader,
+			MPEGAudioPlaylist,
+			MPEGAudioStreamReader,
 			EntityCache,
 			DRM,
 			SubtitleDecoder,
@@ -100,6 +103,12 @@ namespace Electra
 					return TEXT("DASH manifest");
 				case EFacility::DASHStreamReader:
 					return TEXT("DASH stream reader");
+				case EFacility::MPEGAudioPlaylistReader:
+					return TEXT("MPEG audio playlist reader");
+				case EFacility::MPEGAudioPlaylist:
+					return TEXT("MPEG audio playlist");
+				case EFacility::MPEGAudioStreamReader:
+					return TEXT("MPEG audio stream reader");
 				case EFacility::EntityCache:
 					return TEXT("Entity cache");
 				case EFacility::DRM:

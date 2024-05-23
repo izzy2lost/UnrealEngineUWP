@@ -3,6 +3,7 @@
 #pragma once
 
 #include <CoreMinimal.h>
+#include "Misc/Variant.h"
 
 namespace Electra
 {
@@ -78,6 +79,27 @@ namespace Electra
 			bool								bDependsOnStream;
 		};
 
+
+
+		class FID3V2Metadata
+		{
+		public:
+			struct FItem
+			{
+				FString Language;				// ISO 639-2; if not set (all zero) the default entry for all languages
+				FString MimeType;
+				FVariant Value;
+				int32 ItemType = -1;
+			};
+
+			bool Parse(const uint8* InData, int64 InDataSize);
+			bool HaveTag(uint32 InTag);
+			bool GetTag(FItem& OutValue, uint32 InTag);
+			const TMap<uint32, FItem>& GetTags() const;
+			TMap<uint32, FItem>& GetTags();
+		private:
+			TMap<uint32, FItem> Tags;
+		};
 
 	} // namespace MPEG
 } // namespace Electra

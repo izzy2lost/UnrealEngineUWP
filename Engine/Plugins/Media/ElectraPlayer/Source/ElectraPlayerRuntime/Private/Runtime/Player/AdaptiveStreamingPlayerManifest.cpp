@@ -8,6 +8,7 @@
 #include "Player/mp4/PlaylistReaderMP4.h"
 #include "Player/DASH/PlaylistReaderDASH.h"
 #include "Player/mkv/PlaylistReaderMKV.h"
+#include "Player/mpegaudio/PlaylistReaderMPEGAudio.h"
 #include "Utilities/Utilities.h"
 #include "Utilities/StringHelpers.h"
 #include "Utilities/URLParser.h"
@@ -26,6 +27,7 @@ static const FString MIMETypeHLS(TEXT("application/vnd.apple.mpegURL"));
 static const FString MIMETypeDASH(TEXT("application/dash+xml"));
 static const FString MIMETypeMKV(TEXT("video/x-matroska"));
 static const FString MIMETypeMKA(TEXT("audio/x-matroska"));
+static const FString MIMETypeMPEGAudio(TEXT("audio/mpeg"));
 
 
 
@@ -79,6 +81,8 @@ FString GetMIMETypeForURL(const FString& URL)
 		static const FString kTextMKV(TEXT("mkv"));
 		static const FString kTextMKA(TEXT("mka"));
 		static const FString kTextWEBM(TEXT("webm"));
+		static const FString kTextMPA(TEXT("mpa"));
+		static const FString kTextMP3(TEXT("mp3"));
 		if (LowerCaseExtension == kTextMP4 || LowerCaseExtension == kTextMP4V)
 		{
 			MimeType = MIMETypeMP4;
@@ -106,6 +110,10 @@ FString GetMIMETypeForURL(const FString& URL)
 		else if (LowerCaseExtension == kTextMKA)
 		{
 			MimeType = MIMETypeMKA;
+		}
+		else if (LowerCaseExtension == kTextMPA || LowerCaseExtension == kTextMP3)
+		{
+			MimeType = MIMETypeMPEGAudio;
 		}
 	}
 
@@ -229,6 +237,11 @@ void FAdaptiveStreamingPlayer::InternalLoadManifest(const FString& InURL, const 
 			{
 				ManifestReader = IPlaylistReaderMKV::Create(this);
 				ManifestType = EMediaFormatType::MKV;
+			}
+			else if (mimeType == Playlist::MIMETypeMPEGAudio)
+			{
+				ManifestReader = IPlaylistReaderMPEGAudio::Create(this);
+				ManifestType = EMediaFormatType::MPEGAudio;
 			}
 			else
 			{

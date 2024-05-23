@@ -23,7 +23,8 @@ namespace Electra
 		ISOBMFF,					// mp4
 		HLS,						// Apple HLS (HTTP Live Streaming)
 		DASH,						// MPEG DASH
-		MKV							// Matroska / WebM
+		MKV,						// Matroska / WebM
+		MPEGAudio					// MPEG audio (eg .mp3)
 	};
 
 
