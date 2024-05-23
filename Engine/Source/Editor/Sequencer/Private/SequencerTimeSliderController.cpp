@@ -1258,20 +1258,7 @@ void FSequencerTimeSliderController::CommitScrubPosition( FFrameTime NewValue, b
 	TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
 	if(Sequencer.IsValid())
 	{
-		if (Sequencer->GetSequencerSettings()->ShouldKeepCursorInPlayRangeWhileScrubbing())
-		{
-			TOptional<TRange<FFrameNumber>> RangeValue;
-			RangeValue = TimeSliderArgs.SubSequenceRange.Get(RangeValue);
-
-			if (RangeValue.IsSet())
-			{
-				NewValue = UE::MovieScene::ClampToDiscreteRange(NewValue, RangeValue.GetValue());
-			}
-			else
-			{
-				NewValue = UE::MovieScene::ClampToDiscreteRange(NewValue, TimeSliderArgs.PlaybackRange.Get());
-			}
-		}
+		Sequencer->SnapSequencerTime(NewValue);
 
 		if (bIsScrubbing)
 		{
