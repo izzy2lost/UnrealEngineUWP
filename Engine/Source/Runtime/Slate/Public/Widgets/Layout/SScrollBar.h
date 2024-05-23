@@ -29,6 +29,8 @@ class SScrollBar : public SBorder
 {
 public:
 
+	inline static const float DefaultUniformPadding = 2.0f;
+
 	SLATE_BEGIN_ARGS( SScrollBar )
 		: _Style( &FAppStyle::Get().GetWidgetStyle<FScrollBarStyle>("Scrollbar") )
 		, _OnUserScrolled()
@@ -43,7 +45,7 @@ public:
 		, _Orientation( Orient_Vertical )
 		, _DragFocusCause( EFocusCause::Mouse )
 		, _Thickness()
-		, _Padding( 2.0f )
+		, _Padding( DefaultUniformPadding )
 		{}
 
 		/** The style to use for this scrollbar */
