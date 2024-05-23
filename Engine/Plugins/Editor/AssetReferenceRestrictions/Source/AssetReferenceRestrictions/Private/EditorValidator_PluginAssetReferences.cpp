@@ -53,7 +53,7 @@ EDataValidationResult UEditorValidator_PluginAssetReferences::ValidateLoadedAsse
 
 	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
     TArray<FAssetData> AssetsToValidate;
-    for (const TSharedRef<IPlugin> Plugin : PluginsToValidate)
+    for (const TSharedRef<IPlugin>& Plugin : PluginsToValidate)
     {
         TStringBuilder<256> RootPath(InPlace, TEXT("/"), Plugin->GetName());
         AssetRegistry.GetAssetsByPath(FName(RootPath), AssetsToValidate, true, true);
