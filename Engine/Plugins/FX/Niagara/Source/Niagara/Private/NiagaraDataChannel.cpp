@@ -744,9 +744,9 @@ int32 FNiagaraDataChannelData::ConsumePublishRequests(UNiagaraDataChannelHandler
 #if WITH_NIAGARA_DEBUGGER
 		FNiagaraDataChannelDebugUtilities::LogWrite(PublishRequest, Owner->GetDataChannel(), TickGroup);
 #endif
-		
-		It.RemoveCurrentSwap();
 	}
+
+	PublishRequests.Reset();
 
 	CPUSimData->EndSimulate();
 
@@ -764,7 +764,6 @@ int32 FNiagaraDataChannelData::ConsumePublishRequests(UNiagaraDataChannelHandler
 	}
 #endif
 
-	PublishRequests.Reset();
 	return RequestCount;
 }
 
