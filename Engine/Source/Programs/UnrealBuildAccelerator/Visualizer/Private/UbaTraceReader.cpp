@@ -508,7 +508,7 @@ namespace uba
 			{
 				sessionStats.Read(reader, out.version);
 				storageStats.Read(reader);
-				systemStats.Read(reader);
+				systemStats.Read(reader, out.version);
 			}
 			const u8* dataEnd = reader.GetPositionData();
 			process.stats.resize(dataEnd - dataStart);
@@ -567,7 +567,7 @@ namespace uba
 			processStats.Read(reader, out.version);
 			sessionStats.Read(reader, out.version);
 			storageStats.Read(reader);
-			systemStats.Read(reader);
+			systemStats.Read(reader, out.version);
 
 			const u8* dataEnd = reader.GetPositionData();
 			process.stats.resize(dataEnd - dataStart);
@@ -915,7 +915,7 @@ namespace uba
 			if (success)
 			{
 				storageStats.Read(reader);
-				systemStats.Read(reader);
+				systemStats.Read(reader, out.version);
 			}
 			const u8* dataEnd = reader.GetPositionData();
 			process.stats.resize(dataEnd - dataStart);

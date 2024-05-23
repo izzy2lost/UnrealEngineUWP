@@ -128,25 +128,26 @@ namespace uba
 	};
 
 	#define UBA_SYSTEM_STATS \
-		UBA_SYSTEM_STAT(createFile) \
-		UBA_SYSTEM_STAT(closeFile) \
-		UBA_SYSTEM_STAT(writeFile) \
-		UBA_SYSTEM_STAT(readFile) \
-		UBA_SYSTEM_STAT(setFileInfo) \
-		UBA_SYSTEM_STAT(createFileMapping) \
-		UBA_SYSTEM_STAT(mapViewOfFile) \
-		UBA_SYSTEM_STAT(unmapViewOfFile) \
-		UBA_SYSTEM_STAT(getFileTime) \
-		UBA_SYSTEM_STAT(closeHandle) \
+		UBA_SYSTEM_STAT(createFile, 0) \
+		UBA_SYSTEM_STAT(closeFile, 0) \
+		UBA_SYSTEM_STAT(writeFile, 0) \
+		UBA_SYSTEM_STAT(readFile, 0) \
+		UBA_SYSTEM_STAT(setFileInfo, 0) \
+		UBA_SYSTEM_STAT(createFileMapping, 0) \
+		UBA_SYSTEM_STAT(mapViewOfFile, 0) \
+		UBA_SYSTEM_STAT(unmapViewOfFile, 0) \
+		UBA_SYSTEM_STAT(getFileTime, 0) \
+		UBA_SYSTEM_STAT(closeHandle, 0) \
+		UBA_SYSTEM_STAT(traverseDir, 27) \
 
 
 	struct SystemStats
 	{
-		#define UBA_SYSTEM_STAT(T) ExtendedTimer T;
+		#define UBA_SYSTEM_STAT(T, ver) ExtendedTimer T;
 		UBA_SYSTEM_STATS
 		#undef UBA_SYSTEM_STAT
 
-		void Read(BinaryReader& reader);
+		void Read(BinaryReader& reader, u32 version);
 		void Write(BinaryWriter& writer);
 		void Print(Logger& logger, bool writeHeader, u64 frequency = GetFrequency());
 		bool IsEmpty();

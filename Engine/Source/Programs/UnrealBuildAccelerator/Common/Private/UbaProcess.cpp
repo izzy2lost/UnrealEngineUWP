@@ -160,13 +160,7 @@ namespace uba
 
 		m_arguments = startInfo.arguments;
 
-		tchar extractExports[] = TC(" /extractexports");
-		const tchar* pos = nullptr;
-		if (Contains(m_arguments.c_str(), extractExports, true, &pos))
-		{
-			m_arguments.erase(pos - m_arguments.c_str(), sizeof_array(extractExports));
-			m_extractExports = true;
-		}
+		m_extractExports = Contains(m_arguments.c_str(), TC("/extractexports"), true);
 
 		m_startInfo.arguments = m_arguments.c_str();
 
@@ -1266,6 +1260,15 @@ namespace uba
 				detoursLib = UBA_DETOURS_LIBRARY_ANSI;
 
 			TString commandLine = TC("\"") + m_realApplication + TC("\" ") + m_startInfo.arguments;
+
+			if (m_extractExports)
+			{
+				tchar extractExports[] = TC(" /extractexports");
+				const tchar* pos = nullptr;
+				Contains(commandLine.c_str(), extractExports, true, &pos);
+				commandLine.erase(pos - commandLine.c_str(), sizeof_array(extractExports));
+			}
+
 			LPCSTR dlls[] = { detoursLib };
 
 			STARTUPINFOEX siex;

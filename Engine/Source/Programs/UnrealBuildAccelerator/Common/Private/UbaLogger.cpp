@@ -51,6 +51,9 @@ namespace uba
 		SetFocus(GetConsoleWindow());
 		SetActiveWindow(GetConsoleWindow());
 #endif
+
+		// *(int*)nullptr = 42; // Use this to force a crashdump instead of exiting
+
 		ExitProcess(terminateCode);
 #else
 		exit(-1);

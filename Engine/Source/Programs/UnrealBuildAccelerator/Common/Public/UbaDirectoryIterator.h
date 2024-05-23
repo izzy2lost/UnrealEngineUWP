@@ -4,6 +4,7 @@
 
 #include "UbaFile.h"
 #include "UbaLogger.h"
+#include "UbaProcessStats.h"
 #include "UbaStringBuffer.h"
 
 namespace uba
@@ -82,6 +83,9 @@ namespace uba
 		UNICODE_STRING uniName;
 		RtlInitUnicodeString(&uniName, str.data);
 
+		Timer timer(0, 1);
+		auto mg = MakeGuard([&]() { SystemStats::GetCurrent().traverseDir.Add(timer); });
+
 		HANDLE handle;
 
 		OBJECT_ATTRIBUTES ObjectAttributes;
@@ -89,7 +93,11 @@ namespace uba
 		memset(&IoStatusBlock, 0, sizeof(IoStatusBlock));
 		InitializeObjectAttributes(&ObjectAttributes, &uniName, OBJ_CASE_INSENSITIVE, NULL, NULL);
 		ULONG ShareAccess = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
+
+		u64 startTime = GetTime();
 		NTSTATUS res = NtCreateFile(&handle, FILE_READ_ATTRIBUTES | FILE_LIST_DIRECTORY | FILE_ATTRIBUTE_UNPINNED, &ObjectAttributes, &IoStatusBlock, 0, FILE_ATTRIBUTE_NORMAL, ShareAccess, FILE_OPEN, FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_ALERT, NULL, 0);
+		timer.time += startTime - GetTime();
+
 		if (res == STATUS_OBJECT_NAME_NOT_FOUND || res == STATUS_OBJECT_PATH_NOT_FOUND)
 			return !errorOnNotFound;
 		if (res == STATUS_NOT_A_DIRECTORY || res == STATUS_ACCESS_DENIED || res == STATUS_NO_MEDIA_IN_DEVICE || res == STATUS_FVE_LOCKED_VOLUME)
@@ -124,7 +132,10 @@ namespace uba
 		u8 buff[64*1024];
 		while (true)
 		{
+			startTime = GetTime();
 			res = NtQueryDirectoryFile(handle, 0, NULL, NULL, &IoStatusBlock, buff, sizeof(buff) - 2, (FILE_INFORMATION_CLASS)FileIdBothDirectoryInformation, FALSE, NULL, FALSE);
+			timer.time += startTime - GetTime();
+
 			if (res != STATUS_SUCCESS)
 			{
 				if (res != STATUS_NO_MORE_FILES)

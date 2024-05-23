@@ -56,6 +56,7 @@ namespace uba
 		bool ShouldNormalize(const StringBufferBase& path);
 
 		bool GetLocalPathAndCasKey(Bucket& bucket, const RootPaths& rootPaths, StringBufferBase& outPath, CasKey& outKey, CompactCasKeyTable& casKeyTable, CompactPathTable& pathTable, u32 offset);
+		bool IsFileCompressed(const ProcessStartInfo& info, const tchar* filename, u64 filenameSize);
 
 		MutableLogger m_logger;
 		StorageImpl& m_storage;

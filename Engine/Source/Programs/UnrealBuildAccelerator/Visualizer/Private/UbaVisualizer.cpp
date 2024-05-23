@@ -1344,7 +1344,7 @@ namespace uba
 					if (process.exitCode == 0)
 					{
 						storageStats.Read(reader);
-						systemStats.Read(reader);
+						systemStats.Read(reader, m_traceView.version);
 					}
 				}
 				else
@@ -1355,7 +1355,7 @@ namespace uba
 					{
 						sessionStats.Read(reader, m_traceView.version);
 						storageStats.Read(reader);
-						systemStats.Read(reader);
+						systemStats.Read(reader, m_traceView.version);
 					}
 				}
 
@@ -2185,7 +2185,7 @@ namespace uba
 			{
 				sessionStats.Read(reader, m_traceView.version);
 				storageStats.Read(reader);
-				systemStats.Read(reader);
+				systemStats.Read(reader, m_traceView.version);
 			}
 
 			out.Info(L"  ----------- Process stats -----------");

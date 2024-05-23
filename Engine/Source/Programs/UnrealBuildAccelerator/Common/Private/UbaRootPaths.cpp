@@ -118,6 +118,8 @@ namespace uba
 			return CasKeyZero;
 
 		CasKeyHasher hasher;
+		u64 magic = 0xFAFAFAFAFAFAFAFAull; // We add some magic to make sure this does not match cas key of non-normalized files (we need to always take normalized path)
+		hasher.Update(&magic, 8);
 		auto hashString = [&](const char* str, u64 strLen, u32 rootPos) { hasher.Update(str, strLen); };
 		if (!NormalizeString<char>(logger, (const char*)file.GetData(), file.GetSize(), hashString, filename))
 			return CasKeyZero;

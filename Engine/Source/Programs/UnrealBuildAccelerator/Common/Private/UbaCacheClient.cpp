@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaCacheClient.h"
+#include "UbaApplicationRules.h"
 #include "UbaCompactTables.h"
 #include "UbaFileAccessor.h"
 #include "UbaNetworkMessage.h"
@@ -205,7 +206,7 @@ namespace uba
 			if (casKey == CasKeyZero)
 			{
 				bool deferCreation = true;
-				bool fileIsCompressed = m_session.ShouldStoreObjFilesCompressed() && path.EndsWith(TC(".obj"));
+				bool fileIsCompressed = IsFileCompressed(info, path.data, path.count);
 				if (!m_storage.StoreCasFile(casKey, path.data, CasKeyZero, deferCreation, fileIsCompressed))
 					return false;
 				if (casKey == CasKeyZero) // If file is not found it was a temporary file that was deleted and is not really an output
@@ -367,7 +368,7 @@ namespace uba
 						else
 						{
 							bool deferCreation = true;
-							bool fileIsCompressed = m_session.ShouldStoreObjFilesCompressed() && path.EndsWith(TC(".obj"));
+							bool fileIsCompressed = IsFileCompressed(info, path.data, path.count);
 							m_storage.StoreCasFile(localCasKey, path.data, CasKeyZero, deferCreation, fileIsCompressed);
 							UBA_ASSERT(localCasKey == CasKeyZero || IsCompressed(localCasKey));
 						}
@@ -426,6 +427,7 @@ namespace uba
 						return false;
 					u32 rootOffsets = *(u32*)normalizedBlock.memory;
 					char* fileStart = (char*)normalizedBlock.memory + sizeof(u32);
+					UBA_ASSERT(rootOffsets <= normalizedBlock.writtenSize);
 
 					// "denormalize" fetched file into another memory block that will be written to disk
 					MemoryBlock localBlock(4*1024*1024);
@@ -856,5 +858,15 @@ namespace uba
 		StringBuffer<MaxPath> path;
 		outPath.Append(root.path).Append(normalizedPath.data + 1);
 		return true;
+	}
+
+	bool CacheClient::IsFileCompressed(const ProcessStartInfo& info, const tchar* filename, u64 filenameSize)
+	{
+		if (!m_session.ShouldStoreObjFilesCompressed())
+			return false;
+		auto rules = info.rules;
+		if (!rules)
+			rules = m_session.GetRules(info);
+		return rules->StoreFileCompressed(filename, filenameSize);
 	}
 }

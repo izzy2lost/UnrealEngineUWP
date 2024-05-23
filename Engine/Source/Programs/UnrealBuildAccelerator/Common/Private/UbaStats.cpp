@@ -42,7 +42,7 @@ namespace uba
 		struct Stat { const char* name; u64 nameLen; const Timer& timer; };
 		Stat stats[] =
 		{
-			#define UBA_SYSTEM_STAT(T) { #T, sizeof(#T), T },
+			#define UBA_SYSTEM_STAT(T, ver) { #T, sizeof(#T), T },
 			UBA_SYSTEM_STATS
 			#undef UBA_SYSTEM_STAT
 		};
@@ -58,7 +58,7 @@ namespace uba
 
 	bool SystemStats::IsEmpty()
 	{
-		#define UBA_SYSTEM_STAT(T) if (T.count) return false;
+		#define UBA_SYSTEM_STAT(T, ver) if (T.count) return false;
 		UBA_SYSTEM_STATS
 		#undef UBA_SYSTEM_STAT
 		return true;
@@ -66,21 +66,21 @@ namespace uba
 
 	void SystemStats::Add(const SystemStats& other)
 	{
-		#define UBA_SYSTEM_STAT(var) var += other.var;
+		#define UBA_SYSTEM_STAT(var, ver) var += other.var;
 		UBA_SYSTEM_STATS
 		#undef UBA_SYSTEM_STAT
 	}
 
 	void SystemStats::Write(BinaryWriter& writer)
 	{
-		#define UBA_SYSTEM_STAT(var) uba::Write(writer, var);
+		#define UBA_SYSTEM_STAT(var, ver) uba::Write(writer, var);
 		UBA_SYSTEM_STATS
 		#undef UBA_SYSTEM_STAT
 	}
 
-	void SystemStats::Read(BinaryReader& reader)
+	void SystemStats::Read(BinaryReader& reader, u32 version)
 	{
-		#define UBA_SYSTEM_STAT(var) uba::Read(reader, var);
+		#define UBA_SYSTEM_STAT(var, ver) if (ver <= version) uba::Read(reader, var);
 		UBA_SYSTEM_STATS
 		#undef UBA_SYSTEM_STAT
 	}
