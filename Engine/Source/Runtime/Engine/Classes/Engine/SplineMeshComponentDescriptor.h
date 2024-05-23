@@ -141,9 +141,6 @@ public:
 	uint8 bUseAsOccluder : 1;
 
 	UPROPERTY(EditAnywhere, Category = "Component Settings")
-	uint8 bEnableDensityScaling : 1;
-
-	UPROPERTY(EditAnywhere, Category = "Component Settings")
 	uint8 bEnableDiscardOnLoad : 1;
 
 	UPROPERTY(EditAnywhere, Category = "Component Settings")
