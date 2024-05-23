@@ -5,6 +5,7 @@
 #include "SceneManagement.h"
 #include "SceneView.h"
 #include "VirtualShadowMapDefinitions.h"
+#include "ScreenPass.h"
 
 struct FMinimalSceneTextures;
 struct FSortedLightSetSceneInfo;
@@ -221,6 +222,12 @@ private:
 	int FoundVirtualShadowMapId = INDEX_NONE;
 };
 
+enum class EVSMVisualizationPostPass
+{
+	PreEditorPrimitives,
+	PostEditorPrimitives
+};
+
 class FVirtualShadowMapArray
 {
 public:	
@@ -349,7 +356,7 @@ public:
 	uint32 AddRenderViews(const FProjectedShadowInfo* ProjectedShadowInfo, TConstArrayView<FViewInfo> Views, float LODScaleFactor, bool bSetHzbParams, bool bUpdateHZBMetaData, bool bClampToNearPlane, TArray<Nanite::FPackedView, SceneRenderingAllocator>& OutVirtualShadowViews);
 
 	// Add visualization composite pass, if enabled
-	void AddVisualizePass(FRDGBuilder& GraphBuilder, const FViewInfo& View, int32 ViewIndex, FScreenPassTexture Output);
+	FScreenPassTexture AddVisualizePass(FRDGBuilder& GraphBuilder, const FViewInfo& View, int32 ViewIndex, EVSMVisualizationPostPass Pass, FScreenPassTexture& SceneColor, FScreenPassRenderTarget& Output);
 
 	//
 	bool UseHzbOcclusion() const { return bUseHzbOcclusion; }

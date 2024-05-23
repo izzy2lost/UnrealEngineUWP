@@ -3453,32 +3453,53 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const FProjectedShadowInfo* Projec
 	return uint32(NumMaps);
 }
 
-void FVirtualShadowMapArray::AddVisualizePass(FRDGBuilder& GraphBuilder, const FViewInfo& View, int32 ViewIndex, FScreenPassTexture Output)
-{
 #if !UE_BUILD_SHIPPING
+class FDesaturatePS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FDesaturatePS);
+	SHADER_USE_PARAMETER_STRUCT(FDesaturatePS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, InputSampler)
+		RENDER_TARGET_BINDING_SLOTS()
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_GLOBAL_SHADER(FDesaturatePS, "/Engine/Private/VirtualShadowMaps/Desaturate.usf", "DesaturatePS", SF_Pixel);
+#endif //!UE_BUILD_SHIPPING
+
+FScreenPassTexture FVirtualShadowMapArray::AddVisualizePass(FRDGBuilder& GraphBuilder, const FViewInfo& View, int32 ViewIndex, EVSMVisualizationPostPass Pass, FScreenPassTexture& SceneColor, FScreenPassRenderTarget& OverrideOutput)
+{
+	FScreenPassTexture Output = SceneColor;
+
+#if !UE_BUILD_SHIPPING
+
 	if (!IsAllocated() || DebugVisualizationOutput.IsEmpty())
 	{
-		return;
+		return MoveTemp(SceneColor);
 	}
 
 	const FVirtualShadowMapVisualizationData& VisualizationData = GetVirtualShadowMapVisualizationData();
-	if (VisualizationData.IsActive() && VisualizeLight[ViewIndex].IsValid())
-	{	
-		FCopyRectPS::FParameters* Parameters = GraphBuilder.AllocParameters<FCopyRectPS::FParameters>();
-		Parameters->InputTexture = DebugVisualizationOutput[ViewIndex];
-		Parameters->InputSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
-		Parameters->RenderTargets[0] = FRenderTargetBinding(Output.Texture, ERenderTargetLoadAction::ENoAction);
+	if (!VisualizationData.IsActive() || !VisualizeLight[ViewIndex].IsValid())
+	{
+		return MoveTemp(SceneColor);
+	}
 
-		TShaderMapRef<FCopyRectPS> PixelShader(View.ShaderMap);
+	RDG_EVENT_SCOPE(GraphBuilder, "VirtualShadowMapsVisualization");
 
-		FScreenPassTextureViewport InputViewport(DebugVisualizationOutput[ViewIndex]->Desc.Extent);
-		FScreenPassTextureViewport OutputViewport(Output);
+	FScreenPassTextureViewport InputViewport(DebugVisualizationOutput[ViewIndex]->Desc.Extent);
+	FScreenPassTextureViewport OutputViewport(Output);
+	FScreenPassRenderTarget OutputTarget(Output.Texture, OutputViewport.Rect, ERenderTargetLoadAction::ELoad);
 
+	int ActiveModeId = VisualizationData.GetActiveModeID();
+
+	// Resize viewport for layout
+	const int32 VisualizeLayout = CVarVisualizeLayout.GetValueOnRenderThread();
+	{
 		// See CVarVisualizeLayout documentation
-		const int32 VisualizeLayout = CVarVisualizeLayout.GetValueOnRenderThread();
 		if (VisualizeLayout == 1)		// Thumbnail
 		{
-			const int32 TileWidth  = View.UnscaledViewRect.Width() / 3;
+			const int32 TileWidth = View.UnscaledViewRect.Width() / 3;
 			const int32 TileHeight = View.UnscaledViewRect.Height() / 3;
 
 			OutputViewport.Rect.Max = OutputViewport.Rect.Min + FIntPoint(TileWidth, TileHeight);
@@ -3488,28 +3509,92 @@ void FVirtualShadowMapArray::AddVisualizePass(FRDGBuilder& GraphBuilder, const F
 			InputViewport.Rect.Max.X = InputViewport.Rect.Min.X + (InputViewport.Rect.Width() / 2);
 			OutputViewport.Rect.Max.X = OutputViewport.Rect.Min.X + (OutputViewport.Rect.Width() / 2);
 		}
+	}
 
-		// Use separate input and output viewports w/ bilinear sampling to properly support dynamic resolution scaling
-		AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("DrawTexture"), View, OutputViewport, InputViewport, PixelShader, Parameters, EScreenPassDrawFlags::None);
-		
-		// Visualization light name
+	auto DrawDebugVisualizationOutput = [&]()
+	{
+		TShaderMapRef<FScreenPassVS> VertexShader(View.ShaderMap);
+		TShaderMapRef<FCopyRectPS> PixelShader(View.ShaderMap);
+
+		FCopyRectPS::FParameters* Parameters = GraphBuilder.AllocParameters<FCopyRectPS::FParameters>();
+		Parameters->InputTexture = DebugVisualizationOutput[ViewIndex];
+		Parameters->InputSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+		Parameters->RenderTargets[0] = FRenderTargetBinding(Output.Texture, ERenderTargetLoadAction::ENoAction);
+
+		// Blend with scene color if fullscreen, use black background otherwise
+		FRHIBlendState* BlendState = 
+			VisualizeLayout == 0
+			? TStaticBlendState<CW_RGB, BO_Add, BF_SourceAlpha, BF_InverseSourceAlpha, BO_Add, BF_Zero, BF_One>::GetRHI()
+			: TStaticBlendState<>::GetRHI();
+		FRHIDepthStencilState* DepthStencilState = FScreenPassPipelineState::FDefaultDepthStencilState::GetRHI();
+
+		AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("DrawTexture"), View, OutputViewport, InputViewport, VertexShader, PixelShader, BlendState, DepthStencilState, Parameters, EScreenPassDrawFlags::None);
+	};
+	
+	if (Pass == EVSMVisualizationPostPass::PreEditorPrimitives)
+	{
+		// Desaturate scene color
 		{
-			FScreenPassRenderTarget OutputTarget(Output.Texture, View.UnscaledViewRect, ERenderTargetLoadAction::ELoad);
+			TShaderMapRef<FScreenPassVS> VertexShader(View.ShaderMap);
+			TShaderMapRef<FDesaturatePS> DesaturatePixelShader(View.ShaderMap);
+			TShaderMapRef<FCopyRectPS> PixelShader(View.ShaderMap);
 
-			AddDrawCanvasPass(GraphBuilder, RDG_EVENT_NAME("Labels"), View, OutputTarget,
-				[&VisualizeLight=VisualizeLight[ViewIndex], &OutputViewport=OutputViewport](FCanvas& Canvas)
+			FDesaturatePS::FParameters* Parameters = GraphBuilder.AllocParameters<FDesaturatePS::FParameters>();
+			Parameters->InputTexture = SceneColor.Texture;
+			Parameters->InputSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+			Parameters->RenderTargets[0] = FRenderTargetBinding(Output.Texture, ERenderTargetLoadAction::ENoAction);
+			AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("Desaturate"), View, OutputViewport, OutputViewport, VertexShader, DesaturatePixelShader, Parameters, EScreenPassDrawFlags::None);
+		}
+
+		// Render stuff that blends in with scene
+		if (ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_SHADOW_FACTOR
+			|| ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_CLIPMAP_OR_MIP
+			|| ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_VIRTUAL_PAGE
+			|| ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_CACHED_PAGE
+			|| ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_SMRT_RAY_COUNT
+			|| ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_DIRTY_PAGE
+			|| ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_GPU_INVALIDATED_PAGE
+			|| ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_MERGED_PAGE
+			|| ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_NANITE_OVERDRAW)
+		{
+			DrawDebugVisualizationOutput();
+		}
+	}
+	else if (Pass == EVSMVisualizationPostPass::PostEditorPrimitives)
+	{
+		// Render stuff that is not part of scene, e.g. UI
+		if (ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_CLIPMAP_VIRTUAL_SPACE
+			|| ActiveModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_GENERAL_DEBUG)
+		{
+			DrawDebugVisualizationOutput();
+		}
+
+		AddDrawCanvasPass(GraphBuilder, RDG_EVENT_NAME("Labels"), View, OutputTarget,
+			[&VisualizeLight = VisualizeLight[ViewIndex], &OutputViewport = OutputViewport](FCanvas& Canvas)
 			{
+				const float DPIScale = Canvas.GetDPIScale();
+				Canvas.SetBaseTransform(FMatrix(FScaleMatrix(DPIScale) * Canvas.CalcBaseTransform2D(Canvas.GetViewRect().Width(), Canvas.GetViewRect().Height())));
+
 				const FLinearColor LabelColor(1, 1, 0);
 				Canvas.DrawShadowedString(
-					OutputViewport.Rect.Min.X + 8,
-					OutputViewport.Rect.Max.Y - 19,
+					(OutputViewport.Rect.Min.X + 8) / DPIScale,
+					(OutputViewport.Rect.Max.Y - 19) / DPIScale,
 					*VisualizeLight.GetLightName(),
 					GetStatsFont(),
 					LabelColor);
 			});
-		}
 	}
-#endif
+
+
+	if (OverrideOutput.IsValid())
+	{
+		AddDrawTexturePass(GraphBuilder, View, Output, OverrideOutput);
+		return OverrideOutput;
+	}
+
+#endif //!UE_BUILD_SHIPPING
+
+	return MoveTemp(Output);
 }
 
 float FVirtualShadowMapArray::InterpolateResolutionBias(float BiasNonMoving, float BiasMoving, float LightMobilityFactor)

@@ -485,7 +485,9 @@ void OutputVisualize(
 
 		if ( VisualizeModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_SHADOW_FACTOR )
 		{
-			Output = Result.ShadowFactor.xxx;
+			float3 Lit = float3(1,1,0);
+			float3 Shadow = float3(0,0,1);
+			Output = lerp(Shadow, Lit, Result.ShadowFactor);
 		}
 		else if ( VisualizeModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_CLIPMAP_OR_MIP )
 		{
