@@ -160,7 +160,7 @@ TSharedRef<SWidget> FTedsOutlinerModule::CreateLevelEditorTedsOutliner()
 
 	FTypedElementOutlinerModeParams Params(nullptr);
 	Params.QueryDescription = OutlinerQueryDescription;
-	Params.bUseDefaultTEDSFilters = true;
+	Params.bUseDefaultTedsFilters = true;
 
 	// Example Query to filter for actors
 	TypedElementDataStorage::FQueryDescription ActorFilterQuery =

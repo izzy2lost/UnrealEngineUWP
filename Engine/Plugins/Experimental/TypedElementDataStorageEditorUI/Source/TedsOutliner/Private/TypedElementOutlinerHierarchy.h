@@ -15,47 +15,22 @@
 class FTypedElementOutlinerHierarchy : public ISceneOutlinerHierarchy
 {
 public:
-	FTypedElementOutlinerHierarchy(FTypedElementOutlinerMode* InMode, TypedElementDataStorage::FQueryDescription InInitialQueryDescription,
-		TOptional<FTypedElementOutlinerHierarchyData> InHierarchyData);
+	FTypedElementOutlinerHierarchy(FTypedElementOutlinerMode* InMode, const TSharedRef<FTedsOutlinerImpl>& InTedsOutlinerImpl);
+	virtual ~FTypedElementOutlinerHierarchy();
 	
-	virtual ~FTypedElementOutlinerHierarchy() override;
-			
 	/** Create a linearization of all applicable items in the hierarchy */
-	virtual void CreateItems(TArray<FSceneOutlinerTreeItemPtr>& OutItems) const;
+	virtual void CreateItems(TArray<FSceneOutlinerTreeItemPtr>& OutItems) const override;
 	/** Create a linearization of all direct and indirect children of a given item in the hierarchy */
-	virtual void CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TArray<FSceneOutlinerTreeItemPtr>& OutChildren) const;
+	virtual void CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TArray<FSceneOutlinerTreeItemPtr>& OutChildren) const override;
 	/** Find or optionally create a parent item for a given tree item */
-	virtual FSceneOutlinerTreeItemPtr FindOrCreateParentItem(const ISceneOutlinerTreeItem& Item, const TMap<FSceneOutlinerTreeItemID, FSceneOutlinerTreeItemPtr>& Items, bool bCreate = false);
+	virtual FSceneOutlinerTreeItemPtr FindOrCreateParentItem(const ISceneOutlinerTreeItem& Item, const TMap<FSceneOutlinerTreeItemID,
+		FSceneOutlinerTreeItemPtr>& Items, bool bCreate = false) override;
 
 protected:
 
-	void CreateItems_Internal(TConstArrayView<TypedElementRowHandle>& Rows, TArray<FSceneOutlinerTreeItemPtr>& OutItems) const;
+	// The actual model for the TEDS-Outliner
+	TSharedRef<FTedsOutlinerImpl> TedsOutlinerImpl;
 
-	void OnItemAdded(TypedElementRowHandle ItemRowHandle);
-	void OnItemRemoved(TypedElementRowHandle ItemRowHandle);
-	void OnItemMoved(TypedElementRowHandle ItemRowHandle);
-
-	void RecompileQueries();
-	void UnregisterQueries();
-	
-protected:
-
-	FTypedElementOutlinerMode* TEDSOutlinerMode;
-
-	// Initial query the user requested
-	TypedElementDataStorage::FQueryDescription InitialQueryDescription;
-
-	// Querys to track row handle collection, addition and removal
-	TypedElementDataStorage::QueryHandle RowHandleQuery;
-	TypedElementDataStorage::QueryHandle RowAdditionQuery;
-	TypedElementDataStorage::QueryHandle RowRemovalQuery;
-
-	// Query to get all child rows
-	TypedElementDataStorage::QueryHandle ChildRowHandleQuery;
-
-	// Query to track when a row's parent gets changed
-	TypedElementDataStorage::QueryHandle UpdateParentQuery;
-
-	// Optional Hierarchy Data
-	TOptional<FTypedElementOutlinerHierarchyData> HierarchyData;
+	// Delegate called by TedsOutlinerImpl when the hierarchy changes
+	FDelegateHandle HierarchyChangedHandle;
 };

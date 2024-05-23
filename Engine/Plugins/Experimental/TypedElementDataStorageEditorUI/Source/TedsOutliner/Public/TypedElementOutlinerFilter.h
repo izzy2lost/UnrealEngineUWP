@@ -7,13 +7,16 @@
 #include "Elements/Common/TypedElementQueryDescription.h"
 #include "Elements/Framework/TypedElementMetaData.h"
 
+class FTedsOutlinerImpl;
+class FBaseTEDSOutlinerMode;
 class FTypedElementOutlinerMode;
 
 // TEDS-Outliner TODO: Lots of minor missing functionality for icon, tooltip, color etc
 class FTEDSOutlinerFilter : public FFilterBase<SceneOutliner::FilterBarType>
 {
 public:
-	FTEDSOutlinerFilter(const FName& InFilterName, const FText& InFilterDisplayName, TSharedPtr<FFilterCategory> InCategory, FTypedElementOutlinerMode* InTEDSOutlinerMode, const TypedElementDataStorage::FQueryDescription& InFilterQuery);
+	FTEDSOutlinerFilter(const FName& InFilterName, const FText& InFilterDisplayName, TSharedPtr<FFilterCategory> InCategory,
+		TSharedRef<FTedsOutlinerImpl> InTedsOutlinerImpl, const TypedElementDataStorage::FQueryDescription& InFilterQuery);
 
 	/** Returns the system name for this filter */
 	virtual FString GetName() const override;
@@ -55,6 +58,6 @@ protected:
 	FName FilterName;
 	FText FilterDisplayName;
 
-	FTypedElementOutlinerMode* TEDSOutlinerMode;
+	TSharedRef<FTedsOutlinerImpl> TedsOutlinerImpl;
 	const TypedElementDataStorage::FQueryDescription FilterQuery;
 };

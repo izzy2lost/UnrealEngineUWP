@@ -25,79 +25,24 @@ namespace UE::TEDSOutliner::Local
 	static FName ContextMenuName("TEDSOutlinerContextMenu");
 }
 
-
-
 FTypedElementOutlinerMode::FTypedElementOutlinerMode(const FTypedElementOutlinerModeParams& InParams)
 	: ISceneOutlinerMode(InParams.SceneOutliner)
-	, InitialQueryDescription(InParams.QueryDescription)
-	, SelectionSetName(InParams.SelectionSetOverride)
-	, bSelectionDirty(SelectionSetName.IsSet() ? true : false)
-	, HierarchyData(InParams.HierarchyData)
 {
 	using namespace TypedElementQueryBuilder;
-
-	if(SelectionSetName.IsSet())
-	{
-		// We currently need a ticker to update selection because TEDS Observers can be fired before the data in columns is init
-		TickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda(
-				[this](float DeltaTimeInSeconds)
-				{
-					Tick();
-					return true;
-				}));
-	}
 	
+	TedsOutlinerImpl = MakeShared<FTedsOutlinerImpl>(InParams, this);
+	TedsOutlinerImpl->Init();
+	TedsOutlinerImpl->OnSelectionChanged().AddRaw(this, &FTypedElementOutlinerMode::OnSelectionChanged);
 	
-	if(InParams.bUseDefaultTEDSFilters)
+	TedsOutlinerImpl->IsItemCompatible().BindLambda([](const ISceneOutlinerTreeItem& Item)
 	{
-		// Create separate categories for columns and tags
-		TSharedRef<FFilterCategory> TEDSColumnFilterCategory = MakeShared<FFilterCategory>(LOCTEXT("TEDSColumnFilters", "TEDS Columns"), LOCTEXT("TEDSColumnFiltersTooltip", "Filter by TEDS columns"));
-		TSharedRef<FFilterCategory> TEDSTagFilterCategory = MakeShared<FFilterCategory>(LOCTEXT("TEDSTagFilters", "TEDS Tags"), LOCTEXT("TEDSTagFiltersTooltip", "Filter by TEDS Tags"));
-
-		const UStruct* TEDSColumn = FTypedElementDataStorageColumn::StaticStruct();
-		const UStruct* TEDSStruct = FTypedElementDataStorageTag::StaticStruct();
-
-		// Grab all UStruct types to see if they derive from FTypedElementDataStorageColumn or FTypedElementDataStorageTag
-		ForEachObjectOfClass(UScriptStruct::StaticClass(), [&](UObject* Obj)
-		{
-			if (UScriptStruct* Struct = Cast<UScriptStruct>(Obj))
-			{
-				if(Struct->IsChildOf(TEDSColumn) || Struct->IsChildOf(TEDSStruct))
-				{
-					// Create an empty query desc
-					TypedElementDataStorage::FQueryDescription FilterQueryDesc =
-					Select()
-					.Where()
-						.All(Struct)
-					.Compile();
-
-					// Create the filter
-					TSharedRef<FTEDSOutlinerFilter> TEDSFilter = MakeShared<FTEDSOutlinerFilter>(Struct->GetFName(), Struct->GetDisplayNameText(),
-						Struct->IsChildOf(TEDSColumn) ? TEDSColumnFilterCategory : TEDSTagFilterCategory, this, FilterQueryDesc);
-					SceneOutliner->AddFilterToFilterBar(TEDSFilter);
-				}
-			}
-		});
-	}
-
-	// Custom filters input by the user
-	TSharedRef<FFilterCategory> CustomFiltersCategory = MakeShared<FFilterCategory>(LOCTEXT("TEDSFilters", "TEDS Custom Filters"), LOCTEXT("TEDSFiltersTooltip", "Filter by custom TEDS queries"));
-
-	for(const TPair<FName, const TypedElementDataStorage::FQueryDescription>& FilterQuery : InParams.FilterQueries)
-	{
-		// TEDS-Outliner TODO: Custom filters need a localizable display name instead of using the FName, but we need to change how they are added first
-		// to see if it can be consolidated with the SFilterBar API
-		TSharedRef<FTEDSOutlinerFilter> TEDSFilter = MakeShared<FTEDSOutlinerFilter>(FilterQuery.Key, FText::FromName(FilterQuery.Key), CustomFiltersCategory, this, FilterQuery.Value);
-		SceneOutliner->AddFilterToFilterBar(TEDSFilter);
-	
-	}
+		return Item.IsA<FTypedElementOutlinerTreeItem>();
+	});
 }
 
 FTypedElementOutlinerMode::~FTypedElementOutlinerMode()
 {
-	ClearSelection();
-	UnregisterQueries();
-	FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
+	
 }
 
 void FTypedElementOutlinerMode::Rebuild()
@@ -105,105 +50,57 @@ void FTypedElementOutlinerMode::Rebuild()
 	Hierarchy = CreateHierarchy();
 }
 
-void FTypedElementOutlinerMode::Tick()
+void FTypedElementOutlinerMode::OnSelectionChanged()
 {
-	if(bSelectionDirty && SelectionSetName.IsSet())
-	{
-		bSelectionDirty = false;
-
-		// The selection in TEDS was changed, update the outliner to respond
-		SceneOutliner->SetSelection([this](ISceneOutlinerTreeItem& InItem) -> bool
-		{
-			if(FTypedElementOutlinerTreeItem* TEDSItem = InItem.CastTo<FTypedElementOutlinerTreeItem>())
-			{
-				TypedElementDataStorage::RowHandle RowHandle = TEDSItem->GetRowHandle();
-
-				if(FTypedElementSelectionColumn* SelectionColumn = Storage->GetColumn<FTypedElementSelectionColumn>(RowHandle))
-				{
-					return SelectionColumn->SelectionSet == SelectionSetName;
-				}
-			}
-			return false;
-		});
-	}
-}
-
-void FTypedElementOutlinerMode::ClearSelection()
-{
-	if(!SelectionSetName.IsSet())
-	{
-		return;
-	}
+	TOptional<FName> SelectionSetName = TedsOutlinerImpl->GetSelectionSetName();
+	ITypedElementDataStorageInterface* Storage = TedsOutlinerImpl->GetStorage();
 	
-	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
-
-	TArray<TypedElementDataStorage::RowHandle> RowsToRemoveSelectionColumn;
-
-	// Query to remove the selection column from all rows that belong to this selection set
-	TypedElementDataStorage::DirectQueryCallback RowCollector = CreateDirectQueryCallbackBinding(
-	[this, &RowsToRemoveSelectionColumn](DSI::IDirectQueryContext& Context)
+	// The selection in TEDS was changed, update the outliner to respond
+	SceneOutliner->SetSelection([SelectionSetName, Storage](ISceneOutlinerTreeItem& InItem) -> bool
 	{
-		TConstArrayView<TypedElementDataStorage::RowHandle> Rows = Context.GetRowHandles();
-
-		for(const TypedElementDataStorage::RowHandle RowHandle : Rows)
+		if(const FTypedElementOutlinerTreeItem* TEDSItem = InItem.CastTo<FTypedElementOutlinerTreeItem>())
 		{
+			const TypedElementDataStorage::RowHandle RowHandle = TEDSItem->GetRowHandle();
+
 			if(const FTypedElementSelectionColumn* SelectionColumn = Storage->GetColumn<FTypedElementSelectionColumn>(RowHandle))
 			{
-				if(SelectionColumn->SelectionSet == SelectionSetName)
-				{
-					RowsToRemoveSelectionColumn.Add(RowHandle);
-				}
+				return SelectionColumn->SelectionSet == SelectionSetName;
 			}
 		}
+		return false;
 	});
-
-	Storage->RunQuery(SelectedRowsQuery, RowCollector);
-
-	for(const TypedElementDataStorage::RowHandle RowHandle : RowsToRemoveSelectionColumn)
-	{
-		Storage->RemoveColumn<FTypedElementSelectionColumn>(RowHandle);
-	}
-
 }
 
 void FTypedElementOutlinerMode::SynchronizeSelection()
 {
-	if(SelectionSetName.IsSet())
-	{
-		bSelectionDirty = true;
-	}
-	
+	OnSelectionChanged();
 }
 
 void FTypedElementOutlinerMode::OnItemSelectionChanged(FSceneOutlinerTreeItemPtr Item, ESelectInfo::Type SelectionType, const FSceneOutlinerItemSelection& Selection)
 {
-	if(!SelectionSetName.IsSet())
-	{
-		return;
-	}
-	
 	if(SelectionType == ESelectInfo::Direct)
 	{
 		return; // Direct selection means we selected from outside the Outliner i.e through TEDS, so we don't need to redo the column addition
 	}
-	
-	ClearSelection();
 
+	TArray<TypedElementDataStorage::RowHandle> RowHandles;
+	
 	// The selection in the Outliner changed, update TEDS
-	Selection.ForEachItem([this](FSceneOutlinerTreeItemPtr& Item)
+	Selection.ForEachItem([&RowHandles](FSceneOutlinerTreeItemPtr& Item)
 	{
 		if(FTypedElementOutlinerTreeItem* TEDSItem = Item->CastTo<FTypedElementOutlinerTreeItem>())
 		{
-			TypedElementDataStorage::RowHandle RowHandle = TEDSItem->GetRowHandle();
-
-			Storage->AddColumn(RowHandle, FTypedElementSelectionColumn{ .SelectionSet = SelectionSetName.GetValue() });
+			RowHandles.Add(TEDSItem->GetRowHandle());
 		}
 	});
+
+	TedsOutlinerImpl->SetSelection(RowHandles);
 }
 
 TSharedPtr<FDragDropOperation> FTypedElementOutlinerMode::CreateDragDropOperation(const FPointerEvent& MouseEvent, const TArray<FSceneOutlinerTreeItemPtr>& InTreeItems) const
 {
+	const TOptional<FTypedElementOutlinerHierarchyData>& HierarchyData = TedsOutlinerImpl->GetHierarchyData();
+
 	// We don't want drag/drop if this TEDS Outliner isn't showing any hierarchy data
 	if(!HierarchyData.IsSet())
 	{
@@ -241,6 +138,9 @@ bool FTypedElementOutlinerMode::ParseDragDrop(FSceneOutlinerDragDropPayload& Out
 
 FSceneOutlinerDragValidationInfo FTypedElementOutlinerMode::ValidateDrop(const ISceneOutlinerTreeItem& DropTarget, const FSceneOutlinerDragDropPayload& Payload) const
 {
+	const TOptional<FTypedElementOutlinerHierarchyData>& HierarchyData = TedsOutlinerImpl->GetHierarchyData();
+	ITypedElementDataStorageInterface* Storage = TedsOutlinerImpl->GetStorage();
+
 	// We don't want drag/drop if this TEDS Outliner isn't showing any hierarchy data
 	if(!HierarchyData.IsSet())
 	{
@@ -319,6 +219,9 @@ FSceneOutlinerDragValidationInfo FTypedElementOutlinerMode::ValidateDrop(const I
 
 void FTypedElementOutlinerMode::OnDrop(ISceneOutlinerTreeItem& DropTarget, const FSceneOutlinerDragDropPayload& Payload, const FSceneOutlinerDragValidationInfo& ValidationInfo) const
 {
+	const TOptional<FTypedElementOutlinerHierarchyData>& HierarchyData = TedsOutlinerImpl->GetHierarchyData();
+	ITypedElementDataStorageInterface* Storage = TedsOutlinerImpl->GetStorage();
+
 	if(!UE::TEDSOutliner::Local::TEDSOutlinerDragDropEnabledCvar->GetBool() || !HierarchyData.IsSet())
 	{
 		return;
@@ -393,147 +296,7 @@ TSharedPtr<SWidget> FTypedElementOutlinerMode::CreateContextMenu()
 
 TUniquePtr<ISceneOutlinerHierarchy> FTypedElementOutlinerMode::CreateHierarchy()
 {
-	return MakeUnique<FTypedElementOutlinerHierarchy>(this, InitialQueryDescription.Get(), HierarchyData);
-}
-
-void FTypedElementOutlinerMode::AppendQuery(TypedElementDataStorage::FQueryDescription& Query1, const TypedElementDataStorage::FQueryDescription& Query2)
-{
-	// TEDS-Outliner TODO: We simply discard duplicate types for now but we probably want a more robust system to detect duplicates and conflicting conditions
-	for(int32 i = 0; i < Query2.ConditionOperators.Num(); ++i)
-	{
-		// Make sure we don't add duplicate conditions
-		TypedElementDataStorage::FQueryDescription::FOperator* FoundCondition = Query1.ConditionOperators.FindByPredicate([&Query2, i](const TypedElementDataStorage::FQueryDescription::FOperator& Op)
-		{
-			return Op.Type == Query2.ConditionOperators[i].Type;
-		});
-
-		// We also can't have a duplicate selection type and condition
-		TWeakObjectPtr<const UScriptStruct>* FoundSelection = Query1.SelectionTypes.FindByPredicate([&Query2, i](const TWeakObjectPtr<const UScriptStruct>& Selection)
-		{
-			return Selection == Query2.ConditionOperators[i].Type;
-		});
-
-		if(!FoundCondition && !FoundSelection)
-		{
-			Query1.ConditionOperators.Add(Query2.ConditionOperators[i]);
-			Query1.ConditionTypes.Add(Query2.ConditionTypes[i]);
-		}
-	}
-}
-
-bool FTypedElementOutlinerMode::HasItemParentChanged(TypedElementDataStorage::RowHandle InRowHandle, TypedElementDataStorage::RowHandle ParentRowHandle)
-{
-	const FSceneOutlinerTreeItemPtr Item = SceneOutliner->GetTreeItem(InRowHandle, true);
-
-	// If the item doesn't exist, it doesn't make sense to say its parent changed
-	if(!Item)
-	{
-		return false;
-	}
-	
-	const FSceneOutlinerTreeItemPtr ParentItem = Item->GetParent();
-
-	// If the item doesn't have a parent, but ParentRowHandle is valid: The item just got added a parent so we want to dirty it
-	if(!ParentItem)
-	{
-		return ParentRowHandle != TypedElementDataStorage::InvalidRowHandle;
-	}
-	
-	const FTypedElementOutlinerTreeItem* TEDSParentItem = ParentItem->CastTo<FTypedElementOutlinerTreeItem>();
-
-	if(ensureMsgf(TEDSParentItem, TEXT("The TEDS Outliner should only have FTypedElementOutlinerTreeItems!")))
-	{
-		// return true if the row handle of the parent item doesn't match what we are given, i.e the parent has changed
-		return TEDSParentItem->GetRowHandle() != ParentRowHandle;
-	}
-
-	return false;
-}
-
-void FTypedElementOutlinerMode::SetRowHandleQuery(TypedElementDataStorage::QueryHandle InRowHandleQuery)
-{
-	FinalRowHandleQuery = InRowHandleQuery;
-	RecompileQueries();
-}
-
-void FTypedElementOutlinerMode::AddExternalQuery(FName QueryName, const TypedElementDataStorage::FQueryDescription& InQueryDescription)
-{
-	ExternalQueries.Emplace(QueryName, InQueryDescription);
-}
-
-void FTypedElementOutlinerMode::RemoveExternalQuery(FName QueryName)
-{
-	ExternalQueries.Remove(QueryName);
-}
-
-void FTypedElementOutlinerMode::AppendExternalQueries(TypedElementDataStorage::FQueryDescription& OutQuery)
-{
-	for(const TPair<FName, TypedElementDataStorage::FQueryDescription>& ExternalQuery : ExternalQueries)
-	{
-		AppendQuery(OutQuery, ExternalQuery.Value);
-	}
-}
-
-void FTypedElementOutlinerMode::RecompileQueries()
-{
-	using namespace TypedElementQueryBuilder;
-	using namespace TypedElementDataStorage;
-
-	// We don't need to register queries to sync selection if there's no selection set attached
-	if(!SelectionSetName.IsSet())
-	{
-		return;					
-	}
-
-	UnregisterQueries();
-	
-	const FQueryDescription& FinalRowHandleQueryDescription = Storage->GetQueryDescription(FinalRowHandleQuery);
-
-	// Query to grab all selected rows
-	FQueryDescription SelectedRowsQueryDescription =
-					Select()
-						.Where()
-							.All<FTypedElementSelectionColumn>()
-						.Compile();
-	
-	// Query to track when a row gets selected
-	FQueryDescription SelectionAddedQueryDescription =
-						Select(
-						TEXT("Row selected"),
-						FObserver::OnAdd<FTypedElementSelectionColumn>().ForceToGameThread(true),
-						[this](IQueryContext& Context, TypedElementRowHandle Row)
-						{
-							bSelectionDirty = true;
-						})
-						.Compile();
-
-	// Add the conditions from FinalQueryDescription to ensure we are the rows the user requested
-	AppendQuery(SelectionAddedQueryDescription, FinalRowHandleQueryDescription);
-
-	// Query to track when a row gets deselected
-	FQueryDescription SelectionRemovedQueryDescription =
-						Select(
-						TEXT("Row deselected"),
-						FObserver::OnRemove<FTypedElementSelectionColumn>().ForceToGameThread(true),
-						[this](IQueryContext& Context, TypedElementRowHandle Row)
-						{
-							bSelectionDirty = true;
-						})
-						.Compile();
-
-	// Add the conditions from FinalQueryDescription to ensure we are the rows the user requested
-	AppendQuery(SelectionRemovedQueryDescription, FinalRowHandleQueryDescription);
-
-	SelectedRowsQuery = Storage->RegisterQuery(MoveTemp(SelectedRowsQueryDescription));
-	SelectionAddedQuery = Storage->RegisterQuery(MoveTemp(SelectionAddedQueryDescription));
-	SelectionRemovedQuery = Storage->RegisterQuery(MoveTemp(SelectionRemovedQueryDescription));
-}
-
-void FTypedElementOutlinerMode::UnregisterQueries()
-{
-	Storage->UnregisterQuery(SelectedRowsQuery);
-	Storage->UnregisterQuery(SelectionAddedQuery);
-	Storage->UnregisterQuery(SelectionRemovedQuery);
+	return MakeUnique<FTypedElementOutlinerHierarchy>(this, TedsOutlinerImpl.ToSharedRef());
 }
 
 #undef LOCTEXT_NAMESPACE

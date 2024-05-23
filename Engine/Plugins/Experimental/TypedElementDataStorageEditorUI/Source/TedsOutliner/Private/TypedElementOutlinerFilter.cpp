@@ -2,13 +2,15 @@
 
 #include "TypedElementOutlinerFilter.h"
 
-#include "TypedElementOutlinerMode.h"
+#include "Compatibility/TedsCompatibilityUtils.h"
 
-FTEDSOutlinerFilter::FTEDSOutlinerFilter(const FName& InFilterName, const FText& InFilterDisplayName, TSharedPtr<FFilterCategory> InCategory, FTypedElementOutlinerMode* InTEDSOutlinerMode, const TypedElementDataStorage::FQueryDescription& InFilterQuery)
+FTEDSOutlinerFilter::FTEDSOutlinerFilter(const FName& InFilterName, const FText& InFilterDisplayName,
+	TSharedPtr<FFilterCategory> InCategory, TSharedRef<FTedsOutlinerImpl> InTedsOutlinerImpl,
+	const TypedElementDataStorage::FQueryDescription& InFilterQuery)
 	: FFilterBase(InCategory)
 	, FilterName(InFilterName)
 	, FilterDisplayName(InFilterDisplayName)
-	, TEDSOutlinerMode(InTEDSOutlinerMode)
+	, TedsOutlinerImpl(InTedsOutlinerImpl)
 	, FilterQuery(InFilterQuery)
 {
 	
@@ -48,11 +50,11 @@ void FTEDSOutlinerFilter::ActiveStateChanged(bool bActive)
 {
 	if(bActive)
 	{
-		TEDSOutlinerMode->AddExternalQuery(FilterName, FilterQuery);
+		TedsOutlinerImpl->AddExternalQuery(FilterName, FilterQuery);
 	}
 	else
 	{
-		TEDSOutlinerMode->RemoveExternalQuery(FilterName);
+		TedsOutlinerImpl->RemoveExternalQuery(FilterName);
 	}
 }
 
@@ -73,5 +75,13 @@ void FTEDSOutlinerFilter::LoadSettings(const FString& IniFilename, const FString
 
 bool FTEDSOutlinerFilter::PassesFilter(SceneOutliner::FilterBarType InItem) const
 {
-	return true; // The filter is applied through a TEDS query and this is just a dummy to activate it, so we can simply return true
+	// If this item is not compatible with the owning Table Viewer - it does not pass any filter queries
+	// If it is compatible, this is simply a dummy filter for the UI while the actual filter is applied through the TEDS query
+	if(TedsOutlinerImpl->IsItemCompatible().IsBound())
+	{
+		return TedsOutlinerImpl->IsItemCompatible().Execute(InItem);
+	}
+
+	// The filter is applied through a TEDS query and this is just a dummy to activate it, so we can simply return true otherwise
+	return false;
 }

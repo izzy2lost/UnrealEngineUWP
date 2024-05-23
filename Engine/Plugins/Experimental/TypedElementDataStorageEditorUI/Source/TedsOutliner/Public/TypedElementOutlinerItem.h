@@ -26,7 +26,7 @@ public:
 		return Pred.Execute(RowHandle);
 	}
 
-	FTypedElementOutlinerTreeItem(const TypedElementRowHandle& InRowHandle, FBaseTEDSOutlinerMode& InMode);
+	FTypedElementOutlinerTreeItem(const TypedElementRowHandle& InRowHandle, const TSharedRef<const FTedsOutlinerImpl>& InTedsOutlinerImpl);
 
 	/* Begin ISceneOutlinerTreeItem Implementation */
 	virtual bool IsValid() const override;
@@ -44,5 +44,5 @@ public:
 
 private:
 	const TypedElementRowHandle RowHandle;
-	FBaseTEDSOutlinerMode& Mode;
+	const TSharedRef<const FTedsOutlinerImpl> TedsOutlinerImpl;
 };

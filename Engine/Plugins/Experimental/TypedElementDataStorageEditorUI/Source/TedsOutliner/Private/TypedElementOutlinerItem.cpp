@@ -10,10 +10,10 @@
 const FSceneOutlinerTreeItemType FTypedElementOutlinerTreeItem::Type(&ISceneOutlinerTreeItem::Type);
 
 FTypedElementOutlinerTreeItem::FTypedElementOutlinerTreeItem(const TypedElementRowHandle& InRowHandle,
-	FBaseTEDSOutlinerMode& InMode)
+	const TSharedRef<const FTedsOutlinerImpl>& InTedsOutlinerImpl)
 	: ISceneOutlinerTreeItem(Type)
 	, RowHandle(InRowHandle)
-	, Mode(InMode)
+	, TedsOutlinerImpl(InTedsOutlinerImpl)
 {
 	
 }
@@ -41,7 +41,7 @@ bool FTypedElementOutlinerTreeItem::CanInteract() const
 TSharedRef<SWidget> FTypedElementOutlinerTreeItem::GenerateLabelWidget(ISceneOutliner& Outliner,
 	const STableRow<FSceneOutlinerTreeItemPtr>& InRow)
 {
-	return Mode.CreateLabelWidgetForItem(RowHandle);
+	return TedsOutlinerImpl->CreateLabelWidgetForItem(RowHandle);
 }
 
 void FTypedElementOutlinerTreeItem::GenerateContextMenu(UToolMenu* Menu, SSceneOutliner& Outliner)

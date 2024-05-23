@@ -165,7 +165,7 @@ TSharedRef<SWidget> FTedsDebuggerModule::CreateTedsDebugger()
 
 	FTypedElementOutlinerModeParams Params(nullptr);
 	Params.QueryDescription = RowQueryDescription;
-	Params.bUseDefaultTEDSFilters = true;
+	Params.bUseDefaultTedsFilters = true;
 	Params.HierarchyData = TOptional<FTypedElementOutlinerHierarchyData>(); // We don't want to show hierarchies in the debugger
 
 	FTedsOutlinerModule& TedsOutlinerModule = FModuleManager::GetModuleChecked<FTedsOutlinerModule>("TedsOutliner");
