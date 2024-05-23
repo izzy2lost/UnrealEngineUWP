@@ -437,12 +437,14 @@ public:
 			return Discard.Graphics;
 		}
 
-		// All | Async ->
-		return Acquire.AsyncCompute != Invalid
-			// Async Compute
-			? Discard.AsyncCompute
-			// Graphics
-			: Discard.GraphicsForkJoin.Max;
+		// AsyncCompute -> AsyncCompute
+		if (Acquire.AsyncCompute != Invalid && Discard.Graphics == Invalid)
+		{
+			return Discard.AsyncCompute;
+		}
+
+		// All | AsyncCompute -> Graphics or All -> AsyncCompute
+		return Discard.GraphicsForkJoin.Max;
 	}
 
 	// Returns whether two regions described by the discard and acquire fences contain each other. If they do, that means the memory would being used by both pipes simultaneously and cannot be aliased.
