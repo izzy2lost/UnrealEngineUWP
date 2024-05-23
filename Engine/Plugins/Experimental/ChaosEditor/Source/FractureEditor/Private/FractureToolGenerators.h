@@ -34,7 +34,6 @@ private:
 	void OnGenerateAssetPathChosen(const FString& InAssetPath, bool bFromToMeshTool, bool bSplitComponents, UDataflow* Dataflow, TArray<AActor*> Actors);
 	AGeometryCollectionActor* ConvertActorsToGeometryCollection(const FString& InAssetPath, bool bAddInternalMaterials, bool bSplitComponents, UDataflow* Dataflow, TArray<AActor*>& Actors, bool bFromToMeshTool);
 	class AGeometryCollectionActor* CreateNewGeometryActor(const FString& Name, const FTransform& Transform, bool AddMaterials /*= false*/);
-	static ULevel* GetSelectedLevel();
 	static AActor* AddActor(ULevel* InLevel, UClass* Class);
 
 	FString GetDefaultAssetPath(const TArray<AActor*>& Actors) const;

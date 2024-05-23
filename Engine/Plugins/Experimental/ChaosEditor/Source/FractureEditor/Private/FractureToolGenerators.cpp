@@ -933,7 +933,8 @@ class AGeometryCollectionActor* UFractureToolGenerateAsset::CreateNewGeometryAct
 	UGeometryCollection* InGeometryCollection = static_cast<UGeometryCollection*>(NewObject<UGeometryCollection>(Package, UGeometryCollection::StaticClass(), FName(*UniqueAssetName), RF_Transactional | RF_Public | RF_Standalone));
 
 	// Create the new Geometry Collection actor
-	AGeometryCollectionActor* NewActor = Cast<AGeometryCollectionActor>(AddActor(GetSelectedLevel(), AGeometryCollectionActor::StaticClass()));
+	ULevel* PlaceInLevel = GEditor->GetEditorWorldContext().World()->GetCurrentLevel();
+	AGeometryCollectionActor* NewActor = Cast<AGeometryCollectionActor>(AddActor(PlaceInLevel, AGeometryCollectionActor::StaticClass()));
 	check(NewActor->GetGeometryCollectionComponent());
 
 	// Set the Geometry Collection asset in the new actor
@@ -950,22 +951,6 @@ class AGeometryCollectionActor* UFractureToolGenerateAsset::CreateNewGeometryAct
 	Package->SetDirtyFlag(true);
 
 	return NewActor;
-}
-
-ULevel* UFractureToolGenerateAsset::GetSelectedLevel()
-{
-	USelection* SelectedActors = GEditor->GetSelectedActors();
-	TArray<ULevel*> UniqueLevels;
-	for (FSelectionIterator Iter(*SelectedActors); Iter; ++Iter)
-	{
-		AActor* Actor = Cast<AActor>(*Iter);
-		if (Actor)
-		{
-			UniqueLevels.AddUnique(Actor->GetLevel());
-		}
-	}
-	check(UniqueLevels.Num() == 1);
-	return UniqueLevels[0];
 }
 
 AActor* UFractureToolGenerateAsset::AddActor(ULevel* InLevel, UClass* Class)
