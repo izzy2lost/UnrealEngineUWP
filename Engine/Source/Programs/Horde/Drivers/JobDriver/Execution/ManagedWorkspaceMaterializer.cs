@@ -18,6 +18,7 @@ public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 	private readonly RpcAgentWorkspace _agentWorkspace;
 	private readonly DirectoryReference _workingDir;
 	private readonly bool _useCacheFile;
+	private readonly bool _cleanDuringFinalize;
 	private WorkspaceInfo? _workspace;
 
 	/// <summary>
@@ -26,14 +27,17 @@ public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 	/// <param name="agentWorkspace">Workspace configuration</param>
 	/// <param name="workingDir">Where to put synced Perforce files and any cached data/metadata</param>
 	/// <param name="useCacheFile">Whether to use a cache file during syncs</param>
+	/// <param name="cleanDuringFinalize">Whether to clean and revert files during finalize</param>
 	public ManagedWorkspaceMaterializer(
 		RpcAgentWorkspace agentWorkspace,
 		DirectoryReference workingDir,
-		bool useCacheFile)
+		bool useCacheFile,
+		bool cleanDuringFinalize)
 	{
 		_agentWorkspace = agentWorkspace;
 		_workingDir = workingDir;
 		_useCacheFile = useCacheFile;
+		_cleanDuringFinalize = cleanDuringFinalize;
 	}
 
 	/// <inheritdoc/>
@@ -57,7 +61,7 @@ public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 	{
 		using IScope scope = CreateTraceSpan("ManagedWorkspaceMaterializer.FinalizeAsync");
 
-		if (_workspace != null)
+		if (_workspace != null && _cleanDuringFinalize)
 		{
 			await _workspace.CleanAsync(cancellationToken);
 		}
@@ -146,6 +150,7 @@ public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 		scope.Span.SetTag("Stream", _agentWorkspace.Stream);
 		scope.Span.SetTag("Partitioned", _agentWorkspace.Partitioned);
 		scope.Span.SetTag("UseCacheFile", _useCacheFile);
+		scope.Span.SetTag("CleanDuringFinalize", _cleanDuringFinalize);
 		return scope;
 	}
 }

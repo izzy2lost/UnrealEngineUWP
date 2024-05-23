@@ -169,15 +169,11 @@ class WorkspaceMaterializerFactory : IWorkspaceMaterializerFactory
 	/// <inheritdoc/>
 	public IWorkspaceMaterializer CreateMaterializer(WorkspaceMaterializerType type, RpcAgentWorkspace workspaceInfo, JobExecutorOptions options, bool forAutoSdk)
 	{
-		switch (type)
+		return type switch
 		{
-			case WorkspaceMaterializerType.ManagedWorkspace:
-				return forAutoSdk
-					? new ManagedWorkspaceMaterializer(workspaceInfo, options.WorkingDir, true)
-					: new ManagedWorkspaceMaterializer(workspaceInfo, options.WorkingDir, false);
-
-			default:
-				throw new Exception("Unhandled materializer option: " + type);
-		}
+			WorkspaceMaterializerType.ManagedWorkspace when forAutoSdk => new ManagedWorkspaceMaterializer(workspaceInfo, options.WorkingDir, true, false),
+			WorkspaceMaterializerType.ManagedWorkspace => new ManagedWorkspaceMaterializer(workspaceInfo, options.WorkingDir, false, true),
+			_ => throw new Exception("Unhandled materializer option: " + type)
+		};
 	}
 }
