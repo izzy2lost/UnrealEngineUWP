@@ -590,7 +590,10 @@ static void SelectControls(UControlRig* ControlRig, TArray<FName>& SelectedNames
 
 void FControlRigBindingHelper::BindToSequencerInstance(UControlRig* ControlRig)
 {
-	check(ControlRig);
+	if (!ControlRig)
+	{
+		return;
+	}
 	if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(ControlRig->GetObjectBinding()->GetBoundObject()))
 	{
 		if(SkeletalMeshComponent->GetSkeletalMeshAsset())
@@ -1108,7 +1111,7 @@ static UControlRig* GetControlRig(const UMovieSceneControlRigParameterSection* S
 {
 	UWorld* GameWorld = (BoundObject && BoundObject->GetWorld() && BoundObject->GetWorld()->IsGameWorld()) ? BoundObject->GetWorld() : nullptr;
 	UControlRig* ControlRig =  Section->GetControlRig(GameWorld);
-	if (ControlRig->GetObjectBinding())
+	if (ControlRig && ControlRig->GetObjectBinding())
 	{
 		if (UControlRigComponent* ControlRigComponent = Cast<UControlRigComponent>(ControlRig->GetObjectBinding()->GetBoundObject()))
 		{
@@ -1244,6 +1247,10 @@ struct FControlRigParameterExecutionToken : IMovieSceneExecutionToken
 		{
 			UWorld* GameWorld = (BoundObject->GetWorld() && BoundObject->GetWorld()->IsGameWorld()) ? BoundObject->GetWorld() : nullptr;
 			ControlRig = Section->GetControlRig(GameWorld);
+			if (!ControlRig)
+			{
+				return;
+			}
 			if (!ControlRig->GetObjectBinding())
 			{
 				ControlRig->SetObjectBinding(MakeShared<FControlRigObjectBinding>());
@@ -1280,7 +1287,10 @@ struct FControlRigParameterExecutionToken : IMovieSceneExecutionToken
 			// CR component's CR instance for evaluation, see comment in BindToSequencerInstance
 			// i.e. CR component should bind to the instance that it owns itself.
 			ControlRig = GetControlRig(Section, BoundObjects[0].Get());
-				
+			if (!ControlRig)
+			{
+				return;
+			}
 			// ensure that pre animated state is saved, must be done before bind
 			Player.SavePreAnimatedState(*ControlRig, FMovieSceneControlRigParameterTemplate::GetAnimTypeID(), FControlRigParameterPreAnimatedTokenProducer(Operand.SequenceID));
 			if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(FControlRigObjectBinding::GetBindableObject(BoundObject)))
