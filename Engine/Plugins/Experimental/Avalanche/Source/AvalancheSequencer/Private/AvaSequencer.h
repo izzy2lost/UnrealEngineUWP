@@ -7,6 +7,7 @@
 #include "Framework/Commands/UIAction.h"
 #include "IAvaSequencer.h"
 #include "IAvaSequencerProvider.h"
+#include "MovieSceneSequenceID.h"
 
 class AActor;
 class FAvaEaseCurveTool;
