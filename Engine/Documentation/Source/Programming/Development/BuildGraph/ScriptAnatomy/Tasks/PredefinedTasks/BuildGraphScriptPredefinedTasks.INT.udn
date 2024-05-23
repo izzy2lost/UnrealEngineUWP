@@ -354,11 +354,12 @@ Creates a Horde report file, which will be displayed on the dashboard with any j
 
 Replaces strings in a text file with secrets obtained from Horde
 
-|         |           |          |                                                                                                                               |
-| ------- | --------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| File    | String    | Required | File to update with secrets                                                                                                   |
-| Replace | String    | Required | Pairs of strings and secret names to expand in the text file, in the form SOURCE_TEXT=secret-name;SOURCE_TEXT_2=secret-name-2 |
-| If      | Condition | Optional | Whether to execute this task. It is ignored if this condition evaluates to false.                                             |
+|         |           |          |                                                                                                                                                                                                                                           |
+| ------- | --------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| File    | String    | Required | File to update with secrets                                                                                                                                                                                                               |
+| Text    | String    | Optional | Text to update with secrets                                                                                                                                                                                                               |
+| Replace | String    | Optional | Pairs of strings and secret names to expand in the text file, in the form SOURCE_TEXT=secret-name;SOURCE_TEXT_2=secret-name-2. If not specified, secrets embedded inline in the text will be expanded from {{secret-name.value}} strings. |
+| If      | Condition | Optional | Whether to execute this task. It is ignored if this condition evaluates to false.                                                                                                                                                         |
 
 ### Kubectl
 
