@@ -80,14 +80,13 @@ const ProjectsPanel: React.FC = observer(() => {
        projects = projects.slice(0, 3);
    }
    */
-
-   const imgStyle = dashboard.darktheme ? { filter: "invert(1)" } : {};
-
+   
    return (
       <Stack style={{ width: homeWidth, marginLeft: 4 }}>
          <Stack tokens={{}} horizontal verticalFill wrap horizontalAlign='center' >
             {
                projects.map((project) => {
+                  const logoSrc = `/api/v1/projects/${project.id}/logo${dashboard.darktheme ? "?darkTheme=true" : ""}`
                   return (
                      <Stack key={project.id} style={{
                         width: 560 * .65,
@@ -98,7 +97,7 @@ const ProjectsPanel: React.FC = observer(() => {
                      }}
                      >
                         <Link onClick={() => { projectStore.setActive(project.id); }} to={`/project/${project.id}`}>
-                           <img style={imgStyle} src={`/api/v1/projects/${project.id}/logo`} alt="" width={560 * .65} height={280 * .65} />
+                           <img src={logoSrc} alt="" width={560 * .65} height={280 * .65} />
                         </Link>
                      </Stack>
                   );
