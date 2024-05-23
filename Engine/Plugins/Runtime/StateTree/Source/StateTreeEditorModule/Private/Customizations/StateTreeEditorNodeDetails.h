@@ -87,8 +87,6 @@ private:
 	FReply OnDescriptionClicked(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) const;
 	FText GetNodeDescription() const;
 	EVisibility IsNodeDescriptionVisible() const;
-	
-	FText GetNodeTooltip() const;
 
 	FReply OnRowMouseDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
 	FReply OnRowMouseUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
