@@ -26,7 +26,7 @@ namespace uba
 		const Root& GetRoot(u32 index) const;
 
 		template<typename CharType, typename Func>
-		bool NormalizeString(Logger& logger, const CharType* str, u64 strLen, const Func& func, const tchar* hint) const;
+		bool NormalizeString(Logger& logger, const CharType* str, u64 strLen, const Func& func, const tchar* hint, const tchar* hint2 = TC("")) const;
 
 		CasKey NormalizeAndHashFile(Logger& logger, const tchar* filename) const;
 
@@ -41,7 +41,7 @@ namespace uba
 
 
 	template<typename CharType, typename Func>
-	bool RootPaths::NormalizeString(Logger& logger, const CharType* str, u64 strLen, const Func& func, const tchar* hint) const
+	bool RootPaths::NormalizeString(Logger& logger, const CharType* str, u64 strLen, const Func& func, const tchar* hint, const tchar* hint2) const
 	{
 		auto strEnd = str + strLen;
 		auto searchPos = str;
@@ -78,7 +78,7 @@ namespace uba
 			auto root = FindRoot(path);
 			if (!root)
 			{
-				logger.Info(TC("PATH WITHOUT ROOT: %s (inside file %s at offset %u)"), path.data, hint, destPos);
+				logger.Info(TC("PATH WITHOUT ROOT: %s (inside %s%s at offset %u)"), path.data, hint, hint2, destPos);
 				return false;
 			}
 
