@@ -26,26 +26,26 @@ struct FKDTreeImplementation : FKDTreeImplementationBase
 
 	bool operator==(const FKDTreeImplementation& Other) const
 	{
-		if (size_ != Other.size_)
+		if (m_size != Other.m_size)
 		{
 			return false;
 		}
 
-		if (dim_ != Other.dim_)
+		if (dim != Other.dim)
 		{
 			return false;
 		}
 
-		const AccessorType RootBBoxSize = root_bbox_.size();
-		if (RootBBoxSize != Other.root_bbox_.size())
+		const AccessorType RootBBoxSize = root_bbox.size();
+		if (RootBBoxSize != Other.root_bbox.size())
 		{
 			return false;
 		}
 
 		for (AccessorType Index = 0; Index < RootBBoxSize; ++Index)
 		{
-			const Interval& ThisInterval = root_bbox_[Index];
-			const Interval& OtherInterval = Other.root_bbox_[Index];
+			const Interval& ThisInterval = root_bbox[Index];
+			const Interval& OtherInterval = Other.root_bbox[Index];
 
 			if (ThisInterval.high != OtherInterval.high)
 			{
@@ -58,17 +58,17 @@ struct FKDTreeImplementation : FKDTreeImplementationBase
 			}
 		}
 
-		if (leaf_max_size_ != Other.leaf_max_size_)
+		if (m_leaf_max_size != Other.m_leaf_max_size)
 		{
 			return false;
 		}
 
-		if (vAcc_ != Other.vAcc_)
+		if (vAcc != Other.vAcc)
 		{
 			return false;
 		}
 
-		if (!CompareNodes(root_node_, Other.root_node_))
+		if (!CompareNodes(root_node, Other.root_node))
 		{
 			return false;
 		}
@@ -173,7 +173,7 @@ void CopySubTree(FKDTree& KDTree, FKDTreeImplementation::NodePtr& ThisNode, cons
 {
 	check(KDTree.KDTreeImplementation);
 
-	ThisNode = KDTree.KDTreeImplementation->pool_.template allocate<FKDTreeImplementation::Node>();
+	ThisNode = KDTree.KDTreeImplementation->pool.template allocate<FKDTreeImplementation::Node>();
 	
 	ThisNode->node_type = OtherNode->node_type;
 
@@ -207,36 +207,36 @@ FKDTree::FKDTree(const FKDTree& Other)
 
 		DataSource = Other.DataSource;
 
-		check(Other.KDTreeImplementation->size_ <= AccessorTypeMax);
-		KDTreeImplementation->size_ = Other.KDTreeImplementation->size_;
+		check(Other.KDTreeImplementation->m_size <= AccessorTypeMax);
+		KDTreeImplementation->m_size = Other.KDTreeImplementation->m_size;
 
-		if (KDTreeImplementation->size_ > 0)
+		if (KDTreeImplementation->m_size > 0)
 		{
-			KDTreeImplementation->dim_ = Other.KDTreeImplementation->dim_;
+			KDTreeImplementation->dim = Other.KDTreeImplementation->dim;
 
-			check(Other.KDTreeImplementation->root_bbox_.size() <= AccessorTypeMax);
-			const AccessorType root_bbox_size = Other.KDTreeImplementation->root_bbox_.size();
-			KDTreeImplementation->root_bbox_.resize(root_bbox_size);
+			check(Other.KDTreeImplementation->root_bbox.size() <= AccessorTypeMax);
+			const AccessorType root_bbox_size = Other.KDTreeImplementation->root_bbox.size();
+			KDTreeImplementation->root_bbox.resize(root_bbox_size);
 
 			for (AccessorType i = 0; i < root_bbox_size; ++i)
 			{
-				KDTreeImplementation->root_bbox_[i] = Other.KDTreeImplementation->root_bbox_[i];
+				KDTreeImplementation->root_bbox[i] = Other.KDTreeImplementation->root_bbox[i];
 			}
 
-			check(Other.KDTreeImplementation->leaf_max_size_ <= AccessorTypeMax);
-			const AccessorType KDTreeLeafMaxSize = Other.KDTreeImplementation->leaf_max_size_;
-			KDTreeImplementation->leaf_max_size_ = KDTreeLeafMaxSize;
+			check(Other.KDTreeImplementation->m_leaf_max_size <= AccessorTypeMax);
+			const AccessorType KDTreeLeafMaxSize = Other.KDTreeImplementation->m_leaf_max_size;
+			KDTreeImplementation->m_leaf_max_size = KDTreeLeafMaxSize;
 
-			check(Other.KDTreeImplementation->vAcc_.size() <= AccessorTypeMax);
-			const AccessorType VAccSize = Other.KDTreeImplementation->vAcc_.size();
-			KDTreeImplementation->vAcc_.resize(VAccSize);
+			check(Other.KDTreeImplementation->vAcc.size() <= AccessorTypeMax);
+			const AccessorType VAccSize = Other.KDTreeImplementation->vAcc.size();
+			KDTreeImplementation->vAcc.resize(VAccSize);
 			
 			for (AccessorType i = 0; i < VAccSize; ++i)
 			{
-				KDTreeImplementation->vAcc_[i] = Other.KDTreeImplementation->vAcc_[i];
+				KDTreeImplementation->vAcc[i] = Other.KDTreeImplementation->vAcc[i];
 			}
 			
-			CopySubTree(*this, KDTreeImplementation->root_node_, Other.KDTreeImplementation->root_node_);
+			CopySubTree(*this, KDTreeImplementation->root_node, Other.KDTreeImplementation->root_node);
 		}
 	}
 #endif // UE_POSE_SEARCH_USE_NANOFLANN
@@ -301,12 +301,13 @@ inline int32 FindNeighborsInternal(FKDTreeImplementation* KDTreeImplementation, 
 
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FKDTree_FindNeighbors);
 
-	check(Query.GetData() && Query.Num() == KDTreeImplementation->dim_ && KDTreeImplementation->root_node_);
+	check(Query.GetData() && Query.Num() == KDTreeImplementation->dim && KDTreeImplementation->root_node);
 
-	const nanoflann::SearchParameters SearchParameters(
+	const nanoflann::SearchParams SearchParams(
+		32,			// Ignored parameter (Kept for compatibility with the FLANN interface).
 		0.f,		// search for eps-approximate neighbours (default: 0)
 		false);		// only for radius search, require neighbours sorted by
-	KDTreeImplementation->findNeighbors(Result, Query.GetData(), SearchParameters);
+	KDTreeImplementation->findNeighbors(Result, Query.GetData(), SearchParams);
 	return Result.Num();
 
 #else // UE_POSE_SEARCH_USE_NANOFLANN
@@ -354,7 +355,7 @@ FArchive& SerializeSubTree(FArchive& Ar, FKDTree& KDTree, FKDTreeImplementation:
 
 	if (Ar.IsLoading())
 	{
-		KDTreeNode = KDTree.KDTreeImplementation->pool_.template allocate<FKDTreeImplementation::Node>();
+		KDTreeNode = KDTree.KDTreeImplementation->pool.template allocate<FKDTreeImplementation::Node>();
 		// zeroing FKDTreeImplementation::Node memory since it contains a union and doesn't have a constructor 
 		FMemory::Memzero(KDTreeNode, sizeof(FKDTreeImplementation::Node));
 	}
@@ -411,9 +412,9 @@ FArchive& SerializeSubTree(FArchive& Ar, FKDTree& KDTree, FKDTreeImplementation:
 FArchive& Serialize(FArchive& Ar, FKDTree& KDTree, const float* KDTreeData)
 {
 #if UE_POSE_SEARCH_USE_NANOFLANN
-	check(!KDTree.KDTreeImplementation || KDTree.KDTreeImplementation->size_ <= AccessorTypeMax);
+	check(!KDTree.KDTreeImplementation || KDTree.KDTreeImplementation->m_size <= AccessorTypeMax);
 
-	AccessorType KDTreeSize = KDTree.KDTreeImplementation ? KDTree.KDTreeImplementation->size_ : 0;
+	AccessorType KDTreeSize = KDTree.KDTreeImplementation ? KDTree.KDTreeImplementation->m_size : 0;
 
 	Ar << KDTreeSize;
 
@@ -424,45 +425,45 @@ FArchive& Serialize(FArchive& Ar, FKDTree& KDTree, const float* KDTreeData)
 			KDTree.KDTreeImplementation = new FKDTreeImplementation(0, KDTree.DataSource, nanoflann::KDTreeSingleIndexAdaptorParams(0));
 		}
 
-		KDTree.KDTreeImplementation->size_ = KDTreeSize;
+		KDTree.KDTreeImplementation->m_size = KDTreeSize;
 
-		Ar << KDTree.KDTreeImplementation->dim_;
+		Ar << KDTree.KDTreeImplementation->dim;
 
-		AccessorType root_bbox_size = KDTree.KDTreeImplementation->root_bbox_.size();
-		check(KDTree.KDTreeImplementation->root_bbox_.size() <= AccessorTypeMax);
+		AccessorType root_bbox_size = KDTree.KDTreeImplementation->root_bbox.size();
+		check(KDTree.KDTreeImplementation->root_bbox.size() <= AccessorTypeMax);
 		Ar << root_bbox_size;
 
 		if (Ar.IsLoading())
 		{
 			KDTree.DataSource.Data = KDTreeData;
-			KDTree.DataSource.PointDim = KDTree.KDTreeImplementation->dim_;
-			KDTree.DataSource.PointCount = KDTree.KDTreeImplementation->size_;
+			KDTree.DataSource.PointDim = KDTree.KDTreeImplementation->dim;
+			KDTree.DataSource.PointCount = KDTree.KDTreeImplementation->m_size;
 
-			KDTree.KDTreeImplementation->root_bbox_.resize(root_bbox_size);
+			KDTree.KDTreeImplementation->root_bbox.resize(root_bbox_size);
 		}
 
-		for (FKDTreeImplementation::Interval& el : KDTree.KDTreeImplementation->root_bbox_)
+		for (FKDTreeImplementation::Interval& el : KDTree.KDTreeImplementation->root_bbox)
 		{
 			Ar.Serialize(&el, sizeof(FKDTreeImplementation::Interval));
 		}
 
-		check(KDTree.KDTreeImplementation->leaf_max_size_ <= AccessorTypeMax);
-		AccessorType KDTreeLeafMaxSize = KDTree.KDTreeImplementation->leaf_max_size_;
+		check(KDTree.KDTreeImplementation->m_leaf_max_size <= AccessorTypeMax);
+		AccessorType KDTreeLeafMaxSize = KDTree.KDTreeImplementation->m_leaf_max_size;
 		Ar << KDTreeLeafMaxSize;
-		KDTree.KDTreeImplementation->leaf_max_size_ = KDTreeLeafMaxSize;
+		KDTree.KDTreeImplementation->m_leaf_max_size = KDTreeLeafMaxSize;
 
-		check(KDTree.KDTreeImplementation->vAcc_.size() <= AccessorTypeMax);
-		AccessorType VAccSize = KDTree.KDTreeImplementation->vAcc_.size();
+		check(KDTree.KDTreeImplementation->vAcc.size() <= AccessorTypeMax);
+		AccessorType VAccSize = KDTree.KDTreeImplementation->vAcc.size();
 		Ar << VAccSize;
 		if (Ar.IsLoading())
 		{
-			KDTree.KDTreeImplementation->vAcc_.resize(VAccSize);
+			KDTree.KDTreeImplementation->vAcc.resize(VAccSize);
 		}
-		for (AccessorType& el : KDTree.KDTreeImplementation->vAcc_)
+		for (AccessorType& el : KDTree.KDTreeImplementation->vAcc)
 		{
 			Ar << el;
 		}
-		SerializeSubTree(Ar, KDTree, KDTree.KDTreeImplementation->root_node_);
+		SerializeSubTree(Ar, KDTree, KDTree.KDTreeImplementation->root_node);
 	}
 	else if (Ar.IsLoading())
 	{

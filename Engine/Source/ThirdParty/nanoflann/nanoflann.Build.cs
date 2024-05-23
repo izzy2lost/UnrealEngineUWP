@@ -5,7 +5,7 @@ using UnrealBuildTool;
 
 public class nanoflann : ModuleRules
 {
-	protected readonly string Version = "1.5.5";
+	protected readonly string Version = "1.4.2";
 
 	public nanoflann(ReadOnlyTargetRules Target) : base(Target)
 	{
