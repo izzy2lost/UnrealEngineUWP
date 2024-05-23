@@ -19,12 +19,14 @@ namespace UnrealBuildTool
 
 		protected FileReference? ProjectFile = null;
 		protected bool bMergeModules = false;
+		protected bool bAllowUbaCompression = false;
 
 		public override void SetUpGlobalEnvironment(ReadOnlyTargetRules Target)
 		{
 			base.SetUpGlobalEnvironment(Target);
 			ProjectFile = Target.ProjectFile;
 			bMergeModules = Target.bMergeModules;
+			bAllowUbaCompression = Target.bAllowUbaCompression;
 		}
 
 		/// <summary>
@@ -494,6 +496,7 @@ namespace UnrealBuildTool
 				CompileAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 				CompileAction.CommandPath = new FileReference(GetISPCHostCompilerPath(BuildHostPlatform.Current.Platform));
 				CompileAction.StatusDescription = Path.GetFileName(ISPCFile.AbsolutePath);
+				CompileAction.CommandVersion = GetISPCHostCompilerVersion(BuildHostPlatform.Current.Platform).ToString();
 				CompileAction.ArtifactMode = ArtifactMode.Enabled;
 
 				CompileAction.bCanExecuteRemotely = true;
@@ -667,6 +670,11 @@ namespace UnrealBuildTool
 				CompileAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 				CompileAction.CommandPath = new FileReference(GetISPCHostCompilerPath(BuildHostPlatform.Current.Platform));
 				CompileAction.StatusDescription = Path.GetFileName(ISPCFile.AbsolutePath);
+				CompileAction.CommandVersion = GetISPCHostCompilerVersion(BuildHostPlatform.Current.Platform).ToString();
+				if (bAllowUbaCompression)
+				{
+					CompileAction.CommandVersion = $"{CompileAction.CommandVersion} Compressed";
+				}
 
 				CompileAction.bCanExecuteRemotely = true;
 
@@ -813,6 +821,11 @@ namespace UnrealBuildTool
 							PostCompileAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 							PostCompileAction.CommandPath = new FileReference(ByteCodeCompilerPath);
 							PostCompileAction.StatusDescription = Path.GetFileName(ISPCFile.AbsolutePath);
+							CompileAction.CommandVersion = GetISPCHostCompilerVersion(BuildHostPlatform.Current.Platform).ToString();
+							if (bAllowUbaCompression)
+							{
+								CompileAction.CommandVersion = $"{CompileAction.CommandVersion} Compressed";
+							}
 
 							PostCompileAction.RootPaths.AddRange(RootPaths);
 							PostCompileAction.ArtifactMode = ArtifactMode.Enabled;

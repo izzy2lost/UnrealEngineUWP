@@ -1093,6 +1093,10 @@ namespace UnrealBuildTool
 				CompileAction.CommandPath = new FileReference(GetISPCHostCompilerPath(BuildHostPlatform.Current.Platform));
 				CompileAction.StatusDescription = Path.GetFileName(ISPCFile.AbsolutePath);
 				CompileAction.CommandVersion = GetISPCHostCompilerVersion(BuildHostPlatform.Current.Platform).ToString();
+				if (bAllowUbaCompression)
+				{
+					CompileAction.CommandVersion = $"{CompileAction.CommandVersion} Compressed";
+				}
 
 				// Disable remote execution to workaround mismatched case on XGE
 				CompileAction.bCanExecuteRemotely = false;

@@ -1212,6 +1212,10 @@ namespace UnrealBuildTool
 			CompileAction.WorkingDirectory = Unreal.EngineSourceDirectory;
 			CompileAction.CommandPath = Info.Clang;
 			CompileAction.CommandVersion = Info.ClangVersionString;
+			if (bAllowUbaCompression)
+			{
+				CompileAction.CommandVersion = $"{CompileAction.CommandVersion} Compressed";
+			}
 			CompileAction.CommandDescription = IsPreprocessing(CompileEnvironment) ? "Preprocess" : IsAnalyzing(CompileEnvironment) ? "Analyze" : "Compile";
 			UnrealArchitectureConfig ArchConfig = UnrealArchitectureConfig.ForPlatform(CompileEnvironment.Platform);
 			if (ArchConfig.Mode != UnrealArchitectureMode.SingleArchitecture)
