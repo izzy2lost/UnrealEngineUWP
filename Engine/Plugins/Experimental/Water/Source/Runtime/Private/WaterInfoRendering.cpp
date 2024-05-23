@@ -9,7 +9,7 @@
 #include "Modules/ModuleManager.h"
 #include "RenderCaptureInterface.h"
 #include "RHIStaticStates.h"
-#include "Engine/TextureRenderTarget2D.h"
+#include "Engine/TextureRenderTarget2DArray.h"
 #include "SceneCaptureRendering.h"
 #include "PostProcess/DrawRectangle.h"
 #include "Math/OrthoMatrix.h"
@@ -990,7 +990,9 @@ public:
 		FinalizeWaterInfo(GraphBuilder, *Views[0]->Family, *Views[0], MergeTargetTexture, FinalizedTexture, Params);
 
 		FRDGTextureRef WaterInfoTexture = RegisterExternalTexture(GraphBuilder, WaterInfoRenderTarget->GetRenderTargetTexture(), TEXT("WaterInfoTexture"));
-		AddCopyTexturePass(GraphBuilder, FinalizedTexture, WaterInfoTexture);
+		FRHICopyTextureInfo CopyInfo;
+		CopyInfo.DestSliceIndex = RenderTargetArraySlice;
+		AddCopyTexturePass(GraphBuilder, FinalizedTexture, WaterInfoTexture, CopyInfo);
 		GraphBuilder.UseExternalAccessMode(WaterInfoTexture, ERHIAccess::SRVMask);
 	}
 
@@ -998,6 +1000,7 @@ public:
 	FWaterInfoRenderingDepthPass* DepthPass = nullptr;
 	FWaterInfoRenderingColorPass* ColorPass = nullptr;
 	FUpdateWaterInfoParams Params;
+	int32 RenderTargetArraySlice = 0;
 };
 
 const FName& GetWaterInfoDilationPassName() { return FWaterInfoRenderingDilationPass::GetTypeNameStatic(); }

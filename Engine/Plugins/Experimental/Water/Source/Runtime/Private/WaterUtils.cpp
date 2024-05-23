@@ -3,6 +3,7 @@
 #include "WaterUtils.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "Engine/TextureRenderTarget2DArray.h"
 #include "UObject/Package.h"
 #include "RenderingThread.h"
 
@@ -87,6 +88,46 @@ UTextureRenderTarget2D* FWaterUtils::GetOrCreateTransientRenderTarget2D(UTexture
 	});
 
 	return NewRenderTarget2D;
+}
+
+WATER_API UTextureRenderTarget2DArray* FWaterUtils::GetOrCreateTransientRenderTarget2DArray(UTextureRenderTarget2DArray* InRenderTarget, FName InRenderTargetName, const FIntPoint& InSize, int32 InSlices, ETextureRenderTargetFormat InFormat, const FLinearColor& InClearColor, bool bInAutoGenerateMipMaps)
+{
+	EPixelFormat PixelFormat = GetPixelFormatFromRenderTargetFormat(InFormat);
+	if ((InSize.X <= 0)
+		|| (InSize.Y <= 0)
+		|| (InSlices <= 0)
+		|| (PixelFormat == EPixelFormat::PF_Unknown))
+	{
+		return nullptr;
+	}
+
+	if (IsValid(InRenderTarget))
+	{
+		if ((InRenderTarget->SizeX == InSize.X)
+			&& (InRenderTarget->SizeY == InSize.Y)
+			&& (InRenderTarget->Slices == InSlices)
+			&& (InRenderTarget->GetFormat() == PixelFormat) // Watch out : GetFormat() returns a EPixelFormat (non-class enum), so we can't compare with a ETextureRenderTargetFormat
+			&& (InRenderTarget->ClearColor == InClearColor))
+		{
+			return InRenderTarget;
+		}
+	}
+
+	UTextureRenderTarget2DArray* NewRenderTarget2DArray = NewObject<UTextureRenderTarget2DArray>(GetTransientPackage(), MakeUniqueObjectName(GetTransientPackage(), UTextureRenderTarget2DArray::StaticClass(), InRenderTargetName));
+	check(NewRenderTarget2DArray);
+	NewRenderTarget2DArray->ClearColor = InClearColor;
+	NewRenderTarget2DArray->Init(InSize.X, InSize.Y, InSlices, PixelFormat);
+	NewRenderTarget2DArray->UpdateResourceImmediate(true);
+
+	// Flush RHI thread after creating texture render target to make sure that RHIUpdateTextureReference is executed before doing any rendering with it
+	// This makes sure that Value->TextureReference.TextureReferenceRHI->GetReferencedTexture() is valid so that FUniformExpressionSet::FillUniformBuffer properly uses the texture for rendering, instead of using a fallback texture
+	ENQUEUE_RENDER_COMMAND(FlushRHIThreadToUpdateTextureRenderTargetReference)(
+	[](FRHICommandListImmediate& RHICmdList)
+	{
+		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+	});
+
+	return NewRenderTarget2DArray;
 }
 
 FGuid FWaterUtils::StringToGuid(const FString& InStr)

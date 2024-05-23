@@ -422,6 +422,8 @@ void FWaterViewExtension::PreRenderView_RenderThread(FRDGBuilder& GraphBuilder, 
 		InView.WaterDataBuffer = WaterGPUData->AuxDataSRV;
 		InView.WaterIndirectionBuffer = WaterGPUData->WaterBodyDataSRV;
 	}
+	// TODO: Look up an actually unique index for the given view.
+	InView.WaterInfoTextureViewIndex = 0;
 }
 
 void FWaterViewExtension::PreRenderBasePass_RenderThread(FRDGBuilder& GraphBuilder, bool bDepthBufferIsPopulated)

@@ -2138,6 +2138,7 @@ void FViewInfo::SetupUniformBufferParameters(
 		ViewUniformShaderParameters.WaterIndirection = GWhiteVertexBufferWithSRV->ShaderResourceViewRHI;
 		ViewUniformShaderParameters.WaterData = GWhiteVertexBufferWithSRV->ShaderResourceViewRHI;
 	}
+	ViewUniformShaderParameters.WaterInfoTextureViewIndex = WaterInfoTextureViewIndex;
 
 	if (LandscapePerComponentDataBuffer.IsValid() && LandscapeIndirectionBuffer.IsValid())
 	{

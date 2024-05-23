@@ -20,6 +20,7 @@
 #include "WaterRuntimeSettings.h"
 #include "WaterUtils.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "Engine/TextureRenderTarget2DArray.h"
 #include "Engine/Texture2D.h"
 #include "WaterMeshComponent.h"
 #include "WaterVersion.h"
@@ -1750,7 +1751,7 @@ bool UWaterBodyComponent::SetDynamicParametersOnMID(UMaterialInstanceDynamic* In
 	if (const AWaterZone* WaterZone = GetWaterZone())
 	{
 		InMID->SetScalarParameterValue(WaterZoneIndexParamName, WaterZone->GetWaterZoneIndex());
-		InMID->SetTextureParameterValue(WaterVelocityAndHeightName, WaterZone->WaterInfoTexture);
+		InMID->SetTextureParameterValue(WaterVelocityAndHeightName, WaterZone->WaterInfoTextureArray);
 	}
 
 	return true;

@@ -7,7 +7,7 @@
 #include "Materials/Material.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "Engine/StaticMesh.h"
-#include "Engine/TextureRenderTarget2D.h"
+#include "Engine/TextureRenderTarget2DArray.h"
 #include "WaterBodyComponent.h"
 #include "WaterMeshSceneProxy.h"
 #include "WaterModule.h"
@@ -663,7 +663,7 @@ void UWaterMeshComponent::RebuildWaterMesh(float InTileSize, const FIntPoint& In
 		InMID->SetScalarParameterValue(UWaterBodyComponent::WaterBodyIndexParamName, -1);
 		InMID->SetScalarParameterValue(UWaterBodyComponent::GlobalOceanHeightName, WaterSubsystem->GetOceanTotalHeight());
 		InMID->SetScalarParameterValue(UWaterBodyComponent::WaterZoneIndexParamName, OwningZone->GetWaterZoneIndex());
-		InMID->SetTextureParameterValue(UWaterBodyComponent::WaterVelocityAndHeightName, OwningZone->WaterInfoTexture);
+		InMID->SetTextureParameterValue(UWaterBodyComponent::WaterVelocityAndHeightName, OwningZone->WaterInfoTextureArray);
 		return true;
 	};
 

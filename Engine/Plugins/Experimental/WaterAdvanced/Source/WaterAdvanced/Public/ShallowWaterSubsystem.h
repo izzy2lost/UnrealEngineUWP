@@ -6,6 +6,7 @@
 #include "GameplayTagContainer.h"
 #include "ShallowWaterSettings.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "Engine/TextureRenderTarget2DArray.h"
 #include "Components/SceneComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Subsystems/WorldSubsystem.h"
@@ -236,10 +237,10 @@ protected:
 	 */
 	void TryGetOrWaitForWaterInfoTextureFromWaterBodies(TSet<AWaterBody*> CurrentWaterBodies);
 	UFUNCTION()
-	void OnWaterInfoTextureCreated(const UTextureRenderTarget2D* WaterInfoTexture);
+	void OnWaterInfoTextureArrayCreated(const UTextureRenderTarget2DArray* WaterInfoTexture);
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category="Shallow Water")
-	TObjectPtr<const UTextureRenderTarget2D> WaterInfoTexture;
+	TObjectPtr<const UTextureRenderTarget2DArray> WaterInfoTexture;
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category="Shallow Water")
 	TObjectPtr<UTextureRenderTarget2D> NormalRT;
 

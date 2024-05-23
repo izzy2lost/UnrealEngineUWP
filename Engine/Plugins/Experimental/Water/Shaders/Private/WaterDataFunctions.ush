@@ -54,6 +54,11 @@ int GetWaveDataOffset()
 	return (int)View.WaterData[0].y;
 }
 
+int GetWaterInfoTextureViewIndex()
+{
+	return View.WaterInfoTextureViewIndex;
+}
+
 /** Function to decode the raw data from the water indirection buffer */
 FWaterBodyData DecodeWaterBodyData(float4 InDataToDecode0, float4 InDataToDecode1)
 {

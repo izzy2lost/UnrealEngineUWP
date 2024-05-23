@@ -12,6 +12,7 @@
 #include "WaterSubsystem.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "Engine/TextureRenderTarget2DArray.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMaterialLibrary.h"
 #include "DrawDebugHelpers.h"
@@ -1123,16 +1124,16 @@ void UShallowWaterSubsystem::TryGetOrWaitForWaterInfoTextureFromWaterBodies(TSet
 	    {
 	    	if (AWaterZone* WaterZone = WaterBodyComp->GetWaterZone())
 	    	{
-	    		const TObjectPtr<UTextureRenderTarget2D> NewWaterInfoTexture = WaterZone->WaterInfoTexture;
+	    		const TObjectPtr<UTextureRenderTarget2DArray> NewWaterInfoTexture = WaterZone->WaterInfoTextureArray;
 
 	    		if (NewWaterInfoTexture == nullptr)
 	    		{
-	    			WaterZone->GetOnWaterInfoTextureCreated().RemoveDynamic(this, &UShallowWaterSubsystem::OnWaterInfoTextureCreated);
-	    			WaterZone->GetOnWaterInfoTextureCreated().AddDynamic(this, &UShallowWaterSubsystem::OnWaterInfoTextureCreated);
+	    			WaterZone->GetOnWaterInfoTextureArrayCreated().RemoveDynamic(this, &UShallowWaterSubsystem::OnWaterInfoTextureArrayCreated);
+	    			WaterZone->GetOnWaterInfoTextureArrayCreated().AddDynamic(this, &UShallowWaterSubsystem::OnWaterInfoTextureArrayCreated);
 	    		}
 	    		else
 	    		{
-	    			OnWaterInfoTextureCreated(NewWaterInfoTexture);
+	    			OnWaterInfoTextureArrayCreated(NewWaterInfoTexture);
 	    		}
 
 	    		// Currently there can only be one unique WaterInfoTexture
@@ -1142,7 +1143,7 @@ void UShallowWaterSubsystem::TryGetOrWaitForWaterInfoTextureFromWaterBodies(TSet
     }
 }
 
-void UShallowWaterSubsystem::OnWaterInfoTextureCreated(const UTextureRenderTarget2D* InWaterInfoTexture)
+void UShallowWaterSubsystem::OnWaterInfoTextureArrayCreated(const UTextureRenderTarget2DArray* InWaterInfoTexture)
 {
 	if(InWaterInfoTexture == nullptr)
 	{
@@ -1152,7 +1153,7 @@ void UShallowWaterSubsystem::OnWaterInfoTextureCreated(const UTextureRenderTarge
 	WaterInfoTexture = InWaterInfoTexture;
 	if (ShallowWaterNiagaraSimulation)
 	{
-		ShallowWaterNiagaraSimulation->SetVariableTexture(FName("WaterInfoTexture"), Cast<UTexture>(const_cast<UTextureRenderTarget2D*>(WaterInfoTexture.Get())));
+		ShallowWaterNiagaraSimulation->SetVariableTexture(FName("WaterInfoTexture"), Cast<UTexture>(const_cast<UTextureRenderTarget2DArray*>(WaterInfoTexture.Get())));
 	}
 }
 

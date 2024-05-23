@@ -7,7 +7,7 @@
 class AWaterZone;
 class UWaterBodyComponent;
 class FSceneInterface;
-class UTextureRenderTarget2D;
+class UTextureRenderTarget2DArray;
 class UPrimitiveComponent;
 class FSceneView;
 class FSceneViewFamily;
@@ -18,7 +18,7 @@ namespace UE::WaterInfo
 struct FRenderingContext
 {
 	AWaterZone* ZoneToRender = nullptr;
-	UTextureRenderTarget2D* TextureRenderTarget;
+	UTextureRenderTarget2DArray* TextureRenderTarget;
 	TArray<UWaterBodyComponent*> WaterBodies;
 	TArray<TWeakObjectPtr<UPrimitiveComponent>> GroundPrimitiveComponents;
 	float CaptureZ;

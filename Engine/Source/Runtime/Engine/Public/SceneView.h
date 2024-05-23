@@ -1120,6 +1120,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT_WITH_CONSTRUCTOR(FViewUniformShaderParamete
 	// Water
 	SHADER_PARAMETER_SRV(Buffer<float4>, WaterIndirection)
 	SHADER_PARAMETER_SRV(Buffer<float4>, WaterData)
+	SHADER_PARAMETER(int32, WaterInfoTextureViewIndex)
 	// Rect light atlas
 	SHADER_PARAMETER(FVector4f, RectLightAtlasSizeAndInvSize)
 	SHADER_PARAMETER(float, RectLightAtlasMaxMipLevel)
@@ -1580,6 +1581,8 @@ public:
 	/** Water rendering related data */
 	FShaderResourceViewRHIRef WaterIndirectionBuffer;
 	FShaderResourceViewRHIRef WaterDataBuffer;
+	/** Index of the water info texture slice corresponding to this view. */
+	int32 WaterInfoTextureViewIndex = INDEX_NONE;
 
 	struct FWaterInfoTextureRenderingParams
 	{
@@ -1595,6 +1598,7 @@ public:
 		float GroundZMin = 0.0f;
 		float CaptureZ = 0.0f;
 		int32 VelocityBlurRadius = 0;
+		int32 RenderTargetArrayLayer = 0;
 	};
 	TArray<FWaterInfoTextureRenderingParams> WaterInfoTextureRenderingParams;
 

@@ -8,6 +8,7 @@
 class UBillboardComponent;
 class UTexture2D;
 class UTextureRenderTarget2D;
+class UTextureRenderTarget2DArray;
 namespace EEndPlayReason { enum Type : int; }
 
 class UWaterMeshComponent;
@@ -26,6 +27,7 @@ ENUM_CLASS_FLAGS(EWaterZoneRebuildFlags);
 
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWaterInfoTextureCreated, const UTextureRenderTarget2D*, WaterInfoTexture);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWaterInfoTextureArrayCreated, const UTextureRenderTarget2DArray*, WaterInfoTextureArray);
 
 UCLASS(Blueprintable, HideCategories=(Physics, Replication, Input, Collision))
 class WATER_API AWaterZone : public AActor
@@ -85,9 +87,9 @@ public:
 	int32 GetWaterZoneIndex() const { return WaterZoneIndex; }
 
 	UPROPERTY(Transient, DuplicateTransient, VisibleAnywhere, BlueprintReadOnly, Category = Water)
-	TObjectPtr<UTextureRenderTarget2D> WaterInfoTexture;
+	TObjectPtr<UTextureRenderTarget2DArray> WaterInfoTextureArray;
 
-	FOnWaterInfoTextureCreated& GetOnWaterInfoTextureCreated() { return OnWaterInfoTextureCreated; }
+	FOnWaterInfoTextureArrayCreated& GetOnWaterInfoTextureArrayCreated() { return OnWaterInfoTextureArrayCreated; }
 	
 #if WITH_EDITOR
 	virtual TUniquePtr<class FWorldPartitionActorDesc> CreateClassActorDesc() const override;
@@ -96,6 +98,18 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category=Rendering)
 	void SetFarMeshMaterial(UMaterialInterface* InFarMaterial);
+
+
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.5, "WaterInfoTexture is deprecated, please use WaterInfoTextureArray instead.")
+	UPROPERTY(Transient, meta = (DeprecatedProperty, DeprecationMessage = "Use WaterInfoTextureArray instead."))
+	TObjectPtr<UTextureRenderTarget2D> WaterInfoTexture_DEPRECATED;
+#endif
+
+#if WITH_EDITOR 
+	UE_DEPRECATED(5.5, "GetOnWaterInfoTextureCreated is deprecated, please use GetOnWaterInfoTextureArrayCreated instead.")
+	FOnWaterInfoTextureCreated& GetOnWaterInfoTextureCreated() { return OnWaterInfoTextureCreated_DEPRECATED; }
+#endif
 
 private:
 
@@ -201,9 +215,9 @@ private:
 	/** Unique Id for accessing zone data (Location, extent, ,...) in GPU buffers */
 	UPROPERTY(Transient, DuplicateTransient, NonTransactional, VisibleAnywhere, Category = Water)
 	int32 WaterZoneIndex = INDEX_NONE;
-
-	UPROPERTY(BlueprintAssignable, Category=Water)
-	FOnWaterInfoTextureCreated OnWaterInfoTextureCreated;
+	
+	UPROPERTY(BlueprintAssignable, Category = Water)
+	FOnWaterInfoTextureArrayCreated OnWaterInfoTextureArrayCreated;
 
 #if WITH_EDITORONLY_DATA
 	/** A manipulatable box for visualizing/editing the water zone bounds */
@@ -220,6 +234,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> WaterVelocityTexture_DEPRECATED;
+
+	UPROPERTY()
+	FOnWaterInfoTextureCreated OnWaterInfoTextureCreated_DEPRECATED;
 
 	UPROPERTY()
 	FVector TessellatedWaterMeshExtent_DEPRECATED;

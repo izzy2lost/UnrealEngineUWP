@@ -1002,7 +1002,7 @@ void RenderWaterInfoTexture(
 
 			FWaterInfoTextureBlurPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FWaterInfoTextureBlurPS::FParameters>();
 			PassParameters->View = WaterView.GetShaderParameters();
-			PassParameters->RenderTargets[0] = FRenderTargetBinding(OutputTexture, ERenderTargetLoadAction::ENoAction);
+			PassParameters->RenderTargets[0] = FRenderTargetBinding(OutputTexture, ERenderTargetLoadAction::ENoAction, 0, RenderingParams.RenderTargetArrayLayer);
 			PassParameters->SceneTextures = GetSceneTextureShaderParameters(WaterView);
 			PassParameters->WaterInfoTexture = MergedTexture;
 			PassParameters->WaterZMin = RenderingParams.WaterHeightExtents.X;

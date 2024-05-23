@@ -642,13 +642,13 @@ bool AWaterZone::UpdateWaterInfoTexture()
 		}
 
 		const ETextureRenderTargetFormat Format = bHalfPrecisionTexture ? ETextureRenderTargetFormat::RTF_RGBA16f : RTF_RGBA32f;
-		UTextureRenderTarget2D* OldTexture = WaterInfoTexture;
-		WaterInfoTexture = FWaterUtils::GetOrCreateTransientRenderTarget2D(OldTexture, TEXT("WaterInfoTexture"), RenderTargetResolution, Format);
+		UTextureRenderTarget2DArray* OldTexture = WaterInfoTextureArray;
+		WaterInfoTextureArray = FWaterUtils::GetOrCreateTransientRenderTarget2DArray(OldTexture, TEXT("WaterInfoTexture"), RenderTargetResolution, 1, Format);
 
 		// The water info texture is different, we need to bind the newly created texture to all registered water bodies
-		if (WaterInfoTexture != OldTexture)
+		if (WaterInfoTextureArray != OldTexture)
 		{
-			OnWaterInfoTextureCreated.Broadcast(WaterInfoTexture);
+			OnWaterInfoTextureArrayCreated.Broadcast(WaterInfoTextureArray);
 
 			ForEachWaterBodyComponent([](UWaterBodyComponent* WaterBodyComponent)
 			{
@@ -662,7 +662,7 @@ bool AWaterZone::UpdateWaterInfoTexture()
 		Context.WaterBodies = WaterBodiesToRender;
 		Context.GroundPrimitiveComponents = MoveTemp(GroundPrimitiveComponents);
 		Context.CaptureZ = FMath::Max(WaterZMax, GroundZMax) + CaptureZOffset;
-		Context.TextureRenderTarget = WaterInfoTexture;
+		Context.TextureRenderTarget = WaterInfoTextureArray;
 
 		if (FWaterViewExtension* WaterViewExtension = UWaterSubsystem::GetWaterViewExtension(World))
 		{
