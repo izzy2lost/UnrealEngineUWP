@@ -245,7 +245,6 @@ AsyncRawBufferPtr Blob::Raw()
 	/// Could possibly be going to another thread
 	/// Save the current temp Hash
 	CHashPtr PrevHash = Buffer->Hash(false);
-	check(!PrevHash || PrevHash->IsTemp());
 
 	return Buffer->Raw().then([this, PrevHash](RawBufferPtr RawObj)
 	{
@@ -260,10 +259,6 @@ AsyncRawBufferPtr Blob::Raw()
 			UE_LOG(LogDevice, VeryVerbose, TEXT("DeviceBuffer has a new Hash without owning reference. Unless this is manually cached by the device, this buffer will be deleted which is undesirable. Name: %s, Hash: %llu [Prev Hash: %llu, Size: %dx%d]"),
 				*BufferDesc.Name, PrevHashValue, Hash->Value(), BufferDesc.Width, BufferDesc.Height);
 		}
-
-		/// TODO: do we really need this?
-		if (PrevHash != nullptr)
-			TextureGraphEngine::GetBlobber()->UpdateHash(PrevHash->Value(), Hash);
 
 		return Buffer->Raw_Now();
 	});
