@@ -472,15 +472,19 @@ void FActiveSound::AddModulationRouting(const TSet<TObjectPtr<USoundModulatorBas
 	switch (Destination)
 	{
 		case EModulationDestination::Volume:
+			ModulationRouting.VolumeRouting = EModulationRouting::Union;
 			ModulationRouting.VolumeModulationDestination.Modulators.Append(NewModulators);
 			break;
 		case EModulationDestination::Pitch:
+			ModulationRouting.PitchRouting = EModulationRouting::Union;
 			ModulationRouting.PitchModulationDestination.Modulators.Append(NewModulators);
 			break;
 		case EModulationDestination::Lowpass:
+			ModulationRouting.LowpassRouting = EModulationRouting::Union;
 			ModulationRouting.LowpassModulationDestination.Modulators.Append(NewModulators);
 			break;
 		case EModulationDestination::Highpass:
+			ModulationRouting.HighpassRouting = EModulationRouting::Union;
 			ModulationRouting.HighpassModulationDestination.Modulators.Append(NewModulators);
 			break;
 		default:

@@ -712,7 +712,10 @@ public:
 	/* Gives new Modulation Routing settings to the ActiveSound. This overwrites all previous Modulation Routing settings. */
 	ENGINE_API void SetNewModulationRouting(const FSoundModulationDefaultRoutingSettings& NewRouting);
 
-	/* Adds additional Modulators to the ActiveSound, if possible. To replace existing modulators, use SetNewModulationRouting. */
+	/* Adds additional Modulators to the ActiveSound, if possible. 
+	 * This function forces the Destination's routing method to Union.
+	 * To replace existing modulators or set a different routing method, use SetNewModulationRouting.
+	 */
 	ENGINE_API void AddModulationRouting(const TSet<TObjectPtr<USoundModulatorBase>>& NewModulators, EModulationDestination Destination);
 
 	/* Removes given Modulators from the ActiveSound, if possible. */

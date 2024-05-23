@@ -731,6 +731,7 @@ public:
 
 	/**
 	* Adds the given set of Modulators to the modulators currently set on the Audio Component. This performs a logical Union, so duplicate modulators will not be added.
+	* This function automatically sets the destination's routing method to Union, overriding whatever was set before.
 	* To completely overwrite existing Modulation settings, use SetModulationRouting.
 	* @param Modulators The set of modulators to add to the given destination on the component.
 	* @param Destination The destination to add the modulators to.
