@@ -15,7 +15,7 @@ namespace Chaos
 	{
 		if (!FModuleFactoryRegister::Get().ContainsFactory(GetSimType()))
 		{
-			static TSharedPtr<FSimFactoryModule<FClutchSimModuleDatas>> SharedFactory = MakeShared<FSimFactoryModule<FClutchSimModuleDatas>>(GetDebugName());
+			static TSharedPtr<FSimFactoryModule<FClutchSimModuleData>> SharedFactory = MakeShared<FSimFactoryModule<FClutchSimModuleData>>(GetDebugName());
 			FModuleFactoryRegister::Get().RegisterFactory(GetSimType(), SharedFactory);
 		}
 	}

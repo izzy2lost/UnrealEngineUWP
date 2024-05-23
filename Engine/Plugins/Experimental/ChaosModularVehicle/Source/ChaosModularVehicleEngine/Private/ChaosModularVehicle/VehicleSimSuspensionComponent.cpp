@@ -2,6 +2,7 @@
 
 #include "ChaosModularVehicle/VehicleSimSuspensionComponent.h"
 #include "SimModule/SimModulesInclude.h"
+#include "ChaosModularVehicle/SuspensionSimModule.h"
 #include "VehicleUtility.h"
 
 
@@ -21,7 +22,7 @@ UVehicleSimSuspensionComponent::UVehicleSimSuspensionComponent()
 Chaos::ISimulationModuleBase* UVehicleSimSuspensionComponent::CreateNewCoreModule() const
 {
 	// use the UE properties to setup the physics state
-	Chaos::FSuspensionSettings Settings;
+	FSuspensionSettings Settings;
 
 	Settings.SuspensionAxis = SuspensionAxis;
 	Settings.MaxRaise = SuspensionMaxRaise;
@@ -33,7 +34,7 @@ Chaos::ISimulationModuleBase* UVehicleSimSuspensionComponent::CreateNewCoreModul
 
 	//Settings.SwaybarEffect = SwaybarEffect;
 
-	Chaos::ISimulationModuleBase* Suspension = new Chaos::FSuspensionSimModule(Settings);
+	Chaos::ISimulationModuleBase* Suspension = new FSuspensionSimModule(Settings);
 	Suspension->SetAnimationEnabled(bAnimationEnabled);
 	return Suspension;
 

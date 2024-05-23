@@ -182,6 +182,16 @@ namespace Chaos
 		*/
 		void SetStateFlags(eSimModuleState StateFlagsIn) { StateFlags = StateFlagsIn; }
 
+		/*
+		* Any post construction initialisation - called from Game Thread
+		*/
+		virtual void OnConstruction_External(Chaos::FClusterUnionPhysicsProxy* Proxy) {}
+
+		/*
+		* Any cleaning up required - called from game thread
+		*/
+		virtual void OnTermination_External() {}
+
 		/**
 		 * The main Simulation function that is called from the physics async callback thread
 		 */

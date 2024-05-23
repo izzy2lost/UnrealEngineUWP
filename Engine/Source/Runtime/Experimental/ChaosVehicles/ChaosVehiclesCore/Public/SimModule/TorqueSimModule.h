@@ -9,12 +9,12 @@ namespace Chaos
 {
 	class FTorqueSimModule;
 
-	struct CHAOSVEHICLESCORE_API FTorqueSimModuleDatas : public FModuleNetData
+	struct CHAOSVEHICLESCORE_API FTorqueSimModuleData : public FModuleNetData
 	{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		FTorqueSimModuleDatas(int NodeArrayIndex, const FString& InDebugString) : FModuleNetData(NodeArrayIndex, InDebugString) {}
+		FTorqueSimModuleData(int NodeArrayIndex, const FString& InDebugString) : FModuleNetData(NodeArrayIndex, InDebugString) {}
 #else
-		FTorqueSimModuleDatas(int NodeArrayIndex) : FModuleNetData(NodeArrayIndex) {}
+		FTorqueSimModuleData(int NodeArrayIndex) : FModuleNetData(NodeArrayIndex) {}
 #endif
 		virtual eSimType GetType() override { return eSimType::TorqueSim; }
 
@@ -47,7 +47,7 @@ namespace Chaos
 
 	class CHAOSVEHICLESCORE_API FTorqueSimModule : public ISimulationModuleBase
 	{
-		friend FTorqueSimModuleDatas;
+		friend FTorqueSimModuleData;
 
 	public:
 		FTorqueSimModule()

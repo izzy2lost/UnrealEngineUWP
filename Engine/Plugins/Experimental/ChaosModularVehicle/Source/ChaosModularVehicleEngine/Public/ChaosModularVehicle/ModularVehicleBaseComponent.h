@@ -122,11 +122,6 @@ public:
 
 	void CreateAssociatedSimComponents(UPrimitiveComponent* AttachedComponent, int ParentIndex, int TransformIndex, Chaos::FSimTreeUpdates& TreeUpdatesOut);
 
-	void CreateConstraint(Chaos::ISimulationModuleBase* NewModule);
-	void DestroyConstraint(int ConstraintIndex);
-	void DestroyAllConstraints();
-	void EnableConstraint(int ConstraintIndex, bool bEnabled);
-
 	void PreTickGT(float DeltaTime);
 	void UpdateState(float DeltaTime);
 	TUniquePtr<FModularVehicleAsyncInput> SetCurrentAsyncData(int32 InputIdx, FChaosSimModuleManagerAsyncOutput* CurOutput, FChaosSimModuleManagerAsyncOutput* NextOutput, float Alpha, int32 VehicleManagerTimestamp);
@@ -361,7 +356,6 @@ private:
 
 	int32 NextConstructionIndex = 0;
 
-	TArray<FPhysicsConstraintHandle> ConstraintHandles;
 	int32 ClusteringCount = 0;
 
 	bool bIsLocallyControlled;

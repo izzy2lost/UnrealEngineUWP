@@ -1,36 +1,39 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SimModule/SuspensionModule.h"
+#include "ChaosModularVehicle/SuspensionSimModule.h"
 #include "SimModule/SimModuleTree.h"
-#include "SimModule/WheelModule.h"
+#include "SimModule/TorqueSimModule.h"
 #include "Chaos/PBDSuspensionConstraints.h"
 #include "PhysicsProxy/SuspensionConstraintProxy.h"
+#include "PhysicsProxy/ClusterUnionPhysicsProxy.h"
 #include "PBDRigidsSolver.h"
 #include "VehicleUtility.h"
+#include "PhysicsEngine/PhysicsObjectExternalInterface.h"
+#include "Physics/PhysicsInterfaceCore.h"
+
 
 #if VEHICLE_DEBUGGING_ENABLED
 UE_DISABLE_OPTIMIZATION_SHIP
 #endif
 
-namespace Chaos
-{
+using namespace Chaos;
 
 	FSuspensionSimModule::FSuspensionSimModule(const FSuspensionSettings& Settings)
 		: TSimModuleSettings<FSuspensionSettings>(Settings)
 		, SpringDisplacement(0.f)
 		, LastDisplacement(0.f)
 		, SpringSpeed(0.f)
-		, Constraint(nullptr)
-		, ConstraintIndex(INVALID_IDX)
 	{
 		AccessSetup().MaxLength = FMath::Abs(Settings.MaxRaise + Settings.MaxDrop);
 
 		if (!FModuleFactoryRegister::Get().ContainsFactory(GetSimType()))
 		{
-			static TSharedPtr<FSimFactoryModule<FSuspensionSimModuleDatas>> SharedFactory = MakeShared<FSimFactoryModule<FSuspensionSimModuleDatas>>(GetDebugName());
+			static TSharedPtr<FSuspensionFactory> SharedFactory = MakeShared<FSuspensionFactory>();
 			FModuleFactoryRegister::Get().RegisterFactory(GetSimType(), SharedFactory);
 		}
-
+	}
+	FSuspensionSimModule::~FSuspensionSimModule()
+	{
 	}
 
 	float FSuspensionSimModule::GetSpringLength() const
@@ -57,6 +60,18 @@ namespace Chaos
 		float TraceLength = OutTrace.Start.Z - OutTrace.End.Z;
 	}
 
+	void FSuspensionSimModule::OnConstruction_External(Chaos::FClusterUnionPhysicsProxy* Proxy)
+	{
+		Chaos::EnsureIsInGameThreadContext();
+		CreateConstraint(Proxy);
+	}
+
+	void FSuspensionSimModule::OnTermination_External()
+	{
+		Chaos::EnsureIsInGameThreadContext();
+		DestroyConstraint();
+	}
+
 	void FSuspensionSimModule::Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem)
 	{
 		{
@@ -75,7 +90,7 @@ namespace Chaos
 				{
 					ForceIntoSurface = SuspensionForce * Setup().SuspensionForceEffect;
 
-					if (Constraint == nullptr)
+					if (!ConstraintHandle.IsValid())
 					{
 						AddLocalForce(Setup().SuspensionAxis * -SuspensionForce, true, false, true, FColor::Green);
 					}
@@ -88,7 +103,7 @@ namespace Chaos
 				if (Chaos::ISimulationModuleBase* Module = SimModuleTree->AccessSimModule(WheelSimTreeIndex))
 				{
 					check(Module->GetSimType() == eSimType::Wheel);
-					Chaos::FWheelSimModule* Wheel = static_cast<Chaos::FWheelSimModule*>(Module);
+					Chaos::FWheelBaseInterface* Wheel = static_cast<Chaos::FWheelBaseInterface*>(Module);
 
 					Wheel->SetForceIntoSurface(ForceIntoSurface);
 				}
@@ -96,7 +111,7 @@ namespace Chaos
 			}
 		}
 
-		if (Constraint)
+		if (ConstraintHandle.IsValid())
 		{
 			UpdateConstraint();
 		}
@@ -118,24 +133,65 @@ namespace Chaos
 		}
 	}
 
-	void FSuspensionSimModule::SetSuspensionConstraint(FSuspensionConstraint* InConstraint)
+	void FSuspensionSimModule::CreateConstraint(Chaos::FClusterUnionPhysicsProxy* Proxy)
 	{
-		Constraint = InConstraint;
-	}
+		Chaos::EnsureIsInGameThreadContext();
+		const FVector& LocalOffset = GetInitialParticleTransform().GetLocation();
 
-	void FSuspensionSimModule::UpdateConstraint()
-	{
-		if (Constraint && Constraint->IsValid())
+		if (Proxy)
 		{
-			if (FSuspensionConstraintPhysicsProxy* Proxy = Constraint->GetProxy<FSuspensionConstraintPhysicsProxy>())
+			const FPhysicsObjectHandle& PhysicsObject = Proxy->GetPhysicsObjectHandle();
+
+			if (FChaosScene* Scene = static_cast<FChaosScene*>(FPhysicsObjectExternalInterface::GetScene({ &PhysicsObject, 1 })))
 			{
-				Chaos::FPhysicsSolver* Solver = Proxy->GetSolver<Chaos::FPhysicsSolver>();
-				Solver->SetSuspensionTarget(Constraint, TargetPos, ImpactNormal, WheelInContact);
+				FLockedWritePhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockWrite(Scene);
+				if (const FGeometryParticle* Particle = Interface->GetParticle(PhysicsObject))
+				{
+					ConstraintHandle = FPhysicsInterface::CreateSuspension(PhysicsObject, LocalOffset);
+
+					if (ConstraintHandle.IsValid())
+					{
+						if (FSuspensionConstraint* Constraint = static_cast<FSuspensionConstraint*>(ConstraintHandle.Constraint))
+						{
+							Constraint->SetHardstopStiffness(1.0f);
+							Constraint->SetSpringStiffness(Setup().SpringRate * 0.25f);
+							Constraint->SetSpringPreload(Setup().SpringPreload);
+							Constraint->SetSpringDamping(Setup().SpringDamping * 5.0f);
+							Constraint->SetMinLength(-Setup().MaxRaise);
+							Constraint->SetMaxLength(Setup().MaxDrop);
+							Constraint->SetAxis(-Setup().SuspensionAxis);
+						}
+					}
+				}
 			}
 		}
 	}
 
-	void FSuspensionSimModuleDatas::FillSimState(ISimulationModuleBase* SimModule)
+	void FSuspensionSimModule::DestroyConstraint()
+	{
+		Chaos::EnsureIsInGameThreadContext();
+		FPhysicsCommand::ExecuteWrite(ConstraintHandle, [&](const FPhysicsConstraintHandle& Constraint)
+			{
+				FPhysicsInterface::ReleaseConstraint(ConstraintHandle);
+			});
+	}
+
+	void FSuspensionSimModule::UpdateConstraint()
+	{
+		if (Chaos::FSuspensionConstraint* Constraint = static_cast<Chaos::FSuspensionConstraint*>(ConstraintHandle.Constraint))
+		{
+			if (Constraint && Constraint->IsValid())
+			{
+				if (FSuspensionConstraintPhysicsProxy* Proxy = Constraint->GetProxy<FSuspensionConstraintPhysicsProxy>())
+				{
+					Chaos::FPhysicsSolver* Solver = Proxy->GetSolver<Chaos::FPhysicsSolver>();
+					Solver->SetSuspensionTarget(Constraint, TargetPos, ImpactNormal, WheelInContact);
+				}
+			}
+		}
+	}
+
+	void FSuspensionSimModuleData::FillSimState(ISimulationModuleBase* SimModule)
 	{
 		check(SimModule->GetSimType() == eSimType::Suspension);
 		if (FSuspensionSimModule* Sim = static_cast<FSuspensionSimModule*>(SimModule))
@@ -145,7 +201,7 @@ namespace Chaos
 		}
 	}
 
-	void FSuspensionSimModuleDatas::FillNetState(const ISimulationModuleBase* SimModule)
+	void FSuspensionSimModuleData::FillNetState(const ISimulationModuleBase* SimModule)
 	{
 		check(SimModule->GetSimType() == eSimType::Suspension);
 		if (const FSuspensionSimModule* Sim = static_cast<const FSuspensionSimModule*>(SimModule))
@@ -155,17 +211,17 @@ namespace Chaos
 		}
 	}
 
-	void FSuspensionSimModuleDatas::Lerp(const float LerpFactor, const FModuleNetData& Min, const FModuleNetData& Max)
+	void FSuspensionSimModuleData::Lerp(const float LerpFactor, const FModuleNetData& Min, const FModuleNetData& Max)
 	{
-		const FSuspensionSimModuleDatas& MinData = static_cast<const FSuspensionSimModuleDatas&>(Min);
-		const FSuspensionSimModuleDatas& MaxData = static_cast<const FSuspensionSimModuleDatas&>(Max);
+		const FSuspensionSimModuleData& MinData = static_cast<const FSuspensionSimModuleData&>(Min);
+		const FSuspensionSimModuleData& MaxData = static_cast<const FSuspensionSimModuleData&>(Max);
 
 		SpringDisplacement = FMath::Lerp(MinData.SpringDisplacement, MaxData.SpringDisplacement, LerpFactor);
 		LastDisplacement = FMath::Lerp(MinData.LastDisplacement, MaxData.LastDisplacement, LerpFactor);
 	}
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	FString FSuspensionSimModuleDatas::ToString() const
+	FString FSuspensionSimModuleData::ToString() const
 	{
 		return FString::Printf(TEXT("Module:%s SpringDisplacement:%f LastDisplacement:%f"),
 			*DebugString, SpringDisplacement, LastDisplacement);
@@ -210,7 +266,6 @@ namespace Chaos
 	}
 #endif
 
-} // namespace Chaos
 
 #if VEHICLE_DEBUGGING_ENABLED
 UE_ENABLE_OPTIMIZATION_SHIP

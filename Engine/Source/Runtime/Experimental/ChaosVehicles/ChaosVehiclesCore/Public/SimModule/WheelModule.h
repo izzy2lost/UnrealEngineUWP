@@ -11,12 +11,12 @@ namespace Chaos
 	class FClusterUnionPhysicsProxy;
 	struct FModuleNetData;
 
-	struct CHAOSVEHICLESCORE_API FWheelSimModuleDatas : public FTorqueSimModuleDatas
+	struct CHAOSVEHICLESCORE_API FWheelSimModuleData : public FTorqueSimModuleData
 	{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		FWheelSimModuleDatas(int NodeArrayIndex, const FString& InDebugString) : FTorqueSimModuleDatas(NodeArrayIndex, InDebugString) {}
+		FWheelSimModuleData(int NodeArrayIndex, const FString& InDebugString) : FTorqueSimModuleData(NodeArrayIndex, InDebugString) {}
 #else
-		FWheelSimModuleDatas(int NodeArrayIndex) : FTorqueSimModuleDatas(NodeArrayIndex) {}
+		FWheelSimModuleData(int NodeArrayIndex) : FTorqueSimModuleData(NodeArrayIndex) {}
 #endif
 
 		virtual eSimType GetType() override { return eSimType::Wheel; }
@@ -24,13 +24,13 @@ namespace Chaos
 		virtual void FillSimState(ISimulationModuleBase* SimModule) override
 		{
 			check(SimModule->GetSimType() == eSimType::Wheel);
-			FTorqueSimModuleDatas::FillSimState(SimModule);
+			FTorqueSimModuleData::FillSimState(SimModule);
 		}
 
 		virtual void FillNetState(const ISimulationModuleBase* SimModule) override
 		{
 			check(SimModule->GetSimType() == eSimType::Wheel);
-			FTorqueSimModuleDatas::FillNetState(SimModule);
+			FTorqueSimModuleData::FillNetState(SimModule);
 		}
 
 	};
@@ -125,7 +125,7 @@ namespace Chaos
 
 		virtual TSharedPtr<FModuleNetData> GenerateNetData(int SimArrayIndex) const
 		{
-			return MakeShared<FWheelSimModuleDatas>(
+			return MakeShared<FWheelSimModuleData>(
 				SimArrayIndex
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 				, GetDebugName()

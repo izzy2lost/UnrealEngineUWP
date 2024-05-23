@@ -30,33 +30,20 @@ struct CHAOSVEHICLESCORE_API FSpringTrace
 class CHAOSVEHICLESCORE_API FSuspensionBaseInterface : public ISimulationModuleBase
 {
 public:
-	FSuspensionBaseInterface()
-		: WheelSimTreeIndex(INVALID_IDX)
-		, TargetPos(FVector::ZeroVector)
-		, ImpactNormal(FVector::ZeroVector)
-		, HitDistance(0.f)
-		, WheelInContact(false)
-	{
-	}
+	FSuspensionBaseInterface();
 
 	virtual ~FSuspensionBaseInterface() {}
 
-	virtual bool IsBehaviourType(eSimModuleTypeFlags InType) const override { return (InType & Raycast); }
+	virtual bool IsBehaviourType(eSimModuleTypeFlags InType) const override;
 
-	virtual eSimType GetSimType() const override { return eSimType::Suspension; }
+	virtual eSimType GetSimType() const override;
 
 	virtual float GetMaxSpringLength() const = 0;
 	virtual float GetSpringLength() const = 0;
 	virtual void SetSpringLength(float InLength, float WheelRadius) = 0;
 	virtual void GetWorldRaycastLocation(const FTransform& BodyTransform, float WheelRadius, FSpringTrace& OutTrace) = 0;
 
-	void SetTargetPoint(const FVector& InTargetPoint, const FVector& InImpactNormal, float InHitDistance, bool InWheelInContact)
-	{
-		TargetPos = InTargetPoint;
-		ImpactNormal = InImpactNormal;
-		HitDistance = InHitDistance;
-		WheelInContact = InWheelInContact;
-	}
+	void SetTargetPoint(const FVector& InTargetPoint, const FVector& InImpactNormal, float InHitDistance, bool InWheelInContact);
 	void SetWheelSimTreeIndex(int WheelTreeIndexIn) { WheelSimTreeIndex = WheelTreeIndexIn; }
 	int GetWheelSimTreeIndex() const { return WheelSimTreeIndex; }
 

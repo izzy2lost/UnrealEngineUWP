@@ -22,12 +22,12 @@ namespace Chaos
 	};
 
 
-	struct CHAOSVEHICLESCORE_API FClutchSimModuleDatas : public FTorqueSimModuleDatas
+	struct CHAOSVEHICLESCORE_API FClutchSimModuleData : public FTorqueSimModuleData
 	{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		FClutchSimModuleDatas(int NodeArrayIndex, const FString& InDebugString) : FTorqueSimModuleDatas(NodeArrayIndex, InDebugString) {}
+		FClutchSimModuleData(int NodeArrayIndex, const FString& InDebugString) : FTorqueSimModuleData(NodeArrayIndex, InDebugString) {}
 #else
-		FClutchSimModuleDatas(int NodeArrayIndex) : FTorqueSimModuleDatas(NodeArrayIndex) {}
+		FClutchSimModuleData(int NodeArrayIndex) : FTorqueSimModuleData(NodeArrayIndex) {}
 #endif
 
 		virtual eSimType GetType() override { return eSimType::Clutch; }
@@ -35,13 +35,13 @@ namespace Chaos
 		virtual void FillSimState(ISimulationModuleBase* SimModule) override
 		{
 			check(SimModule->GetSimType() == eSimType::Clutch);
-			FTorqueSimModuleDatas::FillSimState(SimModule);
+			FTorqueSimModuleData::FillSimState(SimModule);
 		}
 
 		virtual void FillNetState(const ISimulationModuleBase* SimModule) override
 		{
 			check(SimModule->GetSimType() == eSimType::Clutch);
-			FTorqueSimModuleDatas::FillNetState(SimModule);
+			FTorqueSimModuleData::FillNetState(SimModule);
 		}
 
 	};
@@ -64,7 +64,7 @@ namespace Chaos
 
 		virtual TSharedPtr<FModuleNetData> GenerateNetData(int SimArrayIndex) const
 		{
-			return MakeShared<FClutchSimModuleDatas>(
+			return MakeShared<FClutchSimModuleData>(
 				SimArrayIndex
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 				, GetDebugName()

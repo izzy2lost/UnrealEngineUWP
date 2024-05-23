@@ -10,12 +10,12 @@ namespace Chaos
 	struct FAllInputs;
 	class FSimModuleTree;
 
-	struct CHAOSVEHICLESCORE_API FTransmissionSimModuleDatas : public FModuleNetData
+	struct CHAOSVEHICLESCORE_API FTransmissionSimModuleData : public FModuleNetData
 	{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		FTransmissionSimModuleDatas(int NodeArrayIndex, const FString& InDebugString) : FModuleNetData(NodeArrayIndex, InDebugString) {}
+		FTransmissionSimModuleData(int NodeArrayIndex, const FString& InDebugString) : FModuleNetData(NodeArrayIndex, InDebugString) {}
 #else
-		FTransmissionSimModuleDatas(int NodeArrayIndex) : FModuleNetData(NodeArrayIndex) {}
+		FTransmissionSimModuleData(int NodeArrayIndex) : FModuleNetData(NodeArrayIndex) {}
 #endif
 
 		virtual eSimType GetType() override { return eSimType::Transmission; }
@@ -100,7 +100,7 @@ namespace Chaos
 
 	class CHAOSVEHICLESCORE_API FTransmissionSimModule : public FTorqueSimModule, public TSimModuleSettings<FTransmissionSettings>
 	{
-		friend FTransmissionSimModuleDatas;
+		friend FTransmissionSimModuleData;
 		friend FTransmissionOutputData;
 
 	public:
@@ -109,7 +109,7 @@ namespace Chaos
 
 		virtual TSharedPtr<FModuleNetData> GenerateNetData(int SimArrayIndex) const
 		{
-			return MakeShared<FTransmissionSimModuleDatas>(
+			return MakeShared<FTransmissionSimModuleData>(
 				SimArrayIndex
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 				, GetDebugName()

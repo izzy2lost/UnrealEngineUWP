@@ -3,27 +3,28 @@
 #pragma once
 
 #include "SimModule/SuspensionBaseInterface.h"
+#include "Chaos/ChaosEngineInterface.h"
 
 namespace Chaos
 {
 	struct FAllInputs;
 	class FSimModuleTree;
 	class FClusterUnionPhysicsProxy;
-	class FSuspensionConstraint;
+}
 
-	struct CHAOSVEHICLESCORE_API FSuspensionSimModuleDatas : public FModuleNetData
+	struct CHAOSMODULARVEHICLEENGINE_API FSuspensionSimModuleData : public Chaos::FModuleNetData
 	{
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		FSuspensionSimModuleDatas(int NodeArrayIndex, const FString& InDebugString) : FModuleNetData(NodeArrayIndex, InDebugString) {}
+		FSuspensionSimModuleData(int NodeArrayIndex, const FString& InDebugString) : Chaos::FModuleNetData(NodeArrayIndex, InDebugString) {}
 #else
-		FSuspensionSimModuleDatas(int NodeArrayIndex) : FModuleNetData(NodeArrayIndex) {}
+		FSuspensionSimModuleData(int NodeArrayIndex) : FModuleNetData(NodeArrayIndex) {}
 #endif
 
-		virtual eSimType GetType() override { return eSimType::Suspension; }
+		virtual Chaos::eSimType GetType() override { return Chaos::eSimType::Suspension; }
 
-		virtual void FillSimState(ISimulationModuleBase* SimModule) override;
+		virtual void FillSimState(Chaos::ISimulationModuleBase* SimModule) override;
 
-		virtual void FillNetState(const ISimulationModuleBase* SimModule) override;
+		virtual void FillNetState(const Chaos::ISimulationModuleBase* SimModule) override;
 
 		virtual void Serialize(FArchive& Ar) override
 		{
@@ -41,14 +42,14 @@ namespace Chaos
 		float LastDisplacement = 0.0f;
 	};
 
-	struct CHAOSVEHICLESCORE_API FSuspensionOutputData : public FSimOutputData
+	struct CHAOSMODULARVEHICLEENGINE_API FSuspensionOutputData : public Chaos::FSimOutputData
 	{
 		virtual FSimOutputData* MakeNewData() override { return FSuspensionOutputData::MakeNew(); }
 		static FSimOutputData* MakeNew() { return new FSuspensionOutputData(); }
 
-		virtual eSimType GetType() override { return eSimType::Suspension; }
-		virtual void FillOutputState(const ISimulationModuleBase* SimModule) override;
-		virtual void Lerp(const FSimOutputData& InCurrent, const FSimOutputData& InNext, float Alpha) override;
+		virtual Chaos::eSimType GetType() override { return Chaos::eSimType::Suspension; }
+		virtual void FillOutputState(const Chaos::ISimulationModuleBase* SimModule) override;
+		virtual void Lerp(const FSimOutputData& InCurrent, const Chaos::FSimOutputData& InNext, float Alpha) override;
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 		virtual FString ToString() override;
@@ -60,7 +61,7 @@ namespace Chaos
 		FVector ImpactNormal;
 	};
 
-	struct CHAOSVEHICLESCORE_API FSuspensionSettings
+	struct CHAOSMODULARVEHICLEENGINE_API FSuspensionSettings
 	{
 		FSuspensionSettings()
 			: SuspensionAxis(FVector(0.f, 0.f, -1.f))
@@ -72,7 +73,6 @@ namespace Chaos
 			, SpringPreload(0.5f)
 			, SpringDamping(0.9f)
 			, SuspensionForceEffect(100.0f)
-			//	, SwaybarEffect(0.5f)
 		{
 
 		}
@@ -88,30 +88,45 @@ namespace Chaos
 		float SpringDamping;		// limit compression/rebound speed
 
 		float SuspensionForceEffect; // force that presses the wheels into the ground - producing grip
+	};
+	
 
-		//	float Swaybar;				// Anti-roll bar
+	class FSuspensionFactory : public Chaos::IFactoryModule
+	{
+	public:
+		TSharedPtr<Chaos::FModuleNetData> GenerateNetData(int32 SimArrayIndex) const
+		{
+			return MakeShared<FSuspensionSimModuleData>(
+				SimArrayIndex
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+				, TEXT("ConstraintSuspension")
+#endif			
+			);
+		}
 	};
 
-	class CHAOSVEHICLESCORE_API FSuspensionSimModule : public FSuspensionBaseInterface, public TSimModuleSettings<FSuspensionSettings>
+	class CHAOSMODULARVEHICLEENGINE_API FSuspensionSimModule : public Chaos::FSuspensionBaseInterface, public Chaos::TSimModuleSettings<FSuspensionSettings>
 	{
-		friend FSuspensionSimModuleDatas;
+		friend FSuspensionSimModuleData;
 		friend FSuspensionOutputData;
 
 	public:
 
 		FSuspensionSimModule(const FSuspensionSettings& Settings);
 
-		virtual TSharedPtr<FModuleNetData> GenerateNetData(int SimArrayIndex) const
+		virtual TSharedPtr<Chaos::FModuleNetData> GenerateNetData(int SimArrayIndex) const override
 		{
-			return MakeShared<FSuspensionSimModuleDatas>(
+			return MakeShared<FSuspensionSimModuleData>(
 				SimArrayIndex
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 				, GetDebugName()
 #endif			
 			);
 		}
+		virtual ~FSuspensionSimModule() override;
 
-		virtual FSimOutputData* GenerateOutputData() const override
+
+		virtual Chaos::FSimOutputData* GenerateOutputData() const override
 		{
 			return FSuspensionOutputData::MakeNew();
 		}
@@ -121,9 +136,12 @@ namespace Chaos
 		virtual float GetMaxSpringLength() const override { return Setup().MaxLength; }
 		virtual float GetSpringLength() const override;
 		virtual  void SetSpringLength(float InLength, float WheelRadius) override;
-		virtual void GetWorldRaycastLocation(const FTransform& BodyTransform, float WheelRadius, FSpringTrace& OutTrace) override;
+		virtual void GetWorldRaycastLocation(const FTransform& BodyTransform, float WheelRadius, Chaos::FSpringTrace& OutTrace) override;
 
-		virtual void Simulate(float DeltaTime, const FAllInputs& Inputs, FSimModuleTree& VehicleModuleSystem) override;
+		virtual void OnConstruction_External(Chaos::FClusterUnionPhysicsProxy* Proxy) override;
+		virtual void OnTermination_External() override;
+
+		virtual void Simulate(float DeltaTime, const Chaos::FAllInputs& Inputs, Chaos::FSimModuleTree& VehicleModuleSystem) override;
 
 		virtual void Animate(Chaos::FClusterUnionPhysicsProxy* Proxy) override;
 
@@ -131,20 +149,15 @@ namespace Chaos
 
 		void UpdateConstraint();
 
-		void SetSuspensionConstraint(FSuspensionConstraint* InConstraint);
-		void SetConstraintIndex(int32 InConstraintIndex) { ConstraintIndex = InConstraintIndex; }
-		int32 GetConstraintIndex() const { return ConstraintIndex; }
+	protected:
+		void CreateConstraint(Chaos::FClusterUnionPhysicsProxy* Proxy);
+		void DestroyConstraint();
+
 	private:
 
 		float SpringDisplacement;
 		float LastDisplacement;
 		float SpringSpeed;
 
-		FSuspensionConstraint* Constraint;
-		int32 ConstraintIndex;
+		FPhysicsConstraintHandle ConstraintHandle;
 	};
-
-
-} // namespace Chaos
-
-

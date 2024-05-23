@@ -17,7 +17,6 @@
 #include "GameFramework/Pawn.h"
 #include "Physics/Experimental/PhysScene_Chaos.h"
 #include "SimModule/SimModuleTree.h"
-#include "Chaos/PBDSuspensionConstraints.h"
 
 #include "ChaosModularVehicle/ChaosSimModuleManagerAsyncCallback.h"
 
@@ -306,12 +305,9 @@ void UModularVehicleBaseComponent::CreateAssociatedSimComponents(UPrimitiveCompo
 		}
 		ParentIndex = TreeIndex;
 
-		if (bModularVehicle_SuspensionConstraint_Enabled)
+		if (Chaos::FClusterUnionPhysicsProxy* Proxy = ClusterUnionComponent->GetPhysicsProxy())
 		{
-			if (NewModule->GetSimType() == Chaos::eSimType::Suspension)
-			{
-				CreateConstraint(NewModule);
-			}
+			NewModule->OnConstruction_External(Proxy);
 		}
 	}
 
@@ -396,99 +392,6 @@ void UModularVehicleBaseComponent::TickComponent(float DeltaTime, ELevelTick Tic
 
 }
 
-void UModularVehicleBaseComponent::CreateConstraint(Chaos::ISimulationModuleBase* NewModule)
-{
-	check(NewModule->GetSimType() == Chaos::eSimType::Suspension);
-	Chaos::FSuspensionSimModule* SuspensionModule = static_cast<Chaos::FSuspensionSimModule*>(NewModule);
-
-	const Chaos::FSuspensionSettings& Setup = SuspensionModule->Setup();
-	const FVector& LocalOffset = SuspensionModule->GetInitialParticleTransform().GetLocation();
-
-	if (ClusterUnionComponent && ClusterUnionComponent->GetPhysicsProxy())
-	{
-		const Chaos::FPhysicsObjectHandle& PhysicsObject = ClusterUnionComponent->GetPhysicsProxy()->GetPhysicsObjectHandle();
-
-		if ( FChaosScene* Scene = static_cast<FChaosScene*>(FPhysicsObjectExternalInterface::GetScene({ &PhysicsObject, 1 })) )
-		{
-			FLockedWritePhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockWrite(Scene);
-			if (const Chaos::FGeometryParticle* Particle = Interface->GetParticle(PhysicsObject))
-			{
-				FPhysicsConstraintHandle ConstraintHandle = FPhysicsInterface::CreateSuspension(PhysicsObject, LocalOffset);
-
-				if (ConstraintHandle.IsValid())
-				{
-					ConstraintHandles.Add(ConstraintHandle);
-
-					if (Chaos::FSuspensionConstraint* Constraint = static_cast<Chaos::FSuspensionConstraint*>(ConstraintHandle.Constraint))
-					{
-						Constraint->SetHardstopStiffness(1.0f);
-						Constraint->SetSpringStiffness(Setup.SpringRate * 0.25f);
-						Constraint->SetSpringPreload(Setup.SpringPreload);
-						Constraint->SetSpringDamping(Setup.SpringDamping * 5.0f);
-						Constraint->SetMinLength(-Setup.MaxRaise);
-						Constraint->SetMaxLength(Setup.MaxDrop);
-						Constraint->SetAxis(-Setup.SuspensionAxis);
-
-						SuspensionModule->SetSuspensionConstraint(Constraint);
-						SuspensionModule->SetConstraintIndex(ConstraintHandles.Num()-1);
-					}
-				}
-			}
-		}
-	}
-}
-
-void UModularVehicleBaseComponent::DestroyConstraint(int ConstraintIndex)
-{
-	if (ConstraintIndex >= 0 && ConstraintIndex < ConstraintHandles.Num())
-	{
-		FPhysicsConstraintHandle ConstraintHandle = ConstraintHandles[ConstraintIndex];
-		FPhysicsCommand::ExecuteWrite(ConstraintHandle, [&](const FPhysicsConstraintHandle& Constraint)
-			{
-				FPhysicsInterface::ReleaseConstraint(ConstraintHandle);
-			});
-
-		ConstraintHandles[ConstraintIndex].Reset();
-	}
-
-}
-
-void UModularVehicleBaseComponent::DestroyAllConstraints()
-{
-	if (ConstraintHandles.Num() > 0)
-	{
-		for (FPhysicsConstraintHandle ConstraintHandle : ConstraintHandles)
-		{
-			if (ConstraintHandle.IsValid())
-			{
-				FPhysicsCommand::ExecuteWrite(ConstraintHandle, [&](const FPhysicsConstraintHandle& Constraint)
-					{
-						FPhysicsInterface::ReleaseConstraint(ConstraintHandle);
-					});
-			}
-		}
-	}
-	ConstraintHandles.Empty();
-
-}
-
-void UModularVehicleBaseComponent::EnableConstraint(int ConstraintIndex, bool bEnabled)
-{
-	if (ConstraintIndex >= 0 && ConstraintIndex < ConstraintHandles.Num())
-	{
-		FPhysicsConstraintHandle ConstraintHandle = ConstraintHandles[ConstraintIndex];
-		FPhysicsCommand::ExecuteWrite(ConstraintHandle, [&](const FPhysicsConstraintHandle& Constraint)
-			{
-				if (Chaos::FSuspensionConstraint* SuspensionConstraint = static_cast<Chaos::FSuspensionConstraint*>(ConstraintHandle.Constraint))
-				{
-					SuspensionConstraint->SetEnabled(bEnabled);
-				}
-			});
-
-		ConstraintHandles[ConstraintIndex].Reset();
-	}
-
-}
 
 int32 UModularVehicleBaseComponent::FindComponentAddOrder(UPrimitiveComponent* InComponent)
 {
@@ -963,13 +866,7 @@ void UModularVehicleBaseComponent::RemoveComponentFromSimulation(UPrimitiveCompo
 					{
 						SimModule->SetAnimationEnabled(false);
 						SimModule->SetStateFlags(Chaos::eSimModuleState::Disabled);
-
-						if (SimModule->GetSimType() == Chaos::eSimType::Suspension)
-						{
-							Chaos::FSuspensionSimModule* SuspensionModule = static_cast<Chaos::FSuspensionSimModule*>(SimModule);
-							DestroyConstraint(SuspensionModule->GetConstraintIndex());
-						}
-
+						SimModule->OnTermination_External();
 						break;
 					}
 				}

@@ -103,7 +103,7 @@ void FTorqueSimModule::IntegrateAngularVelocity(float DeltaTime, float Inertia, 
 		, *GetDebugName(), DriveTorque, BrakingTorque, LoadTorque, AngularVelocity, GetRPM(), AngularPosition, Inertia);
 }
 
-void FTorqueSimModuleDatas::FillSimState(ISimulationModuleBase* SimModule)
+void FTorqueSimModuleData::FillSimState(ISimulationModuleBase* SimModule)
 {
 	if (FTorqueSimModule* Sim = static_cast<FTorqueSimModule*>(SimModule))
 	{
@@ -112,7 +112,7 @@ void FTorqueSimModuleDatas::FillSimState(ISimulationModuleBase* SimModule)
 	}
 }
 
-void FTorqueSimModuleDatas::FillNetState(const ISimulationModuleBase* SimModule)
+void FTorqueSimModuleData::FillNetState(const ISimulationModuleBase* SimModule)
 {
 	if (const FTorqueSimModule* Sim = static_cast<const FTorqueSimModule*>(SimModule))
 	{
@@ -121,10 +121,10 @@ void FTorqueSimModuleDatas::FillNetState(const ISimulationModuleBase* SimModule)
 	}
 }
 
-void FTorqueSimModuleDatas::Lerp(const float LerpFactor, const FModuleNetData& Min, const FModuleNetData& Max)
+void FTorqueSimModuleData::Lerp(const float LerpFactor, const FModuleNetData& Min, const FModuleNetData& Max)
 {
-	const FTorqueSimModuleDatas& MinData = static_cast<const FTorqueSimModuleDatas&>(Min);
-	const FTorqueSimModuleDatas& MaxData = static_cast<const FTorqueSimModuleDatas&>(Max);
+	const FTorqueSimModuleData& MinData = static_cast<const FTorqueSimModuleData&>(Min);
+	const FTorqueSimModuleData& MaxData = static_cast<const FTorqueSimModuleData&>(Max);
 
 	AngularVelocity = FMath::Lerp(MinData.AngularVelocity, MaxData.AngularVelocity, LerpFactor);
 	AngularPosition = FMath::Lerp(MinData.AngularPosition, MaxData.AngularPosition, LerpFactor);
@@ -135,7 +135,7 @@ void FTorqueSimModuleDatas::Lerp(const float LerpFactor, const FModuleNetData& M
 
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-FString FTorqueSimModuleDatas::ToString() const
+FString FTorqueSimModuleData::ToString() const
 {
 	return FString::Printf(TEXT("Module:%s AngularVelocity:%f AngularPosition:%f"),
 		*DebugString, AngularVelocity, AngularPosition);

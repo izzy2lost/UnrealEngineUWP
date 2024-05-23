@@ -20,7 +20,7 @@ namespace Chaos
 	{
 		if (!FModuleFactoryRegister::Get().ContainsFactory(GetSimType()))
 		{
-			static TSharedPtr<FSimFactoryModule<FTransmissionSimModuleDatas>> SharedFactory = MakeShared<FSimFactoryModule<FTransmissionSimModuleDatas>>(GetDebugName());
+			static TSharedPtr<FSimFactoryModule<FTransmissionSimModuleData>> SharedFactory = MakeShared<FSimFactoryModule<FTransmissionSimModuleData>>(GetDebugName());
 			FModuleFactoryRegister::Get().RegisterFactory(GetSimType(), SharedFactory);
 		}
 	}
@@ -168,7 +168,7 @@ namespace Chaos
 		return true;
 	}
 
-	void FTransmissionSimModuleDatas::FillSimState(ISimulationModuleBase* SimModule)
+	void FTransmissionSimModuleData::FillSimState(ISimulationModuleBase* SimModule)
 	{
 		check(SimModule->GetSimType() == eSimType::Transmission);
 		if (FTransmissionSimModule* Sim = static_cast<FTransmissionSimModule*>(SimModule))
@@ -179,7 +179,7 @@ namespace Chaos
 		}
 	}
 
-	void FTransmissionSimModuleDatas::FillNetState(const ISimulationModuleBase* SimModule)
+	void FTransmissionSimModuleData::FillNetState(const ISimulationModuleBase* SimModule)
 	{
 		check(SimModule->GetSimType() == eSimType::Transmission);
 		if (const FTransmissionSimModule* Sim = static_cast<const FTransmissionSimModule*>(SimModule))
@@ -190,10 +190,10 @@ namespace Chaos
 		}
 	}
 
-	void FTransmissionSimModuleDatas::Lerp(const float LerpFactor, const FModuleNetData& Min, const FModuleNetData& Max)
+	void FTransmissionSimModuleData::Lerp(const float LerpFactor, const FModuleNetData& Min, const FModuleNetData& Max)
 	{
-		const FTransmissionSimModuleDatas& MinData = static_cast<const FTransmissionSimModuleDatas&>(Min);
-		const FTransmissionSimModuleDatas& MaxData = static_cast<const FTransmissionSimModuleDatas&>(Max);
+		const FTransmissionSimModuleData& MinData = static_cast<const FTransmissionSimModuleData&>(Min);
+		const FTransmissionSimModuleData& MaxData = static_cast<const FTransmissionSimModuleData&>(Max);
 
 		CurrentGear = LerpFactor < 0.5 ? MinData.CurrentGear : MaxData.CurrentGear;
 		TargetGear = LerpFactor < 0.5 ? MinData.TargetGear : MaxData.TargetGear;
@@ -201,7 +201,7 @@ namespace Chaos
 	}
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	FString FTransmissionSimModuleDatas::ToString() const
+	FString FTransmissionSimModuleData::ToString() const
 	{
 		return FString::Printf(TEXT("Module:%s CurrentGear:%d TargetGear:%d CurrentGearChangeTime:%f"),
 			*DebugString, CurrentGear, TargetGear, CurrentGearChangeTime);
