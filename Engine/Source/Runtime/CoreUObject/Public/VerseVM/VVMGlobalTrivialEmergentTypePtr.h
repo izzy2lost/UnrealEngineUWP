@@ -97,10 +97,12 @@ struct TGlobalDefaultedObjectEmergentTypePtr : public TGlobalTrivialEmergentType
 private:
 	FORCENOINLINE VEmergentType& Create(FAllocationContext Context)
 	{
-		VEmergentType& EmergentType = TGlobalTrivialEmergentTypePtr<ClassInfo>::Create(Context);
-		EmergentType.Shape.Set(Context, VShape::New(Context, {}));
-		return EmergentType;
+		VEmergentType& ET = TGlobalTrivialEmergentTypePtr<ClassInfo>::Create(Context);
+		ET.Shape.Set(Context, VShape::New(Context, {}));
+		return ET;
 	}
+
+	using TGlobalTrivialEmergentTypePtr<ClassInfo>::EmergentType;
 };
 
 } // namespace Verse
