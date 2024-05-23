@@ -4,21 +4,17 @@
 
 #include "Interface/IVCamOutputProviderCreatedWidget.h"
 #include "UI/VCamWidget.h"
-#include "Util/LevelViewportUtils.h"
 #include "Util/ObjectMessageAggregation.h"
 #include "Util/WidgetSnapshotUtils.h"
 #include "Util/WidgetTreeUtils.h"
 #include "VCamComponent.h"
 #include "VCamCoreCustomVersion.h"
 #include "Output/ViewTargetPolicy/FocusFirstPlayerViewTargetPolicy.h"
-#include "Output/ViewTargetPolicy/GameplayViewTargetPolicy.h"
 
-#include "Algo/RemoveIf.h"
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetTree.h"
 #include "CoreGlobals.h"
 #include "Engine/Engine.h"
-#include "Engine/GameEngine.h"
 #include "Framework/Application/SlateApplication.h"
 #include "GameFramework/PlayerController.h"
 #include "Misc/ScopeExit.h"
@@ -30,10 +26,7 @@
 #if WITH_EDITOR
 #include "Editor.h"
 #include "EditorViewportClient.h"
-#include "IAssetViewport.h"
 #include "LevelEditorViewport.h"
-#include "SLevelViewport.h"
-#include "SEditorViewport.h"
 #include "UnrealClient.h"
 #endif
 
@@ -131,6 +124,12 @@ void UVCamOutputProviderBase::SetTargetViewport(EVCamTargetViewportID Value)
 	ReinitializeViewportIfNeeded();
 }
 
+void UVCamOutputProviderBase::InitTargetViewport(EVCamTargetViewportID Value)
+{
+	check(!IsOutputting());
+	TargetViewport = Value;
+}
+
 void UVCamOutputProviderBase::SetUMGClass(const TSubclassOf<UUserWidget> InUMGClass)
 {
 	if (UE::VCamCore::ValidateOverlayClassAndLogErrors(InUMGClass))
@@ -144,21 +143,10 @@ UVCamComponent* UVCamOutputProviderBase::GetVCamComponent() const
 	return GetTypedOuter<UVCamComponent>();
 }
 
-void UVCamOutputProviderBase::ReapplyOverrideResolution()
+void UVCamOutputProviderBase::RequestResolutionRefresh() const
 {
-	if (!IsActiveAndOuterComponentAllowsActivity())
-	{
-		return;
-	}
-	
-	if (bUseOverrideResolution)
-	{
-		ApplyOverrideResolutionForViewport(TargetViewport);
-	}
-	else
-	{
-		RestoreOverrideResolutionForViewport(TargetViewport);
-	}
+	UE::VCamCore::FViewportManager& ViewportManager = UE::VCamCore::FVCamCoreModule::Get().GetViewportManager();
+	ViewportManager.RequestResolutionRefresh();
 }
 
 void UVCamOutputProviderBase::SetActiveInternal(const bool bInActive)
@@ -201,9 +189,7 @@ void UVCamOutputProviderBase::OnActivate()
 {
 	check(IsInitialized());
 
-	ConditionallySetUpGameplayViewTargets();
-	ReapplyOverrideResolution();
-	
+	RequestResolutionRefresh();
 	CreateUMG();
 	DisplayUMG();
 
@@ -212,12 +198,7 @@ void UVCamOutputProviderBase::OnActivate()
 
 void UVCamOutputProviderBase::OnDeactivate()
 {
-	ConditionallyCleanUpGameplayViewTargets();
-	if (bUseOverrideResolution)
-	{
-		RestoreOverrideResolutionForViewport(TargetViewport);
-	}
-	
+	RequestResolutionRefresh();
 	DestroyUMG();
 	
 	OnActivatedDelegate.Broadcast(false);
@@ -401,22 +382,6 @@ void UVCamOutputProviderBase::OnSetTargetCamera(const UCineCameraComponent* InTa
 	}
 }
 
-void UVCamOutputProviderBase::RestoreOverrideResolutionForViewport(EVCamTargetViewportID ViewportToRestore)
-{
-	if (const TSharedPtr<FSceneViewport> TargetSceneViewport = GetSceneViewport(ViewportToRestore))
-	{
-		TargetSceneViewport->SetFixedViewportSize(0, 0);
-	}
-}
-
-void UVCamOutputProviderBase::ApplyOverrideResolutionForViewport(EVCamTargetViewportID Viewport)
-{
-	if (const TSharedPtr<FSceneViewport> TargetSceneViewport = GetSceneViewport(Viewport))
-	{
-		TargetSceneViewport->SetFixedViewportSize(OverrideResolution.X, OverrideResolution.Y);
-	}
-}
-
 void UVCamOutputProviderBase::SuspendOutput()
 {
 	if (IsActive())
@@ -573,7 +538,7 @@ void UVCamOutputProviderBase::PostEditChangeProperty(FPropertyChangedEvent& Prop
 		}
 		else if (PropertyName == NAME_OverrideResolution || PropertyName == NAME_bUseOverrideResolution)
 		{
-			ReapplyOverrideResolution();
+			RequestResolutionRefresh();
 		}
 	}
 
@@ -584,120 +549,38 @@ void UVCamOutputProviderBase::PostEditChangeProperty(FPropertyChangedEvent& Prop
 
 TSharedPtr<FSceneViewport> UVCamOutputProviderBase::GetSceneViewport(EVCamTargetViewportID InTargetViewport) const
 {
-	TSharedPtr<FSceneViewport> SceneViewport;
-	
-#if WITH_EDITOR
-	if (GIsEditor)
-	{
-		for (const FWorldContext& Context : GEngine->GetWorldContexts())
-		{
-			if (Context.WorldType == EWorldType::PIE)
-			{
-				FSlatePlayInEditorInfo* SlatePlayInEditorSession = GEditor->SlatePlayInEditorMap.Find(Context.ContextHandle);
-				if (SlatePlayInEditorSession)
-				{
-					if (SlatePlayInEditorSession->DestinationSlateViewport.IsValid())
-					{
-						TSharedPtr<IAssetViewport> DestinationLevelViewport = SlatePlayInEditorSession->DestinationSlateViewport.Pin();
-						return DestinationLevelViewport->GetSharedActiveViewport();
-					}
-					if (SlatePlayInEditorSession->SlatePlayInEditorWindowViewport.IsValid())
-					{
-						return SlatePlayInEditorSession->SlatePlayInEditorWindowViewport;
-					}
-				}
-			}
-			else if (Context.WorldType == EWorldType::Editor)
-			{
-				TSharedPtr<SLevelViewport> Viewport = UE::VCamCore::LevelViewportUtils::GetLevelViewport(InTargetViewport);
-				FLevelEditorViewportClient* LevelViewportClient = Viewport
-					? &Viewport->GetLevelViewportClient()
-					: nullptr;
-				if (LevelViewportClient)
-				{
-					TSharedPtr<SEditorViewport> ViewportWidget = LevelViewportClient->GetEditorViewportWidget();
-					if (ViewportWidget.IsValid())
-					{
-						SceneViewport = ViewportWidget->GetSceneViewport();
-					}
-				}
-			}
-		}
-	}
-#endif
-	
-	// Prefer returning the game viewport whenever it is available, such as when we launch in Standalone mode.
-	UGameEngine* GameEngine = Cast<UGameEngine>(GEngine);
-	return GameEngine ? GameEngine->SceneViewport : SceneViewport;
+	return UE::VCamCore::FVCamCoreModule::Get()
+		.GetViewportManager()
+		.GetSceneViewport(
+			InTargetViewport
+			);
 }
 
 TWeakPtr<SWindow> UVCamOutputProviderBase::GetTargetInputWindow() const
 {
-	TWeakPtr<SWindow> InputWindow;
-
-#if WITH_EDITOR
-	if (GIsEditor)
-	{
-		for (const FWorldContext& Context : GEngine->GetWorldContexts())
-		{
-			if (Context.WorldType == EWorldType::PIE)
-			{
-				FSlatePlayInEditorInfo* SlatePlayInEditorSession = GEditor->SlatePlayInEditorMap.Find(Context.ContextHandle);
-				
-				if (SlatePlayInEditorSession && SlatePlayInEditorSession->DestinationSlateViewport.IsValid())
-				{
-					TSharedPtr<IAssetViewport> DestinationLevelViewport = SlatePlayInEditorSession->DestinationSlateViewport.Pin();
-					return FSlateApplication::Get().FindWidgetWindow(DestinationLevelViewport->AsWidget());
-				}
-				if (SlatePlayInEditorSession && SlatePlayInEditorSession->SlatePlayInEditorWindowViewport.IsValid())
-				{
-					return SlatePlayInEditorSession->SlatePlayInEditorWindow;
-				}
-			}
-			else if (Context.WorldType == EWorldType::Editor)
-			{
-				if (FLevelEditorViewportClient* LevelViewportClient = GetTargetLevelViewportClient())
-				{
-					TSharedPtr<SEditorViewport> ViewportWidget = LevelViewportClient->GetEditorViewportWidget();
-					if (ViewportWidget.IsValid())
-					{
-						InputWindow = FSlateApplication::Get().FindWidgetWindow(ViewportWidget.ToSharedRef());
-					}
-				}
-			}
-		}
-	}
-#endif
-	
-	// Prefer returning the game viewport whenever it is available, such as when we launch in Standalone mode.
-	UGameEngine* GameEngine = Cast<UGameEngine>(GEngine);
-	return GameEngine ? GameEngine->GameViewportWindow : InputWindow;
+	return UE::VCamCore::FVCamCoreModule::Get()
+		.GetViewportManager()
+		.GetInputWindow(
+			GetTargetViewport()
+			);
 }
 
 #if WITH_EDITOR
 
 FLevelEditorViewportClient* UVCamOutputProviderBase::GetTargetLevelViewportClient() const
 {
-	const TSharedPtr<SLevelViewport> LevelViewport = GetTargetLevelViewport();
-	return LevelViewport
-		? &LevelViewport->GetLevelViewportClient()
-		: nullptr;
-}
-
-TSharedPtr<SLevelViewport> UVCamOutputProviderBase::GetTargetLevelViewport() const
-{
-	return UE::VCamCore::LevelViewportUtils::GetLevelViewport(TargetViewport);
+	return UE::VCamCore::FVCamCoreModule::Get()
+		.GetViewportManager()
+		.GetEditorViewportClient(
+			GetTargetViewport()
+			);
 }
 
 #endif
 
 void UVCamOutputProviderBase::ReinitializeViewportIfNeeded()
 {
-	for (int32 i = 0; i < static_cast<int32>(EVCamTargetViewportID::Count); ++i)
-	{
-		RestoreOverrideResolutionForViewport(static_cast<EVCamTargetViewportID>(i));
-	}
-	ReapplyOverrideResolution();
+	RequestResolutionRefresh();
 
 	const TSharedPtr<FSceneViewport> Viewport = GetSceneViewport(TargetViewport);
 	if (!Viewport)
@@ -812,54 +695,5 @@ void UVCamOutputProviderBase::OnConnectionReinitialized(TWeakObjectPtr<UVCamWidg
 	}
 }
 #endif
-
-void UVCamOutputProviderBase::ConditionallySetUpGameplayViewTargets()
-{
-	UCineCameraComponent* CineCamera = TargetCamera.Get();
-	const bool bCannotSetupGameplayViewTargets = !GetWorld()->IsGameWorld() || !CineCamera || !GameplayViewTargetPolicy;
-	if (bCannotSetupGameplayViewTargets)
-	{
-		return;
-	}
-	
-	ConditionallyCleanUpGameplayViewTargets();
-
-	constexpr bool bWillBeActive = true;
-	const FDeterminePlayerControllersTargetPolicyParams DeterminePlayersParams{ this, CineCamera, bWillBeActive };
-	TArray<APlayerController*> PlayerControllers = GameplayViewTargetPolicy->DeterminePlayerControllers(DeterminePlayersParams);
-	PlayerControllers.SetNum(Algo::RemoveIf(PlayerControllers, [Owner = CineCamera->GetOwner()](const APlayerController* PC)
-	{
-		return PC == nullptr
-			// Skip this PC if an earlier output provider already set the view target to our camera 
-			|| PC->GetViewTarget() == Owner;
-	}));
-	
-	FUpdateViewTargetPolicyParams UpdateViewTargetParams {{ DeterminePlayersParams }};
-	Algo::Transform(PlayerControllers, UpdateViewTargetParams.PlayerControllers, [](APlayerController* PC){ return PC; });
-	Algo::Transform(PlayerControllers, PlayersWhoseViewTargetsWereSet, [](APlayerController* PC){ return PC; });
-	
-	GameplayViewTargetPolicy->UpdateViewTarget(UpdateViewTargetParams);
-}
-
-void UVCamOutputProviderBase::ConditionallyCleanUpGameplayViewTargets()
-{
-	UCineCameraComponent* CineCamera = TargetCamera.Get();
-	if (!CineCamera
-		|| !IsValid(GameplayViewTargetPolicy)
-		// This happens during GC. Not checking this will a check in UpdateViewTarget because BP events are not valid to run when unreachable.
-		|| GameplayViewTargetPolicy->IsUnreachable())
-	{
-		return;
-	}
-
-	constexpr bool bWillBeActive = false;
-	FUpdateViewTargetPolicyParams Params { { this, CineCamera, bWillBeActive } };
-	Algo::TransformIf(PlayersWhoseViewTargetsWereSet, Params.PlayerControllers,
-		[](TWeakObjectPtr<APlayerController> PC){ return PC.IsValid(); },
-		[](TWeakObjectPtr<APlayerController> PC){ return PC.Get(); }
-	);
-	PlayersWhoseViewTargetsWereSet.Reset();
-	GameplayViewTargetPolicy->UpdateViewTarget(Params);
-}
 
 #undef LOCTEXT_NAMESPACE

@@ -8,7 +8,6 @@
 #include "Output/VCamOutputProviderBase.h"
 #include "Util/BlueprintUtils.h"
 #include "Util/CookingUtils.h"
-#include "Util/LevelViewportUtils.h"
 #include "VCamBlueprintAssetUserData.h"
 #include "VCamComponentInstanceData.h"
 #include "VCamCoreCustomVersion.h"
@@ -24,6 +23,7 @@
 #include "GameFramework/InputSettings.h"
 #include "ILiveLinkClient.h"
 #include "InputMappingContext.h"
+#include "VCamCore.h"
 #include "Roles/LiveLinkCameraRole.h"
 #include "Roles/LiveLinkTransformRole.h"
 #include "UserSettings/EnhancedInputUserSettings.h"
@@ -440,7 +440,9 @@ void UVCamComponent::OnTargetViewportEdited()
 	{
 		SetEnabled(false);
 		SetEnabled(true);
-		UpdateActorViewportLocks();
+
+		UE::VCamCore::FViewportManager& ViewportManager = UE::VCamCore::FVCamCoreModule::Get().GetViewportManager();
+		ViewportManager.RequestLockRefresh();
 	}
 }
 
@@ -672,7 +674,8 @@ void UVCamComponent::Update()
 	{
 		// Ensure the actor lock reflects the state of the lock property
 		// This is needed as UActorComponent::ConsolidatedPostEditChange will cause the component to be reconstructed on PostEditChange if the component is inherited
-		UpdateActorViewportLocks();
+		UE::VCamCore::FViewportManager& ViewportManager = UE::VCamCore::FVCamCoreModule::Get().GetViewportManager();
+		ViewportManager.RegisterVCamComponent(*this);
 		
 		FLiveLinkCameraBlueprintData InitialLiveLinkData;
 		if (GetLiveLinkDataForCurrentFrame(InitialLiveLinkData))
@@ -1049,6 +1052,14 @@ UInputVCamSubsystem* UVCamComponent::GetInputVCamSubsystem() const
 	return SubsystemCollection.GetSubsystem<UInputVCamSubsystem>(UInputVCamSubsystem::StaticClass());
 }
 
+void UVCamComponent::SetViewportLockState(const FVCamViewportLocker& NewLockState)
+{
+	if (ViewportLocker != NewLockState)
+	{
+		ViewportLocker = NewLockState;
+	}
+}
+
 bool UVCamComponent::GetLiveLinkDataForCurrentFrame(FLiveLinkCameraBlueprintData& LiveLinkData)
 {
 	IModularFeatures& ModularFeatures = IModularFeatures::Get();
@@ -1289,9 +1300,13 @@ void UVCamComponent::Initialize()
 	// 1. Input
 	SubsystemCollection.Initialize(this);
 	RegisterInputComponent();
-	
 
-	// 2. Output provider overlay widgets will access the modifiers, so let's init them first
+	// 2. Should register VCam component before modifiers or output providers run since
+	// In case any user code decides to activate an output provider, this component must already be set up. 
+	UE::VCamCore::FViewportManager& ViewportManager = UE::VCamCore::FVCamCoreModule::Get().GetViewportManager();
+	ViewportManager.RegisterVCamComponent(*this);
+	
+	// 3. Output provider overlay widgets will access the modifiers, so let's init them first
 	const bool bInitModifiers = ShouldEvaluateModifierStack() && CanUpdate(); 
 	if (bInitModifiers)
 	{
@@ -1306,10 +1321,10 @@ void UVCamComponent::Initialize()
 		}
 	}
 
-	// 3. Safe to override input actions with custom player mappings now that all modifiers have been registered.
+	// 4. Safe to override input actions with custom player mappings now that all modifiers have been registered.
 	ApplyInputProfile();
 
-	// 4. Output providers
+	// 5. Output providers
 	const bool bInitOutputProviders = bInitModifiers && ShouldUpdateOutputProviders();
 	if (bInitOutputProviders)
 	{
@@ -1348,7 +1363,8 @@ void UVCamComponent::Deinitialize()
 	}
 
 	// Viewports may be manipulated by output providers or modifiers
-	UnlockAllViewports();
+	UE::VCamCore::FViewportManager& ViewportManager = UE::VCamCore::FVCamCoreModule::Get().GetViewportManager();
+	ViewportManager.UnregisterVCamComponent(*this);
 	
 	UnregisterInputComponent();
 	SubsystemCollection.Deinitialize();
@@ -1469,24 +1485,6 @@ float UVCamComponent::GetDeltaTime()
 
 	LastEvaluationTime = CurrentEvaluationTime;
 	return DeltaTime;
-}
-
-void UVCamComponent::UpdateActorViewportLocks()
-{
-	if (const UCineCameraComponent* Camera = GetTargetCamera()
-		; Camera && ensure(Camera->GetOwner()) && IsEnabled())
-	{
-		UE::VCamCore::LevelViewportUtils::UpdateViewportLocksFromOutputs(OutputProviders, ViewportLocker, *Camera->GetOwner());
-	}
-}
-
-void UVCamComponent::UnlockAllViewports()
-{
-	if (const UCineCameraComponent* Camera = GetTargetCamera()
-		; Camera && ensure(Camera->GetOwner()))
-	{
-		UE::VCamCore::LevelViewportUtils::UnlockAllViewports(ViewportLocker, *Camera->GetOwner());
-	}
 }
 
 void UVCamComponent::DestroyOutputProvider(UVCamOutputProviderBase* Provider)
@@ -1886,7 +1884,6 @@ void UVCamComponent::NotifyComponentWasReplaced(UVCamComponent* ReplacementCompo
 		const bool bNeedsToStartupOutputProviders = bWasEnabled && ReplacementComponent->IsEnabled();
 		if (bNeedsToStartupOutputProviders)
 		{
-			ReplacementComponent->ViewportLocker.Reset();
 			ReplacementComponent->SetupVCamSystemsIfNeeded(),
 			ReplacementComponent->SetEnabled(false);
 			ReplacementComponent->SetEnabled(true);

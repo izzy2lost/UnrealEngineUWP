@@ -502,7 +502,7 @@ namespace UE::PixelStreamingVCam
 
 		// Set the override resolution on the output provider base, this will trigger a resize
 		WeakThisUObjectPtr->OverrideResolution = RemoteResolution;
-		WeakThisUObjectPtr->ReapplyOverrideResolution();
+		WeakThisUObjectPtr->RequestResolutionRefresh();
 	}
 
 	void FVCamPixelStreamingSessionLogic::ConditionallySetLiveLinkSubjectToThis(UVCamPixelStreamingSession* This) const

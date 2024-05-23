@@ -269,6 +269,7 @@ public:
 	int32 GetNumberOfOutputProviders() const;
 	UFUNCTION(BlueprintPure, Category = "VirtualCamera")
 	void GetAllOutputProviders(TArray<UVCamOutputProviderBase*>& Providers) const;
+	const TArray<TObjectPtr<UVCamOutputProviderBase>>& GetOutputProviders() const { return OutputProviders; }
 
 	UFUNCTION(BlueprintPure, Category = "VirtualCamera")
 	UVCamOutputProviderBase* GetOutputProviderByIndex(const int32 ProviderIndex) const;
@@ -382,12 +383,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/******************** Misc ********************/
-	
-	/** Updates all actor Locks on viewports to be as configured. */
-	void UpdateActorViewportLocks();
 
 	/** Whether this component is initialized, i.e. the input subsystem is set up and the output providers are allowed to be active. */
 	bool IsInitialized() const { return bIsInitialized; }
+	const FVCamViewportLocker& GetViewportLockState() const { return ViewportLocker; }
+	void SetViewportLockState(const FVCamViewportLocker& NewLockState);
 	
 private:
 	

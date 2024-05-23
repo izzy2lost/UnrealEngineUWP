@@ -43,7 +43,22 @@ namespace UE::VCamCore
 	};
 }
 
-
+/**
+ * Output providers implement methods of overlaying a widget onto a target viewport. The composition of viewport and widget is then usually streamed
+ * to an application outside the engine, e.g. via Pixel Streaming or Remote Session.
+ *
+ * To start outputting, the owning UVCamComponent must be enabled and the output provider activated.
+ *
+ * Output providers are managed by UVCamComponent, which own them and must be attached as a child to a UCineCameraComponent.
+ * Output providers have a target viewport that the widget is overlayed onto. The target viewport can be locked to the target camera, which happens when:
+ *	1. The output provider is outputting IsOutputting() == true
+ *	2. The output provider is configured to do so, either by 2.1 NeedsForceLockToViewport returning true or 2.2 UVCamComponent::ViewportLocker being configured accordingly.
+ * When a viewport is locked, the owning output provider can affect its resolution (see bUseOverrideResolution and OverrideResolution).
+ *
+ * A concept of viewport ownership is implemented in FViewportManager ensuring that at most 1 output provider affects a viewport's lock and resolution at a time;
+ * the first output provider to request lock, gets the ownership over that viewport. When lock, resolution or target viewport change, call RequestResolutionRefresh
+ * to updat the viewport state.
+ */
 UCLASS(Abstract, BlueprintType, EditInlineNew, CollapseCategories)
 class VCAMCORE_API UVCamOutputProviderBase : public UObject
 {
@@ -108,6 +123,8 @@ public:
 	EVCamTargetViewportID GetTargetViewport() const { return TargetViewport; }
 	UFUNCTION(BlueprintCallable, Category = "Output")
 	void SetTargetViewport(EVCamTargetViewportID Value);
+	/** Uses this version in constructors (e.g. for initializing a CDO). */
+	void InitTargetViewport(EVCamTargetViewportID Value);
 	
 	UFUNCTION(BlueprintPure, Category = "Output")
 	TSubclassOf<UUserWidget> GetUMGClass() const { return UMGClass; }
@@ -123,8 +140,15 @@ public:
 	/** Gets the index of this output provider in the owning UVCamComponent::OutputProviders array. */
 	int32 FindOwnIndexInOwner() const { return UE::VCamCore::FindOutputProviderIndex(*this); }
 
-	/** Reapplies the override resolution or restores back to the viewport settings. */
-	void ReapplyOverrideResolution();
+	UE_DEPRECATED(5.5, "Use RequestResolutionRefresh instead")
+	void ReapplyOverrideResolution() const { RequestResolutionRefresh(); }
+	/**
+	 * Requests that at end of the frame the target viewport's resolution is updated to match this provider's settings.
+	 * 
+	 * The update will have no effect if this output provider does not have ownership over the target viewport; ownership is granted if the
+	 * viewport is locked to this output provider (either NeedsForceLockToViewport returns true or the UVCamComponent::ViewportLocker is configured accordingly).
+	 */
+	void RequestResolutionRefresh() const;
 
 	/** Gets the scene viewport identified by the currently configured TargetViewport. */
 	TSharedPtr<FSceneViewport> GetTargetSceneViewport() const { return GetSceneViewport(TargetViewport); }
@@ -134,6 +158,7 @@ public:
 
 	/** @return Whether this output provider is currently outputting (initialized, active, and owning VCam is enabled). */
 	bool IsOutputting() const { return IsActive() && IsInitialized() && IsOuterComponentEnabledAndInitialized(); }
+	UGameplayViewTargetPolicy* GetGameplayViewTargetPolicy() const { return GameplayViewTargetPolicy; }
 
 	//~ Begin UObject Interface
 	virtual void Serialize(FArchive& Ar) override;
@@ -167,7 +192,8 @@ protected:
 	 */
 	UPROPERTY(EditAnywhere, Instanced, Category = "Output", meta = (DisplayPriority = "99"))
 	TObjectPtr<UGameplayViewTargetPolicy> GameplayViewTargetPolicy;
-	
+
+	/** Triggers all callbacks without checking whether the bIsActive flag is actually being changed. */
 	void SetActiveInternal(bool bInActive);
 	
 	/** Called when the provider is Activated */
@@ -184,15 +210,9 @@ protected:
 	
 	/** Called by owning UVCamComponent when the target camera changes. */
 	void OnSetTargetCamera(const UCineCameraComponent* InTargetCamera);
-	
-	/** Removes the override resolution from the given viewport. */
-	void RestoreOverrideResolutionForViewport(EVCamTargetViewportID ViewportToRestore);
-	/** Applies OverrideResolution to the passed in viewport - bUseOverrideResolution was already checked. */
-	void ApplyOverrideResolutionForViewport(EVCamTargetViewportID Viewport);
 
 #if WITH_EDITOR
 	FLevelEditorViewportClient* GetTargetLevelViewportClient() const;
-	TSharedPtr<SLevelViewport> GetTargetLevelViewport() const;
 #endif
 
 	/**
@@ -277,7 +297,4 @@ private:
 	void StopDetectAndSnapshotWhenConnectionsChange();
 	void OnConnectionReinitialized(TWeakObjectPtr<UVCamWidget> Widget);
 #endif
-
-	void ConditionallySetUpGameplayViewTargets();
-	void ConditionallyCleanUpGameplayViewTargets();
 };

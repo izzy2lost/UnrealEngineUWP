@@ -4,6 +4,7 @@
 
 #include "IVCamCoreModule.h"
 #include "Modules/ModuleManager.h"
+#include "Util/Viewport/ViewportManager.h"
 
 namespace UE::VCamCore::WidgetSnapshotUtils
 {
@@ -16,23 +17,33 @@ namespace UE::VCamCore
 	{
 	public:
 
-		static FVCamCoreModule& Get()
-		{
-			return FModuleManager::Get().GetModuleChecked<FVCamCoreModule>("VCamCore");
-		}
+		static FVCamCoreModule& Get() { return FModuleManager::Get().GetModuleChecked<FVCamCoreModule>("VCamCore"); }
 
 		//~ Begin IModuleInterface Interface
 		virtual void StartupModule() override;
 		virtual void ShutdownModule() override;
 		//~ End IModuleInterface Interface
 
+		/** @return Gets the object that manages locking and adjusting resolution of viewports. Keeps track of viewport ownership. */
+		FViewportManager& GetViewportManager() { return ViewportManager; }
+		/** @return Gets the settings to use for snapshotting widgets in the VCam HUD. */
+		WidgetSnapshotUtils::FWidgetSnapshotSettings GetSnapshotSettings() const;
+		
+	private:
+
+		/**
+		 * Manages interaction with the editor and game viewport system.
+		 * 
+		 * UVCamComponents and UVCamOutputProviders use this to affect viewports.
+		 * Ideally we'd pass the required objects to UVCamComponents and UVCamOutputProviders directly but UObjects do not support injection.
+		 * Hence, we are forced to use the service-locator pattern for accessing the FViewportManager.
+		 */
+		FViewportManager ViewportManager;
+		
 		/** Register the module's settings object. */
 		void RegisterSettings();
-
 		/** Unregister the module's settings object. */
 		void UnregisterSettings();
-
-		WidgetSnapshotUtils::FWidgetSnapshotSettings GetSnapshotSettings() const;
 	};
 }
 
