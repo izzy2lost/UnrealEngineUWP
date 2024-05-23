@@ -35,6 +35,7 @@
 #include "Hlsl/NNERuntimeRDGPad.h"
 #include "Hlsl/NNERuntimeRDGPool.h"
 #include "Hlsl/NNERuntimeRDGReduce.h"
+#include "Hlsl/NNERuntimeRDGResize.h"
 #include "Hlsl/NNERuntimeRDGReshape.h"
 #include "Hlsl/NNERuntimeRDGScatterND.h"
 #include "Hlsl/NNERuntimeRDGShape.h"
@@ -78,6 +79,7 @@ bool UNNERuntimeRDGHlslImpl::Init()
 	RegisterPoolOperators(*Registry);
 	RegisterReduceOperators(*Registry);
 	RegisterReshapeOperator(*Registry);
+	RegisterResizeOperator(*Registry);
 	RegisterScatterNDOperator(*Registry);
 	RegisterShapeOperator(*Registry);
 	RegisterSizeOperator(*Registry);
