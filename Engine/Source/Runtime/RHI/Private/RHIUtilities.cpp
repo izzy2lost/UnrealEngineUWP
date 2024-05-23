@@ -633,6 +633,10 @@ ERHIAccess RHIGetDefaultResourceState(EBufferUsageFlags InUsage, bool bInHasInit
 	{
 		DefaultReadingState = DefaultReadingState | ERHIAccess::SRVMask;
 	}
+	if (EnumHasAnyFlags(InUsage, BUF_AccelerationStructure))
+	{
+		DefaultReadingState = DefaultReadingState | ERHIAccess::BVHRead;
+	}
 
 	// Vertex and index buffers might not have the BUF_ShaderResource flag set and just assume
 	// they are readable by default
@@ -648,6 +652,10 @@ ERHIAccess RHIGetDefaultResourceState(EBufferUsageFlags InUsage, bool bInHasInit
 		if (EnumHasAnyFlags(InUsage, BUF_UnorderedAccess))
 		{
 			ResourceState = ERHIAccess::UAVMask;
+		}
+		else if (EnumHasAnyFlags(InUsage, BUF_AccelerationStructure))
+		{
+			ResourceState = ERHIAccess::BVHWrite;
 		}
 		else if (EnumHasAnyFlags(InUsage, BUF_ShaderResource))
 		{

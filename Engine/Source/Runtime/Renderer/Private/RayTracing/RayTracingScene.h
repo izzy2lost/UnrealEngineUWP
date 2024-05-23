@@ -147,8 +147,7 @@ private:
 	FRayTracingSceneRHIRef RayTracingSceneRHI;
 
 	// Persistently allocated buffer that holds the built TLAS
-	FBufferRHIRef RayTracingSceneBuffer;
-	TRefCountPtr<FRDGPooledBuffer>	RayTracingScenePooledBuffer;		
+	TRefCountPtr<FRDGPooledBuffer> RayTracingScenePooledBuffer;		
 	FRDGBufferRef RayTracingSceneBufferRDG;
 
 	// Per-layer views for the TLAS buffer that should be used in ray tracing shaders
