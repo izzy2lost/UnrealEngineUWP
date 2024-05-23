@@ -1325,7 +1325,7 @@ bool FPropertyNode::IsPropertyConst() const
 }
 
 /** @return whether this window's property is constant (can't be edited by the user) */
-bool FPropertyNode::IsEditConst() const
+bool FPropertyNode::IsEditConst(const bool bIncludeEditCondition) const
 {
 	if (bUpdateEditConstState || UpdateEditConstStateEpoch != PropertyEditorPolicy::Get().GetPolicyEpoch())
 	{
@@ -1354,7 +1354,7 @@ bool FPropertyNode::IsEditConst() const
 					}
 				}
 
-				if (CurParent->IsEditConst())
+				if (CurParent->IsEditConst(bIncludeEditCondition))
 				{
 					// An owning struct is edit const, so the child property is too
 					bIsEditConst = true;
@@ -1421,6 +1421,9 @@ bool FPropertyNode::IsEditConst() const
 			}
 		}
 
+		// this ignores EditCondition check below
+		bIsEditConstWithoutCondition = bIsEditConst;
+
 		// check edit condition
 		if (!bIsEditConst && HasEditCondition())
 		{
@@ -1430,7 +1433,7 @@ bool FPropertyNode::IsEditConst() const
 		bUpdateEditConstState = false;
 	}
 
-	return bIsEditConst;
+	return bIncludeEditCondition ? bIsEditConst : bIsEditConstWithoutCondition;
 }
 
 bool FPropertyNode::ShouldSkipSerialization() const

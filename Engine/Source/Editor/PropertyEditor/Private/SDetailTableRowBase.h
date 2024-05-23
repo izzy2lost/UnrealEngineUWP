@@ -41,10 +41,13 @@ protected:
 	TSharedPtr<FPropertyUpdatedWidgetBuilder> PropertyUpdatedWidgetBuilder;
 
 	/** Retrieve all property nodes represented by this row, and it's children if Recursive specified. */
-	TArray<TSharedPtr<FPropertyNode>> GetPropertyNodes(const bool& bRecursive = false) const;
+	TArray<TSharedPtr<FPropertyNode>> GetPropertyNodes(const bool bRecursive = false) const;
+	
+	/** Retrieve all property nodes represented by the given property handles. */
+	TArray<TSharedPtr<FPropertyNode>> GetPropertyNodesFromHandles(const TConstArrayView<TSharedPtr<IPropertyHandle>>& InPropertyHandles) const;
 
 	/** Retrieve all property handles represented by this row, and it's children if Recursive specified. */
-	virtual TArray<TSharedPtr<IPropertyHandle>> GetPropertyHandles(const bool& bRecursive = false) const;
+	virtual TArray<TSharedPtr<IPropertyHandle>> GetPropertyHandles(const bool bRecursive = false) const;
 
 	/** Refreshes widget and associated list views. */
 	virtual void ForceRefresh();

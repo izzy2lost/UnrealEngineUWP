@@ -2,6 +2,7 @@
 
 #include "SDetailSingleItemRow.h"
 
+#include "Algo/AnyOf.h"
 #include "Algo/Compare.h"
 #include "DetailGroup.h"
 #include "DetailPropertyRow.h"
@@ -987,13 +988,17 @@ bool SDetailSingleItemRow::CanPasteGroup()
 	}
 
 	const TArray<TSharedPtr<IPropertyHandle>> GroupPropertyHandles = GetPropertyHandles(true);
+	const TArray<TSharedPtr<FPropertyNode>> GroupPropertyNodes = GetPropertyNodesFromHandles(GroupPropertyHandles);
 
-	// @note: Usually we'd check for IsEditConst or IsEditConditionMet, but if used for PP settings,
-	// by default no properties are editable unless explicitly overridden, so this check would in all cases would prevent paste.
-	constexpr bool bHasEditables = true;
-	
+	// @note: We allow pasting to properties that are disabled due to an EditCondition, but not those that are never editable (ie. VisibleAnywhere).
+	const bool bHasEditables = Algo::AnyOf(GroupPropertyNodes, [](const TSharedPtr<FPropertyNode>& InPropertyNode)
+	{
+		constexpr bool bIncludeEditConditionForConstCheck = false;
+		return InPropertyNode->IsEditConst(bIncludeEditConditionForConstCheck);
+	});
+
 	// No editable properties to write to
-	if constexpr (!bHasEditables)
+	if (!bHasEditables)
 	{
 		return false;
 	}
@@ -1104,7 +1109,7 @@ void SDetailSingleItemRow::PopulateContextMenu(UToolMenu* ToolMenu)
 							return CanPasteGroup()
 								? NSLOCTEXT("PropertyView", "PasteGroupProperties_ToolTip", "Paste the copied property values here")
 								// @note: this is specific to the constraint that the destination group has to match the source group (copied from) exactly 
-								: NSLOCTEXT("PropertyView", "CantPasteGroupProperties_ToolTip", "The properties in this group don't match the contents of the clipboard");
+								: NSLOCTEXT("PropertyView", "CantPasteGroupProperties_ToolTip", "The properties in this group don't match the contents of the clipboard, or the properties aren't editable");
 						});
 					}
 					else
@@ -1241,7 +1246,7 @@ void SDetailSingleItemRow::PopulateContextMenu(UToolMenu* ToolMenu)
 	}
 }
 
-TArray<TSharedPtr<IPropertyHandle>> SDetailSingleItemRow::GetPropertyHandles(const bool& bRecursive) const
+TArray<TSharedPtr<IPropertyHandle>> SDetailSingleItemRow::GetPropertyHandles(const bool bRecursive) const
 {
 	if (TArray<TSharedPtr<IPropertyHandle>> PropertyHandles = SDetailTableRowBase::GetPropertyHandles(bRecursive);
 		!PropertyHandles.IsEmpty())
@@ -1377,6 +1382,16 @@ bool SDetailSingleItemRow::CanCopyPropertyInternalName()
 
 bool SDetailSingleItemRow::CanPasteProperty() const
 {
+	TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
+	check(PropertyNode.IsValid());
+
+	// Check if the property is editable first (a failed EditCondition is still considered to be Editable, to make copying to PostProcess settings etc. practical)
+	constexpr bool bIncludeEditConditionForConstCheck = false;
+	if (PropertyNode->IsEditConst(bIncludeEditConditionForConstCheck)) // Ignore EditCondition state
+	{
+		return false;
+	}
+	
 	FString ClipboardContent;
 	FPropertyEditorClipboard::ClipboardPaste(ClipboardContent);
 

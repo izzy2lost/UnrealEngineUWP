@@ -276,7 +276,7 @@ void SDetailCategoryTableRow::PopulateContextMenu(UToolMenu* ToolMenu)
 							return CanPasteCategory()
 								? NSLOCTEXT("PropertyView", "PasteCategoryProperties_ToolTip", "Paste the copied property values here")
 								// @note: this is specific to the constraint that the destination category has to match the source category (copied from) exactly 
-								: NSLOCTEXT("PropertyView", "CantPasteCategoryProperties_ToolTip", "The properties in this category don't match the contents of the clipboard");
+								: NSLOCTEXT("PropertyView", "CantPasteCategoryProperties_ToolTip", "The properties in this category don't match the contents of the clipboard, or the properties aren't editable");
 						}),
 						FSlateIcon(FCoreStyle::Get().GetStyleSetName(), "GenericCommands.Paste"),
 						PasteAction);
@@ -447,7 +447,7 @@ void SDetailCategoryTableRow::OnPasteCategory()
 			const FGuid OperationGuid = FGuid::NewGuid();			
 			for (const TPair<FName, FString>& KVP : PreviousClipboardData.PropertyValues)
 			{
-				if ( OnPasteFromTextDelegate.IsValid() )
+				if (OnPasteFromTextDelegate.IsValid())
 				{
 					OnPasteFromTextDelegate->Broadcast(KVP.Key.ToString(), KVP.Value, OperationGuid);
 				}
@@ -477,13 +477,17 @@ bool SDetailCategoryTableRow::CanPasteCategory()
 	}
 
 	const TArray<TSharedPtr<IPropertyHandle>> PropertyHandles = GetPropertyHandles(true);
+	const TArray<TSharedPtr<FPropertyNode>> PropertyNodes = GetPropertyNodesFromHandles(PropertyHandles);
 
-	// @note: Usually we'd check for IsEditConst or IsEditConditionMet, but if used for PP settings (for example),
-	// by default no properties are editable unless explicitly overridden, so this check would in all cases would prevent paste.
-	constexpr bool bHasEditables = true;
+	// @note: We allow pasting to properties that are disabled due to an EditCondition, but not those that are never editable (ie. VisibleAnywhere).
+	const bool bHasEditables = Algo::AnyOf(PropertyNodes, [](const TSharedPtr<FPropertyNode>& InPropertyNode)
+	{
+		constexpr bool bIncludeEditConditionForConstCheck = false;
+		return InPropertyNode->IsEditConst(bIncludeEditConditionForConstCheck);
+	});
 	
 	// No editable properties to write to
-	if constexpr (!bHasEditables)
+	if (!bHasEditables)
 	{
 		return false;
 	}

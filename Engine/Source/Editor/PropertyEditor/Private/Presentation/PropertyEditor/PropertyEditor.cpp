@@ -520,9 +520,9 @@ bool FPropertyEditor::DoesPassFilterRestrictions() const
 	return PropertyNode->HasNodeFlags( EPropertyNodeFlags::IsSeenDueToFiltering ) != 0;
 }
 
-bool FPropertyEditor::IsEditConst() const
+bool FPropertyEditor::IsEditConst(const bool bIncludeEditCondition) const
 {
-	return PropertyNode->IsEditConst();
+	return PropertyNode->IsEditConst(bIncludeEditCondition);
 }
 
 bool FPropertyEditor::SupportsEditConditionToggle() const

@@ -42,8 +42,9 @@ public:
 
 	void RequestRefresh();
 
-	/**	@return Whether the property is editconst */
-	bool IsEditConst() const;
+	/**	@return Whether the property is editconst. If bIncludeEditCondition is false,
+	 *	this will return true if the property is ever editable (as though it always passes any specified EditCondition). */
+	bool IsEditConst(const bool bIncludeEditCondition = true) const;
 
 	/** @return Whether this property should have an edit condition toggle. */
 	bool SupportsEditConditionToggle() const;

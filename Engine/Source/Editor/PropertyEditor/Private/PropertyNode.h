@@ -542,8 +542,8 @@ public:
 	 */
 	bool IsPropertyConst() const;
 
-	/** @return whether this window's property is constant (can't be edited by the user) */
-	bool IsEditConst() const;
+	/** @return whether this window's property is constant (can't be edited by the user). If bIncludeEditCondition is false, the property is considered editable regardless of the EditCondition result. */
+	bool IsEditConst(const bool bIncludeEditCondition = true) const;
 
 	/**
 	 * Returns whether this window's property should not be serialized (determined by the CPF_SkipSerialization flag).
@@ -1321,7 +1321,8 @@ protected:
 	* Cached state of flags that are expensive to update
 	* These update when values are changed in the details panel
 	*/
-	mutable bool bIsEditConst;
+	mutable bool bIsEditConst; // Includes EditCondition state
+	mutable bool bIsEditConstWithoutCondition; // Ignores EditCondition state
 	mutable bool bUpdateEditConstState;
 	mutable int32 UpdateEditConstStateEpoch;
 	mutable bool bDiffersFromDefault;
