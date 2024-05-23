@@ -646,6 +646,11 @@ namespace Horde.Server
 		public string CorsOrigin { get; set; } = null!;
 
 		/// <summary>
+		/// Whether to enable debug/administrative REST API endpoints
+		/// </summary>
+		public bool EnableDebugEndpoints { get; set; } = false;
+
+		/// <summary>
 		/// Whether to automatically enable new agents by default. If false, new agents must manually be enabled before they can take on work.
 		/// </summary>
 		public bool EnableNewAgentsByDefault { get; set; } = false;

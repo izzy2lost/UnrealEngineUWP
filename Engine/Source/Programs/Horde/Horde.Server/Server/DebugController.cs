@@ -33,6 +33,7 @@ using JetBrains.Profiler.SelfApi;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
@@ -245,17 +246,54 @@ namespace Horde.Server.Server
 		/**/
 	}
 #endif
+
+	/// <summary>
+	/// Only requests to attached controller to pass if debug endpoint is enabled in settings
+	/// Adds extra security for not enabling these admin endpoints by accident.
+	/// </summary>
+	[AttributeUsage(AttributeTargets.Class)]
+	public sealed class DebugEndpointCheckAttribute : Attribute, IActionFilter
+	{
+		/// <inheritdoc />
+		public void OnActionExecuting(ActionExecutingContext context)
+		{
+			if (context.Controller is SecureDebugController controller)
+			{
+				if (!controller.ServerSettings.Value.EnableDebugEndpoints)
+				{
+					context.Result = new ForbidResult();
+				}
+			}
+			else
+			{
+				// Assume forbidden if controller is not resolved
+				context.Result = new ForbidResult();
+			}
+		}
+
+		/// <inheritdoc />
+		public void OnActionExecuted(ActionExecutedContext context)
+		{
+		}
+	}
+	
 #if ENABLE_SECURE_DEBUG_CONTROLLER
 	/// <summary>
 	/// Controller managing account status
 	/// </summary>
 	[ApiController]
 	[Authorize]
+	[DebugEndpointCheck]
 	[Tags("Debug")]
 	public class SecureDebugController : HordeControllerBase
 	{
 		private static readonly Random s_random = new();
 
+		/// <summary>
+		/// Server settings (exposed for debug endpoint check filter)
+		/// </summary>
+		public IOptionsSnapshot<ServerSettings> ServerSettings { get; private set; }
+		
 		private readonly MongoService _mongoService;
 		private readonly ConfigService _configService;
 		private readonly AgentRelayService _agentRelayService;
@@ -275,7 +313,11 @@ namespace Horde.Server.Server
 			AgentRelayService agentRelayService,
 			JobService jobService,
 			JobTaskSource jobTaskSource,
-			ILogCollection logCollection, ILeaseCollection leaseCollection, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<SecureDebugController> logger)
+			ILogCollection logCollection,
+			ILeaseCollection leaseCollection,
+			IOptionsSnapshot<ServerSettings> serverSettings,
+			IOptionsSnapshot<GlobalConfig> globalConfig,
+			ILogger<SecureDebugController> logger)
 		{
 			_mongoService = mongoService;
 			_configService = configService;
@@ -284,6 +326,7 @@ namespace Horde.Server.Server
 			_jobTaskSource = jobTaskSource;
 			_logCollection = logCollection;
 			_leaseCollection = leaseCollection;
+			ServerSettings = serverSettings;
 			_globalConfig = globalConfig;
 			_logger = logger;
 		}
