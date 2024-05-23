@@ -62,7 +62,7 @@ public:
 
 #if WITH_EDITOR
 	/** Spawns an actor with a spline component and linked it to this cloner layout */
-	UFUNCTION(CallInEditor, Category="Cloner|Layout")
+	UFUNCTION(CallInEditor, Category="Layout")
 	CLONEREFFECTOR_API void SpawnLinkedSplineActor();
 #endif
 

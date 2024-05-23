@@ -212,9 +212,16 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 		{
 			const FName FunctionsCategoryName = FunctionToCategoryPair.Value;
 
-			const TSharedPtr<SVerticalBox> FunctionsWidget = SNew(SVerticalBox);
-
 			IDetailCategoryBuilder& FunctionsCategory = InDetailBuilder.EditCategory(FunctionsCategoryName, FText::FromName(FunctionsCategoryName), ECategoryPriority::Uncommon);
+
+			// Subcategories are not supported in sections
+			if (!FunctionsCategoryName.ToString().Contains(TEXT("|")))
+			{
+				const TSharedRef<FPropertySection> FunctionsSection = PropertyModule.FindOrCreateSection(ComponentClassName, FunctionsCategoryName, FText::FromName(FunctionsCategoryName));
+				FunctionsSection->AddCategory(FunctionsCategoryName);
+			}
+
+			const TSharedPtr<SVerticalBox> FunctionsWidget = SNew(SVerticalBox);
 
 			FunctionsCategory.AddCustomRow(FText::GetEmpty())
 				.WholeRowContent()
@@ -222,9 +229,6 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 				[
 					FunctionsWidget.ToSharedRef()
 				];
-
-			const TSharedRef<FPropertySection> FunctionsSection = PropertyModule.FindOrCreateSection(ComponentClassName, FunctionsCategoryName, FText::FromName(FunctionsCategoryName));
-			FunctionsSection->AddCategory(FunctionsCategoryName);
 
 			FunctionToWidget.Add(FunctionToCategoryPair.Key, FunctionsWidget);
 		}

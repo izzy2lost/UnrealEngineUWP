@@ -79,7 +79,7 @@ protected:
 
 #if WITH_EDITORONLY_DATA
 	/** Reduces the r.TSR.ShadingRejection.Flickering.Period from 3 (default) to 1 if enabled to avoid ghosting artifacts when moving */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, AdvancedDisplay, Category="Cloner", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(Config, EditAnywhere, Category="Cloner")
 	bool bReduceMotionGhosting = false;
 #endif
 
