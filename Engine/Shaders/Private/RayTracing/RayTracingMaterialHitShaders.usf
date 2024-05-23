@@ -475,7 +475,8 @@ void GetMaterialPayload(
 	// Restore global mip bias after lightmaps are sampled.
 	GlobalTextureMipBias = OldGlobalMipBias;
 
-	if (MATERIAL_SHADINGMODEL_UNLIT || Payload.ShadingModelID == SHADINGMODELID_UNLIT)
+	#if MATERIAL_SHADINGMODEL_UNLIT
+	if (Payload.ShadingModelID == SHADINGMODELID_UNLIT)
 	{
 		Payload.Specular = 0;
 		Payload.BaseColor = 0;
@@ -484,6 +485,7 @@ void GetMaterialPayload(
 		Payload.IndirectIrradiance = 0;
 	}
 	else
+	#endif
 	{
 		Payload.DiffuseColor = BaseColor - BaseColor * Metallic;
 		Payload.SpecularColor = ComputeF0(Specular, BaseColor, Metallic);
