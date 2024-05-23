@@ -3148,6 +3148,11 @@ void ProcessHairStrandsBookmark(
 		return;
 	}
 
+	if (!Parameters.View || (Parameters.View->Family && !Parameters.View->Family->EngineShowFlags.Hair))
+	{
+		return;
+	}
+
 	if (IsInstanceFrustumCullingEnable())
 	{
 		Instances = nullptr;

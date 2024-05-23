@@ -455,5 +455,8 @@ SHOWFLAG_ALWAYS_ACCESSIBLE(SceneCaptureCopySceneDepth, SFG_Hidden, NSLOCTEXT("Un
 /** If false, camera's are not shown in the viewport (but are enabled and available for use). */
 SHOWFLAG_ALWAYS_ACCESSIBLE(Cameras, SFG_Normal, NSLOCTEXT("UnrealEd", "CamerasSF", "Cameras"))
 
+/** If false, hair geometry won't be rendered. */
+SHOWFLAG_ALWAYS_ACCESSIBLE(Hair, SFG_Advanced, NSLOCTEXT("UnrealEd", "HairSF", "Hair"))
+
 #undef SHOWFLAG_ALWAYS_ACCESSIBLE
 #undef SHOWFLAG_FIXED_IN_SHIPPING

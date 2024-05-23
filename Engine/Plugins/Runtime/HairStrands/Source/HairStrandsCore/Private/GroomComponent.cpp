@@ -1075,6 +1075,7 @@ public:
 		// but visible in shadow 'hidden shadow') so that raytracing geometry is created/updated correctly
 		const bool bPathtracing = View->Family->EngineShowFlags.PathTracing;
 		const bool bForceDrawRelevance = bPathtracing && (!IsShown(View) && IsShadowCast(View));
+		const bool bVisible = View->Family->EngineShowFlags.Hair;
 
 		bool bUseCardsOrMesh = false;
 		for (const TRefCountPtr<FHairGroupInstance>& Instance : HairGroupInstances)
@@ -1087,7 +1088,7 @@ public:
 		FPrimitiveViewRelevance Result;
 
 		// Special pass for hair strands geometry (not part of the base pass, and shadowing is handlded in a custom fashion). When cards rendering is enabled we reusethe base pass
-		Result.bDrawRelevance		= IsShown(View) || bForceDrawRelevance;
+		Result.bDrawRelevance		= bVisible && (IsShown(View) || bForceDrawRelevance);
 		Result.bRenderInMainPass	= bUseCardsOrMesh && ShouldRenderInMainPass();
 		Result.bShadowRelevance		= IsShadowCast(View);
 		Result.bDynamicRelevance	= bUseCardsOrMesh;

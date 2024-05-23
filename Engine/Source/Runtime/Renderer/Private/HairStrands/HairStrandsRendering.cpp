@@ -120,7 +120,7 @@ void RenderHairPrePass(
 	for (FViewInfo& View : Views)
 	{
 		const bool bIsViewCompatible = IsHairStrandsEnabled(EHairStrandsShaderType::Strands, View.GetShaderPlatform());
-		if (!View.Family || !bIsViewCompatible)
+		if (!View.Family || !bIsViewCompatible || !View.Family->EngineShowFlags.Hair)
 			continue;
 
 		// For stereo rendering, hair groups/voxelization/deep-shadow are only produced once
@@ -180,7 +180,7 @@ void RenderHairBasePass(
 	for (FViewInfo& View : Views)
 	{
 		const bool bIsViewCompatible = IsHairStrandsEnabled(EHairStrandsShaderType::Strands, View.GetShaderPlatform());
-		if (View.Family && bIsViewCompatible && View.HairStrandsViewData.MacroGroupDatas.Num() > 0)
+		if (View.Family && View.Family->EngineShowFlags.Hair && bIsViewCompatible && View.HairStrandsViewData.MacroGroupDatas.Num() > 0)
 		{
 			RenderHairStrandsVisibilityBuffer(
 				GraphBuilder, 
