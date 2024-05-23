@@ -1060,6 +1060,8 @@ public:
 
 		ImproveMemoryUsageForStreamableBlocks,
 
+		FixClipMeshWithMeshCrash,
+
 		LastCustomizableObjectVersion
 	};
 	static constexpr int32 CurrentSupportedVersion = ECustomizableObjectVersions::LastCustomizableObjectVersion;
