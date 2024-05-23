@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "../Common.ush"
+#include "../IntersectionUtils.ush"
 #define SUPPORT_CONTACT_SHADOWS 0
 #include "../DeferredLightingCommon.ush"
 
@@ -119,33 +120,6 @@ void InitializeCardTileIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThread
 }
 
 #endif
-
-
-bool SphereIntersectCone(float4 SphereCenterAndRadius, float3 ConeVertex, float3 ConeAxis, float ConeAngleCos, float ConeAngleSin)
-{
-	float3 U = ConeVertex - (SphereCenterAndRadius.w / ConeAngleSin) * ConeAxis;
-	float3 D = SphereCenterAndRadius.xyz - U;
-	float DSizeSq = dot(D, D);
-	float E = dot(ConeAxis, D);
-
-	if (E > 0 && E * E >= DSizeSq * ConeAngleCos * ConeAngleCos)
-	{
-		D = SphereCenterAndRadius.xyz - ConeVertex;
-		DSizeSq = dot(D, D);
-		E = -dot(ConeAxis, D);
-
-		if (E > 0 && E * E >= DSizeSq * ConeAngleSin * ConeAngleSin)
-		{
-			return DSizeSq <= SphereCenterAndRadius.w * SphereCenterAndRadius.w;
-		}
-		else
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
 
 bool DoesLightAffectCardPageUVRange(FLumenLight LumenLight, FLumenCardPageData CardPage, FLumenCardData Card, float2 UVMin, float2 UVMax, inout float3 OutCardPageWorldCenter)
 {

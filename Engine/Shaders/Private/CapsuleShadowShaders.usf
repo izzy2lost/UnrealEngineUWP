@@ -11,6 +11,7 @@
 #include "SHCommon.ush"
 #include "VolumetricLightmapShared.ush"
 #include "ReflectionEnvironmentShared.ush"
+#include "IntersectionUtils.ush"
 #include "Substrate/Substrate.ush"
 
 #ifdef UPSAMPLE_PASS
@@ -155,52 +156,6 @@ void ComputeLightDirectionFromVolumetricLightmapCS(
 }
 
 #endif
-
-bool SphereIntersectCone(float4 SphereCenterAndRadius, float3 ConeVertex, float3 ConeAxis, float ConeAngleCos, float ConeAngleSin)
-{
-	float3 U = ConeVertex - (SphereCenterAndRadius.w / ConeAngleSin) * ConeAxis;
-	float3 D = SphereCenterAndRadius.xyz - U;
-	float DSizeSq = dot(D, D);
-	float E = dot(ConeAxis, D);
-
-	if (E > 0 && E * E >= DSizeSq * ConeAngleCos * ConeAngleCos)
-	{
-		D = SphereCenterAndRadius.xyz - ConeVertex;
-		DSizeSq = dot(D, D);
-		E = -dot(ConeAxis, D);
-
-		if (E > 0 && E * E >= DSizeSq * ConeAngleSin * ConeAngleSin)
-		{
-			return DSizeSq <= SphereCenterAndRadius.w * SphereCenterAndRadius.w;
-		}
-		else
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
-bool SphereIntersectConeWithMaxDistance(float4 SphereCenterAndRadius, float3 ConeVertex, float3 ConeAxis, float ConeAngleCos, float ConeAngleSin, float MaxDistanceAlongAxis)
-{
-	if (SphereIntersectCone(SphereCenterAndRadius, ConeVertex, ConeAxis, ConeAngleCos, ConeAngleSin))
-	{
-		float ConeAxisDistance = dot(SphereCenterAndRadius.xyz - ConeVertex, ConeAxis);
-		float ConeAxisDistanceMax = ConeAxisDistance - SphereCenterAndRadius.w;
-
-		return ConeAxisDistanceMax < MaxDistanceAlongAxis;
-	}
-
-	return false;
-}
-
-bool SphereIntersectSphere(float4 SphereCenterAndRadius, float4 OtherSphereCenterAndRadius)
-{
-	float CombinedRadii = SphereCenterAndRadius.w + OtherSphereCenterAndRadius.w;
-	float3 VectorBetweenCenters = SphereCenterAndRadius.xyz - OtherSphereCenterAndRadius.xyz;
-	return dot(VectorBetweenCenters, VectorBetweenCenters) < CombinedRadii * CombinedRadii;
-}
 
 #if LIGHT_SOURCE_MODE == LIGHT_SOURCE_PUNCTUAL
 /** From point being shaded toward light, for directional lights. */

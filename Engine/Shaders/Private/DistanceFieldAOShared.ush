@@ -4,6 +4,8 @@
 	DistanceFieldAOShared.ush
 =============================================================================*/
 
+#include "IntersectionUtils.ush"
+
 // Must match C++
 #define NUM_CONE_STEPS 10
 
@@ -66,49 +68,6 @@ float2 BaseLevelTexelSize;
 
 Texture2D BentNormalAOTexture;
 SamplerState BentNormalAOSampler;
-
-bool SphereIntersectCone(float4 SphereCenterAndRadius, float3 ConeVertex, float3 ConeAxis, float ConeAngleCos, float ConeAngleSin)
-{
-	float3 U = ConeVertex - (SphereCenterAndRadius.w / ConeAngleSin) * ConeAxis;
-	float3 D = SphereCenterAndRadius.xyz - U;
-	float DSizeSq = dot(D, D);
-	float E = dot(ConeAxis, D);
-
-	if (E > 0 && E * E >= DSizeSq * ConeAngleCos * ConeAngleCos)
-	{
-		D = SphereCenterAndRadius.xyz - ConeVertex;
-		DSizeSq = dot(D, D);
-		E = -dot(ConeAxis, D);
-
-		if (E > 0 && E * E >= DSizeSq * ConeAngleSin * ConeAngleSin)
-		{
-			return DSizeSq <= SphereCenterAndRadius.w * SphereCenterAndRadius.w;
-		}
-		else
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
-bool SphereIntersectConeWithDepthRanges(float4 SphereCenterAndRadius, float3 ConeVertex, float3 ConeAxis, float ConeAngleCos, float ConeAngleSin, float4 ConeAxisDepthRanges)
-{
-	if (SphereIntersectCone(SphereCenterAndRadius, ConeVertex, ConeAxis, ConeAngleCos, ConeAngleSin))
-	{
-		float ConeAxisDistance = dot(SphereCenterAndRadius.xyz - ConeVertex, ConeAxis);
-		float2 ConeAxisDistanceMinMax = float2(ConeAxisDistance + SphereCenterAndRadius.w, ConeAxisDistance - SphereCenterAndRadius.w);
-
-		if ((ConeAxisDistanceMinMax.x > ConeAxisDepthRanges.x && ConeAxisDistanceMinMax.y < ConeAxisDepthRanges.y)
-			|| (ConeAxisDistanceMinMax.x > ConeAxisDepthRanges.z && ConeAxisDistanceMinMax.y < ConeAxisDepthRanges.w))
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
 
 Buffer<float> RecordConeVisibility;
 float4 SampleDirections[NUM_CONE_DIRECTIONS];
