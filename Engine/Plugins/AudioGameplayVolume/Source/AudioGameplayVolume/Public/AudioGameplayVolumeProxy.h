@@ -75,6 +75,9 @@ protected:
 	/** Returns false if we can skip the physics body query, which can be expensive */
 	bool NeedsPhysicsQuery(UPrimitiveComponent* PrimitiveComponent, const FVector& Position) const;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UPrimitiveComponent> PrimitiveComp;
+
 	TWeakObjectPtr<UPrimitiveComponent> WeakPrimative;
 };
 
@@ -94,6 +97,9 @@ public:
 	virtual void InitFromComponent(const UAudioGameplayVolumeComponent* Component) override;
 
 protected:
+
+	UPROPERTY(Transient)
+	TObjectPtr<const UObject> ObjectPtr;
 
 	TWeakObjectPtr<const UObject> WeakObject;
 };
