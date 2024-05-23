@@ -751,6 +751,15 @@ void FTabManager::FPrivateApi::HideWindows()
 	SetWindowVisibility(TabManager.DockAreas, false);
 }
 
+void FTabManager::FPrivateApi::SetCanDoDeferredLayoutSave(bool bInCanDoDeferredLayoutSave)
+{
+	if (!bInCanDoDeferredLayoutSave)
+	{
+		TabManager.ClearPendingLayoutSave();
+	}
+	TabManager.bCanDoDeferredLayoutSave = bInCanDoDeferredLayoutSave;
+}
+
 FTabManager::FPrivateApi& FTabManager::GetPrivateApi()
 {
 	return *PrivateApi;
@@ -963,6 +972,11 @@ void FTabManager::RequestSavePersistentLayout()
 	// if we already have a request pending, remove it and schedule a new one
 	// this is to avoid hitches when eg. resizing a docked tab
 	ClearPendingLayoutSave();
+
+	if (!bCanDoDeferredLayoutSave)
+	{
+		return;
+	}
 
 	auto OnTick = [ThisWeak = AsWeak()](float FrameTime)
 	{
