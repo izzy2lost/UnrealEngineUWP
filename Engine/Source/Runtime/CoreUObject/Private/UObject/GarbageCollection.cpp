@@ -5259,7 +5259,6 @@ bool GatherUnreachableObjects(UE::GC::EGatherOptions Options, double TimeLimit /
 		}
 	}, (GGatherUnreachableObjectsState.NumWorkerThreads() == 1) ? EParallelForFlags::ForceSingleThread : EParallelForFlags::None);
 
-	// Need to grab the stats now as Finish() will reset the global state but we still want to include Finish() execution time when logging
 	const int32 NumGathered = GGatherUnreachableObjectsState.NumGathered();
 	const int32 NumScanned = GGatherUnreachableObjectsState.NumScanned();
 	const int32 NumThreads = GGatherUnreachableObjectsState.NumWorkerThreads();
@@ -6391,10 +6390,10 @@ void UObjectBase::MarkAsReachable() const
 {
 	// It is safe to perform mark as reachable in the open - the worst case is that we'll mark an object reachable that
 	// should/would be destroyed, and so in the next GC iteration it will be destroyed instead of in this iteration.
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN2
 	{
 		::MarkAsReachable<false>(this);
-	});
+	};
 }
 
 void UObjectBase::AddRef() const

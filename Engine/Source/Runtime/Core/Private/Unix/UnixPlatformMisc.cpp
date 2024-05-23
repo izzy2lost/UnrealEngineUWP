@@ -1397,7 +1397,7 @@ bool FUnixPlatformMisc::IsDebuggerPresent()
 
 	int StatusFile = -1;
 	bool bDebugging = false;
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN2
 	{
 		StatusFile = open("/proc/self/status", O_RDONLY);
 
@@ -1425,7 +1425,7 @@ bool FUnixPlatformMisc::IsDebuggerPresent()
 
 			close(StatusFile);
 		}
-	});
+	};
 	return bDebugging;
 }
 #endif // !UE_BUILD_SHIPPING

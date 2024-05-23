@@ -670,8 +670,8 @@ UE_AUTORTFM_FORCEINLINE void DidFree(void* Ptr)
 // A collection of power-user functions that are reserved for use by the AutoRTFM runtime only.
 namespace ForTheRuntime
 {
-	[[deprecated("This macro is deprecated. Use UE_AUTORTFM_ONABORT instead!")]] UE_AUTORTFM_FORCEINLINE void DeprecatedUseOnAbortMacro() {}
-	[[deprecated("This macro is deprecated. Use UE_AUTORTFM_ONCOMMIT instead!")]] UE_AUTORTFM_FORCEINLINE void DeprecatedUseOnCommitMacro() {}
+	[[deprecated("This macro is deprecated. Use UE_AUTORTFM_ONABORT2 instead!")]] UE_AUTORTFM_FORCEINLINE void DeprecatedUseOnAbortMacro() {}
+	[[deprecated("This macro is deprecated. Use UE_AUTORTFM_ONCOMMIT2 instead!")]] UE_AUTORTFM_FORCEINLINE void DeprecatedUseOnCommitMacro() {}
 
 	// An enum to represent the various ways we want to enable/disable the AutoRTFM runtime.
 	enum EAutoRTFMEnabledState
@@ -877,6 +877,42 @@ UE_AUTORTFM_FORCEINLINE void CheckConsistencyAssumingNoRaces() { return ForTheRu
 // Macro-based variants so we completely compile away when not in use, even in debug builds
 #if UE_AUTORTFM
 
+namespace AutoRTFM::Private
+{
+	struct FOpenHelper
+	{
+		template<typename FunctorType>
+		void operator+(FunctorType F)
+		{
+			AutoRTFM::Open(MoveTemp(F));
+		}
+	};
+	struct FOnAbortHelper
+	{
+		template<typename FunctorType>
+		void operator+(FunctorType F)
+		{
+			AutoRTFM::OnAbort(MoveTemp(F));
+		}
+	};
+	struct FOnCommitHelper
+	{
+		template<typename FunctorType>
+		void operator+(FunctorType F)
+		{
+			AutoRTFM::OnCommit(MoveTemp(F));
+		}
+	};
+	struct FTransactHelper
+	{
+		template<typename FunctorType>
+		void operator+(FunctorType F)
+		{
+			AutoRTFM::Transact(MoveTemp(F));
+		}
+	};
+} // namespace AutoRTFM::Private
+
 #if defined(__clang__) && __has_warning("-Wdeprecated-this-capture")
 #define UE_AUTORTFM_BEGIN_DISABLE_WARNINGS _Pragma("clang diagnostic push") _Pragma("clang diagnostic ignored \"-Wdeprecated-this-capture\"")
 #define UE_AUTORTFM_END_DISABLE_WARNINGS _Pragma("clang diagnostic pop")
@@ -885,32 +921,56 @@ UE_AUTORTFM_FORCEINLINE void CheckConsistencyAssumingNoRaces() { return ForTheRu
 #define UE_AUTORTFM_END_DISABLE_WARNINGS
 #endif
 
+// Older macros where the code is passed as a macro argument. These should be phased out as they make debugging more difficult
 #define UE_AUTORTFM_OPEN_IMPL(...) AutoRTFM::Open([&]() { __VA_ARGS__ })
 #define UE_AUTORTFM_ONABORT_IMPL(...) UE_AUTORTFM_BEGIN_DISABLE_WARNINGS AutoRTFM::OnAbort([=]() { __VA_ARGS__ }) UE_AUTORTFM_END_DISABLE_WARNINGS
 #define UE_AUTORTFM_ONCOMMIT_IMPL(...) UE_AUTORTFM_BEGIN_DISABLE_WARNINGS AutoRTFM::OnCommit([=]() { __VA_ARGS__ }) UE_AUTORTFM_END_DISABLE_WARNINGS
 #define UE_AUTORTFM_TRANSACT_IMPL(...) AutoRTFM::Transact([&]() { __VA_ARGS__ })
+
+#define UE_AUTORTFM_OPEN_IMPL2 AutoRTFM::Private::FOpenHelper{} + [&]()
+#define UE_AUTORTFM_ONABORT_IMPL2(...) AutoRTFM::Private::FOnAbortHelper{} + [__VA_ARGS__]()
+#define UE_AUTORTFM_ONCOMMIT_IMPL2(...) AutoRTFM::Private::FOnCommitHelper{} + [__VA_ARGS__]()
+#define UE_AUTORTFM_TRANSACT_IMPL2 AutoRTFM::Private::FTransactHelper{} + [&]() { __VA_ARGS__ })
 #else
+
+// Older macros where the code is passed as a macro argument. These should be phased out as they make debugging more difficult
 #define UE_AUTORTFM_OPEN_IMPL(...) do { __VA_ARGS__ } while (false)
 #define UE_AUTORTFM_ONABORT_IMPL(...) do { /* do nothing */ } while (false)
 #define UE_AUTORTFM_ONCOMMIT_IMPL(...) do { __VA_ARGS__ } while (false)
 #define UE_AUTORTFM_TRANSACT_IMPL(...) do { __VA_ARGS__ } while (false)
+
+// Do nothing, these should be followed by blocks that should be either executed or not executed
+#define UE_AUTORTFM_OPEN_IMPL2 
+#define UE_AUTORTFM_ONABORT_IMPL2(...) while (false)
+#define UE_AUTORTFM_ONCOMMIT_IMPL2(...)
+#define UE_AUTORTFM_TRANSACT_IMPL2
 #endif
 
 // Runs a block of code in the open, non-transactionally. Anything performed in the open will not be undone if a transaction fails.
 #define UE_AUTORTFM_OPEN(...) UE_AUTORTFM_OPEN_IMPL(__VA_ARGS__)
+// This new version is used like UE_AUTORTFM_OPEN2 { ... code ... }; 
+#define UE_AUTORTFM_OPEN2 UE_AUTORTFM_OPEN_IMPL2
 
 // Runs a block of code if a transaction aborts.
 // In non-transactional code paths the block of code will not be executed at all.
 // This captures any used variables from the parent function by-value.
 #define UE_AUTORTFM_ONABORT(...) UE_AUTORTFM_ONABORT_IMPL(__VA_ARGS__)
+// In the new version of the macro, the macro arguments are the capture specification for the lambda
+// Used like UE_AUTORTFM_ABORT2(=) { ... code ... };
+#define UE_AUTORTFM_ONABORT2(...) UE_AUTORTFM_ONABORT_IMPL2(__VA_ARGS__)
 
 // Runs a block of code if a transaction commits successfully.
 // In non-transactional code paths the block of code will be executed immediately.
 // This captures any used variables from the parent function by-value.
 #define UE_AUTORTFM_ONCOMMIT(...) UE_AUTORTFM_ONCOMMIT_IMPL(__VA_ARGS__)
+// In the new version of the macro, the macro arguments are the capture specification for the lambda
+// Used like UE_AUTORTFM_COMMIT2(=) { ... code ... };
+#define UE_AUTORTFM_ONCOMMIT2(...) UE_AUTORTFM_ONCOMMIT_IMPL2(__VA_ARGS__)
 
 // Runs a block of code in the closed, transactionally, within a new transaction.
 #define UE_AUTORTFM_TRANSACT(...) UE_AUTORTFM_TRANSACT_IMPL(__VA_ARGS__)
+// New version is used like a block: UE_AUTORTFM_TRANSACT2 { ... code ... };
+#define UE_AUTORTFM_TRANSACT2 UE_AUTORTFM_TRANSACT_IMPL2
 
 // Deprecated. Use UE_AUTORTFM_ONABORT instead.
 #define UE_AUTORTFM_OPENABORT(...) UE_AUTORTFM_ONABORT(AutoRTFM::ForTheRuntime::DeprecatedUseOnAbortMacro(); __VA_ARGS__)

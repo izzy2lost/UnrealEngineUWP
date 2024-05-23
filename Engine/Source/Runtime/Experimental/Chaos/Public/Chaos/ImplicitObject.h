@@ -117,17 +117,17 @@ public:
 	FChaosRefCountedObject& operator=(const FChaosRefCountedObject& Rhs) = delete;
 	uint32 AddRef() const
 	{
-		UE_AUTORTFM_ONCOMMIT(
+		UE_AUTORTFM_ONCOMMIT2(this)
 		{
 			NumRefs.Increment();
-		});
+		};
 
 		// Note: TRefCountPtr doesn't use the return value
 		return 0;
 	}
 	uint32 Release() const
 	{
-		UE_AUTORTFM_ONCOMMIT(
+		UE_AUTORTFM_ONCOMMIT2(this)
 		{
 			uint32 Refs = uint32(NumRefs.Decrement());
 			if (Refs == 0)
@@ -137,7 +137,7 @@ public:
 					delete this;
 				}
 			}
-		});
+		};
 
 		// Note: TRefCountPtr doesn't use the return value
 		return 0;
@@ -145,10 +145,10 @@ public:
 	uint32 GetRefCount() const
 	{
 		uint32 Ret = 0;
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 			Ret = uint32(NumRefs.GetValue());
-		});
+		};
 
 		return Ret;
 	}

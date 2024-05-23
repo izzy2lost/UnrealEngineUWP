@@ -875,9 +875,10 @@ void FTextHistory_Base::UpdateDisplayString()
 
 	// Create a temp to hold the old value in case we abort, in which case we assign out of the OPEN so the old value will be preserved
 	FTextConstDisplayStringPtr NewLocalizedString;
-	UE_AUTORTFM_OPEN({
+	UE_AUTORTFM_OPEN2
+	{
 		NewLocalizedString = FTextLocalizationManager::Get().GetDisplayString(TextId.GetNamespace(), TextId.GetKey(), SourceString.IsEmpty() ? nullptr : &SourceString);
-	});
+	};
 
 	LocalizedString = NewLocalizedString;
 }

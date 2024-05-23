@@ -62,9 +62,9 @@ namespace UE
 	{
 		static COREUOBJECT_API FDynamicallyTypedValueType& NullType();
 
-		FDynamicallyTypedValue() { UE_AUTORTFM_OPEN({ InitializeToNull(); }); }
-		FDynamicallyTypedValue(const FDynamicallyTypedValue& Copyee) { UE_AUTORTFM_OPEN({ InitializeFromCopy(Copyee); }); }
-		FDynamicallyTypedValue(FDynamicallyTypedValue&& Movee) { UE_AUTORTFM_OPEN({ InitializeFromMove(MoveTemp(Movee)); }); }
+		FDynamicallyTypedValue() { UE_AUTORTFM_OPEN2{ InitializeToNull(); }; }
+		FDynamicallyTypedValue(const FDynamicallyTypedValue& Copyee) { UE_AUTORTFM_OPEN2{ InitializeFromCopy(Copyee); }; }
+		FDynamicallyTypedValue(FDynamicallyTypedValue&& Movee) { UE_AUTORTFM_OPEN2{ InitializeFromMove(MoveTemp(Movee)); }; }
 
 		~FDynamicallyTypedValue() { Deinit(); }
 

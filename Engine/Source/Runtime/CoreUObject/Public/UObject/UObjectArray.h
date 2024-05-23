@@ -154,7 +154,7 @@ public:
 	{
 		checkf((int32(FlagToClear) & ~int32(EInternalObjectFlags_AllFlags)) == 0, TEXT("%d is not a valid internal flag value"), int32(FlagToClear));
 		bool Result = false;
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 			FlagToClear &= ~EInternalObjectFlags_ReachabilityFlags; // reachability flags can only be cleared by GC through *_ForGC functions
 			FlagToClear &= ~EInternalObjectFlags::RefCounted; // refcounted flag is internal and must only be cleared internally by AddRef/ReleaseRef.
@@ -166,7 +166,7 @@ public:
 			{
 				Result = AtomicallyClearFlag_ForGC(FlagToClear);
 			}
-		});
+		};
 
 		return Result;
 	}
@@ -191,7 +191,7 @@ public:
 	{
 		checkf((int32(FlagToSet) & ~int32(EInternalObjectFlags_AllFlags)) == 0, TEXT("%d is not a valid internal flag value"), int32(FlagToSet));
 		bool Result = false;
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 			FlagToSet &= ~EInternalObjectFlags_ReachabilityFlags; // reachability flags can only be cleared by GC through *_ForGC functions
 			FlagToSet &= ~EInternalObjectFlags::RefCounted; // refcounted flag is internal and must only be set by AddRef/ReleaseRef.
@@ -203,7 +203,7 @@ public:
 			{
 				Result = AtomicallySetFlag_ForGC(FlagToSet);
 			}
-		});
+		};
 		return Result;
 	}
 
@@ -292,19 +292,19 @@ public:
 
 	void AddRef()
 	{
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 			FPlatformAtomics::InterlockedIncrement(&RefCount);
 			if ((GetFlags() & EInternalObjectFlags::RefCounted) != EInternalObjectFlags::RefCounted)
 			{
 				SetRootFlags(EInternalObjectFlags::RefCounted);
 			}
-		});
+		};
 	}
 
 	void ReleaseRef()
 	{
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 			// This alone is not thread-safe as we may race with AddRef and in that case we don't want ClearRootFlags to apply.
 			// We fix this by validating that the refcount is still 0 while inside the root locks in ClearRootFlags.
@@ -314,7 +314,7 @@ public:
 			{
 				ClearRootFlags(EInternalObjectFlags::RefCounted);
 			}
-		});
+		};
 	}
 
 #if STATS || ENABLE_STATNAMEDEVENTS_UOBJECT

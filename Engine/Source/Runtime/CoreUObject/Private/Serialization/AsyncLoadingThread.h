@@ -475,7 +475,7 @@ public:
 	static bool GetIsInAsyncLoadingTick()
 	{
 		bool Result = false;
-		UE_AUTORTFM_OPEN({ Result = !!AsyncLoadingTickCounter.GetValue(); });
+		UE_AUTORTFM_OPEN2{ Result = !!AsyncLoadingTickCounter.GetValue(); };
 		return Result;
 	}
 

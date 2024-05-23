@@ -2251,7 +2251,7 @@ bool UGameplayTagsManager::ExtractParentTags(const FGameplayTag& GameplayTag, TA
 	FName RawTag = GameplayTag.GetTagName();
 
 	// Need to run in the open as it takes a lock. 
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN2
 		{
 			FScopeLock Lock(&GameplayTagMapCritical);
 
@@ -2277,7 +2277,7 @@ bool UGameplayTagsManager::ExtractParentTags(const FGameplayTag& GameplayTag, TA
 				// If we don't clear invalid tags, we need to extract the parents now in case they get registered later
 				GameplayTag.ParseParentTags(UniqueParentTags);
 			}
-		});
+		};
 
 	return UniqueParentTags.Num() != OldSize;
 }

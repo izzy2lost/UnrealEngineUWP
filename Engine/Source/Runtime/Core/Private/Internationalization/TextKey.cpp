@@ -27,10 +27,10 @@ public:
 		check(!InStr.IsEmpty());
 		// Open around adding this in a cache, if we abort just leak the value in the cache
 		// as the cache takes ownership
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 			FindOrAddImpl(FKeyData(InStr), OutTextKey);
-		});
+		};
 	}
 
 	void FindOrAdd(FStringView InStr, const uint32 InStrHash, FTextKey& OutTextKey)
@@ -38,10 +38,10 @@ public:
 		check(!InStr.IsEmpty());
 		// Open around adding this in a cache, if we abort just leak the value in the cache
 		// as the cache takes ownership
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 			FindOrAddImpl(FKeyData(InStr, InStrHash), OutTextKey);
-		});
+		};
 	}
 
 	void Shrink()

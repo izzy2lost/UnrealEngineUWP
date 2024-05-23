@@ -7278,9 +7278,9 @@ TSharedPtr<FRepLayout> UNetDriver::GetFunctionRepLayout(UFunction * Function)
 
 		// Use a temp shared ptr to hold onto a previous value in case we abort. The adding to RepLayoutMap copies this TSharedPtr, and will end up taking a ref count and owning it
 		TSharedPtr<FRepLayout> NewLayoutPtr;
-		UE_AUTORTFM_OPEN({
+		UE_AUTORTFM_OPEN2{
 			NewLayoutPtr = FRepLayout::CreateFromFunction(Function, ServerConnection, Flags);
-		});
+		};
 
 		RepLayoutPtr = &RepLayoutMap.Add(Function, NewLayoutPtr);
 	}

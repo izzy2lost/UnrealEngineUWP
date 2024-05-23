@@ -2724,7 +2724,7 @@ namespace NameReuse
 		{
 			FName Result;
 
-			UE_AUTORTFM_OPEN(
+			UE_AUTORTFM_OPEN2
 			{
 				Lock.ReadLock();
 				FNameRangeEntry* Entry = Find(BaseId);
@@ -2760,7 +2760,7 @@ namespace NameReuse
 						Result = Entry->AllocateName(Parent, BaseId, BaseName);
 					}
 				}
-			});
+			};
 
 			return Result;
 		}
@@ -2801,7 +2801,7 @@ namespace NameReuse
 
 		FName ReturnName;
 
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 			FNameEntryId BaseId = BaseName.GetDisplayIndex();
 			ReturnName = GRecentNameCache.Find(Parent, BaseId, BaseName);
@@ -2816,7 +2816,7 @@ namespace NameReuse
 				// Store this name for reuse 
 				GRecentNameCache.Store(Parent, BaseId, ReturnName);
 			}
-		});
+		};
 
 		return ReturnName;
 	}
@@ -2864,7 +2864,7 @@ FName MakeUniqueObjectName(UObject* Parent, const UClass* Class, FName InBaseNam
 			else
 			{
 				int32 NameNumber = 0;
-				UE_AUTORTFM_OPEN(
+				UE_AUTORTFM_OPEN2
 				{
 					if (Parent && (Parent != ANY_PACKAGE_DEPRECATED) && !(Options & EUniqueObjectNameOptions::GloballyUnique))
 					{
@@ -2897,7 +2897,7 @@ FName MakeUniqueObjectName(UObject* Parent, const UClass* Class, FName InBaseNam
 					{
 						NameNumber = ++Class->ClassUnique;
 					}
-				});
+				};
 				TestName = FName(BaseName, NameNumber);
 			}
 
@@ -3615,11 +3615,11 @@ UObject* StaticAllocateObject
 	{
 		// perform the UObjectBase construction in the open - we expect the GC to invoke
 		// the destructor in the case of transaction abort
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 			FMemory::Memzero((void *)Obj, TotalSize);
 			new ((void *)Obj) UObjectBase(const_cast<UClass*>(InClass), InFlags|RF_NeedInitialization, InternalSetFlags, InOuter, InName, OldIndex, OldSerialNumber);
-		});
+		};
 	}
 	else
 	{
@@ -4096,7 +4096,7 @@ void FObjectInitializer::PostConstructInit()
 	// need a fence to guarantee that the cleared flag is only visible to other threads
 	// after the other initialization-related writes
 	std::atomic_thread_fence(std::memory_order_release);
-	UE_AUTORTFM_OPEN({ Obj->ClearFlags(RF_NeedInitialization); });
+	UE_AUTORTFM_OPEN2{ Obj->ClearFlags(RF_NeedInitialization); };
 
 	// clear the object pointer so we can guard against running this function again
 	Obj = nullptr;

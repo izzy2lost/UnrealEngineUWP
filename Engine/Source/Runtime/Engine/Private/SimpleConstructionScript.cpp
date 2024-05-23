@@ -694,10 +694,10 @@ void USimpleConstructionScript::ExecuteScriptOnActor(AActor* Actor, const TInlin
 		USceneComponent* SceneComp = NewObject<USceneComponent>(Actor);
 
 		// The object is new, so its safe for us to atomically set the flag in the open.
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 			{
 				SceneComp->SetFlags(RF_Transactional);
-			});
+			};
 
 		SceneComp->CreationMethod = EComponentCreationMethod::SimpleConstructionScript;
 		if (RootRelativeRotationCache)

@@ -365,7 +365,7 @@ private:
 	{
 		const SIZE_T StackTraceSize = 65536;
 		ANSICHAR StackTrace[StackTraceSize] = { 0 };
-		UE_AUTORTFM_OPEN({ FPlatformStackWalk::StackWalkAndDump(StackTrace, StackTraceSize, 0); });
+		UE_AUTORTFM_OPEN2{ FPlatformStackWalk::StackWalkAndDump(StackTrace, StackTraceSize, 0); };
 		return ANSI_TO_TCHAR(StackTrace);
 	}
 
@@ -384,7 +384,7 @@ private:
 
 		const SIZE_T StackTraceSize = 65536;
 		ANSICHAR StackTrace[StackTraceSize] = { 0 };
-		UE_AUTORTFM_OPEN({ FPlatformStackWalk::ThreadStackWalkAndDump(StackTrace, StackTraceSize, 0, ThreadId); });
+		UE_AUTORTFM_OPEN2{ FPlatformStackWalk::ThreadStackWalkAndDump(StackTrace, StackTraceSize, 0, ThreadId); };
 		return ANSI_TO_TCHAR(StackTrace);
 	}
 

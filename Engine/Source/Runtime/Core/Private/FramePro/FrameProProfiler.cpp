@@ -132,27 +132,27 @@ public:
 	virtual void* Alloc(size_t size) override
 	{
 		void* Ptr = nullptr;
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 			Ptr = BaseMalloc.Malloc(size, DEFAULT_ALIGNMENT);
-		});
+		};
 
 		// no-op for non-transactional code
-		UE_AUTORTFM_ONABORT(
+		UE_AUTORTFM_ONABORT2(=, this)
 		{
 			// Disable the code analysis warning that complains that Free is being passed
 			// a pointer that may be null. Free explicitly handles this case already.
 			this->Free(Ptr); //-V575
-		});
+		};
 
 		return Ptr;
 	}
 	virtual void Free(void* p) override
 	{
-		UE_AUTORTFM_ONCOMMIT(
+		UE_AUTORTFM_ONCOMMIT2(=, this)
 		{
 			BaseMalloc.Free(p);
-		});
+		};
 	}
 
 private:
@@ -166,18 +166,18 @@ public:
 	static void* Malloc(SIZE_T Count, uint32 Alignment = DEFAULT_ALIGNMENT)
 	{
 		void* Ptr = nullptr;
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 			Ptr = FrameProAllocator::Get().GetBaseMalloc()->Malloc(Count, Alignment);
-		});
+		};
 
 		// no-op for non-transactional code
-		UE_AUTORTFM_ONABORT(
+		UE_AUTORTFM_ONABORT2(Ptr)
 		{
 			// Disable the code analysis warning that complains that Free is being passed
 			// a pointer that may be null. Free explicitly handles this case already.
 			FrameProMalloc::Free(Ptr); //-V575
-		});
+		};
 
 		return Ptr;
 	}
@@ -198,10 +198,10 @@ public:
 			if (Original)
 			{
 				SIZE_T OriginalCount = 0;
-				UE_AUTORTFM_OPEN(
+				UE_AUTORTFM_OPEN2
 				{
 					BaseMalloc->GetAllocationSize(Original, OriginalCount);
-				});
+				};
 
 				SIZE_T CopyCount = FGenericPlatformMath::Min(Count, OriginalCount);
 				FMemory::Memcpy(Ptr, Original, CopyCount);
@@ -216,10 +216,10 @@ public:
 
 	static void Free(void* Original)
 	{
-		UE_AUTORTFM_ONCOMMIT(
+		UE_AUTORTFM_ONCOMMIT2(Original)
 		{
 			FrameProAllocator::Get().GetBaseMalloc()->Free(Original);
-		});
+		};
 	}
 };
 

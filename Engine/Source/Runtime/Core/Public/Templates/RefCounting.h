@@ -254,11 +254,11 @@ public:
 
 			uint32 Count = 0;
 
-			UE_AUTORTFM_OPEN(
+			UE_AUTORTFM_OPEN2
 			{
 				// This reference count may be accessed by multiple threads
 				Count = RefCount.load(std::memory_order_relaxed);
-			});
+			};
 
 			return Count;
 		}

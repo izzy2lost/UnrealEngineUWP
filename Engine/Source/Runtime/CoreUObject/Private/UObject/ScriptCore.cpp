@@ -189,7 +189,7 @@ FBlueprintContext* FBlueprintContextGetThreadSingletonImpl()
 FBlueprintContext* FBlueprintContext::GetThreadSingleton()
 {
 	FBlueprintContext* Result;
-	UE_AUTORTFM_OPEN({ Result = FBlueprintContextGetThreadSingletonImpl(); });
+	UE_AUTORTFM_OPEN2{ Result = FBlueprintContextGetThreadSingletonImpl(); };
 	return Result;
 }
 
@@ -3093,7 +3093,7 @@ void UObject::ProcessContextOpcode( FFrame& Stack, RESULT_DECL, bool bCanFailSil
 
 		if (!bCanFailSilently)
 		{
-			UE_AUTORTFM_OPEN(
+			UE_AUTORTFM_OPEN2
 			{
 				if (NewContext && !IsValid(NewContext))
 				{
@@ -3130,7 +3130,7 @@ void UObject::ProcessContextOpcode( FFrame& Stack, RESULT_DECL, bool bCanFailSil
 					);
 					FBlueprintCoreDelegates::ThrowScriptException(this, Stack, ExceptionInfo);
 				}
-			});
+			};
 		}
 
 		const CodeSkipSizeType wSkip = Stack.ReadCodeSkipCount(); // Code offset for NULL expressions. Code += sizeof(CodeSkipSizeType)
@@ -4071,7 +4071,7 @@ DEFINE_FUNCTION(UObject::execAutoRtfmTransact)
 
 					case EAutoRtfmStopTransactMode::AbortingExitAndAbortParent:
 						// abort this transaction and also abort the parent
-						UE_AUTORTFM_OPEN({ bAbortParentOnCommit = true; });
+						UE_AUTORTFM_OPEN2{ bAbortParentOnCommit = true; };
 						AutoRTFM::AbortTransaction();
 						break;
 					}

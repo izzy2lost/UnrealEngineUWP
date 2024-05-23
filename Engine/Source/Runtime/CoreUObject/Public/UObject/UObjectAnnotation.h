@@ -90,7 +90,7 @@ private:
 			{
 				// We hit this from many locations, for now lets open around adding this, and if we happen to be in a transcation
 				// and abort after we have added let us use the UObject to remove it from the annotation map
-				UE_AUTORTFM_OPEN(
+				UE_AUTORTFM_OPEN2
 				{
 					FScopeLock AnnotationMapLock(&AnnotationMapCritical);
 					bWasEmpty = (AnnotationMap.Num() == 0);
@@ -107,12 +107,12 @@ private:
 					{
 						AnnotationMap.Add(Object, LocalAnnotation);
 					}
-				});
+				};
 
-				UE_AUTORTFM_ONABORT(
+				UE_AUTORTFM_ONABORT2(this, Object)
 				{
 					RemoveAnnotation(Object);
-				});
+				};
 			}
 
 			if (bWasEmpty)
@@ -122,15 +122,15 @@ private:
 				if (bAutoRemove)
 #endif
 				{
-					UE_AUTORTFM_OPEN(
+					UE_AUTORTFM_OPEN2
 					{
 						GUObjectArray.AddUObjectDeleteListener(this);
-					});
+					};
 
-					UE_AUTORTFM_ONABORT(
+					UE_AUTORTFM_ONABORT2(this)
 					{
 						GUObjectArray.RemoveUObjectDeleteListener(this);
-					});
+					};
 				}
 			}
 		}
@@ -193,7 +193,7 @@ public:
 	 */
 	void RemoveAnnotation(const UObjectBase *Object)
 	{
-		AutoRTFM::OnCommit([this, Object]
+		UE_AUTORTFM_ONCOMMIT2(this, Object)
 		{
 			check(Object);
 			bool bHadElements = false;
@@ -217,7 +217,7 @@ public:
 					GUObjectArray.RemoveUObjectDeleteListener(this);
 				}
 			}
-		});
+		};
 	}
 	/**
 	 * Removes all annotation from the annotation list. 
@@ -256,7 +256,7 @@ public:
 	{
 		check(Object);
 		TAnnotation Result;
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 			FScopeLock AnnotationMapLock(&AnnotationMapCritical);
 			if (Object != AnnotationCacheKey)
@@ -273,7 +273,7 @@ public:
 				}
 			}
 			Result = AnnotationCacheValue;
-		});
+		};
 		return Result;
 	}
 
@@ -875,7 +875,7 @@ public:
 
 		TAnnotation Result = TAnnotation();
 
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 			FRWScopeLock AnnotationArrayLock(AnnotationArrayCritical, SLT_ReadOnly);
 
@@ -890,7 +890,7 @@ public:
 					Result = Chunk.Items[WithinChunkIndex];
 				}
 			}
-		});
+		};
 
 		return Result;
 	}

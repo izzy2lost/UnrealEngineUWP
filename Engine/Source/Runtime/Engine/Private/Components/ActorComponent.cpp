@@ -1819,7 +1819,7 @@ void UActorComponent::ExecuteRegisterEvents(FRegisterComponentContext* Context)
 void UActorComponent::ExecuteUnregisterEvents()
 {
 	// Delay the destroying the physics, as well as the rendering state until after we commit
-	UE_AUTORTFM_ONCOMMIT(
+	UE_AUTORTFM_ONCOMMIT2(=)
 	{
 		DestroyPhysicsState();
 
@@ -1837,7 +1837,7 @@ void UActorComponent::ExecuteUnregisterEvents()
 			OnUnregister();
 			checkf(!bRegistered, TEXT("Failed to route OnUnregister (%s)"), *GetFullName());
 		}
-	});
+	};
 }
 
 void UActorComponent::ReregisterComponent()

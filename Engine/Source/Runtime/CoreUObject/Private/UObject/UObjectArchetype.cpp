@@ -223,16 +223,16 @@ UObject* GetArchetypeImpl(const UObject* InObject, const FObjectArchetypeHelper:
 		if (Archetype && !(InObject->GetOuter() && InObject->GetOuter()->HasAnyFlags(RF_NeedLoad)))
 		{
 			ArchetypeIndex = GUObjectArray.ObjectToIndex(Archetype);
-			UE_AUTORTFM_OPEN(
+			UE_AUTORTFM_OPEN2
 			{
 				ArchetypeAnnotation.AddAnnotation(InObject, FArchetypeInfo{ ArchetypeIndex, GUObjectArray.AllocateSerialNumber(ArchetypeIndex) });
-			});
+			};
 
 			// If we abort we need to remove this annotation
-			UE_AUTORTFM_ONABORT(
+			UE_AUTORTFM_ONABORT2(=)
 			{
 				ArchetypeAnnotation.RemoveAnnotation(InObject);
-			});
+			};
 		}
 	}
 	else

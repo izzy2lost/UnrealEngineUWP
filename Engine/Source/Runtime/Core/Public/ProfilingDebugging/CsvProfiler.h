@@ -539,14 +539,14 @@ public:
 		: StatName(InStatName)
 		, CategoryIndex(InCategoryIndex)
 	{
-		UE_AUTORTFM_OPEN({ FCsvProfiler::BeginStat(StatName, CategoryIndex, InNamedEventName); });
+		UE_AUTORTFM_OPEN2{ FCsvProfiler::BeginStat(StatName, CategoryIndex, InNamedEventName); };
 		AutoRTFM::PushOnAbortHandler(this, [SN = StatName, CI = CategoryIndex](){ FCsvProfiler::EndStat(SN, CI); });
 	}
 
 	~FScopedCsvStat()
 	{
 		AutoRTFM::PopOnAbortHandler(this);
-		UE_AUTORTFM_OPEN({ FCsvProfiler::EndStat(StatName, CategoryIndex); });
+		UE_AUTORTFM_OPEN2{ FCsvProfiler::EndStat(StatName, CategoryIndex); };
 	}
 	const char * StatName;
 	uint32 CategoryIndex;
@@ -558,14 +558,14 @@ public:
 	FScopedCsvStatExclusive(const char * InStatName, const char* InNamedEventName = nullptr)
 		: StatName(InStatName)
 	{
-		UE_AUTORTFM_OPEN({ FCsvProfiler::BeginExclusiveStat(StatName, InNamedEventName); });
+		UE_AUTORTFM_OPEN2{ FCsvProfiler::BeginExclusiveStat(StatName, InNamedEventName); };
 		AutoRTFM::PushOnAbortHandler(this, [SN = StatName](){ FCsvProfiler::EndExclusiveStat(SN); });
 	}
 
 	~FScopedCsvStatExclusive()
 	{
 		AutoRTFM::PopOnAbortHandler(this);
-		UE_AUTORTFM_OPEN({ FCsvProfiler::EndExclusiveStat(StatName); });
+		UE_AUTORTFM_OPEN2{ FCsvProfiler::EndExclusiveStat(StatName); };
 	}
 	const char * StatName;
 };

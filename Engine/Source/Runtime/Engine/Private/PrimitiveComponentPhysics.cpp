@@ -1214,15 +1214,15 @@ void UPrimitiveComponent::SetCollisionEnabled(ECollisionEnabled::Type NewType)
 
 	if (CurrentType != NewType)
 	{
-		UE_AUTORTFM_OPEN({
+		UE_AUTORTFM_OPEN2{
 			BodyInstance.SetCollisionEnabled(NewType);
-		});
+		};
 
 		// If we fail set the CollisionEnabled back to the CurrentType
-		UE_AUTORTFM_ONABORT(
+		UE_AUTORTFM_ONABORT2(=, this)
 		{
 			BodyInstance.SetCollisionEnabled(CurrentType);
-		});
+		};
 
 		EnsurePhysicsStateCreated();
 		OnComponentCollisionSettingsChanged();

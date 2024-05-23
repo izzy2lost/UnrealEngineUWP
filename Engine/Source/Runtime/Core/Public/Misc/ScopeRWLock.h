@@ -15,13 +15,13 @@ public:
 	UE_NODISCARD_CTOR explicit FReadScopeLock(FRWLock& InLock)
 		: Lock(InLock)
 	{
-		UE_AUTORTFM_OPEN({ Lock.ReadLock(); });
+		UE_AUTORTFM_OPEN2{ Lock.ReadLock(); };
 		AutoRTFM::PushOnAbortHandler(this, [this](){ this->Lock.ReadUnlock(); });
 	}
 
 	~FReadScopeLock()
 	{
-		UE_AUTORTFM_OPEN({ Lock.ReadUnlock(); });
+		UE_AUTORTFM_OPEN2{ Lock.ReadUnlock(); };
 		AutoRTFM::PopOnAbortHandler(this);
 	}
 

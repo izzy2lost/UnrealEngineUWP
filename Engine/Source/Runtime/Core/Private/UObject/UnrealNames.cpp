@@ -1164,13 +1164,13 @@ public:
 	FNameEntryId Find(const FNameValue<Sensitivity>& Value) const
 	{
 		FNameEntryId Result;
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 			FRWScopeLock _(Lock, FRWScopeLockType::SLT_ReadOnly);
 
 			FNameSlot& Slot = Probe(Value);
 			Result = Slot.GetId();
-		});
+		};
 		return Result;
 	}
 
@@ -1695,7 +1695,7 @@ FNameEntryId FNamePool::StoreWithNumber(FNameEntryIds StringParts, int32 NumberP
 {
 	FNameEntryId Result;
 
-	AutoRTFM::Open([&]
+	UE_AUTORTFM_OPEN2
 	{
 #if WITH_CASE_PRESERVING_NAME
 		// Look for an exact match with the right casing first
@@ -1720,7 +1720,7 @@ FNameEntryId FNamePool::StoreWithNumber(FNameEntryIds StringParts, int32 NumberP
 #else
 		Result = ComparisonId;
 #endif
-	});
+	};
 
 	return Result;
 }
@@ -2017,12 +2017,12 @@ static FNamePool& GetNamePool()
 
 	FNamePool* Singleton = nullptr;
 	
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN2
 	{
 		Singleton = new (NamePoolData) FNamePool;
 		bNamePoolInitialized = true;
 		LLM(FLowLevelMemTracker::Get().FinishInitialise());
-	});
+	};
 	
 	return *Singleton;
 }
@@ -2887,9 +2887,10 @@ struct FNameHelper
 		if (FindType == FNAME_Add)
 		{
 			FNameEntryId DisplayId;
-			UE_AUTORTFM_OPEN({
+			UE_AUTORTFM_OPEN2
+			{
 				DisplayId = Pool.StoreWithNumber(BaseIds, InternalNumber);
-			});
+			};
 			return FinalConstruct(FNameEntryIds{ ResolveComparisonId(DisplayId), DisplayId });
 		}
 		else
@@ -2995,9 +2996,10 @@ private:
 	static FName MakeInternal(FNameStringView View, EFindName FindType, int32 InternalNumber)
 	{
 		FNameEntryIds Ids;
-		UE_AUTORTFM_OPEN({
+		UE_AUTORTFM_OPEN2
+		{
 			Ids = FindOrStoreString(View, FindType);
-		});
+		};
 #if UE_FNAME_OUTLINE_NUMBER
 		if (FindType == FNAME_Find && !Ids.DisplayId)
 		{
@@ -3055,7 +3057,7 @@ private:
 	{
 		FNameEntryIds Result{};
 
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 			if (View.Len >= NAME_SIZE)
 			{
@@ -3089,7 +3091,7 @@ private:
 					Result = FNameEntryIds{ ResolveComparisonId(DisplayId), DisplayId };
 				}
 			}
-		});
+		};
 
 		return Result;
 	}

@@ -32,7 +32,7 @@ FText FTextCache::FindOrCache(const TCHAR* InTextLiteral, const FTextId& InTextI
 	{
 		FText* ReturnFoundText = nullptr;
 
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 
 			FScopeLock Lock(&CachedTextCS);
@@ -47,7 +47,7 @@ FText FTextCache::FindOrCache(const TCHAR* InTextLiteral, const FTextId& InTextI
 					ReturnFoundText = FoundText;
 				}
 			}
-		});
+		};
 
 		if (ReturnFoundText)
 		{
@@ -59,12 +59,12 @@ FText FTextCache::FindOrCache(const TCHAR* InTextLiteral, const FTextId& InTextI
 	FText NewText = FText(InTextLiteral, InTextId.GetNamespace(), InTextId.GetKey(), ETextFlag::Immutable);
 
 	// ... and add it to the cache
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN2
 	{
 		FScopeLock Lock(&CachedTextCS);
 
 		CachedText.Emplace(InTextId, NewText);
-	});
+	};
 
 	return NewText;
 }

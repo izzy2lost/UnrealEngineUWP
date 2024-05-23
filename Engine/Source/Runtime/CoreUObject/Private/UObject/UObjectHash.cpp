@@ -524,7 +524,7 @@ public:
 		if (!(IsGarbageCollectingAndLockingUObjectHashTables() && IsInGameThread()))
 		{
 			Tables = &InTables;
-			UE_AUTORTFM_OPEN({ InTables.Lock(); });
+			UE_AUTORTFM_OPEN2{ InTables.Lock(); };
 			AutoRTFM::PushOnAbortHandler(this, [this](){ if (this->Tables){ this->Tables->Unlock(); }});
 		}
 		else
@@ -540,7 +540,7 @@ public:
 #if THREADSAFE_UOBJECTS
 		if (Tables)
 		{
-			UE_AUTORTFM_OPEN({ Tables->Unlock(); });
+			UE_AUTORTFM_OPEN2{ Tables->Unlock(); };
 			AutoRTFM::PopOnAbortHandler(this);
 		}
 #endif
@@ -851,7 +851,7 @@ UObject* StaticFindObjectFastInternal(const UClass* ObjectClass, const UObject* 
 	UObject* Result = nullptr;
 
 	// Transactionally, a static find operation has to occur in the open as it touches shared state.
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN2
 	{
 		INC_DWORD_STAT(STAT_FindObjectFast);
 
@@ -860,7 +860,7 @@ UObject* StaticFindObjectFastInternal(const UClass* ObjectClass, const UObject* 
 		// If they specified an outer use that during the hashing
 		FUObjectHashTables& ThreadHash = FUObjectHashTables::Get();
 		Result = StaticFindObjectFastInternalThreadSafe(ThreadHash, ObjectClass, ObjectPackage, ObjectName, bExactClass, bAnyPackage, ExcludeFlags, ExclusiveInternalFlags);
-	});
+	};
 
 	return Result;
 }
@@ -870,7 +870,7 @@ UObject* StaticFindObjectFastInternal(const UClass* ObjectClass, const UObject* 
 	UObject* Result = nullptr;
 
 	// Transactionally, a static find operation has to occur in the open as it touches shared state.
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN2
 	{
 		INC_DWORD_STAT(STAT_FindObjectFast);
 
@@ -879,7 +879,7 @@ UObject* StaticFindObjectFastInternal(const UClass* ObjectClass, const UObject* 
 		// If they specified an outer use that during the hashing
 		FUObjectHashTables& ThreadHash = FUObjectHashTables::Get();
 		Result = StaticFindObjectFastInternalThreadSafe(ThreadHash, ObjectClass, ObjectPackage, ObjectName, bExactClass, /*bAnyPackage =*/ false, ExcludeFlags, ExclusiveInternalFlags);
-	});
+	};
 
 	return Result;
 }

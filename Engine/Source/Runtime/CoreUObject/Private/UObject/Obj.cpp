@@ -892,9 +892,9 @@ FClassExclusionData GDedicatedClientExclusionList;
 bool UObject::NeedsLoadForServer() const
 {
 	bool Ret = false;
-	UE_AUTORTFM_OPEN({
+	UE_AUTORTFM_OPEN2{
 		Ret = !GDedicatedServerExclusionList.IsExcluded(GetClass());
-	});
+	};
 	return Ret;
 }
 
@@ -907,9 +907,9 @@ void UObject::UpdateClassesExcludedFromDedicatedServer(const TArray<FString>& In
 bool UObject::NeedsLoadForClient() const
 {
 	bool Ret = false;
-	UE_AUTORTFM_OPEN({
+	UE_AUTORTFM_OPEN2{
 		Ret = !GDedicatedClientExclusionList.IsExcluded(GetClass());
-	});
+	};
 	return Ret;
 }
 

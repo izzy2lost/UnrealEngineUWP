@@ -226,7 +226,7 @@ void AActor::InitializeDefaults()
 #if (CSV_PROFILER && !UE_BUILD_SHIPPING)
 	// Increment actor class count
 	// Update our ActorClassName count after the transaction finishes
-	UE_AUTORTFM_ONCOMMIT(
+	UE_AUTORTFM_ONCOMMIT2(=)
 	{
 		if (!HasAnyFlags(RF_ArchetypeObject | RF_ClassDefaultObject))
 		{
@@ -238,7 +238,7 @@ void AActor::InitializeDefaults()
 			CurrentCount++;
 			CSVActorTotalCount++;
 		}
-	});
+	};
 #endif // (CSV_PROFILER && !UE_BUILD_SHIPPING)
 
 #if WITH_EDITORONLY_DATA
@@ -782,7 +782,7 @@ void AActor::BeginDestroy()
 #if (CSV_PROFILER && !UE_BUILD_SHIPPING)
 	// Decrement actor class count
 	// Update our ActorClassName count after the transaction finishes
-	UE_AUTORTFM_ONCOMMIT(
+	UE_AUTORTFM_ONCOMMIT2(=)
 	{
 		if (!HasAnyFlags(RF_ArchetypeObject | RF_ClassDefaultObject))
 		{
@@ -797,7 +797,7 @@ void AActor::BeginDestroy()
 			}
 			CSVActorTotalCount--;
 		}
-	});
+	};
 #endif // (CSV_PROFILER && !UE_BUILD_SHIPPING)
 
 #if WITH_EDITOR
