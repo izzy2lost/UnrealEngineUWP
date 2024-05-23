@@ -26,12 +26,6 @@ namespace JobDriver
 		public PerforceExecutorSettings PerforceExecutor { get; set; } = new PerforceExecutorSettings();
 
 		/// <summary>
-		/// List of process names to terminate after a job
-		/// </summary>
-		[Obsolete("Prefer using the ProcessesToTerminate list instead")]
-		public List<string> ProcessNamesToTerminate { get; } = new List<string>();
-
-		/// <summary>
 		/// List of process names to terminate after a lease completes, but not after a job step
 		/// </summary>
 		public List<ProcessToTerminate> ProcessesToTerminate { get; } = new List<ProcessToTerminate>();
