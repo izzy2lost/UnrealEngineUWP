@@ -78,11 +78,12 @@ void SConsoleVariablesEditorListRow::Construct(
 
 	SMultiColumnTableRow<FConsoleVariablesEditorListRowPtr>::Construct(
 		FSuperRowType::FArguments()
-		.Padding(1.0f)
+		.Padding(FMargin(0.0f, 1.0f))
 		.OnCanAcceptDrop(this, &SConsoleVariablesEditorListRow::HandleCanAcceptDrop)
 		.OnAcceptDrop(this, &SConsoleVariablesEditorListRow::HandleAcceptDrop)
 		.OnDragDetected(this, &SConsoleVariablesEditorListRow::HandleDragDetected)
-		.OnDragLeave(this, &SConsoleVariablesEditorListRow::HandleDragLeave),
+		.OnDragLeave(this, &SConsoleVariablesEditorListRow::HandleDragLeave)
+		.Style(&FAppStyle::Get().GetWidgetStyle<FTableRowStyle>("TableView.AlternatingRow")),
 		InOwnerTable
 	);
 
@@ -577,7 +578,7 @@ void SConsoleVariablesEditorListRowHoverWidgets::Construct(const FArguments& InA
 				SAssignNew(ActionButtonImage, SImage)
 				.Visibility(EVisibility::SelfHitTestInvisible)
 				.Image(ButtonImage)
-				.ColorAndOpacity(FSlateColor::UseForeground())
+				.ColorAndOpacity(this, &SConsoleVariablesEditorListRowHoverWidgets::GetActionButtonColorAndOpacity)
 			]
 		]
 	];
@@ -638,6 +639,16 @@ SConsoleVariablesEditorListRowHoverWidgets::~SConsoleVariablesEditorListRowHover
 	Item.Reset();
 	
 	ActionButtonPtr.Reset();
+}
+
+FSlateColor SConsoleVariablesEditorListRowHoverWidgets::GetActionButtonColorAndOpacity() const
+{
+	if (IsHovered())
+	{
+		return FSlateColor::UseForeground();
+	}
+
+	return FSlateColor::UseSubduedForeground();
 }
 
 #undef LOCTEXT_NAMESPACE

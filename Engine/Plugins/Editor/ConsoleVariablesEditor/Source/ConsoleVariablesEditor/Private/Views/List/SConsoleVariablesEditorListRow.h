@@ -85,7 +85,7 @@ private:
 	const FLinearColor FlashColor = FLinearColor::White;
 
 	/** The offset applied to text widgets so that the text aligns with the column header text */
-	float TextBlockLeftPadding = 3.0f;
+	float TextBlockLeftPadding = 5.0f;
 	
 	bool bIsHovered = false;
 };
@@ -110,6 +110,8 @@ public:
 	virtual ~SConsoleVariablesEditorListRowHoverWidgets() override;
 
 private:
+
+	FSlateColor GetActionButtonColorAndOpacity() const;
 	
 	TWeakPtr<FConsoleVariablesEditorListRow> Item;
 	

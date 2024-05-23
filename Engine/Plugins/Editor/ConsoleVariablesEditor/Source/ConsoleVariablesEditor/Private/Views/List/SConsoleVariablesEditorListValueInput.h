@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SSpinBox.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Text/STextBlock.h"
@@ -99,7 +100,7 @@ public:
 
 private:
 	
-	TSharedPtr<SEditableText> InputWidget;
+	TSharedPtr<SEditableTextBox> InputWidget;
 };
 
 class SConsoleVariablesEditorListValueInput_Bool : public SConsoleVariablesEditorListValueInput
@@ -159,5 +160,5 @@ public:
 private:
 	
 	TSharedPtr<SButton> InputWidget;
-	TSharedPtr<SEditableText> InputText;
+	TSharedPtr<SEditableTextBox> InputText;
 };

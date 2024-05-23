@@ -158,6 +158,7 @@ void SConsoleVariablesEditorListValueInput_Int::Construct(const FArguments& InAr
 	ChildSlot
 	[
 		SAssignNew(InputWidget, SSpinBox<int32>)
+		.Style(&FAppStyle::Get().GetWidgetStyle<FSpinBoxStyle>("NumericEntrySpinBox"))
 		.Value_Lambda([this]
 		{
 			check (Item.IsValid());
@@ -269,7 +270,7 @@ void SConsoleVariablesEditorListValueInput_String::Construct(const FArguments& I
 	
 	ChildSlot
 	[
-		SAssignNew(InputWidget, SEditableText)
+		SAssignNew(InputWidget, SEditableTextBox)
 		.Text_Lambda([this]
 		{
 			check (Item.IsValid());
@@ -422,7 +423,7 @@ void SConsoleVariablesEditorListValueInput_Command::Construct(const FArguments& 
 		+SHorizontalBox::Slot()
 		.VAlign(VAlign_Center)
 		[
-			SAssignNew(InputText, SEditableText)
+			SAssignNew(InputText, SEditableTextBox)
 			.Text(FText::FromString(InSavedText))
 			.HintText(LOCTEXT("CommandValueTypeRowInputHintText", "Value..."))
 			.IsEnabled(this, &SConsoleVariablesEditorListValueInput::IsRowChecked)
@@ -432,7 +433,8 @@ void SConsoleVariablesEditorListValueInput_Command::Construct(const FArguments& 
 		]
 
 		+SHorizontalBox::Slot()
-		.VAlign(VAlign_Center)
+		.Padding(FMargin(2.f, 0, 0, 0))
+		.VAlign(VAlign_Fill)
 		[
 			SAssignNew(InputWidget, SButton)
 			.OnClicked_Lambda([this] ()
@@ -459,9 +461,16 @@ void SConsoleVariablesEditorListValueInput_Command::Construct(const FArguments& 
 			.IsEnabled(this, &SConsoleVariablesEditorListValueInput::IsRowChecked)
 			.ContentPadding(FMargin(0.f))
 			[
-				SNew(STextBlock)
-				.Justification(ETextJustify::Center)
-				.Text(LOCTEXT("ConsoleCommandExecutionButtonText","Execute"))
+				SNew(SHorizontalBox)
+
+				+SHorizontalBox::Slot()
+				.Padding(FMargin(2.f, 0, 0, 0))
+				.VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+					.Justification(ETextJustify::Center)
+					.Text(LOCTEXT("ConsoleCommandExecutionButtonText", "Execute"))
+				]
 			]
 		]
 	];
