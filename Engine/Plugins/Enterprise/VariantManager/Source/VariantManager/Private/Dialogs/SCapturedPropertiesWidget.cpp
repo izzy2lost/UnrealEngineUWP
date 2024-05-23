@@ -21,6 +21,7 @@ void SCapturedPropertiesWidget::Construct(const FArguments& InArgs)
 		SNew(SExpandableArea)
 		.InitiallyCollapsed(false)
 		.Padding(0.0f)
+		.BorderImage(FAppStyle::Get().GetBrush("DetailsView.CategoryTop"))
 		.AreaTitle(NSLOCTEXT("SCapturedPropertiesWidget", "CapturedPropertiesText", "Captured Properties"))
 		.BodyContent()
 		[

@@ -802,8 +802,8 @@ TSharedRef<ISlateStyle> FStarshipCoreStyle::Create()
 
 	// Standard Dialog Settings
 	{
-		Style->Set("StandardDialog.ContentPadding", FMargin(12.0f, 2.0f));
-		Style->Set("StandardDialog.SlotPadding", FMargin(6.0f, 0.0f, 0.0f, 0.0f));
+		Style->Set("StandardDialog.ContentPadding", FMargin(16.0f, 3.0f));
+		Style->Set("StandardDialog.SlotPadding", FMargin(8.0f, 0.0f, 0.0f, 0.0f));
 		Style->Set("StandardDialog.MinDesiredSlotWidth", 80.0f);
 		Style->Set("StandardDialog.MinDesiredSlotHeight", 0.0f);
 		Style->Set("StandardDialog.SmallFont", StyleFonts.Small);

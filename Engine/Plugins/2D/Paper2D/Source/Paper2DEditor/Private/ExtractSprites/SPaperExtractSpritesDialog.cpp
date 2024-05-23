@@ -24,6 +24,7 @@
 #include "PaperSpriteFactory.h"
 #include "TextureCompiler.h"
 #include "TextureResource.h"
+#include "SPrimaryButton.h"
 
 #define LOCTEXT_NAMESPACE "PaperEditor"
 
@@ -186,7 +187,7 @@ void SPaperExtractSpritesDialog::Construct(const FArguments& InArgs, UTexture2D*
 	ChildSlot
 	[
 		SNew(SBorder)
-		.BorderImage(FAppStyle::GetBrush("DetailsView.CategoryTop"))
+		.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
 		.Padding(FMargin(0.0f, 3.0f, 1.0f, 0.0f))
 		[
 			SNew(SHorizontalBox)
@@ -212,29 +213,25 @@ void SPaperExtractSpritesDialog::Construct(const FArguments& InArgs, UTexture2D*
 					DetailsPropertyView.ToSharedRef()
 				]
 				+ SVerticalBox::Slot()
-				.Padding(2.0f)
+				.Padding(FMargin(16))
 				.HAlign(HAlign_Right)
 				.AutoHeight()
 				[
 					SNew(SUniformGridPanel)
-					.SlotPadding(2)
+					.SlotPadding(FAppStyle::GetMargin("StandardDialog.SlotPadding"))
 					+ SUniformGridPanel::Slot(0, 0)
 					[
-						SNew(SButton)
-						.ButtonStyle(FAppStyle::Get(), "FlatButton.Success")
-						.ForegroundColor(FLinearColor::White)
-						.ContentPadding(FMargin(6, 2))
+						SNew(SPrimaryButton)
 						.Text(LOCTEXT("PaperExtractSpritesExtractButton", "Extract..."))
 						.OnClicked(this, &SPaperExtractSpritesDialog::ExtractClicked)
 					]
 					+ SUniformGridPanel::Slot(1, 0)
 					[
 						SNew(SButton)
-						.ButtonStyle(FAppStyle::Get(), "FlatButton")
-						.ForegroundColor(FLinearColor::White)
-						.ContentPadding(FMargin(6, 2))
 						.Text(LOCTEXT("PaperExtractSpritesCancelButton", "Cancel"))
-						.OnClicked(this, &SPaperExtractSpritesDialog::CancelClicked)
+                        .TextStyle(FAppStyle::Get(), "DialogButtonText")
+						.HAlign(HAlign_Center)
+                        .OnClicked(this, &SPaperExtractSpritesDialog::CancelClicked)
 					]
 				]
 			]

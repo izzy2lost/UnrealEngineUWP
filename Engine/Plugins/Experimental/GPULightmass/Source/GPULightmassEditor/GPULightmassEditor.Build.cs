@@ -7,16 +7,12 @@ namespace UnrealBuildTool.Rules
 		public GPULightmassEditor(ReadOnlyTargetRules Target) : base(Target)
 		{
 			PublicDependencyModuleNames.AddRange(
-				new string[]
-				{
+				new string[] {
 					"Core",
-					// ... add other public dependencies that you statically link with here ...
-				}
-				);
+				});
 
 			PrivateDependencyModuleNames.AddRange(
-				new string[]
-				{
+				new string[] {
 					"CoreUObject",
 					"Engine",
 					"Landscape",
@@ -31,8 +27,8 @@ namespace UnrealBuildTool.Rules
 					"WorkspaceMenuStructure",
 					"EditorStyle",
 					"ToolMenus",
-				}
-				);
+					"ToolWidgets",
+				});
 		}
 	}
 }

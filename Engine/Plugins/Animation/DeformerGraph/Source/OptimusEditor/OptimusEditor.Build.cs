@@ -23,6 +23,7 @@ namespace UnrealBuildTool.Rules
 					"InputCore",
 					"RHI", 
 					"ToolMenus",
+					"ToolWidgets",
 					"ComputeFramework",
 					"OptimusCore",
 					"OptimusDeveloper",

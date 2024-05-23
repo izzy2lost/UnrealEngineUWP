@@ -41,6 +41,7 @@ public class Blutility : ModuleRules
                 "UMGEditor",
                 "KismetCompiler",
 				"ToolMenus",
+				"ToolWidgets",
 				"RHI",
 				"RenderCore",
 				"ImageWrapper",

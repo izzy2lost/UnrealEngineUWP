@@ -13,6 +13,7 @@
 #include "VariantManagerPropertyCapturer.h"
 #include "GameFramework/GameUserSettings.h"
 #include "Application/SlateApplicationBase.h"
+#include "SPrimaryButton.h"
 
 #define LOCTEXT_NAMESPACE "SCaptureDialog"
 #define ACTOR_PROPERTY_DEFAULT_WIDTH 500.0f
@@ -176,23 +177,16 @@ void SCaptureDialog::Construct(const FArguments& InArgs)
 		.SlotPadding(FAppStyle::GetMargin("StandardDialog.SlotPadding"))
 		+SUniformGridPanel::Slot(0,0)
 		[
-			SNew(SButton)
+			SNew(SPrimaryButton)
 			.Text(NSLOCTEXT("SCapturedPropertiesWidget", "ClassPickerSelectButton", "Select"))
-			.HAlign(HAlign_Right)
-			.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
 			.OnClicked(this, &SCaptureDialog::OnDialogConfirmed)
-			.ButtonStyle(FAppStyle::Get(), "FlatButton.Success")
-			.TextStyle(FAppStyle::Get(), "FlatButton.DefaultTextStyle")
 		]
 		+SUniformGridPanel::Slot(1,0)
 		[
 			SNew(SButton)
 			.Text(NSLOCTEXT("SCapturedPropertiesWidget", "ClassPickerCancelButton", "Cancel"))
-			.HAlign(HAlign_Right)
-			.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
+			.TextStyle(FAppStyle::Get(), "DialogButtonText")
 			.OnClicked(this, &SCaptureDialog::OnDialogCanceled)
-			.ButtonStyle(FAppStyle::Get(), "FlatButton.Default")
-			.TextStyle(FAppStyle::Get(), "FlatButton.DefaultTextStyle")
 		]
 	];
 
@@ -225,7 +219,7 @@ void SCaptureDialog::Construct(const FArguments& InArgs)
 	[
 		SNew(SBorder)
 		.Visibility(EVisibility::Visible)
-		.BorderImage(FAppStyle::GetBrush("Menu.Background"))
+		.BorderImage(FAppStyle::GetBrush("Brushes.Panel"))
 		.Padding(FMargin(10.0f, 10.0f, 10.0f, 10.0f))
 		[
 			MainVerticalBox
