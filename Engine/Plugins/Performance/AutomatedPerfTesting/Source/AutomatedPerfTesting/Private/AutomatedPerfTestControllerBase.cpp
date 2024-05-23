@@ -1,0 +1,593 @@
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "AutomatedPerfTestControllerBase.h"
+
+#include <valarray>
+
+#include "AutomatedPerfTesting.h"
+#include "DeviceProfiles/DeviceProfileManager.h"
+#include "GameFramework/GameModeBase.h"
+#include "AutomatedPerfTestInterface.h"
+#include "Misc/App.h"
+#include "Misc/CommandLine.h"
+#include "ProfilingDebugging/TraceAuxiliary.h"
+#include "TimerManager.h"
+#include "Commandlets/Commandlet.h"
+#include "ProfilingDebugging/CsvProfiler.h"
+#include "Async/TaskGraphInterfaces.h"
+#include "VideoRecordingSystem.h"
+#include "PlatformFeatures.h"
+#include "Engine/Engine.h"
+#include "Misc/Paths.h"
+
+DEFINE_LOG_CATEGORY(LogAutomatedPerfTest)
+CSV_DEFINE_CATEGORY(AutomatedPerfTest, true);
+
+namespace AutomatedPerfTesting
+{
+	static TAutoConsoleVariable<FString> CVarExplicitTestID(
+		TEXT("AutomatedPerfTest.ExplicitTestID"),
+		"",
+		TEXT("Overrides the automatically generated test ID with the one provided"),
+		ECVF_Default);
+
+	static TAutoConsoleVariable<FString> CVarTraceChannels(
+		TEXT("AutomatedPerfTest.TraceChannels"),
+		"default,screenshot,stats",
+		TEXT("Sets the channels that will be traced when the AutomatedPerfTest is run. Defaults to default,screenshot,stats"),
+		ECVF_Default);
+
+	static TAutoConsoleVariable<FString> CVarDeviceProfileOverride(
+		TEXT("AutomatedPerfTest.DeviceProfileOverride"),
+		"",
+		TEXT("Overrides device profile used when running automated performance tests if set"),
+		ECVF_Default);
+
+	static TAutoConsoleVariable<FString> CVarTestName(
+		TEXT("AutomatedPerfTest.TestName"),
+		"Automated",
+		TEXT("User-defined ID of the test being run. Helpful for identifying test specifics eg Automated, TestingSomeVariable, MyCoolTest"),
+		ECVF_Default);
+}
+
+void UAutomatedPerfTestControllerBase::OnPreWorldInitializeInternal(UWorld* World, const UWorld::InitializationValues IVS)
+{
+	TryEarlyExec(World);
+	OnPreWorldInitialize(World);
+}
+
+void UAutomatedPerfTestControllerBase::OnPreWorldInitialize(UWorld* World)
+{
+	check(World);
+	World->GameStateSetEvent.AddUObject(this, &ThisClass::OnGameStateSet);
+	World->OnWorldBeginPlay.AddUObject(this, &ThisClass::OnWorldBeginPlay);
+}
+
+void UAutomatedPerfTestControllerBase::TryEarlyExec(UWorld* const World)
+{
+	check(World);
+	
+	if (GEngine)
+	{
+		// Search the list of deferred commands
+		const TArray<FString>& DeferredCmds = GEngine->DeferredCommands;
+		TArray<int32> ExecutedIndices;
+		for (int32 DeferredCmdIndex = 0; DeferredCmdIndex < DeferredCmds.Num(); ++DeferredCmdIndex)
+		{
+			// If the deferred command is one that should be executed early
+			const FString& DeferredCmd = DeferredCmds[DeferredCmdIndex];
+			if (CmdsToExecEarly.ContainsByPredicate([&DeferredCmd](const FString& CmdToFind) { return DeferredCmd.StartsWith(CmdToFind); }))
+			{
+				UE_LOG(LogAutomatedPerfTest, Log, TEXT("EarlyExec: executing '%s' early."), *DeferredCmd);
+				GEngine->Exec(World, *DeferredCmd);
+				ExecutedIndices.Push(DeferredCmdIndex);
+			}
+		}
+
+		// Remove the executed commands from the list of deferred commands
+		// Note: This is done in reverse order to ensure the cached indices remain valid
+		while (!ExecutedIndices.IsEmpty())
+		{
+			GEngine->DeferredCommands.RemoveAt(ExecutedIndices.Pop());
+		}
+	}
+	else
+	{
+		UE_LOG(LogAutomatedPerfTest, Warning, TEXT("Attempted EarlyExec without GEngine being ready"))
+	}
+}
+
+void UAutomatedPerfTestControllerBase::OnWorldBeginPlay()
+{
+	UE_LOG(LogAutomatedPerfTest, Log, TEXT("OnWorldBeginPlay"));
+	SetupTest();
+}
+
+void UAutomatedPerfTestControllerBase::OnGameStateSet(AGameStateBase* const GameStateBase)
+{
+	UE_LOG(LogAutomatedPerfTest, Log, TEXT("Game State Set"));
+	if (UWorld* const World = GetWorld())
+	{
+		World->GameStateSetEvent.RemoveAll(this);
+	}
+}
+
+UAutomatedPerfTestControllerBase::UAutomatedPerfTestControllerBase(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+	, TraceChannels("default,screenshot,stats")
+	, bRequestsFPSChart(false)
+	, bRequestsInsightsTrace(false)
+	, bRequestsCSVProfiler(false)
+	, bRequestsVideoCapture(false)
+{
+	// cache this off once, so that it's consistent across the board
+	TestDatetime = FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S")); 
+}
+
+FString UAutomatedPerfTestControllerBase::GetTestName()
+{
+	return AutomatedPerfTesting::CVarTestName->GetString();
+}
+
+FString UAutomatedPerfTestControllerBase::GetDeviceProfile()
+{
+	if(!AutomatedPerfTesting::CVarDeviceProfileOverride->GetString().IsEmpty())
+	{
+		return AutomatedPerfTesting::CVarDeviceProfileOverride->GetString();
+	}
+	
+	return UDeviceProfileManager::Get().GetActiveDeviceProfileName(); 
+}
+
+FString UAutomatedPerfTestControllerBase::GetExplicitTestID()
+{
+	// if the user has explicitly set a test ID, then return that
+	if(!AutomatedPerfTesting::CVarExplicitTestID->GetString().IsEmpty())
+	{
+		return AutomatedPerfTesting::CVarExplicitTestID->GetString();
+	}
+	
+	return TEXT("");
+}
+
+FString UAutomatedPerfTestControllerBase::GetTestID()
+{
+	// if the user has explicitly set a test ID, then return that
+	if(!AutomatedPerfTesting::CVarExplicitTestID->GetString().IsEmpty())
+	{
+		return AutomatedPerfTesting::CVarExplicitTestID->GetString();
+	}
+
+	const TArray<FString> TestCaseIDElements = {FApp::GetBuildVersion(),
+										  FPlatformProperties::PlatformName(),
+										  TestDatetime,
+								          *GetDeviceProfile(),
+								          *GetTestName()};
+	
+	// otherwise construct a unique ID of the form BuildVersion_PlatformName_YYYYMMDD-HHMMSS_DeviceProfile_TestName
+	FString TestCaseID = FString::Join(TestCaseIDElements, TEXT("_"));
+
+	return TestCaseID;
+}
+
+FString UAutomatedPerfTestControllerBase::GetOverallRegionName()
+{
+	return GetTestID() + "_" + "Overall";
+}
+
+bool UAutomatedPerfTestControllerBase::RequestsInsightsTrace() const
+{
+	return bRequestsInsightsTrace;
+}
+
+bool UAutomatedPerfTestControllerBase::RequestsCSVProfiler() const
+{
+	return bRequestsCSVProfiler;
+}
+
+bool UAutomatedPerfTestControllerBase::RequestsFPSChart() const
+{
+	return bRequestsFPSChart;
+}
+
+bool UAutomatedPerfTestControllerBase::RequestsVideoCapture() const
+{
+	return bRequestsVideoCapture;
+}
+
+bool UAutomatedPerfTestControllerBase::TryStartInsightsTrace()
+{
+	const FString TraceFileName = GetTestID() + ".utrace";
+	UE_LOG(LogAutomatedPerfTest, Log, TEXT("Attempting to start insights trace to file %s with channels %s"), *TraceFileName, *AutomatedPerfTesting::CVarTraceChannels->GetString());
+	return FTraceAuxiliary::Start(FTraceAuxiliary::EConnectionType::File, *TraceFileName, *AutomatedPerfTesting::CVarTraceChannels->GetString());
+}
+
+bool UAutomatedPerfTestControllerBase::TryStopInsightsTrace()
+{
+	if(FTraceAuxiliary::IsConnected())
+	{
+		return FTraceAuxiliary::Stop();
+	}
+	return false;
+}
+
+bool UAutomatedPerfTestControllerBase::TryStartCSVProfiler()
+{
+#if CSV_PROFILER
+	if(FCsvProfiler* const CsvProfiler = FCsvProfiler::Get())
+	{
+		const FString CSVFilename = GetTestID() + ".csv";
+
+		UE_LOG(LogAutomatedPerfTest, Log, TEXT("Attempting to start CSV Profile to file %s"), *CSVFilename);
+		
+		CsvProfiler->BeginCapture(-1, FString(), CSVFilename);
+		CsvProfiler->SetDeviceProfileName(GetDeviceProfile());
+		
+		return CsvProfiler->IsCapturing();
+	}
+#endif
+	UE_LOG(LogAutomatedPerfTest, Warning, TEXT("CSVProfiler Start requested, but not available."))
+	return false;
+}
+
+bool UAutomatedPerfTestControllerBase::TryStopCSVProfiler()
+{
+#if CSV_PROFILER
+	if(FCsvProfiler* const CsvProfiler = FCsvProfiler::Get())
+	{
+		const FGraphEventRef AutomatedPerfTestEndEvent = FGraphEvent::CreateGraphEvent();
+		CsvProfiler->EndCapture(AutomatedPerfTestEndEvent);
+		return true;
+	}
+#endif
+	UE_LOG(LogAutomatedPerfTest, Warning, TEXT("CSVProfiler Stop requested, but not available."))
+	return false;
+}
+
+bool UAutomatedPerfTestControllerBase::TryStartFPSChart()
+{
+	// don't open the folder the FPS chart gets sent to on exit, as it can cause issues when running unattended
+	GEngine->Exec(GetWorld(), TEXT("t.FPSChart.OpenFolderOnDump 0"));
+	GEngine->StartFPSChart(*GetOverallRegionName(), false);
+
+	return true;
+}
+
+bool UAutomatedPerfTestControllerBase::TryStopFPSChart()
+{
+	GEngine->StopFPSChart(*GetOverallRegionName());
+	return true;
+}
+
+bool UAutomatedPerfTestControllerBase::TryStartVideoCapture()
+{
+	if (IVideoRecordingSystem* const VideoRecordingSystem = IPlatformFeaturesModule::Get().GetVideoRecordingSystem())
+	{
+		const EVideoRecordingState RecordingState = VideoRecordingSystem->GetRecordingState();
+
+		if (RecordingState == EVideoRecordingState::None)
+		{
+			VideoRecordingSystem->EnableRecording(true);
+			
+			VideoRecordingTitle = FText::FromString(FPaths::Combine(FPaths::ProjectSavedDir(), GetTestID()));
+			const FVideoRecordingParameters VideoRecordingParameters(VideoRecordingSystem->GetMaximumRecordingSeconds(), true, false, false, FPlatformMisc::GetPlatformUserForUserIndex(0));
+			VideoRecordingSystem->NewRecording(*GetTestID(), VideoRecordingParameters);
+
+			if (VideoRecordingSystem->IsEnabled())
+			{
+				if (VideoRecordingSystem->GetRecordingState() == EVideoRecordingState::Starting || VideoRecordingSystem->GetRecordingState() == EVideoRecordingState::Recording)
+				{
+					UE_LOG(LogAutomatedPerfTest, Log, TEXT("Starting video recording %s..."), *GetTestID());
+					return true;
+				}
+				UE_LOG(LogAutomatedPerfTest, Warning, TEXT("Failed to start video recording %s. Current state is %i"), *GetTestID(), VideoRecordingSystem->GetRecordingState());
+			}
+			else
+			{
+				UE_LOG(LogAutomatedPerfTest, Warning, TEXT("Video recording could not be enabled."));
+			}
+		}
+		else
+		{
+			UE_LOG(LogAutomatedPerfTest, Warning, TEXT("Could not start a new recording, may be already recording."));
+		}
+	}
+	else
+	{
+		UE_LOG(LogAutomatedPerfTest, Warning, TEXT("Video recording system is null."));
+	}
+
+	return false;	
+}
+
+bool UAutomatedPerfTestControllerBase::TryFinalizingVideoCapture(const bool bStopAutoContinue/*=false*/)
+{
+	if (IVideoRecordingSystem* const VideoRecordingSystem = IPlatformFeaturesModule::Get().GetVideoRecordingSystem())
+	{
+		if (VideoRecordingSystem->GetRecordingState() != EVideoRecordingState::None)
+		{
+			VideoRecordingSystem->FinalizeRecording(true, VideoRecordingTitle, FText::GetEmpty(), bStopAutoContinue);
+
+			if (VideoRecordingSystem->GetRecordingState() == EVideoRecordingState::Finalizing)
+			{
+				UE_LOG(LogAutomatedPerfTest, Log, TEXT("Finalizing recording..."));
+				VideoRecordingSystem->GetOnVideoRecordingFinalizedDelegate().AddUObject(this, &ThisClass::OnVideoRecordingFinalized);
+				return true;
+			}
+			else
+			{
+				UE_LOG(LogAutomatedPerfTest, Warning, TEXT("Attempted to finalize video recording, but current state %i is not %i"), VideoRecordingSystem->GetRecordingState(), EVideoRecordingState::Finalizing)
+			}
+		}
+		else
+		{
+			UE_LOG(LogAutomatedPerfTest, Warning, TEXT("Attempted to finalize video recording, but state is %i"), VideoRecordingSystem->GetRecordingState())
+		}
+	}
+	else
+	{
+		UE_LOG(LogAutomatedPerfTest, Warning, TEXT("Video recording system is null."));
+	}
+
+	return false;	
+}
+
+void UAutomatedPerfTestControllerBase::SetupTest()
+{
+	UE_LOG(LogAutomatedPerfTest, Log, TEXT("Base:: SetupTest"));
+	if(RequestsInsightsTrace())
+	{
+		TryStartInsightsTrace();
+	}
+
+	if(RequestsCSVProfiler())
+	{
+		TryStartCSVProfiler();
+	}
+
+	if(RequestsFPSChart())
+	{
+		TryStartFPSChart();
+	}
+
+	if(RequestsVideoCapture())
+	{
+		TryStartVideoCapture();
+	}
+	
+	GameMode = GetWorld() ? GetWorld()->GetAuthGameMode() : NULL;
+
+	if(GameMode && GameMode->GetClass()->ImplementsInterface(UAutomatedPerfTestInterface::StaticClass()))
+	{
+		IAutomatedPerfTestInterface::Execute_SetupTest(GameMode);
+	}
+
+	// Subclasses should implement their own transitions from SetupTest to RunTest depending on their needs
+}
+
+void UAutomatedPerfTestControllerBase::RunTest()
+{
+	UE_LOG(LogAutomatedPerfTest, Log, TEXT("Base:: RunTest"));
+	if(RequestsInsightsTrace())
+	{
+		TRACE_BEGIN_REGION(*GetOverallRegionName());
+	}
+
+	if(RequestsCSVProfiler())
+	{
+		CSV_EVENT(AutomatedPerfTest, TEXT("START"), *GetOverallRegionName())
+	}
+	
+	if(GameMode && GameMode->GetClass()->ImplementsInterface(UAutomatedPerfTestInterface::StaticClass()))
+	{
+		IAutomatedPerfTestInterface::Execute_RunTest(GameMode);
+	}
+}
+
+void UAutomatedPerfTestControllerBase::TeardownTest()
+{
+	UE_LOG(LogAutomatedPerfTest, Log, TEXT("Base:: TeardownTest"));
+	
+	if(RequestsInsightsTrace())
+	{
+		TRACE_END_REGION(*GetOverallRegionName());
+	}
+	
+	if(RequestsCSVProfiler())
+	{
+		CSV_EVENT(AutomatedPerfTest, TEXT("END"), *GetOverallRegionName())
+		TryStopCSVProfiler();
+	}
+
+	if(RequestsFPSChart())
+	{
+		TryStopFPSChart();
+	}
+
+	if(RequestsVideoCapture())
+	{
+		if(!TryFinalizingVideoCapture())
+		{
+			UE_LOG(LogAutomatedPerfTest, Warning, TEXT("Attempted to finalize requested video capture, but failed."))
+		}
+	}
+
+	if(GameMode && GameMode->GetClass()->ImplementsInterface(UAutomatedPerfTestInterface::StaticClass()))
+	{
+		IAutomatedPerfTestInterface::Execute_TeardownTest(GameMode);
+	}
+
+
+	FTimerHandle UnusedHandle;
+	// TODO parameterize the teardown to Exit delay
+	GetWorld()->GetTimerManager().SetTimer(UnusedHandle, this, &UAutomatedPerfTestControllerBase::Exit, 1.0, false, 5.0);
+}
+
+void UAutomatedPerfTestControllerBase::Exit()
+{
+	if(RequestsInsightsTrace())
+	{
+		TryStopInsightsTrace();
+	}
+
+	if(GameMode && GameMode->GetClass()->ImplementsInterface(UAutomatedPerfTestInterface::StaticClass()))
+	{
+		IAutomatedPerfTestInterface::Execute_Exit(GameMode);
+	}
+
+	if(RequestsCSVProfiler())
+	{
+#if CSV_PROFILER
+		if(FCsvProfiler::Get()->IsWritingFile())
+		{
+			UE_LOG(LogAutomatedPerfTest, Log, TEXT("CSVProfile requested, and test is exiting, but CSV Profiler isn't done writing."))
+			// if we requested a CSV Profile, and the CSV Profiler is still writing the file, add a lambda to call the EndAutomatedPerfTest function
+			// so that we don't exit out of the application before the CSV Profiler is done
+			// TODO there's probably a nicer way to do this
+			// TODO might not need to do this if we set csv.BlockOnCaptureEnd
+			FCsvProfiler::Get()->OnCSVProfileFinished().AddLambda([this](const FString& Filename)
+			{
+				EndAutomatedPerfTest();
+			});
+			return;
+		}
+#endif
+	}
+	
+	EndAutomatedPerfTest();
+}
+
+void UAutomatedPerfTestControllerBase::OnInit()
+{
+	Super::OnInit();
+
+	UE_LOG(LogAutomatedPerfTest, Log, TEXT("Base:: OnInit"));
+
+	if (FParse::Value(FCommandLine::Get(), TEXT("AutomatedPerfTest.ExplicitTestID="), ExplicitTestID))
+	{
+		AutomatedPerfTesting::CVarExplicitTestID->Set(*ExplicitTestID);
+	}
+
+	// don't stop on separator because this will come in comma-separated
+	if (FParse::Value(FCommandLine::Get(), TEXT("AutomatedPerfTest.TraceChannels="), TraceChannels, false))
+	{
+		AutomatedPerfTesting::CVarTraceChannels->Set(*TraceChannels);
+	}
+
+	if (FParse::Value(FCommandLine::Get(), TEXT("AutomatedPerfTest.DeviceProfileOverride="), DeviceProfileOverride))
+	{
+		AutomatedPerfTesting::CVarDeviceProfileOverride->Set(*DeviceProfileOverride);
+	}
+
+	if (FString TestName; FParse::Value(FCommandLine::Get(), TEXT("AutomatedPerfTest.TestName="), TestID))
+	{
+	
+		AutomatedPerfTesting::CVarTestName->Set(*TestID);
+	}
+	
+	if(FParse::Param(FCommandLine::Get(), TEXT("AutomatedPerfTest.DoInsightsTrace")))
+	{
+		UE_LOG(LogAutomatedPerfTest, Log, TEXT("Insights Trace Requested"))
+		bRequestsInsightsTrace = true;
+	}
+	if(FParse::Param(FCommandLine::Get(), TEXT("AutomatedPerfTest.DoCSVProfiler")))
+	{
+		UE_LOG(LogAutomatedPerfTest, Log, TEXT("CSV Profiler Requested"))
+		bRequestsCSVProfiler = true;
+	}
+	if(FParse::Param(FCommandLine::Get(), TEXT("AutomatedPerfTest.DoFPSChart")))
+	{
+		UE_LOG(LogAutomatedPerfTest, Log, TEXT("FPSCharts Requested"))
+		bRequestsFPSChart = true;
+	}
+	if(FParse::Param(FCommandLine::Get(), TEXT("AutomatedPerfTest.DoVideoCapture")))
+	{
+		UE_LOG(LogAutomatedPerfTest, Log, TEXT("Video Capture Requested"))
+		bRequestsVideoCapture = true;
+	}
+	
+	FWorldDelegates::OnPreWorldInitialization.AddUObject(this, &ThisClass::OnPreWorldInitializeInternal);
+}
+
+void UAutomatedPerfTestControllerBase::OnTick(float TimeDelta)
+{
+	Super::OnTick(TimeDelta);
+	
+	MarkHeartbeatActive();
+}
+
+void UAutomatedPerfTestControllerBase::OnStateChange(FName OldState, FName NewState)
+{
+	Super::OnStateChange(OldState, NewState);
+}
+
+void UAutomatedPerfTestControllerBase::OnPreMapChange()
+{
+	Super::OnPreMapChange();
+}
+
+void UAutomatedPerfTestControllerBase::BeginDestroy()
+{
+	UnbindAllDelegates();
+	
+	Super::BeginDestroy();
+}
+
+void UAutomatedPerfTestControllerBase::EndAutomatedPerfTest(const int32 ExitCode)
+{
+	UnbindAllDelegates();
+
+	UE_LOG(LogAutomatedPerfTest, Log, TEXT("Test ID %s completed, requesting exit..."), *GetTestID());
+	
+	EndTest(ExitCode);
+}
+
+void UAutomatedPerfTestControllerBase::OnVideoRecordingFinalized(bool Succeeded, const FString& FilePath)
+{
+	if(!Succeeded)
+	{
+		UE_LOG(LogAutomatedPerfTest, Warning, TEXT("Video Capture finalized, but did not succeed"))
+	}
+/* TODO moving this to automation layer due to file access restrictions
+	FString SrcFilePath;
+	FString FileName;
+	FString Extension;
+	FPaths::Split(FilePath, SrcFilePath, FileName, Extension);
+
+	FString DestFileName = FileName + "." + Extension;
+	
+	const FString DestinationDir = FPaths::Combine(FPaths::ProjectSavedDir(), "Videos");
+	const FString DestinationFilePath = FPaths::Combine(DestinationDir, DestFileName);
+	
+	UE_LOG(LogAutomatedPerfTest, Log, TEXT("Copying video file %s to Saved: %s"), *FilePath, *DestinationFilePath);
+	
+	if(IFileManager::Get().Copy(*DestinationFilePath, *FilePath, 1, 1) != COPY_OK)
+	{
+		UE_LOG(LogAutomatedPerfTest, Warning, TEXT("Failed to copy video file"));
+	}
+	*/
+}
+
+void UAutomatedPerfTestControllerBase::UnbindAllDelegates()
+{
+	if(UWorld* const World = GetWorld())
+	{
+		World->OnWorldBeginPlay.RemoveAll(this);
+		World->GameStateSetEvent.RemoveAll(this);
+	}
+
+#if CSV_PROFILER
+	if (FCsvProfiler* const CsvProfiler = FCsvProfiler::Get())
+	{
+		CsvProfiler->OnCSVProfileFinished().Remove(CsvProfilerDelegateHandle);
+	}
+#endif // CSV_PROFILER
+
+	if(RequestsVideoCapture())
+	{
+		if (IVideoRecordingSystem* const VideoRecordingSystem = IPlatformFeaturesModule::Get().GetVideoRecordingSystem())
+		{
+			VideoRecordingSystem->GetOnVideoRecordingFinalizedDelegate().RemoveAll(this);
+		}
+	}
+}
