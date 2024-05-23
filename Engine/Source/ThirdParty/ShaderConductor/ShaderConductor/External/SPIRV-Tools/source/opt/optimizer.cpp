@@ -228,7 +228,7 @@ Optimizer& Optimizer::RegisterPerformancePasses(bool preserve_interface) {
       .RegisterPass(CreateLocalMultiStoreElimPass())
       .RegisterPass(CreateRedundancyEliminationPass())
       .RegisterPass(CreateSimplificationPass())
-      .RegisterPass(CreateAggressiveDCEPass())
+      .RegisterPass(CreateAggressiveDCEPass(preserve_interface))
       .RegisterPass(CreateCFGCleanupPass())
 	  .RegisterPass(CreateStructPackingPass("type.$Globals"))
       // UE Change End
