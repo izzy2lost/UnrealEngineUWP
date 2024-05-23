@@ -252,7 +252,7 @@ static bool AddHairStrandUpdateMeshTrianglesPass(
 		uint32 UVsChannelCount : 8;
 		uint32 bIsSwapped : 1;
 		uint32 bUseFaceNormal : 1;
-		uint32 Pad = 14;
+		uint32 Pad : 14;
 	};
 
 	FSectionData Default;
