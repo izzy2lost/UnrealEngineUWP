@@ -1425,12 +1425,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				FFunctionGraphTask::CreateAndDispatchWhenReady([] {}, TStatId{}, Blocker)
 			};
 
+			FGraphEventRef CompletedEvent = AnyTaskCompleted(Tasks);
 			FPlatformProcess::Sleep(0.1f);
-			verify(!AnyTaskCompleted(Tasks)->IsComplete());
+			verify(!CompletedEvent->IsComplete());
 
 			Blocker->DispatchSubsequents();
 
-			AnyTaskCompleted(Tasks)->Wait();
+			CompletedEvent->Wait();
 		}
 
 		{	// doesn't wait for all tasks

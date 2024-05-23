@@ -2162,7 +2162,9 @@ FGraphEventRef AnyTaskCompleted(const FGraphEventArray& GraphEvents)
 				{	// the last competed task
 					delete SharedData;
 				}
-			}
+			},
+			TStatId{},
+			GraphEvent
 		);
 	}
 
