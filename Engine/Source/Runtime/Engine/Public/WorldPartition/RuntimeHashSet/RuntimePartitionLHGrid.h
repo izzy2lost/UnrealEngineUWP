@@ -12,6 +12,7 @@ class ENGINE_API URuntimePartitionLHGrid : public URuntimePartition
 	GENERATED_BODY()
 
 	friend class UWorldPartitionRuntimeHashSet;
+	friend class UWorldPartitionRuntimeSpatialHash;
 	friend struct FFortWorldPartitionUtils;
 
 public:

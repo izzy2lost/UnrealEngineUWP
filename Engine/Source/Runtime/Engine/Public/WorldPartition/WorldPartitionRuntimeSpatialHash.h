@@ -370,6 +370,10 @@ protected:
 #endif
 
 private:
+#if WITH_EDITOR
+	static ENGINE_API UWorldPartitionRuntimeSpatialHash* CreateFrom(const UWorldPartitionRuntimeHash* SrcHash);
+#endif
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Config, Category = RuntimeSettings)
 	TArray<FSpatialHashRuntimeGrid> Grids;
@@ -402,7 +406,7 @@ private:
 	UPROPERTY(EditAnywhere, Config, AdvancedDisplay, Category = RuntimeSettings)
 	EWorldPartitionCVarProjectDefaultOverride PlacePartitionActorsUsingLocation;
 #endif
-		
+
 	/** Whether this hash enables Z culling. */
 	UPROPERTY(EditAnywhere, Config, Category = RuntimeSettings)
 	bool bEnableZCulling;

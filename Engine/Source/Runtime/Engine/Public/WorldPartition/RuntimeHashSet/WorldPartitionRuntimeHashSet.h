@@ -148,6 +148,7 @@ class UWorldPartitionRuntimeHashSet final : public UWorldPartitionRuntimeHash
 
 	friend struct FFortWorldPartitionUtils;
 	friend class ULevelPackageDiskSizeMetric;
+	friend class UWorldPartitionRuntimeSpatialHash;
 
 	//~ Begin UObject Interface
 #if WITH_EDITOR

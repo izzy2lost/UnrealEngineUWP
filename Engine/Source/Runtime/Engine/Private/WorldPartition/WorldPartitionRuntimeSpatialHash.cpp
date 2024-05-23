@@ -15,6 +15,8 @@
 #include "WorldPartition/WorldPartitionSubsystem.h"
 #include "WorldPartition/WorldPartitionDraw2DContext.h"
 #include "WorldPartition/RuntimeSpatialHash/RuntimeSpatialHashGridHelper.h"
+#include "WorldPartition/RuntimeHashSet/WorldPartitionRuntimeHashSet.h"
+#include "WorldPartition/RuntimeHashSet/RuntimePartitionLHGrid.h"
 #include "WorldPartition/ContentBundle/ContentBundleWorldSubsystem.h"
 #include "WorldPartition/ContentBundle/ContentBundleDescriptor.h"
 #include "WorldPartition/ContentBundle/ContentBundleBase.h"
@@ -1165,7 +1167,20 @@ UWorldPartitionRuntimeSpatialHash::UWorldPartitionRuntimeSpatialHash(const FObje
 	, PlacePartitionActorsUsingLocation(EWorldPartitionCVarProjectDefaultOverride::Enabled)
 #endif
 	, bIsNameToGridMappingDirty(true)
-{}
+{
+#if WITH_EDITOR
+	if (HasAnyFlags(RF_ClassDefaultObject))
+	{
+		if (UClass* RuntimeSpatialHashClass = FindObject<UClass>(nullptr, TEXT("/Script/Engine.WorldPartitionRuntimeHashSet")))
+		{
+			RegisterWorldPartitionRuntimeHashConverter(RuntimeSpatialHashClass, GetClass(), [](const UWorldPartitionRuntimeHash* SrcHash) -> UWorldPartitionRuntimeHash*
+			{
+				return CreateFrom(SrcHash);
+			});
+		}
+	}
+#endif
+}
 
 void UWorldPartitionRuntimeSpatialHash::PreSave(const class ITargetPlatform* TargetPlatform)
 {
@@ -1419,6 +1434,34 @@ void UWorldPartitionRuntimeSpatialHash::DumpStateLog(FHierarchicalLogArchive& Ar
 	{
 		StreamingGrid.DumpStateLog(Ar);
 	});
+}
+
+UWorldPartitionRuntimeSpatialHash* UWorldPartitionRuntimeSpatialHash::CreateFrom(const UWorldPartitionRuntimeHash* SrcHash)
+{
+	const UWorldPartitionRuntimeHashSet* HashSet = CastChecked<UWorldPartitionRuntimeHashSet>(SrcHash);
+	UWorldPartitionRuntimeSpatialHash* SpatialHash = NewObject<UWorldPartitionRuntimeSpatialHash>(SrcHash->GetOuter(), NAME_None, RF_Transactional);
+
+	for (const FRuntimePartitionDesc& RuntimePartitionDesc : HashSet->RuntimePartitions)
+	{
+		FSpatialHashRuntimeGrid& Grid = SpatialHash->Grids.AddDefaulted_GetRef();
+		Grid.GridName = RuntimePartitionDesc.Name;
+
+		if (RuntimePartitionDesc.MainLayer)
+		{
+			Grid.DebugColor = RuntimePartitionDesc.MainLayer->DebugColor;
+			Grid.bBlockOnSlowStreaming = RuntimePartitionDesc.MainLayer->bBlockOnSlowStreaming;
+			Grid.bClientOnlyVisible = RuntimePartitionDesc.MainLayer->bClientOnlyVisible;
+			Grid.Priority = RuntimePartitionDesc.MainLayer->Priority;
+
+			if (URuntimePartitionLHGrid* LHGrid = Cast<URuntimePartitionLHGrid>(RuntimePartitionDesc.MainLayer))
+			{
+				Grid.CellSize = LHGrid->CellSize;
+				Grid.Origin = FVector2D(LHGrid->Origin);
+			}
+		}	
+	}
+
+	return SpatialHash;
 }
 
 FString UWorldPartitionRuntimeSpatialHash::GetCellNameString(UWorld* InOuterWorld, FName InGridName, const FGridCellCoord& InCellGlobalCoord, const FDataLayersID& InDataLayerID, const FGuid& InContentBundleID, FString* OutInstanceSuffix)
