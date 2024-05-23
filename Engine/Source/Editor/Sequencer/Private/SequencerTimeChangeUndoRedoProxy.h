@@ -8,6 +8,7 @@
 #include "EventHandlers/ISignedObjectEventHandler.h"
 #include "Delegates/IDelegateInstance.h"
 #include "Misc/QualifiedFrameTime.h"
+#include "MovieSceneSequenceID.h"
 #include "SequencerTimeChangeUndoRedoProxy.generated.h"
 
 class FSequencer;

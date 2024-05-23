@@ -4,6 +4,7 @@
 
 #include "MovieSceneFwd.h"
 #include "Delegates/Delegate.h"
+#include "Containers/List.h"
 
 namespace UE
 {
