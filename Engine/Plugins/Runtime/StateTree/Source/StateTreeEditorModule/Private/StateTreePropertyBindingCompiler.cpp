@@ -24,7 +24,7 @@ bool FStateTreePropertyBindingCompiler::Init(FStateTreePropertyBindings& InPrope
 	return true;
 }
 
-bool FStateTreePropertyBindingCompiler::CompileBatch(const FStateTreeBindableStructDesc& TargetStruct, TConstArrayView<FStateTreePropertyPathBinding> BatchPropertyBindings, int32& OutBatchIndex)
+bool FStateTreePropertyBindingCompiler::CompileBatch(const FStateTreeBindableStructDesc& TargetStruct, TConstArrayView<FStateTreePropertyPathBinding> BatchPropertyBindings, FStateTreeIndex16 PropertyFuncsBegin, FStateTreeIndex16 PropertyFuncsEnd, int32& OutBatchIndex)
 {
 	check(Log);
 	check(PropertyBindings);
@@ -123,8 +123,10 @@ bool FStateTreePropertyBindingCompiler::CompileBatch(const FStateTreeBindableStr
 
 		FStateTreePropertyCopyBatch& Batch = PropertyBindings->CopyBatches.AddDefaulted_GetRef();
 		Batch.TargetStruct = TargetStruct;
-		Batch.BindingsBegin = IntCastChecked<uint16>(BindingsBegin);
-		Batch.BindingsEnd = IntCastChecked<uint16>(BindingsEnd);
+		Batch.BindingsBegin = FStateTreeIndex16(BindingsBegin);
+		Batch.BindingsEnd = FStateTreeIndex16(BindingsEnd);
+		Batch.PropertyFunctionsBegin = PropertyFuncsBegin;
+		Batch.PropertyFunctionsEnd = PropertyFuncsEnd;
 		OutBatchIndex = PropertyBindings->CopyBatches.Num() - 1;
 	}
 

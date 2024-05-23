@@ -7,6 +7,7 @@
 enum class EReloadCompleteReason;
 
 struct FAssetData;
+struct FStateTreeNodeBase;
 
 /**
  * Describes a class or struct.
@@ -34,6 +35,8 @@ struct STATETREEEDITORMODULE_API FStateTreeNodeClassData
 		return Cast<UScriptStruct>(GetStruct(bSilent));
 	}
 
+	const UStruct* GetInstanceDataStruct(bool bSilent = false);
+
 private:
 
 	/** Pointer to described struct or class. */
@@ -47,6 +50,9 @@ private:
 
 	/** Package of the asset if it's not loaded yet. */
 	FString ClassPackageName;
+
+	/** Pointer to described node's instance data struct or class. */
+	TWeakObjectPtr<const UStruct> InstanceDataStruct;
 };
 
 /**

@@ -39,6 +39,7 @@
 #include "Styling/SlateTypes.h"
 #include "TextStyleDecorator.h"
 #include "Framework/Application/SlateApplication.h"
+#include "StateTreePropertyFunctionBase.h"
 
 #define LOCTEXT_NAMESPACE "StateTreeEditor"
 
@@ -63,6 +64,31 @@ public:
 
 namespace UE::StateTreeEditor::Internal
 {
+	/* Returns true if provided property is direct or indirect child of PropertyFunction */
+	bool IsOwnedByPropertyFunctionNode(TSharedPtr<IPropertyHandle> Property)
+	{
+		while (Property)
+		{
+			if (FStructProperty* StructProperty = CastField<FStructProperty>(Property->GetProperty()))
+			{
+				if (StructProperty->Struct == FStateTreeEditorNode::StaticStruct())
+				{
+					if (const FStateTreeEditorNode* Node = UE::StateTreeEditor::EditorNodeUtils::GetCommonNode(Property))
+					{
+						if (const UScriptStruct* ScriptStruct = Node->Node.GetScriptStruct())
+						{
+							return ScriptStruct->IsChildOf<FStateTreePropertyFunctionBase>();
+						}
+					}
+				}	
+			}
+
+			Property = Property->GetParentHandle();
+		}
+
+		return false;
+	}
+
 	/** @return text describing the pin type, matches SPinTypeSelector. */
 	FText GetPinTypeText(const FEdGraphPinType& PinType)
 	{
@@ -115,6 +141,13 @@ namespace UE::StateTreeEditor::Internal
 		const EStateTreePropertyUsage Usage = UE::StateTree::GetUsageFromMetaData(ChildPropHandle->GetProperty());
 		const FProperty* Property = ChildPropHandle->GetProperty();
 		
+		// Hide output properties for PropertyFunctionNode.
+		if (Usage == EStateTreePropertyUsage::Output && UE::StateTreeEditor::Internal::IsOwnedByPropertyFunctionNode(ChildPropHandle))
+		{
+			ChildRow.Visibility(EVisibility::Hidden);
+			return;
+		}
+
 		// Conditionally control visibility of the value field of bound properties.
 		if (Usage != EStateTreePropertyUsage::Invalid && ID.IsValid())
 		{
@@ -132,13 +165,8 @@ namespace UE::StateTreeEditor::Internal
 					return EditorPropBindings->HasPropertyBinding(Path) ? EVisibility::Collapsed : EVisibility::Visible;
 				});
 
-			bool bShowChildren = true;
-			
 			if (Usage == EStateTreePropertyUsage::Input || Usage == EStateTreePropertyUsage::Output || Usage == EStateTreePropertyUsage::Context)
-			{
-				// Do not show children for input, output and context.
-				bShowChildren = false;
-				
+			{				
 				FEdGraphPinType PinType;
 				const UEdGraphSchema_K2* Schema = GetDefault<UEdGraphSchema_K2>();
 
@@ -216,7 +244,7 @@ namespace UE::StateTreeEditor::Internal
 				}
 				
 				ChildRow
-					.CustomWidget(bShowChildren)
+					.CustomWidget(true)
 					.NameContent()
 					[
 						SNew(SHorizontalBox)
@@ -336,20 +364,25 @@ void FStateTreeEditorNodeDetails::CustomizeHeader(TSharedRef<class IPropertyHand
 
 	UE::StateTreeEditor::EditorNodeUtils::GetNodeBaseScriptStructAndClass(StructProperty, BaseScriptStruct, BaseClass);
 
+	UE::StateTree::Delegates::OnIdentifierChanged.AddSP(this, &FStateTreeEditorNodeDetails::OnIdentifierChanged);
+	OnBindingChangedHandle = UE::StateTree::PropertyBinding::OnStateTreePropertyBindingChanged.AddRaw(this, &FStateTreeEditorNodeDetails::OnBindingChanged);
+	FindOuterObjects();
+
+	// Don't draw the header if it's a PropertyFunction.
+	if (UE::StateTreeEditor::Internal::IsOwnedByPropertyFunctionNode(StructProperty))
+	{
+		return;
+	}
+
 	const FIsResetToDefaultVisible IsResetVisible = FIsResetToDefaultVisible::CreateSP(this, &FStateTreeEditorNodeDetails::ShouldResetToDefault);
 	const FResetToDefaultHandler ResetHandler = FResetToDefaultHandler::CreateSP(this, &FStateTreeEditorNodeDetails::ResetToDefault);
 	const FResetToDefaultOverride ResetOverride = FResetToDefaultOverride::Create(IsResetVisible, ResetHandler);
-
-	UE::StateTree::Delegates::OnIdentifierChanged.AddSP(this, &FStateTreeEditorNodeDetails::OnIdentifierChanged);
-	OnBindingChangedHandle = UE::StateTree::PropertyBinding::OnStateTreePropertyBindingChanged.AddRaw(this, &FStateTreeEditorNodeDetails::OnBindingChanged);
-
-	FindOuterObjects();
 
 	auto IndentColor = [this]() -> FSlateColor
 	{
 		return (RowBorder && RowBorder->IsHovered()) ? FSlateColor::UseForeground() : FSlateColor(FLinearColor::Transparent);
 	};
-	
+
 	HeaderRow
 		.WholeRowContent()
 		.VAlign(VAlign_Center)
@@ -849,7 +882,7 @@ void FStateTreeEditorNodeDetails::CustomizeChildren(TSharedRef<class IPropertyHa
 			TSharedPtr<IPropertyHandle> PropertyHandle;
 			EStateTreePropertyUsage Usage = EStateTreePropertyUsage::Invalid;
 		};
-		
+
 		TArray<FSortedChild> SortedChildren;
 		for (uint32 Index = 0; Index < NumChildren; Index++)
 		{
