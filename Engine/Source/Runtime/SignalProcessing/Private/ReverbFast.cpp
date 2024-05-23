@@ -148,6 +148,68 @@ namespace Audio {
 		InterleaveAndMixOutput(FrontLeftReverbSamples, FrontRightReverbSamples, OutSamples, OutNumChannels);
 	}
 
+	void FPlateReverbFast::ProcessAudioStereoNonInterleaved(
+		const TArrayView<const float>& InLeft,
+		const TArrayView<const float>& InRight,
+		FAlignedFloatBuffer& OutLeft,
+		FAlignedFloatBuffer& OutRight)
+	{
+		const int32 NumFrames = InLeft.Num();
+		check(NumFrames == InRight.Num());
+		check(NumFrames == OutLeft.Num());
+		check(NumFrames == OutRight.Num());
+
+		if (NumFrames == 0)
+		{
+			return;
+		}
+
+		// Reverb is disabled, so just zero the output buffer
+		if (!Settings.bEnableEarlyReflections && !Settings.bEnableLateReflections)
+		{
+			FMemory::Memzero(OutLeft.GetData(), NumFrames * sizeof(float));
+			FMemory::Memzero(OutRight.GetData(), NumFrames * sizeof(float));
+			
+			return;
+		}
+
+		// Both early and late reflections
+		if (Settings.bEnableEarlyReflections && Settings.bEnableLateReflections)
+		{
+			// Process the early reflections directly to the outputs
+			EarlyReflections.ProcessAudioStereoNonInterleaved(InLeft, InRight, OutLeft, OutRight);
+
+			// Process the late reflections and hang onto the result in the work buffers
+			// Sum to mono and scale by half because the late reflection algorithm does that internally. This saves some copies.
+			FrontLeftReverbSamples.SetNumUninitialized(NumFrames);
+			ArraySum(InLeft, InRight, FrontLeftReverbSamples);
+			ArrayMultiplyByConstantInPlace(FrontLeftReverbSamples, 0.5f);
+			LateReflections.ProcessAudio(FrontLeftReverbSamples, 1, FrontLeftLateReflectionsSamples, FrontRightLateReflectionsSamples);
+
+			// Mix in the early reflections
+			ArrayAddInPlace(FrontLeftLateReflectionsSamples, OutLeft);
+			ArrayAddInPlace(FrontRightLateReflectionsSamples, OutRight);
+		}
+		// Only early reflections
+		else if (Settings.bEnableEarlyReflections)
+		{
+			EarlyReflections.ProcessAudioStereoNonInterleaved(InLeft, InRight, OutLeft, OutRight);
+		}
+		// Only late reflections
+		else if (Settings.bEnableLateReflections)
+		{
+			// Sum to mono and scale by half because the late reflection algorithm does that internally. This saves some copies.
+			FrontLeftReverbSamples.SetNumUninitialized(NumFrames);
+			ArraySum(InLeft, InRight, FrontLeftReverbSamples);
+			ArrayMultiplyByConstantInPlace(FrontLeftReverbSamples, 0.5f);
+			LateReflections.ProcessAudio(FrontLeftReverbSamples, 1, OutLeft, OutRight);
+		}
+		else
+		{
+			checkNoEntry();
+		}
+	}
+
 	void FPlateReverbFast::ClampSettings(FPlateReverbFastSettings& InOutSettings)
 	{
 		// Clamp settings for this object and member objects.

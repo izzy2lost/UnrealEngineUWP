@@ -72,7 +72,14 @@ namespace Audio
 			// InNumChannels can be 1 or 2 channels.
 			// OutSamples must be greater or equal to 2.
 			SIGNALPROCESSING_API void ProcessAudio(const FAlignedFloatBuffer& InSamples, const int32 InNumChannels, FAlignedFloatBuffer& OutSamples, const int32 OutNumChannels);
-
+		
+			// Process a block of audio. Optimized for stereo, non-interleaved input and output.
+			SIGNALPROCESSING_API void ProcessAudioStereoNonInterleaved(
+				const TArrayView<const float>& InLeft,
+				const TArrayView<const float>& InRight,
+				FAlignedFloatBuffer& OutLeft,
+				FAlignedFloatBuffer& OutRight);
+		
 			SIGNALPROCESSING_API void FlushAudio();
 
 			// Clamp individual settings to values supported by this class.
