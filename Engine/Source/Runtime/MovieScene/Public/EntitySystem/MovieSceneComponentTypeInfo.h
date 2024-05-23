@@ -10,6 +10,10 @@
 #include "EntitySystem/MovieSceneComponentDebug.h"
 #include "EntitySystem/MovieSceneEntityIDs.h"
 
+struct FObjectKey;
+template <typename> class TObjectKey;
+template <typename> struct TObjectPtr;
+
 namespace UE
 {
 namespace MovieScene
