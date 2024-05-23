@@ -112,14 +112,15 @@ namespace uba
 	inline bool IsCompressed(const CasKey& key)
 	{
 		UBA_ASSERT(key != CasKeyZero);
-		return ((u8*)&key)[19] != 0;
+		return (((u8*)&key)[19] & 1) == 1;
 	}
 
 	inline CasKey AsCompressed(const CasKey& key, bool compressed)
 	{
 		UBA_ASSERT(key != CasKeyZero);
 		CasKey newKey = key;
-		((u8*)&newKey)[19] = compressed ? 1 : 0;
+		u8 flagField = ((u8*)&key)[19];
+		((u8*)&newKey)[19] = compressed ? (flagField | u8(1)) : (flagField & ~u8(1));
 		return newKey;
 	}
 

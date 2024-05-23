@@ -66,6 +66,7 @@ namespace uba
 		logger.Info(TC("   -dir=<rootdir>          The directory used to store data. Defaults to \"%s\""), DefaultRootDir);
 		logger.Info(TC("   -port=[<host>:]<port>   The ip/name and port (default: %u) of the machine we want to help"), DefaultPort);
 		logger.Info(TC("   -log                    Log all processes detouring information to file (only works with debug builds)"));
+		logger.Info(TC("   -quiet                  Does not output any logging in console except errors"));
 		logger.Info(TC("   -loop=<count>           Loop the commandline <count> number of times. Will exit when/if it fails"));
 		logger.Info(TC("   -workdir=<dir>          Working directory"));
 		logger.Info(TC("   -checkcas               Check so all cas entries are correct"));
@@ -82,6 +83,7 @@ namespace uba
 		logger.Info(TC("   -coordinator=<name>     Load a UbaCoordinator<name>.dll to instantiate a coordinator to get helpers"));
 		logger.Info(TC("   -cache=<host>[:<port>]  Connect to cache server. Will fetch from cache unless -populatecache is set"));
 		logger.Info(TC("   -populatecache          Populate cache server if connected to one"));
+		logger.Info(TC("   -cachecommand=<cmd>     Send command to cache server. Will output result in log"));
 		logger.Info(TC("   -writecachesummary      Write cache summary file about connected cache server"));
 		logger.Info(TC(""));
 		logger.Info(TC("  CoordinatorOptions (if coordinator set):"));
@@ -171,6 +173,7 @@ namespace uba
 		bool writeCacheSummary = false;
 		TString checkFileTable;
 		TString cacheFilterString;
+		TString cacheCommand;
 
 		u32 loopCount = 1;
 
@@ -180,7 +183,8 @@ namespace uba
 			CommandType_Local,
 			CommandType_Remote,
 			CommandType_Native,
-			CommandType_Agent
+			CommandType_Agent,
+			CommandType_None,
 		};
 
 		CommandType commandType = CommandType_NotSet;
@@ -350,10 +354,19 @@ namespace uba
 			{
 				populateCache = true;
 			}
+			else if (name.Equals(TC("-cachecommand")))
+			{
+				if (value.IsEmpty())
+					return PrintHelp(TC("-cachecommand needs a value"));
+				cacheCommand = value.data;
+				commandType = CommandType_None;
+				quiet = true;
+			}
 			else if (name.Equals(TC("-writecachesummary")))
 			{
 				writeCacheSummary = true;
 				cacheFilterString = value.data;
+				commandType = CommandType_None;
 			}
 			else if (name.Equals(TC("-storeraw")))
 			{
@@ -378,7 +391,7 @@ namespace uba
 			}
 		}
 
-		FilteredLogWriter logWriter(g_consoleLogWriter, quiet ? LogEntryType_Info : LogEntryType_Detail);
+		FilteredLogWriter logWriter(g_consoleLogWriter, quiet ? LogEntryType_Warning : LogEntryType_Detail);
 		LoggerWithWriter logger(logWriter, TC(""));
 
 		if (deleteCas)
@@ -481,44 +494,47 @@ namespace uba
 			return PrintHelp(errorMsg);
 		}
 
-		if (application.empty())
-			return PrintHelp(TC("No executable provided"));
-
 		StringBuffer<512> currentDir;
 		GetCurrentDirectoryW(currentDir);
 
-		bool isAbsolute = IsWindows ? application[1] == ':' : application[0] == '/';
-		if (!isAbsolute)
+		if (commandType != CommandType_None)
 		{
-			StringBuffer<> fullApplicationName;
-			if (!SearchPathForFile(logger, fullApplicationName, application.c_str(), currentDir.data))
-				return logger.Error(TC("Failed to find full path to %s"), application.c_str());
-			application = fullApplicationName.data;
-		}
+			if (application.empty())
+				return PrintHelp(TC("No executable provided"));
 
-		if (getCas)
-		{
-			FileAccessor fa(logger, application.c_str());
-			if (!fa.OpenMemoryRead())
-				return logger.Error(TC("Failed to open file %s"), application.c_str());
-			u64 fileSize = fa.GetSize();
-			u8* data = fa.GetData();
-			bool is64Bit = true;
-
-			CasKey key = CalculateCasKey(data, fileSize, false, nullptr);
-
-			if (data[0] != 'M' || data[1] != 'Z')
-				is64Bit = false;
-			else
+			bool isAbsolute = IsWindows ? application[1] == ':' : application[0] == '/';
+			if (!isAbsolute)
 			{
-				u32 offset = *(u32*)(data + 0x3c);
-				is64Bit = *(u32*)(data + offset) == 0x00004550;
+				StringBuffer<> fullApplicationName;
+				if (!SearchPathForFile(logger, fullApplicationName, application.c_str(), currentDir.data))
+					return logger.Error(TC("Failed to find full path to %s"), application.c_str());
+				application = fullApplicationName.data;
 			}
-			logger.Info(TC("%s"), application.c_str());
-			logger.Info(TC("  Is64Bit: %s"), (is64Bit ? TC("true") : TC("false")));
-			logger.Info(TC("  Size: %llu"), fileSize);
-			logger.Info(TC("  CasKey: %s"), CasKeyString(key).str);
-			return 0;
+
+			if (getCas)
+			{
+				FileAccessor fa(logger, application.c_str());
+				if (!fa.OpenMemoryRead())
+					return logger.Error(TC("Failed to open file %s"), application.c_str());
+				u64 fileSize = fa.GetSize();
+				u8* data = fa.GetData();
+				bool is64Bit = true;
+
+				CasKey key = CalculateCasKey(data, fileSize, false, nullptr);
+
+				if (data[0] != 'M' || data[1] != 'Z')
+					is64Bit = false;
+				else
+				{
+					u32 offset = *(u32*)(data + 0x3c);
+					is64Bit = *(u32*)(data + offset) == 0x00004550;
+				}
+				logger.Info(TC("%s"), application.c_str());
+				logger.Info(TC("  Is64Bit: %s"), (is64Bit ? TC("true") : TC("false")));
+				logger.Info(TC("  Size: %llu"), fileSize);
+				logger.Info(TC("  CasKey: %s"), CasKeyString(key).str);
+				return 0;
+			}
 		}
 
 		const tchar* dbgStr = TC("");
@@ -566,7 +582,7 @@ namespace uba
 		StorageServer& storageServer = *new StorageServer(storageInfo);
 		auto destroyStorage = MakeGuard([&]() { delete &storageServer; });
 
-		SessionServerCreateInfo info(storageServer, networkServer);
+		SessionServerCreateInfo info(storageServer, networkServer, logWriter);
 		info.useUniqueId = useScheduler;
 		info.traceEnabled = true;
 		//info.detailedTrace = true;
@@ -590,7 +606,7 @@ namespace uba
 
 		auto CreateCacheClient = [&]()
 			{
-				auto nc = new NetworkClient(ctorSuccess);
+				auto nc = new NetworkClient(ctorSuccess, {logWriter});
 				cacheClient = new CacheClient({logWriter, storageServer, *nc, sessionServer});
 			};
 
@@ -603,13 +619,21 @@ namespace uba
 				return -1;
 			}
 
+			if (!cacheCommand.empty())
+			{
+				LoggerWithWriter consoleLogger(g_consoleLogWriter);
+				if (!cacheClient->ExecuteCommand(consoleLogger, cacheCommand.data()))
+					return -1;
+				return 0;
+			}
+
 			if (writeCacheSummary)
 			{
 				StringBuffer<> tempFile(sessionServer.GetTempPath());
 				Guid guid;
 				CreateGuid(guid);
 				tempFile.Append(GuidToString(guid).str).Append(TC(".txt"));
-				if (!cacheClient->WriteCacheSummary(tempFile.data, cacheFilterString.data()))
+				if (!cacheClient->ExecuteCommand(logger, TC("content"), tempFile.data, cacheFilterString.data()))
 					return -1;
 				logger.Info(TC("Cache status summary written to %s"), tempFile.data);
 

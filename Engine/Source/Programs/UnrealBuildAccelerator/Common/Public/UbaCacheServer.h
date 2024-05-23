@@ -44,7 +44,7 @@ namespace uba
 		bool HandleFetchPathTable(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleFetchCasTable(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleFetchEntries(BinaryReader& reader, BinaryWriter& writer);
-		bool HandleCreateStatusFile(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleExecuteCommand(BinaryReader& reader, BinaryWriter& writer);
 
 		MutableLogger m_logger;
 		NetworkServer& m_server;
@@ -52,8 +52,8 @@ namespace uba
 
 		StringBuffer<MaxPath> m_rootDir;
 
-		ReaderWriterLock m_maintenanceLock;
 		Atomic<u32> m_addsSinceMaintenance;
+		Atomic<bool> m_isRunningMaintenance;
 
 		ReaderWriterLock m_bucketsLock;
 		Map<u64, Bucket> m_buckets;
@@ -62,6 +62,9 @@ namespace uba
 		Map<u32, Connection> m_connections;
 
 		Atomic<bool> m_shutdownRequested = false;
+
+		u64 m_startTime;
+		u64 m_longestMaintenance = 0;
 
 		CacheServer(const CacheServer&) = delete;
 		CacheServer& operator=(const CacheServer&) = delete;

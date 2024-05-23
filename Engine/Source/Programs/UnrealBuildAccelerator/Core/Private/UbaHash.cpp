@@ -84,6 +84,7 @@ namespace uba
 		CasKeyHasher temp(hasher);
 		uint8_t output[BLAKE3_OUT_LEN];
 		blake3_hasher_finalize((blake3_hasher*)&temp.hasher, output, BLAKE3_OUT_LEN);
-		return AsCompressed((CasKey&)output, compressed);
+		output[19] = compressed ? 1 : 0;
+		return (CasKey&)output;
 	}
 }

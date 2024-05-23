@@ -31,7 +31,6 @@ namespace uba
 		void PaintAll(HDC hdc, const RECT& clientRect);
 		void PaintProcessRect(TraceView::Process& process, HDC hdc, RECT rect, const RECT& progressRect, bool selected, bool writingBitmap);
 		void PaintTimeline(HDC hdc, const RECT& clientRect);
-		void PaintCursor(HDC hdc, const RECT& clientRect);
 		using DrawTextFunc = Function<void(const StringBufferBase& text, RECT& rect)>;
 		void PaintDetailedStats(int& posY, const RECT& progressRect, TraceView::Session& session, bool isRemote, u64 playTime, const DrawTextFunc& drawTextFunc);
 

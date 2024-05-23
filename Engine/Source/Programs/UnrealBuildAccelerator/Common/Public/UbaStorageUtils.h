@@ -28,9 +28,9 @@ namespace uba
 		BufferSlots& m_bufferSlots;
 		StorageStats& m_stats;
 		ReaderWriterLock& m_sendOneAtTheTimeLock;
-
 		u8 m_casCompressor = DefaultCompressor;
 		u8 m_casCompressionLevel = DefaultCompressionLevel;
+		u64 m_bytesSent = 0;
 	};
 
 	struct FileFetcher

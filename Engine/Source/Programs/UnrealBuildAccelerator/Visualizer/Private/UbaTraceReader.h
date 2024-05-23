@@ -118,13 +118,22 @@ namespace uba
 			bool operator==(const ProcessLocation& o) const { return sessionIndex == o.sessionIndex && processorIndex == o.processorIndex && processIndex == o.processIndex; }
 		};
 
+		struct CacheWrite
+		{
+			u64 start = 0;
+			u64 end = 0;
+			u64 bytesSent = 0;
+			bool success = false;
+		};
+
 		Process* GetProcess(const ProcessLocation& loc) { return &(sessions[loc.sessionIndex].processors[loc.processorIndex].processes[loc.processIndex]); }
-		void Clear() { sessions.clear(); workTracks.clear(); strings.clear(); statusMap.clear(); startTime = 0; finished = true; totalProcessActiveCount = 0; totalProcessExitedCount = 0; activeSessionCount = 0; };
+		void Clear() { sessions.clear(); workTracks.clear(); strings.clear(); statusMap.clear(); cacheWrites.clear(); startTime = 0; finished = true; totalProcessActiveCount = 0; totalProcessExitedCount = 0; activeSessionCount = 0; };
 
 		Vector<Session> sessions;
 		Vector<WorkTrack> workTracks;
 		Vector<TString> strings;
 		Map<u32, StatusUpdate> statusMap;
+		Map<u32, CacheWrite> cacheWrites;
 		u64 startTime = 0;
 		u64 frequency = 0;
 		u32 totalProcessActiveCount = 0;

@@ -922,6 +922,20 @@ namespace uba
 			memcpy(process.stats.data(), dataStart, dataEnd - dataStart);
 			break;
 		}
+		case TraceType_CacheBeginWrite:
+		{
+			u32 processId = u32(reader.Read7BitEncoded());
+			out.cacheWrites[processId].start = time;
+			break;
+		}
+		case TraceType_CacheEndWrite:
+		{
+			u32 processId = u32(reader.Read7BitEncoded());
+			TraceView::CacheWrite& write = out.cacheWrites[processId];
+			write.success = reader.ReadBool();
+			write.bytesSent = reader.Read7BitEncoded();
+			write.end = time;
+		}
 		}
 		return true;
 	}

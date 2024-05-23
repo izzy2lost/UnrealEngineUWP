@@ -54,6 +54,8 @@ namespace uba
 		TraceType_SessionNotification,
 		TraceType_CacheBeginFetch,
 		TraceType_CacheEndFetch,
+		TraceType_CacheBeginWrite,
+		TraceType_CacheEndWrite,
 	};
 
 	using Color = u32;
@@ -92,6 +94,8 @@ namespace uba
 
 		void CacheBeginFetch(u32 fetchId, const tchar* description);
 		void CacheEndFetch(u32 fetchId, bool success, const u8* data, u64 dataSize);
+		void CacheBeginWrite(u32 processId);
+		void CacheEndWrite(u32 processId, bool success, u64 bytesSent);
 
 		bool StopWrite(const tchar* writeFileName);
 

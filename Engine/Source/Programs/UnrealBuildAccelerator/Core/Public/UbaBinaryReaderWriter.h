@@ -68,6 +68,7 @@ namespace uba
 		inline CasKey ReadCasKey();
 		inline bool ReadBool() { return ReadByte() != 0; }
 		inline u64 Read7BitEncoded();
+		template<typename CharType> inline CharType ReadUtf8Char();
 		inline u32 PeekU32();
 		inline u64 PeekU64();
 		inline void Skip(u64 size) { m_pos += size; }
@@ -441,6 +442,34 @@ namespace uba
 			++byteIndex;
 		} while (hasMoreBytes);
 		return result;
+	}
+
+	template<typename CharType>
+	CharType BinaryReader::ReadUtf8Char()
+	{
+		UBA_ASSERT_READ(1);
+		u8 a = *m_pos++;
+		if (a <= 127)
+			return CharType(a);
+
+		UBA_ASSERT_READ(1);
+		u8 b = *m_pos++;
+		if (a >= 192 && a <= 223)
+			return CharType((a-192)*64 + (b-128));
+
+		UBA_ASSERT_READ(1);
+		u8 c = *m_pos++;
+		if (a >= 224 && a <= 239)
+			return CharType((a-224)*4096 + (b-128)*64 + (c-128));
+
+		if (a >= 240 && a <= 253)
+		{
+			UBA_ASSERT(false); // Wide chars cannot exceed 16 bits
+			return CharType(~0);
+		}
+
+		UBA_ASSERT(false); // Wide chars cannot exceed 16 bits
+		return CharType(~0);
 	}
 
 	u32 BinaryReader::PeekU32()

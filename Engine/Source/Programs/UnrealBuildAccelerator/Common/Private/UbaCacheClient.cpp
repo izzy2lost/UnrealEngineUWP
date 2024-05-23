@@ -59,16 +59,39 @@ namespace uba
 
 		m_client.RegisterOnConnected([this]()
 			{
-				StackBinaryWriter<1024> writer;
-				NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_Connect, writer);
-				writer.WriteU32(CacheNetworkVersion);
-				StackBinaryReader<1024> reader;
-				if (!msg.Send(reader))
+				u32 retryCount = 0;
+				while (retryCount < 10)
 				{
-					m_logger.Error(TC("Failed to connect to cache server. Version mismatch?"));
-					return;
+					StackBinaryWriter<1024> writer;
+					NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_Connect, writer);
+					writer.WriteU32(CacheNetworkVersion);
+					StackBinaryReader<1024> reader;
+					if (!msg.Send(reader))
+					{
+						m_logger.Info(TC("Failed to connect to cache server. Version mismatch?"));
+						return;
+					}
+					bool success = reader.ReadBool();
+					if (success)
+					{
+						if (retryCount != 0)
+							m_logger.Info(TC("Connected to cache server"));
+						m_connected = true;
+						return;
+					}
+
+					if (retryCount == 0)
+					{
+						StringBuffer<> reason;
+						reader.ReadString(reason);
+						m_logger.Info(TC("Cache server busy, retrying... (Reason: %s)"), reason.data);
+					}
+					Sleep(1000);
+					++retryCount;
 				}
-				m_connected = true;
+
+				m_logger.Info(TC("Failed to connect to cache server after %u retries. Giving up."), retryCount);
+
 			});
 
 		m_client.RegisterOnDisconnected([this]()
@@ -79,7 +102,7 @@ namespace uba
 
 	CacheClient::~CacheClient() = default;
 
-	bool CacheClient::WriteToCache(const RootPaths& rootPaths, u32 bucketId, const ProcessStartInfo& info, const u8* inputs, u64 inputsSize, const u8* outputs, u64 outputsSize)
+	bool CacheClient::WriteToCache(const RootPaths& rootPaths, u32 bucketId, const ProcessStartInfo& info, const u8* inputs, u64 inputsSize, const u8* outputs, u64 outputsSize, u32 processId)
 	{
 		if (!m_connected)
 			return false;
@@ -95,6 +118,12 @@ namespace uba
 			#endif
 			return false;
 		}
+
+		bool finished = false;
+		u64 bytesSent = 0;
+		if (processId)
+			m_session.GetTrace().CacheBeginWrite(processId);
+		auto tg = MakeGuard([&]() { if (processId) m_session.GetTrace().CacheEndWrite(processId, finished, bytesSent); });
 
 		BinaryReader inputsReader(inputs, 0, inputsSize);
 		BinaryReader outputsReader(outputs, 0, outputsSize);
@@ -145,8 +174,7 @@ namespace uba
 					success = false;
 					continue;
 				}
-
-				casKey = AsCompressed(casKey, true);
+				casKey = IsNormalized(casKey) ? AsCompressed(casKey, true) : CasKeyZero;
 			}
 			else if (path[path.count-1] == ':')
 			{
@@ -194,14 +222,6 @@ namespace uba
 				continue;
 			}
 
-			// Files that needs to be normalized
-			if (isOutput && ShouldNormalize(path))
-			{
-				casKey = rootPaths.NormalizeAndHashFile(m_logger, path.data);
-				if (casKey != CasKeyZero)
-					casKey = AsCompressed(casKey, true);
-			}
-
 			// Get file caskey using storage
 			if (casKey == CasKeyZero)
 			{
@@ -236,7 +256,7 @@ namespace uba
 			return false;
 
 		// actual cache entry now when we know server has the needed tables
-		if (!SendCacheEntry(bucket, rootPaths, cmdKey, inputsStringToCasKey, outputsStringToCasKey))
+		if (!SendCacheEntry(bucket, rootPaths, cmdKey, inputsStringToCasKey, outputsStringToCasKey, bytesSent))
 			return false;
 
 
@@ -262,6 +282,7 @@ namespace uba
 		m_logger.EndScope();
 		#endif
 
+		finished = true;
 		return true;
 	}
 
@@ -359,7 +380,7 @@ namespace uba
 							return false;
 						UBA_ASSERTF(IsCompressed(cacheCasKey), TC("Cache entry for %s has uncompressed cache key for path %s (%s)"), info.description, path.data, CasKeyString(cacheCasKey).str);
 
-						if (ShouldNormalize(path)) // Need to normalize caskey for these files since they contain absolute paths
+						if (IsNormalized(cacheCasKey)) // Need to normalize caskey for these files since they contain absolute paths
 						{
 							localCasKey = rootPaths.NormalizeAndHashFile(m_logger, path.data);
 							if (localCasKey != CasKeyZero)
@@ -418,7 +439,7 @@ namespace uba
 				FileFetcher fetcher { m_storage.m_bufferSlots };
 				fetcher.m_errorOnFail = false;
 
-				if (ShouldNormalize(path))
+				if (IsNormalized(casKey))
 				{
 					// Fetch into memory, file is in special format without absolute paths
 					MemoryBlock normalizedBlock(4*1024*1024);
@@ -426,61 +447,52 @@ namespace uba
 					if (!fetcher.RetrieveFile(m_logger, m_client, casKey, path.data, destinationIsCompressed, &normalizedBlock))
 						return false;
 
-					u8* memoryToWrite = normalizedBlock.memory;
-					u64 memoryToWriteSize = normalizedBlock.writtenSize;
 					MemoryBlock localBlock(4*1024*1024);
 
-					// It could be that file was actually not normalized.. because it had no absolute paths, in that case we don't have the header and can just write it to disk as is
-					if (normalizedBlock.writtenSize > 6 && *(u16*)normalizedBlock.memory == 0xFFFF)
+					u32 rootOffsets = *(u32*)(normalizedBlock.memory);
+					char* fileStart = (char*)(normalizedBlock.memory + sizeof(u32));
+					UBA_ASSERT(rootOffsets <= normalizedBlock.writtenSize);
+
+					// "denormalize" fetched file into another memory block that will be written to disk
+					u64 lastWritten = 0;
+					BinaryReader reader2(normalizedBlock.memory, rootOffsets, normalizedBlock.writtenSize);
+					while (reader2.GetLeft())
 					{
-						u32 rootOffsets = *(u32*)(normalizedBlock.memory + sizeof(u16));
-						char* fileStart = (char*)(normalizedBlock.memory + sizeof(u16) + sizeof(u32));
-						UBA_ASSERT(rootOffsets <= normalizedBlock.writtenSize);
-
-						// "denormalize" fetched file into another memory block that will be written to disk
-						u64 lastWritten = 0;
-						BinaryReader reader2(normalizedBlock.memory, rootOffsets, normalizedBlock.writtenSize);
-						while (reader2.GetLeft())
-						{
-							u64 rootOffset = reader2.Read7BitEncoded();
-							if (u64 toWrite = rootOffset - lastWritten)
-								memcpy(localBlock.Allocate(toWrite, 1, TC("")), fileStart + lastWritten, toWrite);
-							u8 rootIndex = fileStart[rootOffset] - RootPaths::RootStartByte;
-							auto& root = rootPaths.GetRoot(rootIndex);
-
-							#if PLATFORM_WINDOWS
-							StringBuffer<> pathTemp;
-							pathTemp.Append(root.path);
-							char rootPath[512];
-							u32 rootPathLen = pathTemp.Parse(rootPath, sizeof_array(rootPath));
-							#else
-							const char* rootPath = root.path.data();
-							u32 rootPathLen = root.path.size();
-							#endif
-
-							if (u32 toWrite = rootPathLen - 1)
-								memcpy(localBlock.Allocate(toWrite, 1, TC("")), rootPath, toWrite);
-							lastWritten = rootOffset + 1;
-						}
-
-						u64 fileSize = rootOffsets - (sizeof(u16) + sizeof(u32));
-						if (u64 toWrite = fileSize - lastWritten)
+						u64 rootOffset = reader2.Read7BitEncoded();
+						if (u64 toWrite = rootOffset - lastWritten)
 							memcpy(localBlock.Allocate(toWrite, 1, TC("")), fileStart + lastWritten, toWrite);
+						u8 rootIndex = fileStart[rootOffset] - RootPaths::RootStartByte;
+						auto& root = rootPaths.GetRoot(rootIndex);
 
-						memoryToWrite = localBlock.memory;
-						memoryToWriteSize = localBlock.writtenSize;
+						#if PLATFORM_WINDOWS
+						StringBuffer<> pathTemp;
+						pathTemp.Append(root.path);
+						char rootPath[512];
+						u32 rootPathLen = pathTemp.Parse(rootPath, sizeof_array(rootPath));
+						#else
+						const char* rootPath = root.path.data();
+						u32 rootPathLen = root.path.size();
+						#endif
+
+						if (u32 toWrite = rootPathLen - 1)
+							memcpy(localBlock.Allocate(toWrite, 1, TC("")), rootPath, toWrite);
+						lastWritten = rootOffset + 1;
 					}
+
+					u64 fileSize = rootOffsets - sizeof(u32);
+					if (u64 toWrite = fileSize - lastWritten)
+						memcpy(localBlock.Allocate(toWrite, 1, TC("")), fileStart + lastWritten, toWrite);
 
 					FileAccessor destFile(m_logger, path.data);
 					if (!destFile.CreateWrite())
 						return false;
-					if (!destFile.Write(memoryToWrite, memoryToWriteSize))
+					if (!destFile.Write(localBlock.memory, localBlock.writtenSize))
 						return false;
 					if (!destFile.Close(&fetcher.lastWritten))
 						return false;
 
-					fetcher.sizeOnDisk = memoryToWriteSize;
-					casKey = CalculateCasKey(memoryToWrite, memoryToWriteSize, false, nullptr);
+					fetcher.sizeOnDisk = localBlock.writtenSize;
+					casKey = CalculateCasKey(localBlock.memory, localBlock.writtenSize, false, nullptr);
 				}
 				else
 				{
@@ -519,22 +531,57 @@ namespace uba
 		return reader.ReadBool();
 	}
 
-	bool CacheClient::WriteCacheSummary(const tchar* destinationFile, const tchar* filterString)
+	bool CacheClient::ExecuteCommand(Logger& logger, const tchar* command, const tchar* destinationFile, const tchar* additionalInfo)
 	{
 		StackBinaryWriter<1024> writer;
-		NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_CreateStatusFile, writer);
-		writer.WriteString(filterString ? filterString : TC(""));
-		StackBinaryReader<512> reader;
-		if (!msg.Send(reader))
-			return false;
-		CasKey statusFileCasKey = reader.ReadCasKey();
-		if (statusFileCasKey == CasKeyZero)
-			return false;
+		NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_ExecuteCommand, writer);
+		writer.WriteString(command);
+		writer.WriteString(additionalInfo ? additionalInfo : TC(""));
+
+		CasKey statusFileCasKey;
+		{
+			StackBinaryReader<512> reader;
+			if (!msg.Send(reader))
+				return false;
+			statusFileCasKey = reader.ReadCasKey();
+			if (statusFileCasKey == CasKeyZero)
+				return false;
+		}
 
 		FileFetcher fetcher { m_storage.m_bufferSlots };
 		bool destinationIsCompressed = false;
-		if (!fetcher.RetrieveFile(m_logger, m_client, statusFileCasKey, destinationFile, destinationIsCompressed))
-			return false;
+		if (destinationFile)
+		{
+			if (!fetcher.RetrieveFile(m_logger, m_client, statusFileCasKey, destinationFile, destinationIsCompressed))
+				return false;
+		}
+		else
+		{
+			MemoryBlock block(4*1024*1024);
+			if (!fetcher.RetrieveFile(m_logger, m_client, statusFileCasKey, TC("CommandString"), destinationIsCompressed, &block))
+				return false;
+			BinaryReader reader(block.memory, 3, block.writtenSize); // Skipping bom
+
+			tchar line[1024];
+			tchar* it = line;
+			while (true)
+			{
+				tchar c = reader.ReadUtf8Char<tchar>();
+				if (c != '\n' && c != 0)
+				{
+					*it++ = c;
+					continue;
+				}
+
+				if (c == 0 && it == line)
+					break;
+				*it = 0;
+				logger.Log(LogEntryType_Info, line, u32(it - line));
+				it = line;
+				if (c == 0)
+					break;
+			}
+		}
 		return true;
 	}
 
@@ -586,7 +633,7 @@ namespace uba
 		return true;
 	}
 
-	bool CacheClient::SendCacheEntry(Bucket& bucket, const RootPaths& rootPaths, const CasKey& cmdKey, const Map<u32, u32>& inputsStringToCasKey, const Map<u32, u32>& outputsStringToCasKey)
+	bool CacheClient::SendCacheEntry(Bucket& bucket, const RootPaths& rootPaths, const CasKey& cmdKey, const Map<u32, u32>& inputsStringToCasKey, const Map<u32, u32>& outputsStringToCasKey, u64& outBytesSent)
 	{
 		StackBinaryReader<1024> reader;
 		{
@@ -626,6 +673,7 @@ namespace uba
 			StorageImpl::CasEntry* casEntry;
 			if (m_storage.HasCasFile(casKey, &casEntry))
 			{
+				UBA_ASSERT(!IsNormalized(casKey));
 				StringBuffer<> casKeyFileName;
 				if (!m_storage.GetCasFileName(casKeyFileName, casKey))
 					return false;
@@ -654,69 +702,59 @@ namespace uba
 
 				if (!SendFile(m_logger, m_client, casKey, fileData, fileSize, casKeyFileName.data))
 					return false;
+
+				outBytesSent += fileSize;
 			}
 			else // If we don't have the cas key it should be one of the normalized files.... otherwise there is a bug
 			{
-				if (ShouldNormalize(path))
-				{
-					FileAccessor file(m_logger, path.data);
-					if (!file.OpenMemoryRead())
-						return false;
-					MemoryBlock block(AlignUp(file.GetSize() + 16, 64*1024));
-					*(u16*)block.Allocate(sizeof(u16), 1, TC("")) = 0xFFFF; // Magic to be able to know if file was normalized or not
+				if (!IsNormalized(casKey))
+					return m_logger.Error(TC("Can't find output file %s to send to cache server"), path.data);
 
-					u32& rootOffsetsStart = *(u32*)block.Allocate(sizeof(u32), 1, TC(""));
-					rootOffsetsStart = 0;
-					Vector<u32> rootOffsets;
-					u32 rootOffsetsSize = 0;
+				FileAccessor file(m_logger, path.data);
+				if (!file.OpenMemoryRead())
+					return false;
+				MemoryBlock block(AlignUp(file.GetSize() + 16, 64*1024));
+				u32& rootOffsetsStart = *(u32*)block.Allocate(sizeof(u32), 1, TC(""));
+				rootOffsetsStart = 0;
+				Vector<u32> rootOffsets;
+				u32 rootOffsetsSize = 0;
 
-					bool wasNormalized = false;
-					auto handleString = [&](const char* str, u64 strLen, u32 rootPos)
+				auto handleString = [&](const char* str, u64 strLen, u32 rootPos)
+					{
+						void* mem = block.Allocate(strLen, 1, TC(""));
+						memcpy(mem, str, strLen);
+						if (rootPos != ~0u)
 						{
-							void* mem = block.Allocate(strLen, 1, TC(""));
-							memcpy(mem, str, strLen);
-							if (rootPos != ~0u)
-							{
-								wasNormalized = true;
-								rootOffsets.push_back(rootPos);
-								rootOffsetsSize += Get7BitEncodedCount(rootPos);
-							}
-						};
+							rootOffsets.push_back(rootPos);
+							rootOffsetsSize += Get7BitEncodedCount(rootPos);
+						}
+					};
 
-					if (!rootPaths.NormalizeString<char>(m_logger, (const char*)file.GetData(), file.GetSize(), handleString, path.data))
-						return false;
+				if (!rootPaths.NormalizeString<char>(m_logger, (const char*)file.GetData(), file.GetSize(), handleString, path.data))
+					return false;
 
-					if (rootOffsetsSize)
-					{
-						u8* mem = (u8*)block.Allocate(rootOffsetsSize, 1, TC(""));
-						rootOffsetsStart = u32(mem - block.memory);
-						BinaryWriter writer(mem, 0, rootOffsetsSize);
-						for (u32 rootOffset : rootOffsets)
-							writer.Write7BitEncoded(rootOffset);
-					}
-					else
-						rootOffsetsStart = u32(block.writtenSize);
-
-
-					auto& s = m_storage;
-					FileSender sender { m_logger, m_client, s.m_bufferSlots, s.Stats(), m_sendOneAtTheTimeLock, s.m_casCompressor, s.m_casCompressionLevel };
-
-					u8* dataToSend = block.memory;
-					u64 sizeToSend = block.writtenSize;
-					if (!wasNormalized)
-					{
-						// magic + rootoffsetssize
-						dataToSend += 6;
-						sizeToSend -= 6;
-					}
-
-					if (!sender.SendFileCompressed(casKey, path.data, dataToSend, sizeToSend, TC("SendCacheEntry")))
-						return m_logger.Error(TC("Failed to send cas content for file %s"), path.data);
+				if (rootOffsetsSize)
+				{
+					u8* mem = (u8*)block.Allocate(rootOffsetsSize, 1, TC(""));
+					rootOffsetsStart = u32(mem - block.memory);
+					BinaryWriter writer(mem, 0, rootOffsetsSize);
+					for (u32 rootOffset : rootOffsets)
+						writer.Write7BitEncoded(rootOffset);
 				}
 				else
-				{
-					return m_logger.Error(TC("Can't find output file %s to send to cache server"), path.data);
-				}
+					rootOffsetsStart = u32(block.writtenSize);
+
+
+				auto& s = m_storage;
+				FileSender sender { m_logger, m_client, s.m_bufferSlots, s.Stats(), m_sendOneAtTheTimeLock, s.m_casCompressor, s.m_casCompressionLevel };
+
+				u8* dataToSend = block.memory;
+				u64 sizeToSend = block.writtenSize;
+
+				if (!sender.SendFileCompressed(casKey, path.data, dataToSend, sizeToSend, TC("SendCacheEntry")))
+					return m_logger.Error(TC("Failed to send cas content for file %s"), path.data);
+
+				outBytesSent += sender.m_bytesSent;
 			}
 
 		}

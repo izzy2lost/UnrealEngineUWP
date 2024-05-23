@@ -383,6 +383,20 @@ namespace uba
 		writer.WriteBytes(data, dataSize);
 	}
 
+	void Trace::CacheBeginWrite(u32 processId)
+	{
+		BEGIN_TRACE_ENTRY(TraceType_CacheBeginWrite);
+		writer.Write7BitEncoded(processId);
+	}
+
+	void Trace::CacheEndWrite(u32 processId, bool success, u64 bytesSent)
+	{
+		BEGIN_TRACE_ENTRY(TraceType_CacheEndWrite);
+		writer.Write7BitEncoded(processId);
+		writer.WriteBool(success);
+		writer.Write7BitEncoded(bytesSent);
+	}
+
 	TraceChannel::TraceChannel(Logger& logger) : m_logger(logger)
 	{
 	}

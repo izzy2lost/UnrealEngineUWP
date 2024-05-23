@@ -1216,10 +1216,67 @@ namespace uba
 		m_contentWidth = ProgressRectLeft + int(TimeToS(lastStop != ~u64(0) ? lastStop : playTime) * scaleX);
 		m_contentHeight = posY - int(m_scrollPosY) + stepY + 14;
 
+		float timelineSelected = m_timelineSelected;
+
 		if (m_visibleComponents[ComponentType_Timeline])
 			PaintTimeline(hdc, clientRect);
-		if (m_visibleComponents[ComponentType_Cursor])
-			PaintCursor(hdc, clientRect);
+
+		if (m_visibleComponents[ComponentType_Cursor] && m_mouseOverWindow)
+		{
+			float timeScale = (m_horizontalScaleValue * m_zoomValue)*50.0f;
+			float startOffset = -(m_scrollPosX / timeScale);
+			POINT pos;
+			GetCursorPos(&pos);
+			ScreenToClient(m_hwnd, &pos);
+			timelineSelected = startOffset + (pos.x - ProgressRectLeft) / timeScale;
+		}
+
+		if (timelineSelected)
+		{
+			int posX = int(m_scrollPosX) + progressRect.left;
+			int left = int(posX + timelineSelected * scaleX);
+			int timelineTop = Min(posY, int(progressRect.bottom)) + 2;
+
+			// TODO: Draw line up
+			MoveToEx(hdc, left, 2, NULL);
+			LineTo(hdc, left, timelineTop);
+
+			if (timelineSelected >= 0)
+			{
+				StringBuffer<> b;
+				u32 milliseconds = u32(timelineSelected * 1000.0f);
+				u32 seconds = milliseconds / 1000;
+				milliseconds -= seconds * 1000;
+				u32 minutes = seconds / 60;
+				seconds -= minutes * 60;
+				u32 hours = minutes / 60;
+				minutes -= hours * 60;
+				if (hours)
+				{
+					b.AppendValue(hours).Append('h');
+					if (minutes < 10)
+						b.Append('0');
+				}
+				if (minutes || hours)
+				{
+					b.AppendValue(minutes).Append('m');
+					if (seconds < 10)
+						b.Append('0');
+				}
+				b.AppendValue(seconds).Append('.');
+				if (milliseconds < 100)
+					b.Append('0');
+				if (milliseconds < 10)
+					b.Append('0');
+				b.AppendValue(milliseconds);
+
+				SelectObject(hdc, m_popupFont);
+				DrawTextLogger logger(m_hwnd, hdc, m_popupFontHeight, m_tooltipBackgroundBrush);
+
+				logger.Info(L"%s", b.data);
+				logger.DrawAtPos(left + 4, timelineTop - 20);
+			}
+		}
 
 		{
 			int top = 5;
@@ -1248,6 +1305,8 @@ namespace uba
 			left -= 20;
 			if (m_visibleComponents[ComponentType_CpuMem])
 			{
+				SelectObject(hdc, m_font);
+
 				SetTextColor(hdc, m_cpuColor);
 				ExtTextOutW(hdc, left, top, 0, NULL, L"CPU", 3, NULL);
 				left -= 25;
@@ -1320,10 +1379,10 @@ namespace uba
 
 			logger.AddSpace(2);
 			logger.Info(L"  %ls", process.description.c_str());
-			logger.Info(L"  Start:     %ls", TimeToText(process.start, true).str);
-			logger.Info(L"  Duration:  %ls", TimeToText(duration, true).str);
+			logger.Info(L"  Start:    %7ls", TimeToText(process.start, true).str);
+			logger.Info(L"  Duration: %7ls", TimeToText(duration, true).str);
 			if (hasExited && process.exitCode != 0)
-				logger.Info(L"  ExitCode:  %u", process.exitCode);
+				logger.Info(L"  ExitCode: %7u", process.exitCode);
 
 			if (process.stop != ~u64(0) && !process.stats.empty())
 			{
@@ -1337,11 +1396,11 @@ namespace uba
 				if (process.cacheFetch)
 				{
 					if (process.returned)
-						logger.Info(L"  Cache:  Miss");
+						logger.Info(L"  Cache:       Miss");
 					else
-						logger.Info(L"  Cache:  Hit");
+						logger.Info(L"  Cache:        Hit");
 					cacheStats.Read(reader, m_traceView.version);
-					if (process.exitCode == 0)
+					if (reader.GetLeft())
 					{
 						storageStats.Read(reader);
 						systemStats.Read(reader, m_traceView.version);
@@ -1392,6 +1451,18 @@ namespace uba
 					logger.Info(L"");
 					logger.Info(L"  ----------- System stats ------------");
 					systemStats.Print(logger, false, m_traceView.frequency);
+				}
+
+				auto findIt = m_traceView.cacheWrites.find(process.id);
+				if (findIt != m_traceView.cacheWrites.end())
+				{
+					TraceView::CacheWrite& write = findIt->second;
+					logger.Info(L"");
+					logger.Info(L"  -------- Cache write stats ----------");
+					logger.Info(L"  Duration                    %9s", TimeToText(write.end - write.start).str);
+					logger.Info(L"  Success                     %9s", write.success ? L"true" : L"false");
+					logger.Info(L"  Bytes sent                  %9s", BytesToText(write.bytesSent).str);
+
 				}
 
 				if (!logLines.empty())
@@ -1502,52 +1573,6 @@ namespace uba
 			DrawTextLogger logger(m_hwnd, hdc, m_popupFontHeight, m_tooltipBackgroundBrush);
 			logger.Info(L"%ls %ls", vis ? L"Hide" : L"Show", tooltip[m_buttonSelected]);
 			logger.DrawAtCursor();
-		}
-		else if (m_timelineSelected)
-		{
-			int posX = int(m_scrollPosX) + progressRect.left;
-			int left = int(posX + m_timelineSelected * scaleX);
-			int timelineTop = Min(posY, int(progressRect.bottom)) + 2;
-
-			// TODO: Draw line up
-			MoveToEx(hdc, left, 2, NULL);
-			LineTo(hdc, left, timelineTop);
-
-			if (m_timelineSelected >= 0)
-			{
-				StringBuffer<> b;
-				u32 milliseconds = u32(m_timelineSelected * 1000.0f);
-				u32 seconds = milliseconds / 1000;
-				milliseconds -= seconds * 1000;
-				u32 minutes = seconds / 60;
-				seconds -= minutes * 60;
-				u32 hours = minutes / 60;
-				minutes -= hours * 60;
-				if (hours)
-				{
-					b.AppendValue(hours).Append('h');
-					if (minutes < 10)
-						b.Append('0');
-				}
-				if (minutes || hours)
-				{
-					b.AppendValue(minutes).Append('m');
-					if (seconds < 10)
-						b.Append('0');
-				}
-				b.AppendValue(seconds).Append('.');
-				if (milliseconds < 100)
-					b.Append('0');
-				if (milliseconds < 10)
-					b.Append('0');
-				b.AppendValue(milliseconds);
-
-				SelectObject(hdc, m_popupFont);
-				DrawTextLogger logger(m_hwnd, hdc, m_popupFontHeight, m_tooltipBackgroundBrush);
-
-				logger.Info(L"%s", b.data);
-				logger.DrawAtPos(left + 4, timelineTop - 20);
-			}
 		}
 		else if (m_fetchedFilesSelected != ~0u)
 		{
@@ -1759,20 +1784,6 @@ namespace uba
 		lineRect.bottom = top + 15;
 		FillRect(hdc, &lineRect, m_lineBrush);
 		*/
-	}
-
-	void Visualizer::PaintCursor(HDC hdc, const RECT& clientRect)
-	{
-		// Get cursor position and transform into window coordinates
-		POINT cursorPos = {};
-		GetCursorPos(&cursorPos);
-		ScreenToClient(m_hwnd, &cursorPos);
-
-		// Draw cursor as vertical line
-		SelectObject(hdc, m_textPen);
-		const int cursorPosHorizontal = cursorPos.x;
-		MoveToEx(hdc, cursorPosHorizontal, clientRect.top, NULL);
-		LineTo(hdc, cursorPosHorizontal, clientRect.bottom);
 	}
 
 	void Visualizer::PaintDetailedStats(int& posY, const RECT& progressRect, TraceView::Session& session, bool isRemote, u64 playTime, const DrawTextFunc& drawTextFunc)
@@ -2224,7 +2235,7 @@ namespace uba
 
 	void Visualizer::UnselectAndRedraw()
 	{
-		if (Unselect())
+		if (Unselect() || m_visibleComponents[ComponentType_Cursor])
 			RedrawWindow(m_hwnd, NULL, NULL, RDW_INVALIDATE);
 	}
 

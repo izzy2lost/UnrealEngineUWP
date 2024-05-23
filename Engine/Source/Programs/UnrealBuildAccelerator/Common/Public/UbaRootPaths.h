@@ -94,4 +94,19 @@ namespace uba
 			searchPos = pathStart + root->path.size();
 		}
 	}
+
+	inline bool IsNormalized(const CasKey& key)
+	{
+		UBA_ASSERT(key != CasKeyZero);
+		return (((u8*)&key)[19] & 2) == 2;
+	}
+
+	inline CasKey AsNormalized(const CasKey& key, bool normalized)
+	{
+		UBA_ASSERT(key != CasKeyZero);
+		CasKey newKey = key;
+		u8 flagField = ((u8*)&key)[19];
+		((u8*)&newKey)[19] = normalized ? (flagField | 2) : (flagField & ~2);
+		return newKey;
+	}
 }

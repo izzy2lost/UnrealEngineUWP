@@ -127,13 +127,7 @@ namespace uba
 		if (!NormalizeString<char>(logger, (const char*)file.GetData(), file.GetSize(), hashString, filename))
 			return CasKeyZero;
 
-		if (wasNormalized)
-		{
-			u16 magic = 0xFFFF; // We add some magic to make sure this does not match cas key of non-normalized files
-			hasher.Update(&magic, sizeof(u16));
-		}
-
-		return ToCasKey(hasher, false);
+		return AsNormalized(ToCasKey(hasher, false), wasNormalized);
 	}
 
 }

@@ -10,7 +10,7 @@
 
 namespace uba
 {
-	static constexpr u32 CacheFileVersion = 2;
+	static constexpr u32 CacheFileVersion = 3;
 
 	bool IsCaseInsensitive(u64 id) { return (id & (1ull << 32)) == 0; }
 
@@ -73,6 +73,8 @@ namespace uba
 	,	m_server(server)
 	,	m_storage(storage)
 	{
+		m_startTime = GetTime();
+
 		m_rootDir.count = GetFullPathNameW(rootDir, m_rootDir.capacity, m_rootDir.data, NULL);
 		m_rootDir.Replace('/', PathSeparator).EnsureEndsWithSlash();
 
@@ -182,7 +184,7 @@ namespace uba
 		if (m_addsSinceMaintenance == 0)
 			return true;
 
-		SCOPED_WRITE_LOCK(m_maintenanceLock, lock);
+		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 		return SaveNoLock();
 	}
 
@@ -288,14 +290,20 @@ namespace uba
 
 	bool CacheServer::RunMaintenance(bool force, const Function<bool()>& shouldExit)
 	{
-		SCOPED_WRITE_LOCK(m_maintenanceLock, lock);
-		SCOPED_READ_LOCK(m_connectionsLock, lock2);
-		if (!m_connections.empty())
-			return true;
-		lock2.Leave();
-
 		if (m_addsSinceMaintenance == 0 && !force)
 			return true;
+
+		SCOPED_WRITE_LOCK(m_connectionsLock, lock2);
+		if (!m_connections.empty())
+			return true;
+		m_isRunningMaintenance = true;
+		lock2.Leave();
+
+		auto g = MakeGuard([&]()
+			{
+				SCOPED_WRITE_LOCK(m_connectionsLock, lock2);
+				m_isRunningMaintenance = false;
+			});
 
 		bool forceAllSteps = true;
 
@@ -628,8 +636,10 @@ namespace uba
 		}
 
 		u64 oldestTime = MsToTime(GetFileTimeAsSeconds(now - oldest)*1000);
-		m_logger.Info(TC("Maintenance done! (%s) CasFiles: %llu (%s) OldestEntry: %s"), TimeToText(GetTime() - startTime).str, totalCasCount - deletedCasCount, BytesToText(totalCasSize).str, TimeToText(oldestTime, true).str);
-
+		u64 duration = GetTime() - startTime;
+		m_logger.Info(TC("Maintenance done! (%s) CasFiles: %llu (%s) OldestEntry: %s"), TimeToText(duration).str, totalCasCount - deletedCasCount, BytesToText(totalCasSize).str, TimeToText(oldestTime, true).str);
+		
+		m_longestMaintenance = Max(m_longestMaintenance, duration);
 		return true;
 	}
 
@@ -637,7 +647,6 @@ namespace uba
 	{
 		if (!m_shutdownRequested)
 			return false;
-		SCOPED_WRITE_LOCK(m_maintenanceLock, lock);
 		SCOPED_READ_LOCK(m_connectionsLock, lock2);
 		if (!m_connections.empty() || m_addsSinceMaintenance)
 			return false;
@@ -669,6 +678,9 @@ namespace uba
 
 	bool CacheServer::HandleMessage(const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer)
 	{
+		if (messageType != CacheMessageType_Connect && m_isRunningMaintenance)
+			return m_logger.Error(TC("Can't handle network message %s while running maintenance mode"), ToString(CacheMessageType(messageType)));
+
 		switch (messageType)
 		{
 		case CacheMessageType_Connect:
@@ -676,8 +688,15 @@ namespace uba
 			u32 clientVersion = reader.ReadU32();
 			if (clientVersion != CacheNetworkVersion)
 				return m_logger.Error(TC("Different network versions. Client: %u, Server: %u. Disconnecting"), clientVersion, CacheNetworkVersion);
-			SCOPED_READ_LOCK(m_maintenanceLock, lock);
-			SCOPED_WRITE_LOCK(m_connectionsLock, lock2);
+
+			SCOPED_WRITE_LOCK(m_connectionsLock, lock);
+			if (m_isRunningMaintenance)
+			{
+				writer.WriteBool(false);
+				writer.WriteString(TC("Running maintenance..."));
+			}
+
+			writer.WriteBool(true);
 			m_connections.try_emplace(connectionInfo.GetId());
 			return true;
 		}
@@ -731,8 +750,8 @@ namespace uba
 		case CacheMessageType_FetchEntries:
 			return HandleFetchEntries(reader, writer);
 
-		case CacheMessageType_CreateStatusFile:
-			return HandleCreateStatusFile(reader, writer);
+		case CacheMessageType_ExecuteCommand:
+			return HandleExecuteCommand(reader, writer);
 
 		case CacheMessageType_RequestShutdown:
 		{
@@ -984,12 +1003,13 @@ namespace uba
 		return true;
 	}
 
-	bool CacheServer::HandleCreateStatusFile(BinaryReader& reader, BinaryWriter& writer)
+	bool CacheServer::HandleExecuteCommand(BinaryReader& reader, BinaryWriter& writer)
 	{
-		StringBuffer<> filterString;
-		reader.ReadString(filterString);
+		StringBuffer<> command;
+		reader.ReadString(command);
 
-		SCOPED_READ_LOCK(m_maintenanceLock, lock);
+		StringBuffer<> additionalInfo;
+		reader.ReadString(additionalInfo);
 
 		StringBuffer<> tempFile(m_storage.GetTempPath());
 		Guid guid;
@@ -1000,8 +1020,8 @@ namespace uba
 		if (!file.CreateWrite())
 			return false;
 
-		bool success = true;
-		auto Write = [&](const void* data, u64 size) { success &= file.Write(data, size); };
+		bool writeSuccess = true;
+		auto Write = [&](const void* data, u64 size) { writeSuccess &= file.Write(data, size); };
 
 		u8 bom[] = {0xEF,0xBB,0xBF}; 
 		Write(bom, sizeof(bom));
@@ -1015,28 +1035,73 @@ namespace uba
 				Write(buffer, w.GetPosition());
 			};
 
-		writeLine(TC("UbaCache server summary"));
+		StringBuffer<> line;
 
-		u64 now = GetSystemTimeAsFileTime();
-
-		SCOPED_READ_LOCK(m_bucketsLock, bucketsLock);
-		for (auto& kv : m_buckets)
+		if (command.Equals(TC("content")))
 		{
-			Bucket& bucket = kv.second;
-			SCOPED_READ_LOCK(bucket.m_cacheEntryLookupLock, lock2);
+			writeLine(TC("UbaCache server summary"));
 
-			for (auto& kv2 : bucket.m_cacheEntryLookup)
+			StringBufferBase& filterString = additionalInfo;
+
+			u64 now = GetSystemTimeAsFileTime();
+
+			SCOPED_READ_LOCK(m_bucketsLock, bucketsLock);
+			for (auto& kv : m_buckets)
 			{
-				CacheEntries& entries = kv2.second;
-				SCOPED_READ_LOCK(entries.lock, lock3);
+				Bucket& bucket = kv.second;
+				SCOPED_READ_LOCK(bucket.m_cacheEntryLookupLock, lock2);
 
-				Set<u32> visibleIndices;
-				if (filterString.count)
+				for (auto& kv2 : bucket.m_cacheEntryLookup)
 				{
+					CacheEntries& entries = kv2.second;
+					SCOPED_READ_LOCK(entries.lock, lock3);
+
+					Set<u32> visibleIndices;
+					if (filterString.count)
+					{
+						u32 index = 0;
+						for (auto& entry : entries.entries)
+						{
+							auto findString = [&](const Vector<u8>& offsets)
+								{
+									BinaryReader reader2(offsets.data(), 0, offsets.size());
+									while (reader2.GetLeft())
+									{
+										u64 offset = reader2.Read7BitEncoded();
+										CasKey casKey;
+										StringBuffer<> path;
+										bucket.m_casKeyTable.GetPathAndKey(path, casKey, bucket.m_pathTable, offset);
+										if (path.Contains(filterString.data))
+											return true;
+										if (Contains(CasKeyString(casKey).str, filterString.data))
+											return true;
+									}
+									return false;
+								};
+
+							if (findString(entry.inputCasKeyOffsets) || findString(entry.outputCasKeyOffsets))
+								visibleIndices.insert(index);
+							++index;
+						}
+						if (visibleIndices.empty())
+							continue;
+					}
+
+
+					writeLine(CasKeyString(kv2.first).str);
 					u32 index = 0;
 					for (auto& entry : entries.entries)
 					{
-						auto findString = [&](const Vector<u8>& offsets)
+						if (!visibleIndices.empty() && visibleIndices.find(index) == visibleIndices.end())
+						{
+							++index;
+							continue;
+						}
+
+						u64 age = MsToTime(GetFileTimeAsSeconds(now - entry.creationTime)*1000);
+						writeLine(line.Clear().Appendf(TC("  #%u (%s ago)"), index, TimeToText(age, true).str).data);
+
+						auto writeOffsets = [&](const Vector<u8>& offsets)
 							{
 								BinaryReader reader2(offsets.data(), 0, offsets.size());
 								while (reader2.GetLeft())
@@ -1045,60 +1110,49 @@ namespace uba
 									CasKey casKey;
 									StringBuffer<> path;
 									bucket.m_casKeyTable.GetPathAndKey(path, casKey, bucket.m_pathTable, offset);
-									if (path.Contains(filterString.data))
-										return true;
-									if (Contains(CasKeyString(casKey).str, filterString.data))
-										return true;
+									writeLine(line.Clear().Appendf(TC("    %s - %s"), path.data, CasKeyString(casKey).str).data);
 								}
-								return false;
 							};
 
-						if (findString(entry.inputCasKeyOffsets) || findString(entry.outputCasKeyOffsets))
-							visibleIndices.insert(index);
+						writeLine(line.Clear().Append(TC("   Inputs:")).data);
+						writeOffsets(entry.inputCasKeyOffsets);
+						writeLine(line.Clear().Append(TC("   Outputs:")).data);
+						writeOffsets(entry.outputCasKeyOffsets);
 						++index;
 					}
-					if (visibleIndices.empty())
-						continue;
-				}
-
-
-				StringBuffer<> line;
-				writeLine(CasKeyString(kv2.first).str);
-				u32 index = 0;
-				for (auto& entry : entries.entries)
-				{
-					if (!visibleIndices.empty() && visibleIndices.find(index) == visibleIndices.end())
-					{
-						++index;
-						continue;
-					}
-
-					u64 age = MsToTime(GetFileTimeAsSeconds(now - entry.creationTime)*1000);
-					writeLine(line.Clear().Appendf(TC("  #%u (%s ago)"), index, TimeToText(age, true).str).data);
-
-					auto writeOffsets = [&](const Vector<u8>& offsets)
-						{
-							BinaryReader reader2(offsets.data(), 0, offsets.size());
-							while (reader2.GetLeft())
-							{
-								u64 offset = reader2.Read7BitEncoded();
-								CasKey casKey;
-								StringBuffer<> path;
-								bucket.m_casKeyTable.GetPathAndKey(path, casKey, bucket.m_pathTable, offset);
-								writeLine(line.Clear().Appendf(TC("    %s - %s"), path.data, CasKeyString(casKey).str).data);
-							}
-						};
-
-					writeLine(line.Clear().Append (TC("   Inputs:")).data);
-					writeOffsets(entry.inputCasKeyOffsets);
-					writeLine(line.Clear().Append (TC("   Outputs:")).data);
-					writeOffsets(entry.outputCasKeyOffsets);
-					++index;
 				}
 			}
 		}
+		else if (command.Equals(TC("status")))
+		{
+			writeLine(TC("UbaCacheServer status"));
+			writeLine(line.Clear().Appendf(TC("  Uptime: %s"), TimeToText(GetTime() - m_startTime).str).data);
+			writeLine(line.Clear().Appendf(TC("  Longest maintenance: %s"), TimeToText(m_longestMaintenance).str).data);
+			writeLine(line.Clear().Appendf(TC("  Buckets:")).data);
+			u32 index = 0;
+			for (auto& kv : m_buckets)
+			{
+				Bucket& bucket = kv.second;
+				writeLine(line.Clear().Appendf(TC("    #%u - %llu"), index++, kv.first).data);
+				writeLine(line.Clear().Appendf(TC("      PathTable: %s"), BytesToText(bucket.m_pathTable.GetSize()).str).data);
+				writeLine(line.Clear().Appendf(TC("      CasKeyTable: %s"), BytesToText(bucket.m_casKeyTable.GetSize()).str).data);
+			}
 
-		if (!success || !file.Close())
+			u64 totalCasSize = 0;
+			u64 totalCasCount = 0;
+			m_storage.TraverseAllCasFiles([&](const CasKey& casKey, u64 size) { ++totalCasCount; totalCasSize += size; });
+			writeLine(line.Clear().Appendf(TC("  CasDb:")).data);
+			writeLine(line.Clear().Appendf(TC("    Count: %llu"), totalCasCount).data);
+			writeLine(line.Clear().Appendf(TC("    Size: %s"), BytesToText(totalCasSize).str).data);
+		}
+		else
+		{
+			writeLine(line.Clear().Appendf(TC("Unknown command: %s"), command.data).data);
+		}
+
+		Write("", 1);
+
+		if (!writeSuccess || !file.Close())
 			return false;
 
 		CasKey key;

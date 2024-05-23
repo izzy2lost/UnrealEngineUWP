@@ -16,7 +16,7 @@ namespace uba
 	static constexpr u32 SystemNetworkVersion = 1339;
 	static constexpr u32 StorageNetworkVersion = 4;
 	static constexpr u32 SessionNetworkVersion = 32;
-	static constexpr u32 CacheNetworkVersion = 2;
+	static constexpr u32 CacheNetworkVersion = 3;
 
 	static constexpr u32 CachePathTableMaxSize = 32*1024*1024;
 	static constexpr u32 CacheCasKeyTableMaxSize = 32*1024*1024;
@@ -110,7 +110,7 @@ namespace uba
 		UBA_CACHE_MESSAGE(FetchPathTable) \
 		UBA_CACHE_MESSAGE(FetchCasTable) \
 		UBA_CACHE_MESSAGE(FetchEntries) \
-		UBA_CACHE_MESSAGE(CreateStatusFile) \
+		UBA_CACHE_MESSAGE(ExecuteCommand) \
 		UBA_CACHE_MESSAGE(RequestShutdown) \
 
 	enum CacheMessageType : u8

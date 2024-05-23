@@ -398,6 +398,7 @@ namespace uba
 
 		m_stats.sendCasBytesRaw += sourceSize;
 		m_stats.sendCasBytesComp += fileSize;
+		m_bytesSent = fileSize;
 
 		return true;
 	}
