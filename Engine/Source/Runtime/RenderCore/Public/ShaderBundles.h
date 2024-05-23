@@ -65,7 +65,8 @@ class FDispatchShaderBundleWorkGraph : public FGlobalShader
 	struct FEntryNodeRecord
 	{
 		uint32 DispatchGridSize;
-		uint32 NumItems;
+		uint32 RecordCount;
+		FUintPoint PlatformData;
 	};
-	RENDERCORE_API static FEntryNodeRecord MakeInputRecord(uint32 ShaderBundleRecordNum);
+	RENDERCORE_API static FEntryNodeRecord MakeInputRecord(uint32 RecordCount, uint32 ArgOffset, uint32 ArgStride);
 };

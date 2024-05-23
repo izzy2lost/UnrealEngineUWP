@@ -11,6 +11,14 @@
 #include "PipelineStateCache.h"
 #include "ShaderBundles.h"
 
+static bool GShaderBundleSkipDispatch = false;
+static FAutoConsoleVariableRef CVarShaderBundleSkipDispatch(
+	TEXT("wg.ShaderBundle.SkipDispatch"),
+	GShaderBundleSkipDispatch,
+	TEXT("Whether to dispatch the built shader bundle pipeline (for debugging)"),
+	ECVF_RenderThreadSafe
+);
+
 FD3D12WorkGraphPipelineState::FD3D12WorkGraphPipelineState(FD3D12Device* Device, const FWorkGraphPipelineStateInitializer& Initializer)
 {
 #if D3D12_RHI_WORKGRAPHS
@@ -49,7 +57,7 @@ FD3D12WorkGraphPipelineState::FD3D12WorkGraphPipelineState(FD3D12Device* Device,
 				Lib->SetDXILLibrary(&LibCode);
 
 				FString NodeName = FString::Printf(TEXT("%s_%d"), *Initializer.GetShaderBundleNodeName(), Index);
-				Lib->DefineExport(*NodeName, *Initializer.GetShaderBundleEntryPointName());
+				Lib->DefineExport(*NodeName, *NodeShader->EntryPoint);
 
 				CD3DX12_LOCAL_ROOT_SIGNATURE_SUBOBJECT* LocalRootSignature = StateObjectDesc.CreateSubobject<CD3DX12_LOCAL_ROOT_SIGNATURE_SUBOBJECT>();
 				LocalRootSignature->SetRootSignature(NodeShader->RootSignature->GetRootSignature());
@@ -587,7 +595,7 @@ void FD3D12CommandContext::DispatchWorkGraphShaderBundle(FRHIShaderBundle* Shade
 	FWorkGraphPipelineStateInitializer Initializer;
 	Initializer.SetProgramName(TEXT("ShaderBundleWorkGraph"));
 	Initializer.SetShader(WorkGraphGlobalShaderRHI);
-	Initializer.SetShaderBundleNodeTable(LocalNodeShaders, TEXT("MainCS"), TEXT("ShaderBundleNode"));
+	Initializer.SetShaderBundleNodeTable(LocalNodeShaders, TEXT("ShaderBundleNode"));
 
 	FWorkGraphPipelineState* WorkGraphPipelineState = PipelineStateCache::GetAndOrCreateWorkGraphPipelineState(RHICmdList, Initializer);
 	FD3D12WorkGraphPipelineState* Pipeline = static_cast<FD3D12WorkGraphPipelineState*>(GetRHIWorkGraphPipelineState(WorkGraphPipelineState));
@@ -752,15 +760,18 @@ void FD3D12CommandContext::DispatchWorkGraphShaderBundle(FRHIShaderBundle* Shade
 	SetProgramDesc.WorkGraph.NodeLocalRootArgumentsTable = NodeLocalRootArgumentsTable;
 	GraphicsCommandList10()->SetProgram(&SetProgramDesc);
 
-	FDispatchShaderBundleWorkGraph::FEntryNodeRecord InputRecord = FDispatchShaderBundleWorkGraph::MakeInputRecord(NumRecords);
+	FDispatchShaderBundleWorkGraph::FEntryNodeRecord InputRecord = FDispatchShaderBundleWorkGraph::MakeInputRecord(NumRecords, ShaderBundle->ArgOffset, ShaderBundle->ArgStride);
 
-	D3D12_DISPATCH_GRAPH_DESC DispatchGraphDesc = {};
-	DispatchGraphDesc.Mode = D3D12_DISPATCH_MODE_NODE_CPU_INPUT;
-	DispatchGraphDesc.NodeCPUInput.EntrypointIndex = 0;
-	DispatchGraphDesc.NodeCPUInput.NumRecords = 1;
-	DispatchGraphDesc.NodeCPUInput.RecordStrideInBytes = sizeof(InputRecord);
-	DispatchGraphDesc.NodeCPUInput.pRecords = &InputRecord;
-	GraphicsCommandList10()->DispatchGraph(&DispatchGraphDesc);
+	if (!GShaderBundleSkipDispatch)
+	{
+		D3D12_DISPATCH_GRAPH_DESC DispatchGraphDesc = {};
+		DispatchGraphDesc.Mode = D3D12_DISPATCH_MODE_NODE_CPU_INPUT;
+		DispatchGraphDesc.NodeCPUInput.EntrypointIndex = 0;
+		DispatchGraphDesc.NodeCPUInput.NumRecords = 1;
+		DispatchGraphDesc.NodeCPUInput.RecordStrideInBytes = sizeof(InputRecord);
+		DispatchGraphDesc.NodeCPUInput.pRecords = &InputRecord;
+		GraphicsCommandList10()->DispatchGraph(&DispatchGraphDesc);
+	}
 
 	// Pipeline state memory should now be initialized.
 	Pipeline->bInitialized = true;

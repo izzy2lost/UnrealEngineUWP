@@ -575,7 +575,7 @@ struct FNaniteRasterMaterialCacheKey
 	{
 		struct
 		{
-			uint16 FeatureLevel					: 4;
+			uint16 FeatureLevel					: 3;
 			uint16 bWPOEnabled					: 1;
 			uint16 bPerPixelEval				: 1;
 			uint16 bUseMeshShader				: 1;
@@ -588,6 +588,7 @@ struct FNaniteRasterMaterialCacheKey
 			uint16 bSplineMesh					: 1;
 			uint16 bSkinnedMesh					: 1;
 			uint16 bFixedDisplacementFallback	: 1;
+			uint16 bUseWorkGraph				: 1;
 		};
 
 		uint16 Packed = 0;
@@ -609,6 +610,7 @@ struct FNaniteRasterMaterialCacheKey
 	}
 };
 
+static_assert((int32)ERHIFeatureLevel::Num <= 8);
 static_assert(sizeof(FNaniteRasterMaterialCacheKey) == sizeof(uint16));
 
 inline uint32 GetTypeHash(const FNaniteRasterMaterialCacheKey& Key)

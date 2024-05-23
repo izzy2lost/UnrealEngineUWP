@@ -42,8 +42,6 @@ static_assert(1 + NANITE_MAX_NODES_PER_PRIMITIVE_BITS + NANITE_MAX_VIEWS_PER_CUL
 static_assert(1 + NANITE_MAX_BVH_NODES_PER_GROUP <= 32, "FCandidateNode.z fields don't fit in 32bits");
 static_assert(NANITE_MAX_INSTANCES <= MAX_INSTANCE_ID, "Nanite must be able to represent the full scene instance ID range");
 
-extern TAutoConsoleVariable<int32> CVarNaniteBundleEmulation;
-
 TAutoConsoleVariable<int32> CVarNaniteShowDrawEvents(
 	TEXT("r.Nanite.ShowMeshDrawEvents"),
 	0,
@@ -312,6 +310,15 @@ static TAutoConsoleVariable<float> CVarNaniteOccludedInstancesBufferSizeMultipli
 	1.0f,
 	TEXT("DEBUG"),
 	ECVF_RenderThreadSafe | ECVF_Default);
+
+extern TAutoConsoleVariable<int32> CVarNaniteBundleEmulation;
+
+extern bool CanUseShaderBundleWorkGraph(EShaderPlatform Platform);
+
+static bool UseWorkGraphForRasterBundles(EShaderPlatform Platform)
+{
+	return CVarNaniteBundleRaster.GetValueOnRenderThread() != 0 && CanUseShaderBundleWorkGraph(Platform) && CVarNaniteBundleEmulation.GetValueOnRenderThread() == 0;
+}
 
 static DynamicRenderScaling::FHeuristicSettings GetDynamicNaniteScalingPrimarySettings()
 {
@@ -1647,6 +1654,57 @@ class FMicropolyRasterizeCS : public FNaniteMaterialShader
 };
 IMPLEMENT_MATERIAL_SHADER_TYPE(, FMicropolyRasterizeCS, TEXT("/Engine/Private/Nanite/NaniteRasterizer.usf"), TEXT("MicropolyRasterize"), SF_Compute);
 
+class FMicropolyRasterizeWG : public FMicropolyRasterizeCS
+{
+public:
+	DECLARE_SHADER_TYPE(FMicropolyRasterizeWG, Material);
+
+	FMicropolyRasterizeWG() = default;
+	FMicropolyRasterizeWG(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+		: FMicropolyRasterizeCS(Initializer)
+	{
+	}
+	
+	static bool ShouldCompilePermutation(const FMaterialShaderPermutationParameters& Parameters)
+	{
+		return NaniteWorkGraphMaterialsSupported() && RHISupportsWorkGraphs(Parameters.Platform) && FMicropolyRasterizeCS::ShouldCompilePermutation(Parameters);
+	}
+
+	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FMicropolyRasterizeCS::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+
+		OutEnvironment.SetDefine(TEXT("WORKGRAPH_NODE"), 1);
+	}
+};
+IMPLEMENT_MATERIAL_SHADER_TYPE(, FMicropolyRasterizeWG, TEXT("/Engine/Private/Nanite/NaniteRasterizer.usf"), TEXT("MicropolyRasterize"), SF_WorkGraphComputeNode);
+
+static TShaderRef<FMicropolyRasterizeCS> GetMicropolyRasterizeShader(
+	FMaterialShaderMap const* InShaderMap,
+	FMicropolyRasterizeCS::FPermutationDomain& InPermutationVector,
+	EShaderFrequency InShaderFrequency)
+{
+	if (InShaderFrequency == SF_WorkGraphComputeNode)
+	{
+		return InShaderMap->GetShader<FMicropolyRasterizeWG>(InPermutationVector);
+	}
+	
+	return InShaderMap->GetShader<FMicropolyRasterizeCS>(InPermutationVector);
+}
+
+template<typename TShaderType, typename... TArguments>
+static inline void SetShaderParametersMixed(FRHIBatchedShaderParameters& BatchedParameters, const TShaderRef<TShaderType>& InShader, const typename TShaderType::FParameters& Parameters, EShaderFrequency Frequency, TArguments&&... InArguments)
+{
+	if (Frequency == SF_Compute)
+	{
+		SetShaderParametersMixedCS(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
+	}
+	else if (Frequency == SF_WorkGraphComputeNode)
+	{
+		SetShaderParametersMixedWS(BatchedParameters, InShader, Parameters, Forward<TArguments>(InArguments)...);
+	}
+}
+
 class FHWRasterizeVS : public FNaniteMaterialShader
 {
 	DECLARE_SHADER_TYPE(FHWRasterizeVS, Material);
@@ -2884,9 +2942,7 @@ private:
 							}
 						#endif
 							
-							Dispatch.Parameters_PS.Emplace(ScratchAllocator);
 							Dispatch.Parameters_MSVS.Emplace(ScratchAllocator);
-
 							if (IsMeshShaderRasterPath(HardwarePath))
 							{
 								SetShaderParametersMixedMS(*Dispatch.Parameters_MSVS, RasterizerPass.RasterMeshShader, Parameters, ViewInfo, RasterizerPass.VertexMaterialProxy, *RasterizerPass.VertexMaterial);
@@ -2895,8 +2951,11 @@ private:
 							{
 								SetShaderParametersMixedVS(*Dispatch.Parameters_MSVS, RasterizerPass.RasterVertexShader, Parameters, ViewInfo, RasterizerPass.VertexMaterialProxy, *RasterizerPass.VertexMaterial);
 							}
+							Dispatch.Parameters_MSVS->Finish();
 
+							Dispatch.Parameters_PS.Emplace(ScratchAllocator);
 							SetShaderParametersMixedPS(*Dispatch.Parameters_PS, RasterizerPass.RasterPixelShader, Parameters, ViewInfo, RasterizerPass.PixelMaterialProxy, *RasterizerPass.PixelMaterial);
+							Dispatch.Parameters_PS->Finish();
 
 							Dispatch.PipelineInitializer = GraphicsPSOInit;
 							Dispatch.PipelineState = FindGraphicsPipelineState(Dispatch.PipelineInitializer);
@@ -3058,6 +3117,8 @@ private:
 							Dispatch.RecordIndex = ~uint32(0u);
 						}
 
+						FRHIBatchedShaderParametersAllocator& ScratchAllocator = RHICmdList.GetScratchShaderParameters().Allocator;
+
 						for (const int32 Indirection : DispatchList.Indirections)
 						{
 							const FRasterizerPass& RasterizerPass = RasterizerPasses[Indirection];
@@ -3067,27 +3128,37 @@ private:
 							Dispatch.RecordIndex = RasterizerPass.RasterBin;
 							Dispatch.Constants = Parameters.PassData;
 
-							const TShaderRef<FMicropolyRasterizeCS>* ComputeShader = bPatches ? &RasterizerPass.PatchComputeShader : &RasterizerPass.ClusterComputeShader;
-							Dispatch.Shader = ComputeShader->GetComputeShader();
+							const TShaderRef<FMicropolyRasterizeCS>* Shader = bPatches ? &RasterizerPass.PatchComputeShader : &RasterizerPass.ClusterComputeShader;
+							const EShaderFrequency ShaderFrequency = Shader->GetShader()->GetFrequency();
+							Dispatch.Shader = ShaderFrequency == SF_Compute ? Shader->GetComputeShader() : nullptr;
+							Dispatch.WorkGraphShader = ShaderFrequency == SF_WorkGraphComputeNode ? Shader->GetWorkGraphShader() : nullptr;
+							
+							Dispatch.Parameters.Emplace(ScratchAllocator);
 
-							SetShaderParametersMixedCS(
+							SetShaderParametersMixed(
 								*Dispatch.Parameters,
-								*ComputeShader,
+								*Shader,
 								Parameters,
+								ShaderFrequency,
 								ViewInfo,
 								RasterizerPass.ComputeMaterialProxy,
 								*RasterizerPass.ComputeMaterial
 							);
 
+							Dispatch.Parameters->Finish();
+
 							// TODO: Implement support for testing precache and skipping if needed
 
 						#if PSO_PRECACHING_VALIDATE
-							EPSOPrecacheResult PSOPrecacheResult = PipelineStateCache::CheckPipelineStateInCache(Dispatch.Shader);
-							PSOCollectorStats::CheckComputePipelineStateInCache(*Dispatch.Shader, PSOPrecacheResult, RasterizerPass.ComputeMaterialProxy, PSOCollectorIndex);
+							if (Dispatch.Shader != nullptr)
+							{
+								EPSOPrecacheResult PSOPrecacheResult = PipelineStateCache::CheckPipelineStateInCache(Dispatch.Shader);
+								PSOCollectorStats::CheckComputePipelineStateInCache(*Dispatch.Shader, PSOPrecacheResult, RasterizerPass.ComputeMaterialProxy, PSOCollectorIndex);
+							}
 						#endif
 
-							Dispatch.PipelineState = FindComputePipelineState(Dispatch.Shader);
-							if (Dispatch.PipelineState == nullptr)
+							Dispatch.PipelineState = Dispatch.Shader != nullptr ? FindComputePipelineState(Dispatch.Shader) : nullptr;
+							if (Dispatch.Shader != nullptr && Dispatch.PipelineState == nullptr)
 							{
 								// If we don't have precaching, then GetComputePipelineState() might return a PipelineState that isn't ready.
 								const bool bSkipDraw = !PipelineStateCache::IsPSOPrecachingEnabled();
@@ -3101,7 +3172,7 @@ private:
 								}
 							}
 
-							if (RHICmdList.Bypass())
+							if (Dispatch.PipelineState != nullptr && RHICmdList.Bypass())
 							{
 								Dispatch.RHIPipeline = ExecuteSetComputePipelineState(Dispatch.PipelineState);
 							}
@@ -4277,9 +4348,14 @@ FBinningData FRenderer::AddPass_Binning(
 	return BinningData;
 }
 
-static bool UseRasterShaderBundle(EShaderPlatform Platform)
+static bool UseRasterShaderBundleSW(EShaderPlatform Platform)
 {
-	return CVarNaniteBundleRaster.GetValueOnRenderThread() != 0 && (!!GRHISupportsShaderBundleDispatch);
+	return CVarNaniteBundleRaster.GetValueOnRenderThread() != 0 && (!!GRHISupportsShaderBundleDispatch || CanUseShaderBundleWorkGraph(Platform));
+}
+
+static bool UseRasterShaderBundleHW(EShaderPlatform Platform)
+{
+	return CVarNaniteBundleRaster.GetValueOnRenderThread() != 0 && !!GRHISupportsShaderBundleDispatch;
 }
 
 void FRenderer::PrepareRasterizerPasses(
@@ -4303,8 +4379,11 @@ void FRenderer::PrepareRasterizerPasses(
 
 	Context.MetaBufferData.SetNumZeroed(RasterBinCount);
 
+	Context.SWShaderBundle = nullptr;
+	Context.HWShaderBundle = nullptr;
+
 	// Create Shader Bundle
-	if (UseRasterShaderBundle(GetFeatureLevelShaderPlatform(FeatureLevel)) && RasterBinCount > 0)
+	if (RasterBinCount > 0)
 	{
 		/*  Nanite Notes:
 				8x Total DWords
@@ -4330,6 +4409,7 @@ void FRenderer::PrepareRasterizerPasses(
 		const uint32 ArgStride = NANITE_RASTERIZER_ARG_COUNT * 4u;
 		
 		// SW shader bundle
+		if (UseRasterShaderBundleSW(GetFeatureLevelShaderPlatform(FeatureLevel)))
 		{
 			FShaderBundleCreateInfo BundleCreateInfo;
 			BundleCreateInfo.ArgOffset = 0u;
@@ -4341,6 +4421,7 @@ void FRenderer::PrepareRasterizerPasses(
 		}
 
 		// HW shader bundle
+		if (UseRasterShaderBundleHW(GetFeatureLevelShaderPlatform(FeatureLevel)))
 		{
 			FShaderBundleCreateInfo BundleCreateInfo;
 			BundleCreateInfo.ArgOffset = 16u;
@@ -4350,11 +4431,6 @@ void FRenderer::PrepareRasterizerPasses(
 			Context.HWShaderBundle = RHICreateShaderBundle(BundleCreateInfo);
 			check(Context.HWShaderBundle != nullptr);
 		}
-	}
-	else
-	{
-		Context.SWShaderBundle = nullptr;
-		Context.HWShaderBundle = nullptr;
 	}
 
 	static UE::Tasks::FPipe GNaniteRasterSetupPipe(TEXT("NaniteRasterSetupPipe"));
@@ -4392,6 +4468,9 @@ void FRenderer::PrepareRasterizerPasses(
 
 		FMicropolyRasterizeCS::FPermutationDomain PermutationVectorCS_Cluster;
 		FMicropolyRasterizeCS::FPermutationDomain PermutationVectorCS_Patch;
+
+		const bool bUseWorkGraphShaders = UseWorkGraphForRasterBundles(GetFeatureLevelShaderPlatform(FeatureLevel));
+		const EShaderFrequency ShaderFrequencyCS = bUseWorkGraphShaders ? SF_WorkGraphComputeNode : SF_Compute;
 
 		SetupPermutationVectors(
 			RasterMode,
@@ -4446,7 +4525,7 @@ void FRenderer::PrepareRasterizerPasses(
 			PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FSplineDeformDim>(RasterizerPass.bSplineMesh);
 			PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FSkinningDim>(RasterizerPass.bSkinnedMesh);
 			PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FFixedDisplacementFallbackDim>(bFixedDisplacementFallback);
-			RasterizerPass.ClusterComputeShader = FixedMaterialShaderMap->GetShader<FMicropolyRasterizeCS>(PermutationVectorCS_Cluster);
+			RasterizerPass.ClusterComputeShader = GetMicropolyRasterizeShader(FixedMaterialShaderMap, PermutationVectorCS_Cluster, ShaderFrequencyCS);
 			check(!RasterizerPass.ClusterComputeShader.IsNull());
 
 			RasterizerPass.PatchComputeShader.Reset();
@@ -4577,6 +4656,12 @@ void FRenderer::PrepareRasterizerPasses(
 								RasterizerPass.ComputeMaterial = Material;
 							}
 
+							if (ProgrammableShaders.TryGetWorkGraphShader(&RasterizerPass.ClusterComputeShader) && (!RasterizerPass.bDisplacement || PatchShader.TryGetWorkGraphShader(&RasterizerPass.PatchComputeShader)))
+							{
+								RasterizerPass.ComputeMaterialProxy = ProgrammableRasterProxy;
+								RasterizerPass.ComputeMaterial = Material;
+							}
+
 							break;
 						}
 					}
@@ -4681,6 +4766,7 @@ void FRenderer::PrepareRasterizerPasses(
 				RasterMaterialCacheKey.bSplineMesh = RasterEntry.RasterPipeline.bSplineMesh;
 				RasterMaterialCacheKey.bSkinnedMesh = RasterEntry.RasterPipeline.bSkinnedMesh;
 				RasterMaterialCacheKey.bFixedDisplacementFallback = RasterEntry.RasterPipeline.bFixedDisplacementFallback;
+				RasterMaterialCacheKey.bUseWorkGraph = bUseWorkGraphShaders;
 			}
 
 			FNaniteRasterMaterialCache  EmptyCache;
@@ -4758,7 +4844,8 @@ void FRenderer::PrepareRasterizerPasses(
 					PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FPixelProgrammableDim>(RasterizerPass.bPixelProgrammable);
 					PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FSplineDeformDim>(RasterizerPass.bSplineMesh);
 					PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FSkinningDim>(RasterizerPass.bSkinnedMesh);
-					RasterizerPass.ClusterComputeShader = ComputeShaderMap->GetShader<FMicropolyRasterizeCS>(PermutationVectorCS_Cluster);
+
+					RasterizerPass.ClusterComputeShader = GetMicropolyRasterizeShader(ComputeShaderMap, PermutationVectorCS_Cluster, ShaderFrequencyCS);
 					check(!RasterizerPass.ClusterComputeShader.IsNull());
 				}
 
@@ -4773,7 +4860,8 @@ void FRenderer::PrepareRasterizerPasses(
 					PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FPixelProgrammableDim>(RasterizerPass.bPixelProgrammable);
 					PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FSplineDeformDim>(RasterizerPass.bSplineMesh);
 					PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FSkinningDim>(RasterizerPass.bSkinnedMesh);
-					RasterizerPass.PatchComputeShader = ComputeShaderMap->GetShader<FMicropolyRasterizeCS>(PermutationVectorCS_Patch);
+
+					RasterizerPass.PatchComputeShader = GetMicropolyRasterizeShader(ComputeShaderMap, PermutationVectorCS_Patch, ShaderFrequencyCS);
 					check(!RasterizerPass.PatchComputeShader.IsNull());
 				}
 

@@ -4331,30 +4331,27 @@ public:
 
 	FRHIWorkGraphShader* GetShader() const { return BaseShader; }
 
-	void SetShaderBundleNodeTable(const TArrayView<FRHIWorkGraphShader*>& InShaders, TCHAR const* InEntryPointName, TCHAR const* InNodeName, uint64 Hash = 0)
+	void SetShaderBundleNodeTable(const TArrayView<FRHIWorkGraphShader*>& InShaders, TCHAR const* InNodeName, uint64 Hash = 0)
 	{
 		ShaderBundleNodeTable = InShaders;
 		ShaderBundleNodeHash = Hash ? Hash : ComputeShaderTableHash(InShaders);
 
-		ShaderBundleEntryPointName = InEntryPointName;
 		ShaderBundleNodeName = InNodeName;
 		NameHash = ComputeNameHash();
 	}
 
 	const TArrayView<FRHIWorkGraphShader*>& GetShaderBundleNodeTable() const { return ShaderBundleNodeTable; }
-	const FString& GetShaderBundleEntryPointName() const { return ShaderBundleEntryPointName; }
 	const FString& GetShaderBundleNodeName() const { return ShaderBundleNodeName; }
 
 private:
 	uint64 ComputeNameHash() const
 	{
-		return HashCombineFast(HashCombineFast(GetTypeHash(ProgramName), GetTypeHash(ShaderBundleEntryPointName)), GetTypeHash(ShaderBundleNodeName));
+		return HashCombineFast(GetTypeHash(ProgramName), GetTypeHash(ShaderBundleNodeName));
 	}
 
 	FRHIWorkGraphShader* BaseShader = nullptr;
 	FString ProgramName;
 	TArrayView<FRHIWorkGraphShader*> ShaderBundleNodeTable;
-	FString ShaderBundleEntryPointName;
 	FString ShaderBundleNodeName;
 };
 

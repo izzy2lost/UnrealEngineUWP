@@ -62,7 +62,7 @@ int32 FDispatchShaderBundleWorkGraph::GetMaxShaderBundleSize()
 	return ShaderBundleMaxSize; 
 }
 
-FDispatchShaderBundleWorkGraph::FEntryNodeRecord FDispatchShaderBundleWorkGraph::MakeInputRecord(uint32 ShaderBundleRecordNum)
+FDispatchShaderBundleWorkGraph::FEntryNodeRecord FDispatchShaderBundleWorkGraph::MakeInputRecord(uint32 RecordCount, uint32 ArgOffset, uint32 ArgStride)
 {
-	return FEntryNodeRecord{ (ShaderBundleRecordNum + ThreadGroupSizeX - 1) / ThreadGroupSizeX, ShaderBundleRecordNum };
+	return FEntryNodeRecord{ (RecordCount + ThreadGroupSizeX - 1) / ThreadGroupSizeX, RecordCount, FUintPoint(ArgOffset, ArgStride) };
 }

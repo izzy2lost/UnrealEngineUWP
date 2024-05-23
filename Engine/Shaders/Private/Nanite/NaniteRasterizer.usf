@@ -16,6 +16,14 @@
 #include "NaniteDice.ush"
 #endif
 
+#ifndef WORKGRAPH_NODE
+#define WORKGRAPH_NODE 0
+#endif
+
+#if WORKGRAPH_NODE
+#include "../ShaderBundleWorkGraphCommon.ush"
+#endif
+
 // Update this GUID to bump and recompile all Nanite rasterization material shaders
 // Merge conflicts on this line should be resolved by generating a new GUID
 #pragma message("UESHADERMETADATA_VERSION B20522DE-A547-4F57-91DE-E2E649224894")
@@ -1009,11 +1017,21 @@ void PatchRasterize( uint GroupID, uint GroupThreadIndex )
 #endif
 }
 
+
+#if WORKGRAPH_NODE
+[Shader("node")]
+[NodeLaunch("broadcasting")]
+[NodeMaxDispatchGrid(65535,1,1)]
+#endif
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void MicropolyRasterize(
 	uint DispatchThreadID	: SV_DispatchThreadID,
 	uint GroupID			: SV_GroupID,
-	uint GroupIndex			: SV_GroupIndex) 
+	uint GroupIndex			: SV_GroupIndex
+#if WORKGRAPH_NODE
+	, DispatchNodeInputRecord<FShaderBundleNodeRecord> InputRecord
+#endif
+	) 
 {
 #if PATCHES
 	PatchRasterize( GroupID, GroupIndex );

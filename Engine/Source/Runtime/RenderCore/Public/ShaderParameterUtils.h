@@ -342,6 +342,13 @@ inline void SetShaderParametersMixedCS(FRHIBatchedShaderParameters& BatchedParam
 	SetBatchedShaderParametersMixed(BatchedParameters, InShader, InShader.GetComputeShader(), Parameters, Forward<TArguments>(InArguments)...);
 }
 
+/// Utility to set all legacy and non-legacy parameters for a WorkGraph shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
+template<typename TShaderType, typename... TArguments>
+inline void SetShaderParametersMixedWS(FRHIBatchedShaderParameters& BatchedParameters, const TShaderRef<TShaderType>& InShader, const typename TShaderType::FParameters& Parameters, TArguments&&... InArguments)
+{
+	SetBatchedShaderParametersMixed(BatchedParameters, InShader, InShader.GetWorkGraphShader(), Parameters, Forward<TArguments>(InArguments)...);
+}
+
 /// Utility to set all legacy and non-legacy parameters for a Vertex shader. Requires the shader type to implement SetParameters(FRHIBatchedShaderParameters& BatchedParameters, ...)
 template<typename TRHICmdList, typename TShaderType, typename... TArguments>
 inline void SetShaderParametersMixedVS(TRHICmdList& RHICmdList, const TShaderRef<TShaderType>& InShader, const typename TShaderType::FParameters& Parameters, TArguments&&... InArguments)

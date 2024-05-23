@@ -150,7 +150,7 @@ static FAutoConsoleVariableRef CVarNaniteValidateShadeBinning(
 	ECVF_RenderThreadSafe
 );
 
-static bool CanUseShaderBundleWorkGraph(EShaderPlatform Platform)
+bool CanUseShaderBundleWorkGraph(EShaderPlatform Platform)
 {
 	static bool bNaniteBundleSupportWorkGraphs = NaniteWorkGraphMaterialsSupported();
 #if !PLATFORM_CPU_ARM_FAMILY && (PLATFORM_WINDOWS)
@@ -162,7 +162,7 @@ static bool CanUseShaderBundleWorkGraph(EShaderPlatform Platform)
 	return bValidDevice && bNaniteBundleSupportWorkGraphs && !!GRHISupportsShaderBundleWorkGraphDispatch && RHISupportsWorkGraphs(Platform);
 }
 
-static bool UseWorkGraphShaders(EShaderPlatform Platform)
+static bool UseWorkGraphForShadingBundles(EShaderPlatform Platform)
 {
 	return  GNaniteBundleShading != 0 && CanUseShaderBundleWorkGraph(Platform) && CVarNaniteBundleEmulation.GetValueOnRenderThread() == 0;
 }
@@ -606,7 +606,7 @@ bool LoadBasePassPipeline(
 
 	bool bRenderSkylight = false;
 
-	const bool bUseWorkGraphShaders = UseWorkGraphShaders(Scene.GetShaderPlatform());
+	const bool bUseWorkGraphShaders = UseWorkGraphForShadingBundles(Scene.GetShaderPlatform());
 	TShaderRef<TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>> BasePassShader;
 
 	auto LoadShadingMaterial = [&](const FMaterialRenderProxy* MaterialProxyPtr)

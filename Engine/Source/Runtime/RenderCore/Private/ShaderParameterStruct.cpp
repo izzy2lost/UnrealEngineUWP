@@ -263,6 +263,7 @@ void FShaderParameterBindings::BindForLegacyShaderParameters(const FShader* Shad
 	case SF_Pixel:
 	case SF_Geometry:
 	case SF_Compute:
+	case SF_WorkGraphComputeNode:
 		break;
 	default:
 		checkf(0, TEXT("Invalid shader frequency for this shader binding technique."));
