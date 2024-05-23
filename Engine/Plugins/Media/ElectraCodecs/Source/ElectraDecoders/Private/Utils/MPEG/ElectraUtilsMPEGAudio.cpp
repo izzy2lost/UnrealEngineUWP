@@ -182,6 +182,167 @@ namespace ElectraDecodersUtil
 			//int64 remainingBits = bsp.GetRemainingBits();
 			return true;
 		}
+
+
+
+
+		namespace UtilsMPEG123
+		{
+			bool HasValidSync(uint32 InFrameHeader)
+			{
+				return (InFrameHeader & 0xffe00000U) == 0xffe00000U;
+			}
+
+			int32 GetVersionId(uint32 InFrameHeader)
+			{
+				check(HasValidSync(InFrameHeader));
+				return (int32) ((InFrameHeader >> 19) & 3U);
+			}
+
+			int32 GetLayerIndex(uint32 InFrameHeader)
+			{
+				check(HasValidSync(InFrameHeader));
+				return (int32) ((InFrameHeader >> 17) & 3U);
+			}
+
+			int32 GetBitrateIndex(uint32 InFrameHeader)
+			{
+				check(HasValidSync(InFrameHeader));
+				return (int32) ((InFrameHeader >> 12) & 15U);
+			}
+
+			int32 GetSamplingRateIndex(uint32 InFrameHeader)
+			{
+				check(HasValidSync(InFrameHeader));
+				return (int32) ((InFrameHeader >> 10) & 3U);
+			}
+
+			int32 GetChannelMode(uint32 InFrameHeader)
+			{
+				check(HasValidSync(InFrameHeader));
+				return (int32) ((InFrameHeader >> 6) & 3U);
+			}
+
+			int32 GetNumPaddingBytes(uint32 InFrameHeader)
+			{
+				check(HasValidSync(InFrameHeader));
+				return (int32) ((InFrameHeader >> 9) & 1U);
+			}
+
+			int32 GetVersion(uint32 InFrameHeader)
+			{
+				switch(GetVersionId(InFrameHeader))
+				{
+					default:
+						return 0;
+					case 0:
+						return 3;
+					case 2:
+						return 2;
+					case 3:
+						return 1;
+				}
+			}
+
+
+			int32 GetLayer(uint32 InFrameHeader)
+			{
+				switch(GetLayerIndex(InFrameHeader))
+				{
+					default:
+						return 0;
+					case 1:
+						return 3;
+					case 2:
+						return 2;
+					case 3:
+						return 1;
+				}
+			}
+
+			int32 GetBitrate(uint32 InFrameHeader)
+			{
+				static const int16 kBitrateTableMPEG1[3][16] =
+				{
+					{ 0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, -1 },
+					{ 0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, -1 },
+					{ 0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, -1 }
+				};
+				static const int16 kBitrateTableMPEG2[3][16] =
+				{
+					{ 0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256, -1 },
+					{ 0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160 , -1 },
+					{ 0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160 , -1 }
+				};
+				int32 Version = GetVersion(InFrameHeader);
+				int32 Layer = GetLayer(InFrameHeader);
+				int32 BitrateIndex = GetBitrateIndex(InFrameHeader);
+				if (Version == 0 || Layer == 0 || BitrateIndex == 15)
+				{
+					return -1;
+				}
+				int32 bps = Version == 1 ? kBitrateTableMPEG1[Layer - 1][BitrateIndex] : kBitrateTableMPEG2[Layer - 1][BitrateIndex];
+				return bps * 1000;
+			}
+
+			int32 GetSamplingRate(uint32 InFrameHeader)
+			{
+				static const int32 kSamplingRates[4][4] =
+				{
+					{ -1, -1, -1, -1 },				// invalid
+					{ 44100, 48000, 32000, -1 },	// MPEG 1
+					{ 22050, 24000, 16000, -1 },	// MPEG 2
+					{ 11025, 12000,  8000, -1 }		// MPEG 2.5
+				};
+				int32 Version = GetVersion(InFrameHeader);
+				int32 SampleRateIndex = GetSamplingRateIndex(InFrameHeader);
+				return kSamplingRates[Version][SampleRateIndex];
+			}
+			int32 GetChannelCount(uint32 InFrameHeader)
+			{
+				return GetChannelMode(InFrameHeader) == 3 ? 1 : 2;
+			}
+
+			int32 GetFrameSize(uint32 InFrameHeader, int32 InForcedPadding)
+			{
+				static const int32 kNumCoeffs[2][3] =
+				{
+					{ 12, 144, 144 },		// MPEG 1 (layer 1, 2, 3)
+					{ 12, 144, 72 }			// MPEG 2 / 2.5 (layer 1, 2, 3)
+				};
+				static const int32 kSlotSize[3] =
+				{
+					4, 1, 1					// Layer 1, 2, 3
+				};
+
+				int32 NumPadding = InForcedPadding < 0 ? GetNumPaddingBytes(InFrameHeader) : InForcedPadding;
+				int32 Version = GetVersion(InFrameHeader);
+				int32 Layer = GetLayer(InFrameHeader);
+				int32 Bitrate = GetBitrate(InFrameHeader);
+				int32 SampleRate = GetSamplingRate(InFrameHeader);
+				if (Version == 0 || Layer == 0 || Bitrate <= 0 || SampleRate <= 0)
+				{
+					return 0;
+				}
+				int32 FrameSize = (kNumCoeffs[Version==1?0:1][Layer-1] * Bitrate / SampleRate + NumPadding) * kSlotSize[Layer-1];
+				return FrameSize;
+			}
+
+			int32 GetSamplesPerFrame(uint32 InFrameHeader)
+			{
+				static const int32 kSamplesPerFrame[2][4] =
+				{
+					{ 0, 384, 1152, 1152 },	// MPEG 1 (layer 1, 2, 3)
+					{ 0, 384, 1152, 576 }	// MPEG 2 / 2.5 (layer 1, 2, 3)
+				};
+				int32 Version = GetVersion(InFrameHeader);
+				int32 Layer = GetLayer(InFrameHeader);
+				return kSamplesPerFrame[Version==1?0:1][Layer];
+			}
+
+		} // namespace UtilsMPEG123
+
+
 	} // namespace MPEG
 } // namespace ElectraDecodersUtil
 

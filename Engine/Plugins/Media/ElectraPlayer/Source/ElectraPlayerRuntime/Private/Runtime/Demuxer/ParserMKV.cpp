@@ -864,9 +864,9 @@ namespace Electra
 		public:
 			FMKVSeekHead(uint32 InID, int64 InByteOffset, int64 InByteSize) : FMKVEBMLElement(InID, InByteOffset, InByteSize) { }
 			virtual ~FMKVSeekHead() = default;
-			virtual EParseResult ParseElement(IMKVFetcher* InReader) 
-			{ 
-				EParseResult Result = ParseElementList(Elements, InReader); 
+			virtual EParseResult ParseElement(IMKVFetcher* InReader)
+			{
+				EParseResult Result = ParseElementList(Elements, InReader);
 				// We sort the Seek elements by their file position. This may avoid too many random file accesses
 				// when loading the elements after a cluster.
 				Seeks.Sort([](const TMKVElementPtr<FMKVSeek>& a, const TMKVElementPtr<FMKVSeek>& b){return a->GetSeekPosition() < b->GetSeekPosition();});
@@ -1166,9 +1166,9 @@ namespace Electra
 		public:
 			FMKVAudio(uint32 InID, int64 InByteOffset, int64 InByteSize) : FMKVEBMLElement(InID, InByteOffset, InByteSize) { }
 			virtual ~FMKVAudio() = default;
-			virtual EParseResult ParseElement(IMKVFetcher* InReader) 
-			{ 
-				EParseResult Result = ParseElementList(Elements, InReader); 
+			virtual EParseResult ParseElement(IMKVFetcher* InReader)
+			{
+				EParseResult Result = ParseElementList(Elements, InReader);
 				if (OutputSamplingFrequency == 0.0)
 				{
 					OutputSamplingFrequency = SamplingFrequency;
@@ -1324,8 +1324,8 @@ namespace Electra
 			FMKVContentEncodings(uint32 InID, int64 InByteOffset, int64 InByteSize) : FMKVEBMLElement(InID, InByteOffset, InByteSize) { }
 			virtual ~FMKVContentEncodings() = default;
 			virtual EParseResult ParseElement(IMKVFetcher* InReader)
-			{ 
-				EParseResult Result = ParseElementList(Elements, InReader); 
+			{
+				EParseResult Result = ParseElementList(Elements, InReader);
 				// The content encodings must be processed in descending `ContentEncodingOrder`, but it is not mandated
 				// that they are sorted such in the file. We sort them now.
 				ContentEncoding.StableSort([](const TMKVElementPtr<FMKVContentEncoding>& a, const TMKVElementPtr<FMKVContentEncoding>& b){return a->GetContentEncodingOrder() > b->GetContentEncodingOrder();});
@@ -1540,8 +1540,8 @@ namespace Electra
 		public:
 			FMKVChapters(uint32 InID, int64 InByteOffset, int64 InByteSize) : FMKVEBMLElement(InID, InByteOffset, InByteSize) { }
 			virtual ~FMKVChapters() = default;
-			virtual EParseResult ParseElement(IMKVFetcher* InReader) 
-			{ 
+			virtual EParseResult ParseElement(IMKVFetcher* InReader)
+			{
 				// Not using chapters. Skip over them.
 				return InReader->FetchSkipOver(ByteSize) ? EParseResult::Ok : EParseResult::Error;
 			}
@@ -1782,7 +1782,7 @@ namespace Electra
 			FMKVCues(uint32 InID, int64 InByteOffset, int64 InByteSize) : FMKVEBMLElement(InID, InByteOffset, InByteSize) { }
 			virtual ~FMKVCues() = default;
 			virtual EParseResult ParseElement(IMKVFetcher* InReader)
-			{ 
+			{
 				EParseResult Result = ParseElementList(Elements, InReader);
 				if (Result == EParseResult::Ok)
 				{
@@ -2022,7 +2022,7 @@ namespace Electra
 
 	public:
 		class FMKVTrack;
-		
+
 		class FMKVCueIterator : public IParserMKV::ICueIterator
 		{
 		public:
@@ -2449,6 +2449,9 @@ namespace Electra
 			{ TEXT("A_AAC/MPEG4/LC"), TEXT("aac") },
 			{ TEXT("A_AAC/MPEG4/LC/SBR"), TEXT("aac") },
 			{ TEXT("A_OPUS"), TEXT("Opus") },
+			{ TEXT("A_MPEG/L3"), TEXT("MPEG") },
+			{ TEXT("A_MPEG/L2"), TEXT("MPEG") },
+			{ TEXT("A_MPEG/L1"), TEXT("MPEG") },
 			//{ TEXT("S_TEXT/UTF8"), TEXT("") },
 			//{ TEXT("S_TEXT/WEBVTT"), TEXT("") },
 			//{ TEXT(""), TEXT("") },
@@ -2932,8 +2935,8 @@ namespace Electra
 			TArray<uint8> vpcC { 1,0,0,0, 0,0,0,0, 0,0,0,0 };
 			vpcC[4] = (uint8)OutCodecInformation.GetProfile();
 			vpcC[5] = (uint8)OutCodecInformation.GetProfileLevel();
-			vpcC[6] = (uint8)((OutCodecInformation.GetCodecVideoColorInfo().BitDepthLuma.Get(8) << 4) + 
-							  (OutCodecInformation.GetCodecVideoColorInfo().ChromaSubsampling.Get(0) << 1) + 
+			vpcC[6] = (uint8)((OutCodecInformation.GetCodecVideoColorInfo().BitDepthLuma.Get(8) << 4) +
+							  (OutCodecInformation.GetCodecVideoColorInfo().ChromaSubsampling.Get(0) << 1) +
 							   OutCodecInformation.GetCodecVideoColorInfo().VideoFullRangeFlag.Get(0));
 			vpcC[7] = (uint8)OutCodecInformation.GetCodecVideoColorInfo().ColourPrimaries.Get(2);
 			vpcC[8] = (uint8)OutCodecInformation.GetCodecVideoColorInfo().TransferCharacteristics.Get(2);
@@ -3076,8 +3079,8 @@ namespace Electra
 			TArray<uint8> vpcC { 1,0,0,0, 0,0,0,0, 0,0,0,0 };
 			vpcC[4] = (uint8)OutCodecInformation.GetProfile();
 			vpcC[5] = (uint8)OutCodecInformation.GetProfileLevel();
-			vpcC[6] = (uint8)((OutCodecInformation.GetCodecVideoColorInfo().BitDepthLuma.Get(8) << 4) + 
-							  (OutCodecInformation.GetCodecVideoColorInfo().ChromaSubsampling.Get(0) << 1) + 
+			vpcC[6] = (uint8)((OutCodecInformation.GetCodecVideoColorInfo().BitDepthLuma.Get(8) << 4) +
+							  (OutCodecInformation.GetCodecVideoColorInfo().ChromaSubsampling.Get(0) << 1) +
 							   OutCodecInformation.GetCodecVideoColorInfo().VideoFullRangeFlag.Get(0));
 			vpcC[7] = (uint8)OutCodecInformation.GetCodecVideoColorInfo().ColourPrimaries.Get(2);
 			vpcC[8] = (uint8)OutCodecInformation.GetCodecVideoColorInfo().TransferCharacteristics.Get(2);
@@ -3160,7 +3163,7 @@ namespace Electra
 			// The codec private data is (presumably) an `OpusHead` structure as described here
 			//   https://datatracker.ietf.org/doc/html/rfc7845#section-5.1
 			// according to the Matroska Opus *DRAFT* described here: https://wiki.xiph.org/MatroskaOpus
-			
+
 			TArray<uint8> OpusHead = InFromTrack->GetCodecPrivate();
 			const TArray<uint8> MagicOpusHeader {'O','p','u','s','H','e','a','d'};
 			if (OpusHead.Num() < 8 || FMemory::Memcmp(OpusHead.GetData(), MagicOpusHeader.GetData(), MagicOpusHeader.Num()))
@@ -3202,23 +3205,6 @@ namespace Electra
 			OutCodecInformation.SetCodecSpecifierRFC6381(TEXT("Opus"));
 			OutCodecInformation.SetSamplingRate(Audio->GetOutputSampleRate());
 			OutCodecInformation.SetNumberOfChannels(Audio->GetNumberOfChannels());
-#if 0
-			// If there is no default duration set we try to calculate it from the sample rate.
-			const int32 NumDecodedSamplesPerBlock = 960;
-			if (InFromTrack->GetDefaultDurationNanos() == 0)
-			{
-				FTimeFraction fr(NumDecodedSamplesPerBlock, (uint32)OutCodecInformation.GetSamplingRate());
-				if (fr.IsValid())
-				{
-					int64 nanos = fr.GetAsTimebase(1000000000);
-					check(nanos >= 0);
-					if (nanos >= 0)
-					{
-						InFromTrack->SetDefaultDurationNanos((uint64)nanos);
-					}
-				}
-			}
-#else
 			// If there is no default duration set we assume the encoded frame size was 20ms
 			if (InFromTrack->GetDefaultDurationNanos() == 0)
 			{
@@ -3233,7 +3219,39 @@ namespace Electra
 					}
 				}
 			}
-#endif
+			return true;
+		}
+		// MPEG audio?
+		else if (InFromTrack->GetTrackType() == EMKVTrackType::Audio && Codec4CC.Equals(TEXT("MPEG")))
+		{
+			TMKVElementPtr<FMKVAudio> Audio = InFromTrack->GetAudio();
+			if (!Audio.IsValid())
+			{
+				return false;
+			}
+
+			OutCodecInformation.SetStreamType(EStreamType::Audio);
+			OutCodecInformation.SetMimeType(TEXT("audio/mpeg"));
+			OutCodecInformation.SetCodec(FStreamCodecInformation::ECodec::Audio4CC);
+			OutCodecInformation.SetCodec4CC(Utils::Make4CC('m','p','g','a'));
+			OutCodecInformation.SetProfile(1);
+			FString Layer = InFromTrack->GetCodecID().Mid(8);
+			int32 LayerValue = 3;
+			if (Layer.Len())
+			{
+				LexFromString(LayerValue, *Layer);
+			}
+			OutCodecInformation.SetProfileLevel(LayerValue);
+			OutCodecInformation.SetStreamLanguageCode(InFromTrack->GetLanguage());
+			OutCodecInformation.SetCodecSpecifierRFC6381(TEXT("mp4a.6b"));
+			OutCodecInformation.SetSamplingRate(Audio->GetOutputSampleRate());
+			OutCodecInformation.SetNumberOfChannels(Audio->GetNumberOfChannels());
+			// If there is no default duration set we try to calculate it from the sample rate.
+			if (InFromTrack->GetDefaultDurationNanos() == 0)
+			{
+				UE_LOG(LogElectraMKVParser, Error, TEXT("A_MPEG requires a sample default duration specified in the track!"));
+				return false;
+			}
 			return true;
 		}
 		return false;
@@ -3840,7 +3858,7 @@ namespace Electra
 					{
 						int32 SampleSize = 0;
 						uint8 b;
-						do 
+						do
 						{
 							if (!Reader->Read(b))
 							{

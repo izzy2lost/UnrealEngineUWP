@@ -55,7 +55,7 @@ namespace Electra
 			for(uint32 i=0, Atom=In4CC; i<4; ++i, Atom<<=8)
 			{
 				int32 v = Atom >> 24;
-				if ((v >= 'A' && v <= 'Z') || (v >= 'a' && v <= 'z') || (v >= '0' && v <= '9') || v == '_')
+				if ((v >= 'A' && v <= 'Z') || (v >= 'a' && v <= 'z') || (v >= '0' && v <= '9') || v == '_' || v == '.')
 				{
 					Out.AppendChar(v);
 				}
@@ -7460,7 +7460,7 @@ namespace Electra
 
 	UEMediaError FParserISO14496_12::ParseMP4ASampleType(IPlayerSessionServices* PlayerSession, FTrack* Track, const FMP4Box* SampleBox)
 	{
-		auto HandleESDS = [PlayerSession, Track](const FMP4BoxESDS* ESDSBox, bool& bGotAudioFormat, bool& bIsSupported) -> bool
+		auto HandleESDS = [PlayerSession, Track](const FMP4BoxAudioSampleEntry* AudioSampleEntry, const FMP4BoxESDS* ESDSBox, bool& bGotAudioFormat, bool& bIsSupported) -> bool
 		{
 			if (!ESDSBox)
 			{
@@ -7495,6 +7495,37 @@ namespace Electra
 						}
 						Track->CodecInformation.GetExtras().Set(StreamCodecInformationOptions::SamplesPerBlock, FVariantValue(ConfigRecord.SBRSignal > 0 ? (int64)2048 : (int64)1024));
 					}
+
+					// Typically an mp4a track will not have a 'btrt' box because the bitrate is stored in the DecoderConfigDescriptor.
+					Track->BitrateInfo.BufferSizeDB = Track->CodecSpecificDataMP4A.GetBufferSize();
+					Track->BitrateInfo.MaxBitrate = Track->CodecSpecificDataMP4A.GetMaxBitrate();
+					Track->BitrateInfo.AvgBitrate = Track->CodecSpecificDataMP4A.GetAvgBitrate();
+					Track->CodecInformation.SetBitrate(Track->BitrateInfo.MaxBitrate);
+
+					bGotAudioFormat = true;
+
+					if (PlayerSession)
+					{
+						IPlayerStreamFilter* StreamFilter = PlayerSession->GetStreamFilter();
+						if (StreamFilter && !StreamFilter->CanDecodeStream(Track->CodecInformation))
+						{
+							bIsSupported = false;
+						}
+					}
+				}
+				// Is this MPEG-1 audio?
+				else if (Track->CodecSpecificDataMP4A.GetObjectTypeID() == MPEG::FESDescriptor::FObjectTypeID::MPEG1_Audio &&
+					Track->CodecSpecificDataMP4A.GetStreamType() == MPEG::FESDescriptor::FStreamType::AudioStream)
+				{
+					Track->CodecInformation.SetStreamType(EStreamType::Audio);
+					Track->CodecInformation.SetCodec(FStreamCodecInformation::ECodec::Audio4CC);
+					Track->CodecInformation.SetCodec4CC(Utils::Make4CC('m','p','g','a'));
+					Track->CodecInformation.SetProfile(1);
+					Track->CodecInformation.SetCodecSpecificData(Track->CodecSpecificDataRAW);
+					Track->CodecInformation.SetStreamLanguageCode(Track->GetLanguage());
+					Track->CodecInformation.SetCodecSpecifierRFC6381(FString::Printf(TEXT("mp4a.6b")));
+					Track->CodecInformation.SetSamplingRate((int32) AudioSampleEntry->GetSampleRate());
+					Track->CodecInformation.SetNumberOfChannels(AudioSampleEntry->GetChannelCount());
 
 					// Typically an mp4a track will not have a 'btrt' box because the bitrate is stored in the DecoderConfigDescriptor.
 					Track->BitrateInfo.BufferSizeDB = Track->CodecSpecificDataMP4A.GetBufferSize();
@@ -7550,7 +7581,7 @@ namespace Electra
 					case FMP4Box::kBox_esds:
 					{
 						const FMP4BoxESDS* ESDSBox = static_cast<const FMP4BoxESDS*>(AudioSampleEntry->GetChildBox(0));
-						bool bOk = HandleESDS(ESDSBox, bGotAudioFormat, bIsSupported);
+						bool bOk = HandleESDS(AudioSampleEntry, ESDSBox, bGotAudioFormat, bIsSupported);
 						if (!bOk)
 						{
 							return UEMEDIA_ERROR_FORMAT_ERROR;
@@ -7560,7 +7591,7 @@ namespace Electra
 					case FMP4Box::kBox_wave:
 					{
 						const FMP4BoxESDS* ESDSBox = static_cast<const FMP4BoxESDS*>(AudioSampleEntry->FindBox(FMP4Box::kBox_esds, 1));
-						bool bOk = HandleESDS(ESDSBox, bGotAudioFormat, bIsSupported);
+						bool bOk = HandleESDS(AudioSampleEntry, ESDSBox, bGotAudioFormat, bIsSupported);
 						if (!bOk)
 						{
 							return UEMEDIA_ERROR_FORMAT_ERROR;

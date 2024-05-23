@@ -26,7 +26,7 @@ namespace Electra
 			for(uint32 i=0, Atom=In4CC; i<4; ++i, Atom<<=8)
 			{
 				int32 v = Atom >> 24;
-				if ((v >= 'A' && v <= 'Z') || (v >= 'a' && v <= 'z') || (v >= '0' && v <= '9') || v == '_')
+				if ((v >= 'A' && v <= 'Z') || (v >= 'a' && v <= 'z') || (v >= '0' && v <= '9') || v == '_'|| v == '.')
 				{
 					Out.AppendChar(v);
 				}
@@ -490,8 +490,22 @@ namespace Electra
 				switch(GetCodec4CC())
 				{
 					case Make4CC('O','p','u','s'):
+					{
 						HumanReadableCodecName = TEXT("Opus");
 						return true;
+					}
+					case Make4CC('m','p','g','a'):
+					{
+						if (GetProfileLevel())
+						{
+							HumanReadableCodecName = FString::Printf(TEXT("MPEG%d Layer %d"), GetProfile(), GetProfileLevel());
+						}
+						else
+						{
+							HumanReadableCodecName = FString::Printf(TEXT("MPEG%d audio"), GetProfile());
+						}
+						return true;
+					}
 				}
 				HumanReadableCodecName = Printable4CC(GetCodec4CC());
 				return true;

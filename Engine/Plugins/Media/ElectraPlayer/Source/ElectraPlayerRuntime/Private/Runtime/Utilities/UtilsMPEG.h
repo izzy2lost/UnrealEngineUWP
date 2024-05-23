@@ -43,7 +43,8 @@ namespace Electra
 				H264 = 0x21,
 				H264_ParameterSets = 0x22,
 				H265 = 0x23,
-				MPEG4_Audio = 0x40
+				MPEG4_Audio = 0x40,
+				MPEG1_Audio = 0x6b
 			};
 			enum class FStreamType
 			{

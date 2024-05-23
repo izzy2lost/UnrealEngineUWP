@@ -27,7 +27,9 @@ namespace UnrealBuildTool.Rules
 			PrivateDependencyModuleNames.AddRange(
 				new string[] {
 					"Core",
-					"SignalProcessing"
+					"SignalProcessing",
+                    // Common codecs
+					"dr_libs"					// MPEG audio layer 3
 				});
 
 			PublicIncludePathModuleNames.AddRange(
