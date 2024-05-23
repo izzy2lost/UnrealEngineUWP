@@ -173,10 +173,23 @@ protected:
 	/** Stopwatch used to measure how long it takes to filter the message list. */
 	mutable FStopwatch FilteringStopwatch;
 
+	/**
+	 * Total number of log categories (including duplicates; last value read from LogProvider).
+	 * Used to detect when more log categories are added in the LogProvider, so we can update UI.
+	 */
 	int32 TotalNumCategories;
 
-	/** Total number of log messages processed, from the source Trace session. Used to detect when new log messages are added in the source Trace session. */
+	/**
+	 * Total number of log messages (last value read from LogProvider).
+	 * Used to detect when new log messages are added in the LogProvider, so we can update UI.
+	 */
 	int32 TotalNumMessages;
+
+	/**
+	 * Total number of inserts in the source table of log messages (last value read from LogProvider).
+	 * Used to detect when the order of log messages changes in source table, so we can invalidate the cache.
+	 */
+	int32 TotalNumInserts;
 
 	/** true if the list of messages is not yet updated (the filter has changed and/or the source trace messages have changed) */
 	bool bIsDirty;

@@ -519,6 +519,7 @@ SLogView::SLogView()
 	, bIsFilteringAsyncTaskCancelRequested(false)
 	, TotalNumCategories(0)
 	, TotalNumMessages(0)
+	, TotalNumInserts(0)
 	, bIsDirty(false)
 {
 }
@@ -567,6 +568,7 @@ void SLogView::Reset()
 
 	TotalNumCategories = 0;
 	TotalNumMessages = 0;
+	TotalNumInserts = 0;
 
 	bIsDirty = false;
 	DirtyStopwatch.Stop();
@@ -751,30 +753,37 @@ void SLogView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTim
 {
 	LLM_SCOPE_BYTAG(Insights);
 
-	int32 NewMessageCount = 0;
-
 	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
 
 	Cache.SetSession(Session);
+
+	int32 LogProviderNumCategories = 0;
+	int32 LogProviderNumMessages = 0;
+	int32 LogProviderNumInserts = 0;
 
 	if (Session.IsValid())
 	{
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
 		const TraceServices::ILogProvider& LogProvider = TraceServices::ReadLogProvider(*Session.Get());
 
-		NewMessageCount = static_cast<int32>(LogProvider.GetMessageCount());
+		LogProviderNumCategories = static_cast<int32>(LogProvider.GetCategoryCount());
+		LogProviderNumMessages = static_cast<int32>(LogProvider.GetMessageCount());
+		LogProviderNumInserts = static_cast<int32>(LogProvider.GetInsertCount());
+	}
 
-		//TODO: show only categories that are used in current trace
-		//TODO: cause of duplicates: a) runtime, b) case insensitive, c) stripped "Log" prefix
+	if (LogProviderNumCategories != TotalNumCategories)
+	{
+		TSet<FName> Categories;
+		TMap<FName, int32> DuplicatedCategories;
 
-		const int32 NumCategories = static_cast<int32>(LogProvider.GetCategoryCount());
-		if (NumCategories != TotalNumCategories)
+		if (Session.IsValid())
 		{
-			TotalNumCategories = NumCategories;
-			UE_LOG(TraceInsights, Log, TEXT("[LogView] Total Log Categories: %d"), TotalNumCategories);
+			TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
+			const TraceServices::ILogProvider& LogProvider = TraceServices::ReadLogProvider(*Session.Get());
 
-			TSet<FName> Categories;
-			TMap<FName, int32> DuplicatedCategories;
+			// Re-read the number of categories (as it might have changed between the read locks).
+			LogProviderNumCategories = static_cast<int32>(LogProvider.GetCategoryCount());
+
 			LogProvider.EnumerateCategories([&Categories, &DuplicatedCategories](const TraceServices::FLogCategoryInfo& Category)
 			{
 				FStringView CategoryStr(Category.Name);
@@ -800,33 +809,41 @@ void SLogView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTim
 					Categories.Add(CategoryName);
 				}
 			});
-			Filter.SyncAvailableCategories(Categories);
-			const int32 NumAvailableLogCategories = Filter.GetAvailableLogCategories().Num();
-			if (DuplicatedCategories.Num() > 0)
-			{
-				UE_LOG(TraceInsights, Warning, TEXT("[LogView] Duplicated Log Categories: %d (+%dx)"), DuplicatedCategories.Num(), TotalNumCategories - NumAvailableLogCategories);
-				for (const auto& KV : DuplicatedCategories)
-				{
-					UE_LOG(TraceInsights, Log, TEXT("[LogView]    \"%s\" (+%dx)"), *KV.Key.GetPlainNameString(), KV.Value);
-				}
-			}
-			UE_LOG(TraceInsights, Log, TEXT("[LogView] Unique Log Categories: %d"), NumAvailableLogCategories);
-
-			//Cache.Reset();
-			FilteredMessages.Reset();
-			TotalNumMessages = 0;
-			//ListView->RebuildList();
-			bIsDirty = true;
-			DirtyStopwatch.Start();
 		}
+
+		TotalNumCategories = LogProviderNumCategories;
+		UE_LOG(TraceInsights, Log, TEXT("[LogView] Total Log Categories: %d"), TotalNumCategories);
+
+		Filter.SyncAvailableCategories(Categories);
+		const int32 NumAvailableLogCategories = Filter.GetAvailableLogCategories().Num();
+		if (DuplicatedCategories.Num() > 0)
+		{
+			UE_LOG(TraceInsights, Warning, TEXT("[LogView] Duplicated Log Categories: %d (+%dx)"), DuplicatedCategories.Num(), TotalNumCategories - NumAvailableLogCategories);
+			for (const auto& KV : DuplicatedCategories)
+			{
+				UE_LOG(TraceInsights, Log, TEXT("[LogView]    \"%s\" (+%dx)"), *KV.Key.GetPlainNameString(), KV.Value);
+			}
+		}
+		UE_LOG(TraceInsights, Log, TEXT("[LogView] Unique Log Categories: %d"), NumAvailableLogCategories);
+
+		FilteredMessages.Reset();
+		TotalNumMessages = 0;
+		bIsDirty = true;
+		DirtyStopwatch.Start();
 	}
 
-	if (NewMessageCount != TotalNumMessages)
+	if (LogProviderNumInserts != TotalNumInserts)
+	{
+		TotalNumInserts = LogProviderNumInserts;
+		Cache.Reset();
+	}
+
+	if (LogProviderNumMessages != TotalNumMessages)
 	{
 		bIsDirty = true;
 		DirtyStopwatch.Start();
 
-		if (NewMessageCount > TotalNumMessages)
+		if (LogProviderNumMessages > TotalNumMessages)
 		{
 			if (Filter.IsFilterSet())
 			{
@@ -837,7 +854,7 @@ void SLogView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTim
 
 					bIsFilteringAsyncTaskCancelRequested = false;
 					FilteringStartIndex = TotalNumMessages;
-					FilteringEndIndex = NewMessageCount;
+					FilteringEndIndex = LogProviderNumMessages;
 					FilteringChangeNumber = Filter.GetChangeNumber();
 					FilteringAsyncTask = MakeUnique<FAsyncTask<FLogFilteringAsyncTask>>(FilteringStartIndex, FilteringEndIndex, Filter, SharedThis(this));
 #if !WITH_EDITOR
@@ -854,7 +871,7 @@ void SLogView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTim
 				{
 					// A task is already in progress.
 					if (FilteringStartIndex == TotalNumMessages &&
-						FilteringEndIndex <= NewMessageCount &&
+						FilteringEndIndex <= LogProviderNumMessages &&
 						FilteringChangeNumber == Filter.GetChangeNumber())
 					{
 						// The filter is still valid. Just wait.
@@ -870,13 +887,13 @@ void SLogView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTim
 			{
 				FilteringStopwatch.Restart();
 
-				for (int32 Index = TotalNumMessages; Index < NewMessageCount; Index++)
+				for (int32 Index = TotalNumMessages; Index < LogProviderNumMessages; Index++)
 				{
 					FilteredMessages.Add(MakeShared<FLogMessage>(Index));
 				}
 
-				const int32 NumAddedMessages = NewMessageCount - TotalNumMessages;
-				TotalNumMessages = NewMessageCount;
+				const int32 NumAddedMessages = LogProviderNumMessages - TotalNumMessages;
+				TotalNumMessages = LogProviderNumMessages;
 				TSharedPtr<FLogMessage> SelectedLogMessage = GetSelectedLogMessage();
 				ListView->RebuildList();
 				if (SelectedLogMessage.IsValid())
@@ -894,12 +911,12 @@ void SLogView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTim
 				if (DurationMs > 10) // avoids spams
 				{
 					UE_LOG(TraceInsights, Log, TEXT("[LogView] Updated (no filter; %d added / %d total messages) in %llu ms."),
-						NumAddedMessages, NewMessageCount, DurationMs);
+						NumAddedMessages, LogProviderNumMessages, DurationMs);
 				}
 #endif // !WITH_EDITOR
 			}
 		}
-		else // if (NewMessageCount < TotalNumMessages)
+		else // if (LogProviderNumMessages < TotalNumMessages)
 		{
 			// Just reset. On next Tick() the list will grow if needed.
 #if !WITH_EDITOR
@@ -909,7 +926,7 @@ void SLogView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTim
 			FilteredMessages.Reset();
 			TotalNumMessages = 0;
 			ListView->RebuildList();
-			bIsDirty = (NewMessageCount != 0);
+			bIsDirty = (LogProviderNumMessages != 0);
 			if (bIsDirty)
 			{
 				DirtyStopwatch.Start();
@@ -934,7 +951,7 @@ void SLogView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTim
 		// A filtering async task has completed. Check if filter used is still valid.
 		if (!bIsFilteringAsyncTaskCancelRequested &&
 			FilteringStartIndex == TotalNumMessages &&
-			FilteringEndIndex <= NewMessageCount &&
+			FilteringEndIndex <= LogProviderNumMessages &&
 			FilteringChangeNumber == Filter.GetChangeNumber())
 		{
 			FLogFilteringAsyncTask& Task = FilteringAsyncTask->GetTask();
@@ -1015,6 +1032,40 @@ void SLogView::SelectLogMessageByLogIndex(int32 LogIndex)
 	if (MessageIndex == INDEX_NONE)
 	{
 		return;
+	}
+
+	SelectLogMessage(FilteredMessages[MessageIndex]);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void SLogView::SelectLogMessageByClosestTime(double Time)
+{
+	if (FilteredMessages.Num() == 0)
+	{
+		return;
+	}
+
+	// Find the message with the closest time, in the unfiltered list of messages.
+	int32 LogIndex = 0;
+	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
+	if (Session.IsValid())
+	{
+		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
+		const TraceServices::ILogProvider& LogProvider = TraceServices::ReadLogProvider(*Session.Get());
+		LogIndex = (int32)LogProvider.BinarySearchClosestByTime(Time);
+	}
+	else
+	{
+		return;
+	}
+
+	// We are assuming the FilteredMessages list is sorted by log index.
+	// Find first filtered message with log index >= index.
+	int32 MessageIndex = Algo::LowerBoundBy(FilteredMessages, LogIndex, &FLogMessage::GetIndex);
+	if (MessageIndex >= FilteredMessages.Num())
+	{
+		MessageIndex = FilteredMessages.Num() - 1;
 	}
 
 	SelectLogMessage(FilteredMessages[MessageIndex]);
