@@ -208,6 +208,7 @@ namespace UnrealBuildTool
 
 			MetadataReferences.Add(MetadataReference.CreateFromFile(typeof(object).Assembly.Location));
 			MetadataReferences.Add(MetadataReference.CreateFromFile(Assembly.Load("System.Runtime").Location));
+			MetadataReferences.Add(MetadataReference.CreateFromFile(Assembly.Load("System.CodeDom").Location));
 			MetadataReferences.Add(MetadataReference.CreateFromFile(Assembly.Load("System.Collections").Location));
 			MetadataReferences.Add(MetadataReference.CreateFromFile(Assembly.Load("System.IO").Location));
 			MetadataReferences.Add(MetadataReference.CreateFromFile(Assembly.Load("System.IO.FileSystem").Location));
