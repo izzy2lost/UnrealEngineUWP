@@ -38,18 +38,6 @@
 #include "GeometryCollection/Facades/CollectionAnchoringFacade.h"
 #include "GeometryCollection/Facades/CollectionConnectionGraphFacade.h"
 
-#ifndef TODO_REIMPLEMENT_INIT_COMMANDS
-#define TODO_REIMPLEMENT_INIT_COMMANDS 0
-#endif
-
-#ifndef TODO_REIMPLEMENT_FRACTURE
-#define TODO_REIMPLEMENT_FRACTURE 0
-#endif
-
-#ifndef TODO_REIMPLEMENT_RIGID_CACHING
-#define TODO_REIMPLEMENT_RIGID_CACHING 0
-#endif
-
 #define GC_PHYSICSPROXY_CHECK_FOR_NAN_ENABLED 0
 
 #if GC_PHYSICSPROXY_CHECK_FOR_NAN_ENABLED
@@ -519,10 +507,6 @@ FGeometryCollectionPhysicsProxy::FGeometryCollectionPhysicsProxy(
 	, IsObjectDeleting(false)
 	, SimFilter(InSimFilter)
 	, QueryFilter(InQueryFilter)
-#if TODO_REIMPLEMENT_RIGID_CACHING
-	, ProxySimDuration(0.0f)
-	, LastSyncCountGT(MAX_uint32)
-#endif
 	, CollisionParticlesPerObjectFraction(CollisionParticlesPerObjectFractionDefault)
 	, PhysicsThreadCollection(Parameters.RestCollectionShared)
 	, GameThreadCollection(GameThreadCollectionIn)
@@ -1630,18 +1614,6 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 			}
 		} // end if EnableClustering
  
-
-#if TODO_REIMPLEMENT_RIGID_CACHING
-		// If we're recording and want to start immediately caching then we should cache the rest state
-		if (Parameters.IsCacheRecording() && Parameters.CacheBeginTime == 0.0f)
-		{
-			if (UpdateRecordedStateCallback)
-			{
-				UpdateRecordedStateCallback(0.0f, RigidBodyID, Particles, RigidSolver->GetCollisionConstraints());
-			}
-		}
-#endif // TODO_REIMPLEMENT_RIGID_CACHING
-
 		const bool bStartSleeping =
 				(Parameters.ObjectType == EObjectStateTypeEnum::Chaos_Object_Sleeping
 			 || (Parameters.ObjectType == EObjectStateTypeEnum::Chaos_Object_Dynamic && !Parameters.StartAwake));

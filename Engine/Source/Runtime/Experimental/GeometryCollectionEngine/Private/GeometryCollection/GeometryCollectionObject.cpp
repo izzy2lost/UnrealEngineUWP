@@ -496,7 +496,9 @@ void UGeometryCollection::GetSharedSimulationParams(FSharedSimulationParameters&
 	const FGeometryCollectionSizeSpecificData& SizeSpecificDefault = GetDefaultSizeSpecificData();
 
 	// we grab the non cached version because this is going to be used to generate the mass attribute which will eventually cache the density value if necessary
-	OutParams.Mass = GetMassOrDensityInternal(OutParams.bMassAsDensity, false);
+	bool bUseMassAsDensity = false;
+	OutParams.Mass = GetMassOrDensityInternal(bUseMassAsDensity, false);
+	OutParams.bMassAsDensity = bUseMassAsDensity;
 	OutParams.MinimumMassClamp = MinimumMassClamp;
 
 	FGeometryCollectionSizeSpecificData InfSize;

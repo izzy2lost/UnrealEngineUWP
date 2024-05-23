@@ -698,25 +698,6 @@ private:
 	// todo(chaos): Remove this and move to a cook time approach of the SM data based on the GC property
 	FCreateTraceCollisionGeometryCallback CreateTraceCollisionGeometryCallback;
 	
-#ifdef TODO_REIMPLEMENT_RIGID_CACHING
-	TFunction<void(void)> ResetAnimationCacheCallback;
-	TFunction<void(const TArrayView<FTransform> &)> UpdateTransformsCallback;
-	TFunction<void(const int32 & CurrentFrame, const TManagedArray<int32> & RigidBodyID, const TManagedArray<int32>& Level, const TManagedArray<int32>& Parent, const TManagedArray<TSet<int32>>& Children, const TManagedArray<uint32>& SimulationType, const TManagedArray<uint32>& StatusFlags, const FParticlesType& Particles)> UpdateRestStateCallback;
-	TFunction<void(float SolverTime, const TManagedArray<int32> & RigidBodyID, const FParticlesType& Particles, const Chaos::FPBDCollisionConstraints& CollisionRule)> UpdateRecordedStateCallback;
-	TFunction<void(FRecordedTransformTrack& InTrack)> CommitRecordedStateCallback;
-
-	// Index of the first particles for this collection in the larger particle array
-	// Time since this object started simulating
-	float ProxySimDuration;
-
-	// Sync frame numbers so we don't do many syncs when physics is running behind
-	uint32 LastSyncCountGT;
-
-	// Storage for the recorded frame information when we're caching the geometry component results.
-	// Synced back to the component with SyncBeforeDestroy
-	FRecordedTransformTrack RecordedTracks;
-#endif
-
 	// called after we sync the physics thread data ( called on the game thread )
 	TFunction<void()> PostPhysicsSyncCallback;
 	TFunction<void()> PostParticlesCreatedCallback;

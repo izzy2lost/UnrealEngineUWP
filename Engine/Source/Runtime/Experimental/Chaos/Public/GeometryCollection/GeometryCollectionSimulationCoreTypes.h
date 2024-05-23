@@ -67,14 +67,14 @@ struct FSharedSimulationSizeSpecificData
 {
 	FSharedSimulationSizeSpecificData()
 		: MaxSize(0.f)
-		, CollisionShapesData({ FCollectionCollisionTypeData() })
 		, DamageThreshold(5000.f)
+		, CollisionShapesData({ FCollectionCollisionTypeData() })
 	{
 	}
 
 	float MaxSize;
-	TArray<FCollectionCollisionTypeData> CollisionShapesData;
 	float DamageThreshold;
+	TArray<FCollectionCollisionTypeData> CollisionShapesData;
 
 	bool operator<(const FSharedSimulationSizeSpecificData& Rhs) const { return MaxSize < Rhs.MaxSize; }
 };
@@ -91,15 +91,15 @@ enum ESimulationInitializationState : uint8 { Unintialized = 0, Activated, Creat
 struct FSharedSimulationParameters
 {
 	FSharedSimulationParameters()
-	: bMassAsDensity(true)
-	, Mass(1.0f)
-	, MinimumMassClamp(0.1f)								// todo : Expose to users with better initial values
+	: MinimumMassClamp(0.1f)								// todo : Expose to users with better initial values
 	, MaximumMassClamp(1e5f)								// todo : Expose to users with better initial values
 	, MinimumBoundingExtentClamp(0.1f)						// todo : Expose to users with better initial values
 	, MaximumBoundingExtentClamp(1e6f)						// todo : Expose to users with better initial values
 	, MinimumInertiaTensorDiagonalClamp(UE_SMALL_NUMBER)	// todo : Expose to users with better initial values
 	, MaximumInertiaTensorDiagonalClamp(1e20f)				// todo : Expose to users with better initial values
 	, MaximumCollisionParticleCount(60)
+	, Mass(1.0f)
+	, bMassAsDensity(true)
 	, bUseImportedCollisionImplicits(false)
 	{
 		SizeSpecificData.AddDefaulted();
@@ -123,15 +123,15 @@ struct FSharedSimulationParameters
 		, int32 InMaximumCollisionParticleCount
 		, float InCollisionMarginFraction
 		, bool InUseImportedCollisionImplicits )
-	: bMassAsDensity(InMassAsDensity)
-	, Mass(InMass)
-	, MinimumMassClamp(InMinimumMassClamp)
+	: MinimumMassClamp(InMinimumMassClamp)
 	, MaximumMassClamp(InMinimumMassClamp)
 	, MinimumBoundingExtentClamp(InMinimumBoundingExtentClamp)
 	, MaximumBoundingExtentClamp(InMinimumBoundingExtentClamp)
 	, MinimumInertiaTensorDiagonalClamp(InMinimumInertiaTensorDiagonalClamp)
 	, MaximumInertiaTensorDiagonalClamp(InMaximumInertiaTensorDiagonalClamp)
 	, MaximumCollisionParticleCount(InMaximumCollisionParticleCount)
+	, Mass(InMass)
+	, bMassAsDensity(InMassAsDensity)
 	, bUseImportedCollisionImplicits(InUseImportedCollisionImplicits)
 	{
 		SizeSpecificData.AddDefaulted();
@@ -149,22 +149,23 @@ struct FSharedSimulationParameters
 		}
 	}
 
-	bool bMassAsDensity;
-	float Mass;
+	TArray<FSharedSimulationSizeSpecificData> SizeSpecificData;
 	float MinimumMassClamp;
 	float MaximumMassClamp;
 	float MinimumBoundingExtentClamp;
 	float MaximumBoundingExtentClamp;
 	float MinimumInertiaTensorDiagonalClamp;
 	float MaximumInertiaTensorDiagonalClamp;
+	int32 MaximumCollisionParticleCount;
+	float Mass;
+	bool bMassAsDensity : 1;
+	bool bUseImportedCollisionImplicits : 1;
 
 	float MinimumVolumeClamp() const { return MinimumBoundingExtentClamp * MinimumBoundingExtentClamp * MinimumBoundingExtentClamp; }
 	float MaximumVolumeClamp() const { return MaximumBoundingExtentClamp * MaximumBoundingExtentClamp * MaximumBoundingExtentClamp; }
-
-	TArray<FSharedSimulationSizeSpecificData> SizeSpecificData;
-	int32 MaximumCollisionParticleCount;
-	bool bUseImportedCollisionImplicits;
 };
+
+#define SIMULATIONPARAMETERS_CACHE_PARAMETERS 1
 
 struct FSimulationParameters
 {
@@ -174,35 +175,29 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		, RestCollection(nullptr)
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		, RestCollectionShared(nullptr)
-		, InitialRootIndex(INDEX_NONE)
-		, RecordedTrack(nullptr)
-		, bOwnsTrack(false)
-		, Simulating(false)
 		, WorldTransform(FTransform::Identity)
-		, EnableClustering(true)
+		, DamageThreshold({ 500000.f, 50000.f, 5000.f })
+		, InitialRootIndex(INDEX_NONE)
 		, ClusterGroupIndex(0)
 		, MaxClusterLevel(100)
 		, MaxSimulatedLevel(100)
-		, bUseSizeSpecificDamageThresholds(false)
-		, bUseMaterialDamageModifiers(false)
+		, ObjectType(EObjectStateTypeEnum::Chaos_NONE)
+		, InitialVelocityType(EInitialVelocityTypeEnum::Chaos_Initial_Velocity_None)
 		, DamageModel(EDamageModelTypeEnum::Chaos_Damage_Model_UserDefined_Damage_Threshold)
 		, DamageEvaluationModel(Chaos::EDamageEvaluationModel::StrainFromDamageThreshold)
-		, DamageThreshold({500000.f, 50000.f, 5000.f})
-		, bUsePerClusterOnlyDamageThreshold(false)
 		, ClusterConnectionMethod(Chaos::FClusterCreationParameters::EConnectionMethod::PointImplicit)
 		, ConnectionGraphBoundsFilteringMargin(0)
 		, CollisionGroup(0)
 		, CollisionSampleFraction(1.0)
-		, InitialVelocityType(EInitialVelocityTypeEnum::Chaos_Initial_Velocity_None)
 		, InitialLinearVelocity(FVector(0))
 		, InitialAngularVelocity(FVector(0))
-		, CacheType(EGeometryCollectionCacheType::None)
-		, CacheBeginTime(0.0f)
-		, ReverseCacheBeginTime(0.0f)
-		, bClearCache(false)
-		, ObjectType(EObjectStateTypeEnum::Chaos_NONE)
-		, StartAwake(true)
 		, MaterialOverrideMassScaleMultiplier(1.0f)
+		, Simulating(false)
+		, EnableClustering(true)
+		, bUseSizeSpecificDamageThresholds(false)
+		, bUseMaterialDamageModifiers(false)
+		, bUsePerClusterOnlyDamageThreshold(false)
+		, StartAwake(true)
 		, bGenerateBreakingData(false)
 		, bGenerateCollisionData(false)
 		, bGenerateTrailingData(false)
@@ -213,24 +208,34 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		, bGenerateGlobalCrumblingData(false)
 		, bGenerateGlobalCrumblingChildrenData(false)
 		, EnableGravity(true)
-		, GravityGroupIndex(0)
-		, OneWayInteractionLevel(INDEX_NONE)
 		, UseInertiaConditioning(true)
 		, UseCCD(false)
 		, UseMACD(false)
+		, bEnableStrainOnCollision(true)
+		, bUseStaticMeshCollisionForTraces(false)
+		, bOptimizeConvexes(true)
+		, bUseDamagePropagation(false)
+		, BreakDamagePropagationFactor(1.0f)
+		, ShockDamagePropagationFactor(0.0f)
 		, LinearDamping(0.01f)
 		, AngularDamping(0)
 		, InitialOverlapDepenetrationVelocity(-1.0f)
 		, SleepThresholdMultiplier(1.0f)
-		, bUseDamagePropagation(false)
-		, BreakDamagePropagationFactor(1.0f)
-		, ShockDamagePropagationFactor(0.0f)
+		, GravityGroupIndex(0)
+		, OneWayInteractionLevel(INDEX_NONE)
 		, SimulationFilterData()
 		, QueryFilterData()
 		, UserData(nullptr)
-		, bEnableStrainOnCollision(true)
-		, bUseStaticMeshCollisionForTraces(false)
-		, bOptimizeConvexes(true)
+#if SIMULATIONPARAMETERS_CACHE_PARAMETERS
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		, RecordedTrack(nullptr)
+		, CacheBeginTime(0.0f)
+		, ReverseCacheBeginTime(0.0f)
+		, CacheType(EGeometryCollectionCacheType::None)
+		, bClearCache(false)
+		, bOwnsTrack(false)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif
 	{}
 
 	FSimulationParameters(const FSimulationParameters& Other)
@@ -239,37 +244,32 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		, RestCollection(Other.RestCollection)
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		, RestCollectionShared(Other.RestCollectionShared)
-		, InitialRootIndex(Other.InitialRootIndex)
-		, InitializationCommands(Other.InitializationCommands)
-		, RecordedTrack(Other.RecordedTrack)
-		, bOwnsTrack(false)
-		, Simulating(Other.Simulating)
+		, Shared(Other.Shared)
 		, WorldTransform(Other.WorldTransform)
-		, EnableClustering(Other.EnableClustering)
+		, InitializationCommands(Other.InitializationCommands)
+		, DamageThreshold(Other.DamageThreshold)
+		, InitialRootIndex(Other.InitialRootIndex)
 		, ClusterGroupIndex(Other.ClusterGroupIndex)
 		, MaxClusterLevel(Other.MaxClusterLevel)
 		, MaxSimulatedLevel(Other.MaxSimulatedLevel)
-		, bUseSizeSpecificDamageThresholds(Other.bUseSizeSpecificDamageThresholds)
-		, bUseMaterialDamageModifiers(Other.bUseMaterialDamageModifiers)
+		, ObjectType(Other.ObjectType)
+		, InitialVelocityType(Other.InitialVelocityType)
 		, DamageModel(Other.DamageModel)
 		, DamageEvaluationModel(Other.DamageEvaluationModel)
-		, DamageThreshold(Other.DamageThreshold)
-		, bUsePerClusterOnlyDamageThreshold(Other.bUsePerClusterOnlyDamageThreshold)
 		, ClusterConnectionMethod(Other.ClusterConnectionMethod)
 		, ConnectionGraphBoundsFilteringMargin(Other.ConnectionGraphBoundsFilteringMargin)
 		, CollisionGroup(Other.CollisionGroup)
 		, CollisionSampleFraction(Other.CollisionSampleFraction)
-		, InitialVelocityType(Other.InitialVelocityType)
 		, InitialLinearVelocity(Other.InitialLinearVelocity)
 		, InitialAngularVelocity(Other.InitialAngularVelocity)
-		, CacheType(Other.CacheType)
-		, CacheBeginTime(Other.CacheBeginTime)
-		, ReverseCacheBeginTime(Other.ReverseCacheBeginTime)
-		, bClearCache(Other.bClearCache)
-		, ObjectType(Other.ObjectType)
-		, StartAwake(Other.StartAwake)
 		, PhysicalMaterialHandle(Other.PhysicalMaterialHandle)
 		, MaterialOverrideMassScaleMultiplier(Other.MaterialOverrideMassScaleMultiplier)
+		, Simulating(Other.Simulating)
+		, EnableClustering(Other.EnableClustering)
+		, bUseSizeSpecificDamageThresholds(Other.bUseSizeSpecificDamageThresholds)
+		, bUseMaterialDamageModifiers(Other.bUseMaterialDamageModifiers)
+		, bUsePerClusterOnlyDamageThreshold(Other.bUsePerClusterOnlyDamageThreshold)
+		, StartAwake(Other.StartAwake)
 		, bGenerateBreakingData(Other.bGenerateBreakingData)
 		, bGenerateCollisionData(Other.bGenerateCollisionData)
 		, bGenerateTrailingData(Other.bGenerateTrailingData)
@@ -279,39 +279,50 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		, bGenerateGlobalCollisionData(Other.bGenerateGlobalCollisionData)
 		, bGenerateGlobalCrumblingData(Other.bGenerateGlobalCrumblingData)
 		, bGenerateGlobalCrumblingChildrenData(Other.bGenerateGlobalCrumblingChildrenData)
-		, Shared(Other.Shared)
 		, EnableGravity(Other.EnableGravity)
-		, GravityGroupIndex(Other.GravityGroupIndex)
-		, OneWayInteractionLevel(Other.OneWayInteractionLevel)
 		, UseInertiaConditioning(Other.UseInertiaConditioning)
 		, UseCCD(Other.UseCCD)
 		, UseMACD(Other.UseMACD)
+		, bEnableStrainOnCollision(Other.bEnableStrainOnCollision)
+		, bUseStaticMeshCollisionForTraces(Other.bUseStaticMeshCollisionForTraces)
+		, bOptimizeConvexes(Other.bOptimizeConvexes)
+		, bUseDamagePropagation(Other.bUseDamagePropagation)
+		, BreakDamagePropagationFactor(Other.BreakDamagePropagationFactor)
+		, ShockDamagePropagationFactor(Other.ShockDamagePropagationFactor)
 		, LinearDamping(Other.LinearDamping)
 		, AngularDamping(Other.AngularDamping)
 		, InitialOverlapDepenetrationVelocity(Other.InitialOverlapDepenetrationVelocity)
 		, SleepThresholdMultiplier(Other.SleepThresholdMultiplier)
-		, bUseDamagePropagation(Other.bUseDamagePropagation)
-		, BreakDamagePropagationFactor(Other.BreakDamagePropagationFactor)
-		, ShockDamagePropagationFactor(Other.ShockDamagePropagationFactor)
+		, GravityGroupIndex(Other.GravityGroupIndex)
+		, OneWayInteractionLevel(Other.OneWayInteractionLevel)
 		, SimulationFilterData(Other.SimulationFilterData)
 		, QueryFilterData(Other.QueryFilterData)
 		, UserData(Other.UserData)
-		, bEnableStrainOnCollision(Other.bEnableStrainOnCollision)
-		, bUseStaticMeshCollisionForTraces(Other.bUseStaticMeshCollisionForTraces)
-		, bOptimizeConvexes(Other.bOptimizeConvexes)
+#if SIMULATIONPARAMETERS_CACHE_PARAMETERS
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		, RecordedTrack(Other.RecordedTrack)
+		, CacheBeginTime(Other.CacheBeginTime)
+		, ReverseCacheBeginTime(Other.ReverseCacheBeginTime)
+		, CacheType(Other.CacheType)
+		, bClearCache(Other.bClearCache)
+		, bOwnsTrack(false)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif
+
 	{
 	}
 
 	~FSimulationParameters()
 	{
+#if SIMULATIONPARAMETERS_CACHE_PARAMETERS
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (bOwnsTrack)
 		{
 			delete const_cast<FRecordedTransformTrack*>(RecordedTrack);
 		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif
 	}
-
-	bool IsCacheRecording() { return CacheType == EGeometryCollectionCacheType::Record || CacheType == EGeometryCollectionCacheType::RecordAndPlay; }
-	bool IsCachePlaying() { return CacheType == EGeometryCollectionCacheType::Play || CacheType == EGeometryCollectionCacheType::RecordAndPlay; }
 
 	FString Name;
 	
@@ -319,23 +330,23 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	const FGeometryCollection* RestCollection;
 
 	TSharedPtr<const FGeometryCollection> RestCollectionShared;
-
-	int32 InitialRootIndex;
-	TArray<FFieldSystemCommand> InitializationCommands;
-	const FRecordedTransformTrack* RecordedTrack;
-	bool bOwnsTrack;
-
-	bool Simulating;
+	FSharedSimulationParameters Shared;
 
 	FTransform WorldTransform;
 	FTransform PrevWorldTransform;
 
-	bool EnableClustering;
+	TArray<FFieldSystemCommand> InitializationCommands;
+
+	TArray<float> DamageThreshold;
+
+	int32 InitialRootIndex;
 	int32 ClusterGroupIndex;
-	int32 MaxClusterLevel;
-	int32 MaxSimulatedLevel;
-	bool bUseSizeSpecificDamageThresholds;
-	bool bUseMaterialDamageModifiers;
+	int16 MaxClusterLevel;
+	int16 MaxSimulatedLevel;
+
+	EObjectStateTypeEnum ObjectType;
+	
+	EInitialVelocityTypeEnum InitialVelocityType;
 
 	/** this is the user expose damage model, used for creation of the particles */
 	EDamageModelTypeEnum DamageModel; 
@@ -343,64 +354,96 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/** this is the lower level damage model for clustering, used at runm time */
 	Chaos::EDamageEvaluationModel DamageEvaluationModel;
 
-	TArray<float> DamageThreshold;
-	bool bUsePerClusterOnlyDamageThreshold;
 	Chaos::FClusterCreationParameters::EConnectionMethod ClusterConnectionMethod;
 	float ConnectionGraphBoundsFilteringMargin;
 
 	int32 CollisionGroup;
 	float CollisionSampleFraction;
 
-	EInitialVelocityTypeEnum InitialVelocityType;
-	FVector InitialLinearVelocity;
-	FVector InitialAngularVelocity;
-
-	EGeometryCollectionCacheType CacheType;
-	float CacheBeginTime;
-	float ReverseCacheBeginTime;
-	bool bClearCache;
-
-	EObjectStateTypeEnum ObjectType;
-	bool StartAwake;
+	FVector3f InitialLinearVelocity;
+	FVector3f InitialAngularVelocity;
 
 	Chaos::FMaterialHandle PhysicalMaterialHandle;
 
 	float MaterialOverrideMassScaleMultiplier;
 
-	bool bGenerateBreakingData;
-	bool bGenerateCollisionData;
-	bool bGenerateTrailingData;
-	bool bGenerateCrumblingData;
-	bool bGenerateCrumblingChildrenData;
+	bool Simulating : 1;
+	bool EnableClustering : 1;
+	bool bUseSizeSpecificDamageThresholds : 1;
+	bool bUseMaterialDamageModifiers : 1;
+	bool bUsePerClusterOnlyDamageThreshold : 1;
+	bool StartAwake : 1;
 
-	bool bGenerateGlobalBreakingData;
-	bool bGenerateGlobalCollisionData;
-	bool bGenerateGlobalCrumblingData;
-	bool bGenerateGlobalCrumblingChildrenData;
+	bool bGenerateBreakingData : 1;
+	bool bGenerateCollisionData : 1;
+	bool bGenerateTrailingData : 1;
+	bool bGenerateCrumblingData : 1;
+	bool bGenerateCrumblingChildrenData : 1; 
 
-	FSharedSimulationParameters Shared;
+	bool bGenerateGlobalBreakingData : 1;
+	bool bGenerateGlobalCollisionData : 1;
+	bool bGenerateGlobalCrumblingData : 1;
+	bool bGenerateGlobalCrumblingChildrenData : 1;
 
-	bool EnableGravity;
-	int32 GravityGroupIndex;
-	int32 OneWayInteractionLevel;
-	bool UseInertiaConditioning;
-	bool UseCCD;
-	bool UseMACD;
+	bool EnableGravity : 1;
+	bool UseInertiaConditioning : 1;
+	bool UseCCD : 1;
+	bool UseMACD : 1;
+
+	bool bEnableStrainOnCollision : 1;
+	bool bUseStaticMeshCollisionForTraces : 1;
+	bool bOptimizeConvexes : 1 = true;
+
+	bool bUseDamagePropagation : 1;
+	float BreakDamagePropagationFactor;
+	float ShockDamagePropagationFactor;
+
 	float LinearDamping;
 	float AngularDamping;
 	float InitialOverlapDepenetrationVelocity;
 	float SleepThresholdMultiplier;
 
-	bool bUseDamagePropagation;
-	float BreakDamagePropagationFactor;
-	float ShockDamagePropagationFactor;
+	int32 GravityGroupIndex;
+	int32 OneWayInteractionLevel;
 
 	FCollisionFilterData SimulationFilterData;
 	FCollisionFilterData QueryFilterData;
+
 	void* UserData;
-	bool bEnableStrainOnCollision;
 
-	bool bUseStaticMeshCollisionForTraces;
+#if SIMULATIONPARAMETERS_CACHE_PARAMETERS
+	UE_DEPRECATED(5.5, "No longer used")
+	const FRecordedTransformTrack* RecordedTrack;
 
-	bool bOptimizeConvexes = true;
+	UE_DEPRECATED(5.5, "No longer used")
+	float CacheBeginTime;
+
+	UE_DEPRECATED(5.5, "No longer used")
+	float ReverseCacheBeginTime;
+
+	UE_DEPRECATED(5.5, "No longer used")
+	EGeometryCollectionCacheType CacheType;
+
+	UE_DEPRECATED(5.5, "No longer used")
+	bool bClearCache : 1;
+
+	UE_DEPRECATED(5.5, "No longer used")
+	bool bOwnsTrack : 1;
+
+	UE_DEPRECATED(5.5, "No longer used and underlying variable is deprecated")
+	bool IsCacheRecording()
+	{ 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return CacheType == EGeometryCollectionCacheType::Record || CacheType == EGeometryCollectionCacheType::RecordAndPlay; 
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	UE_DEPRECATED(5.5, "No longer used and underlying variable is deprecated")
+	bool IsCachePlaying()
+	{ 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return CacheType == EGeometryCollectionCacheType::Play || CacheType == EGeometryCollectionCacheType::RecordAndPlay;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+#endif
 };

@@ -3877,13 +3877,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		SimulationParameters.CollisionGroup = CollisionGroup;
 		SimulationParameters.CollisionSampleFraction = CollisionSampleFraction;
 		SimulationParameters.InitialVelocityType = InitialVelocityType;
-		SimulationParameters.InitialLinearVelocity = InitialLinearVelocity;
-		SimulationParameters.InitialAngularVelocity = InitialAngularVelocity;
-		SimulationParameters.bClearCache = true;
+		SimulationParameters.InitialLinearVelocity = FVector3f(InitialLinearVelocity);
+		SimulationParameters.InitialAngularVelocity = FVector3f(InitialAngularVelocity);
 		SimulationParameters.ObjectType = ObjectType;
 		SimulationParameters.StartAwake = BodyInstance.bStartAwake;
-		SimulationParameters.CacheType = CacheParameters.CacheMode;
-		SimulationParameters.ReverseCacheBeginTime = CacheParameters.ReverseCacheBeginTime;
 		SimulationParameters.bGenerateBreakingData = bNotifyBreaks;
 		SimulationParameters.bGenerateCollisionData = bNotifyCollisions;
 		SimulationParameters.bGenerateTrailingData = bNotifyTrailing;
@@ -3911,6 +3908,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		SimulationParameters.bEnableStrainOnCollision = bEnableDamageFromCollision;
 		SimulationParameters.bUseStaticMeshCollisionForTraces = bUseStaticMeshCollisionForTraces;
 		SimulationParameters.bOptimizeConvexes = RestCollection ? RestCollection->bOptimizeConvexes : true;
+
+#if SIMULATIONPARAMETERS_CACHE_PARAMETERS
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		SimulationParameters.bClearCache = true;
+		SimulationParameters.CacheType = CacheParameters.CacheMode;
+		SimulationParameters.ReverseCacheBeginTime = CacheParameters.ReverseCacheBeginTime;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif
 
 		UPhysicalMaterial* EnginePhysicalMaterial = GetPhysicalMaterial();
 		if (ensure(EnginePhysicalMaterial))
