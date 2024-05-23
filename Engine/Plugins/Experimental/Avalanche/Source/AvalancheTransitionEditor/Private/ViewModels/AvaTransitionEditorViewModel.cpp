@@ -21,6 +21,7 @@
 #include "StateTreeDelegates.h"
 #include "StateTreeEditorSettings.h"
 #include "TabFactories/AvaTransitionCompilerResultsTabFactory.h"
+#include "Views/SAvaTransitionTreeDetails.h"
 #include "Views/SAvaTransitionTreeView.h"
 #include "Widgets/Layout/SScrollBar.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -131,6 +132,51 @@ TSharedRef<FAvaTransitionSelection> FAvaTransitionEditorViewModel::GetSelection(
 	return GetSharedData()->GetSelection();
 }
 
+TSharedRef<SWidget> FAvaTransitionEditorViewModel::GetTreeWidget()
+{
+	if (!TreeView.IsValid())
+	{
+		TreeView = SNew(SAvaTransitionTreeView, SharedThis(this));
+	}
+
+	return SNew(SVerticalBox)
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		[
+			Toolbar->GenerateTreeToolbarWidget()
+		]
+		+ SVerticalBox::Slot()
+		.FillHeight(1.f)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.FillWidth(1.f)
+			[
+				SNew(SScrollBox)
+				.Orientation(Orient_Horizontal)
+				+ SScrollBox::Slot()
+				.FillSize(1.f)
+				[
+					TreeView.ToSharedRef()
+				]
+			]
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				TreeView->GetVerticalScrollbar()
+			]
+		];
+}
+
+TSharedRef<SWidget> FAvaTransitionEditorViewModel::GetTreeDetails()
+{
+	if (!TreeDetails.IsValid())
+	{
+		TreeDetails = SNew(SAvaTransitionTreeDetails, SharedThis(this));
+	}
+	return TreeDetails.ToSharedRef();
+}
+
 void FAvaTransitionEditorViewModel::OnInitialize()
 {
 	FAvaTransitionViewModel::OnInitialize();
@@ -152,13 +198,17 @@ void FAvaTransitionEditorViewModel::OnInitialize()
 	{
 		ViewModelSharedData->SetReadOnly(Editor->IsReadOnly());
 	}
-
-	TreeView = SNew(SAvaTransitionTreeView, This);
 }
 
 void FAvaTransitionEditorViewModel::PostRefresh()
 {
 	FAvaTransitionViewModel::PostRefresh();
+
+	if (TreeDetails.IsValid())
+	{
+		TreeDetails->Refresh();
+	}
+
 	RefreshTreeView();
 	UpdateTree();
 }
@@ -197,38 +247,6 @@ void FAvaTransitionEditorViewModel::PostUndo(bool bInSuccess)
 {
 	UpdateEditorData();
 	Refresh();
-}
-
-TSharedRef<SWidget> FAvaTransitionEditorViewModel::CreateWidget()
-{
-	check(TreeView.IsValid());
-	return SNew(SVerticalBox)
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		[
-			Toolbar->GenerateTreeToolbarWidget()
-		]
-		+ SVerticalBox::Slot()
-		.FillHeight(1.f)
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.FillWidth(1.f)
-			[
-				SNew(SScrollBox)
-				.Orientation(Orient_Horizontal)
-				+ SScrollBox::Slot()
-				.FillSize(1.f)
-				[
-					TreeView.ToSharedRef()
-				]
-			]
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				TreeView->GetVerticalScrollbar()
-			]
-		];
 }
 
 UObject* FAvaTransitionEditorViewModel::GetObject() const

@@ -17,6 +17,7 @@ class FAvaTransitionTreeContextMenu;
 class FUICommandList;
 class IAvaTransitionSelectableExtension;
 class IMessageToken;
+class SAvaTransitionTreeDetails;
 class SAvaTransitionTreeView;
 class UAvaTransitionTree;
 class UAvaTransitionTreeEditorData;
@@ -25,10 +26,10 @@ class UStateTreeState;
 class UToolMenu;
 
 /** View Model for the Tree Editor Data */
-class FAvaTransitionEditorViewModel : public FAvaTransitionViewModel, public FSelfRegisteringEditorUndoClient, public IAvaTransitionWidgetExtension, public IAvaTransitionObjectExtension
+class FAvaTransitionEditorViewModel : public FAvaTransitionViewModel, public FSelfRegisteringEditorUndoClient, public IAvaTransitionObjectExtension
 {
 public:
-	UE_AVA_INHERITS(FAvaTransitionEditorViewModel, FAvaTransitionViewModel, IAvaTransitionWidgetExtension, IAvaTransitionObjectExtension)
+	UE_AVA_INHERITS(FAvaTransitionEditorViewModel, FAvaTransitionViewModel, IAvaTransitionObjectExtension)
 
 	explicit FAvaTransitionEditorViewModel(UAvaTransitionTree* InTransitionTree, const TSharedPtr<FAvaTransitionEditor>& InEditor);
 
@@ -71,6 +72,10 @@ public:
 		return ContextMenu;
 	}
 
+	TSharedRef<SWidget> GetTreeWidget();
+
+	TSharedRef<SWidget> GetTreeDetails();
+
 	//~ Begin FAvaTransitionViewModel
 	virtual void OnInitialize() override;
 	virtual void PostRefresh() override;
@@ -81,10 +86,6 @@ public:
 	virtual void PostRedo(bool bInSuccess) override;
 	virtual void PostUndo(bool bInSuccess) override;
 	//~ End FEditorUndoClient
-
-	//~ Begin IAvaTransitionWidgetExtension
-	virtual TSharedRef<SWidget> CreateWidget() override;
-	//~ End IAvaTransitionWidgetExtension
 
 	//~ Begin IAvaTransitionObjectExtension
 	virtual UObject* GetObject() const override;
@@ -119,6 +120,8 @@ private:
 	TSharedRef<FUICommandList> CommandList;
 
 	TSharedPtr<SAvaTransitionTreeView> TreeView;
+
+	TSharedPtr<SAvaTransitionTreeDetails> TreeDetails;
 
 	TArray<TSharedRef<FAvaTransitionActions>> Actions;
 };

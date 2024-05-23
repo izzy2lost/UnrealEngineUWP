@@ -3,7 +3,6 @@
 #include "AvaTransitionTreeTabFactory.h"
 #include "AvaTransitionTree.h"
 #include "AvaTypeSharedPointer.h"
-#include "Extensions/IAvaTransitionWidgetExtension.h"
 #include "Styling/SlateIconFinder.h"
 #include "ViewModels/AvaTransitionEditorViewModel.h"
 #include "Widgets/SNullWidget.h"
@@ -31,13 +30,13 @@ TSharedRef<SWidget> FAvaTransitionTreeTabFactory::CreateTabBody(const FWorkflowT
 		return SNullWidget::NullWidget;
 	}
 
-	TSharedPtr<IAvaTransitionWidgetExtension> WidgetExtension = UE::AvaCore::CastSharedPtr<IAvaTransitionWidgetExtension>(Editor->GetEditorViewModel());
-	if (!ensure(WidgetExtension.IsValid()))
+	TSharedPtr<FAvaTransitionEditorViewModel> EditorViewModel = Editor->GetEditorViewModel();
+	if (!ensure(EditorViewModel.IsValid()))
 	{
 		return SNullWidget::NullWidget;
 	}
 
-	return WidgetExtension->CreateWidget();
+	return EditorViewModel->GetTreeWidget();
 }
 
 #undef LOCTEXT_NAMESPACE
