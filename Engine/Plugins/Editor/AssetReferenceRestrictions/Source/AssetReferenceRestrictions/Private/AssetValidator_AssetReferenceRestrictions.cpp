@@ -85,7 +85,7 @@ void UAssetValidator_AssetReferenceRestrictions::ValidateAssetInternal(const FAs
 	for (FName SoftDependency : SoftDependencies)
 	{
 		const FString SoftDependencyStr = SoftDependency.ToString();
-		if (!FPackageName::IsScriptPackage(SoftDependencyStr))
+		if (!FPackageName::IsScriptPackage(SoftDependencyStr) && !FPackageName::IsVersePackage(SoftDependencyStr))
 		{
 			TArray<FAssetData> DependencyAssets;
 			InAssetRegistry.GetAssetsByPackageName(SoftDependency, DependencyAssets, true);
