@@ -1574,9 +1574,9 @@ void FRigVMCodeGenerator::ParseInstructionGroups(const FRigVMExtendedExecuteCont
 					// todo
 					break;
 				}
-				case ERigVMOpCode::SetupDecorators:
+				case ERigVMOpCode::SetupTraits:
 				{
-					const FRigVMSetupDecoratorsOp& Op = ByteCode.GetOpAt<FRigVMSetupDecoratorsOp>(Instruction);
+					const FRigVMSetupTraitsOp& Op = ByteCode.GetOpAt<FRigVMSetupTraitsOp>(Instruction);
 					// todo
 					break;
 				}

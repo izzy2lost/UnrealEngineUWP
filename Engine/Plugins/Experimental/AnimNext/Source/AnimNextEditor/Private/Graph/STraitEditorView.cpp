@@ -113,11 +113,11 @@ FReply STraitEditorView::OnTraitClicked(const FTraitUID InClickedTraitUID)
 				const FName NewTraitTypeName = *Trait->GetTraitName();
 				if (TraitIndex == INDEX_NONE || bIsAddingMissingBaseTrait)
 				{
-					Controller->AddTrait(EdGraphNode->GetFName(), NewTraitTypeName, PinIndex);
+					Controller->AddTraitByName(EdGraphNode->GetFName(), NewTraitTypeName, PinIndex);
 				}
 				else
 				{
-					Controller->SwapTrait(EdGraphNode->GetFName(), SwapTraitData->TraitName, PinIndex, NewTraitTypeName);
+					Controller->SwapTraitByName(EdGraphNode->GetFName(), SwapTraitData->TraitName, PinIndex, NewTraitTypeName);
 				}
 			}
 		}
@@ -149,7 +149,7 @@ FReply STraitEditorView::OnTraitDeleteRequest(const FTraitUID InTraitUIDToDelete
 					{
 						if (UAnimNextGraph_Controller* Controller = Cast<UAnimNextGraph_Controller>(EdGraphNode->GetController()))
 						{
-							Controller->RemoveTrait(EdGraphNode->GetFName(), TraitDataEditorDef->TraitName);
+							Controller->RemoveTraitByName(EdGraphNode->GetFName(), TraitDataEditorDef->TraitName);
 						}
 					}
 				}
@@ -197,11 +197,11 @@ void STraitEditorView::ExecuteTraitDrag(const FTraitUID DraggedTraitUID, const F
 					{
 						if(bIsAddingMissingBaseTrait)
 						{
-							Controller->AddTrait(EdGraphNode->GetFName(), DraggedTraitTypeName, PinIndex);
+							Controller->AddTraitByName(EdGraphNode->GetFName(), DraggedTraitTypeName, PinIndex);
 						}
 						else
 						{
-							Controller->SwapTrait(EdGraphNode->GetFName(), SwapTraitData->TraitName, PinIndex, DraggedTraitTypeName);
+							Controller->SwapTraitByName(EdGraphNode->GetFName(), SwapTraitData->TraitName, PinIndex, DraggedTraitTypeName);
 						}
 					}
 					else
@@ -215,7 +215,7 @@ void STraitEditorView::ExecuteTraitDrag(const FTraitUID DraggedTraitUID, const F
 						}
 						else
 						{
-							Controller->AddTrait(EdGraphNode->GetFName(), DraggedTraitTypeName, PinIndex + 1);
+							Controller->AddTraitByName(EdGraphNode->GetFName(), DraggedTraitTypeName, PinIndex + 1);
 						}
 					}
 				}
@@ -523,7 +523,7 @@ int32 STraitEditorView::GetTraitPinIndex(UAnimNextGraph_EdGraphNode* InEdGraphNo
 			int32 Index = 0;
 			for (const URigVMPin* Pin : Pins)
 			{
-				if (!Pin->IsDecoratorPin() || Pin->IsExecuteContext())
+				if (!Pin->IsTraitPin() || Pin->IsExecuteContext())
 				{
 					Index++;
 					continue;
@@ -536,7 +536,7 @@ int32 STraitEditorView::GetTraitPinIndex(UAnimNextGraph_EdGraphNode* InEdGraphNo
 		else
 		{
 			// Obtain the pins from the stack
-			const TArray<URigVMPin*> TraitPins = ModelNode->GetDecoratorPins();
+			const TArray<URigVMPin*> TraitPins = ModelNode->GetTraitPins();
 			for (const URigVMPin* TraitPin : TraitPins)
 			{
 				if (TraitPin->IsExecuteContext())
@@ -577,7 +577,7 @@ int32 STraitEditorView::GetTraitPinIndex(UAnimNextGraph_EdGraphNode* InEdGraphNo
 			int32 NumBaseTraits = 0;
 
 			// Obtain the pins from the stack
-			const TArray<URigVMPin*> TraitPins = ModelNode->GetDecoratorPins();
+			const TArray<URigVMPin*> TraitPins = ModelNode->GetTraitPins();
 			const int32 NumPins = TraitPins.Num();
 			if (NumPins > 0)
 			{
@@ -595,11 +595,11 @@ int32 STraitEditorView::GetTraitPinIndex(UAnimNextGraph_EdGraphNode* InEdGraphNo
 					}
 
 					// Create a temporary trait instance, in order to get the correct TraitSharedDataStruct
-					if (TSharedPtr<FStructOnScope> ScopedTrait = ModelNode->GetDecoratorInstance(TraitPin->GetFName()))
+					if (TSharedPtr<FStructOnScope> ScopedTrait = ModelNode->GetTraitInstance(TraitPin->GetFName()))
 					{
-						if (const FRigVMDecorator* RigVMTrait = (FRigVMDecorator*)ScopedTrait->GetStructMemory())
+						if (const FRigVMTrait* RigVMTrait = (FRigVMTrait*)ScopedTrait->GetStructMemory())
 						{
-							if (TWeakObjectPtr<UScriptStruct> TraitStruct = RigVMTrait->GetDecoratorSharedDataStruct(); TraitStruct.IsValid())
+							if (TWeakObjectPtr<UScriptStruct> TraitStruct = RigVMTrait->GetTraitSharedDataStruct(); TraitStruct.IsValid())
 							{
 								if (const FTrait* Trait = TraitRegistry.Find(TraitStruct.Get()))
 								{

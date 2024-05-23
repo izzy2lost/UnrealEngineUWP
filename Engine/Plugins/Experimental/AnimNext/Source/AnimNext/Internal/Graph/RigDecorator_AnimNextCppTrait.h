@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "RigVMCore/RigVMDecorator.h"
+#include "RigVMCore/RigVMTrait.h"
 
 #include "RigDecorator_AnimNextCppTrait.generated.h"
 
@@ -13,7 +13,7 @@ namespace UE::AnimNext { struct FTrait; }
  * The trait shared data UScriptStruct determines which properties are exposed.
  */
 USTRUCT(BlueprintType)
-struct ANIMNEXT_API FRigDecorator_AnimNextCppDecorator : public FRigVMDecorator
+struct ANIMNEXT_API FRigDecorator_AnimNextCppDecorator : public FRigVMTrait
 {
 	GENERATED_BODY()
 
@@ -24,7 +24,7 @@ struct ANIMNEXT_API FRigDecorator_AnimNextCppDecorator : public FRigVMDecorator
 #if WITH_EDITOR
 	virtual void GetProgrammaticPins(URigVMController* InController, int32 InParentPinIndex, const FString& InDefaultValue, struct FRigVMPinInfoArray& OutPinArray) const override;
 	
-	virtual UScriptStruct* GetDecoratorSharedDataStruct() const override { return DecoratorSharedDataStruct; }
+	virtual UScriptStruct* GetTraitSharedDataStruct() const override { return DecoratorSharedDataStruct; }
 
 	const UE::AnimNext::FTrait* GetTrait() const;
 #endif

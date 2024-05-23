@@ -19,7 +19,7 @@
 #include "RigVMCore/RigVMProfilingInfo.h"
 #include "RigVMCore/RigVMNameCache.h"
 #include "RigVMCore/RigVMMemoryStorageStruct.h"
-#include "RigVMCore/RigVMDecoratorScope.h"
+#include "RigVMCore/RigVMTraitScope.h"
 #include "RigVMLog.h"
 #include "RigVMDrawInterface.h"
 #include "RigVMDrawContainer.h"
@@ -272,7 +272,7 @@ struct FRigVMExecuteContext
 		, OwningComponent(nullptr)
 		, OwningActor(nullptr)
 		, World(nullptr)
-		, Decorators()
+		, Traits()
 	{
 	}
 
@@ -418,18 +418,18 @@ struct FRigVMExecuteContext
 	FRigVMDrawContainer* GetDrawContainer() { return DrawContainerPtr; }
 	void SetDrawContainer(FRigVMDrawContainer* InDrawContainer) { DrawContainerPtr = InDrawContainer; }
 
-	TArrayView<const FRigVMDecoratorScope> GetDecorators() const
+	TArrayView<const FRigVMTraitScope> GetTraits() const
 	{
-		if(Decorators.IsEmpty())
+		if(Traits.IsEmpty())
 		{
-			return TArrayView<const FRigVMDecoratorScope>();
+			return TArrayView<const FRigVMTraitScope>();
 		}
-		return TArrayView<const FRigVMDecoratorScope>(Decorators.GetData(), Decorators.Num());
+		return TArrayView<const FRigVMTraitScope>(Traits.GetData(), Traits.Num());
 	}
 
-	TArrayView<FRigVMDecoratorScope> GetDecorators()
+	TArrayView<FRigVMTraitScope> GetTraits()
 	{
-		return TArrayView<FRigVMDecoratorScope>(Decorators.GetData(), Decorators.Num());
+		return TArrayView<FRigVMTraitScope>(Traits.GetData(), Traits.Num());
 	}
 
 	virtual void Initialize()
@@ -499,8 +499,8 @@ protected:
 	/** The world this VM is running in */
 	const UWorld* World;
 
-	/** The decorators accessible to the current instruction */
-	TArray<FRigVMDecoratorScope> Decorators;
+	/** The traits accessible to the current instruction */
+	TArray<FRigVMTraitScope> Traits;
 
 #if UE_RIGVM_DEBUG_EXECUTION
 public:

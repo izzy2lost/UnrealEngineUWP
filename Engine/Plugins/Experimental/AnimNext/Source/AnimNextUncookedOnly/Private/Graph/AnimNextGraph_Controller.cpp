@@ -17,7 +17,7 @@
 #include "TraitCore/TraitRegistry.h"
 #include "TraitCore/TraitUID.h"
 
-FName UAnimNextGraph_Controller::AddTrait(FName InNodeName, FName InNewTraitTypeName, int32 InPinIndex, const FString& InNewTraitDefaultValue, bool bSetupUndoRedo, bool bPrintPythonCommand)
+FName UAnimNextGraph_Controller::AddTraitByName(FName InNodeName, FName InNewTraitTypeName, int32 InPinIndex, const FString& InNewTraitDefaultValue, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
 	if (!IsValidGraph())
 	{
@@ -79,10 +79,10 @@ FName UAnimNextGraph_Controller::AddTrait(FName InNodeName, FName InNewTraitType
 
 	const FName TraitName = InNewTraitTypeName;
 
-	return AddDecorator(InNodeName, *CppDecoratorStruct->GetPathName(), TraitName, DefaultValue, InPinIndex, bSetupUndoRedo, bPrintPythonCommand);
+	return AddTrait(InNodeName, *CppDecoratorStruct->GetPathName(), TraitName, DefaultValue, InPinIndex, bSetupUndoRedo, bPrintPythonCommand);
 }
 
-bool UAnimNextGraph_Controller::RemoveTrait(FName InNodeName, FName InTraitInstanceName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+bool UAnimNextGraph_Controller::RemoveTraitByName(FName InNodeName, FName InTraitInstanceName, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
 	if (!IsValidGraph())
 	{
@@ -102,10 +102,10 @@ bool UAnimNextGraph_Controller::RemoveTrait(FName InNodeName, FName InTraitInsta
 
 	// Avoid multiple VM recompilations for internal operations
 	FRigVMControllerCompileBracketScope CompileScope(this);
-	return RemoveDecorator(InNodeName, InTraitInstanceName, bSetupUndoRedo, bPrintPythonCommand);
+	return RemoveTrait(InNodeName, InTraitInstanceName, bSetupUndoRedo, bPrintPythonCommand);
 }
 
-FName UAnimNextGraph_Controller::SwapTrait(FName InNodeName, FName InTraitInstanceName, int32 InCurrentTraitPinIndex, FName InNewTraitTypeName, const FString& InNewTraitDefaultValue, bool bSetupUndoRedo, bool bPrintPythonCommand)
+FName UAnimNextGraph_Controller::SwapTraitByName(FName InNodeName, FName InTraitInstanceName, int32 InCurrentTraitPinIndex, FName InNewTraitTypeName, const FString& InNewTraitDefaultValue, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
 	if (!IsValidGraph())
 	{
@@ -125,9 +125,9 @@ FName UAnimNextGraph_Controller::SwapTrait(FName InNodeName, FName InTraitInstan
 
 	// Avoid multiple VM recompilations, for each operation
 	FRigVMControllerCompileBracketScope CompileScope(this);
-	if (RemoveTrait(InNodeName, InTraitInstanceName, bSetupUndoRedo, bPrintPythonCommand))
+	if (RemoveTraitByName(InNodeName, InTraitInstanceName, bSetupUndoRedo, bPrintPythonCommand))
 	{
-		return AddTrait(InNodeName, InNewTraitTypeName, InCurrentTraitPinIndex, InNewTraitDefaultValue, bSetupUndoRedo, bPrintPythonCommand);
+		return AddTraitByName(InNodeName, InNewTraitTypeName, InCurrentTraitPinIndex, InNewTraitDefaultValue, bSetupUndoRedo, bPrintPythonCommand);
 	}
 
 	return NAME_None;
@@ -166,7 +166,7 @@ bool UAnimNextGraph_Controller::SetTraitPinIndex(FName InNodeName, FName InTrait
 		return false;
 	}
 
-	URigVMPin* TraitPin = Node->FindDecorator(InTraitInstanceName);
+	URigVMPin* TraitPin = Node->FindTrait(InTraitInstanceName);
 	if (TraitPin == nullptr)
 	{
 		ReportError(TEXT("The node does not contain a Trait with the provided name."));
@@ -177,20 +177,20 @@ bool UAnimNextGraph_Controller::SetTraitPinIndex(FName InNodeName, FName InTrait
 	const FString TraitDefaultValue = TraitPin->GetDefaultValue();
 
 	// TODO zzz : Is there a better way to get a Trait* from a TraitPin ?
-	if (TSharedPtr<FStructOnScope> ScopedTrait = Node->GetDecoratorInstance(TraitPin->GetFName()))
+	if (TSharedPtr<FStructOnScope> ScopedTrait = Node->GetTraitInstance(TraitPin->GetFName()))
 	{
-		const FRigVMDecorator* Decorator = (FRigVMDecorator*)ScopedTrait->GetStructMemory();
-		if (const UScriptStruct* TraitSharedInstanceData = Decorator->GetDecoratorSharedDataStruct())
+		const FRigVMTrait* Trait = (FRigVMTrait*)ScopedTrait->GetStructMemory();
+		if (const UScriptStruct* TraitSharedInstanceData = Trait->GetTraitSharedDataStruct())
 		{
 			UE::AnimNext::FTraitRegistry& TraitRegistry = UE::AnimNext::FTraitRegistry::Get();
-			if (const UE::AnimNext::FTrait* Trait = TraitRegistry.Find(TraitSharedInstanceData))
+			if (const UE::AnimNext::FTrait* AnimNextTrait = TraitRegistry.Find(TraitSharedInstanceData))
 			{
 				// Avoid multiple VM recompilations, for each operation
 				FRigVMControllerCompileBracketScope CompileScope(this);
-				if (RemoveTrait(InNodeName, InTraitInstanceName, bSetupUndoRedo, bPrintPythonCommand))
+				if (RemoveTraitByName(InNodeName, InTraitInstanceName, bSetupUndoRedo, bPrintPythonCommand))
 				{
 					// TOOO zzz : Why TraitName is a string ?
-					if (AddTrait(InNodeName, FName(Trait->GetTraitName()), InNewPinIndex, TraitDefaultValue, bSetupUndoRedo, bPrintPythonCommand) != NAME_None)
+					if (AddTraitByName(InNodeName, FName(AnimNextTrait->GetTraitName()), InNewPinIndex, TraitDefaultValue, bSetupUndoRedo, bPrintPythonCommand) != NAME_None)
 					{
 						return true;
 					}

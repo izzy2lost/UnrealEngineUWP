@@ -221,7 +221,7 @@ enum class ERigVMOpCode : uint8
 	JumpToBranch, // jumps to a branch based on a name operand
 	Execute, // single execute op (formerly Execute_0_Operands to Execute_64_Operands)
 	RunInstructions, // runs a set of instructions lazily
-	SetupDecorators, // sets up a list of decorators on executecontext
+	SetupTraits, // sets up a list of traits on executecontext
 	Invalid,
 	FirstArrayOpCode = ArrayReset,
 	LastArrayOpCode = ArrayReverse,
@@ -336,7 +336,7 @@ struct RIGVM_API FRigVMUnaryOp : public FRigVMBaseOp
 			uint8(InOpCode) == uint8(ERigVMOpCode::ChangeType) ||
 			uint8(InOpCode) == uint8(ERigVMOpCode::JumpToBranch) ||
 			uint8(InOpCode) == uint8(ERigVMOpCode::RunInstructions) ||
-			uint8(InOpCode) == uint8(ERigVMOpCode::SetupDecorators)
+			uint8(InOpCode) == uint8(ERigVMOpCode::SetupTraits)
 		);
 	}
 
@@ -1016,19 +1016,19 @@ struct RIGVM_API FRigVMRunInstructionsOp : public FRigVMUnaryOp
 	}
 };
 
-// sets up a list of decorators in the execute context
+// sets up a list of traits in the execute context
 USTRUCT()
-struct RIGVM_API FRigVMSetupDecoratorsOp : public FRigVMUnaryOp
+struct RIGVM_API FRigVMSetupTraitsOp : public FRigVMUnaryOp
 {
 	GENERATED_USTRUCT_BODY()
 
-	FRigVMSetupDecoratorsOp()
+	FRigVMSetupTraitsOp()
 		: FRigVMUnaryOp()
 	{
 	}
 
-	FRigVMSetupDecoratorsOp(FRigVMOperand InDecoratorListArg)
-		: FRigVMUnaryOp(ERigVMOpCode::SetupDecorators, InDecoratorListArg)
+	FRigVMSetupTraitsOp(FRigVMOperand InTraitListArg)
+		: FRigVMUnaryOp(ERigVMOpCode::SetupTraits, InTraitListArg)
 	{
 	}
 };
@@ -1235,8 +1235,8 @@ public:
 	// adds a run instructions op
 	uint64 AddRunInstructionsOp(FRigVMOperand InExecuteStateArg, int32 InStartInstruction, int32 InEndInstruction);
 
-	// adds a setup decorators op
-	uint64 AddSetupDecoratorsOp(FRigVMOperand InDecoratorListArg);
+	// adds a setup traits op
+	uint64 AddSetupTraitsOp(FRigVMOperand InTraitListArg);
 
 	// adds information about a branch for an instruction's argument
 	int32 AddBranchInfo(const FRigVMBranchInfo& InBranchInfo);
@@ -1430,24 +1430,24 @@ public:
 
 #endif
 
-	// returns the decorators for the provided memory
-	TMap<int32, TArray<FRigVMDecoratorScope>> GetDecorators(FRigVMMemoryStorageStruct& InLiteralMemory, FRigVMMemoryStorageStruct& InWorkMemory, const UScriptStruct* InScriptStruct = nullptr) const;
+	// returns the traits for the provided memory
+	TMap<int32, TArray<FRigVMTraitScope>> GetTraits(FRigVMMemoryStorageStruct& InLiteralMemory, FRigVMMemoryStorageStruct& InWorkMemory, const UScriptStruct* InScriptStruct = nullptr) const;
 
-	// returns the decorators of a given type for the provided memory
+	// returns the traits of a given type for the provided memory
 	template<typename T>
-	TMap<int32, TArray<FRigVMDecoratorScope>> GetDecorators(FRigVMMemoryStorageStruct& InLiteralMemory, FRigVMMemoryStorageStruct& InWorkMemory) const
+	TMap<int32, TArray<FRigVMTraitScope>> GetTraits(FRigVMMemoryStorageStruct& InLiteralMemory, FRigVMMemoryStorageStruct& InWorkMemory) const
 	{
-		return GetDecorators(InLiteralMemory, InWorkMemory, T::StaticStruct());
+		return GetTraits(InLiteralMemory, InWorkMemory, T::StaticStruct());
 	}
 
-	// returns the decorators for the provided memory for a single instruction
-	TArray<FRigVMDecoratorScope> GetDecoratorsForInstruction(const FRigVMInstruction& InInstruction, FRigVMMemoryStorageStruct& InLiteralMemory, FRigVMMemoryStorageStruct& InWorkMemory, const UScriptStruct* InScriptStruct = nullptr) const;
+	// returns the traits for the provided memory for a single instruction
+	TArray<FRigVMTraitScope> GetTraitsForInstruction(const FRigVMInstruction& InInstruction, FRigVMMemoryStorageStruct& InLiteralMemory, FRigVMMemoryStorageStruct& InWorkMemory, const UScriptStruct* InScriptStruct = nullptr) const;
 
-	// returns the decorators of a given type for the provided memory for a single instruction
+	// returns the traits of a given type for the provided memory for a single instruction
 	template<typename T>
-	TArray<FRigVMDecoratorScope> GetDecoratorsForInstruction(const FRigVMInstruction& InInstruction, FRigVMMemoryStorageStruct& InLiteralMemory, FRigVMMemoryStorageStruct& InWorkMemory) const
+	TArray<FRigVMTraitScope> GetTraitsForInstruction(const FRigVMInstruction& InInstruction, FRigVMMemoryStorageStruct& InLiteralMemory, FRigVMMemoryStorageStruct& InWorkMemory) const
 	{
-		return GetDecoratorsForInstruction(InInstruction, InLiteralMemory, InWorkMemory, T::StaticStruct());
+		return GetTraitsForInstruction(InInstruction, InLiteralMemory, InWorkMemory, T::StaticStruct());
 	}
 
 private:

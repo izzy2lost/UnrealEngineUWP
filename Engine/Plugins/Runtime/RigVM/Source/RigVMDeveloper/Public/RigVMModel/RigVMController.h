@@ -188,7 +188,7 @@ struct RIGVMDEVELOPER_API FRigVMPinInfo
 	bool bIsExpanded;
 	bool bIsConstant;
 	bool bIsDynamicArray;
-	bool bIsDecorator;
+	bool bIsTrait;
 	bool bIsLazy;
 	TArray<int32> SubPins;
 
@@ -323,7 +323,7 @@ public:
 	TArray<FString> GeneratePythonCommands();
 
 	TArray<FString> GetAddNodePythonCommands(URigVMNode* Node) const;
-	TArray<FString> GetAddDecoratorPythonCommands(URigVMNode* Node, const FName& DecoratorName) const;
+	TArray<FString> GetAddTraitPythonCommands(URigVMNode* Node, const FName& TraitName) const;
 
 	FRigVMGraphFunctionStore* GetGraphFunctionStore() const;
 	FRigVMGraphFunctionData* FindFunctionData(const FName& InFunctionName) const;
@@ -565,13 +565,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
 	URigVMInvokeEntryNode* AddInvokeEntryNode(const FName& InEntryName, const FVector2D& InPosition = FVector2D::ZeroVector, const FString& InNodeName = TEXT(""), bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
 
-	// Adds a decorator to a node
+	// Adds a trait to a node
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
-	FName AddDecorator(const FName& InNodeName, const FName& InDecoratorTypeObjectPath, const FName& InDecoratorName = NAME_None, const FString& InDefaultValue = TEXT(""), int32 InPinIndex = -1, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+	FName AddTrait(const FName& InNodeName, const FName& InTraitTypeObjectPath, const FName& InTraitName = NAME_None, const FString& InDefaultValue = TEXT(""), int32 InPinIndex = -1, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
 
-	// Removes a decorator from a node
+	// Removes a trait from a node
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
-	bool RemoveDecorator(const FName& InNodeName, const FName& InDecoratorName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+	virtual bool RemoveTrait(const FName& InNodeName, const FName& InTraitName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
 
 	// Un-does the last action on the stack.
 	// Note: This should really only be used for unit tests,
@@ -1198,8 +1198,8 @@ private:
 	URigVMInjectionInfo* InjectNodeIntoPin(URigVMPin* InPin, bool bAsInput, const FName& InInputPinName, const FName& InOutputPinName, bool bSetupUndoRedo = true);
 	URigVMNode* EjectNodeFromPin(URigVMPin* InPin, bool bSetupUndoRedo = true, bool bPrintPythonCommands = false);
 	bool EjectAllInjectedNodes(URigVMNode* InNode, bool bSetupUndoRedo = true, bool bPrintPythonCommands = false);
-	FName AddDecorator(URigVMNode* InNode, UScriptStruct* InDecoratorScriptStruct, const FName& InDecoratorName, const FString& InDefaultValue, int32 InPinIndex = -1, bool bSetupUndoRedo = true);
-	bool RemoveDecorator(URigVMNode* InNode, const FName& InDecoratorName, bool bSetupUndoRedo = true);
+	FName AddTrait(URigVMNode* InNode, UScriptStruct* InTraitScriptStruct, const FName& InTraitName, const FString& InDefaultValue, int32 InPinIndex = -1, bool bSetupUndoRedo = true);
+	bool RemoveTrait(URigVMNode* InNode, const FName& InTraitName, bool bSetupUndoRedo = true);
 
 protected:
 

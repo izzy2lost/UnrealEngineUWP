@@ -18,7 +18,7 @@
 #include "UObject/UObjectIterator.h"
 #include "UObject/ObjectSaveContext.h"
 #include "RigVMHost.h"
-#include "RigVMCore/RigVMDecorator.h"
+#include "RigVMCore/RigVMTrait.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVM)
 
@@ -556,9 +556,9 @@ bool URigVM::ValidateBytecode()
 				CheckOperandValidity(Op.Arg);
 				break;
 			}
-			case ERigVMOpCode::SetupDecorators:
+			case ERigVMOpCode::SetupTraits:
 			{
-				const FRigVMSetupDecoratorsOp& Op = ByteCodeStorage.GetOpAt<FRigVMSetupDecoratorsOp>(ByteCodeInstruction);
+				const FRigVMSetupTraitsOp& Op = ByteCodeStorage.GetOpAt<FRigVMSetupTraitsOp>(ByteCodeInstruction);
 				CheckOperandValidity(Op.Arg);
 				break;
 			}
@@ -1152,9 +1152,9 @@ void URigVM::InstructionOpEval(FRigVMExtendedExecuteContext& Context, int32 Inst
 			InOpFunc(Context, InHandleBaseIndex, {}, Arg);
 			break;
 		}
-		case ERigVMOpCode::SetupDecorators:
+		case ERigVMOpCode::SetupTraits:
 		{
-			const FRigVMSetupDecoratorsOp& Op = ByteCode.GetOpAt<FRigVMSetupDecoratorsOp>(Instructions[InstructionIndex]);
+			const FRigVMSetupTraitsOp& Op = ByteCode.GetOpAt<FRigVMSetupTraitsOp>(Instructions[InstructionIndex]);
 			const FRigVMOperand& Arg = Op.Arg;
 			InOpFunc(Context, InHandleBaseIndex, {}, Arg);
 			break;
@@ -2139,22 +2139,22 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 				ContextPublicData.InstructionIndex++;
 				break;
 			}
-			case ERigVMOpCode::SetupDecorators:
+			case ERigVMOpCode::SetupTraits:
 			{
-				ContextPublicData.Decorators.Reset();
+				ContextPublicData.Traits.Reset();
 				
-				const TArray<int32>& DecoratorList = *(TArray<int32>*)Context.CachedMemoryHandles[FirstHandleForInstruction[ContextPublicData.InstructionIndex]].GetData();
-				for(const int32 DecoratorPropertyIndex : DecoratorList)
+				const TArray<int32>& TraitList = *(TArray<int32>*)Context.CachedMemoryHandles[FirstHandleForInstruction[ContextPublicData.InstructionIndex]].GetData();
+				for(const int32 TraitPropertyIndex : TraitList)
 				{
-					if(Context.WorkMemoryStorage.GetProperties().IsValidIndex(DecoratorPropertyIndex))
+					if(Context.WorkMemoryStorage.GetProperties().IsValidIndex(TraitPropertyIndex))
 					{
-						const FProperty* Property = Context.WorkMemoryStorage.GetProperties()[DecoratorPropertyIndex];
+						const FProperty* Property = Context.WorkMemoryStorage.GetProperties()[TraitPropertyIndex];
 						if(const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
 						{
-							if(StructProperty->Struct && StructProperty->Struct->IsChildOf(FRigVMDecorator::StaticStruct()))
+							if(StructProperty->Struct && StructProperty->Struct->IsChildOf(FRigVMTrait::StaticStruct()))
 							{
-								ContextPublicData.Decorators.Emplace(
-									Context.WorkMemoryStorage.GetData<FRigVMDecorator>(StructProperty),
+								ContextPublicData.Traits.Emplace(
+									Context.WorkMemoryStorage.GetData<FRigVMTrait>(StructProperty),
 									Cast<UScriptStruct>(StructProperty->Struct));
 							}
 						}
@@ -2500,10 +2500,10 @@ TArray<FString> URigVM::DumpByteCodeAsTextArray(FRigVMExtendedExecuteContext& Co
 				ResultLine = FString::Printf(TEXT("Run Instructions %d-%d (%s)"), Op.StartInstruction, Op.EndInstruction, *GetOperandLabel(Context, Op.Arg, OperandFormatFunction));
 				break;
 			}
-			case ERigVMOpCode::SetupDecorators:
+			case ERigVMOpCode::SetupTraits:
 			{
-				const FRigVMSetupDecoratorsOp& Op = ByteCode.GetOpAt<FRigVMSetupDecoratorsOp>(Instructions[InstructionIndex]);
-				ResultLine = FString::Printf(TEXT("Setup Decorators (%s)"), *GetOperandLabel(Context, Op.Arg, OperandFormatFunction));
+				const FRigVMSetupTraitsOp& Op = ByteCode.GetOpAt<FRigVMSetupTraitsOp>(Instructions[InstructionIndex]);
+				ResultLine = FString::Printf(TEXT("Setup Traits (%s)"), *GetOperandLabel(Context, Op.Arg, OperandFormatFunction));
 				break;
 			}
 			default:

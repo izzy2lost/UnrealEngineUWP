@@ -810,10 +810,10 @@ FString URigVMPin::GetDefaultValue(const URigVMPin::FPinOverride& InOverride, bo
 	}
 	else if (IsStruct())
 	{
-		if (SubPins.Num() > 0 || IsDecoratorPin())
+		if (SubPins.Num() > 0 || IsTraitPin())
 		{
 			TArray<FString> MemberDefaultValues;
-			if(IsDecoratorPin())
+			if(IsTraitPin())
 			{
 				MemberDefaultValues.Add(FString::Printf(TEXT("Name=\"%s\""), *GetName()));
 			}
@@ -1206,9 +1206,9 @@ FString URigVMPin::GetMetaData(FName InKey) const
 #if WITH_EDITOR
 	if(const URigVMUnitNode* UnitNode = Cast<URigVMUnitNode>(GetNode()))
 	{
-		if(IsDecoratorPin())
+		if(IsTraitPin())
 		{
-			if(const UScriptStruct* Struct = GetDecoratorScriptStruct())
+			if(const UScriptStruct* Struct = GetTraitScriptStruct())
 			{
 				if(const FProperty* Property = Struct->FindPropertyByName(GetFName()))
 				{
@@ -1220,12 +1220,12 @@ FString URigVMPin::GetMetaData(FName InKey) const
 				}
 				else
 				{
-					// Possible the pin was programmatically generated from the decorator's shared struct
-					TSharedPtr<FStructOnScope> DecoratorScope = GetDecoratorInstance();
-					if(DecoratorScope.IsValid())
+					// Possible the pin was programmatically generated from the trait's shared struct
+					TSharedPtr<FStructOnScope> TraitScope = GetTraitInstance();
+					if(TraitScope.IsValid())
 					{
-						const FRigVMDecorator* VMDecorator = (FRigVMDecorator*)DecoratorScope->GetStructMemory();
-						Struct = VMDecorator->GetDecoratorSharedDataStruct();
+						const FRigVMTrait* VMTrait = (FRigVMTrait*)TraitScope->GetStructMemory();
+						Struct = VMTrait->GetTraitSharedDataStruct();
 						Property = Struct != nullptr ? Struct->FindPropertyByName(GetFName()) : nullptr;
 						if(Property)
 						{
@@ -1529,31 +1529,31 @@ uint32 URigVMPin::GetStructureHash() const
 	return Hash;
 }
 
-bool URigVMPin::IsDecoratorPin() const
+bool URigVMPin::IsTraitPin() const
 {
 	if(const URigVMNode* Node = GetNode())
 	{
-		return Node->IsDecoratorPin(GetRootPin());
+		return Node->IsTraitPin(GetRootPin());
 	}
 	return false;
 }
 
-TSharedPtr<FStructOnScope> URigVMPin::GetDecoratorInstance(bool bUseDefaultValueFromPin) const
+TSharedPtr<FStructOnScope> URigVMPin::GetTraitInstance(bool bUseDefaultValueFromPin) const
 {
 	if(const URigVMNode* Node = GetNode())
 	{
-		return Node->GetDecoratorInstance(GetRootPin(), bUseDefaultValueFromPin);
+		return Node->GetTraitInstance(GetRootPin(), bUseDefaultValueFromPin);
 	}
 
-	static const TSharedPtr<FStructOnScope> EmptyDecorator;
-	return EmptyDecorator;
+	static const TSharedPtr<FStructOnScope> EmptyTrait;
+	return EmptyTrait;
 }
 
-UScriptStruct* URigVMPin::GetDecoratorScriptStruct() const
+UScriptStruct* URigVMPin::GetTraitScriptStruct() const
 {
 	if(const URigVMNode* Node = GetNode())
 	{
-		return Node->GetDecoratorScriptStruct(GetRootPin());
+		return Node->GetTraitScriptStruct(GetRootPin());
 	}
 
 	return nullptr;
@@ -1922,12 +1922,12 @@ bool URigVMPin::CanLink(const URigVMPin* InSourcePin, const URigVMPin* InTargetP
 		return false;
 	}
 
-	if((InSourcePin->IsDecoratorPin() && InSourcePin->IsRootPin()) ||
-		(InTargetPin->IsDecoratorPin() && InTargetPin->IsRootPin()))
+	if((InSourcePin->IsTraitPin() && InSourcePin->IsRootPin()) ||
+		(InTargetPin->IsTraitPin() && InTargetPin->IsRootPin()))
 	{
 		if(OutFailureReason)
 		{
-			*OutFailureReason = TEXT("Cannot add link to root decorator pins.");
+			*OutFailureReason = TEXT("Cannot add link to root trait pins.");
 		}
 		return false;
 	}

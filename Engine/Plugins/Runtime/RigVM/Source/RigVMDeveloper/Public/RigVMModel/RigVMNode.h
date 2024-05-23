@@ -5,7 +5,7 @@
 #include "RigVMPin.h"
 #include "RigVMCore/RigVM.h"
 #include "RigVMCore/RigVMStruct.h"
-#include "RigVMCore/RigVMDecorator.h"
+#include "RigVMCore/RigVMTrait.h"
 #include "RigVMCore/RigVMUserWorkflow.h"
 #include "RigVMCore/RigVMExecuteContext.h"
 #include "UObject/StructOnScope.h"
@@ -302,29 +302,29 @@ public:
 	virtual uint32 GetStructureHash() const;
 
 	// allows the node to support non-native pins
-	virtual bool HasNonNativePins() const { return !DecoratorRootPinNames.IsEmpty(); }
+	virtual bool HasNonNativePins() const { return !TraitRootPinNames.IsEmpty(); }
 
 	UFUNCTION(BlueprintPure, Category = RigVMNode)
-	TArray<URigVMPin*> GetDecoratorPins() const;
+	TArray<URigVMPin*> GetTraitPins() const;
 
-	const TArray<FString>& GetDecoratorNames() const { return DecoratorRootPinNames; }
+	const TArray<FString>& GetTraitNames() const { return TraitRootPinNames; }
 
 	UFUNCTION(BlueprintPure, Category = RigVMNode)
-	bool IsDecoratorPin(FName InName) const;
+	bool IsTraitPin(FName InName) const;
 
-	bool IsDecoratorPin(const URigVMPin* InDecoratorPin) const;
+	bool IsTraitPin(const URigVMPin* InTraitPin) const;
 
-	URigVMPin* FindDecorator(const FName& InName, const FString& InSubPinPath = FString()) const;
+	URigVMPin* FindTrait(const FName& InName, const FString& InSubPinPath = FString()) const;
 
-	URigVMPin* FindDecorator(const URigVMPin* InDecoratorPin) const;
+	URigVMPin* FindTrait(const URigVMPin* InTraitPin) const;
 
-	TSharedPtr<FStructOnScope> GetDecoratorInstance(const FName& InName, bool bUseDefaultValueFromPin = true) const;
+	TSharedPtr<FStructOnScope> GetTraitInstance(const FName& InName, bool bUseDefaultValueFromPin = true) const;
 
-	TSharedPtr<FStructOnScope> GetDecoratorInstance(const URigVMPin* InDecoratorPin, bool bUseDefaultValueFromPin = true) const;
+	TSharedPtr<FStructOnScope> GetTraitInstance(const URigVMPin* InTraitPin, bool bUseDefaultValueFromPin = true) const;
 
-	UScriptStruct* GetDecoratorScriptStruct(const FName& InName) const;
+	UScriptStruct* GetTraitScriptStruct(const FName& InName) const;
 
-	UScriptStruct* GetDecoratorScriptStruct(const URigVMPin* InDecoratorPin) const;
+	UScriptStruct* GetTraitScriptStruct(const URigVMPin* InTraitPin) const;
 	
 	virtual bool IsOutDated() const
 	{
@@ -352,7 +352,7 @@ protected:
 	virtual bool ShouldInputPinComputeLazily(const URigVMPin* InPin) const { return false; }
 	virtual FString GetOriginalDefaultValueForRootPin(const URigVMPin* InRootPin) const;
 
-	void UpdateDecoratorRootPinNames();
+	void UpdateTraitRootPinNames();
 
 	UPROPERTY()
 	FString NodeTitle;
@@ -376,7 +376,7 @@ protected:
 	bool bHaltedAtThisNode;
 
 	UPROPERTY()
-	TArray<FString> DecoratorRootPinNames;
+	TArray<FString> TraitRootPinNames;
 
 private:
 

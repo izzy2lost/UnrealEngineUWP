@@ -1549,19 +1549,19 @@ public:
 };
 
 /**
- * An action to add a decorator to a node
+ * An action to add a trait to a node
  */
 USTRUCT()
-struct FRigVMAddDecoratorAction : public FRigVMBaseAction
+struct FRigVMAddTraitAction : public FRigVMBaseAction
 {
 	GENERATED_BODY()
 
 public:
 
-	FRigVMAddDecoratorAction();
-	FRigVMAddDecoratorAction(URigVMController* InController, const URigVMNode* InNode, const FName& InDecoratorName, const UScriptStruct* InDecoratorScriptStruct, const FString& InDecoratorDefault, int32 InPinIndex);
-	virtual ~FRigVMAddDecoratorAction() {};
-	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMAddDecoratorAction::StaticStruct(); }
+	FRigVMAddTraitAction();
+	FRigVMAddTraitAction(URigVMController* InController, const URigVMNode* InNode, const FName& InTraitName, const UScriptStruct* InTraitScriptStruct, const FString& InTraitDefault, int32 InPinIndex);
+	virtual ~FRigVMAddTraitAction() {};
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMAddTraitAction::StaticStruct(); }
 	virtual bool Undo() override;
 	virtual bool Redo() override;
 
@@ -1569,32 +1569,32 @@ public:
 	FName NodeName;
 
 	UPROPERTY()
-	FName DecoratorName;
+	FName TraitName;
 
 	UPROPERTY()
 	FString ScriptStructPath;
 
 	UPROPERTY()
-	FString DecoratorDefault;
+	FString TraitDefault;
 
 	UPROPERTY()
 	int32 PinIndex;
 };
 
 /**
- * An action to remove a decorator from a node
+ * An action to remove a trait from a node
  */
 USTRUCT()
-struct FRigVMRemoveDecoratorAction : public FRigVMAddDecoratorAction
+struct FRigVMRemoveTraitAction : public FRigVMAddTraitAction
 {
 	GENERATED_BODY()
 
 public:
 
-	FRigVMRemoveDecoratorAction();
-	FRigVMRemoveDecoratorAction(URigVMController* InController, const URigVMNode* InNode, const FName& InDecoratorName, const UScriptStruct* InDecoratorScriptStruct, const FString& InDecoratorDefault, int32 InPinIndex);
-	virtual ~FRigVMRemoveDecoratorAction() {};
-	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMRemoveDecoratorAction::StaticStruct(); }
+	FRigVMRemoveTraitAction();
+	FRigVMRemoveTraitAction(URigVMController* InController, const URigVMNode* InNode, const FName& InTraitName, const UScriptStruct* InTraitScriptStruct, const FString& InTraitDefault, int32 InPinIndex);
+	virtual ~FRigVMRemoveTraitAction() {};
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMRemoveTraitAction::StaticStruct(); }
 	virtual bool Undo() override;
 	virtual bool Redo() override;
 };

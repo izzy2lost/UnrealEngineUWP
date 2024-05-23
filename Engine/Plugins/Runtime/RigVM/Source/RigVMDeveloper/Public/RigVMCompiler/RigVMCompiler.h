@@ -141,7 +141,7 @@ public:
 	TArray<const FRigVMExprAST*> ExprToSkip;
 	TArray<const FRigVMExprAST*> TraversalExpressions;
 	TMap<FString, int32> ProcessedLinks;
-	TMap<const URigVMNode*, FRigVMOperand> DecoratorListLiterals;
+	TMap<const URigVMNode*, FRigVMOperand> TraitListLiterals;
 	FRigVMOperand ComparisonOperand;
 
 	using FRigVMASTProxyArray = TArray<FRigVMASTProxy, TInlineAllocator<3>>; 

@@ -1244,9 +1244,9 @@ void FRigVMEditorModule::GetNodeVariantContextMenuActions(IRigVMClientHost* RigV
 void FRigVMEditorModule::GetNodeTestContextMenuActions(IRigVMClientHost* RigVMClientHost, const URigVMEdGraphNode* EdGraphNode, URigVMNode* ModelNode, UToolMenu* Menu) const
 {
 	// this struct is only available in EngineTest for now
-	static const FString DecoratorObjectPath = TEXT("/Script/EngineTestEditor.EngineTestRigVM_SimpleDecorator");
-	const UScriptStruct* SimpleDecoratorStruct = Cast<UScriptStruct>(RigVMTypeUtils::FindObjectFromCPPTypeObjectPath(DecoratorObjectPath));
-	if(SimpleDecoratorStruct == nullptr)
+	static const FString TraitObjectPath = TEXT("/Script/EngineTestEditor.EngineTestRigVM_SimpleTrait");
+	const UScriptStruct* SimpleTraitStruct = Cast<UScriptStruct>(RigVMTypeUtils::FindObjectFromCPPTypeObjectPath(TraitObjectPath));
+	if(SimpleTraitStruct == nullptr)
 	{
 		return;
 	}
@@ -1256,16 +1256,16 @@ void FRigVMEditorModule::GetNodeTestContextMenuActions(IRigVMClientHost* RigVMCl
 
 	FToolMenuSection& EngineTestSection = Menu->AddSection("RigVMEditorContextMenuEngineTest", LOCTEXT("EngineTestHeader", "EngineTest"));
 	EngineTestSection.AddMenuEntry(
-		"Add simple decorator",
-		LOCTEXT("AddSimpleDecorator", "Add simple decorator"),
-		LOCTEXT("AddSimpleDecorator_Tooltip", "Adds a simple test decorator to the node"),
+		"Add simple trait",
+		LOCTEXT("AddSimpleTrait", "Add simple trait"),
+		LOCTEXT("AddSimpleTrait_Tooltip", "Adds a simple test trait to the node"),
 		FSlateIcon(),
-		FUIAction(FExecuteAction::CreateLambda([Controller, ModelNode, SimpleDecoratorStruct]()
+		FUIAction(FExecuteAction::CreateLambda([Controller, ModelNode, SimpleTraitStruct]()
 		{
-			(void)Controller->AddDecorator(
+			(void)Controller->AddTrait(
 				ModelNode->GetFName(),
-				*SimpleDecoratorStruct->GetPathName(),
-				TEXT("Decorator"),
+				*SimpleTraitStruct->GetPathName(),
+				TEXT("Trait"),
 				FString(), INDEX_NONE, true, true);
 		}))
 	);

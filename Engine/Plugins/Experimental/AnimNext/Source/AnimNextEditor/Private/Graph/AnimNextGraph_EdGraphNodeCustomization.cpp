@@ -100,7 +100,7 @@ void FAnimNextGraph_EdGraphNodeCustomization::GenerateTraitData(UAnimNextGraph_E
 	if (URigVMNode* ModelNode = EdGraphNode->GetModelNode())
 	{
 		// Obtain the pins from the stack
-		const TArray<URigVMPin*> TraitPins = ModelNode->GetDecoratorPins();
+		const TArray<URigVMPin*> TraitPins = ModelNode->GetTraitPins();
 		if (TraitPins.Num() > 0)
 		{
 			// For each Trait (represented as a pin in the node)
@@ -112,16 +112,16 @@ void FAnimNextGraph_EdGraphNodeCustomization::GenerateTraitData(UAnimNextGraph_E
 				}
 
 				// Create a temporary trait instance, in order to get the correct TraitSharedDataStruct
-				if (TSharedPtr<FStructOnScope> ScopedTrait = ModelNode->GetDecoratorInstance(TraitPin->GetFName()))
+				if (TSharedPtr<FStructOnScope> ScopedTrait = ModelNode->GetTraitInstance(TraitPin->GetFName()))
 				{
 					// Create a scoped struct with the Trait Shared Instance Data and store it for later use
 					// The idea is creating one template per Trait type, but pass all the selected instances
 					// So the multiselection works
-					const FRigVMDecorator* Trait = (FRigVMDecorator*)ScopedTrait->GetStructMemory();
+					const FRigVMTrait* Trait = (FRigVMTrait*)ScopedTrait->GetStructMemory();
 
 					// Import the default pin values into the Trait Shared Instance Data
 					FTraitStackDetailsData* TraitData = nullptr;
-					if (UScriptStruct* TraitSharedInstanceData = Trait->GetDecoratorSharedDataStruct())
+					if (UScriptStruct* TraitSharedInstanceData = Trait->GetTraitSharedDataStruct())
 					{
 						const TSharedPtr<FCategoryDetailsData>* TraitDataPtr = CategoryDetailsData.FindByPredicate([TraitSharedInstanceData](const TSharedPtr<FCategoryDetailsData>& InItem)
 							{

@@ -10,7 +10,7 @@
 #include "RigVMCore/RigVMTemplate.h"
 #include "RigVMCompiler/RigVMASTProxy.h"
 #include "UObject/StructOnScope.h"
-#include <RigVMCore/RigVMDecorator.h>
+#include <RigVMCore/RigVMTrait.h>
 #include "RigVMPin.generated.h"
 
 class URigVMGraph;
@@ -493,15 +493,15 @@ public:
 
 	uint32 GetStructureHash() const;
 
-	// Returns true if this pin represents a decorator 
+	// Returns true if this pin represents a trait 
 	UFUNCTION(BlueprintPure, Category = RigVMPin)
-	bool IsDecoratorPin() const;
+	bool IsTraitPin() const;
 
-	// Returns the decorator backing up this pin
-	TSharedPtr<FStructOnScope> GetDecoratorInstance(bool bUseDefaultValueFromPin = true) const;
+	// Returns the trait backing up this pin
+	TSharedPtr<FStructOnScope> GetTraitInstance(bool bUseDefaultValueFromPin = true) const;
 
-	// Returns the struct of the decorator backing up this pin
-	UScriptStruct* GetDecoratorScriptStruct() const;
+	// Returns the struct of the trait backing up this pin
+	UScriptStruct* GetTraitScriptStruct() const;
 
 private:
 

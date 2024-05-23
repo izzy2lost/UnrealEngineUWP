@@ -2285,76 +2285,76 @@ bool FRigVMReplaceNodesAction::Redo()
 	return FRigVMBaseAction::Redo();
 }
 
-FRigVMAddDecoratorAction::FRigVMAddDecoratorAction()
+FRigVMAddTraitAction::FRigVMAddTraitAction()
 : FRigVMBaseAction()
 , NodeName(NAME_None)
-, DecoratorName(NAME_None)
+, TraitName(NAME_None)
 , ScriptStructPath()
-, DecoratorDefault()
+, TraitDefault()
 , PinIndex(INDEX_NONE)
 {
 }
 
-FRigVMAddDecoratorAction::FRigVMAddDecoratorAction(URigVMController* InController, const URigVMNode* InNode, const FName& InDecoratorName,
-	const UScriptStruct* InDecoratorScriptStruct, const FString& InDecoratorDefault, int32 InPinIndex)
+FRigVMAddTraitAction::FRigVMAddTraitAction(URigVMController* InController, const URigVMNode* InNode, const FName& InTraitName,
+	const UScriptStruct* InTraitScriptStruct, const FString& InTraitDefault, int32 InPinIndex)
 : FRigVMBaseAction(InController)
 , NodeName(InNode->GetFName())
-, DecoratorName(InDecoratorName)
-, ScriptStructPath(InDecoratorScriptStruct->GetPathName())
-, DecoratorDefault(InDecoratorDefault)
+, TraitName(InTraitName)
+, ScriptStructPath(InTraitScriptStruct->GetPathName())
+, TraitDefault(InTraitDefault)
 , PinIndex(InPinIndex)
 {
 }
 
-bool FRigVMAddDecoratorAction::Undo()
+bool FRigVMAddTraitAction::Undo()
 {
 	if (!FRigVMBaseAction::Undo())
 	{
 		return false;
 	}
-	return GetController()->RemoveDecorator(NodeName, DecoratorName, false);
+	return GetController()->RemoveTrait(NodeName, TraitName, false);
 }
 
-bool FRigVMAddDecoratorAction::Redo()
+bool FRigVMAddTraitAction::Redo()
 {
 	if(!CanUndoRedo())
 	{
 		return false;
 	}
-	if (GetController()->AddDecorator(NodeName, *ScriptStructPath, DecoratorName, DecoratorDefault, PinIndex, false, false) == DecoratorName)
+	if (GetController()->AddTrait(NodeName, *ScriptStructPath, TraitName, TraitDefault, PinIndex, false, false) == TraitName)
 	{
 		return FRigVMBaseAction::Redo();
 	}
 	return false;
 }
 
-FRigVMRemoveDecoratorAction::FRigVMRemoveDecoratorAction()
-: FRigVMAddDecoratorAction()
+FRigVMRemoveTraitAction::FRigVMRemoveTraitAction()
+: FRigVMAddTraitAction()
 {
 }
 
-FRigVMRemoveDecoratorAction::FRigVMRemoveDecoratorAction(URigVMController* InController, const URigVMNode* InNode,
-	const FName& InDecoratorName, const UScriptStruct* InDecoratorScriptStruct, const FString& InDecoratorDefault, int32 InPinIndex)
-: FRigVMAddDecoratorAction(InController, InNode, InDecoratorName, InDecoratorScriptStruct, InDecoratorDefault, InPinIndex)
+FRigVMRemoveTraitAction::FRigVMRemoveTraitAction(URigVMController* InController, const URigVMNode* InNode,
+	const FName& InTraitName, const UScriptStruct* InTraitScriptStruct, const FString& InTraitDefault, int32 InPinIndex)
+: FRigVMAddTraitAction(InController, InNode, InTraitName, InTraitScriptStruct, InTraitDefault, InPinIndex)
 {
 }
 
-bool FRigVMRemoveDecoratorAction::Undo()
+bool FRigVMRemoveTraitAction::Undo()
 {
 	if (!FRigVMBaseAction::Undo())
 	{
 		return false;
 	}
-	return GetController()->AddDecorator(NodeName, *ScriptStructPath, DecoratorName, DecoratorDefault, PinIndex, false, false) == DecoratorName;
+	return GetController()->AddTrait(NodeName, *ScriptStructPath, TraitName, TraitDefault, PinIndex, false, false) == TraitName;
 }
 
-bool FRigVMRemoveDecoratorAction::Redo()
+bool FRigVMRemoveTraitAction::Redo()
 {
 	if(!CanUndoRedo())
 	{
 		return false;
 	}
-	if (GetController()->RemoveDecorator(NodeName, DecoratorName, false))
+	if (GetController()->RemoveTrait(NodeName, TraitName, false))
 	{
 		return FRigVMBaseAction::Redo();
 	}

@@ -5,7 +5,7 @@
 #include "RigVMDefines.h"
 #include "RigVMCore/RigVMStruct.h"
 
-#include "RigVMDecorator.generated.h"
+#include "RigVMTrait.generated.h"
 
 #if WITH_EDITOR
 
@@ -15,24 +15,24 @@ class URigVMNode;
 #endif
 
 /**
- * The base class for all RigVM decorators.
+ * The base class for all RigVM traits.
  */
 USTRUCT()
-struct RIGVM_API FRigVMDecorator : public FRigVMStruct
+struct RIGVM_API FRigVMTrait : public FRigVMStruct
 {
 	GENERATED_BODY()
 
 public:
 
-	FRigVMDecorator()
+	FRigVMTrait()
 	{}
 
-	virtual ~FRigVMDecorator() {}
+	virtual ~FRigVMTrait() {}
 
-	// returns the name of the decorator (the instance of it on the node)
+	// returns the name of the trait (the instance of it on the node)
 	FString GetName() const { return Name; }
 
-	// returns the display name of the decorator
+	// returns the display name of the trait
 	virtual FString GetDisplayName() const
 	{
 		return FString();
@@ -40,16 +40,16 @@ public:
 
 #if WITH_EDITOR
 
-	// returns true if this decorator can be added to a given node
+	// returns true if this trait can be added to a given node
 	virtual bool CanBeAddedToNode(URigVMNode* InNode, FString* OutFailureReason) const { return true; }
 
-	// allows the decorator to react when added to a node
-	virtual void OnDecoratorAdded(URigVMController* InController, URigVMNode* InNode) {}
+	// allows the trait to react when added to a node
+	virtual void OnTraitAdded(URigVMController* InController, URigVMNode* InNode) {}
 
-	// allows the decorator to return dynamic pins (parent pin index must be INDEX_NONE or point to a valid index of the parent pin in the OutPinArray)
+	// allows the trait to return dynamic pins (parent pin index must be INDEX_NONE or point to a valid index of the parent pin in the OutPinArray)
 	virtual void GetProgrammaticPins(URigVMController* InController, int32 InParentPinIndex, const FString& InDefaultValue, struct FRigVMPinInfoArray& OutPinArray) const {}
 
-	virtual UScriptStruct* GetDecoratorSharedDataStruct() const { return nullptr; }
+	virtual UScriptStruct* GetTraitSharedDataStruct() const { return nullptr; }
 
 	virtual bool ShouldCreatePinForProperty(const FProperty* InProperty) const override
 	{
@@ -57,18 +57,18 @@ public:
 		{
 			return false;
 		}
-		return InProperty->GetFName() != GET_MEMBER_NAME_CHECKED(FRigVMDecorator, Name);
+		return InProperty->GetFName() != GET_MEMBER_NAME_CHECKED(FRigVMTrait, Name);
 	}
 
 #endif
 
 private:
 
-	// The name of the decorator on the node
+	// The name of the trait on the node
 	UPROPERTY()
 	FString Name;
 	
 	friend class URigVMNode;
 	friend class URigVMController;
-	friend class FRigVMDecoratorScope;
+	friend class FRigVMTraitScope;
 };

@@ -373,7 +373,7 @@ FRigVMPinInfo::FRigVMPinInfo()
 	, bIsExpanded(false)
 	, bIsConstant(false)
 	, bIsDynamicArray(false)
-	, bIsDecorator(false)
+	, bIsTrait(false)
 	, bIsLazy(false)
 {
 }
@@ -389,7 +389,7 @@ FRigVMPinInfo::FRigVMPinInfo(const URigVMPin* InPin, int32 InParentIndex, ERigVM
 	, bIsExpanded(InPin->IsExpanded())
 	, bIsConstant(InPin->IsDefinedAsConstant())
 	, bIsDynamicArray(InPin->IsDynamicArray())
-	, bIsDecorator(InPin->IsDecoratorPin() && InPin->IsRootPin())
+	, bIsTrait(InPin->IsTraitPin() && InPin->IsRootPin())
 	, bIsLazy(InPin->IsLazy() && InPin->IsRootPin())
 {
 	// this method describes the info as currently represented in the model.
@@ -415,7 +415,7 @@ FRigVMPinInfo::FRigVMPinInfo(FProperty* InProperty, ERigVMPinDirection InDirecti
 	, bIsExpanded(false)
 	, bIsConstant(false)
 	, bIsDynamicArray(false)
-	, bIsDecorator(false)
+	, bIsTrait(false)
 	, bIsLazy(false)
 {
 	// this method describes the info as needed based on the property structure
@@ -539,7 +539,7 @@ uint32 GetTypeHash(const FRigVMPinInfo& InPin)
 	Hash = HashCombine(Hash, GetTypeHash((int32)InPin.Direction));
 	Hash = HashCombine(Hash, GetTypeHash((int32)InPin.TypeIndex));
 	Hash = HashCombine(Hash, GetTypeHash(InPin.bIsArray));
-	Hash = HashCombine(Hash, GetTypeHash(InPin.bIsDecorator));
+	Hash = HashCombine(Hash, GetTypeHash(InPin.bIsTrait));
 	// we are not hashing the parent index,  pinpath, default value or the property since
 	// it doesn't matter for the structure validity of the node
 	return Hash;
@@ -1278,7 +1278,7 @@ TArray<FString> URigVMController::GetAddNodePythonCommands(URigVMNode* Node) con
 				continue;
 			}
 
-			if(Pin->IsDecoratorPin())
+			if(Pin->IsTraitPin())
 			{
 				continue;
 			}
@@ -1321,32 +1321,32 @@ TArray<FString> URigVMController::GetAddNodePythonCommands(URigVMNode* Node) con
 			}
 		}
 
-		for(const FString& DecoratorName : Node->GetDecoratorNames())
+		for(const FString& TraitName : Node->GetTraitNames())
 		{
-			Commands.Append(GetAddDecoratorPythonCommands(Node, *DecoratorName));
+			Commands.Append(GetAddTraitPythonCommands(Node, *TraitName));
 		}
 	}
 
 	return Commands;
 }
 
-TArray<FString> URigVMController::GetAddDecoratorPythonCommands(URigVMNode* Node, const FName& DecoratorName) const
+TArray<FString> URigVMController::GetAddTraitPythonCommands(URigVMNode* Node, const FName& TraitName) const
 {
 	TArray<FString> Commands;
 
 	const FString GraphName = GetSchema()->GetSanitizedGraphName(GetGraph()->GetGraphName());
 	const FString NodeName = GetSchema()->GetSanitizedNodeName(Node->GetName());
 
-	if(const URigVMPin* DecoratorPin = Node->FindDecorator(DecoratorName))
+	if(const URigVMPin* TraitPin = Node->FindTrait(TraitName))
 	{
-		const FString DecoratorStructPath = DecoratorPin->GetCPPTypeObject()->GetPathName();
-		const FString DefaultValue = DecoratorPin->GetDefaultValue();
+		const FString TraitStructPath = TraitPin->GetCPPTypeObject()->GetPathName();
+		const FString DefaultValue = TraitPin->GetDefaultValue();
 
-		Commands.Add(FString::Printf(TEXT("blueprint.get_controller_by_name('%s').add_decorator('%s', '%s', '%s', '%s')"),
+		Commands.Add(FString::Printf(TEXT("blueprint.get_controller_by_name('%s').add_trait('%s', '%s', '%s', '%s')"),
 			*GraphName,
 			*NodeName,
-			*DecoratorStructPath,
-			*DecoratorName.ToString(),
+			*TraitStructPath,
+			*TraitName.ToString(),
 			*DefaultValue));
 	}
 
@@ -9209,7 +9209,7 @@ bool URigVMController::RemovePin(URigVMPin* InPinToRemove, bool bSetupUndoRedo, 
 		return false;
 	}
 
-	check(!(InPinToRemove->IsRootPin() && InPinToRemove->IsDecoratorPin()));
+	check(!(InPinToRemove->IsRootPin() && InPinToRemove->IsTraitPin()));
 
 	FRigVMControllerCompileBracketScope CompileScope(this);
 	if (bSetupUndoRedo || bForceBreakLinks)
@@ -10954,7 +10954,7 @@ bool URigVMController::RenameExposedPin(const FName& InOldPinName, const FName& 
 	{
 		static bool RenamePin(const URigVMController* InController, URigVMPin* InPin, const FName& InNewName)
 		{
-			check(!InPin->IsDecoratorPin());
+			check(!InPin->IsTraitPin());
 			
 			URigVMController* PinController = InController->GetControllerForGraph(InPin->GetGraph());
 			if(PinController == nullptr)
@@ -14403,8 +14403,8 @@ URigVMInvokeEntryNode* URigVMController::AddInvokeEntryNode(const FName& InEntry
 	return Node;
 }
 
-FName URigVMController::AddDecorator(const FName& InNodeName, const FName& InDecoratorTypeObjectPath,
-	const FName& InDecoratorName, const FString& InDefaultValue, int32 InPinIndex, bool bSetupUndoRedo,
+FName URigVMController::AddTrait(const FName& InNodeName, const FName& InTraitTypeObjectPath,
+	const FName& InTraitName, const FString& InDefaultValue, int32 InPinIndex, bool bSetupUndoRedo,
 	bool bPrintPythonCommand)
 {
 	if (!IsValidGraph())
@@ -14422,41 +14422,41 @@ FName URigVMController::AddDecorator(const FName& InNodeName, const FName& InDec
 
 	if (URigVMNode* Node = Graph->FindNodeByName(InNodeName))
 	{
-		UObject* DecoratorCPPTypeObject = RigVMTypeUtils::FindObjectFromCPPTypeObjectPath(InDecoratorTypeObjectPath.ToString());
-		if(DecoratorCPPTypeObject == nullptr)
+		UObject* TraitCPPTypeObject = RigVMTypeUtils::FindObjectFromCPPTypeObjectPath(InTraitTypeObjectPath.ToString());
+		if(TraitCPPTypeObject == nullptr)
 		{
-			DecoratorCPPTypeObject = URigVMCompiler::GetScriptStructForCPPType(InDecoratorTypeObjectPath.ToString());
+			TraitCPPTypeObject = URigVMCompiler::GetScriptStructForCPPType(InTraitTypeObjectPath.ToString());
 		}
-		if(DecoratorCPPTypeObject == nullptr)
+		if(TraitCPPTypeObject == nullptr)
 		{
-			ReportErrorf(TEXT("Cannot find decorator script struct '%s'."), *InDecoratorTypeObjectPath.ToString());
+			ReportErrorf(TEXT("Cannot find trait script struct '%s'."), *InTraitTypeObjectPath.ToString());
 			return NAME_None;
 		}
 
-		UScriptStruct* DecoratorScriptStruct = Cast<UScriptStruct>(DecoratorCPPTypeObject);
-		if(DecoratorScriptStruct == nullptr)
+		UScriptStruct* TraitScriptStruct = Cast<UScriptStruct>(TraitCPPTypeObject);
+		if(TraitScriptStruct == nullptr)
 		{
-			ReportErrorf(TEXT("CPP Type Object '%s' is not a struct."), *InDecoratorTypeObjectPath.ToString());
+			ReportErrorf(TEXT("CPP Type Object '%s' is not a struct."), *InTraitTypeObjectPath.ToString());
 			return NAME_None;
 		}
 
-		const FName DecoratorName = AddDecorator(Node, DecoratorScriptStruct, InDecoratorName, InDefaultValue, InPinIndex, bSetupUndoRedo);
-		if(!DecoratorName.IsNone() && bPrintPythonCommand)
+		const FName TraitName = AddTrait(Node, TraitScriptStruct, InTraitName, InDefaultValue, InPinIndex, bSetupUndoRedo);
+		if(!TraitName.IsNone() && bPrintPythonCommand)
 		{
-			const TArray<FString> DecoratorCommands = GetAddDecoratorPythonCommands(Node, DecoratorName);
-			for(const FString& DecoratorCommand : DecoratorCommands)
+			const TArray<FString> TraitCommands = GetAddTraitPythonCommands(Node, TraitName);
+			for(const FString& TraitCommand : TraitCommands)
 			{
-				RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()), DecoratorCommand);
+				RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()), TraitCommand);
 			}
 		}
-		return DecoratorName;
+		return TraitName;
 	}
 
 	ReportErrorf(TEXT("Cannot find node '%s'."), *InNodeName.ToString());
 	return NAME_None;
 }
 
-FName URigVMController::AddDecorator(URigVMNode* InNode, UScriptStruct* InDecoratorScriptStruct, const FName& InDecoratorName, const FString& InDefaultValue, int32 InPinIndex, bool bSetupUndoRedo)
+FName URigVMController::AddTrait(URigVMNode* InNode, UScriptStruct* InTraitScriptStruct, const FName& InTraitName, const FString& InDefaultValue, int32 InPinIndex, bool bSetupUndoRedo)
 {
 	if (!IsValidNodeForGraph(InNode))
 	{
@@ -14468,32 +14468,32 @@ FName URigVMController::AddDecorator(URigVMNode* InNode, UScriptStruct* InDecora
 		return NAME_None;
 	}
 
-	check(InDecoratorScriptStruct);
+	check(InTraitScriptStruct);
 
-	if(!InDecoratorScriptStruct->IsChildOf(FRigVMDecorator::StaticStruct()))
+	if(!InTraitScriptStruct->IsChildOf(FRigVMTrait::StaticStruct()))
 	{
-		ReportErrorf(TEXT("CPP Type Object '%s' is not a struct."), *InDecoratorScriptStruct->GetPathName());
+		ReportErrorf(TEXT("CPP Type Object '%s' is not a struct."), *InTraitScriptStruct->GetPathName());
 		return NAME_None;
 	}
 
-	const FRigVMTemplateArgumentType DecoratorType(InDecoratorScriptStruct);
-	const TRigVMTypeIndex DecoratorTypeIndex = FRigVMRegistry::Get().FindOrAddType(DecoratorType);
+	const FRigVMTemplateArgumentType TraitType(InTraitScriptStruct);
+	const TRigVMTypeIndex TraitTypeIndex = FRigVMRegistry::Get().FindOrAddType(TraitType);
 
 	if(const URigVMSchema* Schema = GetSchema())
 	{
-		if(!Schema->SupportsType(this, DecoratorTypeIndex))
+		if(!Schema->SupportsType(this, TraitTypeIndex))
 		{
-			ReportError(TEXT("Decorator cannot be added to node: Schema doesn't support the type."));
+			ReportError(TEXT("Trait cannot be added to node: Schema doesn't support the type."));
 			return NAME_None;
 		}
 	}
 
-	const FName ValidDecoratorName = URigVMSchema::GetUniqueName(InDecoratorName, [InNode](const FName& InName) {
+	const FName ValidTraitName = URigVMSchema::GetUniqueName(InTraitName, [InNode](const FName& InName) {
 		return InNode->FindPin(InName.ToString()) == nullptr;
 	}, false, false);
 
-	TSharedPtr<FStructOnScope> DecoratorScope(new FStructOnScope(InDecoratorScriptStruct));
-	FRigVMDecorator* Decorator = (FRigVMDecorator*)DecoratorScope->GetStructMemory();
+	TSharedPtr<FStructOnScope> TraitScope(new FStructOnScope(InTraitScriptStruct));
+	FRigVMTrait* Trait = (FRigVMTrait*)TraitScope->GetStructMemory();
 
 	if(!InDefaultValue.IsEmpty())
 	{
@@ -14501,44 +14501,44 @@ FName URigVMController::AddDecorator(URigVMNode* InNode, UScriptStruct* InDecora
 		{
 			// force logging to the error pipe for error detection
 			LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ErrorPipe.GetMaxVerbosity()); 
-			InDecoratorScriptStruct->ImportText(*InDefaultValue, Decorator, nullptr, PPF_None, &ErrorPipe, InDecoratorScriptStruct->GetName()); 
+			InTraitScriptStruct->ImportText(*InDefaultValue, Trait, nullptr, PPF_None, &ErrorPipe, InTraitScriptStruct->GetName()); 
 		}
 	}
 
-	Decorator->Name = ValidDecoratorName.ToString();
+	Trait->Name = ValidTraitName.ToString();
 
 	FString FailureReason;
-	if(!Decorator->CanBeAddedToNode(InNode, &FailureReason))
+	if(!Trait->CanBeAddedToNode(InNode, &FailureReason))
 	{
-		ReportErrorf(TEXT("Decorator cannot be added to node: %s"), *FailureReason);
+		ReportErrorf(TEXT("Trait cannot be added to node: %s"), *FailureReason);
 		return NAME_None;
 	}
 
 	FRigVMBaseAction Action(this);
 	if (bSetupUndoRedo)
 	{
-		Action.SetTitle(FString::Printf(TEXT("Add Decorator")));
+		Action.SetTitle(FString::Printf(TEXT("Add Trait")));
 		GetActionStack()->BeginAction(Action);
-		GetActionStack()->AddAction(FRigVMAddDecoratorAction(this, InNode, ValidDecoratorName, InDecoratorScriptStruct, InDefaultValue, InPinIndex == INDEX_NONE ? InNode->GetPins().Num() : InPinIndex));
+		GetActionStack()->AddAction(FRigVMAddTraitAction(this, InNode, ValidTraitName, InTraitScriptStruct, InDefaultValue, InPinIndex == INDEX_NONE ? InNode->GetPins().Num() : InPinIndex));
 	}
 
-	InNode->DecoratorRootPinNames.Add(ValidDecoratorName.ToString());
+	InNode->TraitRootPinNames.Add(ValidTraitName.ToString());
 
-	URigVMPin* DecoratorPin = NewObject<URigVMPin>(InNode, ValidDecoratorName);
-	const FString DisplayName = Decorator->GetDisplayName();
-	DecoratorPin->DisplayName = DisplayName.IsEmpty() ? FName(NAME_None) : FName(*DisplayName); 
-	DecoratorPin->CPPType = InDecoratorScriptStruct->GetStructCPPName();
-	DecoratorPin->CPPTypeObject = InDecoratorScriptStruct;
-	DecoratorPin->CPPTypeObjectPath = *DecoratorPin->CPPTypeObject->GetPathName();
-	DecoratorPin->Direction = ERigVMPinDirection::Input;
+	URigVMPin* TraitPin = NewObject<URigVMPin>(InNode, ValidTraitName);
+	const FString DisplayName = Trait->GetDisplayName();
+	TraitPin->DisplayName = DisplayName.IsEmpty() ? FName(NAME_None) : FName(*DisplayName); 
+	TraitPin->CPPType = InTraitScriptStruct->GetStructCPPName();
+	TraitPin->CPPTypeObject = InTraitScriptStruct;
+	TraitPin->CPPTypeObjectPath = *TraitPin->CPPTypeObject->GetPathName();
+	TraitPin->Direction = ERigVMPinDirection::Input;
 
-	AddNodePin(InNode, DecoratorPin);
-	Notify(ERigVMGraphNotifType::PinAdded, DecoratorPin);
+	AddNodePin(InNode, TraitPin);
+	Notify(ERigVMGraphNotifType::PinAdded, TraitPin);
 	
-	AddPinsForStruct(InDecoratorScriptStruct, InNode, DecoratorPin, DecoratorPin->GetDirection(), InDefaultValue, true);
+	AddPinsForStruct(InTraitScriptStruct, InNode, TraitPin, TraitPin->GetDirection(), InDefaultValue, true);
 
 	FRigVMPinInfoArray ProgrammaticPins;
-	Decorator->GetProgrammaticPins(this, INDEX_NONE, InDefaultValue, ProgrammaticPins);
+	Trait->GetProgrammaticPins(this, INDEX_NONE, InDefaultValue, ProgrammaticPins);
 
 	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
 	const FRigVMPinInfoArray PreviousPins;
@@ -14547,35 +14547,35 @@ FName URigVMController::AddDecorator(URigVMNode* InNode, UScriptStruct* InDecora
 	{
 		const FString& PinPath = ProgrammaticPins.GetPinPath(PinIndex);
 		FString ParentPinPath, PinName;
-		UObject* OuterForPin = DecoratorPin;
+		UObject* OuterForPin = TraitPin;
 		if (URigVMPin::SplitPinPathAtEnd(PinPath, ParentPinPath, PinName))
 		{
-			OuterForPin = DecoratorPin->FindSubPin(ParentPinPath);
+			OuterForPin = TraitPin->FindSubPin(ParentPinPath);
 		}
 
 		CreatePinFromPinInfo(Registry, PreviousPins, ProgrammaticPins[PinIndex], PinPath, OuterForPin);
 	}
 
 	// move the the pin to the right index as required
-	if(DecoratorPin->GetPinIndex() != InPinIndex &&
+	if(TraitPin->GetPinIndex() != InPinIndex &&
 		InPinIndex >=0 && InPinIndex < InNode->GetPins().Num())
 	{
 		URigVMPin* LastPin =  InNode->Pins.Pop();
 		InNode->Pins.Insert(LastPin, InPinIndex);
 	}
 
-	InNode->UpdateDecoratorRootPinNames();
-	Decorator->OnDecoratorAdded(this, InNode);
+	InNode->UpdateTraitRootPinNames();
+	Trait->OnTraitAdded(this, InNode);
 
 	if (bSetupUndoRedo)
 	{
 		GetActionStack()->EndAction(Action);
 	}
 
-	return ValidDecoratorName;
+	return ValidTraitName;
 }
 
-bool URigVMController::RemoveDecorator(const FName& InNodeName, const FName& InDecoratorName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+bool URigVMController::RemoveTrait(const FName& InNodeName, const FName& InTraitName, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
 	if (!IsValidGraph())
 	{
@@ -14592,17 +14592,17 @@ bool URigVMController::RemoveDecorator(const FName& InNodeName, const FName& InD
 
 	if (URigVMNode* Node = Graph->FindNodeByName(InNodeName))
 	{
-		const bool bSuccess = RemoveDecorator(Node, InDecoratorName, bSetupUndoRedo);
+		const bool bSuccess = RemoveTrait(Node, InTraitName, bSetupUndoRedo);
 		if(bSuccess && bPrintPythonCommand)
 		{
 			const FString GraphName = GetSchema()->GetSanitizedGraphName(GetGraph()->GetGraphName());
         	const FString NodeName = GetSchema()->GetSanitizedNodeName(Node->GetName());
 
 			RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()),
-				FString::Printf(TEXT("blueprint.get_controller_by_name('%s').remove_decorator('%s', '%s')"),
+				FString::Printf(TEXT("blueprint.get_controller_by_name('%s').remove_trait('%s', '%s')"),
 				*GraphName,
 				*NodeName,
-				*InDecoratorName.ToString()));
+				*InTraitName.ToString()));
 		}
 		return bSuccess;
 	}
@@ -14612,7 +14612,7 @@ bool URigVMController::RemoveDecorator(const FName& InNodeName, const FName& InD
 
 }
 
-bool URigVMController::RemoveDecorator(URigVMNode* InNode, const FName& InDecoratorName, bool bSetupUndoRedo)
+bool URigVMController::RemoveTrait(URigVMNode* InNode, const FName& InTraitName, bool bSetupUndoRedo)
 {
 	if(!IsValidNodeForGraph(InNode))
 	{
@@ -14624,8 +14624,8 @@ bool URigVMController::RemoveDecorator(URigVMNode* InNode, const FName& InDecora
 		return false;
 	}
 
-	URigVMPin* DecoratorPin = InNode->FindDecorator(InDecoratorName);
-	if(DecoratorPin == nullptr)
+	URigVMPin* TraitPin = InNode->FindTrait(InTraitName);
+	if(TraitPin == nullptr)
 	{
 		return false;
 	}
@@ -14633,21 +14633,21 @@ bool URigVMController::RemoveDecorator(URigVMNode* InNode, const FName& InDecora
 	FRigVMBaseAction Action(this);
 	if (bSetupUndoRedo)
 	{
-		Action.SetTitle(FString::Printf(TEXT("Remove Decorator")));
+		Action.SetTitle(FString::Printf(TEXT("Remove Trait")));
 		GetActionStack()->BeginAction(Action);
 
-		const UScriptStruct* DecoratorScriptStruct = DecoratorPin->GetScriptStruct();
-		const FString DecoratorDefaultValue = DecoratorPin->GetDefaultValue();
-		GetActionStack()->AddAction(FRigVMRemoveDecoratorAction(this, InNode, InDecoratorName, DecoratorScriptStruct, DecoratorDefaultValue, DecoratorPin->GetPinIndex()));
+		const UScriptStruct* TraitScriptStruct = TraitPin->GetScriptStruct();
+		const FString TraitDefaultValue = TraitPin->GetDefaultValue();
+		GetActionStack()->AddAction(FRigVMRemoveTraitAction(this, InNode, InTraitName, TraitScriptStruct, TraitDefaultValue, TraitPin->GetPinIndex()));
 	}
 
-	const FString DecoratorNameString = InDecoratorName.ToString();
-	(void)InNode->DecoratorRootPinNames.RemoveAll([DecoratorNameString](const FString& DecoratorRootPinName) -> bool
+	const FString TraitNameString = InTraitName.ToString();
+	(void)InNode->TraitRootPinNames.RemoveAll([TraitNameString](const FString& TraitRootPinName) -> bool
 	{
-		return DecoratorNameString.Equals(DecoratorRootPinName, ESearchCase::CaseSensitive);
+		return TraitNameString.Equals(TraitRootPinName, ESearchCase::CaseSensitive);
 	});
 
-	RemovePin(DecoratorPin, bSetupUndoRedo, true);
+	RemovePin(TraitPin, bSetupUndoRedo, true);
 
 	if(bSetupUndoRedo)
 	{
@@ -16106,21 +16106,21 @@ bool URigVMController::GenerateNewPinInfos(const FRigVMRegistry& Registry, URigV
 		return false;
 	}
 
-	// make sure the new pin infos contains the decorator pins from the last run
+	// make sure the new pin infos contains the trait pins from the last run
 	for (int32 Index = 0; Index < PreviousPinInfos.Num(); Index++)
 	{
 		const FRigVMPinInfo& PreviousPin = PreviousPinInfos[Index];
-		if (PreviousPin.bIsDecorator)
+		if (PreviousPin.bIsTrait)
 		{
 			const int32 NewPinIndex = NewPinInfos.AddPin(this, INDEX_NONE, PreviousPin.Name, PreviousPin.Direction, PreviousPin.TypeIndex, PreviousPin.DefaultValue, PreviousPin.DefaultValueType, nullptr, &PreviousPinInfos, true);
-			NewPinInfos[NewPinIndex].bIsDecorator = true;
+			NewPinInfos[NewPinIndex].bIsTrait = true;
 
 			if (URigVMPin* Pin = InNode->FindPin(PreviousPin.PinPath))
 			{
-				TSharedPtr<FStructOnScope> DecoratorScope = Pin->GetDecoratorInstance();
-				FRigVMDecorator* VMDecorator = (FRigVMDecorator*)DecoratorScope->GetStructMemory();
+				TSharedPtr<FStructOnScope> TraitScope = Pin->GetTraitInstance();
+				FRigVMTrait* VMTrait = (FRigVMTrait*)TraitScope->GetStructMemory();
 
-				VMDecorator->GetProgrammaticPins(this, NewPinIndex, Pin->GetDefaultValue(), NewPinInfos);
+				VMTrait->GetProgrammaticPins(this, NewPinIndex, Pin->GetDefaultValue(), NewPinInfos);
 			}
 		}
 	}
@@ -16542,15 +16542,15 @@ void URigVMController::RepopulatePinsOnNode(const FRigVMRegistry& Registry, cons
 		ApplyPinStates(InNode, PinStates, RedirectedPinPaths);
 	}
 
-	InNode->DecoratorRootPinNames.Reset();
+	InNode->TraitRootPinNames.Reset();
 	for (int32 Index = 0; Index < NodeData.NewPinInfos.Num(); Index++)
 	{
-		if (NodeData.NewPinInfos[Index].bIsDecorator)
+		if (NodeData.NewPinInfos[Index].bIsTrait)
 		{
-			InNode->DecoratorRootPinNames.Add(NodeData.NewPinInfos[Index].Name.ToString());
+			InNode->TraitRootPinNames.Add(NodeData.NewPinInfos[Index].Name.ToString());
 		}
 	}
-	InNode->UpdateDecoratorRootPinNames();
+	InNode->UpdateTraitRootPinNames();
 
 	if (!LinkedPaths.IsEmpty())
 	{
@@ -18371,7 +18371,7 @@ bool URigVMController::ChangePinType(URigVMPin* InPin, TRigVMTypeIndex InTypeInd
 		return false;
 	}
 
-	if(InPin->IsDecoratorPin() && InPin->GetRootPin())
+	if(InPin->IsTraitPin() && InPin->GetRootPin())
 	{
 		return false;
 	}

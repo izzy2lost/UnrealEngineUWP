@@ -119,14 +119,14 @@ namespace Private
 		const TArray<URigVMPin*>& Pins = DecoratorStackNode->GetPins();
 		for (URigVMPin* Pin : Pins)
 		{
-			if (!Pin->IsDecoratorPin())
+			if (!Pin->IsTraitPin())
 			{
 				continue;	// Not a decorator pin
 			}
 
 			if (Pin->GetScriptStruct() == FRigDecorator_AnimNextCppDecorator::StaticStruct())
 			{
-				TSharedPtr<FStructOnScope> DecoratorScope = Pin->GetDecoratorInstance();
+				TSharedPtr<FStructOnScope> DecoratorScope = Pin->GetTraitInstance();
 				FRigDecorator_AnimNextCppDecorator* VMDecorator = (FRigDecorator_AnimNextCppDecorator*)DecoratorScope->GetStructMemory();
 
 				if (const FTrait* Trait = VMDecorator->GetTrait())
@@ -195,7 +195,7 @@ namespace Private
 							// If this is the case, we bind to the first trait index since we only allowed a single base trait per stack
 							// Otherwise we lookup the trait index we are linked to
 							const URigVMPin* SourceDecoratorPin = PinLinks[0]->GetSourcePin()->GetParentPin();
-							SourceTraitIndex = SourceDecoratorPin != nullptr ? SourceTraitStack->DecoratorStackNode->GetDecoratorPins().IndexOfByKey(SourceDecoratorPin) : 0;
+							SourceTraitIndex = SourceDecoratorPin != nullptr ? SourceTraitStack->DecoratorStackNode->GetTraitPins().IndexOfByKey(SourceDecoratorPin) : 0;
 						}
 
 						if (SourceNodeHandle.IsValid())
@@ -317,7 +317,7 @@ namespace Private
 				Prop->ExportText_Direct(DefaultValue, &CppDecoratorStructInstance, &DefaultCppDecoratorStructInstance, nullptr, PPF_SerializedAsImportText);
 			}
 
-			const FName ReferencePoseDecoratorName = VMController->AddDecorator(VMReferencePoseNode->GetFName(), *CppDecoratorStruct->GetPathName(), TEXT("ReferencePose"), DefaultValue, INDEX_NONE, false, false);
+			const FName ReferencePoseDecoratorName = VMController->AddTrait(VMReferencePoseNode->GetFName(), *CppDecoratorStruct->GetPathName(), TEXT("ReferencePose"), DefaultValue, INDEX_NONE, false, false);
 			check(!ReferencePoseDecoratorName.IsNone());
 
 			URigVMPin* OutputPin = VMReferencePoseNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextTraitStack, Result));
@@ -416,7 +416,7 @@ namespace Private
 				Prop->ExportText_Direct(DefaultValue, &CppDecoratorStructInstance, &DefaultCppDecoratorStructInstance, nullptr, PPF_SerializedAsImportText);
 			}
 
-			VMController->AddDecorator(VMNode->GetFName(), *CppDecoratorStruct->GetPathName(), TEXT("ReferencePose"), DefaultValue, INDEX_NONE, false, false);
+			VMController->AddTrait(VMNode->GetFName(), *CppDecoratorStruct->GetPathName(), TEXT("ReferencePose"), DefaultValue, INDEX_NONE, false, false);
 
 			FTraitStackMapping Mapping(VMNode);
 			ForEachTraitInStack(VMNode,
@@ -661,7 +661,7 @@ void FUtils::CompileVM(UAnimNextGraph* InGraph)
 	URigVMCompiler* Compiler = URigVMCompiler::StaticClass()->GetDefaultObject<URigVMCompiler>();
 	EditorData->VMCompileSettings.SetExecuteContextStruct(FAnimNextExecuteContext::StaticStruct());
 	FRigVMCompileSettings Settings = (EditorData->bCompileInDebugMode) ? FRigVMCompileSettings::Fast(EditorData->VMCompileSettings.GetExecuteContextStruct()) : EditorData->VMCompileSettings;
-	Settings.ASTSettings.bSetupDecorators = false; // disable the default implementation of decorators for now
+	Settings.ASTSettings.bSetupTraits = false; // disable the default implementation of decorators for now
 	Settings.ASTSettings.ReportDelegate.BindLambda([InGraph](EMessageSeverity::Type InType, UObject* InObject, const FString& InString)
 	{
 		FMessageLog("AnimNextCompilerResults").Message(InType, FText::FromString(InString));

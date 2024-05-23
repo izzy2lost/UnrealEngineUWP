@@ -41,14 +41,14 @@ void UAnimNextGraph_EdGraphNode::ConfigurePin(UEdGraphPin* EdGraphPin, const URi
 	{
 		if (const URigVMPin* DecoratorPin = ModelPin->GetParentPin())
 		{
-			if (DecoratorPin->IsDecoratorPin())
+			if (DecoratorPin->IsTraitPin())
 			{
 				check(DecoratorPin->GetScriptStruct() == FRigDecorator_AnimNextCppDecorator::StaticStruct());
 
-				TSharedPtr<FStructOnScope> DecoratorScope = DecoratorPin->GetDecoratorInstance();
+				TSharedPtr<FStructOnScope> DecoratorScope = DecoratorPin->GetTraitInstance();
 				const FRigDecorator_AnimNextCppDecorator* VMDecorator = (const FRigDecorator_AnimNextCppDecorator*)DecoratorScope->GetStructMemory();
 
-				const UScriptStruct* TraitStruct = VMDecorator->GetDecoratorSharedDataStruct();
+				const UScriptStruct* TraitStruct = VMDecorator->GetTraitSharedDataStruct();
 				check(TraitStruct != nullptr);
 
 				const FProperty* PinProperty = TraitStruct->FindPropertyByName(ModelPin->GetFName());
@@ -114,7 +114,7 @@ void UAnimNextGraph_EdGraphNode::BuildAddTraitContextMenu(UToolMenu* SubMenu)
 			FUIAction(FExecuteAction::CreateLambda(
 				[this, Trait, VMController, VMNode, CppDecoratorStruct, DefaultValue, DisplayName]()
 				{
-					VMController->AddDecorator(
+					VMController->AddTrait(
 						VMNode->GetFName(),
 						*CppDecoratorStruct->GetPathName(),
 						*DisplayName,

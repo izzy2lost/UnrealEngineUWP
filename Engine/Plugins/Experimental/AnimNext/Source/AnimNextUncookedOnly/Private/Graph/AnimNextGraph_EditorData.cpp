@@ -171,7 +171,7 @@ void UAnimNextGraph_EditorData::HandleModifiedEvent(ERigVMGraphNotifType InNotif
 		{
 			if (URigVMPin* Pin = Cast<URigVMPin>(InSubject))
 			{
-				if (Pin->IsDecoratorPin())
+				if (Pin->IsTraitPin())
 				{
 					RequestAutoVMRecompilation();
 				}

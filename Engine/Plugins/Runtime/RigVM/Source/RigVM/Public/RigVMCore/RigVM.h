@@ -428,30 +428,30 @@ public:
 	// returns false if an entry can not be executed
 	bool CanExecuteEntry(const FRigVMExtendedExecuteContext& Context, const FName& InEntryName, bool bLogErrorForMissingEntry = true) const;
 
-	// returns the decorators for this VM's bytecode and Context
-	TMap<int32, TArray<FRigVMDecoratorScope>> GetDecorators(FRigVMExtendedExecuteContext& InContext, const UScriptStruct* InScriptStruct = nullptr)
+	// returns the traits for this VM's bytecode and Context
+	TMap<int32, TArray<FRigVMTraitScope>> GetTraits(FRigVMExtendedExecuteContext& InContext, const UScriptStruct* InScriptStruct = nullptr)
 	{
-		return GetByteCode().GetDecorators(*GetLiteralMemory(), InContext.WorkMemoryStorage, InScriptStruct);
+		return GetByteCode().GetTraits(*GetLiteralMemory(), InContext.WorkMemoryStorage, InScriptStruct);
 	}
 
-	// returns the decorators of a given type for this VM's bytecode and Context
+	// returns the traits of a given type for this VM's bytecode and Context
 	template<typename T>
-	TMap<int32, TArray<FRigVMDecoratorScope>> GetDecorators(FRigVMExtendedExecuteContext& InContext)
+	TMap<int32, TArray<FRigVMTraitScope>> GetTraits(FRigVMExtendedExecuteContext& InContext)
 	{
-		return GetByteCode().GetDecorators<T>(*GetLiteralMemory(), InContext.WorkMemoryStorage);
+		return GetByteCode().GetTraits<T>(*GetLiteralMemory(), InContext.WorkMemoryStorage);
 	}
 
-	// returns the decorators for the provided memory for a single instruction
-	TArray<FRigVMDecoratorScope> GetDecoratorsForInstruction(const FRigVMInstruction& InInstruction, FRigVMExtendedExecuteContext& InContext, const UScriptStruct* InScriptStruct = nullptr)
+	// returns the traits for the provided memory for a single instruction
+	TArray<FRigVMTraitScope> GetTraitsForInstruction(const FRigVMInstruction& InInstruction, FRigVMExtendedExecuteContext& InContext, const UScriptStruct* InScriptStruct = nullptr)
 	{
-		return GetByteCode().GetDecoratorsForInstruction(InInstruction, *GetLiteralMemory(), InContext.WorkMemoryStorage, InScriptStruct);
+		return GetByteCode().GetTraitsForInstruction(InInstruction, *GetLiteralMemory(), InContext.WorkMemoryStorage, InScriptStruct);
 	}
 
-	// returns the decorators of a given type for the provided memory for a single instruction
+	// returns the traits of a given type for the provided memory for a single instruction
 	template<typename T>
-	TArray<FRigVMDecoratorScope> GetDecoratorsForInstruction(const FRigVMInstruction& InInstruction, FRigVMExtendedExecuteContext& InContext)
+	TArray<FRigVMTraitScope> GetTraitsForInstruction(const FRigVMInstruction& InInstruction, FRigVMExtendedExecuteContext& InContext)
 	{
-		return GetByteCode().GetDecoratorsForInstruction<T>(InInstruction, *GetLiteralMemory(), InContext.WorkMemoryStorage);
+		return GetByteCode().GetTraitsForInstruction<T>(InInstruction, *GetLiteralMemory(), InContext.WorkMemoryStorage);
 	}
 
 #if WITH_EDITOR

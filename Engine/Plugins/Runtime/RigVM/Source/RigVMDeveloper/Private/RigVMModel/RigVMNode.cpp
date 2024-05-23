@@ -337,21 +337,21 @@ FString URigVMNode::GetOriginalDefaultValueForRootPin(const URigVMPin* InRootPin
 	return FString();
 }
 
-void URigVMNode::UpdateDecoratorRootPinNames()
+void URigVMNode::UpdateTraitRootPinNames()
 {
-	TArray<FString> NewDecoratorRootPinNames;
+	TArray<FString> NewTraitRootPinNames;
 	for(URigVMPin* Pin : GetPins())
 	{
-		if(Pin->IsDecoratorPin())
+		if(Pin->IsTraitPin())
 		{
 			if(URigVMPin* NamePin = Pin->FindSubPin(TEXT("Name")))
 			{
 				NamePin->DefaultValue = Pin->GetName();
 			}
-			NewDecoratorRootPinNames.Add(Pin->GetName());
+			NewTraitRootPinNames.Add(Pin->GetName());
 		}
 	}
-	DecoratorRootPinNames = NewDecoratorRootPinNames;
+	TraitRootPinNames = NewTraitRootPinNames;
 }
 
 bool URigVMNode::IsSelected() const
@@ -529,82 +529,82 @@ uint32 URigVMNode::GetStructureHash() const
 	return Hash;
 }
 
-TArray<URigVMPin*> URigVMNode::GetDecoratorPins() const
+TArray<URigVMPin*> URigVMNode::GetTraitPins() const
 {
-	TArray<URigVMPin*> DecoratorPins;
-	DecoratorPins.Reserve(DecoratorRootPinNames.Num());
+	TArray<URigVMPin*> TraitPins;
+	TraitPins.Reserve(TraitRootPinNames.Num());
 	
-	for(const FString& DecoratorRootPinName : DecoratorRootPinNames)
+	for(const FString& TraitRootPinName : TraitRootPinNames)
 	{
-		URigVMPin* DecoratorPin = FindPin(DecoratorRootPinName);
-		check(DecoratorPin);
+		URigVMPin* TraitPin = FindPin(TraitRootPinName);
+		check(TraitPin);
 
-		DecoratorPins.Add(DecoratorPin);
+		TraitPins.Add(TraitPin);
 	}
 
-	return DecoratorPins;
+	return TraitPins;
 }
 
-bool URigVMNode::IsDecoratorPin(FName InName) const
+bool URigVMNode::IsTraitPin(FName InName) const
 {
 	if(const URigVMPin* Pin = FindPin(InName.ToString()))
 	{
-		return IsDecoratorPin(Pin);
+		return IsTraitPin(Pin);
 	}
 	return false;
 }
 
-bool URigVMNode::IsDecoratorPin(const URigVMPin* InDecoratorPin) const
+bool URigVMNode::IsTraitPin(const URigVMPin* InTraitPin) const
 {
-	return FindDecorator(InDecoratorPin) != nullptr;
+	return FindTrait(InTraitPin) != nullptr;
 }
 
-URigVMPin* URigVMNode::FindDecorator(const FName& InName, const FString& InSubPinPath) const
+URigVMPin* URigVMNode::FindTrait(const FName& InName, const FString& InSubPinPath) const
 {
 	const FString NameString = InName.ToString();
-	for(const FString& DecoratorRootPinName : DecoratorRootPinNames)
+	for(const FString& TraitRootPinName : TraitRootPinNames)
 	{
-		if(DecoratorRootPinName.Equals(NameString, ESearchCase::CaseSensitive))
+		if(TraitRootPinName.Equals(NameString, ESearchCase::CaseSensitive))
 		{
 			if(InSubPinPath.IsEmpty())
 			{
-				return FindPin(DecoratorRootPinName);
+				return FindPin(TraitRootPinName);
 			}
-			return FindPin(URigVMPin::JoinPinPath(DecoratorRootPinName, InSubPinPath));
+			return FindPin(URigVMPin::JoinPinPath(TraitRootPinName, InSubPinPath));
 		}
 	}
 	return nullptr;
 }
 
-URigVMPin* URigVMNode::FindDecorator(const URigVMPin* InDecoratorPin) const
+URigVMPin* URigVMNode::FindTrait(const URigVMPin* InTraitPin) const
 {
-	if(InDecoratorPin)
+	if(InTraitPin)
 	{
-		const URigVMPin* RootPin = InDecoratorPin->GetRootPin();
+		const URigVMPin* RootPin = InTraitPin->GetRootPin();
 		if(RootPin->GetNode() == this)
 		{
-			return FindDecorator(RootPin->GetFName());
+			return FindTrait(RootPin->GetFName());
 		}
 	}
 	return nullptr;
 }
 
-TSharedPtr<FStructOnScope> URigVMNode::GetDecoratorInstance(const FName& InName, bool bUseDefaultValueFromPin) const
+TSharedPtr<FStructOnScope> URigVMNode::GetTraitInstance(const FName& InName, bool bUseDefaultValueFromPin) const
 {
-	return GetDecoratorInstance(FindPin(InName.ToString()), bUseDefaultValueFromPin);
+	return GetTraitInstance(FindPin(InName.ToString()), bUseDefaultValueFromPin);
 }
 
-TSharedPtr<FStructOnScope> URigVMNode::GetDecoratorInstance(const URigVMPin* InDecoratorPin, bool bUseDefaultValueFromPin) const
+TSharedPtr<FStructOnScope> URigVMNode::GetTraitInstance(const URigVMPin* InTraitPin, bool bUseDefaultValueFromPin) const
 {
-	if(const URigVMPin* RootPin = FindDecorator(InDecoratorPin))
+	if(const URigVMPin* RootPin = FindTrait(InTraitPin))
 	{
 		check(RootPin->IsStruct());
 
 		UScriptStruct* ScriptStruct = RootPin->GetScriptStruct();
-		check(ScriptStruct->IsChildOf(FRigVMDecorator::StaticStruct()));
+		check(ScriptStruct->IsChildOf(FRigVMTrait::StaticStruct()));
 
 		TSharedPtr<FStructOnScope> Scope(new FStructOnScope(ScriptStruct));
-		FRigVMDecorator* Decorator = (FRigVMDecorator*)Scope->GetStructMemory();
+		FRigVMTrait* Trait = (FRigVMTrait*)Scope->GetStructMemory();
 
 		if(bUseDefaultValueFromPin)
 		{
@@ -615,12 +615,12 @@ TSharedPtr<FStructOnScope> URigVMNode::GetDecoratorInstance(const URigVMPin* InD
 				{
 					// force logging to the error pipe for error detection
 					LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ErrorPipe.GetMaxVerbosity());
-					ScriptStruct->ImportText(*DefaultValue, Decorator, nullptr, PPF_SerializedAsImportText, &ErrorPipe, ScriptStruct->GetName());
+					ScriptStruct->ImportText(*DefaultValue, Trait, nullptr, PPF_SerializedAsImportText, &ErrorPipe, ScriptStruct->GetName());
 				}
 			}
 		}
 
-		Decorator->Name = RootPin->GetName();
+		Trait->Name = RootPin->GetName();
 		
 		return Scope;
 	}
@@ -629,19 +629,19 @@ TSharedPtr<FStructOnScope> URigVMNode::GetDecoratorInstance(const URigVMPin* InD
 	return EmptyScope;
 }
 
-UScriptStruct* URigVMNode::GetDecoratorScriptStruct(const FName& InName) const
+UScriptStruct* URigVMNode::GetTraitScriptStruct(const FName& InName) const
 {
-	return GetDecoratorScriptStruct(FindPin(InName.ToString()));
+	return GetTraitScriptStruct(FindPin(InName.ToString()));
 }
 
-UScriptStruct* URigVMNode::GetDecoratorScriptStruct(const URigVMPin* InDecoratorPin) const
+UScriptStruct* URigVMNode::GetTraitScriptStruct(const URigVMPin* InTraitPin) const
 {
-	if(const URigVMPin* RootPin = FindDecorator(InDecoratorPin))
+	if(const URigVMPin* RootPin = FindTrait(InTraitPin))
 	{
 		check(RootPin->IsStruct());
 
 		UScriptStruct* ScriptStruct = RootPin->GetScriptStruct();
-		check(ScriptStruct->IsChildOf(FRigVMDecorator::StaticStruct()));
+		check(ScriptStruct->IsChildOf(FRigVMTrait::StaticStruct()));
 		return ScriptStruct;
 	}
 

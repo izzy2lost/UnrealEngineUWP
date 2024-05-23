@@ -2081,39 +2081,39 @@ bool URigVMCompiler::TraverseCallExtern(const FRigVMCallExternExprAST* InExpr, F
 			return false;
 		}
 
-		if(WorkData.Settings.ASTSettings.bSetupDecorators)
+		if(WorkData.Settings.ASTSettings.bSetupTraits)
 		{
-			const TArray<URigVMPin*> DecoratorPins = Node->GetDecoratorPins(); 
-			if(!DecoratorPins.IsEmpty())
+			const TArray<URigVMPin*> TraitPins = Node->GetTraitPins(); 
+			if(!TraitPins.IsEmpty())
 			{
-				// also take care of the empty decorator list
-				if(!WorkData.DecoratorListLiterals.Contains(nullptr))
+				// also take care of the empty trait list
+				if(!WorkData.TraitListLiterals.Contains(nullptr))
 				{
-					const FName Name = WorkData.GetUniquePropertyName(ERigVMMemoryType::Literal, TEXT("EmptyDecoratorList"));
+					const FName Name = WorkData.GetUniquePropertyName(ERigVMMemoryType::Literal, TEXT("EmptyTraitList"));
 					const FRigVMOperand& ListOperand = WorkData.AddProperty(ERigVMMemoryType::Literal, Name, RigVMTypeUtils::ArrayTypeFromBaseType(RigVMTypeUtils::Int32Type), nullptr, TEXT("()"));
-					WorkData.DecoratorListLiterals.Add(nullptr, ListOperand);
+					WorkData.TraitListLiterals.Add(nullptr, ListOperand);
 				}
 
-				if(!WorkData.DecoratorListLiterals.Contains(Node))
+				if(!WorkData.TraitListLiterals.Contains(Node))
 				{
 					TArray<FString> DefaultValues;
-					for(const URigVMPin* DecoratorPin : DecoratorPins)
+					for(const URigVMPin* TraitPin : TraitPins)
 					{
-						if(const FRigVMExprAST* DecoratorExpr = InExpr->FindVarWithPinName(DecoratorPin->GetFName()))
+						if(const FRigVMExprAST* TraitExpr = InExpr->FindVarWithPinName(TraitPin->GetFName()))
 						{
-							check(DecoratorExpr->IsVar());
-							const FRigVMOperand DecoratorOperand = FindOrAddRegister(DecoratorExpr->To<FRigVMVarExprAST>(), WorkData);
-							check(DecoratorOperand.GetMemoryType() == ERigVMMemoryType::Work);
-							DefaultValues.Add(FString::FromInt(DecoratorOperand.GetRegisterIndex()));
+							check(TraitExpr->IsVar());
+							const FRigVMOperand TraitOperand = FindOrAddRegister(TraitExpr->To<FRigVMVarExprAST>(), WorkData);
+							check(TraitOperand.GetMemoryType() == ERigVMMemoryType::Work);
+							DefaultValues.Add(FString::FromInt(TraitOperand.GetRegisterIndex()));
 						}
 					}
 
 					if(!DefaultValues.IsEmpty())
 					{
-						const FName Name = WorkData.GetUniquePropertyName(ERigVMMemoryType::Literal, TEXT("DecoratorList"));
+						const FName Name = WorkData.GetUniquePropertyName(ERigVMMemoryType::Literal, TEXT("TraitList"));
 						const FString DefaultValue = FString::Printf(TEXT("(%s)"), *FString::Join(DefaultValues, TEXT(",")));
 						const FRigVMOperand& ListOperand = WorkData.AddProperty(ERigVMMemoryType::Literal, Name, RigVMTypeUtils::ArrayTypeFromBaseType(RigVMTypeUtils::Int32Type), nullptr, DefaultValue);
-						WorkData.DecoratorListLiterals.Add(Node, ListOperand);
+						WorkData.TraitListLiterals.Add(Node, ListOperand);
 					}
 				}
 			}
@@ -2306,16 +2306,16 @@ bool URigVMCompiler::TraverseCallExtern(const FRigVMCallExternExprAST* InExpr, F
 			return false;
 		}
 
-		// setup the decorator list for the context
-		bool bSetupDecorators = false;
-		if(const FRigVMOperand* DecoratorListOperand = WorkData.DecoratorListLiterals.Find(Node))
+		// setup the trait list for the context
+		bool bSetupTraits = false;
+		if(const FRigVMOperand* TraitListOperand = WorkData.TraitListLiterals.Find(Node))
 		{
 			if (WorkData.Settings.SetupNodeInstructionIndex)
 			{
 				WorkData.VM->GetByteCode().SetSubject(WorkData.VM->GetByteCode().GetNumInstructions(), Callstack.GetCallPath(), Callstack.GetStack());
 			}
-			WorkData.VM->GetByteCode().AddSetupDecoratorsOp(*DecoratorListOperand);
-			bSetupDecorators = true;
+			WorkData.VM->GetByteCode().AddSetupTraitsOp(*TraitListOperand);
+			bSetupTraits = true;
 		}
 
 		// setup the instruction
@@ -2474,16 +2474,16 @@ bool URigVMCompiler::TraverseCallExtern(const FRigVMCallExternExprAST* InExpr, F
 			}
 		}
 
-		if(bSetupDecorators)
+		if(bSetupTraits)
 		{
-			// passing nullptr retrieves the empty decorator list
-			if(const FRigVMOperand* EmptyDecoratorListOperand = WorkData.DecoratorListLiterals.Find(nullptr))
+			// passing nullptr retrieves the empty trait list
+			if(const FRigVMOperand* EmptyTraitListOperand = WorkData.TraitListLiterals.Find(nullptr))
 			{
 				if (WorkData.Settings.SetupNodeInstructionIndex)
 				{
 					WorkData.VM->GetByteCode().SetSubject(WorkData.VM->GetByteCode().GetNumInstructions(), Callstack.GetCallPath(), Callstack.GetStack());
 				}
-				WorkData.VM->GetByteCode().AddSetupDecoratorsOp(*EmptyDecoratorListOperand);
+				WorkData.VM->GetByteCode().AddSetupTraitsOp(*EmptyTraitListOperand);
 			}
 		}
 	}
@@ -2522,20 +2522,20 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 			return false;
 		}
 
-		// create a map of all of the decorator setup lists (indices to decorator properties)
-		TMap<int32, FRigVMOperand> LiteralValueToSetupDecoratorArg;
+		// create a map of all of the trait setup lists (indices to trait properties)
+		TMap<int32, FRigVMOperand> LiteralValueToSetupTraitArg;
 		const FRigVMInstructionArray FunctionInstructions = FunctionByteCode.GetInstructions();
 		for(const FRigVMInstruction& Instruction : FunctionInstructions)
 		{
-			if(Instruction.OpCode == ERigVMOpCode::SetupDecorators)
+			if(Instruction.OpCode == ERigVMOpCode::SetupTraits)
 			{
-				const FRigVMSetupDecoratorsOp& Op = FunctionByteCode.GetOpAt<FRigVMSetupDecoratorsOp>(Instruction);
+				const FRigVMSetupTraitsOp& Op = FunctionByteCode.GetOpAt<FRigVMSetupTraitsOp>(Instruction);
 				check(Op.Arg.GetMemoryType() == ERigVMMemoryType::Literal);
 				check(FunctionCompilationData->LiteralPropertyDescriptions.IsValidIndex(Op.Arg.GetRegisterIndex()));
 				const FString& DefaultValue = FunctionCompilationData->LiteralPropertyDescriptions[Op.Arg.GetRegisterIndex()].DefaultValue;
 				if(!DefaultValue.IsEmpty() && DefaultValue != TEXT("()"))
 				{
-					LiteralValueToSetupDecoratorArg.Add(Op.Arg.GetRegisterIndex(), FRigVMOperand());
+					LiteralValueToSetupTraitArg.Add(Op.Arg.GetRegisterIndex(), FRigVMOperand());
 				}
 			}
 		}
@@ -2598,12 +2598,12 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 				}
 			}
 
-			auto FindOrAddProperty = [&WorkData, MemoryType, LiteralValueToSetupDecoratorArg]
+			auto FindOrAddProperty = [&WorkData, MemoryType, LiteralValueToSetupTraitArg]
 			(const FRigVMFunctionCompilationPropertyDescription& InProperty, const FString& InNewName, const bool bIsExecuteState) -> FRigVMOperand
 			{
 				// Sharing / reusing memory / operands happens as per following contract:
 				// 1. properties are only shared if their CPP type matches
-				// 2. Literal / constant memory is only shared if the constant values match (and it is not a decorator list)
+				// 2. Literal / constant memory is only shared if the constant values match (and it is not a trait list)
 				// 3. Work state is only shared if it is not internal work state private to the instruction referring to it
 				// 4. Work state of type FRigVMInstructionSetExecuteState (bIsExecuteState) is never shared either since it is work state private to a lazy branch.
 
@@ -2621,9 +2621,9 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 					{
 						if(MemoryType == ERigVMMemoryType::Literal)
 						{
-							// if the value is the same and this is not a decorator setup list
+							// if the value is the same and this is not a trait setup list
 							if(ExistingProperty.DefaultValue.Equals(InProperty.DefaultValue) &&
-								!LiteralValueToSetupDecoratorArg.Contains(Operand.GetRegisterIndex()))
+								!LiteralValueToSetupTraitArg.Contains(Operand.GetRegisterIndex()))
 							{
 								return Operand;
 							}
@@ -2667,8 +2667,8 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 				// instantiate function library specific work state as well as
 				// instruction set execute state - which is used for lazy blocks.
 				const bool bIsExecuteState = Description.CPPType.Equals(RigVMInstructionSetExecuteStateName);
-				const bool bIsDecorator = ScriptStruct && ScriptStruct->IsChildOf(FRigVMDecorator::StaticStruct());
-				if (NewName.StartsWith(FunctionLibraryPrefix) || bIsExecuteState || bIsDecorator)
+				const bool bIsTrait = ScriptStruct && ScriptStruct->IsChildOf(FRigVMTrait::StaticStruct());
+				if (NewName.StartsWith(FunctionLibraryPrefix) || bIsExecuteState || bIsTrait)
 				{
 					NewName = FString::Printf(TEXT("%s%s"), *FunctionReferenceNode->GetNodePath(), *NewName.RightChop(FunctionLibraryPrefix.Len()));
 					FRigVMPropertyDescription::SanitizeName(NewName);
@@ -2678,23 +2678,23 @@ bool URigVMCompiler::TraverseInlineFunction(const FRigVMInlineFunctionExprAST* I
 				FRigVMCompilerWorkData::FFunctionRegisterData Data = {FunctionReferenceNode, MemoryType, PropertyIndex};
 				WorkData.FunctionRegisterToOperand.Add(Data, Operand);
 
-				if(MemoryType == ERigVMMemoryType::Literal && LiteralValueToSetupDecoratorArg.Contains(PropertyIndex))
+				if(MemoryType == ERigVMMemoryType::Literal && LiteralValueToSetupTraitArg.Contains(PropertyIndex))
 				{
-					LiteralValueToSetupDecoratorArg.FindChecked(PropertyIndex) = Operand;
+					LiteralValueToSetupTraitArg.FindChecked(PropertyIndex) = Operand;
 				}
 			}
 		}
-		// For decorator setup lists we need to update the integer values (pointing to decorator property indices)
-		for(const TPair<int32, FRigVMOperand>& Pair : LiteralValueToSetupDecoratorArg)
+		// For trait setup lists we need to update the integer values (pointing to trait property indices)
+		for(const TPair<int32, FRigVMOperand>& Pair : LiteralValueToSetupTraitArg)
 		{
-			const FRigVMOperand DecoratorIndicesOperand = Pair.Value;
-			const int32 LiteralPropertyIndex = DecoratorIndicesOperand.GetRegisterIndex();
-			FString OriginalDecoratorIndicesString = WorkData.PropertyDescriptions[ERigVMMemoryType::Literal][LiteralPropertyIndex].DefaultValue;
-			if(!OriginalDecoratorIndicesString.IsEmpty() && OriginalDecoratorIndicesString != TEXT("()"))
+			const FRigVMOperand TraitIndicesOperand = Pair.Value;
+			const int32 LiteralPropertyIndex = TraitIndicesOperand.GetRegisterIndex();
+			FString OriginalTraitIndicesString = WorkData.PropertyDescriptions[ERigVMMemoryType::Literal][LiteralPropertyIndex].DefaultValue;
+			if(!OriginalTraitIndicesString.IsEmpty() && OriginalTraitIndicesString != TEXT("()"))
 			{
-				OriginalDecoratorIndicesString = OriginalDecoratorIndicesString.TrimChar(TEXT('('));
-				OriginalDecoratorIndicesString = OriginalDecoratorIndicesString.TrimChar(TEXT(')'));
-				FString PinPathRemaining = OriginalDecoratorIndicesString;
+				OriginalTraitIndicesString = OriginalTraitIndicesString.TrimChar(TEXT('('));
+				OriginalTraitIndicesString = OriginalTraitIndicesString.TrimChar(TEXT(')'));
+				FString PinPathRemaining = OriginalTraitIndicesString;
 				FString Left, Right;
 				TArray<FString> IndexStrings;
 				while(PinPathRemaining.Split(TEXT(","), &Left, &Right))

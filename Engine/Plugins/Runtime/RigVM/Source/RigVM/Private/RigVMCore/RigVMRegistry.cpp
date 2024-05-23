@@ -3,7 +3,7 @@
 #include "RigVMCore/RigVMRegistry.h"
 #include "AssetRegistry/AssetData.h"
 #include "RigVMCore/RigVMStruct.h"
-#include <RigVMCore/RigVMDecorator.h>
+#include <RigVMCore/RigVMTrait.h>
 #include "RigVMTypeUtils.h"
 #include "RigVMModule.h"
 #include "Animation/AttributeTypes.h"
@@ -1279,7 +1279,7 @@ bool FRigVMRegistry_NoLock::IsAllowedType_NoLock(const UStruct* InStruct) const
 		return false;
 	}
 	if(InStruct->IsChildOf(FRigVMStruct::StaticStruct()) &&
-		!InStruct->IsChildOf(FRigVMDecorator::StaticStruct()))
+		!InStruct->IsChildOf(FRigVMTrait::StaticStruct()))
 	{
 		return false;
 	}

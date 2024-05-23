@@ -1149,7 +1149,7 @@ struct RIGVMDEVELOPER_API FRigVMParserASTSettings
 	bool bFoldLiterals = false;
 
 	UPROPERTY(EditAnywhere, Transient, BlueprintReadWrite, Category = "AST")
-	bool bSetupDecorators = true;
+	bool bSetupTraits = true;
 
 	// links to be ignored during the parse
 	UPROPERTY()

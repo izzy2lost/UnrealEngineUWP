@@ -1266,8 +1266,8 @@ TArray<FRigVMExprAST*> FRigVMParserAST::TraversePins(const FRigVMASTProxy& InNod
 		{
 			for (URigVMPin* Pin : Node->GetPins())
 			{
-				// We skip decorator pins as we don't want to traverse them
-				if (!Pin->IsDecoratorPin()  || Settings.bSetupDecorators)
+				// We skip trait pins as we don't want to traverse them
+				if (!Pin->IsTraitPin()  || Settings.bSetupTraits)
 				{
 					Pins.AddUnique(Pin);
 				}
@@ -1357,7 +1357,7 @@ FRigVMExprAST* FRigVMParserAST::TraversePin(const FRigVMASTProxy& InPinProxy, FR
 		}
 	}
 
-	if(Pin->IsDecoratorPin())
+	if(Pin->IsTraitPin())
 	{
 		PinExpr = MakeExpr<FRigVMVarExprAST>(FRigVMExprAST::EType::Var, InPinProxy);
 	}
