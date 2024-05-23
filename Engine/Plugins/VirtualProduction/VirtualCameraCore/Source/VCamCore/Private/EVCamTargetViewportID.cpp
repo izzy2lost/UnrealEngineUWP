@@ -3,6 +3,8 @@
 #include "EVCamTargetViewportID.h"
 
 #if WITH_EDITOR
+#include "Algo/Transform.h"
+#include "Algo/Sort.h"
 #include "Containers/UnrealString.h"
 #include "Engine/Engine.h"
 #include "LevelEditorViewport.h"
@@ -41,49 +43,38 @@ namespace UE::VCamCore
 			return nullptr;
 		}
 		
-		// We consider all layouts that in perspective mode.
+		// We consider all layouts that are in perspective mode.
 		// However, there can be multiple candidates, e.g. in 2x2 layout:
 		//	- in the top-right, there is a button for maximizing.
 		//	- in the top-left, you can set the mode to "Perspective"
 		//	- in the top-left, you can make the viewport immersive (i.e. take up entire screen)
 		// We'll just pick one randomly, but we'll favour whatever viewport takes up the most space (immersive > maximized > rest).
-		TSharedPtr<SLevelViewport> BestGuess = nullptr;
 		
-		for (FLevelEditorViewportClient* Client : GEditor->GetLevelViewportClients())
+		TArray<TSharedPtr<SLevelViewport>> Viewports;
+		Algo::TransformIf(GEditor->GetLevelViewportClients(), Viewports,
+			[TargetViewport](const FLevelEditorViewportClient* Client)
+			{
+			   const TSharedPtr<SLevelViewport> LevelViewport = StaticCastSharedPtr<SLevelViewport>(Client->GetEditorViewportWidget());
+			   return LevelViewport
+				  // E.g. in 2x2 layout you can have several modes, like "Top", "Left". We only care for the "Perspective" mode.
+				  && !Client->IsOrtho()
+				  // The config key string holds information about TargetViewport
+				  && LevelViewport->GetConfigKey().ToString().Contains(Private::GetBaseConfigKeyFor(TargetViewport), ESearchCase::CaseSensitive);
+			},
+			[](const FLevelEditorViewportClient* Client)
+			{
+			   return StaticCastSharedPtr<SLevelViewport>(Client->GetEditorViewportWidget());
+			});
+
+		Algo::Sort(Viewports, [](const TSharedPtr<SLevelViewport>& Left, const TSharedPtr<SLevelViewport>& Right)
 		{
-			TSharedPtr<SLevelViewport> LevelViewport = StaticCastSharedPtr<SLevelViewport>(Client->GetEditorViewportWidget());
-			// E.g. in 2x2 layout you can have several modes, like "Top", "Left". We only care for the "Perspective" mode.
-			if (Client->IsOrtho()
-				|| !LevelViewport.IsValid())
-			{
-				continue;
-			}
-		
-			const FString WantedViewportString = Private::GetBaseConfigKeyFor(TargetViewport);
-			const FString ViewportConfigKey = LevelViewport->GetConfigKey().ToString();
-			const bool bIsInTargetViewport = ViewportConfigKey.Contains(*WantedViewportString, ESearchCase::CaseSensitive, ESearchDir::FromStart);
-			if (!bIsInTargetViewport)
-			{
-				continue;
-			}
+			return Right->IsImmersive() || (Right->IsMaximized() && !Left->IsImmersive());
+		});
 
-			// E.g. in a 2x2 layout, there are 4 slots (each one is a SLevelViewport instance).
-			// We'll favour whatever viewport takes up the most space (immersive > maximized > rest).
-			if (LevelViewport->IsImmersive())
-			{
-				return LevelViewport;
-			}
-			if (LevelViewport->IsMaximized())
-			{
-				BestGuess = LevelViewport;
-			}
-			else if (!BestGuess)
-			{
-				BestGuess = LevelViewport;
-			}
-		}
-
-		return BestGuess;
+		return Viewports.IsEmpty()
+			? nullptr
+			// Sort is ascending
+			: Viewports[Viewports.Num() - 1];
 	}
 }
 #endif
