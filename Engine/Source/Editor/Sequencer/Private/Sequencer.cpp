@@ -6670,19 +6670,19 @@ void FSequencer::SynchronizeSequencerSelectionWithExternalSelection()
 		}
 		
 		TSharedPtr<SOutlinerView> TreeView = SequencerWidget->GetTreeView();
-		if (Selection->Outliner.Num() == 1)
+		bool bScrolledIntoView = false;
+		for (TViewModelPtr<IOutlinerExtension> Node : Selection->Outliner)
 		{
-			for (TViewModelPtr<IOutlinerExtension> Node : Selection->Outliner)
+			for (TViewModelPtr<IOutlinerExtension> Parent : Node.AsModel()->GetAncestorsOfType<IOutlinerExtension>())
 			{
-				for (TViewModelPtr<IOutlinerExtension> Parent : Node.AsModel()->GetAncestorsOfType<IOutlinerExtension>())
-				{
-					TreeView->SetItemExpansion(Parent, true);
-						TreeView->SetItemExpansion(Parent, true);
-						Parent = Parent.AsModel()->FindAncestorOfType<IOutlinerExtension>();
-				}
+				TreeView->SetItemExpansion(Parent, true);
+				Parent = Parent.AsModel()->FindAncestorOfType<IOutlinerExtension>();
+			}
 
+			if (!bScrolledIntoView)
+			{
+				bScrolledIntoView = true;
 				TreeView->RequestScrollIntoView(Node);
-				break;
 			}
 		}
 	}
