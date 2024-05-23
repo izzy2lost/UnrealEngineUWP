@@ -55,9 +55,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnAnimInitialized);
 DECLARE_MULTICAST_DELEGATE(FOnSkelMeshTeleportedMultiCast);
 typedef FOnSkelMeshTeleportedMultiCast::FDelegate FOnSkelMeshTeleported;
 
+class UE_DEPRECATED(5.5, "use FOnBoneTransformsFinalizedMultiCast instead (see SkinnedMeshComponent.h).") FOnBoneTransformsFinalized;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBoneTransformsFinalized);  // Deprecated, use FOnBoneTransformsFinalizedMultiCast instead
-
-DECLARE_MULTICAST_DELEGATE(FOnBoneTransformsFinalizedMultiCast);
 
 DECLARE_TS_MULTICAST_DELEGATE_ThreeParams(FOnLODRequiredBonesUpdateMulticast, USkeletalMeshComponent*, int32, const TArray<FBoneIndexType>&);
 typedef FOnLODRequiredBonesUpdateMulticast::FDelegate FOnLODRequiredBonesUpdate;
@@ -1943,9 +1942,6 @@ public:
 	ENGINE_API virtual void ClearRefPoseOverride() override;
 	//~ End USkinnedMeshComponent Interface
 
-	UE_DEPRECATED(4.27, "Use RegisterOnBoneTransformsFinalizedDelegate/UnregisterOnBoneTransformsFinalizedDelegate instead")
-	FOnBoneTransformsFinalized OnBoneTransformsFinalized;
-
 	// Conditions used to gate when post process events happen
 	ENGINE_API bool ShouldUpdatePostProcessInstance() const;
 	ENGINE_API bool ShouldPostUpdatePostProcessInstance() const;
@@ -2586,8 +2582,8 @@ public:
 	ENGINE_API void UnregisterOnTeleportDelegate(const FDelegateHandle& DelegateHandle);
 
 	/** Register/Unregister for OnBoneTransformsFinalized callback */
-	ENGINE_API FDelegateHandle RegisterOnBoneTransformsFinalizedDelegate(const FOnBoneTransformsFinalizedMultiCast::FDelegate& Delegate);
-	ENGINE_API void UnregisterOnBoneTransformsFinalizedDelegate(const FDelegateHandle& DelegateHandle);
+	ENGINE_API virtual FDelegateHandle RegisterOnBoneTransformsFinalizedDelegate(const FOnBoneTransformsFinalizedMultiCast::FDelegate& Delegate) override;
+	ENGINE_API virtual void UnregisterOnBoneTransformsFinalizedDelegate(const FDelegateHandle& DelegateHandle) override;
 
 	/** Register/Unregister for OnLODRequiredBonesUpdate callback */
 	ENGINE_API FDelegateHandle RegisterOnLODRequiredBonesUpdate(const FOnLODRequiredBonesUpdate& Delegate);

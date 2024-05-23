@@ -4350,10 +4350,6 @@ void USkeletalMeshComponent::FinalizeBoneTransform()
 
 	ConditionallyDispatchQueuedAnimEvents();
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	OnBoneTransformsFinalized.Broadcast();  // Deprecated in 4.27
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	OnBoneTransformsFinalizedMC.Broadcast();
 
 	TRACE_SKELETAL_MESH_COMPONENT(this);

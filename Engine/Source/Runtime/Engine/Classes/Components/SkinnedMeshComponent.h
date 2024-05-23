@@ -47,6 +47,7 @@ namespace UE::Anim
 
 DECLARE_DELEGATE_OneParam(FOnAnimUpdateRateParamsCreated, FAnimUpdateRateParameters*)
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnTickPose, USkinnedMeshComponent* /*SkinnedMeshComponent*/, float /*DeltaTime*/, bool /*bNeedsValidRootMotion*/)
+DECLARE_MULTICAST_DELEGATE(FOnBoneTransformsFinalizedMultiCast);
 
 //
 // Bone Visibility.
@@ -2029,6 +2030,19 @@ public:
 	 * @param InOutRequiredBones - the array in which to merge the additional required bones.
 	 */
 	virtual void GetAdditionalRequiredBonesForLeader(int32 LODIndex, TArray<FBoneIndexType>& InOutRequiredBones) const {}
+
+	/**
+	 * Register an OnBoneTransformsFinalized callback which can be called in FinalizeBoneTransform().
+	 * Note the inherited class has to implement the Broadcast call in FinalizeBoneTransform() if it wants to mimic the same behavior as in USkeletalMeshComponent.
+	 * @param Delegate - the delegate to be broadcasted in FinalizeBoneTransform by the inherited class.
+	 */
+	virtual FDelegateHandle RegisterOnBoneTransformsFinalizedDelegate(const FOnBoneTransformsFinalizedMultiCast::FDelegate& /*Delegate*/) { return FDelegateHandle(); }
+
+	/**
+	 * Unregister an OnBoneTransformsFinalized callback.
+	 * @param DelegateHandle - the handle of the delegate to remove from the list.
+	 */
+	virtual void UnregisterOnBoneTransformsFinalizedDelegate(const FDelegateHandle& /*DelegateHandle*/) {}
 };
 
 class FRenderStateRecreator
