@@ -149,6 +149,9 @@ protected:
 	void SelectFrameAtMousePosition(double X, double Y, bool JoinCurrentSelection);
 
 	void ShowContextMenu(const FPointerEvent& MouseEvent);
+	void CreateThresholdsMenu(FMenuBuilder& MenuBuilder);
+	TSharedRef<SWidget> CreateUpperThresholdWidget();
+	TSharedRef<SWidget> CreateLowerThresholdWidget();
 	void CreateSelectedFrameMenu(FMenuBuilder& MenuBuilder);
 
 	void ContextMenu_ShowGameFrames_Execute();
@@ -206,6 +209,21 @@ protected:
 	bool bZoomTimingViewOnFrameSelection = false;
 
 	uint64 AnalysisSyncNextTimestamp = 0;
+
+	//////////////////////////////////////////////////
+	// Thresholds
+
+	static constexpr double MinThresholdTime = 0.001; // == 1ms == 1000 fps
+	static constexpr double MaxThresholdTime = 1.0; // == 1s == 1 fps
+
+	double UpperThresholdTime = 1.0 / 30.0;
+	double LowerThresholdTime = 1.0 / 60.0;
+
+	bool bShowUpperThresholdAsFps = true;
+	bool bShowLowerThresholdAsFps = true;
+
+	bool bShowUpperThresholdLine = false;
+	bool bShowLowerThresholdLine = false;
 
 	//////////////////////////////////////////////////
 

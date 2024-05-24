@@ -12,6 +12,7 @@
 #include "Styling/AppStyle.h"
 #include "TraceServices/Model/Frames.h"
 #include "TraceServices/Model/TimingProfiler.h"
+#include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SScrollBar.h"
 
 // Insights
@@ -313,7 +314,7 @@ TSharedRef<FFrameTrackSeries> SFrameTrack::FindOrAddSeries(ETraceFrameType Frame
 
 	TSharedRef<FFrameTrackSeries> SeriesRef = MakeShared<FFrameTrackSeries>(FrameType, EFrameTrackSeriesType::Frame);
 	SeriesRef->Color = FFrameTrackDrawHelper::GetColorByFrameType(FrameType);
-	SeriesRef->Name = FText::Format(LOCTEXT("FrameTrackSeriesName_Format", "{0} {1}"), FText::FromString(FFrameTrackDrawHelper::FrameTypeToString(FrameType)), LOCTEXT("Frame", "Frame"));
+	SeriesRef->Name = FFrameTrackDrawHelper::FrameTypeToText(FrameType);
 	AllSeries.Add(SeriesRef);
 	return SeriesRef;
 }
@@ -603,6 +604,8 @@ int32 SFrameTrack::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 
 		FFrameTrackDrawHelper Helper(DrawContext, Viewport);
 
+		Helper.SetThresholds(UpperThresholdTime, LowerThresholdTime);
+
 		Helper.DrawBackground();
 
 		// Draw the horizontal axis grid (background layer).
@@ -643,6 +646,25 @@ int32 SFrameTrack::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 
 		// Draw the horizontal axis grid (foreground layer).
 		DrawHorizontalAxisGrid(DrawContext, WhiteBrush, SummaryFont, false);
+
+		if (bShowLowerThresholdLine)
+		{
+			const FLinearColor LineColor(0.5f, 1.0f, 0.5f, 1.0f);
+			const FAxisViewportDouble& ViewportY = Viewport.GetVerticalAxisViewport();
+			const float RoundedViewHeight = FMath::RoundToFloat(ViewportY.GetSize());
+			const float LineY = RoundedViewHeight - FMath::RoundToFloat(ViewportY.GetOffsetForValue(LowerThresholdTime));
+			DrawContext.DrawBox(0.0, LineY, ViewWidth, 1.0, WhiteBrush, LineColor);
+			DrawContext.LayerId++;
+		}
+		if (bShowUpperThresholdLine)
+		{
+			const FLinearColor LineColor(1.0f, 0.5f, 0.5f, 1.0f);
+			const FAxisViewportDouble& ViewportY = Viewport.GetVerticalAxisViewport();
+			const float RoundedViewHeight = FMath::RoundToFloat(ViewportY.GetSize());
+			const float LineY = RoundedViewHeight - FMath::RoundToFloat(ViewportY.GetOffsetForValue(UpperThresholdTime));
+			DrawContext.DrawBox(0.0, LineY, ViewWidth, 1.0, WhiteBrush, LineColor);
+			DrawContext.LayerId++;
+		}
 
 		// Draw the vertical axis grid.
 		DrawVerticalAxisGrid(DrawContext, WhiteBrush, SummaryFont);
@@ -938,15 +960,12 @@ void SFrameTrack::DrawVerticalAxisGrid(FDrawContext& DrawContext, const FSlateBr
 	{
 		const FVisibleAxis& Axis = VisibleAxis[Index];
 
-		constexpr double Time60fps = 1.0 / 60.0;
-		constexpr double Time30fps = 1.0 / 30.0;
-
 		FLinearColor TextColor;
-		if (Axis.Value <= Time60fps)
+		if (Axis.Value <= LowerThresholdTime)
 		{
 			TextColor = FLinearColor(0.5f, 1.0f, 0.5f, 1.0f);
 		}
-		else if (Axis.Value <= Time30fps)
+		else if (Axis.Value <= UpperThresholdTime)
 		{
 			TextColor = FLinearColor(1.0f, 1.0f, 0.5f, 1.0f);
 		}
@@ -1354,9 +1373,9 @@ void SFrameTrack::ShowContextMenu(const FPointerEvent& MouseEvent)
 	}
 	MenuBuilder.EndSection();
 
-	MenuBuilder.BeginSection("FrameStats", LOCTEXT("ContextMenu_Section_Stats", "Frame Stats"));
+	MenuBuilder.BeginSection("Timers", LOCTEXT("ContextMenu_Section_Timers", "Timers"));
 
-	FText TooltipTextBase = LOCTEXT("ContextMenu_ShowFrameStatsSeries_Desc", "Shows/hides the {0} series.");
+	FText TooltipTextBase = LOCTEXT("ContextMenu_ShowFrameStatsSeries_Desc", "Shows/hides the {0} timer series.");
 	for (TSharedPtr<FFrameTrackSeries> Series : AllSeries)
 	{
 		if (Series->Type != EFrameTrackSeriesType::TimerFrameStats)
@@ -1385,6 +1404,17 @@ void SFrameTrack::ShowContextMenu(const FPointerEvent& MouseEvent)
 	}
 
 	MenuBuilder.EndSection();
+
+	MenuBuilder.AddSeparator();
+
+	MenuBuilder.AddSubMenu
+	(
+		LOCTEXT("ContextMenu_ThresholdsSubMenu", "Setup Thresholds"),
+		LOCTEXT("ContextMenu_ThresholdsSubMenu_Desc", "Setup thresholds."),
+		FNewMenuDelegate::CreateSP(this, &SFrameTrack::CreateThresholdsMenu),
+		false,
+		FSlateIcon()
+	);
 
 	MenuBuilder.BeginSection("Zoom", LOCTEXT("ContextMenu_Section_Zoom", "Zoom"));
 	{
@@ -1429,6 +1459,241 @@ void SFrameTrack::ShowContextMenu(const FPointerEvent& MouseEvent)
 	FWidgetPath EventPath = MouseEvent.GetEventPath() != nullptr ? *MouseEvent.GetEventPath() : FWidgetPath();
 	const FVector2D ScreenSpacePosition = MouseEvent.GetScreenSpacePosition();
 	FSlateApplication::Get().PushMenu(SharedThis(this), EventPath, MenuWidget, ScreenSpacePosition, FPopupTransitionEffect::ContextMenu);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void SFrameTrack::CreateThresholdsMenu(FMenuBuilder& MenuBuilder)
+{
+	MenuBuilder.BeginSection("Thresholds");// , LOCTEXT("ContextMenu_Section_Thresholds", "Thresholds"));
+
+	MenuBuilder.AddMenuEntry
+	(
+		LOCTEXT("ContextMenu_ShowUpperThresholdLine", "Show Upper Threshold Line"),
+		LOCTEXT("ContextMenu_ShowUpperThresholdLine_Desc", "Shows/hides the red horizontal line for the upper threshold."),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda(
+				[this]()
+				{
+					bShowUpperThresholdLine = !bShowUpperThresholdLine;
+				}),
+			FCanExecuteAction(),
+			FIsActionChecked::CreateLambda(
+				[this]() -> bool
+				{
+					return bShowUpperThresholdLine;
+				})),
+		NAME_None,
+		EUserInterfaceActionType::ToggleButton
+	);
+
+	MenuBuilder.AddMenuEntry
+	(
+		LOCTEXT("ContextMenu_ShowLowerThresholdLine", "Show Lower Threshold Line"),
+		LOCTEXT("ContextMenu_ShowLowerThresholdLine_Desc", "Shows/hides the green horizontal line for the lower threshold."),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda(
+				[this]()
+				{
+					bShowLowerThresholdLine = !bShowLowerThresholdLine;
+				}),
+			FCanExecuteAction(),
+			FIsActionChecked::CreateLambda(
+				[this]() -> bool
+				{
+					return bShowLowerThresholdLine;
+				})),
+		NAME_None,
+		EUserInterfaceActionType::ToggleButton
+	);
+
+	MenuBuilder.AddSeparator();
+
+	MenuBuilder.AddMenuEntry
+	(
+		FUIAction(FExecuteAction(), FCanExecuteAction()),
+		CreateUpperThresholdWidget(),
+		NAME_None,
+		LOCTEXT("UpperThresholdCustomTooltip", "Upper Threshold\nFrames with duration longer than this threshold will have a red color tint.\nCan be specified as a frame duration, in seconds [0.001 .. 1.0] or as a framerate [1 fps ... 1000 fps]."),
+		EUserInterfaceActionType::None
+	);
+
+	MenuBuilder.AddMenuEntry
+	(
+		FUIAction(FExecuteAction(), FCanExecuteAction()),
+		CreateLowerThresholdWidget(),
+		NAME_None,
+		LOCTEXT("LowerThresholdCustomTooltip", "Lower Threshold\nFrames with duration shorter than this threshold will have a green color tint.\nCan be specified as a frame duration, in seconds [0.001 .. 1.0] or as a framerate [1 fps ... 1000 fps]."),
+		EUserInterfaceActionType::None
+	);
+
+	MenuBuilder.EndSection();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef<SWidget> SFrameTrack::CreateUpperThresholdWidget()
+{
+	return SNew(SHorizontalBox)
+
+	+ SHorizontalBox::Slot()
+	.Padding(FMargin(0.0f, 0.0f, 0.0f, 0.0f))
+	.AutoWidth()
+	.VAlign(VAlign_Center)
+	[
+		SNew(STextBlock)
+		.MinDesiredWidth(110.0f)
+		.Text(LOCTEXT("UpperThresholdText", "Upper Threshold:"))
+	]
+
+	+ SHorizontalBox::Slot()
+	.Padding(FMargin(0.0f, 0.0f, 0.0f, 0.0f))
+	.AutoWidth()
+	.VAlign(VAlign_Center)
+	[
+		SNew(SEditableTextBox)
+		.MinDesiredWidth(60.0f)
+		.HintText(LOCTEXT("UpperThresholdCustomHint", "30 fps"))
+		.Text_Lambda([this]
+		{
+			if (bShowUpperThresholdAsFps)
+			{
+				return FText::FromString(FString::Printf(TEXT("%g fps"), 1.0 / UpperThresholdTime));
+			}
+			else
+			{
+				return FText::FromString(FString::Printf(TEXT("%g"), UpperThresholdTime));
+			}
+		})
+		.OnTextChanged_Lambda([this](const FText& InText)
+		{
+			FString ValueStr = InText.ToString().TrimStartAndEnd();
+			if (ValueStr.IsEmpty())
+			{
+				ValueStr = TEXT("30 fps");
+			}
+			if (ValueStr.EndsWith(TEXT("fps")))
+			{
+				double FPS = atof(TCHAR_TO_ANSI(*ValueStr));
+				UpperThresholdTime = 1.0 / FMath::Clamp(FPS, 1.0 / MaxThresholdTime, 1.0 / MinThresholdTime);
+				bShowUpperThresholdAsFps = true;
+			}
+			else
+			{
+				double Time = atof(TCHAR_TO_ANSI(*ValueStr));
+				UpperThresholdTime = FMath::Clamp(Time, MinThresholdTime, MaxThresholdTime);
+				bShowUpperThresholdAsFps = false;
+			}
+			if (LowerThresholdTime > UpperThresholdTime)
+			{
+				LowerThresholdTime = UpperThresholdTime;
+			}
+		})
+	]
+
+	+ SHorizontalBox::Slot()
+	.Padding(FMargin(8.0f, 0.0f, 12.0f, 0.0f))
+	.AutoWidth()
+	.VAlign(VAlign_Center)
+	[
+		SNew(STextBlock)
+		.Text_Lambda([this]
+		{
+			FString ThresholdTimeStr = TimeUtils::FormatTimeAuto(UpperThresholdTime, 2);
+			if (bShowUpperThresholdAsFps)
+			{
+				return FText::FromString(FString::Printf(TEXT("%s"), *ThresholdTimeStr));
+			}
+			else
+			{
+				return FText::FromString(FString::Printf(TEXT("%s (%.2f fps)"), *ThresholdTimeStr, 1.0 / UpperThresholdTime));
+			}
+		})
+	];
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef<SWidget> SFrameTrack::CreateLowerThresholdWidget()
+{
+	return SNew(SHorizontalBox)
+
+	+ SHorizontalBox::Slot()
+	.Padding(FMargin(0.0f, 0.0f, 0.0f, 0.0f))
+	.AutoWidth()
+	.VAlign(VAlign_Center)
+	[
+		SNew(STextBlock)
+		.MinDesiredWidth(110.0f)
+		.Text(LOCTEXT("LowerThresholdText", "Lower Threshold:"))
+	]
+
+	+ SHorizontalBox::Slot()
+	.Padding(FMargin(0.0f, 0.0f, 0.0f, 0.0f))
+	.AutoWidth()
+	.VAlign(VAlign_Center)
+	[
+		SNew(SEditableTextBox)
+		.MinDesiredWidth(60.0f)
+		.HintText(LOCTEXT("LowerThresholdCustomHint", "60 fps"))
+		.Text_Lambda([this]
+		{
+			if (bShowLowerThresholdAsFps)
+			{
+				return FText::FromString(FString::Printf(TEXT("%g fps"), 1.0 / LowerThresholdTime));
+			}
+			else
+			{
+				return FText::FromString(FString::Printf(TEXT("%g"), LowerThresholdTime));
+			}
+		})
+		.OnTextChanged_Lambda([this](const FText& InText)
+		{
+			FString ValueStr = InText.ToString().TrimStartAndEnd();
+			if (ValueStr.IsEmpty())
+			{
+				ValueStr = TEXT("60 fps");
+			}
+			if (ValueStr.EndsWith(TEXT("fps")))
+			{
+				double FPS = atof(TCHAR_TO_ANSI(*ValueStr));
+				LowerThresholdTime = 1.0 / FMath::Clamp(FPS, 1.0 / MaxThresholdTime, 1.0 / MinThresholdTime);
+				bShowLowerThresholdAsFps = true;
+			}
+			else
+			{
+				double Time = atof(TCHAR_TO_ANSI(*ValueStr));
+				LowerThresholdTime = FMath::Clamp(Time, MinThresholdTime, MaxThresholdTime);
+				bShowLowerThresholdAsFps = false;
+			}
+			if (UpperThresholdTime < LowerThresholdTime)
+			{
+				UpperThresholdTime = LowerThresholdTime;
+			}
+		})
+	]
+
+	+ SHorizontalBox::Slot()
+	.Padding(FMargin(8.0f, 0.0f, 12.0f, 0.0f))
+	.AutoWidth()
+	.VAlign(VAlign_Center)
+	[
+		SNew(STextBlock)
+		.Text_Lambda([this]
+		{
+			FString ThresholdTimeStr = TimeUtils::FormatTimeAuto(LowerThresholdTime, 2);
+			if (bShowLowerThresholdAsFps)
+			{
+				return FText::FromString(FString::Printf(TEXT("%s"), *ThresholdTimeStr));
+			}
+			else
+			{
+				return FText::FromString(FString::Printf(TEXT("%s (%.2f fps)"), *ThresholdTimeStr, 1.0 / LowerThresholdTime));
+			}
+		})
+	];
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

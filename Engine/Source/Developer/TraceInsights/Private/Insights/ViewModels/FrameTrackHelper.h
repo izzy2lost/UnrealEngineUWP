@@ -156,6 +156,12 @@ public:
 	FFrameTrackDrawHelper(const FFrameTrackDrawHelper&) = delete;
 	FFrameTrackDrawHelper& operator=(const FFrameTrackDrawHelper&) = delete;
 
+	void SetThresholds(double InUpperThresholdTime, double InLowerThresholdTime)
+	{
+		UpperThresholdTime = InUpperThresholdTime;
+		LowerThresholdTime = InLowerThresholdTime;
+	}
+
 	void DrawBackground() const;
 	void DrawCached(const FFrameTrackSeries& Series) const;
 	void DrawHoveredSample(const FFrameTrackSample& Sample) const;
@@ -175,6 +181,9 @@ private:
 
 	const FSlateBrush* WhiteBrush;
 	const FSlateBrush* HoveredFrameBorderBrush;
+
+	double UpperThresholdTime = 1.0 / 30.0;
+	double LowerThresholdTime = 1.0 / 60.0;
 
 	// Debug stats.
 	mutable int32 NumFrames;

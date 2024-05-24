@@ -198,12 +198,12 @@ void FFrameTrackDrawHelper::DrawCached(const FFrameTrackSeries& Series) const
 		else
 		{
 			ValueY = FMath::RoundToFloat(ViewportY.GetOffsetForValue(Sample.LargestFrameDuration));
-			if (Sample.LargestFrameDuration > 1.0 / 30.0)
+			if (Sample.LargestFrameDuration > UpperThresholdTime)
 			{
 				ColorFill.G *= 0.5f;
 				ColorFill.B *= 0.5f;
 			}
-			else if (Sample.LargestFrameDuration > 1.0 / 60.0)
+			else if (Sample.LargestFrameDuration > LowerThresholdTime)
 			{
 				ColorFill.B *= 0.5f;
 			}

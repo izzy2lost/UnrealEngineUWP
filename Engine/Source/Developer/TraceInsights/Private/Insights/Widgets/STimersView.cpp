@@ -2745,18 +2745,10 @@ void STimersView::ToggleGraphFrameStatsSeries(TSharedRef<FTimingGraphTrack> Grap
 	{
 		GraphTrack->Show();
 		Series = GraphTrack->AddFrameStatsTimerSeries(TimerId, FrameType, NodePtr->GetColor());
-		FText NameText = FText::FromName(NodePtr->GetName());
-
-		if (FrameType == ETraceFrameType::TraceFrameType_Game)
-		{
-			NameText = FText::Format((LOCTEXT("GameFrameSeriesName", "{0} Game Frame")), NameText);
-		}
-		else if (FrameType == ETraceFrameType::TraceFrameType_Rendering)
-		{
-			NameText = FText::Format((LOCTEXT("RenderingFrameSeriesName", "{0} Rendering Frame")), NameText);
-		}
-
-		Series->SetName(NameText);
+		FText SeriesName = FText::Format(LOCTEXT("FrameStatsTimerSeriesName_Fmt", "{0} ({1})"),
+			FText::FromName(NodePtr->GetName()),
+			FFrameTrackDrawHelper::FrameTypeToText(FrameType));
+		Series->SetName(SeriesName);
 		GraphTrack->SetDirtyFlag();
 		NodePtr->OnAddedToGraph();
 	}
@@ -2822,7 +2814,9 @@ void STimersView::ToggleFrameTrackSeries(FTimerNodePtr TimerNode, ETraceFrameTyp
 	}
 	else
 	{
-		FText SeriesName = FText::Format(LOCTEXT("FrameTrackSeriesName_Format", "{0} {1} {2}"), TimerNode->GetDisplayName(), FText::FromString(FFrameTrackDrawHelper::FrameTypeToString(FrameType)), LOCTEXT("Frame", "Frame"));
+		FText SeriesName = FText::Format(LOCTEXT("FrameStatsTimerSeriesName_Fmt", "{0} ({1})"),
+			TimerNode->GetDisplayName(),
+			FFrameTrackDrawHelper::FrameTypeToText(FrameType));
 		TSharedPtr<FTimerFrameStatsTrackSeries> Series = FrameTrack->AddTimerFrameStatSeries(FrameType, TimerNode->GetTimerId(), TimerNode->GetColor(), SeriesName);
 		TimerNode->OnAddedToGraph();
 	}
