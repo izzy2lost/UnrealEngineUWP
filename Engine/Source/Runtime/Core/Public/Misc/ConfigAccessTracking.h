@@ -24,7 +24,7 @@ class FConfigSection;
 struct FConfigValue;
 #endif
 
-#if UE_WITH_CONFIG_TRACKING 
+#if WITH_EDITOR || UE_WITH_CONFIG_TRACKING
 
 namespace UE::ConfigAccessTracking
 {
@@ -44,6 +44,15 @@ enum class ELoadType : uint8
 	SuppressReporting,
 	Uninitialized,
 };
+
+} // namespace UE::ConfigAccessTracking
+
+#endif // WITH_EDITOR || UE_WITH_CONFIG_TRACKING
+
+#if UE_WITH_CONFIG_TRACKING
+
+namespace UE::ConfigAccessTracking
+{
 
 /**
  * A refcounted struct of data about an FConfigFile, including a backpointer to the FConfigFile if it is still 
