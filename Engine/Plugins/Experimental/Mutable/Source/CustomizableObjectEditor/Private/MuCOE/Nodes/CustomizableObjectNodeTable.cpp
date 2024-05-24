@@ -1240,6 +1240,12 @@ UCustomizableObjectNodeTableRemapPins* UCustomizableObjectNodeTable::CreateRemap
 }
 
 
+bool UCustomizableObjectNodeTable::HasPinViewer() const
+{
+	return true;
+}
+
+
 bool UCustomizableObjectNodeTable::IsImagePinDefault(const UEdGraphPin* Pin) const
 {
 	if (UCustomizableObjectNodeTableImagePinData* PinData = Cast<UCustomizableObjectNodeTableImagePinData>(GetPinData(*(Pin))))

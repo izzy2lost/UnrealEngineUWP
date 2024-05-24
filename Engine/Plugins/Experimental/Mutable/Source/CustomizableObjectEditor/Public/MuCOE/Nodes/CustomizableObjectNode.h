@@ -230,8 +230,11 @@ public:
 	/** Return true if a pin can be hidden. Override it to have a custom behaivour. */
 	virtual bool CanPinBeHidden(const UEdGraphPin& Pin) const;
 
+	/** @return true if the details should spawn a Pin Viewer. */
+	virtual bool HasPinViewer() const;
+
 	/** Returns pin custom details. Override if required. */
-	virtual TSharedPtr<SWidget> CustomizePinDetails(UEdGraphPin& Pin);
+	virtual TSharedPtr<SWidget> CustomizePinDetails(const UEdGraphPin& Pin) const;
 	
 	/** See GetPinData(const FEdGraphPinReference&). */
 	UCustomizableObjectNodePinData* GetPinData(const UEdGraphPin &Pin) const;

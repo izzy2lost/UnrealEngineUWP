@@ -3,6 +3,7 @@
 #pragma once
 
 
+#include "CustomizableObjectNodeDetails.h"
 #include "IDetailCustomization.h"
 
 class FString;
@@ -11,7 +12,7 @@ class UCustomizableObjectNodeEditMaterial;
 class SCustomizableObjectNodeLayoutBlocksSelector;
 
 
-class FCustomizableObjectNodeEditMaterialDetails : public IDetailCustomization
+class FCustomizableObjectNodeEditMaterialDetails : public FCustomizableObjectNodeDetails
 {
 public:
 	/** Makes a new instance of this detail layout class for a specific detail view requesting it */

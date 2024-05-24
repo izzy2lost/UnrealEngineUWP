@@ -57,6 +57,7 @@ public:
 	virtual FString GetRefreshMessage() const override;
 	virtual bool IsSingleOutputNode() const override;
 	virtual bool CustomRemovePin(UEdGraphPin& Pin) override;
+	virtual bool HasPinViewer() const override;
 
 	// UCustomizableObjectNodeEditMaterialBase interface
 	virtual UEdGraphPin* OutputPin() const override;

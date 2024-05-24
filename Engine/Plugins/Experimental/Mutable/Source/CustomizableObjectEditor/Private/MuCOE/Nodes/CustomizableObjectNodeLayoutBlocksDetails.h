@@ -3,6 +3,7 @@
 #pragma once
 
 
+#include "CustomizableObjectNodeDetails.h"
 #include "IDetailCustomization.h"
 #include "UObject/WeakObjectPtr.h"
 
@@ -16,7 +17,7 @@ class SWidget;
 class UCustomizableObjectNodeLayoutBlocks;
 struct EVisibility;
 
-class FCustomizableObjectNodeLayoutBlocksDetails : public IDetailCustomization
+class FCustomizableObjectNodeLayoutBlocksDetails : public FCustomizableObjectNodeDetails
 {
 public:
 	/** Makes a new instance of this detail layout class for a specific detail view requesting it */

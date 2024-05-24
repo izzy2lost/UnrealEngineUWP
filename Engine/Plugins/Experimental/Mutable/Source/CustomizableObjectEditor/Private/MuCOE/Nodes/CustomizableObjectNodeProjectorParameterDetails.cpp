@@ -29,6 +29,8 @@ TSharedRef<IDetailCustomization> FCustomizableObjectNodeProjectorParameterDetail
 
 void FCustomizableObjectNodeProjectorParameterDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder )
 {
+	FCustomizableObjectNodeDetails::CustomizeDetails(DetailBuilder);
+
 	NodeConstant = nullptr;
 	NodeParameter = nullptr;
 	DetailBuilderPtr = &DetailBuilder;

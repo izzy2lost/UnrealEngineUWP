@@ -30,6 +30,8 @@ TSharedRef<IDetailCustomization> FCustomizableObjectNodeParentedMaterialDetails:
 
 void FCustomizableObjectNodeParentedMaterialDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
+	FCustomizableObjectNodeDetails::CustomizeDetails(DetailBuilder);
+
 	Node = nullptr;
 	NodeParentedMaterial = nullptr;
 

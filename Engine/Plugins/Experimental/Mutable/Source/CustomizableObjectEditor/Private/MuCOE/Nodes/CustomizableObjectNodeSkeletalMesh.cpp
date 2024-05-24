@@ -154,6 +154,12 @@ UCustomizableObjectNodeRemapPins* UCustomizableObjectNodeSkeletalMesh::CreateRem
 }
 
 
+bool UCustomizableObjectNodeSkeletalMesh::HasPinViewer() const
+{
+	return true;
+}
+
+
 FText UCustomizableObjectNodeSkeletalMesh::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
 	if (SkeletalMesh)

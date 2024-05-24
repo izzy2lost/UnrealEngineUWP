@@ -331,19 +331,4 @@ EColumnSortMode::Type SPinViewer::GetColumnSortMode(const FName ColumnId) const
 }
 
 
-void PinViewerAttachToDetailCustomization(IDetailLayoutBuilder& DetailBuilder)
-{
-	const TArray<TWeakObjectPtr<UObject>>& SelectedObjects = DetailBuilder.GetDetailsView()->GetSelectedObjects();
-	if (SelectedObjects.Num())
-	{
-		UCustomizableObjectNode* Node = Cast<UCustomizableObjectNode>(SelectedObjects[0].Get());
-
-		IDetailCategoryBuilder& PinViewerCategoryBuilder = DetailBuilder.EditCategory("PinViewer", LOCTEXT("PinViewer", "Pins"), ECategoryPriority::Uncommon);
-		PinViewerCategoryBuilder.AddCustomRow(LOCTEXT("PinViewerDetailsCategory", "PinViwer")).ShouldAutoExpand(true)
-		[
-			SNew(SPinViewer).Node(Node)
-		];
-	}
-}
-
 #undef LOCTEXT_NAMESPACE

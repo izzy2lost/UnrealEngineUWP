@@ -2,12 +2,13 @@
 
 #pragma once
 
+#include "CustomizableObjectNodeDetails.h"
 #include "IDetailCustomization.h"
 
 class IDetailLayoutBuilder;
 
 /** Copy Material node details panel. Hides all properties from the inheret Material node. */
-class FCustomizableObjectNodeCopyMaterialDetails : public IDetailCustomization
+class FCustomizableObjectNodeCopyMaterialDetails : public FCustomizableObjectNodeDetails
 {
 public:
 	static TSharedRef<IDetailCustomization> MakeInstance();

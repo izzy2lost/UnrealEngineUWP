@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "CustomizableObjectNodeDetails.h"
 #include "IDetailCustomization.h"
 
 namespace ESelectInfo { enum Type : int; }
@@ -12,7 +13,7 @@ class UCustomizableObjectNodeExternalPin;
 struct FAssetData;
 
 
-class FCustomizableObjectNodeExternalPinDetails : public IDetailCustomization
+class FCustomizableObjectNodeExternalPinDetails : public FCustomizableObjectNodeDetails
 {
 public:
 	/** Makes a new instance of this detail layout class for a specific detail view requesting it */

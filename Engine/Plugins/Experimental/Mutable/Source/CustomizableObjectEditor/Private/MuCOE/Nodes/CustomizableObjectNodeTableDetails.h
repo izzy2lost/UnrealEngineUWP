@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "CustomizableObjectNodeDetails.h"
 #include "IDetailCustomization.h"
 
 #include "UObject/WeakObjectPtr.h"
@@ -32,16 +33,13 @@ enum class EAnimColumnType
 
 
 /** Copy Material node details panel. Hides all properties from the inheret Material node. */
-class FCustomizableObjectNodeTableDetails : public IDetailCustomization
+class FCustomizableObjectNodeTableDetails : public FCustomizableObjectNodeDetails
 {
 public:
 	
 	static TSharedRef<IDetailCustomization> MakeInstance();
 
 	// ILayoutDetails interface
-	/** Do not use. Add details customization in the other CustomizeDetails signature. */
-	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override {};
-
 	/** Hides details copied from CustomizableObjectNodeMaterial. */
 	virtual void CustomizeDetails(const TSharedPtr<IDetailLayoutBuilder>& DetailBuilder) override;
 

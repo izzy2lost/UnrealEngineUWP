@@ -156,6 +156,8 @@ TSharedRef<IDetailCustomization> FCustomizableObjectNodeObjectDetails::MakeInsta
 
 void FCustomizableObjectNodeObjectDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder )
 {
+	FCustomizableObjectNodeDetails::CustomizeDetails(DetailBuilder);
+
 	BaseObjectNode = nullptr;
 	DetailBuilderPtr = &DetailBuilder;
 

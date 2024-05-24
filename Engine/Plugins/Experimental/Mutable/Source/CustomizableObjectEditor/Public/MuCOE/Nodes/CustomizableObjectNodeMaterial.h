@@ -142,6 +142,7 @@ public:
 	virtual void PostBackwardsCompatibleFixup() override;
 	void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
 	bool CanPinBeHidden(const UEdGraphPin& Pin) const override;
+	virtual bool HasPinViewer() const override;
 	virtual UCustomizableObjectNodeRemapPinsByName* CreateRemapPinsDefault() const override;
 	bool ProvidesCustomPinRelevancyTest() const override { return true; }
 	bool IsPinRelevant(const UEdGraphPin* Pin) const override;
@@ -157,7 +158,7 @@ public:
 
 	bool IsNodeOutDatedAndNeedsRefresh() override;
 	FString GetRefreshMessage() const override;
-	virtual TSharedPtr<SWidget> CustomizePinDetails(UEdGraphPin& Pin) override;
+	virtual TSharedPtr<SWidget> CustomizePinDetails(const UEdGraphPin& Pin) const override;
 
 	
 	// UCustomizableObjectNodeMaterialBase interface

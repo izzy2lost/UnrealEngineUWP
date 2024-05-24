@@ -366,6 +366,12 @@ bool UCustomizableObjectNodeMaterial::CanPinBeHidden(const UEdGraphPin& Pin) con
 }
 
 
+bool UCustomizableObjectNodeMaterial::HasPinViewer() const
+{
+	return true;
+}
+
+
 UCustomizableObjectNodeRemapPinsByName* UCustomizableObjectNodeMaterial::CreateRemapPinsDefault() const
 {
 	return NewObject<UCustomizableObjectNodeMaterialRemapPinsByName>();
@@ -1071,7 +1077,7 @@ FString UCustomizableObjectNodeMaterial::GetRefreshMessage() const
 }
 
 
-TSharedPtr<SWidget> UCustomizableObjectNodeMaterial::CustomizePinDetails(UEdGraphPin& Pin)
+TSharedPtr<SWidget> UCustomizableObjectNodeMaterial::CustomizePinDetails(const UEdGraphPin& Pin) const
 {
 	if (UCustomizableObjectNodeMaterialPinDataImage* PinData = Cast<UCustomizableObjectNodeMaterialPinDataImage>(GetPinData(Pin)))
 	{

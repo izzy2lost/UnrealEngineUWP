@@ -11,6 +11,8 @@ TSharedRef<IDetailCustomization> FCustomizableObjectNodeCopyMaterialDetails::Mak
 
 void FCustomizableObjectNodeCopyMaterialDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
+	FCustomizableObjectNodeDetails::CustomizeDetails(DetailBuilder);
+
 	TArray<FName> Names;
 	DetailBuilder.GetCategoryNames(Names);
 

@@ -20,6 +20,8 @@ TSharedRef<IDetailCustomization> FCustomizableObjectNodeSkeletalMeshDetails::Mak
 
 void FCustomizableObjectNodeSkeletalMeshDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
+	FCustomizableObjectNodeDetails::CustomizeDetails(DetailBuilder);
+
 	const IDetailsView* DetailsView = DetailBuilder.GetDetailsView();
 
     if (DetailsView->GetSelectedObjects().Num())
@@ -49,8 +51,6 @@ void FCustomizableObjectNodeSkeletalMeshDetails::CustomizeDetails(IDetailLayoutB
 
 	TSharedRef<IPropertyHandle> SkeletalMeshProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UCustomizableObjectNodeSkeletalMesh, SkeletalMesh));
 	SkeletalMeshProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(MorphSelector.Get(), &SCustomizableObjectNodeSkeletalMeshRTMorphSelector::UpdateWidget));
-
-	PinViewerAttachToDetailCustomization(DetailBuilder);
 }
 
 

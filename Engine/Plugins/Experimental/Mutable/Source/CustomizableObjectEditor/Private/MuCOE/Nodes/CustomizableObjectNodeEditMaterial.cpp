@@ -76,6 +76,12 @@ bool UCustomizableObjectNodeEditMaterial::CustomRemovePin(UEdGraphPin& Pin)
 }
 
 
+bool UCustomizableObjectNodeEditMaterial::HasPinViewer() const
+{
+	return true;
+}
+
+
 UEdGraphPin* UCustomizableObjectNodeEditMaterial::OutputPin() const
 {
 	return Super::OutputPin();

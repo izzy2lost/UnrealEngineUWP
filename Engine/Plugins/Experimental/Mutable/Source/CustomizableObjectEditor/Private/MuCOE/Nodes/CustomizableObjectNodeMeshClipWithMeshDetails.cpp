@@ -31,6 +31,8 @@ TSharedRef<IDetailCustomization> FCustomizableObjectNodeMeshClipWithMeshDetails:
 
 void FCustomizableObjectNodeMeshClipWithMeshDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
+	FCustomizableObjectNodeDetails::CustomizeDetails(DetailBuilder);
+
 	Node = nullptr;
 	DetailBuilderPtr = &DetailBuilder;
 

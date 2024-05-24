@@ -3,6 +3,7 @@
 #pragma once
 
 #include "IDetailCustomization.h"
+#include "Nodes/CustomizableObjectNodeDetails.h"
 
 struct EVisibility;
 namespace ESelectInfo { enum Type : int; }
@@ -10,7 +11,7 @@ class IDetailLayoutBuilder;
 class STextComboBox;
 class UCustomizableObjectNodeObjectGroup;
 
-class FCustomizableObjectNodeObjectGroupDetails : public IDetailCustomization
+class FCustomizableObjectNodeObjectGroupDetails : public FCustomizableObjectNodeDetails
 {
 public:
 	/** Makes a new instance of this detail layout class for a specific detail view requesting it */

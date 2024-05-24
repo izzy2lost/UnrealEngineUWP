@@ -260,7 +260,8 @@ public:
 	virtual bool ProvidesCustomPinRelevancyTest() const override;
 	virtual bool IsPinRelevant(const UEdGraphPin* Pin) const override;
 	UCustomizableObjectNodeTableRemapPins* CreateRemapPinsDefault() const;
-
+	virtual bool HasPinViewer() const override;
+	
 	/*** Allows to perform work when remapping the pin data. */
 	virtual void RemapPinsData(const TMap<UEdGraphPin*, UEdGraphPin*>& PinsToRemap) override;
 	

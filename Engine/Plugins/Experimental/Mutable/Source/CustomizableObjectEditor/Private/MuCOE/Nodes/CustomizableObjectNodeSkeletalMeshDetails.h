@@ -2,12 +2,13 @@
 
 #pragma once
 
+#include "CustomizableObjectNodeDetails.h"
 #include "IDetailCustomization.h"
 
 class IDetailLayoutBuilder;
 
 
-class FCustomizableObjectNodeSkeletalMeshDetails : public IDetailCustomization
+class FCustomizableObjectNodeSkeletalMeshDetails : public FCustomizableObjectNodeDetails
 {
 public:
 	/** Makes a new instance of this detail layout class for a specific detail view requesting it */

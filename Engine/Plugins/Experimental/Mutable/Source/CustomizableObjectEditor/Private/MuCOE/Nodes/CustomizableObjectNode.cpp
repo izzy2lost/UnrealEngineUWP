@@ -648,11 +648,17 @@ void UCustomizableObjectNode::SetPinHidden(const TArray<UEdGraphPin*>& PinsToHid
 
 bool UCustomizableObjectNode::CanPinBeHidden(const UEdGraphPin& Pin) const
 {
-	return !Pin.LinkedTo.Num() && !Pin.bOrphanedPin;
+	return !Pin.LinkedTo.Num() && !Pin.bOrphanedPin && HasPinViewer();
 }
 
 
-TSharedPtr<SWidget> UCustomizableObjectNode::CustomizePinDetails(UEdGraphPin& Pin)
+bool UCustomizableObjectNode::HasPinViewer() const
+{
+	return false;
+}
+
+
+TSharedPtr<SWidget> UCustomizableObjectNode::CustomizePinDetails(const UEdGraphPin& Pin) const
 {
 	return nullptr;
 }

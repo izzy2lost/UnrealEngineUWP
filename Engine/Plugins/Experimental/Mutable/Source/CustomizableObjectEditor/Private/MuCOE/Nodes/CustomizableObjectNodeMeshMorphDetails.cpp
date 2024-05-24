@@ -24,6 +24,8 @@ TSharedRef<IDetailCustomization> FCustomizableObjectNodeMeshMorphDetails::MakeIn
 
 void FCustomizableObjectNodeMeshMorphDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder )
 {
+	FCustomizableObjectNodeDetails::CustomizeDetails(DetailBuilder);
+
 	const IDetailsView* DetailsView = DetailBuilder.GetDetailsView();
 	if ( DetailsView->GetSelectedObjects().Num() )
 	{

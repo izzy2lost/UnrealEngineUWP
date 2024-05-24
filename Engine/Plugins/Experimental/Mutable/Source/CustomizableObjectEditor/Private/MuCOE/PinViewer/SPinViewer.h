@@ -94,7 +94,3 @@ private:
 	TSharedPtr<class SScrollBox> Scrollbox;
 };
 
-
-/** Create and attach a PinViewer Widget to the given custom details DetailBuilder.
- * The pin viewer will be shown as a new category with the lowest priority. */
-void PinViewerAttachToDetailCustomization(IDetailLayoutBuilder& DetailBuilder);

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "CustomizableObjectNodeDetails.h"
 #include "IDetailCustomization.h"
 #include "IPropertyTypeCustomization.h"
 #include "PropertyEditorModule.h"
@@ -79,7 +80,7 @@ private:
 };
 
 
-class FCustomizableObjectNodeObjectDetails : public IDetailCustomization
+class FCustomizableObjectNodeObjectDetails : public FCustomizableObjectNodeDetails
 {
 public:
 	/** Makes a new instance of this detail layout class for a specific detail view requesting it */

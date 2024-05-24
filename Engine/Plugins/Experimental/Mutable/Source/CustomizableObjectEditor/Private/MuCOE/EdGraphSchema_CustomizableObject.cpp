@@ -81,6 +81,7 @@
 #include "ToolMenuSection.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeReroute.h"
 #include "Toolkits/ToolkitManager.h"
+#include "PropertyEditorModule.h"
 
 class IToolkit;
 
@@ -869,6 +870,35 @@ void UEdGraphSchema_CustomizableObject::GetContextMenuActions(UToolMenu* Menu, U
 	}
 	else // On Pin right click
 	{
+		if (const UCustomizableObjectNode* Node = Cast<UCustomizableObjectNode>(Context->Node))
+		{
+			if (const UEdGraphPin* Pin = Context->Pin)
+			{
+				FPropertyEditorModule& PropPlugin = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+				
+				if (Node->CanPinBeHidden(*Pin))
+				{
+					FToolMenuSection& Section = Menu->FindOrAddSection("EdGraphSchemaPinActions");
+					Section.AddMenuEntry("HidePin",
+						LOCTEXT("HidePin", "Hide Pin"),
+						LOCTEXT("SetTexturePinModeDefault_Tooltip", "Hides the selected pin."),
+						FSlateIcon(),
+						FUIAction(FExecuteAction::CreateLambda([Node = const_cast<UCustomizableObjectNode*>(Node), Pin]()
+						{
+							Node->SetPinHidden(*const_cast<UEdGraphPin*>(Pin), true);
+						})));
+				}
+				
+				
+				if (TSharedPtr<SWidget> Widget = Node->CustomizePinDetails(*Pin))
+				{
+					FToolMenuSection& Section = Menu->FindOrAddSection("EdGraphSchemaPinActions");
+					Section.AddSeparator("Pin Viewer");
+					Section.AddEntry(FToolMenuEntry::InitWidget("Pin Viewer", Widget.ToSharedRef(), {}));
+				}
+			}
+		}
+		
 		const UCustomizableObjectNodeTable* TableNode = Cast<UCustomizableObjectNodeTable>(Context->Node);
 		UEdGraphPin* TexturePin = (UEdGraphPin*)Context->Pin;
 

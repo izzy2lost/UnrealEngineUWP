@@ -36,6 +36,8 @@ TSharedRef<IDetailCustomization> FCustomizableObjectNodeTableDetails::MakeInstan
 
 void FCustomizableObjectNodeTableDetails::CustomizeDetails(const TSharedPtr<IDetailLayoutBuilder>& DetailBuilder)
 {
+	IDetailCustomization::CustomizeDetails(DetailBuilder);
+	
 	Node = 0;
 	DetailBuilderPtr = DetailBuilder;
 

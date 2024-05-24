@@ -24,6 +24,8 @@ TSharedRef<IDetailCustomization> FCustomizableObjectNodeExternalPinDetails::Make
 
 void FCustomizableObjectNodeExternalPinDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder )
 {
+	FCustomizableObjectNodeDetails::CustomizeDetails(DetailBuilder);
+
 	Node = nullptr;
 	DetailBuilderPtr = &DetailBuilder;
 	

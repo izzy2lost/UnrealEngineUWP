@@ -29,6 +29,8 @@ TSharedRef<IDetailCustomization> FCustomizableObjectNodeMeshClipMorphDetails::Ma
 
 void FCustomizableObjectNodeMeshClipMorphDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
+	FCustomizableObjectNodeDetails::CustomizeDetails(DetailBuilder);
+
 	Node = nullptr;
 	DetailBuilderPtr = &DetailBuilder;
 

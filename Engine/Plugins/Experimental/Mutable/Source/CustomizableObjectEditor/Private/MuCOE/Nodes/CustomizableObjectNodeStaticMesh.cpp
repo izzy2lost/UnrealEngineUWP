@@ -341,6 +341,12 @@ UCustomizableObjectNodeRemapPinsByName* UCustomizableObjectNodeStaticMesh::Creat
 }
 
 
+bool UCustomizableObjectNodeStaticMesh::HasPinViewer() const
+{
+	return true;
+}
+
+
 bool UCustomizableObjectNodeStaticMesh::IsNodeOutDatedAndNeedsRefresh()
 {
 	bool Result = false;

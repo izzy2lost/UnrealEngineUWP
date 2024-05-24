@@ -140,10 +140,11 @@ public:
 	FText GetTooltipText() const override;
 
 	// UCustomizableObjectNode interface
-	void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
-	bool ProvidesCustomPinRelevancyTest() const override { return true; }
-	bool IsPinRelevant(const UEdGraphPin* Pin) const override;
-	UCustomizableObjectNodeRemapPinsByName* CreateRemapPinsByName() const override;
+	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
+	virtual bool ProvidesCustomPinRelevancyTest() const override { return true; }
+	virtual bool IsPinRelevant(const UEdGraphPin* Pin) const override;
+	virtual UCustomizableObjectNodeRemapPinsByName* CreateRemapPinsByName() const override;
+	virtual bool HasPinViewer() const override;
 
 	bool IsNodeOutDatedAndNeedsRefresh() override;
 	FString GetRefreshMessage() const override;

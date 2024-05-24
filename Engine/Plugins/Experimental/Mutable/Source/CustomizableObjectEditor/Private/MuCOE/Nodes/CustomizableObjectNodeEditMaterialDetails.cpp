@@ -24,6 +24,8 @@ TSharedRef<IDetailCustomization> FCustomizableObjectNodeEditMaterialDetails::Mak
 
 void FCustomizableObjectNodeEditMaterialDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder )
 {
+	FCustomizableObjectNodeDetails::CustomizeDetails(DetailBuilder);
+
 	Node = nullptr;
 	const IDetailsView* DetailsView = DetailBuilder.GetDetailsView();
 	if (DetailsView->GetSelectedObjects().Num())
@@ -62,8 +64,6 @@ void FCustomizableObjectNodeEditMaterialDetails::CustomizeDetails( IDetailLayout
 			.Text( LOCTEXT( "Node not found", "Node not found" ) )
 		];
 	}
-
-	PinViewerAttachToDetailCustomization(DetailBuilder);
 }
 
 #undef LOCTEXT_NAMESPACE

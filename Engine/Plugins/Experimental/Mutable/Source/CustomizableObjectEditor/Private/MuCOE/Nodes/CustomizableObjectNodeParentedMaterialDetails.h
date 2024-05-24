@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "CustomizableObjectNodeDetails.h"
 #include "IDetailCustomization.h"
 #include "Misc/Guid.h"
 #include "UObject/WeakObjectPtr.h"
@@ -15,7 +16,7 @@ class UCustomizableObject;
 class UCustomizableObjectNode;
 class UCustomizableObjectNodeMaterial;
 
-class FCustomizableObjectNodeParentedMaterialDetails : public IDetailCustomization
+class FCustomizableObjectNodeParentedMaterialDetails : public FCustomizableObjectNodeDetails
 {
 public:
 	/** Makes a new instance of this detail layout class for a specific detail view requesting it */

@@ -25,6 +25,8 @@ TSharedRef<IDetailCustomization> FCustomizableObjectNodeObjectGroupDetails::Make
 
 void FCustomizableObjectNodeObjectGroupDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
+	FCustomizableObjectNodeDetails::CustomizeDetails(DetailBuilder);
+
 	const IDetailsView* DetailsView = DetailBuilder.GetDetailsView();
 
 	if (DetailsView->GetSelectedObjects().Num())
