@@ -570,6 +570,11 @@ public:
 
 		bool operator==(const FThreadSafeBuildStringID& Other) const
 		{
+			if (&Other == this)
+			{
+				return true;
+			}
+
 			UE::TUniqueLock OtherLock(Other.Mutex);
 			UE::TUniqueLock Lock(Mutex);
 			return BuildStringID == Other.BuildStringID;
