@@ -324,27 +324,30 @@ namespace Metasound
 			TriggerOnReset->Reset();
 
 			// Cache shared state id for shared state behavior types that cannot be changed after node init
-			if (SharedStateBehavior == ESharedStateBehaviorType::SameNode)
+			if (InParams.Environment.Contains<TArray<FGuid>>(OperatorBuilder::Environment::GraphHierarchy))
 			{
-				SharedStateId = NodeId;
-			}
-			else if (SharedStateBehavior == ESharedStateBehaviorType::SameNodeInComposition)
-			{
-				if (InParams.Environment.Contains<TArray<FGuid>>(OperatorBuilder::Environment::GraphHierarchy))
+				const TArray<FGuid>& GraphHierarchy = InParams.Environment.GetValue<TArray<FGuid>>(OperatorBuilder::Environment::GraphHierarchy);
+				if (SharedStateBehavior == ESharedStateBehaviorType::SameNode)
 				{
-					const TArray<FGuid>& GraphHierarchy = InParams.Environment.GetValue<TArray<FGuid>>(OperatorBuilder::Environment::GraphHierarchy);
+					check(GraphHierarchy.Num() > 0);
+					// Hash node id with this node's graph id because node ids are not guaranteed to be unique 
+					// (they are not regenerated when duplicating assets)
+					SharedStateId = GetSameNodeSharedStateId(NodeId, GraphHierarchy.Last());
+				}
+				else if (SharedStateBehavior == ESharedStateBehaviorType::SameNodeInComposition)
+				{
 					SharedStateId = GetSameNodeInCompositionId(NodeId, GraphHierarchy);
 				}
-				else
-				{
+			}
+			else
+			{
 #if WITH_METASOUND_DEBUG_ENVIRONMENT
-					if (!bHasLoggedMissingGraphHierarchyWarning)
-					{
-						UE_LOG(LogMetaSound, Warning, TEXT("Array Random Get: Graph Hierarchy environment variable needed for Same Node in Composition shared state id not found (Graph '%s')"), *GraphName);
-						bHasLoggedMissingGraphHierarchyWarning = true;
-					}
-#endif // WITH_METASOUND_DEBUG_ENVIRONMENT
+				if (!bHasLoggedMissingGraphHierarchyWarning)
+				{
+					UE_LOG(LogMetaSound, Warning, TEXT("Array Random Get: Graph Hierarchy environment variable needed for Same Node or Same Node in Composition shared state id not found (Graph '%s')"), *GraphName);
+					bHasLoggedMissingGraphHierarchyWarning = true;
 				}
+#endif // WITH_METASOUND_DEBUG_ENVIRONMENT
 			}
 		}
 
@@ -363,6 +366,27 @@ namespace Metasound
 					bHasLoggedEmptyArrayWarning = true;
 				}
 #endif // WITH_METASOUND_DEBUG_ENVIRONMENT
+				// Pass through triggers
+				TriggerReset->ExecuteBlock(
+					[&](int32 StartFrame, int32 EndFrame)
+					{
+					},
+					[this](int32 StartFrame, int32 EndFrame)
+					{
+						TriggerOnReset->TriggerFrame(StartFrame);
+					}
+				);
+
+				TriggerNext->ExecuteBlock(
+					[&](int32 StartFrame, int32 EndFrame)
+					{
+					},
+					[this](int32 StartFrame, int32 EndFrame)
+					{
+						TriggerOnNext->TriggerFrame(StartFrame);
+					}
+				);
+
 				return;
 			}
 
@@ -477,6 +501,17 @@ namespace Metasound
 			*OutValue = InputArrayRef[*OutIndex % InputArrayRef.Num()];
 
 			TriggerOnNext->TriggerFrame(StartFrame);
+		}
+
+		// Hash combine the current node id with another id
+		FGuid GetSameNodeSharedStateId(const FGuid& InNodeId, const FGuid& InOtherId) const
+		{
+			return FGuid(
+				HashCombineFast(InNodeId.A, InOtherId.A),
+				HashCombineFast(InNodeId.B, InOtherId.B),
+				HashCombineFast(InNodeId.C, InOtherId.C),
+				HashCombineFast(InNodeId.D, InOtherId.D)
+			);
 		}
 
 		// Hash combine the current node id with the graph hierarchy ids

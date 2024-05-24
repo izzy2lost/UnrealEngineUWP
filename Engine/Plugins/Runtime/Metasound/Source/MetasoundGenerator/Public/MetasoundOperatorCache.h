@@ -101,18 +101,21 @@ namespace Metasound
 		void BuildAndAddOperator(TUniquePtr<FOperatorBuildData> InBuildData);
 
 		void TouchOperators(const FGuid& InOperatorID, int32 NumToTouch = 1);
+		UE_DEPRECATED(5.5, "Operators can now be directly identified by asset class id.")
 		void TouchOperatorsViaAssetClassID(const FGuid& InAssetClassID, int32 NumToTouch = 1);
 
 		bool IsStopping() const;
 
 		void RemoveOperatorsWithID(const FGuid& InOperatorID);
+		UE_DEPRECATED(5.5, "Operators can now be directly identified by asset class id.")
 		void RemoveOperatorsWithAssetClassID(const FGuid& InAssetClassID);
 
 		int32 GetNumCachedOperatorsWithID(const FGuid& InOperatorID) const;
+		UE_DEPRECATED(5.5, "Operators can now be directly identified by asset class id.")
 		int32 GetNumCachedOperatorsWithAssetClassID(const FGuid& InAssetClassID) const;
 
-		UE_DEPRECATED(5.5, "Adding id to look-up is now private implementation")
-		void AddAssetIdToGraphIdLookUp(const FGuid& InAssetClassID, const FGuid& InOperatorID) { }
+		UE_DEPRECATED(5.5, "Operators can now be directly identified by asset class id, so lookup is not needed anymore.")
+		void AddAssetIdToGraphIdLookUp(const FGuid& InAssetClassID, const FGuid& InOperatorID) {}
 
 		void SetMaxNumOperators(uint32 InMaxNumOperators);
 #if METASOUND_OPERATORCACHEPROFILER_ENABLED
@@ -130,7 +133,6 @@ namespace Metasound
 	private:
 		FTaskId LastTaskId = 0;
 
-		void AddAssetIdToGraphIdLookUpInternal(const FGuid& InAssetClassID, const FGuid& InOperatorID);
 		void AddOperatorInternal(const FGuid& InOperatorID, FOperatorAndInputs&& OperatorAndInputs);
 		bool ExecuteTaskAsync(FTaskFunction&& InFunction);
 		void Trim();
@@ -150,7 +152,6 @@ namespace Metasound
 		UE::Tasks::FPipe AsyncBuildPipe;
 
 		TMap<FGuid, TArray<FOperatorAndInputs>> Operators;
-		TMap<FGuid, FGuid> AssetIdToGraphIdLookUp;
 		TArray<FGuid> Stack;
 	};
 } // namespace Metasound

@@ -157,6 +157,6 @@ void UMetaSoundCacheSubsystem::RemoveCachedOperatorsForMetaSound(UMetaSoundSourc
 
 	if (TSharedPtr<FOperatorPool> OperatorPool = Module->GetOperatorPool())
 	{
-		OperatorPool->RemoveOperatorsWithAssetClassID(InMetaSound->AssetClassID);
+		OperatorPool->RemoveOperatorsWithID(InMetaSound->AssetClassID);
 	}
 }
