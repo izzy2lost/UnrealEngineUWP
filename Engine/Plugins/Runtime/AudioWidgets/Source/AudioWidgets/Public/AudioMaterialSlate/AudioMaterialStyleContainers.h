@@ -74,20 +74,3 @@ public:
 		return static_cast<const struct FSlateWidgetStyle*>(&SliderStyle);
 	}
 };
-
-UCLASS(hidecategories = Object, MinimalAPI)
-class UAudioMaterialEnvelopeWidgetStyle : public USlateWidgetStyleContainerBase
-{
-	GENERATED_BODY()
-
-public:
-
-	/** The actual data describing the AudioMaterialSlider appearance. */
-	UPROPERTY(Category = Appearance, EditAnywhere, meta = (ShowOnlyInnerProperties))
-	FAudioMaterialEnvelopeStyle EnvelopeStyle;
-
-	virtual const struct FSlateWidgetStyle* const GetStyle() const override
-	{
-		return static_cast<const struct FSlateWidgetStyle*>(&EnvelopeStyle);
-	}
-};
