@@ -2445,7 +2445,14 @@ namespace UnrealBuildTool
 						VCProjectFileContent.AppendLine("    <NMakeReBuildCommandLine>$(RebuildBatchScript) {0}</NMakeReBuildCommandLine>", BuildArguments);
 						VCProjectFileContent.AppendLine("    <NMakeCleanCommandLine>$(CleanBatchScript) {0}</NMakeCleanCommandLine>", BuildArguments);
 					}
-					VCProjectFileContent.AppendLine("    <NMakeOutput>{0}</NMakeOutput>", NormalizeProjectPath(NMakePath.FullName));
+					if (TargetRulesObject.bBuildConsoleAppOnly)
+					{
+						VCProjectFileContent.AppendLine("    <NMakeOutput>{0}</NMakeOutput>", NormalizeProjectPath(UEBuildBinary.GetAdditionalConsoleAppPath(new FileReference(NMakePath.FullName))));
+					} 
+					else 
+					{
+						VCProjectFileContent.AppendLine("    <NMakeOutput>{0}</NMakeOutput>", NormalizeProjectPath(NMakePath.FullName));
+					}
 					if (ProjectFileGenerator.bVisualStudioLinux)
 					{
 						VCProjectFileContent.AppendLine("    <BuildCommandLine>$(NMakeBuildCommandLine)</BuildCommandLine>");
