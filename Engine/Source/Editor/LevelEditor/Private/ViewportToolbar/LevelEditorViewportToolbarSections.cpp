@@ -66,7 +66,7 @@ void AddLevelEditorViewportToolbarSettingsSection(UToolMenu* InMenu)
 	Section.SetShowSectionMenu(true);
 
 	// Add realtime rendering toggle.
-	Section.AddEntry(FToolMenuEntry::InitToolBarButton(FEditorViewportCommands::Get().ToggleRealTime));
+	Section.AddMenuEntry(FEditorViewportCommands::Get().ToggleRealTime).SetShowInToolbarTopLevel(true);
 
 	AddMaterialQualityLevelSubmenu(Section);
 	AddFeatureLevelPreviewSubmenu(Section);
