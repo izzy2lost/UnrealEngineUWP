@@ -834,6 +834,7 @@ class FScreenProbeTileClassificationBuildListsCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
 		SHADER_PARAMETER(FIntPoint, ViewportTileDimensions)
 		SHADER_PARAMETER(FIntPoint, ViewportTileDimensionsWithOverflow)
+		SHADER_PARAMETER(uint32, MaxClosurePerPixel)
 		RDG_BUFFER_ACCESS(TileIndirectBuffer, ERHIAccess::IndirectArgs)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -890,6 +891,7 @@ class FScreenProbeIntegrateCS : public FGlobalShader
 		SHADER_PARAMETER(uint32, DefaultDiffuseIntegrationMethod)
 		SHADER_PARAMETER(FIntPoint, ViewportTileDimensions)
 		SHADER_PARAMETER(FIntPoint, ViewportTileDimensionsWithOverflow)
+		SHADER_PARAMETER(uint32, MaxClosurePerPixel)
 		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -1061,6 +1063,7 @@ class FLumenScreenProbeSubstrateDebugPass : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(uint32, LayerCount)
+		SHADER_PARAMETER(uint32, MaxClosurePerPixel)
 		SHADER_PARAMETER(FIntPoint, ViewportIntegrateTileDimensions)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrint)
@@ -1105,6 +1108,7 @@ void AddLumenScreenProbeDebugPass(
 
 	FLumenScreenProbeSubstrateDebugPass::FParameters* PassParameters = GraphBuilder.AllocParameters<FLumenScreenProbeSubstrateDebugPass::FParameters>();
 	PassParameters->View = View.ViewUniformBuffer;
+	PassParameters->MaxClosurePerPixel = Substrate::GetSubstrateMaxClosureCount(View);
 	PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 	PassParameters->LayerCount = Substrate::GetSubstrateMaxClosureCount(View);
 	PassParameters->ViewportIntegrateTileDimensions = ViewportIntegrateTileDimensions;
@@ -1255,8 +1259,13 @@ void InterpolateAndIntegrate(
 			}
 		}
 
-		FRDGBufferRef IntegrateTileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), ClassificationScaleFactor * TileClassificationBufferDimensions.X * TileClassificationBufferDimensions.Y * (uint32)EScreenProbeIntegrateTileClassification::Num), TEXT("Lumen.ScreenProbeGather.IntegrateTileData"));
-
+		// * Closure 0 is always present, and the max tile data count is TileClassificationDimensions.X x TileClassificationDimensions.Y
+		// * Closures 1-N are optional. The number of tiles dependent on the max. closure count per pixel, and are multiplied by TileClassificationDimensions.X x TileClassificationDimensions.Y.
+		// For each integration techniques, we preallocate a convervative number of tile count, to ensure there is no overflow.
+		const uint32 MaxClosurePerPixel = Substrate::GetSubstrateMaxClosureCount(View);
+		const uint32 TileDataCount_Closure0  = TileClassificationBufferDimensions.X * TileClassificationBufferDimensions.Y * (uint32)EScreenProbeIntegrateTileClassification::Num;
+		const uint32 TileDataCount_Closure1N = TileClassificationBufferDimensions.X * TileClassificationBufferDimensions.Y * (uint32)EScreenProbeIntegrateTileClassification::Num * (MaxClosurePerPixel-1u);
+		FRDGBufferRef IntegrateTileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), TileDataCount_Closure0 + TileDataCount_Closure1N), TEXT("Lumen.ScreenProbeGather.IntegrateTileData"));
 		{
 			FRDGBufferUAVRef RWIntegrateIndirectArgs = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(IntegrateIndirectArgs, PF_R32_UINT), ERDGUnorderedAccessViewFlags::SkipBarrier );
 			FRDGBufferUAVRef RWIntegrateTileData = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(IntegrateTileData), ERDGUnorderedAccessViewFlags::SkipBarrier);
@@ -1271,6 +1280,7 @@ void InterpolateAndIntegrate(
 				PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 				PassParameters->ViewportTileDimensions = ViewportIntegrateTileDimensions;
 				PassParameters->ViewportTileDimensionsWithOverflow = TileClassificationBufferDimensions;
+				PassParameters->MaxClosurePerPixel = MaxClosurePerPixel;
 
 				FScreenProbeTileClassificationBuildListsCS::FPermutationDomain PermutationVector;
 				PermutationVector.Set<FScreenProbeTileClassificationBuildListsCS::FOverflowTile>(bOverflow);
@@ -1337,6 +1347,7 @@ void InterpolateAndIntegrate(
 				PassParameters->ViewportTileDimensionsWithOverflow = TileClassificationBufferDimensions;
 				PassParameters->IndirectArgs = IntegrateIndirectArgs;
 				PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
+				PassParameters->MaxClosurePerPixel = MaxClosurePerPixel;
 
 				FScreenProbeIntegrateCS::FPermutationDomain PermutationVector;
 				PermutationVector.Set< FScreenProbeIntegrateCS::FOverflowTile >(bOverflow);

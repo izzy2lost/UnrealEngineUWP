@@ -717,6 +717,7 @@ Texture2DArray<uint> TileClassificationModes;
 
 uint2 ViewportTileDimensions;
 uint2 ViewportTileDimensionsWithOverflow;
+uint MaxClosurePerPixel;
 
 groupshared uint SharedNumTiles[TILE_CLASSIFICATION_NUM];
 groupshared uint SharedIntegrateTileData[TILE_CLASSIFICATION_NUM * THREADGROUP_SIZE];
@@ -724,10 +725,21 @@ groupshared uint SharedGlobalTileOffset[TILE_CLASSIFICATION_NUM];
 
 uint GetTileDataOffset(uint2 InViewportIntegrateTileDimensions, uint InMode, bool bOverflow)
 {
-	const uint ViewportTileCount = InViewportIntegrateTileDimensions.x * InViewportIntegrateTileDimensions.y;
-	const uint ModeOffset = ViewportTileCount * InMode;
-	const uint OverflowOffset = ViewportTileCount * TILE_CLASSIFICATION_NUM * (bOverflow ? 1 : 0);
-	return OverflowOffset + ModeOffset;
+	// We don't know in advance the number of tiles to be stored for each technique. To avoid a double pass, we precompute conservative offfset.
+	// * Closure 0 are stored as   = Technique . (TileDimensions.x . TileDimensions.y)
+	// * Closure 1-N are stored as = Technique . (TileDimensions.x . TileDimensions.y . MaxClosureCount) + Closure0Offset
+	const uint ViewportTileCount_Closure0  = InViewportIntegrateTileDimensions.x * InViewportIntegrateTileDimensions.y;
+	const uint ViewportTileCount_Closure1N = InViewportIntegrateTileDimensions.x * InViewportIntegrateTileDimensions.y * (MaxClosurePerPixel-1u);
+	uint Out = 0;
+	if (bOverflow)
+	{
+		Out = ViewportTileCount_Closure0 * TILE_CLASSIFICATION_NUM + ViewportTileCount_Closure1N * InMode;
+	}
+	else
+	{
+		Out = ViewportTileCount_Closure0 * InMode;
+	}
+	return Out;
 }
 
 #ifdef ScreenProbeTileClassificationBuildListsCS
