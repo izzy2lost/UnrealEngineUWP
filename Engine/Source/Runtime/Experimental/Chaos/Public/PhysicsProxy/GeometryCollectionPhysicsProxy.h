@@ -257,22 +257,21 @@ public:
 	const FGeometryCollectionResults* GetConsumerResultsGT() const 
 	{ return PhysToGameInterchange.PeekConsumerBuffer(); }
 
-	/** Enqueue a field \p Command to be processed by \c ProcessCommands() or 
-	 * \c FieldForcesUpdateCallback(). 
-	 */
-	void BufferCommand(Chaos::FPBDRigidsSolver* RigidsSolver, const FFieldSystemCommand& Command)
-	{ 
-		check(RigidsSolver != nullptr);
-		RigidsSolver->GetGeometryCollectionPhysicsProxiesField_Internal().Add(this);
-		Commands.Add(Command); 
-	}
+	/** Enqueue a field \p Command to be processed by \c ProcessCommands() or \c FieldForcesUpdateCallback(). Game thread only */
+	CHAOS_API void BufferFieldCommand_External(FFieldSystemCommand&& Command);
 
-	static CHAOS_API bool NeedToInitializeSharedCollisionStructures(const FGeometryCollection& RestCollection);
-	static CHAOS_API void InitializeSharedCollisionStructures(Chaos::FErrorReporter& ErrorReporter, FGeometryCollection& RestCollection, const FSharedSimulationParameters& SharedParams);
+	UE_DEPRECATED(5.5, "Use BufferFieldCommand_Internal instead when calling on the physics thread or the _external version when calling on the gamethread")
+	CHAOS_API void BufferCommand(Chaos::FPBDRigidsSolver* RigidsSolver, const FFieldSystemCommand& Command);
+
+	/** Enqueue a field \p Command to be processed by \c ProcessCommands() or \c FieldForcesUpdateCallback(). Physics thread only*/
+	CHAOS_API void BufferFieldCommand_Internal(Chaos::FPBDRigidsSolver* RigidsSolver, const FFieldSystemCommand& Command);
 
 	CHAOS_API void FieldForcesUpdateCallback(Chaos::FPBDRigidsSolver* RigidSolver);
 
 	CHAOS_API void FieldParameterUpdateCallback(Chaos::FPBDRigidsSolver* RigidSolver, const bool bUpdateViews = true);
+
+	static CHAOS_API bool NeedToInitializeSharedCollisionStructures(const FGeometryCollection& RestCollection);
+	static CHAOS_API void InitializeSharedCollisionStructures(Chaos::FErrorReporter& ErrorReporter, FGeometryCollection& RestCollection, const FSharedSimulationParameters& SharedParams);
 
 	void UpdateKinematicBodiesCallback(const FParticlesType& InParticles, const float InDt, const float InTime, FKinematicProxy& InKinematicProxy) {}
 	void StartFrameCallback(const float InDt, const float InTime) {}
@@ -645,22 +644,51 @@ private:
 	 */
 	bool PullNonInterpolatableDataFromSinglePhysicsState(const Chaos::FDirtyGeometryCollectionData& BufferData, bool bForcePullXRVW, const TBitArray<>* Seen);
 
-	/* set to true once InitializeBodiesPT has been called*/
-	bool bIsInitializedOnPhysicsThread = false;
-
 	FSimulationParameters Parameters;
-	TArray<FFieldSystemCommand> Commands;
-
-	/** Field Datas stored during evaluation */
-	FFieldExecutionDatas ExecutionDatas;
 
 	TArray<Chaos::FPhysicsObjectUniquePtr> PhysicsObjects;
+
+	// todo : we should probably keep a simulation parameter copy on the game thread instead 
+	FTransform WorldTransform_External;
+	FTransform PreviousWorldTransform_External;
+
 	//
 	//  Proxy State Information
 	//
 	int32 NumTransforms;
 	int32 NumEffectiveParticles;
 	int32 BaseParticleIndex;
+	// Per object collision fraction.
+	float CollisionParticlesPerObjectFraction;
+
+	/** structure that contains the necessary information for processing fields */
+	struct FFieldData
+	{
+		/** field command to execute */
+		TArray<FFieldSystemCommand> Commands;
+
+		/** Field Datas stored during evaluation */
+		FFieldExecutionDatas ExecutionDatas;
+	};
+	// data is allocated on demand on the physics thread only ( see GetOrCreateFieldData_Internal )
+	TUniquePtr<FFieldData> FieldData_Internal;
+
+	FFieldData& GetOrCreateFieldData_Internal();
+
+	EReplicationMode ReplicationMode = EReplicationMode::Unknown;
+
+	uint8 bIsGameThreadWorldTransformDirty : 1;
+	uint8 bHasBuiltGeometryOnPT : 1;
+	uint8 bHasBuiltGeometryOnGT : 1;
+	/* set to true once InitializeBodiesPT has been called*/
+	bool bIsInitializedOnPhysicsThread : 1 = false;
+	//
+	// Buffer Results State Information
+	//
+	bool IsObjectDynamic : 1; // Records current dynamic state
+	bool IsObjectLoading : 1; // Indicate when loaded
+	bool IsObjectDeleting : 1; // Indicate when pending deletion
+
 	TArray<FParticleHandle*> SolverClusterID;
 	TArray<FClusterHandle*> SolverClusterHandles; // make a TArray of the base clase with type
 	TArray<FClusterHandle*> SolverParticleHandles;// make a TArray of base class and join with above
@@ -670,15 +698,6 @@ private:
 	TArray<int32> FromParticleToTransformIndex;
 	TArray<int32> FromTransformToParticleIndex;
 	TBitArray<> EffectiveParticles;
-
-	//
-	// Buffer Results State Information
-	//
-	bool IsObjectDynamic; // Records current dynamic state
-	bool IsObjectLoading; // Indicate when loaded
-	bool IsObjectDeleting; // Indicate when pending deletion
-
-	EReplicationMode ReplicationMode = EReplicationMode::Unknown;	
 
 	TArray<TUniquePtr<FParticle>> GTParticles;
 	TMap<FParticle*, int32> GTParticlesToTransformGroupIndex;
@@ -691,10 +710,6 @@ private:
 	const FCollisionFilterData SimFilter;
 	const FCollisionFilterData QueryFilter;
 
-	// This is a subset of the geometry group that are used in the transform hierarchy to represent geometry
-	TArray<FBox> ValidGeometryBoundingBoxes;
-	TArray<int32> ValidGeometryTransformIndices;
-
 	// todo(chaos): Remove this and move to a cook time approach of the SM data based on the GC property
 	FCreateTraceCollisionGeometryCallback CreateTraceCollisionGeometryCallback;
 	
@@ -702,23 +717,12 @@ private:
 	TFunction<void()> PostPhysicsSyncCallback;
 	TFunction<void()> PostParticlesCreatedCallback;
 	
-	// Per object collision fraction.
-	float CollisionParticlesPerObjectFraction;
-
 	// The Simulation data is copied between the game and physics thread. It is 
 	// expected that the two data sets will diverge, based on how the simulation
 	// uses the data, but at the start of the simulation the PhysicsThreadCollection
 	// is a deep copy from the GameThreadCollection. 
 	FGeometryDynamicCollection PhysicsThreadCollection;
 	FGeometryDynamicCollection& GameThreadCollection;
-
-	// todo : we should probably keep a simulation parameter copy on the game thread instead 
-	FTransform WorldTransform_External;
-	FTransform PreviousWorldTransform_External;
-	uint8 bIsGameThreadWorldTransformDirty : 1;
-
-	uint8 bHasBuiltGeometryOnPT : 1;
-	uint8 bHasBuiltGeometryOnGT : 1;
 
 	// Currently this is using triple buffers for game-physics and 
 	// physics-game thread communication, but not for any reason other than this 

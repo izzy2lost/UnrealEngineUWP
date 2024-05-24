@@ -5781,11 +5781,7 @@ void UGeometryCollectionComponent::DispatchFieldCommand(const FFieldSystemComman
 		FFieldSystemCommand LocalCommand = InCommand;
 		LocalCommand.InitFieldNodes(Solver->GetSolverTime(), Name);
 
-		Solver->EnqueueCommandImmediate([Solver, PhysicsProxy = this->PhysicsProxy, NewCommand = LocalCommand]()
-		{
-			// Pass through nullptr here as geom component commands can never affect other solvers
-			PhysicsProxy->BufferCommand(Solver, NewCommand);
-		});
+		PhysicsProxy->BufferFieldCommand_External(MoveTemp(LocalCommand));
 	}
 }
 

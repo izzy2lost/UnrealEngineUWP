@@ -499,21 +499,21 @@ FGeometryCollectionPhysicsProxy::FGeometryCollectionPhysicsProxy(
 	const Chaos::EMultiBufferMode BufferMode)
 	: Base(InOwner)
 	, Parameters(SimulationParameters)
+	, WorldTransform_External(FTransform::Identity)
 	, NumTransforms(INDEX_NONE)
 	, NumEffectiveParticles(INDEX_NONE)
 	, BaseParticleIndex(INDEX_NONE)
+	, CollisionParticlesPerObjectFraction(CollisionParticlesPerObjectFractionDefault)
+	, bIsGameThreadWorldTransformDirty(false)
+	, bHasBuiltGeometryOnPT(false)
+	, bHasBuiltGeometryOnGT(false)
 	, IsObjectDynamic(false)
 	, IsObjectLoading(true)
 	, IsObjectDeleting(false)
 	, SimFilter(InSimFilter)
 	, QueryFilter(InQueryFilter)
-	, CollisionParticlesPerObjectFraction(CollisionParticlesPerObjectFractionDefault)
 	, PhysicsThreadCollection(Parameters.RestCollectionShared)
 	, GameThreadCollection(GameThreadCollectionIn)
-	, WorldTransform_External(FTransform::Identity)
-	, bIsGameThreadWorldTransformDirty(false)
-	, bHasBuiltGeometryOnPT(false)
-	, bHasBuiltGeometryOnGT(false)
 	, CollectorGuid(InCollectorGuid)
 {
 	// We rely on a guarded buffer.
@@ -1345,7 +1345,8 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 
 			Cmd.MetaData.Add(FFieldSystemMetaData::EMetaType::ECommandData_ProcessingResolution, TUniquePtr<FFieldSystemMetaDataProcessingResolution>(ResolutionData));
 			RigidsSolver->GetGeometryCollectionPhysicsProxiesField_Internal().Add(this);
-			Commands.Add(Cmd);
+			FFieldData& FieldData = GetOrCreateFieldData_Internal();
+			FieldData.Commands.Add(Cmd);
 		}
 		Parameters.InitializationCommands.Empty();
 		FieldParameterUpdateCallback(RigidsSolver, false);
@@ -5555,6 +5556,41 @@ void BuildSimulationData(Chaos::FErrorReporter& ErrorReporter, FGeometryCollecti
 // FIELDS
 //==============================================================================
 
+FGeometryCollectionPhysicsProxy::FFieldData& FGeometryCollectionPhysicsProxy::GetOrCreateFieldData_Internal()
+{
+	if (!FieldData_Internal)
+	{
+		FieldData_Internal = MakeUnique<FFieldData>();
+	}
+	return *FieldData_Internal;
+}
+
+void FGeometryCollectionPhysicsProxy::BufferFieldCommand_External(FFieldSystemCommand&& Command)
+{
+	check(IsInGameThread());
+	if (Chaos::FPhysicsSolver* RBDSolver = GetSolver<Chaos::FPhysicsSolver>())
+	{
+		RBDSolver->EnqueueCommandImmediate(
+			[this, RBDSolver, FieldCommand = MoveTemp(Command)]()
+			{
+				BufferFieldCommand_Internal(RBDSolver, FieldCommand);
+			});
+	}
+}
+
+// deprecated - simple forward to BufferFieldCommand_Internal
+void FGeometryCollectionPhysicsProxy::BufferCommand(Chaos::FPBDRigidsSolver* RigidsSolver, const FFieldSystemCommand& Command)
+{
+	BufferFieldCommand_Internal(RigidsSolver, Command);
+}
+
+void FGeometryCollectionPhysicsProxy::BufferFieldCommand_Internal(Chaos::FPBDRigidsSolver* RigidsSolver, const FFieldSystemCommand& Command)
+{
+	check(RigidsSolver != nullptr);
+	RigidsSolver->GetGeometryCollectionPhysicsProxiesField_Internal().Add(this);
+	GetOrCreateFieldData_Internal().Commands.Add(Command);
+}
+
 void FGeometryCollectionPhysicsProxy::FieldParameterUpdateCallback(Chaos::FPBDRigidsSolver* RigidSolver, const bool bUpdateViews)
 {
 	SCOPE_CYCLE_COUNTER(STAT_ParamUpdateField_Object);
@@ -5564,8 +5600,10 @@ void FGeometryCollectionPhysicsProxy::FieldParameterUpdateCallback(Chaos::FPBDRi
 	Chaos::FPBDPositionConstraints PositionTarget;
 	TMap<int32, int32> TargetedParticles;
 
+	FFieldData& FieldData = GetOrCreateFieldData_Internal();
+
 	// Process Particle-Collection commands
-	int32 NumCommands = Commands.Num();
+	int32 NumCommands = FieldData.Commands.Num();
 	if (NumCommands && !RigidSolver->IsShuttingDown() && Collection.GetNumTransforms())
 	{
 		TArray<int32> CommandsToRemove;
@@ -5578,24 +5616,24 @@ void FGeometryCollectionPhysicsProxy::FieldParameterUpdateCallback(Chaos::FPBDRi
 
 		for (int32 CommandIndex = 0; CommandIndex < NumCommands; CommandIndex++)
 		{
-			FFieldSystemCommand& FieldCommand = Commands[CommandIndex];
+			FFieldSystemCommand& FieldCommand = FieldData.Commands[CommandIndex];
 			if (IsParameterFieldValid(FieldCommand) || FieldCommand.PhysicsType == EFieldPhysicsType::Field_InitialLinearVelocity || FieldCommand.PhysicsType == EFieldPhysicsType::Field_InitialAngularVelocity)
 			{
-				if (Chaos::BuildFieldSamplePoints(this, RigidSolver, FieldCommand, ExecutionDatas, PrevResolutionType, PrevFilterType, PrevObjectType, PrevPositionType))
+				if (Chaos::BuildFieldSamplePoints(this, RigidSolver, FieldCommand, FieldData.ExecutionDatas, PrevResolutionType, PrevFilterType, PrevObjectType, PrevPositionType))
 				{
 					const Chaos::FReal TimeSeconds = RigidSolver->GetSolverTime() - FieldCommand.TimeCreation;
 
 					FFieldContext FieldContext(
-						ExecutionDatas,
+						FieldData.ExecutionDatas,
 						FieldCommand.MetaData,
 						TimeSeconds);
 
-					TArray<Chaos::FGeometryParticleHandle*>& ParticleHandles = ExecutionDatas.ParticleHandles[(uint8)EFieldCommandHandlesType::InsideHandles];
+					TArray<Chaos::FGeometryParticleHandle*>& ParticleHandles = FieldData.ExecutionDatas.ParticleHandles[(uint8)EFieldCommandHandlesType::InsideHandles];
 
 					if (FieldCommand.RootNode->Type() == FFieldNodeBase::EFieldType::EField_Int32)
 					{
-						TArray<int32>& FinalResults = ExecutionDatas.IntegerResults[(uint8)EFieldCommandResultType::FinalResult];
-						ResetResultsArray < int32 >(ExecutionDatas.SamplePositions.Num(), FinalResults, 0);
+						TArray<int32>& FinalResults = FieldData.ExecutionDatas.IntegerResults[(uint8)EFieldCommandResultType::FinalResult];
+						ResetResultsArray < int32 >(FieldData.ExecutionDatas.SamplePositions.Num(), FinalResults, 0);
 
 						TFieldArrayView<int32> ResultsView(FinalResults, 0, FinalResults.Num());
 
@@ -5651,14 +5689,14 @@ void FGeometryCollectionPhysicsProxy::FieldParameterUpdateCallback(Chaos::FPBDRi
 						}
 						else
 						{
-							Chaos::FieldIntegerParameterUpdate(RigidSolver, FieldCommand, ExecutionDatas.ParticleHandles[(uint8)EFieldCommandHandlesType::InsideHandles],
+							Chaos::FieldIntegerParameterUpdate(RigidSolver, FieldCommand, FieldData.ExecutionDatas.ParticleHandles[(uint8)EFieldCommandHandlesType::InsideHandles],
 								FieldContext, PositionTarget, TargetedParticles, FinalResults);
 						}
 					}
 					else if (FieldCommand.RootNode->Type() == FFieldNodeBase::EFieldType::EField_FVector)
 					{
-						TArray<FVector>& FinalResults = ExecutionDatas.VectorResults[(uint8)EFieldCommandResultType::FinalResult];
-						ResetResultsArray < FVector >(ExecutionDatas.SamplePositions.Num(), FinalResults, FVector::ZeroVector);
+						TArray<FVector>& FinalResults = FieldData.ExecutionDatas.VectorResults[(uint8)EFieldCommandResultType::FinalResult];
+						ResetResultsArray < FVector >(FieldData.ExecutionDatas.SamplePositions.Num(), FinalResults, FVector::ZeroVector);
 
 						TFieldArrayView<FVector> ResultsView(FinalResults, 0, FinalResults.Num());
 
@@ -5732,8 +5770,8 @@ void FGeometryCollectionPhysicsProxy::FieldParameterUpdateCallback(Chaos::FPBDRi
 					}
 					else if (FieldCommand.RootNode->Type() == FFieldNodeBase::EFieldType::EField_Float)
 					{
-						TArray<float>& FinalResults = ExecutionDatas.ScalarResults[(uint8)EFieldCommandResultType::FinalResult];
-						ResetResultsArray<float>(ExecutionDatas.SamplePositions.Num(), FinalResults, 0.0f);
+						TArray<float>& FinalResults = FieldData.ExecutionDatas.ScalarResults[(uint8)EFieldCommandResultType::FinalResult];
+						ResetResultsArray<float>(FieldData.ExecutionDatas.SamplePositions.Num(), FinalResults, 0.0f);
 
 						TFieldArrayView<float> ResultsView(FinalResults, 0, FinalResults.Num());
 
@@ -5747,7 +5785,7 @@ void FGeometryCollectionPhysicsProxy::FieldParameterUpdateCallback(Chaos::FPBDRi
 		
 		for (int32 Index = CommandsToRemove.Num() - 1; Index >= 0; --Index)
 		{
-			Commands.RemoveAt(CommandsToRemove[Index]);
+			FieldData.Commands.RemoveAt(CommandsToRemove[Index]);
 		}
 	}
 }
@@ -5756,7 +5794,10 @@ void FGeometryCollectionPhysicsProxy::FieldForcesUpdateCallback(Chaos::FPBDRigid
 {
 	SCOPE_CYCLE_COUNTER(STAT_ForceUpdateField_Object);
 	check(RigidSolver);
-	const int32 NumCommands = Commands.Num();
+
+	FFieldData& FieldData = GetOrCreateFieldData_Internal();
+
+	const int32 NumCommands = FieldData.Commands.Num();
 	if (NumCommands && !RigidSolver->IsShuttingDown())
 	{
 		TArray<int32> CommandsToRemove;
@@ -5769,24 +5810,24 @@ void FGeometryCollectionPhysicsProxy::FieldForcesUpdateCallback(Chaos::FPBDRigid
 
 		for (int32 CommandIndex = 0; CommandIndex < NumCommands; CommandIndex++)
 		{
-			const FFieldSystemCommand& FieldCommand = Commands[CommandIndex];
+			const FFieldSystemCommand& FieldCommand = FieldData.Commands[CommandIndex];
 			if (IsForceFieldValid(FieldCommand))
 			{
-				if (Chaos::BuildFieldSamplePoints(this, RigidSolver, FieldCommand, ExecutionDatas, PrevResolutionType, PrevFilterType, PrevObjectType, PrevPositionType))
+				if (Chaos::BuildFieldSamplePoints(this, RigidSolver, FieldCommand, FieldData.ExecutionDatas, PrevResolutionType, PrevFilterType, PrevObjectType, PrevPositionType))
 				{
 					const Chaos::FReal TimeSeconds = RigidSolver->GetSolverTime() - FieldCommand.TimeCreation;
 
 					FFieldContext FieldContext(
-						ExecutionDatas,
+						FieldData.ExecutionDatas,
 						FieldCommand.MetaData,
 						TimeSeconds);
 
-					TArray<Chaos::FGeometryParticleHandle*>& ParticleHandles = ExecutionDatas.ParticleHandles[(uint8)EFieldCommandHandlesType::InsideHandles];
+					TArray<Chaos::FGeometryParticleHandle*>& ParticleHandles = FieldData.ExecutionDatas.ParticleHandles[(uint8)EFieldCommandHandlesType::InsideHandles];
 
 					if (FieldCommand.RootNode->Type() == FFieldNode<FVector>::StaticType())
 					{
-						TArray<FVector>& FinalResults = ExecutionDatas.VectorResults[(uint8)EFieldCommandResultType::FinalResult];
-						ResetResultsArray < FVector >(ExecutionDatas.SamplePositions.Num(), FinalResults, FVector::ZeroVector);
+						TArray<FVector>& FinalResults = FieldData.ExecutionDatas.VectorResults[(uint8)EFieldCommandResultType::FinalResult];
+						ResetResultsArray < FVector >(FieldData.ExecutionDatas.SamplePositions.Num(), FinalResults, FVector::ZeroVector);
 
 						Chaos::FieldVectorForceUpdate(RigidSolver, FieldCommand, ParticleHandles,
 							FieldContext, FinalResults);
@@ -5797,7 +5838,7 @@ void FGeometryCollectionPhysicsProxy::FieldForcesUpdateCallback(Chaos::FPBDRigid
 		}
 		for (int32 Index = CommandsToRemove.Num() - 1; Index >= 0; --Index)
 		{
-			Commands.RemoveAt(CommandsToRemove[Index]);
+			FieldData.Commands.RemoveAt(CommandsToRemove[Index]);
 		}
 	}
 }
