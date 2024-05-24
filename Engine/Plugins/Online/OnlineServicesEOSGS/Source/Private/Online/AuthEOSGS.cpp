@@ -901,7 +901,7 @@ TFuture<TDefaultErrorResult<FAuthLoginEASImpl>> FAuthEOSGS::LoginEASImpl(const F
 	// TODO move this into ASWebAuthenticationSession callbacks when they become available.
 	if (LoginOptions.Credentials->Type == EOS_ELoginCredentialType::EOS_LCT_AccountPortal)
 	{
-		FPlatformMisc::ForceUpdateDeviceOrientation(EDeviceScreenOrientation::Portrait);
+		FPlatformMisc::SetAllowedDeviceOrientation(EDeviceScreenOrientation::FullSensor);
 	}
 #endif
 
@@ -916,7 +916,7 @@ TFuture<TDefaultErrorResult<FAuthLoginEASImpl>> FAuthEOSGS::LoginEASImpl(const F
         // TODO move this into ASWebAuthenticationSession callbacks when they become available.
 		if (FPlatformMisc::GetAllowedDeviceOrientation() != OriginalDeviceOrientation)
 		{
-			FPlatformMisc::ForceUpdateDeviceOrientation(OriginalDeviceOrientation);
+			FPlatformMisc::SetAllowedDeviceOrientation(OriginalDeviceOrientation);
 		}
 #endif
         

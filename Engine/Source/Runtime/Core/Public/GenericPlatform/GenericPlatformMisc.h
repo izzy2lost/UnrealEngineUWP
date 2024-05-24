@@ -1628,11 +1628,6 @@ public:
 	 */
 	static CORE_API void SetAllowedDeviceOrientation(EDeviceScreenOrientation NewAllowedDeviceOrientation);
     
-    /**
-     * Change the allowed orientation of the device, and immediately force the orientation to update.
-     */
-    static CORE_API void ForceUpdateDeviceOrientation(EDeviceScreenOrientation NewDeviceOrientation);
-
 	/**
 	 * Returns the device volume if the device is capable of returning that information.
 	 *  -1 : Unknown

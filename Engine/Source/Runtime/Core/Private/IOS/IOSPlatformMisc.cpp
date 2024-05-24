@@ -359,16 +359,11 @@ void FIOSPlatformMisc::SetDeviceOrientation(EDeviceScreenOrientation NewDeviceOr
 void FIOSPlatformMisc::SetAllowedDeviceOrientation(EDeviceScreenOrientation NewAllowedDeviceOrientation)
 {
 	AllowedDeviceOrientation = NewAllowedDeviceOrientation;
-
+	
 #if !PLATFORM_TVOS && !PLATFORM_VISIONOS
 	[IOSAppDelegate GetDelegate].IOSView->SupportedInterfaceOrientations = GetUIInterfaceOrientationMask(NewAllowedDeviceOrientation);
 #endif
-}
-
-void FIOSPlatformMisc::ForceUpdateDeviceOrientation(EDeviceScreenOrientation NewDeviceOrientation)
-{
-	SetAllowedDeviceOrientation(NewDeviceOrientation);
-
+	
 	dispatch_async(dispatch_get_main_queue(), ^
 	{
 		[[IOSAppDelegate GetDelegate].IOSController setNeedsUpdateOfSupportedInterfaceOrientations];
