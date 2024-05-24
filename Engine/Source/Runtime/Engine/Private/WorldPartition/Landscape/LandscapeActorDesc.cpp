@@ -12,12 +12,13 @@ void FLandscapeActorDesc::Init(const AActor* InActor)
 {
 	FPartitionActorDesc::Init(InActor);
 
-	const ALandscapeProxy* LandscapeProxy = CastChecked<ALandscapeProxy>(InActor);
-	check(LandscapeProxy);
-	SetGridIndices(LandscapeProxy->LandscapeSectionOffset.X, LandscapeProxy->LandscapeSectionOffset.Y, 0);
-
 	if (!bIsDefaultActorDesc)
 	{
+		const ALandscapeProxy* LandscapeProxy = CastChecked<ALandscapeProxy>(InActor);
+		check(LandscapeProxy);
+
+		SetGridIndices(LandscapeProxy->LandscapeSectionOffset.X, LandscapeProxy->LandscapeSectionOffset.Y, 0);
+
 		const ALandscape* LandscapeActor = LandscapeProxy->GetLandscapeActor();
 		if (LandscapeActor)
 		{
@@ -45,12 +46,6 @@ void FLandscapeActorDesc::Serialize(FArchive& Ar)
 			Ar << LandscapeActorGuid;
 		}
 	}
-}
-
-FBox FLandscapeActorDesc::GetEditorBounds() const
-{
-	// We need to skip super class since we aren't using grid indices as it should be (it's in Landscape space).
-	return FWorldPartitionActorDesc::GetEditorBounds();
 }
 
 bool FLandscapeActorDesc::Equals(const FWorldPartitionActorDesc* Other) const

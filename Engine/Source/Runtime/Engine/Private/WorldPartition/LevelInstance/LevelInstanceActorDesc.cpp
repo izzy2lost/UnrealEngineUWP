@@ -130,9 +130,7 @@ void FLevelInstanceActorDesc::UpdateBounds()
 {
 	if (UActorDescContainer* ChildContainerPtr = ChildContainer.Get())
 	{
-		FBox ContainerBounds = UActorDescContainerSubsystem::GetChecked().GetContainerBounds(GetChildContainerName()).TransformBy(GetChildContainerTransform());
-
-		ContainerBounds.GetCenterAndExtents(BoundsLocation, BoundsExtent);
+		RuntimeBounds = UActorDescContainerSubsystem::GetChecked().GetContainerBounds(GetChildContainerName()).TransformBy(GetChildContainerTransform());
 	}
 }
 
@@ -395,11 +393,7 @@ void FLevelInstanceActorDesc::Serialize(FArchive& Ar)
 			{
 				if (!IsChildContainerInstance())
 				{
-					FBox OutBounds;
-					if (ULevelInstanceSubsystem::GetLevelInstanceBoundsFromPackage(ActorTransform, GetChildContainerPackage(), OutBounds))
-					{
-						OutBounds.GetCenterAndExtents(BoundsLocation, BoundsExtent);
-					}
+					ULevelInstanceSubsystem::GetLevelInstanceBoundsFromPackage(ActorTransform, GetChildContainerPackage(), RuntimeBounds);
 				}
 			}
 		}

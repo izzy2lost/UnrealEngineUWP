@@ -24,13 +24,11 @@ struct FWorldPartitionActorDescInitData
 {
 	FWorldPartitionActorDescInitData()
 		: DataSource(TInPlaceType<TArray<uint8>>(), TArray<uint8>())
-	{
-	}
+	{}
 
 	FWorldPartitionActorDescInitData(FActorDescArchive* InArchive)
 		: DataSource(TInPlaceType<FActorDescArchive*>(), InArchive)
-	{
-	}
+	{}
 
 	UClass* NativeClass;
 	FName PackageName;
@@ -66,7 +64,6 @@ struct FWorldPartitionActorDescInitData
 private:
 	// Provide SerializedData or an already initialized Archive
 	TVariant<TArray<uint8>, FActorDescArchive*> DataSource;
-
 };
 
 struct FWorldPartitionAssetDataPatcher
@@ -165,7 +162,7 @@ public:
 	inline UClass* GetActorNativeClass() const { return ActorNativeClass; }
 
 	inline FName GetRuntimeGrid() const { return RuntimeGrid; }
-	inline bool GetIsSpatiallyLoaded() const { return bIsBoundsValid ? bIsSpatiallyLoaded : false; }
+	inline bool GetIsSpatiallyLoaded() const { return RuntimeBounds.IsValid ? bIsSpatiallyLoaded : false; }
 	inline bool GetIsSpatiallyLoadedRaw() const { return bIsSpatiallyLoaded; }
 	inline bool GetActorIsEditorOnly() const { return bActorIsEditorOnly; }
 	inline bool GetActorIsRuntimeOnly() const { return bActorIsRuntimeOnly; }
@@ -185,7 +182,7 @@ public:
 	inline const FGuid& GetFolderGuid() const { return FolderGuid; }
 	inline const FTransform& GetActorTransform() const { return ActorTransform; }
 
-	ENGINE_API virtual FBox GetEditorBounds() const;
+	ENGINE_API FBox GetEditorBounds() const;
 	ENGINE_API FBox GetRuntimeBounds() const;
 
 	inline const FGuid& GetParentActor() const { return ParentActor; }
@@ -215,7 +212,7 @@ public:
 	ENGINE_API FGuid GetContentBundleGuid() const;
 
 	virtual const FGuid& GetSceneOutlinerParent() const { return GetParentActor(); }
-	virtual bool IsResaveNeeded() const { return bIsSpatiallyLoaded && !bIsBoundsValid; }
+	virtual bool IsResaveNeeded() const { return bIsSpatiallyLoaded && !RuntimeBounds.IsValid; }
 
 	ENGINE_API virtual void CheckForErrors(const IWorldPartitionActorDescInstanceView* InActorDescView, IStreamingGenerationErrorHandler* ErrorHandler) const;
 
@@ -397,9 +394,8 @@ protected:
 	virtual void TransferWorldData(const FWorldPartitionActorDesc* From)
 	{
 		ActorTransform = From->ActorTransform;
-		BoundsLocation = From->BoundsLocation;
-		BoundsExtent = From->BoundsExtent;
-		bIsBoundsValid = From->bIsBoundsValid;
+		RuntimeBounds = From->RuntimeBounds;
+		EditorBounds = From->EditorBounds;
 	}
 
 	virtual uint32 GetSizeOf() const { return sizeof(FWorldPartitionActorDesc); }
@@ -414,8 +410,8 @@ protected:
 	FSoftObjectPath					ActorPath;		// Not serialized, comes from initialization data
 	FName							ActorLabel;
 	FTransform						ActorTransform;
-	FVector							BoundsLocation;
-	FVector							BoundsExtent;
+	FBox							RuntimeBounds;
+	FBox							EditorBounds;
 	FName							RuntimeGrid;
 	bool							bIsSpatiallyLoaded;
 	bool							bActorIsEditorOnly;
@@ -424,7 +420,6 @@ protected:
 	bool							bActorIsHLODRelevant;
 	bool							bActorIsListedInSceneOutliner;
 	bool							bIsUsingDataLayerAsset; // Used to know if DataLayers array represents DataLayers Asset paths or the FNames of the deprecated version of Data Layers
-	bool							bIsBoundsValid;
 	FSoftObjectPath					HLODLayer;
 	TArray<FName>					DataLayers;
 	FSoftObjectPath					ExternalDataLayerAsset;

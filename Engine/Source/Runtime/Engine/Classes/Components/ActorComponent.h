@@ -1069,6 +1069,7 @@ public:
 	ENGINE_API virtual bool IsSelectedInEditor() const override;
 	virtual void SetPackageExternal(bool bExternal, bool bShouldDirty) {}
 	virtual FBox GetStreamingBounds() const { return FBox(ForceInit); }
+	virtual FBox GetStreamingBoundsEditor() const { return GetStreamingBounds(); }
 	virtual bool ForceActorNonSpatiallyLoaded() const { return false; }
 	virtual bool ForceActorNoDataLayers() const { return false; }
 #endif // WITH_EDITOR

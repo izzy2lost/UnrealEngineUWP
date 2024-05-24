@@ -2434,7 +2434,7 @@ public:
 	}
 
 	/**
-	 * Returns the location and the bounding box of all components that make up this Actor.
+	 * Returns the bounding box of all components that make up this Actor for loading at runtime.
 	 *
 	 * This function differs from GetActorBounds because it will return a valid origin and an empty extent if this actor
 	 * doesn't have primitive components.
@@ -2442,6 +2442,17 @@ public:
 	 * @see GetActorBounds()
 	 */
 	ENGINE_API virtual FBox GetStreamingBounds() const;
+
+	/**
+	 * Returns the bounding box of all components that make up this Actor for loading in the editor.
+	 *
+	 * This function differs from GetActorBounds because it will return a valid origin and an empty extent if this actor
+	 * doesn't have primitive components.
+	 *
+	 * @see GetActorBounds()
+	 */
+	ENGINE_API virtual FBox GetStreamingBoundsEditor() const;
+
 #endif
 
 

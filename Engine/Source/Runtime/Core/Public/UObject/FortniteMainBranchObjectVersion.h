@@ -480,6 +480,9 @@ struct FFortniteMainBranchObjectVersion
 		// Added multiple section import to the cloth asset skeletal mesh import node
 		ClothAssetSkeletalMeshMultiSectionImport,
 
+		// Serialize EditorBounds in WorldPartitionActorDesc
+		WorldPartitionActorDescSerializeEditorBounds,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

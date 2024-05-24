@@ -44,14 +44,14 @@ static FGuid GetDefaultActorDescGuid(const FWorldPartitionActorDesc* ActorDesc)
 }
 
 FWorldPartitionActorDesc::FWorldPartitionActorDesc()
-	: bIsSpatiallyLoaded(false)
+	: RuntimeBounds(ForceInit)
+	, bIsSpatiallyLoaded(false)
 	, bActorIsEditorOnly(false)
 	, bActorIsRuntimeOnly(false)
 	, bActorIsMainWorldOnly(false)
 	, bActorIsHLODRelevant(false)
 	, bActorIsListedInSceneOutliner(true)
 	, bIsUsingDataLayerAsset(false)
-	, bIsBoundsValid(false)
 	, ActorNativeClass(nullptr)
 	, Container(nullptr)
 	, bIsDefaultActorDesc(false)
@@ -91,10 +91,8 @@ void FWorldPartitionActorDesc::Init(const AActor* InActor)
 
 	ActorTransform = InActor->GetActorTransform();
 
-	const FBox StreamingBounds = !bIsDefaultActorDesc ? InActor->GetStreamingBounds() : FBox(ForceInit);
-	StreamingBounds.GetCenterAndExtents(BoundsLocation, BoundsExtent);
-	bIsBoundsValid = StreamingBounds.IsValid == 1;
-
+	RuntimeBounds = !bIsDefaultActorDesc ? InActor->GetStreamingBounds() : FBox(ForceInit);
+	EditorBounds = !bIsDefaultActorDesc ? InActor->GetStreamingBoundsEditor() : FBox(ForceInit);
 	RuntimeGrid = InActor->GetRuntimeGrid();
 	bIsSpatiallyLoaded = InActor->GetIsSpatiallyLoaded();
 	bActorIsEditorOnly = InActor->IsEditorOnly();
@@ -300,10 +298,9 @@ bool FWorldPartitionActorDesc::Equals(const FWorldPartitionActorDesc* Other) con
 		ActorPackage == Other->ActorPackage &&
 		ActorPath == Other->ActorPath &&
 		ActorLabel == Other->ActorLabel &&
-		bIsBoundsValid == Other->bIsBoundsValid &&
 		ActorTransform.Equals(Other->ActorTransform, 0.1f) &&
-		BoundsLocation.Equals(Other->BoundsLocation, 0.1f) &&
-		BoundsExtent.Equals(Other->BoundsExtent, 0.1f) &&
+		RuntimeBounds.Equals(Other->RuntimeBounds, 0.1f) &&
+		EditorBounds.Equals(Other->EditorBounds, 0.1f) &&
 		RuntimeGrid == Other->RuntimeGrid &&
 		bIsSpatiallyLoaded == Other->bIsSpatiallyLoaded &&
 		bActorIsEditorOnly == Other->bActorIsEditorOnly &&
@@ -336,7 +333,8 @@ bool FWorldPartitionActorDesc::ShouldResave(const FWorldPartitionActorDesc* Othe
 		bActorIsEditorOnly != Other->bActorIsEditorOnly ||
 		bActorIsRuntimeOnly != Other->bActorIsRuntimeOnly ||
 		bActorIsMainWorldOnly != Other->bActorIsMainWorldOnly ||
-		bIsBoundsValid != Other->bIsBoundsValid ||
+		RuntimeBounds.IsValid != Other->RuntimeBounds.IsValid||
+		EditorBounds.IsValid != Other->EditorBounds.IsValid||
 		HLODLayer != Other->HLODLayer ||
 		ParentActor != Other->ParentActor ||
 		ContentBundleGuid != Other->ContentBundleGuid ||
@@ -350,7 +348,7 @@ bool FWorldPartitionActorDesc::ShouldResave(const FWorldPartitionActorDesc* Othe
 	}
 
 	// Tolerate up to 5% for bounds change
-	if (bIsBoundsValid)
+	if (RuntimeBounds.IsValid)
 	{
 		const FBox ThisBounds = GetRuntimeBounds();
 		const FBox OtherBounds = Other->GetRuntimeBounds();
@@ -439,17 +437,15 @@ FString FWorldPartitionActorDesc::ToString(EToStringMode Mode) const
 	{
 		FString BoundsStr;
 
-		if (bIsBoundsValid)
+		if (RuntimeBounds.IsValid)
 		{
-			const FBox EditorBounds = GetEditorBounds();
-			const FBox RuntimeBounds = GetRuntimeBounds();
-			if (EditorBounds.Equals(RuntimeBounds))
+			if (GetEditorBounds().Equals(RuntimeBounds))
 			{
 				BoundsStr = RuntimeBounds.ToString();
 			}
 			else
 			{
-				BoundsStr = *FString::Printf(TEXT("(Editor:%s Runtime:%s)"), *EditorBounds.ToString(), *RuntimeBounds.ToString());
+				BoundsStr = *FString::Printf(TEXT("(Editor:%s Runtime:%s)"), *GetEditorBounds().ToString(), *RuntimeBounds.ToString());
 			}
 		}
 		else
@@ -566,24 +562,33 @@ void FWorldPartitionActorDesc::Serialize(FArchive& Ar)
 	{
 		FVector3f BoundsLocationFlt, BoundsExtentFlt;
 		Ar << BoundsLocationFlt << BoundsExtentFlt;
-		BoundsLocation = FVector(BoundsLocationFlt);
-		BoundsExtent = FVector(BoundsExtentFlt);
-		bIsBoundsValid = true;
+		RuntimeBounds = FBox(FVector(BoundsLocationFlt - BoundsExtentFlt), FVector(BoundsLocationFlt + BoundsExtentFlt));
+		EditorBounds = RuntimeBounds;
 	}
 	else if (!bIsDefaultActorDesc)
 	{
-		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::WorldPartitionActorDescSerializeInvalidBounds)
+		if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::WorldPartitionActorDescSerializeEditorBounds)
 		{
-			bIsBoundsValid = true;
+			bool bIsBoundsValid = true;
+			if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::WorldPartitionActorDescSerializeInvalidBounds)
+			{
+				Ar << bIsBoundsValid;
+			}
+
+			if (bIsBoundsValid)
+			{
+				FVector BoundsLocation;
+				FVector BoundsExtent;
+
+				Ar << BoundsLocation << BoundsExtent;
+
+				RuntimeBounds = FBox(BoundsLocation - BoundsExtent, BoundsLocation + BoundsExtent);
+				EditorBounds = RuntimeBounds;
+			}
 		}
 		else
 		{
-			Ar << bIsBoundsValid;
-		}
-
-		if (bIsBoundsValid)
-		{
-			Ar << BoundsLocation << BoundsExtent;
+			Ar << RuntimeBounds << EditorBounds;
 		}
 	}
 	
@@ -761,12 +766,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FBox FWorldPartitionActorDesc::GetEditorBounds() const
 {
-	return bIsBoundsValid ? FBox(BoundsLocation - BoundsExtent, BoundsLocation + BoundsExtent) : FBox(ForceInit);
+	return EditorBounds.IsValid ? EditorBounds : RuntimeBounds;
 }
 
 FBox FWorldPartitionActorDesc::GetRuntimeBounds() const
 {
-	return bIsBoundsValid ? FBox(BoundsLocation - BoundsExtent, BoundsLocation + BoundsExtent) : FBox(ForceInit);
+	return RuntimeBounds;
 }
 
 FName FWorldPartitionActorDesc::GetActorName() const
