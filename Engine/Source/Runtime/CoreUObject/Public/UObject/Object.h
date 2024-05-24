@@ -1277,7 +1277,8 @@ public:
 	 * Save configuration out to ini files
 	 * @warning Must be safe to call on class-default object
 	 */
-	COREUOBJECT_API void SaveConfig( uint64 Flags=CPF_Config, const TCHAR* Filename=NULL, FConfigCacheIni* Config=GConfig, bool bAllowCopyToDefaultObject=true );
+	COREUOBJECT_API void SaveConfig(uint64 RequiredPropertyFlags = CPF_Config, const TCHAR* Filename = nullptr,
+		FConfigCacheIni* Config=GConfig, bool bAllowCopyToDefaultObject=true);
 
 	/**
 	 * Saves just the section(s) for this class into the default ini file for the class (with just the changes from base)
@@ -1373,7 +1374,8 @@ public:
 	 * @param	PropagationFlags	indicates how this call to LoadConfig should be propagated; expects a bitmask of UE::ELoadConfigPropagationFlags values.
 	 * @param	PropertyToLoad		if specified, only the ini value for the specified property will be imported.
 	 */
-	COREUOBJECT_API void LoadConfig( UClass* ConfigClass=NULL, const TCHAR* Filename=NULL, uint32 PropagationFlags=UE::LCPF_None, class FProperty* PropertyToLoad=NULL );
+	COREUOBJECT_API void LoadConfig(UClass* ConfigClass = nullptr, const TCHAR* Filename = nullptr,
+		uint32 PropagationFlags = UE::LCPF_None, class FProperty* PropertyToLoad = nullptr);
 
 	/**
 	 * Wrapper method for LoadConfig that is used when reloading the config data for objects at runtime which have already loaded their config data at least once.
