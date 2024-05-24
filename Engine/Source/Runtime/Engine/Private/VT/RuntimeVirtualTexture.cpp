@@ -363,6 +363,7 @@ int32 URuntimeVirtualTexture::GetLayerCount(ERuntimeVirtualTextureMaterialType I
 	switch (InMaterialType)
 	{
 	case ERuntimeVirtualTextureMaterialType::BaseColor:
+	case ERuntimeVirtualTextureMaterialType::Mask4:
 	case ERuntimeVirtualTextureMaterialType::WorldHeight:
 	case ERuntimeVirtualTextureMaterialType::Displacement:
 		return 1;
@@ -438,6 +439,8 @@ EPixelFormat URuntimeVirtualTexture::GetLayerFormat(int32 LayerIndex) const
 		case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_YCoCg:
 		case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_Mask_YCoCg:
 			return bCompressTextures ? PlatformCompressedRVTFormat(PF_DXT5) : PF_B8G8R8A8;
+		case ERuntimeVirtualTextureMaterialType::Mask4:
+			return bCompressTextures ? PlatformCompressedRVTFormat(PF_DXT5) : PF_B8G8R8A8;
 		case ERuntimeVirtualTextureMaterialType::WorldHeight:
 			return PF_G16;
 		case ERuntimeVirtualTextureMaterialType::Displacement:
@@ -492,6 +495,7 @@ bool URuntimeVirtualTexture::IsLayerSRGB(int32 LayerIndex) const
 	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_YCoCg:
 	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_Mask_YCoCg:
 		// These formats have YCoCg packing which can't use sRGB.
+	case ERuntimeVirtualTextureMaterialType::Mask4:
 	case ERuntimeVirtualTextureMaterialType::WorldHeight:
 	case ERuntimeVirtualTextureMaterialType::Displacement:
 		// These formats require linear encoding.
@@ -625,12 +629,6 @@ void URuntimeVirtualTexture::PostLoad()
 		int32 TileCountFromSize = FMath::Max(OldSize / GetTileSize(), 1);
 		TileCount = FMath::FloorLog2(TileCountFromSize);
 		Size_DEPRECATED = -1;
-	}
-
-	// Convert BaseColor_Normal_DEPRECATED
-	if (MaterialType == ERuntimeVirtualTextureMaterialType::BaseColor_Normal_DEPRECATED)
-	{
-		MaterialType = ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular;
 	}
 
 	// Remove StreamingTexture_DEPRECATED

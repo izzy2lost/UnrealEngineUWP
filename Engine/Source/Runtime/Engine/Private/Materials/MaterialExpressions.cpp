@@ -3159,6 +3159,12 @@ int32 UMaterialExpressionRuntimeVirtualTextureOutput::Compile(class FMaterialCom
 		OutputAttributeMask |= Displacement.IsConnected() ? (1 << (uint8)ERuntimeVirtualTextureAttributeType::Displacement) : 0;
 		ValidateRuntimeVirtualTextureOutput(Compiler, Displacement);
 	}
+	else if (OutputIndex == 8)
+	{
+		CodeInput = Mask4.IsConnected() ? Mask4.Compile(Compiler) : Compiler->Constant4(0.f, 0.f, 0.f, 0.f);
+		OutputAttributeMask |= Mask4.IsConnected() ? (1 << (uint8)ERuntimeVirtualTextureAttributeType::Mask4) : 0;
+		ValidateRuntimeVirtualTextureOutput(Compiler, Mask4);
+	}
 
 	Compiler->VirtualTextureOutput(OutputAttributeMask);
 	return Compiler->CustomOutput(this, OutputIndex, CodeInput);
@@ -3173,7 +3179,7 @@ void UMaterialExpressionRuntimeVirtualTextureOutput::GetCaption(TArray<FString>&
 
 int32 UMaterialExpressionRuntimeVirtualTextureOutput::GetNumOutputs() const
 {
-	return 8; 
+	return 9; 
 }
 
 FString UMaterialExpressionRuntimeVirtualTextureOutput::GetFunctionName() const
@@ -3238,6 +3244,7 @@ void UMaterialExpressionRuntimeVirtualTextureSample::InitOutputs()
 	Outputs.Add(FExpressionOutput(TEXT("WorldHeight")));
 	Outputs.Add(FExpressionOutput(TEXT("Mask")));
 	Outputs.Add(FExpressionOutput(TEXT("Displacement")));
+	Outputs.Add(FExpressionOutput(TEXT("Mask4")));
 #endif // WITH_EDITORONLY_DATA
 }
 
@@ -3261,12 +3268,6 @@ FName UMaterialExpressionRuntimeVirtualTextureSample::GetInputName(int32 InputIn
 void UMaterialExpressionRuntimeVirtualTextureSample::PostLoad()
 {
 	Super::PostLoad();
-
-	// Convert BaseColor_Normal_DEPRECATED
-	if (MaterialType == ERuntimeVirtualTextureMaterialType::BaseColor_Normal_DEPRECATED)
-	{
-		MaterialType = ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular;
-	}
 
 	InitOutputs();
 }
@@ -3370,6 +3371,7 @@ int32 UMaterialExpressionRuntimeVirtualTextureSample::Compile(class FMaterialCom
 	bool bIsNormalValid = false;
 	bool bIsWorldHeightValid = false;
 	bool bIsMaskValid = false;
+	bool bIsMask4Valid = false;
 	bool bIsDisplacementValid = false;
 
 	switch (MaterialType)
@@ -3379,6 +3381,7 @@ int32 UMaterialExpressionRuntimeVirtualTextureSample::Compile(class FMaterialCom
 	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular: bIsRoughnessValid = bIsBaseColorValid = bIsNormalValid = bIsSpecularValid = true; break;
 	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_YCoCg: bIsRoughnessValid = bIsBaseColorValid = bIsNormalValid = bIsSpecularValid = true; break;
 	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_Mask_YCoCg: bIsRoughnessValid = bIsBaseColorValid = bIsNormalValid = bIsSpecularValid = bIsMaskValid = true; break;
+	case ERuntimeVirtualTextureMaterialType::Mask4: bIsMask4Valid = true; break;
 	case ERuntimeVirtualTextureMaterialType::WorldHeight: bIsWorldHeightValid = true; break;
 	case ERuntimeVirtualTextureMaterialType::Displacement: bIsDisplacementValid = true; break;
 	}
@@ -3461,7 +3464,7 @@ int32 UMaterialExpressionRuntimeVirtualTextureSample::Compile(class FMaterialCom
 	case 5:
 		if (bIsVirtualTextureValid && bIsMaskValid)
 		{
-			UnpackTarget = 2; UnpackMask = 0x8; break;
+			UnpackTarget = 2; UnpackMask = 0x8;
 		}
 		else
 		{
@@ -3476,6 +3479,16 @@ int32 UMaterialExpressionRuntimeVirtualTextureSample::Compile(class FMaterialCom
 		else
 		{
 			return Compiler->Constant(0.f);
+		}
+		break;
+	case 7:
+		if (bIsVirtualTextureValid && bIsMask4Valid)
+		{
+			UnpackTarget = 0; UnpackMask = 0xf; break;
+		}
+		else
+		{
+			return Compiler->Constant4(0.f, 0.f, 0.f, 0.f);
 		}
 		break;
 	default:

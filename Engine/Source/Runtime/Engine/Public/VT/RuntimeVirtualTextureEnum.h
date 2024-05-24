@@ -19,6 +19,7 @@ enum class ERuntimeVirtualTextureAttributeType : uint8
 	Roughness,
 	Specular,
 	Mask,
+	Mask4,
 	WorldHeight,
 	Displacement,
 
@@ -36,7 +37,7 @@ UENUM()
 enum class ERuntimeVirtualTextureMaterialType : uint8
 {
 	BaseColor UMETA(DisplayName = "Base Color"),
-	BaseColor_Normal_DEPRECATED UMETA(Hidden),
+	Mask4 UMETA(DisplayName = "Mask4", ToolTip = "4 channel mask texture."),
 	BaseColor_Normal_Roughness UMETA(DisplayName = "Base Color, Normal, Roughness", ToolTip = "Local space Normal. Requires less memory than 'Base Color, Normal, Roughness, Specular'. Supports LQ compression."),
 	BaseColor_Normal_Specular UMETA(DisplayName = "Base Color, Normal, Roughness, Specular"),
 	BaseColor_Normal_Specular_YCoCg UMETA(DisplayName = "YCoCg Base Color, Normal, Roughness, Specular", ToolTip = "Base Color is stored in YCoCg space. This requires more memory but may provide better quality."),

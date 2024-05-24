@@ -45,6 +45,10 @@ class UMaterialExpressionRuntimeVirtualTextureOutput : public UMaterialExpressio
 	UPROPERTY()
 	FExpressionInput Displacement;
 
+	/** Input for Mask to output to virtual texture. */
+	UPROPERTY()
+	FExpressionInput Mask4;
+
 public:
 #if WITH_EDITOR
 	//~ Begin UMaterialExpression Interface

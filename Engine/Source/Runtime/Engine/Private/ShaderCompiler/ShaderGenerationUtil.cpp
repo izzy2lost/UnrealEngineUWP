@@ -207,6 +207,7 @@ void ApplyFetchEnvironmentInternal(FShaderMaterialPropertyDefines& SrcDefines, c
 	FETCH_COMPILE_BOOL(OUT_BASECOLOR);
 	FETCH_COMPILE_BOOL(OUT_BASECOLOR_NORMAL_ROUGHNESS);
 	FETCH_COMPILE_BOOL(OUT_BASECOLOR_NORMAL_SPECULAR);
+	FETCH_COMPILE_BOOL(OUT_MASK4);
 	FETCH_COMPILE_BOOL(OUT_WORLDHEIGHT);
 	FETCH_COMPILE_BOOL(OUT_DISPLACEMENT);
 
@@ -1999,6 +2000,11 @@ void FShaderCompileUtilities::ApplyDerivedDefines(FShaderCompilerEnvironment& Ou
 			TargetUsage[0] = EGBufferSlotUsage::Written;
 			TargetUsage[1] = EGBufferSlotUsage::Written;
 			TargetUsage[2] = EGBufferSlotUsage::Written;
+		}
+		else if (MaterialDefines.OUT_MASK4)
+		{
+			TargetUsage[0] = EGBufferSlotUsage::Written;
+			TargetUsage[1] = EGBufferSlotUsage::Written;
 		}
 		else if (MaterialDefines.OUT_WORLDHEIGHT)
 		{
