@@ -43,6 +43,8 @@ namespace UnrealBuildTool.Rules
 					"RenderCore",
 					"RHI",
 					"TextureUtilitiesCommon",
+					"UnrealUSDWrapper",
+					"USDUtilities",
 					"VariantManagerContent",
 				}
 			);

@@ -35,6 +35,7 @@
 #include "Texture/InterchangeUEJPEGTranslator.h"
 #include "Texture/InterchangePSDTranslator.h"
 #include "Texture/InterchangeTextureFactory.h"
+#include "Usd/InterchangeUsdTranslator.h"
 
 DEFINE_LOG_CATEGORY(LogInterchangeImport);
 
@@ -80,6 +81,7 @@ void FInterchangeImportModule::StartupModule()
 		UInterchangeFbxTranslator::CleanUpTemporaryFolder();
 		InterchangeManager.RegisterTranslator(UInterchangeFbxTranslator::StaticClass());
 #endif
+		InterchangeManager.RegisterTranslator(UInterchangeUSDTranslator::StaticClass());
 		InterchangeManager.RegisterTranslator(UInterchangeGLTFTranslator::StaticClass());
 		InterchangeManager.RegisterTranslator(UInterchangeOBJTranslator::StaticClass());
 

@@ -88,6 +88,10 @@
 	],
 	"Plugins": [
 		{
+			"Name": "USDCore",
+			"Enabled": true
+		},
+		{
 			"Name": "VariantManagerContent",
 			"Enabled": true
 		},
