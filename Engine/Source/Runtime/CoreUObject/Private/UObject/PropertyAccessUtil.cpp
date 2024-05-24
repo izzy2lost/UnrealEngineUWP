@@ -597,8 +597,8 @@ bool IsObjectTemplate(const UObject* InObject)
 		return true;
 	}
 	
-	// Assets can edit default properties
-	if (InObject->IsAsset())
+	// Assets can edit default properties, filter out objects with external packages as they are treated as assets but aren't
+	if (!InObject->IsPackageExternal() && InObject->IsAsset())
 	{
 		return true;
 	}
