@@ -71,6 +71,7 @@ namespace UnrealBuildTool
 
 			DirectoryReference.CreateDirectory(IntermediateDirectory);
 			VCCompileAction Action = new VCCompileAction(BaseAction);
+			Action.ArtifactMode = ArtifactMode.None;
 			Action.SourceFile = SourceFile;
 			if (SourceFile.HasExtension(".h"))
 			{
