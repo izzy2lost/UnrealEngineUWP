@@ -40,8 +40,6 @@ public:
 		FVector ViewLocation = Transform.GetTranslation();
 		InView.StartFinalPostprocessSettings(ViewLocation);
 
-		DesiredView.PostProcessSettings.AddBlendable(BlendableObject, 1.0f);
-
 		InView.OverridePostProcessSettings(DesiredView.PostProcessSettings, 1.0);
 		FSceneViewInitOptions ViewInitOptions;
 		InView.EndFinalPostprocessSettings(ViewInitOptions);
@@ -81,11 +79,10 @@ public:
 	/**
 	* Prepare the scene view extension with relevant camera and render mode info.
 	*/
-	void PrepareRender(TSoftObjectPtr<UCineCameraComponent> InCineCameraComponent, bool bInFollowSceneCaptureRenderPath, TScriptInterface<IBlendableInterface> InBlendableObject)
+	void PrepareRender(TSoftObjectPtr<UCineCameraComponent> InCineCameraComponent, bool bInFollowSceneCaptureRenderPath)
 	{
 		CineCameraComponent = InCineCameraComponent;
 		bFollowSceneCaptureRenderPath = bInFollowSceneCaptureRenderPath;
-		BlendableObject = InBlendableObject;
 	};
 
 	/**
@@ -159,29 +156,14 @@ private:
 
 	/** Indicates if OCIO is enabled. */
 	std::atomic<bool> bIsOcioEnabledRenderThread;
-
-	/** Optional blendable object. */
-	TScriptInterface<IBlendableInterface> BlendableObject = nullptr;
 };
-
-UCineCaptureErasureBlendable::UCineCaptureErasureBlendable(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer)
-{}
-
-void UCineCaptureErasureBlendable::OverrideBlendableSettings(FSceneView& View, float Weight) const
-{
-	// Clear any blendables that could have been set by post process volumes.
-	View.FinalPostProcessSettings.BlendableManager = FBlendableManager();
-}
 
 
 UCineCaptureComponent2D::UCineCaptureComponent2D(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer), RenderTargetHighestDimension(1280), bFollowSceneCaptureRenderPath(true), bIgnoreWorldPostProcessMaterials(false)
+	: Super(ObjectInitializer), RenderTargetHighestDimension(1280), bFollowSceneCaptureRenderPath(true)
 {
 	CaptureSource = ESceneCaptureSource::SCS_FinalToneCurveHDR;
 	bAlwaysPersistRenderingState = true;
-
-	ErasureBlendable = ObjectInitializer.CreateDefaultSubobject<UCineCaptureErasureBlendable>(this, TEXT("CineCaptureErasureBlendable"));
 }
 
 void UCineCaptureComponent2D::UpdateSceneCaptureContents(FSceneInterface* Scene)
@@ -198,7 +180,7 @@ void UCineCaptureComponent2D::UpdateSceneCaptureContents(FSceneInterface* Scene)
 	bOverride_CustomNearClippingPlane = CineCameraComponent->bOverride_CustomNearClippingPlane;
 	CustomNearClippingPlane = CineCameraComponent->CustomNearClippingPlane;
 
-	CineCaptureSVE->PrepareRender(CineCameraComponent, bFollowSceneCaptureRenderPath, bIgnoreWorldPostProcessMaterials ? ErasureBlendable : nullptr);
+	CineCaptureSVE->PrepareRender(CineCameraComponent, bFollowSceneCaptureRenderPath);
 
 	Scene->UpdateSceneCaptureContents(this);
 }
