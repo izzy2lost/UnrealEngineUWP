@@ -8,10 +8,14 @@
 #include "HAL/PreprocessorHelpers.h"
 #include "Serialization/CompactBinary.h"
 #include "Templates/Function.h"
+#include "Templates/UniquePtr.h"
 #include "UObject/NameTypes.h"
 
 class FCbFieldView;
 class FCbWriter;
+class UObject;
+namespace UE::ConfigAccessTracking { enum class ELoadType : uint8; }
+namespace UE::ConfigAccessTracking { struct FConfigAccessData; }
 #endif
 
 #if WITH_EDITOR
@@ -80,12 +84,15 @@ private:
  */
 enum class ECookDependency : uint8
 {
-	None = 0x00,
-	File = 0x01,
-	Function = 0x02,
-	TransitiveBuild = 0x03,
-	Package = 0x4,
-	ConsoleVariable = 0x5,
+	None					= 0,
+	File					= 1,
+	Function				= 2,
+	TransitiveBuild			= 3,
+	Package					= 4,
+	ConsoleVariable			= 5,
+	Config					= 6,
+	SettingsObject			= 7,
+	NativeClass				= 8,
 
 	Count,
 };
@@ -140,6 +147,27 @@ public:
 	 */
 	COREUOBJECT_API static FCookDependency ConsoleVariable(FStringView VariableName);
 
+	/** Create a dependency on the value of a config variable. */
+	COREUOBJECT_API static FCookDependency Config(UE::ConfigAccessTracking::FConfigAccessData AccessData);
+	COREUOBJECT_API static FCookDependency Config(UE::ConfigAccessTracking::ELoadType LoadType, FName Platform,
+		FName FileName, FName SectionName, FName ValueName);
+	/** Create a dependency on the value of a config variable, with LoadType=ConfigSystem and Platform=NAME_None. */
+	COREUOBJECT_API static FCookDependency Config(FName FileName, FName SectionName, FName ValueName);
+
+	/**
+	 * Adds a dependency on the config values and class schema of a settings object. Gives an error and ignores the object
+	 * if the object is not a config-driven settings object, such as the CDO of a config UClass or a perObjectConfig
+	 * object.
+	 *
+	 * SettingsObject dependencies are not directly persistable; all of the dependencies reported by the SettingsObject are
+	 * copied onto the dependencies of the package declaring the SettingsObject dependency.
+	 */
+	COREUOBJECT_API static FCookDependency SettingsObject(const UObject* InObject);
+
+	/** Adds a dependency on the class schema of a nativeclass. */
+	COREUOBJECT_API static FCookDependency NativeClass(const UClass* InClass);
+	COREUOBJECT_API static FCookDependency NativeClass(FStringView ClassPath);
+
 	/** Construct an empty dependency; it will never be invalidated. */
 	COREUOBJECT_API FCookDependency();
 
@@ -166,10 +194,31 @@ public:
 	bool IsAlsoAddRuntimeDependency() const;
 
 	/**
+	 * Returns the full path of the config access (e.g. Platform.Filename.Section.ValueName)
+	 * if GetType() == Config, else empty.
+	 */
+	COREUOBJECT_API FString GetConfigPath() const;
+
+	/**
+	 * Returns the SettingsObject pointer if GetType() == SettingsObject, else nullptr. Can also be null for
+	 * SettingsObject that was found to be invalid.
+	 */
+	const UObject* GetSettingsObject() const;
+
+	/**
+	 * Returns the classpath if GetType() == NativeClass, else empty string. Can also be empty for
+	 * NativeClass that was found to be invalid.
+	 */
+	FStringView GetClassPath() const;
+
+	/**
 	 * Comparison operator for e.g. deterministic ordering of dependencies.
 	 * Uses persistent comparison data and is somewhat expensive.
 	 */
 	bool operator<(const FCookDependency& Other) const;
+	/** Equality operator for uniqueness testing */
+	bool operator==(const FCookDependency& Other) const;
+	bool operator!=(const FCookDependency& Other) const;
 
 	/** Calculate the current hash of this CookDependency, and add it into Context. */
 	COREUOBJECT_API void UpdateHash(FCookDependencyContext& Context) const;
@@ -180,6 +229,10 @@ private:
 	void Destruct();
 	COREUOBJECT_API void Save(FCbWriter& Writer) const;
 	COREUOBJECT_API bool Load(FCbFieldView Value);
+	static COREUOBJECT_API bool ConfigAccessDataLessThan(const UE::ConfigAccessTracking::FConfigAccessData& A,
+		const UE::ConfigAccessTracking::FConfigAccessData& B);
+	static COREUOBJECT_API bool ConfigAccessDataEqual(const UE::ConfigAccessTracking::FConfigAccessData& A,
+		const UE::ConfigAccessTracking::FConfigAccessData& B);
 
 	/** Public hidden friend for operator<< into an FCbWriter. */
 	friend FCbWriter& operator<<(FCbWriter& Writer, const FCookDependency& CookDependencies)
@@ -211,6 +264,8 @@ private:
 		FFunctionData FunctionData;
 		FTransitiveBuildData TransitiveBuildData;
 		FName NameData;
+		const UObject* ObjectPtr;
+		TUniquePtr<UE::ConfigAccessTracking::FConfigAccessData> ConfigAccessData;
 	};
 };
 
@@ -326,6 +381,16 @@ inline bool FCookDependency::IsAlsoAddRuntimeDependency() const
 	return Type == ECookDependency::TransitiveBuild ? TransitiveBuildData.bAlsoAddRuntimeDependency : false;
 }
 
+inline const UObject* FCookDependency::GetSettingsObject() const
+{
+	return Type == ECookDependency::SettingsObject ? ObjectPtr : nullptr;
+}
+
+inline FStringView FCookDependency::GetClassPath() const
+{
+	return Type == ECookDependency::NativeClass ? StringData : FStringView();
+}
+
 inline bool FCookDependency::operator<(const FCookDependency& Other) const
 {
 	if (static_cast<uint8>(Type) != static_cast<uint8>(Other.Type))
@@ -339,6 +404,7 @@ inline bool FCookDependency::operator<(const FCookDependency& Other) const
 		return false;
 	case ECookDependency::File:
 	case ECookDependency::ConsoleVariable:
+	case ECookDependency::NativeClass:
 		return StringData.Compare(Other.StringData, ESearchCase::IgnoreCase) < 0;
 	case ECookDependency::Function:
 	{
@@ -372,11 +438,91 @@ inline bool FCookDependency::operator<(const FCookDependency& Other) const
 		return false;
 	}
 	case ECookDependency::Package:
-		return NameData.Compare(Other.NameData) <  0;
+		return NameData.Compare(Other.NameData) < 0;
+	case ECookDependency::Config:
+		if (ConfigAccessData.IsValid() != Other.ConfigAccessData.IsValid())
+		{
+			return !ConfigAccessData.IsValid();
+		}
+		if (!ConfigAccessData.IsValid())
+		{
+			return false; // equal
+		}
+		return ConfigAccessDataLessThan(*ConfigAccessData, *Other.ConfigAccessData);
+	case ECookDependency::SettingsObject:
+		// SettingsObjects are not persistable, so we do not use a persistent sort key; just the object ptr.
+		return ObjectPtr < Other.ObjectPtr;
 	default:
 		checkNoEntry();
 		return false;
 	}
+}
+
+inline bool FCookDependency::operator==(const FCookDependency& Other) const
+{
+	if (static_cast<uint8>(Type) != static_cast<uint8>(Other.Type))
+	{
+		return false;
+	}
+
+	switch (Type)
+	{
+	case ECookDependency::None:
+		return true;
+	case ECookDependency::File:
+	case ECookDependency::ConsoleVariable:
+	case ECookDependency::NativeClass:
+		return StringData.Compare(Other.StringData, ESearchCase::IgnoreCase) == 0;
+	case ECookDependency::Function:
+	{
+		if (FunctionData.Name.Compare(Other.FunctionData.Name) != 0)
+		{
+			return false;
+		}
+		FMemoryView ViewA;
+		FMemoryView ViewB;
+		bool bHasViewA = FunctionData.Args.TryGetRangeView(ViewA);
+		bool bHasViewB = FunctionData.Args.TryGetRangeView(ViewB);
+		if (bHasViewA != bHasViewB)
+		{
+			return false;
+		}
+		return ViewA.CompareBytes(ViewB) == 0;
+	}
+	case ECookDependency::TransitiveBuild:
+	{
+		// FName.Compare is lexical and case-insensitive, which is what we want
+		int32 Compare = TransitiveBuildData.PackageName.Compare(Other.TransitiveBuildData.PackageName);
+		if (Compare != 0)
+		{
+			return false;
+		}
+		return TransitiveBuildData.bAlsoAddRuntimeDependency == Other.TransitiveBuildData.bAlsoAddRuntimeDependency;
+	}
+	case ECookDependency::Package:
+		return NameData.Compare(Other.NameData) == 0;
+	case ECookDependency::Config:
+		if (ConfigAccessData.IsValid() != Other.ConfigAccessData.IsValid())
+		{
+			return false;
+		}
+		if (!ConfigAccessData.IsValid())
+		{
+			return true;
+		}
+		return ConfigAccessDataEqual(*ConfigAccessData, *Other.ConfigAccessData);
+	case ECookDependency::SettingsObject:
+		// SettingsObjects are not persistable, so we do not use a persistent sort key; just the object ptr.
+		return ObjectPtr == Other.ObjectPtr;
+	default:
+		checkNoEntry();
+		return false;
+	}
+}
+
+inline bool FCookDependency::operator!=(const FCookDependency& Other) const
+{
+	return !(*this == Other);
 }
 
 inline FCookDependencyContext::FCookDependencyContext(void* InHasher, TUniqueFunction<void(FString&&)>&& InOnLogError, FName InPackageName)

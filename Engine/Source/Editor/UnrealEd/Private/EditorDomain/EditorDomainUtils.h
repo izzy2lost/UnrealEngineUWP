@@ -86,6 +86,8 @@ ESaveStorageResult SaveStorageResultFromString(FUtf8StringView Text);
  */
 FPackageDigest CalculatePackageDigest(IAssetRegistry& AssetRegistry, FName PackageName);
 FPackageDigest CalculatePackageDigest(const FAssetPackageData& PackageData, FName PackageName);
+/** FindOrAdd class digest for the given classpath, and append its hash onto the writer. Returns false if not found. */
+bool TryAppendClassDigests(FBlake3& Writer, TConstArrayView<FTopLevelAssetPath> ClassPaths, FString* OutErrorMessage);
 
 /** For any ClassNames not already in ClassDigests, look up their UStruct and add them. */
 void PrecacheClassDigests(TConstArrayView<FTopLevelAssetPath> ClassNames);

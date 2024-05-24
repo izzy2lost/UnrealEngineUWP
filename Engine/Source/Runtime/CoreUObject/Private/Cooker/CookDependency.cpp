@@ -11,12 +11,15 @@
 #include "HAL/PlatformMath.h"
 #include "Hash/Blake3.h"
 #include "Misc/AssertionMacros.h"
+#include "Misc/ConfigAccessData.h"
 #include "Misc/StringBuilder.h"
 #include "Serialization/Archive.h"
 #include "Serialization/CompactBinary.h"
 #include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/CompactBinaryWriter.h"
+#include "Templates/Casts.h"
 #include "Templates/UniquePtr.h"
+#include "UObject/Class.h"
 #endif
 
 #if WITH_EDITOR
@@ -73,6 +76,96 @@ FCookDependency FCookDependency::ConsoleVariable(FStringView VariableName)
 	return Result;
 }
 
+FCookDependency FCookDependency::Config(UE::ConfigAccessTracking::FConfigAccessData AccessData)
+{
+	FCookDependency Result(ECookDependency::Config);
+	Result.ConfigAccessData.Reset(new UE::ConfigAccessTracking::FConfigAccessData(MoveTemp(AccessData)));
+	return Result;
+}
+
+FCookDependency FCookDependency::Config(UE::ConfigAccessTracking::ELoadType LoadType, FName Platform,
+	FName FileName, FName SectionName, FName ValueName)
+{
+	FCookDependency Result(ECookDependency::Config);
+	Result.ConfigAccessData.Reset(new UE::ConfigAccessTracking::FConfigAccessData(
+		LoadType, Platform, FileName, SectionName, ValueName, nullptr /* RequestPlatform */));
+	return Result;
+}
+
+FCookDependency FCookDependency::Config(FName FileName, FName SectionName, FName ValueName)
+{
+	return Config(UE::ConfigAccessTracking::ELoadType::ConfigSystem, NAME_None,
+		FileName, SectionName, ValueName);
+}
+
+FCookDependency FCookDependency::SettingsObject(const UObject* InObject)
+{
+	FCookDependency Result(ECookDependency::SettingsObject);
+	if (InObject)
+	{
+		const UClass* Class = Cast<const UClass>(InObject);
+		if (Class)
+		{
+			InObject = Class->GetDefaultObject();
+		}
+		else
+		{
+			Class = InObject->GetClass();
+		}
+
+		if (!InObject->IsRooted())
+		{
+			UE_LOG(LogCore, Error, TEXT("Invalid FCookDependency::SettingsObject(%s). The object is not in the root set and may be garbage collected. ")
+				TEXT("FCookDependency keeps a raw pointer to SettingsObjects and does not support pointers to objects that are not in the root set. ")
+				TEXT("The dependency will be ignored."),
+				*InObject->GetPathName());
+			InObject = nullptr;
+		}
+		else
+		{
+			if (!Class->HasAnyClassFlags(CLASS_Config | CLASS_PerObjectConfig))
+			{
+				UE_LOG(LogCore, Error, TEXT("Invalid FCookDependency::SettingsObject(%s). The object's class %s is not a config class. CookDependency::SettingsObject only supports config classes. ")
+					TEXT("The dependency will be ignored."),
+					*InObject->GetPathName(), *Class->GetPathName());
+				InObject = nullptr;
+			}
+			else if (!Class->HasAnyClassFlags(CLASS_PerObjectConfig) && InObject != Class->GetDefaultObject())
+			{
+				UE_LOG(LogCore, Error, TEXT("Invalid FCookDependency::SettingsObject(%s). The object is not the ClassDefaultObject and its class %s is not a per-object-config class. ")
+					TEXT("CookDependency::SettingsObject only supports the CDO or per-object-config objects. ")
+					TEXT("The dependency will be ignored."),
+					*InObject->GetPathName(), *Class->GetPathName());
+				InObject = nullptr;
+			}
+		}
+	}
+	Result.ObjectPtr = InObject;
+	return Result;
+}
+
+FCookDependency FCookDependency::NativeClass(const UClass* InClass)
+{
+	if (InClass)
+	{
+		if (!InClass->IsNative())
+		{
+			UE_LOG(LogCore, Error, TEXT("Invalid FCookDependency::NativeClass(%s). The class is not native. ")
+				TEXT("The dependency will be ignored."),
+				InClass ? *InClass->GetPathName() : TEXT("<null>"));
+			InClass = nullptr;
+		}
+	}
+	return NativeClass(InClass ? InClass->GetPathName() : FStringView());
+}
+
+FCookDependency FCookDependency::NativeClass(FStringView ClassPath)
+{
+	FCookDependency Result(ECookDependency::NativeClass);
+	Result.StringData = ClassPath;
+	return Result;
+}
+
 FCookDependency::FCookDependency()
 	: Type(ECookDependency::None)
 {
@@ -112,6 +205,7 @@ FCookDependency& FCookDependency::operator=(const FCookDependency& Other)
 		break;
 	case ECookDependency::File:
 	case ECookDependency::ConsoleVariable:
+	case ECookDependency::NativeClass:
 		StringData = Other.StringData;
 		break;
 	case ECookDependency::Function:
@@ -122,6 +216,14 @@ FCookDependency& FCookDependency::operator=(const FCookDependency& Other)
 		break;
 	case ECookDependency::Package:
 		NameData = Other.NameData;
+		break;
+	case ECookDependency::Config:
+		ConfigAccessData.Reset(Other.ConfigAccessData.IsValid() ?
+			new UE::ConfigAccessTracking::FConfigAccessData(*Other.ConfigAccessData) :
+			nullptr);
+		break;
+	case ECookDependency::SettingsObject:
+		ObjectPtr = Other.ObjectPtr;
 		break;
 	default:
 		checkNoEntry();
@@ -141,6 +243,7 @@ FCookDependency& FCookDependency::operator=(FCookDependency&& Other)
 		break;
 	case ECookDependency::File:
 	case ECookDependency::ConsoleVariable:
+	case ECookDependency::NativeClass:
 		StringData = MoveTemp(Other.StringData);
 		break;
 	case ECookDependency::Function:
@@ -152,11 +255,23 @@ FCookDependency& FCookDependency::operator=(FCookDependency&& Other)
 	case ECookDependency::Package:
 		NameData = MoveTemp(Other.NameData);
 		break;
+	case ECookDependency::Config:
+		ConfigAccessData = MoveTemp(Other.ConfigAccessData);
+		break;
+	case ECookDependency::SettingsObject:
+		ObjectPtr = Other.ObjectPtr;
+		break;
 	default:
 		checkNoEntry();
 		break;
 	}
 	return *this;
+}
+
+FString FCookDependency::GetConfigPath() const
+{
+	return Type == ECookDependency::Config && ConfigAccessData.IsValid() ?
+		ConfigAccessData->FullPathToString() : FString();
 }
 
 void FCookDependency::UpdateHash(FCookDependencyContext& Context) const
@@ -236,6 +351,21 @@ void FCookDependency::UpdateHash(FCookDependencyContext& Context) const
 		Context.Update(VariableAsString.GetCharArray().GetData(), VariableAsString.GetCharArray().Num() * sizeof(FString::ElementType));
 		return;
 	}
+	case ECookDependency::Config:
+		Context.LogError(FString::Printf(
+			TEXT("FCookDependency::Config('%s') failed to UpdateHash: Config dependencies do not implement UpdateHash and it should not be called on them."),
+			*GetConfigPath()));
+		return;
+	case ECookDependency::SettingsObject:
+		Context.LogError(FString::Printf(
+			TEXT("FCookDependency::SettingsObject('%s') failed to UpdateHash: SettingsObject dependencies do not implement UpdateHash and it should not be called on them."),
+			ObjectPtr ? *ObjectPtr->GetPathName() : TEXT("<null>")));
+		return;
+	case ECookDependency::NativeClass:
+		Context.LogError(FString::Printf(
+			TEXT("FCookDependency::NativeClass('%s') failed to UpdateHash: NativeClass dependencies do not implement UpdateHash and it should not be called on them."),
+			*StringData));
+		return;
 	default:
 		checkNoEntry();
 		return;
@@ -250,6 +380,7 @@ void FCookDependency::Construct()
 		break;
 	case ECookDependency::File:
 	case ECookDependency::ConsoleVariable:
+	case ECookDependency::NativeClass:
 		new(&StringData) FString();
 		break;
 	case ECookDependency::Function:
@@ -260,6 +391,13 @@ void FCookDependency::Construct()
 		break;
 	case ECookDependency::Package:
 		new(&NameData) FName();
+		break;
+	case ECookDependency::Config:
+		// Set the union's bytes equal to a TUniquePtr with a null internal pointer
+		new(&ConfigAccessData) TUniquePtr<UE::ConfigAccessTracking::FConfigAccessData>(nullptr);
+		break;
+	case ECookDependency::SettingsObject:
+		ObjectPtr = nullptr;
 		break;
 	default:
 		checkNoEntry();
@@ -275,6 +413,7 @@ void FCookDependency::Destruct()
 		break;
 	case ECookDependency::File:
 	case ECookDependency::ConsoleVariable:
+	case ECookDependency::NativeClass:
 		StringData.~FString();
 		break;
 	case ECookDependency::Function:
@@ -285,6 +424,13 @@ void FCookDependency::Destruct()
 		break;
 	case ECookDependency::Package:
 		NameData.~FName();
+		break;
+	case ECookDependency::Config:
+		// TUniquePtr's destructor will also destruct its internal pointer
+		ConfigAccessData.~TUniquePtr<UE::ConfigAccessTracking::FConfigAccessData>();
+		break;
+	case ECookDependency::SettingsObject:
+		ObjectPtr = nullptr;
 		break;
 	default:
 		checkNoEntry();
@@ -302,6 +448,7 @@ void FCookDependency::Save(FCbWriter& Writer) const
 		break;
 	case ECookDependency::File:
 	case ECookDependency::ConsoleVariable:
+	case ECookDependency::NativeClass:
 		Writer << StringData;
 		break;
 	case ECookDependency::Function:
@@ -317,6 +464,12 @@ void FCookDependency::Save(FCbWriter& Writer) const
 		break;
 	case ECookDependency::Package:
 		Writer << NameData;
+		break;
+	case ECookDependency::Config:
+		Writer << GetConfigPath();
+		break;
+	case ECookDependency::SettingsObject:
+		// Settings objects are not persistable; save out an empty SettingsObject dependency
 		break;
 	default:
 		checkNoEntry();
@@ -402,11 +555,56 @@ bool FCookDependency::Load(FCbFieldView Value)
 		*this = FCookDependency::ConsoleVariable(LocalConsoleVariableName);
 		return true;
 	}
+	case ECookDependency::Config:
+	{
+		FString LocalConfigPath;
+		if (!LoadFromCompactBinary(Field++, LocalConfigPath))
+		{
+			return false;
+		}
+		if (LocalConfigPath.IsEmpty())
+		{
+			*this = FCookDependency(ECookDependency::Config);
+		}
+		else
+		{
+			*this = FCookDependency::Config(UE::ConfigAccessTracking::FConfigAccessData::Parse(LocalConfigPath));
+		}
+		return true;
+	}
+	case ECookDependency::SettingsObject:
+	{
+		// Settings objects are not persistable; construct an empty SettingsObject dependency
+		*this = FCookDependency::SettingsObject(nullptr);
+		return true;
+	}
+	case ECookDependency::NativeClass:
+	{
+		FString LocalClassPath;
+		if (!LoadFromCompactBinary(Field++, LocalClassPath))
+		{
+			return false;
+		}
+		*this = FCookDependency::NativeClass(LocalClassPath);
+		return true;
+	}
 	default:
 		break;
 	}
 	checkNoEntry();
 	return false;
+}
+
+bool FCookDependency::ConfigAccessDataLessThan(const UE::ConfigAccessTracking::FConfigAccessData& A,
+	const UE::ConfigAccessTracking::FConfigAccessData& B)
+{
+	return A < B;
+}
+
+bool FCookDependency::ConfigAccessDataEqual(const UE::ConfigAccessTracking::FConfigAccessData& A,
+	const UE::ConfigAccessTracking::FConfigAccessData& B)
+{
+	return A == B;
 }
 
 void FCookDependencyContext::Update(const void* Data, uint64 Size)

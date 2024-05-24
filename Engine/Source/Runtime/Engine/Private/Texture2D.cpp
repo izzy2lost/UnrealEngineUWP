@@ -48,6 +48,11 @@
 #include "UObject/StrongObjectPtr.h"
 #include "ProfilingDebugging/AssetMetadataTrace.h"
 
+#if WITH_EDITOR
+#include "Cooker/CookDependency.h"
+#include "Interfaces/ITargetPlatform.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(Texture2D)
 
 #if WITH_EDITORONLY_DATA
@@ -679,6 +684,14 @@ void UTexture2D::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	{
 		bTemporarilyDisableStreaming = false;
 		UpdateResource();
+	}
+
+	if (ObjectSaveContext.IsCooking())
+	{
+		const ITargetPlatform* TargetPlatform = ObjectSaveContext.GetTargetPlatform();
+		check(TargetPlatform);
+		ObjectSaveContext.AddCookBuildDependency(UE::Cook::FCookDependency::SettingsObject(
+			&TargetPlatform->GetTextureLODSettings()));
 	}
 
 	// #TODO DC This is redundant code coming from UTexture::Presave that can be removed once we remove the above streaming code.

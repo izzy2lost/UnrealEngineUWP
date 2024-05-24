@@ -456,6 +456,58 @@ FPackageDigest CalculatePackageDigest(const FAssetPackageData& PackageData, FNam
 	return Result;
 }
 
+bool TryAppendClassDigests(FBlake3& Writer, TConstArrayView<FTopLevelAssetPath> ClassPaths, FString* OutErrorMessage)
+{
+	FClassDigestMap& ClassDigests = GetClassDigests();
+	bool bHasTriedPrecacheClassDigests = false;
+	int32 NextClass = 0;
+	while (NextClass < ClassPaths.Num())
+	{
+		{
+			FReadScopeLock ClassDigestsScopeLock(ClassDigests.Lock);
+			while (NextClass < ClassPaths.Num())
+			{
+				const FTopLevelAssetPath& ClassPath = ClassPaths[NextClass];
+				FClassDigestData* ExistingData = ClassDigests.Map.Find(ClassPath);
+				if (!ExistingData)
+				{
+					break;
+				}
+				NextClass++;
+
+				// We only support hashes for the ClosestNative class
+				FClassDigestData* NativeData = ExistingData;
+				if (ExistingData->ClosestNative != ClassPath)
+				{
+					NativeData = ClassDigests.Map.Find(ExistingData->ClosestNative);
+					checkf(NativeData, TEXT("Classes are only stored in a ClosestNative field if they exist"));
+				}
+				check(NativeData->bNative);
+				Writer.Update(&NativeData->InclusiveSchemaHash, sizeof(NativeData->InclusiveSchemaHash));
+			}
+		}
+
+		if (NextClass < ClassPaths.Num())
+		{
+			// EDITORDOMAIN_TODO: Remove the clauses !IsInGameThread || GIsSavingPackage once FindObject no longer asserts if GIsSavingPackage
+			if (bHasTriedPrecacheClassDigests || !IsInGameThread() || GIsSavingPackage)
+			{
+				if (OutErrorMessage)
+				{
+					*OutErrorMessage = FString::Printf(TEXT("%s is not a valid class."),
+						*ClassPaths[NextClass].ToString());
+				}
+				return false;
+			}
+			TConstArrayView<FTopLevelAssetPath> RemainingClasses =
+				TConstArrayView<FTopLevelAssetPath>(ClassPaths).RightChop(NextClass);
+			PrecacheClassDigests(RemainingClasses);
+			bHasTriedPrecacheClassDigests = true;
+		}
+	}
+	return true;
+}
+
 /**
  * Holds context data for a call to PrecacheClassDigests, which needs to recursively
  * traverse a graph of of class parents and construction classes

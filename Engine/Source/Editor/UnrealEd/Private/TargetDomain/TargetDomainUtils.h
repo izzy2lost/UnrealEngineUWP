@@ -103,6 +103,7 @@ public:
 	static FCookDependencies Collect(UPackage* Package, const ITargetPlatform* TargetPlatform,
 		FSavePackageResultStruct* SaveResult, const FGeneratedPackageResultStruct* GeneratedResult,
 		TArray<FName>&& RuntimeDependencies, FString* OutErrorMessage = nullptr);
+	static FCookDependencies CollectSettingsObject(const UObject* Object, FString* OutErrorMessage);
 
 	// Fetch function to load the dependencies from a PackageStore is not yet implemented independently for
 	// this structure. Use FCookAttachments instead. 
@@ -114,6 +115,7 @@ private:
 	TArray<FName> ScriptPackageDependencies;
 	TArray<UE::Cook::FCookDependency> CookDependencies;
 	TArray<UE::Cook::FCookDependency> TransitiveBuildDependencies;
+	TArray<FString> ClassDependencies;
 	FName PackageName;
 	FIoHash StoredKey;
 	FIoHash CurrentKey;
@@ -122,6 +124,31 @@ private:
 	friend bool ::LoadFromCompactBinary(FCbObjectView ObjectView, FCookDependencies& CookAttachments);
 	friend FCbWriter& ::operator<<(FCbWriter& Writer, const FCookDependencies& CookAttachments);
 	friend FCookAttachments;
+};
+
+/**
+ * Non-persistent cache of groups of cookdependencies. Dependencies to a CookDependencyGroup are not persistently
+ * recorded into the oplog, instead we make a copy of all of their dependencies and append those dependencies onto
+ * the CookDependencies that are written for a package.
+ *
+ * Example: The cookdependencies used by the CDO of a settings object that itself is configured by config values.
+ *          The settings object's class's schema and the list of config settings are included in the cookdependencies.
+ */
+class FCookDependencyGroups
+{
+public:
+	struct FRecordedDependencies
+	{
+		FCookDependencies Dependencies;
+		FString ErrorMessage;
+		bool bInitialized = false;
+	};
+
+	static FCookDependencyGroups& Get();
+	FRecordedDependencies& FindOrCreate(UPTRINT Key);
+
+private:
+	TMap<UPTRINT, FRecordedDependencies> Groups;
 };
 
 /** Wrapper around TArray<FBuildDefinition>, used to provide custom functions for compactbinary, collection, and fetch */
