@@ -9,6 +9,7 @@
 
 class IAssetReferenceFilter;
 class IPropertyHandle;
+class IDetailGroup;
 class IDetailPropertyRow;
 class IPropertyHandle;
 class FStructOnScope;
@@ -60,6 +61,7 @@ private:
  * Expects property handle holding FInstancedStruct as input.
  * Can be used in a implementation of a IPropertyTypeCustomization CustomizeChildren() to display editable FInstancedStruct contents.
  * OnChildRowAdded() is called right after each property is added, which allows the property row to be customizable.
+ * Child properties will be grouped if they 1) have "Category" metadata, and 2) have the "EnableCategories" metadata tag.
  */
 class STRUCTUTILSEDITOR_API FInstancedStructDataDetails : public IDetailCustomNodeBuilder, public TSharedFromThis<FInstancedStructDataDetails>
 {
@@ -90,6 +92,14 @@ private:
 
 	/** Returns type of the instanced struct for each instance/object being edited. */
 	TArray<TWeakObjectPtr<const UStruct>> GetInstanceTypes() const;
+
+	/**
+	 * Adds groups for the specified properties. One group is created for each unique category (from property metadata) that the properties have.
+	 * If a category is pipe-separated (eg, Foo|Bar), one group is added for "Foo" and another one for "Foo|Bar". In the returned map, the key is the
+	 * property, and the value is the group. If the property doesn't have a group (category), then it will not have an entry in the map. Note that
+	 * the property must opt-in to grouping by specifying the "EnableCategories" metadata tag.
+	 */
+	void GetPropertyGroups(const TArray<TSharedPtr<IPropertyHandle>>& InProperties, IDetailChildrenBuilder& InChildBuilder, TMap<TSharedPtr<IPropertyHandle>, IDetailGroup*>& OutPropertyToGroup) const;
 
 	/** Cached instance types, used to invalidate the layout when types change. */
 	TArray<TWeakObjectPtr<const UStruct>> CachedInstanceTypes;
