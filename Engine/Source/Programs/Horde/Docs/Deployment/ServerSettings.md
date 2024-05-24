@@ -45,6 +45,7 @@ Name | Description
 `adminClaimValue` | `string`<br>Value of the claim type for administrators
 `corsEnabled` | `boolean`<br>Whether to enable Cors, generally for development purposes
 `corsOrigin` | `string`<br>Allowed Cors origin
+`enableDebugEndpoints` | `boolean`<br>Whether to enable debug/administrative REST API endpoints
 `enableNewAgentsByDefault` | `boolean`<br>Whether to automatically enable new agents by default. If false, new agents must manually be enabled before they can take on work.
 `testDataRetainMonths` | `integer`<br>The number of months to retain test data
 `schedulePollingInterval` | `string`<br>Interval between rebuilding the schedule queue with a DB query.

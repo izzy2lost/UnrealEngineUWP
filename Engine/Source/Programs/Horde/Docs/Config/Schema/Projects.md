@@ -13,6 +13,7 @@ Name | Description
 `macros` | [`ConfigMacro`](#configmacro)`[]`<br>Macros within the global scope
 `order` | `integer`<br>Order of this project on the dashboard
 `logo` | `string`<br>Path to the project logo
+`logoDarkTheme` | `string`<br>Optional path to the project logo for the dark theme
 `pools` | [`PoolConfig`](#poolconfig)`[]`<br>List of pools for this project
 `categories` | [`ProjectCategoryConfig`](#projectcategoryconfig)`[]`<br>Categories to include in this project
 `jobOptions` | [`JobOptions`](#joboptions)<br>Default settings for executing jobs
