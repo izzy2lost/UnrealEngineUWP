@@ -202,7 +202,7 @@ void FStateTreeEditorDataDetails::CustomizeDetails(IDetailLayoutBuilder& DetailB
 	// Global Tasks category
 	TSharedPtr<IPropertyHandle> GlobalTasksProperty = DetailBuilder.GetProperty(TEXT("GlobalTasks"));
 	check(GlobalTasksProperty.IsValid());
-	const FName GlobalTasksCategoryName(TEXT("GlobalTasks"));
+	const FName GlobalTasksCategoryName(TEXT("Global Tasks"));
 
 	UE::StateTreeEditor::EditorNodeUtils::MakeArrayCategory(
 		DetailBuilder,
