@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include  "PlainPropsDeclare.h"
-#include  "PlainPropsTypes.h"
+#include "PlainPropsDeclare.h"
+#include "PlainPropsTypes.h"
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
 #include "Memory/MemoryView.h"
@@ -93,14 +93,14 @@ inline FMemberSchema MakeStructRangeSchema(ERangeSizeType SizeType, FStructSchem
 	return { FMemberType(SizeType), Schema, { DefaultStructType } };
 }
 
-PP_API FMemberSchema MakeNestedRangeSchema(ERangeSizeType SizeType, const FMemberSchema& InnerRangeSchema);
+PLAINPROPS_API FMemberSchema MakeNestedRangeSchema(ERangeSizeType SizeType, const FMemberSchema& InnerRangeSchema);
 
 namespace Private
 {
-	PP_API [[nodiscard]] FBuiltRange*	BuildStructuralRange(/* in-out */ TArrayView64<FBuiltRange*> Structs);
-	PP_API [[nodiscard]] FBuiltRange*	BuildStructuralRange(/* in-out */ TArrayView64<TUniquePtr<FBuiltStruct>> Structs);
-	PP_API [[nodiscard]] FBuiltRange*	BuildLeafRange(FUnpackedLeafType Leaf, uint64 Num, FMemoryView Values);
-	PP_API void							NormalizeLeafRange(FUnpackedLeafType Leaf, FBuiltRange& Out);
+	PLAINPROPS_API [[nodiscard]] FBuiltRange*	BuildStructuralRange(/* in-out */ TArrayView64<FBuiltRange*> Structs);
+	PLAINPROPS_API [[nodiscard]] FBuiltRange*	BuildStructuralRange(/* in-out */ TArrayView64<TUniquePtr<FBuiltStruct>> Structs);
+	PLAINPROPS_API [[nodiscard]] FBuiltRange*	BuildLeafRange(FUnpackedLeafType Leaf, uint64 Num, FMemoryView Values);
+	PLAINPROPS_API void							NormalizeLeafRange(FUnpackedLeafType Leaf, FBuiltRange& Out);
 
 	template<typename LeafType, typename SizeType>
 	[[nodiscard]] FBuiltRange* BuildLeafRange(const LeafType* Values, SizeType InNum)
@@ -167,26 +167,26 @@ public:
 	void AddEnum32(FMemberId Name, FEnumSchemaId Schema, uint32 Value)	{ AddLeaf(Name, {ELeafType::Enum, ELeafWidth::B32}, ToOptional(Schema), Value); }
 	void AddEnum64(FMemberId Name, FEnumSchemaId Schema, uint64 Value)	{ AddLeaf(Name, {ELeafType::Enum, ELeafWidth::B64}, ToOptional(Schema), Value); }
 
-	PP_API void AddLeaf(FMemberId Name, FUnpackedLeafType Leaf, FOptionalEnumSchemaId Enum, uint64 Value);
-	PP_API void AddStruct(FMemberId Name, FStructSchemaId Schema, TUniquePtr<FBuiltStruct>&& Struct);	
-	PP_API void AddRange(FMemberId Name, FTypedRange&& Range);
+	PLAINPROPS_API void AddLeaf(FMemberId Name, FUnpackedLeafType Leaf, FOptionalEnumSchemaId Enum, uint64 Value);
+	PLAINPROPS_API void AddStruct(FMemberId Name, FStructSchemaId Schema, TUniquePtr<FBuiltStruct>&& Struct);	
+	PLAINPROPS_API void AddRange(FMemberId Name, FTypedRange&& Range);
 	
 	// Build members into a single nested super struct member, no-op if no non-super members has been added
-	PP_API void BuildSuperStruct(const FStructDeclaration& Super, const FDebugIds& Debug);
+	PLAINPROPS_API void BuildSuperStruct(const FStructDeclaration& Super, const FDebugIds& Debug);
 
-	PP_API [[nodiscard]] TUniquePtr<FBuiltStruct> BuildAndReset(const FStructDeclaration& Declared, const FDebugIds& Debug);
+	PLAINPROPS_API [[nodiscard]] TUniquePtr<FBuiltStruct> BuildAndReset(const FStructDeclaration& Declared, const FDebugIds& Debug);
 
 	bool IsEmpty() const { return Members.IsEmpty(); }
 
 private:
 	TArray<FBuiltMember>	Members;
 	
-//	PP_API uint8* AllocateLeafRange(FMemberId Name, FUnpackedLeafType Leaf, ERangeSizeType RangeMax, uint64 Num);
+//	PLAINPROPS_API uint8* AllocateLeafRange(FMemberId Name, FUnpackedLeafType Leaf, ERangeSizeType RangeMax, uint64 Num);
 	
 	//template<typename T>
 	//void NormalizeLeafRange(T*, uint64) {}
-	//PP_API void NormalizeLeafRange(float*, uint64 Num);
-	//PP_API void NormalizeLeafRange(double*, uint64 Num);
+	//PLAINPROPS_API void NormalizeLeafRange(float*, uint64 Num);
+	//PLAINPROPS_API void NormalizeLeafRange(double*, uint64 Num);
 	
 };
 

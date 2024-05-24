@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include  "PlainPropsBind.h"
-#include  "PlainPropsIndex.h"
-#include  "PlainPropsInternalBuild.h"
-#include  "PlainPropsInternalFormat.h"
-#include  "PlainPropsInternalRead.h"
+#include "PlainPropsBind.h"
+#include "PlainPropsIndex.h"
+#include "PlainPropsInternalBuild.h"
+#include "PlainPropsInternalFormat.h"
+#include "PlainPropsInternalRead.h"
 
 namespace PlainProps
 {

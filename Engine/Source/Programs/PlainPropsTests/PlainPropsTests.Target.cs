@@ -10,7 +10,7 @@ public class PlainPropsTestsTarget : TestTargetRules
 		// Collects all tests decorated with #if WITH_LOW_LEVELTESTS from dependencies
 		bWithLowLevelTestsOverride = true;
 		bCompileWithPluginSupport = true;
-		bCompileAgainstCoreUObject = true;
+		bCompileAgainstCoreUObject = false;
 
 		bBuildWithEditorOnlyData = Target.Platform.IsInGroup(UnrealPlatformGroup.Desktop)
 			&& (Target.Configuration == UnrealTargetConfiguration.Debug || Target.Configuration == UnrealTargetConfiguration.Development);

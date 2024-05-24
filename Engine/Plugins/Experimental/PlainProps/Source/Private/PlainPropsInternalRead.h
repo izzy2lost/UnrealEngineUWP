@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include  "PlainPropsTypes.h"
-#include  "PlainPropsRead.h"
-#include  "PlainPropsInternalFormat.h"
+#include "PlainPropsTypes.h"
+#include "PlainPropsRead.h"
+#include "PlainPropsInternalFormat.h"
 #include <type_traits>
 
 namespace PlainProps

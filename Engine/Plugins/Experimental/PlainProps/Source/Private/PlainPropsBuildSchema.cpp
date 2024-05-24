@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include  "PlainPropsBuildSchema.h"
-#include  "PlainPropsInternalBuild.h"
-#include  "PlainPropsInternalFormat.h"
+#include "PlainPropsBuildSchema.h"
+#include "PlainPropsInternalBuild.h"
+#include "PlainPropsInternalFormat.h"
 #include "Algo/Compare.h"
 #include "Algo/Find.h"
 #include "Containers/Map.h"

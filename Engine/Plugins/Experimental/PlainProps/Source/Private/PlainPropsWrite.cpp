@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include  "PlainPropsWrite.h"
-#include  "PlainPropsBuildSchema.h"
-#include  "PlainPropsIndex.h"
-#include  "PlainPropsInternalBuild.h"
-#include  "PlainPropsInternalFormat.h"
+#include "PlainPropsWrite.h"
+#include "PlainPropsBuildSchema.h"
+#include "PlainPropsIndex.h"
+#include "PlainPropsInternalBuild.h"
+#include "PlainPropsInternalFormat.h"
 #include "Serialization/VarInt.h"
 #include "Containers/ArrayView.h"
 #include "Containers/Map.h"

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include  "PlainPropsTypes.h"
+#include "PlainPropsTypes.h"
 #include "Templates/UniquePtr.h"
 
 namespace PlainProps 

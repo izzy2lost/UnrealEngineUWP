@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include  "PlainPropsTypes.h"
+#include "PlainPropsTypes.h"
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
 #include "Templates/UniquePtr.h"

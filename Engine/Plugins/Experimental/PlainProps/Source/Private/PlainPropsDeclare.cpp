@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include  "PlainPropsDeclare.h"
+#include "PlainPropsDeclare.h"
 #include "Containers/Set.h"
 
 namespace PlainProps

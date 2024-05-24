@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PlainPropsBuild.h"
-#include  "PlainPropsIndex.h"
-#include  "PlainPropsInternalBuild.h"
-#include  "PlainPropsInternalFormat.h"
+#include "PlainPropsIndex.h"
+#include "PlainPropsInternalBuild.h"
+#include "PlainPropsInternalFormat.h"
 #include "Serialization/VarInt.h"
 #include "Templates/TypeCompatibleBytes.h"
 #include "Hash/xxhash.h"

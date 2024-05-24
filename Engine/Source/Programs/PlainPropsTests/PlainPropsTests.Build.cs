@@ -29,8 +29,7 @@ public class PlainPropsTests : TestModuleRules
 	{
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
-				"Core",
-				"CoreUObject"
+				"PlainProps"
 			});
 
 		if (Target.bBuildWithEditorOnlyData)

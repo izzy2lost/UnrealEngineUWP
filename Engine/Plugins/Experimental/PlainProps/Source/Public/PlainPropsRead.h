@@ -7,7 +7,7 @@
 #include "Memory/MemoryView.h"
 #include "Misc/AssertionMacros.h"
 #include "Serialization/VarInt.h"
-#include  "PlainPropsTypes.h"
+#include "PlainPropsTypes.h"
 
 namespace PlainProps
 {
@@ -243,24 +243,24 @@ struct FRangeSchema
 class FRangeView
 {
 public:
-	uint64						Num() const				{ return NumItems;}
-	bool						IsEmpty() const			{ return NumItems == 0; }
-	bool						IsLeafRange() const		{ return Schema.ItemType.GetKind() == EMemberKind::Leaf; }
-	bool						IsStructRange() const	{ return Schema.ItemType.GetKind() == EMemberKind::Struct; }
-	bool						IsNestedRange() const	{ return Schema.ItemType.GetKind() == EMemberKind::Range; }
+	uint64							Num() const				{ return NumItems;}
+	bool							IsEmpty() const			{ return NumItems == 0; }
+	bool							IsLeafRange() const		{ return Schema.ItemType.GetKind() == EMemberKind::Leaf; }
+	bool							IsStructRange() const	{ return Schema.ItemType.GetKind() == EMemberKind::Struct; }
+	bool							IsNestedRange() const	{ return Schema.ItemType.GetKind() == EMemberKind::Range; }
 
-	PP_API FLeafRangeView		AsLeaves() const;		// @pre IsLeafRange()
-	PP_API FStructRangeView		AsStructs() const;		// @pre IsStructRange()
-	PP_API FNestedRangeView		AsRanges() const;		// @pre IsNestedRange()
+	PLAINPROPS_API FLeafRangeView	AsLeaves() const;		// @pre IsLeafRange()
+	PLAINPROPS_API FStructRangeView	AsStructs() const;		// @pre IsStructRange()
+	PLAINPROPS_API FNestedRangeView	AsRanges() const;		// @pre IsNestedRange()
 
 private:
 	friend FMemberReader;
 	friend FNestedRangeIterator;
 	friend FRangeLoader;
 
-	FRangeSchema			Schema;
-	uint64					NumItems;
-	FMemoryView				Values;
+	FRangeSchema					Schema;
+	uint64							NumItems;
+	FMemoryView						Values;
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -370,8 +370,8 @@ class FLeafRangeView
 public:
 	ELeafType				GetType() const;
 	SIZE_T					GetSizeOf() const;
-	uint64					Num() const { return NumItems; }
-	uint64					NumBytes() const { return NumItems * GetSizeOf(); }
+	uint64					Num() const			{ return NumItems; }
+	uint64					NumBytes() const	{ return NumItems * GetSizeOf(); }
 	
 	// These ranges hide the internal representations so we can change format in the future, 
 	// e.g. store zeroes or 1.0f in some compact fashion or even var int encodings
@@ -459,9 +459,9 @@ public:
 	, ByteIt(Data)
 	{}
 
-	PP_API FRangeView operator*() const;
-	bool operator!=(const FNestedRangeIterator& Rhs) const { return ByteIt.Peek() != Rhs.ByteIt.Peek(); };
-	PP_API void operator++();
+	PLAINPROPS_API FRangeView	operator*() const;
+	bool						operator!=(const FNestedRangeIterator& Rhs) const { return ByteIt.Peek() != Rhs.ByteIt.Peek(); };
+	PLAINPROPS_API void			operator++();
 };
 
 class FStructRangeIterator

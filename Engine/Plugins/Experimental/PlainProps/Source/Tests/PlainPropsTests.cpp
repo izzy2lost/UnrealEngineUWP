@@ -6,12 +6,12 @@
 #include "Containers/Map.h"
 #include "Containers/Set.h"
 #include "Containers/StringView.h"
-#include  "PlainPropsRead.h"
-#include  "PlainPropsWrite.h"
-#include  "PlainPropsBuildSchema.h"
-#include  "PlainPropsIndex.h"
-#include  "PlainPropsInternalBuild.h"
-#include  "PlainPropsInternalFormat.h"
+#include "PlainPropsRead.h"
+#include "PlainPropsWrite.h"
+#include "PlainPropsBuildSchema.h"
+#include "PlainPropsIndex.h"
+#include "PlainPropsInternalBuild.h"
+#include "PlainPropsInternalFormat.h"
 #include "Templates/UnrealTemplate.h"
 
 namespace PlainProps

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include  "PlainPropsBuild.h"
+#include "PlainPropsBuild.h"
 #include "Containers/Array.h"
 #include "Containers/UnrealString.h"
 
@@ -98,7 +98,7 @@ inline void WriteInt(TArray64<uint8>& Out, T Number)
 inline void WriteU32(TArray64<uint8>& Out, uint32 Int) { WriteInt(Out, Int); }
 inline void WriteU64(TArray64<uint8>& Out, uint64 Int) { WriteInt(Out, Int); }
 
-PP_API uint64 WriteSkippableSlice(TArray64<uint8>& Out, TConstArrayView64<uint8> Slice);
+PLAINPROPS_API uint64 WriteSkippableSlice(TArray64<uint8>& Out, TConstArrayView64<uint8> Slice);
 
 
 } // namespace PlainProps

@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include  "PlainPropsRead.h"
-#include  "PlainPropsInternalRead.h"
+#include "PlainPropsRead.h"
+#include "PlainPropsInternalRead.h"
 #include "Misc/Optional.h"
 
 #include <atomic>

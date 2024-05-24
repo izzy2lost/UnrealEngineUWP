@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include  "PlainPropsIndex.h"
+#include "PlainPropsIndex.h"
 #include "Hash/xxhash.h"
 
 namespace PlainProps

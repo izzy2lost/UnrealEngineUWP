@@ -7,8 +7,6 @@
 #include "Templates/TypeHash.h"
 #include <type_traits>
 
-#define PP_API
-
 namespace PlainProps
 {
 
@@ -375,12 +373,12 @@ public:
 	virtual void						AppendDebugString(FString& Out, FEnumSchemaId Name) const;
 	virtual void						AppendDebugString(FString& Out, FStructSchemaId Name) const;
 
-	PP_API FString						Print(FNameId Name) const;
-	PP_API FString						Print(FMemberId Name) const;
-	PP_API FString						Print(FOptionalMemberId Name) const;
-	PP_API FString						Print(FTypeId Type) const;
-	PP_API FString						Print(FEnumSchemaId Name) const;
-	PP_API FString						Print(FStructSchemaId Name) const;
+	PLAINPROPS_API FString				Print(FNameId Name) const;
+	PLAINPROPS_API FString				Print(FMemberId Name) const;
+	PLAINPROPS_API FString				Print(FOptionalMemberId Name) const;
+	PLAINPROPS_API FString				Print(FTypeId Type) const;
+	PLAINPROPS_API FString				Print(FEnumSchemaId Name) const;
+	PLAINPROPS_API FString				Print(FStructSchemaId Name) const;
 };
 
 } // namespace PlainProps

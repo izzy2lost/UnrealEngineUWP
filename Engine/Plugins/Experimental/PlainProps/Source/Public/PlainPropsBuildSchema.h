@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include  "PlainPropsBuild.h"
+#include "PlainPropsBuild.h"
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
 #include "Containers/PagedArray.h"

@@ -1,0 +1,18 @@
+{
+	"FileVersion" : 3,
+	"FriendlyName" : "PlainProps",
+	"Description" : "New Serialization Stack Prototype",
+	"Category": "Experimental",
+	"CreatedBy" : "Epic Games, Inc.",
+	"CreatedByURL" : "https://epicgames.com",
+	"EnabledByDefault" : false,
+	"IsExperimentalVersion": true,
+	
+	"Modules" :
+	[
+		{
+			"Name" : "PlainProps",
+			"Type" : "Runtime",
+		}
+	]
+}

@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include  "PlainPropsLoad.h"
-#include  "PlainPropsBind.h"
-#include  "PlainPropsInternalFormat.h"
-#include  "PlainPropsInternalRead.h"
+#include "PlainPropsLoad.h"
+#include "PlainPropsBind.h"
+#include "PlainPropsInternalFormat.h"
+#include "PlainPropsInternalRead.h"
 #include "Misc/Optional.h"
 #include <type_traits>
 
@@ -313,7 +313,7 @@ void DestroyLoadPlans(FLoadBatch* Batch)
 
 ////////////////////////////////////////////////////////////////////////////
 
-FORCEINLINE static void SetBit(uint8& Out, uint8 Idx, bool bValue)
+inline static void SetBit(uint8& Out, uint8 Idx, bool bValue)
 {
 	uint8 Mask = IntCastChecked<uint8>(1 << Idx);
 	if (bValue)
@@ -339,7 +339,7 @@ struct FLoadRangePlan
 	}
 };
 
-static FMemberBindType ToBindType(FMemberType Member)
+inline static FMemberBindType ToBindType(FMemberType Member)
 {
 	switch (Member.GetKind())
 	{

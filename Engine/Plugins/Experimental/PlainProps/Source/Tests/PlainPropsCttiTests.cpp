@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include  "PlainPropsCtti.h"
+#include "PlainPropsCtti.h"
 #include <type_traits>
 #include <string_view>
 

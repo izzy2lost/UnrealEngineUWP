@@ -5,10 +5,10 @@
 #include "Containers/ArrayView.h"
 #include "Memory/MemoryFwd.h"
 #include "Memory/MemoryView.h"
-#include  "PlainPropsCtti.h"
-#include  "PlainPropsDeclare.h"
-#include  "PlainPropsRead.h"
-#include  "PlainPropsTypes.h"
+#include "PlainPropsCtti.h"
+#include "PlainPropsDeclare.h"
+#include "PlainPropsRead.h"
+#include "PlainPropsTypes.h"
 
 namespace PlainProps 
 {

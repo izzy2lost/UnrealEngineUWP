@@ -3,10 +3,10 @@
 #pragma once
 
 #include "Containers/Set.h"
-#include  "PlainPropsBind.h"
-#include  "PlainPropsLoad.h"
-#include  "PlainPropsRead.h"
-#include  "PlainPropsIndex.h"
+#include "PlainPropsBind.h"
+#include "PlainPropsLoad.h"
+#include "PlainPropsRead.h"
+#include "PlainPropsIndex.h"
 #include "UObject/NameTypes.h"
 
 namespace PlainProps
@@ -45,7 +45,7 @@ namespace PlainProps::UE
 	//void					DropEnum(FEnumSchemaId Id) { Types.DropEnum(Id); }
 //};
 //
-//PP_API FReflection GReflection;
+//PLAINPROPS_API FReflection GReflection;
 //
 //struct FIds
 //{
