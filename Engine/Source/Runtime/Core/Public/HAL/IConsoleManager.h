@@ -2120,5 +2120,21 @@ public:
 	CORE_API FAutoConsoleVariableDeprecated(const TCHAR* Name, const TCHAR* CVarToShadow, const TCHAR* DeprecatedAtVersion, EShadowCVarBehavior UsageBehavior=EShadowCVarBehavior::Ensure, EShadowCVarBehavior LookupFailureBehavior = EShadowCVarBehavior::Ensure);
 };
 
+/**
+ * A class that can be used to deprecate a ConsoleCommand - use just like FAutoConsoleVariableDeprecated
+ */
+class FAutoConsoleCommandDeprecated
+{
+public:
+	/**
+	 * @param Name The name of this cvar
+	 * @param CVarToShadow The name of the existing cvar that this one will shadow
+	 * @param DeprecatedAtVersion THe first UE version when this was deprecated
+	 * @param UsageBehavior How to handle uses of the shadowed cvar by the deprecated name - defaults to ensure
+	 * @param LookupFailureBehavior How to handle failure of looking up the CVarToShadow name - defaults to ensure
+	 */
+	CORE_API FAutoConsoleCommandDeprecated(const TCHAR* Name, const TCHAR* CVarToShadow, const TCHAR* DeprecatedAtVersion, EShadowCVarBehavior UsageBehavior = EShadowCVarBehavior::Ensure, EShadowCVarBehavior LookupFailureBehavior = EShadowCVarBehavior::Ensure);
+};
+
 CORE_API DECLARE_LOG_CATEGORY_EXTERN(LogConsoleResponse, Log, All);
 
