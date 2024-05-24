@@ -374,7 +374,7 @@ bool FCbFieldObjectTest::RunTest(const FString& Parameters)
 		for (int Count = 16; Count > 0; --Count)
 		{
 			++It;
-			It->AsInt32();
+			(void)It->AsInt32();
 		}
 		TestFalse(TEXT("FCbObjectView()::CreateViewIterator() At End"), bool(It));
 		TestTrue(TEXT("FCbObjectView()::CreateViewIterator() At End"), !It);
@@ -586,7 +586,7 @@ bool FCbFieldArrayTest::RunTest(const FString& Parameters)
 		for (int Count = 16; Count > 0; --Count)
 		{
 			++It;
-			It->AsInt32();
+			(void)It->AsInt32();
 		}
 		TestFalse(TEXT("FCbArrayView()::CreateViewIterator() At End"), bool(It));
 		TestTrue(TEXT("FCbArrayView()::CreateViewIterator() At End"), !It);
@@ -744,9 +744,9 @@ bool FCbFieldBinaryTest::RunTest(const FString& Parameters)
 		TestFieldNoClone<ECbFieldType::Binary>(TEXT("Binary, Value, View"), FieldView, MakeMemoryView(Value + 1, 3));
 
 		FCbField Field = FCbField::Clone(FieldView);
-		Field.AsBinary();
+		(void)Field.AsBinary();
 		TestFalse(TEXT("Binary, Value, AsBinary -> GetOuterBuffer()"), Field.GetOuterBuffer().IsNull());
-		MoveTemp(Field).AsBinary();
+		(void)MoveTemp(Field).AsBinary();
 		TestTrue(TEXT("Binary, Value, AsBinary -> GetOuterBuffer()"), Field.GetOuterBuffer().IsNull());
 	}
 
