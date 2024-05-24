@@ -13,14 +13,15 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(FallingMode)
 
 UFallingMode::UFallingMode(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer),
-	  AirControlPercentage(0.4f),
-	  FallingDeceleration(200.0f),
-	  OverTerminalSpeedFallingDeceleration(800.0f),
-	  TerminalMovementPlaneSpeed(1500.0f),
-	  bShouldClampTerminalVerticalSpeed(true),
-	  VerticalFallingDeceleration(4000.0f),
-	  TerminalVerticalSpeed(2000.0f)
+	: Super(ObjectInitializer)
+	, bCancelVerticalSpeedOnLanding(true)
+	, AirControlPercentage(0.4f)
+	, FallingDeceleration(200.0f)
+	, OverTerminalSpeedFallingDeceleration(800.0f)
+	, TerminalMovementPlaneSpeed(1500.0f)
+	, bShouldClampTerminalVerticalSpeed(true)
+	, VerticalFallingDeceleration(4000.0f)
+	, TerminalVerticalSpeed(2000.0f)
 {
 	SharedSettingsClass = UCommonLegacyMovementSettings::StaticClass();
 }
@@ -251,8 +252,17 @@ void UFallingMode::ProcessLanded(const FFloorCheckResult& FloorResult, FVector& 
 	// if we can walk on the floor we landed on
 	if (FloorResult.IsWalkableFloor())
 	{
+		if (bCancelVerticalSpeedOnLanding)
+		{
+			const FPlane MovementPlane(FVector::ZeroVector, GetMoverComponent()->GetUpDirection());
+			Velocity = UMovementUtils::ConstrainToPlane(Velocity, MovementPlane, false);
+		}
+		else
+		{
+			Velocity = FVector::VectorPlaneProject(Velocity, FloorResult.HitResult.Normal);
+		}
+		
 		// Transfer to LandingMovementMode (usually walking), and cache any floor / movement base info
-		Velocity.Z = 0.0;
 		NextMovementMode = CommonLegacySettings->GroundMovementModeName;
 
 		SimBlackboard->Set(CommonBlackboard::LastFloorResult, FloorResult);
