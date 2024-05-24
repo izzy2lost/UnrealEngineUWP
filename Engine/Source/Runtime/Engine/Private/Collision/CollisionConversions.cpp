@@ -184,6 +184,15 @@ static void SetHitResultFromShapeAndFaceIndex(const FPhysicsShape& Shape,  const
 		}
 	}
 
+	if (OutResult.PhysicsObject != nullptr)
+	{
+		OutResult.PhysicsObjectOwner = OwningComponent;
+		if (FChaosUserEntityAppend* ChaosUserEntityAppend = FChaosUserData::Get<FChaosUserEntityAppend>(Actor.UserData()))
+		{
+			OutResult.PhysicsObjectOwner = ChaosUserEntityAppend->GetOwnerObject();
+		}
+	}
+
 	OutResult.PhysMaterial = nullptr;
 
 	// Grab actor/component
@@ -630,6 +639,15 @@ void ConvertQueryOverlap(const FPhysicsShape& Shape, const FPhysicsActor& Actor,
 			OutOverlap.ItemIndex = OwnerComponent->bMultiBodyOverlap ? BodyInst->InstanceBodyIndex : INDEX_NONE;
 		}
 		OutOverlap.PhysicsObject = BodyInst->ActorHandle ? BodyInst->ActorHandle->GetPhysicsObject() : nullptr;
+
+		if (OutOverlap.PhysicsObject != nullptr)
+		{
+			OutOverlap.PhysicsObjectOwner = OutOverlap.Component;
+			if (FChaosUserEntityAppend* ChaosUserEntityAppend = FChaosUserData::Get<FChaosUserEntityAppend>(Actor.UserData()))
+			{
+				OutOverlap.PhysicsObjectOwner = ChaosUserEntityAppend->GetOwnerObject();
+			}
+		}
 	}
 	else
 	{
@@ -816,6 +834,7 @@ FHitResult ConvertOverlapToHitResult(const FOverlapResult& Overlap)
 	Hit.Item = Overlap.ItemIndex;
 	Hit.Component = Overlap.Component;
 	Hit.PhysicsObject = Overlap.PhysicsObject;
+	Hit.PhysicsObjectOwner = Overlap.PhysicsObjectOwner;
 	Hit.HitObjectHandle = Overlap.OverlapObjectHandle;
 	return Hit;
 }

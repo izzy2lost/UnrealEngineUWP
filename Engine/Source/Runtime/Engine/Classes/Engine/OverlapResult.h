@@ -31,6 +31,9 @@ struct FOverlapResult
 	/** Utility to return the Component that was hit */
 	ENGINE_API UPrimitiveComponent* GetComponent() const;
 
+	/** The object that owns the PhysicsObject. This is used to determine if the PhysicsObject is still valid when not owned by an Actor */
+	TWeakObjectPtr<UObject> PhysicsObjectOwner;
+
 	/** PhysicsObjects hit by the query. Not exposed to blueprints for the time being */
 	Chaos::FPhysicsObjectHandle PhysicsObject;
 
