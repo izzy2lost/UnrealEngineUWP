@@ -27,6 +27,11 @@ UWorldPartitionEditorSettings::FOnWorldPartitionEditorSettingsChanged& UWorldPar
 	return GetMutableDefault<UWorldPartitionEditorSettings>()->SettingsChangedDelegate;
 }
 
+FName UWorldPartitionEditorSettings::GetEnableLoadingInEditorPropertyName()
+{
+	return GET_MEMBER_NAME_CHECKED(UWorldPartitionEditorSettings, bEnableLoadingInEditor);
+}
+
 FName UWorldPartitionEditorSettings::GetEnableAdvancedHLODSettingsPropertyName()
 {
 	return GET_MEMBER_NAME_CHECKED(UWorldPartitionEditorSettings, bEnableAdvancedHLODSettings);

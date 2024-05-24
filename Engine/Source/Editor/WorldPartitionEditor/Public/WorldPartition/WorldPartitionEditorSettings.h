@@ -18,8 +18,9 @@ public:
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnWorldPartitionEditorSettingsChanged, const FName&, const UWorldPartitionEditorSettings&);
 	static FOnWorldPartitionEditorSettingsChanged& OnSettingsChanged();
 
+	static FName GetEnableLoadingInEditorPropertyName();
 	static FName GetEnableAdvancedHLODSettingsPropertyName();
-		
+
 	TSubclassOf<UWorldPartitionConvertCommandlet> GetCommandletClass() const;
 	void SetCommandletClass(const TSubclassOf<UWorldPartitionConvertCommandlet>& InCommandletClass);
 
