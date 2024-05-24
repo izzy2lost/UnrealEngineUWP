@@ -255,6 +255,15 @@ void FTextureCompilingManager::AddTextures(TArrayView<UTexture* const> InTexture
 	// to strcmp on the name of the repro texture and just log the full key suffix. Then you should immediately see the changed
 	// keys right before the crash and you can backsolve what value changed. Once you have that, you can set a data breakpoint on
 	// the property and see who is poking it.
+	//
+	// **
+	//
+	// One thing to be aware of is this can be caused by a system manually calling FinishCachePlatformData + UpdateResource
+	// instead of calling BlockOnAnyAsyncBuild. This causes the async task to become null,
+	// which prevents any IsCompiling / BlockOnAnyAsyncBuild from detecting it, even though it's still pending a PostCompilation
+	// in here. As a result you can edit the DDC key any time between the FinishCachePlatformData and the subsequent CreateResource
+	// call and get this crash. If you have a repro, best bet is to try and get a breakpoint on FinishCachePlatformData for the texture
+	// in question - only the compilation manager shoulid be calling that for editor resources.
 	if (bIsRoutingPostCompilation)
 	{
 		// This has been updated to Fatal because it potentially modifies RegisteredTextureBuckets below which is iterated upon

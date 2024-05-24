@@ -1819,7 +1819,12 @@ public:
 	ENGINE_API bool IsAsyncCacheComplete() const;
 
 	/**
-	 * Blocks on async cache tasks and prepares platform data for use.
+	 * Blocks on async cache tasks and prepares platform data for use. This should only be called by the texture compilation manager.
+	 * If you call this manually when the texture has been registed in the texture compilation manager, it doesn't get cleared there
+	 * and you can end up crashing in FTextureCompilationManager::AddTextures.
+	 * 
+	 * If you need the texture resource after you've made modifications, you should wrap your changes in PreEditChange/PostEditChange,
+	 * then call BlockOnAnyAsyncBuild on your texture.
 	 */
 	ENGINE_API void FinishCachePlatformData();
 
