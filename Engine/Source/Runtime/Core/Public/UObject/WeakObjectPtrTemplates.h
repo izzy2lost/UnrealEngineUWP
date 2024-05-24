@@ -384,10 +384,26 @@ struct TCallTraits<TWeakObjectPtr<T>> : public TCallTraitsBase<TWeakObjectPtr<T>
 template<typename DestArrayType, typename SourceArrayType>
 void CopyFromWeakArray(DestArrayType& Dest, const SourceArrayType& Src)
 {
-	Dest.Empty(Src.Num());
-	for (int32 Index = 0; Index < Src.Num(); Index++)
+	const int32 Count = Src.Num();
+	Dest.Empty(Count);
+	for (int32 Index = 0; Index < Count; Index++)
 	{
 		if (auto Value = Src[Index].Get())
+		{
+			Dest.Add(Value);
+		}
+	}
+}
+
+/** Utility function to fill in a TArray<TWeakObjectPtr<ClassName>> from a TArray<TObjectPtr<ClassName>> or TArray<ClassName*> */
+template<typename DestArrayType, typename SourceArrayType>
+void CopyToWeakArray(DestArrayType& Dest, const SourceArrayType& Src)
+{
+	const int32 Count = Src.Num();
+	Dest.Empty(Count);
+	for (int32 Index = 0; Index < Count; Index++)
+	{
+		if (auto* Value = Src[Index])
 		{
 			Dest.Add(Value);
 		}
