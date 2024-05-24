@@ -131,6 +131,7 @@ TSharedRef<SWidget> SGraphPinClass::GenerateAssetPicker()
 	FClassViewerInitializationOptions Options;
 	Options.Mode = EClassViewerMode::ClassPicker;
 	Options.bShowNoneOption = true;
+	Options.NameTypeToDisplay = EClassViewerNameTypeToDisplay::DisplayName;
 
 	// Get the min. spec for the classes allowed
 	const UClass* PinRequiredParentClass = Cast<const UClass>(GraphPinObj->PinType.PinSubCategoryObject.Get());
@@ -168,10 +169,8 @@ TSharedRef<SWidget> SGraphPinClass::GenerateAssetPicker()
 
 	return
 		SNew(SBox)
-		.WidthOverride(280)
 		[
 			SNew(SVerticalBox)
-
 			+ SVerticalBox::Slot()
 			.FillHeight(1.0f)
 			.MaxHeight(500)
