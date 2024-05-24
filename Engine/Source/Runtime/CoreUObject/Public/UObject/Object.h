@@ -606,6 +606,7 @@ public:
 	*
 	* @return	true if this object's destructor is thread safe
 	*/
+	UE_DEPRECATED(5.5, "Multithreaded destruction of UObjects is no longer supported.")
 	COREUOBJECT_API virtual bool IsDestructionThreadSafe() const;
 
 	/**

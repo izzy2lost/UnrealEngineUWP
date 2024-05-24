@@ -869,6 +869,7 @@ COREUOBJECT_API float GetAsyncLoadPercentage( const FName& PackageName );
 /**
 * Whether we are running on the Garbage Collector Thread
 */
+UE_DEPRECATED(5.5, "IsInGarbageCollectorThread() is now equivalent to calling IsInGameThread()")
 COREUOBJECT_API bool IsInGarbageCollectorThread();
 
 /** 

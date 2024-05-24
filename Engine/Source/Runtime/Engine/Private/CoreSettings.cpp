@@ -201,7 +201,6 @@ UGarbageCollectionSettings::UGarbageCollectionSettings()
 	FlushStreamingOnGC = false;
 	AllowParallelGC = true;
 	IncrementalBeginDestroyEnabled = true;
-	MultithreadedDestructionEnabled = true;
 	NumRetriesBeforeForcingGC = 0;
 	MaxObjectsNotConsideredByGC = 0;
 	MaxObjectsInEditor = 12 * 1024 * 1024;

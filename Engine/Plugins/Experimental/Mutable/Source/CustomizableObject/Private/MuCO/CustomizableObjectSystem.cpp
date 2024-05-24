@@ -179,7 +179,7 @@ FUpdateContextPrivate::FUpdateContextPrivate(UCustomizableObjectInstance& InInst
 
 FUpdateContextPrivate::~FUpdateContextPrivate()
 {
-	check(IsInGameThread() || IsInGarbageCollectorThread());
+	check(IsInGameThread());
 
 	if (UCustomizableObjectSystem::IsCreated())
 	{

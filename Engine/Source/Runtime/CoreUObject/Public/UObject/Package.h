@@ -347,7 +347,6 @@ public:
 	virtual bool NeedsLoadForClient() const override { return true; }
 	virtual bool NeedsLoadForServer() const override { return true; }
 	virtual bool IsPostLoadThreadSafe() const override;
-	virtual bool IsDestructionThreadSafe() const override { return true; }
 
 #if WITH_EDITORONLY_DATA
 	/** Sets the bLoadedByEditorPropertiesOnly flag */

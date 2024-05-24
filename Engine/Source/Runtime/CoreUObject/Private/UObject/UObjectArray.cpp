@@ -335,7 +335,7 @@ void FUObjectArray::FreeUObjectIndex(UObjectBase* Object)
 	LLM_SCOPE(ELLMTag::UObject);
 
 	// This should only be happening on the game thread (GC runs only on game thread when it's freeing objects)
-	check(IsInGameThread() || IsInGarbageCollectorThread());
+	check(IsInGameThread());
 
 	// No need to call LockInternalArray(); here as it should already be locked by GC
 
