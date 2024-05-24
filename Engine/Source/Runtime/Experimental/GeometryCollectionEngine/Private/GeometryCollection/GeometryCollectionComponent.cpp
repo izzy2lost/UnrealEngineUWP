@@ -630,10 +630,11 @@ UGeometryCollectionComponent::UGeometryCollectionComponent(const FObjectInitiali
 	, ReplicationMaxPositionAndVelocityCorrectionLevel(100)
 	, bInitializedRemovalDynamicAttribute(false)
 	, bEnableBoneSelection(false)
-	, ViewLevel(-1)
-	, NavmeshInvalidationTimeSliceIndex(0)
 	, IsObjectDynamic(false)
 	, IsObjectLoading(true)
+	, bIsMoving(false)
+	, ViewLevel(-1)
+	, NavmeshInvalidationTimeSliceIndex(0)
 	, ComponentSpaceTransforms(this)
 	, PhysicsProxy(nullptr)
 #if WITH_EDITOR && WITH_EDITORONLY_DATA
@@ -642,7 +643,6 @@ UGeometryCollectionComponent::UGeometryCollectionComponent(const FObjectInitiali
 #if GEOMETRYCOLLECTION_EDITOR_SELECTION
 	, bIsTransformSelectionModeEnabled(false)
 #endif  // #if GEOMETRYCOLLECTION_EDITOR_SELECTION
-	, bIsMoving(false)
 {
 	// by default tick is registered but disabled, we only need it when we need to update the removal timers
 	// tick will be then enabled only when the root is broken from OnPostPhysicsSync callback

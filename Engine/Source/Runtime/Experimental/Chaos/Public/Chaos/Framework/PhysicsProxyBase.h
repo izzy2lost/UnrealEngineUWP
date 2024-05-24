@@ -92,8 +92,8 @@ public:
 		: Solver(nullptr)
 		, Owner(InOwner)
 		, DirtyIdx(INDEX_NONE)
-		, SyncTimestamp(InProxyTimeStamp)
 		, Type(InType)
+		, SyncTimestamp(InProxyTimeStamp)
 	{}
 
 	UObject* GetOwner() const { return Owner; }
@@ -183,11 +183,13 @@ protected:
 
 private:
 	int32 DirtyIdx;
-	TSharedPtr<FProxyTimestampBase,ESPMode::ThreadSafe> SyncTimestamp;
-	IPhysicsProxyBase* ParentProxy = nullptr;
 protected:
 	/** Proxy type */
 	EPhysicsProxyType Type;
+private:
+	TSharedPtr<FProxyTimestampBase,ESPMode::ThreadSafe> SyncTimestamp;
+	IPhysicsProxyBase* ParentProxy = nullptr;
+protected:
 	int32 InitializedOnStep = INDEX_NONE;
 	int32 IgnoreDataOnStep_Internal = INDEX_NONE;
 

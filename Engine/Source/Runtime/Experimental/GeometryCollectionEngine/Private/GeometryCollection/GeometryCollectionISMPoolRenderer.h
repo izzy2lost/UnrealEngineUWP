@@ -42,9 +42,6 @@ protected:
 		TArray<int32> MeshIds;
 	};
 
-	/** Registered flag set true in between calls to OnRegister() and OnUnregister(). */
-	bool bIsRegistered = false;
-
 	/** Cached component transform. */
 	FTransform ComponentTransform = FTransform::Identity;
 
@@ -54,6 +51,9 @@ protected:
 
 	/** Level of the owning component of this renderer */
 	TWeakObjectPtr<ULevel> OwningLevel;
+
+	/** Registered flag set true in between calls to OnRegister() and OnUnregister(). */
+	bool bIsRegistered = false;
 
 private:
 	UGeometryCollectionISMPoolComponent* GetISMPoolComponent() const;

@@ -78,24 +78,24 @@ private:
 	UPROPERTY(ReplicatedUsing=OnRep_ParentClusterUnion)
 	TWeakObjectPtr<UClusterUnionComponent> ParentClusterUnion;
 
-	UPROPERTY()
-	bool bNetUpdateParentClusterUnion;
-
 	UPROPERTY(ReplicatedUsing=OnRep_ChildClusteredComponent)
 	TWeakObjectPtr<UPrimitiveComponent> ChildClusteredComponent;
-
-	UPROPERTY()
-	bool bNetUpdateChildClusteredComponent;
 
 	UPROPERTY(ReplicatedUsing=OnRep_ParticleBoneIds)
 	TArray<int32> ParticleBoneIds;
 	TSet<int32> LastSyncedBoneIds;
 
-	UPROPERTY()
-	bool bNetUpdateParticleBoneIds;
-
 	UPROPERTY(ReplicatedUsing=OnRep_ParticleChildToParents)
 	TArray<FTransform> ParticleChildToParents;
+
+	UPROPERTY()
+	bool bNetUpdateParentClusterUnion;
+
+	UPROPERTY()
+	bool bNetUpdateChildClusteredComponent;
+
+	UPROPERTY()
+	bool bNetUpdateParticleBoneIds;
 
 	UPROPERTY()
 	bool bNetUpdateParticleChildToParents;
