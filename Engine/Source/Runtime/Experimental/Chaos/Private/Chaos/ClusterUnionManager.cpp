@@ -1413,7 +1413,7 @@ namespace Chaos
 		bool bMadeChanges = false;
 		for (FPBDRigidParticleHandle* Particle : Particles)
 		{
-			if (!ensure(Particle))
+			if (!Particle)
 			{
 				return;
 			}

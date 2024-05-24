@@ -445,24 +445,26 @@ namespace Chaos
 	}
 
 	template<EThreadContext Id>
-	TArray<TThreadRigidParticle<Id>*> FReadPhysicsObjectInterface<Id>::GetAllRigidParticles(TArrayView<const FConstPhysicsObjectHandle> InObjects)
+	TArray<TThreadRigidParticle<Id>*> FReadPhysicsObjectInterface<Id>::GetAllRigidParticles(TArrayView<const FConstPhysicsObjectHandle> InObjects, bool bIncludeNulls)
 	{
 		TArray<TThreadRigidParticle<Id>*> Particles;
 		Particles.Reserve(InObjects.Num());
 
 		for (const FConstPhysicsObjectHandle& Handle : InObjects)
 		{
-			if (!Handle)
+			TThreadRigidParticle<Id>* RigidParticle = nullptr;
+
+			if (Handle)
 			{
-				continue;
+				if (TThreadParticle<Id>* Particle = Handle->GetParticle<Id>())
+				{
+					RigidParticle = Particle->CastToRigidParticle();
+				}
 			}
 
-			if (TThreadParticle<Id>* Particle = Handle->GetParticle<Id>())
+			if (RigidParticle || bIncludeNulls)
 			{
-				if (TThreadRigidParticle<Id>* RigidParticle = Particle->CastToRigidParticle())
-				{
-					Particles.Add(RigidParticle);
-				}
+				Particles.Add(RigidParticle);
 			}
 		}
 
