@@ -272,6 +272,7 @@ namespace UnrealBuildTool
 				if (!IsRestrictedPlatformName)
 				{
 					InsertOrUpdateTestOption(Root, $"Run{TestMetadata.TestName}Tests", $"Run {TestMetadata.TestShortName} Tests", false.ToString());
+					InsertOrUpdateTestProperty(Root, $"TestNames", TestMetadata.TestName, true);
 				}
 
 				if (TestMetadata.Deactivated)
@@ -436,6 +437,23 @@ namespace UnrealBuildTool
 			{
 				OptionElementWithName.SetAttributeValue("Description", Description);
 				OptionElementWithName.SetAttributeValue("DefaultValue", DefaultValue);
+			}
+		}
+
+		private static void InsertOrUpdateTestProperty(XElement Root, string PropertyName, string PropertyValue, bool Append)
+		{
+			XElement? PropertyElementWithName = Root.Elements(BuildGraphNamespace + "Property")
+				.Where(prop => prop.Attribute("Name").Value == PropertyName).FirstOrDefault();
+			if (PropertyElementWithName == null)
+			{
+				XElement ElementInsert = new XElement(BuildGraphNamespace + "Property");
+				ElementInsert.SetAttributeValue("Name", PropertyName);
+				ElementInsert.SetAttributeValue("Value", !Append ? PropertyValue : $"$({PropertyName});{PropertyValue}");
+				Root.Add(ElementInsert);
+			}
+			else
+			{
+				PropertyElementWithName.SetAttributeValue("Value", !Append ? PropertyValue : $"$({PropertyName});{PropertyValue}");
 			}
 		}
 

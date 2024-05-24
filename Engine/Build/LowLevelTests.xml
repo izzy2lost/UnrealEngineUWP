@@ -77,10 +77,7 @@
 	<!-- If we set one of the Run*Tests option we don't want to run all the tests, just the selected ones. -->
 	<Property Name="RunsAllTests" Value="$(RunAllTests)"/>
 	<ForEach Name="TestName" Values="$(TestNames)">
-		<!-- Don't turn of all tests if only Foundation is in the list. -->
-		<Do If="'$(TestName)' != 'Foundation'">
-			<Property Name="RunsAllTests" Value="false" If="$(Run$(TestName)Tests)"/>
-		</Do>
+		<Property Name="RunsAllTests" Value="false" If="$(Run$(TestName)Tests)"/>
 	</ForEach>
 
 	<!-- Platform Options -->
