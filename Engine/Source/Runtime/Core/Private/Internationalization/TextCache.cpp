@@ -24,7 +24,8 @@ FText FTextCache::FindOrCache(const TCHAR* InTextLiteral, const TCHAR* InNamespa
 	return FindOrCache(InTextLiteral, FTextId(InNamespace, InKey));
 }
 
-FText FTextCache::FindOrCache(const TCHAR* InTextLiteral, const FTextId& InTextId)
+// #jira SOL-6589: We have to mark this noinline for now until our compiler gets smarter.
+UE_AUTORTFM_ALWAYS_OPEN FORCENOINLINE FText FTextCache::FindOrCache(const TCHAR* InTextLiteral, const FTextId& InTextId)
 {
 	LLM_SCOPE(ELLMTag::Localization);
 
@@ -32,22 +33,18 @@ FText FTextCache::FindOrCache(const TCHAR* InTextLiteral, const FTextId& InTextI
 	{
 		FText* ReturnFoundText = nullptr;
 
-		UE_AUTORTFM_OPEN2
+		FScopeLock Lock(&CachedTextCS);
+
+		FText* FoundText = CachedText.Find(InTextId);
+		if (FoundText)
 		{
-
-			FScopeLock Lock(&CachedTextCS);
-
-			FText* FoundText = CachedText.Find(InTextId);
-			if (FoundText)
+			const FString* FoundTextLiteral = FTextInspector::GetSourceString(*FoundText);
+			if (FoundTextLiteral && FCString::Strcmp(**FoundTextLiteral, InTextLiteral) == 0)
 			{
-				const FString* FoundTextLiteral = FTextInspector::GetSourceString(*FoundText);
-				if (FoundTextLiteral && FCString::Strcmp(**FoundTextLiteral, InTextLiteral) == 0)
-				{
 
-					ReturnFoundText = FoundText;
-				}
+				ReturnFoundText = FoundText;
 			}
-		};
+		}
 
 		if (ReturnFoundText)
 		{
@@ -56,17 +53,12 @@ FText FTextCache::FindOrCache(const TCHAR* InTextLiteral, const FTextId& InTextI
 	}
 
 	// Not currently cached, make a new instance...
-	FText NewText;
+	FText NewText = FText(InTextLiteral, InTextId.GetNamespace(), InTextId.GetKey(), ETextFlag::Immutable);
 
 	// ... and add it to the cache
-	UE_AUTORTFM_OPEN2
-	{
-		NewText = FText(InTextLiteral, InTextId.GetNamespace(), InTextId.GetKey(), ETextFlag::Immutable);
+	FScopeLock Lock(&CachedTextCS);
 
-		FScopeLock Lock(&CachedTextCS);
-
-		CachedText.Emplace(InTextId, NewText);
-	};
+	CachedText.Emplace(InTextId, NewText);
 
 	return NewText;
 }

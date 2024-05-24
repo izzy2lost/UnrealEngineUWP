@@ -5,6 +5,7 @@
 #include "Delegates/IDelegateInstance.h"
 #include "HAL/ThreadSingleton.h"
 #include "Internationalization/TextHistory.h"
+#include "Internationalization/TextCache.h"
 #include "Serialization/CustomVersion.h"
 #include "UObject/NameTypes.h"
 
@@ -573,4 +574,20 @@ TEST_CASE("UECore.TIntrusiveReferenceController")
 			REQUIRE(13 == *Controller.GetObjectPtr());
 		}
 	}
+}
+
+TEST_CASE("UECore.FTextCache")
+{
+	FText Text;
+	REQUIRE(Text.IsEmpty());
+
+	AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+		{
+			FString S("Sheesh");
+			Text = FTextCache::Get().FindOrCache(ANSI_TO_TCHAR("Oh my"), FTextInspector::GetTextId(FText::FromString(S)));
+			AutoRTFM::AbortTransaction();
+		});
+
+	REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+	REQUIRE(Text.IsEmpty());
 }
