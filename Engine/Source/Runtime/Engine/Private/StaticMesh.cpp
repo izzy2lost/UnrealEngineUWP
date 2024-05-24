@@ -3140,10 +3140,7 @@ void FStaticMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, UStatic
 			{
 				IMeshBuilderModule& MeshBuilderModule = IMeshBuilderModule::GetForPlatform(TargetPlatform);
 
-				// Check if the target platform supports Nanite at all
-				const bool bAllowNanite = DoesTargetPlatformSupportNanite(TargetPlatform);
-
-				if (!MeshBuilderModule.BuildMesh(*this, Owner, LODGroup, bAllowNanite))
+				if (!MeshBuilderModule.BuildMesh(*this, FStaticMeshBuildParameters(Owner, TargetPlatform, LODGroup)))
 				{
 					UE_LOG(LogStaticMesh, Error, TEXT("Failed to build static mesh. See previous line(s) for details."));
 					return;

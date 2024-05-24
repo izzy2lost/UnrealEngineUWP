@@ -26,6 +26,8 @@ public:
 		// Unregister any modular features here
 	}
 
+	virtual bool BuildMesh(class FStaticMeshRenderData& OutRenderData, const FStaticMeshBuildParameters& BuildParameters) override;
+
 	virtual bool BuildMesh(FStaticMeshRenderData& OutRenderData, UObject* Mesh, const FStaticMeshLODGroup& LODGroup, bool bAllowNanite) override;
 
 	virtual bool BuildMeshVertexPositions(
@@ -42,13 +44,18 @@ private:
 
 IMPLEMENT_MODULE(FMeshBuilderModule, MeshBuilder );
 
+bool FMeshBuilderModule::BuildMesh(FStaticMeshRenderData& OutRenderData, const FStaticMeshBuildParameters& BuildParameters)
+{
+	//Call the static mesh builder
+	return FStaticMeshBuilder().Build(OutRenderData, BuildParameters);
+}
+
 bool FMeshBuilderModule::BuildMesh(FStaticMeshRenderData& OutRenderData, class UObject* Mesh, const FStaticMeshLODGroup& LODGroup, bool bAllowNanite)
 {
 	UStaticMesh* StaticMesh = Cast<UStaticMesh>(Mesh);
 	if (StaticMesh != nullptr)
 	{
-		//Call the static mesh builder
-		return FStaticMeshBuilder().Build(OutRenderData, StaticMesh, LODGroup, bAllowNanite);
+		return BuildMesh(OutRenderData, FStaticMeshBuildParameters(StaticMesh, nullptr, LODGroup));
 	}
 	return false;
 }

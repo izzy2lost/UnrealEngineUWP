@@ -2151,6 +2151,19 @@ public:
 	bool bHasRenderDataChanged = false;
 };
 
+struct FStaticMeshBuildParameters
+{
+	FStaticMeshBuildParameters(UStaticMesh* InStaticMesh, const ITargetPlatform* InTargetPlatform, const FStaticMeshLODGroup& InLODGroup)
+		: StaticMesh(InStaticMesh)
+		, TargetPlatform(InTargetPlatform)
+		, LODGroup(InLODGroup)
+	{}
+
+	UStaticMesh* StaticMesh;
+	const ITargetPlatform* TargetPlatform;
+	const FStaticMeshLODGroup& LODGroup;
+};
+
 namespace UE::Private::StaticMesh
 {
 #if WITH_EDITOR

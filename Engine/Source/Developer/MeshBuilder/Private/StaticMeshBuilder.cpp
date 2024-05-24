@@ -333,8 +333,19 @@ static bool BuildNanite(
 }
 
 
-bool FStaticMeshBuilder::Build(FStaticMeshRenderData& StaticMeshRenderData, UStaticMesh* StaticMesh, const FStaticMeshLODGroup& LODGroup, bool bTargetSupportsNanite)
+bool FStaticMeshBuilder::Build(FStaticMeshRenderData& StaticMeshRenderData, const FStaticMeshBuildParameters& BuildParameters)
 {
+	if (BuildParameters.TargetPlatform == nullptr)
+	{
+		UE_LOG(LogStaticMeshBuilder, Error, TEXT("Provided FStaticMeshBuildParameters must have a valid TargetPlatform."));
+		return false;
+	}
+
+	UStaticMesh* StaticMesh = BuildParameters.StaticMesh;
+	const FStaticMeshLODGroup& LODGroup = BuildParameters.LODGroup;
+
+	const bool bTargetSupportsNanite = DoesTargetPlatformSupportNanite(BuildParameters.TargetPlatform);
+
 	const bool bNaniteBuildEnabled = StaticMesh->IsNaniteEnabled();
 	const bool bHaveHiResSourceModel = StaticMesh->IsHiResMeshDescriptionValid();
 	int32 NumTasks = (bNaniteBuildEnabled && bHaveHiResSourceModel) ? (StaticMesh->GetNumSourceModels() + 1) : (StaticMesh->GetNumSourceModels());
@@ -770,6 +781,15 @@ bool FStaticMeshBuilder::Build(FStaticMeshRenderData& StaticMeshRenderData, USta
 	StaticMeshRenderData.Bounds = MeshBoundsBuilder;
 	
 	return true;
+}
+
+bool FStaticMeshBuilder::Build(
+	FStaticMeshRenderData& OutRenderData,
+	UStaticMesh* StaticMesh,
+	const FStaticMeshLODGroup& LODGroup,
+	bool bAllowNanite)
+{
+	return Build(OutRenderData, FStaticMeshBuildParameters(StaticMesh, nullptr, LODGroup));
 }
 
 bool FStaticMeshBuilder::BuildMeshVertexPositions(

@@ -8,7 +8,6 @@
 #include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 
-struct FStaticMeshBuildVertex;
 struct FStaticMeshSection;
 class FStaticMeshSectionArray;
 
@@ -29,6 +28,9 @@ public:
 
 	virtual void AppendToDDCKey(FString& DDCKey, bool bSkeletal) { }
 
+	virtual bool BuildMesh(class FStaticMeshRenderData& OutRenderData, const struct FStaticMeshBuildParameters& BuildParameters) = 0;
+
+	UE_DEPRECATED(5.5, "Use FStaticMeshBuildParameters instead.")
 	virtual bool BuildMesh(class FStaticMeshRenderData& OutRenderData, class UObject* Mesh, const class FStaticMeshLODGroup& LODGroup, bool bAllowNanite) = 0;
 
 	virtual bool BuildMeshVertexPositions(class UObject* StaticMesh, TArray<uint32>& Indices, TArray<FVector3f>& Vertices, FStaticMeshSectionArray& Sections) = 0;
