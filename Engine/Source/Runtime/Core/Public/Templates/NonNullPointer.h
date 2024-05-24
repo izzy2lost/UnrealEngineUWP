@@ -94,6 +94,58 @@ public:
 	}
 
 	/**
+	 * Comparison, will also handle default constructed state
+	 */
+	FORCEINLINE bool operator==(const TNonNullPtr& Other) const
+	{
+		return Object == Other.Object;
+	}
+#if !PLATFORM_COMPILER_HAS_GENERATED_COMPARISON_OPERATORS
+	FORCEINLINE bool operator!=(const TNonNullPtr& Other) const
+	{
+		return Object != Other.Object;
+	}
+#endif
+
+	/**
+	 * Comparison with a raw pointer
+	 */
+	template <
+		typename OtherObjectType
+		UE_REQUIRES(UE_REQUIRES_EXPR(std::declval<ObjectType*>() == std::declval<OtherObjectType*>()))
+	>
+	FORCEINLINE bool operator==(OtherObjectType* Other) const
+	{
+		return Object == Other;
+	}
+	template <
+		typename OtherObjectType
+		UE_REQUIRES(UE_REQUIRES_EXPR(std::declval<OtherObjectType*>() == std::declval<ObjectType*>()))
+	>
+	FORCEINLINE friend bool operator==(OtherObjectType* Lhs, const TNonNullPtr& Rhs)
+	{
+		return Lhs == Rhs.Object;
+	}
+#if !PLATFORM_COMPILER_HAS_GENERATED_COMPARISON_OPERATORS
+	template <
+		typename OtherObjectType
+		UE_REQUIRES(UE_REQUIRES_EXPR(std::declval<ObjectType*>() == std::declval<OtherObjectType*>()))
+	>
+	FORCEINLINE bool operator!=(OtherObjectType* Other) const
+	{
+		return Object != Other;
+	}
+	template <
+		typename OtherObjectType
+		UE_REQUIRES(UE_REQUIRES_EXPR(std::declval<OtherObjectType*>() == std::declval<ObjectType*>()))
+	>
+	FORCEINLINE friend bool operator!=(OtherObjectType* Lhs, const TNonNullPtr& Rhs)
+	{
+		return Lhs != Rhs.Object;
+	}
+#endif
+
+	/**
 	 * Returns the internal pointer
 	 */
 	FORCEINLINE operator ObjectType*() const
