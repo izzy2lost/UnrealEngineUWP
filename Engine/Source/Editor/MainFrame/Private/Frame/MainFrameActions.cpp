@@ -334,11 +334,17 @@ void FMainFrameActionCallbacks::SaveAll()
 
 bool FMainFrameActionCallbacks::CanSubmitContent()
 {
-	return FSourceControlWindows::CanChoosePackagesToCheckIn();
+	// The 'Submit Content' operation could lead to a world reload (in UEFN) that takes the user out of their selected editor mode.
+	// Piggy back on the 'CanAutoSave' functionality to determine if now is a good time to trigger a 'Submit Content' SCC operation.
+
+	return GLevelEditorModeTools().CanAutoSave() && FSourceControlWindows::CanChoosePackagesToCheckIn();
 }
 
 bool FMainFrameActionCallbacks::CanSyncContent()
 {
+	// The 'Sync Content' operation could lead to a world reload (in UEFN) that takes the user out of their selected editor mode.
+	// Piggy back on the 'CanAutoSave' functionality to determine if now is a good time to trigger a 'Sync Content' SCC operation.
+
 	return GLevelEditorModeTools().CanAutoSave() && FSourceControlWindows::CanSyncLatest();
 }
 
