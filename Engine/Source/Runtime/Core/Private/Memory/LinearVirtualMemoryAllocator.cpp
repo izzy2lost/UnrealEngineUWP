@@ -63,7 +63,16 @@ void* FLinearVirtualMemoryAllocator::Allocate(SIZE_T Size, uint32 Alignment)
 					LLM_PLATFORM_SCOPE(ELLMTag::FMalloc);
 					const size_t CommitGranularity = UE_USE_VERYLARGEPAGEALLOCATOR ? 2ul * 1024 * 1024 : 65536ul;
 					const SIZE_T ToCommit = Align(NewOffset - Committed, FMath::Max(VirtualMemory.GetCommitAlignment(), CommitGranularity));
+				#if UE_USE_VERYLARGEPAGEALLOCATOR
+					if (!VirtualMemory.Commit(Committed, ToCommit, false))
+					{
+						// do not try to use linear allocator anymore and fallback to FMemory::Malloc from now on
+						Reserved = Committed;
+						return FMemory::Malloc(Size, Alignment);
+					}
+				#else
 					VirtualMemory.Commit(Committed, ToCommit);
+				#endif
 					Committed += ToCommit;
 					LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, (uint8*)VirtualMemory.GetVirtualPointer() + CurrentOffset, ToCommit));
 				}
