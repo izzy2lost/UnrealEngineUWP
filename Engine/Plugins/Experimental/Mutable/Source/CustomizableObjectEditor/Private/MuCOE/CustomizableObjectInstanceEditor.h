@@ -195,8 +195,6 @@ private:
 	TSharedRef<SDockTab> SpawnTab_AdvancedPreviewSettings(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_TextureAnalyzer(const FSpawnTabArgs& Args);
 
-	void SetupPreviewInstance();
-
 	/** Binds commands associated with the Static Mesh Editor. */
 	void BindCommands();
 		

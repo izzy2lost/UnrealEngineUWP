@@ -376,7 +376,7 @@ void FCustomizableObjectEditorViewportClient::Draw(const FSceneView* View, FPrim
 
 	if (bShowBones)
 	{
-		for (TWeakObjectPtr<UDebugSkelMeshComponent> SkeletalMeshComponent : SkeletalMeshComponents)
+		for (const TWeakObjectPtr<UDebugSkelMeshComponent>& SkeletalMeshComponent : SkeletalMeshComponents)
 		{
 			if (SkeletalMeshComponent.IsValid())
 			{

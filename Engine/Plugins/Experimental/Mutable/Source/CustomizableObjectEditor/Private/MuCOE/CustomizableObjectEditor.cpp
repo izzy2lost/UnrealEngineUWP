@@ -310,12 +310,17 @@ void FCustomizableObjectEditor::InitCustomizableObjectEditor(const EToolkitMode:
 	FCoreUObjectDelegates::OnObjectModified.AddRaw(this, &FCustomizableObjectEditor::OnObjectModified);
 	
 	UCustomizableObjectPrivate* CustomizableObjectPrivate = CustomizableObject->GetPrivate();
+	
+	PreviewInstance = CustomizableObject->CreateInstance();	
+	PreviewInstance->UpdatedNativeDelegate.AddSP(SharedThis(this), &FCustomizableObjectEditor::OnUpdatePreviewInstance);
+	PreviewInstance->SetBuildParameterRelevancy(true);
 
+	CustomizableInstanceDetailsView->SetObject(PreviewInstance, true);
+	
 	CustomizableObjectPrivate->Status.GetOnStateChangedDelegate().AddRaw(this, &FCustomizableObjectEditor::OnCustomizableObjectStatusChanged);
-	const FCustomizableObjectStatusTypes::EState CurrentStatus = CustomizableObjectPrivate->Status.Get();
-	OnCustomizableObjectStatusChanged(CurrentStatus, CurrentStatus);
-
-	CustomizableObject->GetPostCompileDelegate().AddSP(this, &FCustomizableObjectEditor::OnPostCompile);
+	OnCustomizableObjectStatusChanged(FCustomizableObjectStatusTypes::EState::Loading, CustomizableObjectPrivate->Status.Get());  // Fake we are still in the loading phase.
+	
+	CustomizableObject->GetPostCompileDelegate().AddSP(this, &FCustomizableObjectEditor::OnPostCompile); // Must be attached after creating the Instance since the Instance also does some work in this delegate.
 }
 
 
@@ -334,20 +339,6 @@ FText FCustomizableObjectEditor::GetBaseToolkitName() const
 void FCustomizableObjectEditor::SelectNode(const UEdGraphNode* Node)
 {
 	GraphEditor->JumpToNode(Node);
-}
-
-
-void FCustomizableObjectEditor::CreatePreviewInstance()
-{
-	PreviewInstance = CustomizableObject->CreateInstance();
-	CustomizableInstanceDetailsView->SetObject(PreviewInstance, true);
-
-	CreatePreviewActor();
-
-	PreviewInstance->UpdatedNativeDelegate.AddSP(SharedThis(this), &FCustomizableObjectEditor::OnUpdatePreviewInstance);
-	
-	PreviewInstance->SetBuildParameterRelevancy(true);
-	PreviewInstance->UpdateSkeletalMeshAsync(true, true);
 }
 
 
@@ -2420,23 +2411,19 @@ void RemoveRestrictedChars(FString& String)
 }
 
 
-void FCustomizableObjectEditor::OnCustomizableObjectStatusChanged(FCustomizableObjectStatus::EState, const FCustomizableObjectStatus::EState CurrentState)
+void FCustomizableObjectEditor::OnCustomizableObjectStatusChanged(FCustomizableObjectStatus::EState PreviousState, const FCustomizableObjectStatus::EState CurrentState)
 {
-	switch (CurrentState)
+	if (PreviousState == FCustomizableObjectStatusTypes::EState::Loading)
 	{
-	case FCustomizableObjectStatus::EState::ModelLoaded:
-		if (!PreviewInstance)
+		if (CurrentState == FCustomizableObjectStatusTypes::EState::ModelLoaded)
 		{
-			CreatePreviewInstance();
+			CreatePreviewActor();
+			PreviewInstance->UpdateSkeletalMeshAsync(true, true);
 		}
-		break;
-		
-	case FCustomizableObjectStatus::EState::NoModel:
-		CustomizableObject->ConditionalAutoCompile();
-		break;
-
-	default:
-		break;
+		else if (CurrentState == FCustomizableObjectStatusTypes::EState::NoModel)
+		{
+			CustomizableObject->ConditionalAutoCompile();
+		}
 	}
 }
 

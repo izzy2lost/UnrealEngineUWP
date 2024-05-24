@@ -1199,7 +1199,7 @@ void FCustomizableObjectCompiler::CompleteRequest(ECompilationStatePrivate State
 		// Unlock the object so that instances can be updated
 		UCustomizableObjectSystem* System = UCustomizableObjectSystem::IsCreated() ? UCustomizableObjectSystem::GetInstance() : nullptr;
 		if (System && !System->HasAnyFlags(EObjectFlags::RF_BeginDestroyed))
-		{
+		{	
 			System->UnlockObject(CurrentObject);
 		}
 
@@ -1208,12 +1208,16 @@ void FCustomizableObjectCompiler::CompleteRequest(ECompilationStatePrivate State
 			CurrentModel->GetPrivate()->UnloadRoms();
 		}
 
-		CurrentObject->GetPrivate()->SetModel(CurrentModel, GenerateIdentifier(*CurrentObject));
-
 		if (Result == ECompilationResultPrivate::Success || Result == ECompilationResultPrivate::Warnings)
 		{
-			CurrentObject->GetPrivate()->PostCompile();
+			CurrentObject->GetPrivate()->SetModel(CurrentModel, GenerateIdentifier(*CurrentObject));
 		}
+		else
+		{
+			CurrentObject->GetPrivate()->SetModel(nullptr, {});
+		}
+
+		CurrentObject->GetPrivate()->PostCompile();
 
 		UE_LOG(LogMutable, Display, TEXT("Finished compiling Customizable Object %s. Compilation took %5.3f seconds to complete."),
 			*CurrentObject->GetName(), FPlatformTime::Seconds() - CompilationStartTime);

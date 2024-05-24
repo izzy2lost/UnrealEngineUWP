@@ -252,9 +252,12 @@ void FCustomizableObjectInstanceEditor::InitCustomizableObjectInstanceEditor( co
 	// Set the instance
 	check(InCustomizableObjectInstance);
 	CustomizableObjectInstance = InCustomizableObjectInstance;
+	CustomizableObjectInstance->UpdatedNativeDelegate.AddSP(SharedThis(this), &FCustomizableObjectInstanceEditor::OnUpdatePreviewInstance);
+	CustomizableObjectInstance->SetBuildParameterRelevancy(true);
+	
 	bOnlyRelevantParameters = InCustomizableObjectInstance->GetPrivate()->bShowOnlyRelevantParameters;
 	bOnlyRuntimeParameters = InCustomizableObjectInstance->GetPrivate()->bShowOnlyRuntimeParameters;
-
+	
 	FAdvancedPreviewSceneModule& AdvancedPreviewSceneModule = FModuleManager::LoadModuleChecked<FAdvancedPreviewSceneModule>("AdvancedPreviewScene");
 
 	TSharedPtr<FAdvancedPreviewScene> AdvancedPreviewScene = StaticCastSharedPtr<FAdvancedPreviewScene>(Viewport->GetPreviewScene());
@@ -301,8 +304,7 @@ void FCustomizableObjectInstanceEditor::InitCustomizableObjectInstanceEditor( co
 		UCustomizableObjectPrivate* CustomizableObjectPrivate = CustomizableObject->GetPrivate();
 
 		CustomizableObjectPrivate->Status.GetOnStateChangedDelegate().AddRaw(this, &FCustomizableObjectInstanceEditor::OnCustomizableObjectStatusChanged);
-		const FCustomizableObjectStatusTypes::EState CurrentStatus = CustomizableObjectPrivate->Status.Get();
-		OnCustomizableObjectStatusChanged(CurrentStatus, CurrentStatus);
+		OnCustomizableObjectStatusChanged(FCustomizableObjectStatusTypes::EState::Loading, CustomizableObjectPrivate->Status.Get()); // Fake we are still in the loading phase.
 
 		int32 StateParameterCount = CustomizableObject->GetStateParameterCount(CustomizableObjectInstance->GetCurrentState());
 		int32 ParameterCount = CustomizableObject->GetParameterCount();
@@ -327,23 +329,6 @@ FName FCustomizableObjectInstanceEditor::GetToolkitFName() const
 FText FCustomizableObjectInstanceEditor::GetBaseToolkitName() const
 {
 	return LOCTEXT("ToolkitName", "Customizable Object Instance Editor");
-}
-
-
-void FCustomizableObjectInstanceEditor::SetupPreviewInstance()
-{
-	check(CustomizableObjectInstance);
-	if (!CustomizableObjectInstance->GetCustomizableObject())
-	{
-		return;
-	}
-
-	CreatePreviewActor();
-	
-	CustomizableObjectInstance->UpdatedNativeDelegate.AddSP(SharedThis(this), &FCustomizableObjectInstanceEditor::OnUpdatePreviewInstance);
-	
-	CustomizableObjectInstance->SetBuildParameterRelevancy(true);
-	CustomizableObjectInstance->UpdateSkeletalMeshAsync(true, true);
 }
 
 
@@ -650,31 +635,23 @@ TStatId FCustomizableObjectInstanceEditor::GetStatId() const
 }
 
 
-void FCustomizableObjectInstanceEditor::OnCustomizableObjectStatusChanged(FCustomizableObjectStatus::EState, const FCustomizableObjectStatus::EState CurrentState)
+void FCustomizableObjectInstanceEditor::OnCustomizableObjectStatusChanged(FCustomizableObjectStatus::EState PreviousState, const FCustomizableObjectStatus::EState CurrentState)
 {
-	switch (CurrentState)
+	if (PreviousState == FCustomizableObjectStatusTypes::EState::Loading)
 	{
-	case FCustomizableObjectStatus::EState::ModelLoaded:
+		if (CurrentState == FCustomizableObjectStatusTypes::EState::ModelLoaded)
 		{
-			SetupPreviewInstance();
-			break;			
+			CreatePreviewActor();
+			CustomizableObjectInstance->UpdateSkeletalMeshAsync(true, true);
 		}
-		
-	case FCustomizableObjectStatus::EState::NoModel:
+		else if (CurrentState == FCustomizableObjectStatusTypes::EState::NoModel)
 		{
-			UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject();
-			
-			if (CustomizableObject)
+			if (UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject())
 			{
 				CustomizableObject->ConditionalAutoCompile();
 			}
-
-			break;			
 		}
-
-	default:
-		break;
-	}	
+	}
 }
 
 

@@ -275,8 +275,6 @@ private:
 	TSharedRef<SDockTab> SpawnTab_PerformanceReport(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_TagExplorer(const FSpawnTabArgs& Args);
 	
-	void CreatePreviewInstance();
-
 	/** Binds commands associated with the Static Mesh Editor. */
 	void BindCommands();
 	
