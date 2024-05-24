@@ -360,6 +360,12 @@ public:
 		return ArrayNum;
 	}
 
+	/** @returns Number of bytes used, excluding slack */
+	FORCEINLINE SIZE_T NumBytes() const
+	{
+		return static_cast<SIZE_T>(ArrayNum) * sizeof(ElementType);
+	}
+
 	/**
 	 * Array bracket operator. Returns reference to element at given index.
 	 *

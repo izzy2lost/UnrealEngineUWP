@@ -1099,6 +1099,18 @@ public:
 		return Data.Num() ? Data.Num() - 1 : 0;
 	}
 
+	/** @returns Number of bytes used for characters, excluding the null-terminator and slack */
+	[[nodiscard]] FORCEINLINE SIZE_T NumBytesWithoutNull() const
+	{
+		return static_cast<SIZE_T>(Len()) * sizeof(ElementType);
+	}
+
+	/** @returns Number of bytes used for characters, including the null-terminator but excluding slack */
+	[[nodiscard]] FORCEINLINE SIZE_T NumBytesWithNull() const
+	{
+		return static_cast<SIZE_T>(Len() + 1) * sizeof(ElementType);
+	}
+
 	/** Returns the left most given number of characters */
 	[[nodiscard]] FORCEINLINE UE_STRING_CLASS Left( int32 Count ) const &
 	{

@@ -159,6 +159,9 @@ public:
 
 	// Capacity
 
+	/** @returns Number of bytes used for the characters in the string view */
+	[[nodiscard]] constexpr inline SIZE_T NumBytes() const { return static_cast<SIZE_T>(Size) * sizeof(CharType); }
+
 	/** Returns the length of the string view. */
 	[[nodiscard]] constexpr inline int32 Len() const { return Size; }
 
