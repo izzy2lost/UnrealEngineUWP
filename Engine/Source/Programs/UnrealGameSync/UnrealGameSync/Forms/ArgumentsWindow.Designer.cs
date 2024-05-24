@@ -39,7 +39,7 @@ namespace UnrealGameSync
 			this.columnHeader1 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
 			this.MoveUpButton = new System.Windows.Forms.Button();
 			this.MoveDownButton = new System.Windows.Forms.Button();
-			this.ResetDefaultsButton = new System.Windows.Forms.Button();
+			this.ResetToDefaultsButton = new System.Windows.Forms.Button();
 			this.PromptBeforeLaunchCheckBox = new System.Windows.Forms.CheckBox();
 			this.SuspendLayout();
 			// 
@@ -128,16 +128,16 @@ namespace UnrealGameSync
 			this.MoveDownButton.UseVisualStyleBackColor = true;
 			this.MoveDownButton.Click += new System.EventHandler(this.MoveDownButton_Click);
 			// 
-			// ResetDefaultsButton
+			// ResetToDefaultsButton
 			// 
-			this.ResetDefaultsButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.ResetDefaultsButton.Location = new System.Drawing.Point(671, 76);
-			this.ResetDefaultsButton.Name = "ResetDefaultsButton";
-			this.ResetDefaultsButton.Size = new System.Drawing.Size(108, 26);
-			this.ResetDefaultsButton.TabIndex = 8;
-			this.ResetDefaultsButton.Text = "Reset Defaults";
-			this.ResetDefaultsButton.UseVisualStyleBackColor = true;
-			this.ResetDefaultsButton.Click += new System.EventHandler(this.ResetDefaultsButton_Click);
+			this.ResetToDefaultsButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+			this.ResetToDefaultsButton.Location = new System.Drawing.Point(671, 76);
+			this.ResetToDefaultsButton.Name = "ResetToDefaultsButton";
+			this.ResetToDefaultsButton.Size = new System.Drawing.Size(108, 26);
+			this.ResetToDefaultsButton.TabIndex = 8;
+			this.ResetToDefaultsButton.Text = "Reset To Defaults";
+			this.ResetToDefaultsButton.UseVisualStyleBackColor = true;
+			this.ResetToDefaultsButton.Click += new System.EventHandler(this.ResetToDefaultsButton_Click);
 			// 
 			// PromptBeforeLaunchCheckBox
 			// 
@@ -157,7 +157,7 @@ namespace UnrealGameSync
 			this.CancelButton = this.CancelBtn;
 			this.ClientSize = new System.Drawing.Size(791, 419);
 			this.Controls.Add(this.PromptBeforeLaunchCheckBox);
-			this.Controls.Add(this.ResetDefaultsButton);
+			this.Controls.Add(this.ResetToDefaultsButton);
 			this.Controls.Add(this.MoveDownButton);
 			this.Controls.Add(this.MoveUpButton);
 			this.Controls.Add(this.ArgumentsList);
@@ -181,7 +181,7 @@ namespace UnrealGameSync
 		private System.Windows.Forms.ColumnHeader columnHeader1;
 		private System.Windows.Forms.Button MoveUpButton;
 		private System.Windows.Forms.Button MoveDownButton;
-		private System.Windows.Forms.Button ResetDefaultsButton;
+		private System.Windows.Forms.Button ResetToDefaultsButton;
 		private System.Windows.Forms.CheckBox PromptBeforeLaunchCheckBox;
 	}
 }
