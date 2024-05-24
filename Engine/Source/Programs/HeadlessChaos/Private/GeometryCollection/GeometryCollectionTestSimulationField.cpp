@@ -168,7 +168,7 @@ namespace GeometryCollectionTest
 		Params.RootTransform.SetLocation(FVector(0.0, 0.0, 0.0));
 
 		Params.InitialVelocityType = EInitialVelocityTypeEnum::Chaos_Initial_Velocity_User_Defined;
-		Params.InitialLinearVelocity = FVector(0.f, 100.f, 0.f);
+		Params.InitialLinearVelocity = FVector3f(0.f, 100.f, 0.f);
 		FGeometryCollectionWrapper* Collection = TNewSimulationObject<GeometryType::GeometryCollectionWithSingleRigid>::Init(Params)->template As<FGeometryCollectionWrapper>();
 		UnitTest.AddSimulationObject(Collection);
 
@@ -1054,7 +1054,7 @@ namespace GeometryCollectionTest
 		CreationParameters Params;
 		Params.DynamicState = EObjectStateTypeEnum::Chaos_Object_Dynamic;
 		Params.InitialVelocityType = EInitialVelocityTypeEnum::Chaos_Initial_Velocity_User_Defined;
-		Params.InitialLinearVelocity = FVector(100.0, 0.0, 0.0);
+		Params.InitialLinearVelocity = FVector3f(100.0, 0.0, 0.0);
 		Params.RootTransform.SetLocation(ExpectedLocation);
 		FGeometryCollectionWrapper* Collection = TNewSimulationObject<GeometryType::GeometryCollectionWithSingleRigid>::Init(Params)->template As<FGeometryCollectionWrapper>();
 		UnitTest.AddSimulationObject(Collection);
