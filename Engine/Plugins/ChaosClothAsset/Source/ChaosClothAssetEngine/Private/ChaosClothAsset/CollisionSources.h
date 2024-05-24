@@ -17,7 +17,8 @@ namespace UE::Chaos::ClothAsset
 	class FCollisionSources final
 	{
 	public:
-		explicit FCollisionSources(USkinnedMeshComponent* InOwnerComponent): OwnerComponent(InOwnerComponent) {}
+		explicit FCollisionSources(USkinnedMeshComponent* InOwnerComponent);
+		~FCollisionSources();
 
 		void Add(USkinnedMeshComponent* SourceComponent, const UPhysicsAsset* SourcePhysicsAsset, bool bUseSphylsOnly = false);
 

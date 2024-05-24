@@ -10,6 +10,12 @@
 
 namespace UE::Chaos::ClothAsset
 {
+	FCollisionSources::FCollisionSources(USkinnedMeshComponent* InOwnerComponent)
+		: OwnerComponent(InOwnerComponent)
+	{}
+
+	FCollisionSources::~FCollisionSources() = default;
+
 	void FCollisionSources::Add(USkinnedMeshComponent* SourceComponent, const UPhysicsAsset* SourcePhysicsAsset, bool bUseSphylsOnly)
 	{
 		using namespace UE::Chaos::ClothAsset;
