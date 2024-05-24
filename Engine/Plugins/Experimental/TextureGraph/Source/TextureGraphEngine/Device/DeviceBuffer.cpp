@@ -131,23 +131,20 @@ AsyncRawBufferPtr DeviceBuffer::Raw()
 
 AsyncRawBufferPtr DeviceBuffer::GetRawOrMaketIt()
 {
+	check(IsInGameThread());
 	if (!IsFetchingRaw())
 	{
 		return Raw();
 	}
 	else
 	{
-		RawBufferPtr RawObj;
-		return GetOwnerDevice()->Use()
-			.then([this, RawObj](int32) mutable
-				{
-					RawObj = Raw_Now();
-					return PromiseUtil::OnGameThread();
-				})
-			.then([RawObj]()
-				{
-					return RawObj;
-				});
+		return GetOwnerDevice()->Use().then([this](int32) mutable
+			{
+				RawBufferPtr RawObj = Raw_Now();
+
+				// Return to game thread with the payload
+				return PromiseUtil::OnGameThread(std::move(RawObj));
+			});
 	}
 }
 

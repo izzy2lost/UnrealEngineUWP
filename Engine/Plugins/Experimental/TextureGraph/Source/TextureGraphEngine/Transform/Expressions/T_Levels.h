@@ -62,10 +62,6 @@ struct TEXTUREGRAPHENGINE_API FLevels
 	bool 								IsAutoLevels = false;
 	float 								MidPercentage = 0.5f;
 
-	bool 								IsHistogramScan = false;
-	float 								Position = 0.5f;
-	float 								Contrast = 0.5f;
-
 	bool SetLow(float InValue);
 	bool SetMid(float InValue);
 	bool SetHigh(float InValue);

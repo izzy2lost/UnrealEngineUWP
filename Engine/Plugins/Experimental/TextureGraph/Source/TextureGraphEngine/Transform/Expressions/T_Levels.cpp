@@ -87,31 +87,26 @@ void FLevels::InitFromLowMidHigh(float LowValue, float MidValue, float HighValue
 	High = std::min(1.0f, HighValue);
 
 	IsAutoLevels = false;
-	IsHistogramScan = false;
-
 }
 
 void FLevels::InitFromAutoLevels(float InMidPercentage)
 {
 	IsAutoLevels = true;
 	MidPercentage = std::min(std::max(0.0f, InMidPercentage), 1.0f);
-
-	IsHistogramScan = false;
 }
 
+// Histogram scan
 void FLevels::InitFromPositionContrast(float InPosition, float InContrast)
 {
-	float ContrastRange = 1.0 - InContrast * 0.5f;
-
-	Low = std::max(0.0f, InPosition - ContrastRange);
-	Mid = InPosition;
-	High = std::min(1.0f, InPosition + ContrastRange);
+	float C = InContrast * 0.5f;
+	float P = 1.0f - FMath::Clamp(InPosition, 0, 1);
+	float P1 = (FMath::Max(P, 0.5f) - 0.5f) * 2.0f;
+	float P2 = FMath::Min(P * 2.0f, 1.0f);
+	Low = FMath::Lerp(P1, P2, C);
+	High = FMath::Lerp(P2, P1, C);
+	Mid = Low + (High - Low) * 0.5f;
 	
 	IsAutoLevels = false;
-
-	IsHistogramScan = true;
-	Position = InPosition;
-	Contrast = InContrast;
 }
 
 
