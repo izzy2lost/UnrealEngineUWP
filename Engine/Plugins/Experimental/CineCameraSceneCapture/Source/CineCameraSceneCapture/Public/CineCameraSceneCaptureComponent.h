@@ -4,12 +4,29 @@
 
 #include "OpenColorIOColorSpace.h"
 #include "Components/SceneCaptureComponent2D.h"
+#include "Engine/BlendableInterface.h"
 #include "CineCameraSceneCaptureComponent.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogCineCapture, Log, All);
 
 class FCineCameraCaptureSceneViewExtension;
 class UCineCameraComponent;
+
+/**
+* Custom blendable used to optionally clear world blendables (post-process materials) in the cine camera capture.
+*/
+UCLASS(NotBlueprintType)
+class UCineCaptureErasureBlendable
+	: public UObject
+	, public IBlendableInterface
+{
+	GENERATED_UCLASS_BODY()
+
+public:
+	// Begins IBlendableInterface
+	void OverrideBlendableSettings(class FSceneView& View, float Weight) const override;
+	// Ends IBlendableInterface
+};
 
 /**
 * Cine Capture Component extends Scene Capture to allow users to render Cine Camera Component into a render target. 
@@ -43,6 +60,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Color", meta = (DisplayName = "OpenColorIO Display Configuration"))
 	FOpenColorIODisplayConfiguration OCIOConfiguration;
 
+	/**
+	* Option to disable world blendables (post-process materials) only in the cine camera capture.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Capture Settings")
+	bool bIgnoreWorldPostProcessMaterials;
+
 	/** Used to gather relevant properties for View rendering. */
 	UPROPERTY()
 	TSoftObjectPtr<UCineCameraComponent> CineCameraComponent;
@@ -63,4 +86,8 @@ private:
 private:
 	/** This scene view extension is used to get ahold of views during the setup process. */
 	TSharedPtr<FCineCameraCaptureSceneViewExtension, ESPMode::ThreadSafe> CineCaptureSVE;
+
+	UPROPERTY()
+	/** Custom blendable used to optionally clear world blendables (post-process materials) in the cine camera capture. */
+	TObjectPtr<UCineCaptureErasureBlendable> ErasureBlendable;
 };
