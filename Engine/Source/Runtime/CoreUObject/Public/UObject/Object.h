@@ -17,6 +17,7 @@
 struct FAssetData;
 class FAssetRegistryTagsContext;
 namespace UE::AssetRegistry { class FAssetRegistryImpl; }
+namespace UE::ConfigAccessTracking { struct FConfigAccessData; }
 class FConfigCacheIni;
 class FCustomPropertyConditionState;
 class FEditPropertyChain;
@@ -1373,9 +1374,12 @@ public:
 	 * @param	Filename			indicates the filename to load values from; if not specified, uses ConfigClass's ClassConfigName
 	 * @param	PropagationFlags	indicates how this call to LoadConfig should be propagated; expects a bitmask of UE::ELoadConfigPropagationFlags values.
 	 * @param	PropertyToLoad		if specified, only the ini value for the specified property will be imported.
+	 * @param 	OutAccessedKeys     if specified the object is not modified and (EditorOnly) all the config keys it
+	 *                              would read are added to OutAccessedKeys. In non-editor, function returns with no action.
 	 */
 	COREUOBJECT_API void LoadConfig(UClass* ConfigClass = nullptr, const TCHAR* Filename = nullptr,
-		uint32 PropagationFlags = UE::LCPF_None, class FProperty* PropertyToLoad = nullptr);
+		uint32 PropagationFlags = UE::LCPF_None, class FProperty* PropertyToLoad = nullptr,
+		TArray<UE::ConfigAccessTracking::FConfigAccessData>* OutAccessedKeys = nullptr);
 
 	/**
 	 * Wrapper method for LoadConfig that is used when reloading the config data for objects at runtime which have already loaded their config data at least once.
