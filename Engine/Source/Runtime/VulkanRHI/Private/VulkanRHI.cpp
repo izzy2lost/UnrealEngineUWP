@@ -1112,12 +1112,10 @@ void FVulkanCommandListContext::RHIBeginFrame()
 
 void FVulkanCommandListContext::RHIBeginScene()
 {
-	//FRCLog::Printf(FString::Printf(TEXT("FVulkanCommandListContext::RHIBeginScene()")));
 }
 
 void FVulkanCommandListContext::RHIEndScene()
 {
-	//FRCLog::Printf(FString::Printf(TEXT("FVulkanCommandListContext::RHIEndScene()")));
 }
 
 void FVulkanCommandListContext::RHIBeginDrawingViewport(FRHIViewport* ViewportRHI, FRHITexture* RenderTargetRHI)
