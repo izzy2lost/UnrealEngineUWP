@@ -864,8 +864,8 @@ protected:
 class FRHIShader : public FRHIResource, public FRHIShaderData
 {
 public:
-	void SetHash(FSHAHash InHash) { Hash = InHash; }
-	FSHAHash GetHash() const { return Hash; }
+	void SetHash(const FSHAHash& InHash) { Hash = InHash; }
+	const FSHAHash& GetHash() const { return Hash; }
 
 #if RHI_INCLUDE_SHADER_DEBUG_DATA
 
