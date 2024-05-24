@@ -378,7 +378,7 @@ void FSpatialHashStreamingGrid::GetCells(const TArray<FWorldPartitionStreamingSo
 			, SourceShape(InSourceShape)
 		{}
 		const FWorldPartitionStreamingSource& Source;
-		const FSphericalSector& SourceShape;
+		const FSphericalSector SourceShape;
 	};
 
 	typedef TMap<FGridCellCoord, TArray<FStreamingSourceInfo>> FIntersectingCells;
