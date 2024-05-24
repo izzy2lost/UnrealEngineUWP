@@ -8,6 +8,8 @@ using UnrealBuildTool;
 using System.Text.RegularExpressions;
 using System.Linq;
 using EpicGames.Core;
+using Microsoft.Extensions.Logging;
+using AutomationUtils.Matchers;
 
 namespace Gauntlet
 {
@@ -2005,17 +2007,35 @@ namespace Gauntlet
 				List<string> Callstack = new List<string>();
 				if (Event.Callstack.Any())
 				{
-					Callstack = Event.Callstack.Take(MaxCallstackLines).ToList();
-					if (Event.Callstack.Count() > MaxCallstackLines)
+					if (CommandUtils.IsBuildMachine)
 					{
-						Callstack.Add("See log for full callstack");
+						Callstack = Event.Callstack.ToList();
+					}
+					else
+					{
+						Callstack = Event.Callstack.Take(MaxCallstackLines).ToList();
+						if (Event.Callstack.Count() > MaxCallstackLines)
+						{
+							Callstack.Add("See log for full callstack");
+						}
 					}
 				}
 				else
 				{
 					Callstack.Add("Could not parse callstack. See log for full callstack");
 				}
-				Log.Error(KnownLogEvents.Gauntlet_FatalEvent, " * Fatal Error: {Summary}\n{Callstack}", Event.Summary, string.Join("\n", Callstack.Select(C=>"    "+C)));
+				string CallstackString = string.Join("\n", Callstack.Select(C => "    " + C));
+				Dictionary<string, object> Properties = new Dictionary<string, object>() {
+					{ "Summary", Event.Summary },
+					{ "Callstack", CallstackString }
+				};
+				EventId EventType = KnownLogEvents.Gauntlet_FatalEvent;
+				if (Event.IsSanReport && CommandUtils.IsBuildMachine
+					&& SanitizerEventMatcher.AddSanitizerSummaryProperties(CallstackString, Properties))
+				{
+					EventType = SanitizerEventMatcher.ConvertSanitizerNameToEventId(Properties.GetValueOrDefault("SanitizerName")?.ToString());
+				}
+				Log.Error(EventType, " * Fatal Error: {Summary}\n{Callstack}", Args: Properties.Values.ToArray());
 				Log.Info("");
 			}
 
@@ -2024,11 +2044,17 @@ namespace Gauntlet
 				List<string> Callstack = new List<string>();
 				if (Event.Callstack.Any())
 				{
-					Callstack = Event.Callstack.Take(MaxCallstackLines).ToList();
-
-					if (Event.Callstack.Count() > MaxCallstackLines)
+					if (CommandUtils.IsBuildMachine)
 					{
-						Callstack.Add("See log for full callstack");
+						Callstack = Event.Callstack.ToList();
+					}
+					else
+					{
+						Callstack = Event.Callstack.Take(MaxCallstackLines).ToList();
+						if (Event.Callstack.Count() > MaxCallstackLines)
+						{
+							Callstack.Add("See log for full callstack");
+						}
 					}
 				}
 				else

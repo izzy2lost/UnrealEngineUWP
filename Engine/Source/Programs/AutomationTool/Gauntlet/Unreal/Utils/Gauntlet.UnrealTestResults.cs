@@ -7,6 +7,12 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Linq;
 using AutomationTool;
+using EpicGames.Core;
+using Microsoft.Extensions.Logging;
+using Logging = Microsoft.Extensions.Logging;
+using System.Globalization;
+using AutomationUtils.Matchers;
+using Polly;
 
 namespace Gauntlet
 {
@@ -69,6 +75,7 @@ namespace Gauntlet
 		public string Artifact { get; set; }
 
 		const string CriticalFailureString = "critical failure";
+		const string SanitizerReportString = "Sanitizer: ";
 
 		public UnrealAutomationEvent()
 		{ }
@@ -119,6 +126,18 @@ namespace Gauntlet
 			}
 		}
 
+		/// <summary>
+		/// True if the event contains a Sanitizer report
+		/// </summary>
+		[JsonIgnore]
+		public bool IsSanReport
+		{
+			get
+			{
+				return IsError && Message.Contains(SanitizerReportString);
+			}
+		}
+
 		public string FormatToString()
 		{
 			return Message;
@@ -153,6 +172,75 @@ namespace Gauntlet
 		public int LineNumber { get; set; }
 		[JsonPropertyName("timeStamp")]
 		public string Timestamp { get; set; }
+
+		private DateTime GetTimestampAsDateTime()
+		{
+			if (string.IsNullOrEmpty(Timestamp) || Timestamp == "0001.01.01-00.00.00")
+			{
+				// Special case: when UE Test DateTime is set this way, it means the value was 0 or null before getting converted to json.
+				Timestamp = DateTime.UtcNow.ToString("yyyy.MM.dd-HH.mm.ss");
+			}
+			DateTime Time = DateTime.UtcNow;
+			DateTime.TryParseExact(Timestamp, "yyyy.MM.dd-HH.mm.ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out Time);
+			return Time;
+		}
+
+		public LogEvent AsLogEvent()
+		{
+			DateTime Time = GetTimestampAsDateTime();
+			Logging.LogLevel Level = Event.IsError ?
+										(Event.IsCriticalFailure ?
+											Logging.LogLevel.Critical : Logging.LogLevel.Error)
+										: (Event.IsWarning ?
+											Logging.LogLevel.Warning : Logging.LogLevel.Information);
+
+			EventId EventIdType = Event.IsCriticalFailure ? KnownLogEvents.Gauntlet_FatalEvent : KnownLogEvents.Gauntlet_UnrealEngineTestEvent;
+
+			string Message = Event.FormatToString();
+			string Format = null;
+			Dictionary<string, object> Properties = null;
+			if (Event.IsCriticalFailure)
+			{
+				Properties = new Dictionary<string, object>() { { "Callstack", Message } };
+				if (Event.IsSanReport
+					&& SanitizerEventMatcher.AddSanitizerSummaryProperties(Message, Properties))
+				{
+					EventIdType = SanitizerEventMatcher.ConvertSanitizerNameToEventId(Properties.GetValueOrDefault("SanitizerName")?.ToString());
+				}
+				Format = "{Callstack}";
+			}
+			if (!string.IsNullOrEmpty(Event.Context))
+			{
+				Properties.Add("Context", Event.Context);
+				Format = "[{Context}] " + Format?? Message;
+			}
+			if (!string.IsNullOrEmpty(Filename))
+			{
+				string FileReference = $"{Filename}:{LineNumber}";
+				Properties.Add("FileReference", FileReference);
+				Format = (Format?? Message) + " [{FileReference}]";
+			}
+
+			return new LogEvent(Time, Level, EventIdType, Message, Format, Properties, null);
+		}
+
+		protected bool Equals(UnrealAutomationEntry other)
+		{
+			return string.Equals(Event, other.Event);
+		}
+
+		public override bool Equals(object obj)
+		{
+			if (ReferenceEquals(null, obj)) return false;
+			if (ReferenceEquals(this, obj)) return true;
+			if (obj.GetType() != this.GetType()) return false;
+			return Equals((UnrealAutomationEntry)obj);
+		}
+
+		public override int GetHashCode()
+		{
+			return Event.GetHashCode();
+		}
 	}
 	public class UnrealAutomatedTestResult
 	{
@@ -190,10 +278,10 @@ namespace Gauntlet
 			var Event = new UnrealAutomationEvent(EventType, Message, bIsCriticalFailure);
 			var Entry = new UnrealAutomationEntry();
 			Entry.Event = Event;
-			Entry.Timestamp = System.DateTime.Now.ToString("yyyy.MM.dd-HH.mm.ss");
+			Entry.Timestamp = System.DateTime.UtcNow.ToString("yyyy.MM.dd-HH.mm.ss");
 			Entries.Add(Entry);
 
-			switch(Event.Type)
+			switch (Event.Type)
 			{
 				case EventType.Error:
 					Errors++;
@@ -279,6 +367,21 @@ namespace Gauntlet
 			{
 				return Entries.Where(E => E.Event.IsError || E.Event.IsWarning).Select(E => E.Event);
 			}
+		}
+
+		public IEnumerable<UnrealAutomationEntry> GetErrorEntries()
+		{
+			return Entries.Where(E => E.Event.IsError);
+		}
+
+		public IEnumerable<UnrealAutomationEntry> GetWarningEntries()
+		{
+			return Entries.Where(E => E.Event.IsWarning);
+		}
+
+		public IEnumerable<UnrealAutomationEntry> GetWarningAndErrorEntries()
+		{
+			return Entries.Where(E => E.Event.IsError || E.Event.IsWarning);
 		}
 	}
 	public class UnrealAutomatedTestPassResults

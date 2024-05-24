@@ -8,6 +8,7 @@ using System.Text;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using Logging = Microsoft.Extensions.Logging;
+using AutomationUtils.Matchers;
 
 namespace Gauntlet
 {
@@ -100,6 +101,7 @@ namespace Gauntlet
 			public string Message;
 			public string[] Callstack;
 			public bool IsEnsure;
+			public bool IsSanReport;
 			public bool IsPostMortem;
 
 			/// <summary>
@@ -975,20 +977,25 @@ namespace Gauntlet
 			/// remove anything inside the callstack starting with [2022.12.02-15.22.40:688][618]
 
 			List<UnrealLog.CallstackMessage> ASanReports = new List<UnrealLog.CallstackMessage>();
-			string InitPattern = @"==([0-9]+)==ERROR: ([^\n]+)";
-			string LineStartsWithTimeStamp = @"^\[[0-9.:-]+\]\[[0-9]+\]";
+			Regex InitPattern = SanitizerEventMatcher.ReportLevelPattern;
+			Regex LineStartsWithTimeStamp = new Regex(@"^[\s\t]*\[[0-9.:-]+\]\[[\s0-9]+\]");
 
-			MatchCollection Matches = Regex.Matches(Content, InitPattern, RegexOptions.IgnoreCase);
+			MatchCollection Matches = InitPattern.Matches(Content);
 
 			foreach (Match TraceInitMatch in Matches)
 			{
-				string TraceID = TraceInitMatch.Groups[1].Value;
-				string EndPattern = @$"(=={TraceID}==ABORTING)|(End of Address Sanitizer report)";
+				if (SanitizerEventMatcher.ConvertReportLevel(TraceInitMatch.Groups["ReportLevel"].Value) != Logging.LogLevel.Error)
+				{
+					continue;
+				}
+
+				Regex EndPattern = SanitizerEventMatcher.ReportEndPattern;
 				int TraceInitIndex = TraceInitMatch.Index + TraceInitMatch.Length;
 
 				UnrealLog.CallstackMessage NewTrace = new UnrealLog.CallstackMessage();
+				NewTrace.IsSanReport = true;
 				NewTrace.Position = TraceInitMatch.Index;
-				NewTrace.Message = TraceInitMatch.Groups[2].Value;
+				NewTrace.Message = $"{TraceInitMatch.Groups["SanitizerName"].Value}Sanitizer: {TraceInitMatch.Groups["Summary"].Value}";
 
 				// If the regex matches the very end of the string, the substring will get an invalid range.
 				string ErrorContent = Content.Length <= TraceInitIndex
@@ -996,7 +1003,7 @@ namespace Gauntlet
 
 				if (!string.IsNullOrEmpty(ErrorContent))
 				{
-					Match MsgMatch = Regex.Match(ErrorContent, EndPattern);
+					Match MsgMatch = EndPattern.Match(ErrorContent);
 					if (MsgMatch.Success)
 					{
 						string MsgContent = ErrorContent.Substring(0, MsgMatch.Index);
@@ -1004,7 +1011,7 @@ namespace Gauntlet
 						List<string> Backtrace = new List<string>();
 						foreach (string Line in MsgContent.Split("\n"))
 						{
-							Match IsTimeStampLine = Regex.Match(Line, LineStartsWithTimeStamp);
+							Match IsTimeStampLine = LineStartsWithTimeStamp.Match(Line);
 							if (!IsTimeStampLine.Success)
 							{
 								Backtrace.Add(Line);
