@@ -160,6 +160,32 @@ namespace PCGTextureSamplingHelpers
 	}
 }
 
+void UPCGBaseTextureData::PostLoad()
+{
+	Super::PostLoad();
+
+#if WITH_EDITOR
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (DensityFunction != EPCGTextureDensityFunction::Multiply)
+	{
+		bUseDensitySourceChannel = false;
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif
+}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+EPCGTextureDensityFunction UPCGBaseTextureData::GetDensityFunctionEquivalent() const
+{
+	return bUseDensitySourceChannel ? EPCGTextureDensityFunction::Multiply : EPCGTextureDensityFunction::Ignore;
+}
+
+void UPCGBaseTextureData::SetDensityFunctionEquivalent(EPCGTextureDensityFunction InDensityFunction)
+{
+	bUseDensitySourceChannel = (InDensityFunction != EPCGTextureDensityFunction::Ignore);
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 FBox UPCGBaseTextureData::GetBounds() const
 {
 	return Bounds;
@@ -201,7 +227,7 @@ bool UPCGBaseTextureData::SamplePoint(const FTransform& InTransform, const FBox&
 	if (PCGTextureSamplingHelpers::Sample<FLinearColor>(Position2D, Surface, this, Width, Height, Color, [this](int32 Index) { return ColorData[Index]; }))
 	{
 		OutPoint.Color = Color;
-		OutPoint.Density = ((DensityFunction == EPCGTextureDensityFunction::Ignore) ? 1.0f : PCGTextureSamplingHelpers::SampleFloatChannel(Color, ColorChannel));
+		OutPoint.Density = bUseDensitySourceChannel ? PCGTextureSamplingHelpers::SampleFloatChannel(Color, ColorChannel) : 1.0f;
 		return OutPoint.Density > 0 || bKeepZeroDensityPoints;
 	}
 	else
@@ -257,7 +283,7 @@ const UPCGPointData* UPCGBaseTextureData::CreatePointData(FPCGContext* Context) 
 
 		if (PCGTextureSamplingHelpers::Sample<FLinearColor>(LocalCoordinate, Surface, this, Width, Height, Color, [this](int32 Index) { return ColorData[Index]; }))
 		{
-			const float Density = ((DensityFunction == EPCGTextureDensityFunction::Ignore) ? 1.0f : PCGTextureSamplingHelpers::SampleFloatChannel(Color, ColorChannel));
+			const float Density = bUseDensitySourceChannel ? PCGTextureSamplingHelpers::SampleFloatChannel(Color, ColorChannel) : 1.0f;
 			if (Density > 0 || bKeepZeroDensityPoints)
 			{
 				FVector LocalPosition(LocalCoordinate, 0);
@@ -297,7 +323,7 @@ bool UPCGBaseTextureData::SamplePointLocal(const FVector2D& LocalPosition, FVect
 	const FLinearColor OutSample = PCGTextureSamplingHelpers::SampleInternal<FLinearColor>(Pos, Width, Height, Filter, [this](int32 Index) { return ColorData[Index]; });
 
 	OutColor = OutSample;
-	OutDensity = (DensityFunction == EPCGTextureDensityFunction::Ignore) ? 1.0f : PCGTextureSamplingHelpers::SampleFloatChannel(OutSample, ColorChannel);
+	OutDensity = bUseDensitySourceChannel ? PCGTextureSamplingHelpers::SampleFloatChannel(OutSample, ColorChannel) : 1.0f;
 	
 	return OutDensity > 0.0 || bKeepZeroDensityPoints;
 }
@@ -306,7 +332,7 @@ void UPCGBaseTextureData::CopyBaseTextureData(UPCGBaseTextureData* NewTextureDat
 {
 	CopyBaseSurfaceData(NewTextureData);
 
-	NewTextureData->DensityFunction = DensityFunction;
+	NewTextureData->bUseDensitySourceChannel = bUseDensitySourceChannel;
 	NewTextureData->ColorChannel = ColorChannel;
 	NewTextureData->TexelSize = TexelSize;
 	NewTextureData->bUseAdvancedTiling = bUseAdvancedTiling;

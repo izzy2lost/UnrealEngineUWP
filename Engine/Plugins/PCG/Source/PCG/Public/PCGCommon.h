@@ -379,3 +379,24 @@ struct UE_DEPRECATED(5.5, "FPCGPartitionActorRecord is deprecated.") FPCGPartiti
 	bool operator==(const FPCGPartitionActorRecord& InOther) const;
 	friend uint32 GetTypeHash(const FPCGPartitionActorRecord& In);
 };
+
+UENUM(BlueprintType)
+enum class EPCGDensityMergeOperation : uint8
+{
+	/** D = B */
+	Set,
+	/** D = A */
+	Ignore,
+	/** D = min(A, B) */
+	Minimum,
+	/** D = max(A, B) */
+	Maximum,
+	/** D = A + B */
+	Add,
+	/** D = A - B */
+	Subtract,
+	/** D = A * B */
+	Multiply,
+	/** D = A / B */
+	Divide
+};

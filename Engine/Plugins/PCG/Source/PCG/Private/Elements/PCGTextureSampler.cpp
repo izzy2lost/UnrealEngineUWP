@@ -52,6 +52,15 @@ void UPCGTextureSamplerSettings::PostLoad()
 {
 	Super::PostLoad();
 
+#if WITH_EDITOR
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (DensityFunction != EPCGTextureDensityFunction::Multiply)
+	{
+		bUseDensitySourceChannel = false;
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif
+
 	UpdateDisplayTextureArrayIndex();
 }
 #endif
@@ -77,6 +86,18 @@ FPCGElementPtr UPCGTextureSamplerSettings::CreateElement() const
 {
 	return MakeShared<FPCGTextureSamplerElement>();
 }
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+EPCGTextureDensityFunction UPCGTextureSamplerSettings::GetDensityFunctionEquivalent() const
+{
+	return bUseDensitySourceChannel ? EPCGTextureDensityFunction::Multiply : EPCGTextureDensityFunction::Ignore;
+}
+
+void UPCGTextureSamplerSettings::SetDensityFunctionEquivalent(EPCGTextureDensityFunction InDensityFunction)
+{
+	bUseDensitySourceChannel = (InDensityFunction != EPCGTextureDensityFunction::Ignore);
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #if WITH_EDITOR
 void UPCGTextureSamplerSettings::UpdateDisplayTextureArrayIndex()
@@ -170,7 +191,7 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 
 	const FTransform& Transform = Settings->Transform;
 	const bool bUseAbsoluteTransform = Settings->bUseAbsoluteTransform;
-	const EPCGTextureDensityFunction DensityFunction = Settings->DensityFunction;
+	const bool bUseDensitySourceChannel = Settings->bUseDensitySourceChannel;
 	const EPCGTextureColorChannel ColorChannel = Settings->ColorChannel;
 	const EPCGTextureFilter Filter = Settings->Filter;
 	const float TexelSize = Settings->TexelSize;
@@ -220,7 +241,7 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 
 	TextureData->Initialize(Texture, TextureArrayIndex, FinalTransform, PostInitializeCallback, bForceEditorOnlyCPUSampling);
 
-	TextureData->DensityFunction = DensityFunction;
+	TextureData->bUseDensitySourceChannel = bUseDensitySourceChannel;
 	TextureData->ColorChannel = ColorChannel;
 	TextureData->Filter = Filter;
 	TextureData->TexelSize = TexelSize;

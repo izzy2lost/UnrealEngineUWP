@@ -20,7 +20,7 @@ enum class EPCGTextureColorChannel : uint8
 };
 
 UENUM(BlueprintType)
-enum class EPCGTextureDensityFunction : uint8
+enum class UE_DEPRECATED(5.5, "EPCGTextureDensityFunction has been deprecated.") EPCGTextureDensityFunction : uint8
 {
 	Ignore,
 	Multiply
@@ -56,6 +56,10 @@ class PCG_API UPCGBaseTextureData : public UPCGSurfaceData
 	GENERATED_BODY()
 
 public:
+	// ~Being UObject interface
+	virtual void PostLoad() override;
+	// ~End UObject interface
+
 	// ~Begin UPCGData interface
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::BaseTexture; }
 	// ~End UPCGData interface
@@ -75,11 +79,28 @@ public:
 
 	virtual bool IsValid() const;
 
-public:
-	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = SpatialData)
-	EPCGTextureDensityFunction DensityFunction = EPCGTextureDensityFunction::Multiply; 
+protected:
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UFUNCTION(BlueprintGetter, meta = (BlueprintInternalUseOnly = "true"))
+	EPCGTextureDensityFunction GetDensityFunctionEquivalent() const;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UFUNCTION(BlueprintSetter, meta = (BlueprintInternalUseOnly = "true"))
+	void SetDensityFunctionEquivalent(EPCGTextureDensityFunction DensityFunction);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+public:
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.5, "DensityFunction has been deprecated in favor of bUseDensitySourceChannel.")
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UPROPERTY(BlueprintGetter = GetDensityFunctionEquivalent, BlueprintSetter = SetDensityFunctionEquivalent, Category = SpatialData, meta = (DeprecatedProperty, DeprecatedMessage = "Density function on GetTextureData is deprecated in favor of bUseDensitySourceChannel."))
+	EPCGTextureDensityFunction DensityFunction = EPCGTextureDensityFunction::Multiply; 
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (InlineEditConditionToggle))
+	bool bUseDensitySourceChannel = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (DisplayName = "Density Source Channel", EditCondition = "bUseDensitySourceChannel"))
 	EPCGTextureColorChannel ColorChannel = EPCGTextureColorChannel::Alpha;
 
 	/** Method used to determine the value for a sample based on the value of nearby texels. */

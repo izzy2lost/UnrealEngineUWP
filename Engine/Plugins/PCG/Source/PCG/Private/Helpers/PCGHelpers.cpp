@@ -572,6 +572,22 @@ namespace PCGHelpers
 
 		return Functions;
 	}
+
+	TFunction<float(float, float)> GetDensityMergeFunction(EPCGDensityMergeOperation InOperation)
+	{
+		switch (InOperation)
+		{
+		case EPCGDensityMergeOperation::Set: return [](float A, float B) { return B; };
+		case EPCGDensityMergeOperation::Ignore: return [](float A, float B) { return A; };
+		case EPCGDensityMergeOperation::Minimum: return [](float A, float B) { return FMath::Min(A, B); };
+		case EPCGDensityMergeOperation::Maximum: return [](float A, float B) { return FMath::Max(A, B); };
+		case EPCGDensityMergeOperation::Add: return [](float A, float B) { return A + B; };
+		case EPCGDensityMergeOperation::Subtract: return [](float A, float B) { return A - B; };
+		case EPCGDensityMergeOperation::Multiply: return [](float A, float B) { return A * B; };
+		case EPCGDensityMergeOperation::Divide: return [](float A, float B) { return B != 0.0f ? (A / B) : 0.0f; };
+		default: checkNoEntry(); return [](float, float) { return 0.0f; };
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
