@@ -3603,6 +3603,11 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 									PassParameters->PathTracingIndirectArgs = NumActivePaths;
 								}
 							}
+							else if (Config.UseAdaptiveSampling)
+							{
+								PassParameters->ActivePaths = GraphBuilder.CreateUAV(ActivePaths[0], PF_R32_UINT);
+								PassParameters->NumPathStates = GraphBuilder.CreateUAV(NumActivePaths, PF_R32_UINT);
+							}
 							ClearUnusedGraphResources(RayGenShader, PassParameters);
 							const bool bFlushRenderingCommands = FlushRenderingCommands == 1 || (FlushRenderingCommands == 2 && Bounce == MaxBounces);
 							GraphBuilder.AddPass(
@@ -3625,7 +3630,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 											View.RayTracingMaterialPipeline,
 											RayGenShader.GetRayTracingShader(),
 											RayTracingSceneRHI, View.RayTracingSBT, GlobalResources,
-											PassParameters->PathTracingIndirectArgs->GetIndirectRHICallBuffer(), 3 * PassParameters->Bounce
+											PassParameters->PathTracingIndirectArgs->GetIndirectRHICallBuffer(), 3 * PassParameters->Bounce * sizeof(uint32)
 										);
 									}
 									else

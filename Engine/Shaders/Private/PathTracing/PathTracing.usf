@@ -84,6 +84,7 @@ RAY_TRACING_ENTRY_RAYGEN(PathTracingMainRG)
 	const uint2 DispatchDim = DispatchRaysDimensions().xy;
 
 	uint LinearPixelIndex = DispatchIdx.x + DispatchDim.x * DispatchIdx.y;
+	uint PathIndex = DispatchIdx.x + 65536 * DispatchIdx.y;
 	if (LinearPixelIndex == 0)
 	{
 		// write other dimensions for indirect dispatch of the next bounce
@@ -96,12 +97,13 @@ RAY_TRACING_ENTRY_RAYGEN(PathTracingMainRG)
 #if PATH_TRACER_USE_ADAPTIVE_SAMPLING
 		if (Iteration > 0)
 		{
-			if (LinearPixelIndex >= NumPathStates[3 * Bounce + 0])
+			if (LinearPixelIndex >= NumPathStates[0])
 			{
 				return; // nothing left to do on this thread
 			}
-			LinearPixelIndex = ActivePaths[LinearPixelIndex];
-			DispatchIdx = uint2(LinearPixelIndex % DispatchDim.x, LinearPixelIndex / DispatchDim.x);
+			PathIndex = ActivePaths[LinearPixelIndex];
+			DispatchIdx = uint2(PathIndex & 65535, PathIndex >> 16);
+			LinearPixelIndex = DispatchIdx.x + ScanlineWidth * DispatchIdx.y;
 		}
 #endif
 		PathState = CreatePathState(ComputePixelIndex(DispatchIdx), 
@@ -114,13 +116,12 @@ RAY_TRACING_ENTRY_RAYGEN(PathTracingMainRG)
 		{
 			return; // nothing left to do on this thread
 		}
-		LinearPixelIndex = ActivePaths[LinearPixelIndex];
-		PathState = LoadPathStateData(LinearPixelIndex);
+		PathIndex = ActivePaths[LinearPixelIndex];
+		PathState = LoadPathStateData((PathIndex & 65535) + ScanlineWidth * (PathIndex >> 16));
 	}
 
 	const bool KeepGoing = PathTracingKernel(PathState, Bounce);
-	const uint2 TextureIndex = ComputeTextureIndex(uint2(LinearPixelIndex % DispatchDim.x,
-	                                                     LinearPixelIndex / DispatchDim.x));
+	const uint2 TextureIndex = ComputeTextureIndex(uint2(PathIndex & 65535, PathIndex >> 16));
 	if (Bounce == 0)
 	{
 		// Camera ray must write depth right away because we don't want to have to carry DepthZ in the PackedPathState
@@ -131,8 +132,8 @@ RAY_TRACING_ENTRY_RAYGEN(PathTracingMainRG)
 	    // Add the path to the set of valid paths for the next bounce
 		uint PathStateIndex;
 		InterlockedAdd(NumPathStates[3 * Bounce + 3], 1, PathStateIndex);
-		NextActivePaths[PathStateIndex] = LinearPixelIndex;
-		StorePathStateData(PathState, LinearPixelIndex);
+		NextActivePaths[PathStateIndex] = PathIndex;
+		StorePathStateData(PathState, (PathIndex & 65535) + ScanlineWidth * (PathIndex >> 16));
 	}
 	else
 	{
@@ -145,8 +146,8 @@ RAY_TRACING_ENTRY_RAYGEN(PathTracingMainRG)
 #else // PATH_TRACER_USE_COMPACTION == 0
 
 #if PATH_TRACER_USE_ADAPTIVE_SAMPLING
-Buffer<int> ActivePaths;
-Buffer<uint> NumPathStates;
+RWBuffer<int> ActivePaths;
+RWBuffer<uint> NumPathStates;
 #endif
 
 RAY_TRACING_ENTRY_RAYGEN(PathTracingMainRG)
@@ -162,8 +163,9 @@ RAY_TRACING_ENTRY_RAYGEN(PathTracingMainRG)
 		{
 			return;
 		}
-		LinearPixelIndex = ActivePaths[LinearPixelIndex];
-		DispatchIdx = uint2(LinearPixelIndex % DispatchDim.x, LinearPixelIndex / DispatchDim.x);
+		uint PathIndex = ActivePaths[LinearPixelIndex];
+		DispatchIdx = uint2(PathIndex & 65535, PathIndex >> 16);
+		LinearPixelIndex = DispatchIdx.x + DispatchDim.x * DispatchIdx.y;
 	}
 #endif
 	FPathState PathState = CreatePathState(ComputePixelIndex(DispatchIdx), ComputeTextureIndex(DispatchIdx));
