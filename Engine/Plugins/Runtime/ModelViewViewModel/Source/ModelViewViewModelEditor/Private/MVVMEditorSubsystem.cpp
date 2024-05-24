@@ -8,6 +8,7 @@
 #include "BlueprintActionDatabase.h"
 #include "BlueprintActionFilter.h"
 #include "BlueprintNodeSpawner.h"
+#include "Editor.h"
 #include "Engine/Engine.h"
 #include "Framework/MVVMConversionFunctionLibrary.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
@@ -407,6 +408,8 @@ void UMVVMEditorSubsystem::SetSourceToDestinationConversionFunction(UWidgetBluep
 				Binding.Conversion.SourceToDestinationConversion->Initialize(WidgetBlueprint, GraphName, NewConversionFunction);
 			}
 
+			GenerateBindToDestinationPathsForBinding(WidgetBlueprint, Binding);
+
 			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, Conversion));
 			FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
 		}
@@ -500,6 +503,8 @@ void UMVVMEditorSubsystem::SetDestinationPathForBinding(UWidgetBlueprint* Widget
 				}
 				Binding.DestinationPath = PropertyPath;
 			}
+
+			GenerateBindToDestinationPathsForBinding(WidgetBlueprint, Binding);
 
 			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, DestinationPath));
 			FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
@@ -618,6 +623,40 @@ void UMVVMEditorSubsystem::SetCompileForBinding(UWidgetBlueprint* WidgetBlueprin
 
 			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, bCompile));
 			FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
+		}
+	}
+}
+
+void UMVVMEditorSubsystem::GenerateBindToDestinationPathsForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding)
+{
+	if (UMVVMBlueprintViewConversionFunction* ConversionFunction = Binding.Conversion.GetConversionFunction(UE::MVVM::IsForwardBinding(Binding.BindingType)))
+	{
+		if (const UFunction* Function = ConversionFunction->GetConversionFunction().GetFunction(WidgetBlueprint))
+		{
+			static const FName NAME_MVVMBindToDestination(TEXT("MVVMBindToDestination"));
+			const FString& MVVMBindToDestinationString = Function->GetMetaData(NAME_MVVMBindToDestination);
+			if (!MVVMBindToDestinationString.IsEmpty())
+			{
+				auto GetPinId = [&](const FString& InParamName)
+				{
+					for (const FMVVMBlueprintPin& Pin : Binding.Conversion.SourceToDestinationConversion->GetPins())
+					{
+						if (Pin.GetId().GetNames().Contains(InParamName))
+						{
+							return Pin.GetId();
+						}
+					}
+
+					return FMVVMBlueprintPinId();
+				};
+
+				FMVVMBlueprintPinId MVVMBindToDestinationPinId = GetPinId(MVVMBindToDestinationString);
+				if (MVVMBindToDestinationPinId.IsValid())
+				{
+					const UMVVMEditorSubsystem* Subsystem = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>();
+					Subsystem->SetPathForConversionFunctionArgument(WidgetBlueprint, Binding, MVVMBindToDestinationPinId, Binding.DestinationPath, true);
+				}
+			}
 		}
 	}
 }
