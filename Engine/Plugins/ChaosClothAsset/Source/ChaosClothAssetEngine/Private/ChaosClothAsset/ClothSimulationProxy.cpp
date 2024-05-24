@@ -7,6 +7,7 @@
 #include "ChaosClothAsset/ClothSimulationContext.h"
 #include "ChaosClothAsset/ClothSimulationMesh.h"
 #include "ChaosClothAsset/ClothSimulationModel.h"
+#include "ChaosClothAsset/CollisionSources.h"
 #include "ChaosCloth/ChaosClothingSimulationCloth.h"
 #include "ChaosCloth/ChaosClothingSimulationCollider.h"
 #include "ChaosCloth/ChaosClothingSimulationConfig.h"
@@ -95,6 +96,7 @@ namespace UE::Chaos::ClothAsset
 	FClothSimulationProxy::FClothSimulationProxy(const UChaosClothComponent& InClothComponent)
 		: ClothComponent(InClothComponent)
 		, ClothSimulationContext(MakeUnique<FClothSimulationContext>())
+		, CollisionSourcesProxy(MakeUnique<FCollisionSourcesProxy>(InClothComponent.GetCollisionSources()))
 		, Solver(nullptr)
 		, Visualization(nullptr)
 		, MaxDeltaTime(UPhysicsSettings::Get()->MaxPhysicsDeltaTime)
@@ -141,10 +143,9 @@ namespace UE::Chaos::ClothAsset
 		// Create collider simulation thread object
 PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		const FReferenceSkeleton* const ReferenceSkeleton = &ClothAsset->GetRefSkeleton();
-		const int32 ColliderIndex = ClothComponent.GetPhysicsAsset() ? Colliders.Emplace(MakeUnique<FClothingSimulationCollider>(ClothComponent.GetPhysicsAsset(), ReferenceSkeleton)) : INDEX_NONE;
+		const int32 ColliderIndex = Colliders.Emplace(MakeUnique<FClothingSimulationCollider>(ClothComponent.GetPhysicsAsset(), ReferenceSkeleton));
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-		//Colliders[ColliderIndex]->SetCollisionData(&ExternalCollisionData);  // TODO: External collision data
+		Colliders[ColliderIndex]->SetCollisionData(&CollisionSourcesProxy->GetCollisionData());
 
 		// Create cloth config simulation thread object
 		const int32 ClothConfigIndex = Configs.Emplace(MakeUnique<FClothingSimulationConfig>(ClothComponent.GetPropertyCollections()));
@@ -199,30 +200,33 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// Check whether the solver should be enabled for caching purpose
 		const bool bShouldEnableSolver = ShouldEnableSolver(Solver->GetEnableSolver());
-
-		// UpdateWorldForces
-		if (bShouldEnableSolver)
-		{
-			if (UWorld* const World = ClothComponent.GetWorld())
-			{
-				if (UPhysicsFieldComponent* const PhysicsField = World->PhysicsField)
-				{
-					const FBox BoundingBox = CalculateBounds_AnyThread().GetBox().TransformBy(ClothComponent.GetComponentTransform());
-
-					PhysicsField->FillTransientCommands(false, BoundingBox, Solver->GetTime(), Solver->GetPerSolverField().GetTransientCommands());
-					PhysicsField->FillPersistentCommands(false, BoundingBox, Solver->GetTime(), Solver->GetPerSolverField().GetPersistentCommands());
-				}
-			}
-		}
-
-		// Prepare the solver task
 		Solver->SetEnableSolver(bShouldEnableSolver);
 
+		// Prepare the solver task
 		const bool bUseCache = ClothSimulationContext->CacheData.HasData();
 		const bool bCreateParallelTask = (DeltaTime > 0.f && !ClothComponent.IsSimulationSuspended()) || bUseCache;
 		if (bCreateParallelTask)
 		{
-			InitializeConfigs();
+			if (bShouldEnableSolver)
+			{
+				// Update the config properties
+				InitializeConfigs();
+
+				// Update world forces
+				if (UWorld* const World = ClothComponent.GetWorld())
+				{
+					if (UPhysicsFieldComponent* const PhysicsField = World->PhysicsField)
+					{
+						const FBox BoundingBox = CalculateBounds_AnyThread().GetBox().TransformBy(ClothComponent.GetComponentTransform());
+
+						PhysicsField->FillTransientCommands(false, BoundingBox, Solver->GetTime(), Solver->GetPerSolverField().GetTransientCommands());
+						PhysicsField->FillPersistentCommands(false, BoundingBox, Solver->GetTime(), Solver->GetPerSolverField().GetPersistentCommands());
+					}
+				}
+
+				// Update external collision sources
+				CollisionSourcesProxy->ExtractCollisionData();
+			}
 
 			// Start the the cloth simulation thread
 			ParallelTask = TGraphTask<FClothSimulationProxyParallelTask>::CreateTask(nullptr, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(*this);

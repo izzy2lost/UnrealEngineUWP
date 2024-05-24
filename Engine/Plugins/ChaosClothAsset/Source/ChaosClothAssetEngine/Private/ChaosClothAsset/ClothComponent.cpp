@@ -4,6 +4,7 @@
 #include "ChaosClothAsset/ClothAsset.h"
 #include "ChaosClothAsset/ClothAssetInteractor.h"
 #include "ChaosClothAsset/ClothAssetPrivate.h"
+#include "ChaosClothAsset/CollisionSources.h"
 #include "ChaosClothAsset/ClothSimulationModel.h"
 #include "ChaosClothAsset/ClothSimulationProxy.h"
 #include "Chaos/CollectionPropertyFacade.h"
@@ -27,6 +28,7 @@ UChaosClothComponent::UChaosClothComponent(const FObjectInitializer& ObjectIniti
 	, bEnableSimulation(1)
 	, bSuspendSimulation(0)
 	, bBindToLeaderComponent(0)
+	, CollisionSources(MakeUnique<UE::Chaos::ClothAsset::FCollisionSources>(this))
 {
 	PrimaryComponentTick.EndTickGroup = TG_PostPhysics;
 }
@@ -483,7 +485,7 @@ void UChaosClothComponent::GetAdditionalRequiredBonesForLeader(int32 LeaderLODIn
 
 	if (RequiredBones.Num())
 	{
-		// Make sure all of these are in RequiredBones.
+		// Make sure all of these are in RequiredBones, note MergeInBoneIndexArrays requires the arrays to be sorted and bone must be unique
 		MergeInBoneIndexArrays(InOutRequiredBones, RequiredBones);
 	}
 }
@@ -509,6 +511,26 @@ TSharedPtr<UE::Chaos::ClothAsset::FClothSimulationProxy> UChaosClothComponent::C
 {
 	using namespace UE::Chaos::ClothAsset;
 	return MakeShared<FClothSimulationProxy>(*this);
+}
+
+void UChaosClothComponent::AddCollisionSource(USkinnedMeshComponent* SourceComponent, const UPhysicsAsset* SourcePhysicsAsset, bool bUseSphylsOnly)
+{
+	CollisionSources->Add(SourceComponent, SourcePhysicsAsset, bUseSphylsOnly);
+}
+
+void UChaosClothComponent::RemoveCollisionSources(const USkinnedMeshComponent* SourceComponent)
+{
+	CollisionSources->Remove(SourceComponent);
+}
+
+void UChaosClothComponent::RemoveCollisionSource(const USkinnedMeshComponent* SourceComponent, const UPhysicsAsset* SourcePhysicsAsset)
+{
+	CollisionSources->Remove(SourceComponent, SourcePhysicsAsset);
+}
+
+void UChaosClothComponent::ResetCollisionSources()
+{
+	CollisionSources->Reset();
 }
 
 void UChaosClothComponent::StartNewParallelSimulation(float DeltaTime)

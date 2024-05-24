@@ -19,6 +19,7 @@ namespace UE::Chaos::ClothAsset
 {
 	class FClothSimulationProxy;
 	class FClothComponentCacheAdapter;
+	class FCollisionSources;
 }
 
 /**
@@ -95,6 +96,31 @@ public:
 	 * Interact with solver-level properties as well as all cloth assets within the cloth outfit (once multi-asset outfits exist).*/
 	UFUNCTION(BlueprintCallable, Category = "ClothComponent")
 	UChaosClothAssetInteractor* GetClothOutfitInteractor();
+
+	/**
+	 * Add a collision source for the cloth on this component.
+	 * Each cloth tick, the collision defined by the physics asset, transformed by the bones in the source component, will be applied to the simulation.
+	 * @param SourceComponent The component to extract collision transforms from.
+	 * @param SourcePhysicsAsset The physics asset that defines the collision primitives (that will be transformed by the SourceComponent's bones).
+	 * @param bUseSphylsOnly Whether to only use spheres and capsules from the collision sources (which is faster and matches the legacy behavior).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "ClothComponent", Meta = (Keywords = "Chaos Cloth Collision Source"))
+	void AddCollisionSource(USkinnedMeshComponent* SourceComponent, const UPhysicsAsset* SourcePhysicsAsset, bool bUseSphylsOnly = false);
+
+	/** Remove a cloth collision source matching the specified component and physics asset, */
+	UFUNCTION(BlueprintCallable, Category = "ClothComponent", Meta = (Keywords = "Chaos Cloth Collision Source"))
+	void RemoveCollisionSource(const USkinnedMeshComponent* SourceComponent, const UPhysicsAsset* SourcePhysicsAsset);
+
+	/** Remove all cloth collision sources matching the specified component. */
+	UFUNCTION(BlueprintCallable, Category = "ClothComponent", Meta = (Keywords = "Chaos Cloth Collision Source"))
+	void RemoveCollisionSources(const USkinnedMeshComponent* SourceComponent);
+
+	/** Remove all cloth collision sources. */
+	UFUNCTION(BlueprintCallable, Category = "ClothComponent", Meta = (Keywords = "Chaos Cloth Collision Source"))
+	void ResetCollisionSources();
+
+	/** Return all collision sources currently assigned to this component. */
+	UE::Chaos::ClothAsset::FCollisionSources& GetCollisionSources() const { return *CollisionSources; }
 
 	/**
 	 * Return the property collections holding the runtime properties for this cloth component (one per LOD).
@@ -220,6 +246,9 @@ private:
 
 	TSharedPtr<UE::Chaos::ClothAsset::FClothSimulationProxy> ClothSimulationProxy;
 
-	/** Multicaster fired when this component bone transforms are finalized */
+	// Multicaster fired when this component bone transforms are finalized
 	FOnBoneTransformsFinalizedMultiCast OnBoneTransformsFinalizedMC;
+
+	// External sources for collision
+	TUniquePtr<UE::Chaos::ClothAsset::FCollisionSources> CollisionSources;
 };

@@ -26,6 +26,7 @@ struct FClothingSimulationCacheData;
 
 namespace UE::Chaos::ClothAsset
 {
+	class FCollisionSourcesProxy;
 	struct FClothSimulationContext;
 
 	/**
@@ -95,6 +96,9 @@ namespace UE::Chaos::ClothAsset
 
 		// Simulation context used to store the required component data for the duration of the simulation
 		TUniquePtr<FClothSimulationContext> ClothSimulationContext;
+
+		// The collision data for the external collision sources
+		TUniquePtr<FCollisionSourcesProxy> CollisionSourcesProxy;
 
 		// The cloth simulation model used to create this simulation, ownership might get transferred to this proxy if it changes during the simulation
 		TSharedPtr<const FChaosClothSimulationModel> ClothSimulationModel;

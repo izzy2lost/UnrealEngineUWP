@@ -496,7 +496,14 @@ FClothCollisionData FClothingSimulationCollider::GetCollisionData(const FClothin
 	return ClothCollisionData;
 }
 
-void FClothingSimulationCollider::ExtractPhysicsAssetCollision(FClothCollisionData& ClothCollisionData, TArray<FLevelSetCollisionData>& LevelSetCollisions, TArray<FSkinnedLevelSetCollisionData>& SkinnedLevelSetCollisions, TArray<int32>& UsedBoneIndices)
+void FClothingSimulationCollider::ExtractPhysicsAssetCollision(
+	const UPhysicsAsset* PhysicsAsset,
+	const FReferenceSkeleton* ReferenceSkeleton,
+	FClothCollisionData& ClothCollisionData,
+	TArray<FLevelSetCollisionData>& LevelSetCollisions,
+	TArray<FSkinnedLevelSetCollisionData>& SkinnedLevelSetCollisions,
+	TArray<int32>& UsedBoneIndices,
+	bool bUseSphylsOnly)
 {
 	ClothCollisionData.Reset();
 	UsedBoneIndices.Reset();
@@ -564,18 +571,6 @@ void FClothingSimulationCollider::ExtractPhysicsAssetCollision(FClothCollisionDa
 				ClothCollisionData.Spheres.Add(Sphere);
 			}
 
-			// Add boxes
-			for (const FKBoxElem& BoxElem : AggGeom.BoxElems)
-			{
-				// Add extracted box collision data
-				FClothCollisionPrim_Box Box;
-				Box.LocalPosition = BoxElem.Center;
-				Box.LocalRotation = BoxElem.Rotation.Quaternion();
-				Box.HalfExtents = FVector(BoxElem.X, BoxElem.Y, BoxElem.Z) * 0.5f;
-				Box.BoneIndex = MappedBoneIndex;
-				ClothCollisionData.Boxes.Add(Box);
-			}
-
 			// Add tapered capsules
 			for (const FKTaperedCapsuleElem& TaperedCapsuleElem : AggGeom.TaperedCapsuleElems)
 			{
@@ -608,6 +603,23 @@ void FClothingSimulationCollider::ExtractPhysicsAssetCollision(FClothCollisionDa
 					SphereConnection.SphereIndices[1] = ClothCollisionData.Spheres.Add(Sphere1);
 					ClothCollisionData.SphereConnections.Add(SphereConnection);
 				}
+			}
+
+			if (bUseSphylsOnly)
+			{
+				continue;  // Exit now if only spheres and capsules are required
+			}
+
+			// Add boxes
+			for (const FKBoxElem& BoxElem : AggGeom.BoxElems)
+			{
+				// Add extracted box collision data
+				FClothCollisionPrim_Box Box;
+				Box.LocalPosition = BoxElem.Center;
+				Box.LocalRotation = BoxElem.Rotation.Quaternion();
+				Box.HalfExtents = FVector(BoxElem.X, BoxElem.Y, BoxElem.Z) * 0.5f;
+				Box.BoneIndex = MappedBoneIndex;
+				ClothCollisionData.Boxes.Add(Box);
 			}
 
 			// Add convexes
@@ -750,7 +762,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	TArray<FLevelSetCollisionData> LevelSetCollisions;
 	TArray<FSkinnedLevelSetCollisionData> SkinnedLevelSetCollisions;
 	TArray<int32> UsedBoneIndices;
-	ExtractPhysicsAssetCollision(PhysicsAssetCollisionData, LevelSetCollisions, SkinnedLevelSetCollisions, UsedBoneIndices);
+	ExtractPhysicsAssetCollision(PhysicsAsset, ReferenceSkeleton, PhysicsAssetCollisionData, LevelSetCollisions, SkinnedLevelSetCollisions, UsedBoneIndices);
 
 	LODData[(int32)ECollisionDataType::LODless]->Add(Solver, Cloth, PhysicsAssetCollisionData, LevelSetCollisions, SkinnedLevelSetCollisions, Scale, UsedBoneIndices);
 }
