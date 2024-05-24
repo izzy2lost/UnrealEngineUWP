@@ -3,7 +3,7 @@
 #include "Views/OutputOscilloscopeDashboardViewFactory.h"
 
 #include "Analyzers/AudioOscilloscopeAnalyzer.h"
-#include "AudioInsightsDashboardFactory.h"
+#include "AudioInsightsEditorDashboardFactory.h"
 #include "AudioInsightsStyle.h"
 #include "AudioOscilloscope.h"
 #include "Sound/AudioSettings.h"
@@ -48,7 +48,7 @@ namespace UE::Audio::Insights
 			{
 				OutputOscilloscopeAnalyzer = MakeShared<FAudioOscilloscopeAnalyzer>(MainSubmix);
 
-				FDashboardFactory::OnActiveAudioDeviceChanged.AddSP(this, &FOutputOscilloscopeDashboardViewFactory::HandleOnActiveAudioDeviceChanged);
+				FEditorDashboardFactory::OnActiveAudioDeviceChanged.AddSP(this, &FOutputOscilloscopeDashboardViewFactory::HandleOnActiveAudioDeviceChanged);
 				FSubmixesDashboardViewFactory::OnSubmixSelectionChanged.AddSP(this, &FOutputOscilloscopeDashboardViewFactory::HandleOnSubmixSelectionChanged);
 			}
 		}

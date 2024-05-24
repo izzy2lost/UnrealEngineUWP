@@ -3,8 +3,6 @@
 
 #include "AudioDefines.h"
 #include "AudioInsightsDataSource.h"
-#include "Engine/Attenuation.h"
-#include "Engine/World.h"
 #include "Templates/SharedPointer.h"
 #include "Views/DashboardViewFactory.h"
 #include "Widgets/Input/SSearchBox.h"
@@ -131,7 +129,7 @@ namespace UE::Audio::Insights
 
 #if WITH_EDITOR
 		virtual bool IsDebugDrawEnabled() const { return false; }
-		virtual void DebugDraw(float InElapsed, const IDashboardDataViewEntry& InDashboardEntry, ::Audio::FDeviceId DeviceId) const { }
+		virtual void DebugDraw(float InElapsed, const TArray<TSharedPtr<IDashboardDataViewEntry>>& InSelectedItems, ::Audio::FDeviceId InAudioDeviceId) const { };
 #endif // WITH_EDITOR
 
 		struct FColumnData
@@ -166,7 +164,7 @@ namespace UE::Audio::Insights
 		TSharedPtr<SListView<TSharedPtr<IDashboardDataViewEntry>>> FilteredEntriesListView;
 
 		FName SortByColumn;
-		EColumnSortMode::Type SortMode;
+		EColumnSortMode::Type SortMode = EColumnSortMode::None;
 
 	private:
 		TSharedRef<SHeaderRow> MakeHeaderRowWidget();
@@ -190,29 +188,16 @@ namespace UE::Audio::Insights
 		virtual TSharedRef<SWidget> MakeWidget() override;
 
 	protected:
+#if WITH_EDITOR
 		virtual TSharedRef<SWidget> MakeAssetMenuBar() const;
+#endif // WITH_EDITOR
 
 	private:
+#if WITH_EDITOR
 		TArray<UObject*> GetSelectedEditableAssets() const;
 
 		bool OpenAsset() const;
 		bool BrowseToAsset() const;
-	};
-
-	class AUDIOINSIGHTS_API FSoundAttenuationVisualizer
-	{
-		mutable TMultiMap<EAttenuationShape::Type, FBaseAttenuationSettings::AttenuationShapeDetails> ShapeDetailsMap;
-		mutable uint32 LastObjectId = INDEX_NONE;
-
-	public:
-		const FColor Color { 155, 155, 255 };
-
-	public:
-		FSoundAttenuationVisualizer(const FColor& InColor)
-			: Color(InColor)
-		{
-		}
-
-		void Draw(float InDeltaTime, const FTransform& InTransform, const UObject& InObject, const UWorld& InWorld) const;
+#endif // WITH_EDITOR
 	};
 } // namespace UE::Audio::Insights

@@ -120,10 +120,15 @@ namespace UE::Audio::Insights
 
 		const FDeviceData* FindFilteredDeviceData() const
 		{
-			const IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
-			const ::Audio::FDeviceId DeviceId = InsightsModule.GetDeviceId();
+#if WITH_EDITOR
+			const IAudioInsightsModule& AudioInsightsEditorModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetEditorName());
+			const ::Audio::FDeviceId AudioDeviceId = AudioInsightsEditorModule.GetDeviceId();
+#else
+			const IAudioInsightsModule& AudioInsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
+			const ::Audio::FDeviceId AudioDeviceId = AudioInsightsModule.GetDeviceId();
+#endif // WITH_EDITOR
 
-			return DeviceDataMap.Find(DeviceId);
+			return DeviceDataMap.Find(AudioDeviceId);
 		}
 
 	protected:
@@ -174,10 +179,15 @@ namespace UE::Audio::Insights
 
 		FDeviceData* FindFilteredDeviceData()
 		{
-			const IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
-			const ::Audio::FDeviceId DeviceId = InsightsModule.GetDeviceId();
+#if WITH_EDITOR
+			const IAudioInsightsModule& AudioInsightsEditorModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetEditorName());
+			const ::Audio::FDeviceId AudioDeviceId = AudioInsightsEditorModule.GetDeviceId();
+#else
+			const IAudioInsightsModule& AudioInsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
+			const ::Audio::FDeviceId AudioDeviceId = AudioInsightsModule.GetDeviceId();
+#endif // WITH_EDITOR
 
-			return DeviceDataMap.Find(DeviceId);
+			return DeviceDataMap.Find(AudioDeviceId);
 		}
 
 		bool RemoveDeviceEntry(::Audio::FDeviceId InDeviceId, const EntryKey& InKey)

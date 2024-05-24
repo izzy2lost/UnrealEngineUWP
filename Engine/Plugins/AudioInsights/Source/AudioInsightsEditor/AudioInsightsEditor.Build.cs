@@ -2,20 +2,18 @@
 
 using UnrealBuildTool;
 
-public class AudioInsights : ModuleRules
+public class AudioInsightsEditor : ModuleRules
 {
-	public AudioInsights(ReadOnlyTargetRules Target) : base(Target)
+	public AudioInsightsEditor(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
-		
+
 		PublicDependencyModuleNames.AddRange
 		(
 			new string[]
 			{
+				"AudioMixerCore",
 				"Core",
-				"TraceInsights",
-				"TraceServices",
-				"ToolWidgets",
 			}
 		);	
 		
@@ -23,26 +21,21 @@ public class AudioInsights : ModuleRules
 		(
 			new string[]
 			{
+				"AudioInsights",
+				"AudioMixer",
 				"AudioMixerCore",
+				"AudioWidgets",
 				"CoreUObject",
+				"Engine",
 				"InputCore",
 				"OutputLog",
-				"SessionServices",
+				"SignalProcessing",
 				"Slate",
 				"SlateCore",
-				"TraceAnalysis",
-				"TraceLog",
+				"ToolMenus",
+				"UnrealEd",
+				"WorkspaceMenuStructure",
 			}
 		);
-
-		if (Target.Type == TargetType.Editor)
-		{
-			PrivateDependencyModuleNames.AddRange(
-			new string[]
-			{
-				"Engine",
-				"UnrealEd",
-			});
-		}
 	}
 }

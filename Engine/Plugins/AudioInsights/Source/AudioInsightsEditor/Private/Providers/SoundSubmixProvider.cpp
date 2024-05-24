@@ -4,7 +4,8 @@
 
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
-#include "AudioInsightsDashboardFactory.h"
+#include "AudioInsightsEditorDashboardFactory.h"
+#include "AudioInsightsEditorModule.h"
 #include "Sound/SoundSubmix.h"
 
 namespace UE::Audio::Insights
@@ -18,7 +19,7 @@ namespace UE::Audio::Insights
 		AssetRegistryModule.Get().OnAssetRemoved().AddRaw(this, &FSoundSubmixProvider::OnAssetRemoved);
 		AssetRegistryModule.Get().OnFilesLoaded().AddRaw(this, &FSoundSubmixProvider::OnFilesLoaded);
 
-		FDashboardFactory::OnActiveAudioDeviceChanged.AddRaw(this, &FSoundSubmixProvider::OnActiveAudioDeviceChanged);
+		FEditorDashboardFactory::OnActiveAudioDeviceChanged.AddRaw(this, &FSoundSubmixProvider::OnActiveAudioDeviceChanged);
 	}
 	
 	FSoundSubmixProvider::~FSoundSubmixProvider()
@@ -30,7 +31,7 @@ namespace UE::Audio::Insights
 			AssetRegistryModule->Get().OnFilesLoaded().RemoveAll(this);
 		}
 
-		FDashboardFactory::OnActiveAudioDeviceChanged.RemoveAll(this);
+		FEditorDashboardFactory::OnActiveAudioDeviceChanged.RemoveAll(this);
 	}
 
 	FName FSoundSubmixProvider::GetName_Static()
@@ -75,11 +76,11 @@ namespace UE::Audio::Insights
 
 		if (!bIsSubmixAssetAlreadAdded)
 		{
-			const IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
-			const ::Audio::FDeviceId DeviceId = InsightsModule.GetDeviceId();
+			const FAudioInsightsEditorModule AudioInsightsEditorModule = FAudioInsightsEditorModule::GetChecked();
+			const ::Audio::FDeviceId AudioDeviceId = AudioInsightsEditorModule.GetDeviceId();
 
 			TSharedPtr<FSoundSubmixAssetDashboardEntry> SoundSubmixAssetDashboardEntry = MakeShared<FSoundSubmixAssetDashboardEntry>();
-			SoundSubmixAssetDashboardEntry->DeviceId    = DeviceId;
+			SoundSubmixAssetDashboardEntry->DeviceId    = AudioDeviceId;
 			SoundSubmixAssetDashboardEntry->Name        = InAssetData.GetObjectPathString();
 			SoundSubmixAssetDashboardEntry->SoundSubmix = Cast<USoundSubmix>(InAssetData.GetAsset());
 
@@ -100,10 +101,10 @@ namespace UE::Audio::Insights
 
 		if (FoundSubmixAssetNameIndex != INDEX_NONE)
 		{
-			const IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
-			const ::Audio::FDeviceId DeviceId = InsightsModule.GetDeviceId();
+			const FAudioInsightsEditorModule AudioInsightsEditorModule = FAudioInsightsEditorModule::GetChecked();
+			const ::Audio::FDeviceId AudioDeviceId = AudioInsightsEditorModule.GetDeviceId();
 
-			RemoveDeviceEntry(DeviceId, SubmixDataViewEntries[FoundSubmixAssetNameIndex]->SoundSubmix->GetUniqueID());
+			RemoveDeviceEntry(AudioDeviceId, SubmixDataViewEntries[FoundSubmixAssetNameIndex]->SoundSubmix->GetUniqueID());
 
 			SubmixDataViewEntries.RemoveAt(FoundSubmixAssetNameIndex);
 
@@ -139,14 +140,14 @@ namespace UE::Audio::Insights
 
 	bool FSoundSubmixProvider::ProcessMessages()
 	{
-		const IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
-		const ::Audio::FDeviceId DeviceId = InsightsModule.GetDeviceId();
+		const FAudioInsightsEditorModule AudioInsightsEditorModule = FAudioInsightsEditorModule::GetChecked();
+		const ::Audio::FDeviceId AudioDeviceId = AudioInsightsEditorModule.GetDeviceId();
 
 		for (const TSharedPtr<FSoundSubmixAssetDashboardEntry>& SubmixDataViewEntry : SubmixDataViewEntries)
 		{
 			if (SubmixDataViewEntry.IsValid() && SubmixDataViewEntry->SoundSubmix.IsValid())
 			{
-				UpdateDeviceEntry(DeviceId, SubmixDataViewEntry->SoundSubmix->GetUniqueID(), [&SubmixDataViewEntry](TSharedPtr<FSoundSubmixAssetDashboardEntry>& Entry)
+				UpdateDeviceEntry(AudioDeviceId, SubmixDataViewEntry->SoundSubmix->GetUniqueID(), [&SubmixDataViewEntry](TSharedPtr<FSoundSubmixAssetDashboardEntry>& Entry)
 				{
 					if (!Entry.IsValid())
 					{

@@ -1,9 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SAudioCurveView.h"
+#include "Views/SAudioCurveView.h"
+
 #include "Algo/MaxElement.h"
 #include "Algo/MinElement.h"
-#include "Audio.h"
+#include "AudioInsightsLog.h"
 #include "Fonts/FontMeasure.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Rendering/DrawElements.h"
@@ -316,7 +317,7 @@ int32 SAudioCurveView::PaintCurves(const FGeometry& AllottedGeometry, const FSla
 
 	if (PointDataPerCurve->Num() != MetadataPerCurve->Num())
 	{
-		UE_LOG(LogAudio, Warning, TEXT("Invalid audio curve view data. Metadata and point curve data nums do not match."))
+		UE_LOG(LogAudioInsights, Warning, TEXT("Invalid audio curve view data. Metadata and point curve data nums do not match."))
 		return LayerId;
 	}
 

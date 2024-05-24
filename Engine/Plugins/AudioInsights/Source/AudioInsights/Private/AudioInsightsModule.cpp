@@ -4,25 +4,20 @@
 #include "AudioInsightsDashboardAssetCommands.h"
 #include "AudioInsightsDashboardFactory.h"
 #include "AudioInsightsLog.h"
-#include "AudioInsightsStyle.h"
 #include "AudioInsightsTraceModule.h"
 #include "Features/IModularFeatures.h"
 #include "Framework/Docking/TabManager.h"
+#include "Insights/IUnrealInsightsModule.h"
 #include "Modules/ModuleManager.h"
 #include "Templates/SharedPointer.h"
 #include "TraceServices/ModuleService.h"
 #include "UObject/NameTypes.h"
-#include "Views/AudioBusesDashboardViewFactory.h"
-#include "Views/AudioMetersDashboardViewFactory.h"
+
+#if !WITH_EDITOR
 #include "Views/LogDashboardViewFactory.h"
 #include "Views/MixerSourceDashboardViewFactory.h"
-#include "Views/OutputMeterDashboardViewFactory.h"
-#include "Views/OutputOscilloscopeDashboardViewFactory.h"
-#include "Views/SubmixesDashboardViewFactory.h"
-#include "Views/ViewportDashboardViewFactory.h"
 #include "Views/VirtualLoopDashboardViewFactory.h"
-#include "WorkspaceMenuStructure.h"
-#include "WorkspaceMenuStructureModule.h"
+#endif // !WITH_EDITOR
 
 #define LOCTEXT_NAMESPACE "AudioInsights"
 DEFINE_LOG_CATEGORY(LogAudioInsights);
@@ -37,20 +32,27 @@ namespace UE::Audio::Insights
 		{
 			IModularFeatures::Get().RegisterModularFeature(TraceServices::ModuleFeatureName, &TraceModule);
 
-			RegisterMenus();
-
 			DashboardFactory = MakeShared<FDashboardFactory>();
-			DashboardFactory->RegisterViewFactory(MakeShared<FViewportDashboardViewFactory>());
+			
+			FDashboardAssetCommands::Register();
+
+#if !WITH_EDITOR
 			DashboardFactory->RegisterViewFactory(MakeShared<FLogDashboardViewFactory>());
 			DashboardFactory->RegisterViewFactory(MakeShared<FMixerSourceDashboardViewFactory>());
 			DashboardFactory->RegisterViewFactory(MakeShared<FVirtualLoopDashboardViewFactory>());
-			DashboardFactory->RegisterViewFactory(MakeShared<FSubmixesDashboardViewFactory>());
-			DashboardFactory->RegisterViewFactory(MakeShared<FAudioBusesDashboardViewFactory>());
-			DashboardFactory->RegisterViewFactory(MakeShared<FAudioMetersDashboardViewFactory>());
-			DashboardFactory->RegisterViewFactory(MakeShared<FOutputMeterDashboardViewFactory>());
-			DashboardFactory->RegisterViewFactory(MakeShared<FOutputOscilloscopeDashboardViewFactory>());
+#endif // !WITH_EDITOR
 
-			FDashboardAssetCommands::Register();
+			FCoreDelegates::OnFEngineLoopInitComplete.AddLambda([this]
+			{
+				LLM_SCOPE_BYNAME(TEXT("Insights/AudioInsights"));
+				IUnrealInsightsModule& UnrealInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
+				if (!UnrealInsightsModule.GetStoreClient())
+				{
+					UE_LOG(LogCore, Display, TEXT("AudioInsights module auto-connecting to local trace server..."));
+					UnrealInsightsModule.ConnectToStore(TEXT("127.0.0.1"));
+					UnrealInsightsModule.CreateSessionViewer(false);
+				}
+			});
 		}
 	}
 
@@ -104,16 +106,6 @@ namespace UE::Audio::Insights
 	{
 		return DashboardFactory->MakeDockTabWidget(Args);
 	}
-
-	void FAudioInsightsModule::RegisterMenus()
-	{
-		const IWorkspaceMenuStructure& MenuStructure = WorkspaceMenu::GetMenuStructure();
-		FGlobalTabmanager::Get()->RegisterNomadTabSpawner("AudioInsights", FOnSpawnTab::CreateRaw(this, &FAudioInsightsModule::CreateDashboardTabWidget))
-			.SetDisplayName(LOCTEXT("OpenDashboard_TabDisplayName", "Audio Insights"))
-			.SetTooltipText(LOCTEXT("OpenDashboard_TabTooltip", "Opens Audio Insights, an extensible suite of tools and visualizers which enable monitoring and debugging audio in the Unreal Engine."))
-			.SetGroup(MenuStructure.GetToolsCategory())
-			.SetIcon(FSlateStyle::Get().CreateIcon("AudioInsights.Icon.Dashboard"));
-	};
 } // namespace UE::Audio::Insights
 #undef LOCTEXT_NAMESPACE // AudioInsights
 

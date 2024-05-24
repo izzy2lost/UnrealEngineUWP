@@ -11,7 +11,7 @@
 
 namespace UE::Audio::Insights
 {
-	class FTraceModule : public TraceServices::IModule
+	class AUDIOINSIGHTS_API FTraceModule : public TraceServices::IModule
 	{
 	public:
 		FTraceModule();

@@ -3,13 +3,13 @@
 
 #include "Views/TableDashboardViewFactory.h"
 
-class UAudioBus;
+class USoundSubmix;
 
 namespace UE::Audio::Insights
 {
-	struct AUDIOINSIGHTS_API FAudioBusAssetDashboardEntry : public IObjectDashboardEntry
+	struct FSoundSubmixAssetDashboardEntry : public IObjectDashboardEntry
 	{
-		virtual ~FAudioBusAssetDashboardEntry() = default;
+		virtual ~FSoundSubmixAssetDashboardEntry() = default;
 
 		virtual FText GetDisplayName() const override;
 		virtual const UObject* GetObject() const override;
@@ -19,6 +19,6 @@ namespace UE::Audio::Insights
 		::Audio::FDeviceId DeviceId = INDEX_NONE;
 		uint64 ComponentId = TNumericLimits<uint64>::Max();
 		FString Name;
-		TWeakObjectPtr<UAudioBus> AudioBus;
+		TWeakObjectPtr<USoundSubmix> SoundSubmix;
 	};
 } // namespace UE::Audio::Insights

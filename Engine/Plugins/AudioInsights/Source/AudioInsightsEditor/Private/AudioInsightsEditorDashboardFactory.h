@@ -13,14 +13,11 @@
 
 namespace UE::Audio::Insights
 {
-	class FDashboardFactory : public IDashboardFactory, public TSharedFromThis<FDashboardFactory>
+	class FEditorDashboardFactory : public IDashboardFactory, public TSharedFromThis<FEditorDashboardFactory>
 	{
-		class FSceneViewport;
-		class FEditorViewportClient;
-
 	public:
-		FDashboardFactory();
-		virtual ~FDashboardFactory() = default;
+		FEditorDashboardFactory() = default;
+		virtual ~FEditorDashboardFactory() = default;
 
 		TSharedRef<SDockTab> MakeDockTabWidget(const FSpawnTabArgs& Args);
 
@@ -35,6 +32,7 @@ namespace UE::Audio::Insights
 		void OnWorldRegisteredToAudioDevice(const UWorld* InWorld, ::Audio::FDeviceId InDeviceId);
 		void OnWorldUnregisteredFromAudioDevice(const UWorld* InWorld, ::Audio::FDeviceId InDeviceId);
 		void OnDeviceDestroyed(::Audio::FDeviceId InDeviceId);
+
 		void OnPIEStarted(bool bSimulating);
 		void OnPostPIEStarted(bool bSimulating);
 		void OnPIEStopped(bool bSimulating);
@@ -52,11 +50,12 @@ namespace UE::Audio::Insights
 		void UnregisterTabSpawners();
 
 		FDelegateHandle OnDeviceDestroyedHandle;
+		FDelegateHandle OnWorldRegisteredToAudioDeviceHandle;
+		FDelegateHandle OnWorldUnregisteredFromAudioDeviceHandle;
+
 		FDelegateHandle OnPIEStartedHandle;
 		FDelegateHandle OnPostPIEStartedHandle;
 		FDelegateHandle OnPIEStoppedHandle;
-		FDelegateHandle OnWorldRegisteredToAudioDeviceHandle;
-		FDelegateHandle OnWorldUnregisteredFromAudioDeviceHandle;
 
 		bool bStartWithPIE = true;
 		bool bStopWithPIE = true;
@@ -64,9 +63,6 @@ namespace UE::Audio::Insights
 		TSharedPtr<FTabManager> DashboardTabManager;
 		TSharedPtr<FWorkspaceItem> DashboardWorkspace;
 		TSharedPtr<FTabManager::FLayout> TabLayout;
-
-		TSharedPtr<FSceneViewport> SceneViewport;
-		TSharedPtr<FEditorViewportClient> ViewportClient;
 
 		TArray<TSharedPtr<::Audio::FDeviceId>> AudioDeviceIds;
 		TSharedPtr<SComboBox<TSharedPtr<::Audio::FDeviceId>>> AudioDeviceComboBox;

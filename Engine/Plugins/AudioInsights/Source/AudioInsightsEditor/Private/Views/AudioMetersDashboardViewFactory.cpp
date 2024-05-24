@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "AudioMetersDashboardViewFactory.h"
 
-#include "AudioInsightsDashboardFactory.h"
 #include "AudioInsightsStyle.h"
 #include "Providers/AudioBusProvider.h"
 #include "Providers/SoundSubmixProvider.h"

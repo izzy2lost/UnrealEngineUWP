@@ -25,10 +25,6 @@ namespace UE::Audio::Insights
 
 		UI_COMMAND(Start, "Start Trace", "Starts the active trace session used by Audio Insights.", EUserInterfaceActionType::Button, FInputChord());
 		UI_COMMAND(Stop, "Stop Trace", "Stops the active trace session used by Audio Insights.", EUserInterfaceActionType::Button, FInputChord());
-
-		UI_COMMAND(Mute, "Mute (Toggle)", "Mutes the selected item in the Mixer Source View.", EUserInterfaceActionType::Button, FInputChord());
-		UI_COMMAND(Solo, "Solo (Toggle)", "Solo the selected item in the Mixer Source View.", EUserInterfaceActionType::Button, FInputChord());
-		UI_COMMAND(ClearMuteSolo, "Clear All Mute/Solo", "Clears any Mute/Solo state from any of the items in the Mixer Source View.", EUserInterfaceActionType::Button, FInputChord());
 	}
 
 	void FDashboardAssetCommands::AddAssetCommands(FToolBarBuilder& OutToolbarBuilder) const
@@ -70,21 +66,6 @@ namespace UE::Audio::Insights
 	TSharedPtr<const FUICommandInfo> FDashboardAssetCommands::GetStopCommand() const
 	{
 		return Stop;
-	}
-
-	TSharedPtr<const FUICommandInfo> FDashboardAssetCommands::GetMuteCommand() const
-	{
-		return Mute;
-	};
-
-	TSharedPtr<const FUICommandInfo> FDashboardAssetCommands::GetSoloCommand() const
-	{
-		return Solo;
-	}
-
-	TSharedPtr<const FUICommandInfo> FDashboardAssetCommands::GetClearMuteSoloCommand() const
-	{
-		return ClearMuteSolo;
 	}
 
 	FSlateIcon FDashboardAssetCommands::GetStartIcon() const

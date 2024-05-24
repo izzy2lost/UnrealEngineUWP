@@ -3,13 +3,13 @@
 #include "Views/OutputMeterDashboardViewFactory.h"
 
 #include "Analyzers/AudioMeterSubmixAnalyzer.h"
-#include "AudioInsightsDashboardFactory.h"
+#include "AudioInsightsEditorDashboardFactory.h"
 #include "AudioInsightsStyle.h"
-#include "AudioMeter.h"
+#include "SAudioMeter.h"
 #include "Sound/AudioSettings.h"
 #include "Sound/SoundSubmix.h"
 #include "SubmixesDashboardViewFactory.h"
-#include "UObject/WeakObjectPtr.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 #include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SOverlay.h"
@@ -50,7 +50,7 @@ namespace UE::Audio::Insights
 			{
 				OutputMeterSubmixAnalyzer = MakeShared<FAudioMeterSubmixAnalyzer>(MainSubmix);
 
-				FDashboardFactory::OnActiveAudioDeviceChanged.AddSP(this, &FOutputMeterDashboardViewFactory::HandleOnActiveAudioDeviceChanged);
+				FEditorDashboardFactory::OnActiveAudioDeviceChanged.AddSP(this, &FOutputMeterDashboardViewFactory::HandleOnActiveAudioDeviceChanged);
 				FSubmixesDashboardViewFactory::OnSubmixSelectionChanged.AddSP(this, &FOutputMeterDashboardViewFactory::HandleOnSubmixSelectionChanged);
 			}
 		}

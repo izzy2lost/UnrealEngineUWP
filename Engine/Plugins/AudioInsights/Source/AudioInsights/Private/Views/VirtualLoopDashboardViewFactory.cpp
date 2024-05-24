@@ -1,15 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Views/VirtualLoopDashboardViewFactory.h"
 
-#include "Audio/AudioDebug.h"
 #include "AudioDefines.h"
-#include "AudioDeviceManager.h"
 #include "AudioInsightsModule.h"
 #include "AudioInsightsStyle.h"
-#include "DrawDebugHelpers.h"
 #include "Internationalization/Text.h"
 #include "Providers/VirtualLoopTraceProvider.h"
 #include "Templates/SharedPointer.h"
+
+#if WITH_EDITOR
+#include "Audio/AudioDebug.h"
+#include "AudioDeviceManager.h"
+#endif // WITH_EDITOR
 
 #define LOCTEXT_NAMESPACE "AudioInsights"
 
@@ -25,7 +27,6 @@ namespace UE::Audio::Insights
 	} // namespace VirtualLoopPrivate
 
 	FVirtualLoopDashboardViewFactory::FVirtualLoopDashboardViewFactory()
-		: AttenuationVisualizer(FColor::Blue)
 	{
 		const FTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
 		Providers = TArray<TSharedPtr<FTraceProviderBase>>
@@ -258,27 +259,9 @@ namespace UE::Audio::Insights
 		return false;
 	}
 
-	void FVirtualLoopDashboardViewFactory::DebugDraw(float InElapsed, const IDashboardDataViewEntry& InEntry, ::Audio::FDeviceId DeviceId) const
+	void FVirtualLoopDashboardViewFactory::DebugDraw(float InElapsed, const TArray<TSharedPtr<IDashboardDataViewEntry>>& InSelectedItems, ::Audio::FDeviceId InAudioDeviceId) const
 	{
-		const FVirtualLoopDashboardEntry& LoopData = VirtualLoopPrivate::CastEntry(InEntry);
-		const FRotator& Rotator = LoopData.Rotator;
-		const FVector& Location = LoopData.Location;
-		const FString Description = FString::Printf(TEXT("%s [Virt: %.2fs]"), *LoopData.Name, LoopData.TimeVirtualized);
-
-		const TArray<UWorld*> Worlds = FAudioDeviceManager::Get()->GetWorldsUsingAudioDevice(DeviceId);
-		for (UWorld* World : Worlds)
-		{
-			DrawDebugSphere(World, Location, 30.0f, 8, AttenuationVisualizer.Color, false, InElapsed, SDPG_Foreground);
-			DrawDebugString(World, Location + FVector(0, 0, 32), *Description, nullptr, AttenuationVisualizer.Color, InElapsed, false, 1.0f);
-
-			if (const UObject* Object = LoopData.GetObject())
-			{
-				FTransform Transform;
-				Transform.SetLocation(Location);
-				Transform.SetRotation(FQuat(Rotator));
-				AttenuationVisualizer.Draw(InElapsed, Transform, *Object, *World);
-			}
-		}
+		OnDebugDrawEntries.Broadcast(InElapsed, InSelectedItems, InAudioDeviceId);
 	}
 #endif // WITH_EDITOR
 } // namespace UE::Audio::Insights

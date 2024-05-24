@@ -4,7 +4,7 @@
 #include "AudioBusSubsystem.h"
 #include "AudioDefines.h"
 #include "AudioDeviceManager.h"
-#include "AudioInsightsModule.h"
+#include "AudioInsightsEditorModule.h"
 #include "AudioOscilloscope.h"
 #include "AudioMixerDevice.h"
 #include "AudioMixerSubmix.h"
@@ -20,8 +20,8 @@ namespace UE::Audio::Insights
 		{
 			using namespace ::Audio;
 
-			const IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
-			const FDeviceId AudioDeviceId = InsightsModule.GetDeviceId();
+			const FAudioInsightsEditorModule AudioInsightsEditorModule = FAudioInsightsEditorModule::GetChecked();
+			const FDeviceId AudioDeviceId = AudioInsightsEditorModule.GetDeviceId();
 
 			if (FAudioDeviceManager* AudioDeviceManager = FAudioDeviceManager::Get())
 			{
@@ -68,8 +68,8 @@ namespace UE::Audio::Insights
 			return;
 		}
 
-		const IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
-		const FDeviceId AudioDeviceId = InsightsModule.GetDeviceId();
+		const FAudioInsightsEditorModule AudioInsightsEditorModule = FAudioInsightsEditorModule::GetChecked();
+		const FDeviceId AudioDeviceId = AudioInsightsEditorModule.GetDeviceId();
 
 		const FMixerDevice* MixerDevice = static_cast<FMixerDevice*>(AudioDeviceManager->GetAudioDeviceRaw(AudioDeviceId));
 		if (!MixerDevice)
@@ -127,8 +127,8 @@ namespace UE::Audio::Insights
 			return;
 		}
 
-		const IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
-		const FDeviceId AudioDeviceId = InsightsModule.GetDeviceId();
+		const FAudioInsightsEditorModule AudioInsightsEditorModule = FAudioInsightsEditorModule::GetChecked();
+		const FDeviceId AudioDeviceId = AudioInsightsEditorModule.GetDeviceId();
 
 		const FMixerDevice* MixerDevice = static_cast<FMixerDevice*>(AudioDeviceManager->GetAudioDeviceRaw(AudioDeviceId));
 		if (!MixerDevice)

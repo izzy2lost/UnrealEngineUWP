@@ -4,7 +4,8 @@
 
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
-#include "AudioInsightsDashboardFactory.h"
+#include "AudioInsightsEditorDashboardFactory.h"
+#include "AudioInsightsEditorModule.h"
 #include "Sound/AudioBus.h"
 
 namespace UE::Audio::Insights
@@ -18,7 +19,7 @@ namespace UE::Audio::Insights
 		AssetRegistryModule.Get().OnAssetRemoved().AddRaw(this, &FAudioBusProvider::OnAssetRemoved);
 		AssetRegistryModule.Get().OnFilesLoaded().AddRaw(this, &FAudioBusProvider::OnFilesLoaded);
 
-		FDashboardFactory::OnActiveAudioDeviceChanged.AddRaw(this, &FAudioBusProvider::OnActiveAudioDeviceChanged);
+		FEditorDashboardFactory::OnActiveAudioDeviceChanged.AddRaw(this, &FAudioBusProvider::OnActiveAudioDeviceChanged);
 	}
 	
 	FAudioBusProvider::~FAudioBusProvider()
@@ -30,7 +31,7 @@ namespace UE::Audio::Insights
 			AssetRegistryModule->Get().OnFilesLoaded().RemoveAll(this);
 		}
 
-		FDashboardFactory::OnActiveAudioDeviceChanged.RemoveAll(this);
+		FEditorDashboardFactory::OnActiveAudioDeviceChanged.RemoveAll(this);
 	}
 
 	FName FAudioBusProvider::GetName_Static()
@@ -75,11 +76,11 @@ namespace UE::Audio::Insights
 
 		if (!bIsAudioBusAssetAlreadAdded)
 		{
-			const IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
-			const ::Audio::FDeviceId DeviceId = InsightsModule.GetDeviceId();
+			const FAudioInsightsEditorModule AudioInsightsEditorModule = FAudioInsightsEditorModule::GetChecked();
+			const ::Audio::FDeviceId AudioDeviceId = AudioInsightsEditorModule.GetDeviceId();
 
 			TSharedPtr<FAudioBusAssetDashboardEntry> AudioBusAssetDashboardEntry = MakeShared<FAudioBusAssetDashboardEntry>();
-			AudioBusAssetDashboardEntry->DeviceId = DeviceId;
+			AudioBusAssetDashboardEntry->DeviceId = AudioDeviceId;
 			AudioBusAssetDashboardEntry->Name     = InAssetData.GetObjectPathString();
 			AudioBusAssetDashboardEntry->AudioBus = Cast<UAudioBus>(InAssetData.GetAsset());
 
@@ -100,10 +101,10 @@ namespace UE::Audio::Insights
 
 		if (FoundAudioBusAssetNameIndex != INDEX_NONE)
 		{
-			const IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
-			const ::Audio::FDeviceId DeviceId = InsightsModule.GetDeviceId();
+			const FAudioInsightsEditorModule AudioInsightsEditorModule = FAudioInsightsEditorModule::GetChecked();
+			const ::Audio::FDeviceId AudioDeviceId = AudioInsightsEditorModule.GetDeviceId();
 
-			RemoveDeviceEntry(DeviceId, AudioBusDataViewEntries[FoundAudioBusAssetNameIndex]->AudioBus->GetUniqueID());
+			RemoveDeviceEntry(AudioDeviceId, AudioBusDataViewEntries[FoundAudioBusAssetNameIndex]->AudioBus->GetUniqueID());
 
 			AudioBusDataViewEntries.RemoveAt(FoundAudioBusAssetNameIndex);
 
@@ -139,21 +140,21 @@ namespace UE::Audio::Insights
 
 	bool FAudioBusProvider::ProcessMessages()
 	{
-		const IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
-		const ::Audio::FDeviceId DeviceId = InsightsModule.GetDeviceId();
+		const FAudioInsightsEditorModule AudioInsightsEditorModule = FAudioInsightsEditorModule::GetChecked();
+		const ::Audio::FDeviceId AudioDeviceId = AudioInsightsEditorModule.GetDeviceId();
 
-		for (uint32 Index = 0;
-			 const TSharedPtr<FAudioBusAssetDashboardEntry>& AudioBusDataViewEntry : AudioBusDataViewEntries)
+		for (const TSharedPtr<FAudioBusAssetDashboardEntry>& AudioBusDataViewEntry : AudioBusDataViewEntries)
 		{
-			UpdateDeviceEntry(DeviceId, AudioBusDataViewEntry->AudioBus->GetUniqueID(), [&AudioBusDataViewEntry](TSharedPtr<FAudioBusAssetDashboardEntry>& Entry)
+			if (AudioBusDataViewEntry.IsValid() && AudioBusDataViewEntry->AudioBus.IsValid())
 			{
-				if (!Entry.IsValid())
+				UpdateDeviceEntry(AudioDeviceId, AudioBusDataViewEntry->AudioBus->GetUniqueID(), [&AudioBusDataViewEntry](TSharedPtr<FAudioBusAssetDashboardEntry>& Entry)
 				{
-					Entry = AudioBusDataViewEntry;
-				}
-			});
-
-			++Index;
+					if (!Entry.IsValid())
+					{
+						Entry = AudioBusDataViewEntry;
+					}
+				});
+			}
 		}
 
 		return true;

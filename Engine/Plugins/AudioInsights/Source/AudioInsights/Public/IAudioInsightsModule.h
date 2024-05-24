@@ -24,4 +24,10 @@ public:
 		const FLazyName ModuleName = "AudioInsights";
 		return ModuleName.Resolve();
 	}
+
+	static FName GetEditorName()
+	{
+		const FLazyName EditorModuleName = "AudioInsightsEditor";
+		return EditorModuleName.Resolve();
+	}
 };

@@ -24,10 +24,6 @@ namespace UE::Audio::Insights
 		virtual TSharedPtr<const FUICommandInfo> GetStartCommand() const;
 		virtual TSharedPtr<const FUICommandInfo> GetStopCommand() const;
 
-		virtual TSharedPtr<const FUICommandInfo> GetMuteCommand() const;
-		virtual TSharedPtr<const FUICommandInfo> GetSoloCommand() const;
-		virtual TSharedPtr<const FUICommandInfo> GetClearMuteSoloCommand() const;
-
 	private:
 		FSlateIcon GetStartIcon() const;
 		FSlateIcon GetStopIcon() const;
@@ -43,14 +39,5 @@ namespace UE::Audio::Insights
 
 		/** Stops the trace session & disables the required audio channels off. */
 		TSharedPtr<FUICommandInfo> Stop;
-
-		/** Mutes the selected item in the Mixer Source View. */
-		TSharedPtr<FUICommandInfo> Mute;
-
-		/** Solo the selected item in the Mixer Source View. */
-		TSharedPtr<FUICommandInfo> Solo;
-
-		/** Clears any Mute/Solo state from any of the items in the Mixer Source View. */
-		TSharedPtr<FUICommandInfo> ClearMuteSolo;
 	};
 } // namespace UE::Audio::Insights

@@ -2,11 +2,10 @@
 #include "AudioMeterView.h"
 
 #include "Analyzers/AudioMeterSubmixAnalyzer.h"
-#include "AudioInsightsDashboardFactory.h"
+#include "AudioInsightsEditorDashboardFactory.h"
 #include "AudioMeter.h"
 #include "Sound/AudioBus.h"
 #include "Sound/SoundSubmix.h"
-#include "Views/SubmixesDashboardViewFactory.h"
 #include "Widgets/SNullWidget.h"
 
 namespace UE::Audio::Insights
@@ -16,14 +15,14 @@ namespace UE::Audio::Insights
 		, AudioMeterAnalyzerVariant(MakeAudioMeterAnalyzerVariant(InAudioAssetVariant))
 		, AudioAssetNameTextBlock(MakeAudioAssetNameTextBlock(InAudioAssetVariant))
 		, AudioMeterViewWidget(MakeWidget())
-		, OnActiveAudioDeviceChangedHandle(FDashboardFactory::OnActiveAudioDeviceChanged.AddRaw(this, &FAudioMeterView::HandleOnActiveAudioDeviceChanged))
+		, OnActiveAudioDeviceChangedHandle(FEditorDashboardFactory::OnActiveAudioDeviceChanged.AddRaw(this, &FAudioMeterView::HandleOnActiveAudioDeviceChanged))
 	{
 		
 	}
 
 	FAudioMeterView::~FAudioMeterView()
 	{
-		FDashboardFactory::OnActiveAudioDeviceChanged.Remove(OnActiveAudioDeviceChangedHandle);
+		FEditorDashboardFactory::OnActiveAudioDeviceChanged.Remove(OnActiveAudioDeviceChangedHandle);
 	}
 
 	FAudioMeterView::FAudioMeterVariant FAudioMeterView::MakeAudioMeterAnalyzerVariant(const FAudioAssetVariant InAudioAssetVariant)

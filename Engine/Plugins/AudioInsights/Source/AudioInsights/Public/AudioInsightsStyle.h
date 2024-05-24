@@ -12,7 +12,7 @@
 
 namespace UE::Audio::Insights
 {
-	class FSlateStyle final : public FSlateStyleSet
+	class AUDIOINSIGHTS_API FSlateStyle final : public FSlateStyleSet
 	{
 	public:
 		static FSlateStyle& Get()
@@ -27,7 +27,7 @@ namespace UE::Audio::Insights
 			return StyleName.Resolve();
 		}
 
-		const FNumberFormattingOptions* GetAmpFloatFormat()
+		const FNumberFormattingOptions* GetAmpFloatFormat() const
 		{
 			static FNumberFormattingOptions FloatFormat;
 			FloatFormat.MinimumIntegralDigits = 1;
@@ -37,7 +37,7 @@ namespace UE::Audio::Insights
 			return &FloatFormat;
 		};
 
-		const FNumberFormattingOptions* GetDefaultFloatFormat()
+		const FNumberFormattingOptions* GetDefaultFloatFormat() const
 		{
 			static FNumberFormattingOptions FloatFormat;
 			FloatFormat.MinimumIntegralDigits = 1;
@@ -46,7 +46,7 @@ namespace UE::Audio::Insights
 			return &FloatFormat;
 		};
 
-		const FNumberFormattingOptions* GetFreqFloatFormat()
+		const FNumberFormattingOptions* GetFreqFloatFormat() const
 		{
 			static FNumberFormattingOptions FloatFormat;
 			FloatFormat.MinimumIntegralDigits = 1;
@@ -56,7 +56,7 @@ namespace UE::Audio::Insights
 			return &FloatFormat;
 		};
 
-		const FNumberFormattingOptions* GetPitchFloatFormat()
+		const FNumberFormattingOptions* GetPitchFloatFormat() const
 		{
 			static FNumberFormattingOptions FloatFormat;
 			FloatFormat.MinimumIntegralDigits = 1;
@@ -66,7 +66,7 @@ namespace UE::Audio::Insights
 			return &FloatFormat;
 		};
 
-		const FNumberFormattingOptions* GetTimeFormat()
+		const FNumberFormattingOptions* GetTimeFormat() const
 		{
 			static FNumberFormattingOptions FloatFormat;
 			FloatFormat.MinimumIntegralDigits = 1;
@@ -75,22 +75,22 @@ namespace UE::Audio::Insights
 			return &FloatFormat;
 		};
 
-		FText FormatSecondsAsTime(float InTimeSec)
+		FText FormatSecondsAsTime(float InTimeSec) const
 		{
 			return FText::Format(LOCTEXT("TimeInSecondsFormat", "{0}s"), FText::AsNumber(InTimeSec, GetTimeFormat()));
 		}
 
-		FText FormatMillisecondsAsTime(float InTimeMS)
+		FText FormatMillisecondsAsTime(float InTimeMS) const
 		{
 			return FText::Format(LOCTEXT("TimeInMillisecondsFormat", "{0}ms"), FText::AsNumber(InTimeMS, GetTimeFormat()));
 		}
 
-		FSlateIcon CreateIcon(FName InName)
+		FSlateIcon CreateIcon(FName InName)  const
 		{
-			return { GetStyleName(), InName};
+			return { GetStyleName(), InName };
 		}
 
-		const FSlateBrush& GetBrushEnsured(FName InName)
+		const FSlateBrush& GetBrushEnsured(FName InName)  const
 		{
 			const ISlateStyle* AudioInsightsStyle = FSlateStyleRegistry::FindSlateStyle(GetStyleName());
 			if (ensureMsgf(AudioInsightsStyle, TEXT("Missing slate style '%s'"), *GetStyleName().ToString()))

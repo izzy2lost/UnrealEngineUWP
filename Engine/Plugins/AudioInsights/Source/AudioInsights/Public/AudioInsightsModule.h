@@ -12,14 +12,8 @@
 
 namespace UE::Audio::Insights
 {
-	// Forward Declarations
-	class FMixerSourceTraceProvider;
-
 	class FAudioInsightsModule final : public IAudioInsightsModule
 	{
-		TSharedPtr<FDashboardFactory> DashboardFactory;
-		FTraceModule TraceModule;
-
 	public:
 		FAudioInsightsModule() = default;
 
@@ -31,15 +25,16 @@ namespace UE::Audio::Insights
 		virtual void UnregisterDashboardViewFactory(FName InName) override;
 		virtual ::Audio::FDeviceId GetDeviceId() const override;
 
-		FTraceModule& GetTraceModule();
+		AUDIOINSIGHTS_API static FAudioInsightsModule& GetChecked();
+		AUDIOINSIGHTS_API FTraceModule& GetTraceModule();
 
 		TSharedRef<FDashboardFactory> GetDashboardFactory();
 		const TSharedRef<FDashboardFactory> GetDashboardFactory() const;
 
-		static FAudioInsightsModule& GetChecked();
+		TSharedRef<SDockTab> CreateDashboardTabWidget(const FSpawnTabArgs& Args);
 
 	private:
-		TSharedRef<SDockTab> CreateDashboardTabWidget(const FSpawnTabArgs& Args);
-		void RegisterMenus();
+		TSharedPtr<FDashboardFactory> DashboardFactory;
+		FTraceModule TraceModule;
 	};
 } // namespace UE::Audio::Insights

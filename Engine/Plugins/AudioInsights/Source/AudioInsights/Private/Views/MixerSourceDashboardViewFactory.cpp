@@ -1,20 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Views/MixerSourceDashboardViewFactory.h"
 
-#include "Audio/AudioDebug.h"
-#include "AudioDeviceManager.h"
-#include "AudioInsightsDashboardAssetCommands.h"
 #include "AudioInsightsModule.h"
 #include "AudioInsightsStyle.h"
 #include "DSP/Dsp.h"
-#include "Editor.h"
 #include "Internationalization/Text.h"
-#include "IPropertyTypeCustomization.h"
 #include "Providers/MixerSourceTraceProvider.h"
 #include "SSimpleTimeSlider.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/SoftObjectPath.h"
+#include "Widgets/Input/SComboBox.h"
 #include "Widgets/Layout/SSplitter.h"
+
+#if WITH_EDITOR
+#include "Editor.h"
+#endif // WITH_EDITOR
 
 #define LOCTEXT_NAMESPACE "AudioInsights"
 
@@ -386,6 +386,7 @@ namespace UE::Audio::Insights
 		CurrentTimestamp = 0;
 	}
 
+#if WITH_EDITOR
 	void FMixerSourceDashboardViewFactory::OnPIEStarted(bool bSimulating)
 	{
 		PIEState = EPIEState::Running;
@@ -407,217 +408,36 @@ namespace UE::Audio::Insights
 	{
 		PIEState = EPIEState::Running;
 	}
+#endif // WITH_EDITOR
 
-#if AUDIO_INSIGHTS_SHOW_SOURCE_CONTEXT_MENU
-	TSharedPtr<SWidget> FMixerSourceDashboardViewFactory::OnConstructContextMenu()
-	{
-		const FDashboardAssetCommands& Commands = FDashboardAssetCommands::Get();
-
-		TSharedPtr<FUICommandList> CommandList = MakeShared<FUICommandList>();
-		CommandList->MapAction(Commands.GetMuteCommand(), FExecuteAction::CreateRaw(this, &FMixerSourceDashboardViewFactory::MuteSound));
-		CommandList->MapAction(Commands.GetSoloCommand(), FExecuteAction::CreateRaw(this, &FMixerSourceDashboardViewFactory::SoloSound));
-		CommandList->MapAction(Commands.GetClearMuteSoloCommand(), FExecuteAction::CreateRaw(this, &FMixerSourceDashboardViewFactory::ClearMutesAndSolos));
-
-		constexpr bool bShouldCloseWindowAfterMenuSelection = true;
-		FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, CommandList);
-
-		MenuBuilder.BeginSection("SoundActions", LOCTEXT("SoundActions_Header", "Sound Actions"));
-		{
-			MenuBuilder.AddMenuEntry(Commands.GetMuteCommand());
-			MenuBuilder.AddMenuEntry(Commands.GetSoloCommand());
-			MenuBuilder.AddMenuEntry(Commands.GetClearMuteSoloCommand());
-		}
-		MenuBuilder.EndSection();
-
-		return MenuBuilder.MakeWidget();
-	}
-#endif // AUDIO_INSIGHTS_SHOW_SOURCE_CONTEXT_MENU 
-
-	FSlateColor FMixerSourceDashboardViewFactory::GetRowColor(const TSharedPtr<IDashboardDataViewEntry>& InRowDataPtr)
-	{
-		FColor RowTextColor(255, 255, 255);
-
-#if ENABLE_AUDIO_DEBUG
-		if (const FAudioDeviceManager* AudioDeviceManager = FAudioDeviceManager::Get())
-		{
-			const FSoundAssetDashboardEntry& SoundAssetDashboardEntry = *StaticCastSharedPtr<FSoundAssetDashboardEntry>(InRowDataPtr).Get();
-			const FName SoundAssetName { SoundAssetDashboardEntry.Name };
-			const bool bIsSolo = AudioDeviceManager->GetDebugger().IsSoloSoundWave(SoundAssetName);
-			if (bIsSolo)
-			{
-				RowTextColor = FColor(255, 255, 0);
-			}
-			else
-			{
-				const bool bIsMute = AudioDeviceManager->GetDebugger().IsMuteSoundWave(SoundAssetName);
-				if (bIsMute)
-				{
-					RowTextColor = FColor(255, 0, 0);
-				}
-			}
-		}
-#endif // ENABLE_AUDIO_DEBUG
-
-		return FSlateColor(RowTextColor);
-	}
-
+#if WITH_EDITOR
 	void FMixerSourceDashboardViewFactory::ToggleMuteForAllItems(ECheckBoxState NewState)
 	{
-#if ENABLE_AUDIO_DEBUG
 		if (MuteState != NewState)
 		{
 			MuteState = NewState;
-			UpdateSoloMuteState();
+			UpdateMuteSoloState();
 		}
-#endif
 	}
 
 	void FMixerSourceDashboardViewFactory::ToggleSoloForAllItems(ECheckBoxState NewState)
 	{
-#if ENABLE_AUDIO_DEBUG
 		if (SoloState != NewState)
 		{
 			SoloState = NewState;
-			UpdateSoloMuteState();
+			UpdateMuteSoloState();
 		}
-#endif
 	}
 
-	void FMixerSourceDashboardViewFactory::MuteSound()
+	void FMixerSourceDashboardViewFactory::UpdateMuteSoloState()
 	{
-#if ENABLE_AUDIO_DEBUG
-		if (FilteredEntriesListView.IsValid())
-		{
-			if (FAudioDeviceManager* AudioDeviceManager = FAudioDeviceManager::Get())
-			{
-				const TArray<TSharedPtr<IDashboardDataViewEntry>> SelectedItems = FilteredEntriesListView->GetSelectedItems();
-
-				for (const TSharedPtr<IDashboardDataViewEntry>& SelectedItem : SelectedItems)
-				{
-					if (SelectedItem.IsValid())
-					{
-						const FSoundAssetDashboardEntry& SoundAssetDashboardEntry = *StaticCastSharedPtr<FSoundAssetDashboardEntry>(SelectedItem).Get();
-						const FName SoundAssetDisplayName { SoundAssetDashboardEntry.Name };
-						AudioDeviceManager->GetDebugger().ToggleMuteSoundWave(SoundAssetDisplayName);
-					}
-				}
-
-				// Handle general Mute button state
-				bool bIsAnySoundMuted = false;
-
-				const TArrayView<const TSharedPtr<IDashboardDataViewEntry>> TableItems = FilteredEntriesListView->GetItems();
-
-				for (const TSharedPtr<IDashboardDataViewEntry>& Item : TableItems)
-				{
-					if (!Item.IsValid())
-					{
-						continue;
-					}
-
-					const FSoundAssetDashboardEntry& SoundAssetDashboardEntry = *StaticCastSharedPtr<FSoundAssetDashboardEntry>(Item).Get();
-					const FName SoundAssetDisplayName { SoundAssetDashboardEntry.Name };
-					if (AudioDeviceManager->GetDebugger().IsMuteSoundWave(SoundAssetDisplayName))
-					{
-						bIsAnySoundMuted = true;
-						break;
-					}
-				}
-
-				MuteToggleButton->SetIsChecked(bIsAnySoundMuted ? ECheckBoxState::Checked : ECheckBoxState::Unchecked);
-			}
-		}
-#endif
+		OnUpdateMuteSoloState.Broadcast(MuteState, SoloState, CurrentFilterString);
 	}
-
-	void FMixerSourceDashboardViewFactory::SoloSound()
-	{
-#if ENABLE_AUDIO_DEBUG
-		if (FilteredEntriesListView.IsValid())
-		{
-			if (FAudioDeviceManager* AudioDeviceManager = FAudioDeviceManager::Get())
-			{
-				const TArray<TSharedPtr<IDashboardDataViewEntry>> SelectedItems = FilteredEntriesListView->GetSelectedItems();
-
-				for (const TSharedPtr<IDashboardDataViewEntry>& SelectedItem : SelectedItems)
-				{
-					if (SelectedItem.IsValid())
-					{
-						const FSoundAssetDashboardEntry& SoundAssetDashboardEntry = *StaticCastSharedPtr<FSoundAssetDashboardEntry>(SelectedItem).Get();
-						const FName SoundAssetDisplayName { SoundAssetDashboardEntry.Name };
-						AudioDeviceManager->GetDebugger().ToggleSoloSoundWave(SoundAssetDisplayName);
-					}
-				}
-
-				// Handle general Solo button state
-				bool bIsAnySoundSoloed = false;
-
-				const TArrayView<const TSharedPtr<IDashboardDataViewEntry>> TableItems = FilteredEntriesListView->GetItems();
-
-				for (const TSharedPtr<IDashboardDataViewEntry>& Item : TableItems)
-				{
-					if (!Item.IsValid())
-					{
-						continue;
-					}
-
-					const FSoundAssetDashboardEntry& SoundAssetDashboardEntry = *StaticCastSharedPtr<FSoundAssetDashboardEntry>(Item).Get();
-					const FName SoundAssetDisplayName { SoundAssetDashboardEntry.Name };
-					if (AudioDeviceManager->GetDebugger().IsSoloSoundWave(SoundAssetDisplayName))
-					{
-						bIsAnySoundSoloed = true;
-						break;
-					}
-				}
-
-				SoloToggleButton->SetIsChecked(bIsAnySoundSoloed ? ECheckBoxState::Checked : ECheckBoxState::Unchecked);
-			}
-		}
-#endif
-	}
-
-	void FMixerSourceDashboardViewFactory::ClearMutesAndSolos()
-	{
-#if ENABLE_AUDIO_DEBUG
-		if (FAudioDeviceManager* AudioDeviceManager = FAudioDeviceManager::Get())
-		{
-			AudioDeviceManager->GetDebugger().ClearMutesAndSolos();
-
-			MuteToggleButton->SetIsChecked(ECheckBoxState::Unchecked);
-			SoloToggleButton->SetIsChecked(ECheckBoxState::Unchecked);
-		}
-#endif
-	}
-
-	void FMixerSourceDashboardViewFactory::UpdateSoloMuteState()
-	{
-#if ENABLE_AUDIO_DEBUG
-		if (FAudioDeviceManager* AudioDeviceManager = FAudioDeviceManager::Get())
-		{
-			FName CurrentFilterStringName = FName{ CurrentFilterString };
-			if (MuteState == ECheckBoxState::Checked && !CurrentFilterString.IsEmpty())
-			{
-				AudioDeviceManager->GetDebugger().ToggleMuteSoundWave(CurrentFilterStringName, true);
-			}
-			else
-			{
-				AudioDeviceManager->GetDebugger().ToggleMuteSoundWave(NAME_None, true);
-			}
-
-			if (SoloState == ECheckBoxState::Checked && !CurrentFilterString.IsEmpty())
-			{
-				AudioDeviceManager->GetDebugger().ToggleSoloSoundWave(CurrentFilterStringName, true);
-			}
-			else
-			{
-				AudioDeviceManager->GetDebugger().ToggleSoloSoundWave(NAME_None, true);
-			}
-		}
-#endif
-	}
+#endif // WITH_EDITOR
 
 	void FMixerSourceDashboardViewFactory::UpdatePlotsWidgetsData()
 	{
-		if (DataViewEntries.Num() <= 0)
+		if (!PlotWidgetMetadataPerCurve.IsValid() || DataViewEntries.Num() <= 0)
 		{
 			return;
 		}
@@ -755,7 +575,7 @@ namespace UE::Audio::Insights
 					"LPF",
 					{
 						[](const IDashboardDataViewEntry& InData) -> const ::Audio::TCircularAudioBuffer<FDataPoint>& { return MixerSourcePrivate::CastEntry(InData).LPFFreqDataPoints; },
-							FSlateStyle::Get().GetFreqFloatFormat() 
+						FSlateStyle::Get().GetFreqFloatFormat()
 					}
 				},
 				{
@@ -858,7 +678,7 @@ namespace UE::Audio::Insights
 				.OnGenerateWidget_Lambda([this](const FName& ColumnName)
 				{
 					return SNew(STextBlock)
-					.Font(IPropertyTypeCustomizationUtils::GetRegularFont())
+					.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
 					.Text(GetPlotColumnDisplayName(ColumnName));
 				})
 				.OnSelectionChanged_Lambda([this, PlotWidgetIndex](FName NewColumnName, ESelectInfo::Type)
@@ -872,7 +692,7 @@ namespace UE::Audio::Insights
 				})
 				[
 					SNew(STextBlock)
-					.Font(IPropertyTypeCustomizationUtils::GetRegularFont())
+					.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
 					.Text_Lambda([this, PlotWidgetIndex]()
 					{
 						return GetPlotColumnDisplayName(SelectedPlotColumnNames[PlotWidgetIndex]);
@@ -905,6 +725,7 @@ namespace UE::Audio::Insights
 			];
 	}
 
+#if WITH_EDITOR
 	TSharedRef<SWidget> FMixerSourceDashboardViewFactory::MakeMuteSoloWidget()
 	{
 		// Mute/Solo labels generation
@@ -1002,30 +823,32 @@ namespace UE::Audio::Insights
 				]
 			];
 	}
+#endif // WITH_EDITOR
 
 	TSharedRef<SWidget> FMixerSourceDashboardViewFactory::MakeWidget()
 	{
-		FDashboardFactory::OnActiveAudioDeviceChanged.AddSP(this, &FMixerSourceDashboardViewFactory::ClearMutesAndSolos);
-
+#if WITH_EDITOR
 		FEditorDelegates::PostPIEStarted.AddSP(this, &FMixerSourceDashboardViewFactory::OnPIEStarted);
 		FEditorDelegates::EndPIE.AddSP(this, &FMixerSourceDashboardViewFactory::OnPIEStopped);
 		FEditorDelegates::PausePIE.AddSP(this, &FMixerSourceDashboardViewFactory::OnPIEPaused);
 		FEditorDelegates::ResumePIE.AddSP(this, &FMixerSourceDashboardViewFactory::OnPIEResumed);
+#endif // WITH_EDITOR
 
-		TSharedRef<SWidget> MuteSoloWidget = MakeMuteSoloWidget();
 		TSharedRef<SWidget> TableDashboardWidget = FTraceTableDashboardViewFactory::MakeWidget();
 		TSharedRef<SWidget> PlotsWidget = MakePlotsWidget();
 
 		return SNew(SVerticalBox)
+#if WITH_EDITOR
 			+ SVerticalBox::Slot()
 			.AutoHeight()
 			.HAlign(HAlign_Fill)
+			.Padding(0.0f, 0.0f, 0.0f, 6.0f)
 			[
-				MuteSoloWidget
+				MakeMuteSoloWidget()
 			]
+#endif // WITH_EDITOR
 			+ SVerticalBox::Slot()
 			.HAlign(HAlign_Fill)
-			.Padding(0.0f, 6.0f, 0.0f, 0.0f)
 			[
 				// Dashboard and plots area
 				SNew(SSplitter)
@@ -1059,37 +882,15 @@ namespace UE::Audio::Insights
 
 		UpdatePlotsWidgetsData();
 
-#if ENABLE_AUDIO_DEBUG
+#if WITH_EDITOR
 		// Update the mute and solo states if the filter string changes
 		if (CurrentFilterString != FilterString)
 		{
 			CurrentFilterString = FilterString;
-			UpdateSoloMuteState();
+			UpdateMuteSoloState();
 		}
-#endif
-	}
-
-#if WITH_EDITOR
-	bool FMixerSourceDashboardViewFactory::IsDebugDrawEnabled() const
-	{
-		return false;
-	}
-
-	void FMixerSourceDashboardViewFactory::DebugDraw(float InElapsed, const IDashboardDataViewEntry& InEntry, ::Audio::FDeviceId DeviceId) const
-	{
-		// TODO: Get source position if 3d so debug draw works
-// 		const FMixerSourceDashboardEntry& LoopData = static_cast<const FMixerSourceDashboardEntry&>(InEntry);
-// 		const FRotator& Rotator = LoopData.Rotator;
-// 		const FVector& Location = LoopData.Location;
-// 		const FString Description = FString::Printf(TEXT("%s [Virt: %.2fs]"), *LoopData.Name, LoopData.TimeVirtualized);
-// 
-// 		const TArray<UWorld*> Worlds = FAudioDeviceManager::Get()->GetWorldsUsingAudioDevice(DeviceId);
-// 		for (UWorld* World : Worlds)
-// 		{
-// 			DrawDebugSphere(World, Location, 30.0f, 8, FColor::Magenta, false, InElapsed, SDPG_Foreground);
-// 			DrawDebugString(World, Location + FVector(0, 0, 32), *Description, nullptr, FColor::Magenta, InElapsed, false, 1.0f);
-// 		}
-	}
 #endif // WITH_EDITOR
+	}
 } // namespace UE::Audio::Insights
+
 #undef LOCTEXT_NAMESPACE

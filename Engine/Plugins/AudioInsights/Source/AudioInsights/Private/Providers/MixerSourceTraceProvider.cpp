@@ -159,18 +159,25 @@ namespace UE::Audio::Insights
 				Builder.RouteEvent(RouteId_Start, "Audio", "MixerSourceStart");
 				Builder.RouteEvent(RouteId_Stop, "Audio", "MixerSourceStop");
 				Builder.RouteEvent(RouteId_Volume, "Audio", "MixerSourceVolume");
+
+				bIsFirstTimestampSet = false;
 			}
 
 			virtual bool OnEvent(uint16 RouteId, EStyle Style, const FOnEventContext& Context) override
 			{
 				LLM_SCOPE_BYNAME(TEXT("Insights/FMixerSourceTraceAnalyzer"));
 
-				FTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
-
-				const double CurrentTime = FPlatformTime::Seconds();
-				if (TraceModule.GetFirstTimeStamp() < 0.0)
+				if (!bIsFirstTimestampSet)
 				{
-					TraceModule.SetFirstTimeStamp(CurrentTime);
+					FTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
+
+					if (TraceModule.GetFirstTimeStamp() < 0.0)
+					{
+						const double CurrentTime = FPlatformTime::Seconds();
+						TraceModule.SetFirstTimeStamp(CurrentTime);
+
+						bIsFirstTimestampSet = true;
+					}
 				}
 
 				FMixerSourceMessages& Messages = GetProvider<FMixerSourceTraceProvider>().TraceMessages;
@@ -239,6 +246,8 @@ namespace UE::Audio::Insights
 				RouteId_Stop,
 				RouteId_Volume,
 			};
+
+			bool bIsFirstTimestampSet = false;
 		};
 
 		return new FMixerSourceTraceAnalyzer(AsShared());

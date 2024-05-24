@@ -15,7 +15,7 @@
 
 namespace UE::Audio::Insights
 {
-	class FLogDashboardViewFactory : public IDashboardViewFactory
+	class AUDIOINSIGHTS_API FLogDashboardViewFactory : public IDashboardViewFactory
 	{
 	public:
 		FLogDashboardViewFactory();

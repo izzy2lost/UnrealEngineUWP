@@ -2,17 +2,13 @@
 #pragma once
 
 #include "Messages/MixerSourceTraceMessages.h"
-#include "SAudioCurveView.h"
+#include "Views/SAudioCurveView.h"
 #include "Views/TableDashboardViewFactory.h"
 #include "Widgets/Input/SCheckBox.h"
 
-
-// Removing temporarily due to redesign of solo and mute functionality
-#define AUDIO_INSIGHTS_SHOW_SOURCE_CONTEXT_MENU 0
-
 namespace UE::Audio::Insights
 {
-	class FMixerSourceDashboardViewFactory : public FTraceObjectTableDashboardViewFactory
+	class AUDIOINSIGHTS_API FMixerSourceDashboardViewFactory : public FTraceObjectTableDashboardViewFactory
 	{
 	public:
 		FMixerSourceDashboardViewFactory();
@@ -36,24 +32,32 @@ namespace UE::Audio::Insights
 		// Maximum number of sources to plot at once 
 		static const int32 MaxPlotSources; 
 
+#if WITH_EDITOR
+		DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnUpdateMuteSoloState, ECheckBoxState /*MuteState*/, ECheckBoxState /*SoloState*/, const FString& /*CurrentFilterString*/);
+		inline static FOnUpdateMuteSoloState OnUpdateMuteSoloState;
+#endif // WITH_EDITOR
+
 	protected:
 		virtual const TMap<FName, FTraceTableDashboardViewFactory::FColumnData>& GetColumns() const override;
 		virtual void SortTable() override;
 
-#if WITH_EDITOR
-		virtual bool IsDebugDrawEnabled() const override;
-		virtual void DebugDraw(float InElapsed, const IDashboardDataViewEntry& InEntry, ::Audio::FDeviceId DeviceId) const override;
-#endif // WITH_EDITOR
 		TSharedRef<SWidget> MakePlotsWidget();
 
 	private:
 		void ResetPlots();
+
+#if WITH_EDITOR
 		void OnPIEStarted(bool bSimulating);
 		void OnPIEStopped(bool bSimulating);
 		void OnPIEPaused(bool bSimulating);
 		void OnPIEResumed(bool bSimulating);
+#endif // WITH_EDITOR
+
 		void UpdatePlotsWidgetsData();
-		void UpdateSoloMuteState();
+
+#if WITH_EDITOR
+		void UpdateMuteSoloState();
+#endif // WITH_EDITOR
 
 		// Column information used by plot widgets, keyed by column name. These keys should be a subset of the keys in GetColumns(). 
 		const TMap<FName, FPlotColumnInfo>& GetPlotColumnInfo();
@@ -61,19 +65,12 @@ namespace UE::Audio::Insights
 		const FNumberFormattingOptions* GetPlotColumnNumberFormat(const FName& ColumnName);
 		const FText GetPlotColumnDisplayName(const FName& ColumnName);
 
-#if AUDIO_INSIGHTS_SHOW_SOURCE_CONTEXT_MENU
-		virtual TSharedPtr<SWidget> OnConstructContextMenu() override;
-#endif
-		virtual FSlateColor GetRowColor(const TSharedPtr<IDashboardDataViewEntry>& InRowDataPtr) override;
-
+#if WITH_EDITOR
 		TSharedRef<SWidget> MakeMuteSoloWidget();
 
 		void ToggleMuteForAllItems(ECheckBoxState NewState);
 		void ToggleSoloForAllItems(ECheckBoxState NewState);
-
-		void MuteSound();
-		void SoloSound();
-		void ClearMutesAndSolos();
+#endif // WITH EDITOR
 
 		using FPlotCurvePoint = SAudioCurveView::FCurvePoint;
 		// Map of source id to data point array 
@@ -110,11 +107,11 @@ namespace UE::Audio::Insights
 		TArray<FName> SelectedPlotColumnNames;
 		TArray<TSharedPtr<SAudioCurveView>> PlotWidgets;
 
+#if WITH_EDITOR
 		// State of the mute and solo buttons
-#if ENABLE_AUDIO_DEBUG
 		ECheckBoxState MuteState = ECheckBoxState::Unchecked;
 		ECheckBoxState SoloState = ECheckBoxState::Unchecked;
 		FString CurrentFilterString;
-#endif
+#endif // WITH_EDITOR
 	};
 } // namespace UE::Audio::Insights
