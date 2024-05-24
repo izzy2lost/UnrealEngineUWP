@@ -229,7 +229,15 @@ void UChaosClothAssetEditorMode::RegisterClothTool(TSharedPtr<FUICommandInfo> UI
 		{
 			// Check if we need to switch view modes before starting the tool
 			TArray<UE::Chaos::ClothAsset::EClothPatternVertexType> SupportedModes;
-			ClothToolBuilder->GetSupportedViewModes(SupportedModes);
+
+			const UClothEditorContextObject* EditorContextObject = ToolsContext->ContextObjectStore->FindContext<UClothEditorContextObject>();
+			if (!EditorContextObject)
+			{
+				InitializeContextObject();
+				EditorContextObject = ToolsContext->ContextObjectStore->FindContext<UClothEditorContextObject>();
+			}
+			checkf(EditorContextObject, TEXT("Failed to find or create UClothEditorContextObject"));
+			ClothToolBuilder->GetSupportedViewModes(*EditorContextObject, SupportedModes);
 
 			bDynamicMeshUseInputCollection = true;
 			if (SupportedModes.Num() > 0 && !SupportedModes.Contains(this->GetConstructionViewMode()))
@@ -246,14 +254,8 @@ void UChaosClothAssetEditorMode::RegisterClothTool(TSharedPtr<FUICommandInfo> UI
 			}
 			else
 			{
-				bool bCurrentDynamicMeshIsInput = false;
-				if (const UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext())
-				{
-					if (const UClothEditorContextObject* const EditorContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UClothEditorContextObject>())
-					{
-						bCurrentDynamicMeshIsInput = EditorContextObject->IsUsingInputCollection();
-					}
-				}
+				const bool bCurrentDynamicMeshIsInput = EditorContextObject->IsUsingInputCollection();
+
 				if (!bCurrentDynamicMeshIsInput || bDynamicMeshComponentInitDeferred)
 				{
 					ReinitializeDynamicMeshComponents();
@@ -1360,8 +1362,15 @@ bool UChaosClothAssetEditorMode::CanChangeConstructionViewModeTo(UE::Chaos::Clot
 	const IChaosClothAssetEditorToolBuilder* const ClothToolBuilder = Cast<const IChaosClothAssetEditorToolBuilder>(ActiveToolBuilder);
 	checkf(ClothToolBuilder, TEXT("Cloth Editor has an active Tool Builder that does not implement IChaosClothAssetEditorToolBuilder"));
 
+	const UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext();
+	checkf(RestSpaceToolsContext, TEXT("Cloth Editor Mode doesn't have a valid InteractiveToolsContext"));
+
+	const UClothEditorContextObject* const EditorContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UClothEditorContextObject>();
+	checkf(EditorContextObject, TEXT("UClothEditorContextObject not found in ContextObjectStore despite having an active tool. This should have been created by the time a tool is activated"));
+
 	TArray<UE::Chaos::ClothAsset::EClothPatternVertexType> SupportedViewModes;
-	ClothToolBuilder->GetSupportedViewModes(SupportedViewModes);
+	ClothToolBuilder->GetSupportedViewModes(*EditorContextObject, SupportedViewModes);
+
 	return SupportedViewModes.Contains(NewViewMode);
 }
 

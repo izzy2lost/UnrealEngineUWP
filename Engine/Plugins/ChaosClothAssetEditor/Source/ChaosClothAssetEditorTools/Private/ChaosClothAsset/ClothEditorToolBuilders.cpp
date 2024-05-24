@@ -1,10 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/ClothEditorToolBuilders.h"
+#include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/ClothPatternVertexType.h"
 #include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 #include "ChaosClothAsset/ClothEditorContextObject.h"
 #include "ChaosClothAsset/SelectionNode.h"
+#include "ChaosClothAsset/WeightMapNode.h"
 #include "ToolContextInterfaces.h"
 #include "ToolTargetManager.h"
 #include "ContextObjectStore.h"
@@ -17,11 +19,39 @@
 
 // ------------------- Weight Map Paint Tool -------------------
 
-void UClothEditorWeightMapPaintToolBuilder::GetSupportedViewModes(TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const
+void UClothEditorWeightMapPaintToolBuilder::GetSupportedViewModes(const UClothEditorContextObject& ContextObject, TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const
 {
-	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Sim3D);
-	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Sim2D);
-	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Render);
+	using namespace UE::Chaos::ClothAsset;
+	const FChaosClothAssetWeightMapNode* const WeightMapNode = ContextObject.GetSingleSelectedNodeOfType<FChaosClothAssetWeightMapNode>();
+	if (WeightMapNode)
+	{
+		if (WeightMapNode->MeshTarget == EChaosClothAssetWeightMapMeshTarget::Simulation)
+		{
+			Modes.Add(EClothPatternVertexType::Sim3D);
+			Modes.Add(EClothPatternVertexType::Sim2D);
+		}
+		else
+		{
+			check(WeightMapNode->MeshTarget == EChaosClothAssetWeightMapMeshTarget::Render);
+			Modes.Add(EClothPatternVertexType::Render);
+		}
+	}
+	else
+	{
+		// No node selected. This happens if we start the tool due to pushing the button in the toolbar -- the tool starts before the node selection can change.
+		// In this case lock to either sim or render mode, whatever is current.
+		// TODO: See if we can have the button action select the node before attempting to start the tool.
+		const EClothPatternVertexType CurrentViewMode = ContextObject.GetConstructionViewMode();
+		if (CurrentViewMode == EClothPatternVertexType::Render)
+		{
+			Modes.Add(EClothPatternVertexType::Render);
+		}
+		else
+		{
+			Modes.Add(EClothPatternVertexType::Sim3D);
+			Modes.Add(EClothPatternVertexType::Sim2D);
+		}
+	}
 }
 
 UMeshSurfacePointTool* UClothEditorWeightMapPaintToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
@@ -39,8 +69,9 @@ UMeshSurfacePointTool* UClothEditorWeightMapPaintToolBuilder::CreateNewTool(cons
 
 // ------------------- Selection Tool -------------------
 
-void UClothMeshSelectionToolBuilder::GetSupportedViewModes(TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const
+void UClothMeshSelectionToolBuilder::GetSupportedViewModes(const UClothEditorContextObject& ContextObject, TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const
 {
+	// TODO: When the Secondary Selection set is removed, update this function to be similar to UClothEditorWeightMapPaintToolBuilder::GetSupportedViewModes above
 	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Sim3D);
 	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Sim2D);
 	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Render);
@@ -81,7 +112,7 @@ UInteractiveTool* UClothMeshSelectionToolBuilder::BuildTool(const FToolBuilderSt
 
 // ------------------- Skin Weight Transfer Tool -------------------
 
-void UClothTransferSkinWeightsToolBuilder::GetSupportedViewModes(TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const
+void UClothTransferSkinWeightsToolBuilder::GetSupportedViewModes(const UClothEditorContextObject& ContextObject, TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const
 {
 	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Sim3D);
 }
