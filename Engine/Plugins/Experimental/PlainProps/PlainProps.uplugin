@@ -7,12 +7,10 @@
 	"CreatedByURL" : "https://epicgames.com",
 	"EnabledByDefault" : false,
 	"IsExperimentalVersion": true,
-	
-	"Modules" :
-	[
+	"Modules": [
 		{
 			"Name" : "PlainProps",
-			"Type" : "Runtime",
+			"Type" : "Runtime"
 		}
 	]
 }
