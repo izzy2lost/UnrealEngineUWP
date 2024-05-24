@@ -60,6 +60,8 @@ namespace uba
 		void ReadMem(BinaryReader& reader, bool populateLookup);
 		void Swap(CompactCasKeyTable& other);
 
+		u64 GetKeyCount() { return m_offsets.size(); }
+
 	private:
 		ReaderWriterLock m_lock;
 		MemoryBlock m_mem;

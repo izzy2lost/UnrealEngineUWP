@@ -146,9 +146,47 @@ namespace uba
 		MemoryBlock* m_block;
 	};
 
+	template<typename Type>
+	class GrowingAllocatorNoLock
+	{
+	public:
+		using value_type = Type;
+
+		GrowingAllocatorNoLock(MemoryBlock* block) : m_block(block) {}
+		GrowingAllocatorNoLock(const GrowingAllocatorNoLock& o) : m_block(o.m_block) {}
+		GrowingAllocatorNoLock(GrowingAllocatorNoLock&& o) noexcept : m_block(o.m_block) {}
+		template <class _Other>
+		constexpr GrowingAllocatorNoLock(const GrowingAllocatorNoLock<_Other>& o) noexcept : m_block(o.m_block) {}
+
+		value_type* allocate(u64 n)
+		{
+			return (value_type*)m_block->AllocateNoLock(sizeof(value_type)*n, alignof(value_type), TC("GrowingAllocatorNoLock"));
+		}
+
+		/// @warning Naive implementation, assumes `p` is valid.
+		void deallocate(value_type*, u64)
+		{
+		}
+
+		u64 max_size() const
+		{
+			return static_cast<size_t>(-1) / sizeof(value_type);
+		}
+	
+		bool operator==(const GrowingAllocatorNoLock& o) const { return m_block == o.m_block; }
+
+		MemoryBlock* m_block;
+	};
 
 	template<typename Key, typename Value, typename Hash = std::hash<Key>, typename EqualTo = std::equal_to<Key>>
 	using GrowingUnorderedMap = std::unordered_map<Key, Value, Hash, EqualTo, GrowingAllocator<std::pair<const Key, Value>>>;
+	template<typename Key, typename Hash = std::hash<Key>, typename EqualTo = std::equal_to<Key>>
+	using GrowingUnorderedSet = std::unordered_set<Key, Hash, EqualTo, GrowingAllocator<Key>>;
+
+	template<typename Key, typename Value, typename Hash = std::hash<Key>, typename EqualTo = std::equal_to<Key>>
+	using GrowingNoLockUnorderedMap = std::unordered_map<Key, Value, Hash, EqualTo, GrowingAllocatorNoLock<std::pair<const Key, Value>>>;
+	template<typename Key, typename Hash = std::hash<Key>, typename EqualTo = std::equal_to<Key>>
+	using GrowingNoLockUnorderedSet = std::unordered_set<Key, Hash, EqualTo, GrowingAllocatorNoLock<Key>>;
 
 	template<typename Type>
 	struct BlockAllocator

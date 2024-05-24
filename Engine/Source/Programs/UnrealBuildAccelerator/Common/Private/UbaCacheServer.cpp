@@ -6,6 +6,7 @@
 #include "UbaFileAccessor.h"
 #include "UbaNetworkServer.h"
 #include "UbaStorageServer.h"
+#include <algorithm>
 //#include <oodle2.h>
 
 namespace uba
@@ -483,112 +484,125 @@ namespace uba
 			Bucket& bucket = it->second;
 			u32 bucketIndex = bucketCounter++;
 
-			if (deleteEntryCount || forceAllSteps)
+			if (!deleteEntryCount && !forceAllSteps)
 			{
-				UnorderedSet<u32> usedCasKeyOffsets;
+				m_logger.Detail(TC("    Bucket %u skipped updating. No entries deleted"), bucketIndex);
+				return;
+			}
+			
+			MemoryBlock memoryBlock(128*1024*1024);
 
-				// Collect all caskeys that are used by cache entries.
-				for (auto& kv2 : bucket.m_cacheEntryLookup)
+			GrowingNoLockUnorderedSet<u32> usedCasKeyOffsets(&memoryBlock);
+			usedCasKeyOffsets.reserve(bucket.m_casKeyTable.GetKeyCount());
+
+			u64 collectUsedCasKeysStart = GetTime();
+
+			// Collect all caskeys that are used by cache entries.
+			for (auto& kv2 : bucket.m_cacheEntryLookup)
+			{
+				for (auto& entry : kv2.second.entries)
 				{
-					for (auto& entry : kv2.second.entries)
-					{
-						auto collectUsedCasKeyOffsets = [&](const Vector<u8>& offsets)
-							{
-								BinaryReader reader2(offsets.data(), 0, offsets.size());
-								while (reader2.GetLeft())
-									usedCasKeyOffsets.insert(u32(reader2.Read7BitEncoded()));
-							};
-						collectUsedCasKeyOffsets(entry.inputCasKeyOffsets);
-						collectUsedCasKeyOffsets(entry.outputCasKeyOffsets);
-					}
+					auto collectUsedCasKeyOffsets = [&](const Vector<u8>& offsets)
+						{
+							BinaryReader reader2(offsets.data(), 0, offsets.size());
+							while (reader2.GetLeft())
+								usedCasKeyOffsets.insert(u32(reader2.Read7BitEncoded()));
+						};
+					collectUsedCasKeyOffsets(entry.inputCasKeyOffsets);
+					collectUsedCasKeyOffsets(entry.outputCasKeyOffsets);
 				}
+			}
+			m_logger.Detail(TC("    Bucket %u Collected %llu used caskeys. (%s)"), bucketIndex, usedCasKeyOffsets.size(), TimeToText(GetTime() - collectUsedCasKeysStart).str);
 
-				u64 recreatePathTableStart = GetTime();
+			u64 recreatePathTableStart = GetTime();
 
-				// Traverse all caskeys in caskey table and figure out which ones we can delete
-				UnorderedSet<u32> usedPathOffsets;
-				usedPathOffsets.reserve(usedCasKeyOffsets.size());
+			// Traverse all caskeys in caskey table and figure out which ones we can delete
+			GrowingNoLockUnorderedSet<u32> usedPathOffsets(&memoryBlock);
+			usedPathOffsets.reserve(usedCasKeyOffsets.size());
 
+			for (u32 casKeyOffset : usedCasKeyOffsets)
+			{
+				BinaryReader reader2(bucket.m_casKeyTable.GetMemory(), casKeyOffset, bucket.m_casKeyTable.GetSize());
+				u32 pathOffset = u32(reader2.Read7BitEncoded());
+				usedPathOffsets.insert(pathOffset);
+			}
+
+			// Build new path table based on used offsets
+			GrowingNoLockUnorderedMap<u32, u32> oldToNewPathOffset(&memoryBlock);
+			u32 oldSize = bucket.m_pathTable.GetSize();
+			{
+				CompactPathTable newPathTable(CachePathTableMaxSize, CompactPathTable::V1, bucket.m_pathTable.GetPathCount(), bucket.m_pathTable.GetSegmentCount());
+				oldToNewPathOffset.reserve(usedPathOffsets.size());
+
+				for (u32 pathOffset : usedPathOffsets)
+				{
+					StringBuffer<> temp;
+					bucket.m_pathTable.GetString(temp, pathOffset);
+					u32 newOffset = newPathTable.AddNoLock(temp.data, temp.count);
+
+					#if 0
+					StringBuffer<> test;
+					newPathTable.GetString(test, newOffset);
+					UBA_ASSERT(test.Equals(temp.data));
+					#endif
+
+					auto res = oldToNewPathOffset.try_emplace(pathOffset, newOffset);
+					UBA_ASSERT(res.second);(void)res;
+				}
+				bucket.m_pathTable.Swap(newPathTable);
+			}
+			m_logger.Detail(TC("    Bucket %u Recreated path table. %s -> %s (%s)"), bucketIndex, BytesToText(oldSize).str, BytesToText(bucket.m_pathTable.GetSize()).str, TimeToText(GetTime() - recreatePathTableStart).str);
+
+
+			// Build new caskey table based on used offsets
+			u64 recreateCasKeyTableStart = GetTime();
+			GrowingNoLockUnorderedMap<u32, u32> oldToNewCasKeyOffset(&memoryBlock);
+			oldSize = bucket.m_casKeyTable.GetSize();
+			{
+				oldToNewCasKeyOffset.reserve(usedCasKeyOffsets.size());
+				CompactCasKeyTable newCasKeyTable(CacheCasKeyTableMaxSize, usedCasKeyOffsets.size());
 				for (u32 casKeyOffset : usedCasKeyOffsets)
 				{
 					BinaryReader reader2(bucket.m_casKeyTable.GetMemory(), casKeyOffset, bucket.m_casKeyTable.GetSize());
-					u32 pathOffset = u32(reader2.Read7BitEncoded());
-					usedPathOffsets.insert(pathOffset);
+					u32 oldPathOffset = u32(reader2.Read7BitEncoded());
+					CasKey casKey = reader2.ReadCasKey();
+					auto findIt = oldToNewPathOffset.find(oldPathOffset);
+					UBA_ASSERT(findIt != oldToNewPathOffset.end());
+					u32 newCasKeyOffset = newCasKeyTable.Add(casKey, findIt->second);
+					if (casKeyOffset == newCasKeyOffset)
+						continue;
+					auto res = oldToNewCasKeyOffset.try_emplace(casKeyOffset, newCasKeyOffset);
+					UBA_ASSERT(res.second);(void)res;
 				}
-
-				// Build new path table based on used offsets
-				UnorderedMap<u32, u32> oldToNewPathOffset;
-				u32 oldSize = bucket.m_pathTable.GetSize();
-				{
-					CompactPathTable newPathTable(CachePathTableMaxSize, CompactPathTable::V1, bucket.m_pathTable.GetPathCount(), bucket.m_pathTable.GetSegmentCount());
-					oldToNewPathOffset.reserve(usedPathOffsets.size());
-
-					for (u32 pathOffset : usedPathOffsets)
-					{
-						StringBuffer<> temp;
-						bucket.m_pathTable.GetString(temp, pathOffset);
-						u32 newOffset = newPathTable.AddNoLock(temp.data, temp.count);
-
-						#if 0
-						StringBuffer<> test;
-						newPathTable.GetString(test, newOffset);
-						UBA_ASSERT(test.Equals(temp.data));
-						#endif
-
-						auto res = oldToNewPathOffset.try_emplace(pathOffset, newOffset);
-						UBA_ASSERT(res.second);(void)res;
-					}
-					bucket.m_pathTable.Swap(newPathTable);
-				}
-				m_logger.Detail(TC("    Bucket %u Recreated path table. %s -> %s (%s)"), bucketIndex, BytesToText(oldSize).str, BytesToText(bucket.m_pathTable.GetSize()).str, TimeToText(GetTime() - recreatePathTableStart).str);
+				bucket.m_casKeyTable.Swap(newCasKeyTable);
+			}
+			m_logger.Detail(TC("    Bucket %u Recreated caskey table. %s -> %s (%s)"), bucketIndex, BytesToText(oldSize).str, BytesToText(bucket.m_casKeyTable.GetSize()).str, TimeToText(GetTime() - recreateCasKeyTableStart).str);
 
 
-				// Build new caskey table based on used offsets
-				u64 recreateCasKeyTableStart = GetTime();
-				UnorderedMap<u32, u32> oldToNewCasKeyOffset;
-				oldSize = bucket.m_casKeyTable.GetSize();
-				{
-					oldToNewCasKeyOffset.reserve(usedCasKeyOffsets.size());
-					CompactCasKeyTable newCasKeyTable(CacheCasKeyTableMaxSize, usedCasKeyOffsets.size());
-					for (u32 casKeyOffset : usedCasKeyOffsets)
-					{
-						BinaryReader reader2(bucket.m_casKeyTable.GetMemory(), casKeyOffset, bucket.m_casKeyTable.GetSize());
-						u32 oldPathOffset = u32(reader2.Read7BitEncoded());
-						CasKey casKey = reader2.ReadCasKey();
-						auto findIt = oldToNewPathOffset.find(oldPathOffset);
-						UBA_ASSERT(findIt != oldToNewPathOffset.end());
-						auto res = oldToNewCasKeyOffset.try_emplace(casKeyOffset, newCasKeyTable.Add(casKey, findIt->second));
-						UBA_ASSERT(res.second);(void)res;
-					}
-					bucket.m_casKeyTable.Swap(newCasKeyTable);
-				}
-				m_logger.Detail(TC("    Bucket %u Recreated caskey table. %s -> %s (%s)"), bucketIndex, BytesToText(oldSize).str, BytesToText(bucket.m_casKeyTable.GetSize()).str, TimeToText(GetTime() - recreateCasKeyTableStart).str);
-
-
+			if (!oldToNewCasKeyOffset.empty())
+			{
 				// Update all casKeyOffsets
 				u64 updateEntriesStart = GetTime();
 
-				auto updateCasKeyOffsets = [&](Vector<u8>& offsets)
+				auto updateCasKeyOffsets = [&](Vector<u8>& offsets, Vector<u32>& newOffsets)
 					{
-						Set<u32> newOffsets; // Want these sorted since that is what we get from uploads
+						newOffsets.clear();
+						newOffsets.reserve(offsets.size()*4);
+
 						u32 newOffsetsSize = 0;
 						BinaryReader reader2(offsets.data(), 0, offsets.size());
 						while (reader2.GetLeft())
 						{
 							u32 oldOffset = u32(reader2.Read7BitEncoded());
+							u32 newOffset = oldOffset;
 							auto findIt = oldToNewCasKeyOffset.find(oldOffset);
-							UBA_ASSERT(findIt != oldToNewCasKeyOffset.end());
-							u32 newOffset = findIt->second;
-							if (newOffsets.insert(newOffset).second)
-								newOffsetsSize += Get7BitEncodedCount(newOffset);
-							else
-							{
-								StringBuffer<> temp;
-								CasKey key;
-								bucket.m_casKeyTable.GetPathAndKey(temp, key, bucket.m_pathTable, newOffset);
-								m_logger.Info(TC("Found duplicate of %s in cache entry"), temp.data);
-							}
+							if (findIt != oldToNewCasKeyOffset.end())
+								newOffset = findIt->second;
+							newOffsets.push_back(newOffset);
+							newOffsetsSize += Get7BitEncodedCount(newOffset);
 						}
+
+						std::sort(newOffsets.begin(), newOffsets.end());
 
 						offsets.resize(newOffsetsSize);
 						BinaryWriter writer2(offsets.data(), 0, newOffsetsSize);
@@ -599,11 +613,12 @@ namespace uba
 
 				m_server.ParallelFor(workerCountToUse, bucket.m_cacheEntryLookup, [&](auto& it)
 					{
+						Vector<u32> newOffsets;
 						CacheEntries& entries = it->second;(void)entries;
 						for (auto& entry : entries.entries)
 						{
-							updateCasKeyOffsets(entry.inputCasKeyOffsets);
-							updateCasKeyOffsets(entry.outputCasKeyOffsets);
+							updateCasKeyOffsets(entry.inputCasKeyOffsets, newOffsets);
+							updateCasKeyOffsets(entry.outputCasKeyOffsets, newOffsets);
 						}
 					});
 
@@ -876,7 +891,7 @@ namespace uba
 				}
 				if (findIt->second != casKey)
 				{
-					m_logger.Warning(TC("Existing cache entry matches input but does not match output (%s has different caskey)"), path.data);
+					//m_logger.Warning(TC("Existing cache entry matches input but does not match output (%s has different caskey)"), path.data);
 					cacheEntries.entries.erase(matchingEntry);
 					shouldOverwrite = true;
 					break;
