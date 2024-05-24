@@ -9287,15 +9287,31 @@ void UCookOnTheFlyServer::CollectFilesToCook(TArray<FName>& FilesInPath, TMap<FN
 				TArray<FAssetData> Assets;
 				if (!AssetRegistry->GetAssetsByPackageName(PackagePath, Assets))
 				{
-					const FText ErrorMessage = FText::Format(LOCTEXT("GameMapSettingsMissing", "{0} contains a path to a missing asset '{1}'. The intended asset will fail to load in a packaged build. Select the intended asset again in Project Settings to fix this issue."),
+					const FText ErrorMessage = FText::Format(LOCTEXT("GameMapSettingsMissing",
+						"{0} contains a path to a missing asset '{1}'. "
+						"The intended asset will fail to load in a packaged build. "
+						"Select the intended asset again in Project Settings to fix this issue."),
 						FText::FromName(GameDefaultSet.Key), FText::FromName(PackagePath));
 					LogCookerMessage(ErrorMessage.ToString(), EMessageSeverity::Error);
 				}
-				else if (Algo::AnyOf(Assets, [](const FAssetData& Asset) { return Asset.IsRedirector(); }))
+				else
 				{
-					const FText ErrorMessage = FText::Format(LOCTEXT("GameMapSettingsRedirectorDetected", "{0} contains a redirected reference '{1}'. The intended asset will fail to load in a packaged build. Select the intended asset again in Project Settings to fix this issue."),
-						FText::FromName(GameDefaultSet.Key), FText::FromName(PackagePath));
-					LogCookerMessage(ErrorMessage.ToString(), EMessageSeverity::Error);
+					TArray<const FAssetData*, TInlineAllocator<1>> AssetPtrs;
+					AssetPtrs.Reserve(Assets.Num());
+					for (const FAssetData& AssetData : Assets)
+					{
+						AssetPtrs.Add(&AssetData);
+					}
+					const FAssetData* PrimaryAssetData = UE::AssetRegistry::GetMostImportantAsset(AssetPtrs);
+					if (PrimaryAssetData && PrimaryAssetData->IsRedirector())
+					{
+						const FText ErrorMessage = FText::Format(LOCTEXT("GameMapSettingsRedirectorDetected",
+							"{0} contains a redirected reference '{1}'. "
+							"The intended asset will fail to load in a packaged build. "
+							"Select the intended asset again in Project Settings to fix this issue."),
+							FText::FromName(GameDefaultSet.Key), FText::FromName(PackagePath));
+						LogCookerMessage(ErrorMessage.ToString(), EMessageSeverity::Error);
+					}
 				}
 
 				AddFileToCook(FilesInPath, Instigators, PackagePath.ToString(),
