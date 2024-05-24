@@ -284,6 +284,8 @@ bool UMovieJobVariableAssignmentContainer::GenerateVariableOverride(const UMovie
 #if WITH_EDITOR
 	NewProperty.MetaData.Add(FPropertyBagPropertyDescMetaData(VariableGuidMetaDataKey, InGraphVariable->GetGuid().ToString()));
 	NewProperty.MetaData.Add(FPropertyBagPropertyDescMetaData(ToolTipMetaDataKey, InGraphVariable->Description));
+	NewProperty.MetaData.Add(FPropertyBagPropertyDescMetaData(CategoryMetaDataKey, InGraphVariable->GetCategory()));
+	NewProperty.MetaData.Add(FPropertyBagPropertyDescMetaData(EnableCategoriesMetaDataKey, FString()));
 #endif
 
 	// Track a separate EditCondition property that can enable/disable the above property. Since the variable can be
@@ -415,6 +417,7 @@ void UMovieJobVariableAssignmentContainer::UpdateGraphVariableOverrides()
 				Desc.ContainerTypes = { static_cast<EPropertyBagContainerType>(Variable->GetValueContainerType()) };
 			}
 
+			// Check the ToolTip metadata
 			FPropertyBagPropertyDescMetaData* ToolTipMetaDataEntry =
 				Desc.MetaData.FindByPredicate([](const FPropertyBagPropertyDescMetaData& InMetaDataEntry)
 				{
@@ -424,6 +427,18 @@ void UMovieJobVariableAssignmentContainer::UpdateGraphVariableOverrides()
 			{
 				bNeedsToRegenerate = true;
 				ToolTipMetaDataEntry->Value = Variable->Description;
+			}
+
+			// Check the Category metadata
+			FPropertyBagPropertyDescMetaData* CategoryMetaDataEntry =
+				Desc.MetaData.FindByPredicate([](const FPropertyBagPropertyDescMetaData& InMetaDataEntry)
+				{
+					return InMetaDataEntry.Key == CategoryMetaDataKey;
+				});
+			if (CategoryMetaDataEntry && (CategoryMetaDataEntry->Value != FName(Variable->GetCategory())))
+			{
+				bNeedsToRegenerate = true;
+				CategoryMetaDataEntry->Value = Variable->GetCategory();
 			}
 		}
 	}
@@ -460,6 +475,25 @@ void UMovieJobVariableAssignmentContainer::UpdateGraphVariableOverrides()
 				VariablesThatNeedDefaultAssigned.Add({Variable, NewPropertyDesc.Name});
 			}
 		}
+	}
+
+	// Fourth, make sure that the variables are in the correct order. They should reflect the exact order that they're defined within the graph.
+	TArray<FGuid> OriginalOrder;
+	Algo::Transform(ModifiedDescs, OriginalOrder, [&GetVariableGuidFromDesc](const FPropertyBagPropertyDesc& Desc) { return GetVariableGuidFromDesc(Desc); });
+	Algo::SortBy(ModifiedDescs, [&GraphVariables, &GetVariableGuidFromDesc](const FPropertyBagPropertyDesc& Desc)
+	{
+		// Sort the descs by the order of variable GUIDs within the graph
+		return GraphVariables.IndexOfByPredicate([&Desc, &GetVariableGuidFromDesc](const UMovieGraphVariable* Variable)
+		{
+			return Variable->GetGuid() == GetVariableGuidFromDesc(Desc);
+		});
+	});
+	TArray<FGuid> ChangedOrder;
+	Algo::Transform(ModifiedDescs, ChangedOrder, [&GetVariableGuidFromDesc](const FPropertyBagPropertyDesc& Desc) { return GetVariableGuidFromDesc(Desc); });
+
+	if (OriginalOrder != ChangedOrder)
+	{
+		bNeedsToRegenerate = true;
 	}
 
 	if (bNeedsToRegenerate)

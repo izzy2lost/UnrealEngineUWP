@@ -41,6 +41,9 @@ const FName UMovieGraphSchema::PC_SoftObject(UEdGraphSchema_K2::PC_SoftObject);
 const FName UMovieGraphSchema::PC_Class(UEdGraphSchema_K2::PC_Class);
 const FName UMovieGraphSchema::PC_SoftClass(UEdGraphSchema_K2::PC_SoftClass);
 
+const FText FMovieGraphSchemaAction::UserVariablesCategory = LOCTEXT("UserVariablesCategory", "User Variables");
+const FText FMovieGraphSchemaAction::GlobalVariablesCategory = LOCTEXT("GlobalVariablesCategory", "Global Variables");
+
 namespace UE::MovieGraph::Private
 {
 	UMovieGraphNode* GetGraphNodeFromEdPin(const UEdGraphPin* InPin)
@@ -449,6 +452,50 @@ FConnectionDrawingPolicy* UMovieGraphSchema::CreateConnectionDrawingPolicy(int32
 	UEdGraph* InGraphObj) const
 {
 	return new FMovieEdGraphConnectionDrawingPolicy(InBackLayerID, InFrontLayerID, InZoomFactor, InClippingRect, InDrawElements, InGraphObj);
+}
+
+void FMovieGraphSchemaAction::MovePersistentItemToCategory(const FText& NewCategoryName)
+{
+	if (const TObjectPtr<UMovieGraphVariable> TargetVariable = Cast<UMovieGraphVariable>(ActionTarget))
+	{
+		FString NewCategory = NewCategoryName.ToString();
+		
+		// If moving to the root, the category will be User Variables
+		if (NewCategory == UserVariablesCategory.ToString())
+		{
+			NewCategory = FString();
+		}
+
+		const FScopedTransaction Transaction(LOCTEXT("GraphEditor_SetVariableCategory", "Set Variable Category"));
+		
+		// Remove the "User Variables" prefix. Variables themselves do not store that part of the category.
+		const FString UserVariablesRootPrefix = FString::Format(TEXT("{0}|"), {UserVariablesCategory.ToString()});
+		NewCategory = NewCategory.StartsWith(UserVariablesRootPrefix) ? NewCategory.RightChop(UserVariablesRootPrefix.Len()) : NewCategory;
+		TargetVariable->SetCategory(NewCategory);
+	}
+}
+
+bool FMovieGraphSchemaAction::ReorderToBeforeAction(TSharedRef<FEdGraphSchemaAction> OtherAction)
+{
+	const TSharedRef<FMovieGraphSchemaAction> GraphAction = StaticCastSharedRef<FMovieGraphSchemaAction>(OtherAction);
+
+	const TObjectPtr<UMovieGraphVariable> BeforeVariable = Cast<UMovieGraphVariable>(GraphAction->ActionTarget);
+	if (!BeforeVariable)
+	{
+		return false;
+	}
+
+	const TObjectPtr<UMovieGraphVariable> TargetVariable = Cast<UMovieGraphVariable>(ActionTarget);
+	if (!TargetVariable)
+	{
+		return false;
+	}
+
+	const FScopedTransaction Transaction(LOCTEXT("GraphEditor_MoveVariable", "Move Variable"));
+
+	BeforeVariable->GetOwningGraph()->MoveVariableBefore(TargetVariable, BeforeVariable);
+
+	return true;
 }
 
 FMovieGraphSchemaAction_NewNode::FMovieGraphSchemaAction_NewNode(FText InNodeCategory, FText InDisplayName, FText InToolTip, int32 InGrouping, FText InKeywords)

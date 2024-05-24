@@ -97,6 +97,12 @@ struct FMovieGraphSchemaAction : public FEdGraphSchemaAction
 		return Type;
 	}
 
+	static const FText UserVariablesCategory;
+	static const FText GlobalVariablesCategory;
+
+	virtual void MovePersistentItemToCategory(const FText& NewCategoryName) override;
+	virtual bool ReorderToBeforeAction(TSharedRef<FEdGraphSchemaAction> OtherAction) override;
+
 	/** The object the action relates to. */
 	UPROPERTY()
 	TObjectPtr<UObject> ActionTarget = nullptr;

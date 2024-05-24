@@ -119,13 +119,21 @@ public:
 	/** Returns true if this variable is a global variable. */
 	bool IsGlobal() const;
 
+	/** Gets the category (if any) assigned to this variable. */
+	const FString& GetCategory() const;
+
+	/**
+	 * Sets the variable to the provided category. Be aware that the category provided here may not be the final category set on the
+	 * variable (InNewCategory will be put through FName::NameToDisplayString().
+	 */
+	void SetCategory(const FString& InNewCategory);
+
 	//~ Begin UMovieGraphMember interface
 	virtual bool IsDeletable() const override;
 	virtual bool CanRename(const FText& InNewName, FText& OutError) const override;
 	virtual bool SetMemberName(const FString& InNewName) override;
 	//~ End UMovieGraphMember interface
 
-public:
 #if WITH_EDITOR
 	FOnMovieGraphVariableChanged OnMovieGraphVariableChangedDelegate;
 
@@ -133,6 +141,11 @@ public:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	//~ End UObject overrides
 #endif // WITH_EDITOR
+
+private:
+	/** The category assigned to the variable. Defaults to empty, which means no category. */
+	UPROPERTY()
+	FString Category;
 };
 
 /**
@@ -655,7 +668,6 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Movie Graph")
 	UMovieGraphNode* GetOutputNode() const { return OutputNode; }
 
-
 	const TArray<TObjectPtr<UMovieGraphNode>>& GetNodes() const { return AllNodes; }
 
 	/**
@@ -749,6 +761,23 @@ public:
 	 * If a node is not found with an override set, value is taken from the CDO of UMovieGraphOutputSettings.
 	 */
 	void GetOutputDirectory(FString& OutOutputDirectory) const;
+
+	/**
+	 * Moves one variable (InTargetVariable) before another variable (InBeforeVariable). Takes care of ensuring the variable's category is
+	 * set properly after the move.
+	 */
+	void MoveVariableBefore(UMovieGraphVariable* InTargetVariable, UMovieGraphVariable* InBeforeVariable);
+
+	/**
+	 * Moves one variable (InTargetVariable) to the specified index among all user graph variables.
+	 *
+	 * Note that MoveVariableBefore() should be used in almost all cases unless there is very specific use case. This method will not take care of setting
+	 * the category for you after the move unlike MoveVariableBefore().
+	 */
+	void MoveVariableToIndex(UMovieGraphVariable* InTargetVariable, int32 NewIndex);
+
+	/** Moves one category (InCategoryToMove) and its variables before another category (InCategoryBefore). */
+	void MoveCategoryBefore(const FString& InCategoryToMove, const FString& InCategoryBefore);
 
 protected:
 	/** Look for the output directory in the UMovieGraphOutputSettings nodes found upstream of InNode. */

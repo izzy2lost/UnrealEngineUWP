@@ -11,6 +11,7 @@
 #include "Graph/MovieGraphConfig.h"
 #include "PropertyBagDetails.h"
 #include "PropertyHandle.h"
+#include "ScopedTransaction.h"
 #include "SPinTypeSelector.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Text/STextBlock.h"
@@ -155,12 +156,12 @@ protected:
 				continue;
 			}
 
-			const bool bIsNameRowEnabled = MemberObject->IsEditable();
+			const bool bIsEditable = MemberObject->IsEditable();
 			
 			// Add a custom row for the Name property (to allow for proper validation)
 			IDetailCategoryBuilder& GeneralCategory = DetailBuilder.EditCategory("General");
 			GeneralCategory.AddCustomRow(FText::GetEmpty())
-			.IsEnabled(bIsNameRowEnabled)
+			.IsEnabled(bIsEditable)
 			.NameContent()
 			[
 				SNew(STextBlock)
@@ -176,6 +177,35 @@ protected:
 				.SelectAllTextWhenFocused(true)
 				.Font(IDetailLayoutBuilder::GetDetailFont())
 			];
+
+			// Add a custom row for the Category property (its property is not edited directly in order to give the graph a chance to sort the
+			// variables correctly). This is only applicable to variables.
+			if (UMovieGraphVariable* VariableMember = Cast<UMovieGraphVariable>(MemberObject))
+			{
+				GeneralCategory.AddCustomRow(FText::GetEmpty())
+				.IsEnabled(bIsEditable)
+				.NameContent()
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("MemberPropertyLabel_Category", "Category"))
+					.ToolTipText(LOCTEXT("MemberPropertyTooltip_Category", "The category assigned to the variable. Use a '|' to separate category names to create a category hierarchy (eg, Settings|Resolution)."))
+					.Font(DetailBuilder.GetDetailFont())
+				]
+				.ValueContent()
+				[
+					SNew(SEditableTextBox)
+					.Text_Lambda([VariableMember]()
+					{
+						return FText::FromString(VariableMember->GetCategory());
+					})
+					.OnTextCommitted_Lambda([VariableMember](const FText& InNewCategory, ETextCommit::Type TextCommitType)
+					{
+						const FScopedTransaction Transaction(LOCTEXT("SetVariableCategory", "Set Variable Category"));
+						VariableMember->SetCategory(InNewCategory.ToString());
+					})
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+				];
+			}
 
 			// If this is an interface (eg, input/output) only enable the type selector if it's not a branch and editable.
 			// Otherwise, editability is the only factor in enable state.

@@ -262,6 +262,12 @@ private:
 	
 	/* The metadata key on properties that is associated with a tooltip value. */
 	static inline FName ToolTipMetaDataKey = FName(TEXT("ToolTip"));
+
+	/* The metadata key on properties that is associated with the variable's category. */
+	static inline FName CategoryMetaDataKey = FName(TEXT("Category"));
+	
+	/* The metadata key on property bag properties that allows them to show up grouped in the details panel. */
+	static inline FName EnableCategoriesMetaDataKey = FName(TEXT("EnableCategories"));
 	
 	/** The properties managed by this object. */
 	UPROPERTY(EditAnywhere, meta=(ShowOnlyInnerProperties, FixedLayout), Category = "Value")
