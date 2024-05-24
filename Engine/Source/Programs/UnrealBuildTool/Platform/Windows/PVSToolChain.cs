@@ -886,9 +886,15 @@ namespace UnrealBuildTool
 					ConfigFileContents.Append("report-disabled-rules=yes\n");
 				}
 
+				// TODO: Investigate into this disabled error
 				if (SourceFileItem.Location.IsUnderDirectory(Unreal.RootDirectory))
 				{
 					ConfigFileContents.AppendFormat("errors-off=V1102\n");
+				}
+
+				foreach (string error in CompileEnvironment.StaticAnalyzerPVSDisabledErrors.OrderBy(x => x))
+				{
+					ConfigFileContents.AppendFormat($"errors-off={error}\n");
 				}
 
 				int Timeout = (int)(Settings.AnalysisTimeoutFlag == AnalysisTimeoutFlags.No_timeout ? 0 : Settings.AnalysisTimeoutFlag);

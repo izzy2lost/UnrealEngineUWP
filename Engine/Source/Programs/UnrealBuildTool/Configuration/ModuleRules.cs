@@ -1057,6 +1057,11 @@ namespace UnrealBuildTool
 		/// </summary>
 		public HashSet<string> StaticAnalyzerAdditionalCheckers { get; } = new();
 
+		/// <summary>
+		/// The PVS Studio analysis errors that should be disabled.
+		/// </summary>
+		public HashSet<string> StaticAnalyzerPVSDisabledErrors { get; } = new();
+
 		private bool? bUseUnityOverride;
 		/// <summary>
 		/// If unity builds are enabled this can be used to override if this specific module will build using Unity.

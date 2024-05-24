@@ -2090,6 +2090,7 @@ namespace UnrealBuildTool
 			Result.StaticAnalyzerCheckers = Rules.StaticAnalyzerCheckers;
 			Result.StaticAnalyzerDisabledCheckers = Rules.StaticAnalyzerDisabledCheckers;
 			Result.StaticAnalyzerAdditionalCheckers = Rules.StaticAnalyzerAdditionalCheckers;
+			Result.StaticAnalyzerPVSDisabledErrors = Rules.StaticAnalyzerPVSDisabledErrors;
 			Result.bEnableUndefinedIdentifierWarnings = Rules.bEnableUndefinedIdentifierWarnings;
 			Result.bTreatAsEngineModule = Rules.bTreatAsEngineModule;
 			Result.IncludeOrderVersion = Rules.IncludeOrderVersion;

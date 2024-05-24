@@ -399,6 +399,11 @@ namespace UnrealBuildTool
 		public HashSet<string> StaticAnalyzerAdditionalCheckers = new HashSet<string>();
 
 		/// <summary>
+		/// The PVS Studio analysis warnings that should be disabled.
+		/// </summary>
+		public HashSet<string> StaticAnalyzerPVSDisabledErrors = new();
+
+		/// <summary>
 		/// True if compiler optimizations should be enabled. This setting is distinct from the configuration (see CPPTargetConfiguration).
 		/// </summary>
 		public bool bOptimizeCode = false;
@@ -765,6 +770,7 @@ namespace UnrealBuildTool
 			StaticAnalyzerCheckers = new HashSet<string>(Other.StaticAnalyzerCheckers);
 			StaticAnalyzerDisabledCheckers = new HashSet<string>(Other.StaticAnalyzerDisabledCheckers);
 			StaticAnalyzerAdditionalCheckers = new HashSet<string>(Other.StaticAnalyzerAdditionalCheckers);
+			StaticAnalyzerPVSDisabledErrors = new HashSet<string>(Other.StaticAnalyzerPVSDisabledErrors);
 			bStaticAnalyzerExtensions = Other.bStaticAnalyzerExtensions;
 			StaticAnalyzerRulesets = new HashSet<FileReference>(Other.StaticAnalyzerRulesets);
 			bOptimizeCode = Other.bOptimizeCode;
