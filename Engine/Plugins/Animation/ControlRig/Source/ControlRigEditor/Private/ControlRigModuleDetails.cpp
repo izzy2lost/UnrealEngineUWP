@@ -27,6 +27,7 @@
 #include "ModularRigRuleManager.h"
 #include "ScopedTransaction.h"
 #include "Editor/SRigHierarchyTreeView.h"
+#include "Widgets/SRigVMVariantTagWidget.h"
 
 #define LOCTEXT_NAMESPACE "ControlRigModuleDetails"
 
@@ -235,6 +236,63 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 			.Font(IDetailLayoutBuilder::GetDetailFont())
 			.Text(this, &FRigModuleInstanceDetails::GetRigClassPath)
 			.IsEnabled(true)
+		];
+
+		GeneralCategory.AddCustomRow(FText::FromString(TEXT("Variant Tags")))
+		.NameContent()
+		[
+			SNew(STextBlock)
+			.Text(FText::FromString(TEXT("Variant Tags")))
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.IsEnabled(true)
+		]
+		.ValueContent()
+		[
+			SNew(SRigVMVariantTagWidget)
+			.Orientation(EOrientation::Orient_Horizontal)
+			.CanAddTags(false)
+			.EnableContextMenu(false)
+			.OnGetTags_Lambda([this]() -> TArray<FRigVMTag>
+			{
+				TArray<FRigVMTag> Tags;
+				for (int32 InfoIndex=0; InfoIndex<PerModuleInfos.Num(); ++InfoIndex)
+				{
+					const FPerModuleInfo& ModuleInfo = PerModuleInfos[InfoIndex]; 
+					if(ModuleInfo.Module.IsValid())
+					{
+						if (const FRigModuleInstance* Module = ModuleInfo.GetModule())
+						{
+							if (const UControlRigBlueprint* ModuleBlueprint = Cast<UControlRigBlueprint>(Module->GetRig()->GetClass()->ClassGeneratedBy))
+							{
+								if (InfoIndex == 0)
+								{
+									Tags = ModuleBlueprint->GetAssetVariant().Tags;
+								}
+								else
+								{
+									const TArray<FRigVMTag>& OtherTags = ModuleBlueprint->GetAssetVariant().Tags;
+									bool bSameArray = Tags.Num() == OtherTags.Num();
+									if (bSameArray)
+									{
+										for (const FRigVMTag& OtherTag : OtherTags)
+										{
+											if (!Tags.ContainsByPredicate([OtherTag](const FRigVMTag& Tag) { return OtherTag.Name == Tag.Name; }))
+											{
+												return {};
+											}
+										}
+									}
+									else
+									{
+										return {};
+									}
+								}
+							}
+						}
+					}
+				}
+				return Tags;
+			})
 		];
 	}
 

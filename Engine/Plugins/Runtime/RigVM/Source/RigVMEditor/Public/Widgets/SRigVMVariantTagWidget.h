@@ -52,7 +52,7 @@ private:
 	TAttribute<bool> EnableContextMenu;
 };
 
-class SRigVMVariantTagWidget : public SBox
+class RIGVMEDITOR_API SRigVMVariantTagWidget : public SBox
 {
 public:
 

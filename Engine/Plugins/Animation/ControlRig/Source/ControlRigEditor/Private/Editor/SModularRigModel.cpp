@@ -118,6 +118,14 @@ void SModularRigModel::Construct(const FArguments& InArgs, TSharedRef<FControlRi
 		.VAlignCell(VAlign_Fill)
 	);
 	HeaderRowWidget->AddColumn(
+		SHeaderRow::Column(SModularRigTreeView::Column_Tags)
+		.DefaultLabel(FText())
+		.HAlignCell(HAlign_Fill)
+		.HAlignHeader(HAlign_Fill)
+		.FixedWidth(16.f)
+		.VAlignCell(VAlign_Center)
+	);
+	HeaderRowWidget->AddColumn(
 		SHeaderRow::Column(SModularRigTreeView::Column_Connector)
 		.DefaultLabel(FText::FromName(SModularRigTreeView::Column_Connector))
 		.HAlignCell(HAlign_Left)

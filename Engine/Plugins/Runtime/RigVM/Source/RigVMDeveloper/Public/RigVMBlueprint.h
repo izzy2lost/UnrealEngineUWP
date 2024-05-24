@@ -560,6 +560,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Variables")
 	bool ChangeMemberVariableType(const FName& InName, const FString& InCPPType, bool bIsPublic = false, bool bIsReadOnly = false, FString InDefaultValue = TEXT(""));
+
+	const FRigVMVariant& GetAssetVariant() const { return AssetVariant; }
 #endif
 
 private:

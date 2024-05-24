@@ -29,6 +29,7 @@
 #include "Widgets/Input/SButton.h"
 #include "ScopedTransaction.h"
 #include "DetailLayoutBuilder.h"
+#include "Widgets/SRigVMVariantTagWidget.h"
 
 #define LOCTEXT_NAMESPACE "SModularRigTreeView"
 
@@ -351,6 +352,70 @@ TSharedRef<SWidget> SModularRigModelItem::GenerateWidgetForColumn(const FName& C
 
 		return Widget;
 	}
+	if (ColumnName == SModularRigTreeView::Column_Tags)
+	{
+		TSharedRef<SWidget> Widget = SNew(SImage)
+		.Visibility_Lambda([this]() -> EVisibility
+		{
+			if (WeakRigTreeElement.IsValid())
+			{
+				if (!WeakRigTreeElement.Pin()->bIsPrimary)
+				{
+					return EVisibility::Hidden;
+				}
+			
+				if (const UModularRig* ModularRig = Delegates.GetModularRig())
+				{
+					if (const FRigModuleInstance* Module = ModularRig->FindModule(WeakRigTreeElement.Pin()->ModulePath))
+					{
+						if (const UControlRigBlueprint* ModuleBlueprint = Cast<UControlRigBlueprint>(Module->GetRig()->GetClass()->ClassGeneratedBy))
+						{
+							for (const FRigVMTag& Tag : ModuleBlueprint->GetAssetVariant().Tags)
+							{
+								if (Tag.bMarksSubjectAsInvalid)
+								{
+									return EVisibility::Visible;
+								}
+							}
+						}
+					}
+				}
+			}
+			return EVisibility::Hidden;
+		})
+		.ToolTipText_Lambda([this]() -> FText
+		{
+			TArray<FString> ToolTip;
+			if (WeakRigTreeElement.IsValid())
+			{
+				if (const UModularRig* ModularRig = Delegates.GetModularRig())
+				{
+					if (const FRigModuleInstance* Module = ModularRig->FindModule(WeakRigTreeElement.Pin()->ModulePath))
+					{
+						if (const UControlRigBlueprint* ModuleBlueprint = Cast<UControlRigBlueprint>(Module->GetRig()->GetClass()->ClassGeneratedBy))
+						{
+							for (const FRigVMTag& Tag : ModuleBlueprint->GetAssetVariant().Tags)
+							{
+								if (Tag.bMarksSubjectAsInvalid)
+								{
+									ToolTip.Add(FString::Printf(TEXT("%s: %s"), *Tag.Label, *Tag.ToolTip.ToString()));
+								}
+							}
+						}
+					}
+				}
+			}
+			return FText::FromString(FString::Join(ToolTip, TEXT("\n")));
+		})
+		.Image_Lambda([this]() -> const FSlateBrush*
+		{
+			const FSlateBrush* WarningBrush = FAppStyle::Get().GetBrush("Icons.WarningWithColor");
+			return WarningBrush;
+		})
+		.DesiredSizeOverride(FVector2D(16, 16));
+
+		return Widget;
+	}
 	if(ColumnName == SModularRigTreeView::Column_Connector)
 	{
 		TSharedPtr<SVerticalBox> ComboButtonBox;
@@ -585,6 +650,7 @@ FText SModularRigModelItem::GetItemTooltip() const
 ///////////////////////////////////////////////////////////
 
 const FName SModularRigTreeView::Column_Module = TEXT("Module");
+const FName SModularRigTreeView::Column_Tags = TEXT("Tags");
 const FName SModularRigTreeView::Column_Connector = TEXT("Connector");
 const FName SModularRigTreeView::Column_Buttons = TEXT("Actions");
 

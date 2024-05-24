@@ -174,6 +174,7 @@ class SModularRigTreeView : public STreeView<TSharedPtr<FModularRigTreeElement>>
 public:
 
 	static const FName Column_Module;
+	static const FName Column_Tags;
 	static const FName Column_Connector;
 	static const FName Column_Buttons;
 
