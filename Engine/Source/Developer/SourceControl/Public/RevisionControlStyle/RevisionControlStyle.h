@@ -61,6 +61,11 @@ protected:
 	FLinearColor StatusCheckedOutColor;
 	FLinearColor StatusCheckedOutByOtherUserColor;
 	FLinearColor StatusNotAtHeadRevisionColor;
+
+	/** The specific colors we use for all the "Snapshot History" state icons */
+	FLinearColor SnapshotHistoryAdded;
+	FLinearColor SnapshotHistoryModified;
+	FLinearColor SnapshotHistoryRemoved;
 	
 private:
 	static FName StyleName;
