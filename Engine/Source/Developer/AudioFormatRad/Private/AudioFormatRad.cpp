@@ -50,12 +50,6 @@ public:
 		return true;
 	}
 
-	virtual TConstArrayView<float> GetSortedAllowedSampleRates() const
-	{
-		static const float ValidRates [] = { 24000, 32000, 44100, 48000} ;
-		return MakeArrayView<const float>(ValidRates, UE_ARRAY_COUNT(ValidRates));
-	}
-
 	virtual uint16 GetVersion(FName Format) const override
 	{
 		check(Format == NAME_RADA);
