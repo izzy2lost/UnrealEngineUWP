@@ -149,7 +149,10 @@ void Generic_Simple_Serializer(FTG_Var::VarPropertySerialInfo& Info)
 	const T_ValueType VarValue = Info.Var->GetAs<T_ValueType>();
 
 	if (Info.CopyVarToProperty)
+	{
 		TProperty->SetPropertyValue(TProperty->template ContainerPtrToValuePtr<T_ValueType>(Info.Owner, Info.ClampedIndex()), VarValue);
+		//TProperty->SetValue_InContainer(Info.Owner, VarValue);
+	}
 	else
 		Info.Var->EditAs<T_ValueType>() = TProperty->GetPropertyValue(TProperty->template ContainerPtrToValuePtr<T_ValueType>(Info.Owner, Info.ClampedIndex()));
 }
@@ -217,7 +220,19 @@ void VarPropertySerializer_float(FTG_Var::VarPropertySerialInfo& Info)
 
 void VarPropertySerializer_bool(FTG_Var::VarPropertySerialInfo& Info)
 {
-	Generic_Simple_Serializer<FBoolProperty, bool>(Info);
+	//Generic_Simple_Serializer<FBoolProperty, bool>(Info);
+	FProperty* Property = Info.Owner->GetClass()->FindPropertyByName(Info.Arg.GetName());
+
+	const FBoolProperty* TProperty = CastField<FBoolProperty>(Property);
+	const bool VarValue = Info.Var->GetAs<bool>();
+
+	if (Info.CopyVarToProperty)
+	{
+		TProperty->SetPropertyValue(TProperty->template ContainerPtrToValuePtr<bool>(Info.Owner, Info.ClampedIndex()), VarValue);
+		//TProperty->SetValue_InContainer(Info.Owner, VarValue);
+	}
+	else
+		Info.Var->EditAs<bool>() = TProperty->GetPropertyValue(TProperty->template ContainerPtrToValuePtr<bool>(Info.Owner, Info.ClampedIndex()));
 }
 
 void VarPropertySerializer_FName(FTG_Var::VarPropertySerialInfo& Info)

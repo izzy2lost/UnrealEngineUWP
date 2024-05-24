@@ -9,6 +9,17 @@
 
 #include "TG_Expression_Levels.generated.h"
 
+
+
+UENUM(BlueprintType)
+enum class ELevelsExpressionType : uint8
+{
+	LowMidHigh = 0			UMETA(DisplayName = "Manual"),
+	AutoLowHigh				UMETA(DisplayName = "Auto Levels"),
+};
+
+struct FLevels;
+
 USTRUCT(BlueprintType)
 struct TEXTUREGRAPH_API FTG_LevelsSettings
 {
@@ -64,6 +75,67 @@ class TEXTUREGRAPH_API UTG_Expression_Levels : public UTG_Expression
 {
 	GENERATED_BODY()
 
+	FTG_LevelsSettings					Levels;
+
+	TSharedPtr<FLevels> 				LevelsControl;
+
+public:
+#if WITH_EDITOR
+	virtual void 						PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+
+	// Used to implement EditCondition logic for both Node UI and Details View
+	virtual bool						CanEditChange(const FProperty* InProperty) const override;
+#endif
+
+	TG_DECLARE_EXPRESSION(TG_Category::Adjustment);
+	virtual void						Evaluate(FTG_EvaluationContext* InContext) override;
+
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", PinDisplayName = "Type", PinNotConnectable = true, RegenPinsOnChange))
+	ELevelsExpressionType				LevelsExpressionType = ELevelsExpressionType::LowMidHigh;
+
+	// The input image to adjust the levels for
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Input", PinDisplayName = ""))
+	FTG_Texture							Input;
+
+	// The Low value of the Levels adjustment, any pixel under that value is set to black. Default is 0.
+	UPROPERTY(EditAnywhere, Setter,  Category = NoCategory, meta = (TGType = "TG_Setting", PinDisplayName = "Low", UIMin = "0", ClampMin = "0", UIMax = "1", ClampMax = "1", EditConditionHides, MD_ScalarEditor))
+	float								LowValue = 0;
+	void SetLowValue(float InValue);
+
+	// The mid value of the Levels adjustment, must be in the range [Min, Max] and the Default is 0.5.
+	// The mid value determine where the smoothing curve applying the midpoint filter is crossing 0.5.
+	UPROPERTY(EditAnywhere, Setter, Category = NoCategory, meta = (TGType = "TG_Setting", PinDisplayName = "Mid", UIMin = "0", ClampMin = "0", UIMax = "1", ClampMax = "1", EditConditionHides, MD_ScalarEditor))
+	float								MidValue = 0.5f; // Midtones
+	void SetMidValue(float InValue);
+
+	// The High value of the Levels adjustment, any pixel above that value is set to white. Default is 1.
+	UPROPERTY(EditAnywhere, Setter, Category = NoCategory, meta = (TGType = "TG_Setting", PinDisplayName = "High", UIMin = "0", ClampMin = "0", UIMax = "1", ClampMax = "1", EditConditionHides, MD_ScalarEditor))
+	float								HighValue = 1;
+	void SetHighValue(float InValue);
+
+
+	// The High value of the Levels adjustment, any pixel above that value is set to white. Default is 1.
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", PinDisplayName = "Mid Auto Levels", UIMin = "0", ClampMin = "0", UIMax = "1", ClampMax = "1", EditConditionHides, MD_ScalarEditor))
+	float								MidAutoLevels = 0.5;
+
+
+	// The output image filtered result of the Levels operator 
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Output", PinDisplayName = ""))
+	FTG_Texture							Output;
+
+	virtual FText						GetTooltipText() const override { return FText::FromString(TEXT("Remaps shadows and highlights of the input. Any values less or equal to Low are mapped to black, any values, greater or equal to High are mapped to white, and any values inbetween have Gamma applied as an exponent.")); } 
+
+	bool IsAutoLevel() const { return LevelsExpressionType == ELevelsExpressionType::AutoLowHigh; }
+};
+
+
+UCLASS()
+class TEXTUREGRAPH_API UTG_Expression_HistogramScan : public UTG_Expression
+{
+	GENERATED_BODY()
+
+	TSharedPtr<FLevels> 				LevelsControl;
+
 public:
 
 	TG_DECLARE_EXPRESSION(TG_Category::Adjustment);
@@ -73,13 +145,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Input", PinDisplayName = "", MD_HistogramLuminance))
 	FTG_Texture							Input;
 
-	// The Low-Mid-High settings of the Levels expression
-	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", PinDisplayName = "", MD_LevelsSettings, PinNotConnectable = true))
-	FTG_LevelsSettings					Levels;
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", UIMin = "0", ClampMin = "0", UIMax = "1", ClampMax = "1", MD_ScalarEditor))
+	float 								Position = 0.5f;
 
-	// TODO: Show Property after 5.4 release
-	//	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", PinNotConnectable = true))
-	bool								AutoLevels = false;
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", UIMin = "0", ClampMin = "0", UIMax = "1", ClampMax = "1", MD_ScalarEditor))
+	float 								Contrast = 0.5f; 
 
 	// The output image filtered result of the Levels operator 
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Output", PinDisplayName = ""))

@@ -97,6 +97,8 @@ public:
 	virtual RawBufferPtr			Raw_Now() = 0;	/// SLOW: Read above
 	virtual AsyncRawBufferPtr		Raw();			/// SLOW: Read above [use Blob::Raw instead. This is to be used from Blob only]
 
+	AsyncRawBufferPtr				GetRawOrMaketIt();
+
 protected:
 	virtual AsyncBufferResultPtr	TransferFrom(DeviceBufferRef& Source) = 0;
 

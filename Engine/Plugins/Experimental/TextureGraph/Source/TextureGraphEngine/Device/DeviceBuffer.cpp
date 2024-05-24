@@ -129,6 +129,28 @@ AsyncRawBufferPtr DeviceBuffer::Raw()
 		});
 }
 
+AsyncRawBufferPtr DeviceBuffer::GetRawOrMaketIt()
+{
+	if (!IsFetchingRaw())
+	{
+		return Raw();
+	}
+	else
+	{
+		RawBufferPtr RawObj;
+		return GetOwnerDevice()->Use()
+			.then([this, RawObj](int32) mutable
+				{
+					RawObj = Raw_Now();
+					return PromiseUtil::OnGameThread();
+				})
+			.then([RawObj]()
+				{
+					return RawObj;
+				});
+	}
+}
+
 CHashPtr DeviceBuffer::CalcHash()
 {
 	/// Don't recalculate if the NewHash has already been calculated
