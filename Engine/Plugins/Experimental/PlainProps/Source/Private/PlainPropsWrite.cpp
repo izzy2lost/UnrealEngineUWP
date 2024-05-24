@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
+#if 0
 #include "PlainPropsWrite.h"
 #include "PlainPropsBuildSchema.h"
 #include "PlainPropsIndex.h"
@@ -859,3 +859,4 @@ FString FDebugIds::Print(FStructSchemaId Name) const
 }
 
 } // namespace PlainProps
+#endif

@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
+#if 0
 #include "PlainPropsIndex.h"
 #include "Hash/xxhash.h"
 
@@ -148,3 +148,4 @@ FStructSchemaId	FIdIndexerBase::IndexStruct(FTypeId Type)
 }
 
 } // namespace PlainProps
+#endif

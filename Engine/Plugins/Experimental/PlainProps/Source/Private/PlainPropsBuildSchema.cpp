@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
+#if 0
 #include "PlainPropsBuildSchema.h"
 #include "PlainPropsInternalBuild.h"
 #include "PlainPropsInternalFormat.h"
@@ -387,3 +387,4 @@ void FEnumSchemaBuilder::NoteValue(uint64 Value)
 }
 
 } // namespace PlainProps
+#endif

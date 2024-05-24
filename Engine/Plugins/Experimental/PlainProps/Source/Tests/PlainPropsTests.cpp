@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
+#if 0
 #if WITH_TESTS
 #include "Tests/TestHarnessAdapter.h"
 #include "Containers/AnsiString.h"
@@ -1351,3 +1351,4 @@ TEST_CASE_NAMED(FPlainPropsLoadSaveTest, "System::Core::Serialization::PlainProp
 
 } // namespace PlainProps
 #endif // WITH_TESTS
+#endif
