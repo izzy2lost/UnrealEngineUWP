@@ -864,22 +864,50 @@ public:
 	ENGINE_API void ApplyInteriorSettings(FActiveSound& ActiveSound, FSoundParseParameters& ParseParams) const;
 
 	/**
-	 * Notifies subsystems an active sound is about to be deleted (called on audio thread) - Deprecated, see NotifyPendingDeleteInternal
+	 * Notifies subsystems an active sound is about to be deleted (called on audio thread) - Deprecated, see NotifySubsystemsActiveSoundDeleting
 	 */
-	UE_DEPRECATED(5.3, "NotifyPending is deprecated in public scope. Use IActiveSoundUpdateInterface::OnNotifyPendingDelete instead.")
+	UE_DEPRECATED(5.3, "NotifyPending is deprecated in public scope. Use IActiveSoundUpdateInterface::NotifyActiveSoundDeleting instead.")
 	void NotifyPendingDelete(FActiveSound& ActiveSound) const {}
 
 protected:
 
 	/**
-	 * Notifies subsystems an active sound has been added (called on audio thread)
+	 * Notifies subsystems an active sound has just been added (called on audio thread).
+	 * Called both for brand new sounds and for virtualized sounds that have just become active.
 	 */
-	ENGINE_API void NotifyAddActiveSound(FActiveSound& ActiveSound) const;
+	ENGINE_API void NotifySubsystemsActiveSoundCreated(FActiveSound& ActiveSound) const;
 
 	/**
-	 * Notifies subsystems an active sound is about to be deleted (called on audio thread)
+	 * Notifies subsystems an active sound is about to be deleted (called on audio thread).
+	 * Called when a sound is either stopped or virtualized. In either case,
+	 * the referenced ActiveSound object no longer exists after this call; any pointers to it should be discarded.
 	 */
-	ENGINE_API void NotifyPendingDeleteInternal(FActiveSound& ActiveSound) const;
+	ENGINE_API void NotifySubsystemsActiveSoundDeleting(FActiveSound& ActiveSound) const;
+
+	/**
+	 * Notifies subsystems a virtualized sound has just been added (called on audio thread).
+	 * Called both for brand new sounds and for active sounds that have just become virtualized.
+	 */
+	ENGINE_API void NotifySubsystemsVirtualizedSoundCreated(FActiveSound& ActiveSound) const;
+
+	/**
+	 * Notifies subsystems a virtualized sound is about to be deleted (called on audio thread).
+	 * Called when a sound is either stopped or re-triggered. In either case,
+	 * the referenced ActiveSound object no longer exists after this call; any pointers to it should be discarded.
+	 */
+	ENGINE_API void NotifySubsystemsVirtualizedSoundDeleting(FActiveSound& ActiveSound) const;
+
+	UE_DEPRECATED(5.5, "NotifyAddActiveSound is deprecated. Use NotifySubsystemsActiveSoundCreated instead.")
+	ENGINE_API void NotifyAddActiveSound(FActiveSound& ActiveSound) const
+	{
+		NotifySubsystemsActiveSoundCreated(ActiveSound);
+	}
+
+	UE_DEPRECATED(5.5, "NotifyPendingDeleteInternal is deprecated. Use NotifySubsystemsActiveSoundDeleting and/or NotifySubsystemsVirtualizedSoundDeleting instead.")
+	ENGINE_API void NotifyPendingDeleteInternal(FActiveSound& ActiveSound) const
+	{
+		NotifySubsystemsActiveSoundDeleting(ActiveSound);
+	}
 
 public:
 
@@ -1968,7 +1996,7 @@ public:
 	}
 
 	/**
-	 * Performs the given operation on all subsytems of the given class. It's safe to create new subsystems during this operation, but not to remove subsystems.
+	 * Performs the given operation on all subsystems of the given class. It's safe to create new subsystems during this operation, but not to remove subsystems.
 	 */
 	template <typename TSubsystemClass>
 	void ForEachSubsystem(TFunctionRef<void(TSubsystemClass*)> Operation) const

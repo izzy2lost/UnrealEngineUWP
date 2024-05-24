@@ -3639,20 +3639,53 @@ void FAudioDevice::ApplyInteriorSettings(FActiveSound& ActiveSound, FSoundParseP
 	});
 }
 
-void FAudioDevice::NotifyAddActiveSound(FActiveSound& ActiveSound) const
+void FAudioDevice::NotifySubsystemsActiveSoundCreated(FActiveSound& ActiveSound) const
 {
 	SubsystemCollection.ForEachSubsystem<IActiveSoundUpdateInterface>([&ActiveSound](IActiveSoundUpdateInterface* ActiveSoundUpdate)
 	{
+		ActiveSoundUpdate->NotifyActiveSoundCreated(ActiveSound);
+
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ActiveSoundUpdate->OnNotifyAddActiveSound(ActiveSound);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 		return true;
 	});
 }
 
-void FAudioDevice::NotifyPendingDeleteInternal(FActiveSound& ActiveSound) const
+void FAudioDevice::NotifySubsystemsActiveSoundDeleting(FActiveSound& ActiveSound) const
 {
 	SubsystemCollection.ForEachSubsystem<IActiveSoundUpdateInterface>([&ActiveSound](IActiveSoundUpdateInterface* ActiveSoundUpdate)
 	{
+		ActiveSoundUpdate->NotifyActiveSoundDeleting(ActiveSound);
+
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ActiveSoundUpdate->OnNotifyPendingDelete(ActiveSound);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+		return true;
+	});
+}
+
+void FAudioDevice::NotifySubsystemsVirtualizedSoundCreated(FActiveSound& ActiveSound) const
+{
+	SubsystemCollection.ForEachSubsystem<IActiveSoundUpdateInterface>([&ActiveSound](IActiveSoundUpdateInterface* ActiveSoundUpdate)
+	{
+		ActiveSoundUpdate->NotifyVirtualizedSoundCreated(ActiveSound);
+		return true;
+	});
+}
+
+void FAudioDevice::NotifySubsystemsVirtualizedSoundDeleting(FActiveSound& ActiveSound) const
+{
+	SubsystemCollection.ForEachSubsystem<IActiveSoundUpdateInterface>([&ActiveSound](IActiveSoundUpdateInterface* ActiveSoundUpdate)
+	{
+		ActiveSoundUpdate->NotifyVirtualizedSoundDeleting(ActiveSound);
+
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		ActiveSoundUpdate->OnNotifyPendingDelete(ActiveSound);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 		return true;
 	});
 }
@@ -5246,7 +5279,7 @@ void FAudioDevice::AddNewActiveSoundInternal(const FActiveSound& InNewActiveSoun
 		ActiveSoundArray.AddUnique(ActiveSound);
 	}
 
-	NotifyAddActiveSound(*ActiveSound);
+	NotifySubsystemsActiveSoundCreated(*ActiveSound);
 }
 
 void FAudioDevice::ReportSoundFailedToStart(const uint64 AudioComponentID, FAudioVirtualLoop* VirtualLoop)
@@ -5358,6 +5391,8 @@ void FAudioDevice::AddVirtualLoop(const FAudioVirtualLoop& InVirtualLoop)
 #endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 
 	VirtualLoops.Add(&ActiveSound, MoveTemp(VirtualLoop));
+
+	NotifySubsystemsVirtualizedSoundCreated(ActiveSound);
 }
 
 bool FAudioDevice::RemoveVirtualLoop(FActiveSound& InActiveSound)
@@ -5453,7 +5488,7 @@ void FAudioDevice::ProcessingPendingActiveSoundStops(bool bForceDelete)
 				}
 				ActiveSound->ClearTransmitter();
 
-				NotifyPendingDeleteInternal(*ActiveSound);
+				NotifySubsystemsActiveSoundDeleting(*ActiveSound);
 				delete ActiveSound;
 			}
 		}
@@ -5469,6 +5504,7 @@ void FAudioDevice::ProcessingPendingActiveSoundStops(bool bForceDelete)
 		{
 			check(ActiveSound);
 			bool bDeleteActiveSound = false;
+			bool bWasVirtualized = false;
 
 			// If the request was to stop an ActiveSound that
 			// is set to re-trigger but is not playing, remove
@@ -5476,6 +5512,7 @@ void FAudioDevice::ProcessingPendingActiveSoundStops(bool bForceDelete)
 			if (RemoveVirtualLoop(*ActiveSound))
 			{
 				bDeleteActiveSound = true;
+				bWasVirtualized = true;
 			}
 			else
 			{
@@ -5513,11 +5550,17 @@ void FAudioDevice::ProcessingPendingActiveSoundStops(bool bForceDelete)
 				}
 				ActiveSound->ClearTransmitter();
 
-				NotifyPendingDeleteInternal(*ActiveSound);
-
 				// Remove from the list of pending sounds to stop
 				PendingSoundsToStop.Remove(ActiveSound);
 	
+				if (bWasVirtualized)
+				{
+					NotifySubsystemsVirtualizedSoundDeleting(*ActiveSound);
+				}
+				else
+				{
+					NotifySubsystemsActiveSoundDeleting(*ActiveSound);
+				}
 				delete ActiveSound;
 			}
 			else

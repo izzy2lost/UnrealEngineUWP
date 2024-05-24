@@ -31,7 +31,8 @@ public:
 	//~ End USubsystem interface
 	
 	//~ Begin IActiveSoundUpdateInterface
-	virtual void OnNotifyPendingDelete(const FActiveSound& ActiveSound) override;
+	virtual void NotifyActiveSoundDeleting(const FActiveSound& ActiveSound) override;
+	virtual void NotifyVirtualizedSoundDeleting(const FActiveSound& ActiveSound) override;
 	//~ End IActiveSoundUpdateInterface
 
 	//~ Begin ISoundHandleSystem
@@ -49,4 +50,6 @@ protected:
 	
 	TMap<Audio::FSoundHandleID, FSoundHandle> ActiveHandles;
 	TMap<Audio::FSoundHandleID, ISoundHandleOwner*> Owners;
+
+	void NotifySoundDeleting(const FActiveSound& ActiveSound);
 };

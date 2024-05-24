@@ -296,7 +296,7 @@ void UAudioGameplayVolumeSubsystem::ApplyInteriorSettings(const FActiveSound& Ac
 	ParseParams.AmbientZoneFilterFrequency = ActiveSoundInfo->CurrentInteriorLPF;
 }
 
-void UAudioGameplayVolumeSubsystem::OnNotifyPendingDelete(const FActiveSound& ActiveSound)
+void UAudioGameplayVolumeSubsystem::NotifyActiveSoundDeleting(const FActiveSound& ActiveSound)
 {
 	check(IsInAudioThread());
 	if (ActiveSound.bApplyInteriorVolumes && ActiveSoundData.Num() > 0)

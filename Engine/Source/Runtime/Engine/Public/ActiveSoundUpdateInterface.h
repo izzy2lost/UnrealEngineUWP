@@ -41,18 +41,53 @@ public:
 	virtual void ApplyInteriorSettings(const FActiveSound& ActiveSound, FSoundParseParameters& ParseParams) {}
 
 	/**
-	 * Called when an active sound is being added to the audio engine
+	 * Called when an active sound has just been added to the audio engine,
+	 * both for brand new sounds and for virtualized sounds that have just become active.
+	 * In the latter case, a corresponding NotifyVirtualizedSoundDeleting will be received.
+	 * You can correlate the two objects by matching their GetPlayOrder() value.
+	 *
 	 * NOTE! Called on the AudioThread
 	 *
-	 * @param ActiveSound	The active sound being added
+	 * @param ActiveSound	The active sound being created
 	 */
-	virtual void OnNotifyAddActiveSound(FActiveSound& ActiveSound) {}
+	virtual void NotifyActiveSoundCreated(FActiveSound& ActiveSound) {}
 
 	/**
-	 * Called when the active sound is being removed from the audio engine
+	 * Called when an active sound has just been removed from the audio engine, by being stopped or virtualized.
+	 * In either case, the referenced ActiveSound object is about to be deleted; any pointers to it should be discarded.
+	 * 
 	 * NOTE! Called on the AudioThread
 	 *
-	 * @param ActiveSound	The active sound
+	 * @param ActiveSound	The active sound being deleted
 	 */
+	virtual void NotifyActiveSoundDeleting(const FActiveSound& ActiveSound) {}
+
+	/**
+	 * Called when a virtualized sound has just been added to the audio engine,
+	 * both for brand new sounds and for active sounds that have just become virtualized.
+	 * When virtualizing, the corresponding NotifyActiveSoundDeleting will arrive after any fade-out has finished.
+	 * You can correlate the two objects by matching their GetPlayOrder() value.
+	 * 
+	 * NOTE! Called on the AudioThread
+	 *
+	 * @param ActiveSound	The virtualized sound being created
+	 */
+	virtual void NotifyVirtualizedSoundCreated(FActiveSound& ActiveSound) {}
+
+	/**
+	 * Called when a virtualized sound has just been removed from the audio engine, by being stopped or re-triggered.
+	 * In either case, the referenced ActiveSound object is about to be deleted; any pointers to it should be discarded.
+	 * 
+	 * NOTE! Called on the AudioThread
+	 *
+	 * @param ActiveSound	The active sound being removed
+	 */
+	virtual void NotifyVirtualizedSoundDeleting(const FActiveSound& ActiveSound) {}
+
+
+	UE_DEPRECATED(5.5, "OnNotifyAddActiveSound is deprecated. Use NotifyActiveSoundCreated instead.")
+	virtual void OnNotifyAddActiveSound(FActiveSound& ActiveSound) {}
+
+	UE_DEPRECATED(5.5, "OnNotifyPendingDelete is deprecated. Use NotifyActiveSoundDeleting and/or NotifyVirtualizedSoundDeleting instead.")
 	virtual void OnNotifyPendingDelete(const FActiveSound& ActiveSound) {}
 };
