@@ -137,6 +137,7 @@ protected:
 
 	TSharedPtr<SImage> MyIconRim;
 
+	UPROPERTY()
 	FSlateBrush Icon;
 
 	bool bAlwaysHideOverride = false;
