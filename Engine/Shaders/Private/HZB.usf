@@ -214,16 +214,24 @@ void HZBBuildCS(
 	{
 		SharedMinDeviceZ[GroupThreadIndex] = MinDeviceZ;
 		SharedMaxDeviceZ[GroupThreadIndex] = MaxDeviceZ;
+#if FEATURE_LEVEL >= FEATURE_LEVEL_SM6 || PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS
+		const uint LaneCount = WaveGetLaneCount();
+#else
+		// Actual wave size is unknown, assume the worst
+		const uint LaneCount = 0u;
+#endif
 	
 		UNROLL
-		for (uint MipLevel = 1; MipLevel < DIM_MIP_LEVEL_COUNT; MipLevel++)
+		for (uint MipLevel = 1; MipLevel < DIM_MIP_LEVEL_COUNT; ++MipLevel)
 		{
 			const uint TileSize = uint(GROUP_TILE_SIZE) >> MipLevel;
 			const uint ReduceBankSize = TileSize * TileSize;
 			
-			// LDS has been written before.
-			if (MipLevel == 1)
+			// More waves than one wrote to LDS, need to sync.
+			if ((ReduceBankSize << 2u) > LaneCount)
+			{
 				GroupMemoryBarrierWithGroupSync();
+			}
 
 			BRANCH
 			if (GroupThreadIndex < ReduceBankSize)
