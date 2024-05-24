@@ -524,6 +524,14 @@ void UTG_EdGraphNode::PinDefaultValueChangedWithTweaking(UEdGraphPin* Pin, bool 
 	{
 		Pin->DefaultObject = TGPin->EditSelfVar()->GetAs<TObjectPtr<UObject>>();
 	}
+
+#if WITH_EDITOR
+	// Update Node UI if the property has meta RegenPinsOnChange
+	if(Property != nullptr && Property->HasMetaData("RegenPinsOnChange"))
+	{
+		UpdatePinsAndReconstructNode();
+	}
+#endif
 }
 
 void UTG_EdGraphNode::PinConnectionListChanged(UEdGraphPin* Pin)
@@ -660,6 +668,19 @@ bool UTG_EdGraphNode::UpdateEdPinDefaultValue(UEdGraphPin* EdPin, const UTG_EdGr
 	return bShouldUpdatePinsVisibility;
 }
 
+void UTG_EdGraphNode::UpdatePinsAndReconstructNode()
+{
+	UpdateInputPinsVisibility();
+		
+	// cache advanced visibility
+	TEnumAsByte<ENodeAdvancedPins::Type> CachedAdvancedPinDisplay = this->AdvancedPinDisplay;
+	ReconstructNode();
+	this->AdvancedPinDisplay = CachedAdvancedPinDisplay;
+
+	//Tell Editor to update details
+	Cast<UTG_EdGraph>(GetGraph())->RefreshEditorDetails();
+}
+
 void UTG_EdGraphNode::OnNodeChanged(UTG_Node* InNode)
 {
 	bool bShouldUpdatePinsVisibility = false;
@@ -673,15 +694,7 @@ void UTG_EdGraphNode::OnNodeChanged(UTG_Node* InNode)
 	// if there was a pin which triggered regeneration of all other input pins (used meta "RegenPinsOnChange"), we update them
 	if (bShouldUpdatePinsVisibility)
 	{
-		UpdateInputPinsVisibility();
-		
-		// cache advanced visibility
-		TEnumAsByte<ENodeAdvancedPins::Type> CachedAdvancedPinDisplay = this->AdvancedPinDisplay;
-		ReconstructNode();
-		this->AdvancedPinDisplay = CachedAdvancedPinDisplay;
-
-		//Tell Editor to update details
-		Cast<UTG_EdGraph>(GetGraph())->RefreshEditorDetails();
+		UpdatePinsAndReconstructNode();
 	}
 #endif
 	
