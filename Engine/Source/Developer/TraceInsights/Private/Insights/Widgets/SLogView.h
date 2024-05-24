@@ -164,9 +164,9 @@ protected:
 	FLogFilter Filter;
 	uint64 FilterChangeNumber;
 
-	int32 FilteringStartIndex; // Start index (of the range of log messages to filter) currenly used by the async task
-	int32 FilteringEndIndex; // End index (of the range of log messages to filter) currenly used by the async task
-	uint64 FilteringChangeNumber; // Change number of the filter currenly used by the async task
+	int32 FilteringStartIndex; // Start index (of the range of log messages to filter) currently used by the async task
+	int32 FilteringEndIndex; // End index (of the range of log messages to filter) currently used by the async task
+	uint64 FilteringChangeNumber; // Change number of the filter currently used by the async task
 	TUniquePtr<FAsyncTask<FLogFilteringAsyncTask>> FilteringAsyncTask; // The async task to filter log messages on a worker thread
 	mutable volatile bool bIsFilteringAsyncTaskCancelRequested; // true if we want the async task to finish asap
 

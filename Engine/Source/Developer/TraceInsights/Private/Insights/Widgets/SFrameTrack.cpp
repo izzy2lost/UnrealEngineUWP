@@ -26,8 +26,9 @@
 #include "Insights/ViewModels/FrameStatsHelper.h"
 #include "Insights/ViewModels/FrameTrackHelper.h"
 #include "Insights/ViewModels/ThreadTimingTrack.h"
-#include "Insights/Widgets/STimingProfilerWindow.h"
+#include "Insights/Widgets/SLogView.h"
 #include "Insights/Widgets/STimersView.h"
+#include "Insights/Widgets/STimingProfilerWindow.h"
 #include "Insights/Widgets/STimingView.h"
 
 #include <limits>
@@ -130,6 +131,7 @@ void SFrameTrack::Reset()
 	bDrawVerticalAxisLabelsOnLeftSide = false;
 
 	HoveredSample.Reset();
+	SelectedSample.Reset();
 	TooltipOpacity = 0.0f;
 	TooltipSizeX = 70.0f;
 
@@ -419,7 +421,7 @@ void SFrameTrack::UpdateState()
 			TSet<uint32> Timelines;
 			TSharedPtr<class STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
 
-			// Attemp to compute only from visible timelines.
+			// Attempt to compute only from visible timelines.
 			if (TimingWindow.IsValid())
 			{
 				TSharedPtr<STimingView> TimingView = TimingWindow->GetTimingView();
@@ -1099,6 +1101,11 @@ FReply SFrameTrack::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerE
 			{
 				const bool JoinCurrentSelection = MouseEvent.IsShiftDown();
 
+				if (!JoinCurrentSelection)
+				{
+					SelectedSample = HoveredSample;
+				}
+
 				SelectFrameAtMousePosition(
 					static_cast<float>(MousePositionOnButtonUp.X),
 					static_cast<float>(MousePositionOnButtonUp.Y),
@@ -1122,6 +1129,7 @@ FReply SFrameTrack::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerE
 			}
 			else if (bIsValidForMouseClick)
 			{
+				SelectedSample = HoveredSample;
 				ShowContextMenu(MouseEvent);
 			}
 
@@ -1414,11 +1422,58 @@ void SFrameTrack::ShowContextMenu(const FPointerEvent& MouseEvent)
 	}
 	MenuBuilder.EndSection();
 
+	CreateSelectedFrameMenu(MenuBuilder);
+
 	TSharedRef<SWidget> MenuWidget = MenuBuilder.MakeWidget();
 
 	FWidgetPath EventPath = MouseEvent.GetEventPath() != nullptr ? *MouseEvent.GetEventPath() : FWidgetPath();
 	const FVector2D ScreenSpacePosition = MouseEvent.GetScreenSpacePosition();
 	FSlateApplication::Get().PushMenu(SharedThis(this), EventPath, MenuWidget, ScreenSpacePosition, FPopupTransitionEffect::ContextMenu);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void SFrameTrack::CreateSelectedFrameMenu(FMenuBuilder& MenuBuilder)
+{
+	FText SelectedFrameSectionName;
+	if (SelectedSample.IsValid())
+	{
+		SelectedFrameSectionName = FText::Format(LOCTEXT("ContextMenu_Section_SelectedFrame_Fmt", "{0} {1}"),
+			FFrameTrackDrawHelper::FrameTypeToText(SelectedSample.Series->FrameType),
+			FText::AsNumber(SelectedSample.Sample->LargestFrameIndex));
+	}
+	else
+	{
+		SelectedFrameSectionName = LOCTEXT("ContextMenu_Section_NoFrameSelected", "No Frame Selected");
+	}
+	MenuBuilder.BeginSection("SelectedFrame", SelectedFrameSectionName);
+
+	FUIAction Action_ScrollLogView
+	(
+		FExecuteAction::CreateSP(this, &SFrameTrack::ContextMenu_ScrollLogView_Execute),
+		FCanExecuteAction::CreateSP(this, &SFrameTrack::ContextMenu_ScrollLogView_CanExecute)
+	);
+	FText Label;
+	if (SelectedSample.IsValid())
+	{
+		FText StartTimeText = FText::FromString(TimeUtils::FormatTimeAuto(SelectedSample.Sample->LargestFrameStartTime, 2));
+		Label = FText::Format(LOCTEXT("ContextMenu_ScrollLogView_Fmt", "Scroll Log View (\u2192 {0})"), StartTimeText);
+	}
+	else
+	{
+		Label = LOCTEXT("ContextMenu_ScrollLogView", "Scroll Log View");
+	}
+	MenuBuilder.AddMenuEntry
+	(
+		Label,
+		LOCTEXT("ContextMenu_ScrollLogView_Desc", "Scrolls the Log View at the message with the closest timestamp to the start time of the selected frame."),
+		FSlateIcon(),
+		Action_ScrollLogView,
+		NAME_None,
+		EUserInterfaceActionType::Button
+	);
+
+	MenuBuilder.EndSection();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1597,6 +1652,48 @@ bool SFrameTrack::ContextMenu_ZoomTimingViewOnFrameSelection_CanExecute()
 bool SFrameTrack::ContextMenu_ZoomTimingViewOnFrameSelection_IsChecked()
 {
 	return bZoomTimingViewOnFrameSelection;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void SFrameTrack::ContextMenu_ScrollLogView_Execute()
+{
+	if (!SelectedSample.IsValid())
+	{
+		return;
+	}
+	TSharedPtr<STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
+	if (!TimingWindow.IsValid())
+	{
+		return;
+	}
+	TSharedPtr<SLogView> LogView = TimingWindow->GetLogView();
+	if (!LogView.IsValid())
+	{
+		return;
+	}
+	LogView->SelectLogMessageByClosestTime(SelectedSample.Sample->LargestFrameStartTime);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool SFrameTrack::ContextMenu_ScrollLogView_CanExecute()
+{
+	if (!SelectedSample.IsValid())
+	{
+		return false;
+	}
+	TSharedPtr<STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
+	if (!TimingWindow.IsValid())
+	{
+		return false;
+	}
+	TSharedPtr<SLogView> LogView = TimingWindow->GetLogView();
+	if (!LogView.IsValid())
+	{
+		return false;
+	}
+	return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

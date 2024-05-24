@@ -15,6 +15,7 @@
 #include "Insights/ViewModels/FrameTrackHelper.h"
 #include "Insights/ViewModels/FrameTrackViewport.h"
 
+class FMenuBuilder;
 class SScrollBar;
 class STimingView;
 
@@ -148,6 +149,7 @@ protected:
 	void SelectFrameAtMousePosition(double X, double Y, bool JoinCurrentSelection);
 
 	void ShowContextMenu(const FPointerEvent& MouseEvent);
+	void CreateSelectedFrameMenu(FMenuBuilder& MenuBuilder);
 
 	void ContextMenu_ShowGameFrames_Execute();
 	bool ContextMenu_ShowGameFrames_CanExecute();
@@ -170,6 +172,9 @@ protected:
 	bool ContextMenu_ZoomTimingViewOnFrameSelection_CanExecute();
 	bool ContextMenu_ZoomTimingViewOnFrameSelection_IsChecked();
 
+	void ContextMenu_ScrollLogView_Execute();
+	bool ContextMenu_ScrollLogView_CanExecute();
+
 	/** Binds our UI commands to delegates. */
 	void BindCommands();
 
@@ -185,22 +190,22 @@ protected:
 protected:
 	/** The track's viewport. Encapsulates info about position and scale. */
 	FFrameTrackViewport Viewport;
-	bool bIsViewportDirty;
+	bool bIsViewportDirty = false;
 
 	/** Cached info for all frame series. */
 	TArray<TSharedPtr<FFrameTrackSeries>> AllSeries;
 
-	bool bIsStateDirty;
+	bool bIsStateDirty = false;
 
-	bool bIsAutoZoomEnabled;
+	bool bIsAutoZoomEnabled = false;
 
-	float AutoZoomViewportPos;
-	float AutoZoomViewportScale;
-	float AutoZoomViewportSize;
+	float AutoZoomViewportPos = false;
+	float AutoZoomViewportScale = false;
+	float AutoZoomViewportSize = false;
 
-	bool bZoomTimingViewOnFrameSelection;
+	bool bZoomTimingViewOnFrameSelection = false;
 
-	uint64 AnalysisSyncNextTimestamp;
+	uint64 AnalysisSyncNextTimestamp = 0;
 
 	//////////////////////////////////////////////////
 
@@ -214,26 +219,27 @@ protected:
 
 	/** Mouse position during the call on mouse button down. */
 	FVector2D MousePositionOnButtonDown;
-	float ViewportPosXOnButtonDown;
+	float ViewportPosXOnButtonDown = 0.0f;
 
 	/** Mouse position during the call on mouse button up. */
 	FVector2D MousePositionOnButtonUp;
 
-	bool bIsLMB_Pressed;
-	bool bIsRMB_Pressed;
+	bool bIsLMB_Pressed = false;
+	bool bIsRMB_Pressed = false;
 
 	/** True, if the user is currently interactively scrolling the view (ex.: by holding the left mouse button and dragging). */
-	bool bIsScrolling;
+	bool bIsScrolling = false;
 
-	mutable bool bDrawVerticalAxisLabelsOnLeftSide;
+	mutable bool bDrawVerticalAxisLabelsOnLeftSide = false;
 
 	//////////////////////////////////////////////////
 	// Selection
 
 	FFrameTrackSampleRef HoveredSample;
+	FFrameTrackSampleRef SelectedSample;
 
-	mutable float TooltipOpacity;
-	mutable float TooltipSizeX;
+	mutable float TooltipOpacity = 0.0f;
+	mutable float TooltipSizeX = 0.0f;
 
 	//////////////////////////////////////////////////
 	// Misc
@@ -241,17 +247,17 @@ protected:
 	FGeometry ThisGeometry;
 
 	/** Cursor type. */
-	ECursorType CursorType;
+	ECursorType CursorType = ECursorType::Default;
 
-	STimingView* RegisteredTimingView = nullptr; // For pointer comparison only, do not dereferentiate.
+	STimingView* RegisteredTimingView = nullptr; // for pointer comparison only; do not dereferentiate!
 	FDelegateHandle OnTrackVisibilityChangedHandle;
 	FDelegateHandle OnTrackAddedHandle;
 	FDelegateHandle OnTrackRemovedHandle;
 
 	// Debug stats
-	int32 NumUpdatedFrames;
+	int32 NumUpdatedFrames = 0;
 	TFixedCircularBuffer<uint64, 32> UpdateDurationHistory;
 	mutable TFixedCircularBuffer<uint64, 32> DrawDurationHistory;
 	mutable TFixedCircularBuffer<uint64, 32> OnPaintDurationHistory;
-	mutable uint64 LastOnPaintTime;
+	mutable uint64 LastOnPaintTime = 0;
 };

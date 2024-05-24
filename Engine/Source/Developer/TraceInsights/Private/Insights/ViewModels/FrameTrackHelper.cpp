@@ -16,6 +16,8 @@
 
 #include <limits>
 
+#define LOCTEXT_NAMESPACE "FrameTrack"
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // FFrameTrackSeriesBuilder
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -107,9 +109,21 @@ const TCHAR* FFrameTrackDrawHelper::FrameTypeToString(int32 FrameType)
 {
 	switch (FrameType)
 	{
-	case TraceFrameType_Game:      return TEXT("Game");
-	case TraceFrameType_Rendering: return TEXT("Rendering");
-	default:                       return TEXT("Misc");
+		case TraceFrameType_Game:      return TEXT("Game");
+		case TraceFrameType_Rendering: return TEXT("Rendering");
+		default:                       return TEXT("Unknown");
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+FText FFrameTrackDrawHelper::FrameTypeToText(int32 FrameType)
+{
+	switch (FrameType)
+	{
+		case TraceFrameType_Game:      return LOCTEXT("GameFrame", "Game Frame");
+		case TraceFrameType_Rendering: return LOCTEXT("RenderingFrame", "Rendering Frame");
+		default:                       return LOCTEXT("UnknownFrame", "Unknown Frame");
 	}
 }
 
@@ -119,9 +133,9 @@ uint32 FFrameTrackDrawHelper::GetColor32ByFrameType(int32 FrameType)
 {
 	switch (FrameType)
 	{
-	case TraceFrameType_Game	:	return 0xFF5555FF;
-	case TraceFrameType_Rendering:	return 0xFFFF5555;
-	default:						return 0xFF666666;
+		case TraceFrameType_Game:      return 0xFF5555FF;
+		case TraceFrameType_Rendering: return 0xFFFF5555;
+		default:                       return 0xFF666666;
 	}
 }
 
@@ -132,9 +146,9 @@ FLinearColor FFrameTrackDrawHelper::GetColorByFrameType(int32 FrameType)
 	constexpr float Alpha = 0.9f;
 	switch (FrameType)
 	{
-	case TraceFrameType_Game:		return FLinearColor(0.75f, 1.0f, 1.0f, Alpha);
-	case TraceFrameType_Rendering:	return FLinearColor(1.0f, 0.75f, 0.75f, Alpha);
-	default:						return FLinearColor(1.0f, 1.0f, 1.0f, Alpha);
+		case TraceFrameType_Game:      return FLinearColor(0.75f, 1.0f, 1.0f, Alpha);
+		case TraceFrameType_Rendering: return FLinearColor(1.0f, 0.75f, 0.75f, Alpha);
+		default:                       return FLinearColor(1.0f, 1.0f, 1.0f, Alpha);
 	}
 }
 
@@ -314,3 +328,5 @@ void FFrameTrackDrawHelper::DrawHighlightedInterval(const FFrameTrackSeries& Ser
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#undef LOCTEXT_NAMESPACE

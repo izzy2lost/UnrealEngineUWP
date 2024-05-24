@@ -1007,12 +1007,9 @@ TSharedPtr<FLogMessage> SLogView::GetSelectedLogMessage() const
 
 void SLogView::SelectLogMessage(TSharedPtr<FLogMessage> LogMessage)
 {
+	ListView->SetSelection(LogMessage, ESelectInfo::Direct);
 	if (LogMessage.IsValid())
 	{
-		if (!ListView->IsItemSelected(LogMessage))
-		{
-			ListView->SetItemSelection(LogMessage, true, ESelectInfo::Direct);
-		}
 		ListView->RequestScrollIntoView(LogMessage);
 	}
 }
@@ -1213,7 +1210,8 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 			FLogMessageRecord& Record = Cache.Get(SelectedLogMessage->GetIndex());
 			FName CategoryName(Record.GetCategory());
 
-			MenuBuilder.AddMenuEntry(
+			MenuBuilder.AddMenuEntry
+			(
 				FLogViewCommands::Get().Command_HideSelectedCategory,
 				NAME_None,
 				FText::Format(LOCTEXT("HideCategory", "Hide \"{0}\" Category"), Record.GetCategoryAsText()),
@@ -1221,7 +1219,8 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 				FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Hidden")
 			);
 
-			MenuBuilder.AddMenuEntry(
+			MenuBuilder.AddMenuEntry
+			(
 				FLogViewCommands::Get().Command_ShowOnlySelectedCategory,
 				NAME_None,
 				FText::Format(LOCTEXT("ShowOnlyCategory", "Show Only \"{0}\" Category"), Record.GetCategoryAsText()),
@@ -1230,7 +1229,8 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 			);
 		}
 
-		MenuBuilder.AddMenuEntry(
+		MenuBuilder.AddMenuEntry
+		(
 			FLogViewCommands::Get().Command_ShowAllCategories,
 			NAME_None,
 			TAttribute<FText>(),
@@ -1240,7 +1240,8 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 
 		MenuBuilder.AddSeparator();
 
-		MenuBuilder.AddMenuEntry(
+		MenuBuilder.AddMenuEntry
+		(
 			FLogViewCommands::Get().Command_CopySelected,
 			NAME_None,
 			TAttribute<FText>(),
@@ -1248,7 +1249,8 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "GenericCommands.Copy")
 		);
 
-		MenuBuilder.AddMenuEntry(
+		MenuBuilder.AddMenuEntry
+		(
 			FLogViewCommands::Get().Command_CopyMessage,
 			NAME_None,
 			TAttribute<FText>(),
@@ -1256,7 +1258,8 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "GenericCommands.Copy")
 		);
 
-		MenuBuilder.AddMenuEntry(
+		MenuBuilder.AddMenuEntry
+		(
 			FLogViewCommands::Get().Command_CopyRange,
 			NAME_None,
 			TAttribute<FText>(),
@@ -1264,7 +1267,8 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "GenericCommands.Copy")
 		);
 
-		MenuBuilder.AddMenuEntry(
+		MenuBuilder.AddMenuEntry
+		(
 			FLogViewCommands::Get().Command_CopyAll,
 			NAME_None,
 			TAttribute<FText>(),
@@ -1274,7 +1278,8 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 
 		MenuBuilder.AddSeparator();
 
-		MenuBuilder.AddMenuEntry(
+		MenuBuilder.AddMenuEntry
+		(
 			FLogViewCommands::Get().Command_SaveRange,
 			NAME_None,
 			TAttribute<FText>(),
@@ -1282,7 +1287,8 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Save")
 		);
 
-		MenuBuilder.AddMenuEntry(
+		MenuBuilder.AddMenuEntry
+		(
 			FLogViewCommands::Get().Command_SaveAll,
 			NAME_None,
 			TAttribute<FText>(),
@@ -1324,12 +1330,14 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 						SourceCodeAccessor.GetNameText());
 				}
 
-				MenuBuilder.AddMenuEntry(
+				MenuBuilder.AddMenuEntry
+				(
 					FLogViewCommands::Get().Command_OpenSource,
 					NAME_None,
 					ItemLabel,
 					ItemToolTip,
-					FSlateIcon(SourceCodeAccessor.GetStyleSet(), SourceCodeAccessor.GetOpenIconName()));
+					FSlateIcon(SourceCodeAccessor.GetStyleSet(), SourceCodeAccessor.GetOpenIconName())
+				);
 			}
 			else
 			{
@@ -1347,13 +1355,15 @@ TSharedPtr<SWidget> SLogView::ListView_GetContextMenu()
 					ItemToolTip = LOCTEXT("ContextMenu_OpenSource_NoAccessor_Desc2", "Source Code Accessor is not available.");
 				}
 
-				MenuBuilder.AddMenuEntry(
+				MenuBuilder.AddMenuEntry
+				(
 					ItemLabel,
 					ItemToolTip,
 					FSlateIcon(SourceCodeAccessor.GetStyleSet(), SourceCodeAccessor.GetOpenIconName()),
 					FUIAction(FExecuteAction(), FCanExecuteAction::CreateLambda([]() { return false; })),
 					NAME_None,
-					EUserInterfaceActionType::None);
+					EUserInterfaceActionType::None
+				);
 			}
 		}
 	}
@@ -1447,8 +1457,10 @@ void SLogView::CreateVerbosityThresholdMenuSection(FMenuBuilder& MenuBuilder)
 				]
 			];
 
-		MenuBuilder.AddMenuEntry(
-			FUIAction(FExecuteAction::CreateSP(this, &SLogView::VerbosityThreshold_Execute, Threshold.Verbosity),
+		MenuBuilder.AddMenuEntry
+		(
+			FUIAction(
+				FExecuteAction::CreateSP(this, &SLogView::VerbosityThreshold_Execute, Threshold.Verbosity),
 				FCanExecuteAction(),
 				FIsActionChecked::CreateSP(this, &SLogView::VerbosityThreshold_IsChecked, Threshold.Verbosity)),
 			TextBlock,
@@ -1467,11 +1479,13 @@ TSharedRef<SWidget> SLogView::MakeCategoryFilterMenu()
 
 	MenuBuilder.BeginSection("QuickFilter", LOCTEXT("CategoryFilterMenu_Section_QuickFilter", "Quick Filter"));
 	{
-		MenuBuilder.AddMenuEntry(
+		MenuBuilder.AddMenuEntry
+		(
 			LOCTEXT("ShowAllCategories", "Show/Hide All"),
 			LOCTEXT("ShowAllCategories_Tooltip", "Change filtering to show/hide all categories"),
 			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateSP(this, &SLogView::ShowHideAllCategories_Execute),
+			FUIAction(
+				FExecuteAction::CreateSP(this, &SLogView::ShowHideAllCategories_Execute),
 				FCanExecuteAction(),
 				FIsActionChecked::CreateSP(this, &SLogView::ShowHideAllCategories_IsChecked)),
 			NAME_None,
@@ -1503,10 +1517,12 @@ void SLogView::CreateCategoriesFilterMenuSection(FMenuBuilder& MenuBuilder)
 			.ShadowOffset(FVector2D(1.0f, 1.0f))
 			.ColorAndOpacity(FSlateColor(FTimeMarkerTrackBuilder::GetColorByCategory(*CategoryString)));
 
-		MenuBuilder.AddMenuEntry(
-			FUIAction(FExecuteAction::CreateSP(this, &SLogView::ToggleCategory, CategoryName),
-			FCanExecuteAction(),
-			FIsActionChecked::CreateSP(this, &SLogView::IsLogCategoryEnabled, CategoryName)),
+		MenuBuilder.AddMenuEntry
+		(
+			FUIAction(
+				FExecuteAction::CreateSP(this, &SLogView::ToggleCategory, CategoryName),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateSP(this, &SLogView::IsLogCategoryEnabled, CategoryName)),
 			TextBlock,
 			NAME_None,
 			FText::Format(LOCTEXT("Category_Tooltip", "Filter the Log View to show/hide category: {0}"), CategoryText),

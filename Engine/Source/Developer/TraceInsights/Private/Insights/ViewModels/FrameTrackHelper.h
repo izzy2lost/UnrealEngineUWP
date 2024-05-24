@@ -162,6 +162,7 @@ public:
 	void DrawHighlightedInterval(const FFrameTrackSeries& Series, const double StartTime, const double EndTime) const;
 
 	static const TCHAR* FrameTypeToString(int32 FrameType);
+	static FText FrameTypeToText(int32 FrameType);
 	static uint32 GetColor32ByFrameType(int32 FrameType);
 	static FLinearColor GetColorByFrameType(int32 FrameType);
 
