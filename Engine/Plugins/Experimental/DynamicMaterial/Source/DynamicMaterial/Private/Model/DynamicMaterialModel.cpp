@@ -385,11 +385,6 @@ void UDynamicMaterialModel::FreeParameter(UDMMaterialParameter* InParameter)
 
 	InParameter->ParameterName = NAME_None;
 	InParameter->SetComponentState(EDMComponentLifetimeState::Removed);
-
-	if (IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = GetEditorOnlyData())
-	{
-		ModelEditorOnlyData->RequestMaterialBuild();
-	}
 }
 
 bool UDynamicMaterialModel::ConditionalFreeParameter(UDMMaterialParameter* InParameter)
