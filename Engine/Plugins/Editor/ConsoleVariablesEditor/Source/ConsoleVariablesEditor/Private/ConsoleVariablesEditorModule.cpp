@@ -302,7 +302,7 @@ void FConsoleVariablesEditorModule::OnRemoteCvarChanged(ERemoteCVarChangeType In
 		FConsoleVariablesEditorCommandInfo Info(InName);
 		if (IConsoleVariable* AsVariable = Info.GetConsoleVariablePtr())
 		{
-			AsVariable->Set(*InValue, InFlags);
+			AsVariable->Set(*InValue, (EConsoleVariableFlags)(InFlags & ECVF_SetByMask));
 		}
 		else
 		{
