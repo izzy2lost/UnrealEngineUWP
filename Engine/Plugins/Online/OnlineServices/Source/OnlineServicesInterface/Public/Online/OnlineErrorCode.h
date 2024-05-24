@@ -19,8 +19,6 @@ struct FOnlineErrorCode
 
 namespace ErrorCode
 {
-	static constexpr ErrorCodeType Success = ErrorCodeType(0);
-
 	ONLINESERVICESINTERFACE_API FString ToString(ErrorCodeType ErrorCode);
 
 	constexpr ErrorCodeType Create(uint32 System, uint32 Category, uint32 Code)
