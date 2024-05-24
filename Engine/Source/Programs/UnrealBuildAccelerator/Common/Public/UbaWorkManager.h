@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "UbaEvent.h"
 #include "UbaMemory.h"
 
 namespace uba
@@ -74,30 +75,57 @@ namespace uba
 	template<typename TContainer, typename TFunc>
 	void WorkManager::ParallelFor(u32 workCount, TContainer& container, const TFunc& func, const tchar* description)
 	{
-		auto it = container.begin();
-		auto end = container.end();
-		ReaderWriterLock lock;
-		Atomic<u32> workLeft = workCount;
+		struct Context
+		{
+			typename TContainer::iterator it;
+			typename TContainer::iterator end;
+			u32 refCount;
+			u32 activeCount;
+			bool isDone;
+			ReaderWriterLock lock;
+			Event* doneEvent;
+		};
 
-		AddWork([&]()
+		Event doneEvent(true);
+
+		auto context = new Context();
+		context->it = container.begin();
+		context->end = container.end();
+		context->refCount = workCount + 1;
+		context->activeCount = 0;
+		context->isDone = false;
+		context->doneEvent = &doneEvent;
+
+		auto work = [context, &func]()
 			{
+				u32 active = 0;
 				while (true)
 				{
-					SCOPED_WRITE_LOCK(lock, l);
-					if (it == end)
+					SCOPED_WRITE_LOCK(context->lock, l);
+					context->activeCount -= active;
+					context->isDone = context->it == context->end;
+					if (context->isDone)
 					{
+						if (context->activeCount == 0)
+							context->doneEvent->Set();
+						if (--context->refCount)
+							return;
 						l.Leave();
-						--workLeft;
+						delete context;
 						return;
 					}
-					auto it2 = it++;
+
+					auto it2 = context->it++;
+					active = 1;
+					context->activeCount += active;
 					l.Leave();
 
 					func(it2);
 				}
-			}, workCount, description);
-
-		while (workLeft)
-			DoWork();
+			};
+		
+		AddWork(work, workCount, description);
+		work();
+		doneEvent.IsSet();
 	}
 }

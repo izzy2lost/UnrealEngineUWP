@@ -334,6 +334,8 @@ namespace uba
 		u64 now = GetSystemTimeAsFileTime();
 		u64 oldest = now;
 
+		u32 workerCount = m_server.GetWorkerCount();
+		u32 workerCountToUse = workerCount > 0 ? workerCount - 1 : 0;
 
 		Atomic<u64> deleteEntryCount;
 
@@ -344,7 +346,7 @@ namespace uba
 
 			ReaderWriterLock existingCasLock;
 
-			m_server.ParallelFor(16, m_buckets, [&](auto& it)
+			m_server.ParallelFor(workerCountToUse, m_buckets, [&](auto& it)
 			{
 				Vector<u64*> touchedCas;
 
@@ -474,7 +476,7 @@ namespace uba
 			return true;
 
 		Atomic<u32> bucketCounter;
-		m_server.ParallelFor(16, m_buckets, [&](auto& it)
+		m_server.ParallelFor(workerCountToUse, m_buckets, [&](auto& it)
 		{
 			u64 bucketStartTime = GetTime();
 
@@ -595,7 +597,7 @@ namespace uba
 						UBA_ASSERT(writer2.GetPosition() == newOffsetsSize);
 					};
 
-				m_server.ParallelFor(16, bucket.m_cacheEntryLookup, [&](auto& it)
+				m_server.ParallelFor(workerCountToUse, bucket.m_cacheEntryLookup, [&](auto& it)
 					{
 						CacheEntries& entries = it->second;(void)entries;
 						for (auto& entry : entries.entries)
