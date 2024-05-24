@@ -21,6 +21,8 @@ struct FGraphProperties
 {
 	GENERATED_BODY()
 
+	FGraphProperties() = default;
+ 
 	UPROPERTY(SaveGame)
 	bool bGenerateIslands = true;
 	
