@@ -722,6 +722,7 @@ FSceneViewFamily::ConstructionValues FDisplayClusterViewportManager::CreateViewF
 		InEngineShowFlags.SetSeparateTranslucency(0);
 		InEngineShowFlags.SetHMDDistortion(0);
 		InEngineShowFlags.SetOnScreenDebug(0);
+		InEngineShowFlags.SetHair(0);
 
 		InEngineShowFlags.SetLumenReflections(0);
 		InEngineShowFlags.SetLumenGlobalIllumination(0);

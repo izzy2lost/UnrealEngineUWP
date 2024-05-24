@@ -215,6 +215,7 @@ bool FDisplayClusterShadersPreprocess_UVLightCards::RenderPreprocess_UVLightCard
 		EngineShowFlags.SetSeparateTranslucency(0);
 		EngineShowFlags.SetHMDDistortion(0);
 		EngineShowFlags.SetOnScreenDebug(0);
+		EngineShowFlags.SetHair(0);
 
 		EngineShowFlags.SetLumenReflections(0);
 		EngineShowFlags.SetLumenGlobalIllumination(0);
