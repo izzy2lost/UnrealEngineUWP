@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
+#if 0
 #pragma once
 
 #include "Containers/Set.h"
@@ -591,3 +591,4 @@ namespace PlainProps
 		using Type = UE::TSetBinding<T>;
 	};
 }
+#endif

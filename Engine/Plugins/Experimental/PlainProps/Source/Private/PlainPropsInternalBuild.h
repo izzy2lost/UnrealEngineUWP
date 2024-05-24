@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
+#if 0
 #pragma once
 
 #include "PlainPropsBuild.h"
@@ -102,3 +102,4 @@ PLAINPROPS_API uint64 WriteSkippableSlice(TArray64<uint8>& Out, TConstArrayView6
 
 
 } // namespace PlainProps
+#endif

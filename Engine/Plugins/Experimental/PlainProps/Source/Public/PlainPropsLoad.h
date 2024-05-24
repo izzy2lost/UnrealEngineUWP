@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
+#if 0
 #pragma once
 
 #include "Containers/ArrayView.h"
@@ -39,3 +39,4 @@ PLAINPROPS_API void LoadRange(uint8* Dst, FRangeView Src, ERangeSizeType MaxType
 
 } // namespace PlainProps
 
+#endif

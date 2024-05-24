@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
+#if 0
 #pragma once
 
 #include "PlainPropsBuild.h"
@@ -68,3 +68,4 @@ private:
 };
 
 } // namespace PlainProps
+#endif

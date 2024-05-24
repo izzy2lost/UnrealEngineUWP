@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
+#if 0
 #pragma once
 
 #include <cstdint>
@@ -92,3 +92,4 @@ static constexpr void ForEachVar(Fn&& Visitor)
 
 } // namespace PlainProps
 
+#endif
