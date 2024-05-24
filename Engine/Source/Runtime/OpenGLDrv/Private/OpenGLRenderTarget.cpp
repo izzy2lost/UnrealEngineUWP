@@ -756,12 +756,10 @@ void FOpenGLDynamicRHI::RHIReadSurfaceData(FRHITexture* TextureRHI,FIntRect Rect
 	TArray<uint8> Temp;
 
 	FOpenGLContextState& ContextState = GetContextStateForCurrentContext();
-	if (&ContextState != &InvalidContextState)
-	{
-		ReadSurfaceDataRaw(ContextState, TextureRHI, Rect, Temp, InFlags);
 
-		FMemory::Memcpy(OutData.GetData(), Temp.GetData(), Size * sizeof(FColor));
-	}
+	ReadSurfaceDataRaw(ContextState, TextureRHI, Rect, Temp, InFlags);
+	FMemory::Memcpy(OutData.GetData(), Temp.GetData(), Size * sizeof(FColor));
+
 	RHITHREAD_GLCOMMAND_EPILOGUE();
 }
 

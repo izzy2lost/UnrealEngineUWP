@@ -298,11 +298,6 @@ EOpenGLCurrentContext PlatformOpenGLCurrentContext(FPlatformOpenGLDevice* Device
 	return (EOpenGLCurrentContext)AndroidEGL::GetInstance()->GetCurrentContextType();
 }
 
-void* PlatformOpenGLCurrentContextHandle(FPlatformOpenGLDevice* Device)
-{
-	return AndroidEGL::GetInstance()->GetCurrentContext();
-}
-
 void PlatformRestoreDesktopDisplayMode()
 {
 }
@@ -378,11 +373,6 @@ bool PlatformOpenGLContextValid()
 	return AndroidEGL::GetInstance()->IsCurrentContextValid();
 }
 
-void PlatformGetBackbufferDimensions( uint32& OutWidth, uint32& OutHeight )
-{
-	AndroidEGL::GetInstance()->GetDimensions(OutWidth, OutHeight);
-}
-
 // =============================================================
 
 void PlatformGetNewOcclusionQuery( GLuint* OutQuery, uint64* OutQueryContext )
@@ -439,11 +429,6 @@ void FPlatformOpenGLDevice::LoadEXT()
 	glGetObjectLabelKHR = (PFNGLGETOBJECTLABELKHRPROC)((void*)eglGetProcAddress("glGetObjectLabelKHR"));
 	glObjectPtrLabelKHR = (PFNGLOBJECTPTRLABELKHRPROC)((void*)eglGetProcAddress("glObjectPtrLabelKHR"));
 	glGetObjectPtrLabelKHR = (PFNGLGETOBJECTPTRLABELKHRPROC)((void*)eglGetProcAddress("glGetObjectPtrLabelKHR"));
-}
-
-FPlatformOpenGLContext* PlatformGetOpenGLRenderingContext(FPlatformOpenGLDevice* Device)
-{
-	return AndroidEGL::GetInstance()->GetRenderingContext();
 }
 
 FPlatformOpenGLContext* PlatformCreateOpenGLContext(FPlatformOpenGLDevice* Device, void* InWindowHandle)
@@ -553,15 +538,6 @@ void FPlatformOpenGLDevice::SetupCurrentContext()
 	{
 		glGenVertexArrays(1, DefaultVao);
 		glBindVertexArray(*DefaultVao);
-	}
-}
-
-void PlatformLabelObjects()
-{
-	GLuint FrameBuffer = AndroidEGL::GetInstance()->GetResolveFrameBuffer();
-	if (FrameBuffer != 0)
-	{
-		FOpenGL::LabelObject(GL_FRAMEBUFFER, FrameBuffer, "ResolveFB");
 	}
 }
 

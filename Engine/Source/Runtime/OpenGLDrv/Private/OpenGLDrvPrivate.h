@@ -163,11 +163,6 @@ int32 PlatformGlGetError();
 EOpenGLCurrentContext PlatformOpenGLCurrentContext(FPlatformOpenGLDevice* Device);
 
 /**
- * Retrieve the address of the OpenGL context currently in use.
- */
-void* PlatformOpenGLCurrentContextHandle(FPlatformOpenGLDevice* Device);
-
-/**
  * Get new occlusion query from current context. This is provided from a cache inside the context
  * if some entries are in there, and created otherwise. All other released queries present in the
  * cache are deleted at the same time (as this is the earliest possible occasion when the context
@@ -204,11 +199,6 @@ FPlatformOpenGLDevice* PlatformCreateOpenGLDevice();
 bool PlatformCanEnableGPUCapture();
 
 /**
- * Label Objects. Needs a separate function because label GLSL api procedure would be loaded later down the line, and we need to label objects after that.
- */
-void PlatformLabelObjects();
-
-/**
  * Destroy the OpenGL device for single OpenGL RHI. This should happen when destroying the RHI.
  */
 void PlatformDestroyOpenGLDevice(FPlatformOpenGLDevice* Device);
@@ -218,11 +208,6 @@ void PlatformDestroyOpenGLDevice(FPlatformOpenGLDevice* Device);
  * transfer the rendering results to screen by rendering thread, inside RHIEndDrawingViewport().
  */
 FPlatformOpenGLContext* PlatformCreateOpenGLContext(FPlatformOpenGLDevice* Device, void* InWindowHandle);
-
-/**
- * Get rendering OpenGL context on current thread.
- */
-FPlatformOpenGLContext* PlatformGetOpenGLRenderingContext(FPlatformOpenGLDevice* Device);
 
 /**
  * Destroy a viewport OpenGL context.
@@ -279,11 +264,6 @@ bool PlatformGetAvailableResolutions(FScreenResolutionArray& Resolutions, bool b
  * Restore the original display mode
  */
 void PlatformRestoreDesktopDisplayMode();
-
-/**
- * Get current backbuffer dimensions.
- */
-void PlatformGetBackbufferDimensions( uint32& OutWidth, uint32& OutHeight );
 
 // Returns native window handle.
 void* PlatformGetWindow(FPlatformOpenGLContext* Context, void** AddParam);

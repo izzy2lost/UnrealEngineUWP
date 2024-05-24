@@ -181,32 +181,40 @@ extern void BeginFrame_QueryBatchCleanup();
 extern void OpenGL_PollAllFences();
 
 
-FOpenGLContextState& FOpenGLDynamicRHI::GetContextStateForCurrentContext(bool bAssertIfInvalid)
+FOpenGLContextState& FOpenGLDynamicRHI::GetContextStateForCurrentContext()
 {
-	// most common case
-	if (BeginSceneContextType == CONTEXT_Rendering)
+	if (!CachedContextState)
 	{
-		return RenderingContextState;
-	}
-	
-	int32 ContextType = (int32)PlatformOpenGLCurrentContext(PlatformDevice);
-	if (bAssertIfInvalid)
-	{
-			check(ContextType >= 0);
-	}
-	else if (ContextType < 0)
-	{
-		return InvalidContextState;
-	}
+		int32 ContextType = (int32)PlatformOpenGLCurrentContext(PlatformDevice);
+		checkf(ContextType >= 0, TEXT("Invalid GL context on current thread."));
 
-	if (ContextType == CONTEXT_Rendering)
-	{
-		return RenderingContextState;
+		if (ContextType == CONTEXT_Rendering)
+		{
+			CachedContextState = &RenderingContextState;
+		}
+		else
+		{
+			CachedContextState = &SharedContextState;
+		}
 	}
 	else
 	{
-		return SharedContextState;
+	#if DO_CHECK
+		switch ((int32)PlatformOpenGLCurrentContext(PlatformDevice))
+		{
+		default:
+		case CONTEXT_Other:
+		case CONTEXT_Invalid:
+			checkf(false, TEXT("Invalid GL context on current thread."));
+			break;
+
+		case CONTEXT_Rendering: check(CachedContextState == &RenderingContextState); break;
+		case CONTEXT_Shared   : check(CachedContextState == &SharedContextState   ); break;
+		}
+	#endif // DO_CHECK
 	}
+
+	return *CachedContextState;
 }
 
 void FOpenGLDynamicRHI::RHIBeginFrame()
@@ -250,12 +258,10 @@ void FOpenGLDynamicRHI::RHIAdvanceFrameFence()
 
 void FOpenGLDynamicRHI::RHIBeginScene()
 {
-	BeginSceneContextType = (int32)PlatformOpenGLCurrentContext(PlatformDevice);
 }
 
 void FOpenGLDynamicRHI::RHIEndScene()
 {
-	BeginSceneContextType = CONTEXT_Other;
 }
 
 #if PLATFORM_ANDROID
@@ -1296,7 +1302,6 @@ FDynamicRHI* FOpenGLDynamicRHIModule::CreateRHI(ERHIFeatureLevel::Type InRequest
 FOpenGLDynamicRHI::FOpenGLDynamicRHI()
 :	bRevertToSharedContextAfterDrawingViewport(false)
 ,	bIsRenderingContextAcquired(false)
-,   BeginSceneContextType(CONTEXT_Other)
 ,	PlatformDevice(NULL)
 #if (RHI_NEW_GPU_PROFILER == 0)
 ,	GPUProfilingData(this)
@@ -1556,6 +1561,7 @@ void FOpenGLDynamicRHI::RHIAcquireThreadOwnership()
 {
 	check(!bRevertToSharedContextAfterDrawingViewport);	// if this is true, then main thread is rendering using our context right now.
 	PlatformRenderingContextSetup(PlatformDevice);
+	CachedContextState = nullptr;
 
 	bIsRenderingContextAcquired = true;
 	VERIFY_GL(RHIAcquireThreadOwnership);
@@ -1567,6 +1573,7 @@ void FOpenGLDynamicRHI::RHIReleaseThreadOwnership()
 	bIsRenderingContextAcquired = false;
 
 	PlatformNULLContextSetup();
+	CachedContextState = nullptr;
 }
 
 void FOpenGLDynamicRHI::RegisterQuery( FOpenGLRenderQuery* Query )
@@ -1601,11 +1608,6 @@ void FOpenGLDynamicRHI::InvalidateQueries( void )
 			Queries[Index]->bInvalidResource = true;
 		}
 	}
-}
-
-void* FOpenGLDynamicRHI::GetOpenGLCurrentContextHandle()
-{
-	return PlatformOpenGLCurrentContextHandle(PlatformDevice);
 }
 
 void FOpenGLDynamicRHI::SetCustomPresent(FRHICustomPresent* InCustomPresent)

@@ -129,6 +129,7 @@ void FOpenGLDynamicRHI::RHIBeginDrawingViewport(FRHIViewport* ViewportRHI, FRHIT
 
 		bRevertToSharedContextAfterDrawingViewport = true;
 		PlatformRenderingContextSetup(PlatformDevice);
+		CachedContextState = nullptr;
 	}
 
 	// Set the render target and viewport.
@@ -214,6 +215,8 @@ void FOpenGLDynamicRHI::RHIEndDrawingViewport(FRHIViewport* ViewportRHI,bool bPr
 		if (bRevertToSharedContextAfterDrawingViewport)
 		{
 			PlatformSharedContextSetup(PlatformDevice);
+			CachedContextState = nullptr;
+
 			bRevertToSharedContextAfterDrawingViewport = false;
 		}
 	}

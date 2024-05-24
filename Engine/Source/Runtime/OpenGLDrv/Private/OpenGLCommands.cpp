@@ -2993,12 +2993,12 @@ void FOpenGLDynamicRHI::RHIPostExternalCommandsReset()
 	if((int)RCS.ElementArrayBufferBound >= 0) glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, RCS.ElementArrayBufferBound);
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, RCS.PixelUnpackBufferBound);
 	glBindBuffer(GL_UNIFORM_BUFFER, RCS.UniformBufferBound);
-	SCS.BlendState = RCS.BlendState = InvalidContextState.BlendState;
+	SCS.BlendState = RCS.BlendState = {};
 	glActiveTexture(GL_TEXTURE0);
 	SCS.ActiveTexture = RCS.ActiveTexture = 0;
-	SCS.RasterizerState = RCS.RasterizerState = InvalidContextState.RasterizerState;
+	SCS.RasterizerState = RCS.RasterizerState = {};
 	UpdateRasterizerStateInOpenGLContext(RCS);
-	SCS.ActiveStreamMask = RCS.ActiveStreamMask = InvalidContextState.ActiveStreamMask;
+	SCS.ActiveStreamMask = RCS.ActiveStreamMask = 0;
 	for (GLuint UniformBufferIndex = 0; UniformBufferIndex < CrossCompiler::NUM_SHADER_STAGES * OGL_MAX_UNIFORM_BUFFER_BINDINGS; UniformBufferIndex++)
 	{
 		SCS.UniformBuffers[UniformBufferIndex] = FOpenGLCachedUniformBuffer_Invalid;	// that'll enforce state update on next cache test

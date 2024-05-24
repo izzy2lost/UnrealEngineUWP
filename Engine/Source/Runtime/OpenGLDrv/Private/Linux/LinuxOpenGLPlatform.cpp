@@ -262,11 +262,6 @@ void PlatformDestroyOpenGLDevice(FPlatformOpenGLDevice* Device)
 	delete Device;
 }
 
-FPlatformOpenGLContext* PlatformGetOpenGLRenderingContext(FPlatformOpenGLDevice* Device)
-{
-	return &Device->RenderingContext;
-}
-
 /**
  * Create an OpenGL context.
  */
@@ -860,27 +855,6 @@ EOpenGLCurrentContext PlatformOpenGLCurrentContext(FPlatformOpenGLDevice* Device
 		return CONTEXT_Other;
 	}
 	return CONTEXT_Invalid;
-}
-
-void* PlatformOpenGLCurrentContextHandle(FPlatformOpenGLDevice* Device)
-{
-	return Linux_GetCurrentContext();
-}
-
-void PlatformGetBackbufferDimensions(uint32& OutWidth, uint32& OutHeight)
-{
-	SDL_HWindow CurrentWindow = SDL_GL_GetCurrentWindow();
-
-	int Width = 0;
-	int Height = 0;
-
-	if (CurrentWindow)
-	{
-		SDL_GL_GetDrawableSize(CurrentWindow, &Width, &Height);
-	}
-
-	OutWidth = Width;
-	OutHeight = Height;
 }
 
 // =============================================================

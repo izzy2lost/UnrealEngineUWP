@@ -525,7 +525,7 @@ public:
 	void CachedSetupTextureStageInner(FOpenGLContextState& ContextState, GLint TextureIndex, GLenum Target, GLuint Resource, GLint BaseMip, GLint NumMips);
 	void CachedSetupUAVStage(FOpenGLContextState& ContextState, GLint UAVIndex, GLenum Format, GLuint Resource, bool bLayered, GLint Layer, GLenum Access);
 	void UpdateSRV(FOpenGLShaderResourceView* SRV);
-	FOpenGLContextState& GetContextStateForCurrentContext(bool bAssertIfInvalid = true);
+	FOpenGLContextState& GetContextStateForCurrentContext();
 
 	FORCEINLINE void CachedBindArrayBuffer( FOpenGLContextState& ContextState, GLuint Buffer )
 	{
@@ -600,8 +600,6 @@ public:
 	FOpenGLSamplerState* GetPointSamplerState() const { return (FOpenGLSamplerState*)PointSamplerState.GetReference(); }
 
 	void InitializeGLTexture(FOpenGLTexture* Texture, const void* BulkDataPtr, uint64 BulkDataSize);
-
-	void* GetOpenGLCurrentContextHandle();
 
 	void SetCustomPresent(class FRHICustomPresent* InCustomPresent);
 
@@ -826,11 +824,10 @@ private:
 	TGlobalResource< TBoundShaderStateHistory<10000> > BoundShaderStateHistory;
 
 	/** Per-context state caching */
-	FOpenGLContextState InvalidContextState;
 	FOpenGLContextState	SharedContextState;
 	FOpenGLContextState	RenderingContextState;
 	// Cached context type on BeginScene
-	int32 BeginSceneContextType;
+	FOpenGLContextState* CachedContextState = nullptr;
 
 	template <typename TRHIShader>
 	void ApplyStaticUniformBuffers(TRHIShader* Shader);
