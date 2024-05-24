@@ -166,8 +166,9 @@ FString FSkeletalMeshModel::GetLODModelIdString() const
 	for (int32 LODIndex = 0; LODIndex < LODModels.Num(); ++LODIndex)
 	{
 		const FSkeletalMeshLODModel& Model = LODModels[LODIndex];
-		Model.BuildStringID = Model.GetLODModelDeriveDataKey();
-		TArray<TCHAR, FString::AllocatorType> IDArray = Model.BuildStringID.GetCharArray();
+		const FString BuildStringID = Model.GetLODModelDeriveDataKey();
+		Model.BuildStringID = BuildStringID;
+		TArray<TCHAR, FString::AllocatorType> IDArray = BuildStringID.GetCharArray();
 		Sha.Update((uint8*)IDArray.GetData(), IDArray.Num() * IDArray.GetTypeSize());
 	}
 	Sha.Final();
