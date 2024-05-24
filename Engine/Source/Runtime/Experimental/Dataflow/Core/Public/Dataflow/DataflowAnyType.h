@@ -36,3 +36,28 @@ struct FDataflowNumericTypes : public FDataflowAnyType
 	UPROPERTY(EditAnywhere, Category=Value)
 	double Value = 0.0;
 };
+
+USTRUCT()
+struct FDataflowStringTypes : public FDataflowAnyType
+{
+	using FPolicyType = FDataflowStringTypePolicy;
+	using FStorageType = FString;
+
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, Category = Value)
+	FString Value;
+};
+
+USTRUCT()
+struct FDataflowStringConvertibleTypes : public FDataflowAnyType
+{
+	using FPolicyType = FDataflowStringConvertibleTypePolicy;
+	using FStorageType = FString;
+
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, Category = Value)
+	FString Value;
+};
+

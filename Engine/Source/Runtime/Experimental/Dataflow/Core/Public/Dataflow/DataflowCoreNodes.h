@@ -62,3 +62,28 @@ private:
 	virtual bool OnInputTypeChanged(const FDataflowInput* Input) override;
 	virtual bool OnOutputTypeChanged(const FDataflowOutput* Input) override;
 };
+
+/** 
+* Print value in the log
+* Supports any type comnvertible to a string 
+*/
+USTRUCT()
+struct FDataflowPrintNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+
+	DATAFLOW_NODE_DEFINE_INTERNAL(FDataflowPrintNode, "Print", "Core", "")
+
+public:
+	FDataflowPrintNode(const Dataflow::FNodeParameters& Param, FGuid InGuid = FGuid::NewGuid());
+	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const;
+
+public:
+	UPROPERTY(meta = (DataflowInput, DisplayName = "Value"))
+	FDataflowStringConvertibleTypes Value;
+};
+
+namespace Dataflow
+{
+	void RegisterCoreNodes();
+}

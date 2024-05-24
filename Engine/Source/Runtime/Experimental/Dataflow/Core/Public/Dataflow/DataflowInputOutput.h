@@ -157,8 +157,9 @@ public:
 		TAnyType::FPolicyType::VisitPolicyByType(GetType(),
 			[this, &Context, &InVal](auto SingleTypePolicy)
 			{
-				using FSingleType = typename decltype(SingleTypePolicy)::FReturnType;
-				FSingleType ValueToSet(InVal);
+				using FSingleType = typename decltype(SingleTypePolicy)::FType;
+				FSingleType ValueToSet{};
+				FDataflowConverter<typename TAnyType::FStorageType>::To(InVal, ValueToSet);
 				Context.SetData(CacheKey(), GetProperty(), Forward<FSingleType>(ValueToSet), GetOwningNodeGuid(), GetOwningNodeValueHash(), Dataflow::FTimestamp::Current());
 			});
 	}
@@ -228,9 +229,10 @@ typename TAnyType::FStorageType FDataflowInput::GetValueFromAnyType(Dataflow::FC
 					TAnyType::FPolicyType::VisitPolicyByType(GetType(),
 						[this, &Context, &CacheEntry, &ReturnValue](auto SingleTypePolicy)
 						{
-							using FSingleType = typename decltype(SingleTypePolicy)::FReturnType;
+							using FSingleType = typename decltype(SingleTypePolicy)::FType;
 							FSingleType Default{};
-							ReturnValue = (*CacheEntry)->GetTypedData<FSingleType>(Context, nullptr, Default);
+							const FSingleType& CachedValue = (*CacheEntry)->GetTypedData<FSingleType>(Context, nullptr, Default);
+							FDataflowConverter<typename TAnyType::FStorageType>::From(CachedValue, ReturnValue);
 						});
 				}
 			}

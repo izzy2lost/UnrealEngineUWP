@@ -95,9 +95,9 @@ public:
 /**
  *
  * Description for this node
- *
+ * DEPRECATED - use Print node ( core nodes ) 
  */
-USTRUCT()
+USTRUCT(meta = (Deprecated = "5.5"))
 struct FPrintStringDataflowNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
@@ -133,9 +133,9 @@ public:
 /**
  *
  * Description for this node
- *
- */
-USTRUCT()
+ * DEPRECATED - use Print node ( core nodes ) 
+  */
+USTRUCT(meta=(Deprecated = "5.5"))
 struct FLogStringDataflowNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()

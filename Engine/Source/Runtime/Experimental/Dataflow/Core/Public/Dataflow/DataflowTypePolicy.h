@@ -27,7 +27,8 @@ struct FDataflowAllTypesPolicy : public IDataflowTypePolicy
 template <typename T>
 struct TDataflowSingleTypePolicy : public IDataflowTypePolicy
 {
-	using FReturnType = T;
+	using FType = T;
+
 	virtual bool SupportsType(FName InType) const override
 	{
 		return SupportsTypeStatic(InType);
@@ -82,11 +83,12 @@ struct TDataflowMultiTypePolicy<>: public IDataflowTypePolicy
 	}
 };
 
+Expose_TNameOf(bool);
+
 template <typename T, typename... TTypes>
 struct TDataflowMultiTypePolicy<T, TTypes...>: public TDataflowMultiTypePolicy<TTypes...>
 {
 	using Super = TDataflowMultiTypePolicy<TTypes...>;
-	using FReturnType = T;
 
 	virtual bool SupportsType(FName InType) const override
 	{
@@ -119,4 +121,106 @@ struct TDataflowMultiTypePolicy<T, TTypes...>: public TDataflowMultiTypePolicy<T
 struct FDataflowNumericTypePolicy : 
 	public TDataflowMultiTypePolicy<double, float, int64, uint64, int32, uint32, int16, uint16, int8, uint8>
 {
+};
+
+struct FDataflowStringTypePolicy :
+	public TDataflowMultiTypePolicy<FString, FName>
+{
+};
+
+/**
+* string comvertible types
+* - FString / Fname
+* - Numeric types ( see FDataflowNumericTypePolicy )
+* - bool
+*/
+struct FDataflowStringConvertibleTypePolicy : IDataflowTypePolicy
+{
+	virtual bool SupportsType(FName InType) const override
+	{
+		return SupportsTypeStatic(InType);
+	}
+
+	static bool SupportsTypeStatic(FName InType)
+	{
+		return FDataflowStringTypePolicy::SupportsTypeStatic(InType)
+			|| FDataflowNumericTypePolicy::SupportsTypeStatic(InType)
+			|| TDataflowSingleTypePolicy<bool>::SupportsTypeStatic(InType)
+			;
+	}
+
+	template <typename TVisitor>
+	static bool VisitPolicyByType(FName RequestedType, TVisitor Visitor)
+	{
+		return FDataflowStringTypePolicy::VisitPolicyByType(RequestedType, Visitor)
+			|| FDataflowNumericTypePolicy::VisitPolicyByType(RequestedType, Visitor)
+			|| TDataflowSingleTypePolicy<bool>::VisitPolicyByType(RequestedType, Visitor)
+			;
+	}
+
+	static IDataflowTypePolicy* GetInterface()
+	{
+		static FDataflowStringConvertibleTypePolicy Instance;
+		return &Instance;
+	}
+};
+
+// type Converters
+
+template <typename T>
+struct FDataflowConverter
+{
+	template <typename TFromType>
+	static void From(const TFromType& From, T& To) { To = From; }
+
+	template <typename TToType>
+	static void To(const T& From, TToType& To) { To = From; }
+};
+
+template <>
+struct FDataflowConverter<FString>
+{
+	template <typename TFromType>
+	static void From(const TFromType& From, FString& To)
+	{
+		if constexpr (std::is_same_v<TFromType, FName>)
+		{
+			To = From.ToString();
+		}
+		else if constexpr (std::is_same_v<TFromType, bool>)
+		{
+			To = FString((From == true) ? "True" : "False");
+		}
+		else if constexpr (std::is_convertible_v<TFromType, double>)
+		{
+			To = FString::SanitizeFloat(double(From), 0);
+		}
+		else
+		{
+			To = From;
+		}
+	}
+
+	template <typename TToType>
+	static void To(const FString& From, TToType& To)
+	{
+		if constexpr (std::is_same_v<TToType, FName>)
+		{
+			To = FName(From);
+		}
+		else if constexpr (std::is_same_v<TToType, bool>)
+		{
+			To = From.ToBool();
+		}
+		else if constexpr (std::is_convertible_v<double, TToType>)
+		{
+			double Result = {};
+			LexTryParseString(Result, *From);
+			To = Result;
+		}
+		else
+		{
+			To = From;
+		}
+	}
 };

@@ -1,8 +1,18 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Dataflow/DataflowCoreNodes.h"
+#include "Dataflow/DataflowNode.h"
+#include "Dataflow/DataflowNodeFactory.h"
 
-
+namespace Dataflow
+{
+	void RegisterCoreNodes()
+	{
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowReRouteNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowBranchNode);
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowPrintNode);
+	}
+}
 
 FDataflowReRouteNode::FDataflowReRouteNode(const Dataflow::FNodeParameters& Param, FGuid InGuid)
 	: Super(Param, InGuid)
@@ -72,4 +82,17 @@ bool FDataflowBranchNode::OnOutputTypeChanged(const FDataflowOutput* Input)
 		  SetInputConcreteType(&TrueValue, Input->GetType())
 		| SetInputConcreteType(&FalseValue, Input->GetType()) //-V792
 		);
+}
+
+
+FDataflowPrintNode::FDataflowPrintNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
+	: FDataflowNode(InParam, InGuid)
+{
+	RegisterInputConnection(&Value);
+}
+
+void FDataflowPrintNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	const FString InValue = GetValue(Context, &Value);
+	UE_LOG(LogTemp, Warning, TEXT("[Dataflow Print] %s"), *InValue);
 }

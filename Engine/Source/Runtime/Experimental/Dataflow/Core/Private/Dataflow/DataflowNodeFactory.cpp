@@ -15,11 +15,8 @@ namespace Dataflow
 
 	void FNodeFactory::RegisterDefaultNodes()
 	{
-		// by default always register a reroute node
-		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowReRouteNode);
-		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FDataflowBranchNode);
+		Dataflow::RegisterCoreNodes();
 	}
-
 
 	TSharedPtr<FDataflowNode> FNodeFactory::NewNodeFromRegisteredType(FGraph& Graph, const FNewNodeParameters& Param)
 	{ 
