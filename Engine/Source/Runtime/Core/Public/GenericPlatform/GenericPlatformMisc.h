@@ -1578,6 +1578,8 @@ public:
 		return ENetworkConnectionType::Unknown;
 	}
 
+	static void EnsureNetworkIfNecessary()	{}
+
 	/**
 	 * Returns whether the platform has variable hardware (configurable/upgradeable system).
 	 */
