@@ -105,7 +105,7 @@ public class UbaAgentTarget : TargetRules
 		}
 
 		int useMiMalloc = 0;
-		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))// || Target.Platform.IsInGroup(UnrealPlatformGroup.Linux))
+		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) || (!Rules.bShouldCompileAsDLL && Target.Platform.IsInGroup(UnrealPlatformGroup.Linux)))
 		{
 			if (Rules.bUsePCHFiles)
 			{
