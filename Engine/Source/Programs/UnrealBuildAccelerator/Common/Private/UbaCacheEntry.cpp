@@ -1,3 +1,5 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
 #include "UbaCacheEntry.h"
 #include "UbaFile.h"
 #include <algorithm>
