@@ -17,6 +17,7 @@
 #include "Rundown/AvaRundownEditorUtils.h"
 #include "Rundown/AvaRundownPage.h"
 #include "Rundown/AvaRundownPlaybackUtils.h"
+#include "Rundown/AvaRundownSerializationUtils.h"
 #include "Rundown/Factories/Filters/AvaRundownFactoriesUtils.h"
 #include "Rundown/Factories/Filters/IAvaRundownFilterSuggestionFactory.h"
 #include "Rundown/Pages/AvaRundownPageContext.h"
@@ -766,6 +767,7 @@ void SAvaRundownPageList::ExportSelectedPagesToExternalFile(const TCHAR* InType)
 	}
 
 	using namespace UE::AvaRundownEditor::Utils;
+	using namespace UE::AvaMedia::RundownSerializationUtils;
 	if (const TStrongObjectPtr<UAvaRundown> NewRundown = ExportPagesToRundown(SourceRundown, SelectedPageIds))
 	{
 		if (FCString::Stricmp(InType, TEXT("json")) == 0)
@@ -773,7 +775,13 @@ void SAvaRundownPageList::ExportSelectedPagesToExternalFile(const TCHAR* InType)
 			const FString ExportFilename = GetExportFilepath(SourceRundown, TEXT("json file"), TEXT("json"));
 			if (!ExportFilename.IsEmpty())
 			{
-				SaveRundownToJson(NewRundown.Get(), *ExportFilename);
+				FText ErrorMessage;
+				if (!SaveRundownToJson(NewRundown.Get(), *ExportFilename, ErrorMessage))
+				{
+					UE_LOG(LogAvaRundown, Error,
+						TEXT("Failed to export rundown \"%s\" to file \"%s\". Reason: %s"),
+						*NewRundown->GetFullName(), *ExportFilename, *ErrorMessage.ToString());
+				}
 			}
 		}
 		else if (FCString::Stricmp(InType, TEXT("xml")) == 0)
@@ -781,7 +789,7 @@ void SAvaRundownPageList::ExportSelectedPagesToExternalFile(const TCHAR* InType)
 			const FString ExportFilename = GetExportFilepath(SourceRundown, TEXT("xml file"), TEXT("xml"));
 			if (!ExportFilename.IsEmpty())
 			{
-				SaveRundownToXml(NewRundown.Get(), *ExportFilename);
+				SaveRundownToXml(NewRundown.Get(), *ExportFilename, EXmlSerializationEncoding::Utf8);
 			}
 		}
 		else

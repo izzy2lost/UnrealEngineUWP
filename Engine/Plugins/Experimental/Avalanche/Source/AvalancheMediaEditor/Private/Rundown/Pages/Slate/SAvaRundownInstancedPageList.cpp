@@ -11,6 +11,7 @@
 #include "Rundown/AvaRundownEditorUtils.h"
 #include "Rundown/AvaRundownPage.h"
 #include "Rundown/AvaRundownPlaybackUtils.h"
+#include "Rundown/AvaRundownSerializationUtils.h"
 #include "Rundown/Factories/Filters/AvaRundownFactoriesUtils.h"
 #include "Rundown/Pages/Columns/AvaRundownPageAssetNameColumn.h"
 #include "Rundown/Pages/Columns/AvaRundownPageChannelSelectorColumn.h"
@@ -597,9 +598,11 @@ bool SAvaRundownInstancedPageList::HandleDropExternalFiles(const TArray<FString>
 		if (FPathViews::GetExtension(File).Equals(TEXT("json"), ESearchCase::IgnoreCase))
 		{
 			using namespace UE::AvaRundownEditor::Utils;
+			using namespace UE::AvaMedia::RundownSerializationUtils;
 			const TStrongObjectPtr<UAvaRundown> TmpRundown(NewObject<UAvaRundown>());
+			FText ErrorMessage;
 			
-			if (LoadRundownFromJson(TmpRundown.Get(), *File))
+			if (LoadRundownFromJson(TmpRundown.Get(), *File, ErrorMessage))
 			{
 				if (!TmpRundown->GetInstancedPages().Pages.IsEmpty())
 				{
@@ -621,7 +624,7 @@ bool SAvaRundownInstancedPageList::HandleDropExternalFiles(const TArray<FString>
 			}
 			else
 			{
-				UE_LOG(LogAvaRundown, Error, TEXT("%s is not a valid rundown."), *File);
+				UE_LOG(LogAvaRundown, Error, TEXT("Failed to load rundown from file \"%s\". Reason: %s."), *File, *ErrorMessage.ToString());
 			}
 		}
 		else

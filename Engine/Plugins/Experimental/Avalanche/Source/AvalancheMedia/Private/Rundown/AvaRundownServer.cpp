@@ -8,6 +8,7 @@
 #include "Async/Async.h"
 #include "AvaMediaMessageUtils.h"
 #include "AvaMediaRenderTargetUtils.h"
+#include "AvaMediaSerializationUtils.h"
 #include "AvaRemoteControlUtils.h"
 #include "Broadcast/AvaBroadcast.h"
 #include "Broadcast/OutputDevices/AvaBroadcastOutputClassItem.h"
@@ -32,11 +33,13 @@
 #include "Rundown/AvaRundownManagedInstanceCache.h"
 #include "Rundown/AvaRundownPagePlayer.h"
 #include "Rundown/AvaRundownPlaybackUtils.h"
+#include "Rundown/AvaRundownSerializationUtils.h"
 #include "Rundown/AvaRundownServerMediaOutputUtils.h"
 #include "TextureResource.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
+#include "ObjectTools.h"
 #include "ScopedTransaction.h"
 #include "Subsystems/EditorAssetSubsystem.h"
 #endif
@@ -52,7 +55,7 @@ namespace UE::AvaRundownServer::Private
 
 	EAvaRundownServerBuildTargetType GetRundownEngineBuild()
 	{
-		switch(FApp::GetBuildTargetType())
+		switch (FApp::GetBuildTargetType())
 		{
 		case EBuildTargetType::Unknown:
 			return EAvaRundownServerBuildTargetType::Unknown;
@@ -100,6 +103,55 @@ namespace UE::AvaRundownServer::Private
 		}
 		
 		return EAvaRundownServerEngineMode::Other;
+	}
+
+	void SanitizeInvalidCharsInline(FString& InOutText, const TCHAR* InvalidChars)
+	{
+		const TCHAR* InvalidChar = InvalidChars ? InvalidChars : TEXT("");
+		while (*InvalidChar)
+		{
+			InOutText.ReplaceCharInline(*InvalidChar, TCHAR('_'), ESearchCase::CaseSensitive);
+			++InvalidChar;
+		}
+	}
+	
+	FString SanitizePackageName(const FString& InPackageName)
+	{
+		// Ensure no backslashes.
+		FString SanitizedName = InPackageName.Replace(TEXT("\\"), TEXT("/"));
+
+		// Replace any other invalid characters with '_'.
+		SanitizeInvalidCharsInline(SanitizedName, INVALID_LONGPACKAGE_CHARACTERS);
+
+		// Coalesce multiple contiguous slashes into a single slash
+		int32 CharIndex = 0;
+		while (CharIndex < SanitizedName.Len())
+		{
+			if (SanitizedName[CharIndex] == TEXT('/'))
+			{
+				int32 SlashCount = 1;
+				while (CharIndex + SlashCount < SanitizedName.Len() &&
+					   SanitizedName[CharIndex + SlashCount] == TEXT('/'))
+				{
+					SlashCount++;
+				}
+
+				if (SlashCount > 1)
+				{
+					SanitizedName.RemoveAt(CharIndex + 1, SlashCount - 1, EAllowShrinking::No);
+				}
+			}
+
+			CharIndex++;
+		}
+
+		// Finally, ensure it begins with "/" since this is an absolute package name.
+		if (!SanitizedName.StartsWith(TEXT("/")))
+		{
+			SanitizedName = FString(TEXT("/")) + SanitizedName;
+		}
+
+		return SanitizedName;
 	}
 	
 	inline FAvaRundownPageInfo GetPageInfo(const UAvaRundown* InRundown, const FAvaRundownPage& InPage)
@@ -289,6 +341,31 @@ const FMessageAddress& FAvaRundownServer::GetMessageAddress() const
 	return InvalidMessageAddress;
 }
 
+void FAvaRundownServer::AddReferencedObjects(FReferenceCollector& InCollector)
+{
+	if (RundownEditCommandData.CurrentRundown)
+	{
+		InCollector.AddReferencedObject(RundownEditCommandData.CurrentRundown);
+	}
+	if (RundownPlaybackCommandData.CurrentRundown)
+	{
+		InCollector.AddReferencedObject(RundownPlaybackCommandData.CurrentRundown);
+	}
+
+	for (TPair<FSoftObjectPath, TObjectPtr<UAvaRundown>>& ManagedRundown : ManagedRundowns)
+	{
+		if (IsValid(ManagedRundown.Value.Get()))
+		{
+			InCollector.AddReferencedObject(ManagedRundown.Value);
+		}
+	}
+}
+
+FString FAvaRundownServer::GetReferencerName() const
+{
+	return TEXT("FAvaRundownServer");
+}
+
 void FAvaRundownServer::Init(const FString& InAssignedHostName)
 {
 	HostName = InAssignedHostName.IsEmpty() ? FPlatformProcess::ComputerName() : InAssignedHostName;
@@ -298,6 +375,10 @@ void FAvaRundownServer::Init(const FString& InAssignedHostName)
 	.Handling<FAvaRundownGetServerInfo>(this, &FAvaRundownServer::HandleGetRundownServerInfo)
 	.Handling<FAvaRundownGetRundowns>(this, &FAvaRundownServer::HandleGetRundowns)
 	.Handling<FAvaRundownLoadRundown>(this, &FAvaRundownServer::HandleLoadRundown)
+	.Handling<FAvaRundownCreateRundown>(this, &FAvaRundownServer::HandleCreateRundown)
+	.Handling<FAvaRundownDeleteRundown>(this, &FAvaRundownServer::HandleDeleteRundown)
+	.Handling<FAvaRundownImportRundown>(this, &FAvaRundownServer::HandleImportRundown)
+	.Handling<FAvaRundownExportRundown>(this, &FAvaRundownServer::HandleExportRundown)
 	.Handling<FAvaRundownSaveRundown>(this, &FAvaRundownServer::HandleSaveRundown)
 	.Handling<FAvaRundownCreatePage>(this, &FAvaRundownServer::HandleCreatePage)
 	.Handling<FAvaRundownDeletePage>(this, &FAvaRundownServer::HandleDeletePage)
@@ -385,7 +466,7 @@ void FAvaRundownServer::OnPageListChanged(const FAvaRundownPageListChangeParams&
 
 void FAvaRundownServer::OnPagesChanged(const UAvaRundown* InRundown, const FAvaRundownPage& InPage, EAvaRundownPageChanges InChange) const
 {
-	switch(InChange)
+	switch (InChange)
 	{
 	case EAvaRundownPageChanges::AnimationSettings:
 		{
@@ -576,7 +657,7 @@ void FAvaRundownServer::HandleGetRundowns(const FAvaRundownGetRundowns& InMessag
 
 	ReplyMessage->RequestId = InMessage.RequestId;
 	
-	// List all the play list.
+	// List all the rundown assets.
 	if (IAssetRegistry* AssetRegistry = IAssetRegistry::Get())
 	{
 		TArray<FAssetData> Assets;
@@ -587,6 +668,15 @@ void FAvaRundownServer::HandleGetRundowns(const FAvaRundownGetRundowns& InMessag
 			{
 				ReplyMessage->Rundowns.Add(Data.ToSoftObjectPath().ToString());
 			}
+		}
+	}
+
+	// Adding the managed rundowns as well, in case they are not listed in the asset registry.
+	for (const TPair<FSoftObjectPath, TObjectPtr<UAvaRundown>>& ManagedRundown : ManagedRundowns)
+	{
+		if (IsValid(ManagedRundown.Value))
+		{
+			ReplyMessage->Rundowns.AddUnique(ManagedRundown.Key.ToString());
 		}
 	}
 
@@ -624,6 +714,225 @@ void FAvaRundownServer::HandleLoadRundown(const FAvaRundownLoadRundown& InMessag
 
 	SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log,
 		TEXT("Rundown \"%s\" loaded."), *RundownPlaybackCommandData.CurrentRundownPath.ToString());
+}
+
+void FAvaRundownServer::HandleCreateRundown(const FAvaRundownCreateRundown& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
+{
+	if (InMessage.PackagePath.IsEmpty() || InMessage.AssetName.IsEmpty())
+	{
+		SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
+			TEXT("\"CreateRundown\" Failed: No rundown path/name specified."));
+		return;
+	}
+
+	using namespace UE::AvaRundownServer;
+	
+	FString PackageName = Private::SanitizePackageName(InMessage.PackagePath + TEXT("/") + InMessage.AssetName);
+
+#if WITH_EDITOR
+	const bool bTransient = InMessage.bTransient;
+#else
+	const bool bTransient = true;
+#endif
+
+	if (bTransient)
+	{
+		static const FString GamePath(TEXT("/Game"));
+		if (PackageName.StartsWith(GamePath))	// ignore case
+		{
+			PackageName = PackageName.Mid(GamePath.Len());
+		}
+
+		static const FString TempPath(TEXT("/Temp"));
+		
+		// Ensure the path begins with /Temp
+		if (!PackageName.StartsWith(TempPath))	// ignore case
+		{
+			PackageName = Private::SanitizePackageName(TempPath + TEXT("/") + PackageName);
+		}
+	}
+
+	if (FindPackage(nullptr, *PackageName))
+	{
+		SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
+			TEXT("\"CreateRundown\" Failed: Requested package \"%s\" already exists."), *PackageName);
+		return;
+	}
+
+	UPackage* const RundownPackage = CreatePackage(*PackageName);
+
+	if (!RundownPackage)
+	{
+		SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
+			TEXT("\"CreateRundown\" Failed: Requested package \"%s\" could not be created."), *PackageName);
+		return;
+	}
+		
+	if (bTransient)
+	{
+		RundownPackage->SetFlags(RF_Transient);
+	}
+
+	constexpr EObjectFlags AssetFlags = RF_Public|RF_Standalone|RF_Transactional;
+	UAvaRundown* Rundown = NewObject<UAvaRundown>(RundownPackage, FName(*InMessage.AssetName), AssetFlags);
+
+	if (!bTransient)
+	{
+		FAssetRegistryModule::AssetCreated(Rundown);
+		RundownPackage->MarkPackageDirty();
+	}
+
+	// The created rundown is added to a managed list to be kept alive by the server as long as it is running.
+	const FSoftObjectPath RundownPath(Rundown);
+
+	if (bTransient)
+	{
+		ManagedRundowns.Add(RundownPath, Rundown);
+	}
+
+	SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log,
+	TEXT("Rundown \"%s\" Created."), *RundownPath.ToString());
+}
+
+void FAvaRundownServer::HandleDeleteRundown(const FAvaRundownDeleteRundown& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
+{
+	// Deleting requires explicit specification of the rundown.
+	if (InMessage.Rundown.IsEmpty())
+	{
+		SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
+			TEXT("\"DeleteRundown\": Rundown asset not specified."));
+		return;
+	}
+	
+	FSoftObjectPath RundownPath(InMessage.Rundown);
+
+	// Only allow rundowns to be deleted if not playing.
+	// We will require an explicit stop command for security reasons.
+	UAvaRundown* Rundown = Cast<UAvaRundown>(RundownPath.ResolveObject());
+	if (Rundown && Rundown->IsPlaying())
+	{
+		SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
+			TEXT("\"DeleteRundown\": Rundown is currently playing. It must be stopped first."));
+		return;
+	}
+
+	if (ManagedRundowns.Remove(RundownPath) > 0)
+	{
+		SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log,
+			TEXT("\"DeleteRundown\": Rundown \"%s\" removed."), *InMessage.Rundown);
+		return;
+	}
+	
+#if WITH_EDITOR
+	FAssetData RundownAsset;
+	if (FAssetRegistryModule::GetRegistry().TryGetAssetByObjectPath(RundownPath, RundownAsset) == UE::AssetRegistry::EExists::Exists)
+	{
+		TArray<FAssetData> AssetData;
+		AssetData.Add(RundownAsset);
+		ObjectTools::DeleteAssets(AssetData, /*bShowConfirmation*/ false);
+		
+		SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log,
+			TEXT("\"DeleteRundown\": Rundown \"%s\" deleted."), *InMessage.Rundown);
+		return;
+	}
+#endif
+	
+	SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
+		TEXT("\"DeleteRundown\": Rundown \"%s\" not found."), *InMessage.Rundown);
+}
+
+void FAvaRundownServer::HandleImportRundown(const FAvaRundownImportRundown& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
+{
+	UAvaRundown* Rundown = GetOrLoadRundownForEdit(InContext->GetSender(), InMessage.RequestId, InMessage.Rundown);
+	if (!Rundown)
+	{
+		return;	// Response sent by GetOrLoadRundownForEdit.
+	}
+
+	using namespace UE::AvaMedia::RundownSerializationUtils;
+
+	// Load from file
+	if (!InMessage.RundownFile.IsEmpty())
+	{
+		FText ErrorMessage;
+		if (LoadRundownFromJson(Rundown, *InMessage.RundownFile, ErrorMessage))
+		{
+			SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log,
+				TEXT("\"ImportRundown\": Loaded from file \"%s\"."), *InMessage.RundownFile);
+		}
+		else
+		{
+			SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
+				TEXT("\"ImportRundown\": Failed to load from file \"%s\". Reason: %s"), *InMessage.RundownFile, *ErrorMessage.ToString());
+		}
+		return;
+	}
+
+	// Load from data
+	if (!InMessage.RundownData.IsEmpty())
+	{
+		FText ErrorMessage;
+		FMemoryReaderView Reader(UE::AvaMediaSerializationUtils::JsonValueConversion::ValueToConstBytesView(InMessage.RundownData));
+		if (LoadRundownFromJson(Rundown, Reader, ErrorMessage))
+		{
+			SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log,
+				TEXT("\"ImportRundown\": Loaded from data."));
+		}
+		else
+		{
+			SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
+				TEXT("\"ImportRundown\": Failed to load from data. Reason: %s"), *ErrorMessage.ToString());
+		}
+		return;
+	}
+
+	SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
+		TEXT("\"ImportRundown\": No data was provided to import from. Either a filename or json data must be provided."));
+}
+
+void FAvaRundownServer::HandleExportRundown(const FAvaRundownExportRundown& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
+{
+	const UAvaRundown* Rundown = GetOrLoadRundownForEdit(InContext->GetSender(), InMessage.RequestId, InMessage.Rundown);
+	if (!Rundown)
+	{
+		return; // Response sent by GetOrLoadRundownForEdit.
+	}
+	
+	using namespace UE::AvaMedia::RundownSerializationUtils;
+
+	FText ErrorMessage;
+	
+	// Export to file on the server.
+	if (!InMessage.RundownFile.IsEmpty())
+	{
+		if (SaveRundownToJson(Rundown, *InMessage.RundownFile, ErrorMessage))
+		{
+			SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log,
+				TEXT("\"ExportRundown\": Rundown exported to \"%s\"."), *InMessage.RundownFile);
+		}
+		else
+		{
+			SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
+				TEXT("\"ExportRundown\": Failed to export rundown to \"%s\". Reason: %s"), *InMessage.RundownFile, *ErrorMessage.ToString());
+		}
+		return;
+	}
+	
+	TArray<uint8> RundownDataAsBytes;
+	FMemoryWriter Writer(RundownDataAsBytes);
+	if (SaveRundownToJson(Rundown, Writer, ErrorMessage))
+	{
+		FAvaRundownExportedRundown* ReplyMessage = FMessageEndpoint::MakeMessage<FAvaRundownExportedRundown>();
+		ReplyMessage->RequestId = InMessage.RequestId;
+		ReplyMessage->Rundown = InMessage.Rundown;
+		UE::AvaMediaSerializationUtils::JsonValueConversion::BytesToString(RundownDataAsBytes, ReplyMessage->RundownData);
+		SendResponse(ReplyMessage, InContext->GetSender());
+	}
+	else
+	{
+		SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
+			TEXT("\"ExportRundown\": Failed to export rundown. Reason: %s"), *ErrorMessage.ToString());
+	}
 }
 
 void FAvaRundownServer::HandleSaveRundown(const FAvaRundownSaveRundown& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
@@ -688,10 +997,10 @@ void FAvaRundownServer::HandleSaveRundown(const FAvaRundownSaveRundown& InMessag
 
 void FAvaRundownServer::HandleGetPages(const FAvaRundownGetPages& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
 {
-	UAvaRundown* Rundown = GetOrLoadRundownForEdit(InContext->GetSender(), InMessage.RequestId, InMessage.Rundown);
+	const UAvaRundown* Rundown = GetOrLoadRundownForEdit(InContext->GetSender(), InMessage.RequestId, InMessage.Rundown);
 	if (!Rundown)
 	{
-		return;
+		return; // Response sent by GetOrLoadRundownForEdit.
 	}
 	
 	FAvaRundownPages* ReplyMessage = FMessageEndpoint::MakeMessage<FAvaRundownPages>();
@@ -718,7 +1027,7 @@ void FAvaRundownServer::HandleCreatePage(const FAvaRundownCreatePage& InMessage,
 	UAvaRundown* Rundown = GetOrLoadRundownForEdit(InContext->GetSender(), InMessage.RequestId, InMessage.Rundown);
 	if (!Rundown)
 	{
-		return;
+		return; // Response sent by GetOrLoadRundownForEdit.
 	}
 
 	const FAvaRundownPage& Template = Rundown->GetPage(InMessage.TemplateId);
@@ -744,7 +1053,7 @@ void FAvaRundownServer::HandleDeletePage(const FAvaRundownDeletePage& InMessage,
 	UAvaRundown* Rundown = GetOrLoadRundownForEdit(InContext->GetSender(), InMessage.RequestId, InMessage.Rundown);
 	if (!Rundown)
 	{
-		return;
+		return; // Response sent by GetOrLoadRundownForEdit.
 	}
 
 	const FAvaRundownPage& Page = Rundown->GetPage(InMessage.PageId);
@@ -764,7 +1073,7 @@ void FAvaRundownServer::HandleDeleteTemplate(const FAvaRundownDeleteTemplate& In
 	UAvaRundown* Rundown = GetOrLoadRundownForEdit(InContext->GetSender(), InMessage.RequestId, InMessage.Rundown);
 	if (!Rundown)
 	{
-		return;
+		return; // Response sent by GetOrLoadRundownForEdit.
 	}
 
 	const FAvaRundownPage& Page = Rundown->GetPage(InMessage.PageId);
@@ -796,7 +1105,7 @@ void FAvaRundownServer::HandleCreateTemplate(const FAvaRundownCreateTemplate& In
 	UAvaRundown* Rundown = GetOrLoadRundownForEdit(InContext->GetSender(), InMessage.RequestId, InMessage.Rundown);
 	if (!Rundown)
 	{
-		return;
+		return; // Response sent by GetOrLoadRundownForEdit.
 	}
 	
 	Rundown->AddTemplate();
@@ -810,7 +1119,7 @@ void FAvaRundownServer::HandleChangeTemplateBP(const FAvaRundownChangeTemplateBP
 	UAvaRundown* Rundown = GetOrLoadRundownForEdit(InContext->GetSender(), InMessage.RequestId, InMessage.Rundown);
 	if (!Rundown)
 	{
-		return;
+		return; // Response sent by GetOrLoadRundownForEdit.
 	}
 
 	FAvaRundownPage& Page = Rundown->GetPage(InMessage.TemplateId);
@@ -831,7 +1140,7 @@ void FAvaRundownServer::HandleGetPageDetails(const FAvaRundownGetPageDetails& In
 	UAvaRundown* Rundown = GetOrLoadRundownForEdit(InContext->GetSender(), InMessage.RequestId, InMessage.Rundown);
 	if (!Rundown)
 	{
-		return;
+		return; // Response sent by GetOrLoadRundownForEdit.
 	}
 
 	const FAvaRundownPage& Page = Rundown->GetPage(InMessage.PageId);
@@ -909,7 +1218,7 @@ void FAvaRundownServer::HandleChangePageChannel(const FAvaRundownPageChangeChann
 	UAvaRundown* Rundown = GetOrLoadRundownForEdit(InContext->GetSender(), InMessage.RequestId, InMessage.Rundown);
 	if (!Rundown)
 	{
-		return;
+		return; // Response sent by GetOrLoadRundownForEdit.
 	}
 
 	FAvaRundownPage& Page = Rundown->GetPage(InMessage.PageId);
@@ -1101,7 +1410,7 @@ void FAvaRundownServer::HandleSetCurrentProfile(const FAvaRundownSetCurrentProfi
 	UAvaBroadcast& Broadcast = UAvaBroadcast::Get();
 	const FName ProfileName(InMessage.ProfileName);
 
-	if(Broadcast.IsBroadcastingAnyChannel())
+	if (Broadcast.IsBroadcastingAnyChannel())
 	{
 		LogAndSendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
 			TEXT("\"SetCurrentProfile\" Failed. Reason: Channels are currently broadcasting."));
@@ -1323,7 +1632,7 @@ void FAvaRundownServer::HandleChannelEditAction(const FAvaRundownChannelEditActi
 
 	if (InMessage.Action == EAvaRundownChannelEditActions::Remove)
 	{
-		if(!Broadcast.GetCurrentProfile().RemoveChannel(ChannelName))
+		if (!Broadcast.GetCurrentProfile().RemoveChannel(ChannelName))
 		{
 			LogAndSendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
 				TEXT("\"ChannelEditAction\" Remove Failed. Reason: Channel \"%s\" didn't exist in profile."), *ChannelName.ToString());
@@ -1366,7 +1675,7 @@ void FAvaRundownServer::HandleRenameChannel(const FAvaRundownRenameChannel& InMe
 		return;
 	}
 
-	if(!Broadcast.RenameChannel(OldChannelName, NewChannelName))
+	if (!Broadcast.RenameChannel(OldChannelName, NewChannelName))
 	{
 		LogAndSendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
 			TEXT("\"RenameChannel\" Failed to rename channel \"%s\" to \"%s\" (Unknown reason)."), *OldChannelName.ToString(), *NewChannelName.ToString());
@@ -1717,7 +2026,7 @@ void FAvaRundownServer::ShowStatusCommand(const TArray<FString>& InArgs)
 	UE_LOG(LogAvaRundownServer, Display, TEXT("- Editing PageId: \"%d\""), RundownEditCommandData.ManagedPageId);
 	UE_LOG(LogAvaRundownServer, Display, TEXT("- Playing Rundown: \"%s\""), *RundownPlaybackCommandData.CurrentRundownPath.ToString());
 
-	if (RundownPlaybackCommandData.CurrentRundown.IsValid())
+	if (RundownPlaybackCommandData.CurrentRundown)
 	{
 		TArray<int32> PlayingPages = RundownPlaybackCommandData.CurrentRundown->GetPlayingPageIds();
 		for (const int32 PlayingPageId : PlayingPages)
@@ -1793,7 +2102,7 @@ void FAvaRundownServer::HandlePageActions(const FRequestInfo& InRequestInfo, con
 {
 	using namespace UE::AvaRundownServer::Private;
 	
-	if (!RundownPlaybackCommandData.CurrentRundown.IsValid())
+	if (!RundownPlaybackCommandData.CurrentRundown)
 	{
 		LogAndSendMessage(InRequestInfo.Sender, InRequestInfo.RequestId, ELogVerbosity::Error,
 			TEXT("\"PageAction\" Failed. Reason: no play list currently loaded."));
@@ -1982,7 +2291,7 @@ UAvaRundown* FAvaRundownServer::GetOrLoadRundownForEdit(const FMessageAddress& I
 			Rundown = RundownPlaybackCommandData.CurrentRundown.Get();
 
 			// Update the edit data accordingly.
-			RundownEditCommandData.CurrentRundown.Reset(Rundown);
+			RundownEditCommandData.CurrentRundown = Rundown;
 			RundownEditCommandData.CurrentRundownPath = RundownPlaybackCommandData.CurrentRundownPath;
 		}
 
@@ -2047,7 +2356,7 @@ UAvaRundown* FAvaRundownServer::FRundownCache::GetOrLoadRundown(const FSoftObjec
 				InUnloadCurrentRundownFunction(CurrentRundown.Get());
 			}
 			InNewRundownLoadedFunction(NewRundown.Get());
-			CurrentRundown = NewRundown;
+			CurrentRundown = NewRundown.Get();
 			CurrentRundownPath = InRundownPath;
 		}
 		else
@@ -2131,7 +2440,7 @@ void FAvaRundownServer::FRundownEditCommandData::SaveCurrentRemoteControlPresetT
 		RemoteControlModule.UnregisterEmbeddedPreset(CurrentPresetName);
 	}
 
-	if (!CurrentRundown.IsValid())
+	if (!CurrentRundown)
 	{
 		return;
 	}
@@ -2186,11 +2495,11 @@ FAvaRundownServer::FRundownPlaybackCommandData::~FRundownPlaybackCommandData()
 
 void FAvaRundownServer::FRundownPlaybackCommandData::ClosePlaybackContext()
 {
-	if (CurrentRundown.IsValid())
+	if (CurrentRundown)
 	{
 		// Stop all playing pages.
 		CurrentRundown->ClosePlaybackContext(true);
-		CurrentRundown.Reset();
+		CurrentRundown = nullptr;
 		CurrentRundownPath.Reset();
 	}
 }

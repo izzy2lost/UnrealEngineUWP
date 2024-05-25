@@ -18,7 +18,7 @@ class UMediaOutput;
  * The intention is to run a web socket transport bridge so the messages can
  * come from external applications.
  */
-class FAvaRundownServer : public TSharedFromThis<FAvaRundownServer>, public IAvaRundownServer
+class FAvaRundownServer : public TSharedFromThis<FAvaRundownServer>, public FGCObject, public IAvaRundownServer
 {
 public:
 	FAvaRundownServer();
@@ -29,6 +29,11 @@ public:
 	virtual const FMessageAddress& GetMessageAddress() const override;
 	virtual TArray<FMessageAddress> GetClientAddresses() const override { return ClientAddresses; }
 	//~ End IAvaRundownServer
+
+	//~ Begin FGCObject
+	virtual void AddReferencedObjects(FReferenceCollector& InCollector) override;
+	virtual FString GetReferencerName() const override;
+	//~ End FGCObject
 
 	void Init(const FString& InAssignedHostName);
 
@@ -52,6 +57,10 @@ public:
 	void HandleGetRundownServerInfo(const FAvaRundownGetServerInfo& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandleGetRundowns(const FAvaRundownGetRundowns& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandleLoadRundown(const FAvaRundownLoadRundown& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
+	void HandleCreateRundown(const FAvaRundownCreateRundown& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
+	void HandleDeleteRundown(const FAvaRundownDeleteRundown& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
+	void HandleImportRundown(const FAvaRundownImportRundown& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
+	void HandleExportRundown(const FAvaRundownExportRundown& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandleSaveRundown(const FAvaRundownSaveRundown& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandleGetPages(const FAvaRundownGetPages& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandleCreatePage(const FAvaRundownCreatePage& InMessage,const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
@@ -191,7 +200,7 @@ private:
 		FSoftObjectPath CurrentRundownPath;
 		
 		/** Currently loaded/cached rundown object. */
-		TStrongObjectPtr<UAvaRundown> CurrentRundown;
+		TObjectPtr<UAvaRundown> CurrentRundown;
 
 		FDelegateHandle OnPlaybackInstanceStatusChangedDelegateHandle;
 		
@@ -240,4 +249,7 @@ private:
 		void ClosePlaybackContext();
 	};
 	FRundownPlaybackCommandData RundownPlaybackCommandData;
+
+	/** Keep a map of created transient rundowns. */
+	TMap<FSoftObjectPath, TObjectPtr<UAvaRundown>> ManagedRundowns;
 };

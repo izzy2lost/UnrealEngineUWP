@@ -250,6 +250,112 @@ public:
 };
 
 /**
+ * Request to create a new rundown asset.
+ *
+ * The full package name is going to be: [PackagePath]/[AssetName] 
+ * The full asset path is going to be: [PackagePath]/[AssetName].[AssetName]
+ * For all other requests, the rundown reference is the full asset path.
+ */
+USTRUCT()
+struct FAvaRundownCreateRundown : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+
+public:
+	/** Package path (excluding the package name) */
+	UPROPERTY()
+	FString PackagePath;
+
+	/** Asset Name. */
+	UPROPERTY()
+	FString AssetName;
+
+	/**
+	 * Create the rundown as a transient object.
+	 * @remark For game builds, the created rundown will always be transient, regardless of this flag. 
+	 */
+	UPROPERTY()
+	bool bTransient = true;
+};
+
+/**
+ * Request a previously created rundown to be deleted or at least no longer managed (if transient only). 
+ */
+USTRUCT()
+struct FAvaRundownDeleteRundown : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+
+public:
+	/** Rundown asset path: [PackagePath]/[AssetName].[AssetName] */
+	UPROPERTY()
+	FString Rundown;
+};
+
+/**
+ * Import rundown from json data or file.
+ */
+USTRUCT()
+struct FAvaRundownImportRundown : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+
+public:
+	/** Rundown asset path: [PackagePath]/[AssetName].[AssetName] */
+	UPROPERTY()
+	FString Rundown;
+
+	/**
+	 * If specified, this is a server local path to a json file from which the rundown will be imported.
+	 */
+	UPROPERTY()
+	FString RundownFile;
+
+	/**
+	 * If specified, json data containing the rundown to import.
+	 */
+	UPROPERTY()
+	FString RundownData;
+};
+
+/**
+ * Export a rundown to json data or file.
+ * This command is supported in game build.
+ */
+USTRUCT()
+struct FAvaRundownExportRundown : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+
+public:
+	/** Rundown asset path: [PackagePath]/[AssetName].[AssetName] */
+	UPROPERTY()
+	FString Rundown;
+
+	/** Optional path to a server local file where the rundown will be saved. */
+	UPROPERTY()
+	FString RundownFile;
+};
+
+/**
+ * Server reply to FAvaRundownExportRundown containing the exported rundown.
+ */
+USTRUCT()
+struct FAvaRundownExportedRundown : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+
+public:
+	/** Rundown asset path: [PackagePath]/[AssetName].[AssetName] */
+	UPROPERTY()
+	FString Rundown;
+
+	/** Exported rundown in json format. */
+	UPROPERTY()
+	FString RundownData;
+};
+
+/**
  * Request that the given rundown be saved to disk.
  * The rundown asset must have been loaded, either by an edit command
  * or playback, prior to this command.
