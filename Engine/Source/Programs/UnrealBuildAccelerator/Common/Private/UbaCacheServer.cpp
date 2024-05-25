@@ -1,26 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaCacheServer.h"
+#include "UbaCacheEntry.h"
 #include "UbaCompactTables.h"
 #include "UbaBinaryReaderWriter.h"
 #include "UbaFileAccessor.h"
 #include "UbaNetworkServer.h"
 #include "UbaStorageServer.h"
-#include <algorithm>
 //#include <oodle2.h>
 
 namespace uba
 {
-	static constexpr u32 CacheFileVersion = 3;
+	static constexpr u32 CacheFileVersion = 4;
+	static constexpr u32 CacheFileCompatibilityVersion = 3;
 
 	bool IsCaseInsensitive(u64 id) { return (id & (1ull << 32)) == 0; }
-
-	struct CacheServer::CacheEntry
-	{
-		u64 creationTime;
-		Vector<u8> inputCasKeyOffsets;
-		Vector<u8> outputCasKeyOffsets;
-	};
 
 	struct CacheServer::ConnectionBucket
 	{
@@ -35,13 +29,8 @@ namespace uba
 
 	struct CacheServer::Connection
 	{
+		u32 clientVersion;
 		UnorderedMap<u64, ConnectionBucket> buckets;
-	};
-
-	struct CacheServer::CacheEntries
-	{
-		ReaderWriterLock lock;
-		List<CacheEntry> entries;
 	};
 
 	struct CacheServer::Bucket
@@ -111,13 +100,21 @@ namespace uba
 		if (!file.OpenMemoryRead(0, false))
 		{
 			m_logger.Detail(TC("No database found. Starting a new one at %s"), fileName.data);
+			m_creationTime = GetSystemTimeAsFileTime();
 			return true;
 		}
 		BinaryReader reader(file.GetData(), 0, file.GetSize());
 
-		u32 version = reader.ReadU32();
-		if (version != CacheFileVersion)
+		u32 databaseVersion = reader.ReadU32();
+		if (databaseVersion < CacheFileCompatibilityVersion || databaseVersion > CacheFileVersion)
+		{
+			m_logger.Detail(TC("Can't load database of version %u. Starting a new one at %s"), databaseVersion, fileName.data);
 			return true;
+		}
+		if (databaseVersion == 3)
+			m_creationTime = GetSystemTimeAsFileTime() - 1;
+		else
+			m_creationTime = reader.ReadU64();
 
 		u32 totalPathTableSize = 0;
 		u32 totalCasKeyTableSize = 0;
@@ -155,23 +152,8 @@ namespace uba
 				auto insres = bucket.m_cacheEntryLookup.try_emplace(reader.ReadCasKey());
 				UBA_ASSERT(insres.second);
 				auto& cacheEntries = insres.first->second;
-				u32 cacheEntryCount = reader.ReadU32();
-				totalCacheEntryCount += cacheEntryCount;
-
-				while (cacheEntryCount--)
-				{
-					auto& cacheEntry = cacheEntries.entries.emplace_back();
-
-					cacheEntry.creationTime = reader.ReadU64();
-
-					u32 inputSize = reader.ReadU32();
-					cacheEntry.inputCasKeyOffsets.resize(inputSize);
-					reader.ReadBytes(cacheEntry.inputCasKeyOffsets.data(), inputSize);
-
-					u32 outputSize = reader.ReadU32();
-					cacheEntry.outputCasKeyOffsets.resize(outputSize);
-					reader.ReadBytes(cacheEntry.outputCasKeyOffsets.data(), outputSize);
-				}
+				cacheEntries.Read(m_logger, reader, databaseVersion);
+				totalCacheEntryCount += cacheEntries.entries.size();
 			}
 		}
 
@@ -234,7 +216,11 @@ namespace uba
 
 		Write(CacheFileVersion);
 
+		Write(m_creationTime);
+
 		Write(u32(m_buckets.size()));
+
+		Vector<u8> temp;
 
 		for (auto& kv : m_buckets)
 		{
@@ -257,21 +243,35 @@ namespace uba
 			{
 				Write(kv2.first);
 
-				u32 cacheEntryCount = u32(kv2.second.entries.size());
-				Write(cacheEntryCount);
-
-				for (CacheEntry& entry : kv2.second.entries)
+				#if UBA_USE_OLD
+				if (CacheFileVersion == 3)
 				{
-					WriteBytes(&entry.creationTime, sizeof(entry.creationTime));
+					u32 cacheEntryCount = u32(kv2.second.entries.size());
+					Write(cacheEntryCount);
 
-					u32 inputSize = u32(entry.inputCasKeyOffsets.size());
-					Write(inputSize);
-					WriteBytes(entry.inputCasKeyOffsets.data(), inputSize);
+					for (CacheEntry& entry : kv2.second.entries)
+					{
+						WriteBytes(&entry.creationTime, sizeof(entry.creationTime));
 
-					u32 outputSize = u32(entry.outputCasKeyOffsets.size());
-					Write(outputSize);
-					WriteBytes(entry.outputCasKeyOffsets.data(), outputSize);
+						u32 inputSize = u32(entry.inputCasKeyOffsets.size());
+						Write(inputSize);
+						WriteBytes(entry.inputCasKeyOffsets.data(), inputSize);
+
+						u32 outputSize = u32(entry.outputCasKeyOffsets.size());
+						Write(outputSize);
+						WriteBytes(entry.outputCasKeyOffsets.data(), outputSize);
+					}
 				}
+				else
+				#else
+				{
+					temp.resize(kv2.second.GetTotalSize(true));
+					BinaryWriter writer(temp.data(), 0, temp.size());
+					kv2.second.Write(writer, CacheNetworkVersion, true);
+					UBA_ASSERT(writer.GetPosition() == temp.size());
+					WriteBytes(temp.data(), temp.size());
+				}
+				#endif
 			}
 		}
 
@@ -357,20 +357,20 @@ namespace uba
 
 				for (auto li=bucket.m_cacheEntryLookup.begin(), le=bucket.m_cacheEntryLookup.end(); li!=le;)
 				{
+					CacheEntries& entries = li->second;
+
 					// There is currently no idea saving more than 256kb worth of entries per lookup key (because that is what fetch max returns).. so let's wipe out
 					// all the entries that overflow that number
-					u64 capacityLeft = SendMaxSize - 32;
+					u64 capacityLeft = SendMaxSize - 32 - entries.GetSharedSize();
 
-					CacheEntries& entries = li->second;
 					for (auto i=entries.entries.begin(), e=entries.entries.end(); i!=e;)
 					{
 						auto& entry = *i;
-						auto& inputs = entry.inputCasKeyOffsets;
 						auto& outputs = entry.outputCasKeyOffsets;
 
 						bool deleteEntry = false;
 
-						u64 neededSize = Get7BitEncodedCount(inputs.size()) + inputs.size() + Get7BitEncodedCount(outputs.size()) + outputs.size();
+						u64 neededSize = entries.GetEntrySize(entry, false);
 						if (neededSize > capacityLeft)
 						{
 							deleteEntry = true;
@@ -395,7 +395,12 @@ namespace uba
 							}
 						}
 
+						// This is an attempt at removing entries that has inputs that depends on other entries outputs.
+						// and that there is no point keeping them if the other entry is removed
+						// Example would be that there is no idea keeping entries that uses a pch if the entry producing the pch is gone
+						#if 0
 						// Check if there are keys that use removed caskey as input and delete those too
+						auto& inputs = entry.inputCasKeyOffsets;
 						if (!deleteEntry && !deletedCasFiles.empty())
 						{
 							BinaryReader reader2(inputs.data(), 0, inputs.size());
@@ -411,6 +416,7 @@ namespace uba
 								}
 							}
 						}
+						#endif
 
 						// Remove entry from entries list and skip increasing ref count of cas files
 						if (deleteEntry)
@@ -422,7 +428,6 @@ namespace uba
 						}
 
 						++bucket.totalEntryCount;
-						bucket.totalEntrySize += neededSize;
 
 						capacityLeft -= neededSize;
 
@@ -439,6 +444,8 @@ namespace uba
 
 					if (!entries.entries.empty())
 					{
+						//entries.UpdateEntries(); // Not needed.. 
+						bucket.totalEntrySize += entries.GetTotalSize(false);
 						++li;
 						continue;
 					}
@@ -500,15 +507,17 @@ namespace uba
 			// Collect all caskeys that are used by cache entries.
 			for (auto& kv2 : bucket.m_cacheEntryLookup)
 			{
+				auto collectUsedCasKeyOffsets = [&](const Vector<u8>& offsets)
+					{
+						BinaryReader reader2(offsets.data(), 0, offsets.size());
+						while (reader2.GetLeft())
+							usedCasKeyOffsets.insert(u32(reader2.Read7BitEncoded()));
+					};
+
+				collectUsedCasKeyOffsets(kv2.second.sharedInputCasKeyOffsets);
 				for (auto& entry : kv2.second.entries)
 				{
-					auto collectUsedCasKeyOffsets = [&](const Vector<u8>& offsets)
-						{
-							BinaryReader reader2(offsets.data(), 0, offsets.size());
-							while (reader2.GetLeft())
-								usedCasKeyOffsets.insert(u32(reader2.Read7BitEncoded()));
-						};
-					collectUsedCasKeyOffsets(entry.inputCasKeyOffsets);
+					collectUsedCasKeyOffsets(entry.extraInputCasKeyOffsets);
 					collectUsedCasKeyOffsets(entry.outputCasKeyOffsets);
 				}
 			}
@@ -584,42 +593,9 @@ namespace uba
 				// Update all casKeyOffsets
 				u64 updateEntriesStart = GetTime();
 
-				auto updateCasKeyOffsets = [&](Vector<u8>& offsets, Vector<u32>& newOffsets)
-					{
-						newOffsets.clear();
-						newOffsets.reserve(offsets.size()*4);
-
-						u32 newOffsetsSize = 0;
-						BinaryReader reader2(offsets.data(), 0, offsets.size());
-						while (reader2.GetLeft())
-						{
-							u32 oldOffset = u32(reader2.Read7BitEncoded());
-							u32 newOffset = oldOffset;
-							auto findIt = oldToNewCasKeyOffset.find(oldOffset);
-							if (findIt != oldToNewCasKeyOffset.end())
-								newOffset = findIt->second;
-							newOffsets.push_back(newOffset);
-							newOffsetsSize += Get7BitEncodedCount(newOffset);
-						}
-
-						std::sort(newOffsets.begin(), newOffsets.end());
-
-						offsets.resize(newOffsetsSize);
-						BinaryWriter writer2(offsets.data(), 0, newOffsetsSize);
-						for (u32 offset : newOffsets)
-							writer2.Write7BitEncoded(offset);
-						UBA_ASSERT(writer2.GetPosition() == newOffsetsSize);
-					};
-
 				m_server.ParallelFor(workerCountToUse, bucket.m_cacheEntryLookup, [&](auto& it)
 					{
-						Vector<u32> newOffsets;
-						CacheEntries& entries = it->second;(void)entries;
-						for (auto& entry : entries.entries)
-						{
-							updateCasKeyOffsets(entry.inputCasKeyOffsets, newOffsets);
-							updateCasKeyOffsets(entry.outputCasKeyOffsets, newOffsets);
-						}
+						it->second.UpdateEntries(m_logger, oldToNewCasKeyOffset);
 					});
 
 				#if 0
@@ -657,6 +633,7 @@ namespace uba
 		m_logger.Info(TC("Maintenance done! (%s) CasFiles: %llu (%s) OldestEntry: %s"), TimeToText(duration).str, totalCasCount - deletedCasCount, BytesToText(totalCasSize).str, TimeToText(oldestTime, true).str);
 		
 		m_longestMaintenance = Max(m_longestMaintenance, duration);
+
 		return true;
 	}
 
@@ -703,7 +680,7 @@ namespace uba
 		case CacheMessageType_Connect:
 		{
 			u32 clientVersion = reader.ReadU32();
-			if (clientVersion != CacheNetworkVersion)
+			if (clientVersion < 3 || clientVersion > CacheNetworkVersion)
 				return m_logger.Error(TC("Different network versions. Client: %u, Server: %u. Disconnecting"), clientVersion, CacheNetworkVersion);
 
 			SCOPED_WRITE_LOCK(m_connectionsLock, lock);
@@ -714,7 +691,7 @@ namespace uba
 			}
 
 			writer.WriteBool(true);
-			m_connections.try_emplace(connectionInfo.GetId());
+			m_connections.try_emplace(connectionInfo.GetId(), clientVersion);
 			return true;
 		}
 		case CacheMessageType_StorePathTable:
@@ -752,9 +729,7 @@ namespace uba
 				lock2.Leave();
 
 				SCOPED_WRITE_LOCK(cacheEntries.lock, lock4);
-				auto& cacheEntry = cacheEntries.entries.emplace_front(std::move(findIt->second));
-				(void)cacheEntry;
-				//m_logger.Info(TC("Added new cache entry"));
+				cacheEntries.entries.emplace_front(std::move(findIt->second));
 			}
 			return true;
 		}
@@ -765,10 +740,17 @@ namespace uba
 			return HandleFetchCasTable(reader, writer);
 
 		case CacheMessageType_FetchEntries:
-			return HandleFetchEntries(reader, writer);
-
+		{
+			SCOPED_READ_LOCK(m_connectionsLock, lock);
+			u32 clientVersion = m_connections[connectionInfo.GetId()].clientVersion;
+			lock.Leave();
+			return HandleFetchEntries(reader, writer, clientVersion);
+		}
 		case CacheMessageType_ExecuteCommand:
 			return HandleExecuteCommand(reader, writer);
+
+		case CacheMessageType_ReportUsedEntry:
+			return HandleReportUsedEntry(reader, writer);
 
 		case CacheMessageType_RequestShutdown:
 		{
@@ -847,14 +829,33 @@ namespace uba
 
 		SCOPED_WRITE_LOCK(cacheEntries.lock, lock2);
 		
+
+		// Create entry based on existing entry
+		CacheEntry newEntry;
+		cacheEntries.BuildInputs(newEntry, inputs);
+
 		List<CacheEntry>::iterator matchingEntry = cacheEntries.entries.end();
 		for (auto i=cacheEntries.entries.begin(), e=cacheEntries.entries.end(); i!=e; ++i)
 		{
-			if (i->inputCasKeyOffsets != inputCasKeyOffsets)
+			if (i->sharedInputCasKeyOffsetRanges != newEntry.sharedInputCasKeyOffsetRanges || i->extraInputCasKeyOffsets != newEntry.extraInputCasKeyOffsets)
 				continue;
 			matchingEntry = i;
 			break;
 		}
+
+		#if UBA_USE_OLD
+		List<CacheEntry>::iterator matchingEntry2 = cacheEntries.entries.end();
+		for (auto i=cacheEntries.entries.begin(), e=cacheEntries.entries.end(); i!=e; ++i)
+		{
+			if (i->inputCasKeyOffsets != inputCasKeyOffsets)
+				continue;
+			matchingEntry2 = i;
+			break;
+		}
+		if (matchingEntry2 != matchingEntry)
+			m_logger.Warning(L"CODE MISMATCH!!!");
+		#endif
+
 
 		// Already exists
 		if (matchingEntry != cacheEntries.entries.end())
@@ -901,9 +902,10 @@ namespace uba
 				return true;
 		}
 
+		#if UBA_USE_OLD
 		// Add new entry
-		CacheEntry newEntry;
 		newEntry.inputCasKeyOffsets.swap(inputCasKeyOffsets);
+		#endif
 
 		Set<u32> outputs;
 		u64 bytesForOutput = 0;
@@ -942,7 +944,8 @@ namespace uba
 			w2.Write7BitEncoded(output);
 
 
-		newEntry.creationTime = GetSystemTimeAsFileTime();
+		newEntry.creationTime = GetSystemTimeAsFileTime() - m_creationTime;
+		newEntry.id = cacheEntries.idCounter++;
 
 		// If cache server has all content we can put the new cache entry directly in the lookup.. otherwise we'll have to wait until client has uploaded content
 		if (hasAllContent)
@@ -985,13 +988,30 @@ namespace uba
 		return true;
 	}
 
-	bool CacheServer::HandleFetchEntries(BinaryReader& reader, BinaryWriter& writer)
+	bool CacheServer::HandleFetchEntries(BinaryReader& reader, BinaryWriter& writer, u32 clientVersion)
 	{
 		Bucket& bucket = GetBucket(reader);
 		CasKey cmdKey = reader.ReadCasKey();
 
-		u16& entryCount = *(u16*)writer.AllocWrite(2);
-		entryCount = 0;
+		SCOPED_READ_LOCK(bucket.m_cacheEntryLookupLock, lock);
+		auto findIt = bucket.m_cacheEntryLookup.find(cmdKey);
+		if (findIt == bucket.m_cacheEntryLookup.end())
+		{
+			writer.WriteU16(0);
+			return true;
+		}
+		auto& cacheEntries = findIt->second;
+		lock.Leave();
+
+		SCOPED_READ_LOCK(cacheEntries.lock, lock2);
+		return cacheEntries.Write(writer, clientVersion, false);
+	}
+
+	bool CacheServer::HandleReportUsedEntry(BinaryReader& reader, BinaryWriter& writer)
+	{
+		Bucket& bucket = GetBucket(reader);
+		CasKey cmdKey = reader.ReadCasKey();
+		u64 entryId = reader.Read7BitEncoded();
 
 		SCOPED_READ_LOCK(bucket.m_cacheEntryLookupLock, lock);
 		auto findIt = bucket.m_cacheEntryLookup.find(cmdKey);
@@ -1000,22 +1020,13 @@ namespace uba
 		auto& cacheEntries = findIt->second;
 		lock.Leave();
 
-		SCOPED_READ_LOCK(cacheEntries.lock, lock2);
-
+		SCOPED_WRITE_LOCK(cacheEntries.lock, lock2);
 		for (auto& entry : cacheEntries.entries)
 		{
-			auto& inputs = entry.inputCasKeyOffsets;
-			auto& outputs = entry.outputCasKeyOffsets;
-
-			u64 neededSize = Get7BitEncodedCount(inputs.size()) + inputs.size() + Get7BitEncodedCount(outputs.size()) + outputs.size();
-			if (neededSize > writer.GetCapacityLeft())
-				break;
-
-			writer.Write7BitEncoded(inputs.size());
-			writer.WriteBytes(inputs.data(), inputs.size());
-			writer.Write7BitEncoded(outputs.size());
-			writer.WriteBytes(outputs.data(), outputs.size());
-			++entryCount;
+			if (entryId != entry.id)
+				continue;
+			entry.lastUsedTime = GetSystemTimeAsFileTime() - m_creationTime;
+			break;
 		}
 		return true;
 	}
@@ -1062,6 +1073,8 @@ namespace uba
 
 			u64 now = GetSystemTimeAsFileTime();
 
+			Vector<u8> temp;
+
 			SCOPED_READ_LOCK(m_bucketsLock, bucketsLock);
 			for (auto& kv : m_buckets)
 			{
@@ -1077,26 +1090,27 @@ namespace uba
 					if (filterString.count)
 					{
 						u32 index = 0;
+						auto findString = [&](const Vector<u8>& offsets)
+							{
+								BinaryReader reader2(offsets.data(), 0, offsets.size());
+								while (reader2.GetLeft())
+								{
+									u64 offset = reader2.Read7BitEncoded();
+									CasKey casKey;
+									StringBuffer<> path;
+									bucket.m_casKeyTable.GetPathAndKey(path, casKey, bucket.m_pathTable, offset);
+									if (path.Contains(filterString.data))
+										return true;
+									if (Contains(CasKeyString(casKey).str, filterString.data))
+										return true;
+								}
+								return false;
+							};
+
 						for (auto& entry : entries.entries)
 						{
-							auto findString = [&](const Vector<u8>& offsets)
-								{
-									BinaryReader reader2(offsets.data(), 0, offsets.size());
-									while (reader2.GetLeft())
-									{
-										u64 offset = reader2.Read7BitEncoded();
-										CasKey casKey;
-										StringBuffer<> path;
-										bucket.m_casKeyTable.GetPathAndKey(path, casKey, bucket.m_pathTable, offset);
-										if (path.Contains(filterString.data))
-											return true;
-										if (Contains(CasKeyString(casKey).str, filterString.data))
-											return true;
-									}
-									return false;
-								};
-
-							if (findString(entry.inputCasKeyOffsets) || findString(entry.outputCasKeyOffsets))
+							entries.Flatten(temp, entry);
+							if (findString(temp) || findString(entry.outputCasKeyOffsets))
 								visibleIndices.insert(index);
 							++index;
 						}
@@ -1132,7 +1146,8 @@ namespace uba
 							};
 
 						writeLine(line.Clear().Append(TC("   Inputs:")).data);
-						writeOffsets(entry.inputCasKeyOffsets);
+						entries.Flatten(temp, entry);
+						writeOffsets(temp);
 						writeLine(line.Clear().Append(TC("   Outputs:")).data);
 						writeOffsets(entry.outputCasKeyOffsets);
 						++index;
@@ -1143,7 +1158,8 @@ namespace uba
 		else if (command.Equals(TC("status")))
 		{
 			writeLine(TC("UbaCacheServer status"));
-			writeLine(line.Clear().Appendf(TC("  Uptime: %s"), TimeToText(GetTime() - m_startTime).str).data);
+			writeLine(line.Clear().Appendf(TC("  CreationTime: %s"), TimeToText(MsToTime(1000*GetFileTimeAsSeconds(GetNowFileTime() - m_creationTime)), true).str).data);
+			writeLine(line.Clear().Appendf(TC("  UpTime: %s"), TimeToText(GetTime() - m_startTime, true).str).data);
 			writeLine(line.Clear().Appendf(TC("  Longest maintenance: %s"), TimeToText(m_longestMaintenance).str).data);
 			writeLine(line.Clear().Appendf(TC("  Buckets:")).data);
 			u32 index = 0;

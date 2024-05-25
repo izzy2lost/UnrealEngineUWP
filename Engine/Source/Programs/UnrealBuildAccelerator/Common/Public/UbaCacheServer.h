@@ -11,6 +11,8 @@ namespace uba
 	class StorageServer;
 	struct BinaryReader;
 	struct BinaryWriter;
+	struct CacheEntry;
+	struct CacheEntries;
 	struct ConnectionInfo;
 
 	class CacheServer
@@ -32,8 +34,6 @@ namespace uba
 
 		struct Connection;
 		struct ConnectionBucket;
-		struct CacheEntry;
-		struct CacheEntries;
 		struct Bucket;
 
 		ConnectionBucket& GetConnectionBucket(const ConnectionInfo& connectionInfo, BinaryReader& reader);
@@ -43,7 +43,8 @@ namespace uba
 		bool HandleStoreEntry(ConnectionBucket& bucket, BinaryReader& reader, BinaryWriter& writer);
 		bool HandleFetchPathTable(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleFetchCasTable(BinaryReader& reader, BinaryWriter& writer);
-		bool HandleFetchEntries(BinaryReader& reader, BinaryWriter& writer);
+		bool HandleFetchEntries(BinaryReader& reader, BinaryWriter& writer, u32 clientVersion);
+		bool HandleReportUsedEntry(BinaryReader& reader, BinaryWriter& writer);
 		bool HandleExecuteCommand(BinaryReader& reader, BinaryWriter& writer);
 
 		MutableLogger m_logger;
@@ -63,7 +64,8 @@ namespace uba
 
 		Atomic<bool> m_shutdownRequested = false;
 
-		u64 m_startTime;
+		u64 m_creationTime = 0;
+		u64 m_startTime = 0;
 		u64 m_longestMaintenance = 0;
 
 		CacheServer(const CacheServer&) = delete;

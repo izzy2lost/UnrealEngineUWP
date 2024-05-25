@@ -2,6 +2,7 @@
 
 #include "UbaCacheClient.h"
 #include "UbaApplicationRules.h"
+#include "UbaCacheEntry.h"
 #include "UbaCompactTables.h"
 #include "UbaFileAccessor.h"
 #include "UbaNetworkMessage.h"
@@ -354,161 +355,171 @@ namespace uba
 		struct MissInfo { TString path; u32 entryIndex; CasKey cache; CasKey local; };
 		Vector<MissInfo> misses;
 
-		for (u32 i=0; i!=entryCount; ++i)
+		CacheEntriesTraverser traverser(reader);
+
+		u32 entryIndex = 0;
+		for (; entryIndex!=entryCount; ++entryIndex)
 		{
-			u64 outputSize = 0;
 			{
 				TimerScope ts(cacheStats.testEntries);
 				bool isMatch = true;
-				u64 inputSize = reader.Read7BitEncoded();
-				const u8* inputEnd = reader.GetPositionData() + inputSize;
-				while (reader.GetPositionData() != inputEnd)
-				{
-					u32 casKeyOffset = u32(reader.Read7BitEncoded());
-					StringBuffer<MaxPath> path;
 
-					CasKey cacheCasKey;
-					CasKey localCasKey;
-
-					auto insres = offsetIsMatch.try_emplace(casKeyOffset);
-					if (insres.second)
+				bool result = traverser.TraverseEntryInputs([&](u32 casKeyOffset)
 					{
-						if (!FetchCasTable(bucket, cacheStats, casKeyOffset))
-							return false;
+						StringBuffer<MaxPath> path;
 
-						if (!GetLocalPathAndCasKey(bucket, rootPaths, path, cacheCasKey, bucket.serverCasKeyTable, bucket.serverPathTable, casKeyOffset))
-							return false;
-						UBA_ASSERTF(IsCompressed(cacheCasKey), TC("Cache entry for %s has uncompressed cache key for path %s (%s)"), info.description, path.data, CasKeyString(cacheCasKey).str);
+						CasKey cacheCasKey;
+						CasKey localCasKey;
 
-						if (IsNormalized(cacheCasKey)) // Need to normalize caskey for these files since they contain absolute paths
+						auto insres = offsetIsMatch.try_emplace(casKeyOffset);
+						if (insres.second)
 						{
-							localCasKey = rootPaths.NormalizeAndHashFile(m_logger, path.data);
-							if (localCasKey != CasKeyZero)
-								localCasKey = AsCompressed(localCasKey, true);
+							if (!FetchCasTable(bucket, cacheStats, casKeyOffset))
+								return false;
+
+							if (!GetLocalPathAndCasKey(bucket, rootPaths, path, cacheCasKey, bucket.serverCasKeyTable, bucket.serverPathTable, casKeyOffset))
+								return false;
+							UBA_ASSERTF(IsCompressed(cacheCasKey), TC("Cache entry for %s has uncompressed cache key for path %s (%s)"), info.description, path.data, CasKeyString(cacheCasKey).str);
+
+							if (IsNormalized(cacheCasKey)) // Need to normalize caskey for these files since they contain absolute paths
+							{
+								localCasKey = rootPaths.NormalizeAndHashFile(m_logger, path.data);
+								if (localCasKey != CasKeyZero)
+									localCasKey = AsCompressed(localCasKey, true);
+							}
+							else
+							{
+								bool deferCreation = true;
+								bool fileIsCompressed = IsFileCompressed(info, path.data, path.count);
+								m_storage.StoreCasFile(localCasKey, path.data, CasKeyZero, deferCreation, fileIsCompressed);
+								UBA_ASSERT(localCasKey == CasKeyZero || IsCompressed(localCasKey));
+							}
+
+							insres.first->second = localCasKey == cacheCasKey;
 						}
-						else
+
+						if (!insres.first->second)
 						{
-							bool deferCreation = true;
-							bool fileIsCompressed = IsFileCompressed(info, path.data, path.count);
-							m_storage.StoreCasFile(localCasKey, path.data, CasKeyZero, deferCreation, fileIsCompressed);
-							UBA_ASSERT(localCasKey == CasKeyZero || IsCompressed(localCasKey));
+							isMatch = false;
+							if (m_reportMissReason && path.count) // if empty this has already been reported
+								misses.push_back({TString(path.data), entryIndex, cacheCasKey, localCasKey });
+							return false;
 						}
+						return true;
+					});
 
-						insres.first->second = localCasKey == cacheCasKey;
-					}
-
-					if (!insres.first->second)
-					{
-						reader.Skip(inputEnd -  reader.GetPositionData());
-						isMatch = false;
-
-						if (m_reportMissReason && path.count) // if empty this has already been reported
-							misses.push_back({TString(path.data), i, cacheCasKey, localCasKey });
-
-						break;
-					}
-				}
-
-				outputSize = reader.Read7BitEncoded();
+				if (isMatch && !result) // Returned false before setting isMatch, something went wrong
+					return false;
 
 				// No match, test next entry
 				if (!isMatch)
 				{
-					reader.Skip(outputSize);
+					traverser.SkipEntryOutputs();
 					continue;
 				}
 			}
 
+			{
+				StackBinaryWriter<128> writer;
+				NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_ReportUsedEntry, writer);
+				writer.Write7BitEncoded(MakeId(bucket.id));
+				writer.WriteCasKey(cmdKey);
+				writer.Write7BitEncoded(traverser.lastId);
+				msg.Send();
+			}
+
 			// Fetch output files from cache (and some files need to be "denormalized" before written to disk
 
-			const u8* outputEnd = reader.GetPositionData() + outputSize;
-			while (reader.GetPositionData() != outputEnd)
-			{
-				u32 casKeyOffset = u32(reader.Read7BitEncoded());
-				if (!FetchCasTable(bucket, cacheStats, casKeyOffset))
-					return false;
-
-				TimerScope ts(cacheStats.fetchOutput);
-
-				StringBuffer<MaxPath> path;
-				CasKey casKey;
-				if (!GetLocalPathAndCasKey(bucket, rootPaths, path, casKey, bucket.serverCasKeyTable, bucket.serverPathTable, casKeyOffset))
-					return false;
-				UBA_ASSERT(IsCompressed(casKey));
-
-				FileFetcher fetcher { m_storage.m_bufferSlots };
-				fetcher.m_errorOnFail = false;
-
-				if (IsNormalized(casKey))
+			bool result = traverser.TraverseEntryOutputs([&](u32 casKeyOffset)
 				{
-					// Fetch into memory, file is in special format without absolute paths
-					MemoryBlock normalizedBlock(4*1024*1024);
-					bool destinationIsCompressed = false;
-					if (!fetcher.RetrieveFile(m_logger, m_client, casKey, path.data, destinationIsCompressed, &normalizedBlock))
+					if (!FetchCasTable(bucket, cacheStats, casKeyOffset))
 						return false;
 
-					MemoryBlock localBlock(4*1024*1024);
+					TimerScope ts(cacheStats.fetchOutput);
 
-					u32 rootOffsets = *(u32*)(normalizedBlock.memory);
-					char* fileStart = (char*)(normalizedBlock.memory + sizeof(u32));
-					UBA_ASSERT(rootOffsets <= normalizedBlock.writtenSize);
+					StringBuffer<MaxPath> path;
+					CasKey casKey;
+					if (!GetLocalPathAndCasKey(bucket, rootPaths, path, casKey, bucket.serverCasKeyTable, bucket.serverPathTable, casKeyOffset))
+						return false;
+					UBA_ASSERT(IsCompressed(casKey));
 
-					// "denormalize" fetched file into another memory block that will be written to disk
-					u64 lastWritten = 0;
-					BinaryReader reader2(normalizedBlock.memory, rootOffsets, normalizedBlock.writtenSize);
-					while (reader2.GetLeft())
+					FileFetcher fetcher { m_storage.m_bufferSlots };
+					fetcher.m_errorOnFail = false;
+
+					if (IsNormalized(casKey))
 					{
-						u64 rootOffset = reader2.Read7BitEncoded();
-						if (u64 toWrite = rootOffset - lastWritten)
+						// Fetch into memory, file is in special format without absolute paths
+						MemoryBlock normalizedBlock(4*1024*1024);
+						bool destinationIsCompressed = false;
+						if (!fetcher.RetrieveFile(m_logger, m_client, casKey, path.data, destinationIsCompressed, &normalizedBlock))
+							return false;
+
+						MemoryBlock localBlock(4*1024*1024);
+
+						u32 rootOffsets = *(u32*)(normalizedBlock.memory);
+						char* fileStart = (char*)(normalizedBlock.memory + sizeof(u32));
+						UBA_ASSERT(rootOffsets <= normalizedBlock.writtenSize);
+
+						// "denormalize" fetched file into another memory block that will be written to disk
+						u64 lastWritten = 0;
+						BinaryReader reader2(normalizedBlock.memory, rootOffsets, normalizedBlock.writtenSize);
+						while (reader2.GetLeft())
+						{
+							u64 rootOffset = reader2.Read7BitEncoded();
+							if (u64 toWrite = rootOffset - lastWritten)
+								memcpy(localBlock.Allocate(toWrite, 1, TC("")), fileStart + lastWritten, toWrite);
+							u8 rootIndex = fileStart[rootOffset] - RootPaths::RootStartByte;
+							auto& root = rootPaths.GetRoot(rootIndex);
+
+							#if PLATFORM_WINDOWS
+							StringBuffer<> pathTemp;
+							pathTemp.Append(root.path);
+							char rootPath[512];
+							u32 rootPathLen = pathTemp.Parse(rootPath, sizeof_array(rootPath));
+							#else
+							const char* rootPath = root.path.data();
+							u32 rootPathLen = root.path.size();
+							#endif
+
+							if (u32 toWrite = rootPathLen - 1)
+								memcpy(localBlock.Allocate(toWrite, 1, TC("")), rootPath, toWrite);
+							lastWritten = rootOffset + 1;
+						}
+
+						u64 fileSize = rootOffsets - sizeof(u32);
+						if (u64 toWrite = fileSize - lastWritten)
 							memcpy(localBlock.Allocate(toWrite, 1, TC("")), fileStart + lastWritten, toWrite);
-						u8 rootIndex = fileStart[rootOffset] - RootPaths::RootStartByte;
-						auto& root = rootPaths.GetRoot(rootIndex);
 
-						#if PLATFORM_WINDOWS
-						StringBuffer<> pathTemp;
-						pathTemp.Append(root.path);
-						char rootPath[512];
-						u32 rootPathLen = pathTemp.Parse(rootPath, sizeof_array(rootPath));
-						#else
-						const char* rootPath = root.path.data();
-						u32 rootPathLen = root.path.size();
-						#endif
+						FileAccessor destFile(m_logger, path.data);
+						if (!destFile.CreateWrite())
+							return false;
+						if (!destFile.Write(localBlock.memory, localBlock.writtenSize))
+							return false;
+						if (!destFile.Close(&fetcher.lastWritten))
+							return false;
 
-						if (u32 toWrite = rootPathLen - 1)
-							memcpy(localBlock.Allocate(toWrite, 1, TC("")), rootPath, toWrite);
-						lastWritten = rootOffset + 1;
+						fetcher.sizeOnDisk = localBlock.writtenSize;
+						casKey = CalculateCasKey(localBlock.memory, localBlock.writtenSize, false, nullptr);
+					}
+					else
+					{
+						bool destinationIsCompressed = IsFileCompressed(info, path.data, path.count);
+						if (!fetcher.RetrieveFile(m_logger, m_client, casKey, path.data, destinationIsCompressed))
+							return false;
 					}
 
-					u64 fileSize = rootOffsets - sizeof(u32);
-					if (u64 toWrite = fileSize - lastWritten)
-						memcpy(localBlock.Allocate(toWrite, 1, TC("")), fileStart + lastWritten, toWrite);
+					cacheStats.fetchBytesRaw += fetcher.sizeOnDisk;
+					cacheStats.fetchBytesComp += fetcher.bytesReceived;
 
-					FileAccessor destFile(m_logger, path.data);
-					if (!destFile.CreateWrite())
+					if (!m_storage.FakeCopy(casKey, path.data, fetcher.sizeOnDisk, fetcher.lastWritten, false))
 						return false;
-					if (!destFile.Write(localBlock.memory, localBlock.writtenSize))
+					if (!m_session.RegisterNewFile(path.data))
 						return false;
-					if (!destFile.Close(&fetcher.lastWritten))
-						return false;
+					return true;
+				});
 
-					fetcher.sizeOnDisk = localBlock.writtenSize;
-					casKey = CalculateCasKey(localBlock.memory, localBlock.writtenSize, false, nullptr);
-				}
-				else
-				{
-					bool destinationIsCompressed = IsFileCompressed(info, path.data, path.count);
-					if (!fetcher.RetrieveFile(m_logger, m_client, casKey, path.data, destinationIsCompressed))
-						return false;
-				}
-
-				cacheStats.fetchBytesRaw += fetcher.sizeOnDisk;
-				cacheStats.fetchBytesComp += fetcher.bytesReceived;
-
-				if (!m_storage.FakeCopy(casKey, path.data, fetcher.sizeOnDisk, fetcher.lastWritten, false))
-					return false;
-				if (!m_session.RegisterNewFile(path.data))
-					return false;
-			}
+			if (!result)
+				return false;
 
 			success = true;
 			return true;
