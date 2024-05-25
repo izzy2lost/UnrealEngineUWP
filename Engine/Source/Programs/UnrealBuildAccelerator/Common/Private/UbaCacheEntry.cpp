@@ -47,7 +47,6 @@ namespace uba
 		u16& entryCount = *(u16*)writer.AllocWrite(2);
 		entryCount = 0;
 
-		#if UBA_USE_OLD
 		if (clientVersion == 3)
 		{
 			UBA_ASSERT(!toDisk);
@@ -71,7 +70,6 @@ namespace uba
 			}
 			return true;
 		}
-		#endif
 
 		{
 			auto& shared = sharedInputCasKeyOffsets;
