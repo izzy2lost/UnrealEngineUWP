@@ -149,6 +149,10 @@ public:
 	struct FCreationHeader
 	{
 		virtual ~FCreationHeader() {};
+
+	private:
+		friend UObjectReplicationBridge;
+		uint64 ProtocolIdentifier = uint64(0);
 	};
 	
 	/**
