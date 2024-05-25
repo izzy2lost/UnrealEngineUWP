@@ -19,7 +19,12 @@ namespace uba
 		Vector<u8> inputCasKeyOffsets;
 		#endif
 
-		struct Range { u32 begin; u32 end; bool operator==(const Range& o) const { return begin == o.begin && end == o.end; } };
+		struct Range {
+			u32 begin; u32 end;
+			Range() = default;
+			Range(u32 b, u32 e) : begin(b), end(e) {}
+			bool operator==(const Range& o) const { return begin == o.begin && end == o.end; }
+		};
 		Vector<Range> sharedInputCasKeyOffsetRanges;
 		Vector<u8> extraInputCasKeyOffsets;
 		Vector<u8> outputCasKeyOffsets;

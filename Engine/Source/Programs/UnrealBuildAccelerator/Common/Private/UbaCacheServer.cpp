@@ -691,7 +691,9 @@ namespace uba
 			}
 
 			writer.WriteBool(true);
-			m_connections.try_emplace(connectionInfo.GetId(), clientVersion);
+			auto insres = m_connections.try_emplace(connectionInfo.GetId());
+			auto& connection = insres.first->second;
+			connection.clientVersion = clientVersion;
 			return true;
 		}
 		case CacheMessageType_StorePathTable:
