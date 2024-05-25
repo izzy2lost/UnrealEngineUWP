@@ -15,10 +15,14 @@ public:
 
 	void Construct(const FArguments& InArgs, const TSharedRef<FAvaTransitionEditorViewModel>& InEditorViewModel);
 
-	void Refresh();
+	virtual ~SAvaTransitionTreeDetails() override;
 
 private:
+	void Refresh();
+
 	TWeakPtr<FAvaTransitionEditorViewModel> EditorViewModelWeak;
 
 	TSharedPtr<IDetailsView> DetailsView;
+
+	FDelegateHandle OnRefreshHandle;
 };

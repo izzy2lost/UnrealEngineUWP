@@ -2,6 +2,7 @@
 
 #include "AvaTransitionTreeDetailsTabFactory.h"
 #include "ViewModels/AvaTransitionEditorViewModel.h"
+#include "Views/SAvaTransitionTreeDetails.h"
 #include "Widgets/SNullWidget.h"
 
 #define LOCTEXT_NAMESPACE "AvaTransitionTreeDetailsTabFactory"
@@ -33,7 +34,7 @@ TSharedRef<SWidget> FAvaTransitionTreeDetailsTabFactory::CreateTabBody(const FWo
 		return SNullWidget::NullWidget;
 	}
 
-	return EditorViewModel->GetTreeDetails();
+	return SNew(SAvaTransitionTreeDetails, EditorViewModel.ToSharedRef());
 }
 
 #undef LOCTEXT_NAMESPACE

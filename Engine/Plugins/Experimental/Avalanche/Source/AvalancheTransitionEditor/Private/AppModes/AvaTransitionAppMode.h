@@ -14,16 +14,20 @@ struct FSlateBrush;
 class FAvaTransitionAppMode : public FApplicationMode
 {
 public:
+	static FName StaticGetModeName(EAvaTransitionEditorMode InEditorMode);
+
 	FAvaTransitionAppMode(const TSharedRef<FAvaTransitionEditor>& InEditor, EAvaTransitionEditorMode InEditorMode);
 
 	void AddToToolbar(const TSharedRef<FExtender>& InToolbarExtender);
 
 protected:
+	void RegisterDefaultTabFactories();
+
+	void ExtendToolbar(FToolBarBuilder& InToolbarBuilder);
+
 	//~ Begin FApplicationMode
 	virtual void RegisterTabFactories(TSharedPtr<FTabManager> InTabManager) override final;
 	//~ End FApplicationMode
-
-	void ExtendToolbar(FToolBarBuilder& InToolbarBuilder);
 
 	TWeakPtr<FAvaTransitionEditor> EditorWeak;
 

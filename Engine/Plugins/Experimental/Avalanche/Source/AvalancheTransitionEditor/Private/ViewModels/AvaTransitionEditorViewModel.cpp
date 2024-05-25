@@ -21,7 +21,6 @@
 #include "StateTreeDelegates.h"
 #include "StateTreeEditorSettings.h"
 #include "TabFactories/AvaTransitionCompilerResultsTabFactory.h"
-#include "Views/SAvaTransitionTreeDetails.h"
 #include "Views/SAvaTransitionTreeView.h"
 #include "Widgets/Layout/SScrollBar.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -168,15 +167,6 @@ TSharedRef<SWidget> FAvaTransitionEditorViewModel::GetTreeWidget()
 		];
 }
 
-TSharedRef<SWidget> FAvaTransitionEditorViewModel::GetTreeDetails()
-{
-	if (!TreeDetails.IsValid())
-	{
-		TreeDetails = SNew(SAvaTransitionTreeDetails, SharedThis(this));
-	}
-	return TreeDetails.ToSharedRef();
-}
-
 void FAvaTransitionEditorViewModel::OnInitialize()
 {
 	FAvaTransitionViewModel::OnInitialize();
@@ -204,13 +194,10 @@ void FAvaTransitionEditorViewModel::PostRefresh()
 {
 	FAvaTransitionViewModel::PostRefresh();
 
-	if (TreeDetails.IsValid())
-	{
-		TreeDetails->Refresh();
-	}
-
 	RefreshTreeView();
 	UpdateTree();
+
+	OnPostRefreshDelegate.Broadcast();
 }
 
 void FAvaTransitionEditorViewModel::RefreshTreeView()

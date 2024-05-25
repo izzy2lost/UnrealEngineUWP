@@ -17,7 +17,6 @@ class FAvaTransitionTreeContextMenu;
 class FUICommandList;
 class IAvaTransitionSelectableExtension;
 class IMessageToken;
-class SAvaTransitionTreeDetails;
 class SAvaTransitionTreeView;
 class UAvaTransitionTree;
 class UAvaTransitionTreeEditorData;
@@ -30,6 +29,12 @@ class FAvaTransitionEditorViewModel : public FAvaTransitionViewModel, public FSe
 {
 public:
 	UE_AVA_INHERITS(FAvaTransitionEditorViewModel, FAvaTransitionViewModel, IAvaTransitionObjectExtension)
+
+	DECLARE_MULTICAST_DELEGATE(FOnPostRefresh);
+	FOnPostRefresh::RegistrationType& GetOnPostRefresh() const
+	{
+		return OnPostRefreshDelegate;
+	}
 
 	explicit FAvaTransitionEditorViewModel(UAvaTransitionTree* InTransitionTree, const TSharedPtr<FAvaTransitionEditor>& InEditor);
 
@@ -73,8 +78,6 @@ public:
 	}
 
 	TSharedRef<SWidget> GetTreeWidget();
-
-	TSharedRef<SWidget> GetTreeDetails();
 
 	//~ Begin FAvaTransitionViewModel
 	virtual void OnInitialize() override;
@@ -121,7 +124,7 @@ private:
 
 	TSharedPtr<SAvaTransitionTreeView> TreeView;
 
-	TSharedPtr<SAvaTransitionTreeDetails> TreeDetails;
-
 	TArray<TSharedRef<FAvaTransitionActions>> Actions;
+
+	mutable FOnPostRefresh OnPostRefreshDelegate;
 };

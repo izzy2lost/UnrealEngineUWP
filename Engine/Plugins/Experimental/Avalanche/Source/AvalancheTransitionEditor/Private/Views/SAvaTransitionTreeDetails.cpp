@@ -13,17 +13,20 @@ void SAvaTransitionTreeDetails::Construct(const FArguments& InArgs, const TShare
 {
 	EditorViewModelWeak = InEditorViewModel;
 
-	FDetailsViewArgs DetailsViewArgs;
-	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+	TSharedRef<FAvaTransitionViewModelSharedData> SharedData = InEditorViewModel->GetSharedData();
 
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
+	FDetailsViewArgs DetailsViewArgs;
+	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+
 	DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+
 	DetailsView->RegisterInstancedCustomPropertyLayout(UStateTreeEditorData::StaticClass()
-		, FOnGetDetailCustomizationInstance::CreateStatic(&FAvaTransitionTreeEditorDataCustomization::MakeInstance));
+		, FOnGetDetailCustomizationInstance::CreateStatic(&FAvaTransitionTreeEditorDataCustomization::MakeInstance, SharedData->AsWeak()));
 
 	// Read-only
-	if (InEditorViewModel->GetSharedData()->IsReadOnly())
+	if (SharedData->IsReadOnly())
 	{
 		DetailsView->SetIsPropertyEditingEnabledDelegate(FIsPropertyEditingEnabled::CreateLambda([]{ return false; }));
 	}
@@ -34,6 +37,17 @@ void SAvaTransitionTreeDetails::Construct(const FArguments& InArgs, const TShare
 	];
 
 	Refresh();
+
+	OnRefreshHandle = InEditorViewModel->GetOnPostRefresh().AddSP(this, &SAvaTransitionTreeDetails::Refresh);
+}
+
+SAvaTransitionTreeDetails::~SAvaTransitionTreeDetails()
+{
+	if (TSharedPtr<FAvaTransitionEditorViewModel> EditorViewModel = EditorViewModelWeak.Pin())
+	{
+		EditorViewModel->GetOnPostRefresh().Remove(OnRefreshHandle);
+		OnRefreshHandle.Reset();
+	}
 }
 
 void SAvaTransitionTreeDetails::Refresh()
@@ -51,5 +65,5 @@ void SAvaTransitionTreeDetails::Refresh()
 	}
 
 	check(DetailsView.IsValid());
-	DetailsView->SetObject(EditorData);
+	DetailsView->SetObject(EditorData, /*bForceRefresh*/true);
 }

@@ -4,6 +4,7 @@
 #include "AvaTransitionEditor.h"
 #include "TabFactories/AvaTransitionCompilerResultsTabFactory.h"
 #include "TabFactories/AvaTransitionSelectionDetailsTabFactory.h"
+#include "TabFactories/AvaTransitionTreeDetailsTabFactory.h"
 #include "TabFactories/AvaTransitionTreeTabFactory.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
@@ -15,14 +16,16 @@ namespace UE::AvaTransitionEditor::Private
 {
 	static const TMap<EAvaTransitionEditorMode, FName> GModeNames
 	{
-		{ EAvaTransitionEditorMode::Default , TEXT("Default") },
-		{ EAvaTransitionEditorMode::Advanced, TEXT("Advanced") },
+		{ EAvaTransitionEditorMode::Default  , TEXT("Default") },
+		{ EAvaTransitionEditorMode::Advanced , TEXT("Advanced") },
+		{ EAvaTransitionEditorMode::Parameter, TEXT("Parameter") },
 	};
 
 	static const TMap<FName, FText> GLocalizedModeNames
 	{
-		{ TEXT("Default") , LOCTEXT("Default", "Default") },
-		{ TEXT("Advanced"), LOCTEXT("Advanced", "Advanced") },
+		{ TEXT("Default")  , LOCTEXT("Default", "Default") },
+		{ TEXT("Advanced") , LOCTEXT("Advanced", "Advanced") },
+		{ TEXT("Parameter"), LOCTEXT("Parameter", "Parameter") },
 	};
 
 	FText GetLocalizedMode(FName InModeName)
@@ -31,24 +34,16 @@ namespace UE::AvaTransitionEditor::Private
 	}
 }
 
+FName FAvaTransitionAppMode::StaticGetModeName(EAvaTransitionEditorMode InEditorMode)
+{
+	return UE::AvaTransitionEditor::Private::GModeNames[InEditorMode];
+}
+
 FAvaTransitionAppMode::FAvaTransitionAppMode(const TSharedRef<FAvaTransitionEditor>& InEditor, EAvaTransitionEditorMode InEditorMode)
-	: FApplicationMode(UE::AvaTransitionEditor::Private::GModeNames[InEditorMode], &UE::AvaTransitionEditor::Private::GetLocalizedMode)
+	: FApplicationMode(FAvaTransitionAppMode::StaticGetModeName(InEditorMode), &UE::AvaTransitionEditor::Private::GetLocalizedMode)
 	, EditorWeak(InEditor)
 	, EditorMode(InEditorMode)
 {
-	// Default Factories
-	TabFactories.RegisterFactory(MakeShared<FAvaTransitionTreeTabFactory>(InEditor));
-	TabFactories.RegisterFactory(MakeShared<FAvaTransitionSelectionDetailsTabFactory>(InEditor, InEditorMode));
-	TabFactories.RegisterFactory(MakeShared<FAvaTransitionCompilerResultsTabFactory>(InEditor));
-}
-
-void FAvaTransitionAppMode::RegisterTabFactories(TSharedPtr<FTabManager> InTabManager)
-{
-	TSharedPtr<FAvaTransitionEditor> Editor = EditorWeak.Pin();
-	check(Editor.IsValid());
-	Editor->SetEditorMode(EditorMode);
-	Editor->PushTabFactories(TabFactories);
-	FApplicationMode::RegisterTabFactories(InTabManager);
 }
 
 void FAvaTransitionAppMode::AddToToolbar(const TSharedRef<FExtender>& InToolbarExtender)
@@ -58,6 +53,16 @@ void FAvaTransitionAppMode::AddToToolbar(const TSharedRef<FExtender>& InToolbarE
 		, EExtensionHook::After
 		, nullptr
 		, FToolBarExtensionDelegate::CreateSP(this, &FAvaTransitionAppMode::ExtendToolbar));
+}
+
+void FAvaTransitionAppMode::RegisterDefaultTabFactories()
+{
+	TSharedRef<FAvaTransitionEditor> Editor = EditorWeak.Pin().ToSharedRef();
+
+	TabFactories.RegisterFactory(MakeShared<FAvaTransitionTreeTabFactory>(Editor));
+	TabFactories.RegisterFactory(MakeShared<FAvaTransitionCompilerResultsTabFactory>(Editor));
+	TabFactories.RegisterFactory(MakeShared<FAvaTransitionTreeDetailsTabFactory>(Editor));
+	TabFactories.RegisterFactory(MakeShared<FAvaTransitionSelectionDetailsTabFactory>(Editor, EditorMode));
 }
 
 void FAvaTransitionAppMode::ExtendToolbar(FToolBarBuilder& InToolbarBuilder)
@@ -88,6 +93,15 @@ void FAvaTransitionAppMode::ExtendToolbar(FToolBarBuilder& InToolbarBuilder)
 			]
 		]
 	);
+}
+
+void FAvaTransitionAppMode::RegisterTabFactories(TSharedPtr<FTabManager> InTabManager)
+{
+	TSharedPtr<FAvaTransitionEditor> Editor = EditorWeak.Pin();
+	check(Editor.IsValid());
+	Editor->SetEditorMode(EditorMode);
+	Editor->PushTabFactories(TabFactories);
+	FApplicationMode::RegisterTabFactories(InTabManager);
 }
 
 #undef LOCTEXT_NAMESPACE
