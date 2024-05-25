@@ -165,7 +165,7 @@ public:
 	* For Python implementations override
 	*	@unreal.ufunction(override=True)
 	*	def is_per_shot_callback_needed():
-	*		return False;
+	*		return False
 	*/
 	UFUNCTION(BlueprintNativeEvent, Category = "Movie Graph")
 	bool IsPerShotCallbackNeeded() const;
