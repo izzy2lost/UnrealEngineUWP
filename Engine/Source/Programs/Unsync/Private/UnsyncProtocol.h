@@ -75,7 +75,8 @@ static constexpr uint64 SERIALIZED_SECTION_ID_TERMINATOR			= 0;
 static constexpr uint64 SERIALIZED_SECTION_ID_METADATA_STRING		= 0xC6BD6CDCEEF79533ull;
 static constexpr uint64 SERIALIZED_SECTION_ID_MACRO_BLOCK			= 0x8390AEBB745E08BCull;
 static constexpr uint64 SERIALIZED_SECTION_ID_FILE_READ_ONLY_MASK	= 0x851F32ED3615F0ADull;
-static constexpr uint64 SERIALIZED_SECTION_ID_FILE_REVISION_CONTROL = 0X2C1C72E6B78B1B50ull;
+static constexpr uint64 SERIALIZED_SECTION_ID_FILE_REVISION_CONTROL = 0x2C1C72E6B78B1B50ull;
+static constexpr uint64 SERIALIZED_SECTION_ID_PACK_REFERENCE		= 0x634EA57F1E48DFBDull;
 
 struct FSerializedSectionHeader
 {
@@ -109,6 +110,12 @@ struct FFileReadOnlyMaskSection
 struct FFileRevisionControlSection
 {
 	static constexpr uint64 MAGIC	= SERIALIZED_SECTION_ID_FILE_REVISION_CONTROL;
+	static constexpr uint64 VERSION = 1;
+};
+
+struct FPackReferenceSection
+{
+	static constexpr uint64 MAGIC	= SERIALIZED_SECTION_ID_PACK_REFERENCE;
 	static constexpr uint64 VERSION = 1;
 };
 
@@ -201,6 +208,29 @@ struct FPatchHeader
 	EWeakHashAlgorithmID   WeakHashAlgorithmId		 = EWeakHashAlgorithmID::Naive;
 	EStrongHashAlgorithmID StrongHashAlgorithmId	 = EStrongHashAlgorithmID::Blake3_128;
 };
+
+struct FPackIndexEntry
+{
+	// Decompressed block hash
+	FHash128 BlockHash		 = {};
+	// Compressed block hash (may be equal to BlockHash to signal uncompressed block)
+	FHash128 CompressedHash	 = {};
+
+	// Offset and size within pack file
+	uint32	 PackBlockOffset = 0;
+	uint32	 PackBlockSize	 = 0;
+};
+static_assert(sizeof(FPackIndexEntry) == 40);
+
+struct FPackIndexHeader
+{
+	static constexpr uint64 MAGIC	= 0xEEC735E03053CC3Full;
+	static constexpr uint64 VERSION = 1;
+
+	uint64 Magic   = MAGIC;
+	uint64 Version = VERSION;
+};
+static_assert(sizeof(FPackIndexHeader) == 16);
 
 // Protocol V2: support for up to 256bit hashes
 

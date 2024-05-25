@@ -11,9 +11,12 @@ struct FCmdHashOptions
 {
 	FPath			  Input;
 	FPath			  Output;
-	bool			  bForce	   = false;
-	bool			  bIncremental = false;
-	uint32			  BlockSize	   = uint32(64_KB);
+	bool			  bForce			= false;
+	bool			  bIncremental		= false;
+	bool			  bCompressPacks	= false;
+	bool			  bPackFiles		= false;
+	uint64			  MaxFileSizeToPack = ~0ull;
+	uint32			  BlockSize			= uint32(64_KB);
 	FAlgorithmOptions Algorithm;
 };
 

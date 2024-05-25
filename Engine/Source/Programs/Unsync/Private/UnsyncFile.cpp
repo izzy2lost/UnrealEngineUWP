@@ -1203,6 +1203,12 @@ CreateDirectories(const FPath& Path)
 }
 
 bool
+EnsureDirectoryExists(const FPath& Path)
+{
+	return (PathExists(Path) && IsDirectory(Path)) || CreateDirectories(Path);
+}
+
+bool
 FileRename(const FPath& From, const FPath& To, std::error_code& OutErrorCode)
 {
 	FPath ExtendedFrom = MakeExtendedAbsolutePath(From);

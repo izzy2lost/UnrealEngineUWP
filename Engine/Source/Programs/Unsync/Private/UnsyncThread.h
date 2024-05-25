@@ -10,7 +10,6 @@
 UNSYNC_THIRD_PARTY_INCLUDES_START
 #include <atomic>
 #include <condition_variable>
-#include <deque>
 #include <functional>
 #include <thread>
 #include <vector>
@@ -86,11 +85,11 @@ public:
 	// Does nothing if the number of already launched workers is lower than given value.
 	void StartWorkers(uint32 NumWorkers);
 
-	// Adds a task to the FIFO queue
-	void PushTask(FTaskFunction&& Fun);
+	// Adds a task to the task list
+	void PushTask(FTaskFunction&& Fun, bool bAllowImmediateExecution = true);
 
-	// Try to pop the next task from the queue and execute it on the current thread.
-	// Returns false if queue is empty, which may happen if worker threads have picked up the tasks already.
+	// Try to pop the next task from the list and execute it on the current thread.
+	// Returns false if list is empty, which may happen if worker threads have picked up the tasks already.
 	bool TryExecuteTask() { return DoWorkInternal(false); }
 
 	uint32 NumWorkerThreads() const { return uint32(Threads.size()); }
@@ -106,7 +105,7 @@ private:
 	std::vector<FTaskFunction> Tasks;
 
 	std::mutex				Mutex;
-	std::condition_variable WorkerWakeupCondition;
+	std::condition_variable WakeCondition;
 	std::atomic<bool>		bShutdown;
 	std::atomic<uint64>		NumRunningTasks;
 };

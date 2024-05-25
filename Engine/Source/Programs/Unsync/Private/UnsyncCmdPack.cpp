@@ -9,14 +9,13 @@
 #include "UnsyncError.h"
 #include "UnsyncProgress.h"
 #include "UnsyncScheduler.h"
+#include "UnsyncPack.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <atomic>
 
 namespace unsync {
-
-static constexpr uint64 GMaxPackFileSize = 1_GB;
 
 template<typename CallbackT>
 static void
@@ -87,15 +86,6 @@ BuildP4HaveSet(const FPath& Root, std::string_view P4HaveDataUtf8, FDirectoryMan
 	ForLines(P4HaveDataUtf8, Callback);
 }
 
-struct FPackIndexEntry	// structure is serialized
-{
-	FHash128 BlockHash		= {};
-	FHash128 CompressedHash = {};
-	uint32	 Offset			= 0;
-	uint32	 CompressedSize = 0;
-};
-static_assert(sizeof(FPackIndexEntry) == 40);
-
 struct FPackDatabase
 {
 	struct FEntry
@@ -140,7 +130,7 @@ struct FPackDatabase
 
 			for (const FPackIndexEntry& IndexEntry : ReinterpretView<FPackIndexEntry>(IndexEntries))
 			{
-				UNSYNC_ASSERT(IndexEntry.Offset + IndexEntry.CompressedSize < GMaxPackFileSize);
+				UNSYNC_ASSERT(IndexEntry.PackBlockOffset + IndexEntry.PackBlockSize < GMaxPackFileSize);
 
 				FEntry DatabaseEntry;
 				DatabaseEntry.IndexEntry	   = IndexEntry;
@@ -148,7 +138,7 @@ struct FPackDatabase
 
 				if (BlockMap.insert(std::make_pair(IndexEntry.BlockHash, DatabaseEntry)).second)
 				{
-					TotalCompressedSize += DatabaseEntry.IndexEntry.CompressedSize;
+					TotalCompressedSize += DatabaseEntry.IndexEntry.PackBlockSize;
 				}
 			}
 		}
@@ -175,112 +165,6 @@ struct FPackDatabase
 	mutable std::vector<std::shared_ptr<FNativeFile>> PackFileCache;
 	mutable std::mutex FileCacheMutex;
 };
-
-inline void
-AddHash(uint64* Accumulator, const FHash128& Hash)
-{
-	uint64 BlockHashParts[2];
-	memcpy(BlockHashParts, &Hash, sizeof(FHash128));
-	Accumulator[0] += BlockHashParts[0];
-	Accumulator[1] += BlockHashParts[1];
-}
-
-inline FHash128
-MakeHashFromParts(uint64* Parts)
-{
-	FHash128 Result;
-	memcpy(&Result, Parts, sizeof(Result));
-	return Result;
-}
-
-struct FPackWriteContext
-{
-	FPackWriteContext(const FPath& InOutputRoot) : OutputRoot(InOutputRoot) { Reset(); }
-	~FPackWriteContext() { FinishPack(); }
-
-	void AddBlock(const FGenericBlock& Block, FHash128 CompressedHash, FBufferView CompressedData)
-	{
-		std::lock_guard<std::mutex> LockGuard(Mutex);
-
-		UNSYNC_ASSERT(CompressedData.Size <= GMaxPackFileSize);
-
-		if (PackBuffer.Size() + CompressedData.Size > GMaxPackFileSize)
-		{
-			FinishPack();
-		}
-
-		FPackIndexEntry IndexEntry;
-		IndexEntry.BlockHash	  = Block.HashStrong.ToHash128();
-		IndexEntry.CompressedHash = CompressedHash;
-		IndexEntry.Offset		  = CheckedNarrow(PackBuffer.Size());
-		IndexEntry.CompressedSize = CheckedNarrow(CompressedData.Size);
-
-		IndexEntries.push_back(IndexEntry);
-		PackBuffer.Append(CompressedData);
-
-		UNSYNC_ASSERT(PackBuffer.Size() == IndexEntry.Offset + IndexEntry.CompressedSize);
-
-		AddHash(IndexFileHashSum, IndexEntry.BlockHash);
-	}
-
-	void FinishPack()
-	{
-		if (IndexEntries.empty())
-		{
-			return;
-		}
-
-		FHash128	BlockHash128 = MakeHashFromParts(IndexFileHashSum);
-		std::string OutputId	 = HashToHexString(BlockHash128);
-
-		FPath FinalPackFilename	 = OutputRoot / (OutputId + ".unsync_pack");
-		FPath FinalIndexFilename = OutputRoot / (OutputId + ".unsync_index");
-
-		UNSYNC_LOG(L"Saving new pack: %hs", OutputId.c_str());
-
-		if (!WriteBufferToFile(FinalPackFilename, PackBuffer, EFileMode::CreateWriteOnly))
-		{
-			UNSYNC_FATAL(L"Failed to write pack file '%ls'", FinalPackFilename.wstring().c_str());
-		}
-
-		const uint8* IndexData	   = reinterpret_cast<const uint8*>(IndexEntries.data());
-		uint64		 IndexDataSize = sizeof(IndexEntries[0]) * IndexEntries.size();
-		if (!WriteBufferToFile(FinalIndexFilename, IndexData, IndexDataSize, EFileMode::CreateWriteOnly))
-		{
-			UNSYNC_FATAL(L"Failed to write index file '%ls'", FinalIndexFilename.wstring().c_str());
-		}
-
-		Reset();
-	}
-
-private:
-	void Reset()
-	{
-		PackBuffer.Reserve(GMaxPackFileSize);
-		PackBuffer.Clear();
-		IndexEntries.clear();
-
-		IndexFileHashSum[0] = 0;
-		IndexFileHashSum[1] = 0;
-	}
-
-	std::mutex Mutex;
-
-	// Independent sums of low and high 32 bits of all seen block hashes.
-	// Used to generate a stable hash while allowing out-of-order block processing.
-	uint64 IndexFileHashSum[2] = {};
-
-	FBuffer						 PackBuffer;
-	std::vector<FPackIndexEntry> IndexEntries;
-
-	FPath OutputRoot;
-};
-
-static bool
-EnsureDirectoryExists(const FPath& Path)
-{
-	return (PathExists(Path) && IsDirectory(Path)) || CreateDirectories(Path);
-}
 
 static int32
 RunSubprocess(const char* Command, const FPath& WorkingDirectory, std::string& StdOutBuffer)
@@ -536,9 +420,12 @@ CmdPack(const FCmdPackOptions& Options)
 	std::mutex Mutex;
 
 	FOnBlockGenerated OnBlockGenerated =
-		[&Mutex, &PackWriter, &SeenBlockHashSet, &ProcessedRawBytes, &CompressedBytes, &LogConfig](const FGenericBlock& Block,
-																								   FBufferView			Data)
+		[&Mutex, &PackWriter, &SeenBlockHashSet, &ProcessedRawBytes, &CompressedBytes, &LogConfig](const FGenericBlock&	   Block,
+																								   const FBlockSourceInfo& SourceInfo,
+																								   FBufferView			   Data)
 	{
+		UNSYNC_UNUSED(SourceInfo);
+
 		FThreadLogConfig::FScope LogConfigScope(LogConfig);
 
 		{
@@ -549,22 +436,12 @@ CmdPack(const FCmdPackOptions& Options)
 			}
 		}
 
-		const uint64 MaxCompressedSize	  = GetMaxCompressedSize(Block.Size);
-		FIOBuffer	 CompressedData		  = FIOBuffer::Alloc(MaxCompressedSize, L"PackBlock");
-		uint64		 ActualCompressedSize = CompressInto(Data, CompressedData.GetMutBufferView(), 9);
-
-		if (!ActualCompressedSize)
-		{
-			UNSYNC_FATAL(L"Failed to compress file block");
-		}
-		CompressedData.SetDataRange(0, ActualCompressedSize);
+		FPackWriteContext::FCompressedBlock CompressedBlock = FPackWriteContext::CompressBlock(Data);
 
 		ProcessedRawBytes += Block.Size;
-		CompressedBytes += ActualCompressedSize;
+		CompressedBytes += CompressedBlock.Data.GetSize();
 
-		FHash128 CompressedHash = HashBlake3Bytes<FHash128>(CompressedData.GetData(), ActualCompressedSize);
-
-		PackWriter.AddBlock(Block, CompressedHash, CompressedData.GetBufferView());
+		PackWriter.CompressAndAddBlock(Block, Data);
 	};
 
 	FComputeBlocksParams BlockParams;
@@ -637,13 +514,13 @@ CmdPack(const FCmdPackOptions& Options)
 
 		std::vector<FGenericBlock> ManifestBlocks;
 		FOnBlockGenerated		   OnManifestBlockGenerated =
-			[&OnBlockGenerated, &Mutex, &ManifestBlocks](const FGenericBlock& Block, FBufferView Data)
+			[&OnBlockGenerated, &Mutex, &ManifestBlocks](const FGenericBlock& Block, const FBlockSourceInfo& SourceInfo, FBufferView Data)
 		{
 			{
 				std::lock_guard<std::mutex> LockGuard(Mutex);
 				ManifestBlocks.push_back(Block);
 			}
-			OnBlockGenerated(Block, Data);
+			OnBlockGenerated(Block, SourceInfo, Data);
 		};
 
 		ManifestUniqueBytes -= ProcessedRawBytes.load();
@@ -740,7 +617,7 @@ BuildTargetFromPack(FIOWriter& Output, const FPackDatabase& PackDb, TArrayView<F
 			{
 				return PackIndex < Other.PackIndex;
 			}
-			return IndexEntry->Offset < Other.IndexEntry->Offset;
+			return IndexEntry->PackBlockOffset < Other.IndexEntry->PackBlockOffset;
 		}
 	};
 
@@ -779,7 +656,7 @@ BuildTargetFromPack(FIOWriter& Output, const FPackDatabase& PackDb, TArrayView<F
 	{
 		const FScheduleItem& Item = Schedule[ScheduleIndex];
 
-		UNSYNC_ASSERT(ReadSize == Item.IndexEntry->CompressedSize);
+		UNSYNC_ASSERT(ReadSize == Item.IndexEntry->PackBlockSize);
 
 		FHash128 CompressedHash = HashBlake3Bytes<FHash128>(Buffer.GetData(), Buffer.GetSize());
 		UNSYNC_ASSERT(CompressedHash == Item.IndexEntry->CompressedHash);
@@ -817,9 +694,9 @@ BuildTargetFromPack(FIOWriter& Output, const FPackDatabase& PackDb, TArrayView<F
 			CurrentPackId = Item.PackIndex;
 		}
 
-		UNSYNC_ASSERT(Item.IndexEntry->Offset < PackFile->GetSize());
-		UNSYNC_ASSERT(Item.IndexEntry->Offset + Item.IndexEntry->CompressedSize <= PackFile->GetSize());
-		PackFile->ReadAsync(Item.IndexEntry->Offset, Item.IndexEntry->CompressedSize, ScheduleIndex, ReadCallback);
+		UNSYNC_ASSERT(Item.IndexEntry->PackBlockOffset < PackFile->GetSize());
+		UNSYNC_ASSERT(Item.IndexEntry->PackBlockOffset + Item.IndexEntry->PackBlockSize <= PackFile->GetSize());
+		PackFile->ReadAsync(Item.IndexEntry->PackBlockOffset, Item.IndexEntry->PackBlockSize, ScheduleIndex, ReadCallback);
 	}
 
 	if (PackFile)

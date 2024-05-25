@@ -30,6 +30,7 @@ struct FRemoteDesc;
 struct FIOReader;
 struct FIOWriter;
 struct FIOReaderWriter;
+struct FPackWriteContext;
 
 struct FIdentityHash32
 {
@@ -126,7 +127,13 @@ FNeedListSize ComputeNeedListSize(const FNeedList& NeedList);
 
 const std::string& GetVersionString();
 
-using FOnBlockGenerated = std::function<void(const FGenericBlock& Block, FBufferView Data)>;
+struct FBlockSourceInfo
+{
+	// FPath  FilePath; // TODO: pass this in to allow filtering by name, etc.
+	uint64 TotalSize = 0;  // Total size of the input file/buffer from which the block was generated
+};
+
+using FOnBlockGenerated = std::function<void(const FGenericBlock& Block, const FBlockSourceInfo& Source, FBufferView Data)>;
 
 struct FComputeBlocksParams
 {

@@ -30,7 +30,7 @@ UNSYNC_THIRD_PARTY_INCLUDES_START
 #include <md5-sse2.h>
 UNSYNC_THIRD_PARTY_INCLUDES_END
 
-#define UNSYNC_VERSION_STR "1.0.72"
+#define UNSYNC_VERSION_STR "1.0.78"
 
 namespace unsync {
 
@@ -140,6 +140,9 @@ ComputeBlocksVariableT(FIOReader& Reader, const FComputeBlocksParams& Params)
 	const uint32 BlocksPerMacroBlock	 = CheckedNarrow(DivUp(TargetMacroBlockSize - MinimumMacroBlockSize, BlockSize));
 	const uint32 MacroBlockHashThreshold = BlocksPerMacroBlock ? (0xFFFFFFFF / BlocksPerMacroBlock) : 0;
 
+	FBlockSourceInfo SourceInfo;
+	SourceInfo.TotalSize = InputSize;
+
 	struct FTask
 	{
 		uint64			   Offset = 0;
@@ -178,6 +181,7 @@ ComputeBlocksVariableT(FIOReader& Reader, const FComputeBlocksParams& Params)
 						 &IoSemaphore,
 						 &BufferPool,
 						 &Params,
+						 &SourceInfo,
 						 MinimumBlockSize,
 						 MaximumBlockSize,
 						 ScanTaskBuffer,
@@ -211,7 +215,8 @@ ComputeBlocksVariableT(FIOReader& Reader, const FComputeBlocksParams& Params)
 						   &Params,
 						   TargetMacroBlockSize,
 						   &MacroBlockHasher,
-						   &CurrentMacroBlock](const uint8* WindowBegin, const uint8* WindowEnd, uint32 WindowHash)
+						   &CurrentMacroBlock,
+						   &SourceInfo](const uint8* WindowBegin, const uint8* WindowEnd, uint32 WindowHash)
 							  UNSYNC_ATTRIB_FORCEINLINE {
 								  // WARNING: Changing this invalidates some of the previously cached blocks.
 								  // TODO: compute based on target average block size
@@ -250,7 +255,7 @@ ComputeBlocksVariableT(FIOReader& Reader, const FComputeBlocksParams& Params)
 												  FBufferView BlockView;
 												  BlockView.Data = (LastBlockEnd + Block.Size) - CurrentMacroBlock.Size;
 												  BlockView.Size = CurrentMacroBlock.Size;
-												  Params.OnMacroBlockGenerated(CurrentMacroBlock, BlockView);
+												  Params.OnMacroBlockGenerated(CurrentMacroBlock, SourceInfo, BlockView);
 											  }
 
 											  // Reset macro block state
@@ -265,7 +270,7 @@ ComputeBlocksVariableT(FIOReader& Reader, const FComputeBlocksParams& Params)
 										  FBufferView BlockView;
 										  BlockView.Data = LastBlockEnd;
 										  BlockView.Size = Block.Size;
-										  Params.OnBlockGenerated(Block, BlockView);
+										  Params.OnBlockGenerated(Block, SourceInfo, BlockView);
 									  }
 
 									  if (!Task.Blocks.empty())

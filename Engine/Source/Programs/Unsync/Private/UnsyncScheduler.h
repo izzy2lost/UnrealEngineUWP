@@ -33,6 +33,8 @@ class FScheduler
 public:
 	UNSYNC_DISALLOW_COPY_ASSIGN(FScheduler)
 
+	using FTaskFunction = FThreadPool::FTaskFunction;
+
 	static constexpr uint32 MAX_NETWORK_TASKS = 8;
 
 	FScheduler(uint32 InNumWorkerThreads);
@@ -54,6 +56,12 @@ public:
 			NumExecuted++;
 		}
 		return NumExecuted != 0;
+	}
+
+	template<typename TaskFunction>
+	void PushTask(TaskFunction&& Fun, bool bAllowImmediateExecution = true)
+	{
+		ThreadPool.PushTask(std::forward<TaskFunction>(Fun), bAllowImmediateExecution);
 	}
 
 private:

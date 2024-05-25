@@ -29,7 +29,7 @@ FThreadPool::StartWorkers(uint32 NumWorkers)
 FThreadPool::~FThreadPool()
 {
 	bShutdown = true;
-	WorkerWakeupCondition.notify_all();
+	WakeCondition.notify_all();
 
 	for (std::thread& Thread : Threads)
 	{
@@ -45,7 +45,7 @@ FThreadPool::PopTask(bool bWaitForSignal)
 	if (bWaitForSignal)
 	{
 		auto WaitUntil = [this]() { return bShutdown || !Tasks.empty(); };
-		WorkerWakeupCondition.wait(LockScope, WaitUntil);
+		WakeCondition.wait(LockScope, WaitUntil);
 	}
 
 	FThreadPool::FTaskFunction Result;
@@ -60,9 +60,9 @@ FThreadPool::PopTask(bool bWaitForSignal)
 }
 
 void
-FThreadPool::PushTask(FTaskFunction&& Fun)
+FThreadPool::PushTask(FTaskFunction&& Fun, bool bAllowImmediateExecution)
 {
-	if (Threads.empty() || NumRunningTasks.load() == NumWorkerThreads())
+	if (Threads.empty() || (NumRunningTasks.load() == NumWorkerThreads() && bAllowImmediateExecution))
 	{
 		Fun();
 	}
@@ -70,7 +70,7 @@ FThreadPool::PushTask(FTaskFunction&& Fun)
 	{
 		std::unique_lock<std::mutex> LockScope(Mutex);
 		Tasks.push_back(std::forward<FTaskFunction>(Fun));
-		WorkerWakeupCondition.notify_one();
+		WakeCondition.notify_one();
 	}
 }
 
@@ -94,7 +94,6 @@ FThreadPool::DoWorkInternal(bool bWaitForSignal)
 		return false;
 	}
 }
-
 
 void
 SchedulerSleep(uint32 Milliseconds)

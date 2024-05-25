@@ -467,6 +467,7 @@ bool			IsDirectory(const FPath& Path);
 bool			PathExists(const FPath& Path);
 bool			PathExists(const FPath& Path, std::error_code& OutErrorCode);
 bool			CreateDirectories(const FPath& Path);
+bool			EnsureDirectoryExists(const FPath& Path);
 bool			FileRename(const FPath& From, const FPath& To, std::error_code& OutErrorCode);
 bool			FileCopy(const FPath& From, const FPath& To, std::error_code& OutErrorCode);
 bool			FileCopyOverwrite(const FPath& From, const FPath& To, std::error_code& OutErrorCode);

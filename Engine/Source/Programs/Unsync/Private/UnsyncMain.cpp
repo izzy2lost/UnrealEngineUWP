@@ -105,6 +105,8 @@ InnerMain(int Argc, char** Argv)
 	bool					 bNoSocketTimeout	 = false;
 	bool					 bNoOutputFiles  	 = false;
 	bool					 bNoOutputRevisions  = false;
+	bool					 bPackOnlySmallFiles = false;
+	bool					 bPackFiles		 = false;
 	int32					 CompressionLevel	 = 3;
 	uint32					 DiffBlockSize		 = uint32(4_KB);
 	uint32					 HashOrSyncBlockSize = uint32(64_KB);
@@ -158,6 +160,16 @@ InnerMain(int Argc, char** Argv)
 		"--update",
 		bIncrementalMode,
 		"Create a directory manifest incrementally, by updating an existing manifest if one exists (only process changed files)");
+	SubHash->add_flag(
+		"--pack-small-files",
+		bPackOnlySmallFiles,
+		"Small files will be copied to compressed pack files during manifest generation and stored next to the manifest. "
+		"This can make syncing more efficient by reducing the number of remote file handles that must be opened. Implies --pack. "
+		"Files less than 4MB in size are considered small.");
+	SubHash->add_flag(
+		"--pack",
+		bPackFiles,
+		"Input files will be copied to compressed pack files during manifest generation and stored next to the manifest file.");
 	SubCommands.push_back(SubHash);
 
 	// Configure pack
@@ -395,6 +407,11 @@ InnerMain(int Argc, char** Argv)
 		std::wstring	  Output	 = ConvertUtf8ToWide(OutputStream.str());
 		wprintf(L"%ls", Output.c_str());
 		return ReturnCode;
+	}
+
+	if (bPackOnlySmallFiles)
+	{
+		bPackFiles = true;
 	}
 
 	if (Cli.get_subcommands().size() == 0)
@@ -846,12 +863,18 @@ InnerMain(int Argc, char** Argv)
 	{
 		FCmdHashOptions HashOptions;
 
-		HashOptions.Input		 = InputFilename;
-		HashOptions.Output		 = OutputFilename;
-		HashOptions.BlockSize	 = HashOrSyncBlockSize;
-		HashOptions.Algorithm	 = Algorithm;
-		HashOptions.bForce		 = bForceOperation;
-		HashOptions.bIncremental = bIncrementalMode;
+		HashOptions.Input			= InputFilename;
+		HashOptions.Output			= OutputFilename;
+		HashOptions.BlockSize		= HashOrSyncBlockSize;
+		HashOptions.Algorithm		= Algorithm;
+		HashOptions.bForce			= bForceOperation;
+		HashOptions.bIncremental	= bIncrementalMode;
+		HashOptions.bPackFiles		= bPackFiles;
+
+		if (bPackOnlySmallFiles)
+		{
+			HashOptions.MaxFileSizeToPack = 4_MB;
+		}
 
 		return CmdHash(HashOptions);
 	}

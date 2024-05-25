@@ -376,7 +376,6 @@ SaveFileRevisionControl(const FDirectoryManifest& Manifest)
 	return Result;
 }
 
-
 std::vector<std::string>
 LoadFileRevisionControl(FIOReaderStream& Reader, FSerializedSectionHeader Header)
 {
@@ -390,6 +389,40 @@ LoadFileRevisionControl(FIOReaderStream& Reader, FSerializedSectionHeader Header
 	for (uint64 FileIndex = 0; FileIndex < NumFiles; ++FileIndex)
 	{
 		Serialize(Reader, Result[FileIndex]);
+	}
+
+	return Result;
+}
+
+static FBuffer
+SavePackReferences(const FDirectoryManifest& Manifest)
+{
+	FBuffer			 Result;
+	FVectorStreamOut Writer(Result);
+
+	const uint64 NumEntries = Manifest.PackReferences.size();
+	Writer.WriteT(NumEntries);
+	for (const FHash128& Hash : Manifest.PackReferences)
+	{
+		Writer.WriteT(Hash);
+	}
+
+	return Result;
+}
+
+static std::vector<FHash128>
+LoadPackReferences(FIOReaderStream& Reader, FSerializedSectionHeader Header)
+{
+	std::vector<FHash128> Result;
+
+	uint64 NumEntries = 0;
+	Serialize(Reader, NumEntries);
+
+	Result.resize(NumEntries);
+
+	for (uint64 i = 0; i < NumEntries; ++i)
+	{
+		Serialize(Reader, Result[i]);
 	}
 
 	return Result;
@@ -506,6 +539,11 @@ LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, FIORea
 						{
 							FileRevisions = LoadFileRevisionControl(Stream, SectionHeader);
 							OutManifest.bHasFileRevisionControl = true;
+							break;
+						}
+					case SERIALIZED_SECTION_ID_PACK_REFERENCE:
+						{
+							OutManifest.PackReferences = LoadPackReferences(Stream, SectionHeader);
 							break;
 						}
 					case SERIALIZED_SECTION_ID_TERMINATOR:
@@ -751,6 +789,12 @@ SaveDirectoryManifest(const FDirectoryManifest& Manifest, FVectorStreamOut& Stre
 	{
 		FBuffer SectionBuffer = SaveFileRevisionControl(Manifest);
 		WriteSection<FFileRevisionControlSection>(Stream, SectionBuffer.View());
+	}
+
+	if (!Manifest.PackReferences.empty())
+	{
+		FBuffer SectionBuffer = SavePackReferences(Manifest);
+		WriteSection<FPackReferenceSection>(Stream, SectionBuffer.View());
 	}
 
 	// End with the terminator section (default-constructed);

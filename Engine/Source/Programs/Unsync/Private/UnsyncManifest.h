@@ -71,6 +71,8 @@ struct FDirectoryManifest
 
 	bool bHasFileRevisionControl = false;
 
+	std::vector<FHash128> PackReferences;
+
 	bool IsValid() const { return Version != EVersions::Invalid; }
 };
 
