@@ -5,6 +5,7 @@
 #include "UnsyncCompression.h"
 #include "UnsyncHashTable.h"
 #include "UnsyncCore.h"
+#include "UnsyncManifest.h"
 
 namespace unsync {
 
@@ -36,13 +37,27 @@ FPackWriteContext::~FPackWriteContext()
 }
 
 void
+FPackWriteContext::AddRawBlock(const FGenericBlock& Block, FBufferView RawData)
+{
+	std::lock_guard<std::mutex> LockGuard(Mutex);
+	InternalAddBlock(Block, Block.HashStrong.ToHash128(), RawData);
+	++NumRawBlocks;
+}
+
+void
 FPackWriteContext::AddCompressedBlock(const FGenericBlock& Block, FHash128 CompressedHash, FBufferView CompressedData)
 {
 	std::lock_guard<std::mutex> LockGuard(Mutex);
+	InternalAddBlock(Block, CompressedHash, CompressedData);
+	++NumCompressedBlocks;
+}
 
-	UNSYNC_ASSERT(CompressedData.Size <= GMaxPackFileSize);
+void
+FPackWriteContext::InternalAddBlock(const FGenericBlock& Block, FHash128 CompressedHash, FBufferView Data)
+{
+	UNSYNC_ASSERT(Data.Size <= GMaxPackFileSize);
 
-	if (PackBuffer.Size() + CompressedData.Size > GMaxPackFileSize)
+	if (PackBuffer.Size() + Data.Size > GMaxPackFileSize)
 	{
 		InternalFinishPack();
 	}
@@ -51,17 +66,17 @@ FPackWriteContext::AddCompressedBlock(const FGenericBlock& Block, FHash128 Compr
 	IndexEntry.BlockHash	  = Block.HashStrong.ToHash128();
 	IndexEntry.CompressedHash = CompressedHash;
 	IndexEntry.PackBlockOffset = CheckedNarrow(PackBuffer.Size());
-	IndexEntry.PackBlockSize   = CheckedNarrow(CompressedData.Size);
+	IndexEntry.PackBlockSize   = CheckedNarrow(Data.Size);
 
 	IndexEntries.push_back(IndexEntry);
-	PackBuffer.Append(CompressedData);
+	PackBuffer.Append(Data);
 
 	UNSYNC_ASSERT(PackBuffer.Size() == IndexEntry.PackBlockOffset + IndexEntry.PackBlockSize);
 
 	AddHash(IndexFileHashSum, IndexEntry.BlockHash);
 
 	ProcessedRawBytes += Block.Size;
-	ProcessedCompressedBytes = CompressedData.Size;
+	ProcessedCompressedBytes = Data.Size;
 }
 
 void
@@ -87,7 +102,10 @@ FPackWriteContext::InternalFinishPack()
 	FPath FinalPackFilename	 = OutputRoot / (OutputId + ".unsync_pack");
 	FPath FinalIndexFilename = OutputRoot / (OutputId + ".unsync_index");
 
-	UNSYNC_LOG(L"Saving new pack: %hs", OutputId.c_str());
+	// Force non-indented log
+	FLogIndentScope IndentScope(0, true /*override*/);
+
+	UNSYNC_LOG(L"* Saving new pack: %hs", OutputId.c_str());
 
 	if (!GDryRun)
 	{
@@ -121,7 +139,23 @@ FPackWriteContext::InternalFinishPack()
 		}
 	}
 
-	GeneratedPackIds.push_back(BlockHash128);
+	FPackReference PackReference;
+	PackReference.Id = BlockHash128;
+
+	if (NumRawBlocks != 0)
+	{
+		PackReference.Flags = PackReference.Flags | EPackReferenceFlags::HasRawBlocks;
+	}
+
+	if (NumCompressedBlocks != 0)
+	{
+		PackReference.Flags = PackReference.Flags | EPackReferenceFlags::HasCompressedBlocks;
+	}
+
+	PackReference.NumTotalBlocks = NumCompressedBlocks + NumRawBlocks;
+	PackReference.NumUsedBlocks	 = PackReference.NumTotalBlocks; // By default assume all blocks in the pack are referenced
+
+	GeneratedPackIds.push_back(PackReference);
 
 	InternalReset();
 }
@@ -135,6 +169,9 @@ FPackWriteContext::InternalReset()
 
 	IndexFileHashSum[0] = 0;
 	IndexFileHashSum[1] = 0;
+
+	NumCompressedBlocks = 0;
+	NumRawBlocks		= 0;
 }
 
 FPackWriteContext::FCompressedBlock
@@ -164,21 +201,52 @@ void FPackWriteContext::CompressAndAddBlock(const FGenericBlock& Block, FBufferV
 }
 
 void
-FPackWriteContext::GetUniqueGeneratedPackIds(std::vector<FHash128>& Output)
+FPackWriteContext::GetUniqueGeneratedPackIds(std::vector<FPackReference>& Output) const
 {
-	THashSet<FHash128> KnownHashes;
-	for (const FHash128& Hash : Output)
+	std::lock_guard<std::mutex> LockGuard(Mutex);
+
+	MergePackReferences(Output, GeneratedPackIds);
+}
+
+void
+MergePackReferences(std::vector<FPackReference>& Destination, const std::vector<FPackReference>& Source)
+{
+	THashSet<FPackReference, FPackReference::Hasher> KnownHashes;
+
+	for (const FPackReference& Hash : Destination)
 	{
 		KnownHashes.insert(Hash);
 	}
 
-	std::lock_guard<std::mutex> LockGuard(Mutex);
-
-	for (const FHash128& Hash : GeneratedPackIds)
+	for (const FPackReference& Hash : Source)
 	{
 		if (KnownHashes.insert(Hash).second)
 		{
-			Output.push_back(Hash);
+			Destination.push_back(Hash);
+		}
+	}
+}
+
+void DeletePackAndIdexData(const FPath& PackRootDirectory)
+{
+	UNSYNC_VERBOSE(L"Deleting packs in '%ls'", PackRootDirectory.wstring().c_str());
+	for (const std::filesystem::directory_entry& Dir : DirectoryScan(PackRootDirectory))
+	{
+		if (!Dir.is_regular_file())
+		{
+			continue;
+		}
+
+		const FPath& FilePath	   = Dir.path();
+		const FPath	 FileExtension = FilePath.extension();
+		if (FileExtension == ".unsync_pack" || FileExtension == ".unsync_index")
+		{
+			std::error_code ErrorCode;
+			bool bDeleted = FileRemove(FilePath, ErrorCode);
+			if (!bDeleted)
+			{
+				UNSYNC_ERROR(L"Could not delete file '%ls'. Error code: %d.", FilePath.wstring().c_str(), ErrorCode.value());
+			}
 		}
 	}
 }

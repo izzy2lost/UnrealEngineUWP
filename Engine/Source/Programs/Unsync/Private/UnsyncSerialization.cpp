@@ -402,7 +402,7 @@ SavePackReferences(const FDirectoryManifest& Manifest)
 
 	const uint64 NumEntries = Manifest.PackReferences.size();
 	Writer.WriteT(NumEntries);
-	for (const FHash128& Hash : Manifest.PackReferences)
+	for (const FPackReference& Hash : Manifest.PackReferences)
 	{
 		Writer.WriteT(Hash);
 	}
@@ -410,10 +410,10 @@ SavePackReferences(const FDirectoryManifest& Manifest)
 	return Result;
 }
 
-static std::vector<FHash128>
+static std::vector<FPackReference>
 LoadPackReferences(FIOReaderStream& Reader, FSerializedSectionHeader Header)
 {
-	std::vector<FHash128> Result;
+	std::vector<FPackReference> Result;
 
 	uint64 NumEntries = 0;
 	Serialize(Reader, NumEntries);

@@ -116,7 +116,7 @@ struct FFileRevisionControlSection
 struct FPackReferenceSection
 {
 	static constexpr uint64 MAGIC	= SERIALIZED_SECTION_ID_PACK_REFERENCE;
-	static constexpr uint64 VERSION = 1;
+	static constexpr uint64 VERSION = 3;
 };
 
 struct FBlockFileHeader
@@ -231,6 +231,38 @@ struct FPackIndexHeader
 	uint64 Version = VERSION;
 };
 static_assert(sizeof(FPackIndexHeader) == 16);
+
+enum class EPackReferenceFlags : uint32 {
+	Default				= 0,
+	HasRawBlocks		= 1 << 0,
+	HasCompressedBlocks = 1 << 1,
+};
+UNSYNC_ENUM_CLASS_FLAGS(EPackReferenceFlags, uint32);
+
+// Basic information about a pack file referenced by a manifest
+struct FPackReference
+{
+	using EFlags = EPackReferenceFlags;
+
+	bool operator==(const FPackReference& Other) const { return 
+		Id == Other.Id && Flags == Other.Flags
+		&& NumUsedBlocks == Other.NumUsedBlocks
+		&& NumTotalBlocks == Other.NumTotalBlocks; }
+	struct Hasher
+	{
+		size_t operator()(const FPackReference& X) const
+		{
+			FHash128::Hasher H;
+			return H(X.Id);
+		}
+	};
+
+	FHash128 Id				= {};
+	EFlags	 Flags			= EFlags::Default;
+	uint32	 NumUsedBlocks	= 0;
+	uint32	 NumTotalBlocks = 0;
+};
+static_assert(sizeof(FPackReference) == 28);
 
 // Protocol V2: support for up to 256bit hashes
 

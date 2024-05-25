@@ -479,6 +479,7 @@ FPath			GetRelativePath(const FPath& Path, const FPath& Base);
 uint64 GetAvailableDiskSpace(const FPath& Path);
 
 std::filesystem::recursive_directory_iterator RecursiveDirectoryScan(const FPath& Path);
+std::filesystem::directory_iterator DirectoryScan(const FPath& Path);
 
 uint64 ToWindowsFileTime(const std::filesystem::file_time_type& T);
 std::filesystem::file_time_type FromWindowsFileTime(uint64 Ticks);

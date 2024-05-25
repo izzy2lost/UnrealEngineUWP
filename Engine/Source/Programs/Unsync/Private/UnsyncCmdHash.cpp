@@ -45,13 +45,14 @@ CmdHash(const FCmdHashOptions& Options)
 		// TODO: macro block generation is only implemented for variable chunk mode
 		ComputeBlocksParams.bNeedMacroBlocks = ComputeBlocksParams.Algorithm.ChunkingAlgorithmId == EChunkingAlgorithmID::VariableBlocks;
 
+		FPath PackOutputRoot = ManifestRoot / "pack";
+
 		std::unique_ptr<FPackWriteContext> PackWriter;
 		THashSet<FGenericHash>			   PackedBlocks;
 		std::mutex						   PackedBlocksMutex;
 
 		if (!GDryRun && Options.bPackFiles)
 		{
-			FPath PackOutputRoot = ManifestRoot / "pack";
 
 			if (!PathExists(PackOutputRoot))
 			{
@@ -85,7 +86,8 @@ CmdHash(const FCmdHashOptions& Options)
 					}
 				}
 
-				PackWriter->CompressAndAddBlock(Block, Data);
+				// TODO(pack): compressed packs will require special handling by the server
+				PackWriter->AddRawBlock(Block, Data);
 			};
 
 			ComputeBlocksParams.OnBlockGenerated = OnBlockGenerated;

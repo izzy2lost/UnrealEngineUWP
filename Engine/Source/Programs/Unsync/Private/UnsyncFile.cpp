@@ -1246,6 +1246,13 @@ std::filesystem::recursive_directory_iterator RecursiveDirectoryScan(const FPath
 	return std::filesystem::recursive_directory_iterator(ExtendedPath);
 }
 
+std::filesystem::directory_iterator
+DirectoryScan(const FPath& Path)
+{
+	FPath ExtendedPath = MakeExtendedAbsolutePath(Path);
+	return std::filesystem::directory_iterator(ExtendedPath);
+}
+
 FMemReader::FMemReader(const uint8* InData, uint64 InDataSize) : Data(InData), Size(InDataSize)
 {
 }
