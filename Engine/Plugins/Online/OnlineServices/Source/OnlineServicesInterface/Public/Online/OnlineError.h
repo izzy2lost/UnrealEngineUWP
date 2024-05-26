@@ -171,7 +171,7 @@ public:
 		return ErrorCode;
 	}
 
-	bool IsSuccess() const;
+	ONLINESERVICESINTERFACE_API bool IsSuccess() const;
 
 private:
 	// TSharedPtr instead of TUniquePtr so that we can copy errors easily
