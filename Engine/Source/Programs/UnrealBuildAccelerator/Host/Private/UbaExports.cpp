@@ -510,13 +510,12 @@ extern "C"
 		using namespace uba;
 		LogWriter& writer = session->GetLogWriter();
 		StorageImpl& storage = (StorageImpl&)session->GetStorage();
-
-		auto networkBackend = new NetworkBackendTcp(writer);
+		auto& server = (NetworkServerWithBackend&)session->GetServer();
 
 		NetworkClientCreateInfo ncci(writer);
 		ncci.receiveTimeoutSeconds = 60;
 		bool ctorSuccess = false;
-		auto networkClient = new NetworkClientWithBackend(ctorSuccess, ncci, networkBackend);
+		auto networkClient = new NetworkClientWithBackend(ctorSuccess, ncci, server.backend);
 		if (!ctorSuccess)
 			return nullptr;
 		CacheClientCreateInfo info{writer, storage, *networkClient, *session};

@@ -18,14 +18,7 @@ namespace uba
 		#if UBA_USE_OLD
 		Vector<u8> inputCasKeyOffsets;
 		#endif
-
-		struct Range {
-			u32 begin; u32 end;
-			Range() = default;
-			Range(u32 b, u32 e) : begin(b), end(e) {}
-			bool operator==(const Range& o) const { return begin == o.begin && end == o.end; }
-		};
-		Vector<Range> sharedInputCasKeyOffsetRanges;
+		Vector<u8> sharedInputCasKeyOffsetRanges;
 		Vector<u8> extraInputCasKeyOffsets;
 		Vector<u8> outputCasKeyOffsets;
 	};
@@ -44,10 +37,11 @@ namespace uba
 		bool Read(Logger& logger, BinaryReader& reader, u32 databaseVersion);
 		void BuildInputs(CacheEntry& entry, const Set<u32>& inputs);
 		void UpdateEntries();
-		void UpdateEntries(Logger& logger, const GrowingNoLockUnorderedMap<u32, u32>& oldToNewCasKeyOffset);
+		void UpdateEntries(Logger& logger, const GrowingNoLockUnorderedMap<u32, u32>& oldToNewCasKeyOffset, Vector<u32>& temp);
 
 		#if UBA_USE_OLD
 		void ValidateEntries(Logger& logger);
+		void ValidateEntry(Logger& logger, CacheEntry& entry);
 		#endif
 
 		void Flatten(Vector<u8>& out, const CacheEntry& entry);

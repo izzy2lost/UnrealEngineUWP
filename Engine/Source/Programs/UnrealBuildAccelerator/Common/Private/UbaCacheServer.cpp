@@ -243,35 +243,11 @@ namespace uba
 			{
 				Write(kv2.first);
 
-				#if UBA_USE_OLD
-				if (CacheFileVersion == 3)
-				{
-					u32 cacheEntryCount = u32(kv2.second.entries.size());
-					Write(cacheEntryCount);
-
-					for (CacheEntry& entry : kv2.second.entries)
-					{
-						WriteBytes(&entry.creationTime, sizeof(entry.creationTime));
-
-						u32 inputSize = u32(entry.inputCasKeyOffsets.size());
-						Write(inputSize);
-						WriteBytes(entry.inputCasKeyOffsets.data(), inputSize);
-
-						u32 outputSize = u32(entry.outputCasKeyOffsets.size());
-						Write(outputSize);
-						WriteBytes(entry.outputCasKeyOffsets.data(), outputSize);
-					}
-				}
-				else
-				#else
-				{
-					temp.resize(kv2.second.GetTotalSize(true));
-					BinaryWriter writer(temp.data(), 0, temp.size());
-					kv2.second.Write(writer, CacheNetworkVersion, true);
-					UBA_ASSERT(writer.GetPosition() == temp.size());
-					WriteBytes(temp.data(), temp.size());
-				}
-				#endif
+				temp.resize(kv2.second.GetTotalSize(true));
+				BinaryWriter writer(temp.data(), 0, temp.size());
+				kv2.second.Write(writer, CacheNetworkVersion, true);
+				UBA_ASSERT(writer.GetPosition() == temp.size());
+				WriteBytes(temp.data(), temp.size());
 			}
 		}
 
@@ -351,6 +327,7 @@ namespace uba
 
 		u32 workerCount = m_server.GetWorkerCount();
 		u32 workerCountToUse = workerCount > 0 ? workerCount - 1 : 0;
+		u32 workerCountToUseForBuckets = Min(workerCountToUse, u32(m_buckets.size()));
 
 		Atomic<u64> deleteEntryCount;
 
@@ -361,7 +338,7 @@ namespace uba
 
 			ReaderWriterLock existingCasLock;
 
-			m_server.ParallelFor(workerCountToUse, m_buckets, [&](auto& it)
+			m_server.ParallelFor(workerCountToUseForBuckets, m_buckets, [&](auto& it)
 			{
 				Vector<u64*> touchedCas;
 
@@ -498,7 +475,7 @@ namespace uba
 			return true;
 
 		Atomic<u32> bucketCounter;
-		m_server.ParallelFor(workerCountToUse, m_buckets, [&](auto& it)
+		m_server.ParallelFor(workerCountToUseForBuckets, m_buckets, [&](auto& it)
 		{
 			u64 bucketStartTime = GetTime();
 
@@ -607,9 +584,9 @@ namespace uba
 				// Update all casKeyOffsets
 				u64 updateEntriesStart = GetTime();
 
-				m_server.ParallelFor(workerCountToUse, bucket.m_cacheEntryLookup, [&](auto& it)
+				m_server.ParallelFor(workerCountToUse, bucket.m_cacheEntryLookup, [&, temp = Vector<u32>()](auto& it) mutable
 					{
-						it->second.UpdateEntries(m_logger, oldToNewCasKeyOffset);
+						it->second.UpdateEntries(m_logger, oldToNewCasKeyOffset, temp);
 					});
 
 				#if 0
@@ -921,6 +898,7 @@ namespace uba
 		#if UBA_USE_OLD
 		// Add new entry
 		newEntry.inputCasKeyOffsets.swap(inputCasKeyOffsets);
+		cacheEntries.ValidateEntry(m_logger, newEntry);
 		#endif
 
 		Set<u32> outputs;

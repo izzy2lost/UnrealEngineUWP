@@ -96,7 +96,7 @@ namespace uba
 		context->isDone = false;
 		context->doneEvent = &doneEvent;
 
-		auto work = [context, &func]()
+		auto work = [context, funcCopy = func]() mutable
 			{
 				u32 active = 0;
 				while (true)
@@ -120,7 +120,7 @@ namespace uba
 					context->activeCount += active;
 					l.Leave();
 
-					func(it2);
+					funcCopy(it2);
 				}
 			};
 		
