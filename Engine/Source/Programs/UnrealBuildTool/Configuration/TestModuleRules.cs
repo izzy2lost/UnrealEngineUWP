@@ -271,7 +271,7 @@ namespace UnrealBuildTool
 
 				if (!IsRestrictedPlatformName)
 				{
-					InsertOrUpdateTestOption(Root, $"Run{TestMetadata.TestName}Tests", $"Run {TestMetadata.TestShortName} Tests", false.ToString());
+					InsertOrUpdateTestOption(Root, $"Run{TestMetadata.TestName}Tests", $"Run {TestMetadata.TestShortName} Tests", "");
 					InsertOrUpdateTestProperty(Root, $"TestNames", TestMetadata.TestName, true);
 				}
 

@@ -73,13 +73,8 @@
 
 	<!-- Test Options -->
 	<Option Name="RunAllTests" DefaultValue="true" Description="Run All Available Tests (except Foundation)"/>
+	<Option Name="DryRun" DefaultValue="false" Description="Dry Run"/>
 	
-	<!-- If we set one of the Run*Tests option we don't want to run all the tests, just the selected ones. -->
-	<Property Name="RunsAllTests" Value="$(RunAllTests)"/>
-	<ForEach Name="TestName" Values="$(TestNames)">
-		<Property Name="RunsAllTests" Value="false" If="$(Run$(TestName)Tests)"/>
-	</ForEach>
-
 	<!-- Platform Options -->
 	<Option Name="TestAllSupportedPlatforms" DefaultValue="true" Description="Test All Supported Platforms"/>
 	<Option Name="TestPlatformWin64" DefaultValue="false" Description="Test Platform Win64"/>
@@ -127,19 +122,23 @@
 
 	<Macro Name="TestAfterStep" Arguments="Platform;TestName;ShortName">
 		<Node Name="$(TestName) AfterStep $(Platform)">
-			<Expand Name="$(TestName)AfterSteps" Platform="$(Platform)" />	
+			<Expand Name="$(TestName)AfterSteps" Platform="$(Platform)" If="!$(DryRun)"/>
 		</Node>
 		<Label Category="After" Name="$(ShortName) After $(Platform)" Requires="$(TestName) AfterStep $(Platform)"/>
-		<Property Name="AfterTestNodes" Value="$(AfterTestNodes);$(TestName) AfterStep $(Platform)" If="($(RunsAllTests) Or $(Run$(TestName)Tests)) And ($(TestsAllSupportedPlatforms) Or $(TestPlatform$(Platform)))"/>
+		<Property Name="TestRuns" Value="($(RunsAllTests) and ('$(Run$(TestName)Tests)' != 'false')) or (!$(RunsAllTests) and ('$(Run$(TestName)Tests)' == 'true'))"/>
+		<Property Name="TestRuns" Value="$(TestRuns) and ($(TestsAllSupportedPlatforms) or $(TestPlatform$(Platform)))"/>
+		<Do If="$(TestRuns)">
+			<Property Name="AfterTestNodes" Value="$(AfterTestNodes);$(TestName) AfterStep $(Platform)"/>
+		</Do>
 	</Macro>
 	
 	<Macro Name="BuildAndStageTest" Arguments="Platform;TestName;StagesWithProjectFile;TargetName;ExtraCompilationArgs">
 		<Property Name="LocalAchiveDirectory" Value="$(RootDir)/$(TargetName)"/>
 		<Do If="'$(StagesWithProjectFile)' == 'True'">
-			<Command Name="BuildCookRun" Arguments="-Build -NoBootstrapExe -NoCodeSign -SkipCook -Stage -NoSubmit -Archive -ArchiveDirectory=$(LocalAchiveDirectory) -project=$(TargetName) -configuration=$(Configuration) -platform=$(Platform) $(ExtraCompilationArgs)"/>
+			<Command Name="BuildCookRun" Arguments="-Build -NoBootstrapExe -NoCodeSign -SkipCook -Stage -NoSubmit -Archive -ArchiveDirectory=$(LocalAchiveDirectory) -project=$(TargetName) -configuration=$(Configuration) -platform=$(Platform) $(ExtraCompilationArgs)" If="!$(DryRun)"/>
 		</Do>
 		<Do If="'$(StagesWithProjectFile)' != 'True'">
-			<Compile Target="$(TargetName)" Configuration="$(Configuration)" Platform="$(Platform)" AllowXGE="false" Arguments="-Mode=Test $(ExtraCompilationArgs)"/>
+			<Compile Target="$(TargetName)" Configuration="$(Configuration)" Platform="$(Platform)" AllowXGE="false" Arguments="-Mode=Test $(ExtraCompilationArgs)" If="!$(DryRun)"/>
 		</Do>
 	</Macro>
 	
@@ -153,6 +152,9 @@
 		<Property Name="BuildPlatform" Value=""/>
 
 		<Expand Name="SelectBuildPlatformAndAgentType" Platform="$(Platform)"/>
+
+		<Property Name="TestRuns" Value="($(RunsAllTests) and ('$(Run$(TestName)Tests)' != 'false')) or (!$(RunsAllTests) and ('$(Run$(TestName)Tests)' == 'true'))"/>
+		<Property Name="TestRuns" Value="$(TestRuns) and ($(TestsAllSupportedPlatforms) or $(TestPlatform$(Platform)))"/>
 		
 		<Agent Name="Low Level Tests $(Platform)" Type="$(AgentType)">
 			<Property Name="TestRequirements" Value=""/>
@@ -160,10 +162,10 @@
 				<Property Name="TestRequirements" Value="$(TestRequirements);Catch2 Build Library $(Platform)"/>
 			</Do>
 			<Node Name="$(ShortName) Tests $(Platform)" Requires="$(TestRequirements)">
-				<Do If="'$(Deactivated)' == ''">
+				<Do If="'$(Deactivated)' == '' and $(TestRuns)">
 					<Expand Name="BuildAndStageTest" TestName="$(TestName)" Platform="$(Platform)" TargetName="$(TargetName)" StagesWithProjectFile="$(StagesWithProjectFile)" ExtraCompilationArgs="$(ExtraCompilationArgs)"/>
 				</Do>
-				<Do If="'$(RunUnsupported)' == '' AND '$(Deactivated)' == ''">
+				<Do If="'$(RunUnsupported)' == '' and '$(Deactivated)' == '' and $(TestRuns)">
 					<Property Name="PlatformStageDirName" Value="$(Platform)"/>
 					<Property Name="PlatformStageDirName" Value="Windows" If="'$(Platform)' == 'Win64'"/>
 					<Property Name="DevicePool" Value="$(GauntletDevicePool)" />
@@ -203,8 +205,8 @@
 						<StringOp Input="$(BinaryRelativePath)" Method="Replace" Arguments="\;/" Output="BinariesRelativeForwardSlash"/>
 
 						<!-- Builds docker image -->
-						<Expand Name="$(Platform)DockerCleanup" AppNameLowercase="$(TestTargetLowercase)"/>
-						<Expand Name="$(Platform)DockerSetup" AppNameLowercase="$(TestTargetLowercase)" AppDir="$(BinariesRelativeForwardSlash)/$(Platform)/$(TargetName)$(TestModeSuffix)"/>
+						<Expand Name="$(Platform)DockerCleanup" AppNameLowercase="$(TestTargetLowercase)" If="!$(DryRun)"/>
+						<Expand Name="$(Platform)DockerSetup" AppNameLowercase="$(TestTargetLowercase)" AppDir="$(BinariesRelativeForwardSlash)/$(Platform)/$(TargetName)$(TestModeSuffix)" If="!$(DryRun)"/>
 						<Property Name="TestArgsExt" Value="$(TestArgsExt) -containerized"/>
 					</Do>
 
@@ -214,20 +216,22 @@
 					</Do>
 
 					<Command Name="RunLowLevelTests"
-							Arguments="-test=LowLevelTests -testapp=$(TargetName)$(TestModeSuffix) -platform=$(Platform) -configuration=$(Configuration) $(TestArgsExt) -VeryVerbose"/>
+							Arguments="-test=LowLevelTests -testapp=$(TargetName)$(TestModeSuffix) -platform=$(Platform) -configuration=$(Configuration) $(TestArgsExt) -VeryVerbose" If="!$(DryRun)"/>
 
 					<Do If="'$(AppRunsContainerized)' == 'True'">
 						<Property Name="TestTargetLowercase" Value=""/>
 						<StringOp Input="$(TargetName)" Method="ToLower" Output="TestTargetLowercase"/>
 
 						<!-- Stop any running docker container and remove image -->
-						<Expand Name="$(Platform)DockerCleanup" AppNameLowercase="$(TestTargetLowercase)"/>
+						<Expand Name="$(Platform)DockerCleanup" AppNameLowercase="$(TestTargetLowercase)" If="!$(DryRun)"/>
 					</Do>
 				</Do>
 			</Node>
 			<Label Category="Test" Name="$(ShortName) $(Platform)" Requires="$(ShortName) Tests $(Platform)"/>
-			<Property Name="TestNodes" Value="$(TestNodes);$(ShortName) Tests $(Platform)" If="($(RunsAllTests) Or $(Run$(TestName)Tests)) And ($(TestsAllSupportedPlatforms) Or $(TestPlatform$(Platform)))"/>
-				
+			<Trace Message="$(ShortName) runs because $(TestRuns)" If="$(TestRuns) and $(DryRun)"/>
+			<Do If="$(TestRuns)">
+				<Property Name="TestNodes" Value="$(TestNodes);$(ShortName) Tests $(Platform)"/>
+			</Do>
 			<Do If="'$(CheckedRunAfterStep)' == 'True' AND '$(HasAfterSteps)' == 'True'">
 				<Expand Name="TestAfterStep" TestName="$(TestName)" ShortName="$(ShortName)" Platform="$(Platform)"/>
 			</Do>
@@ -285,6 +289,8 @@
 	<Include Script="../Restricted/NotForLicensees/Build/LowLevelTests/*.xml"/>
 	<Include Script="../Restricted/NotForLicensees/Platforms/*/Build/LowLevelTests/*.xml"/>
 
+	<!-- If we set one of the Run*Tests option we don't want to run all the tests, just the selected ones. -->
+	<Property Name="RunsAllTests" Value="$(RunAllTests)"/>
 	<Expand Name="RunAllTests"/>
 	
 	<Aggregate Name="Run Low Level Tests" Requires="$(TestNodes);$(AfterTestNodes)"/>
