@@ -165,9 +165,9 @@ namespace uba
 		void AttachEntry(CasEntry& entry);
 		void DetachEntry(CasEntry& entry);
 		void TraverseAllCasFiles(const tchar* dir, const Function<void(const StringBufferBase& fullPath, const DirectoryEntry& e)>& func, bool allowParallel = false);
-		void TraverseAllCasFiles(const Function<void(const CasKey& key, u64 size)>& func);
+		void TraverseAllCasFiles(const Function<void(const CasKey& key, u64 size)>& func, bool allowParallel = false);
 		bool CheckAllCasFiles(u64 checkContentOfFilesNewerThanTime = ~u64(0));
-		void HandleOverflow(Set<CasKey>* outDeletedFiles);
+		void HandleOverflow(UnorderedSet<CasKey>* outDeletedFiles);
 		bool OpenCasDataFile(u32 index, u64 size);
 		bool CreateCasDataFiles();
 

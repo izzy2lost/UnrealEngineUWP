@@ -106,8 +106,11 @@ namespace uba
 					context->isDone = context->it == context->end;
 					if (context->isDone)
 					{
-						if (context->activeCount == 0)
+						if (context->activeCount == 0 && context->doneEvent)
+						{
 							context->doneEvent->Set();
+							context->doneEvent = nullptr;
+						}
 						if (--context->refCount)
 							return;
 						l.Leave();

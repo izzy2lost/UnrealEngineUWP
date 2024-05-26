@@ -936,14 +936,14 @@ namespace uba
 			m_workManager->DoWork();
 	}
 
-	void StorageImpl::TraverseAllCasFiles(const Function<void(const CasKey& key, u64 size)>& func)
+	void StorageImpl::TraverseAllCasFiles(const Function<void(const CasKey& key, u64 size)>& func, bool allowParallel)
 	{
 		StringBuffer<> casRoot;
 		casRoot.Append(m_rootDir.data, m_rootDir.count - 1);
 		TraverseAllCasFiles(casRoot.data, [&](const StringBufferBase& fullPath, const DirectoryEntry& e)
 			{
 				func(CasKeyFromString(e.name), e.size);
-			});
+			}, allowParallel);
 	}
 
 	bool StorageImpl::CheckAllCasFiles(u64 checkContentOfFilesNewerThanTime)
@@ -1101,7 +1101,7 @@ namespace uba
 		return true;
 	}
 
-	void StorageImpl::HandleOverflow(Set<CasKey>* outDeletedFiles)
+	void StorageImpl::HandleOverflow(UnorderedSet<CasKey>* outDeletedFiles)
 	{
 		if (!m_casCapacityBytes)
 			return;

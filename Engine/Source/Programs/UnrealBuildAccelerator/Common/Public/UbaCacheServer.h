@@ -69,6 +69,8 @@ namespace uba
 		u64 m_startTime = 0;
 		u64 m_longestMaintenance = 0;
 
+		bool m_checkInputsForDeletedCas = true;
+
 		CacheServer(const CacheServer&) = delete;
 		CacheServer& operator=(const CacheServer&) = delete;
 	};
