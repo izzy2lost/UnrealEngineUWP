@@ -144,27 +144,6 @@ std::wstring StringToUpper(const std::wstring& Input);
 
 std::string StringEscape(const std::string_view Input);
 
-// Returns a list of alternative DFS paths for a given root
-struct FDfsStorageInfo
-{
-	std::wstring Server;
-	std::wstring Share;
-
-	bool IsValid() const { return !Server.empty() && !Share.empty(); }
-};
-struct FDfsMirrorInfo
-{
-	std::wstring				 Root;
-	std::vector<FDfsStorageInfo> Storages;
-};
-FDfsMirrorInfo DfsEnumerate(const FPath& Root);
-
-struct FDfsAlias
-{
-	FPath Source;
-	FPath Target;
-};
-
 // Takes a drive-based path (e.g. P:/Foo/Bar) and converts it to universal form (e.g. //server/Foo/Bar), if possible.
 // Otherwise, returns original path.
 FPath GetUniversalPath(const FPath& Path);

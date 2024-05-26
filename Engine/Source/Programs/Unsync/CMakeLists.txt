@@ -64,6 +64,8 @@ set(src
 	Private/UnsyncError.h
 	Private/UnsyncFile.cpp
 	Private/UnsyncFile.h
+	Private/UnsyncFilter.cpp
+	Private/UnsyncFilter.h
 	Private/UnsyncHash.cpp
 	Private/UnsyncHash.h
 	Private/UnsyncHashTable.h
@@ -102,6 +104,8 @@ set(src
 	Private/UnsyncSerialization.h
 	Private/UnsyncSocket.cpp
 	Private/UnsyncSocket.h
+	Private/UnsyncSource.cpp
+	Private/UnsyncSource.h
 	Private/UnsyncTarget.cpp
 	Private/UnsyncTarget.h
 	Private/UnsyncTest.cpp

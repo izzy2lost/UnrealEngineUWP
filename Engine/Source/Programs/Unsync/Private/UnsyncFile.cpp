@@ -5,6 +5,7 @@
 #include "UnsyncMemory.h"
 #include "UnsyncThread.h"
 #include "UnsyncScheduler.h"
+#include "UnsyncFilter.h"
 
 #include <mutex>
 

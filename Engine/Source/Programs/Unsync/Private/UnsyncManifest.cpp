@@ -1,14 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UnsyncManifest.h"
+#include "UnsyncChunking.h"
 #include "UnsyncCore.h"
 #include "UnsyncFile.h"
+#include "UnsyncFilter.h"
 #include "UnsyncHash.h"
 #include "UnsyncHashTable.h"
+#include "UnsyncScheduler.h"
 #include "UnsyncSerialization.h"
 #include "UnsyncThread.h"
-#include "UnsyncScheduler.h"
-#include "UnsyncChunking.h"
 
 UNSYNC_THIRD_PARTY_INCLUDES_START
 #include <blake3.h>
@@ -552,6 +553,257 @@ LoadOrCreateDirectoryManifest(FDirectoryManifest& Result, const FPath& Root, con
 	}
 
 	std::swap(Result, NewDirectoryManifest);
+
+	return true;
+}
+
+THashMap<FGenericHash, FGenericBlock>
+BuildBlockMap(const FDirectoryManifest& Manifest, bool bNeedMacroBlocks)
+{
+	THashMap<FGenericHash, FGenericBlock> Result;
+	for (const auto& It : Manifest.Files)
+	{
+		const FFileManifest& File = It.second;
+		if (bNeedMacroBlocks)
+		{
+			for (const FGenericBlock& Block : File.MacroBlocks)
+			{
+				Result[Block.HashStrong] = Block;
+			}
+		}
+		else
+		{
+			for (const FGenericBlock& Block : File.Blocks)
+			{
+				Result[Block.HashStrong] = Block;
+			}
+		}
+	}
+	return Result;
+}
+
+void
+LogManifestDiff(ELogLevel LogLevel, const FDirectoryManifest& ManifestA, const FDirectoryManifest& ManifestB)
+{
+	THashMap<FGenericHash, FGenericBlock> BlocksA = BuildBlockMap(ManifestA, false);
+	THashMap<FGenericHash, FGenericBlock> BlocksB = BuildBlockMap(ManifestB, false);
+
+	THashMap<FGenericHash, FGenericBlock> MacroBlocksA = BuildBlockMap(ManifestA, true);
+	THashMap<FGenericHash, FGenericBlock> MacroBlocksB = BuildBlockMap(ManifestB, true);
+
+	uint32 NumCommonBlocks		= 0;
+	uint64 TotalCommonBlockSize = 0;
+	uint64 TotalSizeA			= 0;
+	uint64 TotalSizeB			= 0;
+
+	uint64 PatchSizeFromAtoB = 0;
+
+	for (const auto& ItA : BlocksA)
+	{
+		TotalSizeA += ItA.second.Size;
+		auto ItB = BlocksB.find(ItA.first);
+		if (ItB != BlocksB.end())
+		{
+			NumCommonBlocks++;
+			TotalCommonBlockSize += ItA.second.Size;
+		}
+	}
+
+	for (const auto& ItB : BlocksB)
+	{
+		TotalSizeB += ItB.second.Size;
+		if (BlocksA.find(ItB.first) == BlocksA.end())
+		{
+			PatchSizeFromAtoB += ItB.second.Size;
+		}
+	}
+
+	uint32 NumCommonMacroBlocks		 = 0;
+	uint64 TotalCommonMacroBlockSize = 0;
+	for (const auto& ItA : MacroBlocksA)
+	{
+		auto ItB = MacroBlocksB.find(ItA.first);
+		if (ItB != MacroBlocksB.end())
+		{
+			NumCommonMacroBlocks++;
+			TotalCommonMacroBlockSize += ItA.second.Size;
+		}
+	}
+
+	LogPrintf(LogLevel, L"Common macro blocks: %d, %.3f MB\n", NumCommonMacroBlocks, SizeMb(TotalCommonMacroBlockSize));
+
+	LogPrintf(LogLevel,
+			  L"Common blocks: %d, %.3f MB (%.2f%% of A, %.2f%% of B)\n",
+			  NumCommonBlocks,
+			  SizeMb(TotalCommonBlockSize),
+			  100.0 * double(TotalCommonBlockSize) / double(TotalSizeA),
+			  100.0 * double(TotalCommonBlockSize) / double(TotalSizeB));
+
+	LogPrintf(LogLevel, L"Patch size: %.3f MB\n", SizeMb(PatchSizeFromAtoB));
+}
+
+void
+FilterManifest(const FSyncFilter& SyncFilter, FDirectoryManifest& Manifest)
+{
+	auto It = Manifest.Files.begin();
+	while (It != Manifest.Files.end())
+	{
+		if (SyncFilter.ShouldSync(It->first))
+		{
+			++It;
+		}
+		else
+		{
+			It = Manifest.Files.erase(It);
+		}
+	}
+}
+
+int32
+CmdInfo(const FCmdInfoOptions& Options)
+{
+	FPath DirectoryManifestPathA = IsDirectory(Options.InputA) ? (Options.InputA / ".unsync" / "manifest.bin") : Options.InputA;
+	FPath DirectoryManifestPathB = IsDirectory(Options.InputB) ? (Options.InputB / ".unsync" / "manifest.bin") : Options.InputB;
+
+	FDirectoryManifest ManifestA;
+
+	bool bManifestAValid = LoadDirectoryManifest(ManifestA, Options.InputA, DirectoryManifestPathA);
+
+	if (!bManifestAValid)
+	{
+		return 1;
+	}
+
+	LogPrintf(ELogLevel::Info, L"Manifest A: %ls\n", DirectoryManifestPathA.wstring().c_str());
+
+	if (Options.SyncFilter)
+	{
+		FilterManifest(*Options.SyncFilter, ManifestA);
+	}
+
+	{
+		UNSYNC_LOG_INDENT;
+		LogManifestInfo(ELogLevel::Info, ManifestA);
+	}
+
+	if (Options.bListFiles)
+	{
+		UNSYNC_LOG_INDENT;
+		LogManifestFiles(ELogLevel::Info, ManifestA);
+	}
+
+	if (Options.InputB.empty())
+	{
+		return 0;
+	}
+
+	LogPrintf(ELogLevel::Info, L"\n");
+
+	FDirectoryManifest ManifestB;
+
+	bool bManifestBValid = LoadDirectoryManifest(ManifestB, Options.InputB, DirectoryManifestPathB);
+
+	if (!bManifestBValid)
+	{
+		return 1;
+	}
+
+	LogPrintf(ELogLevel::Info, L"Manifest B: %ls\n", DirectoryManifestPathB.wstring().c_str());
+
+	if (Options.SyncFilter)
+	{
+		FilterManifest(*Options.SyncFilter, ManifestB);
+	}
+
+	{
+		UNSYNC_LOG_INDENT;
+		LogManifestInfo(ELogLevel::Info, ManifestB);
+	}
+	if (Options.bListFiles)
+	{
+		UNSYNC_LOG_INDENT;
+		LogManifestFiles(ELogLevel::Info, ManifestB);
+	}
+
+	LogPrintf(ELogLevel::Info, L"\n");
+	LogPrintf(ELogLevel::Info, L"Difference:\n");
+
+	{
+		UNSYNC_LOG_INDENT;
+		LogManifestDiff(ELogLevel::Info, ManifestA, ManifestB);
+	}
+
+	return 0;
+}
+
+FHash256
+ComputeSerializedManifestHash(const FDirectoryManifest& Manifest)
+{
+	FBuffer			 ManifestBuffer;
+	FVectorStreamOut ManifestStream(ManifestBuffer);
+	bool			 bSerializedOk = SaveDirectoryManifest(Manifest, ManifestStream);
+	UNSYNC_ASSERT(bSerializedOk);
+	return HashBlake3Bytes<FHash256>(ManifestBuffer.Data(), ManifestBuffer.Size());
+}
+
+FHash160
+ComputeSerializedManifestHash160(const FDirectoryManifest& Manifest)
+{
+	return ToHash160(ComputeSerializedManifestHash(Manifest));
+}
+
+bool
+MergeManifests(FDirectoryManifest& Existing, const FDirectoryManifest& Other, bool bCaseSensitive)
+{
+	if (!Existing.IsValid())
+	{
+		Existing = Other;
+		return true;
+	}
+
+	if (!AlgorithmOptionsCompatible(Existing.Algorithm, Other.Algorithm))
+	{
+		UNSYNC_ERROR("Trying to merge incompatible manifests (diff algorithm options do not match)");
+		return false;
+	}
+
+	if (bCaseSensitive)
+	{
+		// Trivial case: just replace existing entries
+		for (const auto& OtherFile : Other.Files)
+		{
+			Existing.Files[OtherFile.first] = OtherFile.second;
+		}
+	}
+	else
+	{
+		// Lookup table of lowercase -> original file name used to replace conflicting entries on non-case-sensitive filesystems
+		// TODO: Could potentially add case-sensitive/insensitive entry lookup helper functions to FDirectoryManifest itself in the future
+		std::unordered_map<std::wstring, std::wstring> ExistingFileNamesLowerCase;
+
+		for (auto& ExistingEntry : Existing.Files)
+		{
+			std::wstring FileNameLowerCase = StringToLower(ExistingEntry.first);
+			ExistingFileNamesLowerCase.insert(std::pair<std::wstring, std::wstring>(FileNameLowerCase, ExistingEntry.first));
+		}
+
+		for (const auto& OtherFile : Other.Files)
+		{
+			std::wstring OtherNameLowerCase = StringToLower(OtherFile.first);
+			auto		 LowerCaseEntry		= ExistingFileNamesLowerCase.find(OtherNameLowerCase);
+			if (LowerCaseEntry != ExistingFileNamesLowerCase.end())
+			{
+				// Remove file with conflicting case and add entry from the other manifest instead
+				const std::wstring& ExistingNameOriginalCase = LowerCaseEntry->second;
+				Existing.Files.erase(ExistingNameOriginalCase);
+
+				// Update the lookup table entry to refer to the name we're about to insert
+				ExistingFileNamesLowerCase[LowerCaseEntry->first] = OtherFile.first;
+			}
+
+			Existing.Files[OtherFile.first] = OtherFile.second;
+		}
+	}
 
 	return true;
 }

@@ -31,6 +31,9 @@ struct FIOReader;
 struct FIOWriter;
 struct FIOReaderWriter;
 struct FPackWriteContext;
+struct FSyncFilter;
+
+enum class ESourceType : uint8;
 
 struct FIdentityHash32
 {
@@ -220,41 +223,9 @@ FFileSyncResult SyncFile(const FPath&			 SourceFilePath,
 						 const FPath&			 TargetFilePath,
 						 const FSyncFileOptions& Options);
 
-struct FSyncFilter
-{
-	FSyncFilter() = default;
-
-	// By default all files will be included, calling this will include only files containing these substrings
-	void IncludeInSync(const std::wstring& CommaSeparatedWords);
-	void ExcludeFromSync(const std::wstring& CommaSeparatedWords);
-	void ExcludeFromCleanup(const std::wstring& CommaSeparatedWords);
-
-	bool  ShouldSync(const FPath& Filename) const;
-	bool  ShouldSync(const std::wstring& Filename) const;
-
-	bool  ShouldCleanup(const FPath& Filename) const;
-	bool  ShouldCleanup(const std::wstring& Filename) const;
-
-	FPath Resolve(const FPath& Filename) const;
-
-	std::vector<std::wstring> SyncIncludedWords;
-	std::vector<std::wstring> SyncExcludedWords; // any paths that contain these words will not be synced
-	std::vector<std::wstring> CleanupExcludedWords; // any paths that contain these words will not be deleted after sync
-
-	std::vector<FDfsAlias>	  DfsAliases;
-};
-
-enum class ESyncSourceType
-{
-	Unknown,
-	FileSystem,
-	Server,
-	ServerWithManifestHash,
-};
-
 struct FSyncDirectoryOptions
 {
-	ESyncSourceType	   SourceType;
+	ESourceType		   SourceType;
 	FPath			   Source;			   // remote data location
 	FPath			   Target;			   // output target location
 	FPath			   Base;			   // base data location, which typically is the same as sync target
@@ -277,15 +248,6 @@ bool SyncDirectory(const FSyncDirectoryOptions& SyncOptions);
 // #wip-widehash -- temporary helper functions
 FBlock128			   ToBlock128(const FGenericBlock& GenericBlock);
 std::vector<FBlock128> ToBlock128(FGenericBlockArray& GenericBlocks);
-
-struct FCmdInfoOptions
-{
-	FPath InputA;
-	FPath InputB;
-	bool bListFiles = false;
-	const FSyncFilter* SyncFilter = nullptr;
-};
-int32 CmdInfo(const FCmdInfoOptions& Options);
 
 template<typename BlockType>
 bool

@@ -3,6 +3,7 @@
 #include "UnsyncCmdSync.h"
 #include "UnsyncFile.h"
 #include "UnsyncProxy.h"
+#include "UnsyncFilter.h"
 
 namespace unsync {
 
@@ -155,15 +156,15 @@ CmdSync(const FCmdSyncOptions& Options)
 
 			if (bSourceFileSystemRequired)
 			{
-				SyncOptions.SourceType = ESyncSourceType::FileSystem;
+				SyncOptions.SourceType = ESourceType::FileSystem;
 			}
 			else if (bSourceIsManifestHash)
 			{
-				SyncOptions.SourceType = ESyncSourceType::ServerWithManifestHash;
+				SyncOptions.SourceType = ESourceType::ServerWithManifestHash;
 			}
 			else
 			{
-				SyncOptions.SourceType = ESyncSourceType::Server;
+				SyncOptions.SourceType = ESourceType::Server;
 			}
 
 			SyncOptions.Source					   = ResolvedSource;

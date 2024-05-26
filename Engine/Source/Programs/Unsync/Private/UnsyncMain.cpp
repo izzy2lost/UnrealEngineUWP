@@ -19,6 +19,8 @@
 #include "UnsyncUtil.h"
 #include "UnsyncScheduler.h"
 #include "UnsyncVersion.h"
+#include "UnsyncSource.h"
+#include "UnsyncFilter.h"
 
 UNSYNC_THIRD_PARTY_INCLUDES_START
 #if UNSYNC_PLATFORM_WINDOWS
