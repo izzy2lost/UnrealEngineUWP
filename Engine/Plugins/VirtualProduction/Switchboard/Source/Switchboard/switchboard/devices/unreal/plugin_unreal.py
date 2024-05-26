@@ -2667,11 +2667,15 @@ class DeviceUnreal(Device):
         else:
             local_project_dir = pathlib.Path(
                 CONFIG.UPROJECT_PATH.get_value()).parent
-            if local_project_dir.is_dir():
-                log_download_dir = \
-                    local_project_dir / 'Saved' / 'Logs' / 'Switchboard'
-                log_download_dir.mkdir(parents=True, exist_ok=True)
-                return log_download_dir
+            try:
+                if local_project_dir.is_dir():
+                    log_download_dir = \
+                        local_project_dir / 'Saved' / 'Logs' / 'Switchboard'
+                    log_download_dir.mkdir(parents=True, exist_ok=True)
+                    return log_download_dir
+            except OSError as e:
+                # This can happen if the drive is locked (e.g. by Bitlocker)
+                LOGGER.error(e)
 
         return None
 
