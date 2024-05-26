@@ -42,8 +42,7 @@ using FHash128 = THashValue<16>;
 using FHash160 = THashValue<20>;
 using FHash256 = THashValue<32>;
 
-enum class EHashType : uint8
-{
+enum class EHashType : uint8 {
 	Unknown,
 	Unknown_128,
 	Unknown_160,
@@ -306,6 +305,18 @@ FGenericHash ComputeHash(const uint8* Data, uint64 Size, EStrongHashAlgorithmID 
 
 FGenericHash ComputeHash(const FBuffer& Buffer, EStrongHashAlgorithmID Algorithm);
 FGenericHash ComputeHash(const FBufferView& Buffer, EStrongHashAlgorithmID Algorithm);
+
+inline FHash128
+ToHash128(const FHash128& X)
+{
+	return X;
+}
+
+inline FHash128
+ToHash128(const FGenericHash& X)
+{
+	return X.ToHash128();
+}
 
 }  // namespace unsync
 

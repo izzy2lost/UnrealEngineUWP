@@ -4,7 +4,7 @@
 #include "UnsyncCore.h"
 #include "UnsyncMemory.h"
 #include "UnsyncThread.h"
-#include "UnsyncThread.h"
+#include "UnsyncScheduler.h"
 
 #include <mutex>
 
@@ -127,6 +127,47 @@ GetRelativePath(const FPath& Path, const FPath& Base)
 	}
 
 	return {};
+}
+
+std::error_code
+CopyFileIfNewer(const FPath& Source, const FPath& Target)
+{
+	FFileAttributes SourceAttr = GetFileAttrib(Source);
+	FFileAttributes TargetAttr = GetFileAttrib(Target);
+	std::error_code Ec;
+	if (SourceAttr.Size != TargetAttr.Size || SourceAttr.Mtime != TargetAttr.Mtime)
+	{
+		FileCopyOverwrite(Source, Target, Ec);
+	}
+	return Ec;
+}
+
+
+bool
+IsNonCaseSensitiveFileSystem(const FPath& ExistingPath)
+{
+	UNSYNC_ASSERTF(PathExists(ExistingPath), L"IsCaseSensitiveFileSystem must be called with a path that exists on disk");
+
+	// Assume file system is case-sensitive if all-upper and all-lower versions of the path exist and resolve to the same FS entry.
+	// This is not 100% robust due to symlinks, but is good enough for most practical purposes.
+
+	FPath PathUpper = StringToUpper(ExistingPath.wstring());
+	FPath PathLower = StringToLower(ExistingPath.wstring());
+
+	if (PathExists(PathUpper) && PathExists(PathLower))
+	{
+		return std::filesystem::equivalent(ExistingPath, PathUpper) && std::filesystem::equivalent(PathLower, PathUpper);
+	}
+	else
+	{
+		return false;
+	}
+}
+
+bool
+IsCaseSensitiveFileSystem(const FPath& ExistingPath)
+{
+	return !IsNonCaseSensitiveFileSystem(ExistingPath);
 }
 
 FFileAttributes GetCachedFileAttrib(const FPath& Path, FFileAttributeCache& AttribCache)
@@ -1397,6 +1438,54 @@ TestFileTime()
 					   llu(ExpectedWindowsTime),
 					   llu(NativeCount));
 	}
+}
+
+uint64
+BlockingReadLarge(FIOReader& Reader, uint64 Offset, uint64 Size, uint8* OutputBuffer, uint64 OutputBufferSize)
+{
+	const uint64 BytesPerRead = 2_MB;
+	const uint64 ReadEnd	  = std::min(Offset + Size, Reader.GetSize());
+	const uint64 ClampedSize  = ReadEnd - Offset;
+
+	std::atomic<uint64> TotalReadSize = 0;
+
+	if (ClampedSize == 0)
+	{
+		return TotalReadSize;
+	}
+
+	FSchedulerSemaphore IoSemaphore(*GScheduler, 16);
+	FTaskGroup			CopyTasks = GScheduler->CreateTaskGroup(&IoSemaphore);
+
+	uint64 NumReads = DivUp(ClampedSize, BytesPerRead);
+	for (uint64 ReadIndex = 0; ReadIndex < NumReads; ++ReadIndex)
+	{
+		const uint64 ThisBatchSize	= CalcChunkSize(ReadIndex, BytesPerRead, ClampedSize);
+		const uint64 OutputOffset	= BytesPerRead * ReadIndex;
+		const uint64 ThisReadOffset = Offset + OutputOffset;
+
+		auto ReadCallback = [OutputBuffer, OutputBufferSize, &TotalReadSize, &CopyTasks](FIOBuffer CmdBuffer,
+																						 uint64	   CmdSourceOffset,
+																						 uint64	   CmdReadSize,
+																						 uint64	   OutputOffset)
+		{
+			UNSYNC_ASSERT(OutputOffset + CmdReadSize <= OutputBufferSize);
+
+			CopyTasks.run(
+				[OutputBuffer, OutputOffset, CmdReadSize, CmdBuffer = MakeShared(std::move(CmdBuffer)), &TotalReadSize]()
+				{
+					memcpy(OutputBuffer + OutputOffset, CmdBuffer->GetData(), CmdReadSize);
+					TotalReadSize += CmdReadSize;
+				});
+		};
+
+		Reader.ReadAsync(ThisReadOffset, ThisBatchSize, OutputOffset, ReadCallback);
+	}
+
+	Reader.FlushAll();
+	CopyTasks.wait();
+
+	return TotalReadSize;
 }
 
 void

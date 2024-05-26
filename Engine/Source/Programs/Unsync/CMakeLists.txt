@@ -34,6 +34,8 @@ set(src
 	Private/UnsyncAuth.h
 	Private/UnsyncBuffer.cpp
 	Private/UnsyncBuffer.h
+	Private/UnsyncChunking.cpp
+	Private/UnsyncChunking.h
 	Private/UnsyncCmdDiff.cpp
 	Private/UnsyncCmdDiff.h
 	Private/UnsyncCmdHash.cpp
@@ -57,6 +59,8 @@ set(src
 	Private/UnsyncCompression.h
 	Private/UnsyncCore.cpp
 	Private/UnsyncCore.h
+	Private/UnsyncDiff.cpp
+	Private/UnsyncDiff.h
 	Private/UnsyncError.h
 	Private/UnsyncFile.cpp
 	Private/UnsyncFile.h
@@ -107,6 +111,8 @@ set(src
 	Private/UnsyncUtil.cpp
 	Private/UnsyncUtil.h
 	Private/UnsyncVarInt.h
+	Private/UnsyncVersion.cpp
+	Private/UnsyncVersion.h
 )
 
 # Add third party code

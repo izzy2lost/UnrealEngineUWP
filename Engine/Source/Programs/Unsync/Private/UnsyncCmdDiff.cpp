@@ -3,6 +3,7 @@
 #include "UnsyncCmdDiff.h"
 #include "UnsyncFile.h"
 #include "UnsyncTarget.h"
+#include "UnsyncDiff.h"
 
 namespace unsync {
 

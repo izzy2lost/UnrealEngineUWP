@@ -5,6 +5,7 @@
 #include "UnsyncFile.h"
 #include "UnsyncSerialization.h"
 #include "UnsyncPack.h"
+#include "UnsyncChunking.h"
 
 #include <memory>
 

@@ -5,6 +5,7 @@
 #include "UnsyncError.h"
 #include "UnsyncFile.h"
 #include "UnsyncUtil.h"
+#include "UnsyncVersion.h"
 
 #include <stdarg.h>
 #include <stdio.h>

@@ -458,6 +458,8 @@ IsReadOnly(std::filesystem::perms Perms)
 	return (Perms & std::filesystem::perms::owner_write) == std::filesystem::perms::none;
 }
 
+uint64 BlockingReadLarge(FIOReader& Reader, uint64 Offset, uint64 Size, uint8* OutputBuffer, uint64 OutputBufferSize);
+
 FFileAttributes GetFileAttrib(const FPath& Path, FFileAttributeCache* AttribCache = nullptr);
 FFileAttributes GetCachedFileAttrib(const FPath& Path, FFileAttributeCache& AttribCache);
 
@@ -473,6 +475,9 @@ bool			FileCopy(const FPath& From, const FPath& To, std::error_code& OutErrorCod
 bool			FileCopyOverwrite(const FPath& From, const FPath& To, std::error_code& OutErrorCode);
 bool			FileRemove(const FPath& Path, std::error_code& OutErrorCode);
 FPath			GetRelativePath(const FPath& Path, const FPath& Base);
+std::error_code CopyFileIfNewer(const FPath& Source, const FPath& Target);
+bool			IsNonCaseSensitiveFileSystem(const FPath& ExistingPath);
+bool			IsCaseSensitiveFileSystem(const FPath& ExistingPath);
 
 // Returns number of bytes that can be written to the given path.
 // Returns ~0ull if the available space could not be determined.

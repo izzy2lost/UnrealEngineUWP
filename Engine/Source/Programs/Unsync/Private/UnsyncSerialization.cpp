@@ -2,6 +2,7 @@
 
 #include "UnsyncSerialization.h"
 #include "UnsyncFile.h"
+#include "UnsyncVersion.h"
 
 namespace unsync {
 

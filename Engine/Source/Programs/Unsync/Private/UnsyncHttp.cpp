@@ -5,6 +5,7 @@
 #include "UnsyncUtil.h"
 #include "UnsyncRemote.h"
 #include "UnsyncAuth.h"
+#include "UnsyncVersion.h"
 
 #include <http_parser.h>
 #include <string.h>

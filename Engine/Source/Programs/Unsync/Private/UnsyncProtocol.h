@@ -18,6 +18,8 @@
 
 namespace unsync {
 
+static constexpr uint32 MAX_BLOCK_SIZE = uint32(1_MB);
+
 enum class EChunkingAlgorithmID : uint64
 {
 	Invalid		   = 0,

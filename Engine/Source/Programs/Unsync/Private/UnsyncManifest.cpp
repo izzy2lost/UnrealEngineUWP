@@ -8,6 +8,7 @@
 #include "UnsyncSerialization.h"
 #include "UnsyncThread.h"
 #include "UnsyncScheduler.h"
+#include "UnsyncChunking.h"
 
 UNSYNC_THIRD_PARTY_INCLUDES_START
 #include <blake3.h>

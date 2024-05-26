@@ -125,8 +125,6 @@ struct FNeedListSize
 
 FNeedListSize ComputeNeedListSize(const FNeedList& NeedList);
 
-const std::string& GetVersionString();
-
 struct FBlockSourceInfo
 {
 	// FPath  FilePath; // TODO: pass this in to allow filtering by name, etc.
@@ -152,71 +150,8 @@ struct FComputeBlocksParams
 	bool bAllowThreading = true;
 };
 
-struct FComputeBlocksResult
-{
-	FGenericBlockArray Blocks;
-	FGenericBlockArray MacroBlocks;
-};
-
-FComputeBlocksResult ComputeBlocks(FIOReader& Reader, const FComputeBlocksParams& Params);
-FComputeBlocksResult ComputeBlocks(const uint8* Data, uint64 Size, const FComputeBlocksParams& Params);
-FComputeBlocksResult ComputeBlocksVariable(FIOReader& Reader, const FComputeBlocksParams& Params);
-
-FGenericBlockArray ComputeBlocks(FIOReader& Reader, uint32 BlockSize, FAlgorithmOptions Algorithm);
-FGenericBlockArray ComputeBlocks(const uint8* Data, uint64 Size, uint32 BlockSize, FAlgorithmOptions Algorithm);
-FGenericBlockArray ComputeBlocksVariable(FIOReader&				Reader,
-										 uint32					BlockSize,
-										 EWeakHashAlgorithmID	WeakHasher,
-										 EStrongHashAlgorithmID StrongHasher);
-
-
-FNeedList DiffBlocks(const uint8*			   BaseData,
-					 uint64					   BaseDataSize,
-					 uint32					   BlockSize,
-					 EWeakHashAlgorithmID	   WeakHasher,
-					 EStrongHashAlgorithmID	   StrongHasher,
-					 const FGenericBlockArray& SourceBlocks);
-
-FNeedList DiffBlocksParallel(const uint8*			   BaseData,
-							 uint64					   BaseDataSize,
-							 uint32					   BlockSize,
-							 EWeakHashAlgorithmID	   WeakHasher,
-							 EStrongHashAlgorithmID	   StrongHasher,
-							 const FGenericBlockArray& SourceBlocks,
-							 uint64					   BytesPerTask);
-
-FNeedList DiffBlocks(FIOReader&				   BaseDataReader,
-					 uint32					   BlockSize,
-					 EWeakHashAlgorithmID	   WeakHasher,
-					 EStrongHashAlgorithmID	   StrongHasher,
-					 const FGenericBlockArray& SourceBlocks);
-
-FNeedList DiffBlocksParallel(FIOReader&				   BaseDataReader,
-							 uint32					   BlockSize,
-							 EWeakHashAlgorithmID	   WeakHasher,
-							 EStrongHashAlgorithmID	   StrongHasher,
-							 const FGenericBlockArray& SourceBlocks,
-							 uint64					   BytesPerTask);
-
-FNeedList DiffBlocksVariable(FIOReader&				   BaseDataReader,
-							 uint32					   BlockSize,
-							 EWeakHashAlgorithmID	   WeakHasher,
-							 EStrongHashAlgorithmID	   StrongHasher,
-							 const FGenericBlockArray& SourceBlocks);
-
-FNeedList DiffManifestBlocks(const FGenericBlockArray& SourceBlocks, const FGenericBlockArray& BaseBlocks);
 
 std::vector<FCopyCommand> OptimizeNeedList(const std::vector<FNeedBlock>& Input, uint64 MaxMergedBlockSize = 8_MB);
-
-
-FBuffer GeneratePatch(const uint8*			 BaseData,
-					  uint64				 BaseDataSize,
-					  const uint8*			 SourceData,
-					  uint64				 SourceDataSize,
-					  uint32				 BlockSize,
-					  EWeakHashAlgorithmID	 WeakHasher,
-					  EStrongHashAlgorithmID StrongHasher,
-					  int32					 CompressionLevel = 3);
 
 bool IsSynchronized(const FNeedList& NeedList, const FGenericBlockArray& SourceBlocks);
 
@@ -351,5 +286,24 @@ struct FCmdInfoOptions
 	const FSyncFilter* SyncFilter = nullptr;
 };
 int32 CmdInfo(const FCmdInfoOptions& Options);
+
+template<typename BlockType>
+bool
+ValidateBlockListT(const std::vector<BlockType>& Blocks)
+{
+	uint64 CurrentOffset = 0;
+	for (const BlockType& Block : Blocks)
+	{
+		if (CurrentOffset != Block.Offset)
+		{
+			UNSYNC_ERROR(L"Found block at unexpected offset. Blocks are expected to be ordered by offset and contiguous.");
+			return false;
+		}
+
+		CurrentOffset += Block.Size;
+	}
+
+	return true;
+}
 
 }  // namespace unsync

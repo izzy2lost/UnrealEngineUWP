@@ -10,6 +10,7 @@
 #include "UnsyncProgress.h"
 #include "UnsyncScheduler.h"
 #include "UnsyncPack.h"
+#include "UnsyncChunking.h"
 
 #include <stdio.h>
 #include <stdlib.h>

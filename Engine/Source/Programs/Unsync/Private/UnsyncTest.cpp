@@ -1,14 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UnsyncTest.h"
+#include "UnsyncChunking.h"
 #include "UnsyncCore.h"
+#include "UnsyncDiff.h"
 #include "UnsyncFile.h"
 #include "UnsyncHash.h"
 #include "UnsyncScan.h"
+#include "UnsyncTarget.h"
 #include "UnsyncTest.h"
 #include "UnsyncThread.h"
 #include "UnsyncUtil.h"
-#include "UnsyncTarget.h"
 
 UNSYNC_THIRD_PARTY_INCLUDES_START
 #include <md5-sse2.h>

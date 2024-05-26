@@ -10,6 +10,7 @@
 #include "UnsyncScavenger.h"
 #include "UnsyncThread.h"
 #include "UnsyncScheduler.h"
+#include "UnsyncChunking.h"
 
 namespace unsync {
 
