@@ -55,6 +55,7 @@ namespace uba
 
 		Atomic<u32> m_addsSinceMaintenance;
 		Atomic<bool> m_isRunningMaintenance;
+		Atomic<bool> m_shouldWipe;
 
 		ReaderWriterLock m_bucketsLock;
 		Map<u64, Bucket> m_buckets;

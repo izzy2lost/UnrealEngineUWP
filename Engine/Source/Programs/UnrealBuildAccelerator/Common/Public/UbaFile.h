@@ -75,7 +75,7 @@ namespace uba
 	bool SearchPathW(const tchar* a, const tchar* b, const tchar* c, u32 d, tchar* e, tchar** f);
 	u64 GetSystemTimeAsFileTime();
 	u64 GetFileTimeAsSeconds(u64 fileTime);
-	u64 GetNowFileTime();
+	u64 GetFileTimeAsTime(u64 fileTime);
 	bool GetCurrentDirectoryW(StringBufferBase& out);
 
 

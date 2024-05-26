@@ -1912,7 +1912,7 @@ namespace uba
 					if (msg.mappingWritten)
 					{
 						writtenFile.mappingWritten = msg.mappingWritten;
-						writtenFile.lastWriteTime = GetNowFileTime();
+						writtenFile.lastWriteTime = GetSystemTimeAsFileTime();
 					}
 					addMapping = false;
 				}
@@ -1941,7 +1941,7 @@ namespace uba
 				writtenFile.mappingHandle = mappingHandle;
 				writtenFile.mappingWritten = msg.mappingWritten;
 				writtenFile.originalMappingHandle = msg.mappingHandle;
-				writtenFile.lastWriteTime = GetNowFileTime();
+				writtenFile.lastWriteTime = GetSystemTimeAsFileTime();
 			}
 
 			if (writtenFile.mappingHandle.IsValid())
@@ -2662,7 +2662,7 @@ namespace uba
 		UnmapViewOfFile(mem2, memoryBlock.writtenSize, TC(""));
 
 		StringKey symFileKey = CaseInsensitiveFs ? ToStringKeyLower(exportsFile) : ToStringKey(exportsFile);
-		u64 lastWriteTime = GetNowFileTime();
+		u64 lastWriteTime = GetSystemTimeAsFileTime();
 
 		if (!RegisterCreateFileForWrite(symFileKey, exportsFile.data, exportsFile.count, false, memoryBlock.writtenSize, lastWriteTime))
 			return false;
