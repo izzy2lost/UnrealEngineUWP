@@ -519,6 +519,7 @@ public:
 	CHAOS_API void SetDamageModel_External(EDamageModelTypeEnum DamageModel);
 	CHAOS_API void SetUseMaterialDamageModifiers_External(bool bUseMaterialDamageModifiers);
 	CHAOS_API void SetMaterialOverrideMassScaleMultiplier_External(float InMultiplier);
+	CHAOS_API void SetEnableGravity_External(bool EnableGravity_External);
 	CHAOS_API void SetGravityGroupIndex_External(int32 GravityGroupIndex);
 	CHAOS_API void SetOneWayInteractionLevel_External(int32 OneWayInteractionLevel);
 	CHAOS_API void SetPhysicsMaterial_External(const Chaos::FMaterialHandle& MaterialHandle);
@@ -623,6 +624,7 @@ protected:
 	CHAOS_API void SetFilterData_Internal(const FCollisionFilterData& NewSimFilter, const FCollisionFilterData& NewQueryFilter);
 	CHAOS_API void SetPerParticleFilterData_Internal(const TArray<FParticleCollisionFilterData>& PerParticleData);
 	CHAOS_API void SetDamagePropagationData_Internal(bool bEnabled, float BreakDamagePropagationFactor, float ShockDamagePropagationFactor);
+	CHAOS_API void SetEnableGravity_Internal(bool bEnabled);
 	CHAOS_API void SetDamageThresholds_Internal(const TArray<float>& DamageThresholds);
 	CHAOS_API void SetDamageModel_Internal(EDamageModelTypeEnum DamageModel);
 	CHAOS_API void SetUseMaterialDamageModifiers_Internal(bool bUseMaterialDamageModifiers);

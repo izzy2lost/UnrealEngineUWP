@@ -3493,6 +3493,43 @@ void FGeometryCollectionPhysicsProxy::SetMaterialOverrideMassScaleMultiplier_Int
 	}
 }
 
+void FGeometryCollectionPhysicsProxy::SetEnableGravity_External(bool bEnabled)
+{
+	for (TUniquePtr<FParticle>& GTParticle : GTParticles)
+	{
+		GTParticle->SetGravityEnabled(bEnabled);
+	}
+
+	ExecuteOnPhysicsThread(*this, 
+		[this, bEnabled]() 
+		{
+			SetEnableGravity_Internal(bEnabled);
+		});
+}
+
+void FGeometryCollectionPhysicsProxy::SetEnableGravity_Internal(bool bEnabled)
+{
+	Parameters.GravityGroupIndex = bEnabled;
+
+	if (Chaos::FPhysicsSolver* RBDSolver = GetSolver<Chaos::FPhysicsSolver>())
+	{
+		if (Chaos::FPBDRigidsSolver::FPBDRigidsEvolution* Evolution = RBDSolver->GetEvolution())
+		{
+			for (Chaos::FPBDRigidClusteredParticleHandle* Handle : SolverParticleHandles)
+			{
+				if (Handle)
+				{
+					Handle->SetGravityEnabled(bEnabled);
+					if (!Handle->Disabled())
+					{
+						Evolution->WakeParticle(Handle);
+					}
+				}
+			}
+		}
+	}
+}
+
 void FGeometryCollectionPhysicsProxy::SetGravityGroupIndex_External(int32 GravityGroupIndex)
 {
 	ExecuteOnPhysicsThread(*this, 

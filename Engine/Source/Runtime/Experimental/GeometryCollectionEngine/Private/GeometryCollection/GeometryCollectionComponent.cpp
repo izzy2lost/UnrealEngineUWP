@@ -1270,6 +1270,19 @@ void UGeometryCollectionComponent::SetSimulatePhysics(bool bEnabled)
 	}
 }
 
+void UGeometryCollectionComponent::SetEnableGravity(bool bGravityEnabled)
+{
+	if (bGravityEnabled != BodyInstance.bEnableGravity)
+	{
+		BodyInstance.bEnableGravity = bGravityEnabled;
+
+		if (PhysicsProxy)
+		{
+			PhysicsProxy->SetEnableGravity_External(bGravityEnabled);
+		}
+	}
+}
+
 void UGeometryCollectionComponent::AddForce(FVector Force, FName BoneName, bool bAccelChange)
 {
 	ensure(bAccelChange == false); // not supported
