@@ -1105,6 +1105,7 @@ namespace uba
 	{
 		if (!m_casCapacityBytes)
 			return;
+		u64 startTime = GetTime();
 		u64 before = m_casTotalBytes;
 		while (m_casTotalBytes > m_casCapacityBytes)
 		{
@@ -1123,7 +1124,7 @@ namespace uba
 		}
 		u64 after = m_casTotalBytes;
 		if (before != after)
-			m_logger.Info(TC("Evicted %s from storage. Estimated new storage is now %s (there might be files db is not aware of)"), BytesToText(before - after).str, BytesToText(after).str);
+			m_logger.Info(TC("Evicted %s from storage (%s). Estimated new storage is now %s (there might be files db is not aware of)"), BytesToText(before - after).str, TimeToText(GetTime() - startTime).str, BytesToText(after).str);
 	}
 
 	bool StorageImpl::OpenCasDataFile(u32 index, u64 size)

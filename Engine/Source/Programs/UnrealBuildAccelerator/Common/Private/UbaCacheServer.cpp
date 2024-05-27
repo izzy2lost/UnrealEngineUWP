@@ -665,7 +665,11 @@ namespace uba
 		});
 
 		// Need to make sure all cas entries are dropped before saving cas table
+		u64 dropStartTime = GetTime();
 		dropCasGuard.Execute();
+		u64 dropCasDuration = GetTime() - dropStartTime;
+		if (TimeToMs(dropCasDuration) > 10)
+			m_logger.Detail(TC("  Done deleting cas files (%s)"), TimeToText(dropCasDuration).str);
 
 		if (entriesAdded || deletedCasCount || deleteEntryCount || forceAllSteps)
 		{
