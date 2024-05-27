@@ -28,6 +28,8 @@ class UNiagaraSystemAuditCommandlet : public UCommandlet
 	TSet<FString> NiagaraSystemsWithDataInterfaceToFind;
 	/** All Niagara Systems & Emitters with simulation stages enabled*/
 	TSet<FString> NiagaraSystemsWithSimulationStages;
+	/** All Niagara systems with compression enabled */
+	TSet<FString> NiagaraSystemsWithCompression;
 
 	/** All Validation Issues */
 	TUniquePtr<FArchive> NiagaraValidationIssues;
