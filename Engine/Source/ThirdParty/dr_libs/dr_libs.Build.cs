@@ -12,7 +12,7 @@ public class dr_libs : ModuleRules
 		get
 		{
 			return Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) ||
-				   //Target.IsInPlatformGroup(UnrealPlatformGroup.Unix) ||
+				   (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix) && Target.Architecture != UnrealArch.Arm64) ||
 				   Target.Platform == UnrealTargetPlatform.Mac ||
 				   Target.Platform == UnrealTargetPlatform.IOS ||
 				   // Android: we only have arm64 libs, so we can't enable it when building for x86 or x86+arm64, since there's only one #define possible
