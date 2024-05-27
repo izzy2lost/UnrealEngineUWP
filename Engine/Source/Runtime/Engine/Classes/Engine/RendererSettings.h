@@ -444,6 +444,55 @@ class URendererSettings : public UDeveloperSettings
 		ToolTip = "Lower factor will increase virtual texture feedback resolution which increases CPU/GPU overhead, but may decrease streaming latency, especially if materials use many virtual textures."))
 	uint32 VirtualTextureFeedbackFactor;
 
+	UPROPERTY(config, EditAnywhere, Category = "Runtime Virtual Textures|Enable Material Types", meta = (
+		EditCondition = "bVirtualTextures",
+		ConsoleVariable = "r.vt.rvt.EnableBaseColor", DisplayName = "Enable 'Base Color'",
+		ToolTip = "Disable material type when not required by a project. This minimizes shader permutation count for materials with Runtime Virtual Texture Output nodes.",
+		ConfigRestartRequired = true))
+	bool bEnableRVTBaseColor;
+
+	UPROPERTY(config, EditAnywhere, Category = "Runtime Virtual Textures|Enable Material Types", meta = (
+		EditCondition = "bVirtualTextures",
+		ConsoleVariable = "r.vt.rvt.EnableBaseColorRoughness", DisplayName = "Enable 'Base Color, Normal, Roughness'",
+		ToolTip = "Disable material type when not required by a project. This minimizes shader permutation count for materials with Runtime Virtual Texture Output nodes.",
+		ConfigRestartRequired = true))
+	bool bEnableRVTBaseColorRoughness;
+
+	UPROPERTY(config, EditAnywhere, Category = "Runtime Virtual Textures|Enable Material Types", meta = (
+		EditCondition = "bVirtualTextures",
+		ConsoleVariable = "r.vt.rvt.EnableBaseColorSpecular", DisplayName = "Enable 'Base Color, Normal, Roughness, Specular' family",
+		ToolTip = "Disable family of material types when not required by a project. This minimizes shader permutation count for materials with Runtime Virtual Texture Output nodes.",
+		ConfigRestartRequired = true))
+	bool bEnableRVTBaseColorSpecular;
+
+	UPROPERTY(config, EditAnywhere, Category = "Runtime Virtual Textures|Enable Material Types", meta = (
+		EditCondition = "bVirtualTextures",
+		ConsoleVariable = "r.vt.rvt.EnableMask4", DisplayName = "Enable 'Mask4'",
+		ToolTip = "Disable material type when not required by a project. This minimizes shader permutation count for materials with Runtime Virtual Texture Output nodes.",
+		ConfigRestartRequired = true))
+	bool bEnableRVTMask4;
+
+	UPROPERTY(config, EditAnywhere, Category = "Runtime Virtual Textures|Enable Material Types", meta = (
+		EditCondition = "bVirtualTextures",
+		ConsoleVariable = "r.vt.rvt.EnableWorldHeight", DisplayName = "Enable 'World Height'",
+		ToolTip = "Disable material type when not required by a project. This minimizes shader permutation count for materials with Runtime Virtual Texture Output nodes.",
+		ConfigRestartRequired = true))
+	bool bEnableRVTWorldHeight;
+
+	UPROPERTY(config, EditAnywhere, Category = "Runtime Virtual Textures|Enable Material Types", meta = (
+		EditCondition = "bVirtualTextures",
+		ConsoleVariable = "r.vt.rvt.EnableDisplacement", DisplayName = "Enable 'Displacement'",
+		ToolTip = "Disable material type when not required by a project. This minimizes shader permutation count for materials with Runtime Virtual Texture Output nodes.",
+		ConfigRestartRequired = true))
+	bool bEnableRVTDisplacement;
+
+	UPROPERTY(config, EditAnywhere, Category = "Runtime Virtual Textures", meta = (
+		EditCondition = "bVirtualTextures",
+		ConsoleVariable = "r.vt.rvt.HighQualityPerPixelHeight", DisplayName = "High quality landscape height sampling.",
+		ToolTip = "Use higher quality sampling of per pixel heightmaps when rendering to Runtime Virtual Texture.",
+		ConfigRestartRequired = true))
+	bool bUseHighQualityRVTHeightSampling;
+
 	UPROPERTY(config, EditAnywhere, Category = WorkingColorSpace, meta = (
 		DisplayName = "Working Color Space",
 		ToolTip = "Choose from list of provided working color spaces, or custom to provide user-defined space.",

@@ -183,8 +183,14 @@ static ERuntimeVirtualTextureMaterialQuality ConvertMaterialQualityEnum(EMateria
 
 bool URuntimeVirtualTextureComponent::IsEnabledInScene() const
 {
-	const bool bUseNanite = UseNanite(GetScene()->GetShaderPlatform());
+	const EShaderPlatform ShaderPlatform = GetScene()->GetShaderPlatform();
+	const bool bUseNanite = UseNanite(ShaderPlatform);
 	if (bEnableForNaniteOnly && !bUseNanite)
+	{
+		return false;
+	}
+
+	if (!RuntimeVirtualTexture::IsMaterialTypeSupported(VirtualTexture->GetMaterialType(), ShaderPlatform))
 	{
 		return false;
 	}

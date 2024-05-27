@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Misc/EnumRange.h"
 #include "RuntimeVirtualTextureEnum.generated.h"
 
 /** Maximum number of texture layers we will have in a runtime virtual texture. Increase if we add a ERuntimeVirtualTextureMaterialType with more layers. */
@@ -49,6 +49,8 @@ enum class ERuntimeVirtualTextureMaterialType : uint8
 
 namespace RuntimeVirtualTexture { enum { MaterialType_NumBits = 3 }; }
 static_assert((uint32)ERuntimeVirtualTextureMaterialType::Count <= (1 << (uint32)RuntimeVirtualTexture::MaterialType_NumBits), "NumBits is too small");
+
+ENUM_RANGE_BY_COUNT(ERuntimeVirtualTextureMaterialType, ERuntimeVirtualTextureMaterialType::Count);
 
 /** Enumeration of main pass behaviors when rendering to a runtime virtual texture. */
 UENUM()

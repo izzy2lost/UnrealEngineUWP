@@ -14,6 +14,7 @@ public class VirtualTexturingEditor : ModuleRules
 				"Core",
 				"CoreUObject",
 				"EditorFramework",
+				"EditorWidgets",
 				"Engine",
 				"InputCore",
 				"Landscape",

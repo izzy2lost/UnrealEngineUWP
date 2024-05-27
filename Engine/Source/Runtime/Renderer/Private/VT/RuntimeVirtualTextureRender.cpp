@@ -4,6 +4,7 @@
 
 #include "Components/RuntimeVirtualTextureComponent.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "EngineModule.h"
 #include "GlobalShader.h"
 #include "GPUScene.h"
 #include "MaterialShader.h"
@@ -23,7 +24,6 @@
 #include "SimpleMeshDrawCommandPass.h"
 #include "StaticMeshBatch.h"
 #include "SceneRendering.h"
-#include "EngineModule.h"
 
 CSV_DECLARE_CATEGORY_EXTERN(VirtualTexturing);
 
@@ -172,6 +172,11 @@ namespace RuntimeVirtualTexture
 	class FMaterialPolicy_BaseColor
 	{
 	public:
+		static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+		{
+			return RuntimeVirtualTexture::IsMaterialTypeSupported(ERuntimeVirtualTextureMaterialType::BaseColor, Parameters.Platform);
+		}
+
 		static void ModifyCompilationEnvironment(FShaderCompilerEnvironment& OutEnvironment)
 		{
 			OutEnvironment.SetDefine(TEXT("OUT_BASECOLOR"), 1);
@@ -262,6 +267,11 @@ namespace RuntimeVirtualTexture
 		}
 
 	public:
+		static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+		{
+			return RuntimeVirtualTexture::IsMaterialTypeSupported(ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular, Parameters.Platform);
+		}
+
 		static void ModifyCompilationEnvironment(FShaderCompilerEnvironment& OutEnvironment)
 		{
 			OutEnvironment.SetDefine(TEXT("OUT_BASECOLOR_NORMAL_SPECULAR"), 1);
@@ -349,6 +359,11 @@ namespace RuntimeVirtualTexture
 			}
 		}
 	public:
+		static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+		{
+			return RuntimeVirtualTexture::IsMaterialTypeSupported(ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Roughness, Parameters.Platform);
+		}
+		
 		static void ModifyCompilationEnvironment(FShaderCompilerEnvironment& OutEnvironment)
 		{
 			OutEnvironment.SetDefine(TEXT("OUT_BASECOLOR_NORMAL_ROUGHNESS"), 1);
@@ -363,6 +378,11 @@ namespace RuntimeVirtualTexture
 	class FMaterialPolicy_Mask4
 	{
 	public:
+		static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+		{
+			return RuntimeVirtualTexture::IsMaterialTypeSupported(ERuntimeVirtualTextureMaterialType::Mask4, Parameters.Platform);
+		}
+
 		static void ModifyCompilationEnvironment(FShaderCompilerEnvironment& OutEnvironment)
 		{
 			OutEnvironment.SetDefine(TEXT("OUT_MASK4"), 1);
@@ -380,6 +400,11 @@ namespace RuntimeVirtualTexture
 	class FMaterialPolicy_WorldHeight
 	{
 	public:
+		static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+		{
+			return RuntimeVirtualTexture::IsMaterialTypeSupported(ERuntimeVirtualTextureMaterialType::WorldHeight, Parameters.Platform);
+		}
+
 		static void ModifyCompilationEnvironment(FShaderCompilerEnvironment& OutEnvironment)
 		{
 			OutEnvironment.SetDefine(TEXT("OUT_WORLDHEIGHT"), 1);
@@ -396,6 +421,11 @@ namespace RuntimeVirtualTexture
 	class FMaterialPolicy_Displacement
 	{
 	public:
+		static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+		{
+			return RuntimeVirtualTexture::IsMaterialTypeSupported(ERuntimeVirtualTextureMaterialType::Displacement, Parameters.Platform);
+		}
+
 		static void ModifyCompilationEnvironment(FShaderCompilerEnvironment& OutEnvironment)
 		{
 			OutEnvironment.SetDefine(TEXT("OUT_DISPLACEMENT"), 1);
@@ -422,6 +452,11 @@ namespace RuntimeVirtualTexture
 		FShader_VirtualTextureMaterialDraw_VS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
 			: FShader_VirtualTextureMaterialDraw(Initializer)
 		{}
+
+		static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+		{
+			return FShader_VirtualTextureMaterialDraw::ShouldCompilePermutation(Parameters) && MaterialPolicy::ShouldCompilePermutation(Parameters);
+		}
 
 		static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 		{
@@ -1199,6 +1234,11 @@ namespace RuntimeVirtualTexture
 		FShader_VirtualTextureCompress_CS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
 			: FShader_VirtualTextureCompress(Initializer)
 		{}
+
+		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+		{
+			return UseVirtualTexturing(Parameters.Platform) && RuntimeVirtualTexture::IsMaterialTypeSupported(MaterialType, Parameters.Platform);
+		}
 	};
 
 	IMPLEMENT_SHADER_TYPE(template<>, FShader_VirtualTextureCompress_CS< ERuntimeVirtualTextureMaterialType::BaseColor >, TEXT("/Engine/Private/VirtualTextureCompress.usf"), TEXT("CompressBaseColorCS"), SF_Compute);

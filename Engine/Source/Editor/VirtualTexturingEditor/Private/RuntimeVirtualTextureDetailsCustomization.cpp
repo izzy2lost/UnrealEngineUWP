@@ -13,6 +13,7 @@
 #include "RuntimeVirtualTextureBuildStreamingMips.h"
 #include "RuntimeVirtualTextureSetBounds.h"
 #include "ScopedTransaction.h"
+#include "SEnumCombo.h"
 #include "SResetToDefaultMenu.h"
 #include "VirtualTextureBuilderFactory.h"
 #include "VT/RuntimeVirtualTexture.h"
@@ -100,6 +101,37 @@ void FRuntimeVirtualTextureDetailsCustomization::CustomizeDetails(IDetailLayoutB
 		return;
 	}
 
+	RefreshMaterialTypes();
+
+	TSharedRef<IPropertyHandle> MaterialTypePropertyHandle = DetailBuilder.GetProperty(TEXT("MaterialType"));
+	DetailBuilder.EditDefaultProperty(MaterialTypePropertyHandle)->CustomWidget()
+	.NameContent()
+	[
+		MaterialTypePropertyHandle->CreatePropertyNameWidget()
+	]
+	.ValueContent()
+	[
+		SNew(SEnumComboBox, StaticEnum<ERuntimeVirtualTextureMaterialType>())
+			.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
+			.EnumValueSubset(SupportedMaterialTypes)
+			.CurrentValue_Lambda([this]()
+			{
+				if (URuntimeVirtualTexture* Texture = VirtualTexture.Get())
+				{
+					return (int32)Texture->GetMaterialType();
+				}
+				return 0;
+			})
+			.OnEnumSelectionChanged_Lambda([this](uint32 NewValue, ESelectInfo::Type)
+			{
+				if (URuntimeVirtualTexture* Texture = VirtualTexture.Get())
+				{
+					Texture->MaterialType = (ERuntimeVirtualTextureMaterialType)NewValue;
+					RefreshDetailsView();
+				}
+			})
+	];
+
 	// Set UIMax dependent on adaptive page table setting
 	FString MaxTileCountString = FString::Printf(TEXT("%d"), URuntimeVirtualTexture::GetMaxTileCountLog2(VirtualTexture->GetAdaptivePageTable()));
 	DetailBuilder.GetProperty(FName(TEXT("TileCount")))->SetInstanceMetaData("UIMax", MaxTileCountString);
@@ -150,6 +182,28 @@ void FRuntimeVirtualTextureDetailsCustomization::CustomizeDetails(IDetailLayoutB
 
 	// Initialize text blocks
 	RefreshTextDetails();
+}
+
+void FRuntimeVirtualTextureDetailsCustomization::RefreshMaterialTypes()
+{
+	// Filter for enabled material types.
+	SupportedMaterialTypes.Reset();
+	SupportedMaterialTypes.Reserve((int32)ERuntimeVirtualTextureMaterialType::Count);
+	
+	// Include currently selected type even if it is disabled.
+	ERuntimeVirtualTextureMaterialType CurrentType = ERuntimeVirtualTextureMaterialType::Count;
+	if (URuntimeVirtualTexture* Texture = VirtualTexture.Get())
+	{
+		CurrentType = Texture->GetMaterialType();
+	}
+
+	for (ERuntimeVirtualTextureMaterialType Type : TEnumRange<ERuntimeVirtualTextureMaterialType>())
+	{
+		if (RuntimeVirtualTexture::IsMaterialTypeSupported(Type) || Type == CurrentType)
+		{
+			SupportedMaterialTypes.Add((int32)Type);
+		}
+	}
 }
 
 void FRuntimeVirtualTextureDetailsCustomization::RefreshTextDetails()

@@ -8,6 +8,7 @@
 #include "RendererInterface.h"
 #include "RenderingThread.h"
 #include "Shader/ShaderTypes.h"
+#include "ShaderPlatformCachedIniValue.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/UnrealType.h"
 #include "VT/RuntimeVirtualTextureNotify.h"
@@ -17,6 +18,13 @@
 #include "VT/VirtualTextureLevelRedirector.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RuntimeVirtualTexture)
+
+static TAutoConsoleVariable<bool> CVarRVTEnableBaseColor(TEXT("r.VT.RVT.EnableBaseColor"), true, TEXT("Enable 'Base Color' RVT Material Type"), ECVF_ReadOnly);
+static TAutoConsoleVariable<bool> CVarRVTEnableBaseColorRoughness(TEXT("r.VT.RVT.EnableBaseColorRoughness"), true, TEXT("Enable 'Base Color, Normal, Roughness' RVT Material Type"), ECVF_ReadOnly);
+static TAutoConsoleVariable<bool> CVarRVTEnableBaseColorSpecular(TEXT("r.VT.RVT.EnableBaseColorSpecular"), true, TEXT("Enable 'Base Color, Normal, Roughness, Specular' family of RVT Material Types"), ECVF_ReadOnly);
+static TAutoConsoleVariable<bool> CVarRVTEnableMask4(TEXT("r.VT.RVT.EnableMask4"), true, TEXT("Enable 'Mask4' RVT Material Type"), ECVF_ReadOnly);
+static TAutoConsoleVariable<bool> CVarRVTEnableWorldHeight(TEXT("r.VT.RVT.EnableWorldHeight"), true, TEXT("Enable 'World Height' RVT Material Type"), ECVF_ReadOnly);
+static TAutoConsoleVariable<bool> CVarRVTEnableDisplacement(TEXT("r.VT.RVT.EnableDisplacement"), true, TEXT("Enable 'Displacement' RVT Material Type"), ECVF_ReadOnly);
 
 namespace
 {
@@ -705,6 +713,43 @@ namespace RuntimeVirtualTexture
 		int32 InTransitionLevel)
 	{
 		return (InStreamingProducer == nullptr) ? InProducer : new FVirtualTextureLevelRedirector(InProducer, InStreamingProducer, InTransitionLevel);
+	}
+
+	bool IsMaterialTypeSupported(ERuntimeVirtualTextureMaterialType InMaterialType, EShaderPlatform InPlatform)
+	{
+		static FShaderPlatformCachedIniValue<bool> CPlatformVarRVTEnableBaseColor(CVarRVTEnableBaseColor.AsVariable());
+		static FShaderPlatformCachedIniValue<bool> CPlatformVarRVTEnableBaseColorRoughness(CVarRVTEnableBaseColorRoughness.AsVariable());
+		static FShaderPlatformCachedIniValue<bool> CPlatformVarRVTEnableBaseColorSpecular(CVarRVTEnableBaseColorSpecular.AsVariable());
+		static FShaderPlatformCachedIniValue<bool> CPlatformVarRVTEnableMask4(CVarRVTEnableMask4.AsVariable());
+		static FShaderPlatformCachedIniValue<bool> CPlatformVarRVTEnableWorldHeight(CVarRVTEnableWorldHeight.AsVariable());
+		static FShaderPlatformCachedIniValue<bool> CPlatformVarRVTEnableDisplacement(CVarRVTEnableDisplacement.AsVariable());
+
+		switch (InMaterialType)
+		{
+		case ERuntimeVirtualTextureMaterialType::BaseColor:
+			return CPlatformVarRVTEnableBaseColor.Get(InPlatform);
+		case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Roughness:
+			return CPlatformVarRVTEnableBaseColorRoughness.Get(InPlatform);
+		case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular:
+		case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_YCoCg:
+		case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular_Mask_YCoCg:
+			return CPlatformVarRVTEnableBaseColorSpecular.Get(InPlatform);
+		case ERuntimeVirtualTextureMaterialType::Mask4:
+			return CPlatformVarRVTEnableMask4.Get(InPlatform);
+		case ERuntimeVirtualTextureMaterialType::WorldHeight:
+			return CPlatformVarRVTEnableWorldHeight.Get(InPlatform);
+		case ERuntimeVirtualTextureMaterialType::Displacement:
+			return CPlatformVarRVTEnableDisplacement.Get(InPlatform);
+		default:
+			checkNoEntry();
+		}
+
+		return false;
+	}
+
+	bool IsMaterialTypeSupported(ERuntimeVirtualTextureMaterialType MaterialType)
+	{
+		return IsMaterialTypeSupported(MaterialType, GetFeatureLevelShaderPlatform(GMaxRHIFeatureLevel));
 	}
 }
 
