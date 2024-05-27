@@ -38,6 +38,22 @@ namespace Private
 		SkipUncookedClasses = InSkipUncookedClasses;
 		SkipCookedClasses = InSkipCookedClasses;
 	}
+
+	void FFiltering::InitializeShouldSkipAsset()
+	{
+		if (!bInitializedSkipClasses)
+		{
+			// Since we only collect these the first on-demand time, it is possible we will miss subclasses
+			// from plugins that load later. This flaw is a rare edge case, though, and this solution will
+			// be replaced eventually, so leaving it for now.
+			if (GIsEditor && (!IsRunningCommandlet() || IsRunningCookCommandlet()))
+			{
+				Utils::PopulateSkipClasses(SkipUncookedClasses, SkipCookedClasses);
+			}
+
+			bInitializedSkipClasses = true;
+		}
+	}
 #endif
 
 #if WITH_ENGINE && WITH_EDITOR
@@ -140,18 +156,8 @@ namespace Utils
 		// an asset; the content browser does not handle the multiple assets correctly and displays this
 		// class asset as if it is in a separate package. Revisit when we have removed the UBlueprint as an asset
 		// or when we support multiple assets.
-		if (!bInitializedSkipClasses)
-		{
-			// Since we only collect these the first on-demand time, it is possible we will miss subclasses
-			// from plugins that load later. This flaw is a rare edge case, though, and this solution will
-			// be replaced eventually, so leaving it for now.
-			if (GIsEditor && (!IsRunningCommandlet() || IsRunningCookCommandlet()))
-			{
-				Utils::PopulateSkipClasses(SkipUncookedClasses, SkipCookedClasses);
-			}
+		InitializeShouldSkipAsset();
 
-			bInitializedSkipClasses = true;
-		}
 		return Utils::ShouldSkipAsset(AssetClass, PackageFlags, SkipUncookedClasses, SkipCookedClasses);
 #else
 		return false;

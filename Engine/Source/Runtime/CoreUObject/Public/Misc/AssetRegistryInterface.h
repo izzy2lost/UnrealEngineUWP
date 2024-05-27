@@ -236,6 +236,12 @@ namespace UE::AssetRegistry
 #if WITH_ENGINE && WITH_EDITOR
 		/** Copy the global skip classes set from the given external sets that were already populated. */
 		static COREUOBJECT_API void SetSkipClasses(const TSet<FTopLevelAssetPath>& InSkipUncookedClasses, const TSet<FTopLevelAssetPath>& InSkipCookedClasses);
+
+		/**
+		 * Prepare the data structure needed for a call to Should skip asset. 
+		 * This make the function bool ShouldSkipAsset(const FTopLevelAssetPath& AssetClass, uint32 PackageFlags) thread safe if the Game Thread is on hold during those calls.
+		 */
+		static COREUOBJECT_API void InitializeShouldSkipAsset();
 #endif
 	};
 
