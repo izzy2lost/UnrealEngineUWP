@@ -238,6 +238,8 @@ namespace Metasound
 				}
 			}
 
+			void SetDelayedRename();
+
 		protected:
 			// Callbacks for action tree
 			bool CanRenameOnActionNode(TWeakPtr<FGraphActionNode> InSelectedNode) const;
@@ -486,6 +488,8 @@ namespace Metasound
 			int32 HighestMessageSeverity = EMessageSeverity::Info;
 
 			TSharedPtr<SNotificationItem> NotificationPtr;
+
+			bool bMemberRenameRequested = false;
 		};
 	} // namespace Editor
 } // namespace Metasound

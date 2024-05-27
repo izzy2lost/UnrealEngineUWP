@@ -3388,6 +3388,8 @@ namespace Metasound
 			FMetasoundAssetBase* MetasoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(Metasound);
 			check(MetasoundAsset);
 
+			bool bNodesSelected = false;
+
 			// Capture after synchronizing as the modification state may be modified therein
 			const FMetasoundFrontendDocumentModifyContext& ModifyContext = MetasoundAsset->GetConstModifyContext();
 			const bool bForceRefreshViews = ModifyContext.GetForceRefreshViews();
@@ -3484,12 +3486,20 @@ namespace Metasound
 				if (!Selection.IsEmpty())
 				{
 					SetSelection(Selection);
-
+					bNodesSelected = true;
 				}
 
 				// Avoids details panel displaying
 				// removed members in certain cases.
 				RemoveInvalidSelection();
+			}
+
+			// Wait for GraphMembersMenu to get updated with selected nodes
+			if (bMemberRenameRequested && bNodesSelected)
+			{
+				GraphMembersMenu->RefreshAllActions(/*bPreserveExpansion=*/ true, /*bHandleOnSelectionEvent=*/ true);
+				GraphMembersMenu->OnRequestRenameOnActionNode();
+				bMemberRenameRequested = false;
 			}
 		}
 
@@ -3730,6 +3740,11 @@ namespace Metasound
 					}
 				}
 			}
+		}
+
+		void FEditor::SetDelayedRename()
+		{
+			bMemberRenameRequested = true;
 		}
 	}
 }
