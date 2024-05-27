@@ -36,7 +36,7 @@ class Help(flow.cmd.Cmd):
                     command_class = node.get_command_class()
                     command_class = command_class.get_class_type()
                     if hasattr(command_class, "get_desc"):
-                        yield path, command_class.get_desc().strip()
+                        yield path, command_class.get_desc()
                 except Exception as e:
                     yield path, "LOAD_ERROR: " + str(e)
 
@@ -47,23 +47,56 @@ class Help(flow.cmd.Cmd):
         output.sort(key=lambda x: x[0])
 
         name_len = max(len(x[0]) for x in output) + 4
-        whitespace = re.compile(r"\s+")
         desc_width = right_column - name_len
         for name, desc in output:
             dots = "." * (name_len - len(name) - 3)
             initial_prefix = flow.cmd.text.light_cyan(name) + " " + flow.cmd.text.grey(dots)
 
-            desc = whitespace.sub(" ", desc)
-            desc_lines = textwrap.wrap(desc, desc_width)
+            is_first_paragraph = True
 
-            first_line = 0
-            for line in desc_lines:
-                prefix = initial_prefix if not first_line else (" " * (name_len - 2))
-                first_line += 1
-                print("", prefix, line)
+            paragraph_lines = []
+            is_literal_block = None
 
-            if first_line > 1:
-                print()
+            def print_paragraph(is_literal_block, is_first_paragraph):
+                if paragraph_lines:
+                    # literal blocks retain line endings and wrap on indent
+                    if is_literal_block:
+                        desc_lines = []
+                        for line in paragraph_lines:
+                            line_len = len(line)
+                            line = line.lstrip()
+                            line_indent = line_len - len(line)
+
+                            desc_lines.extend([(" " * line_indent) + l for l in textwrap.wrap(line, desc_width)])
+                    else:
+                        desc_lines = textwrap.wrap(" ".join(paragraph_lines), desc_width)
+
+                    paragraph_prefix = (" " * (name_len - 2))
+
+                    prefix = initial_prefix if is_first_paragraph else paragraph_prefix
+                    print("", prefix, desc_lines[0])
+
+                    for line in desc_lines[1:]:
+                        print("", paragraph_prefix, line)
+                    
+                    del paragraph_lines[:]
+
+                    if desc_lines:
+                        print()
+
+            for desc_line in desc.splitlines():
+                if not desc_line:
+                    print_paragraph(is_literal_block, is_first_paragraph)
+                    is_first_paragraph = False
+                    is_literal_block = None
+                else:
+                    # treat paragraph as a literal block if it starts out indented
+                    if is_literal_block is None:
+                        is_literal_block = desc_line[0].isspace()
+
+                    paragraph_lines.append(desc_line)
+
+            print_paragraph(is_literal_block, is_first_paragraph)
 
 
 
