@@ -2,9 +2,10 @@
 
 #pragma once
 
+#include "Modules/ModuleManager.h"
+
 #include "Containers/ContainersFwd.h"
 #include "Delegates/Delegate.h"
-#include "Modules/ModuleManager.h"
 #include "Templates/SharedPointerFwd.h"
 
 class AActor;
@@ -50,6 +51,8 @@ public:
 	}
 
 	virtual void OpenEditor(UWorld* InWorld) const = 0;
+
+	virtual UDynamicMaterialModel* GetOpenedMaterialModel(UWorld* InWorld) const = 0;
 
 	virtual void OpenMaterialModel(UDynamicMaterialModel* InMaterialModel, UWorld* InWorld, bool bInInvokeTab) const = 0;
 

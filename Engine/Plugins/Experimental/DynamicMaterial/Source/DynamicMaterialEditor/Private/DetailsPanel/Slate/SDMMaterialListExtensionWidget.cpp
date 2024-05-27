@@ -114,7 +114,7 @@ void SDMMaterialListExtensionWidget::SetDynamicMaterialInstance(UDynamicMaterial
 						{
 							const FMaterialListItem& ListItem = MaterialItemViewWeak.Pin()->GetMaterialListItem();
 							const FDMObjectMaterialProperty MaterialProperty(CurrentComponent, ListItem.SlotIndex);
-							WorldSubsystem->GetMaterialValueSetterDelegate().Execute(MaterialProperty, NewInstance);
+							WorldSubsystem->ExecuteMaterialValueSetterDelegate(MaterialProperty, NewInstance);
 						}
 
 						return;

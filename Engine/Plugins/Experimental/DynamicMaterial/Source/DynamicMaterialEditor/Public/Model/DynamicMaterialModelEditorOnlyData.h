@@ -2,13 +2,16 @@
 
 #pragma once
 
-#include "Model/IDynamicMaterialModelEditorOnlyDataInterface.h"
 #include "DMEDefs.h"
+#include "Misc/NotifyHook.h"
+#include "Model/IDynamicMaterialModelEditorOnlyDataInterface.h"
+#include "UObject/Object.h"
+
 #include "Engine/EngineTypes.h"
 #include "MaterialDomain.h"
-#include "Misc/NotifyHook.h"
 #include "UObject/WeakObjectPtrFwd.h"
 #include "UObject/WeakObjectPtrTemplatesFwd.h"
+
 #include "DynamicMaterialModelEditorOnlyData.generated.h"
 
 class UDMMaterialComponent;
@@ -17,6 +20,7 @@ class UDMMaterialProperty;
 class UDMMaterialSlot;
 class UDMMaterialValue;
 class UDMMaterialValueFloat1;
+class UDMTextureSet;
 class UDMTextureUV;
 class UDynamicMaterialModel;
 class UDynamicMaterialModelEditorOnlyData;
@@ -76,6 +80,7 @@ public:
 	static UDynamicMaterialModelEditorOnlyData* Get(TWeakObjectPtr<UDynamicMaterialModel> InModelWeak);
 	static UDynamicMaterialModelEditorOnlyData* Get(const TScriptInterface<IDynamicMaterialModelEditorOnlyDataInterface>& InInterface);
 	static UDynamicMaterialModelEditorOnlyData* Get(IDynamicMaterialModelEditorOnlyDataInterface* InInterface);
+	static UDynamicMaterialModelEditorOnlyData* Get(UDynamicMaterialInstance* InInstance);
 
 	UDynamicMaterialModelEditorOnlyData();
 
@@ -175,6 +180,15 @@ public:
 	FDMOnTextureUVUpdated& GetOnTextureUVUpdateDelegate() { return OnTextureUVUpdateDelegate; }
 
 	TSharedRef<FDMMaterialBuildState> CreateBuildState(UMaterial* InMaterialToBuild, bool bInDirtyAssets = true) const;
+
+	/**
+	 * Integrates a Texture Set with the model.
+	 * @param InTextureSet The set to integrate.
+	 * @param bInReplaceSlots Whether to add to or completely replace slots.
+	 * @return True on success.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	bool AddTextureSet(UDMTextureSet* InTextureSet, bool bInReplaceSlots);
 
 	bool NeedsWizard() const;
 

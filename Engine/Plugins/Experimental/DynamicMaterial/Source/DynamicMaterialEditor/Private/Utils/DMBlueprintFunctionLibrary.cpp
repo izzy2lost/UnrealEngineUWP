@@ -222,14 +222,9 @@ UDynamicMaterialModel* UDMBlueprintFunctionLibrary::CreateDynamicMaterialInObjec
 	{
 		if (IsValid(World))
 		{
-			UDMWorldSubsystem* const WorldSubsystem = World->GetSubsystem<UDMWorldSubsystem>();
-
-			if (IsValid(WorldSubsystem))
+			if (UDMWorldSubsystem* const WorldSubsystem = World->GetSubsystem<UDMWorldSubsystem>())
 			{
-				if (WorldSubsystem->GetMaterialValueSetterDelegate().IsBound())
-				{
-					bSubsystemTakenOver = WorldSubsystem->GetMaterialValueSetterDelegate().Execute(InMaterialProperty, NewInstance);
-				}
+				bSubsystemTakenOver = WorldSubsystem->ExecuteMaterialValueSetterDelegate(InMaterialProperty, NewInstance);
 			}
 		}
 	}

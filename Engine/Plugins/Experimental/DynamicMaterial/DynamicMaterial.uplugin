@@ -21,7 +21,17 @@
 			"LoadingPhase": "Default"
 		},
 		{
+			"Name": "DynamicMaterialTextureSet",
+			"Type": "RuntimeAndProgram",
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "DynamicMaterialEditor",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "DynamicMaterialTextureSetEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default"
 		},
@@ -34,7 +44,11 @@
 	"Plugins": [
 		{
 			"Name": "CustomDetailsView",
-			"Enabled":  true
+			"Enabled": true
+		},
+		{
+			"Name": "StructUtils",
+			"Enabled": true
 		}
 	]
 }

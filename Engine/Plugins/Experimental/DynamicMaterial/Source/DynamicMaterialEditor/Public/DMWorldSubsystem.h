@@ -2,9 +2,11 @@
  
 #pragma once
 
-#include "Delegates/Delegate.h"
 #include "Subsystems/WorldSubsystem.h"
+
+#include "Delegates/Delegate.h"
 #include "Templates/SharedPointer.h"
+
 #include "DMWorldSubsystem.generated.h"
 
 class AActor;
@@ -13,6 +15,7 @@ class UDynamicMaterialInstance;
 class UDynamicMaterialModel;
 struct FDMObjectMaterialProperty;
 
+DECLARE_DELEGATE_RetVal(UDynamicMaterialModel*, FDMGetMaterialModelDelegate)
 DECLARE_DELEGATE_OneParam(FDMSetMaterialModelDelegate, UDynamicMaterialModel*)
 DECLARE_DELEGATE_OneParam(FDMSetMaterialObjectPropertyDelegate, const FDMObjectMaterialProperty&)
 DECLARE_DELEGATE_OneParam(FDMSetMaterialActorDelegate, AActor*)
@@ -28,34 +31,79 @@ class UDMWorldSubsystem : public UWorldSubsystem
 public:
 	UDMWorldSubsystem();
  
-	const TSharedPtr<IDetailKeyframeHandler>& GetKeyframeHandler() const { return KeyframeHandler; }
+	const TSharedPtr<IDetailKeyframeHandler>& GetKeyframeHandler() const
+	{
+		return KeyframeHandler;
+	}
 
-	void SetKeyframeHandler(const TSharedPtr<IDetailKeyframeHandler>& InKeyframeHandler) { KeyframeHandler = InKeyframeHandler; }
+	void SetKeyframeHandler(const TSharedPtr<IDetailKeyframeHandler>& InKeyframeHandler)
+	{
+		KeyframeHandler = InKeyframeHandler;
+	}
+
+	/** Gets the material in a custom editor tab. */
+	FDMGetMaterialModelDelegate::RegistrationType& GetGetCustomEditorModelDelegate() const
+	{
+		return CustomModelEditorGetDelegate;
+	}
+
+	UDynamicMaterialModel* ExecuteGetCustomEditorModelDelegate();
 
 	/** Sets material in a custom editor tab. */
-	FDMSetMaterialModelDelegate& GetSetCustomEditorModelDelegate() { return CustomModelEditorDelegate; }
+	FDMSetMaterialModelDelegate::RegistrationType& GetSetCustomEditorModelDelegate() const
+	{
+		return CustomModelEditorSetDelegate;
+	}
+
+	void ExecuteSetCustomEditorModelDelegate(UDynamicMaterialModel* InMaterialModel);
 
 	/** Sets the object property in custom editor tab. */
-	FDMSetMaterialObjectPropertyDelegate& GetCustomObjectPropertyEditorDelegate() { return CustomObjectPropertyEditorDelegate; }
+	FDMSetMaterialObjectPropertyDelegate::RegistrationType& GetCustomObjectPropertyEditorDelegate() const
+	{
+		return CustomObjectPropertyEditorDelegate;
+	}
+
+	void ExecuteCustomObjectPropertyEditorDelegate(const FDMObjectMaterialProperty& InObjectProperty);
 
 	/** Sets actor in a custom editor tab. */
-	FDMSetMaterialActorDelegate& GetSetCustomEditorActorDelegate() { return CustomActorEditorDelegate; }
+	FDMSetMaterialActorDelegate::RegistrationType& GetSetCustomEditorActorDelegate() const
+	{
+		return CustomActorEditorDelegate;
+	}
+
+	void ExecuteSetCustomEditorActorDelegate(AActor* InActor);
 
 	/** Returns true if the supplied material is valid for this world. */
-	FDMIsValidDelegate& GetIsValidDelegate() { return IsValidDelegate; }
+	FDMIsValidDelegate::RegistrationType& GetIsValidDelegate() const
+	{
+		return IsValidDelegate;
+	}
+
+	bool ExecuteIsValidDelegate(UDynamicMaterialModel* InMaterialModel);
 
 	/** Used to redirect SetMaterial to different objects/paths. */
-	FDMSetMaterialValueDelegate& GetMaterialValueSetterDelegate() { return SetMaterialValueDelegate; }
+	FDMSetMaterialValueDelegate::RegistrationType& GetMaterialValueSetterDelegate() const
+	{
+		return SetMaterialValueDelegate;
+	}
+
+	bool ExecuteMaterialValueSetterDelegate(const FDMObjectMaterialProperty& InObjectProperty, UDynamicMaterialInstance* InMaterialInstance);
 
 	/** Used to show the tab to the user. */
-	FDMInvokeTabDelegate& GetInvokeTabDelegate() { return InvokeTabDelegate; }
+	FDMInvokeTabDelegate::RegistrationType& GetInvokeTabDelegate() const
+	{
+		return InvokeTabDelegate;
+	}
+
+	void ExecuteInvokeTabDelegate();
 
 protected:
 	TSharedPtr<IDetailKeyframeHandler> KeyframeHandler;
-	FDMSetMaterialModelDelegate CustomModelEditorDelegate;
-	FDMSetMaterialObjectPropertyDelegate CustomObjectPropertyEditorDelegate;
-	FDMSetMaterialActorDelegate CustomActorEditorDelegate;
-	FDMIsValidDelegate IsValidDelegate;
-	FDMSetMaterialValueDelegate SetMaterialValueDelegate;
-	FDMInvokeTabDelegate InvokeTabDelegate;
+	mutable FDMGetMaterialModelDelegate CustomModelEditorGetDelegate;
+	mutable FDMSetMaterialModelDelegate CustomModelEditorSetDelegate;
+	mutable FDMSetMaterialObjectPropertyDelegate CustomObjectPropertyEditorDelegate;
+	mutable FDMSetMaterialActorDelegate CustomActorEditorDelegate;
+	mutable FDMIsValidDelegate IsValidDelegate;
+	mutable FDMSetMaterialValueDelegate SetMaterialValueDelegate;
+	mutable FDMInvokeTabDelegate InvokeTabDelegate;
 };

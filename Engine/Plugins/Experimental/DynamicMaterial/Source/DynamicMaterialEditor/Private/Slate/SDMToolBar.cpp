@@ -599,14 +599,12 @@ FReply SDMToolBar::OnUseClicked()
 
 	if (DMSubsystem && DMSubsystem->GetMaterialValueSetterDelegate().IsBound())
 	{
-		if (IsValid(CurrentModel)
-			&& DMSubsystem->GetIsValidDelegate().IsBound()
-			&& !DMSubsystem->GetIsValidDelegate().Execute(CurrentModel))
+		if (!DMSubsystem->ExecuteIsValidDelegate(CurrentModel))
 		{
 			return FReply::Handled();
 		}
 
-		DMSubsystem->GetMaterialValueSetterDelegate().Execute(*CurrentActorProperty, SelectedInstance);
+		DMSubsystem->ExecuteMaterialValueSetterDelegate(*CurrentActorProperty, SelectedInstance);
 	}
 	else
 	{

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
 #include "Components/DMMaterialLayer.h"
@@ -125,6 +126,16 @@ UDynamicMaterialModelEditorOnlyData* UDynamicMaterialModelEditorOnlyData::Get(co
 UDynamicMaterialModelEditorOnlyData* UDynamicMaterialModelEditorOnlyData::Get(IDynamicMaterialModelEditorOnlyDataInterface* InInterface)
 {
 	return Cast<UDynamicMaterialModelEditorOnlyData>(InInterface);
+}
+
+UDynamicMaterialModelEditorOnlyData* UDynamicMaterialModelEditorOnlyData::Get(UDynamicMaterialInstance* InInstance)
+{
+	if (InInstance)
+	{
+		return Get(InInstance->GetMaterialModel());
+	}
+
+	return nullptr;
 }
 
 UDynamicMaterialModelEditorOnlyData::UDynamicMaterialModelEditorOnlyData()
@@ -794,6 +805,12 @@ TSharedRef<FDMMaterialBuildState> UDynamicMaterialModelEditorOnlyData::CreateBui
 	}
 
 	return BuildState;
+}
+
+bool UDynamicMaterialModelEditorOnlyData::AddTextureSet(UDMTextureSet* InTextureSet, bool bInReplaceSlots)
+{
+	// TODO Integrate!
+	return false;
 }
 
 bool UDynamicMaterialModelEditorOnlyData::NeedsWizard() const

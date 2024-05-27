@@ -194,8 +194,7 @@ namespace UE::DynamicMaterialEditor::Private
 			{
 				if (UDMWorldSubsystem* WorldSubsystem = World->GetSubsystem<UDMWorldSubsystem>())
 				{
-					if (WorldSubsystem->GetIsValidDelegate().IsBound()
-						&& WorldSubsystem->GetIsValidDelegate().Execute(InMaterialModel) == false)
+					if (!WorldSubsystem->ExecuteIsValidDelegate(InMaterialModel))
 					{
 						return false;
 					}

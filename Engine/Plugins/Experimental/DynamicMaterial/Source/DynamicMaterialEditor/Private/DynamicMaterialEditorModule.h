@@ -2,19 +2,20 @@
 
 #pragma once
 
+#include "IDynamicMaterialEditorModule.h"
+#include "TickableEditorObject.h"
+
 #include "DMEDefs.h"
 #include "DMObjectMaterialProperty.h"
-#include "IDynamicMaterialEditorModule.h"
 #include "Templates/SharedPointer.h"
-#include "TickableEditorObject.h"
 
 class AActor;
 class FDMMaterialFunctionLibrary;
 class FUICommandList;
 class IAssetTypeActions;
 class ILevelEditor;
-class SDMEditor;
 class SDMComponentEdit;
+class SDMEditor;
 class SDockTab;
 class SWidget;
 class UDMMaterialComponent;
@@ -92,6 +93,7 @@ public:
 	virtual void RegisterMaterialModelCreatedCallback(const TSharedRef<IDMOnWizardCompleteCallback> InCallback)  override;
 	virtual void UnregisterMaterialModelCreatedCallback(const TSharedRef<IDMOnWizardCompleteCallback> InCallback) override;
 	virtual void OpenEditor(UWorld* InWorld) const override;
+	virtual UDynamicMaterialModel* GetOpenedMaterialModel(UWorld* InWorld) const override;
 	virtual void OpenMaterialModel(UDynamicMaterialModel* InMaterialModel, UWorld* InWorld, bool bInInvokeTab) const override;
 	virtual void OpenMaterialObjectProperty(const FDMObjectMaterialProperty& InObjectProperty, UWorld* InWorld, bool bInInvokeTab) const override;
 	virtual void OpenMaterialInstance(UDynamicMaterialInstance* InInstance, UWorld* InWorld, bool bInInvokeTab) const override;

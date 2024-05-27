@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DynamicMaterialEditorModule.h"
+
 #include "Components/ActorComponent.h"
 #include "Components/DMMaterialComponent.h"
 #include "Components/DMMaterialEffectFunction.h"
@@ -360,10 +361,10 @@ void FDynamicMaterialEditorModule::OpenMaterialModel(UDynamicMaterialModel* InMa
 		{
 			if (bInInvokeTab)
 			{
-				DMWorldSubsystem->GetInvokeTabDelegate().ExecuteIfBound();
+				DMWorldSubsystem->ExecuteInvokeTabDelegate();
 			}
 
-			DMWorldSubsystem->GetSetCustomEditorModelDelegate().ExecuteIfBound(InMaterialModel);
+			DMWorldSubsystem->ExecuteSetCustomEditorModelDelegate(InMaterialModel);
 		}
 	}
 }
@@ -388,10 +389,10 @@ void FDynamicMaterialEditorModule::OpenMaterialObjectProperty(const FDMObjectMat
 		{
 			if (bInInvokeTab)
 			{
-				DMWorldSubsystem->GetInvokeTabDelegate().ExecuteIfBound();
+				DMWorldSubsystem->ExecuteInvokeTabDelegate();
 			}
 
-			DMWorldSubsystem->GetCustomObjectPropertyEditorDelegate().ExecuteIfBound(InObjectProperty);
+			DMWorldSubsystem->ExecuteCustomObjectPropertyEditorDelegate(InObjectProperty);
 		}
 	}
 }
@@ -427,10 +428,10 @@ void FDynamicMaterialEditorModule::OnActorSelected(AActor* InActor, UWorld* InWo
 		{
 			if (bInInvokeTab)
 			{
-				DMWorldSubsystem->GetInvokeTabDelegate().ExecuteIfBound();
+				DMWorldSubsystem->ExecuteInvokeTabDelegate();
 			}
 
-			DMWorldSubsystem->GetSetCustomEditorActorDelegate().ExecuteIfBound(InActor);
+			DMWorldSubsystem->ExecuteSetCustomEditorActorDelegate(InActor);
 		}
 	}
 }
@@ -450,6 +451,7 @@ TSharedRef<SWidget> FDynamicMaterialEditorModule::CreateEditor(UDynamicMaterialM
 
 		if (IsValid(WorldSubsystem))
 		{
+			WorldSubsystem->GetGetCustomEditorModelDelegate().BindSP(NewEditor, &SDMEditor::GetMaterialModel);
 			WorldSubsystem->GetSetCustomEditorModelDelegate().BindSP(NewEditor, &SDMEditor::SetMaterialModel);
 			WorldSubsystem->GetCustomObjectPropertyEditorDelegate().BindSP(NewEditor, &SDMEditor::SetMaterialObjectProperty);
 			WorldSubsystem->GetSetCustomEditorActorDelegate().BindSP(NewEditor, &SDMEditor::OnActorSelected);
@@ -547,8 +549,26 @@ void FDynamicMaterialEditorModule::OpenEditor(UWorld* InWorld) const
 	}
 	else if (UDMWorldSubsystem* DMWorldSubsystem = InWorld->GetSubsystem<UDMWorldSubsystem>())
 	{
-		DMWorldSubsystem->GetInvokeTabDelegate().ExecuteIfBound();
+		DMWorldSubsystem->ExecuteInvokeTabDelegate();
 	}
+}
+
+UDynamicMaterialModel* FDynamicMaterialEditorModule::GetOpenedMaterialModel(UWorld* InWorld) const
+{
+	if (IsValid(InWorld))
+	{
+		if (TSharedPtr<SDMEditor> Editor = FDMLevelEditorIntegration::GetEditorForWorld(InWorld))
+		{
+			return Editor->GetMaterialModel();
+		}
+
+		if (UDMWorldSubsystem* DMWorldSubsystem = InWorld->GetSubsystem<UDMWorldSubsystem>())
+		{
+			return DMWorldSubsystem->ExecuteGetCustomEditorModelDelegate();
+		}
+	}
+
+	return nullptr;
 }
 
 void FDynamicMaterialEditorModule::ProcessBuildRequest(UObject* InToBuild, bool bInDirtyAssets)
