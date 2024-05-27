@@ -181,7 +181,8 @@ public:
 	virtual EInstallBundleRequestFlags GetModifyableContentRequestFlags() const = 0;
 	INSTALLBUNDLEMANAGER_API void UpdateContentRequestFlags(FName BundleName, EInstallBundleRequestFlags AddFlags, EInstallBundleRequestFlags RemoveFlags);
 	virtual void UpdateContentRequestFlags(TArrayView<const FName> BundleNames, EInstallBundleRequestFlags AddFlags, EInstallBundleRequestFlags RemoveFlags) = 0;
-	
+	virtual void SetCellularPreference(int32 Value) = 0;
+
 	virtual void SetCacheSize(FName CacheName, uint64 CacheSize) = 0;
 
 	INSTALLBUNDLEMANAGER_API virtual void StartPatchCheck();

@@ -4088,6 +4088,14 @@ void FDefaultInstallBundleManager::UpdateContentRequestFlags(TArrayView<const FN
 	}
 }
 
+void FDefaultInstallBundleManager::SetCellularPreference(int32 Value)
+{
+	for (const TPair<FInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : BundleSources)
+	{
+		Pair.Value->SetCellularPreference(Value);
+	}
+}
+
 void FDefaultInstallBundleManager::SetCacheSize(FName CacheName, uint64 CacheSize)
 {
 	if (ensureMsgf(!BundleCaches.Contains(CacheName), TEXT("FDefaultInstallBundleManager::SetCacheSize is only supported prior to initialization, for now")))

@@ -661,6 +661,7 @@ public:
 
 	virtual EInstallBundleRequestFlags GetModifyableContentRequestFlags() const override;
 	virtual void UpdateContentRequestFlags(TArrayView<const FName> BundleNames, EInstallBundleRequestFlags AddFlags, EInstallBundleRequestFlags RemoveFlags) override;
+	virtual void SetCellularPreference(int32 Value) override;
 
 	virtual void SetCacheSize(FName CacheName, uint64 CacheSize) override;
 

@@ -1619,9 +1619,9 @@ extern double GCStartTime;
     //Save off completionHandler so that a future call to FCoreDelegates::ApplicationBackgroundSessionEventsAllSentDelegate can execute it
     self.BackgroundSessionEventCompleteDelegate = completionHandler;
     
-    //Create background session with this identifier if needed to handle these events
+    // Invoke background session with this identifier if needed to handle these events
 	FString Id(identifier);
-	FBackgroundURLSessionHandler::InitBackgroundSession(Id);
+	FBackgroundURLSessionHandler::HandleEventsForBackgroundURLSession(Id);
 
 	FCoreDelegates::ApplicationBackgroundSessionEventDelegate.Broadcast(Id);
 }
