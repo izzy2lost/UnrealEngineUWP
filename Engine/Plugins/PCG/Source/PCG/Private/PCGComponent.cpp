@@ -218,25 +218,48 @@ void UPCGComponent::AddToManagedResources(UPCGManagedResource* InResource)
 
 void UPCGComponent::AddComponentsToManagedResources(const TArray<UActorComponent*>& InComponents)
 {
+	if (InComponents.IsEmpty())
+	{
+		return;
+	}
+
 	for (UActorComponent* Component : InComponents)
 	{
-		if (!Component)
-		{
-			continue;
-		}
-
-		if (!Component->ComponentHasTag(PCGHelpers::DefaultPCGTag))
+		if (Component && !Component->ComponentHasTag(PCGHelpers::DefaultPCGTag))
 		{
 			Component->Modify();
 			Component->ComponentTags.Add(PCGHelpers::DefaultPCGTag);
 		}
-
-		UPCGManagedComponent* ManagedResource = NewObject<UPCGManagedComponent>(this);
-		// Implementation note: we call the setter to make sure that if this is done from BP, the construction method is properly updated
-		ManagedResource->SetGeneratedComponentFromBP(Component);
-
-		AddToManagedResources(ManagedResource);
 	}
+
+	FScopeLock ResourcesLock(&GeneratedResourcesLock);
+	check(!GeneratedResourcesInaccessible);
+
+	UPCGManagedComponentDefaultList* DefaultList = nullptr;
+	for (const TObjectPtr<UPCGManagedResource>& ManagedResource : GeneratedResources)
+	{
+		if (UPCGManagedComponentDefaultList* ExistingList = Cast<UPCGManagedComponentDefaultList>(ManagedResource))
+		{
+			DefaultList = ExistingList;
+			break;
+		}
+	}
+
+	if (!DefaultList)
+	{
+		DefaultList = NewObject<UPCGManagedComponentDefaultList>(this);
+
+		PCGGeneratedResourcesLogging::LogAddToManagedResources(this, DefaultList);
+		GeneratedResources.Add(DefaultList);
+	}
+
+	check(DefaultList);
+	// Implementation note: we call the AddGeneratedComponentsFromBP method to make sure that if this is done from BP, the construction method is properly updated
+
+	TArray<TSoftObjectPtr<UActorComponent>> Components;
+	Algo::Transform(InComponents, Components, [](UActorComponent* Component) { return TSoftObjectPtr<UActorComponent>(Component); });
+
+	DefaultList->AddGeneratedComponentsFromBP(Components);
 }
 
 void UPCGComponent::AddActorsToManagedResources(const TArray<AActor*>& InActors)
