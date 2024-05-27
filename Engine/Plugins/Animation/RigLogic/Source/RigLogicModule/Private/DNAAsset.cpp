@@ -11,9 +11,6 @@
 #include "RigLogicMemoryStream.h"
 #include "SharedRigRuntimeContext.h"
 
-#if WITH_EDITORONLY_DATA
-    #include "EditorFramework/AssetImportData.h"
-#endif
 #include "Engine/AssetUserData.h"
 #include "Serialization/BufferArchive.h"
 #include "Serialization/MemoryReader.h"
@@ -24,6 +21,7 @@
 #include "Animation/Skeleton.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
+#include "EditorFramework/AssetImportData.h"
 
 #include "riglogic/RigLogic.h"
 
@@ -257,8 +255,13 @@ bool UDNAAsset::Init(const FString& DNAFilename)
 	{
 		UE_LOG(LogDNAAsset, Warning, TEXT("%s"), ANSI_TO_TCHAR(rl4::Status::get().message));
 	}
-
-	DnaFileName = DNAFilename; //memorize for re-import
+#if WITH_EDITORONLY_DATA
+	AssetImportData = NewObject<UAssetImportData>(this, TEXT("AssetImportData"));
+	TArray<FAssetImportInfo::FSourceFile> SourceFiles = { FAssetImportInfo::FSourceFile(DNAFilename) };
+	AssetImportData->SetSourceFiles(MoveTemp(SourceFiles));
+#endif
+	//This is done just for search through Asset Registry
+	DnaFileName = FPaths::GetCleanFilename(DNAFilename);
 	
 	if (!FPaths::FileExists(DNAFilename))
 	{

@@ -51,7 +51,7 @@ public:
 	TSharedPtr<IDNAReader> GetGeometryReader();
 #endif
 
-	UPROPERTY(VisibleAnywhere, AssetRegistrySearchable, Category = ImportSettings)
+	UPROPERTY(AssetRegistrySearchable)
 	FString DnaFileName;
 
 	/** In non-editor builds, the DNA source data will be unloaded to save memory after the runtime
