@@ -3132,6 +3132,88 @@ struct FStateTreeTest_ParallelEventPriority_High : FStateTreeTest_ParallelEventP
 };
 IMPLEMENT_AI_INSTANT_TEST(FStateTreeTest_ParallelEventPriority_High, "System.StateTree.ParallelEventPriority.High");
 
+struct FStateTreeTest_SubTreeTransition : FAITestBase
+{
+	virtual bool InstantTest() override
+	{
+		UStateTree& StateTree = UE::StateTree::Tests::NewStateTree(&GetWorld());
+		UStateTreeEditorData& EditorData = *Cast<UStateTreeEditorData>(StateTree.EditorData);
+
+		/*
+		- Root
+			- PreLastStand [Task1] -> Reinforcements
+				- BusinessAsUsual [Task2]
+			- LastStand [Task3]
+				- Reinforcements>TimeoutChecker
+			- (f)TimeoutChecker
+				- RemainingCount [Task4]
+		*/
+		
+		UStateTreeState& Root = EditorData.AddSubTree(FName(TEXT("Root")));
+
+		UStateTreeState& PreLastStand = Root.AddChildState(FName(TEXT("PreLastStand")));
+		UStateTreeState& BusinessAsUsual = PreLastStand.AddChildState(FName(TEXT("BusinessAsUsual")));
+
+		UStateTreeState& LastStand = Root.AddChildState(FName(TEXT("LastStand")));
+		UStateTreeState& Reinforcements = LastStand.AddChildState(FName(TEXT("Reinforcements")), EStateTreeStateType::Linked);
+		
+		UStateTreeState& TimeoutChecker = LastStand.AddChildState(FName(TEXT("TimeoutChecker")), EStateTreeStateType::Subtree);
+		UStateTreeState& RemainingCount = TimeoutChecker.AddChildState(FName(TEXT("RemainingCount")));
+
+		Reinforcements.LinkedSubtree = TimeoutChecker.GetLinkToState();
+
+
+		TStateTreeEditorNode<FTestTask_Stand>& Task1 = PreLastStand.AddTask<FTestTask_Stand>(FName(TEXT("Task1")));
+		PreLastStand.AddTransition(EStateTreeTransitionTrigger::OnStateCompleted, EStateTreeTransitionType::GotoState, &Reinforcements);
+		Task1.GetInstanceData().Value = 1; // This should finish before the child state
+
+		TStateTreeEditorNode<FTestTask_Stand>& Task2 = BusinessAsUsual.AddTask<FTestTask_Stand>(FName(TEXT("Task2")));
+		Task2.GetInstanceData().Value = 2;
+
+		TStateTreeEditorNode<FTestTask_Stand>& Task3 = LastStand.AddTask<FTestTask_Stand>(FName(TEXT("Task3")));
+		Task3.GetInstanceData().Value = 2;
+
+		TStateTreeEditorNode<FTestTask_Stand>& Task4 = LastStand.AddTask<FTestTask_Stand>(FName(TEXT("Task4")));
+		Task4.GetInstanceData().Value = 2;
+
+		FStateTreeCompilerLog Log;
+		FStateTreeCompiler Compiler(Log);
+		const bool bResult = Compiler.Compile(StateTree);
+		AITEST_TRUE("StateTree should get compiled", bResult);
+
+		EStateTreeRunStatus Status = EStateTreeRunStatus::Unset;
+		FStateTreeInstanceData InstanceData;
+		FTestStateTreeExecutionContext Exec(StateTree, StateTree, InstanceData);
+		const bool bInitSucceeded = Exec.IsValid();
+		AITEST_TRUE("StateTree should init", bInitSucceeded);
+
+		const FString TickStr(TEXT("Tick"));
+		const FString EnterStateStr(TEXT("EnterState"));
+		const FString ExitStateStr(TEXT("ExitState"));
+		const FString StateCompletedStr(TEXT("StateCompleted"));
+
+		// Start and enter state
+		Status = Exec.Start();
+
+		AITEST_TRUE("StateTree Active States should be in Root/PreLastStand/BusinessAsUsual", Exec.ExpectInActiveStates(Root.Name, PreLastStand.Name, BusinessAsUsual.Name));
+		AITEST_TRUE("StateTree Task1 should enter state", Exec.Expect(Task1.GetName(), EnterStateStr));
+		AITEST_TRUE("StateTree Task2 should enter state", Exec.Expect(Task2.GetName(), EnterStateStr));
+		AITEST_TRUE("StateTree should be running", Status == EStateTreeRunStatus::Running);
+		Exec.LogClear();
+
+		// Transition to Reinforcements
+		Status = Exec.Tick(0.1f);
+		AITEST_TRUE("StateTree Active States should be in Root/LastStand/Reinforcements/TimeoutChecker/RemainingCount", Exec.ExpectInActiveStates(Root.Name, LastStand.Name, Reinforcements.Name, TimeoutChecker.Name, RemainingCount.Name));
+		AITEST_TRUE("StateTree Task3 should enter state", Exec.Expect(Task3.GetName(), EnterStateStr));
+		AITEST_TRUE("StateTree Task4 should enter state", Exec.Expect(Task4.GetName(), EnterStateStr));
+		AITEST_TRUE("StateTree should be running", Status == EStateTreeRunStatus::Running);
+		Exec.LogClear();
+		
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FStateTreeTest_SubTreeTransition, "System.StateTree.SubTreeTransition");
+
 UE_ENABLE_OPTIMIZATION_SHIP
 
 #undef LOCTEXT_NAMESPACE

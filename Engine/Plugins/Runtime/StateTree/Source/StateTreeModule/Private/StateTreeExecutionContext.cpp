@@ -15,11 +15,11 @@
 
 #include "Engine/World.h"
 
-#define STATETREE_LOG(Verbosity, Format, ...) UE_VLOG_UELOG(GetOwner(), LogStateTree, Verbosity, TEXT("%s: ") Format, *GetInstanceDescription(), ##__VA_ARGS__)
-#define STATETREE_CLOG(Condition, Verbosity, Format, ...) UE_CVLOG_UELOG((Condition), GetOwner(), LogStateTree, Verbosity, TEXT("%s: ") Format, *GetInstanceDescription(), ##__VA_ARGS__)
+#define STATETREE_LOG(Verbosity, Format, ...) UE_VLOG_ALWAYS_UELOG(GetOwner(), LogStateTree, Verbosity, TEXT("%s: ") Format, *GetInstanceDescription(), ##__VA_ARGS__)
+#define STATETREE_CLOG(Condition, Verbosity, Format, ...) UE_CVLOG_ALWAYS_UELOG((Condition), GetOwner(), LogStateTree, Verbosity, TEXT("%s: ") Format, *GetInstanceDescription(), ##__VA_ARGS__)
 
 #define STATETREE_LOG_AND_TRACE(LogVerbosity, TraceVerbosity, Format, ...) \
-	UE_VLOG_UELOG(GetOwner(), LogStateTree, LogVerbosity, TEXT("%s: ") Format, *GetInstanceDescription(), ##__VA_ARGS__); \
+	UE_VLOG_ALWAYS_UELOG(GetOwner(), LogStateTree, LogVerbosity, TEXT("%s: ") Format, *GetInstanceDescription(), ##__VA_ARGS__); \
 	STATETREE_TRACE_LOG_EVENT(TraceVerbosity, Format, ##__VA_ARGS__)
 
 #if WITH_STATETREE_TRACE
@@ -289,6 +289,9 @@ EStateTreeRunStatus FStateTreeExecutionContext::Start(const FInstancedPropertyBa
 	// Set scoped phase only for properly initialized context with valid Instance data
 	// since we need it to output the InstanceId
 	STATETREE_TRACE_SCOPED_PHASE(EStateTreeUpdatePhase::StartTree);
+
+	STATETREE_LOG(VeryVerbose, TEXT("%hs: Starting State Tree %s on owner '%s'."),
+		__FUNCTION__, *GetFullNameSafe(&RootStateTree), *GetNameSafe(&Owner));
 
 	// From this point any calls to Stop should be deferred.
 	Exec.CurrentPhase = EStateTreeUpdatePhase::StartTree;
@@ -1188,6 +1191,11 @@ bool FStateTreeExecutionContext::IsHandleSourceValid(const FStateTreeExecutionFr
 	case EStateTreeDataSourceType::SubtreeParameterData:
 		if (ParentFrame)
 		{
+			// If the current subtree state is not instantiated yet, we cannot assume that the parameter data is instantiated in the parent frame either. 
+			if (!CurrentFrame.ActiveInstanceIndexBase.IsValid())
+			{
+				return false;
+			}
 			// Linked subtree, params defined in parent scope.
 			return IsHandleSourceValid(nullptr, *ParentFrame, CurrentFrame.StateParameterDataHandle);
 		}
@@ -3432,30 +3440,25 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 		if (!NextStateParametersView.IsValid())
 		{
 			// Allocate temporary instance for parameters if the state has params.
+			// The subtree state selection below assumes that this creates always a valid temporary, we'll create the temp data even if parameters are empty.
+			// @todo: Empty params is valid and common case, we should not require to create empty parameters data (this needs to be handle in compiler and UpdateInstanceData too).
 			if (NextLinkedStateParameterOverride)
 			{
 				// Create from an override.
-				if (NextLinkedStateParameterOverride->IsValid())
-				{
-					FStateTreeDataView TempStateParametersView = AddTemporaryInstance(CurrentFrame, FStateTreeIndex16::Invalid, NextState.ParameterDataHandle, FConstStructView(TBaseStructure<FCompactStateTreeParameters>::Get()));
-					check(TempStateParametersView.IsValid());
-					FCompactStateTreeParameters& StateParams = TempStateParametersView.GetMutable<FCompactStateTreeParameters>();
-					StateParams.Parameters = *NextLinkedStateParameterOverride;
-					NextStateParametersView = FStateTreeDataView(StateParams.Parameters.GetMutableValue());
-				}
+				FStateTreeDataView TempStateParametersView = AddTemporaryInstance(CurrentFrame, FStateTreeIndex16::Invalid, NextState.ParameterDataHandle, FConstStructView(TBaseStructure<FCompactStateTreeParameters>::Get()));
+				check(TempStateParametersView.IsValid());
+				FCompactStateTreeParameters& StateParams = TempStateParametersView.GetMutable<FCompactStateTreeParameters>();
+				StateParams.Parameters = *NextLinkedStateParameterOverride;
+				NextStateParametersView = FStateTreeDataView(StateParams.Parameters.GetMutableValue());
 			}
 			else
 			{
 				// Create from template in the asset.
 				const FConstStructView DefaultStateParamsInstanceData = CurrentFrame.StateTree->DefaultInstanceData.GetStruct(NextState.ParameterTemplateIndex.Get());
-				const FCompactStateTreeParameters& DefaultStateParams = DefaultStateParamsInstanceData.Get<const FCompactStateTreeParameters>();
-				if (DefaultStateParams.Parameters.IsValid())
-				{
-					FStateTreeDataView TempStateParametersView = AddTemporaryInstance(CurrentFrame, FStateTreeIndex16::Invalid, NextState.ParameterDataHandle, DefaultStateParamsInstanceData);
-					check(TempStateParametersView.IsValid());
-					FCompactStateTreeParameters& StateParams = TempStateParametersView.GetMutable<FCompactStateTreeParameters>();
-					NextStateParametersView = FStateTreeDataView(StateParams.Parameters.GetMutableValue());
-				}
+				FStateTreeDataView TempStateParametersView = AddTemporaryInstance(CurrentFrame, FStateTreeIndex16::Invalid, NextState.ParameterDataHandle, DefaultStateParamsInstanceData);
+				check(TempStateParametersView.IsValid());
+				FCompactStateTreeParameters& StateParams = TempStateParametersView.GetMutable<FCompactStateTreeParameters>();
+				NextStateParametersView = FStateTreeDataView(StateParams.Parameters.GetMutableValue());
 			}
 		}
 
