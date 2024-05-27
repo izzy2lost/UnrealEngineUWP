@@ -319,15 +319,15 @@ void FPCGEditorModule::RegisterMenuExtensions()
 
 							if (bWasPaused)
 							{
-								bool bShouldCancelAll = true;
+								bool bShouldCancelAll = false;
 
 								if (FSlateApplication::Get().GetModifierKeys().IsControlDown())
 								{
-									bShouldCancelAll = false;
+									bShouldCancelAll = true;
 								}
 								else if (FSlateApplication::Get().GetModifierKeys().IsAltDown())
 								{
-									bShouldCancelAll = true;
+									bShouldCancelAll = false;
 								}
 								else if (const UPCGEditorSettings* EditorSettings = GetDefault<UPCGEditorSettings>())
 								{
@@ -362,7 +362,7 @@ void FPCGEditorModule::RegisterMenuExtensions()
 							return LOCTEXT("PCGPauseButton_On", "PCG");
 						}
 					}),
-					LOCTEXT("PCGPauseButton_Tooltip", "Toggles PCG processing on/off and will cancel tasks depending on settings.\nUse Ctrl to unpause without cancelling all tasks.\nUse Alt to unpause and cancel all tasks."),
+					LOCTEXT("PCGPauseButton_Tooltip", "Toggles PCG processing on/off and will cancel tasks depending on settings.\nUse Ctrl to unpause and cancel all tasks.\nUse Alt to unpause without cancelling tasks."),
 					FSlateIcon(FPCGEditorStyle::Get().GetStyleSetName(), "PCG.EditorIcon"),
 					EUserInterfaceActionType::ToggleButton
 				);

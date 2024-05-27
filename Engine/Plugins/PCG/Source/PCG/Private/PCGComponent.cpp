@@ -470,6 +470,15 @@ FPCGTaskId UPCGComponent::CreateGenerateTask(bool bForce, const TArray<FPCGTaskI
 	TArray<FPCGTaskId> AdditionalDependencies;
 	const TArray<FPCGTaskId>* AllDependencies = &Dependencies;
 
+#if WITH_EDITOR
+	// If PCG is currently paused, we don't want to do immediate cleanup here otherwise it looks wrong and can't be cancelled.
+	// In this case, we'll "pre-queue" a cleanup before so it behaves as-if we had done this exactly.
+	if (bGenerated && PCGSystemSwitches::CVarPausePCGExecution.GetValueOnAnyThread())
+	{
+		CleanupInternal(/*bRemoveComponents=*/false, Dependencies);
+	}
+#endif
+
 	if (IsCleaningUp())
 	{
 		AdditionalDependencies = Dependencies;

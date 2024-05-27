@@ -177,7 +177,7 @@ public:
 	bool bShowPauseButton = false;
 
 	UPROPERTY(EditAnywhere, config, Category = "Editor Performance", meta = (DisplayName = "Unpausing cancels all PCG tasks"))
-	bool bUnpauseCancelsAll = true;
+	bool bUnpauseCancelsAll = false;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
