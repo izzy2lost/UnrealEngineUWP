@@ -319,6 +319,7 @@ FAvaRundownServer::FAvaRundownServer()
 
 FAvaRundownServer::~FAvaRundownServer()
 {
+	RemovePlaybackDelegates();
 	RemoveBroadcastDelegates(&UAvaBroadcast::Get());
 	RemoveEditorDelegates();
 	
@@ -343,13 +344,12 @@ const FMessageAddress& FAvaRundownServer::GetMessageAddress() const
 
 void FAvaRundownServer::AddReferencedObjects(FReferenceCollector& InCollector)
 {
-	if (RundownEditCommandData.CurrentRundown)
+	for (const TPair<FSoftObjectPath, TWeakPtr<FRundownEntry>>& RundownEntryWeak : LoadedRundownCache)
 	{
-		InCollector.AddReferencedObject(RundownEditCommandData.CurrentRundown);
-	}
-	if (RundownPlaybackCommandData.CurrentRundown)
-	{
-		InCollector.AddReferencedObject(RundownPlaybackCommandData.CurrentRundown);
+		if (const TSharedPtr<FRundownEntry> RundownEntry = RundownEntryWeak.Value.Pin())
+		{
+			RundownEntry->AddReferencedObjects(InCollector);
+		}
 	}
 
 	for (TPair<FSoftObjectPath, TObjectPtr<UAvaRundown>>& ManagedRundown : ManagedRundowns)
@@ -419,11 +419,18 @@ void FAvaRundownServer::Init(const FString& InAssignedHostName)
 		// Subscribe to the server listing requests
 		MessageEndpoint->Subscribe<FAvaRundownPing>();
 
+		SetupPlaybackDelegates();
 		SetupBroadcastDelegates(&UAvaBroadcast::Get());
 		SetupEditorDelegates();
 
 		UE_LOG(LogAvaRundownServer, Log, TEXT("Motion Design Rundown Server \"%s\" Started."), *HostName);
 	}
+}
+
+void FAvaRundownServer::SetupPlaybackDelegates()
+{
+	FAvaPlaybackManager& Manager = IAvaMediaModule::Get().GetLocalPlaybackManager();
+	Manager.OnPlaybackInstanceStatusChanged.AddSP(this, &FAvaRundownServer::OnPlaybackInstanceStatusChanged);
 }
 
 void FAvaRundownServer::SetupBroadcastDelegates(UAvaBroadcast* InBroadcast)
@@ -437,8 +444,21 @@ void FAvaRundownServer::SetupEditorDelegates()
 {
 	RemoveEditorDelegates();
 	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-	AssetRegistryModule.Get().OnAssetAdded().AddSP(this, &FAvaRundownServer::OnAssetAddedOrRemoved);
-	AssetRegistryModule.Get().OnAssetRemoved().AddSP(this, &FAvaRundownServer::OnAssetAddedOrRemoved);
+	AssetRegistryModule.Get().OnAssetAdded().AddSP(this, &FAvaRundownServer::OnAssetAdded);
+	AssetRegistryModule.Get().OnAssetRemoved().AddSP(this, &FAvaRundownServer::OnAssetRemoved);
+#if WITH_EDITOR
+	FEditorDelegates::OnAssetsPreDelete.AddSP(this, &FAvaRundownServer::OnAssetsPreDelete);
+#endif
+}
+
+void FAvaRundownServer::RemovePlaybackDelegates() const
+{
+	const IAvaMediaModule& AvaMediaModule = IAvaMediaModule::Get();
+	if (AvaMediaModule.IsLocalPlaybackManagerAvailable())
+	{
+		FAvaPlaybackManager& Manager = AvaMediaModule.GetLocalPlaybackManager();
+		Manager.OnPlaybackInstanceStatusChanged.RemoveAll(this);
+	}
 }
 
 void FAvaRundownServer::RemoveBroadcastDelegates(UAvaBroadcast* InBroadcast) const
@@ -452,6 +472,9 @@ void FAvaRundownServer::RemoveEditorDelegates() const
 	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 	AssetRegistryModule.Get().OnAssetAdded().RemoveAll(this);
 	AssetRegistryModule.Get().OnAssetRemoved().RemoveAll(this);
+#if WITH_EDITOR
+	FEditorDelegates::OnAssetsPreDelete.RemoveAll(this);
+#endif
 }
 
 void FAvaRundownServer::OnPageListChanged(const FAvaRundownPageListChangeParams& InParams) const
@@ -575,19 +598,31 @@ void FAvaRundownServer::OnBroadcastChannelChanged(const FAvaBroadcastOutputChann
 	SendResponse(ReplyMessage, ClientAddresses);
 }
 
-void FAvaRundownServer::OnAssetAddedOrRemoved(const FAssetData& InAssetData) const
+void FAvaRundownServer::OnAssetAdded(const FAssetData& InAssetData) const
 {
-	if (ClientAddresses.IsEmpty())
+	NotifyAssetEvent(InAssetData, EAvaRundownAssetEvent::Added);
+}
+
+void FAvaRundownServer::OnAssetRemoved(const FAssetData& InAssetData) const
+{
+	NotifyAssetEvent(InAssetData, EAvaRundownAssetEvent::Removed);
+}
+
+void FAvaRundownServer::OnAssetsPreDelete(const TArray<UObject*>& InObjects)
+{
+	for (UObject* Object : InObjects)
 	{
-		return;
-	}
-	
-	using namespace UE::AvaRundownServer::Private;
-	if (InAssetData.GetClass() == UAvaRundown::StaticClass() || FAvaPlaybackUtils::IsPlayableAsset(InAssetData))
-	{
-		FAvaRundownAssetsChanged* ReplyMessage = FMessageEndpoint::MakeMessage<FAvaRundownAssetsChanged>();
-		ReplyMessage->AssetName = InAssetData.AssetName.ToString();
-		SendResponse(ReplyMessage, ClientAddresses);
+		if (const UAvaRundown* Rundown = Cast<UAvaRundown>(Object))
+		{
+			// Allow the edited rundown to be deleted.
+			EditCommandContext.ConditionalFlush(SharedThis(this), Rundown);
+
+			// Allow the playback rundown to be deleted, unless it is playing.
+			if (!Rundown->IsPlaying())
+			{
+				PlaybackCommandContext.ConditionalFlush(SharedThis(this), Rundown);
+			}
+		}
 	}
 }
 
@@ -689,20 +724,7 @@ void FAvaRundownServer::HandleLoadRundown(const FAvaRundownLoadRundown& InMessag
 	if (!InMessage.Rundown.IsEmpty())
 	{
 		const FSoftObjectPath NewRundownPath(InMessage.Rundown);
-		const UAvaRundown* Rundown = RundownPlaybackCommandData.GetOrLoadRundown(NewRundownPath,
-			[this](UAvaRundown* InRundown)
-			{
-				RundownPlaybackCommandData.ClosePlaybackContext();
-				RundownPlaybackCommandData.RemoveRundownDelegates(this, InRundown);
-			},
-			[this](UAvaRundown* InRundown)
-			{
-				RundownPlaybackCommandData.SetupRundownDelegates(this, InRundown);
-				if (InRundown)
-				{
-					InRundown->InitializePlaybackContext();
-				}
-			});
+		const UAvaRundown* Rundown = GetOrLoadRundownForContext(NewRundownPath, PlaybackCommandContext);
 		
 		if (!Rundown)
 		{
@@ -713,7 +735,7 @@ void FAvaRundownServer::HandleLoadRundown(const FAvaRundownLoadRundown& InMessag
 	}
 
 	SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log,
-		TEXT("Rundown \"%s\" loaded."), *RundownPlaybackCommandData.CurrentRundownPath.ToString());
+		TEXT("Rundown \"%s\" loaded."), *PlaybackCommandContext.GetCurrentRundownPath().ToString());
 }
 
 void FAvaRundownServer::HandleCreateRundown(const FAvaRundownCreateRundown& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
@@ -818,6 +840,10 @@ void FAvaRundownServer::HandleDeleteRundown(const FAvaRundownDeleteRundown& InMe
 
 	if (ManagedRundowns.Remove(RundownPath) > 0)
 	{
+		// Also, flush command contexts if associated to this rundown.
+		EditCommandContext.ConditionalFlush(SharedThis(this), RundownPath);
+		PlaybackCommandContext.ConditionalFlush(SharedThis(this), RundownPath);
+		
 		SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log,
 			TEXT("\"DeleteRundown\": Rundown \"%s\" removed."), *InMessage.Rundown);
 		return;
@@ -829,10 +855,18 @@ void FAvaRundownServer::HandleDeleteRundown(const FAvaRundownDeleteRundown& InMe
 	{
 		TArray<FAssetData> AssetData;
 		AssetData.Add(RundownAsset);
-		ObjectTools::DeleteAssets(AssetData, /*bShowConfirmation*/ false);
-		
-		SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log,
-			TEXT("\"DeleteRundown\": Rundown \"%s\" deleted."), *InMessage.Rundown);
+		int32 NumDeleted = ObjectTools::DeleteAssets(AssetData, /*bShowConfirmation*/ false);
+
+		if (NumDeleted == AssetData.Num())
+		{
+			SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log,
+				TEXT("\"DeleteRundown\": Rundown \"%s\" deleted."), *InMessage.Rundown);
+		}
+		else
+		{
+			SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
+				TEXT("\"DeleteRundown\": Rundown \"%s\" could not be deleted."), *InMessage.Rundown);
+		}
 		return;
 	}
 #endif
@@ -1164,7 +1198,7 @@ void FAvaRundownServer::HandleGetPageDetails(const FAvaRundownGetPageDetails& In
 		
 		if (ManagedInstance.IsValid())
 		{
-			RundownEditCommandData.SaveCurrentRemoteControlPresetToPage(true);
+			EditCommandContext.SaveCurrentRemoteControlPresetToPage(true);
 
 			// Applying the controller values can break the WYSIWYG of the editor,
 			// in case multiple controllers set the same exposed entity with different values.
@@ -1179,8 +1213,8 @@ void FAvaRundownServer::HandleGetPageDetails(const FAvaRundownGetPageDetails& In
 			FAvaRemoteControlUtils::RegisterRemoteControlPreset(ManagedInstance->GetRemoteControlPreset(), /*bInEnsureUniqueId*/ true);
 
 			// Keep track of what is currently registered.
-			RundownEditCommandData.ManagedPageId = InMessage.PageId;
-			RundownEditCommandData.ManagedInstance = ManagedInstance;
+			EditCommandContext.ManagedPageId = InMessage.PageId;
+			EditCommandContext.ManagedInstance = ManagedInstance;
 		}
 	}
 	
@@ -1189,10 +1223,10 @@ void FAvaRundownServer::HandleGetPageDetails(const FAvaRundownGetPageDetails& In
 	ReplyMessage->Rundown = InMessage.Rundown;
 	ReplyMessage->PageInfo = UE::AvaRundownServer::Private::GetPageInfo(Rundown, Page);
 	ReplyMessage->RemoteControlValues = Page.GetRemoteControlValues();
-	if (InMessage.bLoadRemoteControlPreset && RundownEditCommandData.ManagedInstance.IsValid() && RundownEditCommandData.ManagedInstance->GetRemoteControlPreset())
+	if (InMessage.bLoadRemoteControlPreset && EditCommandContext.ManagedInstance.IsValid() && EditCommandContext.ManagedInstance->GetRemoteControlPreset())
 	{
-		ReplyMessage->RemoteControlPresetName = RundownEditCommandData.ManagedInstance->GetRemoteControlPreset()->GetPresetName().ToString();
-		ReplyMessage->RemoteControlPresetId = RundownEditCommandData.ManagedInstance->GetRemoteControlPreset()->GetPresetId().ToString();
+		ReplyMessage->RemoteControlPresetName = EditCommandContext.ManagedInstance->GetRemoteControlPreset()->GetPresetName().ToString();
+		ReplyMessage->RemoteControlPresetId = EditCommandContext.ManagedInstance->GetRemoteControlPreset()->GetPresetId().ToString();
 	}
 	SendResponse(ReplyMessage, InContext->GetSender());
 }
@@ -1242,11 +1276,11 @@ void FAvaRundownServer::HandleChangePageChannel(const FAvaRundownPageChangeChann
 void FAvaRundownServer::HandleUpdatePageFromRCP(const FAvaRundownUpdatePageFromRCP& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
 {
 	// Note that this doesn't save the rundown.
-	RundownEditCommandData.SaveCurrentRemoteControlPresetToPage(InMessage.bUnregister);
+	EditCommandContext.SaveCurrentRemoteControlPresetToPage(InMessage.bUnregister);
 	if (InMessage.bUnregister)
 	{
-		RundownEditCommandData.ManagedPageId = FAvaRundownPage::InvalidPageId;
-		RundownEditCommandData.ManagedInstance.Reset();
+		EditCommandContext.ManagedPageId = FAvaRundownPage::InvalidPageId;
+		EditCommandContext.ManagedInstance.Reset();
 	}
 	SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log, TEXT("\"UpdatePageFromRCP\" Ok."));
 }
@@ -2022,23 +2056,54 @@ void FAvaRundownServer::ShowStatusCommand(const TArray<FString>& InArgs)
 	}
 	
 	UE_LOG(LogAvaRundownServer, Display, TEXT("Rundown Caches:"));
-	UE_LOG(LogAvaRundownServer, Display, TEXT("- Editing Rundown: \"%s\""), *RundownEditCommandData.CurrentRundownPath.ToString());
-	UE_LOG(LogAvaRundownServer, Display, TEXT("- Editing PageId: \"%d\""), RundownEditCommandData.ManagedPageId);
-	UE_LOG(LogAvaRundownServer, Display, TEXT("- Playing Rundown: \"%s\""), *RundownPlaybackCommandData.CurrentRundownPath.ToString());
+	UE_LOG(LogAvaRundownServer, Display, TEXT("- Editing Rundown: \"%s\""), *EditCommandContext.GetCurrentRundownPath().ToString());
+	UE_LOG(LogAvaRundownServer, Display, TEXT("- Editing PageId: \"%d\""), EditCommandContext.ManagedPageId);
+	UE_LOG(LogAvaRundownServer, Display, TEXT("- Playing Rundown: \"%s\""), *PlaybackCommandContext.GetCurrentRundownPath().ToString());
 
-	if (RundownPlaybackCommandData.CurrentRundown)
+	if (const UAvaRundown* CurrentPlaybackRundown = PlaybackCommandContext.GetCurrentRundown())
 	{
-		TArray<int32> PlayingPages = RundownPlaybackCommandData.CurrentRundown->GetPlayingPageIds();
+		TArray<int32> PlayingPages = CurrentPlaybackRundown->GetPlayingPageIds();
 		for (const int32 PlayingPageId : PlayingPages)
 		{
 			UE_LOG(LogAvaRundownServer, Display, TEXT("- Playing PageId: \"%d\""), PlayingPageId);
 		}
-		TArray<int32> PreviewingPages = RundownPlaybackCommandData.CurrentRundown->GetPreviewingPageIds();
+		TArray<int32> PreviewingPages = CurrentPlaybackRundown->GetPreviewingPageIds();
 		for (const int32 PreviewingPageId : PreviewingPages)
 		{
 			UE_LOG(LogAvaRundownServer, Display, TEXT("- Previewing PageId: \"%d\""), PreviewingPageId);
 		}
 	}
+}
+
+void FAvaRundownServer::NotifyPlaybackContextSwitch(const FSoftObjectPath& InPreviousRundownPath, const FSoftObjectPath& InNewRundownPath) const
+{
+	if (ClientAddresses.IsEmpty())
+	{
+		return;
+	}
+
+	FAvaRundownPlaybackContextChanged* Notification = FMessageEndpoint::MakeMessage<FAvaRundownPlaybackContextChanged>();
+	Notification->PreviousRundown = InPreviousRundownPath.ToString();
+	Notification->NewRundown = InNewRundownPath.ToString();
+	SendResponse(Notification, ClientAddresses);
+}
+
+void FAvaRundownServer::NotifyAssetEvent(const FAssetData& InAssetData, const EAvaRundownAssetEvent InEventType) const
+{
+	if (ClientAddresses.IsEmpty())
+	{
+		return;
+	}
+
+	// todo: probably need some event filtering (playable, by class, etc).
+	FAvaRundownAssetsChanged* Message = FMessageEndpoint::MakeMessage<FAvaRundownAssetsChanged>();
+	Message->AssetName = InAssetData.AssetName.ToString();
+	Message->AssetPath = InAssetData.GetSoftObjectPath().ToString();
+	Message->AssetClass = InAssetData.AssetClassPath.ToString();
+	Message->bIsPlayable = FAvaPlaybackUtils::IsPlayableAsset(InAssetData);
+	Message->EventType = InEventType;
+	
+	SendResponse(Message, ClientAddresses);
 }
 
 void FAvaRundownServer::FinishGetChannelImage(const FRequestInfo& InRequestInfo, const TSharedPtr<FChannelImage>& InChannelImage)
@@ -2101,15 +2166,15 @@ void FAvaRundownServer::HandlePageActions(const FRequestInfo& InRequestInfo, con
 	bool bInIsPreview, FName InPreviewChannelName, EAvaRundownPageActions InAction) const
 {
 	using namespace UE::AvaRundownServer::Private;
+
+	UAvaRundown* Rundown = PlaybackCommandContext.GetCurrentRundown();
 	
-	if (!RundownPlaybackCommandData.CurrentRundown)
+	if (!Rundown)
 	{
 		LogAndSendMessage(InRequestInfo.Sender, InRequestInfo.RequestId, ELogVerbosity::Error,
-			TEXT("\"PageAction\" Failed. Reason: no play list currently loaded."));
+			TEXT("\"PageAction\" Failed. Reason: no rundown currently loaded for playback."));
 		return;
 	}
-
-	UAvaRundown* Rundown = RundownPlaybackCommandData.CurrentRundown.Get();
 
 	{
 		// Validate the pages - the command will be considered a failure (as a whole) if it contains invalid pages.
@@ -2264,16 +2329,7 @@ UAvaRundown* FAvaRundownServer::GetOrLoadRundownForEdit(const FMessageAddress& I
 		// This will not affect the currently loaded rundown for playback.
 		const FSoftObjectPath NewRundownPath(InRundownPath);
 		
-		Rundown = RundownEditCommandData.GetOrLoadRundown(NewRundownPath,
-			[this](UAvaRundown* InRundown)
-			{
-				RundownEditCommandData.SaveCurrentRemoteControlPresetToPage(true);
-				RundownEditCommandData.RemoveRundownDelegates(this, InRundown);
-			},
-			[this](UAvaRundown* InRundown)
-			{
-				RundownEditCommandData.SetupRundownDelegates(this, InRundown);
-			});
+		Rundown = GetOrLoadRundownForContext(NewRundownPath, EditCommandContext);
 
 		if (!Rundown)
 		{
@@ -2283,16 +2339,12 @@ UAvaRundown* FAvaRundownServer::GetOrLoadRundownForEdit(const FMessageAddress& I
 	else
 	{
 		// If the path is not specified, we assume it is using the previously loaded rundown.
-		Rundown = RundownEditCommandData.CurrentRundown.Get();
+		Rundown = EditCommandContext.GetCurrentRundown();
 
 		// Note: for backward compatibility with QA python script, we allow this command to use the current "playback" rundown as fallback.
 		if (!Rundown)
 		{
-			Rundown = RundownPlaybackCommandData.CurrentRundown.Get();
-
-			// Update the edit data accordingly.
-			RundownEditCommandData.CurrentRundown = Rundown;
-			RundownEditCommandData.CurrentRundownPath = RundownPlaybackCommandData.CurrentRundownPath;
+			Rundown = GetOrLoadRundownForContext(PlaybackCommandContext.GetCurrentRundownPath(), EditCommandContext);
 		}
 
 		if (!Rundown)
@@ -2342,83 +2394,171 @@ void FAvaRundownServer::RefreshClientAddresses()
 	}
 }
 
-UAvaRundown* FAvaRundownServer::FRundownCache::GetOrLoadRundown(const FSoftObjectPath& InRundownPath,
-	const FRundownEventFunction InUnloadCurrentRundownFunction,
-	const FRundownEventFunction InNewRundownLoadedFunction)
+FAvaRundownServer::FRundownEntry::FRundownEntry(const TSharedPtr<FAvaRundownServer>& InRundownServer, const FSoftObjectPath& InRundownPath)
+	: RundownServerRaw(InRundownServer.Get())
 {
-	if (CurrentRundownPath != InRundownPath)
+	const TStrongObjectPtr<UAvaRundown> LoadedRundown = UE::AvaRundownServer::Private::LoadRundown(InRundownPath);
+	Rundown = LoadedRundown.IsValid() ? LoadedRundown.Get() : nullptr;
+	
+	if (Rundown && InRundownServer)
 	{
-		const TStrongObjectPtr<UAvaRundown> NewRundown = UE::AvaRundownServer::Private::LoadRundown(InRundownPath);
-		if (NewRundown.IsValid())
+		const TSharedRef<FAvaRundownServer> RundownServerRef = InRundownServer.ToSharedRef();
+		Rundown->GetOnPagesChanged().AddSP(RundownServerRef, &FAvaRundownServer::OnPagesChanged);
+		Rundown->GetOnInstancedPageListChanged().AddSP(RundownServerRef, &FAvaRundownServer::OnPageListChanged);
+		Rundown->GetOnTemplatePageListChanged().AddSP(RundownServerRef, &FAvaRundownServer::OnPageListChanged);
+		Rundown->GetOnCanClosePlaybackContext().AddSP(RundownServerRef, &FAvaRundownServer::OnCanClosePlaybackContext);
+	}
+}
+
+FAvaRundownServer::FRundownEntry::~FRundownEntry()
+{
+	if (Rundown)
+	{
+		Rundown->GetOnPagesChanged().RemoveAll(RundownServerRaw);
+		Rundown->GetOnInstancedPageListChanged().RemoveAll(RundownServerRaw);
+		Rundown->GetOnTemplatePageListChanged().RemoveAll(RundownServerRaw);
+		Rundown->GetOnCanClosePlaybackContext().RemoveAll(RundownServerRaw);
+	}
+}
+
+void FAvaRundownServer::CompactLoadedRundownCache()
+{
+	for (TMap<FSoftObjectPath, TWeakPtr<FRundownEntry>>::TIterator ContextIterator = LoadedRundownCache.CreateIterator();
+		ContextIterator; ++ContextIterator  )
+	{
+		if (!ContextIterator->Value.IsValid())
 		{
-			if (CurrentRundown.Get())
-			{
-				InUnloadCurrentRundownFunction(CurrentRundown.Get());
-			}
-			InNewRundownLoadedFunction(NewRundown.Get());
-			CurrentRundown = NewRundown.Get();
-			CurrentRundownPath = InRundownPath;
+			ContextIterator.RemoveCurrent();
+		}
+	}
+}
+
+TSharedPtr<FAvaRundownServer::FRundownEntry> FAvaRundownServer::GetOrLoadRundown(const FSoftObjectPath& InRundownPath)
+{
+	if (const TWeakPtr<FRundownEntry>* ExistingEntryWeak = LoadedRundownCache.Find(InRundownPath))
+	{
+		if (TSharedPtr<FRundownEntry> ExistingEntry = (*ExistingEntryWeak).Pin())
+		{
+			return ExistingEntry;
+		}
+	}
+
+	TSharedPtr<FRundownEntry> NewEntry = MakeShared<FRundownEntry>(SharedThis(this), InRundownPath);
+	if (NewEntry->IsValid())
+	{
+		CompactLoadedRundownCache();
+		LoadedRundownCache.Add(InRundownPath, NewEntry);
+		return NewEntry;
+	}
+
+	// Failed to load asset.
+	return nullptr;
+}
+
+UAvaRundown* FAvaRundownServer::GetOrLoadRundownForContext(const FSoftObjectPath& InRundownPath, FCommandContext& InContext)
+{
+	if (InRundownPath != InContext.GetCurrentRundownPath())
+	{
+		if (const TSharedPtr<FRundownEntry> NewRundownEntry = GetOrLoadRundown(InRundownPath))
+		{
+			InContext.SetCurrentRundown(SharedThis(this), InRundownPath, NewRundownEntry);
 		}
 		else
 		{
+			// Indicates failure of loading new rundown asset.
+			// Context is not modified.
 			return nullptr;
 		}
 	}
-	return CurrentRundown.Get();
+	return InContext.GetCurrentRundown();
 }
 
-void FAvaRundownServer::FRundownCache::SetupRundownDelegates(FAvaRundownServer* InRundownServer, UAvaRundown* InRundown)
+UAvaRundownPagePlayer* FAvaRundownServer::FindPagePlayerForInstance(const FAvaPlaybackInstance& InPlaybackInstance) const
 {
-	RemoveRundownDelegates(InRundownServer, InRundown);
+	// We don't know the channel, nor the rundown, but can at least get the page Id from the instance user data.
+	const int32 PageId = UAvaRundownPagePlayer::GetPageIdFromInstanceUserData(InPlaybackInstance.GetInstanceUserData());
 
-	if (!InRundown)
+	// Search in any of the currently loaded rundowns in the server. 
+	for (const TPair<FSoftObjectPath, TWeakPtr<FRundownEntry>>& RundownEntryWeak : LoadedRundownCache)
+	{
+		const TSharedPtr<FRundownEntry> RundownEntry = RundownEntryWeak.Value.Pin();
+		if (!RundownEntry)
+		{
+			continue;
+		}
+		
+		const UAvaRundown* Rundown = RundownEntry->GetRundown();
+		if (!Rundown)
+		{
+			continue;
+		}
+		
+		// if we have a pageId, we can skip any rundown that doesn't have that page.
+		if (PageId != FAvaRundownPage::InvalidPageId && !Rundown->GetPage(PageId).IsValidPage())
+		{
+			continue;
+		}
+		
+		// We don't know the channel (could be preview), so we need to check all page players.
+		for (const TObjectPtr<UAvaRundownPagePlayer>& PagePlayer : Rundown->GetPagePlayers())
+		{
+			// If we have a pageId, we can skip any players for other pages.
+			if (PageId != FAvaRundownPage::InvalidPageId && PagePlayer->PageId != PageId)
+			{
+				continue;
+			}
+
+			// Using the instanceId to identify the correct instance.
+			if (PagePlayer->FindInstancePlayerByInstanceId(InPlaybackInstance.GetInstanceId()))
+			{
+				return PagePlayer.Get();
+			}
+		}
+	}
+	return nullptr;
+}
+
+void FAvaRundownServer::OnPlaybackInstanceStatusChanged(const FAvaPlaybackInstance& InPlaybackInstance)
+{
+	const UAvaRundownPagePlayer* PagePlayer = FindPagePlayerForInstance(InPlaybackInstance);
+	if (!PagePlayer)
 	{
 		return;
 	}
-
-	FAvaPlaybackManager& Manager = IAvaMediaModule::Get().GetLocalPlaybackManager();
-	TWeakObjectPtr<UAvaRundown> RundownWeak(InRundown);
-	TWeakPtr<FAvaRundownServer> RundownServerWeak = InRundownServer->AsShared();
-	OnPlaybackInstanceStatusChangedDelegateHandle = 
-		Manager.OnPlaybackInstanceStatusChanged.AddLambda([RundownWeak, RundownServerWeak](const FAvaPlaybackInstance& InPlaybackInstance)
-		{
-			UAvaRundown* Rundown = RundownWeak.Get();
-			const TSharedPtr<FAvaRundownServer> RundownServer = RundownServerWeak.Pin();
-			if (IsValid(Rundown) && RundownServer.IsValid())
-			{
-				const int32 PageId = UAvaRundownPagePlayer::GetPageIdFromInstanceUserData(InPlaybackInstance.GetInstanceUserData());
-				const FAvaRundownPage Page = Rundown->GetPage(PageId);
-				if (Page.IsValidPage())
-				{
-					RundownServer->PageStatusChanged(Rundown, Page);
-				}
-			}
-		});
-
-	InRundown->GetOnPagesChanged().AddRaw(InRundownServer, &FAvaRundownServer::OnPagesChanged);
-	InRundown->GetOnInstancedPageListChanged().AddRaw(InRundownServer, &FAvaRundownServer::OnPageListChanged);
-	InRundown->GetOnTemplatePageListChanged().AddRaw(InRundownServer, &FAvaRundownServer::OnPageListChanged);
-}
-
-void FAvaRundownServer::FRundownCache::RemoveRundownDelegates(const FAvaRundownServer* InRundownServer, UAvaRundown* InRundown) const
-{
-	FAvaPlaybackManager& Manager = IAvaMediaModule::Get().GetLocalPlaybackManager();
-	Manager.OnPlaybackInstanceStatusChanged.Remove(OnPlaybackInstanceStatusChangedDelegateHandle);
-
-	if (InRundown)
+	UAvaRundown* Rundown = PagePlayer->GetRundown();
+	if (!Rundown)
 	{
-		InRundown->GetOnPagesChanged().RemoveAll(InRundownServer);
-		InRundown->GetOnInstancedPageListChanged().RemoveAll(InRundownServer);
-		InRundown->GetOnTemplatePageListChanged().RemoveAll(InRundownServer);
+		return;
+	}
+	
+	const FAvaRundownPage& Page = Rundown->GetPage(PagePlayer->PageId);
+	if (Page.IsValidPage())
+	{
+		PageStatusChanged(Rundown, Page);
 	}
 }
 
-FAvaRundownServer::FRundownEditCommandData::~FRundownEditCommandData()
+void FAvaRundownServer::OnCanClosePlaybackContext(const UAvaRundown* InRundown, bool& bOutResult) const
+{
+	const UAvaRundown* CurrentPlaybackRundown = PlaybackCommandContext.GetCurrentRundown();
+	if (CurrentPlaybackRundown != nullptr && CurrentPlaybackRundown == InRundown)
+	{
+		bOutResult = false;
+	}
+}
+
+FAvaRundownServer::FEditCommandContext::~FEditCommandContext()
 {
 	SaveCurrentRemoteControlPresetToPage(true);
 }
 
-void FAvaRundownServer::FRundownEditCommandData::SaveCurrentRemoteControlPresetToPage(bool bInUnregister)
+void FAvaRundownServer::FEditCommandContext::SetCurrentRundown(const TSharedPtr<FAvaRundownServer>& InRundownServer, const FSoftObjectPath& InRundownPath, const TSharedPtr<FRundownEntry>& InRundownEntry)
+{
+	SaveCurrentRemoteControlPresetToPage(true);
+	FCommandContext::SetCurrentRundown(InRundownServer, InRundownPath, InRundownEntry);
+}
+
+void FAvaRundownServer::FEditCommandContext::SaveCurrentRemoteControlPresetToPage(bool bInUnregister)
 {
 	if (!ManagedInstance.IsValid() || !ManagedInstance->GetRemoteControlPreset())
 	{
@@ -2439,6 +2579,8 @@ void FAvaRundownServer::FRundownEditCommandData::SaveCurrentRemoteControlPresetT
 		// Unregister from RC module.
 		RemoteControlModule.UnregisterEmbeddedPreset(CurrentPresetName);
 	}
+
+	UAvaRundown* CurrentRundown = GetCurrentRundown();
 
 	if (!CurrentRundown)
 	{
@@ -2488,19 +2630,49 @@ void FAvaRundownServer::FRundownEditCommandData::SaveCurrentRemoteControlPresetT
 	}
 }
 
-FAvaRundownServer::FRundownPlaybackCommandData::~FRundownPlaybackCommandData()
+FAvaRundownServer::FPlaybackCommandContext::~FPlaybackCommandContext()
 {
-	ClosePlaybackContext();
+	TSharedPtr<FRundownEntry> PreviousRundownEntry = CurrentRundownEntry; // Prevent GC for current scope.
+	UAvaRundown* PreviousRundown = GetCurrentRundown();
+
+	// Reset current rundown so it doesn't prevent closing playback context.
+	CurrentRundownEntry.Reset();
+	
+	ClosePlaybackContext(PreviousRundown);
 }
 
-void FAvaRundownServer::FRundownPlaybackCommandData::ClosePlaybackContext()
+void FAvaRundownServer::FPlaybackCommandContext::SetCurrentRundown(const TSharedPtr<FAvaRundownServer>& InRundownServer, const FSoftObjectPath& InRundownPath, const TSharedPtr<FRundownEntry>& InRundownEntry)
 {
-	if (CurrentRundown)
+	TSharedPtr<FRundownEntry> PreviousRundownEntry = CurrentRundownEntry;	// Prevent GC for current scope.
+	UAvaRundown* PreviousRundown = GetCurrentRundown();
+
+	// Notify clients that the current playback context is switching.
+	if (InRundownServer)
 	{
-		// Stop all playing pages.
-		CurrentRundown->ClosePlaybackContext(true);
-		CurrentRundown = nullptr;
-		CurrentRundownPath.Reset();
+		InRundownServer->NotifyPlaybackContextSwitch(GetCurrentRundownPath(), InRundownPath);
+	}
+
+	FCommandContext::SetCurrentRundown(InRundownServer, InRundownPath, InRundownEntry);
+	
+	ClosePlaybackContext(PreviousRundown);
+	
+	// Initialize new playback context
+	InitializePlaybackContext();
+}
+
+void FAvaRundownServer::FPlaybackCommandContext::InitializePlaybackContext()
+{
+	if (UAvaRundown* CurrentRundown = GetCurrentRundown())
+	{
+		CurrentRundown->InitializePlaybackContext();
+	}
+}
+
+void FAvaRundownServer::FPlaybackCommandContext::ClosePlaybackContext(UAvaRundown* InRundownToClose)
+{
+	if (InRundownToClose && InRundownToClose->CanClosePlaybackContext())
+	{
+		InRundownToClose->ClosePlaybackContext(/*bInStopAllPages*/ true);
 	}
 }
 

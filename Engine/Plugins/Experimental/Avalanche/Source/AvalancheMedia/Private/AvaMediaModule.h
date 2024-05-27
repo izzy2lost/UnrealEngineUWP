@@ -42,7 +42,9 @@ public:
 	virtual bool IsGameModeLocalPlaybackServerLaunched() const override;
 	virtual const IAvaBroadcastSettings& GetBroadcastSettings() const override;
 	virtual const FAvaInstanceSettings& GetAvaInstanceSettings() const override;
+	virtual bool IsLocalPlaybackManagerAvailable() const override;
 	virtual FAvaPlaybackManager& GetLocalPlaybackManager() const override;
+	virtual bool IsManagedInstanceCacheAvailable() const override;
 	virtual FAvaRundownManagedInstanceCache& GetManagedInstanceCache() const override;
 	virtual bool IsAvaMediaSyncProviderFeatureAvailable() const override;
 	virtual IAvaMediaSyncProvider* GetAvaMediaSyncProvider() const override;
@@ -68,7 +70,10 @@ public:
 private:
 	void PostEngineInit();
 	void EnginePreExit();
+	void PrePIEEnded(const bool);
 	void StopAllServices();
+	void ConditionalCreateLocalPlaybackManager();
+	void ConditionalCreateManagedInstanceCache();
 	
 	// Command handlers
 	void StartRundownServerCommand(const TArray<FString>& Args);

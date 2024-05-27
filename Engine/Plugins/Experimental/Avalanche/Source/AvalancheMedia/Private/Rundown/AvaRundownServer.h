@@ -4,12 +4,14 @@
 
 #include "Broadcast/AvaBroadcastProfile.h"
 #include "MessageEndpoint.h"
+#include "Playback/AvaPlaybackManager.h"
 #include "Rundown/AvaRundown.h"
 #include "Rundown/AvaRundownMessages.h"
 #include "Rundown/IAvaRundownServer.h"
 #include "UObject/SoftObjectPath.h"
 #include "UObject/StrongObjectPtr.h"
 
+class FAvaPlaybackInstance;
 class FAvaRundownManagedInstance;
 class UMediaOutput;
 
@@ -22,7 +24,7 @@ class FAvaRundownServer : public TSharedFromThis<FAvaRundownServer>, public FGCO
 {
 public:
 	FAvaRundownServer();
-	virtual ~FAvaRundownServer();
+	virtual ~FAvaRundownServer() override;
 
 	//~ Begin IAvaRundownServer
 	virtual const FString& GetName() const override { return HostName; }
@@ -37,8 +39,10 @@ public:
 
 	void Init(const FString& InAssignedHostName);
 
+	void SetupPlaybackDelegates();
 	void SetupBroadcastDelegates(UAvaBroadcast* InBroadcast);
 	void SetupEditorDelegates();
+	void RemovePlaybackDelegates() const;
 	void RemoveBroadcastDelegates(UAvaBroadcast* InBroadcast) const;
 	void RemoveEditorDelegates() const;
 	
@@ -50,7 +54,11 @@ public:
 	void PageAnimSettingsChanged(const UAvaRundown* InRundown, const FAvaRundownPage& InPage) const;
 	void OnBroadcastChannelListChanged(const FAvaBroadcastProfile& InProfile) const;
 	void OnBroadcastChannelChanged(const FAvaBroadcastOutputChannel& InChannel, EAvaBroadcastChannelChange InChange) const;
-	void OnAssetAddedOrRemoved(const FAssetData& InAssetData) const;
+	void OnAssetAdded(const FAssetData& InAssetData) const;
+	void OnAssetRemoved(const FAssetData& InAssetData) const;
+	void OnAssetsPreDelete(const TArray<UObject*>& InObjects);
+	void OnPlaybackInstanceStatusChanged(const FAvaPlaybackInstance& InPlaybackInstance);
+	void OnCanClosePlaybackContext(const UAvaRundown* InRundown, bool& bOutResult) const;
 	
 	// Rundown message handlers
 	void HandleRundownPing(const FAvaRundownPing& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
@@ -106,6 +114,11 @@ public:
 	
 	void ShowStatusCommand(const TArray<FString>& InArgs);
 
+	/** Broadcast a rundown playback context switch to all connected clients. */
+	void NotifyPlaybackContextSwitch(const FSoftObjectPath& InPreviousRundownPath, const FSoftObjectPath& InNewRundownPath) const;
+	
+	void NotifyAssetEvent(const FAssetData& InAssetData, const EAvaRundownAssetEvent InEventType) const;
+
 protected:
 	struct FRequestInfo
 	{
@@ -118,6 +131,8 @@ protected:
 
 	void HandlePageActions(const FRequestInfo& InRequestInfo, const TArray<int32>& InPageIds,
 		bool bInIsPreview, FName InPreviewChannelName, EAvaRundownPageActions InAction) const;
+	
+	UAvaRundownPagePlayer* FindPagePlayerForInstance(const FAvaPlaybackInstance& InPlaybackInstance) const;
 	
 	/**
 	 * Helper function to retrieve the appropriate rundown for editing commands.
@@ -191,45 +206,125 @@ private:
 	TArray<TSharedPtr<FChannelImage>> AvailableChannelImages;
 	
 	/**
-	 * Keeps a current rundown cached for commands operating on rundown.
-	 * There is only one "current" rundown at a given time.
+	 * Manages rundown delegates binding with the rundown server handlers.
 	 */
-	struct FRundownCache
+	class FRundownEntry
 	{
+	public:
+		FRundownEntry(const TSharedPtr<FAvaRundownServer>& InRundownServer, const FSoftObjectPath& InRundownPath);
+		~FRundownEntry();
+		
+		bool IsValid() const { return Rundown != nullptr; }
+		UAvaRundown* GetRundown() const { return Rundown;}
+		
+		void AddReferencedObjects(FReferenceCollector& InCollector)
+		{
+			InCollector.AddReferencedObject(Rundown);
+		}
+		
+	private:
+		TObjectPtr<UAvaRundown> Rundown;
+		
+		// Keep a raw ptr for unregistering delegates only.
+		FAvaRundownServer* RundownServerRaw = nullptr;
+	};
+
+	/**
+	 * Cache of loaded rundowns currently referenced by the command contexts.
+	 * There is one entry per loaded asset (shared by command contexts).
+	 * Key is the rundown's asset path.
+	 */
+	TMap<FSoftObjectPath, TWeakPtr<FRundownEntry>> LoadedRundownCache;
+
+	/** Remove stale rundown entries. */
+	void CompactLoadedRundownCache();
+	
+	/**
+	 * Returns requested rundown specified by InRundownPath.
+	 * Will load it if necessary or return the cached one.
+	 * If the new rundown fails to load, the returned value is nullptr.
+	 */
+	TSharedPtr<FRundownEntry> GetOrLoadRundown(const FSoftObjectPath& InRundownPath);
+	
+	/**	 
+	 * Associates a rundown entry with it's contextual resources needed to execute commands.
+	 * There is only one "current" rundown per context. Changing the rundown will flush previous
+	 * resources and allocate new ones of the new rundown.
+	 */
+	struct FCommandContext
+	{
+		virtual ~FCommandContext() = default;
+
+		const FSoftObjectPath& GetCurrentRundownPath() const
+		{
+			return CurrentRundownPath;
+		}
+		
+		UAvaRundown* GetCurrentRundown() const
+		{
+			return CurrentRundownEntry.IsValid() ? CurrentRundownEntry->GetRundown() : nullptr;
+		}
+
+		void Flush(const TSharedPtr<FAvaRundownServer>& InRundownServer)
+		{
+			SetCurrentRundown(InRundownServer, FSoftObjectPath(), nullptr);
+		}
+ 
+		void ConditionalFlush(const TSharedPtr<FAvaRundownServer>& InRundownServer, const FSoftObjectPath& InRundownPath)
+		{
+			if (GetCurrentRundownPath() == InRundownPath)
+			{
+				Flush(InRundownServer);
+			}
+		}
+		
+		void ConditionalFlush(const TSharedPtr<FAvaRundownServer>& InRundownServer, const UAvaRundown* InRundown)
+		{
+			if (GetCurrentRundown() == InRundown)
+			{
+				Flush(InRundownServer);
+			}
+		}
+		
+		/** Set a new current rundown for the context. Derived classes will handle context switching implementation. */
+		virtual void SetCurrentRundown(const TSharedPtr<FAvaRundownServer>& InRundownServer, const FSoftObjectPath& InRundownPath, const TSharedPtr<FRundownEntry>& InRundownEntry)
+		{
+			CurrentRundownPath = InRundownPath;
+			CurrentRundownEntry = InRundownEntry;
+		}
+		
+	protected:
 		/** Currently loaded/cached rundown's path. */
 		FSoftObjectPath CurrentRundownPath;
-		
+
 		/** Currently loaded/cached rundown object. */
-		TObjectPtr<UAvaRundown> CurrentRundown;
-
-		FDelegateHandle OnPlaybackInstanceStatusChangedDelegateHandle;
-		
-		using FRundownEventFunction = TFunctionRef<void(UAvaRundown*)>;
-		
-		/**
-		 * Returns requested rundown specified by InRundownPath. Will load it if necessary or returned the cached one if it is the same.
-		 * If the new rundown fails to load, the return value is nullptr, and the previous rundown will remain loaded.
-		 * @param InRundownPath	Requested rundown path. 
-		 * @param InUnloadCurrentRundownFunction	Function called, with the previously cached rundown, when a new rundown is loaded
-		 *											and previous rundown needs to be unloaded.
-		 * @param InNewRundownLoadedFunction	Function called, with the new rundown, when a new rundown is loaded.
-		 */
-		UAvaRundown* GetOrLoadRundown(const FSoftObjectPath& InRundownPath, 
-			const FRundownEventFunction InUnloadCurrentRundownFunction,
-			const FRundownEventFunction InNewRundownLoadedFunction);
-
-		void SetupRundownDelegates(FAvaRundownServer* InRundownServer, UAvaRundown* InRundown);
-		void RemoveRundownDelegates(const FAvaRundownServer* InRundownServer, UAvaRundown* InRundown) const;
+		TSharedPtr<FRundownEntry> CurrentRundownEntry;
 	};
+
+	/**
+	 * Returns requested rundown specified by InRundownPath. Will load it if necessary or returned the cached one if it is the same.
+	 * If the new rundown fails to load, the return value is nullptr, and the previous rundown will remain loaded.
+	 * Only one rundown entry can be loaded per context (for now).
+	 * 
+	 * @param InRundownPath	Requested rundown path.
+	 * @param InContext Command context (either edit or playback).
+	 */
+	UAvaRundown* GetOrLoadRundownForContext(const FSoftObjectPath& InRundownPath, FCommandContext& InContext);
 	
-	/** Cached data for page editing commands (GetPages and GetPageDetails). */
-	struct FRundownEditCommandData : public FRundownCache
+	/**
+	 * Context for page editing commands (i.e. GetPages, GetPageDetails, etc). 
+	 */
+	struct FEditCommandContext : public FCommandContext
 	{
 		/** PageId of the current managed ava asset. */
 		int32 ManagedPageId = FAvaRundownPage::InvalidPageId;
 		TSharedPtr<FAvaRundownManagedInstance> ManagedInstance;
 
-		~FRundownEditCommandData();
+		virtual ~FEditCommandContext() override;
+
+		//~ Begin FRundownContext
+		virtual void SetCurrentRundown(const TSharedPtr<FAvaRundownServer>& InRundownServer, const FSoftObjectPath& InRundownPath, const TSharedPtr<FRundownEntry>& InRundownEntry) override;
+		//~ End FRundownContext
 		
 		/**
 		 * Checks if previous RCP was registered.
@@ -239,16 +334,27 @@ private:
 		 */
 		void SaveCurrentRemoteControlPresetToPage(bool bInUnregister);
 	};
-	FRundownEditCommandData RundownEditCommandData;
 
-	/** Cached data for playback commands (LoadRundown and PageAction). */
-	struct FRundownPlaybackCommandData: public FRundownCache
+	// TODO: it is likely we will need an edit command context per client connection (i.e. move to FClientInfo).
+	FEditCommandContext EditCommandContext;
+
+	/**
+	 * Context for playback commands (i.e. LoadRundown, PageAction, etc). 
+	 */
+	struct FPlaybackCommandContext : public FCommandContext
 	{
-		~FRundownPlaybackCommandData();
+		virtual ~FPlaybackCommandContext() override;
 
-		void ClosePlaybackContext();
+		//~ Begin FRundownContext
+		virtual void SetCurrentRundown(const TSharedPtr<FAvaRundownServer>& InRundownServer, const FSoftObjectPath& InRundownPath, const TSharedPtr<FRundownEntry>& InRundownEntry) override;
+		//~ End FRundownContext
+
+		void InitializePlaybackContext();
+		static void ClosePlaybackContext(UAvaRundown* InRundownToClose);
 	};
-	FRundownPlaybackCommandData RundownPlaybackCommandData;
+
+	// TODO: Will likely need to split playback context between preview (per client) and program (per rundown).
+	FPlaybackCommandContext PlaybackCommandContext;
 
 	/** Keep a map of created transient rundowns. */
 	TMap<FSoftObjectPath, TObjectPtr<UAvaRundown>> ManagedRundowns;

@@ -116,12 +116,22 @@ public:
 	 * call GetAvaInstanceSettings() in the deferred call instead.
 	 */
 	virtual const FAvaInstanceSettings& GetAvaInstanceSettings() const = 0;
-	
+
+	/**
+	 *	Returns true if the local playback manager is (still) available.
+	 */
+	virtual bool IsLocalPlaybackManagerAvailable() const = 0;
+
 	/**
 	 *	This is the backend for playing Motion Design assets locally.
 	 */
 	virtual FAvaPlaybackManager& GetLocalPlaybackManager() const = 0;
 
+	/**
+	 * Returns true if the managed instance cache is (still) available.
+	 */
+	virtual bool IsManagedInstanceCacheAvailable() const = 0;
+	
 	/**
 	 *	Access the "managed" Motion Design Asset Instance cache.
 	 */

@@ -156,6 +156,9 @@ void FAvaMediaModule::StartupModule()
 
 	FCoreDelegates::OnPostEngineInit.AddRaw(this, &FAvaMediaModule::PostEngineInit);
 	FCoreDelegates::OnEnginePreExit.AddRaw(this, &FAvaMediaModule::EnginePreExit);
+#if WITH_EDITOR
+	FEditorDelegates::PrePIEEnded.AddRaw(this, &FAvaMediaModule::PrePIEEnded);
+#endif
 	
 	FString DummyServerName;
 	if (IsPlaybackServerManuallyStarted(DummyServerName) || IsRundownServerManuallyStarted(DummyServerName))
@@ -186,6 +189,9 @@ void FAvaMediaModule::ShutdownModule()
 	
 	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 	FCoreDelegates::OnEnginePreExit.RemoveAll(this);
+#if WITH_EDITOR
+	FEditorDelegates::PrePIEEnded.RemoveAll(this);
+#endif
 
 	if (IMediaIOCoreModule::IsAvailable())
 	{
@@ -388,10 +394,20 @@ const FAvaInstanceSettings& FAvaMediaModule::GetAvaInstanceSettings() const
 	return UAvaMediaSettings::Get().AvaInstanceSettings;
 }
 
+bool FAvaMediaModule::IsLocalPlaybackManagerAvailable() const
+{
+	return LocalPlaybackManager.IsValid(); 
+}
+
 FAvaPlaybackManager& FAvaMediaModule::GetLocalPlaybackManager() const
 {
 	check(LocalPlaybackManager.IsValid());
 	return *LocalPlaybackManager;
+}
+
+bool FAvaMediaModule::IsManagedInstanceCacheAvailable() const
+{
+	return ManagedInstanceCache.IsValid();
 }
 
 FAvaRundownManagedInstanceCache& FAvaMediaModule::GetManagedInstanceCache() const
@@ -420,10 +436,11 @@ void FAvaMediaModule::PostEngineInit()
 {
 	using namespace UE::AvaMediaModule::Private;
 
+	ConditionalCreateLocalPlaybackManager();
+	ConditionalCreateManagedInstanceCache();
+
 	// This needs to happen late in the loading process, otherwise it fails.
 	const UAvaMediaSettings& Settings = UAvaMediaSettings::Get();
-
-	ManagedInstanceCache = MakeShared<FAvaRundownManagedInstanceCache>();
 
 #if WITH_EDITOR
 	// Initialise the device provider registry.
@@ -487,18 +504,6 @@ void FAvaMediaModule::PostEngineInit()
 		StartPlaybackServerCommand({PlaybackServerName});
 	}
 	
-	LocalPlaybackManager = MakeShared<FAvaPlaybackManager>();
-
-#if WITH_EDITOR
-	// Capture Raw Ptr to avoid keeping ref count on capture
-	// Only Local Playback Manager should handle tear down for PIE End
-	FAvaPlaybackManager* LocalPlaybackManagerRaw = LocalPlaybackManager.Get();
-	FEditorDelegates::PrePIEEnded.AddSPLambda(LocalPlaybackManagerRaw, [LocalPlaybackManagerRaw](const bool)
-	{
-		LocalPlaybackManagerRaw->OnParentWorldBeginTearDown();
-	});
-#endif
-
 	// Playback server required by Http server
 	if (AvaPlaybackServer.IsValid() && Settings.bAutoStartWebServer)
 	{
@@ -519,6 +524,15 @@ void FAvaMediaModule::EnginePreExit()
 	StopAllServices();
 }
 
+void FAvaMediaModule::PrePIEEnded(const bool)
+{
+	// Only Local Playback Manager should handle tear down for PIE End.
+	if (LocalPlaybackManager)
+	{
+		LocalPlaybackManager->OnParentWorldBeginTearDown();
+	}
+}
+
 void FAvaMediaModule::StopAllServices()
 {
 	StopRundownServerCommand({});
@@ -534,6 +548,22 @@ void FAvaMediaModule::StopAllServices()
 	ManagedInstanceCache.Reset();
 }
 
+void FAvaMediaModule::ConditionalCreateLocalPlaybackManager()
+{
+	if (!LocalPlaybackManager)
+	{
+		LocalPlaybackManager = MakeShared<FAvaPlaybackManager>();
+	}
+}
+
+void FAvaMediaModule::ConditionalCreateManagedInstanceCache()
+{
+	if (!ManagedInstanceCache)
+	{
+		ManagedInstanceCache = MakeShared<FAvaRundownManagedInstanceCache>();
+	}
+}
+
 void FAvaMediaModule::StartRundownServerCommand(const TArray<FString>& Args)
 {
 	if (RundownServer)
@@ -541,6 +571,10 @@ void FAvaMediaModule::StartRundownServerCommand(const TArray<FString>& Args)
 		UE_LOG(LogAvaMedia, Log, TEXT("Rundown Server is already started."));
 		return;
 	}
+
+	// Make sure all the components used by the rundown server are created.
+	ConditionalCreateLocalPlaybackManager();
+	ConditionalCreateManagedInstanceCache();
 	
 	RundownServer = MakeShared<FAvaRundownServer>();
 	

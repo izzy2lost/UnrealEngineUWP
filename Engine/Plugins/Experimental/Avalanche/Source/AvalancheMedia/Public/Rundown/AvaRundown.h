@@ -422,6 +422,10 @@ public:
 	FOnAvaRundownPageListChanged& GetOnInstancedPageListChanged() { return InstancedPages.OnPageListChanged; }
 	FOnAvaRundownPagesChanged& GetOnPagesChanged() { return OnPagesChanged; }
 
+	/** Delegate called to determine if the playback context can be closed. */
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnCanClosePlaybackContext, const UAvaRundown*, bool& /*bOutResult*/);
+	FOnCanClosePlaybackContext::RegistrationType& GetOnCanClosePlaybackContext() const { return OnCanClosePlaybackContext; }
+
 	/**
 	 * Since the playback context is part of the asset for now, there is an explicit call to initialize it.
 	 * This would be done by the editor (or server).
@@ -430,6 +434,11 @@ public:
 	 */
 	void InitializePlaybackContext();
 
+	/**
+	 * Determines if the playback context can be closed.  
+	 */
+	bool CanClosePlaybackContext() const;
+	
 	/**
 	 * Similarly, when the editor is done, it can close the playback context. 
 	 * This will clean up the internal structures for playback and optionally stop all the pages.
@@ -720,4 +729,5 @@ public:
 protected:
 	FOnAvaRundownPagesChanged OnPagesChanged;
 	FOnActiveListChanged OnActiveListChanged;
+	mutable FOnCanClosePlaybackContext OnCanClosePlaybackContext;
 };

@@ -234,8 +234,10 @@ public:
 /**
  *	Request that the given rundown be loaded for playback.
  *	This will also open an associated playback context.
- *	Only one rundown can be opened for playback at a time. If another rundown
- *	is opened, it will be closed and all currently playing pages stopped.
+ *	Only one rundown can be opened for playback at a time by the rundown server.
+ *	If another rundown is opened, the previous one will be closed and all currently playing pages stopped,
+ *	unless the rundown editor is opened. The rundown editor will keep the playback context alive.
+ *	
  *	If the path is empty, nothing will be done and the server will reply with
  *	a FAvaRundownServerMsg message indicating which rundown is currently loaded.
  */
@@ -245,6 +247,9 @@ struct FAvaRundownLoadRundown : public FAvaRundownMsgBase
 	GENERATED_BODY()
 
 public:
+	/**
+	 * Rundown asset path: [PackagePath]/[AssetName].[AssetName]
+	 */
 	UPROPERTY()
 	FString Rundown;
 };
@@ -373,6 +378,28 @@ public:
 
 	UPROPERTY()
 	bool bOnlyIfIsDirty = false;
+};
+
+/**
+ * Rundown specific events broadcast by the server to help status display or related contexts in control applications.
+ */
+USTRUCT()
+struct FAvaRundownPlaybackContextChanged : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+
+public:
+	/**
+	 * Previous rundown (can be empty).
+	 */
+	UPROPERTY()
+	FString PreviousRundown;
+	
+	/**
+	 * New current rundown (can be empty).
+	 */
+	UPROPERTY()
+	FString NewRundown;
 };
 
 /**
@@ -954,16 +981,50 @@ public:
 	TArray<FAvaRundownChannel> Channels;
 };
 
+/**
+ * Generic asset event
+ */
+UENUM()
+enum class EAvaRundownAssetEvent : uint8
+{
+	Unknown = 0,
+	Added,
+	Removed,
+	//Saved, // todo
+	//Modified // todo
+};
+
+/**
+ * Event broadcast when an asset event occurs on the server.
+ */
 USTRUCT()
 struct FAvaRundownAssetsChanged : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
 
+	/** Asset name only, without the package path. (Keeping for legacy) */
 	UPROPERTY()
 	FString AssetName;
+
+	/** Full asset path: /PackagePath/PackageName.AssetName */
+	UPROPERTY()
+	FString AssetPath;
+
+	/** Full asset class path. */
+	UPROPERTY()
+	FString AssetClass;
+
+	/** true if the asset is a "playable" asset, i.e. an asset that can be set in a page's asset. */
+	UPROPERTY()
+	bool bIsPlayable = false;
+
+	UPROPERTY()
+	EAvaRundownAssetEvent EventType = EAvaRundownAssetEvent::Unknown;
 };
 
-// Channel actions
+/**
+ * Channel actions
+ */
 UENUM()
 enum class EAvaRundownChannelActions
 {

@@ -204,7 +204,7 @@ SAvaRundownPageDetails::~SAvaRundownPageDetails()
 			Rundown->GetOnPagesChanged().RemoveAll(this);
 		}
 	}
-	if (IAvaMediaModule::IsModuleLoaded())
+	if (IAvaMediaModule::IsModuleLoaded() && IAvaMediaModule::Get().IsManagedInstanceCacheAvailable())
 	{
 		IAvaMediaModule::Get().GetManagedInstanceCache().OnEntryInvalidated.RemoveAll(this);
 	}

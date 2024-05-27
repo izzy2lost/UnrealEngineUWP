@@ -186,6 +186,7 @@ protected:
 
 	void OnActiveSubListChanged();
 	void HandleOnPagePlayerAdded(UAvaRundown* InRundown, UAvaRundownPagePlayer* InPagePlayer);
+	void OnCanClosePlaybackContext(const UAvaRundown* InRundown, bool& bOutResult) const;
 
 	TWeakObjectPtr<UAvaRundown> AvaRundown;
 

@@ -876,6 +876,13 @@ void UAvaRundown::InitializePlaybackContext()
 	}
 }
 
+bool UAvaRundown::CanClosePlaybackContext() const
+{
+	bool bResult = true;
+	OnCanClosePlaybackContext.Broadcast(this, bResult);
+	return bResult;
+}
+
 void UAvaRundown::ClosePlaybackContext(bool bInStopAllPages)
 {
 	if (bInStopAllPages)

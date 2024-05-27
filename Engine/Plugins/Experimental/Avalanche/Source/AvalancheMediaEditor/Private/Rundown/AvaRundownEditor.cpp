@@ -195,11 +195,15 @@ FAvaRundownEditor::~FAvaRundownEditor()
 	{
 		Rundown->GetOnActiveListChanged().RemoveAll(this);
 		Rundown->GetOnPagePlayerAdded().RemoveAll(this);
-		
-		const bool bStopPages = bStopPagesOnCloseOverride.IsSet() ?
-			bStopPagesOnCloseOverride.GetValue() : UE::AvaRundownEditor::Private::ShouldStopPagesOnClose();
+		Rundown->GetOnCanClosePlaybackContext().RemoveAll(this);
 
-		Rundown->ClosePlaybackContext(bStopPages);
+		if (Rundown->CanClosePlaybackContext())
+		{
+			const bool bStopPages = bStopPagesOnCloseOverride.IsSet() ?
+				bStopPagesOnCloseOverride.GetValue() : UE::AvaRundownEditor::Private::ShouldStopPagesOnClose();
+
+			Rundown->ClosePlaybackContext(bStopPages);
+		}
 	}
 
 	if (InputProcessor.IsValid() && FSlateApplication::IsInitialized())
@@ -241,6 +245,7 @@ void FAvaRundownEditor::InitRundownEditor(const EToolkitMode::Type InMode
 	{
 		InRundown->GetOnActiveListChanged().AddSP(this, &FAvaRundownEditor::OnActiveSubListChanged);
 		InRundown->GetOnPagePlayerAdded().AddSP(this, &FAvaRundownEditor::HandleOnPagePlayerAdded);
+		InRundown->GetOnCanClosePlaybackContext().AddSP(this, &FAvaRundownEditor::OnCanClosePlaybackContext);
 		InRundown->InitializePlaybackContext();
 	}
 
@@ -1032,6 +1037,15 @@ void FAvaRundownEditor::HandleOnPagePlayerAdded(UAvaRundown* InRundown, UAvaRund
 	if (InPagePlayer->bIsPreview)
 	{
 		UAvaBroadcast::Get().ConditionalStartBroadcastChannel(InPagePlayer->ChannelFName);
+	}
+}
+
+void FAvaRundownEditor::OnCanClosePlaybackContext(const UAvaRundown* InRundown, bool& bOutResult) const
+{
+	const UAvaRundown* Rundown = AvaRundown.Get();
+	if (Rundown != nullptr && InRundown == Rundown)
+	{
+		bOutResult = false;
 	}
 }
 
