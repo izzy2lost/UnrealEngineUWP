@@ -3497,7 +3497,10 @@ void FGeometryCollectionPhysicsProxy::SetEnableGravity_External(bool bEnabled)
 {
 	for (TUniquePtr<FParticle>& GTParticle : GTParticles)
 	{
-		GTParticle->SetGravityEnabled(bEnabled);
+		if (GTParticle)
+		{
+			GTParticle->SetGravityEnabled(bEnabled);
+		}
 	}
 
 	ExecuteOnPhysicsThread(*this, 
