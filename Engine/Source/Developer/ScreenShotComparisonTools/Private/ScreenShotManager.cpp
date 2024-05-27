@@ -521,7 +521,7 @@ FImageComparisonResult FScreenShotManager::CompareScreenshot(const FString& InUn
 }
 
 
-FScreenshotExportResult FScreenShotManager::ExportScreenshotComparisonResult(FString ScreenshotName, FString RootExportFolder, bool bOnlyIncoming)
+FScreenshotExportResult FScreenShotManager::ExportScreenshotComparisonResult(FString ScreenshotName, FString RootExportFolder, bool bOnlyGeneratedFiles)
 {
 	FPaths::NormalizeDirectoryName(RootExportFolder);
 
@@ -540,9 +540,19 @@ FScreenshotExportResult FScreenShotManager::ExportScreenshotComparisonResult(FSt
 		return Results;
 	}
 
-	FString Pattern = bOnlyIncoming ? TEXT("Incoming.*") : TEXT("*");
+	TArray<FString> Patterns;
+	if (bOnlyGeneratedFiles)
+	{
+		Patterns.Add(TEXT("Incoming.*"));
+		Patterns.Add(TEXT("Delta.png"));
+		Patterns.Add(TEXT("Report.json"));
+	}
+	else
+	{
+		Patterns.Add(TEXT("*"));
+	}
 
-	CopyDirectory(Destination, ScreenshotResultsFolder / ScreenshotName, Pattern);
+	CopyDirectory(Destination, ScreenshotResultsFolder / ScreenshotName, Patterns);
 
 	Results.Success = true;
 	return Results;
@@ -748,13 +758,16 @@ FString FScreenShotManager::GetDefaultExportDirectory() const
 	return FPaths::Combine(FPaths::ProjectSavedDir(),TEXT("Exported/imageCompare"));
 }
 
-void FScreenShotManager::CopyDirectory(const FString& DestDir, const FString& SrcDir, const FString& Pattern)
+void FScreenShotManager::CopyDirectory(const FString& DestDir, const FString& SrcDir, const TArray<FString> Patterns)
 {
 	TArray<FString> FilesToCopy;
 
 	FString AbsoluteSrcDir = FPaths::ConvertRelativePathToFull(SrcDir);
 
-	IFileManager::Get().FindFilesRecursive(FilesToCopy, *AbsoluteSrcDir, *Pattern, /*Files=*/true, /*Directories=*/false);
+	for (auto& Pattern : Patterns)
+	{
+		IFileManager::Get().FindFilesRecursive(FilesToCopy, *AbsoluteSrcDir, *Pattern, /*Files=*/true, /*Directories=*/false, /*bClearFileNames=*/false );
+	}
 
 	ParallelFor(FilesToCopy.Num(), [&](int32 Index)
 		{

@@ -471,18 +471,18 @@ void FAutomationControllerManager::ReportImageComparisonResult(const FAutomation
 		// Paths in the result are relative to the automation report directory.	
 		LocalFiles.Add(ComparisonFileTypes::Unapproved, FPaths::Combine(ScreenshotResultsFolder, Result.ReportIncomingFilePath));
 
-		// Don't copy reference and delta if the images are similar.
+		// unapproved should always be valid; but approved/difference may be empty if this is a new screenshot
+		if (Result.ReportComparisonFilePath.Len())
+		{
+			LocalFiles.Add(ComparisonFileTypes::Difference, FPaths::Combine(ScreenshotResultsFolder, Result.ReportComparisonFilePath));
+		}
+
+		// Don't copy reference if the images are similar.
 		if (!Result.bSimilar)
 		{
-			// unapproved should always be valid. but approved/difference may be empty if this is a new screenshot
 			if (Result.ReportIncomingFilePath.Len())
 			{
 				LocalFiles.Add(ComparisonFileTypes::Approved, FPaths::Combine(ScreenshotResultsFolder, Result.ReportApprovedFilePath));
-			}
-
-			if (Result.ReportComparisonFilePath.Len())
-			{
-				LocalFiles.Add(ComparisonFileTypes::Difference, FPaths::Combine(ScreenshotResultsFolder, Result.ReportComparisonFilePath));
 			}
 		}
 
@@ -631,8 +631,6 @@ void FAutomationControllerManager::CollectTestResults(TSharedPtr<IAutomationRepo
 			TArray<FString> Keys;
 			Artifact.LocalFiles.GetKeys(Keys);
 
-			bool bOnlyUnapproved = Keys.Num() == 1 && Keys[0] == ComparisonFileTypes::Unapproved;
-
 			ParallelFor(Keys.Num(), [&](int32 Index)
 				{
 					const FString& Key = Keys[Index];
@@ -643,10 +641,11 @@ void FAutomationControllerManager::CollectTestResults(TSharedPtr<IAutomationRepo
 						FScopeLock Lock(&CS);
 						Artifact.Files.Add(Key, MoveTemp(Path));
 					}
-					if (Key == ComparisonFileTypes::Unapproved && Artifact.Type == EAutomationArtifactType::Comparison)
+					if (Artifact.Type == EAutomationArtifactType::Comparison && Key == ComparisonFileTypes::Unapproved)
 					{
-						// Copy screenshot report
-						FScreenshotExportResult ExportResult = ScreenshotManager->ExportScreenshotComparisonResult(Artifact.Name, ArtifactExportPath, bOnlyUnapproved);
+						// Trigger the copy of screenshot comparison artifacts only once, using 'Unapproved' key file as cue (since it is always generated)
+						bool bOnlyGeneratedFiles = Keys.Num() < 3;
+						FScreenshotExportResult ExportResult = ScreenshotManager->ExportScreenshotComparisonResult(Artifact.Name, ArtifactExportPath, bOnlyGeneratedFiles);
 
 						FScopeLock Lock(&CS);
 						if (!JsonTestPassResults.ComparisonExported && ExportResult.Success)
@@ -996,8 +995,9 @@ void FAutomationControllerManager::ProcessResults()
 
 		FAutomatedTestPassResults SerializedPassResults = JsonTestPassResults;
 
-		{ 
-			// Sort result by failure to improve readability
+		if (FParse::Param(FCommandLine::Get(), TEXT("SortTestsByFailure")))
+		{
+			// Sort result by failure to improve readability (disabled by default)
 			SerializedPassResults.Tests.StableSort([](const FAutomatedTestResult& A, const FAutomatedTestResult& B) {
 				if (A.GetErrorTotal() > 0)
 				{
