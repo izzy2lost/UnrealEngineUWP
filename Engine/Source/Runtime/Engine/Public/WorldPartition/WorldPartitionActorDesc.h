@@ -354,7 +354,8 @@ public:
 	{
 		Guid,
 		Compact,
-		Full
+		Full,
+		ForDiff
 	};
 
 	ENGINE_API FString ToString(EToStringMode Mode = EToStringMode::Compact) const;
