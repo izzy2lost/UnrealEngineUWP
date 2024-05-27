@@ -2,7 +2,6 @@
 
 using UnrealBuildTool;
 
-[SupportedPlatforms("Win64", "PS5")]
 public class PlainProps : ModuleRules
 {
 	public PlainProps(ReadOnlyTargetRules Target) : base(Target)

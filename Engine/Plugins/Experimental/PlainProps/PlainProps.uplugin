@@ -7,10 +7,14 @@
 	"CreatedByURL" : "https://epicgames.com",
 	"EnabledByDefault" : false,
 	"IsExperimentalVersion": true,
+	"SupportedTargetPlatforms": [
+		"Win64"
+	],
 	"Modules": [
 		{
 			"Name" : "PlainProps",
-			"Type" : "Runtime"
+			"Type" : "Runtime",
+			"PlatformAllowList": [ "Win64" ]
 		}
 	]
 }
