@@ -60,6 +60,13 @@ static TAutoConsoleVariable<float> CVarNaniteTransformBufferDefragLowWaterMark(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<bool> CVarSkinningTransformProviders(
+	TEXT("r.Skinning.TransformProviders"),
+	true,
+	TEXT("When set, transform providers are enabled (if registered)."),
+	ECVF_RenderThreadSafe
+);
+
 BEGIN_SHADER_PARAMETER_STRUCT(FNaniteSkinningParameters, RENDERER_API)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, SkinningHeaders)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, BoneHierarchy)
@@ -68,6 +75,46 @@ BEGIN_SHADER_PARAMETER_STRUCT(FNaniteSkinningParameters, RENDERER_API)
 END_SHADER_PARAMETER_STRUCT()
 
 DECLARE_SCENE_UB_STRUCT(FNaniteSkinningParameters, NaniteSkinning, RENDERER_API)
+
+// Reference pose transform provider
+struct FTransformBlockHeader
+{
+	uint32 BlockLocalIndex;
+	uint32 BlockTransformCount;
+	uint32 BlockTransformOffset;
+};
+
+class FRefPoseTransformProviderCS : public FGlobalShader
+{
+public:
+	static constexpr uint32 TransformsPerGroup = 64u;
+
+private:
+	DECLARE_GLOBAL_SHADER(FRefPoseTransformProviderCS);
+	SHADER_USE_PARAMETER_STRUCT(FRefPoseTransformProviderCS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, TransformBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FTransformBlockHeader>, HeaderBuffer)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return true;
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.CompilerFlags.Add(CFLAG_WarningsAsErrors);
+		OutEnvironment.CompilerFlags.Add(CFLAG_HLSL2021);
+
+		OutEnvironment.SetDefine(TEXT("TRANSFORMS_PER_GROUP"), TransformsPerGroup);
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FRefPoseTransformProviderCS, "/Engine/Private/Skinning/TransformProviders.usf", "RefPoseProviderCS", SF_Compute);
 
 // TODO: Nanite-Skinning [Need to safely populate UpdateList - for now we can defrag and full re-upload to GPU scene every frame]
 #define NANITE_SKINNING_WIP 1
@@ -98,6 +145,14 @@ void FSkinningSceneExtension::InitExtension(FScene& InScene)
 	// Determine if we want to be initially enabled or disabled
 	const bool bNaniteEnabled = UseNanite(GetFeatureLevelShaderPlatform(InScene.GetFeatureLevel()));
 	SetEnabled(bNaniteEnabled);
+
+	// Register reference pose transform provider
+	if (auto TransformProvider = Scene->GetExtensionPtr<FSkinningTransformProvider>())
+	{
+		RefPoseProvider = TransformProvider->RegisterProvider(
+			FSkinningTransformProvider::FOnProvideTransforms::CreateRaw(this, &FSkinningSceneExtension::ProvideRefPoseTransforms)
+		);
+	}
 }
 
 ISceneExtensionUpdater* FSkinningSceneExtension::CreateUpdater()
@@ -199,6 +254,38 @@ void FSkinningSceneExtension::FinishSkinningBufferUpload(
 		BoneHierarchyBuffer		= Buffers->BoneHierarchyBuffer.ResizeBufferIfNeeded(GraphBuilder, MinHierarchyDataSize);
 		BoneObjectSpaceBuffer	= Buffers->BoneObjectSpaceBuffer.ResizeBufferIfNeeded(GraphBuilder, MinObjectSpaceDataSize);
 		TransformBuffer			= Buffers->TransformDataBuffer.ResizeBufferIfNeeded(GraphBuilder, MinTransformDataSize);
+	}
+
+	if (auto TransformProvider = Scene->GetExtensionPtr<FSkinningTransformProvider>())
+	{
+		const uint32 IndirectionCount = HeaderData.Num();
+		if (IndirectionCount > 0 && CVarSkinningTransformProviders.GetValueOnRenderThread())
+		{
+			FPrimitiveSceneInfo** Primitives = GraphBuilder.AllocPODArray<FPrimitiveSceneInfo*>(HeaderData.Num());
+			FUintVector2* PrimitiveIndices = GraphBuilder.AllocPODArray<FUintVector2>(IndirectionCount);
+
+			uint32 PrimitiveIndex = 0;
+			for (typename TSparseArray<FHeaderData>::TConstIterator It(HeaderData); It; ++It)
+			{
+				const FHeaderData& Header = *It;
+				Primitives[PrimitiveIndex] = Header.PrimitiveSceneInfo;
+				// TODO: Per-provider indices
+				PrimitiveIndices[PrimitiveIndex] = FUintVector2(PrimitiveIndex, Header.TransformBufferOffset * sizeof(FMatrix3x4));
+				++PrimitiveIndex;
+			}
+
+			TConstArrayView<FPrimitiveSceneInfo*> PrimitivesView(Primitives, HeaderData.Num());
+			TConstArrayView<FUintVector2> IndiciesView(PrimitiveIndices, IndirectionCount);
+
+			FSkinningTransformProvider::FProviderContext Context(
+				PrimitivesView,
+				IndiciesView,
+				GraphBuilder,
+				TransformBuffer
+			);
+
+			TransformProvider->Broadcast(Context);
+		}
 	}
 
 	if (OutParams != nullptr)
@@ -647,9 +734,13 @@ void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& Gra
 			}
 		};
 
-		auto UploadTransformData = [this](const FHeaderData& Data)
+		auto UploadTransformData = [this](const FHeaderData& Data, bool bProvidersEnabled)
 		{
 			auto SkinnedProxy = static_cast<const Nanite::FSkinnedSceneProxy*>(Data.PrimitiveSceneInfo->Proxy);
+			if (bProvidersEnabled && SkinnedProxy->GetTransformProviderId().IsValid())
+			{
+				return;
+			}
 
 			check(SceneData->Uploader.IsValid());
 			auto UploadData = SceneData->Uploader->TransformDataUploader.AddMultiple_GetRef(
@@ -717,11 +808,13 @@ void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& Gra
 		SceneData->TaskHandles[UploadTransformDataTask] = GraphBuilder.AddSetupTask(
 			[this, UploadTransformData]
 			{
+				const bool bProvidersEnabled = CVarSkinningTransformProviders.GetValueOnRenderThread();
+
 				if (bForceFullUpload)
 				{
 					for (auto& Data : SceneData->HeaderData)
 					{
-						UploadTransformData(Data);
+						UploadTransformData(Data, bProvidersEnabled);
 					}
 				}
 				else
@@ -729,7 +822,7 @@ void FSkinningSceneExtension::FUpdater::FinalizeSkinningUploads(FRDGBuilder& Gra
 					for (auto PrimitiveSceneInfo : UpdateList)
 					{
 						const int32 PersistentIndex = PrimitiveSceneInfo->GetPersistentIndex().Index;
-						UploadTransformData(SceneData->HeaderData[PersistentIndex]);
+						UploadTransformData(SceneData->HeaderData[PersistentIndex], bProvidersEnabled);
 					}
 				}
 			},
@@ -752,7 +845,6 @@ void FSkinningSceneExtension::FRenderer::UpdateSceneUniformBuffer(
 )
 {
 	check(SceneData->IsEnabled());
-
 	FNaniteSkinningParameters Parameters;
 	SceneData->FinishSkinningBufferUpload(GraphBuilder, &Parameters);
 	SceneUniformBuffer.Set(SceneUB::NaniteSkinning, Parameters);
@@ -774,6 +866,87 @@ void FSkinningSceneExtension::GetSkinnedPrimitives(TArray<FPrimitiveSceneInfo*>&
 		const FHeaderData& Header = *It;
 		OutPrimitives.Add(Header.PrimitiveSceneInfo);
 	}
+}
+
+void FSkinningSceneExtension::ProvideRefPoseTransforms(FSkinningTransformProvider::FProviderContext& Context)
+{
+	const uint32 TransformsPerGroup = FRefPoseTransformProviderCS::TransformsPerGroup;
+
+	// TODO: Optimize further
+
+	uint32 BlockCount = 0;
+	for (const FUintVector2& Indirection : Context.PrimitiveIndices)
+	{
+		const FPrimitiveSceneInfo* Primitive = Context.Primitives[Indirection.X];
+		auto* SkinnedProxy = static_cast<Nanite::FSkinnedSceneProxy*>(Primitive->Proxy);
+		const uint32 TransformCount = SkinnedProxy->GetMaxBoneTransformCount();
+		const uint32 AnimationCount = SkinnedProxy->GetUniqueAnimationCount();
+		BlockCount += FMath::DivideAndRoundUp(TransformCount * AnimationCount, TransformsPerGroup);
+	}
+
+	if (BlockCount == 0)
+	{
+		return;
+	}
+
+	FRDGBuilder& GraphBuilder = Context.GraphBuilder;
+	FTransformBlockHeader* BlockHeaders = GraphBuilder.AllocPODArray<FTransformBlockHeader>(BlockCount);
+
+	uint32 BlockWrite = 0;
+	for (const FUintVector2& Indirection : Context.PrimitiveIndices)
+	{
+		const FPrimitiveSceneInfo* Primitive = Context.Primitives[Indirection.X];
+		auto* SkinnedProxy = static_cast<Nanite::FSkinnedSceneProxy*>(Primitive->Proxy);
+		const uint32 TransformCount = SkinnedProxy->GetMaxBoneTransformCount();
+		const uint32 AnimationCount = SkinnedProxy->GetUniqueAnimationCount();
+		const uint32 TotalTransformCount = TransformCount * AnimationCount;
+
+		uint32 TransformWrite = Indirection.Y;
+
+		const uint32 FullBlockCount = TotalTransformCount / TransformsPerGroup;
+		for (uint32 BlockIndex = 0; BlockIndex < FullBlockCount; ++BlockIndex)
+		{
+			BlockHeaders[BlockWrite].BlockLocalIndex = BlockIndex;
+			BlockHeaders[BlockWrite].BlockTransformCount = TransformsPerGroup;
+			BlockHeaders[BlockWrite].BlockTransformOffset = TransformWrite;
+			++BlockWrite;
+
+			TransformWrite += (TransformsPerGroup * 2 * sizeof(FMatrix3x4));
+		}
+
+		const uint32 PartialTransformCount = TotalTransformCount - (FullBlockCount * TransformsPerGroup);
+		if (PartialTransformCount > 0)
+		{
+			BlockHeaders[BlockWrite].BlockLocalIndex = FullBlockCount;
+			BlockHeaders[BlockWrite].BlockTransformCount = PartialTransformCount;
+			BlockHeaders[BlockWrite].BlockTransformOffset = TransformWrite;
+			++BlockWrite;
+		}
+	}
+
+	FRDGBufferRef BlockHeaderBuffer = CreateStructuredBuffer(
+		GraphBuilder,
+		TEXT("Skinning.RefPoseHeaders"),
+		sizeof(FTransformBlockHeader),
+		FMath::RoundUpToPowerOfTwo(FMath::Max(BlockCount, 1u)),
+		BlockHeaders,
+		sizeof(FTransformBlockHeader) * BlockCount,
+		// The buffer data is allocated above on the RDG timeline
+		ERDGInitialDataFlags::NoCopy
+	);
+
+	FRefPoseTransformProviderCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FRefPoseTransformProviderCS::FParameters>();
+	PassParameters->TransformBuffer = GraphBuilder.CreateUAV(Context.TransformBuffer);
+	PassParameters->HeaderBuffer = GraphBuilder.CreateSRV(BlockHeaderBuffer);
+
+	auto ComputeShader = GetGlobalShaderMap(GMaxRHIFeatureLevel)->GetShader<FRefPoseTransformProviderCS>();
+	FComputeShaderUtils::AddPass(
+		GraphBuilder,
+		RDG_EVENT_NAME("RefPoseProvider"),
+		ComputeShader,
+		PassParameters,
+		FIntVector(BlockCount, 1, 1)
+	);
 }
 
 } // Nanite

@@ -707,6 +707,11 @@ public:
 		return bHasScale;
 	}
 
+	inline const FGuid& GetTransformProviderId() const
+	{
+		return TransformProviderId;
+	}
+
 	// TODO: TEMP - Move to shared location with GPU
 	inline uint32 GetObjectSpaceFloatCount() const
 	{
@@ -729,6 +734,8 @@ protected:
 
 	TArray<uint32> BoneHierarchy;
 	TArray<float> BoneObjectSpace;
+
+	FGuid TransformProviderId;
 
 	bool bHasScale = false;
 

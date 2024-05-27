@@ -6,9 +6,12 @@
 #include "SpanAllocator.h"
 #include "Containers/Map.h"
 #include "SceneExtensions.h"
+#include "Skinning/SkinningTransformProvider.h"
 #include "NaniteDefinitions.h"
 #include "RendererPrivateUtils.h"
 #include "Matrix3x4.h"
+#include "Delegates/DelegateCombinations.h"
+#include "Delegates/Delegate.h"
 
 class FNaniteSkinningParameters;
 
@@ -149,6 +152,10 @@ private:
 	TUniquePtr<FBuffers> Buffers;
 	TUniquePtr<FUploader> Uploader;
 	TStaticArray<UE::Tasks::FTask, NumTasks> TaskHandles;
+
+	FGuid RefPoseProvider;
+
+	void ProvideRefPoseTransforms(FSkinningTransformProvider::FProviderContext& Context);
 };
 
 } // namespace Nanite
