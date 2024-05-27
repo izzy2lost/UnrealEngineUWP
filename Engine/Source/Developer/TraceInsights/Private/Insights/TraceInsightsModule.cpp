@@ -258,10 +258,10 @@ void FTraceInsightsModule::CreateSessionBrowser(const FCreateSessionBrowserParam
 		static_cast<float>(DisplayMetrics.PrimaryDisplayWorkAreaRect.Left),
 		static_cast<float>(DisplayMetrics.PrimaryDisplayWorkAreaRect.Top));
 
-	const FVector2D ClientSize(960.0f * DPIScaleFactor, 640.0f * DPIScaleFactor);
+	const FVector2D ClientSize(1280.0f * DPIScaleFactor, 720.0f * DPIScaleFactor);
 
 	TSharedRef<SWindow> RootWindow = SNew(SWindow)
-		.Title(NSLOCTEXT("TraceInsightsModule", "UnrealInsightsBrowserAppName", "Unreal Insights Session Browser"))
+		.Title(NSLOCTEXT("TraceInsightsModule", "UnrealInsightsBrowserAppName", "Unreal Insights Frontend"))
 		.CreateTitleBar(!bEmbedTitleAreaContent)
 		.SupportsMaximize(true)
 		.SupportsMinimize(true)
@@ -488,7 +488,6 @@ void FTraceInsightsModule::UnregisterMajorTabConfig(const FName& InMajorTabId)
 {
 	TabConfigs.Remove(InMajorTabId);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
