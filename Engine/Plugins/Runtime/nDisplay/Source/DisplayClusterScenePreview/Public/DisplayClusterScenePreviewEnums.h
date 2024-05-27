@@ -11,10 +11,16 @@ enum class EDisplayClusterScenePreviewFlags : uint8
 {
 	None = 0,
 
-	/** If true, use DCRA proxy for rendering. */
+	/** Use DCRA proxy for rendering. */
 	UseRootActorProxy = 1 << 0,
 
-	/** If true, automatically update the renderer with stage actors belonging to the root actor. */
-	AutoUpdateLightcards = 1 << 1,
+	/** Automatically update the renderer with stage actors belonging to the RootActor in scene. */
+	AutoUpdateStageActors = 1 << 1,
+
+	/* Move the RootActorProxy to the same position as RootActor in the scene to match the position of the StageActors in world space. */
+	ProxyFollowSceneRootActor = 1 << 2,
+
+	/** The proxy always calls the TickPreviewRenderer() function. */
+	ProxyTickPreviewRenderer= 1 << 3,
 };
 ENUM_CLASS_FLAGS(EDisplayClusterScenePreviewFlags);

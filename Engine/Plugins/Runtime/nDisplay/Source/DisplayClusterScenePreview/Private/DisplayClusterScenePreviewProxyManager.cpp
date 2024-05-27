@@ -1,46 +1,95 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DisplayClusterScenePreviewProxyManager.h"
-
 #include "Components/DisplayClusterStageGeometryComponent.h"
+#include "Engine/World.h"
 
 FDisplayClusterScenePreviewProxyManager::~FDisplayClusterScenePreviewProxyManager()
 {
+	Release();
+}
+
+void FDisplayClusterScenePreviewProxyManager::Release()
+{
+	TickableGameObject.Reset();
+	RendererProxies.Empty();
+
 	DestroyPreviewWorld();
 }
 
 void FDisplayClusterScenePreviewProxyManager::CreatePreviewWorld()
 {
-#if WITH_EDITOR
-	if (!PreviewWorld)
+	if (IsValid(PreviewWorld))
 	{
-		PreviewWorld = UWorld::CreateWorld(EWorldType::None, false);
+		// Preview world already exists.
+		return;
+	}
 
-		FWorldContext& WorldContext = GEngine->CreateNewWorldContext(EWorldType::None);
+#if WITH_EDITOR
+	if (IsValid(GEngine))
+	{
+		PreviewWorld = NewObject<UWorld>(GetTransientPackage(), TEXT("DisplayClusterScenePreview"), RF_NoFlags);
+		PreviewWorld->WorldType = EWorldType::EditorPreview;
+
+		FWorldContext& WorldContext = GEngine->CreateNewWorldContext(PreviewWorld->WorldType);
 		WorldContext.SetCurrentWorld(PreviewWorld);
+
+		PreviewWorld->InitializeNewWorld(UWorld::InitializationValues()
+			.AllowAudioPlayback(false)
+			.CreatePhysicsScene(false)
+			.RequiresHitProxies(true) // Only Need hit proxies in an editor scene
+			.CreateNavigation(false)
+			.CreateAISystem(false)
+			.ShouldSimulatePhysics(false)
+			.SetTransactional(false));
 	}
 #endif
 }
 
 void FDisplayClusterScenePreviewProxyManager::DestroyPreviewWorld()
 {
-#if WITH_EDITOR
-	if (PreviewWorld)
-	{
-		GEngine->DestroyWorldContext(PreviewWorld);
-		PreviewWorld->DestroyWorld(false);
-	}
-#endif
-
+	UWorld* LocalPreviewWorld = IsValid(PreviewWorld) ? PreviewWorld : nullptr;
 	PreviewWorld = nullptr;
+
+	if (IsValid(LocalPreviewWorld) && IsValid(GEngine))
+	{
+		LocalPreviewWorld->CleanupWorld();
+		GEngine->DestroyWorldContext(LocalPreviewWorld);
+
+		// Release PhysicsScene for fixing big fbx importing bug
+		LocalPreviewWorld->ReleasePhysicsScene();
+	}
 }
 
-void FDisplayClusterScenePreviewProxyManager::Tick(float DeltaTime)
+void FDisplayClusterScenePreviewProxyManager::AddReferencedObjects(FReferenceCollector& Collector)
 {
+	Collector.AddReferencedObject(PreviewWorld);
+}
+
+FString FDisplayClusterScenePreviewProxyManager::GetReferencerName() const
+{
+	return TEXT("FDisplayClusterScenePreviewProxyManager");
+}
+
+void FDisplayClusterScenePreviewProxyManager::TickPreviewWorld(float DeltaTime)
+{
+#if WITH_EDITOR
 	if (PreviewWorld)
 	{
 		PreviewWorld->Tick(ELevelTick::LEVELTICK_All, DeltaTime);
 	}
+#endif
+}
+
+void FDisplayClusterScenePreviewProxyManager::OnTick(float DeltaTime)
+{
+#if WITH_EDITOR
+	// Tick all proxy root actors.
+	for(const TPair<int32, FRendererProxy>& RendererProxyIt : RendererProxies)
+	{
+		RendererProxyIt.Value.TickProxyRootActor();
+	}
+#endif
 }
 
 ADisplayClusterRootActor* FDisplayClusterScenePreviewProxyManager::CreateRootActorProxy(int32 RendererId, ADisplayClusterRootActor* SceneRootActor)
@@ -49,6 +98,8 @@ ADisplayClusterRootActor* FDisplayClusterScenePreviewProxyManager::CreateRootAct
 	{
 		return nullptr;
 	}
+
+	check(IsValid(SceneRootActor));
 
 	ADisplayClusterRootActor* RootActorProxy = nullptr;
 
@@ -64,7 +115,8 @@ ADisplayClusterRootActor* FDisplayClusterScenePreviewProxyManager::CreateRootAct
 	FObjectDuplicationParameters DupeActorParameters(SceneRootActor, PreviewWorld->GetCurrentLevel());
 	DupeActorParameters.FlagMask = RF_AllFlags & ~(RF_ArchetypeObject | RF_Transactional); // Keeps archetypes correct in config data.
 	DupeActorParameters.PortFlags = PPF_DuplicateVerbatim;
-	DupeActorParameters.DestName = FName(FString::Printf(TEXT("Preview%i_%s"), RendererId, *SceneRootActor->GetName()));
+	static int32 UniqueIndex = 0;
+	DupeActorParameters.DestName = FName(FString::Printf(TEXT("Preview-%s-%d-%d"), *SceneRootActor->GetName(), RendererId, UniqueIndex++));
 
 	RootActorProxy = CastChecked<ADisplayClusterRootActor>(StaticDuplicateObjectEx(DupeActorParameters));
 
@@ -87,6 +139,12 @@ ADisplayClusterRootActor* FDisplayClusterScenePreviewProxyManager::CreateRootAct
 	RootActorProxy->SetActorLocation(FVector::ZeroVector);
 	RootActorProxy->SetActorRotation(FRotator::ZeroRotator);
 
+	if (UDisplayClusterConfigurationData* ProxyConfig = RootActorProxy->GetConfigData())
+	{
+		// Disable lightcards so that it doesn't try to update the ones in the level instance world.
+		ProxyConfig->StageSettings.Lightcard.bEnable = false;
+	}
+
 	// Set translucency sort priority of root actor proxy primitive components so that actors that are flush with screens are rendered on top of them
 	RootActorProxy->ForEachComponent<UPrimitiveComponent>(false, [](UPrimitiveComponent* InPrimitiveComponent)
 	{
@@ -107,39 +165,56 @@ void FDisplayClusterScenePreviewProxyManager::DestroyRootActorProxy(ADisplayClus
 #endif
 }
 
-void FDisplayClusterScenePreviewProxyManager::SetSceneRootActorForRenderer(int32 RendererId, ADisplayClusterRootActor* SceneRootActor)
+void FDisplayClusterScenePreviewProxyManager::SetSceneRootActorForRenderer(int32 RendererId, ADisplayClusterRootActor* SceneRootActor, EDisplayClusterScenePreviewFlags PreviewFlags)
 {
 	if (RendererProxies.Contains(RendererId))
 	{
 		FRendererProxy& RendererProxy = RendererProxies[RendererId];
 
-		if (RendererProxy.SceneRootActor == SceneRootActor)
+		if (RendererProxy.GetProxyRootActor())
 		{
-			// Re-use existing proxy
-			return;
+			// If the proxy object already exists, check whether the root actor is the same or not.
+			if (RendererProxy.SceneRootActorWeakPtr == SceneRootActor)
+			{
+				// Re-use existing proxy, but update flags
+				RendererProxy.PreviewFlags = PreviewFlags;
+
+				return;
+			}
 		}
 
 		// The root agent has changed, destroy the proxy currently in use.
-		DestroyRootActorProxy(RendererProxy.ProxyRootActor.Get());
+		DestroyRootActorProxy(RendererProxy.GetProxyRootActor());
 
 		RendererProxies.Remove(RendererId);
 	}
 
-	if (ADisplayClusterRootActor* ProxyRootActor = CreateRootActorProxy(RendererId, SceneRootActor))
+	if (IsValid(SceneRootActor))
 	{
-		// Create new proxy
-		FRendererProxy RendererProxy;
-		RendererProxy.SceneRootActor = SceneRootActor;
-		RendererProxy.ProxyRootActor = ProxyRootActor;
+		if (ADisplayClusterRootActor* ProxyRootActor = CreateRootActorProxy(RendererId, SceneRootActor))
+		{
+			// Create new proxy
+			FRendererProxy RendererProxy;
+			RendererProxy.SceneRootActorWeakPtr = SceneRootActor;
+			RendererProxy.ProxyRootActorWeakPtr = ProxyRootActor;
+			RendererProxy.PreviewFlags = PreviewFlags;
 
-		RendererProxies.Emplace(RendererId, RendererProxy);
+			// Update RootActor proxy
+			RendererProxy.TickProxyRootActor();
+
+			RendererProxies.Emplace(RendererId, RendererProxy);
+		}
 	}
 
-
-	// Destroy preview world if not used
+	// Configure a tick callback for existing RendererProxies.
 	if (RendererProxies.IsEmpty())
 	{
-		DestroyPreviewWorld();
+		TickableGameObject.Reset();
+	}
+	else if (!TickableGameObject.IsValid())
+	{
+		TickableGameObject = MakeUnique<FDisplayClusterTickableGameObject >();
+		TickableGameObject->OnTick().AddRaw(this, &FDisplayClusterScenePreviewProxyManager::OnTick);
 	}
 }
 
@@ -147,8 +222,80 @@ ADisplayClusterRootActor* FDisplayClusterScenePreviewProxyManager::GetProxyRootA
 {
 	if (RendererProxies.Contains(RendererId))
 	{
-		return RendererProxies[RendererId].ProxyRootActor.Get();
+		return RendererProxies[RendererId].GetProxyRootActor();
 	}
 
 	return nullptr;
 }
+
+ADisplayClusterRootActor* FDisplayClusterScenePreviewProxyManager::GetSceneRootActor(int32 RendererId) const
+{
+	if (RendererProxies.Contains(RendererId))
+	{
+		if (ADisplayClusterRootActor* SceneRootActor = RendererProxies[RendererId].GetSceneRootActor())
+		{
+			return IsValid(SceneRootActor) ? SceneRootActor : nullptr;
+		}
+	}
+
+	return nullptr;
+}
+
+void FDisplayClusterScenePreviewProxyManager::FRendererProxy::TickProxyRootActor() const
+{
+	if (ADisplayClusterRootActor* ProxyRootActor = GetProxyRootActor())
+	{
+		if (EnumHasAnyFlags(PreviewFlags, EDisplayClusterScenePreviewFlags::ProxyFollowSceneRootActor))
+		{
+			if (ADisplayClusterRootActor* SceneRootActor = GetSceneRootActor())
+			{
+				if (ProxyRootActor != SceneRootActor)
+				{
+					// Move the RootActorProxy to the same position as in the scene to match the position of the LC in world space.
+					if (EnumHasAnyFlags(PreviewFlags, EDisplayClusterScenePreviewFlags::ProxyFollowSceneRootActor))
+					{
+						const FTransform NewTransform = SceneRootActor->GetActorTransform();
+						const FTransform OldTransform = ProxyRootActor->GetActorTransform();
+						if (!NewTransform.Equals(OldTransform, UE_KINDA_SMALL_NUMBER))
+						{
+							ProxyRootActor->SetActorTransform(NewTransform);
+						}
+					}
+				}
+			}
+		}
+
+		// Force preview renderer call for proxy root actor.
+		if (EnumHasAnyFlags(PreviewFlags, EDisplayClusterScenePreviewFlags::ProxyTickPreviewRenderer))
+		{
+			ProxyRootActor->TickPreviewRenderer();
+		}
+	}
+}
+
+ADisplayClusterRootActor* FDisplayClusterScenePreviewProxyManager::FRendererProxy::GetProxyRootActor() const
+{
+	if (ADisplayClusterRootActor* RootActor = ProxyRootActorWeakPtr.Get())
+	{
+		if (IsValid(RootActor))
+		{
+			return RootActor;
+		}
+	}
+
+	return nullptr;
+}
+
+ADisplayClusterRootActor* FDisplayClusterScenePreviewProxyManager::FRendererProxy::GetSceneRootActor() const
+{
+	if (ADisplayClusterRootActor* RootActor = SceneRootActorWeakPtr.Get())
+	{
+		if (IsValid(RootActor))
+		{
+			return RootActor;
+		}
+	}
+
+	return nullptr;
+}
+

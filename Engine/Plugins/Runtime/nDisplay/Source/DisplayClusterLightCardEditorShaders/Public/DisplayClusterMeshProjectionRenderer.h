@@ -159,13 +159,27 @@ public:
 	/** Clears the list of primitives to render */
 	DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API void ClearScene();
 
-	/** Renders its list of primitive components to the specified canvas using the desired projection type. Can be called from the game thread */
+	/**
+	* Renders its list of primitive components to the specified canvas using the desired projection type. Can be called from either the game thread or the rendering thread.
+	*/
 	DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API void Render(FCanvas* Canvas, FSceneInterface* Scene, const FDisplayClusterMeshProjectionRenderSettings& RenderSettings);
+
+	/**
+	* Renders its list of primitive components to the specified canvas using the desired projection type. Can be called from either the game thread or the rendering thread.
+	* Render scene by scene
+	*/
+	DISPLAYCLUSTERLIGHTCARDEDITORSHADERS_API void RenderScenes(FCanvas* Canvas, const TArray<FSceneInterface*>& Scenes, const FDisplayClusterMeshProjectionRenderSettings& RenderSettings);
 
 private:
 	/** Constructs the necessary render passes for the default output of the rendered primitives */
 	void RenderColorOutput(FRDGBuilder& GraphBuilder,
 		const FSceneView* View,
+		const FDisplayClusterMeshProjectionRenderSettings& RenderSettings,
+		FRenderTargetBinding& OutputRenderTargetBinding);
+
+	/** Constructs the necessary render passes for the default output of the rendered primitives */
+	void RenderColorOutputs(FRDGBuilder& GraphBuilder,
+		const TArray<const FSceneView*>& Views,
 		const FDisplayClusterMeshProjectionRenderSettings& RenderSettings,
 		FRenderTargetBinding& OutputRenderTargetBinding);
 

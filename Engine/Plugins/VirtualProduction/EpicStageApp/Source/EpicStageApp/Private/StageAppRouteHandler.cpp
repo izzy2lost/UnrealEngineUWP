@@ -176,13 +176,13 @@ void FStageAppRouteHandler::FPerRendererData::SetPreviewSettings(const FRCWebSoc
 
 bool FStageAppRouteHandler::FPerRendererData::GetSceneViewInitOptions(FSceneViewInitOptions& ViewInitOptions, bool bApplyActorRotation)
 {
-	ADisplayClusterRootActor* RootActor = GetRootActor();
-	if (!RootActor)
+	ADisplayClusterRootActor* RootActorProxy = GetRootActorProxy();
+	if (!RootActorProxy)
 	{
 		return false;
 	}
 
-	USceneComponent* ViewOriginComponent = RootActor->GetCommonViewPoint();
+	USceneComponent* ViewOriginComponent = RootActorProxy->GetCommonViewPoint();
 	if (!ViewOriginComponent)
 	{
 		return false;
@@ -201,7 +201,7 @@ bool FStageAppRouteHandler::FPerRendererData::GetSceneViewInitOptions(FSceneView
 	{
 		if (bApplyActorRotation)
 		{
-			Rotation = FRotator(RootActor->GetActorRotation().Quaternion() * PreviewSettings.Rotation.Quaternion());
+			Rotation = FRotator(RootActorProxy->GetActorRotation().Quaternion() * PreviewSettings.Rotation.Quaternion());
 		}
 		else
 		{
@@ -397,6 +397,13 @@ void FStageAppRouteHandler::RegisterRoute(TUniquePtr<FRemoteControlWebsocketRout
 	Routes.Emplace(MoveTemp(Route));
 }
 
+ADisplayClusterRootActor* FStageAppRouteHandler::FPerRendererData::GetRootActorProxy() const
+{
+	// In this application we will always use RootActorProxy, so the function below will always return a proxy.
+	// (see EDisplayClusterScenePreviewFlags::UseRootActorProxy flag)
+	return IDisplayClusterScenePreview::Get().GetRendererRootActorOrProxy(RendererId);
+}
+
 void FStageAppRouteHandler::SetRendererRootActorPath(const int32 RendererId, const FString& RootActorPath)
 {
 	// Use custom settings for root actor.
@@ -417,8 +424,12 @@ void FStageAppRouteHandler::SetRendererRootActorPath(const int32 RendererId, con
 		// When we use preview rendering for an external request with settings different from those used in the scene,
 		// need to create a new DCRA actor and use it as a proxy for custom rendering.
 		EDisplayClusterScenePreviewFlags::UseRootActorProxy
-		// and also continue to use the bAutoUpdateLightcards flag from the previous revision.
-		| EDisplayClusterScenePreviewFlags::AutoUpdateLightcards
+		// Move the RootActorProxy to the same position as in the scene to match the position of the StageActors in world space.
+		| EDisplayClusterScenePreviewFlags::ProxyFollowSceneRootActor
+		// Also proxy must render preview each frame
+		| EDisplayClusterScenePreviewFlags::ProxyTickPreviewRenderer
+		// Automatically update the renderer with stage actors belonging to the root actor in scene.
+		| EDisplayClusterScenePreviewFlags::AutoUpdateStageActors
 	);
 }
 

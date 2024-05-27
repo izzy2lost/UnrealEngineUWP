@@ -1058,6 +1058,18 @@ void ADisplayClusterRootActor::Tick(float DeltaSeconds)
 		}
 	}
 
+	TickPreviewRenderer();
+
+	SetLightCardOwnership();
+
+	Super::Tick(DeltaSeconds);
+}
+
+void ADisplayClusterRootActor::TickPreviewRenderer()
+{
+	const bool bIsPrimaryRootActor = IsPrimaryRootActor();
+	const bool bIsRunningDisplayCluster = IsRunningDisplayCluster();
+
 	// Get preview settings from the this actor current source
 	// as they may already be configured externally, so just get the preview settings from the current source
 	FDisplayClusterViewport_PreviewSettings NewPreviewSettings = GetPreviewSettings();
@@ -1138,10 +1150,6 @@ void ADisplayClusterRootActor::Tick(float DeltaSeconds)
 
 	// Update RootActor visibility for game
 	SetActorHiddenInGame(!bEnablePreviewInScene);
-
-	SetLightCardOwnership();
-
-	Super::Tick(DeltaSeconds);
 }
 
 FDisplayClusterViewport_PreviewSettings ADisplayClusterRootActor::GetPreviewSettings(bool bIgnorePreviewSetttingsSource) const

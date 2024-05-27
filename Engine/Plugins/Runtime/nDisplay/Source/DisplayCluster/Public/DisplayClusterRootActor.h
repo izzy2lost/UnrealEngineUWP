@@ -119,6 +119,9 @@ public:
 	const FDisplayClusterConfigurationICVFX_StageSettings& GetStageSettings() const;
 	const FDisplayClusterConfigurationRenderFrame& GetRenderFrameSettings() const;
 
+	/** The Tick() function that calls the preview renderer for this root actor. */
+	void TickPreviewRenderer();
+
 	/** Returns the current rendering mode of this DCRA (not a value from configuration).
 	 * This value can be overridden from DCRenderDevice or other rendering subsystems (e.g. Preview).
 	 */

@@ -82,6 +82,50 @@ void FDisplayClusterViewportManagerPreview::OnPreviewRenderTick()
 		return;
 	}
 
+	// Special case for RootActorProxy object (proxy always refers to external DCRA in the scene)
+	ADisplayClusterRootActor* RootActorProxy = Configuration->GetRootActor(EDisplayClusterRootActorType::Preview);
+	if (RootActorProxy != SceneRootActor)
+	{
+		// Since this DCRA is a proxy and the DCRA on the scene is a separate object,
+		// it does not pass component positions and properties from the scene to the proxy.
+		// When the cluster preview was rendered for RootActorProxy, the component properties from
+		// the scene were already retrieved via the EDisplayClusterRootActorType::Scene reference.
+		// This was done via a link to the RootActor in the scene, which means the RootActorProxy components did not change.
+		// But RootActorProxy is used in custom preview rendering, meaning it uses its own mesh components,
+		// so their positions must be synchronized with the scene components.
+		//
+		// Move the RootActorProxy components to the same relative position as the components inside the RootActor in the scene.
+		RootActorProxy->ForEachComponent<UPrimitiveComponent>(true, [&](UPrimitiveComponent* ProxyComponent)
+			{
+				if (!IsValid(ProxyComponent))
+				{
+					return;
+				}
+
+				SceneRootActor->ForEachComponent<UPrimitiveComponent>(true, [&](UPrimitiveComponent* SceneComponent)
+					{
+						if (!IsValid(SceneComponent))
+						{
+							return;
+						}
+
+						const FName SceneComponentName = SceneComponent->GetFName();
+						const FName ProxyComponentName = ProxyComponent->GetFName();
+
+						// Propagate the component transformation from the scene to the proxy.
+						if (SceneComponentName == ProxyComponentName)
+						{
+							const FTransform NewRelativeTransform = SceneComponent->GetRelativeTransform();
+							const FTransform OldRelativeTransform = ProxyComponent->GetRelativeTransform();
+							if (!NewRelativeTransform.Equals(OldRelativeTransform, UE_KINDA_SMALL_NUMBER))
+							{
+								ProxyComponent->SetRelativeTransform(NewRelativeTransform);
+							}
+						}
+					});
+			});
+	}
+
 	const FDisplayClusterRenderFrameSettings& RenderFrameSetting = Configuration->GetRenderFrameSettings();
 
 	// Update preview RTTs correspond to 'TickPerFrame' value

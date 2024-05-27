@@ -90,6 +90,13 @@ public:
 	virtual ADisplayClusterRootActor* GetRendererRootActor(int32 RendererId) = 0;
 
 	/**
+	 * Get the root actor (or its proxy) of a renderer.
+	 *
+	 * @param RendererId The ID of the renderer as returned from CreateRenderer.
+	 */
+	virtual ADisplayClusterRootActor* GetRendererRootActorOrProxy(int32 RendererId) = 0;
+
+	/**
 	 * Get a list of all actors that have been added to a renderer's scene.
 	 * This includes any actors that the renderer automatically added to itself.
 	 *

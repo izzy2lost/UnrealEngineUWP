@@ -38,6 +38,18 @@ public:
 		return !ActorClassName.IsEmpty() && !ActorName.IsNone();
 	}
 
+	/** Returns the current weak ptr of the scene actor object. */
+	const TWeakObjectPtr<AActor> GetSceneActorWeakPtr() const
+	{
+		FScopeLock lock(&DataGuard);
+		if (!IsDefinedSceneActor())
+		{
+			return nullptr;
+		}
+
+		return ActorPtr;
+	}
+
 	// Return actor object ptr.
 	// For killed object ptr, reset and find actor new object ptr by name and save to [mutable] ActorPtr
 	AActor* GetOrFindSceneActor() const
@@ -119,7 +131,8 @@ private:
 			UWorld* CurrentWorld = nullptr;
 
 #if WITH_EDITOR
-			if (GIsEditor)
+			// Prevent a crash when exiting the UE application and calling this function after deleting GEditor.
+			if (GIsEditor && IsValid(GEditor))
 			{
 				CurrentWorld = GEditor->GetEditorWorldContext().World();
 			}
@@ -127,12 +140,13 @@ private:
 #endif
 			if (UGameEngine* GameEngine = Cast<UGameEngine>(GEngine))
 			{
-				CurrentWorld = GameEngine->GetGameWorld();
+				CurrentWorld = IsValid(GameEngine) ? GameEngine->GetGameWorld() : nullptr;
 			}
 
-			if (!CurrentWorld)
+			if (!IsValid(CurrentWorld))
 			{
 				WorldPtr.Reset();
+
 				return false;
 			}
 

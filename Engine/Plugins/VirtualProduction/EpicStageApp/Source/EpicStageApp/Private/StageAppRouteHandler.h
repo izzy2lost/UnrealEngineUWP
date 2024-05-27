@@ -62,8 +62,19 @@ private:
 		/** Get the highest sequence number received from the client during a drag operation. */
 		int64 GetDragSequenceNumber() const;
 
-		/** Get the root actor used for previews. */
+		/** Get DCRA from the scene that is used to render preview. */
 		ADisplayClusterRootActor* GetRootActor() const;
+
+		/** Get the RootActorProxy that is used for rendering to the final texture.
+		* 
+		* This actor is used because of special rendering rules that differ from the RootActor settings in the scene,
+		* which requires a separate RootActor instance to be created.
+		* For example:
+		* - DCRA in a scene may have settings that disable preview rendering (or even freeze it). But this app will always force this feature.
+		* - An app can have custom DisplayDevice settings. However, the DCRA of the scene cannot be modified on this side.
+		* - The app can have custom preview settings, such as "PreviewSceeenPercentage," to set its own image quality, etc.
+		*/
+		ADisplayClusterRootActor* GetRootActorProxy() const;
 
 	private:
 		/** Update LightCardHelper's settings based on the ones stored in PreviewSettings. */
