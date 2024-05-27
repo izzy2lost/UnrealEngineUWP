@@ -83,6 +83,7 @@ private:
 	/** Note not currently static due to dependencies */
 	bool TryReadChildProcessInputFile(const FString& InputPath);
 	static bool TryWriteChildProcessInputFile(const FGuid& ChildProcessId, const FCommand& Command, const FProject& Project, FStringBuilderBase& OutPath);
+	static void CleanUpChildProcessFiles(const FGuid& ChildProcessId);
 
 
 	static bool LaunchChildProcess(const FCommand& Command, const FProject& Project, FStringView GlobalOptions, TArray<TUniquePtr<FCommandOutput>>& OutputArray);

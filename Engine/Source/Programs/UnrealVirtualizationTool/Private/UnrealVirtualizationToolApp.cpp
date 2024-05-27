@@ -18,9 +18,11 @@
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "Misc/PathViews.h"
+#include "Misc/ScopeExit.h"
 #include "Modules/ModuleManager.h"
 #include "ProcessUtilities.h"
 #include "UnrealVirtualizationTool.h"
+#include "VirtualizationUtilities.h"
 #include "Virtualization/VirtualizationSystem.h"
 
 namespace
@@ -806,6 +808,29 @@ bool FUnrealVirtualizationToolApp::TryWriteChildProcessInputFile(const FGuid& Ch
 	return true;
 }
 
+void FUnrealVirtualizationToolApp::CleanUpChildProcessFiles(const FGuid& ChildProcessId)
+{
+	// Note: A better way to do this would be FILE_FLAG_DELETE_ON_CLOSE  so that the files
+	// are cleaned up when this process is destroyed but we do not currently expose this
+	// sort of functionality.
+
+	const TCHAR* FileExtensions[] = { TEXT("input"), TEXT("output") };
+
+	for (const TCHAR* Extension : FileExtensions)
+	{
+		TStringBuilder<512> FilePath;
+		CreateChildProcessFilePath(ChildProcessId, Extension, FilePath);
+
+		if (!IFileManager::Get().Delete(FilePath.ToString()))
+		{
+			TStringBuilder<MAX_SPRINTF> SystemErrorMsg;
+			UE::Virtualization::Utils::GetFormattedSystemError(SystemErrorMsg);
+
+			UE_LOG(LogVirtualizationTool, Warning, TEXT("Failed to clean up temp file '%s' due to: %s"), FilePath.ToString(), SystemErrorMsg.ToString());
+		}
+	}
+}
+
 bool FUnrealVirtualizationToolApp::LaunchChildProcess(const FCommand& Command, const FProject& Project, FStringView GlobalOptions, TArray<TUniquePtr<FCommandOutput>>& OutputArray)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(LaunchChildProcess);
@@ -820,6 +845,11 @@ bool FUnrealVirtualizationToolApp::LaunchChildProcess(const FCommand& Command, c
 		// No need to log an error here, ::TryWriteChildProcessInputFile will take care of that
 		return false;
 	}
+
+	ON_SCOPE_EXIT
+	{
+		CleanUpChildProcessFiles(ChildProcessId);
+	};
 
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(RunChildProcess);
