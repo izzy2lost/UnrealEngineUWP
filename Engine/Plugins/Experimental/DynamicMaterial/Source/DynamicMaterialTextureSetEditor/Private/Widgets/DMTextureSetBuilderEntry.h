@@ -18,6 +18,10 @@ struct FDMTextureSetBuilderEntry
 {
 	GENERATED_BODY()
 
+	FDMTextureSetBuilderEntry();
+
+	FDMTextureSetBuilderEntry(EMaterialProperty InMaterialProperty, UTexture* InTexture, EDMTextureChannelMask InMask);
+
 	UPROPERTY(EditAnywhere, Category = "Material Designer")
 	TEnumAsByte<EMaterialProperty> MaterialProperty = EMaterialProperty::MP_BaseColor;
 

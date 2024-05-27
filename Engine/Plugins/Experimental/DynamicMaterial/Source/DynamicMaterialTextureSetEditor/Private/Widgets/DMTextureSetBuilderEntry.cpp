@@ -2,7 +2,19 @@
 
 #include "Widgets/DMTextureSetBuilderEntry.h"
 
-#include "InstancedStruct.h"
+#include "SceneTypes.h"
+
+FDMTextureSetBuilderEntry::FDMTextureSetBuilderEntry()
+	: FDMTextureSetBuilderEntry(EMaterialProperty::MP_BaseColor, nullptr, EDMTextureChannelMask::RGBA)
+{
+}
+
+FDMTextureSetBuilderEntry::FDMTextureSetBuilderEntry(EMaterialProperty InMaterialProperty, UTexture* InTexture, EDMTextureChannelMask InMask)
+	: MaterialProperty(InMaterialProperty)
+	, Texture(InTexture)
+	, ChannelMask(InMask)
+{
+}
 
 FDMTextureSetBuilderEntryProvider::FDMTextureSetBuilderEntryProvider(const TSharedRef<FDMTextureSetBuilderEntry>& InEntry)
 	: Entry(InEntry)
