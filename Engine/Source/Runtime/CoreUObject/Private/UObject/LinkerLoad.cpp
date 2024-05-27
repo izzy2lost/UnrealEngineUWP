@@ -1674,12 +1674,10 @@ FLinkerLoad::ELinkerStatus FLinkerLoad::UpdateFromPackageFileSummary()
 
 	if (UPackage* LinkerRootPackage = LinkerRoot)
 	{
-		// Preserve PIE package flag
-		uint32 NewPackageFlags = Summary.GetPackageFlags();
-		if (LinkerRootPackage->HasAnyPackageFlags(PKG_PlayInEditor))
-		{
-			NewPackageFlags |= PKG_PlayInEditor;
-		}
+		const uint32 NewPackageFlags = Summary.GetPackageFlags() |
+			// Preserve PKG_PlayInEditor and PKG_ForDiffing, they have been provided 
+			// by the caller, but are not identified as truly transient:
+			(LinkerRootPackage->GetPackageFlags() & (PKG_PlayInEditor|PKG_ForDiffing));
 
 		// Propagate package flags
 		LinkerRootPackage->SetPackageFlagsTo(NewPackageFlags);
