@@ -685,10 +685,6 @@ void UTypedElementDatabaseCompatibility::TickPendingUObjectRegistration()
 						.SerialNumber = GUObjectArray.GetSerialNumber(Object->GetUniqueID())
 					});
 				Interface->AddColumn(Row, FTypedElementClassTypeInfoColumn{ .TypeInfo = Object->GetClass() });
-				if (Object->HasAnyFlags(RF_ClassDefaultObject))
-				{
-					Interface->AddColumn<FTypedElementClassDefaultObjectTag>(Row);
-				}
 				// Make sure the new row is tagged for update.
 				Interface->AddColumn<FTypedElementSyncFromWorldTag>(Row);
 				OnObjectAdded(Object.Get(), Object->GetClass(), Row);

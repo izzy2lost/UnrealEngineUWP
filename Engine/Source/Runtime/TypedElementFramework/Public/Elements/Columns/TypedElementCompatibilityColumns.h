@@ -54,16 +54,6 @@ struct FTypedElementExternalObjectColumn final : public FTypedElementDataStorage
 };
 
 /**
- * Tag to identify a row with a Class Default Object (CDO).
- * If there's a FTypedElementUObjectColumn, the stored object will be a CDO if this tag is present.
- */
-USTRUCT(meta = (DisplayName = "Class Default Object"))
-struct FTypedElementClassDefaultObjectTag final : public FTypedElementDataStorageTag
-{
-	GENERATED_BODY()
-};
-
-/**
  * Tag to identify a row with an actor. If there's a FTypedElementUObjectColumn, the stored object will be
  * an actor if this tag is present.
  */

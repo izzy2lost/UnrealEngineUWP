@@ -38,7 +38,7 @@ void UTypedElementUObjectWorldFactory::RegisterAddWorldColumn(ITypedElementDataS
 		)
 		.Where()
 			.All<FTypedElementSyncFromWorldTag>()
-			.None<FTypedElementWorldColumn, FTypedElementClassDefaultObjectTag>()
+			.None<FTypedElementWorldColumn>()
 		.Compile()
 	);
 }
