@@ -3255,13 +3255,62 @@ UObject* UMaterialExpressionRuntimeVirtualTextureSample::GetReferencedTexture() 
 
 #if WITH_EDITOR
 
+TArrayView<FExpressionInput*> UMaterialExpressionRuntimeVirtualTextureSample::GetInputsView()
+{
+	CachedInputs.Empty();
+	CachedInputs.Add(&Coordinates);
+	CachedInputs.Add(&WorldPosition);
+	if (MipValueMode == RVTMVM_MipLevel || MipValueMode == RVTMVM_MipBias)
+	{
+		CachedInputs.Add(&MipValue);
+	}
+	if (MipValueMode == RVTMVM_DerivativeUV || MipValueMode == RVTMVM_DerivativeWorld)
+	{
+		CachedInputs.Add(&DDX);
+		CachedInputs.Add(&DDY);
+	}
+	return CachedInputs;
+}
+
 FName UMaterialExpressionRuntimeVirtualTextureSample::GetInputName(int32 InputIndex) const
 {
 	if (CachedInputs[InputIndex] == &WorldPosition)
 	{
 		return GetWorldPositionInputName(WorldPositionOriginType);
 	}
-
+	if (CachedInputs[InputIndex] == &MipValue)
+	{
+		if (MipValueMode == RVTMVM_MipLevel)
+		{
+			return TEXT("Mip Level");
+		}
+		if (MipValueMode == RVTMVM_MipBias)
+		{
+			return TEXT("Mip Bias");
+		}
+	}
+	if (CachedInputs[InputIndex] == &DDX)
+	{
+		if (MipValueMode == RVTMVM_DerivativeUV)
+		{
+			return TEXT("DDX (UV)");
+		}
+		if (MipValueMode == RVTMVM_DerivativeWorld)
+		{
+			return TEXT("DDX (World)");
+		}
+	}
+	if (CachedInputs[InputIndex] == &DDY)
+	{
+		if (MipValueMode == RVTMVM_DerivativeUV)
+		{
+			return TEXT("DDY (UV)");
+		}
+		if (MipValueMode == RVTMVM_DerivativeWorld)
+		{
+			return TEXT("DDY (World)");
+		}
+	}
 	return Super::GetInputName(InputIndex);
 }
 
@@ -3302,7 +3351,7 @@ void UMaterialExpressionRuntimeVirtualTextureSample::PostEditChangeProperty(FPro
 			FEditorSupportDelegates::ForcePropertyWindowRebuild.Broadcast(this);
 		}
 	}
-	else if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ThisClass, WorldPositionOriginType))
+	else if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ThisClass, WorldPositionOriginType) || PropertyName == GET_MEMBER_NAME_STRING_CHECKED(ThisClass, MipValueMode))
 	{
 		if (GraphNode)
 		{
@@ -3598,9 +3647,37 @@ int32 UMaterialExpressionRuntimeVirtualTextureSample::Compile(class FMaterialCom
 		TextureMipLevelMode = TMVM_MipBias;
 		MipValue0Index = bMipValueExpressionValid ? MipValue.Compile(Compiler) : Compiler->Constant(0);
 	}
+	else if (MipValueMode == RVTMVM_DerivativeUV || MipValueMode == RVTMVM_DerivativeWorld)
+	{
+		if (DDX.GetTracedInput().Expression == nullptr || DDX.GetTracedInput().Expression == nullptr)
+		{
+			Compiler->Errorf(TEXT("Derivative MipValueMode requires connected DDX and DDY pins."));
+		}
+
+		TextureMipLevelMode = TMVM_Derivative;
+		const int32 Ddx = DDX.Compile(Compiler);
+		const int32 Ddy = DDY.Compile(Compiler);
+
+		if (MipValueMode == RVTMVM_DerivativeUV)
+		{
+			MipValue0Index = Ddx;
+			MipValue0Index = Ddy;
+		}
+		else if (MipValueMode == RVTMVM_DerivativeWorld)
+		{
+ 			const int32 UDdx = Compiler->Dot(Ddx, Uniforms[ERuntimeVirtualTextureShaderUniform_WorldToUVTransform1]);
+ 			const int32 VDdx = Compiler->Dot(Ddx, Uniforms[ERuntimeVirtualTextureShaderUniform_WorldToUVTransform2]);
+ 			MipValue0Index = Compiler->AppendVector(UDdx, VDdx);
+
+			const int32 UDdy = Compiler->Dot(Ddy, Uniforms[ERuntimeVirtualTextureShaderUniform_WorldToUVTransform1]);
+			const int32 VDdy = Compiler->Dot(Ddy, Uniforms[ERuntimeVirtualTextureShaderUniform_WorldToUVTransform2]);
+			MipValue1Index = Compiler->AppendVector(UDdy, VDdy);
+		}
+	}
 	else if (MipValueMode == RVTMVM_RecalculateDerivatives)
 	{
 		// Calculate derivatives from world position.
+		// This is legacy/hidden, and is better implemented in the material graph using RVTMVM_DerivativeWorld.
 		TextureMipLevelMode = TMVM_Derivative;
 		const int32 WorldPos = Compiler->WorldPosition(WPT_CameraRelative);
 		const int32 WorldPositionDdx = Compiler->DDX(WorldPos);
