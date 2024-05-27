@@ -6,13 +6,13 @@
 #include "Animation/AnimSequence.h"
 #include "Animation/BlendSpace.h"
 #include "Animation/BlendSpace1D.h"
+#include "PoseSearch/MultiAnimAsset.h"
 #include "PoseSearch/PoseSearchAnimNotifies.h"
 #include "PoseSearch/PoseSearchContext.h"
 #include "PoseSearch/PoseSearchDefines.h"
 #include "PoseSearch/PoseSearchDerivedData.h"
 #include "PoseSearch/PoseSearchFeatureChannel.h"
 #include "PoseSearch/PoseSearchHistory.h"
-#include "PoseSearch/PoseSearchMultiSequence.h"
 #include "PoseSearch/PoseSearchSchema.h"
 #include "Serialization/ArchiveCountMem.h"
 #include "UObject/ObjectSaveContext.h"
@@ -376,7 +376,7 @@ UAnimationAsset* FPoseSearchDatabaseAnimationAssetBase::GetAnimationAssetForRole
 	return CastChecked<UAnimationAsset>(GetAnimationAsset());
 }
 
-const FTransform& FPoseSearchDatabaseAnimationAssetBase::GetRootTransformOriginForRole(const UE::PoseSearch::FRole& Role) const
+FTransform FPoseSearchDatabaseAnimationAssetBase::GetRootTransformOriginForRole(const UE::PoseSearch::FRole& Role) const
 {
 	check(GetNumRoles() == 1);
 	return FTransform::Identity;
@@ -606,61 +606,61 @@ bool FPoseSearchDatabaseAnimMontage::IsRootMotionEnabled() const
 #endif // WITH_EDITORONLY_DATA
 
 //////////////////////////////////////////////////////////////////////////
-// FPoseSearchDatabaseMultiSequence
-UObject* FPoseSearchDatabaseMultiSequence::GetAnimationAsset() const
+// FPoseSearchDatabaseMultiAnimAsset
+UObject* FPoseSearchDatabaseMultiAnimAsset::GetAnimationAsset() const
 {
-	return MultiSequence.Get();
+	return MultiAnimAsset.Get();
 }
 
-float FPoseSearchDatabaseMultiSequence::GetPlayLength() const
+float FPoseSearchDatabaseMultiAnimAsset::GetPlayLength() const
 {
-	return MultiSequence ? MultiSequence->GetPlayLength() : 0.f;
+	return MultiAnimAsset ? MultiAnimAsset->GetPlayLength() : 0.f;
 }
 
 #if WITH_EDITOR
-int32 FPoseSearchDatabaseMultiSequence::GetFrameAtTime(float Time) const
+int32 FPoseSearchDatabaseMultiAnimAsset::GetFrameAtTime(float Time) const
 {
-	return MultiSequence ? MultiSequence->GetFrameAtTime(Time) : 0;
+	return MultiAnimAsset ? MultiAnimAsset->GetFrameAtTime(Time) : 0;
 }
 #endif // WITH_EDITOR
 
-int32 FPoseSearchDatabaseMultiSequence::GetNumRoles() const
+int32 FPoseSearchDatabaseMultiAnimAsset::GetNumRoles() const
 {
-	return MultiSequence ? MultiSequence->GetNumRoles() : 0;
+	return MultiAnimAsset ? MultiAnimAsset->GetNumRoles() : 0;
 }
 
-UE::PoseSearch::FRole FPoseSearchDatabaseMultiSequence::GetRole(int32 RoleIndex) const
+UE::PoseSearch::FRole FPoseSearchDatabaseMultiAnimAsset::GetRole(int32 RoleIndex) const
 {
-	return MultiSequence ? MultiSequence->GetRole(RoleIndex) : UE::PoseSearch::DefaultRole;
+	return MultiAnimAsset ? MultiAnimAsset->GetRole(RoleIndex) : UE::PoseSearch::DefaultRole;
 }
 
-UAnimationAsset* FPoseSearchDatabaseMultiSequence::GetAnimationAssetForRole(const UE::PoseSearch::FRole& Role) const
+UAnimationAsset* FPoseSearchDatabaseMultiAnimAsset::GetAnimationAssetForRole(const UE::PoseSearch::FRole& Role) const
 {
-	return MultiSequence ? MultiSequence->GetSequence(Role) : nullptr;
+	return MultiAnimAsset ? MultiAnimAsset->GetAnimationAsset(Role) : nullptr;
 }
 
-const FTransform& FPoseSearchDatabaseMultiSequence::GetRootTransformOriginForRole(const UE::PoseSearch::FRole& Role) const
+FTransform FPoseSearchDatabaseMultiAnimAsset::GetRootTransformOriginForRole(const UE::PoseSearch::FRole& Role) const
 {
-	return MultiSequence ? MultiSequence->GetOrigin(Role) : FTransform::Identity;
+	return MultiAnimAsset ? MultiAnimAsset->GetOrigin(Role) : FTransform::Identity;
 }
 
 #if WITH_EDITORONLY_DATA
-UClass* FPoseSearchDatabaseMultiSequence::GetAnimationAssetStaticClass() const
+UClass* FPoseSearchDatabaseMultiAnimAsset::GetAnimationAssetStaticClass() const
 {
-	return UPoseSearchMultiSequence::StaticClass();
+	return UMultiAnimAsset::StaticClass();
 }
 
-bool FPoseSearchDatabaseMultiSequence::IsLooping() const
+bool FPoseSearchDatabaseMultiAnimAsset::IsLooping() const
 {
-	return MultiSequence &&
-		MultiSequence->IsLooping() &&
+	return MultiAnimAsset &&
+		MultiAnimAsset->IsLooping() &&
 		SamplingRange.Min == 0.f &&
 		SamplingRange.Max == 0.f;
 }
 
-bool FPoseSearchDatabaseMultiSequence::IsRootMotionEnabled() const
+bool FPoseSearchDatabaseMultiAnimAsset::IsRootMotionEnabled() const
 {
-	return MultiSequence ? MultiSequence->HasRootMotion() : false;
+	return MultiAnimAsset ? MultiAnimAsset->HasRootMotion() : false;
 }
 #endif // WITH_EDITORONLY_DATA
 

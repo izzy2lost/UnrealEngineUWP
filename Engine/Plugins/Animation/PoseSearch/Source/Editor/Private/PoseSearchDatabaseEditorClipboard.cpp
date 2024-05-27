@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PoseSearchDatabaseEditorClipboard.h"
 
@@ -8,7 +8,7 @@
 #include "Animation/AnimSequence.h"
 #include "Animation/AnimMontage.h"
 #include "Animation/BlendSpace.h"
-#include "PoseSearch/PoseSearchMultiSequence.h"
+#include "PoseSearch/MultiAnimAsset.h"
 #include "PoseSearch/PoseSearchDatabase.h"
 
 #include "UnrealExporter.h"
@@ -39,9 +39,9 @@ void UPoseSearchDatabaseEditorClipboardContent::CopyDatabaseItem(const FPoseSear
 	{
 		FPoseSearchDatabaseBlendSpace::StaticStruct()->ExportText(CopyObj->Content, InItem, nullptr, nullptr, PPF_None, nullptr);
 	}
-	else if (UPoseSearchMultiSequence::StaticClass() == InItem->GetAnimationAssetStaticClass())
+	else if (UMultiAnimAsset::StaticClass() == InItem->GetAnimationAssetStaticClass())
 	{
-		FPoseSearchDatabaseMultiSequence::StaticStruct()->ExportText(CopyObj->Content, InItem, nullptr, nullptr, PPF_None, nullptr);
+		FPoseSearchDatabaseMultiAnimAsset::StaticStruct()->ExportText(CopyObj->Content, InItem, nullptr, nullptr, PPF_None, nullptr);
 	}
 
 	DatabaseItems.Add(CopyObj);
@@ -95,10 +95,10 @@ void UPoseSearchDatabaseEditorClipboardContent::PasteToDatabase(UPoseSearchDatab
 
 			InTargetDatabase->AddAnimationAsset(FInstancedStruct::Make(NewAsset));
 		}
-		else if (Item->ClassName == UPoseSearchMultiSequence::StaticClass()->GetFName())
+		else if (Item->ClassName == UMultiAnimAsset::StaticClass()->GetFName())
 		{
-			FPoseSearchDatabaseMultiSequence NewAsset;
-			FPoseSearchDatabaseMultiSequence::StaticStruct()->ImportText(*Item->Content, &NewAsset, nullptr, PPF_None, GLog, FPoseSearchDatabaseMultiSequence::StaticStruct()->GetName());
+			FPoseSearchDatabaseMultiAnimAsset NewAsset;
+			FPoseSearchDatabaseMultiAnimAsset::StaticStruct()->ImportText(*Item->Content, &NewAsset, nullptr, PPF_None, GLog, FPoseSearchDatabaseMultiAnimAsset::StaticStruct()->GetName());
 				
 			InTargetDatabase->AddAnimationAsset(FInstancedStruct::Make(NewAsset));
 		}

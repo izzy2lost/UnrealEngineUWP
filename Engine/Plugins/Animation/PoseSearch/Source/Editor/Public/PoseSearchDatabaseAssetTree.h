@@ -88,7 +88,7 @@ namespace UE::PoseSearch
 		void OnAddBlendSpace(bool bFinalizeChanges = true);
 		void OnAddAnimComposite(bool bFinalizeChanges = true);
 		void OnAddAnimMontage(bool bFinalizeChanges = true);
-		void OnAddMultiSequence(bool bFinalizeChanges = true);
+		void OnAddMultiAnimAsset(bool bFinalizeChanges = true);
 
 		void OnDeleteAsset(TSharedPtr<FDatabaseAssetTreeNode> Node, bool bFinalizeChanges = true);
 		void CreateCommandList();

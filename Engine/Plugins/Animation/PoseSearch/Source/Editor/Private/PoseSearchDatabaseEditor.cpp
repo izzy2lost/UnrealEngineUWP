@@ -615,13 +615,13 @@ namespace UE::PoseSearch
 
 					SelectionWidget.SelectedReflections.Add(NewSelectionReflection);
 				}
-				else if (const FPoseSearchDatabaseMultiSequence* DatabaseMultiSequence = DatabaseAsset.GetPtr<FPoseSearchDatabaseMultiSequence>())
+				else if (const FPoseSearchDatabaseMultiAnimAsset* DatabaseMultiAnimAsset = DatabaseAsset.GetPtr<FPoseSearchDatabaseMultiAnimAsset>())
 				{
-					UPoseSearchDatabaseMultiSequenceReflection* NewSelectionReflection = NewObject<UPoseSearchDatabaseMultiSequenceReflection>();
+					UPoseSearchDatabaseMultiAnimAssetReflection* NewSelectionReflection = NewObject<UPoseSearchDatabaseMultiAnimAssetReflection>();
 					NewSelectionReflection->AddToRoot();
-					static_cast<FPoseSearchDatabaseMultiSequence&>(NewSelectionReflection->MultiSequence) = *DatabaseMultiSequence;
-					NewSelectionReflection->MultiSequence.bLooping = DatabaseMultiSequence->IsLooping();
-					NewSelectionReflection->MultiSequence.bHasRootMotion = DatabaseMultiSequence->IsRootMotionEnabled();
+					static_cast<FPoseSearchDatabaseMultiAnimAsset&>(NewSelectionReflection->MultiAnimAsset) = *DatabaseMultiAnimAsset;
+					NewSelectionReflection->MultiAnimAsset.bLooping = DatabaseMultiAnimAsset->IsLooping();
+					NewSelectionReflection->MultiAnimAsset.bHasRootMotion = DatabaseMultiAnimAsset->IsRootMotionEnabled();
 					NewSelectionReflection->SetSourceLink(SelectedItem, AssetTreeWidget);
 					NewSelectionReflection->SetFlags(RF_Transactional);
 

@@ -16,10 +16,10 @@
 #include "InstancedStruct.h"
 #include "PoseSearch/AnimNode_MotionMatching.h"
 #include "PoseSearch/AnimNode_PoseSearchHistoryCollector.h"
+#include "PoseSearch/MultiAnimAsset.h"
 #include "PoseSearch/PoseSearchAnimNotifies.h"
 #include "PoseSearch/PoseSearchDatabase.h"
 #include "PoseSearch/PoseSearchDerivedData.h"
-#include "PoseSearch/PoseSearchMultiSequence.h"
 #include "PoseSearch/PoseSearchSchema.h"
 #include "PoseSearchFeatureChannel_Trajectory.h"
 #include "PoseSearch/Trace/PoseSearchTraceLogger.h"
@@ -812,9 +812,9 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 			const UAnimationAsset* AnimationAsset = Cast<UAnimationAsset>(Future.Animation);
 			if (!AnimationAsset)
 			{
-				if (const UPoseSearchMultiSequence* MultiSequence = Cast<UPoseSearchMultiSequence>(Future.Animation))
+				if (const UMultiAnimAsset* MultiAnimAsset = Cast<UMultiAnimAsset>(Future.Animation))
 				{
-					AnimationAsset = MultiSequence->GetSequence(Roles[RoleIndex]);
+					AnimationAsset = MultiAnimAsset->GetAnimationAsset(Roles[RoleIndex]);
 				}
 				else
 				{

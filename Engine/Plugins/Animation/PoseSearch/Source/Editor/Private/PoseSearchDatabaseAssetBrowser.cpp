@@ -46,7 +46,7 @@ void SPoseSearchDatabaseAssetBrowser::Construct(const FArguments& InArgs, TShare
 
 void SPoseSearchDatabaseAssetBrowser::RefreshView()
 {
-	// @TODO: Add support for MultiSequence.
+	// @TODO: Add support for MultiAnimAsset.
 	
 	FAssetPickerConfig AssetPickerConfig;
 	

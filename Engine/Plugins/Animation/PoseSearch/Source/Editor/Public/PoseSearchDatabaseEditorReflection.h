@@ -141,7 +141,7 @@ public:
 };
 
 USTRUCT()
-struct FPoseSearchDatabaseMultiSequenceEx : public FPoseSearchDatabaseMultiSequence
+struct FPoseSearchDatabaseMultiAnimAssetEx : public FPoseSearchDatabaseMultiAnimAsset
 {
 	GENERATED_BODY()
 
@@ -156,13 +156,13 @@ struct FPoseSearchDatabaseMultiSequenceEx : public FPoseSearchDatabaseMultiSeque
 };
 
 UCLASS()
-class UPoseSearchDatabaseMultiSequenceReflection : public UPoseSearchDatabaseReflectionBase
+class UPoseSearchDatabaseMultiAnimAssetReflection : public UPoseSearchDatabaseReflectionBase
 {
 	GENERATED_BODY()
 
 public:
 	UPROPERTY(EditAnywhere, Category = "Selected Sequence")
-	FPoseSearchDatabaseMultiSequenceEx MultiSequence;
+	FPoseSearchDatabaseMultiAnimAssetEx MultiAnimAsset;
 	
 	virtual bool ApplyChanges() override;
 };

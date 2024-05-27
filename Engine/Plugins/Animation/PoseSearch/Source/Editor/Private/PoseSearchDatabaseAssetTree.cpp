@@ -9,20 +9,20 @@
 #include "AssetSelection.h"
 #include "ClassIconFinder.h"
 #include "DetailColumnSizeData.h"
-#include "PoseSearchDatabaseEditorClipboard.h"
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Misc/FeedbackContext.h"
 #include "Misc/TransactionObjectEvent.h"
+#include "PoseSearch/MultiAnimAsset.h"
 #include "PoseSearch/PoseSearchAnimNotifies.h"
 #include "PoseSearch/PoseSearchDatabase.h"
+#include "PoseSearchDatabaseEditorClipboard.h"
 #include "PoseSearchDatabaseViewModel.h"
 #include "PoseSearchEditor.h"
 #include "SPositiveActionButton.h"
 #include "Styling/AppStyle.h"
 #include "ScopedTransaction.h"
-#include "PoseSearch/PoseSearchMultiSequence.h"
 #include "Styling/StyleColors.h"
 #include "Widgets/Text/SRichTextBlock.h"
 #include "Widgets/Input/SCheckBox.h"
@@ -140,7 +140,7 @@ namespace UE::PoseSearch
 								AssetClass->IsChildOf(UAnimComposite::StaticClass()) ||
 								AssetClass->IsChildOf(UBlendSpace::StaticClass()) ||
 								AssetClass->IsChildOf(UAnimMontage::StaticClass()) ||
-								AssetClass->IsChildOf(UPoseSearchMultiSequence::StaticClass()))
+								AssetClass->IsChildOf(UMultiAnimAsset::StaticClass()))
 							{
 								Reply = FReply::Handled();
 								break;
@@ -247,7 +247,16 @@ namespace UE::PoseSearch
 			IndexArray.Sort([Database](int32 SequenceIdxA, int32 SequenceIdxB)
 			{
 				const FPoseSearchDatabaseAnimationAssetBase* A = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SequenceIdxA);
+				if (!A)
+				{
+					return false;
+				}
+
 				const FPoseSearchDatabaseAnimationAssetBase* B = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SequenceIdxB);
+				if (!B)
+				{
+					return true;
+				}
 
 				//If its null add it to the end of the list 
 				if (!B->GetAnimationAsset())
@@ -344,7 +353,7 @@ namespace UE::PoseSearch
 						AssetClass->IsChildOf(UAnimComposite::StaticClass()) ||
 						AssetClass->IsChildOf(UBlendSpace::StaticClass()) ||
 						AssetClass->IsChildOf(UAnimMontage::StaticClass()) ||
-						AssetClass->IsChildOf(UPoseSearchMultiSequence::StaticClass()))
+						AssetClass->IsChildOf(UMultiAnimAsset::StaticClass()))
 					{
 						ReturnedDropZone = EItemDropZone::OntoItem;
 						break;
@@ -424,9 +433,9 @@ namespace UE::PoseSearch
 					ViewModel->AddAnimMontageToDatabase(Cast<UAnimMontage>(Asset));
 					++AddedAssets;
 				}
-				else if (AssetClass->IsChildOf(UPoseSearchMultiSequence::StaticClass()))
+				else if (AssetClass->IsChildOf(UMultiAnimAsset::StaticClass()))
 				{
-					ViewModel->AddMultiSequenceToDatabase(Cast<UPoseSearchMultiSequence>(Asset));
+					ViewModel->AddMultiAnimAssetToDatabase(Cast<UMultiAnimAsset>(Asset));
 					++AddedAssets;
 				}
 			}
@@ -482,10 +491,10 @@ namespace UE::PoseSearch
 				EUserInterfaceActionType::Button);
 
 			AddOptions.AddMenuEntry(
-				LOCTEXT("AddMultiSequenceOption", "Multi Sequence"),
-				LOCTEXT("AddMultiSequenceToDatabaseTooltip", "Add new multi sequence to the database"),
+				LOCTEXT("AddMultiAnimAssetOption", "Multi Anim Asset"),
+				LOCTEXT("AddMultiAnimAssetToDatabaseTooltip", "Add new multi anim asset to the database"),
 				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnAddMultiSequence, true)),
+				FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnAddMultiAnimAsset, true)),
 				NAME_None,
 				EUserInterfaceActionType::Button);
 		}
@@ -757,11 +766,11 @@ namespace UE::PoseSearch
 		}
 	}
 
-	void SDatabaseAssetTree::OnAddMultiSequence(bool bFinalizeChanges)
+	void SDatabaseAssetTree::OnAddMultiAnimAsset(bool bFinalizeChanges)
 	{
-		FScopedTransaction Transaction(LOCTEXT("AddMultiSequenceTransaction", "Add Multi Sequence"));
+		FScopedTransaction Transaction(LOCTEXT("AddMultiAnimAssetTransaction", "Add Multi Anim Asset"));
 
-		EditorViewModel.Pin()->AddMultiSequenceToDatabase(nullptr);
+		EditorViewModel.Pin()->AddMultiAnimAssetToDatabase(nullptr);
 
 		if (bFinalizeChanges)
 		{

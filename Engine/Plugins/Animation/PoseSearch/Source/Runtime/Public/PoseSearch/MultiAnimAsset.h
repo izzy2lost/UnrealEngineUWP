@@ -1,0 +1,28 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "MultiAnimAsset.generated.h"
+
+class UAnimationAsset;
+
+// @todo: move to Engine
+UCLASS(Abstract, Experimental, BlueprintType, Category = "Animation")
+class POSESEARCH_API UMultiAnimAsset : public UObject
+{
+	GENERATED_BODY()
+public:
+
+	[[nodiscard]] virtual bool IsLooping() const PURE_VIRTUAL(UMultiAnimAsset::IsLooping, return false;);
+	[[nodiscard]] virtual bool HasRootMotion() const PURE_VIRTUAL(UMultiAnimAsset::HasRootMotion, return false;);
+	[[nodiscard]] virtual float GetPlayLength() const PURE_VIRTUAL(UMultiAnimAsset::GetPlayLength, return 0.f;);
+
+#if WITH_EDITOR
+	[[nodiscard]] virtual int32 GetFrameAtTime(float Time) const PURE_VIRTUAL(UMultiAnimAsset::GetFrameAtTime, return 0;);
+#endif // WITH_EDITOR
+
+	[[nodiscard]] virtual int32 GetNumRoles() const PURE_VIRTUAL(UMultiAnimAsset::GetNumRoles, return 0;);
+	[[nodiscard]] virtual FName GetRole(int32 RoleIndex) const PURE_VIRTUAL(UMultiAnimAsset::GetRole, return FName(););
+	[[nodiscard]] virtual UAnimationAsset* GetAnimationAsset(const FName& Role) const PURE_VIRTUAL(UMultiAnimAsset::GetAnimationAsset, return nullptr;);
+	[[nodiscard]] virtual FTransform GetOrigin(const FName& Role) const PURE_VIRTUAL(UMultiAnimAsset::GetOrigin, return FTransform::Identity;);
+};

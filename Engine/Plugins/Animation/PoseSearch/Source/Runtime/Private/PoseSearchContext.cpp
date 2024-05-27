@@ -455,6 +455,10 @@ FSearchContext::FSearchContext(float InDesiredPermutationTimeOffset, const FPose
 , bUseCachedChannelData(bInUseCachedChannelData)
 {
 	UpdateCurrentResultPoseVector();
+
+#if UE_POSE_SEARCH_TRACE_ENABLED
+	BestPoseCandidatesMap.Reserve(16);
+#endif // UE_POSE_SEARCH_TRACE_ENABLED
 }
 
 void FSearchContext::AddRole(const FRole& Role, const UAnimInstance* AnimInstance, const IPoseHistory* PoseHistory)

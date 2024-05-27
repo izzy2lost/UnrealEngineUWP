@@ -22,7 +22,6 @@
 #include "PoseSearch/PoseSearchDefines.h"
 #include "PoseSearch/PoseSearchDerivedDataKey.h"
 #include "PoseSearch/PoseSearchFeatureChannel.h"
-#include "PoseSearch/PoseSearchMultiSequence.h"
 #include "PoseSearch/PoseSearchNormalizationSet.h"
 #include "PoseSearch/PoseSearchSchema.h"
 #include "PoseSearchEigenHelper.h"
@@ -363,7 +362,7 @@ static bool InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const TArray<FI
 				continue;
 			}
 
-			// checking for valid roles in DatabaseMultiSequence against the Schema
+			// checking for valid roles in DatabaseMultiAnimAsset against the Schema
 			bool bAreAllRolesSupported = true;
 			for (const FPoseSearchRoledSkeleton& RoledSkeleton : Schema->GetRoledSkeletons())
 			{
@@ -429,7 +428,7 @@ static bool InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const TArray<FI
 					}
 				}
 			}
-			// support for FPoseSearchDatabaseSequence, FPoseSearchDatabaseAnimComposite, FPoseSearchDatabaseAnimMontage, FPoseSearchDatabaseMultiSequence
+			// support for FPoseSearchDatabaseSequence, FPoseSearchDatabaseAnimComposite, FPoseSearchDatabaseAnimMontage, FPoseSearchDatabaseMultiAnimAsset
 			else
 			{
 				ValidRanges.Reset();
@@ -907,7 +906,7 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const TArray<FInsta
 						const FVector BlendParameters = DatabaseBlendSpace->BlendParameterForSampleRanges(HorizontalIndex, VerticalIndex);
 
 						check(DatabaseBlendSpace->GetNumRoles() == 1);
-						const FTransform& RootTransformOrigin = DatabaseBlendSpace->GetRootTransformOriginForRole(DatabaseBlendSpace->GetRole(0));
+						const FTransform RootTransformOrigin = DatabaseBlendSpace->GetRootTransformOriginForRole(DatabaseBlendSpace->GetRole(0));
 						const FSamplerMapKey SamplerMapKey(DatabaseBlendSpace->BlendSpace, RootTransformOrigin, BlendParameters);
 						if (!SamplerMap.Contains(SamplerMapKey))
 						{
@@ -927,7 +926,7 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const TArray<FInsta
 				{
 					const FRole& Role = DatabaseAnimationAssetBase->GetRole(RoleIndex);
 					const UAnimationAsset* AnimationAsset = DatabaseAnimationAssetBase->GetAnimationAssetForRole(Role);
-					const FTransform& RootTransformOrigin = DatabaseAnimationAssetBase->GetRootTransformOriginForRole(Role);
+					const FTransform RootTransformOrigin = DatabaseAnimationAssetBase->GetRootTransformOriginForRole(Role);
 					const FSamplerMapKey SamplerMapKey(AnimationAsset, RootTransformOrigin);
 					if (!SamplerMap.Contains(SamplerMapKey))
 					{
@@ -985,7 +984,7 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const TArray<FInsta
 			if (const FMirrorDataCache* MirrorDataCache = RoledMirrorDataCaches.Find(Role))
 			{
 				UAnimationAsset* AnimationAsset = DatabaseAnimationAssetBase->GetAnimationAssetForRole(Role);
-				const FTransform& RootTransformOrigin = DatabaseAnimationAssetBase->GetRootTransformOriginForRole(Role);
+				const FTransform RootTransformOrigin = DatabaseAnimationAssetBase->GetRootTransformOriginForRole(Role);
 				const FVector BlendParameters = SearchIndexAsset.GetBlendParameters();
 				const int32 SamplerIndex = SamplerMap[{ AnimationAsset, RootTransformOrigin, BlendParameters }];
 				TempAssetSamplers.AnimationAssetSamplers.Emplace(&Samplers[SamplerIndex]);

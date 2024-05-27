@@ -14,6 +14,7 @@
 #include "GameFramework/PlayerController.h"
 #include "InstancedStruct.h"
 #include "Modules/ModuleManager.h"
+#include "PoseSearch/MultiAnimAsset.h"
 #include "PoseSearch/PoseSearchAnimNotifies.h"
 #include "PoseSearch/PoseSearchContext.h"
 #include "PoseSearch/PoseSearchDatabase.h"
@@ -27,7 +28,6 @@
 #include "PoseSearchDatabasePreviewScene.h"
 #include "PoseSearchEditor.h"
 #include "PropertyEditorModule.h"
-#include "PoseSearch/PoseSearchMultiSequence.h"
 
 namespace UE::PoseSearch
 {
@@ -576,14 +576,14 @@ void FDatabaseViewModel::AddAnimMontageToDatabase(UAnimMontage* AnimMontage)
 	}
 }
 
-void FDatabaseViewModel::AddMultiSequenceToDatabase(UPoseSearchMultiSequence* MultiSequence)
+void FDatabaseViewModel::AddMultiAnimAssetToDatabase(UMultiAnimAsset* MultiAnimAsset)
 {
 	if (UPoseSearchDatabase* Database = GetPoseSearchDatabase())
 	{
 		Database->Modify();
 		
-		FPoseSearchDatabaseMultiSequence NewAsset;
-		NewAsset.MultiSequence = MultiSequence;
+		FPoseSearchDatabaseMultiAnimAsset NewAsset;
+		NewAsset.MultiAnimAsset = MultiAnimAsset;
 		Database->AddAnimationAsset(FInstancedStruct::Make(NewAsset));
 	}
 }
@@ -725,10 +725,10 @@ bool FDatabaseViewModel::SetAnimationAsset(int32 AnimationAssetIndex, UObject* A
 						FPoseSearchDatabaseBlendSpace* DatabaseBlendSpaceAsset = static_cast<FPoseSearchDatabaseBlendSpace*>(DatabaseAnimationAsset);
 						DatabaseBlendSpaceAsset->BlendSpace = Cast<UBlendSpace>(AnimAsset);
 					}
-					else if (AssetClass->IsChildOf(UPoseSearchMultiSequence::StaticClass()))
+					else if (AssetClass->IsChildOf(UMultiAnimAsset::StaticClass()))
 					{
-						FPoseSearchDatabaseMultiSequence* DatabaseMultiSequenceAsset = static_cast<FPoseSearchDatabaseMultiSequence*>(DatabaseAnimationAsset);
-						DatabaseMultiSequenceAsset->MultiSequence = Cast<UPoseSearchMultiSequence>(AnimAsset);
+						FPoseSearchDatabaseMultiAnimAsset* DatabaseMultiAnimAssetAsset = static_cast<FPoseSearchDatabaseMultiAnimAsset*>(DatabaseAnimationAsset);
+						DatabaseMultiAnimAssetAsset->MultiAnimAsset = Cast<UMultiAnimAsset>(AnimAsset);
 					}
 
 					return true;
@@ -860,7 +860,7 @@ void FDatabaseViewModel::SetSelectedNodes(const TArrayView<TSharedPtr<FDatabaseA
 					{
 						FDatabasePreviewActor PreviewActor;
 						const UE::PoseSearch::FRole Role = DatabaseAnimationAsset->GetRole(RoleIndex);
-						const FTransform& RootTransformOrigin = DatabaseAnimationAsset->GetRootTransformOriginForRole(Role);
+						const FTransform RootTransformOrigin = DatabaseAnimationAsset->GetRootTransformOriginForRole(Role);
 						if (PreviewActor.SpawnPreviewActor(GetWorld(), Database, IndexAssetIndex, Role, RootTransformOrigin))
 						{
 							if (PreviewActorGroupIndex == INDEX_NONE)

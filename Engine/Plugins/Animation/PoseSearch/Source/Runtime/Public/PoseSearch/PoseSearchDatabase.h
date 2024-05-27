@@ -15,7 +15,7 @@ class UAnimationAsset;
 class UAnimComposite;
 class UAnimMontage;
 class UBlendSpace;
-class UPoseSearchMultiSequence;
+class UMultiAnimAsset;
 
 #if WITH_EDITORONLY_DATA
 class UPoseSearchNormalizationSet;
@@ -57,7 +57,7 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimationAssetBase
 	virtual int32 GetNumRoles() const { return 1; }
 	virtual UE::PoseSearch::FRole GetRole(int32 RoleIndex) const { return UE::PoseSearch::DefaultRole; }
 	virtual UAnimationAsset* GetAnimationAssetForRole(const UE::PoseSearch::FRole& Role) const;
-	virtual const FTransform& GetRootTransformOriginForRole(const UE::PoseSearch::FRole& Role) const;
+	virtual FTransform GetRootTransformOriginForRole(const UE::PoseSearch::FRole& Role) const;
 
 #if WITH_EDITOR
 	virtual int32 GetFrameAtTime(float Time) const;
@@ -322,13 +322,13 @@ template<> struct TStructOpsTypeTraits<FPoseSearchDatabaseAnimMontage> : public 
 };
 
 USTRUCT(BlueprintType, Category = "Animation|Pose Search")
-struct POSESEARCH_API FPoseSearchDatabaseMultiSequence : public FPoseSearchDatabaseAnimationAssetBase
+struct POSESEARCH_API FPoseSearchDatabaseMultiAnimAsset : public FPoseSearchDatabaseAnimationAssetBase
 {
 	GENERATED_BODY()
-	virtual ~FPoseSearchDatabaseMultiSequence() = default;
+	virtual ~FPoseSearchDatabaseMultiAnimAsset() = default;
 
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 0))
-	TObjectPtr<UPoseSearchMultiSequence> MultiSequence;
+	TObjectPtr<UMultiAnimAsset> MultiAnimAsset;
 
 #if WITH_EDITORONLY_DATA
 	// It allows users to set a time range to an individual animation sequence in the database. 
@@ -349,16 +349,16 @@ struct POSESEARCH_API FPoseSearchDatabaseMultiSequence : public FPoseSearchDatab
 	virtual int32 GetNumRoles() const override;
 	virtual UE::PoseSearch::FRole GetRole(int32 RoleIndex) const override;
 	virtual UAnimationAsset* GetAnimationAssetForRole(const UE::PoseSearch::FRole& Role) const override;
-	virtual const FTransform& GetRootTransformOriginForRole(const UE::PoseSearch::FRole& Role) const override;
+	virtual FTransform GetRootTransformOriginForRole(const UE::PoseSearch::FRole& Role) const override;
 
 #if WITH_EDITOR
 	virtual int32 GetFrameAtTime(float Time) const override;
 #endif // WITH_EDITOR
 
-	friend bool operator==(const FPoseSearchDatabaseMultiSequence& A, const FPoseSearchDatabaseMultiSequence& B)
+	friend bool operator==(const FPoseSearchDatabaseMultiAnimAsset& A, const FPoseSearchDatabaseMultiAnimAsset& B)
 	{
 		return static_cast<const FPoseSearchDatabaseAnimationAssetBase&>(A) == static_cast<const FPoseSearchDatabaseAnimationAssetBase&>(B)
-			&& A.MultiSequence == B.MultiSequence
+			&& A.MultiAnimAsset == B.MultiAnimAsset
 #if WITH_EDITORONLY_DATA
 			&& A.SamplingRange == B.SamplingRange
 #endif // WITH_EDITORONLY_DATA
@@ -366,7 +366,7 @@ struct POSESEARCH_API FPoseSearchDatabaseMultiSequence : public FPoseSearchDatab
 	}
 };
 
-template<> struct TStructOpsTypeTraits<FPoseSearchDatabaseMultiSequence> : public TStructOpsTypeTraitsBase2<FPoseSearchDatabaseMultiSequence>
+template<> struct TStructOpsTypeTraits<FPoseSearchDatabaseMultiAnimAsset> : public TStructOpsTypeTraitsBase2<FPoseSearchDatabaseMultiAnimAsset>
 {
 	enum { WithIdenticalViaEquality = true };
 };

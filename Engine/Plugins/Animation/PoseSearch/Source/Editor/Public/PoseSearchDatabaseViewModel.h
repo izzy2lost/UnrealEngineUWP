@@ -21,7 +21,7 @@ class UAnimComposite;
 class UAnimSequence;
 class UBlendSpace;
 class UMirrorDataTable;
-class UPoseSearchMultiSequence;
+class UMultiAnimAsset;
 
 namespace UE::PoseSearch
 {
@@ -109,7 +109,7 @@ namespace UE::PoseSearch
 		void AddBlendSpaceToDatabase(UBlendSpace* BlendSpace);
 		void AddAnimCompositeToDatabase(UAnimComposite* AnimComposite);
 		void AddAnimMontageToDatabase(UAnimMontage* AnimMontage);
-		void AddMultiSequenceToDatabase(UPoseSearchMultiSequence* MultiSequence);
+		void AddMultiAnimAssetToDatabase(UMultiAnimAsset* MultiAnimAsset);
 
 		bool DeleteFromDatabase(int32 AnimationAssetIndex);
 

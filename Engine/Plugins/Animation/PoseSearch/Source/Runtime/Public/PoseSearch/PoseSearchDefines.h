@@ -32,7 +32,7 @@ static constexpr int32 PreallocatedRolesNum = 4;
 static constexpr int32 PreallocatedCachedQueriesNum = 8;
 static constexpr int32 PreallocatedCachedChannelDataNum = 64;
 static constexpr float FiniteDelta = 1 / 60.0f; // Time delta used for computing pose derivatives
-static constexpr int32 MaxNumberOfCollectedPoseCandidatesPerDatabase = 200;
+static constexpr int32 MaxNumberOfCollectedPoseCandidatesPerDatabase = 256;
 static constexpr int32 InvalidSearchId = INDEX_NONE; // @todo: it should be 0, since the search id is an hash!
 
 template<uint32 Alignment = DEFAULT_ALIGNMENT> class TMemStackSetAllocator : public TSetAllocator<TSparseArrayAllocator<TMemStackAllocator<Alignment>, TMemStackAllocator<Alignment>>, TMemStackAllocator<Alignment>> {};

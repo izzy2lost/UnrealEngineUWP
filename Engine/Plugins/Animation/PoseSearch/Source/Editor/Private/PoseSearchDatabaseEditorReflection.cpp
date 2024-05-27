@@ -157,13 +157,13 @@ bool UPoseSearchDatabaseAnimMontageReflection::ApplyChanges()
 	return false;
 }
 
-bool UPoseSearchDatabaseMultiSequenceReflection::ApplyChanges()
+bool UPoseSearchDatabaseMultiAnimAssetReflection::ApplyChanges()
 {
-	const float PlayLength = MultiSequence.GetPlayLength();
-	const FFloatInterval ClampedSamplingRange(FMath::Clamp(MultiSequence.SamplingRange.Min, 0.0f, PlayLength), FMath::Clamp(MultiSequence.SamplingRange.Max, 0.0f, PlayLength));
-	if (ClampedSamplingRange != MultiSequence.SamplingRange)
+	const float PlayLength = MultiAnimAsset.GetPlayLength();
+	const FFloatInterval ClampedSamplingRange(FMath::Clamp(MultiAnimAsset.SamplingRange.Min, 0.0f, PlayLength), FMath::Clamp(MultiAnimAsset.SamplingRange.Max, 0.0f, PlayLength));
+	if (ClampedSamplingRange != MultiAnimAsset.SamplingRange)
 	{
-		MultiSequence.SamplingRange = ClampedSamplingRange;
+		MultiAnimAsset.SamplingRange = ClampedSamplingRange;
 	}
 
 	if (const TSharedPtr<UE::PoseSearch::FDatabaseAssetTreeNode> AssetTreeNode = WeakAssetTreeNode.Pin())
@@ -173,11 +173,11 @@ bool UPoseSearchDatabaseMultiSequenceReflection::ApplyChanges()
 			UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase();
 			if (IsValid(Database))
 			{
-				if (FPoseSearchDatabaseMultiSequence* DatabaseMultiSequence = Database->GetMutableDatabaseAnimationAsset<FPoseSearchDatabaseMultiSequence>(AssetTreeNode->SourceAssetIdx))
+				if (FPoseSearchDatabaseMultiAnimAsset* DatabaseMultiAnimAsset = Database->GetMutableDatabaseAnimationAsset<FPoseSearchDatabaseMultiAnimAsset>(AssetTreeNode->SourceAssetIdx))
 				{
-					if (*DatabaseMultiSequence != MultiSequence)
+					if (*DatabaseMultiAnimAsset != MultiAnimAsset)
 					{
-						*DatabaseMultiSequence = MultiSequence;
+						*DatabaseMultiAnimAsset = MultiAnimAsset;
 						Database->MarkPackageDirty();
 						return true;
 					}
