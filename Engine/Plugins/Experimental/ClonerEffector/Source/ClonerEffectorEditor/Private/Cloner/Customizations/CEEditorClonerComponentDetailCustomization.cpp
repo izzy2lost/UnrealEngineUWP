@@ -2,12 +2,15 @@
 
 #include "Cloner/Customizations/CEEditorClonerComponentDetailCustomization.h"
 
+#include "CEEditorClonerEffectorExtensionDetailCustomization.h"
 #include "Cloner/CEClonerComponent.h"
+#include "Cloner/Extensions/CEClonerEffectorExtension.h"
 #include "Cloner/Extensions/CEClonerExtensionBase.h"
 #include "Cloner/Extensions/CEClonerLifetimeExtension.h"
 #include "Cloner/Layouts/CEClonerLayoutBase.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
+#include "IDetailChildrenBuilder.h"
 #include "Input/Reply.h"
 #include "Modules/ModuleManager.h"
 #include "NiagaraDataInterfaceCurve.h"
@@ -30,7 +33,7 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 	InDetailBuilder.HideCategory(TEXT("NiagaraComponent_Utilities"));
 
 	// Remove extension array property
-	TSharedRef<IPropertyHandle> ActiveExtensionsProperty = InDetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UCEClonerComponent, ActiveExtensions), UCEClonerComponent::StaticClass());
+	TSharedRef<IPropertyHandle> ActiveExtensionsProperty = InDetailBuilder.GetProperty(UCEClonerComponent::GetActiveExtensionsName(), UCEClonerComponent::StaticClass());
 
 	if (!ActiveExtensionsProperty->IsValidHandle())
 	{
@@ -46,7 +49,7 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 	// Everything needs to be below Cloner category
 	int32 StartOrder = InDetailBuilder.EditCategory(TEXT("Cloner")).GetSortOrder() + 1;
 
-	TSharedRef<IPropertyHandle> ActiveLayoutProperty = InDetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UCEClonerComponent, ActiveLayout), UCEClonerComponent::StaticClass());
+	TSharedRef<IPropertyHandle> ActiveLayoutProperty = InDetailBuilder.GetProperty(UCEClonerComponent::GetActiveLayoutName(), UCEClonerComponent::StaticClass());
 
 	if (!ActiveLayoutProperty->IsValidHandle())
 	{
@@ -103,7 +106,20 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 				}
 				else
 				{
-					ExtensionCategoryBuilder.AddProperty(ChildHandle);
+					const FProperty* Property = ChildHandle->GetProperty();
+
+					/*
+					 * Since AddExternalObject doesn't add hidden properties (EditConditionHides) of the object but only the visible ones
+					 * We add them manually, but this also means the object customization is not used, we need to set it manually from here
+					*/
+					if (Property && Property->GetName() == UCEClonerEffectorExtension::GetEffectorActorsWeakName())
+					{
+						FCEEditorClonerEffectorExtensionDetailCustomization::CustomizeEffectorsProperty(ChildHandle.ToSharedRef(), ExtensionCategoryBuilder);
+					}
+					else
+					{
+						ExtensionCategoryBuilder.AddProperty(ChildHandle);
+					}
 				}
 			}
 		};
@@ -142,6 +158,11 @@ void FCEEditorClonerComponentDetailCustomization::CustomizeDetails(IDetailLayout
 				return EVisibility::Visible;
 			}));
 		}
+	}
+
+	if (!InDetailBuilder.GetSelectedObjectsOfType<UCEClonerComponent>().IsEmpty())
+	{
+		return;
 	}
 
 	// Handle ufunctions

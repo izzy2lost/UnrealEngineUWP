@@ -25,7 +25,6 @@ class UCEClonerComponent : public UNiagaraComponent
 	GENERATED_BODY()
 
 	friend class ACEClonerActor;
-	friend class FCEEditorClonerComponentDetailCustomization;
 
 public:
 	/** Only materials transient or part of the content folder can be dirtied, engine or plugins cannot */
@@ -37,6 +36,10 @@ public:
 #if WITH_EDITOR
 	/** Show material warning notification when missing niagara usage flag */
 	static void ShowMaterialWarning(int32 InMaterialCount);
+
+	static CLONEREFFECTOR_API FName GetActiveExtensionsName();
+
+	static CLONEREFFECTOR_API FName GetActiveLayoutName();
 #endif
 
 	TMulticastDelegateRegistration<void(UCEClonerComponent*)>& OnClonerMeshUpdated()

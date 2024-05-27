@@ -18,6 +18,10 @@ class UCEClonerEffectorExtension : public UCEClonerExtensionBase
 	GENERATED_BODY()
 
 public:
+#if WITH_EDITOR
+	static CLONEREFFECTOR_API FName GetEffectorActorsWeakName();
+#endif
+
 	UCEClonerEffectorExtension()
 		: UCEClonerExtensionBase(
 			TEXT("Effector")
@@ -71,11 +75,11 @@ protected:
 	UPROPERTY(EditInstanceOnly, Category="Effector", meta=(DisplayName="Effectors"))
 	TArray<TWeakObjectPtr<AActor>> EffectorActorsWeak;
 
+private:
 	/** Copy of effectors linked to this cloner to compare diffs */
 	UPROPERTY(Transient, DuplicateTransient, TextExportTransient, NonTransactional)
 	TSet<TWeakObjectPtr<UCEEffectorComponent>> EffectorsInternalWeak;
 
-private:
 #if WITH_EDITOR
 	/** Used for PECP */
 	static const TCEPropertyChangeDispatcher<UCEClonerEffectorExtension> PropertyChangeDispatcher;

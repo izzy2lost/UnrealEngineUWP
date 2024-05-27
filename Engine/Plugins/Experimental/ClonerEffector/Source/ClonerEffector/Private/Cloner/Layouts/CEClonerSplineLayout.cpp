@@ -12,6 +12,13 @@
 #include "Editor/EditorEngine.h"
 #endif
 
+#if WITH_EDITOR
+FName UCEClonerSplineLayout::GetSplineActorWeakName()
+{
+	return GET_MEMBER_NAME_CHECKED(UCEClonerSplineLayout, SplineActorWeak);
+}
+#endif
+
 void UCEClonerSplineLayout::SetCount(int32 InCount)
 {
 	if (Count == InCount)

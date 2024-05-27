@@ -27,6 +27,7 @@ public class ClonerEffectorEditor : ModuleRules
 		        "ClonerEffector",
 		        "InputCore",
 		        "Projects",
+				"PropertyEditor",
 				"ToolMenus"
 	        }
         );

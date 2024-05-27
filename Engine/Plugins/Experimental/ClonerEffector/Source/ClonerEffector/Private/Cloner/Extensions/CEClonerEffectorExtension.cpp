@@ -15,6 +15,13 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogCEClonerEffectorExtension, Log, All);
 
+#if WITH_EDITOR
+FName UCEClonerEffectorExtension::GetEffectorActorsWeakName()
+{
+	return GET_MEMBER_NAME_CHECKED(UCEClonerEffectorExtension, EffectorActorsWeak);
+}
+#endif
+
 bool UCEClonerEffectorExtension::LinkEffector(AActor* InEffectorActor)
 {
 	if (!IsValid(InEffectorActor)

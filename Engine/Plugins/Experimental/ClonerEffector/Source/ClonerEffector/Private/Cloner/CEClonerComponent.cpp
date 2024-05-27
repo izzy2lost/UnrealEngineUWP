@@ -1003,6 +1003,16 @@ void UCEClonerComponent::ShowMaterialWarning(int32 InMaterialCount)
 		FSlateNotificationManager::Get().AddNotification(NotificationInfo);
 	}
 }
+
+FName UCEClonerComponent::GetActiveExtensionsName()
+{
+	return GET_MEMBER_NAME_CHECKED(UCEClonerComponent, ActiveExtensions);
+}
+
+FName UCEClonerComponent::GetActiveLayoutName()
+{
+	return GET_MEMBER_NAME_CHECKED(UCEClonerComponent, ActiveLayout);
+}
 #endif // WITH_EDITOR
 
 void UCEClonerComponent::InitializeCloner()

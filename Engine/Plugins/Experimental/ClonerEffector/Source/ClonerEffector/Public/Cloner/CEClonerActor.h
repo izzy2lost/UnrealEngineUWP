@@ -30,6 +30,11 @@ public:
 
 	ACEClonerActor();
 
+	UCEClonerComponent* GetClonerComponent() const
+	{
+		return ClonerComponent;
+	}
+
 protected:
 	//~ Begin UObject
 	virtual void Serialize(FArchive& InArchive) override;
@@ -42,11 +47,6 @@ protected:
 	virtual FString GetDefaultActorLabel() const override;
 #endif
 	//~ End AActor
-
-	UCEClonerComponent* GetClonerComponent() const
-	{
-		return ClonerComponent;
-	}
 
 private:
 	void OnClonerInitialized(UCEClonerComponent* InClonerComponent);

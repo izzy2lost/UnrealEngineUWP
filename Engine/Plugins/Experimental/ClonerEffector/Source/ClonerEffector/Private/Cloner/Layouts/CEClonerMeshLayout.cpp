@@ -9,6 +9,18 @@
 #include "NiagaraDataInterfaceSkeletalMesh.h"
 #include "NiagaraSystem.h"
 
+#if WITH_EDITOR
+FName UCEClonerMeshLayout::GetSampleActorWeakName()
+{
+	return GET_MEMBER_NAME_CHECKED(UCEClonerMeshLayout, SampleActorWeak);
+}
+
+FName UCEClonerMeshLayout::GetAssetName()
+{
+	return GET_MEMBER_NAME_CHECKED(UCEClonerMeshLayout, Asset);
+}
+#endif
+
 void UCEClonerMeshLayout::SetCount(int32 InCount)
 {
 	if (Count == InCount)

@@ -4,8 +4,14 @@
 
 #include "Cloner/CEClonerComponent.h"
 #include "Cloner/CEClonerActor.h"
-#include "Cloner/Customizations/CEEditorClonerComponentDetailCustomization.h"
 #include "Cloner/Customizations/CEEditorClonerActorDetailCustomization.h"
+#include "Cloner/Customizations/CEEditorClonerComponentDetailCustomization.h"
+#include "Cloner/Customizations/CEEditorClonerEffectorExtensionDetailCustomization.h"
+#include "Cloner/Customizations/CEEditorClonerMeshLayoutDetailCustomization.h"
+#include "Cloner/Customizations/CEEditorClonerSplineLayoutDetailCustomization.h"
+#include "Cloner/Extensions/CEClonerEffectorExtension.h"
+#include "Cloner/Layouts/CEClonerMeshLayout.h"
+#include "Cloner/Layouts/CEClonerSplineLayout.h"
 #include "Effector/Customizations/CEEditorEffectorComponentDetailCustomization.h"
 #include "Effector/Customizations/CEEditorEffectorTypeDetailCustomization.h"
 #include "Effector/CEEffectorActor.h"
@@ -26,6 +32,9 @@ void FCEEditorModule::StartupModule()
 	// Cloner customization
 	PropertyModule.RegisterCustomClassLayout(ACEClonerActor::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorClonerActorDetailCustomization::MakeInstance));
 	PropertyModule.RegisterCustomClassLayout(UCEClonerComponent::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorClonerComponentDetailCustomization::MakeInstance));
+	PropertyModule.RegisterCustomClassLayout(UCEClonerEffectorExtension::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorClonerEffectorExtensionDetailCustomization::MakeInstance));
+	PropertyModule.RegisterCustomClassLayout(UCEClonerSplineLayout::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorClonerSplineLayoutDetailCustomization::MakeInstance));
+	PropertyModule.RegisterCustomClassLayout(UCEClonerMeshLayout::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorClonerMeshLayoutDetailCustomization::MakeInstance));
 
 	// Effector customization
 	PropertyModule.RegisterCustomClassLayout(ACEEffectorActor::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorEffectorActorDetailCustomization::MakeInstance));
@@ -42,6 +51,9 @@ void FCEEditorModule::ShutdownModule()
 		// Cloner customization
 		PropertyModule.UnregisterCustomClassLayout(ACEClonerActor::StaticClass()->GetFName());
 		PropertyModule.UnregisterCustomClassLayout(UCEClonerComponent::StaticClass()->GetFName());
+		PropertyModule.UnregisterCustomClassLayout(UCEClonerEffectorExtension::StaticClass()->GetFName());
+		PropertyModule.UnregisterCustomClassLayout(UCEClonerSplineLayout::StaticClass()->GetFName());
+		PropertyModule.UnregisterCustomClassLayout(UCEClonerMeshLayout::StaticClass()->GetFName());
 
 		// Effector customization
 		PropertyModule.UnregisterCustomClassLayout(ACEEffectorActor::StaticClass()->GetFName());

@@ -18,6 +18,10 @@ class UCEClonerSplineLayout : public UCEClonerLayoutBase
 	friend class FAvaClonerActorVisualizer;
 
 public:
+#if WITH_EDITOR
+	static CLONEREFFECTOR_API FName GetSplineActorWeakName();
+#endif
+
 	UCEClonerSplineLayout()
 		: UCEClonerLayoutBase(
 			TEXT("Spline")
@@ -90,10 +94,10 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetOrientMesh", Getter="GetOrientMesh", Category="Layout")
     bool bOrientMesh = false;
 
+private:
 	UPROPERTY(Transient)
 	TWeakObjectPtr<USplineComponent> SplineComponentWeak;
 
-private:
 #if WITH_EDITOR
 	/** Used for PECP */
 	static const TCEPropertyChangeDispatcher<UCEClonerSplineLayout> PropertyChangeDispatcher;
