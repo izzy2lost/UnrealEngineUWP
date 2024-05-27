@@ -2,7 +2,6 @@
 
 #include "NNEModelData.h"
 
-#include "EditorFramework/AssetImportData.h"
 #include "NNE.h"
 #include "NNEAttributeMap.h"
 #include "NNEModelOptimizerInterface.h"
