@@ -352,7 +352,12 @@ bool FNiagaraSimCacheCompare::CompareEmitter(const UNiagaraSimCache& LhsCache, c
 				bool IsValid = true;
 				for (const FNiagaraSimCacheVariable& Var : LhsVariables)
 				{
-					if (!RhsVariables.Contains(Var))
+					auto ComparePredicate = [&Var](const FNiagaraSimCacheVariable& Rhs) -> bool
+					{
+						return Var.Variable == Rhs.Variable;
+					};
+
+					if (!RhsVariables.ContainsByPredicate(ComparePredicate))
 					{
 						AddError(OutDifferences, FString::Printf(TEXT("%s attribute %s does not exist in both caches."), *EmitterNameString, *Var.Variable.GetName().ToString()));
 						IsValid = false;
