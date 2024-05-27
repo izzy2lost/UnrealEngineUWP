@@ -62,12 +62,14 @@ void UWorldPartitionLevelStreamingDynamic::Initialize(const UWorldPartitionRunti
 #if WITH_EDITOR
 	check(ChildPackages.Num() == 0);
 
-	UnsavedActorsContainer = InCell.UnsavedActorsContainer;
+	UnsavedActorsContainer = InCell.UnsavedActorsContainer; 
 
 	Initialize(CellOuterWorld, InCell.GetPackages());
 #else
 	OuterWorldPartition = CellOuterWorld->GetWorldPartition();
 #endif
+
+	LevelColor = InCell.GetCellDebugColor();
 
 	UpdateShouldSkipMakingVisibilityTransactionRequest();
 }
@@ -306,11 +308,6 @@ bool UWorldPartitionLevelStreamingDynamic::RequestLevel(UWorld* InPersistentWorl
 			check(!RuntimeLevel);
 			CreateRuntimeLevel();
 			check(RuntimeLevel);
-
-			if (const UWorldPartitionRuntimeLevelStreamingCell* RuntimeLevelStreamingCell = StreamingCell.Get())
-			{
-				LevelColor = RuntimeLevelStreamingCell->GetCellDebugColor();
-			}
 
 			UPackage* CellLevelPackage = RuntimeLevel->GetPackage();
 			check(CellLevelPackage);

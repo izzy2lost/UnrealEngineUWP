@@ -10,6 +10,7 @@
 #include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
 #include "WorldPartition/WorldPartition.h"
+#include "GameFramework/ActorPrimitiveColorHandler.h"
 #include "Subsystems/ActorEditorContextSubsystem.h"
 #include "DataLayer/DataLayerEditorSubsystem.h"
 #include "Engine/Selection.h"
@@ -19,12 +20,32 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Editor.h"
 
+#define LOCTEXT_NAMESPACE "ContentBundle"
+
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
+static FName NAME_ContentBundleColor(TEXT("ContentBundleColor"));
+#endif
+
 void UContentBundleEditingSubmodule::DoInitialize()
 {
 	check(GEditor);
 	UActorEditorContextSubsystem::Get()->RegisterClient(this);
 	// For backward compatibility, Content Bundle will be applied right when LevelActorAdded is called
 	GEditor->OnLevelActorAdded().AddUObject(this, &UContentBundleEditingSubmodule::ApplyContext);
+
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
+	FActorPrimitiveColorHandler::Get().RegisterPrimitiveColorHandler(NAME_ContentBundleColor, LOCTEXT("ContentBundleColor", "Content Bundle Color"), [](const UPrimitiveComponent* InPrimitiveComponent) -> FLinearColor
+	{
+		if (AActor* Actor = InPrimitiveComponent->GetOwner())
+		{
+			if (Actor->GetContentBundleGuid().IsValid())
+			{
+				return FLinearColor::MakeRandomSeededColor(GetTypeHash(Actor->GetContentBundleGuid()));
+			}
+		}
+		return FLinearColor::Gray;
+	});
+#endif
 }
 
 void UContentBundleEditingSubmodule::DoDenitialize()
@@ -42,6 +63,10 @@ void UContentBundleEditingSubmodule::DoDenitialize()
 	}
 
 	EditingContentBundlesStack.Empty();
+
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
+	FActorPrimitiveColorHandler::Get().UnregisterPrimitiveColorHandler(NAME_ContentBundleColor);
+#endif
 }
 
 void UContentBundleEditingSubmodule::PreEditUndo()
@@ -185,7 +210,6 @@ TSharedRef<SWidget> UContentBundleEditingSubmodule::GetActorEditorContextWidget(
 			]
 		];
 	}
-
 
 	return OutWidget;
 }
@@ -463,3 +487,4 @@ void UContentBundleEditorSubsystem::SelectActorsInternal(FContentBundleEditor& E
 
 	GEditor->NoteSelectionChange();
 }
+#undef LOCTEXT_NAMESPACE
