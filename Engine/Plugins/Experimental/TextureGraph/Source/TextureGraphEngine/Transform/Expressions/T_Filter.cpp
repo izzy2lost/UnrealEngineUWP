@@ -123,4 +123,3 @@ TiledBlobPtr T_Filter::CreateSineWarp(MixUpdateCyclePtr InCycle, BufferDescripto
 
 	return Result;
 }
-
