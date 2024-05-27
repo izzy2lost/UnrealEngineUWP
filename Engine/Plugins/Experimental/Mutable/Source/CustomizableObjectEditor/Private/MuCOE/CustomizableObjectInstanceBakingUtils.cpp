@@ -811,11 +811,12 @@ bool BakeCustomizableObjectInstance(
 		USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(DupObject);
 		if (SkeletalMesh)
 		{
+			SkeletalMesh->ResetLODInfo();
 			for (int32 LODIndex = 0; LODIndex < Mesh->GetLODNum(); ++LODIndex)
-			{
-				SkeletalMesh->AddLODInfo(*Mesh->GetLODInfo(LODIndex));
-			}
-
+        	{
+        		SkeletalMesh->AddLODInfo(*Mesh->GetLODInfo(LODIndex));
+        	}
+		
 			SkeletalMesh->GetImportedModel()->SkeletalMeshModelGUID = FGuid::NewGuid();
 
 			// Duplicate AssetUserData
