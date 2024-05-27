@@ -429,22 +429,6 @@ LoadPackReferences(FIOReaderStream& Reader, FSerializedSectionHeader Header)
 	return Result;
 }
 
-static void
-ConvertSerializedPathSeparatorsToNative(std::string& PathUtf8)
-{
-	std::replace_if(
-		PathUtf8.begin(),
-		PathUtf8.end(),
-		[](char C) { return C == '/' || C == '\\'; },
-		char(FPath::preferred_separator));
-}
-
-static void
-ConvertNativePathSeparatorsToSerialized(std::string& PathUtf8)
-{
-	std::replace(PathUtf8.begin(), PathUtf8.end(), char(FPath::preferred_separator), '/');
-}
-
 bool  // TODO: return a TResult
 LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, FIOReaderStream& Stream)
 {
@@ -582,7 +566,7 @@ LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, FIORea
 		for (uint64 FileIndex = 0; FileIndex < NumFiles; ++FileIndex)
 		{
 			Serialize(Stream, FilenameUtf8);
-			ConvertSerializedPathSeparatorsToNative(FilenameUtf8);
+			ConvertDirectorySeparatorsToNative(FilenameUtf8);
 			
 			FFileManifest FileManifest;
 			Serialize(Stream, FileManifest.Mtime);
@@ -809,7 +793,7 @@ SaveDirectoryManifest(const FDirectoryManifest& Manifest, FVectorStreamOut& Stre
 	for (const auto& It : Manifest.Files)
 	{
 		std::string FilenameUtf8 = ConvertWideToUtf8(It.first);
-		ConvertNativePathSeparatorsToSerialized(FilenameUtf8);
+		ConvertDirectorySeparatorsToUnix(FilenameUtf8);
 
 		Serialize(Stream, FilenameUtf8);  // name as utf8
 

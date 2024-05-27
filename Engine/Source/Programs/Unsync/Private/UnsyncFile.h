@@ -475,9 +475,15 @@ bool			FileCopy(const FPath& From, const FPath& To, std::error_code& OutErrorCod
 bool			FileCopyOverwrite(const FPath& From, const FPath& To, std::error_code& OutErrorCode);
 bool			FileRemove(const FPath& Path, std::error_code& OutErrorCode);
 FPath			GetRelativePath(const FPath& Path, const FPath& Base);
+FPathStringView GetRelativePathView(const FPath& Path, const FPath& Base);
 std::error_code CopyFileIfNewer(const FPath& Source, const FPath& Target);
 bool			IsNonCaseSensitiveFileSystem(const FPath& ExistingPath);
 bool			IsCaseSensitiveFileSystem(const FPath& ExistingPath);
+
+void ConvertDirectorySeparatorsToNative(std::string& Path);
+void ConvertDirectorySeparatorsToNative(std::wstring& Path);
+void ConvertDirectorySeparatorsToUnix(std::string& Path);
+void ConvertDirectorySeparatorsToUnix(std::wstring& Path);
 
 // Returns number of bytes that can be written to the given path.
 // Returns ~0ull if the available space could not be determined.

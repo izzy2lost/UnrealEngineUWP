@@ -139,6 +139,20 @@ std::wstring ConvertUtf8ToWide(std::string_view StringUtf8);
 std::string	 ConvertWideToUtf8(std::wstring_view StringWide);
 void		 ConvertWideToUtf8(std::wstring_view StringWide, std::string& Result);
 
+inline std::string
+ToString(const std::wstring_view WideStringView)
+{
+	return ConvertWideToUtf8(WideStringView);
+}
+
+inline std::string
+ToString(const std::string_view StringView)
+{
+	return std::string(StringView);
+}
+
+std::string ToString(const FPath& Path);
+
 std::wstring StringToLower(const std::wstring& Input);
 std::wstring StringToUpper(const std::wstring& Input);
 

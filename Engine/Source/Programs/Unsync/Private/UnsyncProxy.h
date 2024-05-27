@@ -8,6 +8,8 @@
 #include "UnsyncSocket.h"
 #include "UnsyncThread.h"
 #include "UnsyncUtil.h"
+#include "UnsyncPool.h"
+#include "UnsyncHttp.h"
 
 #include <functional>
 #include <mutex>
@@ -163,6 +165,9 @@ public:
 	std::unique_ptr<FProxy> Alloc();
 	void					Dealloc(std::unique_ptr<FProxy>&& Proxy);
 
+	std::unique_ptr<FHttpConnection> AllocHttp();
+	void							 DeallocHttp(std::unique_ptr<FHttpConnection>&& Connection);
+
 	void Invalidate();
 	bool IsValid() const;
 
@@ -181,12 +186,26 @@ private:
 	std::vector<std::unique_ptr<FProxy>> Pool;
 	bool								 bValid = true;
 
+	std::optional<TObjectPool<FHttpConnection>> HttpPool;
+
 	FRemoteProtocolFeatures Features;
 	std::string SessionId;
 
 	FBlockRequestMap RequestMap;
 
 	std::mutex Mutex;
+};
+
+struct FPooledHttpConnection
+{
+	FPooledHttpConnection(FProxyPool& InProxyPool) : ProxyPool(InProxyPool) { Inner = ProxyPool.AllocHttp(); }
+	~FPooledHttpConnection() { ProxyPool.DeallocHttp(std::move(Inner)); }
+	FHttpConnection* Get() { return Inner.get(); }
+	FHttpConnection& operator*() { return *Get(); }
+	FHttpConnection* operator->() { return Get(); }
+	operator FHttpConnection&() { return *Get(); }
+	FProxyPool&						 ProxyPool;
+	std::unique_ptr<FHttpConnection> Inner;
 };
 
 namespace ProxyQuery {
@@ -219,7 +238,7 @@ TResult<FHelloResponse> Hello(FHttpConnection& Connection, const FAuthDesc* OptA
 
 struct FDirectoryListingEntry
 {
-	std::string Name;
+	std::string Name;  // utf-8
 	uint64		Mtime	   = 0;
 	uint64		Size	   = 0;
 	bool		bDirectory = false;
@@ -241,6 +260,40 @@ TResult<> DownloadFile(FHttpConnection&		   Connection,
 					   const std::string&	   Path,
 					   FDownloadOutputCallback OutputCallback);
 
-} 
+}
+
+using FProxyDirectoryListing = ProxyQuery::FDirectoryListing;
+using FProxyDirectoryEntry	 = ProxyQuery::FDirectoryListingEntry;
+
+// Abstracts basic filesystem operations, such as directory listing and file download.
+// Can be used to transparently handle basic local and remote file operations.
+struct FProxyFileSystem
+{
+	virtual TResult<FProxyDirectoryListing> ListDirectory(const std::string_view RelativePath) = 0;
+	virtual TResult<FBuffer>				ReadFile(const std::string_view RelativePath)	   = 0;
+
+	virtual ~FProxyFileSystem() = default;
+};
+
+struct FPhysicalFileSystem : public FProxyFileSystem
+{
+	FPhysicalFileSystem(const FPath& InRoot);
+
+	virtual TResult<FProxyDirectoryListing> ListDirectory(const std::string_view RelativePath) final override;
+	virtual TResult<FBuffer>				ReadFile(const std::string_view RelativePath) final override;
+
+	FPath Root;
+};
+
+struct FRemoteFileSystem : public FProxyFileSystem
+{
+	FRemoteFileSystem(const std::string& InRoot, FProxyPool& InProxyPool) : Root(InRoot), ProxyPool(InProxyPool) {}
+
+	virtual TResult<FProxyDirectoryListing> ListDirectory(const std::string_view RelativePath) final override;
+	virtual TResult<FBuffer>				ReadFile(const std::string_view RelativePath) final override;
+
+	std::string	Root;
+	FProxyPool& ProxyPool;
+};
 
 }  // namespace unsync

@@ -9,9 +9,13 @@
 #include "UnsyncProgress.h"
 #include "UnsyncScheduler.h"
 
-#include <fmt/format.h>
 #include <atomic>
 #include <json11.hpp>
+
+#include <fmt/format.h>
+#if __has_include(<fmt/xchar.h>)
+#	include <fmt/xchar.h>
+#endif
 
 namespace unsync {
 
@@ -958,6 +962,14 @@ FProxyPool::FProxyPool(const FRemoteDesc& InRemoteDesc, const FAuthDesc* InAuthD
 		return;
 	}
 
+	auto CreateHttpConnection = [Remote = RemoteDesc]
+	{
+		FTlsClientSettings TlsSettings = Remote.GetTlsClientSettings();
+		return new FHttpConnection(Remote.Host.Address, Remote.Host.Port, Remote.TlsRequirement, TlsSettings);
+	};
+
+	HttpPool.emplace(CreateHttpConnection);
+
 	if (RemoteDesc.Protocol == EProtocolFlavor::Unsync)
 	{
 		UNSYNC_VERBOSE(L"Connecting to %hs server '%hs:%d' ...",
@@ -1028,6 +1040,24 @@ FProxyPool::Dealloc(std::unique_ptr<FProxy>&& Proxy)
 	}
 }
 
+std::unique_ptr<FHttpConnection>
+FProxyPool::AllocHttp()
+{
+	if (!bValid || !HttpPool)
+	{
+		return nullptr;
+	}
+	return HttpPool->Acquire();
+}
+void
+FProxyPool::DeallocHttp(std::unique_ptr<FHttpConnection>&& Connection)
+{
+	if (Connection && HttpPool)
+	{
+		HttpPool->Release(std::move(Connection));
+	}
+}
+
 void
 FProxyPool::Invalidate()
 {
@@ -1061,6 +1091,74 @@ FProxyPool::InitRequestMap(EStrongHashAlgorithmID InStrongHasher)
 {
 	std::lock_guard<std::mutex> LockGuard(Mutex);
 	RequestMap.Init(InStrongHasher);
+}
+
+FPhysicalFileSystem::FPhysicalFileSystem(const FPath& InRoot) : Root(InRoot)
+{
+}
+
+TResult<FProxyDirectoryListing>
+FPhysicalFileSystem::ListDirectory(const std::string_view RelativePath)
+{
+	FProxyDirectoryListing Result;
+
+	std::wstring RelativePathWide = ConvertUtf8ToWide(RelativePath);
+	FPath		 FullPath		  = Root / FPath(RelativePathWide);
+
+	for (const std::filesystem::directory_entry& Dir : DirectoryScan(FullPath))
+	{
+		FPath FileName = Dir.path().filename();
+
+		FProxyDirectoryEntry Entry;
+		Entry.bDirectory = Dir.is_directory();
+		Entry.Size		 = Entry.bDirectory ? 0 : Dir.file_size();
+		Entry.Mtime		 = ToWindowsFileTime(Dir.last_write_time());
+		Entry.Name		 = ToString(FileName);
+
+		Result.Entries.emplace_back(std::move(Entry));
+	}
+
+	return ResultOk(std::move(Result));
+}
+
+TResult<FBuffer>
+FPhysicalFileSystem::ReadFile(const std::string_view RelativePath)
+{
+	std::wstring RelativePathWide = ConvertUtf8ToWide(RelativePath);
+	FPath		 FullPath		  = Root / FPath(RelativePathWide);
+	FBuffer		 Buffer			  = ReadFileToBuffer(FullPath);
+
+	if (Buffer.Empty())
+	{
+		// TODO: ReadFileToBuffer should return an error code or TResult
+		return AppError(fmt::format(L"Could not read file '{}'", FullPath.wstring()));
+	}
+	else
+	{
+		return ResultOk(std::move(Buffer));
+	}
+}
+
+TResult<FProxyDirectoryListing>
+FRemoteFileSystem::ListDirectory(const std::string_view RelativePath)
+{
+	FPooledHttpConnection HttpConnection(ProxyPool);
+	std::string			  FullPath;
+	FullPath.append(Root);
+	FullPath.append("/");
+	FullPath.append(RelativePath);
+	return ProxyQuery::ListDirectory(HttpConnection, ProxyPool.AuthDesc, FullPath);
+}
+
+TResult<FBuffer>
+FRemoteFileSystem::ReadFile(const std::string_view RelativePath)
+{
+	FPooledHttpConnection HttpConnection(ProxyPool);
+	std::string			  FullPath;
+	FullPath.append(Root);
+	FullPath.append("/");
+	FullPath.append(RelativePath);
+	return ProxyQuery::DownloadFile(HttpConnection, ProxyPool.AuthDesc, FullPath);
 }
 
 }  // namespace unsync

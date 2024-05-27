@@ -111,6 +111,13 @@ std::filesystem::file_time_type FromWindowsFileTime(uint64 Ticks)
 FPath
 GetRelativePath(const FPath& Path, const FPath& Base)
 {
+	FPathStringView ResultView = GetRelativePathView(Path, Base);
+	return ResultView;
+}
+
+FPathStringView
+GetRelativePathView(const FPath& Path, const FPath& Base)
+{
 	// Try a trivial case first, without touching the filesystem
 	FPathStringView PathView = RemoveExtendedPathPrefix(Path);
 	FPathStringView BaseView = RemoveExtendedPathPrefix(Base);
@@ -124,10 +131,50 @@ GetRelativePath(const FPath& Path, const FPath& Base)
 		{
 			RelativePath = RelativePath.substr(1);
 		}
-		return FPath(RelativePath);
+		return RelativePath;
 	}
 
 	return {};
+}
+
+void
+ConvertDirectorySeparatorsToNative(std::string& Path)
+{
+	std::replace_if(
+		Path.begin(),
+		Path.end(),
+		[](char C) { return C == '/' || C == '\\'; },
+		char(FPath::preferred_separator));
+}
+
+void
+ConvertDirectorySeparatorsToUnix(std::string& Path)
+{
+	std::replace_if(
+		Path.begin(),
+		Path.end(),
+		[](char C) { return C == '\\'; },
+		char('/'));
+}
+
+void
+ConvertDirectorySeparatorsToNative(std::wstring& Path)
+{
+	std::replace_if(
+		Path.begin(),
+		Path.end(),
+		[](wchar_t C) { return C == '/' || C == '\\'; },
+		wchar_t(FPath::preferred_separator));
+}
+
+void
+ConvertDirectorySeparatorsToUnix(std::wstring& Path)
+{
+	std::replace_if(
+		Path.begin(),
+		Path.end(),
+		[](wchar_t C) { return C == '\\'; },
+		wchar_t('/'));
 }
 
 std::error_code

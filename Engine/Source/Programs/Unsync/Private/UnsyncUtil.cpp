@@ -195,6 +195,13 @@ FFileAttributeCache::Exists(const FPath& Path) const
 	return It != Map.end();
 }
 
+std::string
+ToString(const FPath& Path)
+{
+	FPathStringView PathView = Path.native();
+	return ToString(PathView);
+}
+
 std::wstring
 StringToLower(const std::wstring& Input)
 {

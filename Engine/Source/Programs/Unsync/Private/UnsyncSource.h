@@ -3,6 +3,7 @@
 #pragma once
 
 #include "UnsyncCommon.h"
+#include "UnsyncProxy.h"
 
 namespace unsync {
 

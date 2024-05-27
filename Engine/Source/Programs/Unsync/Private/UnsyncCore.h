@@ -241,6 +241,7 @@ struct FSyncDirectoryOptions
 	bool			   bFullDifference = true;	// whether to run full file difference algorithm, even when there is an existing manifest
 	bool			   bCheckAvailableSpace		  = true;  // whether to abort the sync if target path does not have enough available space
 	uint64			   BackgroundTaskMemoryBudget = 2_GB;
+	uint64			   MaxFilesPerTask			  = 1000;
 };
 
 bool SyncDirectory(const FSyncDirectoryOptions& SyncOptions);
