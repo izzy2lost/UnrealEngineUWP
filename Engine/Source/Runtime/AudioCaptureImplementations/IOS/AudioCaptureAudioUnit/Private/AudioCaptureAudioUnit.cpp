@@ -87,6 +87,7 @@ bool Audio::FAudioCaptureAudioUnitStream::GetCaptureDeviceInfo(FCaptureDeviceInf
 		case kRemoteIODeviceIndex:
 		{
 			OutInfo.DeviceName = FString(TEXT("Remote IO Audio Component"));
+			OutInfo.DeviceId = OutInfo.DeviceName;
 			OutInfo.InputChannels = 1;
 			OutInfo.PreferredSampleRate = 48000;
 			OutInfo.bSupportsHardwareAEC = false;
@@ -95,6 +96,7 @@ bool Audio::FAudioCaptureAudioUnitStream::GetCaptureDeviceInfo(FCaptureDeviceInf
 		case kVoiceProcessingIODeviceIndex:
 		{
 			OutInfo.DeviceName = FString(TEXT("VoiceProcesing IO Audio Component"));
+			OutInfo.DeviceId = OutInfo.DeviceName;
 			OutInfo.InputChannels = 1;
 			OutInfo.PreferredSampleRate = 48000;
 			OutInfo.bSupportsHardwareAEC = true;
