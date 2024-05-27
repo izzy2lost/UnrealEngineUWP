@@ -28,6 +28,7 @@
 #include "RewindDebuggerPlaceholderTrack.h"
 #include "RewindDebuggerSettings.h"
 #include "SLevelViewport.h"
+#include "SModalSessionBrowser.h"
 #include "ToolMenus.h"
 #include "Trace/StoreClient.h"
 #include "TraceServices/Model/Frames.h"
@@ -43,6 +44,7 @@
 #include "TraceServices/AnalysisService.h"
 #include "TraceServices/ITraceServicesModule.h"
 #include "Widgets/Input/SNumericEntryBox.h"
+#include "Misc/MessageDialog.h"
 
 #define LOCTEXT_NAMESPACE "RewindDebugger"
 
@@ -523,6 +525,31 @@ void FRewindDebugger::OpenTrace()
 		if (OutOpenFilenames[0].EndsWith(TEXT("utrace")))
 		{
 			OpenTrace(OutOpenFilenames[0]);
+		}
+	}
+}
+
+
+void FRewindDebugger::AttachToSession()
+{
+	ClearTrace();
+	const TSharedRef<SModalSessionBrowser> SessionBrowserModal = SNew(SModalSessionBrowser);
+
+	if (SessionBrowserModal->ShowModal() != EAppReturnType::Cancel)
+	{
+		bool bSuccess = false;
+		const SModalSessionBrowser::FTraceSessionInfo SessionInfo = SessionBrowserModal->GetSelectedTraceInfo();
+		if (SessionInfo.bIsValid)
+		{
+			const FString SessionAddress = SessionBrowserModal->GetSelectedTraceStoreAddress();
+			IUnrealInsightsModule& TraceInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
+			TraceInsightsModule.StartAnalysisForTrace(SessionInfo.TraceID);
+			bSuccess = TraceInsightsModule.GetAnalysisSession().IsValid();
+		}
+
+		if (!bSuccess)
+		{
+			FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("FailedToConnectToSessionMessage", "Failed to connect to session"));	
 		}
 	}
 }
@@ -1376,6 +1403,13 @@ void FRewindDebugger::RegisterToolBar()
 
 	Section.AddSeparator(NAME_None);
 
+
+	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+				Commands.AttachToSession,
+				LOCTEXT("Blank",""),
+				TAttribute<FText>(),
+				FSlateIcon("RewindDebuggerStyle", "RewindDebugger.ConnectToSession")));
+				
 	Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 				Commands.OpenTrace,
 				LOCTEXT("Blank",""),

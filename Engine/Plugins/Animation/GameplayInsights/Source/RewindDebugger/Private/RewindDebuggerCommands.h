@@ -34,6 +34,7 @@ public:
 		UI_COMMAND(AutoEject, "Auto Eject", "Automatically detach player control when PIE is paused", EUserInterfaceActionType::ToggleButton, FInputChord());
 		UI_COMMAND(AutoRecord, "Auto Record", "Automatically start recording when PIE is started", EUserInterfaceActionType::ToggleButton, FInputChord());
 		UI_COMMAND(OpenTrace, "Open Recording", "Open a Trace file containing a rewind debugger recording", EUserInterfaceActionType::Button, FInputChord());
+		UI_COMMAND(AttachToSession, "Attach to Session", "Attach to a live session", EUserInterfaceActionType::Button, FInputChord());
 		UI_COMMAND(SaveTrace, "Save Recording", "Save a copy of the current recording", EUserInterfaceActionType::Button, FInputChord());
 		UI_COMMAND(ClearTrace, "Clear Recording", "Clear current recording data", EUserInterfaceActionType::Button, FInputChord());
 	}
@@ -52,6 +53,7 @@ public:
 	TSharedPtr<FUICommandInfo> AutoEject;
 	TSharedPtr<FUICommandInfo> AutoRecord;
 	TSharedPtr<FUICommandInfo> OpenTrace;
+	TSharedPtr<FUICommandInfo> AttachToSession;
 	TSharedPtr<FUICommandInfo> SaveTrace;
 	TSharedPtr<FUICommandInfo> ClearTrace;
 };

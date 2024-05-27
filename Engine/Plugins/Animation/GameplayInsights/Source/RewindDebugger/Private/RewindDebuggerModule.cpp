@@ -160,6 +160,12 @@ TSharedRef<SDockTab> FRewindDebuggerModule::SpawnRewindDebuggerTab(const FSpawnT
 							 FCanExecuteAction::CreateRaw(DebuggerInstance, &FRewindDebugger::CanOpenTrace),
 							 FIsActionChecked(),
 							 FIsActionButtonVisible());
+	
+	CommandList->MapAction(Commands.AttachToSession,
+    						 FExecuteAction::CreateRaw(DebuggerInstance, &FRewindDebugger::AttachToSession),
+    						 FCanExecuteAction::CreateRaw(DebuggerInstance, &FRewindDebugger::CanOpenTrace),
+    						 FIsActionChecked(),
+    						 FIsActionButtonVisible());
 		
 	CommandList->MapAction(Commands.SaveTrace,
 							 FExecuteAction::CreateRaw(DebuggerInstance, &FRewindDebugger::SaveTrace),

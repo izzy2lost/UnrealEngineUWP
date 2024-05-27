@@ -77,6 +77,8 @@ public:
 	bool CanOpenTrace() const;
    	void OpenTrace(const FString& FilePath);
    	void OpenTrace();
+	
+   	void AttachToSession();
 
 	bool CanClearTrace() const;
 	void ClearTrace();
