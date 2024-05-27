@@ -27,8 +27,8 @@
 #include "Layout/WidgetPath.h"
 #include "Framework/Application/MenuStack.h"
 #include "Framework/SlateDelegates.h"
-
 #include "Framework/Application/GestureDetector.h"
+#include "SlateApplication.generated.h"
 
 class FNavigationConfig;
 #if WITH_ACCESSIBILITY
@@ -180,6 +180,57 @@ enum class ESlateTickType : uint8
 };
 
 ENUM_CLASS_FLAGS(ESlateTickType);
+
+/** Priority bucket type for Input Pre-Processors. They will be evaluated in ascending order and may block input from later buckets. */
+UENUM()
+enum class EInputPreProcessorType : uint8
+{
+	/** Input from platform overlay events */
+	Overlay = 0,
+	/** Higher priority engine-related input events */
+	PreEngine,
+	/** Engine-related input events */
+	Engine,
+	/** Higher priority editor-related input events, can be used as a middle point between Engine and Game */
+	PreEditor,
+	/** Editor - related input events, can be used as a middle point between Engine and Game */
+	Editor,
+	/** Higher priority game-related input events */
+	PreGame,
+	/** Game-related input events. This is the default and lowest priority */
+	Game,
+
+	/** Current total number of types. Not to be used by processors, only for storage purposes */
+	Count
+};
+
+USTRUCT()
+struct FInputPreprocessorRegistrationKey
+{
+	GENERATED_BODY()
+
+	UPROPERTY(Config)
+	EInputPreProcessorType Type = EInputPreProcessorType::Game;
+	
+	UPROPERTY(Config)
+	int32 Priority = INDEX_NONE;
+
+	bool operator==(const FInputPreprocessorRegistrationKey& Other) const
+	{
+		return Type == Other.Type && Priority == Other.Priority;
+	}
+};
+
+struct FInputPreprocessorRegistration
+{
+	FInputPreprocessorRegistrationKey Info;
+	TSharedPtr<class IInputProcessor> InputProcessor;
+
+	bool operator==(const FInputPreprocessorRegistration& Other) const
+	{
+		return Info == Other.Info && InputProcessor == Other.InputProcessor;
+	}
+};
 
 class FSlateApplication
 	: public FSlateApplicationBase
@@ -1415,14 +1466,38 @@ public:
 
 	/** Set the size of the deadzone for dragging in screen pixels */
 	SLATE_API void SetDragTriggerDistance( float ScreenPixels );
-	
+
+
+	/**
+	 * Adds input pre-processor if unique.
+	 * @param InputProcessor	The input pre-processor to add. Defaults to using the EInputPreProcessorType::Game bucket type and adding at the end of the bucket.
+	 * @return True if added to list of input pre-processors, false if not
+	 */
+	SLATE_API bool RegisterInputPreProcessor(TSharedPtr<class IInputProcessor> InputProcessor);
+
 	/** 
 	 * Adds input pre-processor if unique. 
 	 * @param InputProcessor	The input pre-processor to add.
-	 * @param Index				Where to insert the InputProcessor, when sorting is needed. Default index will add at the end.
+	 * @param Index				Where to insert the InputProcessor within the type bucket. Defaults to using the EInputPreProcessorType::Game type.
 	 * @return True if added to list of input pre-processors, false if not
 	 */
-	SLATE_API bool RegisterInputPreProcessor(TSharedPtr<class IInputProcessor> InputProcessor, const int32 Index = INDEX_NONE);
+	SLATE_API bool RegisterInputPreProcessor(TSharedPtr<class IInputProcessor> InputProcessor, const int32 Index);
+
+	/**
+	 * Adds input pre-processor if unique.
+	 * @param InputProcessor	The input pre-processor to add.
+	 * @param Type				Which bucket to insert the processor in. Defaults to adding at the end of the bucket.
+	 * @return True if added to list of input pre-processors, false if not
+	 */
+	SLATE_API bool RegisterInputPreProcessor(TSharedPtr<class IInputProcessor> InputProcessor, const EInputPreProcessorType Type);
+
+	/**
+	 * Adds input pre-processor if unique.
+	 * @param InputProcessor	The input pre-processor to add.
+	 * @param Info				Information specifying which priority type and index should be used to register the pre-processor.
+	 * @return True if added to list of input pre-processors, false if not
+	 */
+	SLATE_API bool RegisterInputPreProcessor(TSharedPtr<class IInputProcessor> InputProcessor, const FInputPreprocessorRegistrationKey& Info);
 
 	/**
 	 * Removes an input pre-processor.
@@ -1435,7 +1510,16 @@ public:
 	 * @param InputProcessor	The input pre-processor to find.
 	 * @return The index of the pre-processor, or INDEX_NONE if not registered.
 	 */
+	UE_DEPRECATED(5.5, "This method is deprecated and will use EInputPreProcessorType::Game as a default. For a more accurate search result, please use the new version taking a EInputPreProcessorType")
 	SLATE_API int32 FindInputPreProcessor(TSharedPtr<class IInputProcessor> InputProcessor) const;
+
+	/**
+	 * Get the index of a registered pre-processor.
+	 * @param InputProcessor	The input pre-processor to find.
+	 * @param Type				The priority bracket in which the pre-processor should be registered
+	 * @return The index of the pre-processor, or INDEX_NONE if not registered.
+	 */
+	SLATE_API int32 FindInputPreProcessor(TSharedPtr<class IInputProcessor> InputProcessor, const EInputPreProcessorType& Type) const;
 
 	/** Sets the hit detection radius of the cursor */
 	SLATE_API void SetCursorRadius(float NewRadius);
@@ -2054,10 +2138,9 @@ private:
 
 		/**
 		 * Adds or inserts an unique input pre-processor. 
-		 * @param InputProcessor	The InputProcessor to add.
-		 * @param Index				When this is set the index will be used to insert the InputProcessor. Defaults to INDEX_NONE, resulting in AddUnique.
+		 * @param Registration	Information needed for the processor registration, including the processor itself, its type, priority and (in legacy mode) index.
 		 */
-		bool Add(TSharedPtr<IInputProcessor> InputProcessor, const int32 Index = INDEX_NONE);
+		bool Add(const FInputPreprocessorRegistration& Registration);
 
 		/**
 		 * Remove an input pre-processor. 
@@ -2073,17 +2156,24 @@ private:
 		/**
 		 * Get the index of an input pre-processor.
 		 * @param InputProcessor	The InputProcessor to find.
+		 * @param Type				The priority bucket in which the InputProcessor was registered
 		 * @return The index of the pre-processor, or INDEX_NONE if not registered.
 		 */
-		int32 Find(TSharedPtr<IInputProcessor> InputProcessor) const;
+		int32 Find(TSharedPtr<IInputProcessor> InputProcessor, const EInputPreProcessorType& Type) const;
 
 	private:
 		bool PreProcessInput(ESlateDebuggingInputEvent InputEvent, TFunctionRef<bool(IInputProcessor&)> InputProcessFunc);
 
-		void AddInternal(TSharedPtr<IInputProcessor> InputProcessor, const int32 Index);
+		void AddInternal(const FInputPreprocessorRegistration& Registration);
 
-		/** The list of input pre-processors. */
-		TArray<TSharedPtr<IInputProcessor>> InputPreProcessorList;
+		using FProcessorTypeStorage = TArray<TSharedPtr<IInputProcessor>>;
+		using FInputProcessorStorage = TSparseArray<FProcessorTypeStorage, TInlineSparseArrayAllocator<(uint32)EInputPreProcessorType::Count>>;
+
+		/** The container of input pre-processors, indexed by type and ordered by priority. */
+		FInputProcessorStorage InputPreProcessors;
+
+		/** Flat array built from the ordered contents of the InputPreProcessors map to speed iteration */
+		TArray<TSharedPtr<IInputProcessor>> InputPreProcessorsIteratorList;
 
 		/** Guard value for if we are currently iterating our preprocessors. */
 		bool bIsIteratingPreProcessors = false;
@@ -2092,7 +2182,7 @@ private:
 		TArray<TSharedPtr<IInputProcessor>> ProcessorsPendingRemoval;
 
 		/** A list of pre-processors to add if we are iterating them while addition is requested. */
-		TMap<TSharedPtr<IInputProcessor>, int32> ProcessorsPendingAddition;
+		TArray<FInputPreprocessorRegistration> ProcessorsPendingAddition;
 	};
 
 	/** A list of input pre-processors, gets an opportunity to parse input before anything else. */

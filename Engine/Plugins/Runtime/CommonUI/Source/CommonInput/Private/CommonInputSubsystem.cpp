@@ -80,7 +80,7 @@ void UCommonInputSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	CurrentInputType = LastInputType = Settings->GetDefaultInputType();
 
 	CommonInputPreprocessor = MakeInputProcessor();
-	FSlateApplication::Get().RegisterInputPreProcessor(CommonInputPreprocessor, 0);
+	FSlateApplication::Get().RegisterInputPreProcessor(CommonInputPreprocessor, EInputPreProcessorType::PreGame);
 
 	TickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this, &UCommonInputSubsystem::Tick), 0.1f);
 
@@ -384,19 +384,6 @@ bool UCommonInputSubsystem::ShouldShowInputKeys() const
 bool UCommonInputSubsystem::Tick(float DeltaTime)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_UCommonInputSubsystem_Tick);
-
-	// Keep the CommonInputPreprocessor on top. Input swap and input filtering (e.g. "Ignore Gamepad Input")
-	// both start to break down if narrow game preprocessors temporarily get in front of it.
-	// This is a workaround to avoid a bigger intervention in the SlateApplication API for managing preprocessors.
-	if (CommonInputPreprocessor.IsValid() && FSlateApplication::IsInitialized())
-	{
-		FSlateApplication& SlateApplication = FSlateApplication::Get();
-		if (SlateApplication.FindInputPreProcessor(CommonInputPreprocessor) != 0)
-		{
-			SlateApplication.UnregisterInputPreProcessor(CommonInputPreprocessor);
-			SlateApplication.RegisterInputPreProcessor(CommonInputPreprocessor, 0);
-		}
-	}
 	
 	return true; //repeat ticking
 }

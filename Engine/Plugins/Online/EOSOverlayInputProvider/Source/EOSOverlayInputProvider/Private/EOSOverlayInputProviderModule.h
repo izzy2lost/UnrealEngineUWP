@@ -28,11 +28,5 @@ private:
 
 	bool bRenderReady = false;
 
-	// Currently common input wants to be index 0 and will conflict if this input processor
-	// also requests that index. This conflict will need to be resolved before the EOS social
-	// overlay can be used.
-	// For now choose index 1 which allows the overlay to work with logins.
-	static constexpr int32 EOSInputProcessorIndex = 1;
-
 	TSharedPtr<FEOSOverlayInputProviderPreProcessor> InputPreprocessor;
 };

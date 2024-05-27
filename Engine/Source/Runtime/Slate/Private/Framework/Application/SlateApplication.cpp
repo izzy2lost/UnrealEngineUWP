@@ -3854,14 +3854,28 @@ void FSlateApplication::SetDragTriggerDistance( float ScreenPixels )
 	DragTriggerDistance = ScreenPixels;
 }
 
-bool FSlateApplication::RegisterInputPreProcessor(TSharedPtr<IInputProcessor> InputProcessor, const int32 Index /*= INDEX_NONE*/)
+bool FSlateApplication::RegisterInputPreProcessor(TSharedPtr<IInputProcessor> InputProcessor)
+{
+	return RegisterInputPreProcessor(InputProcessor, FInputPreprocessorRegistrationKey());
+}
+
+bool FSlateApplication::RegisterInputPreProcessor(TSharedPtr<IInputProcessor> InputProcessor, const int32 Index)
+{
+	return RegisterInputPreProcessor(InputProcessor, FInputPreprocessorRegistrationKey{ EInputPreProcessorType::Game, Index });
+}
+
+bool FSlateApplication::RegisterInputPreProcessor(TSharedPtr<IInputProcessor> InputProcessor, const EInputPreProcessorType Type)
+{
+	return RegisterInputPreProcessor(InputProcessor, FInputPreprocessorRegistrationKey{ Type, INDEX_NONE });
+}
+
+bool FSlateApplication::RegisterInputPreProcessor(TSharedPtr<IInputProcessor> InputProcessor, const FInputPreprocessorRegistrationKey& Info)
 {
 	bool bResult = false;
-	if ( InputProcessor.IsValid() )
+	if (InputProcessor.IsValid())
 	{
-		bResult = InputPreProcessors.Add(InputProcessor, Index);
+		bResult = InputPreProcessors.Add(FInputPreprocessorRegistration{ Info, InputProcessor.ToSharedRef() });
 	}
-
 	return bResult;
 }
 
@@ -3870,9 +3884,14 @@ void FSlateApplication::UnregisterInputPreProcessor(TSharedPtr<IInputProcessor> 
 	InputPreProcessors.Remove(InputProcessor);
 }
 
-int32 FSlateApplication::FindInputPreProcessor(TSharedPtr<class IInputProcessor> InputProcessor) const
+int32 FSlateApplication::FindInputPreProcessor(TSharedPtr<IInputProcessor> InputProcessor) const
 {
-	return InputPreProcessors.Find(InputProcessor);
+	return InputPreProcessors.Find(InputProcessor, EInputPreProcessorType::Game);
+}
+
+int32 FSlateApplication::FindInputPreProcessor(TSharedPtr<IInputProcessor> InputProcessor, const EInputPreProcessorType& Type) const
+{
+	return InputPreProcessors.Find(InputProcessor, Type);
 }
 
 void FSlateApplication::SetCursorRadius(float NewRadius)
@@ -7335,12 +7354,9 @@ void FSlateApplication::InputPreProcessorsHelper::Tick(const float DeltaTime, FS
 {
 	TGuardValue<bool> IteratingGuard(bIsIteratingPreProcessors, true);
 
-	for (const TSharedPtr<IInputProcessor>& Preprocessor : InputPreProcessorList)
+	for (const TSharedPtr<IInputProcessor>& Processor : InputPreProcessorsIteratorList)
 	{
-		if (Preprocessor)
-		{
-			Preprocessor->Tick(DeltaTime, SlateApp, Cursor);
-		}
+		Processor->Tick(DeltaTime, SlateApp, Cursor);
 	}
 }
 
@@ -7398,39 +7414,70 @@ bool FSlateApplication::InputPreProcessorsHelper::HandleMotionDetectedEvent(FSla
 		, [&SlateApp, &MotionEvent](IInputProcessor& Processor) { return Processor.HandleMotionDetectedEvent(SlateApp, MotionEvent); });
 }
 
-bool FSlateApplication::InputPreProcessorsHelper::Add(TSharedPtr<IInputProcessor> InputProcessor, const int32 Index /*= INDEX_NONE*/)
+bool FSlateApplication::InputPreProcessorsHelper::Add(const FInputPreprocessorRegistration& Registration)
 {
-	const bool bAlreadyInList = InputPreProcessorList.Contains(InputProcessor);
-	if (!bAlreadyInList)
+	// We check if the processor attempting registration is already registered
+	bool bAlreadyRegistered = false;
+	for (const FProcessorTypeStorage& Storage : InputPreProcessors)
+	{
+		if (Storage.Contains(Registration.InputProcessor))
+		{
+			bAlreadyRegistered = true;
+			break;
+		}
+	}
+
+	if(!bAlreadyRegistered)
 	{
 		if (!bIsIteratingPreProcessors)
 		{
-			AddInternal(InputProcessor, Index);
+			AddInternal(Registration);
 		}
 		else
 		{
-			ProcessorsPendingAddition.Add(InputProcessor, Index);
+			ProcessorsPendingAddition.Add(Registration);
 		}
 	}
 
-	ProcessorsPendingRemoval.Remove(InputProcessor);
+	ProcessorsPendingRemoval.Remove(Registration.InputProcessor);
 
-	return !bAlreadyInList;
+	return !bAlreadyRegistered;
 }
 
-void FSlateApplication::InputPreProcessorsHelper::AddInternal(TSharedPtr<IInputProcessor> InputProcessor, const int32 Index)
+void FSlateApplication::InputPreProcessorsHelper::AddInternal(const FInputPreprocessorRegistration& Registration)
 {
-	if (Index == INDEX_NONE)
+	if (!InputPreProcessors.IsValidIndex((uint32)Registration.Info.Type))
 	{
-		InputPreProcessorList.Add(InputProcessor);
+		InputPreProcessors.EmplaceAt((int32)Registration.Info.Type, FProcessorTypeStorage());
+	}
+
+	FProcessorTypeStorage& Storage = InputPreProcessors[(uint32)Registration.Info.Type];
+
+	if (Registration.Info.Priority == INDEX_NONE)
+	{
+		Storage.Add(Registration.InputProcessor);
 	}
 	else
 	{
-		if (Index >= InputPreProcessorList.Num())
+ 		if (Registration.Info.Priority >= Storage.Num())
+ 		{
+ 			Storage.SetNum(Registration.Info.Priority); // No need for +1, insertion at the Num position doesn't cause an error. +1 would add unneeded empty spaces.
+ 		}
+		Storage.Insert(Registration.InputProcessor, Registration.Info.Priority);
+	}
+
+	// We rebuild the iterator list
+	InputPreProcessorsIteratorList.Reset();
+	for (const FProcessorTypeStorage& TypeStorage : InputPreProcessors)
+	{
+		for (const TSharedPtr<IInputProcessor>& Processor : TypeStorage)
 		{
-			InputPreProcessorList.SetNum(Index + 1);
+			// We won't add the empty spaces in the map to the list
+			if (Processor)
+			{
+				InputPreProcessorsIteratorList.Add(Processor);
+			}
 		}
-		InputPreProcessorList.Insert(InputProcessor, Index);
 	}
 }
 
@@ -7442,30 +7489,56 @@ void FSlateApplication::InputPreProcessorsHelper::Remove(TSharedPtr<IInputProces
 	}
 	else
 	{
-		InputPreProcessorList.Remove(InputProcessor);
+		for (FProcessorTypeStorage& Storage : InputPreProcessors)
+		{
+			Storage.Remove(InputProcessor);
+		}
+
+		InputPreProcessorsIteratorList.Remove(InputProcessor);
 	}
 
-	ProcessorsPendingAddition.Remove(InputProcessor);
+	for (const FInputPreprocessorRegistration& Registration : ProcessorsPendingAddition)
+	{
+		if (Registration.InputProcessor == InputProcessor)
+		{
+			ProcessorsPendingAddition.Remove(Registration);
+			break;
+		}
+	}
 }
 
 void FSlateApplication::InputPreProcessorsHelper::RemoveAll()
 {
 	if (bIsIteratingPreProcessors)
 	{
-		ProcessorsPendingRemoval.Append(InputPreProcessorList);
+		for (const FProcessorTypeStorage& Storage : InputPreProcessors)
+		{
+			ProcessorsPendingRemoval.Append(Storage);
+		}
 	}
 	else
 	{
-		InputPreProcessorList.Reset();
+		for (FProcessorTypeStorage& Storage : InputPreProcessors)
+		{
+			Storage.Reset();
+		}
+
+		InputPreProcessorsIteratorList.Reset();
 	}
 
 	ProcessorsPendingAddition.Reset();
 }
 
-
-int32 FSlateApplication::InputPreProcessorsHelper::Find(TSharedPtr<IInputProcessor> InputProcessor) const
+int32 FSlateApplication::InputPreProcessorsHelper::Find(TSharedPtr<IInputProcessor> InputProcessor, const EInputPreProcessorType& Type) const
 {
-	return InputPreProcessorList.Find(InputProcessor);
+	const uint32 TypeInt = static_cast<uint32>(Type);
+	if (InputPreProcessors.IsValidIndex(TypeInt))
+	{
+		const FProcessorTypeStorage& Storage = InputPreProcessors[TypeInt];
+		return Storage.Find(InputProcessor);
+	}
+
+	return INDEX_NONE;
 }
 
 bool FSlateApplication::InputPreProcessorsHelper::PreProcessInput(ESlateDebuggingInputEvent InputEvent, TFunctionRef<bool(IInputProcessor&)> InputProcessFunc)
@@ -7473,30 +7546,34 @@ bool FSlateApplication::InputPreProcessorsHelper::PreProcessInput(ESlateDebuggin
 	TGuardValue<bool> IteratingGuard(bIsIteratingPreProcessors, true);
 
 	bool bShouldExit = false;
-	for (const TSharedPtr<IInputProcessor>& InputPreProcessor : InputPreProcessorList)
+	for (const TSharedPtr<IInputProcessor>& Processor : InputPreProcessorsIteratorList)
 	{
-		if (InputPreProcessor)
-		{
-			bShouldExit = InputProcessFunc(*InputPreProcessor);
+		bShouldExit = InputProcessFunc(*Processor);
+
 #if WITH_SLATE_DEBUGGING
-			FSlateDebugging::BroadcastPreProcessInputEvent(InputEvent, InputPreProcessor->GetDebugName(), bShouldExit);
+		FSlateDebugging::BroadcastPreProcessInputEvent(InputEvent, Processor->GetDebugName(), bShouldExit);
 #endif
-			if (bShouldExit)
-			{
-				break;
-			}
+		if (bShouldExit)
+		{
+			break;
 		}
 	}
 
 	for (int32 Index = ProcessorsPendingRemoval.Num() - 1; Index >= 0; --Index)
 	{
-		InputPreProcessorList.RemoveSingleSwap(ProcessorsPendingRemoval[Index]);
+		TSharedPtr<IInputProcessor>& Processor = ProcessorsPendingRemoval[Index];
+
+		for (FProcessorTypeStorage& Storage : InputPreProcessors)
+		{
+			Storage.Remove(Processor);
+			InputPreProcessorsIteratorList.Remove(Processor);
+		}
 	}
 	ProcessorsPendingRemoval.Reset();
 
-	for (TPair<TSharedPtr<IInputProcessor>, int32>& ProcessorIndexPair : ProcessorsPendingAddition)
+	for (const FInputPreprocessorRegistration& Registration : ProcessorsPendingAddition)
 	{
-		AddInternal(ProcessorIndexPair.Key, ProcessorIndexPair.Value);
+		AddInternal(Registration);
 	}
 	ProcessorsPendingAddition.Reset();
 

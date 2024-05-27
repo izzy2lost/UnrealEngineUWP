@@ -190,7 +190,7 @@ void UInputDeviceSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	check(FSlateApplication::IsInitialized());
 	
 	InputPreprocessor = MakeShared<FInputDeviceSubsystemProcessor>();
-	FSlateApplication::Get().RegisterInputPreProcessor(InputPreprocessor, 0);
+	FSlateApplication::Get().RegisterInputPreProcessor(InputPreprocessor, EInputPreProcessorType::Engine);
 
 #if WITH_EDITOR
 	FEditorDelegates::PreBeginPIE.AddUObject(this, &UInputDeviceSubsystem::OnPrePIEStarted);

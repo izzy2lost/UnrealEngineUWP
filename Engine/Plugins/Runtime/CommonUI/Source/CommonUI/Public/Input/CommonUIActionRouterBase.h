@@ -11,6 +11,7 @@
 #include "Input/UIActionBindingHandle.h"
 #include "InputCoreTypes.h"
 #include "UObject/WeakObjectPtr.h"
+#include "Framework/Application/SlateApplication.h"
 #include "CommonUIActionRouterBase.generated.h"
 
 class SWidget;
@@ -78,7 +79,10 @@ public:
 	virtual void SetIsActivatableTreeEnabled(bool bInIsTreeEnabled);
 
 	virtual FUIActionBindingHandle RegisterUIActionBinding(const UWidget& Widget, const FBindUIActionArgs& BindActionArgs);
-	bool RegisterLinkedPreprocessor(const UWidget& Widget, const TSharedRef<IInputProcessor>& InputPreprocessor, int32 DesiredIndex = INDEX_NONE);
+	UE_DEPRECATED(5.5, "The version of RegisterLinkedPreprocessor taking an int32 DesiredIndex parameter is deprecated and uses EInputPreProcessorType::Game as a default. For greater control in pre-processor priority, please use the new version with a FInputPreprocessorRegistrationInfo parameter")
+	bool RegisterLinkedPreprocessor(const UWidget& Widget, const TSharedRef<IInputProcessor>& InputPreprocessor, int32 DesiredIndex);
+	bool RegisterLinkedPreprocessor(const UWidget& Widget, const TSharedRef<IInputProcessor>& InputPreprocessor);
+	bool RegisterLinkedPreprocessor(const UWidget& Widget, const TSharedRef<IInputProcessor>& InputPreprocessor, const FInputPreprocessorRegistrationKey& RegistrationInfo);
 
 	DECLARE_EVENT_OneParam(UCommonUIActionRouterBase, FOnActiveInputModeChanged, ECommonInputMode);
 	FOnActiveInputModeChanged& OnActiveInputModeChanged() const { return OnActiveInputModeChangedEvent; }
@@ -191,16 +195,26 @@ private:
 		TArray<FUIActionBindingHandle> ActionBindings;
 		bool bIsScrollRecipient = false;
 		
-		struct FPreprocessorRegistration
+		struct UE_DEPRECATED(5.5, "This struct is deprecated, please use FInputPreprocessorRegistration instead.") FPreprocessorRegistration
 		{
 			TSharedPtr<IInputProcessor> Preprocessor;
 			int32 DesiredIdx = 0;
 			bool operator==(const TSharedRef<IInputProcessor>& OtherPreprocessor) const { return Preprocessor == OtherPreprocessor; }
 		};
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		UE_DEPRECATED(5.5, "This variable is using a deprecated type, please use InputPreProcessors instead.")
 		TArray<FPreprocessorRegistration> Preprocessors;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+		TArray<FInputPreprocessorRegistration> InputPreProcessors;
 
 		bool operator==(const UWidget* OtherWidget) const { return OtherWidget == Widget.Get(); }
 		bool operator==(const UWidget& OtherWidget) const { return &OtherWidget == Widget.Get(); }
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		FPendingWidgetRegistration() = default;
+		FPendingWidgetRegistration(const FPendingWidgetRegistration&) = default;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	};
 	FPendingWidgetRegistration& GetOrCreatePendingRegistration(const UWidget& Widget);
 	TArray<FPendingWidgetRegistration> PendingWidgetRegistrations;

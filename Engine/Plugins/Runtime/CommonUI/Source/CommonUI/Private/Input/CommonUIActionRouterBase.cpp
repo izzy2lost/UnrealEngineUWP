@@ -202,27 +202,42 @@ FUIActionBindingHandle UCommonUIActionRouterBase::RegisterUIActionBinding(const 
 
 bool UCommonUIActionRouterBase::RegisterLinkedPreprocessor(const UWidget& Widget, const TSharedRef<IInputProcessor>& InputPreprocessor, int32 DesiredIndex)
 {
+	return RegisterLinkedPreprocessor(Widget, InputPreprocessor, FInputPreprocessorRegistrationKey{ EInputPreProcessorType::Game, DesiredIndex });
+}
+
+bool UCommonUIActionRouterBase::RegisterLinkedPreprocessor(const UWidget& Widget, const TSharedRef<IInputProcessor>& InputPreprocessor)
+{
+	return RegisterLinkedPreprocessor(Widget, InputPreprocessor, FInputPreprocessorRegistrationKey());
+}
+
+bool UCommonUIActionRouterBase::RegisterLinkedPreprocessor(const UWidget& Widget, const TSharedRef<IInputProcessor>& InputPreprocessor, const FInputPreprocessorRegistrationKey& RegistrationInfo)
+{
 	if (FActivatableTreeNodePtr OwnerNode = FindOwningNode(Widget))
 	{
-		OwnerNode->AddInputPreprocessor(InputPreprocessor, DesiredIndex);
+		OwnerNode->AddInputPreprocessor(InputPreprocessor, RegistrationInfo);
 		return true;
 	}
 	else if (Widget.GetCachedWidget())
 	{
 		// The widget is already constructed, but there's no node for it yet - defer for a frame
 		FPendingWidgetRegistration& PendingRegistration = GetOrCreatePendingRegistration(Widget);
-		if (FPendingWidgetRegistration::FPreprocessorRegistration* ExistingEntry = PendingRegistration.Preprocessors.FindByKey(InputPreprocessor))
+
+		bool bAlreadyExists = false;
+		for (FInputPreprocessorRegistration& Registration : PendingRegistration.InputPreProcessors)
 		{
-			// Already pending - just make sure the index lines up on the off chance it changed
-			ExistingEntry->DesiredIdx = DesiredIndex;
+			if (Registration.InputProcessor == InputPreprocessor)
+			{
+				Registration.Info = RegistrationInfo;
+				bAlreadyExists = true;
+				break;
+			}
 		}
-		else
+
+		if(!bAlreadyExists)
 		{
-			FPendingWidgetRegistration::FPreprocessorRegistration PreprocessorRegistration;
-			PreprocessorRegistration.Preprocessor = InputPreprocessor;
-			PreprocessorRegistration.DesiredIdx = DesiredIndex;
-			PendingRegistration.Preprocessors.Add(PreprocessorRegistration);
+			PendingRegistration.InputPreProcessors.Add(FInputPreprocessorRegistration{ RegistrationInfo, InputPreprocessor });
 		}
+
 		return true;
 	}
 
@@ -266,7 +281,7 @@ void UCommonUIActionRouterBase::RegisterAnalogCursorTick()
 {
 	if (GEngine->GameViewportClientClass->IsChildOf<UCommonGameViewportClient>())
 	{
-		FSlateApplication::Get().RegisterInputPreProcessor(AnalogCursor, UCommonUIInputSettings::Get().GetAnalogCursorSettings().PreprocessorPriority);
+		FSlateApplication::Get().RegisterInputPreProcessor(AnalogCursor, UCommonUIInputSettings::Get().GetAnalogCursorSettings().PreprocessorRegistrationInfo);
 	}
 
 	if (bIsActivatableTreeEnabled)
@@ -990,16 +1005,16 @@ void UCommonUIActionRouterBase::ProcessRebuiltWidgets()
 				OwnerWidget->RegisterInputTreeNode(OwnerNode);
 			}
 
-			if ((PendingRegistration.bIsScrollRecipient || PendingRegistration.Preprocessors.Num() > 0) && ensureMsgf(OwnerNode, TEXT("Widget [%s] does not have a parent activatable widget at any level - cannot register preprocessors or as a scroll recipient"), *Widget->GetName()))
+			if ((PendingRegistration.bIsScrollRecipient || PendingRegistration.InputPreProcessors.Num() > 0) && ensureMsgf(OwnerNode, TEXT("Widget [%s] does not have a parent activatable widget at any level - cannot register preprocessors or as a scroll recipient"), *Widget->GetName()))
 			{
 				if (PendingRegistration.bIsScrollRecipient)
 				{
 					OwnerNode->AddScrollRecipient(*Widget);
 				}
 
-				for (const auto& PreprocessorInfo : PendingRegistration.Preprocessors)
+				for (const auto& PreprocessorInfo : PendingRegistration.InputPreProcessors)
 				{
-					OwnerNode->AddInputPreprocessor(PreprocessorInfo.Preprocessor.ToSharedRef(), PreprocessorInfo.DesiredIdx);
+					OwnerNode->AddInputPreprocessor(PreprocessorInfo.InputProcessor.ToSharedRef(), PreprocessorInfo.Info);
 				}
 			}
 		}
