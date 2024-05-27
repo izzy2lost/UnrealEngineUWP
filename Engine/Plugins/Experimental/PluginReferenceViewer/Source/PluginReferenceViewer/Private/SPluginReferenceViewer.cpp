@@ -460,9 +460,12 @@ void SPluginReferenceViewer::OnNodeDoubleClicked(UEdGraphNode* Node)
 {
 	if (UEdGraphNode_PluginReference* PlugingReferenceNode = Cast<UEdGraphNode_PluginReference>(Node))
 	{
-		TSet<UObject*> Nodes;
-		Nodes.Add(Node);
-		ReCenterGraphOnNodes(Nodes);
+		if (PlugingReferenceNode->GetPlugin().IsValid())
+		{
+			TSet<UObject*> Nodes;
+			Nodes.Add(Node);
+			ReCenterGraphOnNodes(Nodes);
+		}
 	}
 }
 

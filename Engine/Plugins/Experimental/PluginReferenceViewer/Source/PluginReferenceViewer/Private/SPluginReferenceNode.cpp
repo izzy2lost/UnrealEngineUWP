@@ -23,10 +23,12 @@ void SPluginReferenceNode::Construct(const FArguments& InArgs, UEdGraphNode_Plug
 	const int32 ThumbnailSize = 128;
 	if (InNode->AllowsThumbnail())
 	{
-		const TSharedPtr<const IPlugin> Plugin = InNode->GetPlugin();
-
 		// Plugin thumbnail image
-		FString Icon128FilePath = Plugin->GetBaseDir() / TEXT("Resources/Icon128.png");
+		FString Icon128FilePath;
+		if (InNode->GetPlugin().IsValid())
+		{
+			Icon128FilePath = InNode->GetPlugin()->GetBaseDir() / TEXT("Resources/Icon128.png");
+		}
 		if (!FPlatformFileManager::Get().GetPlatformFile().FileExists(*Icon128FilePath))
 		{
 			Icon128FilePath = IPluginManager::Get().FindPlugin(TEXT("PluginBrowser"))->GetBaseDir() / TEXT("Resources/DefaultIcon128.png");

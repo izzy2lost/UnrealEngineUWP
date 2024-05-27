@@ -253,7 +253,11 @@ UEdGraphNode_PluginReference* UEdGraph_PluginReferenceViewer::ConstructNodes(con
 
 		for (TPair<FPluginIdentifier, FPluginReferenceNodeInfo>& InfoPair : NewDependencyNodeInfos)
 		{
-			InfoPair.Value.Plugin = PluginMap.FindChecked(InfoPair.Key);
+			const TSharedRef<IPlugin>* FoundPlugin = PluginMap.Find(InfoPair.Key);
+			if (FoundPlugin != nullptr)
+			{
+				InfoPair.Value.Plugin = *FoundPlugin;
+			}
 		}
 
 		ReferencerNodeInfos = NewReferenceNodeInfos;
@@ -594,10 +598,13 @@ void UEdGraph_PluginReferenceViewer::GetPluginDependencies(const FPluginIdentifi
 	{
 		const FPluginDependsNode* ChildNode = PluginNode->Dependencies[i];
 
-		const TSharedRef<IPlugin> ChildPlugin = PluginMap.FindChecked(ChildNode->Identifier);
-		if (ChildPlugin->GetType() == EPluginType::Engine && !bShowEnginePlugins)
+		// Plugin dependencies may not be discovered
+		if (const TSharedRef<IPlugin>* ChildPlugin = PluginMap.Find(ChildNode->Identifier))
 		{
-			continue;
+			if ((*ChildPlugin)->GetType() == EPluginType::Engine && !bShowEnginePlugins)
+			{
+				continue;
+			}
 		}
 
 		const FPluginReferenceDescriptor& ReferenceDescriptor = Plugin->GetDescriptor().Plugins[i];

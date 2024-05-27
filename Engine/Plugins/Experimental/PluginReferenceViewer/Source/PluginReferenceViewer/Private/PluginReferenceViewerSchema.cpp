@@ -49,6 +49,12 @@ UPluginReferenceViewerSchema::UPluginReferenceViewerSchema(const FObjectInitiali
 
 void UPluginReferenceViewerSchema::GetContextMenuActions(UToolMenu* Menu, UGraphNodeContextMenuContext* Context) const
 {
+	const UEdGraphNode_PluginReference* ContextPluginNode = Cast<UEdGraphNode_PluginReference>(Context->Node);
+	if (!ContextPluginNode->GetPlugin().IsValid())
+	{
+		return;
+	}
+
 	{
 		FToolMenuSection& Section = Menu->AddSection(TEXT("Plugin"), NSLOCTEXT("PluginReferenceViewerSchema", "PluginSectionLabel", "Plugin"));
 		Section.AddMenuEntry(FPluginReferenceViewerCommands::Get().OpenPluginProperties);
@@ -60,7 +66,6 @@ void UPluginReferenceViewerSchema::GetContextMenuActions(UToolMenu* Menu, UGraph
 		FText Title = NSLOCTEXT("PluginReferenceViewerSchema", "OpenReferenceViewer", "Open {0} Asset References...");
 
 		UEdGraph_PluginReferenceViewer* PluginReferenceViewer = const_cast<UEdGraph_PluginReferenceViewer*>(CastChecked<UEdGraph_PluginReferenceViewer>(Context->Graph));
-		const UEdGraphNode_PluginReference* ContextPluginNode = Cast<UEdGraphNode_PluginReference>(Context->Node);
 
 		// Opens the reference viewer for all assets belonging to the plugin.
 		check(!PluginReferenceViewer->GetCurrentGraphRootIdentifiers().IsEmpty());
