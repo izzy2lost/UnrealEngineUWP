@@ -39,6 +39,7 @@ namespace UnrealGameSync
 
 				_eventData["Result"] = inResult;
 				_eventData["TimeSeconds"] = _timer.Elapsed.TotalSeconds;
+				_eventData["TimeMinutes"] = _timer.Elapsed.TotalSeconds / 60.0f;
 			}
 			return Elapsed;
 		}
