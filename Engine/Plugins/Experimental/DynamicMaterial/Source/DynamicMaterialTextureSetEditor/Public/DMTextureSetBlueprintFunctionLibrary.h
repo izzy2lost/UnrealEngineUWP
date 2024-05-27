@@ -4,10 +4,11 @@
 
 #include "Kismet/BlueprintFunctionLibrary.h"
 
+#include "AssetRegistry/AssetData.h"
+
 #include "DMTextureSetBlueprintFunctionLibrary.generated.h"
 
 class UDMTextureSet;
-struct FAssetData;
 
 DECLARE_DELEGATE_TwoParams(FDMTextureSetBuilderOnComplete, UDMTextureSet*, /* Was Accepted */bool);
 

@@ -8,7 +8,7 @@
 
 FText UAssetDefinition_DMTextureSet::GetAssetDisplayName() const
 {
-	return LOCTEXT("DMTextureSet", "Texture Set");
+	return LOCTEXT("DMTextureSet", "Material Designer Texture Set");
 }
 
 FText UAssetDefinition_DMTextureSet::GetAssetDisplayName(const FAssetData& InAssetData) const

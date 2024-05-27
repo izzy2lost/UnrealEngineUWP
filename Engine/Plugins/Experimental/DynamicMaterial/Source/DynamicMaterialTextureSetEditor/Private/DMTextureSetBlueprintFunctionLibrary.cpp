@@ -2,7 +2,6 @@
 
 #include "DMTextureSetBlueprintFunctionLibrary.h"
 
-#include "AssetRegistry/AssetData.h"
 #include "CoreGlobals.h"
 #include "DMTextureSet.h"
 #include "DMTextureSetFactory.h"
