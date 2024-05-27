@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#if 0
+
 #include "PlainPropsBind.h"
 #include "PlainPropsIndex.h"
 #include "PlainPropsInternalBuild.h"
@@ -377,4 +377,3 @@ void DestroyTranslatedSchemas(const FSchemaBatch* Schemas)
 }
 
 } // namespace PlainProps
-#endif

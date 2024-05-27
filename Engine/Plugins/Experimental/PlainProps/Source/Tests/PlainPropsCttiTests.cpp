@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#if 0
+
 #include "PlainPropsCtti.h"
 #include <type_traits>
 #include <string_view>
@@ -124,4 +124,3 @@ static_assert(CttiOf<S2<int>>::Var<0>::Name == std::string_view("a"));
 static_assert(CttiOf<S2<int>>::Var<0>::Offset == offsetof(S2<int>, a));
 
 }
-#endif

@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#if 0
+
 #include "PlainPropsBuildSchema.h"
 #include "PlainPropsInternalBuild.h"
 #include "PlainPropsInternalFormat.h"
@@ -232,12 +232,6 @@ void FStructSchemaBuilder::NoteMembersRecursively(const FBuiltStruct& Struct)
 	}
 }
 
-template<class T>
-TConstArrayView64<T> MakeArrayView(const T* Data, uint64 Num)
-{
-	return TConstArrayView64<T>(Data, static_cast<int64>(Num));
-}
-
 template<typename IntType>
 void NoteEnumValues(FEnumSchemaBuilder& Schema, const IntType* Values, uint64 Num)
 {
@@ -387,4 +381,3 @@ void FEnumSchemaBuilder::NoteValue(uint64 Value)
 }
 
 } // namespace PlainProps
-#endif

@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#if 0
+
 #include "PlainPropsSave.h"
 #include "PlainPropsBind.h"
 #include "PlainPropsInternalBuild.h"
@@ -474,4 +474,3 @@ TUniquePtr<FBuiltStruct> SaveStructDelta(const void* Struct, const void* Default
 }
 
 } // namespace PlainProps
-#endif

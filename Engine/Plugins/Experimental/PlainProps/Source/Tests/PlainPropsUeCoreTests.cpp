@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#if 0
+
 #if WITH_TESTS
 
 #include "PlainPropsBuildSchema.h"
@@ -762,4 +762,3 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 
 } // namespace PlainProps::UE::Test
 #endif // WITH_TESTS
-#endif

@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#if 0
+
 #include "PlainPropsBuild.h"
 #include "PlainPropsIndex.h"
 #include "PlainPropsInternalBuild.h"
@@ -304,4 +304,3 @@ FTypedRange FNestedRangeBuilder::BuildAndReset(ERangeSizeType SizeType)
 }
 
 } // namespace PlainProps
-#endif

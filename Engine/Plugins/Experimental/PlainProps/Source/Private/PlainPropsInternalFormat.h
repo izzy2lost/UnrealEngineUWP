@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#if 0
+
 #pragma once
 
 #include "PlainPropsTypes.h"
@@ -158,4 +158,3 @@ inline constexpr uint64 GetLeafRangeSize(uint64 Num, FUnpackedLeafType Leaf)
 //////////////////////////////////////////////////////////////////////////
 
 } // namespace PlainProps
-#endif

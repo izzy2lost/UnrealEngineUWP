@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#if 0
+
 #pragma once
 
 #include "Containers/ArrayView.h"
@@ -348,6 +348,18 @@ template<> inline constexpr FUnpackedLeafType ReflectLeaf<char32_t>	= { ELeafTyp
 
 //////////////////////////////////////////////////////////////////////////
 
+inline constexpr ERangeSizeType RangeSizeOf(bool)	{ return ERangeSizeType::Uni; }
+inline constexpr ERangeSizeType RangeSizeOf(int8)	{ return ERangeSizeType::S8; }
+inline constexpr ERangeSizeType RangeSizeOf(int16)	{ return ERangeSizeType::S16; }
+inline constexpr ERangeSizeType RangeSizeOf(int32)	{ return ERangeSizeType::S32; }
+inline constexpr ERangeSizeType RangeSizeOf(int64)	{ return ERangeSizeType::S64; }
+inline constexpr ERangeSizeType RangeSizeOf(uint8)	{ return ERangeSizeType::U8; }
+inline constexpr ERangeSizeType RangeSizeOf(uint16)	{ return ERangeSizeType::U16; }
+inline constexpr ERangeSizeType RangeSizeOf(uint32)	{ return ERangeSizeType::U32; }
+inline constexpr ERangeSizeType RangeSizeOf(uint64)	{ return ERangeSizeType::U64; }
+
+//////////////////////////////////////////////////////////////////////////
+
 template<typename T>
 const T* AlignPtr(const void* Ptr)
 {
@@ -382,4 +394,3 @@ public:
 };
 
 } // namespace PlainProps
-#endif

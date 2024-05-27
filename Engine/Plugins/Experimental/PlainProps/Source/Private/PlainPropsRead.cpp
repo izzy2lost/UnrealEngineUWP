@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#if 0
+
 #include "PlainPropsRead.h"
 #include "PlainPropsInternalRead.h"
 #include "Misc/Optional.h"
@@ -443,4 +443,3 @@ FFlatMemberReader::FFlatMemberReader(FStructView Struct)
 }
 
 } // namespace PlainProps
-#endif

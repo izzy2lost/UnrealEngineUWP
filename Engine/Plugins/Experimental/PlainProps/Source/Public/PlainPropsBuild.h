@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#if 0
+
 #pragma once
 
 #include "PlainPropsDeclare.h"
@@ -49,16 +49,6 @@ uint64 ValueCast(double Value);
 inline uint64 ValueCast(char8_t Value)		{ return static_cast<uint8>(Value); }
 inline uint64 ValueCast(char16_t Value)		{ return static_cast<uint16>(Value); }
 inline uint64 ValueCast(char32_t Value)		{ return static_cast<uint32>(Value); }
-	
-inline constexpr ERangeSizeType RangeSizeOf(bool)	{ return ERangeSizeType::Uni; }
-inline constexpr ERangeSizeType RangeSizeOf(int8)	{ return ERangeSizeType::S8; }
-inline constexpr ERangeSizeType RangeSizeOf(int16)	{ return ERangeSizeType::S16; }
-inline constexpr ERangeSizeType RangeSizeOf(int32)	{ return ERangeSizeType::S32; }
-inline constexpr ERangeSizeType RangeSizeOf(int64)	{ return ERangeSizeType::S64; }
-inline constexpr ERangeSizeType RangeSizeOf(uint8)	{ return ERangeSizeType::U8; }
-inline constexpr ERangeSizeType RangeSizeOf(uint16)	{ return ERangeSizeType::U16; }
-inline constexpr ERangeSizeType RangeSizeOf(uint32)	{ return ERangeSizeType::U32; }
-inline constexpr ERangeSizeType RangeSizeOf(uint64)	{ return ERangeSizeType::U64; }
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -97,9 +87,9 @@ PLAINPROPS_API FMemberSchema MakeNestedRangeSchema(ERangeSizeType SizeType, cons
 
 namespace Private
 {
-	PLAINPROPS_API [[nodiscard]] FBuiltRange*	BuildStructuralRange(/* in-out */ TArrayView64<FBuiltRange*> Structs);
-	PLAINPROPS_API [[nodiscard]] FBuiltRange*	BuildStructuralRange(/* in-out */ TArrayView64<TUniquePtr<FBuiltStruct>> Structs);
-	PLAINPROPS_API [[nodiscard]] FBuiltRange*	BuildLeafRange(FUnpackedLeafType Leaf, uint64 Num, FMemoryView Values);
+	[[nodiscard]] PLAINPROPS_API FBuiltRange*	BuildStructuralRange(/* in-out */ TArrayView64<FBuiltRange*> Structs);
+	[[nodiscard]] PLAINPROPS_API FBuiltRange*	BuildStructuralRange(/* in-out */ TArrayView64<TUniquePtr<FBuiltStruct>> Structs);
+	[[nodiscard]] PLAINPROPS_API FBuiltRange*	BuildLeafRange(FUnpackedLeafType Leaf, uint64 Num, FMemoryView Values);
 	PLAINPROPS_API void							NormalizeLeafRange(FUnpackedLeafType Leaf, FBuiltRange& Out);
 
 	template<typename LeafType, typename SizeType>
@@ -174,7 +164,7 @@ public:
 	// Build members into a single nested super struct member, no-op if no non-super members has been added
 	PLAINPROPS_API void BuildSuperStruct(const FStructDeclaration& Super, const FDebugIds& Debug);
 
-	PLAINPROPS_API [[nodiscard]] TUniquePtr<FBuiltStruct> BuildAndReset(const FStructDeclaration& Declared, const FDebugIds& Debug);
+	[[nodiscard]] PLAINPROPS_API TUniquePtr<FBuiltStruct> BuildAndReset(const FStructDeclaration& Declared, const FDebugIds& Debug);
 
 	bool IsEmpty() const { return Members.IsEmpty(); }
 
@@ -241,4 +231,3 @@ private:
 };
 
 } // namespace PlainProps
-#endif

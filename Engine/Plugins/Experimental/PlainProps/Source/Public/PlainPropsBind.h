@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#if 0
+
 #pragma once
 
 #include "Containers/ArrayView.h"
@@ -890,4 +890,3 @@ FSchemaBatch*			CreateTranslatedSchemas(const FSchemaBatch& Schemas, FIdBinding 
 void					DestroyTranslatedSchemas(const FSchemaBatch* Schemas);
 
 } // namespace PlainProps
-#endif

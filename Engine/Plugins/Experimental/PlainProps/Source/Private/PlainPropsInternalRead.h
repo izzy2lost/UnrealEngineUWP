@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#if 0
+
 #pragma once
 
 #include "PlainPropsTypes.h"
@@ -93,4 +93,3 @@ inline FMemoryView GetSchemaData(const FSchemaBatch& Batch)
 }
 
 } // namespace PlainProps
-#endif

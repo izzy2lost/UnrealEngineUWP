@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#if 0
+
 #include "PlainPropsDeclare.h"
 #include "Containers/Set.h"
 
@@ -90,4 +90,3 @@ void FDeclarations::Check(FStructSchemaId Id) const
 #endif
 
 } // namespace PlainProps
-#endif

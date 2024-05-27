@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-#if 0
+
 #include "PlainPropsLoad.h"
 #include "PlainPropsBind.h"
 #include "PlainPropsInternalFormat.h"
@@ -646,5 +646,5 @@ void LoadRange(uint8* Dst, FRangeView Src, ERangeSizeType MaxSize, TConstArrayVi
 	FRangeLoader::LoadRangeView(Dst, Src, MaxSize, Bindings, Batch);
 }
 
+
 } // namespace PlainProps
-#endif
