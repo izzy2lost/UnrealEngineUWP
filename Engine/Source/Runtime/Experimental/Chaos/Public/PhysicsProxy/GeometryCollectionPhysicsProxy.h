@@ -404,9 +404,12 @@ public:
 		if (ChildTransformIndex >= 0 && ChildTransformIndex < GTParticles.Num())
 		{
 			const TUniquePtr<FParticle>& ChildGTParticle = GTParticles[ChildTransformIndex];
-			if (const int32* InternalClusterUniqueIdx = GTParticlesToInternalClusterUniqueIdx.Find(ChildGTParticle.Get()))
+			if (const FGTParticleIndices* Indices = GTParticleToIndices.Find(ChildGTParticle.Get()))
 			{
-				return FGeometryCollectionItemIndex::CreateInternalClusterItemIndex(*InternalClusterUniqueIdx);
+				if (Indices->InternalClusterUniqueId != INDEX_NONE)
+				{
+					return FGeometryCollectionItemIndex::CreateInternalClusterItemIndex(Indices->InternalClusterUniqueId);
+				}
 			}
 		}
 		return FGeometryCollectionItemIndex::CreateInvalidItemIndex();
@@ -424,23 +427,29 @@ public:
 	FGeometryCollectionItemIndex GetItemIndexFromGTParticle_External(const FParticle* GTPParticle) const
 	{
 		// internal cluster have  no representation on the GT, so we use the child GT particle to find the matching internal cluster unique index 
-		if (const int32* InternalClusterUniqueIdx = GTParticlesToInternalClusterUniqueIdx.Find(GTPParticle))
+		if (const FGTParticleIndices* Indices = GTParticleToIndices.Find(GTPParticle))
 		{
-			return FGeometryCollectionItemIndex::CreateInternalClusterItemIndex(*InternalClusterUniqueIdx);
-		}
-		// regular particle that has a matching transform index 
-		if (const int32* TransformGroupIndex = GTParticlesToTransformGroupIndex.Find(GTPParticle))
-		{
-			return FGeometryCollectionItemIndex::CreateTransformItemIndex(*TransformGroupIndex);
+			if (Indices->InternalClusterUniqueId != INDEX_NONE)
+			{
+				return FGeometryCollectionItemIndex::CreateInternalClusterItemIndex(Indices->InternalClusterUniqueId);
+			}
+			// regular particle that has a matching transform index 
+			if (Indices->TransformGroupIndex != INDEX_NONE)
+			{
+				return FGeometryCollectionItemIndex::CreateTransformItemIndex(Indices->TransformGroupIndex);
+			}
 		}
 		return FGeometryCollectionItemIndex::CreateInvalidItemIndex();
 	}
 
 	FGeometryCollectionItemIndex GetItemIndexFromGTParticleNoInternalCluster_External(const FParticle* GTPParticle) const
 	{
-		if (const int32* TransformGroupIndex = GTParticlesToTransformGroupIndex.Find(GTPParticle))
+		if (const FGTParticleIndices* Indices = GTParticleToIndices.Find(GTPParticle))
 		{
-			return FGeometryCollectionItemIndex::CreateTransformItemIndex(*TransformGroupIndex);
+			if (Indices->TransformGroupIndex != INDEX_NONE)
+			{
+				return FGeometryCollectionItemIndex::CreateTransformItemIndex(Indices->TransformGroupIndex);
+			}
 		}
 		return FGeometryCollectionItemIndex::CreateInvalidItemIndex();
 	}
@@ -699,12 +708,20 @@ private:
 	TArray<int32> FromTransformToParticleIndex;
 	TBitArray<> EffectiveParticles;
 
+	// Game thread particles 
 	TArray<TUniquePtr<FParticle>> GTParticles;
-	TMap<FParticle*, int32> GTParticlesToTransformGroupIndex;
-	TMap<FParticle*, int32> GTParticlesToInternalClusterUniqueIdx;
-	TMap<int32, TArray<int32>> InternalClusterUniqueIdxToChildrenTransformIndices;
 
-	TMap<int32, TUniquePtr<FParticle>> GTInternalClustersByUniqueIdx;
+	struct FGTParticleIndices
+	{
+		/** Correponding transform index of the GTparticle */
+		int32 TransformGroupIndex = INDEX_NONE;
+
+		/** unique index of the parent the GT particle is a child of internal cluster  */
+		int32 InternalClusterUniqueId = INDEX_NONE;
+	};
+
+	TMap<FParticle*, FGTParticleIndices> GTParticleToIndices;
+	TMap<int32, TArray<int32>> InternalClusterUniqueIdxToChildrenTransformIndices;
 
 	// These are read on both threads and should not be changed
 	const FCollisionFilterData SimFilter;
@@ -753,8 +770,10 @@ private:
 		return static_cast<ErrorDataType*>(InterpolationData.Get());
 	}
 
+#if WITH_EDITORONLY_DATA
 	// this is used as a unique ID when collecting data from runtime
 	FGuid CollectorGuid;
+#endif
 };
 
 /**

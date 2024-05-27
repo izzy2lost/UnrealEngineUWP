@@ -514,7 +514,9 @@ FGeometryCollectionPhysicsProxy::FGeometryCollectionPhysicsProxy(
 	, QueryFilter(InQueryFilter)
 	, PhysicsThreadCollection(Parameters.RestCollectionShared)
 	, GameThreadCollection(GameThreadCollectionIn)
+#if WITH_EDITORONLY_DATA
 	, CollectorGuid(InCollectorGuid)
+#endif
 {
 	// We rely on a guarded buffer.
 	check(BufferMode == Chaos::EMultiBufferMode::TripleGuarded);
@@ -711,7 +713,7 @@ void FGeometryCollectionPhysicsProxy::CreateGTParticles(TManagedArray<Chaos::FIm
 	TArray<int32> ChildrenToCheckForParentFix;
 	if (!bInitializationTime && !bCreateGTParticleForChildren && !bBuildGeometryForChildrenOnGT)
 	{
-		GTParticlesToTransformGroupIndex.Reserve(NumEffectiveParticles);
+		GTParticleToIndices.Reserve(NumEffectiveParticles);
 	}
 
 	for (int32 ParticleIndex = 0; ParticleIndex < NumEffectiveParticles; ++ParticleIndex)
@@ -731,7 +733,7 @@ void FGeometryCollectionPhysicsProxy::CreateGTParticles(TManagedArray<Chaos::FIm
 		{
 			GTParticles[ParticleIndex] = FParticle::CreateParticle();
 			P = GTParticles[ParticleIndex].Get();
-			GTParticlesToTransformGroupIndex.Add(P, TransformIndex);
+			GTParticleToIndices.FindOrAdd(P).TransformGroupIndex = TransformIndex;
 			GTParticles[ParticleIndex]->SetUniqueIdx(UniqueIdxs[ParticleIndex]);
 #if CHAOS_DEBUG_NAME
 				P->SetDebugName(MakeShared<FString, ESPMode::ThreadSafe>(FString::Printf(TEXT("%s-%d"), *Parameters.Name, TransformIndex)));
@@ -4219,9 +4221,10 @@ bool FGeometryCollectionPhysicsProxy::PullNonInterpolatableDataFromSinglePhysics
 		}
 
 		// internal cluster index map update
+		// make sure to update the index even if the InternalClusterUniqueIdx is INDEX_NONE
+		GTParticleToIndices.FindOrAdd(GTParticles[ParticleIndex].Get()).InternalClusterUniqueId = StateData.InternalClusterUniqueIdx;
 		if (StateData.InternalClusterUniqueIdx > INDEX_NONE)
 		{
-			GTParticlesToInternalClusterUniqueIdx.Add(GTParticles[ParticleIndex].Get(), StateData.InternalClusterUniqueIdx);
 			InternalClusterUniqueIdxToChildrenTransformIndices.FindOrAdd(StateData.InternalClusterUniqueIdx).Add(TransformGroupIndex);
 		}
 	}
@@ -4293,7 +4296,6 @@ bool FGeometryCollectionPhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyGe
 
 	if (NumTransforms > 0)
 	{
-		GTParticlesToInternalClusterUniqueIdx.Reset();
 		InternalClusterUniqueIdxToChildrenTransformIndices.Reset();
 
 		// first: non-interpolatable data (everything besides XRVW OR if no next data exists, everything is non-interpolatable).
