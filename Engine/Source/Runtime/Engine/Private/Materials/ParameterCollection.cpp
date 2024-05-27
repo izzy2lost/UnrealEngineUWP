@@ -55,7 +55,7 @@ void UMaterialParameterCollection::PostLoad()
 
 void UMaterialParameterCollection::SetupWorldParameterCollectionInstances()
 {
-	for (TObjectIterator<UWorld> It; It; ++It)
+	for (TObjectIterator<UWorld> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 	{
 		UWorld* CurrentWorld = *It;
 		ULevel* Level = CurrentWorld->PersistentLevel;
@@ -269,7 +269,7 @@ void UMaterialParameterCollection::PostEditChangeProperty(FPropertyChangedEvent&
 			FMaterialUpdateContext UpdateContext;
 
 			// Go through all materials in memory and recompile them if they use this material parameter collection
-			for (TObjectIterator<UMaterial> It; It; ++It)
+			for (TObjectIterator<UMaterial> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 			{
 				UMaterial* CurrentMaterial = *It;
 
@@ -305,7 +305,7 @@ void UMaterialParameterCollection::PostEditChangeProperty(FPropertyChangedEvent&
 			}
 
 			// Recreate all uniform buffers based off of this collection
-			for (TObjectIterator<UWorld> It; It; ++It)
+			for (TObjectIterator<UWorld> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 			{
 				UWorld* CurrentWorld = *It;
 				CurrentWorld->UpdateParameterCollectionInstances(true, true);
@@ -317,7 +317,7 @@ void UMaterialParameterCollection::PostEditChangeProperty(FPropertyChangedEvent&
 	else
 	{
 		// We didn't need to recreate the uniform buffer, just update its contents
-		for (TObjectIterator<UWorld> It; It; ++It)
+		for (TObjectIterator<UWorld> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 		{
 			UWorld* CurrentWorld = *It;
 			CurrentWorld->UpdateParameterCollectionInstances(true, false);

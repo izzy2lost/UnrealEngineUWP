@@ -614,10 +614,10 @@ void UMaterialInterface::SetForceMipLevelsToBeResident( bool OverrideForceMiplev
 
 void UMaterialInterface::RecacheAllMaterialUniformExpressions(bool bRecreateUniformBuffer)
 {
-	// For each interface, reacache its uniform parameters
-	for( TObjectIterator<UMaterialInterface> MaterialIt; MaterialIt; ++MaterialIt )
+	// For each interface, recache its uniform parameters
+	for (TObjectIterator<UMaterialInterface> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 	{
-		MaterialIt->RecacheUniformExpressions(bRecreateUniformBuffer);
+		It->RecacheUniformExpressions(bRecreateUniformBuffer);
 	}
 }
 
@@ -649,7 +649,7 @@ void UMaterialInterface::SubmitRemainingJobsForWorld(UWorld* World, EMaterialSha
 	}
 
 	// Add UI and PP Materials.
-	for (TObjectIterator<UMaterialInterface> It; It; ++It)
+	for (TObjectIterator<UMaterialInterface> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 	{
 		UMaterial* Material = It->GetMaterial();
 		if (Material &&
@@ -661,7 +661,7 @@ void UMaterialInterface::SubmitRemainingJobsForWorld(UWorld* World, EMaterialSha
 	}
 
 	// Add Decal Component Materials.
-	for (TObjectIterator<UDecalComponent> It; It; ++It)
+	for (TObjectIterator<UDecalComponent> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 	{
 		if (It)
 		{

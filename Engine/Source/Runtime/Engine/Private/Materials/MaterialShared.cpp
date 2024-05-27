@@ -144,7 +144,7 @@ static FAutoConsoleCommand GFlushMaterialUniforms(
 	FConsoleCommandDelegate::CreateStatic(
 		[]()
 {
-	for (TObjectIterator<UMaterialInterface> It; It; ++It)
+	for (TObjectIterator<UMaterialInterface> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 	{
 		UMaterialInterface* Material = *It;
 		FMaterialRenderProxy* MaterialProxy = Material->GetRenderProxy();
@@ -167,7 +167,7 @@ class FMaterialDumpDebugInfoExecHelper : public FSelfRegisteringExec
 
 			if (RequestedMaterialName.Len() > 0)
 			{
-				for (TObjectIterator<UMaterialInterface> It; It; ++It)
+				for (TObjectIterator<UMaterialInterface> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 				{
 					UMaterialInterface* Material = *It;
 					if (Material && Material->GetName() == RequestedMaterialName)
@@ -4689,7 +4689,7 @@ FMaterialUpdateContext::~FMaterialUpdateContext()
 	// Go through all loaded material instances and recompile their static permutation resources if needed
 	// This is necessary since the parent UMaterial stores information about how it should be rendered, (eg bUsesDistortion)
 	// but the child can have its own shader map which may not contain all the shaders that the parent's settings indicate that it should.
-	for (TObjectIterator<UMaterialInstance> It; It; ++It)
+	for (TObjectIterator<UMaterialInstance> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 	{
 		UMaterialInstance* CurrentMaterialInstance = *It;
 		UMaterial* BaseMaterial = CurrentMaterialInstance->GetMaterial();

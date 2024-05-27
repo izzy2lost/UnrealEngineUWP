@@ -130,7 +130,7 @@ void RecacheMaterialInstanceUniformExpressions(const UMaterialInterface* ParentM
 	{
 		UE_LOG(LogMaterial,Verbose,TEXT("Recaching MI Uniform Expressions for parent %s"), *ParentMaterial->GetFullName());
 		TArray<FMICReentranceGuard> ReentranceGuards;
-		for (TObjectIterator<UMaterialInstance> It; It; ++It)
+		for (TObjectIterator<UMaterialInstance> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 		{
 			UMaterialInstance* MaterialInstance = *It;
 			do 

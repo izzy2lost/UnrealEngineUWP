@@ -5514,7 +5514,7 @@ void UMaterial::UpdateMaterialShaders(TArray<const FShaderType*>& ShaderTypesToF
 
 			int32 NumMaterials = 0;
 
-			for( TObjectIterator<UMaterial> It; It; ++It )
+			for (TObjectIterator<UMaterial> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 			{
 				NumMaterials++;
 			}
@@ -5525,7 +5525,7 @@ void UMaterial::UpdateMaterialShaders(TArray<const FShaderType*>& ShaderTypesToF
 			int32 MaterialIndex = 0;
 
 			// Reinitialize the material shader maps
-			for( TObjectIterator<UMaterial> It; It; ++It )
+			for (TObjectIterator<UMaterial> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 			{
 				UMaterial* BaseMaterial = *It;
 				UpdateContext.AddMaterial(BaseMaterial);
@@ -6604,7 +6604,7 @@ static void ListSceneColorMaterials()
 		FString FeatureLevelName;
 		GetFeatureLevelName(FeatureLevel, FeatureLevelName);
 
-		for (TObjectIterator<UMaterialInterface> It; It; ++It)
+		for (TObjectIterator<UMaterialInterface> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 		{
 			UMaterialInterface* Mat = *It;
 			const FMaterial* MatRes = Mat->GetRenderProxy()->GetMaterialNoFallback(FeatureLevel);

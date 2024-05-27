@@ -710,13 +710,13 @@ void UMaterialEditingLibrary::RecompileMaterial(UMaterial* Material)
 			FEditorSupportDelegates::RedrawAllViewports.Broadcast();
 
 			// Force particle components to update their view relevance.
-			for (TObjectIterator<UParticleSystemComponent> It; It; ++It)
+			for (TObjectIterator<UParticleSystemComponent> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 			{
 				It->bIsViewRelevanceDirty = true;
 			}
 
 			// Update parameter names on any child material instances
-			for (TObjectIterator<UMaterialInstance> It; It; ++It)
+			for (TObjectIterator<UMaterialInstance> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 			{
 				if (It->Parent == Material)
 				{
@@ -1000,7 +1000,7 @@ void UMaterialEditingLibrary::UpdateMaterialFunction(UMaterialFunctionInterface*
 				TRACE_CPUPROFILER_EVENT_SCOPE(UpdateAllMaterialInstances)
 
 				// Go through all function instances in memory and recompile them if they are children
-				for (TObjectIterator<UMaterialFunctionInstance> It; It; ++It)
+				for (TObjectIterator<UMaterialFunctionInstance> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 				{
 					UMaterialFunctionInstance* FunctionInstance = *It;
 

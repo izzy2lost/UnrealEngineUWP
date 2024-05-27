@@ -5380,7 +5380,7 @@ void FMaterialEditor::SetNumericParameterDefaultOnDependentMaterials(EMaterialPa
 	if (MaterialFunction)
 	{
 		// Find all materials that reference this function
-		for (TObjectIterator<UMaterial> It; It; ++It)
+		for (TObjectIterator<UMaterial> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 		{
 			UMaterial* CurrentMaterial = *It;
 
@@ -5419,7 +5419,7 @@ void FMaterialEditor::SetNumericParameterDefaultOnDependentMaterials(EMaterialPa
 	}
 
 	// Update MI's that reference any of the materials affected
-	for (TObjectIterator<UMaterialInstance> It; It; ++It)
+	for (TObjectIterator<UMaterialInstance> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 	{
 		UMaterialInstance* CurrentMaterialInstance = *It;
 
@@ -6501,7 +6501,7 @@ void FMaterialEditor::CreateDerivedMaterialInstancesPreviews()
 		const int32 MaxCount = CVarMaterialEdMaxDerivedMaterialInstances.GetValueOnGameThread();
 		// TODO consider a mode where we load all MaterialChildList also
 
-		for (TObjectIterator<UMaterialInstance> It; It; ++It)
+		for (TObjectIterator<UMaterialInstance> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 		{
 			UMaterialInstance* Instance = *It;
 			if (!Instance->HasStaticParameters())

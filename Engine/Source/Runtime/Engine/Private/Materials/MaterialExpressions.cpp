@@ -15110,7 +15110,7 @@ void UMaterialFunctionInterface::ForceRecompileForRendering(FMaterialUpdateConte
 	StateId = FGuid::NewGuid();
 
 	// Go through all materials in memory and recompile them if they use this function
-	for (TObjectIterator<UMaterialInterface> It; It; ++It)
+	for (TObjectIterator<UMaterialInterface> It(/*AdditionalExclusionFlags = */RF_ClassDefaultObject, /*bIncludeDerivedClasses = */true, /*InInternalExclusionFlags = */EInternalObjectFlags::Garbage); It; ++It)
 	{
 		UMaterialInterface* CurrentMaterialInterface = *It;
 		if (CurrentMaterialInterface == InPreviewMaterial)
