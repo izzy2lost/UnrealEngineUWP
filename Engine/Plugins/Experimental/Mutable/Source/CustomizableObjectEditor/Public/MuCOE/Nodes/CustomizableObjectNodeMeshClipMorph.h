@@ -89,10 +89,9 @@ public:
 	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
 	virtual void PinConnectionListChanged(UEdGraphPin* Pin) override;
 	
-	// UCustomizableObjectNodeMaterialBase interface
-	virtual UEdGraphPin* OutputPin() const override;
-
 	// Own interface
+	UEdGraphPin* OutputPin() const;
+
 	FVector GetOriginWithOffset() const;
 	void FindLocalAxes(FVector& Right, FVector& Up, FVector& Forward) const;
 

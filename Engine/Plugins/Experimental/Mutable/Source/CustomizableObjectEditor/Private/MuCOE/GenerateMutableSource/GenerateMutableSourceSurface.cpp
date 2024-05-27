@@ -204,9 +204,9 @@ void SetSurfaceFormat( FMutableGraphGenerationContext& GenerationContext,
 }
 
 
-void AddModifierToSharedSurface(FMutableGraphGenerationContext& GenerationContext, UCustomizableObjectNodeMaterial* NodeMaterial, const UCustomizableObjectNode& NodeModifier)
+void AddModifierToSharedSurface(FMutableGraphGenerationContext& GenerationContext, UCustomizableObjectNodeMaterialBase* NodeMaterial, const UCustomizableObjectNode& NodeModifier)
 {
-	if (!NodeMaterial || !NodeMaterial->bReuseMaterialBetweenLODs)
+	if (!NodeMaterial || !NodeMaterial->IsReuseMaterialBetweenLODs())
 	{
 		return;
 	}
@@ -255,35 +255,11 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 		}
 	}
 
-	if (UCustomizableObjectNodeMaterial* TypedNodeMat = Cast<UCustomizableObjectNodeMaterial>(Node))
+	if (UCustomizableObjectNodeMaterialBase* TypedNodeMat = Cast<UCustomizableObjectNodeMaterialBase>(Node))
 	{
-		if (TypedNodeMat->MeshComponentIndex != GenerationContext.CurrentMeshComponent)
+		if (TypedNodeMat->GetMeshComponentIndex() != GenerationContext.CurrentMeshComponent)
 		{
 			return Result;
-		}
-
-		// NodeCopyMaterial. Special case when the TypedNodeMat is a NodeCopyMaterial. The TypedNodeMat pointer now points to the parent NodeMaterial except when reading the mesh pin, which comes from the NodeCopyMaterial.
-		UCustomizableObjectNodeMaterial* TypedNodeMaterial = TypedNodeMat;
-		UCustomizableObjectNodeMaterial* TypedNodeCopyMaterial = TypedNodeMat;
-
-		if (UCustomizableObjectNodeCopyMaterial* TypedDerivedNodeCopyMaterial = Cast<UCustomizableObjectNodeCopyMaterial>(TypedNodeMat))
-		{
-			UEdGraphPin* MaterialPin = TypedDerivedNodeCopyMaterial->GetMaterialPin();
-			if (const UEdGraphPin* ConnectedPin = FollowInputPin(*MaterialPin))
-			{
-				if (UCustomizableObjectNodeMaterial* ConnectedNodeMaterial = Cast<UCustomizableObjectNodeMaterial>(ConnectedPin->GetOwningNode()))
-				{
-					if (!ConnectedNodeMaterial->IsA(UCustomizableObjectNodeCopyMaterial::StaticClass()))
-					{
-						TypedNodeMaterial = ConnectedNodeMaterial;
-						TypedNodeMat = ConnectedNodeMaterial;
-					}
-					else
-					{
-						GenerationContext.Compiler->CompilerLog(LOCTEXT("CopyMaterialInput", "Copy Material Node can only have a Material Node as an input."), TypedDerivedNodeCopyMaterial);
-					}
-				}
-			}
 		}
 
 		const UEdGraphPin* ConnectedMaterialPin = FollowInputPin(*TypedNodeMat->GetMeshPin());
@@ -304,15 +280,15 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 		// Add to the list of surfaces that could be reused between LODs for this NodeMaterial.
 		TArray<FMutableGraphGenerationContext::FSharedSurface>& SharedSurfaces = GenerationContext.SharedSurfaceIds.FindOrAdd(TypedNodeMat, {});
 		FMutableGraphGenerationContext::FSharedSurface& SharedSurface = SharedSurfaces.Add_GetRef(FMutableGraphGenerationContext::FSharedSurface(GenerationContext.CurrentLOD, SurfNode));
-		SharedSurface.bMakeUnique = !TypedNodeMat->bReuseMaterialBetweenLODs;
+		SharedSurface.bMakeUnique = !TypedNodeMat->IsReuseMaterialBetweenLODs();
 
 		int32 ReferencedMaterialsIndex = -1;
-		if (TypedNodeMat->Material)
+		if (TypedNodeMat->GetMaterial())
 		{
-			GenerationContext.AddParticipatingObject(*TypedNodeMat->Material);
+			GenerationContext.AddParticipatingObject(*TypedNodeMat->GetMaterial());
 
 			const int32 lastMaterialAmount = GenerationContext.ReferencedMaterials.Num();
-			ReferencedMaterialsIndex = GenerationContext.ReferencedMaterials.AddUnique(TypedNodeMat->Material);
+			ReferencedMaterialsIndex = GenerationContext.ReferencedMaterials.AddUnique(TypedNodeMat->GetMaterial());
 			// Used ReferencedMaterialsIndex instead of TypedNodeMat->Material->GetName() to prevent material name collisions
 
 			// Take slot name from skeletal mesh if one can be found, else leave empty.
@@ -364,9 +340,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 		}
 
 		mu::NodeMeshPtr MeshNode;
-
-		TypedNodeMat = TypedNodeCopyMaterial; // NodeCopyMaterial. Start reading mesh pin. Set TypedNodeMat pointer to NodeCopyMaterial
-
+		
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeMat->GetMeshPin()))
 		{
 			FMutableGraphMeshGenerationData MeshData;
@@ -395,9 +369,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 				GenerationContext.Compiler->CompilerLog(LOCTEXT("MeshFailed", "Mesh generation failed."), Node);
 			}
 		}
-
-		TypedNodeMat = TypedNodeMaterial; // NodeCopyMaterial. End reading mesh pin. Set TypedNodeMat pointer back to the parent NodeMaterial
-
+		
 		TMap<FString, float> TextureNameToProjectionResFactor;
 		FString AlternateResStateName;
 
@@ -420,11 +392,11 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 				if (UMaterialInstance * TableMaterial = TypedNodeTable->GetColumnDefaultAssetByType<UMaterialInstance>(TempConnectedPin))
 				{
 					// Checking if the reference material of the Table Node has the same parent as the material of the Material Node 
-					if (!TypedNodeMat->Material || TableMaterial->GetMaterial() != TypedNodeMat->Material->GetMaterial())
+					if (!TypedNodeMat->GetMaterial() || TableMaterial->GetMaterial() != TypedNodeMat->GetMaterial()->GetMaterial())
 					{
 						bTableMaterialPinLinked = false;
 
-						GenerationContext.Compiler->CompilerLog(LOCTEXT("DifferentParentMaterial","The Deafult Material Instance of the Data Table must have the same Parent Material."), TypedNodeMat);
+						GenerationContext.Compiler->CompilerLog(LOCTEXT("DifferentParentMaterial", "The Deafult Material Instance of the Data Table must have the same Parent Material."), TypedNodeMat->GetMaterialNode());
 					}
 				}
 				else
@@ -452,7 +424,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 
 			const bool bIsImagePinLinked = ImagePin && FollowInputPin(*ImagePin);
 
-			if (bIsImagePinLinked && !TypedNodeMaterial->IsImageMutableMode(ImageIndex))
+			if (bIsImagePinLinked && !TypedNodeMat->IsImageMutableMode(ImageIndex))
 			{
 				if (const UEdGraphPin* ConnectedPin = FollowInputPin(*ImagePin))
 				{
@@ -477,7 +449,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 					const FString SurfNodeImageName = FString::Printf(TEXT("%d"), Props.ImagePropertiesIndex);
 					SurfNode->SetImageName(ImageIndex, SurfNodeImageName);
 					SurfNode->SetImageLayoutIndex(ImageIndex, -1);
-					SurfNode->SetImageAdditionalNames(ImageIndex, TypedNodeMat->Material->GetName(), Props.TextureParameterName);
+					SurfNode->SetImageAdditionalNames(ImageIndex, TypedNodeMat->GetMaterial()->GetName(), Props.TextureParameterName);
 
 				}
 			}
@@ -497,11 +469,10 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 					bool bIsGroupProjectorImage = false;
 
 					GroupProjectionImg = GenerateMutableGroupProjection(LOD, ImageIndex, MeshNode, GenerationContext,
-						TypedNodeMat, bShareProjectionTexturesBetweenLODs, bIsGroupProjectorImage,
-						GroupProjectionReferenceTexture, TextureNameToProjectionResFactor, AlternateResStateName,
-						nullptr);
+						TypedNodeMat, nullptr, bShareProjectionTexturesBetweenLODs, bIsGroupProjectorImage,
+						GroupProjectionReferenceTexture, TextureNameToProjectionResFactor, AlternateResStateName);
 
-					if (GroupProjectionImg.get() || TypedNodeMaterial->IsImageMutableMode(ImageIndex))
+					if (GroupProjectionImg.get() || TypedNodeMat->IsImageMutableMode(ImageIndex))
 					{
 						// Get the reference texture
 						UTexture2D* ReferenceTexture = nullptr;
@@ -596,7 +567,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 						// Generate the texture nodes
 						mu::NodeImagePtr ImageNode = [&]()
 						{
-							if (TypedNodeMaterial->IsImageMutableMode(ImageIndex))
+							if (TypedNodeMat->IsImageMutableMode(ImageIndex))
 							{
 								if (ImagePin)
 								{
@@ -841,7 +812,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 						SurfNode->SetImageName(ImageIndex, SurfNodeImageName + LayerEncoding);
 						const int32 UVLayout = TypedNodeMat->GetImageUVLayout(ImageIndex);
 						SurfNode->SetImageLayoutIndex(ImageIndex, UVLayout);
-						SurfNode->SetImageAdditionalNames(ImageIndex, TypedNodeMat->Material->GetName(), ImageName);
+						SurfNode->SetImageAdditionalNames(ImageIndex, TypedNodeMat->GetMaterial()->GetName(), ImageName);
 
 						if (bShareProjectionTexturesBetweenLODs && bIsGroupProjectorImage)
 						{
@@ -956,17 +927,17 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 		}
 		
 
-		for (const FString& Tag : TypedNodeMat->Tags)
+		for (const FString& Tag : TypedNodeMat->GetTags())
 		{
 			SurfNode->AddTag(Tag);
 		}
 
-		TArray<mu::NodeSurfaceNewPtr>* ArraySurfaceNodePtr = GenerationContext.MapMaterialNodeToMutableSurfaceNodeArray.Find(TypedNodeMat);
+		TArray<mu::NodeSurfaceNewPtr>* ArraySurfaceNodePtr = GenerationContext.MapMaterialNodeToMutableSurfaceNodeArray.Find(TypedNodeMat->GetMaterialNode());
 		if (ArraySurfaceNodePtr == nullptr)
 		{
 			TArray<mu::NodeSurfaceNewPtr> ArraySurfaceNode;
 			ArraySurfaceNode.Add(SurfNode);
-			ArraySurfaceNodePtr = &GenerationContext.MapMaterialNodeToMutableSurfaceNodeArray.Add(TypedNodeMat, ArraySurfaceNode);
+			ArraySurfaceNodePtr = &GenerationContext.MapMaterialNodeToMutableSurfaceNodeArray.Add(TypedNodeMat->GetMaterialNode(), ArraySurfaceNode);
 		}
 		else
 		{
@@ -999,7 +970,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 				SurfNode2->SetScalarName(ScalarParamIndex, SurfNode->GetScalarName(ScalarParamIndex));
 			}
 
-			for (const FString& Tag : TypedNodeMat->Tags)
+			for (const FString& Tag : TypedNodeMat->GetTags())
 			{
 				SurfNode2->AddTag(Tag);
 			}
@@ -1067,22 +1038,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 
 		[&] // Using a lambda so control flow is easier to manage.
 		{
-			UCustomizableObjectNodeMaterial* OriginalParentMaterialNode = TypedNodeExt->GetParentMaterialNode();
-			UCustomizableObjectNodeMaterial* ParentMaterialNode = OriginalParentMaterialNode;
-
-			// Copy material
-			UCustomizableObjectNodeMaterial* CopyMaterialParentMaterialNode = nullptr;
-			const UCustomizableObjectNodeCopyMaterial* ParentMaterialCopyNodeCast = Cast<UCustomizableObjectNodeCopyMaterial>(OriginalParentMaterialNode);
-			if (ParentMaterialCopyNodeCast)
-			{
-				CopyMaterialParentMaterialNode = ParentMaterialCopyNodeCast->GetMaterialNode();
-				if (!CopyMaterialParentMaterialNode)
-				{
-					GenerationContext.Compiler->CompilerLog(LOCTEXT("BaseMissing", "Base Material not set (or not found)."), ParentMaterialCopyNodeCast);
-					return;
-				}
-			}
-		
+			UCustomizableObjectNodeMaterialBase* ParentMaterialNode = TypedNodeExt->GetParentMaterialNode();
 			if (!ParentMaterialNode)
 			{
 				GenerationContext.Compiler->CompilerLog(LOCTEXT("ParentMissing", "Parent node not set (or not found)."), Node);
@@ -1148,12 +1104,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 				SurfNode->SetMesh(MeshPatch.get());
 				MeshPatch->SetMessageContext(Node);
 			}
-
-			if (ParentMaterialCopyNodeCast) // CopyMaterial swap.
-			{
-				ParentMaterialNode = CopyMaterialParentMaterialNode; 
-			}
-		
+			
 			const int32 NumImages = ParentMaterialNode->GetNumParameters(EMaterialParameterType::Texture);
 			SurfNode->SetImageCount(NumImages);
 			for (int32 ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
@@ -1185,9 +1136,8 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 					FString AlternateResStateName;
 					
 					ImageNode = GenerateMutableGroupProjection(LOD, ImageIndex, AddMeshNode, GenerationContext,
-						TypedNodeExt, bShareProjectionTexturesBetweenLODs, bIsGroupProjectorImage,
-						GroupProjectionReferenceTexture, TextureNameToProjectionResFactor, AlternateResStateName,
-						ParentMaterialNode);
+						nullptr, TypedNodeExt, bShareProjectionTexturesBetweenLODs, bIsGroupProjectorImage,
+						GroupProjectionReferenceTexture, TextureNameToProjectionResFactor, AlternateResStateName);
 				}
 				
 				if (!ImageNode) // Else if
@@ -1228,7 +1178,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 		mu::NodeSurfaceEditPtr SurfNode = new mu::NodeSurfaceEdit();
 		Result = SurfNode;
 
-		UCustomizableObjectNodeMaterial* ParentMaterialNode = TypedNodeRem->GetParentMaterialNode();
+		UCustomizableObjectNodeMaterialBase* ParentMaterialNode = TypedNodeRem->GetParentMaterialNode();
 		if (!ParentMaterialNode)
 		{
 			GenerationContext.Compiler->CompilerLog(LOCTEXT("ParentMissing", "Parent node not set (or not found)."), Node);
@@ -1264,8 +1214,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 		mu::NodeSurfaceEditPtr SurfNode = new mu::NodeSurfaceEdit();
 		Result = SurfNode;
 
-		UCustomizableObjectNodeMaterial* ParentMaterialNode = TypedNodeRemBlocks->GetParentMaterialNode();
-
+		UCustomizableObjectNodeMaterialBase* ParentMaterialNode = TypedNodeRemBlocks->GetParentMaterialNode();
 		if (!ParentMaterialNode)
 		{
 			GenerationContext.Compiler->CompilerLog(LOCTEXT("ParentMissing", "Parent node not set (or not found)."), Node);
@@ -1347,7 +1296,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 		mu::NodeSurfaceEditPtr SurfNode = new mu::NodeSurfaceEdit();
 		Result = SurfNode;
 
-		UCustomizableObjectNodeMaterial* ParentMaterialNode = TypedNodeEdit->GetParentMaterialNode();
+		UCustomizableObjectNodeMaterialBase* ParentMaterialNode = TypedNodeEdit->GetParentMaterialNode();
 		if (!ParentMaterialNode)
 		{
 			GenerationContext.Compiler->CompilerLog(LOCTEXT("ParentMissing", "Parent node not set (or not found)."), Node);
@@ -1452,7 +1401,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 		mu::NodeSurfaceEditPtr SurfNode = new mu::NodeSurfaceEdit();
 		Result = SurfNode;
 
-		UCustomizableObjectNodeMaterial* ParentMaterialNode = TypedNodeMorph->GetParentMaterialNode();
+		UCustomizableObjectNodeMaterialBase* ParentMaterialNode = TypedNodeMorph->GetParentMaterialNode();
 		if (!ParentMaterialNode)
 		{
 			GenerationContext.Compiler->CompilerLog(LOCTEXT("ParentMissing", "Parent node not set (or not found)."), Node);
@@ -1464,7 +1413,6 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 			SurfNode->SetParent(ParentNode.get());
 
 			const UEdGraphPin* BaseSourcePin = FindMeshBaseSource(*ParentMaterialNode->OutputPin(), false);
-
 			if (!BaseSourcePin)
 			{
 				GenerationContext.Compiler->CompilerLog(LOCTEXT("ParentMissing", "Parent node not set (or not found)."), Node);

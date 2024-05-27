@@ -32,23 +32,18 @@ class UPoseAsset;
 
 
 mu::NodeImagePtr GenerateMutableGroupProjection(const int32 NodeLOD, const int32 ImageIndex, mu::NodeMeshPtr MeshNode, FMutableGraphGenerationContext& GenerationContext,
-	const UCustomizableObjectNodeMaterialBase* NodeMaterialBase, bool& bShareProjectionTexturesBetweenLODs, bool& bIsGroupProjectorImage,
-	UTexture2D*& GroupProjectionReferenceTexture, TMap<FString, float>& TextureNameToProjectionResFactor, FString& AlternateResStateName,
-	UCustomizableObjectNodeMaterial* ParentMaterial)
+	UCustomizableObjectNodeMaterialBase* TypedNodeMat, UCustomizableObjectNodeExtendMaterial* TypedNodeExt, bool& bShareProjectionTexturesBetweenLODs, bool& bIsGroupProjectorImage,
+	UTexture2D*& GroupProjectionReferenceTexture, TMap<FString, float>& TextureNameToProjectionResFactor, FString& AlternateResStateName)
 {
+	check(static_cast<bool>(TypedNodeMat) != static_cast<bool>(TypedNodeExt)); // XOr. TypedNodeMat valid or TypedNodeExt valid. At least one valid.
+
 	if (!GenerationContext.ProjectorGroupMap.Num() || !MeshNode.get())
 	{
 		return mu::NodeImagePtr();
 	}
-	
-	const UCustomizableObjectNodeMaterial* TypedNodeMat = Cast<UCustomizableObjectNodeMaterial>(NodeMaterialBase);
-	check(!TypedNodeMat || !ParentMaterial); // Logical implication
 
-	const UCustomizableObjectNodeExtendMaterial* TypedNodeExt = Cast<UCustomizableObjectNodeExtendMaterial>(NodeMaterialBase);
-	check(!TypedNodeExt || ParentMaterial); // Logical implication
+	const UCustomizableObjectNodeMaterialBase* NodeMaterial = TypedNodeMat ? TypedNodeMat : TypedNodeExt->GetParentMaterialNode();
 
-	check(TypedNodeMat || TypedNodeExt);
-	
 	TArray<mu::Ptr<mu::NodeImageProject>> ImageNodes;
 	TArray<FGroupProjectorTempData> ImageNodes_ProjectorTempData;
 
@@ -78,8 +73,8 @@ mu::NodeImagePtr GenerateMutableGroupProjection(const int32 NodeLOD, const int32
 
 		const bool bProjectToImage = [&]
 		{
-			const UCustomizableObjectNodeMaterial* NodeMaterial = TypedNodeMat ? TypedNodeMat : ParentMaterial;
 			const FString ParameterName = NodeMaterial->GetParameterName(EMaterialParameterType::Texture, ImageIndex).ToString();
+
 			return ParameterName == ProjectorTempData.CustomizableObjectNodeGroupProjectorParameter->MaterialChannelNameToConnect;
 		}();
 		
@@ -93,7 +88,7 @@ mu::NodeImagePtr GenerateMutableGroupProjection(const int32 NodeLOD, const int32
 				}
 				else
 				{
-					const FGuid ImageId = ParentMaterial->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
+					const FGuid ImageId = TypedNodeExt->GetParentMaterialNode()->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
 					return TypedNodeExt->UsesImage(ImageId);
 				}
 			}();
@@ -102,12 +97,18 @@ mu::NodeImagePtr GenerateMutableGroupProjection(const int32 NodeLOD, const int32
 			{
 				const FString ImageName = [&]
 				{
-					const UCustomizableObjectNodeMaterial* NodeMaterial = TypedNodeMat ? TypedNodeMat : ParentMaterial;
-					return NodeMaterial->GetParameterName(EMaterialParameterType::Texture, ImageIndex).ToString();
+					if (TypedNodeMat)
+					{
+						return TypedNodeMat->GetParameterName(EMaterialParameterType::Texture, ImageIndex).ToString();
+					}
+					else
+					{
+						return TypedNodeExt->GetParentMaterialNode()->GetParameterName(EMaterialParameterType::Texture, ImageIndex).ToString();
+					}
 				}();
 				
 				FString msg = FString::Printf(TEXT("Material image [%s] is connected to an image but will be replaced by a Group Projector."), *ImageName);
-				GenerationContext.Compiler->CompilerLog(FText::FromString(msg), TypedNodeMat);
+				GenerationContext.Compiler->CompilerLog(FText::FromString(msg), TypedNodeMat ? TypedNodeMat : TypedNodeExt->GetParentMaterialNode());
 				continue;
 			}
 			
@@ -164,7 +165,7 @@ mu::NodeImagePtr GenerateMutableGroupProjection(const int32 NodeLOD, const int32
 					if (!NodeMeshApplyPose)
 					{
 						FString msg = FString::Printf(TEXT("Couldn't get bone transform information from a Pose Asset."));
-						GenerationContext.Compiler->CompilerLog(FText::FromString(msg), NodeMaterialBase);
+						GenerationContext.Compiler->CompilerLog(FText::FromString(msg), TypedNodeMat ? TypedNodeMat : TypedNodeExt->GetParentMaterialNode());
 					}
 
 					MeshSwitchNode->SetOption(SelectorIndex + 1, NodeMeshApplyPose);

@@ -10,7 +10,7 @@
 namespace ENodeTitleType { enum Type : int; }
 
 class UCustomizableObject;
-class UCustomizableObjectNodeMaterial;
+class UCustomizableObjectNodeMaterialBase;
 class UCustomizableObjectNodeRemapPins;
 class UObject;
 struct FPropertyChangedEvent;
@@ -270,7 +270,7 @@ public:
 	 *
 	 * @param LOD LOD which materials have to belong to.
 	 */
-	TArray<UCustomizableObjectNodeMaterial*> GetMaterialNodes(int LOD) const;
+	TArray<UCustomizableObjectNodeMaterialBase*> GetMaterialNodes(int LOD) const;
 
 	bool IsSingleOutputNode() const override;
 

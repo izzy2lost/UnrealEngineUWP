@@ -48,7 +48,7 @@ void UCustomizableObjectNodeExtendMaterial::BackwardsCompatibleFixup()
 	
 	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::ExtendMaterialRemoveImages)
 	{
-		if (const UCustomizableObjectNodeMaterial* ParentMaterial = GetParentMaterialNode())
+		if (const UCustomizableObjectNodeMaterialBase* ParentMaterial = GetParentMaterialNode())
 		{
 			for (const FCustomizableObjectNodeExtendMaterialImage& Image : Images_DEPRECATED)
 			{
@@ -106,15 +106,7 @@ void UCustomizableObjectNodeExtendMaterial::AllocateDefaultPins(UCustomizableObj
 	AddMeshPin->bDefaultValueIsIgnored = true;
 
 	// Begin texture pins
-	UCustomizableObjectNodeMaterial* ParentMaterialNode = GetParentMaterialNodeIfPath();
-	
-	// In case of a NodeCopyMaterial get the real NodeMaterial
-	if (const UCustomizableObjectNodeCopyMaterial* ParentMaterialCopyNode = Cast<UCustomizableObjectNodeCopyMaterial>(ParentMaterialNode))
-	{
-		ParentMaterialNode = ParentMaterialCopyNode->GetMaterialNode();
-	}
-
-	if (ParentMaterialNode)
+	if (UCustomizableObjectNodeMaterialBase* ParentMaterialNode = GetParentMaterialNodeIfPath())
 	{
 		const int32 NumImages = ParentMaterialNode->GetNumParameters(EMaterialParameterType::Texture);
 		for (int32 ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
@@ -199,7 +191,7 @@ void UCustomizableObjectNodeExtendMaterial::SetParentNode(UCustomizableObject* O
 }
 
 
-TArray<UCustomizableObjectLayout*> UCustomizableObjectNodeExtendMaterial::GetLayouts()
+TArray<UCustomizableObjectLayout*> UCustomizableObjectNodeExtendMaterial::GetLayouts() const
 {
 	TArray<UCustomizableObjectLayout*> Result;
 

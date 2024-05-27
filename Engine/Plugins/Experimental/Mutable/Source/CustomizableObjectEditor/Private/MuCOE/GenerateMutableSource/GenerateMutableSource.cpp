@@ -54,6 +54,7 @@
 #include "PlatformInfo.h"
 #include "Math/NumericLimits.h"
 #include "Hash/CityHash.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeCopyMaterial.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
@@ -1544,19 +1545,19 @@ bool AffectsCurrentComponent(const UEdGraphPin* Pin, FMutableGraphGenerationCont
 		return bAffectsCurrentComponent;
 	}
 
-	else if (const UCustomizableObjectNodeMaterial* TypedNodeMat = Cast<UCustomizableObjectNodeMaterial>(Node))
+	else if (const UCustomizableObjectNodeMaterialBase* TypedNodeMat = Cast<UCustomizableObjectNodeMaterialBase>(Node))
 	{
-		ComponentIndex = TypedNodeMat->MeshComponentIndex;
+		ComponentIndex = TypedNodeMat->GetMeshComponentIndex();
 	}
 	else if (const UCustomizableObjectNodeExtendMaterial* TypedNodeExt = Cast<UCustomizableObjectNodeExtendMaterial>(Node))
 	{
-		UCustomizableObjectNodeMaterial* OriginalParentMaterialNode = TypedNodeExt->GetParentMaterialNode();
-		ComponentIndex = OriginalParentMaterialNode ? OriginalParentMaterialNode->MeshComponentIndex : GenerationContext.CurrentMeshComponent;
+		UCustomizableObjectNodeMaterialBase* OriginalParentMaterialNode = TypedNodeExt->GetParentMaterialNode();
+		ComponentIndex = OriginalParentMaterialNode ? OriginalParentMaterialNode->GetMeshComponentIndex() : GenerationContext.CurrentMeshComponent;
 	}
 	else if (const UCustomizableObjectNodeEditMaterialBase* TypedNodeEdit = Cast<UCustomizableObjectNodeEditMaterialBase>(Node))
 	{
-		UCustomizableObjectNodeMaterial* OriginalParentMaterialNode = TypedNodeEdit->GetParentMaterialNode();
-		ComponentIndex = OriginalParentMaterialNode ? OriginalParentMaterialNode->MeshComponentIndex : GenerationContext.CurrentMeshComponent;
+		UCustomizableObjectNodeMaterialBase* OriginalParentMaterialNode = TypedNodeEdit->GetParentMaterialNode();
+		ComponentIndex = OriginalParentMaterialNode ? OriginalParentMaterialNode->GetMeshComponentIndex() : GenerationContext.CurrentMeshComponent;
 	}
 	else if (const UCustomizableObjectNodeModifierBase* TypedNodeModifier = Cast<UCustomizableObjectNodeModifierBase>(Node))
 	{
@@ -1746,7 +1747,7 @@ void PopulateReferenceSkeletalMeshesData(FMutableGraphGenerationContext& Generat
 }
 
 
-uint32 GetBaseTextureSize(const FMutableGraphGenerationContext& GenerationContext, const UCustomizableObjectNodeMaterial* Material, uint32 ImageIndex)
+uint32 GetBaseTextureSize(const FMutableGraphGenerationContext& GenerationContext, const UCustomizableObjectNodeMaterialBase* Material, uint32 ImageIndex)
 {
 	const FGeneratedImageProperties* ImageProperties = GenerationContext.ImageProperties.Find({ Material, ImageIndex });
 	return ImageProperties ? ImageProperties->TextureSize : 0;

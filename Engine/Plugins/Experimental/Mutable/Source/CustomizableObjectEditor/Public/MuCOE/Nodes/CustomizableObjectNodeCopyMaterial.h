@@ -11,61 +11,57 @@ class UCustomizableObjectNodeSkeletalMesh;
 class UEdGraphPin;
 class UObject;
 
-/**
- * Copy Material node. Duplicates a Material Node. Duplicates all Material node input pins and properties except for the Mesh input pin.
- * A new Mesh has to be defined through the new Mesh input pin.
- *
- * Input pins:
- * - Mesh: New mesh.
- * - Material: Material to duplicate.
- * 
- * Output pins:
- * - Material: New material.
- * 
- * Properties:
- *   [NONE]
- */
+
+/** Generates a new Surface with the same connections as the Parent Material Surface, but with a different Mesh. */
 UCLASS()
-class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeCopyMaterial : public UCustomizableObjectNodeMaterial
+class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeCopyMaterial : public UCustomizableObjectNodeMaterialBase
 {
 public:
 	GENERATED_BODY()
 
-	FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
+	// UEdGraphNode interface
+	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
+	virtual FText GetTooltipText() const override;
+	virtual FLinearColor GetNodeTitleColor() const override;
 
 	// UCustomizableObjectNode interface
-	void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
-
-	/** Get Mesh input pin. */
-	UEdGraphPin* GetMeshPin() const override;
-
-	/** Get Material input pin. */
-	UEdGraphPin* GetMaterialPin() const;
-
-	/** Get Mesh node. */
-	UCustomizableObjectNodeSkeletalMesh* GetMeshNode() const;
-
-	/** Get the Material node. */
-	UCustomizableObjectNodeMaterial* GetMaterialNode() const;
-
-	/** Input material pin can only be connect to a NodeMaterial output pin or a NodeExternalPin. A connection to a NodeMaterialCopy output pin is not allowed. */
+	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
 	virtual bool CanConnect(const UEdGraphPin* InOwnedInputPin, const UEdGraphPin* InOutputPin, bool& bOutIsOtherNodeBlocklisted, bool& bOutArePinsCompatible) const override;
-	
-	bool ShouldBreakExistingConnections(const UEdGraphPin* InputPin, const UEdGraphPin* OutputPin) const override;
-
-	/** Override the NodeMaterial method. Does not break any connection. */
-	void BreakExistingConnectionsPostConnection(UEdGraphPin* InputPin, UEdGraphPin* OutputPin) override {};
-
+	virtual bool ShouldBreakExistingConnections(const UEdGraphPin* InputPin, const UEdGraphPin* OutputPin) const override;
 	virtual bool IsNodeOutDatedAndNeedsRefresh() override;
+	virtual bool ProvidesCustomPinRelevancyTest() const override;
+	virtual bool IsPinRelevant(const UEdGraphPin* Pin) const override;
 
-	bool ProvidesCustomPinRelevancyTest() const override;
-
-	/** 
-	 * Only are relevant pins:
-	 * - From: NodeMaterial, excluding NodeCopyMaterial 
-	 * - To: NodeBaseObject
-	 */
-	bool IsPinRelevant(const UEdGraphPin* Pin) const override;
-
-	FText GetTooltipText() const override;
+	// UCustomizableObjectNodeMaterialBase interface
+	virtual UMaterialInterface* GetMaterial() const override;
+	virtual bool IsReuseMaterialBetweenLODs() const override;
+	virtual int32 GetMeshComponentIndex() const override;
+	virtual TArray<FString> GetTags() const override;
+	virtual UEdGraphPin* GetMaterialAssetPin() const override;
+	virtual int32 GetNumParameters(EMaterialParameterType Type) const override;
+	virtual FGuid GetParameterId(EMaterialParameterType Type, int32 ParameterIndex) const override;
+	virtual FName GetParameterName(EMaterialParameterType Type, int32 ParameterIndex) const override;
+	virtual int32 GetParameterLayerIndex(EMaterialParameterType Type, int32 ParameterIndex) const override;
+	virtual FText GetParameterLayerName(EMaterialParameterType Type, int32 ParameterIndex) const override;
+	virtual bool HasParameter(const FGuid& ParameterId) const override;
+	virtual const UEdGraphPin* GetParameterPin(EMaterialParameterType Type, int32 ParameterIndex) const override;
+	virtual bool IsImageMutableMode(int32 ImageIndex) const override;
+	virtual bool IsImageMutableMode(const UEdGraphPin& Pin) const override;
+	virtual void UpdateImagePinMode(const FGuid ParameterId) override;
+	virtual void UpdateImagePinMode(const UEdGraphPin& Pin) override;
+	virtual void UpdateAllImagesPinMode() override;
+	virtual UTexture2D* GetImageReferenceTexture(int32 ImageIndex) const override;
+	virtual UTexture2D* GetImageValue(int32 ImageIndex) const override;
+	virtual int32 GetImageUVLayout(int32 ImageIndex) const override;
+	virtual UCustomizableObjectNodeMaterial* GetMaterialNode() const override;
+	virtual UEdGraphPin* GetMeshPin() const override;
+	virtual FPostImagePinModeChangedDelegate* GetPostImagePinModeChangedDelegate() override;
+	virtual TArray<UCustomizableObjectLayout*> GetLayouts() const override;
+	virtual UEdGraphPin* OutputPin() const override;
+	virtual bool RealMaterialDataHasChanged() const override;
+	
+	// Own interface
+	UCustomizableObjectNodeSkeletalMesh* GetMeshNode() const;
+	
+	UEdGraphPin* GetMaterialPin() const;
 };

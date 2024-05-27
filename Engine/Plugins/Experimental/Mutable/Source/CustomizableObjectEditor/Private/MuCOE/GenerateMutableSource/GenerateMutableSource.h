@@ -27,6 +27,7 @@
 #include "MuT/Table.h"
 #include "UObject/Package.h"
 
+class UCustomizableObjectNodeMaterialBase;
 class UCustomizableObjectNodeMeshClipWithMesh;
 class UCustomizableObjectNodeTable;
 struct FCustomizableObjectClothingAssetData;
@@ -175,7 +176,7 @@ struct FGeneratedImageKey
 
 struct FGeneratedImagePropertiesKey
 {
-	FGeneratedImagePropertiesKey(const UCustomizableObjectNodeMaterial* InMaterial, uint32 InImageIndex)
+	FGeneratedImagePropertiesKey(const UCustomizableObjectNodeMaterialBase* InMaterial, uint32 InImageIndex)
 	{
 		MaterialReferenceId = (PTRINT)InMaterial;
 		ImageIndex = InImageIndex;
@@ -330,7 +331,7 @@ struct FGroupProjectorImageInfo
 	mu::NodeImagePtr ImageNode;
 	mu::NodeImagePtr ImageResizeNode;
 	mu::NodeSurfaceNewPtr SurfNode;
-	UCustomizableObjectNodeMaterial* TypedNodeMat;
+	UCustomizableObjectNodeMaterialBase* TypedNodeMat;
 	FString TextureName;
 	FString RealTextureName;
 	FString AlternateResStateName;
@@ -338,7 +339,7 @@ struct FGroupProjectorImageInfo
 	bool bIsAlternateResolutionResized = false;
 	int32 UVLayout = 0;
 
-	FGroupProjectorImageInfo(mu::NodeImagePtr InImageNode, const FString& InTextureName, const FString& InRealTextureName, UCustomizableObjectNodeMaterial* InTypedNodeMat,
+	FGroupProjectorImageInfo(mu::NodeImagePtr InImageNode, const FString& InTextureName, const FString& InRealTextureName, UCustomizableObjectNodeMaterialBase* InTypedNodeMat,
 		float InAlternateProjectionResolutionFactor, const FString& InAlternateResStateName, mu::NodeSurfaceNewPtr InSurfNode, int32 InUVLayout)
 		: TypedNodeMat(InTypedNodeMat), TextureName(InTextureName), RealTextureName(InRealTextureName),
 		AlternateResStateName(InAlternateResStateName), AlternateProjectionResolutionFactor(InAlternateProjectionResolutionFactor), 
@@ -348,7 +349,7 @@ struct FGroupProjectorImageInfo
 		SurfNode = InSurfNode;
 	}
 
-	static FString GenerateId(const UCustomizableObjectNodeMaterialBase* TypedNodeMat, int32 ImageIndex)
+	static FString GenerateId(const UCustomizableObjectNode* TypedNodeMat, int32 ImageIndex)
 	{
 		return TypedNodeMat->GetOutermost()->GetPathName() + TypedNodeMat->NodeGuid.ToString() + FString("-") + FString::FromInt(ImageIndex);
 	}
@@ -840,8 +841,8 @@ struct FMutableGraphGenerationContext
 		TArray<SIZE_T> NodeModifierIDs;
 	};
 
-	// UCustomizableObjectNodeMaterial material to SharedSurfaceId
-	TMap<UCustomizableObjectNodeMaterial*, TArray<FSharedSurface>> SharedSurfaceIds;
+	// Material to SharedSurfaceId
+	TMap<UCustomizableObjectNodeMaterialBase*, TArray<FSharedSurface>> SharedSurfaceIds;
 
 	/** Resource Data constants */
 	TMap<uint32, int32> StreamedResourceIndices;
@@ -903,7 +904,7 @@ FString GenerateAnimationInstanceTag(const int32 AnimInstanceIndex, const FName&
 
 FString GenerateGameplayTag(const FString& GameplayTag);
 
-uint32 GetBaseTextureSize(const FMutableGraphGenerationContext& GenerationContext, const UCustomizableObjectNodeMaterial* Material, uint32 ImageIndex);
+uint32 GetBaseTextureSize(const FMutableGraphGenerationContext& GenerationContext, const UCustomizableObjectNodeMaterialBase* Material, uint32 ImageIndex);
 
 // Computes the LOD bias for a texture given the current mesh LOD and automatic LOD settings, the reference texture settings
 // and whether it's being built for a server or not

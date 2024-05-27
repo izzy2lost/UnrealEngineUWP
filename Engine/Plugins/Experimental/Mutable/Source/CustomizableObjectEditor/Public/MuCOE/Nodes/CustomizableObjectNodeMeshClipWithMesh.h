@@ -60,11 +60,10 @@ public:
 	virtual void PinConnectionListChanged(UEdGraphPin* Pin) override;
 	virtual void UpdateReferencedNodeId(const FGuid& NewGuid) override;
 	virtual void BeginPostDuplicate(bool bDuplicateForPIE) override;
-
-	// UCustomizableObjectNodeMaterialBase interface
-	virtual UEdGraphPin* OutputPin() const override;
-
+	
 	// Own interface
+	UEdGraphPin* OutputPin() const;
+
 	UEdGraphPin* ClipMeshPin() const;
 };
 

@@ -139,10 +139,10 @@ void FCustomizableObjectNodeMeshClipWithMeshDetails::CustomizeDetails(IDetailLay
 
 		for (const UCustomizableObjectNodeMaterial* MaterialNode : ArrayMaterialNodes)
 		{
-			if (MaterialNode->Material)
+			if (MaterialNode->GetMaterial())
 			{
 				NumElementBeforeAdd = ArrayMaterialNodeName.Num();
-				ArrayMaterialNodeName.AddUnique(MaterialNode->Material->GetName());
+				ArrayMaterialNodeName.AddUnique(MaterialNode->GetMaterial()->GetName());
 				NumElementAfterAdd = ArrayMaterialNodeName.Num();
 
 				if (NumElementBeforeAdd != NumElementAfterAdd)
@@ -310,7 +310,7 @@ void FCustomizableObjectNodeMeshClipWithMeshDetails::OnMeshClipWithMeshNodeCombo
 		Node->ArrayMaterialNodeToClipWithID.Empty();
 		for (const UCustomizableObjectNodeMaterial* MaterialNode : ArrayMaterialNode)
 		{
-			if (MaterialNode && MaterialNode->Material && *Selection == MaterialNode->Material->GetName())
+			if (MaterialNode && MaterialNode->GetMaterial() && *Selection == MaterialNode->GetMaterial()->GetName())
 			{
 				Node->ArrayMaterialNodeToClipWithID.Add(MaterialNode->NodeGuid);
 			}

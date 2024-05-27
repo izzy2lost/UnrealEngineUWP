@@ -6,21 +6,15 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
 
 
-UCustomizableObjectNodeMaterial* FCustomizableObjectNodeParentedMaterial::GetParentMaterialNode() const
+UCustomizableObjectNodeMaterialBase* FCustomizableObjectNodeParentedMaterial::GetParentMaterialNode() const
 {
-	if (UCustomizableObjectNode* Node = GetParentNode())
-	{
-		return CastChecked<UCustomizableObjectNodeMaterial>(Node);
-	}
-	else
-	{
-		return nullptr;	
-	}
+	return Cast<UCustomizableObjectNodeMaterialBase>(GetParentNode());
 }
 
-TArray<UCustomizableObjectNodeMaterial*> FCustomizableObjectNodeParentedMaterial::GetPossibleParentMaterialNodes() const
+
+TArray<UCustomizableObjectNodeMaterialBase*> FCustomizableObjectNodeParentedMaterial::GetPossibleParentMaterialNodes() const
 {
-	TArray<UCustomizableObjectNodeMaterial*> Result;
+	TArray<UCustomizableObjectNodeMaterialBase*> Result;
 	
 	const UCustomizableObjectNode& Node = GetNode();
 	const int32 LOD = Node.GetLOD();
@@ -50,22 +44,8 @@ TArray<UCustomizableObjectNodeMaterial*> FCustomizableObjectNodeParentedMaterial
 		// If LODStrategy is set to AutomaticFromMesh, find MaterialNodes belonging to lower LODs.
 		for (; LODIndex <= LOD; ++LODIndex)
 		{
-			const TArray<UCustomizableObjectNodeMaterial*> MaterialNodes = ParentObjectNode->GetMaterialNodes(LODIndex);
-
-			for (UCustomizableObjectNodeMaterial* MaterialNode : MaterialNodes)
-			{
-				if (UCustomizableObjectNodeCopyMaterial* TypedCopyMaterialNode = Cast<UCustomizableObjectNodeCopyMaterial>(MaterialNode))
-				{
-					if (TypedCopyMaterialNode->GetMaterialNode())
-					{
-						Result.Add(TypedCopyMaterialNode);
-					}
-				}
-				else if (UCustomizableObjectNodeMaterial* TypedMaterialNode = Cast<UCustomizableObjectNodeMaterial>(MaterialNode))
-				{
-					Result.Add(TypedMaterialNode);
-				}
-			}
+			const TArray<UCustomizableObjectNodeMaterialBase*> MaterialNodes = ParentObjectNode->GetMaterialNodes(LODIndex);
+			Result.Append(MaterialNodes);
 		}
 	}
 	
@@ -73,9 +53,9 @@ TArray<UCustomizableObjectNodeMaterial*> FCustomizableObjectNodeParentedMaterial
 }
 
 
-UCustomizableObjectNodeMaterial* FCustomizableObjectNodeParentedMaterial::GetParentMaterialNodeIfPath() const
+UCustomizableObjectNodeMaterialBase* FCustomizableObjectNodeParentedMaterial::GetParentMaterialNodeIfPath() const
 {
-	UCustomizableObjectNodeMaterial* ParentMaterialNode = GetParentMaterialNode();
+	UCustomizableObjectNodeMaterialBase* ParentMaterialNode = GetParentMaterialNode();
 	
 	if (GetPossibleParentMaterialNodes().Contains(ParentMaterialNode)) // There is a path to the parent material
 	{

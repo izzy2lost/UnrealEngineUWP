@@ -8,6 +8,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeExternalPin.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeSkeletalMesh.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeMaterial.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
@@ -18,42 +19,91 @@ const static FString MeshPinName = TEXT("Mesh_Input_Pin");
 /** Material input pin key */
 const static FString MaterialPinName = TEXT("Material_Input_Pin");
 
+/** Material output pin key*/
+const static FString OutputPinName = TEXT("Material_Output_Pin");
+
+
 FText UCustomizableObjectNodeCopyMaterial::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
 	return LOCTEXT("Copy_Material", "Copy Material");
 }
+
 
 void UCustomizableObjectNodeCopyMaterial::AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins)
 {
 	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
 
 	// Input pins
-	FString PinFriendlyName = TEXT("Mesh");
 	UEdGraphPin* Pin = CustomCreatePin(EGPD_Input, Schema->PC_Mesh, FName(MeshPinName));
-	Pin->PinFriendlyName = FText::FromString(PinFriendlyName);
+	Pin->PinFriendlyName = LOCTEXT("MeshPin", "Mesh");
 	Pin->bDefaultValueIsIgnored = true;
 
-	PinFriendlyName = TEXT("Base Material");
 	Pin = CustomCreatePin(EGPD_Input, Schema->PC_Material, FName(MaterialPinName));
-	Pin->PinFriendlyName = FText::FromString(PinFriendlyName);
+	Pin->PinFriendlyName = LOCTEXT("BaseMaterialPin", "Base Material");;
 	Pin->bDefaultValueIsIgnored = true;
 
 	// Output pins
-	PinFriendlyName = TEXT("Material");
-	FString PinName = PinFriendlyName + FString(TEXT("_Output_Pin"));
-	Pin = CustomCreatePin(EGPD_Output, Schema->PC_Material, FName(*PinName));
-	Pin->PinFriendlyName = FText::FromString(PinFriendlyName);
+	Pin = CustomCreatePin(EGPD_Output, Schema->PC_Material, FName(OutputPinName));
+	Pin->PinFriendlyName = LOCTEXT("MaterialPin", "Material");
 }
+
 
 UEdGraphPin* UCustomizableObjectNodeCopyMaterial::GetMeshPin() const
 {
 	return FindPin(MeshPinName);
 }
 
+
+FPostImagePinModeChangedDelegate* UCustomizableObjectNodeCopyMaterial::GetPostImagePinModeChangedDelegate()
+{
+	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
+	{
+		return NodeMaterial->GetPostImagePinModeChangedDelegate();
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+
+TArray<UCustomizableObjectLayout*> UCustomizableObjectNodeCopyMaterial::GetLayouts() const
+{
+	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
+	{
+		return NodeMaterial->GetLayouts();
+	}
+	else
+	{
+		return {};
+	}
+}
+
+
+UEdGraphPin* UCustomizableObjectNodeCopyMaterial::OutputPin() const
+{
+	return FindPin(OutputPinName);
+}
+
+
+bool UCustomizableObjectNodeCopyMaterial::RealMaterialDataHasChanged() const
+{
+	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
+	{
+		return NodeMaterial->RealMaterialDataHasChanged();
+	}
+	else
+	{
+		return false;
+	}
+}
+
+
 UEdGraphPin* UCustomizableObjectNodeCopyMaterial::GetMaterialPin() const
 {
 	return FindPin(MaterialPinName);
 }
+
 
 UCustomizableObjectNodeSkeletalMesh* UCustomizableObjectNodeCopyMaterial::GetMeshNode() const
 {
@@ -86,6 +136,7 @@ UCustomizableObjectNodeMaterial* UCustomizableObjectNodeCopyMaterial::GetMateria
 	return Result;
 }
 
+
 bool UCustomizableObjectNodeCopyMaterial::CanConnect(const UEdGraphPin* InOwnedInputPin, const UEdGraphPin* InOutputPin, bool& bOutIsOtherNodeBlocklisted, bool& bOutArePinsCompatible) const
 {
 	if (!Super::CanConnect(InOwnedInputPin, InOutputPin, bOutIsOtherNodeBlocklisted, bOutIsOtherNodeBlocklisted))
@@ -103,20 +154,24 @@ bool UCustomizableObjectNodeCopyMaterial::CanConnect(const UEdGraphPin* InOwnedI
 	return true;
 }
 
+
 bool UCustomizableObjectNodeCopyMaterial::ShouldBreakExistingConnections(const UEdGraphPin* InputPin, const UEdGraphPin* OutputPin) const
 {
 	return true;
 }
+
 
 bool UCustomizableObjectNodeCopyMaterial::IsNodeOutDatedAndNeedsRefresh()
 {
 	return false;
 }
 
+
 bool UCustomizableObjectNodeCopyMaterial::ProvidesCustomPinRelevancyTest() const
 {
 	return true;
 }
+
 
 bool UCustomizableObjectNodeCopyMaterial::IsPinRelevant(const UEdGraphPin* Pin) const
 {
@@ -136,9 +191,241 @@ bool UCustomizableObjectNodeCopyMaterial::IsPinRelevant(const UEdGraphPin* Pin) 
 	}
 }
 
+
+UMaterialInterface* UCustomizableObjectNodeCopyMaterial::GetMaterial() const
+{
+	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
+	{
+		return NodeMaterial->GetMaterial();
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+
+bool UCustomizableObjectNodeCopyMaterial::IsReuseMaterialBetweenLODs() const
+{
+	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
+	{
+		return NodeMaterial->IsReuseMaterialBetweenLODs();
+	}
+	else
+	{
+		return false;
+	}
+}
+
+
+int32 UCustomizableObjectNodeCopyMaterial::GetMeshComponentIndex() const
+{
+	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
+	{
+		return NodeMaterial->GetMeshComponentIndex();
+	}
+	else
+	{
+		return INDEX_NONE;
+	}
+}
+
+
+TArray<FString> UCustomizableObjectNodeCopyMaterial::GetTags() const
+{
+	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
+	{
+		return NodeMaterial->GetTags();
+	}
+	else
+	{
+		return {};
+	}
+}
+
+
+UEdGraphPin* UCustomizableObjectNodeCopyMaterial::GetMaterialAssetPin() const
+{
+	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
+	{
+		return NodeMaterial->GetMaterialAssetPin();
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+
+int32 UCustomizableObjectNodeCopyMaterial::GetNumParameters(EMaterialParameterType Type) const
+{
+	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
+	{
+		return NodeMaterial->GetNumParameters(Type);
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+
+FGuid UCustomizableObjectNodeCopyMaterial::GetParameterId(EMaterialParameterType Type, int32 ParameterIndex) const
+{
+	UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode();
+	check(NodeMaterial);
+
+	return NodeMaterial->GetParameterId(Type, ParameterIndex);
+}
+
+
+FName UCustomizableObjectNodeCopyMaterial::GetParameterName(EMaterialParameterType Type, int32 ParameterIndex) const
+{
+	UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode();
+	check(NodeMaterial);
+	
+	return NodeMaterial->GetParameterName(Type, ParameterIndex);
+}
+
+
+int32 UCustomizableObjectNodeCopyMaterial::GetParameterLayerIndex(EMaterialParameterType Type, int32 ParameterIndex) const
+{
+	UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode();
+	check(NodeMaterial);
+	
+	return NodeMaterial->GetParameterLayerIndex(Type, ParameterIndex);
+}
+
+
+FText UCustomizableObjectNodeCopyMaterial::GetParameterLayerName(EMaterialParameterType Type, int32 ParameterIndex) const
+{
+	UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode();
+	check(NodeMaterial);
+	
+	return NodeMaterial->GetParameterLayerName(Type, ParameterIndex);
+}
+
+
+bool UCustomizableObjectNodeCopyMaterial::HasParameter(const FGuid& ParameterId) const
+{
+	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
+	{
+		return NodeMaterial->HasParameter(ParameterId);
+	}
+	else
+	{
+		return false;	
+	}
+}
+
+
+const UEdGraphPin* UCustomizableObjectNodeCopyMaterial::GetParameterPin(EMaterialParameterType Type, int32 ParameterIndex) const
+{
+	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
+	{
+		return NodeMaterial->GetParameterPin(Type, ParameterIndex);
+	}
+	else
+	{
+		return nullptr;	
+	}
+}
+
+
+bool UCustomizableObjectNodeCopyMaterial::IsImageMutableMode(int32 ImageIndex) const
+{
+	UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode();
+	check(NodeMaterial);
+	
+	return NodeMaterial->IsImageMutableMode(ImageIndex);
+}
+
+
+bool UCustomizableObjectNodeCopyMaterial::IsImageMutableMode(const UEdGraphPin& Pin) const
+{
+	UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode();
+	check(NodeMaterial);
+
+	return NodeMaterial->IsImageMutableMode(Pin);
+}
+
+
+void UCustomizableObjectNodeCopyMaterial::UpdateImagePinMode(const FGuid ParameterId)
+{
+	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
+	{
+		NodeMaterial->UpdateImagePinMode(ParameterId);
+	}
+}
+
+
+void UCustomizableObjectNodeCopyMaterial::UpdateImagePinMode(const UEdGraphPin& Pin)
+{
+	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
+	{
+		NodeMaterial->UpdateImagePinMode(Pin);
+	}
+}
+
+
+void UCustomizableObjectNodeCopyMaterial::UpdateAllImagesPinMode()
+{
+	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
+	{
+		NodeMaterial->UpdateAllImagesPinMode();
+	}
+}
+
+
+UTexture2D* UCustomizableObjectNodeCopyMaterial::GetImageReferenceTexture(int32 ImageIndex) const
+{
+	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
+	{
+		return NodeMaterial->GetImageReferenceTexture(ImageIndex);
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+
+UTexture2D* UCustomizableObjectNodeCopyMaterial::GetImageValue(int32 ImageIndex) const
+{
+	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
+	{
+		return NodeMaterial->GetImageValue(ImageIndex);
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+
+int32 UCustomizableObjectNodeCopyMaterial::GetImageUVLayout(int32 ImageIndex) const
+{
+	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
+	{
+		return NodeMaterial->GetImageUVLayout(ImageIndex);
+	}
+	else
+	{
+		return UCustomizableObjectNodeMaterialPinDataImage::UV_LAYOUT_IGNORE;
+	}
+}
+
+
 FText UCustomizableObjectNodeCopyMaterial::GetTooltipText() const
 {
 	return LOCTEXT("CopyMaterial_Tooltip", "Copies a Customizable Object material.\nDuplicates all Material node input pins and properties except for the Mesh input pin.");
+}
+
+
+FLinearColor UCustomizableObjectNodeCopyMaterial::GetNodeTitleColor() const
+{
+	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
+	return Schema->GetPinTypeColor(Schema->PC_Material);
 }
 
 #undef LOCTEXT_NAMESPACE

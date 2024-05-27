@@ -16,6 +16,7 @@
 #include "Logging/MessageLog.h"
 #include "Containers/Queue.h"
 #include "MuCO/CustomizableObjectCustomVersion.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeCopyMaterial.h"
 
 class UCustomizableObjectNodeRemapPins;
 
@@ -246,9 +247,9 @@ bool UCustomizableObjectNodeObject::CanDuplicateNode() const
 }
 
 
-TArray<UCustomizableObjectNodeMaterial*> UCustomizableObjectNodeObject::GetMaterialNodes(const int LOD) const
+TArray<UCustomizableObjectNodeMaterialBase*> UCustomizableObjectNodeObject::GetMaterialNodes(const int LOD) const
 {
-	TArray<UCustomizableObjectNodeMaterial*> Result;
+	TArray<UCustomizableObjectNodeMaterialBase*> Result;
 
 	TQueue<UEdGraphNode*> PotentialCustomizableNodeObjects;
 
@@ -260,10 +261,10 @@ TArray<UCustomizableObjectNodeMaterial*> UCustomizableObjectNodeObject::GetMater
 	UEdGraphNode* CurrentElement;
 	while (PotentialCustomizableNodeObjects.Dequeue(CurrentElement))
 	{
-		if (UCustomizableObjectNodeMaterial* CurrentMaterialNode = Cast<UCustomizableObjectNodeMaterial>(CurrentElement))
+		if (UCustomizableObjectNodeMaterialBase* CurrentMaterialNode = Cast<UCustomizableObjectNodeMaterialBase>(CurrentElement))
 		{
 			Result.Add(CurrentMaterialNode);
-		} 
+		}
 		else if (UCustomizableObjectNodeMaterialVariation* CurrentMaterialVariationNode = Cast<UCustomizableObjectNodeMaterialVariation>(CurrentElement))
 		{
 			// Case of material variation. It's not a material, but a node that further references any material, add all its inputs that could be a material

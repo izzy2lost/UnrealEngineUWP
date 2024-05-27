@@ -42,9 +42,10 @@ public:
 
 	// UCustomizableObjectNode interface
 	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
-	virtual UEdGraphPin* OutputPin() const override;
 
 	// Own interface
+	UEdGraphPin* OutputPin() const;
+	
 	UEdGraphPin* ClipShapePin() const;
 };
 

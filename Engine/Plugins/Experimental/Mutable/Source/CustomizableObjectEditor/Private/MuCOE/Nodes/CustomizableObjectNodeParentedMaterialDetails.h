@@ -7,6 +7,8 @@
 #include "Misc/Guid.h"
 #include "UObject/WeakObjectPtr.h"
 
+class UCustomizableObjectNodeMaterialBase;
+
 namespace ESelectInfo { enum Type : int; }
 
 class FCustomizableObjectNodeParentedMaterial;
@@ -41,7 +43,7 @@ protected:
 	 *
 	 * All ParentMaterialNodes pointers must be valid.
 	 */
-	TArray<TSharedPtr<FString>> GetComboBoxNames(const TArray<UCustomizableObjectNodeMaterial*>& ParentMaterialNodes) const;
+	TArray<TSharedPtr<FString>> GetComboBoxNames(const TArray<UCustomizableObjectNodeMaterialBase*>& ParentMaterialNodes) const;
 
 	/** Return a fornamted name for the parent Material. */
 	FString GetComboBoxParentMaterialName(const UCustomizableObjectNodeMaterial* ParentMaterial) const;

@@ -256,14 +256,16 @@ void SCustomizableObjectEditorTagExplorer::FillTagInformation(UCustomizableObjec
 	{
 		for (const TObjectPtr<UEdGraphNode>& Node : Object->GetPrivate()->GetSource()->Nodes)
 		{
-			if (UCustomizableObjectNodeMaterial* TypedNodeMat = Cast<UCustomizableObjectNodeMaterial>(Node))
+			if (UCustomizableObjectNodeMaterialBase* TypedNodeMat = Cast<UCustomizableObjectNodeMaterialBase>(Node))
 			{
-				for (int32 i = 0; i < TypedNodeMat->Tags.Num(); ++i)
+				const TArray<FString>& MaterialTags = TypedNodeMat->GetTags();
+				
+				for (int32 i = 0; i < MaterialTags.Num(); ++i)
 				{
-					NodeTags.Add(TypedNodeMat->Tags[i], TypedNodeMat);
-					if (Tags.Find(TypedNodeMat->Tags[i]) == INDEX_NONE)
+					NodeTags.Add(MaterialTags[i], TypedNodeMat);
+					if (Tags.Find(MaterialTags[i]) == INDEX_NONE)
 					{
-						Tags.Add(TypedNodeMat->Tags[i]);
+						Tags.Add(MaterialTags[i]);
 					}
 				}
 			}
@@ -387,7 +389,7 @@ void SCustomizableObjectEditorTagExplorer::OnComboBoxSelectionChanged(FString Ne
 
 		for (UCustomizableObjectNode* node : auxNodes)
 		{
-			if (Cast<UCustomizableObjectNodeMaterial>(node) && MaterialNodes.Find(node) == INDEX_NONE)
+			if (Cast<UCustomizableObjectNodeMaterialBase>(node) && MaterialNodes.Find(node) == INDEX_NONE)
 			{
 				MaterialNodes.Add(node);
 			}

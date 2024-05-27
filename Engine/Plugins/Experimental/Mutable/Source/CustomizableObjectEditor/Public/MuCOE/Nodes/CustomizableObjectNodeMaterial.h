@@ -27,9 +27,6 @@ struct FFrame;
 struct FPropertyChangedEvent;
 
 
-DECLARE_MULTICAST_DELEGATE(FPostImagePinModeChangedDelegate)
-
-
 /** Custom remap pins by name action.
  *
  * Remap pins by Texture Parameter Id. */
@@ -105,34 +102,17 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeMaterial : public UCus
 {
 public:
 	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, Category=CustomizableObject)
-	TObjectPtr<UMaterialInterface> Material = nullptr;
-
-	UPROPERTY(EditAnywhere, Category=CustomizableObject, Meta = (ToolTip = "Set all Mateiral Texture Parameters to the specified mode. Each Texture Parameter Pin can override this mode."))
-	ENodePinMode TextureParametersMode = ENodePinMode::Passthrough;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = CustomizableObject)
-	TArray<FString> Tags;
-
-	/** Selects which Mesh component of the Instance this material belongs to */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = CustomizableObject, meta = (ClampMin = "0"))
-	int32 MeshComponentIndex = 0;
-
-	/** Materials will be reused between LODs when possible unless explicitly disabled. */
-	UPROPERTY(EditAnywhere, Category = CustomizableObject)
-	bool bReuseMaterialBetweenLODs = true;
 	
 	// UObject interface.
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
-	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 
 	// EdGraphNode interface
-	FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
-	FLinearColor GetNodeTitleColor() const override;
-	FText GetTooltipText() const override;
-	TSharedPtr<SGraphNode> CreateVisualWidget() override;
+	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
+	virtual FLinearColor GetNodeTitleColor() const override;
+	virtual FText GetTooltipText() const override;
+	virtual TSharedPtr<SGraphNode> CreateVisualWidget() override;
 	virtual void PinConnectionListChanged(UEdGraphPin* Pin) override;
 	virtual void PostPasteNode() override;
 	virtual bool CanConnect(const UEdGraphPin* InOwnedInputPin, const UEdGraphPin* InOutputPin, bool& bOutIsOtherNodeBlocklisted, bool& bOutArePinsCompatible) const override;
@@ -140,114 +120,75 @@ public:
 	// UCustomizableObjectNode interface
 	virtual void BackwardsCompatibleFixup() override;
 	virtual void PostBackwardsCompatibleFixup() override;
-	void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
-	bool CanPinBeHidden(const UEdGraphPin& Pin) const override;
+	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
+	virtual bool CanPinBeHidden(const UEdGraphPin& Pin) const override;
 	virtual bool HasPinViewer() const override;
 	virtual UCustomizableObjectNodeRemapPinsByName* CreateRemapPinsDefault() const override;
-	bool ProvidesCustomPinRelevancyTest() const override { return true; }
-	bool IsPinRelevant(const UEdGraphPin* Pin) const override;
+	virtual bool ProvidesCustomPinRelevancyTest() const override { return true; }
+	virtual bool IsPinRelevant(const UEdGraphPin* Pin) const override;
 	virtual bool CustomRemovePin(UEdGraphPin& Pin) override;
 	virtual void ReconstructNode(UCustomizableObjectNodeRemapPins* RemapPinsMode) override;
-
-	// Own Interface
-	virtual UEdGraphPin* GetMeshPin() const;
-	UEdGraphPin* GetMaterialAssetPin() const;
-
-	/** Allow only one connection to a single BaseObjec node. There can be multiple conections to NodeCopyMaterial nodes. */
-	void BreakExistingConnectionsPostConnection(UEdGraphPin* InputPin, UEdGraphPin* OutputPin) override;
-
-	bool IsNodeOutDatedAndNeedsRefresh() override;
-	FString GetRefreshMessage() const override;
+	virtual void BreakExistingConnectionsPostConnection(UEdGraphPin* InputPin, UEdGraphPin* OutputPin) override;
+	virtual bool IsNodeOutDatedAndNeedsRefresh() override;
+	virtual FString GetRefreshMessage() const override;
 	virtual TSharedPtr<SWidget> CustomizePinDetails(const UEdGraphPin& Pin) const override;
 
 	
 	// UCustomizableObjectNodeMaterialBase interface
-	TArray<class UCustomizableObjectLayout*> GetLayouts() override;
-	UEdGraphPin* OutputPin() const override;
+	virtual TArray<UCustomizableObjectLayout*> GetLayouts() const override;
+	virtual UEdGraphPin* OutputPin() const override;
+	virtual UMaterialInterface* GetMaterial() const override;
+	virtual bool IsReuseMaterialBetweenLODs() const override;
+	virtual int32 GetMeshComponentIndex() const override;
+	virtual TArray<FString> GetTags() const override;
+	virtual int32 GetNumParameters(EMaterialParameterType Type) const override;
+	virtual FGuid GetParameterId(EMaterialParameterType Type, int32 ParameterIndex) const override;
+	virtual FName GetParameterName(EMaterialParameterType Type, int32 ParameterIndex) const override;
+	virtual int32 GetParameterLayerIndex(EMaterialParameterType Type, int32 ParameterIndex) const override;
+	virtual FText GetParameterLayerName(EMaterialParameterType Type, int32 ParameterIndex) const override;
+	virtual bool HasParameter(const FGuid& ParameterId) const override;
+	virtual const UEdGraphPin* GetParameterPin(EMaterialParameterType Type, int32 ParameterIndex) const override;
+	virtual bool IsImageMutableMode(int32 ImageIndex) const override;
+	virtual bool IsImageMutableMode(const UEdGraphPin& Pin) const override;
+	virtual void UpdateImagePinMode(const FGuid ParameterId) override;
+	virtual void UpdateImagePinMode(const UEdGraphPin& Pin) override;
+	virtual void UpdateAllImagesPinMode() override;
+	virtual UTexture2D* GetImageReferenceTexture(int32 ImageIndex) const override;
+	virtual UTexture2D* GetImageValue(int32 ImageIndex) const override;
+	virtual int32 GetImageUVLayout(int32 ImageIndex) const override;
+	virtual UEdGraphPin* GetMeshPin() const override;
+	virtual UEdGraphPin* GetMaterialAssetPin() const override;
+	virtual const UCustomizableObjectNodeMaterial* GetMaterialNode() const override;
+	virtual bool RealMaterialDataHasChanged() const override;
+	virtual FPostImagePinModeChangedDelegate* GetPostImagePinModeChangedDelegate() override;
+	
+	// Own Interface
+
+	void SetMaterial(UMaterialInterface* InMaterial);
 	
 	/** Return true if a Material Parameter has changed on which we had a pin connected or data saved. */
-	bool RealMaterialDataHasChanged() const;
-	
-	// --------------------
-	// ALL PARAMETERS
-	// --------------------
 
-	/** Returns the number of Material Parameters. */
-	int32 GetNumParameters(EMaterialParameterType Type) const;
-
-	/** Returns the Material Parameter id.
-	 *
-	 * @param ParameterIndex Have to be valid. */
-	FGuid GetParameterId(EMaterialParameterType Type, int32 ParameterIndex) const;
-	
-	/** Returns the Material Parameter name.
-	 *
-	 * @param ParameterIndex Have to be valid. */
-	FName GetParameterName(EMaterialParameterType Type, int32 ParameterIndex) const;
-	
-	/** Get the Material Parameter layer index.
-	 *
-	 * @param ParameterIndex Have to be valid.
-	 * @returns INDEX_NONE for global parameters. */
-	int32 GetParameterLayerIndex(EMaterialParameterType Type, int32 ParameterIndex) const;
-	
-	/** Get the Material Parameter layer name.
-	 *
-	 * @param ParameterIndex Have to be valid. */
-	FText GetParameterLayerName(EMaterialParameterType Type, int32 ParameterIndex) const;
-
-	/** Returns true if the Material contains the given Material Parameter. */
-	bool HasParameter(const FGuid& ParameterId) const;
-	
-	/** Get the Vector pin for the given Material Vector Parameter.
-	 * Not all parameters have pin.
-	 *
-	 * @param ParameterIndex Has to be valid.
-	 * @return Can return nullptr. */
-	const UEdGraphPin* GetParameterPin(EMaterialParameterType Type, int32 ParameterIndex) const;
-	
-	// --------------------
-	// IMAGES PARAMETERS
-	// --------------------
-
-	/** Returns true if the Material Texture Parameter goes through Mutable.
-	 *
-	 * @param ImageIndex Have to be valid. */
-	bool IsImageMutableMode(int32 ImageIndex) const;
-
-	/** Given an Image pin, returns true if the Material Texture Parameter goes through Mutable. */
-	bool IsImageMutableMode(const UEdGraphPin& Pin) const;
-
-	/** Update a Material Texture Parameter Mode. */
-	void UpdateImagePinMode(const FGuid ParameterId);
-	
-	/** Update a Material Texture Parameter Mode. */
-	void UpdateImagePinMode(const UEdGraphPin& Pin);
-
-	/** Update all Material Texture Parameters Mode. */
-	void UpdateAllImagesPinMode();
-	
-	/** Returns the reference texture assigned to a Material Texture Parameter.
-	 *
-	 * @param ImageIndex Have to be valid.
-	 * @return nullptr if it does not have one assigned. */
-	UTexture2D* GetImageReferenceTexture(int32 ImageIndex) const;
-
-	/** Returns the Texture set in the Material Texture Parameter.
-	 *
-	 * @param ImageIndex Have to be valid. */
-	UTexture2D* GetImageValue(int32 ImageIndex) const;
-	
-	/** Get the Material Texture Parameter UV Index.
-	 *
-	 * @param ImageIndex Have to be valid.
-	 * @return Return -1 if the UV Index is set to Ignore. Return >= 0 for a valid UV Index.  */
-	int32 GetImageUVLayout(int32 ImageIndex) const;
-
+private:
 	/** Delegate called when a Texture Parameter Pin Mode changes. */
 	FPostImagePinModeChangedDelegate PostImagePinModeChangedDelegate;
-	
-private:
+
+	UPROPERTY(EditAnywhere, Category=CustomizableObject)
+	TObjectPtr<UMaterialInterface> Material = nullptr;
+
+	UPROPERTY(EditAnywhere, Category=CustomizableObject, Meta = (ToolTip = "Set all Mateiral Texture Parameters to the specified mode. Each Texture Parameter Pin can override this mode."))
+	ENodePinMode TextureParametersMode = ENodePinMode::Passthrough;
+
+	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	TArray<FString> Tags;
+
+	/** Selects which Mesh component of the Instance this material belongs to */
+	UPROPERTY(EditAnywhere, Category = CustomizableObject, meta = (ClampMin = "0"))
+	int32 MeshComponentIndex = 0;
+
+	/** Materials will be reused between LODs when possible unless explicitly disabled. */
+	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	bool bReuseMaterialBetweenLODs = true;
+
 	/** Last static or skeletal mesh connected. Used to remove the callback once disconnected. */
 	TWeakObjectPtr<UCustomizableObjectNode> LastMeshNodeConnected;
 
@@ -347,7 +288,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = NoCategory)
 	EUVLayoutMode UVLayoutMode = EUVLayoutMode::FromMaterial;
 	
-	/** Index of the UV channel that will be used with this image.It is necessary to apply the proper layout transformations to it. */
+	/** Index of the UV channel that will be used with this image. It is necessary to apply the proper layout transformations to it. */
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (EditCondition = "UVLayoutMode == EUVLayoutMode::Index", EditConditionHides))
 	int32 UVLayout = -2;
 

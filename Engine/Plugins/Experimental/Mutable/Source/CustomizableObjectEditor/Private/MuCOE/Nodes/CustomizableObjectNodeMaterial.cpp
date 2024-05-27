@@ -762,6 +762,12 @@ UEdGraphPin* UCustomizableObjectNodeMaterial::GetMaterialAssetPin() const
 }
 
 
+const UCustomizableObjectNodeMaterial* UCustomizableObjectNodeMaterial::GetMaterialNode() const
+{
+	return this;
+}
+
+
 bool UCustomizableObjectNodeMaterial::IsImageMutableMode(const int32 ImageIndex) const
 {
 	if (const UEdGraphPin* Pin = GetParameterPin(EMaterialParameterType::Texture, ImageIndex))
@@ -850,7 +856,7 @@ UTexture2D* UCustomizableObjectNodeMaterial::GetImageValue(const int32 ImageInde
 }
 
 
-TArray<UCustomizableObjectLayout*> UCustomizableObjectNodeMaterial::GetLayouts()
+TArray<UCustomizableObjectLayout*> UCustomizableObjectNodeMaterial::GetLayouts() const
 {
 	TArray<UCustomizableObjectLayout*> Result;
 
@@ -940,11 +946,8 @@ FGuid UCustomizableObjectNodeMaterial::GetParameterId(const EMaterialParameterTy
 
 FName UCustomizableObjectNodeMaterial::GetParameterName(const EMaterialParameterType Type, const int32 ParameterIndex) const
 {
-	if (!Material)
-	{
-		return FName();
-	}
-
+	check(Material);
+	
 	const FMaterialCachedParameterEntry& Entry = Material->GetCachedExpressionData().GetParameterTypeEntry(Type);
 
 	for (TSet<FMaterialParameterInfo>::TConstIterator It(Entry.ParameterInfoSet); It; ++It)
@@ -966,10 +969,7 @@ FName UCustomizableObjectNodeMaterial::GetParameterName(const EMaterialParameter
 
 int32 UCustomizableObjectNodeMaterial::GetParameterLayerIndex(const EMaterialParameterType Type, const int32 ParameterIndex) const
 {
-	if (!Material)
-	{
-		return -1;
-	}
+	check(Material);
 
 	const FMaterialCachedParameterEntry& Entry = Material->GetCachedExpressionData().GetParameterTypeEntry(Type);
 
@@ -992,11 +992,7 @@ int32 UCustomizableObjectNodeMaterial::GetParameterLayerIndex(const EMaterialPar
 
 FText UCustomizableObjectNodeMaterial::GetParameterLayerName(const EMaterialParameterType Type, const int32 ParameterIndex) const
 {
-	ensure(Material);
-	if (!Material)
-	{
-		return FText();
-	}
+	check(Material)
 
 	int32 LayerIndex = GetParameterLayerIndex(Type,ParameterIndex);
 
@@ -1124,6 +1120,36 @@ void UCustomizableObjectNodeMaterial::ReconstructNode(UCustomizableObjectNodeRem
 }
 
 
+void UCustomizableObjectNodeMaterial::SetMaterial(UMaterialInterface* InMaterial)
+{
+	Material = InMaterial;
+}
+
+
+UMaterialInterface* UCustomizableObjectNodeMaterial::GetMaterial() const
+{
+	return Material;	
+}
+
+
+bool UCustomizableObjectNodeMaterial::IsReuseMaterialBetweenLODs() const
+{
+	return bReuseMaterialBetweenLODs;	
+}
+
+
+int32 UCustomizableObjectNodeMaterial::GetMeshComponentIndex() const
+{
+	return MeshComponentIndex;	
+}
+
+
+TArray<FString> UCustomizableObjectNodeMaterial::GetTags() const
+{
+	return Tags;
+}
+
+
 bool UCustomizableObjectNodeMaterial::RealMaterialDataHasChanged() const
 {
 	for (const UEdGraphPin* Pin : GetAllNonOrphanPins())
@@ -1139,6 +1165,12 @@ bool UCustomizableObjectNodeMaterial::RealMaterialDataHasChanged() const
 	}
 
 	return false;
+}
+
+
+FPostImagePinModeChangedDelegate* UCustomizableObjectNodeMaterial::GetPostImagePinModeChangedDelegate()
+{
+	return &PostImagePinModeChangedDelegate;
 }
 
 

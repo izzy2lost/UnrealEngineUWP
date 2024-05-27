@@ -22,7 +22,7 @@ struct FEdGraphPinReference;
 
 UCLASS()
 class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeExtendMaterial :
-	public UCustomizableObjectNodeMaterialBase,
+	public UCustomizableObjectNode,
 	public FCustomizableObjectNodeParentedMaterial,
 	public FCustomizableObjectNodeUseMaterial
 {
@@ -53,24 +53,23 @@ public:
 	virtual FString GetRefreshMessage() const override;
 	virtual bool IsSingleOutputNode() const override;
 	virtual bool CustomRemovePin(UEdGraphPin& Pin) override;
-
-	// UCustomizableObjectNodeMaterialBase interface
-	virtual UEdGraphPin* OutputPin() const override;
-	virtual void SetParentNode(UCustomizableObject* Object, FGuid NodeId) override;
-	TArray<UCustomizableObjectLayout*> GetLayouts() override;
 	
 	// FCustomizableObjectNodeParentMaterial interface
 	virtual void SaveParentNode(UCustomizableObject* Object, FGuid NodeId) override;
 	virtual UCustomizableObjectNode& GetNode() override;
 	virtual FGuid GetParentNodeId() const override;
 	virtual UCustomizableObject* GetParentObject() const override;
-	
+	virtual void SetParentNode(UCustomizableObject* Object, FGuid NodeId) override;
+
 	// FCustomizableObjectNodeUseMaterial interface
 	virtual FCustomizableObjectNodeParentedMaterial& GetNodeParentedMaterial() override;
 	virtual TMap<FGuid, FEdGraphPinReference>& GetPinsParameter() override;
-	
+	virtual UEdGraphPin* OutputPin() const override;
+
 	// Own interface
 	UEdGraphPin* AddMeshPin() const;
+	
+	TArray<UCustomizableObjectLayout*> GetLayouts() const;
 	
 private:
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)

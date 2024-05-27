@@ -6,7 +6,7 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeParentedNode.h"
 
 class UCustomizableObjectNode;
-class UCustomizableObjectNodeMaterial;
+class UCustomizableObjectNodeMaterialBase;
 
 
 /** Node Material specialization of ICustomizableObjectNodeParentedNode. */
@@ -15,13 +15,13 @@ class FCustomizableObjectNodeParentedMaterial : public ICustomizableObjectNodePa
 public:
 	// Own interface
 	/** Return the parent material node. */
-	UCustomizableObjectNodeMaterial* GetParentMaterialNode() const;
+	UCustomizableObjectNodeMaterialBase* GetParentMaterialNode() const;
 	
 	/** Return all possible parent material nodes of the node. */
-	TArray<UCustomizableObjectNodeMaterial*> GetPossibleParentMaterialNodes() const;
+	TArray<UCustomizableObjectNodeMaterialBase*> GetPossibleParentMaterialNodes() const;
 
 	/** Returns the parent material node if there exist a path to it. */
-	UCustomizableObjectNodeMaterial* GetParentMaterialNodeIfPath() const;
+	UCustomizableObjectNodeMaterialBase* GetParentMaterialNodeIfPath() const;
 	
 protected:
 	/** Return the node which this interface belongs to. */

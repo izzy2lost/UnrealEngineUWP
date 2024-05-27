@@ -10,12 +10,11 @@ class UObject;
 
 
 UCLASS(abstract)
-class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeModifierBase : public UCustomizableObjectNodeMaterialBase
+class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeModifierBase : public UCustomizableObjectNode
 {
 public:
 	GENERATED_BODY()
 
 	UCustomizableObjectNodeModifierBase();
-
 };
 

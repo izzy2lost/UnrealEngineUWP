@@ -11,13 +11,10 @@
 
 void UCustomizableObjectNodeReroute::AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins)
 {
-	const FName InputPinName(TEXT("InputPin"));
-	const FName OutputPinName(TEXT("OutputPin"));
-
-	UEdGraphPin* MyInputPin = CreatePin(EGPD_Input, UEdGraphSchema_CustomizableObject::PC_Wildcard, InputPinName);
+	UEdGraphPin* MyInputPin = CreatePin(EGPD_Input, UEdGraphSchema_CustomizableObject::PC_Wildcard, TEXT("InputPin"));
 	MyInputPin->bDefaultValueIsIgnored = true;
 
-	CreatePin(EGPD_Output, UEdGraphSchema_CustomizableObject::PC_Wildcard, OutputPinName);
+	CreatePin(EGPD_Output, UEdGraphSchema_CustomizableObject::PC_Wildcard, TEXT("OutputPin"));
 }
 
 

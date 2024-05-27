@@ -19,7 +19,7 @@ void UCustomizableObjectNodeEditMaterial::AllocateDefaultPins(UCustomizableObjec
 {
 	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
 	
-	if (const UCustomizableObjectNodeMaterial* ParentMaterialNode = GetParentMaterialNodeIfPath())
+	if (const UCustomizableObjectNodeMaterialBase* ParentMaterialNode = GetParentMaterialNodeIfPath())
 	{
 		const int32 NumImages = ParentMaterialNode->GetNumParameters(EMaterialParameterType::Texture);
 		for (int32 ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
@@ -153,7 +153,7 @@ void UCustomizableObjectNodeEditMaterial::BackwardsCompatibleFixup()
 	
 	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AutomaticNodeMaterial)
 	{
-		if (const UCustomizableObjectNodeMaterial* ParentMaterial = GetParentMaterialNode())
+		if (const UCustomizableObjectNodeMaterialBase* ParentMaterial = GetParentMaterialNode())
 		{
 			for (const FCustomizableObjectNodeEditMaterialImage& Image : Images_DEPRECATED)
 			{

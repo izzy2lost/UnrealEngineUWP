@@ -5,6 +5,7 @@
 #include "Containers/Map.h"
 #include "MuT/NodeSurfaceNew.h"
 
+class UCustomizableObjectNodeExtendMaterial;
 class FString;
 class UCustomizableObjectNodeMaterial;
 class UCustomizableObjectNodeMaterialBase;
@@ -13,10 +14,10 @@ class UEdGraphPin;
 class UTexture2D;
 struct FMutableGraphGenerationContext;
 
+
 mu::NodeImagePtr GenerateMutableGroupProjection(const int32 NodeLOD, const int32 ImageIndex, mu::NodeMeshPtr MeshNode, FMutableGraphGenerationContext& GenerationContext,
-	const UCustomizableObjectNodeMaterialBase* NodeMaterialBase, bool& bShareProjectionTexturesBetweenLODs, bool& bIsGroupProjectorImage,
-	UTexture2D*& GroupProjectionReferenceTexture, TMap<FString, float>& TextureNameToProjectionResFactor, FString& AlternateResStateName,
-	UCustomizableObjectNodeMaterial* ParentMaterial);
+	UCustomizableObjectNodeMaterialBase* TypedNodeMat, UCustomizableObjectNodeExtendMaterial* TypedNodeExt, bool& bShareProjectionTexturesBetweenLODs, bool& bIsGroupProjectorImage,
+	UTexture2D*& GroupProjectionReferenceTexture, TMap<FString, float>& TextureNameToProjectionResFactor, FString& AlternateResStateName);
 
 
 /** Convert a CustomizableObject Source Graph into a mutable source graph. */

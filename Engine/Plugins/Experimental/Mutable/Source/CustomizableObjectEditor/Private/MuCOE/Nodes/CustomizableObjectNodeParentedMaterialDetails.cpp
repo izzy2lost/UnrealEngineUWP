@@ -56,10 +56,10 @@ void FCustomizableObjectNodeParentedMaterialDetails::CustomizeDetails(IDetailLay
 	if (NodeParentedMaterial)
 	{
 		// Get parent materials
-		TArray<UCustomizableObjectNodeMaterial*> ParentMaterialBaseNodes = NodeParentedMaterial->GetPossibleParentMaterialNodes();
+		TArray<UCustomizableObjectNodeMaterialBase*> ParentMaterialBaseNodes = NodeParentedMaterial->GetPossibleParentMaterialNodes();
 
 		ParentMaterialOptionReferences.Empty();
-		for (UCustomizableObjectNodeMaterial* ParentMaterial : ParentMaterialBaseNodes)
+		for (UCustomizableObjectNodeMaterialBase* ParentMaterial : ParentMaterialBaseNodes)
 		{
 			UCustomizableObject* Object = Cast<UCustomizableObject>(ParentMaterial->GetGraph()->GetOuter());
 			FMaterialReference MaterialReference = { Object, ParentMaterial->NodeGuid };
@@ -158,19 +158,28 @@ void FCustomizableObjectNodeParentedMaterialDetails::OnParentComboBoxSelectionCh
 }
 
 
-TArray<TSharedPtr<FString>> FCustomizableObjectNodeParentedMaterialDetails::GetComboBoxNames(const TArray<UCustomizableObjectNodeMaterial*>& ParentMaterialNodes) const
+TArray<TSharedPtr<FString>> FCustomizableObjectNodeParentedMaterialDetails::GetComboBoxNames(const TArray<UCustomizableObjectNodeMaterialBase*>& ParentMaterialNodes) const
 {
 	TArray<TSharedPtr<FString>> Result;
 
-	for (UCustomizableObjectNodeMaterial* ParentMaterialNode : ParentMaterialNodes)
+	for (UCustomizableObjectNodeMaterialBase* ParentMaterialNode : ParentMaterialNodes)
 	{
 		const FString ObjectName = ParentMaterialNode->GetParentObjectNodes(ParentMaterialNode->GetLOD())[0]->ObjectName; // Since ParentMaterialNode comes from ParentMaterialNodes, it will always have at least a ParentObjectNode.
 		FString Name = ObjectName + TEXT(" - ");
 
 		if (UCustomizableObjectNodeCopyMaterial* CopyMaterialNode = Cast<UCustomizableObjectNodeCopyMaterial>(ParentMaterialNode))
 		{
-			Name += FString(" [Copy Material] (") + GetComboBoxParentMaterialName(CopyMaterialNode) + FString(" + ");
+			Name += LOCTEXT("CopyMaterialParentHeader", "Copy Material - ").ToString();
 
+			if (UCustomizableObjectNodeMaterial* NodeMaterial = CopyMaterialNode->GetMaterialNode())
+			{
+				Name += GetComboBoxParentMaterialName(NodeMaterial) + FString(" + ");
+			}
+			else
+			{
+				Name += LOCTEXT("MissingParentMaterial", "[Missing Parent Material]").ToString();
+			}
+			
 			const UCustomizableObjectNodeSkeletalMesh* NodeSkeletalMesh = CopyMaterialNode->GetMeshNode();
 			if (NodeSkeletalMesh && NodeSkeletalMesh->SkeletalMesh)
 			{
@@ -178,12 +187,10 @@ TArray<TSharedPtr<FString>> FCustomizableObjectNodeParentedMaterialDetails::GetC
 			}
 			else
 			{
-				Name += FString("[Missing Skeletal Mesh]");
+				Name += LOCTEXT("MissingSkeletalMesh", "[Missing Skeletal Mesh]").ToString();
 			}
-
-			Name += FString(")");
 		}
-		if (UCustomizableObjectNodeMaterial* MaterialNode = Cast<UCustomizableObjectNodeMaterial>(ParentMaterialNode))
+		else if (UCustomizableObjectNodeMaterial* MaterialNode = Cast<UCustomizableObjectNodeMaterial>(ParentMaterialNode))
 		{
 			Name += GetComboBoxParentMaterialName(MaterialNode);
 		}
@@ -201,7 +208,7 @@ TArray<TSharedPtr<FString>> FCustomizableObjectNodeParentedMaterialDetails::GetC
 
 FString FCustomizableObjectNodeParentedMaterialDetails::GetComboBoxParentMaterialName(const UCustomizableObjectNodeMaterial* ParentMaterial) const
 {
-	return ParentMaterial->Material ? ParentMaterial->Material->GetName() : FString("[Missing material]");
+	return ParentMaterial->GetMaterial() ? ParentMaterial->GetMaterial()->GetName() : LOCTEXT("MissingMaterial", "[Missing Material]").ToString();
 }
 
 

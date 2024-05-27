@@ -20,7 +20,7 @@ bool FCustomizableObjectNodeUseMaterial::IsNodeOutDatedAndNeedsRefreshWork()
 	
 	const bool bOutdated = [&]()
 	{
-		if (const UCustomizableObjectNodeMaterial* ParentMaterialNode = NodeParentedMaterial.GetParentMaterialNode())
+		if (const UCustomizableObjectNodeMaterialBase* ParentMaterialNode = NodeParentedMaterial.GetParentMaterialNode())
 		{
 			if (ParentMaterialNode->RealMaterialDataHasChanged())
 			{
@@ -58,10 +58,14 @@ void FCustomizableObjectNodeUseMaterial::PreSetParentNodeWork(UCustomizableObjec
 {
 	const FCustomizableObjectNodeParentedMaterial& NodeParentedMaterial = GetNodeParentedMaterial();
 
-	if (UCustomizableObjectNodeMaterial* ParentMaterialNode = NodeParentedMaterial.GetParentMaterialNode())
+	if (UCustomizableObjectNodeMaterialBase* ParentMaterialNode = NodeParentedMaterial.GetParentMaterialNode())
 	{
 		ParentMaterialNode->PostReconstructNodeDelegate.Remove(PostReconstructNodeDelegateHandler);
-		ParentMaterialNode->PostImagePinModeChangedDelegate.Remove(PostTextureParameterModeChangedDelegateHandle);
+		
+		if (FPostImagePinModeChangedDelegate* PostImagePinModeChangedDelegate = ParentMaterialNode->GetPostImagePinModeChangedDelegate())
+		{
+			PostImagePinModeChangedDelegate->Remove(PostTextureParameterModeChangedDelegateHandle);
+		}
 	}
 }
 
@@ -71,10 +75,14 @@ void FCustomizableObjectNodeUseMaterial::PostSetParentNodeWork(UCustomizableObje
 	UCustomizableObjectNode& Node = GetNode();
 	const FCustomizableObjectNodeParentedMaterial& NodeParentedMaterial = GetNodeParentedMaterial();
 
-	if (UCustomizableObjectNodeMaterial* ParentMaterialNode = NodeParentedMaterial.GetParentMaterialNode())
+	if (UCustomizableObjectNodeMaterialBase* ParentMaterialNode = NodeParentedMaterial.GetParentMaterialNode())
 	{
 		PostReconstructNodeDelegateHandler = ParentMaterialNode->PostReconstructNodeDelegate.AddUObject(&Node, &UCustomizableObjectNode::ReconstructNode);
-		PostTextureParameterModeChangedDelegateHandle = ParentMaterialNode->PostImagePinModeChangedDelegate.AddUObject(&Node, &UCustomizableObjectNode::ReconstructNode);
+
+		if (FPostImagePinModeChangedDelegate* PostImagePinModeChangedDelegate = ParentMaterialNode->GetPostImagePinModeChangedDelegate())
+		{
+			PostTextureParameterModeChangedDelegateHandle = PostImagePinModeChangedDelegate->AddUObject(&Node, &UCustomizableObjectNode::ReconstructNode);
+		}
 	}
 	
 	GetNode().ReconstructNode();
@@ -162,10 +170,14 @@ void FCustomizableObjectNodeUseMaterial::PostBackwardsCompatibleFixupWork()
 	UCustomizableObjectNode& Node = GetNode();
 	const FCustomizableObjectNodeParentedMaterial& NodeParentedMaterial = GetNodeParentedMaterial();
 
-	if (UCustomizableObjectNodeMaterial* ParentMaterialNode = NodeParentedMaterial.GetParentMaterialNode())
+	if (UCustomizableObjectNodeMaterialBase* ParentMaterialNode = NodeParentedMaterial.GetParentMaterialNode())
 	{
 		PostReconstructNodeDelegateHandler = ParentMaterialNode->PostReconstructNodeDelegate.AddUObject(&Node, &UCustomizableObjectNode::ReconstructNode);
-		PostTextureParameterModeChangedDelegateHandle = ParentMaterialNode->PostImagePinModeChangedDelegate.AddUObject(&Node, &UCustomizableObjectNode::ReconstructNode);
+
+		if (FPostImagePinModeChangedDelegate* PostImagePinModeChangedDelegate = ParentMaterialNode->GetPostImagePinModeChangedDelegate())
+		{
+			PostTextureParameterModeChangedDelegateHandle = PostImagePinModeChangedDelegate->AddUObject(&Node, &UCustomizableObjectNode::ReconstructNode);
+		}
 	}
 
 	Node.ReconstructNode(); // Reconstruct the node since the parent could have changed while not loaded. 

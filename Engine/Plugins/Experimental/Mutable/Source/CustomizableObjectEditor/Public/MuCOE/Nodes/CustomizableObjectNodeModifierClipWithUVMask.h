@@ -40,10 +40,9 @@ public:
 	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
 	virtual void PinConnectionListChanged(UEdGraphPin* Pin) override;
 
-	// UCustomizableObjectNodeMaterialBase interface
-	virtual UEdGraphPin* OutputPin() const override;
-
 	// Own interface
+	UEdGraphPin* OutputPin() const;
+
 	UEdGraphPin* ClipMaskPin() const;
 };
 

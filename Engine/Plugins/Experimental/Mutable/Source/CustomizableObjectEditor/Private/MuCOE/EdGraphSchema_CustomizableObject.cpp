@@ -1070,7 +1070,7 @@ void UEdGraphSchema_CustomizableObject::DroppedAssetsOnGraph(const TArray<FAsset
 			{
 				UMaterialInterface* Material = Cast<UMaterialInterface>(Object);
 				UCustomizableObjectNodeMaterial* Node = NewObject<UCustomizableObjectNodeMaterial>(Graph);
-				Node->Material = Material;
+				Node->SetMaterial(Material);
 				GraphNode = Node;
 				break;
 			}
