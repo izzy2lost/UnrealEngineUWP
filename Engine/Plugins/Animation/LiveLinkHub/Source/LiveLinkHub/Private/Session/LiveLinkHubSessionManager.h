@@ -141,29 +141,29 @@ public:
 			CurrentSessionPtr =  CurrentSession;
 		}
 
-		FLiveLinkHubPersistedSessionData LiveLinkHubSessionData = StaticCastSharedPtr<FLiveLinkHubSession>(CurrentSessionPtr)->SessionData;
+		ULiveLinkHubSessionData* LiveLinkHubSessionData = Cast<ULiveLinkHubSessionData>(StaticCastSharedPtr<FLiveLinkHubSession>(CurrentSessionPtr)->SessionData.Get());
 
 		TArray<FGuid> SourceGuids = LiveLinkHubClient->GetSources();
 		for (const FGuid& SourceGuid : SourceGuids)
 		{
-			LiveLinkHubSessionData.Sources.Add(LiveLinkHubClient->GetSourcePreset(SourceGuid, nullptr));
+			LiveLinkHubSessionData->Sources.Add(LiveLinkHubClient->GetSourcePreset(SourceGuid, nullptr));
 		}
 
 		TArray<FLiveLinkSubjectKey> Subjects = LiveLinkHubClient->GetSubjects(true, true);
 		for (const FLiveLinkSubjectKey& Subject : Subjects)
 		{
-			LiveLinkHubSessionData.Subjects.Add(LiveLinkHubClient->GetSubjectPreset(Subject, nullptr));
+			LiveLinkHubSessionData->Subjects.Add(LiveLinkHubClient->GetSubjectPreset(Subject, nullptr));
 		}
 
 		const TMap<FLiveLinkHubClientId, FLiveLinkHubUEClientInfo>& ClientMap = LiveLinkProvider->GetClientsMap();
 
 		for (const TTuple<FLiveLinkHubClientId, FLiveLinkHubUEClientInfo>& ClientKeyVal : ClientMap)
 		{
-			LiveLinkHubSessionData.Clients.Add(ClientKeyVal.Value);
+			LiveLinkHubSessionData->Clients.Add(ClientKeyVal.Value);
 		}
 
 		const FLiveLinkHubTimecodeSettings& TimecodeSettings = LiveLinkProvider->GetTimecodeSettings();
-		LiveLinkHubSessionData.TimecodeSettings = TimecodeSettings;
+		LiveLinkHubSessionData->TimecodeSettings = TimecodeSettings;
 		
 		if (!SavePath.IsEmpty())
 		{
@@ -222,7 +222,7 @@ private:
 		LastConfigPath = Path;
 		FEditorDirectories::Get().SetLastDirectory(ELastDirectory::GENERIC_OPEN, FPaths::GetPath(LastConfigPath));
 
-		const TSharedPtr<FLiveLinkHubPersistedSessionData> SessionData = UE::LiveLinkHub::FileUtilities::Private::LoadConfig(LastConfigPath);
+		ULiveLinkHubSessionData* SessionData = UE::LiveLinkHub::FileUtilities::Private::LoadConfig(LastConfigPath);
 
 		FLiveLinkHubClient* LiveLinkHubClient = static_cast<FLiveLinkHubClient*>(&IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName));
 
@@ -232,7 +232,7 @@ private:
 		check(LiveLinkHubClient);
 		check(LiveLinkProvider);
 
-		if (SessionData.IsValid())
+		if (SessionData)
 		{
 			for (const FLiveLinkSourcePreset& SourcePreset : SessionData->Sources)
 			{
@@ -251,7 +251,7 @@ private:
 		TSharedPtr<FLiveLinkHubSession> CurrentSessionPtr;
 		{
 			FScopeLock Lock(&CurrentSessionCS);
-			CurrentSessionPtr = CurrentSession = MakeShared<FLiveLinkHubSession>(*SessionData, OnClientAddedToSessionDelegate, OnClientRemovedFromSessionDelegate);
+			CurrentSessionPtr = CurrentSession = MakeShared<FLiveLinkHubSession>(SessionData, OnClientAddedToSessionDelegate, OnClientRemovedFromSessionDelegate);
 		}
 
 		for (FLiveLinkHubUEClientInfo& Client : SessionData->Clients)

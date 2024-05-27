@@ -14,7 +14,10 @@
 #include "Misc/ScopeLock.h"
 #include "Modules/ModuleManager.h"
 #include "Subjects/LiveLinkHubSubjectSessionConfig.h"
+#include "UObject/Package.h"
 #include "UObject/StrongObjectPtr.h"
+#include "UObject/UObjectGlobals.h"
+
 
 #define LOCTEXT_NAMESPACE "LiveLinkHubSession"
 
@@ -34,6 +37,9 @@ public:
 
 	/** Get the configuration for a given subject. */
 	virtual TOptional<FLiveLinkHubSubjectProxy> GetSubjectConfig(const FLiveLinkSubjectKey& SubjectKey) const = 0;
+
+	/** Get the preprocessors and translator for a given subject. */
+	virtual ULiveLinkHubSubjectProcessors* GetSubjectProcessors(const FLiveLinkSubjectKey& SubjectKey) const = 0;
 
 	/** Change the outbound name of a subject for this session. */
 	virtual void RenameSubject(const FLiveLinkSubjectKey& SubjectKey, FName NewName) = 0;
@@ -66,16 +72,17 @@ public:
 	{
 		RegisterDelegates();
 
-		SessionData.SubjectsConfig.Initialize();
+		SessionData = TStrongObjectPtr<ULiveLinkHubSessionData>(NewObject<ULiveLinkHubSessionData>(GetTransientPackage()));
+		SessionData->SubjectsConfig->Initialize();
 	}
 
-	FLiveLinkHubSession(FLiveLinkHubSessionData InSessionData, FOnClientAddedToSession& OnClientAddedToSession, FOnClientRemovedFromSession& OnClientRemovedFromSession)
-		: SessionData(MoveTemp(InSessionData))
-		, OnClientAddedToSessionDelegate(OnClientAddedToSession)
+	FLiveLinkHubSession(ULiveLinkHubSessionData* InSessionData, FOnClientAddedToSession& OnClientAddedToSession, FOnClientRemovedFromSession& OnClientRemovedFromSession)
+		: OnClientAddedToSessionDelegate(OnClientAddedToSession)
 		, OnClientRemovedFromSessionDelegate(OnClientRemovedFromSession)
 	{
+		SessionData = TStrongObjectPtr<ULiveLinkHubSessionData>(InSessionData);
 		RegisterDelegates();
-		SessionData.SubjectsConfig.Initialize();
+		SessionData->SubjectsConfig->Initialize();
 	}
 
 	virtual ~FLiveLinkHubSession() override
@@ -85,25 +92,35 @@ public:
 
 	virtual void RenameSubject(const FLiveLinkSubjectKey& SubjectKey, FName NewName) override
 	{
-		FLiveLinkHubSubjectSessionConfig ConfigCopy;
+		TMap<FLiveLinkSubjectKey, FLiveLinkHubSubjectProxy> SubjectProxies;
 		{
 			FReadScopeLock Locker(SessionDataLock);
-			ConfigCopy = SessionData.SubjectsConfig;
+
+			SubjectProxies = SessionData->SubjectsConfig->SubjectProxies;
 		}
 
-		ConfigCopy.RenameSubject(SubjectKey, NewName);
+		if (FLiveLinkHubSubjectProxy* Proxy = SubjectProxies.Find(SubjectKey))
+		{
+			Proxy->SetOutboundName(NewName);
+		}
 
 		{
 			// Copied over in a different step to avoid acquiring the rw lock in a method called by RenameSubject
 			FWriteScopeLock Locker(SessionDataLock);
-			SessionData.SubjectsConfig = MoveTemp(ConfigCopy);
+			SessionData->SubjectsConfig->SubjectProxies = MoveTemp(SubjectProxies);
 		}
 	}
 
 	virtual TOptional<FLiveLinkHubSubjectProxy> GetSubjectConfig(const FLiveLinkSubjectKey& SubjectKey) const override
 	{
 		FReadScopeLock Locker(SessionDataLock);
-		return SessionData.SubjectsConfig.GetSubjectConfig(SubjectKey);
+		return SessionData->SubjectsConfig->GetSubjectConfig(SubjectKey);
+	}
+
+	virtual ULiveLinkHubSubjectProcessors* GetSubjectProcessors(const FLiveLinkSubjectKey& SubjectKey) const override
+	{
+		FReadScopeLock Locker(SessionDataLock);
+		return SessionData->SubjectsConfig->GetSubjectProcessors(SubjectKey);
 	}
 
 	virtual TArray<FLiveLinkHubClientId> GetSessionClients() const override
@@ -151,18 +168,18 @@ public:
 	virtual void SetPreProcessors(const FLiveLinkSubjectKey& SubjectKey, TConstArrayView<ULiveLinkFramePreProcessor*> PreProcessors) override
 	{
 		FWriteScopeLock Locker(SessionDataLock);
-		if (FLiveLinkHubSubjectProxy* SubjectProxy = SessionData.SubjectsConfig.SubjectProxies.Find(SubjectKey))
+		if (TObjectPtr<ULiveLinkHubSubjectProcessors>* SubjectProcessors = SessionData->SubjectsConfig->SubjectProcessors.Find(SubjectKey))
 		{
-			SubjectProxy->SetPreProcessors(PreProcessors);
+			(*SubjectProcessors)->PreProcessors = PreProcessors;
 		}
 	}
 
 	virtual void SetTranslator(const FLiveLinkSubjectKey& SubjectKey, ULiveLinkFrameTranslator* Translator) override
 	{
 		FWriteScopeLock Locker(SessionDataLock);
-		if (FLiveLinkHubSubjectProxy* SubjectProxy = SessionData.SubjectsConfig.SubjectProxies.Find(SubjectKey))
+		if (TObjectPtr<ULiveLinkHubSubjectProcessors>* SubjectProcessors = SessionData->SubjectsConfig->SubjectProcessors.Find(SubjectKey))
 		{
-			SubjectProxy->SetTranslator(Translator);
+			(*SubjectProcessors)->Translator = Translator;
 		}
 	}
 
@@ -217,16 +234,21 @@ private:
 	/** Handles updating the tree view when a subject is added. */
 	void OnSubjectAdded(const FLiveLinkSubjectKey& SubjectKey)
 	{
-		if (!SessionData.SubjectsConfig.SubjectProxies.Contains(SubjectKey))
+		if (!SessionData->SubjectsConfig->SubjectProxies.Contains(SubjectKey))
 		{
 			ILiveLinkClient& LiveLinkClient = IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
 
 			FLiveLinkHubSubjectProxy SubjectSettings;
-			SubjectSettings.Initialize(SubjectKey, LiveLinkClient.GetSourceType(SubjectKey.Source).ToString(), Cast<ULiveLinkSubjectSettings>(LiveLinkClient.GetSubjectSettings(SubjectKey)));
+			SubjectSettings.Initialize(SubjectKey, LiveLinkClient.GetSourceType(SubjectKey.Source).ToString());
 
 			{
 				FWriteScopeLock Locker(SessionDataLock);
-				SessionData.SubjectsConfig.SubjectProxies.FindOrAdd(SubjectKey) = MoveTemp(SubjectSettings);
+				SessionData->SubjectsConfig->SubjectProxies.FindOrAdd(SubjectKey) = MoveTemp(SubjectSettings);
+
+				ULiveLinkHubSubjectProcessors* SubjectProcessors = NewObject<ULiveLinkHubSubjectProcessors>(SessionData->SubjectsConfig);
+				SubjectProcessors->Initialize(Cast<ULiveLinkSubjectSettings>(LiveLinkClient.GetSubjectSettings(SubjectKey)));
+
+				SessionData->SubjectsConfig->SubjectProcessors.FindOrAdd(SubjectKey) = SubjectProcessors;
 			}
 		}
 	}
@@ -248,7 +270,8 @@ private:
 	void OnSubjectRemoved(const FLiveLinkSubjectKey& SubjectKey)
 	{
 		FWriteScopeLock Locker(SessionDataLock);
-		SessionData.SubjectsConfig.SubjectProxies.Remove(SubjectKey);
+		SessionData->SubjectsConfig->SubjectProxies.Remove(SubjectKey);
+		SessionData->SubjectsConfig->SubjectProcessors.Remove(SubjectKey);
 	}
 
 private:
@@ -256,7 +279,7 @@ private:
 	TSet<FLiveLinkHubClientId> CachedSessionClients;
 
 	/** Holds data for this session. */
-	FLiveLinkHubSessionData SessionData;
+	TStrongObjectPtr<ULiveLinkHubSessionData> SessionData;
 
 	/** Delegate used to notice the hub about clients being added to this session. */
 	FOnClientAddedToSession& OnClientAddedToSessionDelegate;

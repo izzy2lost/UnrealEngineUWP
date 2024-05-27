@@ -21,33 +21,13 @@ public:
 	GENERATED_BODY()
 
 	/** Initialize from a subject key. */
-	void Initialize(const FLiveLinkSubjectKey& InSubjectKey, FString InSource, ULiveLinkSubjectSettings* InSubjectSettings);
+	void Initialize(const FLiveLinkSubjectKey& InSubjectKey, FString InSource);
 
 	/** Get the outbound name for this subject, allows  */
 	FName GetOutboundName() const;
 
 	/** Change the outbound name for this subject proxy. */
 	void SetOutboundName(FName NewName);
-
-	/** Set the preprocessors */
-	void SetPreProcessors(TConstArrayView<ULiveLinkFramePreProcessor*> FramePreprocessors)
-	{
-		PreProcessors.Reset(FramePreprocessors.Num());
-		Algo::TransformIf(FramePreprocessors, PreProcessors, [](const ULiveLinkFramePreProcessor* PreProcessor) { return PreProcessor; }, [](const ULiveLinkFramePreProcessor* PreProcessor){ return PreProcessor->GetClass(); });
-	}
-
-	/** Set the frame translator */
-	void SetTranslator(ULiveLinkFrameTranslator* InFrameTranslator)
-	{
-		if (InFrameTranslator)
-		{
-			Translator = InFrameTranslator->GetClass();
-		}
-		else
-		{
-			Translator = nullptr;
-		}
-	}
 
 private:
 	/** Notify clients that the old subject should be deleted and replaced with a new one with the updated name. */
@@ -66,14 +46,6 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Subject Details")
 	FString Source;
 
-	/** Preprocessors to apply to the livelink data coming through the hub. */
-	UPROPERTY(config, EditAnywhere, Category="Subject Details")
-	TArray<TSubclassOf<ULiveLinkFramePreProcessor>> PreProcessors;
-
-	/** Translators used to convert livelink data to a different role. */
-	UPROPERTY(config, EditAnywhere, Category="Subject Details")
-	TSubclassOf<ULiveLinkFrameTranslator> Translator = nullptr;
-
 	/** SubjectKey for this subject, */
 	UPROPERTY()
 	FLiveLinkSubjectKey SubjectKey;
@@ -90,9 +62,26 @@ private:
 	friend class SLiveLinkHubSubjectView;
 };
 
+UCLASS()
+class ULiveLinkHubSubjectProcessors : public UObject
+{
+public:
+	GENERATED_BODY()
+
+	void Initialize(ULiveLinkSubjectSettings* InSubjectSettings);
+
+	/** Preprocessors to apply to the livelink data coming through the hub. */
+	UPROPERTY(EditAnywhere, Category="Processors", Instanced)
+	TArray<TObjectPtr<ULiveLinkFramePreProcessor>> PreProcessors;
+
+	/** Translators used to convert livelink data to a different role. */
+	UPROPERTY(EditAnywhere, Category="Processors", Instanced)
+	TObjectPtr<ULiveLinkFrameTranslator> Translator;
+};
+
 /** Config pertaining to livelink hub subjects for a given session. */
-USTRUCT()
-struct FLiveLinkHubSubjectSessionConfig
+UCLASS()
+class ULiveLinkHubSubjectSessionConfig : public UObject
 {
 public:
 	GENERATED_BODY()
@@ -102,13 +91,23 @@ public:
 	/** Get the config for a livelinkhub subject. */
 	TOptional<FLiveLinkHubSubjectProxy> GetSubjectConfig(const FLiveLinkSubjectKey& InSubject) const;
 
+	/** Get the subject processors. */
+	ULiveLinkHubSubjectProcessors* GetSubjectProcessors(const FLiveLinkSubjectKey& InSubject);
+
 	/** Change the outbound name of a subject for the current session. */
 	void RenameSubject(const FLiveLinkSubjectKey& SubjectKey, FName NewName);
 
 private:
 	/** Settings for subjects displayed in the livelink hub. */
-	UPROPERTY()
+	UPROPERTY(Transient)
 	TMap<FLiveLinkSubjectKey, FLiveLinkHubSubjectProxy> SubjectProxies;
+
+	/** 
+	 * Processor settings held in a UObject to allow creating and editing them inline. 
+	 * Note that the other parts of the session config are not held in a UObject since they can be accessed at any time on other threads.
+	 */
+	UPROPERTY(Instanced)
+	TMap<FLiveLinkSubjectKey, TObjectPtr<ULiveLinkHubSubjectProcessors>> SubjectProcessors;
 
 	friend class FLiveLinkHubSession;
 };

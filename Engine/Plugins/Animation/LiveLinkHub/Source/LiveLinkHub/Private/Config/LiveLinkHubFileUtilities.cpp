@@ -6,8 +6,9 @@
 #include "JsonObjectConverter.h"
 #include "LiveLinkHubLog.h"
 #include "Session/LiveLinkHubSessionData.h"
+#include "UObject/Package.h"
 
-void UE::LiveLinkHub::FileUtilities::Private::SaveConfig(const FLiveLinkHubPersistedSessionData& InConfigData, const FString& InFilePath)
+void UE::LiveLinkHub::FileUtilities::Private::SaveConfig(const ULiveLinkHubSessionData* InConfigData, const FString& InFilePath)
 {
 	if (ensure(!InFilePath.IsEmpty()))
 	{
@@ -24,7 +25,7 @@ void UE::LiveLinkHub::FileUtilities::Private::SaveConfig(const FLiveLinkHubPersi
 	}
 }
 
-TSharedPtr<FLiveLinkHubPersistedSessionData> UE::LiveLinkHub::FileUtilities::Private::LoadConfig(const FString& InFilePath)
+ULiveLinkHubSessionData* UE::LiveLinkHub::FileUtilities::Private::LoadConfig(const FString& InFilePath)
 {
 	if (IFileManager::Get().FileExists(*InFilePath))
 	{
@@ -52,31 +53,32 @@ TSharedPtr<FLiveLinkHubPersistedSessionData> UE::LiveLinkHub::FileUtilities::Pri
 	return nullptr;
 }
 
-TSharedPtr<FJsonObject> UE::LiveLinkHub::FileUtilities::Private::ToJson(const FLiveLinkHubPersistedSessionData& InConfigData)
+TSharedPtr<FJsonObject> UE::LiveLinkHub::FileUtilities::Private::ToJson(const ULiveLinkHubSessionData* InConfigData)
 {
 	TSharedRef<FJsonObject> JsonObject = MakeShared<FJsonObject>();
 	const TSharedPtr<FJsonValueNumber> NumberValue = MakeShared<FJsonValueNumber>(LiveLinkHubVersion);
 	JsonObject->SetField(JsonVersionKey, NumberValue);
 	
-	FJsonObjectConverter::UStructToJsonObject(FLiveLinkHubPersistedSessionData::StaticStruct(), &InConfigData, JsonObject);
+	FJsonObjectConverter::UStructToJsonObject(ULiveLinkHubSessionData::StaticClass(), InConfigData, JsonObject);
 	
 	return JsonObject;
 }
 
-TSharedPtr<FLiveLinkHubPersistedSessionData> UE::LiveLinkHub::FileUtilities::Private::FromJson(const TSharedPtr<FJsonObject>& InJsonObject)
+ULiveLinkHubSessionData* UE::LiveLinkHub::FileUtilities::Private::FromJson(const TSharedPtr<FJsonObject>& InJsonObject)
 {
 	if (InJsonObject.IsValid())
 	{
-		FLiveLinkHubPersistedSessionData OutConfigData;
+		ULiveLinkHubSessionData* OutConfigData = NewObject<ULiveLinkHubSessionData>(GetTransientPackage());
 		const bool bResult =
 			FJsonObjectConverter::JsonObjectToUStruct(InJsonObject.ToSharedRef(),
-				FLiveLinkHubPersistedSessionData::StaticStruct(), &OutConfigData);
+				ULiveLinkHubSessionData::StaticClass(), OutConfigData);
 
 		if (!bResult)
 		{
 			UE_LOG(LogLiveLinkHub, Error, TEXT("Could not convert from json to LiveLinkHubSessionData."))
 		}
-		return MakeShared<FLiveLinkHubPersistedSessionData>(MoveTemp(OutConfigData));
+
+		return OutConfigData;
 	}
 
 	return nullptr;

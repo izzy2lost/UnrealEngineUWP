@@ -56,26 +56,20 @@ public:
 		}
 	}
 
-	void OnSubjectProcessorModified(const FLiveLinkSubjectKey& SubjectKey, const TArray<TSubclassOf<ULiveLinkFramePreProcessor>>& UpdatedPreprocessors, const TSubclassOf<ULiveLinkFrameTranslator> UpdatedTranslator) const
+	void OnSubjectProcessorModified(const FLiveLinkSubjectKey& SubjectKey, const TArray<ULiveLinkFramePreProcessor*>& UpdatedPreprocessors, ULiveLinkFrameTranslator* UpdatedTranslator) const
 	{
 		FLiveLinkHubClient& LiveLinkClient = static_cast<FLiveLinkHubClient&>(IModularFeatures::Get().GetModularFeature<FLiveLinkClient>(ILiveLinkClient::ModularFeatureName));
 		ULiveLinkSubjectSettings* Settings = Cast<ULiveLinkSubjectSettings>(LiveLinkClient.GetSubjectSettings(SubjectKey));
 
-		Settings->PreProcessors.Reset(UpdatedPreprocessors.Num());
-		for (TSubclassOf<ULiveLinkFramePreProcessor> PreProcessor : UpdatedPreprocessors)
-		{
-			Settings->PreProcessors.Add(PreProcessor.GetDefaultObject());
-		}
-
+		Settings->PreProcessors = UpdatedPreprocessors;
 		Settings->Translators.Reset();
 
 		if (UpdatedTranslator)
 		{
-			Settings->Translators.Add(UpdatedTranslator.GetDefaultObject());
+			Settings->Translators.Add(UpdatedTranslator);
 		}
 
 		// todo: If we are removing the translator, we will need to do additional handling to restore the original static data that was overriden
-
 		if (Settings->ValidateProcessors())
 		{
 			// Apply to the underlying data from the session.

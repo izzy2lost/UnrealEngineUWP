@@ -5,7 +5,7 @@
 #include "Containers/UnrealString.h"
 #include "Templates/SharedPointer.h"
 
-struct FLiveLinkHubPersistedSessionData;
+class ULiveLinkHubSessionData;
 class FJsonObject;
 
 namespace UE::LiveLinkHub::FileUtilities::Private
@@ -23,14 +23,14 @@ namespace UE::LiveLinkHub::FileUtilities::Private
 	const FString ConfigDescription = TEXT("Live Link Hub Config");
 
 	/** Save config data to disk. */
-	void SaveConfig(const FLiveLinkHubPersistedSessionData& InConfigData, const FString& InFilePath);
+	void SaveConfig(const ULiveLinkHubSessionData* InConfigData, const FString& InFilePath);
 
 	/** Load config data from disk. */
-	TSharedPtr<FLiveLinkHubPersistedSessionData> LoadConfig(const FString& InFilePath);
+	ULiveLinkHubSessionData* LoadConfig(const FString& InFilePath);
 
 	/** Convert config data to json. */
-	TSharedPtr<FJsonObject> ToJson(const FLiveLinkHubPersistedSessionData& InConfigData);
+	TSharedPtr<FJsonObject> ToJson(const ULiveLinkHubSessionData* InConfigData);
 
 	/** Convert config data from json. */
-	TSharedPtr<FLiveLinkHubPersistedSessionData> FromJson(const TSharedPtr<FJsonObject>& InJsonObject);
+	ULiveLinkHubSessionData* FromJson(const TSharedPtr<FJsonObject>& InJsonObject);
 }

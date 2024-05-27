@@ -20,7 +20,7 @@
 #include "Widgets/SNullWidget.h"
 
 DECLARE_DELEGATE_TwoParams(FOnRenameLiveLinkHubSubject, const FLiveLinkSubjectKey& /*SubjectKey*/, FName /*NewName*/);
-DECLARE_DELEGATE_ThreeParams(FOnSubjectProcessorModified, const FLiveLinkSubjectKey& /*SubjectKey*/,  const TArray<TSubclassOf<ULiveLinkFramePreProcessor>>& /*UpdatedPreProcessors*/, TSubclassOf<ULiveLinkFrameTranslator> /*UpdatedTranslator*/);
+DECLARE_DELEGATE_ThreeParams(FOnSubjectProcessorModified, const FLiveLinkSubjectKey& /*SubjectKey*/,  const TArray<ULiveLinkFramePreProcessor*>& /*UpdatedPreProcessors*/, ULiveLinkFrameTranslator* /*UpdatedTranslator*/);
 
 /**
  * Provides the UI that displays information about a livelink hub subject.
@@ -42,6 +42,9 @@ public:
 		OnRenameSubjectDelegate = InArgs._OnRenameSubject;
 		OnProcessorModifiedDelegate = InArgs._OnProcessorModified;
 
+		ILiveLinkClient& LiveLinkClient = static_cast<ILiveLinkClient&>(IModularFeatures::Get().GetModularFeature<FLiveLinkClient>(ILiveLinkClient::ModularFeatureName));
+		LiveLinkClient.OnLiveLinkSubjectRemoved().AddSP(this, &SLiveLinkHubSubjectView::OnSubjectRemoved);
+
 		FDetailsViewArgs DetailsViewArgs;
 		DetailsViewArgs.bUpdatesFromSelection = false;
 		DetailsViewArgs.bLockable = false;
@@ -60,6 +63,9 @@ public:
 		SettingsDetailsView = PropertyEditorModule.CreateStructureDetailView(DetailsViewArgs, StructureDetailsArgs, SubjectData);
 		SettingsDetailsView->GetOnFinishedChangingPropertiesDelegate().AddSP(this, &SLiveLinkHubSubjectView::OnSubjectPropertyModified);
 
+		SettingsObjectDetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+		SettingsObjectDetailsView->OnFinishedChangingProperties().AddSP(this, &SLiveLinkHubSubjectView::OnSubjectPropertyModified);
+
 		ChildSlot
 		[
 			SNew(SVerticalBox)
@@ -68,14 +74,29 @@ public:
 			[
 				SettingsDetailsView->GetWidget().ToSharedRef()
 			]
+			+ SVerticalBox::Slot()
+			.FillHeight(1.0f)
+			[
+				SettingsObjectDetailsView.ToSharedRef()
+			]
 		];
 	}
 
+	~SLiveLinkHubSubjectView() override
+	{
+		if (IModularFeatures::Get().IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
+		{
+			ILiveLinkClient& LiveLinkClient = static_cast<ILiveLinkClient&>(IModularFeatures::Get().GetModularFeature<FLiveLinkClient>(ILiveLinkClient::ModularFeatureName));
+			LiveLinkClient.OnLiveLinkSubjectRemoved().RemoveAll(this);
+		}
+	}
+
 	/** Clear the subject details. */
-	void RefreshSubjectDetails(const TSharedRef<ILiveLinkHubSession>& ActiveSession)
+	void RefreshSubjectDetails(const TSharedPtr<ILiveLinkHubSession>& ActiveSession)
 	{
 		SubjectData->Reset();
 		SettingsDetailsView->SetStructureData(nullptr);
+		SettingsObjectDetailsView->SetObject(nullptr);
 
 		SetSubject(SubjectKey);
 	}
@@ -90,6 +111,12 @@ public:
 			const FLiveLinkHubSubjectProxy& Proxy = *SubjectProxy;
 			SubjectData->InitializeAs<FLiveLinkHubSubjectProxy>(*SubjectProxy);
 			SettingsDetailsView->SetStructureData(SubjectData);
+		}
+
+		if (ULiveLinkHubSubjectProcessors* SubjectProxy = SubjectModel->GetSubjectProcessors(InSubjectKey))
+		{
+			SettingsObjectDetailsView->SetObject(SubjectProxy);
+			WeakProcessors = SubjectProxy;
 		}
 	}
 
@@ -114,18 +141,33 @@ public:
 				{
 					OnRenameSubjectDelegate.ExecuteIfBound(SubjectKey, Proxy->GetOutboundName());
 				}
-				else if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FLiveLinkHubSubjectProxy, PreProcessors)
-					|| PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FLiveLinkHubSubjectProxy, Translator))
-				{
-					OnProcessorModifiedDelegate.ExecuteIfBound(SubjectKey, Proxy->PreProcessors, Proxy->Translator);
-				}
 			}
+		}
+
+		if (ULiveLinkHubSubjectProcessors* SubjectProcessors = WeakProcessors.Get())
+		{
+			if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(ULiveLinkHubSubjectProcessors, PreProcessors)
+				|| PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(ULiveLinkHubSubjectProcessors, Translator))
+			{
+				OnProcessorModifiedDelegate.ExecuteIfBound(SubjectKey, SubjectProcessors->PreProcessors, SubjectProcessors->Translator);
+			}
+		}
+	}
+
+	void OnSubjectRemoved(FLiveLinkSubjectKey InSubjectKey)
+	{
+		if (InSubjectKey == SubjectKey)
+		{
+			SubjectKey = FLiveLinkSubjectKey();
+			RefreshSubjectDetails(nullptr);
 		}
 	}
 
 private:
 	/** Details for the selected subject. */
 	TSharedPtr<IStructureDetailsView> SettingsDetailsView;
+	/** Details for the selected subject. */
+	TSharedPtr<IDetailsView> SettingsObjectDetailsView;
 	/** Subject being shown. */
 	FLiveLinkSubjectKey SubjectKey;
 	/** Model that holds the data for a given subject. */
@@ -136,4 +178,6 @@ private:
 	FOnRenameLiveLinkHubSubject OnRenameSubjectDelegate;
 	/** Delegate called when a translator or preprocessor is modified by the user. */
 	FOnSubjectProcessorModified OnProcessorModifiedDelegate;
+	/** Subject proxy object that holds preprocessor data. */
+	TWeakObjectPtr<ULiveLinkHubSubjectProcessors> WeakProcessors;
 };

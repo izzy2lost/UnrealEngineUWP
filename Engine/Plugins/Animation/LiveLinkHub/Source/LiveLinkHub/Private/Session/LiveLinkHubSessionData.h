@@ -4,6 +4,7 @@
 
 #include "Clients/LiveLinkHubUEClientInfo.h"
 #include "CoreTypes.h"
+#include "Engine/TimecodeProvider.h"
 #include "LiveLinkPresetTypes.h"
 #include "Misc/Guid.h"
 #include "Subjects/LiveLinkHubSubjectSessionConfig.h"
@@ -11,28 +12,26 @@
 
 #include "LiveLinkHubSessionData.generated.h"
 
-/** Live link hub session data which can be serialized to disk. */
-USTRUCT()
-struct FLiveLinkHubSessionData
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	/** Subject configs for this session. */
-	FLiveLinkHubSubjectSessionConfig SubjectsConfig;
-};
-
 /** Live link hub session data that can be saved to disk. */
-USTRUCT()
-struct FLiveLinkHubPersistedSessionData : public FLiveLinkHubSessionData
+UCLASS()
+class ULiveLinkHubSessionData : public UObject
 {
+public:
 	GENERATED_BODY()
 
-	FLiveLinkHubPersistedSessionData() = default;
-
-	FLiveLinkHubPersistedSessionData(FLiveLinkHubSessionData SessionData)
-		: FLiveLinkHubSessionData(MoveTemp(SessionData))
+	ULiveLinkHubSessionData()
 	{
+		SubjectsConfig = CreateDefaultSubobject<ULiveLinkHubSubjectSessionConfig>(TEXT("SubjectsConfig"));
+
+        if (!HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
+        {
+        	SubjectsConfig->Initialize();
+        }
+	}
+
+	ULiveLinkHubSessionData(ULiveLinkHubSubjectSessionConfig* InSubjectsConfig)
+	{
+		SubjectsConfig = InSubjectsConfig;
 	}
 
 	/** Live link hub sources. */
@@ -50,4 +49,8 @@ struct FLiveLinkHubPersistedSessionData : public FLiveLinkHubSessionData
 	/** Timecode settings for the live link hub. */
 	UPROPERTY()
 	FLiveLinkHubTimecodeSettings TimecodeSettings;
+
+	/** Subject configs for this session. */
+	UPROPERTY(Instanced)
+	TObjectPtr<ULiveLinkHubSubjectSessionConfig> SubjectsConfig;
 };
