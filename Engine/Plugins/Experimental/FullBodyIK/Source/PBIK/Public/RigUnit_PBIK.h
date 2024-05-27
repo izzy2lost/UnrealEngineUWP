@@ -139,7 +139,7 @@ struct FPBIKWorkData
  * Based on a Position Based solver at core, this node can solve multi chains within a root using multi effectors
  */
 USTRUCT(meta=(DisplayName="Full Body IK", Category="Hierarchy", Keywords="FBIK, Position Based, PBIK, IK, Full Body, Multi, Effector, N-Chain, FB, HIK, HumanIK", NodeColor="0 1 1"))
-struct FRigUnit_PBIK : public FRigUnit_HighlevelBaseMutable
+struct PBIK_API FRigUnit_PBIK : public FRigUnit_HighlevelBaseMutable
 {
 	GENERATED_BODY()
 
