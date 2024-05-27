@@ -460,7 +460,7 @@ public:
 	NIAGARA_API TArray<FNiagaraVariableBase> GetStoredDataInterfaces() const;
 	
 	/** Returns the actual data we have captured in the SimCache for the given data interface. */
-	NIAGARA_API UObject* GetDataInterfaceStorageObject(const FNiagaraVariableBase& DataInterface) const;
+	NIAGARA_API const UObject* GetDataInterfaceStorageObject(const FNiagaraVariableBase& DataInterface) const;
 
 	/**
 	Get number of active instances for the emitter at the given frame.
@@ -566,7 +566,17 @@ public:
 	*/
 	UFUNCTION(BlueprintCallable, Category = NiagaraSimCache)
 	NIAGARA_API void ReadQuatAttributeWithRebase(TArray<FQuat>& OutValues, FQuat Quat, FName AttributeName = FName("MeshOrientation"), FName EmitterName = NAME_None, int FrameIndex = 0) const;
-	
+
+	/**
+	Reads data interface data from the cache as the requested type.
+	This method will return nullptr if the attribute does not exists or the requests type is not supported by the storage type.
+	*/
+	UFUNCTION(BlueprintCallable, Category = NiagaraSimCache)
+	NIAGARA_API UObject* ReadDataInterfaceAs(UClass* RequestedType, FName AttributeName, int FrameIndex = 0) const;
+
+	template<typename T>
+	T* ReadDataInterfaceAs(FName AttributeName, int FrameIndex = 0) const { return (T*)ReadDataInterfaceAs(T::StaticClass(), AttributeName, FrameIndex); }
+
 private:
 	UPROPERTY(VisibleAnywhere, Category=SimCache)
 	FGuid CacheGuid;

@@ -219,7 +219,7 @@ void SNiagaraSimCacheView::UpdateDIWidget()
 		FNiagaraEditorModule& NiagaraEditorModule = FModuleManager::GetModuleChecked<FNiagaraEditorModule>("NiagaraEditor");
 		for (TSharedRef<INiagaraDataInterfaceSimCacheVisualizer> Visualizer : NiagaraEditorModule.FindDataInterfaceCacheVisualizer(SimCacheViewModel->GetActiveDataInterface().GetType().GetClass()))
 		{
-			if (UObject* DataObject = SimCacheViewModel->GetActiveDataInterfaceStorage())
+			if (const UObject* DataObject = SimCacheViewModel->GetActiveDataInterfaceStorage())
 			{
 				TSharedPtr<SWidget> DIVisualizerWidget = Visualizer->CreateWidgetFor(DataObject, SimCacheViewModel);
 				DIVisualizerWidgets.Add(DIVisualizerWidget);

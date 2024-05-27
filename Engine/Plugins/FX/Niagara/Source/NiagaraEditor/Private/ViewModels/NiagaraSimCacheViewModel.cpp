@@ -156,7 +156,7 @@ void FNiagaraSimCacheViewModel::SetFrameIndex(const int32 InFrameIndex)
 	OnViewDataChangedDelegate.Broadcast(false);
 }
 
-UObject* FNiagaraSimCacheViewModel::GetActiveDataInterfaceStorage() const
+const UObject* FNiagaraSimCacheViewModel::GetActiveDataInterfaceStorage() const
 {
 	if (SimCache)
 	{

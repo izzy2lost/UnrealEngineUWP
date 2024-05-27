@@ -26,7 +26,7 @@ class SVisualizerRowWidget : public SMultiColumnTableRow<TSharedPtr<int32>>
 public:
 	SLATE_BEGIN_ARGS(SVisualizerRowWidget) {}
 		SLATE_ARGUMENT(TSharedPtr<FNiagaraSimCacheViewModel>,	ViewModel)
-		SLATE_ARGUMENT(UNDIArraySimCacheData*,					CacheData)
+		SLATE_ARGUMENT(const UNDIArraySimCacheData*,			CacheData)
 		SLATE_ARGUMENT(TSharedPtr<int32>,						RowIndexPtr)
 		SLATE_ARGUMENT(UNiagaraDataInterfaceArray*,				DataInterface)
 	SLATE_END_ARGS()
@@ -80,10 +80,10 @@ public:
 		return SNullWidget::NullWidget;
 	}
 
-	TSharedPtr<FNiagaraSimCacheViewModel>	ViewModel;
-	TStrongObjectPtr<UNDIArraySimCacheData>	CacheData;
-	TSharedPtr<int32>						RowIndexPtr;
-	UNiagaraDataInterfaceArray*				DataInterface = nullptr;
+	TSharedPtr<FNiagaraSimCacheViewModel>			ViewModel;
+	TStrongObjectPtr<const UNDIArraySimCacheData>	CacheData;
+	TSharedPtr<int32>								RowIndexPtr;
+	UNiagaraDataInterfaceArray*						DataInterface = nullptr;
 };
 
 class SSimCacheView : public SCompoundWidget
@@ -98,7 +98,7 @@ public:
 		ViewModel->OnViewDataChanged().RemoveAll(this);
 	}
 
-	void Construct(const FArguments& InArgs, TSharedPtr<FNiagaraSimCacheViewModel> InViewModel, UNDIArraySimCacheData* InCacheData, UNiagaraDataInterfaceArray* InDataInterface)
+	void Construct(const FArguments& InArgs, TSharedPtr<FNiagaraSimCacheViewModel> InViewModel, const UNDIArraySimCacheData* InCacheData, UNiagaraDataInterfaceArray* InDataInterface)
 	{
 		ViewModel = InViewModel;
 		CacheData.Reset(InCacheData);
@@ -259,24 +259,24 @@ public:
 	}
 
 private:
-	TSharedPtr<FNiagaraSimCacheViewModel>		ViewModel;
-	TStrongObjectPtr<UNDIArraySimCacheData>		CacheData;
+	TSharedPtr<FNiagaraSimCacheViewModel>			ViewModel;
+	TStrongObjectPtr<const UNDIArraySimCacheData>	CacheData;
 
-	TSharedPtr<SHeaderRow>						HeaderRowWidget;
-	TSharedPtr<SListView<TSharedPtr<int32>>>	ListViewWidget;
-	TArray<TSharedPtr<int32>>					RowItems;
-	UNiagaraDataInterfaceArray*					DataInterface = nullptr;
+	TSharedPtr<SHeaderRow>							HeaderRowWidget;
+	TSharedPtr<SListView<TSharedPtr<int32>>>		ListViewWidget;
+	TArray<TSharedPtr<int32>>						RowItems;
+	UNiagaraDataInterfaceArray*						DataInterface = nullptr;
 };
 
 } // NDIArraySimCacheVisualizer
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedPtr<SWidget> FNiagaraArraySimCacheVisualizer::CreateWidgetFor(UObject* InCachedData, TSharedPtr<FNiagaraSimCacheViewModel> ViewModel)
+TSharedPtr<SWidget> FNiagaraArraySimCacheVisualizer::CreateWidgetFor(const UObject* InCachedData, TSharedPtr<FNiagaraSimCacheViewModel> ViewModel)
 {
 	using namespace NDIArraySimCacheVisualizer;
 
-	if (UNDIArraySimCacheData* CachedData = Cast<UNDIArraySimCacheData>(InCachedData))
+	if (const UNDIArraySimCacheData* CachedData = Cast<const UNDIArraySimCacheData>(InCachedData))
 	{
 		check(ArrayDIClass);
 		UNiagaraDataInterfaceArray* DataInterface = CastChecked<UNiagaraDataInterfaceArray>(ArrayDIClass->GetDefaultObject());		

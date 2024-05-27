@@ -1124,7 +1124,7 @@ TArray<FNiagaraVariableBase> UNiagaraSimCache::GetStoredDataInterfaces() const
 	return DataInterfaces;
 }
 
-UObject* UNiagaraSimCache::GetDataInterfaceStorageObject(const FNiagaraVariableBase& DataInterface) const
+const UObject* UNiagaraSimCache::GetDataInterfaceStorageObject(const FNiagaraVariableBase& DataInterface) const
 {
 	if (const TObjectPtr<UObject>* StoredObject = DataInterfaceStorage.Find(DataInterface))
 	{
@@ -1369,4 +1369,25 @@ void UNiagaraSimCache::ReadQuatAttributeWithRebase(TArray<FQuat>& OutValues, FQu
 			OutValues[OutValueOffset + i] = Rotation * LocalToWorld;
 		}
 	}
+}
+
+UObject* UNiagaraSimCache::ReadDataInterfaceAs(UClass* RequestedType, FName AttributeName, int FrameIndex) const
+{
+	for (auto DataInterfaceIt=DataInterfaceStorage.CreateConstIterator(); DataInterfaceIt; ++DataInterfaceIt)
+	{
+		const FNiagaraVariableBase& Variable = DataInterfaceIt.Key();
+		if (Variable.GetName() != AttributeName)
+		{
+			continue;
+		}
+
+		UObject* StorageObject = DataInterfaceIt.Value();
+		if (StorageObject->IsA(RequestedType))
+		{
+			return StorageObject;
+		}
+		//-TODO: Allow data interface to convert to the requested type
+		return nullptr;
+	}
+	return nullptr;
 }

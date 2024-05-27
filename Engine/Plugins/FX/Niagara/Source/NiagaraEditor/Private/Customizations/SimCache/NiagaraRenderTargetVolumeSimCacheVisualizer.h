@@ -18,5 +18,5 @@ class FNiagaraRenderTargetVolumeSimCacheVisualizer : public INiagaraDataInterfac
 public:
 	virtual ~FNiagaraRenderTargetVolumeSimCacheVisualizer() override = default;
 	
-	virtual TSharedPtr<SWidget> CreateWidgetFor(UObject* CachedData, TSharedPtr<FNiagaraSimCacheViewModel> ViewModel) override;
+	virtual TSharedPtr<SWidget> CreateWidgetFor(const UObject* CachedData, TSharedPtr<FNiagaraSimCacheViewModel> ViewModel) override;
 };

@@ -11,7 +11,7 @@
 
 namespace DataChannelVisualizer
 {
-	const FNDIDataChannelWriteSimCacheFrame& GetFrame(TSharedPtr<FNiagaraSimCacheViewModel> SimCacheViewModel, UNDIDataChannelWriteSimCacheData* DataChannelData)
+	const FNDIDataChannelWriteSimCacheFrame& GetFrame(TSharedPtr<FNiagaraSimCacheViewModel> SimCacheViewModel, const UNDIDataChannelWriteSimCacheData* DataChannelData)
 	{
 		int32 FrameIndex = FMath::Clamp(SimCacheViewModel->GetFrameIndex(), 0, DataChannelData->FrameData.Num() - 1);
 		return DataChannelData->FrameData[FrameIndex];
@@ -91,7 +91,7 @@ public:
 
 	virtual ~SNiagaraDataChannelCacheView() override;
 
-	void Construct(const FArguments& InArgs, TSharedPtr<FNiagaraSimCacheViewModel> InViewModel, UNDIDataChannelWriteSimCacheData* InData);
+	void Construct(const FArguments& InArgs, TSharedPtr<FNiagaraSimCacheViewModel> InViewModel, const UNDIDataChannelWriteSimCacheData* InData);
 
 	TSharedRef<ITableRow> MakeRowWidget(const TSharedPtr<int32> RowIndexPtr, const TSharedRef<STableViewBase>& OwnerTable) const;
 
@@ -104,7 +104,7 @@ private:
 	void UpdateRows(bool Refresh = true);
 	
 	TSharedPtr<FNiagaraSimCacheViewModel> SimCacheViewModel;
-	TStrongObjectPtr<UNDIDataChannelWriteSimCacheData> DataChannelData;
+	TStrongObjectPtr<const UNDIDataChannelWriteSimCacheData> DataChannelData;
 
 	TSharedPtr<SListView<TSharedPtr<int32>>> ListViewWidget;
 	TArray<TSharedPtr<int32>> RowItems;	
@@ -118,7 +118,7 @@ public:
 SLATE_BEGIN_ARGS(SDataChannelVisualizerRowWidget) {}
 	SLATE_ARGUMENT(TSharedPtr<int32>, RowIndexPtr)
 	SLATE_ARGUMENT(TSharedPtr<FNiagaraSimCacheViewModel>, SimCacheViewModel)
-	SLATE_ARGUMENT(UNDIDataChannelWriteSimCacheData*, Data)
+	SLATE_ARGUMENT(const UNDIDataChannelWriteSimCacheData*, Data)
 SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, const TMap<FName, int32>& NameMapping);
@@ -126,7 +126,7 @@ SLATE_END_ARGS()
 
 	TSharedPtr<int32> RowIndexPtr;
 	TSharedPtr<FNiagaraSimCacheViewModel> SimCacheViewModel;
-	TStrongObjectPtr<UNDIDataChannelWriteSimCacheData> DataChannelData;
+	TStrongObjectPtr<const UNDIDataChannelWriteSimCacheData> DataChannelData;
 	TMap<FName, int32> NameToIndexMapping;
 };
 
@@ -135,7 +135,7 @@ SNiagaraDataChannelCacheView::~SNiagaraDataChannelCacheView()
 	SimCacheViewModel->OnViewDataChanged().RemoveAll(this);
 }
 
-void SNiagaraDataChannelCacheView::Construct(const FArguments&, TSharedPtr<FNiagaraSimCacheViewModel> InViewModel, UNDIDataChannelWriteSimCacheData* InData)
+void SNiagaraDataChannelCacheView::Construct(const FArguments&, TSharedPtr<FNiagaraSimCacheViewModel> InViewModel, const UNDIDataChannelWriteSimCacheData* InData)
 {
 	SimCacheViewModel = InViewModel;
 	DataChannelData.Reset(InData);
@@ -300,9 +300,9 @@ TSharedRef<SWidget> SDataChannelVisualizerRowWidget::GenerateWidgetForColumn(con
 		.Text(DisplayText);
 }
 
-TSharedPtr<SWidget> FNiagaraDataChannelSimCacheVisualizer::CreateWidgetFor(UObject* CachedData, TSharedPtr<FNiagaraSimCacheViewModel> ViewModel)
+TSharedPtr<SWidget> FNiagaraDataChannelSimCacheVisualizer::CreateWidgetFor(const UObject* CachedData, TSharedPtr<FNiagaraSimCacheViewModel> ViewModel)
 {
-	if (UNDIDataChannelWriteSimCacheData* DataChannelData = Cast<UNDIDataChannelWriteSimCacheData>(CachedData))
+	if (const UNDIDataChannelWriteSimCacheData* DataChannelData = Cast<const UNDIDataChannelWriteSimCacheData>(CachedData))
 	{
 		return SNew(SNiagaraDataChannelCacheView, ViewModel, DataChannelData);
 	}

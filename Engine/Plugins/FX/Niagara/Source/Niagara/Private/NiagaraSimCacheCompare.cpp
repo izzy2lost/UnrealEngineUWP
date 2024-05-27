@@ -279,8 +279,8 @@ bool FNiagaraSimCacheCompare::Compare(const UNiagaraSimCache& LhsCache, const UN
 					Tolerance.Emplace(*UserTolerance);
 				}
 
-				UObject* LhsStorageObject = LhsCache.GetDataInterfaceStorageObject(DIVariable);
-				UObject* RhsStorageObject = RhsCache.GetDataInterfaceStorageObject(DIVariable);
+				const UObject* LhsStorageObject = LhsCache.GetDataInterfaceStorageObject(DIVariable);
+				const UObject* RhsStorageObject = RhsCache.GetDataInterfaceStorageObject(DIVariable);
 				if (LhsStorageObject && RhsStorageObject)
 				{
 					for (int FrameIndex=0; FrameIndex < LhsCache.GetNumFrames(); FrameIndex++)

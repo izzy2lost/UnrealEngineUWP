@@ -5,7 +5,7 @@
 #include "ViewModels/NiagaraSimCacheViewModel.h"
 
 
-TSharedPtr<SWidget> INiagaraDataInterfaceSimCacheVisualizer::CreateWidgetFor(UObject*, TSharedPtr<FNiagaraSimCacheViewModel>)
+TSharedPtr<SWidget> INiagaraDataInterfaceSimCacheVisualizer::CreateWidgetFor(const UObject*, TSharedPtr<FNiagaraSimCacheViewModel>)
 {
 	return SNullWidget::NullWidget;
 }

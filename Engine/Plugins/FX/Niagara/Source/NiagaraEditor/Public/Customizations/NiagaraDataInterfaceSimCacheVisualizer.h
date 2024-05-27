@@ -18,5 +18,5 @@ class NIAGARAEDITOR_API INiagaraDataInterfaceSimCacheVisualizer
 public:
 	virtual ~INiagaraDataInterfaceSimCacheVisualizer() = default;
 	
-	virtual TSharedPtr<SWidget> CreateWidgetFor(UObject* CachedData, TSharedPtr<FNiagaraSimCacheViewModel> ViewModel);
+	virtual TSharedPtr<SWidget> CreateWidgetFor(const UObject* CachedData, TSharedPtr<FNiagaraSimCacheViewModel> ViewModel);
 };

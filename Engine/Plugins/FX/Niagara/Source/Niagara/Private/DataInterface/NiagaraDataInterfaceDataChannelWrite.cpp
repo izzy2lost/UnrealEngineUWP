@@ -691,10 +691,10 @@ void UNiagaraDataInterfaceDataChannelWrite::SimCachePostReadFrame(void* Optional
 	// send data to data channel
 }
 
-bool UNiagaraDataInterfaceDataChannelWrite::SimCacheCompareFrame(UObject* LhsStorageObject, UObject* RhsStorageObject, int FrameIndex, TOptional<float> Tolerance, FString& OutErrors) const
+bool UNiagaraDataInterfaceDataChannelWrite::SimCacheCompareFrame(const UObject* LhsStorageObject, const UObject* RhsStorageObject, int FrameIndex, TOptional<float> Tolerance, FString& OutErrors) const
 {
-	UNDIDataChannelWriteSimCacheData* Storage1 = Cast<UNDIDataChannelWriteSimCacheData>(LhsStorageObject);
-	UNDIDataChannelWriteSimCacheData* Storage2 = Cast<UNDIDataChannelWriteSimCacheData>(RhsStorageObject);
+	const UNDIDataChannelWriteSimCacheData* Storage1 = Cast<const UNDIDataChannelWriteSimCacheData>(LhsStorageObject);
+	const UNDIDataChannelWriteSimCacheData* Storage2 = Cast<const UNDIDataChannelWriteSimCacheData>(RhsStorageObject);
 
 	if (Storage1 == nullptr && Storage2 == nullptr)
 	{
@@ -719,8 +719,8 @@ bool UNiagaraDataInterfaceDataChannelWrite::SimCacheCompareFrame(UObject* LhsSto
 	bool bEqual = true;
 	for (int i = 0; i < Storage1->FrameData.Num(); i++)
 	{
-		FNDIDataChannelWriteSimCacheFrame& Frame1 = Storage1->FrameData[i];
-		FNDIDataChannelWriteSimCacheFrame& Frame2 = Storage2->FrameData[i];
+		const FNDIDataChannelWriteSimCacheFrame& Frame1 = Storage1->FrameData[i];
+		const FNDIDataChannelWriteSimCacheFrame& Frame2 = Storage2->FrameData[i];
 
 		if (Frame1.NumElements != Frame2.NumElements)
 		{
@@ -736,8 +736,8 @@ bool UNiagaraDataInterfaceDataChannelWrite::SimCacheCompareFrame(UObject* LhsSto
 		{
 			for (int k = 0; k < Frame1.VariableData.Num(); k++)
 			{
-				FNDIDataChannelWriteSimCacheFrameBuffer& Buffer1 = Frame1.VariableData[k];
-				FNDIDataChannelWriteSimCacheFrameBuffer& Buffer2 = Frame2.VariableData[k];
+				const FNDIDataChannelWriteSimCacheFrameBuffer& Buffer1 = Frame1.VariableData[k];
+				const FNDIDataChannelWriteSimCacheFrameBuffer& Buffer2 = Frame2.VariableData[k];
 				if (Buffer1.SourceVar != Buffer2.SourceVar || Buffer1.Data != Buffer2.Data)
 				{
 					OutErrors += FString::Format(TEXT("Frame {0}: different buffers in data channel store for source var {1}\n"), {i, *Buffer1.SourceVar.GetName().ToString()});

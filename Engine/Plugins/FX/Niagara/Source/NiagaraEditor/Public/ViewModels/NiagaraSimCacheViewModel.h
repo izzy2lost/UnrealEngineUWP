@@ -44,7 +44,7 @@ public:
 	NIAGARAEDITOR_API void SetFrameIndex(const int32 InFrameIndex);
 
 	NIAGARAEDITOR_API FNiagaraVariableBase GetActiveDataInterface() const { return ActiveDataInterface; };
-	NIAGARAEDITOR_API UObject* GetActiveDataInterfaceStorage() const;
+	NIAGARAEDITOR_API const UObject* GetActiveDataInterfaceStorage() const;
 
 	NIAGARAEDITOR_API FOnViewDataChanged& OnViewDataChanged();
 	NIAGARAEDITOR_API FOnSimCacheChanged& OnSimCacheChanged();
