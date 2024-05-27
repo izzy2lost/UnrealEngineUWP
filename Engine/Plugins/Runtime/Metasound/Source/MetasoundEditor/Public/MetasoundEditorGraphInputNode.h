@@ -45,6 +45,8 @@ public:
 	virtual FSlateIcon GetNodeTitleIcon() const override;
 	virtual void GetPinHoverText(const UEdGraphPin& Pin, FString& OutHoverText) const override;
 	virtual void Validate(Metasound::Editor::FGraphNodeValidationResult& OutResult) override;
+	virtual bool EnableInteractWidgets() const override;
+	virtual FText GetTooltipText() const override;
 
 protected:
 	// Breadcrumb used if associated FrontendNode cannot be found or has been unlinked

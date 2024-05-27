@@ -712,12 +712,12 @@ namespace Metasound
 				bUseAudioMaterialWidgets = EditorSettings->bUseAudioMaterialWidgets;
 			}
 
-			// If editable float input node and not constructor input, check if custom widget required
+			// If input node, check if custom widget required
 			bool bShowContentWidget = false;
 			if (UMetasoundEditorGraphInput* GraphMember = Cast<UMetasoundEditorGraphInput>(GetMetaSoundMember()))
 			{
 				const UMetasoundEditorGraph* OwningGraph = GraphMember->GetOwningGraph();
-				if (OwningGraph && OwningGraph->IsEditable() && GraphMember->GetVertexAccessType() == EMetasoundFrontendVertexAccessType::Reference)
+				if (OwningGraph && OwningGraph->IsEditable() && GraphMember->GetVertexAccessType() != EMetasoundFrontendVertexAccessType::Unset)
 				{
 					UMetasoundEditorGraphMemberDefaultFloat* DefaultFloat = Cast<UMetasoundEditorGraphMemberDefaultFloat>(GraphMember->GetLiteral());
 					if (DefaultFloat && DefaultFloat->WidgetType != EMetasoundMemberDefaultWidget::None)
@@ -969,13 +969,13 @@ namespace Metasound
 						InputWidget->SetOutputRange(DefaultFloat->GetRange());
 						InputWidget->SetUnitsTextReadOnly(true);
 						InputWidget->SetSliderValue(InputWidget->GetSliderValue(DefaultFloat->GetDefault()));
-						InputWidget->SetVisibility(TAttribute<EVisibility>::Create([this]()
+						InputWidget->SetEnabled(TAttribute<bool>::Create([this]()
 						{
 							if (UMetasoundEditorGraphMemberNode* Node = GetMetaSoundMemberNode())
 							{
-								return Node->EnableInteractWidgets() ? EVisibility::Visible : EVisibility::Collapsed;
+								return Node->EnableInteractWidgets();
 							}
-							return EVisibility::Collapsed;
+							return false;
 						}));
 
 						// Setup & clear delegate if necessary (ex. if was just saved)
@@ -1078,7 +1078,14 @@ namespace Metasound
 									];
 
 								MaterialButtonWidget->SetDesiredSizeOverride(ButtonDesiredSize);
-
+								MaterialButtonWidget->SetEnabled(TAttribute<bool>::Create([this]()
+									{
+										if (UMetasoundEditorGraphMemberNode* Node = GetMetaSoundMemberNode())
+										{
+											return Node->EnableInteractWidgets();
+										}
+										return false;
+									}));
 
 								// Setup & clear delegate if necessary (ex. if was just saved)
 								if (InputButtonOnStateChangedDelegateHandle.IsValid())

@@ -25,6 +25,8 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MetasoundEditorGraphInputNode)
 
+#define LOCTEXT_NAMESPACE "MetaSoundEditor"
+
 void UMetasoundEditorGraphInputNode::CacheTitle()
 {
 	using namespace Metasound::Frontend;
@@ -190,3 +192,34 @@ void UMetasoundEditorGraphInputNode::Validate(Metasound::Editor::FGraphNodeValid
 	}
 #endif // #if WITH_EDITOR
 }
+
+FText UMetasoundEditorGraphInputNode::GetTooltipText() const
+{
+	//If Constructor input
+	if (Input && Input->GetVertexAccessType() == EMetasoundFrontendVertexAccessType::Value)
+	{
+		UMetasoundEditorGraph* Graph = CastChecked<UMetasoundEditorGraph>(GetGraph());
+		if (Graph->IsPreviewing())
+		{
+			FText ToolTip = LOCTEXT("Metasound_ConstructorInputNodeDescription", "Editing constructor values is disabled while previewing.");
+			return ToolTip;
+		}
+	}
+
+	return Super::GetTooltipText();
+}
+
+bool UMetasoundEditorGraphInputNode::EnableInteractWidgets() const
+{
+	using namespace Metasound::Frontend;
+	
+	//If Constructor input
+	if (Input && Input->GetVertexAccessType() == EMetasoundFrontendVertexAccessType::Value)
+	{
+		UMetasoundEditorGraph* Graph = CastChecked<UMetasoundEditorGraph>(GetGraph());
+		return !Graph->IsPreviewing();
+	}
+
+	return true;
+}
+#undef LOCTEXT_NAMESPACE

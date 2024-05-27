@@ -343,8 +343,7 @@ namespace Metasound
 			{
 				if (const UMetasoundEditorGraph* OwningGraph = ParentMember->GetOwningGraph())
 				{
-					// Disable widget options for constructor inputs for now to prevent changing default value via widget while playing 
-					bShowWidgetOptions = OwningGraph->IsEditable() && ParentMember->GetVertexAccessType() == EMetasoundFrontendVertexAccessType::Reference;
+					bShowWidgetOptions = OwningGraph->IsEditable();
 				}
 			}
 
@@ -398,8 +397,7 @@ namespace Metasound
 			{
 				if (const UMetasoundEditorGraph* OwningGraph = ParentMember->GetOwningGraph())
 				{
-					// Disable widget options for constructor inputs for now to prevent changing default value via widget while playing 
-					bShowWidgetOptions = OwningGraph->IsEditable() && ParentMember->GetVertexAccessType() == EMetasoundFrontendVertexAccessType::Reference;
+					bShowWidgetOptions = OwningGraph->IsEditable();
 				}
 			}
 
