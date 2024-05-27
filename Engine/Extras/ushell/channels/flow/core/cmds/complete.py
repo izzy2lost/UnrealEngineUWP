@@ -109,6 +109,7 @@ def _complete(system, word_iter, reply, delim):
         return True
 
     if words and words[0] == "$$":
+        os.chdir(os.path.normpath(words[1]))
         _get_tags(system, reply)
         return True
 

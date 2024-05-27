@@ -181,6 +181,7 @@ function Update-UShellEnvVars {{
 
     $CompleteDaemon.StandardInput.WriteLine("`u{{01}}")
     $CompleteDaemon.StandardInput.WriteLine("`$`$")
+    $CompleteDaemon.StandardInput.WriteLine($($executionContext.SessionState.Path.CurrentLocation))
     $CompleteDaemon.StandardInput.WriteLine("`u{{02}}")
 
     $Results = @{{}}
