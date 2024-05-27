@@ -275,7 +275,7 @@ void SBindingsPanel::AddBindingToWidgetList(const TSet<FWidgetReference>& Widget
 						{
 							Path.SetWidgetName(WidgetReference.GetTemplate()->GetFName());
 						}
-						EditorSubsystem->SetDestinationPathForBinding(MVVMExtensionPtr->GetWidgetBlueprint(), Binding, Path);
+						EditorSubsystem->SetDestinationPathForBinding(MVVMExtensionPtr->GetWidgetBlueprint(), Binding, Path, false);
 						AddedBindingId = Binding.BindingId;
 
 						bBindingAdded = true;

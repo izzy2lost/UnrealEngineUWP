@@ -39,7 +39,7 @@ private:
 	FMVVMLinkedPinValue OnGetSelectedField() const;
 	void SetSelectedField(const FMVVMLinkedPinValue& Path);
 
-	void HandleFieldSelectionChanged(FMVVMLinkedPinValue Value);
+	void HandleFieldSelectionChanged(FMVVMLinkedPinValue Value, SFieldSelectorMenu::ESelectionType SelectionType);
 	FFieldSelectionContext GetSelectedSelectionContext() const;
 
 	int32 GetCurrentWidgetIndex() const;

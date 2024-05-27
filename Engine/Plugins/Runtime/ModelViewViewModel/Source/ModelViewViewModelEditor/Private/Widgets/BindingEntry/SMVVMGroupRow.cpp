@@ -95,7 +95,7 @@ void SGroupRow::SetSelectedWidget(FBindingSource Source)
 					FMVVMBlueprintPropertyPath CurrentPath = Binding->DestinationPath;
 					Source.SetSourceTo(CurrentPath);
 
-					EditorSubsystem->SetDestinationPathForBinding(WidgetBlueprint, *Binding, CurrentPath);
+					EditorSubsystem->SetDestinationPathForBinding(WidgetBlueprint, *Binding, CurrentPath, false);
 				}
 			}
 
@@ -106,7 +106,7 @@ void SGroupRow::SetSelectedWidget(FBindingSource Source)
 					FMVVMBlueprintPropertyPath CurrentPath = Event->GetEventPath();
 					Source.SetSourceTo(CurrentPath);
 
-					EditorSubsystem->SetEventPath(Event, CurrentPath);
+					EditorSubsystem->SetEventPath(Event, CurrentPath, true);
 				}
 			}
 		}
@@ -137,7 +137,7 @@ FReply SGroupRow::AddBinding() const
 			Path.SetViewModelId(Entry->GetGroupAsViewModel());
 		}
 
-		EditorSubsystem->SetDestinationPathForBinding(WidgetBlueprint, Binding, Path);
+		EditorSubsystem->SetDestinationPathForBinding(WidgetBlueprint, Binding, Path, false);
 	}
 
 	return FReply::Handled();

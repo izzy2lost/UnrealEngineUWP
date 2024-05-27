@@ -10,6 +10,8 @@
 #include "Styling/SlateTypes.h"
 #include "Widgets/SCompoundWidget.h"
 
+class SPrimaryButton;
+
 namespace ESelectInfo { enum Type : int; }
 class ITableRow;
 class SSearchBox;
@@ -87,22 +89,30 @@ struct FFieldSelectionContext
 	bool bWritable = true;
 };
 
-DECLARE_DELEGATE_OneParam(FOnLinkedValueSelectionChanged, FMVVMLinkedPinValue);
-
 class SFieldSelectorMenu : public SCompoundWidget
 {
 public:
+	enum class ESelectionType
+	{
+		None,
+		Binding,
+		Event,
+	};
+
 	DECLARE_DELEGATE_RetVal(FFieldSelectionContext, FOnGetFieldSelectionContext);
+	DECLARE_DELEGATE_TwoParams(FOnLinkedValueSelected, FMVVMLinkedPinValue, ESelectionType);
 
 	SLATE_BEGIN_ARGS(SFieldSelectorMenu){}
 		SLATE_ARGUMENT(TOptional<FMVVMLinkedPinValue>, CurrentSelected)
-		SLATE_EVENT(FOnLinkedValueSelectionChanged, OnSelectionChanged)
+		SLATE_EVENT(FOnLinkedValueSelected, OnSelected)
 		SLATE_EVENT(FSimpleDelegate, OnMenuCloseRequested)
 		SLATE_ARGUMENT(FFieldSelectionContext, SelectionContext)
 		SLATE_ARGUMENT_DEFAULT(bool, IsBindingToEvent) { false };
+		SLATE_ARGUMENT_DEFAULT(bool, CanCreateEvent) { false };
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, const UWidgetBlueprint* InWidgetBlueprint);
+	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
 	TSharedRef<SWidget> GetWidgetToFocus() const;
 
@@ -152,19 +162,25 @@ private:
 	void HandleEnabledContextToggleChanged(ECheckBoxState CheckState);
 	ECheckBoxState ToggleEnabledContext() const;
 
-	bool IsClearEnabled() const;
+	TOptional<FMVVMLinkedPinValue> GetCurrentSelection() const;
+	void UpdateSelection();
+
 	bool IsSelectEnabled() const;
-	FReply HandleClearClicked();
+	bool IsEventSelectEnabled() const;
+
 	FReply HandleSelectClicked();
+	FReply HandleEventSelectClicked();
+	FReply HandleClearClicked();
 	FReply HandleCancelClicked();
 
 private:
 	TWeakObjectPtr<const UWidgetBlueprint> WidgetBlueprint;
-	FOnLinkedValueSelectionChanged OnSelectionChanged;
+	FOnLinkedValueSelected OnSelected;
 	FSimpleDelegate OnMenuCloseRequested;
 	FFieldSelectionContext SelectionContext;
 
 	TSharedPtr<SSearchBox> SearchBox;
+	TSharedPtr<SPrimaryButton> EventSelectButton;
 
 	//~ viewmodels (binding context panel)
 	TSharedPtr<SListView<FBindingSource>> ViewModelList;
@@ -187,8 +203,10 @@ private:
 	TArray<UE::MVVM::FConversionFunctionValue> ConversionFunctions;
 	TArray<UE::MVVM::FConversionFunctionValue> FilteredConversionFunctions;
 
+	TOptional<FMVVMLinkedPinValue> CurrentSelectedValue;
+
 	bool bIsMenuInitialized = false;
-	bool bIsClearEnabled = false;
+	bool bCanCreateEvent = false;
 }; 
 
 } // namespace UE::MVVM

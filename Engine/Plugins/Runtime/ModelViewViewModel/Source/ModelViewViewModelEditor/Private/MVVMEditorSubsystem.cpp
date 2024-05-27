@@ -470,12 +470,12 @@ void UMVVMEditorSubsystem::SetDestinationToSourceConversionFunction(UWidgetBluep
 	}
 }
 
-void UMVVMEditorSubsystem::SetDestinationPathForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, FMVVMBlueprintPropertyPath PropertyPath)
+void UMVVMEditorSubsystem::SetDestinationPathForBinding(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, FMVVMBlueprintPropertyPath PropertyPath, bool bAllowEventConversion)
 {
 	if (UMVVMBlueprintView* View = GetView(WidgetBlueprint))
 	{
 		bool bHasConversion = Binding.Conversion.DestinationToSourceConversion != nullptr;
-		bool bEventSupported = UMVVMBlueprintViewEvent::Supports(WidgetBlueprint, PropertyPath);
+		bool bEventSupported = bAllowEventConversion && UMVVMBlueprintViewEvent::Supports(WidgetBlueprint, PropertyPath);
 
 		if (bEventSupported || bHasConversion || Binding.DestinationPath != PropertyPath)
 		{
@@ -661,7 +661,7 @@ void UMVVMEditorSubsystem::GenerateBindToDestinationPathsForBinding(UWidgetBluep
 	}
 }
 
-void UMVVMEditorSubsystem::SetEventPath(UMVVMBlueprintViewEvent* Event, FMVVMBlueprintPropertyPath PropertyPath)
+void UMVVMEditorSubsystem::SetEventPath(UMVVMBlueprintViewEvent* Event, FMVVMBlueprintPropertyPath PropertyPath, bool bRequestBindingConversion)
 {
 	UMVVMBlueprintView* View = Event ? Event->GetOuterUMVVMBlueprintView() : nullptr;
 	if (View)
@@ -675,15 +675,19 @@ void UMVVMEditorSubsystem::SetEventPath(UMVVMBlueprintViewEvent* Event, FMVVMBlu
 
 		bool bSupports = UMVVMBlueprintViewEvent::Supports(WidgetBlueprint, PropertyPath);
 
+		if (bRequestBindingConversion || !bSupports)
+		{
+			FMVVMBlueprintViewBinding& Binding = AddBinding(WidgetBlueprint);
+			SetDestinationPathForBinding(WidgetBlueprint, Binding, PropertyPath, false);
+			View->RemoveEvent(Event);
+		}
 		if (bSupports)
 		{
 			Event->SetEventPath(PropertyPath);
 		}
 		else
 		{
-			FMVVMBlueprintViewBinding& Binding = AddBinding(WidgetBlueprint);
-			SetDestinationPathForBinding(WidgetBlueprint, Binding, PropertyPath);
-			View->RemoveEvent(Event);
+			Event->SetEventPath(FMVVMBlueprintPropertyPath());
 		}
 
 		UE::MVVM::Private::OnEventPostEditChange(Event, EventPath);

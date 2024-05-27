@@ -53,7 +53,7 @@ private:
 
 	FMVVMLinkedPinValue GetFieldSelectedValue(bool bSource) const;
 
-	void HandleFieldSelectionChanged(FMVVMLinkedPinValue Value, bool bSource);
+	void HandleFieldSelectionChanged(FMVVMLinkedPinValue Value, SFieldSelectorMenu::ESelectionType SelectionType, bool bSource);
 
 	FFieldSelectionContext GetSelectedSelectionContext(bool bSource) const;
 

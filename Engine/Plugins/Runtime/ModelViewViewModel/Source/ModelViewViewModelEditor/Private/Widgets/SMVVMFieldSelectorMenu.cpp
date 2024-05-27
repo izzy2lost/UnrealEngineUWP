@@ -8,6 +8,7 @@
 #include "Framework/Views/TableViewMetadata.h"
 #include "Hierarchy/SReadOnlyHierarchyView.h"
 #include "MVVMBlueprintView.h"
+#include "MVVMBlueprintViewEvent.h"
 #include "MVVMEditorSubsystem.h"
 #include "MVVMDeveloperProjectSettings.h"
 #include "MVVMWidgetBlueprintExtension_View.h"
@@ -54,19 +55,22 @@ EFieldVisibility GetFieldVisibilityFlags(EMVVMBindingMode Mode, bool bReadable, 
 
 	return Flags;
 }
-}
+} // namespace
 
 void SFieldSelectorMenu::Construct(const FArguments& InArgs, const UWidgetBlueprint* InWidgetBlueprint)
 {
+	SetCanTick(true);
+
 	WidgetBlueprint = InWidgetBlueprint;
 	check(InWidgetBlueprint);
 
-	OnSelectionChanged = InArgs._OnSelectionChanged;
+	OnSelected = InArgs._OnSelected;
 	OnMenuCloseRequested = InArgs._OnMenuCloseRequested;
 	SelectionContext = InArgs._SelectionContext;
+	bCanCreateEvent = InArgs._CanCreateEvent;
 
 	bIsMenuInitialized = false;
-	bIsClearEnabled = InArgs._CurrentSelected.IsSet() && InArgs._CurrentSelected.GetValue().IsValid();
+	const bool bIsClearEnabled = InArgs._CurrentSelected.IsSet() && InArgs._CurrentSelected.GetValue().IsValid();
 
 	// If we're showing conversion functions, we don't want to set the AssignableTo property of SSourceBindingList, because then it will only show exact matches, 
 	// and since we're also showing conversion functions we know that's not what the user wants.
@@ -154,10 +158,19 @@ void SFieldSelectorMenu::Construct(const FArguments& InArgs, const UWidgetBluepr
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
 			[
+				SAssignNew(EventSelectButton, SPrimaryButton)
+				.OnClicked(this, &SFieldSelectorMenu::HandleEventSelectClicked)
+				.Text(LOCTEXT("EventSelect", "Event"))
+				.ToolTipText(LOCTEXT("SelectorEventTooltip", "Create an event.") )
+			]
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			[
 				SNew(SPrimaryButton)
 				.OnClicked(this, &SFieldSelectorMenu::HandleSelectClicked)
 				.IsEnabled(this, &SFieldSelectorMenu::IsSelectEnabled)
 				.Text(LOCTEXT("Select", "Select"))
+				.ToolTipText(LOCTEXT("SelectorBindingTooltip", "Create a binding with the field."))
 			]
 			+ SHorizontalBox::Slot()
 			.Padding(FAppStyle::Get().GetMargin("StandardDialog.SlotPadding"))
@@ -165,7 +178,7 @@ void SFieldSelectorMenu::Construct(const FArguments& InArgs, const UWidgetBluepr
 			[
 				SNew(SButton)
 				.OnClicked(this, &SFieldSelectorMenu::HandleClearClicked)
-				.IsEnabled(this, &SFieldSelectorMenu::IsClearEnabled)
+				.IsEnabled(bIsClearEnabled)
 				.HAlign(HAlign_Center)
 				[
 					SNew(STextBlock)
@@ -204,6 +217,24 @@ void SFieldSelectorMenu::Construct(const FArguments& InArgs, const UWidgetBluepr
 	];
 
 	bIsMenuInitialized = true;
+	UpdateSelection();
+}
+
+void SFieldSelectorMenu::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+{
+	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+	TOptional<FMVVMLinkedPinValue> NewSelection = GetCurrentSelection();
+	if (NewSelection != CurrentSelectedValue)
+	{
+		CurrentSelectedValue = NewSelection;
+		UpdateSelection();
+	}
+}
+
+void SFieldSelectorMenu::UpdateSelection()
+{
+	check(EventSelectButton);
+	EventSelectButton->SetVisibility(IsEventSelectEnabled()? EVisibility::Visible : EVisibility::Collapsed);
 }
 
 TSharedRef<SWidget> SFieldSelectorMenu::GetWidgetToFocus() const
@@ -211,68 +242,66 @@ TSharedRef<SWidget> SFieldSelectorMenu::GetWidgetToFocus() const
 	return SearchBox.ToSharedRef();
 }
 
-bool SFieldSelectorMenu::IsSelectEnabled() const
+TOptional<FMVVMLinkedPinValue> SFieldSelectorMenu::GetCurrentSelection() const
 {
-	if (BindingList.IsValid())
-	{
-		FMVVMBlueprintPropertyPath Path = BindingList->GetSelectedProperty();
-		if (Path.IsValid())
-		{
-			return true;
-		}
-	}
-
+	TOptional<FMVVMLinkedPinValue> Value;
 	if (ConversionFunctionList.IsValid())
 	{
-		if (ConversionFunctionList->GetSelectedItems().Num() > 0)
+		TArray<FConversionFunctionValue> Selection;
+		if (ConversionFunctionList.IsValid())
 		{
-			return true;
+			Selection = ConversionFunctionList->GetSelectedItems();
+		}
+		if (Selection.Num() > 0)
+		{
+			Value = FMVVMLinkedPinValue(Selection[0]);
 		}
 	}
 
+	if (BindingList.IsValid())
+	{
+		FMVVMBlueprintPropertyPath SelectedProperty = BindingList->GetSelectedProperty();
+		if (SelectedProperty.IsValid())
+		{
+			ensure(Value.IsSet() == false);
+			Value = FMVVMLinkedPinValue(MoveTemp(SelectedProperty));
+		}
+	}
+	return Value;
+}
+
+bool SFieldSelectorMenu::IsSelectEnabled() const
+{
+	return CurrentSelectedValue.IsSet();
+}
+
+bool SFieldSelectorMenu::IsEventSelectEnabled() const
+{
+	if (bCanCreateEvent && CurrentSelectedValue.IsSet() && CurrentSelectedValue.GetValue().IsPropertyPath())
+	{
+		return UMVVMBlueprintViewEvent::Supports(WidgetBlueprint.Get(), CurrentSelectedValue.GetValue().GetPropertyPath());
+	}
 	return false;
 }
 
 FReply SFieldSelectorMenu::HandleSelectClicked()
 {
-	if (OnSelectionChanged.IsBound())
+	if (OnSelected.IsBound())
 	{
-		bool bSet = false;
-		FMVVMLinkedPinValue Value;
-		if (ConversionFunctionList.IsValid())
-		{
-			TArray<FConversionFunctionValue> Selection;
-			if (ConversionFunctionList.IsValid())
-			{
-				Selection = ConversionFunctionList->GetSelectedItems();
-			}
-			if (Selection.Num() > 0)
-			{
-				Value = FMVVMLinkedPinValue(Selection[0]);
-				bSet = true;
-			}
-		}
-
-		if (BindingList.IsValid())
-		{
-			FMVVMBlueprintPropertyPath SelectedProperty = BindingList->GetSelectedProperty();
-			if (SelectedProperty.IsValid())
-			{
-				ensure(bSet == false);
-				Value = FMVVMLinkedPinValue(MoveTemp(SelectedProperty));
-				bSet = true;
-			}
-		}
-
-		OnSelectionChanged.Execute(MoveTemp(Value));
+		OnSelected.Execute(CurrentSelectedValue.Get(FMVVMLinkedPinValue()), ESelectionType::Binding);
 	}
 
 	return FReply::Handled();
 }
 
-bool SFieldSelectorMenu::IsClearEnabled() const
+FReply SFieldSelectorMenu::HandleEventSelectClicked()
 {
-	return bIsClearEnabled;
+	if (OnSelected.IsBound())
+	{
+		OnSelected.Execute(CurrentSelectedValue.Get(FMVVMLinkedPinValue()), ESelectionType::Event);
+	}
+
+	return FReply::Handled();
 }
 
 FReply SFieldSelectorMenu::HandleClearClicked()
@@ -285,7 +314,7 @@ FReply SFieldSelectorMenu::HandleClearClicked()
 		Source.SetSourceTo(NewProperty);
 	}
 
-	OnSelectionChanged.ExecuteIfBound(FMVVMLinkedPinValue(MoveTemp(NewProperty)));
+	OnSelected.ExecuteIfBound(FMVVMLinkedPinValue(MoveTemp(NewProperty)), ESelectionType::None);
 
 	return FReply::Handled();
 }
@@ -299,12 +328,28 @@ FReply SFieldSelectorMenu::HandleCancelClicked()
 
 void SFieldSelectorMenu::SetPropertyPathSelection(const FMVVMBlueprintPropertyPath& SelectedPath)
 {
-	OnSelectionChanged.ExecuteIfBound(FMVVMLinkedPinValue(SelectedPath));
+	CurrentSelectedValue = FMVVMLinkedPinValue(SelectedPath);
+	if (IsEventSelectEnabled())
+	{
+		HandleEventSelectClicked();
+	}
+	else
+	{
+		HandleSelectClicked();
+	}
 }
 
 void SFieldSelectorMenu::SetConversionFunctionSelection(const FConversionFunctionValue SelectedFunction)
 {
-	OnSelectionChanged.ExecuteIfBound(FMVVMLinkedPinValue(SelectedFunction));
+	CurrentSelectedValue = FMVVMLinkedPinValue(SelectedFunction);
+	if (IsEventSelectEnabled())
+	{
+		HandleEventSelectClicked();
+	}
+	else
+	{
+		HandleSelectClicked();
+	}
 }
 
 TSharedPtr<SFieldSelectorMenu::FConversionFunctionItem> SFieldSelectorMenu::FindConversionFunctionCategory(const TArray<TSharedPtr<FConversionFunctionItem>>& Items, TArrayView<FString> CategoryNameParts) const

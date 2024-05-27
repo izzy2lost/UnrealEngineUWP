@@ -327,7 +327,7 @@ IPropertyBindingExtension::EDropResult FMVVMPropertyBindingExtension::OnDrop(con
 		{
 			DestinationPropertyPath.SetWidgetName(Widget->GetFName());
 		}
-		EditorSubsystem->SetDestinationPathForBinding(WidgetBlueprint, NewBinding, DestinationPropertyPath);
+		EditorSubsystem->SetDestinationPathForBinding(WidgetBlueprint, NewBinding, DestinationPropertyPath, false);
 
 		return EDropResult::HandledContinue;
 	}
