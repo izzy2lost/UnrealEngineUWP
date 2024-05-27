@@ -485,6 +485,8 @@ TValueOrError<FString, FString> FMVVMCompiledBindingLibrary::FieldPathToString(F
 	}
 #endif
 
+	const bool bIsLoaded = IsLoaded();
+
 	bool bHasError = false;
 	TStringBuilder<512> StringBuilder;
 	const int32 IterationMax = FieldPath.StartIndex + FieldPath.Num;
@@ -498,62 +500,104 @@ TValueOrError<FString, FString> FMVVMCompiledBindingLibrary::FieldPathToString(F
 
 		check(FieldPaths.IsValidIndex(Index));
 		FMVVMCompiledLoadedPropertyOrFunctionIndex PathIndex = FieldPaths[Index];
-		if (PathIndex.bIsProperty)
+		if (bIsLoaded)
 		{
-			if (LoadedProperties.IsValidIndex(PathIndex.Index))
+			if (PathIndex.bIsProperty)
 			{
-				const FProperty* Property = LoadedProperties[PathIndex.Index];
-				if (!Property)
+				if (LoadedProperties.IsValidIndex(PathIndex.Index))
+				{
+					const FProperty* Property = LoadedProperties[PathIndex.Index];
+					if (!Property)
+					{
+						StringBuilder << TEXT("<Invalid>");
+						bHasError = true;
+					}
+					else
+					{
+	#if WITH_EDITOR
+						if (bUseDisplayName)
+						{
+							StringBuilder << Property->GetDisplayNameText().ToString();
+						}
+						else
+	#endif
+						{
+							StringBuilder << Property->GetFName();
+						}
+					}
+				}
+				else
 				{
 					StringBuilder << TEXT("<Invalid>");
 					bHasError = true;
 				}
-				else
-				{
-#if WITH_EDITOR
-					if (bUseDisplayName)
-					{
-						StringBuilder << Property->GetDisplayNameText().ToString();
-					}
-					else
-#endif
-					{
-						StringBuilder << Property->GetFName();
-					}
-				}
 			}
 			else
 			{
-				StringBuilder << TEXT("<Invalid>");
-				bHasError = true;
+				if (LoadedFunctions.IsValidIndex(PathIndex.Index))
+				{
+					const FLoadedFunction& LoadedFunction = LoadedFunctions[PathIndex.Index];
+					const UFunction* Function = LoadedFunction.GetFunction();
+					if (!Function)
+					{
+						StringBuilder << TEXT("<Invalid>");
+						bHasError = true;
+					}
+					else
+					{
+	#if WITH_EDITOR
+						if (bUseDisplayName)
+						{
+							StringBuilder << Function->GetDisplayNameText().ToString();
+						}
+						else
+	#endif
+						{
+							StringBuilder << Function->GetFName();
+						}
+					}
+				}
+				else
+				{
+					StringBuilder << TEXT("<Invalid>");
+					bHasError = true;
+				}
 			}
 		}
 		else
 		{
-			if (LoadedFunctions.IsValidIndex(PathIndex.Index))
+			check(!bIsLoaded);
+			int32 CurrentIndex = PathIndex.Index;
+			bool bFound = false;
+			for (const FMVVMVCompiledFields& Field : CompiledFields)
 			{
-				const FLoadedFunction& LoadedFunction = LoadedFunctions[PathIndex.Index];
-				const UFunction* Function = LoadedFunction.GetFunction();
-				if (!Function)
+				if (PathIndex.bIsProperty)
 				{
-					StringBuilder << TEXT("<Invalid>");
-					bHasError = true;
+					const int32 NumberOfProperties = Field.GetPropertyNum();
+					if (CurrentIndex < NumberOfProperties)
+					{
+						FName FieldName = Field.GetPropertyName(CompiledFieldNames, CurrentIndex);
+						StringBuilder << FieldName;
+						bFound = true;
+						break;
+					}
+					CurrentIndex -= NumberOfProperties;
 				}
 				else
 				{
-#if WITH_EDITOR
-					if (bUseDisplayName)
+					const int32 NumberOfFunctions = Field.GetFunctionNum();
+					if (CurrentIndex < NumberOfFunctions)
 					{
-						StringBuilder << Function->GetDisplayNameText().ToString();
+						FName FieldName = Field.GetFunctionName(CompiledFieldNames, CurrentIndex);
+						StringBuilder << FieldName;
+						bFound = true;
+						break;
 					}
-					else
-#endif
-					{
-						StringBuilder << Function->GetFName();
-					}
+					CurrentIndex -= NumberOfFunctions;
 				}
 			}
-			else
+
+			if (!bFound)
 			{
 				StringBuilder << TEXT("<Invalid>");
 				bHasError = true;
