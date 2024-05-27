@@ -18,7 +18,7 @@ class FMaterialCompiler;
  * @param Alpha					Bland factor [0..1]
  * @return						Index to a new code chunk
  */
-extern int32 CompileShadingModelBlendFunction(FMaterialCompiler* Compiler, int32 A, int32 B, int32 Alpha);
+ENGINE_API extern int32 CompileShadingModelBlendFunction(FMaterialCompiler* Compiler, int32 A, int32 B, int32 Alpha);
 
 UCLASS(collapsecategories, hidecategories = Object, MinimalAPI)
 class UMaterialExpressionShadingModel : public UMaterialExpression
