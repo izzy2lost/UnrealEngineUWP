@@ -73,6 +73,7 @@ void UPoseSearchSchema::AddDefaultChannels()
 	// defaulting UPoseSearchSchema for a meaningful locomotion setup
 	AddChannel(NewObject<UPoseSearchFeatureChannel_Trajectory>(this, NAME_None, RF_Transactional));
 	AddChannel(NewObject<UPoseSearchFeatureChannel_Pose>(this, NAME_None, RF_Transactional));
+	Finalize();
 }
 
 void UPoseSearchSchema::InitBoneContainersFromRoledSkeleton(TMap<FName, FBoneContainer>& RoledBoneContainers) const
