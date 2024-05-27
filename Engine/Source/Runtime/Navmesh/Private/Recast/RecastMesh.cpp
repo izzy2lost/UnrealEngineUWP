@@ -1165,7 +1165,7 @@ bool rcBuildPolyMesh(rcContext* ctx, rcContourSet& cset, const int nvp, rcPolyMe
 	}
 	
 	// Find portal edges
-	if (mesh.borderSize > 0)
+	if (mesh.borderSize.low > 0 || mesh.borderSize.high > 0)	//@UE
 	{
 		const int w = cset.width;
 		const int h = cset.height;

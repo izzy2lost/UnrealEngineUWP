@@ -1026,7 +1026,15 @@ protected:
 		return TileGenerator;
 	}
 
-	void SetBBoxGrowth(const FVector& InBBox) { BBoxGrowth = InBBox; }
+	UE_DEPRECATED(5.5, "Use BBoxGrowthLow and BBoxGrowthHigh properties instead.")
+	void SetBBoxGrowth(const FVector& InBBox)
+	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS		
+		BBoxGrowth = InBBox;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	FBox GrowDirtyBounds(const FBox& BBox, bool bIncludeAgentHeight) const;
 
 	//----------------------------------------------------------------------//
 	// debug
@@ -1061,7 +1069,16 @@ protected:
 
 	/** Used to grow generic element bounds to match this generator's properties
 	 *	(most notably Config.borderSize) */
+	UE_DEPRECATED(5.5, "Use BBoxGrowthLow and BBoxGrowthHigh instead.")
 	FVector BBoxGrowth;
+	
+	/** Growth in the negative axis direction. 
+	 * Used to grow generic element bounds to match this generator's properties (most notably Config.borderSize) */
+	FVector BBoxGrowthLow;
+
+	/** Growth in the positive axis direction. 
+	 * Used to grow generic element bounds to match this generator's properties (most notably Config.borderSize) */
+	FVector BBoxGrowthHigh;
 	
 	int32 NumActiveTiles;
 	/** the limit to number of asynchronous tile generators running at one time,

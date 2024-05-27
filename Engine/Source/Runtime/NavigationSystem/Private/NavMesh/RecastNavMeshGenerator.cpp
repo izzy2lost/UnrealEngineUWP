@@ -85,6 +85,9 @@ namespace UE::NavMesh::Private
 
 	static bool bUseTightBoundExpansion = true;
 	static FAutoConsoleVariableRef CVarUseTightBoundExpansion(TEXT("ai.nav.UseTightBoundExpansion"), bUseTightBoundExpansion, TEXT("Active by default. Use an expansion of one AgentRadius. Set to false to revert to the previous behavior (2 AgentRadius)."), ECVF_Default);
+
+	static bool bUseAsymetricBorderSizes = true;
+	static FAutoConsoleVariableRef CVarUseAsymetricBorderSizes(TEXT("ai.nav.UseAsymetricBorderSizes"), bUseAsymetricBorderSizes, TEXT("Active by default. When generating links, use asymetric tile border sizes to improve generation speed."), ECVF_Default);
 }
 
 static FOodleDataCompression::ECompressor GNavmeshTileCacheCompressor = FOodleDataCompression::ECompressor::Mermaid;
@@ -1622,17 +1625,17 @@ struct FVoxelCacheRasterizeContext
 		rcResetHeightfield(*RasterizeHF);
 	}
 
-	void SetupForTile(const FVector::FReal* TileBMin, const FVector::FReal* TileBMax, const FVector::FReal RasterizationPadding)
+	void SetupForTile(const FVector::FReal* TileBMin, const FVector::FReal* TileBMax, const FVector::FReal RasterizationLowPadding, const FVector::FReal RasterizationHighPadding)
 	{
 		Reset();
 
 		rcVcopy(RasterizeHF->bmin, TileBMin);
 		rcVcopy(RasterizeHF->bmax, TileBMax);
 
-		RasterizeHF->bmin[0] -= RasterizationPadding;
-		RasterizeHF->bmin[2] -= RasterizationPadding;
-		RasterizeHF->bmax[0] += RasterizationPadding;
-		RasterizeHF->bmax[2] += RasterizationPadding;
+		RasterizeHF->bmin[0] -= RasterizationLowPadding;
+		RasterizeHF->bmin[2] -= RasterizationLowPadding;
+		RasterizeHF->bmax[0] += RasterizationHighPadding;
+		RasterizeHF->bmax[2] += RasterizationHighPadding;
 	}
 
 	rcHeightfield* RasterizeHF;
@@ -2355,11 +2358,12 @@ void FRecastTileGenerator::PrepareVoxelCache(const TNavStatArray<uint8>& RawColl
 	// tile's geometry: voxel cache (only for synchronous rebuilds)
 	const int32 WalkableClimbVX = TileConfig.walkableClimb;
 	const FVector::FReal WalkableSlopeCos = FMath::Cos(FMath::DegreesToRadians(TileConfig.walkableSlopeAngle));
-	const FVector::FReal RasterizationPadding = TileConfig.borderSize * TileConfig.cs;
+	const FVector::FReal RasterizationLowPadding = TileConfig.borderSize.low * TileConfig.cs;
+	const FVector::FReal RasterizationHighPadding = TileConfig.borderSize.high * TileConfig.cs;
 
 	FRecastGeometryCache CachedCollisions(RawCollisionCache.GetData());
 
-	VoxelCacheContext.SetupForTile(TileConfig.bmin, TileConfig.bmax, RasterizationPadding);
+	VoxelCacheContext.SetupForTile(TileConfig.bmin, TileConfig.bmax, RasterizationLowPadding, RasterizationHighPadding);
 
 	float SlopeCosPerActor = UE_REAL_TO_FLOAT(WalkableSlopeCos);
 	CachedCollisions.Header.SlopeOverride.ModifyWalkableFloorZ(SlopeCosPerActor);
@@ -2682,14 +2686,16 @@ bool FRecastTileGenerator::CreateHeightField(FNavMeshBuildContext& BuildContext)
 
 	SCOPE_CYCLE_COUNTER(STAT_Navigation_RecastCreateHeightField);
 
-	TileConfig.width = TileConfig.tileSize + TileConfig.borderSize * 2;
-	TileConfig.height = TileConfig.tileSize + TileConfig.borderSize * 2;
+	const int size = TileConfig.tileSize + (TileConfig.borderSize.low + TileConfig.borderSize.high);
+	TileConfig.width = size;
+	TileConfig.height = size;
 
-	const FVector::FReal BBoxPadding = TileConfig.borderSize * TileConfig.cs;
-	TileConfig.bmin[0] -= BBoxPadding;
-	TileConfig.bmin[2] -= BBoxPadding;
-	TileConfig.bmax[0] += BBoxPadding;
-	TileConfig.bmax[2] += BBoxPadding;
+	const FVector::FReal BBoxPaddingLow = TileConfig.borderSize.low * TileConfig.cs;
+	const FVector::FReal BBoxPaddingHigh = TileConfig.borderSize.high * TileConfig.cs;
+	TileConfig.bmin[0] -= BBoxPaddingLow;
+	TileConfig.bmin[2] -= BBoxPaddingLow;
+	TileConfig.bmax[0] += BBoxPaddingHigh;
+	TileConfig.bmax[2] += BBoxPaddingHigh;
 
 	BuildContext.log(RC_LOG_PROGRESS, "CreateHeightField:");
 	BuildContext.log(RC_LOG_PROGRESS, " - %d x %d cells", TileConfig.width, TileConfig.height);
@@ -4887,7 +4893,8 @@ void FRecastNavMeshGenerator::SetupTileConfig(const ENavigationDataResolution Ti
 
 	// +1 for voxelization rounding, +1 for ledge neighbor access, +1 for occasional errors
 	const int BorderForAgentVx = OutConfig.walkableRadius + 3;
-	OutConfig.borderSize = BorderForAgentVx + MaxLinkDistanceVx; 
+	OutConfig.borderSize.low = UE::NavMesh::Private::bUseAsymetricBorderSizes ? BorderForAgentVx : BorderForAgentVx + MaxLinkDistanceVx;
+	OutConfig.borderSize.high = BorderForAgentVx + MaxLinkDistanceVx;
 
 	OutConfig.maxEdgeLen = (int32)(1200.0f / CellSize);
 
@@ -4966,7 +4973,9 @@ void FRecastNavMeshGenerator::ConfigureBuildProperties(FRecastBuildConfig& OutCo
 		JumpDown.CopyToDetourConfig(OutConfig.JumpDownConfig);
 		JumpOver.CopyToDetourConfig(OutConfig.JumpOverConfig);
 
-		OutConfig.LinkSpillDistance = FMath::Max((JumpDown.JumpLength-JumpDown.JumpDistanceFromEdge), (JumpOver.JumpLength-JumpOver.JumpDistanceFromEdge));
+		const float JumpDownSpillDistance = JumpDown.bEnabled ? JumpDown.JumpLength - JumpDown.JumpDistanceFromEdge : 0.f;
+		const float JumpOverSpillDistance = JumpOver.bEnabled ? JumpOver.JumpLength - JumpOver.JumpDistanceFromEdge : 0.f;
+		OutConfig.LinkSpillDistance = FMath::Max(JumpDownSpillDistance, JumpOverSpillDistance);
 		MaxLinkDistanceVx = FMath::CeilToInt(OutConfig.LinkSpillDistance / CellSize);
 	}
 	
@@ -4977,7 +4986,8 @@ void FRecastNavMeshGenerator::ConfigureBuildProperties(FRecastBuildConfig& OutCo
 
 	// +1 for voxelization rounding, +1 for ledge neighbor access, +1 for occasional errors
 	const int BorderForAgentVx = OutConfig.walkableRadius + 3;
-	OutConfig.borderSize = BorderForAgentVx + MaxLinkDistanceVx; 
+	OutConfig.borderSize.low = UE::NavMesh::Private::bUseAsymetricBorderSizes ? BorderForAgentVx : BorderForAgentVx + MaxLinkDistanceVx;
+	OutConfig.borderSize.high = BorderForAgentVx + MaxLinkDistanceVx;
 
 	OutConfig.maxEdgeLen = (int32)(1200.0f / CellSize);
 
@@ -5039,13 +5049,27 @@ void FRecastNavMeshGenerator::Init()
 
 	if (UE::NavMesh::Private::bUseTightBoundExpansion)
 	{
-		const rcReal HorizontalGrowth = Config.borderSize * Config.cs;
-		BBoxGrowth = FVector(HorizontalGrowth, HorizontalGrowth, Config.cs);
+		// Recast axis are inverted so growth direction are inverted here (using the positive side border for the low box growth and vice versa).
+		const rcReal HorizontalGrowhtLow = Config.borderSize.high * Config.cs;
+		BBoxGrowthLow = FVector(HorizontalGrowhtLow, HorizontalGrowhtLow, Config.cs);
+
+		const rcReal HorizontalGrowthHigh = Config.borderSize.low * Config.cs;
+		BBoxGrowthHigh = FVector(HorizontalGrowthHigh, HorizontalGrowthHigh, Config.cs);
+
+    PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	    BBoxGrowth = FVector(static_cast<rcReal>(FMath::Max(Config.borderSize.low, Config.borderSize.high)) * Config.cs);
+    PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 	else
 	{
-		// Deprecated
-		BBoxGrowth = FVector(2.0 * static_cast<rcReal>(Config.borderSize) * Config.cs);
+		// Not using bUseTightBoundExpansion is deprecated, setting values mimicking previous behavior.
+
+    PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	    BBoxGrowth = FVector(2.0 * static_cast<rcReal>(FMath::Max(Config.borderSize.low, Config.borderSize.high)) * Config.cs);
+    PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+		BBoxGrowthLow = FVector(2.0 * static_cast<rcReal>(Config.borderSize.high) * Config.cs);
+		BBoxGrowthHigh = FVector(2.0 * static_cast<rcReal>(Config.borderSize.low) * Config.cs);
 	}
 	RcNavMeshOrigin = Unreal2RecastPoint(DestNavMesh->NavMeshOriginOffset);
 	
@@ -5073,7 +5097,7 @@ void FRecastNavMeshGenerator::Init()
 	// prepare voxel cache if needed
 	if (ARecastNavMesh::IsVoxelCacheEnabled())
 	{
-		VoxelCacheContext.Create(Config.tileSize + Config.borderSize * 2, Config.cs, Config.ch);
+		VoxelCacheContext.Create(Config.tileSize + Config.borderSize.low + Config.borderSize.high, Config.cs, Config.ch);
 	}
 
 	bInitialized = true;
@@ -6122,7 +6146,14 @@ FBox FRecastNavMeshGenerator::GrowBoundingBox(const FBox& BBox, bool bIncludeAge
 {
 	const FVector BBoxGrowOffsetMin = FVector(0, 0, bIncludeAgentHeight ? Config.AgentHeight : 0.0f);
 
-	return FBox(BBox.Min - BBoxGrowth - BBoxGrowOffsetMin, BBox.Max + BBoxGrowth);
+	return FBox(BBox.Min - BBoxGrowthLow - BBoxGrowOffsetMin, BBox.Max + BBoxGrowthHigh);
+}
+
+FBox FRecastNavMeshGenerator::GrowDirtyBounds(const FBox& BBox, bool bIncludeAgentHeight) const
+{
+	const FVector BBoxGrowOffsetMin = FVector(0, 0, bIncludeAgentHeight ? Config.AgentHeight : 0.0f);
+
+	return FBox(BBox.Min - BBoxGrowthHigh - BBoxGrowOffsetMin, BBox.Max + BBoxGrowthLow);
 }
 
 bool FRecastNavMeshGenerator::ShouldGenerateGeometryForOctreeElement(const FNavigationOctreeElement& Element, const FNavDataConfig& NavDataConfig) const
@@ -6302,7 +6333,7 @@ void FRecastNavMeshGenerator::MarkDirtyTiles(const TArray<FNavigationDirtyArea>&
 				}
 
 				const FBox CutDownArea = CalculateBoxIntersection(GetTotalBounds(), DirtyArea.Bounds);
-				AdjustedAreaBounds = GrowBoundingBox(CutDownArea, DirtyArea.HasFlag(ENavigationDirtyFlag::UseAgentHeight));
+				AdjustedAreaBounds = GrowDirtyBounds(CutDownArea, DirtyArea.HasFlag(ENavigationDirtyFlag::UseAgentHeight));
 
 				// @TODO this and the following test share some work in common
 				if (IntersectBounds(AdjustedAreaBounds, InclusionBounds) == false)

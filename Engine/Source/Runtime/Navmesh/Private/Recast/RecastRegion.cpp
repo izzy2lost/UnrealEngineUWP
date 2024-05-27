@@ -1009,7 +1009,7 @@ bool rcBuildDistanceField(rcContext* ctx, rcCompactHeightfield& chf)
 }
 
 static void paintRectRegion(int minx, int maxx, int miny, int maxy, unsigned short regId,
-							rcCompactHeightfield& chf, unsigned short* srcReg)
+							const rcCompactHeightfield& chf, unsigned short* srcReg)
 {
 	const int w = chf.width;	
 	for (int y = miny; y < maxy; ++y)
@@ -1026,6 +1026,30 @@ static void paintRectRegion(int minx, int maxx, int miny, int maxy, unsigned sho
 	}
 }
 
+// @UE BEGIN
+namespace UE::Recast::Private
+{
+	void rcMarkBorderRegions(const rcBorderSize borderSize, const int w, const int h,
+		rcCompactHeightfield& chf, unsigned short* srcReg, unsigned short& id)
+	{
+		if (borderSize.low > 0 || borderSize.high > 0)
+		{
+			const int lowW = rcMin(w, borderSize.low);
+			const int lowH = rcMin(h, borderSize.low);
+			const int highW = rcMin(w, borderSize.high);
+			const int highH = rcMin(h, borderSize.high);
+			
+			// Paint regions
+			paintRectRegion(0, lowW, 0, h, id|RC_BORDER_REG, chf, srcReg); id++;
+			paintRectRegion(w-highW, w, 0, h, id|RC_BORDER_REG, chf, srcReg); id++;
+			paintRectRegion(0, w, 0, lowH, id|RC_BORDER_REG, chf, srcReg); id++;
+			paintRectRegion(0, w, h-highH, h, id|RC_BORDER_REG, chf, srcReg); id++;
+
+			chf.borderSize = borderSize;
+		}
+	}
+} //namespace UE::Recast::Private
+// @UE END
 
 static const unsigned short RC_NULL_NEI = 0xffff;
 
@@ -1057,7 +1081,7 @@ struct rcSweepSpan
 /// 
 /// @see rcCompactHeightfield, rcCompactSpan, rcBuildDistanceField, rcBuildRegionsMonotone, rcConfig
 bool rcBuildRegionsMonotone(rcContext* ctx, rcCompactHeightfield& chf,
-							const int borderSize, const int minRegionArea, const int mergeRegionArea)
+							const rcBorderSize borderSize, const int minRegionArea, const int mergeRegionArea)	//@UE
 {
 	rcAssert(ctx);
 	
@@ -1082,34 +1106,20 @@ bool rcBuildRegionsMonotone(rcContext* ctx, rcCompactHeightfield& chf,
 		ctx->log(RC_LOG_ERROR, "rcBuildRegionsMonotone: Out of memory 'sweeps' (%d).", nsweeps);
 		return false;
 	}
-	
-	
-	// Mark border regions.
-	if (borderSize > 0)
-	{
-		// Make sure border will not overflow.
-		const int bw = rcMin(w, borderSize);
-		const int bh = rcMin(h, borderSize);
-		// Paint regions
-		paintRectRegion(0, bw, 0, h, id|RC_BORDER_REG, chf, srcReg); id++;
-		paintRectRegion(w-bw, w, 0, h, id|RC_BORDER_REG, chf, srcReg); id++;
-		paintRectRegion(0, w, 0, bh, id|RC_BORDER_REG, chf, srcReg); id++;
-		paintRectRegion(0, w, h-bh, h, id|RC_BORDER_REG, chf, srcReg); id++;
-		
-		chf.borderSize = borderSize;
-	}
+
+	UE::Recast::Private::rcMarkBorderRegions(borderSize, w, h, chf, srcReg, id);		//@UE
 	
 	rcIntArray prev(256);
 
 	// Sweep one line at a time.
-	for (int y = borderSize; y < h-borderSize; ++y)
+	for (int y = borderSize.low; y < h-borderSize.high; ++y)		//@UE
 	{
 		// Collect spans from this row.
 		prev.resize(id+1);
 		memset(&prev[0],0,sizeof(int)*id);
 		unsigned short rid = 1;
 		
-		for (int x = borderSize; x < w-borderSize; ++x)
+		for (int x = borderSize.low; x < w-borderSize.high; ++x)	//@UE
 		{
 			const rcCompactCell& c = chf.cells[x+y*w];
 			
@@ -1178,7 +1188,7 @@ bool rcBuildRegionsMonotone(rcContext* ctx, rcCompactHeightfield& chf,
 		}
 		
 		// Remap IDs
-		for (int x = borderSize; x < w-borderSize; ++x)
+		for (int x = borderSize.low; x < w-borderSize.high; ++x)	//@UE
 		{
 			const rcCompactCell& c = chf.cells[x+y*w];
 			
@@ -1209,7 +1219,7 @@ bool rcBuildRegionsMonotone(rcContext* ctx, rcCompactHeightfield& chf,
 }
 
 bool rcBuildRegionsChunky(rcContext* ctx, rcCompactHeightfield& chf,
-						  const int borderSize, const int minRegionArea, const int mergeRegionArea,
+						  const rcBorderSize borderSize, const int minRegionArea, const int mergeRegionArea,	//@UE
 						  const int regionChunkSize)
 {
 	rcAssert(ctx);
@@ -1236,29 +1246,15 @@ bool rcBuildRegionsChunky(rcContext* ctx, rcCompactHeightfield& chf,
 		return false;
 	}
 
-
-	// Mark border regions.
-	if (borderSize > 0)
-	{
-		// Make sure border will not overflow.
-		const int bw = rcMin(w, borderSize);
-		const int bh = rcMin(h, borderSize);
-		// Paint regions
-		paintRectRegion(0, bw, 0, h, id|RC_BORDER_REG, chf, srcReg); id++;
-		paintRectRegion(w-bw, w, 0, h, id|RC_BORDER_REG, chf, srcReg); id++;
-		paintRectRegion(0, w, 0, bh, id|RC_BORDER_REG, chf, srcReg); id++;
-		paintRectRegion(0, w, h-bh, h, id|RC_BORDER_REG, chf, srcReg); id++;
-
-		chf.borderSize = borderSize;
-	}
+	UE::Recast::Private::rcMarkBorderRegions(borderSize, w, h, chf, srcReg, id);		//@UE
 
 	rcIntArray prev(256);
-	for (int chunkx = borderSize; chunkx < w-borderSize; chunkx += regionChunkSize)
+	for (int chunkx = borderSize.low; chunkx < w-borderSize.high; chunkx += regionChunkSize)		//@UE
 	{
-		for (int chunky = borderSize; chunky < h-borderSize; chunky += regionChunkSize)
+		for (int chunky = borderSize.low; chunky < h-borderSize.high; chunky += regionChunkSize)		//@UE
 		{
-			const int maxx = rcMin(chunkx + regionChunkSize, w-borderSize);
-			const int maxy = rcMin(chunky + regionChunkSize, h-borderSize);
+			const int maxx = rcMin(chunkx + regionChunkSize, w-borderSize.high);		//@UE
+			const int maxy = rcMin(chunky + regionChunkSize, h-borderSize.high);		//@UE
 
 			// Sweep one line at a time.
 			for (int y = chunky; y < maxy; ++y)
@@ -1374,7 +1370,7 @@ bool rcBuildRegionsChunky(rcContext* ctx, rcCompactHeightfield& chf,
 ///		  
 ///		  spanBuf4 is temporary buffer, allocated and freed by caller (size = chf.spanCount * 4)
 ///
-bool rcGatherRegionsNoFilter(rcContext* ctx, rcCompactHeightfield& chf, const int borderSize, unsigned short* spanBuf4)
+bool rcGatherRegionsNoFilter(rcContext* ctx, rcCompactHeightfield& chf, const rcBorderSize borderSize, unsigned short* spanBuf4)		//@UE
 {
 	const int w = chf.width;
 	const int h = chf.height;
@@ -1399,19 +1395,7 @@ bool rcGatherRegionsNoFilter(rcContext* ctx, rcCompactHeightfield& chf, const in
 	//	const int expandIters = 4 + walkableRadius * 2;
 	const int expandIters = 8;
 
-	if (borderSize > 0)
-	{
-		// Make sure border will not overflow.
-		const int bw = rcMin(w, borderSize);
-		const int bh = rcMin(h, borderSize);
-		// Paint regions
-		paintRectRegion(0, bw, 0, h, regionId|RC_BORDER_REG, chf, srcReg); regionId++;
-		paintRectRegion(w-bw, w, 0, h, regionId|RC_BORDER_REG, chf, srcReg); regionId++;
-		paintRectRegion(0, w, 0, bh, regionId|RC_BORDER_REG, chf, srcReg); regionId++;
-		paintRectRegion(0, w, h-bh, h, regionId|RC_BORDER_REG, chf, srcReg); regionId++;
-
-		chf.borderSize = borderSize;
-	}
+	UE::Recast::Private::rcMarkBorderRegions(borderSize, w, h, chf, srcReg, regionId);		//@UE
 
 	while (level > 0)
 	{
@@ -1480,7 +1464,7 @@ bool rcGatherRegionsNoFilter(rcContext* ctx, rcCompactHeightfield& chf, const in
 /// 
 /// @see rcCompactHeightfield, rcCompactSpan, rcBuildDistanceField, rcBuildRegionsMonotone, rcConfig
 bool rcBuildRegions(rcContext* ctx, rcCompactHeightfield& chf,
-					const int borderSize, const int minRegionArea, const int mergeRegionArea)
+					const rcBorderSize borderSize, const int minRegionArea, const int mergeRegionArea)	//@UE
 {
 	rcAssert(ctx);
 	

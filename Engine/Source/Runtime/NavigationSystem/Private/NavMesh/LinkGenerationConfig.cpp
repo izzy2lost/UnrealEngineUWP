@@ -7,7 +7,7 @@
 
 void FNavLinkGenerationJumpDownConfig::CopyToDetourConfig(dtNavLinkBuilderJumpDownConfig& OutDetourConfig) const
 {
-	OutDetourConfig.enabled = bEnable;
+	OutDetourConfig.enabled = bEnabled;
 	OutDetourConfig.jumpLength = JumpLength;
 	OutDetourConfig.jumpDistanceFromEdge = JumpDistanceFromEdge;
 	OutDetourConfig.jumpMaxDepth = JumpMaxDepth;

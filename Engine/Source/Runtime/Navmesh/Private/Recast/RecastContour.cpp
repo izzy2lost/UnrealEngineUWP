@@ -598,7 +598,7 @@ static bool mergeContours(rcContour& ca, rcContour& cb, int ia, int ib)
 /// Simplified contours are generated such that the vertices for portals between areas match up. 
 /// (They are considered mandatory vertices.)
 ///
-/// Setting @p maxEdgeLength to zero will disabled the edge length feature.
+/// Setting @p maxEdgeLength to zero will disable the edge length feature.
 /// 
 /// See the #rcConfig documentation for more information on the configuration parameters.
 /// 
@@ -611,25 +611,27 @@ bool rcBuildContours(rcContext* ctx, rcCompactHeightfield& chf,
 	
 	const int w = chf.width;
 	const int h = chf.height;
-	const int borderSize = chf.borderSize;
+	const rcBorderSize borderSize = chf.borderSize;		//@UE
 	
 	ctx->startTimer(RC_TIMER_BUILD_CONTOURS);
 	
 	rcVcopy(cset.bmin, chf.bmin);
 	rcVcopy(cset.bmax, chf.bmax);
-	if (borderSize > 0)
+	if (borderSize.low > 0 || borderSize.high > 0)		//@UE
 	{
 		// If the heightfield was build with bordersize, remove the offset.
-		const rcReal pad = borderSize*chf.cs;
+		const rcReal pad = borderSize.low*chf.cs;		//@UE
 		cset.bmin[0] += pad;
 		cset.bmin[2] += pad;
-		cset.bmax[0] -= pad;
-		cset.bmax[2] -= pad;
+		
+		const rcReal padHigh = borderSize.high*chf.cs;	//@UE
+		cset.bmax[0] -= padHigh;						//@UE
+		cset.bmax[2] -= padHigh;						//@UE
 	}
 	cset.cs = chf.cs;
 	cset.ch = chf.ch;
-	cset.width = chf.width - chf.borderSize*2;
-	cset.height = chf.height - chf.borderSize*2;
+	cset.width = chf.width - (chf.borderSize.low+chf.borderSize.high);		//@UE
+	cset.height = chf.height - (chf.borderSize.low+chf.borderSize.high);	//@UE
 	cset.borderSize = chf.borderSize;
 	
 	int maxContours = rcMax((int)chf.maxRegions, 8);
@@ -749,14 +751,14 @@ bool rcBuildContours(rcContext* ctx, rcCompactHeightfield& chf,
 						return false;
 					}
 					memcpy(cont->verts, &simplified[0], sizeof(int)*cont->nverts*4);
-					if (borderSize > 0)
+					if (borderSize.low > 0)				//@UE
 					{
 						// If the heightfield was build with bordersize, remove the offset.
 						for (int j = 0; j < cont->nverts; ++j)
 						{
 							int* v = &cont->verts[j*4];
-							v[0] -= borderSize;
-							v[2] -= borderSize;
+							v[0] -= borderSize.low;		//@UE
+							v[2] -= borderSize.low;		//@UE
 						}
 					}
 					
@@ -768,27 +770,16 @@ bool rcBuildContours(rcContext* ctx, rcCompactHeightfield& chf,
 						return false;
 					}
 					memcpy(cont->rverts, &verts[0], sizeof(int)*cont->nrverts*4);
-					if (borderSize > 0)
+					if (borderSize.low > 0)				//@UE
 					{
 						// If the heightfield was build with bordersize, remove the offset.
 						for (int j = 0; j < cont->nrverts; ++j)
 						{
 							int* v = &cont->rverts[j*4];
-							v[0] -= borderSize;
-							v[2] -= borderSize;
+							v[0] -= borderSize.low;		//@UE
+							v[2] -= borderSize.low;		//@UE
 						}
 					}
-					
-/*					cont->cx = cont->cy = cont->cz = 0;
-					for (int i = 0; i < cont->nverts; ++i)
-					{
-						cont->cx += cont->verts[i*4+0];
-						cont->cy += cont->verts[i*4+1];
-						cont->cz += cont->verts[i*4+2];
-					}
-					cont->cx /= cont->nverts;
-					cont->cy /= cont->nverts;
-					cont->cz /= cont->nverts;*/
 					
 					cont->reg = reg;
 					cont->area = area;

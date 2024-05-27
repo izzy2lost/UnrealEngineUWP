@@ -526,6 +526,7 @@ void FNavMeshSceneProxyData::GatherData(const ARecastNavMesh* NavMesh, int32 InN
 		double AverageBuildTime = 0.;
 		double AverageCompLayersBuildTime = 0.;
 		double AverageNavLayersBuildTime = 0.;
+		double AverageLinkBuildTime = 0.;
 		double TotalBuildLinkTime = 0.;
 		if (bGatherTileBuildTimes || NavMeshGeometry.bGatherTileBuildTimesHeatMap)
 		{
@@ -544,16 +545,18 @@ void FNavMeshSceneProxyData::GatherData(const ARecastNavMesh* NavMesh, int32 InN
 					AverageBuildTime += Pair.Value.BuildTime;
 					AverageCompLayersBuildTime += Pair.Value.BuildCompressedLayerTime;
 					AverageNavLayersBuildTime += Pair.Value.BuildNavigationDataTime;
-					TotalBuildLinkTime += Pair.Value.BuildLinkTime;
+					AverageLinkBuildTime += Pair.Value.BuildLinkTime;
 				}
 			}
 
 			TotalTileBuildTime = AverageBuildTime;
+			TotalBuildLinkTime = AverageLinkBuildTime;
 			if (DebugDataMap->Num() != 0)
 			{
 				AverageBuildTime /= DebugDataMap->Num();
 				AverageCompLayersBuildTime /= DebugDataMap->Num();
 				AverageNavLayersBuildTime /= DebugDataMap->Num();
+				AverageLinkBuildTime /= DebugDataMap->Num();
 			}
 		}
 
@@ -630,8 +633,9 @@ void FNavMeshSceneProxyData::GatherData(const ARecastNavMesh* NavMesh, int32 InN
 			{
 				DebugLabels.Add(FDebugText(FString::Printf(TEXT("Tile count: %i"), DebugDataMap->Num())));
 				DebugLabels.Add(FDebugText(FString::Printf(TEXT("Avg tile build time: %0.2f ms"), AverageBuildTime*1000.)));
-				DebugLabels.Add(FDebugText(FString::Printf(TEXT("   Avg comp layers time: %0.1f ms"), AverageCompLayersBuildTime*1000.)));
-				DebugLabels.Add(FDebugText(FString::Printf(TEXT("   Avg nav layers time: %0.1f ms"), AverageNavLayersBuildTime*1000.)));
+				DebugLabels.Add(FDebugText(FString::Printf(TEXT("   Avg comp layers time: %0.2f ms"), AverageCompLayersBuildTime*1000.)));
+				DebugLabels.Add(FDebugText(FString::Printf(TEXT("   Avg nav layers time: %0.2f ms"), AverageNavLayersBuildTime*1000.)));
+				DebugLabels.Add(FDebugText(FString::Printf(TEXT("   Avg link build time: %0.2f ms"), AverageLinkBuildTime*1000.)));
 				DebugLabels.Add(FDebugText(FString::Printf(TEXT("Min: %0.2f ms  Max: %0.2f ms"), NavMeshGeometry.MinTileBuildTime*1000., NavMeshGeometry.MaxTileBuildTime*1000.)));
 				DebugLabels.Add(FDebugText(FString::Printf(TEXT("Total: %0.3f s"), TotalTileBuildTime)));
 				DebugLabels.Add(FDebugText(FString::Printf(TEXT("   Total link build time: %.4f s"), TotalBuildLinkTime)));
