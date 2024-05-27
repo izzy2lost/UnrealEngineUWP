@@ -245,6 +245,26 @@ public:
 		FGeometryScriptMeshWriteLOD TargetLOD,
 		EGeometryScriptOutcomePins& Outcome,
 		UGeometryScriptDebug* Debug = nullptr);
+
+
+   /** 
+	* Add a Dynamic Mesh morph target to a Skeletal Mesh Asset.
+	* 
+	* @param FromMorphTarget the dynamic mesh representing the geometry of the morph target
+	* @param ToSkeletalMeshAsset the asset we are writing the morph target into
+	* @param MorphTargetName the name of the morph target as it will appear in the UI
+	*/
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|SkeletalMesh", meta = (ExpandEnumAsExecs = "Outcome"))
+	static UPARAM(DisplayName = "Dynamic Mesh") UDynamicMesh* 
+	CopyMorphTargetToSkeletalMesh(
+		UDynamicMesh* FromMorphTarget, 
+		USkeletalMesh* ToSkeletalMeshAsset,
+		FName MorphTargetName,
+		FGeometryScriptCopyMeshToAssetOptions Options,
+		FGeometryScriptMeshWriteLOD TargetLOD,
+		EGeometryScriptOutcomePins& Outcome,
+		UGeometryScriptDebug* Debug = nullptr);
+
 };
 
 
