@@ -500,10 +500,10 @@ class FStatsThreadState
 	friend struct FStatsReadFile;
 
 	/** Delegate that FStatsThreadState calls on the stats thread whenever we have a new frame. */
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnNewFrameHistory, int64);
+	DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnNewFrameHistory, int64);
 
 	/** Delegate that FStatsThreadState calls on the stats thread whenever we have a new raw stats packet. */
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnNewRawStatPacket, const FStatPacket*);
+	DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnNewRawStatPacket, const FStatPacket*);
 
 	/** Internal method to scan the messages to update the current frame. */
 	CORE_API void ScanForAdvance(const FStatMessagesArray& Data);
