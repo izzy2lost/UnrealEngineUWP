@@ -1118,6 +1118,8 @@ void FLumenSceneData::ReleaseAtlas()
 	IndirectLightingAtlas.SafeRelease();
 	RadiosityNumFramesAccumulatedAtlas.SafeRelease();
 	FinalLightingAtlas.SafeRelease();
+	DiffuseLightingAndSecondMomentHistoryAtlas.SafeRelease();
+	NumFramesAccumulatedHistoryAtlas.SafeRelease();
 
 	RadiosityTraceRadianceAtlas.SafeRelease();
 	RadiosityTraceHitDistanceAtlas.SafeRelease();
@@ -1543,6 +1545,9 @@ void FLumenSceneData::UpdateGPUMask(FRDGBuilder& GraphBuilder, const FLumenScene
 			ADD_LUMEN_FRAME_TEMPORARY(RadiosityNumFramesAccumulatedAtlas);
 			ADD_LUMEN_FRAME_TEMPORARY(FinalLightingAtlas);
 
+			ADD_LUMEN_FRAME_TEMPORARY(DiffuseLightingAndSecondMomentHistoryAtlas);
+			ADD_LUMEN_FRAME_TEMPORARY(NumFramesAccumulatedHistoryAtlas);
+
 			#undef ADD_LUMEN_FRAME_TEMPORARY
 
 			AddPass(GraphBuilder, RDG_EVENT_NAME("LumenCrossGPUTransfer"),
@@ -1577,6 +1582,9 @@ void FLumenSceneData::UpdateGPUMask(FRDGBuilder& GraphBuilder, const FLumenScene
 						TRANSFER_LUMEN_RESOURCE(IndirectLightingAtlas);
 						TRANSFER_LUMEN_RESOURCE(RadiosityNumFramesAccumulatedAtlas);
 						TRANSFER_LUMEN_RESOURCE(FinalLightingAtlas);
+
+						TRANSFER_LUMEN_RESOURCE(DiffuseLightingAndSecondMomentHistoryAtlas);
+						TRANSFER_LUMEN_RESOURCE(NumFramesAccumulatedHistoryAtlas);
 
 						TRANSFER_LUMEN_RESOURCE(RadiosityTraceRadianceAtlas);
 						TRANSFER_LUMEN_RESOURCE(RadiosityTraceHitDistanceAtlas);

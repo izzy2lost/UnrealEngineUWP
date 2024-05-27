@@ -1461,6 +1461,8 @@ void FLumenSceneData::FillFrameTemporaries(FRDGBuilder& GraphBuilder, FLumenScen
 	FillTexture(FrameTemporaries.IndirectLightingAtlas, IndirectLightingAtlas);
 	FillTexture(FrameTemporaries.RadiosityNumFramesAccumulatedAtlas, RadiosityNumFramesAccumulatedAtlas);
 	FillTexture(FrameTemporaries.FinalLightingAtlas, FinalLightingAtlas);
+	FillTexture(FrameTemporaries.DiffuseLightingAndSecondMomentHistoryAtlas, DiffuseLightingAndSecondMomentHistoryAtlas);
+	FillTexture(FrameTemporaries.NumFramesAccumulatedHistoryAtlas, NumFramesAccumulatedHistoryAtlas);
 }
 
 void FDeferredShadingSceneRenderer::BeginUpdateLumenSceneTasks(FRDGBuilder& GraphBuilder, FLumenSceneFrameTemporaries& FrameTemporaries)
@@ -2008,7 +2010,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 		// Atlas reallocation
 		if (FrameTemporaries.bReallocateAtlas || !LumenSceneData.AlbedoAtlas)
 		{
-			LumenSceneData.AllocateCardAtlases(GraphBuilder, FrameTemporaries);
+			LumenSceneData.AllocateCardAtlases(GraphBuilder, FrameTemporaries, Views[0].Family);
 			ClearLumenSurfaceCacheAtlas(GraphBuilder, FrameTemporaries, Views[0].ShaderMap);
 		}
 

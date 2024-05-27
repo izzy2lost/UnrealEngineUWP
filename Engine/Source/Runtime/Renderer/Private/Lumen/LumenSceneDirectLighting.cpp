@@ -11,6 +11,7 @@
 #include "DistanceFieldLightingShared.h"
 #include "VolumetricCloudRendering.h"
 #include "LumenTracingUtils.h"
+#include "LightFunctionAtlas.h"
 
 using namespace LightFunctionAtlas;
 
@@ -1458,7 +1459,7 @@ struct FLumenPackedLight
 	FVector2f RectLightAtlasUVOffset;
 
 	uint32 LightingChannelMask;
-	uint32 LightFunctionAtlasIndex_bHasShadowMask;
+	uint32 LightFunctionAtlasIndex_bHasShadowMask_bIsStandalone;
 	float IESAtlasIndex;
 	float InverseExposureBlend;
 };
@@ -1812,7 +1813,10 @@ void FDeferredShadingSceneRenderer::BeginGatherLumenLights(const FLumenSceneFram
 			}
 			LightData.RectLightAtlasUVOffset = ShaderParameters.RectLightAtlasUVOffset;
 			LightData.IESAtlasIndex = ShaderParameters.IESAtlasIndex;
-			LightData.LightFunctionAtlasIndex_bHasShadowMask = ShaderParameters.LightFunctionAtlasLightIndex | (LumenLight.NeedsShadowMask() ? (1 << 31) : 0);
+			LightData.LightFunctionAtlasIndex_bHasShadowMask_bIsStandalone = 
+				(ShaderParameters.LightFunctionAtlasLightIndex & 0x3FFFFFFFu) | 
+				( LumenLight.NeedsShadowMask()      ? (1 << 31) : 0)|
+				(!LumenLight.CanUseBatchedShadows() ? (1 << 30) : 0);
 			LightData.LightingChannelMask = LightSceneInfo->Proxy->GetLightingChannelMask();
 			LightData.InverseExposureBlend = ShaderParameters.InverseExposureBlend;
 
@@ -1881,7 +1885,7 @@ class FLumenSceneDirectLightingStatsCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return true;  //return ManyLights::ShouldCompileShaders(Parameters);
+		return DoesPlatformSupportLumenGI(Parameters.Platform);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -1958,6 +1962,11 @@ static void AddLumenSceneDirectLightingStatsPass(
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Stochastic direct lighting
+#include "LumenSceneDirectLightingStochastic.inl"
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
 void FDeferredShadingSceneRenderer::RenderDirectLightingForLumenScene(
 	FRDGBuilder& GraphBuilder,
 	const FLumenSceneFrameTemporaries& FrameTemporaries,
@@ -1987,6 +1996,15 @@ void FDeferredShadingSceneRenderer::RenderDirectLightingForLumenScene(
 
 		FRDGBufferRef LumenPackedLights = CreateStructuredBuffer(GraphBuilder, TEXT("Lumen.DirectLighting.Lights"), LightingTaskData->PackedLightData, ERDGInitialDataFlags::NoCopy);
 
+		const bool bUseHardwareRayTracedDirectLighting = Lumen::UseHardwareRayTracedDirectLighting(ViewFamily);
+
+		// Experimental Stochastic lighting path.
+		if (LumenSceneDirectLighting::UseStochasticLighting(ViewFamily))
+		{
+			ComputeStochasticLighting(GraphBuilder, Scene, Views[0], FrameTemporaries, LightingTaskData, CardUpdateContext, ComputePassFlags, LumenPackedLights);
+			return;
+		}
+
 		FLightTileCullContext CullContext;
 		FLumenCardTileUpdateContext CardTileUpdateContext;
 		CullDirectLightingTiles(GraphBuilder, Views, FrameTemporaries, CardUpdateContext, LumenCardSceneUniformBuffer, GatheredLights, LumenPackedLights, CullContext, CardTileUpdateContext, ComputePassFlags);
@@ -1998,7 +2016,7 @@ void FDeferredShadingSceneRenderer::RenderDirectLightingForLumenScene(
 		// 1 uint per packed shadow trace
 		FRDGBufferRef ShadowTraceAllocator = nullptr;
 		FRDGBufferRef ShadowTraces = nullptr;
-		if (Lumen::UseHardwareRayTracedDirectLighting(ViewFamily))
+		if (bUseHardwareRayTracedDirectLighting)
 		{
 			const uint32 MaxShadowTraces = FMath::Max(Lumen::CardTileSize * Lumen::CardTileSize * CullContext.MaxCulledCardTiles, 1024u);
 
@@ -2073,8 +2091,6 @@ void FDeferredShadingSceneRenderer::RenderDirectLightingForLumenScene(
 
 			FDistanceFieldObjectBufferParameters ObjectBufferParameters;
 
-			const bool bUseHardwareRayTracedDirectLighting = Lumen::UseHardwareRayTracedDirectLighting(ViewFamily);
-
 			if (!bUseHardwareRayTracedDirectLighting)
 			{
 				ObjectBufferParameters = DistanceField::SetupObjectBufferParameters(GraphBuilder, Scene->DistanceFieldSceneData);
@@ -2091,12 +2107,14 @@ void FDeferredShadingSceneRenderer::RenderDirectLightingForLumenScene(
 
 				if (bUseHardwareRayTracedDirectLighting)
 				{
+					FLumenDirectLightingStochasticData StochasticData;
 					TraceLumenHardwareRayTracedDirectLightingShadows(
 						GraphBuilder,
 						Scene,
 						View,
 						OriginIndex,
 						FrameTemporaries,
+						StochasticData,
 						ShadowTraceIndirectArgs,
 						ShadowTraceAllocator,
 						ShadowTraces,

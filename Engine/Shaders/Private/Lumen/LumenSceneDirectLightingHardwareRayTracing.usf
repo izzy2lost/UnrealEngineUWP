@@ -5,7 +5,11 @@
 #include "../MonteCarlo.ush"
 #include "../MortonCode.ush"
 #include "../SceneTextureParameters.ush"
-
+#if USE_STOCHASTIC
+#include "../BlueNoise.ush"
+#include "../ManyLights/ManyLights.ush"
+#include "../ManyLights/ManyLightsRayTracing.ush"
+#endif
 #include "LumenCardCommon.ush"
 #include "LumenTracingCommon.ush"
 #include "LumenReflectionCommon.ush"
@@ -30,14 +34,21 @@
 Buffer<uint> DispatchLightTilesIndirectArgs;
 RWBuffer<uint> RWHardwareRayTracingIndirectArgs;
 uint2 OutputThreadGroupSize;
+uint bStochastic;
 
 #ifdef LumenDirectLightingHardwareRayTracingIndirectArgsCS
 [numthreads(1, 1, 1)]
 void LumenDirectLightingHardwareRayTracingIndirectArgsCS()
 {
+	uint GroupOf64Traces = DispatchLightTilesIndirectArgs[0];
+	if (bStochastic)
+	{
+		GroupOf64Traces = DivideAndRoundUp64(GroupOf64Traces);
+	}
+
 	WriteDispatchIndirectArgs(RWHardwareRayTracingIndirectArgs, 0,
 		(CARD_TILE_SIZE * CARD_TILE_SIZE + OutputThreadGroupSize.x - 1) / OutputThreadGroupSize.x,
-		(DispatchLightTilesIndirectArgs[0] + OutputThreadGroupSize.y - 1) / OutputThreadGroupSize.y,
+		(GroupOf64Traces + OutputThreadGroupSize.y - 1) / OutputThreadGroupSize.y,
 		1);
 }
 #endif
@@ -91,12 +102,150 @@ bool IsRayOccluded(FRayTracedLightingResult RayResult)
 StructuredBuffer<uint> ShadowTraceAllocator;
 StructuredBuffer<uint> ShadowTraces;
 
+// Only used by the stochastic lighting
+StructuredBuffer<uint> CompactedLightSampleData;
+StructuredBuffer<uint> CompactedLightSampleAllocator;
+Texture2D<float4> LumenSceneData;
+RWTexture2DArray<uint> RWLightSamples;
+
+FLumenLight GetLumenLightData(uint LightIndex, uint ViewIndex)
+{
+	return LoadLumenLight(LightIndex, PreViewTranslation[ViewIndex].xyz, ViewExposure[ViewIndex]);
+}
+
+/**
+* Compute shadow ray direction and distance for a given reservoir.
+*/
+#if USE_STOCHASTIC 
+FLightSampleTrace GetLightSampleTrace(float3 TranslatedWorldPosition, uint LocalLightIndex, uint2 SampleCoord, uint ViewIndex)
+{
+	const float2 LightSampleRandom = BlueNoiseVec2(SampleCoord, ManyLightsStateFrameIndex);
+
+	FLightSampleTrace LightSampleTrace;
+	LightSampleTrace.Direction = 0.0f;
+	LightSampleTrace.Distance = 0.0f;
+
+	if (LocalLightIndex != MAX_LOCAL_LIGHT_INDEX)
+	{
+		const FDeferredLightData LightData = GetLumenLightData(LocalLightIndex, ViewIndex).DeferredLightData;
+		const FLightShaderParameters LightParameters = ConvertToLightShaderParameters(LightData);
+
+		float3 Unused;
+		float Unused2;
+
+		bool bValid = GenerateShadowRay(
+			LightParameters,
+			LightData.bSpotLight,
+			LightData.bRectLight,
+			TranslatedWorldPosition,
+			float3(0, 0, 0),
+			LightSampleRandom,
+			Unused,
+			LightSampleTrace.Direction,
+			Unused2,
+			LightSampleTrace.Distance);
+	}
+
+	return LightSampleTrace;
+}
+#endif
+
 LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenSceneDirectLightingHardwareRayTracing)
 {
 	const uint ThreadIndex = DispatchThreadIndex.x;
 	const uint GroupIndex = DispatchThreadIndex.y;
 	const uint ShadowTraceIndex = GroupIndex * 64 + ThreadIndex;
 
+	#if USE_STOCHASTIC 
+	if (ShadowTraceIndex < CompactedLightSampleAllocator[0])
+	{
+		const FLumenSampleCoord SampleCoord = UnpackLumenSampleCoord(CompactedLightSampleData[ShadowTraceIndex]);
+		const FLumenSampleSceneData SceneData = UnpackLumenSampleSceneData(LumenSceneData[SampleCoord.Coord]);
+		FLightSample LightSample = UnpackLightSample(RWLightSamples[uint3(SampleCoord.Coord, SampleCoord.LayerIndex)]);
+		const FLumenLight LumenLight = GetLumenLightData(LightSample.LocalLightIndex, SceneData.ViewIndex);
+
+		// Trace visibility ray
+		{
+			float3 L = LumenLight.DeferredLightData.Direction;
+			float3 ToLight = L;
+			float NearFieldTMax = MaxTraceDistance;
+			float FarFieldTMax = FarFieldMaxTraceDistance;
+
+			if (LumenLight.Type != LIGHT_TYPE_DIRECTIONAL)
+			{
+				ToLight = LumenLight.DeferredLightData.TranslatedWorldPosition - SceneData.TranslatedWorldPosition;
+				float LengthToLight = length(ToLight);
+				NearFieldTMax = min(NearFieldTMax, LengthToLight);
+				FarFieldTMax = min(FarFieldTMax, LengthToLight);
+				L = normalize(ToLight);
+			}
+
+			FRayDesc Ray;
+			const float2 RandSample = 0.5;
+
+			float ReceiverBias = 0.0f;
+			#if !ENABLE_HEIGHTFIELD_PROJECTION_BIAS
+			if (SceneData.bHeightfield)
+			{
+				ReceiverBias = CalculateDistanceBasedHeightfieldBias(HeightfieldShadowReceiverBias, SceneData.TranslatedWorldPosition, PrimaryView.TranslatedWorldCameraOrigin);
+			}
+			#endif
+
+			Ray.Origin = GetCardWorldPositionForShadowing(SceneData.TranslatedWorldPosition, L, SceneData.WorldNormal, HardwareRayTracingShadowRayBias + ReceiverBias);
+			Ray.Direction = L;
+			Ray.TMin = 0;
+			Ray.TMax = NearFieldTMax;
+
+			FRayCone RayCone = (FRayCone)0;
+
+			FRayTracedLightingContext Context = CreateRayTracedLightingContext(
+				RayCone,
+				0, //TODO - CoordInCardTile,
+				0, //TODO - CoordInCardTile.x, // dummy coordinate
+				/*CullingMode*/ RAY_FLAG_CULL_FRONT_FACING_TRIANGLES,
+				MaxTraversalIterations,
+				MeshSectionVisibilityTest != 0);
+
+			// Shadows don't need closest hit distance
+			Context.bAcceptFirstHitAndEndSearch = true;
+
+			#if LUMEN_HARDWARE_INLINE_RAYTRACING
+			{
+				Context.HitGroupData = HitGroupData;
+				Context.RayTracingSceneMetadata = RayTracingSceneMetadata;
+			}
+			#endif
+
+			bool bRayOccluded = false;
+
+			#if ENABLE_FAR_FIELD_TRACING
+			{
+				Context.FarFieldReferencePos = FarFieldReferencePos;
+				Context.FarFieldMaxTraceDistance = FarFieldTMax;
+						
+				FRayTracedLightingResult RayResult = TraceSurfaceCacheFarFieldRay(TLAS, Ray, Context);
+				bRayOccluded = IsRayOccluded(RayResult);
+			}
+			#endif
+
+			if (!bRayOccluded)
+			{
+				Context.InstanceMask = RAY_TRACING_MASK_OPAQUE_SHADOW;
+				Context.bIsShadowRay = true;
+
+				FRayTracedLightingResult RayResult = TraceSurfaceCacheRay(TLAS, Ray, Context);
+				bRayOccluded = IsRayOccluded(RayResult);
+			}
+
+			if (bRayOccluded)
+			{
+				LightSample.bCompleted = true;
+				LightSample.bVisible = false;
+				RWLightSamples[uint3(SampleCoord.Coord, SampleCoord.LayerIndex)] = PackLightSample(LightSample);
+			}
+		}
+	}
+	#else
 	if (ShadowTraceIndex < ShadowTraceAllocator[0])
 	{
 		FShadowTrace ShadowTrace = UnpackShadowTrace(ShadowTraces[ShadowTraceIndex]);
@@ -232,6 +381,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenSceneDirectLightingHardwareRayTracing)
 			}
 		}
 	}
+	#endif
 }
 
 #endif // LUMEN_HARDWARE_RAYTRACING

@@ -99,7 +99,8 @@ class FLumenDirectLightingHardwareRayTracing : public FLumenHardwareRayTracingSh
 	class FEnableFarFieldTracing : SHADER_PERMUTATION_BOOL("ENABLE_FAR_FIELD_TRACING");
 	class FEnableHeightfieldProjectionBias : SHADER_PERMUTATION_BOOL("ENABLE_HEIGHTFIELD_PROJECTION_BIAS");
 	class FSurfaceCacheAlphaMasking : SHADER_PERMUTATION_BOOL("SURFACE_CACHE_ALPHA_MASKING");
-	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FEnableFarFieldTracing, FEnableHeightfieldProjectionBias, FSurfaceCacheAlphaMasking>;
+	class FStochastic : SHADER_PERMUTATION_BOOL("USE_STOCHASTIC");
+	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FEnableFarFieldTracing, FEnableHeightfieldProjectionBias, FSurfaceCacheAlphaMasking, FStochastic>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenHardwareRayTracingShaderBase::FSharedParameters, SharedParameters)
@@ -123,6 +124,15 @@ class FLumenDirectLightingHardwareRayTracing : public FLumenHardwareRayTracingSh
 
 		// Output
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWShadowMaskTiles)
+
+		// Stochastic lighting
+		SHADER_PARAMETER(FVector2f, ViewExposure)
+		SHADER_PARAMETER_ARRAY(FMatrix44f, FrustumWorldToClip, [LUMEN_MAX_VIEWS])
+		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslation, [LUMEN_MAX_VIEWS])
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray<uint>, RWLightSamples)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompactedLightSampleData)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompactedLightSampleAllocator)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, LumenSceneData)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
@@ -169,6 +179,7 @@ class FLumenDirectLightingHardwareRayTracingIndirectArgsCS : public FGlobalShade
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, DispatchLightTilesIndirectArgs)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWHardwareRayTracingIndirectArgs)
 		SHADER_PARAMETER(FIntPoint, OutputThreadGroupSize)
+		SHADER_PARAMETER(uint32, bStochastic)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -200,6 +211,7 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingDirectLighting
 			PermutationVector.Set<FLumenDirectLightingHardwareRayTracingRGS::FEnableFarFieldTracing>(Lumen::UseFarField(*View.Family));
 			PermutationVector.Set<FLumenDirectLightingHardwareRayTracingRGS::FEnableHeightfieldProjectionBias>(CVarLumenSceneDirectLightingHardwareRayTracingHeightfieldProjectionBias.GetValueOnRenderThread() != 0);
 			PermutationVector.Set<FLumenDirectLightingHardwareRayTracingRGS::FSurfaceCacheAlphaMasking>(LumenHardwareRayTracing::UseSurfaceCacheAlphaMasking());
+			PermutationVector.Set<FLumenDirectLightingHardwareRayTracingRGS::FStochastic>(LumenSceneDirectLighting::UseStochasticLighting(*View.Family));
 			PermutationVector = FLumenDirectLightingHardwareRayTracingRGS::RemapPermutation(PermutationVector);
 			TShaderRef<FLumenDirectLightingHardwareRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FLumenDirectLightingHardwareRayTracingRGS>(PermutationVector);
 			OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
@@ -234,8 +246,8 @@ void SetLumenHardwareRayTracedDirectLightingShadowsParameters(
 	);
 
 	Parameters->HardwareRayTracingIndirectArgs = HardwareRayTracingIndirectArgsBuffer;
-	Parameters->LightTileAllocator = GraphBuilder.CreateSRV(LightTileAllocator);
-	Parameters->LightTiles = GraphBuilder.CreateSRV(LightTiles);
+	Parameters->LightTileAllocator = LightTileAllocator ? GraphBuilder.CreateSRV(LightTileAllocator) : nullptr;
+	Parameters->LightTiles = LightTiles ? GraphBuilder.CreateSRV(LightTiles) : nullptr;
 	Parameters->LumenPackedLights = GraphBuilder.CreateSRV(LumenPackedLights);
 
 	Parameters->PullbackBias = 0.0f;
@@ -250,6 +262,23 @@ void SetLumenHardwareRayTracedDirectLightingShadowsParameters(
 
 	// Output
 	Parameters->RWShadowMaskTiles = ShadowMaskTilesUAV;
+
+	// Fallback for (unused) resources
+	if (!Parameters->LightTileAllocator || !Parameters->LightTiles)
+	{
+		FRDGBufferRef DefaultStructuredBuffer = GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, 16, FUintVector4::ZeroValue);
+		FRDGBufferSRVRef DummySRV = GraphBuilder.CreateSRV(DefaultStructuredBuffer);
+
+		if (Parameters->LightTileAllocator) 	{ Parameters->LightTileAllocator = DummySRV; }
+		if (Parameters->LightTiles) 			{ Parameters->LightTiles = DummySRV; }
+	}
+
+	if (!Parameters->RWShadowMaskTiles)
+	{
+		FRDGBufferRef DummyOutputBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(16u, 16u), TEXT("Lumen.SceneLighting.DummyUAV"));
+		Parameters->RWShadowMaskTiles = GraphBuilder.CreateUAV(DummyOutputBuffer);
+	}
+
 }
 
 #endif // RHI_RAYTRACING
@@ -260,6 +289,7 @@ void TraceLumenHardwareRayTracedDirectLightingShadows(
 	const FViewInfo& View,
 	int32 ViewIndex,
 	const FLumenSceneFrameTemporaries& FrameTemporaries,
+	const FLumenDirectLightingStochasticData& StochasticData,
 	FRDGBufferRef ShadowTraceIndirectArgs,
 	FRDGBufferRef ShadowTraceAllocator,
 	FRDGBufferRef ShadowTraces,
@@ -272,6 +302,7 @@ void TraceLumenHardwareRayTracedDirectLightingShadows(
 #if RHI_RAYTRACING
 	const bool bInlineRayTracing = Lumen::UseHardwareInlineRayTracing(*View.Family);
 	const bool bUseMinimalPayload = true;
+	const bool bStochastic = StochasticData.IsValid();
 
 	checkf(ComputePassFlags != ERDGPassFlags::AsyncCompute || bInlineRayTracing, TEXT("Async Lumen HWRT is only supported for inline ray tracing"));
 
@@ -280,9 +311,10 @@ void TraceLumenHardwareRayTracedDirectLightingShadows(
 	{
 		FLumenDirectLightingHardwareRayTracingIndirectArgsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FLumenDirectLightingHardwareRayTracingIndirectArgsCS::FParameters>();
 		{
-			PassParameters->DispatchLightTilesIndirectArgs = GraphBuilder.CreateSRV(ShadowTraceIndirectArgs, PF_R32_UINT);
+			PassParameters->DispatchLightTilesIndirectArgs = GraphBuilder.CreateSRV(bStochastic ? StochasticData.CompactedLightSampleAllocator : ShadowTraceIndirectArgs, PF_R32_UINT);
 			PassParameters->RWHardwareRayTracingIndirectArgs = GraphBuilder.CreateUAV(HardwareRayTracingIndirectArgsBuffer, PF_R32_UINT);
 			PassParameters->OutputThreadGroupSize = bInlineRayTracing ? FLumenDirectLightingHardwareRayTracingCS::GetThreadGroupSize(View.GetShaderPlatform()) : FLumenDirectLightingHardwareRayTracingRGS::GetThreadGroupSize();
+			PassParameters->bStochastic = bStochastic ? 1u : 0u;
 		}
 
 		TShaderRef<FLumenDirectLightingHardwareRayTracingIndirectArgsCS> ComputeShader = View.ShaderMap->GetShader<FLumenDirectLightingHardwareRayTracingIndirectArgsCS>();
@@ -311,13 +343,41 @@ void TraceLumenHardwareRayTracedDirectLightingShadows(
 		HardwareRayTracingIndirectArgsBuffer,
 		PassParameters
 	);
-	PassParameters->ShadowTraceAllocator = ShadowTraceAllocator ? GraphBuilder.CreateSRV(ShadowTraceAllocator) : nullptr;
-	PassParameters->ShadowTraces = ShadowTraces ? GraphBuilder.CreateSRV(ShadowTraces) : nullptr;
+
+	FRDGBufferSRVRef DummySRV = nullptr;
+	if (!ShadowTraceAllocator || !ShadowTraces)
+	{
+		FRDGBufferRef DefaultStructuredBuffer = GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, 16, FUintVector4::ZeroValue);
+		DummySRV = GraphBuilder.CreateSRV(DefaultStructuredBuffer);
+	}
+	PassParameters->ShadowTraceAllocator = ShadowTraceAllocator ? GraphBuilder.CreateSRV(ShadowTraceAllocator) : DummySRV;
+	PassParameters->ShadowTraces = ShadowTraces ? GraphBuilder.CreateSRV(ShadowTraces) : DummySRV;
+
+	if (bStochastic)
+	{
+		check(StochasticData.LightSamples);
+
+		const int32 NumViewOrigins = FrameTemporaries.ViewOrigins.Num();
+		for (int32 OriginIndex = 0; OriginIndex < NumViewOrigins; ++OriginIndex)
+		{
+			const FLumenViewOrigin& ViewOrigin = FrameTemporaries.ViewOrigins[OriginIndex];
+
+			PassParameters->FrustumWorldToClip[OriginIndex] = ViewOrigin.FrustumWorldToClip;
+			PassParameters->PreViewTranslation[OriginIndex] = ViewOrigin.PreViewTranslation;
+			PassParameters->ViewExposure[OriginIndex] = ViewOrigin.LastEyeAdaptationExposure;
+		}
+
+		PassParameters->CompactedLightSampleData = GraphBuilder.CreateSRV(StochasticData.CompactedLightSampleData);
+		PassParameters->CompactedLightSampleAllocator = GraphBuilder.CreateSRV(StochasticData.CompactedLightSampleAllocator);
+		PassParameters->RWLightSamples = GraphBuilder.CreateUAV(StochasticData.LightSamples);
+		PassParameters->LumenSceneData = StochasticData.SceneDataTexture;
+	}
 
 	FLumenDirectLightingHardwareRayTracingRGS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FLumenDirectLightingHardwareRayTracingRGS::FEnableFarFieldTracing>(Lumen::UseFarField(*View.Family));
 	PermutationVector.Set<FLumenDirectLightingHardwareRayTracingRGS::FEnableHeightfieldProjectionBias>(CVarLumenSceneDirectLightingHardwareRayTracingHeightfieldProjectionBias.GetValueOnRenderThread() != 0);
 	PermutationVector.Set<FLumenDirectLightingHardwareRayTracingRGS::FSurfaceCacheAlphaMasking>(LumenHardwareRayTracing::UseSurfaceCacheAlphaMasking());
+	PermutationVector.Set<FLumenDirectLightingHardwareRayTracingRGS::FStochastic>(bStochastic);
 	PermutationVector = FLumenDirectLightingHardwareRayTracingRGS::RemapPermutation(PermutationVector);
 
 	if (bInlineRayTracing)

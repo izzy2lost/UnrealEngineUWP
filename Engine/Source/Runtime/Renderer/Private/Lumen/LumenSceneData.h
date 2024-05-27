@@ -649,6 +649,8 @@ struct FLumenSceneFrameTemporaries
 	FRDGTextureRef IndirectLightingAtlas = nullptr;
 	FRDGTextureRef RadiosityNumFramesAccumulatedAtlas = nullptr;
 	FRDGTextureRef FinalLightingAtlas = nullptr;
+	FRDGTextureRef DiffuseLightingAndSecondMomentHistoryAtlas = nullptr;
+	FRDGTextureRef NumFramesAccumulatedHistoryAtlas = nullptr;
 
 	FRDGBufferSRV* CardBufferSRV = nullptr;
 	FRDGBufferSRV* MeshCardsBufferSRV = nullptr;
@@ -796,6 +798,10 @@ public:
 	TRefCountPtr<IPooledRenderTarget> RadiosityProbeSHGreenAtlas;
 	TRefCountPtr<IPooledRenderTarget> RadiosityProbeSHBlueAtlas;
 
+	// Direct lighting denoising
+	TRefCountPtr<IPooledRenderTarget> DiffuseLightingAndSecondMomentHistoryAtlas;
+	TRefCountPtr<IPooledRenderTarget> NumFramesAccumulatedHistoryAtlas;
+
 	// Lumen Scene readback for handling GPU driven updates
 	FLumenSceneReadback SceneReadback;
 
@@ -852,7 +858,7 @@ public:
 
 	void FillFrameTemporaries(FRDGBuilder& GraphBuilder, FLumenSceneFrameTemporaries& FrameTemporaries);
 
-	void AllocateCardAtlases(FRDGBuilder& GraphBuilder, FLumenSceneFrameTemporaries& FrameTemporaries);
+	void AllocateCardAtlases(FRDGBuilder& GraphBuilder, FLumenSceneFrameTemporaries& FrameTemporaries, const FSceneViewFamily* ViewFamily);
 	void ReallocVirtualSurface(FLumenCard& Card, int32 CardIndex, int32 ResLevel, bool bLockPages);
 	void FreeVirtualSurface(FLumenCard& Card, uint8 FromResLevel, uint8 ToResLevel);
 

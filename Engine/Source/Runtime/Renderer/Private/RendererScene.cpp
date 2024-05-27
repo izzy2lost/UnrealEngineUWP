@@ -1012,6 +1012,8 @@ uint64 FLumenSceneData::GetGPUSizeBytes(bool bLogSizes) const
 		GetRenderTargetGPUSizeBytes(EmissiveAtlas, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(DepthAtlas, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(DirectLightingAtlas, bLogSizes) +
+		GetRenderTargetGPUSizeBytes(DiffuseLightingAndSecondMomentHistoryAtlas, bLogSizes) +
+		GetRenderTargetGPUSizeBytes(NumFramesAccumulatedHistoryAtlas, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(IndirectLightingAtlas, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(RadiosityNumFramesAccumulatedAtlas, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(FinalLightingAtlas, bLogSizes) +

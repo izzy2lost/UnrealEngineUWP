@@ -562,5 +562,15 @@ void FDeferredShadingSceneRenderer::FinishGatheringLumenSurfaceCacheFeedback(FRD
 		GraphBuilder.QueueTextureExtraction(FrameTemporaries.IndirectLightingAtlas, &LumenSceneData.IndirectLightingAtlas);
 		GraphBuilder.QueueTextureExtraction(FrameTemporaries.RadiosityNumFramesAccumulatedAtlas, &LumenSceneData.RadiosityNumFramesAccumulatedAtlas);
 		GraphBuilder.QueueTextureExtraction(FrameTemporaries.FinalLightingAtlas, &LumenSceneData.FinalLightingAtlas);
+
+		if (FrameTemporaries.DiffuseLightingAndSecondMomentHistoryAtlas && FrameTemporaries.DiffuseLightingAndSecondMomentHistoryAtlas->HasBeenProduced())
+		{
+			GraphBuilder.QueueTextureExtraction(FrameTemporaries.DiffuseLightingAndSecondMomentHistoryAtlas, &LumenSceneData.DiffuseLightingAndSecondMomentHistoryAtlas);
+		}
+
+		if (FrameTemporaries.NumFramesAccumulatedHistoryAtlas && FrameTemporaries.NumFramesAccumulatedHistoryAtlas->HasBeenProduced())
+		{
+			GraphBuilder.QueueTextureExtraction(FrameTemporaries.NumFramesAccumulatedHistoryAtlas, &LumenSceneData.NumFramesAccumulatedHistoryAtlas);
+		}
 	}
 }

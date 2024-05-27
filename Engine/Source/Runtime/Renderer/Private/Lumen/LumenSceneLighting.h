@@ -150,12 +150,23 @@ enum class ELumenLightType
 	MAX
 };
 
+struct FLumenDirectLightingStochasticData
+{
+	bool IsValid() const { return LightSamples != nullptr; }
+
+	FRDGBufferRef  CompactedLightSampleData = nullptr;
+	FRDGBufferRef  CompactedLightSampleAllocator = nullptr;
+	FRDGTextureRef SceneDataTexture = nullptr;
+	FRDGTextureRef LightSamples = nullptr;
+};
+
 void TraceLumenHardwareRayTracedDirectLightingShadows(
 	FRDGBuilder& GraphBuilder,
 	const FScene* Scene,
 	const FViewInfo& View,
 	int32 ViewIndex,
 	const FLumenSceneFrameTemporaries& FrameTemporaries,
+	const FLumenDirectLightingStochasticData& StochasticData,
 	FRDGBufferRef ShadowTraceIndirectArgs,
 	FRDGBufferRef ShadowTraceAllocator,
 	FRDGBufferRef ShadowTraces,
@@ -238,4 +249,6 @@ namespace LumenSceneDirectLighting
 	float GetHeightfieldShadowRayBias();
 	float GetGlobalSDFShadowRayBias();
 	float GetHardwareRayTracingShadowRayBias();
+
+	bool UseStochasticLighting(const FSceneViewFamily& ViewFamily);
 }

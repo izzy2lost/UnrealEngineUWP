@@ -127,7 +127,7 @@ struct FLumenPackedLight
 	float2 RectLightAtlasUVOffset;
 
 	uint LightingChannelMask;
-	uint LightFunctionAtlasIndex_bHasShadowMask;
+	uint LightFunctionAtlasIndex_bHasShadowMask_bIsStandalone;
 	float IESAtlasIndex;
 	float InverseExposureBlend;
 };
@@ -146,6 +146,7 @@ struct FLumenLight
 	uint VirtualShadowMapId;
 	uint LightingChannelMask;
 	uint bHasShadowMask;
+	uint bIsStandaloneLight;
 	uint Type;
 };
 
@@ -182,7 +183,7 @@ FLumenLight LoadLumenLight(uint LightIndex, float3 PreViewTranslation, float Exp
 	DeferredLightData.bSpotLight = PackedLight.LightType == LIGHT_TYPE_SPOT;
 	DeferredLightData.bRectLight = PackedLight.LightType == LIGHT_TYPE_RECT;
 	DeferredLightData.IESAtlasIndex = PackedLight.IESAtlasIndex;
-	DeferredLightData.LightFunctionAtlasLightIndex = PackedLight.LightFunctionAtlasIndex_bHasShadowMask & 0x7FFFFFFF;
+	DeferredLightData.LightFunctionAtlasLightIndex = PackedLight.LightFunctionAtlasIndex_bHasShadowMask_bIsStandalone & 0x3FFFFFFF;
 
 	FLumenLight LumenLight = (FLumenLight)0;
 	LumenLight.DeferredLightData = DeferredLightData;
@@ -193,7 +194,8 @@ FLumenLight LoadLumenLight(uint LightIndex, float3 PreViewTranslation, float Exp
 	LumenLight.CosConeAngle = PackedLight.SinCosConeAngleOrRectLightAtlasUVScale.y;
 	LumenLight.SinConeAngle = PackedLight.SinCosConeAngleOrRectLightAtlasUVScale.x;
 	LumenLight.VirtualShadowMapId = PackedLight.VirtualShadowMapId;
-	LumenLight.bHasShadowMask = PackedLight.LightFunctionAtlasIndex_bHasShadowMask >> 31;
+	LumenLight.bHasShadowMask = PackedLight.LightFunctionAtlasIndex_bHasShadowMask_bIsStandalone >> 31;
+	LumenLight.bIsStandaloneLight  = (PackedLight.LightFunctionAtlasIndex_bHasShadowMask_bIsStandalone >> 30) & 0x1;
 	LumenLight.LightingChannelMask = PackedLight.LightingChannelMask;
 	LumenLight.Type = PackedLight.LightType;
 	return LumenLight;
@@ -224,3 +226,63 @@ float GetLumenLightFunction(float3 TranslatedWorldPosition)
 	return saturate(GreyScale);
 }
 #endif
+
+struct FLumenSampleCoord
+{
+	uint2 Coord;
+	uint LayerIndex;
+};
+
+uint PackLumenSampleCoord(uint2 Coord, uint LayerIndex)
+{
+	return PackTileCoord12bits(Coord) | (LayerIndex << 24u);
+}
+
+uint PackLumenSampleCoord(FLumenSampleCoord In)
+{
+	return PackLumenSampleCoord(In.Coord, In.LayerIndex);
+}
+
+FLumenSampleCoord UnpackLumenSampleCoord(uint In)
+{
+	FLumenSampleCoord Out;
+	Out.Coord = UnpackTileCoord12bits(In);
+	Out.LayerIndex = (In >> 24u);
+	return Out;
+}
+
+struct FLumenSampleSceneData
+{
+	float3 TranslatedWorldPosition;
+	float3 WorldNormal;
+	uint ViewIndex;
+	bool bHeightfield;
+};
+
+float4 PackLumenSampleSceneData(float3 InPosition, float3 InNormal, uint InViewIndex, bool bHeightfield)
+{
+	uint Packed = 0;
+	{
+		const float2 Result = UnitVectorToOctahedron(InNormal);
+		const uint2 PackedXY = uint2(clamp(Result * 2047.0f + 2048.0f, 0.0f, 4095.0f));
+		Packed = PackedXY.x | (PackedXY.y << 12);
+	}
+	Packed |= InViewIndex << 24;
+	Packed |= bHeightfield ? (1u<<26) : 0u;
+	return float4(InPosition, asfloat(Packed));
+}
+
+FLumenSampleSceneData UnpackLumenSampleSceneData(float4 In)
+{
+	const uint Packed = asuint(In.w);
+	const int2 XY12Bits = int2(0xFFF & Packed, 0xFFF & (Packed >> 12));
+	const float2 xy = float2(XY12Bits - 2048) / 2047.0f;
+
+	FLumenSampleSceneData Out;
+	Out.TranslatedWorldPosition = In.xyz;
+	Out.WorldNormal = OctahedronToUnitVector(xy);
+	Out.ViewIndex = BitFieldExtractU32(Packed, 2, 24);
+	Out.bHeightfield = BitFieldExtractU32(Packed, 1, 26);
+
+	return Out;
+}

@@ -241,6 +241,14 @@ void FDeferredShadingSceneRenderer::RenderLumenSceneLighting(
 				AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.IndirectLightingAtlas);
 				AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.RadiosityNumFramesAccumulatedAtlas);
 				AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.FinalLightingAtlas);
+				if (FrameTemporaries.DiffuseLightingAndSecondMomentHistoryAtlas)
+				{
+					AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.DiffuseLightingAndSecondMomentHistoryAtlas);
+				}
+				if (FrameTemporaries.NumFramesAccumulatedHistoryAtlas)
+				{
+					AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.NumFramesAccumulatedHistoryAtlas);
+				}
 			}
 
 			LumenRadiosity::FFrameTemporaries RadiosityFrameTemporaries;

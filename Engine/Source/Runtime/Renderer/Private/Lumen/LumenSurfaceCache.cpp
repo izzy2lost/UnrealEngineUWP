@@ -150,7 +150,7 @@ FRDGTextureRef CreateCardAtlas(FRDGBuilder& GraphBuilder, const FIntPoint PageAt
 	return GraphBuilder.CreateTexture(CreateInfo, Name);
 }
 
-void FLumenSceneData::AllocateCardAtlases(FRDGBuilder& GraphBuilder, FLumenSceneFrameTemporaries& FrameTemporaries)
+void FLumenSceneData::AllocateCardAtlases(FRDGBuilder& GraphBuilder, FLumenSceneFrameTemporaries& FrameTemporaries, const FSceneViewFamily* ViewFamily)
 {
 	const FIntPoint PageAtlasSize = GetPhysicalAtlasSize();
 
@@ -191,6 +191,25 @@ void FLumenSceneData::AllocateCardAtlases(FRDGBuilder& GraphBuilder, FLumenScene
 			FClearValueBinding::Black,
 			TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV
 		), TEXT("Lumen.SceneFinalLighting"));
+
+	if (LumenSceneDirectLighting::UseStochasticLighting(*ViewFamily))
+	{
+		FrameTemporaries.DiffuseLightingAndSecondMomentHistoryAtlas = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(
+				PageAtlasSize,
+				PF_FloatRGBA,
+				FClearValueBinding::Black,
+				TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV
+		), TEXT("Lumen.SceneDirectLighting.DiffuseLightingAndSecondMomentHistory"));
+
+		FrameTemporaries.NumFramesAccumulatedHistoryAtlas = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(
+				PageAtlasSize,
+				PF_G8,
+				FClearValueBinding::Black,
+				TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV
+		), TEXT("Lumen.SceneDirectLighting.NumFramesAccumulatedHistory"));
+	}
 }
 
 // Copy captured cards into surface cache. Possibly with compression. Has three paths:
