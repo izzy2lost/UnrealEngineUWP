@@ -2,6 +2,8 @@
 
 #include "InstanceDataObjectTests.h"
 
+#if WITH_EDITORONLY_DATA
+
 #include "CoreTypes.h"
 #include "InstanceDataObjectFixupToolModule.h"
 #include "WorkspaceMenuStructure.h"
@@ -454,3 +456,5 @@ FAutoConsoleCommand TestInstanceDataObjectFixupCommand(
 );
 
 #undef LOCTEXT_NAMESPACE
+
+#endif // WITH_EDITORONLY_DATA

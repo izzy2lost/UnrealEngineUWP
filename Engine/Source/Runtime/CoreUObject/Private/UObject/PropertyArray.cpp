@@ -623,6 +623,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 			}
 		}
 
+	#if WITH_EDITORONLY_DATA
 		if (Context->bTrackSerializedPropertyPath)
 		{
 			// Update the path with types from the inner tag if the outer tag is incomplete.
@@ -645,6 +646,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 				}
 			}
 		}
+	#endif
 	}
 
 	// need to know how much data this call to SerializeItem consumes, so mark where we are

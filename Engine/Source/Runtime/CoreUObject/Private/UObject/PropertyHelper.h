@@ -106,19 +106,23 @@ class FSerializedPropertyPathScope
 public:
 	[[nodiscard]] FSerializedPropertyPathScope(FUObjectSerializeContext* InContext, const FPropertyPathNameSegment& InSegment)
 	{
+	#if WITH_EDITORONLY_DATA
 		if (InContext->bTrackSerializedPropertyPath)
 		{
 			Context = InContext;
 			Context->SerializedPropertyPath.Push(InSegment);
 		}
+	#endif
 	}
 
 	~FSerializedPropertyPathScope()
 	{
+	#if WITH_EDITORONLY_DATA
 		if (Context)
 		{
 			Context->SerializedPropertyPath.Pop();
 		}
+	#endif
 	}
 
 	FSerializedPropertyPathScope(const FSerializedPropertyPathScope&) = delete;

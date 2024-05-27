@@ -2,6 +2,8 @@
 
 #include "UObject/InstanceDataObjectUtils.h"
 
+#if WITH_EDITORONLY_DATA
+
 #include "HAL/IConsoleManager.h"
 #include "Misc/ReverseIterate.h"
 #include "UObject/Class.h"
@@ -171,11 +173,7 @@ namespace UE
 
 	bool StructContainsLooseProperties(const UStruct* Struct)
 	{
-#if WITH_EDITORONLY_DATA
 		return Struct->GetBoolMetaData(NAME_ContainsLoosePropertiesMetadata);
-#else
-		return false;
-#endif
 	}
 
 	static UStruct* CreateInstanceDataObjectStructRec(const UClass* StructClass, UStruct* TemplateStruct, UObject* Outer, const FPropertyPathNameTree* PropertyTree);
@@ -205,7 +203,6 @@ namespace UE
 	// recursively re-instances all structs contained by this property to include loose properties
 	static void ConvertToInstanceDataObjectProperty(FProperty* Property, FPropertyTypeName PropertyType, UObject* Outer, const FPropertyPathNameTree* PropertyTree)
 	{
-#if WITH_EDITORONLY_DATA
 		if (!Property->HasMetaData(NAME_DisplayName))
 		{
 			bool bNeedsDisplayName = false;
@@ -215,23 +212,19 @@ namespace UE
 				Property->SetMetaData(NAME_DisplayName, MoveTemp(DisplayName));
 			}
 		}
-#endif
 
 		const auto TrySetContainsLooseProperties = [](FProperty* Property, const FFieldVariant& Inner)
 		{
-#if WITH_EDITORONLY_DATA
 			if (Inner.HasMetaData(NAME_ContainsLoosePropertiesMetadata))
 			{
 				Property->SetMetaData(NAME_ContainsLoosePropertiesMetadata, TEXT("True"));
 			}
-#endif
 		};
 
 		if (FStructProperty* AsStructProperty = CastField<FStructProperty>(Property))
 		{
 			if (!AsStructProperty->Struct->UseNativeSerialization())
 			{
-#if WITH_EDITORONLY_DATA
 				//@note: Transfer existing metadata over as we build the InstanceDataObject from the struct or it owner, if any, this is useful for testing purposes
 				FString OriginalName;
 				if (const FString* OriginalType = AsStructProperty->FindMetaData(NAME_OriginalType))
@@ -253,20 +246,18 @@ namespace UE
 					OriginalNameBuilder.AddPath(AsStructProperty->Struct);
 					OriginalName = WriteToString<256>(OriginalNameBuilder.Build()).ToView();
 				}
-#endif
+
 				UInstanceDataObjectStruct* Struct = CreateInstanceDataObjectStructRec<UInstanceDataObjectStruct>(AsStructProperty->Struct, Outer, PropertyTree);
 				if (const FName StructGuidName = PropertyType.GetParameterName(1); !StructGuidName.IsNone())
 				{
 					FGuid::Parse(StructGuidName.ToString(), Struct->Guid);
 				}
 				AsStructProperty->Struct = Struct;
-#if WITH_EDITORONLY_DATA
 				AsStructProperty->SetMetaData(NAME_OriginalType, *OriginalName);
 				AsStructProperty->SetMetaData(NAME_PresentAsTypeMetadata, *OriginalName);
 				AsStructProperty->Struct->SetMetaData(NAME_PresentAsTypeMetadata, *OriginalName);
 
 				TrySetContainsLooseProperties(AsStructProperty, AsStructProperty->Struct);
-#endif
 			}
 		}
 		else if (FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
@@ -305,20 +296,16 @@ namespace UE
 			TrySetContainsLooseProperties(AsOptionalProperty, AsOptionalProperty->GetValueProperty());
 		}
 
-#if WITH_EDITORONLY_DATA
 		if (Property->GetBoolMetaData(NAME_IsLooseMetadata) || Property->GetBoolMetaData(NAME_ContainsLoosePropertiesMetadata))
 		{
 			Property->GetOwnerStruct()->SetMetaData(NAME_ContainsLoosePropertiesMetadata, TEXT("True"));
 		}
-#endif
 	}
 
 	// recursively gives a property the metadata and flags of a loose property
 	static void MarkPropertyAsLoose(FProperty* Property)
 	{
-#if WITH_EDITORONLY_DATA
 		Property->SetMetaData(NAME_IsLooseMetadata, TEXT("True"));
-#endif
 		Property->SetPropertyFlags(CPF_Edit | CPF_EditConst);
 		if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
 		{
@@ -364,9 +351,7 @@ namespace UE
 				FProperty* SuperProperty = CastFieldChecked<FProperty>(FField::Duplicate(TemplateProperty, Super));
 				SuperProperties.Add(SuperProperty);
 
-			#if WITH_EDITORONLY_DATA
 				FField::CopyMetaData(TemplateProperty, SuperProperty);
-			#endif
 
 				FPropertyTypeName Type;
 				{
@@ -517,12 +502,10 @@ namespace UE
 	UClass* CreateInstanceDataObjectClass(const FPropertyPathNameTree* PropertyTree, UClass* OwnerClass, UObject* Outer)
 	{
 		UClass* Result = CreateInstanceDataObjectStructRec<UInstanceDataObjectClass>(OwnerClass, Outer, PropertyTree);
-#if WITH_EDITORONLY_DATA
 		if (const FString& DisplayName = OwnerClass->GetMetaData(NAME_DisplayName); !DisplayName.IsEmpty())
 		{
 			Result->SetMetaData(NAME_DisplayName, *DisplayName);
 		}
-#endif
 
 		SetClassFlags(Result, OwnerClass);
 
@@ -550,7 +533,6 @@ namespace UE
 
 	void MarkPropertySetBySerialization(const UStruct* Struct, void* StructData, const FProperty* Property, int32 ArrayIndex)
 	{
-	#if WITH_EDITORONLY_DATA
 		if (const FByteProperty* ValuesSetBySerializationProperty = FindValuesSetBySerializationProperty(Struct))
 		{
 			const int32 PropertyIndex = Property->GetIndexInOwner() + ArrayIndex;
@@ -562,12 +544,10 @@ namespace UE
 				*PropertyDataPtr |= (1 << BitOffset);
 			}
 		}
-	#endif
 	}
 
 	bool WasPropertySetBySerialization(const UStruct* Struct, const void* StructData, const FProperty* Property, int32 ArrayIndex)
 	{
-	#if WITH_EDITORONLY_DATA
 		if (const FByteProperty* ValuesSetBySerializationProperty = FindValuesSetBySerializationProperty(Struct))
 		{
 			const int32 PropertyIndex = Property->GetIndexInOwner() + ArrayIndex;
@@ -579,7 +559,6 @@ namespace UE
 				return (*PropertyDataPtr & (1 << BitOffset)) != 0;
 			}
 		}
-	#endif
 		return false;
 	}
 
@@ -698,7 +677,6 @@ namespace UE
 
 	static void SetPropertyValueInitializedFlag(const UStruct* Struct, void* StructData, const FProperty* Property, int32 ArrayIndex, bool bValue)
 	{
-	#if WITH_EDITORONLY_DATA
 		if (const FByteProperty* InitializedValuesProperty = FindInitializedValuesProperty(Struct))
 		{
 			const int32 PropertyIndex = Property->GetIndexInOwner() + ArrayIndex;
@@ -717,12 +695,10 @@ namespace UE
 				}
 			}
 		}
-	#endif
 	}
 
 	bool IsPropertyValueInitialized(const UStruct* Struct, void* StructData, const FProperty* Property, int32 ArrayIndex)
 	{
-	#if WITH_EDITORONLY_DATA
 		if (const FByteProperty* InitializedValuesProperty = FindInitializedValuesProperty(Struct))
 		{
 			const int32 PropertyIndex = Property->GetIndexInOwner() + ArrayIndex;
@@ -734,7 +710,6 @@ namespace UE
 				return (*PropertyDataPtr & (1 << BitOffset)) != 0;
 			}
 		}
-	#endif
 		return false;
 	}
 
@@ -750,13 +725,13 @@ namespace UE
 
 	void ResetPropertyValueInitialized(const UStruct* Struct, void* StructData)
 	{
-	#if WITH_EDITORONLY_DATA
 		if (const FByteProperty* InitializedValuesProperty = FindInitializedValuesProperty(Struct))
 		{
 			uint8* PropertyDataPtr = InitializedValuesProperty->ContainerPtrToValuePtr<uint8>(StructData);
 			FMemory::Memzero(PropertyDataPtr, InitializedValuesProperty->ArrayDim);
 		}
-	#endif
 	}
 
 } // UE
+
+#endif // WITH_EDITORONLY_DATA

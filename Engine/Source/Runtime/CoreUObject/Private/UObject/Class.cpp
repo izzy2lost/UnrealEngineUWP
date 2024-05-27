@@ -1166,6 +1166,7 @@ void UStruct::DestroyStruct(void* Dest, int32 ArrayDim) const
 //
 void UStruct::SerializeBin( FStructuredArchive::FSlot Slot, void* Data ) const
 {
+#if WITH_EDITORONLY_DATA
 	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
 	const bool bSaveSerializedPropertyPath = IsA<UClass>() && SerializeContext && !SerializeContext->SerializedPropertyPath.IsEmpty();
 	UE::FPropertyPathName PrevSerializedPropertyPath;
@@ -1175,6 +1176,7 @@ void UStruct::SerializeBin( FStructuredArchive::FSlot Slot, void* Data ) const
 		PrevSerializedPropertyPath = MoveTemp(SerializeContext->SerializedPropertyPath);
 		SerializeContext->SerializedPropertyPath.Reset();
 	}
+#endif
 
 	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
 
@@ -1221,10 +1223,12 @@ void UStruct::SerializeBin( FStructuredArchive::FSlot Slot, void* Data ) const
 		}
 	}
 
+#if WITH_EDITORONLY_DATA
 	if (bSaveSerializedPropertyPath)
 	{
 		SerializeContext->SerializedPropertyPath = MoveTemp(PrevSerializedPropertyPath);
 	}
+#endif
 }
 
 void UStruct::SerializeBinEx( FStructuredArchive::FSlot Slot, void* Data, void const* DefaultData, UStruct* DefaultStruct ) const
@@ -1235,6 +1239,7 @@ void UStruct::SerializeBinEx( FStructuredArchive::FSlot Slot, void* Data, void c
 		return;
 	}
 
+#if WITH_EDITORONLY_DATA
 	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
 	const bool bSaveSerializedPropertyPath = IsA<UClass>() && SerializeContext && !SerializeContext->SerializedPropertyPath.IsEmpty();
 	UE::FPropertyPathName PrevSerializedPropertyPath;
@@ -1244,16 +1249,19 @@ void UStruct::SerializeBinEx( FStructuredArchive::FSlot Slot, void* Data, void c
 		PrevSerializedPropertyPath = MoveTemp(SerializeContext->SerializedPropertyPath);
 		SerializeContext->SerializedPropertyPath.Reset();
 	}
+#endif
 
 	for( TFieldIterator<FProperty> It(this); It; ++It )
 	{
 		It->SerializeNonMatchingBinProperty(Slot, Data, DefaultData, DefaultStruct);
 	}
 
+#if WITH_EDITORONLY_DATA
 	if (bSaveSerializedPropertyPath)
 	{
 		SerializeContext->SerializedPropertyPath = MoveTemp(PrevSerializedPropertyPath);
 	}
+#endif
 }
 
 void UStruct::LoadTaggedPropertiesFromText(FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, uint8* Defaults, const UObject* BreakRecursionIfFullyLoad) const
@@ -1340,10 +1348,12 @@ void UStruct::LoadTaggedPropertiesFromText(FStructuredArchive::FSlot Slot, uint8
 				Tag.ArrayIndex = ItemIndex;
 				Tag.Name = PropertyName;
 
+			#if WITH_EDITORONLY_DATA
 				if (SerializeContext->bTrackInitializedProperties)
 				{
 					UE::SetPropertyValueInitialized(this, Data, Property, ItemIndex);
 				}
+			#endif
 
 				if (Tag.SerializeType == EPropertyTagSerializeType::Skipped)
 				{
@@ -1400,6 +1410,7 @@ void UStruct::LoadTaggedPropertiesFromText(FStructuredArchive::FSlot Slot, uint8
 
 void UStruct::SerializeTaggedProperties(FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, uint8* Defaults, const UObject* BreakRecursionIfFullyLoad) const
 {
+#if WITH_EDITORONLY_DATA
 	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
 	const bool bSaveSerializedPropertyPath = IsA<UClass>() && SerializeContext && !SerializeContext->SerializedPropertyPath.IsEmpty();
 	UE::FPropertyPathName PrevSerializedPropertyPath;
@@ -1409,6 +1420,7 @@ void UStruct::SerializeTaggedProperties(FStructuredArchive::FSlot Slot, uint8* D
 		PrevSerializedPropertyPath = MoveTemp(SerializeContext->SerializedPropertyPath);
 		SerializeContext->SerializedPropertyPath.Reset();
 	}
+#endif
 
 	if (Slot.GetArchiveState().UseUnversionedPropertySerialization())
 	{
@@ -1419,10 +1431,12 @@ void UStruct::SerializeTaggedProperties(FStructuredArchive::FSlot Slot, uint8* D
 		SerializeVersionedTaggedProperties(Slot, Data, DefaultsStruct, Defaults, BreakRecursionIfFullyLoad);
 	}
 
+#if WITH_EDITORONLY_DATA
 	if (bSaveSerializedPropertyPath)
 	{
 		SerializeContext->SerializedPropertyPath = MoveTemp(PrevSerializedPropertyPath);
 	}
+#endif
 }
 
 #if WITH_EDITORONLY_DATA
@@ -1647,10 +1661,12 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					Property = CustomFindProperty(Tag.Name);
 				}
 
+			#if WITH_EDITORONLY_DATA
 				if (SerializeContext->bTrackInitializedProperties && Property)
 				{
 					UE::SetPropertyValueInitialized(this, Data, Property, Tag.ArrayIndex);
 				}
+			#endif
 
 				if (Tag.SerializeType == EPropertyTagSerializeType::Skipped)
 				{
@@ -1667,6 +1683,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					}
 				}
 
+			#if WITH_EDITORONLY_DATA
 				// Try to match the type when impersonating because there can be multiple properties with the same name.
 				if (UNLIKELY(SerializeContext->bImpersonateProperties && Property && !Property->CanSerializeFromTypeName(Tag.GetType())))
 				{
@@ -1688,6 +1705,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					const UE::FPropertyPathNameSegment Segment{Name, Tag.GetType(), Index};
 					SerializedPropertyPath.Emplace(SerializeContext, Segment);
 				}
+			#endif
 
 				bool bTryStoreUnknownPropertyPath = false;
 
@@ -1772,10 +1790,12 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 								break;
 						}
 
+					#if WITH_EDITORONLY_DATA
 						if (bAdvanceProperty && SerializeContext->bImpersonateProperties)
 						{
 							UE::MarkPropertySetBySerialization(this, Data, Property, Tag.ArrayIndex);
 						}
+					#endif
 					}
 				}
 				else
@@ -1783,6 +1803,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					bTryStoreUnknownPropertyPath = true;
 				}
 
+			#if WITH_EDITORONLY_DATA
 				// Track the path for an unknown property and serialize it to track any unknown property within it.
 				if (UNLIKELY(bTryStoreUnknownPropertyPath))
 				{
@@ -1838,6 +1859,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 
 				// Broadcast that a property was serialized if tracking the serialized property path.
 				SerializedPropertyPath.Reset();
+			#endif // WITH_EDITORONLY_DATA
 
 				int64 Loaded = UnderlyingArchive.Tell() - StartOfProperty;
 
@@ -1902,8 +1924,12 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					const bool bSerializeValue = (StaticArrayContainer.IsSet() || CustomPropertyNode || !bDoDeltaSerialization ||
 						(FOverridableSerializationLogic::IsEnabled() && FOverridableSerializationLogic::GetOverriddenPropertyOperation(UnderlyingArchive, Property, DataPtr, DefaultValue) != EOverriddenPropertyOperation::None) ||
 						(!FOverridableSerializationLogic::IsEnabled() && !Property->Identical(DataPtr, DefaultValue, UnderlyingArchive.GetPortFlags())));
+				#if WITH_EDITORONLY_DATA
 					const bool bInitializedValue = !SerializeContext->bTrackInitializedProperties || UE::IsPropertyValueInitialized(this, Data, Property, Idx);
 					if (bInitializedValue && (bSerializeValue || SerializeContext->bTrackInitializedProperties))
+				#else
+					if (bSerializeValue)
+				#endif
 					{
 						if (bUseAtomicSerialization)
 						{

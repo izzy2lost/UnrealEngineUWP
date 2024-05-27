@@ -458,7 +458,10 @@ void ULevel::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collecto
 void ULevel::CleanupLevel(bool bCleanupResources, bool bUnloadFromEditor)
 {
 	OnCleanupLevel.Broadcast();
+
+#if WITH_EDITORONLY_DATA
 	UE::FPropertyBagRepository::Get().CleanupLevel(this);
+#endif
 
 	if (bCleanupResources)
 	{

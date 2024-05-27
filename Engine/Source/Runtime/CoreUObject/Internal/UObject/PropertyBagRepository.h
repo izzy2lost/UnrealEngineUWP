@@ -13,6 +13,8 @@ class FMemoryArchive;
 namespace UE
 {
 
+#if WITH_EDITORONLY_DATA
+
 class FPropertyPathNameTree;
 
 // Singleton class tracking property bag association with objects
@@ -163,10 +165,13 @@ private:
 	static void CopyTaggedProperties (const UObject* Source, UObject* Dest);
 };
 
+#endif // WITH_EDITORONLY_DATA
+
 // construct this context in the same scope as an object is being serialized to support InstanceDataObjects.
 // if saving, this will simply set flags. If loading, an IDO will be constructed at the end of the scope when needed
 struct FScopedIDOSerializationContext
 {
+#if WITH_EDITORONLY_DATA
 	COREUOBJECT_API FScopedIDOSerializationContext(UObject* InObject, FArchive& Archive);
 	explicit COREUOBJECT_API FScopedIDOSerializationContext(UObject* InObject); // assumes save
 	COREUOBJECT_API ~FScopedIDOSerializationContext();
@@ -180,10 +185,15 @@ struct FScopedIDOSerializationContext
 	TOptional<TGuardValue<bool>> ScopedSerializeUnknownProperty;
 	TOptional<TGuardValue<bool>> ScopedImpersonateProperties;
 	TOptional<TGuardValue<UObject*>> ScopedSerializedObject;
+
 private:
 	// if we're loading and IDO should be created, this will be called when the context falls out of scope
 	void FinishCreatingInstanceDataObject() const;
-	
+#else
+	inline FScopedIDOSerializationContext(UObject* InObject, FArchive& Archive) {}
+	inline explicit FScopedIDOSerializationContext(UObject* InObject) {}
+#endif
+
 	FScopedIDOSerializationContext(const FScopedIDOSerializationContext&) = delete;
 	FScopedIDOSerializationContext& operator=(const FScopedIDOSerializationContext&) = delete;
 };

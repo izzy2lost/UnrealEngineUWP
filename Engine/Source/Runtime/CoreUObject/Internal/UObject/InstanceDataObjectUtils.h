@@ -2,7 +2,9 @@
 
 #pragma once
 
-#include "HAL/Platform.h"
+#include "CoreTypes.h"
+
+#if WITH_EDITORONLY_DATA
 
 #define UE_API COREUOBJECT_API
 
@@ -47,3 +49,5 @@ UE_API void ResetPropertyValueInitialized(const UStruct* Struct, void* StructDat
 } // UE
 
 #undef UE_API
+
+#endif // WITH_EDITORONLY_DATA

@@ -3255,12 +3255,14 @@ UObject* StaticDuplicateObjectEx( FObjectDuplicationParameters& Parameters )
 		}
 	}
 
+#if WITH_EDITORONLY_DATA
 	// if Source has an IDO, make one for Dest and copy it
 	UE::FPropertyBagRepository& PropertyBagRepository = UE::FPropertyBagRepository::Get();
 	if (UE::FPropertyBagRepository::IsInstanceDataObjectSupportEnabled(Parameters.SourceObject))
 	{
 		PropertyBagRepository.DuplicateInstanceDataObject(Parameters.SourceObject, DupRootObject);
 	}
+#endif
 	
 	return DupRootObject;
 }

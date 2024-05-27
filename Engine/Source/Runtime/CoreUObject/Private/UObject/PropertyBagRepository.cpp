@@ -2,6 +2,8 @@
 
 #include "UObject/PropertyBagRepository.h"
 
+#if WITH_EDITORONLY_DATA
+
 #include "Containers/Queue.h"
 #include "Serialization/ObjectReader.h"
 #include "Serialization/ObjectWriter.h"
@@ -763,7 +765,7 @@ void FPropertyBagRepository::CopyTaggedProperties(const UObject* Source, UObject
 
 FScopedIDOSerializationContext::FScopedIDOSerializationContext(UObject* InObject, FArchive& InArchive)
 	: Archive(&InArchive)
-    , Object(InObject)
+	, Object(InObject)
 	, PreSerializeOffset(InArchive.Tell())
 {
 	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
@@ -929,3 +931,5 @@ UStruct* FPropertyBagRepository::CreatePropertyBagPlaceholderType(UObject* Outer
 }
 
 } // UE
+
+#endif // WITH_EDITORONLY_DATA

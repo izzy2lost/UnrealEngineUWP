@@ -1023,8 +1023,10 @@ void UObject::BeginDestroy()
 	// Remove any associated external package, at this point
 	SetExternalPackage(nullptr);
 
+#if WITH_EDITORONLY_DATA
 	// Destroy any associated property bag.
 	UE::FPropertyBagRepository::Get().DestroyOuterBag(this);
+#endif
 	
 	// ensure BeginDestroy has been routed back to UObject::BeginDestroy.
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
@@ -1297,8 +1299,8 @@ void UObject::ConditionalPostLoad()
 		}
 
 		ConditionalPostLoadSubobjects();
-		
-		
+
+#if WITH_EDITORONLY_DATA
 		// Object has been deserialized, if IDO is enabled, generate it
 		UE::FPropertyBagRepository& PropertyBagRepository = UE::FPropertyBagRepository::Get();
 		const FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
@@ -1307,6 +1309,7 @@ void UObject::ConditionalPostLoad()
 		{
 			PropertyBagRepository.PostLoadInstanceDataObject(this);
 		}
+#endif
 
 		{
 			FExclusiveLoadPackageTimeTracker::FScopedPostLoadTracker Tracker(this);
@@ -1829,6 +1832,7 @@ void UObject::SerializeScriptProperties(FArchive& Ar) const
 	SerializeScriptProperties(FStructuredArchiveFromArchive(Ar).GetSlot());
 }
 
+#if WITH_EDITORONLY_DATA
 namespace UE::Private
 {
 	/**
@@ -1849,6 +1853,7 @@ namespace UE::Private
 		return FPropertyBagRepository::Get().FindInstanceDataObject(ThisObject);
 	}
 }
+#endif
 
 void UObject::SerializeScriptProperties( FStructuredArchive::FSlot Slot ) const
 {
@@ -1874,6 +1879,7 @@ void UObject::SerializeScriptProperties( FStructuredArchive::FSlot Slot ) const
 
 		// Query if this object data is being impersonated 
 		const UObject* ThisObject = this;
+#if WITH_EDITORONLY_DATA
 		if (const UObject* Impersonator = UE::Private::GetDataImpersonator(ThisObject))
 		{
 			ThisObject = Impersonator;
@@ -1889,6 +1895,7 @@ void UObject::SerializeScriptProperties( FStructuredArchive::FSlot Slot ) const
 			ensureAlwaysMsgf(DiffClass == ObjClass, TEXT("Impersonation of '%s' using a different default class not appropriately supported at the moment. Class: '%s', DefaultClass: '%s'")
 				, *ThisObject->GetPathName(), *ObjClass->GetPathName(), *DiffClass->GetPathName());
 		}
+#endif
 
 #if WITH_EDITOR
 		static const FBoolConfigValueHelper BreakSerializationRecursion(TEXT("StructSerialization"), TEXT("BreakSerializationRecursion"));

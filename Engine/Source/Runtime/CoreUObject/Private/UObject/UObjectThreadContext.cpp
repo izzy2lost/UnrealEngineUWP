@@ -44,11 +44,14 @@ FUObjectSerializeContext::FUObjectSerializeContext()
 	, SerializedImportLinker(nullptr)
 	, SerializedExportIndex(0)
 	, SerializedExportLinker(nullptr)
+#if WITH_EDITORONLY_DATA
 	, bTrackSerializedPropertyPath(false)
 	, bTrackInitializedProperties(false)
 	, bTrackUnknownProperties(false)
 	, bImpersonateProperties(false)
-{}
+#endif
+{
+}
 
 FUObjectSerializeContext::~FUObjectSerializeContext()
 {
