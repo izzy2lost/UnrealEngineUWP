@@ -52,9 +52,9 @@ enum EGTAOPass
 	EGTAOPass_Upsample					= 0x20,
 };
 
-FRDGTextureDesc GetScreenSpaceAOTextureDesc(FIntPoint Extent);
+FRDGTextureDesc GetScreenSpaceAOTextureDesc(ERHIFeatureLevel::Type FeatureLevel, FIntPoint Extent);
 
-FRDGTextureRef CreateScreenSpaceAOTexture(FRDGBuilder& GraphBuilder, FIntPoint Extent);
+FRDGTextureRef CreateScreenSpaceAOTexture(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, FIntPoint Extent);
 
 FRDGTextureRef GetScreenSpaceAOFallback(const FRDGSystemTextures& SystemTextures);
 
@@ -90,7 +90,7 @@ public:
 	static int32 GetAmbientOcclusionShaderLevel(const FSceneView& View);
 
 	// @return whether AmbientOcclusion should run a compute shader.
-	static bool IsAmbientOcclusionCompute(const FSceneView& View);
+	static bool IsAmbientOcclusionCompute(const ERHIFeatureLevel::Type FeatureLevel);
 
 	static int32 GetNumAmbientOcclusionLevels();
 	static float GetAmbientOcclusionStepMipLevelFactor();

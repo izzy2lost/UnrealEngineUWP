@@ -101,12 +101,12 @@ bool ShouldRenderScreenSpaceAmbientOcclusion(const FViewInfo& View, bool bLumenW
 
 static ESSAOType GetDownscaleSSAOType(const FViewInfo& View)
 {
-	return FSSAOHelper::IsAmbientOcclusionCompute(View) ? ESSAOType::ECS : ESSAOType::EPS;
+	return FSSAOHelper::IsAmbientOcclusionCompute(View.GetFeatureLevel()) ? ESSAOType::ECS : ESSAOType::EPS;
 }
 
 static ESSAOType GetFullscreenSSAOType(const FViewInfo& View, uint32 Levels)
 {
-	if (FSSAOHelper::IsAmbientOcclusionCompute(View))
+	if (FSSAOHelper::IsAmbientOcclusionCompute(View.GetFeatureLevel()))
 	{
 		if (FSSAOHelper::IsAmbientOcclusionAsyncCompute(View, Levels))
 		{

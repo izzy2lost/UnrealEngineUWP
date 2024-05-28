@@ -179,9 +179,9 @@ int32 FSSAOHelper::GetAmbientOcclusionShaderLevel(const FSceneView& View)
 		(QualityPercent > 5.0f);
 }
 
-bool FSSAOHelper::IsAmbientOcclusionCompute(const FSceneView& View)
+bool FSSAOHelper::IsAmbientOcclusionCompute(const ERHIFeatureLevel::Type FeatureLevel)
 {
-	return View.GetFeatureLevel() >= ERHIFeatureLevel::SM5 && CVarAmbientOcclusionCompute.GetValueOnRenderThread() >= 1;
+	return FeatureLevel >= ERHIFeatureLevel::SM5 && CVarAmbientOcclusionCompute.GetValueOnRenderThread() >= 1;
 }
 
 int32 FSSAOHelper::GetNumAmbientOcclusionLevels()
@@ -211,7 +211,7 @@ bool FSSAOHelper::IsAmbientOcclusionAsyncCompute(const FViewInfo& View, uint32 A
 {
 	// if AsyncCompute is feasible
 	// only single level is allowed.  more levels end up reading from gbuffer normals atm which is not allowed.
-	if(IsAmbientOcclusionCompute(View) && (AOPassCount == 1))
+	if(IsAmbientOcclusionCompute(View.GetFeatureLevel()) && (AOPassCount == 1))
 	{
 		int32 ComputeCVar = CVarAmbientOcclusionCompute.GetValueOnRenderThread();
 
@@ -242,7 +242,7 @@ uint32 FSSAOHelper::ComputeAmbientOcclusionPassCount(const FViewInfo& View)
 	{
 		int32 CVarLevel = GetNumAmbientOcclusionLevels();
 
-		if (IsAmbientOcclusionCompute(View) || IsForwardShadingEnabled(View.GetShaderPlatform()))
+		if (IsAmbientOcclusionCompute(View.GetFeatureLevel()) || IsForwardShadingEnabled(View.GetShaderPlatform()))
 		{	
 			if (CVarLevel<0)
 			{
@@ -308,14 +308,19 @@ EGTAOType FSSAOHelper::GetGTAOPassType(const FViewInfo& View, uint32 Levels)
 	return EGTAOType::EOff;
 }
 
-FRDGTextureDesc GetScreenSpaceAOTextureDesc(FIntPoint Extent)
+FRDGTextureDesc GetScreenSpaceAOTextureDesc(ERHIFeatureLevel::Type FeatureLevel, FIntPoint Extent)
 {
-	return FRDGTextureDesc(FRDGTextureDesc::Create2D(Extent, PF_G8, FClearValueBinding::White, TexCreate_UAV | TexCreate_RenderTargetable | TexCreate_ShaderResource | GFastVRamConfig.ScreenSpaceAO));
+	ETextureCreateFlags TextureCreateFlags = TexCreate_UAV | TexCreate_RenderTargetable | TexCreate_ShaderResource | GFastVRamConfig.ScreenSpaceAO;
+	if (FSSAOHelper::IsAmbientOcclusionCompute(FeatureLevel))
+	{
+		TextureCreateFlags |= TexCreate_NoFastClear;
+	}
+	return FRDGTextureDesc(FRDGTextureDesc::Create2D(Extent, PF_G8, FClearValueBinding::White, TextureCreateFlags));
 }
 
-FRDGTextureRef CreateScreenSpaceAOTexture(FRDGBuilder& GraphBuilder, FIntPoint Extent)
+FRDGTextureRef CreateScreenSpaceAOTexture(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, FIntPoint Extent)
 {	
-	return GraphBuilder.CreateTexture(GetScreenSpaceAOTextureDesc(Extent), TEXT("ScreenSpaceAO"));
+	return GraphBuilder.CreateTexture(GetScreenSpaceAOTextureDesc(FeatureLevel, Extent), TEXT("ScreenSpaceAO"));
 }
 
 FRDGTextureRef GetScreenSpaceAOFallback(const FRDGSystemTextures& SystemTextures)

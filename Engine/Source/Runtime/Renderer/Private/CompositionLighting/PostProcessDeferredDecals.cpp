@@ -152,7 +152,7 @@ void GetDeferredDecalRenderTargetsInfo(
 	}
 	case EDecalRenderTargetMode::AmbientOcclusion:
 	{		
-		const FRDGTextureDesc AOTextureDesc = GetScreenSpaceAOTextureDesc(Config.Extent);
+		const FRDGTextureDesc AOTextureDesc = GetScreenSpaceAOTextureDesc(Config.FeatureLevel, Config.Extent);
 		AddRenderTargetInfo(AOTextureDesc.Format, AOTextureDesc.Flags, RenderTargetsInfo);
 		break;
 	}
