@@ -152,6 +152,8 @@ protected:
 	void CreateThresholdsMenu(FMenuBuilder& MenuBuilder);
 	TSharedRef<SWidget> CreateUpperThresholdWidget();
 	TSharedRef<SWidget> CreateLowerThresholdWidget();
+	void SetThresholdsFPS(double InUpperThresholdFPS, double InLowerThresholdFPS);
+	TSharedRef<SWidget> CreateThresholdPresetsWidget();
 	void CreateSelectedFrameMenu(FMenuBuilder& MenuBuilder);
 
 	void ContextMenu_ShowGameFrames_Execute();
