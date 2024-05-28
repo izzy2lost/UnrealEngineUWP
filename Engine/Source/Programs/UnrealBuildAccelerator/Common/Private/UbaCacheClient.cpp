@@ -360,6 +360,8 @@ namespace uba
 		struct MissInfo { TString path; u32 entryIndex; CasKey cache; CasKey local; };
 		Vector<MissInfo> misses;
 
+		UnorderedMap<StringKey, CasKey> normalizedCasKeys;
+
 		u32 entryIndex = 0;
 		for (; entryIndex!=entryCount; ++entryIndex)
 		{
@@ -386,9 +388,17 @@ namespace uba
 
 							if (IsNormalized(cacheCasKey)) // Need to normalize caskey for these files since they contain absolute paths
 							{
-								localCasKey = rootPaths.NormalizeAndHashFile(m_logger, path.data);
-								if (localCasKey != CasKeyZero)
-									localCasKey = AsCompressed(localCasKey, true);
+								auto insres2 = normalizedCasKeys.try_emplace(ToStringKeyNoCheck(path.data, path.count));
+								if (insres2.second)
+								{
+									localCasKey = rootPaths.NormalizeAndHashFile(m_logger, path.data);
+									if (localCasKey != CasKeyZero)
+										localCasKey = AsCompressed(localCasKey, true);
+									insres2.first->second = localCasKey;
+								}
+								else
+									localCasKey = insres2.first->second;
+
 							}
 							else
 							{

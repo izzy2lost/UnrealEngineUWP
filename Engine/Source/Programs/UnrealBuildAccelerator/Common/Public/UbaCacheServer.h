@@ -42,6 +42,7 @@ namespace uba
 
 		ConnectionBucket& GetConnectionBucket(const ConnectionInfo& connectionInfo, BinaryReader& reader);
 		Bucket& GetBucket(BinaryReader& reader);
+		Bucket& GetBucket(u64 id);
 		u32 GetBucketWorkerCount();
 
 		bool HandleMessage(const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer);
