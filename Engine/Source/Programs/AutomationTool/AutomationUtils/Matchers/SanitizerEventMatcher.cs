@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
 #nullable enable
+#pragma warning disable MA0016
 
 namespace AutomationUtils.Matchers
 {
