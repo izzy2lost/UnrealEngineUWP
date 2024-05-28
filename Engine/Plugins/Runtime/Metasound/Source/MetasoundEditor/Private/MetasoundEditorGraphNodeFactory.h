@@ -6,9 +6,11 @@
 #include "MetasoundEditorGraphCommentNode.h"
 #include "MetasoundEditorGraphNode.h"
 #include "MetasoundEditorGraphSchema.h"
+#include "MetasoundStandardNodesNames.h"
 #include "NodeTemplates/MetasoundFrontendNodeTemplateAudioAnalyzer.h"
 #include "NodeTemplates/MetasoundFrontendNodeTemplateReroute.h"
 #include "SGraphNode.h"
+#include "SMetasoundFilterGraphNodes.h"
 #include "SMetasoundGraphNode.h"
 #include "SMetasoundGraphNodeComment.h"
 #include "SMetasoundSpectrumAnalyzerGraphNode.h"
@@ -36,6 +38,26 @@ class FMetasoundGraphNodeFactory : public FGraphPanelNodeFactory
 				else if (ClassName == FAudioAnalyzerNodeTemplate::ClassName)
 				{
 					return SNew(SMetaSoundSpectrumAnalyzerGraphNode, InNode);
+				}
+				else if (ClassName == FMetasoundFrontendClassName{ Metasound::StandardNodes::Namespace, TEXT("Biquad Filter"), Metasound::StandardNodes::AudioVariant })
+				{
+					return SNew(SMetaSoundBiquadFilterGraphNode, InNode);
+				}
+				else if (ClassName == FMetasoundFrontendClassName{ Metasound::StandardNodes::Namespace, TEXT("Ladder Filter"), Metasound::StandardNodes::AudioVariant })
+				{
+					return SNew(SMetaSoundLadderFilterGraphNode, InNode);
+				}
+				else if (ClassName == FMetasoundFrontendClassName{ Metasound::StandardNodes::Namespace, TEXT("One-Pole High Pass Filter"), Metasound::StandardNodes::AudioVariant })
+				{
+					return SNew(SMetaSoundOnePoleHighPassFilterGraphNode, InNode);
+				}
+				else if (ClassName == FMetasoundFrontendClassName{ Metasound::StandardNodes::Namespace, TEXT("One-Pole Low Pass Filter"), Metasound::StandardNodes::AudioVariant })
+				{
+					return SNew(SMetaSoundOnePoleLowPassFilterGraphNode, InNode);
+				}
+				else if (ClassName == FMetasoundFrontendClassName{ Metasound::StandardNodes::Namespace, TEXT("State Variable Filter"), Metasound::StandardNodes::AudioVariant })
+				{
+					return SNew(SMetaSoundStateVariableFilterGraphNode, InNode);
 				}
 			}
 			return SNew(SMetaSoundGraphNode, InNode);

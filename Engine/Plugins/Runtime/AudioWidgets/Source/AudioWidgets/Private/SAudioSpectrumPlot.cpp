@@ -281,6 +281,12 @@ FReply SAudioSpectrumPlot::OnMouseButtonUp(const FGeometry& InMyGeometry, const 
 	return SCompoundWidget::OnMouseButtonUp(InMyGeometry, InMouseEvent);
 }
 
+FAudioSpectrumPlotScaleInfo SAudioSpectrumPlot::GetScaleInfo() const
+{
+	const FGeometry& AllottedGeometry = GetPaintSpaceGeometry();
+	return FAudioSpectrumPlotScaleInfo(AllottedGeometry.GetLocalSize(), FrequencyAxisScale.Get(), ViewMinFrequency.Get(), ViewMaxFrequency.Get(), ViewMinSoundLevel.Get(), ViewMaxSoundLevel.Get());
+}
+
 int32 SAudioSpectrumPlot::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
 	const FAudioSpectrumPlotScaleInfo ScaleInfo(AllottedGeometry.GetLocalSize(), FrequencyAxisScale.Get(), ViewMinFrequency.Get(), ViewMaxFrequency.Get(), ViewMinSoundLevel.Get(), ViewMaxSoundLevel.Get());

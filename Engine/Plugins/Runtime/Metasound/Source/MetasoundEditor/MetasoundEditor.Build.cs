@@ -30,6 +30,7 @@ namespace UnrealBuildTool.Rules
 					"MetasoundFrontend",
 					"MetasoundGenerator",
 					"MetasoundGraphCore",
+					"MetasoundStandardNodes",
 					"SignalProcessing",
 					"SubobjectEditor",
 					"ToolMenus",

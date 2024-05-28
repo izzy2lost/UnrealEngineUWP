@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DSP/Filter.h"
+
+#include <complex>
 #include "DSP/Dsp.h"
 
 namespace Audio
@@ -250,6 +252,30 @@ namespace Audio
 	void FBiquadFilter::SetEnabled(const bool bInEnabled)
 	{
 		bEnabled = bInEnabled;
+	}
+
+	void FBiquadFilter::ArrayCalculateResponseInPlace(TArrayView<float> InOutComplexValues) const
+	{
+		constexpr int32 ChannelIndex = 0;
+		check(ChannelIndex < NumChannels);
+		const FBiquadCoeff& Coefficients = Biquad[ChannelIndex];
+
+		const int32 NumFloats = InOutComplexValues.Num();
+		check(NumFloats % 2 == 0);
+		for (int32 Index = 0; Index < NumFloats; Index += 2)
+		{
+			const float ZReal = InOutComplexValues[Index + 0];
+			const float ZImag = InOutComplexValues[Index + 1];
+			const std::complex<float> Z(ZReal, ZImag);
+
+			// H(z) == (a0*z^2 + a1*z + a2) / (z^2 + b1*z + b2)
+			const std::complex<float> Numerator = (Coefficients.A0 * Z + Coefficients.A1) * Z + Coefficients.A2;
+			const std::complex<float> Denominator = (Z + Coefficients.B1) * Z + Coefficients.B2;
+			const std::complex<float> H = Numerator / Denominator;
+
+			InOutComplexValues[Index + 0] = H.real();
+			InOutComplexValues[Index + 1] = H.imag();
+		}
 	}
 
 	void FBiquadFilter::CalculateBiquadCoefficients()
@@ -687,6 +713,45 @@ namespace Audio
 		}
 	}
 
+	void FOnePoleFilter::ArrayCalculateResponseInPlace(TArrayView<float> InOutComplexValues) const
+	{
+		// Get the coefficients for the filter transfer function:
+		const float A1 = A0;
+		const float B1 = 2.0f * A0 - 1.0f;
+
+		const int32 NumFloats = InOutComplexValues.Num();
+		check(NumFloats % 2 == 0);
+		if (FilterType == EFilter::HighPass)
+		{
+			for (int32 Index = 0; Index < NumFloats; Index += 2)
+			{
+				const float ZReal = InOutComplexValues[Index + 0];
+				const float ZImag = InOutComplexValues[Index + 1];
+				const std::complex<float> Z(ZReal, ZImag);
+
+				const std::complex<float> LPF = (A0 * Z + A1) / (B1 + Z);
+				const std::complex<float> HPF = 1.0f - LPF;
+
+				InOutComplexValues[Index + 0] = HPF.real();
+				InOutComplexValues[Index + 1] = HPF.imag();
+			}
+		}
+		else
+		{
+			for (int32 Index = 0; Index < NumFloats; Index += 2)
+			{
+				const float ZReal = InOutComplexValues[Index + 0];
+				const float ZImag = InOutComplexValues[Index + 1];
+				const std::complex<float> Z(ZReal, ZImag);
+
+				const std::complex<float> LPF = (A0 * Z + A1) / (B1 + Z);
+
+				InOutComplexValues[Index + 0] = LPF.real();
+				InOutComplexValues[Index + 1] = LPF.imag();
+			}
+		}
+	}
+
 	FStateVariableFilter::FStateVariableFilter()
 		: InputScale(1.0f)
 		, A0(1.0f)
@@ -866,6 +931,62 @@ namespace Audio
 			}
 		}
 	}
+
+	void FStateVariableFilter::ArrayCalculateResponseInPlace(TArrayView<float> InOutComplexValues) const
+	{
+		// Get the params:
+		const float G = A0;
+		const float R = 0.5f * (Feedback - G); // Dampening
+
+		// Evaluate common subexpressions:
+		const float GSqr = G * G;
+		const float TwoRG = 2.0f * R * G;
+		const float TwoGSqr = 2.0f * GSqr;
+
+		const int32 NumFloats = InOutComplexValues.Num();
+		check(NumFloats % 2 == 0);
+		for (int32 Index = 0; Index < NumFloats; Index += 2)
+		{
+			const float ZReal = InOutComplexValues[Index + 0];
+			const float ZImag = InOutComplexValues[Index + 1];
+			const std::complex<float> Z(ZReal, ZImag);
+
+			// Evaluate the polynomials that form the rational fractions:
+			const std::complex<float> NumeratorLPF = (GSqr * Z + TwoGSqr) * Z + GSqr;
+			const std::complex<float> NumeratorHPF = (Z - 2.0f) * Z + 1.0f;
+			const std::complex<float> NumeratorBPF = G * Z * Z - G;
+			const std::complex<float> Denominator = ((GSqr + TwoRG + 1.0f) * Z + (TwoGSqr - 2.0f)) * Z + (GSqr - TwoRG + 1.0f);
+
+			// Evaluate the rational functions:
+			const std::complex<float> Reciprocal = 1.0f / Denominator;
+			const std::complex<float> LPF = NumeratorLPF * Reciprocal;
+			const std::complex<float> HPF = NumeratorHPF * Reciprocal;
+			const std::complex<float> BPF = NumeratorBPF * Reciprocal;
+			const std::complex<float> BSF = BandStopParam * HPF + (1.0f - BandStopParam) * LPF;
+
+			switch (FilterType)
+			{
+			default:
+			case EFilter::LowPass:
+				InOutComplexValues[Index + 0] = LPF.real();
+				InOutComplexValues[Index + 1] = LPF.imag();
+				break;
+			case EFilter::HighPass:
+				InOutComplexValues[Index + 0] = HPF.real();
+				InOutComplexValues[Index + 1] = HPF.imag();
+				break;
+			case EFilter::BandPass:
+				InOutComplexValues[Index + 0] = BPF.real();
+				InOutComplexValues[Index + 1] = BPF.imag();
+				break;
+			case EFilter::BandStop:
+				InOutComplexValues[Index + 0] = BSF.real();
+				InOutComplexValues[Index + 1] = BSF.imag();
+				break;
+			}
+		}
+	}
+
 	FLadderFilter::FLadderFilter()
 		: K(0.0f)
 		, Gamma(0.0f)
@@ -1052,6 +1173,35 @@ namespace Audio
 				OutBuffers[Channel][SampleIndex] += Factors[3] * OutputFilter2[Channel];
 				OutBuffers[Channel][SampleIndex] += Factors[4] * OutputFilter3[Channel];
 			}
+		}
+	}
+
+	void FLadderFilter::ArrayCalculateResponseInPlace(TArrayView<float> InOutComplexValues) const
+	{
+		check(FilterType == EFilter::LowPass);
+
+		// Get the one-pole LPF coefficients:
+		const float A0 = OnePoleFilters[0].GetCoefficient();
+		const float A1 = A0;
+		const float B1 = 2.0f * A0 - 1.0f;
+
+		const int32 NumFloats = InOutComplexValues.Num();
+		check(NumFloats % 2 == 0);
+		for (int32 Index = 0; Index < NumFloats; Index += 2)
+		{
+			const float ZReal = InOutComplexValues[Index + 0];
+			const float ZImag = InOutComplexValues[Index + 1];
+			const std::complex<float> Z(ZReal, ZImag);
+
+			// Calculate the response for the 4 one-pole filters in series:
+			const std::complex<float> OnePoleResponse = (A0 * Z + A1) / (B1 + Z);
+			const std::complex<float> Series = OnePoleResponse * OnePoleResponse * OnePoleResponse * OnePoleResponse;
+
+			// Apply pass-band gain-compensation and feedback:
+			const std::complex<float> H = (1.0f + PassBandGainCompensation * K) * Series / (K * Series + 1.0f);
+
+			InOutComplexValues[Index + 0] = H.real();
+			InOutComplexValues[Index + 1] = H.imag();
 		}
 	}
 }

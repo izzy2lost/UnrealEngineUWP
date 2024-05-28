@@ -73,6 +73,9 @@ namespace Audio
 		// Sets whether or no this filter is enabled (if disabled audio is passed through)
 		SIGNALPROCESSING_API void SetEnabled(const bool bInEnabled);
 
+		// Apply the filter transfer function to each z-domain value in the given array (complex numbers given as interleaved floats). Passing in z-domain values on the complex unit circle will give the frequency response.
+		SIGNALPROCESSING_API void ArrayCalculateResponseInPlace(TArrayView<float> InOutComplexValues) const;
+
 	protected:
 		struct FBiquadCoeff;
 
@@ -255,6 +258,9 @@ namespace Audio
 
 		float GetState(const int32 InChannel) const { return Z1[InChannel]; }
 
+		// Apply the filter transfer function to each z-domain value in the given array (complex numbers given as interleaved floats). Passing in z-domain values on the complex unit circle will give the frequency response.
+		SIGNALPROCESSING_API void ArrayCalculateResponseInPlace(TArrayView<float> InOutComplexValues) const;
+
 	protected:
 		float A0;
 		float* Z1;
@@ -281,6 +287,10 @@ namespace Audio
 		// Process a non-interleaved buffer of multichannel audio
 		SIGNALPROCESSING_API void ProcessAudio(const float* const* InBuffers, const int32 InNumSamples,
 			float* const* LpfOutBuffers, float* const* HpfOutBuffers, float* const* BpfOutBuffers, float* const* BsfOutBuffers);
+
+		// Apply the filter transfer function to each z-domain value in the given array (complex numbers given as interleaved floats). Passing in z-domain values on the complex unit circle will give the frequency response.
+		// The transfer function utilized here represents the behavior of the filter if the non-linearity were removed.
+		SIGNALPROCESSING_API void ArrayCalculateResponseInPlace(TArrayView<float> InOutComplexValues) const;
 
 	protected:
 		float InputScale;
@@ -320,6 +330,9 @@ namespace Audio
 		// Process a non-interleaved buffer of multichannel audio
 		SIGNALPROCESSING_API virtual void ProcessAudio(const float* const* InBuffers, const int32 InNumSamples, float* const* OutBuffers) override;
 
+		// Apply the filter transfer function to each z-domain value in the given array (complex numbers given as interleaved floats). Passing in z-domain values on the complex unit circle will give the frequency response.
+		// The transfer function utilized here represents the behavior of the filter if the non-linearity were removed.
+		SIGNALPROCESSING_API void ArrayCalculateResponseInPlace(TArrayView<float> InOutComplexValues) const;
 
 	protected:
 

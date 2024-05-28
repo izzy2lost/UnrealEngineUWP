@@ -3,7 +3,7 @@
 #include "DSP/InterpolatedOnePole.h"
 
 #include "AudioDefines.h"
-
+#include <complex>
 
 namespace Audio
 {
@@ -288,6 +288,26 @@ namespace Audio
 		Z1.AddZeroed(NumChannels);
 	}
 
+	void FInterpolatedLPF::ArrayCalculateResponseInPlace(TArrayView<float> InOutComplexValues) const
+	{
+		const float B1 = B1Curr;
+		const float A0 = (1.0f - B1Curr);
+
+		const int32 NumFloats = InOutComplexValues.Num();
+		check(NumFloats % 2 == 0);
+		for (int32 Index = 0; Index < NumFloats; Index += 2)
+		{
+			const float ZReal = InOutComplexValues[Index + 0];
+			const float ZImag = InOutComplexValues[Index + 1];
+			const std::complex<float> Z(ZReal, ZImag);
+
+			const std::complex<float> LPF = A0 / (1.0f - B1 * (1.0f / Z));
+
+			InOutComplexValues[Index + 0] = LPF.real();
+			InOutComplexValues[Index + 1] = LPF.imag();
+		}
+	}
+
 
 	// INTERPOLATED ONE-POLE HIGH-PASS IMPLEMENTATION
 	FInterpolatedHPF::FInterpolatedHPF()
@@ -476,5 +496,26 @@ namespace Audio
 		Z1.AddZeroed(NumChannels);
 	}
 
+	void FInterpolatedHPF::ArrayCalculateResponseInPlace(TArrayView<float> InOutComplexValues) const
+	{
+		const float A0 = A0Curr;
+		const float A1 = A0Curr;
+		const float B1 = 2.0f * A0 - 1.0f;
+
+		const int32 NumFloats = InOutComplexValues.Num();
+		check(NumFloats % 2 == 0);
+		for (int32 Index = 0; Index < NumFloats; Index += 2)
+		{
+			const float ZReal = InOutComplexValues[Index + 0];
+			const float ZImag = InOutComplexValues[Index + 1];
+			const std::complex<float> Z(ZReal, ZImag);
+
+			const std::complex<float> LPF = (A0 * Z + A1) / (B1 + Z);
+			const std::complex<float> HPF = 1.0f - LPF;
+
+			InOutComplexValues[Index + 0] = HPF.real();
+			InOutComplexValues[Index + 1] = HPF.imag();
+		}
+	}
 
 } // namespace Audio
