@@ -700,6 +700,11 @@ void FMenuStack::OnMenuDestroyed(TSharedRef<IMenu> InMenu)
 			Stack[StackIndex]->Dismiss();	// this will cause OnMenuDestroyed() to re-enter
 		}
 
+		if (MenuDestroyedEvent.IsBound())
+		{
+			MenuDestroyedEvent.Broadcast(InMenu);
+		}
+
 		// Clean up the stack and content map arrays
 		for (int32 StackIndex = Stack.Num() - 1; StackIndex >= Index; --StackIndex)
 		{

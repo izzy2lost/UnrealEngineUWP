@@ -565,6 +565,9 @@ public:
 	DECLARE_EVENT_OneParam(FSlateApplication, FOnWindowBeingDestroyed, const SWindow&);
 	FOnWindowBeingDestroyed& OnWindowBeingDestroyed() { return WindowBeingDestroyedEvent; }
 
+	/* Delegate called when a menu is about to be destroyed*/
+	FOnMenuDestroyed& OnMenuBeingDestroyed() { return MenuBeingDestroyedEvent; }
+
 	/** Delegate called just before possible focus change */
 	DECLARE_MULTICAST_DELEGATE_FiveParams(FOnFocusChanging, const FFocusEvent&, const FWeakWidgetPath&, const TSharedPtr<SWidget>&, const FWidgetPath&, const TSharedPtr<SWidget>&);
 	FOnFocusChanging& OnFocusChanging() { return FocusChangingDelegate; }
@@ -1842,6 +1845,10 @@ private:
 	 */
 	SLATE_API bool ExecuteNavigation(const FWidgetPath& NavigationSource, TSharedPtr<SWidget> DestinationWidget, const uint32 UserIndex, bool bAlwaysHandleNavigationAttempt);
 
+
+	/* Event receiver for when a menu in the menu stack is destroyed */
+	SLATE_API void OnMenuDestroyed(const TSharedRef<IMenu>& Menu);
+
 private:
 	SLATE_API FSlateApplication();
 	SLATE_API void SetLastUserInteractionTime(const double InCurrentTime);	
@@ -2094,6 +2101,9 @@ private:
 
 	/** Delegate for when a window is in the process of being destroyed */
 	FOnWindowBeingDestroyed WindowBeingDestroyedEvent;
+
+	/** Delegate for a when a menu has been dismissed */
+	FOnMenuDestroyed MenuBeingDestroyedEvent;
 
 	/** Delegate for slate Tick during modal dialogs */
 	FOnModalLoopTickEvent ModalLoopTickEvent;

@@ -865,6 +865,8 @@ FSlateApplication::FSlateApplication()
 #if WITH_EDITOR
 	FCoreDelegates::OnSafeFrameChangedEvent.AddRaw(this, &FSlateApplication::SwapSafeZoneTypes);
 	OnDebugSafeZoneChanged.AddRaw(this, &FSlateApplication::UpdateCustomSafeZone);
+
+	MenuStack.OnMenuDestroyedEvent().AddRaw(this, &FSlateApplication::OnMenuDestroyed);
 #endif
 
 	IConsoleVariable* CVarGlobalInvalidation = IConsoleManager::Get().FindConsoleVariable(TEXT("Slate.EnableGlobalInvalidation"));
@@ -885,6 +887,7 @@ FSlateApplication::~FSlateApplication()
 
 #if WITH_EDITOR
 	OnDebugSafeZoneChanged.RemoveAll(this);
+	MenuStack.OnMenuDestroyedEvent().RemoveAll(this);
 #endif
 
 	IConsoleVariable* CVarGlobalInvalidation = IConsoleManager::Get().FindConsoleVariable(TEXT("Slate.EnableGlobalInvalidation"));
@@ -6314,6 +6317,15 @@ bool FSlateApplication::ExecuteNavigation(const FWidgetPath& NavigationSource, T
 #endif
 
 	return bHandled;
+}
+
+
+void FSlateApplication::OnMenuDestroyed(const TSharedRef<IMenu>& Menu)
+{
+	if (MenuBeingDestroyedEvent.IsBound())
+	{
+		MenuBeingDestroyedEvent.Broadcast(Menu);
+	}
 }
 
 bool FSlateApplication::OnControllerAnalog(FGamepadKeyNames::Type KeyName, FPlatformUserId PlatformUserId, FInputDeviceId InputDeviceId, float AnalogValue)
