@@ -81,7 +81,7 @@ namespace Horde.Server.Server
 
 			// Launch the child process
 			_processGroup = new ManagedProcessGroup();
-			_process = new ManagedProcess(_processGroup, tempRedisExe.FullName, $"{arguments} --port {_port}", redisExe.Directory.FullName, null, ProcessPriorityClass.Normal);
+			_process = new ManagedProcess(_processGroup, tempRedisExe.FullName, $"--bind 127.0.0.1 --port {_port} --save \"\" --appendonly no {arguments}", redisExe.Directory.FullName, null, ProcessPriorityClass.Normal);
 			_process.StdIn.Close();
 
 			_relayTask = BackgroundTask.StartNew(RelayOutputAsync);

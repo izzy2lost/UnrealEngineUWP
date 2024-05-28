@@ -161,7 +161,7 @@ namespace Horde.Server.Tests
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
 				s_redisProcess = new RedisProcess(NullLogger.Instance);
-				s_redisProcess.Start("--save \"\" --appendonly no");
+				s_redisProcess.Start("");
 
 				return s_redisProcess.Port;
 			}
