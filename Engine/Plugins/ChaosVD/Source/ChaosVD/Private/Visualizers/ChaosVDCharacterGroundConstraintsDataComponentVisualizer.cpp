@@ -3,6 +3,7 @@
 #include "Visualizers/ChaosVDCharacterGroundConstraintsDataComponentVisualizer.h"
 
 #include "ChaosVDScene.h"
+#include "ChaosVDSettingsManager.h"
 #include "ChaosVDTabsIDs.h"
 #include "EditorViewportClient.h"
 #include "SceneManagement.h"
@@ -82,7 +83,7 @@ void FChaosVDCharacterGroundConstraintDataComponentVisualizer::DrawVisualization
 	VisualizationContext.SolverInfoActor = SolverInfoActor;
 
 	VisualizationContext.VisualizationFlags = static_cast<uint32>(UChaosVDCharacterConstraintsVisualizationSettings::GetDataVisualizationFlags());
-	VisualizationContext.DebugDrawSettings = GetDefault<UChaosVDCharacterConstraintsVisualizationSettings>();
+	VisualizationContext.DebugDrawSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDCharacterConstraintsVisualizationSettings>();
 
 	if (!VisualizationContext.IsVisualizationFlagEnabled(EChaosVDCharacterGroundConstraintDataVisualizationFlags::EnableDraw))
 	{

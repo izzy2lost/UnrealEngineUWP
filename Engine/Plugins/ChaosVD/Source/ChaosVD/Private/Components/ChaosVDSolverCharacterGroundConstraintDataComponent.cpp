@@ -4,12 +4,13 @@
 
 #include "ChaosVDCharacterGroundConstraintDataProviderInterface.h"
 #include "ChaosVDScene.h"
+#include "ChaosVDSettingsManager.h"
 #include "Selection.h"
 #include "Settings/ChaosVDCharacterConstraintsVisualizationSettings.h"
 
 void UChaosVDSolverCharacterGroundConstraintDataComponent::HandleSceneUpdated()
 {
-	if (const UChaosVDCharacterConstraintsVisualizationSettings* CharacterConstraintsVisualizationSettings = GetDefault<UChaosVDCharacterConstraintsVisualizationSettings>())
+	if (const UChaosVDCharacterConstraintsVisualizationSettings* CharacterConstraintsVisualizationSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDCharacterConstraintsVisualizationSettings>())
 	{
 		if (!CharacterConstraintsVisualizationSettings->bAutoSelectConstraintFromSelectedParticle)
 		{

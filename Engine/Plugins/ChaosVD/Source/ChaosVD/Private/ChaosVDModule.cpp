@@ -5,6 +5,7 @@
 #include "ChaosVDCommands.h"
 #include "ChaosVDEngine.h"
 #include "ChaosVDParticleActorCustomization.h"
+#include "ChaosVDSettingsManager.h"
 #include "ChaosVDStyle.h"
 #include "ChaosVDTabsIDs.h"
 #include "DetailsCustomizations/ChaosVDGeometryComponentCustomization.h"
@@ -87,6 +88,8 @@ void FChaosVDModule::ShutdownModule()
 	FCoreDelegates::OnEnginePreExit.RemoveAll(this);
 
 	CloseActiveInstances();
+	
+	FChaosVDSettingsManager::TearDown();
 }
 
 void FChaosVDModule::RegisterClassesCustomDetails() const

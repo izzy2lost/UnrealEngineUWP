@@ -21,7 +21,7 @@ enum class EChaosVDCollisionVisualizationFlags: uint32
 };
 ENUM_CLASS_FLAGS(EChaosVDCollisionVisualizationFlags);
 
-UCLASS(config=ChaosVD)
+UCLASS(config=ChaosVD, PerObjectConfig)
 class UChaosVDCollisionDataVisualizationSettings : public UChaosVDVisualizationSettingsObjectBase
 {
 	GENERATED_BODY()
@@ -47,7 +47,8 @@ public:
 	static EChaosVDCollisionVisualizationFlags GetDataVisualizationFlags();
 
 private:
+	UPROPERTY(config, meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDCollisionVisualizationFlags"))
 	/** Set of flags to enable/disable visualization of specific collision data as debug draw */
-	EChaosVDCollisionVisualizationFlags CollisionDataVisualizationFlags = EChaosVDCollisionVisualizationFlags::ContactInfo | EChaosVDCollisionVisualizationFlags::ContactPoints | EChaosVDCollisionVisualizationFlags::ContactNormal;
+	uint32 CollisionDataVisualizationFlags = static_cast<uint32>(EChaosVDCollisionVisualizationFlags::ContactInfo | EChaosVDCollisionVisualizationFlags::ContactPoints | EChaosVDCollisionVisualizationFlags::ContactNormal);
 };
 

@@ -94,7 +94,7 @@ void FChaosVDComponentVisualizerBase::CreateGenericVisualizerMenu(FName MenuToEx
 						   false, FlagsMenuIcon);
 
 		using namespace Chaos::VisualDebugger::Utils;
-		Section.AddSubMenu(FName(InSettingsMenuLabel.ToString()), InSettingsMenuLabel, InSettingsMenuTooltip, FNewToolMenuDelegate::CreateStatic(&CreateMenuEntryForDefaultObject<ObjectSettingsType>, EChaosVDSaveSettingsOptions::ShowSaveButton),
+		Section.AddSubMenu(FName(InSettingsMenuLabel.ToString()), InSettingsMenuLabel, InSettingsMenuTooltip, FNewToolMenuDelegate::CreateStatic(&CreateMenuEntryForSettingsObject<ObjectSettingsType>, EChaosVDSaveSettingsOptions::ShowResetButton),
 						   false, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("Icons.Toolbar.Settings")));
 	}
 }

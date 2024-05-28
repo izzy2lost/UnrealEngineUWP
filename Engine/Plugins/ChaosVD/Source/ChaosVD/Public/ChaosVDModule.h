@@ -13,6 +13,7 @@ class FSpawnTabArgs;
 struct FGuid;
 
 /** Main module class for the Chaos Visual Debugger editor */
+/** Main module class for the Chaos Visual Debugger editor */
 DECLARE_LOG_CATEGORY_EXTERN(LogChaosVDEditor, Log, Log);
 class FChaosVDModule : public IModuleInterface
 {
@@ -59,4 +60,5 @@ private:
 	static FString ChaosVisualDebuggerProgramName;
 
 	bool bIsShuttingDown = false;
+
 };

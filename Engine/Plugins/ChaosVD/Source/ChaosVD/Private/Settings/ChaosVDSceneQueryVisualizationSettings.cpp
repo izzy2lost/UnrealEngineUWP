@@ -2,20 +2,23 @@
 
 #include "ChaosVDSceneQueryVisualizationSettings.h"
 
+#include "ChaosVDSettingsManager.h"
+
+
 void UChaosVDSceneQueriesVisualizationSettings::SetDataVisualizationFlags(EChaosVDSceneQueryVisualizationFlags NewFlags)
 {
-	if (UChaosVDSceneQueriesVisualizationSettings* Settings = GetMutableDefault<UChaosVDSceneQueriesVisualizationSettings>())
+	if (UChaosVDSceneQueriesVisualizationSettings* Settings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDSceneQueriesVisualizationSettings>())
 	{
-		Settings->GlobalSceneQueriesVisualizationFlags = NewFlags;
+		Settings->GlobalSceneQueriesVisualizationFlags = static_cast<uint32>(NewFlags);
 		Settings->BroadcastSettingsChanged();
 	}
 }
 
 EChaosVDSceneQueryVisualizationFlags UChaosVDSceneQueriesVisualizationSettings::GetDataVisualizationFlags()
 {
-	if (UChaosVDSceneQueriesVisualizationSettings* Settings = GetMutableDefault<UChaosVDSceneQueriesVisualizationSettings>())
+	if (UChaosVDSceneQueriesVisualizationSettings* Settings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDSceneQueriesVisualizationSettings>())
 	{
-		return Settings->GlobalSceneQueriesVisualizationFlags;
+		return static_cast<EChaosVDSceneQueryVisualizationFlags>(Settings->GlobalSceneQueriesVisualizationFlags);
 	}
 
 	return EChaosVDSceneQueryVisualizationFlags::None;

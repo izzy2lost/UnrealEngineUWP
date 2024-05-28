@@ -6,6 +6,7 @@
 #include "ChaosVDGeometryBuilder.h"
 #include "ChaosVDModule.h"
 #include "ChaosVDParticleActor.h"
+#include "ChaosVDSettingsManager.h"
 #include "Components/MeshComponent.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInterface.h"
@@ -274,7 +275,7 @@ void FChaosVDGeometryComponentUtils::UpdateMeshVisibility(const TSharedPtr<FChao
 		return;
 	}
 
-	if (const UChaosVDParticleVisualizationSettings* ParticleVisualizationSettings = GetDefault<UChaosVDParticleVisualizationSettings>())
+	if (const UChaosVDParticleVisualizationSettings* ParticleVisualizationSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDParticleVisualizationSettings>())
 	{
 		const EChaosVDGeometryVisibilityFlags CurrentVisibilityFlags = ParticleVisualizationSettings->GetGeometryVisualizationFlags();
 		
@@ -330,7 +331,7 @@ FLinearColor FChaosVDGeometryComponentUtils::GetGeometryParticleColor(const TSha
 		return ColorToApply;
 	}
 
-	const UChaosVDParticleVisualizationColorSettings* VisualizationSettings = GetDefault<UChaosVDParticleVisualizationColorSettings>();
+	const UChaosVDParticleVisualizationColorSettings* VisualizationSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDParticleVisualizationColorSettings>();
 	if (!VisualizationSettings)
 	{
 		return ColorToApply;
@@ -379,7 +380,7 @@ FLinearColor FChaosVDGeometryComponentUtils::GetGeometryParticleColor(const TSha
 
 UMaterialInterface* FChaosVDGeometryComponentUtils::GetBaseMaterialForType(EChaosVDMaterialType Type)
 {
-	const UChaosVDCoreSettings* EditorSettings = GetDefault<UChaosVDCoreSettings>();
+	const UChaosVDCoreSettings* EditorSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDCoreSettings>();
 	if (!EditorSettings)
 	{
 		return nullptr;

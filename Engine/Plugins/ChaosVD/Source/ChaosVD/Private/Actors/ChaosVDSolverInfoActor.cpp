@@ -5,6 +5,7 @@
 #include "ChaosVDModule.h"
 #include "ChaosVDParticleActor.h"
 #include "ChaosVDScene.h"
+#include "ChaosVDSettingsManager.h"
 #include "EditorActorFolders.h"
 #include "Components/ChaosVDParticleDataComponent.h"
 #include "Components/ChaosVDSolverCharacterGroundConstraintDataComponent.h"
@@ -25,16 +26,15 @@ AChaosVDSolverInfoActor::AChaosVDSolverInfoActor(const FObjectInitializer& Objec
 	CharacterGroundConstraintDataComponent = CreateDefaultSubobject<UChaosVDSolverCharacterGroundConstraintDataComponent>(TEXT("CharacterGroundConstraintDataComponent"));
 	bIsServer = false;
 
-	if (UChaosVDParticleVisualizationSettings* ParticleVisualizationSettings = GetMutableDefault<UChaosVDParticleVisualizationSettings>())
+	if (UChaosVDParticleVisualizationSettings* ParticleVisualizationSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDParticleVisualizationSettings>())
 	{
 		ParticleVisualizationSettings->OnSettingsChanged().AddUObject(this, &AChaosVDSolverInfoActor::HandleVisibilitySettingsUpdated);
 	}
 	
-	if (UChaosVDParticleVisualizationColorSettings* ColorVisualizationSettings = GetMutableDefault<UChaosVDParticleVisualizationColorSettings>())
+	if (UChaosVDParticleVisualizationColorSettings* ColorVisualizationSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDParticleVisualizationColorSettings>())
 	{
 		ColorVisualizationSettings->OnSettingsChanged().AddUObject(this, &AChaosVDSolverInfoActor::HandleColorsSettingsUpdated);
 	}
-
 }
 
 void AChaosVDSolverInfoActor::SetSolverName(const FName& InSolverName)
@@ -231,12 +231,12 @@ void AChaosVDSolverInfoActor::Destroyed()
 		return;
 	}
 
-	if (UChaosVDParticleVisualizationSettings* ParticleVisualizationSettings = GetMutableDefault<UChaosVDParticleVisualizationSettings>())
+	if (UChaosVDParticleVisualizationSettings* ParticleVisualizationSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDParticleVisualizationSettings>())
 	{
 		ParticleVisualizationSettings->OnSettingsChanged().RemoveAll(this);
 	}
 	
-	if (UChaosVDParticleVisualizationColorSettings* ColorVisualizationSettings = GetMutableDefault<UChaosVDParticleVisualizationColorSettings>())
+	if (UChaosVDParticleVisualizationColorSettings* ColorVisualizationSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDParticleVisualizationColorSettings>())
 	{
 		ColorVisualizationSettings->OnSettingsChanged().RemoveAll(this);
 	}

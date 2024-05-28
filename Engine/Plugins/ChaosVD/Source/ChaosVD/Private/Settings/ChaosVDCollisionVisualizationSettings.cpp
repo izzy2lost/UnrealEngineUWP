@@ -2,20 +2,23 @@
 
 #include "ChaosVDCollisionVisualizationSettings.h"
 
+#include "ChaosVDSettingsManager.h"
+
+
 void UChaosVDCollisionDataVisualizationSettings::SetDataVisualizationFlags(EChaosVDCollisionVisualizationFlags NewFlags)
 {
-	if (UChaosVDCollisionDataVisualizationSettings* Settings = GetMutableDefault<UChaosVDCollisionDataVisualizationSettings>())
+	if (UChaosVDCollisionDataVisualizationSettings* Settings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDCollisionDataVisualizationSettings>())
 	{
-		Settings->CollisionDataVisualizationFlags = NewFlags;
+		Settings->CollisionDataVisualizationFlags = static_cast<uint32>(NewFlags);
 		Settings->BroadcastSettingsChanged();
 	}
 }
 
 EChaosVDCollisionVisualizationFlags UChaosVDCollisionDataVisualizationSettings::GetDataVisualizationFlags()
 {
-	if (UChaosVDCollisionDataVisualizationSettings* Settings = GetMutableDefault<UChaosVDCollisionDataVisualizationSettings>())
+	if (UChaosVDCollisionDataVisualizationSettings* Settings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDCollisionDataVisualizationSettings>())
 	{
-		return Settings->CollisionDataVisualizationFlags ;
+		return static_cast<EChaosVDCollisionVisualizationFlags>(Settings->CollisionDataVisualizationFlags) ;
 	}
 
 	return EChaosVDCollisionVisualizationFlags::None;

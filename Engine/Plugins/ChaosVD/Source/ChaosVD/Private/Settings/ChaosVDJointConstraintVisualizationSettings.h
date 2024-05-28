@@ -28,7 +28,7 @@ enum class EChaosVDJointsDataVisualizationFlags : uint32
 };
 ENUM_CLASS_FLAGS(EChaosVDJointsDataVisualizationFlags);
 
-UCLASS(config=ChaosVD)
+UCLASS(config=ChaosVD, PerObjectConfig)
 class UChaosVDJointConstraintsVisualizationSettings : public UChaosVDVisualizationSettingsObjectBase
 {
 	GENERATED_BODY()
@@ -72,5 +72,6 @@ public:
 
 private:
 	/** Set of flags to enable/disable visualization of specific joint constraints data as debug draw */
-	EChaosVDJointsDataVisualizationFlags GlobalJointsDataVisualizationFlags = EChaosVDJointsDataVisualizationFlags::ActorConnector | EChaosVDJointsDataVisualizationFlags::DrawKinematic;
+	UPROPERTY(config, meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDJointsDataVisualizationFlags"))
+	uint32 GlobalJointsDataVisualizationFlags = static_cast<uint32>(EChaosVDJointsDataVisualizationFlags::ActorConnector | EChaosVDJointsDataVisualizationFlags::DrawKinematic);
 };

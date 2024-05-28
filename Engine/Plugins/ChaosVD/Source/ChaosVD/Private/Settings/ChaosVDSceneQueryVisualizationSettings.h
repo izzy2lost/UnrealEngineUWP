@@ -21,7 +21,7 @@ enum class EChaosVDSceneQueryVisualizationFlags: uint32
 };
 ENUM_CLASS_FLAGS(EChaosVDSceneQueryVisualizationFlags);
 
-UCLASS(config=ChaosVD)
+UCLASS(config=ChaosVD, PerObjectConfig)
 class UChaosVDSceneQueriesVisualizationSettings : public UChaosVDVisualizationSettingsObjectBase
 {
 	GENERATED_BODY()
@@ -37,5 +37,6 @@ public:
 
 private:
 	/** Set of flags to enable/disable visualization of specific scene queries data as debug draw */
-	EChaosVDSceneQueryVisualizationFlags GlobalSceneQueriesVisualizationFlags = EChaosVDSceneQueryVisualizationFlags::DrawHits | EChaosVDSceneQueryVisualizationFlags::DrawLineTraceQueries;
+	UPROPERTY(config, meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDSceneQueryVisualizationFlags"))
+	uint32 GlobalSceneQueriesVisualizationFlags = static_cast<uint32>(EChaosVDSceneQueryVisualizationFlags::DrawHits | EChaosVDSceneQueryVisualizationFlags::DrawLineTraceQueries);
 };

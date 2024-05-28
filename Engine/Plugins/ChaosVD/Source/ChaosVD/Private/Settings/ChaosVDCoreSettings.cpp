@@ -2,8 +2,14 @@
 
 #include "ChaosVDCoreSettings.h"
 
+#include "Misc/ConfigContext.h"
 #include "Widgets/SChaosVDPlaybackViewport.h"
 
+
+UChaosVDSettingsObjectBase::UChaosVDSettingsObjectBase()
+{
+	
+}
 
 void UChaosVDSettingsObjectBase::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
@@ -18,9 +24,22 @@ void UChaosVDSettingsObjectBase::PostEditUndo()
 	BroadcastSettingsChanged();
 }
 
+void UChaosVDSettingsObjectBase::OverridePerObjectConfigSection(FString& SectionName)
+{
+	if (OverrideConfigSectionName.IsEmpty())
+	{
+		OverrideConfigSectionName = GetClass()->GetPathName() + TEXT(" Instance");
+	}
+
+	SectionName = OverrideConfigSectionName;
+}
+
 void UChaosVDSettingsObjectBase::BroadcastSettingsChanged()
 {
 	SettingsChangedDelegate.Broadcast(this);
+
+	constexpr bool bAllowCopyToDefaultObject = false;
+	SaveConfig(CPF_Config,nullptr, GConfig, bAllowCopyToDefaultObject);
 }
 
 void UChaosVDVisualizationSettingsObjectBase::BroadcastSettingsChanged()

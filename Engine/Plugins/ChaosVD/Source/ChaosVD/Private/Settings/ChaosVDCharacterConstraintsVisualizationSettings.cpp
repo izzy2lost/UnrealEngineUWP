@@ -2,20 +2,23 @@
 
 #include "ChaosVDCharacterConstraintsVisualizationSettings.h"
 
+#include "ChaosVDSettingsManager.h"
+
+
 void UChaosVDCharacterConstraintsVisualizationSettings::SetDataVisualizationFlags(EChaosVDCharacterGroundConstraintDataVisualizationFlags NewFlags)
 {
-	if (UChaosVDCharacterConstraintsVisualizationSettings* Settings = GetMutableDefault<UChaosVDCharacterConstraintsVisualizationSettings>())
+	if (UChaosVDCharacterConstraintsVisualizationSettings* Settings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDCharacterConstraintsVisualizationSettings>())
 	{
-		Settings->GlobalCharacterGroundConstraintDataVisualizationFlags = NewFlags;
+		Settings->GlobalCharacterGroundConstraintDataVisualizationFlags = static_cast<uint32>(NewFlags);
 		Settings->BroadcastSettingsChanged();
 	}
 }
 
 EChaosVDCharacterGroundConstraintDataVisualizationFlags UChaosVDCharacterConstraintsVisualizationSettings::GetDataVisualizationFlags()
 {
-	if (UChaosVDCharacterConstraintsVisualizationSettings* Settings = GetMutableDefault<UChaosVDCharacterConstraintsVisualizationSettings>())
+	if (UChaosVDCharacterConstraintsVisualizationSettings* Settings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDCharacterConstraintsVisualizationSettings>())
 	{
-		return Settings->GlobalCharacterGroundConstraintDataVisualizationFlags;
+		return static_cast<EChaosVDCharacterGroundConstraintDataVisualizationFlags>(Settings->GlobalCharacterGroundConstraintDataVisualizationFlags);
 	}
 
 	return EChaosVDCharacterGroundConstraintDataVisualizationFlags::None;

@@ -14,11 +14,23 @@ class UMaterial;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDSettingChanged, UObject* SettingsObject)
 
+UCLASS()
+class UChaosVDSettingsObjectsOuter : public UObject
+{
+	GENERATED_BODY()
+};
+
 UCLASS(config = ChaosVD)
 class UChaosVDSettingsObjectBase : public UObject
 {
-	GENERATED_BODY()
 public:
+	UChaosVDSettingsObjectBase();
+
+private:
+	GENERATED_BODY()
+
+public:
+
 
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 
@@ -26,11 +38,22 @@ public:
 
 	virtual void PostEditUndo() override;
 
+	virtual void OverridePerObjectConfigSection(FString& SectionName) override;
+
+	FStringView GetConfigSectionName()
+	{
+		return OverrideConfigSectionName;
+	}
+
 protected:
 	virtual void BroadcastSettingsChanged();
 	
 private:
+
+	FString OverrideConfigSectionName;
 	FChaosVDSettingChanged SettingsChangedDelegate;
+
+	friend class FChaosVDSettingsManager;
 };
 
 UCLASS(config = ChaosVD)

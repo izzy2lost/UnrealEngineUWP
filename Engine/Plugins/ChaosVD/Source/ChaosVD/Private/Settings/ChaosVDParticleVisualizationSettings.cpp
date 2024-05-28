@@ -2,6 +2,7 @@
 
 #include "ChaosVDParticleVisualizationSettings.h"
 
+#include "ChaosVDSettingsManager.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 
 
@@ -86,18 +87,18 @@ float UChaosVDParticleVisualizationDebugDrawSettings::GetScaleFortDataID(EChaosV
 
 void UChaosVDParticleVisualizationDebugDrawSettings::SetDataDebugDrawVisualizationFlags(EChaosVDParticleDataVisualizationFlags Flags)
 {
-	if (UChaosVDParticleVisualizationDebugDrawSettings* Settings = GetMutableDefault<UChaosVDParticleVisualizationDebugDrawSettings>())
+	if (UChaosVDParticleVisualizationDebugDrawSettings* Settings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDParticleVisualizationDebugDrawSettings>())
 	{
-		Settings->ParticleDataVisualizationFlags = Flags;
+		Settings->ParticleDataVisualizationFlags = static_cast<uint32>(Flags);
 		Settings->BroadcastSettingsChanged();
 	}
 }
 
 EChaosVDParticleDataVisualizationFlags UChaosVDParticleVisualizationDebugDrawSettings::GetDataDebugDrawVisualizationFlags()
 {
-	if (UChaosVDParticleVisualizationDebugDrawSettings* Settings = GetMutableDefault<UChaosVDParticleVisualizationDebugDrawSettings>())
+	if (UChaosVDParticleVisualizationDebugDrawSettings* Settings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDParticleVisualizationDebugDrawSettings>())
 	{
-		return Settings->ParticleDataVisualizationFlags;
+		return static_cast<EChaosVDParticleDataVisualizationFlags>(Settings->ParticleDataVisualizationFlags);
 	}
 
 	return EChaosVDParticleDataVisualizationFlags::None;
@@ -105,18 +106,18 @@ EChaosVDParticleDataVisualizationFlags UChaosVDParticleVisualizationDebugDrawSet
 
 void UChaosVDParticleVisualizationSettings::SetGeometryVisualizationFlags(EChaosVDGeometryVisibilityFlags Flags)
 {
-	if (UChaosVDParticleVisualizationSettings* Settings = GetMutableDefault<UChaosVDParticleVisualizationSettings>())
+	if (UChaosVDParticleVisualizationSettings* Settings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDParticleVisualizationSettings>())
 	{
-		Settings->GeometryVisibilityFlags = Flags;
+		Settings->GeometryVisibilityFlags = static_cast<uint32>(Flags);
 		Settings->BroadcastSettingsChanged();
 	}
 }
 
 EChaosVDGeometryVisibilityFlags UChaosVDParticleVisualizationSettings::GetGeometryVisualizationFlags()
 {
-	if (UChaosVDParticleVisualizationSettings* Settings = GetMutableDefault<UChaosVDParticleVisualizationSettings>())
+	if (UChaosVDParticleVisualizationSettings* Settings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDParticleVisualizationSettings>())
 	{
-		return Settings->GeometryVisibilityFlags;
+		return static_cast<EChaosVDGeometryVisibilityFlags>(Settings->GeometryVisibilityFlags);
 	}
 
 	return EChaosVDGeometryVisibilityFlags::None;

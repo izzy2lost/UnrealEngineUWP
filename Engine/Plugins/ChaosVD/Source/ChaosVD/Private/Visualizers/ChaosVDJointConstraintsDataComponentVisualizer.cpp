@@ -4,6 +4,7 @@
 
 #include "ChaosVDEngine.h"
 #include "ChaosVDScene.h"
+#include "ChaosVDSettingsManager.h"
 #include "ChaosVDStyle.h"
 #include "ChaosVDTabsIDs.h"
 #include "EditorViewportClient.h"
@@ -160,7 +161,7 @@ void FChaosVDJointConstraintsDataComponentVisualizer::DrawVisualization(const UA
 	VisualizationContext.SpaceTransform = SolverInfoActor->GetSimulationTransform();
 	VisualizationContext.SolverInfoActor = SolverInfoActor;
 
-	if (const UChaosVDJointConstraintsVisualizationSettings* EditorSettings = GetDefault<UChaosVDJointConstraintsVisualizationSettings>())
+	if (const UChaosVDJointConstraintsVisualizationSettings* EditorSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDJointConstraintsVisualizationSettings>())
 	{
 		VisualizationContext.VisualizationFlags = static_cast<uint32>(UChaosVDJointConstraintsVisualizationSettings::GetDataVisualizationFlags());
 		VisualizationContext.bShowDebugText = EditorSettings->bShowDebugText;

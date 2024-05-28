@@ -33,7 +33,7 @@ enum class EChaosVDCharacterGroundConstraintDataVisualizationFlags : uint32
 };
 ENUM_CLASS_FLAGS(EChaosVDCharacterGroundConstraintDataVisualizationFlags);
 
-UCLASS(config=ChaosVD)
+UCLASS(config=ChaosVD, PerObjectConfig)
 class UChaosVDCharacterConstraintsVisualizationSettings : public UChaosVDVisualizationSettingsObjectBase
 {
 	GENERATED_BODY()
@@ -78,6 +78,6 @@ public:
 
 private:
 	/** Set of flags to enable/disable visualization of specific character ground constraint data as debug draw */
-	EChaosVDCharacterGroundConstraintDataVisualizationFlags GlobalCharacterGroundConstraintDataVisualizationFlags = EChaosVDCharacterGroundConstraintDataVisualizationFlags::GroundQueryDistance | EChaosVDCharacterGroundConstraintDataVisualizationFlags::GroundQueryNormal | EChaosVDCharacterGroundConstraintDataVisualizationFlags::TargetDeltaPosition;
-
+	UPROPERTY(config, meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDCharacterGroundConstraintDataVisualizationFlags"))
+	uint32 GlobalCharacterGroundConstraintDataVisualizationFlags = static_cast<uint32>(EChaosVDCharacterGroundConstraintDataVisualizationFlags::GroundQueryDistance | EChaosVDCharacterGroundConstraintDataVisualizationFlags::GroundQueryNormal | EChaosVDCharacterGroundConstraintDataVisualizationFlags::TargetDeltaPosition);
 };

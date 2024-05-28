@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+#include "ChaosVDSettingsManager.h"
 #include "IStructureDetailsView.h"
 
 class UToolMenu;
@@ -15,16 +16,17 @@ namespace Chaos::VisualDebugger::Utils
 	enum class EChaosVDSaveSettingsOptions
 	{
 		None = 0,
-		ShowSaveButton = 1 << 0
+		ShowSaveButton = 1 << 0,
+		ShowResetButton = 1 << 1
 	};
 	ENUM_CLASS_FLAGS(EChaosVDSaveSettingsOptions)
 
 	void CreateMenuEntryForObject(UToolMenu* Menu, UObject* Object, EChaosVDSaveSettingsOptions MenuEntryOptions = EChaosVDSaveSettingsOptions::None);
 
-	template <typename TObject>
-	void CreateMenuEntryForDefaultObject(UToolMenu* Menu, EChaosVDSaveSettingsOptions MenuEntryOptions = EChaosVDSaveSettingsOptions::None)
+	template <typename Object>
+	void CreateMenuEntryForSettingsObject(UToolMenu* Menu, EChaosVDSaveSettingsOptions MenuEntryOptions = EChaosVDSaveSettingsOptions::None)
 	{
-		CreateMenuEntryForObject(Menu, GetMutableDefault<TObject>(), MenuEntryOptions);
+		CreateMenuEntryForObject(Menu, FChaosVDSettingsManager::Get().GetSettingsObject<Object>(), MenuEntryOptions);
 	}
 
 	template <typename TStruct>

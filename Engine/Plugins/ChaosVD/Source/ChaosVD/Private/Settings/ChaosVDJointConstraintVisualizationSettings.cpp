@@ -2,20 +2,23 @@
 
 #include "ChaosVDJointConstraintVisualizationSettings.h"
 
+#include "ChaosVDSettingsManager.h"
+
+
 void UChaosVDJointConstraintsVisualizationSettings::SetDataVisualizationFlags(EChaosVDJointsDataVisualizationFlags NewFlags)
 {
-	if (UChaosVDJointConstraintsVisualizationSettings* Settings = GetMutableDefault<UChaosVDJointConstraintsVisualizationSettings>())
+	if (UChaosVDJointConstraintsVisualizationSettings* Settings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDJointConstraintsVisualizationSettings>())
 	{
-		Settings->GlobalJointsDataVisualizationFlags = NewFlags;
+		Settings->GlobalJointsDataVisualizationFlags = static_cast<uint32>(NewFlags);
 		Settings->BroadcastSettingsChanged();
 	}
 }
 
 EChaosVDJointsDataVisualizationFlags UChaosVDJointConstraintsVisualizationSettings::GetDataVisualizationFlags()
 {
-	if (UChaosVDJointConstraintsVisualizationSettings* Settings = GetMutableDefault<UChaosVDJointConstraintsVisualizationSettings>())
+	if (UChaosVDJointConstraintsVisualizationSettings* Settings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDJointConstraintsVisualizationSettings>())
 	{
-		return Settings->GlobalJointsDataVisualizationFlags;
+		return static_cast<EChaosVDJointsDataVisualizationFlags>(Settings->GlobalJointsDataVisualizationFlags);
 	}
 
 	return EChaosVDJointsDataVisualizationFlags::None;

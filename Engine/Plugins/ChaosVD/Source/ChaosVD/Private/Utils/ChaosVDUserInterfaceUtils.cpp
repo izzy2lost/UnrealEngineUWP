@@ -6,6 +6,7 @@
 #include "ToolMenu.h"
 #include "ToolMenuEntry.h"
 #include "ToolMenuSection.h"
+#include "Settings/ChaosVDCoreSettings.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -37,6 +38,7 @@ TSharedRef<IDetailsView> Chaos::VisualDebugger::Utils::MakeObjectDetailsViewForM
 	DetailsViewArgs.bShowObjectLabel = false;
 	DetailsViewArgs.bCustomNameAreaLocation = true;
 	DetailsViewArgs.ColumnWidth = 0.45f;
+	DetailsViewArgs.bShowModifiedPropertiesOption = true;
 
 	return PropertyEditorModule.CreateDetailView(DetailsViewArgs);
 }
@@ -67,25 +69,49 @@ void Chaos::VisualDebugger::Utils::CreateMenuEntryForObject(UToolMenu* Menu, UOb
 	FToolMenuEntry MenuEntry = FToolMenuEntry::InitWidget(Object->GetFName(), DetailsView, FText::GetEmpty());
 	Menu->AddMenuEntry(NAME_None, MenuEntry);
 
-	if (EnumHasAnyFlags(MenuEntryOptions, EChaosVDSaveSettingsOptions::ShowSaveButton))
+	if (EnumHasAnyFlags(MenuEntryOptions, EChaosVDSaveSettingsOptions::ShowSaveButton | EChaosVDSaveSettingsOptions::ShowResetButton))
 	{
 		Menu->AddMenuEntry(NAME_None,FToolMenuEntry::InitSeparator(NAME_None));
+
+		if (EnumHasAnyFlags(MenuEntryOptions, EChaosVDSaveSettingsOptions::ShowSaveButton))
+		{
+			const FString SaveObjectButtonName = Object->GetName() + TEXT("SaveButton");
+			
+			FToolMenuEntry SaveMenuEntry = FToolMenuEntry::InitMenuEntry(FName(SaveObjectButtonName),
+				NSLOCTEXT("ChaosVisualDebugger","CreateMenuEntryForObjectSaveButtonLabel", "Save Settings"),
+				NSLOCTEXT("ChaosVisualDebugger","CreateMenuEntryForObjectSaveButtonToolTip", "Saves the current settings into the Editor's configuration file"),
+				FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("LevelEditor.Save")),
+				FUIAction(
+					FExecuteAction::CreateLambda([ObjectWeakPtr = TWeakObjectPtr(Object)]()
+					{
+						if (UObject* Object = ObjectWeakPtr.Get())
+						{
+							constexpr bool bAllowCopyToDefaultObject = false;
+							Object->SaveConfig(CPF_Config,nullptr, GConfig, bAllowCopyToDefaultObject);
+						}
+					})));
+
+			Menu->AddMenuEntry(NAME_None, SaveMenuEntry);
+		}
 		
-		const FString SaveObjectButtonName = Object->GetName() + TEXT("SaveButton");
-		
-		FToolMenuEntry SaveMenuEntry = FToolMenuEntry::InitMenuEntry(FName(SaveObjectButtonName),
-			NSLOCTEXT("ChaosVisualDebugger","CreateMenuEntryForObjectSaveButtonLabel", "Save Settings"),
-			NSLOCTEXT("ChaosVisualDebugger","CreateMenuEntryForObjectSaveButtonToolTip", "Saves the current settings into the Editor's confiuration file"),
-			FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("LevelEditor.Save")),
-			FUIAction(
+		if (EnumHasAnyFlags(MenuEntryOptions, EChaosVDSaveSettingsOptions::ShowResetButton))
+		{
+			const FString ResetObjectButtonName = Object->GetName() + TEXT("Reset");
+
+			FToolMenuEntry ResetMenuEntry = FToolMenuEntry::InitMenuEntry(FName(ResetObjectButtonName),
+				NSLOCTEXT("ChaosVisualDebugger","CreateMenuEntryForObjectResetButtonLabel", "Reset to defaults"),
+				NSLOCTEXT("ChaosVisualDebugger","CreateMenuEntryForObjectResetButtonToolTip", "Reset this settings section to its defaults values and save it to the Editor's configuration file"),
+				FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("PropertyWindow.DiffersFromDefault")),
+				FUIAction(
 				FExecuteAction::CreateLambda([ObjectWeakPtr = TWeakObjectPtr(Object)]()
 				{
-					if (UObject* Object = ObjectWeakPtr.Get())
+					if (UObject* Object =ObjectWeakPtr.Get())
 					{
-						Object->SaveConfig();
+						FChaosVDSettingsManager::Get().ResetSettings(Object->GetClass());
 					}
 				})));
-			
-		Menu->AddMenuEntry(NAME_None, SaveMenuEntry);
+
+			Menu->AddMenuEntry(NAME_None, ResetMenuEntry);
+		}
 	}
 }

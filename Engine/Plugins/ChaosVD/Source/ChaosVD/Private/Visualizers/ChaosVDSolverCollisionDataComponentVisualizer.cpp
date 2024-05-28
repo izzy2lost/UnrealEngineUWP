@@ -5,6 +5,7 @@
 #include "ChaosVDComponentVisualizerBase.h"
 #include "ChaosVDParticleActor.h"
 #include "ChaosVDScene.h"
+#include "ChaosVDSettingsManager.h"
 #include "ChaosVDTabsIDs.h"
 #include "EditorViewportClient.h"
 #include "Actors/ChaosVDSolverInfoActor.h"
@@ -75,7 +76,7 @@ void FChaosVDSolverCollisionDataComponentVisualizer::DrawVisualization(const UAc
 	VisualizationContext.CVDScene = SolverInfoContainer->GetScene();
 	VisualizationContext.SpaceTransform = SolverInfoContainer->GetSimulationTransform();
 	VisualizationContext.VisualizationFlags = static_cast<uint32>(UChaosVDCollisionDataVisualizationSettings::GetDataVisualizationFlags());
-	VisualizationContext.DebugDrawSettings = GetDefault<UChaosVDCollisionDataVisualizationSettings>();
+	VisualizationContext.DebugDrawSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDCollisionDataVisualizationSettings>();
 
 	if (!EnumHasAnyFlags(EChaosVDCollisionVisualizationFlags::EnableDraw, static_cast<EChaosVDCollisionVisualizationFlags>(VisualizationContext.VisualizationFlags)))
 	{

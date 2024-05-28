@@ -223,7 +223,7 @@ namespace Chaos::VisualDebugger::ParticleDataUnitsStrings
 	}
 }
 
-UCLASS(config=ChaosVD)
+UCLASS(config=ChaosVD, PerObjectConfig)
 class UChaosVDParticleVisualizationColorSettings : public UChaosVDVisualizationSettingsObjectBase
 {
 	GENERATED_BODY()
@@ -242,7 +242,7 @@ public:
 	FChaosDebugDrawColorsByClientServer ColorsByClientServer;
 };
 
-UCLASS(config=ChaosVD)
+UCLASS(config=ChaosVD, PerObjectConfig)
 class UChaosVDParticleVisualizationDebugDrawSettings : public UChaosVDVisualizationSettingsObjectBase
 {
 	GENERATED_BODY()
@@ -294,11 +294,11 @@ public:
 
 private:
 	/** Set of flags to enable/disable visualization of specific particle data as debug draw */
-	UPROPERTY()
-	EChaosVDParticleDataVisualizationFlags ParticleDataVisualizationFlags = EChaosVDParticleDataVisualizationFlags::Velocity | EChaosVDParticleDataVisualizationFlags::AngularVelocity;
+	UPROPERTY(config, meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDParticleDataVisualizationFlags"))
+	uint32 ParticleDataVisualizationFlags = static_cast<uint32>(EChaosVDParticleDataVisualizationFlags::Velocity | EChaosVDParticleDataVisualizationFlags::AngularVelocity);
 };
 
-UCLASS()
+UCLASS(config=ChaosVD, PerObjectConfig)
 class UChaosVDParticleVisualizationSettings : public UChaosVDVisualizationSettingsObjectBase
 {
 	GENERATED_BODY()
@@ -310,5 +310,6 @@ public:
 private:
 
 	/** Set of flags to enable/disable visibility of specific types of geometry/particles */
-	EChaosVDGeometryVisibilityFlags GeometryVisibilityFlags = EChaosVDGeometryVisibilityFlags::Simulated | EChaosVDGeometryVisibilityFlags::Simple |  EChaosVDGeometryVisibilityFlags::ShowHeightfields;
+	UPROPERTY(config, meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDGeometryVisibilityFlags"))
+	uint32 GeometryVisibilityFlags = static_cast<uint32>(EChaosVDGeometryVisibilityFlags::Simulated | EChaosVDGeometryVisibilityFlags::Simple | EChaosVDGeometryVisibilityFlags::ShowHeightfields | EChaosVDGeometryVisibilityFlags::Complex | EChaosVDGeometryVisibilityFlags::Query);
 };

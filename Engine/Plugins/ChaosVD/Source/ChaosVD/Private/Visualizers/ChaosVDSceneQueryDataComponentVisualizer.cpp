@@ -6,6 +6,7 @@
 #include "Components/ChaosVDSceneQueryDataComponent.h"
 #include "ChaosVDGeometryBuilder.h"
 #include "ChaosVDScene.h"
+#include "ChaosVDSettingsManager.h"
 #include "ChaosVDStyle.h"
 #include "ChaosVDTabsIDs.h"
 #include "EditorViewportClient.h"
@@ -94,7 +95,7 @@ void FChaosVDSceneQueryDataComponentVisualizer::DrawVisualization(const UActorCo
 	VisualizationContext.SolverDataSelectionObject = SolverDataSelectionObject;
 
 	VisualizationContext.VisualizationFlags = static_cast<uint32>(UChaosVDSceneQueriesVisualizationSettings::GetDataVisualizationFlags());
-	VisualizationContext.DebugDrawSettings = GetDefault<UChaosVDSceneQueriesVisualizationSettings>();
+	VisualizationContext.DebugDrawSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDSceneQueriesVisualizationSettings>();
 
 	if (EnumHasAnyFlags(EChaosVDSceneQueryVisualizationFlags::EnableDraw, static_cast<EChaosVDSceneQueryVisualizationFlags>(VisualizationContext.VisualizationFlags)))
 	{

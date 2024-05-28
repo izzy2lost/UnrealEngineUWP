@@ -10,6 +10,7 @@
 #include "Chaos/ImplicitObject.h"
 #include "ChaosVDRecording.h"
 #include "ChaosVDSelectionCustomization.h"
+#include "ChaosVDSettingsManager.h"
 #include "ChaosVDSkySphereInterface.h"
 #include "Components/ChaosVDSceneQueryDataComponent.h"
 #include "Components/ChaosVDSolverCharacterGroundConstraintDataComponent.h"
@@ -66,7 +67,7 @@ void FChaosVDScene::Initialize()
 	
 	StreamableManager = MakeShared<FStreamableManager>();
 
-	if (UChaosVDCoreSettings* Settings = GetMutableDefault<UChaosVDCoreSettings>())
+	if (UChaosVDCoreSettings* Settings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDCoreSettings>())
 	{
 		// TODO: Do an async load instead, and prepare a loading screen or notification popup
 		// Jira for tracking UE-191639
@@ -521,7 +522,7 @@ void FChaosVDScene::CreateBaseLights(UWorld* TargetWorld) const
 
 	const FVector SpawnPosition(0.0, 0.0, 2000.0);
 	
-	if (const UChaosVDCoreSettings* Settings = GetDefault<UChaosVDCoreSettings>())
+	if (const UChaosVDCoreSettings* Settings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDCoreSettings>())
 	{
 		if (ADirectionalLight* DirectionalLightActor = TargetWorld->SpawnActor<ADirectionalLight>())
 		{
