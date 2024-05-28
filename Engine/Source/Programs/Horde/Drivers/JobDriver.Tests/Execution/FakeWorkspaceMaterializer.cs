@@ -8,7 +8,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using JobDriver.Execution;
-using Microsoft.Extensions.Logging;
 
 namespace JobDriver.Tests.Execution;
 
