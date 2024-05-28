@@ -256,6 +256,12 @@ inline bool IsNumericType(EMaterialValueType InType)
 	return IsMaterialValueType(InType, EMaterialValueType(MCT_Float | MCT_LWCType | MCT_UInt | MCT_ShadingModel));
 }
 
+inline bool IsPrimitiveType(EMaterialValueType InType)
+{
+	// 'ShadingModel' is considered an 'int' 
+	return IsMaterialValueType(InType, EMaterialValueType(MCT_Float | MCT_LWCType | MCT_UInt | MCT_ShadingModel | MCT_Bool | MCT_StaticBool));
+}
+
 inline EMaterialValueType MakeNonLWCType(EMaterialValueType Type)
 {
 	switch (Type)

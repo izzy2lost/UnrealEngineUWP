@@ -4185,9 +4185,9 @@ bool FHLSLMaterialTranslator::GetTextureCollectionForExpression(int32 Index, int
 // GetArithmeticResultType
 EMaterialValueType FHLSLMaterialTranslator::GetArithmeticResultType(EMaterialValueType TypeA, EMaterialValueType TypeB)
 {
-	if (!IsNumericType(TypeA) || !IsNumericType(TypeB))
+	if (!IsPrimitiveType(TypeA) || !IsPrimitiveType(TypeB))
 	{
-		Errorf(TEXT("Attempting to perform arithmetic on non-numeric types: %s %s"), DescribeType(TypeA),DescribeType(TypeB));
+		Errorf(TEXT("Attempting to perform arithmetic on non-primitive types: %s %s"), DescribeType(TypeA),DescribeType(TypeB));
 		return MCT_Unknown;
 	}
 
