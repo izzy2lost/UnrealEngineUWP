@@ -203,7 +203,7 @@ public:
 			{
 				PositionBuffers[Index].Buffer.ClassName = PositionsName;
 				PositionBuffers[Index].Buffer.OwnerName = OwnerName;
-				PositionBuffers[Index].Buffer.Initialize(RHICmdList, TEXT("SkinCachePositions"), PosBufferBytesPerElement, NumVertices * 3, PF_R32_FLOAT, BUF_Static);
+				PositionBuffers[Index].Buffer.Initialize(RHICmdList, TEXT("SkinCachePositions"), PosBufferBytesPerElement, NumVertices * 3, PF_R32_FLOAT, ERHIAccess::SRVMask, BUF_Static);
 				PositionBuffers[Index].Buffer.Buffer->SetOwnerName(OwnerName);
 				PositionBuffers[Index].AccessState = ERHIAccess::Unknown;
 			}
@@ -408,8 +408,6 @@ public:
 	void ProcessRayTracingGeometryToUpdate(FRHICommandList& RHICmdList, FGPUSkinCacheEntry* SkinCacheEntry);
 #endif // RHI_RAYTRACING
 
-	void BeginBatchDispatch();
-	void EndBatchDispatch();
 	void ENGINE_API DoDispatch(FRHICommandList& RHICmdList);
 
 	inline ERHIFeatureLevel::Type GetFeatureLevel() const { return FeatureLevel; }
@@ -426,7 +424,6 @@ protected:
 	TArray<FDispatchEntry> BatchDispatches;
 
 	FRWBuffersAllocation* TryAllocBuffer(uint32 NumVertices, bool WithTangnents, bool UseIntermediateTangents, uint32 NumTriangles, FRHICommandList& RHICmdList, const FName& OwnerName);
-	void DoDispatch(FRHICommandList& RHICmdList, FGPUSkinCacheEntry* SkinCacheEntry, int32 Section, int32 RevisionNumber);
 	void DispatchUpdateSkinTangents(FRHICommandList& RHICmdList, FGPUSkinCacheEntry* Entry, int32 SectionIndex, FSkinCacheRWBuffer*& StagingBuffer, bool bTrianglePass);
 
 	void PrepareUpdateSkinning(
@@ -452,7 +449,6 @@ protected:
 	uint64 ExtraRequiredMemory;
 	int32 FlushCounter;
 	bool bRequiresMemoryLimit;
-	bool bShouldBatchDispatches = false;
 
 	// For recompute tangents, holds the data required between compute shaders
 	TArray<FSkinCacheRWBuffer> StagingBuffers;
@@ -464,7 +460,7 @@ protected:
 	static void CVarSinkFunction();
 	static FAutoConsoleVariableSink CVarSink;
 
-	void IncrementDispatchCounter(FRHICommandList& RHICmdList);
+	bool IncrementDispatchCounter(FRHICommandList& RHICmdList);
 	int32 DispatchCounter = 0;
 
 	void PrintMemorySummary() const;

@@ -969,29 +969,8 @@ struct FSendAllEndOfFrameUpdates
 	ERHIFeatureLevel::Type FeatureLevel = ERHIFeatureLevel::Num;
 };
 
-void BeginSendEndOfFrameUpdatesDrawEvent(FSendAllEndOfFrameUpdates& SendAllEndOfFrameUpdates)
-{
-	ENQUEUE_RENDER_COMMAND(BeginDrawEventCommand)(UE::RenderCommandPipe::SkeletalMesh, [GPUSkinCache = SendAllEndOfFrameUpdates.GPUSkinCache](FRHICommandList& RHICmdList)
-	{
-		if (GPUSkinCache != nullptr)
-		{
-			GPUSkinCache->BeginBatchDispatch();
-		}
-	});
-}
-
 DECLARE_GPU_STAT(EndOfFrameUpdates);
 DECLARE_GPU_STAT(GPUSkinCacheRayTracingGeometry);
-void EndSendEndOfFrameUpdatesDrawEvent(FSendAllEndOfFrameUpdates& SendAllEndOfFrameUpdates)
-{
-	ENQUEUE_RENDER_COMMAND(EndDrawEventCommand)(UE::RenderCommandPipe::SkeletalMesh, [GPUSkinCache = SendAllEndOfFrameUpdates.GPUSkinCache](FRHICommandList& RHICmdList)
-	{
-		if (GPUSkinCache != nullptr)
-		{
-			GPUSkinCache->EndBatchDispatch();
-		}
-	});
-}
 
 /**
 	* Send all render updates to the rendering thread.
@@ -1055,7 +1034,6 @@ void UWorld::SendAllEndOfFrameUpdates()
 
 	// Issue a GPU event to wrap GPU work done during SendAllEndOfFrameUpdates, like skin cache updates
 	FSendAllEndOfFrameUpdates SendAllEndOfFrameUpdates(Scene);
-	BeginSendEndOfFrameUpdatesDrawEvent(SendAllEndOfFrameUpdates);
 
 	// update all dirty components. 
 	FGuardValue_Bitfield(bPostTickComponentUpdate, true); 
@@ -1166,8 +1144,6 @@ void UWorld::SendAllEndOfFrameUpdates()
 	bMaterialParameterCollectionInstanceNeedsDeferredUpdate = false;
 			
 	LocalComponentsThatNeedEndOfFrameUpdate.Reset();
-
-	EndSendEndOfFrameUpdatesDrawEvent(SendAllEndOfFrameUpdates);
 }
 
 /**

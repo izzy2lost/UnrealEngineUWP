@@ -1483,7 +1483,6 @@ void FGPUSkinCache::DoDispatch(FRHICommandList& RHICmdList)
 				INC_DWORD_STAT_BY(STAT_GPUSkinCache_TotalNumVertices, VertexCountAlign64 * 64);
 				RHICmdList.DispatchComputeShader(VertexCountAlign64, 1, 1);
 
-				IncrementDispatchCounter(RHICmdList);
 				BuffersToTransitionToRead.Add(DispatchData.GetPreviousPositionRWBuffer());
 			}
 
@@ -1504,8 +1503,13 @@ void FGPUSkinCache::DoDispatch(FRHICommandList& RHICmdList)
 				INC_DWORD_STAT_BY(STAT_GPUSkinCache_TotalNumVertices, VertexCountAlign64 * 64);
 				RHICmdList.DispatchComputeShader(VertexCountAlign64, 1, 1);
 
-				IncrementDispatchCounter(RHICmdList);
 				BuffersToTransitionToRead.Add(DispatchData.GetPositionRWBuffer());
+			}
+
+			if (IncrementDispatchCounter(RHICmdList))
+			{
+				// The command list was submitted so rebind the shader on the next loop.
+				LastShaderIndex = -1;
 			}
 
 			BuffersToTransitionToRead.Add(DispatchData.GetTangentRWBuffer());
@@ -1617,59 +1621,6 @@ void FGPUSkinCache::DoDispatch(FRHICommandList& RHICmdList)
 #endif
 
 	BatchDispatches.Reset();
-}
-
-void FGPUSkinCache::DoDispatch(FRHICommandList& RHICmdList, FGPUSkinCacheEntry* SkinCacheEntry, int32 Section, int32 RevisionNumber)
-{
-	RenderCaptureInterface::FScopedCapture RenderCapture(GNumDispatchesToCapture > 0, &RHICmdList, TEXT("GPUSkinCache"));
-	GNumDispatchesToCapture = FMath::Max(GNumDispatchesToCapture - 1, 0);
-
-	SCOPED_GPU_STAT(RHICmdList, GPUSkinCache);
-
-	INC_DWORD_STAT(STAT_GPUSkinCache_TotalNumChunks);
-
-	TArray<FSkinCacheRWBuffer*> BuffersToTransitionToRead;
-
-	TArray<FSkinCacheRWBuffer*> BuffersToTransitionForSkinning;
-	PrepareUpdateSkinning(SkinCacheEntry, Section, RevisionNumber, &BuffersToTransitionForSkinning);
-	MakeBufferTransitions(RHICmdList, BuffersToTransitionForSkinning, ERHIAccess::UAVCompute);
-
-	TArray<FRHIUnorderedAccessView*> SkinningBuffersToOverlap;
-	GetBufferUAVs(BuffersToTransitionForSkinning, SkinningBuffersToOverlap);
-	RHICmdList.BeginUAVOverlap(SkinningBuffersToOverlap);
-	{
-		DispatchUpdateSkinning(RHICmdList, SkinCacheEntry, Section, RevisionNumber, BuffersToTransitionToRead);
-	}
-	RHICmdList.EndUAVOverlap(SkinningBuffersToOverlap);
-
-	FGPUSkinCacheEntry::FSectionDispatchData& DispatchData = SkinCacheEntry->DispatchData[Section];
-	if (DispatchData.IndexBuffer)
-	{
-		RHICmdList.Transition({
-			DispatchData.GetPositionRWBuffer()->UpdateAccessState(ERHIAccess::SRVCompute),
-			DispatchData.GetActiveTangentRWBuffer()->UpdateAccessState(ERHIAccess::SRVCompute)
-		});
-		if (GRecomputeTangentsParallelDispatch)
-		{
-			RHICmdList.Transition(DispatchData.GetIntermediateAccumulatedTangentBuffer()->UpdateAccessState(ERHIAccess::UAVCompute));
-		}
-		BuffersToTransitionToRead.Add(DispatchData.GetPositionRWBuffer());
-
-		FSkinCacheRWBuffer* StagingBuffer = nullptr;
-		DispatchUpdateSkinTangents(RHICmdList, SkinCacheEntry, Section, StagingBuffer, true);
-		if (GRecomputeTangentsParallelDispatch)
-		{
-			RHICmdList.Transition({
-				DispatchData.GetTangentRWBuffer()->UpdateAccessState(ERHIAccess::UAVCompute),
-				DispatchData.GetIntermediateAccumulatedTangentBuffer()->UpdateAccessState(ERHIAccess::UAVCompute)
-			});
-		}
-		DispatchUpdateSkinTangents(RHICmdList, SkinCacheEntry, Section, StagingBuffer, false);
-	}
-
-	SkinCacheEntry->UpdateVertexFactoryDeclaration(RHICmdList, Section);
-
-	TransitionAllToReadable(RHICmdList, BuffersToTransitionToRead);
 }
 
 bool FGPUSkinCache::ProcessEntry(
@@ -1892,7 +1843,6 @@ bool FGPUSkinCache::ProcessEntry(
 		}
 	}
 
-	if (bShouldBatchDispatches)
 	{
 		InOutEntry->bQueuedForDispatch = true;
 
@@ -1910,10 +1860,6 @@ bool FGPUSkinCache::ProcessEntry(
 			SectionDispatchData.RevisionNumber = RevisionNumber;
 			BatchDispatches.Add({ InOutEntry, uint32(Section) });
 		}
-	}
-	else
-	{
-		DoDispatch(RHICmdList, InOutEntry, Section, RevisionNumber);
 	}
 
 #if RHI_RAYTRACING
@@ -1957,17 +1903,6 @@ void FGPUSkinCache::ProcessRayTracingGeometryToUpdate(FRHICommandList& RHICmdLis
 }
 
 #endif
-
-void FGPUSkinCache::BeginBatchDispatch()
-{
-	bShouldBatchDispatches = true;
-	DispatchCounter = 0;
-}
-
-void FGPUSkinCache::EndBatchDispatch()
-{
-	bShouldBatchDispatches = false;
-}
 
 void FGPUSkinCache::Release(FGPUSkinCacheEntry*& SkinCacheEntry)
 {
@@ -2338,7 +2273,7 @@ void FGPUSkinCache::CVarSinkFunction()
 
 FAutoConsoleVariableSink FGPUSkinCache::CVarSink(FConsoleCommandDelegate::CreateStatic(&CVarSinkFunction));
 
-void FGPUSkinCache::IncrementDispatchCounter(FRHICommandList& RHICmdList)
+bool FGPUSkinCache::IncrementDispatchCounter(FRHICommandList& RHICmdList)
 {
 	if (GSkinCacheMaxDispatchesPerCmdList > 0)
 	{
@@ -2348,8 +2283,10 @@ void FGPUSkinCache::IncrementDispatchCounter(FRHICommandList& RHICmdList)
 			//UE_LOG(LogSkinCache, Log, TEXT("SubmitCommandsHint issued after %d dispatches"), DispatchCounter);
 			RHICmdList.SubmitCommandsHint();
 			DispatchCounter = 0;
+			return true;
 		}
 	}
+	return false;
 }
 
 uint64 FGPUSkinCache::GetExtraRequiredMemoryAndReset()
