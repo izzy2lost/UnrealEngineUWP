@@ -181,8 +181,6 @@ namespace mu
 			const EMeshBufferFormat NormalFormat = TargetNormalIterBegin.ptr() 
 					? TargetNormalIterBegin.GetFormat() : EMeshBufferFormat::MBF_NONE;	
 
-			check(TargetNormalIterBegin.GetComponents() >= 3)
-
 			for (int32 VertexIndex = BatchBeginVertIndex; VertexIndex < BatchEndVertIndex; ++VertexIndex)
 			{
 				float TotalWeight = 0.0f;
