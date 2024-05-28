@@ -24,6 +24,7 @@ struct FVirtualShadowMapInstanceRange
 	FPersistentPrimitiveIndex PersistentPrimitiveIndex;
 	int32 InstanceSceneDataOffset;
 	int32 NumInstanceSceneDataEntries;
+	bool bMarkAsDynamic;					// If true, swaps the primitive/instance to dynamic caching
 };
 
 #define VSM_LOG_INVALIDATIONS 0
