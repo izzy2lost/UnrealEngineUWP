@@ -201,24 +201,36 @@ namespace Gauntlet
 			Dictionary<string, object> Properties = null;
 			if (Event.IsCriticalFailure)
 			{
-				Properties = new Dictionary<string, object>() { { "Callstack", Message } };
+				Properties = new Dictionary<string, object>();
 				if (Event.IsSanReport
-					&& SanitizerEventMatcher.AddSanitizerSummaryProperties(Message, Properties))
+					&& SanitizerEventMatcher.AddSanitizerSummaryProperties(ref Message, Properties))
 				{
+					Format = Message;
 					EventIdType = SanitizerEventMatcher.ConvertSanitizerNameToEventId(Properties.GetValueOrDefault("SanitizerName")?.ToString());
 				}
-				Format = "{Callstack}";
+				else
+				{
+					Properties.Add("Callstack", Message);
+					Format = "{Callstack}";
+				}
 			}
-			if (!string.IsNullOrEmpty(Event.Context))
+			else
 			{
-				Properties.Add("Context", Event.Context);
-				Format = "[{Context}] " + Format?? Message;
-			}
-			if (!string.IsNullOrEmpty(Filename))
-			{
-				string FileReference = $"{Filename}:{LineNumber}";
-				Properties.Add("FileReference", FileReference);
-				Format = (Format?? Message) + " [{FileReference}]";
+				if (!string.IsNullOrEmpty(Event.Context))
+				{
+					Properties = new Dictionary<string, object>() { { "Context", Event.Context } };
+					Format = "[{Context}] " + (Format ?? Message);
+				}
+				if (!string.IsNullOrEmpty(Filename))
+				{
+					if (Properties == null)
+					{
+						Properties = new Dictionary<string, object>();
+					}
+					Properties.Add("SourceFile", Filename);
+					Properties.Add("Line", LineNumber.ToString());
+					Format = (Format ?? Message) + " [{SourceFile}:{Line}]";
+				}
 			}
 
 			return new LogEvent(Time, Level, EventIdType, Message, Format, Properties, null);

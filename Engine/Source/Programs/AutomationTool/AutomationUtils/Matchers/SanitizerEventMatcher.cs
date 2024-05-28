@@ -101,26 +101,38 @@ namespace AutomationUtils.Matchers
 			return LogLevel.Error;
 		}
 
-		private static void AddProperty(LogValue Value, Group Group, Dictionary<string, object> Properties)
+		/// <summary>
+		/// Add Value to Properties using (Regex) Group match and update Message with the corresponding key instead of value from Group.
+		/// </summary>
+		/// <param name="Value"></param>
+		/// <param name="Group"></param>
+		/// <param name="Properties"></param>
+		/// <param name="Message"></param>
+		/// <param name="Offset">Optional argument to offset Group index from Message if Message changed since Group was initialy matched</param>
+		private static void AddPropertyAndReplace(LogValue Value, Group Group, Dictionary<string, object> Properties, ref string Message, int Offset = 0)
 		{
+			string Key = Value.Type.ToString();
 			Value.Text = Group.Value;
-			Properties.Add(Value.Type.ToString(), Value);
+			Properties.Add(Key, Value);
+			int Index = Group.Index + Offset;
+			Message = $"{Message.Substring(0, Index)}{{{Key}}}{Message.Substring(Index + Group.Length)}";
 		}
 
 		/// <summary>
-		/// Add Sanitizer Summary information to input Key/Value Pair Properties
+		/// Add Sanitizer Summary information to input Key/Value Pair Properties and update Message with Key markers
 		/// </summary>
 		/// <param name="Message"></param>
 		/// <param name="Properties"></param>
 		/// <returns></returns>
-		public static bool AddSanitizerSummaryProperties(string Message, Dictionary<string, object> Properties)
+		public static bool AddSanitizerSummaryProperties(ref string Message, Dictionary<string, object> Properties)
 		{
 			Match Match = SummaryPattern.Match(Message);
 			if (Match.Success)
 			{
-				AddProperty(SanitizerIssueHandler.SanitizerName, Match.Groups["SanitizerName"], Properties);
-				AddProperty(SanitizerIssueHandler.SummaryReason, Match.Groups["SummaryReason"], Properties);
-				AddProperty(SanitizerIssueHandler.SummarySourceFile, Match.Groups["SourceFile"], Properties);
+				int InitialLength = Message.Length;
+				AddPropertyAndReplace(SanitizerIssueHandler.SanitizerName, Match.Groups["SanitizerName"], Properties, ref Message);
+				AddPropertyAndReplace(SanitizerIssueHandler.SummaryReason, Match.Groups["SummaryReason"], Properties, ref Message, Message.Length - InitialLength);
+				AddPropertyAndReplace(SanitizerIssueHandler.SummarySourceFile, Match.Groups["SourceFile"], Properties, ref Message, Message.Length - InitialLength);
 
 				return true;
 			}

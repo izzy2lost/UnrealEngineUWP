@@ -2025,17 +2025,20 @@ namespace Gauntlet
 					Callstack.Add("Could not parse callstack. See log for full callstack");
 				}
 				string CallstackString = string.Join("\n", Callstack.Select(C => "    " + C));
-				Dictionary<string, object> Properties = new Dictionary<string, object>() {
-					{ "Summary", Event.Summary },
-					{ "Callstack", CallstackString }
-				};
+				Dictionary<string, object> Properties = new Dictionary<string, object>() { { "Summary", Event.Summary } };
+				string Message = " * Fatal Error: {Summary}\n{Callstack}";
 				EventId EventType = KnownLogEvents.Gauntlet_FatalEvent;
 				if (Event.IsSanReport && CommandUtils.IsBuildMachine
-					&& SanitizerEventMatcher.AddSanitizerSummaryProperties(CallstackString, Properties))
+					&& SanitizerEventMatcher.AddSanitizerSummaryProperties(ref CallstackString, Properties))
 				{
+					Message = $" * Fatal Error: {{Summary}}\n{CallstackString}";
 					EventType = SanitizerEventMatcher.ConvertSanitizerNameToEventId(Properties.GetValueOrDefault("SanitizerName")?.ToString());
 				}
-				Log.Error(EventType, " * Fatal Error: {Summary}\n{Callstack}", Args: Properties.Values.ToArray());
+				else
+				{
+					Properties.Add("Callstack", CallstackString);
+				}
+				Log.Error(EventType, Message, Args: Properties.Values.ToArray());
 				Log.Info("");
 			}
 
