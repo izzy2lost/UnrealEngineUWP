@@ -120,7 +120,7 @@ private:
 
 	ETransactionFilterResult ShouldObjectBeTransacted(UObject* InObject, UPackage* InPackage);
 	EPackageFilterResult ShouldPackageBeFiltered(const FConcertPackageInfo& InPackage);
-
+	bool CanSkipHotReload(const FConcertPackageInfo& InPackage);
 private:
 	FTakeRecorderParameters SetupTakeParametersForMultiuser(const FTakeRecorderParameters& Input);
 

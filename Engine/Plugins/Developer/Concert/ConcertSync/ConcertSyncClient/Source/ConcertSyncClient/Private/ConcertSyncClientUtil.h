@@ -151,5 +151,5 @@ namespace ConcertSyncClientUtil
 	/** Return true if we are in a world partition world. */
 	bool IsWorldPartitionWorld();
 
-	void FillPackageInfo(UPackage* InPackage, UObject* InAsset, const EConcertPackageUpdateType InPackageUpdateType, FConcertPackageInfo& OutPackageInfo);
+	FConcertPackageInfo FillPackageInfo(UPackage* InPackage, UObject* InAsset, const EConcertPackageUpdateType InPackageUpdateType);
 }

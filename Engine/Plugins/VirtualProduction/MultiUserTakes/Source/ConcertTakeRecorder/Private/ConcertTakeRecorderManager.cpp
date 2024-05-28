@@ -248,6 +248,7 @@ void FConcertTakeRecorderManager::RegisterExtensions()
 			IConcertClientPackageBridge* PackageBridge = ConcertSyncClient->GetPackageBridge();
 			check(PackageBridge);
 			PackageBridge->RegisterPackageFilter(TEXT("ConcertTakes"), FPackageFilterDelegate::CreateRaw(this, &FConcertTakeRecorderManager::ShouldPackageBeFiltered));
+			PackageBridge->RegisterPackageHotReloadHint(TEXT("ConcertTakes"), FPackageHotReloadHintDelegate::CreateRaw(this, &FConcertTakeRecorderManager::CanSkipHotReload));
 		}
 
 		FPropertyEditorModule& PropertyEditorModule = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
@@ -304,6 +305,7 @@ void FConcertTakeRecorderManager::UnregisterExtensions()
 			IConcertClientPackageBridge* PackageBridge = ConcertSyncClient->GetPackageBridge();
 			check(PackageBridge != nullptr);
 			PackageBridge->UnregisterPackageFilter(TEXT("ConcertTakes"));
+			PackageBridge->UnregisterPackageHotReloadHint(TEXT("ConcertTakes"));
 		}
 	}
 }
@@ -967,6 +969,17 @@ EPackageFilterResult FConcertTakeRecorderManager::ShouldPackageBeFiltered(const 
 		}
 	}
 	return EPackageFilterResult::UseDefault;
+}
+
+bool FConcertTakeRecorderManager::CanSkipHotReload(const FConcertPackageInfo& InPackageInfo)
+{
+	if (IsTakeSyncEnabled() && ensure(WeakSession.IsValid()) && CanRecord())
+	{
+		FTakeRecorderProjectParameters Project = GetDefault<UTakeRecorderProjectSettings>()->Settings;
+		FString FullName = InPackageInfo.PackageName.ToString();
+		return FullName.Contains(Project.RootTakeSaveDir.Path);
+	}
+	return false;
 }
 
 ETransactionFilterResult FConcertTakeRecorderManager::ShouldObjectBeTransacted(UObject* InObject, UPackage* InPackage)

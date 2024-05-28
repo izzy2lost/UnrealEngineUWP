@@ -783,13 +783,15 @@ bool IsWorldPartitionWorld()
 	return false;
 }
 
-void FillPackageInfo(UPackage* InPackage, UObject* InAsset, const EConcertPackageUpdateType InPackageUpdateType, FConcertPackageInfo& OutPackageInfo)
+FConcertPackageInfo FillPackageInfo(UPackage* InPackage, UObject* InAsset, const EConcertPackageUpdateType InPackageUpdateType)
 {
+	FConcertPackageInfo OutPackageInfo;
 	UObject* Asset = InAsset ? InAsset : InPackage->FindAssetInPackage();
 	OutPackageInfo.PackageName = InPackage->GetFName();
 	OutPackageInfo.AssetClass = Asset ? Asset->GetClass()->GetPathName() : FString();
 	OutPackageInfo.PackageFileExtension = Asset && Asset->IsA<UWorld>()? FPackageName::GetMapPackageExtension() : FPackageName::GetAssetPackageExtension();
 	OutPackageInfo.PackageUpdateType = InPackageUpdateType;
+	return OutPackageInfo;
 }
 
 }

@@ -6,6 +6,7 @@
 #include "ConcertWorkspaceData.h"
 #include "ConcertSyncClientUtil.h"
 
+#include "Algo/AllOf.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
 #include "IConcertClientPackageBridge.h"
@@ -165,8 +166,7 @@ void FConcertClientPackageBridge::HandlePackagePreSave(UPackage* Package, FObjec
 	{
 		if (IFileManager::Get().FileExists(*PackageFilename))
 		{
-			FConcertPackageInfo PackageInfo;
-			ConcertSyncClientUtil::FillPackageInfo(Package, Asset, EConcertPackageUpdateType::Saved, PackageInfo);
+			FConcertPackageInfo PackageInfo = ConcertSyncClientUtil::FillPackageInfo(Package, Asset, EConcertPackageUpdateType::Saved);
 			PackageInfo.bPreSave = true;
 			PackageInfo.bAutoSave = GEngine->IsAutosaving();
 
@@ -220,12 +220,11 @@ void FConcertClientPackageBridge::HandlePackageSaved(const FString& PackageFilen
 	FName NewPackageName;
 	PackagesBeingRenamed.RemoveAndCopyValue(Package->GetFName(), NewPackageName);
 
-	FConcertPackageInfo PackageInfo;
-	ConcertSyncClientUtil::FillPackageInfo(Package, nullptr, NewPackageName.IsNone() ? EConcertPackageUpdateType::Saved : EConcertPackageUpdateType::Renamed, PackageInfo);
+	FConcertPackageInfo PackageInfo = ConcertSyncClientUtil::FillPackageInfo(Package, nullptr, NewPackageName.IsNone() ? EConcertPackageUpdateType::Saved : EConcertPackageUpdateType::Renamed);
 	PackageInfo.NewPackageName = NewPackageName;
 	PackageInfo.bPreSave = false;
 	PackageInfo.bAutoSave = GEngine->IsAutosaving();
-
+	PackageInfo.bCanSkipHotReload = CanSkipHotReload(PackageInfo);
 	PendingPackageInfos.Add(FConcertPackageInfoTuple(MoveTemp(PackageInfo), PackageFilename));
 
 	UE_LOG(LogConcert, Verbose, TEXT("Asset Saved: %s"), *Package->GetName());
@@ -271,9 +270,8 @@ void FConcertClientPackageBridge::HandleAssetAdded(UObject *Object)
 
 			if (IFileManager::Get().FileExists(*PackageFilename))
 			{
-				FConcertPackageInfo PackageInfo;
-				ConcertSyncClientUtil::FillPackageInfo(Package, Asset, EConcertPackageUpdateType::Added, PackageInfo);
-
+				FConcertPackageInfo PackageInfo = ConcertSyncClientUtil::FillPackageInfo(Package, Asset, EConcertPackageUpdateType::Added);
+				PackageInfo.bCanSkipHotReload = CanSkipHotReload(PackageInfo);
 				OnLocalPackageEventDelegate.Broadcast(PackageInfo, PackageFilename);
 				IFileManager::Get().Delete(*PackageFilename);
 			}
@@ -303,8 +301,7 @@ void FConcertClientPackageBridge::HandleAssetDeleted(UObject *Object)
 
 	UPackage* Package = Object->GetOutermost();
 
-	FConcertPackageInfo PackageInfo;
-	ConcertSyncClientUtil::FillPackageInfo(Package, nullptr, EConcertPackageUpdateType::Deleted, PackageInfo);
+	const FConcertPackageInfo PackageInfo = ConcertSyncClientUtil::FillPackageInfo(Package, nullptr, EConcertPackageUpdateType::Deleted);
 	OnLocalPackageEventDelegate.Broadcast(PackageInfo, FString());
 
 	UE_LOG(LogConcert, Verbose, TEXT("Asset Deleted: %s"), *Package->GetName());
@@ -363,6 +360,26 @@ void FConcertClientPackageBridge::HandleMapChanged(UWorld* InWorld, EMapChangeTy
 	}
 }
 #endif
+
+void FConcertClientPackageBridge::RegisterPackageHotReloadHint(FName PackageReloadHintName, FPackageHotReloadHintDelegate FilterHandle)
+{
+	check(HotReloadHints.Find(PackageReloadHintName) == nullptr);
+	check(FilterHandle.IsBound());
+	HotReloadHints.Add(PackageReloadHintName) = MoveTemp(FilterHandle);
+}
+
+bool FConcertClientPackageBridge::CanSkipHotReload(const FConcertPackageInfo& PackageInfo) const
+{
+	return Algo::AllOf(HotReloadHints, [&PackageInfo](const TPair<FName,FPackageHotReloadHintDelegate>& Item)
+	{
+		return Item.Value.Execute(PackageInfo);
+	});
+}
+
+void FConcertClientPackageBridge::UnregisterPackageHotReloadHint(FName PackageReloadHintName)
+{
+	HotReloadHints.FindAndRemoveChecked(PackageReloadHintName);
+}
 
 void FConcertClientPackageBridge::RegisterPackageFilter(FName FilterName, FPackageFilterDelegate FilterHandle)
 {

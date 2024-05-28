@@ -27,6 +27,10 @@ public:
 	virtual bool& GetIgnoreLocalSaveRef() override;
 	virtual bool& GetIgnoreLocalDiscardRef() override;
 
+	virtual void RegisterPackageHotReloadHint(FName PackageReloadHintName, FPackageHotReloadHintDelegate FilterHandle) override;
+	virtual bool CanSkipHotReload(const FConcertPackageInfo& PackageInfo) const override;
+	virtual void UnregisterPackageHotReloadHint(FName PackageReloadHintName) override;
+
 	virtual void RegisterPackageFilter(FName FilterName, FPackageFilterDelegate FilterHandle) override;
 	virtual void UnregisterPackageFilter(FName FilterName) override;
 	virtual EPackageFilterResult IsPackageFiltered(const FConcertPackageInfo& PackageInfo) const override;
@@ -67,6 +71,9 @@ private:
 
 	/** Map of named packages filters that can override what is included / excluded by package bridge*/
 	TMap<FName, FPackageFilterDelegate> PackageFilters;
+
+	/** Map of named hot reload delegates that can provide hints on if packages can skip hot reload, e.g. take records. */
+	TMap<FName, FPackageHotReloadHintDelegate> HotReloadHints;
 
 	/** Flag to ignore package change events, used when we do not want to record package changes we generate ourselves */
 	bool bIgnoreLocalSave;
