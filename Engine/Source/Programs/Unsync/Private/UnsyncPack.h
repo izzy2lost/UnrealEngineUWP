@@ -16,6 +16,17 @@ static constexpr uint64 GMaxPackFileSize = 1_GB;
 
 struct FDirectoryManifest;
 
+struct FPackIndexDatabase
+{
+	std::vector<FPackIndexEntry> Entries;
+
+	// Runtime-only data
+	FPath IndexPath;
+	FPath DataPath;
+};
+
+bool LoadPackIndexDatabase(FPackIndexDatabase& Output, FIOReaderStream& Stream);
+
 struct FPackWriteContext
 {
 	FPackWriteContext(const FPath& InOutputRoot);

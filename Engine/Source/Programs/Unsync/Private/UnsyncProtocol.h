@@ -227,12 +227,13 @@ static_assert(sizeof(FPackIndexEntry) == 40);
 struct FPackIndexHeader
 {
 	static constexpr uint64 MAGIC	= 0xEEC735E03053CC3Full;
-	static constexpr uint64 VERSION = 1;
+	static constexpr uint64 VERSION = 2;
 
-	uint64 Magic   = MAGIC;
-	uint64 Version = VERSION;
+	uint64 Magic	  = MAGIC;
+	uint64 Version	  = VERSION;
+	uint64 NumEntries = 0;
 };
-static_assert(sizeof(FPackIndexHeader) == 16);
+static_assert(sizeof(FPackIndexHeader) == 24);
 
 enum class EPackReferenceFlags : uint32 {
 	Default				= 0,

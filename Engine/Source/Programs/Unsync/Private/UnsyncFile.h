@@ -427,6 +427,12 @@ struct FIOReaderStream
 
 	bool IsValid() const { return Inner.IsValid(); }
 
+	template <typename T>
+	inline uint64 ReadInto(T& Output)
+	{
+		return Read(&Output, sizeof(T));
+	}
+
 	FIOReader& Inner;
 	uint64	   Offset = 0;
 };

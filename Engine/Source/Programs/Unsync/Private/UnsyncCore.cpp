@@ -21,6 +21,7 @@
 #include "UnsyncVersion.h"
 #include "UnsyncFilter.h"
 #include "UnsyncSource.h"
+#include "UnsyncPack.h"
 
 #include <condition_variable>
 #include <filesystem>
@@ -941,6 +942,7 @@ CopyFileIfPossiblyDifferent(FProxyFileSystem&	   FileSystem,
 
 static bool
 LoadAndMergeSourceManifest(FDirectoryManifest& Output,
+						   std::vector<FPackIndexDatabase>& OutIndexFiles,
 						   FProxyFileSystem&   ProxyFileSystem,
 						   const FPath&		   SourcePath,
 						   const FPath&		   TempPath,
@@ -989,17 +991,42 @@ LoadAndMergeSourceManifest(FDirectoryManifest& Output,
 		return false;
 	}
 
-	#if 0
 	if (!FindManifestResult->PackIndexFiles.empty())
 	{
 		UNSYNC_VERBOSE(L"Loading pack index database");
 		UNSYNC_LOG_INDENT;
-		for (const FRemoteFileInfo& FileInfo : FindManifestResult->PackIndexFiles)
+
+		std::unordered_set<FPath> FoundPackFiles;
+		for (const FRemoteFileInfo& PackFileInfo : FindManifestResult->PackDataFiles)
 		{
-			TResult<FBuffer> FileBuffer = ProxyFileSystem.ReadFile(ToString(FileInfo.Path));
+			FoundPackFiles.insert(PackFileInfo.Path);
+		}
+
+		for (const FRemoteFileInfo& IndexFileInfo : FindManifestResult->PackIndexFiles)
+		{
+			FPath PackDataFilePath = IndexFileInfo.Path;
+			PackDataFilePath.replace_extension(".unsync_pack");
+			if (!FoundPackFiles.contains(PackDataFilePath))
+			{
+				UNSYNC_WARNING(L"Could not find pack file '%ls'", PackDataFilePath.wstring().c_str());
+				continue;
+			}
+
+			UNSYNC_VERBOSE(L"Reading '%ls'", IndexFileInfo.Path.wstring().c_str());
+			TResult<FBuffer> FileBuffer = ProxyFileSystem.ReadFile(ToString(IndexFileInfo.Path));
+			FMemReader		 Reader(*FileBuffer);
+			FIOReaderStream	 Stream(Reader);
+
+			FPackIndexDatabase IndexFile;
+			IndexFile.IndexPath = SourcePath / IndexFileInfo.Path;
+			IndexFile.DataPath	= SourcePath / PackDataFilePath;
+
+			if (LoadPackIndexDatabase(IndexFile, Stream))
+			{
+				OutIndexFiles.emplace_back(std::move(IndexFile));
+			}
 		}
 	}
-	#endif
 
 	if (Output.IsValid() && !AlgorithmOptionsCompatible(Output.Algorithm, LoadedManifest.Algorithm))
 	{
@@ -1086,6 +1113,8 @@ struct FFileSyncTaskBatch
 
 			UNSYNC_UNUSED(DownloadResult);
 		}
+
+		ProxyPool.Dealloc(std::move(Proxy));
 
 		GScheduler->NetworkSemaphore.Release();
 
@@ -1216,6 +1245,8 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 	FTimingLogger ManifestLoadTimingLogger("Manifest load time", ELogLevel::Info);
 
+	std::vector<FPackIndexDatabase> PackIndexFiles;
+
 	if (SyncOptions.SourceType == ESourceType::ServerWithManifestHash)
 	{
 		if (!ProxyPool.IsValid())
@@ -1247,6 +1278,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 	else if (!SyncOptions.SourceManifestOverride.empty())
 	{
 		bSourceManifestOk = LoadDirectoryManifest(SourceDirectoryManifest, SourcePath, SyncOptions.SourceManifestOverride);
+		// TODO: load pack index files
 		if (!bSourceManifestOk)
 		{
 			UNSYNC_ERROR(L"Could not load explicit manifest file");
@@ -1289,6 +1321,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 		for (const FPath& ThisSourcePath : AllSources)
 		{
 			if (!LoadAndMergeSourceManifest(SourceDirectoryManifest,
+											PackIndexFiles,
 											*ProxyFileSystem,
 											ThisSourcePath,
 											TargetTempPath,
@@ -1682,12 +1715,22 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 			if (bProxyHasData)
 			{
-				ProxyPool.InitRequestMap(SourceDirectoryManifest.Algorithm.StrongHashAlgorithmId);
+				FBlockRequestMap BlockRequestMap;
+				BlockRequestMap.Init(SourceDirectoryManifest.Algorithm.StrongHashAlgorithmId);
 
 				for (const FFileSyncTask& Task : AllFileTasks)
 				{
-					ProxyPool.BuildFileBlockRequests(Task.OriginalSourceFilePath, Task.ResolvedSourceFilePath, *Task.SourceManifest);
+					BlockRequestMap.AddFileBlocks(Task.OriginalSourceFilePath, Task.ResolvedSourceFilePath, *Task.SourceManifest);
 				}
+
+				// Override loose file blocks with pack files
+				for (const FPackIndexDatabase& Pack : PackIndexFiles)
+				{
+					FPath ResolvedDataPackPath = ResolvePath(Pack.DataPath);
+					BlockRequestMap.AddPackBlocks(Pack.DataPath, ResolvedDataPackPath, MakeView(Pack.Entries));
+				}
+
+				ProxyPool.SetRequestMap(std::move(BlockRequestMap));
 			}
 			else
 			{
@@ -1805,7 +1848,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 			UNSYNC_VERBOSE(L"Copy '%ls' (%ls)", Item.TargetFilePath.wstring().c_str(), (Item.NeedBytesFromBase) ? L"partial" : L"full");
 
 			std::unique_ptr<FNativeFile> BaseFile;
-			if (Item.IsBaseValid())
+			if (Item.IsBaseValid() && !Item.NeedList.Base.empty())
 			{
 				BaseFile = std::make_unique<FNativeFile>(Item.BaseFilePath, EFileMode::ReadOnlyUnbuffered);
 			}

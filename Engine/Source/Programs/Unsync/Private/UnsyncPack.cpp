@@ -120,6 +120,8 @@ FPackWriteContext::InternalFinishPack()
 		uint64		 IndexDataSize = sizeof(IndexEntries[0]) * IndexEntries.size();
 
 		FPackIndexHeader IndexHeader;
+		IndexHeader.NumEntries = IndexEntries.size();
+
 		const uint64	 IndexTotalSize = sizeof(IndexHeader) + IndexDataSize;
 
 		FNativeFile IndexFile(FinalIndexFilename, EFileMode::CreateWriteOnly, IndexTotalSize);
@@ -248,6 +250,32 @@ void DeletePackAndIdexData(const FPath& PackRootDirectory)
 				UNSYNC_ERROR(L"Could not delete file '%ls'. Error code: %d.", FilePath.wstring().c_str(), ErrorCode.value());
 			}
 		}
+	}
+}
+
+bool LoadPackIndexDatabase(FPackIndexDatabase& Output, FIOReaderStream& Stream)
+{
+	FPackIndexHeader IndexHeader = {};
+	memset(&IndexHeader, 0, sizeof(IndexHeader));
+
+	Stream.ReadInto(IndexHeader);
+
+	if (IndexHeader.Version != FPackIndexHeader::VERSION || IndexHeader.Magic != FPackIndexHeader::MAGIC)
+	{
+		return false;
+	}
+
+	Output.Entries.resize(IndexHeader.NumEntries);
+
+	if (IndexHeader.NumEntries != 0)
+	{
+		const uint64 ExpectedReadSize = IndexHeader.NumEntries * sizeof(FPackIndexEntry);
+		const uint64 ReadSize = Stream.Read(Output.Entries.data(), ExpectedReadSize);
+		return ReadSize == ExpectedReadSize;
+	}
+	else
+	{
+		return true;
 	}
 }
 

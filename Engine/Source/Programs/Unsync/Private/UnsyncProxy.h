@@ -72,6 +72,7 @@ public:
 	}
 
 	void AddFileBlocks(const FPath& OriginalFilePath, const FPath& ResolvedFilePath, const FFileManifest& Manifest);
+	void AddPackBlocks(const FPath& OriginalFilePath, const FPath& ResolvedFilePath, const TArrayView<FPackIndexEntry> PackManifest);
 
 	const std::vector<std::string>& GetFileList() const { return FileListUtf8; }
 	const FBlockRequest*			FindRequest(const FGenericHash& BlockHash) const;
@@ -80,6 +81,9 @@ public:
 	FMacroBlockRequest				GetMacroBlockRequest(const FGenericHash& BlockHash) const;
 
 private:
+
+	FHash128 AddFile(const FPath& OriginalFilePath, const FPath& ResolvedFilePath);
+
 	EStrongHashAlgorithmID							 StrongHasher = EStrongHashAlgorithmID::Invalid;
 	std::vector<std::string>						 FileListUtf8;
 	std::unordered_map<FHash128, uint32>			 HashToFile;
@@ -175,6 +179,7 @@ public:
 	const FAuthDesc* AuthDesc = nullptr; // optional reference to externally-owned auth parameters
 
 	void InitRequestMap(EStrongHashAlgorithmID InStrongHasher);
+	void SetRequestMap(FBlockRequestMap&& InRequestMap);
 	void BuildFileBlockRequests(const FPath& OriginalFilePath, const FPath& ResolvedFilePath, const FFileManifest& FileManifest);
 
 	const FRemoteProtocolFeatures& GetFeatures() const { return Features; }

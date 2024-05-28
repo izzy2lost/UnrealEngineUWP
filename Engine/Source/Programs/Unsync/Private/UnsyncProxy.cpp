@@ -256,6 +256,16 @@ FUnsyncProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBl
 		}
 	}
 
+	std::sort(Requests.begin(), Requests.end(), [](const FBlockRequest& A, const FBlockRequest& B) -> bool
+	{
+		int32 FileCmp = std::memcmp(A.FilenameMd5.Data, B.FilenameMd5.Data, A.FilenameMd5.Size());
+		if (FileCmp != 0)
+		{
+			return FileCmp;
+		}
+		return A.Offset < B.Offset;
+	});
+
 	bool bOk = bIsConnetedToHost;
 
 	// begin the command
@@ -842,11 +852,9 @@ FUnsyncProtocolImpl::~FUnsyncProtocolImpl()
 	bIsConnetedToHost = false;
 }
 
-void
-FBlockRequestMap::AddFileBlocks(const FPath& OriginalFilePath, const FPath& ResolvedFilePath, const FFileManifest& FileManifest)
+FHash128
+FBlockRequestMap::AddFile(const FPath& OriginalFilePath, const FPath& ResolvedFilePath)
 {
-	UNSYNC_ASSERTF(StrongHasher != EStrongHashAlgorithmID::Invalid, L"Request map is not initialized");
-
 	std::string OriginalFilePathUtf8 = ConvertWideToUtf8(OriginalFilePath.wstring());
 	std::string ResolvedFilePathUtf8 = ConvertWideToUtf8(ResolvedFilePath.wstring());
 
@@ -861,10 +869,40 @@ FBlockRequestMap::AddFileBlocks(const FPath& OriginalFilePath, const FPath& Reso
 		FileListUtf8.push_back(OriginalFilePathUtf8);
 	}
 
+	return OriginalNameHash;
+}
+
+void
+FBlockRequestMap::AddPackBlocks(const FPath&					  OriginalFilePath,
+								const FPath&					  ResolvedFilePath,
+								const TArrayView<FPackIndexEntry> PackManifest)
+{
+	UNSYNC_ASSERTF(StrongHasher != EStrongHashAlgorithmID::Invalid, L"Request map is not initialized");
+
+	FHash128 FileId = AddFile(OriginalFilePath, ResolvedFilePath);
+
+	for (const FPackIndexEntry& Block : PackManifest)
+	{
+		FBlockRequest Request;
+		Request.FilenameMd5				 = FileId;
+		Request.BlockHash				 = Block.BlockHash;
+		Request.Offset					 = Block.PackBlockOffset;
+		Request.Size					 = Block.PackBlockSize;
+		BlockRequests[Request.BlockHash] = Request;
+	}
+}
+
+void
+FBlockRequestMap::AddFileBlocks(const FPath& OriginalFilePath, const FPath& ResolvedFilePath, const FFileManifest& FileManifest)
+{
+	UNSYNC_ASSERTF(StrongHasher != EStrongHashAlgorithmID::Invalid, L"Request map is not initialized");
+
+	FHash128 FileId = AddFile(OriginalFilePath, ResolvedFilePath);
+
 	for (const FGenericBlock& Block : FileManifest.Blocks)
 	{
 		FBlockRequest Request;
-		Request.FilenameMd5				 = OriginalNameHash;
+		Request.FilenameMd5				 = FileId;
 		Request.BlockHash				 = Block.HashStrong.ToHash128();  // #wip-widehash
 		Request.Offset					 = Block.Offset;
 		Request.Size					 = Block.Size;
@@ -1093,6 +1131,13 @@ FProxyPool::InitRequestMap(EStrongHashAlgorithmID InStrongHasher)
 	RequestMap.Init(InStrongHasher);
 }
 
+void
+FProxyPool::SetRequestMap(FBlockRequestMap&& InRequestMap)
+{
+	std::lock_guard<std::mutex> LockGuard(Mutex);
+	RequestMap = std::move(InRequestMap);
+}
+
 FPhysicalFileSystem::FPhysicalFileSystem(const FPath& InRoot) : Root(InRoot)
 {
 }
@@ -1145,8 +1190,12 @@ FRemoteFileSystem::ListDirectory(const std::string_view RelativePath)
 	FPooledHttpConnection HttpConnection(ProxyPool);
 	std::string			  FullPath;
 	FullPath.append(Root);
-	FullPath.append("/");
-	FullPath.append(RelativePath);
+	if (!RelativePath.empty())
+	{
+		FullPath.append("/");
+		FullPath.append(RelativePath);
+	}
+	ConvertDirectorySeparatorsToUnix(FullPath);
 	return ProxyQuery::ListDirectory(HttpConnection, ProxyPool.AuthDesc, FullPath);
 }
 
@@ -1158,6 +1207,7 @@ FRemoteFileSystem::ReadFile(const std::string_view RelativePath)
 	FullPath.append(Root);
 	FullPath.append("/");
 	FullPath.append(RelativePath);
+	ConvertDirectorySeparatorsToUnix(FullPath);
 	return ProxyQuery::DownloadFile(HttpConnection, ProxyPool.AuthDesc, FullPath);
 }
 
