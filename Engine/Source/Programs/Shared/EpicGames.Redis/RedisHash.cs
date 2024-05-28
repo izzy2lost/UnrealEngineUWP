@@ -3,11 +3,31 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 using StackExchange.Redis;
 
 namespace EpicGames.Redis
 {
+	/// <summary>
+	/// Represents a redis hash key, with members corresponding to the property names of a type
+	/// </summary>
+	/// <typeparam name="T">Type of the hash fields</typeparam>
+	public readonly struct RedisHashKey<T>
+	{
+		/// <summary>
+		/// The key for the list
+		/// </summary>
+		public readonly RedisKey Inner { get; }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="inner">Redis key this type is using</param>
+		public RedisHashKey(RedisKey inner)
+			=> Inner = inner;
+	}
+
 	/// <summary>
 	/// Represents a typed Redis list with a given key
 	/// </summary>
@@ -86,7 +106,81 @@ namespace EpicGames.Redis
 	/// </summary>
 	public static class RedisHashExtensions
 	{
+		#region Conditions
+
+		/// <inheritdoc cref="Condition.HashEqual(RedisKey, RedisValue, RedisValue)"/>
+		public static Condition Equal<TRecord, TValue>(this RedisHashKey<TRecord> key, Expression<Func<TRecord, TValue>> selector, TValue value)
+		{
+			MemberExpression memberExpression = (selector.Body as MemberExpression) ?? throw new InvalidOperationException("Expression must be a property accessor");
+			return Condition.HashEqual(key.Inner, memberExpression.Member.Name, RedisSerializer.Serialize(value));
+		}
+
+		/// <inheritdoc cref="Condition.HashEqual(RedisKey, RedisValue, RedisValue)"/>
+		public static Condition Equal<TName, TValue>(this RedisHashKey<TName, TValue> key, TName name, TValue value)
+			=> Condition.HashEqual(key.Inner, RedisSerializer.Serialize(name), RedisSerializer.Serialize(value));
+
+		/// <inheritdoc cref="Condition.HashExists(RedisKey, RedisValue)"/>
+		public static Condition Exists<TRecord, TValue>(this RedisHashKey<TRecord> key, Expression<Func<TRecord, TValue>> selector)
+		{
+			MemberExpression memberExpression = (selector.Body as MemberExpression) ?? throw new InvalidOperationException("Expression must be a property accessor");
+			return Condition.HashExists(key.Inner, memberExpression.Member.Name);
+		}
+
+		/// <inheritdoc cref="Condition.HashExists(RedisKey, RedisValue)"/>
+		public static Condition Exists<TName, TValue>(this RedisHashKey<TName, TValue> key, TName name)
+			=> Condition.HashExists(key.Inner, RedisSerializer.Serialize(name));
+
+		/// <inheritdoc cref="Condition.HashLengthEqual(RedisKey, Int64)"/>
+		public static Condition LengthEqual<TName, TValue>(this RedisHashKey<TName, TValue> key, long length)
+			=> Condition.HashLengthEqual(key.Inner, length);
+
+		/// <inheritdoc cref="Condition.HashLengthGreaterThan(RedisKey, Int64)"/>
+		public static Condition LengthGreaterThan<TName, TValue>(this RedisHashKey<TName, TValue> key, long length)
+			=> Condition.HashLengthGreaterThan(key.Inner, length);
+
+		/// <inheritdoc cref="Condition.HashLengthLessThan(RedisKey, Int64)"/>
+		public static Condition LengthLessThan<TName, TValue>(this RedisHashKey<TName, TValue> key, long length)
+			=> Condition.HashLengthLessThan(key.Inner, length);
+
+		/// <inheritdoc cref="Condition.HashNotExists(RedisKey, RedisValue)"/>
+		public static Condition NotExists<TRecord, TValue>(this RedisHashKey<TRecord> key, Expression<Func<TRecord, TValue>> selector)
+		{
+			MemberExpression memberExpression = (selector.Body as MemberExpression) ?? throw new InvalidOperationException("Expression must be a property accessor");
+			return Condition.HashNotExists(key.Inner, memberExpression.Member.Name);
+		}
+
+		/// <inheritdoc cref="Condition.HashNotExists(RedisKey, RedisValue)"/>
+		public static Condition NotExists<TName, TValue>(this RedisHashKey<TName, TValue> key, TName name)
+			=> Condition.HashNotExists(key.Inner, RedisSerializer.Serialize(name));
+
+		/// <inheritdoc cref="Condition.HashEqual(RedisKey, RedisValue, RedisValue)"/>
+		public static Condition NotEqual<TRecord, TValue>(this RedisHashKey<TRecord> key, Expression<Func<TRecord, TValue>> selector, TValue value)
+		{
+			MemberExpression memberExpression = (selector.Body as MemberExpression) ?? throw new InvalidOperationException("Expression must be a property accessor");
+			return Condition.HashNotEqual(key.Inner, memberExpression.Member.Name, RedisSerializer.Serialize(value));
+		}
+
+		/// <inheritdoc cref="Condition.HashNotEqual(RedisKey, RedisValue, RedisValue)"/>
+		public static Condition NotEqual<TName, TValue>(this RedisHashKey<TName, TValue> key, TName name, TValue value)
+			=> Condition.HashNotEqual(key.Inner, RedisSerializer.Serialize(name), RedisSerializer.Serialize(value));
+
+		#endregion
+
 		#region HashDecrementAsync
+
+		/// <inheritdoc cref="IDatabaseAsync.HashDecrementAsync(RedisKey, RedisValue, Int64, CommandFlags)"/>
+		public static Task<long> HashDecrementAsync<TRecord>(this IDatabaseAsync target, RedisHashKey<TRecord> key, Expression<Func<TRecord, long>> selector, long value = 1L, CommandFlags flags = CommandFlags.None)
+		{
+			MemberExpression memberExpression = (selector.Body as MemberExpression) ?? throw new InvalidOperationException("Expression must be a property accessor");
+			return target.HashDecrementAsync(key.Inner, memberExpression.Member.Name, value, flags);
+		}
+
+		/// <inheritdoc cref="IDatabaseAsync.HashDecrementAsync(RedisKey, RedisValue, Double, CommandFlags)"/>
+		public static Task<double> HashDecrementAsync<TRecord>(this IDatabaseAsync target, RedisHashKey<TRecord> key, Expression<Func<TRecord, double>> selector, double value = 1.0, CommandFlags flags = CommandFlags.None)
+		{
+			MemberExpression memberExpression = (selector.Body as MemberExpression) ?? throw new InvalidOperationException("Expression must be a property accessor");
+			return target.HashDecrementAsync(key.Inner, memberExpression.Member.Name, value, flags);
+		}
 
 		/// <inheritdoc cref="IDatabaseAsync.HashDecrementAsync(RedisKey, RedisValue, Int64, CommandFlags)"/>
 		public static Task<long> HashDecrementAsync<TName>(this IDatabaseAsync target, RedisHashKey<TName, long> key, TName name, long value = 1L, CommandFlags flags = CommandFlags.None)
@@ -103,6 +197,13 @@ namespace EpicGames.Redis
 		#endregion
 
 		#region HashDeleteAsync
+
+		/// <inheritdoc cref="IDatabaseAsync.HashDeleteAsync(RedisKey, RedisValue, CommandFlags)"/>
+		public static Task<bool> HashDeleteAsync<TRecord>(this IDatabaseAsync target, RedisHashKey<TRecord> key, Expression<Func<TRecord, double>> selector, CommandFlags flags = CommandFlags.None)
+		{
+			MemberExpression memberExpression = (selector.Body as MemberExpression) ?? throw new InvalidOperationException("Expression must be a property accessor");
+			return target.HashDeleteAsync(key.Inner, memberExpression.Member.Name, flags);
+		}
 
 		/// <inheritdoc cref="IDatabaseAsync.HashDeleteAsync(RedisKey, RedisValue, CommandFlags)"/>
 		public static Task<bool> HashDeleteAsync<TName, TValue>(this IDatabaseAsync target, RedisHashKey<TName, TValue> key, TName name, CommandFlags flags = CommandFlags.None)
@@ -131,6 +232,13 @@ namespace EpicGames.Redis
 		#region HashGetAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.HashGetAsync(RedisKey, RedisValue, CommandFlags)"/>
+		public static Task<TValue> HashGetAsync<TRecord, TValue>(this IDatabaseAsync target, RedisHashKey<TRecord> key, Expression<Func<TRecord, TValue>> selector, CommandFlags flags = CommandFlags.None)
+		{
+			MemberExpression memberExpression = (selector.Body as MemberExpression) ?? throw new InvalidOperationException("Expression must be a property accessor");
+			return target.HashGetAsync(key.Inner, memberExpression.Member.Name, flags).DeserializeAsync<TValue>();
+		}
+
+		/// <inheritdoc cref="IDatabaseAsync.HashGetAsync(RedisKey, RedisValue, CommandFlags)"/>
 		public static Task<TValue> HashGetAsync<TName, TValue>(this IDatabaseAsync target, RedisHashKey<TName, TValue> key, TName name, CommandFlags flags = CommandFlags.None)
 		{
 			return target.HashGetAsync(key.Inner, RedisSerializer.Serialize(name), flags).DeserializeAsync<TValue>();
@@ -156,6 +264,20 @@ namespace EpicGames.Redis
 		#endregion
 
 		#region HashIncrementAsync
+
+		/// <inheritdoc cref="IDatabaseAsync.HashIncrementAsync(RedisKey, RedisValue, Int64, CommandFlags)"/>
+		public static Task<long> HashInccrementAsync<TRecord>(this IDatabaseAsync target, RedisHashKey<TRecord> key, Expression<Func<TRecord, long>> selector, long value = 1L, CommandFlags flags = CommandFlags.None)
+		{
+			MemberExpression memberExpression = (selector.Body as MemberExpression) ?? throw new InvalidOperationException("Expression must be a property accessor");
+			return target.HashIncrementAsync(key.Inner, memberExpression.Member.Name, value, flags);
+		}
+
+		/// <inheritdoc cref="IDatabaseAsync.HashIncrementAsync(RedisKey, RedisValue, Double, CommandFlags)"/>
+		public static Task<double> HashIncrementAsync<TRecord>(this IDatabaseAsync target, RedisHashKey<TRecord> key, Expression<Func<TRecord, double>> selector, double value = 1.0, CommandFlags flags = CommandFlags.None)
+		{
+			MemberExpression memberExpression = (selector.Body as MemberExpression) ?? throw new InvalidOperationException("Expression must be a property accessor");
+			return target.HashIncrementAsync(key.Inner, memberExpression.Member.Name, value, flags);
+		}
 
 		/// <inheritdoc cref="IDatabaseAsync.HashIncrementAsync(RedisKey, RedisValue, Int64, CommandFlags)"/>
 		public static Task<long> HashIncrementAsync<TName>(this IDatabaseAsync target, RedisHashKey<TName, long> key, TName name, long value = 1L, CommandFlags flags = CommandFlags.None)
@@ -192,6 +314,13 @@ namespace EpicGames.Redis
 		#endregion
 
 		#region HashSetAsync
+
+		/// <inheritdoc cref="IDatabaseAsync.HashSetAsync(RedisKey, RedisValue, RedisValue, When, CommandFlags)"/>
+		public static Task HashSetAsync<TRecord, TValue>(this IDatabaseAsync target, RedisHashKey<TRecord> key, Expression<Func<TRecord, TValue>> selector, TValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
+		{
+			MemberExpression memberExpression = (selector.Body as MemberExpression) ?? throw new InvalidOperationException("Expression must be a property accessor");
+			return target.HashSetAsync(key.Inner, memberExpression.Member.Name, RedisSerializer.Serialize(value), when, flags);
+		}
 
 		/// <inheritdoc cref="IDatabaseAsync.HashSetAsync(RedisKey, RedisValue, RedisValue, When, CommandFlags)"/>
 		public static Task HashSetAsync<TName, TValue>(this IDatabaseAsync target, RedisHashKey<TName, TValue> key, TName name, TValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)

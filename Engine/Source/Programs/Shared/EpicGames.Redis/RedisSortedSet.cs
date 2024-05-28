@@ -102,6 +102,46 @@ namespace EpicGames.Redis
 	/// </summary>
 	public static class RedisSortedSetExtensions
 	{
+		#region Conditions
+
+		/// <inheritdoc cref="Condition.SortedSetContains(RedisKey, RedisValue)"/>
+		public static Condition Contains<TElement>(this RedisSortedSetKey<TElement> key, TElement value)
+			=> Condition.SortedSetContains(key.Inner, RedisSerializer.Serialize(value));
+
+		/// <inheritdoc cref="Condition.SortedSetEqual(RedisKey, RedisValue, RedisValue)"/>
+		public static Condition Equal<TElement>(this RedisSortedSetKey<TElement> key, TElement value, RedisValue score)
+			=> Condition.SortedSetEqual(key.Inner, RedisSerializer.Serialize(value), score);
+
+		/// <inheritdoc cref="Condition.SortedSetLengthEqual(RedisKey, Int64)"/>
+		public static Condition LengthEqual<TElement>(this RedisSortedSetKey<TElement> key, long length)
+			=> Condition.SortedSetLengthEqual(key.Inner, length);
+
+		/// <inheritdoc cref="Condition.SortedSetLengthGreaterThan(RedisKey, Int64)"/>
+		public static Condition LengthGreaterThan<TElement>(this RedisSortedSetKey<TElement> key, long length)
+			=> Condition.SortedSetLengthGreaterThan(key.Inner, length);
+
+		/// <inheritdoc cref="Condition.SortedSetLengthLessThan(RedisKey, Int64)"/>
+		public static Condition LengthLessThan<TElement>(this RedisSortedSetKey<TElement> key, long length)
+			=> Condition.SortedSetLengthLessThan(key.Inner, length);
+
+		/// <inheritdoc cref="Condition.SortedSetNotContains(RedisKey, RedisValue)"/>
+		public static Condition NotContains<TElement>(this RedisSortedSetKey<TElement> key, TElement value)
+			=> Condition.SortedSetNotContains(key.Inner, RedisSerializer.Serialize(value));
+
+		/// <inheritdoc cref="Condition.SortedSetNotEqual(RedisKey, RedisValue, RedisValue)"/>
+		public static Condition NotEqual<TElement>(this RedisSortedSetKey<TElement> key, TElement value, RedisValue score)
+			=> Condition.SortedSetNotEqual(key.Inner, RedisSerializer.Serialize(value), score);
+
+		/// <inheritdoc cref="Condition.SortedSetScoreExists(RedisKey, RedisValue)"/>
+		public static Condition ScoreExists<TElement>(this RedisSortedSetKey<TElement> key, RedisValue score)
+			=> Condition.SortedSetScoreExists(key.Inner, score);
+
+		/// <inheritdoc cref="Condition.SortedSetScoreExists(RedisKey, RedisValue, RedisValue)"/>
+		public static Condition ScoreExists<TElement>(this RedisSortedSetKey<TElement> key, RedisValue score, RedisValue count)
+			=> Condition.SortedSetScoreExists(key.Inner, score, count);
+
+		#endregion
+
 		#region SortedSetAddAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.SortedSetAddAsync(RedisKey, RedisValue, Double, CommandFlags)"/>
@@ -200,7 +240,7 @@ namespace EpicGames.Redis
 
 		#endregion
 
-		#region 
+		#region SortedSetRemoveAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.SortedSetRemoveAsync(RedisKey, RedisValue, CommandFlags)"/>
 		public static Task<bool> SortedSetRemoveAsync<TElement>(this IDatabaseAsync target, RedisSortedSetKey<TElement> key, TElement value, CommandFlags flags = CommandFlags.None)

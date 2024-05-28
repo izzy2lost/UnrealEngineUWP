@@ -42,10 +42,34 @@ namespace EpicGames.Redis
 	}
 
 	/// <summary>
-	/// Extension methods for sets
+	/// Extension methods for strings
 	/// </summary>
 	public static class RedisStringExtensions
 	{
+		#region Conditions
+
+		/// <inheritdoc cref="Condition.StringEqual(RedisKey, RedisValue)"/>
+		public static Condition Equal<TElement>(this RedisStringKey<TElement> key, TElement value)
+			=> Condition.StringEqual(key.Inner, RedisSerializer.Serialize(value));
+
+		/// <inheritdoc cref="Condition.StringLengthEqual(RedisKey, Int64)"/>
+		public static Condition LengthEqual<TElement>(this RedisStringKey<TElement> key, long length)
+			=> Condition.StringLengthEqual(key.Inner, length);
+
+		/// <inheritdoc cref="Condition.StringLengthGreaterThan(RedisKey, Int64)"/>
+		public static Condition LengthGreaterThan<TElement>(this RedisStringKey<TElement> key, long length)
+			=> Condition.StringLengthGreaterThan(key.Inner, length);
+
+		/// <inheritdoc cref="Condition.StringLengthLessThan(RedisKey, Int64)"/>
+		public static Condition LengthLessThan<TElement>(this RedisStringKey<TElement> key, long length)
+			=> Condition.StringLengthLessThan(key.Inner, length);
+
+		/// <inheritdoc cref="Condition.StringNotEqual(RedisKey, RedisValue)"/>
+		public static Condition NotEqual<TElement>(this RedisStringKey<TElement> key, TElement value)
+			=> Condition.StringNotEqual(key.Inner, RedisSerializer.Serialize(value));
+
+		#endregion
+
 		#region StringDecrementAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.StringDecrementAsync(RedisKey, Int64, CommandFlags)"/>

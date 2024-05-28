@@ -45,6 +45,38 @@ namespace EpicGames.Redis
 	/// </summary>
 	public static class RedisListExtensions
 	{
+		#region Conditions
+
+		/// <inheritdoc cref="Condition.ListIndexEqual(RedisKey, Int64, RedisValue)"/>
+		public static Condition IndexEqual<TElement>(this RedisListKey<TElement> key, long index, TElement value)
+			=> Condition.ListIndexEqual(key.Inner, index, RedisSerializer.Serialize(value));
+
+		/// <inheritdoc cref="Condition.ListIndexExists(RedisKey, Int64)"/>
+		public static Condition IndexExists<TElement>(this RedisListKey<TElement> key, long index)
+			=> Condition.ListIndexExists(key.Inner, index);
+
+		/// <inheritdoc cref="Condition.ListIndexNotEqual(RedisKey, Int64, RedisValue)"/>
+		public static Condition IndexNotEqual<TElement>(this RedisListKey<TElement> key, long index, TElement value)
+			=> Condition.ListIndexNotEqual(key.Inner, index, RedisSerializer.Serialize(value));
+
+		/// <inheritdoc cref="Condition.ListIndexNotExists(RedisKey, Int64)"/>
+		public static Condition IndexNotExists<TElement>(this RedisListKey<TElement> key, long index)
+			=> Condition.ListIndexNotExists(key.Inner, index);
+
+		/// <inheritdoc cref="Condition.ListLengthEqual(RedisKey, Int64)"/>
+		public static Condition LengthEqual<TElement>(this RedisListKey<TElement> key, long length)
+			=> Condition.ListLengthEqual(key.Inner, length);
+
+		/// <inheritdoc cref="Condition.ListLengthGreaterThan(RedisKey, Int64)"/>
+		public static Condition LengthGreaterThan<TElement>(this RedisListKey<TElement> key, long length)
+			=> Condition.ListLengthGreaterThan(key.Inner, length);
+
+		/// <inheritdoc cref="Condition.ListLengthLessThan(RedisKey, Int64)"/>
+		public static Condition LengthLessThan<TElement>(this RedisListKey<TElement> key, long length)
+			=> Condition.ListLengthLessThan(key.Inner, length);
+
+		#endregion
+
 		#region ListGetByIndexAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.ListGetByIndexAsync(RedisKey, Int64, CommandFlags)"/>

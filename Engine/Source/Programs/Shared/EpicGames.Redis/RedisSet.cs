@@ -44,6 +44,30 @@ namespace EpicGames.Redis
 	/// </summary>
 	public static class RedisSetExtensions
 	{
+		#region Conditions
+
+		/// <inheritdoc cref="Condition.SetContains(RedisKey, RedisValue)"/>
+		public static Condition Contains<TElement>(this RedisSetKey<TElement> key, TElement value)
+			=> Condition.SetContains(key.Inner, RedisSerializer.Serialize(value));
+
+		/// <inheritdoc cref="Condition.SetLengthEqual(RedisKey, Int64)"/>
+		public static Condition LengthEqual<TElement>(this RedisSetKey<TElement> key, long length)
+			=> Condition.SetLengthEqual(key.Inner, length);
+
+		/// <inheritdoc cref="Condition.SetLengthGreaterThan(RedisKey, Int64)"/>
+		public static Condition LengthGreaterThan<TElement>(this RedisSetKey<TElement> key, long length)
+			=> Condition.SetLengthGreaterThan(key.Inner, length);
+
+		/// <inheritdoc cref="Condition.SetLengthLessThan(RedisKey, Int64)"/>
+		public static Condition LengthLessThan<TElement>(this RedisSetKey<TElement> key, long length)
+			=> Condition.SetLengthLessThan(key.Inner, length);
+
+		/// <inheritdoc cref="Condition.SetContains(RedisKey, RedisValue)"/>
+		public static Condition NotContains<TElement>(this RedisSetKey<TElement> key, TElement value)
+			=> Condition.SetNotContains(key.Inner, RedisSerializer.Serialize(value));
+
+		#endregion
+
 		#region SetAddAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.SetAddAsync(RedisKey, RedisValue, CommandFlags)"/>
