@@ -353,7 +353,7 @@ namespace mu
 			return reinterpret_cast<CTYPE*>(m_pBuf);
 		}
 
-		inline MeshBufferIterator<FORMAT,CTYPE,COMPONENTS> operator+(int c)
+		inline MeshBufferIterator<FORMAT,CTYPE,COMPONENTS> operator+(int c) const
 		{
 			MeshBufferIterator<FORMAT,CTYPE,COMPONENTS> res = *this;
 			res += c;
