@@ -39,10 +39,13 @@ namespace UnrealGameSync
 			this.groupBoxSyncing = new System.Windows.Forms.GroupBox();
 			this.numericUpDownRetriesOnSyncError = new System.Windows.Forms.NumericUpDown();
 			this.labelRetriesOnSyncError = new System.Windows.Forms.Label();
+			this.numericUpDownSyncErrorRetryDelay = new System.Windows.Forms.NumericUpDown();
+			this.labelSyncErrorRetryDelay = new System.Windows.Forms.Label();
 			((System.ComponentModel.ISupportInitialize)(this.numericUpDownMaxSizePerBatch)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(this.numericUpDownMaxCommandsPerBatch)).BeginInit();
 			this.groupBoxSyncing.SuspendLayout();
 			((System.ComponentModel.ISupportInitialize)(this.numericUpDownRetriesOnSyncError)).BeginInit();
+			((System.ComponentModel.ISupportInitialize)(this.numericUpDownSyncErrorRetryDelay)).BeginInit();
 			this.SuspendLayout();
 			// 
 			// OkButton
@@ -145,6 +148,8 @@ namespace UnrealGameSync
 			| System.Windows.Forms.AnchorStyles.Right)));
 			this.groupBoxSyncing.Controls.Add(this.numericUpDownRetriesOnSyncError);
 			this.groupBoxSyncing.Controls.Add(this.labelRetriesOnSyncError);
+			this.groupBoxSyncing.Controls.Add(this.numericUpDownSyncErrorRetryDelay);
+			this.groupBoxSyncing.Controls.Add(this.labelSyncErrorRetryDelay);
 			this.groupBoxSyncing.Controls.Add(this.numericUpDownMaxCommandsPerBatch);
 			this.groupBoxSyncing.Controls.Add(this.numericUpDownMaxSizePerBatch);
 			this.groupBoxSyncing.Controls.Add(this.labelMaxSizePerBatch);
@@ -153,7 +158,7 @@ namespace UnrealGameSync
 			this.groupBoxSyncing.Margin = new System.Windows.Forms.Padding(5, 5, 5, 5);
 			this.groupBoxSyncing.Name = "groupBoxSyncing";
 			this.groupBoxSyncing.Padding = new System.Windows.Forms.Padding(5, 5, 5, 5);
-			this.groupBoxSyncing.Size = new System.Drawing.Size(670, 191);
+			this.groupBoxSyncing.Size = new System.Drawing.Size(670, 208);
 			this.groupBoxSyncing.TabIndex = 0;
 			this.groupBoxSyncing.TabStop = false;
 			this.groupBoxSyncing.Text = "Syncing";
@@ -186,6 +191,34 @@ namespace UnrealGameSync
 			this.labelRetriesOnSyncError.TabIndex = 13;
 			this.labelRetriesOnSyncError.Text = "Retries on sync error:";
 			// 
+			// numericUpDownSyncErrorRetryDelay
+			// 
+			this.numericUpDownSyncErrorRetryDelay.Increment = new decimal(new int[] {
+			64,
+			0,
+			0,
+			0});
+			this.numericUpDownSyncErrorRetryDelay.Location = new System.Drawing.Point(390, 170);
+			this.numericUpDownSyncErrorRetryDelay.Margin = new System.Windows.Forms.Padding(5, 5, 5, 5);
+			this.numericUpDownSyncErrorRetryDelay.Maximum = new decimal(new int[] {
+			8192,
+			0,
+			0,
+			0});
+			this.numericUpDownSyncErrorRetryDelay.Name = "numericUpDownSyncErrorRetryDelay";
+			this.numericUpDownSyncErrorRetryDelay.Size = new System.Drawing.Size(270, 31);
+			this.numericUpDownSyncErrorRetryDelay.TabIndex = 16;
+			// 
+			// labelSyncErrorRetryDelay
+			// 
+			this.labelSyncErrorRetryDelay.AutoSize = true;
+			this.labelSyncErrorRetryDelay.Location = new System.Drawing.Point(10, 174);
+			this.labelSyncErrorRetryDelay.Margin = new System.Windows.Forms.Padding(5, 0, 5, 0);
+			this.labelSyncErrorRetryDelay.Name = "labelSyncErrorRetryDelay";
+			this.labelSyncErrorRetryDelay.Size = new System.Drawing.Size(177, 25);
+			this.labelSyncErrorRetryDelay.TabIndex = 15;
+			this.labelSyncErrorRetryDelay.Text = "Sync error retry delay (ms):";
+			// 
 			// PerforceSyncSettingsWindow
 			// 
 			this.AcceptButton = this.OkButton;
@@ -210,6 +243,7 @@ namespace UnrealGameSync
 			this.groupBoxSyncing.ResumeLayout(false);
 			this.groupBoxSyncing.PerformLayout();
 			((System.ComponentModel.ISupportInitialize)(this.numericUpDownRetriesOnSyncError)).EndInit();
+			((System.ComponentModel.ISupportInitialize)(this.numericUpDownSyncErrorRetryDelay)).EndInit();
 			this.ResumeLayout(false);
 
 		}
@@ -225,5 +259,7 @@ namespace UnrealGameSync
 		private System.Windows.Forms.GroupBox groupBoxSyncing;
 		private System.Windows.Forms.NumericUpDown numericUpDownRetriesOnSyncError;
 		private System.Windows.Forms.Label labelRetriesOnSyncError;
+		private System.Windows.Forms.NumericUpDown numericUpDownSyncErrorRetryDelay;
+		private System.Windows.Forms.Label labelSyncErrorRetryDelay;
 	}
 }

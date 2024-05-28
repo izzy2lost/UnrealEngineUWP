@@ -842,6 +842,7 @@ namespace UnrealGameSync
 			SyncOptions.MaxCommandsPerBatch = _configFile.GetOptionalIntValue("Perforce.MaxCommandsPerBatch", SyncOptions.MaxCommandsPerBatch);
 			SyncOptions.MaxSizePerBatch = _configFile.GetOptionalIntValue("Perforce.MaxSizePerBatch", SyncOptions.MaxSizePerBatch);
 			SyncOptions.NumSyncErrorRetries = _configFile.GetOptionalIntValue("Perforce.NumSyncErrorRetries", SyncOptions.NumSyncErrorRetries);
+			SyncOptions.SyncErrorRetryDelay = _configFile.GetOptionalIntValue("Perforce.SyncErrorRetryDelay", SyncOptions.SyncErrorRetryDelay);
 		}
 
 		static Dictionary<Guid, bool> GetCategorySettings(ConfigSection? section, string includedKey, string excludedKey)

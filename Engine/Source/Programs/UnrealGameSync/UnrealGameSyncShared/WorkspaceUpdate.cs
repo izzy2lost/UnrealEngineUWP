@@ -65,6 +65,7 @@ namespace UnrealGameSync
 		public const int DefaultMaxCommandsPerBatch = 200;
 		public const int DefaultMaxSizePerBatch = 128 * 1024 * 1024;
 		public const int DefaultNumSyncErrorRetries = 0;
+		public const int DefaultSyncErrorRetryDelay = 0;
 
 		public int? NumThreads { get; set; }
 
@@ -72,6 +73,7 @@ namespace UnrealGameSync
 		public int? MaxSizePerBatch { get; set; }
 
 		public int? NumSyncErrorRetries { get; set; }
+		public int? SyncErrorRetryDelay { get; set; }
 
 		public PerforceSyncOptions Clone()
 		{
@@ -1738,6 +1740,8 @@ namespace UnrealGameSync
 				string statusMessage = "";
 
 				int maxRetries = context.PerforceSyncOptions?.NumSyncErrorRetries ?? PerforceSyncOptions.DefaultNumSyncErrorRetries;
+				int retryDelay = context.PerforceSyncOptions?.SyncErrorRetryDelay ?? PerforceSyncOptions.DefaultSyncErrorRetryDelay;
+				
 				for (int attempt = 0; ; attempt++)
 				{
 					// Sync the files
@@ -1747,7 +1751,13 @@ namespace UnrealGameSync
 					{
 						break;
 					}
-					threadLog.LogWarning("Sync error ({Message}); retrying... ({Count}/{MaxCount})", errorMessage ?? "unknown", attempt + 1, maxRetries);
+
+					threadLog.LogWarning("Sync error ({Message}); waiting ({RetryDelay}ms) and retrying... ({Count}/{MaxCount})", errorMessage ?? "unknown", retryDelay, attempt + 1, maxRetries);
+
+					if (retryDelay > 0)
+					{ 
+						await Task.Delay(retryDelay, cancellationToken);
+					}
 				}
 
 				// If it failed, try to set it on the state if nothing else has failed first
