@@ -1786,13 +1786,11 @@ namespace UnrealBuildTool
 				}
 
 				{
-					if (CompileEnvironment.PrecompiledHeaderAction == PrecompiledHeaderAction.Create)
+					CompileAction.ArtifactMode = ArtifactMode.Enabled;
+
+					if (CompileEnvironment.PrecompiledHeaderAction != PrecompiledHeaderAction.None)
 					{
-						CompileAction.ArtifactMode |= ArtifactMode.Enabled | ArtifactMode.PropagateInputs;
-					}
-					else
-					{
-						CompileAction.ArtifactMode |= ArtifactMode.Enabled | ArtifactMode.AbsolutePath; // deps output file contains absolute paths
+						CompileAction.ArtifactMode |= ArtifactMode.AbsolutePath; // Unfortunately we require matching absolute paths for pch to be cached
 					}
 				}
 

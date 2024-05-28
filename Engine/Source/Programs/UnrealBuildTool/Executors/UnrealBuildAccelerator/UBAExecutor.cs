@@ -564,9 +564,24 @@ namespace UnrealBuildTool
 			{
 				return 0;
 			}
-			string platform = action.Target.Platform.ToString();
-			byte[] platformBytes = System.Text.Encoding.ASCII.GetBytes(platform);
-			return (uint)IoHash.Compute(platformBytes).GetHashCode();
+
+			using (Blake3.Hasher hasher = Blake3.Hasher.New())
+			{
+				// Use platform to chose bucket since there will never be any cache hits between platforms
+				hasher.Update(System.Text.Encoding.UTF8.GetBytes(action.Target.Platform.ToString()));
+
+				// Absolute path is set for actions that uses pch.
+				// And since pch contains absolute paths we unfortunately can't share cache data between machines that have different paths
+				if (action.ArtifactMode.HasFlag(ArtifactMode.AbsolutePath))
+				{
+					foreach (DirectoryItem root in action.RootPaths)
+					{
+						hasher.Update(System.Text.Encoding.UTF8.GetBytes(root.FullName));
+					}
+				}
+
+				return (uint)IoHash.FromBlake3(hasher).GetHashCode();
+			}
 		}
 
 		IRootPaths GetActionRootPaths(LinkedAction action)

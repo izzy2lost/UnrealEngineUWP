@@ -1233,6 +1233,11 @@ namespace UnrealBuildTool
 
 			CompileAction.ArtifactMode = ArtifactMode.Enabled;
 
+			if (CompileEnvironment.PrecompiledHeaderAction != PrecompiledHeaderAction.None)
+			{
+				CompileAction.ArtifactMode |= ArtifactMode.AbsolutePath; // Unfortunately we require matching absolute paths for pch to be cached
+			}
+
 			// Two-pass compile where the preprocessor is run first to output the dependency list
 			if (PreprocessDepends)
 			{
