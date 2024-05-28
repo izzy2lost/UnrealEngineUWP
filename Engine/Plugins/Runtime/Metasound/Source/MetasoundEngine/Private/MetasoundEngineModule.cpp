@@ -174,4 +174,4 @@ namespace Metasound::Engine
 	};
 } // namespace Metasound::Engine
 
-IMPLEMENT_MODULE(Metasound::Engine::FModule, MetaSoundEngine);
+IMPLEMENT_MODULE(Metasound::Engine::FModule, MetasoundEngine);

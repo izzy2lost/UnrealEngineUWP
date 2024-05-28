@@ -816,6 +816,28 @@ class FDefaultGameModuleImpl
  *
  * @see IMPLEMENT_GAME_MODULE
  */
+
+namespace UE::Core::Private
+{
+	constexpr bool ModuleNameEquals(const char* Lhs, const char* Rhs)
+	{
+		for (;;)
+		{
+			if (*Lhs != *Rhs)
+			{
+				return false;
+			}
+
+			if (*Lhs == '\0')
+			{
+				return true;
+			}
+
+			++Lhs;
+			++Rhs;
+		}
+	}
+}
 #if IS_MONOLITHIC
 
 	// If we're linking monolithically we assume all modules are linked in with the main binary.
@@ -823,7 +845,7 @@ class FDefaultGameModuleImpl
 		/** Global registrant object for this module when linked statically */ \
 		static FStaticallyLinkedModuleRegistrant< ModuleImplClass > ModuleRegistrant##ModuleName( TEXT(#ModuleName) ); \
 		/* Forced reference to this function is added by the linker to check that each module uses IMPLEMENT_MODULE */ \
-		extern "C" void IMPLEMENT_MODULE_##ModuleName() { } \
+		extern "C" void IMPLEMENT_MODULE_##ModuleName() { UE_STATIC_ASSERT_WARN(UE::Core::Private::ModuleNameEquals(#ModuleName, UE_MODULE_NAME ), "Module name mismatch (" #ModuleName " != " UE_MODULE_NAME "). Please ensure module name passed to IMPLEMENT_MODULE is " UE_MODULE_NAME " to avoid runtime errors in monolithic builds."); } \
 		PER_MODULE_BOILERPLATE_ANYLINK(ModuleImplClass, ModuleName)
 
 #else
@@ -841,7 +863,7 @@ class FDefaultGameModuleImpl
 		} \
 		static FModuleInitializerEntry ModuleName##InitializerEntry(TEXT(#ModuleName), Initialize##ModuleName##Module, TEXT(UE_MODULE_NAME)); \
 		/* Forced reference to this function is added by the linker to check that each module uses IMPLEMENT_MODULE */ \
-		extern "C" void IMPLEMENT_MODULE_##ModuleName() { } \
+		extern "C" void IMPLEMENT_MODULE_##ModuleName() { UE_STATIC_ASSERT_WARN(UE::Core::Private::ModuleNameEquals(#ModuleName, UE_MODULE_NAME ), "Module name mismatch (" #ModuleName " != " UE_MODULE_NAME "). Please ensure module name passed to IMPLEMENT_MODULE is " UE_MODULE_NAME " to avoid runtime errors in monolithic builds."); } \
 		PER_MODULE_BOILERPLATE_ANYLINK(ModuleImplClass, ModuleName)
 
 #endif //IS_MONOLITHIC

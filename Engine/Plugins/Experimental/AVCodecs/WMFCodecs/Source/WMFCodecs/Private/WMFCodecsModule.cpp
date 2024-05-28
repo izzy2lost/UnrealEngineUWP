@@ -23,4 +23,4 @@ public:
 	}
 };
 
-IMPLEMENT_MODULE(FWMFCodecModule, WMFCodec);
+IMPLEMENT_MODULE(FWMFCodecModule, WMFCodecs);

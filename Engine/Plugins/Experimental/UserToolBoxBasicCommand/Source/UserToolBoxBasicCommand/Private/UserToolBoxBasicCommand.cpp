@@ -31,4 +31,4 @@ void FUserToolBox_BasicCommandModule::ShutdownModule()
 
 #undef LOCTEXT_NAMESPACE
 
-IMPLEMENT_MODULE(FUserToolBox_BasicCommandModule, UserToolBox_BasicCommand)
+IMPLEMENT_MODULE(FUserToolBox_BasicCommandModule, UserToolBoxBasicCommand)

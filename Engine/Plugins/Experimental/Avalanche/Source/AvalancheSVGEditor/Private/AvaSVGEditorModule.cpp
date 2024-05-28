@@ -165,4 +165,4 @@ void FAvaSVGEditorModule::OnSVGShapesUpdated(AActor* InActor) const
 
 #undef LOCTEXT_NAMESPACE
 
-IMPLEMENT_MODULE(FAvaSVGEditorModule, AvalancheSVGEditorModule)
+IMPLEMENT_MODULE(FAvaSVGEditorModule, AvalancheSVGEditor)

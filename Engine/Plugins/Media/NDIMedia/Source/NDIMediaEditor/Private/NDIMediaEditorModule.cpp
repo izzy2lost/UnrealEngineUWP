@@ -60,4 +60,4 @@ private:
 
 #undef LOCTEXT_NAMESPACE
 
-IMPLEMENT_MODULE(FNDIMediaEditorModule, NDIMediaOutEditor)
+IMPLEMENT_MODULE(FNDIMediaEditorModule, NDIMediaEditor)

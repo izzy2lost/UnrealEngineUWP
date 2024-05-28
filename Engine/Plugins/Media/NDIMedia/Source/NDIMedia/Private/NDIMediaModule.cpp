@@ -117,4 +117,4 @@ bool FNDIMediaModule::LoadModuleDependencies()
 
 #undef LOCTEXT_NAMESPACE
 	
-IMPLEMENT_MODULE(FNDIMediaModule, NDIMediaOut)
+IMPLEMENT_MODULE(FNDIMediaModule, NDIMedia)

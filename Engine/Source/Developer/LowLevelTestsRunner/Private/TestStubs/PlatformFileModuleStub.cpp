@@ -48,4 +48,4 @@ public:
 };
 
 
-IMPLEMENT_MODULE(FPlatformFileModuleStub, PlatformFileStub);
+IMPLEMENT_MODULE(FPlatformFileModuleStub, LowLevelTestsRunner);
