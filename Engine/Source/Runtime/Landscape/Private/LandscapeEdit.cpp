@@ -4114,10 +4114,10 @@ void ALandscape::SetNanitePositionPrecision(int32 InPrecision, bool bInShouldDir
 			{
 				if (Proxy != nullptr)
 				{
+					Proxy->Modify(bInShouldDirtyPackage);
 					Proxy->SynchronizeSharedProperties(this);
 					Proxy->InvalidateOrUpdateNaniteRepresentation(/*bInCheckContentId*/true, /*InTargetPlatform*/nullptr);
 					Proxy->MarkComponentsRenderStateDirty();
-					Proxy->Modify(bInShouldDirtyPackage);
 				}
 				return true;
 			});

@@ -483,6 +483,9 @@ struct FFortniteMainBranchObjectVersion
 		// Serialize EditorBounds in WorldPartitionActorDesc
 		WorldPartitionActorDescSerializeEditorBounds,
 
+		// Fixup for the data that has been damaged by LandscapeTargetLayersInLandscapeActor (loss of landscape layer info object assignments)
+		FixupLandscapeTargetLayersInLandscapeActor,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
