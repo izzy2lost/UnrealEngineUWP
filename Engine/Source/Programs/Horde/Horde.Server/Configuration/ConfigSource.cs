@@ -299,22 +299,29 @@ namespace Horde.Server.Configuration
 			{
 				using (IPerforceConnection perforce = await ConnectAsync(group.Key, cancellationToken))
 				{
-					FileSpecList fileSpec = group.Select(x => x.AbsolutePath).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-
-					List<FStatRecord> records = await perforce.FStatAsync(FStatOptions.ShortenOutput, fileSpec, cancellationToken).ToListAsync(cancellationToken);
-					records.RemoveAll(x => x.HeadAction == FileAction.Delete || x.HeadAction == FileAction.MoveDelete);
-
-					Dictionary<string, FStatRecord> absolutePathToRecord = records.ToDictionary(x => x.DepotFile ?? String.Empty, x => x, StringComparer.OrdinalIgnoreCase);
-					foreach (Uri uri in group)
+					try
 					{
-						FStatRecord? record;
-						if (!absolutePathToRecord.TryGetValue(uri.AbsolutePath, out record))
-						{
-							throw new FileNotFoundException($"Unable to read {uri}. No matching files found.");
-						}
+						FileSpecList fileSpec = group.Select(x => x.AbsolutePath).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
-						IUser? author = await GetAuthorAsync(perforce, group.Key, record.HeadChange, cancellationToken);
-						results[uri] = new ConfigFileImpl(uri, record.HeadChange, author, this);
+						List<FStatRecord> records = await perforce.FStatAsync(FStatOptions.ShortenOutput, fileSpec, cancellationToken).ToListAsync(cancellationToken);
+						records.RemoveAll(x => x.HeadAction == FileAction.Delete || x.HeadAction == FileAction.MoveDelete);
+
+						Dictionary<string, FStatRecord> absolutePathToRecord = records.ToDictionary(x => x.DepotFile ?? String.Empty, x => x, StringComparer.OrdinalIgnoreCase);
+						foreach (Uri uri in group)
+						{
+							FStatRecord? record;
+							if (!absolutePathToRecord.TryGetValue(uri.AbsolutePath, out record))
+							{
+								throw new FileNotFoundException($"Unable to read {uri}. No matching files found.");
+							}
+
+							IUser? author = await GetAuthorAsync(perforce, group.Key, record.HeadChange, cancellationToken);
+							results[uri] = new ConfigFileImpl(uri, record.HeadChange, author, this);
+						}
+					}
+					catch (PerforceException ex) when (ex.Error != null && ex.Error.Generic == PerforceGenericCode.Config)
+					{
+						throw new PerforceException($"{ex.Message} [server: {perforce.Settings.ServerAndPort}, user: {perforce.Settings.UserName}]", ex);
 					}
 				}
 			}

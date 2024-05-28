@@ -42,5 +42,14 @@ namespace EpicGames.Perforce
 		{
 			Error = error;
 		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public PerforceException(string message, PerforceException innerException)
+			: base(message, innerException)
+		{
+			Error = innerException.Error;
+		}
 	}
 }
