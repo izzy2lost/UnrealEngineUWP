@@ -259,7 +259,7 @@ FScreenPassTexture AddEditorPrimitivePass(
 	
 	// Subtrate data might not be produced in certain case (e.g., path-tracer). In such a case we force generate 
 	// them with a simple clear to please validation.
-	if (Substrate::IsSubstrateEnabled() && !HasBeenProduced(View.SubstrateViewData.SceneData->TopLayerTexture))
+	if (Substrate::IsSubstrateEnabled() && Substrate::UsesSubstrateMaterialBuffer(View.GetShaderPlatform()) && !HasBeenProduced(View.SubstrateViewData.SceneData->TopLayerTexture))
 	{
 		FRDGTextureClearInfo ClearInfo;
 		AddClearRenderTargetPass(GraphBuilder, View.SubstrateViewData.SceneData->TopLayerTexture, ClearInfo);

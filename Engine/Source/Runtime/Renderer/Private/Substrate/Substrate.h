@@ -188,6 +188,7 @@ constexpr uint32 StencilBit_ComplexSpecial	= 0x80; // In sync with SceneRenderTa
 FIntPoint GetSubstrateTextureResolution(const FViewInfo& View, const FIntPoint& InResolution);
 uint32 GetSubstrateMaxClosureCount(const FViewInfo& View);
 bool GetSubstrateUsesComplexSpecialPath(const FViewInfo& View);
+bool UsesSubstrateMaterialBuffer(EShaderPlatform In);
 
 void InitialiseSubstrateFrameSceneData(FRDGBuilder& GraphBuilder, FSceneRenderer& SceneRenderer);
 
