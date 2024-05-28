@@ -3,8 +3,10 @@
 #pragma once
 
 #include "Replication/Messages/ClientQuery.h"
-#include "Containers/Ticker.h"
 #include "Replication/IToken.h"
+
+#include "Delegates/Delegate.h"
+#include "HAL/Platform.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
 
@@ -16,15 +18,16 @@ namespace UE::MultiUserClient
 	DECLARE_DELEGATE_OneParam(FAuthorityQueryDelegate, const TArray<FConcertAuthorityClientInfo>&);
 	
 	/** Sends regular FConcertReplication_QueryReplicationInfo_Request to endpoints and publishes the results. */
-	class FRegularQueryService : public FNoncopyable
+	class FStreamAndAuthorityQueryService : public FNoncopyable
 	{
+		friend class FRegularQueryService;
 	public:
-
-		FRegularQueryService(
-			TSharedRef<IConcertSyncClient> InOwningClient,
-			float InInterval = 1.f
-			);
-		~FRegularQueryService();
+		
+		/**
+		 * @param InToken Used to check whether this instance was destroyed after a response is received.
+		 * @param InOwningClient The client through which queries are made. The caller ensures it outlasts the constructed instance.
+		 */
+		FStreamAndAuthorityQueryService(TWeakPtr<FToken> InToken, const IConcertSyncClient& InOwningClient UE_LIFETIMEBOUND);
 
 		/** Registers a delegate to invoke for querying an endpoint about its registered streams. */
 		FDelegateHandle RegisterStreamQuery(const FGuid& EndpointId, FStreamQueryDelegate Delegate);
@@ -37,7 +40,7 @@ namespace UE::MultiUserClient
 	private:
 
 		/** Used to check whether we were destroyed after a response is received. */
-		const TSharedRef<FToken> Token = FToken::Make();
+		const TWeakPtr<FToken> Token;
 		
 		/**
 		 * Used to send queries.
@@ -45,10 +48,7 @@ namespace UE::MultiUserClient
 		 * This FRegularQueryService's owner is supposed to make sure this FRegularQueryService is destroyed
 		 * when the client shuts down.
 		 */
-		const TWeakPtr<IConcertSyncClient> OwningClient;
-
-		/** Used to unregister the ticker. */
-		const FTSTicker::FDelegateHandle TickerDelegateHandle;
+		const IConcertSyncClient& OwningClient;
 
 		// We use a multicast delegate here because it handles unsubscribing while being Broadcast
 		DECLARE_MULTICAST_DELEGATE_OneParam(FMulticastStreamQueryDelegate, const TArray<FConcertBaseStreamInfo>&);
@@ -67,9 +67,10 @@ namespace UE::MultiUserClient
 		TMap<FGuid, FAuthorityQueryInfo> AuthorityQueryInfos;
 
 		bool bIsHandlingQueryResponse = false;
-
+		
 		/** Queries the server for the client's current state. */
 		void SendQueryEvent();
+		
 		void BuildStreamRequest(FConcertReplication_QueryReplicationInfo_Request& Request) const;
 		void BuildAuthorityRequest(FConcertReplication_QueryReplicationInfo_Request& Request) const;
 		

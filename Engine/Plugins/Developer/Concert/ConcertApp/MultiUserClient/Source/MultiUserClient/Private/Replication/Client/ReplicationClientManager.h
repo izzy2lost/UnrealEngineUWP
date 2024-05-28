@@ -9,7 +9,7 @@
 #include "Replication/Submission/MultiEdit/ReassignObjectPropertiesLogic.h"
 #include "Replication/Submission/Notification/SubmissionNotifier.h"
 #include "Replication/Util/GlobalAuthorityCache.h"
-#include "Replication/Util/RegularQueryService.h"
+#include "Replication/Util/Query/RegularQueryService.h"
 
 #include "UObject/GCObject.h"
 #include "Templates/UnrealTemplate.h"
@@ -17,15 +17,9 @@
 
 class IConcertClientSession;
 class IConcertSyncClient;
-
+namespace UE::ConcertSharedSlate { class IEditableReplicationStreamModel; }
 enum class EConcertClientStatus : uint8;
-
 struct FConcertSessionClientInfo;
-
-namespace UE::ConcertSharedSlate
-{
-	class IEditableReplicationStreamModel;
-}
 
 namespace UE::MultiUserClient
 {

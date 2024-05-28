@@ -4,11 +4,13 @@
 
 #include "ReplicationClient.h"
 
+#include "HAL/Platform.h"
+
 class IConcertClient;
 
 namespace UE::MultiUserClient
 {
-	class FRegularQueryService;
+	class FStreamAndAuthorityQueryService;
 	
 	/** Holds extra information about a remote replication client. */
 	class FRemoteReplicationClient : public FReplicationClient
@@ -25,11 +27,11 @@ namespace UE::MultiUserClient
 		 */
 		FRemoteReplicationClient(
 			const FGuid& InConcertClientId,
-			FReplicationDiscoveryContainer& InDiscoveryContainer,
+			FReplicationDiscoveryContainer& InDiscoveryContainer UE_LIFETIMEBOUND,
 			TSharedRef<IConcertClient> InClient,
-			FGlobalAuthorityCache& InAuthorityCache,
-			UMultiUserReplicationClientPreset& InSessionContent,
-			FRegularQueryService& QueryService
+			FGlobalAuthorityCache& InAuthorityCache UE_LIFETIMEBOUND,
+			UMultiUserReplicationClientPreset& InSessionContent UE_LIFETIMEBOUND,
+			FStreamAndAuthorityQueryService& QueryService UE_LIFETIMEBOUND
 			);
 	};
 }

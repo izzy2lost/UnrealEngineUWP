@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "RegularQueryService.h"
+#include "StreamAndAuthorityQueryService.h"
 
 #include "IConcertSyncClient.h"
 #include "Replication/IConcertClientReplicationManager.h"
@@ -9,27 +9,12 @@
 
 namespace UE::MultiUserClient
 {
-	FRegularQueryService::FRegularQueryService(
-		TSharedRef<IConcertSyncClient> InOwningClient,
-		float InInterval
-		)
-		: OwningClient(MoveTemp(InOwningClient))
-		, TickerDelegateHandle(FTSTicker::GetCoreTicker().AddTicker(
-			TEXT("Multi-User Replication Query"),
-			InInterval,
-			[this](float)
-			{
-				SendQueryEvent();
-				return true;
-			}))
+	FStreamAndAuthorityQueryService::FStreamAndAuthorityQueryService(TWeakPtr<FToken> InToken, const IConcertSyncClient& InOwningClient)
+		: Token(MoveTemp(InToken))
+		, OwningClient(InOwningClient)
 	{}
 
-	FRegularQueryService::~FRegularQueryService()
-	{
-		FTSTicker::GetCoreTicker().RemoveTicker(TickerDelegateHandle);
-	}
-
-	FDelegateHandle FRegularQueryService::RegisterStreamQuery(const FGuid& EndpointId, FStreamQueryDelegate Delegate)
+	FDelegateHandle FStreamAndAuthorityQueryService::RegisterStreamQuery(const FGuid& EndpointId, FStreamQueryDelegate Delegate)
 	{
 		FStreamQueryInfo& Info = StreamQueryInfos.FindOrAdd(EndpointId);
 		const FDelegateHandle DelegateHandle = Info.Delegate.AddLambda([Delegate = MoveTemp(Delegate)](const TArray<FConcertBaseStreamInfo>& Descriptions)
@@ -40,7 +25,7 @@ namespace UE::MultiUserClient
 		return DelegateHandle;
 	}
 
-	FDelegateHandle FRegularQueryService::RegisterAuthorityQuery(const FGuid& EndpointId, FAuthorityQueryDelegate Delegate)
+	FDelegateHandle FStreamAndAuthorityQueryService::RegisterAuthorityQuery(const FGuid& EndpointId, FAuthorityQueryDelegate Delegate)
 	{
 		FAuthorityQueryInfo& Info = AuthorityQueryInfos.FindOrAdd(EndpointId);
 		const FDelegateHandle DelegateHandle = Info.Delegate.AddLambda([Delegate = MoveTemp(Delegate)](const TArray<FConcertAuthorityClientInfo>& Infos)
@@ -51,7 +36,7 @@ namespace UE::MultiUserClient
 		return DelegateHandle;
 	}
 
-	void FRegularQueryService::UnregisterStreamQuery(const FDelegateHandle& Handle)
+	void FStreamAndAuthorityQueryService::UnregisterStreamQuery(const FDelegateHandle& Handle)
 	{
 		for (auto StreamIt = StreamQueryInfos.CreateIterator(); StreamIt; ++StreamIt)
 		{
@@ -74,7 +59,7 @@ namespace UE::MultiUserClient
 		}
 	}
 
-	void FRegularQueryService::UnregisterAuthorityQuery(const FDelegateHandle& Handle)
+	void FStreamAndAuthorityQueryService::UnregisterAuthorityQuery(const FDelegateHandle& Handle)
 	{
 		for (auto AuthorityIt = AuthorityQueryInfos.CreateIterator(); AuthorityIt; ++AuthorityIt)
 		{
@@ -97,10 +82,9 @@ namespace UE::MultiUserClient
 		}
 	}
 
-	void FRegularQueryService::SendQueryEvent()
+	void FStreamAndAuthorityQueryService::SendQueryEvent()
 	{
-		const TSharedPtr<IConcertSyncClient> SessionPin = OwningClient.Pin();
-		IConcertClientReplicationManager* ReplicationManager = SessionPin ? SessionPin->GetReplicationManager() : nullptr;
+		IConcertClientReplicationManager* ReplicationManager = OwningClient.GetReplicationManager();
 		if (!ensure(ReplicationManager))
 		{
 			return;
@@ -113,7 +97,7 @@ namespace UE::MultiUserClient
 		if (!Request.ClientEndpointIds.IsEmpty())
 		{
 			ReplicationManager->QueryClientInfo({ Request })
-				.Next([this, WeakToken = Token.ToWeakPtr()](FConcertReplication_QueryReplicationInfo_Response&& Response)
+				.Next([this, WeakToken = Token](FConcertReplication_QueryReplicationInfo_Response&& Response)
 				{
 					const bool bCanProcessRequest = WeakToken.Pin().IsValid();
 					if (bCanProcessRequest)
@@ -124,7 +108,7 @@ namespace UE::MultiUserClient
 		}
 	}
 
-	void FRegularQueryService::BuildStreamRequest(FConcertReplication_QueryReplicationInfo_Request& Request) const
+	void FStreamAndAuthorityQueryService::BuildStreamRequest(FConcertReplication_QueryReplicationInfo_Request& Request) const
 	{
 		if (StreamQueryInfos.IsEmpty())
 		{
@@ -139,7 +123,7 @@ namespace UE::MultiUserClient
 		}
 	}
 
-	void FRegularQueryService::BuildAuthorityRequest(FConcertReplication_QueryReplicationInfo_Request& Request) const
+	void FStreamAndAuthorityQueryService::BuildAuthorityRequest(FConcertReplication_QueryReplicationInfo_Request& Request) const
 	{
 		if (AuthorityQueryInfos.IsEmpty())
 		{
@@ -154,7 +138,7 @@ namespace UE::MultiUserClient
 		}
 	}
 
-	void FRegularQueryService::HandleQueryResponse(
+	void FStreamAndAuthorityQueryService::HandleQueryResponse(
 		const FConcertReplication_QueryReplicationInfo_Response& Response
 		)
 	{
@@ -181,7 +165,7 @@ namespace UE::MultiUserClient
 		CompactDelegates();
 	}
 
-	void FRegularQueryService::CompactDelegates()
+	void FStreamAndAuthorityQueryService::CompactDelegates()
 	{
 		for (auto StreamIt = StreamQueryInfos.CreateIterator(); StreamIt; ++StreamIt)
 		{

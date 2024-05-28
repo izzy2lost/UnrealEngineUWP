@@ -16,7 +16,7 @@ namespace UE::MultiUserClient
 		TSharedRef<IConcertClient> InClient,
 		FGlobalAuthorityCache& InAuthorityCache,
 		UMultiUserReplicationClientPreset& InSessionContent,
-		FRegularQueryService& QueryService
+		FStreamAndAuthorityQueryService& QueryService
 		)
 		: FReplicationClient(
 			InConcertClientId,

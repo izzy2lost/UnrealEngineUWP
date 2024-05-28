@@ -6,18 +6,19 @@
 #include "Replication/Data/ReplicationStream.h"
 
 #include "Containers/Array.h"
+#include "HAL/Platform.h"
 #include "Templates/UnrealTemplate.h"
 
 namespace UE::MultiUserClient
 {
-	class FRegularQueryService;
+	class FStreamAndAuthorityQueryService;
 	
 	/** Tracks the state of a remote client by querying the client's state in regular intervals. */
 	class FStreamSynchronizer_RemoteClient : public IClientStreamSynchronizer, public FNoncopyable
 	{
 	public:
 		
-		FStreamSynchronizer_RemoteClient(const FGuid& RemoteEndpointId, FRegularQueryService& InQueryService);
+		FStreamSynchronizer_RemoteClient(const FGuid& RemoteEndpointId, FStreamAndAuthorityQueryService& InQueryService UE_LIFETIMEBOUND);
 		virtual ~FStreamSynchronizer_RemoteClient() override;
 
 		//~ Begin IClientStreamSynchronizer Interface
@@ -30,7 +31,7 @@ namespace UE::MultiUserClient
 	private:
 
 		/** Queries the server in regular intervals. This services outlives our object. */
-		FRegularQueryService& QueryService;
+		FStreamAndAuthorityQueryService& QueryService;
 		/** Used to unregister HandleStreamQuery upon destruction. */
 		const FDelegateHandle QueryStreamHandle; 
 

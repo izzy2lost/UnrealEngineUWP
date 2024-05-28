@@ -22,7 +22,7 @@ namespace UE::MultiUserClient
 		, ConcertClient(InClient)
 		, Session(InSession)
 		, RegisteredExtenders(InRegisteredExtenders)
-		, QueryService(InClient)
+		, QueryService(*ConcertClient)
 		, AuthorityCache(*this)
 		, LocalClient([this, InClient]()
 		{
@@ -169,7 +169,7 @@ namespace UE::MultiUserClient
 			ConcertClient->GetConcertClient(),
 			AuthorityCache,
 			*SessionContent->AddClient(),
-			QueryService
+			QueryService.GetStreamAndAuthorityQueryService()
 			);
 		FRemoteReplicationClient& RemoteClient = *RemoteClientPtr;
 		RemoteClients.Emplace(

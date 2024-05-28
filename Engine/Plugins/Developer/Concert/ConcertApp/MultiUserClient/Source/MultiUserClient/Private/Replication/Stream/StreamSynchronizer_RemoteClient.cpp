@@ -2,15 +2,14 @@
 
 #include "StreamSynchronizer_RemoteClient.h"
 
-#include "ConcertLogGlobal.h"
 #include "Assets/MultiUserReplicationClientPreset.h"
-#include "Replication/Util/RegularQueryService.h"
+#include "Replication/Util/Query/StreamAndAuthorityQueryService.h"
 
 namespace UE::MultiUserClient
 {
 	constexpr float QueryTimeInterval = 1.f;
 	
-	FStreamSynchronizer_RemoteClient::FStreamSynchronizer_RemoteClient(const FGuid& RemoteEndpointId, FRegularQueryService& InQueryService)
+	FStreamSynchronizer_RemoteClient::FStreamSynchronizer_RemoteClient(const FGuid& RemoteEndpointId, FStreamAndAuthorityQueryService& InQueryService)
 		: QueryService(InQueryService)
 		, QueryStreamHandle(
 			QueryService.RegisterStreamQuery(
