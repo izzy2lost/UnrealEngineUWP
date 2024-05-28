@@ -27,6 +27,7 @@
 #include "ZoneGraphRenderingUtilities.h"
 #include "Curves/BezierUtilities.h"
 #include "CanvasTypes.h"
+#include "Modules/ModuleManager.h"
 #include "SceneManagement.h"
 
 // Uncomment to draw additional rotation debug visualizations.

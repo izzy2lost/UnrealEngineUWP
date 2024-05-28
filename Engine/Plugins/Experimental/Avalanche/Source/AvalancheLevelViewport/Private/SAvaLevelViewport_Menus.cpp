@@ -20,6 +20,7 @@
 #include "SEditorViewportToolBarMenu.h"
 #include "SortHelper.h"
 #include "SViewportToolBar.h"
+#include "ToolMenus.h"
 #include "Viewport/Interaction/IAvaViewportDataProvider.h"
 #include "ViewportClient/AvaLevelViewportClient.h"
 #include "Widgets/DataTypes/AvaUserInputDialogDataTypeText.h"

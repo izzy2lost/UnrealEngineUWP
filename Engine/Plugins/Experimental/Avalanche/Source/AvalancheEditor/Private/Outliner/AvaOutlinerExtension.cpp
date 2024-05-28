@@ -37,6 +37,7 @@
 #include "Styling/SlateIconFinder.h"
 #include "Text3DActor.h"
 #include "ToolMenuContext/AvaOutlinerItemsContext.h"
+#include "ToolMenu.h"
 #include "Viewport/AvaViewportExtension.h"
 
 #define LOCTEXT_NAMESPACE "AvaOutlinerExtension"

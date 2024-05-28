@@ -18,6 +18,7 @@
 #include "StateTreeDelegates.h"
 #include "StateTreeEditorSettings.h"
 #include "StateTreeState.h"
+#include "ToolMenu.h"
 #include "ViewModels/AvaTransitionEditorViewModel.h"
 #include "ViewModels/AvaTransitionViewModelSharedData.h"
 #include "ViewModels/Registry/AvaTransitionViewModelRegistryCollection.h"

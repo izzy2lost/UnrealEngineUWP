@@ -4,6 +4,7 @@
 #include "Toolkits/SimpleAssetEditor.h"
 #include "EditorCVars.h"
 #include "IWorkspaceEditorModule.h"
+#include "Modules/ModuleManager.h"
 #include "Workspace/AnimNextWorkspaceFactory.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextAssetDefinitions"

@@ -10,6 +10,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Toolkits/NiagaraSimCacheToolkit.h"
+#include "ToolMenus.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
 #define LOCTEXT_NAMESPACE "UAssetDefinition_NiagaraSimCache"

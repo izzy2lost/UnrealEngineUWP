@@ -28,6 +28,7 @@
 #include "SVGImporterEditorUtils.h"
 #include "SVGParsingUtils.h"
 #include "SVGThumbnailRenderer.h"
+#include "ToolMenus.h"
 #include "UnrealEdGlobals.h"
 #include "Customizations/JoinedSVGDynamicMeshComponentCustomization.h"
 #include "Customizations/SVGCategoryTypeCustomization.h"

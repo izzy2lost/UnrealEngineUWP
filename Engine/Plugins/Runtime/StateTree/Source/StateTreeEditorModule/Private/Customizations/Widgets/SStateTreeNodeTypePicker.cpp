@@ -10,6 +10,7 @@
 #include "Customizations/StateTreeEditorNodeUtils.h"
 #include "Styling/SlateIconFinder.h"
 #include "Widgets/Input/SSearchBox.h"
+#include "Modules/ModuleManager.h"
 
 #define LOCTEXT_NAMESPACE "StateTreeEditor"
 

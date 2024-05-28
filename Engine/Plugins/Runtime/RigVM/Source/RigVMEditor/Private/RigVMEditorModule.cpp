@@ -42,6 +42,7 @@
 #include "Editor/RigVMEditorTools.h"
 #include "Editor/RigVMVariantDetailCustomization.h"
 #include "UObject/UObjectIterator.h"
+#include "ToolMenus.h"
 #include "Widgets/SRigVMSwapFunctionsWidget.h"
 #include "Widgets/SRigVMBulkEditDialog.h"
 

@@ -55,6 +55,7 @@
 #include "Templates/SharedPointer.h"
 #include "Textures/SlateIcon.h"
 #include "Toolkits/IToolkit.h"
+#include "ToolMenu.h"
 #include "Types/SlateEnums.h"
 #include "UObject/Class.h"
 #include "UObject/Field.h"

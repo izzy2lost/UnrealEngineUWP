@@ -3,6 +3,7 @@
 #include "Graph/AnimNextCompilerResultsTabSummoner.h"
 #include "IWorkspaceEditor.h"
 #include "MessageLogModule.h"
+#include "Modules/ModuleManager.h"
 
 #define LOCTEXT_NAMESPACE "WorkspaceTabSummoner"
 

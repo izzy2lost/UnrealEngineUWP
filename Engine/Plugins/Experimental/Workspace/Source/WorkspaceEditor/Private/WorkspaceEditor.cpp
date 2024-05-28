@@ -13,6 +13,7 @@
 #include "WorkspaceEditorModule.h"
 #include "SWorkspaceView.h"
 #include "Toolkits/AssetEditorToolkitMenuContext.h"
+#include "ToolMenuContext.h"
 #include "WorkspaceEditorCommands.h"
 #include "SWorkspaceTabWrapper.h"
 #include "Framework/Docking/LayoutExtender.h"

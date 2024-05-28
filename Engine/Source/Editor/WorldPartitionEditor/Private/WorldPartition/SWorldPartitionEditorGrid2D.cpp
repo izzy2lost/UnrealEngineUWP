@@ -23,6 +23,7 @@
 #include "SEditorViewportToolBarMenu.h"
 #include "Styling/StyleColors.h"
 #include "TextureResource.h"
+#include "ToolMenus.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SSlider.h"

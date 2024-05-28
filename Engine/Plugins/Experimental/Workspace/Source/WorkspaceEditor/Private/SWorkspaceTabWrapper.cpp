@@ -2,6 +2,7 @@
 
 #include "SWorkspaceTabWrapper.h"
 #include "Widgets/Layout/SSeparator.h"
+#include "Modules/ModuleManager.h"
 
 void SWorkspaceTabWrapper::Construct( const FArguments& InArgs, TSharedPtr<class FTabInfo> InTabInfo, TSharedPtr<UE::Workspace::FWorkspaceEditor> InWorkspaceEditor, UObject* InDocumentID)
 {

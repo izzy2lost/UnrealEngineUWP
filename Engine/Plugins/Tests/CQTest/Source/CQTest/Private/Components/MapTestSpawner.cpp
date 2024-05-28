@@ -17,6 +17,7 @@
 #include "HAL/FileManager.h"
 #include "LevelEditor.h"
 #include "LevelEditorSubsystem.h"
+#include "Modules/ModuleManager.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "UnrealEdGlobals.h"
 

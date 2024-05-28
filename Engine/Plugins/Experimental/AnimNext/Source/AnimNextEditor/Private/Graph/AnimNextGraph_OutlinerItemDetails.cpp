@@ -11,6 +11,7 @@
 #include "WorkspaceItemMenuContext.h"
 #include "IWorkspaceEditor.h"
 #include "RigVMModel/RigVMClient.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "FAnimNextGraphItemDetails"
 

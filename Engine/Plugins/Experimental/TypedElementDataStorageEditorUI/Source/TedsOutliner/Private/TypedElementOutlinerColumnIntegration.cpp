@@ -27,6 +27,7 @@
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
 #include "Elements/Framework/TypedElementDataStorageWidget.h"
+#include "Modules/ModuleManager.h"
 
 #define LOCTEXT_NAMESPACE "TypedElementsUI_SceneOutliner"
 

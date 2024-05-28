@@ -11,6 +11,7 @@
 #include "Scripting/SequencerModuleScriptingLayer.h"
 #include "ISequencerModule.h"
 #include "Sequencer.h"
+#include "Modules/ModuleManager.h"
 #include "MovieSceneSequenceID.h"
 
 namespace UE::Sequencer

@@ -6,6 +6,7 @@
 #include "ContentBrowserMenuContexts.h"
 #include "Playback/AvaPlaybackGraph.h"
 #include "Playback/AvaPlaybackGraphEditor.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "AssetDefinition_AvaPlaybackGraph"
 

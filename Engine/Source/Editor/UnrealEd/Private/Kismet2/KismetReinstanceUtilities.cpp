@@ -27,6 +27,7 @@
 #include "Layers/LayersSubsystem.h"
 #include "Editor.h"
 #include "UObject/ReferencerFinder.h"
+#include "UObject/UObjectThreadContext.h"
 
 #include "UObject/UObjectHash.h"
 #include "UObject/UObjectIterator.h"

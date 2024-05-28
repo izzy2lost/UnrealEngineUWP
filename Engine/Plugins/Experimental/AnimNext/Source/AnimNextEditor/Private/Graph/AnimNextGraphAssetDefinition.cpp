@@ -6,6 +6,7 @@
 #include "EditorCVars.h"
 #include "FileHelpers.h"
 #include "IWorkspaceEditorModule.h"
+#include "ToolMenus.h"
 #include "Workspace/AnimNextWorkspaceFactory.h"
 
 #define LOCTEXT_NAMESPACE "AssetDefinition_AnimNextGraph"
