@@ -26,22 +26,25 @@
 
 namespace Metasound::Engine
 {
-	FInterfaceRegistryEntry::FInterfaceRegistryEntry(FMetasoundFrontendInterface&& InInterface, FName InRouterName)
+	FInterfaceRegistryEntry::FInterfaceRegistryEntry(FMetasoundFrontendInterface&& InInterface, FName InRouterName, bool bInIsDeprecated)
 		: Interface(MoveTemp(InInterface))
 		, RouterName(InRouterName)
+		, bIsDeprecated(bInIsDeprecated)
 	{
 	}
 
-	FInterfaceRegistryEntry::FInterfaceRegistryEntry(const FMetasoundFrontendInterface& InInterface, FName InRouterName)
+	FInterfaceRegistryEntry::FInterfaceRegistryEntry(const FMetasoundFrontendInterface& InInterface, FName InRouterName, bool bInIsDeprecated)
 		: Interface(InInterface)
 		, RouterName(InRouterName)
+		, bIsDeprecated(bInIsDeprecated)
 	{
 	}
 
-	FInterfaceRegistryEntry::FInterfaceRegistryEntry(const FMetasoundFrontendInterface& InInterface, TUniquePtr<Frontend::IDocumentTransform>&& InUpdateTransform, FName InRouterName)
+	FInterfaceRegistryEntry::FInterfaceRegistryEntry(const FMetasoundFrontendInterface& InInterface, TUniquePtr<Frontend::IDocumentTransform>&& InUpdateTransform, FName InRouterName, bool bInIsDeprecated)
 		: Interface(InInterface)
 		, UpdateTransform(MoveTemp(InUpdateTransform))
 		, RouterName(InRouterName)
+		, bIsDeprecated(bInIsDeprecated)
 	{
 	}
 
@@ -53,6 +56,11 @@ namespace Metasound::Engine
 	const FMetasoundFrontendInterface& FInterfaceRegistryEntry::GetInterface() const
 	{
 		return Interface;
+	}
+
+	bool FInterfaceRegistryEntry::IsDeprecated() const
+	{
+		return bIsDeprecated;
 	}
 
 	bool FInterfaceRegistryEntry::UpdateRootGraphInterface(Frontend::FDocumentHandle InDocument) const

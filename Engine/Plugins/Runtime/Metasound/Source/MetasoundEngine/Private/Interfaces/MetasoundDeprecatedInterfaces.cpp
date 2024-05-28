@@ -634,25 +634,27 @@ namespace Metasound::Engine
 	{
 		using namespace Frontend;
 
+		constexpr bool bDeprecated = true;
+		const FName RouterName = IDataReference::RouterName;
 		IInterfaceRegistry& Reg = IInterfaceRegistry::Get();
 
-		Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(MetasoundV1_0::GetInterface()));
-		Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(SourceInterfaceV1_0::CreateInterface(*UMetaSoundSource::StaticClass())));
+		Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(MetasoundV1_0::GetInterface(), RouterName, bDeprecated));
+		Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(SourceInterfaceV1_0::CreateInterface(*UMetaSoundSource::StaticClass()), RouterName, bDeprecated));
 
 		// Set default interface with unset version to use base UMetaSoundPatch class implementation (legacy requirement for 5.0 alpha).
 		{
 			FMetasoundFrontendInterface DeprecatedInterface;
 			DeprecatedInterface.UClassOptions = DeprecatedInterfacesPrivate::GetDeprecatedClassOptions();
-			Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(MoveTemp(DeprecatedInterface)));
+			Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(MoveTemp(DeprecatedInterface), RouterName, bDeprecated));
 		}
 
-		Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(MetasoundOutputFormatStereoV1_0::GetInterface()));
-		Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(MetasoundOutputFormatStereoV1_1::GetInterface(), MakeUnique<MetasoundOutputFormatStereoV1_1::FUpdateInterface>()));
-		Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(MetasoundOutputFormatStereoV1_2::GetInterface(), MakeUnique<MetasoundOutputFormatStereoV1_2::FUpdateInterface>()));
+		Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(MetasoundOutputFormatStereoV1_0::GetInterface(), RouterName, bDeprecated));
+		Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(MetasoundOutputFormatStereoV1_1::GetInterface(), MakeUnique<MetasoundOutputFormatStereoV1_1::FUpdateInterface>(), RouterName, bDeprecated));
+		Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(MetasoundOutputFormatStereoV1_2::GetInterface(), MakeUnique<MetasoundOutputFormatStereoV1_2::FUpdateInterface>(), RouterName, bDeprecated));
 
-		Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(MetasoundOutputFormatMonoV1_0::GetInterface()));
-		Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(MetasoundOutputFormatMonoV1_1::GetInterface(), MakeUnique<MetasoundOutputFormatMonoV1_1::FUpdateInterface>()));
-		Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(MetasoundOutputFormatMonoV1_2::GetInterface(), MakeUnique<MetasoundOutputFormatMonoV1_2::FUpdateInterface>()));
+		Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(MetasoundOutputFormatMonoV1_0::GetInterface(), RouterName, bDeprecated));
+		Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(MetasoundOutputFormatMonoV1_1::GetInterface(), MakeUnique<MetasoundOutputFormatMonoV1_1::FUpdateInterface>(), RouterName, bDeprecated));
+		Reg.RegisterInterface(MakeUnique<FInterfaceRegistryEntry>(MetasoundOutputFormatMonoV1_2::GetInterface(), MakeUnique<MetasoundOutputFormatMonoV1_2::FUpdateInterface>(), RouterName, bDeprecated));
 	}
 } // namespace Metasound::Engine
 #undef LOCTEXT_NAMESPACE // MetasoundEngineDeprecatedInterfaces
