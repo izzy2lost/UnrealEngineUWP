@@ -372,7 +372,11 @@ void FRigVMRegistry_NoLock::RefreshEngineTypes_NoLock()
 		// if this is a C++ type - skip it
 		if(ScriptStruct->IsA<UUserDefinedStruct>() || ScriptStruct->IsChildOf(FRigVMExecuteContext::StaticStruct()))
 		{
-			FindOrAddType_NoLock(FRigVMTemplateArgumentType(ScriptStruct), false);
+			// this check for example makes sure we don't add structs defined in verse
+			if(IsAllowedType_NoLock(ScriptStruct))
+			{
+				FindOrAddType_NoLock(FRigVMTemplateArgumentType(ScriptStruct), false);
+			}
 		}
 		else if (ScriptStruct != FRigVMDispatchFactory::StaticStruct() &&
 				 ScriptStruct->IsChildOf(FRigVMDispatchFactory::StaticStruct()))
@@ -1269,7 +1273,24 @@ bool FRigVMRegistry_NoLock::IsAllowedType_NoLock(const FProperty* InProperty) co
 
 bool FRigVMRegistry_NoLock::IsAllowedType_NoLock(const UEnum* InEnum) const
 {
-	return InEnum && !InEnum->HasAnyFlags(DisallowedFlags()) && InEnum->HasAllFlags(NeededFlags());
+	if(!InEnum)
+	{
+		return false;
+	}
+	
+	// disallow verse based enums for now
+	if (FPackageName::IsVersePackage(InEnum->GetPackage()->GetName()))
+	{
+		return false;
+	}
+
+	static const FName VerseEnumName(TEXT("VerseEnum"));
+	if(IsTypeOfByName(InEnum, VerseEnumName))
+	{
+		return false;
+	}
+
+	return !InEnum->HasAnyFlags(DisallowedFlags()) && InEnum->HasAllFlags(NeededFlags());
 }
 
 bool FRigVMRegistry_NoLock::IsAllowedType_NoLock(const UStruct* InStruct) const
@@ -1284,6 +1305,18 @@ bool FRigVMRegistry_NoLock::IsAllowedType_NoLock(const UStruct* InStruct) const
 		return false;
 	}
 	if(InStruct->IsChildOf(FRigVMDispatchFactory::StaticStruct()))
+	{
+		return false;
+	}
+	
+	// disallow verse data structures for now
+	if (FPackageName::IsVersePackage(InStruct->GetPackage()->GetName()))
+	{
+		return false;
+	}
+	
+	static const FName VerseStructName(TEXT("VerseStruct"));
+	if(IsTypeOfByName(InStruct, VerseStructName))
 	{
 		return false;
 	}
@@ -1327,7 +1360,39 @@ bool FRigVMRegistry_NoLock::IsAllowedType_NoLock(const UClass* InClass) const
 		return false;
 	}
 
+	// disallow verse based classes for now
+	if (FPackageName::IsVersePackage(InClass->GetPackage()->GetName()))
+	{
+		return false;
+	}
+
+	static const FName VerseClassName(TEXT("VerseClass"));
+	if(IsTypeOfByName(InClass, VerseClassName))
+	{
+		return false;
+	}
+
 	return AllowedClasses.Contains(InClass);
+}
+
+bool FRigVMRegistry_NoLock::IsTypeOfByName(const UObject* InObject, const FName& InName)
+{
+	if(!InObject || InName.IsNone())
+	{
+		return false;
+	}
+	
+	const UClass* Class = InObject->GetClass();
+	while(Class)
+	{
+		if(Class->GetFName().IsEqual(InName, ENameCase::CaseSensitive))
+		{
+			return true;
+		}
+		Class = Class->GetSuperClass();
+	}
+	
+	return false;
 }
 
 void FRigVMRegistry_NoLock::Register_NoLock(const TCHAR* InName, FRigVMFunctionPtr InFunctionPtr, UScriptStruct* InStruct, const TArray<FRigVMFunctionArgument>& InArguments)

@@ -354,6 +354,7 @@ protected:
 	bool IsAllowedType_NoLock(const UEnum* InEnum) const;
 	bool IsAllowedType_NoLock(const UStruct* InStruct) const;
 	bool IsAllowedType_NoLock(const UClass* InClass) const;
+	static bool IsTypeOfByName(const UObject* InObject, const FName& InName);
 
 	void RegisterTypeInCategory_NoLock(const FRigVMTemplateArgument::ETypeCategory InCategory, const TRigVMTypeIndex InTypeIndex);
 	void PropagateTypeAddedToCategory_NoLock(const FRigVMTemplateArgument::ETypeCategory InCategory, const TRigVMTypeIndex InTypeIndex);
