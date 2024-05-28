@@ -7,6 +7,7 @@ using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 using OpenTracing;
 using OpenTracing.Util;
+using EpicGames.Perforce;
 
 namespace JobDriver.Execution;
 
@@ -19,7 +20,23 @@ public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 	private readonly DirectoryReference _workingDir;
 	private readonly bool _useCacheFile;
 	private readonly bool _cleanDuringFinalize;
-	private WorkspaceInfo? _workspace;
+	private readonly WorkspaceInfo _workspace;
+	private readonly ILogger _logger;
+
+	/// <inheritdoc/>
+	public DirectoryReference DirectoryPath => _workingDir;
+
+	/// <inheritdoc/>
+	public string Identifier => _agentWorkspace.Identifier;
+
+	/// <inheritdoc/>
+	public string StreamRoot => _agentWorkspace.Stream;
+
+	/// <inheritdoc/>
+	public IReadOnlyDictionary<string, string> EnvironmentVariables { get; }
+
+	/// <inheritdoc/>
+	public bool IsPerforceWorkspace => true;
 
 	/// <summary>
 	/// Constructor
@@ -28,75 +45,46 @@ public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 	/// <param name="workingDir">Where to put synced Perforce files and any cached data/metadata</param>
 	/// <param name="useCacheFile">Whether to use a cache file during syncs</param>
 	/// <param name="cleanDuringFinalize">Whether to clean and revert files during finalize</param>
-	public ManagedWorkspaceMaterializer(
+	/// <param name="workspace"></param>
+	/// <param name="logger"></param>
+	private ManagedWorkspaceMaterializer(
 		RpcAgentWorkspace agentWorkspace,
 		DirectoryReference workingDir,
 		bool useCacheFile,
-		bool cleanDuringFinalize)
+		bool cleanDuringFinalize,
+		WorkspaceInfo workspace,
+		ILogger logger)
 	{
 		_agentWorkspace = agentWorkspace;
 		_workingDir = workingDir;
 		_useCacheFile = useCacheFile;
 		_cleanDuringFinalize = cleanDuringFinalize;
+		_workspace = workspace;
+		_logger = logger;
+
+		// Variables expected to be set for UAT/BuildGraph when Perforce is enabled (-P4 flag is set) 
+		EnvironmentVariables = new Dictionary<string, string>()
+		{
+			["uebp_PORT"] = _workspace.ServerAndPort,
+			["uebp_USER"] = _workspace.UserName,
+			["uebp_CLIENT"] = _workspace.ClientName,
+			["uebp_CLIENT_ROOT"] = $"//{_workspace.ClientName}",
+			["P4USER"] = _workspace.UserName,
+			["P4CLIENT"] = _workspace.ClientName
+		};
 	}
 
 	/// <inheritdoc/>
 	public void Dispose()
 	{
-		_workspace?.Dispose();
 	}
 
 	/// <inheritdoc/>
-	public async Task<WorkspaceMaterializerSettings> InitializeAsync(ILogger logger, CancellationToken cancellationToken)
+	public static async Task<ManagedWorkspaceMaterializer> CreateAsync(RpcAgentWorkspace agentWorkspace, DirectoryReference workingDir, bool useCacheFile, bool cleanDuringFinalize, ILogger logger, CancellationToken cancellationToken)
 	{
-		if (_workspace != null)
-		{
-			throw new WorkspaceMaterializationException("Materializer initialized twice");
-		}
-
-		using IScope scope = CreateTraceSpan("ManagedWorkspaceMaterializer.InitializeAsync");
-
-		ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(_agentWorkspace);
-		_workspace = await WorkspaceInfo.SetupWorkspaceAsync(_agentWorkspace, _workingDir, options, logger, cancellationToken);
-		return await GetSettingsAsync(cancellationToken);
-	}
-
-	/// <inheritdoc/>
-	public async Task FinalizeAsync(CancellationToken cancellationToken)
-	{
-		using IScope scope = CreateTraceSpan("ManagedWorkspaceMaterializer.FinalizeAsync");
-
-		if (_workspace != null && _cleanDuringFinalize)
-		{
-			await _workspace.CleanAsync(cancellationToken);
-		}
-	}
-
-	/// <inheritdoc/>
-	public Task<WorkspaceMaterializerSettings> GetSettingsAsync(CancellationToken cancellationToken)
-	{
-		if (_workspace == null)
-		{
-			throw new WorkspaceMaterializationException("Workspace not initialized");
-		}
-
-		// ManagedWorkspace store synced files in a sub-directory from the top working dir.
-		DirectoryReference syncDir = DirectoryReference.Combine(_workingDir, _agentWorkspace.Identifier, "Sync");
-
-		// Variables expected to be set for UAT/BuildGraph when Perforce is enabled (-P4 flag is set) 
-		Dictionary<string, string> envVars = new()
-		{
-			["uebp_PORT"] = _workspace.ServerAndPort,
-			["uebp_USER"] = _workspace.UserName,
-			["uebp_CLIENT"] = _workspace.ClientName,
-			["uebp_CLIENT_ROOT"] = $"//{_workspace.ClientName}"
-		};
-
-		// Perforce-specific variables
-		envVars["P4USER"] = _workspace.UserName;
-		envVars["P4CLIENT"] = _workspace.ClientName;
-
-		return Task.FromResult(new WorkspaceMaterializerSettings(syncDir, _agentWorkspace.Identifier, _agentWorkspace.Stream, envVars, true));
+		ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(agentWorkspace);
+		WorkspaceInfo workspace = await WorkspaceInfo.CreateWorkspaceInfoAsync(agentWorkspace, workingDir, options, logger, cancellationToken);
+		return new ManagedWorkspaceMaterializer(agentWorkspace, workingDir, useCacheFile, cleanDuringFinalize, workspace, logger);
 	}
 
 	/// <inheritdoc/>
@@ -106,14 +94,12 @@ public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 		scope.Span.SetTag("ChangeNum", changeNum);
 		scope.Span.SetTag("RemoveUntracked", options.RemoveUntracked);
 
-		if (_workspace == null)
-		{
-			throw new WorkspaceMaterializationException("Workspace not initialized");
-		}
+		using IPerforceConnection perforce = await PerforceConnection.CreateAsync(_workspace.PerforceSettings, _logger);
+		await _workspace.SetupWorkspaceAsync(perforce, cancellationToken);
 
 		if (changeNum == IWorkspaceMaterializer.LatestChangeNumber)
 		{
-			int latestChangeNum = await _workspace.GetLatestChangeAsync(cancellationToken);
+			int latestChangeNum = await _workspace.GetLatestChangeAsync(perforce, cancellationToken);
 			scope.Span.SetTag("LatestChangeNum", latestChangeNum);
 			changeNum = latestChangeNum;
 		}
@@ -133,7 +119,19 @@ public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 			WorkspaceInfo.RemoveLocalCacheMarker(cacheFile);
 		}
 
-		await _workspace.SyncAsync(changeNum, preflightChangeNum, cacheFile, cancellationToken);
+		await _workspace.SyncAsync(perforce, changeNum, preflightChangeNum, cacheFile, cancellationToken);
+	}
+
+	/// <inheritdoc/>
+	public async Task FinalizeAsync(CancellationToken cancellationToken)
+	{
+		using IScope scope = CreateTraceSpan("ManagedWorkspaceMaterializer.FinalizeAsync");
+
+		if (_workspace != null && _cleanDuringFinalize)
+		{
+			using IPerforceConnection perforceClient = await PerforceConnection.CreateAsync(_workspace.PerforceSettings, _logger);
+			await _workspace.CleanAsync(perforceClient, cancellationToken);
+		}
 	}
 
 	/// <summary>

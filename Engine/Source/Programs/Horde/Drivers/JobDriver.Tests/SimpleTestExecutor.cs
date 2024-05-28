@@ -64,6 +64,7 @@ namespace JobDriver.Tests
 			_executor = executor;
 		}
 
-		public JobExecutor CreateExecutor(RpcAgentWorkspace? workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options) => _executor;
+		public Task<JobExecutor> CreateExecutorAsync(RpcAgentWorkspace? workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options, CancellationToken cancellationToken) 
+			=> Task.FromResult<JobExecutor>(_executor);
 	}
 }

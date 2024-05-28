@@ -13,12 +13,10 @@ namespace JobDriver.Tests.Execution;
 [TestClass]
 public sealed class FakeWorkspaceMaterializerTest : IDisposable
 {
-	private readonly FakeWorkspaceMaterializer _wm = new();
-	private readonly WorkspaceMaterializerSettings _settings;
+	private readonly FakeWorkspaceMaterializer _wm = new FakeWorkspaceMaterializer();
 
 	public FakeWorkspaceMaterializerTest()
 	{
-		_settings = _wm.InitializeAsync(NullLogger.Instance, CancellationToken.None).Result;
 	}
 
 	public void Dispose()
@@ -68,7 +66,7 @@ public sealed class FakeWorkspaceMaterializerTest : IDisposable
 	{
 		_wm.SetFile(1, "foo/bar/baz.txt", "fortnite");
 		_wm.SetFile(2, "foo/main.cpp", "main");
-		await File.WriteAllTextAsync(Path.Join(_settings.DirectoryPath.FullName, "external.txt"), "external");
+		await File.WriteAllTextAsync(Path.Join(_wm.DirectoryPath.FullName, "external.txt"), "external");
 
 		await _wm.SyncAsync(1, -1, new SyncOptions(), CancellationToken.None);
 		AssertFile("foo/bar/baz.txt", "fortnite");
@@ -88,5 +86,5 @@ public sealed class FakeWorkspaceMaterializerTest : IDisposable
 		Assert.IsFalse(File.Exists(GetAbsPath(relativePath)), $"File {relativePath} exists");
 	}
 
-	private string GetAbsPath(string relativeFilePath) { return Path.Join(_settings.DirectoryPath.FullName, relativeFilePath); }
+	private string GetAbsPath(string relativeFilePath) { return Path.Join(_wm.DirectoryPath.FullName, relativeFilePath); }
 }

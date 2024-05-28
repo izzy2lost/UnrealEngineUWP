@@ -14,9 +14,24 @@ namespace JobDriver.Tests.Execution;
 
 class FakeWorkspaceMaterializer : IWorkspaceMaterializer
 {
-	private bool _isInitialized;
-	private DirectoryReference? _rootDir;
+	private readonly DirectoryReference _rootDir;
 	private readonly Dictionary<int, Dictionary<string, string>> _changeToFiles = new();
+
+	public DirectoryReference DirectoryPath => _rootDir;
+
+	public string Identifier => "fakeWorkspaceIdentifier";
+
+	public string StreamRoot => "fakeWorkspaceStreamRoot";
+
+	public IReadOnlyDictionary<string, string> EnvironmentVariables { get; } = new Dictionary<string, string>();
+
+	public bool IsPerforceWorkspace => false;
+
+	public FakeWorkspaceMaterializer()
+	{
+		_rootDir = new DirectoryReference(Path.Join(Path.GetTempPath(), "horde-fakeworkspace-" + Guid.NewGuid().ToString()[..8]));
+		Directory.CreateDirectory(_rootDir.FullName);
+	}
 
 	public void SetFile(int changeNum, string path, string content)
 	{
@@ -45,28 +60,8 @@ class FakeWorkspaceMaterializer : IWorkspaceMaterializer
 	}
 
 	/// <inheritdoc/>
-	public Task<WorkspaceMaterializerSettings> InitializeAsync(ILogger logger, CancellationToken cancellationToken)
-	{
-		if (_isInitialized)
-		{
-			throw new WorkspaceMaterializationException("Already initialized");
-		}
-
-		_rootDir = new DirectoryReference(Path.Join(Path.GetTempPath(), "horde-fakeworkspace-" + Guid.NewGuid().ToString()[..8]));
-		Directory.CreateDirectory(_rootDir.FullName);
-		_isInitialized = true;
-
-		return GetSettingsAsync(cancellationToken);
-	}
-
-	/// <inheritdoc/>
 	public Task FinalizeAsync(CancellationToken cancellationToken)
 	{
-		if (!_isInitialized || _rootDir == null)
-		{
-			throw new WorkspaceMaterializationException("Cannot finalize before initialization");
-		}
-
 		if (Directory.Exists(_rootDir.FullName))
 		{
 			Directory.Delete(_rootDir.FullName, true);
@@ -76,24 +71,8 @@ class FakeWorkspaceMaterializer : IWorkspaceMaterializer
 	}
 
 	/// <inheritdoc/>
-	public Task<WorkspaceMaterializerSettings> GetSettingsAsync(CancellationToken cancellationToken)
-	{
-		if (!_isInitialized || _rootDir == null)
-		{
-			throw new WorkspaceMaterializationException("Cannot get settings before initialization");
-		}
-
-		return Task.FromResult(new WorkspaceMaterializerSettings(_rootDir, "fakeWorkspaceIdentifier", "fakeWorkspaceStreamRoot", new Dictionary<string, string>(), false));
-	}
-
-	/// <inheritdoc/>
 	public Task SyncAsync(int changeNum, int preflightChangeNum, SyncOptions options, CancellationToken cancellationToken)
 	{
-		if (!_isInitialized || _rootDir == null)
-		{
-			throw new Exception("Cannot sync before initialization");
-		}
-
 		if (changeNum == IWorkspaceMaterializer.LatestChangeNumber)
 		{
 			changeNum = _changeToFiles.Keys.Max();

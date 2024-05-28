@@ -16,30 +16,27 @@ namespace JobDriver.Utility
 	/// <summary>
 	/// Stores information about a managed Perforce workspace
 	/// </summary>
-	public sealed class WorkspaceInfo : IDisposable
+	public sealed class WorkspaceInfo
 	{
 		/// <summary>
-		/// The perforce connection
+		/// The perforce settings
 		/// </summary>
-		public IPerforceConnection PerforceClient
-		{
-			get;
-		}
+		public PerforceSettings PerforceSettings { get; }
 
 		/// <summary>
 		/// The Perforce server and port. This is checked to not be null in the constructor.
 		/// </summary>
-		public string ServerAndPort => PerforceClient.Settings.ServerAndPort!;
+		public string ServerAndPort => PerforceSettings.ServerAndPort!;
 
 		/// <summary>
 		/// The Perforce client name. This is checked to not be null in the constructor.
 		/// </summary>
-		public string ClientName => PerforceClient.Settings.ClientName!;
+		public string ClientName => PerforceSettings.ClientName!;
 
 		/// <summary>
 		/// The Perforce user name. This is checked to not be null in the constructor.
 		/// </summary>
-		public string UserName => PerforceClient.Settings.UserName!;
+		public string UserName => PerforceSettings.UserName!;
 
 		/// <summary>
 		/// The hostname
@@ -81,12 +78,10 @@ namespace JobDriver.Utility
 		/// </summary>
 		public ManagedWorkspace Repository { get; }
 
-		readonly ILogger _logger;
-
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="perforce">The perforce connection</param>
+		/// <param name="perforceSettings">The perforce connection</param>
 		/// <param name="hostName">Name of this host</param>
 		/// <param name="streamName">Name of the stream to sync</param>
 		/// <param name="streamView">Stream view onto the depot</param>
@@ -95,12 +90,11 @@ namespace JobDriver.Utility
 		/// <param name="view">View for files to be synced</param>
 		/// <param name="removeUntrackedFiles">Whether to remove untracked files when syncing</param>
 		/// <param name="repository">The repository instance</param>
-		/// <param name="logger">Logger for diagnostic messages</param>
-		public WorkspaceInfo(IPerforceConnection perforce, string hostName, string streamName, PerforceViewMap streamView, DirectoryReference metadataDir, DirectoryReference workspaceDir, IList<string>? view, bool removeUntrackedFiles, ManagedWorkspace repository, ILogger logger)
+		public WorkspaceInfo(PerforceSettings perforceSettings, string hostName, string streamName, PerforceViewMap streamView, DirectoryReference metadataDir, DirectoryReference workspaceDir, IList<string>? view, bool removeUntrackedFiles, ManagedWorkspace repository)
 		{
-			PerforceClient = perforce;
+			PerforceSettings = perforceSettings;
 
-			if (perforce.Settings.ClientName == null)
+			if (perforceSettings.ClientName == null)
 			{
 				throw new ArgumentException("PerforceConnection does not have valid client name");
 			}
@@ -113,16 +107,6 @@ namespace JobDriver.Utility
 			View = (view == null) ? new List<string>() : new List<string>(view);
 			RemoveUntrackedFiles = removeUntrackedFiles;
 			Repository = repository;
-			_logger = logger;
-
-			_logger.LogInformation("Created WorkspaceInfo for {ClientName}", PerforceClient.Settings.ClientName);
-		}
-
-		/// <inheritdoc/>
-		public void Dispose()
-		{
-			_logger.LogInformation("Disposing WorkspaceInfo for {ClientName}", PerforceClient.Settings.ClientName);
-			PerforceClient.Dispose();
 		}
 
 		/// <summary>
@@ -134,7 +118,7 @@ namespace JobDriver.Utility
 		/// <param name="logger">Logger output</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>New workspace info</returns>
-		public static async Task<WorkspaceInfo> SetupWorkspaceAsync(RpcAgentWorkspace workspace, DirectoryReference rootDir, ManagedWorkspaceOptions options, ILogger logger, CancellationToken cancellationToken)
+		public static async Task<WorkspaceInfo> CreateWorkspaceInfoAsync(RpcAgentWorkspace workspace, DirectoryReference rootDir, ManagedWorkspaceOptions options, ILogger logger, CancellationToken cancellationToken)
 		{
 			// Fill in the default credentials iff they are not set
 			string? serverAndPort = String.IsNullOrEmpty(workspace.ServerAndPort) ? null : workspace.ServerAndPort;
@@ -180,24 +164,7 @@ namespace JobDriver.Utility
 					logger.LogInformation("Using locally logged in session for {UserName}", userName);
 				}
 			}
-			return await SetupWorkspaceAsync(perforce, workspace.Stream, workspace.Identifier, workspace.View, !workspace.Incremental, rootDir, options, logger, cancellationToken);
-		}
 
-		/// <summary>
-		/// Creates a new managed workspace
-		/// </summary>
-		/// <param name="perforce">The perforce connection to use</param>
-		/// <param name="streamName">The stream being synced</param>
-		/// <param name="identifier">Identifier to use to share </param>
-		/// <param name="view">View for this workspace</param>
-		/// <param name="removeUntrackedFiles">Whether untracked files should be removed when cleaning this workspace</param>
-		/// <param name="rootDir">Root directory for storing the workspace</param>
-		/// <param name="options">Extra options for ManagedWorkspace</param>
-		/// <param name="logger">Logger output</param>
-		/// <param name="cancellationToken">Cancellation token</param>
-		/// <returns>New workspace info</returns>
-		public static async Task<WorkspaceInfo> SetupWorkspaceAsync(IPerforceConnection perforce, string streamName, string identifier, IList<string> view, bool removeUntrackedFiles, DirectoryReference rootDir, ManagedWorkspaceOptions options, ILogger logger, CancellationToken cancellationToken)
-		{
 			// Get the host name, and fill in any missing metadata about the connection
 			InfoRecord info = await perforce.GetInfoAsync(InfoOptions.ShortOutput, cancellationToken);
 
@@ -230,40 +197,42 @@ namespace JobDriver.Utility
 			}
 
 			// get all the workspace settings
-			string clientName = $"Horde+{GetNormalizedHostName(hostName)}+{identifier}{edgeSuffix}";
+			string clientName = $"Horde+{GetNormalizedHostName(hostName)}+{workspace.Identifier}{edgeSuffix}";
+			PerforceSettings perforceClientSettings = new PerforceSettings(perforce.Settings) { ClientName = clientName, PreferNativeClient = options.PreferNativeClient };
 
-			// Create the client Perforce connection
-			IPerforceConnection perforceClient = await perforce.WithClientAsync(clientName);
-			try
+			// Get the view for this stream
+			StreamRecord stream = await perforce.GetStreamAsync(workspace.Stream, true, cancellationToken);
+			PerforceViewMap streamView = PerforceViewMap.Parse(stream.View);
+
+			// get the workspace names
+			DirectoryReference metadataDir = DirectoryReference.Combine(rootDir, workspace.Identifier);
+			DirectoryReference workspaceDir = DirectoryReference.Combine(metadataDir, "Sync");
+
+			// Create the repository
+			ManagedWorkspace newRepository = await ManagedWorkspace.LoadOrCreateAsync(hostName, metadataDir, true, options, logger, cancellationToken);
+			return new WorkspaceInfo(perforceClientSettings, hostName, workspace.Stream, streamView, metadataDir, workspaceDir, workspace.View, !workspace.Incremental, newRepository);
+		}
+		
+		/// <summary>
+		/// Creates a new managed workspace
+		/// </summary>
+		/// <param name="perforceClient">The perforce connection to use</param>
+		/// <param name="cancellationToken">Cancellation token</param>
+		/// <returns>New workspace info</returns>
+		public async Task SetupWorkspaceAsync(IPerforceConnection perforceClient, CancellationToken cancellationToken)
+		{
+			// Create the workspace info
+			perforceClient.Logger.LogInformation("Syncing {ClientName} to {BaseDir} from {Server}, using stream {Stream} and view:{View}", PerforceSettings.ClientName, WorkspaceDir, PerforceSettings.ServerAndPort, StreamName, String.Join("", View.Select(x => $"\n  {x}")));
+
+			// Create the repository
+			if (RemoveUntrackedFiles)
 			{
-				// Get the view for this stream
-				StreamRecord stream = await perforceClient.GetStreamAsync(streamName, true, cancellationToken);
-				PerforceViewMap streamView = PerforceViewMap.Parse(stream.View);
-
-				// get the workspace names
-				DirectoryReference metadataDir = DirectoryReference.Combine(rootDir, identifier);
-				DirectoryReference workspaceDir = DirectoryReference.Combine(metadataDir, "Sync");
-
-				// Create the repository
-				ManagedWorkspace newRepository = await ManagedWorkspace.LoadOrCreateAsync(hostName, metadataDir, true, options, logger, cancellationToken);
-				if (removeUntrackedFiles)
-				{
-					await newRepository.DeleteClientAsync(perforceClient, cancellationToken);
-				}
-				await newRepository.SetupAsync(perforceClient, streamName, cancellationToken);
-
-				// Revert any open files
-				await newRepository.RevertAsync(perforceClient, cancellationToken);
-
-				// Create the workspace info
-				logger.LogInformation("Syncing {ClientName} to {BaseDir} from {Server}, using stream {Stream} and view:{View}", clientName, workspaceDir, info.ServerAddress, streamName, String.Join("", view.Select(x => $"\n  {x}")));
-				return new WorkspaceInfo(perforceClient, hostName, streamName, streamView, metadataDir, workspaceDir, view, removeUntrackedFiles, newRepository, logger);
+				await Repository.DeleteClientAsync(perforceClient, cancellationToken);
 			}
-			catch
-			{
-				perforceClient.Dispose();
-				throw;
-			}
+			await Repository.SetupAsync(perforceClient, StreamName, cancellationToken);
+
+			// Revert any open files
+			await Repository.RevertAsync(perforceClient, cancellationToken);
 		}
 
 		/// <summary>
@@ -355,21 +324,23 @@ namespace JobDriver.Utility
 		/// <summary>
 		/// Gets the latest change in the stream
 		/// </summary>
+		/// <param name="perforceClient">The Perforce client instance</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>Latest changelist number</returns>
-		public Task<int> GetLatestChangeAsync(CancellationToken cancellationToken)
+		public Task<int> GetLatestChangeAsync(IPerforceConnection perforceClient, CancellationToken cancellationToken)
 		{
-			return Repository.GetLatestChangeAsync(PerforceClient, StreamName, cancellationToken);
+			return Repository.GetLatestChangeAsync(perforceClient, StreamName, cancellationToken);
 		}
 
 		/// <summary>
 		/// Revert any open files in the workspace and clean it
 		/// </summary>
+		/// <param name="perforceClient">The Perforce client instance</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>Async task</returns>
-		public async Task CleanAsync(CancellationToken cancellationToken)
+		public async Task CleanAsync(IPerforceConnection perforceClient, CancellationToken cancellationToken)
 		{
-			await Repository.RevertAsync(PerforceClient, cancellationToken);
+			await Repository.RevertAsync(perforceClient, cancellationToken);
 			await Repository.CleanAsync(RemoveUntrackedFiles, cancellationToken);
 		}
 
@@ -450,14 +421,15 @@ namespace JobDriver.Utility
 		/// <summary>
 		/// Sync the workspace to a given changelist, and capture it so we can quickly clean in the future
 		/// </summary>
+		/// <param name="perforceClient">Perforce client connection</param>
 		/// <param name="change">The changelist to sync to</param>
 		/// <param name="preflightChange">Change to preflight, or 0</param>
 		/// <param name="cacheFile">Path to the cache file to use</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>Async task</returns>
-		public async Task SyncAsync(int change, int preflightChange, FileReference? cacheFile, CancellationToken cancellationToken)
+		public async Task SyncAsync(IPerforceConnection perforceClient, int change, int preflightChange, FileReference? cacheFile, CancellationToken cancellationToken)
 		{
-			await Repository.SyncAsync(PerforceClient, StreamName, change, View, RemoveUntrackedFiles, false, cacheFile, cancellationToken);
+			await Repository.SyncAsync(perforceClient, StreamName, change, View, RemoveUntrackedFiles, false, cacheFile, cancellationToken);
 
 			// Purge the cache for incremental workspaces
 			if (!RemoveUntrackedFiles)
@@ -465,20 +437,21 @@ namespace JobDriver.Utility
 				await Repository.PurgeAsync(0, cancellationToken);
 			}
 
-			await UnshelveAsync(preflightChange, cancellationToken);
+			await UnshelveAsync(perforceClient, preflightChange, cancellationToken);
 		}
 
 		/// <summary>
 		/// Unshelves a changelist
 		/// Assumes base changelist already has been synced.
 		/// </summary>
+		/// <param name="perforceClient">Perforce client connection</param>
 		/// <param name="change">Change number to unshelve</param>
 		/// <param name="cancellationToken">Cancellation token</param>
-		async Task UnshelveAsync(int change, CancellationToken cancellationToken)
+		async Task UnshelveAsync(IPerforceConnection perforceClient, int change, CancellationToken cancellationToken)
 		{
 			if (change > 0)
 			{
-				await Repository.UnshelveAsync(PerforceClient, change, cancellationToken);
+				await Repository.UnshelveAsync(perforceClient, change, cancellationToken);
 			}
 		}
 

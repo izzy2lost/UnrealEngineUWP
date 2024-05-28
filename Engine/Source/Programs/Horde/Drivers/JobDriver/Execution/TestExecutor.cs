@@ -232,9 +232,9 @@ namespace JobDriver.Execution
 			_logger = logger;
 		}
 
-		public JobExecutor CreateExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options)
+		public Task<JobExecutor> CreateExecutorAsync(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options, CancellationToken cancellationToken)
 		{
-			return new TestExecutor(options, _logger);
+			return Task.FromResult<JobExecutor>(new TestExecutor(options, _logger));
 		}
 	}
 }

@@ -49,14 +49,6 @@ namespace JobDriver.Execution
 			_workspace = null!;
 		}
 
-		protected override void Dispose(bool disposing)
-		{
-			_workspace?.Dispose();
-			_autoSdkWorkspace?.Dispose();
-
-			base.Dispose(disposing);
-		}
-
 		public override async Task InitializeAsync(RpcBeginBatchResponse batch, ILogger logger, CancellationToken cancellationToken)
 		{
 			await base.InitializeAsync(batch, logger, cancellationToken);
@@ -67,7 +59,10 @@ namespace JobDriver.Execution
 				using IScope _ = GlobalTracer.Instance.BuildSpan("Workspace").WithTag("resource.name", "AutoSDK").StartActive();
 
 				ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(_autoSdkWorkspaceInfo);
-				_autoSdkWorkspace = await WorkspaceInfo.SetupWorkspaceAsync(_autoSdkWorkspaceInfo, _rootDir, options, logger, cancellationToken);
+				_autoSdkWorkspace = await WorkspaceInfo.CreateWorkspaceInfoAsync(_autoSdkWorkspaceInfo, _rootDir, options, logger, cancellationToken);
+
+				using IPerforceConnection autoSdkPerforce = await PerforceConnection.CreateAsync(_autoSdkWorkspace.PerforceSettings, logger);
+				await _autoSdkWorkspace.SetupWorkspaceAsync(autoSdkPerforce, cancellationToken);
 
 				DirectoryReference legacyDir = DirectoryReference.Combine(_autoSdkWorkspace.MetadataDir, "HostWin64");
 				if (DirectoryReference.Exists(legacyDir))
@@ -82,7 +77,7 @@ namespace JobDriver.Execution
 					}
 				}
 
-				int autoSdkChangeNumber = await _autoSdkWorkspace.GetLatestChangeAsync(cancellationToken);
+				int autoSdkChangeNumber = await _autoSdkWorkspace.GetLatestChangeAsync(autoSdkPerforce, cancellationToken);
 
 				string syncText = $"Synced to CL {autoSdkChangeNumber}";
 				if (_autoSdkWorkspaceInfo.View.Count > 0)
@@ -102,7 +97,7 @@ namespace JobDriver.Execution
 
 					FileReference autoSdkCacheFile = FileReference.Combine(_autoSdkWorkspace.MetadataDir, "Contents.dat");
 					await _autoSdkWorkspace.UpdateLocalCacheMarkerAsync(autoSdkCacheFile, autoSdkChangeNumber, -1);
-					await _autoSdkWorkspace.SyncAsync(autoSdkChangeNumber, -1, autoSdkCacheFile, cancellationToken);
+					await _autoSdkWorkspace.SyncAsync(autoSdkPerforce, autoSdkChangeNumber, -1, autoSdkCacheFile, cancellationToken);
 
 					await FileReference.WriteAllTextAsync(syncFile, syncText);
 				}
@@ -112,12 +107,15 @@ namespace JobDriver.Execution
 			{
 				// Sync the regular workspace
 				ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(_workspaceInfo);
-				_workspace = await WorkspaceInfo.SetupWorkspaceAsync(_workspaceInfo, _rootDir, options, logger, cancellationToken);
+				_workspace = await WorkspaceInfo.CreateWorkspaceInfoAsync(_workspaceInfo, _rootDir, options, logger, cancellationToken);
+
+				using IPerforceConnection perforce = await PerforceConnection.CreateAsync(_workspace.PerforceSettings, logger);
+				await _workspace.SetupWorkspaceAsync(perforce, cancellationToken);
 
 				// Figure out the change to build
 				if (Batch.Change == 0)
 				{
-					List<ChangesRecord> changes = await _workspace.PerforceClient.GetChangesAsync(ChangesOptions.None, 1, ChangeStatus.Submitted, new[] { Batch.StreamName + "/..." }, cancellationToken);
+					List<ChangesRecord> changes = await perforce.GetChangesAsync(ChangesOptions.None, 1, ChangeStatus.Submitted, new[] { Batch.StreamName + "/..." }, cancellationToken);
 					Batch.Change = changes[0].Number;
 
 					RpcUpdateJobRequest updateJobRequest = new RpcUpdateJobRequest();
@@ -128,7 +126,7 @@ namespace JobDriver.Execution
 
 				// Sync the workspace
 				int syncPreflightChange = (Batch.ClonedPreflightChange != 0) ? Batch.ClonedPreflightChange : Batch.PreflightChange;
-				await _workspace.SyncAsync(Batch.Change, syncPreflightChange, null, cancellationToken);
+				await _workspace.SyncAsync(perforce, Batch.Change, syncPreflightChange, null, cancellationToken);
 
 				// Remove any cached BuildGraph manifests
 				DirectoryReference manifestDir = DirectoryReference.Combine(_workspace.WorkspaceDir, "Engine", "Saved", "BuildGraph");
@@ -240,7 +238,9 @@ namespace JobDriver.Execution
 			await ExecuteLeaseCleanupScriptAsync(_workspace.WorkspaceDir, logger);
 			await TerminateProcessesAsync(TerminateCondition.AfterBatch, logger);
 
-			await _workspace.CleanAsync(cancellationToken);
+			IPerforceConnection perforce = await PerforceConnection.CreateAsync(_workspace.PerforceSettings, logger);
+			await _workspace.CleanAsync(perforce, cancellationToken);
+
 			await base.FinalizeAsync(logger, cancellationToken);
 		}
 
@@ -267,16 +267,17 @@ namespace JobDriver.Execution
 				foreach (RpcAgentWorkspace pendingWorkspace in pendingWorkspaces)
 				{
 					ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(pendingWorkspace);
-					WorkspaceInfo workspace = await WorkspaceInfo.SetupWorkspaceAsync(pendingWorkspace, rootDir, options, logger, cancellationToken);
+
+					WorkspaceInfo workspace = await WorkspaceInfo.CreateWorkspaceInfoAsync(pendingWorkspace, rootDir, options, logger, cancellationToken);
 					workspaces.Add(workspace);
 				}
 
 				// Find all the unique Perforce servers
 				foreach (WorkspaceInfo workspace in workspaces)
 				{
-					if (!perforceConnections.Any(x => x.Settings.ServerAndPort!.Equals(workspace.ServerAndPort, StringComparison.OrdinalIgnoreCase) && x.Settings.UserName!.Equals(workspace.PerforceClient.Settings.UserName, StringComparison.Ordinal)))
+					if (!perforceConnections.Any(x => x.Settings.ServerAndPort!.Equals(workspace.ServerAndPort, StringComparison.OrdinalIgnoreCase) && x.Settings.UserName!.Equals(workspace.PerforceSettings.UserName, StringComparison.Ordinal)))
 					{
-						IPerforceConnection connection = await PerforceConnection.CreateAsync(workspace.PerforceClient.Settings, workspace.PerforceClient.Logger);
+						IPerforceConnection connection = await PerforceConnection.CreateAsync(workspace.PerforceSettings, logger);
 						perforceConnections.Add(connection);
 					}
 				}
@@ -374,7 +375,7 @@ namespace JobDriver.Execution
 				{
 					if (revertedClientNames.Add(workspace.ClientName))
 					{
-						using IPerforceConnection connection = await workspace.PerforceClient.WithClientAsync(workspace.ClientName);
+						using IPerforceConnection connection = await PerforceConnection.CreateAsync(workspace.PerforceSettings, logger);
 						await workspace.Repository.RevertAsync(connection, cancellationToken);
 					}
 				}
@@ -390,16 +391,19 @@ namespace JobDriver.Execution
 					{
 						logger.LogInformation("  Stream={StreamName} RemoveUntrackedFiles={RemoveUntrackedFiles} MetadataDir={MetadataDir} WorkspaceDir={WorkspaceDir} ClientName={ClientName}",
 							workspace.StreamName, workspace.RemoveUntrackedFiles, workspace.MetadataDir.FullName, workspace.WorkspaceDir.FullName, workspace.ClientName);
-						IPerforceConnection perforceClient = await workspace.PerforceClient.WithClientAsync(workspace.ClientName);
+
+						IPerforceConnection perforceClient = await PerforceConnection.CreateAsync(workspace.PerforceSettings, logger);
 						perforceConnections.Add(perforceClient);
+
 						populateRequests.Add(new PopulateRequest(perforceClient, workspace.StreamName, workspace.View));
 					}
 
 					WorkspaceInfo? firstWorkspace = workspaceGroup.First();
 					if (populateRequests.Count == 1 && !firstWorkspace.RemoveUntrackedFiles && !removeUntrackedFiles)
 					{
-						await firstWorkspace.CleanAsync(cancellationToken);
-						syncFuncs.Add(() => firstWorkspace.SyncAsync(-1, -1, null, cancellationToken));
+						PopulateRequest populateRequest = populateRequests[0];
+						await firstWorkspace.CleanAsync(populateRequest.PerforceClient, cancellationToken);
+						syncFuncs.Add(() => firstWorkspace.SyncAsync(populateRequest.PerforceClient, -1, -1, null, cancellationToken));
 					}
 					else
 					{
@@ -419,10 +423,6 @@ namespace JobDriver.Execution
 				{
 					perforceConnection.Dispose();
 				}
-				foreach (WorkspaceInfo workspace in workspaces)
-				{
-					workspace.Dispose();
-				}
 			}
 		}
 	}
@@ -438,9 +438,9 @@ namespace JobDriver.Execution
 			_logger = logger;
 		}
 
-		public JobExecutor CreateExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options)
+		public Task<JobExecutor> CreateExecutorAsync(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options, CancellationToken cancellationToken)
 		{
-			return new PerforceExecutor(workspaceInfo, autoSdkWorkspaceInfo, options, _logger);
+			return Task.FromResult<JobExecutor>(new PerforceExecutor(workspaceInfo, autoSdkWorkspaceInfo, options, _logger));
 		}
 	}
 }

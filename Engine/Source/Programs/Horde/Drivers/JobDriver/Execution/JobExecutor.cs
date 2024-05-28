@@ -2201,7 +2201,7 @@ namespace JobDriver.Execution
 	{
 		string Name { get; }
 
-		JobExecutor CreateExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options);
+		Task<JobExecutor> CreateExecutorAsync(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options, CancellationToken cancellationToken);
 	}
 
 	static class JobExecutorHelpers
@@ -2222,7 +2222,7 @@ namespace JobDriver.Execution
 
 			JobExecutorOptions options = new JobExecutorOptions(hordeClient, workingDir, driverSettings.ProcessesToTerminate, jobId, batchId, leaseId, executeTask.JobOptions);
 
-			using JobExecutor executor = executorFactory.CreateExecutor(executeTask.Workspace, executeTask.AutoSdkWorkspace, options);
+			using JobExecutor executor = await executorFactory.CreateExecutorAsync(executeTask.Workspace, executeTask.AutoSdkWorkspace, options, cancellationToken);
 			await executor.ExecuteAsync(logger, cancellationToken);
 		}
 	}

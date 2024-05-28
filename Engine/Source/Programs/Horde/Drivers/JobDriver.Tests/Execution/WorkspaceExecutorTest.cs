@@ -195,16 +195,14 @@ namespace JobDriver.Tests.Execution
 			RpcBeginBatchResponse batch = new RpcBeginBatchResponse { Change = 1, StreamName = "//UE5/Main" };
 			await executor.InitializeAsync(batch, _logger, CancellationToken.None);
 
-			WorkspaceMaterializerSettings settings = await _workspace.GetSettingsAsync(CancellationToken.None);
-			WorkspaceMaterializerSettings autoSdkSettings = await _autoSdkWorkspace.GetSettingsAsync(CancellationToken.None);
 			IReadOnlyDictionary<string, string> envVars = executor.GetEnvVars();
 			Assert.AreEqual("1", envVars["IsBuildMachine"]);
-			Assert.AreEqual(settings.DirectoryPath.FullName, envVars["uebp_LOCAL_ROOT"]);
+			Assert.AreEqual(_workspace.DirectoryPath.FullName, envVars["uebp_LOCAL_ROOT"]);
 			Assert.AreEqual(batch.StreamName, envVars["uebp_BuildRoot_P4"]);
 			Assert.AreEqual("++UE5+Main", envVars["uebp_BuildRoot_Escaped"]);
 			Assert.AreEqual("1", envVars["uebp_CL"]);
 			Assert.AreEqual("0", envVars["uebp_CodeCL"]);
-			Assert.AreEqual(autoSdkSettings.DirectoryPath.FullName, envVars["UE_SDKS_ROOT"]);
+			Assert.AreEqual(_autoSdkWorkspace.DirectoryPath.FullName, envVars["UE_SDKS_ROOT"]);
 
 			await executor.FinalizeAsync(_logger, CancellationToken.None);
 		}
@@ -244,7 +242,7 @@ namespace JobDriver.Tests.Execution
 
 		private static void AssertWorkspaceFile(IWorkspaceMaterializer workspace, string relativePath, string expectedContent)
 		{
-			DirectoryReference workspaceDir = workspace.GetSettingsAsync(CancellationToken.None).Result.DirectoryPath;
+			DirectoryReference workspaceDir = workspace.DirectoryPath;
 			Assert.AreEqual(expectedContent, File.ReadAllText(Path.Join(workspaceDir.FullName, relativePath)));
 		}
 	}

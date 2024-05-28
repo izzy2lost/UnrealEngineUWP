@@ -47,31 +47,26 @@ namespace JobDriver.Execution
 			}
 
 			// Setup and sync the AutoSDK workspace
-			WorkspaceMaterializerSettings? autoSdkWorkspaceSettings = null;
 			if (_autoSdkWorkspace != null)
 			{
 				using IScope _ = GlobalTracer.Instance.BuildSpan("Workspace").WithTag("resource.name", "AutoSDK").StartActive();
 				// TODO: Set type of workspace materializer as scope tag.
-
-				autoSdkWorkspaceSettings = await _autoSdkWorkspace.InitializeAsync(logger, cancellationToken);
 
 				SyncOptions syncOptions = new();
 				await _autoSdkWorkspace.SyncAsync(IWorkspaceMaterializer.LatestChangeNumber, -1, syncOptions, cancellationToken);
 			}
 
 			// Sync the regular workspace
-			WorkspaceMaterializerSettings workspaceSettings;
 			using (IScope scope = GlobalTracer.Instance.BuildSpan("Workspace").StartActive())
 			{
-				workspaceSettings = await _workspace.InitializeAsync(logger, cancellationToken);
-				scope.Span.SetTag(Datadog.Trace.OpenTracing.DatadogTags.ResourceName, workspaceSettings.Identifier);
+				scope.Span.SetTag(Datadog.Trace.OpenTracing.DatadogTags.ResourceName, _workspace.Identifier);
 
 				int preflightChange = (Batch.ClonedPreflightChange != 0) ? Batch.ClonedPreflightChange : Batch.PreflightChange;
 				await _workspace.SyncAsync(Batch.Change, preflightChange, new SyncOptions(), cancellationToken);
 
 				// TODO: Purging of cache for ManagedWorkspace did happen here in WorkspaceInfo
 
-				DeleteCachedBuildGraphManifests(workspaceSettings.DirectoryPath, logger);
+				DeleteCachedBuildGraphManifests(_workspace.DirectoryPath, logger);
 			}
 
 			// Remove all the local settings directories
@@ -82,26 +77,25 @@ namespace JobDriver.Execution
 			{
 				string escapedStreamName = Regex.Replace(Batch.StreamName, "[^a-zA-Z0-9_-]", "+");
 				_sharedStorageDir = DirectoryReference.Combine(new DirectoryReference(Batch.TempStorageDir), escapedStreamName, $"CL {Batch.Change} - Job {JobId}");
-				CopyAutomationTool(_sharedStorageDir, workspaceSettings.DirectoryPath, logger);
+				CopyAutomationTool(_sharedStorageDir, _workspace.DirectoryPath, logger);
 			}
 
 			// Set any non-materializer specific environment variables for jobs
 			_envVars["IsBuildMachine"] = "1";
-			_envVars["uebp_LOCAL_ROOT"] = workspaceSettings.DirectoryPath.FullName;
+			_envVars["uebp_LOCAL_ROOT"] = _workspace.DirectoryPath.FullName;
 			_envVars["uebp_BuildRoot_P4"] = Batch.StreamName;
 			_envVars["uebp_BuildRoot_Escaped"] = Batch.StreamName.Replace('/', '+');
 			_envVars["uebp_CL"] = Batch.Change.ToString();
 			_envVars["uebp_CodeCL"] = Batch.CodeChange.ToString();
 
-			WorkspaceMaterializerSettings settings = await _workspace.GetSettingsAsync(cancellationToken);
-			foreach ((string key, string value) in settings.EnvironmentVariables)
+			foreach ((string key, string value) in _workspace.EnvironmentVariables)
 			{
 				_envVars[key] = value;
 			}
 
-			if (autoSdkWorkspaceSettings != null)
+			if (_autoSdkWorkspace != null)
 			{
-				_envVars["UE_SDKS_ROOT"] = autoSdkWorkspaceSettings.DirectoryPath.FullName;
+				_envVars["UE_SDKS_ROOT"] = _autoSdkWorkspace.DirectoryPath.FullName;
 			}
 		}
 
@@ -109,24 +103,22 @@ namespace JobDriver.Execution
 		protected override async Task<bool> SetupAsync(JobStepInfo step, ILogger logger, CancellationToken cancellationToken)
 		{
 			// Loop back to JobExecutor's SetupAsync again, but with workspace and shared storage dir set
-			WorkspaceMaterializerSettings settings = await _workspace.GetSettingsAsync(cancellationToken);
-			DirectoryReference workspaceDir = settings.DirectoryPath;
-			return await SetupAsync(step, workspaceDir, settings.IsPerforceWorkspace, GetLogger(settings, logger), cancellationToken);
+			DirectoryReference workspaceDir = _workspace.DirectoryPath;
+			return await SetupAsync(step, workspaceDir, _workspace.IsPerforceWorkspace, GetLogger(logger), cancellationToken);
 		}
 
 		/// <inheritdoc/>
 		protected override async Task<bool> ExecuteAsync(JobStepInfo step, ILogger logger, CancellationToken cancellationToken)
 		{
 			// Loop back to JobExecutor's ExecuteAsync again, but with workspace and shared storage dir set
-			WorkspaceMaterializerSettings settings = await _workspace.GetSettingsAsync(cancellationToken);
-			DirectoryReference workspaceDir = settings.DirectoryPath;
-			return await ExecuteAsync(step, workspaceDir, settings.IsPerforceWorkspace, GetLogger(settings, logger), cancellationToken);
+			DirectoryReference workspaceDir = _workspace.DirectoryPath;
+			return await ExecuteAsync(step, workspaceDir, _workspace.IsPerforceWorkspace, GetLogger(logger), cancellationToken);
 		}
 
 		/// <inheritdoc/>
 		public override async Task FinalizeAsync(ILogger logger, CancellationToken cancellationToken)
 		{
-			DirectoryReference workspaceDir = (await _workspace.GetSettingsAsync(cancellationToken)).DirectoryPath;
+			DirectoryReference workspaceDir = _workspace.DirectoryPath;
 			await ExecuteLeaseCleanupScriptAsync(workspaceDir, logger);
 			await TerminateProcessesAsync(TerminateCondition.AfterBatch, logger);
 
@@ -138,9 +130,9 @@ namespace JobDriver.Execution
 			await _workspace.FinalizeAsync(cancellationToken);
 		}
 
-		private ILogger GetLogger(WorkspaceMaterializerSettings settings, ILogger logger)
+		private ILogger GetLogger(ILogger logger)
 		{
-			if (settings.IsPerforceWorkspace)
+			if (_workspace.IsPerforceWorkspace)
 			{
 				// Try resolve a PerforceLogger using assumptions about the materializer.
 				// This is to remain compatible with PerforceExecutor.
@@ -171,7 +163,7 @@ namespace JobDriver.Execution
 			_loggerFactory = loggerFactory;
 		}
 
-		public JobExecutor CreateExecutor(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options)
+		public async Task<JobExecutor> CreateExecutorAsync(RpcAgentWorkspace workspaceInfo, RpcAgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options, CancellationToken cancellationToken)
 		{
 			IWorkspaceMaterializer? workspaceMaterializer = null;
 			IWorkspaceMaterializer? autoSdkMaterializer = null;
@@ -179,10 +171,10 @@ namespace JobDriver.Execution
 			{
 				WorkspaceMaterializerType type = GetMaterializerType(options.JobOptions.WorkspaceMaterializer, WorkspaceMaterializerType.ManagedWorkspace);
 
-				workspaceMaterializer = _materializerFactory.CreateMaterializer(type, workspaceInfo, options);
+				workspaceMaterializer = await _materializerFactory.CreateMaterializerAsync(type, workspaceInfo, options, forAutoSdk: false, cancellationToken);
 				if (autoSdkWorkspaceInfo != null)
 				{
-					autoSdkMaterializer = _materializerFactory.CreateMaterializer(type, autoSdkWorkspaceInfo, options, forAutoSdk: true);
+					autoSdkMaterializer = await _materializerFactory.CreateMaterializerAsync(type, autoSdkWorkspaceInfo, options, forAutoSdk: true, cancellationToken);
 				}
 
 				return new WorkspaceExecutor(options, workspaceMaterializer, autoSdkMaterializer, _loggerFactory.CreateLogger<WorkspaceExecutor>());

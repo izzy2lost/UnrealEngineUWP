@@ -2,6 +2,7 @@
 
 using EpicGames.Core;
 using HordeCommon.Rpc.Messages;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace JobDriver.Execution;
@@ -26,57 +27,6 @@ public class WorkspaceMaterializationException : Exception
 	/// <param name="innerException"></param>
 	public WorkspaceMaterializationException(string? message, Exception? innerException) : base(message, innerException)
 	{
-	}
-}
-
-/// <summary>
-/// Settings returned by SetupAsync
-/// </summary>
-public class WorkspaceMaterializerSettings
-{
-	/// <summary>
-	/// Path to local file system directory where files from changelist are materialized
-	/// </summary>
-	public DirectoryReference DirectoryPath { get; }
-
-	/// <summary>
-	/// Identifier for this workspace
-	/// </summary>
-	public string Identifier { get; }
-
-	/// <summary>
-	/// Stream path inside Perforce
-	/// </summary>
-	public string StreamRoot { get; }
-
-	/// <summary>
-	/// Environment variables expected to be set for applications executing inside the workspace
-	/// Mostly intended for Perforce-specific variables when <see cref="IsPerforceWorkspace" /> is set to true
-	/// </summary>
-	public IReadOnlyDictionary<string, string> EnvironmentVariables { get; }
-
-	/// <summary>
-	/// Whether the materialized workspace is a true Perforce workspace
-	/// This flag is provided as a stop-gap solution to allow replacing ManagedWorkspace with WorkspaceMaterializer.
-	/// It's *highly* recommended to set this to false for any new implementations of IWorkspaceMaterializer.
-	/// </summary>
-	public bool IsPerforceWorkspace { get; }
-
-	/// <summary>
-	/// Constructor
-	/// </summary>
-	/// <param name="directoryPath"></param>
-	/// <param name="identifier"></param>
-	/// <param name="streamRoot"></param>
-	/// <param name="envVars"></param>
-	/// <param name="isPerforceWorkspace"></param>
-	public WorkspaceMaterializerSettings(DirectoryReference directoryPath, string identifier, string streamRoot, IReadOnlyDictionary<string, string> envVars, bool isPerforceWorkspace)
-	{
-		DirectoryPath = directoryPath;
-		Identifier = identifier;
-		StreamRoot = streamRoot;
-		EnvironmentVariables = envVars;
-		IsPerforceWorkspace = isPerforceWorkspace;
 	}
 }
 
@@ -109,26 +59,32 @@ public interface IWorkspaceMaterializer : IDisposable
 	public const int LatestChangeNumber = -2;
 
 	/// <summary>
-	/// Prepare file system for syncing
+	/// Path to local file system directory where files from changelist are materialized
 	/// </summary>
-	/// <param name="logger">Logger for output</param>
-	/// <param name="cancellationToken">Cancellation token for the call</param>
-	/// <returns>Async task</returns>
-	public Task<WorkspaceMaterializerSettings> InitializeAsync(ILogger logger, CancellationToken cancellationToken);
+	DirectoryReference DirectoryPath { get; }
 
 	/// <summary>
-	/// Finalize and clean file system
+	/// Identifier for this workspace
 	/// </summary>
-	/// <param name="cancellationToken">Cancellation token for the call</param>
-	/// <returns>Async task</returns>
-	public Task FinalizeAsync(CancellationToken cancellationToken);
+	string Identifier { get; }
 
 	/// <summary>
-	/// Get settings for workspace
+	/// Stream path inside Perforce
 	/// </summary>
-	/// <param name="cancellationToken">Cancellation token for the call</param>
-	/// <returns>Settings for workspace materializer</returns>
-	public Task<WorkspaceMaterializerSettings> GetSettingsAsync(CancellationToken cancellationToken);
+	string StreamRoot { get; }
+
+	/// <summary>
+	/// Environment variables expected to be set for applications executing inside the workspace
+	/// Mostly intended for Perforce-specific variables when <see cref="IsPerforceWorkspace" /> is set to true
+	/// </summary>
+	IReadOnlyDictionary<string, string> EnvironmentVariables { get; }
+
+	/// <summary>
+	/// Whether the materialized workspace is a true Perforce workspace
+	/// This flag is provided as a stop-gap solution to allow replacing ManagedWorkspace with WorkspaceMaterializer.
+	/// It's *highly* recommended to set this to false for any new implementations of IWorkspaceMaterializer.
+	/// </summary>
+	bool IsPerforceWorkspace { get; }
 
 	/// <summary>
 	/// Materialize (or sync) a Perforce stream at a given change number
@@ -138,9 +94,16 @@ public interface IWorkspaceMaterializer : IDisposable
 	/// <param name="preflightChangeNum">Preflight change number to add</param>
 	/// <param name="options">Additional options</param>
 	/// <param name="cancellationToken">Cancellation token for the call</param>
-	/// <exception cref="JobDriver.Execution.WorkspaceMaterializationException">Thrown if syncing fails</exception>
+	/// <exception cref="WorkspaceMaterializationException">Thrown if syncing fails</exception>
 	/// <returns>Async task</returns>
-	public Task SyncAsync(int changeNum, int preflightChangeNum, SyncOptions options, CancellationToken cancellationToken);
+	Task SyncAsync(int changeNum, int preflightChangeNum, SyncOptions options, CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Finalize and clean file system
+	/// </summary>
+	/// <param name="cancellationToken">Cancellation token for the call</param>
+	/// <returns>Async task</returns>
+	Task FinalizeAsync(CancellationToken cancellationToken);
 }
 
 enum WorkspaceMaterializerType
@@ -160,19 +123,29 @@ interface IWorkspaceMaterializerFactory
 	/// <param name="workspaceInfo">Agent workspace</param>
 	/// <param name="options">Job options</param>
 	/// <param name="forAutoSdk">Whether intended for AutoSDK materialization</param>
+	/// <param name="cancellationToken">Cancellation token for the operation</param>
 	/// <returns>A new workspace materializer instance</returns>
-	IWorkspaceMaterializer CreateMaterializer(WorkspaceMaterializerType type, RpcAgentWorkspace workspaceInfo, JobExecutorOptions options, bool forAutoSdk = false);
+	Task<IWorkspaceMaterializer> CreateMaterializerAsync(WorkspaceMaterializerType type, RpcAgentWorkspace workspaceInfo, JobExecutorOptions options, bool forAutoSdk = false, CancellationToken cancellationToken = default);
 }
 
 class WorkspaceMaterializerFactory : IWorkspaceMaterializerFactory
 {
+	readonly IServiceProvider _serviceProvider;
+
+	public WorkspaceMaterializerFactory(IServiceProvider serviceProvider)
+		=> _serviceProvider = serviceProvider;
+
 	/// <inheritdoc/>
-	public IWorkspaceMaterializer CreateMaterializer(WorkspaceMaterializerType type, RpcAgentWorkspace workspaceInfo, JobExecutorOptions options, bool forAutoSdk)
+	public async Task<IWorkspaceMaterializer> CreateMaterializerAsync(WorkspaceMaterializerType type, RpcAgentWorkspace workspaceInfo, JobExecutorOptions options, bool forAutoSdk, CancellationToken cancellationToken)
 	{
 		return type switch
 		{
-			WorkspaceMaterializerType.ManagedWorkspace when forAutoSdk => new ManagedWorkspaceMaterializer(workspaceInfo, options.WorkingDir, true, false),
-			WorkspaceMaterializerType.ManagedWorkspace => new ManagedWorkspaceMaterializer(workspaceInfo, options.WorkingDir, false, true),
+			WorkspaceMaterializerType.ManagedWorkspace when forAutoSdk 
+				=> await ManagedWorkspaceMaterializer.CreateAsync(workspaceInfo, options.WorkingDir, true, false, _serviceProvider.GetRequiredService<ILogger<ManagedWorkspaceMaterializer>>(), cancellationToken),
+
+			WorkspaceMaterializerType.ManagedWorkspace 
+				=> await ManagedWorkspaceMaterializer.CreateAsync(workspaceInfo, options.WorkingDir, false, true, _serviceProvider.GetRequiredService<ILogger<ManagedWorkspaceMaterializer>>(), cancellationToken),
+
 			_ => throw new Exception("Unhandled materializer option: " + type)
 		};
 	}
