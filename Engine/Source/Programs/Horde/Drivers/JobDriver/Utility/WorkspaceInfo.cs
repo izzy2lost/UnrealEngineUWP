@@ -95,6 +95,7 @@ namespace JobDriver.Utility
 		/// <param name="view">View for files to be synced</param>
 		/// <param name="removeUntrackedFiles">Whether to remove untracked files when syncing</param>
 		/// <param name="repository">The repository instance</param>
+		/// <param name="logger">Logger for diagnostic messages</param>
 		public WorkspaceInfo(IPerforceConnection perforce, string hostName, string streamName, PerforceViewMap streamView, DirectoryReference metadataDir, DirectoryReference workspaceDir, IList<string>? view, bool removeUntrackedFiles, ManagedWorkspace repository, ILogger logger)
 		{
 			PerforceClient = perforce;

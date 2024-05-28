@@ -364,7 +364,7 @@ namespace UnrealBuildTool
 				return null;
 			}
 
-			if (String.IsNullOrEmpty(hordeConfig.HordeServer))
+			if (String.IsNullOrEmpty(hordeConfig.HordeServer) && HordeOptions.GetServerUrlFromEnvironment() == null && HordeOptions.GetDefaultServerUrl() == null)
 			{
 				logger.LogInformation("Horde disabled. Url not set.");
 				return null;
