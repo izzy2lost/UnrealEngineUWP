@@ -542,7 +542,7 @@ FText SInsightsStatusBarWidget::GetTitleToolTipText() const
 
 	const FString Dest = FTraceAuxiliary::GetTraceDestinationString();
 
-	if (*Dest != 0)
+	if (!Dest.IsEmpty())
 	{
 		DescBuilder.AppendLineFormat(LOCTEXT("TracingToText", "Tracing to: {0}"), FText::FromString(Dest));
 	}
