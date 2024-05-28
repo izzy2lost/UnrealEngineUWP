@@ -74,7 +74,7 @@ void FLandscapeEditorDetailCustomization_Layers::CustomizeDetails(IDetailLayoutB
 			LayerCategory.AddCustomBuilder(MakeShareable(new FLandscapeEditorCustomNodeBuilder_Layers(DetailBuilder.GetThumbnailPool().ToSharedRef())));
 
 			LayerCategory.AddCustomRow(FText())
-				.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateLambda([]() { return ShoudShowLayersErrorMessageTip() ? EVisibility::Visible : EVisibility::Collapsed; })))
+				.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateLambda([]() { return ShouldShowLayersErrorMessageTip() ? EVisibility::Visible : EVisibility::Collapsed; })))
 				[
 					SNew(SMultiLineEditableTextBox)
 					.IsReadOnly(true)
@@ -88,7 +88,7 @@ void FLandscapeEditorDetailCustomization_Layers::CustomizeDetails(IDetailLayoutB
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
-bool FLandscapeEditorDetailCustomization_Layers::ShoudShowLayersErrorMessageTip()
+bool FLandscapeEditorDetailCustomization_Layers::ShouldShowLayersErrorMessageTip()
 {
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
 	if (LandscapeEdMode && LandscapeEdMode->DoesCurrentToolAffectEditLayers())

@@ -38,10 +38,9 @@ public:
 
 protected:
 	static bool ShouldShowTargetLayers();
-	static bool ShouldShowPaintingRestriction();
-	static EVisibility GetVisibility_PaintingRestriction();
-	static bool ShouldShowVisibilityTip();
-	static EVisibility GetVisibility_VisibilityTip();
+	static EVisibility GetPaintingRestrictionVisibility();
+	static EVisibility GetVisibilityMaskTipVisibility();
+	static EVisibility GetPopulateTargetLayersInfoTipVisibility();
 };
 
 class FLandscapeEditorCustomNodeBuilder_TargetLayers : public IDetailCustomNodeBuilder, public TSharedFromThis<FLandscapeEditorCustomNodeBuilder_TargetLayers>

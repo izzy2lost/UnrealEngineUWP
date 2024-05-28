@@ -43,7 +43,7 @@ public:
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 
 protected:
-	static bool ShoudShowLayersErrorMessageTip();
+	static bool ShouldShowLayersErrorMessageTip();
 	static FText GetLayersErrorMessageText();
 };
 

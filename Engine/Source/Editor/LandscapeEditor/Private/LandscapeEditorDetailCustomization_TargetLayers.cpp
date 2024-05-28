@@ -60,7 +60,7 @@ void FLandscapeEditorDetailCustomization_TargetLayers::CustomizeDetails(IDetailL
 	PropertyHandle_TargetDisplayOrder->MarkHiddenByCustomization();
 
 	TSharedRef<IPropertyHandle> PropertyHandle_TargetShowUnusedLayers = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(ULandscapeEditorObject, ShowUnusedLayers));
-	PropertyHandle_TargetShowUnusedLayers->MarkHiddenByCustomization();	
+	PropertyHandle_TargetShowUnusedLayers->MarkHiddenByCustomization();
 
 	if (!ShouldShowTargetLayers())
 	{
@@ -74,22 +74,33 @@ void FLandscapeEditorDetailCustomization_TargetLayers::CustomizeDetails(IDetailL
 	check(LandscapeEdMode);
 
 	TargetsCategory.AddProperty(PropertyHandle_PaintingRestriction)
-	.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateStatic(&FLandscapeEditorDetailCustomization_TargetLayers::GetVisibility_PaintingRestriction)))
-	.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([LandscapeEdMode](){ return LandscapeEdMode->HasValidLandscapeEditLayerSelection(); })));
-		
+		.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateStatic(&FLandscapeEditorDetailCustomization_TargetLayers::GetPaintingRestrictionVisibility)))
+		.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([LandscapeEdMode]() { return LandscapeEdMode->HasValidLandscapeEditLayerSelection(); })));
+
 	TargetsCategory.AddCustomRow(FText())
-	.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateStatic(&FLandscapeEditorDetailCustomization_TargetLayers::GetVisibility_VisibilityTip)))
-	[
-		SNew(SMultiLineEditableTextBox)
-		.IsReadOnly(true)
-		.Font(DetailBuilder.GetDetailFontBold())
-		.BackgroundColor(TAttribute<FSlateColor>::Create(TAttribute<FSlateColor>::FGetter::CreateLambda([]() { return FAppStyle::GetColor("ErrorReporting.WarningBackgroundColor"); })))
-		.Text(LOCTEXT("Visibility_Tip", "Note: There are some areas where visibility painting is disabled because Component/Proxy don't have a \"Landscape Visibility Mask\" node in their material."))
-		.AutoWrapText(true)
-		.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([LandscapeEdMode]() { return LandscapeEdMode->HasValidLandscapeEditLayerSelection(); })))
-	];
+		.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateStatic(&FLandscapeEditorDetailCustomization_TargetLayers::GetVisibilityMaskTipVisibility)))
+		[
+			SNew(SMultiLineEditableTextBox)
+				.IsReadOnly(true)
+				.Font(DetailBuilder.GetDetailFontBold())
+				.BackgroundColor(FAppStyle::GetColor("ErrorReporting.WarningBackgroundColor"))
+				.Text(LOCTEXT("Visibility_Tip", "Note: There are some areas where visibility painting is disabled because Component/Proxy don't have a \"Landscape Visibility Mask\" node in their material."))
+				.AutoWrapText(true)
+				.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([LandscapeEdMode]() { return LandscapeEdMode->HasValidLandscapeEditLayerSelection(); })))
+		];
 
 	TargetsCategory.AddCustomBuilder(MakeShareable(new FLandscapeEditorCustomNodeBuilder_TargetLayers(DetailBuilder.GetThumbnailPool().ToSharedRef(), PropertyHandle_TargetDisplayOrder, PropertyHandle_TargetShowUnusedLayers)));
+
+	TargetsCategory.AddCustomRow(FText())
+		.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateStatic(&FLandscapeEditorDetailCustomization_TargetLayers::GetPopulateTargetLayersInfoTipVisibility)))
+		[
+			SNew(SMultiLineEditableTextBox)
+				.IsReadOnly(true)
+				.Font(DetailBuilder.GetDetailFontBold())
+				.BackgroundColor(FAppStyle::GetColor("InfoReporting.BackgroundColor"))
+				.Text(LOCTEXT("PopulateTargetLayers_Tip", "There are currently no target layers assigned to this landscape. Use the buttons above to add new ones or populate them from the material(s) currently assigned to the landscape"))
+				.AutoWrapText(true)
+		];
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
@@ -115,7 +126,7 @@ bool FLandscapeEditorDetailCustomization_TargetLayers::ShouldShowTargetLayers()
 	return false;
 }
 
-bool FLandscapeEditorDetailCustomization_TargetLayers::ShouldShowPaintingRestriction()
+EVisibility FLandscapeEditorDetailCustomization_TargetLayers::GetPaintingRestrictionVisibility()
 {
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
 
@@ -128,19 +139,14 @@ bool FLandscapeEditorDetailCustomization_TargetLayers::ShouldShowPaintingRestric
 			|| (LandscapeEdMode->CurrentToolTarget.TargetType == ELandscapeToolTargetType::Invalid)
 			|| (LandscapeEdMode->CurrentToolTarget.TargetType == ELandscapeToolTargetType::Visibility))
 		{
-			return true;
+			return EVisibility::Visible;
 		}
 	}
 
-	return false;
+	return EVisibility::Collapsed;
 }
 
-EVisibility FLandscapeEditorDetailCustomization_TargetLayers::GetVisibility_PaintingRestriction()
-{
-	return ShouldShowPaintingRestriction() ? EVisibility::Visible : EVisibility::Collapsed;
-}
-
-bool FLandscapeEditorDetailCustomization_TargetLayers::ShouldShowVisibilityTip()
+EVisibility FLandscapeEditorDetailCustomization_TargetLayers::GetVisibilityMaskTipVisibility()
 {
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
 	if (LandscapeEdMode && LandscapeEdMode->CurrentToolTarget.LandscapeInfo.IsValid())
@@ -154,17 +160,29 @@ bool FLandscapeEditorDetailCustomization_TargetLayers::ShouldShowVisibilityTip()
 				bHasValidHoleMaterial &= LandscapeComponent->IsLandscapeHoleMaterialValid();
 			});
 
-			return !bHasValidHoleMaterial;
+			return bHasValidHoleMaterial ? EVisibility::Collapsed : EVisibility::Visible;
 		}
 	}
 
-	return false;
+	return EVisibility::Collapsed;
 }
 
-EVisibility FLandscapeEditorDetailCustomization_TargetLayers::GetVisibility_VisibilityTip()
+EVisibility FLandscapeEditorDetailCustomization_TargetLayers::GetPopulateTargetLayersInfoTipVisibility()
 {
-	return ShouldShowVisibilityTip() ? EVisibility::Visible : EVisibility::Collapsed;
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
+	if (LandscapeEdMode && LandscapeEdMode->CurrentToolTarget.LandscapeInfo.IsValid())
+	{
+		if ((LandscapeEdMode->CurrentToolTarget.TargetType == ELandscapeToolTargetType::Weightmap)
+			|| (LandscapeEdMode->CurrentToolTarget.TargetType == ELandscapeToolTargetType::Invalid)) // ELandscapeToolTargetType::Invalid means "weightmap with no valid paint layer" 
+		{
+			ULandscapeInfo* LandscapeInfo = LandscapeEdMode->CurrentToolTarget.LandscapeInfo.Get();
+			return LandscapeInfo->Layers.IsEmpty() ? EVisibility::Visible : EVisibility::Collapsed;
+		}
+	}
+
+	return EVisibility::Collapsed;
 }
+
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -1320,9 +1338,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerSetObject(cons
 				if (ensure(Index != INDEX_NONE))
 				{
 					FLandscapeInfoLayerSettings& LayerSettings = LandscapeInfo->Layers[Index];
-
 					LandscapeInfo->ReplaceLayer(LayerSettings.LayerInfoObj, SelectedLayerInfo);
-
 					LayerSettings.LayerInfoObj = SelectedLayerInfo;
 				}
 			}
