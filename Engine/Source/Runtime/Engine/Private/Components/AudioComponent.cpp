@@ -1902,15 +1902,19 @@ void UAudioComponent::AddModulationRouting(const TSet<USoundModulatorBase*>& Mod
 	switch (Destination)
 	{
 		case EModulationDestination::Volume:
+			ModulationRouting.VolumeRouting = EModulationRouting::Union;
 			ModulationRouting.VolumeModulationDestination.Modulators.Append(ConvertedModulators);
 			break;
 		case EModulationDestination::Pitch:
+			ModulationRouting.PitchRouting = EModulationRouting::Union;
 			ModulationRouting.PitchModulationDestination.Modulators.Append(ConvertedModulators);
 			break;
 		case EModulationDestination::Lowpass:
+			ModulationRouting.LowpassRouting = EModulationRouting::Union;
 			ModulationRouting.LowpassModulationDestination.Modulators.Append(ConvertedModulators);
 			break;
 		case EModulationDestination::Highpass:
+			ModulationRouting.HighpassRouting = EModulationRouting::Union;
 			ModulationRouting.HighpassModulationDestination.Modulators.Append(ConvertedModulators);
 			break;
 		default:
