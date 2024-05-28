@@ -531,7 +531,7 @@ TSharedRef<SWidget> SEditorPerformanceReportDialog::GetKPIGridPanel()
 				.Margin(DefaultMargin)
 				.ColorAndOpacity(EStyleColor::Foreground)
 				.Font(TitleFont)
-				.Text(LOCTEXT("ExpectedValueColumn", "Failures"))
+				.Text(LOCTEXT("FailedValueColumn", "Failures"))
 		];
 
 	if (EnableNotifcations)
