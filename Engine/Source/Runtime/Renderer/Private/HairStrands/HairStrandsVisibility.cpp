@@ -2107,7 +2107,7 @@ static void AddHairVisibilityControlPointIdCompactionPass(
 	AddClearGraphicPass(GraphBuilder, RDG_EVENT_NAME("HairStrands::CoverageTexture"), &View, 0, TileData, OutCoverageTexture);
 
 	// Adapt the buffer allocation based on the bounding box of the hair macro groups. This allows to reduce the overall allocation size
-	const FIntRect HairRect = ComputeVisibleHairStrandsMacroGroupsRect(View.ViewRect, MacroGroupDatas);
+	const FIntRect HairRect = ComputeVisibleHairStrandsMacroGroupsRect(View, View.ViewRect, MacroGroupDatas);
 	const FIntPoint EffectiveResolution = bUsePPLL ? FIntPoint(View.ViewRect.Width(), View.ViewRect.Height()) : FIntPoint(HairRect.Width(), HairRect.Height());
 
 	// Select render node count according to current mode
@@ -4600,7 +4600,7 @@ void RenderHairStrandsVisibilityBuffer(
 	check(View.Family);
 	check(MacroGroupDatas.Num() > 0);
 
-	const FIntRect HairRect = ComputeVisibleHairStrandsMacroGroupsRect(View.ViewRect, MacroGroupDatas);
+	const FIntRect HairRect = ComputeVisibleHairStrandsMacroGroupsRect(View, View.ViewRect, MacroGroupDatas);
 	const int32 HairPixelCount = HairRect.Width() * HairRect.Height();
 	if (HairPixelCount <= 0)
 	{

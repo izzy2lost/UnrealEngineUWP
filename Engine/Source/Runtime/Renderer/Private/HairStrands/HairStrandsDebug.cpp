@@ -1254,7 +1254,7 @@ static void InternalRenderHairStrandsDebugInfo(
 			AddDebugDeepShadowTexturePass(GraphBuilder, &View, MacroGroupData.ScreenRect, nullptr, nullptr, Params.SceneColorTexture);
 		}
 
-		const FIntRect TotalRect = ComputeVisibleHairStrandsMacroGroupsRect(View.ViewRect, HairData.MacroGroupDatas);
+		const FIntRect TotalRect = ComputeVisibleHairStrandsMacroGroupsRect(View, View.ViewRect, HairData.MacroGroupDatas);
 		AddDebugDeepShadowTexturePass(GraphBuilder, &View, TotalRect, nullptr, nullptr, Params.SceneColorTexture);
 	}
 	

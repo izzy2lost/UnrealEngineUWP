@@ -436,7 +436,7 @@ bool FDeferredShadingSceneRenderer::RenderLightFunctionForMaterial(
 					LightSceneProxy->SetScissorRect(RHICmdList, View, View.ViewRect);
 					if (bUseHairStrands)
 					{
-						FIntRect TotalRect = ComputeVisibleHairStrandsMacroGroupsRect(View.ViewRect, View.HairStrandsViewData.MacroGroupDatas);
+						FIntRect TotalRect = ComputeVisibleHairStrandsMacroGroupsRect(View, View.ViewRect, View.HairStrandsViewData.MacroGroupDatas);
 						LightSceneProxy->SetScissorRect(RHICmdList, View, TotalRect);
 					}
 
