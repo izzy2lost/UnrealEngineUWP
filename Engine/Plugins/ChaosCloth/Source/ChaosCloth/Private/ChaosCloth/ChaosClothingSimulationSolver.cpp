@@ -783,6 +783,15 @@ int32 FClothingSimulationSolver::AddCollisionParticles(int32 NumCollisionParticl
 	int32 CollisionRangeId = INDEX_NONE;
 	if (Evolution)
 	{
+		if (Evolution->IsValidCollisionParticleRange(RecycledCollisionRangeId))
+		{
+			if (Evolution->GetCollisionParticleRange(RecycledCollisionRangeId).GetRangeSize() == NumCollisionParticles)
+			{
+				return RecycledCollisionRangeId;
+			}
+			// Size has changed. Remove the recycled collision range and reallocate some new particles
+			Evolution->RemoveCollisionParticleRange(RecycledCollisionRangeId);
+		}
 		CollisionRangeId = Evolution->AddCollisionParticleRange(GroupId, NumCollisionParticles, bActivateFalse);
 	}
 	else
