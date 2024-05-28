@@ -55,7 +55,6 @@ namespace uba
 
 		Atomic<u32> m_addsSinceMaintenance;
 		Atomic<bool> m_isRunningMaintenance;
-		Atomic<bool> m_shouldWipe;
 
 		ReaderWriterLock m_bucketsLock;
 		Map<u64, Bucket> m_buckets;
@@ -70,6 +69,9 @@ namespace uba
 		u64 m_longestMaintenance = 0;
 
 		bool m_checkInputsForDeletedCas = true;
+
+		bool m_shouldWipe = false;
+		bool m_forceAllSteps = false;
 
 		CacheServer(const CacheServer&) = delete;
 		CacheServer& operator=(const CacheServer&) = delete;

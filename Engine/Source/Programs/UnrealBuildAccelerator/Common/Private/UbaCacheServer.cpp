@@ -284,7 +284,9 @@ namespace uba
 			});
 
 
-		bool forceAllSteps = false;
+		//m_forceAllSteps = true;
+		bool forceAllSteps = m_forceAllSteps;
+		m_forceAllSteps = false;
 
 		if (m_shouldWipe)
 		{
@@ -459,6 +461,8 @@ namespace uba
 						// Remove entry from entries list and skip increasing ref count of cas files
 						if (deleteEntry)
 						{
+							if (i->id == entries.primaryId)
+								entries.primaryId = ~0u;
 							bucket.hasDeletedEntries = true;
 							++deleteEntryCount;
 							i = entries.entries.erase(i);
@@ -638,9 +642,9 @@ namespace uba
 				// Update all casKeyOffsets
 				u64 updateEntriesStart = GetTime();
 
-				m_server.ParallelFor(workerCountToUse, bucket.m_cacheEntryLookup, [&, temp = Vector<u32>()](auto& it) mutable
+				m_server.ParallelFor(workerCountToUse, bucket.m_cacheEntryLookup, [&, temp = Vector<u32>(), temp2 = Vector<u8>()](auto& it) mutable
 					{
-						it->second.UpdateEntries(m_logger, oldToNewCasKeyOffset, temp);
+						it->second.UpdateEntries(m_logger, oldToNewCasKeyOffset, temp, temp2);
 					});
 
 				#if 0
@@ -1262,6 +1266,12 @@ namespace uba
 			m_shouldWipe = true;
 			m_addsSinceMaintenance = 1;
 			writeLine(line.Clear().Appendf(TC("Cache server database obliteration queued!")).data);
+		}
+		else if (command.Equals(TC("maintenance")))
+		{
+			m_forceAllSteps = true;
+			m_addsSinceMaintenance = 1;
+			writeLine(line.Clear().Appendf(TC("Cache server maintenance queued!")).data);
 		}
 		else
 		{

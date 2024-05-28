@@ -29,6 +29,7 @@ namespace uba
 		List<CacheEntry> entries;
 		Vector<u8> sharedInputCasKeyOffsets;
 		u32 idCounter = 0;
+		u32 primaryId = ~0u; // Id of entry that shared offsets was made from
 
 		u64 GetSharedSize();
 		u64 GetEntrySize(CacheEntry& entry, bool toDisk);
@@ -37,11 +38,10 @@ namespace uba
 		bool Read(Logger& logger, BinaryReader& reader, u32 databaseVersion);
 		void BuildInputs(CacheEntry& entry, const Set<u32>& inputs);
 		void UpdateEntries();
-		void UpdateEntries(Logger& logger, const GrowingNoLockUnorderedMap<u32, u32>& oldToNewCasKeyOffset, Vector<u32>& temp);
+		void UpdateEntries(Logger& logger, const GrowingNoLockUnorderedMap<u32, u32>& oldToNewCasKeyOffset, Vector<u32>& temp, Vector<u8>& temp2);
 
 		#if UBA_USE_OLD
 		void ValidateEntries(Logger& logger);
-		void ValidateEntry(Logger& logger, CacheEntry& entry);
 		#endif
 
 		void Flatten(Vector<u8>& out, const CacheEntry& entry);
@@ -49,6 +49,11 @@ namespace uba
 
 		template<typename Container>
 		void BuildInputsT(CacheEntry& entry, const Container& sortedInputs, bool populateShared);
+
+		template<typename Container>
+		void BuildRangesFromExcludedT(CacheEntry& entry, const Container& sortedExcludedInputs);
+
+		void ValidateEntry(Logger& logger, CacheEntry& entry, Vector<u8>& inputCasKeyOffsets);
 	};
 
 

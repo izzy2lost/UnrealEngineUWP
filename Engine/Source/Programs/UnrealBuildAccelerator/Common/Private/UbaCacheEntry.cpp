@@ -180,6 +180,10 @@ namespace uba
 			u64 outputSize = reader.Read7BitEncoded();
 			entry.outputCasKeyOffsets.resize(outputSize);
 			reader.ReadBytes(entry.outputCasKeyOffsets.data(), outputSize);
+
+			#if UBA_USE_OLD
+			Flatten(entry.inputCasKeyOffsets, entry);
+			#endif
 		}
 
 		return true;
@@ -222,7 +226,6 @@ namespace uba
 
 		u32 rangeBegin = 0;
 		bool inRange = false;
-		bool unhandledOffset = false;
 		u32 lastSharedPos = ~0u;
 
 		Vector<u8> extraOffsets;
@@ -294,15 +297,96 @@ namespace uba
 				{
 					extraWriter.Write7BitEncoded(offset);
 				}
-				else
-				{
-					unhandledOffset = true;
-				}
 			}
 		}
 
 		entry.extraInputCasKeyOffsets.resize(extraWriter.GetPosition());
 		memcpy(entry.extraInputCasKeyOffsets.data(), extraWriter.GetData(), extraWriter.GetPosition());
+	}
+
+	template<typename Container>
+	void CacheEntries::BuildRangesFromExcludedT(CacheEntry& entry, const Container& sortedExcludedInputs)
+	{
+		StackBinaryWriter<256*1024> rangeWriter;
+
+		auto g = MakeGuard([&]()
+			{
+				entry.sharedInputCasKeyOffsetRanges.resize(rangeWriter.GetPosition());
+				memcpy(entry.sharedInputCasKeyOffsetRanges.data(), rangeWriter.GetData(), rangeWriter.GetPosition());
+			});
+
+		auto writeRange = [&](u64 begin, u64 end) { rangeWriter.Write7BitEncoded(begin); rangeWriter.Write7BitEncoded(end); };
+
+		auto excludedInputsIt = sortedExcludedInputs.begin();
+		auto excludedInputsEnd = sortedExcludedInputs.end();
+
+		BinaryReader sharedReader(sharedInputCasKeyOffsets.data(), 0, sharedInputCasKeyOffsets.size());
+
+		u32 sharedOffset = ~0u;
+		u32 offset = ~0u;
+
+		u32 excludeRangeEnd = 0;
+		u32 excludeRangeBegin = 0;
+		bool inExcludeRange = false;
+		u32 lastSharedPos = ~0u;
+
+		while (true)
+		{
+			u32 sharedPos = u32(sharedReader.GetPosition());
+
+			if (!sharedReader.GetLeft())
+			{
+				if (!inExcludeRange)
+					writeRange(excludeRangeEnd, excludeRangeBegin);
+				break;
+			}
+
+			if (offset <= sharedOffset && excludedInputsIt == excludedInputsEnd)
+			{
+				if (!inExcludeRange)
+					writeRange(excludeRangeEnd, sharedInputCasKeyOffsets.size());
+				else
+					writeRange(sharedPos, sharedInputCasKeyOffsets.size());
+				break;
+			}
+
+			if (sharedOffset < offset)
+			{
+				lastSharedPos = sharedPos;
+				sharedOffset = u32(sharedReader.Read7BitEncoded());
+			}
+			else if (offset < sharedOffset)
+			{
+				offset = *excludedInputsIt++;
+				sharedPos = lastSharedPos;
+			}
+			else
+			{
+				lastSharedPos = sharedPos;
+				sharedOffset = u32(sharedReader.Read7BitEncoded());
+				offset = *excludedInputsIt++;
+			}
+
+			if (sharedOffset == offset)
+			{
+				if (!inExcludeRange)
+				{
+					if (excludeRangeEnd != lastSharedPos)
+						writeRange(excludeRangeEnd, lastSharedPos);
+					excludeRangeBegin = sharedPos;
+					inExcludeRange = true;
+				}
+			}
+			else
+			{
+				if (inExcludeRange)
+				{
+					inExcludeRange = false;
+					excludeRangeEnd = sharedPos;
+				}
+			}
+		}
+
 	}
 
 	void CacheEntries::BuildInputs(CacheEntry& entry, const Set<u32>& inputs)
@@ -336,6 +420,7 @@ namespace uba
 		{
 			if (isFirst)
 			{
+				primaryId = entry.id;
 				// Flatten first entry into new shared
 				Flatten(oldShared, entry);
 				oldShared.swap(sharedInputCasKeyOffsets);
@@ -357,7 +442,7 @@ namespace uba
 		}
 	}
 
-	void CacheEntries::UpdateEntries(Logger& logger, const GrowingNoLockUnorderedMap<u32, u32>& oldToNewCasKeyOffset, Vector<u32>& temp)
+	void CacheEntries::UpdateEntries(Logger& logger, const GrowingNoLockUnorderedMap<u32, u32>& oldToNewCasKeyOffset, Vector<u32>& temp, Vector<u8>& temp2)
 	{
 		if (entries.empty())
 			return;
@@ -366,76 +451,15 @@ namespace uba
 		ValidateEntries(logger);
 		#endif
 
-		Vector<u8> oldShared;
-		oldShared.swap(sharedInputCasKeyOffsets);
-
-		bool isFirst = true;
-		for (auto& entry : entries)
-		{
-			if (isFirst)
-			{
-				// Flatten first entry into temp
-				Flatten(temp, entry, oldShared);
-
-				// Update temp with new offsets
-				u64 newSize = 0;
-				for (auto& offset : temp)
-				{
-					auto findIt = oldToNewCasKeyOffset.find(offset);
-					if (findIt != oldToNewCasKeyOffset.end())
-						offset = findIt->second;
-					newSize += Get7BitEncodedCount(offset);
-				}
-
-				// Sort temp now when it likely is out of order
-				std::sort(temp.begin(), temp.end());
-
-				sharedInputCasKeyOffsets.resize(newSize);
-				BinaryWriter writer(sharedInputCasKeyOffsets.data(), 0, newSize);
-				for (auto& offset : temp)
-					writer.Write7BitEncoded(offset);
-
-				entry.extraInputCasKeyOffsets.clear();
-				u64 rangeSize = 1 + Get7BitEncodedCount(newSize);
-				entry.sharedInputCasKeyOffsetRanges.resize(rangeSize);
-				BinaryWriter rangeWriter(entry.sharedInputCasKeyOffsetRanges.data(), 0, rangeSize);
-				rangeWriter.Write7BitEncoded(0);
-				rangeWriter.Write7BitEncoded(newSize);
-				UBA_ASSERT(rangeWriter.GetPosition() == rangeSize);
-				isFirst = false;
-			}
-			else
-			{
-				// Flatten using old shared and rebuild it with new shared
-				Flatten(temp, entry, oldShared);
-				for (auto& offset : temp)
-				{
-					auto findIt = oldToNewCasKeyOffset.find(offset);
-					if (findIt != oldToNewCasKeyOffset.end())
-						offset = findIt->second;
-				}
-
-				// Sort temp now when it likely is out of order
-				std::sort(temp.begin(), temp.end());
-
-				entry.extraInputCasKeyOffsets.clear();
-				entry.sharedInputCasKeyOffsetRanges.clear();
-				BuildInputsT(entry, temp, false);
-			}
-		}
-
-		auto updateCasKeyOffsets = [&](Vector<u8>& offsets)
+		auto convertOffsets = [&](Vector<u8>& offsets)
 			{
 				temp.clear();
-				temp.reserve(offsets.size()*4);
-
 				u32 newOffsetsSize = 0;
-				BinaryReader reader2(offsets.data(), 0, offsets.size());
-				while (reader2.GetLeft())
+				BinaryReader reader(offsets.data(), 0, offsets.size());
+				while (reader.GetLeft())
 				{
-					u32 oldOffset = u32(reader2.Read7BitEncoded());
-					u32 newOffset = oldOffset;
-					auto findIt = oldToNewCasKeyOffset.find(oldOffset);
+					u32 newOffset = u32(reader.Read7BitEncoded());
+					auto findIt = oldToNewCasKeyOffset.find(newOffset);
 					if (findIt != oldToNewCasKeyOffset.end())
 						newOffset = findIt->second;
 					temp.push_back(newOffset);
@@ -445,18 +469,149 @@ namespace uba
 				std::sort(temp.begin(), temp.end());
 
 				offsets.resize(newOffsetsSize);
-				BinaryWriter writer2(offsets.data(), 0, newOffsetsSize);
+				BinaryWriter writer(offsets.data(), 0, newOffsetsSize);
 				for (u32 offset : temp)
-					writer2.Write7BitEncoded(offset);
-				UBA_ASSERT(writer2.GetPosition() == newOffsetsSize);
+					writer.Write7BitEncoded(offset);
 			};
 
 		for (auto& entry : entries)
 		{
 			#if UBA_USE_OLD
-			updateCasKeyOffsets(entry.inputCasKeyOffsets);
+			convertOffsets(entry.inputCasKeyOffsets);
 			#endif
-			updateCasKeyOffsets(entry.outputCasKeyOffsets);
+			convertOffsets(entry.outputCasKeyOffsets);
+		}
+
+		auto writePrimaryRange = [&](CacheEntry& entry, u64 newSize)
+			{
+				u64 rangeSize = 1 + Get7BitEncodedCount(newSize);
+				entry.sharedInputCasKeyOffsetRanges.resize(rangeSize);
+				BinaryWriter rangeWriter(entry.sharedInputCasKeyOffsetRanges.data(), 0, rangeSize);
+				rangeWriter.Write7BitEncoded(0);
+				rangeWriter.Write7BitEncoded(newSize);
+				UBA_ASSERT(rangeWriter.GetPosition() == rangeSize);
+			};
+
+		// If primary id is not set we use first entry as primaryId and base shared offsets off primary entry
+		if (entries.size() == 1 || primaryId == ~0u)
+		{
+			auto& oldShared = temp2;
+			oldShared = sharedInputCasKeyOffsets;
+
+			bool isFirst = true;
+			for (auto& entry : entries)
+			{
+				if (isFirst)
+				{
+					primaryId = entry.id;
+
+					// Flatten first entry into temp
+					Flatten(temp, entry, oldShared);
+
+					// Update temp with new offsets
+					u64 newSize = 0;
+					for (auto& offset : temp)
+					{
+						auto findIt = oldToNewCasKeyOffset.find(offset);
+						if (findIt != oldToNewCasKeyOffset.end())
+							offset = findIt->second;
+						newSize += Get7BitEncodedCount(offset);
+					}
+
+					// Sort temp now when it likely is out of order
+					std::sort(temp.begin(), temp.end());
+
+					// Write new shared
+					sharedInputCasKeyOffsets.resize(newSize);
+					BinaryWriter writer(sharedInputCasKeyOffsets.data(), 0, newSize);
+					for (auto& offset : temp)
+						writer.Write7BitEncoded(offset);
+
+					// Clear extra and set entire shared to range
+					entry.extraInputCasKeyOffsets.clear();
+					writePrimaryRange(entry, newSize);
+					isFirst = false;
+				}
+				else
+				{
+					// Flatten using old shared and rebuild it with new shared
+					Flatten(temp, entry, oldShared);
+					for (auto& offset : temp)
+					{
+						auto findIt = oldToNewCasKeyOffset.find(offset);
+						if (findIt != oldToNewCasKeyOffset.end())
+							offset = findIt->second;
+					}
+
+					// Sort temp now when it likely is out of order
+					std::sort(temp.begin(), temp.end());
+
+					entry.extraInputCasKeyOffsets.clear();
+					entry.sharedInputCasKeyOffsetRanges.clear();
+					BuildInputsT(entry, temp, false);
+				}
+			}
+		}
+		else
+		{
+			// This approach should be faster if there are more than one entry since we expect entries to be very similar to each other
+			// It instead tracks removed offsets when calculating the shared offsets and build the ranges from that.
+
+			auto& oldShared = temp2;
+			oldShared = sharedInputCasKeyOffsets;
+			convertOffsets(sharedInputCasKeyOffsets);
+
+
+			for (auto& entry : entries)
+			{
+				// Collect all inputs that are removed from the shared inputs
+
+				auto collectInputs = [&](Vector<u32>& out, u32 rangeBegin, u32 rangeEnd)
+					{
+						BinaryReader excludedReader(oldShared.data() + rangeBegin, 0, rangeEnd - rangeBegin);
+						while (excludedReader.GetLeft())
+						{
+							u32 offset = u32(excludedReader.Read7BitEncoded());
+							auto findIt = oldToNewCasKeyOffset.find(offset);
+							if (findIt != oldToNewCasKeyOffset.end())
+								offset = findIt->second;
+							out.push_back(offset);
+						}
+					};
+
+				temp.clear();
+				auto& excludedOffsets = temp;
+
+				BinaryReader rangeReader(entry.sharedInputCasKeyOffsetRanges.data(), 0, entry.sharedInputCasKeyOffsetRanges.size());
+				u32 lastEnd = 0;
+				while (rangeReader.GetLeft())
+				{
+					u32 begin = u32(rangeReader.Read7BitEncoded());
+					collectInputs(excludedOffsets, lastEnd, begin);
+					lastEnd = u32(rangeReader.Read7BitEncoded());
+				}
+				collectInputs(excludedOffsets, lastEnd, u32(oldShared.size()));
+
+				if (excludedOffsets.empty() && entry.extraInputCasKeyOffsets.empty())
+				{
+					writePrimaryRange(entry, sharedInputCasKeyOffsets.size());
+				}
+				else
+				{
+					// Sort excluded inputs..
+					std::sort(excludedOffsets.begin(), excludedOffsets.end());
+
+					// Build new ranges based on shared and excluded offsets from shared
+					BuildRangesFromExcludedT(entry, excludedOffsets);
+
+					// Create new extras
+					convertOffsets(entry.extraInputCasKeyOffsets);
+				}
+
+				#if UBA_USE_OLD
+				ValidateEntry(logger, entry);
+				#endif
+			}
 		}
 
 		#if UBA_USE_OLD
@@ -468,15 +623,17 @@ namespace uba
 	void CacheEntries::ValidateEntries(Logger& logger)
 	{
 		for (auto& entry : entries)
-			ValidateEntry(logger, entry);
+			ValidateEntry(logger, entry, entry.inputCasKeyOffsets);
 	}
-	void CacheEntries::ValidateEntry(Logger& logger, CacheEntry& entry)
+	#endif
+
+	void CacheEntries::ValidateEntry(Logger& logger, CacheEntry& entry, Vector<u8>& inputCasKeyOffsets)
 	{
 		Vector<u8> res;
 		Flatten(res, entry);
-		if (res.size() == entry.inputCasKeyOffsets.size() && memcmp(res.data(), entry.inputCasKeyOffsets.data(), res.size()) == 0)
+		if (res.size() == inputCasKeyOffsets.size() && memcmp(res.data(), inputCasKeyOffsets.data(), res.size()) == 0)
 			return;
-		BinaryReader reader1(entry.inputCasKeyOffsets.data(), 0, entry.inputCasKeyOffsets.size());
+		BinaryReader reader1(inputCasKeyOffsets.data(), 0, inputCasKeyOffsets.size());
 		BinaryReader reader2(res.data(), 0, res.size());
 		while (reader1.GetLeft() || reader2.GetLeft())
 		{
@@ -491,8 +648,6 @@ namespace uba
 		}
 		UBA_ASSERT(false);
 	}
-
-	#endif
 
 	void CacheEntries::Flatten(Vector<u8>& out, const CacheEntry& entry)
 	{
