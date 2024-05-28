@@ -9,9 +9,7 @@
 namespace UE::Chaos::ClothAsset
 {
 	FClothSimulationMesh::FClothSimulationMesh(const FChaosClothSimulationModel& InClothSimulationModel, const FClothSimulationContext& InClothSimulationContext, const FString& DebugName)
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		: ::Chaos::FClothingSimulationMesh(DebugName)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		, ClothSimulationModel(InClothSimulationModel)
 		, ClothSimulationContext(InClothSimulationContext)
 	{

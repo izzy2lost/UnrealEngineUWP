@@ -6,12 +6,10 @@
 #include "Containers/ContainersFwd.h"
 #include "ClothVertBoneData.h"
 
-//#define CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT 1  // For testing only. TODO: Once FClothingSimulationMesh is abstract from 5.4, remove all lines where this is referenced
-
 struct FMeshToMeshVertData;
 struct FClothVertBoneData;
 
-#if !defined(CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT) || !CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 class USkeletalMeshComponent;
 class UClothingAssetCommon;
 class FClothingSimulationContextCommon;
@@ -22,12 +20,7 @@ namespace Chaos
 	class FClothingSimulationSolver;
 
 	// Mesh simulation node
-#if !defined(CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT) || !CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
-	class UE_DEPRECATED(5.2, "This class is becoming an abstract interface, do not use directly. Use FClothingSimulationSkeletalMesh instead.")
-		CHAOSCLOTH_API FClothingSimulationMesh
-#else
 	class CHAOSCLOTH_API FClothingSimulationMesh
-#endif
 	{
 	public:
 		explicit FClothingSimulationMesh(const FString& InDebugName);
@@ -45,47 +38,6 @@ namespace Chaos
 		const FString& GetDebugName() const { return FText::GetEmpty().ToString(); }
 #endif
 
-#if !defined(CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT) || !CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
-		UE_DEPRECATED(5.2, "Use the FClothingSimulationSkeletalMesh constructor instead.")
-		FClothingSimulationMesh(const UClothingAssetCommon* InAsset, const USkeletalMeshComponent* InSkeletalMeshComponent);
-		UE_DEPRECATED(5.2, "Use the FClothingSimulationSkeletalMesh::GetAsset() instead.")
-		virtual const UClothingAssetCommon* GetAsset() const { return Asset; }
-		UE_DEPRECATED(5.2, "Use the FClothingSimulationSkeletalMesh::GetSkeletalMeshComponent() instead.")
-		virtual const USkeletalMeshComponent* GetSkeletalMeshComponent() const { return SkeletalMeshComponent; }
-
-		virtual int32 GetNumLODs() const;
-		virtual int32 GetLODIndex() const;
-		virtual int32 GetOwnerLODIndex(int32 LODIndex) const;
-		virtual bool IsValidLODIndex(int32 LODIndex) const;
-		virtual int32 GetNumPoints(int32 LODIndex) const;
-		virtual int32 GetNumPatternPoints(int32 LODIndex) const;
-		virtual TConstArrayView<FVector3f> GetPositions(int32 LODIndex) const;
-		virtual TConstArrayView<FVector2f> GetPatternPositions(int32 LODIndex) const;
-		virtual TConstArrayView<FVector3f> GetNormals(int32 LODIndex) const;
-		virtual TConstArrayView<uint32> GetIndices(int32 LODIndex) const;
-		virtual TConstArrayView<uint32> GetPatternIndices(int32 LODIndex) const;
-		virtual TConstArrayView<uint32> GetPatternToWeldedIndices(int32 LODIndex) const;
-		virtual TArray<FName> GetWeightMapNames(int32 LODIndex) const;
-		UE_DEPRECATED(5.3, "Use LODIndex version.")
-		virtual TArray<FName> GetWeightMapNames() const { return GetWeightMapNames(0); }
-		virtual TMap<FString, int32> GetWeightMapIndices(int32 LODIndex) const;
-		UE_DEPRECATED(5.3, "Use LODIndex version.")
-		virtual TMap<FString, int32> GetWeightMapIndices() const { return GetWeightMapIndices(0); }
-		virtual TArray<TConstArrayView<FRealSingle>> GetWeightMaps(int32 LODIndex) const;
-		virtual TMap<FString, const TSet<int32>*> GetVertexSets(int32 LODIndex) const;
-		virtual TMap<FString, const TSet<int32>*> GetFaceSets(int32 LODIndex) const;
-		virtual TMap<FString, TConstArrayView<int32>> GetFaceIntMaps(int32 LODIndex) const;
-		virtual TArray<TConstArrayView<TTuple<int32, int32, float>>> GetTethers(int32 LODIndex, bool bUseGeodesicTethers) const;
-		virtual int32 GetReferenceBoneIndex() const;
-		virtual FTransform GetReferenceBoneTransform() const;
-		virtual const TArray<FTransform>& GetBoneTransforms() const;
-		virtual const FTransform& GetComponentToWorldTransform() const;
-		virtual const TArray<FMatrix44f>& GetRefToLocalMatrices() const;
-		virtual TConstArrayView<int32> GetBoneMap() const;
-		virtual TConstArrayView<FClothVertBoneData> GetBoneData(int32 LODIndex) const;
-		virtual TConstArrayView<FMeshToMeshVertData> GetTransitionUpSkinData(int32 LODIndex) const;
-		virtual TConstArrayView<FMeshToMeshVertData> GetTransitionDownSkinData(int32 LODIndex) const;
-#else
 		/* Return the number of LODs on this mesh. */
 		virtual int32 GetNumLODs() const = 0;
 
@@ -124,22 +76,18 @@ namespace Chaos
 
 		/* Return all weight maps associated with this mesh returned in the same order as GetWeightMaps. */
 		virtual TArray<FName> GetWeightMapNames(int32 LODIndex) const = 0;
-		UE_DEPRECATED(5.3, "Use LODIndex version.")
-		virtual TArray<FName> GetWeightMapNames() const = 0;
 
 		/* Return a map of all weight map names associated with this mesh to the index in the array returned by GetWeightMaps. */
 		virtual TMap<FString, int32> GetWeightMapIndices(int32 LODIndex) const = 0;
-		UE_DEPRECATED(5.3, "Use LODIndex version.")
-		virtual TMap<FString, int32> GetWeightMapIndices() const = 0;
 
 		/* Return the specified LOD's weight map. */
 		virtual TArray<TConstArrayView<FRealSingle>> GetWeightMaps(int32 LODIndex) const = 0;
 
 		/* Return the specified LOD's vertex sets. */
-		virtual const TMap<FString, TSet<int32>*> GetVertexSets(int32 LODIndex) const = 0;
+		virtual TMap<FString, const TSet<int32>*> GetVertexSets(int32 LODIndex) const = 0;
 
 		/* Return the specified LOD's face sets. */
-		virtual const TMap<FString, TSet<int32>*> GetFaceSets(int32 LODIndex) const = 0;
+		virtual TMap<FString, const TSet<int32>*> GetFaceSets(int32 LODIndex) const = 0;
 
 		/* Return the specified LOD's face int maps. */
 		virtual TMap<FString, TConstArrayView<int32>> GetFaceIntMaps(int32 LODIndex) const = 0;
@@ -154,7 +102,7 @@ namespace Chaos
 		virtual FTransform GetReferenceBoneTransform() const = 0;
 
 		/* Return the bone transforms as required when updating the collider pose. */
-		const TArray<FTransform>& GetBoneTransforms() const = 0;
+		virtual const TArray<FTransform>& GetBoneTransforms() const = 0;
 
 		/* Return the transform of the bone treated as the root of the simulation space. */
 		virtual const FTransform& GetComponentToWorldTransform() const = 0;
@@ -173,7 +121,7 @@ namespace Chaos
 
 		/* Return the transition down data (PrevLODIndex > LODIndex), for matching shapes during LOD changes. */
 		virtual TConstArrayView<FMeshToMeshVertData> GetTransitionDownSkinData(int32 LODIndex) const = 0;
-#endif
+
 		/** Return this mesh uniform scale as the maximum of the three axis scale value. */
 		virtual Softs::FSolverReal GetScale() const;
 
@@ -211,13 +159,6 @@ namespace Chaos
 			const FVec3& LocalSpaceLocation,
 			Softs::FSolverVec3* OutPositions,
 			Softs::FSolverVec3* OutNormals) const;
-
-#if !defined(CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT) || !CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
-		const FClothingSimulationContextCommon* GetContext() const;
-
-		const UClothingAssetCommon* Asset;
-		const USkeletalMeshComponent* SkeletalMeshComponent;
-#endif
 
 #if !UE_BUILD_SHIPPING
 		/** Debug name of the source component. */

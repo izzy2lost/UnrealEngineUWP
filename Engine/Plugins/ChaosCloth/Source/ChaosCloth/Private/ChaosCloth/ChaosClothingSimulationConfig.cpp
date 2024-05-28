@@ -11,13 +11,6 @@ namespace Chaos
 	{
 	}
 
-	FClothingSimulationConfig::FClothingSimulationConfig(const TSharedPtr<const FManagedArrayCollection>& InPropertyCollection)
-	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		Initialize(InPropertyCollection);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
-
 	FClothingSimulationConfig::FClothingSimulationConfig(const TArray<TSharedPtr<const FManagedArrayCollection>>& InPropertyCollections)
 	{
 		Initialize(InPropertyCollections);

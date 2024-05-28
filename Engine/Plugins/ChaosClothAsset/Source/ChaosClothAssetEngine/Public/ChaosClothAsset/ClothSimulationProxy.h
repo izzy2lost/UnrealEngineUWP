@@ -105,9 +105,7 @@ namespace UE::Chaos::ClothAsset
 
 		// Simulation objects
 		TUniquePtr<::Chaos::FClothingSimulationSolver> Solver;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		TArray<TUniquePtr<::Chaos::FClothingSimulationMesh>> Meshes;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		TArray<TUniquePtr<::Chaos::FClothingSimulationCloth>> Cloths;
 		TArray<TUniquePtr<::Chaos::FClothingSimulationConfig>> Configs;
 		TArray<TUniquePtr<::Chaos::FClothingSimulationCollider>> Colliders;

@@ -377,9 +377,7 @@ void FClothingSimulation::CreateActor(USkeletalMeshComponent* InOwnerComponent, 
 	// Create cloth runtime simulation object
 	const int32 ClothIndex = Cloths.Emplace(MakeUnique<FClothingSimulationCloth>(
 		Configs[ClothConfigIndex].Get(),
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		Meshes[MeshIndex].Get(),
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		TArray<FClothingSimulationCollider*>({ Colliders[ColliderIndex].Get() }),
 		InSimDataIndex));
 
@@ -535,8 +533,7 @@ void FClothingSimulation::Simulate(IClothingSimulationContext* InContext)
 		}
 
 		// Step the simulation
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS // Supporting deprecated CachedPositions instead of new CacheData
-		if(Solver->GetEnableSolver() || (!Context->CacheData.HasData() && Context->CachedPositions.Num() == 0))
+		if (Solver->GetEnableSolver() || !Context->CacheData.HasData())
 		{
 			Solver->Update(SmoothedDeltaTime);
 
@@ -547,17 +544,8 @@ void FClothingSimulation::Simulate(IClothingSimulationContext* InContext)
 		}
 		else
 		{
-			if (Context->CacheData.HasData())
-			{
-				Solver->UpdateFromCache(Context->CacheData);
-			}
-			else
-			{
-				check(Context->CachedPositions.Num());
-				Solver->UpdateFromCache(Context->CachedPositions, Context->CachedVelocities);
-			}
+			Solver->UpdateFromCache(Context->CacheData);
 		}
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// Keep the actual used number of iterations for the stats
 		NumIterations = Solver->GetNumUsedIterations();
@@ -640,9 +628,7 @@ void FClothingSimulation::GetSimulationData(
 		}
 
 		// If the LOD has changed while the simulation is suspended, the cloth still needs to be updated with the correct LOD data
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		const int32 LODIndex = Cloth->GetMesh()->GetLODIndex();
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		if (LODIndex != Cloth->GetLODIndex(Solver.Get()))
 		{
 			Solver->Update(FSolverReal(0.));  // Update for LOD switching, but do not simulate
@@ -722,9 +708,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// Set the current LOD these data apply to, so that the correct deformer mappings can be applied
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		Data.LODIndex = Cloth->GetMesh()->GetOwnerLODIndex(LODIndex);  // The owner component LOD index can be different to the cloth mesh LOD index
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
@@ -821,9 +805,7 @@ void FClothingSimulation::RefreshClothConfig(const IClothingSimulationContext* I
 		// Recreate cloth runtime simulation object
 		Cloth = MakeUnique<FClothingSimulationCloth>(
 			Config,
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 			Mesh,
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			MoveTemp(ClothColliders),
 			GroupId);
 

@@ -450,23 +450,6 @@ FClothingSimulationCollider::FClothingSimulationCollider(const UPhysicsAsset* In
 	}
 }
 
-FClothingSimulationCollider::FClothingSimulationCollider(
-	const UClothingAssetCommon* InAsset,
-	const USkeletalMeshComponent* /*InSkeletalMeshComponent*/,
-	bool /*bInUseLODIndexOverride*/,
-	int32 /*InLODIndexOverride*/)
-	: PhysicsAsset(InAsset->PhysicsAsset)
-	, ReferenceSkeleton(&CastChecked<USkeletalMesh>(InAsset->GetOuter())->GetRefSkeleton())
-{
-	// Prepare LOD array
-	const int32 NumLODs = InAsset ? InAsset->LodData.Num() : 0;
-	const int32 NumLODData = (int32)ECollisionDataType::LODs + NumLODs;
-	LODData.Reserve(NumLODData);
-	for (int32 Index = 0; Index < NumLODData; ++Index)
-	{
-		LODData.Add(MakeUnique<FLODData>());
-	}
-}
 
 FClothingSimulationCollider::~FClothingSimulationCollider()
 {

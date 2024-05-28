@@ -28,73 +28,12 @@ namespace Chaos
 			Density
 		};
 
-		UE_DEPRECATED(5.3, "ETetherMode has been replaced with bUseGeodesicTethers.")
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		typedef FClothConstraints::ETetherMode ETetherMode;
-CHAOSCLOTH_API PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-		FClothingSimulationCloth(
+		CHAOSCLOTH_API FClothingSimulationCloth(
 			FClothingSimulationConfig* InConfig,
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 			FClothingSimulationMesh* InMesh,
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			TArray<FClothingSimulationCollider*>&& InColliders,
 			uint32 InGroupId);
 
-		UE_DEPRECATED(5.2, "Use config based constructor instead.")
-		FClothingSimulationCloth(
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
-			FClothingSimulationMesh* InMesh,
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-			TArray<FClothingSimulationCollider*>&& InColliders,
-			uint32 InGroupId,
-			EMassMode InMassMode,
-			FRealSingle InMassValue,
-			FRealSingle InMinPerParticleMass,
-			const TVec2<FRealSingle>& InEdgeStiffness,
-			const TVec2<FRealSingle>& InBendingStiffness,
-			FRealSingle InBucklingRatio,
-			const TVec2<FRealSingle>& InBucklingStiffness,
-			bool bInUseBendingElements,
-			const TVec2<FRealSingle>& InAreaStiffness,
-			FRealSingle InVolumeStiffness,
-			bool bInUseThinShellVolumeConstraints,
-			const TVec2<FRealSingle>& InTetherStiffness,
-			const TVec2<FRealSingle>& InTetherScale,
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			ETetherMode InTetherMode,
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-			FRealSingle InMaxDistancesMultiplier,
-			const TVec2<FRealSingle>& InAnimDriveStiffness,
-			const TVec2<FRealSingle>& InAnimDriveDamping,
-			FRealSingle InShapeTargetStiffness,
-			bool bInUseXPBDEdgeConstraints,
-			bool bInUseXPBDBendingConstraints,
-			bool bInUseXPBDAreaConstraints,
-			FRealSingle InGravityScale,
-			bool bIsGravityOverridden,
-			const TVec3<FRealSingle>& InGravityOverride,
-			const TVec3<FRealSingle>& InLinearVelocityScale,
-			FRealSingle InAngularVelocityScale,
-			FRealSingle InFictitiousAngularScale,
-			const TVec2<FRealSingle>& InDrag,
-			const TVec2<FRealSingle>& InLift,
-			bool bInUsePointBasedWindModel,
-			const TVec2<FRealSingle>& InPressure,
-			FRealSingle InDampingCoefficient,
-			FRealSingle InLocalDampingCoefficient,
-			FRealSingle InCollisionThickness,
-			FRealSingle InFrictionCoefficient,
-			bool bInUseCCD,
-			bool bInUseSelfCollisions,
-			FRealSingle InSelfCollisionThickness,
-			FRealSingle InSelfCollisionFrictionCoefficient,
-			bool bInUseSelfIntersections,
-			bool bInUseLegacyBackstop,
-			bool bInUseLODIndexOverride,
-			int32 InLODIndexOverride,
-			const TVec2<FRealSingle>& EdgeDampingRatio = TVec2<FRealSingle>(0.f),
-			const TVec2<FRealSingle>& BendDampingRatio = TVec2<FRealSingle>(0.f));
 		CHAOSCLOTH_API ~FClothingSimulationCloth();
 
 		FClothingSimulationCloth(const FClothingSimulationCloth&) = delete;
@@ -110,38 +49,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// ---- Animatable property setters ----
 		void SetMaxDistancesMultiplier(FRealSingle InMaxDistancesMultiplier) { MaxDistancesMultiplier = InMaxDistancesMultiplier; }
-		UE_DEPRECATED(5.3, "Set properties directly through FClothingSimulationConfig")
-		CHAOSCLOTH_API void SetMaterialProperties(const TVec2<FRealSingle>& InEdgeStiffness, const TVec2<FRealSingle>& InBendingStiffness, const TVec2<FRealSingle>& InAreaStiffness);
-		UE_DEPRECATED(5.3, "Set properties directly through FClothingSimulationConfig")
-		CHAOSCLOTH_API void SetLongRangeAttachmentProperties(const TVec2<FRealSingle>& InTetherStiffness, const TVec2<FRealSingle>& InTetherScale);
-		UE_DEPRECATED(5.3, "Set properties directly through FClothingSimulationConfig")
-		CHAOSCLOTH_API void SetCollisionProperties(FRealSingle InCollisionThickness, FRealSingle InFrictionCoefficient, bool bInUseCCD, FRealSingle InSelfCollisionThickness);
-		UE_DEPRECATED(5.3, "Set properties directly through FClothingSimulationConfig")
-		CHAOSCLOTH_API void SetBackstopProperties(bool bInEnableBackstop);
-		UE_DEPRECATED(5.3, "Set properties directly through FClothingSimulationConfig")
-		CHAOSCLOTH_API void SetDampingProperties(FRealSingle InDampingCoefficient, FRealSingle InLocalDampingCoefficient = 0.f);
-		UE_DEPRECATED(5.3, "Set properties directly through FClothingSimulationConfig")
-		CHAOSCLOTH_API void SetAerodynamicsProperties(const TVec2<FRealSingle>& InDrag, const TVec2<FRealSingle>& InLift, FRealSingle InAirDensity, const FVec3& InWindVelocity);  // AirDensity is here in kg/cm^3 for legacy reason (kg/m^3 in UI)
-		UE_DEPRECATED(5.3, "Set properties directly through FClothingSimulationConfig")
-		CHAOSCLOTH_API void SetPressureProperties(const TVec2<FRealSingle>& InPressure);
-		UE_DEPRECATED(5.3, "Set properties directly through FClothingSimulationConfig")
-		CHAOSCLOTH_API void SetGravityProperties(FRealSingle InGravityScale, bool bInUseGravityOverride, const FVec3& InGravityOverride);
-		UE_DEPRECATED(5.3, "Set properties directly through FClothingSimulationConfig")
-		CHAOSCLOTH_API void SetAnimDriveProperties(const TVec2<FRealSingle>& InAnimDriveStiffness, const TVec2<FRealSingle>& InAnimDriveDamping);
-		UE_DEPRECATED(5.3, "Get properties directly through FClothingSimulationConfig")
-		CHAOSCLOTH_API void GetAnimDriveProperties(TVec2<FRealSingle>& OutAnimDriveStiffness, TVec2<FRealSingle>& OutAnimDriveDamping);
-		UE_DEPRECATED(5.3, "Set properties directly through FClothingSimulationConfig")
-		CHAOSCLOTH_API void SetVelocityScaleProperties(const FVec3& InLinearVelocityScale, FRealSingle InAngularVelocityScale, FRealSingle InFictitiousAngularScale);
 
 		void Reset() { bNeedsReset = true; }
 		void Teleport() { bNeedsTeleport = true; }
 		// ---- End of the animatable property setters ----
 
 		// ---- Node property getters/setters
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		FClothingSimulationMesh* GetMesh() const { return Mesh; }
 		CHAOSCLOTH_API void SetMesh(FClothingSimulationMesh* InMesh);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		FClothingSimulationConfig* GetConfig() const { return Config; }
 		CHAOSCLOTH_API void SetConfig(FClothingSimulationConfig* InConfig);
@@ -189,8 +104,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		CHAOSCLOTH_API TConstArrayView<int32> GetFaceIntMapByName(const FClothingSimulationSolver* Solver, const FString& Name) const;
 		// Return the face int map of the specified property name if it exists and is available on the current LOD, or an empty array view otherwise.
 		CHAOSCLOTH_API TConstArrayView<int32> GetFaceIntMapByProperty(const FClothingSimulationSolver* Solver, const FString& Property) const;
-		UE_DEPRECATED(5.3, "Returns an empty array from 5.3. Update your code with GetWeightMapByName and GetWeightMapByProperty to return the current LOD weight map instead.")
-		CHAOSCLOTH_API const TArray<TConstArrayView<FRealSingle>>& GetWeightMaps(const FClothingSimulationSolver* Solver) const;
 		// Return the current LOD tethers.
 		CHAOSCLOTH_API const TArray<TConstArrayView<TTuple<int32, int32, float>>>& GetTethers(const FClothingSimulationSolver* Solver) const;
 		// Return the reference bone index for this cloth.
@@ -218,9 +131,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		struct FLODData;
 
 		// Cloth parameters
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		FClothingSimulationMesh* Mesh = nullptr;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		FClothingSimulationConfig* Config = nullptr;
 		TArray<FClothingSimulationCollider*> Colliders;
 		uint32 GroupId = 0;

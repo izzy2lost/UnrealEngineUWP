@@ -108,8 +108,6 @@ namespace Chaos
 		void DebugDrawBendingConstraint(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawBendingConstraint(PDI); }
 		void DebugDrawLongRangeConstraint(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawLongRangeConstraint(PDI); }
 		void DebugDrawWindAndPressureForces(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawWindAndPressureForces(PDI); }
-		UE_DEPRECATED(5.1, "DebugDrawWindForces has been renamed DebugDrawWindAndPressureForces.")
-		void DebugDrawWindForces(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawWindAndPressureForces(PDI); }
 		void DebugDrawLocalSpace(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawLocalSpace(PDI); }
 		void DebugDrawSelfCollision(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawSelfCollision(PDI); }
 		void DebugDrawSelfIntersection(FPrimitiveDrawInterface* PDI = nullptr) const { Visualization.DrawSelfIntersection(PDI); }
@@ -129,9 +127,7 @@ namespace Chaos
 
 		// Simulation objects
 		TUniquePtr<FClothingSimulationSolver> Solver;  // Default solver
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		TArray<TUniquePtr<FClothingSimulationMesh>> Meshes;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		TArray<TUniquePtr<FClothingSimulationCloth>> Cloths;
 		TArray<TUniquePtr<FClothingSimulationCollider>> Colliders;
 		TArray<TUniquePtr<FClothingSimulationConfig>> Configs;

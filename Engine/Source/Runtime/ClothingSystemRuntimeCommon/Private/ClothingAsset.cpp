@@ -40,135 +40,6 @@ DEFINE_LOG_CATEGORY(LogClothingAsset)
 // ClothingAssetUtils
 //==============================================================================
 
-//Deprecated function
-void ClothingAssetUtils::GetMeshClothingAssetBindings(
-	USkeletalMesh* InSkelMesh, 
-	TArray<FClothingAssetMeshBinding>& OutBindings)
-{
-	OutBindings.Empty();
-
-	if(!InSkelMesh)
-	{
-		return;
-	}
-#if WITH_EDITORONLY_DATA
-	if (InSkelMesh->GetImportedModel())
-	{
-		int32 LODNum = InSkelMesh->GetImportedModel()->LODModels.Num();
-		for (int32 LODIndex = 0; LODIndex < LODNum; ++LODIndex)
-		{
-			if (InSkelMesh->GetImportedModel()->LODModels[LODIndex].HasClothData())
-			{
-				TArray<FClothingAssetMeshBinding> LodBindings;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				GetMeshClothingAssetBindings(InSkelMesh, LodBindings, LODIndex);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-				OutBindings.Append(LodBindings);
-			}
-		}
-		if (OutBindings.Num() > 0)
-		{
-			return;
-		}
-	}
-#endif
-
-	//Fallback on render data
-	if (FSkeletalMeshRenderData* Resource = InSkelMesh->GetResourceForRendering())
-	{
-		const int32 NumLods = Resource->LODRenderData.Num();
-
-		for (int32 LodIndex = 0; LodIndex < NumLods; ++LodIndex)
-		{
-			TArray<FClothingAssetMeshBinding> LodBindings;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			GetMeshClothingAssetBindings(InSkelMesh, LodBindings, LodIndex);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-			OutBindings.Append(LodBindings);
-		}
-	}
-}
-
-//Deprecated function
-void ClothingAssetUtils::GetMeshClothingAssetBindings(
-	USkeletalMesh* InSkelMesh, 
-	TArray<FClothingAssetMeshBinding>& OutBindings, 
-	int32 InLodIndex)
-{
-	OutBindings.Empty();
-
-	if(!InSkelMesh)
-	{
-		return;
-	}
-
-#if WITH_EDITORONLY_DATA
-	if (InSkelMesh->GetImportedModel())
-	{
-		int32 LODNum = InSkelMesh->GetImportedModel()->LODModels.Num();
-		if (InSkelMesh->GetImportedModel()->LODModels[InLodIndex].HasClothData())
-		{
-			TArray<FClothingAssetMeshBinding> LodBindings;
-			int32 SectionNum = InSkelMesh->GetImportedModel()->LODModels[InLodIndex].Sections.Num();
-			for (int32 SectionIndex = 0; SectionIndex < SectionNum; ++SectionIndex)
-			{
-				const FSkelMeshSection& Section = InSkelMesh->GetImportedModel()->LODModels[InLodIndex].Sections[SectionIndex];
-				if (Section.HasClothingData())
-				{
-					UClothingAssetBase* ClothingAsset = InSkelMesh->GetClothingAsset(Section.ClothingData.AssetGuid);
-					FClothingAssetMeshBinding ClothBinding;
-					ClothBinding.Asset = Cast<UClothingAssetCommon>(ClothingAsset);
-					ClothBinding.AssetInternalLodIndex = Section.ClothingData.AssetLodIndex;// InSkelMesh->GetClothingAssetIndex(Section.ClothingData.AssetGuid);
-					check(ClothBinding.AssetInternalLodIndex == Section.ClothingData.AssetLodIndex);
-					ClothBinding.LODIndex = InLodIndex;
-					ClothBinding.SectionIndex = SectionIndex;
-					OutBindings.Add(ClothBinding);
-				}
-			}
-		}
-
-		if (OutBindings.Num() > 0)
-		{
-			return;
-		}
-	}
-#endif
-
-	//Fallback on render data
-	if(FSkeletalMeshRenderData* Resource = InSkelMesh->GetResourceForRendering())
-	{
-		if(Resource->LODRenderData.IsValidIndex(InLodIndex))
-		{
-			FSkeletalMeshLODRenderData& LodData = Resource->LODRenderData[InLodIndex];
-
-			const int32 NumSections = LodData.RenderSections.Num();
-
-			for(int32 SectionIndex = 0; SectionIndex < NumSections; ++SectionIndex)
-			{
-				FSkelMeshRenderSection& Section = LodData.RenderSections[SectionIndex];
-
-				if(Section.HasClothingData())
-				{
-					UClothingAssetCommon* SectionAsset = Cast<UClothingAssetCommon>(InSkelMesh->GetSectionClothingAsset(InLodIndex, SectionIndex));
-
-					if(SectionAsset)
-					{
-						// This is the original section of a clothing section pair
-						OutBindings.AddDefaulted();
-						FClothingAssetMeshBinding& Binding = OutBindings.Last();
-
-						Binding.Asset = SectionAsset;
-						Binding.LODIndex = InLodIndex;
-						Binding.SectionIndex = SectionIndex;
-						Binding.AssetInternalLodIndex = Section.ClothingData.AssetLodIndex;
-					}
-				}
-			}
-		}
-	}
-}
-
 #if WITH_EDITOR
 void ClothingAssetUtils::GetAllMeshClothingAssetBindings(const USkeletalMesh* SkeletalMesh, TArray<FClothingAssetMeshBinding>& OutBindings)
 {
@@ -251,7 +122,6 @@ UClothingAssetCommon::UClothingAssetCommon(const FObjectInitializer& ObjectIniti
 	, ChaosClothSimConfig_DEPRECATED(nullptr)
 #endif
 	, ReferenceBoneIndex(0)
-	, CustomData(nullptr)  // Deprecated
 {
 }
 
@@ -466,13 +336,6 @@ bool UClothingAssetCommon::BindToSkeletalMesh(
 		SkelLod.RequiredBones.Sort();
 		InSkelMesh->GetRefSkeleton().EnsureParentsExistAndSort(SkelLod.ActiveBoneIndices);
 	}
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if(CustomData)  // Deprecated from 5.0 onward
-	{
-		CustomData->BindToSkeletalMesh(InSkelMesh, InMeshLodIndex, InSectionIndex, InAssetLodIndex);
-	}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// Make sure the LOD map is always big enough for the asset to use.
 	// This shouldn't grow to an unwieldy size but maybe consider compacting later.

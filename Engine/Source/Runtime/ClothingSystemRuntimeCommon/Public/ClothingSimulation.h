@@ -22,15 +22,10 @@ class FClothingSimulationContextCommon : public IClothingSimulationContext
 {
 public:
 	CLOTHINGSYSTEMRUNTIMECOMMON_API FClothingSimulationContextCommon();
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FClothingSimulationContextCommon(const FClothingSimulationContextCommon&) = default;
 	FClothingSimulationContextCommon& operator=(const FClothingSimulationContextCommon&) = default;
-	CLOTHINGSYSTEMRUNTIMECOMMON_API PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	virtual ~FClothingSimulationContextCommon() override;
-
-	UE_DEPRECATED(4.27, "Use the version with bIsInitialization instead.")
-	CLOTHINGSYSTEMRUNTIMECOMMON_API virtual void Fill(const USkeletalMeshComponent* InComponent, float InDeltaSeconds, float InMaxPhysicsDelta);
+	CLOTHINGSYSTEMRUNTIMECOMMON_API virtual ~FClothingSimulationContextCommon() override;
 
 	// Fill this context using the given skeletal mesh component
 	CLOTHINGSYSTEMRUNTIMECOMMON_API virtual void Fill(const USkeletalMeshComponent* InComponent, float InDeltaSeconds, float InMaxPhysicsDelta, bool bIsInitialization);
@@ -83,14 +78,6 @@ public:
 	
 	// Data read from the cache.
 	FClothingSimulationCacheData CacheData;
-
-	// World space cached positions for the kinematics targets.
-	UE_DEPRECATED(5.3, "Use CacheData.CachedPositions instead")
-	TArray<FVector> CachedPositions;
-
-	// World space cached velocities for the kinematics targets.
-	UE_DEPRECATED(5.3, "Use CacheData.CachedVelocities instead")
-	TArray<FVector> CachedVelocities;
 };
 
 // Base simulation to fill in common data for the base context

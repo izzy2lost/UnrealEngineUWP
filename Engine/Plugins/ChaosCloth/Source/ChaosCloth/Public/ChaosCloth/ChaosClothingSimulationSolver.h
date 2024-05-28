@@ -58,14 +58,8 @@ namespace Chaos
 		CHAOSCLOTH_API void SetWindVelocity(const TVec3<FRealSingle>& InWindVelocity, FRealSingle InLegacyWindAdaption = (FRealSingle)0.);
 		const TVec3<FRealSingle>& GetWindVelocity() const { return WindVelocity; }
 
-		UE_DEPRECATED(5.3, "Set properties directly through FClothingSimulationConfig")
-		CHAOSCLOTH_API void SetNumIterations(int32 InNumIterations);
 		CHAOSCLOTH_API int32 GetNumIterations() const;
-		UE_DEPRECATED(5.3, "Set properties directly through FClothingSimulationConfig")
-		CHAOSCLOTH_API void SetMaxNumIterations(int32 InMaxNumIterations);
 		CHAOSCLOTH_API int32 GetMaxNumIterations() const;
-		UE_DEPRECATED(5.3, "Set properties directly through FClothingSimulationConfig")
-		CHAOSCLOTH_API void SetNumSubsteps(int32 InNumSubsteps);
 		CHAOSCLOTH_API int32 GetNumSubsteps() const;
 
 		void SetEnableSolver(bool InbEnableSolver) { bEnableSolver = InbEnableSolver; }
@@ -103,8 +97,6 @@ namespace Chaos
 
 		/** Set the cached positions onto the particles */
 		CHAOSCLOTH_API void UpdateFromCache(const FClothingSimulationCacheData& CacheData);
-		UE_DEPRECATED(5.3, "Use UpdateFromCache(CacheData) instead")
-		CHAOSCLOTH_API void UpdateFromCache(const TArray<FVector>& CachedPositions, const TArray<FVector>& CachedVelocities);
 
 		// Return the actual of number of iterations used by the Evolution solver after the update (different from the number of iterations, depends on frame rate)
 		CHAOSCLOTH_API int32 GetNumUsedIterations() const;

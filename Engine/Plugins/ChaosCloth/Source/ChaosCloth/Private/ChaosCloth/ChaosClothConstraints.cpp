@@ -447,35 +447,6 @@ void FClothConstraints::Enable(bool bEnable)
 void FClothConstraints::AddRules(
 	const Softs::FCollectionPropertyConstFacade& ConfigProperties,
 	const FTriangleMesh& TriangleMesh,
-	const TArray<TConstArrayView<FRealSingle>>& WeightMapArray,
-	const TArray<TConstArrayView<TTuple<int32, int32, FRealSingle>>>& Tethers,
-	Softs::FSolverReal MeshScale,
-	bool bEnabled)
-{
-	// Build new weight map container from the old legacy weight map enum
-	TMap<FString, TConstArrayView<FRealSingle>> WeightMaps;
-
-	const UEnum* const ChaosWeightMapTargetEnum = StaticEnum<EChaosWeightMapTarget>();
-	const int32 NumWeightMaps = (int32)ChaosWeightMapTargetEnum->GetMaxEnumValue() + 1;
-
-	WeightMaps.Reserve(NumWeightMaps);
-
-	for (int32 EnumIndex = 0; EnumIndex < ChaosWeightMapTargetEnum->NumEnums(); ++EnumIndex)
-	{
-		const int32 TargetIndex = (int32)ChaosWeightMapTargetEnum->GetValueByIndex(EnumIndex);
-		const FString WeightMapName = ChaosWeightMapTargetEnum->GetNameByIndex(EnumIndex).ToString();
-
-		WeightMaps.Add(WeightMapName, WeightMapArray[TargetIndex]);
-	}
-
-	// Call new AddRules function
-	AddRules(ConfigProperties, TriangleMesh, nullptr, WeightMaps, TMap<FString, const TSet<int32>*>(), TMap<FString, const TSet<int32>*>(),
-		TMap<FString, TConstArrayView<int32>>(), Tethers, MeshScale, bEnabled);
-}
-
-void FClothConstraints::AddRules(
-	const Softs::FCollectionPropertyConstFacade& ConfigProperties,
-	const FTriangleMesh& TriangleMesh,
 	const FClothingPatternData* PatternData,
 	const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
 	const TArray<TConstArrayView<TTuple<int32, int32, FRealSingle>>>& Tethers,
@@ -2323,7 +2294,7 @@ void FClothConstraints::Update(
 	}
 }
 
-// Deprecated
+// Deprecated 5.4
 void FClothConstraints::Update(
 	const Softs::FCollectionPropertyConstFacade& ConfigProperties,
 	const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
@@ -2331,15 +2302,6 @@ void FClothConstraints::Update(
 	Softs::FSolverReal MaxDistancesScale)
 {
 	Update(ConfigProperties, WeightMaps, TMap<FString, const TSet<int32>*>(), TMap<FString, const TSet<int32>*>(), TMap<FString, TConstArrayView<int32>>(), MeshScale, MaxDistancesScale);
-}
-
-// Deprecated
-void FClothConstraints::Update(
-	const Softs::FCollectionPropertyConstFacade& ConfigProperties,
-	Softs::FSolverReal MeshScale,
-	Softs::FSolverReal MaxDistancesScale)
-{
-	Update(ConfigProperties, TMap<FString, TConstArrayView<FRealSingle>>(), TMap<FString, const TSet<int32>*>(), TMap<FString, const TSet<int32>*>(), TMap<FString, TConstArrayView<int32>>(), MeshScale, MaxDistancesScale);
 }
 
 }  // End namespace Chaos

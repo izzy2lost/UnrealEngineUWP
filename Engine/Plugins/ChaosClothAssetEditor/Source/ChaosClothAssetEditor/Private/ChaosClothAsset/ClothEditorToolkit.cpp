@@ -236,17 +236,13 @@ TSharedPtr<Dataflow::FEngineContext> FChaosClothAssetEditorToolkit::GetDataflowC
 
 const UDataflow* FChaosClothAssetEditorToolkit::GetDataflow() const
 {
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: Don't use public property, and have Getter/Setter API instead
-	return GetAsset()->DataflowAsset;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	return GetAsset()->GetDataflow();
 }
 
 
 UDataflow* FChaosClothAssetEditorToolkit::GetDataflow()
 {
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: Don't use public property, and have Getter/Setter API instead
-	return GetAsset()->DataflowAsset;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	return GetAsset()->GetDataflow();
 }
 
 //~ Begin FTickableEditorObject overrides
@@ -584,9 +580,7 @@ void FChaosClothAssetEditorToolkit::OnAssetsSavedAs(const TArray<UObject*>& Save
 
 	if (NewClothAsset && NewDataflowAsset)
 	{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: Don't use public property, and have Getter/Setter API instead
-		NewClothAsset->DataflowAsset = NewDataflowAsset;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		NewClothAsset->SetDataflow(NewDataflowAsset);
 
 		// Now save the new Cloth asset again since we've updated its Property
 		const TArray<UPackage*> PackagesToSave{NewClothAsset->GetOutermost()};

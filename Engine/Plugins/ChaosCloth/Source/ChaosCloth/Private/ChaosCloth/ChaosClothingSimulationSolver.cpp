@@ -520,9 +520,7 @@ void FClothingSimulationSolver::SetConfig(FClothingSimulationConfig* InConfig)
 	{
 		// Create a default empty config object for coherence
 		PropertyCollection = MakeShared<FManagedArrayCollection>();
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		Config = new FClothingSimulationConfig(PropertyCollection);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		Config = new FClothingSimulationConfig({ PropertyCollection });
 	}
 }
 
@@ -1296,14 +1294,6 @@ void FClothingSimulationSolver::SetWindVelocity(const TVec3<FRealSingle>& InWind
 	LegacyWindAdaption = InLegacyWindAdaption;
 }
 
-void FClothingSimulationSolver::SetNumIterations(int32 InNumIterations)
-{
-	if (ensure(Config))
-	{
-		Config->GetProperties(SolverLOD).SetValue(TEXT("NumIterations"), InNumIterations);
-	}
-}
-
 int32 FClothingSimulationSolver::GetNumIterations() const
 {
 	return Config ?
@@ -1311,27 +1301,11 @@ int32 FClothingSimulationSolver::GetNumIterations() const
 		ClothingSimulationSolverDefault::NumIterations;
 }
 
-void FClothingSimulationSolver::SetMaxNumIterations(int32 InMaxNumIterations)
-{
-	if (ensure(Config))
-	{
-		Config->GetProperties(SolverLOD).SetValue(TEXT("MaxNumIterations"), InMaxNumIterations);
-	}
-}
-
 int32 FClothingSimulationSolver::GetMaxNumIterations() const
 {
 	return Config ?
 		Config->GetProperties(SolverLOD).GetValue<int32>(TEXT("MaxNumIterations"), ClothingSimulationSolverDefault::MaxNumIterations) :
 		ClothingSimulationSolverDefault::MaxNumIterations;
-}
-
-void FClothingSimulationSolver::SetNumSubsteps(int32 InNumSubsteps)
-{
-	if (ensure(Config))
-	{
-		Config->GetProperties(SolverLOD).SetValue(TEXT("NumSubsteps"), InNumSubsteps);
-	}
 }
 
 int32 FClothingSimulationSolver::GetNumSubsteps() const
@@ -2066,26 +2040,6 @@ void FClothingSimulationSolver::UpdateFromCache(const FClothingSimulationCacheDa
 		Cloth->PostUpdate(this);
 	}, /*bForceSingleThreaded =*/ !bClothSolverParallelClothPostUpdate);
 
-}
-
-void FClothingSimulationSolver::UpdateFromCache(const TArray<FVector>& CachedPositions, const TArray<FVector>& CachedVelocities) 
-{
-	Chaos::Softs::FSolverParticles& SolverParticles = Evolution ? Evolution->GetParticles() : PBDEvolution->GetParticles();
-	const int32 NumParticles = GetNumParticles();
-	const bool bHasVelocity = CachedVelocities.Num() > 0;
-	if(CachedPositions.Num() == NumParticles)
-	{
-		for(int32 ParticleIndex = 0; ParticleIndex < NumParticles; ++ParticleIndex)
-		{
-			SolverParticles.X(ParticleIndex) = CachedPositions[ParticleIndex];
-			SolverParticles.V(ParticleIndex) = bHasVelocity ? CachedVelocities[ParticleIndex] : FVector::ZeroVector;
-		}
-	}
-	PhysicsParallelFor(Cloths.Num(), [this](int32 ClothIndex)
-	{
-		FClothingSimulationCloth* const Cloth = Cloths[ClothIndex];
-		Cloth->PostUpdate(this);
-	}, /*bForceSingleThreaded =*/ !bClothSolverParallelClothPostUpdate);
 }
 
 int32 FClothingSimulationSolver::GetNumUsedIterations() const

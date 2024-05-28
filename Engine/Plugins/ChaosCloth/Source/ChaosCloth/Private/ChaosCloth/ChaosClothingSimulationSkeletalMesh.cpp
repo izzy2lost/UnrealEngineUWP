@@ -9,11 +9,9 @@
 namespace Chaos
 {
 	FClothingSimulationSkeletalMesh::FClothingSimulationSkeletalMesh(const UClothingAssetCommon* InAsset, const USkeletalMeshComponent* InSkeletalMeshComponent)
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		: FClothingSimulationMesh(InSkeletalMeshComponent->GetOwner() ?
 				FString::Format(TEXT("{0}|{1}"), { InSkeletalMeshComponent->GetOwner()->GetName(), InSkeletalMeshComponent->GetName() }) :
 				InSkeletalMeshComponent->GetName())
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		, Asset(InAsset)
 		, SkeletalMeshComponent(InSkeletalMeshComponent)
 	{
@@ -70,7 +68,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			const FClothLODDataCommon& ClothLODData = Asset->LodData[LODIndex];
 			const FClothPhysicalMeshData& ClothPhysicalMeshData = ClothLODData.PhysicalMeshData;
-			return ClothPhysicalMeshData.Vertices;
+			return TConstArrayView<FVector3f>(ClothPhysicalMeshData.Vertices);
 		}
 		return TConstArrayView<FVector3f>();
 	}
@@ -86,7 +84,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			const FClothLODDataCommon& ClothLODData = Asset->LodData[LODIndex];
 			const FClothPhysicalMeshData& ClothPhysicalMeshData = ClothLODData.PhysicalMeshData;
-			return ClothPhysicalMeshData.Normals;
+			return TConstArrayView<FVector3f>(ClothPhysicalMeshData.Normals);
 		}
 		return TConstArrayView<FVector3f>();
 	}

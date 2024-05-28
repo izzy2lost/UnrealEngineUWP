@@ -141,10 +141,8 @@ namespace UE::Chaos::ClothAsset
 		const int32 MeshIndex = Meshes.Emplace(MakeUnique<FClothSimulationMesh>(*ClothSimulationModel, *ClothSimulationContext, DebugName));
 
 		// Create collider simulation thread object
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		const FReferenceSkeleton* const ReferenceSkeleton = &ClothAsset->GetRefSkeleton();
 		const int32 ColliderIndex = Colliders.Emplace(MakeUnique<FClothingSimulationCollider>(ClothComponent.GetPhysicsAsset(), ReferenceSkeleton));
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		Colliders[ColliderIndex]->SetCollisionData(&CollisionSourcesProxy->GetCollisionData());
 
 		// Create cloth config simulation thread object
@@ -155,9 +153,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		const int32 ClothIndex = Cloths.Emplace(MakeUnique<FClothingSimulationCloth>(
 			Configs[ClothConfigIndex].Get(),
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 			Meshes[MeshIndex].Get(),
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			ColliderIndex != INDEX_NONE ? TArray<FClothingSimulationCollider*>({ Colliders[ColliderIndex].Get() }) : TArray<FClothingSimulationCollider*>(),
 			GroupId));
 
@@ -416,9 +412,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 
 			// If the LOD has changed while the simulation is suspended, the cloth still needs to be updated with the correct LOD data
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 			const int32 LODIndex = Cloth->GetMesh()->GetLODIndex();
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			if (LODIndex != Cloth->GetLODIndex(Solver.Get()))
 			{
 				if (!ClothComponent.IsSimulationEnabled())
@@ -488,9 +482,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 			// If the LOD has changed while the simulation is suspended, the cloth still needs to be updated with the correct LOD data
 			// This should be handled by calling UpdateClothLODs when not ticking/simulating.
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 			const int32 LODIndex = Cloth->GetMesh()->GetLODIndex();
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			ensure(LODIndex == Cloth->GetLODIndex(Solver.Get()));
 
 			if (Cloth->GetParticleRangeId(Solver.Get()) == INDEX_NONE || Cloth->GetLODIndex(Solver.Get()) == INDEX_NONE)
@@ -555,9 +547,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 
 			// Set the current LOD these data apply to, so that the correct deformer mappings can be applied
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 			Data.LODIndex = Cloth->GetMesh()->GetOwnerLODIndex(LODIndex);  // The owner component LOD index can be different to the cloth mesh LOD index
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 

@@ -179,15 +179,13 @@ EAssetCommandResult UAssetDefinition_ClothAsset::OpenAssets(const FAssetOpenArgs
 
 		// Validate the asset
 		UChaosClothAsset* const ClothAsset = CastChecked<UChaosClothAsset>(ClothObjects[0]);
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: Don't use public property, and have Getter/Setter API instead
-		if (!ClothAsset->DataflowAsset)
+		if (!ClothAsset->GetDataflow())
 		{
 			if (UDataflow* const NewDataflowAsset = Cast<UDataflow>(ClothAssetDefinitionHelpers::NewOrOpenDataflowAsset(ClothAsset)))
 			{
-				ClothAsset->DataflowAsset = NewDataflowAsset;
+				ClothAsset->SetDataflow(NewDataflowAsset);
 			}
 		}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		TArray<TObjectPtr<UObject>> Objects;
 		for (UChaosClothAsset* const ClothObject : ClothObjects)

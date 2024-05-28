@@ -46,14 +46,6 @@ namespace Chaos
 		};
 
 		CHAOSCLOTH_API FClothingSimulationCollider(const UPhysicsAsset* InPhysicsAsset, const FReferenceSkeleton* InReferenceSkeleton);
-
-		UE_DEPRECATED(5.2, "Use FClothingSimulationCollider(const UPhysicsAsset* InPhysicsAsset, const FReferenceSkeleton* InReferenceSkeleton) instead.")
-		CHAOSCLOTH_API FClothingSimulationCollider(
-			const UClothingAssetCommon* InAsset,  // Cloth asset for collision data, can be nullptr
-			const USkeletalMeshComponent* InSkeletalMeshComponent,  // For asset LODs management, can be nullptr
-			bool bInUseLODIndexOverride,
-			int32 InLODIndexOverride);
-
 		CHAOSCLOTH_API ~FClothingSimulationCollider();
 
 		FClothingSimulationCollider(const FClothingSimulationCollider&) = delete;

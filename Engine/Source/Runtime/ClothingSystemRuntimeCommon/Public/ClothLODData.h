@@ -24,11 +24,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	UPROPERTY(EditAnywhere, Category = SimMesh)
 	FClothPhysicalMeshData PhysicalMeshData;
 
-	// Collision primitive and convex data for clothing collisions
-	UE_DEPRECATED(5.2, "This property is no longer supported. Use Physics Asset instead.")
-	UPROPERTY(EditAnywhere, Category = Collision, Meta = (DeprecatedProperty, DeprecationMessage = "This property is no longer supported. Use Physics Asset instead."))
-	FClothCollisionData CollisionData;
-
 	// Whether to use multiple triangles to interpolate from simulated cloth mesh to render mesh
 	UPROPERTY()
 	bool bUseMultipleInfluences = false;
@@ -42,7 +37,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	bool bSmoothTransition = false;
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY()
+	UE_DEPRECATED(all, "This property is no longer supported. Use a Physics Asset instead.")
+	UPROPERTY(Meta = (DeprecatedProperty, DeprecationMessage = "This property is no longer supported. Use a Physics Asset instead."))
+	FClothCollisionData CollisionData_DEPRECATED;
+
+	UE_DEPRECATED(5.5, "This property is no longer supported. Use PointWeightMaps instead.")
+	UPROPERTY(Meta = (DeprecatedProperty, DeprecationMessage = "This property is no longer supported. Use PointWeightMaps instead."))
 	TArray<FClothParameterMask_Legacy> ParameterMasks_DEPRECATED;
 
 	// Parameter masks defining the physics mesh masked data

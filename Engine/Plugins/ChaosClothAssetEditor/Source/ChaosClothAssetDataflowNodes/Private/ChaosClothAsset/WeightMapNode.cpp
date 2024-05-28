@@ -59,9 +59,7 @@ void FChaosClothAssetWeightMapNode::SetAssetValue(TObjectPtr<UObject> Asset, Dat
 
 	if (UChaosClothAsset* const ClothAsset = Cast<UChaosClothAsset>(Asset.Get()))
 	{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: Remove after adding the getter function (currently shelved!)  
-		if (UDataflow* const DataflowAsset = ClothAsset->DataflowAsset)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		if (UDataflow* const DataflowAsset = ClothAsset->GetDataflow())
 		{
 			const TSharedPtr<Dataflow::FGraph, ESPMode::ThreadSafe> Dataflow = DataflowAsset->GetDataflow();
 			if (const TSharedPtr<FDataflowNode> BaseNode = Dataflow->FindBaseNode(this->GetGuid()))  // This is basically a safe const_cast

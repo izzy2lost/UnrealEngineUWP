@@ -583,17 +583,6 @@ void UChaosClothAsset::CalculateBounds()
 	Bounds = FBoxSphereBounds(BoundingBox);
 }
 
-void UChaosClothAsset::UpdateSkeleton(bool bRebuildClothSimulationModel)
-{
-	CalculateInvRefMatrices();
-
-	if (bRebuildClothSimulationModel)
-	{
-		// Rebuild simulation model  // TODO: How does this work with skinning
-		BuildClothSimulationModel();
-	}
-}
-
 void UChaosClothAsset::Build(TArray<FChaosClothAssetLodTransitionDataCache>* InOutTransitionCache)
 {
 	using namespace UE::Chaos::ClothAsset;
@@ -1027,17 +1016,6 @@ void UChaosClothAsset::ReregisterComponents()
 				const FComponentReregisterContext Context(Component);  // Context goes out of scope, causing the Component to be re-registered
 			}
 		}
-	}
-}
-
-void UChaosClothAsset::BindSimMeshToRootBone()
-{
-	using namespace UE::Chaos::ClothAsset;
-	check(GetClothCollections().Num());
-
-	for (TSharedRef<FManagedArrayCollection>& ClothCollection : GetClothCollections())
-	{
-		FClothGeometryTools::BindMeshToRootBone(ClothCollection, true, false);
 	}
 }
 

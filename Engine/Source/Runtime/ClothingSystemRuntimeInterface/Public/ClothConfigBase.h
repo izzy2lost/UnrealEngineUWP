@@ -22,10 +22,6 @@ public:
 	CLOTHINGSYSTEMRUNTIMEINTERFACE_API UClothConfigBase();
 	CLOTHINGSYSTEMRUNTIMEINTERFACE_API virtual ~UClothConfigBase();
 
-	/** Return the self collision radius if building self collision indices is required for this config, or 0.f otherwise. */
-	UE_DEPRECATED(5.0, "Use NeedsSelfCollisionData and GetSelfCollisionRadius instead.")
-	virtual float NeedsSelfCollisionIndices() const { return NeedsSelfCollisionData() ? GetSelfCollisionRadius() : 0.f; }
-
 	/** Return wherether to pre-compute self collision data. */
 	CLOTHINGSYSTEMRUNTIMEINTERFACE_API virtual bool NeedsSelfCollisionData() const
 	PURE_VIRTUAL(UClothConfigBase::NeedsSelfCollisionData, return false;);

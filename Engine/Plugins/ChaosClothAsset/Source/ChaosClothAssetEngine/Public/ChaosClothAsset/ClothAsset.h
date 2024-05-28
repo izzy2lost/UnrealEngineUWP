@@ -176,31 +176,30 @@ public:
 	 */
 	void SetReferenceSkeleton(const FReferenceSkeleton* ReferenceSkeleton, bool bRebuildModels = true, bool bRebindMeshes = true);
 
-	/** Set the bone hierachy to use for this cloth. */
-	UE_DEPRECATED(5.3, "Use SetReferenceSkeleton(const FReferenceSkeleton*, bool, bool) instead")
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	void SetReferenceSkeleton(const FReferenceSkeleton& InReferenceSkeleton, bool bRebuildClothSimulationModel = true) { GetRefSkeleton() = InReferenceSkeleton; UpdateSkeleton(bRebuildClothSimulationModel); }
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	/** Set the skinning weights for all of the sim vertices to be bound to the root node of the reference skeleton. */
-	UE_DEPRECATED(5.3, "Use FClothGeometryTools::BindMeshToRootBone or SetReferenceSkeleton(const FReferenceSkeleton*, bool, bool) instead.")
-	void BindSimMeshToRootBone();
-
 	const FPerQualityLevelInt& GetQualityLevelMinLod() const { return MinQualityLevelLOD; }
 	void SetQualityLevelMinLod(FPerQualityLevelInt InMinLod) { MinQualityLevelLOD = MoveTemp(InMinLod); }
 	static void OnLodStrippingQualityLevelChanged(IConsoleVariable* Variable);
 
-	//
-	// Dataflow
-	//
-	UE_DEPRECATED(5.3, "Do not use. Will be made private in 5.4")
-	UPROPERTY(EditAnywhere, Category = "Dataflow")
-	TObjectPtr<UDataflow> DataflowAsset;
+	/**
+	 * Set the Dataflow graph asset for this cloth asset.
+	 * @param InDataflow The new dataflow asset.
+	 */
+	void SetDataflow(UDataflow* InDataflow) { DataflowAsset = InDataflow; }
 
-	UE_DEPRECATED(5.3, "Do not use. Will be made private in 5.4")
-	UPROPERTY(EditAnywhere, Category = "Dataflow")
-	FString DataflowTerminal = "ClothAssetTerminal";
+	/** Return the Dataflow graph asset associated to this cloth asset if any. */
+	UDataflow* GetDataflow() { return DataflowAsset; }
 
+	/** Return the Dataflow graph asset associated to this cloth asset if any, const version. */
+	const UDataflow* GetDataflow() const { return DataflowAsset; }
+
+	/**
+	 * Set the name of the Dataflow terminal node for this cloth asset.
+	 * @param InDataflowTerminal The new name of the Dataflow terminal node.
+	 */
+	void SetDataflowTerminal(const FString& InDataflowTerminal) { DataflowTerminal = InDataflowTerminal; }
+
+	/** Return the Dataflow graph asset associated to this cloth asset if any. */
+	const FString& GetDataflowTerminal() const { return DataflowTerminal; }
 
 #if WITH_EDITORONLY_DATA
 
@@ -213,6 +212,14 @@ public:
 #endif
 
 private:
+	/** Dataflow asset. */
+	UPROPERTY(EditAnywhere, Category = "Dataflow")
+	TObjectPtr<UDataflow> DataflowAsset;
+
+	/** Dataflow Asset terminal node. */
+	UPROPERTY(EditAnywhere, Category = "Dataflow")
+	FString DataflowTerminal = "ClothAssetTerminal";
+
 	//~ Begin USkinnedAsset interface
 	/** Initial step for the Post Load process - Can't be done in parallel. */
 	virtual void BeginPostLoadInternal(FSkinnedAssetPostLoadContext& Context) override;
@@ -235,10 +242,6 @@ private:
 
 	/** Re-calculate the bounds for this asset. */
 	void CalculateBounds();
-
-	/** Update the bone informations after a change of skeleton. */
-	UE_DEPRECATED(5.3, "Use Build() instead")
-	void UpdateSkeleton(bool bRebuildClothSimulationModel = true);
 
 #if WITH_EDITOR
 	/** Build the SkeletalMeshLODModel for this asset. */

@@ -195,10 +195,8 @@ void FClothingSimulationCloth::FLODData::AddParticles(FClothingSimulationSolver*
 
 	const FTriangleMesh& TriangleMesh = Solver->IsLegacySolver() ? SolverDatum.OffsetTriangleMesh : NoOffsetTriangleMesh;
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 	// Update source mesh for this LOD, this is required prior to reset the start pose
 	Cloth->Mesh->Update(Solver, INDEX_NONE, InLODIndex, 0, SolverDatum.ParticleRangeId);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// Reset the particles start pose before setting up mass and constraints
 	ResetStartPose(Solver);
@@ -272,10 +270,8 @@ void FClothingSimulationCloth::FLODData::Add(FClothingSimulationSolver* Solver, 
 	check(SolverDatum.ParticleRangeId != INDEX_NONE);
 	const int32 ParticleRangeId = SolverDatum.ParticleRangeId;
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 	// Retrieve the component's scale
 	const Softs::FSolverReal MeshScale = Cloth->Mesh->GetScale();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	const FTriangleMesh& TriangleMesh = Solver->IsLegacySolver() ? SolverDatum.OffsetTriangleMesh : NoOffsetTriangleMesh;
 
@@ -364,9 +360,7 @@ void FClothingSimulationCloth::FLODData::Update(FClothingSimulationSolver* Solve
 	FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
 
 	check(Cloth->Config);
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 	const Softs::FSolverReal MeshScale = Cloth->Mesh->GetScale();
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	const Softs::FSolverReal MaxDistancesScale = (Softs::FSolverReal)Cloth->MaxDistancesMultiplier;
 	ClothConstraints.Update(Cloth->Config->GetProperties(SolverDatum.LODIndex), WeightMaps, VertexSets, FaceSets, FaceIntMaps, MeshScale, MaxDistancesScale);
 }
@@ -409,240 +403,12 @@ void FClothingSimulationCloth::FLODData::UpdateNormals(FClothingSimulationSolver
 
 FClothingSimulationCloth::FClothingSimulationCloth(
 	FClothingSimulationConfig* InConfig,
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 	FClothingSimulationMesh* InMesh,
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	TArray<FClothingSimulationCollider*>&& InColliders,
 	uint32 InGroupId)
 	: GroupId(InGroupId)
 {
 	SetConfig(InConfig);
-	SetMesh(InMesh);
-	SetColliders(MoveTemp(InColliders));
-}
-
-FClothingSimulationCloth::FClothingSimulationCloth(
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
-	FClothingSimulationMesh* InMesh,
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	TArray<FClothingSimulationCollider*>&& InColliders,
-	uint32 InGroupId,
-	EMassMode InMassMode,
-	FRealSingle InMassValue,
-	FRealSingle InMinPerParticleMass,
-	const TVec2<FRealSingle>& InEdgeStiffness,
-	const TVec2<FRealSingle>& InBendingStiffness,
-	FRealSingle InBucklingRatio,
-	const TVec2<FRealSingle>& InBucklingStiffness,
-	bool bInUseBendingElements,
-	const TVec2<FRealSingle>& InAreaStiffness,
-	FRealSingle /*InVolumeStiffness*/,  // Deprecated
-	bool /*bInUseThinShellVolumeConstraints*/,  // Deprecated
-	const TVec2<FRealSingle>& InTetherStiffness,
-	const TVec2<FRealSingle>& InTetherScale,
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	ETetherMode InTetherMode,
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	FRealSingle InMaxDistancesMultiplier,
-	const TVec2<FRealSingle>& InAnimDriveStiffness,
-	const TVec2<FRealSingle>& InAnimDriveDamping,
-	FRealSingle /*InShapeTargetStiffness*/,  // Deprecated
-	bool bInUseXPBDEdgeConstraints,
-	bool bInUseXPBDBendingConstraints,
-	bool /*bInUseXPBDAreaConstraints*/,  // Deprecated
-	FRealSingle InGravityScale,
-	bool bInUseGravityOverride,
-	const TVec3<FRealSingle>& InGravityOverride,
-	const TVec3<FRealSingle>& InLinearVelocityScale,
-	FRealSingle InAngularVelocityScale,
-	FRealSingle InFictitiousAngularScale,
-	const TVec2<FRealSingle>& InDrag,
-	const TVec2<FRealSingle>& InLift,
-	bool bInUsePointBasedWindModel,
-	const TVec2<FRealSingle>& InPressure,
-	FRealSingle InDampingCoefficient,
-	FRealSingle InLocalDampingCoefficient,
-	FRealSingle InCollisionThickness,
-	FRealSingle InFrictionCoefficient,
-	bool bInUseCCD,
-	bool bInUseSelfCollisions,
-	FRealSingle InSelfCollisionThickness,
-	FRealSingle InSelfCollisionFrictionCoefficient,
-	bool bInUseSelfIntersections,
-	bool bInUseLegacyBackstop,
-	bool bInUseLODIndexOverride, 
-	int32 InLODIndexOverride,
-	const TVec2<FRealSingle>& InEdgeDampingRatio,
-	const TVec2<FRealSingle>& InBendingDampingRatio)
-	: GroupId(InGroupId)
-	, PropertyCollection(MakeShared<FManagedArrayCollection>())
-	, bUseLODIndexOverride(bInUseLODIndexOverride)
-	, LODIndexOverride(InLODIndexOverride)
-{
-	// Turn parameters into a config
-	Softs::FCollectionPropertyMutableFacade Properties(PropertyCollection);
-	Properties.DefineSchema();
-
-	constexpr bool bEnable = true;
-	constexpr bool bAnimatable = true;
-	
-	// Mass
-	{
-		Properties.AddValue(TEXT("MassMode"), (int32)InMassMode);
-		Properties.AddValue(TEXT("MassValue"), InMassValue);
-		Properties.AddValue(TEXT("MinPerParticleMass"), InMinPerParticleMass);
-	}
-	
-	// Edge constraint
-	if (InEdgeStiffness[0] > 0.f || InEdgeStiffness[1] > 0.f)
-	{
-		const int32 EdgeSpringStiffnessIndex = Properties.AddProperty(TEXT("EdgeSpringStiffness"), bEnable, bAnimatable);
-		Properties.SetWeightedValue(EdgeSpringStiffnessIndex, InEdgeStiffness[0], InEdgeStiffness[1]);
-		Properties.SetStringValue(EdgeSpringStiffnessIndex, TEXT("EdgeStiffness"));
-	}
-	
-	// Bending constraint
-	if (InBendingStiffness[0] > 0.f || InBendingStiffness[1] > 0.f ||
-		(bInUseBendingElements && (InBucklingStiffness[0] > 0.f || InBucklingStiffness[1] > 0.f)))
-	{
-		if (bInUseBendingElements)
-		{
-			const int32 BendingElementStiffnessIndex = Properties.AddProperty(TEXT("BendingElementStiffness"), bEnable, bAnimatable);
-			Properties.SetWeightedValue(BendingElementStiffnessIndex, InBendingStiffness[0], InBendingStiffness[1]);
-			Properties.SetStringValue(BendingElementStiffnessIndex, TEXT("BendingStiffness"));
-
-			Properties.AddValue(TEXT("BucklingRatio"), InBucklingRatio);
-
-			if (InBucklingStiffness[0] > 0.f || InBucklingStiffness[1] > 0.f)
-			{
-				const int32 BucklingStiffnessIndex = Properties.AddProperty(TEXT("BucklingStiffness"), bEnable, bAnimatable);
-				Properties.SetWeightedValue(BucklingStiffnessIndex, InBucklingStiffness[0], InBucklingStiffness[1]);
-				Properties.SetStringValue(BucklingStiffnessIndex, TEXT("BucklingStiffness"));
-			}
-		}
-		else  // Not using bending elements
-		{
-			const int32 BendingSpringStiffnessIndex = Properties.AddProperty(TEXT("BendingSpringStiffness"), bEnable, bAnimatable);
-			Properties.SetWeightedValue(BendingSpringStiffnessIndex, InBendingStiffness[0], InBendingStiffness[1]);
-			Properties.SetStringValue(BendingSpringStiffnessIndex, TEXT("BendingStiffness"));
-		}
-	}
-
-	// Area constraint
-	if (InAreaStiffness[0] > 0.f || InAreaStiffness[1] > 0.f)
-	{
-		const int32 AreaSpringStiffnessIndex = Properties.AddProperty(TEXT("AreaSpringStiffness"), bEnable, bAnimatable);
-		Properties.SetWeightedValue(AreaSpringStiffnessIndex, InAreaStiffness[0], InAreaStiffness[1]);
-		Properties.SetStringValue(AreaSpringStiffnessIndex, TEXT("AreaStiffness"));
-	}
-
-	// Long range attachment
-	if (InTetherStiffness[0] > 0.f || InTetherStiffness[1] > 0.f)
-	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		const bool bUseGeodesicTethers = InTetherMode == ETetherMode::Geodesic;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		Properties.AddValue(TEXT("UseGeodesicTethers"), bUseGeodesicTethers);
-
-		const int32 TetherStiffnessIndex = Properties.AddProperty(TEXT("TetherStiffness"), bEnable , bAnimatable);
-		Properties.SetWeightedValue(TetherStiffnessIndex, InTetherStiffness[0], InTetherStiffness[1]);
-		Properties.SetStringValue(TetherStiffnessIndex, TEXT("TetherStiffness"));
-	
-		const int32 TetherScaleIndex = Properties.AddProperty(TEXT("TetherScale"), bEnable, bAnimatable);
-		Properties.SetWeightedValue(TetherScaleIndex, InTetherScale[0], InTetherScale[1]);
-		Properties.SetStringValue(TetherScaleIndex, TEXT("TetherScale"));
-	}
-
-	// AnimDrive
-	if (InAnimDriveStiffness[0] > 0.f || InAnimDriveStiffness[1] > 0.f)
-	{
-		const int32 AnimDriveStiffnessIndex = Properties.AddProperty(TEXT("AnimDriveStiffness"), bEnable, bAnimatable);
-		Properties.SetWeightedValue(AnimDriveStiffnessIndex, InAnimDriveStiffness[0], InAnimDriveStiffness[1]);
-		Properties.SetStringValue(AnimDriveStiffnessIndex, TEXT("AnimDriveStiffness"));
-
-		const int32 AnimDriveDampingIndex = Properties.AddProperty(TEXT("AnimDriveDamping"), bEnable, bAnimatable);
-		Properties.SetWeightedValue(AnimDriveDampingIndex, InAnimDriveDamping[0], InAnimDriveDamping[1]);
-		Properties.SetStringValue(AnimDriveDampingIndex, TEXT("AnimDriveDamping"));
-	}
-
-	// Gravity
-	{
-		Properties.AddValue(TEXT("GravityScale"), InGravityScale, bEnable, bAnimatable);
-		Properties.AddValue(TEXT("UseGravityOverride"), bInUseGravityOverride, bEnable, bAnimatable);
-		Properties.AddValue(TEXT("GravityOverride"), FVector3f(InGravityOverride), bEnable, bAnimatable);
-	}
-
-	// Velocity scale
-	{
-		Properties.AddValue(TEXT("LinearVelocityScale"), FVector3f(InLinearVelocityScale), bEnable, bAnimatable);
-		Properties.AddValue(TEXT("AngularVelocityScale"), InAngularVelocityScale, bEnable, bAnimatable);
-		Properties.AddValue(TEXT("FictitiousAngularScale"), InFictitiousAngularScale, bEnable, bAnimatable);
-	}
-
-	// Aerodynamics
-	Properties.AddValue(TEXT("UsePointBasedWindModel"), bInUsePointBasedWindModel);
-	if (!bInUsePointBasedWindModel && (InDrag[0] > 0.f || InDrag[1] > 0.f || InLift[0] > 0.f || InLift[1] > 0.f))
-	{
-		const int32 DragIndex = Properties.AddProperty(TEXT("Drag"), bEnable, bAnimatable);
-		Properties.SetWeightedValue(DragIndex, InDrag[0], InDrag[1]);
-		Properties.SetStringValue(DragIndex, TEXT("Drag"));
-
-		const int32 LiftIndex = Properties.AddProperty(TEXT("Lift"), bEnable, bAnimatable);
-		Properties.SetWeightedValue(LiftIndex, InLift[0], InLift[1]);
-		Properties.SetStringValue(LiftIndex, TEXT("Lift"));
-
-		Properties.AddValue(TEXT("FluidDensity"), ClothingSimulationClothDefault::AirDensity, bEnable, bAnimatable);
-
-		Properties.AddValue(TEXT("WindVelocity"), FVector3f(0.f), bEnable, bAnimatable);  // Wind velocity must exist to be animatable
-	}
-
-	// Pressure
-	if (InPressure[0] != 0.f || InPressure[1] != 0.f)
-	{
-		const int32 PressureIndex = Properties.AddProperty(TEXT("Pressure"), bEnable, bAnimatable);
-		Properties.SetWeightedValue(PressureIndex, InPressure[0], InPressure[1]);
-		Properties.SetStringValue(PressureIndex, TEXT("Pressure"));
-	}
-
-	// Damping
-	Properties.AddValue(TEXT("DampingCoefficient"), InDampingCoefficient, bEnable, bAnimatable);
-	Properties.AddValue(TEXT("LocalDampingCoefficient"), InLocalDampingCoefficient, bEnable, bAnimatable);
-
-	// Collision
-	Properties.AddValue(TEXT("CollisionThickness"), InCollisionThickness, bEnable, bAnimatable);
-	Properties.AddValue(TEXT("FrictionCoefficient"), InFrictionCoefficient, bEnable, bAnimatable);
-	Properties.AddValue(TEXT("UseCCD"), bInUseCCD, bEnable, bAnimatable);
-	Properties.AddValue(TEXT("UseSelfCollisions"), bInUseSelfCollisions);
-	Properties.AddValue(TEXT("SelfCollisionThickness"), InSelfCollisionThickness);
-	Properties.AddValue(TEXT("SelfCollisionFrictionCoefficient"), InSelfCollisionFrictionCoefficient);
-	Properties.AddValue(TEXT("UseSelfIntersections"), bInUseSelfIntersections);
-	Properties.AddValue(TEXT("SelfCollideAgainstAllKinematicVertices"), true); // Match legacy behavior
-
-	// Max distance
-	{
-		const int32 MaxDistanceIndex = Properties.AddProperty(TEXT("MaxDistance"));
-		Properties.SetWeightedValue(MaxDistanceIndex, 0.f, 1.f);  // Backward compatibility with legacy mask must use a unit range since the multiplier is in the mask
-		Properties.SetStringValue(MaxDistanceIndex, TEXT("MaxDistance"));
-	}
-
-	// Backstop
-	{
-		const int32 BackstopScaleIndex = Properties.AddProperty(TEXT("BackstopDistance"));
-		Properties.SetWeightedValue(BackstopScaleIndex, 0.f, 1.f);  // Backward compatibility with legacy mask must use a unit range since the multiplier is in the mask
-		Properties.SetStringValue(BackstopScaleIndex, TEXT("BackstopDistance"));
-
-		const int32 BackstopRadiusIndex = Properties.AddProperty(TEXT("BackstopRadius"));
-		Properties.SetWeightedValue(BackstopRadiusIndex, 0.f, 1.f);  // Backward compatibility with legacy mask must use a unit range since the multiplier is in the mask
-		Properties.SetStringValue(BackstopRadiusIndex, TEXT("BackstopRadius"));
-
-		Properties.AddValue(TEXT("UseLegacyBackstop"), bInUseLegacyBackstop);
-	}
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	Config = new FClothingSimulationConfig(PropertyCollection);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	// Set mesh and colliders
 	SetMesh(InMesh);
 	SetColliders(MoveTemp(InColliders));
 }
@@ -656,7 +422,6 @@ FClothingSimulationCloth::~FClothingSimulationCloth()
 	}
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 void FClothingSimulationCloth::SetMesh(FClothingSimulationMesh* InMesh)
 {
 	Mesh = InMesh;
@@ -711,7 +476,6 @@ void FClothingSimulationCloth::SetMesh(FClothingSimulationMesh* InMesh)
 		Solver->RefreshCloth(this);
 	}
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FClothingSimulationCloth::SetConfig(FClothingSimulationConfig* InConfig)
 {
@@ -730,9 +494,7 @@ void FClothingSimulationCloth::SetConfig(FClothingSimulationConfig* InConfig)
 	{
 		// Create a default empty config object for coherence
 		PropertyCollection = MakeShared<FManagedArrayCollection>();
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		Config = new FClothingSimulationConfig(PropertyCollection); 
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		Config = new FClothingSimulationConfig({ PropertyCollection });
 	}
 }
 
@@ -948,14 +710,6 @@ const FTriangleMesh& FClothingSimulationCloth::GetTriangleMesh(const FClothingSi
 	return LODData.IsValidIndex(LODIndex) ? (Solver->IsLegacySolver() ? LODData[LODIndex]->SolverData.FindChecked(Solver).OffsetTriangleMesh: LODData[LODIndex]->NoOffsetTriangleMesh) : EmptyTriangleMesh;
 }
 
-
-// Deprecated for 5.3
-const TArray<TConstArrayView<FRealSingle>>& FClothingSimulationCloth::GetWeightMaps(const FClothingSimulationSolver* Solver) const
-{
-	static const TArray<TConstArrayView<FRealSingle>> EmptyWeightMaps;
-	return EmptyWeightMaps;  // Can't return a reference anymore, so returning an empty weightmap array is probably the safest for existing code
-}
-
 TConstArrayView<FRealSingle> FClothingSimulationCloth::GetWeightMapByName(const FClothingSimulationSolver* Solver, const FString& Name) const
 {
 	const int32 LODIndex = LODIndices.FindChecked(Solver);
@@ -1003,9 +757,7 @@ const TArray<TConstArrayView<TTuple<int32, int32, float>>>& FClothingSimulationC
 
 int32 FClothingSimulationCloth::GetReferenceBoneIndex() const
 {
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 	return Mesh ? Mesh->GetReferenceBoneIndex() : INDEX_NONE;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void FClothingSimulationCloth::PreUpdate(FClothingSimulationSolver* Solver)
@@ -1043,13 +795,11 @@ void FClothingSimulationCloth::Update(FClothingSimulationSolver* Solver)
 	int32& LODIndex = LODIndices.FindChecked(Solver);  // Must be added to solver first
 
 	const int32 PrevLODIndex = LODIndex;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 	LODIndex = bUseLODIndexOverride && LODData.IsValidIndex(LODIndexOverride) ? LODIndexOverride : Mesh->GetLODIndex();
 
 	// Update reference space transform from the mesh's reference bone transform  TODO: Add override in the style of LODIndexOverride
 	const FRigidTransform3 OldReferenceSpaceTransform = ReferenceSpaceTransform;
 	ReferenceSpaceTransform = Mesh->GetReferenceBoneTransform();
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	ReferenceSpaceTransform.SetScale3D(FVec3(1.f));
 
 	// Update Cloth Colliders
@@ -1070,9 +820,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return;
 	}
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 	Mesh->Update(Solver, PrevLODIndex, LODIndex, PrevParticleRangeId, ParticleRangeId);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// Retrieve config
 	check(Config);
@@ -1083,10 +831,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	if (CoarseLODIndex != INDEX_NONE)
 	{
 		LODData[CoarseLODIndex]->Enable(Solver, true);
-PRAGMA_DISABLE_DEPRECATION_WARNINGS 
 		// TODO: interpolate/ reset when LOD switching to enable multires
 		Mesh->Update(Solver, CoarseLODIndex, CoarseLODIndex, CoarseParticleRangeId, CoarseParticleRangeId);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	// LOD Switching
@@ -1114,9 +860,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			NumActiveDynamicParticles = LODData[LODIndex]->NumDynamicParticles;
 
 			// Wrap new LOD based on previous LOD if possible (can only do 1 level LOD at a time, and if previous LOD exists)
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 			bNeedsReset = bNeedsReset || !Mesh->WrapDeformLOD(
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				PrevLODIndex,
 				LODIndex,
 				Solver->GetNormals(PrevParticleRangeId),
@@ -1227,9 +971,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			Solver->SetWindVelocity(GroupId, WindVelocity + Solver->GetWindVelocity());
 
 			// Update general solver properties
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 			const Softs::FSolverReal MeshScale = Mesh->GetScale();
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 			const FRealSingle DampingCoefficient = ConfigProperties.GetValue<float>(TEXT("DampingCoefficient"), ClothingSimulationClothDefault::DampingCoefficient);
 			const FRealSingle LocalDampingCoefficient = ConfigProperties.GetValue<float>(TEXT("LocalDampingCoefficient"));
@@ -1335,77 +1077,4 @@ TConstArrayView<Softs::FSolverReal> FClothingSimulationCloth::GetParticleInvMass
 	check(GetParticleRangeId(Solver, LODIndex) != INDEX_NONE);
 	return TConstArrayView<Softs::FSolverReal>(Solver->GetParticleInvMasses(GetParticleRangeId(Solver, LODIndex)), GetNumParticles(LODIndex));
 }
-
-void FClothingSimulationCloth::SetMaterialProperties(const TVec2<FRealSingle>& InEdgeStiffness, const TVec2<FRealSingle>& InBendingStiffness, const TVec2<FRealSingle>& InAreaStiffness)
-{
-	Config->GetProperties().SetWeightedFloatValue(TEXT("EdgeSpringStiffness"), FVector2f(InEdgeStiffness));
-	Config->GetProperties().SetWeightedFloatValue(TEXT("BendingSpringStiffness"), FVector2f(InBendingStiffness));
-	Config->GetProperties().SetWeightedFloatValue(TEXT("AreaSpringStiffness"), FVector2f(InAreaStiffness));
-}
-
-void FClothingSimulationCloth::SetLongRangeAttachmentProperties(const TVec2<FRealSingle>& InTetherStiffness, const TVec2<FRealSingle>& InTetherScale)
-{
-	Config->GetProperties().SetWeightedFloatValue(TEXT("TetherStiffness"), FVector2f(InTetherStiffness));
-	Config->GetProperties().SetWeightedFloatValue(TEXT("TetherScale"), FVector2f(InTetherScale));
-}
-
-void FClothingSimulationCloth::SetCollisionProperties(FRealSingle InCollisionThickness, FRealSingle InFrictionCoefficient, bool bInUseCCD, FRealSingle InSelfCollisionThickness)
-{
-	Config->GetProperties().SetValue(TEXT("CollisionThickness"), (float)InCollisionThickness);
-	Config->GetProperties().SetValue(TEXT("FrictionCoefficient"), (float)InFrictionCoefficient);
-	Config->GetProperties().SetValue(TEXT("UseCCD"), bInUseCCD);
-	Config->GetProperties().SetValue(TEXT("SelfCollisionThickness"), (float)InSelfCollisionThickness);
-}
-
-void FClothingSimulationCloth::SetBackstopProperties(bool bInEnableBackstop)
-{
-	Config->GetProperties().SetEnabled(TEXT("BackstopRadius"), bInEnableBackstop);  // BackstopRadius controls whether the backstop is enabled or not
-}
-
-void FClothingSimulationCloth::SetDampingProperties(FRealSingle InDampingCoefficient, FRealSingle InLocalDampingCoefficient)
-{
-	Config->GetProperties().SetValue(TEXT("DampingCoefficient"), (float)InDampingCoefficient);
-	Config->GetProperties().SetValue(TEXT("LocalDampingCoefficient"), (float)InLocalDampingCoefficient);
-}
-
-void FClothingSimulationCloth::SetAerodynamicsProperties(const TVec2<FRealSingle>& InDrag, const TVec2<FRealSingle>& InLift, FRealSingle InAirDensity, const FVec3& InWindVelocity)
-{
-	constexpr float WorldScale = 100.f;  // Interactor values are setup in engine scale, kg/cm^3 for air density and cm/s for wind velocity, but the properties are stored in kg/m^3 and m/s in the UI.
-	Config->GetProperties().SetWeightedFloatValue(TEXT("Drag"), FVector2f(InDrag));
-	Config->GetProperties().SetWeightedFloatValue(TEXT("Lift"), FVector2f(InLift));
-	Config->GetProperties().SetValue(TEXT("FluidDensity"), (float)InAirDensity * FMath::Cube(WorldScale));
-	Config->GetProperties().SetValue(TEXT("WindVelocity"), FVector3f(InWindVelocity) / WorldScale);
-}
-
-void FClothingSimulationCloth::SetPressureProperties(const TVec2<FRealSingle>& InPressure)
-{
-	Config->GetProperties().SetWeightedFloatValue(TEXT("Pressure"), FVector2f(InPressure));
-}
-
-void FClothingSimulationCloth::SetGravityProperties(FRealSingle InGravityScale, bool bInUseGravityOverride, const FVec3& InGravityOverride)
-{
-	Config->GetProperties().SetValue(TEXT("GravityScale"), (float)InGravityScale);
-	Config->GetProperties().SetValue(TEXT("UseGravityOverride"), bInUseGravityOverride);
-	Config->GetProperties().SetValue(TEXT("GravityOverride"), FVector3f(InGravityOverride));
-}
-
-void FClothingSimulationCloth::SetAnimDriveProperties(const TVec2<FRealSingle>& InAnimDriveStiffness, const TVec2<FRealSingle>& InAnimDriveDamping)
-{
-	Config->GetProperties().SetWeightedFloatValue(TEXT("AnimDriveStiffness"), FVector2f(InAnimDriveStiffness));
-	Config->GetProperties().SetWeightedFloatValue(TEXT("AnimDriveDamping"), FVector2f(InAnimDriveDamping));
-}
-
-void FClothingSimulationCloth::GetAnimDriveProperties(TVec2<FRealSingle>& OutAnimDriveStiffness, TVec2<FRealSingle>& OutAnimDriveDamping)
-{
-	OutAnimDriveStiffness = TVec2<FRealSingle>(Config->GetProperties().GetWeightedFloatValue(TEXT("AnimDriveStiffness")));
-	OutAnimDriveDamping = TVec2<FRealSingle>(Config->GetProperties().GetWeightedFloatValue(TEXT("AnimDriveDamping")));
-}
-
-void FClothingSimulationCloth::SetVelocityScaleProperties(const FVec3& InLinearVelocityScale, FRealSingle InAngularVelocityScale, FRealSingle InFictitiousAngularScale)
-{
-	Config->GetProperties().SetValue(TEXT("LinearVelocityScale"), FVector3f(InLinearVelocityScale));
-	Config->GetProperties().SetValue(TEXT("AngularVelocityScale"), (float)InAngularVelocityScale);
-	Config->GetProperties().SetValue(TEXT("FictitiousAngularScale"), (float)InFictitiousAngularScale);
-}
-
 }  // End namespace Chaos

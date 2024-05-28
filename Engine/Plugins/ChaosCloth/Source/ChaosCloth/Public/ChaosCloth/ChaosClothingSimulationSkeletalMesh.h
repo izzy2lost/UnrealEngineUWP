@@ -8,30 +8,20 @@ class UClothingAssetCommon;
 
 namespace Chaos
 {
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 	class FClothingSimulationSkeletalMesh final : public FClothingSimulationMesh
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 	public:
 		FClothingSimulationSkeletalMesh(const UClothingAssetCommon* InAsset, const USkeletalMeshComponent* InSkeletalMeshComponent);
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
 		virtual ~FClothingSimulationSkeletalMesh() override = default;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		FClothingSimulationSkeletalMesh(const FClothingSimulationSkeletalMesh&) = delete;
 		FClothingSimulationSkeletalMesh(FClothingSimulationSkeletalMesh&&) = delete;
 		FClothingSimulationSkeletalMesh& operator=(const FClothingSimulationSkeletalMesh&) = delete;
 		FClothingSimulationSkeletalMesh& operator=(FClothingSimulationSkeletalMesh&&) = delete;
 
-#if !defined(CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT) || !CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
-		virtual const UClothingAssetCommon* GetAsset() const override { return Asset; }
-PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_ABSTRACT
-		virtual const USkeletalMeshComponent* GetSkeletalMeshComponent() const override { return SkeletalMeshComponent; }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-#else
 		const UClothingAssetCommon* GetAsset() const { return Asset; }
-		const USkeletalMeshComponent* GetSkeletalMeshComponent() const { return Cast<USkeletalMeshComponent>(GetSkinnedMeshComponent()); }
-#endif
+		const USkeletalMeshComponent* GetSkeletalMeshComponent() const { return SkeletalMeshComponent; }
+
 		//~ Begin FClothingSimulationMesh Interface
 		virtual int32 GetNumLODs() const override;
 		virtual int32 GetLODIndex() const override;
@@ -46,11 +36,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		virtual TConstArrayView<uint32> GetPatternIndices(int32 LODIndex) const override;
 		virtual TConstArrayView<uint32> GetPatternToWeldedIndices(int32 LODIndex) const override;
 		virtual TArray<FName> GetWeightMapNames(int32 LODIndex) const override;
-		UE_DEPRECATED(5.3, "Use LODIndex version.")
-		virtual TArray<FName> GetWeightMapNames() const override { return GetWeightMapNames(0); }
 		virtual TMap<FString, int32> GetWeightMapIndices(int32 LODIndex) const override;
-		UE_DEPRECATED(5.3, "Use LODIndex version.")
-		virtual TMap<FString, int32> GetWeightMapIndices() const override { return GetWeightMapIndices(0); }
 		virtual TArray<TConstArrayView<FRealSingle>> GetWeightMaps(int32 LODIndex) const override;
 		virtual TMap<FString, const TSet<int32>*> GetVertexSets(int32 LODIndex) const override;
 		virtual TMap<FString, const TSet<int32>*> GetFaceSets(int32 LODIndex) const override;

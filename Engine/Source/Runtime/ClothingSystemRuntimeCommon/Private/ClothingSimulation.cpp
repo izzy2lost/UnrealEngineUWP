@@ -47,13 +47,6 @@ FClothingSimulationContextCommon::~FClothingSimulationContextCommon()
 {}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-void FClothingSimulationContextCommon::Fill(const USkeletalMeshComponent* InComponent, float InDeltaSeconds, float InMaxPhysicsDelta)
-{
-	// Deprecated version always fills RefToLocals with current animation results instead of using reference pose on initialization
-	const bool bIsInitialization = false;
-	Fill(InComponent, InDeltaSeconds, InMaxPhysicsDelta, bIsInitialization);
-}
-
 void FClothingSimulationContextCommon::Fill(const USkeletalMeshComponent* InComponent, float InDeltaSeconds, float InMaxPhysicsDelta, bool bIsInitialization)
 {
 	SCOPE_CYCLE_COUNTER(STAT_ClothFillContext);
