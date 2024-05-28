@@ -996,7 +996,10 @@ TArray<uint16> ULandscapeComponent::RenderWPOHeightmap(int32 LOD)
 
 void ULandscapeComponent::RemoveGrassMap()
 {
-	*GrassData = FLandscapeComponentGrassData();
+	// this does a thread safe replacement of the existing grassdata with a newly allocated empty (invalid) one
+	// this ensures if anyone else is accessing the old grassdata (while holding a shared ref to it), it won't be modified or deleted
+	// this is also important for PIE, which can share grassdatas with editor
+	GrassData = MakeShared<FLandscapeComponentGrassData>();
 
 #if WITH_EDITOR
 	GrassData->bIsDirty = true;
@@ -1665,6 +1668,8 @@ void FLandscapeComponentGrassData::ConditionalDiscardDataOnLoad()
 		// If all grass types have been removed, discard the height data too.
 		if (WeightOffsets.Num() == 0)
 		{
+			// NOTE: this is NOT thread safe, as we are overwriting the existing grassdata here
+			// However if it is only performed on load, then we can assume no async tasks are holding shared refs to this yet.
 			*this = FLandscapeComponentGrassData();
 			NumElements = 0;
 		}

@@ -272,7 +272,7 @@ ULandscapeComponent::ULandscapeComponent(const FObjectInitializer& ObjectInitial
 	, SplineHash(0)
 	, PhysicalMaterialHash(0)
 #endif
-	, GrassData(MakeShareable(new FLandscapeComponentGrassData()))
+	, GrassData(MakeShared<FLandscapeComponentGrassData>())
 	, ChangeTag(0)
 {
 	SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
@@ -967,8 +967,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 			else
 			{
-			Ar << GrassData.Get();
-		}
+				// technically on load this is doing a thread-unsafe operation by stomping the data in the existing ref
+				// but we're assuming there are no async threads using this pointer yet at load...
+				Ar << GrassData.Get();
+			}
 		}
 
 		// When loading or saving a component, validate that grass data is valid : 
@@ -4106,8 +4108,7 @@ void ALandscapeProxy::PostLoad()
 					*GetName());
 
 				// Free the memory, so at least we will save the space at runtime.
-				TUniquePtr<FLandscapeComponentGrassData> NewGrassData = MakeUnique<FLandscapeComponentGrassData>();
-				Comp->GrassData = MakeShareable(NewGrassData.Release());
+				Comp->GrassData = MakeShared<FLandscapeComponentGrassData>();
 			}
 		}
 #endif // !WITH_EDITOR
