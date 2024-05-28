@@ -49,6 +49,11 @@ public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 	/// <inheritdoc/>
 	public async Task<WorkspaceMaterializerSettings> InitializeAsync(ILogger logger, CancellationToken cancellationToken)
 	{
+		if (_workspace != null)
+		{
+			throw new WorkspaceMaterializationException("Materializer initialized twice");
+		}
+
 		using IScope scope = CreateTraceSpan("ManagedWorkspaceMaterializer.InitializeAsync");
 
 		ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(_agentWorkspace);
