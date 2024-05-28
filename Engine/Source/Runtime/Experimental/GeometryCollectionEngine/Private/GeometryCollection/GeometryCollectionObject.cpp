@@ -11,7 +11,6 @@
 #include "UObject/DestructionObjectVersion.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
-#include "UObject/ObjectSaveContext.h"
 #include "Serialization/ArchiveCountMem.h"
 #include "HAL/IConsoleManager.h"
 #include "Interfaces/ITargetPlatform.h"
@@ -1028,9 +1027,7 @@ void UGeometryCollection::Serialize(FArchive& Ar)
 #if WITH_EDITOR
 		if (Ar.IsSaving() && !Ar.IsTransacting())
 		{
-			constexpr bool bAllowCopyFromDDC = false;
-			constexpr bool bIsTransacting = false; // the surrounding if statement garantees that 
-			EnsureSimulationDataIsCooked(bIsTransacting, bAllowCopyFromDDC);
+			EnsureDataIsCooked(false /*bInitResources*/, Ar.IsTransacting(), Ar.IsPersistent(), false /*bAllowCopyFromDDC*/);
 		}
 #endif
 		if (Ar.IsLoading() || Ar.IsCountingMemory())
@@ -1258,8 +1255,7 @@ void UGeometryCollection::Serialize(FArchive& Ar)
  	if (Ar.IsLoading())
 	{
 		// note: don't allow copy from DDC here, since we've already loaded the data above, and the DDC data does not include any data migrations performed by the load
-		constexpr bool bAllowCopyFromDDC = false;
-		EnsureSimulationDataIsCooked(Ar.IsTransacting(), bAllowCopyFromDDC);
+		EnsureDataIsCooked(true /*bInitResources*/, Ar.IsTransacting(), Ar.IsPersistent(), false /*bAllowCopyFromDDC*/);
 	}
 #endif
 
@@ -1867,13 +1863,6 @@ bool UGeometryCollection::Modify(bool bAlwaysMarkDirty /*= true*/)
 
 void UGeometryCollection::EnsureDataIsCooked(bool bInitResources, bool bIsTransacting, bool bIsPersistant, bool bAllowCopyFromDDC)
 {
-	EnsureSimulationDataIsCooked(bIsTransacting, bAllowCopyFromDDC);
-
-	EnsureRenderDataIsCooked(bInitResources);
-}
-
-void UGeometryCollection::EnsureSimulationDataIsCooked(bool bIsTransacting, bool bAllowCopyFromDDC = true)
-{
 	if (StateGuid != LastBuiltSimulationDataGuid)
 	{
 		CreateSimulationDataImp(/*bCopyFromDDC=*/ bAllowCopyFromDDC && !bIsTransacting);
@@ -1897,14 +1886,15 @@ void UGeometryCollection::EnsureSimulationDataIsCooked(bool bIsTransacting, bool
 			CacheMaterialDensity();
 		}
 	}
-}
 
-void UGeometryCollection::EnsureRenderDataIsCooked(bool bInitResources)
-{
-	// Render data only goes through DDC when loading and saving ( called from OnPostLoad / OnSave  )
+	// Render data only goes through DDC when loading and saving (bIsPersistant).
 	// Using DDC during edits isn't worth it especially as we use a continually mutating guid instead of a state hash.
 	// That ensures that all edits are cache misses (slow) and unnecessarily fill up DDC disk space.
-	if (StateGuid != LastBuiltRenderDataGuid)
+	// TODO: SimulationData currently relies on these calls to update reliably, so we still need to use DDC for edits.
+	//       We could make CreateSimulationData() be reliably called for all edits and then only use DDC for loading and saving.
+	//       If we do that we can combine CreateSimulationDataImp() with CreateRenderDataImp() and FDerivedDataGeometryCollectionCooker
+	//       with FDerivedDataGeometryCollectionRenderDataCooker.
+	if (bIsPersistant && StateGuid != LastBuiltRenderDataGuid)
 	{
 		CreateRenderDataImp(/*bCopyFromDDC=*/ bInitResources);
 
@@ -1915,31 +1905,21 @@ void UGeometryCollection::EnsureRenderDataIsCooked(bool bInitResources)
 				RenderData->InitResources(*this);
 			}
 		}
-
+	
 		LastBuiltRenderDataGuid = StateGuid;
 	}
 }
-
 #endif
-
-void UGeometryCollection::PreSave(FObjectPreSaveContext SaveContext)
-{
-#if WITH_EDITOR
-	constexpr bool bInitResources = false; 
-	EnsureRenderDataIsCooked(bInitResources);
-#endif
-
-	Super::PreSave(SaveContext);
-}
 
 void UGeometryCollection::PostLoad()
 {
 	Super::PostLoad();
 
-#if WITH_EDITOR
-	constexpr bool bInitResources = true;
-	EnsureRenderDataIsCooked(bInitResources);
-#endif
+	// Initialize rendering resources.
+	if (FApp::CanEverRender())
+	{
+		InitResources();
+	}
 
 #if WITH_EDITORONLY_DATA
 	if (!RootProxy_DEPRECATED.IsNull())
