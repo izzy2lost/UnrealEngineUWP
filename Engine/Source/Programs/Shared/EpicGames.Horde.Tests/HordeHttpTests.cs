@@ -58,7 +58,7 @@ public class FakeServerWithAuth : HttpMessageHandler
 	{
 		return new StubHttpClientFactory(() => new HttpClient(this) { BaseAddress = new Uri(ServerUrl) });
 	}
-	
+
 	/// <inheritdoc/>
 	protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 	{
@@ -129,14 +129,14 @@ public class HordeHttpAuthHandlerTests
 			builder.AddSimpleConsole(options => { options.SingleLine = true; });
 		});
 
-		ILogger<HordeHttpAuthHandler> logger = loggerFactory.CreateLogger<HordeHttpAuthHandler>();
+		ILogger<HordeHttpAuthHandlerState> logger = loggerFactory.CreateLogger<HordeHttpAuthHandlerState>();
 		OptionsWrapper<HordeOptions> options = new (hordeOptions ?? new HordeOptions());
 		InMemoryTokenStore inMemoryTokenStore = new ();
-		HordeHttpAuthHandlerState state = new (server.GetHttpClientFactory(), options, logger, inMemoryTokenStore, oidcTokenManager);
-		HordeHttpAuthHandler authHandler = new (state, options);
+		HordeHttpAuthHandlerState state = new HordeHttpAuthHandlerState(server, new Uri("http://fake-server"), options, logger, inMemoryTokenStore, oidcTokenManager);
+		HordeHttpAuthHandler authHandler = new HordeHttpAuthHandler(server, state, options);
 
 		authHandler.InnerHandler = server;
-		HttpClient client = new (authHandler);
+		HttpClient client = new(authHandler);
 		return (client, server);
 	}
 	

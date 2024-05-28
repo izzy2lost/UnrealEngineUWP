@@ -22,7 +22,6 @@ using Microsoft.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
-using Polly.Extensions.Http;
 using Polly.Retry;
 using Polly.Timeout;
 
@@ -78,8 +77,8 @@ namespace EpicGames.Horde
 			{
 #pragma warning disable CA2000 // Call dispose on httpMessageHandler (disposed by child handlers)
 				httpMessageHandler = new SocketsHttpHandler();
-				httpMessageHandler = new PolicyHttpMessageHandler(request => CreateDefaultTimeoutRetryPolicy(request)){ InnerHandler = httpMessageHandler };
-				httpMessageHandler = new PolicyHttpMessageHandler(request => CreateDefaultTransientErrorPolicy(request)){ InnerHandler = httpMessageHandler };
+				httpMessageHandler = new PolicyHttpMessageHandler(request => CreateDefaultTimeoutRetryPolicy(request)) { InnerHandler = httpMessageHandler };
+				httpMessageHandler = new PolicyHttpMessageHandler(request => CreateDefaultTransientErrorPolicy(request)) { InnerHandler = httpMessageHandler };
 #pragma warning restore CA2000
 				return httpMessageHandler;
 			}
