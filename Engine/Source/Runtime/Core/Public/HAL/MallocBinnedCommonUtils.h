@@ -74,7 +74,7 @@ public:
 
 		// Process thread-local memory caches from as many threads as possible without waking them up.
 		// Skip on desktop as we may have too many threads and this could cause some hitches.
-		if (!PLATFORM_DESKTOP)
+		if (!PLATFORM_DESKTOP && GMallocBinnedFlushRegisteredThreadCachesOnOneThread != 0)
 		{
 			FScopeLock Lock(&Allocator.GetMutex());
 			FScopeLock FreeBlockLock(&AllocType::GetFreeBlockListsRegistrationMutex());

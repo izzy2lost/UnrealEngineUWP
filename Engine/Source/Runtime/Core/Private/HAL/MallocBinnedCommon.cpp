@@ -530,6 +530,12 @@ static FAutoConsoleVariableRef GMallocBinnedFlushThreadCacheMaxWaitTimeCVar(
 	ECVF_ReadOnly
 );
 
+int32 GMallocBinnedFlushRegisteredThreadCachesOnOneThread = 1;
+static FAutoConsoleVariableRef GMallocBinnedFlushRegisteredThreadCachesOnOneThreadCVar(
+	TEXT("MallocBinned.FlushRegisteredThreadCachesOnOneThread"),
+	GMallocBinnedFlushRegisteredThreadCachesOnOneThread,
+	TEXT("Wether or not to attempt to flush registered thread caches on one thread (enabled by default)."));
+
 #if UE_BINNEDCOMMON_ALLOW_RUNTIME_TWEAKING
 
 int32 GMallocBinnedBundleSize = DEFAULT_GMallocBinnedBundleSize;

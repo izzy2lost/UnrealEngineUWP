@@ -181,6 +181,7 @@ extern CORE_API int32 GMallocBinnedBundleCount;
 #endif
 
 extern CORE_API float GMallocBinnedFlushThreadCacheMaxWaitTime;
+extern CORE_API int32 GMallocBinnedFlushRegisteredThreadCachesOnOneThread;
 
 class FMallocBinnedCommonBase : public FMalloc
 {
