@@ -237,11 +237,11 @@ protected:
 	bool HasUserBeenInvited(const USocialUser& User) const;
 	
 	bool CanPromoteMember(const UPartyMember& PartyMember) const;
-	bool CanKickMember(const UPartyMember& PartyMember) const;
+	virtual bool CanKickMember(const UPartyMember& PartyMember) const;
 	
 	bool TryInviteUser(const USocialUser& UserToInvite, const ESocialPartyInviteMethod InviteMethod = ESocialPartyInviteMethod::Other, const FString& MetaData = FString());
 	bool TryPromoteMember(const UPartyMember& PartyMember);
-	bool TryKickMember(const UPartyMember& PartyMember);
+	virtual bool TryKickMember(const UPartyMember& PartyMember);
 	//--------------------------
 
 protected:
