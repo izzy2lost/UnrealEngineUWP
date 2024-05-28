@@ -10002,6 +10002,10 @@ void FBlueprintEditor::OnNodeTitleCommitted(const FText& NewText, ETextCommit::T
 		const FScopedTransaction Transaction( NSLOCTEXT( "K2_RenameNode", "RenameNode", "Rename Node" ) );
 		NodeBeingChanged->Modify();
 		NodeBeingChanged->OnRenameNode(NewText.ToString());
+		if (BookmarksWidget.IsValid())
+		{
+			BookmarksWidget->RefreshBookmarksTree();
+		}
 	}
 }
 
