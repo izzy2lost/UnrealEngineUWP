@@ -756,14 +756,14 @@ bool FTimingProfilerManager::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 					// Default: -startTime=-infinite
 					// Example: -startTime=10.0
 					Token.RightChopInline(UE_ARRAY_COUNT(StartTimeToken) - 1);
-					Params.IntervalStartTime = atof(TCHAR_TO_ANSI(*Token));
+					Params.IntervalStartTime = FCString::Atof(*Token);
 				}
 				else if (Token.StartsWith(EndTimeToken))
 				{
 					// Default: -endTime=+infinite
 					// Example: -endTime=20.0
 					Token.RightChopInline(UE_ARRAY_COUNT(EndTimeToken) - 1);
-					Params.IntervalEndTime = atof(TCHAR_TO_ANSI(*Token));
+					Params.IntervalEndTime = FCString::Atof(*Token);
 				}
 				else if (Token.StartsWith(RegionToken))
 				{
@@ -857,14 +857,14 @@ bool FTimingProfilerManager::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 					// Default: -startTime=-infinite
 					// Example: -startTime=10.0
 					Token.RightChopInline(UE_ARRAY_COUNT(StartTimeToken) - 1);
-					Params.IntervalStartTime = atof(TCHAR_TO_ANSI(*Token));
+					Params.IntervalStartTime = FCString::Atof(*Token);
 				}
 				else if (Token.StartsWith(EndTimeToken))
 				{
 					// Default: -endTime=+infinite
 					// Example: -endTime=20.0
 					Token.RightChopInline(UE_ARRAY_COUNT(EndTimeToken) - 1);
-					Params.IntervalEndTime = atof(TCHAR_TO_ANSI(*Token));
+					Params.IntervalEndTime = FCString::Atof(*Token);
 				}
 				else if (Token.StartsWith(RegionToken))
 				{
@@ -961,14 +961,14 @@ bool FTimingProfilerManager::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 					// Default: -startTime=-infinite
 					// Example: -startTime=10.0
 					Token.RightChopInline(UE_ARRAY_COUNT(StartTimeToken) - 1);
-					Params.IntervalStartTime = atof(TCHAR_TO_ANSI(*Token));
+					Params.IntervalStartTime = FCString::Atof(*Token);
 				}
 				else if (Token.StartsWith(EndTimeToken))
 				{
 					// Default: -endTime=+infinite
 					// Example: -endTime=20.0
 					Token.RightChopInline(UE_ARRAY_COUNT(EndTimeToken) - 1);
-					Params.IntervalEndTime = atof(TCHAR_TO_ANSI(*Token));
+					Params.IntervalEndTime = FCString::Atof(*Token);
 				}
 				else if (Token.StartsWith(RegionToken))
 				{
