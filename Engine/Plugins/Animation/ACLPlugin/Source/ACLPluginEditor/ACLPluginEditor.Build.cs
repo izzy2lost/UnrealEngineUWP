@@ -11,9 +11,6 @@ namespace UnrealBuildTool.Rules
 		{
 			CppStandard = CppStandardVersion.Cpp17;
 
-			// Replace with PCHUsageMode.UseExplicitOrSharedPCHs when this plugin can compile with cpp20
-			PCHUsage = PCHUsageMode.NoPCHs;
-
 			string ACLSDKDir = Path.GetFullPath(Path.Combine(ModuleDirectory, "../ThirdParty"));
 
 			PublicIncludePaths.Add(Path.Combine(ModuleDirectory, "Public"));

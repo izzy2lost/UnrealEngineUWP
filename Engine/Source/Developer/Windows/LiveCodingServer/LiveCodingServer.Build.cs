@@ -9,9 +9,6 @@ public class LiveCodingServer : ModuleRules
 	{
 		CppStandard = CppStandardVersion.Cpp17;
 
-		// Replace with PCHUsageMode.UseExplicitOrSharedPCHs when this plugin can compile with cpp20
-		PCHUsage = PCHUsageMode.NoPCHs;
-
 		PrivateDependencyModuleNames.Add("Core");
         PrivateDependencyModuleNames.Add("Json");
         PrivateDependencyModuleNames.Add("LiveCoding");

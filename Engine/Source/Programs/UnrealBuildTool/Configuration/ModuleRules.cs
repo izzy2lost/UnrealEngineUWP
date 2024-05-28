@@ -763,7 +763,13 @@ namespace UnrealBuildTool
 		{
 			get
 			{
-				if (PCHUsagePrivate.HasValue)
+				if (((CppStandard.HasValue && CppStandard < Target.CppStandardEngine) || (Target.CppStandard < Target.CppStandardEngine))
+					&& (!PCHUsagePrivate.HasValue || PCHUsagePrivate == PCHUsageMode.UseSharedPCHs || PCHUsagePrivate == PCHUsageMode.UseExplicitOrSharedPCHs))
+				{
+					// SharedPCH is disallowed for modules that compile against an older CppStandard than the engine
+					return PrivatePCHHeaderFile != null ? PCHUsageMode.NoSharedPCHs : PCHUsageMode.NoPCHs;
+				}
+				else if (PCHUsagePrivate.HasValue)
 				{
 					// Use the override
 					return PCHUsagePrivate.Value;
