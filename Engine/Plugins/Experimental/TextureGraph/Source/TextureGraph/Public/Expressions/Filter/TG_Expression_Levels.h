@@ -79,13 +79,16 @@ class TEXTUREGRAPH_API UTG_Expression_Levels : public UTG_Expression
 
 	TSharedPtr<FLevels> 				LevelsControl;
 
-public:
+public:	
+	virtual void						PostLoad() override;
 #if WITH_EDITOR
 	virtual void 						PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 
 	// Used to implement EditCondition logic for both Node UI and Details View
 	virtual bool						CanEditChange(const FProperty* InProperty) const override;
 #endif
+
+
 
 	TG_DECLARE_EXPRESSION(TG_Category::Adjustment);
 	virtual void						Evaluate(FTG_EvaluationContext* InContext) override;

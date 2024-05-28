@@ -90,23 +90,33 @@ bool FTG_LevelsSettings::SetMidFromMidExponent(float InExponent)
 }
 
 
-
+void UTG_Expression_Levels::PostLoad()
+{
+	// Restore LevelsSettings inner struct from saved values
+	Levels.Low = (LowValue);
+	Levels.High = (HighValue);
+	Levels.Mid = (MidValue);
+}
 
 #if WITH_EDITOR
 
 void UTG_Expression_Levels::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	// First catch if Material changes
+	// Catch if any of low / mid / high changes do the proper range check and feedback final values
+	// Low
 	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, LowValue))
 	{
 		SetLowValue(LowValue);
-		FeedbackPinValue(GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, MidValue), MidValue);
 	}
-	// Second catch if AttributeName changes
+	// High
 	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, HighValue))
 	{
 		SetHighValue(HighValue);
-		FeedbackPinValue(GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, MidValue), MidValue);
+	}
+	// Mid
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, MidValue))
+	{
+		SetMidValue(MidValue);
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -157,7 +167,6 @@ void UTG_Expression_Levels::SetLowValue(float InValue)
 	else
 	{
 		LowValue = Levels.Low;
-		FeedbackPinValue(GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, LowValue), LowValue);
 	}
 }
 
@@ -170,7 +179,6 @@ void UTG_Expression_Levels::SetMidValue(float InValue)
 	else
 	{
 		MidValue = Levels.Mid;
-		FeedbackPinValue(GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, MidValue), MidValue);
 	}
 }
 
@@ -185,7 +193,6 @@ void UTG_Expression_Levels::SetHighValue(float InValue)
 	else
 	{
 		HighValue = Levels.High;
-		FeedbackPinValue(GET_MEMBER_NAME_CHECKED(UTG_Expression_Levels, HighValue), HighValue);
 	}
 }
 

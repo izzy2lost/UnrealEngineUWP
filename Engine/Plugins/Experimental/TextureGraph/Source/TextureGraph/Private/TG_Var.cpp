@@ -150,8 +150,8 @@ void Generic_Simple_Serializer(FTG_Var::VarPropertySerialInfo& Info)
 
 	if (Info.CopyVarToProperty)
 	{
-		TProperty->SetPropertyValue(TProperty->template ContainerPtrToValuePtr<T_ValueType>(Info.Owner, Info.ClampedIndex()), VarValue);
-		//TProperty->SetValue_InContainer(Info.Owner, VarValue);
+		// This calls the Setter method if the UProperty has a Setter
+		TProperty->SetValue_InContainer(Info.Owner, VarValue);
 	}
 	else
 		Info.Var->EditAs<T_ValueType>() = TProperty->GetPropertyValue(TProperty->template ContainerPtrToValuePtr<T_ValueType>(Info.Owner, Info.ClampedIndex()));
