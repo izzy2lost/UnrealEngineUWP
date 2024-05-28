@@ -34,6 +34,7 @@
 #include "Editor/UnrealEdEngine.h"
 #include "Preferences/UnrealEdOptions.h"
 #include "Widgets/Input/SComboButton.h"
+#include "ToolMenus.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraNodeFunctionCall)
 

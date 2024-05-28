@@ -11,6 +11,7 @@
 #include "LevelEditor.h"
 #include "Selection.h"
 #include "Templates/SharedPointer.h"
+#include "ToolMenus.h"
 
 namespace UE::AdvancedRenamer::Private
 {

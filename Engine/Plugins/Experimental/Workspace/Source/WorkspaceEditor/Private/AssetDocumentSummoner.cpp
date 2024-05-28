@@ -11,6 +11,7 @@
 #include "Widgets/Layout/SSpacer.h"
 #include "WorkspaceDocumentState.h"
 #include "SWorkspaceTabWrapper.h"
+#include "Modules/ModuleManager.h"
 
 #define LOCTEXT_NAMESPACE "AssetDocumentSummoner"
 

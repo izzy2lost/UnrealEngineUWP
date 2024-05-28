@@ -32,7 +32,7 @@
 #include "Views/SDMXControlConsoleEditorFiltersView.h"
 #include "Views/SDMXControlConsoleEditorLayoutView.h"
 #include "Widgets/Docking/SDockTab.h"
-
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleEditorToolkit"
 

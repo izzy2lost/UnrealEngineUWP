@@ -13,6 +13,7 @@
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Framework/Application/SlateApplication.h"
+#include "ToolMenuSection.h"
 
 #define LOCTEXT_NAMESPACE "AnimAssetFindReplace"
 

@@ -21,7 +21,8 @@
 #include "IDetailsView.h"
 #include "Widgets/Images/SImage.h"
 #include "Framework/Application/SlateApplication.h"
-	
+#include "ToolMenus.h"
+
 #define LOCTEXT_NAMESPACE "FChaosClothAssetEditorModeToolkit"
 
 namespace UE::Chaos::ClothAsset

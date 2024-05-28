@@ -8,6 +8,7 @@
 #include "NiagaraShaderType.h"
 #include "ProfilingDebugging/CookStats.h"
 #include "UObject/UObjectIterator.h"
+#include "UObject/UObjectThreadContext.h"
 
 #include "Misc/ScopeRWLock.h"
 

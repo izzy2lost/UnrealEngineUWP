@@ -45,6 +45,7 @@
 #include "Widgets/SNiagaraParameterPanel.h"
 #include "Widgets/SNiagaraScriptGraph.h"
 #include "Widgets/SNiagaraSelectedObjectsDetails.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraScriptToolkit"
 

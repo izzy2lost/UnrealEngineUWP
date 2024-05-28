@@ -40,6 +40,7 @@
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/Views/SListView.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "ChooserEditor"
 

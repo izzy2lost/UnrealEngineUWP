@@ -9,6 +9,7 @@
 #include "DatasmithScene.h"
 
 #include "ToolMenuSection.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "AssetTypeActions_DatasmithScene"
 

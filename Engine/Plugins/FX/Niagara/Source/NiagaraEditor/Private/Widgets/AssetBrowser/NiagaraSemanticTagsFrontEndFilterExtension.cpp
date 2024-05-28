@@ -4,6 +4,7 @@
 
 #include "Misc/ConfigCacheIni.h"
 #include "NiagaraEditorUtilities.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraSemanticUNiagaraSemanticTagsFrontEndFilterExtension"
 

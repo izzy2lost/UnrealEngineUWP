@@ -8,6 +8,7 @@
 #include "RigEditor/IKRigDefinitionFactory.h"
 #include "RigEditor/IKRigEditorStyle.h"
 #include "Engine/SkeletalMesh.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "AssetTypeActions"
 

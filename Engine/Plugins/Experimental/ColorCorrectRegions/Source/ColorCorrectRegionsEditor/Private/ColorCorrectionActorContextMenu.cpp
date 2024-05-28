@@ -17,6 +17,7 @@
 #include "Runtime/Engine/Classes/GameFramework/WorldSettings.h"
 #include "Editor/UnrealEdEngine.h"
 #include "UnrealEdGlobals.h"
+#include "Modules/ModuleManager.h"
 
 #define LOCTEXT_NAMESPACE "FColorCorrectRegionsContextMenu"
 

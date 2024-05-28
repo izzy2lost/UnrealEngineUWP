@@ -9,7 +9,7 @@
 #include "Styling/ToolBarStyle.h"
 #include "Toolkits/DMXPixelMappingToolkit.h"
 #include "Widgets/SNullWidget.h"
-
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "FDMXPixelMappingToolbar"
 

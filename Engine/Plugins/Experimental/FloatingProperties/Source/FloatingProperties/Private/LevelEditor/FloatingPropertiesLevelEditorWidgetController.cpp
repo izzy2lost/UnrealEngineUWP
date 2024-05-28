@@ -8,6 +8,7 @@
 #include "Editor/EditorEngine.h"
 #include "LevelEditor/FloatingPropertiesLevelEditorDataProvider.h"
 #include "Selection.h"
+#include "ToolMenus.h"
 
 void FFloatingPropertiesLevelEditorWidgetController::StaticInit()
 {

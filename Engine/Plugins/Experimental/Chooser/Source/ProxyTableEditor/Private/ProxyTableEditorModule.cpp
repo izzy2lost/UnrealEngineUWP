@@ -6,6 +6,7 @@
 #include "StructOutputDataCustomization.h"
 #include "PropertyEditorModule.h"
 #include "ProxyTableEditorStyle.h"
+#include "Modules/ModuleManager.h"
 
 #define LOCTEXT_NAMESPACE "ProxyTableEditorModule"
 

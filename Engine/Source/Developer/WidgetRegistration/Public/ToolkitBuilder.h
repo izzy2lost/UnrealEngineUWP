@@ -8,7 +8,6 @@
 #include "Framework/Commands/UICommandInfo.h"
 #include "ToolElementRegistry.h"
 #include "ToolkitBuilderConfig.h"
-#include "ToolMenus.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Layout/SSplitter.h"
 #include "Layout/CategoryDrivenContentBuilderBase.h"

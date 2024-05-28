@@ -29,6 +29,7 @@
 #include "Widgets/SGeometryMaskCanvasPreview.h"
 #include "Widgets/SWidget.h"
 #include "Widgets/Text/STextBlock.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "AvalancheMaskEditorMode"
 

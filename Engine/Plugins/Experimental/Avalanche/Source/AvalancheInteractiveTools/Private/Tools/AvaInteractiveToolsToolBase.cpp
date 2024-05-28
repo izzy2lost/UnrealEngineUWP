@@ -23,6 +23,7 @@
 #include "Planners/AvaInteractiveToolsToolViewportPointPlanner.h"
 #include "ToolContextInterfaces.h"
 #include "Toolkits/BaseToolkit.h"
+#include "ToolMenus.h"
 #include "UnrealClient.h"
 #include "ViewportClient/IAvaViewportClient.h"
 

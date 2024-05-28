@@ -17,6 +17,7 @@
 #include "SPrimaryButton.h"
 #include "Tools/UEdMode.h"
 #include "Widgets/Images/SImage.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "FDataflowEditorModeToolkit"
 

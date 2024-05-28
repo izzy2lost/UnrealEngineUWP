@@ -36,6 +36,7 @@
 #include "LookupProxy.h"
 #include "SPropertyAccessChainWidget.h"
 #include "Widgets/Layout/SScrollBox.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "ProxyTableEditor"
 

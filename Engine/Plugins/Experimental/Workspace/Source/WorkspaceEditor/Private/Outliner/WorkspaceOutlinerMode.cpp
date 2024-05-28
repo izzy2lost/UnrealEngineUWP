@@ -12,6 +12,7 @@
 #include "WorkspaceEditorModule.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "ScopedTransaction.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "FWorkspaceOutlinerMode"
 

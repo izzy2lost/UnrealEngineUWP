@@ -6,6 +6,7 @@
 #include "RetargetEditor/IKRetargetEditor.h"
 #include "RetargetEditor/IKRetargetEditorController.h"
 
+#include "ToolMenus.h"
 #include "Widgets/Layout/SSeparator.h"
 
 #define LOCTEXT_NAMESPACE "SIKRetargetPoseEditor"

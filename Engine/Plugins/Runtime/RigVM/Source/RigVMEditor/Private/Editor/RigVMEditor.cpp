@@ -49,6 +49,7 @@
 #include "Widgets/SRigVMSwapAssetReferencesWidget.h"
 #include "Widgets/SRigVMBulkEditDialog.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "ToolMenuContext.h"
 
 #define LOCTEXT_NAMESPACE "RigVMEditor"
 

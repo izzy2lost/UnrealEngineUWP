@@ -10,6 +10,7 @@
 #include "DataprepFactories.h"
 
 #include "ContentBrowserMenuContexts.h"
+#include "ToolMenus.h"
 
 #include "Algo/AnyOf.h"
 #include "Algo/AllOf.h"

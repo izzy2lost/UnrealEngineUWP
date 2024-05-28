@@ -6,7 +6,7 @@
 #include "LevelVariantSets.h"
 #include "ToolMenuSection.h"
 #include "VariantManagerContentEditorModule.h"
-
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "LevelVariantSetAssetActions"
 

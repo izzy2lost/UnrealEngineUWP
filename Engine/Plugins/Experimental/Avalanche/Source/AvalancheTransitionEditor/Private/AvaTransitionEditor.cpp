@@ -11,6 +11,7 @@
 #include "Toolkits/AssetEditorToolkitMenuContext.h"
 #include "ViewModels/AvaTransitionEditorViewModel.h"
 #include "ViewModels/AvaTransitionViewModelSharedData.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "AvaTransitionEditor"
 

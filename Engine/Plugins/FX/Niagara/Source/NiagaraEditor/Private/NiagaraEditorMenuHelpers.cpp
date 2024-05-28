@@ -6,6 +6,7 @@
 #include "NiagaraEditorUtilities.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "Widgets/AssetBrowser/NiagaraMenuFilters.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraEditorMenuHelpers"
 
