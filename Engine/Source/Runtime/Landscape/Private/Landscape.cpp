@@ -208,7 +208,7 @@ static FAutoConsoleVariable CVarLandscapeSupressMapCheckWarnings_Nanite(
 	false,
 	TEXT("Issue MapCheck Info messages instead of warnings if Nanite Data is out of date"));
 
-static FAutoConsoleVariable CVarStripLayerTextureMipsOnLoad(
+FAutoConsoleVariable CVarStripLayerTextureMipsOnLoad(
 	TEXT("landscape.StripLayerMipsOnLoad"),
 	false,
 	TEXT("Remove (on load) the mip chain from textures used in layers which don't require them"));

@@ -109,6 +109,8 @@ static TAutoConsoleVariable<int32> CVarLandscapeApplyPhysicalMaterialChangesImme
 	1,
     TEXT("Applies physical material task changes immediately rather than during the next cook/PIE."));
 
+extern FAutoConsoleVariable CVarStripLayerTextureMipsOnLoad;
+
 #if WITH_EDITOR
 
 // Used to temporarily disable material instance updates (typically used for cases where multiple updates are called on sample component)
@@ -7205,7 +7207,7 @@ void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterfa
 			}
 		}
 
-		if (CurrentWeightmapTexture != nullptr)
+		if ((CurrentWeightmapTexture != nullptr) && CVarStripLayerTextureMipsOnLoad->GetBool())
 		{
 			// sanity check - only final weightmaps are allowed more than one mip
 			ensure((CurrentWeightmapTexture->Source.GetNumMips() == 1) || bIsFinalWeightmap);
