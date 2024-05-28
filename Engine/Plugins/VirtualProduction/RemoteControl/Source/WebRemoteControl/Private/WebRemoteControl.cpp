@@ -2376,6 +2376,8 @@ void FWebRemoteControlModule::HandleWebSocketHttpMessage(const FRemoteControlWeb
 		Wrapper.Passphrase = WebSocketMessage.Header[WebRemoteControlInternalUtils::PassphraseHeader][0];
 	}
 
+	Wrapper.RequestId = WebSocketMessage.MessageId;
+
 	LogRequestExternally(Wrapper.RequestId, TEXT("UE Received"));
 	
 	FMemoryWriter Writer(UTF8Response);
