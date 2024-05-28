@@ -323,7 +323,9 @@ class HistoryModalState {
                      systemCpu: 0,
                      freeRam: 0,
                      usedRam: 0,
-                     totalRam: 1
+                     totalRam: 1,
+                     freeDisk: 0,
+                     totalDisk: 0
                   });
                }
 
