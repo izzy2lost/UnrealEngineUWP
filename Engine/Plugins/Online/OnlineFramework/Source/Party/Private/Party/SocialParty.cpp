@@ -1368,7 +1368,7 @@ bool USocialParty::ContainsUser(const USocialUser& User) const
 {
 	for(const UPartyMember* PartyMember : GetPartyMembers())
 	{
-		if (&PartyMember->GetSocialUser() == &User)
+		if (PartyMember->GetSocialUser().GetUserId(ESocialSubsystem::Primary) == User.GetUserId(ESocialSubsystem::Primary))
 		{
 			return true;
 		}
