@@ -78,6 +78,10 @@ namespace Jupiter.FunctionalTests.References
 			Assert.IsTrue(contentIdStore.GetType() == typeof(ScyllaContentIdStore));
 
 			IReplicationLog replicationLog = provider.GetService<IReplicationLog>()!;
+			if (replicationLog is MemoryCachedReplicationLog log)
+			{
+				replicationLog = log.GetUnderlyingContentIdStore();
+			}
 			//verify we are using the replication log writer
 			Assert.IsTrue(replicationLog.GetType() == typeof(ScyllaReplicationLog));
 
