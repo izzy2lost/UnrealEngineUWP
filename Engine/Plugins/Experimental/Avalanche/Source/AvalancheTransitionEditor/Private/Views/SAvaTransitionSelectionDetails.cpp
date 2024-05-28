@@ -7,6 +7,7 @@
 #include "IDetailsView.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
+#include "StateTreeDelegates.h"
 #include "StateTreeState.h"
 #include "ViewModels/AvaTransitionViewModel.h"
 
@@ -39,7 +40,8 @@ void SAvaTransitionSelectionDetails::Construct(const FArguments& InArgs, const T
 
 	OnSelectionChanged(InSelection->GetSelectedItems());
 
-	InSelection->OnSelectionChanged().AddSP(this, &SAvaTransitionSelectionDetails::OnSelectionChanged);
+	OnParametersChangedHandle = UE::StateTree::Delegates::OnParametersChanged.AddSP(this, &SAvaTransitionSelectionDetails::Refresh);
+	OnSelectionChangedHandle = InSelection->OnSelectionChanged().AddSP(this, &SAvaTransitionSelectionDetails::OnSelectionChanged);
 
 	ChildSlot
 	[
@@ -49,9 +51,21 @@ void SAvaTransitionSelectionDetails::Construct(const FArguments& InArgs, const T
 
 SAvaTransitionSelectionDetails::~SAvaTransitionSelectionDetails()
 {
+	UE::StateTree::Delegates::OnParametersChanged.Remove(OnParametersChangedHandle);
+	OnParametersChangedHandle.Reset();
+
 	if (TSharedPtr<FAvaTransitionSelection> Selection = SelectionWeak.Pin())
 	{
-		Selection->OnSelectionChanged().RemoveAll(this);
+		Selection->OnSelectionChanged().Remove(OnSelectionChangedHandle);
+		OnSelectionChangedHandle.Reset();
+	}
+}
+
+void SAvaTransitionSelectionDetails::Refresh(const UStateTree& InStateTree)
+{
+	if (DetailsView.IsValid())
+	{
+		DetailsView->ForceRefresh();
 	}
 }
 
