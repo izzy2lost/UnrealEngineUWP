@@ -2081,15 +2081,16 @@ void FSceneRenderer::RenderSkyAtmosphere(FRDGBuilder& GraphBuilder, const FMinim
 #endif
 }
 
-bool FSceneRenderer::ShouldRenderSkyAtmosphereEditorNotifications() const
+bool FSceneRenderer::ShouldRenderSkyAtmosphereEditorNotifications(TArrayView<FViewInfo> InViews)
 {
 #if WITH_EDITOR
 	if (CVarSkyAtmosphereEditorNotifications.GetValueOnAnyThread() > 0)
 	{
 		bool bAnyViewHasSkyMaterial = false;
-		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+		for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ViewIndex++)
 		{
-			bAnyViewHasSkyMaterial |= Views[ViewIndex].bSceneHasSkyMaterial;
+			const FViewInfo& View = InViews[ViewIndex];
+			bAnyViewHasSkyMaterial |= (View.bSceneHasSkyMaterial && View.Family->EngineShowFlags.Atmosphere);
 		}
 		return bAnyViewHasSkyMaterial;
 	}
@@ -2097,16 +2098,16 @@ bool FSceneRenderer::ShouldRenderSkyAtmosphereEditorNotifications() const
 	return false;
 }
 
-void FSceneRenderer::RenderSkyAtmosphereEditorNotifications(FRDGBuilder& GraphBuilder, FRDGTextureRef SceneColorTexture) const
+void FSceneRenderer::RenderSkyAtmosphereEditorNotifications(FRDGBuilder& GraphBuilder, TArrayView<FViewInfo> InViews, FRDGTextureRef SceneColorTexture) const
 {
 #if WITH_EDITOR
 	RDG_EVENT_SCOPE(GraphBuilder, "SkyAtmosphereEditor");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, SkyAtmosphereEditor);
 
-	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ViewIndex++)
 	{
-		const FViewInfo& View = Views[ViewIndex];
-		if (View.bSceneHasSkyMaterial && View.Family->EngineShowFlags.Atmosphere)
+		const FViewInfo& View = InViews[ViewIndex];
+		if (View.bSceneHasSkyMaterial)
 		{
 			RenderSkyAtmosphereEditorHudPS::FPermutationDomain PermutationVector;
 			TShaderMapRef<RenderSkyAtmosphereEditorHudPS> PixelShader(View.ShaderMap, PermutationVector);

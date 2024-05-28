@@ -1043,7 +1043,6 @@ void FDeferredShadingSceneRenderer::RenderBasePass(
 	const bool bIsWireframeRenderpass = ViewFamily.EngineShowFlags.Wireframe && FSceneRenderer::ShouldCompositeEditorPrimitives(InViews[0]);
 	const bool bDebugViewMode = ViewFamily.UseDebugViewPS();
 	const bool bRenderLightmapDensity = ViewFamily.EngineShowFlags.LightMapDensity && AllowDebugViewmodes();
-	const bool bRenderSkyAtmosphereEditorNotifications = ShouldRenderSkyAtmosphereEditorNotifications();
 	const bool bDoParallelBasePass = bEnableParallelBasePasses && !bDebugViewMode && !bRenderLightmapDensity; // DebugView and LightmapDensity are non-parallel substitutions inside BasePass
 	const bool bNeedsBeginRender = AllowDebugViewmodes() &&
 		(ViewFamily.EngineShowFlags.RequiredTextureResolution ||
@@ -1126,11 +1125,11 @@ void FDeferredShadingSceneRenderer::RenderBasePass(
 			}
 		});
 
-		if (bRenderSkyAtmosphereEditorNotifications)
+		if (ShouldRenderSkyAtmosphereEditorNotifications(InViews))
 		{
 			// We only render this warning text when bRequiresRHIClear==true to make sure the scene color buffer is allocated at this stage.
 			// When false, the option specifies that all pixels must be written to by a sky dome anyway.
-			RenderSkyAtmosphereEditorNotifications(GraphBuilder, SceneTextures.Color.Target);
+			RenderSkyAtmosphereEditorNotifications(GraphBuilder, InViews, SceneTextures.Color.Target);
 		}
 	}
 
