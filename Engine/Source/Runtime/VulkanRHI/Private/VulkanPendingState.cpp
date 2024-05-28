@@ -789,12 +789,12 @@ bool FVulkanDescriptorSetCache::FCachedPool::CreateDescriptorSets(
 
 	NewSetEntry.NumSets = DSWriters.Num();
 	check(NewSetEntry.NumSets <= NewSetEntry.Sets.Num());
-	check(NewSetEntry.NumSets == SetsLayout.GetHandles().Num());
+	check(SetsLayout.GetHandles().Num() <= NewSetEntry.NumSets);
 
 	for (int32 Index = 0; Index < NewSetEntry.NumSets; ++Index)
 	{
 		FVulkanDescriptorSetWriter& DSWriter = DSWriters[Index];
-		if (DSWriter.GetNumWrites() == 0) // Should not normally happen
+		if (DSWriter.GetNumWrites() == 0)
 		{
 			NewSetEntry.Sets[Index] = VK_NULL_HANDLE;
 			continue;

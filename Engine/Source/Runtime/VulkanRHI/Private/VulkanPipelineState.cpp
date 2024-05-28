@@ -67,6 +67,10 @@ void FVulkanCommonPipelineDescriptorState::CreateDescriptorWriteInfos()
 	for (uint32 Set = 0; Set < MaxNumSets; ++Set)
 	{
 		const FDescriptorSetRemappingInfo::FStageInfo& StageInfo = DescriptorSetsLayout->RemappingInfo.StageInfos[Set];
+		if (!StageInfo.Types.Num())
+		{
+			continue;
+		}
 		
 		if (UseVulkanDescriptorCache())
 		{
@@ -109,10 +113,14 @@ void FVulkanCommonPipelineDescriptorState::CreateDescriptorWriteInfos()
 	for (uint32 Set = 0; Set < MaxNumSets; ++Set)
 	{
 		const FDescriptorSetRemappingInfo::FStageInfo& StageInfo = DescriptorSetsLayout->RemappingInfo.StageInfos[Set];
+		if (!StageInfo.Types.Num())
+		{
+			continue;
+		}
 
 		DynamicOffsetsStart[Set] = TotalNumDynamicOffsets;
 
-		uint32 NumDynamicOffsets = DSWriter[Set].SetupDescriptorWrites(
+		const uint32 NumDynamicOffsets = DSWriter[Set].SetupDescriptorWrites(
 			StageInfo.Types, CurrentHashableDescriptorInfo,
 			CurrentDescriptorWrite, CurrentImageInfo, CurrentBufferInfo, CurrentBindingToDynamicOffsetMap,
 			CurrentAccelerationStructuresWriteDescriptors,
