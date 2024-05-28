@@ -1120,7 +1120,8 @@ IMPLEMENT_GLOBAL_SHADER(FVolumetricFogFinalIntegrationCS, "/Engine/Private/Volum
 
 bool DoesPlatformSupportVolumetricFogVoxelization(const FStaticShaderPlatform Platform)
 {
-	return !IsMobilePlatform(Platform);
+	const bool bCanRHICompileHlsl2021GeometryShaders = Substrate::IsSubstrateEnabled() && GetMaxSupportedFeatureLevel(Platform) > ERHIFeatureLevel::SM5;
+	return !IsMobilePlatform(Platform) && bCanRHICompileHlsl2021GeometryShaders;
 }
 bool ShouldRenderVolumetricFog(const FScene* Scene, const FSceneViewFamily& ViewFamily)
 {
