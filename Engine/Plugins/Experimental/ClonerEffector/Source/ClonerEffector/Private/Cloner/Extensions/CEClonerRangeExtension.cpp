@@ -15,6 +15,17 @@ void UCEClonerRangeExtension::SetRangeEnabled(bool bInRangeEnabled)
 	UpdateExtensionParameters();
 }
 
+void UCEClonerRangeExtension::SetRangeMirrored(bool bInMirrored)
+{
+	if (bRangeMirrored == bInMirrored)
+	{
+		return;
+	}
+
+	bRangeMirrored = bInMirrored;
+	UpdateExtensionParameters();
+}
+
 void UCEClonerRangeExtension::SetRangeOffsetMin(const FVector& InRangeOffsetMin)
 {
 	if (RangeOffsetMin == InRangeOffsetMin)
@@ -118,6 +129,12 @@ void UCEClonerRangeExtension::OnExtensionParametersChanged(UCEClonerComponent* I
 {
 	Super::OnExtensionParametersChanged(InComponent);
 
+	if (bRangeMirrored)
+	{
+		RangeOffsetMin = -RangeOffsetMax;
+		RangeRotationMin = -1 * RangeRotationMax;
+	}
+
 	RangeScaleUniformMin = FMath::Clamp(RangeScaleUniformMin, UE_KINDA_SMALL_NUMBER, RangeScaleUniformMax);
 	RangeScaleUniformMax = FMath::Max3(RangeScaleUniformMin, RangeScaleUniformMax, UE_KINDA_SMALL_NUMBER);
 
@@ -155,6 +172,7 @@ const TCEPropertyChangeDispatcher<UCEClonerRangeExtension> UCEClonerRangeExtensi
 {
 	/** Range */
 	{ GET_MEMBER_NAME_CHECKED(UCEClonerRangeExtension, bRangeEnabled), &UCEClonerRangeExtension::OnExtensionPropertyChanged },
+	{ GET_MEMBER_NAME_CHECKED(UCEClonerRangeExtension, bRangeMirrored), &UCEClonerRangeExtension::OnExtensionPropertyChanged },
 	{ GET_MEMBER_NAME_CHECKED(UCEClonerRangeExtension, RangeOffsetMin), &UCEClonerRangeExtension::OnExtensionPropertyChanged },
 	{ GET_MEMBER_NAME_CHECKED(UCEClonerRangeExtension, RangeOffsetMax), &UCEClonerRangeExtension::OnExtensionPropertyChanged },
 	{ GET_MEMBER_NAME_CHECKED(UCEClonerRangeExtension, RangeRotationMin), &UCEClonerRangeExtension::OnExtensionPropertyChanged },

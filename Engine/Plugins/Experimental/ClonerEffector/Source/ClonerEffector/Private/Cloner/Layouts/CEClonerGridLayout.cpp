@@ -203,7 +203,7 @@ void UCEClonerGridLayout::OnLayoutParametersChanged(UCEClonerComponent* InCompon
 	UNiagaraDataInterfaceTexture* TextureSamplerDI = Cast<UNiagaraDataInterfaceTexture>(ExposedParameters.GetDataInterface(ConstraintTextureSamplerVar));
 	TextureSamplerDI->SetTexture(TextureConstraint.Texture.Get());
 
-	InComponent->SetFloatParameter(TEXT("TwistFactor"), TwistFactor);
+	InComponent->SetFloatParameter(TEXT("TwistFactor"), TwistFactor / 100.f);
 
 	static const FNiagaraVariable TwistAxisVar(FNiagaraTypeDefinition(StaticEnum<ENiagaraOrientationAxis>()), TEXT("TwistAxis"));
 	ExposedParameters.SetParameterValue<int32>(static_cast<int32>(TwistAxis), TwistAxisVar);

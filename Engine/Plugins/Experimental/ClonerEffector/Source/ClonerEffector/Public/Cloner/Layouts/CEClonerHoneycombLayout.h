@@ -137,11 +137,11 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetHeightSpacing", Getter="GetHeightSpacing", Category="Layout")
 	float HeightSpacing = 105.f;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Layout")
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Layout", meta=(UIMin="0", UIMax="100"))
 	float TwistFactor = 0.f;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Layout")
-	ENiagaraOrientationAxis TwistAxis = ENiagaraOrientationAxis::XAxis;
+	ENiagaraOrientationAxis TwistAxis = ENiagaraOrientationAxis::YAxis;
 
 private:
 #if WITH_EDITOR

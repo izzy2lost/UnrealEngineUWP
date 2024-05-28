@@ -179,7 +179,7 @@ void UCEClonerHoneycombLayout::OnLayoutParametersChanged(UCEClonerComponent* InC
 	static const FNiagaraVariable HoneycombPlaneVar(FNiagaraTypeDefinition(StaticEnum<ECEClonerPlane>()), TEXT("HoneycombPlane"));
 	ExposedParameters.SetParameterValue<int32>(static_cast<int32>(Plane), HoneycombPlaneVar);
 
-	InComponent->SetFloatParameter(TEXT("TwistFactor"), TwistFactor);
+	InComponent->SetFloatParameter(TEXT("TwistFactor"), TwistFactor / 100.f);
 
 	static const FNiagaraVariable TwistAxisVar(FNiagaraTypeDefinition(StaticEnum<ENiagaraOrientationAxis>()), TEXT("TwistAxis"));
 	ExposedParameters.SetParameterValue<int32>(static_cast<int32>(TwistAxis), TwistAxisVar);

@@ -194,6 +194,7 @@ void ACEClonerActor::MigrateDeprecatedProperties()
 		if (UCEClonerRangeExtension* RangeExtension = ClonerComponent->FindOrAddExtension<UCEClonerRangeExtension>())
 		{
 			RangeExtension->SetRangeEnabled(bRangeEnabled);
+			RangeExtension->SetRangeMirrored(false);
 			RangeExtension->SetRangeOffsetMin(RangeOffsetMin);
 			RangeExtension->SetRangeOffsetMax(RangeOffsetMax);
 			RangeExtension->SetRangeRotationMin(RangeRotationMin);
@@ -240,7 +241,7 @@ void ACEClonerActor::MigrateDeprecatedProperties()
 					GridLayout->SetCylinderConstraint(PrevGridLayout->GetCylinderConstraint());
 					GridLayout->SetTextureConstraint(PrevGridLayout->GetTextureConstraint());
 					GridLayout->SetTwistAxis(PrevGridLayout->GetTwistAxis());
-					GridLayout->SetTwistFactor(PrevGridLayout->GetTwistFactor());
+					GridLayout->SetTwistFactor(PrevGridLayout->GetTwistFactor() * 100);
 				}
 			}
 			else if (UCEClonerLineLayout* PrevLineLayout = Cast<UCEClonerLineLayout>(LayoutPair.Value))
@@ -308,7 +309,7 @@ void ACEClonerActor::MigrateDeprecatedProperties()
 					HoneycombLayout->SetHeightSpacing(PrevHoneycombLayout->GetHeightSpacing());
 					HoneycombLayout->SetWidthSpacing(PrevHoneycombLayout->GetWidthSpacing());
 					HoneycombLayout->SetTwistAxis(PrevHoneycombLayout->GetTwistAxis());
-					HoneycombLayout->SetTwistFactor(PrevHoneycombLayout->GetTwistFactor());
+					HoneycombLayout->SetTwistFactor(PrevHoneycombLayout->GetTwistFactor() * 100);
 				}
 			}
 			else if (UCEClonerMeshLayout* PrevMeshLayout = Cast<UCEClonerMeshLayout>(LayoutPair.Value))
