@@ -79,7 +79,7 @@ FMVVMBlueprintPropertyPath FPropertyPathCustomization::GetPropertyPathValue() co
 		{
 			continue;
 		}
-		FMVVMBlueprintPropertyPath* PropertyPath = (FMVVMBlueprintPropertyPath*)RawPtr;
+		FMVVMBlueprintPropertyPath* PropertyPath = reinterpret_cast<FMVVMBlueprintPropertyPath*>(RawPtr);
 		if (PropertyPath)
 		{
 			return *PropertyPath;
@@ -121,11 +121,15 @@ FMVVMLinkedPinValue FPropertyPathCustomization::GetFieldValue() const
 					{
 						return FMVVMLinkedPinValue(WidgetBP, ConversionFunction->GetConversionFunction());
 					}
+					else
+					{
+						return FMVVMLinkedPinValue(GetPropertyPathValue());
+					}
 				}
 			}
 		}
 	}
-	return FMVVMLinkedPinValue(GetPropertyPathValue());
+	return FMVVMLinkedPinValue(FMVVMBlueprintPropertyPath());
 }
 
 } // namespace UE::MVVM

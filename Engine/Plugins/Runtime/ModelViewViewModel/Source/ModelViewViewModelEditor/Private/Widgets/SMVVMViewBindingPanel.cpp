@@ -221,6 +221,7 @@ void SBindingsPanel::OnBindingListSelectionChanged(TConstArrayView<FMVVMBlueprin
 	{
 		// show empty details view
 		DetailsView->SetObject(nullptr);
+		StructDetailsView->SetStructureData(nullptr);
 		DetailContainer->SetContent(DetailsView.ToSharedRef());
 	}
 }
@@ -326,6 +327,7 @@ void SBindingsPanel::RefreshDetailsView()
 		}
 	}
 	DetailsView->SetObject(nullptr);
+	StructDetailsView->SetStructureData(nullptr);
 	DetailContainer->SetContent(DetailsView.ToSharedRef());
 }
 
