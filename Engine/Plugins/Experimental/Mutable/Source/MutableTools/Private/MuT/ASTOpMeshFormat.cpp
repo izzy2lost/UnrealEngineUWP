@@ -17,6 +17,7 @@
 #include "MuT/ASTOpMeshRemoveMask.h"
 #include "MuT/ASTOpMeshMorph.h"
 #include "MuT/ASTOpMeshAddTags.h"
+#include "MuT/ASTOpMeshApplyPose.h"
 #include "MuT/ASTOpSwitch.h"
 
 
@@ -294,6 +295,14 @@ mu::Ptr<ASTOp> Sink_MeshFormatAST::Visit(const mu::Ptr<ASTOp>& at, const ASTOpMe
 		newOp->SetChild(newOp->op.args.MeshMerge.base, Visit(newOp->children[newOp->op.args.MeshMerge.base].child(), currentFormatOp));
 		newOp->SetChild(newOp->op.args.MeshMerge.added, Visit(newOp->children[newOp->op.args.MeshMerge.added].child(), currentFormatOp));
 		newAt = newOp;
+		break;
+	}
+
+	case OP_TYPE::ME_APPLYPOSE:
+	{
+		Ptr<ASTOpMeshApplyPose> NewOp = mu::Clone<ASTOpMeshApplyPose>(at);
+		NewOp->base = Visit(NewOp->base.child(), currentFormatOp);
+		newAt = NewOp;
 		break;
 	}
 
