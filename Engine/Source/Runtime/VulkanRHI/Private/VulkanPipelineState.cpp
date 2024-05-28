@@ -38,7 +38,7 @@ static bool ShouldAlwaysWriteDescriptors()
 }
 
 FVulkanComputePipelineDescriptorState::FVulkanComputePipelineDescriptorState(FVulkanDevice* InDevice, FVulkanComputePipeline* InComputePipeline)
-	: FVulkanCommonPipelineDescriptorState(InDevice)
+	: FVulkanCommonPipelineDescriptorState(InDevice, 1)
 	, PackedUniformBuffersMask(0)
 	, PackedUniformBuffersDirty(0)
 	, ComputePipeline(InComputePipeline)
@@ -62,32 +62,30 @@ FVulkanComputePipelineDescriptorState::FVulkanComputePipelineDescriptorState(FVu
 void FVulkanCommonPipelineDescriptorState::CreateDescriptorWriteInfos()
 {
 	check(DSWriteContainer.DescriptorWrites.Num() == 0);
+	check(UsedSetsMask <= (uint32)(((uint32)1 << MaxNumSets) - 1));
 
-	const int32 NumSets = DescriptorSetsLayout->RemappingInfo.SetInfos.Num();
-	check(UsedSetsMask <= (uint32)(((uint32)1 << NumSets) - 1));
-
-	for (int32 Set = 0; Set < NumSets; ++Set)
+	for (uint32 Set = 0; Set < MaxNumSets; ++Set)
 	{
-		const FDescriptorSetRemappingInfo::FSetInfo& SetInfo = DescriptorSetsLayout->RemappingInfo.SetInfos[Set];
+		const FDescriptorSetRemappingInfo::FStageInfo& StageInfo = DescriptorSetsLayout->RemappingInfo.StageInfos[Set];
 		
 		if (UseVulkanDescriptorCache())
 		{
-			DSWriteContainer.HashableDescriptorInfo.AddZeroed(SetInfo.Types.Num() + 1); // Add 1 for the Layout
+			DSWriteContainer.HashableDescriptorInfo.AddZeroed(StageInfo.Types.Num() + 1); // Add 1 for the Layout
 		}
-		DSWriteContainer.DescriptorWrites.AddZeroed(SetInfo.Types.Num());
-		DSWriteContainer.DescriptorImageInfo.AddZeroed(SetInfo.NumImageInfos);
-		DSWriteContainer.DescriptorBufferInfo.AddZeroed(SetInfo.NumBufferInfos);
-		DSWriteContainer.AccelerationStructureWrites.AddZeroed(SetInfo.NumAccelerationStructures);
-		DSWriteContainer.AccelerationStructures.AddZeroed(SetInfo.NumAccelerationStructures);
+		DSWriteContainer.DescriptorWrites.AddZeroed(StageInfo.Types.Num());
+		DSWriteContainer.DescriptorImageInfo.AddZeroed(StageInfo.NumImageInfos);
+		DSWriteContainer.DescriptorBufferInfo.AddZeroed(StageInfo.NumBufferInfos);
+		DSWriteContainer.AccelerationStructureWrites.AddZeroed(StageInfo.NumAccelerationStructures);
+		DSWriteContainer.AccelerationStructures.AddZeroed(StageInfo.NumAccelerationStructures);
 
-		checkf(SetInfo.Types.Num() < 255, TEXT("Need more bits for BindingToDynamicOffsetMap (currently 8)! Requires %d descriptor bindings in a set!"), SetInfo.Types.Num());
-		DSWriteContainer.BindingToDynamicOffsetMap.AddUninitialized(SetInfo.Types.Num());
+		checkf(StageInfo.Types.Num() < 255, TEXT("Need more bits for BindingToDynamicOffsetMap (currently 8)! Requires %d descriptor bindings in a set!"), StageInfo.Types.Num());
+		DSWriteContainer.BindingToDynamicOffsetMap.AddUninitialized(StageInfo.Types.Num());
 	}
 
 	FMemory::Memset(DSWriteContainer.BindingToDynamicOffsetMap.GetData(), 255, DSWriteContainer.BindingToDynamicOffsetMap.Num());
 
 	check(DSWriter.Num() == 0);
-	DSWriter.AddDefaulted(NumSets);
+	DSWriter.AddDefaulted(MaxNumSets);
 
 	const FVulkanSamplerState& DefaultSampler = Device->GetDefaultSampler();
 	const FVulkanView::FTextureView& DefaultImageView = Device->GetDefaultImageView();
@@ -105,17 +103,17 @@ void FVulkanCommonPipelineDescriptorState::CreateDescriptorWriteInfos()
 
 	uint8* CurrentBindingToDynamicOffsetMap = DSWriteContainer.BindingToDynamicOffsetMap.GetData();
 	TArray<uint32> DynamicOffsetsStart;
-	DynamicOffsetsStart.AddZeroed(NumSets);
+	DynamicOffsetsStart.AddZeroed(MaxNumSets);
 	uint32 TotalNumDynamicOffsets = 0;
 
-	for (int32 Set = 0; Set < NumSets; ++Set)
+	for (uint32 Set = 0; Set < MaxNumSets; ++Set)
 	{
-		const FDescriptorSetRemappingInfo::FSetInfo& SetInfo = DescriptorSetsLayout->RemappingInfo.SetInfos[Set];
+		const FDescriptorSetRemappingInfo::FStageInfo& StageInfo = DescriptorSetsLayout->RemappingInfo.StageInfos[Set];
 
 		DynamicOffsetsStart[Set] = TotalNumDynamicOffsets;
 
 		uint32 NumDynamicOffsets = DSWriter[Set].SetupDescriptorWrites(
-			SetInfo.Types, CurrentHashableDescriptorInfo,
+			StageInfo.Types, CurrentHashableDescriptorInfo,
 			CurrentDescriptorWrite, CurrentImageInfo, CurrentBufferInfo, CurrentBindingToDynamicOffsetMap,
 			CurrentAccelerationStructuresWriteDescriptors,
 			CurrentAccelerationStructures,
@@ -125,29 +123,29 @@ void FVulkanCommonPipelineDescriptorState::CreateDescriptorWriteInfos()
 
 		if (CurrentHashableDescriptorInfo) // UseVulkanDescriptorCache()
 		{
-			CurrentHashableDescriptorInfo += SetInfo.Types.Num();
+			CurrentHashableDescriptorInfo += StageInfo.Types.Num();
 			CurrentHashableDescriptorInfo->Layout.Max0 = UINT32_MAX;
 			CurrentHashableDescriptorInfo->Layout.Max1 = UINT32_MAX;
 			CurrentHashableDescriptorInfo->Layout.LayoutId = DescriptorSetsLayout->GetHandleIds()[Set];
 			++CurrentHashableDescriptorInfo;
 		}
 
-		CurrentDescriptorWrite += SetInfo.Types.Num();
-		CurrentImageInfo += SetInfo.NumImageInfos;
-		CurrentBufferInfo += SetInfo.NumBufferInfos;
-		CurrentAccelerationStructuresWriteDescriptors += SetInfo.NumAccelerationStructures;
-		CurrentAccelerationStructures += SetInfo.NumAccelerationStructures;
+		CurrentDescriptorWrite += StageInfo.Types.Num();
+		CurrentImageInfo += StageInfo.NumImageInfos;
+		CurrentBufferInfo += StageInfo.NumBufferInfos;
+		CurrentAccelerationStructuresWriteDescriptors += StageInfo.NumAccelerationStructures;
+		CurrentAccelerationStructures += StageInfo.NumAccelerationStructures;
 
-		CurrentBindingToDynamicOffsetMap += SetInfo.Types.Num();
+		CurrentBindingToDynamicOffsetMap += StageInfo.Types.Num();
 	}
 
 	DynamicOffsets.AddZeroed(TotalNumDynamicOffsets);
-	for (int32 Set = 0; Set < NumSets; ++Set)
+	for (uint32 Set = 0; Set < MaxNumSets; ++Set)
 	{
 		DSWriter[Set].DynamicOffsets = DynamicOffsetsStart[Set] + DynamicOffsets.GetData();
 	}
 
-	DescriptorSetHandles.AddZeroed(NumSets);
+	DescriptorSetHandles.AddZeroed(MaxNumSets);
 }
 
 template<bool bUseDynamicGlobalUBs>
@@ -291,7 +289,7 @@ void FVulkanComputePipelineDescriptorState::UpdateBindlessDescriptors(FVulkanCom
 }
 
 FVulkanGraphicsPipelineDescriptorState::FVulkanGraphicsPipelineDescriptorState(FVulkanDevice* InDevice, FVulkanRHIGraphicsPipelineState* InGfxPipeline)
-	: FVulkanCommonPipelineDescriptorState(InDevice)
+	: FVulkanCommonPipelineDescriptorState(InDevice, ShaderStage::NumGraphicsStages)
 	, GfxPipeline(InGfxPipeline)
 {
 	LLM_SCOPE_VULKAN(ELLMTagVulkan::VulkanShaders);

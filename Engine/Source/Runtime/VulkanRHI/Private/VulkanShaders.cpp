@@ -577,9 +577,11 @@ void FVulkanLayout::PatchSpirvBindings(FVulkanShader::FSpirvCode& SprivCode, ESh
 			const uint32 OffsetDescriptorSet = CodeHeader.UniformBufferSpirvInfos[Index].DescriptorSetOffset;
 			const uint32 OffsetBindingIndex = CodeHeader.UniformBufferSpirvInfos[Index].BindingIndexOffset;
 			check(OffsetDescriptorSet != UINT32_MAX && OffsetBindingIndex != UINT32_MAX);
-			uint16 NewDescriptorSet = StageInfo.UniformBuffers[Index].Remapping.NewDescriptorSet;
-			Spirv[OffsetDescriptorSet] = NewDescriptorSet;
-			uint16 NewBindingIndex = StageInfo.UniformBuffers[Index].Remapping.NewBindingIndex;
+			const uint16 NewDescriptorSet = StageInfo.UniformBuffers[Index].Remapping.NewDescriptorSet;
+			checkf(Spirv[OffsetDescriptorSet] == NewDescriptorSet,
+				TEXT("Descriptor set in SPIRV (%u) differs from expected stage value (%u)"),
+				Spirv[OffsetDescriptorSet], NewDescriptorSet);
+			const uint16 NewBindingIndex = StageInfo.UniformBuffers[Index].Remapping.NewBindingIndex;
 			Spirv[OffsetBindingIndex] = NewBindingIndex;
 		}
 	}
@@ -590,9 +592,11 @@ void FVulkanLayout::PatchSpirvBindings(FVulkanShader::FSpirvCode& SprivCode, ESh
 		const uint32 OffsetDescriptorSet = CodeHeader.GlobalSpirvInfos[Index].DescriptorSetOffset;
 		const uint32 OffsetBindingIndex = CodeHeader.GlobalSpirvInfos[Index].BindingIndexOffset;
 		check(OffsetDescriptorSet != UINT32_MAX && OffsetBindingIndex != UINT32_MAX);
-		uint16 NewDescriptorSet = StageInfo.Globals[Index].NewDescriptorSet;
-		Spirv[OffsetDescriptorSet] = NewDescriptorSet;
-		uint16 NewBindingIndex = StageInfo.Globals[Index].NewBindingIndex;
+		const uint16 NewDescriptorSet = StageInfo.Globals[Index].NewDescriptorSet;
+		checkf(Spirv[OffsetDescriptorSet] == NewDescriptorSet,
+			TEXT("Descriptor set in SPIRV (%u) differs from expected stage value (%u)"),
+			Spirv[OffsetDescriptorSet], NewDescriptorSet);
+		const uint16 NewBindingIndex = StageInfo.Globals[Index].NewBindingIndex;
 		Spirv[OffsetBindingIndex] = NewBindingIndex;
 	}
 
@@ -602,7 +606,9 @@ void FVulkanLayout::PatchSpirvBindings(FVulkanShader::FSpirvCode& SprivCode, ESh
 		const uint32 OffsetDescriptorSet = CodeHeader.PackedUBs[Index].SPIRVDescriptorSetOffset;
 		const uint32 OffsetBindingIndex = CodeHeader.PackedUBs[Index].SPIRVBindingIndexOffset;
 		check(OffsetDescriptorSet != UINT32_MAX && OffsetBindingIndex != UINT32_MAX);
-		Spirv[OffsetDescriptorSet] = StageInfo.PackedUBDescriptorSet;
+		checkf(Spirv[OffsetDescriptorSet] == StageInfo.PackedUBDescriptorSet, 
+			TEXT("Descriptor set in SPIRV (%u) differs from expected stage value (%u)"), 
+			Spirv[OffsetDescriptorSet], StageInfo.PackedUBDescriptorSet);
 		Spirv[OffsetBindingIndex] = StageInfo.PackedUBBindingIndices[Index];
 	}
 }
@@ -781,8 +787,6 @@ void FVulkanDescriptorSetsLayoutInfo::FinalizeBindings(const FVulkanDevice& Devi
 {
 	checkSlow(RemappingInfo.IsEmpty());
 
-	TMap<uint32, FDescriptorSetRemappingInfo::FUBRemappingInfo> AlreadyProcessedUBs;
-
 	// We'll be reusing this struct
 	VkDescriptorSetLayoutBinding Binding;
 	FMemory::Memzero(Binding);
@@ -792,35 +796,22 @@ void FVulkanDescriptorSetsLayoutInfo::FinalizeBindings(const FVulkanDevice& Devi
 	const bool bConvertPackedUBsToDynamic = !Device.SupportsBindless() && (bConvertAllUBsToDynamic || (GDynamicGlobalUBs.GetValueOnAnyThread() == 1));
 	const uint32 MaxDescriptorSetUniformBuffersDynamic = Device.GetLimits().maxDescriptorSetUniformBuffersDynamic;
 
-	uint8	DescriptorStageToSetMapping[ShaderStage::NumStages];
-	FMemory::Memset(DescriptorStageToSetMapping, UINT8_MAX);
-
-	auto FindOrAddDescriptorSet = [&](int32 Stage) -> uint8
-	{
-		if (DescriptorStageToSetMapping[Stage] == UINT8_MAX)
-		{
-			uint32 NewSet = RemappingInfo.SetInfos.AddDefaulted();
-			DescriptorStageToSetMapping[Stage] = (uint8)NewSet;
-			return NewSet;
-		}
-
-		return DescriptorStageToSetMapping[Stage];
-	};
-
 	int32 CurrentImmutableSampler = 0;
 	for (int32 Stage = 0; Stage < (bIsCompute ? 1 : ShaderStage::NumStages); ++Stage)
 	{
 		if (const FVulkanShaderHeader* ShaderHeader = UBGatherInfo.CodeHeaders[Stage])
 		{
+			// Shaders are compiles with the value of Stage as the descriptor set
+			const int32 DescriptorSet = Stage;
+
 			const VkShaderStageFlags StageFlags = UEFrequencyToVKStageBit(bIsCompute ? SF_Compute : ShaderStage::GetFrequencyForGfxStage((ShaderStage::EStage)Stage));
 			Binding.stageFlags = StageFlags;
 
 			RemappingInfo.StageInfos[Stage].PackedUBBindingIndices.Reserve(ShaderHeader->PackedUBs.Num());
 			for (int32 Index = 0; Index < ShaderHeader->PackedUBs.Num(); ++Index)
 			{
-				int32 DescriptorSet = FindOrAddDescriptorSet(Stage);
-				VkDescriptorType Type = bConvertPackedUBsToDynamic ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-				uint32 NewBindingIndex = RemappingInfo.AddPackedUB(Stage, Index, DescriptorSet, Type);
+				const VkDescriptorType Type = bConvertPackedUBsToDynamic ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+				const uint32 NewBindingIndex = RemappingInfo.AddPackedUB(Stage, Index, DescriptorSet, Type);
 
 				Binding.binding = NewBindingIndex;
 				Binding.descriptorType = Type;
@@ -847,12 +838,11 @@ void FVulkanDescriptorSetsLayoutInfo::FinalizeBindings(const FVulkanDevice& Devi
 					bool bProcessRegularUB = true;
 					if (bProcessRegularUB)
 					{
-						int32 DescriptorSet = FindOrAddDescriptorSet(Stage);
 						uint32 NewBindingIndex;
 						RemappingInfo.AddUBWithData(Stage, Index, DescriptorSet, Type, NewBindingIndex);
 						Binding.binding = NewBindingIndex;
 
-						AddDescriptor(FindOrAddDescriptorSet(Stage), Binding);
+						AddDescriptor(DescriptorSet, Binding);
 					}
 				}
 				else
@@ -866,17 +856,15 @@ void FVulkanDescriptorSetsLayoutInfo::FinalizeBindings(const FVulkanDevice& Devi
 			for (int32 Index = 0; Index < ShaderHeader->Globals.Num(); ++Index)
 			{
 				const FVulkanShaderHeader::FGlobalInfo& GlobalInfo = ShaderHeader->Globals[Index];
-				int32 DescriptorSet = FindOrAddDescriptorSet(Stage);
 				const VkDescriptorType Type = (VkDescriptorType)GlobalInfo.TypeIndex;
 				uint32 NewBindingIndex = RemappingInfo.AddGlobal(Stage, Index, DescriptorSet, Type);
 				Binding.binding = NewBindingIndex;
 				Binding.descriptorType = Type;
-					AddDescriptor(DescriptorSet, Binding);
-				}
+				AddDescriptor(DescriptorSet, Binding);
+			}
 
 			if (ShaderHeader->InputAttachments.Num())
 			{
-				int32 DescriptorSet = FindOrAddDescriptorSet(Stage);
 				check(Stage == ShaderStage::Pixel);
 				for (int32 SrcIndex = 0; SrcIndex < ShaderHeader->InputAttachments.Num(); ++SrcIndex)
 				{
@@ -895,38 +883,23 @@ void FVulkanDescriptorSetsLayoutInfo::FinalizeBindings(const FVulkanDevice& Devi
 
 	CompileTypesUsageID();
 	GenerateHash(ImmutableSamplers, bIsCompute ? VK_PIPELINE_BIND_POINT_COMPUTE : VK_PIPELINE_BIND_POINT_GRAPHICS);
-
-	// If we are consolidating and no uniforms are present in the shader, then strip the empty set data
-	{
-		for (int32 Index = 0; Index < RemappingInfo.SetInfos.Num(); ++Index)
-		{
-			check(RemappingInfo.SetInfos[Index].Types.Num() > 0);
-		}
-	}	
 }
 
 void FVulkanComputePipelineDescriptorInfo::Initialize(const FDescriptorSetRemappingInfo& InRemappingInfo)
 {
 	check(!bInitialized);
 
-	RemappingGlobalInfos = InRemappingInfo.StageInfos[0].Globals;
-	RemappingUBInfos = InRemappingInfo.StageInfos[0].UniformBuffers;
-	RemappingPackedUBInfos = InRemappingInfo.StageInfos[0].PackedUBBindingIndices;
+	const FDescriptorSetRemappingInfo::FStageInfo& StageInfo = InRemappingInfo.StageInfos[ShaderStage::Compute];
+
+	RemappingGlobalInfos = StageInfo.Globals;
+	RemappingUBInfos = StageInfo.UniformBuffers;
+	RemappingPackedUBInfos = StageInfo.PackedUBBindingIndices;
 
 	RemappingInfo = &InRemappingInfo;
 
-	for (int32 Index = 0; Index < InRemappingInfo.SetInfos.Num(); ++Index)
+	if (StageInfo.Types.Num() > 0)
 	{
-		const FDescriptorSetRemappingInfo::FSetInfo& SetInfo = InRemappingInfo.SetInfos[Index];
-		if (SetInfo.Types.Num() > 0)
-		{
-			check(Index < sizeof(HasDescriptorsInSetMask) * 8);
-			HasDescriptorsInSetMask = HasDescriptorsInSetMask | (1 << Index);
-		}
-		else
-		{
-			ensure(0);
-		}
+		HasDescriptorsInSetMask = HasDescriptorsInSetMask | (1 << 0);
 	}
 
 	bInitialized = true;
@@ -938,27 +911,21 @@ void FVulkanGfxPipelineDescriptorInfo::Initialize(const FDescriptorSetRemappingI
 
 	for (int32 StageIndex = 0; StageIndex < ShaderStage::NumStages; ++StageIndex)
 	{
+		const FDescriptorSetRemappingInfo::FStageInfo& StageInfo = InRemappingInfo.StageInfos[StageIndex];
+
 		//#todo-rco: Enable this!
-		RemappingUBInfos[StageIndex] = InRemappingInfo.StageInfos[StageIndex].UniformBuffers;
-		RemappingGlobalInfos[StageIndex] = InRemappingInfo.StageInfos[StageIndex].Globals;
-		RemappingPackedUBInfos[StageIndex] = InRemappingInfo.StageInfos[StageIndex].PackedUBBindingIndices;
+		RemappingUBInfos[StageIndex] = StageInfo.UniformBuffers;
+		RemappingGlobalInfos[StageIndex] = StageInfo.Globals;
+		RemappingPackedUBInfos[StageIndex] = StageInfo.PackedUBBindingIndices;
+
+		if (StageInfo.Types.Num() > 0)
+		{
+			check(StageIndex < sizeof(HasDescriptorsInSetMask) * 8);
+			HasDescriptorsInSetMask = HasDescriptorsInSetMask | (1 << StageIndex);
+		}
 	}
 
 	RemappingInfo = &InRemappingInfo;
-
-	for (int32 Index = 0; Index < InRemappingInfo.SetInfos.Num(); ++Index)
-	{
-		const FDescriptorSetRemappingInfo::FSetInfo& SetInfo = InRemappingInfo.SetInfos[Index];
-		if (SetInfo.Types.Num() > 0)
-		{
-			check(Index < sizeof(HasDescriptorsInSetMask) * 8);
-			HasDescriptorsInSetMask = HasDescriptorsInSetMask | (1 << Index);
-		}
-		else
-		{
-			ensure(0);
-		}
-	}
 
 	bInitialized = true;
 }

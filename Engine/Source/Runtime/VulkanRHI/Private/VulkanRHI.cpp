@@ -1670,7 +1670,7 @@ void FVulkanDescriptorSetsLayoutInfo::AddDescriptor(int32 DescriptorSetIndex, co
 	VkDescriptorSetLayoutBinding* Binding = new(DescSetLayout.LayoutBindings) VkDescriptorSetLayoutBinding;
 	*Binding = Descriptor;
 
-	const FDescriptorSetRemappingInfo::FSetInfo& SetInfo = RemappingInfo.SetInfos[DescriptorSetIndex];
+	const FDescriptorSetRemappingInfo::FStageInfo& SetInfo = RemappingInfo.StageInfos[DescriptorSetIndex];
 	check(SetInfo.Types[Descriptor.binding] == Descriptor.descriptorType);
 	switch (Descriptor.descriptorType)
 	{
@@ -1679,15 +1679,15 @@ void FVulkanDescriptorSetsLayoutInfo::AddDescriptor(int32 DescriptorSetIndex, co
 	case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
 	case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
 	case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
-		IncrementChecked(RemappingInfo.SetInfos[DescriptorSetIndex].NumImageInfos);
+		IncrementChecked(RemappingInfo.StageInfos[DescriptorSetIndex].NumImageInfos);
 		break;
 	case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
 	case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
 	case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
-		IncrementChecked(RemappingInfo.SetInfos[DescriptorSetIndex].NumBufferInfos);
+		IncrementChecked(RemappingInfo.StageInfos[DescriptorSetIndex].NumBufferInfos);
 		break;
 	case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
-		IncrementChecked(RemappingInfo.SetInfos[DescriptorSetIndex].NumAccelerationStructures);
+		IncrementChecked(RemappingInfo.StageInfos[DescriptorSetIndex].NumAccelerationStructures);
 		break;
 	case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
 	case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
@@ -1711,16 +1711,23 @@ void FVulkanDescriptorSetsLayoutInfo::GenerateHash(const TArrayView<FRHISamplerS
 
 	for (uint32 RemapingIndex = 0; RemapingIndex < ShaderStage::NumStages; ++RemapingIndex)
 	{
-		Hash = FCrc::MemCrc32(&RemappingInfo.StageInfos[RemapingIndex].PackedUBDescriptorSet, sizeof(uint16), Hash);
-		Hash = FCrc::MemCrc32(&RemappingInfo.StageInfos[RemapingIndex].Pad0, sizeof(uint16), Hash);
+		const FDescriptorSetRemappingInfo::FStageInfo& StageInfo = RemappingInfo.StageInfos[RemapingIndex];
 
-		TArray<FDescriptorSetRemappingInfo::FRemappingInfo>& Globals = RemappingInfo.StageInfos[RemapingIndex].Globals;
+		Hash = FCrc::MemCrc32(&StageInfo.PackedUBDescriptorSet, sizeof(uint16), Hash);
+		Hash = FCrc::MemCrc32(&StageInfo.NumImageInfos, sizeof(uint16), Hash);
+		Hash = FCrc::MemCrc32(&StageInfo.NumBufferInfos, sizeof(uint16), Hash);
+		Hash = FCrc::MemCrc32(&StageInfo.NumAccelerationStructures, sizeof(uint16), Hash);
+
+		const TArray<FDescriptorSetRemappingInfo::FRemappingInfo>& Globals = StageInfo.Globals;
 		Hash = FCrc::MemCrc32(Globals.GetData(), sizeof(FDescriptorSetRemappingInfo::FRemappingInfo) * Globals.Num(), Hash);
 
-		TArray<FDescriptorSetRemappingInfo::FUBRemappingInfo>& UniformBuffers = RemappingInfo.StageInfos[RemapingIndex].UniformBuffers;
+		const TArray<FDescriptorSetRemappingInfo::FUBRemappingInfo>& UniformBuffers = StageInfo.UniformBuffers;
 		Hash = FCrc::MemCrc32(UniformBuffers.GetData(), sizeof(FDescriptorSetRemappingInfo::FUBRemappingInfo) * UniformBuffers.Num(), Hash);
 
-		TArray<uint16>& PackedUBBindingIndices = RemappingInfo.StageInfos[RemapingIndex].PackedUBBindingIndices;
+		const TArray<VkDescriptorType>& Types = StageInfo.Types;
+		Hash = FCrc::MemCrc32(Types.GetData(), sizeof(VkDescriptorType) * Types.Num(), Hash);
+
+		const TArray<uint16>& PackedUBBindingIndices = StageInfo.PackedUBBindingIndices;
 		Hash = FCrc::MemCrc32(PackedUBBindingIndices.GetData(), sizeof(uint16) * PackedUBBindingIndices.Num(), Hash);
 	}
 

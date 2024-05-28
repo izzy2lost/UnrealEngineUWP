@@ -22,8 +22,9 @@ extern TAutoConsoleVariable<int32> GDynamicGlobalUBs;
 class FVulkanCommonPipelineDescriptorState : public VulkanRHI::FDeviceChild
 {
 public:
-	FVulkanCommonPipelineDescriptorState(FVulkanDevice* InDevice)
+	FVulkanCommonPipelineDescriptorState(FVulkanDevice* InDevice, uint32 InMaxNumSets)
 		: VulkanRHI::FDeviceChild(InDevice)
+		, MaxNumSets(InMaxNumSets)
 		, bUseBindless(InDevice->SupportsBindless())
 	{
 	}
@@ -136,6 +137,8 @@ protected:
 	}
 
 	void CreateDescriptorWriteInfos();
+
+	const uint32 MaxNumSets;
 
 	//#todo-rco: Won't work multithreaded!
 	FVulkanDescriptorSetWriteContainer DSWriteContainer;
