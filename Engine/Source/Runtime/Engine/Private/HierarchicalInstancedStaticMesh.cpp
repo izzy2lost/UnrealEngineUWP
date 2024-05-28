@@ -98,8 +98,8 @@ TAutoConsoleVariable<float> CVarFoliageLODDistanceScale(
 	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
 		{
 			FGlobalComponentRecreateRenderStateContext Context;
-		})
-	);
+		}),
+	ECVF_Scalability);
 
 TAutoConsoleVariable<float> CVarRandomLODRange(
 	TEXT("foliage.RandomLODRange"),
