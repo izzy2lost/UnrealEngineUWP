@@ -21,6 +21,7 @@ using Jupiter.Controllers;
 using Jupiter.FunctionalTests.Storage;
 using Jupiter.Implementation;
 using Jupiter.Implementation.Objects;
+using Jupiter.Implementation.Replication;
 using Jupiter.Tests.Functional;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
@@ -128,6 +129,10 @@ namespace Jupiter.FunctionalTests.References
 			Assert.IsTrue(contentIdStore.GetType() == typeof(ScyllaContentIdStore));
 
 			IReplicationLog replicationLog = provider.GetService<IReplicationLog>()!;
+			if (replicationLog is MemoryCachedReplicationLog log)
+			{
+				replicationLog = log.GetUnderlyingContentIdStore();
+			}
 			//verify we are using the replication log writer
 			Assert.IsTrue(replicationLog.GetType() == typeof(ScyllaReplicationLog));
 
@@ -174,6 +179,10 @@ namespace Jupiter.FunctionalTests.References
 			Assert.IsTrue(contentIdStore.GetType() == typeof(MongoContentIdStore));
 
 			IReplicationLog replicationLog = provider.GetService<IReplicationLog>()!;
+			if (replicationLog is MemoryCachedReplicationLog log)
+			{
+				replicationLog = log.GetUnderlyingContentIdStore();
+			}
 			//verify we are using the replication log writer
 			Assert.IsTrue(replicationLog.GetType() == typeof(MemoryReplicationLog));
 
@@ -219,6 +228,10 @@ namespace Jupiter.FunctionalTests.References
 			Assert.IsTrue(contentIdStore.GetType() == typeof(MemoryContentIdStore));
 
 			IReplicationLog replicationLog = provider.GetService<IReplicationLog>()!;
+			if (replicationLog is MemoryCachedReplicationLog log)
+			{
+				replicationLog = log.GetUnderlyingContentIdStore();
+			}
 			//verify we are using the replication log writer
 			Assert.IsTrue(replicationLog.GetType() == typeof(MemoryReplicationLog));
 

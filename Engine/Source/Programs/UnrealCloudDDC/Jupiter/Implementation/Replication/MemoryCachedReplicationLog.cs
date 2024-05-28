@@ -131,6 +131,11 @@ namespace Jupiter.Implementation.Replication
 				yield return blobReplicationLogEvent;
 			}
 		}
+
+		public IReplicationLog GetUnderlyingContentIdStore()
+		{
+			return _inner;
+		}
 	}
 
 	public class MemoryCacheReplicationLogSettings : MemoryCacheOptions
