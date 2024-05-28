@@ -734,7 +734,12 @@ void FPCGActorAndComponentMapping::ForAllIntersectingPartitionActors(const FBox&
 					{
 						if (APCGPartitionActor* Actor = ActorPtr->Get())
 						{
-							InFunc(Actor);
+							// Exclude any surrounding cells which are touching this cell but not meaningfully overlapping.
+							const FBox Overlap = Actor->GetFixedBounds().Overlap(InBounds);
+							if (Overlap.GetVolume() > 0)
+							{
+								InFunc(Actor);
+							}
 						}
 					}
 				}
