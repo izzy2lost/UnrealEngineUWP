@@ -172,14 +172,8 @@ void UTG_Expression_Levels::SetLowValue(float InValue)
 
 void UTG_Expression_Levels::SetMidValue(float InValue)
 {
-	if (Levels.SetMid(InValue))
-	{
-		MidValue = Levels.Mid;
-	}
-	else
-	{
-		MidValue = Levels.Mid;
-	}
+	Levels.SetMid(InValue);
+	MidValue = Levels.Mid;
 }
 
 void UTG_Expression_Levels::SetHighValue(float InValue)
