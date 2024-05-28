@@ -434,7 +434,7 @@ namespace uba
 			u32 memoryMapAlignment = 0;
 			if (m_allowMemoryMaps)
 			{
-				memoryMapAlignment = GetMemoryMapAlignment(fileName.data, fileName.count);
+				memoryMapAlignment = GetMemoryMapAlignment(fileName);
 				if (!memoryMapAlignment && !m_useStorage)
 					memoryMapAlignment = 64 * 1024;
 			}
@@ -563,7 +563,7 @@ namespace uba
 			if (!pair.second.mappingHandle.IsValid())
 				m_logger.Warning(TC("%s is not using file mapping"), pair.first.c_str());
 #endif
-			bool keepMappingInMemory = IsWindows && !IsRarelyReadAfterWritten(process, pair.first.c_str(), pair.first.size());
+			bool keepMappingInMemory = IsWindows && !IsRarelyReadAfterWritten(process, pair.first);
 			if (!SendFile(pair.second, pair.first.c_str(), process.GetId(), keepMappingInMemory))
 				return false;
 		}

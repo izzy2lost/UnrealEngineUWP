@@ -4,6 +4,7 @@
 #include "UbaFileAccessor.h"
 #include "UbaProtocol.h"
 #include "UbaProcessStats.h"
+#include "UbaProcessUtils.h"
 #include "UbaApplicationRules.h"
 
 #if PLATFORM_WINDOWS
@@ -611,7 +612,7 @@ namespace uba
 		SetFileAttributes(toName.data, DefaultAttributes());
 
 		StringKey toKey = ToStringKeyLower(toName);
-		m_session.RegisterCreateFileForWrite(toKey, toName.data, toName.count, true);
+		m_session.RegisterCreateFileForWrite(toKey, toName, true);
 
 		//m_writtenFiles.try_emplace(name);
 		//WrittenFile& writtenFile = m_writtenFiles[toName.data];
@@ -1546,7 +1547,7 @@ namespace uba
 			}
 
 			Vector<TString> arguments;
-			if (!ParseArguments(arguments, m_startInfo.arguments))
+			if (!ParseArguments(m_startInfo.arguments, [&](const tchar* arg, u32 argLen) { arguments.push_back(TString(arg, argLen)); }))
 			{
 				logger.Error("Failed to parse arguments: %s", m_startInfo.arguments);
 				return UBA_EXIT_CODE(16);
@@ -1936,62 +1937,5 @@ namespace uba
 			if (pair.second.mappingHandle.IsValid())
 				CloseFileMapping(pair.second.mappingHandle);
 		m_tempFiles.clear();
-	}
-
-	bool ParseArguments(Vector<TString>& outArguments, const tchar* argumentString)
-	{
-		const tchar* argStart = argumentString;
-		bool isInArg = false;
-		bool isInQuotes = false;
-		bool isEnd = *argumentString == 0;
-		tchar lastChar = 0;
-		for (const tchar* it = argumentString; !isEnd; lastChar = *it, ++it)
-		{
-			isEnd = *it == 0;
-			if (*it == ' ' || *it == '\t' || isEnd)
-			{
-				if (isInQuotes || !isInArg)
-					continue;
-
-				TString result(argStart, it);
-				tchar lastChar2 = 0;
-				for (auto i = result.begin(); i != result.end();)
-				{
-					if (*i == '\"')
-					{
-						if (lastChar2 == '\\')
-							i = result.erase(i - 1) + 1;
-						else
-							i = result.erase(i);
-						lastChar2 = 0;
-						continue;
-					}
-					lastChar2 = *i;
-					++i;
-				}
-
-				outArguments.push_back(std::move(result));
-				isInArg = false;
-				continue;
-			}
-
-			if (!isInArg)
-			{
-				isInArg = true;
-				argStart = it;
-				if (*it == '\"')
-					isInQuotes = true;
-				continue;
-			}
-
-			if (*it == '\"')
-			{
-				if (isInQuotes && lastChar == '\\')
-					continue;
-
-				isInQuotes = !isInQuotes;
-			}
-		}
-		return true;
 	}
 }

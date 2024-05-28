@@ -647,7 +647,7 @@ namespace uba
 	}
 
 
-	bool Session::RegisterCreateFileForWrite(StringKey fileNameKey, const tchar* fileName, u64 fileNameLen, bool registerRealFile, u64 fileSize, u64 lastWriteTime)
+	bool Session::RegisterCreateFileForWrite(StringKey fileNameKey, const StringView& fileName, bool registerRealFile, u64 fileSize, u64 lastWriteTime)
 	{
 		// Remote is not updating its own directory table
 		if (m_runningRemote)
@@ -658,7 +658,7 @@ namespace uba
 		StringKey dirKey;
 		const tchar* lastSlash;
 		StringBuffer<> dirName;
-		if (!GetDirKey(dirKey, dirName, lastSlash, fileName))
+		if (!GetDirKey(dirKey, dirName, lastSlash, fileName.data))
 			return true;
 			
 		#if 0//_DEBUG  // Bring this back, turned off right now because a few lines above the call to this method we add a mapping
@@ -675,7 +675,7 @@ namespace uba
 		}
 		#endif
 
-		bool shouldWriteToDisk = registerRealFile && ShouldWriteToDisk(fileName, fileNameLen);
+		bool shouldWriteToDisk = registerRealFile && ShouldWriteToDisk(fileName);
 
 		// When not writing to disk we need to populate lookup before adding non-written files.. otherwise they will be lost once lookup is actually populated
 		if (!shouldWriteToDisk)
@@ -718,7 +718,7 @@ namespace uba
 		if (fileNameKey == StringKeyZero)
 		{
 			StringBuffer<> forKey;
-			forKey.Append(fileName, fileNameLen);
+			forKey.Append(fileName);
 			if (CaseInsensitiveFs)
 				forKey.MakeLower();
 			fileNameKey = ToStringKey(forKey);
@@ -732,7 +732,7 @@ namespace uba
 		if (shouldWriteToDisk)
 		{
 			FileInformation info;
-			if (!GetFileInformation(info, m_logger, fileName))
+			if (!GetFileInformation(info, m_logger, fileName.data))
 				return m_logger.Error(TC("Failed to get file information for %s while checking file added for write. This should not happen! (%s)"), fileName, LastErrorToText().data);
 
 			attributes = info.attributes;
@@ -1288,7 +1288,7 @@ namespace uba
 		UBA_ASSERT(!m_runningRemote);
 		StringBuffer<> fixedFilePath;
 		auto key = GetKeyAndFixedName(fixedFilePath, filePath);
-		return RegisterCreateFileForWrite(key, fixedFilePath.data, fixedFilePath.count, true);
+		return RegisterCreateFileForWrite(key, fixedFilePath, true);
 	}
 
 	void Session::RegisterDeleteFile(const tchar* filePath)
@@ -1591,9 +1591,9 @@ namespace uba
 		return process.m_startInfo.rules->IsRarelyRead(fileName);
 	}
 
-	bool Session::IsRarelyReadAfterWritten(ProcessImpl& process, const tchar* fileName, u64 fileNameLen) const
+	bool Session::IsRarelyReadAfterWritten(ProcessImpl& process, const StringView& fileName) const
 	{
-		return process.m_startInfo.rules->IsRarelyReadAfterWritten(fileName, fileNameLen);
+		return process.m_startInfo.rules->IsRarelyReadAfterWritten(fileName);
 	}
 
 	bool Session::IsKnownSystemFile(const tchar* applicationName)
@@ -1605,11 +1605,11 @@ namespace uba
 #endif
 	}
 
-	bool Session::ShouldWriteToDisk(const tchar* fileName, u64 fileNameLen)
+	bool Session::ShouldWriteToDisk(const StringView& fileName)
 	{
 		if (m_shouldWriteToDisk)
 			return true;
-		return EndsWith(fileName, fileNameLen, TC(".h"));
+		return fileName.EndsWith(TC(".h"));
 	}
 
 	bool Session::PrepareProcess(const ProcessStartInfo& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir)
@@ -1617,25 +1617,25 @@ namespace uba
 		return true;
 	}
 
-	u32 Session::GetMemoryMapAlignment(const tchar* fileName, u64 fileNameLen) const
+	u32 Session::GetMemoryMapAlignment(const StringView& fileName) const
 	{
 		// It is not necessarily better to make mem maps of everything.. only things that are read more than once in the build.
 		// Reason is because there is additional overhead to use memory mappings.
 		// Upside is that all things that are memory mapped can be stored compressed in cas storage so it saves space.
 
-		if (EndsWith(fileName, fileNameLen, TC(".pch")))
+		if (fileName.EndsWith(TC(".pch")))
 			return 64 * 1024; // pch needs 64k alignment
-		if (EndsWith(fileName, fileNameLen, TC(".h")) || EndsWith(fileName, fileNameLen, TC(".inl")) || EndsWith(fileName, fileNameLen, TC(".gch")))
+		if (fileName.EndsWith(TC(".h")) || fileName.EndsWith(TC(".inl")) || fileName.EndsWith(TC(".gch")))
 			return 4 * 1024; // clang seems to need 4k alignment? Is it a coincidence it works or what is happening inside the code? (msvc works with alignment 1byte here)
-		if (EndsWith(fileName, fileNameLen, TC(".h.obj")))
+		if (fileName.EndsWith(TC(".h.obj")))
 			return 4 * 1024;
-		//if (EndsWith(fileName, fileNameLen, TC(".lib")))
+		//if (fileName.EndsWith(TC(".lib")))
 		//	return 4 * 1024;
-		//if (EndsWith(fileName, fileNameLen, TC(".rc2.res")))
+		//if (fileName.EndsWith(TC(".rc2.res")))
 		//	return 64;
-		//if (EndsWith(fileName, fileNameLen, TC(".rsp")))
+		//if (fileName.EndsWith(TC(".rsp")))
 		//	return 4 * 1024; // rsp is read over and over again
-		//if (EndsWith(fileName, fileNameLen, TC(".h.obj")) || EndsWith(fileName, fileNameLen, TC(".lib")))
+		//if (fileName.EndsWith(TC(".h.obj")) || fileName.EndsWith(TC(".lib")))
 		//	return 4 * 1024; // rsp is read over and over again
 		return 0;
 	}
@@ -1776,7 +1776,7 @@ namespace uba
 			
 			if (m_allowMemoryMaps)
 			{
-				if (u64 alignment = GetMemoryMapAlignment(fileName.data, fileName.count))
+				if (u64 alignment = GetMemoryMapAlignment(fileName))
 				{
 					MemoryMap map;
 					if (CreateMemoryMapFromFile(map, fileNameKey, fileName.data, false, alignment))
@@ -1951,7 +1951,7 @@ namespace uba
 				lastWriteTime = writtenFile.lastWriteTime;
 			}
 
-			if (msg.process.m_extractExports && msg.process.m_startInfo.rules->ShouldExtractSymbols(file.name.c_str(), file.name.size()))
+			if (msg.process.m_extractExports && msg.process.m_startInfo.rules->ShouldExtractSymbols(file.name))
 				if (!ExtractSymbolsFromObjectFile(msg, name, fileSize))
 					return false;
 		}
@@ -1959,12 +1959,12 @@ namespace uba
 		if (!msg.newName.IsEmpty())
 		{
 			RegisterDeleteFile(file.nameKey, file.name.c_str());
-			RegisterCreateFileForWrite(msg.newNameKey, msg.newName.data, msg.newName.count, registerRealFile, fileSize, lastWriteTime);
+			RegisterCreateFileForWrite(msg.newNameKey, msg.newName, registerRealFile, fileSize, lastWriteTime);
 		}
 		else if (msg.deleteOnClose)
 			RegisterDeleteFile(file.nameKey, file.name.c_str());
 		else
-			RegisterCreateFileForWrite(file.nameKey, file.name.c_str(), file.name.size(), registerRealFile, fileSize, lastWriteTime);
+			RegisterCreateFileForWrite(file.nameKey, file.name, registerRealFile, fileSize, lastWriteTime);
 
 		out.directoryTableSize = GetDirectoryTableSize();
 		return true;
@@ -2012,7 +2012,7 @@ namespace uba
 		out.errorCode = ERROR_SUCCESS;
 		if (!out.result)
 			out.errorCode = GetLastError();
-		RegisterCreateFileForWrite(msg.toKey, msg.toName.data, msg.toName.count, true);
+		RegisterCreateFileForWrite(msg.toKey, msg.toName, true);
 		out.directoryTableSize = RegisterDeleteFile(msg.fromKey, msg.fromName.data);
 		return true;
 	}
@@ -2025,7 +2025,7 @@ namespace uba
 		out.errorCode = 0;
 		if (chmod(msg.fileName.data, (mode_t)msg.fileMode) == 0)
 		{
-			RegisterCreateFileForWrite(msg.fileNameKey, msg.fileName.data, msg.fileName.count, true);
+			RegisterCreateFileForWrite(msg.fileNameKey, msg.fileName, true);
 			return true;
 		}
 		out.errorCode = errno;
@@ -2037,7 +2037,7 @@ namespace uba
 	{
 		out.result = uba::CreateDirectoryW(msg.name.data);
 		if (out.result)
-			RegisterCreateFileForWrite(msg.nameKey, msg.name.data, msg.name.count, true);
+			RegisterCreateFileForWrite(msg.nameKey, msg.name, true);
 		out.errorCode = GetLastError();
 		return true;
 	}
@@ -2062,9 +2062,9 @@ namespace uba
 
 		auto writeFile = [&](WrittenFile& file)
 		{
-			bool shouldEvictFromMemory = IsRarelyReadAfterWritten(process, file.name.c_str(), file.name.size()) || file.mappingWritten > m_keepOutputFileMemoryMapsThreshold;
+			bool shouldEvictFromMemory = IsRarelyReadAfterWritten(process, file.name) || file.mappingWritten > m_keepOutputFileMemoryMapsThreshold;
 
-			if (ShouldWriteToDisk(file.name.c_str(), file.name.size()))
+			if (ShouldWriteToDisk(file.name))
 			{
 				// This is to kill I/O when writing lots of pdb/dlls in parallel
 				#if PLATFORM_WINDOWS
@@ -2088,7 +2088,7 @@ namespace uba
 
 				auto memClose = MakeGuard([&](){ UnmapViewOfFile(mem, fileSize, file.name.c_str()); });
 
-				if (m_storeObjFilesCompressed && process.m_startInfo.rules->StoreFileCompressed(file.name.c_str(), file.name.size()))
+				if (m_storeObjFilesCompressed && process.m_startInfo.rules->StoreFileCompressed(file.name))
 				{
 					Storage::WriteResult res;
 					CompressedObjFileHeader header { CalculateCasKey(mem, fileSize, true, m_workManager) };
@@ -2664,7 +2664,7 @@ namespace uba
 		StringKey symFileKey = CaseInsensitiveFs ? ToStringKeyLower(exportsFile) : ToStringKey(exportsFile);
 		u64 lastWriteTime = GetSystemTimeAsFileTime();
 
-		if (!RegisterCreateFileForWrite(symFileKey, exportsFile.data, exportsFile.count, false, memoryBlock.writtenSize, lastWriteTime))
+		if (!RegisterCreateFileForWrite(symFileKey, exportsFile, false, memoryBlock.writtenSize, lastWriteTime))
 			return false;
 
 		auto insres = msg.process.m_writtenFiles.try_emplace(exportsFile.data);

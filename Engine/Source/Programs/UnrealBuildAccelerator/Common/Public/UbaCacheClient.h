@@ -17,6 +17,7 @@ namespace uba
 	struct CacheStats;
 	struct CasKey;
 	struct ProcessStartInfo;
+	struct StringView;
 
 	struct CacheClientCreateInfo
 	{
@@ -56,7 +57,7 @@ namespace uba
 		bool ShouldNormalize(const StringBufferBase& path);
 
 		bool GetLocalPathAndCasKey(Bucket& bucket, const RootPaths& rootPaths, StringBufferBase& outPath, CasKey& outKey, CompactCasKeyTable& casKeyTable, CompactPathTable& pathTable, u32 offset);
-		bool IsFileCompressed(const ProcessStartInfo& info, const tchar* filename, u64 filenameSize);
+		bool IsFileCompressed(const ProcessStartInfo& info, const StringView& filename);
 
 		MutableLogger m_logger;
 		StorageImpl& m_storage;

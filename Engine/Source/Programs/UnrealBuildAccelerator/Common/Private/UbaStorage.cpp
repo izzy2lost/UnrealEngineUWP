@@ -524,7 +524,7 @@ namespace uba
 
 			if (fileIsCompressed)
 			{
-				CompressedObjFileHeader header;
+				CompressedObjFileHeader header(CasKeyZero);
 				if (!ReadFile(m_logger, fileName, readHandle, &header, sizeof(header)))
 					return false;
 				fileSize -= sizeof(header);
@@ -1925,7 +1925,7 @@ namespace uba
 		{
 			if (fileIsCompressed)
 			{
-				CompressedObjFileHeader header;
+				CompressedObjFileHeader header(CasKeyZero);
 				if (!ReadFile(m_logger, fileName, fileHandle, &header, sizeof(header)))
 					return m_logger.Error(TC("Failed to read header of compressed file %s (%s)"), fileName, LastErrorToText().data);
 				fileEntry.casKey = AsCompressed(header.casKey, m_storeCompressed);
@@ -2263,7 +2263,7 @@ namespace uba
 						if (!destinationFile.CreateMemoryWrite(false, fileAttributes, mappedView.size + sizeof(CompressedObjFileHeader), m_tempPath.data))
 							return false;
 						u8* mem = destinationFile.GetData();
-						*(CompressedObjFileHeader*)mem = { casKey };
+						*(CompressedObjFileHeader*)mem = CompressedObjFileHeader(casKey);
 						memcpy(mem + sizeof(CompressedObjFileHeader), mappedView.memory, mappedView.size);
 						return destinationFile.Close();
 					}

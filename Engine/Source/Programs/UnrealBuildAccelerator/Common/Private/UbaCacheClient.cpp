@@ -227,7 +227,7 @@ namespace uba
 			if (casKey == CasKeyZero)
 			{
 				bool deferCreation = true;
-				bool fileIsCompressed = IsFileCompressed(info, path.data, path.count);
+				bool fileIsCompressed = IsFileCompressed(info, path);
 				if (!m_storage.StoreCasFile(casKey, path.data, CasKeyZero, deferCreation, fileIsCompressed))
 					return false;
 				if (casKey == CasKeyZero) // If file is not found it was a temporary file that was deleted and is not really an output
@@ -342,7 +342,8 @@ namespace uba
 		UnorderedMap<u32, bool> offsetIsMatch;
 
 		// Traverse entries and test inputs against local machine
-		u32 entryCount = reader.ReadU16();
+		CacheEntriesTraverser traverser(reader);
+		u32 entryCount = traverser.entryCount;
 
 		#if UBA_LOG_FETCH_CACHE_INFO
 		auto mg = MakeGuard([&]()
@@ -354,8 +355,6 @@ namespace uba
 
 		struct MissInfo { TString path; u32 entryIndex; CasKey cache; CasKey local; };
 		Vector<MissInfo> misses;
-
-		CacheEntriesTraverser traverser(reader);
 
 		u32 entryIndex = 0;
 		for (; entryIndex!=entryCount; ++entryIndex)
@@ -390,7 +389,7 @@ namespace uba
 							else
 							{
 								bool deferCreation = true;
-								bool fileIsCompressed = IsFileCompressed(info, path.data, path.count);
+								bool fileIsCompressed = IsFileCompressed(info, path);
 								m_storage.StoreCasFile(localCasKey, path.data, CasKeyZero, deferCreation, fileIsCompressed);
 								UBA_ASSERT(localCasKey == CasKeyZero || IsCompressed(localCasKey));
 							}
@@ -511,7 +510,7 @@ namespace uba
 					else
 					{
 						DowngradedLogger logger(m_logger.m_writer, TC("UbaCacheClientDownload"));
-						bool destinationIsCompressed = IsFileCompressed(info, path.data, path.count);
+						bool destinationIsCompressed = IsFileCompressed(info, path);
 						if (!fetcher.RetrieveFile(logger, m_client, casKey, path.data, destinationIsCompressed))
 							return logger.Error(TC("Failed to download cache output %s for %s"), path.data, info.description);
 					}
@@ -941,13 +940,13 @@ namespace uba
 		return true;
 	}
 
-	bool CacheClient::IsFileCompressed(const ProcessStartInfo& info, const tchar* filename, u64 filenameSize)
+	bool CacheClient::IsFileCompressed(const ProcessStartInfo& info, const StringView& filename)
 	{
 		if (!m_session.ShouldStoreObjFilesCompressed())
 			return false;
 		auto rules = info.rules;
 		if (!rules)
 			rules = m_session.GetRules(info);
-		return rules->StoreFileCompressed(filename, filenameSize);
+		return rules->StoreFileCompressed(filename);
 	}
 }

@@ -971,7 +971,7 @@ DWORD Detoured_GetFileAttributesW(LPCWSTR lpFileName)
 BOOL Detoured_SetFileAttributesW(LPCWSTR lpFileName, DWORD dwFileAttributes)
 {
 	DETOURED_CALL(SetFileAttributesW);
-	if (KeepInMemory(lpFileName, u32(wcslen(lpFileName))))
+	if (KeepInMemory(StringView(lpFileName, u32(wcslen(lpFileName)))))
 	{
 		DEBUG_LOG_DETOURED(L"SetFileAttributesW", L"(%ls) %u", lpFileName, dwFileAttributes);
 		SetLastError(ERROR_SUCCESS);
@@ -1286,7 +1286,7 @@ BOOL Detoured_DeleteFileW(LPCWSTR lpFileName)
 		return True_DeleteFileW(original);
 	}
 
-	if (KeepInMemory(fixedNameLower.data, fixedNameLower.count))
+	if (KeepInMemory(fixedNameLower))
 	{
 		DEBUG_LOG_DETOURED(L"DeleteFileW", L"(INMEMORY) (%ls) -> Success", lpFileName);
 		SetLastError(ERROR_SUCCESS);
@@ -1341,7 +1341,7 @@ bool Shared_MoveFile(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD dw
 
 	StringKey sourceKey = ToStringKeyLower(source);
 
-	if (KeepInMemory(source.data, source.count))
+	if (KeepInMemory(source))
 	{
 		SCOPED_WRITE_LOCK(g_mappedFileTable.m_lookupLock, lock);
 		auto it = g_mappedFileTable.m_lookup.find(sourceKey);
@@ -1349,7 +1349,7 @@ bool Shared_MoveFile(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD dw
 		FileInfo& sourceInfo = it->second;
 		lock.Leave();
 
-		if (IsOutputFile(dest.data, dest.count, true))
+		if (IsOutputFile(dest, true))
 		{
 			sourceInfo.deleted = true;
 			UBA_ASSERT(!sourceInfo.memoryFile->isLocalOnly);
@@ -1360,7 +1360,7 @@ bool Shared_MoveFile(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD dw
 			lock2.Leave();
 			FileInfo& destInfo = insres.first->second;
 			UBA_ASSERT(!insres.second); // This is here just to get a chance to investigate this scenario.. might work
-			UBA_ASSERTF(!destInfo.trueFileMapHandle && (!destInfo.memoryFile || g_rules->IsThrowAway(dest.data, dest.count)), TC("Moving file %s to %s that is an output file that is not a memory file is not supported"), source.data, lpNewFileName);
+			UBA_ASSERTF(!destInfo.trueFileMapHandle && (!destInfo.memoryFile || g_rules->IsThrowAway(dest)), TC("Moving file %s to %s that is an output file that is not a memory file is not supported"), source.data, lpNewFileName);
 			destInfo.memoryFile = sourceInfo.memoryFile;
 			sourceInfo.memoryFile = nullptr;
 			DEBUG_LOG_DETOURED(L"MoveFileExW", L"(memfile->memfile) %ls to %ls -> Success", lpExistingFileName, lpNewFileName);
@@ -1368,7 +1368,7 @@ bool Shared_MoveFile(LPCWSTR lpExistingFileName, LPCWSTR lpNewFileName, DWORD dw
 			return true;
 		}
 
-		UBA_ASSERT(!KeepInMemory(dest.data, dest.count));
+		UBA_ASSERT(!KeepInMemory(dest));
 
 		DEBUG_LOG_DETOURED(L"MoveFileExW", L"(memfile->file) %ls to %ls", lpExistingFileName, lpNewFileName);
 

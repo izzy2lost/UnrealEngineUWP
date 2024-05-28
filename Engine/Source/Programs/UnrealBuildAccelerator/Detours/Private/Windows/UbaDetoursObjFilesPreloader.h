@@ -5,6 +5,7 @@
 #include "UbaCompressedObjFileHeader.h"
 #include "UbaDetoursUtilsWin.h"
 #include "UbaEvent.h"
+#include "UbaProcessUtils.h"
 #include <oodle2.h>
 #define _NTDEF_
 #include <ntsecapi.h>
@@ -53,22 +54,8 @@ namespace uba
 	class ObjFilesPreloader
 	{
 	public:
-		void Start(const wchar_t* cmdLine)
+		void ParseRsp(const StringView& rspFile)
 		{
-			const wchar_t* at = wcschr(cmdLine, '@');
-			if (!at)
-				return;
-
-			const wchar_t* end = at + wcslen(at);
-			StringBuffer<> rspFile;
-			++at;
-			if (*at == '\"')
-			{
-				++at;
-				--end;
-			}
-			rspFile.Append(at, end - at);
-
 			HANDLE rspFileHandle = CreateFileW(rspFile.data, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 			if (rspFileHandle == INVALID_HANDLE_VALUE)
 				return;
@@ -82,62 +69,101 @@ namespace uba
 			CloseHandle(rspFileHandle);
 			if (!rspFileMappingHandle)
 				return;
-			auto rspMem = (char*)MapViewOfFile(rspFileMappingHandle, FILE_MAP_READ, 0, 0, rspFileSize.QuadPart);
+			const void* rspMem = MapViewOfFile(rspFileMappingHandle, FILE_MAP_READ, 0, 0, rspFileSize.QuadPart);
 			CloseHandle(rspFileMappingHandle);
 			if (!rspMem)
 				return;
 
-			auto lineBegin = rspMem;
-			while (*lineBegin)
-			{
-				auto lineEnd = strchr(lineBegin, '\n');
-				if (!lineEnd)
-					lineEnd = lineBegin + strlen(lineBegin);
-				if (*lineBegin != '/')
+			ParseArguments((const char*)rspMem, rspFileSize.QuadPart, [&](const char* arg, u32 argLen)
 				{
-					char line[512];
-					u64 lineLen = lineEnd - lineBegin;
-					memcpy(line, lineBegin, lineLen);
-					line[lineLen] = 0;
+					StringBuffer<> sb;
+					sb.Append(arg, argLen);
+					HandleLine(sb);
+				});
 
-					if (char* ext = strstr(line, ".obj"))
-					{
-						ext[4] = 0;
+			UnmapViewOfFile(rspMem);
+		}
 
-						char* objFile = line;
-						if (line[0] == '\"')
-							++objFile;
+		void HandleLine(const StringView& line)
+		{
+			if (line.data[0] == '/' || line.data[0] == '-')
+				return;
 
-						StringBuffer<> objFile2;
-						objFile2.Append(objFile);
-
-						StringBuffer<> objFileFull;
-						FixPath(objFileFull, objFile2.data);
-
-						HANDLE objFileHandle = CreateFileW(objFileFull.data, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-						UBA_ASSERT(objFileHandle != INVALID_HANDLE_VALUE);
-
-						StringKey fileNameKey = ToStringKey(objFileFull.MakeLower());
-						auto insres = m_preloadedObjFiles.try_emplace(fileNameKey);
-						UBA_ASSERT(insres.second);
-						insres.first->second.handle = objFileHandle;
-						insres.first->second.event.Create(true);
-
-						SCOPED_READ_LOCK(g_mappedFileTable.m_lookupLock, _);
-						auto findIt = g_mappedFileTable.m_lookup.find(fileNameKey);
-						insres.first->second.fileInfo = &findIt->second;
-					}
+			if (line.data[0] == '@')
+			{
+				const wchar_t* begin = line.data + 1;
+				const wchar_t* end = nullptr;
+				StringBuffer<> rspFile;
+				if (*begin == '\"')
+				{
+					++begin;
+					end = wcschr(begin, '\"');
+					if (!end)
+						return;
 				}
-
-				if (!*lineEnd)
-					break;
-				lineBegin = lineEnd + 1;
+				else
+				{
+					end = wcschr(begin, ' ');
+					if (!end)
+						end = begin + wcslen(begin);
+				}
+				rspFile.Append(begin, end - begin);
+				ParseRsp(rspFile);
+				return;
 			}
+
+			StringBuffer<> file;
+			file.Append(line);
+			if (!g_rules->ShouldDecompressFiles(file))
+				return;
+			StringBuffer<> fileFull;
+			FixPath(fileFull, file.data);
+
+			HANDLE fileHandle = CreateFileW(fileFull.data, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+			UBA_ASSERT(fileHandle != INVALID_HANDLE_VALUE);
+
+			StringKey fileNameKey = ToStringKey(fileFull.MakeLower());
+			auto insres = m_preloadedObjFiles.try_emplace(fileNameKey);
+			UBA_ASSERT(insres.second);
+			insres.first->second.handle = fileHandle;
+			insres.first->second.event.Create(true);
+
+			SCOPED_READ_LOCK(g_mappedFileTable.m_lookupLock, _);
+			auto findIt = g_mappedFileTable.m_lookup.find(fileNameKey);
+			insres.first->second.fileInfo = &findIt->second;
+		}
+
+		void Start(const wchar_t* cmdLine)
+		{
+			Oodle_SetUsageWarnings(Oodle_UsageWarnings_Disabled);
+
+			auto handleLine = [&](const StringView& line)
+				{
+					StringBuffer<> file;
+					file.Append(line);
+					if (!g_rules->ShouldDecompressFiles(file))
+						return;
+					StringBuffer<> fileFull;
+					FixPath(fileFull, file.data);
+
+					HANDLE fileHandle = CreateFileW(fileFull.data, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+					UBA_ASSERT(fileHandle != INVALID_HANDLE_VALUE);
+
+					StringKey fileNameKey = ToStringKey(fileFull.MakeLower());
+					auto insres = m_preloadedObjFiles.try_emplace(fileNameKey);
+					UBA_ASSERT(insres.second);
+					insres.first->second.handle = fileHandle;
+					insres.first->second.event.Create(true);
+
+					SCOPED_READ_LOCK(g_mappedFileTable.m_lookupLock, _);
+					auto findIt = g_mappedFileTable.m_lookup.find(fileNameKey);
+					insres.first->second.fileInfo = &findIt->second;
+				};
+
+			ParseArguments(cmdLine, [&](const tchar* arg, u32 argLen) { HandleLine(StringView(arg, argLen)); });
 
 			if (!m_preloadedObjFiles.empty())
 				m_threadHandle = CreateThread(NULL, 0, [](LPVOID p) -> DWORD { ((ObjFilesPreloader*)p)->ThreadPreload(); return 0; }, this, 0, NULL);
-
-			UnmapViewOfFile(rspMem);
 		}
 
 		void Stop()
@@ -164,6 +190,8 @@ namespace uba
 				LARGE_INTEGER objFileSize;
 				BOOL res = GetFileSizeEx(objFileHandle, &objFileSize);
 				UBA_ASSERT(res);(void)res;
+				if (objFileSize.QuadPart < sizeof(CompressedObjFileHeader))
+					continue;
 
 				HANDLE objFileMappingHandle = CreateFileMappingW(objFileHandle, NULL, PAGE_READONLY, objFileSize.HighPart, objFileSize.LowPart, NULL);
 				UBA_ASSERT(objFileMappingHandle);
@@ -175,6 +203,11 @@ namespace uba
 				UBA_ASSERT(preload.objMem);
 				if (!preload.objMem)
 					continue;
+				if (!((CompressedObjFileHeader*)preload.objMem)->IsValid())
+				{
+					preload.event.Set();
+					continue;
+				}
 				preload.objCompressedSize = objFileSize.QuadPart;
 				preload.objDecompressedSize = *(u64*)(preload.objMem + sizeof(CompressedObjFileHeader));
 				preload.objReadOffset = 8 + sizeof(CompressedObjFileHeader);

@@ -56,6 +56,9 @@ namespace uba
 	{
 		CacheEntriesTraverser(BinaryReader& r) : reader(r)
 		{
+			entryCount = reader.ReadU16();
+			if (!reader.GetLeft())
+				return;
 			u64 sharedSize = r.Read7BitEncoded();
 			sharedInputOffsets = r.GetPositionData();
 			reader.Skip(sharedSize);
@@ -107,7 +110,8 @@ namespace uba
 		}
 
 		BinaryReader& reader;
-		const u8* sharedInputOffsets;
-		u32 lastId = 0;;
+		const u8* sharedInputOffsets = nullptr;
+		u32 entryCount = 0;
+		u32 lastId = 0;
 	};
 }

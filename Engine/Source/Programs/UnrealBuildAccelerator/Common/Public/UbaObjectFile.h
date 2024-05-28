@@ -53,56 +53,56 @@ namespace uba
 		UnorderedSymbols m_imports;
 		UnorderedExports m_exports;
 		UnorderedSymbols m_potentialDuplicates;
-	};
 
-
-	struct StringView
-	{
-		const char* strBegin;
-		const char* strEnd;
-
-		u32 Length() const
+	public:
+		struct StringView
 		{
-			return u32(strEnd - strBegin);
-		}
+			const char* strBegin;
+			const char* strEnd;
 
-		bool StartsWith(const char* str, u32 strLen) const
-		{
-			if (strLen > Length())
-				return false;
-			return memcmp(strBegin, str, strLen) == 0;
-		}
-
-		bool Contains(const char* str, u32 strLen) const
-		{
-			const char* it = strBegin;
-			const char* itEnd = strEnd - strLen + 1;
-			while (it < itEnd)
+			u32 Length() const
 			{
-				if (memcmp(it, str, strLen) == 0)
-					return true;
-				++it;
+				return u32(strEnd - strBegin);
 			}
-			return false;
-		}
 
-		bool Equals(const char* str, u32 strLen) const
-		{
-			if (strLen != Length())
+			bool StartsWith(const char* str, u32 strLen) const
+			{
+				if (strLen > Length())
+					return false;
+				return memcmp(strBegin, str, strLen) == 0;
+			}
+
+			bool Contains(const char* str, u32 strLen) const
+			{
+				const char* it = strBegin;
+				const char* itEnd = strEnd - strLen + 1;
+				while (it < itEnd)
+				{
+					if (memcmp(it, str, strLen) == 0)
+						return true;
+					++it;
+				}
 				return false;
-			return memcmp(strBegin, str, strLen) == 0;
-		}
+			}
 
-		std::string ToString() const
-		{
-			return std::string(strBegin, strEnd);
-		}
+			bool Equals(const char* str, u32 strLen) const
+			{
+				if (strLen != Length())
+					return false;
+				return memcmp(strBegin, str, strLen) == 0;
+			}
 
-		std::string& ToString(std::string& out) const
-		{
-			out.assign(strBegin, strEnd);
-			return out;
-		}
+			std::string ToString() const
+			{
+				return std::string(strBegin, strEnd);
+			}
+
+			std::string& ToString(std::string& out) const
+			{
+				out.assign(strBegin, strEnd);
+				return out;
+			}
+		};
 	};
 
 	struct SymbolFile

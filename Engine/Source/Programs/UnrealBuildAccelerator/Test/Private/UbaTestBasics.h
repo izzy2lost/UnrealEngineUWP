@@ -7,9 +7,9 @@
 #include "UbaBinaryReaderWriter.h"
 #include "UbaCompactTables.h"
 #include "UbaFileAccessor.h"
-#include "UbaProcess.h"
 #include "UbaPathUtils.h"
 #include "UbaPlatform.h"
+#include "UbaProcessUtils.h"
 #include "UbaEvent.h"
 #include "UbaFile.h"
 #include "UbaLogger.h"
@@ -247,6 +247,8 @@ namespace uba
 
 	bool TestParseArguments(Logger& logger, const StringBufferBase& rootDir)
 	{
+		auto ParseArguments = [](Vector<TString>& a, const tchar* args) { uba::ParseArguments(args, [&](const tchar* arg, u32 argLen) { a.push_back({arg, argLen}); }); };
+
 		Vector<TString> arguments;
 		ParseArguments(arguments, TC("foo bar"));
 		UBA_TEST_CHECK(arguments.size() == 2, "ParseArguments 1 failed (%llu)", arguments.size());
@@ -280,6 +282,19 @@ namespace uba
 		ParseArguments(arguments7, TC("app \" \\\"foo\\\" bar\""));
 		UBA_TEST_CHECK(arguments7.size() == 2, "ParseArguments 7 failed");
 		UBA_TEST_CHECK(Contains(arguments7[1].data(), TC("\"")), "ParseArguments 7 failed");
+
+		Vector<TString> arguments8;
+		ParseArguments(arguments8, TC("\nline1\r\nline2\r\nline3\n\r\n"));
+		UBA_TEST_CHECK(arguments8.size() == 3, "ParseArguments 8 failed");
+		UBA_TEST_CHECK(Equals(arguments8[0].data(), TC("line1")), "ParseArguments 8 failed");
+		UBA_TEST_CHECK(Equals(arguments8[1].data(), TC("line2")), "ParseArguments 8 failed");
+		UBA_TEST_CHECK(Equals(arguments8[2].data(), TC("line3")), "ParseArguments 8 failed");
+
+		Vector<TString> arguments9;
+		ParseArguments(arguments9, TC("\"foo\\\\\" \"bar\\\\\""));
+		UBA_TEST_CHECK(arguments9.size() == 2, "ParseArguments 9 failed");
+		UBA_TEST_CHECK(Equals(arguments9[0].data(), TC("foo\\\\")), "ParseArguments 9 failed");
+		UBA_TEST_CHECK(Equals(arguments9[1].data(), TC("bar\\\\")), "ParseArguments 9 failed");
 		return true;
 	}
 

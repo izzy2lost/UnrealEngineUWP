@@ -34,16 +34,16 @@ namespace uba
 		}
 
 		// Throw-away means that the file is temporary and will not be used after process exists. (By default these are kept in memory and never touch disk)
-		virtual bool IsThrowAway(const tchar* fileName, u32 fileNameLen) const
+		virtual bool IsThrowAway(const StringView& fileName) const
 		{
 			return false;
 		}
 
 		// Keep file in memory
 		// If this returns true it means that file will be kept in memory and never touch disk.
-		virtual bool KeepInMemory(const tchar* fileName, u32 fileNameLen, const tchar* systemTemp) const
+		virtual bool KeepInMemory(const StringView& fileName, const tchar* systemTemp) const
 		{
-			return IsThrowAway(fileName, fileNameLen);
+			return IsThrowAway(fileName);
 		}
 
 		// For files that are kept in memory but shared between process (temporary files where one process write and another read)
@@ -60,7 +60,7 @@ namespace uba
 		}
 
 		// Outputfile means that it is kept in memory and then sent back to session process which can decide to write it to disk or send it over network
-		virtual bool IsOutputFile(const tchar* file, u64 fileLen) const
+		virtual bool IsOutputFile(const StringView& fileName) const
 		{
 			return false;
 		}
@@ -80,7 +80,7 @@ namespace uba
 
 		// Return true if the file is never/rarely read after it was written.
 		// This is an optimization where the written file is not kept in file mappings after written
-		virtual bool IsRarelyReadAfterWritten(const tchar* fileName, u64 fileNameLen) const
+		virtual bool IsRarelyReadAfterWritten(const StringView& fileName) const
 		{
 			return false;
 		}
@@ -129,12 +129,17 @@ namespace uba
 			return false;
 		}
 
-		virtual bool StoreFileCompressed(const tchar* fileName, u64 fileNameLen) const
+		virtual bool StoreFileCompressed(const StringView& fileName) const
 		{
 			return false;
 		}
 
-		virtual bool ShouldExtractSymbols(const tchar* fileName, u64 fileNameLen) const
+		virtual bool ShouldDecompressFiles(const StringView& fileName) const
+		{
+			return false;
+		}
+
+		virtual bool ShouldExtractSymbols(const StringView& fileName) const
 		{
 			return false;
 		}

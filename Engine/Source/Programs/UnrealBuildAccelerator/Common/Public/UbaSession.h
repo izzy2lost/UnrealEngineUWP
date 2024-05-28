@@ -92,7 +92,7 @@ namespace uba
 		void StopTraceThread();
 		u32 GetDirectoryTableSize();
 		u32 GetFileMappingSize();
-		u32 GetMemoryMapAlignment(const tchar* fileName, u64 fileNameLen) const;
+		u32 GetMemoryMapAlignment(const StringView& fileName) const;
 
 		SessionStats& Stats();
 
@@ -100,9 +100,9 @@ namespace uba
 		bool GetBinaryModules(Vector<BinaryModule>& out, const tchar* application);
 		void Free(Vector<BinaryModule>& v);
 		bool IsRarelyRead(ProcessImpl& process, const StringBufferBase& fileName) const;
-		bool IsRarelyReadAfterWritten(ProcessImpl& process, const tchar* fileName, u64 fileNameLen) const;
+		bool IsRarelyReadAfterWritten(ProcessImpl& process, const StringView& fileName) const;
 		bool IsKnownSystemFile(const tchar* applicationName);
-		bool ShouldWriteToDisk(const tchar* fileName, u64 fileNameLen);
+		bool ShouldWriteToDisk(const StringView& fileName);
 		u32 WriteDirectoryEntries(const StringKey& dirKey, tchar* dirPath, u32& outTableOffset);
 		u32 AddFileMapping(StringKey fileNameKey, const tchar* fileName, const tchar* newFileName, u64 fileSize = InvalidValue);
 		
@@ -110,7 +110,7 @@ namespace uba
 		bool CreateMemoryMapFromFile(MemoryMap& out, StringKey fileNameKey, const tchar* fileName, bool isCompressed, u64 alignment);
 		bool CreateMemoryMapFromView(MemoryMap& out, StringKey fileNameKey, const tchar* fileName, const CasKey& casKey, u64 alignment);
 
-		bool RegisterCreateFileForWrite(StringKey fileNameKey, const tchar* fileName, u64 fileNameLen, bool registerRealFile, u64 fileSize = 0, u64 lastWriteTime = 0);
+		bool RegisterCreateFileForWrite(StringKey fileNameKey, const StringView& fileName, bool registerRealFile, u64 fileSize = 0, u64 lastWriteTime = 0);
 		u32 RegisterDeleteFile(StringKey fileNameKey, const tchar* fileName);
 
 		virtual bool PrepareProcess(const ProcessStartInfo& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir);

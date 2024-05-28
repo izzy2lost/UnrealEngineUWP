@@ -175,7 +175,7 @@ namespace uba
 	};
 
 	template<typename SymbolType>
-	StringView GetSymbolName(SymbolType& symbol, const u8* data, u32 stringTableMemPos)
+	ObjectFile::StringView GetSymbolName(SymbolType& symbol, const u8* data, u32 stringTableMemPos)
 	{
 		if (symbol.N.Name.Short == 0)
 		{

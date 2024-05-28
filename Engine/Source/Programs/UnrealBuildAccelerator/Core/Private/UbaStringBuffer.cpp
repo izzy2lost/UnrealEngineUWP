@@ -146,6 +146,11 @@ namespace uba
 		return *this;
 	}
 
+	StringBufferBase& StringBufferBase::Append(const StringView& view)
+	{
+		return Append(view.data, view.count);
+	}
+
 	StringBufferBase& StringBufferBase::Appendf(const tchar* format, ...)
 	{
 		if (*format)
@@ -375,4 +380,9 @@ namespace uba
 		return (u32)destLen;
 	}
 	#endif
+
+	StringView ToView(const tchar* s)
+	{
+		return StringView(s, TStrlen(s));
+	}
 }

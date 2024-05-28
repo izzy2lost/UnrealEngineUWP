@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "UbaSessionServer.h"
+#include "UbaSessionServer.h"	
+#include "UbaApplicationRules.h"
 #include "UbaNetworkServer.h"
 #include "UbaProcess.h"
 #include "UbaProcessStartInfoHolder.h"
@@ -282,7 +283,7 @@ namespace uba
 
 				auto& ki = keys[keysIndex++];
 				ki.key = casKey;
-				ki.mappingAlignment = GetMemoryMapAlignment(fileName.data, fileName.count);
+				ki.mappingAlignment = GetMemoryMapAlignment(fileName);
 
 
 				// Update name to hash table
@@ -302,6 +303,8 @@ namespace uba
 			}
 			remoteProcess->m_knownInputsCount = keysIndex;
 		}
+
+		remoteProcess->startInfo.rules = GetRules(remoteProcess->startInfo);
 
 		ProcessHandle h(remoteProcess); // Keep ref count up even if process is removed by callbacks etc.
 
@@ -836,9 +839,19 @@ namespace uba
 						return true;
 					}
 
-					if (ShouldWriteToDisk(destination.data, destination.count))
+					if (ShouldWriteToDisk(destination))
 					{
-						bool writeCompressed = m_storeObjFilesCompressed && destination.EndsWith(TC(".obj"));
+						bool writeCompressed = false;
+						if (m_storeObjFilesCompressed)
+						{
+							SCOPED_READ_LOCK(m_processesLock, lock);
+							auto findIt = m_processes.find(processId);
+							if (findIt != m_processes.end())
+							{
+								auto& process = *(RemoteProcess*)findIt->second.m_process;
+								writeCompressed = process.startInfo.rules->StoreFileCompressed(destination);
+							}
+						}
 						success = m_storage.CopyOrLink(casKey, destination.data, attributes, writeCompressed);
 						if (!success)
 							m_logger.Error(TC("Failed to copy cas from %s to %s (%s)"), CasKeyString(casKey).str, destination.data, GetProcessDescription(processId).c_str());
@@ -857,7 +870,7 @@ namespace uba
 				if (success)
 				{
 					m_storage.DropCasFile(casKey, false, destination.data);
-					RegisterCreateFileForWrite(StringKeyZero, destination.data, destination.count, true);
+					RegisterCreateFileForWrite(StringKeyZero, destination, true);
 
 
 					SCOPED_WRITE_LOCK(m_processesLock, lock);
@@ -905,7 +918,7 @@ namespace uba
 				bool result = uba::CopyFileW(fromName.data, toName.data, false);
 				u32 errorCode = GetLastError();
 				if (result)
-					RegisterCreateFileForWrite(toNameKey, toName.data, toName.count, true);
+					RegisterCreateFileForWrite(toNameKey, toName, true);
 				writer.WriteU32(errorCode);
 				return true;
 			}
@@ -1738,7 +1751,7 @@ namespace uba
 			auto findIt = m_receivedFiles.find(msg.fileNameKey);
 			if (findIt != m_receivedFiles.end())
 			{
-				u64 memoryMapAlignment = GetMemoryMapAlignment(msg.fileName.data, msg.fileName.count);
+				u64 memoryMapAlignment = GetMemoryMapAlignment(msg.fileName);
 				if (!memoryMapAlignment)
 					memoryMapAlignment = 4096;
 				MemoryMap map;

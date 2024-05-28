@@ -30,17 +30,17 @@ namespace uba
 				return false;
 			return true;
 		}
-		virtual bool IsThrowAway(const tchar* fileName, u32 fileNameLen) const override
+		virtual bool IsThrowAway(const StringView& fileName) const override
 		{
-			return Contains(fileName, TC("vctip_")) || Super::IsThrowAway(fileName, fileNameLen);
+			return fileName.Contains(TC("vctip_")) || Super::IsThrowAway(fileName);
 		}
-		virtual bool KeepInMemory(const tchar* fileName, u32 fileNameLen, const tchar* systemTemp) const override
+		virtual bool KeepInMemory(const StringView& fileName, const tchar* systemTemp) const override
 		{
-			if (Contains(fileName, TC("\\vctip_")) != 0)
+			if (fileName.Contains(TC("\\vctip_")) != 0)
 				return true;
-			if (Contains(fileName, systemTemp))
+			if (fileName.Contains(systemTemp))
 				return true;
-			return Super::KeepInMemory(fileName, fileNameLen, systemTemp);
+			return Super::KeepInMemory(fileName, systemTemp);
 		}
 
 		virtual bool IsExitCodeSuccess(u32 exitCode) const override
@@ -52,12 +52,12 @@ namespace uba
 	class ApplicationRulesClExe : public ApplicationRulesVC
 	{
 	public:
-		virtual bool IsOutputFile(const tchar* file, u64 fileLen) const override
+		virtual bool IsOutputFile(const StringView& fileName) const override
 		{
-			return EndsWith(file, fileLen, TC(".obj"))
-				|| EndsWith(file, fileLen, TC(".dep.json"))
-				|| EndsWith(file, fileLen, TC(".rc2.res")) // Not really an obj file.. 
-				;// || EndsWith(file, fileLen, TC(".h.pch") // Not tested enough
+			return fileName.EndsWith(TC(".obj"))
+				|| fileName.EndsWith(TC(".dep.json"))
+				|| fileName.EndsWith(TC(".rc2.res")) // Not really an obj file.. 
+				;// || fileName.EndsWith(TC(".h.pch") // Not tested enough
 		}
 
 		virtual bool IsRarelyRead(const StringBufferBase& file) const override
@@ -66,11 +66,11 @@ namespace uba
 				|| file.EndsWith(TC(".obj.rsp"));
 		}
 
-		virtual bool IsRarelyReadAfterWritten(const tchar* fileName, u64 fileNameLen) const override
+		virtual bool IsRarelyReadAfterWritten(const StringView& fileName) const override
 		{
-			return EndsWith(fileName, fileNameLen, TC(".dep.json"))
-				|| EndsWith(fileName, fileNameLen, TC(".exe"))
-				|| EndsWith(fileName, fileNameLen, TC(".dll"));
+			return fileName.EndsWith(TC(".dep.json"))
+				|| fileName.EndsWith(TC(".exe"))
+				|| fileName.EndsWith(TC(".dll"));
 		}
 
 		virtual bool NeedsSharedMemory(const tchar* file) const override
@@ -83,14 +83,14 @@ namespace uba
 			return true;
 		}
 
-		virtual bool StoreFileCompressed(const tchar* fileName, u64 fileNameLen) const
+		virtual bool StoreFileCompressed(const StringView& fileName) const
 		{
-			return EndsWith(fileName, fileNameLen, TC(".obj"));
+			return fileName.EndsWith(TC(".obj"));
 		}
 
-		virtual bool ShouldExtractSymbols(const tchar* fileName, u64 fileNameLen) const
+		virtual bool ShouldExtractSymbols(const StringView& fileName) const
 		{
-			return EndsWith(fileName, fileNameLen, TC(".obj"));
+			return fileName.EndsWith(TC(".obj"));
 		}
 	};
 
@@ -98,19 +98,19 @@ namespace uba
 	{
 		using Super = ApplicationRulesVC;
 	public:
-		virtual bool IsOutputFile(const tchar* file, u64 fileLen) const override
+		virtual bool IsOutputFile(const StringView& fileName) const override
 		{
-			return EndsWith(file, fileLen, TC(".lib"))
-				|| EndsWith(file, fileLen, TC(".exp"))
-				|| EndsWith(file, fileLen, TC(".pdb"))
-				|| EndsWith(file, fileLen, TC(".dll"))
-				|| EndsWith(file, fileLen, TC(".exe"))
-				|| EndsWith(file, fileLen, TC(".rc2.res")); // Not really an obj file.. 
+			return fileName.EndsWith(TC(".lib"))
+				|| fileName.EndsWith(TC(".exp"))
+				|| fileName.EndsWith(TC(".pdb"))
+				|| fileName.EndsWith(TC(".dll"))
+				|| fileName.EndsWith(TC(".exe"))
+				|| fileName.EndsWith(TC(".rc2.res")); // Not really an obj file.. 
 		}
 
-		virtual bool IsThrowAway(const tchar* fileName, u32 fileNameLen) const override
+		virtual bool IsThrowAway(const StringView& fileName) const override
 		{
-			return Contains(fileName, TC(".sup.")); // .sup.lib/exp are throw-away files that we don't want created
+			return fileName.Contains(TC(".sup.")); // .sup.lib/exp are throw-away files that we don't want created
 		}
 
 		virtual bool CanExist(const tchar* file) const override
@@ -139,16 +139,21 @@ namespace uba
 			return Super::AllowStorageProxy(file);
 		}
 
-		virtual bool IsRarelyReadAfterWritten(const tchar* fileName, u64 fileNameLen) const override
+		virtual bool IsRarelyReadAfterWritten(const StringView& fileName) const override
 		{
-			return EndsWith(fileName, fileNameLen, TC(".pdb"))
-				|| EndsWith(fileName, fileNameLen, TC(".exe"))
-				|| EndsWith(fileName, fileNameLen, TC(".dll"));
+			return fileName.EndsWith(TC(".pdb"))
+				|| fileName.EndsWith(TC(".exe"))
+				|| fileName.EndsWith(TC(".dll"));
 		}
 
 		virtual bool IsCacheable() const override
 		{
 			return true;
+		}
+
+		virtual bool ShouldDecompressFiles(const StringView& fileName) const override
+		{
+			return fileName.IsEmpty() || fileName.EndsWith(TC(".obj"));
 		}
 	};
 
@@ -176,15 +181,15 @@ namespace uba
 			return true;
 		}
 
-		virtual bool IsOutputFile(const tchar* file, u64 fileLen) const override
+		virtual bool IsOutputFile(const StringView& fileName) const override
 		{
-			return EndsWith(file, fileLen, TC(".c.d"))
-				|| EndsWith(file, fileLen, TC(".h.d"))
-				|| EndsWith(file, fileLen, TC(".cc.d"))
-				|| EndsWith(file, fileLen, TC(".cpp.d"))
-				|| EndsWith(file, fileLen, TC(".o.tmp")) // Clang writes to tmp file and then move
-				|| EndsWith(file, fileLen, TC(".obj.tmp")) // Clang (verse) writes to tmp file and then move
-				;// || EndsWith(file, fileLen, TC(".gch.tmp")); // Need to fix "has been modified since the precompiled header"
+			return fileName.EndsWith(TC(".c.d"))
+				|| fileName.EndsWith(TC(".h.d"))
+				|| fileName.EndsWith(TC(".cc.d"))
+				|| fileName.EndsWith(TC(".cpp.d"))
+				|| fileName.EndsWith(TC(".o.tmp")) // Clang writes to tmp file and then move
+				|| fileName.EndsWith(TC(".obj.tmp")) // Clang (verse) writes to tmp file and then move
+				;// || fileName.EndsWith(TC(".gch.tmp")); // Need to fix "has been modified since the precompiled header"
 		}
 
 		virtual bool IsRarelyRead(const StringBufferBase& file) const override
@@ -193,9 +198,9 @@ namespace uba
 				|| file.EndsWith(TC(".o.rsp"));
 		}
 
-		virtual bool IsRarelyReadAfterWritten(const tchar* fileName, u64 fileNameLen) const override
+		virtual bool IsRarelyReadAfterWritten(const StringView& fileName) const override
 		{
-			return EndsWith(fileName, fileNameLen, TC(".d"));
+			return fileName.EndsWith(TC(".d"));
 		}
 
 		virtual bool AllowMiMalloc() const override
@@ -208,14 +213,14 @@ namespace uba
 			return true;
 		}
 
-		virtual bool StoreFileCompressed(const tchar* fileName, u64 fileNameLen) const
+		virtual bool StoreFileCompressed(const StringView& fileName) const
 		{
-			return EndsWith(fileName, fileNameLen, TC(".obj"));
+			return fileName.EndsWith(TC(".obj")) || fileName.EndsWith(TC(".o"));
 		}
 
-		virtual bool ShouldExtractSymbols(const tchar* fileName, u64 fileNameLen) const
+		virtual bool ShouldExtractSymbols(const StringView& fileName) const
 		{
-			return EndsWith(fileName, fileNameLen, TC(".obj")) || EndsWith(fileName, fileNameLen, TC(".o"));
+			return fileName.EndsWith(TC(".obj")) || fileName.EndsWith(TC(".o"));
 		}
 	};
 
@@ -223,9 +228,9 @@ namespace uba
 	{
 		using Super = ApplicationRulesClang;
 
-		virtual bool IsOutputFile(const tchar* file, u64 fileLen) const override
+		virtual bool IsOutputFile(const StringView& fileName) const override
 		{
-			return Contains(file, TC(".tmp")); // both .so.tmp and .tmp123456
+			return fileName.Contains(TC(".tmp")); // both .so.tmp and .tmp123456
 		}
 
 		virtual bool IsRarelyRead(const StringBufferBase& file) const override
@@ -237,20 +242,25 @@ namespace uba
 		{
 			return 14ull * 1024 * 1024 * 1024; // This is ridiculous (needed for asan targets)
 		}
+
+		virtual bool ShouldDecompressFiles(const StringView& fileName) const override
+		{
+			return fileName.IsEmpty() || fileName.EndsWith(TC(".o"));
+		}
 	};
 
 	class ApplicationRulesLlvmObjCopyExe : public ApplicationRulesClang
 	{
 		using Super = ApplicationRulesClang;
 
-		virtual bool IsOutputFile(const tchar* file, u64 fileLen) const override
+		virtual bool IsOutputFile(const StringView& fileName) const override
 		{
-			return Contains(file, TC(".temp-stream-"));
+			return fileName.Contains(TC(".temp-stream-"));
 		}
 
 		virtual u64 FileTypeMaxSize(const StringBufferBase& file, bool isSystemOrTempFile) const override
 		{
-			if (IsOutputFile(file.data, file.count))
+			if (IsOutputFile(file))
 				return 14ull * 1024 * 1024 * 1024; // This is ridiculous (needed for asan targets)
 			return Super::FileTypeMaxSize(file, isSystemOrTempFile);
 		}
@@ -258,9 +268,9 @@ namespace uba
 
 	class ApplicationRulesDumpSymsExe : public ApplicationRulesClang
 	{
-		virtual bool IsOutputFile(const tchar* file, u64 fileLen) const override
+		virtual bool IsOutputFile(const StringView& fileName) const override
 		{
-			return false; // EndsWith(file, fileLen, TC(".psym")); With psym as output file the BreakpadSymbolEncoder fails to output a .sym file
+			return false; // fileName.EndsWith(TC(".psym")); With psym as output file the BreakpadSymbolEncoder fails to output a .sym file
 		}
 	};
 
@@ -268,14 +278,14 @@ namespace uba
 	{
 		using Super = ApplicationRulesClangPlusPlusExe;
 
-		virtual bool IsThrowAway(const tchar* fileName, u32 fileNameLen) const override
+		virtual bool IsThrowAway(const StringView& fileName) const override
 		{
-			return EndsWith(fileName, fileNameLen, TC("-telemetry.json")) || Super::IsThrowAway(fileName, fileNameLen);
+			return fileName.EndsWith(TC("-telemetry.json")) || Super::IsThrowAway(fileName);
 		}
 
 		//virtual bool NeedsSharedMemory(const tchar* file)
 		//{
-		//	return Contains(file, TC("lto-llvm")); // Used by a clang based platform's link time optimization pass. Shared from lto process back to linker process
+		//	return fileName.Contains(TC("lto-llvm")); // Used by a clang based platform's link time optimization pass. Shared from lto process back to linker process
 		//}
 	};
 
@@ -283,18 +293,23 @@ namespace uba
 	{
 		using Super = ApplicationRules;
 
-		//virtual bool IsOutputFile(const tchar* file, u64 fileLen) const override
+		//virtual bool IsOutputFile(const StringView& fileName) const override
 		//{
-		//	return EndsWith(file, fileLen, TC(".self")) || Equals(file, TC("Symbols.map"));
+		//	return fileName.EndsWith(TC(".self")) || Equals(file, TC("Symbols.map"));
 		//}
-		virtual bool KeepInMemory(const tchar* fileName, u32 fileNameLen, const tchar* systemTemp) const override
+		virtual bool KeepInMemory(const StringView& fileName, const tchar* systemTemp) const override
 		{
-			return Super::KeepInMemory(fileName, fileNameLen, systemTemp)
-				|| Contains(fileName, TC("thinlto-"));// Used by a clang based platform's link time optimization pass. Shared from lto process back to linker process
+			return Super::KeepInMemory(fileName, systemTemp)
+				|| fileName.Contains(TC("thinlto-"));// Used by a clang based platform's link time optimization pass. Shared from lto process back to linker process
 		}
 		virtual bool NeedsSharedMemory(const tchar* file) const override
 		{
 			return Contains(file, TC("thinlto-")); // Used by a clang based platform's link time optimization pass. Shared from lto process back to linker process
+		}
+
+		virtual bool ShouldDecompressFiles(const StringView& fileName) const override
+		{
+			return fileName.IsEmpty() || fileName.EndsWith(TC(".o"));
 		}
 	};
 
@@ -302,19 +317,19 @@ namespace uba
 	{
 		using Super = ApplicationRulesClangPlusPlusExe;
 
-		virtual bool IsOutputFile(const tchar* file, u64 fileLen) const override
+		virtual bool IsOutputFile(const StringView& fileName) const override
 		{
-			return Contains(file, TC(".self")) || Super::IsOutputFile(file, fileLen);
+			return fileName.Contains(TC(".self")) || Super::IsOutputFile(fileName);
 		}
 
-		virtual bool IsThrowAway(const tchar* fileName, u32 fileNameLen) const override
+		virtual bool IsThrowAway(const StringView& fileName) const override
 		{
-			return EndsWith(fileName, fileNameLen, TC("-telemetry.json")) || Super::IsThrowAway(fileName, fileNameLen);
+			return fileName.EndsWith(TC("-telemetry.json")) || Super::IsThrowAway(fileName);
 		}
 
 		//virtual bool NeedsSharedMemory(const tchar* file)
 		//{
-		//	return Contains(file, TC("lto-llvm")); // Used by a clang based platform's link time optimization pass. Shared from lto process back to linker process
+		//	return fileName.Contains(TC("lto-llvm")); // Used by a clang based platform's link time optimization pass. Shared from lto process back to linker process
 		//}
 	};
 
@@ -322,20 +337,25 @@ namespace uba
 	{
 		using Super = ApplicationRules;
 
-		virtual bool IsOutputFile(const tchar* file, u64 fileLen) const override
+		virtual bool IsOutputFile(const StringView& fileName) const override
 		{
-			return Contains(file, TC(".self"));
+			return fileName.Contains(TC(".self"));
 		}
 
-		virtual bool IsThrowAway(const tchar* fileName, u32 fileNameLen) const override
+		virtual bool IsThrowAway(const StringView& fileName) const override
 		{
-			return EndsWith(fileName, fileNameLen, TC("-telemetry.json")) || Super::IsThrowAway(fileName, fileNameLen);
+			return fileName.EndsWith(TC("-telemetry.json")) || Super::IsThrowAway(fileName);
 		}
 
 		//virtual bool NeedsSharedMemory(const tchar* file)
 		//{
-		//	return Contains(file, TC("lto-llvm")); // Used by a clang based platform's link time optimization pass. Shared from lto process back to linker process
+		//	return fileName.Contains(TC("lto-llvm")); // Used by a clang based platform's link time optimization pass. Shared from lto process back to linker process
 		//}
+
+		virtual bool ShouldDecompressFiles(const StringView& fileName) const override
+		{
+			return fileName.IsEmpty() || fileName.EndsWith(TC(".o"));
+		}
 	};
 
 	// ====
@@ -347,12 +367,12 @@ namespace uba
 			return true;
 		}
 
-		virtual bool IsOutputFile(const tchar* file, u64 fileLen) const override
+		virtual bool IsOutputFile(const StringView& fileName) const override
 		{
-			return Contains(file, TC(".generated.dummy"))
-				|| EndsWith(file, fileLen, TC(".ispc.bc"))
-				|| EndsWith(file, fileLen, TC(".ispc.txt"))
-				|| EndsWith(file, fileLen, TC(".obj"));
+			return fileName.Contains(TC(".generated.dummy"))
+				|| fileName.EndsWith(TC(".ispc.bc"))
+				|| fileName.EndsWith(TC(".ispc.txt"))
+				|| fileName.EndsWith(TC(".obj"));
 		}
 
 		virtual bool IsCacheable() const override
@@ -360,37 +380,37 @@ namespace uba
 			return true;
 		}
 
-		virtual bool StoreFileCompressed(const tchar* fileName, u64 fileNameLen) const
+		virtual bool StoreFileCompressed(const StringView& fileName) const
 		{
-			return EndsWith(fileName, fileNameLen, TC(".obj"));
+			return fileName.EndsWith(TC(".obj"));
 		}
 
-		virtual bool ShouldExtractSymbols(const tchar* fileName, u64 fileNameLen) const
+		virtual bool ShouldExtractSymbols(const StringView& fileName) const
 		{
-			return EndsWith(fileName, fileNameLen, TC(".obj")) || EndsWith(fileName, fileNameLen, TC(".o"));
+			return fileName.EndsWith(TC(".obj")) || fileName.EndsWith(TC(".o"));
 		}
 	};
 
 	class ApplicationRulesUBTDll : public ApplicationRules
 	{
-		virtual bool IsOutputFile(const tchar* file, u64 fileLen) const override
+		virtual bool IsOutputFile(const StringView& fileName) const override
 		{
 			return false;
 			// TODO: These does not work when UnrealBuildTool creates these files multiple times in a row (building multiple targets)
 			// ... on output they get stored as file mappings.. and next execution of ubt opens them for write (writing file mappings not implemented right now)
-			//return EndsWith(file, fileLen, TC(".modules"))
-			//	|| EndsWith(file, fileLen, TC(".target"))
-			//	|| EndsWith(file, fileLen, TC(".version"));
+			//return fileName.EndsWith(TC(".modules"))
+			//	|| fileName.EndsWith(TC(".target"))
+			//	|| fileName.EndsWith(TC(".version"));
 		}
 	};
 
 	class ApplicationRulesPVSStudio : public ApplicationRules
 	{
-		virtual bool IsOutputFile(const tchar* file, u64 fileLen) const override
+		virtual bool IsOutputFile(const StringView& fileName) const override
 		{
-			return EndsWith(file, fileLen, TC(".PVS-Studio.log"))
-				|| EndsWith(file, fileLen, TC(".pvslog"))
-				|| EndsWith(file, fileLen, TC(".stacktrace.txt"));
+			return fileName.EndsWith(TC(".PVS-Studio.log"))
+				|| fileName.EndsWith(TC(".pvslog"))
+				|| fileName.EndsWith(TC(".stacktrace.txt"));
 		}
 		
 		virtual bool IsRarelyRead(const StringBufferBase& file) const override
@@ -424,14 +444,14 @@ namespace uba
 
 	class ApplicationRulesUbaObjTool : public ApplicationRules
 	{
-		virtual bool IsOutputFile(const tchar* file, u64 fileLen) const override
+		virtual bool IsOutputFile(const StringView& fileName) const override
 		{
-			return EndsWith(file, fileLen, TC(".obj"));
+			return fileName.EndsWith(TC(".obj"));
 		}
 
-		virtual bool StoreFileCompressed(const tchar* fileName, u64 fileNameLen) const
+		virtual bool StoreFileCompressed(const StringView& fileName) const
 		{
-			return EndsWith(fileName, fileNameLen, TC(".obj"));
+			return fileName.EndsWith(TC(".obj"));
 		}
 	};
 

@@ -239,7 +239,7 @@ namespace uba
 
 		memset(&outAttr.data, 0, sizeof(outAttr.data));
 
-		bool keepInMemory = KeepInMemory(fileName, fileNameForKey.count);
+		bool keepInMemory = KeepInMemory(StringView(fileName, fileNameForKey.count));
 		if (keepInMemory)
 		{
 			SCOPED_READ_LOCK(g_mappedFileTable.m_lookupLock, lock);

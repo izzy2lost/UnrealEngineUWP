@@ -185,6 +185,4 @@ namespace uba
 		ProcessImpl(const ProcessImpl&) = delete;
 		void operator=(const ProcessImpl&) = delete;
 	};
-
-	bool ParseArguments(Vector<TString>& outArguments, const tchar* argumentString);
 }
