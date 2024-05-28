@@ -42,6 +42,7 @@ void ExponentialPixelMain(
 	out float4 OutColor : SV_Target0
 	)
 {
+	ResolvedView = ResolveView();
 	float SceneDepth;
 	float DeviceZ;
 #if PERMUTATION_SAMPLE_FOG_ON_CLOUDS
