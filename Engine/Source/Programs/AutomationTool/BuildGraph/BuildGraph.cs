@@ -455,7 +455,7 @@ namespace AutomationTool
 				(byte[] data, BgThunkDef[] methods) = BgCompiler.Compile(graphSpec);
 
 				BgInterpreter interpreter = new BgInterpreter(data, methods, arguments);
-				interpreter.Disassemble(Logger);
+				// interpreter.Disassemble(Logger);
 				graph = ((BgObjectDef)interpreter.Evaluate()).Deserialize<BgGraphExpressionDef>().ToGraphDef();
 			}
 			else

@@ -490,5 +490,16 @@ namespace EpicGames.BuildGraph.Expressions
 		{
 			return (T)node.Modify(fences: node.Fences.Add(inputs));
 		}
+		
+		/// <summary>
+		/// Add a label to the node.
+		/// </summary>
+		/// <param name="node">The node to modify</param>
+		/// <param name="label">The label to add to the node.</param>
+		/// <returns>The current node spec, to allow chaining calls</returns>
+		public static T AddLabel<T>(this T node, BgLabel label) where T : BgNode
+		{
+			return (T)node.Modify(labels: node.Labels.Add(label));
+		}
 	}
 }

@@ -191,5 +191,21 @@ namespace AutomationTool.Tasks
 
 			await ExecuteAsync(new CommandTask(parameters));
 		}
+
+		/// <summary>
+		/// Runs another UAT command
+		/// </summary>
+		/// <param name="name">Name of the command to run</param>
+		/// <param name="arguments">Arguments for the command</param>
+		/// <param name="mergeTelemetryWithPrefix">If non-null, instructs telemetry from the command to be merged into the telemetry for this UAT instance with the given prefix. May be an empty (non-null) string.</param>
+		public static async Task CommandAsync(string name, string arguments = null, string mergeTelemetryWithPrefix = null)
+		{
+			CommandTaskParameters parameters = new CommandTaskParameters();
+			parameters.Name = name;
+			parameters.Arguments = arguments ?? parameters.Arguments;
+			parameters.MergeTelemetryWithPrefix = mergeTelemetryWithPrefix ?? parameters.MergeTelemetryWithPrefix;
+
+			await ExecuteAsync(new CommandTask(parameters));
+		}
 	}
 }
