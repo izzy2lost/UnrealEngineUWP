@@ -7,6 +7,7 @@
 #include "Templates/SharedPointer.h"
 
 struct FIoContainerHeader;
+using FSharedContainerHeader = TSharedPtr<FIoContainerHeader>;
 
 namespace UE::IoStore
 {
@@ -17,8 +18,9 @@ class IOnDemandPackageStoreBackend
 public:
 	virtual ~IOnDemandPackageStoreBackend() = default;
 
-	virtual FIoStatus Mount(FString ContainerName, FIoContainerHeader&& ContainerHeader) = 0;
+	virtual FIoStatus Mount(FString ContainerName, FSharedContainerHeader ContainerHeader) = 0;
 	virtual FIoStatus Unmount(const FString& ContainerName) = 0;
+	virtual FIoStatus UnmountAll() = 0;
 };
 
 TSharedPtr<IOnDemandPackageStoreBackend> MakeOnDemandPackageStoreBackend();

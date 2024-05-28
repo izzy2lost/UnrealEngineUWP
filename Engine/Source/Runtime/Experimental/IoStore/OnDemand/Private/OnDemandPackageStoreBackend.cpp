@@ -3,6 +3,7 @@
 #include "OnDemandPackageStoreBackend.h"
 
 #include "Algo/Accumulate.h"
+#include "Algo/Find.h"
 #include "Async/Mutex.h"
 #include "Async/UniqueLock.h"
 #include "IO/IoContainerHeader.h"
@@ -19,13 +20,13 @@ class FOnDemandPackageStoreBackend final
 {
 	struct FContainer
 	{
-		FContainer(FString&& Name, FIoContainerHeader&& Header)
-			: ContainerName(MoveTemp(Name))
-			, ContainerHeader(MoveTemp(Header))
+		FContainer(FString&& ContainerName, FSharedContainerHeader ContainerHeader)
+			: Name(MoveTemp(ContainerName))
+			, Header(MoveTemp(ContainerHeader))
 		{ }
 
-		FString				ContainerName;
-		FIoContainerHeader	ContainerHeader;
+		FString					Name;
+		FSharedContainerHeader	Header;
 	};
 
 	using FSharedBackendContext = TSharedPtr<const FPackageStoreBackendContext>;
@@ -39,8 +40,9 @@ public:
 						FOnDemandPackageStoreBackend();
 						virtual ~FOnDemandPackageStoreBackend ();
 
-	virtual FIoStatus	Mount(FString ContainerName, FIoContainerHeader&& ContainerHeader) override;
+	virtual FIoStatus	Mount(FString ContainerName, FSharedContainerHeader ContainerHeader) override;
 	virtual FIoStatus	Unmount(const FString& ContainerName) override;
+	virtual FIoStatus	UnmountAll() override;
 
 	virtual void		OnMounted(TSharedRef<const FPackageStoreBackendContext> Context) override;
 	virtual void 		BeginRead() override;
@@ -77,11 +79,22 @@ FOnDemandPackageStoreBackend::~FOnDemandPackageStoreBackend()
 {
 }
 
-FIoStatus FOnDemandPackageStoreBackend::Mount(FString ContainerName, FIoContainerHeader&& ContainerHeader)
+FIoStatus FOnDemandPackageStoreBackend::Mount(FString ContainerName, FSharedContainerHeader ContainerHeader)
 {
 	{
 		UE::TUniqueLock Lock(Mutex);
-		Containers.Add(MakeUnique<FContainer>(MoveTemp(ContainerName),MoveTemp(ContainerHeader)));
+
+		const FUniqueContainer* Existing =
+			Algo::FindByPredicate(
+				Containers,
+				[&ContainerName](const FUniqueContainer& C) { return C->Name == ContainerName; });
+
+		if (Existing != nullptr)
+		{
+			return EIoErrorCode::Ok;
+		}
+
+		Containers.Add(MakeUnique<FContainer>(MoveTemp(ContainerName), MoveTemp(ContainerHeader)));
 		bNeedsUpdate = true;
 	}
 
@@ -95,6 +108,22 @@ FIoStatus FOnDemandPackageStoreBackend::Mount(FString ContainerName, FIoContaine
 
 FIoStatus FOnDemandPackageStoreBackend::Unmount(const FString& ContainerName)
 {
+	UE::TUniqueLock Lock(Mutex);
+	const int32 NumRemoved = Containers.RemoveAll([&ContainerName](const TUniquePtr<FContainer>& C)
+	{
+		return C->Name == ContainerName;
+	});
+	check(NumRemoved <= 1);
+
+	bNeedsUpdate = NumRemoved > 0;
+	return NumRemoved == 0 ? EIoErrorCode::NotFound : EIoErrorCode::Ok;
+}
+
+FIoStatus FOnDemandPackageStoreBackend::UnmountAll()
+{
+	UE::TUniqueLock Lock(Mutex);
+	Containers.Empty();
+	bNeedsUpdate = true;
 	return EIoErrorCode::Ok;
 }
 
@@ -178,14 +207,14 @@ void FOnDemandPackageStoreBackend::UpdateLookupTables()
 
 	const int32 PackageCount = Algo::TransformAccumulate(
 		Containers,
-		[](const FUniqueContainer& C) { return C->ContainerHeader.PackageIds.Num(); },
+		[](const FUniqueContainer& C) { return C->Header->PackageIds.Num(); },
 		0);
 
 	EntryMap.Reserve(PackageCount);
 
 	for (const FUniqueContainer& Container : Containers)
 	{
-		const FIoContainerHeader& Hdr = Container->ContainerHeader;
+		const FIoContainerHeader& Hdr = *Container->Header;
 		TConstArrayView<FFilePackageStoreEntry> Entries(
 			reinterpret_cast<const FFilePackageStoreEntry*>(Hdr.StoreEntries.GetData()),
 			Hdr.PackageIds.Num());

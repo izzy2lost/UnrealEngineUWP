@@ -68,7 +68,8 @@ public:
 	virtual TIoStatusOr<FIoMappedRegion> OpenMapped(const FIoChunkId& ChunkId, const FIoReadOptions& Options) override;
 
 	// IOnDemandInstallCache
-	virtual FIoStatus Put(const FIoChunkId& ChunkId, FIoBuffer&& Chunk, const FIoHash& Hash) override;
+	virtual bool ContainsChunk(const FIoHash& Hash) override;
+	virtual FIoStatus PutChunk(FIoBuffer&& Chunk, const FIoHash& Hash) override;
 
 private:
 	bool						Resolve(FIoRequestImpl* Request);
@@ -218,7 +219,14 @@ bool FOnDemandInstallCache::Resolve(FIoRequestImpl* Request)
 	return true;
 }
 
-FIoStatus FOnDemandInstallCache::Put(const FIoChunkId& ChunkId, FIoBuffer&& Chunk, const FIoHash& Hash)
+bool FOnDemandInstallCache::ContainsChunk(const FIoHash& Hash)
+{
+	TStringBuilder<256> Filename;
+	GetChunkFilename(Hash, Filename);
+	return IFileManager::Get().FileSize(*Filename) > 0;
+}
+
+FIoStatus FOnDemandInstallCache::PutChunk(FIoBuffer&& Chunk, const FIoHash& Hash)
 {
 	return WriteChunk(Chunk, Hash);
 }

@@ -19,7 +19,8 @@ class IOnDemandInstallCache
 {
 public:
 	virtual ~IOnDemandInstallCache() = default;
-	virtual FIoStatus Put(const FIoChunkId& ChunkId, FIoBuffer&& Chunk, const FIoHash& Hash) = 0;
+	virtual bool ContainsChunk(const FIoHash& Hash) = 0;
+	virtual FIoStatus PutChunk(FIoBuffer&& Chunk, const FIoHash& Hash) = 0;
 };
 
 struct FOnDemandInstallCacheConfig

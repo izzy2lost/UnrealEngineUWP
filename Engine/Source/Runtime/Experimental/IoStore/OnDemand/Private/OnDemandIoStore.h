@@ -12,6 +12,11 @@
 #include "Misc/AES.h"
 #include "Misc/EnumClassFlags.h"
 
+#include <atomic>
+
+struct FIoContainerHeader;
+using FSharedContainerHeader		= TSharedPtr<FIoContainerHeader>;
+
 namespace UE::IoStore
 {
 
@@ -44,7 +49,7 @@ struct FOnDemandChunkEntry
 	uint32	RawSize = 0;
 	uint32	EncodedSize = 0;
 	uint32	BlockOffset = ~uint32(0);
-	uint32	BlockCount = 0; 
+	uint32	BlockCount = 0;
 	uint8	CompressionFormatIndex = 0;
 };
 
@@ -56,6 +61,7 @@ struct FOnDemandContainer
 	FAES::FAESKey			EncryptionKey;
 	FIoHash					PakHash;
 	FChunkEntryMap 			ChunkEntries;
+	FSharedContainerHeader	Header;
 	FString					EncryptionKeyGuid;
 	FString					Name;
 	FString					MountId;
@@ -119,12 +125,19 @@ TConstArrayView<FIoBlockHash> FOnDemandChunkInfo::BlockHashes() const
 ///////////////////////////////////////////////////////////////////////////////
 class FOnDemandIoStore
 {
+	struct FTagSet
+	{
+		FString Tag;
+		TArray<FPackageId> PackageIds;
+	};
+
 	struct FMountRequest
 	{
 		FOnDemandMountArgs					MountArgs;
 		FOnDemandMountCompleted				OnCompleted;
 		TArray<FSharedOnDemandContainer>	Containers;
-		bool								bCancelled = false;
+		TArray<FTagSet>						TagSets;
+		std::atomic_bool					bCancelled{false};
 	};
 
 	using FSharedMountRequest	= TSharedPtr<FMountRequest>;
@@ -152,17 +165,13 @@ private:
 	void					TickLoop();
 	bool					Tick();
 	FIoStatus				TickMountRequest(FMountRequest& MountRequest);
-	void					ConditionallyStartTicking();
+	FIoStatus				TickInstallRequest(FMountRequest& MountRequest);
 	void					OnEncryptionKeyAdded(const FGuid& Id, const FAES::FAESKey& Key);
 	static void				CreateContainersFromToc(
 								FStringView MountId,
 								FStringView TocPath,
 								FOnDemandToc& Toc,
 								TArray<FSharedOnDemandContainer>& Out);
-	FIoStatus				InstallContainers(
-								const FString& Url,
-								const TConstArrayView<FSharedOnDemandContainer>& ContainersToInstall,
-								const FPackageFilter* PackageFilter = nullptr);
 
 	TArray<FSharedOnDemandContainer> GetMountedContainers();
 
