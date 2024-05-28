@@ -28,7 +28,7 @@ UE_CXX_FLAGS="-mmacosx-version-min=10.9 -arch x86_64 -arch arm64"
 echo "Configuring build..."
 cmake -S . -B build \
     -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64" \
-    -DCMAKE_OSX_DEPLOYMENT_TARGET="11.0" \
+    -DCMAKE_OSX_DEPLOYMENT_TARGET="13.0" \
     -DCMAKE_BUILD_TYPE="Release" \
     -DCMAKE_MACOSX_RPATH=TRUE \
     -DBUILD_SHARED_LIBS=ON \
