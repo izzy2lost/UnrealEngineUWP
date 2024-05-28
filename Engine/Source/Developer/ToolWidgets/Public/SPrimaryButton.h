@@ -6,6 +6,8 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Input/SButton.h"
 
+class SHorizontalBox;
+
 class TOOLWIDGETS_API SPrimaryButton : public SButton
 {
 public:
@@ -26,4 +28,11 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
+
+private:
+	const FSlateBrush* OnGetBrush();
+
+private:
+	TAttribute<const FSlateBrush*>::FGetter OwnerDelegate;
+	TSharedPtr<SHorizontalBox> HorizontalBox;
 };
