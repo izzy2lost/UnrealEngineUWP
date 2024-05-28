@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Mime;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Cassandra;
@@ -67,8 +68,10 @@ namespace Jupiter.FunctionalTests.References
 			ISession localKeyspace = scyllaSessionManager.GetSessionForLocalKeyspace();
 
 			await Task.WhenAll(
-				// remove replication log table as we expect it to be empty when starting the tests
+				// remove replication logs as we expect it to be empty when starting the tests
 				localKeyspace.ExecuteAsync(new SimpleStatement("DROP TABLE IF EXISTS replication_log;")),
+				localKeyspace.ExecuteAsync(new SimpleStatement("DROP TABLE IF EXISTS blob_replication_log;")),
+
 				// remove the snapshots
 				localKeyspace.ExecuteAsync(new SimpleStatement("DROP TABLE IF EXISTS replication_snapshot;")),
 				// remove the namespaces
@@ -172,7 +175,6 @@ namespace Jupiter.FunctionalTests.References
 
 		protected abstract Task SeedDb(IServiceProvider provider);
 		protected abstract Task TeardownDb(IServiceProvider provider);
-
 
 		[TestMethod]
 		public async Task ReplicationLogCreationAsync()
@@ -297,6 +299,75 @@ namespace Jupiter.FunctionalTests.References
 					Assert.AreEqual(TestBucket, e.Bucket);
 					Assert.AreEqual(RefId.FromName("fourthObject"), e.Key);
 					Assert.AreEqual(objectHash, e.Blob);
+				}
+			}
+
+			CollectionAssert.AreEqual(new[] { TestNamespace }, await _replicationLog.GetNamespacesAsync().ToArrayAsync());
+		}
+
+		[TestMethod]
+		public async Task BlobReplicationLogReadingAsync()
+		{
+			BlobId blobId0 = BlobId.FromBlob(Encoding.ASCII.GetBytes("random-string-0"));
+			BlobId blobId1 = BlobId.FromBlob(Encoding.ASCII.GetBytes("random-string-1"));
+			BlobId blobId2 = BlobId.FromBlob(Encoding.ASCII.GetBytes("random-string-2"));
+			BlobId blobId3 = BlobId.FromBlob(Encoding.ASCII.GetBytes("random-string-3"));
+
+			DateTime oldestTimestamp = DateTime.UtcNow.AddDays(-1);
+			DateTime newerTimestamp = oldestTimestamp.AddHours(3.0);
+
+			(string eventBucket, Guid _) = await _replicationLog.InsertAddBlobEventAsync(TestNamespace, blobId0, oldestTimestamp, TestBucket);
+			await _replicationLog.InsertAddBlobEventAsync(TestNamespace, blobId1, oldestTimestamp.AddSeconds(2), TestBucket);
+			(string eventBucket2, Guid _1) = await _replicationLog.InsertAddBlobEventAsync(TestNamespace, blobId2, newerTimestamp, TestBucket);
+			await _replicationLog.InsertAddBlobEventAsync(TestNamespace, blobId3, newerTimestamp.AddSeconds(2), TestBucket);
+
+			{
+				HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/replication-log/blobs/{TestNamespace}/{eventBucket}", UriKind.Relative));
+				result.EnsureSuccessStatusCode();
+
+				Assert.AreEqual(result!.Content.Headers.ContentType!.MediaType, MediaTypeNames.Application.Json);
+
+				BlobReplicationLogEvents? events = await result.Content.ReadFromJsonAsync<BlobReplicationLogEvents>(JsonTestUtils.DefaultJsonSerializerSettings);
+				Assert.IsNotNull(events);
+				Assert.AreEqual(2, events!.Events.Count);
+
+				{
+					BlobReplicationLogEvent e = events.Events[0];
+					Assert.AreEqual(TestNamespace, e.Namespace);
+					Assert.AreEqual(TestBucket, e.BucketHint);
+					Assert.AreEqual(blobId0, e.Blob);
+				}
+
+				{
+					BlobReplicationLogEvent e = events.Events[1];
+					Assert.AreEqual(TestNamespace, e.Namespace);
+					Assert.AreEqual(TestBucket, e.BucketHint);
+					Assert.AreEqual(blobId1, e.Blob);
+				}
+			}
+
+			{
+				HttpResponseMessage result = await _httpClient!.GetAsync(new Uri($"api/v1/replication-log/blobs/{TestNamespace}/{eventBucket2}", UriKind.Relative));
+				result.EnsureSuccessStatusCode();
+
+				Assert.AreEqual(result!.Content.Headers.ContentType!.MediaType, MediaTypeNames.Application.Json);
+
+				BlobReplicationLogEvents? events = await result.Content.ReadFromJsonAsync<BlobReplicationLogEvents>(JsonTestUtils.DefaultJsonSerializerSettings);
+				Assert.IsNotNull(events);
+				Assert.AreEqual(2, events!.Events.Count);
+
+				{
+					BlobReplicationLogEvent e = events.Events[0];
+					Assert.AreEqual(TestNamespace, e.Namespace);
+					Assert.AreEqual(TestBucket, e.BucketHint);
+					Assert.AreEqual(blobId2, e.Blob);
+				}
+
+				{
+					BlobReplicationLogEvent e = events.Events[1];
+					Assert.AreEqual(TestNamespace, e.Namespace);
+					Assert.AreEqual(TestBucket, e.BucketHint);
+					Assert.AreEqual(blobId3, e.Blob);
 				}
 			}
 

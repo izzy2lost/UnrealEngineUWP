@@ -160,7 +160,7 @@ namespace Jupiter.Controllers
 		{
 			try
 			{
-				return await _storage.GetObjectAsync(ns, blob, storageLayers, supportsRedirectUri, allowOndemandReplication);
+				return await _storage.GetObjectAsync(ns, blob, storageLayers, supportsRedirectUri, allowOndemandReplication, bucketHint: null);
 			}
 			catch (BlobNotFoundException)
 			{
@@ -190,14 +190,14 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				Uri? uri = await _storage.MaybePutObjectWithRedirectAsync(ns, id, HttpContext.RequestAborted);
+				Uri? uri = await _storage.MaybePutObjectWithRedirectAsync(ns, id, bucketHint: null, HttpContext.RequestAborted);
 				if (uri != null)
 				{
 					return Ok(new BlobUploadResponse(id.ToString(), uri));
 				}
 				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request, HttpContext.RequestAborted);
 
-				BlobId identifier = await _storage.PutObjectAsync(ns, payload, id, HttpContext.RequestAborted);
+				BlobId identifier = await _storage.PutObjectAsync(ns, payload, id, bucketHint: null, HttpContext.RequestAborted);
 				return Ok(new BlobUploadResponse(identifier.ToString()));
 			}
 			catch (ResourceHasToManyRequestsException)
@@ -230,7 +230,7 @@ namespace Jupiter.Controllers
 				await using Stream stream = payload.GetStream();
 
 				BlobId id = await BlobId.FromStreamAsync(stream, HttpContext.RequestAborted);
-				await _storage.PutObjectKnownHashAsync(ns, payload, id, HttpContext.RequestAborted);
+				await _storage.PutObjectKnownHashAsync(ns, payload, id, bucketHint:null, HttpContext.RequestAborted);
 
 				return Ok(new
 				{
@@ -394,7 +394,7 @@ namespace Jupiter.Controllers
 							}
 
 							using MemoryBufferedPayload payload = new MemoryBufferedPayload(op.Content);
-							tasks[index] = _storage.PutObjectAsync(op.Namespace.Value, payload, op.Id, HttpContext.RequestAborted).ContinueWith((t, _) => (object?)t.Result, null, TaskScheduler.Current);
+							tasks[index] = _storage.PutObjectAsync(op.Namespace.Value, payload, op.Id, bucketHint: null, HttpContext.RequestAborted).ContinueWith((t, _) => (object?)t.Result, null, TaskScheduler.Current);
 							break;
 						}
 					case BatchOp.Operation.DELETE:

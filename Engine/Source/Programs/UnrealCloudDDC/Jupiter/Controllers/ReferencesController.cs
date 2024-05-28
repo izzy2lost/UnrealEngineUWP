@@ -241,7 +241,7 @@ namespace Jupiter.Controllers
 
 								IoHash hash = binaryAttachmentField.AsBinaryAttachment();
 
-								BlobContents referencedBlobContents = await _blobStore.GetObjectAsync(ns, BlobId.FromIoHash(hash));
+								BlobContents referencedBlobContents = await _blobStore.GetObjectAsync(ns, BlobId.FromIoHash(hash), bucketHint: bucket);
 
 								if (_nginxRedirectHelper.CanRedirect(Request, referencedBlobContents))
 								{
@@ -292,13 +292,13 @@ namespace Jupiter.Controllers
 									if (attachment is BlobAttachment blobAttachment)
 									{
 										BlobId referencedBlob = blobAttachment.Identifier;
-										attachmentContents = await _blobStore.GetObjectAsync(ns, referencedBlob, cancellationToken: HttpContext.RequestAborted);
+										attachmentContents = await _blobStore.GetObjectAsync(ns, referencedBlob, bucketHint: bucket, cancellationToken: HttpContext.RequestAborted);
 									}
 									else if (attachment is ObjectAttachment objectAttachment)
 									{
 										flags |= CbPackageAttachmentFlags.IsObject;
 										BlobId referencedBlob = objectAttachment.Identifier;
-										attachmentContents = await _blobStore.GetObjectAsync(ns, referencedBlob, cancellationToken: HttpContext.RequestAborted);
+										attachmentContents = await _blobStore.GetObjectAsync(ns, referencedBlob, bucketHint: bucket, cancellationToken: HttpContext.RequestAborted);
 									}
 									else if (attachment is ContentIdAttachment contentIdAttachment)
 									{
@@ -393,7 +393,7 @@ namespace Jupiter.Controllers
 									BlobId attachmentToSend = referencedBlobs.First();
 									try
 									{
-										BlobContents referencedBlobContents = await _blobStore.GetObjectAsync(ns, attachmentToSend);
+										BlobContents referencedBlobContents = await _blobStore.GetObjectAsync(ns, attachmentToSend, bucketHint: bucket);
 										Response.Headers[CommonHeaders.InlinePayloadHash] = attachmentToSend.ToString();
 
 										if (_nginxRedirectHelper.CanRedirect(Request, referencedBlobContents))
@@ -665,7 +665,7 @@ namespace Jupiter.Controllers
 					return NotFound(new ProblemDetails { Title = $"Object {bucket} {key} in namespace {ns} is not finalized." });
 				}
 
-				blob ??= await _blobStore.GetObjectAsync(ns, record.BlobIdentifier);
+				blob ??= await _blobStore.GetObjectAsync(ns, record.BlobIdentifier, bucketHint: bucket);
 
 				// we have to verify the blobs are available locally, as the record of the key is replicated a head of the content
 				// TODO: Once we support inline replication this step is not needed as at least one region as this blob, just maybe not this current one
@@ -743,7 +743,7 @@ namespace Jupiter.Controllers
 					(RefRecord record, BlobContents? blob) =
 						await _refService.GetAsync(ns, bucket, key, new string[] { "blobIdentifier" });
 
-					blob ??= await _blobStore.GetObjectAsync(ns, record.BlobIdentifier);
+					blob ??= await _blobStore.GetObjectAsync(ns, record.BlobIdentifier, bucketHint: bucket);
 
 					// we have to verify the blobs are available locally, as the record of the key is replicated a head of the content
 					// TODO: Once we support inline replication this step is not needed as at least one region as this blob, just maybe not this current one
@@ -831,7 +831,7 @@ namespace Jupiter.Controllers
 						{
 							// TODO: define a scheme for how a json object specifies references
 
-							blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash, HttpContext.RequestAborted);
+							blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash, bucketHint: bucket, HttpContext.RequestAborted);
 
 							// TODO: convert the json object into a compact binary instead
 							CbWriter writer = new CbWriter();
@@ -854,7 +854,7 @@ namespace Jupiter.Controllers
 						}
 					case MediaTypeNames.Application.Octet:
 						{
-							blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash, HttpContext.RequestAborted);
+							blobHeader = await _blobStore.PutObjectAsync(ns, payload, headerHash, bucketHint: bucket, HttpContext.RequestAborted);
 
 							CbWriter writer = new CbWriter();
 							writer.BeginObject();
@@ -937,7 +937,7 @@ namespace Jupiter.Controllers
 					}
 					else
 					{
-						await _blobStore.PutObjectAsync(ns, blob, BlobId.FromIoHash(entry.AttachmentHash), HttpContext.RequestAborted);
+						await _blobStore.PutObjectAsync(ns, blob, BlobId.FromIoHash(entry.AttachmentHash), bucketHint: bucket, HttpContext.RequestAborted);
 					}
 				}
 			}
@@ -1072,20 +1072,20 @@ namespace Jupiter.Controllers
 					ContentId cid = ContentId.FromBlobIdentifier(id);
 					using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request, HttpContext.RequestAborted);
 
-					ContentId identifier = await _blobStore.PutCompressedObjectAsync(ns, payload, cid, HttpContext.RequestServices, HttpContext.RequestAborted);
+					ContentId identifier = await _blobStore.PutCompressedObjectAsync(ns, payload, cid, HttpContext.RequestServices, HttpContext.RequestAborted, bucketHint: bucket);
 
 					return Ok(new { Identifier = identifier.ToString() });
 				}
 				else if (Request.ContentType == MediaTypeNames.Application.Octet)
 				{
-					Uri? uri = await _blobStore.MaybePutObjectWithRedirectAsync(ns, id, HttpContext.RequestAborted);
+					Uri? uri = await _blobStore.MaybePutObjectWithRedirectAsync(ns, id, bucketHint: bucket, HttpContext.RequestAborted);
 					if (uri != null)
 					{
 						return Ok(new BlobUploadResponse(id.ToString(), uri));
 					}
 					using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request, HttpContext.RequestAborted);
 
-					BlobId identifier = await _blobStore.PutObjectAsync(ns, payload, id, HttpContext.RequestAborted);
+					BlobId identifier = await _blobStore.PutObjectAsync(ns, payload, id, bucketHint: bucket, HttpContext.RequestAborted);
 					return Ok(new
 					{
 						Identifier = identifier.ToString()
@@ -1205,7 +1205,7 @@ namespace Jupiter.Controllers
 						return (CbObject.Build(writer => writer.WriteBool("exists", false)), HttpStatusCode.NotFound);
 					}
 
-					blob ??= await _blobStore.GetObjectAsync(ns, record.BlobIdentifier);
+					blob ??= await _blobStore.GetObjectAsync(ns, record.BlobIdentifier, bucketHint: op.Bucket);
 
 					if (op.ResolveAttachments ?? false)
 					{

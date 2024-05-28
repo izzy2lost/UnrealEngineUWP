@@ -105,7 +105,7 @@ namespace Jupiter.Implementation
 
 									try
 									{
-										BlobContents _ = await _blobService.ReplicateObjectAsync(ns, blobIdentifier, force: true, token);
+										BlobContents _ = await _blobService.ReplicateObjectAsync(ns, blobIdentifier, force: true, bucketHint: null, cancellationToken: token);
 									}
 									catch (BlobReplicationException e)
 									{

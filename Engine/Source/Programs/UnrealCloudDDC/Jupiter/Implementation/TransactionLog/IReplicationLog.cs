@@ -22,6 +22,9 @@ namespace Jupiter.Implementation
 
 		Task UpdateReplicatorStateAsync(NamespaceId ns, string replicatorName, ReplicatorState newState);
 		Task<ReplicatorState?> GetReplicatorStateAsync(NamespaceId ns, string replicatorName);
+
+		Task<(string, Guid)> InsertAddBlobEventAsync(NamespaceId ns, BlobId objectBlob, DateTime? timeBucket = null, BucketId? bucketHint = null);
+		IAsyncEnumerable<BlobReplicationLogEvent> GetBlobEventsAsync(NamespaceId ns, string replicationBucket);
 	}
 
 	public class SnapshotInfo
@@ -78,6 +81,35 @@ namespace Jupiter.Implementation
 		public Guid EventId { get; }
 
 		public BlobId? Blob { get; }
+	}
+
+	public class BlobReplicationLogEvent
+	{
+		[JsonConstructor]
+		public BlobReplicationLogEvent(NamespaceId @namespace, BlobId blob, TimeUuid eventId, string timeBucket, DateTime timestamp, OpType op, BucketId? bucketHint)
+		{
+			Namespace = @namespace;
+			Blob = blob;
+			EventId = eventId;
+			TimeBucket = timeBucket;
+			Timestamp = timestamp;
+			Op = op;
+			BucketHint = bucketHint;
+		}
+
+		public enum OpType
+		{
+			Added = 0,
+			Deleted = 1
+		};
+
+		public NamespaceId Namespace { get; }
+		public BlobId Blob { get; }
+		public OpType Op { get; }
+		public DateTime Timestamp { get; }
+		public string TimeBucket { get; }
+		public TimeUuid EventId { get; }
+		public BucketId? BucketHint { get; }
 	}
 
 	public class IncrementalLogNotAvailableException : Exception

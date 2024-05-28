@@ -61,7 +61,7 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				BlobContents blobContents = await _storage.GetObjectAsync(ns, id);
+				BlobContents blobContents = await _storage.GetObjectAsync(ns, id, bucketHint: null);
 
 				return File(blobContents.Stream, CustomMediaTypeNames.UnrealCompactBinary);
 			}
@@ -162,7 +162,7 @@ namespace Jupiter.Controllers
 			{
 				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request, HttpContext.RequestAborted);
 
-				BlobId identifier = await _storage.PutObjectAsync(ns, payload, id, HttpContext.RequestAborted);
+				BlobId identifier = await _storage.PutObjectAsync(ns, payload, id, bucketHint: null, HttpContext.RequestAborted);
 				return Ok(new PutBlobResponse(identifier));
 			}
 			catch (ClientSendSlowException e)
@@ -185,7 +185,7 @@ namespace Jupiter.Controllers
 			BlobContents blob;
 			try
 			{
-				blob = await _storage.GetObjectAsync(ns, id);
+				blob = await _storage.GetObjectAsync(ns, id, bucketHint: null);
 			}
 			catch (BlobNotFoundException e)
 			{

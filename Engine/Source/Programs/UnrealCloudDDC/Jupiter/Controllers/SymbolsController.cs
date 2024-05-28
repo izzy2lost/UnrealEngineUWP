@@ -76,10 +76,11 @@ namespace Jupiter.Controllers
 				return accessResult;
 			}
 
+			BucketId bucket = new BucketId(moduleName);
 			BlobContents? refContents;
 			try
 			{
-				(RefRecord _, refContents) = await _refService.GetAsync(ns, new BucketId(moduleName), RefId.FromName($"{moduleName}.{identifier}.{fileName}"), Array.Empty<string>());
+				(RefRecord _, refContents) = await _refService.GetAsync(ns, bucket, RefId.FromName($"{moduleName}.{identifier}.{fileName}"), Array.Empty<string>());
 			}
 			catch (RefNotFoundException)
 			{
@@ -96,7 +97,7 @@ namespace Jupiter.Controllers
 			CbObject cb = new CbObject(blobMemory);
 			IoHash payloadHash = cb["pdbPayload"].AsBinaryAttachment().Hash;
 
-			BlobContents referencedBlobContents = await _blobStore.GetObjectAsync(ns, BlobId.FromIoHash(payloadHash), null, supportsRedirectUri: true);
+			BlobContents referencedBlobContents = await _blobStore.GetObjectAsync(ns, BlobId.FromIoHash(payloadHash), null, supportsRedirectUri: true, bucketHint: bucket);
 
 			if (referencedBlobContents.RedirectUri != null)
 			{
@@ -190,6 +191,7 @@ namespace Jupiter.Controllers
 				payloadToUse = await _bufferedPayloadFactory.CreateFromStreamAsync(compressedStream, compressedStream.Length, HttpContext.RequestAborted);
 			}
 
+			BucketId bucketName = new BucketId(moduleName);
 			using IBufferedPayload payload = payloadToUse;
 			await using Stream hashStream = payload.GetStream();
 			BlobId attachmentHash = await BlobId.FromStreamAsync(hashStream, HttpContext.RequestAborted);
@@ -210,9 +212,9 @@ namespace Jupiter.Controllers
 			byte[] blob = writer.ToByteArray();
 			CbObject o = new CbObject(blob);
 			BlobId blobHeader = BlobId.FromBlob(blob);
-			await _blobStore.PutObjectKnownHashAsync(ns, payload, attachmentHash, HttpContext.RequestAborted);
+			await _blobStore.PutObjectKnownHashAsync(ns, payload, attachmentHash, bucketName, HttpContext.RequestAborted);
 
-			(ContentId[], BlobId[]) missingHashes = await _refService.PutAsync(ns, new BucketId(moduleName), RefId.FromName($"{moduleName}.{pdbIdentifier}{pdbAge}.{filename}"), blobHeader, o, HttpContext.RequestAborted);
+			(ContentId[], BlobId[]) missingHashes = await _refService.PutAsync(ns, bucketName, RefId.FromName($"{moduleName}.{pdbIdentifier}{pdbAge}.{filename}"), blobHeader, o, HttpContext.RequestAborted);
 
 			if (missingHashes.Item1.Any() || missingHashes.Item2.Any())
 			{

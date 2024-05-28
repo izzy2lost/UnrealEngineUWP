@@ -40,13 +40,14 @@ namespace Jupiter.Implementation.TransactionLog
 				throw new TaskCanceledException();
 			}
 
+			BucketId bucketName = new BucketId("snapshot");
 			ReplicationLogSnapshot snapshot;
 			string? lastBucket;
 			Guid? lastEvent;
 			if (snapshotInfo != null)
 			{
 				// append to the previous snapshot if one is available
-				await using BlobContents blobContents = await _blobService.GetObjectAsync(snapshotInfo.BlobNamespace, snapshotInfo.SnapshotBlob, cancellationToken: cancellationToken);
+				await using BlobContents blobContents = await _blobService.GetObjectAsync(snapshotInfo.BlobNamespace, snapshotInfo.SnapshotBlob, bucketHint: bucketName, cancellationToken: cancellationToken);
 				if (cancellationToken.IsCancellationRequested)
 				{
 					throw new TaskCanceledException();
@@ -113,11 +114,11 @@ namespace Jupiter.Implementation.TransactionLog
 				{
 					throw new TaskCanceledException();
 				}
-
+				
 				// upload the attachment first so we are not missing any references when we go to create the ref
-				await _blobService.PutObjectAsync(storeInNamespace, payload, blobIdentifier, cancellationToken);
+				await _blobService.PutObjectAsync(storeInNamespace, payload, blobIdentifier, bucketHint: bucketName, cancellationToken);
 
-				(ContentId[] missingContentIds, BlobId[] missingBlobs) = await _refService.PutAsync(storeInNamespace, new BucketId("snapshot"), new RefId(blobIdentifier.ToString()), cbBlobId, new CbObject(cbObjectBytes), cancellationToken);
+				(ContentId[] missingContentIds, BlobId[] missingBlobs) = await _refService.PutAsync(storeInNamespace, bucketName, new RefId(blobIdentifier.ToString()), cbBlobId, new CbObject(cbObjectBytes), cancellationToken);
 				List<ContentHash> missingHashes = new List<ContentHash>(missingContentIds);
 				missingHashes.AddRange(missingBlobs);
 				if (missingHashes.Count != 0)

@@ -81,7 +81,8 @@ namespace Jupiter
 
 	public enum ReplicatorVersion
 	{
-		Refs
+		Refs,
+		Blobs
 	}
 
 	public class ServiceCredentialSettings

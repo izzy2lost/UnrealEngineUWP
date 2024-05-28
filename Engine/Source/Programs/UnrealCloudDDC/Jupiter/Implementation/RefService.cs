@@ -154,7 +154,7 @@ namespace Jupiter.Implementation
 			Task<BlobId>? blobStorePut = null;
 			if (putIntoBlobStore)
 			{
-				blobStorePut = _blobService.PutObjectAsync(ns, payload.GetView().ToArray(), blobHash, cancellationToken);
+				blobStorePut = _blobService.PutObjectAsync(ns, payload.GetView().ToArray(), blobHash, bucketHint: bucket, cancellationToken);
 			}
 
 			await objectStorePut;

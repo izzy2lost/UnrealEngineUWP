@@ -479,7 +479,7 @@ namespace Jupiter.Implementation
 				.SetAttribute("operation.name", "replicator.replicate_op")
 				.SetAttribute("resource.name", $"{ns}.{objectToReplicate}");
 
-			_logger.LogInformation("Attempting to replicate object {Blob} in {Namespace}.", objectToReplicate, ns);
+			_logger.LogInformation("Attempting to replicate ref {Key} in {Bucket} under {Namespace}.", key, bucket, ns);
 
 			// We could potentially do this, but that could be dangerous if missing child references
 			// check if this blob exists locally before replicating, if it does we assume we have all of its references already
@@ -599,7 +599,7 @@ namespace Jupiter.Implementation
 
 					using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromStreamAsync(s, contentLength.Value, cancellationToken);
 
-					await _blobService.PutObjectAsync(ns, payload, blobToReplicate, cancellationToken);
+					await _blobService.PutObjectAsync(ns, payload, blobToReplicate, bucketHint: bucket, cancellationToken);
 				}, cancellationToken);
 			}
 

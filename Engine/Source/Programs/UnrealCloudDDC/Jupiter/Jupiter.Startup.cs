@@ -20,6 +20,7 @@ using Jupiter.Implementation;
 using Jupiter.Implementation.Blob;
 using Jupiter.Implementation.LeaderElection;
 using Jupiter.Implementation.Objects;
+using Jupiter.Implementation.Replication;
 using Jupiter.Implementation.TransactionLog;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
@@ -148,7 +149,7 @@ namespace Jupiter
 			services.AddSingleton(typeof(IBlobService), typeof(BlobService));
 			services.AddSingleton(serviceType: typeof(IScyllaSessionManager), ScyllaFactory);
 
-			services.AddSingleton(serviceType: typeof(IReplicationLog), ReplicationLogWriterFactory);
+			services.AddSingleton(serviceType: typeof(IReplicationLog), ReplicationLogFactory);
 
 			services.AddSingleton<LastAccessTrackerReference>();
 			services.AddSingleton(serviceType: typeof(ILastAccessCache<LastAccessRecord>), p => p.GetService<LastAccessTrackerReference>()!);
@@ -524,18 +525,26 @@ namespace Jupiter
 			return null!;
 		}
 
-		private IReplicationLog ReplicationLogWriterFactory(IServiceProvider provider)
+		private IReplicationLog ReplicationLogFactory(IServiceProvider provider)
 		{
 			UnrealCloudDDCSettings settings = provider.GetService<IOptionsMonitor<UnrealCloudDDCSettings>>()!.CurrentValue;
-			switch (settings.ReplicationLogWriterImplementation)
+			IReplicationLog replicationLog = settings.ReplicationLogWriterImplementation switch
 			{
-				case UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Scylla:
-					return ActivatorUtilities.CreateInstance<ScyllaReplicationLog>(provider);
-				case UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Memory:
-					return ActivatorUtilities.CreateInstance<MemoryReplicationLog>(provider);
-				default:
-					throw new NotImplementedException();
+				UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Scylla =>
+					ActivatorUtilities.CreateInstance<ScyllaReplicationLog>(provider),
+				UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Memory =>
+					ActivatorUtilities.CreateInstance<MemoryReplicationLog>(provider),
+				_ => throw new NotImplementedException()
+			};
+
+			MemoryCacheReplicationLogSettings memoryCacheSettings = provider.GetService<IOptionsMonitor<MemoryCacheReplicationLogSettings>>()!.CurrentValue;
+
+			if (memoryCacheSettings.Enabled)
+			{
+				replicationLog = ActivatorUtilities.CreateInstance<MemoryCachedReplicationLog>(provider, replicationLog);
 			}
+
+			return replicationLog;
 		}
 
 		protected override void OnAddHealthChecks(IServiceCollection services, IHealthChecksBuilder healthChecks)

@@ -71,6 +71,8 @@ namespace Jupiter.Implementation
 			{
 				case ReplicatorVersion.Refs:
 					return ActivatorUtilities.CreateInstance<RefsReplicator>(provider, replicatorSettings);
+				case ReplicatorVersion.Blobs:
+					return ActivatorUtilities.CreateInstance<BlobsReplicator>(provider, replicatorSettings);
 				default:
 					throw new NotImplementedException($"Unknown replicator version: {replicatorSettings.Version}");
 			}
