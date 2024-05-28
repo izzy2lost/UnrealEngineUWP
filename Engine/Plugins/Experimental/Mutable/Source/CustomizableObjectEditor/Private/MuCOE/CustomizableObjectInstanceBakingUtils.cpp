@@ -15,6 +15,7 @@
 #include "Materials/MaterialInstanceConstant.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/Material.h"
+#include "PhysicsEngine/PhysicsAsset.h"
 
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectInstanceAssetUserData.h"
@@ -854,6 +855,18 @@ bool BakeCustomizableObjectInstance(
 					}
 
 					SkeletalMesh->AddAssetUserData(InstanceData);
+				}
+			}
+
+			// Duplicate PhysicsAsset
+			{
+				const UPhysicsAsset* PhysicsAsset = Mesh->GetPhysicsAsset();
+
+				if (PhysicsAsset)
+				{
+					// Duplicate to change from the Transient Package to the baked mesh one
+					UPhysicsAsset* NewPhysicsAsset = Cast<UPhysicsAsset>(StaticDuplicateObject(PhysicsAsset, SkeletalMesh));
+					SkeletalMesh->SetPhysicsAsset(NewPhysicsAsset);
 				}
 			}
 
