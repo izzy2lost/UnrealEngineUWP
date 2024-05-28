@@ -29,15 +29,20 @@ namespace uba
 		bool ShouldShutdown();
 
 	private:
+		struct Bucket;
+		struct LoadStats;
+
+		bool LoadBucket(Bucket& bucket, BinaryReader& reader, u32 databaseVersion, LoadStats& outStats);
+		bool SaveBucket(u64 bucketId, Bucket& bucket);
 		bool SaveNoLock();
 		void OnDisconnected(u32 clientId);
 
 		struct Connection;
 		struct ConnectionBucket;
-		struct Bucket;
 
 		ConnectionBucket& GetConnectionBucket(const ConnectionInfo& connectionInfo, BinaryReader& reader);
 		Bucket& GetBucket(BinaryReader& reader);
+		u32 GetBucketWorkerCount();
 
 		bool HandleMessage(const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer);
 		bool HandleStoreEntry(ConnectionBucket& bucket, BinaryReader& reader, BinaryWriter& writer);
@@ -67,6 +72,7 @@ namespace uba
 		u64 m_creationTime = 0;
 		u64 m_startTime = 0;
 		u64 m_longestMaintenance = 0;
+		bool m_dbfileDirty = false;
 
 		bool m_checkInputsForDeletedCas = true;
 
