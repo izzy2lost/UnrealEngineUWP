@@ -167,6 +167,11 @@ namespace Gauntlet
 		public UnrealSessionInstance TestInstance { get; private set; }
 
 		/// <summary>
+		/// Path to the directory that logs and other artifacts are copied to after the test run.
+		/// </summary>
+		public string ArtifactPath { get; private set; }
+
+		/// <summary>
 		/// Describes the post-test results for a role.
 		/// </summary>
 		public class UnrealRoleResult
@@ -320,11 +325,6 @@ namespace Gauntlet
 		/// </summary>
 
 		protected Version TestVersion;
-
-		/// <summary>
-		/// Path to the directory that logs and other artifacts are copied to after the test run.
-		/// </summary>
-		protected string ArtifactPath { get; private set; }
 
 		/// <summary>
 		/// Our test result. May be set directly, or by overriding GetUnrealTestResult()
