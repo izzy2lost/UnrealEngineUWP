@@ -221,40 +221,6 @@ namespace Audio
 		ArrayMultiplyByConstantInPlace(OutRightSamples, Settings.Gain);
 	}
 
-	void FEarlyReflectionsFast::ProcessAudioStereoNonInterleaved(
-		const TArrayView<const float>& InLeft,
-		const TArrayView<const float>& InRight,
-		FAlignedFloatBuffer& OutLeft,
-		FAlignedFloatBuffer& OutRight)
-	{
-		const int32 InNumFrames = InLeft.Num();
-		check(InRight.Num() == InNumFrames);
-		check(OutLeft.Num() == InNumFrames);
-		check(OutRight.Num() == InNumFrames);
-
-		// Resize internal buffers
-		LeftWorkBufferA.SetNumUninitialized(InNumFrames);
-		LeftWorkBufferB.SetNumUninitialized(InNumFrames);
-		RightWorkBufferA.SetNumUninitialized(InNumFrames);
-		RightWorkBufferB.SetNumUninitialized(InNumFrames);
-
-		// predelay
-		LeftPreDelay.ProcessAudio(InLeft, LeftWorkBufferB);
-		RightPreDelay.ProcessAudio(InRight, RightWorkBufferB);
-
-		// lpf
-		LeftInputLPF.ProcessAudio(LeftWorkBufferB, LeftWorkBufferA);
-		RightInputLPF.ProcessAudio(RightWorkBufferB, RightWorkBufferA);
-
-		// feedback delay network
-		LeftFDN.ProcessAudio(LeftWorkBufferA, OutLeft);
-		RightFDN.ProcessAudio(RightWorkBufferA, OutRight);
-
-		// Apply Gain
-		ArrayMultiplyByConstantInPlace(OutLeft, Settings.Gain);
-		ArrayMultiplyByConstantInPlace(OutRight, Settings.Gain);
-	}
-
 	void FEarlyReflectionsFast::FlushAudio()
 	{
 		// predelay

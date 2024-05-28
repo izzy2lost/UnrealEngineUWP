@@ -8,10 +8,6 @@
 #include "UObject/NameTypes.h"
 #include "UObject/ObjectMacros.h"
 
-// TODO: move these into MetasoundParamHelper.h
-#define METASOUND_GET_PARAM_METADATA_ADVANCED(NAME) FDataVertexMetadata { NAME##Tooltip, NAME##DisplayName, true }
-#define METASOUND_GET_PARAM_NAME_AND_METADATA_ADVANCED(NAME) METASOUND_GET_PARAM_NAME(NAME), METASOUND_GET_PARAM_METADATA_ADVANCED(NAME)
-
 namespace HarmonixMetasound
 {
 	HARMONIXMETASOUND_API extern const FName HarmonixNodeNamespace;

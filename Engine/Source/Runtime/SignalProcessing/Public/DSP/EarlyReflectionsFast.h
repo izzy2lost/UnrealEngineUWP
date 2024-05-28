@@ -66,13 +66,6 @@ namespace Audio
 		// Process the single audio frame
 		SIGNALPROCESSING_API void ProcessAudio(const FAlignedFloatBuffer& InSamples, const int32 InNumChannels, FAlignedFloatBuffer& OutLeftSamples, FAlignedFloatBuffer& OutRightSamples);
 
-		// Process a block of audio. Optimized for stereo, non-interleaved input.
-		SIGNALPROCESSING_API void ProcessAudioStereoNonInterleaved(
-			const TArrayView<const float>& InLeft,
-			const TArrayView<const float>& InRight,
-			FAlignedFloatBuffer& OutLeft,
-			FAlignedFloatBuffer& OutRight);
-		
 		// Silence internal audio.
 		SIGNALPROCESSING_API void FlushAudio();
 
