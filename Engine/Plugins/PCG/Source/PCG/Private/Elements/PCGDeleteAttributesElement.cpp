@@ -170,7 +170,7 @@ bool FPCGDeleteAttributesElement::ExecuteInternal(FPCGContext* Context) const
 
 			UPCGSpatialData* NewSpatialData = InputSpatialData->DuplicateData(/*bInitializeFromThisData=*/false);
 			Metadata = NewSpatialData->Metadata;
-			NewSpatialData->Metadata->InitializeWithAttributeFilter(ParentMetadata, AttributesToFilter, FilterMode);
+			NewSpatialData->Metadata->InitializeWithAttributeFilter(ParentMetadata, AttributesToFilter, FilterMode, Settings->Operator);
 
 			// No need to inherit metadata since we already initialized it.
 			NewSpatialData->InitializeFromData(InputSpatialData, /*InMetadataParentOverride=*/ nullptr, /*bInheritMetadata=*/ false);

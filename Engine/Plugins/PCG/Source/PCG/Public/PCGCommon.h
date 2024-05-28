@@ -206,8 +206,11 @@ enum class EPCGCoordinateSpace : uint8
 UENUM(BlueprintType)
 enum class EPCGStringMatchingOperator : uint8
 {
+	/** Will return a match only if the two strings compared are the same */
 	Equal,
+	/** Will return a match if the first string contains the second */
 	Substring,
+	/** Will return a match if the first string matches the pattern defined by the second (including wildcards) */
 	Matches
 };
 

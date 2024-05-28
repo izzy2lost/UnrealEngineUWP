@@ -9,6 +9,7 @@
 #include "Helpers/PCGPropertyHelpers.h"
 #include "Metadata/PCGAttributePropertySelector.h"
 
+#include "Algo/AnyOf.h"
 #include "Algo/Transform.h"
 #include "Async/ParallelFor.h"
 
@@ -91,7 +92,7 @@ void UPCGMetadata::Initialize(const UPCGMetadata* InParent, bool bAddAttributesF
 	InitializeWithAttributeFilter(InParent, TSet<FName>(), bFilter);
 }
 
-void UPCGMetadata::InitializeWithAttributeFilter(const UPCGMetadata* InParent, const TSet<FName>& InFilteredAttributes, EPCGMetadataFilterMode InFilterMode)
+void UPCGMetadata::InitializeWithAttributeFilter(const UPCGMetadata* InParent, const TSet<FName>& InFilteredAttributes, EPCGMetadataFilterMode InFilterMode, EPCGStringMatchingOperator InMatchOperator)
 {
 	if (Parent || Attributes.Num() != 0)
 	{
@@ -106,7 +107,7 @@ void UPCGMetadata::InitializeWithAttributeFilter(const UPCGMetadata* InParent, c
 	const bool bSkipAddingAttributesFromParent = (InFilterMode == EPCGMetadataFilterMode::IncludeAttributes) && (InFilteredAttributes.Num() == 0);
 	if (!bSkipAddingAttributesFromParent)
 	{
-		AddAttributesFiltered(InParent, InFilteredAttributes, InFilterMode);
+		AddAttributesFiltered(InParent, InFilteredAttributes, InFilterMode, InMatchOperator);
 	}
 }
 
@@ -178,19 +179,50 @@ void UPCGMetadata::InitializeAsCopyWithAttributeFilter(const UPCGMetadata* InMet
 	}
 }
 
-void UPCGMetadata::AddAttributesFiltered(const UPCGMetadata* InOther, const TSet<FName>& InFilteredAttributes, EPCGMetadataFilterMode InFilterMode)
+void UPCGMetadata::AddAttributesFiltered(const UPCGMetadata* InOther, const TSet<FName>& InFilteredAttributes, EPCGMetadataFilterMode InFilterMode, EPCGStringMatchingOperator InMatchOperator)
 {
 	if (!InOther)
 	{
 		return;
 	}
 
+	TArray<FString> InFilteredAttributesStrings;
+	if (InMatchOperator != EPCGStringMatchingOperator::Equal)
+	{
+		Algo::Transform(InFilteredAttributes, InFilteredAttributesStrings, [](const FName& InFilteredAttribute) {return InFilteredAttribute.ToString(); });
+	}
+
+	auto IsAttributeInFilterList = [&InFilteredAttributes, &InFilteredAttributesStrings, InMatchOperator](FName OtherAttributeName) -> bool
+	{
+		if (InMatchOperator == EPCGStringMatchingOperator::Equal)
+		{
+			return InFilteredAttributes.Contains(OtherAttributeName);
+		}
+		else
+		{
+			const FString OtherAttributeString = OtherAttributeName.ToString();
+			if (InMatchOperator == EPCGStringMatchingOperator::Substring)
+			{
+				return Algo::AnyOf(InFilteredAttributesStrings, [&OtherAttributeString](const FString& InAttribute) { return OtherAttributeString.Contains(InAttribute); });
+			}
+			else if (InMatchOperator == EPCGStringMatchingOperator::Matches)
+			{
+				return Algo::AnyOf(InFilteredAttributesStrings, [&OtherAttributeString](const FString& InAttribute) { return OtherAttributeString.MatchesWildcard(InAttribute); });
+			}
+			else
+			{
+				checkNoEntry();
+				return false;
+			}
+		}
+	};
+
 	bool bAttributeAdded = false;
 
-	for (const TPair<FName, FPCGMetadataAttributeBase*> OtherAttribute : InOther->Attributes)
+	for (const TPair<FName, FPCGMetadataAttributeBase*>& OtherAttribute : InOther->Attributes)
 	{
 		// Skip this attribute if it is in an exclude list, or if it is not in an include list
-		const bool bAttributeInFilterList = InFilteredAttributes.Contains(OtherAttribute.Key);
+		const bool bAttributeInFilterList = IsAttributeInFilterList(OtherAttribute.Key);
 		const bool bSkipAttributesInFilterList = InFilterMode == EPCGMetadataFilterMode::ExcludeAttributes;
 		const bool bSkipThisAttribute = bSkipAttributesInFilterList == bAttributeInFilterList;
 

@@ -4,8 +4,10 @@
 
 #include "PCGContext.h"
 #include "PCGData.h"
-#include "Metadata/Accessors/IPCGAttributeAccessor.h"
-#include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
+#include "Helpers/PCGHelpers.h"
+#include "Metadata/PCGMetadata.h"
+
+#include "Algo/AnyOf.h"
 
 #define LOCTEXT_NAMESPACE "PCGFilterByAttributeElement"
 
@@ -43,25 +45,53 @@ bool FPCGFilterByAttributeElement::ExecuteInternal(FPCGContext* Context) const
 	const UPCGFilterByAttributeSettings* Settings = Context->GetInputSettings<UPCGFilterByAttributeSettings>();
 	check(Settings);
 
-	FPCGAttributePropertySelector Selector;
-	Selector.Update(Settings->Attribute.ToString());
+	TArray<FString> Attributes = PCGHelpers::GetStringArrayFromCommaSeparatedList(Settings->Attribute.ToString());
 
 	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
+
+	TArray<FName> DataAttributes;
+	TArray<EPCGMetadataTypes> DataAttributeTypes;
+	TArray<FString> DataAttributeStrings;
 
 	for (const FPCGTaggedData& Input : Inputs)
 	{
 		FPCGTaggedData& Output = Outputs.Add_GetRef(Input);
 		Output.Pin = PCGPinConstants::DefaultOutFilterLabel;
 
-		if (!Input.Data)
+		if (!Input.Data || !Input.Data->ConstMetadata())
 		{
 			continue;
 		}
 
-		TUniquePtr<const IPCGAttributeAccessor> Accessor = PCGAttributeAccessorHelpers::CreateConstAccessor(Input.Data, Selector, /*bQuiet=*/true);
+		// All attributes from the list must have a match in order to put the data in the In Filter pin.
+		const UPCGMetadata* Metadata = Input.Data->ConstMetadata();
 
-		if (Accessor && Accessor.IsValid())
+		DataAttributes.Reset();
+		DataAttributeTypes.Reset();
+		Metadata->GetAttributes(DataAttributes, DataAttributeTypes);
+
+		DataAttributeStrings.Reset();
+		Algo::Transform(DataAttributes, DataAttributeStrings, [](const FName& InAttribute) { return InAttribute.ToString(); });
+
+		bool bInFilter = true;
+
+		for (const FString& Attribute : Attributes)
+		{
+			if ((Settings->Operator == EPCGStringMatchingOperator::Equal && DataAttributeStrings.Contains(Attribute)) ||
+				(Settings->Operator == EPCGStringMatchingOperator::Substring && Algo::AnyOf(DataAttributeStrings, [&Attribute](const FString& DataAttribute) { return DataAttribute.Contains(Attribute); })) ||
+				(Settings->Operator == EPCGStringMatchingOperator::Matches && Algo::AnyOf(DataAttributeStrings, [&Attribute](const FString& DataAttribute) { return DataAttribute.MatchesWildcard(Attribute); })))
+			{
+				// This attribute has found a match, carry on
+			}
+			else
+			{
+				bInFilter = false;
+				break;
+			}
+		}
+
+		if (bInFilter)
 		{
 			Output.Pin = PCGPinConstants::DefaultInFilterLabel;
 		}
