@@ -38,6 +38,7 @@ FRayTracingScene::FRayTracingScene()
 
 FRayTracingScene::~FRayTracingScene()
 {
+	ReleaseReadbackBuffers();
 }
 
 FRayTracingSceneWithGeometryInstances FRayTracingScene::BuildInitializationData() const
@@ -576,12 +577,7 @@ void FRayTracingScene::EndFrame()
 		RayTracingScenePooledBuffer = nullptr;
 
 #if STATS
-		for (auto& ReadbackBuffer : StatsReadbackBuffers)
-		{
-			delete ReadbackBuffer;
-		}
-
-		StatsReadbackBuffers.Empty();
+		ReleaseReadbackBuffers();
 
 		StatsReadbackBuffersWriteIndex = 0;
 		StatsReadbackBuffersNumPending = 0;
@@ -591,6 +587,18 @@ void FRayTracingScene::EndFrame()
 	}
 
 	bUsedThisFrame = false;
+}
+
+void FRayTracingScene::ReleaseReadbackBuffers()
+{
+#if STATS
+	for (auto& ReadbackBuffer : StatsReadbackBuffers)
+	{
+		delete ReadbackBuffer;
+	}
+
+	StatsReadbackBuffers.Empty();
+#endif
 }
 
 #endif // RHI_RAYTRACING

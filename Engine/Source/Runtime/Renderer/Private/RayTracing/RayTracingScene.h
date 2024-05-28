@@ -139,6 +139,7 @@ public:
 	// Used for transforming to translated world space in which TLAS was built.
 	FDFVector3 PreViewTranslation {};
 private:
+	void ReleaseReadbackBuffers();
 
 	FRDGBufferRef InstanceBuffer;
 	FRDGBufferRef BuildScratchBuffer;
