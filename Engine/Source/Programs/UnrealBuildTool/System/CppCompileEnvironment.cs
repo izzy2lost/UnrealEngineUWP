@@ -25,12 +25,12 @@ namespace UnrealBuildTool
 	public enum CppStandardVersion
 	{
 		/// <summary>
-		/// Supports C++14. No longer maintained, will be removed in 5.5
+		/// Supports C++14. No longer supported, code may not compile with this version.
 		/// </summary>
 		Cpp14,
 
 		/// <summary>
-		/// Supports C++17
+		/// Supports C++17. No longer supported, code may not compile with this version.
 		/// </summary>
 		Cpp17,
 
