@@ -2761,7 +2761,7 @@ FMaterialAudit& AuditMaterialsImp(const T* InProxyDesc, FMaterialAudit& Audit, b
 						UE_LOG
 						(
 							LogStaticMesh, Warning,
-							TEXT("Invalid material [%s] used on Nanite static mesh [%s]. Only opaque or masked blend modes are currently supported, [%s] blend mode was specified."),
+							TEXT("Invalid material [%s] used on Nanite static mesh [%s]. Only opaque or masked blend modes are currently supported, [%s] blend mode was specified. (NOTE: \"Disallow Nanite\" on static mesh components can be used to suppress this warning and forcibly render the object as non-Nanite.)"),
 							*Entry.Material->GetName(),
 							*Audit.AssetName,
 							*BlendModeName
@@ -2787,7 +2787,7 @@ FMaterialAudit& AuditMaterialsImp(const T* InProxyDesc, FMaterialAudit& Audit, b
 						UE_LOG
 						(
 							LogStaticMesh, Warning,
-							TEXT("Invalid material [%s] used on Nanite static mesh [%s]. The SingleLayerWater shading model is currently not supported, [%s] shading model was specified."),
+							TEXT("Invalid material [%s] used on Nanite static mesh [%s]. The SingleLayerWater shading model is currently not supported, [%s] shading model was specified. (NOTE: \"Disallow Nanite\" on static mesh components can be used to suppress this warning and forcibly render the object as non-Nanite.)"),
 							*Entry.Material->GetName(),
 							*Audit.AssetName,
 							*ShadingModelString
