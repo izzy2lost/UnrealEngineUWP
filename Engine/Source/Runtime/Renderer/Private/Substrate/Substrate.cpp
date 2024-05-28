@@ -1139,7 +1139,7 @@ void AddSubstrateInternalClassificationTilePass(
 			*DepthTexture,
 			ERenderTargetLoadAction::ELoad,
 			ERenderTargetLoadAction::ELoad,
-			FExclusiveDepthStencil::DepthNop_StencilWrite);
+			FExclusiveDepthStencil::DepthRead_StencilWrite);
 		ParametersPS->DebugTileColor = FVector4f(ForceInitToZero);
 	}
 	
