@@ -17,12 +17,33 @@ namespace UE::LevelEditor
 // TODO: Move this outside the level editor and make it publicly available to anyone building a viewport toolbar.
 void AddViewportToolbarTransformsSection(UToolMenu* InMenu)
 {
-	FToolMenuSection& Section = InMenu->FindOrAddSection("Transforms", LOCTEXT("TransformsSectionLabel", "Transforms"));
+	FToolMenuSection& Section = InMenu->FindOrAddSection("Left");
 
-	Section.AddEntry(FToolMenuEntry::InitToolBarButton(FEditorViewportCommands::Get().SelectMode));
-	Section.AddEntry(FToolMenuEntry::InitToolBarButton(FEditorViewportCommands::Get().TranslateMode));
-	Section.AddEntry(FToolMenuEntry::InitToolBarButton(FEditorViewportCommands::Get().RotateMode));
-	Section.AddEntry(FToolMenuEntry::InitToolBarButton(FEditorViewportCommands::Get().ScaleMode));
+	Section.AddSubMenu("Transforms", LOCTEXT("TransformsSubmenuLabel", "Transforms"),
+		LOCTEXT("TransformsSubmenuTooltip", "Viewport-related transforms tools"),
+		FNewToolMenuDelegate::CreateLambda([](UToolMenu* Submenu) -> void {
+			FToolMenuSection& Section = Submenu->FindOrAddSection(NAME_None);
+
+			FToolMenuEntry SelectMode = FToolMenuEntry::InitMenuEntry(FEditorViewportCommands::Get().SelectMode);
+			SelectMode.UserInterfaceActionType = EUserInterfaceActionType::RadioButton;
+			SelectMode.SetShowInToolbarTopLevel(true);
+			Section.AddEntry(SelectMode);
+
+			FToolMenuEntry TranslateMode = FToolMenuEntry::InitMenuEntry(FEditorViewportCommands::Get().TranslateMode);
+			TranslateMode.UserInterfaceActionType = EUserInterfaceActionType::RadioButton;
+			TranslateMode.SetShowInToolbarTopLevel(true);
+			Section.AddEntry(TranslateMode);
+
+			FToolMenuEntry RotateMode = FToolMenuEntry::InitMenuEntry(FEditorViewportCommands::Get().RotateMode);
+			RotateMode.UserInterfaceActionType = EUserInterfaceActionType::RadioButton;
+			RotateMode.SetShowInToolbarTopLevel(true);
+			Section.AddEntry(RotateMode);
+
+			FToolMenuEntry ScaleMode = FToolMenuEntry::InitMenuEntry(FEditorViewportCommands::Get().ScaleMode);
+			ScaleMode.UserInterfaceActionType = EUserInterfaceActionType::RadioButton;
+			ScaleMode.SetShowInToolbarTopLevel(true);
+			Section.AddEntry(ScaleMode);
+		}));
 }
 
 void AddMaterialQualityLevelSubmenu(FToolMenuSection& Section)
@@ -62,56 +83,62 @@ void AddFeatureLevelPreviewSubmenu(FToolMenuSection& Section)
 
 void AddLevelEditorViewportToolbarSettingsSection(UToolMenu* InMenu)
 {
-	FToolMenuSection& Section = InMenu->FindOrAddSection("Settings", LOCTEXT("SettingsSectionLabel", "Settings"));
-	Section.SetShowSectionMenu(true);
+	FToolMenuSection& RightSection = InMenu->FindOrAddSection("Right");
 
-	// Add realtime rendering toggle.
-	Section.AddMenuEntry(FEditorViewportCommands::Get().ToggleRealTime).SetShowInToolbarTopLevel(true);
+	RightSection.AddSubMenu("Settings", LOCTEXT("SettingsSubmenuLabel", "Settings"),
+		LOCTEXT("SettingsSubmenuTooltip", "Viewport-related settings"),
+		FNewToolMenuDelegate::CreateLambda([](UToolMenu* Submenu) -> void {
+			FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection(NAME_None);
 
-	AddMaterialQualityLevelSubmenu(Section);
-	AddFeatureLevelPreviewSubmenu(Section);
+			// Add realtime rendering toggle.
+			UnnamedSection.AddMenuEntry(FEditorViewportCommands::Get().ToggleRealTime).SetShowInToolbarTopLevel(true);
 
-	// Add maximize/restore viewport button.
-	{
-		FToolUIAction MaximizeRestoreAction;
-		MaximizeRestoreAction.ExecuteAction = FToolMenuExecuteAction::CreateLambda([](const FToolMenuContext& Context) {
-			ULevelViewportContext* const LevelViewportContext = Context.FindContext<ULevelViewportContext>();
-			if (!LevelViewportContext)
+			AddMaterialQualityLevelSubmenu(UnnamedSection);
+			AddFeatureLevelPreviewSubmenu(UnnamedSection);
+
+			// Add maximize/restore viewport button.
 			{
-				return;
+				FToolUIAction MaximizeRestoreAction;
+				MaximizeRestoreAction.ExecuteAction = FToolMenuExecuteAction::CreateLambda(
+					[](const FToolMenuContext& Context) {
+						ULevelViewportContext* const LevelViewportContext = Context.FindContext<ULevelViewportContext>();
+						if (!LevelViewportContext)
+						{
+							return;
+						}
+
+						if (const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin())
+						{
+							LevelViewport->OnToggleMaximize();
+						}
+					});
+				MaximizeRestoreAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateLambda(
+					[](const FToolMenuContext& Context) -> ECheckBoxState {
+						ULevelViewportContext* const LevelViewportContext = Context.FindContext<ULevelViewportContext>();
+						if (!LevelViewportContext)
+						{
+							return ECheckBoxState::Undetermined;
+						}
+
+						if (const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin())
+						{
+							return LevelViewport->IsMaximized() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+						}
+
+						return ECheckBoxState::Undetermined;
+					});
+
+				UnnamedSection.AddEntry(FToolMenuEntry::InitToolBarButton("MaximizeRestore", MaximizeRestoreAction,
+					LOCTEXT("MaximizeRestoreLabel", "Maximize/restore"),
+					LOCTEXT("MaximizeRestoreTooltip", "Maximizes or restores this viewport"),
+					FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewportToolBar.Maximize.Normal"),
+					EUserInterfaceActionType::ToggleButton));
 			}
 
-			if (const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin())
-			{
-				LevelViewport->OnToggleMaximize();
-			}
-		});
-		MaximizeRestoreAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateLambda(
-			[](const FToolMenuContext& Context) -> ECheckBoxState {
-				ULevelViewportContext* const LevelViewportContext = Context.FindContext<ULevelViewportContext>();
-				if (!LevelViewportContext)
-				{
-					return ECheckBoxState::Undetermined;
-				}
-
-				if (const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin())
-				{
-					return LevelViewport->IsMaximized() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-				}
-
-				return ECheckBoxState::Undetermined;
-			});
-
-		Section.AddEntry(FToolMenuEntry::InitToolBarButton("MaximizeRestore", MaximizeRestoreAction,
-			LOCTEXT("MaximizeRestoreLabel", "Maximize/restore"),
-			LOCTEXT("MaximizeRestoreTooltip", "Maximizes or restores this viewport"),
-			FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewportToolBar.Maximize.Normal"),
-			EUserInterfaceActionType::ToggleButton));
+			// Add immersive mode toggle.
+			UnnamedSection.AddEntry(FToolMenuEntry::InitToolBarButton(FLevelViewportCommands::Get().ToggleImmersive));
+		}));
 	}
-
-	// Add immersive mode toggle.
-	Section.AddEntry(FToolMenuEntry::InitToolBarButton(FLevelViewportCommands::Get().ToggleImmersive));
-}
 
 } // namespace UE::LevelEditor
 

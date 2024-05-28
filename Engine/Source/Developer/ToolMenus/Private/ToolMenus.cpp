@@ -1445,7 +1445,7 @@ void UToolMenus::ExtractChildBlocksFromSubMenu(
 	}
 }
 
-void UToolMenus::PopulateToolBarBuilderWithGrandchildren(
+void UToolMenus::PopulateToolBarBuilderWithTopLevelChildren(
 	FToolBarBuilder& ToolBarBuilder, UToolMenu* ParentMenu, FToolMenuEntry& InBlock)
 {
 	TArray<TPair<UToolMenu*, FToolMenuEntry*>> SubMenuBlockPairs;
@@ -1468,28 +1468,20 @@ void UToolMenus::PopulateToolBarBuilderWithGrandchildren(
 			break;
 		}
 
-		// We pass in true for bSectionHasSubMenu here because we're referring to the top-level section that
-		// called us and not the section we're currently iterating through. It is that top-level section
-		// that we're populating here, not the section the current Block came from.
-		constexpr bool bSectionHasSubMenu = true;
-		PopulateToolBarBuilderWithEntry(ToolBarBuilder, SubMenu, bSectionHasSubMenu, *Block);
+		if (Block->bShowInToolbarTopLevel)
+		{
+			PopulateToolBarBuilderWithEntry(ToolBarBuilder, SubMenu, *Block);
+		}
 
 		ExtractChildBlocksFromSubMenu(SubMenu, *Block, SubMenuBlockPairs);
 	}
 }
 
-void UToolMenus::PopulateToolBarBuilderWithEntry(
-	FToolBarBuilder& ToolBarBuilder, UToolMenu* MenuData, bool bSectionHasSubMenu, FToolMenuEntry& Block)
+void UToolMenus::PopulateToolBarBuilderWithEntry(FToolBarBuilder& ToolBarBuilder, UToolMenu* MenuData, FToolMenuEntry& Block)
 {
 	if (Block.ToolBarData.ConstructLegacy.IsBound())
 	{
 		Block.ToolBarData.ConstructLegacy.Execute(ToolBarBuilder, MenuData);
-		return;
-	}
-
-	const bool bAddEntry = !bSectionHasSubMenu || (bSectionHasSubMenu && Block.bShowInToolbarTopLevel);
-	if (!bAddEntry)
-	{
 		return;
 	}
 
@@ -1564,6 +1556,9 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 			FUIAction UIAction = ConvertUIAction(Block, MenuData->Context);
 			ToolBarBuilder.AddComboButton(UIAction, Delegate, Block.Label, Block.ToolTip, Block.Icon,
 				Block.ToolBarData.bSimpleComboBox, Block.TutorialHighlightName);
+
+			// Also add any top-level flagged children to the toolbar.
+			PopulateToolBarBuilderWithTopLevelChildren(ToolBarBuilder, MenuData, Block);
 		}
 	}
 	else if (Block.Type == EMultiBlockType::Separator)
@@ -1634,59 +1629,9 @@ void UToolMenus::PopulateToolBarBuilder(FToolBarBuilder& ToolBarBuilder, UToolMe
 
 		ToolBarBuilder.BeginSection(Section.Name);
 
-		if (Section.bShowSectionMenu)
-		{
-			TWeakObjectPtr<UToolMenu> WeakMenuPtr = MenuData;
-			const FOnGetContent MenuGenerator = FOnGetContent::CreateLambda(
-				[this, WeakMenuPtr, SectionName = Section.Name]() -> TSharedRef<SWidget> {
-					TStrongObjectPtr<UToolMenu> Menu = WeakMenuPtr.Pin();
-					// If we got no menu, there's nothing to do.
-					if (!Menu)
-					{
-						return SNullWidget::NullWidget;
-					}
-
-					FToolMenuSection* const Section = Menu->FindSection(SectionName);
-					// If our section doesn't exist anymore, we have nothing to do.
-					if (!Section)
-					{
-						return SNullWidget::NullWidget;
-					}
-
-					// Most of the following code came from UToolMenus::PopulateMenuBuilder.
-
-					FMenuBuilder MenuBuilder(true, nullptr);
-					MenuBuilder.SetSearchable(Menu->bSearchable);
-
-					// Don't pass in a label here because the label is already displayed as the combo button text
-					// and the menu will only have this single section.
-					MenuBuilder.BeginSection(Section->Name);
-
-					for (FToolMenuEntry& Block : Section->Blocks)
-					{
-						FPopulateMenuBuilderWithToolMenuEntry PopulateMenuBuilderWithToolMenuEntry(
-							MenuBuilder, Menu.Get(), *Section, Block, /* bAllowSubMenuCollapse= */ true);
-						PopulateMenuBuilderWithToolMenuEntry.Populate();
-					}
-
-					MenuBuilder.EndSection();
-
-					AddReferencedContextObjects(MenuBuilder.GetMultiBox(), Menu.Get());
-
-					return MenuBuilder.MakeWidget();
-				});
-
-			ToolBarBuilder.AddComboButton(FUIAction(), MenuGenerator, Section.Label,
-				LOCTEXT("ToolbarSectionMenuTooltip", "Menu that contains all entries of this section"));
-		}
-
 		for (FToolMenuEntry& Block : Section.Blocks)
 		{
-			PopulateToolBarBuilderWithEntry(ToolBarBuilder, MenuData, Section.bShowSectionMenu, Block);
-			if (Section.bShowSectionMenu)
-			{
-				PopulateToolBarBuilderWithGrandchildren(ToolBarBuilder, MenuData, Block);
-			}
+			PopulateToolBarBuilderWithEntry(ToolBarBuilder, MenuData, Block);
 		}
 
 		ToolBarBuilder.EndSection();

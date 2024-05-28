@@ -85,19 +85,6 @@ public:
 	FToolMenuEntry* FindEntry(const FName InName);
 	const FToolMenuEntry* FindEntry(const FName InName) const;
 
-	/**
-	 * Adds a menu to the section that contain all entries of the section.
-	 *
-	 * The use case of this section menu is to promote the most important entries to show in the toolbar section, while
-	 * the rest of the section's entries are available in the section menu (including the ones promoted to the toolbar).
-	 *
-	 * This feature only applies to sections added to toolbars, not sections added to menus.
-	 * If SetShowSectionMenu(true) is called on a section in a menu, nothing will happen.
-	 *
-	 * @param InShow Shows a section menu if true and doesn't if false (default).
-	 */
-	void SetShowSectionMenu(bool InShow);
-
 private:
 
 	void InitGeneratedSectionCopy(const FToolMenuSection& Source, FToolMenuContext& InContext);
@@ -144,5 +131,4 @@ private:
 
 	bool bIsRegistering;
 	bool bAddedDuringRegister;
-	bool bShowSectionMenu;
 };
