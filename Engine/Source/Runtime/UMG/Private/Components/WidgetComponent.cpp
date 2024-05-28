@@ -989,7 +989,10 @@ void UWidgetComponent::OnWidgetVisibilityChanged(ESlateVisibility InVisibility)
 
 		if (bOnWidgetVisibilityChangedRegistered)
 		{
-			Widget->OnNativeVisibilityChanged.RemoveAll(this);
+			if (Widget)
+			{
+				Widget->OnNativeVisibilityChanged.RemoveAll(this);
+			}
 			bOnWidgetVisibilityChangedRegistered = false;
 		}
 	}
