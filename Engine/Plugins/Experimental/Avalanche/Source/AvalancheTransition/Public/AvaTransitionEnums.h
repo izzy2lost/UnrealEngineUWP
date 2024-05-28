@@ -17,7 +17,7 @@ enum class EAvaTransitionIterationResult : uint8
 	Continue,
 };
 
-UENUM(BlueprintType)
+UENUM(BlueprintType, DisplayName="Motion Design Transition Type")
 enum class EAvaTransitionType : uint8
 {
 	None = 0 UMETA(Hidden),
@@ -27,7 +27,7 @@ enum class EAvaTransitionType : uint8
 };
 ENUM_CLASS_FLAGS(EAvaTransitionType);
 
-UENUM(BlueprintType)
+UENUM(BlueprintType, DisplayName="Motion Design Transition Run State")
 enum class EAvaTransitionRunState : uint8
 {
 	Unknown UMETA(Hidden),
@@ -35,7 +35,7 @@ enum class EAvaTransitionRunState : uint8
 	Finished,
 };
 
-UENUM(BlueprintType)
+UENUM(BlueprintType, DisplayName="Motion Design Transition Comparison Result")
 enum class EAvaTransitionComparisonResult : uint8
 {
 	None,
@@ -43,14 +43,14 @@ enum class EAvaTransitionComparisonResult : uint8
 	Same,
 };
 
-UENUM(BlueprintType)
+UENUM(BlueprintType, DisplayName="Motion Design Transition Scene Type")
 enum class EAvaTransitionSceneType : uint8
 {
 	This,
 	Other,
 };
 
-UENUM(BlueprintType)
+UENUM(BlueprintType, DisplayName="Motion Design Transition Layer Compare Type")
 enum class EAvaTransitionLayerCompareType : uint8
 {
 	None UMETA(Hidden),
