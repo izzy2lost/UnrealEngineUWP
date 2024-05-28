@@ -5967,6 +5967,8 @@ void ALandscape::PrepareComponentDataToExtractMaterialLayersCS(const TArray<ULan
 									break;
 								}
 							}
+							// didn't find a matching layer
+							continue;
 						}
 
 						OutComponentData.Add(Data);

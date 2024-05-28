@@ -1330,7 +1330,10 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerSetObject(cons
 			ULandscapeInfo* LandscapeInfo = Target->LandscapeInfo.Get();
 			ALandscape* LandscapeActor = LandscapeInfo->LandscapeActor.Get();
 			
-			LandscapeActor->AddTargetLayer(Target->LayerName, FLandscapeTargetLayerSettings(SelectedLayerInfo));
+			if (!LandscapeActor->HasTargetLayer(Target->GetLayerName()))
+			{
+				LandscapeActor->AddTargetLayer(Target->GetLayerName(), FLandscapeTargetLayerSettings(SelectedLayerInfo));
+			}
 			
 			if (Target->LayerInfoObj.IsValid())
 			{
