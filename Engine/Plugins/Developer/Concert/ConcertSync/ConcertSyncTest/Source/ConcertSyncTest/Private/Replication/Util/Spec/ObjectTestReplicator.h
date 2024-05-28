@@ -59,6 +59,12 @@ namespace UE::ConcertSyncTests::Replication
 		/** The object that will be transmitted. */
 		UTestReflectionObject* TestObject = NewObject<UTestReflectionObject>(GetTransientPackage());
 
+		FObjectTestReplicator() = default;
+		explicit FObjectTestReplicator(UTestReflectionObject* TestObject) : TestObject(TestObject) {}
+
+		/** Create a subobject of TestObject, assigns it to TestObject->InstancedSubobject, and returns a replicator for replicating it. */
+		TSharedRef<FObjectTestReplicator> CreateSubobjectReplicator() const;
+
 		/** Util for creating join args for replicating TestObject. */
 		ConcertSyncClient::Replication::FJoinReplicatedSessionArgs CreateSenderArgs(
 			FGuid SenderStreamId = FGuid::NewGuid(),

@@ -9,6 +9,13 @@
 
 namespace UE::ConcertSyncTests::Replication
 {
+	TSharedRef<FObjectTestReplicator> FObjectTestReplicator::CreateSubobjectReplicator() const
+	{
+		UTestReflectionObject* Subobject = NewObject<UTestReflectionObject>(TestObject);
+		TestObject->InstancedSubobject = Subobject;
+		return MakeShared<FObjectTestReplicator>(Subobject);
+	}
+
 	ConcertSyncClient::Replication::FJoinReplicatedSessionArgs FObjectTestReplicator::CreateSenderArgs(
 		FGuid SenderStreamId,
 		EConcertObjectReplicationMode ReplicationMode,
