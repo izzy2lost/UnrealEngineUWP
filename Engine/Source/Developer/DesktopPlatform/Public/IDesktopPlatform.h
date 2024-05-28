@@ -488,13 +488,14 @@ public:
 	/**
 	* Get the URL of the configured Horde server for the current user account.
 	*
-	* @param OutHordeUrl        URL of the Horde server
+	* @param OutHordeUrl				URL of the Horde server
+	* @param OutHordeUrlConfigSource	Optional output parameter describing the source of the configuration.
 	* @return true if a valid URL is returned.
 	*/
-	virtual bool GetHordeUrl(FString& OutHordeUrl) = 0;
+	virtual bool GetHordeUrl(FString& OutHordeUrl, FString* OutHordeUrlConfigSource = nullptr) = 0;
 
 	/**
-	* Set the URL of the configured Horde server for the current user account.
+	* Set the URL of the configured Horde server for the current user account. This will set the source of the configuration to EConfigSource::Unspecified.
 	*
 	* @param HordeUrl        URL of the Horde server
 	*/

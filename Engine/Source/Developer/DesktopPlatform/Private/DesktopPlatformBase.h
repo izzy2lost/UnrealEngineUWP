@@ -58,7 +58,7 @@ public:
     virtual bool GetOidcAccessToken(const FString& RootDir, const FString& ProjectFileName, const FString& ProviderIdentifier, bool bUnattended, FFeedbackContext* Warn, FString& OutToken, FDateTime& OutTokenExpiresAt, bool& bOutWasInteractiveLogin) override;
 	virtual bool GetOidcTokenStatus(const FString& RootDir, const FString& ProjectFileName, const FString& ProviderIdentifier, FFeedbackContext* Warn, int& OutStatus) override;
 
-	virtual bool GetHordeUrl(FString& OutHordeUrl) override;
+	virtual bool GetHordeUrl(FString& OutHordeUrl, FString* OutHordeUrlConfigSource = nullptr) override;
 	virtual void SetHordeUrl(const FString& HordeUrl) override;
 	virtual bool GetHordeAccessToken(const FString& HordeUrl, bool bUnattended, FFeedbackContext* Warn, FString& OutToken, FDateTime& OutTokenExpiresAt, bool& bOutWasInteractiveLogin) override;
 
@@ -74,10 +74,11 @@ private:
 	TMap<FString, FString> LauncherInstallationList;
 	TMap<FString, FUProjectDictionary> CachedProjectDictionaries;
 	mutable TMap<FString, TArray<FTargetInfo>> ProjectFileToTargets;
-	bool bInitializedHordeServerUrl;
+	bool bInitializedHordeServerUrl = false;
 	FString HordeServerUrl;
+	FString HordeServerUrlConfigSource;
 
-	static FString ReadHordeUrlWithoutCache();
+	static FString ReadHordeUrlWithoutCache(FString& OutHordeUrlConfigSource);
 
 	void ReadLauncherInstallationList();
 	void CheckForLauncherEngineInstallation(const FString &AppId, const FString &Identifier, TMap<FString, FString> &OutInstallations);

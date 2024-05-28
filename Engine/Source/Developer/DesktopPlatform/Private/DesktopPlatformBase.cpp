@@ -868,12 +868,13 @@ bool FDesktopPlatformBase::GetOidcTokenStatus(const FString& RootDir, const FStr
 	return false;
 }
 
-FString FDesktopPlatformBase::ReadHordeUrlWithoutCache()
+FString FDesktopPlatformBase::ReadHordeUrlWithoutCache(FString& OutHordeUrlConfigSource)
 {
 	// First try to read Horde URL from environment variable
 	FString Url = FPlatformMisc::GetEnvironmentVariable(TEXT("UE_HORDE_URL"));
 	if (!Url.IsEmpty())
 	{
+		OutHordeUrlConfigSource = TEXT("Environment variable \"UE_HORDE_URL\"");
 		return Url;
 	}
 
@@ -881,11 +882,13 @@ FString FDesktopPlatformBase::ReadHordeUrlWithoutCache()
 	// On Windows, try to read URL from registry entry next
 	if (FWindowsPlatformMisc::QueryRegKey(HKEY_CURRENT_USER, TEXT("SOFTWARE\\Epic Games\\Horde"), TEXT("Url"), Url) && !Url.IsEmpty())
 	{
+		OutHordeUrlConfigSource = TEXT("Windows registry \"HKEY_CURRENT_USER\\SOFTWARE\\Epic Games\\Horde\"");
 		return Url;
 	}
 
 	if (FWindowsPlatformMisc::QueryRegKey(HKEY_LOCAL_MACHINE, TEXT("SOFTWARE\\Epic Games\\Horde"), TEXT("Url"), Url) && !Url.IsEmpty())
 	{
+		OutHordeUrlConfigSource = TEXT("Windows registry \"HKEY_LOCAL_MACHINE\\SOFTWARE\\Epic Games\\Horde\"");
 		return Url;
 	}
 #else
@@ -900,6 +903,7 @@ FString FDesktopPlatformBase::ReadHordeUrlWithoutCache()
 		TSharedPtr<FJsonObject> Object;
 		if (FJsonSerializer::Deserialize(Reader, Object) && Object.IsValid() && Object->TryGetStringField(TEXT("Url"), Url))
 		{
+			OutHordeUrlConfigSource = FileName;
 			return Url;
 		}
 	}
@@ -908,21 +912,27 @@ FString FDesktopPlatformBase::ReadHordeUrlWithoutCache()
 	// As last fallback, try to read Horde URL from INI configuration
 	if (GConfig->GetString(TEXT("Horde"), TEXT("ServerUrl"), Url, GEngineIni))
 	{
+		OutHordeUrlConfigSource = FString::Printf(TEXT("%s INI configuration"), *GEngineIni);
 		return Url;
 	}
 
+	OutHordeUrlConfigSource = TEXT("Not found");
 	return FString();
 }
 
-bool FDesktopPlatformBase::GetHordeUrl(FString& OutHordeUrl)
+bool FDesktopPlatformBase::GetHordeUrl(FString& OutHordeUrl, FString* OutHordeUrlConfigSource)
 {
 	if (!bInitializedHordeServerUrl)
 	{
-		HordeServerUrl = ReadHordeUrlWithoutCache();
+		HordeServerUrl = ReadHordeUrlWithoutCache(HordeServerUrlConfigSource);
 		bInitializedHordeServerUrl = true;
 	}
 
 	OutHordeUrl = HordeServerUrl;
+	if (OutHordeUrlConfigSource)
+	{
+		*OutHordeUrlConfigSource = HordeServerUrlConfigSource;
+	}
 	return !OutHordeUrl.IsEmpty();
 }
 
@@ -930,6 +940,7 @@ void FDesktopPlatformBase::SetHordeUrl(const FString& HordeUrl)
 {
 	HordeServerUrl = HordeUrl;
 	bInitializedHordeServerUrl = true;
+	HordeServerUrlConfigSource = TEXT("Unspecified");
 
 #if PLATFORM_WINDOWS
 	if (HordeUrl.IsEmpty())

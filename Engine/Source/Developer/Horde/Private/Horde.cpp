@@ -19,14 +19,14 @@ IMPLEMENT_MODULE(FHordeModule, Horde)
 
 // --------------------------------------------------------------------------------
 
-bool FHorde::GetServerUrl(FString& OutUrl)
+bool FHorde::GetServerUrl(FString& OutUrl, FString* OutUrlConfigSource)
 {
 	IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::TryGet();
 	if (DesktopPlatform == nullptr)
 	{
 		return false;
 	}
-	return DesktopPlatform->GetHordeUrl(OutUrl);
+	return DesktopPlatform->GetHordeUrl(OutUrl, OutUrlConfigSource);
 }
 
 FString FHorde::GetTemplateName()

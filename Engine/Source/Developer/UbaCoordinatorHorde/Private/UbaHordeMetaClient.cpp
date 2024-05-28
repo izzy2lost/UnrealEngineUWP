@@ -11,9 +11,14 @@ DEFINE_LOG_CATEGORY(LogUbaHorde);
 
 bool FUbaHordeMetaClient::RefreshHttpClient()
 {
-	if (!FHorde::GetServerUrl(ServerUrl))
+	FString ServerUrlConfigSource;
+	if (FHorde::GetServerUrl(ServerUrl, &ServerUrlConfigSource))
 	{
-		UE_LOG(LogUbaHorde, Warning, TEXT("Getting Horde server URL failed"));
+		UE_LOG(LogUbaHorde, Display, TEXT("Getting Horde server URL succeeded [URL: %s, Source: %s]"), *ServerUrl, *ServerUrlConfigSource);
+	}
+	else
+	{
+		UE_LOG(LogUbaHorde, Warning, TEXT("Getting Horde server URL failed [Source: %s]"), *ServerUrlConfigSource);
 		return false;
 	}
 
@@ -22,7 +27,7 @@ bool FUbaHordeMetaClient::RefreshHttpClient()
 
 	if (!HttpClient->Login(FApp::IsUnattended()))
 	{
-		UE_LOG(LogUbaHorde, Warning, TEXT("Login to Horde server [%s] failed"), *ServerUrl);
+		UE_LOG(LogUbaHorde, Warning, TEXT("Login to Horde server [URL: %s, Source: %s] failed"), *ServerUrl, *ServerUrlConfigSource);
 		return false;
 	}
 
