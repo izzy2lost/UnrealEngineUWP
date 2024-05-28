@@ -20,8 +20,6 @@ class FakeWorkspaceMaterializer : IWorkspaceMaterializer
 
 	public string Identifier => "fakeWorkspaceIdentifier";
 
-	public string StreamRoot => "fakeWorkspaceStreamRoot";
-
 	public IReadOnlyDictionary<string, string> EnvironmentVariables { get; } = new Dictionary<string, string>();
 
 	public bool IsPerforceWorkspace => false;

@@ -69,11 +69,6 @@ public interface IWorkspaceMaterializer : IDisposable
 	string Identifier { get; }
 
 	/// <summary>
-	/// Stream path inside Perforce
-	/// </summary>
-	string StreamRoot { get; }
-
-	/// <summary>
 	/// Environment variables expected to be set for applications executing inside the workspace
 	/// Mostly intended for Perforce-specific variables when <see cref="IsPerforceWorkspace" /> is set to true
 	/// </summary>
