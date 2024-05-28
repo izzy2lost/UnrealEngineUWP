@@ -136,6 +136,7 @@ namespace AutomationTool.Tasks
 			if (secretToReplacementInfo.Count > 0)
 			{
 				ServiceCollection serviceCollection = new ServiceCollection();
+				serviceCollection.AddLogging(builder => builder.AddEpicDefault());
 				serviceCollection.AddHorde(options => options.AllowAuthPrompt = !CommandUtils.IsBuildMachine);
 
 				await using (ServiceProvider serviceProvider = serviceCollection.BuildServiceProvider())
@@ -151,9 +152,13 @@ namespace AutomationTool.Tasks
 						{
 							secret = await hordeHttpClient.GetSecretAsync(secretId);
 						}
+						catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+						{
+							throw new AutomationException(ex, $"Secret '{secretId}' was not found on {hordeClient.ServerUrl}");
+						}
 						catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
 						{
-							throw new AutomationException(ex, $"User does not have permissions to read {secretId}");
+							throw new AutomationException(ex, $"User does not have permissions to read '{secretId}' on {hordeClient.ServerUrl}");
 						}
 
 						foreach (ReplacementInfo replacement in replacements)

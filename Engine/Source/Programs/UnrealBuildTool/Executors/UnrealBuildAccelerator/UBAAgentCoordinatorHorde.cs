@@ -79,6 +79,7 @@ namespace UnrealBuildTool
 			_crypto = owner.Crypto;
 
 			ServiceCollection services = new();
+			services.AddLogging(builder => builder.AddEpicDefault());
 			services.AddHorde(options =>
 			{
 				options.ServerUrl = serverUrl;
@@ -564,16 +565,6 @@ namespace UnrealBuildTool
 
 			XmlConfig.ApplyTo(HordeConfig);
 			additionalArguments?.ApplyTo(HordeConfig);
-
-			if (String.IsNullOrEmpty(HordeConfig.HordeServer))
-			{
-				HordeConfig.HordeServer = Environment.GetEnvironmentVariable(HordeHttpClient.HordeUrlEnvVarName);
-			}
-
-			if (String.IsNullOrEmpty(HordeConfig.HordeToken))
-			{
-				HordeConfig.HordeToken = Environment.GetEnvironmentVariable(HordeHttpClient.HordeTokenEnvVarName);
-			}
 
 			// Sentry is currently unsupported for non-Windows and non-x64
 			if (!OperatingSystem.IsWindows() || RuntimeInformation.ProcessArchitecture != Architecture.X64)

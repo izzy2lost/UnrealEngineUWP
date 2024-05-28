@@ -30,7 +30,8 @@ namespace EpicGames.Horde
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HordeHttpAuthHandler(HordeHttpAuthHandlerState authState, IOptions<HordeOptions> options)
+		public HordeHttpAuthHandler(HttpMessageHandler innerHandler, HordeHttpAuthHandlerState authState, IOptions<HordeOptions> options)
+			: base(innerHandler)
 		{
 			_authState = authState;
 			_options = options;
@@ -83,11 +84,6 @@ namespace EpicGames.Horde
 	/// </summary>
 	public sealed class HordeHttpAuthHandlerState : IAsyncDisposable
 	{
-		/// <summary>
-		/// HTTP client name
-		/// </summary>
-		public const string HttpClientName = "HordeHttpAuthState";
-
 		record AuthState(IClock Clock, AuthMethod Method, OidcTokenInfo? TokenInfo, bool Interactive)
 		{
 			public bool IsAuthorized()
@@ -101,7 +97,8 @@ namespace EpicGames.Horde
 		readonly object _lockObject = new object();
 		readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
 		Task<AuthState>? _authStateTask = null;
-		readonly IHttpClientFactory _httpClientFactory;
+		readonly HttpMessageHandler _httpMessageHandler;
+		readonly Uri _serverUrl;
 		readonly IOptions<HordeOptions> _options;
 		readonly ILogger _logger;
 		
@@ -114,14 +111,16 @@ namespace EpicGames.Horde
 		/// Constructor
 		/// </summary>
 		public HordeHttpAuthHandlerState(
-			IHttpClientFactory httpClientFactory,
+			HttpMessageHandler httpMessageHandler,
+			Uri serverUrl,
 			IOptions<HordeOptions> options,
-			ILogger<HordeHttpAuthHandler> logger,
+			ILogger<HordeHttpAuthHandlerState> logger,
 			ITokenStore? tokenStore = null,
 			IOidcTokenManager? oidcTokenManager = null,
 			IClock? clock = null)
 		{
-			_httpClientFactory = httpClientFactory;
+			_httpMessageHandler = httpMessageHandler;
+			_serverUrl = serverUrl;
 			_options = options;
 			_logger = logger;
 			_tokenStore = tokenStore;
@@ -273,18 +272,11 @@ namespace EpicGames.Horde
 
 		async Task<AuthState> GetAuthStateInternalAsync(bool interactive, CancellationToken cancellationToken)
 		{
-			Uri serverUrl;
-
 			GetAuthConfigResponse? authConfig;
-			using (HttpClient httpClient = _httpClientFactory.CreateClient(HttpClientName))
+			using (HttpClient httpClient = new HttpClient(_httpMessageHandler, false))
 			{
-				if (httpClient.BaseAddress == null)
-				{
-					throw new Exception("Horde base address is not configured.");
-				}
-
-				serverUrl = httpClient.BaseAddress;
-				_logger.LogDebug("Retrieving auth configuration for {Server}", serverUrl);
+				httpClient.BaseAddress = _serverUrl;
+				_logger.LogDebug("Retrieving auth configuration for {Server}", _serverUrl);
 
 				JsonSerializerOptions jsonOptions = new JsonSerializerOptions();
 				HordeHttpClient.ConfigureJsonSerializer(jsonOptions);
@@ -326,7 +318,7 @@ namespace EpicGames.Horde
 			}
 			if (result == null && interactive)
 			{
-				_logger.LogInformation("Logging in to {Server}...", serverUrl);
+				_logger.LogInformation("Logging in to {Server}...", _serverUrl);
 				result = await oidcTokenManager.LoginAsync(oidcProvider, cancellationToken);
 			}
 
