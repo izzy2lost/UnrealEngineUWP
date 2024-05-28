@@ -18,6 +18,7 @@ using EpicGames.Serialization;
 using Jupiter.Controllers;
 using Jupiter.Implementation;
 using Jupiter.Implementation.Objects;
+using Jupiter.Implementation.Replication;
 using Jupiter.Implementation.TransactionLog;
 using Jupiter.Tests.Functional;
 using Microsoft.AspNetCore.Hosting;
@@ -56,6 +57,10 @@ namespace Jupiter.FunctionalTests.References
 			Assert.IsTrue(referencesStore.GetType() == typeof(ScyllaReferencesStore));
 
 			IReplicationLog replicationLog = provider.GetService<IReplicationLog>()!;
+			if (replicationLog is MemoryCachedReplicationLog log)
+			{
+				replicationLog = log.GetUnderlyingContentIdStore();
+			}
 			Assert.IsTrue(replicationLog.GetType() == typeof(ScyllaReplicationLog));
 
 			await SeedTestDataAsync();
@@ -102,8 +107,11 @@ namespace Jupiter.FunctionalTests.References
 			}
 			//verify we are using the expected refs store
 			Assert.IsTrue(referencesStore.GetType() == typeof(MemoryReferencesStore));
-
 			IReplicationLog replicationLog = provider.GetService<IReplicationLog>()!;
+			if (replicationLog is MemoryCachedReplicationLog log)
+			{
+				replicationLog = log.GetUnderlyingContentIdStore();
+			}
 			Assert.IsTrue(replicationLog.GetType() == typeof(MemoryReplicationLog));
 
 			await SeedTestDataAsync();
