@@ -137,29 +137,6 @@ namespace uba
 		{
 			Oodle_SetUsageWarnings(Oodle_UsageWarnings_Disabled);
 
-			auto handleLine = [&](const StringView& line)
-				{
-					StringBuffer<> file;
-					file.Append(line);
-					if (!g_rules->ShouldDecompressFiles(file))
-						return;
-					StringBuffer<> fileFull;
-					FixPath(fileFull, file.data);
-
-					HANDLE fileHandle = CreateFileW(fileFull.data, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-					UBA_ASSERT(fileHandle != INVALID_HANDLE_VALUE);
-
-					StringKey fileNameKey = ToStringKey(fileFull.MakeLower());
-					auto insres = m_preloadedObjFiles.try_emplace(fileNameKey);
-					UBA_ASSERT(insres.second);
-					insres.first->second.handle = fileHandle;
-					insres.first->second.event.Create(true);
-
-					SCOPED_READ_LOCK(g_mappedFileTable.m_lookupLock, _);
-					auto findIt = g_mappedFileTable.m_lookup.find(fileNameKey);
-					insres.first->second.fileInfo = &findIt->second;
-				};
-
 			ParseArguments(cmdLine, [&](const tchar* arg, u32 argLen) { HandleLine(StringView(arg, argLen)); });
 
 			if (!m_preloadedObjFiles.empty())

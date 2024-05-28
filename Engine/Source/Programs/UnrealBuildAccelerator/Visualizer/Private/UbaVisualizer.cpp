@@ -1328,14 +1328,6 @@ namespace uba
 			SetTextColor(hdc, m_textColor);
 		}
 
-		auto GetClientCursorPos = [this](POINT& p)
-			{
-				GetCursorPos(&p);
-				ScreenToClient(m_hwnd, &p);
-				p.x += 3;
-				p.y += 3;
-			};
-
 		if (m_processSelected)
 		{
 			TraceView::Process& process = *m_traceView.GetProcess(m_processSelectedLocation);

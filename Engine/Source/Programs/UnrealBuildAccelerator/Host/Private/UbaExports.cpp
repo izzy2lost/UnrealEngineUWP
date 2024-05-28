@@ -517,7 +517,10 @@ extern "C"
 		bool ctorSuccess = false;
 		auto networkClient = new NetworkClientWithBackend(ctorSuccess, ncci, server.backend);
 		if (!ctorSuccess)
+		{
+			delete networkClient;
 			return nullptr;
+		}
 		CacheClientCreateInfo info{writer, storage, *networkClient, *session};
 		info.reportMissReason = reportMissReason;
 		return new CacheClient(info);

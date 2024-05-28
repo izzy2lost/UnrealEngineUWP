@@ -418,7 +418,6 @@ namespace uba
 		u32 responseSize = 0;
 		bool isCompressed = false;
 		bool sendEnd = false;
-		u64 left = ~u64(0);
 
 		u32 sizeOfFirstMessage = 0;
 
@@ -445,8 +444,6 @@ namespace uba
 
 			isCompressed = (flags >> 0) & 1;
 			sendEnd = (flags >> 1) & 1;
-
-			left = fileSize;
 
 			responseSize = u32(reader.GetLeft());
 			readBuffer = (u8*)reader.GetPositionData();
@@ -515,7 +512,6 @@ namespace uba
 
 				leftCompressed -= responseSize;
 			}
-			actualSize = sizeof(header) + fileSize;
 		}
 		else if (actualSize)
 		{
@@ -531,7 +527,7 @@ namespace uba
 				bool isFirstInBlock = true;
 				u32 compressedSize = ~u32(0);
 				u32 uncompressedSize = ~u32(0);
-				left = 0;
+				u32 left = 0;
 				u32 overflow = 0;
 				do
 				{

@@ -755,10 +755,11 @@ namespace uba
 				{
 					StringBuffer<> casKeyName;
 					GetCasFileName(casKeyName, casKey);
-					fileAccessor = new FileAccessor(m_logger, TStrdup(casKeyName.data));
+					
+					const tchar* filename = TStrdup(casKeyName.data);
+					fileAccessor = new FileAccessor(m_logger, filename);
 					if (!fileAccessor->CreateMemoryWrite(false, DefaultAttributes(), fileSize, m_tempPath.data))
 					{
-						const tchar* filename = fileAccessor->GetFileName();
 						delete fileAccessor;
 						free((void*)filename);
 
@@ -766,6 +767,11 @@ namespace uba
 						casEntry.verified = false;
 						return false;
 					}
+
+					#ifdef __clang_analyzer__ // Seems clang analyzer gets lost
+					free((void*)filename);
+					#endif
+
 					mappedView.memory = fileAccessor->GetData();
 				}
 				else

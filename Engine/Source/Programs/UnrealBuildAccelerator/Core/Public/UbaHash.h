@@ -119,8 +119,10 @@ namespace uba
 	{
 		UBA_ASSERT(key != CasKeyZero);
 		CasKey newKey = key;
+		#ifndef __clang_analyzer__
 		u8 flagField = ((u8*)&key)[19];
 		((u8*)&newKey)[19] = compressed ? (flagField | u8(1)) : (flagField & ~u8(1));
+		#endif
 		return newKey;
 	}
 

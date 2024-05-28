@@ -75,6 +75,8 @@ namespace uba
 	template<typename TContainer, typename TFunc>
 	void WorkManager::ParallelFor(u32 workCount, TContainer& container, const TFunc& func, const tchar* description)
 	{
+		#if !defined( __clang_analyzer__ ) // Static analyzer claims context can leak but it can only leak when process terminates (and then it doesn't matter)
+
 		struct Context
 		{
 			typename TContainer::iterator it;
@@ -130,5 +132,7 @@ namespace uba
 		AddWork(work, workCount, description);
 		work();
 		doneEvent.IsSet();
+
+		#endif
 	}
 }

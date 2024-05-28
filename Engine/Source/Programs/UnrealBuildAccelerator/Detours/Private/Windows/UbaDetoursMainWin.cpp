@@ -1,5 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#if defined( __clang_analyzer__ )
+#include <corecrt.h>
+#undef __DEFINE_CPP_OVERLOAD_SECURE_FUNC_SPLITPATH
+#define __DEFINE_CPP_OVERLOAD_SECURE_FUNC_SPLITPATH(_ReturnType, _FuncName, _DstType, _Src)
+#endif
+
 #include "UbaProtocol.h"
 #include "UbaProcessStats.h"
 #include "UbaDetoursPayload.h"

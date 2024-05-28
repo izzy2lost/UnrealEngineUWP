@@ -153,7 +153,11 @@ namespace uba
 			else
 				break;
 			
-			TString temp2 = path.data;
+			if (path.count < 2)
+			{
+				m_logger.Info(TC("Got messed up path from caller to WriteToCache: %s (%s)"), path.data, info.description);
+				success = false;
+			}
 
 			// For .exe and .dll we sometimes get relative paths so we need to expand them to full
 			if (path[1] != ':' && (path.EndsWith(TC(".dll")) || path.EndsWith(TC(".exe"))))
@@ -179,7 +183,7 @@ namespace uba
 			}
 			else if (path[path.count-1] == ':')
 			{
-				m_logger.Info(TC("GOT UNKNOWN RELATIVE PATH: %s"), path.data);
+				m_logger.Info(TC("GOT UNKNOWN RELATIVE PATH: %s (%s)"), path.data, info.description);
 				success = false;
 				continue;
 			}
@@ -188,7 +192,7 @@ namespace uba
 			auto root = rootPaths.FindRoot(path);
 			if (!root)
 			{
-				m_logger.Info(TC("FILE WITHOUT ROOT: %s"), path.data);
+				m_logger.Info(TC("FILE WITHOUT ROOT: %s (%s)"), path.data, info.description);
 				success = false;
 				continue;
 			}
