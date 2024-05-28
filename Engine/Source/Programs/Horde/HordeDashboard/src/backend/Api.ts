@@ -2116,6 +2116,8 @@ export type GetAgentTelemetrySampleResponse = {
 	freeRam: number;
 	usedRam: number;
 	totalRam: number;
+	freeDisk: number;
+	totalDisk: number;
 }
 
 /**Information about a workspace type */
