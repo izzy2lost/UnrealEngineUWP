@@ -18,6 +18,11 @@ namespace Metasound
 
 	namespace Frontend
 	{
+		// Convenience functions used for finding targeted graph to mutate as the transition away from controllers
+		// is on-going, however documents can now contain multiple graph topologies (i.e. paged graphs) to select from.
+		const FMetasoundFrontendGraph& FindConstBuildGraphChecked(const FMetasoundFrontendGraphClass& InGraphClass);
+		FMetasoundFrontendGraph& FindBuildGraphChecked(FMetasoundFrontendGraphClass& InGraphClass);
+
 		/** FGraphController represents a Metasound graph class. */
 		class FGraphController : public IGraphController
 		{

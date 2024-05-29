@@ -4,6 +4,7 @@
 #include "IAssetTools.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "MetasoundDocumentBuilderRegistry.h"
+#include "MetasoundDocumentInterface.h"
 #include "MetasoundEditorGraph.h"
 #include "MetasoundEditorGraphBuilder.h"
 #include "MetasoundEditorGraphSchema.h"
@@ -228,27 +229,8 @@ void UMetaSoundEditorSubsystem::InitAsset(UObject& InNewMetaSound, UObject* InRe
 
 void UMetaSoundEditorSubsystem::InitEdGraph(UObject& InMetaSound)
 {
-	using namespace Metasound;
-	using namespace Metasound::Editor;
 	using namespace Metasound::Frontend;
-
-	TScriptInterface<IMetaSoundDocumentInterface> DocInterface = &InMetaSound;
-	const FMetasoundFrontendClassName& ClassName = DocInterface->GetConstDocument().RootGraph.Metadata.GetClassName();
-
-	FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
-	checkf(MetaSoundAsset, TEXT("EdGraph can only be initialized on registered MetaSoundAsset type"));
-
-	UMetasoundEditorGraph* Graph = Cast<UMetasoundEditorGraph>(MetaSoundAsset->GetGraph());
-	if (!Graph)
-	{
-		Graph = NewObject<UMetasoundEditorGraph>(&InMetaSound, FName(), RF_Transactional);
-		Graph->Schema = UMetasoundEditorGraphSchema::StaticClass();
-		MetaSoundAsset->SetGraph(Graph);
-
-		// Has to be done inline to have valid graph initially when opening editor for the first
-		// time (as opposed to being applied on tick when the document's modify context has updates)
-		FGraphBuilder::SynchronizeGraph(InMetaSound);
-	}
+	Metasound::Editor::FGraphBuilder::BindEditorGraph(IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(&InMetaSound));
 }
 
 void UMetaSoundEditorSubsystem::RegisterGraphWithFrontend(UObject& InMetaSound, bool bInForceViewSynchronization)

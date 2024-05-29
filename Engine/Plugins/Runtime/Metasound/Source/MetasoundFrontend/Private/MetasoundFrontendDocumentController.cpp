@@ -89,7 +89,7 @@ namespace Metasound
 				bool bSuccess = true;
 				FMetasoundFrontendGraphClass SubgraphCopy(InGraphToCopy);
 
-				for (FMetasoundFrontendNode& Node : SubgraphCopy.Graph.Nodes)
+				for (FMetasoundFrontendNode& Node : SubgraphCopy.GetDefaultGraph().Nodes)
 				{
 					const FGuid OriginalClassID = Node.ClassID;
 
@@ -443,11 +443,11 @@ namespace Metasound
 
 					auto AddGraphNodeClassIDsToSet = [&](const FMetasoundFrontendGraphClass& GraphClass)
 					{
-						Algo::ForEach(GraphClass.Graph.Nodes, AddNodeClassIDToSet);
+						Algo::ForEach(FindConstBuildGraphChecked(GraphClass).Nodes, AddNodeClassIDToSet);
 					};
 
 					// Referenced dependencies in root class
-					Algo::ForEach(Document->RootGraph.Graph.Nodes, AddNodeClassIDToSet);
+					Algo::ForEach(FindConstBuildGraphChecked(Document->RootGraph).Nodes, AddNodeClassIDToSet);
 
 					// Referenced dependencies in subgraphs
 					Algo::ForEach(Document->Subgraphs, AddGraphNodeClassIDsToSet);

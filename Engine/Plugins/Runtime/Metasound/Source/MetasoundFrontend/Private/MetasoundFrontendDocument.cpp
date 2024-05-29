@@ -870,6 +870,127 @@ FMetasoundFrontendGraphClass::FMetasoundFrontendGraphClass()
 	Metadata.SetType(EMetasoundFrontendClassType::Graph);
 }
 
+void FMetasoundFrontendGraphClass::AddNewGraphPage(const FGuid& InPageID)
+{
+	checkf(ContainsGraphPage(InPageID), TEXT("Cannot add new graph page with existing PageID"));
+	checkf(InPageID.IsValid(), TEXT("Cannot add graph with invalid PageID"))
+
+	FMetasoundFrontendGraph& NewGraph = PagedGraphs.AddDefaulted_GetRef();
+	NewGraph.PageID = InPageID;
+}
+
+bool FMetasoundFrontendGraphClass::ContainsGraphPage(const FGuid& InPageID) const
+{
+	if (InPageID == Graph.PageID)
+	{
+		return true;
+	}
+
+	auto MatchesPageID = [&InPageID](const FMetasoundFrontendGraph& Iter) { return Iter.PageID == InPageID; };
+	return PagedGraphs.ContainsByPredicate(MatchesPageID);
+}
+
+void FMetasoundFrontendGraphClass::DuplicateLastGraphPage(const FGuid& InPageID)
+{
+	checkf(ContainsGraphPage(InPageID), TEXT("Cannot add new graph page with existing PageID"));
+	checkf(InPageID.IsValid(), TEXT("Cannot add graph with invalid PageID"))
+
+	FMetasoundFrontendGraph* ToDuplicate = PagedGraphs.IsEmpty() ? &Graph : &PagedGraphs.Last();
+	FMetasoundFrontendGraph& NewGraph = PagedGraphs.Add_GetRef(*ToDuplicate);
+	NewGraph.PageID = InPageID;
+}
+
+void FMetasoundFrontendGraphClass::RemoveAllGraphPages()
+{
+	PagedGraphs.Empty();
+	Graph.PageID = FGuid();
+}
+
+bool FMetasoundFrontendGraphClass::RemoveGraphPage(const FGuid& InPageID)
+{
+	const bool bRemoved = PagedGraphs.RemoveAllSwap([&InPageID](const FMetasoundFrontendGraph& Iter)
+	{
+		return Iter.PageID == InPageID;
+	}, EAllowShrinking::Yes) > 0;
+
+	return bRemoved;
+}
+
+FMetasoundFrontendGraph* FMetasoundFrontendGraphClass::FindGraph(const FGuid& InPageID)
+{
+	if (InPageID == Graph.PageID)
+	{
+		return &Graph;
+	}
+
+	auto MatchesPageID = [this, &InPageID](const FMetasoundFrontendGraph& Iter) { return Iter.PageID == InPageID; };
+	FMetasoundFrontendGraph* PageGraph = PagedGraphs.FindByPredicate(MatchesPageID);
+	return PageGraph;
+}
+
+FMetasoundFrontendGraph& FMetasoundFrontendGraphClass::FindGraphChecked(const FGuid& InPageID)
+{
+	FMetasoundFrontendGraph* FoundGraph = FindGraph(InPageID);
+	check(FoundGraph);
+	return *FoundGraph;
+}
+
+const FMetasoundFrontendGraph* FMetasoundFrontendGraphClass::FindConstGraph(const FGuid& InPageID) const
+{
+	if (InPageID == Graph.PageID)
+	{
+		return &Graph;
+	}
+
+	auto MatchesPageID = [this, &InPageID](const FMetasoundFrontendGraph& Iter) { return Iter.PageID == InPageID; };
+	const FMetasoundFrontendGraph* PageGraph = PagedGraphs.FindByPredicate(MatchesPageID);
+	return PageGraph;
+}
+
+const FMetasoundFrontendGraph& FMetasoundFrontendGraphClass::FindConstGraphChecked(const FGuid& InPageID) const
+{
+	const FMetasoundFrontendGraph* FoundGraph = FindConstGraph(InPageID);
+	check(FoundGraph);
+	return *FoundGraph;
+}
+
+FMetasoundFrontendGraph& FMetasoundFrontendGraphClass::GetDefaultGraph()
+{
+	return FindGraphChecked(FGuid());
+}
+
+const FMetasoundFrontendGraph& FMetasoundFrontendGraphClass::GetConstDefaultGraph() const
+{
+	return FindConstGraphChecked(FGuid());
+}
+
+void FMetasoundFrontendGraphClass::IterateGraphPages(TFunctionRef<void(FMetasoundFrontendGraph&)> IterFunc)
+{
+	IterFunc(Graph);
+
+	for (FMetasoundFrontendGraph& Iter : PagedGraphs)
+	{
+		IterFunc(Iter);
+	}
+}
+
+void FMetasoundFrontendGraphClass::IterateGraphPages(TFunctionRef<void(const FMetasoundFrontendGraph&)> IterFunc) const
+{
+	IterFunc(Graph);
+
+	for (const FMetasoundFrontendGraph& Iter : PagedGraphs)
+	{
+		IterFunc(Iter);
+	}
+}
+
+void FMetasoundFrontendGraphClass::ResetGraphs()
+{
+	PagedGraphs.Empty();
+	Graph.Nodes.Reset();
+	Graph.Edges.Reset();
+}
+
 FMetasoundFrontendVersionNumber FMetasoundFrontendDocument::GetMaxVersion()
 {
 	return Metasound::Frontend::GetMaxDocumentVersion();
@@ -968,12 +1089,12 @@ namespace Metasound::Frontend
 	{
 		ForEachLiteral(static_cast<const FMetasoundFrontendClass&>(InGraphClass), OnLiteral);
 
-		for (const FMetasoundFrontendNode& Node : InGraphClass.Graph.Nodes)
+		for (const FMetasoundFrontendNode& Node : InGraphClass.GetConstDefaultGraph().Nodes)
 		{
 			ForEachLiteral(Node, OnLiteral);
 		}
 
-		for (const FMetasoundFrontendVariable& Variable : InGraphClass.Graph.Variables)
+		for (const FMetasoundFrontendVariable& Variable : InGraphClass.GetConstDefaultGraph().Variables)
 		{
 			OnLiteral(Variable.TypeName, Variable.Literal);
 		}

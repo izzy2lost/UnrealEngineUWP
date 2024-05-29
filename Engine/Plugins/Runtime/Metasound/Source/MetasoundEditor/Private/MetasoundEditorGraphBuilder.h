@@ -193,9 +193,6 @@ namespace Metasound
 			// Generates a unique output name for the given MetaSound object
 			static FName GenerateUniqueNameByClassType(const UObject& InMetaSound, EMetasoundFrontendClassType InClassType, const FString& InBaseName);
 
-			// Whether or not associated editor graph is in an error state or not.
-			static bool GraphContainsErrors(const UObject& InMetaSound);
-
 			static TArray<FString> GetDataTypeNameCategories(const FName& InDataTypeName);
 
 			// Get the input handle from an input pin.  Ensures pin is an input pin.
@@ -242,6 +239,10 @@ namespace Metasound
 			// Deletes both the editor graph & frontend nodes from respective graphs
 			static bool DeleteNode(UEdGraphNode& InNode, bool bRemoveUnusedDependencies = true);
 
+			// Returns Editor Graph associated with the given builder's MetaSound object. If the editor graph was created, initialized, and
+			// bound to builder's MetaSound object, returns true (false if it already existed).  Sets (optional) pointer to the bound graph.
+			static bool BindEditorGraph(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph** OutGraph = nullptr);
+
 			// Adds an Input UEdGraphPin to a UMetasoundEditorGraphNode
 			static UEdGraphPin* AddPinToNode(UMetasoundEditorGraphNode& InEditorNode, Frontend::FConstInputHandle InInputHandle);
 
@@ -254,30 +255,31 @@ namespace Metasound
 			// Adds and removes nodes, pins and connections so that the UEdGraph of the MetaSound matches the
 			// FMetasoundFrontendDocument model. Validates the graph (and those referenced recursively).
 			//
-			// @param InMetaSound - MetaSound to synchronize and optionally validate.
+			// @param InBuilder - Builder to synchronize ed graph with.
+			// @param OutGraph = Graph to mutate to conform to provided builder's selected build graph
 			// @return whether or not EditorGraph synchronization was performed.
-			static bool SynchronizeGraph(UObject& InMetaSound);
+			static bool SynchronizeGraph(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph);
 
 			// Synchronizes editor nodes with frontend nodes, removing editor nodes that are not represented in the frontend, and adding editor nodes to represent missing frontend nodes.
-			static void SynchronizeNodes(UObject& InMetaSound);
+			static void SynchronizeNodes(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph);
 
 			// Synchronizes and reports to log whether or not an output node's associated FrontendNode ID has changed and therefore been updated through node versioning.
 			//
 			// @return True if the UMetasoundEditorGraphNode was altered. False otherwise.
-			static bool SynchronizeOutputNodes(UObject& InMetaSound);
+			static bool SynchronizeOutputNodes(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph);
 
 			// Adds and removes pins so that the UMetasoundEditorGraphNode matches the InNode.
 			//
 			// @return True if the UMetasoundEditorGraphNode was altered. False otherwise.
 			static bool SynchronizeNodePins(UMetasoundEditorGraphNode& InEditorNode, Frontend::FConstNodeHandle InNode, bool bRemoveUnusedPins = true, bool bLogChanges = true);
 
-			static bool SynchronizeComments(UObject& InMetaSound);
+			static bool SynchronizeComments(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph);
 
 			// Adds and removes connections so that the UEdGraph of the MetaSound has the same
 			// connections as the FMetasoundFrontendDocument graph.
 			//
 			// @return True if the UEdGraph was altered. False otherwise.
-			static bool SynchronizeConnections(UObject& InMetaSound);
+			static bool SynchronizeConnections(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph);
 
 			// Synchronizes literal for a given input with the EdGraph's pin value.
 			static bool SynchronizePinLiteral(UEdGraphPin& InPin);
@@ -288,7 +290,7 @@ namespace Metasound
 			// Synchronizes inputs, variables, and outputs for the given MetaSound.
 			//
 			// @return True if the UEdGraph was altered. False otherwise.
-			static bool SynchronizeGraphMembers(UObject& InMetaSound);
+			static bool SynchronizeGraphMembers(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph);
 
 			// Returns true if the FInputHandle and UEdGraphPin match each other.
 			static bool IsMatchingInputHandleAndPin(const Frontend::FConstInputHandle& InInputHandle, const UEdGraphPin& InEditorPin);

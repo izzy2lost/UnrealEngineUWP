@@ -45,7 +45,7 @@ void UMetaSoundBuilderBase::BeginDestroy()
 	{
 		if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
 		{
-			const FMetasoundFrontendClassName& MetaSoundClassName = Builder.GetConstDocument().RootGraph.Metadata.GetClassName();
+			const FMetasoundFrontendClassName& MetaSoundClassName = Builder.GetConstDocumentChecked().RootGraph.Metadata.GetClassName();
 			BuilderRegistry->FinishBuilding(MetaSoundClassName);
 		}
 
@@ -76,7 +76,7 @@ FMetaSoundBuilderNodeOutputHandle UMetaSoundBuilderBase::AddGraphInputNode(FName
 		else
 		{
 			FDocumentIDGenerator& IDGenerator = FDocumentIDGenerator::Get();
-			const FMetasoundFrontendDocument& Doc = GetConstBuilder().GetConstDocument();
+			const FMetasoundFrontendDocument& Doc = GetConstBuilder().GetConstDocumentChecked();
 
 			FMetasoundFrontendClassInput Description;
 			Description.Name = Name;
@@ -122,7 +122,7 @@ FMetaSoundBuilderNodeInputHandle UMetaSoundBuilderBase::AddGraphOutputNode(FName
 		else
 		{
 			FDocumentIDGenerator& IDGenerator = FDocumentIDGenerator::Get();
-			const FMetasoundFrontendDocument& Doc = GetConstBuilder().GetConstDocument();
+			const FMetasoundFrontendDocument& Doc = GetConstBuilder().GetConstDocumentChecked();
 
 			FMetasoundFrontendClassOutput Description;
 			Description.Name = Name;
@@ -236,7 +236,7 @@ void UMetaSoundBuilderBase::BuildInternal(TScriptInterface<IMetaSoundDocumentInt
 	FMetaSoundFrontendDocumentBuilder NewDocBuilder(NewMetaSound);
 
 	constexpr bool bResetVersion = false;
-	NewDocBuilder.InitDocument(&GetConstBuilder().GetConstDocument(), InDocClassName, bResetVersion);
+	NewDocBuilder.InitDocument(&GetConstBuilder().GetConstDocumentChecked(), InDocClassName, bResetVersion);
 	NewMetaSound->ConformObjectToDocument();
 }
 
@@ -735,13 +735,13 @@ UObject* UMetaSoundBuilderBase::GetReferencedPresetAsset() const
 
 	// Find the single external node which is the referenced preset asset, 
 	// and find the asset with its registry key 
-	auto FindExternalNode = [this](const FMetasoundFrontendNode& Node) 
+	auto FindExternalNode = [this](const FMetasoundFrontendNode& Node)
 	{
 		const FMetasoundFrontendClass* Class = Builder.FindDependency(Node.ClassID);
 		check(Class);
 		return Class->Metadata.GetType() == EMetasoundFrontendClassType::External;
 	};
-	const FMetasoundFrontendNode* Node = Builder.GetConstDocument().RootGraph.Graph.Nodes.FindByPredicate(FindExternalNode);
+	const FMetasoundFrontendNode* Node = Builder.FindConstBuildGraphChecked().Nodes.FindByPredicate(FindExternalNode);
 	if (Node != nullptr)
 	{
 		const FMetasoundFrontendClass* NodeClass = Builder.FindDependency(Node->ClassID);
@@ -834,7 +834,7 @@ void UMetaSoundBuilderBase::OnDependencyAdded(int32 Index)
 	using namespace Metasound;
 	using namespace Metasound::Frontend;
 
-	const FMetasoundFrontendClass& NewDependency = Builder.GetConstDocument().Dependencies[Index];
+	const FMetasoundFrontendClass& NewDependency = Builder.GetConstDocumentChecked().Dependencies[Index];
 	if (NewDependency.Metadata.GetType() == EMetasoundFrontendClassType::External)
 	{
 		const FAssetKey AssetKey(NewDependency.Metadata);
@@ -850,7 +850,7 @@ void UMetaSoundBuilderBase::OnRemoveSwappingDependency(int32 Index, int32 LastIn
 	using namespace Metasound;
 	using namespace Metasound::Frontend;
 
-	const FMetasoundFrontendClass& NewDependency = Builder.GetConstDocument().Dependencies[Index];
+	const FMetasoundFrontendClass& NewDependency = Builder.GetConstDocumentChecked().Dependencies[Index];
 	if (NewDependency.Metadata.GetType() == EMetasoundFrontendClassType::External)
 	{
 		const FAssetKey AssetKey(NewDependency.Metadata);
@@ -1079,7 +1079,7 @@ FMetasoundFrontendVersion UMetaSoundBuilderBase::FindNodeClassVersion(const FMet
 
 FMetasoundFrontendClassName UMetaSoundBuilderBase::GetRootGraphClassName() const
 {
-	return Builder.GetConstDocument().RootGraph.Metadata.GetClassName();
+	return Builder.GetConstDocumentChecked().RootGraph.Metadata.GetClassName();
 }
 
 void UMetaSoundBuilderBase::GetNodeInputData(const FMetaSoundBuilderNodeInputHandle& InputHandle, FName& Name, FName& DataType, EMetaSoundBuilderResult& OutResult)

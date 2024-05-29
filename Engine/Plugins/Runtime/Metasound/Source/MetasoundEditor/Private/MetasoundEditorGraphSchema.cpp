@@ -19,6 +19,7 @@
 #include "MetasoundAssetManager.h"
 #include "MetasoundBuilderSubsystem.h"
 #include "MetasoundDataReference.h"
+#include "MetasoundDocumentBuilderRegistry.h"
 #include "MetasoundDocumentInterface.h"
 #include "MetasoundEditor.h"
 #include "MetasoundEditorCommands.h"
@@ -1937,6 +1938,7 @@ void UMetasoundEditorGraphSchema::GetAssetsPinHoverMessage(const TArray<FAssetDa
 void UMetasoundEditorGraphSchema::DroppedAssetsOnGraph(const TArray<FAssetData>& Assets, const FVector2D& GraphPosition, UEdGraph* Graph) const
 {
 	using namespace Metasound;
+	using namespace Metasound::Engine;
 	using namespace Metasound::Frontend;
 
 	FScopedTransaction Transaction(LOCTEXT("DropMetaSoundOnGraph", "Drop MetaSound On Graph"));
@@ -1948,6 +1950,8 @@ void UMetasoundEditorGraphSchema::DroppedAssetsOnGraph(const TArray<FAssetData>&
 
 	FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&MetaSound);
 	check(MetaSoundAsset);
+	UMetaSoundBuilderBase& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(MetaSound);
+	EMetaSoundBuilderResult Result = EMetaSoundBuilderResult::Failed;
 
 	for (const FAssetData& DroppedAsset : Assets)
 	{
@@ -1971,36 +1975,17 @@ void UMetasoundEditorGraphSchema::DroppedAssetsOnGraph(const TArray<FAssetData>&
 				bModifiedObjects = true;
 			}
 
-			// This may not be necessary as dropping an asset on the graph may load it, thus triggering the registration from the MetaSoundAssetManager.
-			const FMetasoundFrontendDocument& DroppedDoc = DroppedMetaSoundAsset->GetConstDocumentChecked();
-			const FNodeRegistryKey RegistryKey = FNodeRegistryKey(DroppedDoc.RootGraph);
-			if (ensure(RegistryKey.IsValid()))
+			TScriptInterface<IMetaSoundDocumentInterface> DroppedDocInterface(DroppedObject);
+			FMetaSoundNodeHandle NodeHandle = Builder.AddNode(DroppedDocInterface, Result);
+			if (ensure(Result == EMetaSoundBuilderResult::Succeeded))
 			{
-				FMetaSoundAssetRegistrationOptions RegOptions;
-				RegOptions.bForceReregister = false;
-				DroppedMetaSoundAsset->RegisterGraphWithFrontend(RegOptions);
-			}
-
-			FMetasoundFrontendClass Class;
-			if (ensure(ISearchEngine::Get().FindClassWithHighestVersion(DroppedDoc.RootGraph.Metadata.GetClassName(), Class)))
-			{
-				UMetasoundEditorGraphNode* NewGraphNode = Metasound::Editor::FGraphBuilder::AddExternalNode(MetaSound, Class.Metadata);
-				NewGraphNode->UpdateFrontendNodeLocation(GraphPosition);
-				NewGraphNode->SyncLocationFromFrontendNode();
-
-				bTransactionSucceeded = true;
+				Builder.SetNodeLocation(NodeHandle.NodeID, GraphPosition, Result);
+				bTransactionSucceeded = ensure(Result == EMetaSoundBuilderResult::Succeeded);
 			}
 		}
 	}
 
-	if (bTransactionSucceeded)
-	{
-		// Reregister this asset after adding the dropped asset to update references
-		FMetaSoundAssetRegistrationOptions RegOptions;
-		RegOptions.bForceReregister = true;
-		MetaSoundAsset->RegisterGraphWithFrontend(RegOptions);
-	}
-	else
+	if (!bTransactionSucceeded)
 	{
 		Transaction.Cancel();
 	}

@@ -892,6 +892,11 @@ namespace Metasound
 				{
 					MetaSoundAsset->SetVersionedOnLoad();
 				}
+
+				// Hack to ensure validation is re-run on re-opening of the editor.
+				// This is needed to refresh errors potentially caused by unloading of
+				// references (ex. if a referenced asset is force deleted in the editor).
+				MetaSoundAsset->GetModifyContext().SetForceRefreshViews();
 			}
 
 			Builder.Reset(&Engine::FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*ObjectToEdit));
@@ -910,6 +915,7 @@ namespace Metasound
 			{
 				FGraphBuilder::RegisterGraphWithFrontend(*Metasound);
 			}
+
 			RefreshEditorContext();
 
 			BindGraphCommands();
@@ -1960,7 +1966,7 @@ namespace Metasound
 			UEdGraph* Graph = MetasoundAsset->GetGraph();
 			check(Graph);
 
-			return *CastChecked<UMetasoundEditorGraph>(MetasoundAsset->GetGraph());
+			return *CastChecked<UMetasoundEditorGraph>(Graph);
 		}
 
 		void FEditor::ExecuteNode()
@@ -3384,7 +3390,13 @@ namespace Metasound
 		void FEditor::RefreshEditorContext()
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Editor::FEditor::RefreshEditorContext);
-			const bool bSynchronizedGraph = FGraphBuilder::SynchronizeGraph(*Metasound);
+
+			check(Builder.IsValid());
+			UMetasoundEditorGraph* Graph = nullptr;
+			FGraphBuilder::BindEditorGraph(Builder->GetConstBuilder(), &Graph);
+			check(Graph);
+
+			const bool bSynchronizedGraph = FGraphBuilder::SynchronizeGraph(Builder->GetConstBuilder(), *Graph);
 
 			FMetasoundAssetBase* MetasoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(Metasound);
 			check(MetasoundAsset);
@@ -3428,10 +3440,9 @@ namespace Metasound
 					// If no member was selected by an action (ex. undo/redo), select a modified member 
 					if (!SelectedMember)
 					{
-						UMetasoundEditorGraph& Graph = GetMetaSoundGraphChecked();
 						for (const FGuid& MemberGuid : MembersModified)
 						{
-							if (UObject* Member = Graph.FindMember(MemberGuid))
+							if (UObject* Member = Graph->FindMember(MemberGuid))
 							{
 								// Currently only one member can be selected at a time, so only first found is added
 								Selection.Add(Member);
@@ -3534,12 +3545,10 @@ namespace Metasound
 		{
 			using namespace Metasound::Editor;
 
-			if (Metasound)
+			if (Builder.IsValid())
 			{
-				const FMetasoundAssetBase* MetasoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(Metasound);
-				check(MetasoundAsset);
-				const FMetasoundFrontendDocument& Document = MetasoundAsset->GetConstDocumentChecked();
-				return Document.RootGraph.Graph.Style.bIsGraphEditable;
+				const FMetasoundFrontendGraph& Graph = Builder->GetConstBuilder().FindConstBuildGraphChecked();
+				return Graph.Style.bIsGraphEditable;
 			}
 
 			return false;

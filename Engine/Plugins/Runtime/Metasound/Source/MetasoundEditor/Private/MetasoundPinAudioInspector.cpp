@@ -102,8 +102,9 @@ namespace Metasound
 
 		const UMetasoundEditorGraphNode& FMetasoundPinAudioInspector::GetReroutedNode() const
 		{
-			const UMetasoundEditorGraphNode* Node = FGraphBuilder::FindReroutedOutputPin(GraphPinObj) ? Cast<UMetasoundEditorGraphNode>(GraphPinObj->GetOwningNode()) 
-																									  : nullptr;
+			const UMetasoundEditorGraphNode* Node = FGraphBuilder::FindReroutedOutputPin(GraphPinObj)
+				? Cast<UMetasoundEditorGraphNode>(GraphPinObj->GetOwningNode())
+				: nullptr;
 			check(Node);
 
 			return *Node;

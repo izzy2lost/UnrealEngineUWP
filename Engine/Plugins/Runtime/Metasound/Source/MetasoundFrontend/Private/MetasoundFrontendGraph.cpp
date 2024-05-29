@@ -352,13 +352,13 @@ namespace Metasound
 	bool FFrontendGraphBuilder::AddNodesToGraph(FBuildGraphContext& InGraphContext)
 	{
 		TSet<FNodeIDVertexID> GraphEdgeDestinations;
-		const TArray<FMetasoundFrontendEdge>& GraphEdges = InGraphContext.GraphClass.Graph.Edges;
+		const TArray<FMetasoundFrontendEdge>& GraphEdges = InGraphContext.GraphClass.GetConstDefaultGraph().Edges;
 		Algo::Transform(GraphEdges, GraphEdgeDestinations, [](const FMetasoundFrontendEdge& Edge) 
 		{
 			return FNodeIDVertexID{Edge.ToNodeID, Edge.ToVertexID};
 		});
 
-		for (const FMetasoundFrontendNode& Node : InGraphContext.GraphClass.Graph.Nodes)
+		for (const FMetasoundFrontendNode& Node : InGraphContext.GraphClass.GetConstDefaultGraph().Nodes)
 		{
 			const FMetasoundFrontendClass* NodeClass = InGraphContext.BuildContext.FrontendClasses.FindRef(Node.ClassID);
 
@@ -427,7 +427,7 @@ namespace Metasound
 
 					case EMetasoundFrontendClassType::Variable:
 					{
-						TSharedPtr<const INode> VariableNode(CreateVariableNode(InGraphContext.BuildContext, Node, InGraphContext.GraphClass.Graph).Release());
+						TSharedPtr<const INode> VariableNode(CreateVariableNode(InGraphContext.BuildContext, Node, InGraphContext.GraphClass.GetConstDefaultGraph()).Release());
 						InGraphContext.Graph->AddNode(Node.GetID(), VariableNode);
 					}
 					break;
@@ -466,7 +466,7 @@ namespace Metasound
 		TMap<FNodeIDVertexID, FCoreNodeAndFrontendVertex> NodeDestinationsByID;
 
 		// Add nodes to NodeID/VertexID map
-		for (const FMetasoundFrontendNode& Node : InGraphContext.GraphClass.Graph.Nodes)
+		for (const FMetasoundFrontendNode& Node : InGraphContext.GraphClass.GetConstDefaultGraph().Nodes)
 		{
 			const INode* CoreNode = InGraphContext.Graph->FindNode(Node.GetID());
 			if (nullptr == CoreNode)
@@ -486,7 +486,7 @@ namespace Metasound
 			}
 		};
 
-		for (const FMetasoundFrontendEdge& Edge : InGraphContext.GraphClass.Graph.Edges)
+		for (const FMetasoundFrontendEdge& Edge : InGraphContext.GraphClass.GetConstDefaultGraph().Edges)
 		{
 			const FNodeIDVertexID DestinationKey(Edge.ToNodeID, Edge.ToVertexID);
 			const FCoreNodeAndFrontendVertex* DestinationNodeAndVertex = NodeDestinationsByID.Find(DestinationKey);
@@ -654,7 +654,9 @@ namespace Metasound
 			return false;
 		}
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		return IsFlat(InDocument.RootGraph, InDocument.Dependencies);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	bool FFrontendGraphBuilder::IsFlat(const FMetasoundFrontendGraphClass& InRoot, const TArray<FMetasoundFrontendClass>& InDependencies)
@@ -684,7 +686,7 @@ namespace Metasound
 			return AvailableDependencies.Contains(InNode.ClassID);
 		};
 
-		const bool bIsEveryDependencyMet = Algo::AllOf(InRoot.Graph.Nodes, IsDependencyMet);
+		const bool bIsEveryDependencyMet = Algo::AllOf(InRoot.GetConstDefaultGraph().Nodes, IsDependencyMet);
 
 		return bIsEveryDependencyMet;
 	}
@@ -706,7 +708,7 @@ namespace Metasound
 				// Cache subgraph dependencies.
 				for (const FMetasoundFrontendGraphClass* GraphClass : InGraphs)
 				{
-					for (const FMetasoundFrontendNode& Node : GraphClass->Graph.Nodes)
+					for (const FMetasoundFrontendNode& Node : GraphClass->GetConstDefaultGraph().Nodes)
 					{
 						if (ClassIDAndGraph.Contains(Node.ClassID))
 						{

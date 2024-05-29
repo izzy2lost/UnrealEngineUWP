@@ -592,7 +592,7 @@ void FMetasoundAssetBase::CacheRegistryMetadata()
 	}
 
 	// 2. Copy metadata for inputs/outputs managed by interfaces, removing them from maps generated
-	auto CacheInterfaceMetadata = [](const FMetasoundFrontendVertexMetadata & InRegistryMetadata, FMetasoundFrontendVertexMetadata& OutMetadata)
+	auto CacheInterfaceMetadata = [](const FMetasoundFrontendVertexMetadata& InRegistryMetadata, FMetasoundFrontendVertexMetadata& OutMetadata)
 	{
 		const int32 CachedSortOrderIndex = OutMetadata.SortOrderIndex;
 		OutMetadata = InRegistryMetadata;
@@ -718,7 +718,6 @@ bool FMetasoundAssetBase::IsReferencedAsset(const FMetasoundAssetBase& InAsset) 
 		ensureAlways(IMetaSoundAssetManager::GetChecked().TryLoadReferencedAssets(ChildAsset, ChildRefs));
 		Algo::Transform(ChildRefs, Children, [](FMetasoundAssetBase* Child) { return Child; });
 		return Children;
-
 	});
 
 	return bIsReferenced;
@@ -898,9 +897,11 @@ void FMetasoundAssetBase::RebuildReferencedAssetClasses()
 	using namespace Metasound::Frontend;
 
 	IMetaSoundAssetManager& AssetManager = IMetaSoundAssetManager::GetChecked();
-	AssetManager.AddAssetReferences(*this);
-	TSet<IMetaSoundAssetManager::FAssetInfo> ReferencedAssetClasses = AssetManager.GetReferencedAssetClasses(*this);
-	SetReferencedAssetClasses(MoveTemp(ReferencedAssetClasses));
+	if (AssetManager.AddAssetReferences(*this))
+	{
+		TSet<IMetaSoundAssetManager::FAssetInfo> ReferencedAssetClasses = AssetManager.GetReferencedAssetClasses(*this);
+		SetReferencedAssetClasses(MoveTemp(ReferencedAssetClasses));
+	}
 }
 #endif // WITH_EDITOR
 

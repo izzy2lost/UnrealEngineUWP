@@ -149,7 +149,8 @@ namespace Metasound::Frontend
 #if WITH_EDITORONLY_DATA
 		// Adds missing assets using the provided asset's local reference class cache. Used
 		// to prime system from asset attempting to register prior to asset scan being complete.
-		virtual void AddAssetReferences(FMetasoundAssetBase& InAssetBase) = 0;
+		// Returns true if references were added, false if it they are already found.
+		virtual bool AddAssetReferences(FMetasoundAssetBase& InAssetBase) = 0;
 #endif
 
 		// Add or Update a MetaSound Asset's entry data

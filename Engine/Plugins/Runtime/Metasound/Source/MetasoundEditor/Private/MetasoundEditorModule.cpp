@@ -452,8 +452,9 @@ namespace Metasound
 							FGraphBuilder::UnregisterGraphWithFrontend(*AssetObject);
 						}
 
-						IMetaSoundAssetManager::GetChecked().RemoveAsset(InAssetData);
 					}
+
+					IMetaSoundAssetManager::GetChecked().RemoveAsset(InAssetData);
 				}
 			}
 
@@ -979,7 +980,7 @@ namespace Metasound
 					IMetaSoundAssetManager& AssetManager = IMetaSoundAssetManager::GetChecked();
 					for (FMetaSoundFrontendDocumentBuilder& MetaSoundBuilder : NewMetaSoundAssetBuilders)
 					{
-						const FMetasoundFrontendClassName OldReferencedClassName = MetaSoundBuilder.GetConstDocument().RootGraph.Metadata.GetClassName();
+						const FMetasoundFrontendClassName OldReferencedClassName = MetaSoundBuilder.GetConstDocumentChecked().RootGraph.Metadata.GetClassName();
 						const FMetasoundFrontendClassName NewReferencedClassName = MetaSoundBuilder.GenerateNewClassName();
 						OldToNewReferencedClassNames.FindOrAdd(OldReferencedClassName) = NewReferencedClassName;
 

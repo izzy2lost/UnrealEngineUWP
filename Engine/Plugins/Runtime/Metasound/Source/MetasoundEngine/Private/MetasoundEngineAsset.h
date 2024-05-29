@@ -4,7 +4,7 @@
 
 #include "Metasound.h"
 #include "MetasoundAssetManager.h"
-#include "MetasoundBuilderSubsystem.h"
+#include "MetasoundDocumentBuilderRegistry.h"
 #include "MetasoundFrontendDocumentIdGenerator.h"
 #include "MetasoundFrontendRegistryKey.h"
 #include "MetasoundUObjectRegistry.h"
@@ -28,7 +28,7 @@ namespace Metasound
 #if WITH_EDITOR
 		static void PostDuplicate(TScriptInterface<IMetaSoundDocumentInterface> MetaSound, EDuplicateMode::Type InDuplicateMode, FGuid& OutAssetClassID)
 		{
-			using namespace Metasound::Frontend;
+			using namespace Frontend;
 
 			if (InDuplicateMode == EDuplicateMode::Normal)
 			{
@@ -236,4 +236,3 @@ namespace Metasound
 #endif // WITH_EDITORONLY_DATA
 	};
 } // namespace Metasound
-

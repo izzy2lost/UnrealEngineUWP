@@ -23,10 +23,10 @@ namespace Metasound::Frontend
 
 		// Only exists to make TSharedFromThis happy, but should never be called
 		FDocumentGraphEdgeCache();
-		FDocumentGraphEdgeCache(TSharedRef<const FDocumentCache> ParentCache);
+		FDocumentGraphEdgeCache(TSharedRef<const FDocumentCache> ParentCache, const FGuid& InPageID);
 
 	public:
-		static TSharedRef<FDocumentGraphEdgeCache> Create(TSharedRef<const FDocumentCache> ParentCache, FEdgeModifyDelegates& OutDelegates);
+		static TSharedRef<FDocumentGraphEdgeCache> Create(TSharedRef<const FDocumentCache> ParentCache, const FGuid& InPageID, FEdgeModifyDelegates& OutDelegates);
 		virtual ~FDocumentGraphEdgeCache() = default;
 
 		// IDocumentGraphEdgeCache implementation
@@ -53,7 +53,7 @@ namespace Metasound::Frontend
 		TMap<FMetasoundFrontendVertexHandle, int32> InputToEdgeIndex;
 
 		TSharedRef<const FDocumentCache> Parent;
-
+		FGuid PageID;
 		int32 TransactionCount = 0;
 	};
 
@@ -65,10 +65,10 @@ namespace Metasound::Frontend
 
 		// Only exists to make TSharedFromThis happy, but should never be called
 		FDocumentGraphNodeCache();
-		FDocumentGraphNodeCache(TSharedRef<const FDocumentCache> ParentCache);
+		FDocumentGraphNodeCache(TSharedRef<const FDocumentCache> ParentCache, const FGuid& InPageID);
 
 	public:
-		static TSharedRef<FDocumentGraphNodeCache> Create(TSharedRef<const FDocumentCache> ParentCache, FNodeModifyDelegates& OutDelegates);
+		static TSharedRef<FDocumentGraphNodeCache> Create(TSharedRef<const FDocumentCache> ParentCache, const FGuid& InPageID, FNodeModifyDelegates& OutDelegates);
 		virtual ~FDocumentGraphNodeCache() = default;
 
 		// IDocumentGraphNodeCache implementation
@@ -108,7 +108,7 @@ namespace Metasound::Frontend
 		TSortedMap<FGuid, TArray<int32>> ClassIDToNodeIndices;
 
 		TSharedRef<const FDocumentCache> Parent;
-
+		FGuid PageID;
 		int32 TransactionCount = 0;
 	};
 
@@ -162,7 +162,7 @@ namespace Metasound::Frontend
 		FDocumentCache(const FMetasoundFrontendDocument& InDocument, TSharedRef<FDocumentModifyDelegates> Delegates);
 
 	public:
-		static TSharedRef<FDocumentCache> Create(const FMetasoundFrontendDocument& InDocument, TSharedRef<FDocumentModifyDelegates> Delegates, bool bPrimeCache);
+		static TSharedRef<FDocumentCache> Create(const FMetasoundFrontendDocument& InDocument, TSharedRef<FDocumentModifyDelegates> Delegates, const FGuid& InPageID, bool bPrimeCache);
 		virtual ~FDocumentCache() = default;
 
 		virtual bool ContainsDependency(const FNodeRegistryKey& InClassKey) const override;
@@ -181,7 +181,7 @@ namespace Metasound::Frontend
 		int32 GetTransactionCount() const;
 
 	private:
-		void Init(bool bPrimeCache);
+		void Init(const FGuid& InPageID, bool bPrimeCache);
 
 		void OnDependencyAdded(int32 InNewIndex);
 		void OnRemoveSwappingDependency(int32 SwapIndex, int32 LastIndex);
@@ -216,5 +216,6 @@ namespace Metasound::Frontend
 
 		// Number of transactions processed since builder was instantiated
 		int32 TransactionCount = 0;
+		FGuid PageID;
 	};
 } // namespace Metasound::Frontend

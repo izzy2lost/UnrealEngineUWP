@@ -55,7 +55,7 @@ namespace Metasound::Frontend
 
 			bool Transform(FMetaSoundFrontendDocumentBuilder& OutDocumentBuilder) const
 			{
-				const FMetasoundFrontendDocumentMetadata& Metadata = OutDocumentBuilder.GetConstDocument().Metadata;
+				const FMetasoundFrontendDocumentMetadata& Metadata = OutDocumentBuilder.GetConstDocumentChecked().Metadata;
 
 				const FMetasoundFrontendVersionNumber TargetVersion = GetTargetVersion();
 				if (Metadata.Version.Number < TargetVersion)

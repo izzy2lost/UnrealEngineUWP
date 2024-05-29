@@ -90,8 +90,10 @@ namespace Metasound
 		 *
 		 * @return True if all dependencies are C++ classes. False otherwise.
 		 */
+		UE_DEPRECATED(5.5, "No longer supported (not useful nor maintainable with paged graph support")
 		static bool IsFlat(const FMetasoundFrontendDocument& InDocument);
 
+		UE_DEPRECATED(5.5, "No longer supported (not useful nor maintainable with paged graph support")
 		static bool IsFlat(const FMetasoundFrontendGraphClass& InRoot, const TArray<FMetasoundFrontendClass>& InDependencies);
 
 		/* Create a FFrontendGraph from a FMetasoundFrontendDocument.*/

@@ -30,10 +30,7 @@ namespace Metasound
 				if (IDocumentBuilderRegistry* Registry = IDocumentBuilderRegistry::Get())
 				{
 					const FMetasoundFrontendClassName& ClassName = InDocument.Get()->RootGraph.Metadata.GetClassName();
-
-					PRAGMA_DISABLE_DEPRECATION_WARNINGS
-					Registry->InvalidateDocumentCache(ClassName);
-					PRAGMA_ENABLE_DEPRECATION_WARNINGS
+					Registry->ReloadBuilder(ClassName);
 				}
 				return MakeShared<FDocumentController>(InDocument);
 			}

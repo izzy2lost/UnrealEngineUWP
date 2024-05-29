@@ -63,7 +63,7 @@ public:
 	// Initialize the UObject asset, with an optional MetaSound to be referenced if the asset is a preset
 	void InitAsset(UObject& InNewMetaSound, UObject* InReferencedMetaSound = nullptr);
 
-	// Initialize UMetasoundEditorGraph for a given MetaSound object
+	UE_DEPRECATED(5.5, "EdGraph is now transiently generated and privately managed for asset editor use only.")
 	void InitEdGraph(UObject& InMetaSound);
 
 	// Wraps RegisterGraphWithFrontend logic in Frontend with any additional logic required to refresh editor & respective editor object state.

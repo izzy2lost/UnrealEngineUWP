@@ -2007,8 +2007,7 @@ void UMetasoundEditorGraph::MigrateEditorDocumentData(FMetaSoundFrontendDocument
 	// 5. Remove input locations and ensure that all other nodes only have at most one
 	// location represented in the style/editor graph (0 is acceptable as some member
 	// node types (eg. variables) may not contain locations and that's ok).
-	const FMetasoundFrontendDocument& Document = OutBuilder.GetConstDocument();
-	const TArray<FMetasoundFrontendNode>& GraphNodes = Document.RootGraph.Graph.Nodes;
+	const TArray<FMetasoundFrontendNode>& GraphNodes = OutBuilder.FindConstBuildGraphChecked().Nodes;
 	TMap<FGuid, const UMetasoundEditorGraphNode*> EdNodeMap;
 	Algo::Transform(AllMetaSoundNodes, EdNodeMap, [](const UEdGraphNode* Node)
 	{

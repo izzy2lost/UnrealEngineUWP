@@ -745,6 +745,9 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendGraph
 	UPROPERTY()
 	FMetasoundFrontendGraphStyle Style;
 #endif // WITH_EDITORONLY_DATA
+
+	UPROPERTY()
+	FGuid PageID;
 };
 
 // Metadata associated with a vertex.
@@ -1641,15 +1644,38 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendGraphClass : public FMetasoundFro
 {
 	GENERATED_BODY()
 
+public:
 	FMetasoundFrontendGraphClass();
-
 	virtual ~FMetasoundFrontendGraphClass() = default;
 
-	UPROPERTY()
+	UPROPERTY(meta = (DeprecationMessage = "5.5 - Direct Graph access will be revoked and page manipulation applied via public API below in future builds."))
 	FMetasoundFrontendGraph Graph;
 
+private:
+	UPROPERTY()
+	TArray<FMetasoundFrontendGraph> PagedGraphs;
+
+public:
 	UPROPERTY()
 	FMetasoundFrontendGraphClassPresetOptions PresetOptions;
+
+public:
+	void AddNewGraphPage(const FGuid& InPageID);
+	void DuplicateLastGraphPage(const FGuid& InPageID);
+	void RemoveAllGraphPages();
+	bool RemoveGraphPage(const FGuid& InPageID);
+
+	bool ContainsGraphPage(const FGuid& InPageID) const;
+	void IterateGraphPages(TFunctionRef<void(FMetasoundFrontendGraph&)> IterFunc);
+	void IterateGraphPages(TFunctionRef<void(const FMetasoundFrontendGraph&)> IterFunc) const;
+
+	FMetasoundFrontendGraph* FindGraph(const FGuid& InPageID);
+	FMetasoundFrontendGraph& FindGraphChecked(const FGuid& InPageID);
+	const FMetasoundFrontendGraph* FindConstGraph(const FGuid& InPageID) const;
+	const FMetasoundFrontendGraph& FindConstGraphChecked(const FGuid& InPageID) const;
+	FMetasoundFrontendGraph& GetDefaultGraph();
+	const FMetasoundFrontendGraph& GetConstDefaultGraph() const;
+	void ResetGraphs();
 };
 
 UCLASS()

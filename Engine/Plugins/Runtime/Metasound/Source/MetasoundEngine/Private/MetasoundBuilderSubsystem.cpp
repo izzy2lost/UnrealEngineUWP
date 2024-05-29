@@ -227,7 +227,7 @@ const Metasound::Engine::FOutputAudioFormatInfoPair* UMetaSoundSourceBuilder::Fi
 
 	auto Predicate = [this](const FOutputAudioFormatInfoPair& Pair)
 	{
-		const FMetasoundFrontendDocument& Document = Builder.GetConstDocument();
+		const FMetasoundFrontendDocument& Document = Builder.GetConstDocumentChecked();
 		return Document.Interfaces.Contains(Pair.Value.InterfaceVersion);
 	};
 
@@ -288,8 +288,7 @@ void UMetaSoundSourceBuilder::OnEdgeAdded(int32 EdgeIndex) const
 {
 	using namespace Metasound::DynamicGraph;
 
-	const FMetasoundFrontendDocument& Doc = Builder.GetConstDocument();
-	const FMetasoundFrontendEdge& NewEdge = Doc.RootGraph.Graph.Edges[EdgeIndex];
+	const FMetasoundFrontendEdge& NewEdge = Builder.FindConstBuildGraphChecked().Edges[EdgeIndex];
 	ExecuteAuditionableTransaction([this, &NewEdge](Metasound::DynamicGraph::FDynamicOperatorTransactor& Transactor)
 	{
 		const FMetaSoundFrontendDocumentBuilder& DocBuilder = GetConstBuilder();
@@ -326,7 +325,7 @@ void UMetaSoundSourceBuilder::OnInputAdded(int32 InputIndex)
 		using namespace Metasound;
 		using namespace Metasound::Frontend;
 
-		const FMetasoundFrontendDocument& Doc = Builder.GetConstDocument();
+		const FMetasoundFrontendDocument& Doc = Builder.GetConstDocumentChecked();
 		const FMetasoundFrontendGraphClass& GraphClass = Doc.RootGraph;
 		const FMetasoundFrontendClassInput& NewInput = GraphClass.Interface.Inputs[InputIndex];
 
@@ -363,10 +362,7 @@ void UMetaSoundSourceBuilder::OnNodeAdded(int32 NodeIndex) const
 		using namespace Metasound;
 		using namespace Metasound::Frontend;
 
-		const FMetasoundFrontendDocument& Doc = Builder.GetConstDocument();
-		const FMetasoundFrontendGraphClass& GraphClass = Doc.RootGraph;
-		const FMetasoundFrontendNode& AddedNode = GraphClass.Graph.Nodes[NodeIndex];
-
+		const FMetasoundFrontendNode& AddedNode = Builder.FindConstBuildGraphChecked().Nodes[NodeIndex];
 		const FMetasoundFrontendClass* NodeClass = Builder.FindDependency(AddedNode.ClassID);
 		checkf(NodeClass, TEXT("Node successfully added to graph but document is missing associated dependency"));
 
@@ -473,8 +469,7 @@ void UMetaSoundSourceBuilder::OnNodeInputLiteralSet(int32 NodeIndex, int32 Verte
 {
 	using namespace Metasound::DynamicGraph;
 
-	const FMetasoundFrontendGraphClass& GraphClass = Builder.GetConstDocument().RootGraph;
-	const FMetasoundFrontendNode& Node = GraphClass.Graph.Nodes[NodeIndex];
+	const FMetasoundFrontendNode& Node = Builder.FindConstBuildGraphChecked().Nodes[NodeIndex];
 	const FMetasoundFrontendVertex& Input = Node.Interface.Inputs[VertexIndex];
 
 	// Only send the literal down if not connected, as the graph core layer
@@ -502,7 +497,7 @@ void UMetaSoundSourceBuilder::OnOutputAdded(int32 OutputIndex) const
 	{
 		using namespace Metasound::Frontend;
 
-		const FMetasoundFrontendDocument& Doc = Builder.GetConstDocument();
+		const FMetasoundFrontendDocument& Doc = Builder.GetConstDocumentChecked();
 		const FMetasoundFrontendGraphClass& GraphClass = Doc.RootGraph;
 		const FMetasoundFrontendClassOutput& NewOutput = GraphClass.Interface.Outputs[OutputIndex];
 
@@ -515,8 +510,7 @@ void UMetaSoundSourceBuilder::OnRemoveSwappingEdge(int32 SwapIndex, int32 LastIn
 {
 	using namespace Metasound::DynamicGraph;
 
-	const FMetasoundFrontendDocument& Doc = Builder.GetConstDocument();
-	const FMetasoundFrontendEdge& EdgeBeingRemoved = Doc.RootGraph.Graph.Edges[SwapIndex];
+	const FMetasoundFrontendEdge& EdgeBeingRemoved = Builder.FindConstBuildGraphChecked().Edges[SwapIndex];
 	ExecuteAuditionableTransaction([this, EdgeBeingRemoved](FDynamicOperatorTransactor& Transactor)
 	{
 		using namespace Metasound;
@@ -566,7 +560,7 @@ void UMetaSoundSourceBuilder::OnRemovingInput(int32 InputIndex)
 		using namespace Metasound;
 		using namespace Metasound::Frontend;
 
-		const FMetasoundFrontendDocument& Doc = Builder.GetConstDocument();
+		const FMetasoundFrontendDocument& Doc = Builder.GetConstDocumentChecked();
 		const FMetasoundFrontendGraphClass& GraphClass = Doc.RootGraph;
 		const FMetasoundFrontendClassInput& InputBeingRemoved = GraphClass.Interface.Inputs[InputIndex];
 
@@ -604,9 +598,7 @@ void UMetaSoundSourceBuilder::OnRemoveSwappingNode(int32 SwapIndex, int32 LastIn
 	{
 		using namespace Metasound::Frontend;
 
-		const FMetasoundFrontendDocument& Doc = Builder.GetConstDocument();
-		const FMetasoundFrontendGraphClass& GraphClass = Doc.RootGraph;
-		const FMetasoundFrontendNode& NodeBeingRemoved = GraphClass.Graph.Nodes[SwapIndex];
+		const FMetasoundFrontendNode& NodeBeingRemoved = Builder.FindConstBuildGraphChecked().Nodes[SwapIndex];
 		const FGuid& NodeID = NodeBeingRemoved.GetID();
 		Transactor.RemoveNode(NodeID);
 		return true;
@@ -617,8 +609,7 @@ void UMetaSoundSourceBuilder::OnRemovingNodeInputLiteral(int32 NodeIndex, int32 
 {
 	using namespace Metasound::DynamicGraph;
 
-	const FMetasoundFrontendGraphClass& GraphClass = Builder.GetConstDocument().RootGraph;
-	const FMetasoundFrontendNode& Node = GraphClass.Graph.Nodes[NodeIndex];
+	const FMetasoundFrontendNode& Node = Builder.FindConstBuildGraphChecked().Nodes[NodeIndex];
 	const FMetasoundFrontendVertex& Input = Node.Interface.Inputs[VertexIndex];
 
 	// Only send the literal down if not connected, as the graph core layer will disconnect.
@@ -630,7 +621,7 @@ void UMetaSoundSourceBuilder::OnRemovingNodeInputLiteral(int32 NodeIndex, int32 
 			using namespace Metasound::Engine;
 			using namespace Metasound::Frontend;
 
-			const TArray<FMetasoundFrontendNode>& Nodes = Builder.GetConstDocument().RootGraph.Graph.Nodes;
+			const TArray<FMetasoundFrontendNode>& Nodes = Builder.FindConstBuildGraphChecked().Nodes;
 			const FMetasoundFrontendNode& Node = Nodes[NodeIndex];
 			const FMetasoundFrontendVertex& Input = Node.Interface.Inputs[VertexIndex];
 
@@ -655,7 +646,7 @@ void UMetaSoundSourceBuilder::OnRemovingOutput(int32 OutputIndex) const
 	{
 		using namespace Metasound::Frontend;
 
-		const FMetasoundFrontendDocument& Doc = Builder.GetConstDocument();
+		const FMetasoundFrontendDocument& Doc = Builder.GetConstDocumentChecked();
 		const FMetasoundFrontendGraphClass& GraphClass = Doc.RootGraph;
 		const FMetasoundFrontendClassOutput& OutputBeingRemoved = GraphClass.Interface.Outputs[OutputIndex];
 
@@ -691,7 +682,7 @@ void UMetaSoundSourceBuilder::SetFormat(EMetaSoundOutputAudioFormat OutputFormat
 
 	TArray<FMetasoundFrontendVersion> OutputFormatsToRemove;
 
-	const FMetasoundFrontendDocument& Document = GetConstBuilder().GetConstDocument();
+	const FMetasoundFrontendDocument& Document = GetConstBuilder().GetConstDocumentChecked();
 	for (const FOutputAudioFormatInfoPair& Pair : FormatMap)
 	{
 		const FMetasoundFrontendVersion& FormatVersion = Pair.Value.InterfaceVersion;
@@ -1055,10 +1046,7 @@ UMetaSoundSourceBuilder* UMetaSoundBuilderSubsystem::FindSourceBuilder(FName Bui
 void UMetaSoundBuilderSubsystem::InvalidateDocumentCache(const FMetasoundFrontendClassName& InClassName) const
 {
 	using namespace Metasound::Engine;
-	if (FMetaSoundFrontendDocumentBuilder* Builder = FDocumentBuilderRegistry::GetChecked().FindBuilder(InClassName))
-	{
-		Builder->Reload();
-	}
+	FDocumentBuilderRegistry::GetChecked().ReloadBuilder(InClassName);
 }
 
 bool UMetaSoundBuilderSubsystem::IsInterfaceRegistered(FName InInterfaceName) const

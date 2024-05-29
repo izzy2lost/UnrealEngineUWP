@@ -16,6 +16,7 @@
 #include "MetasoundAssetBase.h"
 #include "MetasoundAudioBuffer.h"
 #include "MetasoundDocumentBuilderRegistry.h"
+#include "MetasoundDocumentInterface.h"
 #include "MetasoundEditor.h"
 #include "MetasoundEditorGraph.h"
 #include "MetasoundEditorGraphCommentNode.h"
@@ -120,11 +121,13 @@ namespace Metasound
 				}
 			};
 
-			void SynchronizeGraphRecursively(UObject& InMetaSound)
+			void SynchronizeGraphRecursively(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph)
 			{
+				using namespace Engine;
 				using namespace Frontend;
 
-				FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
+				UObject& MetaSound = InBuilder.CastDocumentObjectChecked<UObject>();
+				FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&MetaSound);
 				check(MetaSoundAsset);
 
 				// Synchronize referenced graphs first to ensure all editor data
@@ -134,7 +137,13 @@ namespace Metasound
 				for (FMetasoundAssetBase* Reference : References)
 				{
 					check(Reference);
-					SynchronizeGraphRecursively(*Reference->GetOwningAsset());
+					UObject* RefObject = Reference->GetOwningAsset();
+					check(RefObject);
+					FMetaSoundFrontendDocumentBuilder& RefBuilder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(RefObject);
+
+					UMetasoundEditorGraph* Graph = nullptr;
+					FGraphBuilder::BindEditorGraph(RefBuilder, &Graph);
+					SynchronizeGraphRecursively(RefBuilder, *Graph);
 				}
 
 				if (!MetaSoundAsset->GetConstModifyContext().GetDocumentModified())
@@ -142,17 +151,11 @@ namespace Metasound
 					return;
 				}
 
-				// If no graph is set, MetaSound has been created outside of asset factory, so initialize it here.
-				if (!MetaSoundAsset->GetGraph())
-				{
-					UMetaSoundEditorSubsystem::GetChecked().InitEdGraph(InMetaSound);
-				}
-
-				FGraphBuilder::SynchronizeComments(InMetaSound);
-				FGraphBuilder::SynchronizeGraphMembers(InMetaSound);
-				FGraphBuilder::SynchronizeOutputNodes(InMetaSound);
-				FGraphBuilder::SynchronizeNodes(InMetaSound);
-				FGraphBuilder::SynchronizeConnections(InMetaSound);
+				FGraphBuilder::SynchronizeComments(InBuilder, OutGraph);
+				FGraphBuilder::SynchronizeGraphMembers(InBuilder, OutGraph);
+				FGraphBuilder::SynchronizeOutputNodes(InBuilder, OutGraph);
+				FGraphBuilder::SynchronizeNodes(InBuilder, OutGraph);
+				FGraphBuilder::SynchronizeConnections(InBuilder, OutGraph);
 			}
 		} // namespace GraphBuilderPrivate
 
@@ -1173,21 +1176,6 @@ namespace Metasound
 			}
 		}
 
-		bool FGraphBuilder::GraphContainsErrors(const UObject& InMetaSound)
-		{
-			const FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
-			check(MetaSoundAsset);
-			const UMetasoundEditorGraph* EditorGraph = CastChecked<UMetasoundEditorGraph>(MetaSoundAsset->GetGraph());
-
-			// Get all editor nodes from editor graph (some nodes on graph may *NOT* be metasound ed nodes,
-			// such as comment boxes, etc, so just get nodes of class UMetasoundEditorGraph).
-			TArray<const UMetasoundEditorGraphNode*> EditorNodes;
-			EditorGraph->GetNodesOfClass(EditorNodes);
-
-			// Do not synchronize with errors present as the graph is expected to be malformed.
-			return Algo::AnyOf(EditorNodes, [](const UMetasoundEditorGraphNode* Node) { return Node->ErrorType == EMessageSeverity::Error; });
-		}
-
 		Frontend::FNodeHandle FGraphBuilder::AddInputTemplateNodeHandle(UObject& InMetaSound, Frontend::FNodeHandle& InputNodeHandle)
 		{
 			using namespace Frontend;
@@ -1684,6 +1672,28 @@ namespace Metasound
 			return ensure(Graph->RemoveNode(&InNode));
 		}
 
+		bool FGraphBuilder::BindEditorGraph(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph** OutGraph)
+		{
+			using namespace Frontend;
+
+			bool bNewGraphBound = false;
+			FMetasoundAssetBase& MetaSound = InBuilder.GetMetasoundAsset();
+			UMetasoundEditorGraph* Graph = Cast<UMetasoundEditorGraph>(MetaSound.GetGraph());
+			if (!Graph)
+			{
+				Graph = NewObject<UMetasoundEditorGraph>(MetaSound.GetOwningAsset(), FName(), RF_Transactional);
+				Graph->Schema = UMetasoundEditorGraphSchema::StaticClass();
+				MetaSound.SetGraph(Graph);
+				bNewGraphBound = true;
+			}
+
+			if (OutGraph)
+			{
+				*OutGraph = Graph;
+			}
+			return bNewGraphBound;
+		}
+
 		void FGraphBuilder::RebuildNodePins(UMetasoundEditorGraphNode& InGraphNode)
 		{
 			using namespace Frontend;
@@ -1961,18 +1971,12 @@ namespace Metasound
 			return false;
 		}
 
-		bool FGraphBuilder::SynchronizeComments(UObject& InMetaSound)
+		bool FGraphBuilder::SynchronizeComments(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph)
 		{
 			bool bModified = false;
 
-			FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
-			check(MetaSoundAsset);
-
-			UMetasoundEditorGraph* EditorGraph = CastChecked<UMetasoundEditorGraph>(MetaSoundAsset->GetGraph());
-			check(EditorGraph);
-
 			TMap<FGuid, UMetasoundEditorGraphCommentNode*> CommentIDToEdNode;
-			Algo::TransformIf(EditorGraph->Nodes, CommentIDToEdNode,
+			Algo::TransformIf(OutGraph.Nodes, CommentIDToEdNode,
 				[](const UEdGraphNode* Node)
 				{
 					return Node->IsA<UMetasoundEditorGraphCommentNode>();
@@ -1983,8 +1987,8 @@ namespace Metasound
 					return TPair<FGuid, UMetasoundEditorGraphCommentNode*>(CommentNode->GetCommentID(), CommentNode);
 				});
 
-			const FMetasoundFrontendDocument& Document = MetaSoundAsset->GetConstDocumentChecked();
-			const TMap<FGuid, FMetaSoundFrontendGraphComment>& Comments = Document.RootGraph.Graph.Style.Comments;
+			const FMetasoundFrontendDocument& Document = InBuilder.GetConstDocumentChecked();
+			const TMap<FGuid, FMetaSoundFrontendGraphComment>& Comments = InBuilder.FindConstBuildGraphChecked().Style.Comments;
 			for (const TPair<FGuid, FMetaSoundFrontendGraphComment>& Pair : Comments)
 			{
 				UMetasoundEditorGraphCommentNode* CommentNode = nullptr;
@@ -2002,9 +2006,10 @@ namespace Metasound
 					const UGraphEditorSettings* GraphEditorSettings = GetDefault<UGraphEditorSettings>();
 					check(GraphEditorSettings);
 
-					UMetasoundEditorGraphCommentNode* NewNode = CastChecked<UMetasoundEditorGraphCommentNode>(DuplicateObject<UEdGraphNode>(CommentCDO, EditorGraph));
+					UMetasoundEditorGraphCommentNode* NewNode = CastChecked<UMetasoundEditorGraphCommentNode>(DuplicateObject<UEdGraphNode>(CommentCDO, &OutGraph));
 					NewNode->SetFlags(RF_Transactional);
-					EditorGraph->AddNode(NewNode, false, false);
+					OutGraph.AddNode(NewNode, false, false);
+
 					NewNode->CreateNewGuid();
 					NewNode->bCommentBubbleVisible_InDetailsPanel = GraphEditorSettings->bShowCommentBubbleWhenZoomedOut;
 
@@ -2020,13 +2025,13 @@ namespace Metasound
 			{
 				constexpr bool bMarkDirty = false;
 				constexpr bool bBreakAllLinks = true;
-				EditorGraph->RemoveNode(Comment.Value, bBreakAllLinks, bMarkDirty);
+				OutGraph.RemoveNode(Comment.Value, bBreakAllLinks, bMarkDirty);
 			}
 
 			return bModified;
 		}
 
-		bool FGraphBuilder::SynchronizeConnections(UObject& InMetaSound)
+		bool FGraphBuilder::SynchronizeConnections(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph)
 		{
 			using namespace Frontend;
 
@@ -2034,10 +2039,7 @@ namespace Metasound
 
 			TArray<UMetasoundEditorGraphNode*> EditorNodes;
 			{
-				FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
-				check(MetaSoundAsset);
-				UMetasoundEditorGraph* EditorGraph = CastChecked<UMetasoundEditorGraph>(MetaSoundAsset->GetGraph());
-				EditorGraph->GetNodesOfClass(EditorNodes);
+				OutGraph.GetNodesOfClass(EditorNodes);
 			}
 
 			TMap<FGuid, UMetasoundEditorGraphNode*> EditorNodesByFrontendID;
@@ -2156,13 +2158,14 @@ namespace Metasound
 			return bIsGraphDirty;
 		}
 
-		bool FGraphBuilder::SynchronizeGraph(UObject& InMetaSound)
+		bool FGraphBuilder::SynchronizeGraph(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Editor::FGraphBuilder::SynchronizeGraph);
 
 			using namespace Frontend;
 
-			FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
+			UObject& MetaSound = InBuilder.CastDocumentObjectChecked<UObject>();
+			FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&MetaSound);
 			check(MetaSoundAsset);
 
 			if (RecurseGetDocumentModified(*MetaSoundAsset))
@@ -2173,7 +2176,7 @@ namespace Metasound
 					TArray<UObject*> EditedAssets = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->GetAllEditedAssets();
 					for (UObject* Asset : EditedAssets)
 					{
-						if (Asset != &InMetaSound)
+						if (Asset != &MetaSound)
 						{
 							if (FMetasoundAssetBase* EditedMetaSound = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(Asset))
 							{
@@ -2189,7 +2192,7 @@ namespace Metasound
 				if (EditedReferencingMetaSounds.IsEmpty())
 				{
 					MetaSoundAsset->CacheRegistryMetadata();
-					GraphBuilderPrivate::SynchronizeGraphRecursively(InMetaSound);
+					GraphBuilderPrivate::SynchronizeGraphRecursively(InBuilder, OutGraph);
 					GraphBuilderPrivate::RecurseClearDocumentModified(*MetaSoundAsset);
 				}
 				else
@@ -2199,7 +2202,8 @@ namespace Metasound
 						check(EditedMetaSound);
 						UObject* OwningMetaSound = EditedMetaSound->GetOwningAsset();
 						check(OwningMetaSound);
-						SynchronizeGraph(*OwningMetaSound);
+						const FMetaSoundFrontendDocumentBuilder& EditedBuilder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(OwningMetaSound);
+						SynchronizeGraph(EditedBuilder, *CastChecked<UMetasoundEditorGraph>(&EditedMetaSound->GetGraphChecked()));
 					}
 				}
 
@@ -2209,7 +2213,7 @@ namespace Metasound
 			return false;
 		}
 
-		bool FGraphBuilder::SynchronizeOutputNodes(UObject& InMetaSound)
+		bool FGraphBuilder::SynchronizeOutputNodes(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Editor::FGraphBuilder::SynchronizeOutputNodes);
 
@@ -2217,13 +2221,13 @@ namespace Metasound
 
 			bool bEditorGraphModified = false;
 
-			FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
+			const UObject& MetaSoundObject = InBuilder.CastDocumentObjectChecked<const UObject>();
+			const FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&MetaSoundObject);
 			check(MetaSoundAsset);
 			FConstGraphHandle GraphHandle = MetaSoundAsset->GetRootGraphHandle();
-			UMetasoundEditorGraph* EditorGraph = CastChecked<UMetasoundEditorGraph>(MetaSoundAsset->GetGraph());
 
 			TArray<UMetasoundEditorGraphOutputNode*> OutputNodes;
-			EditorGraph->GetNodesOfClassEx<UMetasoundEditorGraphOutputNode>(OutputNodes);
+			OutGraph.GetNodesOfClassEx<UMetasoundEditorGraphOutputNode>(OutputNodes);
 			for (UMetasoundEditorGraphOutputNode* Node : OutputNodes)
 			{
 				FConstNodeHandle NodeHandle = Node->GetConstNodeHandle();
@@ -2239,11 +2243,7 @@ namespace Metasound
 							if (Node->GetNodeHandle()->GetID() != Output->NodeID)
 							{
 								Node->SetNodeID(Output->NodeID);
-
-								// Requery handle as the id has been fixed up
-								NodeHandle = Node->GetConstNodeHandle();
-								FText OutputDisplayName = Node->GetDisplayName();
-								UE_LOG(LogMetasoundEditor, Verbose, TEXT("Editor Output Node '%s' interface versioned"), *OutputDisplayName.ToString());
+								UE_LOG(LogMetasoundEditor, Verbose, TEXT("Editor Output Node '%s' interface versioned"), *Node->GetDisplayName().ToString());
 
 								bEditorGraphModified = true;
 							}
@@ -2255,7 +2255,7 @@ namespace Metasound
 			return bEditorGraphModified;
 		}
 
-		void FGraphBuilder::SynchronizeNodes(UObject& InMetaSound)
+		void FGraphBuilder::SynchronizeNodes(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Editor::FGraphBuilder::SynchronizeNodes);
 
@@ -2263,13 +2263,13 @@ namespace Metasound
 
 			// Get all external nodes from Frontend graph.  Input and output references will only be added/synchronized
 			// if required when synchronizing connections (as they are not required to inhabit editor graph).
-			FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
+			UObject& MetaSoundObject = InBuilder.CastDocumentObjectChecked<UObject>();
+			const FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&MetaSoundObject);
 			check(MetaSoundAsset);
-			FConstGraphHandle GraphHandle = static_cast<const FMetasoundAssetBase*>(MetaSoundAsset)->GetRootGraphHandle();
+			FConstGraphHandle GraphHandle = MetaSoundAsset->GetRootGraphHandle();
 			TArray<FConstNodeHandle> FrontendNodes = GraphHandle->GetConstNodes();
-			UMetasoundEditorGraph* EditorGraph = CastChecked<UMetasoundEditorGraph>(MetaSoundAsset->GetGraph());
 			TArray<UMetasoundEditorGraphNode*> EditorNodes;
-			EditorGraph->GetNodesOfClass(EditorNodes);
+			OutGraph.GetNodesOfClass(EditorNodes);
 
 			// Find existing array of editor nodes associated with Frontend node
 			struct FAssociatedNodes
@@ -2330,7 +2330,7 @@ namespace Metasound
 			{
 				constexpr bool bMarkDirty = false;
 				constexpr bool bBreakAllLinks = true;
-				EditorGraph->RemoveNode(EditorNode, bBreakAllLinks, bMarkDirty);
+				OutGraph.RemoveNode(EditorNode, bBreakAllLinks, bMarkDirty);
 			}
 
 			// Add missing editor nodes marked as visible.
@@ -2345,7 +2345,7 @@ namespace Metasound
 					{
 						case EMetasoundFrontendClassType::External:
 						{
-							NewGraphNode = CastChecked<UMetasoundEditorGraphNode>(AddExternalNode(InMetaSound, Node->GetID(), ClassMetadata, false));
+							NewGraphNode = CastChecked<UMetasoundEditorGraphNode>(AddExternalNode(MetaSoundObject, Node->GetID(), ClassMetadata, false));
 						}
 						break;
 
@@ -2353,18 +2353,18 @@ namespace Metasound
 						{
 							if (Node->GetClassMetadata().GetClassName() == FInputNodeTemplate::ClassName)
 							{
-								NewGraphNode = CastChecked<UMetasoundEditorGraphNode>(AddInputNode(InMetaSound, Node, false));
+								NewGraphNode = CastChecked<UMetasoundEditorGraphNode>(AddInputNode(MetaSoundObject, Node, false));
 							}
 							else
 							{
-								NewGraphNode = CastChecked<UMetasoundEditorGraphNode>(AddTemplateNode(InMetaSound, Node->GetID(), Node->GetClassMetadata(), false));
+								NewGraphNode = CastChecked<UMetasoundEditorGraphNode>(AddTemplateNode(MetaSoundObject, Node->GetID(), Node->GetClassMetadata(), false));
 							}
 						}
 						break;
 
 						case EMetasoundFrontendClassType::Output:
 						{
-							NewGraphNode = CastChecked<UMetasoundEditorGraphNode>(AddOutputNode(InMetaSound, Node, false));
+							NewGraphNode = CastChecked<UMetasoundEditorGraphNode>(AddOutputNode(MetaSoundObject, Node, false));
 						}
 						break;
 
@@ -2373,7 +2373,7 @@ namespace Metasound
 						case EMetasoundFrontendClassType::VariableDeferredAccessor:
 						case EMetasoundFrontendClassType::Variable:
 						{
-							NewGraphNode = CastChecked<UMetasoundEditorGraphNode>(AddVariableNode(InMetaSound, Node, false));
+							NewGraphNode = CastChecked<UMetasoundEditorGraphNode>(AddVariableNode(MetaSoundObject, Node, false));
 						}
 						break;
 
@@ -2624,7 +2624,7 @@ namespace Metasound
 			return OldValue != InPin.DefaultValue;
 		}
 
-		bool FGraphBuilder::SynchronizeGraphMembers(UObject& InMetaSound)
+		bool FGraphBuilder::SynchronizeGraphMembers(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Editor::FGraphBuilder::SynchronizeGraphMembers);
 
@@ -2632,9 +2632,9 @@ namespace Metasound
 
 			bool bEditorGraphModified = false;
 
-			const FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
+			const UObject& MetaSoundObject = InBuilder.CastDocumentObjectChecked<const UObject>();
+			const FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&MetaSoundObject);
 			check(MetaSoundAsset);
-			UMetasoundEditorGraph* Graph = CastChecked<UMetasoundEditorGraph>(MetaSoundAsset->GetGraph());
 			FConstGraphHandle GraphHandle = MetaSoundAsset->GetRootGraphHandle();
 
 			TSet<UMetasoundEditorGraphInput*> Inputs;
@@ -2643,14 +2643,14 @@ namespace Metasound
 			// Collect all editor graph inputs with corresponding frontend inputs. 
 			GraphHandle->IterateConstNodes([&](FConstNodeHandle NodeHandle)
 			{
-				if (UMetasoundEditorGraphInput* Input = Graph->FindInput(NodeHandle->GetID()))
+				if (UMetasoundEditorGraphInput* Input = OutGraph.FindInput(NodeHandle->GetID()))
 				{
 					Inputs.Add(Input);
 					return;
 				}
 
 				// Add an editor input if none exist for a frontend input.
-				Inputs.Add(Graph->FindOrAddInput(NodeHandle));
+				Inputs.Add(OutGraph.FindOrAddInput(NodeHandle));
 				constexpr bool bIncludeNamespace = true;
 				FText NodeDisplayName = FGraphBuilder::GetDisplayName(*NodeHandle, bIncludeNamespace);
 				UE_LOG(LogMetasoundEditor, Verbose, TEXT("Synchronizing Inputs: Added missing input '%s'."), *NodeDisplayName.ToString());
@@ -2659,9 +2659,9 @@ namespace Metasound
 
 			// Remove stale inputs.
 			{
-				for (int32 Index = Graph->Inputs.Num() - 1; Index >= 0; --Index)
+				for (int32 Index = OutGraph.Inputs.Num() - 1; Index >= 0; --Index)
 				{
-					const UMetasoundEditorGraphInput* Input = Graph->Inputs[Index];
+					const UMetasoundEditorGraphInput* Input = OutGraph.Inputs[Index];
 					check(Input);
 					if (!Inputs.Contains(Input))
 					{
@@ -2673,7 +2673,7 @@ namespace Metasound
 
 						bEditorGraphModified = true;
 						UE_LOG(LogMetasoundEditor, Verbose, TEXT("Synchronizing Outputs: Removing stale output '%s'."), *Input->GetName());
-						Graph->Inputs.RemoveAtSwap(Index, EAllowShrinking::No);
+						OutGraph.Inputs.RemoveAtSwap(Index, EAllowShrinking::No);
 					}
 				}
 			}
@@ -2681,14 +2681,14 @@ namespace Metasound
 			// Collect all editor graph outputs with corresponding frontend outputs. 
 			GraphHandle->IterateConstNodes([&](FConstNodeHandle NodeHandle)
 			{
-				if (UMetasoundEditorGraphOutput* Output = Graph->FindOutput(NodeHandle->GetID()))
+				if (UMetasoundEditorGraphOutput* Output = OutGraph.FindOutput(NodeHandle->GetID()))
 				{
 					Outputs.Add(Output);
 					return;
 				}
 
 				// Add an editor output if none exist for a frontend output.
-				Outputs.Add(Graph->FindOrAddOutput(NodeHandle));
+				Outputs.Add(OutGraph.FindOrAddOutput(NodeHandle));
 				constexpr bool bIncludeNamespace = true;
 				FText NodeDisplayName = FGraphBuilder::GetDisplayName(*NodeHandle, bIncludeNamespace);
 				UE_LOG(LogMetasoundEditor, Verbose, TEXT("Synchronizing Outputs: Added missing output '%s'."), *NodeDisplayName.ToString());
@@ -2697,15 +2697,15 @@ namespace Metasound
 
 			// Remove stale outputs.
 			{
-				for (int32 Index = Graph->Outputs.Num() - 1; Index >= 0; --Index)
+				for (int32 Index = OutGraph.Outputs.Num() - 1; Index >= 0; --Index)
 				{
-					const UMetasoundEditorGraphOutput* Output = Graph->Outputs[Index];
+					const UMetasoundEditorGraphOutput* Output = OutGraph.Outputs[Index];
 					check(Output);
 					if (!Outputs.Contains(Output))
 					{
 						bEditorGraphModified = true;
 						UE_LOG(LogMetasoundEditor, Verbose, TEXT("Synchronizing Outputs: Removing stale output '%s'."), *Output->GetName());
-						Graph->Outputs.RemoveAtSwap(Index, EAllowShrinking::No);
+						OutGraph.Outputs.RemoveAtSwap(Index, EAllowShrinking::No);
 					}
 				}
 			}
@@ -2740,7 +2740,9 @@ namespace Metasound
 
 						if (DefaultLiteral.IsValid())
 						{
-							InVertex.GetLiteral()->SetFromLiteral(DefaultLiteral);
+							UMetasoundEditorGraphMemberDefaultLiteral* Literal = InVertex.GetLiteral();
+							Literal->SetFromLiteral(DefaultLiteral);
+							bEditorGraphModified = true;
 						}
 					}
 				}
@@ -2749,7 +2751,7 @@ namespace Metasound
 			// Synchronize data types & default values for input nodes.
 			GraphHandle->IterateConstNodes([&](FConstNodeHandle NodeHandle)
 			{
-				if (UMetasoundEditorGraphInput* Input = Graph->FindInput(NodeHandle->GetID()))
+				if (UMetasoundEditorGraphInput* Input = OutGraph.FindInput(NodeHandle->GetID()))
 				{
 					SynchronizeMemberDataType(*Input);
 
@@ -2778,7 +2780,7 @@ namespace Metasound
 			// Synchronize data types of output nodes.
 			GraphHandle->IterateConstNodes([&](FConstNodeHandle NodeHandle)
 			{
-				if (UMetasoundEditorGraphOutput* Output = Graph->FindOutput(NodeHandle->GetID()))
+				if (UMetasoundEditorGraphOutput* Output = OutGraph.FindOutput(NodeHandle->GetID()))
 				{
 					SynchronizeMemberDataType(*Output);
 
@@ -2792,27 +2794,28 @@ namespace Metasound
 
 			// Enforce all variables exists in the edgraph
 			TSet<FGuid> VariableIDs;
-			Algo::Transform(Graph->Variables, VariableIDs, [](const TObjectPtr<UMetasoundEditorGraphVariable>& Variable) { return Variable->GetVariableID(); });
+			Algo::Transform(OutGraph.Variables, VariableIDs, [](const TObjectPtr<UMetasoundEditorGraphVariable>& Variable) { return Variable->GetVariableID(); });
 			TArray<FConstVariableHandle> FrontendVariables = GraphHandle->GetVariables();
 			for (const FConstVariableHandle& VariableHandle : FrontendVariables)
 			{
 				const FGuid VariableID = VariableHandle->GetID();
 				if (VariableIDs.Remove(VariableID) == 0)
 				{
-					UMetasoundEditorGraphVariable* NewVariable = NewObject<UMetasoundEditorGraphVariable>(Graph, FName(), RF_Transactional);
+					UMetasoundEditorGraphVariable* NewVariable = NewObject<UMetasoundEditorGraphVariable>(&OutGraph, FName(), RF_Transactional);
 					if (ensure(NewVariable))
 					{
 						const FMetasoundFrontendLiteral DefaultLiteral = VariableHandle->GetLiteral();
 						NewVariable->InitMember(VariableHandle->GetDataType(), DefaultLiteral, VariableID);
-						Graph->Variables.Add(NewVariable);
+						OutGraph.Variables.Add(NewVariable);
+						bEditorGraphModified = true;
 					}
 				}
 			}
 
 			// Remove empty entries
-			bEditorGraphModified |= Graph->Inputs.RemoveAllSwap([](const TObjectPtr<UMetasoundEditorGraphInput>& Input) { return !Input; }) > 0;
-			bEditorGraphModified |= Graph->Outputs.RemoveAllSwap([](const TObjectPtr<UMetasoundEditorGraphOutput>& Output) { return !Output; }) > 0;
-			bEditorGraphModified |= Graph->Variables.RemoveAllSwap([&VariableIDs](const TObjectPtr<UMetasoundEditorGraphVariable>& Variable)
+			bEditorGraphModified |= OutGraph.Inputs.RemoveAllSwap([](const TObjectPtr<UMetasoundEditorGraphInput>& Input) { return !Input; }) > 0;
+			bEditorGraphModified |= OutGraph.Outputs.RemoveAllSwap([](const TObjectPtr<UMetasoundEditorGraphOutput>& Output) { return !Output; }) > 0;
+			bEditorGraphModified |= OutGraph.Variables.RemoveAllSwap([&VariableIDs](const TObjectPtr<UMetasoundEditorGraphVariable>& Variable)
 			{
 				return !Variable || VariableIDs.Contains(Variable->GetVariableID());
 			}) > 0;

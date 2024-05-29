@@ -154,7 +154,7 @@ private:
 	TMap<FName, TObjectPtr<UMetaSoundBuilderBase>> NamedBuilders;
 
 public:	
-	UE_DEPRECATED(5.5, "Direct call of 'Reload' can be applied to builder directly")
+	UE_DEPRECATED(5.5, "Call 'ReloadBuilder' in IDocumentBuilderRegistry instead ")
 	virtual void InvalidateDocumentCache(const FMetasoundFrontendClassName& InClassName) const;
 
 	static UMetaSoundBuilderSubsystem* Get();

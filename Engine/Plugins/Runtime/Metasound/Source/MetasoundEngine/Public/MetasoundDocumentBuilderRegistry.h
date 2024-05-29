@@ -13,7 +13,10 @@ namespace Metasound::Engine
 {
 	class METASOUNDENGINE_API FDocumentBuilderRegistry : public Frontend::IDocumentBuilderRegistry
 	{
-		mutable TMap<FMetasoundFrontendClassName, TWeakObjectPtr<UMetaSoundBuilderBase>> Builders;
+		mutable TMultiMap<FMetasoundFrontendClassName, TWeakObjectPtr<UMetaSoundBuilderBase>> Builders;
+
+		// Critical section primarily for allowing builder collection mutation during async loading of MetaSound assets.
+		mutable FCriticalSection BuildersCriticalSection;
 
 	public:
 		FDocumentBuilderRegistry() = default;
@@ -37,7 +40,7 @@ namespace Metasound::Engine
 			TObjectPtr<BuilderClass> NewBuilder = NewObject<BuilderClass>(TransientPackage, ObjectName, NewObjectFlags);
 			check(NewBuilder);
 			NewBuilder->Initialize();
-			const FMetasoundFrontendDocument& Document = NewBuilder->GetConstBuilder().GetConstDocument();
+			const FMetasoundFrontendDocument& Document = NewBuilder->GetConstBuilder().GetConstDocumentChecked();
 			const FMetasoundFrontendClassName& ClassName = Document.RootGraph.Metadata.GetClassName();
 			Builders.Add(ClassName, NewBuilder);
 			return *NewBuilder.Get();
@@ -48,27 +51,21 @@ namespace Metasound::Engine
 		BuilderClass& FindOrBeginBuilding(UObject& InMetaSoundObject) const
 		{
 			check(InMetaSoundObject.IsAsset());
-			checkf(IsInGameThread(), TEXT("Asset MetaSound Builder cannot be created in non-game thread as it may result in UObject creation"));
 
 			TScriptInterface<IMetaSoundDocumentInterface> DocInterface = &InMetaSoundObject;
 			check(DocInterface.GetObject());
 
-			const FMetasoundFrontendDocument& Document = DocInterface->GetConstDocument();
-			const FMetasoundFrontendClassName& FullClassName = Document.RootGraph.Metadata.GetClassName();
-
-			if (FullClassName.IsValid())
+			if (UMetaSoundBuilderBase* Builder = FindBuilderObject(&InMetaSoundObject))
 			{
-				TWeakObjectPtr<UMetaSoundBuilderBase> Builder = Builders.FindRef(FullClassName);
-				if (Builder.IsValid())
-				{
-					return *CastChecked<BuilderClass>(Builder.Get());
-				}
+				return *CastChecked<BuilderClass>(Builder);
 			}
 
 			TObjectPtr<UMetaSoundBuilderBase> NewBuilder = CastChecked<UMetaSoundBuilderBase>(NewObject<UObject>(&InMetaSoundObject, &DocInterface->GetBuilderUClass()));
 			FMetaSoundFrontendDocumentBuilder& BuilderRef = NewBuilder->GetBuilder();
 			BuilderRef = FMetaSoundFrontendDocumentBuilder(DocInterface);
 
+			const FMetasoundFrontendDocument& Document = DocInterface->GetConstDocument();
+			const FMetasoundFrontendClassName& FullClassName = Document.RootGraph.Metadata.GetClassName();
 			if (!FullClassName.IsValid())
 			{
 				BuilderRef.InitDocument();
@@ -88,9 +85,15 @@ namespace Metasound::Engine
 
 		virtual FMetaSoundFrontendDocumentBuilder* FindBuilder(TScriptInterface<IMetaSoundDocumentInterface> MetaSound) const override;
 		virtual FMetaSoundFrontendDocumentBuilder* FindBuilder(const FMetasoundFrontendClassName& InClassName) const override;
+
+		virtual FMetaSoundFrontendDocumentBuilder* FindOutermostBuilder(const UObject& InSubObject) const override;
+
 		virtual bool FinishBuilding(const FMetasoundFrontendClassName& InClassName, bool bForceUnregister = false) const override;
 
 		UMetaSoundBuilderBase* FindBuilderObject(TScriptInterface<const IMetaSoundDocumentInterface> MetaSound) const;
 		UMetaSoundBuilderBase* FindBuilderObject(const FMetasoundFrontendClassName& ClassName) const;
+		TArray<UMetaSoundBuilderBase*> FindBuilderObjects(const FMetasoundFrontendClassName& ClassName) const;
+
+		bool ReloadBuilder(const FMetasoundFrontendClassName& InClassName) const override;
 	};
 } // namespace Metasound::Engine

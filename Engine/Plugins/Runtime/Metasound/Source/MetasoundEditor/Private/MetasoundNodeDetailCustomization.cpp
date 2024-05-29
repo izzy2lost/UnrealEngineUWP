@@ -337,9 +337,9 @@ namespace Metasound
 				}
 			}
 
-			// Enable widget options for editable inputs only 
+			// Enable widget options for editable inputs only
 			bool bShowWidgetOptions = false;
-			if (const UMetasoundEditorGraphInput* ParentMember = Cast <UMetasoundEditorGraphInput>(InLiteral.FindMember()))
+			if (const UMetasoundEditorGraphInput* ParentMember = Cast<UMetasoundEditorGraphInput>(InLiteral.FindMember()))
 			{
 				if (const UMetasoundEditorGraph* OwningGraph = ParentMember->GetOwningGraph())
 				{

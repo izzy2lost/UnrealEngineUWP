@@ -90,13 +90,8 @@ namespace Metasound::Engine
 			check(IsInGameThread());
 			if (TArray<FTopLevelAssetPath>* MapAssetPaths = InMap.Find(AssetKey))
 			{
-				auto ComparePaths = [&AssetPath](const FTopLevelAssetPath& Path)
-				{
-					// Cook can strip package names on destruction, so only asset name is reliable
-					return IsRunningCookCommandlet()
-						? Path.GetAssetName() == AssetPath.GetAssetName()
-						: Path == AssetPath;
-				};
+				// Package names are stripped on destruction, so only asset name is reliable
+				auto ComparePaths = [&AssetPath](const FTopLevelAssetPath& Path) { return Path.GetAssetName() == AssetPath.GetAssetName(); };
 				if (MapAssetPaths->RemoveAllSwap(ComparePaths, EAllowShrinking::No) > 0)
 				{
 					if (MapAssetPaths->IsEmpty())
@@ -156,7 +151,7 @@ namespace Metasound::Engine
 
 		/* IMetaSoundAssetManager Implementation */
 #if WITH_EDITORONLY_DATA
-		virtual void AddAssetReferences(FMetasoundAssetBase& InAssetBase) override;
+		virtual bool AddAssetReferences(FMetasoundAssetBase& InAssetBase) override;
 #endif // WITH_EDITORONLY_DATA
 		virtual FAssetKey AddOrUpdateAsset(const FAssetData& InAssetData) override;
 		virtual FAssetKey AddOrUpdateAsset(const UObject& InObject) override;
@@ -230,7 +225,7 @@ namespace Metasound::Engine
 	}
 
 #if WITH_EDITORONLY_DATA
-	void FMetaSoundAssetManager::AddAssetReferences(FMetasoundAssetBase& InAssetBase)
+	bool FMetaSoundAssetManager::AddAssetReferences(FMetasoundAssetBase& InAssetBase)
 	{
 		using namespace Frontend;
 
@@ -260,7 +255,7 @@ namespace Metasound::Engine
 		// All keys are loaded
 		if (!bAddFromReferencedAssets)
 		{
-			return;
+			return false;
 		}
 
 		UE_LOG(LogMetaSound, Verbose, TEXT("Attempting preemptive reference load..."));
@@ -271,7 +266,7 @@ namespace Metasound::Engine
 			if (Asset)
 			{
 				const FMetasoundFrontendDocument& RefDocument = Asset->GetConstDocumentChecked();
-				const FNodeRegistryKey ClassKey = FNodeRegistryKey(RefDocument.RootGraph);
+				const FAssetKey ClassKey = FAssetKey(RefDocument.RootGraph);
 				if (!ContainsKey(ClassKey))
 				{
 					UE_LOG(LogMetaSound, Verbose,
@@ -291,6 +286,8 @@ namespace Metasound::Engine
 				UE_LOG(LogMetaSound, Warning, TEXT("Null referenced dependent asset in %s. Resaving asset in editor may fix the issue"), *InAssetBase.GetOwningAssetName());
 			}
 		}
+
+		return true;
 	}
 #endif // WITH_EDITORONLY_DATA
 

@@ -19,7 +19,7 @@
 
 
 // Forward Declarations
-struct FMetasoundFrontendDocument;
+struct FMetaSoundFrontendDocumentBuilder;
 struct FPropertyChangedChainEvent;
 struct FPropertyChangedEvent;
 

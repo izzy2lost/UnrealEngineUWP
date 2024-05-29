@@ -517,11 +517,10 @@ protected:
 	UPROPERTY()
 	FMetaSoundFrontendDocumentBuilder Builder;
 
-	// ClassName of associated document object.  Cached in case DocumentObject is deleted but continues to provide an identifier after destruction.
-	UPROPERTY()
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "5.5 - No longer used. ClassName should be queried from associated FrontendBuilder's MetaSound"))
 	FMetasoundFrontendClassName ClassName;
 
-#if WITH_EDITORONLY_DATA
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "5.4 - All source builders now operate on an underlying document source document that is also used to audition."))
 	bool bIsAttached = false;
 #endif // WITH_EDITORONLY_DATA
@@ -530,7 +529,6 @@ private:
 	void BuildInternal(TScriptInterface<IMetaSoundDocumentInterface> NewMetaSound, const FMetasoundFrontendClassName* InDocClassName) const;
 	void OnDependencyAdded(int32 Index);
 	void OnRemoveSwappingDependency(int32 Index, int32 LastIndex);
-	void OnRenamingDependencyInternal(const int32 Index, const FMetasoundFrontendClassName& NewName);
 
 private:
 	int32 LastTransactionRegistered = 0;

@@ -172,9 +172,13 @@ public:
 	// is not already connected and the edge is valid (see function 'IsValidEdge').
 	bool CanAddEdge(const FMetasoundFrontendEdge& InEdge) const;
 
-	// Clears graph completely of all nodes, edges, dependencies, & member metadata.
-	// Reloads the builder state, so external delegates must be relinked if desired.
-	void ClearGraph(TSharedRef<Metasound::Frontend::FDocumentModifyDelegates> ModifyDelegates = { });
+	// Clears document completely of all graph page data (nodes, edges, & member metadata), dependencies,
+	// interfaces, member metadata, preset state, etc. Leaves ClassMetadata intact. Reloads the builder state,
+	// so external delegates must be relinked if desired.
+	void ClearDocument(TSharedRef<Metasound::Frontend::FDocumentModifyDelegates> ModifyDelegates = { });
+
+	UE_DEPRECATED(5.5, "Use ClearDocument instead")
+	void ClearGraph() {  }
 
 #if WITH_EDITORONLY_DATA
 	bool ClearMemberMetadata(const FGuid& InMemberID);
@@ -209,6 +213,9 @@ public:
 	bool FindInterfaceInputNodes(FName InterfaceName, TArray<const FMetasoundFrontendNode*>& OutInputs) const;
 	bool FindInterfaceOutputNodes(FName InterfaceName, TArray<const FMetasoundFrontendNode*>& OutOutputs) const;
 
+	FMetasoundFrontendGraph& FindBuildGraphChecked();
+	const FMetasoundFrontendGraph& FindConstBuildGraphChecked() const;
+
 	const FMetasoundFrontendNode* FindNode(const FGuid& InNodeID) const;
 
 	const FMetasoundFrontendVertex* FindNodeInput(const FGuid& InNodeID, const FGuid& InVertexID) const;
@@ -221,11 +228,18 @@ public:
 	TArray<const FMetasoundFrontendVertex*> FindNodeOutputs(const FGuid& InNodeID, FName TypeName = FName()) const;
 	const FMetasoundFrontendVertex* FindNodeOutputConnectedToNodeInput(const FGuid& InInputNodeID, const FGuid& InInputVertexID, const FMetasoundFrontendNode** ConnectedOutputNode = nullptr) const;
 
-	const FMetasoundFrontendDocument& GetConstDocument() const;
+	const FMetasoundFrontendDocument& GetConstDocumentChecked() const;
+	const IMetaSoundDocumentInterface& GetConstDocumentInterfaceChecked() const;
 	const FString GetDebugName() const;
 
-	UE_DEPRECATED(5.5, "Use GetConstDocument() instead")
+	// The graph ID used when graph is executed (i.e. utilized for node class registration)
+	const FGuid& GetExecutionGraphID() const;
+
+	UE_DEPRECATED(5.5, "Use GetConstDocumentChecked() instead")
 	const FMetasoundFrontendDocument& GetDocument() const;
+
+	// The graph ID used when requests are made to mutate specific paged graph topology (ex. adding or removing nodes or edges)
+	const FGuid& GetBuildPageID() const;
 
 	template<typename TObjectType>
 	TObjectType& CastDocumentObjectChecked() const
@@ -242,9 +256,10 @@ public:
 	FMetasoundFrontendClassName GenerateNewClassName();
 
 	const Metasound::Frontend::FDocumentModifyDelegates& GetDocumentDelegates() const;
+
+	UE_DEPRECATED(5.5, "Use GetConstDocumentInterfaceChecked instead")
 	const IMetaSoundDocumentInterface& GetDocumentInterface() const;
-	FMetasoundAssetBase& GetMetasoundAsset();
-	const FMetasoundAssetBase& GetMetasoundAsset() const;
+	FMetasoundAssetBase& GetMetasoundAsset() const;
 
 	int32 GetTransactionCount() const;
 
@@ -326,6 +341,13 @@ public:
 
 #endif // WITH_EDITOR
 
+	// Sets the builder's targeted paged graph ID to the given ID if it exists.
+	// Returns true if the builder is already targeting the given ID or if it successfully
+	// found a page implementation with the given ID and was able to switch to it, false if not.
+	// Swapping the targeted build graph ID clears the local cache, so swapping frequently can
+	// induce cash thrashing.
+	bool SetBuildPageID(const FGuid& InBuildPageID);
+
 	bool SetGraphInputAccessType(FName InputName, EMetasoundFrontendVertexAccessType AccessType);
 	bool SetGraphInputDataType(FName InputName, FName DataType);
 	bool SetGraphInputDefault(FName InputName, const FMetasoundFrontendLiteral& InDefaultLiteral);
@@ -369,7 +391,7 @@ public:
 private:
 	using FFinalizeNodeFunctionRef = TFunctionRef<void(FMetasoundFrontendNode&, const Metasound::Frontend::FNodeRegistryKey&)>;
 
-	FMetasoundFrontendNode* AddNodeInternal(const FMetasoundFrontendClassMetadata& InClassMetadata, Metasound::Frontend::FFinalizeNodeFunctionRef FinalizeNode, FGuid InNodeID = FGuid::NewGuid(), int32* NewNodeIndex = nullptr);
+	FMetasoundFrontendNode* AddNodeInternal(const FMetasoundFrontendClassMetadata& InClassMetadata, Metasound::Frontend::FFinalizeNodeFunctionRef FinalizeNode, FGuid InNodeID = FGuid::NewGuid(), int32* NewNodeIndex = nullptr, const FGuid* InGraphPageID = nullptr);
 	void BeginBuilding(TSharedPtr<Metasound::Frontend::FDocumentModifyDelegates> Delegates = {}, bool bPrimeCache = false);
 
 	// Conforms GraphOutput node's ClassID, Access & Data Type with the GraphOutput.
@@ -390,7 +412,8 @@ private:
 	void IterateNodesConnectedWithVertex(const FMetasoundFrontendVertexHandle& Vertex, TFunctionRef<void(const FMetasoundFrontendEdge&, FMetasoundFrontendNode&)> NodeIndexIterFunc);
 
 	const FTopLevelAssetPath GetBuilderClassPath() const;
-	FMetasoundFrontendDocument& GetDocument();
+	FMetasoundFrontendDocument& GetDocumentChecked() const;
+	IMetaSoundDocumentInterface& GetDocumentInterfaceChecked() const;
 
 	bool SetGraphInputInheritsDefault(FName InName, bool bInputInheritsDefault);
 
@@ -399,6 +422,8 @@ private:
 
 	UPROPERTY(Transient)
 	TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface;
+
+	FGuid BuildPageID;
 
 	TSharedPtr<Metasound::Frontend::IDocumentCache> DocumentCache;
 	TSharedPtr<Metasound::Frontend::FDocumentModifyDelegates> DocumentDelegates;

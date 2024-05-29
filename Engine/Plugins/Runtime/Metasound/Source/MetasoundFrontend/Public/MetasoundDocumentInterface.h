@@ -80,6 +80,7 @@ namespace Metasound::Frontend
 
 		virtual FMetaSoundFrontendDocumentBuilder* FindBuilder(TScriptInterface<IMetaSoundDocumentInterface> MetaSound) const = 0;
 		virtual FMetaSoundFrontendDocumentBuilder* FindBuilder(const FMetasoundFrontendClassName& ClassName) const = 0;
+		virtual FMetaSoundFrontendDocumentBuilder* FindOutermostBuilder(const UObject& InSubObject) const = 0;
 
 #if WITH_EDITORONLY_DATA
 		// Find the existing builder for the given MetaSound, or optionally begin building by attaching a new builder.  Only available
@@ -92,8 +93,12 @@ namespace Metasound::Frontend
 
 		virtual bool FinishBuilding(const FMetasoundFrontendClassName& InClassName, bool bForceUnregister = false) const = 0;
 
-		UE_DEPRECATED(5.5, "Document cache can now be invalidated by retrieving an asset builder and calling 'Reload'")
+		UE_DEPRECATED(5.5, "Document cache can now be invalidated by retrieving an asset builder and calling 'ReloadBuilder'")
 		virtual void InvalidateDocumentCache(const FMetasoundFrontendClassName& InClassName) const { }
+
+		// Reloads the given builder, maintaining all modify delegate subscriptions. Returns true if builder was found and reloaded,
+		// false if not found.
+		virtual bool ReloadBuilder(const FMetasoundFrontendClassName& InClassName) const = 0;
 
 		static IDocumentBuilderRegistry* Get();
 		static IDocumentBuilderRegistry& GetChecked();
