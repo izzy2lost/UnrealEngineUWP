@@ -19,6 +19,98 @@ namespace GameFeatureAction_AddAttributeDefaults
 
 void UGameFeatureAction_AddAttributeDefaults::OnGameFeatureRegistering()
 {
+	Super::OnGameFeatureRegistering();
+
+	if (ShouldAddAttributeDefaults())
+	{
+		AddAttributeDefaults();
+	}
+}
+
+void UGameFeatureAction_AddAttributeDefaults::OnGameFeatureActivating(FGameFeatureActivatingContext& Context)
+{
+	Super::OnGameFeatureActivating(Context);
+
+	if (ShouldAddAttributeDefaults())
+	{
+		AddAttributeDefaults();
+	}
+}
+
+void UGameFeatureAction_AddAttributeDefaults::OnGameFeatureUnregistering()
+{
+	if (ShouldRemoveAttributeDefaults())
+	{
+		RemoveAttributeDefaults();
+	}
+
+	Super::OnGameFeatureUnregistering();
+}
+
+void UGameFeatureAction_AddAttributeDefaults::OnGameFeatureDeactivating(FGameFeatureDeactivatingContext& Context)
+{
+	if (ShouldRemoveAttributeDefaults())
+	{
+		RemoveAttributeDefaults();
+	}
+
+	Super::OnGameFeatureDeactivating(Context);
+}
+
+#if WITH_EDITOR
+void UGameFeatureAction_AddAttributeDefaults::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
+
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(ThisClass, bApplyOnRegister))
+	{
+		// Re-check whether we should apply our modified defaults.
+		// Avoids 'leaking' changes in the event the GFA is unregistered.
+
+		if (ShouldRemoveAttributeDefaults())
+		{
+			RemoveAttributeDefaults();
+		}
+
+		if (ShouldAddAttributeDefaults())
+		{
+			AddAttributeDefaults();
+		}
+	}
+}
+#endif // WITH_EDITOR
+
+bool UGameFeatureAction_AddAttributeDefaults::ShouldAddAttributeDefaults() const
+{
+	// Necessary as during OnGameFeatureRegistering/Activating the plugin is *Registering* but not *Registered*
+	constexpr bool bCheckForRegisteringAndActivating = true;
+
+	if (!bAttributesHaveBeenSet)
+	{
+		return bApplyOnRegister
+			? IsGameFeaturePluginRegistered(bCheckForRegisteringAndActivating)
+			: IsGameFeaturePluginActive(bCheckForRegisteringAndActivating);
+	}
+
+	return false;
+}
+
+bool UGameFeatureAction_AddAttributeDefaults::ShouldRemoveAttributeDefaults() const
+{
+	if (bAttributesHaveBeenSet)
+	{
+		return bApplyOnRegister
+			? !IsGameFeaturePluginRegistered()
+			: !IsGameFeaturePluginActive();
+	}
+
+	return false;
+}
+
+void UGameFeatureAction_AddAttributeDefaults::AddAttributeDefaults()
+{
 	const TArray<FSoftObjectPath>* AttribDefaultTableNamesToAdd = &AttribDefaultTableNames;
 
 #if WITH_EDITOR
@@ -43,15 +135,19 @@ void UGameFeatureAction_AddAttributeDefaults::OnGameFeatureRegistering()
 		UAbilitySystemGlobals& AbilitySystemGlobals = UAbilitySystemGlobals::Get();
 		AbilitySystemGlobals.AddAttributeDefaultTables(AttributeDefaultTablesOwnerName, *AttribDefaultTableNamesToAdd);
 	}
+
+	bAttributesHaveBeenSet = true;
 }
 
-void UGameFeatureAction_AddAttributeDefaults::OnGameFeatureUnregistering()
+void UGameFeatureAction_AddAttributeDefaults::RemoveAttributeDefaults()
 {
 	if (!AttribDefaultTableNames.IsEmpty() && GameFeatureAction_AddAttributeDefaults::CVarAllowRemoveAttributeDefaultTables.GetValueOnAnyThread())
 	{
 		UAbilitySystemGlobals& AbilitySystemGlobals = UAbilitySystemGlobals::Get();
 		AbilitySystemGlobals.RemoveAttributeDefaultTables(AttributeDefaultTablesOwnerName, AttribDefaultTableNames);
 	}
+
+	bAttributesHaveBeenSet = false;
 }
 
 //////////////////////////////////////////////////////////////////////

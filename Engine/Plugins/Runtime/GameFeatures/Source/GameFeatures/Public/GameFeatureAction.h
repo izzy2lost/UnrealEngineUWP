@@ -40,10 +40,10 @@ public:
 	virtual void OnGameFeatureDeactivating(FGameFeatureDeactivatingContext& Context) {}
 
 	/** Returns whether the action game feature plugin is registered or not. */
-	bool IsGameFeaturePluginRegistered() const;
+	bool IsGameFeaturePluginRegistered(bool bCheckForRegistering = false) const;
 
 	/** Returns whether the action game feature plugin is active or not. */
-	bool IsGameFeaturePluginActive() const;
+	bool IsGameFeaturePluginActive(bool bCheckForActivating = false) const;
 
 #if WITH_EDITORONLY_DATA
 	virtual void AddAdditionalAssetBundleData(FAssetBundleData& AssetBundleData) {}

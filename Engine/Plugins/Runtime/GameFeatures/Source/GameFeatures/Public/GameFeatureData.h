@@ -50,10 +50,10 @@ public:
 	void GetPluginName(FString& PluginName) const;
 
 	/** Returns whether the game feature plugin is registered or not. */
-	bool IsGameFeaturePluginRegistered() const;
+	bool IsGameFeaturePluginRegistered(bool bCheckForRegistering = false) const;
 
 	/** Returns whether the game feature plugin is active or not. */
-	bool IsGameFeaturePluginActive() const;
+	bool IsGameFeaturePluginActive(bool bCheckForActivating = false) const;
 
 	/**
 	 * Returns the install bundle name if one exists for this plugin.

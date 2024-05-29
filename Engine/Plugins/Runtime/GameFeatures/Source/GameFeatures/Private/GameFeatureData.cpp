@@ -774,26 +774,26 @@ void UGameFeatureData::GetPluginName(const UGameFeatureData* GFD, FString& Plugi
 	}
 }
 
-bool UGameFeatureData::IsGameFeaturePluginRegistered() const
+bool UGameFeatureData::IsGameFeaturePluginRegistered(bool bCheckForRegistering /*= false*/) const
 {
 	FString PluginURL;
 	FString PluginName;
 	GetPluginName(PluginName);
 	if (UGameFeaturesSubsystem::Get().GetPluginURLByName(PluginName, PluginURL))
 	{
-		return UGameFeaturesSubsystem::Get().IsGameFeaturePluginRegistered(PluginURL);
+		return UGameFeaturesSubsystem::Get().IsGameFeaturePluginRegistered(PluginURL, bCheckForRegistering);
 	}
 	return false;
 }
 
-bool UGameFeatureData::IsGameFeaturePluginActive() const
+bool UGameFeatureData::IsGameFeaturePluginActive(bool bCheckForActivating /*= false*/) const
 {
 	FString PluginURL;
 	FString PluginName;
 	GetPluginName(PluginName);
 	if (UGameFeaturesSubsystem::Get().GetPluginURLByName(PluginName, PluginURL))
 	{
-		return UGameFeaturesSubsystem::Get().IsGameFeaturePluginActive(PluginURL);
+		return UGameFeaturesSubsystem::Get().IsGameFeaturePluginActive(PluginURL, bCheckForActivating);
 	}
 	return false;
 }

@@ -24,14 +24,14 @@ void UGameFeatureAction::OnGameFeatureActivating(FGameFeatureActivatingContext& 
 	OnGameFeatureActivating();
 }
 
-bool UGameFeatureAction::IsGameFeaturePluginRegistered() const
+bool UGameFeatureAction::IsGameFeaturePluginRegistered(bool bCheckForRegistering  /*= false*/) const
 {
 	UGameFeatureData* GameFeatureData = GetGameFeatureData();
-	return !!GameFeatureData ? GameFeatureData->IsGameFeaturePluginRegistered() : false;
+	return !!GameFeatureData ? GameFeatureData->IsGameFeaturePluginRegistered(bCheckForRegistering) : false;
 }
 
-bool UGameFeatureAction::IsGameFeaturePluginActive() const
+bool UGameFeatureAction::IsGameFeaturePluginActive(bool bCheckForActivating /*= false*/) const
 {
 	UGameFeatureData* GameFeatureData = GetGameFeatureData();
-	return !!GameFeatureData ? GameFeatureData->IsGameFeaturePluginActive() : false;
+	return !!GameFeatureData ? GameFeatureData->IsGameFeaturePluginActive(bCheckForActivating) : false;
 }
