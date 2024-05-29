@@ -26,8 +26,8 @@ public:
 	void Begin(IRequest* Request) final;
 	TRefCountPtr<IRequest> End(IRequest* Request) final;
 
-	void BeginBarrier(ERequestBarrierFlags Flags) final;
-	void EndBarrier(ERequestBarrierFlags Flags) final;
+	void BeginBarrier(const FRequestBarrier& Barrier) final;
+	void EndBarrier(const FRequestBarrier& Barrier) final;
 
 	inline EPriority GetPriority() const final { return Priority.load(std::memory_order_relaxed); }
 	inline bool IsCanceled() const final { return bIsCanceled.load(std::memory_order_relaxed); }
@@ -108,24 +108,24 @@ TRefCountPtr<IRequest> FRequestOwnerShared::End(IRequest* Request)
 	return RequestRef;
 }
 
-void FRequestOwnerShared::BeginBarrier(ERequestBarrierFlags Flags)
+void FRequestOwnerShared::BeginBarrier(const FRequestBarrier& Barrier)
 {
 	AddRef();
 	FWriteScopeLock WriteLock(Lock);
 	++BarrierCount;
-	if (EnumHasAnyFlags(Flags, ERequestBarrierFlags::Priority))
+	if (EnumHasAnyFlags(Barrier.GetFlags(), ERequestBarrierFlags::Priority))
 	{
 		++PriorityBarrierCount;
 	}
 }
 
-void FRequestOwnerShared::EndBarrier(ERequestBarrierFlags Flags)
+void FRequestOwnerShared::EndBarrier(const FRequestBarrier& Barrier)
 {
 	ON_SCOPE_EXIT { Release(); };
 	bool bNotifyBarrier = false;
 	{
 		FWriteScopeLock WriteLock(Lock);
-		if (EnumHasAnyFlags(Flags, ERequestBarrierFlags::Priority) && --PriorityBarrierCount == 0)
+		if (EnumHasAnyFlags(Barrier.GetFlags(), ERequestBarrierFlags::Priority) && --PriorityBarrierCount == 0)
 		{
 			bPriorityChangedInBarrier = false;
 		}
@@ -191,6 +191,10 @@ void FRequestOwnerShared::Cancel()
 		}
 		else
 		{
+			checkf(!FRequestBarrier::HasBarrierForOwnerOnCallingThread(*this),
+				TEXT("Called Cancel() on a request owner while the calling thread holds a FRequestBarrier for it. "
+					 "This will cause a deadlock. To destroy a request owner from within a completion callback, "
+					 "first call KeepAlive() on the request owner to disable the auto-cancel mechanism."));
 			BarrierEvent.Wait(BarrierToken);
 		}
 	}
@@ -226,6 +230,9 @@ void FRequestOwnerShared::Wait()
 		}
 		else
 		{
+			checkf(!FRequestBarrier::HasBarrierForOwnerOnCallingThread(*this),
+				TEXT("Called Wait() on a request owner while the calling thread holds a FRequestBarrier for it. "
+					 "This will cause a deadlock. Narrow the scope of the barrier or move the wait outside of it."));
 			BarrierEvent.Wait(BarrierToken);
 		}
 	}
@@ -305,6 +312,37 @@ void IRequestOwner::LaunchTask(const TCHAR* DebugName, TUniqueFunction<void ()>&
 		TaskPriority);
 	Begin(Request);
 	TaskEvent.Trigger();
+}
+
+static thread_local FRequestBarrier* GRequestBarriersByThread;
+
+FRequestBarrier::FRequestBarrier(IRequestOwner& InOwner, ERequestBarrierFlags InFlags)
+	: Owner(InOwner)
+	, NextOnThread(GRequestBarriersByThread)
+	, Flags(InFlags)
+{
+	GRequestBarriersByThread = this;
+	Owner.BeginBarrier(*this);
+}
+
+FRequestBarrier::~FRequestBarrier()
+{
+	Owner.EndBarrier(*this);
+	checkf(GRequestBarriersByThread == this,
+		TEXT("Barriers on a thread must be destroyed in the reverse of their creation order."));
+	GRequestBarriersByThread = NextOnThread;
+}
+
+bool FRequestBarrier::HasBarrierForOwnerOnCallingThread(IRequestOwner& QueryOwner)
+{
+	for (FRequestBarrier* It = GRequestBarriersByThread; It; It = It->NextOnThread)
+	{
+		if (&It->Owner == &QueryOwner)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 } // UE::DerivedData

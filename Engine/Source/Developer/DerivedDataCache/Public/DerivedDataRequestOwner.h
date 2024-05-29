@@ -13,6 +13,7 @@
 
 template <typename FuncType> class TUniqueFunction;
 
+namespace UE::DerivedData { class FRequestBarrier; }
 namespace UE::DerivedData { class IRequest; }
 namespace UE::DerivedData { enum class EPriority : uint8; }
 
@@ -75,8 +76,8 @@ public:
 	inline TRefCountPtr<IRequest> End(IRequest* Request, CallbackType&& Callback, CallbackArgTypes&&... CallbackArgs);
 
 	/** See FRequestBarrier. */
-	virtual void BeginBarrier(ERequestBarrierFlags Flags) = 0;
-	virtual void EndBarrier(ERequestBarrierFlags Flags) = 0;
+	UE_INTERNAL virtual void BeginBarrier(const FRequestBarrier& Barrier) = 0;
+	UE_INTERNAL virtual void EndBarrier(const FRequestBarrier& Barrier) = 0;
 
 	/** Returns the priority that new requests are expected to inherit. */
 	virtual EPriority GetPriority() const = 0;
@@ -159,23 +160,21 @@ private:
 class FRequestBarrier
 {
 public:
-	inline explicit FRequestBarrier(IRequestOwner& InOwner, ERequestBarrierFlags InFlags = ERequestBarrierFlags::None)
-		: Owner(InOwner)
-		, Flags(InFlags)
-	{
-		Owner.BeginBarrier(Flags);
-	}
-
-	inline ~FRequestBarrier()
-	{
-		Owner.EndBarrier(Flags);
-	}
+	UE_API explicit FRequestBarrier(IRequestOwner& Owner, ERequestBarrierFlags Flags = ERequestBarrierFlags::None);
+	UE_API ~FRequestBarrier();
 
 	FRequestBarrier(const FRequestBarrier&) = delete;
 	FRequestBarrier& operator=(const FRequestBarrier&) = delete;
 
+	UE_INTERNAL inline ERequestBarrierFlags GetFlags() const { return Flags; }
+
+	/** Returns true if the calling thread has an active barrier for the owner. */
+	UE_INTERNAL static bool HasBarrierForOwnerOnCallingThread(IRequestOwner& QueryOwner);
+
 private:
+	friend IRequestOwner;
 	IRequestOwner& Owner;
+	FRequestBarrier* NextOnThread;
 	ERequestBarrierFlags Flags;
 };
 

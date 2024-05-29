@@ -182,22 +182,15 @@ public:
 	{
 		if (!Owner)
 		{
-			NewOwner.BeginBarrier(ERequestBarrierFlags::Priority);
 			Owner = &NewOwner;
+			Barrier.Emplace(NewOwner, ERequestBarrierFlags::Priority);
 		}
 		check(Owner == &NewOwner);
 	}
 
-	~FDynamicRequestBarrier()
-	{
-		if (Owner)
-		{
-			Owner->EndBarrier(ERequestBarrierFlags::Priority);
-		}
-	}
-
 private:
 	IRequestOwner* Owner = nullptr;
+	TOptional<FRequestBarrier> Barrier;
 };
 
 class FCacheStoreHierarchy::FBatchBase
