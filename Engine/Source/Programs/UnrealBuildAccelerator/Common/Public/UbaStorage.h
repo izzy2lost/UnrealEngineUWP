@@ -103,7 +103,7 @@ namespace uba
 		StorageImpl(const StorageCreateInfo& info, const tchar* logPrefix = TC("UbaStorage"));
 		virtual ~StorageImpl();
 
-		bool LoadCasTable(bool logStats = true);
+		bool LoadCasTable(bool logStats = true, bool alwaysCheckAllFiles = false);
 		bool CheckCasContent(u32 workerCount);
 		bool CheckFileTable(const tchar* searchPath, u32 workerCount);
 		const tchar* GetTempPath();

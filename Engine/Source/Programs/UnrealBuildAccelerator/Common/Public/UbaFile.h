@@ -76,6 +76,7 @@ namespace uba
 	u64 GetSystemTimeAsFileTime();
 	u64 GetFileTimeAsSeconds(u64 fileTime);
 	u64 GetFileTimeAsTime(u64 fileTime);
+	u64 GetSecondsAsFileTime(u64 seconds);
 	bool GetCurrentDirectoryW(StringBufferBase& out);
 
 

@@ -801,6 +801,15 @@ namespace uba
 		return MsToTime(GetFileTimeAsSeconds(fileTime)*1000);
 	}
 
+	u64 GetSecondsAsFileTime(u64 seconds)
+	{
+#if PLATFORM_WINDOWS
+		return MsToTime(seconds*1000);
+#else
+		return seconds * 10'000'000ull;
+#endif
+	}
+
 	bool GetCurrentDirectoryW(StringBufferBase& out)
 	{
 #if PLATFORM_WINDOWS

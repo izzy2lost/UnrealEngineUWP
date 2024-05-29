@@ -45,6 +45,7 @@ namespace uba
 		logger.Info(TC("  -dir=<rootdir>          The directory used to store data. Defaults to \"%s\""), DefaultRootDir);
 		logger.Info(TC("  -port=[<host>:]<port>   The ip/name and port (default: %u) to listen for clients on"), DefaultCachePort);
 		logger.Info(TC("  -capacity=<gigaby>      Capacity of local store. Defaults to %u gigabytes"), DefaultCapacityGb);
+		logger.Info(TC("  -expiration=<seconds>   Time until unused cache entries get deleted. Defaults to 2 days (172800 seconds)"));
 		logger.Info(TC(""));
 		return -1;
 	}
@@ -115,6 +116,7 @@ namespace uba
 		u16 port = DefaultCachePort;
 		bool quiet = false;
 		bool storeCompressed = true;
+		u32 expirationTimeSeconds = 2*24*60*60;
 
 		for (int i=1; i!=argc; ++i)
 		{
@@ -158,6 +160,11 @@ namespace uba
 				if (!value.Parse(storageCapacityGb))
 					return PrintHelp(TC("Invalid value for -capacity"));
 			}
+			else if (name.Equals(TC("-expiration")))
+			{
+				if (!value.Parse(expirationTimeSeconds))
+					return PrintHelp(TC("Invalid value for -expire"));
+			}
 			else if (name.Equals(TC("-?")))
 			{
 				return PrintHelp(TC(""));
@@ -182,7 +189,7 @@ namespace uba
 		#if UBA_DEBUG
 		dbgStr = TC(" (DEBUG)");
 		#endif
-		logger.Info(TC("UbaCacheService v%s(%u)%s (Workers: %u, Rootdir: \"%s\", StoreCapacity: %uGb)\n"), Version, CacheNetworkVersion, dbgStr, GetLogicalProcessorCount(), g_rootDir.data, storageCapacityGb);
+		logger.Info(TC("UbaCacheService v%s(%u)%s (Workers: %u, Rootdir: \"%s\", StoreCapacity: %uGb, Expiration: %s)\n"), Version, CacheNetworkVersion, dbgStr, GetLogicalProcessorCount(), g_rootDir.data, storageCapacityGb, TimeToText(MsToTime(expirationTimeSeconds)*1000, true).str);
 
 		u64 storageCapacity = u64(storageCapacityGb)*1000*1000*1000;
 
@@ -224,10 +231,12 @@ namespace uba
 		storageInfo.writeRecievedCasFilesToDisk = true;
 		StorageServer storageServer(storageInfo);
 
-		if (!storageServer.LoadCasTable(true))
+		if (!storageServer.LoadCasTable(true, true))
 			return -1;
 
-		CacheServer cacheServer(logWriter, g_rootDir.data, networkServer, storageServer);
+		CacheServerCreateInfo cacheInfo(logWriter, storageServer, g_rootDir.data);
+		cacheInfo.expirationTimeSeconds = expirationTimeSeconds;
+		CacheServer cacheServer(cacheInfo);
 
 		if (!cacheServer.Load())
 			return -1;
@@ -250,6 +259,7 @@ namespace uba
 			}
 		}
 
+		storageServer.SaveCasTable(true);
 		cacheServer.Save();
 		return 0;
 	}

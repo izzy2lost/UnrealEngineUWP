@@ -956,8 +956,6 @@ namespace uba
 		StringBuffer<> casRoot;
 		casRoot.Append(m_rootDir.data, m_rootDir.count - 1);
 
-		m_logger.Info(TC("Previous run was not gracefully shutdown. Reparsing cas directory %s to check for added/missing files"), casRoot.data);
-
 		Atomic<bool> success = true;
 		TraverseAllCasFiles(casRoot.data, [&](const StringBufferBase& fullPath, const DirectoryEntry& e)
 			{
@@ -1242,7 +1240,7 @@ namespace uba
 		return logger.Error(TC("Needs exclusive access to storage %s. Another process is running"), rootDir.data);
 	}
 
-	bool StorageImpl::LoadCasTable(bool logStats)
+	bool StorageImpl::LoadCasTable(bool logStats, bool alwaysCheckAllFiles)
 	{
 		static bool isExclusive = CheckExclusive(m_logger, m_rootDir);
 		if (!isExclusive)
@@ -1416,6 +1414,8 @@ namespace uba
 			if (fh != InvalidFileHandle)
 				GetFileLastWriteTime(fileTime, fh);
 
+			m_logger.Info(TC("Previous run was not gracefully shutdown. Reparsing cas directory %s to check for added/missing files"), m_rootDir.data);
+
 			if (!CheckAllCasFiles(fileTime))
 				return false;
 			resave = true;
@@ -1423,6 +1423,8 @@ namespace uba
 			if (fh != InvalidFileHandle)
 				SetFileLastWriteTime(fh, GetSystemTimeAsFileTime());
 		}
+		else if (alwaysCheckAllFiles)
+			CheckAllCasFiles();
 
 		if (!m_manuallyHandleOverflow)
 			HandleOverflow(nullptr);

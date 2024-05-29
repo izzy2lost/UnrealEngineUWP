@@ -45,6 +45,10 @@ namespace uba
 		consoleLogger.Info(TC("Slept ms: %llu"), ms);
 #endif
 
+		u64 seconds = 15;
+		u64 fileTime = GetSecondsAsFileTime(seconds);
+		u64 seconds2 = GetFileTimeAsSeconds(fileTime);
+		UBA_TEST_CHECK(seconds == seconds2, "GetSecondsAsFileTime does not match GetFileTimeAsSeconds");
 		return true;
 	}
 

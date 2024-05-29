@@ -16,10 +16,29 @@ namespace uba
 	struct CacheEntries;
 	struct ConnectionInfo;
 
+	struct CacheServerCreateInfo
+	{
+		// Log writer
+		LogWriter& writer;
+
+		// Storage server
+		StorageServer& storage;
+
+		// Root dir
+		const tchar* rootDir = nullptr;
+
+		// Will check cache entry inputs of they depend on cas files that have been deleted
+		bool checkInputsForDeletedCas = true;
+
+		// The time cache entries will stay around after they were last used in hours (defaults to two days)
+		// Set to zero to never expire
+		u64 expirationTimeSeconds = 2*24*60*60;
+	};
+
 	class CacheServer
 	{
 	public:
-		CacheServer(LogWriter& writer, const tchar* rootDir, NetworkServer& server, StorageServer& storage);
+		CacheServer(const CacheServerCreateInfo& info);
 		~CacheServer();
 
 		bool Load();
@@ -63,9 +82,6 @@ namespace uba
 		Atomic<u32> m_addsSinceMaintenance;
 		Atomic<bool> m_isRunningMaintenance;
 
-		struct CasFileInfo { u64 size; u64 refCount; };
-		UnorderedMap<CasKey, CasFileInfo> m_existingCas;
-
 		ReaderWriterLock m_bucketsLock;
 		Map<u64, Bucket> m_buckets;
 
@@ -77,6 +93,7 @@ namespace uba
 		u64 m_creationTime = 0;
 		u64 m_startTime = 0;
 		u64 m_longestMaintenance = 0;
+		u64 m_expirationTimeSeconds = 0;
 		bool m_dbfileDirty = false;
 
 		bool m_checkInputsForDeletedCas = true;

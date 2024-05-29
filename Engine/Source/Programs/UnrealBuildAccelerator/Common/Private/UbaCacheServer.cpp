@@ -48,6 +48,9 @@ namespace uba
 		Atomic<bool> hasDeletedEntries;
 		Atomic<bool> needsSave;
 
+		Atomic<u64> lastSavedTime;
+		Atomic<u64> lastUsedTime;
+
 		u32 index = ~0u;
 	};
 
@@ -63,14 +66,17 @@ namespace uba
 		}
 	}
 
-	CacheServer::CacheServer(LogWriter& writer, const tchar* rootDir, NetworkServer& server, StorageServer& storage)
-	:	m_logger(writer, TC("UbaCacheServer"))
-	,	m_server(server)
-	,	m_storage(storage)
+	CacheServer::CacheServer(const CacheServerCreateInfo& info)
+	:	m_logger(info.writer, TC("UbaCacheServer"))
+	,	m_server(info.storage.GetServer())
+	,	m_storage(info.storage)
 	{
+		m_checkInputsForDeletedCas = info.checkInputsForDeletedCas;
 		m_startTime = GetTime();
 
-		m_rootDir.count = GetFullPathNameW(rootDir, m_rootDir.capacity, m_rootDir.data, NULL);
+		m_expirationTimeSeconds = info.expirationTimeSeconds;
+
+		m_rootDir.count = GetFullPathNameW(info.rootDir, m_rootDir.capacity, m_rootDir.data, NULL);
 		m_rootDir.Replace('/', PathSeparator).EnsureEndsWithSlash();
 
 		m_server.RegisterService(CacheServiceId,
@@ -219,10 +225,13 @@ namespace uba
 
 	bool CacheServer::Save()
 	{
-		if (m_addsSinceMaintenance == 0)
-			return true;
+		for (auto& kv : m_buckets)
+		{
+			Bucket& bucket = kv.second;
+			if (bucket.lastSavedTime < bucket.lastUsedTime)
+				bucket.needsSave = true;
+		}
 
-		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 		return SaveNoLock();
 	}
 
@@ -301,6 +310,8 @@ namespace uba
 
 	bool CacheServer::SaveBucket(u64 bucketId, Bucket& bucket)
 	{
+		u64 saveStart = GetTime();
+
 		StringBuffer<MaxPath> bucketsDir(m_rootDir);
 		bucketsDir.EnsureEndsWithSlash().Append(TC("buckets"));
 		if (!m_storage.CreateDirectory(bucketsDir.data))
@@ -340,7 +351,13 @@ namespace uba
 			file.WriteBytes(temp.data(), temp.size());
 		}
 
-		return file.Close();
+		if (!file.Close())
+			return false;
+
+		bucket.lastSavedTime = GetSystemTimeAsFileTime() - m_creationTime;
+
+		m_logger.Detail(TC("    Bucket %u saved (%s)"), bucket.index, TimeToText(GetTime() - saveStart).str);
+		return true;
 	}
 
 	bool CacheServer::SaveNoLock()
@@ -377,12 +394,10 @@ namespace uba
 				Bucket& bucket = it->second;
 				if (!bucket.needsSave)
 					return;
-				u64 saveStart = GetTime();
 				if (SaveBucket(it->first, bucket))
 					bucket.needsSave = false;
 				else
 					success = false;
-				m_logger.Detail(TC("    Bucket %u saved (%s)"), bucket.index, TimeToText(GetTime() - saveStart).str);
 			});
 
 		return success;
@@ -435,27 +450,22 @@ namespace uba
 		u64 deletedCasCount = deletedCasFiles.size();
 
 		u64 totalCasSize = 0;
-		if (m_existingCas.empty())
+
+		struct CasFileInfo { u64 size; u64 refCount; };
+		UnorderedMap<CasKey, CasFileInfo> existingCas;
+		ReaderWriterLock existingCasLock;
+
 		{
-			ReaderWriterLock existingCasLock;
-			u64 traverseStartTime = GetTime();
-			m_storage.TraverseAllCasFiles([&](const CasKey& casKey, u64 size)
-				{
-					SCOPED_WRITE_LOCK(existingCasLock, lock);
-					totalCasSize += size;
-					m_existingCas.try_emplace(casKey, CasFileInfo{size, 0ull});
-				}, true);
-			m_logger.Detail(TC("  Found %llu cas files (%s)"), m_existingCas.size(), TimeToText(GetTime() - traverseStartTime).str);
-		}
-		else
-		{
-			for (const CasKey& deletedCasFile : deletedCasFiles)
-				m_existingCas.erase(deletedCasFile);
-			for (auto& kv : m_existingCas)
+			SCOPED_WRITE_LOCK(m_storage.m_casLookupLock, lookupLock);
+			for (auto& kv : m_storage.m_casLookup)
+			{
 				totalCasSize += kv.second.size;
+				existingCas.try_emplace(kv.first, CasFileInfo{kv.second.size, 0ull});
+			}
 		}
 
-		u64 totalCasCount = m_existingCas.size() + deletedCasCount;
+		m_logger.Detail(TC("  Found %llu cas files (%s)"), existingCas.size(), BytesToText(totalCasSize).str);
+		u64 totalCasCount = existingCas.size() + deletedCasCount;
 
 		if (shouldExit())
 			return true;
@@ -463,11 +473,22 @@ namespace uba
 		u64 now = GetSystemTimeAsFileTime();
 		u64 oldest = 0;
 
+		u64 lastUseTimeLimit = 0;
+		if (m_expirationTimeSeconds && GetFileTimeAsSeconds(now - m_creationTime) > m_expirationTimeSeconds)
+			lastUseTimeLimit = (now - m_creationTime) - GetSecondsAsFileTime(m_expirationTimeSeconds);
+
+
 		u32 workerCount = m_server.GetWorkerCount();
 		u32 workerCountToUse = workerCount > 0 ? workerCount - 1 : 0;
 		u32 workerCountToUseForBuckets = Min(workerCountToUse, u32(m_buckets.size()));
 
+		Atomic<u64> totalEntryCount;
 		Atomic<u64> deleteEntryCount;
+		Atomic<u64> expiredEntryCount;
+		Atomic<u64> overflowedEntryCount;
+		Atomic<u64> missingOutputEntryCount;
+		Atomic<u64> missingInputEntryCount;
+
 		Atomic<u64> activeDropCount;
 		auto dropCasGuard = MakeGuard([&]() { while (activeDropCount != 0) Sleep(1); });
 
@@ -477,8 +498,7 @@ namespace uba
 			bool checkInputsForDeletes = m_checkInputsForDeletedCas && !deletedCasFiles.empty();
 
 			oldest = 0;
-
-			ReaderWriterLock existingCasLock;
+			totalEntryCount = 0;
 
 			m_server.ParallelFor(workerCountToUseForBuckets, m_buckets, [&](auto& it)
 			{
@@ -524,6 +544,13 @@ namespace uba
 						{
 							deleteEntry = true;
 							capacityLeft = 0;
+							++overflowedEntryCount;
+						}
+
+						if (!deleteEntry && entry.creationTime < lastUseTimeLimit && entry.lastUsedTime < lastUseTimeLimit)
+						{
+							deleteEntry = true;
+							++expiredEntryCount;
 						}
 
 						// This is an attempt at removing entries that has inputs that depends on other entries outputs.
@@ -544,6 +571,7 @@ namespace uba
 										if (!IsOffsetDeleted(inputReader.Read7BitEncoded()))
 											continue;
 										deleteEntry = true;
+										++missingInputEntryCount;
 										break;
 									}
 								}
@@ -558,6 +586,7 @@ namespace uba
 									if (!IsOffsetDeleted(extraReader.Read7BitEncoded()))
 										continue;
 									deleteEntry = true;
+									++missingInputEntryCount;
 									break;
 								}
 							}
@@ -576,13 +605,14 @@ namespace uba
 								CasKey casKey;
 								bucket.m_casKeyTable.GetKey(casKey, offset);
 								UBA_ASSERT(IsCompressed(casKey));
-								auto findIt = m_existingCas.find(casKey);
-								if (findIt != m_existingCas.end())
+								auto findIt = existingCas.find(casKey);
+								if (findIt != existingCas.end())
 								{
 									touchedCas.push_back(&findIt->second.refCount);
 									continue;
 								}
 								deleteEntry = true;
+								++missingOutputEntryCount;
 								break;
 							}
 						}
@@ -626,12 +656,14 @@ namespace uba
 
 				for (auto& key : keysToErase)
 					bucket.m_cacheEntryLookup.erase(key);
+
+				totalEntryCount += bucket.totalEntryCount;
 			});
 
 			// Reset deleted cas files and update it again..
 			deletedCasFiles.clear();
 
-			for (auto i=m_existingCas.begin(), e=m_existingCas.end(); i!=e;)
+			for (auto i=existingCas.begin(), e=existingCas.end(); i!=e;)
 			{
 				if (i->second.refCount != 0)
 				{
@@ -642,8 +674,8 @@ namespace uba
 				deletedCasFiles.insert(i->first);
 				++deletedCasCount;
 				totalCasSize -= i->second.size;
-				i = m_existingCas.erase(i);
-				e = m_existingCas.end();
+				i = existingCas.erase(i);
+				e = existingCas.end();
 			}
 
 			// Add drop cas as work so it can run in the background
@@ -654,6 +686,15 @@ namespace uba
 			}
 		}
 		while (!deletedCasFiles.empty()); // if cas files are deleted we need to do another loop and check cache entry inputs to see if files were inputs
+
+		if (overflowedEntryCount)
+			m_logger.Detail(TC("  Found %llu overflowed cache entries"), overflowedEntryCount.load());
+		if (expiredEntryCount)
+			m_logger.Detail(TC("  Found %llu expired cache entries (older than %s)"), expiredEntryCount.load(), TimeToText(MsToTime(m_expirationTimeSeconds*1000), true).str);
+		if (missingOutputEntryCount)
+			m_logger.Detail(TC("  Found %llu cache entries with missing output cas"), missingOutputEntryCount.load());
+		if (missingInputEntryCount)
+			m_logger.Detail(TC("  Found %llu cache entries with missing input cas"), missingInputEntryCount.load());
 
 		m_logger.Detail(TC("  Deleted %llu cas files and %llu cache entries (%s)"), deletedCasCount, deleteEntryCount.load(), TimeToText(GetTime() - deleteCacheEntriesStartTime).str);
 
@@ -668,7 +709,7 @@ namespace uba
 
 			if (!bucket.hasDeletedEntries && !forceAllSteps)
 			{
-				m_logger.Detail(TC("    Bucket %u skipped updating. No entries deleted"), bucket.index);
+				m_logger.Detail(TC("    Bucket %u skipped updating. (%llu entries)"), bucket.index, bucket.totalEntryCount.load());
 				return;
 			}
 			bucket.hasDeletedEntries = false;
@@ -816,7 +857,7 @@ namespace uba
 
 		u64 oldestTime = oldest ? GetFileTimeAsTime(now - (m_creationTime + oldest)) : 0;
 		u64 duration = GetTime() - startTime;
-		m_logger.Info(TC("Maintenance done! (%s) CasFiles: %llu (%s) OldestEntry: %s"), TimeToText(duration).str, totalCasCount - deletedCasCount, BytesToText(totalCasSize).str, TimeToText(oldestTime, true).str);
+		m_logger.Info(TC("Maintenance done! (%s) CasFiles: %llu (%s) Entries: %llu OldestEntry: %s"), TimeToText(duration).str, totalCasCount - deletedCasCount, BytesToText(totalCasSize).str, totalEntryCount.load(), TimeToText(oldestTime, true).str);
 		
 		m_longestMaintenance = Max(m_longestMaintenance, duration);
 
@@ -1226,7 +1267,9 @@ namespace uba
 		{
 			if (entryId != entry.id)
 				continue;
-			entry.lastUsedTime = GetSystemTimeAsFileTime() - m_creationTime;
+			u64 fileTime = GetSystemTimeAsFileTime() - m_creationTime;
+			entry.lastUsedTime = fileTime;
+			bucket.lastUsedTime = fileTime;
 			break;
 		}
 		return true;
