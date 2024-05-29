@@ -6,7 +6,7 @@
 
 #include "CoreMinimal.h"
 #include "TransformTypes.h"
-#include "Rendering\SkeletalMeshLODRenderData.h"
+#include "Rendering/SkeletalMeshLODRenderData.h"
 
 /**
  * Basic struct to adapt a FSkeletalMeshLODRenderData for use by GeometryProcessing classes that template the mesh type and expect a standard set of basic accessors
