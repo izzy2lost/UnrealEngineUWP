@@ -30,7 +30,7 @@ public:
 	virtual FText GetDefaultNodeTitle() const override;
 #endif
 	virtual bool DoesInputSupportDefaultValue(uint32 Index) const override;
-	virtual UPCGParamData* CreateDefaultValueParam(uint32 Index) const override;
+	virtual UPCGParamData* CreateDefaultValueParam(FPCGContext* Context, uint32 Index) const override;
 #if WITH_EDITOR
 	virtual FString GetDefaultValueString(uint32 Index) const override;
 #endif // WITH_EDITORs

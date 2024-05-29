@@ -160,7 +160,7 @@ bool FPCGMetadataOperationElement::ExecuteInternal(FPCGContext* Context) const
 			continue;
 		}
 
-		UPCGData* OutputData = OriginalData->DuplicateData();
+		UPCGData* OutputData = OriginalData->DuplicateData(Context);
 		bool bSuccess = false;
 		if (Settings->bCopyAllAttributes)
 		{

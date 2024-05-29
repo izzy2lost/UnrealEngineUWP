@@ -44,7 +44,7 @@ bool FPCGMetadataFlatten::RunTest(const FString& Parameters)
 	// for Attribute 2: ["0", "Default", "2", "Default", "0", ...]
 	UTEST_EQUAL("RootMetadata has 10 entries", RootPointData->Metadata->GetItemCountForChild(), 10);
 
-	UPCGPointData* FirstChildPointData = Cast<UPCGPointData>(RootPointData->DuplicateData());
+	UPCGPointData* FirstChildPointData = Cast<UPCGPointData>(RootPointData->DuplicateData(nullptr));
 	Attribute1 = FirstChildPointData->Metadata->GetMutableTypedAttribute<float>(Attribute1Name);
 	Attribute2 = FirstChildPointData->Metadata->GetMutableTypedAttribute<FString>(Attribute2Name);
 
@@ -109,7 +109,7 @@ bool FPCGMetadataFlatten::RunTest(const FString& Parameters)
 	UTEST_EQUAL("SecondChildMetadata has 25 entries", SecondChildPointData->Metadata->GetItemCountForChild(), 25);
 
 	// For final set, duplicate the data and flatten it
-	UPCGPointData* FinalPointData = Cast<UPCGPointData>(SecondChildPointData->DuplicateData());
+	UPCGPointData* FinalPointData = Cast<UPCGPointData>(SecondChildPointData->DuplicateData(nullptr));
 	FinalPointData->Flatten();
 
 	Attribute1 = FinalPointData->Metadata->GetMutableTypedAttribute<float>(Attribute1Name);

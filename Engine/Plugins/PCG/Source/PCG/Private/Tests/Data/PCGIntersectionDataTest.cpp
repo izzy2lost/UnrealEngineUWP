@@ -18,10 +18,10 @@ bool FPCGIntersectionDataTest::RunTest(const FString& Parameters)
 	UPCGVolumeData* Volume = PCGTestsCommon::CreateVolumeData(FBox::BuildAABB(FVector::ZeroVector, FVector::OneVector * 100));
 
 	// Create intersections
-	UPCGIntersectionData* InsideVolume = InsidePoint->IntersectWith(Volume);
-	UPCGIntersectionData* VolumeInside = Volume->IntersectWith(InsidePoint);
-	UPCGIntersectionData* OutsideVolume = OutsidePoint->IntersectWith(Volume);
-	UPCGIntersectionData* VolumeOutside = Volume->IntersectWith(OutsidePoint);
+	UPCGIntersectionData* InsideVolume = InsidePoint->IntersectWith(nullptr, Volume);
+	UPCGIntersectionData* VolumeInside = Volume->IntersectWith(nullptr, InsidePoint);
+	UPCGIntersectionData* OutsideVolume = OutsidePoint->IntersectWith(nullptr, Volume);
+	UPCGIntersectionData* VolumeOutside = Volume->IntersectWith(nullptr, OutsidePoint);
 
 	auto ValidateInsideIntersection = [this, InsidePoint](UPCGIntersectionData* Intersection)
 	{

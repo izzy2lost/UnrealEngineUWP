@@ -567,7 +567,7 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 				{
 					// TODO: outering the first layer might not be sufficient here - might need to expose
 					// some methods in the data to traverse all the data to outer everything for serialization
-					if (UPCGData* DuplicatedData = TaggedData.Data->DuplicateData())
+					if (UPCGData* DuplicatedData = TaggedData.Data->DuplicateData(Context))
 					{
 						FPCGTaggedData& DuplicatedTaggedData = GeneratedGraphOutput.TaggedData.Add_GetRef(TaggedData);
 						DuplicatedTaggedData.Data = DuplicatedData;
@@ -2849,7 +2849,7 @@ FPCGDataCollection UPCGComponent::CreateActorPCGDataCollection(AActor* Actor, co
 
 			if (OriginalComponentSpatialData)
 			{
-				Result = Result->IntersectWith(OriginalComponentSpatialData);
+				Result = Result->IntersectWith(nullptr, OriginalComponentSpatialData);
 			}
 		}
 
@@ -3160,11 +3160,11 @@ UPCGData* UPCGComponent::CreateInputPCGData()
 		// so intersections (such as volume X partition actor) get picked up properly
 		if (ActorSpatialData->GetDimension() >= 3)
 		{
-			return LandscapeData->IntersectWith(ActorSpatialData);
+			return LandscapeData->IntersectWith(nullptr, ActorSpatialData);
 		}
 		else
 		{
-			return ActorSpatialData->ProjectOn(LandscapeData);
+			return ActorSpatialData->ProjectOn(nullptr, LandscapeData);
 		}
 	}
 	else

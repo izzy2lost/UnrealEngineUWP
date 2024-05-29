@@ -2,6 +2,7 @@
 
 #include "Data/PCGPointData.h"
 
+#include "PCGContext.h"
 #include "Helpers/PCGHelpers.h"
 #include "Helpers/PCGTagHelpers.h"
 #include "Metadata/PCGMetadataAccessor.h"
@@ -650,9 +651,9 @@ void UPCGPointData::RebuildOctree() const
 	bOctreeIsDirty = false;
 }
 
-UPCGSpatialData* UPCGPointData::CopyInternal() const
+UPCGSpatialData* UPCGPointData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGPointData* NewPointData = NewObject<UPCGPointData>();
+	UPCGPointData* NewPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	NewPointData->GetMutablePoints() = GetPoints();
 
 	return NewPointData;

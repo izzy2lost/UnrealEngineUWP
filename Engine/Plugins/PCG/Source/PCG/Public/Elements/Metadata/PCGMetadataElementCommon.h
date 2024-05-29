@@ -15,7 +15,10 @@ struct FPCGTaggedData;
 
 namespace PCGMetadataElementCommon
 {
+	UE_DEPRECATED(5.5, "Call/Implement version with FPCGContext parameter")
 	PCG_API void DuplicateTaggedData(const FPCGTaggedData& InTaggedData, FPCGTaggedData& OutTaggedData, UPCGMetadata*& OutMetadata);
+
+	PCG_API void DuplicateTaggedData(FPCGContext* InContext, const FPCGTaggedData& InTaggedData, FPCGTaggedData& OutTaggedData, UPCGMetadata*& OutMetadata);
 
 	/** Copies the entry to value key relationship stored in the given Metadata, including its parents */
 	PCG_API void CopyEntryToValueKeyMap(const UPCGMetadata* MetadataToCopy, const FPCGMetadataAttributeBase* AttributeToCopy, FPCGMetadataAttributeBase* OutAttribute);

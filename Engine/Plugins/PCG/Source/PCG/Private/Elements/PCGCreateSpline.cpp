@@ -115,6 +115,7 @@ bool FPCGCreateSplineElement::ExecuteInternal(FPCGContext* Context) const
 			LeaveTangentAttribute = static_cast<const FPCGMetadataAttribute<FVector>*>(LeaveTangentBaseAttribute);
 		}
 
+		check(IsInGameThread());
 		UPCGSplineData* SplineData = NewObject<UPCGSplineData>();
 		AActor* SplineActor = TargetActor;
 

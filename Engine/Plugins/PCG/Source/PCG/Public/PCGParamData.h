@@ -26,7 +26,7 @@ public:
 	virtual FPCGAttributePropertyInputSelector GetCachedLastSelector() const override;
 	virtual void SetLastSelector(const FPCGAttributePropertySelector& InSelector) override;
 
-	virtual UPCGParamData* DuplicateData(bool bInitializeMetadata = true) const override;
+	virtual UPCGParamData* DuplicateData(FPCGContext* Context, bool bInitializeMetadata = true) const override;
 	// ~End UPCGData interface
 
 	UFUNCTION(BlueprintCallable, Category = Metadata)
@@ -44,11 +44,21 @@ public:
 	int64 FindOrAddMetadataKey(const FName& InName);
 
 	/** Creates a new params that keeps only a given key/name */
-	UFUNCTION(BlueprintCallable, Category = Params)
-	UPCGParamData* FilterParamsByName(const FName& InName) const;
+	UFUNCTION(BlueprintCallable, Category = Params, meta = (DisplayName = "Filter Params By Name"))
+	UPCGParamData* K2_FilterParamsByName(const FName& InName) const;
 
-	UFUNCTION(BlueprintCallable, Category = Params)
-	UPCGParamData* FilterParamsByKey(int64 InKey) const;
+	UE_DEPRECATED(5.5, "Call version with FPCGContext parameter")
+	UPCGParamData* FilterParamsByName(const FName& InName) const { return FilterParamsByName(nullptr, InName); }
+
+	UPCGParamData* FilterParamsByName(FPCGContext* Context, const FName& InName) const;
+
+	UFUNCTION(BlueprintCallable, Category = Params, meta = (DisplayName = "Filter Params By Key"))
+	UPCGParamData* K2_FilterParamsByKey(int64 InKey) const;
+
+	UE_DEPRECATED(5.5, "Call version with FPCGContext parameter")
+	UPCGParamData* FilterParamsByKey(int64 InKey) const { return FilterParamsByKey(nullptr, InKey); }
+
+	UPCGParamData* FilterParamsByKey(FPCGContext* Context, int64 InKey) const;
 
 	// Not accessible through blueprint to make sure the constness is preserved
 	UPROPERTY(VisibleAnywhere, Category = Metadata)

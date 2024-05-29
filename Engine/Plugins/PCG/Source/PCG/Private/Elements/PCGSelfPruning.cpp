@@ -594,7 +594,7 @@ namespace PCGSelfPruningElement
 		// Finally, output all points that are present in the ExclusionPoints. This part is not time sliced, should it be too?
 		if (bIsDone)
 		{
-			UPCGPointData* PrunedData = NewObject<UPCGPointData>();
+			UPCGPointData* PrunedData = FPCGContext::NewObject_AnyThread<UPCGPointData>(InOptionalContext);
 			PrunedData->InitializeFromData(InState.InputPointData);
 			InState.OutputPointData = PrunedData;
 

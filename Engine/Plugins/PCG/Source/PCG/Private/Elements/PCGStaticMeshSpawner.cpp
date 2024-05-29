@@ -188,7 +188,7 @@ bool FPCGStaticMeshSpawnerElement::PrepareDataInternal(FPCGContext* InContext) c
 			{
 				FPCGTaggedData& Output = Outputs.Add_GetRef(Input);
 
-				UPCGPointData* OutputPointData = NewObject<UPCGPointData>();
+				UPCGPointData* OutputPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 				OutputPointData->InitializeFromData(PointData);
 
 				if (OutputPointData->Metadata->HasAttribute(Settings->OutAttributeName))
@@ -584,6 +584,8 @@ void UPCGStaticMeshSpawnerSettings::RefreshMeshSelector()
 {
 	if (MeshSelectorType)
 	{
+		ensure(IsInGameThread());
+
 		if (MeshSelectorParameters)
 		{
 #if WITH_EDITOR
@@ -606,6 +608,8 @@ void UPCGStaticMeshSpawnerSettings::RefreshInstancePacker()
 {
 	if (InstanceDataPackerType)
 	{
+		ensure(IsInGameThread());
+
 		if (InstanceDataPackerParameters)
 		{
 #if WITH_EDITOR

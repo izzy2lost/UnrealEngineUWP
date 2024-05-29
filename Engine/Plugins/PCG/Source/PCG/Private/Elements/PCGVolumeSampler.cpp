@@ -23,7 +23,7 @@ namespace PCGVolumeSampler
 {
 	UPCGPointData* SampleVolume(FPCGContext* Context, const FVolumeSamplerParams& SamplerSettings, const UPCGSpatialData* Volume, const UPCGSpatialData* BoundingShape)
 	{
-		UPCGPointData* Data = NewObject<UPCGPointData>();
+		UPCGPointData* Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		Data->InitializeFromData(Volume);
 
 		const bool bTimeSliceIsEnabled = Context ? Context->TimeSliceIsEnabled() : false;
@@ -272,7 +272,7 @@ bool FPCGVolumeSamplerElement::PrepareDataInternal(FPCGContext* Context) const
 			check(GeneratingShape);
 
 			OutState.Volume = GeneratingShape;
-			OutState.OutputData = NewObject<UPCGPointData>();
+			OutState.OutputData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 			OutState.OutputData->InitializeFromData(OutState.Volume);
 			Outputs[IterationIndex].Data = OutState.OutputData;
 
@@ -344,7 +344,7 @@ bool FPCGVolumeSamplerElement::ExecuteInternal(FPCGContext* Context) const
 		{
 			// TODO: Empty point data (to preserve previous behavior). Eventually, should be replaced with no output at all
 			FPCGTaggedData& Output = TimeSlicedContext->OutputData.TaggedData.Emplace_GetRef();
-			UPCGPointData* PointData = NewObject<UPCGPointData>();
+			UPCGPointData* PointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 			PointData->InitializeFromData(Cast<UPCGSpatialData>(Input.Data));
 			Output.Data = PointData;
 		}
@@ -358,7 +358,7 @@ bool FPCGVolumeSamplerElement::ExecuteInternal(FPCGContext* Context) const
 
 		if (InitResult == EPCGTimeSliceInitResult::NoOperation)
 		{
-			Context->OutputData.TaggedData[IterationIndex].Data = NewObject<UPCGPointData>();
+			Context->OutputData.TaggedData[IterationIndex].Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 
 			return true;
 		}

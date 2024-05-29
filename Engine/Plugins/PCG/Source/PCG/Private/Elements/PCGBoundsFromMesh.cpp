@@ -262,7 +262,7 @@ bool FPCGBoundsFromMeshElement::ExecuteInternal(FPCGContext* InContext) const
 
 			const FBox StaticMeshBounds = SingleMesh->GetBoundingBox();
 			
-			UPCGPointData* OutputData = NewObject<UPCGPointData>();
+			UPCGPointData* OutputData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 			OutputData->InitializeFromData(PointData);
 
 			const TArray<FPCGPoint>& InputPoints = PointData->GetPoints();
@@ -288,7 +288,7 @@ bool FPCGBoundsFromMeshElement::ExecuteInternal(FPCGContext* InContext) const
 			FPCGBoundsFromMeshContext::InputMeshesData* InputData = Context->PerInputData.FindByPredicate([Index = Context->CurrentExecuteIndex - 1](const FPCGBoundsFromMeshContext::InputMeshesData& InputData) { return InputData.InputIndex == Index; });
 			if (InputData)
 			{
-				UPCGPointData* OutputData = NewObject<UPCGPointData>();
+				UPCGPointData* OutputData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 				OutputData->InitializeFromData(PointData);
 
 				const TArray<FPCGPoint>& InputPoints = PointData->GetPoints();

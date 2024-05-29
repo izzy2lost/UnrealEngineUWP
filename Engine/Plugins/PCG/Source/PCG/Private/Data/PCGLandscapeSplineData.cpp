@@ -2,6 +2,7 @@
 
 #include "Data/PCGLandscapeSplineData.h"
 
+#include "PCGContext.h"
 #include "Data/PCGPolyLineData.h"
 #include "Data/PCGPointData.h"
 #include "Elements/PCGSplineSampler.h"
@@ -255,7 +256,7 @@ const UPCGPointData* UPCGLandscapeSplineData::CreatePointData(FPCGContext* Conte
 	check(Spline.IsValid());
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGLandscapeSplineData::CreatePointData);
 
-	UPCGPointData* Data = NewObject<UPCGPointData>();
+	UPCGPointData* Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	Data->InitializeFromData(this);
 	TArray<FPCGPoint>& Points = Data->GetMutablePoints();
 
@@ -352,9 +353,9 @@ bool UPCGLandscapeSplineData::SamplePoint(const FTransform& InTransform, const F
 	return OutPoint.Density > 0;
 }
 
-UPCGSpatialData* UPCGLandscapeSplineData::CopyInternal() const
+UPCGSpatialData* UPCGLandscapeSplineData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGLandscapeSplineData* NewLandscapeSplineData = NewObject<UPCGLandscapeSplineData>();
+	UPCGLandscapeSplineData* NewLandscapeSplineData = FPCGContext::NewObject_AnyThread<UPCGLandscapeSplineData>(Context);
 
 	NewLandscapeSplineData->Spline = Spline;
 	NewLandscapeSplineData->ReparamTable = ReparamTable;

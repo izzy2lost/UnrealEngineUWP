@@ -746,6 +746,7 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSpawnActorElement::ExecuteInternal::SpawnActors);
 	check(Context && TargetActor && PointData);
+	check(IsInGameThread());
 
 	const TArray<FPCGPoint>& Points = PointData->GetPoints();
 	if (Points.IsEmpty())

@@ -2,6 +2,7 @@
 
 #include "Data/PCGWaterSplineData.h"
 
+#include "PCGContext.h"
 #include "Data/PCGPointData.h"
 #include "Metadata/PCGMetadata.h"
 
@@ -69,9 +70,9 @@ bool UPCGWaterSplineData::SamplePoint(const FTransform& Transform, const FBox& B
 	}
 }
 
-UPCGSpatialData* UPCGWaterSplineData::CopyInternal() const
+UPCGSpatialData* UPCGWaterSplineData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGWaterSplineData* NewSplineData = NewObject<UPCGWaterSplineData>();
+	UPCGWaterSplineData* NewSplineData = FPCGContext::NewObject_AnyThread<UPCGWaterSplineData>(Context);
 	NewSplineData->WaterSplineMetadataStruct = WaterSplineMetadataStruct;
 
 	CopySplineData(NewSplineData);

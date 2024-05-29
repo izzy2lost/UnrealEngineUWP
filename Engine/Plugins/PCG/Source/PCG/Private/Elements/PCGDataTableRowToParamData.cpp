@@ -126,7 +126,7 @@ bool FPCGDataTableRowToParamData::ExecuteInternal(FPCGContext* Context) const
 	}
 
 	// From there, we should be able to create the data.
-	UPCGParamData* ParamData = NewObject<UPCGParamData>();
+	UPCGParamData* ParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 	UPCGMetadata* Metadata = ParamData->MutableMetadata();
 	check(Metadata);
 	PCGMetadataEntryKey EntryKey = Metadata->AddEntry();

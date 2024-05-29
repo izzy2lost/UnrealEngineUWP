@@ -35,7 +35,7 @@ public:
 	virtual bool HasNonTrivialTransform() const override;
 	virtual bool RequiresCollapseToSample() const override;
 protected:
-	virtual UPCGSpatialData* CopyInternal() const override;
+	virtual UPCGSpatialData* CopyInternal(FPCGContext* Context) const override;
 	//~End UPCGSpatialData interface
 
 public:

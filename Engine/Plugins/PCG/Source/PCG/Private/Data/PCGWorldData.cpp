@@ -144,7 +144,7 @@ const UPCGPointData* UPCGWorldVolumetricData::CreatePointData(FPCGContext* Conte
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGWorldVolumetricData::CreatePointData);
 
-	UPCGPointData* Data = NewObject<UPCGPointData>();
+	UPCGPointData* Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	Data->InitializeFromData(this);
 	TArray<FPCGPoint>& Points = Data->GetMutablePoints();
 
@@ -182,9 +182,9 @@ const UPCGPointData* UPCGWorldVolumetricData::CreatePointData(FPCGContext* Conte
 	return Data;
 }
 
-UPCGSpatialData* UPCGWorldVolumetricData::CopyInternal() const
+UPCGSpatialData* UPCGWorldVolumetricData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGWorldVolumetricData* NewVolumetricData = NewObject<UPCGWorldVolumetricData>();
+	UPCGWorldVolumetricData* NewVolumetricData = FPCGContext::NewObject_AnyThread<UPCGWorldVolumetricData>(Context);
 
 	CopyBaseVolumeData(NewVolumetricData);
 
@@ -248,7 +248,7 @@ bool UPCGWorldRayHitData::SamplePoint(const FTransform& InTransform, const FBox&
 
 const UPCGPointData* UPCGWorldRayHitData::CreatePointData(FPCGContext* Context, const FBox& InBounds) const
 {
-	UPCGPointData* Data = NewObject<UPCGPointData>();
+	UPCGPointData* Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	Data->InitializeFromData(this);
 
 	FBox EffectiveBounds = Bounds;
@@ -282,9 +282,9 @@ const UPCGPointData* UPCGWorldRayHitData::CreatePointData(FPCGContext* Context, 
 	return Data;
 }
 
-UPCGSpatialData* UPCGWorldRayHitData::CopyInternal() const
+UPCGSpatialData* UPCGWorldRayHitData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGWorldRayHitData* NewData = NewObject<UPCGWorldRayHitData>();
+	UPCGWorldRayHitData* NewData = FPCGContext::NewObject_AnyThread<UPCGWorldRayHitData>(Context);
 
 	CopyBaseSurfaceData(NewData);
 

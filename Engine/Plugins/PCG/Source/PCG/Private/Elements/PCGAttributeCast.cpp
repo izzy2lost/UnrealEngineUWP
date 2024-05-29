@@ -92,7 +92,7 @@ bool FPCGAttributeCastElement::ExecuteInternal(FPCGContext* Context) const
 
 		FPCGTaggedData& Output = Context->OutputData.TaggedData.Add_GetRef(Input);
 
-		UPCGData* OutputData = Input.Data->DuplicateData();
+		UPCGData* OutputData = Input.Data->DuplicateData(Context);
 		check(OutputData);
 
 		PCGMetadataHelpers::FPCGCopyAttributeParams Params{};

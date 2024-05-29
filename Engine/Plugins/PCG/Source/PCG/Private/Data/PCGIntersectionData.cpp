@@ -220,14 +220,14 @@ UPCGPointData* UPCGIntersectionData::CreateAndFilterPointData(FPCGContext* Conte
 	const TArray<FPCGPoint>& SourcePoints = SourcePointData->GetPoints();
 	const UPCGMetadata* SourceMetadata = SourcePointData->Metadata;
 
-	UPCGPointData* Data = NewObject<UPCGPointData>();
+	UPCGPointData* Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	Data->InitializeFromData(this, SourceMetadata);
 	Data->Metadata->AddAttributes(Y->Metadata);
 
 	UPCGMetadata* TempYMetadata = nullptr;
 	if (Y->Metadata)
 	{
-		TempYMetadata = Y->Metadata ? NewObject<UPCGMetadata>() : nullptr;
+		TempYMetadata = Y->Metadata ? FPCGContext::NewObject_AnyThread<UPCGMetadata>(Context) : nullptr;
 		TempYMetadata->Initialize(Y->Metadata);
 	}
 
@@ -286,9 +286,9 @@ UPCGPointData* UPCGIntersectionData::CreateAndFilterPointData(FPCGContext* Conte
 	return Data;
 }
 
-UPCGSpatialData* UPCGIntersectionData::CopyInternal() const
+UPCGSpatialData* UPCGIntersectionData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGIntersectionData* NewIntersectionData = NewObject<UPCGIntersectionData>();
+	UPCGIntersectionData* NewIntersectionData = FPCGContext::NewObject_AnyThread<UPCGIntersectionData>(Context);
 
 	NewIntersectionData->DensityFunction = DensityFunction;
 	NewIntersectionData->A = A;

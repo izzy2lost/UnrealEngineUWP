@@ -120,7 +120,7 @@ void FPCGGetLandscapeDataElement::ProcessActors(FPCGContext* Context, const UPCG
 
 	if (!Landscapes.IsEmpty())
 	{
-		UPCGLandscapeData* LandscapeData = NewObject<UPCGLandscapeData>();
+		UPCGLandscapeData* LandscapeData = FPCGContext::NewObject_AnyThread<UPCGLandscapeData>(Context);
 		LandscapeData->Initialize(Landscapes, LandscapeBounds, Settings->SamplingProperties);
 		
 		FPCGTaggedData& TaggedData = Context->OutputData.TaggedData.Emplace_GetRef();

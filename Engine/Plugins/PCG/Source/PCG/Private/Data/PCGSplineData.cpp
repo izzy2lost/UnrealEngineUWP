@@ -2,6 +2,7 @@
 
 #include "Data/PCGSplineData.h"
 
+#include "PCGContext.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGPolyLineData.h"
 #include "Data/PCGProjectionData.h"
@@ -155,7 +156,7 @@ FVector::FReal UPCGSplineData::GetDistanceAtSegmentStart(int SegmentIndex) const
 const UPCGPointData* UPCGSplineData::CreatePointData(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGSplineData::CreatePointData);
-	UPCGPointData* Data = NewObject<UPCGPointData>();
+	UPCGPointData* Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	Data->InitializeFromData(this);
 
 	FPCGSplineSamplerParams SamplerParams;
@@ -202,23 +203,23 @@ bool UPCGSplineData::SamplePoint(const FTransform& InTransform, const FBox& InBo
 	}
 }
 
-UPCGSpatialData* UPCGSplineData::ProjectOn(const UPCGSpatialData* InOther, const FPCGProjectionParams& InParams) const
+UPCGSpatialData* UPCGSplineData::ProjectOn(FPCGContext* InContext, const UPCGSpatialData* InOther, const FPCGProjectionParams& InParams) const
 {
 	if (InOther->GetDimension() == 2)
 	{
-		UPCGSplineProjectionData* SplineProjectionData = NewObject<UPCGSplineProjectionData>();
+		UPCGSplineProjectionData* SplineProjectionData = FPCGContext::NewObject_AnyThread<UPCGSplineProjectionData>(InContext);
 		SplineProjectionData->Initialize(this, InOther, InParams);
 		return SplineProjectionData;
 	}
 	else
 	{
-		return Super::ProjectOn(InOther, InParams);
+		return Super::ProjectOn(InContext, InOther, InParams);
 	}
 }
 
-UPCGSpatialData* UPCGSplineData::CopyInternal() const
+UPCGSpatialData* UPCGSplineData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGSplineData* NewSplineData = NewObject<UPCGSplineData>();
+	UPCGSplineData* NewSplineData = FPCGContext::NewObject_AnyThread<UPCGSplineData>(Context);
 
 	CopySplineData(NewSplineData);
 
@@ -380,9 +381,9 @@ const UPCGSpatialData* UPCGSplineProjectionData::GetSurface() const
 	return Target;
 }
 
-UPCGSpatialData* UPCGSplineProjectionData::CopyInternal() const
+UPCGSpatialData* UPCGSplineProjectionData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGSplineProjectionData* NewProjectionData = NewObject<UPCGSplineProjectionData>();
+	UPCGSplineProjectionData* NewProjectionData = FPCGContext::NewObject_AnyThread<UPCGSplineProjectionData>(Context);
 
 	CopyBaseProjectionClass(NewProjectionData);
 

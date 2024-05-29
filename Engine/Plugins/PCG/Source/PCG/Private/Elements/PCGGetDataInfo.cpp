@@ -41,7 +41,7 @@ bool FPCGGetTagsElement::ExecuteInternal(FPCGContext* Context) const
 			continue;
 		}
 
-		UPCGParamData* ParamData = NewObject<UPCGParamData>();
+		UPCGParamData* ParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 		check(ParamData && ParamData->Metadata);
 
 		FPCGTaggedData& Output = Outputs.Emplace_GetRef(Input);
@@ -117,7 +117,7 @@ bool FPCGGetAttributesElement::ExecuteInternal(FPCGContext* Context) const
 			continue;
 		}
 
-		UPCGParamData* ParamData = NewObject<UPCGParamData>();
+		UPCGParamData* ParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 		check(ParamData && ParamData->Metadata);
 
 		FPCGTaggedData& Output = Outputs.Emplace_GetRef(Input);

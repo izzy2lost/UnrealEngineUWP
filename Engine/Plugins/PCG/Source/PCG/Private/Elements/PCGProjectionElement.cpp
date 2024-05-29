@@ -98,7 +98,7 @@ bool FPCGProjectionElement::ExecuteInternal(FPCGContext* Context) const
 			continue;
 		}
 
-		UPCGSpatialData* ProjectionData = ProjectionSource->ProjectOn(ProjectionTarget, ProjectionParams);
+		UPCGSpatialData* ProjectionData = ProjectionSource->ProjectOn(Context, ProjectionTarget, ProjectionParams);
 		ProjectionData->bKeepZeroDensityPoints = bKeepZeroDensityPoints;
 
 		const UPCGSpatialData* OutputData = ProjectionData;

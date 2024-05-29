@@ -150,7 +150,7 @@ namespace PCGSurfaceSampler
 
 	UPCGPointData* SampleSurface(FPCGContext* Context, const UPCGSurfaceData* InSurface, const UPCGSpatialData* InBoundingShape, const FBox& EffectiveBounds, const FSurfaceSamplerParams& ExecutionParams)
 	{
-		UPCGPointData* SampledData = NewObject<UPCGPointData>();
+		UPCGPointData* SampledData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		SampledData->InitializeFromData(InSurface);
 
 		FSurfaceSamplerData SamplerData;
@@ -437,7 +437,7 @@ bool FPCGSurfaceSamplerElement::PrepareDataInternal(FPCGContext* InContext) cons
 			const UPCGSurfaceData* GeneratingShape = GeneratingShapes[IterationIndex];
 			check(GeneratingShape);
 
-			OutState.OutputPoints = NewObject<UPCGPointData>();
+			OutState.OutputPoints = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 			OutState.OutputPoints->InitializeFromData(GeneratingShape);
 
 			// This bounds will be used to generate the pre-projected grid
@@ -519,7 +519,7 @@ bool FPCGSurfaceSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 		for (FPCGTaggedData& Input : TimeSlicedContext->InputData.GetInputs())
 		{
 			FPCGTaggedData& Output = TimeSlicedContext->OutputData.TaggedData.Emplace_GetRef();
-			UPCGPointData* PointData = NewObject<UPCGPointData>();
+			UPCGPointData* PointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(InContext);
 			PointData->InitializeFromData(Cast<UPCGSpatialData>(Input.Data));
 			Output.Data = PointData;
 		}
@@ -535,7 +535,7 @@ bool FPCGSurfaceSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 		// This iteration resulted in an early out for no sampling operation. Early out with empty point data.
 		if (InitResult == EPCGTimeSliceInitResult::NoOperation)
 		{
-			Context->OutputData.TaggedData[IterationIndex].Data = NewObject<UPCGPointData>();
+			Context->OutputData.TaggedData[IterationIndex].Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 
 			return true;
 		}

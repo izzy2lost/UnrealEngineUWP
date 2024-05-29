@@ -77,7 +77,7 @@ bool FPCGGetBoundsElement::ExecuteInternal(FPCGContext* Context) const
 			continue;
 		}
 
-		UPCGParamData* ParamData = NewObject<UPCGParamData>();
+		UPCGParamData* ParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 		check(ParamData && ParamData->Metadata);
 		
 		ParamData->Metadata->CreateVectorAttribute("BoundsMin", InputBounds.Min, /*bAllowsInterpolation=*/true, /*bOverrideParent=*/false);

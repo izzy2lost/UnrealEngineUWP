@@ -201,11 +201,12 @@ bool UPCGMetadataMakeVectorSettings::DoesInputSupportDefaultValue(uint32 Index) 
 	return true;
 }
 
-UPCGParamData* UPCGMetadataMakeVectorSettings::CreateDefaultValueParam(uint32 Index) const
+UPCGParamData* UPCGMetadataMakeVectorSettings::CreateDefaultValueParam(FPCGContext* Context, uint32 Index) const
 {
 	// Use labels since the logic is already done there.
 	FName Label = GetInputPinLabel(Index);
-	UPCGParamData* NewParamData = NewObject<UPCGParamData>();
+
+	UPCGParamData* NewParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 
 	if (Label == PCGMetadataMakeVectorConstants::XYZLabel)
 	{

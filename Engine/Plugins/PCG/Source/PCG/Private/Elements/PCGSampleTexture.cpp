@@ -92,7 +92,7 @@ bool FPCGSampleTextureElement::ExecuteInternal(FPCGContext* Context) const
 			}
 		}
 
-		UPCGPointData* OutPointData = NewObject<UPCGPointData>();
+		UPCGPointData* OutPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		OutPointData->InitializeFromData(PointData);
 
 		auto ProcessPoint = [Settings, BaseTextureData, &InputAccessor, &InputKeys, &InputPoints, &DensityMergeFunc, OutPointData](int32 Index, FPCGPoint& OutPoint)

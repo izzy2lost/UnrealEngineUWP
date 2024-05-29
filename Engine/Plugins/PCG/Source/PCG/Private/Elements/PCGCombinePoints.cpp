@@ -48,7 +48,7 @@ bool FPCGCombinePointsElement::ExecuteInternal(FPCGContext* Context) const
 		const FMatrix InversePointTransform = PointTransform.ToInverseMatrixWithScale();
 
 		FPCGTaggedData& Output = Outputs.Add_GetRef(Inputs[i]);
-		UPCGPointData* OutputPointData = NewObject<UPCGPointData>();
+		UPCGPointData* OutputPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		OutputPointData->InitializeFromData(InputPointData);
 		FPCGPoint& OutputPoint = OutputPointData->GetMutablePoints().Emplace_GetRef();
 		Output.Data = OutputPointData;

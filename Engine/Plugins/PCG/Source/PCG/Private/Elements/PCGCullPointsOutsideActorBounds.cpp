@@ -47,7 +47,7 @@ bool FPCGCullPointsOutsideActorBoundsElement::ExecuteInternal(FPCGContext* Conte
 		return true;
 	}
 
-	UPCGVolumeData* VolumeData = NewObject<UPCGVolumeData>();
+	UPCGVolumeData* VolumeData = FPCGContext::NewObject_AnyThread<UPCGVolumeData>(Context);
 	check(VolumeData);
 
 	const UPCGCullPointsOutsideActorBoundsSettings* Settings = Context->GetInputSettings<UPCGCullPointsOutsideActorBoundsSettings>();
@@ -67,7 +67,7 @@ bool FPCGCullPointsOutsideActorBoundsElement::ExecuteInternal(FPCGContext* Conte
 			continue;
 		}
 
-		UPCGIntersectionData* Intersection = InputPointData->IntersectWith(VolumeData);
+		UPCGIntersectionData* Intersection = InputPointData->IntersectWith(Context, VolumeData);
 		check(Intersection);
 
 		const UPCGPointData* IntersectedPoints = Intersection->ToPointData(Context);

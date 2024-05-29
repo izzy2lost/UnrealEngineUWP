@@ -8,6 +8,7 @@
 #include "Utils/PCGExtraCapture.h"
 
 #include "UObject/GCObject.h"
+#include "UObject/GarbageCollection.h"
 
 #include "PCGContext.generated.h"
 
@@ -89,6 +90,16 @@ struct PCG_API FPCGContext
 	// Return the seed, possibly overriden by params, and combined with the source component (if any).
 	int GetSeed() const;
 
+	// Allows creating a new object safely inside the execution of a PCG Element, this object will also get tracked properly by the context
+	template<class T, typename... Args>
+	static T* NewObject_AnyThread(FPCGContext* Context, Args&&... InArgs)
+	{
+		ensure(Context != nullptr || IsInGameThread());
+		return Context ? Context->NewObject_AnyThread_Impl<T>(std::forward<Args>(InArgs)...) : ::NewObject<T>(std::forward<Args>(InArgs)...);
+	}
+
+	bool ContainsAsyncObject(const UObject* InAsyncObject) { return AsyncObjects.Contains(InAsyncObject); }
+
 	// Return the settings casted in the wanted type.
 	// If there is any override, those settings will already contains all the overriden values.
 	template<typename SettingsType>
@@ -132,12 +143,36 @@ protected:
 	virtual void AddExtraStructReferencedObjects(FReferenceCollector& Collector) {}
 
 private:
+	template<class T, typename... Args>
+	T* NewObject_AnyThread_Impl(Args&&... InArgs)
+	{
+		if (!IsInGameThread())
+		{
+			ensure(!AsyncState.bIsRunningOnMainThread);
+			T* Object = nullptr;
+			{
+				FGCScopeGuard Scope;
+				Object = ::NewObject<T>(std::forward<Args>(InArgs)...);
+			}
+			check(Object);
+			AsyncObjects.Add(Object);
+			return Object;
+		}
+
+		return ::NewObject<T>(std::forward<Args>(InArgs)...);
+	}
+
 	// Copy of the settings that will be used to apply overrides.
 	TObjectPtr<UPCGSettings> SettingsWithOverride = nullptr;
 
 	// List of params that were in effect overriden
 	TArray<const FPCGSettingsOverridableParam*> OverriddenParams;
 
+	// List of objects created by the PCG Elements, we need to track them so we can remove their Async flags when storing results on main thread
+	// so that they can be considered as existing on the main thread (and get properly GCed)
+	TSet<TObjectPtr<UObject>> AsyncObjects;
+
+	friend struct FPCGGraphActiveTask;
 #if WITH_EDITOR
 	friend class PCGUtils::FExtraCapture;
 	PCGUtils::FCallTime Timer;

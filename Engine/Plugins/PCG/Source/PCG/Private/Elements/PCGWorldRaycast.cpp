@@ -283,7 +283,7 @@ bool FPCGWorldRaycastElement::ExecuteInternal(FPCGContext* InContext) const
 		const TArray<FPCGPoint>* OriginInputPoints = OriginInputPointData ? &OriginInputPointData->GetPoints() : nullptr;
 
 		TArray<FPCGTaggedData>& OutputData = Context->OutputData.TaggedData;
-		UPCGPointData* OutputPointData = NewObject<UPCGPointData>();
+		UPCGPointData* OutputPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		// TODO: This should initialize from the End Points point data, if Origin point data doesn't exist
 		OutputPointData->InitializeFromData(OriginInputPointData);
 		FPCGTaggedData& Output = OutputData.Emplace_GetRef(OriginInputData);

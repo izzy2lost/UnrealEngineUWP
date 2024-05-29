@@ -93,7 +93,7 @@ bool FPCGBlurElement::PrepareDataInternal(FPCGContext* InContext) const
 			return EPCGTimeSliceInitResult::NoOperation;
 		}
 
-		UPCGPointData* OutputPointData = CastChecked<UPCGPointData>(OutState.InputPointData->DuplicateData());
+		UPCGPointData* OutputPointData = CastChecked<UPCGPointData>(OutState.InputPointData->DuplicateData(InContext));
 
 		FPCGAttributePropertyOutputSelector OutputSelector = Settings->OutputTarget.CopyAndFixSource(&InputSelector, OutState.InputPointData);
 

@@ -85,14 +85,14 @@ bool FPCGSortAttributesElement::ExecuteInternal(FPCGContext* Context) const
 			UPCGData* OutputData = nullptr;
 			if (const UPCGPointData* InputPointData = Cast<const UPCGPointData>(InputData))
 			{
-				UPCGPointData* OutputPointData = static_cast<UPCGPointData*>(InputData->DuplicateData());
+				UPCGPointData* OutputPointData = static_cast<UPCGPointData*>(InputData->DuplicateData(Context));
 				PCGAttributeAccessorHelpers::SortByAttribute(*Accessor, *Keys, OutputPointData->GetMutablePoints(), Settings->SortMethod == EPCGSortMethod::Ascending);
 				OutputData = OutputPointData;
 			}
 			else if (const UPCGMetadata* InMetadata = InputData->ConstMetadata())
 			{
 				// Duplicate data without metadata
-				OutputData = InputData->DuplicateData(/*bInitializeMetdata=*/false);
+				OutputData = InputData->DuplicateData(Context, /*bInitializeMetdata=*/false);
 				UPCGMetadata* OutMetadata = OutputData->MutableMetadata();
 
 				if (!ensure(OutMetadata))

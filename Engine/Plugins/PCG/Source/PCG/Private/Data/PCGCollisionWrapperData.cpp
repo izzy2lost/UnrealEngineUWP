@@ -2,6 +2,7 @@
 
 #include "Data/PCGCollisionWrapperData.h"
 
+#include "PCGContext.h"
 #include "Data/PCGPointData.h"
 #include "Elements/Metadata/PCGMetadataElementCommon.h"
 
@@ -337,9 +338,9 @@ bool UPCGCollisionWrapperData::SamplePoint(const FTransform& InTransform, const 
 	}
 }
 
-UPCGSpatialData* UPCGCollisionWrapperData::CopyInternal() const
+UPCGSpatialData* UPCGCollisionWrapperData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGCollisionWrapperData* NewCollisionWrapperData = NewObject<UPCGCollisionWrapperData>();
+	UPCGCollisionWrapperData* NewCollisionWrapperData = FPCGContext::NewObject_AnyThread<UPCGCollisionWrapperData>(Context);
 	NewCollisionWrapperData->Initialize(PointData, CollisionSelector, bUseComplexCollision, bUseCollisionAccurateOctree);
 
 	return NewCollisionWrapperData;

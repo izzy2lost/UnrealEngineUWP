@@ -106,10 +106,10 @@ bool FPCGRandomChoiceElement::ExecuteInternal(FPCGContext* Context) const
 			NumOfElementsToKeep = FMath::CeilToInt(InPoints.Num() * FMath::Clamp(Settings->Ratio, 0, 1));
 		}
 
-		auto CreateData = [InputPointData, &Outputs, &CurrentInput](const int NumPoints, const FName PinLabel) -> TArray<FPCGPoint>*
+		auto CreateData = [InputPointData, &Outputs, &CurrentInput, Context](const int NumPoints, const FName PinLabel) -> TArray<FPCGPoint>*
 		{
 			FPCGTaggedData& Output = Outputs.Add_GetRef(CurrentInput);
-			UPCGPointData* OutPointData = NewObject<UPCGPointData>();
+			UPCGPointData* OutPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 			OutPointData->InitializeFromData(InputPointData);
 
 			TArray<FPCGPoint>& Points = OutPointData->GetMutablePoints();

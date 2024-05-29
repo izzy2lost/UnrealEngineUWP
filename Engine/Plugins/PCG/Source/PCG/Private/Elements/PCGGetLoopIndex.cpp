@@ -74,7 +74,7 @@ bool FPCGGetLoopIndexElement::ExecuteInternal(FPCGContext* Context) const
 		return true;
 	}
 
-	UPCGParamData* LoopIndexParamData = NewObject<UPCGParamData>();
+	UPCGParamData* LoopIndexParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 	check(LoopIndexParamData && LoopIndexParamData->Metadata);
 
 	FPCGTaggedData& OutputData = Context->OutputData.TaggedData.Emplace_GetRef();

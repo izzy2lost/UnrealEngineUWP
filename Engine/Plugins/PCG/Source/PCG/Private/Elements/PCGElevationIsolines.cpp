@@ -280,13 +280,13 @@ bool FPCGElevationIsolinesElement::ExecuteInternal(FPCGContext* InContext) const
 							Settings->bLinearSpline ? ESplinePointType::Linear : ESplinePointType::Curve);
 					}
 
-					UPCGSplineData* OutSplineData = NewObject<UPCGSplineData>();
+					UPCGSplineData* OutSplineData = FPCGContext::NewObject_AnyThread<UPCGSplineData>(InContext);
 					OutSplineData->Initialize(SplinePoints, Result.bClosed, FTransform(FVector::UpVector * Elevation));
 					OutputData.Data = OutSplineData;
 				}
 				else
 				{
-					UPCGPointData* OutPointData = NewObject<UPCGPointData>();
+					UPCGPointData* OutPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(InContext);
 					TArray<FPCGPoint>& OutPoints = OutPointData->GetMutablePoints();
 					OutPoints.Reserve(Result.LinkedGridCoordinates.Num());
 					OutputData.Data = OutPointData;

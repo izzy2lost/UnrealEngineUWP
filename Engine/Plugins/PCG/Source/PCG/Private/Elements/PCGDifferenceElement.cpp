@@ -190,14 +190,14 @@ bool FPCGDifferenceElement::ExecuteInternal(FPCGContext* Context) const
 
 		bHasPointsInSource |= SourceSpatialData->IsA<UPCGPointData>();
 
-		UPCGDifferenceData* DifferenceData = NewObject<UPCGDifferenceData>();
+		UPCGDifferenceData* DifferenceData = FPCGContext::NewObject_AnyThread<UPCGDifferenceData>(Context);
 		DifferenceData->Initialize(SourceSpatialData);
 		
 		for (FPCGTaggedData& Difference : Differences)
 		{
 			if (const UPCGSpatialData* DifferenceSpatialData = Cast<const UPCGSpatialData>(Difference.Data))
 			{
-				DifferenceData->AddDifference(DifferenceSpatialData);
+				DifferenceData->AddDifference(Context, DifferenceSpatialData);
 			}
 		}
 

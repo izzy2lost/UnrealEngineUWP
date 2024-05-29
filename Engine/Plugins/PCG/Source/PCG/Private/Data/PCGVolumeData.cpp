@@ -165,9 +165,9 @@ void UPCGVolumeData::CopyBaseVolumeData(UPCGVolumeData* NewVolumeData) const
 	NewVolumeData->StrictBounds = StrictBounds;
 }
 
-UPCGSpatialData* UPCGVolumeData::CopyInternal() const
+UPCGSpatialData* UPCGVolumeData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGVolumeData* NewVolumeData = NewObject<UPCGVolumeData>();
+	UPCGVolumeData* NewVolumeData = FPCGContext::NewObject_AnyThread<UPCGVolumeData>(Context);
 
 	CopyBaseVolumeData(NewVolumeData);
 

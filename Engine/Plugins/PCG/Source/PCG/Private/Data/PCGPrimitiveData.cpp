@@ -66,9 +66,9 @@ const UPCGPointData* UPCGPrimitiveData::CreatePointData(FPCGContext* Context) co
 	return Data;
 }
 
-UPCGSpatialData* UPCGPrimitiveData::CopyInternal() const
+UPCGSpatialData* UPCGPrimitiveData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGPrimitiveData* NewPrimitiveData = NewObject<UPCGPrimitiveData>();
+	UPCGPrimitiveData* NewPrimitiveData = FPCGContext::NewObject_AnyThread<UPCGPrimitiveData>(Context);
 
 	NewPrimitiveData->VoxelSize = VoxelSize;
 	NewPrimitiveData->Primitive = Primitive;

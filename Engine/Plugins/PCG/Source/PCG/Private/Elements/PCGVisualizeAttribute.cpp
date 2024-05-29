@@ -18,6 +18,7 @@ FPCGElementPtr UPCGVisualizeAttributeSettings::CreateElement() const
 bool FPCGVisualizeAttribute::ExecuteInternal(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGVisualizeAttribute::ExecuteInternal);
+	check(IsInGameThread());
 
 	Context->OutputData = Context->InputData;
 

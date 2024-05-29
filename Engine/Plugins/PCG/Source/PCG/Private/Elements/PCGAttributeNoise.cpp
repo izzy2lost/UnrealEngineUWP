@@ -299,7 +299,7 @@ bool FPCGAttributeNoiseElement::ExecuteInternal(FPCGContext* InContext) const
 			TempInputAccessor.Reset();
 
 			FPCGTaggedData& Output = Outputs.Add_GetRef(Input);
-			UPCGData* OutputData = InputData->DuplicateData();
+			UPCGData* OutputData = InputData->DuplicateData(Context);
 			Output.Data = OutputData;
 
 			// Then create the accessor/keys

@@ -178,7 +178,7 @@ bool FPCGDistanceElement::ExecuteInternal(FPCGContext* Context) const
 			continue;			
 		}
 
-		UPCGPointData* OutputData = NewObject<UPCGPointData>();
+		UPCGPointData* OutputData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		OutputData->InitializeFromData(SourcePointData);
 		Outputs.Add_GetRef(Source).Data = OutputData;
 

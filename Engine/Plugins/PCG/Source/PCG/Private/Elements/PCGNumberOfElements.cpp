@@ -88,7 +88,7 @@ bool FPCGNumberOfElementsBaseElement<DataType>::ExecuteInternal(FPCGContext* Con
 
 		if (!OutputParamData)
 		{
-			OutputParamData = NewObject<UPCGParamData>();
+			OutputParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 			NewAttribute = OutputParamData->Metadata->CreateAttribute<int32>(Settings->OutputAttributeName, 0, /*bAllowInterpolation=*/true, /*bOverrideParent=*/false);
 
 			if (!NewAttribute)

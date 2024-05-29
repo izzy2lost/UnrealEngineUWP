@@ -71,7 +71,7 @@ bool FPCGUnionElement::ExecuteInternal(FPCGContext* Context) const
 		// Create union or add to it
 		if (!UnionData)
 		{
-			UnionData = FirstSpatialData->UnionWith(SpatialData);
+			UnionData = FirstSpatialData->UnionWith(Context, SpatialData);
 			UnionData->SetType(Type);
 			UnionData->SetDensityFunction(DensityFunction);
 

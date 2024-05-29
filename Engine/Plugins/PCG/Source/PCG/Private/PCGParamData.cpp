@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PCGParamData.h"
+#include "PCGContext.h"
 
+#include "Elements/PCGExecuteBlueprint.h"
 #include "Metadata/PCGAttributePropertySelector.h"
 #include "Metadata/Accessors/IPCGAttributeAccessor.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
@@ -91,10 +93,15 @@ int64 UPCGParamData::FindOrAddMetadataKey(const FName& InName)
 	}
 }
 
-UPCGParamData* UPCGParamData::FilterParamsByName(const FName& InName) const
+UPCGParamData* UPCGParamData::K2_FilterParamsByName(const FName& InName) const
+{
+	return FilterParamsByName(UPCGBlueprintElement::ResolveContext(), InName);
+}
+
+UPCGParamData* UPCGParamData::FilterParamsByName(FPCGContext* Context, const FName& InName) const
 {
 	PCGMetadataEntryKey EntryKey = FindMetadataKey(InName);
-	UPCGParamData* NewParams = FilterParamsByKey(EntryKey);
+	UPCGParamData* NewParams = FilterParamsByKey(Context, EntryKey);
 
 	if (EntryKey != PCGInvalidEntryKey)
 	{
@@ -105,9 +112,14 @@ UPCGParamData* UPCGParamData::FilterParamsByName(const FName& InName) const
 	return NewParams;
 }
 
-UPCGParamData* UPCGParamData::FilterParamsByKey(int64 InKey) const
+UPCGParamData* UPCGParamData::K2_FilterParamsByKey(int64 InKey) const
 {
-	UPCGParamData* NewParams = NewObject<UPCGParamData>();
+	return FilterParamsByKey(UPCGBlueprintElement::ResolveContext(), InKey);
+}
+
+UPCGParamData* UPCGParamData::FilterParamsByKey(FPCGContext* Context, int64 InKey) const
+{
+	UPCGParamData* NewParams = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 
 	// Here instead of parenting the metadata, we will create a copy
 	// so that the only entry in the metadata (if any) will have the 0 key.
@@ -163,9 +175,9 @@ void UPCGParamData::SetLastSelector(const FPCGAttributePropertySelector& InSelec
 	CachedLastSelector.ImportFromOtherSelector(InSelector);
 }
 
-UPCGParamData* UPCGParamData::DuplicateData(bool bInitializeMetadata) const
+UPCGParamData* UPCGParamData::DuplicateData(FPCGContext* Context, bool bInitializeMetadata) const
 {
-	UPCGParamData* NewParamData = NewObject<UPCGParamData>();
+	UPCGParamData* NewParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 	if (bInitializeMetadata)
 	{
 		check(NewParamData && NewParamData->Metadata);

@@ -92,7 +92,7 @@ bool FPCGCopyPointsElement::ExecuteInternal(FPCGContext* Context) const
 			const TArray<FPCGPoint>& TargetPoints = TargetPointData->GetPoints();
 
 
-			UPCGPointData* OutPointData = NewObject<UPCGPointData>();
+			UPCGPointData* OutPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 			TArray<FPCGPoint>& OutPoints = OutPointData->GetMutablePoints();
 			Output.Data = OutPointData;
 

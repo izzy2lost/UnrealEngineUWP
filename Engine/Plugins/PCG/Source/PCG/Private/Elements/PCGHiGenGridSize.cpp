@@ -136,7 +136,7 @@ bool FPCGHiGenGridSizeElement::ExecuteInternal(FPCGContext* Context) const
 		Data.Pin = PCGPinConstants::DefaultOutputLabel;
 	}
 
-	UPCGVolumeData* VolumeData = NewObject<UPCGVolumeData>();
+	UPCGVolumeData* VolumeData = FPCGContext::NewObject_AnyThread<UPCGVolumeData>(Context);
 	check(VolumeData);
 	VolumeData->Initialize(Context->SourceComponent->GetGridBounds());
 

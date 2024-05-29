@@ -1554,7 +1554,7 @@ bool FPCGSplineSamplerElement::ExecuteInternal(FPCGContext* Context) const
 		FPCGTaggedData& Output = Outputs.Emplace_GetRef();
 		Output = Input;
 
-		UPCGPointData* SampledPointData = NewObject<UPCGPointData>();
+		UPCGPointData* SampledPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		SampledPointData->InitializeFromData(SpatialData);
 		Output.Data = SampledPointData;
 

@@ -2,6 +2,7 @@
 
 #include "Data/PCGProjectionData.h"
 
+#include "PCGContext.h"
 #include "Data/PCGLandscapeSplineData.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSplineData.h"
@@ -235,7 +236,7 @@ const UPCGPointData* UPCGProjectionData::CreatePointData(FPCGContext* Context) c
 	const UPCGMetadata* SourceMetadata = SourcePointData->Metadata;
 	const TArray<FPCGPoint>& SourcePoints = SourcePointData->GetPoints();
 
-	UPCGPointData* PointData = NewObject<UPCGPointData>();
+	UPCGPointData* PointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 
 	// Copy metadata attributes from source point including values
 	PointData->InitializeFromData(this, SourceMetadata);
@@ -246,7 +247,7 @@ const UPCGPointData* UPCGProjectionData::CreatePointData(FPCGContext* Context) c
 	UPCGMetadata* TempTargetMetadata = nullptr;
 	if (Target->Metadata)
 	{
-		TempTargetMetadata = NewObject<UPCGMetadata>();
+		TempTargetMetadata = FPCGContext::NewObject_AnyThread<UPCGMetadata>(Context);
 
 		// We achieve filtering of metadata attributes by manipulating this temporary metadata, which works because
 		// the projection operation operates on the attributes in this metadata.
@@ -367,9 +368,9 @@ void UPCGProjectionData::CopyBaseProjectionClass(UPCGProjectionData* NewProjecti
 	NewProjectionData->ProjectionParams = ProjectionParams;
 }
 
-UPCGSpatialData* UPCGProjectionData::CopyInternal() const
+UPCGSpatialData* UPCGProjectionData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGProjectionData* NewProjectionData = NewObject<UPCGProjectionData>();
+	UPCGProjectionData* NewProjectionData = FPCGContext::NewObject_AnyThread<UPCGProjectionData>(Context);
 
 	CopyBaseProjectionClass(NewProjectionData);
 

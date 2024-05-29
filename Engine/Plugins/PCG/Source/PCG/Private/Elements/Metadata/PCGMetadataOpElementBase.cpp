@@ -464,7 +464,7 @@ bool FPCGMetadataElementBase::PrepareDataInternal(FPCGContext* Context) const
 			{
 				FPCGTaggedData& DefaultData = CurrentPinInputData.Emplace_GetRef();
 				DefaultData.Pin = CurrentPinLabel;
-				DefaultData.Data = Settings->CreateDefaultValueParam(OperandPinIndex);
+				DefaultData.Data = Settings->CreateDefaultValueParam(Context, OperandPinIndex);
 
 				if (!DefaultData.Data)
 				{
@@ -630,7 +630,7 @@ bool FPCGMetadataElementBase::PrepareDataInternal(FPCGContext* Context) const
 			}
 
 			check(InputTaggedData[PrimaryPinIndex].Data);
-			UPCGData* OutputData = InputTaggedData[PrimaryPinIndex].Data->DuplicateData();
+			UPCGData* OutputData = InputTaggedData[PrimaryPinIndex].Data->DuplicateData(Context);
 			check(OutputData);
 			OutputTaggedData.Data = OutputData;
 

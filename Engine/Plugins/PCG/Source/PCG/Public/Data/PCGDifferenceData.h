@@ -34,8 +34,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = SpatialData)
 	void Initialize(const UPCGSpatialData* InData);
 
-	UFUNCTION(BlueprintCallable, Category = SpatialData)
-	void AddDifference(const UPCGSpatialData* InDifference);
+	UFUNCTION(BlueprintCallable, Category = SpatialData, meta = (DisplayName = "Add Difference"))
+	void K2_AddDifference(const UPCGSpatialData* InDifference);
+
+	UE_DEPRECATED(5.5, "Call/Implement version with FPCGContext parameter")
+	void AddDifference(const UPCGSpatialData* InDifference) { AddDifference(nullptr, InDifference); }
+
+	void AddDifference(FPCGContext* InContext, const UPCGSpatialData* InDifference);
 
 	UFUNCTION(BlueprintCallable, Category = Settings)
 	void SetDensityFunction(EPCGDifferenceDensityFunction InDensityFunction);
@@ -72,7 +77,7 @@ public:
 	virtual const UPCGSpatialData* FindFirstConcreteShapeFromNetwork() const override { return GetSource() ? GetSource()->FindFirstConcreteShapeFromNetwork() : nullptr; }
 
 protected:
-	virtual UPCGSpatialData* CopyInternal() const override;
+	virtual UPCGSpatialData* CopyInternal(FPCGContext* Context) const override;
 	//~End UPCGSpatialData interface
 
 public:

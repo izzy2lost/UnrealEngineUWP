@@ -106,9 +106,9 @@ const UPCGPointData* UPCGCollisionShapeData::CreatePointData(FPCGContext* Contex
 	return Data;
 }
 
-UPCGSpatialData* UPCGCollisionShapeData::CopyInternal() const
+UPCGSpatialData* UPCGCollisionShapeData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGCollisionShapeData* NewShapeData = NewObject<UPCGCollisionShapeData>();
+	UPCGCollisionShapeData* NewShapeData = FPCGContext::NewObject_AnyThread<UPCGCollisionShapeData>(Context);
 
 	NewShapeData->Transform = Transform;
 	NewShapeData->Shape = Shape;

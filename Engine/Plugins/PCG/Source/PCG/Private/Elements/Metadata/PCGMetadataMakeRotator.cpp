@@ -132,14 +132,14 @@ bool UPCGMetadataMakeRotatorSettings::DoesInputSupportDefaultValue(uint32 Index)
 	return Operation == EPCGMetadataMakeRotatorOp::MakeRotFromAngles;
 }
 
-UPCGParamData* UPCGMetadataMakeRotatorSettings::CreateDefaultValueParam(uint32 Index) const
+UPCGParamData* UPCGMetadataMakeRotatorSettings::CreateDefaultValueParam(FPCGContext* Context, uint32 Index) const
 {
 	if (Operation != EPCGMetadataMakeRotatorOp::MakeRotFromAngles)
 	{
 		return nullptr;
 	}
 
-	UPCGParamData* NewParamData = NewObject<UPCGParamData>();
+	UPCGParamData* NewParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 	NewParamData->Metadata->CreateAttribute<double>(NAME_None, 0, /*bAllowsInterpolation=*/ true, /*bOverrideParent=*/ false);
 	return NewParamData;
 }

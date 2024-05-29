@@ -168,7 +168,7 @@ bool FPCGDeleteAttributesElement::ExecuteInternal(FPCGContext* Context) const
 		{
 			ParentMetadata = InputSpatialData->Metadata;
 
-			UPCGSpatialData* NewSpatialData = InputSpatialData->DuplicateData(/*bInitializeFromThisData=*/false);
+			UPCGSpatialData* NewSpatialData = InputSpatialData->DuplicateData(Context, /*bInitializeFromThisData=*/false);
 			Metadata = NewSpatialData->Metadata;
 			NewSpatialData->Metadata->InitializeWithAttributeFilter(ParentMetadata, AttributesToFilter, FilterMode, Settings->Operator);
 
@@ -181,7 +181,7 @@ bool FPCGDeleteAttributesElement::ExecuteInternal(FPCGContext* Context) const
 		{
 			ParentMetadata = InputParamData->Metadata;
 
-			UPCGParamData* NewParamData = NewObject<UPCGParamData>();
+			UPCGParamData* NewParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 			Metadata = NewParamData->Metadata;
 			Metadata->InitializeAsCopyWithAttributeFilter(ParentMetadata, AttributesToFilter, FilterMode);
 

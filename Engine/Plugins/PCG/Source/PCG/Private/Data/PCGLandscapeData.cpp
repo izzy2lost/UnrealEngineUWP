@@ -2,6 +2,7 @@
 
 #include "Data/PCGLandscapeData.h"
 
+#include "PCGContext.h"
 #include "PCGSubsystem.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialDataTpl.h"
@@ -476,7 +477,7 @@ const UPCGPointData* UPCGLandscapeData::CreatePointData(FPCGContext* Context, co
 		return nullptr;
 	}
 
-	UPCGPointData* Data = NewObject<UPCGPointData>();
+	UPCGPointData* Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	Data->InitializeFromData(this);
 	TArray<FPCGPoint>& Points = Data->GetMutablePoints();
 
@@ -612,9 +613,9 @@ const ULandscapeInfo* UPCGLandscapeData::GetLandscapeInfo(const FVector& InPosit
 	return nullptr;
 }
 
-UPCGSpatialData* UPCGLandscapeData::CopyInternal() const
+UPCGSpatialData* UPCGLandscapeData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGLandscapeData* NewLandscapeData = NewObject<UPCGLandscapeData>();
+	UPCGLandscapeData* NewLandscapeData = FPCGContext::NewObject_AnyThread<UPCGLandscapeData>(Context);
 
 	CopyBaseSurfaceData(NewLandscapeData);
 

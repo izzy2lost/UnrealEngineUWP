@@ -309,7 +309,7 @@ bool FPCGGetPropertyFromObjectPathElement::ExecuteInternal(FPCGContext* Context)
 
 			if (!EmptyParam)
 			{
-				EmptyParam = NewObject<UPCGParamData>();
+				EmptyParam = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 			}
 
 			AddToOutput(EmptyParam, Index);

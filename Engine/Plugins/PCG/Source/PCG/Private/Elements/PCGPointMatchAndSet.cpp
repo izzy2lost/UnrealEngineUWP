@@ -157,6 +157,8 @@ void UPCGPointMatchAndSetSettings::RefreshMatchAndSet()
 {
 	if (MatchAndSetType)
 	{
+		ensure(IsInGameThread());
+
 		// Forget previous instance
 		if (MatchAndSetInstance)
 		{
@@ -217,7 +219,7 @@ bool FPCGPointMatchAndSetElement::ExecuteInternal(FPCGContext* Context) const
 			continue;
 		}
 
-		UPCGPointData* OutPointData = NewObject<UPCGPointData>();
+		UPCGPointData* OutPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		Output.Data = OutPointData;
 
 		OutPointData->InitializeFromData(InPointData);

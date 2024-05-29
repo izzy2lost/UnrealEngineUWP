@@ -926,14 +926,14 @@ bool FPCGMatchAndSetAttributesElement::PrepareDataInternal(FPCGContext* InContex
 
 		if (const UPCGPointData* InPointData = Cast<const UPCGPointData>(OutState.InData))
 		{
-			UPCGPointData* OutPointData = NewObject<UPCGPointData>();
+			UPCGPointData* OutPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(InContext);
 			OutPointData->InitializeFromData(InPointData);
 			OutPointData->GetMutablePoints().Reserve(InPointData->GetPoints().Num());
 			OutState.OutData = OutPointData;
 		}
 		else if (const UPCGParamData* InParamData = Cast<const UPCGParamData>(OutState.InData))
 		{
-			UPCGParamData* OutParamData = NewObject<UPCGParamData>();
+			UPCGParamData* OutParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(InContext);
 			OutParamData->Metadata->AddAttributes(InParamData->Metadata);
 
 			OutState.OutData = OutParamData;

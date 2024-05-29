@@ -90,7 +90,7 @@ bool FPCGSelectPointsElement::ExecuteInternal(FPCGContext* Context) const
 		const TArray<FPCGPoint>& Points = OriginalData->GetPoints();
 		const int OriginalPointCount = Points.Num();
 
-		UPCGPointData* SampledData = NewObject<UPCGPointData>();
+		UPCGPointData* SampledData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		SampledData->InitializeFromData(OriginalData);
 		TArray<FPCGPoint>& SampledPoints = SampledData->GetMutablePoints();
 

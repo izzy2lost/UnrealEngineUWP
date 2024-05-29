@@ -138,6 +138,24 @@ bool FPCGGraphTask::IsApproximatelyEqual(const FPCGGraphTask& Other) const
 }
 #endif // WITH_EDITOR
 
+FPCGGraphActiveTask::~FPCGGraphActiveTask()
+{
+	if (Context)
+	{
+		// Remove Async Flags from Objects created in Async PCG Tasks so that they can get tracked by the GarbageCollector properly
+		// The reason to do this here and not in the FPCGContext destructor is that FPCGContext might get copied in Blueprint node execution causing multiple instances of the same AsyncObjects list
+		// The FPCGGraphActiveTask is the true owner of the original context (throughg TUniquePtr) so we let it do the cleanup
+		for (TObjectPtr<UObject>& AsyncObject : Context->AsyncObjects)
+		{
+			if (ensure(AsyncObject->HasAnyInternalFlags(EInternalObjectFlags::Async)))
+			{
+				AsyncObject->ClearInternalFlags(EInternalObjectFlags::Async);
+				ForEachObjectWithOuter(AsyncObject, [](UObject* SubObject) { SubObject->ClearInternalFlags(EInternalObjectFlags::Async); }, true);
+			}
+		}
+	}
+}
+
 FPCGGraphExecutor::FPCGGraphExecutor(UWorld* InWorld)
 	: World(InWorld)
 {
@@ -1413,6 +1431,7 @@ void FPCGGraphExecutor::BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollec
 void FPCGGraphExecutor::CombineParams(FPCGTaskId InTaskId, FPCGDataCollection& InTaskInput)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphExecutor::CombineParams);
+	ensure(IsInGameThread());
 
 	TArray<FPCGTaggedData> AllParamsData = InTaskInput.GetParamsByPin(PCGPinConstants::DefaultParamsLabel);
 	if (AllParamsData.Num() > 1)
@@ -1425,7 +1444,7 @@ void FPCGGraphExecutor::CombineParams(FPCGTaskId InTaskId, FPCGDataCollection& I
 			const UPCGParamData* ParamData = CastChecked<UPCGParamData>(TaggedDatum.Data);
 			if (!CombinedParamData)
 			{
-				CombinedParamData = ParamData->DuplicateData();
+				CombinedParamData = ParamData->DuplicateData(nullptr);
 			}
 			else
 			{

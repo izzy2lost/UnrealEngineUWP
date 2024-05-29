@@ -429,7 +429,7 @@ bool FPCGCreatePointsSphereElement::ExecuteInternal(FPCGContext* InContext) cons
 	TArray<FPCGTaggedData>& Outputs = InContext->OutputData.TaggedData;
 	FPCGTaggedData& Output = Outputs.Emplace_GetRef();
 
-	UPCGPointData* PointData = NewObject<UPCGPointData>();
+	UPCGPointData* PointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(InContext);
 	TArray<FPCGPoint>& OutputPoints = PointData->GetMutablePoints();
 	Output.Data = PointData;
 

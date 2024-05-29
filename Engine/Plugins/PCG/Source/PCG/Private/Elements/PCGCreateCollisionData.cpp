@@ -70,7 +70,7 @@ bool FPCGCreateCollisionDataElement::PrepareDataInternal(FPCGContext* InContext)
 			{
 				FPCGCreateCollisionContext::InputMeshData InputMeshData;
 				InputMeshData.InputIndex = InputIndex;
-				InputMeshData.Data = NewObject<UPCGCollisionWrapperData>();
+				InputMeshData.Data = FPCGContext::NewObject_AnyThread<UPCGCollisionWrapperData>(Context);
 
 				if (!InputMeshData.Data->PreInitializeAndGatherMeshesEx(PointData, Settings->CollisionAttribute, Settings->bUseComplexCollision, InputMeshData.MeshPaths))
 				{

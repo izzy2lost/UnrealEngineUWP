@@ -128,7 +128,11 @@ public:
 
 	/* Can be overriden by child class to support default values on unplugged pins. */
 	virtual bool DoesInputSupportDefaultValue(uint32 Index) const { return false; }
+
+	UE_DEPRECATED(5.5, "Call/Implement version with FPCGContext parameter")
 	virtual UPCGParamData* CreateDefaultValueParam(uint32 Index) const { return nullptr; }
+
+	virtual UPCGParamData* CreateDefaultValueParam(FPCGContext* Context, uint32 Index) const { return nullptr; }
 #if WITH_EDITOR
 	virtual FString GetDefaultValueString(uint32 Index) const { return FString(); }
 #endif // WITH_EDITOR

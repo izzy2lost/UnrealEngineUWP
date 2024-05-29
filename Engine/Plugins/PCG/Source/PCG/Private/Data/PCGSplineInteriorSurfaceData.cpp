@@ -2,26 +2,27 @@
 
 #include "Data/PCGSplineInteriorSurfaceData.h"
 
+#include "PCGContext.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSplineData.h"
 #include "Elements/PCGSplineSampler.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGSplineInteriorSurfaceData)
 
-void UPCGSplineInteriorSurfaceData::Initialize(const UPCGSplineData* InSplineData)
+void UPCGSplineInteriorSurfaceData::Initialize(FPCGContext* Context, const UPCGSplineData* InSplineData)
 {
 	check(InSplineData);
 
 	InitializeFromData(InSplineData);
 	SplineStruct = InSplineData->SplineStruct;
 
-	CacheData();
+	CacheData(Context);
 }
 
 void UPCGSplineInteriorSurfaceData::PostLoad()
 {
 	Super::PostLoad();
-	CacheData();
+	CacheData(nullptr);
 }
 
 void UPCGSplineInteriorSurfaceData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
@@ -93,14 +94,14 @@ const UPCGPointData* UPCGSplineInteriorSurfaceData::CreatePointData(FPCGContext*
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGSplineData::CreatePointData);
 
-	UPCGPointData* Data = NewObject<UPCGPointData>();
+	UPCGPointData* Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	Data->InitializeFromData(this);
 
 	FPCGSplineSamplerParams SamplerParams;
 	SamplerParams.Dimension = EPCGSplineSamplingDimension::OnInterior;
 	SamplerParams.bProjectOntoSurface = true;
 
-	UPCGSplineData* SplineData = NewObject<UPCGSplineData>();
+	UPCGSplineData* SplineData = FPCGContext::NewObject_AnyThread<UPCGSplineData>(Context);
 	SplineData->Initialize(SplineStruct);
 
 	// TODO: Ideally SampleInteriorData could just consume a UPCGSplineInteriorSurfaceData or FPCGSplineStruct, to avoid the extra copy on the spline struct.
@@ -112,9 +113,9 @@ const UPCGPointData* UPCGSplineInteriorSurfaceData::CreatePointData(FPCGContext*
 	return Data;
 }
 
-UPCGSpatialData* UPCGSplineInteriorSurfaceData::CopyInternal() const
+UPCGSpatialData* UPCGSplineInteriorSurfaceData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGSplineInteriorSurfaceData* NewData = NewObject<UPCGSplineInteriorSurfaceData>();
+	UPCGSplineInteriorSurfaceData* NewData = FPCGContext::NewObject_AnyThread<UPCGSplineInteriorSurfaceData>(Context);
 
 	CopyBaseSurfaceData(NewData);
 	NewData->SplineStruct = SplineStruct;
@@ -128,7 +129,7 @@ UPCGSpatialData* UPCGSplineInteriorSurfaceData::CopyInternal() const
 	return NewData;
 }
 
-void UPCGSplineInteriorSurfaceData::CacheData()
+void UPCGSplineInteriorSurfaceData::CacheData(FPCGContext* Context)
 {
 #if WITH_EDITOR
 	bNeedsToCache = false;
@@ -152,13 +153,13 @@ void UPCGSplineInteriorSurfaceData::CacheData()
 	SamplerParams.Mode = EPCGSplineSamplingMode::Subdivision;
 	SamplerParams.SubdivisionsPerSegment = 5;
 
-	UPCGPointData* PointData = NewObject<UPCGPointData>();
-	UPCGSplineData* SplineData = NewObject<UPCGSplineData>();
+	UPCGPointData* PointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
+	UPCGSplineData* SplineData = FPCGContext::NewObject_AnyThread<UPCGSplineData>(Context);
 	SplineData->Initialize(SplineStruct);
 
 	// TODO: Ideally SampleLineData could just consume a UPCGSplineInteriorSurfaceData or FPCGSplineStruct, to avoid the extra copy on the spline struct.
 	// TODO: It might be preferable to directly sample the spline than use the spline sampler, since it does a lot of work we don't care about.
-	PCGSplineSamplerHelpers::SampleLineData(/*Context=*/nullptr, SplineData, /*InBoundingShape=*/nullptr, /*InProjectionTarget=*/nullptr, /*InProjectionParams=*/{}, SamplerParams, PointData);
+	PCGSplineSamplerHelpers::SampleLineData(Context, SplineData, /*InBoundingShape=*/nullptr, /*InProjectionTarget=*/nullptr, /*InProjectionParams=*/{}, SamplerParams, PointData);
 
 	// Cache the points which describe the polygon of our spline.
 	for (const FPCGPoint& Point : PointData->GetPoints())

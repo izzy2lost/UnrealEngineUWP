@@ -75,7 +75,7 @@ bool FPCGPointFromMeshElement::ExecuteInternal(FPCGContext* Context) const
 	}
 
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
-	UPCGPointData* OutPointData = NewObject<UPCGPointData>();
+	UPCGPointData* OutPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	Outputs.Emplace_GetRef().Data = OutPointData;
 	
 	TArray<FPCGPoint>& Points = OutPointData->GetMutablePoints();

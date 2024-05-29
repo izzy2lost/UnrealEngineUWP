@@ -12,6 +12,7 @@
 #include "Engine/World.h"
 #include "PCGPin.h"
 #include "UObject/Package.h"
+#include "UObject/Stack.h"
 #include "UObject/UObjectThreadContext.h"
 
 #if WITH_EDITOR
@@ -131,6 +132,19 @@ void UPCGBlueprintElement::SetCurrentContext(FPCGContext* InCurrentContext)
 {
 	ensure(CurrentContext == nullptr || InCurrentContext == nullptr || CurrentContext == InCurrentContext);
 	CurrentContext = InCurrentContext;
+}
+
+FPCGContext* UPCGBlueprintElement::ResolveContext()
+{
+	if (FFrame::GetThreadLocalTopStackFrame() && FFrame::GetThreadLocalTopStackFrame()->Object)
+	{
+		if (UPCGBlueprintElement* Caller = Cast<UPCGBlueprintElement>(FFrame::GetThreadLocalTopStackFrame()->Object))
+		{
+			return &Caller->GetContext();
+		}
+	}
+
+	return nullptr;
 }
 
 #if WITH_EDITOR
@@ -786,7 +800,20 @@ bool FPCGExecuteBlueprintElement::ExecuteInternal(FPCGContext* InContext) const
 		// Note that the context is actually sliced so there should never be any members in the BP element context that are visible/accessible from blueprint
 		/** Finally, execute the actual blueprint */
 		Context->BlueprintElementInstance->SetCurrentContext(Context);
-		Context->BlueprintElementInstance->ExecuteWithContext(*Context, Context->InputData, Context->OutputData);
+		
+		const bool bIsInGameThread = IsInGameThread();
+		// When running outside of main thread make sure GC can't run (BP Nodes might create objects which can't happen while GC runs)
+		if(!bIsInGameThread)
+		{
+			ensure(!Context->AsyncState.bIsRunningOnMainThread);
+			FGCScopeGuard Scope;
+			Context->BlueprintElementInstance->ExecuteWithContext(*Context, Context->InputData, Context->OutputData);
+		}
+		else
+		{
+			Context->BlueprintElementInstance->ExecuteWithContext(*Context, Context->InputData, Context->OutputData);
+		}
+
 		Context->BlueprintElementInstance->SetCurrentContext(nullptr);
 
 		// Log info on outputs
@@ -804,6 +831,16 @@ bool FPCGExecuteBlueprintElement::ExecuteInternal(FPCGContext* InContext) const
 			// Note that we will recurse up the outer tree to make sure we catch every case.
 			if(Output.Data)
 			{
+				if (!bIsInGameThread)
+				{
+					// Clear Async flags on objects created outside of the main thread and not part of the Context known async objects
+					if (Output.Data->HasAnyInternalFlags(EInternalObjectFlags::Async) && !Context->ContainsAsyncObject(Output.Data))
+					{
+						Output.Data->AtomicallyClearInternalFlags(EInternalObjectFlags::Async);
+						ForEachObjectWithOuter(Output.Data, [](UObject* SubObject) { SubObject->AtomicallyClearInternalFlags(EInternalObjectFlags::Async); }, true);
+					}
+				}
+
 				auto ReOuterToTransientPackageIfCreatedFromThis = [Context](UObject* InObject)
 				{
 					bool bHasInstanceAsOuter = false;
@@ -869,7 +906,7 @@ void UPCGBlueprintElement::PointLoop(FPCGContext& InContext, const UPCGPointData
 	}
 	else
 	{
-		OutData = NewObject<UPCGPointData>();
+		OutData = FPCGContext::NewObject_AnyThread<UPCGPointData>(&InContext);
 		OutData->InitializeFromData(InData);
 	}
 
@@ -896,7 +933,7 @@ void UPCGBlueprintElement::VariableLoop(FPCGContext& InContext, const UPCGPointD
 	}
 	else
 	{
-		OutData = NewObject<UPCGPointData>();
+		OutData = FPCGContext::NewObject_AnyThread<UPCGPointData>(&InContext);
 		OutData->InitializeFromData(InData);
 	}
 
@@ -923,7 +960,7 @@ void UPCGBlueprintElement::NestedLoop(FPCGContext& InContext, const UPCGPointDat
 	}
 	else
 	{
-		OutData = NewObject<UPCGPointData>();
+		OutData = FPCGContext::NewObject_AnyThread<UPCGPointData>(&InContext);
 		OutData->InitializeFromData(InOuterData);
 		OutData->Metadata->AddAttributes(InInnerData->Metadata);
 	}
@@ -955,7 +992,7 @@ void UPCGBlueprintElement::IterationLoop(FPCGContext& InContext, int64 NumIterat
 	else
 	{
 		const UPCGSpatialData* Owner = (InA ? InA : InB);
-		OutData = NewObject<UPCGPointData>();
+		OutData = FPCGContext::NewObject_AnyThread<UPCGPointData>(&InContext);
 
 		if (Owner)
 		{

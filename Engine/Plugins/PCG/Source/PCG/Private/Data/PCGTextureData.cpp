@@ -2,6 +2,7 @@
 
 #include "Data/PCGTextureData.h"
 
+#include "PCGContext.h"
 #include "PCGTextureReadback.h"
 #include "Data/PCGPointData.h"
 #include "Helpers/PCGAsync.h"
@@ -244,7 +245,7 @@ const UPCGPointData* UPCGBaseTextureData::CreatePointData(FPCGContext* Context) 
 	// or based on a given texel size
 	FBox2D LocalSurfaceBounds(FVector2D(-1.0f, -1.0f), FVector2D(1.0f, 1.0f));
 
-	UPCGPointData* Data = NewObject<UPCGPointData>();
+	UPCGPointData* Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	Data->InitializeFromData(this);
 
 	// Early out for invalid data
@@ -424,9 +425,9 @@ void UPCGTextureData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
 	AddUIDToCrc(Ar);
 }
 
-UPCGSpatialData* UPCGTextureData::CopyInternal() const
+UPCGSpatialData* UPCGTextureData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGTextureData* NewTextureData = NewObject<UPCGTextureData>();
+	UPCGTextureData* NewTextureData = FPCGContext::NewObject_AnyThread<UPCGTextureData>(Context);
 
 	CopyBaseTextureData(NewTextureData);
 

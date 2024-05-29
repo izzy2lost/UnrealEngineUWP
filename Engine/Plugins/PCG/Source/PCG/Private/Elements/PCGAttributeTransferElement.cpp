@@ -188,7 +188,7 @@ bool FPCGAttributeTransferElement::ExecuteInternal(FPCGContext* Context) const
 		return true;
 	}
 
-	UPCGSpatialData* OutputData = TargetData->DuplicateData();
+	UPCGSpatialData* OutputData = TargetData->DuplicateData(Context);
 	check(OutputData->Metadata);
 
 	auto AppendOutputData = [Context, OutputData, &TargetInputs]()

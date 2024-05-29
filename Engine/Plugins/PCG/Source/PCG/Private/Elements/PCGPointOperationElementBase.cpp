@@ -55,7 +55,7 @@ bool FPCGPointOperationElementBase::PreparePointOperationData(ContextType* InCon
 			OutState.NumPoints = OutState.InputPointData->GetPoints().Num();
 
 			// Create and initialize the output points
-			OutState.OutputPointData = NewObject<UPCGPointData>();
+			OutState.OutputPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(InContext);
 			OutState.OutputPointData->InitializeFromData(OutState.InputPointData);
 			OutState.OutputPointData->GetMutablePoints().SetNumUninitialized(OutState.NumPoints);
 

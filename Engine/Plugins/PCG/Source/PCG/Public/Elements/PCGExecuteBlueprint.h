@@ -191,6 +191,9 @@ public:
 	/** Called after the element duplication during execution to be able to get the context easily - internal call only */
 	void SetCurrentContext(FPCGContext* InCurrentContext);
 
+	/** Tries to resolve current Context from thread local BP stack */
+	static FPCGContext* ResolveContext();
+
 #if WITH_EDITOR
 	// ~Begin UObject interface
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

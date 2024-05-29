@@ -744,7 +744,7 @@ bool FPCGSpatialNoise::ExecuteInternal(FPCGContext* Context) const
 			continue;
 		}
 
-		BufferParams.OutputPointData = NewObject<UPCGPointData>();
+		BufferParams.OutputPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		BufferParams.OutputPointData->InitializeFromData(BufferParams.InputPointData);
 		Context->OutputData.TaggedData.Add_GetRef(Input).Data = BufferParams.OutputPointData;
 

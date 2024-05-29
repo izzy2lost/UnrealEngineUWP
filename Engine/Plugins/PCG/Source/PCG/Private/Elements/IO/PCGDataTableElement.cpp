@@ -127,14 +127,14 @@ bool FPCGLoadDataTableElement::PrepareLoad(FPCGExternalDataContext* Context) con
 
 	if (Settings->OutputType == EPCGExclusiveDataType::Point)
 	{
-		UPCGPointData* PointData = NewObject<UPCGPointData>();
+		UPCGPointData* PointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		check(PointData);
 		OutData = PointData;
 		OutMetadata = PointData->MutableMetadata();
 	}
 	else if(Settings->OutputType == EPCGExclusiveDataType::Param)
 	{
-		UPCGParamData* ParamData = NewObject<UPCGParamData>();
+		UPCGParamData* ParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 		check(ParamData);
 		OutData = ParamData;
 		OutMetadata = ParamData->MutableMetadata();

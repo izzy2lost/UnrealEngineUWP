@@ -51,7 +51,7 @@ bool FPCGWorldVolumetricQueryElement::ExecuteInternal(FPCGContext* Context) cons
 	check(Context->SourceComponent.IsValid());
 	UWorld* World = Context->SourceComponent->GetWorld();
 
-	UPCGWorldVolumetricData* Data = NewObject<UPCGWorldVolumetricData>();
+	UPCGWorldVolumetricData* Data = FPCGContext::NewObject_AnyThread<UPCGWorldVolumetricData>(Context);
 	Data->Initialize(World);
 	Data->QueryParams = QueryParams;
 	Data->QueryParams.Initialize();
@@ -133,7 +133,7 @@ bool FPCGWorldRayHitQueryElement::ExecuteInternal(FPCGContext* Context) const
 	check(Context->SourceComponent.IsValid());
 	UWorld* World = Context->SourceComponent->GetWorld();
 
-	UPCGWorldRayHitData* Data = NewObject<UPCGWorldRayHitData>();
+	UPCGWorldRayHitData* Data = FPCGContext::NewObject_AnyThread<UPCGWorldRayHitData>(Context);
 	Data->Initialize(World, Transform, /*InBounds=*/FBox(EForceInit::ForceInit), LocalBounds);
 	Data->QueryParams = QueryParams;
 	Data->QueryParams.Initialize();

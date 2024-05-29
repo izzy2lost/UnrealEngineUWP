@@ -295,7 +295,7 @@ bool FPCGAttributeReduceElement::ExecuteInternal(FPCGContext* Context) const
 			continue;
 		}
 
-		auto DoOperation = [&Accessor, &Keys, Settings, &OutputParams, &NewAttribute, OutputAttributeName](auto DummyValue) -> bool
+		auto DoOperation = [&Accessor, &Keys, Settings, &OutputParams, &NewAttribute, OutputAttributeName, &Context](auto DummyValue) -> bool
 		{
 			using AttributeType = decltype(DummyValue);
 
@@ -305,7 +305,7 @@ bool FPCGAttributeReduceElement::ExecuteInternal(FPCGContext* Context) const
 			bool bCreatedNewParams = false;
 			if (!OutputParams || !bMergeOutputAttributes)
 			{
-				OutputParams = NewObject<UPCGParamData>();
+				OutputParams = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 				bCreatedNewParams = true;
 			}
 

@@ -63,8 +63,8 @@ bool FPCGCreateSurfaceFromSplineElement::ExecuteInternal(FPCGContext* Context) c
 			continue;
 		}
 
-		UPCGSplineInteriorSurfaceData* SurfaceData = NewObject<UPCGSplineInteriorSurfaceData>();
-		SurfaceData->Initialize(SplineData);
+		UPCGSplineInteriorSurfaceData* SurfaceData = FPCGContext::NewObject_AnyThread<UPCGSplineInteriorSurfaceData>(Context);
+		SurfaceData->Initialize(Context, SplineData);
 
 		FPCGTaggedData& Output = Outputs.Add_GetRef(Input);
 		Output.Data = SurfaceData;

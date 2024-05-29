@@ -2,6 +2,7 @@
 
 #include "Metadata/PCGMetadataPartitionCommon.h"
 
+#include "PCGContext.h"
 #include "PCGModule.h"
 #include "PCGParamData.h"
 #include "Data/PCGPointData.h"
@@ -437,7 +438,7 @@ namespace PCGMetadataPartitionCommon
 				continue;
 			}
 
-			UPCGPointData* CurrentPointData = NewObject<UPCGPointData>();
+			UPCGPointData* CurrentPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(InOptionalContext);
 			PartitionedData.Add(CurrentPointData);
 			CurrentPointData->InitializeFromData(InData);
 
@@ -488,14 +489,14 @@ namespace PCGMetadataPartitionCommon
 
 			if (InSpatialData)
 			{
-				UPCGSpatialData* NewData = NewObject<UPCGSpatialData>();
+				UPCGSpatialData* NewData = FPCGContext::NewObject_AnyThread<UPCGSpatialData>(InOptionalContext);
 				NewData->InitializeFromData(InSpatialData);
 				NewMetadata = NewData->Metadata;
 				PartitionedData.Add(NewData);
 			}
 			else
 			{
-				UPCGParamData* NewData = NewObject<UPCGParamData>();
+				UPCGParamData* NewData = FPCGContext::NewObject_AnyThread<UPCGParamData>(InOptionalContext);
 				NewData->Metadata->AddAttributes(OriginalMetadata);
 				NewMetadata = NewData->Metadata;
 				PartitionedData.Add(NewData);

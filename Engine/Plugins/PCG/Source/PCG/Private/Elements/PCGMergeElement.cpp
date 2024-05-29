@@ -82,7 +82,7 @@ bool FPCGMergeElement::ExecuteInternal(FPCGContext* Context) const
 			// Second valid data - we'll create the actual merged data at this point
 			check(TargetTaggedData);
 
-			TargetPointData = NewObject<UPCGPointData>();
+			TargetPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 			TargetPointData->InitializeFromData(CastChecked<const UPCGPointData>(TargetTaggedData->Data), nullptr, bMergeMetadata);
 			TargetTaggedData->Data = TargetPointData;
 		}

@@ -175,7 +175,7 @@ namespace PCGAttributeFilterHelpers
 				// Reset the point data and reserving some points
 				// No need to reserve the full number of points, since we'll go by chunk
 				// Only allocate the chunk size
-				InOutThresholdInfo.ThresholdPointData = NewObject<UPCGPointData>();
+				InOutThresholdInfo.ThresholdPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(InContext);
 				InOutThresholdInfo.ThresholdPointData->InitializeFromData(InOutThresholdInfo.ThresholdSpatialData);
 				InOutThresholdInfo.ThresholdPointData->GetMutablePoints().SetNum(PCGAttributeFilterConstants::ChunkSize);
 			}
@@ -664,8 +664,8 @@ bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttri
 		if (OperationData.bIsInputPointData)
 		{
 			const UPCGPointData* OriginalPointData = CastChecked<UPCGPointData>(OriginalData);
-			UPCGPointData* InFilterPointData = NewObject<UPCGPointData>();
-			UPCGPointData* OutFilterPointData = NewObject<UPCGPointData>();
+			UPCGPointData* InFilterPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
+			UPCGPointData* OutFilterPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 
 			OperationData.OriginalPoints = &OriginalPointData->GetPoints();
 
@@ -684,8 +684,8 @@ bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttri
 		{
 			// Param data
 			const UPCGParamData* OriginalParamData = CastChecked<UPCGParamData>(OriginalData);
-			UPCGParamData* InFilterParamData = NewObject<UPCGParamData>();
-			UPCGParamData* OutFilterParamData = NewObject<UPCGParamData>();
+			UPCGParamData* InFilterParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
+			UPCGParamData* OutFilterParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 
 			OperationData.OriginalMetadata = OriginalParamData->Metadata;
 

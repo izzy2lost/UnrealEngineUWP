@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Data/PCGUnionData.h"
+
+#include "PCGContext.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
 #include "Helpers/PCGAsync.h"
@@ -262,7 +264,7 @@ const UPCGPointData* UPCGUnionData::CreatePointData(FPCGContext* Context) const
 		InputMetadatas[i] = DataRawPtr[i]->ToPointData(Context)->Metadata;
 	}
 
-	UPCGPointData* PointData = NewObject<UPCGPointData>();
+	UPCGPointData* PointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	PointData->InitializeFromData(this, InputMetadatas[0]);
 
 	UPCGMetadata* OutMetadata = PointData->Metadata;
@@ -430,9 +432,9 @@ void UPCGUnionData::CreateSequentialPointData(FPCGContext* Context, TArray<const
 	}
 }
 
-UPCGSpatialData* UPCGUnionData::CopyInternal() const
+UPCGSpatialData* UPCGUnionData::CopyInternal(FPCGContext* Context) const
 {
-	UPCGUnionData* NewUnionData = NewObject<UPCGUnionData>();
+	UPCGUnionData* NewUnionData = FPCGContext::NewObject_AnyThread<UPCGUnionData>(Context);
 
 	NewUnionData->Data = Data;
 	NewUnionData->FirstNonTrivialTransformData = FirstNonTrivialTransformData;

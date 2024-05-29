@@ -89,7 +89,16 @@ void UPCGData::Flatten()
 
 UPCGData* UPCGData::DuplicateData(bool bInitializeMetadata) const
 {
+	//@todo_pcg: Not sure StaticDuplicateObject is thread safe, most UPCGDAta subclasses override DuplicateData
+	ensure(IsInGameThread());
 	return Cast<UPCGData>(StaticDuplicateObject(this, GetTransientPackage()));
+}
+
+UPCGData* UPCGData::DuplicateData(FPCGContext* Context, bool bInitializeMetadata) const
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return DuplicateData(bInitializeMetadata);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 bool FPCGTaggedData::operator==(const FPCGTaggedData& Other) const

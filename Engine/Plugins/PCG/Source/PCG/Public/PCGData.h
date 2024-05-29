@@ -18,6 +18,7 @@ class UPCGParamData;
 class UPCGSettings;
 class UPCGSettingsInterface;
 class UPCGSpatialData;
+struct FPCGContext;
 
 /**
 * Base class for any "data" class in the PCG framework.
@@ -50,8 +51,11 @@ public:
 	virtual FPCGAttributePropertyInputSelector GetCachedLastSelector() const { return FPCGAttributePropertyInputSelector{}; }
 	virtual void SetLastSelector(const FPCGAttributePropertySelector& InSelector) {};
 
-	/** Return a copy of the data, with Metadata inheritence for spatial data. */
+	UE_DEPRECATED(5.5, "Call/Implement version with FPCGContext parameter")
 	virtual UPCGData* DuplicateData(bool bInitializeMetadata = true) const;
+
+	/** Return a copy of the data, with Metadata inheritence for spatial data. */
+	virtual UPCGData* DuplicateData(FPCGContext* Context, bool bInitializeMetadata = true) const;
 
 	// ~Begin UObject interface
 	virtual void PostDuplicate(bool bDuplicateForPIE) override { InitUID(); }

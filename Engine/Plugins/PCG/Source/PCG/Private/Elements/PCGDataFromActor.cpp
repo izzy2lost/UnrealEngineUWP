@@ -541,7 +541,7 @@ void FPCGDataFromActorElement::MergeActorsIntoPointData(FPCGContext* Context, co
 
 	if (!bContainsPartitionActors)
 	{
-		UPCGPointData* Data = NewObject<UPCGPointData>();
+		UPCGPointData* Data = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		bool bHasData = false;
 		bool bAnyAttributeNameWasSanitized = false;
 
@@ -596,7 +596,7 @@ void FPCGDataFromActorElement::MergeActorsIntoPointData(FPCGContext* Context, co
 		// Perform point data-to-point data merge
 		if (DataToMerge.TaggedData.Num() > 1)
 		{
-			UPCGMergeSettings* MergeSettings = NewObject<UPCGMergeSettings>();
+			UPCGMergeSettings* MergeSettings = FPCGContext::NewObject_AnyThread<UPCGMergeSettings>(Context);
 			FPCGMergeElement MergeElement;
 			FPCGContext* MergeContext = MergeElement.Initialize(DataToMerge, Context->SourceComponent, nullptr);
 			MergeContext->AsyncState.NumAvailableTasks = Context->AsyncState.NumAvailableTasks;

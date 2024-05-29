@@ -55,7 +55,7 @@ public:
 	virtual const UPCGSpatialData* FindFirstConcreteShapeFromNetwork() const override;
 
 protected:
-	virtual UPCGSpatialData* CopyInternal() const override;
+	virtual UPCGSpatialData* CopyInternal(FPCGContext* Context) const override;
 	//~End UPCGSpatialData interface
 
 public:

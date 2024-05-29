@@ -118,7 +118,7 @@ bool FPCGAttributeGetFromPointIndexElement::ExecuteInternal(FPCGContext* Context
 
 		if (Accessor.IsValid())
 		{
-			UPCGParamData* OutputParamData = NewObject<UPCGParamData>();
+			UPCGParamData* OutputParamData = FPCGContext::NewObject_AnyThread<UPCGParamData>(Context);
 
 			auto ExtractAttribute = [this, Context, OutputAttributeName, &OutputParamData, &Accessor, &PointKey, InputIndex](auto DummyValue) -> bool
 			{
@@ -154,7 +154,7 @@ bool FPCGAttributeGetFromPointIndexElement::ExecuteInternal(FPCGContext* Context
 				if (Context->Node && Context->Node->IsOutputPinConnected(PCGAttributeGetFromPointIndexConstants::OutputPointLabel))
 #endif
 				{
-					UPCGPointData* OutputPointData = NewObject<UPCGPointData>();
+					UPCGPointData* OutputPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 					OutputPointData->InitializeFromData(PointData);
 					OutputPointData->GetMutablePoints().Add(Point);
 

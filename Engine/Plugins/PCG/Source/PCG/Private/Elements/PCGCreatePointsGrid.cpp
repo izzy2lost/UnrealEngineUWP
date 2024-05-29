@@ -203,7 +203,7 @@ bool FPCGCreatePointsGridElement::ExecuteInternal(FPCGContext* Context) const
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 	FPCGTaggedData& Output = Outputs.Emplace_GetRef();
 
-	UPCGPointData* PtData = NewObject<UPCGPointData>();
+	UPCGPointData* PtData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 	check(PtData);
 
 	TArray<FPCGPoint>& OutputPoints = PtData->GetMutablePoints();

@@ -101,7 +101,7 @@ bool FPCGTransformPointsElement::ExecuteInternal(FPCGContext* Context) const
 
 		const TArray<FPCGPoint>& Points = PointData->GetPoints();
 
-		UPCGPointData* OutputData = NewObject<UPCGPointData>();
+		UPCGPointData* OutputData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		OutputData->InitializeFromData(PointData);
 		TArray<FPCGPoint>& OutputPoints = OutputData->GetMutablePoints();
 		Output.Data = OutputData;

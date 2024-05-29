@@ -111,6 +111,15 @@ struct FPCGGraphScheduleTask
 
 struct FPCGGraphActiveTask
 {
+	FPCGGraphActiveTask() = default;
+	~FPCGGraphActiveTask();
+	
+	FPCGGraphActiveTask(const FPCGGraphActiveTask&) = delete;
+	FPCGGraphActiveTask& operator=(const FPCGGraphActiveTask&) = delete;
+
+	FPCGGraphActiveTask(FPCGGraphActiveTask&&) = default;
+	FPCGGraphActiveTask& operator=(FPCGGraphActiveTask&&) = default;
+
 	TArray<FPCGGraphTaskInput> Inputs;
 	FPCGElementPtr Element;
 	TUniquePtr<FPCGContext> Context;
