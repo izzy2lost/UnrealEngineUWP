@@ -503,10 +503,13 @@ void UTG_EdGraphNode::UpdateInputPinsVisibility() const
 		check(TGPin);
 
 		const FName& OtherPinName = TGPin->GetArgumentName();
-		UEdGraphPin* EdPin = FindPinChecked(OtherPinName, EEdGraphPinDirection::EGPD_Input);
+		UEdGraphPin* EdPin = FindPin(OtherPinName, EEdGraphPinDirection::EGPD_Input);
 
 		// check hide state
-		UpdatePinVisibility(EdPin, TGPin);
+		if (EdPin)
+		{
+			UpdatePinVisibility(EdPin, TGPin);
+		}
 	}
 }
 #endif
