@@ -278,15 +278,32 @@ namespace Chaos
 				const int32 NumParticles = Particles.Size();
 				Softs::FSolverVec3* ParticleXs = &Particles.X(0);
 				Softs::FSolverVec3* ParticleVs = &Particles.V(0);
+				Softs::FSolverReal* ParticleInvMs = &Particles.InvM(0);
+				Softs::FPAndInvM* ParticlePAndInvMs = &Particles.PAndInvM(0);
 				
-				LoadCacheAtTime(InComponent, InTime, NumParticles, true, [&ParticleXs, &ParticleVs](
+				LoadCacheAtTime(InComponent, InTime, NumParticles, true, [&ParticleXs, &ParticleVs, &ParticleInvMs, &ParticlePAndInvMs](
 					const int32 ParticleIndex, const int32 ParticleOffset, const FVector3f& ParticlePosition, const FVector3f& ParticleVelocity)
 				{
 					const int32 GlobalIndex = ParticleIndex + ParticleOffset;
 					
 					ParticleXs[GlobalIndex].Set(ParticlePosition[0], ParticlePosition[1], ParticlePosition[2]);
 					ParticleVs[GlobalIndex].Set(ParticleVelocity[0], ParticleVelocity[1], ParticleVelocity[2]);
+					ParticleInvMs[GlobalIndex] = Softs::FSolverReal(0);
+					ParticlePAndInvMs[GlobalIndex].InvM = Softs::FSolverReal(0);
+					ParticlePAndInvMs[GlobalIndex].P = ParticleXs[GlobalIndex];
 				});
+
+				if(UFleshComponent* FleshComp = CastChecked<UFleshComponent>(InComponent) )
+				{
+					if (const UDeformablePhysicsComponent::FThreadingProxy* PhysicsProxy = FleshComp->GetPhysicsProxy())
+					{
+						if (const Chaos::Softs::FFleshThreadingProxy* Proxy = PhysicsProxy->As<Chaos::Softs::FFleshThreadingProxy>())
+						{
+							FIntVector2 ParticleRange = Proxy->GetSolverParticleRange();
+							Evolution->ActivateParticleRange(ParticleRange[0], false);
+						}
+					}
+				}
 				
 #else // USE_USD_SDK && DO_USD_CACHING
 				FCacheEvaluationContext Context(TickRecord);

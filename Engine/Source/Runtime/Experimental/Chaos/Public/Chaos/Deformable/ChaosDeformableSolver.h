@@ -231,6 +231,7 @@ namespace Chaos::Softs
 		int32 Iteration = 0;
 		bool bSimulationInitialized = false;
 		int32 GroupOffset = 1;
+		TArray<TVector<int32, 2>, TInlineAllocator<8>> PrevEvolutionActiveRange;
 	};
 
 

@@ -117,7 +117,7 @@ namespace Chaos::Softs
 
 		CHAOS_API void AddDynamicConstraints(const TArray<TArray<int32>>& ExtraConstraints, TArray<TArray<int32>>& ExtraIncidentElements, TArray<TArray<int32>>& ExtraIncidentElementsLocal, bool CheckIncidentElements = false);
 
-		void Apply(ParticleType& Particles, const T Dt, const int32 MaxWriteIters = 10, const bool Write2File = false)
+		void Apply(ParticleType& Particles, const T Dt, const int32 MaxWriteIters = 10, const bool Write2File = false, const TPBDActiveView<FSolverParticles>* InParticleActiveView = nullptr)
 		{
  			PERF_SCOPE(STAT_ChaosGSMainConstraint_Apply);
 			
@@ -141,8 +141,11 @@ namespace Chaos::Softs
 							int32 TaskIndex = CorotatedParams.XPBDCorotatedBatchSize * BatchIndex + BatchSubIndex;
 							if (TaskIndex < ParticlesPerColor[i].Num())
 							{
-								int32 ParticleIndex = ParticlesPerColor[i][TaskIndex];
-								ApplySingleParticle(ParticleIndex, Dt, Particles);
+								if (Particles.InvM(ParticlesPerColor[i][TaskIndex]) != T(0))
+								{
+									int32 ParticleIndex = ParticlesPerColor[i][TaskIndex];
+									ApplySingleParticle(ParticleIndex, Dt, Particles);
+								}
 							}
 						}
 					}, NumBatch < CorotatedParams.XPBDCorotatedBatchThreshold);
@@ -152,15 +155,26 @@ namespace Chaos::Softs
 						
 			if (bDoAcceleration)
 			{
-				AccelerationTechnique(Particles);
+				PERF_SCOPE(STAT_ChaosGSMainConstraint_Acceleration);
+				if (InParticleActiveView)
+				{
+					InParticleActiveView->ParallelFor(AccelerationTechniquePerParticle, CorotatedParams.XPBDCorotatedBatchSize);
+				}
+				else
+				{
+					PhysicsParallelFor(Particles.Size(), [this, &Particles](const int32 ParticleIndex)
+						{
+							this->AccelerationTechniquePerParticle(Particles, ParticleIndex);
+						}, Particles.Size() < 1000);
+				}
 			}
 			
 			CurrentIt ++;
 		}
 
-		void InitStaticColor(const ParticleType& Particles)
+		void InitStaticColor(const ParticleType& Particles, const TPBDActiveView<FSolverParticles>* InParticleActiveView = nullptr)
 		{
-			StaticParticlesPerColor = ComputeNodalColoring(StaticConstraints, Particles, 0, Particles.Size(), StaticIncidentElements, StaticIncidentElementsLocal, &StaticParticleColors);
+			StaticParticlesPerColor = ComputeNodalColoring(StaticConstraints, Particles, 0, Particles.Size(), StaticIncidentElements, StaticIncidentElementsLocal, InParticleActiveView,  &StaticParticleColors);
 			ParticleColors = StaticParticleColors;
 			ParticlesPerColor = StaticParticlesPerColor;
 		}
@@ -304,27 +318,26 @@ namespace Chaos::Softs
 				}
 			};
 
-			AccelerationTechnique = [this](ParticleType& Particles)
+			AccelerationTechniquePerParticle = [this](ParticleType& Particles, int32 ParticleIndex)
 			{
-				PERF_SCOPE(STAT_ChaosGSMainConstraint_Acceleration);
-				PhysicsParallelFor(Particles.Size(), [&](const int32 ParticleIndex)
-					{
-						if (Particles.InvM(ParticleIndex) != T(0) && CurrentIt > SORStart)
-						{
-							Particles.P(ParticleIndex) = OmegaSOR * (Particles.P(ParticleIndex) - this->X_k_1[ParticleIndex]) + this->X_k_1[ParticleIndex];
-						}
-						this->X_k_1[ParticleIndex] = this->X_k[ParticleIndex];
-						this->X_k[ParticleIndex] = Particles.P(ParticleIndex);
-					}, Particles.Size() < 1000);
+				if (Particles.InvM(ParticleIndex) != T(0) && CurrentIt > SORStart)
+				{
+					Particles.P(ParticleIndex) = OmegaSOR * (Particles.P(ParticleIndex) - this->X_k_1[ParticleIndex]) + this->X_k_1[ParticleIndex];
+				}
+				if (Particles.InvM(ParticleIndex) != T(0))
+				{
+					this->X_k_1[ParticleIndex] = this->X_k[ParticleIndex];
+					this->X_k[ParticleIndex] = Particles.P(ParticleIndex);
+				}
 			};
 		}
 
 
 		//Constraints storage:
-		TArray<TArray<int32>> StaticConstraints;
+		TArray<TArray<int32>> StaticConstraints = {};
 		TArray<TArray<int32>> StaticIncidentElements;
 		TArray<TArray<int32>> StaticIncidentElementsLocal;
-		TArray<TArray<int32>> DynamicConstraints;
+		TArray<TArray<int32>> DynamicConstraints = {};
 		TArray<TArray<int32>> DynamicIncidentElements;
 		TArray<TArray<int32>> DynamicIncidentElementsLocal;
 
@@ -348,7 +361,7 @@ namespace Chaos::Softs
 		mutable TArray<Chaos::TVector<T, 3>> xtilde;
 
 		//SOR variables:
-		TFunction<void(ParticleType&)> AccelerationTechnique;
+		TFunction<void(ParticleType&, int32)> AccelerationTechniquePerParticle;
 		mutable TArray<Chaos::TVector<T, 3>> X_k_1;
 		mutable TArray<Chaos::TVector<T, 3>> X_k;
 		int32 CurrentIt = 0;

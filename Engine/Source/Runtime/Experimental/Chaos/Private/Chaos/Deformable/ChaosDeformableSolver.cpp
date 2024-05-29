@@ -342,6 +342,8 @@ namespace Chaos::Softs
 					Proxies.Add(Key, TUniquePtr<FThreadingProxy>(Proxy));
 				}
 
+				PrevEvolutionActiveRange = Evolution->ParticlesActiveView().GetActiveRanges();
+
 				if (UninitializedProxys_Internal.Num() != 0)
 				{
 					if (Property.bDoSelfCollision)
@@ -791,7 +793,6 @@ namespace Chaos::Softs
 								{
 									UE_LOG(LogChaosDeformableSolver, Log, TEXT("... Intersections : %d"), Intersections.Num());
 									//GSWeakConstraints->AddExtraConstraints(PositionTargetIndices, PositionTargetWeights, PositionTargetStiffness, PositionTargetSecondIndices, PositionTargetSecondWeights);
-
 								}
 							}
 						}
@@ -1585,7 +1586,7 @@ namespace Chaos::Softs
 			Evolution->ConstraintRules()[ConstraintIndex1] =
 				[this](FSolverParticles& InParticles, const FSolverReal Dt)
 			{
-				this->GSMainConstraint->Apply(InParticles, Dt);
+				this->GSMainConstraint->Apply(InParticles, Dt, 10, false, &(this->Evolution->ParticlesActiveView()));
 			};
 
 
@@ -1638,7 +1639,7 @@ namespace Chaos::Softs
 			Evolution->ConstraintRules()[ConstraintIndex1] =
 				[this](FSolverParticles& InParticles, const FSolverReal Dt)
 				{
-					this->GSMainConstraint->Apply(InParticles, Dt);
+					this->GSMainConstraint->Apply(InParticles, Dt, 10, false, &(this->Evolution->ParticlesActiveView()));
 				};
 
 
@@ -1674,7 +1675,7 @@ namespace Chaos::Softs
 			}
 		}
 
-		GSMainConstraint->InitStaticColor(Evolution->Particles());
+		GSMainConstraint->InitStaticColor(Evolution->Particles(), &(Evolution->ParticlesActiveView()));
 
 		if (Property.bEnablePositionTargets)
 		{
@@ -1733,6 +1734,7 @@ namespace Chaos::Softs
 
 		}
 	}
+
 	void FDeformableSolver::InitializeMuscleActivationVariables()
 	{
 		int32 InitIndex = Evolution->AddConstraintInitRange(1, true);
@@ -1863,6 +1865,33 @@ namespace Chaos::Softs
 		PERF_SCOPE(STAT_ChaosDeformableSolver_AdvanceDt);
 
 		EventPreSolve.Broadcast(DeltaTime);
+
+		const TArray<TVector<int32, 2>, TInlineAllocator<8>>& EvolutionActiveRange = Evolution->ParticlesActiveView().GetActiveRanges();
+		bool bActiveRangeAreSame = true;
+		if (EvolutionActiveRange.Num() == PrevEvolutionActiveRange.Num())
+		{
+			for (int32 i = 0; i < PrevEvolutionActiveRange.Num(); i++)
+			{
+				if (PrevEvolutionActiveRange[i]!= EvolutionActiveRange[i])
+				{
+					bActiveRangeAreSame = false;
+					break;
+				}
+			}
+		}
+		else
+		{
+			bActiveRangeAreSame = false;
+		}
+
+		if (!bActiveRangeAreSame)
+		{
+			if (GSMainConstraint)
+			{
+				GSMainConstraint->InitStaticColor(Evolution->Particles(), &(Evolution->ParticlesActiveView()));
+			}
+		}
+
 
 		int32 NumIterations = FMath::Clamp<int32>(Property.NumSolverSubSteps, 0, INT_MAX);
 		if (bEnableSolver && NumIterations)
