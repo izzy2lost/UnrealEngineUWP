@@ -3,7 +3,7 @@
 
 #include "MusicTimeSpan.generated.h"
 
-struct FSongMaps;
+struct ISongMapEvaluator;
 struct FMidiSongPos;
 
 UENUM()
@@ -76,18 +76,13 @@ public:
 		, Offset(InOffset)
 	{}
 
-	float CalcPositionInSpan(const FMidiSongPos& Position, const FSongMaps& Maps) const;
-	float CalcPositionInSpan(float Ms, const FSongMaps& Maps) const;
+	float CalcPositionInSpan(const FMidiSongPos& Position, const ISongMapEvaluator& Maps) const;
+	float CalcPositionInSpan(float Ms, const ISongMapEvaluator& Maps) const;
 
 private:
-	//float CalculateEnclosingVariableSizeSpanExtents(int32 Tick, int32 TimeSignatureNumerator, int32 TimeSignatureDenominator) const;
-	//float CalculateEnclosingVariableSizeSpanExtents(int32 Tick, const FSongMaps& Maps) const;
-	//float CalculateEnclosingFixedSizeSpanExtents(int32 Tick, const FSongMaps& Maps) const;
-	//float CalculateEnclosingFixedSizeSpanExtents(int32 Tick, int32 TicksPerQuarterNote) const;
+	float CalculateEnclosingVariableSizeSpanExtents(const FMidiSongPos& Position, const ISongMapEvaluator& Maps) const;
+	float CalculateEnclosingFixedSizeSpanExtents(const FMidiSongPos& Position, const ISongMapEvaluator& Maps) const;
 
-	float CalculateEnclosingVariableSizeSpanExtents(const FMidiSongPos& Position, const FSongMaps& Maps) const;
-	float CalculateEnclosingFixedSizeSpanExtents(const FMidiSongPos& Position, const FSongMaps& Maps) const;
-
-	float CalcPositionInSpanWithOffset(const FMidiSongPos& Position, const FSongMaps& Maps) const;
-	float CalcPositionInSpanNoOffset(const FMidiSongPos& Position, const FSongMaps& Maps) const;
+	float CalcPositionInSpanWithOffset(const FMidiSongPos& Position, const ISongMapEvaluator& Maps) const;
+	float CalcPositionInSpanNoOffset(const FMidiSongPos& Position, const ISongMapEvaluator& Maps) const;
 };

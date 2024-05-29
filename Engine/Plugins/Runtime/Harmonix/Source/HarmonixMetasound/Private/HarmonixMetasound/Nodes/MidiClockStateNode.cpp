@@ -212,7 +212,7 @@ namespace HarmonixMetasound
 			return;
 		}
 	
-		const int32 CurrentTick = MidiClockInPin->GetCurrentMidiTick();
+		const int32 NextTick = MidiClockInPin->GetNextMidiTickToProcess();
 
 		bool HasTempoSpeedOrTimeSigChange = false;
 		if (MidiClockInPin->HasTempoChangesInBlock())
@@ -226,24 +226,24 @@ namespace HarmonixMetasound
 			*CurrentSpeedOutPin = FMath::Max(kTinyTempoSpeed, MidiClockInPin->GetSpeedAtEndOfBlock());
 		}
 			
-		const FBarMap& BarMap = MidiClockInPin->GetBarMap();
-		if (!BarMap.IsEmpty())
+		const ISongMapEvaluator& Map = MidiClockInPin->GetSongMapEvaluator();
+		const FTimeSignature* TimeSignature = Map.GetTimeSignatureAtTick(NextTick);
+		if (ensure(TimeSignature))
 		{
-			const FTimeSignature& TimeSignature = BarMap.GetTimeSignatureAtTick(CurrentTick);
-			if (TimeSignature.Numerator != *CurrentTimeSigNumOutPin || TimeSignature.Denominator != *CurrentTimeSigDenomOutPin)
+			if (TimeSignature->Numerator != *CurrentTimeSigNumOutPin || TimeSignature->Denominator != *CurrentTimeSigDenomOutPin)
 			{
 				HasTempoSpeedOrTimeSigChange = true;
-				*CurrentTimeSigNumOutPin = TimeSignature.Numerator;
-				*CurrentTimeSigDenomOutPin = FMath::Max(1, TimeSignature.Denominator);
+				*CurrentTimeSigNumOutPin = TimeSignature->Numerator;
+				*CurrentTimeSigDenomOutPin = FMath::Max(1, TimeSignature->Denominator);
 			}
-		}
 
-		if (CurrentTick != LastMidiTick)
-		{
-			LastMidiTick = CurrentTick;
-			FMusicTimestamp CurrentTimestamp = BarMap.TickToMusicTimestamp(CurrentTick);
-			*CurrentBarOutPin = CurrentTimestamp.Bar;
-			*CurrentBeatOutPin = CurrentTimestamp.Beat;
+			if (NextTick != LastMidiTick)
+			{
+				LastMidiTick = NextTick;
+				FMusicTimestamp CurrentTimestamp = Map.TickToMusicTimestamp(NextTick);
+				*CurrentBarOutPin = CurrentTimestamp.Bar;
+				*CurrentBeatOutPin = CurrentTimestamp.Beat;
+			}
 		}
 
 		if (HasTempoSpeedOrTimeSigChange)

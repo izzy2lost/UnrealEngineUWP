@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HarmonixMetasound/DataTypes/MusicTimeInterval.h"
-#include "HarmonixMidi/SongMaps.h"
+#include "HarmonixMidi/MidiConstants.h"
 
 namespace Harmonix
 {
 	float GetIntervalInBeats(const FMusicTimeInterval& Interval, const FTimeSignature& TimeSignature)
 	{
-		return FSongMaps::SubdivisionToBeats(Interval.Interval, TimeSignature) * Interval.IntervalMultiplier;
+		return Harmonix::Midi::Constants::SubdivisionToBeats(Interval.Interval, TimeSignature) * Interval.IntervalMultiplier;
 	}
 
 	void IncrementTimestampByBeats(FMusicTimestamp& Timestamp, float Beats, const FTimeSignature& TimeSignature)
@@ -43,7 +43,7 @@ namespace Harmonix
 	float GetOffsetInBeats(const FMusicTimeInterval& Interval, const FTimeSignature& TimeSignature)
 	{
 		const float IntervalBeats = GetIntervalInBeats(Interval, TimeSignature);
-		const float OffsetBeats = FSongMaps::SubdivisionToBeats(Interval.Offset, TimeSignature) * Interval.OffsetMultiplier;
+		const float OffsetBeats = Harmonix::Midi::Constants::SubdivisionToBeats(Interval.Offset, TimeSignature) * Interval.OffsetMultiplier;
 		return FMath::Fmod(OffsetBeats, IntervalBeats);
 	}
 

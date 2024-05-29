@@ -209,7 +209,7 @@ private:
 	FFusionVoicePool* VoicePool = nullptr;
 
 	// needed for tempo sync'd keyzones...
-	float StartBeat = 0.0f;
+	float StartQuarterNote = 0.0f;
 	float CurrentVso = 0.0f;
 	double LastVsoPos = 0.0f;
 	double StartPos = 0.0f;

@@ -258,10 +258,10 @@ void FFusionSampler::SetTempo(float InBPM)
 	UpdateVoiceLfos();
 }
 
-void FFusionSampler::SetBeat(float Beat)
+void FFusionSampler::SetQuarterNote(float QuarterNote)
 {
 	FScopeLock Lock(&GetBusLock());
-	CurrentBeat = Beat;
+	CurrentQuarterNote = QuarterNote;
 }
 
 void FFusionSampler::ResetNoteActions(bool ClearNotes)
@@ -778,7 +778,7 @@ void FFusionSampler::ResetInstrumentStateImpl()
 	SetMidiChannelMute(false);
 
 	Speed = 1.0f;
-	CurrentBeat = 0.0f;
+	CurrentQuarterNote = 0.0f;
 	CurrentTempoBPM = 120.0f;
 	RawPitchMultiplier = 1.0f;
 	Transposition = 0;

@@ -208,9 +208,9 @@ namespace HarmonixMetasound
 		GridOffsetUnits = *GridOffsetUnitsInPin;
 		GridOffsetMultiplier = *GridOffsetMultInPin;
 
-		const FSongMaps& SongMaps = MidiClockInPin->GetSongMaps();
-		GridOffsetTicks = SongMaps.SubdivisionToMidiTicks(GridOffsetUnits, 0) * GridOffsetMultiplier;
-		GridSizeTicks = SongMaps.SubdivisionToMidiTicks(GridSizeUnits, 0) * GridSizeMultiplier;
+		const ISongMapEvaluator& Map = MidiClockInPin->GetSongMapEvaluator();
+		GridOffsetTicks = Map.SubdivisionToMidiTicks(GridOffsetUnits, 0) * GridOffsetMultiplier;
+		GridSizeTicks = Map.SubdivisionToMidiTicks(GridSizeUnits, 0) * GridSizeMultiplier;
 	}
 
 	void FMidiClockSubdivisionTriggerOperator::Execute()
@@ -232,37 +232,32 @@ namespace HarmonixMetasound
 		{
 			GridOffsetUnits = *GridOffsetUnitsInPin;
 			GridOffsetMultiplier = *GridOffsetMultInPin;
-			const FSongMaps& SongMaps = MidiClockInPin->GetSongMaps();
-			GridOffsetTicks = SongMaps.SubdivisionToMidiTicks(GridOffsetUnits, 0) * GridOffsetMultiplier;
+			const ISongMapEvaluator& Map = MidiClockInPin->GetSongMapEvaluator();
+			GridOffsetTicks = Map.SubdivisionToMidiTicks(GridOffsetUnits, 0) * GridOffsetMultiplier;
 		}
 
 		if (*EnableInPin)
 		{
+			using namespace MidiClockMessageTypes;
+
 			for (const FMidiClockEvent& ClockEvent : MidiClockInPin->GetMidiClockEventsInBlock())
 			{
-				if (ClockEvent.Msg.IsType<MidiClockMessageTypes::FAdvanceThru>())
+				if (const FAdvance* AsAdvance = ClockEvent.TryGet<FAdvance>())
 				{
-					const MidiClockMessageTypes::FAdvanceThru& AdvanceThru = ClockEvent.Msg.Get<MidiClockMessageTypes::FAdvanceThru>();
-					
-					if (AdvanceThru.IsPreRoll)
-					{
-						continue;
-					}
-					
-					int32 TickPreceedingThisAdvance = AdvanceThru.FromTick - GridOffsetTicks;
-					int32 LastTickProcessed = AdvanceThru.ThruTick - GridOffsetTicks;
-					const FSongMaps& SongMaps = MidiClockInPin->GetSongMaps();
+					int32 TickPreceedingThisAdvance = (AsAdvance->FirstTickToProcess - 1) - GridOffsetTicks;
+					int32 LastTickProcessed = AsAdvance->LastTickToProcess() - GridOffsetTicks;
+					const ISongMapEvaluator& Map = MidiClockInPin->GetSongMapEvaluator();
 					
 					// calculate new GridSizeTicks and GridOffsetTicks at the tick we're evaluating based on any time signature changes
-					GridSizeTicks = SongMaps.SubdivisionToMidiTicks(GridSizeUnits, AdvanceThru.ThruTick) * GridSizeMultiplier;
+					GridSizeTicks = Map.SubdivisionToMidiTicks(GridSizeUnits, AsAdvance->LastTickToProcess()) * GridSizeMultiplier;
 					
 					// if this is one of the quantization types that is variable in size we have to do it a little different...
 					if (GridSizeUnits == EMidiClockSubdivisionQuantization::Bar ||
 						GridSizeUnits == EMidiClockSubdivisionQuantization::Beat)
 					{
 						
-						FMusicTimestamp Start = SongMaps.GetBarMap().TickToMusicTimestamp(TickPreceedingThisAdvance);
-						FMusicTimestamp End = SongMaps.GetBarMap().TickToMusicTimestamp(LastTickProcessed);
+						FMusicTimestamp Start = Map.TickToMusicTimestamp(TickPreceedingThisAdvance);
+						FMusicTimestamp End = Map.TickToMusicTimestamp(LastTickProcessed);
 						if (GridSizeUnits == EMidiClockSubdivisionQuantization::Bar && Start.Bar != End.Bar)
 						{
 							if (End.Bar % GridSizeMultiplier == 0)

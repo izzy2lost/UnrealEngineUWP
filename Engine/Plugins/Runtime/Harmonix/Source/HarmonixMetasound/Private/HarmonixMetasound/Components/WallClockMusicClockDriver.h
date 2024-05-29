@@ -9,7 +9,7 @@ struct FWallClockMusicClockDriver : public FMusicClockDriverBase
 public:
 	FWallClockMusicClockDriver(UMusicClockComponent* InClock, UMidiFile* InTempoMap)
 		: FMusicClockDriverBase(InClock)
-		, TempoMap(InTempoMap)
+		, TempoMapMidi(InTempoMap)
 	{}
 
 	virtual bool CalculateSongPosWithOffset(float MsOffset, ECalibratedMusicTimebase Timebase, FMidiSongPos& OutResult) const override;
@@ -20,10 +20,10 @@ public:
 	virtual void OnPause() override;
 	virtual void OnContinue() override;
 	virtual void OnStop() override {}
-	virtual const FSongMaps* GetCurrentSongMaps() const override;
+	virtual const ISongMapEvaluator* GetCurrentSongMapEvaluator() const override;
 
 private:
-	TWeakObjectPtr<UMidiFile> TempoMap;
+	TWeakObjectPtr<UMidiFile> TempoMapMidi;
 
 	double StartTimeSecs = 0.0;
 	double PauseTimeSecs = 0.0f;

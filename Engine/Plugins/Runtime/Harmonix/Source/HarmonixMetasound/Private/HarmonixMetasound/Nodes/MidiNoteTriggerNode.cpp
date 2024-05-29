@@ -181,6 +181,7 @@ namespace HarmonixMetasound::Nodes::MidiNoteTriggerNode
 					{
 						// Stop sounding note
 						TriggerNoteOff(Event.BlockSampleFrameIndex, SoundingNote);
+						NoteOffTriggerFrame = Event.BlockSampleFrameIndex;
 					}
 
 					// Play new note
@@ -188,7 +189,7 @@ namespace HarmonixMetasound::Nodes::MidiNoteTriggerNode
 					*VelOutPin     = Event.MidiMessage.GetStdData2();
 					*NoteNumOutPin = Event.MidiMessage.GetStdData1();
 					NoteOnOutPin->TriggerFrame(NoteOffTriggerFrame == Event.BlockSampleFrameIndex ? NoteOffTriggerFrame + 1 : Event.BlockSampleFrameIndex);
-					SoundingNote   = Event.MidiMessage.GetStdData1();;
+					SoundingNote   = Event.MidiMessage.GetStdData1();
 				}
 				else if (Event.MidiMessage.IsNoteOff())
 				{
@@ -196,6 +197,19 @@ namespace HarmonixMetasound::Nodes::MidiNoteTriggerNode
 					{
 						TriggerNoteOff(Event.BlockSampleFrameIndex, Event.MidiMessage.GetStdData1());
 						NoteOffTriggerFrame = Event.BlockSampleFrameIndex;
+						PlayingId = FMidiVoiceId::None();
+						SoundingNote = -1;
+					}
+				}
+				else if (Event.MidiMessage.IsAllNotesOff() || Event.MidiMessage.IsAllNotesKill())
+				{
+					if (SoundingNote > -1)
+					{
+						// Stop sounding note
+						TriggerNoteOff(Event.BlockSampleFrameIndex, SoundingNote);
+						NoteOffTriggerFrame = Event.BlockSampleFrameIndex;
+						PlayingId = FMidiVoiceId::None();
+						SoundingNote = -1;
 					}
 				}
 			}

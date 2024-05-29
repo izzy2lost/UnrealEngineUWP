@@ -22,6 +22,7 @@ namespace HarmonixMetasound::Nodes::MidiPulseGeneratorNode::Tests
 
 		TOptional<FMidiClockWriteRef> Clock = Generator->GetInputWriteReference<FMidiClock>(Inputs::MidiClockName);
 		UTEST_TRUE("Got clock", Clock.IsSet());
+		(*Clock)->SetTransportState(0, EMusicPlayerTransportState::Playing);
 
 		Harmonix::Midi::Ops::FPulseGenerator PulseGenerator;
 		FMidiStream PulseGeneratorMidiOutput;
@@ -35,7 +36,7 @@ namespace HarmonixMetasound::Nodes::MidiPulseGeneratorNode::Tests
 		{
 			// Advance the clock, which will advance the play cursor in the pulse generators
 			(*Clock)->PrepareBlock();
-			(*Clock)->WriteAdvance(0, Generator->OperatorSettings.GetNumFramesPerBlock());
+			(*Clock)->Advance(0, Generator->OperatorSettings.GetNumFramesPerBlock());
 
 			// Process
 			Generator->OnGenerateAudio(Buffer.GetData(), Buffer.Num());

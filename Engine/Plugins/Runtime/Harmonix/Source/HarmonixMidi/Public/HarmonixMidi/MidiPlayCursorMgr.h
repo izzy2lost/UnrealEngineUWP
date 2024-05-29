@@ -116,9 +116,7 @@ public:
 
 	const UMidiFile::FMidiTrackList& Tracks() const;
 
-	const FSongMaps& GetSongMaps() const;
-	const FTempoMap& GetTempoMap() const;
-	const FBarMap& GetBarMap() const;
+	const ISongMapEvaluator& GetSongMaps() const;
 
 	int32 GetCurrentHiResTick() const   { return GetHiResTracker().CurrentTick;  }
 	float GetCurrentHiResMs() const     { return GetHiResTracker().CurrentMs;    }

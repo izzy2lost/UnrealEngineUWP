@@ -663,8 +663,15 @@ namespace HarmonixMetasound
 				SetSpeed(ClockSpeed, !(*ClockSpeedAffectsPitchInPin));
 				const float ClockTempo = MidiClock->GetTempoAtBlockSampleFrame(CurrentBlockFrameIndex);
 				SetTempo(ClockTempo);
-				const float Beat = MidiClock->GetQuarterNoteIncludingCountIn();
-				SetBeat(Beat);
+				// This next thing is *close* to being accurate, but not really. 
+				// It gets the last processed beat in this metasound render block, which may or may not
+				// be correct for this specific sample in the block we are processing at the moment. 
+				// It should be close enough. If not, we will need to ask the clock specifically what
+				// its tick was at this point in the metasound rendering block. 
+				const int32 Tick = MidiClock->GetNextMidiTickToProcess();
+				const ISongMapEvaluator& ClocksMap = MidiClock->GetSongMapEvaluator();
+				const float MidiQuarterNote = (float)Tick / (float)ClocksMap.GetTicksPerQuarterNote();
+				SetQuarterNote(MidiQuarterNote);
 			}
 
 			if (FramesRequired > AudioRendering::kFramesPerRenderBuffer)

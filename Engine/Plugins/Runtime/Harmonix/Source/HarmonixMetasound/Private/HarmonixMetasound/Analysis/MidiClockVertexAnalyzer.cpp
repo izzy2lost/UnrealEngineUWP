@@ -57,9 +57,17 @@ namespace HarmonixMetasound::Analysis
 	void FMidiClockVertexAnalyzer::Execute()
 	{
 		const FMidiClock& Clock = GetVertexData<FMidiClock>();
-		*Timestamp = Clock.GetCurrentMusicTimestamp();
+		*Timestamp = Clock.GetMusicTimestampAtBlockEnd();
 		*Tempo = Clock.GetTempoAtEndOfBlock();
-		*TimeSignature = Clock.GetBarMap().GetTimeSignatureAtBar((*Timestamp).Bar);
+		const FTimeSignature* TimeSigPtr = Clock.GetSongMapEvaluator().GetTimeSignatureAtBar((*Timestamp).Bar);
+		if (TimeSigPtr)
+		{
+			*TimeSignature = *TimeSigPtr;
+		}
+		else
+		{
+			*TimeSignature = FTimeSignature(4, 4);
+		}
 		*Speed = Clock.GetSpeedAtEndOfBlock();
 		MarkOutputDirty();
 	}

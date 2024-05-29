@@ -36,7 +36,7 @@ namespace Harmonix::Midi::Ops
 		void Process(HarmonixMetasound::FMidiStream& OutStream);
 
 	private:
-		void HandleAdvanceThru(const int32 BlockFrameIndex, const HarmonixMetasound::MidiClockMessageTypes::FAdvanceThru* AdvanceThru, HarmonixMetasound::FMidiStream& OutStream);
+		void HandleAdvance(const int32 BlockFrameIndex, const HarmonixMetasound::MidiClockMessageTypes::FAdvance* Advance, HarmonixMetasound::FMidiStream& OutStream);
 		void HandleTimeSignatureChange(const HarmonixMetasound::MidiClockMessageTypes::FTimeSignatureChange* TimeSigChange);
 		void DoPulse(const int32 BlockFrameIndex, const int32 PulseTick, HarmonixMetasound::FMidiStream& OutStream);
 

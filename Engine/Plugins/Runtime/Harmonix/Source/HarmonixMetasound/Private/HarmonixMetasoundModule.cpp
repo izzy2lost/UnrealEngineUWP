@@ -7,6 +7,7 @@
 #include "Analysis/MetasoundFrontendAnalyzerRegistry.h"
 
 #include "HarmonixMetasound/Analysis/MidiClockVertexAnalyzer.h"
+#include "HarmonixMetasound/Analysis/MidiSongPosVertexAnalyzer.h"
 #include "HarmonixMetasound/Analysis/MidiStreamVertexAnalyzer.h"
 #include "HarmonixMetasound/Analysis/FFTAnalyzerResultVertexAnalyzer.h"
 #include "HarmonixMetasound/DataTypes/FFTAnalyzerResult.h"
@@ -40,6 +41,7 @@ void FHarmonixMetasoundModule::StartupModule()
 	// Register vertex analyzer factories
 	METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(HarmonixMetasound::Analysis::FMidiStreamVertexAnalyzer)
 	METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(HarmonixMetasound::Analysis::FMidiClockVertexAnalyzer)
+	METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(HarmonixMetasound::Analysis::FMidiSongPosVertexAnalyzer)
 	METASOUND_REGISTER_VERTEX_ANALYZER_FACTORY(HarmonixMetasound::Analysis::FFFTAnalyzerResultVertexAnalyzer)
 
 	// The first redirect for thie module

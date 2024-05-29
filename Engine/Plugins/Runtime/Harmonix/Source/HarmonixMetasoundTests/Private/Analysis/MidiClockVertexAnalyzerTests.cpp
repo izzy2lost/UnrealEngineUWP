@@ -44,44 +44,36 @@ namespace HarmonixMetasoundTests::MidiClockVertexAnalyzer
 		const TSharedPtr<FMidiFileData> MidiData = MakeShared<FMidiFileData>();
 		check(MidiData);
 
-		FTempoMap& TempoMap = MidiData->SongMaps.GetTempoMap();
-		TempoMap.Empty();
-		FBarMap& BarMap = MidiData->SongMaps.GetBarMap();
-		BarMap.Empty();
+		MidiData->SongMaps.EmptyAllMaps();
 		MidiData->Tracks.Empty();
 
 		MidiData->Tracks.Add(FMidiTrack(TEXT("conductor")));
 		MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(static_cast<uint8>(TimeSigNumerator), static_cast<uint8>(TimeSigDenominator))));
-		BarMap.AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNumerator, TimeSigNumerator);
+		MidiData->SongMaps.AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNumerator, TimeSigDenominator);
 		const int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(Tempo);
 		MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(MidiTempo)));
-		TempoMap.AddTempoInfoPoint(MidiTempo, 0);
+		MidiData->SongMaps.AddTempoInfoPoint(MidiTempo, 0);
 		MidiData->Tracks[0].Sort();
 		MidiData->ConformToLength(std::numeric_limits<int32>::max());
 
-		ClockInput->AttachToMidiResource(MidiData);
-		ClockInput->ResetAndStart(0);
-		ClockInput->AddSpeedChangeToBlock(HarmonixMetasound::FMidiTimestampSpeed{ 0, 0, Speed });
+		ClockInput->AttachToMidiFile(MidiData);
+		ClockInput->SeekTo(0,0);
+		ClockInput->SetSpeed(0, Speed);
+		ClockInput->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
 	}
 	
 	void AdvanceClock(
+		bool bNeedsPrepare,
 		const HarmonixMetasound::FMidiClockWriteRef& ClockInput,
-		Metasound::FSampleCount& SampleCount,
-		Metasound::FSampleCount& SampleRemainder,
-		const int32 NumSamples,
-		const Metasound::FSampleRate SampleRate)
+		const int32 NumSamples)
 	{
-		SampleRemainder += NumSamples;
-		constexpr int32 MidiGranularity = 128;
-		while (SampleRemainder >= MidiGranularity)
+		if (bNeedsPrepare)
 		{
-			SampleCount += MidiGranularity;
-			SampleRemainder -= MidiGranularity;
-			const float AdvanceToMs = static_cast<float>(SampleCount) * 1000.0f / SampleRate;
-			ClockInput->AdvanceHiResToMs(0, AdvanceToMs, true);
+			ClockInput->PrepareBlock();
 		}
+		ClockInput->Advance(0, NumSamples);
 	}
-	
+
 	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 		FMidiClockVertexAnalyzerTestBasic,
 		"Harmonix.Metasound.Analysis.MidiClockVertexAnalyzer.Basic",
@@ -154,8 +146,6 @@ namespace HarmonixMetasoundTests::MidiClockVertexAnalyzer
 
 		// Render some blocks and make sure we're advancing at the expected rate
 		constexpr int32 NumBlocks = 20;
-		Metasound::FSampleCount SampleCount = 0;
-		Metasound::FSampleCount SampleRemainder = 0;
 
 		for(int32 i = 0; i < NumBlocks; ++i)
 		{
@@ -164,8 +154,8 @@ namespace HarmonixMetasoundTests::MidiClockVertexAnalyzer
 			ReceivedTimestamp.Reset();
 			
 			// Advance the clock
-			AdvanceClock(*ClockRef, SampleCount, SampleRemainder, NumSamplesPerBlock, SampleRate);
-			const FMusicTimestamp ExpectedTimestamp = (*ClockRef)->GetCurrentMusicTimestamp();
+			AdvanceClock(i != 0, *ClockRef, NumSamplesPerBlock);
+			const FMusicTimestamp ExpectedTimestamp = (*ClockRef)->GetMusicTimestampAtBlockEnd();
 
 			// Render a block
 			TArray<float> Buffer;

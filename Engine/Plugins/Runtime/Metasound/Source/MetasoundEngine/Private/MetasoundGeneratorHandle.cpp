@@ -774,6 +774,19 @@ bool UMetasoundGeneratorHandle::RemoveGraphSetCallback(const FDelegateHandle& Ha
 	return OnGeneratorsGraphChanged.Remove(Handle);
 }
 
+bool UMetasoundGeneratorHandle::TryCreateAnalyzerAddress(const FName OutputName, const FName AnalyzerName, const FName AnalyzerOutputName, Metasound::Frontend::FAnalyzerAddress& OutAnalyzerAddress)
+{
+	METASOUND_LLM_SCOPE;
+	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(UMetasoundGeneratorHandle::WatchOutput);
+
+	if (!IsValid())
+	{
+		return false;
+	}
+
+	return GeneratorHandle->TryCreateAnalyzerAddress(OutputName, AnalyzerName, AnalyzerOutputName, OutAnalyzerAddress);
+}
+
 bool UMetasoundGeneratorHandle::WatchOutput(
 	const FName OutputName,
 	const FOnMetasoundOutputValueChanged& OnOutputValueChanged,

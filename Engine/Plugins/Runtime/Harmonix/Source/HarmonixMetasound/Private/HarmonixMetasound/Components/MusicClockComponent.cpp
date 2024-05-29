@@ -160,6 +160,10 @@ bool UMusicClockComponent::ConnectToMetasound()
 	TSharedPtr<FMetasoundMusicClockDriver> MetasoundClockDriver = MakeShared<FMetasoundMusicClockDriver>(this);
 	bool Connected = MetasoundClockDriver->ConnectToAudioComponentsMetasound(MetasoundsAudioComponent, MetasoundOutputName);
 	ClockDriver = MoveTemp(MetasoundClockDriver);
+	if (State == EMusicClockState::Running)
+	{
+		ClockDriver->OnStart();
+	}
 	return Connected;
 }
 
@@ -346,6 +350,21 @@ float UMusicClockComponent::GetBeatsIncludingCountIn(ECalibratedMusicTimebase Ti
 	}
 }
 
+float UMusicClockComponent::GetTicksFromBarOne(ECalibratedMusicTimebase Timebase) const
+{
+	EnsureClockIsValidForGameFrame();
+	float Seconds = GetSecondsFromBarOne(Timebase);
+	return GetSongMaps().MsToTick(Seconds * 1000.0f);
+}
+
+float UMusicClockComponent::GetTicksIncludingCountIn(ECalibratedMusicTimebase Timebase) const
+{
+	EnsureClockIsValidForGameFrame();
+	float Seconds = GetSecondsIncludingCountIn(Timebase);
+	return GetSongMaps().MsToTick(Seconds * 1000.0f);
+}
+
+
 FMusicTimestamp UMusicClockComponent::GetCurrentTimestamp(ECalibratedMusicTimebase Timebase) const
 {
 	EnsureClockIsValidForGameFrame();
@@ -367,7 +386,7 @@ FString UMusicClockComponent::GetCurrentSectionName(ECalibratedMusicTimebase Tim
 int32 UMusicClockComponent::GetCurrentSectionIndex(ECalibratedMusicTimebase Timebase) const
 {
 	const FMidiSongPos& SongPos = GetSongPos(Timebase);
-	return GetSongMaps().GetSectionMap().TickToSectionIndex(SongPos.CurrentSongSection.StartTick);
+	return GetSongMaps().GetSectionIndexAtTick(SongPos.CurrentSongSection.StartTick);
 }
 
 float UMusicClockComponent::GetCurrentSectionStartMs(ECalibratedMusicTimebase Timebase) const
@@ -438,7 +457,7 @@ float UMusicClockComponent::GetDeltaBeat(ECalibratedMusicTimebase Timebase) cons
 
 const TArray<FSongSection>& UMusicClockComponent::GetSongSections() const
 {
-	return GetSongMaps().GetSectionMap().GetSections();
+	return GetSongMaps().GetSections();
 }
 
 float UMusicClockComponent::GetCountInSeconds() const
@@ -508,7 +527,7 @@ float UMusicClockComponent::GetSectionEndMsAtMs(float Ms) const
 
 int32 UMusicClockComponent::GetNumSections() const
 {
-	return GetSongMaps().GetSectionMap().GetNumSections();
+	return GetSongMaps().GetNumSections();
 }
 
 float UMusicClockComponent::GetSongLengthMs() const
@@ -532,9 +551,9 @@ float UMusicClockComponent::GetSongRemainingMs(ECalibratedMusicTimebase Timebase
 	return SongLengthMs <= 0.f ? 0.f : SongLengthMs - (GetSongPos(Timebase).SecondsIncludingCountIn * 1000.0f);
 }
 
-const FSongMaps& UMusicClockComponent::GetSongMaps() const
+const ISongMapEvaluator& UMusicClockComponent::GetSongMaps() const
 {
-	const FSongMaps* SongMaps = ClockDriver ? ClockDriver->GetCurrentSongMaps() : nullptr;
+	const ISongMapEvaluator* SongMaps = ClockDriver ? ClockDriver->GetCurrentSongMapEvaluator() : nullptr;
 	return SongMaps ? *SongMaps : DefaultMaps;
 }
 
@@ -573,13 +592,24 @@ float UMusicClockComponent::MeasureSpanProgress(const FMusicalTimeSpan& Span, EC
 {
 	EnsureClockIsValidForGameFrame();
 
-	const FSongMaps* Maps = ClockDriver ? ClockDriver->GetCurrentSongMaps() : &DefaultMaps;
+	const ISongMapEvaluator* Maps = ClockDriver ? ClockDriver->GetCurrentSongMapEvaluator() : &DefaultMaps;
 	if (!Maps)
 	{
 		return 0.0f;
 	}
 
-	return Span.CalcPositionInSpan(CurrentSmoothedAudioRenderSongPos, *Maps);
+	const FMidiSongPos* Basis = &CurrentVideoRenderSongPos;
+	switch (Timebase)
+	{
+	case ECalibratedMusicTimebase::AudioRenderTime:
+		Basis = &CurrentSmoothedAudioRenderSongPos;
+		break;
+	case ECalibratedMusicTimebase::ExperiencedTime:
+		Basis = &CurrentPlayerExperiencedSongPos;
+		break;
+	}
+
+	return Span.CalcPositionInSpan(*Basis, *Maps);
 }
 
 void UMusicClockComponent::BroadcastSongPosChanges()
@@ -628,18 +658,18 @@ void FMusicClockDriverBase::EnsureClockIsValidForGameFrame()
 	// to make sure its current state is appropriate to the current musical time. See 
 	// UMusicClockComponent::EnsureClockIsValidForGameFrame for more details as to why 
 	// this is so.
-	Clock->PrevAudioRenderSongPos = Clock->CurrentSmoothedAudioRenderSongPos;
-	Clock->PrevPlayerExperiencedSongPos = Clock->CurrentPlayerExperiencedSongPos;
-	Clock->PrevVideoRenderSongPos = Clock->CurrentVideoRenderSongPos;
+	ClockComponent->PrevAudioRenderSongPos = ClockComponent->CurrentSmoothedAudioRenderSongPos;
+	ClockComponent->PrevPlayerExperiencedSongPos = ClockComponent->CurrentPlayerExperiencedSongPos;
+	ClockComponent->PrevVideoRenderSongPos = ClockComponent->CurrentVideoRenderSongPos;
 
 	if (RefreshCurrentSongPos())
 	{
-		Clock->AudioRenderDeltaBarF = Clock->CurrentSmoothedAudioRenderSongPos.BarsIncludingCountIn - Clock->PrevAudioRenderSongPos.BarsIncludingCountIn;
-		Clock->AudioRenderDeltaBeatF = Clock->CurrentSmoothedAudioRenderSongPos.BeatsIncludingCountIn - Clock->PrevAudioRenderSongPos.BeatsIncludingCountIn;
-		Clock->PlayerExperienceDeltaBarF = Clock->CurrentPlayerExperiencedSongPos.BarsIncludingCountIn - Clock->PrevPlayerExperiencedSongPos.BarsIncludingCountIn;
-		Clock->PlayerExperienceDeltaBeatF = Clock->CurrentPlayerExperiencedSongPos.BeatsIncludingCountIn - Clock->PrevPlayerExperiencedSongPos.BeatsIncludingCountIn;
-		Clock->VideoRenderDeltaBarF = Clock->CurrentVideoRenderSongPos.BarsIncludingCountIn - Clock->PrevVideoRenderSongPos.BarsIncludingCountIn;
-		Clock->VideoRenderDeltaBeatF = Clock->CurrentVideoRenderSongPos.BeatsIncludingCountIn - Clock->PrevVideoRenderSongPos.BeatsIncludingCountIn;
-		Clock->LastUpdateFrame = GFrameCounter;
+		ClockComponent->AudioRenderDeltaBarF = ClockComponent->CurrentSmoothedAudioRenderSongPos.BarsIncludingCountIn - ClockComponent->PrevAudioRenderSongPos.BarsIncludingCountIn;
+		ClockComponent->AudioRenderDeltaBeatF = ClockComponent->CurrentSmoothedAudioRenderSongPos.BeatsIncludingCountIn - ClockComponent->PrevAudioRenderSongPos.BeatsIncludingCountIn;
+		ClockComponent->PlayerExperienceDeltaBarF = ClockComponent->CurrentPlayerExperiencedSongPos.BarsIncludingCountIn - ClockComponent->PrevPlayerExperiencedSongPos.BarsIncludingCountIn;
+		ClockComponent->PlayerExperienceDeltaBeatF = ClockComponent->CurrentPlayerExperiencedSongPos.BeatsIncludingCountIn - ClockComponent->PrevPlayerExperiencedSongPos.BeatsIncludingCountIn;
+		ClockComponent->VideoRenderDeltaBarF = ClockComponent->CurrentVideoRenderSongPos.BarsIncludingCountIn - ClockComponent->PrevVideoRenderSongPos.BarsIncludingCountIn;
+		ClockComponent->VideoRenderDeltaBeatF = ClockComponent->CurrentVideoRenderSongPos.BeatsIncludingCountIn - ClockComponent->PrevVideoRenderSongPos.BeatsIncludingCountIn;
+		ClockComponent->LastUpdateFrame = GFrameCounter;
 	}
 }

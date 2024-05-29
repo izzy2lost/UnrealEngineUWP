@@ -2,6 +2,7 @@
 #pragma once
 #include "HarmonixMidi/MusicMapBase.h"
 #include "HarmonixMidi/MidiConstants.h"
+#include <limits>
 
 #include "SectionMap.generated.h"
 
@@ -49,7 +50,7 @@ public:
 	void Finalize(int32 LastTick);
 
 	void Empty();
-	void Copy(const FSectionMap& Other, int32 StartTick = 0, int32 EndTick = -1);
+	void Copy(const FSectionMap& Other, int32 StartTick = 0, int32 EndTick = std::numeric_limits<int32>::max());
 	bool IsEmpty() const;
 
 	/** Called by the midi file importer before map points are added to this map */

@@ -102,7 +102,7 @@ namespace HarmonixMetasound
 
 			bNeedsTransportInit = true;
 		}
-
+		
 		virtual FDataReferenceCollection GetInputs() const override
 		{
 			// This should never be called. Bind(...) is called instead. This method
@@ -126,7 +126,7 @@ namespace HarmonixMetasound
 			const FInputVertexInterfaceData& InputData = InParams.InputData;
 			FMusicTransportEventStreamReadRef InTransport = InputData.GetOrConstructDataReadReference<FMusicTransportEventStream>(METASOUND_GET_PARAM_NAME(Inputs::Transport), InParams.OperatorSettings);
 			FMidiClockReadRef InMidiClock = InputData.GetOrConstructDataReadReference<FMidiClock>(METASOUND_GET_PARAM_NAME(Inputs::MidiClock), InParams.OperatorSettings);
-
+			
 			return MakeUnique<FTransportWavePlayerControllerOperator>(InParams.OperatorSettings, InTransport, InMidiClock);
 		}
 
@@ -139,80 +139,80 @@ namespace HarmonixMetasound
 			InitTransportIfNeeded();
 
 			TransportSpanProcessor TransportHandler = [this](int32 StartFrameIndex, int32 EndFrameIndex, EMusicPlayerTransportState CurrentState)
+			{
+				switch (CurrentState)
 				{
-					switch (CurrentState)
+				case EMusicPlayerTransportState::Invalid:
+				case EMusicPlayerTransportState::Preparing:
+					return EMusicPlayerTransportState::Prepared;
+
+				case EMusicPlayerTransportState::Prepared:
+					return EMusicPlayerTransportState::Prepared;
+
+				case EMusicPlayerTransportState::Starting:
+					if (!ReceivedSeekWhileStopped())
 					{
-					case EMusicPlayerTransportState::Invalid:
-					case EMusicPlayerTransportState::Preparing:
-						return EMusicPlayerTransportState::Prepared;
+						// Play from the beginning if we haven't received a seek call while we were stopped...
+						*StartTimeOutPin = FTime();
+					}
+					PlayOutPin->TriggerFrame(StartFrameIndex);
+					bPlaying = true;
+					return EMusicPlayerTransportState::Playing;
 
-					case EMusicPlayerTransportState::Prepared:
-						return EMusicPlayerTransportState::Prepared;
+				case EMusicPlayerTransportState::Playing:
+					return EMusicPlayerTransportState::Playing;
 
-					case EMusicPlayerTransportState::Starting:
-						if (!ReceivedSeekWhileStopped())
-						{
-							// Play from the beginning if we haven't received a seek call while we were stopped...
-							*StartTimeOutPin = FTime();
-						}
-						PlayOutPin->TriggerFrame(StartFrameIndex);
-						bPlaying = true;
-						return EMusicPlayerTransportState::Playing;
+				case EMusicPlayerTransportState::Seeking:
+					if (ReceivedSeekWhileStopped())
+					{
+						// Assumes the MidiClock is stopped for the remainder of the block.
+						*StartTimeOutPin = FTime(MidiClockInPin->GetCurrentSongPosMs() * 0.001f);
+					}
+					else
+					{
+						StopOutPin->TriggerFrame(StartFrameIndex);
+						int32 PlayFrameIndex = FMath::Min(StartFrameIndex + 1, EndFrameIndex);
 
-					case EMusicPlayerTransportState::Playing:
-						return EMusicPlayerTransportState::Playing;
+						// Assumes the MidiClock is playing for the remainder of the block.
+						*StartTimeOutPin = FTime(MidiClockInPin->GetCurrentSongPosMs() * 0.001f - (BlockSizeFrames - PlayFrameIndex) / SampleRate);
+						PlayOutPin->TriggerFrame(PlayFrameIndex);
+					}
+					// Here we will return that we want to be in the same state we were in before this request to 
+					// seek since we can seek "instantaneously"...
+					return GetTransportState();
 
-					case EMusicPlayerTransportState::Seeking:
-						if (ReceivedSeekWhileStopped())
-						{
-							// Assumes the MidiClock is stopped for the remainder of the block.
-							*StartTimeOutPin = FTime(MidiClockInPin->GetCurrentHiResMs() * 0.001f);
-						}
-						else
-						{
-							StopOutPin->TriggerFrame(StartFrameIndex);
-							int32 PlayFrameIndex = FMath::Min(StartFrameIndex + 1, EndFrameIndex);
+				case EMusicPlayerTransportState::Continuing:
+					// Assumes the StartTimeOutPin won't change for the remainder of the block.
+					PlayOutPin->TriggerFrame(StartFrameIndex);
+					bPlaying = true;
+					return EMusicPlayerTransportState::Playing;
 
-							// Assumes the MidiClock is playing for the remainder of the block.
-							*StartTimeOutPin = FTime(MidiClockInPin->GetCurrentHiResMs() * 0.001f - (BlockSizeFrames - PlayFrameIndex) / SampleRate);
-							PlayOutPin->TriggerFrame(PlayFrameIndex);
-						}
-						// Here we will return that we want to be in the same state we were in before this request to 
-						// seek since we can seek "instantaneously"...
-						return GetTransportState();
+				case EMusicPlayerTransportState::Pausing:
+					bPlaying = false;
+					StopOutPin->TriggerFrame(StartFrameIndex);
 
-					case EMusicPlayerTransportState::Continuing:
-						// Assumes the StartTimeOutPin won't change for the remainder of the block.
-						PlayOutPin->TriggerFrame(StartFrameIndex);
-						bPlaying = true;
-						return EMusicPlayerTransportState::Playing;
+					// Assumes the MidiClock is paused for the remainder of the block.
+					*StartTimeOutPin = FTime(MidiClockInPin->GetCurrentSongPosMs() * 0.001f);
+					return EMusicPlayerTransportState::Paused;
 
-					case EMusicPlayerTransportState::Pausing:
+				case EMusicPlayerTransportState::Paused:
+					return EMusicPlayerTransportState::Paused;
+
+				case EMusicPlayerTransportState::Stopping:
+				case EMusicPlayerTransportState::Killing:
+					if (bPlaying)
+					{
 						bPlaying = false;
 						StopOutPin->TriggerFrame(StartFrameIndex);
-
-						// Assumes the MidiClock is paused for the remainder of the block.
-						*StartTimeOutPin = FTime(MidiClockInPin->GetCurrentHiResMs() * 0.001f);
-						return EMusicPlayerTransportState::Paused;
-
-					case EMusicPlayerTransportState::Paused:
-						return EMusicPlayerTransportState::Paused;
-
-					case EMusicPlayerTransportState::Stopping:
-					case EMusicPlayerTransportState::Killing:
-						if (bPlaying)
-						{
-							bPlaying = false;
-							StopOutPin->TriggerFrame(StartFrameIndex);
-						}
-						*StartTimeOutPin = FTime();
-						return EMusicPlayerTransportState::Prepared;
-
-					default:
-						checkNoEntry();
-						return EMusicPlayerTransportState::Invalid;
 					}
-				};
+					*StartTimeOutPin = FTime();
+					return EMusicPlayerTransportState::Prepared;
+
+				default:
+					checkNoEntry();
+					return EMusicPlayerTransportState::Invalid;
+				}
+			};
 			ExecuteTransportSpans(TransportInPin, BlockSizeFrames, TransportHandler);
 		}
 
@@ -268,7 +268,7 @@ namespace HarmonixMetasound
 						case EMusicPlayerTransportState::Playing:
 						case EMusicPlayerTransportState::Continuing:
 							// Catch up with our MidiClock
-							*StartTimeOutPin = FTime(MidiClockInPin->GetCurrentHiResMs() * 0.001f);
+							*StartTimeOutPin = FTime(MidiClockInPin->GetCurrentSongPosMs() * 0.001f);
 							PlayOutPin->TriggerFrame(0);
 							bPlaying = true;
 							return EMusicPlayerTransportState::Playing;

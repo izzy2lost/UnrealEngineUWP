@@ -21,7 +21,7 @@ namespace Harmonix::Midi::Ops::Tests
 		constexpr uint8 TimeSigNumerator = 4;
 		constexpr uint8 TimeSigDenominator = 4;
 		const auto Clock = MakeShared<HarmonixMetasound::FMidiClock, ESPMode::NotThreadSafe>(OperatorSettings);
-		Clock->AttachToMidiResource(HarmonixMetasound::FMidiClock::MakeClockConductorMidiData(Tempo, TimeSigNumerator, TimeSigDenominator));
+		Clock->AttachToMidiFile(HarmonixMetasound::FMidiClock::MakeClockConductorMidiData(Tempo, TimeSigNumerator, TimeSigDenominator));
 		
 		HarmonixMetasound::FMidiStream OutputStream;
 
@@ -32,9 +32,15 @@ namespace Harmonix::Midi::Ops::Tests
 			constexpr int32 NotesUntilWeAreSatisfiedThisWorks = 23;
 			int32 NumNotesReceived = 0;
 
-			Clock->ResetAndStart(0);
+			Clock->SeekTo(0,0);
+			Clock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
 
-			FTimeSignature TimeSignature = Clock->GetBarMap().GetTimeSignatureAtTick(0);
+			FTimeSignature TimeSignature(4, 4);
+			const FTimeSignature* TimeSigPtr = Clock->GetSongMapEvaluator().GetTimeSignatureAtTick(0);
+			if (TimeSigPtr)
+			{
+				TimeSignature = *TimeSigPtr;
+			}
 			FMusicTimeInterval Interval = PulseGenerator.GetInterval();
 			FMusicTimestamp NextPulse{ 1, 1 };
 			IncrementTimestampByOffset(NextPulse, Interval, TimeSignature);
@@ -46,21 +52,20 @@ namespace Harmonix::Midi::Ops::Tests
 				{
 					IncrementTimestampByInterval(EndTimestamp, Interval, TimeSignature);
 				}
-				EndTick = Clock->GetBarMap().MusicTimestampToTick(EndTimestamp);
+				EndTick = Clock->GetSongMapEvaluator().MusicTimestampToTick(EndTimestamp);
 			}
 			
-			while (Clock->GetCurrentMidiTick() < EndTick)
+			while (Clock->GetLastProcessedMidiTick() < EndTick)
 			{
 				// Advance the clock, which will advance the play cursor in the pulse generator
-				Clock->PrepareBlock();
-				Clock->WriteAdvance(0, OperatorSettings.GetNumFramesPerBlock());
+				Clock->Advance(0, OperatorSettings.GetNumFramesPerBlock());
 
 				// Process, which will pop the next notes
 				OutputStream.PrepareBlock();
 				PulseGenerator.Process(OutputStream);
 				
 				// If this is a block where we should get a pulse, check that we got it
-				if (Clock->GetCurrentMidiTick() >= Clock->GetBarMap().MusicTimestampToTick(NextPulse))
+				if (Clock->GetLastProcessedMidiTick() >= Clock->GetSongMapEvaluator().MusicTimestampToTick(NextPulse))
 				{
 					const bool ShouldGetNoteOff = NumNotesReceived > 0;
 
@@ -116,6 +121,9 @@ namespace Harmonix::Midi::Ops::Tests
 
 					IncrementTimestampByInterval(NextPulse, Interval, TimeSignature);
 				}
+
+				// we can prepare the clock for the next block...
+				Clock->PrepareBlock();
 			}
 			
 			UTEST_TRUE("Got all the notes at the right time", NumNotesReceived >= NotesUntilWeAreSatisfiedThisWorks);

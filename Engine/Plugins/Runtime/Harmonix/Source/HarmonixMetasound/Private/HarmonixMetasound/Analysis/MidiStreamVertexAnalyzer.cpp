@@ -45,7 +45,7 @@ namespace HarmonixMetasound::Analysis
 			FMidiEventInfo EventOut;
 			if (const TSharedPtr<const FMidiClock, ESPMode::NotThreadSafe> Clock = MidiStreamIn.GetClock())
 			{
-				EventOut.Timestamp = Clock->GetBarMap().TickToMusicTimestamp(Event.CurrentMidiTick);
+				EventOut.Timestamp = Clock->GetSongMapEvaluator().TickToMusicTimestamp(Event.CurrentMidiTick);
 			}
 			EventOut.TrackIndex = Event.TrackIndex;
 			EventOut.MidiMessage = Event.MidiMessage;

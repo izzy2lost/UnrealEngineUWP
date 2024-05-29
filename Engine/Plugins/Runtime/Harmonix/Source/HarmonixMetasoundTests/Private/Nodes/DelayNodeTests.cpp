@@ -243,25 +243,22 @@ namespace HarmonixMetasoundTests::DelayNode
 			const TSharedPtr<FMidiFileData> MidiData = MakeShared<FMidiFileData>();
 			check(MidiData);
 
-			FTempoMap& TempoMap = MidiData->SongMaps.GetTempoMap();
-			TempoMap.Empty();
-			FBarMap& BarMap = MidiData->SongMaps.GetBarMap();
-			BarMap.Empty();
+			MidiData->SongMaps.EmptyAllMaps();
 			MidiData->Tracks.Empty();
 
 			MidiData->Tracks.Add(FMidiTrack(TEXT("conductor")));
 			MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(static_cast<uint8>(TimeSigNum), static_cast<uint8>(TimeSigDenom))));
-			BarMap.AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNum, TimeSigDenom);
+			MidiData->SongMaps.AddTimeSignatureAtBarIncludingCountIn(0, TimeSigNum, TimeSigDenom);
 			const int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(Tempo);
 			MidiData->Tracks[0].AddEvent(FMidiEvent(0, FMidiMsg(MidiTempo)));
-			TempoMap.AddTempoInfoPoint(MidiTempo, 0);
+			MidiData->SongMaps.AddTempoInfoPoint(MidiTempo, 0);
 			MidiData->Tracks[0].Sort();
 			MidiData->ConformToLength(std::numeric_limits<int32>::max());
 			MidiData->SongMaps.GetSongLengthData().LengthTicks = std::numeric_limits<int32>::max();
 			MidiData->SongMaps.GetSongLengthData().LengthFractionalBars = std::numeric_limits<float>::max();
 
-			(*ClockInput)->AttachToMidiResource(MidiData);
-			(*ClockInput)->ResetAndStart(0);
+			(*ClockInput)->AttachToMidiFile(MidiData);
+			(*ClockInput)->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
 
 			SampleRemainder = 0;
 			SampleCount = 0;
@@ -280,7 +277,9 @@ namespace HarmonixMetasoundTests::DelayNode
 			{
 				return false;
 			}
+			(*ClockInput)->PrepareBlock();
 			const int32 NumSamples = Audio::GetMultichannelBufferNumFrames(ComparisonBuffer);
+			int32 BlockFrameIndex = SampleRemainder;
 			SampleRemainder += NumSamples;
 			constexpr int32 MidiGranularity = 128;
 			while (SampleRemainder >= MidiGranularity)
@@ -288,7 +287,8 @@ namespace HarmonixMetasoundTests::DelayNode
 				SampleCount += MidiGranularity;
 				SampleRemainder -= MidiGranularity;
 				const float AdvanceToMs = static_cast<float>(SampleCount) * 1000.0f / SampleRate;
-				(*ClockInput)->AdvanceHiResToMs(0, AdvanceToMs, true);
+				(*ClockInput)->AdvanceToMs(BlockFrameIndex, AdvanceToMs);
+				BlockFrameIndex += MidiGranularity;
 			}
 
 			return true;

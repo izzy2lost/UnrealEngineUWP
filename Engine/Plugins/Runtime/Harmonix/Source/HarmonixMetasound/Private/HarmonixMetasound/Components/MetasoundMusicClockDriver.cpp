@@ -2,6 +2,7 @@
 #include "MetasoundMusicClockDriver.h"
 #include "MetasoundGeneratorHandle.h"
 #include "Components/AudioComponent.h"
+#include "HarmonixMetasound/Analysis/MidiSongPosVertexAnalyzer.h"
 #include "HarmonixMetasound/DataTypes/MidiClock.h"
 #include "MetasoundGeneratorHandle.h"
 #include "MetasoundGenerator.h"
@@ -9,29 +10,124 @@
 #include "Async/Async.h"
 #include "Harmonix.h"
 
+namespace MetasoundMusicClockDriver
+{
+	float Fudge = 1.00;
+	float kP = 0.001;
+	float HistoricSmoothedAudioRenderLagSeconds = 0.030; // this used to be baked-in/hardcoded into the smoothing of the audio render time. 
+	float SmoothedAudioRenderLagSeconds = 0.030f; // 30 ms
+	float MaxErrorSecondsBeforeJump = 0.060f; // 60ms
+	int32 HighWaterNumDataAvailable = 0;
+	double SlowestCorrectionSpeed = 0.98;
+	double FastestCorrectionSpeed = 1.02;
+
+
+	FAutoConsoleVariableRef CVarFudge(
+		TEXT("au.MusicClockComponent.TEST.Fudge"),
+		Fudge,
+		TEXT("Clock Fudge FOR TESTING."),
+		ECVF_Cheat);
+
+	FAutoConsoleVariableRef CVarkP(
+		TEXT("au.MusicClockComponent.kP"),
+		kP,
+		TEXT("Clock kP."),
+		ECVF_Default);
+
+	FAutoConsoleVariableRef CVarAudioRenderLag(
+		TEXT("au.MusicClockComponent.SmoothedAudioRenderLagSeconds"),
+		SmoothedAudioRenderLagSeconds,
+		TEXT("SmoothedAudioRenderLagSeconds."),
+		ECVF_Cheat);
+
+	FAutoConsoleVariableRef CVarMaxErrorSecondsBeforeJump(
+		TEXT("au.MusicClockComponent.MaxErrorSecondsBeforeJump"),
+		MaxErrorSecondsBeforeJump,
+		TEXT("MaxErrorSecondsBeforeJump."),
+		ECVF_Default);
+}
+
 bool FMetasoundMusicClockDriver::CalculateSongPosWithOffset(float MsOffset, ECalibratedMusicTimebase Timebase, FMidiSongPos& OutResult) const
 {
+	using namespace HarmonixMetasound::Analysis;
+
 	check(IsInGameThread());
 
 	// if we have an owner, ask them directly
-	if (CursorOwner)
+	if (!ClockHistory)
 	{
-		switch (Timebase)
-		{
-		case ECalibratedMusicTimebase::AudioRenderTime:
-			OutResult = CursorOwner->CalculateLowResSongPosRelativeToCurrentMs((Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset);
-			break;
-		case ECalibratedMusicTimebase::ExperiencedTime:
-			OutResult = CursorOwner->CalculateLowResSongPosRelativeToCurrentMs((Clock->CurrentPlayerExperiencedSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset);
-			break;
-		case ECalibratedMusicTimebase::VideoRenderTime:
-		default:
-			OutResult = CursorOwner->CalculateLowResSongPosRelativeToCurrentMs((Clock->CurrentVideoRenderSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset);
-			break;
-		}
-		return true;
+		return false;
 	}
-	return false;
+
+	if (!CurrentMapChain || !CurrentMapChain->SongMaps)
+	{
+		return false;
+	}
+
+	// start with the offset...
+	float AbsMs = MsOffset;
+	
+	// now add the current time from the proper time base...
+	switch (Timebase)
+	{
+	case ECalibratedMusicTimebase::AudioRenderTime:
+		AbsMs += ClockComponent->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f;
+		break;
+	case ECalibratedMusicTimebase::ExperiencedTime:
+		AbsMs += ClockComponent->CurrentPlayerExperiencedSongPos.SecondsIncludingCountIn * 1000.0f;
+		break;
+	case ECalibratedMusicTimebase::VideoRenderTime:
+	default:
+		AbsMs += ClockComponent->CurrentVideoRenderSongPos.SecondsIncludingCountIn * 1000.0f;
+		break;
+	}
+
+	// if looping map to range of loop...
+	if (CurrentMapChain->LoopLengthTicks > 0)
+	{
+		float LoopStartMs = CurrentMapChain->SongMaps->TickToMs(CurrentMapChain->FirstTickInLoop);
+		float LoopEndMs = CurrentMapChain->SongMaps->TickToMs(CurrentMapChain->FirstTickInLoop + CurrentMapChain->LoopLengthTicks);
+		if (AbsMs > LoopEndMs)
+		{
+			float LoopLengthMs = LoopEndMs - LoopStartMs;
+			AbsMs = LoopStartMs + FMath::Fmod(AbsMs - LoopStartMs, LoopLengthMs);
+		}
+	}
+
+	// and finally we can calculate a song position...
+	OutResult.SetByTime(AbsMs, *(CurrentMapChain->SongMaps));
+
+	return true;
+}
+
+FMidiSongPos FMetasoundMusicClockDriver::CalculateSongPosAtMs(float AbsoluteMs) const
+{
+	using namespace HarmonixMetasound::Analysis;
+	FMidiSongPos OutSongPos;
+	if (!ClockHistory)
+	{
+		return OutSongPos;
+	}
+
+	if (!CurrentMapChain || !CurrentMapChain->SongMaps)
+	{
+		return OutSongPos;
+	}
+
+	if (CurrentMapChain->LoopLengthTicks > 0)
+	{
+		float LoopStartMs = CurrentMapChain->SongMaps->TickToMs(CurrentMapChain->FirstTickInLoop);
+		float LoopEndMs = CurrentMapChain->SongMaps->TickToMs(CurrentMapChain->FirstTickInLoop + CurrentMapChain->LoopLengthTicks);
+		if (AbsoluteMs > LoopEndMs)
+		{
+			float LoopLengthMs = LoopEndMs - LoopStartMs;
+			AbsoluteMs = LoopStartMs + FMath::Fmod(AbsoluteMs - LoopStartMs, LoopLengthMs);
+		}
+	}
+
+	OutSongPos.SetByTime(AbsoluteMs, *(CurrentMapChain->SongMaps));
+
+	return OutSongPos;
 }
 
 bool FMetasoundMusicClockDriver::RefreshCurrentSongPos()
@@ -54,21 +150,25 @@ bool FMetasoundMusicClockDriver::RefreshCurrentSongPos()
 		}
 	}
 
-	if (CursorOwner)
+	if (bRunning)
 	{
-		// cursor is attached and has the current info
-		RefreshCurrentSongPosFromCursor();
-		return true;
-	}
-	else
-	{
-		// Cursor not attached so use wall clock
-		if (!WasEverConnected || Clock->RunPastMusicEnd)
+		if (ClockHistory)
 		{
-			RefreshCurrentSongPosFromWallClock();
+			// cursor is attached and has the current info
+			RefreshCurrentSongPosFromHistory();
 			return true;
 		}
+		else
+		{
+			// Cursor not attached so use wall clock
+			if (!WasEverConnected || ClockComponent->RunPastMusicEnd)
+			{
+				RefreshCurrentSongPosFromWallClock();
+				return true;
+			}
+		}
 	}
+
 	return false;
 }
 
@@ -77,37 +177,52 @@ void FMetasoundMusicClockDriver::OnStart()
 	check(IsInGameThread());
 
 	SongPosOffsetMs = 0.0f;
-	FreeRunStartTimeSecs = Clock ? Clock->GetWorld()->GetTimeSeconds() : 0.0;
+	RenderStartSampleCount = 0;
+	RenderStartWallClockTimeSeconds = 0.0;
+	FreeRunStartTimeSecs = ClockComponent ? ClockComponent->GetWorld()->GetTimeSeconds() : 0.0;
+	bRunning = true;
+}
+
+void FMetasoundMusicClockDriver::OnPause()
+{
+	check(IsInGameThread());
+	bRunning = false;
 }
 
 void FMetasoundMusicClockDriver::OnContinue()
 {
-	if (!CursorOwner)
+	check(IsInGameThread());
+	if (!ClockHistory)
 	{
 		RefreshCurrentSongPosFromWallClock();
 	}
+	bRunning = true;
+}
+
+void FMetasoundMusicClockDriver::OnStop()
+{
+	check(IsInGameThread());
+	bRunning = false;
 }
 
 void FMetasoundMusicClockDriver::Disconnect()
 {
-	if (CursorOwner)
-	{
-		CursorOwner->UnregisterPlayCursor(&Cursor);
-		CursorOwner.Reset();
-	}
+	check(IsInGameThread());
+	ClockHistory = nullptr;
 	DetachAllCallbacks();
 	AudioComponentToWatch.Reset();
 	CurrentGeneratorHandle.Reset();
 }
 
-const FSongMaps* FMetasoundMusicClockDriver::GetCurrentSongMaps() const
+const ISongMapEvaluator* FMetasoundMusicClockDriver::GetCurrentSongMapEvaluator() const
 {
+	using namespace HarmonixMetasound::Analysis;
 	check(IsInGameThread());
-	if (CursorOwner)
+	if (ClockHistory && CurrentMapChain && CurrentMapChain->SongMaps)
 	{
-		return &CursorOwner->GetSongMaps();
+		return CurrentMapChain->SongMaps.Get();
 	}
-	return &Clock->DefaultMaps;
+	return &ClockComponent->DefaultMaps;
 }
 
 bool FMetasoundMusicClockDriver::ConnectToAudioComponentsMetasound(UAudioComponent* InAudioComponent, FName MetasoundOuputPinName)
@@ -117,43 +232,10 @@ bool FMetasoundMusicClockDriver::ConnectToAudioComponentsMetasound(UAudioCompone
 	return AttemptToConnectToAudioComponentsMetasound();
 }
 
-void FMetasoundMusicClockDriver::ResetCursorOwner(TSharedPtr<FMidiPlayCursorMgr> MidiPlayCursorMgr)
-{
-	check(IsInGameThread());
-
-	// Verify that the cursor owner is changing.
-	if (CursorOwner != MidiPlayCursorMgr)
-	{
-		if (MidiPlayCursorMgr)
-		{
-			// Register with the new cursor owner and broadcast the clock connection event.
-			MidiPlayCursorMgr->RegisterLowResPlayCursor(&Cursor);
-			CursorOwner = MoveTemp(MidiPlayCursorMgr);
-			WasEverConnected = true;
-
-			check(Clock);
-			Clock->MusicClockConnectedEvent.Broadcast();
-		}
-		else
-		{
-			// Unregister the old cursor owner and broadcast the clock disconnection event.
-			CursorOwner->UnregisterPlayCursor(&Cursor);
-			if (Clock->GetState() != EMusicClockState::Stopped)
-			{
-				Clock->DefaultMaps.Copy(CursorOwner->GetSongMaps(), 0, Cursor.GetCurrentTick());
-				SongPosOffsetMs = Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f;
-				FreeRunStartTimeSecs = Clock->GetWorld()->GetTimeSeconds();
-			}
-			CursorOwner.Reset();
-
-			check(Clock);
-			Clock->MusicClockDisconnectedEvent.Broadcast();
-		}
-	}
-}
-
 bool FMetasoundMusicClockDriver::AttemptToConnectToAudioComponentsMetasound()
 {
+	using namespace HarmonixMetasound::Analysis;
+
 	check(IsInGameThread());
 	if (!AudioComponentToWatch.IsValid() || MetasoundOutputName.IsNone())
 	{
@@ -167,13 +249,26 @@ bool FMetasoundMusicClockDriver::AttemptToConnectToAudioComponentsMetasound()
 	{
 		return false;
 	}
+
+	bool WatchingOutput = CurrentGeneratorHandle->WatchOutput(MetasoundOutputName, 
+		FOnMetasoundOutputValueChangedNative::CreateLambda([](FName, const FMetaSoundOutput&) {}),
+		FMidiSongPosVertexAnalyzer::GetAnalyzerName(),
+		FMidiSongPosVertexAnalyzer::SongPosition.Name);
+	if (WatchingOutput)
+	{
+		ensure(CurrentGeneratorHandle->TryCreateAnalyzerAddress(MetasoundOutputName, 
+				FMidiSongPosVertexAnalyzer::GetAnalyzerName(), 
+				FMidiSongPosVertexAnalyzer::SongPosition.Name, 
+				MidiSongPosAnalyzerAddress));
+	}
+
 	GeneratorAttachedCallbackHandle = CurrentGeneratorHandle->OnGeneratorHandleAttached.AddLambda([this](){OnGeneratorAttached();});
 	GeneratorDetachedCallbackHandle = CurrentGeneratorHandle->OnGeneratorHandleDetached.AddLambda([this](){OnGeneratorDetached();});
 	GeneratorIOUpdatedCallbackHandle = CurrentGeneratorHandle->OnIOUpdatedWithChanges.AddLambda([this](const TArray<Metasound::FVertexInterfaceChange>& VertexInterfaceChanges){OnGeneratorIOUpdatedWithChanges(VertexInterfaceChanges);});
 	UMetasoundGeneratorHandle::FOnSetGraph::FDelegate OnSetGraph;
 	OnSetGraph.BindLambda([this](){OnGraphSet();});
 	GraphChangedCallbackHandle = CurrentGeneratorHandle->AddGraphSetCallback(MoveTemp(OnSetGraph));
-	OnGeneratorAttached();
+	// OnGeneratorAttached();
 	return true;
 }
 
@@ -185,151 +280,301 @@ void FMetasoundMusicClockDriver::DetachAllCallbacks()
 		GeneratorAttachedCallbackHandle.Reset();
 		CurrentGeneratorHandle->OnGeneratorHandleDetached.Remove(GeneratorDetachedCallbackHandle);
 		GeneratorDetachedCallbackHandle.Reset();
+
 		CurrentGeneratorHandle->OnIOUpdatedWithChanges.Remove(GeneratorIOUpdatedCallbackHandle);
 		GeneratorIOUpdatedCallbackHandle.Reset();
 		CurrentGeneratorHandle->RemoveGraphSetCallback(GraphChangedCallbackHandle);
 		GraphChangedCallbackHandle.Reset();
+
 	}
+	ClockHistory = nullptr;
 }
 
 void FMetasoundMusicClockDriver::OnGeneratorAttached()
 {
-	TryToRegisterPlayCursor();
+	WasEverConnected = true;
+	ClockHistory = UMidiClockUpdateSubsystem::GetOrCreateClockHistory(MidiSongPosAnalyzerAddress);
+	SmoothedAudioRenderClockHistoryCursor = ClockHistory->CreateReadCursor();
+	SmoothedPlayerExperienceClockHistoryCursor = ClockHistory->CreateReadCursor();
+	SmoothedVideoRenderClockHistoryCursor = ClockHistory->CreateReadCursor();
+	ClockComponent->MusicClockConnectedEvent.Broadcast();
 }
 
 void FMetasoundMusicClockDriver::OnGraphSet()
 {
-	TryToRegisterPlayCursor();
+	ClockHistory = UMidiClockUpdateSubsystem::GetOrCreateClockHistory(MidiSongPosAnalyzerAddress);
+	SmoothedAudioRenderClockHistoryCursor = ClockHistory->CreateReadCursor();
+	SmoothedPlayerExperienceClockHistoryCursor = ClockHistory->CreateReadCursor();
+	SmoothedVideoRenderClockHistoryCursor = ClockHistory->CreateReadCursor();
 }
 
-void FMetasoundMusicClockDriver::OnGeneratorIOUpdated()
-{
-	// Replaced by OnGeneratorIOUpdatedWithChanges, no-op but still here as it's protected, and child classes may call to it
-	UE_LOG(LogMusicClock, Warning, TEXT("Called to OnGeneratorIOUpdated, which is deprecated and no-op. Use OnGeneratorIOUpdatedWithChanges."), *MetasoundOutputName.ToString());
-}
 
 void FMetasoundMusicClockDriver::OnGeneratorIOUpdatedWithChanges(const TArray<Metasound::FVertexInterfaceChange>& VertexInterfaceChanges)
 {
-	// An output vertex update may have destroyed our Clock, reattach to the new one if it's there
 	if (!MetasoundOutputName.IsNone())
 	{
 		for (auto& VertexInterfaceChange : VertexInterfaceChanges)
 		{
-			if (VertexInterfaceChange.VertexName.IsEqual(MetasoundOutputName))
-			{
-				TryToRegisterPlayCursor();
-				break;
-			}
+			ClockHistory = UMidiClockUpdateSubsystem::GetOrCreateClockHistory(MidiSongPosAnalyzerAddress);
+			SmoothedAudioRenderClockHistoryCursor = ClockHistory->CreateReadCursor();
+			SmoothedPlayerExperienceClockHistoryCursor = ClockHistory->CreateReadCursor();
+			SmoothedVideoRenderClockHistoryCursor = ClockHistory->CreateReadCursor();
+			break;
 		}
 	}
+	
 }
+
 
 void FMetasoundMusicClockDriver::OnGeneratorDetached()
 {
-	ResetCursorOwner();
-}
-
-void FMetasoundMusicClockDriver::TryToRegisterPlayCursor()
-{
-	check(IsInGameThread());
-	check(Clock);
-
-	if (!CurrentGeneratorHandle || MetasoundOutputName.IsNone())
+	using namespace HarmonixMetasound::Analysis;
+	check(ClockComponent);
+	if (ClockComponent->GetState() != EMusicClockState::Stopped)
 	{
-		return;
+		if (ClockHistory && CurrentMapChain && CurrentMapChain->SongMaps)
+		{
+			ClockComponent->DefaultMaps.Copy(*(CurrentMapChain->SongMaps), 0, LastTickSeen);
+		}
+		SongPosOffsetMs = ClockComponent->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f;
+		FreeRunStartTimeSecs = ClockComponent->GetWorld()->GetTimeSeconds();
 	}
+	ClockHistory = nullptr;
+	SmoothedAudioRenderClockHistoryCursor = HarmonixMetasound::Analysis::FMidiClockSongPositionHistory::FReadCursor();
+	SmoothedPlayerExperienceClockHistoryCursor = HarmonixMetasound::Analysis::FMidiClockSongPositionHistory::FReadCursor();
+	SmoothedVideoRenderClockHistoryCursor = HarmonixMetasound::Analysis::FMidiClockSongPositionHistory::FReadCursor();
 
-	if (TSharedPtr<Metasound::FMetasoundGenerator> LowLevelGenerator = CurrentGeneratorHandle->GetGenerator())
-	{
-		// Send a command to the OnGenerateAudio thread, where it is safe to interact with the low level generator's output read references.
-		LowLevelGenerator->OnNextBuffer([MetasoundOutputName = MetasoundOutputName, ClockWeakPtr = TWeakObjectPtr<UMusicClockComponent>(Clock), ClockDriverWeakPtr = AsWeak()](Metasound::FMetasoundGenerator& LowLevelGenerator) mutable
-			{
-				// Try to get a cursor manager from the named midi clock output.
-				TSharedPtr<FMidiPlayCursorMgr> MidiPlayCursorMgr;
-				const TOptional<Metasound::TDataReadReference<HarmonixMetasound::FMidiClock>> MidiClockRef = LowLevelGenerator.GetOutputReadReference<HarmonixMetasound::FMidiClock>(MetasoundOutputName);
-				if (const Metasound::TDataReadReference<HarmonixMetasound::FMidiClock>* MidiClock = MidiClockRef.GetPtrOrNull())
-				{
-					MidiPlayCursorMgr = (*MidiClock)->GetDrivingMidiPlayCursorMgr();
-				}
-				else
-				{
-					UE_LOG(LogMusicClock, Verbose, TEXT("Didn't find MIDI Clock output named \"%s\" in the Metasound!"), *MetasoundOutputName.ToString());
-				}
-
-				// Send a command to the game thread, where it is safe to modify clock component state.
-				AsyncTask(ENamedThreads::GameThread, [ClockWeakPtr = MoveTemp(ClockWeakPtr), ClockDriverWeakPtr = MoveTemp(ClockDriverWeakPtr), MidiPlayCursorMgr = MoveTemp(MidiPlayCursorMgr)]() mutable
-					{
-						if (UMusicClockComponent* Clock = ClockWeakPtr.Get())
-						{
-							if (TSharedPtr<FMetasoundMusicClockDriver> ClockDriver = StaticCastSharedPtr<FMetasoundMusicClockDriver>(ClockDriverWeakPtr.Pin()))
-							{
-								// Verify that the music clock component still references the clock driver.
-								if (ClockDriver == Clock->ClockDriver)
-								{
-									ClockDriver->ResetCursorOwner(MoveTemp(MidiPlayCursorMgr));
-								}
-							}
-						}
-					});
-			});
-	}
+	ClockComponent->MusicClockDisconnectedEvent.Broadcast();
 }
 
 void FMetasoundMusicClockDriver::RefreshCurrentSongPosFromWallClock()
 {
-	check(Clock);
+	check(ClockComponent);
 
-	bool TempoChanged = Clock->CurrentSmoothedAudioRenderSongPos.Tempo != Clock->Tempo;
+	bool TempoChanged = ClockComponent->CurrentSmoothedAudioRenderSongPos.Tempo != ClockComponent->Tempo;
 
-	double FreeRunTime = (Clock->GetWorld()->GetTimeSeconds() - FreeRunStartTimeSecs) * Clock->CurrentClockAdvanceRate;
+	double FreeRunTime = (ClockComponent->GetWorld()->GetTimeSeconds() - FreeRunStartTimeSecs) * ClockComponent->CurrentClockAdvanceRate;
 
-	Clock->CurrentSmoothedAudioRenderSongPos.SetByTime(((float)FreeRunTime * 1000.0) + SongPosOffsetMs, Clock->DefaultMaps);
-	Clock->CurrentPlayerExperiencedSongPos.SetByTime(Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::GetMeasuredUserExperienceAndReactionToAudioRenderOffsetMs(), Clock->DefaultMaps);
-	Clock->CurrentVideoRenderSongPos.SetByTime(Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::GetMeasuredVideoToAudioRenderOffsetMs(), Clock->DefaultMaps);
-	if (Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn > Clock->RawUnsmoothedAudioRenderPos.SecondsIncludingCountIn)
+	ClockComponent->CurrentSmoothedAudioRenderSongPos.SetByTime(((float)FreeRunTime * 1000.0) + SongPosOffsetMs, ClockComponent->DefaultMaps);
+	ClockComponent->CurrentPlayerExperiencedSongPos.SetByTime(ClockComponent->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::GetMeasuredUserExperienceAndReactionToAudioRenderOffsetMs(), ClockComponent->DefaultMaps);
+	ClockComponent->CurrentVideoRenderSongPos.SetByTime(ClockComponent->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::GetMeasuredVideoToAudioRenderOffsetMs(), ClockComponent->DefaultMaps);
+	if (ClockComponent->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn > ClockComponent->RawUnsmoothedAudioRenderPos.SecondsIncludingCountIn)
 	{
-		Clock->RawUnsmoothedAudioRenderPos.SetByTime(Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f, Clock->DefaultMaps);
+		ClockComponent->RawUnsmoothedAudioRenderPos.SetByTime(ClockComponent->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f, ClockComponent->DefaultMaps);
 	}
 
 	if (TempoChanged)
 	{
-		Clock->Tempo = Clock->CurrentSmoothedAudioRenderSongPos.Tempo;
-		Clock->CurrentBeatDurationSec = (60.0f / Clock->Tempo) / Clock->CurrentClockAdvanceRate;
-		Clock->CurrentBarDurationSec = ((Clock->TimeSignatureNum * Clock->CurrentBeatDurationSec) / (Clock->TimeSignatureDenom / 4.0f)) / Clock->CurrentClockAdvanceRate;
+		ClockComponent->Tempo = ClockComponent->CurrentSmoothedAudioRenderSongPos.Tempo;
+		ClockComponent->CurrentBeatDurationSec = (60.0f / ClockComponent->Tempo) / ClockComponent->CurrentClockAdvanceRate;
+		ClockComponent->CurrentBarDurationSec = ((ClockComponent->TimeSignatureNum * ClockComponent->CurrentBeatDurationSec) / (ClockComponent->TimeSignatureDenom / 4.0f)) / ClockComponent->CurrentClockAdvanceRate;
 	}
 }
 
-void FMetasoundMusicClockDriver::RefreshCurrentSongPosFromCursor()
+FString FMetasoundMusicClockDriver::HistoryFailureTypeToString(FMetasoundMusicClockDriver::EHistoryFailureType Error)
 {
-	check(IsInGameThread());
-	check(Clock);
-	Clock->CurrentSmoothedAudioRenderSongPos = Cursor.GetCurrentSongPos();
-
-	float PrevClockAdvanceRate = Clock->CurrentClockAdvanceRate;
-	if (CursorOwner)
+	switch (Error)
 	{
-		Clock->CurrentClockAdvanceRate = CursorOwner->GetLowResAdvanceRate();
-		Clock->CurrentPlayerExperiencedSongPos = CursorOwner->CalculateLowResSongPosRelativeToCurrentMs(Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::GetMeasuredUserExperienceAndReactionToAudioRenderOffsetMs());
-		Clock->CurrentVideoRenderSongPos = CursorOwner->CalculateLowResSongPosRelativeToCurrentMs(Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::GetMeasuredVideoToAudioRenderOffsetMs());
-		Clock->RawUnsmoothedAudioRenderPos = CursorOwner->CalculateLowResSongPosWithOffsetMs(0.0f);
+	case FMetasoundMusicClockDriver::EHistoryFailureType::None: return "None";
+	case FMetasoundMusicClockDriver::EHistoryFailureType::NotEnoughDataInTheHistoryRing: return "NotEnoughDataInTheHistoryRing";
+	case FMetasoundMusicClockDriver::EHistoryFailureType::NotEnoughHistory: return "NotEnoughHistory";
+	case FMetasoundMusicClockDriver::EHistoryFailureType::LookingForTimeInTheFutureOfWhatHasEvenRendered: return "LookingForTimeInTheFutureOfWhatHasEvenRendered";
+	case FMetasoundMusicClockDriver::EHistoryFailureType::CaughtUpToRenderPosition: return "CaughtUpToRenderPosition";
 	}
-	else
+	return "Unrecognized";
+}
+
+void FMetasoundMusicClockDriver::RefreshCurrentSongPosFromHistory()
+{
+	using namespace HarmonixMetasound::Analysis;
+
+	check(IsInGameThread());
+
+	if (!bRunning || !ClockComponent || !SmoothedAudioRenderClockHistoryCursor.DataAvailable())
 	{
-		Clock->CurrentPlayerExperiencedSongPos.SetByTime(Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::Get().GetMeasuredUserExperienceAndReactionToAudioRenderOffsetMs(), Clock->DefaultMaps);
-		Clock->CurrentVideoRenderSongPos.SetByTime(Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::Get().GetMeasuredVideoToAudioRenderOffsetMs(), Clock->DefaultMaps);
-		if (Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn > Clock->RawUnsmoothedAudioRenderPos.SecondsIncludingCountIn)
+		return;
+	}
+	
+	if (!SmoothedAudioRenderClockHistoryCursor.Queue)
+	{
+		return;
+	}
+
+	if (!CurrentMapChain || !CurrentMapChain->SongMaps || CurrentMapChain->NewSongMaps)
+	{
+		CurrentMapChain = ClockHistory->GetLatestMapsForConsumer();
+		if (!CurrentMapChain || !CurrentMapChain->SongMaps)
 		{
-			Clock->RawUnsmoothedAudioRenderPos.SetByTime(Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f, Clock->DefaultMaps);
+			return;
 		}
 	}
 
-	Clock->TimeSignatureNum = Clock->CurrentSmoothedAudioRenderSongPos.TimeSigNumerator;
-	Clock->TimeSignatureDenom = Clock->CurrentSmoothedAudioRenderSongPos.TimeSigDenominator;
+	auto Entry = ClockHistory->Positions.GetEntry(ClockHistory->Positions.GetLastWriteIndex());
+	ClockComponent->RawUnsmoothedAudioRenderPos.SetByTick(Entry->Item.UpToTick, *(CurrentMapChain->SongMaps));
+	Metasound::FSampleCount LastRenderPosSampleCount = Entry->Item.SampleCount;
+	float SpeedAtRawRenderTime = Entry->Item.CurrentSpeed;
+	LastTickSeen = Entry->Item.UpToTick;
+	bool bClockIsStopped = Entry->Item.CurrentTransportState != HarmonixMetasound::EMusicPlayerTransportState::Playing;
 
-	if (Clock->Tempo != Clock->CurrentSmoothedAudioRenderSongPos.Tempo || PrevClockAdvanceRate != Clock->CurrentClockAdvanceRate)
+	if (RenderStartWallClockTimeSeconds == 0.0)
 	{
-		Clock->Tempo = Clock->CurrentSmoothedAudioRenderSongPos.Tempo;
-		Clock->CurrentBeatDurationSec = (60.0f / Clock->Tempo) / Clock->CurrentClockAdvanceRate;
-		Clock->CurrentBarDurationSec = ((Clock->TimeSignatureNum * Clock->CurrentBeatDurationSec) / (Clock->TimeSignatureDenom / 4.0f)) / Clock->CurrentClockAdvanceRate;
+		// We are just starting up. We need to create the initial "sync point"...
+		// Wall clock <-> Render Samples...
+		RenderStartSampleCount = LastRenderPosSampleCount;
+		RenderStartWallClockTimeSeconds = ClockComponent->GetWorld()->GetTimeSeconds() - (double)RenderStartSampleCount / (double)ClockHistory->SampleRate;
+		RenderSmoothingLagSeconds = MetasoundMusicClockDriver::SmoothedAudioRenderLagSeconds;
+		ErrorTracker.Reset();
 	}
+
+	double CurrentWallClockSeconds = ClockComponent->GetWorld()->GetTimeSeconds();
+		
+	double ExpectedRenderedSeconds = (CurrentWallClockSeconds - RenderStartWallClockTimeSeconds) * SyncSpeed * MetasoundMusicClockDriver::Fudge;
+	double RenderedSeconds = (double)LastRenderPosSampleCount / (double)ClockHistory->SampleRate;
+	double Error = RenderedSeconds - ExpectedRenderedSeconds;
+
+	if (!bClockIsStopped)
+	{
+		ErrorTracker.Push(Error);
+
+		if (FMath::Abs(ErrorTracker.Min()) > MetasoundMusicClockDriver::MaxErrorSecondsBeforeJump)
+		{
+			UE_LOG(LogMusicClock, Verbose, TEXT("======== MASSIVE ERROR (%f) - SEEKING ==========="), (float)Error);
+			RenderStartSampleCount = LastRenderPosSampleCount;
+			RenderStartWallClockTimeSeconds = ClockComponent->GetWorld()->GetTimeSeconds() - (double)RenderStartSampleCount / (double)ClockHistory->SampleRate;
+			ExpectedRenderedSeconds = RenderedSeconds;
+			RenderSmoothingLagSeconds = MetasoundMusicClockDriver::SmoothedAudioRenderLagSeconds;
+			ErrorTracker.Reset();
+			Error = 0;
+			SyncSpeed = 1.0;
+		}
+
+		// Use proportional part of error to adjust speed ever so slightly...
+		SyncSpeed += MetasoundMusicClockDriver::kP * ErrorTracker.Min();
+		SyncSpeed = FMath::Clamp(SyncSpeed, MetasoundMusicClockDriver::SlowestCorrectionSpeed, MetasoundMusicClockDriver::FastestCorrectionSpeed);
+	}
+
+	//UE_LOG(LogMusicClock, Log, TEXT("Local Minimum Error: %f Average: %f Speed: %f"), (float)ErrorTracker.Min(), (float)ErrorTracker.Average(), (float)SyncSpeed);
+
+	Metasound::FSampleCount ExpectedRenderPosSampleCount = (Metasound::FSampleCount)(ExpectedRenderedSeconds * (double)ClockHistory->SampleRate);
+
+	// first smoothed render time. This is closest to the actual render time. If we catch up to the render time
+	// it means we are rendering in such large blocks that we need to push up our "look behind" number for smoothing.
+	float SpeedAtSmoothRenderedTime = 1.0f;
+	float SmoothedTick = ClockComponent->GetTicksIncludingCountIn(ECalibratedMusicTimebase::AudioRenderTime);
+	EHistoryFailureType Result = CalculateSmoothedTick(ExpectedRenderPosSampleCount, LastRenderPosSampleCount,
+		SmoothedTick, SpeedAtSmoothRenderedTime, SmoothedAudioRenderClockHistoryCursor, RenderSmoothingLagSeconds);
+	if (Result != EHistoryFailureType::None)
+	{
+		if (LastRenderPosSampleCount >  (RenderSmoothingLagSeconds * ClockHistory->SampleRate * 2))
+		{
+			if (RenderSmoothingLagSeconds < 0.250f)
+			{
+				RenderSmoothingLagSeconds += 0.005f;
+				UE_LOG(LogMusicClock, Verbose, TEXT("(%d) Smoothed Render Time too close to actual render time. Bumping up smoothing lag! (%f)"), LastRenderPosSampleCount, RenderSmoothingLagSeconds);
+			}
+			else
+			{
+				UE_LOG(LogMusicClock, Verbose, TEXT("(%d) Smoothed Render Time too close to actual render time. ALREADY MAX SMOOTHING LAG! (%f)"), LastRenderPosSampleCount, RenderSmoothingLagSeconds);
+			}
+		}
+		else
+		{
+			UE_LOG(LogMusicClock, Verbose, TEXT("(%d) Smoothed Render Time too close to actual render time. WAITING!"), LastRenderPosSampleCount);
+		}
+		return;
+	}
+
+	// Now... We are behind the actual render time because of the lag we introduce to have enough
+	// history... SO... Push forward to get a time that is approx. 30 ms behind the
+	// render time. Why 30ms? Historical reasons. 
+	float SmoothedSongMs = CurrentMapChain->SongMaps->TickToMs(SmoothedTick);
+	SmoothedSongMs += RenderSmoothingLagSeconds * 1000.0f;
+	ClockComponent->CurrentSmoothedAudioRenderSongPos = CalculateSongPosAtMs(SmoothedSongMs);
+
+	// Now the time the user should actually be "experiencing"... ie "hearing" can be calculated as an offset
+	// from the smooth audio rendering time...
+	float LookBehindLagMs = FHarmonixModule::Get().GetMeasuredUserExperienceAndReactionToAudioRenderOffsetMs();
+	float Ms = ClockComponent->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f;
+	Ms -= LookBehindLagMs; // - (RenderSmoothingLagSeconds * 1000.0f);
+	ClockComponent->CurrentPlayerExperiencedSongPos = CalculateSongPosAtMs(Ms);
+
+	// Now the time we should be rendering graphics for...
+	LookBehindLagMs = FHarmonixModule::Get().GetMeasuredVideoToAudioRenderOffsetMs();
+	Ms = ClockComponent->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f;
+	Ms -= LookBehindLagMs; // - (RenderSmoothingLagSeconds * 1000.0f);
+	ClockComponent->CurrentVideoRenderSongPos = CalculateSongPosAtMs(Ms);
+
+	ClockComponent->TimeSignatureNum = ClockComponent->CurrentSmoothedAudioRenderSongPos.TimeSigNumerator;
+	ClockComponent->TimeSignatureDenom = ClockComponent->CurrentSmoothedAudioRenderSongPos.TimeSigDenominator;
+
+	if (ClockComponent->Tempo != ClockComponent->CurrentSmoothedAudioRenderSongPos.Tempo || ClockComponent->CurrentClockAdvanceRate != SpeedAtRawRenderTime)
+	{
+		ClockComponent->CurrentClockAdvanceRate = SpeedAtRawRenderTime;
+		ClockComponent->Tempo = ClockComponent->CurrentSmoothedAudioRenderSongPos.Tempo;
+		ClockComponent->CurrentBeatDurationSec = (60.0f / ClockComponent->Tempo) / ClockComponent->CurrentClockAdvanceRate;
+		ClockComponent->CurrentBarDurationSec = ((ClockComponent->TimeSignatureNum * ClockComponent->CurrentBeatDurationSec) / (ClockComponent->TimeSignatureDenom / 4.0f)) / ClockComponent->CurrentClockAdvanceRate;
+	}
+}
+
+FMetasoundMusicClockDriver::EHistoryFailureType FMetasoundMusicClockDriver::CalculateSmoothedTick(Metasound::FSampleCount ExpectedRenderPosSampleCount, Metasound::FSampleCount LastRenderPosSampleCount,
+	float& SmoothedTick, float& CurrentSpeed, HarmonixMetasound::Analysis::FMidiClockSongPositionHistory::FReadCursor& ReadCursor, float LookBehindSeconds)
+{
+	using namespace HarmonixMetasound::Analysis;
+
+	// A little book keeping for tracking...
+	if (MetasoundMusicClockDriver::HighWaterNumDataAvailable < ReadCursor.NumDataAvailable())
+	{
+		MetasoundMusicClockDriver::HighWaterNumDataAvailable = ReadCursor.NumDataAvailable();
+	}
+
+	Metasound::FSampleCount LookingForSampleFrame = ExpectedRenderPosSampleCount - (LookBehindSeconds * ClockHistory->SampleRate);
+
+	int32 NumHistoryAvailable = ReadCursor.NumDataAvailable();
+	if (LookingForSampleFrame >= LastRenderPosSampleCount && NumHistoryAvailable > 1)
+	{
+		while (ReadCursor.NumDataAvailable() > 1)
+		{
+			ReadCursor.ConsumeNext();
+		}
+		NumHistoryAvailable = ReadCursor.NumDataAvailable();
+	}
+
+	if (NumHistoryAvailable == 0)
+	{
+		return EHistoryFailureType::NotEnoughDataInTheHistoryRing;
+	}
+
+	FMidiClockSongPositionHistory::FScopedItemPeekRef PeekNextRef = ReadCursor.PeekNext();
+
+	if (NumHistoryAvailable == 1 || PeekNextRef->SampleCount > LookingForSampleFrame)
+	{
+		SmoothedTick = (float)PeekNextRef->UpToTick;
+		CurrentSpeed = PeekNextRef->CurrentSpeed;
+		return EHistoryFailureType::None;
+	}
+
+	// OK... or same SHOULD be in the history...
+	FMidiClockSongPositionHistory::FScopedItemPeekRef PeekOneAheadRef(ReadCursor.PeekAhead(1));
+	while (PeekOneAheadRef && PeekOneAheadRef->SampleCount <= LookingForSampleFrame)
+	{
+		ReadCursor.PeekAhead(2, PeekOneAheadRef);
+		ReadCursor.PeekAhead(1, PeekNextRef);
+		ReadCursor.ConsumeNext();
+	}
+
+	// Maybe the sample BEFORE our sample is in the history, but the sample AFTER is not, so we can't lerp?
+	if (!PeekOneAheadRef)
+	{
+		return EHistoryFailureType::CaughtUpToRenderPosition;
+	}
+
+	check(LookingForSampleFrame >= PeekNextRef->SampleCount && LookingForSampleFrame < PeekOneAheadRef->SampleCount);
+
+	// We now have enough to lerp!
+	float LerpAlpha = (float)(LookingForSampleFrame - PeekNextRef->SampleCount) / (float)(PeekOneAheadRef->SampleCount - PeekNextRef->SampleCount);
+	SmoothedTick = FMath::Lerp<float>((float)PeekNextRef->UpToTick, (float)PeekOneAheadRef->UpToTick, LerpAlpha);
+
+	CurrentSpeed = PeekNextRef->CurrentSpeed;
+
+	return EHistoryFailureType::None;
 }

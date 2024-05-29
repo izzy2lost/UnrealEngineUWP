@@ -359,26 +359,29 @@ namespace HarmonixMetasound::DelayNode
 				int32 SamplesRendered = 0;
 				
 				// if the tempo or speed changes, render in chunks
-				for (int SampleIdx = 0; SampleIdx < NumSamplesInBlock; ++SampleIdx)
+				for (const FMidiClockEvent& ClockEvent : Clock->GetMidiClockEventsInBlock())
 				{
 					bool ShouldRenderNow = false;
 					
-					if (const float Tempo = Clock->GetTempoAtBlockSampleFrame(SampleIdx); Tempo != LastTempo)
+					const MidiClockMessageTypes::FTempoChange* AsTempoChange = ClockEvent.TryGet<MidiClockMessageTypes::FTempoChange>();
+					const MidiClockMessageTypes::FSpeedChange* AsSpeedChange = ClockEvent.TryGet<MidiClockMessageTypes::FSpeedChange>();
+
+					if (AsTempoChange && AsTempoChange->Tempo != LastTempo)
 					{
-						LastTempo = Tempo;
+						LastTempo = AsTempoChange->Tempo;
 						ShouldRenderNow = true;
 					}
 
-					if (const float Speed = Clock->GetSpeedAtBlockSampleFrame(SampleIdx); Speed != LastSpeed)
+					if (AsSpeedChange && AsSpeedChange->Speed != LastSpeed)
 					{
-						LastSpeed = Speed;
+						LastSpeed = AsSpeedChange->Speed;
 						ShouldRenderNow = true;
 					}
 
 					if (ShouldRenderNow)
 					{
 						// render the delay
-						const int32 SamplesToRender = SampleIdx - SamplesRendered;
+						const int32 SamplesToRender = ClockEvent.BlockFrameIndex - SamplesRendered;
 						RenderSubBlock(SamplesRendered, SamplesToRender);
 						SamplesRendered += SamplesToRender;
 

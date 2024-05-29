@@ -1,70 +1,48 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-
+#include "HarmonixMetasound/DataTypes/MusicTransport.h"
 #include "HarmonixMidi/MidiPlayCursor.h"
 
 namespace HarmonixMetasound
 {
 	namespace MidiClockMessageTypes
 	{
-		struct FReset
-		{
-			int32 FromTick;
-			int32 ToTick;
-			bool ForceNoBroadcast;
-
-			FReset(const int32 FromTick, const int32 ToTick, const bool ForceNoBroadcast)
-				: FromTick(FromTick)
-				, ToTick(ToTick)
-				, ForceNoBroadcast(ForceNoBroadcast)
-			{}
-		};
-
 		struct FLoop
 		{
-			int32 LoopStartTick;
-			int32 LoopEndTick;
+			int32 FirstTickInLoop;
+			int32 LengthInTicks;
 
-			FLoop(const int32 LoopStartTick, const int32 LoopEndTick)
-				: LoopStartTick(LoopStartTick)
-				, LoopEndTick(LoopEndTick)
+			FLoop(const int32 FirstTickInLoop, const int32 LengthInTicks)
+				: FirstTickInLoop(FirstTickInLoop)
+				, LengthInTicks(LengthInTicks)
 			{}
 		};
 
-		struct FSeekTo
+		struct FSeek
 		{
-			int32 FromTick;
-			int32 ToTick;
+			int32 LastTickProcessedBeforeSeek;
+			int32 NewNextTick;
 
-			FSeekTo(const int32 FromTick, const int32 ToTick)
-				: FromTick(FromTick)
-				, ToTick(ToTick)
+			FSeek(const int32 LastTickProcessedBeforeSeek, const int32 NewNextTick)
+				: LastTickProcessedBeforeSeek(LastTickProcessedBeforeSeek)
+				, NewNextTick(NewNextTick)
 			{}
 		};
 
-		struct FSeekThru
+		struct FAdvance
 		{
-			int32 FromTick;
-			int32 ThruTick;
+			int32 FirstTickToProcess;
+			int32 NumberOfTicksToProcess;
 
-			FSeekThru(const int32 FromTick, const int32 ThruTick)
-				: FromTick(FromTick)
-				, ThruTick(ThruTick)
+			FAdvance(const int32 FirstTickToProcess, const int32 NumberOfTicksToProcess)
+				: FirstTickToProcess(FirstTickToProcess)
+				, NumberOfTicksToProcess(NumberOfTicksToProcess)
 			{}
-		};
 
-		struct FAdvanceThru
-		{
-			int32 FromTick;
-			int32 ThruTick;
-			bool IsPreRoll;
+			int32 LastTickToProcess() const { return FirstTickToProcess + NumberOfTicksToProcess - 1; }
 
-			FAdvanceThru(const int32 FromTick, const int32 ThruTick, const bool IsPreRoll)
-				: FromTick(FromTick)
-				, ThruTick(ThruTick)
-				, IsPreRoll(IsPreRoll)
-			{}
+			bool ContainsTick(int32 InTick) const { return InTick >= FirstTickToProcess && InTick < (FirstTickToProcess + NumberOfTicksToProcess); }
 		};
 
 		struct FTempoChange
@@ -76,6 +54,8 @@ namespace HarmonixMetasound
 				: Tick(Tick)
 				, Tempo(Tempo)
 			{}
+
+			bool ContainsTick(int32 InTick) const { return InTick == Tick; }
 		};
 
 		struct FTimeSignatureChange
@@ -87,23 +67,43 @@ namespace HarmonixMetasound
 				: Tick(Tick)
 				, TimeSignature(MoveTemp(TimeSignature))
 			{}
+
+			bool ContainsTick(int32 InTick) const { return InTick == Tick; }
+		};
+
+		struct FTransportChange
+		{
+			EMusicPlayerTransportState TransportState;
+
+			FTransportChange(EMusicPlayerTransportState NewTransportState)
+				: TransportState(NewTransportState)
+			{}
+		};
+
+		struct FSpeedChange
+		{
+			float Speed;
+
+			FSpeedChange(float NewSpeed)
+				: Speed(NewSpeed)
+			{}
 		};
 	}
 
 	using FMidiClockMsg = TVariant<
-		MidiClockMessageTypes::FReset,
 		MidiClockMessageTypes::FLoop,
-		MidiClockMessageTypes::FSeekTo,
-		MidiClockMessageTypes::FSeekThru,
-		MidiClockMessageTypes::FAdvanceThru,
+		MidiClockMessageTypes::FSeek,
+		MidiClockMessageTypes::FAdvance,
 		MidiClockMessageTypes::FTempoChange,
-		MidiClockMessageTypes::FTimeSignatureChange
+		MidiClockMessageTypes::FTimeSignatureChange,
+		MidiClockMessageTypes::FTransportChange,
+		MidiClockMessageTypes::FSpeedChange
 	>;
 	
 	struct HARMONIXMETASOUND_API FMidiClockEvent
 	{
 		const int32 BlockFrameIndex;
-		const FMidiClockMsg Msg;
+		FMidiClockMsg Msg;
 
 		template<typename T>
 		FMidiClockEvent(const int32 InBlockFrameIndex, T&& Msg)
@@ -117,6 +117,8 @@ namespace HarmonixMetasound
 
 		template<typename T>
 		const T* TryGet() const { return Msg.TryGet<T>(); }
-	};
 
+		template<typename T>
+		T* TryGet() { return Msg.TryGet<T>(); }
+	};
 };

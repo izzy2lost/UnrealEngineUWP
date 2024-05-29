@@ -26,7 +26,12 @@ namespace MidiClockUpdateSubsystem
 					UpdateMethod = (EUpdateMethod)NewValue;
 				}
 			}));
+
+	int32 kClockHistorySize = 100;
 }
+
+FCriticalSection UMidiClockUpdateSubsystem::ClockHistoryMapLocker;
+TMap<uint32, TWeakPtr<HarmonixMetasound::Analysis::FMidiClockSongPositionHistory>> UMidiClockUpdateSubsystem::ClockHistories;
 
 bool UMidiClockUpdateSubsystem::IsTickable() const
 {
@@ -38,8 +43,8 @@ bool UMidiClockUpdateSubsystem::IsTickable() const
 		// In either of these cases we need our tick function called IF there are tracked clocks. 
 		{
 			FScopeLock Lock{ &TrackedMidiClocksMutex };
-			return TrackedMidiClocks.Num() > 0 || TrackedMusicClockComponents.Num() > 0;
-		}
+			return TrackedMusicClockComponents.Num() > 0 || ClockHistories.Num() > 0;
+	}
 	default:
 		// Midi clocks and music clock components are ticked elsewhere.
 		return false;
@@ -53,12 +58,10 @@ void UMidiClockUpdateSubsystem::Tick(float DeltaTime)
 	{
 	case EUpdateMethod::EngineTickableObject:
 		// We tick BOTH the midi clocks and the music clock components here.
-		UpdateFMidiClocks();
 		UpdateUMusicClockComponents();
 		return;
 	case EUpdateMethod::EngineTickableObjectAndTickComponent:
-		// The original method... ONLY the midi clocks are ticked here. 
-		UpdateFMidiClocks();
+		// The original method... ONLY the midi clocks were ticked here. 
 		return;
 	default:
 		// Midi clocks and music clock components are ticked elsewhere.
@@ -83,56 +86,6 @@ void UMidiClockUpdateSubsystem::Deinitialize()
 	FCoreDelegates::OnBeginFrame.Remove(EngineBeginFrameDelegate);
 }
 
-void UMidiClockUpdateSubsystem::TrackMidiClock(HarmonixMetasound::FMidiClock* Clock)
-{
-	check(GEngine);
-
-	UMidiClockUpdateSubsystem* UpdateSubsystem = GEngine->GetEngineSubsystem<UMidiClockUpdateSubsystem>();
-
-	check(UpdateSubsystem);
-
-	UpdateSubsystem->TrackMidiClockImpl(Clock);
-}
-
-void UMidiClockUpdateSubsystem::StopTrackingMidiClock(HarmonixMetasound::FMidiClock* Clock)
-{
-	if (GEngine)
-	{
-		if (UMidiClockUpdateSubsystem* UpdateSubsystem = GEngine->GetEngineSubsystem<UMidiClockUpdateSubsystem>())
-		{
-			UpdateSubsystem->StopTrackingMidiClockImpl(Clock);
-		}
-	}
-}
-
-void UMidiClockUpdateSubsystem::TrackMidiClockImpl(HarmonixMetasound::FMidiClock* Clock)
-{
-	check(nullptr != Clock);
-
-	FScopeLock Lock{ &TrackedMidiClocksMutex };
-
-	TrackedMidiClocks.AddUnique(Clock);
-}
-
-void UMidiClockUpdateSubsystem::UpdateFMidiClocks()
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(UpdateFMidiClocks);
-
-	FScopeLock Lock{ &TrackedMidiClocksMutex };
-
-	for (HarmonixMetasound::FMidiClock* Clock : TrackedMidiClocks)
-	{
-		Clock->UpdateLowResCursors();
-	}
-}
-
-void UMidiClockUpdateSubsystem::StopTrackingMidiClockImpl(HarmonixMetasound::FMidiClock* Clock)
-{
-	FScopeLock Lock{ &TrackedMidiClocksMutex };
-
-	TrackedMidiClocks.Remove(Clock);
-}
-
 void UMidiClockUpdateSubsystem::TrackMusicClockComponent(UMusicClockComponent* Clock)
 {
 	check(GEngine);
@@ -155,6 +108,47 @@ void UMidiClockUpdateSubsystem::StopTrackingMusicClockComponent(UMusicClockCompo
 	}
 }
 
+uint32 UMidiClockUpdateSubsystem::MakeMidiSongPosAnalyzerAddressHash(const Metasound::Frontend::FAnalyzerAddress& ForAddress)
+{
+	uint32 AddressHash = GetTypeHashHelper(ForAddress.AnalyzerMemberName);
+	AddressHash = HashCombineFast(AddressHash, GetTypeHashHelper(ForAddress.AnalyzerName));
+	AddressHash = HashCombineFast(AddressHash, GetTypeHashHelper(ForAddress.DataType));
+	AddressHash = HashCombineFast(AddressHash, GetTypeHashHelper(ForAddress.InstanceID));
+	AddressHash = HashCombineFast(AddressHash, ForAddress.NodeID.A);
+	AddressHash = HashCombineFast(AddressHash, GetTypeHashHelper(ForAddress.OutputName));
+	return AddressHash;
+}
+
+UMidiClockUpdateSubsystem::FClockHistoryPtr UMidiClockUpdateSubsystem::GetOrCreateClockHistory(const Metasound::Frontend::FAnalyzerAddress& ForAddress)
+{
+	FScopeLock Lock(&ClockHistoryMapLocker);
+
+	uint32 AddressHash = MakeMidiSongPosAnalyzerAddressHash(ForAddress);
+
+	if (ClockHistories.Contains(AddressHash))
+	{
+		if (FClockHistoryPtr HistoryPtr = ClockHistories[AddressHash].Pin())
+		{
+			return HistoryPtr;
+		}
+		FClockHistoryPtr NewHistory = MakeShared<HarmonixMetasound::Analysis::FMidiClockSongPositionHistory>(MidiClockUpdateSubsystem::kClockHistorySize);
+		ClockHistories[AddressHash] = NewHistory;
+		return NewHistory;
+	}
+
+	for (auto It = ClockHistories.CreateIterator(); It; ++It)
+	{
+		if (!It.Value().IsValid())
+		{
+			It.RemoveCurrent();
+		}
+	}
+
+	FClockHistoryPtr NewHistory = MakeShared<HarmonixMetasound::Analysis::FMidiClockSongPositionHistory>(MidiClockUpdateSubsystem::kClockHistorySize);
+	ClockHistories.Add(AddressHash, NewHistory);
+	return NewHistory;
+}
+
 void UMidiClockUpdateSubsystem::TrackMusicClockComponentImpl(UMusicClockComponent* Clock)
 {
 	TrackedMusicClockComponents.AddUnique(Clock);
@@ -171,7 +165,6 @@ void UMidiClockUpdateSubsystem::CoreDelegatesBeginFrame()
 	switch (UpdateMethod)
 	{
 	case EUpdateMethod::EngineSubsystemCoreDelegatesOnBeginFrame:
-		UpdateFMidiClocks();
 		UpdateUMusicClockComponents();
 		return;
 	default:
@@ -185,7 +178,6 @@ void UMidiClockUpdateSubsystem::CoreDelegatesSamplingInput()
 	switch (UpdateMethod)
 	{
 	case EUpdateMethod::EngineSubsystemCoreDelegatesOnSamplingInput:
-		UpdateFMidiClocks();
 		UpdateUMusicClockComponents();
 		return;
 	default:
@@ -209,6 +201,14 @@ void UMidiClockUpdateSubsystem::UpdateUMusicClockComponents()
 			ClockIterator.RemoveCurrentSwap();
 		}
 	}
+
+	for (auto It = ClockHistories.CreateIterator(); It; ++It)
+	{
+		if (!It.Value().IsValid())
+		{
+			It.RemoveCurrent();
+		}
+	}
 }
 
 // Implement a "tick" method that can be used during automated testing so that
@@ -219,18 +219,14 @@ void UMidiClockUpdateSubsystem::TickForTesting()
 	switch (UpdateMethod)
 	{
 	case MidiClockUpdateSubsystem::EUpdateMethod::EngineTickableObjectAndTickComponent:
-		UpdateFMidiClocks();
 		break;
 	case MidiClockUpdateSubsystem::EUpdateMethod::EngineSubsystemCoreDelegatesOnBeginFrame:
-		UpdateFMidiClocks();
 		UpdateUMusicClockComponents();
 		break;
 	case MidiClockUpdateSubsystem::EUpdateMethod::EngineTickableObject:
-		UpdateFMidiClocks();
 		UpdateUMusicClockComponents();
 		break;
 	case MidiClockUpdateSubsystem::EUpdateMethod::EngineSubsystemCoreDelegatesOnSamplingInput:
-		UpdateFMidiClocks();
 		UpdateUMusicClockComponents();
 		break;
 	default:

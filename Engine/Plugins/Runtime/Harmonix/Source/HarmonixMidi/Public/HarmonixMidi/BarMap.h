@@ -3,6 +3,7 @@
 #include "HarmonixMidi/MusicMapBase.h"
 #include "HarmonixMidi/MidiConstants.h"
 #include "Math/UnrealMathUtility.h"
+#include <limits>
 
 #include "BarMap.generated.h"
 
@@ -158,14 +159,20 @@ public:
 	bool operator==(const FBarMap& Other) const;
 
 	void Empty();
-	void Copy(const FBarMap& Other, int32 StartTick = 0, int32 EndTick = -1);
+	void Copy(const FBarMap& Other, int32 StartTick = 0, int32 EndTick = std::numeric_limits<int32>::max());
 	bool IsEmpty() const;
+
+	int32 CalculateMidiTick(const FMusicTimestamp& Timestamp, const EMidiClockSubdivisionQuantization Quantize) const;
+
+	int32 SubdivisionToMidiTicks(const EMidiClockSubdivisionQuantization Division, const int32 AtTick) const;
 
 	/** Called by the midi file importer before map points are added to this map */
 	void SetTicksPerQuarterNote(int32 InTicksPerQuarterNote)
 	{
 		TicksPerQuarterNote = InTicksPerQuarterNote;
 	}
+
+	int32 GetTicksPerQuarterNote() const { return TicksPerQuarterNote; }
 
 	void SupplyDefault() { AddTimeSignatureAtBarIncludingCountIn(0, 4, 4); }
 
@@ -334,6 +341,8 @@ public:
 
 	const FTimeSignature& GetTimeSignatureAtTick(int32 InTick) const;
 
+	const FTimeSignaturePoint* GetTimeSignaturePointForTick(int32 InTick) const;
+
 	const FTimeSignature& GetTimeSignatureAtBar(int32 InBar) const;
 
 	FORCEINLINE int32 GetTicksInBeatAfterPoint(int32 Index) const
@@ -361,6 +370,11 @@ public:
 	void SetStartBar(int32 InStartBar) { StartBar = InStartBar; }
 	int32 GetStartBar() const { return StartBar; }
 
+	// Returns the time signature points for inspection.
+	const TArray<FTimeSignaturePoint>& GetTimeSignaturePoints() const { return Points; }
+
+	int32 GetTimeSignatureChangePointTick(int32 PointIndex) const;
+
 protected:
 	UPROPERTY()
 	int32 StartBar = 1;
@@ -368,5 +382,7 @@ protected:
 	int32 TicksPerQuarterNote;
 	UPROPERTY()
 	TArray<FTimeSignaturePoint> Points;
+
+	static const FTimeSignaturePoint sDefaultTimeSignature;
 };
 

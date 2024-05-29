@@ -15,8 +15,8 @@
 #include "HarmonixMetasound/DataTypes/MidiAsset.h"
 #include "HarmonixMetasound/DataTypes/MusicTransport.h"
 
-#include "HarmonixMidi/MidiPlayCursor.h"
 #include "HarmonixMidi/MidiVoiceId.h"
+#include "HarmonixMidi/MidiCursor.h"
 
 #define LOCTEXT_NAMESPACE "HarmonixMetaSound"
 
@@ -30,7 +30,7 @@ namespace HarmonixMetasound
 		METASOUND_PARAM(KillVoicesOnMidiChange, "Kill Voices On MIDI File Change", "If true, a \"Kill All Voices\" MIDI message will be sent when the MIDI file asset is changed. Otherwise an \"All Notes Off\" will be sent which allows to ADSR release phases.")
 	}
 
-	class FMidiPlayerOperator : public TExecutableOperator<FMidiPlayerOperator>, public FMidiPlayCursor, public FMidiVoiceGeneratorBase, public FMusicTransportControllable
+	class FMidiPlayerOperator : public TExecutableOperator<FMidiPlayerOperator>, public FMidiCursor::FReceiver, public FMidiVoiceGeneratorBase, public FMusicTransportControllable
 	{
 	public:
 		static const FNodeClassMetadata& GetNodeInfo();
@@ -45,7 +45,6 @@ namespace HarmonixMetasound
                             const int32 InPrerollBars,
 							const bool bInKillVoicesOnSeek,
 							const bool bInKillVoicesOnMidiChange);
-		~FMidiPlayerOperator();
 
 		virtual void BindInputs(FInputVertexInterfaceData& InVertexData) override;
 		virtual void BindOutputs(FOutputVertexInterfaceData& InVertexData) override;
@@ -54,18 +53,12 @@ namespace HarmonixMetasound
 		virtual void Execute();
 		bool IsPlaying() const;
 
-		//~ BEGIN FMidiPlayCursor Overrides
-		virtual void Reset(bool ForceNoBroadcast = false) override;
-		virtual void OnLoop(int32 LoopStartTick, int32 LoopEndTick) override;
-		virtual void SeekToTick(int32 Tick) override;
-		virtual void SeekThruTick(int32 Tick) override;
-		virtual void AdvanceThruTick(int32 Tick, bool IsPreRoll) override;
-
-		virtual void OnMidiMessage(int32 TrackIndex, int32 Tick, uint8 Status, uint8 Data1, uint8 Data2, bool IsPreroll) override;
-		virtual void OnTempo(int32 TrackIndex, int32 Tick, int32 Tempo, bool IsPreroll) override;
-		virtual void OnText(int32 TrackIndex, int32 Tick, int32 TextIndex, const FString& Str, uint8 Type, bool IsPreroll = false) override;
+		//~ BEGIN FMidiCursor::FReceiver Overrides
+		virtual void OnMidiMessage(int32 TrackIndex, int32 Tick, uint8 Status, uint8 Data1, uint8 Data2, bool bIsPreroll) override;
+		virtual void OnTempo(int32 TrackIndex, int32 Tick, int32 Tempo, bool bIsPreroll) override;
+		virtual void OnText(int32 TrackIndex, int32 Tick, int32 TextIndex, const FString& Str, uint8 Type, bool bIsPreroll) override;
 		virtual void OnPreRollNoteOn(int32 TrackIndex, int32 EventTick, int32 CurrentTick, float PreRollMs, uint8 Status, uint8 Data1, uint8 Data2) override;
-		//~ END FMidiPlayCursor Overrides
+		//~ END FMidiCursor::FReceiver Overrides
 
 	protected:
 		//** INPUTS
@@ -83,9 +76,11 @@ namespace HarmonixMetasound
 
 		//** DATA
 		FMidiFileProxyPtr CurrentMidiFile;
-		FSampleCount BlockSize      = 0;
+		FMidiCursor MidiCursor;
+		FSampleCount BlockSize = 0;
 		int32 CurrentBlockSpanStart = 0;
 		bool NeedsTransportInit = true;
+		int32 CurrentRenderBlockFrame = 0;
 		
 		virtual void SetupNewMidiFile(const FMidiFileProxyPtr& NewMidi);
 
@@ -98,6 +93,9 @@ namespace HarmonixMetasound
 			}
 		}
 		virtual void InitTransportImpl() = 0;
+
+		void RenderMidiForClockEvents();
+		void SendAllNotesOff(int32 BlockFrameIndex, int32 Tick);
 	};
 
 	class FExternallyClockedMidiPlayerOperator : public FMidiPlayerOperator
@@ -254,15 +252,8 @@ namespace HarmonixMetasound
 		, MidiClockOut(FMidiClockWriteRef::CreateNew(InSettings))
 		, BlockSize(InSettings.GetNumFramesPerBlock())
 	{
-		MidiClockOut->RegisterHiResPlayCursor(this);
 		MidiOutPin->SetClock(*MidiClockOut);
 	}
-
-	FMidiPlayerOperator::~FMidiPlayerOperator()
-	{
-		MidiClockOut->UnregisterPlayCursor(this);
-	}
-
 
 	FExternallyClockedMidiPlayerOperator::FExternallyClockedMidiPlayerOperator(const FOperatorSettings& InSettings,
 																			   const FMidiAssetReadRef& InMidiAsset, 
@@ -276,6 +267,7 @@ namespace HarmonixMetasound
 		: FMidiPlayerOperator(InSettings, InMidiAsset, InTransport, InLoop, InSpeedMultiplier, InPrerollBars, bInKillVoicesOnSeek, bInKillVoicesOnMidiChange)
 		, MidiClockIn(InMidiClock)
 	{
+		MidiClockOut->SetDrivingClock(MidiClockIn->AsShared().ToSharedPtr());
 	}
 
 	FSelfClockedMidiPlayerOperator::FSelfClockedMidiPlayerOperator(const FOperatorSettings& InSettings, 
@@ -299,8 +291,6 @@ namespace HarmonixMetasound
 		FMidiPlayerOperator::BindInputs(InVertexData);
 		using namespace CommonPinNames;
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::MidiClock), MidiClockIn);
-
-		MidiClockOut->AttachToTimeAuthority(*MidiClockIn);
 	}
 
 	void FExternallyClockedMidiPlayerOperator::BindOutputs(FOutputVertexInterfaceData& InVertexData)
@@ -335,13 +325,17 @@ namespace HarmonixMetasound
 			case EMusicPlayerTransportState::Prepared:
 			case EMusicPlayerTransportState::Stopping:
 			case EMusicPlayerTransportState::Killing:
-				MidiClockOut->AddTransportStateChangeToBlock({ 0, 0.0f, EMusicPlayerTransportState::Prepared });
+				MidiClockOut->SetTransportState(0, EMusicPlayerTransportState::Prepared);
 				return EMusicPlayerTransportState::Prepared;
 
 			case EMusicPlayerTransportState::Starting:
 			case EMusicPlayerTransportState::Playing:
 			case EMusicPlayerTransportState::Continuing:
-				MidiClockOut->ResetAndStart(0, !ReceivedSeekWhileStopped());
+				MidiClockOut->SetTransportState(0, EMusicPlayerTransportState::Playing);
+				if (!ReceivedSeekWhileStopped())
+				{
+					MidiClockOut->SeekTo(0, 0);
+				}
 				return EMusicPlayerTransportState::Playing;
 
 			case EMusicPlayerTransportState::Seeking: // seeking is omitted from init, shouldn't happen
@@ -350,7 +344,7 @@ namespace HarmonixMetasound
 
 			case EMusicPlayerTransportState::Pausing:
 			case EMusicPlayerTransportState::Paused:
-				MidiClockOut->AddTransportStateChangeToBlock({ 0, 0.0f, EMusicPlayerTransportState::Paused });
+				MidiClockOut->SetTransportState(0, EMusicPlayerTransportState::Paused);
 				return EMusicPlayerTransportState::Paused;
 
 			default:
@@ -364,10 +358,11 @@ namespace HarmonixMetasound
 	void FMidiPlayerOperator::Execute()
 	{
 		MidiOutPin->PrepareBlock();
-		
+		CurrentRenderBlockFrame = 0;
+
 		MidiClockOut->PrepareBlock();
 
-		if (MidiClockOut->DoesLoop() != *LoopInPin || CurrentMidiFile != MidiAssetInPin->GetMidiProxy())
+		if (MidiClockOut->HasPersistentLoop() != *LoopInPin || CurrentMidiFile != MidiAssetInPin->GetMidiProxy())
 		{
 			SetupNewMidiFile(MidiAssetInPin->GetMidiProxy());
 		}
@@ -386,26 +381,34 @@ namespace HarmonixMetasound
 	{
 		FMidiPlayerOperator::Execute();
 
-		MidiClockOut->CopySpeedAndTempoChanges(MidiClockIn.Get(), *SpeedMultInPin);
-
 		TransportSpanPostProcessor HandleMidiClockEventsInBlock = [this](int32 StartFrameIndex, int32 EndFrameIndex, EMusicPlayerTransportState CurrentState)
 		{
 			// clock should always process in post processor
 			int32 NumFrames = EndFrameIndex - StartFrameIndex;
-			MidiClockOut->HandleTransportChange(StartFrameIndex, CurrentState);
-			MidiClockOut->Process(*MidiClockIn, StartFrameIndex, NumFrames, PrerollBars, *SpeedMultInPin);
+			MidiClockOut->SetTransportState(StartFrameIndex, CurrentState);
+			if (CurrentState == EMusicPlayerTransportState::Playing || CurrentState == EMusicPlayerTransportState::Continuing)
+			{
+				MidiClockOut->SetSpeed(StartFrameIndex, *SpeedMultInPin);
+				MidiClockOut->Advance(*MidiClockIn, StartFrameIndex, NumFrames);
+			}
 		};
 
 		TransportSpanProcessor TransportHandler = [&](int32 StartFrameIndex, int32 EndFrameIndex, EMusicPlayerTransportState CurrentState)
 		{
 			switch (CurrentState)
 			{
+			case EMusicPlayerTransportState::Starting:
+				if (!ReceivedSeekWhileStopped())
+				{
+					MidiClockOut->SeekTo(StartFrameIndex, 0);
+				}
+				break;
 			case EMusicPlayerTransportState::Stopping:
 				{
 					FMidiStreamEvent MidiEvent(this, FMidiMsg::CreateAllNotesOff());
-					MidiEvent.BlockSampleFrameIndex = MidiClockOut->GetCurrentBlockFrameIndex();
-					MidiEvent.AuthoredMidiTick = MidiClockOut->GetCurrentHiResTick();
-					MidiEvent.CurrentMidiTick = MidiClockOut->GetCurrentHiResTick();
+					MidiEvent.BlockSampleFrameIndex = StartFrameIndex;
+					MidiEvent.AuthoredMidiTick = MidiCursor.GetNextTick();
+					MidiEvent.CurrentMidiTick = MidiCursor.GetNextTick();
 					MidiEvent.TrackIndex = 0;
 					MidiOutPin->AddMidiEvent(MidiEvent);
 				}
@@ -414,6 +417,7 @@ namespace HarmonixMetasound
 			return GetNextTransportState(CurrentState);
 		};
 		ExecuteTransportSpans(TransportInPin, BlockSize, TransportHandler, HandleMidiClockEventsInBlock);
+		RenderMidiForClockEvents();
 	}
 
 	void FExternallyClockedMidiPlayerOperator::InitTransportImpl()
@@ -438,13 +442,18 @@ namespace HarmonixMetasound
 	{
 		FMidiPlayerOperator::Execute();
 
-		MidiClockOut->AddSpeedChangeToBlock({ 0, 0.0f, *SpeedMultInPin });
+		MidiClockOut->SetSpeed(0, *SpeedMultInPin);
 
 		TransportSpanPostProcessor MidiClockTransportHandler = [&](int32 StartFrameIndex, int32 EndFrameIndex, EMusicPlayerTransportState CurrentState)
 		{
 			int32 NumFrames = EndFrameIndex - StartFrameIndex;
-			MidiClockOut->HandleTransportChange(StartFrameIndex, CurrentState);
-			MidiClockOut->Process(StartFrameIndex, NumFrames, PrerollBars, *SpeedMultInPin);
+			MidiClockOut->SetTransportState(StartFrameIndex, CurrentState);
+			switch (CurrentState)
+			{
+			case EMusicPlayerTransportState::Playing:
+			case EMusicPlayerTransportState::Continuing:
+				MidiClockOut->Advance(StartFrameIndex, NumFrames);
+			}
 		};
 
 		TransportSpanProcessor TransportHandler = [this](int32 StartFrameIndex, int32 EndFrameIndex, EMusicPlayerTransportState CurrentState)
@@ -452,15 +461,19 @@ namespace HarmonixMetasound
 			switch (CurrentState)
 			{
 			case EMusicPlayerTransportState::Starting:
-				MidiClockOut->ResetAndStart(StartFrameIndex, !ReceivedSeekWhileStopped());
+				if (!ReceivedSeekWhileStopped())
+				{
+					MidiClockOut->SeekTo(StartFrameIndex, 0);
+				}
 				break;
 			case EMusicPlayerTransportState::Seeking:
-				MidiClockOut->SeekTo(StartFrameIndex, TransportInPin->GetNextSeekDestination(), PrerollBars);
+				MidiClockOut->SeekTo(StartFrameIndex, TransportInPin->GetNextSeekDestination());
 				break;
 			}
 			return GetNextTransportState(CurrentState);
 		};
 		ExecuteTransportSpans(TransportInPin, BlockSize, TransportHandler, MidiClockTransportHandler);
+		RenderMidiForClockEvents();
 	}
 
 	void FMidiPlayerOperator::BindInputs(FInputVertexInterfaceData& InVertexData)
@@ -494,65 +507,18 @@ namespace HarmonixMetasound
 		CurrentBlockSpanStart = 0;
 
 		MidiOutPin->SetClock(*MidiClockOut);
-		MidiClockOut->ResetAndStart(0, true);
+		MidiClockOut->SeekTo(0, 0);
+		MidiClockOut->SetTransportState(0, EMusicPlayerTransportState::Prepared);
 
 		NeedsTransportInit = true;
 	}
 
-	void FMidiPlayerOperator::Reset(bool ForceNoBroadcast /*= false*/)
-	{
-		FMidiPlayCursor::Reset(ForceNoBroadcast);
-	}
-
-	void FMidiPlayerOperator::OnLoop(int32 LoopStartTick, int32 LoopEndTick)
-	{
-		//TRACE_BOOKMARK(TEXT("Midi Looping"));
-		FMidiPlayCursor::OnLoop(LoopStartTick, LoopEndTick);
-	}
-
-	void FMidiPlayerOperator::SeekToTick(int32 Tick)
-	{
-		//TRACE_BOOKMARK(TEXT("Midi Seek To Tick"));
-		FMidiPlayCursor::SeekToTick(Tick);
-
-		if (IsPlaying())
-		{
-			FMidiStreamEvent MidiEvent(this, bKillVoicesOnSeek ? FMidiMsg::CreateAllNotesKill() : FMidiMsg::CreateAllNotesOff());
-			MidiEvent.BlockSampleFrameIndex = MidiClockOut->GetCurrentBlockFrameIndex();
-			MidiEvent.AuthoredMidiTick = MidiClockOut->GetCurrentHiResTick();
-			MidiEvent.CurrentMidiTick = MidiClockOut->GetCurrentHiResTick();
-			MidiEvent.TrackIndex = 0;
-			MidiOutPin->AddMidiEvent(MidiEvent);
-		}
-	}
-
-	void FMidiPlayerOperator::SeekThruTick(int32 Tick)
-	{
-		//TRACE_BOOKMARK(TEXT("Midi Seek Thru Tick"));
-		FMidiPlayCursor::SeekThruTick(Tick);
-
-		if (IsPlaying())
-		{
-			FMidiStreamEvent MidiEvent(this, bKillVoicesOnSeek ? FMidiMsg::CreateAllNotesKill() : FMidiMsg::CreateAllNotesOff());
-			MidiEvent.BlockSampleFrameIndex = MidiClockOut->GetCurrentBlockFrameIndex();
-			MidiEvent.AuthoredMidiTick = MidiClockOut->GetCurrentHiResTick();
-			MidiEvent.CurrentMidiTick = MidiClockOut->GetCurrentHiResTick();
-			MidiEvent.TrackIndex = 0;
-			MidiOutPin->AddMidiEvent(MidiEvent);
-		}
-	}
-
-	void FMidiPlayerOperator::AdvanceThruTick(int32 Tick, bool IsPreRoll)
-	{
-		FMidiPlayCursor::AdvanceThruTick(Tick, IsPreRoll);
-	}
-
-	void FMidiPlayerOperator::OnMidiMessage(int32 TrackIndex, int32 Tick, uint8 Status, uint8 Data1, uint8 Data2, bool IsPreroll)
+	void FMidiPlayerOperator::OnMidiMessage(int32 TrackIndex, int32 Tick, uint8 Status, uint8 Data1, uint8 Data2, bool bIsPreroll)
 	{
 		if (IsPlaying())
 		{
 			FMidiStreamEvent MidiEvent(this, FMidiMsg(Status, Data1, Data2));
-			MidiEvent.BlockSampleFrameIndex = MidiClockOut->GetCurrentBlockFrameIndex();
+			MidiEvent.BlockSampleFrameIndex = CurrentRenderBlockFrame;
 			MidiEvent.AuthoredMidiTick = Tick;
 			MidiEvent.CurrentMidiTick = Tick;
 			MidiEvent.TrackIndex = TrackIndex;
@@ -560,12 +526,12 @@ namespace HarmonixMetasound
 		}
 	}
 
-	void FMidiPlayerOperator::OnTempo(int32 TrackIndex, int32 Tick, int32 tempo, bool isPreroll)
+	void FMidiPlayerOperator::OnTempo(int32 TrackIndex, int32 Tick, int32 tempo, bool bIsPreroll)
 	{
 		if (IsPlaying())
 		{
 			FMidiStreamEvent MidiEvent(this, FMidiMsg((int32)tempo));
-			MidiEvent.BlockSampleFrameIndex  = MidiClockOut->GetCurrentBlockFrameIndex();
+			MidiEvent.BlockSampleFrameIndex  = CurrentRenderBlockFrame;
 			MidiEvent.AuthoredMidiTick = Tick;
 			MidiEvent.CurrentMidiTick  = Tick;
 			MidiEvent.TrackIndex       = TrackIndex;
@@ -573,12 +539,12 @@ namespace HarmonixMetasound
 		}
 	}
 
-	void FMidiPlayerOperator::OnText(int32 TrackIndex, int32 Tick, int32 TextIndex, const FString& Str, uint8 Type, bool IsPreroll)
+	void FMidiPlayerOperator::OnText(int32 TrackIndex, int32 Tick, int32 TextIndex, const FString& Str, uint8 Type, bool bIsPreroll)
 	{
-		if (!IsPreroll && IsPlaying())
+		if (!bIsPreroll && IsPlaying())
 		{
 			FMidiStreamEvent MidiEvent(this, FMidiMsg::CreateText(TextIndex, Type));
-			MidiEvent.BlockSampleFrameIndex = MidiClockOut->GetCurrentBlockFrameIndex();
+			MidiEvent.BlockSampleFrameIndex = CurrentRenderBlockFrame;
 			MidiEvent.AuthoredMidiTick = Tick;
 			MidiEvent.CurrentMidiTick = Tick;
 			MidiEvent.TrackIndex = TrackIndex;
@@ -586,13 +552,12 @@ namespace HarmonixMetasound
 		}
 	}
 
-
 	void FMidiPlayerOperator::OnPreRollNoteOn(int32 TrackIndex, int32 EventTick, int32 InCurrentTick, float InPrerollMs, uint8 InStatus, uint8 Data1, uint8 Data2)
 	{
 		if (IsPlaying())
 		{
 			FMidiStreamEvent MidiEvent(this, FMidiMsg(InStatus, Data1, Data2));
-			MidiEvent.BlockSampleFrameIndex = MidiClockOut->GetCurrentBlockFrameIndex();
+			MidiEvent.BlockSampleFrameIndex = CurrentRenderBlockFrame;
 			MidiEvent.AuthoredMidiTick = EventTick;
 			MidiEvent.CurrentMidiTick = InCurrentTick;
 			MidiEvent.TrackIndex = TrackIndex;
@@ -614,7 +579,8 @@ namespace HarmonixMetasound
 
 		if (CurrentMidiFile.IsValid())
 		{			
-			MidiClockOut->AttachToMidiResource(CurrentMidiFile->GetMidiFile(), !IsPlaying(), PrerollBars);
+			MidiClockOut->AttachToMidiFile(CurrentMidiFile->GetMidiFile(), !IsPlaying());
+			MidiCursor.Prepare(CurrentMidiFile->GetMidiFile());
 			MidiOutPin->SetTicksPerQuarterNote(CurrentMidiFile->GetMidiFile()->TicksPerQuarterNote);
 			if (*LoopInPin)
 			{
@@ -623,34 +589,71 @@ namespace HarmonixMetasound
 				int32 LoopEndTick = SongLengthData.LengthTicks;
 
 				// Round the content authored ticks to bar boundaries based on the bar map. 
-				const FBarMap& BarMap = CurrentMidiFile->GetMidiFile()->SongMaps.GetBarMap();
-				int32 LoopStartBarIndex = FMath::RoundToInt32(BarMap.TickToFractionalBarIncludingCountIn(LoopStartTick));
-				int32 LoopEndBarIndex = FMath::RoundToInt32(BarMap.TickToFractionalBarIncludingCountIn(LoopEndTick));
+				const ISongMapEvaluator& SongMap = CurrentMidiFile->GetMidiFile()->SongMaps;
+				int32 LoopStartBarIndex = FMath::RoundToInt32(SongMap.TickToFractionalBarIncludingCountIn(LoopStartTick));
+				int32 LoopEndBarIndex = FMath::RoundToInt32(SongMap.TickToFractionalBarIncludingCountIn(LoopEndTick));
 
 				// Make sure there's at least 1 bar of looping
 				if (LoopEndBarIndex <= LoopStartBarIndex)
 				{
 					LoopEndBarIndex = LoopStartBarIndex + 1;
 				}
-				LoopStartTick = BarMap.BarIncludingCountInToTick(LoopStartBarIndex);
-				LoopEndTick = BarMap.BarIncludingCountInToTick(LoopEndBarIndex);
+				LoopStartTick = SongMap.BarIncludingCountInToTick(LoopStartBarIndex);
+				LoopEndTick = SongMap.BarIncludingCountInToTick(LoopEndBarIndex);
 				
-				MidiClockOut->SetLoop(LoopStartTick, LoopEndTick);
+				MidiClockOut->SetupPersistentLoop(LoopStartTick, LoopEndTick - LoopStartTick);
 				
 				// remap our current tick based on the looping behavior
 				// maybe this should happen automatically when resetting a loop or changing midi files?
-				int32 NewTick = MidiClockOut->CalculateMappedTick(CurrentTick);
-				MidiClockOut->SeekTo(NewTick, PrerollBars);
+				int32 NewTick = MidiClockOut->WrapTickIfLooping(MidiClockOut->GetNextMidiTickToProcess());
+				MidiClockOut->SeekTo(0, NewTick);
 			}
 			else
 			{
-				MidiClockOut->ClearLoop();
+				MidiClockOut->ClearPersistentLoop();
 			}
+			MidiCursor.SeekToNextTick(MidiClockOut->GetNextMidiTickToProcess(), PrerollBars, this);
 		}
 		else
 		{
-			MidiClockOut->AttachToMidiResource(nullptr, !IsPlaying(), 0);
+			MidiClockOut->AttachToMidiFile(nullptr, !IsPlaying());
+			MidiCursor.Prepare(nullptr);
 		}
+	}
+
+	void FMidiPlayerOperator::RenderMidiForClockEvents()
+	{
+		const TArray<FMidiClockEvent>& ClockEvents = MidiClockOut->GetMidiClockEventsInBlock();
+		for (const FMidiClockEvent& Event : ClockEvents)
+		{
+			CurrentRenderBlockFrame = Event.BlockFrameIndex;
+			if (auto AsAdvance = Event.TryGet<MidiClockMessageTypes::FAdvance>())
+			{
+				MidiCursor.Process(AsAdvance->FirstTickToProcess, AsAdvance->LastTickToProcess(), *this);
+			}
+			else if (auto AsSeekTo = Event.TryGet<MidiClockMessageTypes::FSeek>())
+			{
+				SendAllNotesOff(Event.BlockFrameIndex, AsSeekTo->NewNextTick);
+				MidiCursor.SeekToNextTick(AsSeekTo->NewNextTick, PrerollBars, this);
+			}
+			else if (auto AsLoop = Event.TryGet<MidiClockMessageTypes::FLoop>())
+			{
+				// When looping we don't preroll the events prior to the 
+				// loop start point.
+				SendAllNotesOff(Event.BlockFrameIndex, AsLoop->FirstTickInLoop);
+				MidiCursor.SeekToNextTick(AsLoop->FirstTickInLoop);
+			}
+		}
+	}
+
+	void FMidiPlayerOperator::SendAllNotesOff(int32 BlockFrameIndex, int32 Tick)
+	{
+		FMidiStreamEvent MidiEvent(this, bKillVoicesOnSeek ? FMidiMsg::CreateAllNotesKill() : FMidiMsg::CreateAllNotesOff());
+		MidiEvent.BlockSampleFrameIndex = BlockFrameIndex;
+		MidiEvent.AuthoredMidiTick = Tick;
+		MidiEvent.CurrentMidiTick = Tick;
+		MidiEvent.TrackIndex = 0;
+		MidiOutPin->AddMidiEvent(MidiEvent);
 	}
 }
 

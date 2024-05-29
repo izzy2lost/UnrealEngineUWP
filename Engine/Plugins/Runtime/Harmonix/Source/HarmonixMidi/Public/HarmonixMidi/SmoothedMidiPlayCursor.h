@@ -28,7 +28,7 @@ protected:
 
 private:
 	static const int kFramesOfErrorHistory = 10;
-	FLocalMinimumMagnitudeTracker<kFramesOfErrorHistory> ErrorTracker;
+	FLocalMinimumMagnitudeTracker<float, kFramesOfErrorHistory> ErrorTracker;
 	FVariableSpeedTimer SmoothingTimer;
 
 	float SmoothingLatencyMs = 30.0f;

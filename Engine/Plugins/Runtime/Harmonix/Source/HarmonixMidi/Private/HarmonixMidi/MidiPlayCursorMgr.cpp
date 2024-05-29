@@ -18,8 +18,8 @@ FMidiPlayCursorMgr::FMidiPlayCursorMgr()
 	, InMidiChangeLock(false)
 {
 	// setup the default tempo map to have one entry...
-	DefaultMaps.GetTempoMap().AddTempoInfoPoint(Harmonix::Midi::Constants::BPMToMidiTempo(120.0f), 0);
-	DefaultMaps.GetBarMap().AddTimeSignatureAtBarIncludingCountIn(0, 4, 4);
+	DefaultMaps.AddTempoInfoPoint(Harmonix::Midi::Constants::BPMToMidiTempo(120.0f), 0);
+	DefaultMaps.AddTimeSignatureAtBarIncludingCountIn(0, 4, 4);
 }
 
 void FMidiPlayCursorMgr::Reset()
@@ -145,9 +145,9 @@ void FMidiPlayCursorMgr::DetermineLength()
 			LengthTicks = FMath::Max(LengthTicks, Tracks[i].GetEvents().Last().GetTick());
 		}
 		//Round file length up to the nearest bar
-		int32 Bar = FMath::CeilToInt32(SongMaps->GetBarMap().TickToFractionalBarIncludingCountIn(LengthTicks));
-		LengthTicks = SongMaps->GetBarMap().BarIncludingCountInToTick(Bar);
-		LengthMs = SongMaps->GetTempoMap().TickToMs(LengthTicks);
+		int32 Bar = FMath::CeilToInt32(SongMaps->TickToFractionalBarIncludingCountIn(LengthTicks));
+		LengthTicks = SongMaps->BarIncludingCountInToTick(Bar);
+		LengthMs = SongMaps->TickToMs(LengthTicks);
 
 		for (FMidiPlayCursorTracker& Tracker : Trackers)
 		{
@@ -193,7 +193,7 @@ void FMidiPlayCursorMgr::RecalculatePreRollDueToCursorPosition(FMidiPlayCursor* 
 	float PreRollMs = 0.0f;
 	if (PlayCursor->GetLookaheadType() == FMidiPlayCursor::ELookaheadType::Ticks)
 	{
-		PreRollMs = -GetTempoMap().TickToMs(-PlayCursor->GetLookaheadTicks());
+		PreRollMs = -GetSongMaps().TickToMs(-PlayCursor->GetLookaheadTicks());
 	}
 	else
 	{
@@ -202,11 +202,11 @@ void FMidiPlayCursorMgr::RecalculatePreRollDueToCursorPosition(FMidiPlayCursor* 
 	if (-PreRollMs < GetHiResTracker().CurrentMs)
 	{
 		// yup... earliest look ahead!
-		int32 NewTick = GetTempoMap().MsToTick(-PreRollMs);
+		int32 NewTick = GetSongMaps().MsToTick(-PreRollMs);
 
 		// back up one tick...
 		NewTick--;
-		PreRollMs = GetTempoMap().TickToMs(NewTick);
+		PreRollMs = GetSongMaps().TickToMs(NewTick);
 		for (FMidiPlayCursorTracker& Tracker : Trackers)
 		{
 			Tracker.Reset(NewTick, PreRollMs, false);
@@ -280,7 +280,7 @@ void FMidiPlayCursorMgr::ResetTrackers()
 {
 	FMidiPlayCursorListLock LowResCursorListLock(GetLowResTracker().CursorListCS);
 	FMidiPlayCursorListLock HiResCursorListLock(GetHiResTracker().CursorListCS);
-	float Ms = GetTempoMap().TickToMs(-1);
+	float Ms = GetSongMaps().TickToMs(-1);
 	for (FMidiPlayCursorTracker& Tracker : Trackers)
 	{
 		Tracker.Reset(-1, Ms, false);
@@ -314,22 +314,10 @@ const UMidiFile::FMidiTrackList& FMidiPlayCursorMgr::Tracks() const
 	return MidiFileData.IsValid() ? MidiFileData->Tracks : DefaultTracks;
 }
 
-const FSongMaps& FMidiPlayCursorMgr::GetSongMaps() const
+const ISongMapEvaluator& FMidiPlayCursorMgr::GetSongMaps() const
 {
 	check(SongMaps);
 	return *SongMaps;
-}
-
-const FTempoMap& FMidiPlayCursorMgr::GetTempoMap() const
-{
-	check(SongMaps);
-	return SongMaps->GetTempoMap();
-}
-
-const FBarMap& FMidiPlayCursorMgr::GetBarMap() const
-{
-	check(SongMaps);
-	return SongMaps->GetBarMap();
 }
 
 void FMidiPlayCursorMgr::GetCursorExtentsMs(float& Earliest, float& Latest) const
@@ -428,15 +416,14 @@ void FMidiPlayCursorMgr::SetLoopImpl(int32 StartTick, int32 EndTick, bool Ignori
 	// might fall in the middle of the current span of leading and lagging play cursors,
 	// which would result in ugly behavior!
 
-	const FTempoMap& TempoMap = GetTempoMap();
 	Trackers[IsLowRes].LoopStartTick = StartTick;
-	Trackers[IsLowRes].LoopStartMs = TempoMap.TickToMs(StartTick);
+	Trackers[IsLowRes].LoopStartMs = GetSongMaps().TickToMs(StartTick);
 	if (EndTick == kEndTick)
 	{
 		EndTick = LengthTicks;
 	}
 	Trackers[IsLowRes].LoopEndTick = EndTick;
-	Trackers[IsLowRes].LoopEndMs = TempoMap.TickToMs(EndTick);
+	Trackers[IsLowRes].LoopEndMs = GetSongMaps().TickToMs(EndTick);
 	Trackers[IsLowRes].LoopIgnoringLookAhead = IgnoringLookAhead;
 	Trackers[IsLowRes].Loop = true;
 	bool CursorsInPhase = CursorsAllInPhaseImpl(IsLowRes);
@@ -479,13 +466,12 @@ void FMidiPlayCursorMgr::SeekTo(int32 Tick, int32 PreRollBars, bool IsRenderThre
 	// Back up one tick, as we are going to be setting the cursors'
 	// 'played through' position.
 	Tick--;
-	float NewPosMs = GetTempoMap().TickToMs(Tick);
+	float NewPosMs = GetSongMaps().TickToMs(Tick);
 	float PreRollStartMs = NewPosMs;
 	int32 PreRollStartTick = Tick;
 	if (PreRollBars > 0)
 	{
-		const FBarMap& Map = GetBarMap();
-		float Bar = Map.TickToFractionalBarIncludingCountIn(Tick);
+		float Bar = GetSongMaps().TickToFractionalBarIncludingCountIn(Tick);
 		Bar -= (float)PreRollBars;
 
 		if (Bar < 0.0f)
@@ -494,10 +480,10 @@ void FMidiPlayCursorMgr::SeekTo(int32 Tick, int32 PreRollBars, bool IsRenderThre
 		}
 		else
 		{
-			PreRollStartTick = Map.BarIncludingCountInToTick(Bar);
+			PreRollStartTick = GetSongMaps().BarIncludingCountInToTick(Bar);
 		}
 
-		PreRollStartMs = GetTempoMap().TickToMs(PreRollStartTick);
+		PreRollStartMs = GetSongMaps().TickToMs(PreRollStartTick);
 
 		if (PreRollStartTick > Tick)
 		{
@@ -531,10 +517,8 @@ void FMidiPlayCursorMgr::MoveToLoopStart()
 	{
 		if (ensureMsgf(GetHiResTracker().Loop, TEXT("That's odd. Asked to move to the beginning of the loop... but there is no loop!")))
 		{
-			const FTempoMap& TempoMap = GetTempoMap();
-
 			int32 NewThruTick = GetHiResTracker().LoopStartTick - 1;
-			float NewThruMs = TempoMap.TickToMs(NewThruTick);
+			float NewThruMs = GetSongMaps().TickToMs(NewThruTick);
 
 			// Move the hi-res cursor to the loop start
 			GetHiResTracker().MoveToLoopStart(NewThruTick, NewThruMs);
@@ -609,8 +593,8 @@ void FMidiPlayCursorMgr::MidiDataChangeComplete(EMidiChangePositionCorrectMode P
 		// Now fix up looping...
 		int32 NewLoopStartTick = OriginalLoopStartTick;
 		int32 NewLoopEndTick = FMath::Min(GetHiResTracker().LoopEndTick, OriginalLoopEndTick);
-		float NewLoopStartMs = GetTempoMap().TickToMs(NewLoopStartTick);
-		float NewLoopEndMs = GetTempoMap().TickToMs(NewLoopEndTick);
+		float NewLoopStartMs = GetSongMaps().TickToMs(NewLoopStartTick);
+		float NewLoopEndMs = GetSongMaps().TickToMs(NewLoopEndTick);
 		for (FMidiPlayCursorTracker& Tracker : Trackers)
 		{
 			Tracker.LoopStartTick = NewLoopStartTick;
@@ -629,11 +613,11 @@ void FMidiPlayCursorMgr::MidiDataChangeComplete(EMidiChangePositionCorrectMode P
 			}
 			if (PositionMode == EMidiChangePositionCorrectMode::MaintainTick)
 			{
-				GetHiResTracker().CurrentMs = GetTempoMap().TickToMs(GetHiResTracker().CurrentTick);
+				GetHiResTracker().CurrentMs = GetSongMaps().TickToMs(GetHiResTracker().CurrentTick);
 			}
 			else
 			{
-				GetHiResTracker().CurrentTick = GetTempoMap().MsToTick(GetHiResTracker().CurrentMs);
+				GetHiResTracker().CurrentTick = GetSongMaps().MsToTick(GetHiResTracker().CurrentMs);
 			}
 			GetHiResTracker().TraversingCursors = false;
 			// Now the low res cursors...
@@ -644,11 +628,11 @@ void FMidiPlayCursorMgr::MidiDataChangeComplete(EMidiChangePositionCorrectMode P
 			}
 			if (PositionMode == EMidiChangePositionCorrectMode::MaintainTick)
 			{
-				GetLowResTracker().CurrentMs = GetTempoMap().TickToMs(GetLowResTracker().CurrentTick);
+				GetLowResTracker().CurrentMs = GetSongMaps().TickToMs(GetLowResTracker().CurrentTick);
 			}
 			else
 			{
-				GetLowResTracker().CurrentTick = GetTempoMap().MsToTick(GetLowResTracker().CurrentMs);
+				GetLowResTracker().CurrentTick = GetSongMaps().MsToTick(GetLowResTracker().CurrentMs);
 			}
 			// Now deal with the possibility that the low res cursors might be "out of phase" with the hi res
 			// cursors. This would happen if we are in the middle of a loop...
@@ -670,7 +654,7 @@ void FMidiPlayCursorMgr::MidiDataChangeComplete(EMidiChangePositionCorrectMode P
 		}
 		else
 		{
-			int32 SeekTick = PositionMode == EMidiChangePositionCorrectMode::MaintainTick ? GetHiResTracker().CurrentTick : GetTempoMap().MsToTick(GetHiResTracker().CurrentMs);
+			int32 SeekTick = PositionMode == EMidiChangePositionCorrectMode::MaintainTick ? GetHiResTracker().CurrentTick : GetSongMaps().MsToTick(GetHiResTracker().CurrentMs);
 			SeekTo(SeekTick, PreRollBars, true, false);
 		}
 		GetHiResTracker().CursorListCS.Unlock();
@@ -682,7 +666,7 @@ void FMidiPlayCursorMgr::MidiDataChangeComplete(EMidiChangePositionCorrectMode P
 FMusicTimestamp FMidiPlayCursorMgr::GetMusicTimestampAtMs(float Ms) const
 {
 	const int32 TickAtOffset = GetSongMaps().MsToTick(Ms);
-	return GetBarMap().TickToMusicTimestamp(TickAtOffset);
+	return GetSongMaps().TickToMusicTimestamp(TickAtOffset);
 }
 
 void FMidiPlayCursorMgr::AdvanceHiResToMs(float Ms, bool Broadcast)
@@ -824,16 +808,15 @@ void FMidiPlayCursorMgr::UpdateLowResCursors(FMidiPlayCursorTracker& Tracker)
 bool FMidiPlayCursorMgr::AdvanceTrackerByDeltaMs(float Ms, FMidiPlayCursorTracker& Tracker, bool IsLowRes, bool Broadcast)
 {
 	Tracker.ElapsedMs += Ms;
-	const FTempoMap& TempoMap = GetTempoMap();
 	float NewMs = Tracker.CurrentMs + Ms;
-	int32 NewTick = (int32)(TempoMap.MsToTick(NewMs) + 0.5f);
+	int32 NewTick = (int32)(GetSongMaps().MsToTick(NewMs) + 0.5f);
 	bool  Looped = false;
 
 	if (NewTick >= Tracker.LoopEndTick && Tracker.CurrentTick < Tracker.LoopEndTick && Tracker.Loop)
 	{
 		// loop the tick around...
 		NewTick = (NewTick - Tracker.LoopEndTick) + Tracker.LoopStartTick;
-		NewMs = TempoMap.TickToMs(NewTick);
+		NewMs = GetSongMaps().TickToMs(NewTick);
 		Tracker.CurrentMs = NewMs;
 		Tracker.CurrentTick = NewTick;
 		Looped = true;
@@ -866,9 +849,7 @@ bool FMidiPlayCursorMgr::AdvanceTrackerByDeltaMs(float Ms, FMidiPlayCursorTracke
 
 void FMidiPlayCursorMgr::AdvanceTrackerThruTick(int32 ToTick, FMidiPlayCursorTracker& Tracker, bool IsLowRes, bool Broadcast)
 {
-	const FTempoMap& TempoMap = GetTempoMap();
-
-	float NewMs = TempoMap.TickToMs(ToTick);
+	float NewMs = GetSongMaps().TickToMs(ToTick);
 	Tracker.ElapsedMs += NewMs - Tracker.CurrentMs;
 	int32   NewTick = ToTick;
 

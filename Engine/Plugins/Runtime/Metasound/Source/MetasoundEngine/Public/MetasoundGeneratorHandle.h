@@ -158,6 +158,12 @@ namespace Metasound
 			FName AnalyzerName = NAME_None,
 			FName AnalyzerOutputName = NAME_None);
 
+		bool TryCreateAnalyzerAddress(
+			const FName OutputName,
+			const FName AnalyzerName,
+			const FName AnalyzerOutputName,
+			Frontend::FAnalyzerAddress& OutAnalyzerAddress);
+
 		/**
 		 * Update any watched outputs
 		 */
@@ -223,13 +229,6 @@ namespace Metasound
 			FName AnalyzerOutputName = NAME_None);
 
 		void UpdateOutputWatchersInternal();
-
-		bool TryCreateAnalyzerAddress(
-			const FName OutputName,
-			const FName AnalyzerName,
-			const FName AnalyzerOutputName,
-			Frontend::FAnalyzerAddress& OutAnalyzerAddress);
-
 		void FixUpOutputWatchers();
 
 		void CreateOutputWatcher(
@@ -469,6 +468,12 @@ public:
 
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnIOUpdatedWithChanges, const TArray<Metasound::FVertexInterfaceChange>&)
 	FOnIOUpdatedWithChanges OnIOUpdatedWithChanges;
+
+	bool TryCreateAnalyzerAddress(
+		const FName OutputName,
+		const FName AnalyzerName,
+		const FName AnalyzerOutputName,
+		Metasound::Frontend::FAnalyzerAddress& OutAnalyzerAddress);
 
 	/**
 	 * Watch an output value.

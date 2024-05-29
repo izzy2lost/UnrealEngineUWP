@@ -38,9 +38,9 @@ namespace Harmonix::Midi::Ops
 
 		for (const FMidiClockEvent& ClockEvent : PinnedClock->GetMidiClockEventsInBlock())
 		{
-			if (const FAdvanceThru* AsAdvanceThru = ClockEvent.TryGet<FAdvanceThru>())
+			if (const FAdvance* AsAdvance = ClockEvent.TryGet<FAdvance>())
 			{
-				HandleAdvanceThru(ClockEvent.BlockFrameIndex, AsAdvanceThru, OutStream);
+				HandleAdvance(ClockEvent.BlockFrameIndex, AsAdvance, OutStream);
 			}
 			else if (const FTimeSignatureChange* AsTimeSigChange = ClockEvent.TryGet<FTimeSignatureChange>())
 			{
@@ -49,7 +49,7 @@ namespace Harmonix::Midi::Ops
 		}
 	}
 
-	void FPulseGenerator::HandleAdvanceThru(const int32 BlockFrameIndex, const HarmonixMetasound::MidiClockMessageTypes::FAdvanceThru* AdvanceThru, HarmonixMetasound::FMidiStream& OutStream)
+	void FPulseGenerator::HandleAdvance(const int32 BlockFrameIndex, const HarmonixMetasound::MidiClockMessageTypes::FAdvance* Advance, HarmonixMetasound::FMidiStream& OutStream)
 	{
 		if (!NextPulseTimestamp.IsValid())
 		{
@@ -58,15 +58,15 @@ namespace Harmonix::Midi::Ops
 
 		check(Clock.IsValid()); // if we're here and we don't have a clock, we have problems
 		const auto PinnedClock = Clock.Pin();
-		int32 NextPulseTick = PinnedClock->GetBarMap().MusicTimestampToTick(NextPulseTimestamp);
+		int32 NextPulseTick = PinnedClock->GetSongMapEvaluator().MusicTimestampToTick(NextPulseTimestamp);
 
-		while (AdvanceThru->ThruTick >= NextPulseTick)
+		while (Advance->LastTickToProcess() >= NextPulseTick)
 		{
 			DoPulse(BlockFrameIndex, NextPulseTick, OutStream);
 
 			IncrementTimestampByInterval(NextPulseTimestamp, Interval, CurrentTimeSignature);
 
-			NextPulseTick = PinnedClock->GetBarMap().MusicTimestampToTick(NextPulseTimestamp);
+			NextPulseTick = PinnedClock->GetSongMapEvaluator().MusicTimestampToTick(NextPulseTimestamp);
 		}
 	}
 
@@ -78,7 +78,7 @@ namespace Harmonix::Midi::Ops
 		const auto PinnedClock = Clock.Pin();
 		// Time sig changes will come on the downbeat, and if we change time signature,
 		// we want to reset the pulse, so the next pulse is now plus the offset
-		NextPulseTimestamp = PinnedClock->GetBarMap().TickToMusicTimestamp(TimeSigChange->Tick);
+		NextPulseTimestamp = PinnedClock->GetSongMapEvaluator().TickToMusicTimestamp(TimeSigChange->Tick);
 		IncrementTimestampByOffset(NextPulseTimestamp, Interval, CurrentTimeSignature);
 	}
 

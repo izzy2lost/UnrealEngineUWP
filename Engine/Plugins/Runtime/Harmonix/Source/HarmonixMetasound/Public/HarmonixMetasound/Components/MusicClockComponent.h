@@ -126,6 +126,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
 	float GetBeatsIncludingCountIn(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
+	// NOTE: Working in ticks is a little risky. Midi files have have different numbers of ticks per quarter note,
+	// Ticks change duration with tempo changes, etc. So we don't expose ticks to blueprints and recommend using them
+	// in c++ code. That said, sometimes there is a use for them... so... 
+	float GetTicksFromBarOne(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
+	float GetTicksIncludingCountIn(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
+
 	// Returns the "classic" musical timestamp in the form Bar (int) & Beat (float). In this form...
 	//    - Bar 1, Beat 1.0 is the "beginning of the song" AFTER count-in/pickups
 	//    - Bar 0, Beat 1.0 would be one bar BEFORE the "beginning of the song"... eg. a bar of count-in or pickup.
@@ -252,7 +258,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Song Data")
 	float GetSongLengthBars() const;
 
-	const FSongMaps& GetSongMaps() const;
+	const ISongMapEvaluator& GetSongMaps() const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MusicClock")
 	ECalibratedMusicTimebase TimebaseForBarAndBeatEvents = ECalibratedMusicTimebase::VideoRenderTime;
@@ -368,7 +374,7 @@ struct FMusicClockDriverBase : public TSharedFromThis<FMusicClockDriverBase>
 public:
 	FMusicClockDriverBase() = delete;
 	FMusicClockDriverBase(UMusicClockComponent* DrivenClock)
-		: Clock(DrivenClock)
+		: ClockComponent(DrivenClock)
 	{}
 	virtual ~FMusicClockDriverBase() = default;
 
@@ -381,10 +387,11 @@ public:
 	virtual void OnPause() = 0;
 	virtual void OnContinue() = 0;
 	virtual void OnStop() = 0;
-	virtual const FSongMaps* GetCurrentSongMaps() const = 0;
+	virtual const ISongMapEvaluator* GetCurrentSongMapEvaluator() const = 0;
 
 protected:
-	UMusicClockComponent* Clock;
+	UMusicClockComponent* ClockComponent;
+
 private:
 	virtual bool RefreshCurrentSongPos() = 0;
 };

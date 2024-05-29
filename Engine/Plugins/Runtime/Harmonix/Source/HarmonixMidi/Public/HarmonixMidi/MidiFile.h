@@ -194,7 +194,7 @@ public:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 
-	int32 GetStartBar() { return TheMidiData.SongMaps.GetBarMap().GetStartBar(); };
+	int32 GetStartBar() { return TheMidiData.SongMaps.GetStartBar(); };
 
 	// This does a quick and dirty to check to see if the length of the midi is 
 	// on a musical subdivision. It is used primarily during asset importing, and
@@ -215,6 +215,8 @@ public:
 
 	const FSongMaps* GetSongMaps() const { return &TheMidiData.SongMaps; }
 	FSongMaps* GetSongMaps() { return &TheMidiData.SongMaps; }
+
+	TSharedPtr<FMidiFileData> GetOrCreateRenderableCopy();
 
 	// IAudioProxyDataFactory
 	virtual TSharedPtr<Audio::IProxyData> CreateProxyData(const Audio::FProxyDataInitParams& InitParams) override;

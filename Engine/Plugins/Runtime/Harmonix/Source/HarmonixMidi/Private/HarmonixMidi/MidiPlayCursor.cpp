@@ -50,8 +50,8 @@ void FMidiPlayCursor::SetOwner(FMidiPlayCursorMgr* NewOwner, FMidiPlayCursorTrac
 			{
 				PreRollMs = Tracker->CurrentMs;
 			}
-			int32 Tick = (int32)Owner->GetTempoMap().MsToTick(Tracker->CurrentMs - PreRollMs);
-			float Ms = Owner->GetTempoMap().TickToMs(Tick);
+			int32 Tick = (int32)Owner->GetSongMaps().MsToTick(Tracker->CurrentMs - PreRollMs);
+			float Ms = Owner->GetSongMaps().TickToMs(Tick);
 			Tracker->ResetNewCursor(this, Tick, Ms, false);
 		}
 	}
@@ -63,7 +63,7 @@ void FMidiPlayCursor::Reset(bool ForceNoBroadcast)
 	LoopCount = 0;
 	if (GetOwner())
 	{
-		CurrentMs = Owner->GetTempoMap().TickToMs(CurrentTick);
+		CurrentMs = Owner->GetSongMaps().TickToMs(CurrentTick);
 		TrackNextEventIndexs.SetNumUninitialized(Owner->Tracks().Num());
 
 		for (int32 i = 0; i < TrackNextEventIndexs.Num(); i++)
@@ -122,11 +122,11 @@ void FMidiPlayCursor::RecalcNextEventsDueToMidiChanges(FMidiPlayCursorMgr::EMidi
 
 	if (PositionMode == FMidiPlayCursorMgr::EMidiChangePositionCorrectMode::MaintainTick)
 	{
-		CurrentMs = Owner->GetTempoMap().TickToMs(CurrentTick);
+		CurrentMs = Owner->GetSongMaps().TickToMs(CurrentTick);
 	}
 	else // if (positionMode == MidiChangePositionCorrectMode::MaintainTime)
 	{
-		CurrentTick = Owner->GetTempoMap().MsToTick(CurrentMs);
+		CurrentTick = Owner->GetSongMaps().MsToTick(CurrentMs);
 	}
 
 	// changes to tracks might actually be more complicated...
@@ -236,11 +236,11 @@ void FMidiPlayCursor::PrepareLookAheadMs(bool ForceNoBroadcast)
 		float NewMs = Tracker->CurrentMs + LookaheadMs;
 		if (NewMs > 0.0f)
 		{
-			CurrentTick = (int32)(GetOwner()->GetTempoMap().MsToTick(NewMs) + 0.5f);
+			CurrentTick = (int32)(GetOwner()->GetSongMaps().MsToTick(NewMs) + 0.5f);
 		}
 		else
 		{
-			CurrentTick = (int32)(GetOwner()->GetTempoMap().MsToTick(NewMs) - 0.5f);
+			CurrentTick = (int32)(GetOwner()->GetSongMaps().MsToTick(NewMs) - 0.5f);
 		}
 		SeekThruTick(CurrentTick);
 		CurrentMs = NewMs;
@@ -543,7 +543,7 @@ void FMidiPlayCursor::AdvanceByMs(bool ProcessLoops, bool Broadcast, bool IsPreR
 void FMidiPlayCursor::DoAdvanceForLaggingMsCursor(bool Broadcast, bool IsPreRoll)
 {
 	float NewMs = Tracker->CurrentMs + LookaheadMs;
-	int32 NewTick = (int32)(GetOwner()->GetTempoMap().MsToTick(NewMs) + 0.5f);
+	int32 NewTick = (int32)(GetOwner()->GetSongMaps().MsToTick(NewMs) + 0.5f);
 	if (Owner->DoesLoop(Tracker->IsLowRes))
 	{
 		float LoopStartMs = Owner->GetLoopStartMs(Tracker->IsLowRes);
@@ -572,7 +572,7 @@ void FMidiPlayCursor::DoAdvanceForLaggingMsCursor(bool Broadcast, bool IsPreRoll
 			{
 				// wrap new tick back to loop end...
 				NewMs = LoopEndMs - (LoopStartMs - NewMs);
-				NewTick = (int32)(Owner->GetTempoMap().MsToTick(NewMs) + 0.5f);
+				NewTick = (int32)(Owner->GetSongMaps().MsToTick(NewMs) + 0.5f);
 				// now advance from current position to new position...
 				if (Broadcast)
 				{
@@ -626,7 +626,7 @@ void FMidiPlayCursor::DoAdvanceForLaggingMsCursor(bool Broadcast, bool IsPreRoll
 				{
 					// wrap new tick back from loopEnd...
 					NewMs = LoopEndMs - (LoopStartMs - NewMs);
-					NewTick = (int32)(Owner->GetTempoMap().MsToTick(NewMs) + 0.5f);
+					NewTick = (int32)(Owner->GetSongMaps().MsToTick(NewMs) + 0.5f);
 					if (Broadcast)
 					{
 						AdvanceThruTick(NewTick, IsPreRoll);
@@ -677,7 +677,7 @@ void FMidiPlayCursor::DoAdvanceForLaggingMsCursor(bool Broadcast, bool IsPreRoll
 void FMidiPlayCursor::DoAdvanceForLeadingMsCursor(bool Broadcast, bool ProcessLoops, bool IsPreRoll)
 {
 	float NewMs = Tracker->CurrentMs + LookaheadMs;
-	int32 NewTick = (int32)(GetOwner()->GetTempoMap().MsToTick(NewMs) + 0.5f);
+	int32 NewTick = (int32)(GetOwner()->GetSongMaps().MsToTick(NewMs) + 0.5f);
 	if (Owner->DoesLoop(Tracker->IsLowRes) && ProcessLoops) 
 	{
 		float LoopStartMs = Owner->GetLoopStartMs(Tracker->IsLowRes);
@@ -694,7 +694,7 @@ void FMidiPlayCursor::DoAdvanceForLeadingMsCursor(bool Broadcast, bool ProcessLo
 			{
 				// wrap NewTick...
 				NewMs = LoopStartMs + (NewMs - LoopEndMs);
-				NewTick = (int32)(Owner->GetTempoMap().MsToTick(NewMs) + 0.5f);
+				NewTick = (int32)(Owner->GetSongMaps().MsToTick(NewMs) + 0.5f);
 			}
 			if (NewTick < CurrentTick)
 			{
@@ -749,7 +749,7 @@ void FMidiPlayCursor::DoAdvanceForLeadingMsCursor(bool Broadcast, bool ProcessLo
 				{
 					// jump NewTick...
 					NewMs = LoopStartMs + (NewMs - LoopEndMs);
-					NewTick = (int32)(Owner->GetTempoMap().MsToTick(NewMs) + 0.5f);
+					NewTick = (int32)(Owner->GetSongMaps().MsToTick(NewMs) + 0.5f);
 				}
 
 				if (CurrentTick < LoopEndTick)
@@ -818,7 +818,7 @@ void FMidiPlayCursor::SeekToTick(int32 Tick)
 		}
 	}
 	CurrentTick = Tick - 1;
-	CurrentMs = Owner->GetTempoMap().TickToMs(CurrentTick);
+	CurrentMs = Owner->GetSongMaps().TickToMs(CurrentTick);
 }
 
 void FMidiPlayCursor::SeekThruTick(int32 Tick)
@@ -845,7 +845,7 @@ void FMidiPlayCursor::SeekThruTick(int32 Tick)
 		}
 	}
 	CurrentTick = Tick;
-	CurrentMs = Owner->GetTempoMap().TickToMs(Tick);
+	CurrentMs = Owner->GetSongMaps().TickToMs(Tick);
 }
 
 bool FMidiPlayCursor::IsDone() const
@@ -1159,8 +1159,8 @@ void FMidiPlayCursor::AdvanceThruTick(int32 Tick, bool IsPreRoll)
 	}
 
 	CurrentTick = Tick;
-	const FTempoMap& TempoMap = Owner->GetTempoMap();
-	CurrentMs = TempoMap.TickToMs(Tick);
+	const ISongMapEvaluator& Maps = Owner->GetSongMaps();
+	CurrentMs = Maps.TickToMs(Tick);
 
 	// now we MAY have note on events which still need to be broadcast...
 	if ((FilterPassFlags & EFilterPassFlags::PreRollNoteOn) != EFilterPassFlags::None)
@@ -1170,7 +1170,7 @@ void FMidiPlayCursor::AdvanceThruTick(int32 Tick, bool IsPreRoll)
 			{
 				const FMidiMsg& Msg = Event->GetMsg();
 				int32 EventTick = Event->GetTick();
-				float EventMs = TempoMap.TickToMs(EventTick);
+				float EventMs = Maps.TickToMs(EventTick);
 				OnPreRollNoteOn(TrackIndex, EventTick, CurrentTick, CurrentMs - EventMs, Msg.GetStdStatus(), Msg.GetStdData1(), Msg.GetStdData2());
 			});
 	}

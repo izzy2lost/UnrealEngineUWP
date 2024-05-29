@@ -6,6 +6,10 @@
 #include "Delegates/IDelegateInstance.h"
 #include "Subsystems/EngineSubsystem.h"
 
+#include "HarmonixMetasound/Analysis/SpmcAnalysisResultQueue.h"
+#include "HarmonixMetasound/Analysis/MidiClockSongPos.h"
+#include "Analysis/MetasoundFrontendAnalyzerAddress.h"
+
 #include "MidiClockUpdateSubsystem.generated.h"
 
 namespace HarmonixMetasound
@@ -58,18 +62,15 @@ public:
 	virtual void Deinitialize() override;
 	// End USubsystem
 
-	static void TrackMidiClock(HarmonixMetasound::FMidiClock* Clock);
-	static void StopTrackingMidiClock(HarmonixMetasound::FMidiClock* Clock);
 	static void TrackMusicClockComponent(UMusicClockComponent* Clock);
 	static void StopTrackingMusicClockComponent(UMusicClockComponent* Clock);
+
+	using FClockHistoryPtr = TSharedPtr<HarmonixMetasound::Analysis::FMidiClockSongPositionHistory>;
+	static FClockHistoryPtr GetOrCreateClockHistory(const Metasound::Frontend::FAnalyzerAddress& ForAddress);
 
 private:
 
 	mutable FCriticalSection TrackedMidiClocksMutex;
-	TArray<HarmonixMetasound::FMidiClock*> TrackedMidiClocks;
-	void TrackMidiClockImpl(HarmonixMetasound::FMidiClock* Clock);
-	void StopTrackingMidiClockImpl(HarmonixMetasound::FMidiClock* Clock);
-	void UpdateFMidiClocks();
 
 	TArray<TWeakObjectPtr<UMusicClockComponent>> TrackedMusicClockComponents;
 	void TrackMusicClockComponentImpl(UMusicClockComponent* Clock);
@@ -81,6 +82,11 @@ private:
 
 	FDelegateHandle EngineSamplingInputDelegate;
 	void CoreDelegatesSamplingInput();
+
+	static FCriticalSection ClockHistoryMapLocker;
+	static TMap<uint32, TWeakPtr<HarmonixMetasound::Analysis::FMidiClockSongPositionHistory>> ClockHistories;
+
+	static uint32 MakeMidiSongPosAnalyzerAddressHash(const Metasound::Frontend::FAnalyzerAddress& ForAddress);
 
 public:
 	// Declare a "tick" method that can be used during automated testing so that

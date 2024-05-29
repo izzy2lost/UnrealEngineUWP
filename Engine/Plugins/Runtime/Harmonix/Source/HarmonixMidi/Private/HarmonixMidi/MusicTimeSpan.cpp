@@ -5,7 +5,7 @@
 #include "HarmonixMidi/MidiSongPos.h"
 #include "HarmonixMidi/MidiConstants.h"
 
-float FMusicalTimeSpan::CalcPositionInSpan(const FMidiSongPos& Position, const FSongMaps& Maps) const
+float FMusicalTimeSpan::CalcPositionInSpan(const FMidiSongPos& Position, const ISongMapEvaluator& Maps) const
 {
 	if (Position.TimeSigDenominator == 0)
 	{
@@ -20,7 +20,7 @@ float FMusicalTimeSpan::CalcPositionInSpan(const FMidiSongPos& Position, const F
 	return CalcPositionInSpanNoOffset(Position, Maps);
 }
 
-float FMusicalTimeSpan::CalcPositionInSpanWithOffset(const FMidiSongPos& Position, const FSongMaps& Maps) const
+float FMusicalTimeSpan::CalcPositionInSpanWithOffset(const FMidiSongPos& Position, const ISongMapEvaluator& Maps) const
 {
 	using namespace Harmonix::Midi::Constants;
 	FMidiSongPos OffsetPosition;
@@ -36,8 +36,8 @@ float FMusicalTimeSpan::CalcPositionInSpanWithOffset(const FMidiSongPos& Positio
 		break;
 	case EMusicTimeSpanOffsetUnits::Bars:
 		{
-			float FractionalBar = Position.BarsIncludingCountIn + Maps.GetBarMap().GetStartBar() - Offset;
-			int32 Tick = Maps.GetBarMap().FractionalBarIncludingCountInToTick(FractionalBar);
+			float FractionalBar = Position.BarsIncludingCountIn + Maps.GetStartBar() - Offset;
+			int32 Tick = Maps.FractionalBarIncludingCountInToTick(FractionalBar);
 			OffsetPosition.SetByTick((float)Tick, Maps);
 		}
 		break;
@@ -105,7 +105,7 @@ float FMusicalTimeSpan::CalcPositionInSpanWithOffset(const FMidiSongPos& Positio
 	return CalcPositionInSpanNoOffset(OffsetPosition, Maps);
 }
 
-float FMusicalTimeSpan::CalcPositionInSpanNoOffset(const FMidiSongPos& Position, const FSongMaps& Maps) const
+float FMusicalTimeSpan::CalcPositionInSpanNoOffset(const FMidiSongPos& Position, const ISongMapEvaluator& Maps) const
 {
 	if (LengthUnits == EMusicTimeSpanLengthUnits::Bars || LengthUnits == EMusicTimeSpanLengthUnits::Beats)
 	{
@@ -115,14 +115,14 @@ float FMusicalTimeSpan::CalcPositionInSpanNoOffset(const FMidiSongPos& Position,
 }
 
 
-float FMusicalTimeSpan::CalcPositionInSpan(float Ms, const FSongMaps& Maps) const
+float FMusicalTimeSpan::CalcPositionInSpan(float Ms, const ISongMapEvaluator& Maps) const
 {
 	FMidiSongPos Position;
 	Position.SetByTime(Ms, Maps);
 	return CalcPositionInSpan(Position, Maps);
 }
 
-float FMusicalTimeSpan::CalculateEnclosingVariableSizeSpanExtents(const FMidiSongPos& Position, const FSongMaps& Maps) const
+float FMusicalTimeSpan::CalculateEnclosingVariableSizeSpanExtents(const FMidiSongPos& Position, const ISongMapEvaluator& Maps) const
 {
 	switch (LengthUnits)
 	{
@@ -153,56 +153,57 @@ float FMusicalTimeSpan::CalculateEnclosingVariableSizeSpanExtents(const FMidiSon
 	return 0.0f;
 }
 
-float FMusicalTimeSpan::CalculateEnclosingFixedSizeSpanExtents(const FMidiSongPos& Position, const FSongMaps& Maps) const
+float FMusicalTimeSpan::CalculateEnclosingFixedSizeSpanExtents(const FMidiSongPos& Position, const ISongMapEvaluator& Maps) const
 {
 	int32 Tick = Maps.MsToTick(Position.SecondsIncludingCountIn * 1000.0f);
+	int32 MidiTTQ = Maps.GetTicksPerQuarterNote();
 	int32 GridUnitTicks = 1;
 	switch (LengthUnits)
 	{
 	case EMusicTimeSpanLengthUnits::ThirtySecondNotes:
-		GridUnitTicks = Maps.GetTicksPerQuarterNote() / 8;
+		GridUnitTicks = MidiTTQ / 8;
 		break;
 	case EMusicTimeSpanLengthUnits::SixteenthNotes:
-		GridUnitTicks = Maps.GetTicksPerQuarterNote() / 4;
+		GridUnitTicks = MidiTTQ / 4;
 		break;
 	case EMusicTimeSpanLengthUnits::EighthNotes:
-		GridUnitTicks = Maps.GetTicksPerQuarterNote() / 2;
+		GridUnitTicks = MidiTTQ / 2;
 		break;
 	case EMusicTimeSpanLengthUnits::QuarterNotes:
-		GridUnitTicks = Maps.GetTicksPerQuarterNote();
+		GridUnitTicks = MidiTTQ;
 		break;
 	case EMusicTimeSpanLengthUnits::HalfNotes:
-		GridUnitTicks = Maps.GetTicksPerQuarterNote() * 2;
+		GridUnitTicks = MidiTTQ * 2;
 		break;
 	case EMusicTimeSpanLengthUnits::WholeNotes:
-		GridUnitTicks = Maps.GetTicksPerQuarterNote() * 4;
+		GridUnitTicks = MidiTTQ * 4;
 		break;
 	case EMusicTimeSpanLengthUnits::DottedSixteenthNotes:
-		GridUnitTicks = Maps.GetTicksPerQuarterNote() * 3 / 8;
+		GridUnitTicks = MidiTTQ * 3 / 8;
 		break;
 	case EMusicTimeSpanLengthUnits::DottedEighthNotes:
-		GridUnitTicks = Maps.GetTicksPerQuarterNote() * 3 / 4;
+		GridUnitTicks = MidiTTQ * 3 / 4;
 		break;
 	case EMusicTimeSpanLengthUnits::DottedQuarterNotes:
-		GridUnitTicks = Maps.GetTicksPerQuarterNote() * 3 / 2;
+		GridUnitTicks = MidiTTQ * 3 / 2;
 		break;
 	case EMusicTimeSpanLengthUnits::DottedHalfNotes:
-		GridUnitTicks = Maps.GetTicksPerQuarterNote() * 3;
+		GridUnitTicks = MidiTTQ * 3;
 		break;
 	case EMusicTimeSpanLengthUnits::DottedWholeNotes:
-		GridUnitTicks = Maps.GetTicksPerQuarterNote() * 6;
+		GridUnitTicks = MidiTTQ * 6;
 		break;
 	case EMusicTimeSpanLengthUnits::SixteenthNoteTriplets:
-		GridUnitTicks = Maps.GetTicksPerQuarterNote() / 6;
+		GridUnitTicks = MidiTTQ / 6;
 		break;
 	case EMusicTimeSpanLengthUnits::EighthNoteTriplets:
-		GridUnitTicks = Maps.GetTicksPerQuarterNote() / 3;
+		GridUnitTicks = MidiTTQ / 3;
 		break;
 	case EMusicTimeSpanLengthUnits::QuarterNoteTriplets:
-		GridUnitTicks = Maps.GetTicksPerQuarterNote() * 2 / 3;
+		GridUnitTicks = MidiTTQ * 2 / 3;
 		break;
 	case EMusicTimeSpanLengthUnits::HalfNoteTriplets:
-		GridUnitTicks = Maps.GetTicksPerQuarterNote() * 4 / 3;
+		GridUnitTicks = MidiTTQ * 4 / 3;
 		break;
 	default:
 		checkNoEntry();

@@ -57,6 +57,34 @@ bool FMidiSongPos::operator>=(const FMidiSongPos& rhs) const
 	return cmp == 1 || cmp == 0;
 }
 
+FMidiSongPos FMidiSongPos::Lerp(const FMidiSongPos& A, const FMidiSongPos& B, float Alpha)
+{
+	FMidiSongPos Result;
+	Result.SecondsIncludingCountIn = FMath::Lerp(A.SecondsIncludingCountIn, B.SecondsIncludingCountIn, Alpha);
+	Result.SecondsFromBarOne = FMath::Lerp(A.SecondsFromBarOne, B.SecondsFromBarOne, Alpha);
+	Result.TimeSigNumerator = A.TimeSigNumerator;
+	Result.TimeSigDenominator = A.TimeSigDenominator;
+	Result.Tempo = A.Tempo;
+	Result.CurrentSongSection = (Alpha < 0.5f) ? A.CurrentSongSection : B.CurrentSongSection;
+	Result.BarsIncludingCountIn = FMath::Lerp(A.BarsIncludingCountIn, B.BarsIncludingCountIn, Alpha);
+	Result.BeatsIncludingCountIn = FMath::Lerp(A.BeatsIncludingCountIn, B.BeatsIncludingCountIn, Alpha);
+	
+	// infer start bar...
+	int32 StartBar = A.Timestamp.Bar - FMath::FloorToInt32(A.BarsIncludingCountIn);
+	
+	Result.Timestamp.Bar = FMath::FloorToInt32(Result.BarsIncludingCountIn) + StartBar;
+	Result.Timestamp.Beat = FMath::Fractional(Result.BarsIncludingCountIn) * Result.TimeSigNumerator + 1.0f;
+	if (FMath::FloorToInt32(Result.BeatsIncludingCountIn) == FMath::FloorToInt32(A.BeatsIncludingCountIn))
+	{
+		Result.BeatType = A.BeatType;
+	}
+	else
+	{
+		Result.BeatType = B.BeatType;
+	}
+	return Result;
+}
+
 bool FMidiSongPos::operator==(const FMidiSongPos& rhs) const
 {
 	return SongPosCmp(*this, rhs) == 0;
@@ -83,56 +111,48 @@ void FMidiSongPos::SetByTime(float InElapsedMs, float InBpm, int32 InTimeSigNume
 	Timestamp.Beat = FMath::Fractional(BarsIncludingCountIn) * InTimeSigNumerator + 1.0f;
 }
 
-void FMidiSongPos::SetByTime(float InMs, const FSongMaps& Maps)
+void FMidiSongPos::SetByTime(float InMs, const ISongMapEvaluator& Map)
 {
-	float Tick = Maps.GetTempoMap().MsToTick(InMs);
-	SetByTimeAndTick(InMs, Tick, Maps);
+	float Tick = Map.MsToTick(InMs);
+	SetByTimeAndTick(InMs, Tick, Map);
 }
 
-void FMidiSongPos::SetByTick(float InTick, const FSongMaps& Maps)
+void FMidiSongPos::SetByTick(float InTick, const ISongMapEvaluator& Map)
 {
-	float Ms = Maps.GetTempoMap().TickToMs(InTick);
-	SetByTimeAndTick(Ms, InTick, Maps);
+	float Ms = Map.TickToMs(InTick);
+	SetByTimeAndTick(Ms, InTick, Map);
 }
 
-void FMidiSongPos::SetByTimeAndTick(float InMs, float InTick, const FSongMaps& Maps)
+void FMidiSongPos::SetByTimeAndTick(float InMs, float InTick, const ISongMapEvaluator& Map)
 {
-	const FTimeSignature* TimeSig = Maps.GetTimeSignatureAtTick(int32(InTick));
+	const FTimeSignature* TimeSig = Map.GetTimeSignatureAtTick(int32(InTick));
 	SecondsIncludingCountIn = InMs / 1000.0f;
-	SecondsFromBarOne       = SecondsIncludingCountIn - Maps.GetCountInSeconds();
+	SecondsFromBarOne       = SecondsIncludingCountIn - Map.GetCountInSeconds();
 	TimeSigNumerator        = TimeSig ? TimeSig->Numerator : 4;
 	TimeSigDenominator      = TimeSig ? TimeSig->Denominator : 4;
-	Tempo                   = Maps.GetTempoAtTick(int32(InTick));
-	BarsIncludingCountIn    = Maps.GetBarIncludingCountInAtTick(InTick);
+	Tempo                   = Map.GetTempoAtTick(int32(InTick));
+	BarsIncludingCountIn    = Map.GetBarIncludingCountInAtTick(InTick);
 
-	const FSongSection* SongSection = !Maps.GetSectionMap().IsEmpty() ? Maps.GetSectionAtTick(int32(InTick)) : nullptr;
-	CurrentSongSection		= SongSection ? FSongSection(SongSection->Name, SongSection->StartTick, SongSection->LengthTicks) : FSongSection();
+	const FSongSection* SongSection = Map.GetSectionAtTick(int32(InTick));
+	CurrentSongSection = SongSection ? FSongSection(SongSection->Name, SongSection->StartTick, SongSection->LengthTicks) : FSongSection();
 	
-	const FBeatMap& BeatMap = Maps.GetBeatMap();
-	int32 BeatPointIndex     = BeatMap.GetPointIndexForTick(int32(InTick));
-	if (BeatPointIndex >= 0)
+	int32 BeatPointIndex = 0;
+	const FBeatMapPoint* BeatPoint = Map.GetBeatPointInfoAtTick(int32(InTick), &BeatPointIndex);
+	if (BeatPoint != nullptr)
 	{
-		const FBeatMapPoint& BeatPoint = BeatMap.GetBeatPointInfo(BeatPointIndex);
-		float TickInBeat     = InTick - BeatPoint.StartTick;
-		float FractionalPart = TickInBeat / BeatPoint.LengthTicks;
-		BeatsIncludingCountIn     = BeatPointIndex + FractionalPart;
-		BeatType             = BeatPoint.Type;
+		float TickInBeat = InTick - BeatPoint->StartTick;
+		float FractionalPart = TickInBeat / BeatPoint->LengthTicks;
+		BeatsIncludingCountIn = BeatPointIndex + FractionalPart;
+		BeatType = BeatPoint->Type;
 	}
 	else
 	{
-		// use basic time signature based info from bar map...
-		const FBarMap& BarMap = Maps.GetBarMap();
-		int32 BarPointIndex = BarMap.GetPointIndexForTick(int32(InTick));
-		if (BarPointIndex == INDEX_NONE)
-		{
-			ensure(InTick < 0.0f);
-			BarPointIndex = 0;
-		}
-		const FTimeSignaturePoint& TimeSigPoint = BarMap.GetTimeSignaturePoint(BarPointIndex);
-		float BarAtTimeSig = BarsIncludingCountIn - TimeSigPoint.BarIndex;
+		const FTimeSignaturePoint* TimeSigPoint = Map.GetTimeSignaturePointAtTick(int32(InTick));
+		check (TimeSigPoint);
+		float BarAtTimeSig = BarsIncludingCountIn - TimeSigPoint->BarIndex;
 		float FractPart = FMath::Fractional(BarAtTimeSig);
-		BeatsIncludingCountIn = TimeSigPoint.BeatIndex + (BarAtTimeSig * TimeSigPoint.TimeSignature.Numerator);
+		BeatsIncludingCountIn = TimeSigPoint->BeatIndex + (BarAtTimeSig * TimeSigPoint->TimeSignature.Numerator);
 		BeatType = FMath::IsNearlyEqual(Timestamp.Beat, 1.0f) ? EMusicalBeatType::Downbeat : EMusicalBeatType::Normal;
 	}
-	Timestamp = Maps.GetBarMap().TickToMusicTimestamp(InTick);
+	Timestamp = Map.TickToMusicTimestamp(InTick);
 }

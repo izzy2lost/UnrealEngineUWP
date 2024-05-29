@@ -2,6 +2,7 @@
 #pragma once
 #include "HarmonixMidi/MusicMapBase.h"
 #include "HarmonixMidi/MidiConstants.h"
+#include <limits>
 
 #include "BeatMap.generated.h"
 
@@ -12,6 +13,8 @@ enum class EMusicalBeatType : uint8
 	Strong = 1,
 	Normal = 2,
 };
+
+FString HARMONIXMIDI_API MusicalBeatTypeToString(EMusicalBeatType BeatType);
 
 /**
  * A point in the music representing a "beat".
@@ -104,7 +107,7 @@ public:
 	bool operator==(const FBeatMap& Other) const;
 
 	void Empty();
-	void Copy(const FBeatMap& Other, int32 StartTick = 0, int32 EndTick = -1);
+	void Copy(const FBeatMap& Other, int32 StartTick = 0, int32 EndTick = std::numeric_limits<int32>::max());
 	bool IsEmpty() const;
 	int32 GetNumMapPoints() const;
 

@@ -15,36 +15,36 @@ namespace HarmonixMetasoundTests::MidiClock
 		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 	TUniquePtr<FMidiClock> TestClock;
-	TUniquePtr<FMidiClock> DrivingClock;
+	TSharedPtr<FMidiClock, ESPMode::NotThreadSafe> DrivingClock;
 	TSharedPtr<FMidiFileData> MidiFileData;
 	Metasound::FOperatorSettings OperatorSettings {48000, 100};
 
 	void AddStateAtFrame(EMusicPlayerTransportState State, int32 Frame) const
 	{
-		const FMidiTimestampTransportState NewState
-		{
-			Frame,
-			0,
-			State
-		};
-
 		check(TestClock.IsValid());
-		TestClock->AddTransportStateChangeToBlock(NewState);
+		TestClock->SetTransportState(Frame, State);
 	}
 
 	void ExecuteWriteAdvance(int32 StartFrameIndex, int32 EndFrameIndex, float Speed)
 	{
-		TestClock->SeekTo(0, 1, 0);
+		TestClock->PrepareBlock();
+		TestClock->SeekTo(0, 0);
+		TestClock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
+
+		TestEqual("Clock.GetCurrentSongPosMs()", TestClock->GetCurrentSongPosMs(), 0.0f);
+		TestEqual("Clock.GetLastProcessedMidiTick()", TestClock->GetLastProcessedMidiTick(), -1);
+		TestEqual("Clock.GetNextMidiTickToProcess()", TestClock->GetNextMidiTickToProcess(), 0);
+
+		// clear out the transport change message, etc. so that our
+		// tests below can just look for speed and advance events...
 		TestClock->PrepareBlock();
 
-		TestEqual("Clock.GetCurrentHiResMs()", TestClock->GetCurrentHiResMs(), 0.0f);
-		TestEqual("Clock.GetCurrentMidiTick()", TestClock->GetCurrentMidiTick(), 0);
-		
-		float OldMs = TestClock->GetCurrentHiResMs();
-		int32 OldTick = TestClock->GetCurrentMidiTick();
-		TestClock->WriteAdvance(StartFrameIndex, EndFrameIndex, Speed);
-		float NewMs = TestClock->GetCurrentHiResMs();
-		int32 NewTick = TestClock->GetCurrentMidiTick();
+		float OldMs = TestClock->GetCurrentSongPosMs();
+		int32 OldTick = TestClock->GetNextMidiTickToProcess();
+		TestClock->SetSpeed(StartFrameIndex, Speed);
+		TestClock->Advance(StartFrameIndex, EndFrameIndex);
+		float NewMs = TestClock->GetCurrentSongPosMs();
+		int32 NewTick = TestClock->GetNextMidiTickToProcess();
 
 		TestTrue("Non looping clock advanced forward in time", NewMs > OldMs);
 		TestTrue("Non looping Clock Advanced forward in ticks", NewTick > OldTick);
@@ -54,26 +54,54 @@ namespace HarmonixMetasoundTests::MidiClock
 		float Ms = OldMs;
 
 		int32 BlockFrameIndex = 0; 
-		for (const FMidiClockEvent& Event : TestClock->GetMidiClockEventsInBlock())
+		int32 FromTick = (int32)(TestClock->GetSongMapEvaluator().MsToTick(Ms) + 0.5f);
+		for (int32 i = 0; i < TestClock->GetMidiClockEventsInBlock().Num(); ++i)
 		{
-			int32 Tick1 = (int32)(TestClock->GetTempoMap().MsToTick(Ms) + 0.5f);
-			Ms += DeltaMs;
-			int32 Tick2 = (int32)(TestClock->GetTempoMap().MsToTick(Ms) + 0.5f);
+			const FMidiClockEvent& Event = TestClock->GetMidiClockEventsInBlock()[i];
 
-			TestEqual(FString::Printf(TEXT("Frame-%d: Event.BlockFrameIndex"), Event.BlockFrameIndex), Event.BlockFrameIndex, BlockFrameIndex);
-			TestTrue(FString::Printf(TEXT("Frame-%d: Event.Type"), Event.BlockFrameIndex), Event.Msg.IsType<MidiClockMessageTypes::FAdvanceThru>());
-			TestEqual(FString::Printf(TEXT("Frame-%d: Event.FromTick"), Event.BlockFrameIndex), Event.Msg.Get<MidiClockMessageTypes::FAdvanceThru>().FromTick, Tick1);
-			TestEqual(FString::Printf(TEXT("Frame-%d: Event.ThruTick"), Event.BlockFrameIndex), Event.Msg.Get<MidiClockMessageTypes::FAdvanceThru>().ThruTick, Tick2);
-			TestEqual(FString::Printf(TEXT("Frame-%d: Event.IsPreRoll"), Event.BlockFrameIndex), Event.Msg.Get<MidiClockMessageTypes::FAdvanceThru>().IsPreRoll, false);
+			if (i == 0 && Speed != 1.0f)
+			{
+				// the first message should be the speed message UNLESS the speed was 1.0...
+				TestEqual(FString::Printf(TEXT("Frame-%d: Event.BlockFrameIndex"), Event.BlockFrameIndex), Event.BlockFrameIndex, BlockFrameIndex);
+				TestTrue(FString::Printf(TEXT("Frame-%d: Event.Type"), Event.BlockFrameIndex), Event.Msg.IsType<MidiClockMessageTypes::FSpeedChange>());
+				TestEqual(FString::Printf(TEXT("Frame-%d: Event.Speed"), Event.BlockFrameIndex), Event.Msg.Get<MidiClockMessageTypes::FSpeedChange>().Speed, Speed);
+			}
+			else
+			{
+				// all other messages should be advance messages...
+				Ms += DeltaMs;
+				int32 UpToTick = FMath::RoundToInt32(TestClock->GetSongMapEvaluator().MsToTick(Ms));
+
+				TestEqual(FString::Printf(TEXT("Frame-%d: Event.BlockFrameIndex"), Event.BlockFrameIndex), Event.BlockFrameIndex, BlockFrameIndex);
+				TestTrue(FString::Printf(TEXT("Frame-%d: Event.Type"), Event.BlockFrameIndex), Event.Msg.IsType<MidiClockMessageTypes::FAdvance>());
+				TestEqual(FString::Printf(TEXT("Frame-%d: Event.FirstTickToProcess"), Event.BlockFrameIndex), Event.Msg.Get<MidiClockMessageTypes::FAdvance>().FirstTickToProcess, FromTick);
+				int32 NumberOfTicksToProcess = Event.Msg.Get<MidiClockMessageTypes::FAdvance>().NumberOfTicksToProcess;
+				TestEqual(FString::Printf(TEXT("Frame-%d: Event.NumberOfTicksToProcess"), Event.BlockFrameIndex), Event.Msg.Get<MidiClockMessageTypes::FAdvance>().NumberOfTicksToProcess, UpToTick - FromTick);
+				TestEqual(FString::Printf(TEXT("Frame-%d: Event.LastTickToProcess"), Event.BlockFrameIndex), Event.Msg.Get<MidiClockMessageTypes::FAdvance>().LastTickToProcess(), UpToTick - 1);
 			
-			BlockFrameIndex += FMidiClock::kMidiGranularity;
+				BlockFrameIndex += FMidiClock::kMidiGranularity;
+				FromTick = UpToTick;
+			}
 		}
 
-		int32 Tick = (int32)(TestClock->GetTempoMap().MsToTick(Ms) + 0.5f);
-		TestEqual("Clock.GetCurrentMidiTick()", TestClock->GetCurrentMidiTick(), Tick);
-		TestEqual("Clock.GetCurrentHiResMs()", TestClock->GetCurrentHiResMs(), Ms);
+		int32 Tick = FMath::RoundToInt32(TestClock->GetSongMapEvaluator().MsToTick(Ms));
+		TestEqual("Clock.GetNextMidiTickToProcess()", TestClock->GetLastProcessedMidiTick(), Tick - 1);
+		TestEqual("Clock.GetCurrentSongPosMs()", TestClock->GetCurrentSongPosMs(), Ms, DeltaMs / 2.0f);
 	};
 	
+	int32 GetLastTransportStateChangeBlockSample(FMidiClock* InClock)
+	{
+		const TArray<FMidiClockEvent>& ClockEvents = InClock->GetMidiClockEventsInBlock();
+		for (auto it = ClockEvents.rbegin(); it != ClockEvents.rend(); ++it)
+		{
+			if ((*it).IsType<MidiClockMessageTypes::FTransportChange>())
+			{
+				return (*it).BlockFrameIndex;
+			}
+		}
+		return -1;
+	}
+
 	END_DEFINE_SPEC(FHarmonixMetasoundMidiClockSpec)
 
 	void FHarmonixMetasoundMidiClockSpec::Define()
@@ -94,59 +122,43 @@ namespace HarmonixMetasoundTests::MidiClock
 			{
 				TestClock->PrepareBlock();
 
-				TestFalse("No transport changes in block", TestClock->HasTransportStateChangeInBlock());
+				TestFalse("No transport changes in block", TestClock->HasTransportStateChangesInBlock());
 
 				constexpr EMusicPlayerTransportState NewState = EMusicPlayerTransportState::Playing;
 				AddStateAtFrame(NewState, 0);
 
-				TestTrue("There is a transport state change in block", TestClock->HasTransportStateChangeInBlock());
+				TestTrue("There is a transport state change in block", TestClock->HasTransportStateChangesInBlock());
 				TestEqual("State at end of block matches the one we added", TestClock->GetTransportStateAtEndOfBlock(), NewState);
 			});
 
 			It("should add NewState if its frame is greater than the last one in the block", [this]()
 			{
 				AddStateAtFrame(EMusicPlayerTransportState::Playing, 0);
-				TestTrue("There is already a transport state change in the block", TestClock->HasTransportStateChangeInBlock());
+				TestTrue("There is already a transport state change in the block", TestClock->HasTransportStateChangesInBlock());
 
-				const int32 NumInitialStates = TestClock->GetTransportTimestampsInBlock().Num();
-				const int32 LastStateFrame = TestClock->GetTransportTimestampsInBlock().Last().BlockSampleFrameIndex;
+				const int32 NumInitialStates = TestClock->GetNumTransportStateChangesInBlock();
+				const int32 LastStateFrame = GetLastTransportStateChangeBlockSample(TestClock.Get());
 
 				constexpr EMusicPlayerTransportState NewState = EMusicPlayerTransportState::Pausing;
 				AddStateAtFrame(NewState, LastStateFrame + 1);
 
-				TestEqual("There is another transport state change in block", TestClock->GetTransportTimestampsInBlock().Num(), NumInitialStates + 1);
+				TestEqual("There is another transport state change in block", TestClock->GetNumTransportStateChangesInBlock(), NumInitialStates + 1);
 				TestEqual("State at end of block matches the one we added", TestClock->GetTransportStateAtEndOfBlock(), NewState);
 			});
 
 			It("should add NewState if it has the same frame as the last one in the block", [this]()
 			{
 				AddStateAtFrame(EMusicPlayerTransportState::Playing, 0);
-				TestTrue("There is already a transport state change in the block", TestClock->HasTransportStateChangeInBlock());
+				TestTrue("There is already a transport state change in the block", TestClock->HasTransportStateChangesInBlock());
 
-				const int32 NumInitialStates = TestClock->GetTransportTimestampsInBlock().Num();
-				const int32 LastStateFrame = TestClock->GetTransportTimestampsInBlock().Last().BlockSampleFrameIndex;
+				const int32 NumInitialStates = TestClock->GetNumTransportStateChangesInBlock();
+				const int32 LastStateFrame = GetLastTransportStateChangeBlockSample(TestClock.Get());
 
 				constexpr EMusicPlayerTransportState NewState = EMusicPlayerTransportState::Paused;
 				AddStateAtFrame(NewState, LastStateFrame );
 
-				TestEqual("There is another transport state change in block", TestClock->GetTransportTimestampsInBlock().Num(), NumInitialStates + 1);
+				TestEqual("There is another transport state change in block", TestClock->GetNumTransportStateChangesInBlock(), NumInitialStates + 1);
 				TestEqual("State at end of block matches the one we added", TestClock->GetTransportStateAtEndOfBlock(), NewState);
-			});
-
-			It("should not add NewState if the frame is less than the last one in the block", [this]()
-			{
-				AddStateAtFrame(EMusicPlayerTransportState::Playing, 0);
-				TestTrue("There is already a transport state change in the block", TestClock->HasTransportStateChangeInBlock());
-
-				const int32 NumInitialStates = TestClock->GetTransportTimestampsInBlock().Num();
-				const EMusicPlayerTransportState LastState = TestClock->GetTransportStateAtEndOfBlock();
-				const int32 LastStateFrame = TestClock->GetTransportTimestampsInBlock().Last().BlockSampleFrameIndex;
-
-				constexpr EMusicPlayerTransportState NewState = EMusicPlayerTransportState::Continuing;
-				AddStateAtFrame(NewState, LastStateFrame - 1);
-
-				TestEqual("There is not another transport state change in block", TestClock->GetTransportTimestampsInBlock().Num(), NumInitialStates);
-				TestEqual("State at end of block matches the one that was already there", TestClock->GetTransportStateAtEndOfBlock(), LastState);
 			});
 		});
 
@@ -157,12 +169,12 @@ namespace HarmonixMetasoundTests::MidiClock
 				const float LastTempo = TestClock->GetTempoAtEndOfBlock();
 				const float LastSpeed = TestClock->GetSpeedAtEndOfBlock();
 				TestClock->PrepareBlock();
-				TestEqual("Clock.TransportChangesInBlock.Num()", TestClock->GetTransportTimestampsInBlock().Num(), 0);
-				TestEqual("Clock.SpeedChangesInBlock.Num()", TestClock->GetTempoSpeedTimestampsInBlock().Num(), 1);
+				TestEqual("Clock.TransportChangesInBlock.Num()", TestClock->GetNumTransportStateChangesInBlock(), 0);
+				TestEqual("Clock.SpeedChangesInBlock.Num()", TestClock->GetNumSpeedChangesInBlock(), 0);
 				TestEqual("Clock.SpeedAtBlockSampleFrame(0)", TestClock->GetSpeedAtBlockSampleFrame(0), LastSpeed);
 				TestEqual("Clock.SpeedAtEndOfBlock()", TestClock->GetSpeedAtEndOfBlock(), LastSpeed);
 				TestFalse("Clock.HasSpeedChangesInBlock()", TestClock->HasSpeedChangesInBlock());
-				TestEqual("Clock.TempoChangesInBlock.Num()", TestClock->GetNumTempoChangesInBlock(), 1);
+				TestEqual("Clock.TempoChangesInBlock.Num()", TestClock->GetNumTempoChangesInBlock(), 0);
 				TestEqual("Clock.TempoAtBlockSampleFrame(0)", TestClock->GetTempoAtBlockSampleFrame(0), LastTempo);
 				TestEqual("Clock.GetTempoAtEndOfBlock()", TestClock->GetTempoAtEndOfBlock(), LastTempo);
 				TestFalse("Clock.HasTempoChangesInBlock()", TestClock->HasTempoChangesInBlock());
@@ -174,63 +186,58 @@ namespace HarmonixMetasoundTests::MidiClock
 		{
 			It("should reset speed and tempo changes, and be \"playing\"", [this]()
 			{
-				const float LastTempo = TestClock->GetTempoAtEndOfBlock();
-				const float LastSpeed = TestClock->GetSpeedAtEndOfBlock();
-				TestClock->ResetAndStart(0, false);
+				TestClock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
 				TestEqual("Clock.GetTransportStateAtEndOfBlock()", TestClock->GetTransportStateAtEndOfBlock(), EMusicPlayerTransportState::Playing);
-				TestEqual("Clock.SpeedAtBlockSampleFrame(0)", TestClock->GetSpeedAtBlockSampleFrame(0), LastSpeed);
-				TestEqual("Clock.SpeedAtEndOfBlock()", TestClock->GetSpeedAtEndOfBlock(), LastSpeed);
-				TestFalse("Clock.HasSpeedChangesInBlock()", TestClock->HasSpeedChangesInBlock());
+				TestEqual("Clock.SpeedAtBlockSampleFrame(0)", TestClock->GetSpeedAtBlockSampleFrame(0), 1.0f);
+				TestEqual("Clock.SpeedAtEndOfBlock()", TestClock->GetSpeedAtEndOfBlock(), 1.0f);
+				TestTrue("Clock.HasSpeedChangesInBlock()", TestClock->HasSpeedChangesInBlock());
 				TestEqual("Clock.TempoChangesInBlock.Num()", TestClock->GetNumTempoChangesInBlock(), 1);
-				TestEqual("Clock.TempoAtBlockSampleFrame(0)", TestClock->GetTempoAtBlockSampleFrame(0), LastTempo);
-				TestEqual("Clock.GetTempoAtEndOfBlock()", TestClock->GetTempoAtEndOfBlock(), LastTempo);
-				TestFalse("Clock.HasTempoChangesInBlock()", TestClock->HasTempoChangesInBlock());
-			});
-			
-			It("should be at the correct block frame index", [this]()
-			{
-				const float LastTempo = TestClock->GetTempoAtEndOfBlock();
-				const float LastSpeed = TestClock->GetSpeedAtEndOfBlock();
-				int32 BlockFrame = 100;
-				TestClock->ResetAndStart(BlockFrame, false);
-				TestEqual("Clock.Get", TestClock->GetCurrentBlockFrameIndex(), BlockFrame);
-			});
-			
-			It("should seek to start when requested", [this]()
-			{
-				int32 BlockFrame = 100;
-				FMusicSeekTarget SeekTarget;
-				SeekTarget.Type = ESeekPointType::BarBeat;
-				SeekTarget.BarBeat = FMusicTimestamp(2, 1.0f);
-				TestClock->SeekTo(SeekTarget, 0);
-				TestFalse("Clock seeked, Clock.GetCurrentMidiTick() == 0", TestClock->GetCurrentMidiTick() == 0);
-				
-				TestClock->ResetAndStart(BlockFrame, true);
-				TestEqual("Clock.GetCurrentBlockFrameIndex()", TestClock->GetCurrentBlockFrameIndex(), BlockFrame);
-				TestEqual("Clock.GetCurrentMidiTick()", TestClock->GetCurrentMidiTick(), -1);
+				TestEqual("Clock.TempoAtBlockSampleFrame(0)", TestClock->GetTempoAtBlockSampleFrame(0), 120.0f);
+				TestEqual("Clock.GetTempoAtEndOfBlock()", TestClock->GetTempoAtEndOfBlock(), 120.0f);
+				TestTrue("Clock.HasTempoChangesInBlock()", TestClock->HasTempoChangesInBlock());
 			});
 
-			It("should otherwise not seek to start", [this]()
+/*
+			It("should seek to 0 when reset requested", [this]()
 			{
 				int32 BlockFrame = 100;
 				FMusicSeekTarget SeekTarget;
 				SeekTarget.Type = ESeekPointType::BarBeat;
 				SeekTarget.BarBeat = FMusicTimestamp(2, 1.0f);
-				TestClock->SeekTo(SeekTarget, 0);
-				int32 NewMidiTick = TestClock->GetCurrentMidiTick();
-				TestFalse("Clock seeked, Clock.GetCurrentMidiTick() == 0", TestClock->GetCurrentMidiTick() == 0);
+				TestClock->SeekTo(0, SeekTarget);
+				TestTrue("Clock seeked, Clock.GetNextMidiTickToProcess() != 0", TestClock->GetNextMidiTickToProcess() != 0);
+				
+				TestClock->Seek ResetAndStart(BlockFrame, true);
+				TestEqual("Clock.GetLastProcessedMidiTick()", TestClock->GetLastProcessedMidiTick(), -1);
+				TestEqual("Clock.GetNextMidiTickToProcess()", TestClock->GetNextMidiTickToProcess(), 0);
+			});
+*/
+
+/*
+			It("should NOT seek to 0 when reset requested", [this]()
+			{
+				int32 BlockFrame = 100;
+				FMusicSeekTarget SeekTarget;
+				SeekTarget.Type = ESeekPointType::BarBeat;
+				SeekTarget.BarBeat = FMusicTimestamp(2, 1.0f);
+				TestClock->SeekTo(0, SeekTarget);
+				int32 NewMidiTick = TestClock->GetNextMidiTickToProcess();
+				TestTrue("Clock seeked, Clock.GetNextMidiTickToProcess() != 0", TestClock->GetNextMidiTickToProcess() != 0);
 							
 				TestClock->ResetAndStart(BlockFrame, false);
-				TestEqual("Clock.GetCurrentBlockFrameIndex()", TestClock->GetCurrentBlockFrameIndex(), BlockFrame);
-				TestEqual("Clock.GetCurrentMidiTick()", TestClock->GetCurrentMidiTick(), NewMidiTick);
+				TestEqual("After reset, Clock.GetNextMidiTickToProcess()", TestClock->GetNextMidiTickToProcess(), NewMidiTick);
 			});
-			
+*/
+
 		});
 
 		Describe("SetLoop()", [this]()
 		{
 			It("should correctly set the tempo", [this]()
 			{
+				// set transport to playing so the block gets the initial tempo, time signature, etc...
+				TestClock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
+
 				const float TicksPerQuarterNote = Harmonix::Midi::Constants::GTicksPerQuarterNote;
 				const float TempoBPM = 120.0f;
 				int32 LoopStartTick = 0;
@@ -238,7 +245,7 @@ namespace HarmonixMetasoundTests::MidiClock
 
 				// initial clock tempo
 				TestEqual("Clock.Tempo", TestClock->GetTempoAtEndOfBlock(), TempoBPM);
-				TestEqual("Clock.Tempo", TestClock->GetTempoMap().GetTempoAtTick(0), TempoBPM);
+				TestEqual("Clock.Tempo", TestClock->GetSongMapEvaluator().GetTempoAtTick(0), TempoBPM);
 
 				// microseconds per quarternote
 				int32 MidiTempo = Harmonix::Midi::Constants::BPMToMidiTempo(TempoBPM);
@@ -247,16 +254,16 @@ namespace HarmonixMetasoundTests::MidiClock
 				float LoopStartMs = MsPerTick * LoopStartTick;
 				float LoopEndMs = MsPerTick * LoopEndTick;
 
-				TestFalse("Initial -> Clock.DoesLoop()", TestClock->DoesLoop());
-				TestClock->SetLoop(LoopStartTick, LoopEndTick);
-				TestTrue("SetLoop -> Clock.DoesLoop()", TestClock->DoesLoop());
-				TestEqual("Clock.LoopStartTick()", TestClock->GetLoopStartTick(), LoopStartTick);
-				TestEqual("Clock.LoopEndTick()", TestClock->GetLoopEndTick(), LoopEndTick);
+				TestFalse("Initial -> Clock.HasPersistentLoop()", TestClock->HasPersistentLoop());
+				TestClock->SetupPersistentLoop(LoopStartTick, LoopEndTick - LoopStartTick);
+				TestTrue("SetLoop -> Clock.HasPersistentLoop()", TestClock->HasPersistentLoop());
+				TestEqual("Clock.GetFirstTickInLoop()", TestClock->GetFirstTickInLoop(), LoopStartTick);
+				TestEqual("Clock.GetLoopLengthTicks()", TestClock->GetLoopLengthTicks(), LoopEndTick - LoopStartTick);
 				TestEqual("Clock.LoopStartMs()", TestClock->GetLoopStartMs(), LoopStartMs);
 				TestEqual("Clock.LoopEndMs()", TestClock->GetLoopEndMs(), LoopEndMs);
 
-				TestClock->ClearLoop();
-				TestFalse("Cleared -> Clock.DoesLoop()", TestClock->DoesLoop());
+				TestClock->ClearPersistentLoop();
+				TestFalse("Cleared -> Clock.HasPersistentLoop()", TestClock->HasPersistentLoop());
 			});
 
 		});
@@ -293,118 +300,124 @@ namespace HarmonixMetasoundTests::MidiClock
 		{
 			BeforeEach([&, this]
 			{
-				DrivingClock = MakeUnique<FMidiClock>(OperatorSettings);
-				TestClock->AttachToTimeAuthority(*DrivingClock);
+				DrivingClock = MakeShared<FMidiClock, ESPMode::NotThreadSafe>(OperatorSettings);
+				TestClock->SetDrivingClock(DrivingClock);
 			});
 
 			AfterEach([&, this]
 			{
-				TestClock->ClearLoop();
-				TestClock->DetachFromTimeAuthority();
+				TestClock->ClearPersistentLoop();
+				TestClock->SetDrivingClock(nullptr);
 				DrivingClock.Reset();
 			});
 
-			It("EventType::AdvanceThru.NonLooping", [&, this]
+			It("EventType::AdvanceThru.NonLooping", [&, this]()
 			{
+				DrivingClock->SeekTo(0,0);
+				DrivingClock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
+
 				float DrivingClockSpeed = 1.0f;
 				int32 StartFrame = 0;
 				int32 DeltaFrames = FMidiClock::kMidiGranularity * DrivingClockSpeed;
 				float DeltaMs = DeltaFrames * 1000.0f / OperatorSettings.GetSampleRate();
-				int32 Tick = (int32)(TestClock->GetTempoMap().MsToTick(DeltaMs) + 0.5f);
+				int32 Tick = (int32)(TestClock->GetSongMapEvaluator().MsToTick(DeltaMs) + 0.5f);
 
-				float Speed = 1.0f;
-				int32 PrerollBars = 8;
-				FMidiClockEvent Event = FMidiClockEvent(StartFrame, MidiClockMessageTypes::FAdvanceThru(0, Tick, false));
+				DrivingClock->AdvanceToTick(0, Tick);
 
 				TestClock->PrepareBlock();
 				int32 OldEventsNum = TestClock->GetMidiClockEventsInBlock().Num();
-				TestClock->HandleClockEvent(*DrivingClock, Event, PrerollBars, Speed);
+				TestClock->Advance(*DrivingClock, 0, OperatorSettings.GetNumFramesPerBlock());
 
 				if (!TestTrue("Clock has new clock events", TestClock->GetMidiClockEventsInBlock().Num() > OldEventsNum))
 				{
 					return;
 				}
-				TestTrue("Last Clock Event in block", TestClock->GetMidiClockEventsInBlock().Last().Msg.IsType<MidiClockMessageTypes::FAdvanceThru>());
-				TestEqual("Clock Current Tick", TestClock->GetCurrentMidiTick(), Event.Msg.Get<MidiClockMessageTypes::FAdvanceThru>().ThruTick - 1);
+				TestTrue("Last Clock Event in block", TestClock->GetMidiClockEventsInBlock().Last().Msg.IsType<MidiClockMessageTypes::FAdvance>());
+				const FMidiClockEvent& Event = TestClock->GetMidiClockEventsInBlock().Last();
+				TestEqual("Clock Last Processed Tick", TestClock->GetLastProcessedMidiTick(), Event.Msg.Get<MidiClockMessageTypes::FAdvance>().LastTickToProcess());
+				TestEqual("Clock Next Tick To Process", TestClock->GetNextMidiTickToProcess(), Event.Msg.Get<MidiClockMessageTypes::FAdvance>().LastTickToProcess() + 1);
 			});
 
-			It("EventType::AdvanceThru.Looping", [&, this]
+			It("EventType::AdvanceThru.Looping", [&, this]()
 			{
+				TestClock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
+				DrivingClock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
+
 				FMusicTimestamp LoopEndTimestamp;
 				LoopEndTimestamp.Bar = 2;
 				LoopEndTimestamp.Beat = 1.0f;
-				
 				int32 LoopStartTick = 0;
-				int32 LoopEndTick = TestClock->GetBarMap().MusicTimestampToTick(LoopEndTimestamp);
-				TestClock->SetLoop(LoopStartTick, LoopEndTick);
-				TestClock->SeekTo(0, LoopEndTick - 1, 0);
+				int32 LoopEndTick = TestClock->GetSongMapEvaluator().MusicTimestampToTick(LoopEndTimestamp);
 				
-				float DrivingClockSpeed = 1.0f;
-				int32 StartFrame = 0;
-				int32 DeltaFrames = FMidiClock::kMidiGranularity * DrivingClockSpeed;
-				float DeltaMs = DeltaFrames * 1000.0f / OperatorSettings.GetSampleRate();
-				int32 DeltaTicks = (int32)(TestClock->GetTempoMap().MsToTick(DeltaMs) + 0.5f);
+				TestClock->SetupPersistentLoop(LoopStartTick, LoopEndTick - LoopStartTick);
+
+				TestClock->PrepareBlock();
+				DrivingClock->PrepareBlock();
+
+				int32 TestStartTick = LoopEndTick - 1;;
+
+				DrivingClock->SeekTo(0, TestStartTick);
+
+				float DeltaMs = FMidiClock::kMidiGranularity * 1000.0f / OperatorSettings.GetSampleRate();
+				int32 DeltaTicks = (int32)(DrivingClock->GetSongMapEvaluator().MsToTick(DeltaMs) + 0.5f);
 				int32 Tick = DeltaTicks;
 
-				int32 ExpectedTick = TestClock->GetCurrentMidiTick() + DeltaTicks + 1;
+
+				int32 ExpectedTick = TestStartTick + DeltaTicks;
 				if (ExpectedTick > LoopEndTick)
 				{
 					ExpectedTick = ExpectedTick - LoopEndTick + LoopStartTick;
 				}
 
-				float Speed = 1.0f;
-				int32 PrerollBars = 8;
-				FMidiClockEvent Event = FMidiClockEvent(StartFrame, MidiClockMessageTypes::FAdvanceThru(0, Tick, false));
+				DrivingClock->Advance(0, FMidiClock::kMidiGranularity);
+				TestClock->Advance(*DrivingClock, 0, FMidiClock::kMidiGranularity);
 
-				TestClock->PrepareBlock();
-				int32 OldEventsNum = TestClock->GetMidiClockEventsInBlock().Num();
-				TestClock->HandleClockEvent(*DrivingClock, Event, PrerollBars, Speed);
-
-				if (!TestTrue("Clock has new clock events", TestClock->GetMidiClockEventsInBlock().Num() > OldEventsNum))
+				if (!TestTrue("Clock has new clock events", TestClock->GetMidiClockEventsInBlock().Num() > 0))
 				{
 					return;
 				}
-				TestTrue("Last Clock Event in block", TestClock->GetMidiClockEventsInBlock().Last().Msg.IsType<MidiClockMessageTypes::FAdvanceThru>());
-				TestEqual("Clock Current Tick", TestClock->GetCurrentMidiTick(), ExpectedTick - 1);
+				TestTrue("Last Clock Event in block is advance", TestClock->GetMidiClockEventsInBlock().Last().Msg.IsType<MidiClockMessageTypes::FAdvance>());
+				TestEqual("Clock Current Tick", TestClock->GetNextMidiTickToProcess(), ExpectedTick);
 			});
 
-			It("ProccessClockEvent(SeekTo)", [&, this]
+
+			It("ProccessClockEvent(SeekTo)", [&, this]()
 			{
 				int32 StartFrame = 0;
 				int32 Tick = 1000;
-				float Speed = 1.0f;
-				int32 PrerollBars = 8;
-				FMidiClockEvent Event = FMidiClockEvent(StartFrame, MidiClockMessageTypes::FSeekTo(0, Tick));
 
 				TestClock->PrepareBlock();
 				int32 OldEventsNum = TestClock->GetMidiClockEventsInBlock().Num();
-				TestClock->HandleClockEvent(*DrivingClock, Event, PrerollBars, Speed);
+
+				TestClock->SeekTo(StartFrame, 1000);
 
 				if (!TestTrue("Clock has new clock events", TestClock->GetMidiClockEventsInBlock().Num() > OldEventsNum))
 				{
 					return;
 				}
-				TestTrue("Last Clock Event in block", TestClock->GetMidiClockEventsInBlock()[0].Msg.IsType<MidiClockMessageTypes::FSeekThru>());
-				TestEqual("Clock Current Tick", TestClock->GetCurrentMidiTick(), Tick - 1);
+				TestTrue("Last Clock Event in block", TestClock->GetMidiClockEventsInBlock()[0].Msg.IsType<MidiClockMessageTypes::FSeek>());
+				TestEqual("Clock Current Tick", TestClock->GetNextMidiTickToProcess(), Tick);
 			});
-			
 		});
 
 		Describe("Tempo Changes", [this]()
 		{
-			It("Without driving clock", [this]()
+			It("Without driving clock - One Tempo Change At Span End", [this]()
 			{
 				MidiFileData = FMidiClock::MakeClockConductorMidiData(123, 5, 8);
 				constexpr int32 TempoChangeTick = 234;
 				constexpr float TempoChangeTempo = 89;
 				MidiFileData->AddTempoChange(0, TempoChangeTick, TempoChangeTempo);
-				TestClock->AttachToMidiResource(MidiFileData);
-				TestClock->ResetAndStart(0);
-				
-				while (TestClock->GetCurrentMidiTick() < TempoChangeTick)
+				TestClock->AttachToMidiFile(MidiFileData);
+				TestClock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
+
+				while (TestClock->GetLastProcessedMidiTick() < TempoChangeTick)
 				{
-					TestClock->PrepareBlock();
-					TestClock->WriteAdvance(0, OperatorSettings.GetNumFramesPerBlock());
+					if (TestClock->GetLastProcessedMidiTick() > 0)
+					{
+						TestClock->PrepareBlock();
+					}
+					TestClock->Advance(0, OperatorSettings.GetNumFramesPerBlock());
 				}
 
 				bool HasTempoEvent = false;
@@ -415,7 +428,7 @@ namespace HarmonixMetasoundTests::MidiClock
 					{
 						const MidiClockMessageTypes::FTempoChange& TempoChange = Event.Msg.Get<MidiClockMessageTypes::FTempoChange>();
 
-						if (!TestEqual("Tempo is correct", TempoChange.Tempo, TempoChangeTempo))
+						if (!TestEqual("Tempo is correct", TempoChange.Tempo, TempoChangeTempo, 0.001f))
 						{
 							return;
 						}
@@ -432,23 +445,118 @@ namespace HarmonixMetasoundTests::MidiClock
 
 				TestTrue("Got tempo event", HasTempoEvent);
 			});
+
+			It("Without driving clock - One Tempo Change At Span Start", [this]()
+			{
+				MidiFileData = FMidiClock::MakeClockConductorMidiData(123, 5, 8);
+				constexpr int32 TempoChangeTick = 230;
+				constexpr float TempoChangeTempo = 89;
+				MidiFileData->AddTempoChange(0, TempoChangeTick, TempoChangeTempo);
+				TestClock->AttachToMidiFile(MidiFileData);
+				TestClock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
+
+				while (TestClock->GetLastProcessedMidiTick() < TempoChangeTick)
+				{
+					if (TestClock->GetLastProcessedMidiTick() > 0)
+					{
+						TestClock->PrepareBlock();
+					}
+					TestClock->Advance(0, OperatorSettings.GetNumFramesPerBlock());
+				}
+
+				bool HasTempoEvent = false;
+
+				for (const FMidiClockEvent& Event : TestClock->GetMidiClockEventsInBlock())
+				{
+					if (Event.Msg.IsType<MidiClockMessageTypes::FTempoChange>())
+					{
+						const MidiClockMessageTypes::FTempoChange& TempoChange = Event.Msg.Get<MidiClockMessageTypes::FTempoChange>();
+
+						if (!TestEqual("Tempo is correct", TempoChange.Tempo, TempoChangeTempo, 0.001f))
+						{
+							return;
+						}
+
+						if (!TestEqual("Tick is correct", TempoChange.Tick, TempoChangeTick))
+						{
+							return;
+						}
+
+						HasTempoEvent = true;
+						break;
+					}
+				}
+
+				TestTrue("Got tempo event", HasTempoEvent);
+			});
+
+			It("Without driving clock - Many Tempo Changes In Span", [this]()
+			{
+				MidiFileData = FMidiClock::MakeClockConductorMidiData(123, 5, 8);
+				constexpr int32 NumChanges = 4;
+				constexpr int32 TempoChangeTicks[NumChanges] = { 230, 231, 232, 233 };
+				constexpr float TempoChangeTempos [NumChanges] = { 89.0, 89.2, 89.4, 89.6 };
+				for (int32 i = 0; i < NumChanges; ++i)
+				{
+					MidiFileData->AddTempoChange(0, TempoChangeTicks[i], TempoChangeTempos[i]);
+				}
+				TestClock->AttachToMidiFile(MidiFileData);
+				TestClock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
+
+				while (TestClock->GetLastProcessedMidiTick() < TempoChangeTicks[NumChanges - 1])
+				{
+					if (TestClock->GetLastProcessedMidiTick() > 0)
+					{
+						TestClock->PrepareBlock();
+					}
+					TestClock->Advance(0, OperatorSettings.GetNumFramesPerBlock());
+				}
+
+				int NumTempoEvents = 0;
+
+				for (const FMidiClockEvent& Event : TestClock->GetMidiClockEventsInBlock())
+				{
+					if (Event.Msg.IsType<MidiClockMessageTypes::FTempoChange>())
+					{
+						const MidiClockMessageTypes::FTempoChange& TempoChange = Event.Msg.Get<MidiClockMessageTypes::FTempoChange>();
+
+						if (!TestEqual("Tempo is correct", TempoChange.Tempo, TempoChangeTempos[NumTempoEvents], 0.001f))
+						{
+							return;
+						}
+
+						if (!TestEqual("Tick is correct", TempoChange.Tick, TempoChangeTicks[NumTempoEvents]))
+						{
+							return;
+						}
+
+						NumTempoEvents++;
+					}
+				}
+
+				TestEqual("Got correct number of tempo events", NumTempoEvents, NumChanges);
+			});
+
 		});
 
 		Describe("Time signature Changes", [this]()
 		{
-			It("Without driving clock", [this]()
+			It("Without driving clock - One Change", [this]()
 			{
 				MidiFileData = FMidiClock::MakeClockConductorMidiData(123, 5, 8);
-				const int32 TimeSigChangeTick = MidiFileData->SongMaps.GetBarMap().BarBeatTickIncludingCountInToTick(2, 1, 0);
+				const int32 TimeSigChangeTick = MidiFileData->SongMaps.BarBeatTickIncludingCountInToTick(2, 1, 0);
 				const FTimeSignature NewTimeSig{ 3, 4 };
 				MidiFileData->AddTimeSigChange(0, TimeSigChangeTick, NewTimeSig.Numerator, NewTimeSig.Denominator);
-				TestClock->AttachToMidiResource(MidiFileData);
-				TestClock->ResetAndStart(0);
+				TestClock->AttachToMidiFile(MidiFileData);
+				TestClock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
 						
-				while (TestClock->GetCurrentMidiTick() < TimeSigChangeTick)
+				while (TestClock->GetLastProcessedMidiTick() < TimeSigChangeTick)
 				{
-					TestClock->PrepareBlock();
-					TestClock->WriteAdvance(0, OperatorSettings.GetNumFramesPerBlock());
+					if (TestClock->GetLastProcessedMidiTick() > 0)
+					{
+						TestClock->PrepareBlock();
+					}
+					TestClock->Advance(0, OperatorSettings.GetNumFramesPerBlock());
 				}
 
 				bool HasTimeSignatureEvent = false;
@@ -475,6 +583,73 @@ namespace HarmonixMetasoundTests::MidiClock
 				}
 
 				TestTrue("Got time sig event", HasTimeSignatureEvent);
+			});
+
+			It("Without driving clock - One Change with tempos", [this]()
+			{
+				MidiFileData = FMidiClock::MakeClockConductorMidiData(123, 5, 8);
+				const int32 TimeSigChangeTick = MidiFileData->SongMaps.BarBeatTickIncludingCountInToTick(2, 1, 0);
+				constexpr int32 NumTempoChanges = 3;
+				constexpr int32 TempoChangeTicks[NumTempoChanges] = { 4799, 4800, 4801 };
+				constexpr float TempoChangeTempos[NumTempoChanges] = { 155.0f, 157.2f, 158.4f };
+				MidiFileData->AddTempoChange(0, TempoChangeTicks[0], TempoChangeTempos[0]);
+				const FTimeSignature NewTimeSig{ 3, 4 };
+				MidiFileData->AddTimeSigChange(0, TimeSigChangeTick, NewTimeSig.Numerator, NewTimeSig.Denominator);
+				MidiFileData->AddTempoChange(0, TempoChangeTicks[1], TempoChangeTempos[1]);
+				MidiFileData->AddTempoChange(0, TempoChangeTicks[2], TempoChangeTempos[2]);
+				TestClock->AttachToMidiFile(MidiFileData);
+				TestClock->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
+
+				while (TestClock->GetLastProcessedMidiTick() < TimeSigChangeTick)
+				{
+					if (TestClock->GetLastProcessedMidiTick() > 0)
+					{
+						TestClock->PrepareBlock();
+					}
+					TestClock->Advance(0, OperatorSettings.GetNumFramesPerBlock());
+				}
+
+				bool HasTimeSignatureEvent = false;
+				int32 NumFoundTempoChanges = 0;
+
+				for (const FMidiClockEvent& Event : TestClock->GetMidiClockEventsInBlock())
+				{
+					if (Event.Msg.IsType<MidiClockMessageTypes::FTimeSignatureChange>())
+					{
+						const MidiClockMessageTypes::FTimeSignatureChange& TimeSigChange = Event.Msg.Get<MidiClockMessageTypes::FTimeSignatureChange>();
+
+						if (!TestEqual("Time signature is correct", TimeSigChange.TimeSignature, NewTimeSig))
+						{
+							return;
+						}
+
+						if (!TestEqual("Tick is correct", TimeSigChange.Tick, TimeSigChangeTick))
+						{
+							return;
+						}
+
+						TestFalse("Already found time signature", HasTimeSignatureEvent);
+
+						HasTimeSignatureEvent = true;
+					}
+					else if (const MidiClockMessageTypes::FTempoChange* AsTempoChange = Event.TryGet<MidiClockMessageTypes::FTempoChange>())
+					{
+						if (!TestEqual("Tempo is correct", AsTempoChange->Tempo, TempoChangeTempos[NumFoundTempoChanges], 0.001f))
+						{
+							return;
+						}
+
+						if (!TestEqual("Tick is correct", AsTempoChange->Tick, TempoChangeTicks[NumFoundTempoChanges]))
+						{
+							return;
+						}
+
+						NumFoundTempoChanges++;
+					}
+				}
+
+				TestTrue("Got time sig event", HasTimeSignatureEvent);
+				TestEqual("Found correct number of tempo changes", NumFoundTempoChanges, NumTempoChanges);
 			});
 		});
 	}

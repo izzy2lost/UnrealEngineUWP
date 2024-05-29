@@ -201,8 +201,8 @@ namespace HarmonixMetasound
 
 	void FMidiClockTimestampTriggerOperator::CalculateTriggerTick()
 	{
-		const FSongMaps& SongMaps = MidiClockInPin->GetSongMaps();
-		TriggerTick = SongMaps.CalculateMidiTick(CurrentTimestamp, Quantize);
+		const ISongMapEvaluator& Map = MidiClockInPin->GetSongMapEvaluator();
+		TriggerTick = Map.CalculateMidiTick(CurrentTimestamp, Quantize);
 	}
 
 	void FMidiClockTimestampTriggerOperator::Execute()
@@ -225,20 +225,17 @@ namespace HarmonixMetasound
 
 				bool ShouldTrigger = false;
 
-				if (ClockEvent.Msg.IsType<FAdvanceThru>())
+				if (const FAdvance* AsAdvance = ClockEvent.TryGet<FAdvance>())
 				{
-					const FAdvanceThru AdvanceThru = ClockEvent.Msg.Get<FAdvanceThru>();
-					ShouldTrigger = !AdvanceThru.IsPreRoll && AdvanceThru.FromTick < TriggerTick && AdvanceThru.ThruTick >= TriggerTick;
+					ShouldTrigger = AsAdvance->FirstTickToProcess <= TriggerTick && TriggerTick <= AsAdvance->LastTickToProcess();
 				}
-				else if (ClockEvent.Msg.IsType<FSeekThru>())
+				else if (const FSeek* AsSeekTo = ClockEvent.TryGet<FSeek>())
 				{
 					if (*TriggerDuringSeekInPin)
 					{
-						const FSeekThru& SeekThru = ClockEvent.Msg.Get<FSeekThru>();
-						ShouldTrigger = SeekThru.FromTick < TriggerTick && SeekThru.ThruTick >= TriggerTick;
+						ShouldTrigger = AsSeekTo->LastTickProcessedBeforeSeek < TriggerTick && AsSeekTo->NewNextTick > TriggerTick;
 					}
 				}
-				// TODO: SeekTo?
 				
 				if (ShouldTrigger)
 				{

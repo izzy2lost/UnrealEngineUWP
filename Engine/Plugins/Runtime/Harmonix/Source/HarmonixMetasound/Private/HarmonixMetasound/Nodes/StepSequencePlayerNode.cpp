@@ -129,7 +129,7 @@ namespace HarmonixMetasound::Nodes::StepSequencePlayer
 
 		void SeekToTick(int32 BlockFrameIndex, int32 Tick);
 		void SeekThruTick(int32 BlockFrameIndex, int32 Tick);
-		void AdvanceThruTick(int32 BlockFrameIndex, int32 Tick, bool IsPreRoll);
+		void AdvanceThruTick(int32 BlockFrameIndex, int32 Tick);
 
 	};
 
@@ -344,7 +344,7 @@ namespace HarmonixMetasound::Nodes::StepSequencePlayer
 		{
 			if (CurrentCellNotes.Num() > 0)
 			{
-				AllNotesOff(0, MidiClockInPin->GetCurrentMidiTick(), true);
+				AllNotesOff(0, MidiClockInPin->GetLastProcessedMidiTick(), true);
 				CurrentCellNotes.Empty();
 			}
 			return;
@@ -358,6 +358,8 @@ namespace HarmonixMetasound::Nodes::StepSequencePlayer
 
 		TransportSpanPostProcessor ClockEventHandler = [&](int32 StartFrameIndex, int32 EndFrameIndex, EMusicPlayerTransportState State)
 			{
+				using namespace MidiClockMessageTypes;
+
 				switch (State)
 				{
 				case EMusicPlayerTransportState::Playing:
@@ -371,18 +373,19 @@ namespace HarmonixMetasound::Nodes::StepSequencePlayer
 
 						if (Event.BlockFrameIndex >= StartFrameIndex)
 						{
-							if (Event.Msg.IsType<MidiClockMessageTypes::FAdvanceThru>())
+							if (const FAdvance* AsAdvance = Event.TryGet<FAdvance>())
 							{
-								const MidiClockMessageTypes::FAdvanceThru& AdvanceThru = Event.Msg.Get<MidiClockMessageTypes::FAdvanceThru>();
-								AdvanceThruTick(Event.BlockFrameIndex, AdvanceThru.ThruTick, AdvanceThru.IsPreRoll);
+								AdvanceThruTick(Event.BlockFrameIndex, AsAdvance->LastTickToProcess());
 							}
+/*
 							else if (Event.Msg.IsType<MidiClockMessageTypes::FSeekThru>())
 							{
 								SeekThruTick(Event.BlockFrameIndex, Event.Msg.Get<MidiClockMessageTypes::FSeekThru>().ThruTick);
 							}
-							else if (Event.Msg.IsType<MidiClockMessageTypes::FSeekTo>())
+*/
+							else if (const FSeek* AsSeekTo = Event.TryGet<FSeek>())
 							{
-								SeekToTick(Event.BlockFrameIndex, Event.Msg.Get<MidiClockMessageTypes::FSeekTo>().ToTick);
+								SeekToTick(Event.BlockFrameIndex, AsSeekTo->NewNextTick);
 							}
 						}
 					}
@@ -420,11 +423,11 @@ namespace HarmonixMetasound::Nodes::StepSequencePlayer
 					return EMusicPlayerTransportState::Paused;
 
 				case EMusicPlayerTransportState::Stopping:
-					AllNotesOff(StartFrameIndex, MidiClockInPin->GetCurrentMidiTick(), true);
+					AllNotesOff(StartFrameIndex, MidiClockInPin->GetLastProcessedMidiTick(), true);
 					return EMusicPlayerTransportState::Prepared;
 
 				case EMusicPlayerTransportState::Killing:
-					AllNotesOff(StartFrameIndex, MidiClockInPin->GetCurrentMidiTick(), true);
+					AllNotesOff(StartFrameIndex, MidiClockInPin->GetLastProcessedMidiTick(), true);
 					return EMusicPlayerTransportState::Prepared;
 
 				default:
@@ -473,11 +476,11 @@ namespace HarmonixMetasound::Nodes::StepSequencePlayer
 				return EMusicPlayerTransportState::Paused;
 
 			case EMusicPlayerTransportState::Stopping:
-				AllNotesOff(0, MidiClockInPin->GetCurrentMidiTick(), true);
+				AllNotesOff(0, MidiClockInPin->GetLastProcessedMidiTick(), true);
 				return EMusicPlayerTransportState::Prepared;
 
 			case EMusicPlayerTransportState::Killing:
-				AllNotesOff(0, MidiClockInPin->GetCurrentMidiTick(), true);
+				AllNotesOff(0, MidiClockInPin->GetLastProcessedMidiTick(), true);
 				return EMusicPlayerTransportState::Prepared;
 
 			default:
@@ -596,7 +599,7 @@ namespace HarmonixMetasound::Nodes::StepSequencePlayer
 		}
 	}
 
-	void FStepSequencePlayerOperator::AdvanceThruTick(int32 BlockFrameIndex, int32 Tick, bool IsPreRoll)
+	void FStepSequencePlayerOperator::AdvanceThruTick(int32 BlockFrameIndex, int32 Tick)
 	{
 		if (!SequenceTable || SequenceTable->Pages.IsEmpty())
 		{

@@ -8,7 +8,7 @@
 
 #include "MidiSongPos.generated.h"
 
-struct FSongMaps;
+struct ISongMapEvaluator;
 
 /////////////////////////////////////////////////////////////////////////////
 // Position within a song (midi info)
@@ -33,7 +33,7 @@ public:
 	float BarsIncludingCountIn = 0.0f; // total bars from the beginning of the song.
 	UPROPERTY(BlueprintReadOnly, Category = "MidiSongPosition")
 	float BeatsIncludingCountIn = 0.0f; // total beats from the beginning of the song.
-	UPROPERTY(BlueprintReadOnly, Category = "MidiSongPosition")
+	UPROPERTY(BlueprintReadOnly, Category	 = "MidiSongPosition")
 	EMusicalBeatType BeatType = EMusicalBeatType::Normal;
 	UPROPERTY(BlueprintReadOnly, Category = "MidiSongPosition")
 	FMusicTimestamp Timestamp;
@@ -55,11 +55,11 @@ public:
 	// etc.
 	void SetByTime(float InElapsedMs, float Bpm, int32 TimeSigNum = 4, int32 TimeSigDenom = 4, int32 StartBar = 1);
 
-	void SetByTime(float InElapsedMs, const FSongMaps& Maps);
+	void SetByTime(float InElapsedMs, const ISongMapEvaluator& Map);
 
 	// Low-level version for midi players / parsers that use the low-level
 	// "midi tick system" for advancing song position.
-	void SetByTick(float Tick, const FSongMaps& Maps);
+	void SetByTick(float Tick, const ISongMapEvaluator& Map);
 
 	void Reset()	
 	{
@@ -84,6 +84,9 @@ public:
 	bool operator>=(const FMidiSongPos& rhs) const;
 	bool operator==(const FMidiSongPos& rhs) const;
 
+	static FMidiSongPos Lerp(const FMidiSongPos& A, const FMidiSongPos& B, float Alpha);
+
 private:
-	void SetByTimeAndTick(float Ms, float Tick, const FSongMaps& Maps);
+	void SetByTimeAndTick(float Ms, float Tick, const ISongMapEvaluator& Map);
 };
+

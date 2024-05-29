@@ -82,8 +82,8 @@ public:
 	}
 
 	virtual void SetTempo(float BPM) override;
-	virtual void SetBeat(float Beat) override;
-	float GetBeat() const { return CurrentBeat; }
+	virtual void SetQuarterNote(float QuarterNote) override;
+	float GetQuarterNote() const { return CurrentQuarterNote; }
 
 	float GetSubtsreamGain(int32 Index)
 	{
@@ -227,7 +227,7 @@ private:
 
 	float Speed = 1.0f;
 	bool  MaintainPitchWhenSpeedChanges = false;
-	float CurrentBeat = 0.0f;
+	float CurrentQuarterNote = 0.0f;
 
 	//---------------------------------------------
 	// Gain Settings

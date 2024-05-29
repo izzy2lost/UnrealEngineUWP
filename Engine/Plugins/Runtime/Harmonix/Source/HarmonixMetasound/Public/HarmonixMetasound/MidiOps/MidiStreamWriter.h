@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -35,13 +35,13 @@ namespace Harmonix::Midi::Ops
 		 * 
 		 * @param InStream The MIDI stream to read from
 		 */
-		void Process(const HarmonixMetasound::FMidiStream& InStream, int32 FromTick, int32 ThruTick);
+		void Process(const HarmonixMetasound::FMidiStream& InStream, int32 FirstTickToProcess, int32 LastTickToProcess);
 		
 
 	private:
 		TUniquePtr<FArchive> Archive;
 		TMap<int32, FMidiTrack> MidiTracks;
-		int32 CurrentWriteTick = 0;
+		int32 NextWriteTick = 0;
 	
 	};
 };

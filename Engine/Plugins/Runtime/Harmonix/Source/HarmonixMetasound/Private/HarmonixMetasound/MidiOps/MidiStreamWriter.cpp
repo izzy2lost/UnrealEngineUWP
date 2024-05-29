@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HarmonixMetasound/MidiOps/MidiStreamWriter.h"
 #include "HarmonixMetasound/DataTypes/MidiStream.h"
@@ -16,37 +16,32 @@ namespace Harmonix::Midi::Ops
 		ensureMsgf(InStream.GetClock(), TEXT("Midi stream must have a midi clock for the MidiStreamWriter to process it"));
 		if (TSharedPtr<const FMidiClock, ESPMode::NotThreadSafe> MidiClock = InStream.GetClock())
 		{
+			using namespace MidiClockMessageTypes;
 			for (const FMidiClockEvent& ClockEvent : MidiClock->GetMidiClockEventsInBlock())
 			{
-				if (ClockEvent.Msg.IsType<MidiClockMessageTypes::FAdvanceThru>())
+				if (const FAdvance* AsAdvance = ClockEvent.TryGet<MidiClockMessageTypes::FAdvance>())
 				{
-					const MidiClockMessageTypes::FAdvanceThru& AdvanceThru = ClockEvent.Msg.Get<MidiClockMessageTypes::FAdvanceThru>();
-					
-					if (!AdvanceThru.IsPreRoll)
-					{
-						Process(InStream, AdvanceThru.FromTick, AdvanceThru.ThruTick);
-					}
+					Process(InStream, AsAdvance->FirstTickToProcess, AsAdvance->LastTickToProcess());
 				}
 			}
 		}
 	}
 
-
-	void FMidiStreamWriter::Process(const FMidiStream& InStream, int32 FromTick, int32 ThruTick)
+	void FMidiStreamWriter::Process(const FMidiStream& InStream, int32 FirstTickToProcess, int32 LastTickToProcess)
 	{
 		bool AddedEvents = false;
 		for (const FMidiStreamEvent& MidiEvent : InStream.GetEventsInBlock())
 		{
-			if (MidiEvent.CurrentMidiTick > FromTick && MidiEvent.CurrentMidiTick <= ThruTick)
+			if (FirstTickToProcess <= MidiEvent.CurrentMidiTick && MidiEvent.CurrentMidiTick <= LastTickToProcess)
 			{
-				const int32 OffsetTick = MidiEvent.CurrentMidiTick - FromTick;
-				const int32 MidiTick = CurrentWriteTick + OffsetTick;
+				const int32 OffsetTick = MidiEvent.CurrentMidiTick - FirstTickToProcess;
+				const int32 MidiTick = NextWriteTick + OffsetTick;
 				FMidiTrack& MidiTrack = MidiTracks.FindOrAdd(MidiEvent.TrackIndex);
 				MidiTrack.AddEvent(FMidiEvent(MidiTick, MidiEvent.MidiMessage));
 				AddedEvents = true;
 			}
 		}
-		CurrentWriteTick += ThruTick - FromTick;
+		NextWriteTick += LastTickToProcess - FirstTickToProcess + 1;
 
 		if (AddedEvents)
 		{

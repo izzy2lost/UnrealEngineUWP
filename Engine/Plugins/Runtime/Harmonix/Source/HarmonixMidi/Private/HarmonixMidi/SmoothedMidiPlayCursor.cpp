@@ -109,7 +109,7 @@ void FSmoothedMidiPlayCursor::SyncSmoothingTimer(bool bEnableErrorCorrection)
 			SmoothingTimer.Reset(RawMs);
 			SmoothedMs = RawMs;
 			SmoothedMsDelta = 0.0f;
-			SmoothedTick = CursorOwner->GetTempoMap().MsToTick(RawMs);
+			SmoothedTick = CursorOwner->GetSongMaps().MsToTick(RawMs);
 			ErrorTracker.Reset();
 			return;
 		}
@@ -168,7 +168,7 @@ void FSmoothedMidiPlayCursor::SyncSmoothingTimer(bool bEnableErrorCorrection)
 		}
 	}
 	SmoothedMs = float(SmoothMs);
-	SmoothedTick = CursorOwner->GetTempoMap().MsToTick(SmoothedMs);
+	SmoothedTick = CursorOwner->GetSongMaps().MsToTick(SmoothedMs);
 	LoopedThisPass = false;
 }
 

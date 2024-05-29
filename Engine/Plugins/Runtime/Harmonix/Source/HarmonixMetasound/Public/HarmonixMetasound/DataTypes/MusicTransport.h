@@ -80,6 +80,8 @@ namespace HarmonixMetasound
 		NumStates
 	};
 
+	FString HARMONIXMETASOUND_API MusicPlayerTransportStateToString(EMusicPlayerTransportState State);
+
 	class HARMONIXMETASOUND_API FMusicTransportControllable
 	{
 	public:
