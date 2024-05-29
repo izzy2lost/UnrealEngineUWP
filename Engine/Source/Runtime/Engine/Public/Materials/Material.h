@@ -988,14 +988,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PostProcessMaterial, meta = (DisplayName = "Output Alpha"))
 	uint8 BlendableOutputAlpha : 1;
 
-	/** Specify a user generated scene texture as output, overriding the default output implied by "Blendable Location", only used if domain is PostProcess */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PostProcessMaterial, meta = (DisplayName = "User Scene Texture"))
-	FName UserSceneTexture;
-
-	/** A divisor for the resolution of the User Scene Texture above, allowing an intermediate with reduced resolution */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PostProcessMaterial, meta = (DisplayName = "User Texture Divisor"))
-	FIntPoint UserTextureDivisor = FIntPoint(0, 0);
-
 	/**
 	* Indicates that the material and its instances can be used with neural network engine.
 	* This will result in the shaders required to support neural network engine being compiled which will increase shader compile time and memory usage.

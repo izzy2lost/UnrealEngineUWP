@@ -72,7 +72,6 @@
 #include "UnrealEngine.h"
 #include "IlluminanceMeter.h"
 #include "SparseVolumeTexture/SparseVolumeTextureStreamingVisualize.h"
-#include "CanvasItem.h"
 
 bool IsMobileEyeAdaptationEnabled(const FViewInfo& View);
 
@@ -152,18 +151,6 @@ TAutoConsoleVariable<int32> CVarGBufferPicking(
 	TEXT("Evaluate GBuffer value for debugging purpose."),
 	ECVF_RenderThreadSafe);
 #endif
-
-#if !(UE_BUILD_SHIPPING)
-TAutoConsoleVariable<int32> CVarUserSceneTextureDebug(
-	TEXT("r.PostProcessing.UserSceneTextureDebug"),
-	2,
-	TEXT("Enable debug display of post process UserSceneTexture inputs and outputs.\n")
-	TEXT(" 0: disabled\n")
-	TEXT(" 1: enabled\n")
-	TEXT(" 2: enable on error -- missing input or unused output (default).  Suppressed by DisableAllScreenMessages.\n")
-	TEXT(" 3: enable only for view with texture visualized through Vis / VisualizeTexture command, to avoid debug clutter in other views.\n"),
-	ECVF_RenderThreadSafe);
-#endif
 }
 
 #if WITH_EDITOR
@@ -216,9 +203,6 @@ bool IsPostProcessingWithAlphaChannelSupported()
 FScreenPassTexture AddFinalPostProcessDebugInfoPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, FScreenPassTexture& ScreenPassSceneColor);
 #endif
 
-#if !UE_BUILD_SHIPPING
-static void AddUserSceneTextureDebugPass(FRDGBuilder& GraphBuilder, const FViewInfo& View, int32 ViewIndex, FScreenPassTexture Output);
-#endif
 
 FDefaultTemporalUpscaler::FOutputs AddThirdPartyTemporalUpscalerPasses(
 	FRDGBuilder& GraphBuilder,
@@ -720,7 +704,7 @@ void AddPostProcessingPasses(
 		// Post Process Material Chain - BL_SceneColorBeforeDOF
 		if (MaterialChainSceneColorBeforeDOF.Num())
 		{
-			SceneColor = AddPostProcessMaterialChain(GraphBuilder, View, ViewIndex, GetPostProcessMaterialInputs(SceneColor), MaterialChainSceneColorBeforeDOF);
+			SceneColor = AddPostProcessMaterialChain(GraphBuilder, View, GetPostProcessMaterialInputs(SceneColor), MaterialChainSceneColorBeforeDOF);
 		}
 
 		// Diaphragm Depth of Field
@@ -755,7 +739,7 @@ void AddPostProcessingPasses(
 		// Post Process Material Chain - BL_SceneColorAfterDOF
 		if (MaterialChainSceneColorAfterDOF.Num())
 		{
-			SceneColor = AddPostProcessMaterialChain(GraphBuilder, View, ViewIndex, GetPostProcessMaterialInputs(SceneColor), MaterialChainSceneColorAfterDOF);
+			SceneColor = AddPostProcessMaterialChain(GraphBuilder, View, GetPostProcessMaterialInputs(SceneColor), MaterialChainSceneColorAfterDOF);
 		}
 
 		// Post Process Material Chain - BL_TranslucencyAfterDOF
@@ -769,7 +753,7 @@ void AddPostProcessingPasses(
 			if (MaterialChainTranslucencyAfterDOF.Num())
 			{
 				FScreenPassTexture PostDOFTranslucency = AddPostProcessMaterialChain(
-					GraphBuilder, View, ViewIndex,
+					GraphBuilder, View,
 					GetPostProcessMaterialInputs(SceneColor),
 					MaterialChainTranslucencyAfterDOF,
 					EPostProcessMaterialInput::SeparateTranslucency);
@@ -924,7 +908,7 @@ void AddPostProcessingPasses(
 			if (MaterialChain.Num())
 			{
 				InOutPassInputs = GetPostProcessMaterialInputs(FScreenPassTexture::CopyFromSlice(GraphBuilder, SceneColorSlice));
-				PassOutput = AddPostProcessMaterialChain(GraphBuilder, View, ViewIndex, InOutPassInputs, MaterialChain);
+				PassOutput = AddPostProcessMaterialChain(GraphBuilder, View, InOutPassInputs, MaterialChain);
 			}
 
 			for (FAfterPassCallbackDelegate& PassCallback : SSRInputDelegates)
@@ -1011,7 +995,7 @@ void AddPostProcessingPasses(
 			PassSequence.AcceptOverrideIfLastPass(EPass::PostProcessMaterialBeforeBloom, PostProcessMaterialInputs.OverrideOutput);
 			PostProcessMaterialInputs.SetInput(EPostProcessMaterialInput::SceneColor, SceneColorSlice);
 
-			SceneColorSlice = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, AddPostProcessMaterialChain(GraphBuilder, View, ViewIndex, PostProcessMaterialInputs, PostProcessMaterialBeforeBloomChain));
+			SceneColorSlice = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, AddPostProcessMaterialChain(GraphBuilder, View, PostProcessMaterialInputs, PostProcessMaterialBeforeBloomChain));
 		}
 
 		// Generate before bloom lower res scene color if they have not been generated.
@@ -1327,7 +1311,7 @@ void AddPostProcessingPasses(
 			PassInputs.SetInput(GraphBuilder, EPostProcessMaterialInput::PostTonemapHDRColor, SceneColorAfterTonemap);
 			PassInputs.SceneTextures = GetSceneTextureShaderParameters(Inputs.SceneTextures);
 
-			SceneColor = AddPostProcessMaterialChain(GraphBuilder, View, ViewIndex, PassInputs, PostProcessMaterialAfterTonemappingChain);
+			SceneColor = AddPostProcessMaterialChain(GraphBuilder, View, PassInputs, PostProcessMaterialAfterTonemappingChain);
 		}
 
 		if (PassSequence.IsEnabled(EPass::VisualizeLumenScene))
@@ -1837,61 +1821,6 @@ void AddPostProcessingPasses(
 		}
 	}
 	#endif
-
-	#if !UE_BUILD_SHIPPING
-	{
-		int32 UserSceneTextureDebug = CVarUserSceneTextureDebug.GetValueOnRenderThread();
-		bool bEnableUserSceneTextureDebug = false;
-
-		if (UserSceneTextureDebug == 1)
-		{
-			// Enable always
-			bEnableUserSceneTextureDebug = true;
-		}
-		else if (UserSceneTextureDebug == 2 && GAreScreenMessagesEnabled)
-		{
-			// Enable conditionally if there are errors
-			const FSceneTextures& SceneTextures = View.GetSceneTextures();
-			for (const FUserSceneTextureEventData& EventData : SceneTextures.UserSceneTextureEvents)
-			{
-				if (EventData.Event == EUserSceneTextureEvent::MissingInput || EventData.Event == EUserSceneTextureEvent::CollidingInput)
-				{
-					bEnableUserSceneTextureDebug = true;
-					break;
-				}
-			}
-
-			for (auto& UserSceneTextureElement : SceneTextures.UserSceneTextures)
-			{
-				if (bEnableUserSceneTextureDebug)
-				{
-					break;
-				}
-				for (FTransientUserSceneTexture& UserSceneTexture : UserSceneTextureElement.Value)
-				{
-					if (!UserSceneTexture.bUsed)
-					{
-						bEnableUserSceneTextureDebug = true;
-						break;
-					}
-				}
-			}
-		}
-		else if (UserSceneTextureDebug == 3)
-		{
-			// Enable conditionally for view with texture being visualized
-			if (GVisualizeTexture.IsRequestedView())
-			{
-				bEnableUserSceneTextureDebug = true;
-			}
-		}
-
-		if (bEnableUserSceneTextureDebug)
-		{
-			AddUserSceneTextureDebugPass(GraphBuilder, View, ViewIndex, SceneColor);
-		}
-	}
-	#endif
 }
 
 void AddDebugViewPostProcessingPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, FSceneUniformBuffer &SceneUniformBuffer, const FPostProcessingInputs& Inputs, const Nanite::FRasterResults* NaniteRasterResults)
@@ -2195,7 +2124,7 @@ static bool IsGaussianActive(const FViewInfo& View)
 	return true;
 }
 
-void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, const FViewInfo& View, int32 ViewIndex, FSceneUniformBuffer &SceneUniformBuffer, const FMobilePostProcessingInputs& Inputs, FInstanceCullingManager& InstanceCullingManager)
+void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, const FViewInfo& View, FSceneUniformBuffer &SceneUniformBuffer, const FMobilePostProcessingInputs& Inputs, FInstanceCullingManager& InstanceCullingManager)
 {
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, RenderPostProcessing);
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_PostProcessing_Process);
@@ -2337,7 +2266,7 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 	// The scene color will be decoded at the first post-process material and output linear color space for the following passes
 	// bMetalMSAAHDRDecode will be set to false if there is any post-process material exist
 
-	auto AddPostProcessMaterialPass = [&GraphBuilder, &View, ViewIndex, &Inputs, &SceneColor, &CustomDepth, &bMetalMSAAHDRDecode, &PassSequence](EBlendableLocation BlendableLocation, bool bLastPass)
+	auto AddPostProcessMaterialPass = [&GraphBuilder, &View, &Inputs, &SceneColor, &CustomDepth, &bMetalMSAAHDRDecode, &PassSequence](EBlendableLocation BlendableLocation, bool bLastPass)
 	{
 		FPostProcessMaterialInputs PostProcessMaterialInputs;
 
@@ -2358,7 +2287,7 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 
 		if (MaterialChain.Num())
 		{
-			SceneColor = AddPostProcessMaterialChain(GraphBuilder, View, ViewIndex, PostProcessMaterialInputs, MaterialChain);
+			SceneColor = AddPostProcessMaterialChain(GraphBuilder, View, PostProcessMaterialInputs, MaterialChain);
 
 			// For solid material, we decode the input color and output the linear color
 			// For blend material, we force it rendering to an intermediate render target and decode there
@@ -3146,201 +3075,6 @@ FScreenPassTexture AddFinalPostProcessDebugInfoPasses(FRDGBuilder& GraphBuilder,
 	return MoveTemp(ScreenPassSceneColor);
 }
 #endif
-
-#if !UE_BUILD_SHIPPING
-
-// Canvas.DrawShadowedString returns height -- this variation returns width
-static float CanvasDrawShadowedStringReturnWidth(FCanvas& Canvas, float PrintX, float PrintY, const FString& Text, const UFont* Font, FLinearColor TextColor)
-{
-	FCanvasTextStringViewItem TextItem(FVector2D(PrintX, PrintY), Text, Font, TextColor);
-	if (Font && Font->ImportOptions.bUseDistanceFieldAlpha)
-	{
-		TextItem.BlendMode = SE_BLEND_MaskedDistanceFieldShadowed;
-	}
-	else
-	{
-		TextItem.EnableShadow(FLinearColor::Black);
-	}
-	Canvas.DrawItem(TextItem);
-	return TextItem.DrawnSize.X / Canvas.GetDPIScale();
-}
-
-static void AddUserSceneTextureDebugPass(FRDGBuilder& GraphBuilder, const FViewInfo& View, int32 ViewIndex, FScreenPassTexture Output)
-{
-	const FSceneTextures& SceneTextures = View.GetSceneTextures();
-	if (!SceneTextures.UserSceneTextureEvents.IsEmpty())
-	{
-		FScreenPassRenderTarget OutputTarget = FScreenPassRenderTarget(Output, ERenderTargetLoadAction::ELoad);
-		AddDrawCanvasPass(GraphBuilder, RDG_EVENT_NAME("UserSceneTextureDebug"), View, OutputTarget, [&View, ViewIndex, &SceneTextures](FCanvas& Canvas)
-		{
-			FLinearColor TextColor(FLinearColor::White);
-			FLinearColor GrayTextColor(FLinearColor::Gray);
-			FLinearColor GreenTextColor(FLinearColor::Green);
-			FLinearColor RedTextColor(FLinearColor::Red);
-			FLinearColor YellowTextColor(FLinearColor::Yellow);
-			FLinearColor MagentaTextColor(1.f, 0.f, 1.f);
-			FString Text;
-
-			const UFont* Font = GetStatsFont();
-
-			const float ViewPortWidth = float(View.ViewRect.Width());
-			const float ViewPortHeight = float(View.ViewRect.Height());
-
-			const float CRHeight = 20.0f;
-			const float OffsetFromLeft = 0.05f;
-			const float OffsetFromTop = 0.2f;
-			const float OffsetFromHeader = CRHeight * 1.5f;
-
-			float PrintX_CR = ViewPortWidth * OffsetFromLeft;
-
-			float PrintX = PrintX_CR;
-			float PrintY = ViewPortHeight * OffsetFromTop;
-
-			int32 NumPasses = 0;
-			for (const FUserSceneTextureEventData& EventData : SceneTextures.UserSceneTextureEvents)
-			{
-				if (EventData.ViewIndex == ViewIndex && EventData.Event == EUserSceneTextureEvent::Pass)
-				{
-					NumPasses++;
-				}
-			}
-
-			// Draw header
-			Text = FString::Printf(TEXT("User Scene Texture Passes (count = %i)"), NumPasses);
-			PrintX += CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, *Text, Font, GreenTextColor);
-			if (CVarUserSceneTextureDebug.GetValueOnRenderThread() == 2)
-			{
-				CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, TEXT(" - enabled on error via \"r.PostProcessing.UserSceneTextureDebug 2\""), Font, GreenTextColor);
-			}
-			PrintX = PrintX_CR;
-			PrintY += CRHeight;
-
-			// Draw column description
-			CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, TEXT("Location [Priority]  Material:   Inputs   -->  Output"), Font, GrayTextColor);
-			PrintY += OffsetFromHeader;
-
-			// Draw blendable locations and priorities
-			static_assert(BL_MAX == 7);
-			static const TCHAR* GBlendableLocationShortNames[BL_MAX + 1] = {};
-			if (!GBlendableLocationShortNames[0])
-			{
-				// One time init -- enum in header isn't in numerical order, so it's simpler to initialize this way
-				GBlendableLocationShortNames[BL_SceneColorBeforeDOF] = TEXT("BeforeDOF");
-				GBlendableLocationShortNames[BL_SceneColorAfterDOF] = TEXT("AfterDOF");
-				GBlendableLocationShortNames[BL_TranslucencyAfterDOF] = TEXT("Translucent");
-				GBlendableLocationShortNames[BL_SSRInput] = TEXT("SSRInput");
-				GBlendableLocationShortNames[BL_SceneColorBeforeBloom] = TEXT("BeforeBloom");
-				GBlendableLocationShortNames[BL_ReplacingTonemapper] = TEXT("ReplaceTonemap");
-				GBlendableLocationShortNames[BL_SceneColorAfterTonemapping] = TEXT("AfterTonemap");
-				GBlendableLocationShortNames[BL_MAX] = TEXT("MAX");
-			}
-
-			float MaxBlendableInfoWidth = 0.0f;
-			for (const FUserSceneTextureEventData& EventData : SceneTextures.UserSceneTextureEvents)
-			{
-				if (EventData.ViewIndex == ViewIndex && EventData.Event == EUserSceneTextureEvent::Pass)
-				{
-					Text = FString::Printf(TEXT("%s [%d]"), GBlendableLocationShortNames[FMath::Min((uint32)EventData.Material->GetBlendableLocation(), (uint32)BL_MAX)], EventData.Material->GetBlendablePriority());
-
-					float BlendableInfoWidth = CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, Text, Font, TextColor);
-					MaxBlendableInfoWidth = FMath::Max(MaxBlendableInfoWidth, BlendableInfoWidth);
-					PrintY += CRHeight;
-				}
-			}
-
-			PrintX_CR = PrintX_CR + MaxBlendableInfoWidth + 10.0f;
-			PrintX = PrintX_CR;
-			PrintY = ViewPortHeight * OffsetFromTop + CRHeight + OffsetFromHeader;
-
-			// Draw material names
-			float MaxNameWidth = 0.0f;
-			for (const FUserSceneTextureEventData& EventData : SceneTextures.UserSceneTextureEvents)
-			{
-				if (EventData.ViewIndex == ViewIndex && EventData.Event == EUserSceneTextureEvent::Pass)
-				{
-					Text = FString::Printf(TEXT("%s:"), *EventData.Material->GetFriendlyName());
-
-					float NameWidth = CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, Text, Font, TextColor);
-					MaxNameWidth = FMath::Max(MaxNameWidth, NameWidth);
-					PrintY += CRHeight;
-				}
-			}
-
-			PrintX_CR = PrintX_CR + MaxNameWidth + 10.0f;
-			PrintX = PrintX_CR;
-			PrintY = ViewPortHeight * OffsetFromTop + CRHeight + OffsetFromHeader;
-
-			// Draw everything else (inputs and outputs)
-			bool bAnyMissing = false;
-			bool bAnyUnused = false;
-			bool bAnyColliding = false;
-
-			for (const FUserSceneTextureEventData& EventData : SceneTextures.UserSceneTextureEvents)
-			{
-				if (EventData.ViewIndex == ViewIndex)
-				{
-					switch (EventData.Event)
-					{
-					case EUserSceneTextureEvent::MissingInput:
-						Text = FString::Printf(TEXT("  %s"), *EventData.Name.ToString());
-						PrintX += CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, Text, Font, RedTextColor);
-						bAnyMissing = true;
-						break;
-					case EUserSceneTextureEvent::CollidingInput:
-						Text = FString::Printf(TEXT("  %s"), *EventData.Name.ToString());
-						PrintX += CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, Text, Font, MagentaTextColor);
-						bAnyColliding = true;
-						break;
-					case EUserSceneTextureEvent::FoundInput:
-						Text = FString::Printf(TEXT("  %s"), *EventData.Name.ToString());
-						PrintX += CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, Text, Font, GrayTextColor);
-						break;
-					case EUserSceneTextureEvent::Output:
-						{
-							const FTransientUserSceneTexture* UserTexture = SceneTextures.FindUserSceneTextureByEvent(EventData);
-							check(UserTexture);
-
-							Text = FString::Printf(TEXT("  --> %s [%dx%d]"), *EventData.Name.ToString(), EventData.RectSize.X, EventData.RectSize.Y);
-							PrintX += CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, *Text, Font, UserTexture->bUsed ? GrayTextColor : YellowTextColor);
-							bAnyUnused = bAnyUnused || !UserTexture->bUsed;
-
-							if (EventData.Material->GetBlendMode() != BLEND_Opaque)
-							{
-								PrintX += CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, TEXT("  Blend"), Font, GrayTextColor);
-							}
-						}
-						break;
-					case EUserSceneTextureEvent::Pass:
-						// End of line
-						PrintY += CRHeight;
-						PrintX = PrintX_CR;
-						break;
-					}
-				}
-			}
-
-			// Print color codings for warnings if present
-			PrintX = ViewPortWidth * OffsetFromLeft;
-			PrintY += CRHeight * 0.5f;
-			if (bAnyUnused)
-			{
-				CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, TEXT("Yellow:  Unused Output"), Font, YellowTextColor);
-				PrintY += CRHeight;
-			}
-			if (bAnyMissing)
-			{
-				CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, TEXT("Red:  Missing Input"), Font, RedTextColor);
-				PrintY += CRHeight;
-			}
-			if (bAnyColliding)
-			{
-				CanvasDrawShadowedStringReturnWidth(Canvas, PrintX, PrintY, TEXT("Magenta:  Input collides with Output"), Font, MagentaTextColor);
-				PrintY += CRHeight;
-			}
-		});
-	}
-}
-#endif  // !UE_BUILD_SHIPPING
 
 // Shader for visualizing GBuffer values
 class FGBufferPickingCS : public FGlobalShader

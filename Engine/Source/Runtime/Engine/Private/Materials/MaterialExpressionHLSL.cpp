@@ -227,7 +227,6 @@
 #include "Materials/MaterialExpressionTruncate.h"
 #include "Materials/MaterialExpressionTruncateLWC.h"
 #include "Materials/MaterialExpressionTwoSidedSign.h"
-#include "Materials/MaterialExpressionUserSceneTexture.h"
 #include "Materials/MaterialExpressionVectorNoise.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
 #include "Materials/MaterialExpressionVertexColor.h"
@@ -2245,7 +2244,7 @@ bool UMaterialExpressionSceneTexture::GenerateHLSLExpression(FMaterialHLSLGenera
 		{
 			ExpressionTexCoord = Coordinates.AcquireHLSLExpression(Generator, Scope);
 		}
-		OutExpression = Generator.GetTree().NewExpression<Material::FExpressionSceneTexture>(ExpressionTexCoord, SceneTextureId, bFiltered, /*bClamped=*/ false, FName());
+		OutExpression = Generator.GetTree().NewExpression<Material::FExpressionSceneTexture>(ExpressionTexCoord, SceneTextureId, bFiltered);
 		return true;
 	}
 	else if (OutputIndex == 1 || OutputIndex == 2)
@@ -2256,37 +2255,6 @@ bool UMaterialExpressionSceneTexture::GenerateHLSLExpression(FMaterialHLSLGenera
 			(int32)SceneTextureId,
 			bRcp ? TEXT("zw") : TEXT("xy"));
 		OutExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Float2, Code);
-		return true;
-	}
-
-	return Generator.Error(TEXT("Invalid input parameter"));
-}
-
-bool UMaterialExpressionUserSceneTexture::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
-{
-	using namespace UE::HLSLTree;
-	if (UserSceneTexture.IsNone())
-	{
-		return Generator.Error(TEXT("UserSceneTexture missing name -- value must be set to something other than None"));
-	}
-
-	if (OutputIndex == 0)
-	{
-		const FExpression* ExpressionTexCoord = nullptr;
-		if (Coordinates.GetTracedInput().Expression)
-		{
-			ExpressionTexCoord = Coordinates.AcquireHLSLExpression(Generator, Scope);
-		}
-
-		// We arbitrarily set the SceneTextureId to PPI_UserSceneTexture0 -- final ID is determined later in a call to FMaterialCompilationOutput::FindOrAddUserSceneTexture
-		// from FExpressionSceneTexture::PrepareValue, with this ID not being used except for classification of the expression as as UserSceneTexture type.
-		OutExpression = Generator.GetTree().NewExpression<Material::FExpressionSceneTexture>(ExpressionTexCoord, PPI_UserSceneTexture0, bFiltered, bClamped, UserSceneTexture);
-		return true;
-	}
-	else if (OutputIndex == 1 || OutputIndex == 2)
-	{
-		const bool bReciprocal = (OutputIndex == 2);
-		OutExpression = Generator.GetTree().NewExpression<Material::FExpressionUserSceneTextureSize>(UserSceneTexture, bReciprocal);
 		return true;
 	}
 

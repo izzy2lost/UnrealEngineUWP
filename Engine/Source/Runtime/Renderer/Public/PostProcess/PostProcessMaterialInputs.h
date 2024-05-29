@@ -43,11 +43,6 @@ enum class EPathTracingPostProcessMaterialInput : uint32
 
 struct FPostProcessMaterialInputs
 {
-	FPostProcessMaterialInputs()
-	{
-		FMemory::Memset(bUserSceneTexturesSet, 0);
-	}
-
 	inline void SetInput(FRDGBuilder& GraphBuilder, EPostProcessMaterialInput Input, FScreenPassTexture Texture)
 	{
 		SetInput(Input, FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, Texture));
@@ -55,27 +50,12 @@ struct FPostProcessMaterialInputs
 
 	inline void SetInput(EPostProcessMaterialInput Input, FScreenPassTextureSlice Texture)
 	{
-		check((uint32)Input < kPostProcessMaterialInputCountMax);
-
 		Textures[(uint32)Input] = Texture;
-	}
-
-	inline void SetUserSceneTextureInput(EPostProcessMaterialInput Input, FScreenPassTextureSlice Texture)
-	{
-		check((uint32)Input < kPostProcessMaterialInputCountMax);
-
-		UserSceneTextures[(uint32)Input] = Texture;
-		bUserSceneTexturesSet[(uint32)Input] = true;
 	}
 
 	inline FScreenPassTextureSlice GetInput(EPostProcessMaterialInput Input) const
 	{
-		return bUserSceneTexturesSet[(uint32)Input] ? UserSceneTextures[(uint32)Input] : Textures[(uint32)Input];
-	}
-
-	inline FScreenPassTextureSlice GetSceneColorOutput(EBlendableLocation BlendableLocation) const
-	{
-		return Textures[(uint32)(BlendableLocation == BL_TranslucencyAfterDOF ? EPostProcessMaterialInput::SeparateTranslucency : EPostProcessMaterialInput::SceneColor)];
+		return Textures[(uint32)Input];
 	}
 
 	inline void SetPathTracingInput(EPathTracingPostProcessMaterialInput Input, FScreenPassTexture Texture)
@@ -91,11 +71,7 @@ struct FPostProcessMaterialInputs
 	inline void Validate() const
 	{
 		ValidateInputExists(EPostProcessMaterialInput::SceneColor);
-		
-		// TODO:  Is separate translucency always guaranteeed to be present?  A previous version of the code appeared to be attempting to validate this, but
-		//		  due to a bug (ValidateInputExists ignoring its Input argument and instead validating EPostProcessMaterialInput::SceneColor regardless of
-		//		  what was passed in), didn't actually do so.  I'm afraid to enable this assert now, as I don't know if it will randomly crash some project.
-		// ValidateInputExists(EPostProcessMaterialInput::SeparateTranslucency);
+		ValidateInputExists(EPostProcessMaterialInput::SeparateTranslucency);
 
 		// Either override output format is valid or the override output texture is; not both.
 		if (OutputFormat != PF_Unknown)
@@ -112,7 +88,8 @@ struct FPostProcessMaterialInputs
 
 	inline void ValidateInputExists(EPostProcessMaterialInput Input) const
 	{
-		check(Textures[(int32)Input].IsValid());
+		const FScreenPassTextureSlice Texture = GetInput(EPostProcessMaterialInput::SceneColor);
+		check(Texture.IsValid());
 	}
 
 	/**
@@ -139,15 +116,6 @@ struct FPostProcessMaterialInputs
 	 *  the previous post process and is required. All other inputs are optional.
 	 */
 	TStaticArray<FScreenPassTextureSlice, kPostProcessMaterialInputCountMax> Textures;
-
-	/**
-	 * UserSceneTexture inputs, which take precedence over Textures above if set.  The reason for separating these from "Textures" above
-	 * is because "Textures" is also where the output SceneColor is fetched from, when OverrideOutput isn't set (see "GetSceneColorOutput"
-	 * function).  The separate bools are needed to track which inputs are UserSceneTextures, as opposed to checking IsValid(), because
-	 * the entry can be invalid when an input being missing -- dummy black is substituted for those downstream.
-	 */
-	TStaticArray<FScreenPassTextureSlice, kPostProcessMaterialInputCountMax> UserSceneTextures;
-	TStaticArray<bool, kPostProcessMaterialInputCountMax> bUserSceneTexturesSet;
 
 	/**
 	*	Array of input textures bound to the material from path tracing. All inputs are optional
@@ -177,9 +145,6 @@ struct FPostProcessMaterialInputs
 	bool bAllowSceneColorInputAsOutput = true;
 
 	bool bMetalMSAAHDRDecode = false;
-
-	bool bUserSceneTextureOutput = false;
-	bool bUserSceneTextureFirstRender = false;
 };
 
 class UMaterialInterface;

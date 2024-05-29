@@ -21,12 +21,8 @@
 #include "RenderUtils.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Engine/SubsurfaceProfile.h"
-#include "PostProcess/PostProcessMaterialInputs.h"
 
 static bool SharedPixelProperties[CompiledMP_MAX];
-
-/** HLSL generating utility function */
-extern FString GenerateUserSceneTextureRemapHLSLDefines(FMaterialCompilationOutput& CompilationOutput);
 
 static const TCHAR* HLSLTypeString(EMaterialValueType Type)
 {
@@ -302,8 +298,6 @@ static FString GenerateMaterialTemplateHLSL(EShaderPlatform ShaderPlatform,
 			}
 		}
 	}
-
-	MaterialSourceTemplateParams.Add({ TEXT("user_scene_texture_remap"), GenerateUserSceneTextureRemapHLSLDefines(OutCompilationOutput) });
 
 	return Resolver.Finalize();
 }
@@ -1013,12 +1007,6 @@ bool MaterialEmitHLSL(const FMaterialCompileTargetParameters& InCompilerTarget,
 		&& !IsTranslucentBlendMode(EmitContext.Material->GetBlendMode()))
 	{
 		EmitContext.Error(TEXT("Only transparent or postprocess materials can read from scene depth."));
-	}
-
-	int32 NumPostProcessInputs = OutCompilationOutput.GetNumPostProcessInputsUsed();
-	if (NumPostProcessInputs > kPostProcessMaterialInputCountMax)
-	{
-		EmitContext.Errorf(TEXT("Maximum Scene Texture post process inputs exceeded (%d > %d), between SceneTexture nodes with PostProcessInputs or UserSceneTexture nodes."), NumPostProcessInputs, kPostProcessMaterialInputCountMax);
 	}
 
 	if (EmitContext.NumErrors > 0)

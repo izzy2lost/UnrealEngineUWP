@@ -460,9 +460,6 @@ public:
 	/** Set to true if stats should be displayed from the preview material. */
 	bool bStatsFromPreviewMaterial;
 
-	/** Set to true when editor is being destructed */
-	bool bDestructing = false;
-
 	/** The material applied to the preview mesh. */
 	TObjectPtr<UMaterial> Material;
 
@@ -637,9 +634,6 @@ private:
 
 	/** Updates the 3D and UI preview viewport visibility based on material domain */
 	void UpdatePreviewViewportsVisibility();
-
-	/** Called to notify other material editors when a post process material with a UserSceneTexture output is loaded or unloaded, as the material may be used in their preview */
-	void NotifyUserSceneTextureLoadOrUnload();
 
 	//@TODO: these methods are mostly C&P from BlueprintEditor, consider consolidating logic to graph editor. Note: We don't support macros / functions / tunnels / split pins, and also have material expression specific considerations. */
 	// void CollapseNodesIntoGraph(UEdGraphNode* InGatewayNode, UMaterialGraphNode* InEntryNode, UMaterialGraphNode* InResultNode, UEdGraph* InSourceGraph, UEdGraph* InDestinationGraph, TSet<UEdGraphNode*>& InCollapsableNodes);

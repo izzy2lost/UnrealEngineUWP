@@ -1881,13 +1881,6 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 				BlendableInterface->OverrideBlendableSettings(*this, LocalWeight);
 			}
 		}
-
-#if WITH_EDITOR
-		if (Src.PreviewBlendable)
-		{
-			FinalPostProcessSettings.PreviewBlendable = Src.PreviewBlendable;
-		}
-#endif
 	}
 }
 

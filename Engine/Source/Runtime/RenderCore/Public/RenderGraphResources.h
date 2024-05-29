@@ -279,16 +279,6 @@ class FRDGViewableResource
 	: public FRDGResource
 {
 public:
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	virtual ~FRDGViewableResource()
-	{
-		if (bHeapAllocatedDebugName)
-		{
-			delete[] Name;
-		}
-	}
-#endif
-
 	/** The type of this resource; useful for casting between types. */
 	const ERDGViewableResourceType Type;
 
@@ -321,22 +311,6 @@ public:
 	{
 #if RHI_ENABLE_RESOURCE_INFO
 		OwnerName = InOwnerName;
-#endif
-	}
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	inline void SetDebugNameIsHeapAllocated()
-	{
-		bHeapAllocatedDebugName = 1;
-	}
-#endif
-
-	inline bool IsDebugNameHeapAllocated() const
-	{
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		return bHeapAllocatedDebugName;
-#else
-		return false;
 #endif
 	}
 
@@ -414,11 +388,6 @@ protected:
 
 	/** If true, the reserved resource is having tiles committed. */
 	uint8 bQueuedForReservedCommit : 1;
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	/** If true, the debug name passed to the constructor was heap allocated, and needs to be freed in the destructor. */
-	uint8 bHeapAllocatedDebugName : 1;
-#endif
 
 	/** Whether this resource is allowed to be both transient and extracted. */
 	ETransientExtractionHint TransientExtractionHint;

@@ -816,34 +816,15 @@ public:
 class FExpressionSceneTexture : public FExpression
 {
 public:
-	FExpressionSceneTexture(const FExpression* InTexCoordExpression, uint32 InSceneTextureId, bool bInFiltered, bool bInClamped = false, FName InUserSceneTexture = NAME_None)
+	FExpressionSceneTexture(const FExpression* InTexCoordExpression, uint32 InSceneTextureId, bool bInFiltered)
 		: TexCoordExpression(InTexCoordExpression)
 		, SceneTextureId(InSceneTextureId)
 		, bFiltered(bInFiltered)
-		, bClamped(bInClamped)
-		, UserSceneTexture(InUserSceneTexture)
 	{}
 
 	const FExpression* TexCoordExpression;
 	uint32 SceneTextureId;
 	bool bFiltered;
-	bool bClamped;
-	FName UserSceneTexture;
-
-	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
-	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
-};
-
-class FExpressionUserSceneTextureSize : public FExpression
-{
-public:
-	FExpressionUserSceneTextureSize(FName InUserSceneTexture, bool bInReciprocal)
-		: UserSceneTexture(InUserSceneTexture)
-		, bReciprocal(bInReciprocal)
-	{}
-
-	FName UserSceneTexture;
-	bool bReciprocal;
 
 	virtual bool PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const override;
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;

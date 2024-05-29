@@ -74,11 +74,6 @@ FScreenPassTexture FScreenPassTexture::CopyFromSlice(FRDGBuilder& GraphBuilder, 
 	Desc.Dimension = ETextureDimension::Texture2D;
 	Desc.ArraySize = 1;
 
-	// If a pass uses blending to write to this post process texture, it needs to support being a render target, so make sure this flag is included.
-	// Most post processing uses SceneColor or its FRDGTextureDesc, and SceneColor already has the RenderTargetable flag set, but TSR (the input to
-	// the "Before Bloom" stage) writes to texture slices using compute, and its output doesn't have this flag.
-	Desc.Flags |= ETextureCreateFlags::RenderTargetable;
-
 	FRDGTextureRef NewTexture = GraphBuilder.CreateTexture(Desc, TEXT("CopyToScreenPassTexture2D"));
 
 	FRHICopyTextureInfo CopyInfo;
@@ -327,25 +322,6 @@ void AddDrawTexturePass(
 
 	FCopyRectPS::FParameters* Parameters = GraphBuilder.AllocParameters<FCopyRectPS::FParameters>();
 	Parameters->InputTexture = Input.Texture;
-	Parameters->InputSampler = TStaticSamplerState<>::GetRHI();
-	Parameters->RenderTargets[0] = Output.GetRenderTargetBinding();
-
-	AddDrawScreenPass(GraphBuilder, RDG_EVENT_NAME("DrawTexture"), View, OutputViewport, InputViewport, PixelShader, Parameters);
-}
-
-void AddDrawTexturePass(
-	FRDGBuilder& GraphBuilder,
-	const FSceneView& View,
-	FScreenPassTextureSlice Input,
-	FScreenPassRenderTarget Output)
-{
-	const FScreenPassTextureViewport InputViewport(Input);
-	const FScreenPassTextureViewport OutputViewport(Output);
-
-	TShaderMapRef<FCopyRectSrvPS> PixelShader(static_cast<const FViewInfo&>(View).ShaderMap);
-
-	FCopyRectSrvPS::FParameters* Parameters = GraphBuilder.AllocParameters<FCopyRectSrvPS::FParameters>();
-	Parameters->InputTexture = Input.TextureSRV;
 	Parameters->InputSampler = TStaticSamplerState<>::GetRHI();
 	Parameters->RenderTargets[0] = Output.GetRenderTargetBinding();
 

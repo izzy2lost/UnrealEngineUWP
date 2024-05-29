@@ -16,10 +16,6 @@
 #include "VT/RuntimeVirtualTexture.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "RenderUtils.h"
-#include "PostProcess/PostProcessMaterialInputs.h"
-
-/** HLSL generating utility function */
-extern FString SceneTextureIdToHLSLString(ESceneTextureId TexId);
 
 namespace UE::HLSLTree::Material
 {
@@ -2341,20 +2337,7 @@ bool FExpressionSceneTexture::PrepareValue(FEmitContext& Context, FEmitScope& Sc
 	if (Context.bMarkLiveValues && Context.MaterialCompilationOutput)
 	{
 		Context.MaterialCompilationOutput->bNeedsSceneTextures = true;
-		if (!UserSceneTexture.IsNone())
-		{
-			// We set all HLSL tree expressions with UserSceneTexture to PPI_UserSceneTexture0.  Actual ID is determined by result of FindOrAddUserSceneTexture.
-			check(SceneTextureId == PPI_UserSceneTexture0);
-
-			if (Context.MaterialCompilationOutput->FindOrAddUserSceneTexture(UserSceneTexture) == INDEX_NONE)
-			{
-				return Context.Errorf(TEXT("Too many unique UserSceneTexture inputs in the post process material -- max allowed is %d"), kPostProcessMaterialInputCountMax);
-			}
-		}
-		else
-		{
-			Context.MaterialCompilationOutput->SetIsSceneTextureUsed((ESceneTextureId)SceneTextureId);
-		}
+		Context.MaterialCompilationOutput->SetIsSceneTextureUsed((ESceneTextureId)SceneTextureId);
 
 		const bool bNeedsGBuffer = Context.MaterialCompilationOutput->NeedsGBuffer();
 		if (bNeedsGBuffer)
@@ -2385,81 +2368,38 @@ bool FExpressionSceneTexture::PrepareValue(FEmitContext& Context, FEmitScope& Sc
 
 void FExpressionSceneTexture::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
 {
-	FString SceneTextureIdString;
-	if (!UserSceneTexture.IsNone())
-	{
-		// SceneTextureId is arbitrarily set to PPI_UserSceneTexture0 for all UserSceneTextures in the HLSL tree.  Actual ID
-		// is allocated in PrepareValue, based on what PPI_PostProcessInput0-6 slots are available in the compilation output.
-		check(SceneTextureId == PPI_UserSceneTexture0);
-
-		int32 UserSceneTextureId = Context.MaterialCompilationOutput->FindOrAddUserSceneTexture(UserSceneTexture);
-		check(UserSceneTextureId != INDEX_NONE);
-
-		SceneTextureIdString = SceneTextureIdToHLSLString((ESceneTextureId)UserSceneTextureId);
-	}
-	else
-	{
-		SceneTextureIdString = SceneTextureIdToHLSLString((ESceneTextureId)SceneTextureId);
-	}
+	const bool bSupportedOnMobile = SceneTextureId == PPI_PostProcessInput0 ||
+		SceneTextureId == PPI_CustomDepth ||
+		SceneTextureId == PPI_SceneDepth ||
+		SceneTextureId == PPI_CustomStencil;
 
 	FEmitShaderExpression* EmitTexCoord = nullptr;
 	if (TexCoordExpression)
 	{
 		EmitTexCoord = TexCoordExpression->GetValueShader(Context, Scope, Shader::EValueType::Float2);
-		EmitTexCoord = Context.EmitExpression(Scope, Shader::EValueType::Float2, TEXT("ClampSceneTextureUV(ViewportUVToSceneTextureUV(%, %), %)"), EmitTexCoord, *SceneTextureIdString, *SceneTextureIdString);
+		EmitTexCoord = Context.EmitExpression(Scope, Shader::EValueType::Float2, TEXT("ClampSceneTextureUV(ViewportUVToSceneTextureUV(%, %), %)"), EmitTexCoord, (int)SceneTextureId, (int)SceneTextureId);
 	}
 	else
 	{
-		if (bClamped)
-		{
-			EmitTexCoord = Context.EmitExpression(Scope, Shader::EValueType::Float2, TEXT("ClampSceneTextureUV(GetDefaultSceneTextureUV(Parameters, %), %)"), *SceneTextureIdString, *SceneTextureIdString);
-		}
-		else
-		{
-			EmitTexCoord = Context.EmitExpression(Scope, Shader::EValueType::Float2, TEXT("GetDefaultSceneTextureUV(Parameters, %)"), *SceneTextureIdString);
-		}
+		EmitTexCoord = Context.EmitExpression(Scope, Shader::EValueType::Float2, TEXT("GetDefaultSceneTextureUV(Parameters, %)"), (int)SceneTextureId);
 	}
 
 	FEmitShaderExpression* EmitLookup = nullptr;
 	if (Context.Material->GetFeatureLevel() >= ERHIFeatureLevel::SM5)
 	{
-		EmitLookup = Context.EmitExpression(Scope, Shader::EValueType::Float4, TEXT("SceneTextureLookup(%, %, %)"), EmitTexCoord, *SceneTextureIdString, bFiltered);
+		EmitLookup = Context.EmitExpression(Scope, Shader::EValueType::Float4, TEXT("SceneTextureLookup(%, %, %)"), EmitTexCoord, (int)SceneTextureId, bFiltered);
 	}
 	else
 	{
-		EmitLookup = Context.EmitExpression(Scope, Shader::EValueType::Float4, TEXT("MobileSceneTextureLookup(Parameters, %, %)"), *SceneTextureIdString, EmitTexCoord);
+		EmitLookup = Context.EmitExpression(Scope, Shader::EValueType::Float4, TEXT("MobileSceneTextureLookup(Parameters, %, %)"), (int)SceneTextureId, EmitTexCoord);
 	}
 
-	if (((SceneTextureId >= PPI_PostProcessInput0 && SceneTextureId <= PPI_PostProcessInput6) || (SceneTextureId >= PPI_UserSceneTexture0 && SceneTextureId <= PPI_UserSceneTexture6)) &&
-		Context.Material->GetMaterialDomain() == MD_PostProcess && Context.Material->GetBlendableLocation() != BL_SceneColorAfterTonemapping)
+	if (SceneTextureId >= PPI_PostProcessInput0 && SceneTextureId <= PPI_PostProcessInput6 && Context.Material->GetMaterialDomain() == MD_PostProcess && Context.Material->GetBlendableLocation() != BL_SceneColorAfterTonemapping)
 	{
 		EmitLookup = Context.EmitExpression(Scope, Shader::EValueType::Float4, TEXT("(float4(View.OneOverPreExposure.xxx, 1) * %)"), EmitLookup);
 	}
 
 	OutResult.Code = EmitLookup;
-}
-
-bool FExpressionUserSceneTextureSize::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
-{
-	if (Context.bMarkLiveValues && Context.MaterialCompilationOutput)
-	{
-		Context.MaterialCompilationOutput->bNeedsSceneTextures = true;
-
-		int32 SceneTextureId = Context.MaterialCompilationOutput->FindOrAddUserSceneTexture(UserSceneTexture);
-		if (SceneTextureId == INDEX_NONE)
-		{
-			return Context.Errorf(TEXT("Too many unique UserSceneTexture inputs in the post process material -- max allowed is %d"), kPostProcessMaterialInputCountMax);
-		}
-	}
-	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, Shader::EValueType::Float2);
-}
-
-void FExpressionUserSceneTextureSize::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
-{
-	int32 SceneTextureId = Context.MaterialCompilationOutput->FindOrAddUserSceneTexture(UserSceneTexture);
-	FString SceneTextureIdString = SceneTextureIdToHLSLString((ESceneTextureId)SceneTextureId);
-
-	OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float2, TEXT("GetSceneTextureViewSize(%).%"), *SceneTextureIdString, bReciprocal ? TEXT("zw") : TEXT("xy"));
 }
 
 bool FExpressionScreenAlignedUV::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
