@@ -26,7 +26,7 @@
 
 namespace UE::Interchange::Private
 {
-	bool IsTranslatedDataContainOnlyJointAnimation(const UInterchangeBaseNodeContainer* InBaseNodeContainer)
+	bool IsTranslatedDataContainOnlyJointAnimation(const UInterchangeBaseNodeContainer* InBaseNodeContainer, bool bConvertStaticsWithMorphTargetsToSkeletals)
 	{
 		//Its valid to call GetMeshesInformationFromTranslatedData with a null container
 		if (!InBaseNodeContainer)
@@ -44,11 +44,18 @@ namespace UE::Interchange::Private
 		{
 			//if we have bone animation and no skinned mesh, we want to import animation only.
 			bool bContainSkinnedMeshNode = false;
-			InBaseNodeContainer->BreakableIterateNodesOfType<UInterchangeMeshNode>([&bContainSkinnedMeshNode](const FString& NodeUid, UInterchangeMeshNode* MeshNode)
+			InBaseNodeContainer->BreakableIterateNodesOfType<UInterchangeMeshNode>([&bContainSkinnedMeshNode, &bConvertStaticsWithMorphTargetsToSkeletals](const FString& NodeUid, UInterchangeMeshNode* MeshNode)
 				{
 					if (!MeshNode->IsMorphTarget())
 					{
 						if (MeshNode->IsSkinnedMesh())
+						{
+							bContainSkinnedMeshNode = true;
+						}
+					}
+					else
+					{
+						if (bConvertStaticsWithMorphTargetsToSkeletals)
 						{
 							bContainSkinnedMeshNode = true;
 						}
@@ -110,7 +117,7 @@ void UInterchangeGenericAnimationPipeline::AdjustSettingsForContext(EInterchange
 	TArray<FString> HideCategories;
 	if(ImportType == EInterchangePipelineContext::AssetImport)
 	{
-		if(UE::Interchange::Private::IsTranslatedDataContainOnlyJointAnimation(InBaseNodeContainer))
+		if(UE::Interchange::Private::IsTranslatedDataContainOnlyJointAnimation(InBaseNodeContainer, CommonSkeletalMeshesAndAnimationsProperties->bConvertStaticsWithMorphTargetsToSkeletals))
 		{
 			bImportAnimations = true;
 			CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations = true;
