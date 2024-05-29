@@ -57,6 +57,24 @@ FArchive& operator<<(FArchive& Ar, FMorphTargetLODModel& M)
 
 			Ar << M.NumBaseMeshVerts << M.SectionIndices << M.bGeneratedByEngine;
 		}
+
+		if (Ar.IsLoading() && Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::MorphTargetCustomImport)
+		{
+			M.SourceFilename.Empty();
+		}
+		else
+		{
+			//Do not cook the source filename, we don't need it at runtime
+			if (Ar.IsCooking() && Ar.IsSaving())
+			{
+				FString EmptySourceFilename;
+				Ar << EmptySourceFilename;
+			}
+			else
+			{
+				Ar << M.SourceFilename;
+			}
+		}
 	}
 
 	return Ar;
@@ -124,6 +142,38 @@ bool UMorphTarget::HasDataForSection(int32 LODIndex, int32 SectionIndex) const
 void UMorphTarget::EmptyMorphLODModels()
 {
 	MorphLODModels.Empty();
+}
+
+bool UMorphTarget::IsCustomImported(int32 LODIndex) const
+{
+	if (LODIndex < MorphLODModels.Num())
+	{
+		// Calling GetMorphLODModels to potentially get from subclasses
+		const FMorphTargetLODModel& MorphModel = GetMorphLODModels()[LODIndex];
+		return !MorphModel.SourceFilename.IsEmpty();
+	}
+	return false;
+}
+
+FString UMorphTarget::GetCustomImportedSourceFilename(int32 LODIndex) const
+{
+	if (LODIndex < MorphLODModels.Num())
+	{
+		// Calling GetMorphLODModels to potentially get from subclasses
+		const FMorphTargetLODModel& MorphModel = GetMorphLODModels()[LODIndex];
+		return MorphModel.SourceFilename;
+	}
+	return FString();
+}
+
+void UMorphTarget::SetCustomImportedSourceFilename(int32 LODIndex, const FString& InSourceFilename)
+{
+	if (LODIndex < MorphLODModels.Num())
+	{
+		// Calling GetMorphLODModels to potentially get from subclasses
+		FMorphTargetLODModel& MorphModel = GetMorphLODModels()[LODIndex];
+		MorphModel.SourceFilename = InSourceFilename;
+	}
 }
 
 void UMorphTarget::DiscardVertexData()

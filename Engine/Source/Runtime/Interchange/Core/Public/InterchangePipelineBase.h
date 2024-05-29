@@ -47,10 +47,12 @@ enum class EInterchangePipelineContext : uint8
 	AssetReimport,
 	SceneImport,
 	SceneReimport,
-	AssetCustomLODImport, //The import for custom LOD is there because we use a copy of the asset import data pipeline stack.
+	AssetCustomLODImport,
 	AssetCustomLODReimport,
-	AssetAlternateSkinningImport, //The import for custom LOD is there because we use a copy of the asset import data pipeline stack.
+	AssetAlternateSkinningImport,
 	AssetAlternateSkinningReimport,
+	AssetCustomMorphTargetImport, //Import the content has a combine static mesh so we can add a custom morph target to a skeletal mesh
+	AssetCustomMorphTargetReImport,
 };
 
 USTRUCT(BlueprintType)

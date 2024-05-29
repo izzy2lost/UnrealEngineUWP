@@ -61,7 +61,9 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(EInterchangePipel
 	if (ImportType == EInterchangePipelineContext::AssetCustomLODImport
 		|| ImportType == EInterchangePipelineContext::AssetCustomLODReimport
 		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningImport
-		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningReimport)
+		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningReimport
+		|| ImportType == EInterchangePipelineContext::AssetCustomMorphTargetImport
+		|| ImportType == EInterchangePipelineContext::AssetCustomMorphTargetReImport)
 	{
 		bCreatePhysicsAsset = false;
 		PhysicsAsset = nullptr;
@@ -86,6 +88,28 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(EInterchangePipel
 			SkeletalMeshImportContentType = EInterchangeSkeletalMeshContentType::All;
 			CommonSkeletalMeshesAndAnimationsProperties->Skeleton = nullptr;
 			CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations = false;
+		}
+		else if (ImportType == EInterchangePipelineContext::AssetCustomMorphTargetImport
+			|| ImportType == EInterchangePipelineContext::AssetCustomMorphTargetReImport)
+		{
+			//Custom morph target are imported has a combined static mesh
+			CommonMeshesProperties->ForceAllMeshAsType = EInterchangeForceMeshType::IFMT_StaticMesh;
+			CommonMeshesProperties->bAutoDetectMeshType = false;
+			CommonMeshesProperties->bBakeMeshes = true;
+			CommonMeshesProperties->bBakePivotMeshes = false;
+			CommonMeshesProperties->bImportLods = true;
+			CommonMeshesProperties->bKeepSectionsSeparate = false;
+			CommonMeshesProperties->VertexColorImportOption = EInterchangeVertexColorImportOption::IVCIO_Ignore;
+			bImportSkeletalMeshes = false;
+			bImportStaticMeshes = true;
+			bCombineStaticMeshes = true;
+			bBuildNanite = false;
+			LodGroup = NAME_None;
+			bImportCollision = false;
+			bImportCollisionAccordingToMeshName = false;
+			bGenerateLightmapUVs = false;
+			bGenerateDistanceFieldAsIfTwoSided = false;
+			bSupportFaceRemap = false;
 		}
 	}
 	const FString CommonMeshesCategory = UInterchangeGenericCommonMeshesProperties::GetPipelineCategory(nullptr);

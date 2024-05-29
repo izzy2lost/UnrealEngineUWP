@@ -1,24 +1,62 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Engine/SkinnedAssetCommon.h"
+
 #include "Animation/AnimSequence.h"
 #include "Engine/SkeletalMeshLODSettings.h"
 #include "Engine/TextureStreamingTypes.h"
-#include "Materials/MaterialInterface.h"
-#include "UObject/CoreObjectVersion.h"
+#include "HAL/FileManager.h"
 #include "Interfaces/ITargetPlatform.h"
+#include "Materials/MaterialInterface.h"
+#include "Misc/Paths.h"
+#include "Misc/SecureHash.h"
 #include "Rendering/SkeletalMeshLODModel.h"
+#include "SkeletalMeshLegacyCustomVersions.h"
+#include "UObject/CoreObjectVersion.h"
 #include "UObject/EditorObjectVersion.h"
 #include "UObject/RenderingObjectVersion.h"
-#include "SkeletalMeshLegacyCustomVersions.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SkinnedAssetCommon)
+
 
 /*-----------------------------------------------------------------------------
 	FSkeletalMeshLODInfo
 -----------------------------------------------------------------------------*/
 
 #if WITH_EDITORONLY_DATA
+
+const FString& FMorphTargetImportedSourceFileInfo::GetSourceFilename() const
+{
+	return SourceFilename;
+}
+
+void FMorphTargetImportedSourceFileInfo::SetSourceFilename(const FString& Filename)
+{
+	FString DerivedDataKey = Filename;
+	if (FPaths::FileExists(Filename))
+	{
+		DerivedDataKey += IFileManager::Get().GetTimeStamp(*Filename).ToString();
+	}
+
+	const auto CharArray = DerivedDataKey.GetCharArray();
+	FSHA1 Sha;
+	Sha.Update(reinterpret_cast<const uint8*>(CharArray.GetData()), CharArray.Num() * CharArray.GetTypeSize());
+	Sha.Final();
+	// Retrieve the hash and use it to construct a pseudo-GUID.
+	uint32 Hash[5];
+	Sha.GetHash((uint8*)Hash);
+	DerivedDataHash = FGuid(Hash[0] ^ Hash[4], Hash[1], Hash[2], Hash[3]);
+
+	SourceFilename = Filename;
+}
+
+FArchive& operator<<(FArchive& Ar, FMorphTargetImportedSourceFileInfo& MorphTargetImportedSourceFileInfo)
+{
+	Ar << MorphTargetImportedSourceFileInfo.SourceFilename;
+	Ar << MorphTargetImportedSourceFileInfo.DerivedDataHash;
+	return Ar;
+}
+
 static void SerializeReductionSettingsForDDC(FArchive& Ar, FSkeletalMeshOptimizationSettings& ReductionSettings)
 {
 	check(Ar.IsSaving());
@@ -92,6 +130,7 @@ FGuid FSkeletalMeshLODInfo::ComputeDeriveDataCacheKey(const FSkeletalMeshLODGrou
 	Ar << SectionsToPrioritize;
 	Ar << WeightOfPrioritization;
 	Ar << MorphTargetPositionErrorTolerance;
+	Ar << ImportedMorphTargetSourceFilename;
 
 	//TODO: Ask the derivedata key of the UObject reference by FSoftObjectPath. So if someone change the UObject, this LODs will get dirty
 	//and will be rebuild.

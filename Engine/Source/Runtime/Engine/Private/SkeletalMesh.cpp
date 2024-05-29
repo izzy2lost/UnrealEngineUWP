@@ -4094,6 +4094,13 @@ bool USkeletalMesh::RemoveMorphTargets(TConstArrayView<FName> InMorphTargetNames
 
 			bRemoved = true;
 		}
+
+		//Clean up the LodInfo Imported morph target source filename
+		for (int32 LODIndex = 0; LODIndex < GetLODNum(); ++LODIndex)
+		{
+			FSkeletalMeshLODInfo& LODInfoEntry = *GetLODInfo(LODIndex);
+			LODInfoEntry.ImportedMorphTargetSourceFilename.Remove(MorphTargetName.ToString());
+		}
 	}
 
 	return bRemoved;
@@ -4162,6 +4169,18 @@ bool USkeletalMesh::RenameMorphTarget(FName InOldName, FName InNewName)
 
 	// Rename the morph target itself
 	MorphTarget->Rename(*InNewName.ToString(), nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+
+	//Clean up the LodInfo Imported morph target source filename we must also rename the entry
+	for (int32 InternalLodIndex = 0; InternalLodIndex < GetLODNum(); ++InternalLodIndex)
+	{
+		FSkeletalMeshLODInfo& LODInfoEntry = *GetLODInfo(InternalLodIndex);
+		if (const FMorphTargetImportedSourceFileInfo* MorphTargetImportedSourceFileInfo = LODInfoEntry.ImportedMorphTargetSourceFilename.Find(InOldName.ToString()))
+		{
+			const FString OldFilename = MorphTargetImportedSourceFileInfo->GetSourceFilename();
+			LODInfoEntry.ImportedMorphTargetSourceFilename.FindOrAdd(InNewName.ToString()).SetSourceFilename(OldFilename);
+			LODInfoEntry.ImportedMorphTargetSourceFilename.Remove(InOldName.ToString());
+		}
+	}
 
 	// Re-register the morph target
 	RegisterMorphTarget(MorphTarget);

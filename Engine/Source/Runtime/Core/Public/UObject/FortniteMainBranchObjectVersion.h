@@ -486,6 +486,9 @@ struct FFortniteMainBranchObjectVersion
 		// Fixup for the data that has been damaged by LandscapeTargetLayersInLandscapeActor (loss of landscape layer info object assignments)
 		FixupLandscapeTargetLayersInLandscapeActor,
 
+		//Allow custom import of morph target
+		MorphTargetCustomImport,
+		
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

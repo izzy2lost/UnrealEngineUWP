@@ -3670,6 +3670,7 @@ static void BuildMorphTargetsInternal(
 
 	// Prepare base data
 	FSkeletalMeshLODModel& BaseLODModel = BaseSkelMesh->GetImportedModel()->LODModels[LODIndex];
+	const FSkeletalMeshLODInfo* BaseLodInfo = BaseSkelMesh->GetLODInfo(LODIndex);
 
 	FMeshDataBundle MeshDataBundle;
 	ConvertImportDataToMeshData(BaseImportData, MeshDataBundle);
@@ -3873,6 +3874,21 @@ static void BuildMorphTargetsInternal(
 
 		delete Results[Index];
 		Results[Index] = nullptr;
+
+		//Reset the morph target imported source filename
+		MorphTarget->SetCustomImportedSourceFilename(LODIndex, FString());
+		//Now set the imported source filename from the imported data
+		if (BaseLodInfo)
+		{
+			if (const FMorphTargetImportedSourceFileInfo* MorphTargetImportedSourceFileInfo = BaseLodInfo->ImportedMorphTargetSourceFilename.Find(MorphTarget->GetName()))
+			{
+				const FString& SourceFilename = MorphTargetImportedSourceFileInfo->GetSourceFilename();
+				if (!SourceFilename.IsEmpty())
+				{
+					MorphTarget->SetCustomImportedSourceFilename(LODIndex, *SourceFilename);
+				}
+			}
+		}
 
 		// We might have created new MorphTarget in an async thread, so we need to remove the async flag so they can get
 		// garbage collected in the future now that their references are properly setup and reachable by the GC.

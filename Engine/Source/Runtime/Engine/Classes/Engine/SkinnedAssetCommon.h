@@ -96,6 +96,25 @@ struct FSectionReference
 	}
 };
 
+USTRUCT()
+struct FMorphTargetImportedSourceFileInfo
+{
+	GENERATED_USTRUCT_BODY()
+
+	ENGINE_API const FString& GetSourceFilename() const;
+
+	ENGINE_API void SetSourceFilename(const FString& Filename);
+
+private:
+	UPROPERTY(EditAnywhere, Category = MorphTargetInfo)
+	FString SourceFilename;
+	
+	UPROPERTY()
+	FGuid DerivedDataHash;
+
+	friend FArchive& operator<<(FArchive& Ar, FMorphTargetImportedSourceFileInfo& MorphTargetImportedSourceFileInfo);
+};
+
 /** Struct containing information for a particular LOD level, such as materials and info for when to use it. */
 USTRUCT()
 struct FSkeletalMeshLODInfo
@@ -176,6 +195,14 @@ struct FSkeletalMeshLODInfo
 	/** The Morph target position error tolerance in microns. Larger values result in better compression and lower memory footprint, but also lower quality. */
 	UPROPERTY(EditAnywhere, Category = SkeletalMeshLODInfo, meta = (UIMin = "0.01", ClampMin = "0.01", UIMax = "10000.0", ClampMax = "10000.0"))
 	float MorphTargetPositionErrorTolerance = 20.0f;
+
+#if WITH_EDITORONLY_DATA
+
+	/** Store the custom import morph target source file. The key of the map is the morph target name and the value is the source file path. */
+	UPROPERTY(VisibleAnywhere, Category = SkeletalMeshLODInfo)
+	TMap<FString, FMorphTargetImportedSourceFileInfo> ImportedMorphTargetSourceFilename;
+
+#endif //WITH_EDITORONLY_DATA
 
 	/** Whether to disable morph targets for this LOD. */
 	UPROPERTY()

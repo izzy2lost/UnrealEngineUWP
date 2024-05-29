@@ -60,6 +60,7 @@ public class Persona : ModuleRules
                 "EditorWidgets",
                 "BlueprintGraph",
                 "RHI",
+				"InterchangeEngine",
                 "Json",
                 "JsonUtilities",
                 "ClothingSystemEditorInterface",

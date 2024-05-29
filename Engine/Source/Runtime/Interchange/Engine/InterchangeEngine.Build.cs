@@ -24,6 +24,8 @@ public class InterchangeEngine : ModuleRules
 				"DeveloperSettings",
 				"Json",
 				"JsonUtilities",
+				"MeshDescription",
+				"SkeletalMeshDescription",
 			}
 		);
 
