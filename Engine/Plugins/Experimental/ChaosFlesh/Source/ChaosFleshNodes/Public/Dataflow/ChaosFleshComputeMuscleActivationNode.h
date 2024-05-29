@@ -28,6 +28,9 @@ public:
 	UPROPERTY(meta = (DataflowInput, DisplayName = "InsertionVertexIndices"))
 		TArray<int32> InsertionIndicesIn;
 
+	UPROPERTY(EditAnywhere, Category = "Dataflow")
+		float ContractionVolumeScale = 1.f;
+
 	FComputeMuscleActivationDataNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
 		: FDataflowNode(InParam, InGuid)
 	{

@@ -16,6 +16,7 @@ void FComputeMuscleActivationDataNode::Evaluate(Dataflow::FContext& Context, con
 		TArray<int32> InOriginIndices = GetValue<TArray<int32>>(Context, &OriginIndicesIn);
 		TArray<int32> InInsertionIndices = GetValue<TArray<int32>>(Context, &InsertionIndicesIn);
 		TArray<float> OriginInsertionRestLength;
+		TManagedArray<float>* ContractionVolumeScalePerVertex = InCollection.FindAttribute<float>("ContractionVolumeScale", "Vertices");
 		if (InOriginIndices.Num() > 0 && InInsertionIndices.Num() > 0)
 		{
 			if (TManagedArray<FVector3f>* Vertex = InCollection.FindAttribute<FVector3f>("Vertex", "Vertices"))
@@ -26,55 +27,71 @@ void FComputeMuscleActivationDataNode::Evaluate(Dataflow::FContext& Context, con
 					{
 						GeometryCollection::Facades::FMuscleActivationFacade FMuscleActivation(InCollection);
 						TArray<TArray<int32>> MuscleActivationElements;
-						TArray<int32> OriginNodes;
-						TArray<int32> InsertionNodes;
+						TArray<TArray<int32>> ComponentOrigins; //One origin node per muscle component
+						TArray<TArray<int32>> ComponentInsertions; //One insertion node per muscle component
 						GeometryCollection::Facades::FCollectionMeshFacade MeshFacade(InCollection);
 						TArray<int32> ComponentIndex = MeshFacade.GetGeometryGroupIndexArray();
-						TMap<int32, int32> ComponentToIndex; //Component index to muscle index
+						TMap<int32, int32> ComponentToMuscleIndex; //Component index to muscle index
 						for (int32 i = 0; i < InOriginIndices.Num(); i++)
 						{
-							if (!ComponentToIndex.Contains(ComponentIndex[InOriginIndices[i]]))
+							if (!ComponentToMuscleIndex.Contains(ComponentIndex[InOriginIndices[i]]))
 							{
-								//TODO: use one pair of separately defined origin and insertion for each muscle instead of choosing the first from kinematic origins and last from insertions
-								ComponentToIndex.Add(ComponentIndex[InOriginIndices[i]], OriginNodes.Num());
-								OriginNodes.Add(InOriginIndices[i]);
+								ComponentToMuscleIndex.Add(ComponentIndex[InOriginIndices[i]], ComponentOrigins.Num());
+								ComponentOrigins.SetNum(ComponentOrigins.Num() + 1);
+								ComponentOrigins[ComponentOrigins.Num()-1].Add(InOriginIndices[i]);
+							}
+							else
+							{
+								ComponentOrigins[ComponentToMuscleIndex[ComponentIndex[InOriginIndices[i]]]].Add(InOriginIndices[i]);
 							}
 						}
-						InsertionNodes.Init(INDEX_NONE, OriginNodes.Num());
+						ComponentInsertions.SetNum(ComponentOrigins.Num());
 						for (int32 i = 0; i < InInsertionIndices.Num(); i++)
 						{
-							if (!ComponentToIndex.Contains(ComponentIndex[InInsertionIndices[i]]))
+							if (!ComponentToMuscleIndex.Contains(ComponentIndex[InInsertionIndices[i]]))
 							{
 								ensureMsgf(false, TEXT("No origin in this component"));
 							}
-							else if (InsertionNodes[ComponentToIndex[ComponentIndex[InInsertionIndices[i]]]] == INDEX_NONE)
+							else
 							{
-								InsertionNodes[ComponentToIndex[ComponentIndex[InInsertionIndices[i]]]] = InInsertionIndices[i];
+								ComponentInsertions[ComponentToMuscleIndex[ComponentIndex[InInsertionIndices[i]]]].Add(InInsertionIndices[i]);
 							}
 						}
-						MuscleActivationElements.SetNum(OriginNodes.Num());
+						MuscleActivationElements.SetNum(ComponentOrigins.Num());
 						for (int32 ElemIdx = 0; ElemIdx < Elements->Num(); ElemIdx++)
 						{
-							if (ComponentToIndex.Contains(ComponentIndex[(*Elements)[ElemIdx][0]]))
+							if (ComponentToMuscleIndex.Contains(ComponentIndex[(*Elements)[ElemIdx][0]]))
 							{
-								MuscleActivationElements[ComponentToIndex[ComponentIndex[(*Elements)[ElemIdx][0]]]].Add(ElemIdx);
+								MuscleActivationElements[ComponentToMuscleIndex[ComponentIndex[(*Elements)[ElemIdx][0]]]].Add(ElemIdx);
 							}
 						}
-						OriginInsertionRestLength.SetNum(OriginNodes.Num());
-
-						for (int32 MuscleComponentIdx = 0; MuscleComponentIdx < OriginNodes.Num(); MuscleComponentIdx++)
+						//Choose one origin-insertion pair per muscle with largest distance apart
+						//use origin-insertion line segment length to estimate activation
+						for (int32 MuscleComponentIdx = 0; MuscleComponentIdx < ComponentOrigins.Num(); MuscleComponentIdx++)
 						{
-							if (ensureMsgf(InsertionNodes[MuscleComponentIdx] != INDEX_NONE, TEXT("InsertionNodes[%d] is not a pair"), MuscleComponentIdx))
+							if (ensureMsgf(ComponentOrigins.Num() > 0 && ComponentInsertions.Num() > 0, TEXT("Origin or Insertion missing in the muscle %d"), MuscleComponentIdx))
 							{
 								GeometryCollection::Facades::FMuscleActivationData MuscleActivationData;
+								MuscleActivationData.OriginInsertionRestLength = 0;
+								for (int32 OriginIdx : ComponentOrigins[MuscleComponentIdx])
+								{
+									for (int32 InsertionIdx : ComponentInsertions[MuscleComponentIdx])
+									{
+										float Dist = ((*Vertex)[OriginIdx] - (*Vertex)[InsertionIdx]).Size();
+										if (Dist > MuscleActivationData.OriginInsertionRestLength)
+										{
+											MuscleActivationData.OriginInsertionPair = FIntVector2(OriginIdx, InsertionIdx);
+											MuscleActivationData.OriginInsertionRestLength = Dist;
+										}
+									}
+								}
 								MuscleActivationData.MuscleActivationElement = MuscleActivationElements[MuscleComponentIdx];
-								MuscleActivationData.OriginInsertionPair = FIntVector2(OriginNodes[MuscleComponentIdx], InsertionNodes[MuscleComponentIdx]);
-								MuscleActivationData.OriginInsertionRestLength = ((*Vertex)[OriginNodes[MuscleComponentIdx]] - (*Vertex)[InsertionNodes[MuscleComponentIdx]]).Size();
 								MuscleActivationData.FiberDirectionMatrix.SetNum(MuscleActivationElements[MuscleComponentIdx].Num());
+								MuscleActivationData.ContractionVolumeScale.SetNum(MuscleActivationElements[MuscleComponentIdx].Num());
 								for (int32 LocalElemIdx = 0; LocalElemIdx < MuscleActivationElements[MuscleComponentIdx].Num(); LocalElemIdx++)
 								{
 									FVector3f V = (*FiberDirections)[MuscleActivationElements[MuscleComponentIdx][LocalElemIdx]];
-									// QR decomposition on vvT
+									// QR decomposition on vvT for orthogonal directions
 									FVector3f W = V;
 									if (V.X < V.Y)
 									{
@@ -87,7 +104,21 @@ void FComputeMuscleActivationDataNode::Evaluate(Dataflow::FContext& Context, con
 									FVector3f U = (V ^ W).GetSafeNormal();
 									W = (U ^ V).GetSafeNormal();
 									MuscleActivationData.FiberDirectionMatrix[LocalElemIdx] = Chaos::PMatrix33d(V, W, U);
+									//Muscle contraction volume scale
+									MuscleActivationData.ContractionVolumeScale[LocalElemIdx] = ContractionVolumeScale;
+									if (ContractionVolumeScalePerVertex)
+									{
+										float AverageScale = 1.f;
+										for (int32 ie = 0; ie < 4; ie++)
+										{
+											AverageScale += (*ContractionVolumeScalePerVertex)[(*Elements)[MuscleActivationElements[MuscleComponentIdx][LocalElemIdx]][ie]];
+											AverageScale /= 4.f;
+										}
+										MuscleActivationData.ContractionVolumeScale[LocalElemIdx] *= AverageScale;
+									}
 								}
+								
+								
 								FMuscleActivation.AddMuscleActivationData(MuscleActivationData);
 							}
 						}

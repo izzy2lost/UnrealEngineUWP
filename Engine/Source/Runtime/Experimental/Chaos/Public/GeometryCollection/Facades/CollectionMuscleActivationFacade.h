@@ -15,6 +15,7 @@ namespace GeometryCollection::Facades
 		FIntVector2 OriginInsertionPair;
 		float OriginInsertionRestLength;
 		TArray<Chaos::PMatrix33d> FiberDirectionMatrix;
+		TArray<float> ContractionVolumeScale;
 	};
 
 	/** Kinematic Facade */
@@ -27,6 +28,7 @@ namespace GeometryCollection::Facades
 		static CHAOS_API const FName OriginInsertionPair;
 		static CHAOS_API const FName OriginInsertionRestLength;
 		static CHAOS_API const FName FiberDirectionMatrix;
+		static CHAOS_API const FName ContractionVolumeScale;
 
 		CHAOS_API FMuscleActivationFacade(FManagedArrayCollection& InCollection);
 		CHAOS_API FMuscleActivationFacade(const FManagedArrayCollection& InCollection);
@@ -55,5 +57,6 @@ namespace GeometryCollection::Facades
 		TManagedArrayAccessor<FIntVector2> OriginInsertionPairAttribute;
 		TManagedArrayAccessor<float> OriginInsertionRestLengthAttribute;
 		TManagedArrayAccessor<TArray<Chaos::PMatrix33d>> FiberDirectionMatrixAttribute;
+		TManagedArrayAccessor<TArray<float>> ContractionVolumeScaleAttribute;
 	};
 }

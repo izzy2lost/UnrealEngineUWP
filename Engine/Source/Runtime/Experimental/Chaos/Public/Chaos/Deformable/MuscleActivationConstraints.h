@@ -39,6 +39,7 @@ namespace Chaos::Softs
 				OriginInsertionRestLength.Add(MuscleActivationData.OriginInsertionRestLength);
 				Activation.Add(0.f);
 				FiberDirectionMatrix.Add(MuscleActivationData.FiberDirectionMatrix);
+				ContractionVolumeScale.Add(MuscleActivationData.ContractionVolumeScale);
 			}
 		}
 
@@ -67,7 +68,7 @@ namespace Chaos::Softs
 				{
 					for (int32 ElemIdx = 0; ElemIdx < MuscleActivationElement[MuscleIdx].Num(); ElemIdx++)
 					{
-						Constraints.ModifyDmInverseFromFiberLength(MuscleActivationElement[MuscleIdx][ElemIdx], Activation[MuscleIdx], FiberDirectionMatrix[MuscleIdx][ElemIdx]);
+						Constraints.ModifyDmInverseFromFiberLength(MuscleActivationElement[MuscleIdx][ElemIdx], Activation[MuscleIdx], FiberDirectionMatrix[MuscleIdx][ElemIdx], ContractionVolumeScale[MuscleIdx][ElemIdx]);
 					}
 				}
 			}
@@ -78,6 +79,7 @@ namespace Chaos::Softs
 		TArray<float> OriginInsertionRestLength;
 		TArray<float> Activation;
 		TArray<TArray<Chaos::PMatrix33d>> FiberDirectionMatrix;
+		TArray<TArray<float>> ContractionVolumeScale;
 	};
 
 

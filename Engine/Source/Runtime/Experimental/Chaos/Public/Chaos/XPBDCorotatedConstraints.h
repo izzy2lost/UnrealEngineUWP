@@ -406,13 +406,13 @@ namespace Chaos::Softs
 			return dC2;
 		}
 
-		void ModifyDmInverseFromFiberLength(const int32 e, const float L, const PMatrix<T, 3, 3>& MFiberDir) const
+		void ModifyDmInverseFromFiberLength(const int32 e, const T L, const PMatrix<T, 3, 3>& MFiberDir, const T ContractionVolumeScale) const
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(TEXT("STAT_ChaosXPBDCorotatedModifyDmInverseFromFiberLength"));
 			PMatrix<T, 3, 3> DmInv = ElementDmInvSave(e);
 			if (L < 1)
 			{
-				PMatrix<T, 3, 3> D(1 / L, sqrt(L), sqrt(L));
+				PMatrix<T, 3, 3> D(1 / L, FMath::Pow(L, ContractionVolumeScale/T(2)), FMath::Pow(L, ContractionVolumeScale/T(2)));
 				PMatrix<T, 3, 3> Factor = MFiberDir * D * MFiberDir.GetTransposed();
 				DmInv = Factor * DmInv; //Matrix multiplication convention: AB = B*A
 			}

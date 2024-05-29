@@ -15,15 +15,16 @@ namespace GeometryCollection::Facades
 	const FName FMuscleActivationFacade::OriginInsertionPair("OriginInsertionPair");
 	const FName FMuscleActivationFacade::OriginInsertionRestLength("OriginInsertionRestLength");
 	const FName FMuscleActivationFacade::FiberDirectionMatrix("FiberDirectionMatrix");
-
+	const FName FMuscleActivationFacade::ContractionVolumeScale("ContractionVolumeScale");
 
 	FMuscleActivationFacade::FMuscleActivationFacade(FManagedArrayCollection& InCollection)
 		: ConstCollection(InCollection)
 		, Collection(&InCollection)
-		, MuscleActivationElementAttribute(InCollection, MuscleActivationElement, GroupName)
-		, OriginInsertionPairAttribute(InCollection, OriginInsertionPair, GroupName)
+		, MuscleActivationElementAttribute(InCollection, MuscleActivationElement, GroupName, "Tetrahedral")
+		, OriginInsertionPairAttribute(InCollection, OriginInsertionPair, GroupName, FGeometryCollection::VerticesGroup)
 		, OriginInsertionRestLengthAttribute(InCollection, OriginInsertionRestLength, GroupName)
 		, FiberDirectionMatrixAttribute(InCollection, FiberDirectionMatrix, GroupName)
+		, ContractionVolumeScaleAttribute(InCollection, ContractionVolumeScale, GroupName)
 	{
 		DefineSchema();
 	}
@@ -35,13 +36,15 @@ namespace GeometryCollection::Facades
 		, OriginInsertionPairAttribute(InCollection, OriginInsertionPair, GroupName)
 		, OriginInsertionRestLengthAttribute(InCollection, OriginInsertionRestLength, GroupName)
 		, FiberDirectionMatrixAttribute(InCollection, FiberDirectionMatrix, GroupName)
+		, ContractionVolumeScaleAttribute(InCollection, ContractionVolumeScale, GroupName)
 	{
 		
 	}
 
 	bool FMuscleActivationFacade::IsValid() const
 	{
-		return MuscleActivationElementAttribute.IsValid() && OriginInsertionPairAttribute.IsValid() && OriginInsertionRestLengthAttribute.IsValid() && FiberDirectionMatrixAttribute.IsValid();
+		return MuscleActivationElementAttribute.IsValid() && OriginInsertionPairAttribute.IsValid() && 
+			OriginInsertionRestLengthAttribute.IsValid() && FiberDirectionMatrixAttribute.IsValid() && ContractionVolumeScaleAttribute.IsValid();
 	}
 
 	void FMuscleActivationFacade::DefineSchema()
@@ -51,6 +54,7 @@ namespace GeometryCollection::Facades
 		OriginInsertionPairAttribute.Add(ManageArrayAccessor::EPersistencePolicy::MakePersistent, FGeometryCollection::VerticesGroup);
 		OriginInsertionRestLengthAttribute.Add();
 		FiberDirectionMatrixAttribute.Add();
+		ContractionVolumeScaleAttribute.Add();
 	}
 
 	int32 FMuscleActivationFacade::AddMuscleActivationData(const FMuscleActivationData& InputData)
@@ -63,6 +67,7 @@ namespace GeometryCollection::Facades
 			OriginInsertionPairAttribute.Modify()[NewIndex] = InputData.OriginInsertionPair;
 			OriginInsertionRestLengthAttribute.Modify()[NewIndex] = InputData.OriginInsertionRestLength;
 			FiberDirectionMatrixAttribute.Modify()[NewIndex] = InputData.FiberDirectionMatrix;
+			ContractionVolumeScaleAttribute.Modify()[NewIndex] = InputData.ContractionVolumeScale;
 			return NewIndex;
 		}
 		return INDEX_NONE;
@@ -79,6 +84,7 @@ namespace GeometryCollection::Facades
 				ReturnData.OriginInsertionPair = OriginInsertionPairAttribute.Get()[DataIndex];
 				ReturnData.OriginInsertionRestLength = OriginInsertionRestLengthAttribute.Get()[DataIndex];
 				ReturnData.FiberDirectionMatrix = FiberDirectionMatrixAttribute.Get()[DataIndex];
+				ReturnData.ContractionVolumeScale = ContractionVolumeScaleAttribute.Get()[DataIndex];
 			}
 		}
 		return ReturnData;
