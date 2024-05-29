@@ -290,6 +290,12 @@ namespace GLTF
 		template<typename ItemType, uint32 ItemElementCount>
 		void CopyWithoutConversion(const uint32 ByteStride, const FAccessor::EComponentType ComponentType, bool bNormalized, const uint32 Count, const FBufferView& BufferView, const uint64 ByteOffset, ItemType* Buffer)
 		{
+			if (!BufferView.IsValid())
+			{
+				//Copy can be called for when BufferView is not set, but Sparse is used. (which makes the Accessor still valid.)
+				return;
+			}
+
 			// Stride equals item size => use simpler copy
 			if ((ByteStride == 0) || ByteStride == sizeof(ItemType))
 			{
@@ -324,6 +330,11 @@ namespace GLTF
 		template<typename ItemType, uint32 ItemElementCount>
 		void CopyWithoutConversion(const FAccessor& Accessor, ItemType* Buffer)
 		{
+			if (!Accessor.BufferView.IsValid())
+			{
+				//Copy can be called for when BufferView is not set, but Sparse is used. (which makes the Accessor still valid.)
+				return;
+			}
 			CopyWithoutConversion<ItemType, ItemElementCount>(Accessor.ByteStride, Accessor.ComponentType, Accessor.bNormalized, Accessor.Count, Accessor.BufferView, Accessor.ByteOffset, Buffer);
 		}
 
@@ -956,7 +967,7 @@ namespace GLTF
 
 	bool FAccessor::IsValid() const
 	{
-		return BufferView.IsValid();
+		return BufferView.IsValid() || Sparse.bHasSparse;
 	}
 
 	FMD5Hash FAccessor::GetHash() const
@@ -1233,56 +1244,56 @@ namespace GLTF
 	void FAccessor::GetUnsignedIntArray(TArray<uint32>& Buffer) const
 	{
 		if (IsValid())
-			Buffer.SetNumUninitialized(Count, EAllowShrinking::No);
+			Buffer.SetNumZeroed(Count, EAllowShrinking::No);
 		GetUnsignedIntArray(Buffer.GetData());
 	}
 
 	void FAccessor::GetFloatArray(TArray<float>& Buffer) const
 	{
 		if (IsValid())
-			Buffer.SetNumUninitialized(Count, EAllowShrinking::No);
+			Buffer.SetNumZeroed(Count, EAllowShrinking::No);
 		GetFloatArray(Buffer.GetData());
 	}
 
 	void FAccessor::GetVec2Array(TArray<FVector2f>& Buffer) const
 	{
 		if (IsValid())
-			Buffer.SetNumUninitialized(Count, EAllowShrinking::No);
+			Buffer.SetNumZeroed(Count, EAllowShrinking::No);
 		GetVec2Array(Buffer.GetData());
 	}
 
 	void FAccessor::GetVec3Array(TArray<FVector3f>& Buffer) const
 	{
 		if (IsValid())
-			Buffer.SetNumUninitialized(Count, EAllowShrinking::No);
+			Buffer.SetNumZeroed(Count, EAllowShrinking::No);
 		GetVec3Array(Buffer.GetData());
 	}
 
 	void FAccessor::GetCoordArray(TArray<FVector3f>& Buffer) const
 	{
 		if (IsValid())
-			Buffer.SetNumUninitialized(Count, EAllowShrinking::No);
+			Buffer.SetNumZeroed(Count, EAllowShrinking::No);
 		GetCoordArray(Buffer.GetData());
 	}
 
 	void FAccessor::GetVec4Array(TArray<FVector4f>& Buffer) const
 	{
 		if (IsValid())
-			Buffer.SetNumUninitialized(Count, EAllowShrinking::No);
+			Buffer.SetNumZeroed(Count, EAllowShrinking::No);
 		GetVec4Array(Buffer.GetData());
 	}
 
 	void FAccessor::GetQuatArray(TArray<FVector4f>& Buffer) const
 	{
 		if (IsValid())
-			Buffer.SetNumUninitialized(Count, EAllowShrinking::No);
+			Buffer.SetNumZeroed(Count, EAllowShrinking::No);
 		GetQuatArray(Buffer.GetData());
 	}
 
 	void FAccessor::GetMat4Array(TArray<FMatrix44f>& Buffer) const
 	{
 		if (IsValid())
-			Buffer.SetNumUninitialized(Count, EAllowShrinking::No);
+			Buffer.SetNumZeroed(Count, EAllowShrinking::No);
 		GetMat4Array(Buffer.GetData());
 	}
 }  // namespace GLTF

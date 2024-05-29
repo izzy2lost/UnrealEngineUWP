@@ -301,6 +301,8 @@ namespace GLTF
 			if (!Object.HasTypedField<EJson::Number>(TEXT("bufferView")))
 			{
 				//if bufferView does not exist in the Object, then the presumption is that it is a (Draco) CompressedAccessor:
+				//Accessors with Sparse present can have no bufferView, in which case:
+				//"When accessor.bufferView is undefined, the sparse accessor is initialized as an array of zeros of size (size of the accessor element) * (accessor.count) bytes"
 				const uint32                    Count = GetUnsignedInt(Object, TEXT("count"), 0);
 				const FAccessor::EType          Type = AccessorTypeFromString(Object.GetStringField(TEXT("type")));
 				const FAccessor::EComponentType CompType = ComponentTypeFromNumber(GetUnsignedInt(Object, TEXT("componentType"), 0));
