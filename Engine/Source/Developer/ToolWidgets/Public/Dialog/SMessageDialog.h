@@ -17,6 +17,7 @@ public:
 
 	SLATE_BEGIN_ARGS(SMessageDialog)
 		: _AutoCloseOnButtonPress(true)
+		, _UseRichText(true)
 		, _DecoratorStyleSet(nullptr)
 		, _Icon(nullptr)
 		, _UseScrollBox(true)
@@ -44,10 +45,13 @@ public:
 		/** Whether to automatically close this window when any button is pressed (default: true) */
 		SLATE_ARGUMENT(bool, AutoCloseOnButtonPress)
 	
-		/** Text decorators used while parsing the rich text messages */
+		/** Whether to use rich-text (true) or plain-text (false) (default: true) */
+		SLATE_ARGUMENT(bool, UseRichText)
+
+		/** Text decorators used while parsing the rich text messages (requires UseRichText: true) */
 		SLATE_ARGUMENT(TArray<TSharedRef<class ITextDecorator>>, Decorators)
 
-		/** Style set used to look up styles used by decorators for rich text messages */
+		/** Style set used to look up styles used by decorators for rich text messages (requires UseRichText: true) */
 		SLATE_ARGUMENT(const ISlateStyle*, DecoratorStyleSet)
 		
 		/********** Cosmetic **********/

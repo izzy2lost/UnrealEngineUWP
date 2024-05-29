@@ -7,6 +7,7 @@
 #include "Styling/AppStyle.h"
 #include "Styling/SlateBrush.h"
 #include "Widgets/Text/SRichTextBlock.h"
+#include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Images/SImage.h"
 
@@ -14,17 +15,35 @@ void SMessageDialog::Construct(const FArguments& InArgs)
 {
 	Message = InArgs._Message;
 	
-	TSharedPtr<SRichTextBlock> RichTextBlock;
+	TSharedPtr<SWidget> TextBlockWidget;
+	if (InArgs._UseRichText)
+	{
+		TSharedRef<SRichTextBlock> RichTextBlock = SNew(SRichTextBlock)
+			.Text(Message)
+			.MinDesiredWidth(InArgs._ContentMinWidth)
+			.WrapTextAt(InArgs._WrapMessageAt)
+			.Decorators(InArgs._Decorators);
+
+		if (InArgs._DecoratorStyleSet)
+		{
+			RichTextBlock->SetDecoratorStyleSet(InArgs._DecoratorStyleSet);
+		}
+
+		TextBlockWidget = RichTextBlock;
+	}
+	else
+	{
+		TextBlockWidget = SNew(STextBlock)
+			.Text(Message)
+			.MinDesiredWidth(InArgs._ContentMinWidth)
+			.WrapTextAt(InArgs._WrapMessageAt);
+	}
 
 	SCustomDialog::Construct(SCustomDialog::FArguments()
 		.Title(InArgs._Title)
 		.Content()
 		[
-			SAssignNew(RichTextBlock, SRichTextBlock)
-			.MinDesiredWidth(InArgs._ContentMinWidth)
-			.Text(Message)
-			.WrapTextAt(InArgs._WrapMessageAt)
-			.Decorators(InArgs._Decorators)
+			TextBlockWidget.ToSharedRef()
 		]
 		.WindowArguments(InArgs._WindowArguments)
 		.RootPadding(16.f)
@@ -56,11 +75,6 @@ void SMessageDialog::Construct(const FArguments& InArgs)
 			]
 		]
 	);
-
-	if (InArgs._DecoratorStyleSet)
-	{
-		RichTextBlock->SetDecoratorStyleSet(InArgs._DecoratorStyleSet);
-	}
 }
 
 FReply SMessageDialog::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
