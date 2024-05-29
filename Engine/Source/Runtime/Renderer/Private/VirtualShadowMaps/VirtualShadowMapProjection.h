@@ -28,6 +28,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FVirtualShadowMapSMRTSettings,)
 	SHADER_PARAMETER(float, SMRTExtrapolateSlope)
 	SHADER_PARAMETER(float, SMRTMaxSlopeBias)
 	SHADER_PARAMETER(uint32, SMRTAdaptiveRayCount)
+	SHADER_PARAMETER(uint32, SMRTHairRayCount)
 END_SHADER_PARAMETER_STRUCT()
 
 FVirtualShadowMapSMRTSettings GetVirtualShadowMapSMRTSettings(bool bDirectionalLight);

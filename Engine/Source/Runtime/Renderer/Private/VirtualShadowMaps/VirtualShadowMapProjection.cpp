@@ -163,6 +163,13 @@ static TAutoConsoleVariable<int32> CVarSubsurfaceShadowMinSourceAngle(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarSMRTRayCountHair(
+	TEXT( "r.Shadow.Virtual.SMRT.SamplesPerRayHair" ),
+	1,
+	TEXT( "Shadow map samples per ray for hair" ),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 #if MAX_TEST_PERMUTATION > 0
 static TAutoConsoleVariable<int32> CVarTestPermutation(
 	TEXT( "r.Shadow.Virtual.ProjectionTestPermutation" ),
@@ -197,6 +204,7 @@ FVirtualShadowMapSMRTSettings GetVirtualShadowMapSMRTSettings(bool bDirectionalL
 		Out.SMRTTexelDitherScale = CVarSMRTTexelDitherScaleDirectional.GetValueOnRenderThread();
 		Out.SMRTExtrapolateSlope = CVarSMRTExtrapolateMaxSlopeDirectional.GetValueOnRenderThread();
 		Out.SMRTMaxSlopeBias = 0.0f; // unused in this path
+		Out.SMRTHairRayCount = CVarSMRTRayCountHair.GetValueOnRenderThread();
 	}
 	else
 	{
@@ -207,6 +215,7 @@ FVirtualShadowMapSMRTSettings GetVirtualShadowMapSMRTSettings(bool bDirectionalL
 		Out.SMRTTexelDitherScale = CVarSMRTTexelDitherScaleLocal.GetValueOnRenderThread();
 		Out.SMRTExtrapolateSlope = CVarSMRTExtrapolateMaxSlopeLocal.GetValueOnRenderThread();
 		Out.SMRTMaxSlopeBias = CVarSMRTMaxSlopeBiasLocal.GetValueOnRenderThread();
+		Out.SMRTHairRayCount = CVarSMRTRayCountHair.GetValueOnRenderThread();
 	}
 	return Out;
 }
