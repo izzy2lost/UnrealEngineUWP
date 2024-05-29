@@ -621,8 +621,14 @@ namespace Jupiter.Controllers
 
 			try
 			{
-				BlobId[] references = await _referenceResolver.GetReferencedBlobsAsync(ns, compactBinaryObject).ToArrayAsync();
-				return Ok(new ResolvedReferencesResult(references));
+				List<BlobId> references = await _referenceResolver.GetReferencedBlobsAsync(ns, compactBinaryObject).ToListAsync();
+
+				if (refRecord.InlinePayload == null)
+				{
+					// payload is not inlined, so it needs to be replicated
+					references.Add(refRecord.BlobIdentifier);
+				}
+				return Ok(new ResolvedReferencesResult(references.ToArray()));
 			}
 			catch (PartialReferenceResolveException e)
 			{

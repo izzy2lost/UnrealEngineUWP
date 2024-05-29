@@ -537,9 +537,8 @@ namespace Jupiter.Implementation
 				throw new Exception($"Unable to resolve references for object {objectToReplicate} in namespace {ns}");
 			}
 
-			BlobId[] potentialBlobs = new BlobId[refs.References.Length + 1];
+			BlobId[] potentialBlobs = new BlobId[refs.References.Length];
 			Array.Copy(refs.References, potentialBlobs, refs.References.Length);
-			potentialBlobs[^1] = objectToReplicate;
 
 			BlobId[] missingBlobs = await _blobService.FilterOutKnownBlobsAsync(ns, potentialBlobs, cancellationToken);
 			Task[] blobReplicationTasks = new Task[missingBlobs.Length];
