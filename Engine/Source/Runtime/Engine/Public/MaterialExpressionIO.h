@@ -46,8 +46,8 @@ struct FExpressionInput
 	 * Optional name of the input.  
 	 * Note that this is the only member which is not derived from the output currently connected. 
 	 */
-	FName						InputName;
-
+	FName InputName;
+		
 	int32						Mask,
 								MaskR,
 								MaskG,

@@ -1154,7 +1154,7 @@ TArrayView<FExpressionInput*> UMaterialExpressionLandscapeGrassOutput::GetInputs
 
 FExpressionInput* UMaterialExpressionLandscapeGrassOutput::GetInput(int32 InputIndex)
 {
-	return &GrassTypes[InputIndex].Input;
+	return GrassTypes.IsValidIndex(InputIndex) ? &GrassTypes[InputIndex].Input : nullptr;
 }
 
 FName UMaterialExpressionLandscapeGrassOutput::GetInputName(int32 InputIndex) const

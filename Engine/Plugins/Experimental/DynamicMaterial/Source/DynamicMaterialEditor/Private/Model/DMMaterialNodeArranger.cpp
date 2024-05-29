@@ -71,29 +71,28 @@ void FDMMaterialNodeArranger::ArrangeNode(TMap<UMaterialExpression*, FIntPoint>&
 		return;
 	}
 
-	TConstArrayView<FExpressionInput*> Inputs = InNode->GetInputsView();
 	InOutNodeSize = {0, 0};
 	const FIntPoint ThisNodeSize = {InNode->GetWidth() * 2, InNode->GetHeight()};
 	FIntPoint ChildOffsetStart = InOffsetStart;
 	ChildOffsetStart.X += ThisNodeSize.X + UE::DynamicMaterialEditor::BuildState::Private::SpaceBetweenNodes;
 
-	for (FExpressionInput* Input : Inputs)
+	for (FExpressionInputIterator It{ InNode }; It; ++It)
 	{
-		if (!Input->Expression)
+		if (!It->IsConnected())
 		{
 			continue;
 		}
 
 		FIntPoint ChildNodeSize;
-		const FIntPoint* NodePosition = InOutNodePositions.Find(Input->Expression);
+		const FIntPoint* NodePosition = InOutNodePositions.Find(It->Expression);
 
 		if (NodePosition && (-NodePosition->X) > InOffsetStart.X)
 		{
-			ChildNodeSize = {Input->Expression->GetWidth(), Input->Expression->GetHeight()};
+			ChildNodeSize = {It->Expression->GetWidth(), It->Expression->GetHeight()};
 		}
 		else
 		{
-			ArrangeNode(InOutNodePositions, ChildOffsetStart, Input->Expression, ChildNodeSize);
+			ArrangeNode(InOutNodePositions, ChildOffsetStart, It->Expression, ChildNodeSize);
 		}
 
 		if (ChildNodeSize.X > 0)

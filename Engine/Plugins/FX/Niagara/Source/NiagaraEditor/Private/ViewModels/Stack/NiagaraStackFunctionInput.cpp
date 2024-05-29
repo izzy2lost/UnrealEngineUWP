@@ -1161,8 +1161,10 @@ FString UNiagaraStackFunctionInput::ResolveDisplayNameArgument(const FString& In
 		Material->GetAllExpressionsInMaterialAndFunctionsOfType<UMaterialExpression>(Expressions);
 		for (UMaterialExpression* Expression : Expressions)
 		{
-			TArrayView<FExpressionInput*> ExpressionInputs = Expression->GetInputsView();
-			ExpressionInputsToProcess.Append(ExpressionInputs);
+			for (FExpressionInputIterator It{ Expression}; It; ++It)
+			{
+				ExpressionInputsToProcess.Push(It.Input);
+			}
 		}
 	}
 

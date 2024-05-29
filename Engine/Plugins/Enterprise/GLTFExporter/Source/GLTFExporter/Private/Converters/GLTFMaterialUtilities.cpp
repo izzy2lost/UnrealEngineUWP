@@ -719,17 +719,15 @@ FGLTFImportMaterialMatchMakingHelper::FGLTFImportMaterialMatchMakingHelper(FGLTF
 		//If Exported Material is a MaterialInstance then we will use the GetParameter APIs
 		if (!bMaterialInstance)
 		{
-			TArrayView<FExpressionInput*> InputsView = GLTFImportedMaterialFunction->GetInputsView();
-
-			for (FExpressionInput* Input : InputsView)
+			for (FExpressionInputIterator It{ GLTFImportedMaterialFunction}; It; ++It)
 			{
-				if (!Input || !Input->Expression || !Input->IsConnected())
+				if (!It->IsConnected())
 				{
 					continue;
 				}
 
-				FString Name = Input->InputName.ToString();
-				UMaterialExpression* InputExpression = Input->GetTracedInput().Expression;
+				FString Name = It->InputName.ToString();
+				UMaterialExpression* InputExpression = It->GetTracedInput().Expression;
 
 				Inputs.Add(Name, InputExpression);
 			}

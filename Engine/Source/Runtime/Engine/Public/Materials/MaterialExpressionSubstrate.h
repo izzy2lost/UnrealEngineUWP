@@ -183,6 +183,7 @@ class UMaterialExpressionSubstrateShadingModels : public UMaterialExpressionSubs
 
 	//~ Begin UMaterialExpression Interface
 #if WITH_EDITOR
+	virtual FExpressionInput* GetInput(int32 InputIndex) override;
 	virtual int32 Compile(class FMaterialCompiler* Compiler, int32 OutputIndex) override;
 	virtual void GetCaption(TArray<FString>& OutCaptions) const override;
 	virtual uint32 GetOutputType(int32 OutputIndex) override;
@@ -867,6 +868,7 @@ class UMaterialExpressionSubstrateConvertMaterialAttributes : public UMaterialEx
 
 	//~ Begin UMaterialExpression Interface
 #if WITH_EDITOR
+	virtual FExpressionInput* GetInput(int32 InputIndex) override;
 	virtual int32 Compile(class FMaterialCompiler* Compiler, int32 OutputIndex) override;
 	virtual void GetCaption(TArray<FString>& OutCaptions) const override;
 	virtual uint32 GetOutputType(int32 OutputIndex) override;

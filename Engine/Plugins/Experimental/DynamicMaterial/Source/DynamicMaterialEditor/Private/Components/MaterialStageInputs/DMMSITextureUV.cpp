@@ -375,11 +375,9 @@ TArray<UMaterialExpression*> UDMMaterialStageInputTextureUV::CreateTextureUVExpr
 	}
 
 	TMap<FName, int32> NameToInputIndex;
-	TArrayView<FExpressionInput*> FuncInputs = TextureUVFunc->GetInputsView();
-
-	for (int32 InputIdx = 0; InputIdx < FuncInputs.Num(); ++InputIdx)
+	for (FExpressionInputIterator It{ TextureUVFunc }; It; ++It)
 	{
-		NameToInputIndex.Emplace(FuncInputs[InputIdx]->InputName, InputIdx);
+		NameToInputIndex.Emplace(It->InputName, It.Index);
 	}
 
 	// Output nodes

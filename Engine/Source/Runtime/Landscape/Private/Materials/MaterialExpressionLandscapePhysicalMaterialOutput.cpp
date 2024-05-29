@@ -57,7 +57,7 @@ TArrayView<FExpressionInput*> UMaterialExpressionLandscapePhysicalMaterialOutput
 
 FExpressionInput* UMaterialExpressionLandscapePhysicalMaterialOutput::GetInput(int32 InputIndex)
 {
-	return &Inputs[InputIndex].Input;
+	return Inputs.IsValidIndex(InputIndex) ? &Inputs[InputIndex].Input : nullptr;
 }
 
 

@@ -24,6 +24,7 @@ class UMaterialExpressionBreakMaterialAttributes : public UMaterialExpression
  
 	//~ Begin UMaterialExpression Interface
 #if WITH_EDITOR
+	virtual FExpressionInput* GetInput(int32 InputIndex) override { return InputIndex == 0 ? &MaterialAttributes : nullptr; }
 	virtual int32 Compile(class FMaterialCompiler* Compiler, int32 OutputIndex) override;
 	virtual void GetCaption(TArray<FString>& OutCaptions) const override;
 	virtual FName GetInputName(int32 InputIndex) const override;

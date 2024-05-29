@@ -637,10 +637,9 @@ void FMaterialEditorUtilities::GetVisibleMaterialParametersFromExpression(
 		else
 		{
 			// Retrieve the expression input and then start parsing its children
-			for (int32 i = 0; i < MaterialExpressionKey.Expression->GetInputsView().Num(); i++)
+			for (FExpressionInputIterator It{ MaterialExpressionKey.Expression }; It; ++It)
 			{
-				FExpressionInput* Input = MaterialExpressionKey.Expression->GetInputsView()[i];
-				GetVisibleMaterialParametersFromExpression(FMaterialExpressionKey(Input->Expression, Input->OutputIndex), MaterialInstance, VisibleExpressions, FunctionStack);
+				GetVisibleMaterialParametersFromExpression(FMaterialExpressionKey(It->Expression, It->OutputIndex), MaterialInstance, VisibleExpressions, FunctionStack);
 			}
 
 			TArray<FExpressionExecOutputEntry> ExpressionExecOutputs;
@@ -743,10 +742,9 @@ bool FMaterialEditorUtilities::HasCompatibleConnection(UClass* ExpressionClass, 
 		UMaterialExpression* DefaultExpression = CastChecked<UMaterialExpression>(ExpressionClass->GetDefaultObject());
 		if (TestDirection == EGPD_Output)
 		{
-			int32 NumInputs = DefaultExpression->GetInputsView().Num();
-			for (int32 Index = 0; Index < NumInputs; ++Index)
+			for (FExpressionInputIterator It{ DefaultExpression }; It; ++It)
 			{
-				uint32 InputType = DefaultExpression->GetInputType(Index);
+				uint32 InputType = DefaultExpression->GetInputType(It.Index);
 				if (CanConnectMaterialValueTypes(InputType, TestType))
 				{
 					return true;

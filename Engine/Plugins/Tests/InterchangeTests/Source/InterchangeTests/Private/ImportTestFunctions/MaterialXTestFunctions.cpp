@@ -20,13 +20,13 @@ namespace UE::Interchange::Tests::Private
 		const UMaterialEditorOnlyData* MaterialEditorOnly = Material.GetEditorOnlyData();
 		if (UMaterialExpressionMaterialFunctionCall* FunctionCall = Cast<UMaterialExpressionMaterialFunctionCall>(MaterialEditorOnly->BaseColor.Expression))
 		{
-			TArrayView<FExpressionInput*> Inputs = FunctionCall->GetInputsView();
-			InputNames.Empty(Inputs.Num());
-			for (const FExpressionInput* InputExpression : Inputs)
+			InputNames.Empty();
+
+			for (FExpressionInputIterator It{ FunctionCall }; It; ++It)
 			{
-				if (InputExpression && InputExpression->Expression)
+				if (It->IsConnected())
 				{
-					InputNames.Add(InputExpression->InputName.ToString());
+					InputNames.Add(It->InputName.ToString());
 				}
 			}
 		}

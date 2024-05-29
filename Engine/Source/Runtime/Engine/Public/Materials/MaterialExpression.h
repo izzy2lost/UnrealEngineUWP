@@ -345,26 +345,30 @@ class UMaterialExpression : public UObject
 	virtual UTextureCollection* GetReferencedTextureCollection() const { return nullptr; }
 
 #if WITH_EDITOR
-	/**
-	 *	Get the outputs supported by this expression.
-	 *
-	 *	@param	Outputs		The TArray of outputs to fill in.
-	 */
-	ENGINE_API virtual TArray<FExpressionOutput>& GetOutputs();
-	
-	/** Get the expression inputs supported by this expression (Note: property inputs NOT included). */
-	ENGINE_API virtual TArrayView<FExpressionInput*> GetInputsView();
-	
-	UE_DEPRECATED(5.3, "Use GetInputsView() instead.")
-	const TArray<FExpressionInput*> GetInputs() { return TArray<FExpressionInput*>{ GetInputsView() }; }
 
+	/** Counts the number of inputs this expression has. Default implementation has O(n) complexity. */
+	ENGINE_API virtual int32 CountInputs() const;
+
+	/**
+	 * Returns the input at index InputIndex if valid, nullptr otherwise.
+	 * Note: Implementations are required to return nullptr for invalid input indices.
+	 */
 	ENGINE_API virtual FExpressionInput* GetInput(int32 InputIndex);
+	ENGINE_API const FExpressionInput* GetInput(int32 InputIndex) const { return const_cast<UMaterialExpression*>(this)->GetInput(InputIndex); }
+
+	UE_DEPRECATED(5.5, "Use FExpressionInputIterator instead or GetInput() directly.")
+	ENGINE_API virtual TArrayView<FExpressionInput*> GetInputsView();
+
 	ENGINE_API virtual FName GetInputName(int32 InputIndex) const;
+	
 	ENGINE_API virtual bool IsInputConnectionRequired(int32 InputIndex) const;
-	virtual bool CanUserDeleteExpression() const
-	{
-		return true;
-	};
+		
+	ENGINE_API virtual uint32 GetInputType(int32 InputIndex);
+
+	ENGINE_API virtual TArray<FExpressionOutput>& GetOutputs();
+	ENGINE_API virtual uint32 GetOutputType(int32 OutputIndex);
+
+	virtual bool CanUserDeleteExpression() const { return true; }
 
 	/** Find the property that is associated with the input pin. */
 	ENGINE_API virtual TArray<FProperty*> GetInputPinProperty(int32 PinIndex);
@@ -375,9 +379,6 @@ class UMaterialExpression : public UObject
 	ENGINE_API virtual void RefreshNode(bool bUpdatePreview = true);
 	ENGINE_API virtual FString GetInputPinDefaultValue(int32 PinIndex);
 	ENGINE_API virtual TArray<FProperty*> GetPropertyInputs() const;
-
-	ENGINE_API virtual uint32 GetInputType(int32 InputIndex);
-	ENGINE_API virtual uint32 GetOutputType(int32 OutputIndex);
 
 	ENGINE_API virtual void GetExecOutputs(TArray<FExpressionExecOutputEntry>& Outputs);
 
@@ -587,7 +588,7 @@ class UMaterialExpression : public UObject
 	ENGINE_API bool ContainsInputLoop(TSet<UMaterialExpression*>& VisitedExpressions, const bool bStopOnFunctionCall = true);
 
 protected:
-	/** Caches the list of expression inputs this expression has. */
+	/** Caches the list of fixed expression inputs this expression has. */
 	TArray<FExpressionInput*> CachedInputs;
 
 private:
@@ -606,8 +607,6 @@ private:
 	 */
 	ENGINE_API bool ContainsInputLoopInternal(const FContainsInputLoopInternalExpressionStack& ExpressionStack, TSet<UMaterialExpression*>& VisitedExpressions, const bool bStopOnFunctionCall);
 
-	UE_DEPRECATED(5.3, "Use the other, more efficient ContainsInputLoopInternal() implementation.")
-	bool ContainsInputLoopInternal(TArray<FMaterialExpressionKey>& ExpressionStack, TSet<FMaterialExpressionKey>& VisitedExpressions, const bool bStopOnFunctionCall);
 #endif // WITH_EDITOR
 };
 
@@ -621,3 +620,61 @@ enum class EPositionOrigin : uint8
 	/** Camera relative world position, i.e. translated world space */
 	CameraRelative UMETA(DisplayName="Camera Relative World Position")
 };
+
+
+#if WITH_EDITOR
+
+/**
+ * @brief An iterator for traversing the inputs of a UMaterialExpression.
+ *
+ * This struct provides a way to iterate over the inputs of a given
+ * UMaterialExpression. It starts from the first input and advances
+ * through subsequent inputs until all are iterated through.
+ *
+ * Usage:
+ *
+ * @code
+ * UMaterialExpression* MyExpression = ...;
+ * for (FExpressionInputIterator It{ MyExpression }; It; ++It)
+ * {
+ *     // Process the input, e.g. It->Input->IsConnected();
+ * }
+ * @endcode
+ */
+struct FExpressionInputIterator
+{
+	/** The expression whose inputs to iterate through. */
+    UMaterialExpression* Expression;
+
+	/** Current input. */
+    FExpressionInput* Input;
+
+	/** Current input index. */
+	int Index;
+
+    FExpressionInputIterator(UMaterialExpression* InExpression)
+    : Expression{ InExpression }
+    , Input{ InExpression->GetInput(0) }
+    , Index{ 0 }
+    {
+    }
+
+    operator bool() const
+    {
+        return Input != nullptr;
+    }
+
+    FExpressionInputIterator& operator++()
+    {
+		Index += 1;
+		Input = Expression->GetInput(Index);
+        return *this;
+    }
+
+    FExpressionInput* operator->()
+    {
+        return Input;
+    }
+};
+
+#endif // WITH_EDITOR

@@ -41,18 +41,16 @@ bool FSubstrateWidget::HasInputSubstrateType(const UEdGraphPin* InPin)
 	}
 	if (UMaterialGraphNode* PinNode = Cast<UMaterialGraphNode>(InPin->GetOwningNode()))
 	{
-		TArrayView<FExpressionInput*> ExpressionInputs = PinNode->MaterialExpression->GetInputsView();
 		FName TargetPinName = PinNode->GetShortenPinName(InPin->PinName);
 
-		for (int32 Index = 0; Index < ExpressionInputs.Num(); ++Index)
+		for (FExpressionInputIterator It{ PinNode->MaterialExpression }; It; ++It)
 		{
-			FExpressionInput* Input = ExpressionInputs[Index];
-			FName InputName = PinNode->MaterialExpression->GetInputName(Index);
+			FName InputName = PinNode->MaterialExpression->GetInputName(It.Index);
 			InputName = PinNode->GetShortenPinName(InputName);
 
 			if (InputName == TargetPinName)
 			{
-				switch (PinNode->MaterialExpression->GetInputType(Index))
+				switch (PinNode->MaterialExpression->GetInputType(It.Index))
 				{
 					case MCT_Substrate:
 						return true;

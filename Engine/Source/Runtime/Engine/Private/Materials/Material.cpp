@@ -6206,7 +6206,12 @@ bool UMaterial::RecursiveGetExpressionChain(
 			else
 			{
 				// Follow all properties.
-				Inputs = InExpression->GetInputsView();
+				Inputs.Empty(InExpression->CountInputs());
+				for (FExpressionInputIterator It{ InExpression }; It; ++It)
+				{
+					Inputs.Push(It.Input);
+				}
+
 				InputsFrequency.Init(InShaderFrequency, Inputs.Num());
 			}
 		}
@@ -6224,7 +6229,7 @@ bool UMaterial::RecursiveGetExpressionChain(
 	}
 	else if ((SetMaterialAttributesExp = Cast<UMaterialExpressionSetMaterialAttributes>(InExpression)) != nullptr)
 	{
-		checkf(!SetMaterialAttributesExp->GetInputsView().IsEmpty() && (SetMaterialAttributesExp->GetInputType(0) == MCT_MaterialAttributes), TEXT("There must always be one input at least : the material attribute pin"));
+		checkf(SetMaterialAttributesExp->GetInput(0) && (SetMaterialAttributesExp->GetInputType(0) == MCT_MaterialAttributes), TEXT("There must always be one input at least : the material attribute pin"));
 		// Always add the material attribute input, so that we keep on traversing up the property chain : 
 		Inputs.Add(SetMaterialAttributesExp->GetInput(0));
 		InputsFrequency.Add(InShaderFrequency);
@@ -6254,7 +6259,11 @@ bool UMaterial::RecursiveGetExpressionChain(
 			else
 			{
 				// Follow all properties.
-				Inputs = InExpression->GetInputsView();
+				Inputs.Empty(InExpression->CountInputs());
+				for (FExpressionInputIterator It{ InExpression }; It; ++It)
+				{
+					Inputs.Push(It.Input);
+				}
 				InputsFrequency.Init(InShaderFrequency, Inputs.Num());
 			}
 		}
@@ -6308,16 +6317,22 @@ bool UMaterial::RecursiveGetExpressionChain(
 		}
 
 		// here we assume ALL inputs to the MaterialFunctionCall are active
-		auto ExprInputs = InExpression->GetInputsView();
-		for (int i = 0; i < ExprInputs.Num(); i++)
+		Inputs.Empty(InExpression->CountInputs());
+		for (FExpressionInputIterator It{ InExpression }; It; ++It)
 		{
-			Inputs.Add(ExprInputs[i]);
-			InputsFrequency.Add(InShaderFrequency);
+			Inputs.Push(It.Input);
 		}
+
+		InputsFrequency.Init(InShaderFrequency, Inputs.Num());
 	}
 	else
 	{
-		Inputs = InExpression->GetInputsView();
+		Inputs.Empty(InExpression->CountInputs());
+		for (FExpressionInputIterator It{ InExpression }; It; ++It)
+		{
+			Inputs.Push(It.Input);
+		}
+
 		InputsFrequency.Init(InShaderFrequency, Inputs.Num());
 	}
 
@@ -6411,20 +6426,18 @@ void UMaterial::RecursiveUpdateRealtimePreview( UMaterialExpression* InExpressio
 	}
 
 	// We need to examine our inputs. If any of them need realtime preview, so do we.
-	TArrayView<FExpressionInput*> Inputs = InExpression->GetInputsView();
-	for (int32 InputIdx = 0; InputIdx < Inputs.Num(); InputIdx++)
+	for (FExpressionInputIterator It{ InExpression }; It; ++It)
 	{
-		FExpressionInput* InnerInput = Inputs[InputIdx];
-		if (InnerInput != NULL && InnerInput->Expression != NULL)
+		if (It.Input != NULL && It.Input->Expression != NULL)
 		{
 			// See if we still need to process this expression, and if so do that first.
-			if (InOutExpressionsToProcess.Find(InnerInput->Expression) != INDEX_NONE)
+			if (InOutExpressionsToProcess.Find(It.Input->Expression) != INDEX_NONE)
 			{
-				RecursiveUpdateRealtimePreview(InnerInput->Expression, InOutExpressionsToProcess);
+				RecursiveUpdateRealtimePreview(It.Input->Expression, InOutExpressionsToProcess);
 			}
 
 			// If our input expression needed realtime preview, we do too.
-			if( InnerInput->Expression->bRealtimePreview )
+			if( It.Input->Expression->bRealtimePreview )
 			{
 
 				InExpression->bRealtimePreview = true;

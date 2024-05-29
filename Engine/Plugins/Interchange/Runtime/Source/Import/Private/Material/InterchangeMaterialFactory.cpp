@@ -81,19 +81,14 @@ namespace UE::Interchange::MaterialFactory::Internal
 
 	int32 GetInputIndex(UMaterialExpression& MaterialExpression, const FString& InputName)
 	{
-		int32 ExpressionInputIndex = 0;
-
-		for (const FExpressionInput* ExpressionInput : MaterialExpression.GetInputsView())
+		for (FExpressionInputIterator It{ &MaterialExpression }; It; ++It)
 		{
 			// MaterialFuncCall appends the type to the input name when calling GetInputName
 			// and the InputName in FExpressionInput is optional so we'll check both here to be safe
-			if (MaterialExpression.GetInputName(ExpressionInputIndex) == *InputName ||
-				(ExpressionInput && ExpressionInput->InputName == *InputName))
+			if (MaterialExpression.GetInputName(It.Index) == *InputName || It->InputName == *InputName)
 			{
-				return ExpressionInputIndex;
+				return It.Index;
 			}
-
-			++ExpressionInputIndex;
 		}
 
 		return INDEX_NONE;

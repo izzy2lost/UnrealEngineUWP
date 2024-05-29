@@ -4954,18 +4954,16 @@ UClass* FMaterialEditor::GetOnPromoteToParameterClass(const UEdGraphPin* TargetP
 	}
 	else if (OtherPinNode)
 	{
-		TArrayView<FExpressionInput*> ExpressionInputs = OtherPinNode->MaterialExpression->GetInputsView();
 		FName TargetPinName = OtherPinNode->GetShortenPinName(TargetPin->PinName);
 
-		for (int32 Index = 0; Index < ExpressionInputs.Num(); ++Index)
+		for (FExpressionInputIterator It{ OtherPinNode->MaterialExpression }; It; ++It)
 		{
-			FExpressionInput* Input = ExpressionInputs[Index];
-			FName InputName = OtherPinNode->MaterialExpression->GetInputName(Index);
+			FName InputName = OtherPinNode->MaterialExpression->GetInputName(It.Index);
 			InputName = OtherPinNode->GetShortenPinName(InputName);
 
 			if (InputName == TargetPinName)
 			{
-				switch (OtherPinNode->MaterialExpression->GetInputType(Index))
+				switch (OtherPinNode->MaterialExpression->GetInputType(It.Index))
 				{
 					case MCT_Float1:
 					case MCT_Float: return UMaterialExpressionScalarParameter::StaticClass();
@@ -5249,12 +5247,11 @@ void FMaterialEditor::OnCreateSubstrateNodeForPin(const FToolMenuContext& InMenu
 	{
 		// Link manually
 		UMaterialGraphNode* NewNode = Cast<UMaterialGraphNode>(Action.PerformAction(GraphObj, nullptr, NewNodePos));
-		TArrayView<FExpressionInput*> NewNodeExpressionInputs = NewNode->MaterialExpression->GetInputsView();
 
 		// From that direction, the node is never going to be a root node (a root node has no output we can connect from).
 		UMaterialGraphNode* TargetPinNode = Cast<UMaterialGraphNode>(TargetPin->GetOwningNode());
 
-		check(NewNodeExpressionInputs.Num() > 0 && TargetPin->SourceIndex < TargetPinNode->MaterialExpression->GetOutputs().Num());
+		check(NewNode->MaterialExpression->GetInput(0) && TargetPin->SourceIndex < TargetPinNode->MaterialExpression->GetOutputs().Num());
 
 		FName TargetPinName = TargetPinNode->MaterialExpression->GetOutputs()[TargetPin->SourceIndex].OutputName;
 		UMaterialEditingLibrary::ConnectMaterialExpressions(TargetPinNode->MaterialExpression, TargetPinName.ToString(), NewNode->MaterialExpression, FString());

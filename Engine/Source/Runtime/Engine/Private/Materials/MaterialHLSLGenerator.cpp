@@ -445,14 +445,17 @@ FStringView FMaterialHLSLGenerator::AcquireError()
 
 int32 FMaterialHLSLGenerator::FindInputIndex(const FExpressionInput* Input) const
 {
-	UMaterialExpression* OwnerMaterialExpression = GetCurrentExpression();
-	int32 Index = INDEX_NONE;
-	if (OwnerMaterialExpression)
+	if (UMaterialExpression* OwnerMaterialExpression = GetCurrentExpression())
 	{
-		TArrayView<FExpressionInput*> Inputs = OwnerMaterialExpression->GetInputsView();
-		Index = Inputs.Find(const_cast<FExpressionInput*>(Input));
+		for (FExpressionInputIterator It{ OwnerMaterialExpression }; It; ++It)
+		{
+			if (Input == It.Input)
+			{
+				return It.Index;
+			}
+		}
 	}
-	return Index;
+	return INDEX_NONE;
 }
 
 const UE::HLSLTree::FExpression* FMaterialHLSLGenerator::NewDefaultInputConstant(int32 InputIndex, const UE::Shader::FValue& Value)

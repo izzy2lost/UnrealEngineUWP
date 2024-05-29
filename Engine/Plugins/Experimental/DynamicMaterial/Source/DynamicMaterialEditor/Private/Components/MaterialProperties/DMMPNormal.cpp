@@ -79,14 +79,13 @@ void UDMMaterialPropertyNormal::AddOutputProcessor(const TSharedRef<FDMMaterialB
 		UE_DM_NodeComment_Default
 	);
 
-	TArrayView<FExpressionInput*> Inputs = MaterialFunctionCall->GetInputsView();
-
-	if (Inputs.IsEmpty())
+	FExpressionInput* FirstInput = MaterialFunctionCall->GetInput(0);
+	if (!FirstInput)
 	{
 		return;
 	}
 
-	LastPropertyExpression->ConnectExpression(Inputs[0], MaterialPropertyPtr->OutputIndex);
+	LastPropertyExpression->ConnectExpression(FirstInput, MaterialPropertyPtr->OutputIndex);
 	MaterialFunctionCall->ConnectExpression(MaterialPropertyPtr, 0);
 
 	MaterialPropertyPtr->OutputIndex = 0;

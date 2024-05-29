@@ -266,8 +266,7 @@ void UDMMaterialStageThroughput::ConnectOutputToInput(const TSharedRef<FDMMateri
 	check(!TargetExpressions.IsEmpty());
 
 	UMaterialExpression* TargetExpression = GetExpressionForInput(TargetExpressions, InInputIndex);
-	TConstArrayView<FExpressionInput*> TargetExpressionInputs = TargetExpression->GetInputsView();
-	check(TargetExpressionInputs.IsValidIndex(InInputIndex));
+	check(TargetExpression->GetInput(InInputIndex));
 
 	ConnectOutputToInput_Internal(
 		InBuildState, 
