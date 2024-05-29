@@ -67,7 +67,7 @@ namespace uba
 	}
 
 	CacheServer::CacheServer(const CacheServerCreateInfo& info)
-	:	m_logger(info.writer, TC("UbaCacheServer"))
+	:	m_logger(info.logWriter, TC("UbaCacheServer"))
 	,	m_server(info.storage.GetServer())
 	,	m_storage(info.storage)
 	{

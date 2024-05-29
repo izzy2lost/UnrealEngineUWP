@@ -18,14 +18,16 @@ namespace uba
 
 	struct CacheServerCreateInfo
 	{
-		// Log writer
-		LogWriter& writer;
+		CacheServerCreateInfo(StorageServer& s, const tchar* rd, LogWriter& w = g_consoleLogWriter) : storage(s), rootDir(rd), logWriter(w) {}
 
 		// Storage server
 		StorageServer& storage;
 
 		// Root dir
 		const tchar* rootDir = nullptr;
+
+		// Log writer
+		LogWriter& logWriter;
 
 		// Will check cache entry inputs of they depend on cas files that have been deleted
 		bool checkInputsForDeletedCas = true;

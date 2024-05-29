@@ -235,7 +235,7 @@ namespace uba
 		if (!storageServer.LoadCasTable(true, true))
 			return -1;
 
-		CacheServerCreateInfo cacheInfo(logWriter, storageServer, g_rootDir.data);
+		CacheServerCreateInfo cacheInfo(storageServer, g_rootDir.data, logWriter);
 		cacheInfo.expirationTimeSeconds = expirationTimeSeconds;
 		CacheServer cacheServer(cacheInfo);
 
