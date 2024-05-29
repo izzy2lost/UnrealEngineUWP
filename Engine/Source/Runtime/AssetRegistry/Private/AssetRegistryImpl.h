@@ -31,6 +31,7 @@ namespace UE::AssetRegistry::Premade { enum class ELoadResult : uint8; }
 namespace UE::AssetRegistry::Premade { struct FAsyncConsumer; }
 namespace UE::AssetRegistry::Impl { struct FInitializeContext; }
 namespace UE::AssetRegistry::Impl { struct FScanPathContext; }
+namespace UE::AssetRegistry::Impl { struct FTickContext; }
 namespace UE::AssetRegistry::Impl { struct FClassInheritanceContext; }
 namespace UE::AssetRegistry { template<typename TScopeLockType> class TRWScopeLockWithPriority; }
 namespace UE::AssetRegistry { using FInterfaceReadScopeLock = TRWScopeLockWithPriority<FReadScopeLock>; }
@@ -153,15 +154,32 @@ namespace Impl
 	public:
 		typedef TFunction<bool(void)> ShouldExitEarlyCallbackType;
 
+		FInterruptionContext() = default;
 		explicit FInterruptionContext(double InTickStartTime, double InMaxRunningTime)
 			: TickStartTime(InTickStartTime)
-			, MaxRunningTime(InMaxRunningTime) {}
+			, MaxRunningTime(InMaxRunningTime)
+		{
+		}
 
 		FInterruptionContext(double InTickStartTime, double InMaxRunningTime, ShouldExitEarlyCallbackType& Callback)
 			: TickStartTime(InTickStartTime)
 			, MaxRunningTime(InMaxRunningTime)
 			, EarlyExitCallback(Callback) {}
 
+		void SetEarlyExitCallback(const ShouldExitEarlyCallbackType& InCallback)
+		{
+			EarlyExitCallback = InCallback;
+		}
+		void SetUnlimitedTickTime()
+		{
+			TickStartTime = -1.;
+			MaxRunningTime = -1.;
+		}
+		void SetLimitedTickTime(double InTickStartTime, double InMaxRunningTime)
+		{
+			TickStartTime = InTickStartTime;
+			MaxRunningTime = InMaxRunningTime;
+		}
 		double GetTickStartTime() const { return TickStartTime; }
 		bool IsTimeSlicingEnabled() const { return TickStartTime > 0; }
 		bool WasInterrupted() const { return OutInterrupted; }
@@ -170,9 +188,9 @@ namespace Impl
 
 	private:
 		// A negative value disables time slicing
-		const double TickStartTime;
+		double TickStartTime = -1.;
 		// The maximum time should allow before interruption. If TickStartTime is negative, this is ignored
-		const double MaxRunningTime;
+		double MaxRunningTime = -1.;
 		// If provided, this is always checked
 		ShouldExitEarlyCallbackType EarlyExitCallback;
 		// True if we ran out of time, EarlyExitCallback returned true, or RequestEarlyExit() was called
@@ -254,9 +272,12 @@ public:
 	// Other helper functions called by UAssetRegistryImpl
 
 
-	/** Update cached values that need to be reread when IPluginManager reaches PostEngineInit phase */
-	void OnPostEngineInit(bool bPhaseSuccessful);
-	/** Update cached values that need to be reread from the Engine's PostEngineInit callback */
+	/**
+	 * Update cached values about classes, and enable some global multithreaded access,
+	 * when all startup plugins finish loading.
+	 */
+	void OnPluginLoadingComplete(bool bPhaseSuccessful);
+	/** Update cached values about native classes after they have possibly changed. */
 	void RefreshNativeClasses();
 
 	/** Enumerate assets in the State, filtering by filter and package not in PackagesToSkip */
@@ -269,14 +290,8 @@ public:
 	void WaitForGathererIdleIfSynchronous();
 	/** Waits for the gatherer to be idle. */
 	void WaitForGathererIdle(float TimeoutSeconds);
-	/** Callback types for TickGatherer */
-	typedef TFunctionRef<void(const TMultiMap<FName, FAssetData*>&)> FAssetsFoundCallback;
-	typedef TFunctionRef<void(const TRingBuffer<FName>&)> FVerseFilesFoundCallback;
 	/** Consume any results from the gatherer and return its status */
-	Impl::EGatherStatus TickGatherer(Impl::FEventContext& EventContext,
-		Impl::FClassInheritanceContext& InheritanceContext, Impl::FInterruptionContext& InOutInterruptionContext,
-		TOptional<FAssetsFoundCallback> AssetsFoundCallback = TOptional<FAssetsFoundCallback>(),
-		TOptional<FVerseFilesFoundCallback> VerseFilesFoundCallback = TOptional<FVerseFilesFoundCallback>());
+	Impl::EGatherStatus TickGatherer(Impl::FTickContext& TickContext);
 
 	/** Send a log message with the search statistics. 
 	 *  StartTime is used to report wall clock search time in the case of background scan
@@ -410,8 +425,10 @@ private:
 	 * If TickStartTime is < 0, the entire list of gathered assets will be cached. Also used in sychronous searches
 	 * The DeferredResults array contains assets that were not ready for processing due to required UClass's not being loaded
 	 */
-	void AssetSearchDataGathered(Impl::FEventContext& EventContext, TMultiMap<FName, TUniquePtr<FAssetData>>& AssetResults, 
-		TMultiMap<FName, TUniquePtr<FAssetData>>& OutDeferredResults, Impl::FInterruptionContext& InOutInterruptionContext);
+	void AssetSearchDataGathered(Impl::FEventContext& EventContext,
+		TMultiMap<FName, TUniquePtr<FAssetData>>& AssetResults, 
+		TMultiMap<FName, TUniquePtr<FAssetData>>& OutDeferredResults,\
+		Impl::FInterruptionContext& InOutInterruptionContext, bool bCanAccessCoreRedirects);
 	/** Validate assets gathered from disk before adding them to the AssetRegistry. */
 	bool ShouldSkipGatheredAsset(FAssetData& AssetData);
 
@@ -454,7 +471,7 @@ private:
 	 * @param AssetData Existing asset data
 	 * @return Returns false if the required parent UClass is not yet available
 	 */
-	bool TryPostLoadAssetRegistryTags(FAssetData* AssetData);
+	bool TryPostLoadAssetRegistryTags(FAssetData* AssetData, bool bCanAccessCoreRedirects);
 
 	/** Update Redirect collector with redirects loaded from asset registry */
 	void UpdateRedirectCollector();
@@ -586,6 +603,7 @@ private:
 	bool bVerboseLogging;
 
 	bool bForceCompletionEvenIfPostLoadsFail = false;
+	bool bProcessedAnyAssetsAfterRetryDeferred = true;
 
 	/** List of all class names derived from Blueprint (including Blueprint itself) */
 	TSet<FTopLevelAssetPath> ClassGeneratorNames;
@@ -662,7 +680,6 @@ struct FEventContext
 	TArray<FString> BlockedFiles;
 	bool bFileLoadedEventBroadcast = false;
 	bool bScanStartedEventBroadcast = false;
-	bool bScanEndedEventBroadcast = false;
 	bool bHasSentFileLoadedEventBroadcast = false;
 
 	/** Remove all stored events */
@@ -718,6 +735,27 @@ struct FScanPathContext
 	bool bIgnoreDenyListScanFilters = false;
 	bool bIgnoreInvalidPathWarning = false;
 	EGatherStatus Status = EGatherStatus::TickActiveGatherActive;
+};
+
+/** Callback types for FTickContext */
+typedef TFunctionRef<void(const TMultiMap<FName, FAssetData*>&)> FAssetsFoundCallback;
+typedef TFunctionRef<void(const TRingBuffer<FName>&)> FVerseFilesFoundCallback;
+
+/** Input and output variables for the TickGatherer function. */
+struct FTickContext
+{
+	FTickContext(Impl::FEventContext& InEventContext, Impl::FClassInheritanceContext& InInheritanceContext)
+		: EventContext(InEventContext)
+		, InheritanceContext(InInheritanceContext)
+	{
+	}
+	Impl::FInterruptionContext InterruptionContext;
+	Impl::FEventContext& EventContext;
+	Impl::FClassInheritanceContext& InheritanceContext;
+	TOptional<FAssetsFoundCallback> AssetsFoundCallback;
+	TOptional<FVerseFilesFoundCallback> VerseFilesFoundCallback;
+	bool bHandleCompletion = false;
+	bool bHandleDeferred = false;
 };
 
 }

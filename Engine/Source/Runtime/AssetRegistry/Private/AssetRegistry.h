@@ -226,7 +226,7 @@ private:
 	void OnAssetDependencyGathererRegistered();
 #endif
 	void InitializeEvents(UE::AssetRegistry::Impl::FInitializeContext& Context);
-	void Broadcast(UE::AssetRegistry::Impl::FEventContext& EventContext);
+	void Broadcast(UE::AssetRegistry::Impl::FEventContext& EventContext, bool bAllowFileLoadedEvent = false);
 
 	bool OnResolveRedirect(const FString& InPackageName, FString& OutPackageName);
 
@@ -257,9 +257,12 @@ private:
 	void OnContentPathDismounted(const FString& AssetPath, const FString& FileSystemPath);
 
 	/** Called to refresh the native classes list, called at end of engine initialization. */
-	void OnRefreshNativeClasses();
+	void OnPostEngineInit();
 
-	/** Called from LaunchEngineLoop via SetEngineStartupModuleLoadingComplete after plugins are loaded, used to scan classes that were loaded by plugins. */
+	/**
+	 * Called from LaunchEngineLoop via SetEngineStartupModuleLoadingComplete after plugins are loaded, used to scan
+	 * classes that were loaded by plugins, and enable some global multithreaded access.
+	 */
 	void OnInitialPluginLoadingComplete();
 
 	/** Shared helper for Scan*Synchronous function */
