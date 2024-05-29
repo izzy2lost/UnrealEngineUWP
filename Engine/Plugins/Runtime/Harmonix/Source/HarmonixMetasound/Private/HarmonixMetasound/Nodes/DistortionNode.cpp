@@ -146,7 +146,7 @@ namespace HarmonixMetasound
 		};
 
 		FDistortionOperator(
-			const FOperatorSettings& InSettings,
+			const FBuildOperatorParams& InParams,
 			const FAudioBufferReadRef& InAudio,
 			const FFloatReadRef& InInputGain,
 			const FFloatReadRef& InOutputGain,
@@ -159,10 +159,8 @@ namespace HarmonixMetasound
 			const FFilterSettings& InFilterSettings2,
 			const FFilterSettings& InFilterSettings3
 		)
-			: Distortion(InSettings.GetSampleRate(), InSettings.GetNumFramesPerBlock())
+			: Distortion(InParams.OperatorSettings.GetSampleRate(), InParams.OperatorSettings.GetNumFramesPerBlock())
 			, AudioIn(InAudio)
-			, InputBufferAlias(NumChannels, InSettings.GetNumFramesPerBlock(), EAudioBufferCleanupMode::DontDelete)
-			, OutputBufferAlias(NumChannels, InSettings.GetNumFramesPerBlock(), EAudioBufferCleanupMode::DontDelete)
 			, InputGain(InInputGain)
 			, OutputGain(InOutputGain)
 			, DryGain(InDryGain)
@@ -171,16 +169,18 @@ namespace HarmonixMetasound
 			, DistortionType(InDistortionType)
 			, Oversample(InOversample)
 			, FilterSettings{ InFilterSettings1, InFilterSettings2, InFilterSettings3 }
-			, AudioOut(FAudioBufferWriteRef::CreateNew(InSettings))
+			, AudioOut(FAudioBufferWriteRef::CreateNew(InParams.OperatorSettings))
 		{
-			check(AudioOut->Num() == InSettings.GetNumFramesPerBlock());
+			check(AudioOut->Num() == InParams.OperatorSettings.GetNumFramesPerBlock());
 
-			SampleRate = InSettings.GetSampleRate();
-			FramesPerBlock = InSettings.GetNumFramesPerBlock();
+			SampleRate = InParams.OperatorSettings.GetSampleRate();
+			FramesPerBlock = InParams.OperatorSettings.GetNumFramesPerBlock();
 			FDistortionSettingsV2 DistortionSettings;
 			GetCurrentSettings(DistortionSettings);
 			Distortion.Reset();
-			Distortion.Setup(DistortionSettings, InSettings.GetSampleRate(), InSettings.GetNumFramesPerBlock(), true);
+			Distortion.Setup(DistortionSettings, InParams.OperatorSettings.GetSampleRate(), InParams.OperatorSettings.GetNumFramesPerBlock(), true);
+
+			Reset(InParams);
 		}
 
 		static const FVertexInterface& GetVertexInterface()
@@ -282,7 +282,7 @@ namespace HarmonixMetasound
 			};
 
 			return MakeUnique<FDistortionOperator>(
-				InParams.OperatorSettings,
+				InParams,
 				InAudio,
 				InInputGain,
 				InOutputGain,
@@ -317,28 +317,19 @@ namespace HarmonixMetasound
 				InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME_WITH_INDEX(Inputs::PreClip, Index), FilterSettings[Index].PreClip);
 				InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME_WITH_INDEX(Inputs::Passes, Index), FilterSettings[Index].Passes);
 			}
+
+			InputBufferView.Reset();
+			InputBufferView.Emplace(*AudioIn);
 		}
 
 		virtual void BindOutputs(FOutputVertexInterfaceData& InVertexData) override
 		{
 			using namespace Effects::Distortion::PinNames;
 			InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Outputs::AudioOut), AudioOut);
-		}
 
-		virtual FDataReferenceCollection GetInputs() const override
-		{
-			// This should never be called. Bind(...) is called instead. This method
-			// exists as a stop-gap until the API can be deprecated and removed.
-			checkNoEntry();
-			return {};
-		}
-
-		virtual FDataReferenceCollection GetOutputs() const override
-		{
-			// This should never be called. Bind(...) is called instead. This method
-			// exists as a stop-gap until the API can be deprecated and removed.
-			checkNoEntry();
-			return {};
+			OutputBufferView.Reset();
+			OutputBufferView.Emplace(*AudioOut);
+			AudioOut->Zero();
 		}
 
 		void Reset(const FResetParams& Params)
@@ -350,6 +341,11 @@ namespace HarmonixMetasound
 			GetCurrentSettings(DistortionSettings);
 			Distortion.Reset();
 			Distortion.Setup(DistortionSettings, SampleRate, FramesPerBlock, true);
+
+			InputBufferView.Reset();
+			InputBufferView.Emplace(*AudioIn);
+			OutputBufferView.Reset();
+			OutputBufferView.Emplace(*AudioOut);
 			AudioOut->Zero();
 		}
 
@@ -380,11 +376,7 @@ namespace HarmonixMetasound
 				Distortion.SetupFilter(Index, Settings);
 			}
 
-			const int32 NumSamples = AudioOut->Num();
-			int32 SampleSliceSize = AudioRendering::kMicroSliceSize;
-			InputBufferAlias.Alias(AudioIn->GetData(), NumSamples, NumChannels);
-			OutputBufferAlias.Alias(AudioOut->GetData(), NumSamples, NumChannels);
-			Distortion.Process(InputBufferAlias, OutputBufferAlias);
+			Distortion.Process(InputBufferView, OutputBufferView);
 		}
 
 	private:
@@ -392,8 +384,6 @@ namespace HarmonixMetasound
 		// INPUT
 		FDistortionV2 Distortion;
 		FAudioBufferReadRef AudioIn;
-		TAudioBuffer<float> InputBufferAlias;
-		TAudioBuffer<float> OutputBufferAlias;
 		FFloatReadRef InputGain;
 		FFloatReadRef OutputGain;
 		FFloatReadRef DryGain;
@@ -407,6 +397,8 @@ namespace HarmonixMetasound
 		FAudioBufferWriteRef AudioOut;
 
 		// DATA
+		TArray<TArrayView<const float>> InputBufferView;
+		TArray<TArrayView<float>> OutputBufferView;
 		int32 FramesPerBlock = 0;
 		int32 SampleRate = 0;
 
