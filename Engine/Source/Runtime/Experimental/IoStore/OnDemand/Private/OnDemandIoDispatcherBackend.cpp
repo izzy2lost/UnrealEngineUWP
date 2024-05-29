@@ -251,17 +251,28 @@ static FAutoConsoleCommand CVar_IasAbandonCache(
 );
 #endif //!UE_BUILD_SHIPPING
 ///////////////////////////////////////////////////////////////////////////////
-#if !UE_BUILD_SHIPPING
-static void LatencyTest(FStringView Url, FStringView Path)
+
+static bool LatencyTest(FStringView Url, FStringView Path)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::LatencyTest);
 
 	int32 Results[4] = {};
 	LatencyTest(Url, Path, GIasHttpTimeOutMs, MakeArrayView(Results));
-	UE_LOG(LogIas, Log, TEXT("Endpoint '%s' latency test (ms): %d %d %d %d"),
-		Url.GetData(), Results[0], Results[1], Results[2], Results[3]);
-}
+
+	if (Results[0] >= 0 || Results[1] >= 0 || Results[2] >= 0 || Results[3] >= 0)
+	{
+#if !UE_BUILD_SHIPPING
+		UE_LOG(LogIas, Log, TEXT("Endpoint '%s' latency test (ms): %d %d %d %d"),
+			Url.GetData(), Results[0], Results[1], Results[2], Results[3]);
 #endif // !UE_BUILD_SHIPPING
+
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 static int32 LatencyTest(TConstArrayView<FString> Urls, FStringView Path, std::atomic_bool& bCancel)
@@ -272,7 +283,7 @@ static int32 LatencyTest(TConstArrayView<FString> Urls, FStringView Path, std::a
 	{
 		int32 LatencyMs = -1;
 		LatencyTest(Urls[Idx], Path, GIasHttpTimeOutMs, MakeArrayView(&LatencyMs, 1));
-		if (LatencyMs > 0)
+		if (LatencyMs >= 0)
 		{
 			return Idx;
 		}
@@ -1790,9 +1801,6 @@ uint32 FOnDemandIoBackend::Run()
 	Algo::Rotate(AvailableEps.Urls, GIasHttpPrimaryEndpoint);
 	AvailableEps.Current = 0;
 
-	BackendStatus.SetHttpEnabled(true);
-	FOnDemandIoBackendStats::Get()->OnHttpConnected();
-
 	FBitWindow HttpErrors;
 	HttpErrors.Reset(GIasHttpErrorSampleCount);
 
@@ -1805,14 +1813,24 @@ uint32 FOnDemandIoBackend::Run()
 		.ReceiveBufferSize = GIasHttpRecvBufKiB >= 0 ? GIasHttpRecvBufKiB << 10 : -1,
 		.bChangeEndpointAfterSuccessfulRetry = GIasHttpChangeEndpointAfterSuccessfulRetry,
 	});
+
 	check(HttpClient.IsValid());
-	HttpClient->SetEndpoint(AvailableEps.Current);
-#if !UE_BUILD_SHIPPING
-	if (AvailableEps.HasCurrent())
+	
+	if (LatencyTest(AvailableEps.GetCurrent(), GetEndpointTestPath()))
 	{
-		LatencyTest(AvailableEps.GetCurrent(), GetEndpointTestPath());
+		HttpClient->SetEndpoint(AvailableEps.Current);
+
+		BackendStatus.SetHttpEnabled(true);
+		FOnDemandIoBackendStats::Get()->OnHttpConnected();
 	}
-#endif 
+	else
+	{
+		BackendStatus.SetHttpError(true);
+
+		AvailableEps.Current = INDEX_NONE;
+		HttpClient->SetEndpoint(INDEX_NONE);
+		HttpErrors.Reset(GIasHttpErrorSampleCount);
+	}
 
 	while (!bStopRequested)
 	{
