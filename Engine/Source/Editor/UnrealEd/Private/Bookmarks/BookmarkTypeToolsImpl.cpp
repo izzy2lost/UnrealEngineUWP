@@ -184,9 +184,6 @@ public:
 					{
 						Actions->JumpToBookmark(Bookmark, InSettings, *InViewportClient);
 					}
-
-					const FText NotifyMessage = LOCTEXT("JumpToBookmarkSuccessFormat", "Jumped to bookmark {0}");
-					Notify(FText::Format(NotifyMessage, InIndex), true);
 				}
 				else
 				{
