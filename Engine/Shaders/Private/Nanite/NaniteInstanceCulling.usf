@@ -483,26 +483,93 @@ RWStructuredBuffer< FPackedNaniteView > CompactedViewsOut;
 RWStructuredBuffer< uint > CompactedViewsAllocationOut;
 
 #if INPUT_VIEW_RANGES
+
 RWStructuredBuffer< FViewDrawGroup > InOutViewDrawRanges;
 uint NumViewRanges;
-#else
-RWStructuredBuffer< FCompactedViewInfo > CompactedViewInfoOut;
+
+// Cube map (6 faces) with max mips is the current limiter
+// In theory clipmaps could go to higher counts but they are practically limited to 32 currently
+// due to the coarse page bitmask and a few other things
+#define VSM_MAX_VIEWS_PER_GROUP (VSM_MAX_MIP_LEVELS*6)
+
+groupshared uint OutputViewId[VSM_MAX_VIEWS_PER_GROUP];
+groupshared uint OutputViewCount;
+groupshared uint OutputViewRangeOffset;
+
+[numthreads(VSM_MAX_VIEWS_PER_GROUP, 1, 1)]
+void CompactViewsVSM_CS(
+	uint GroupId : SV_GroupID,
+	uint ThreadId : SV_GroupIndex)
+{
+	// Order-preserving compaction
+	// Could be a wave ops, but portable wave size assumptions are inconvenient here
+	// Fast enough to just do this scalar as long a we vectorize the actual copy below
+	if (ThreadId == 0)
+	{
+		const uint ViewGroupIndex = GroupId.x;
+		uint OutputViewOffset = 0U;
+
+		FViewDrawGroup ViewDrawGroup = InOutViewDrawRanges[ViewGroupIndex];
+		for (uint PrimaryViewId = ViewDrawGroup.FirstView; PrimaryViewId < ViewDrawGroup.FirstView + ViewDrawGroup.NumViews; ++PrimaryViewId)
+		{
+			FNaniteView PrimaryNaniteView = GetNaniteView(PrimaryViewId);
+
+			for (uint TargetMipLevel = 0; TargetMipLevel < (uint)PrimaryNaniteView.TargetNumMipLevels; TargetMipLevel++)
+			{
+				uint MipViewId = TargetMipLevel * NumPrimaryViews + PrimaryViewId;
+				FNaniteView MipView = GetNaniteView(MipViewId);
+
+				// TODO: We shouldn't need to load the mip view for this data...
+				// TargetLayerIndex should be the same as the primary, and miplevel should just be the analytic one
+				uint4 RectPages = VirtualShadowMap.UncachedPageRectBounds[MipView.TargetLayerIndex * VSM_MAX_MIP_LEVELS + MipView.TargetMipLevel];
+
+				if (all(RectPages.zw >= RectPages.xy))
+				{
+					OutputViewId[OutputViewOffset] = MipViewId;
+					OutputViewOffset += 1U;
+				}
+			}
+		}
+
+#if DEBUG_FLAGS
+		if ((RenderFlags & NANITE_RENDER_FLAG_WRITE_STATS) != 0u)
+		{
+			InterlockedAdd(OutStatsBuffer[0].NumPrimaryViews, ViewDrawGroup.NumViews);
+			InterlockedAdd(OutStatsBuffer[0].NumTotalViews, OutputViewOffset);
+		}
 #endif
+
+		OutputViewCount = OutputViewOffset;
+
+		InterlockedAdd(CompactedViewsAllocationOut[1], OutputViewCount, OutputViewRangeOffset);
+		{
+			FViewDrawGroup ViewDrawGroupResult;
+			ViewDrawGroupResult.FirstView = OutputViewRangeOffset;
+			ViewDrawGroupResult.NumViews = OutputViewCount;
+			InOutViewDrawRanges[ViewGroupIndex] = ViewDrawGroupResult;
+		}
+	}
+
+	GroupMemoryBarrierWithGroupSync();
+
+	// Copy any views that survived into their compacted locations
+	if (ThreadId < OutputViewCount)
+	{
+		uint ViewId = OutputViewId[ThreadId];
+		uint CompactedOutputOffset = OutputViewRangeOffset + ThreadId;
+		CompactedViewsOut[CompactedOutputOffset] = InViews[ViewId];
+	}
+}
+
+#else // INPUT_VIEW_RANGES
+
+RWStructuredBuffer< FCompactedViewInfo > CompactedViewInfoOut;
 
 // TODO: Make sure this always runs and prepend to the whole pipeline such that view groups are always a range
 //       TBD how to manage that...
 [numthreads(64, 1, 1)]
 void CompactViewsVSM_CS(uint DispatchThreadId : SV_DispatchThreadID)
 {
-#if INPUT_VIEW_RANGES
-	uint ViewGroupIndex = DispatchThreadId;
-
-	if (ViewGroupIndex >= NumViewRanges)
-	{
-		return;
-	}
-	FViewDrawGroup ViewDrawGroup = InOutViewDrawRanges[ViewGroupIndex];
-#else
 	if (DispatchThreadId >= NumPrimaryViews)
 	{
 		return;
@@ -510,7 +577,6 @@ void CompactViewsVSM_CS(uint DispatchThreadId : SV_DispatchThreadID)
 	FViewDrawGroup ViewDrawGroup;
 	ViewDrawGroup.FirstView = DispatchThreadId;
 	ViewDrawGroup.NumViews = 1U;
-#endif
 
 	uint NumValidViews = 0U;
 	for (uint PrimaryViewId = ViewDrawGroup.FirstView; PrimaryViewId < ViewDrawGroup.FirstView + ViewDrawGroup.NumViews; ++PrimaryViewId)
@@ -530,26 +596,6 @@ void CompactViewsVSM_CS(uint DispatchThreadId : SV_DispatchThreadID)
 			}
 		}
 	}
-
-#if INPUT_VIEW_RANGES
-	uint CompactedOutputOffset = 0;
-	InterlockedAdd(CompactedViewsAllocationOut[1], NumValidViews, CompactedOutputOffset);
-	{
-		FViewDrawGroup ViewDrawGroupResult;
-		ViewDrawGroupResult.FirstView = CompactedOutputOffset;
-		ViewDrawGroupResult.NumViews = NumValidViews;
-		InOutViewDrawRanges[ViewGroupIndex] = ViewDrawGroupResult;
-	}
-
-#if DEBUG_FLAGS
-	if ((RenderFlags & NANITE_RENDER_FLAG_WRITE_STATS) != 0u)
-	{
-		InterlockedAdd(OutStatsBuffer[0].NumPrimaryViews, ViewDrawGroup.NumViews);
-		InterlockedAdd(OutStatsBuffer[0].NumTotalViews, NumValidViews);
-	}
-#endif
-#else
-
 	// Neither primary nor mip views have valid pages
 	if (NumValidViews == 0U)
 	{
@@ -568,7 +614,7 @@ void CompactViewsVSM_CS(uint DispatchThreadId : SV_DispatchThreadID)
 
 		CompactedViewInfoOut[InfoOutputOffset] = CompactedViewInfo;
 	}
-#endif
+
 	for (uint PrimaryViewId = ViewDrawGroup.FirstView; PrimaryViewId < ViewDrawGroup.FirstView + ViewDrawGroup.NumViews; ++PrimaryViewId)
 	{
 		FNaniteView PrimaryNaniteView = GetNaniteView(PrimaryViewId);
@@ -588,6 +634,8 @@ void CompactViewsVSM_CS(uint DispatchThreadId : SV_DispatchThreadID)
 		}
 	}
 }
+
+#endif // INPUT_VIEW_RANGES
 
 void ProcessPrimaryView(const bool bIsOrtho, FPrimitiveSceneData PrimitiveData, const uint InstanceId, FInstanceSceneData InstanceData, FCompactedViewInfo ViewInfo, FNaniteView NaniteView, bool bHasMoved)
 {

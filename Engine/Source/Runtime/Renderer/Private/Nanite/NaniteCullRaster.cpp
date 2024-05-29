@@ -841,7 +841,6 @@ class FCompactViewsVSM_CS : public FNaniteGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FCullingParameters, CullingParameters)
-		SHADER_PARAMETER_RDG_UNIFORM_BUFFER( FSceneUniformParameters, Scene )
 
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer< FPackedNaniteView >, CompactedViewsOut)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer< FCompactedViewInfo >, CompactedViewInfoOut)
@@ -5813,7 +5812,6 @@ void FRenderer::DrawGeometry(
 		{
 			FCompactViewsVSM_CS::FParameters* PassParameters = GraphBuilder.AllocParameters< FCompactViewsVSM_CS::FParameters >();
 
-			PassParameters->Scene				= SceneUniformBuffer;
 			PassParameters->CullingParameters	= CullingParameters;
 			PassParameters->VirtualShadowMap	= VirtualTargetParameters;
 
@@ -5850,9 +5848,13 @@ void FRenderer::DrawGeometry(
 						DeferredSetupContext->Sync();
 						check(DeferredSetupContext->NumViewDrawRanges < ~0u);
 						PassParameters->NumViewRanges = DeferredSetupContext->NumViewDrawRanges;
+						// One group per primary view range now
+						return FIntVector(DeferredSetupContext->NumViewDrawRanges, 1, 1);
 					}
-							
-					return FComputeShaderUtils::GetGroupCount(NumPrimaryViews, 64);
+					else
+					{
+						return FComputeShaderUtils::GetGroupCount(NumPrimaryViews, 64);
+					}
 				}
 			);
 		}
