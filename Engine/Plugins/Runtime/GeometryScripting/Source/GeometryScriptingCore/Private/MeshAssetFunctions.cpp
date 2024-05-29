@@ -16,7 +16,9 @@
 #include "RenderingThread.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "Rendering/SkeletalMeshModel.h"
+#include "Rendering/SkeletalMeshRenderData.h"
 #include "SkeletalMeshAttributes.h"
+#include "SkeletalMeshLODRenderDataToDynamicMesh.h"
 
 #include "MeshDescriptionToDynamicMesh.h"
 #include "DynamicMeshToMeshDescription.h"
@@ -536,6 +538,41 @@ void UGeometryScriptLibrary_StaticMeshFunctions::GetSectionMaterialListFromStati
 }
 
 
+namespace UELocal
+{
+	bool CopyMeshFromSkeletalMesh_RenderData(USkeletalMesh* FromSkeletalMeshAsset, FGeometryScriptCopyMeshFromAssetOptions AssetOptions, EGeometryScriptLODType LODType, int32 LODIndex, UDynamicMesh* ToDynamicMesh, UGeometryScriptDebug* Debug)
+	{
+		
+
+		if (FSkeletalMeshRenderData* RenderData = FromSkeletalMeshAsset->GetResourceForRendering())
+		{
+			int32 NumLODs = RenderData->LODRenderData.Num();
+			if (NumLODs -1 < LODIndex )
+			{
+				UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromSkeletalMesh_RenderDataLDONotAvailable", "CopyMeshFromSkeletalMesh: Renderdata for specified LOD is not available"));
+				return false;
+			}
+
+			FSkeletalMeshLODRenderData* SkeletalMeshLODRenderData = &(RenderData->LODRenderData[LODIndex]);
+
+			UE::Geometry::FDynamicMesh3 NewMesh;
+			
+			UE::Geometry::FSkeletalMeshLODRenderDataToDynamicMesh::ConversionOptions  ConversionOptions;
+			ConversionOptions.bWantTangents = AssetOptions.bRequestTangents;
+
+			UE::Geometry::FSkeletalMeshLODRenderDataToDynamicMesh::Convert(SkeletalMeshLODRenderData, FromSkeletalMeshAsset->GetRefSkeleton(), ConversionOptions, NewMesh);
+			ToDynamicMesh->SetMesh(MoveTemp(NewMesh));
+
+			return true;
+		}
+	
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromSkeletalMesh_RenderDataNotAvailable", "CopyMeshFromSkeletalMesh: Renderdata is not available"));
+		return false;
+		
+	}
+	
+};
+
 UDynamicMesh* UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshFromSkeletalMesh(
 		USkeletalMesh* FromSkeletalMeshAsset, 
 		UDynamicMesh* ToDynamicMesh,
@@ -556,37 +593,50 @@ UDynamicMesh* UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshFromSkeletalMe
 		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromSkeletalMesh_InvalidInput2", "CopyMeshFromSkeletalMesh: ToDynamicMesh is Null"));
 		return ToDynamicMesh;
 	}
-	if (RequestedLOD.LODType != EGeometryScriptLODType::MaxAvailable && RequestedLOD.LODType != EGeometryScriptLODType::SourceModel)
-	{
-		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromSkeletalMesh_LODNotAvailable", "CopyMeshFromSkeletalMesh: Requested LOD is not available"));
-		return ToDynamicMesh;
-	}
 
 	// TODO: Consolidate this code with SkeletalMeshToolTarget::GetMeshDescription(..) 
-#if WITH_EDITOR
 	const int32 UseLODIndex = FMath::Clamp(RequestedLOD.LODIndex, 0, FromSkeletalMeshAsset->GetLODNum() - 1);;
 	
-	const FMeshDescription* SourceMesh = nullptr;
-
-	// Check first if we have bulk data available and non-empty.
-	if (FromSkeletalMeshAsset->HasMeshDescription(UseLODIndex))
+	if (RequestedLOD.LODType == EGeometryScriptLODType::MaxAvailable || RequestedLOD.LODType == EGeometryScriptLODType::SourceModel)
 	{
-		SourceMesh = FromSkeletalMeshAsset->GetMeshDescription(UseLODIndex); 
+#if WITH_EDITOR
+		const FMeshDescription* SourceMesh = nullptr;
+
+		// Check first if we have bulk data available and non-empty.
+		if (FromSkeletalMeshAsset->HasMeshDescription(UseLODIndex))
+		{
+			SourceMesh = FromSkeletalMeshAsset->GetMeshDescription(UseLODIndex); 
+		}
+		if (SourceMesh == nullptr)
+		{
+			UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromSkeletalMesh_LODNotAvailable", "CopyMeshFromSkeletalMesh: Requested LOD source mesh is not available"));
+			return ToDynamicMesh;
+		}
+
+		FDynamicMesh3 NewMesh;
+		FMeshDescriptionToDynamicMesh Converter;
+		Converter.Convert(SourceMesh, NewMesh, AssetOptions.bRequestTangents);
+	
+		ToDynamicMesh->SetMesh(MoveTemp(NewMesh));
+	
+		Outcome = EGeometryScriptOutcomePins::Success;
+#else 
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromSkeletalMesh_SourceMesh_EditorOnly", "CopyMeshFromSkeletalMesh: Source Meshes are not available at Runtime"));
+	
+#endif	
 	}
-	if (SourceMesh == nullptr)
+	else if (RequestedLOD.LODType == EGeometryScriptLODType::RenderData)
 	{
-		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromSkeletalMesh_LODNotAvailable", "CopyMeshFromSkeletalMesh: Requested LOD is not available"));
-		return ToDynamicMesh;
+		if (UELocal::CopyMeshFromSkeletalMesh_RenderData(FromSkeletalMeshAsset, AssetOptions, RequestedLOD.LODType, RequestedLOD.LODIndex, ToDynamicMesh, Debug))
+		{
+			Outcome = EGeometryScriptOutcomePins::Success;
+		}
+		
 	}
 
-	FDynamicMesh3 NewMesh;
-	FMeshDescriptionToDynamicMesh Converter;
-	Converter.Convert(SourceMesh, NewMesh, AssetOptions.bRequestTangents);
-	
-	ToDynamicMesh->SetMesh(MoveTemp(NewMesh));
-	
-	Outcome = EGeometryScriptOutcomePins::Success;
-#else
+// todo remove this
+#if !WITH_EDITOR
+
 	UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromSkeletalMesh_EditorOnly", "CopyMeshFromSkeletalMesh: Not currently supported at Runtime"));
 #endif
 	
