@@ -3215,62 +3215,71 @@ UObject* UMaterialExpressionRuntimeVirtualTextureSample::GetReferencedTexture() 
 
 #if WITH_EDITOR
 
-TArrayView<FExpressionInput*> UMaterialExpressionRuntimeVirtualTextureSample::GetInputsView()
+FExpressionInput* UMaterialExpressionRuntimeVirtualTextureSample::GetInput(int32 InputIndex)
 {
-	CachedInputs.Empty();
-	CachedInputs.Add(&Coordinates);
-	CachedInputs.Add(&WorldPosition);
-	if (MipValueMode == RVTMVM_MipLevel || MipValueMode == RVTMVM_MipBias)
+	switch (InputIndex)
 	{
-		CachedInputs.Add(&MipValue);
+	case 0: 
+		return &Coordinates;
+	case 1: 
+		return &WorldPosition;
+	case 2:
+		if (MipValueMode == RVTMVM_MipLevel || MipValueMode == RVTMVM_MipBias)
+		{
+			return &MipValue;
+		}
+		else if (MipValueMode == RVTMVM_DerivativeUV || MipValueMode == RVTMVM_DerivativeWorld)
+		{
+			return &DDX;
+		}
+		break;
+	case 3:
+		if (MipValueMode == RVTMVM_DerivativeUV || MipValueMode == RVTMVM_DerivativeWorld)
+		{
+			return &DDY;
+		}
+		break;
 	}
-	if (MipValueMode == RVTMVM_DerivativeUV || MipValueMode == RVTMVM_DerivativeWorld)
-	{
-		CachedInputs.Add(&DDX);
-		CachedInputs.Add(&DDY);
-	}
-	return CachedInputs;
+
+	return nullptr;
 }
 
 FName UMaterialExpressionRuntimeVirtualTextureSample::GetInputName(int32 InputIndex) const
 {
-	if (GetInput(InputIndex) == &WorldPosition)
+	switch (InputIndex)
 	{
+	case 1:
 		return GetWorldPositionInputName(WorldPositionOriginType);
-	}
-	if (CachedInputs[InputIndex] == &MipValue)
-	{
+	case 2:
 		if (MipValueMode == RVTMVM_MipLevel)
 		{
 			return TEXT("Mip Level");
 		}
 		if (MipValueMode == RVTMVM_MipBias)
 		{
-			return TEXT("Mip Bias");
+			return TEXT("Mip Level");
 		}
-	}
-	if (CachedInputs[InputIndex] == &DDX)
-	{
-		if (MipValueMode == RVTMVM_DerivativeUV)
+		else if (MipValueMode == RVTMVM_DerivativeUV)
 		{
 			return TEXT("DDX (UV)");
 		}
-		if (MipValueMode == RVTMVM_DerivativeWorld)
+		else if (MipValueMode == RVTMVM_DerivativeWorld)
 		{
 			return TEXT("DDX (World)");
 		}
-	}
-	if (CachedInputs[InputIndex] == &DDY)
-	{
+		break;
+	case 3:
 		if (MipValueMode == RVTMVM_DerivativeUV)
 		{
 			return TEXT("DDY (UV)");
 		}
-		if (MipValueMode == RVTMVM_DerivativeWorld)
+		else if (MipValueMode == RVTMVM_DerivativeWorld)
 		{
 			return TEXT("DDY (World)");
 		}
+		break;
 	}
+
 	return Super::GetInputName(InputIndex);
 }
 
@@ -3621,7 +3630,7 @@ int32 UMaterialExpressionRuntimeVirtualTextureSample::Compile(class FMaterialCom
 		if (MipValueMode == RVTMVM_DerivativeUV)
 		{
 			MipValue0Index = Ddx;
-			MipValue0Index = Ddy;
+			MipValue1Index = Ddy;
 		}
 		else if (MipValueMode == RVTMVM_DerivativeWorld)
 		{

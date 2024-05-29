@@ -142,7 +142,7 @@ protected:
 
 #if WITH_EDITOR
 	ENGINE_API virtual void PostLoad() override;
-	ENGINE_API TArrayView<FExpressionInput*> GetInputsView() override;
+	FExpressionInput* GetInput(int32 InputIndex) override;
 	ENGINE_API virtual FName GetInputName(int32 InputIndex) const override;
 	ENGINE_API virtual int32 Compile(class FMaterialCompiler* Compiler, int32 OutputIndex) override;
 	ENGINE_API virtual void GetCaption(TArray<FString>& OutCaptions) const override;
