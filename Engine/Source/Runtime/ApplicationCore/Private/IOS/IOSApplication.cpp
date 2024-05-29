@@ -91,36 +91,39 @@ void FIOSApplication::AddExternalInputDevice(TSharedPtr<IInputDevice> InputDevic
 
 void FIOSApplication::PollGameDeviceState( const float TimeDelta )
 {
-	// initialize any externally-implemented input devices (we delay load initialize the array so any plugins have had time to load)
-	if (!bHasLoadedInputPlugins && GIsRunning)
+	@autoreleasepool
 	{
-		TArray<IInputDeviceModule*> PluginImplementations = IModularFeatures::Get().GetModularFeatureImplementations<IInputDeviceModule>(IInputDeviceModule::GetModularFeatureName());
-		for (auto InputPluginIt = PluginImplementations.CreateIterator(); InputPluginIt; ++InputPluginIt)
+		// initialize any externally-implemented input devices (we delay load initialize the array so any plugins have had time to load)
+		if (!bHasLoadedInputPlugins && GIsRunning)
 		{
-			TSharedPtr<IInputDevice> Device = (*InputPluginIt)->CreateInputDevice(MessageHandler);
-			AddExternalInputDevice(Device);
+			TArray<IInputDeviceModule*> PluginImplementations = IModularFeatures::Get().GetModularFeatureImplementations<IInputDeviceModule>(IInputDeviceModule::GetModularFeatureName());
+			for (auto InputPluginIt = PluginImplementations.CreateIterator(); InputPluginIt; ++InputPluginIt)
+			{
+				TSharedPtr<IInputDevice> Device = (*InputPluginIt)->CreateInputDevice(MessageHandler);
+				AddExternalInputDevice(Device);
+			}
+
+			bHasLoadedInputPlugins = true;
 		}
 
-		bHasLoadedInputPlugins = true;
-	}
-
-	// Poll game device state and send new events
-	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_IOSApplication_InputInterface_Tick);
-		InputInterface->Tick(TimeDelta);
-	}
-	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_IOSApplication_InputInterface_SendControllerEvents);
-		InputInterface->SendControllerEvents();
-	}
-
-	// Poll externally-implemented devices
-	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_IOSApplication_ExternalInputDevice);
-		for (auto DeviceIt = ExternalInputDevices.CreateIterator(); DeviceIt; ++DeviceIt)
+		// Poll game device state and send new events
 		{
-			(*DeviceIt)->Tick(TimeDelta);
-			(*DeviceIt)->SendControllerEvents();
+			QUICK_SCOPE_CYCLE_COUNTER(STAT_IOSApplication_InputInterface_Tick);
+			InputInterface->Tick(TimeDelta);
+		}
+		{
+			QUICK_SCOPE_CYCLE_COUNTER(STAT_IOSApplication_InputInterface_SendControllerEvents);
+			InputInterface->SendControllerEvents();
+		}
+
+		// Poll externally-implemented devices
+		{
+			QUICK_SCOPE_CYCLE_COUNTER(STAT_IOSApplication_ExternalInputDevice);
+			for (auto DeviceIt = ExternalInputDevices.CreateIterator(); DeviceIt; ++DeviceIt)
+			{
+				(*DeviceIt)->Tick(TimeDelta);
+				(*DeviceIt)->SendControllerEvents();
+			}
 		}
 	}
 }
