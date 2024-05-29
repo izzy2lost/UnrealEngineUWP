@@ -90,12 +90,9 @@ public:
 	TArray<FString> LODNamesList;
 
 	/** Control whether mesh borders are displayed */
-	UPROPERTY(EditAnywhere, DisplayName = "Show Borders", Category = LODPreview, meta = (EditCondition = "!bShowingDefaultLOD", HideEditConditionToggle))
+	UPROPERTY(EditAnywhere, DisplayName = "Show Borders", Category = LODPreview)
 	bool bShowSeams = true;
 
-	// Used to expose the VisibleLOD state to the above EditCondition
-	UPROPERTY(Transient, meta = (TransientToolProperty))
-	bool bShowingDefaultLOD = true;
 };
 
 
@@ -164,15 +161,35 @@ public:
 	}
 };
 
+// forward
+namespace UE { namespace Geometry { namespace LODManagerHelper {
+class FLODManagerToolChange; 
+struct FProxyLODState;
+class FDynamicMeshLODCache;
+
+} } }
 
 
-
+UINTERFACE(MinimalAPI)
+class ULODManagerToolChangeTarget : public UInterface
+{
+	GENERATED_BODY()
+};
+/**
+ * IMeshVertexCommandChangeTarget is an interface which is used to apply a FLODManagerToolChange
+ */
+class ILODManagerToolChangeTarget
+{
+	GENERATED_BODY()
+public:
+	virtual void ApplyChange(const UE::Geometry::LODManagerHelper::FLODManagerToolChange* Change, bool bRevert) = 0;
+};
 
 /**
  * Mesh Attribute Editor Tool
  */
 UCLASS()
-class MESHLODTOOLSET_API ULODManagerTool : public UMultiSelectionMeshEditingTool
+class MESHLODTOOLSET_API ULODManagerTool : public UMultiSelectionMeshEditingTool, public ILODManagerToolChangeTarget
 {
 	GENERATED_BODY()
 
@@ -183,11 +200,12 @@ public:
 	virtual void OnShutdown(EToolShutdownType ShutdownType) override;
 	virtual void OnTick(float DeltaTime) override;
 
-	virtual bool HasCancel() const override { return false; }
-	virtual bool HasAccept() const override { return false; }
-	virtual bool CanAccept() const override { return false; }
+	virtual bool HasCancel() const override { return true; }
+	virtual bool HasAccept() const override { return true; }
 
 	virtual void RequestAction(ELODManagerToolActions ActionType);
+
+	virtual void ApplyChange(const UE::Geometry::LODManagerHelper::FLODManagerToolChange* Change, bool bRevert) override;
 
 protected:
 
@@ -215,34 +233,35 @@ public:
 	UFUNCTION()
 	void RemoveUnreferencedMaterials();
 
-protected:
-	UStaticMesh* GetSingleStaticMesh();
-
-	ELODManagerToolActions PendingAction = ELODManagerToolActions::NoAction;
-	
-	bool bLODInfoValid = false;
-	void UpdateLODInfo();
 
 	struct FLODName
 	{
 		int32 SourceModelIndex = -1;
 		int32 RenderDataIndex = -1;
 		int32 OtherIndex = -1;
-		bool IsDefault() const { return SourceModelIndex == -1 && RenderDataIndex == -1 && OtherIndex == -1; }
+		bool IsValid() const { return ! (SourceModelIndex == -1 && RenderDataIndex == -1 && OtherIndex == -1); }
 	};
-	FString DefaultLODName = FString("Default");
-	TMap<FString, FLODName> ActiveLODNames;
-	void UpdateLODNames();
 
 	struct FLODMeshInfo
 	{
-		UE::Geometry::FDynamicMesh3 Mesh;
-
-		bool bInfoCached = false;
+		TSharedPtr<UE::Geometry::FDynamicMesh3> Mesh;
 		TArray<int> BoundaryEdges;
 	};
 
-	TMap<FString, TUniquePtr<FLODMeshInfo>> LODMeshCache;
+
+protected:
+	UStaticMesh* GetSingleStaticMesh();
+
+	ELODManagerToolActions PendingAction = ELODManagerToolActions::NoAction;
+	
+
+	bool bLODInfoValid = false;
+	// captures the material list and triangle and vertex counts for the current configuration of lods
+	void UpdateLODInfo();
+
+	// maps pretty name in UI to description of the LOD
+	TMap<FString, FLODName> ActiveLODNames;
+	void UpdateLODNames();
 
 	UPROPERTY()
 	TObjectPtr<UPreviewMesh> LODPreview;
@@ -254,7 +273,20 @@ protected:
 	void UpdatePreviewLOD();
 	void UpdatePreviewLines(FLODMeshInfo& LODMeshInfo);
 	void ClearPreviewLines();
-	bool CacheLODMesh(const FString& Name, FLODName LODName);
+
+	// returns the requested LOD as a dynamic mesh along with boundary edges.  Has internal cache
+	TUniquePtr<ULODManagerTool::FLODMeshInfo> GetLODMeshInfo(const FLODName& LODName);
+
+	// For undo / redo system with our custom changes.  
+	TUniquePtr< UE::Geometry::LODManagerHelper::FLODManagerToolChange > ActiveChange;
+	void BeginChange(FText TransactionName);
+	void EndChange();
+
+	// state information used for undo within the tool
+	TUniquePtr< UE::Geometry::LODManagerHelper::FProxyLODState>  ProxyLODState;
+
+	// cache of dynamic mesh representation for each lod, imported and renderdata.
+	TUniquePtr< UE::Geometry::LODManagerHelper::FDynamicMeshLODCache > DynamicMeshCache;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
