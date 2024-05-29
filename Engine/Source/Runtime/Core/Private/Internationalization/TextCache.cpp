@@ -8,6 +8,7 @@
 #include "Misc/CString.h"
 #include "Misc/LazySingleton.h"
 #include "Misc/ScopeLock.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 FTextCache& FTextCache::Get()
 {
@@ -24,8 +25,7 @@ FText FTextCache::FindOrCache(const TCHAR* InTextLiteral, const TCHAR* InNamespa
 	return FindOrCache(InTextLiteral, FTextId(InNamespace, InKey));
 }
 
-// #jira SOL-6589: We have to mark this noinline for now until our compiler gets smarter.
-UE_AUTORTFM_ALWAYS_OPEN FORCENOINLINE FText FTextCache::FindOrCache(const TCHAR* InTextLiteral, const FTextId& InTextId)
+UE_AUTORTFM_ALWAYS_OPEN FText FTextCache::FindOrCache(const TCHAR* InTextLiteral, const FTextId& InTextId)
 {
 	LLM_SCOPE(ELLMTag::Localization);
 
