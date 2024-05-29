@@ -301,6 +301,12 @@ bool UWorldPartitionLevelStreamingPolicy::InjectExternalStreamingObject(URuntime
 	if (Super::InjectExternalStreamingObject(ExternalStreamingObject))
 	{
 		ExternalStreamingObjects.Add(ExternalStreamingObject);
+
+		for (const TPair<FName, FName> Pair : ExternalStreamingObject->SubObjectsToCellRemapping)
+		{
+			SubObjectsToExternalStreamingObjectsRemapping.Add(Pair.Key, ExternalStreamingObject);
+		}
+
 		return true;
 	}
 
@@ -310,6 +316,11 @@ bool UWorldPartitionLevelStreamingPolicy::InjectExternalStreamingObject(URuntime
 bool UWorldPartitionLevelStreamingPolicy::RemoveExternalStreamingObject(URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject)
 {
 	bool bSuccess = Super::RemoveExternalStreamingObject(ExternalStreamingObject);
+
+	for (const TPair<FName, FName> Pair : ExternalStreamingObject->SubObjectsToCellRemapping)
+	{
+		verify(SubObjectsToExternalStreamingObjectsRemapping.FindAndRemoveChecked(Pair.Key) == ExternalStreamingObject);
+	}
 
 	ExternalStreamingObjects.RemoveSwap(ExternalStreamingObject);
 
@@ -407,16 +418,13 @@ const FName* UWorldPartitionLevelStreamingPolicy::FindCellNameForSubObject(const
 		return CellName;
 	}
 
-	for (const TWeakObjectPtr<URuntimeHashExternalStreamingObjectBase>& ExternalStreamingObject : ExternalStreamingObjects)
+	if (const TWeakObjectPtr<URuntimeHashExternalStreamingObjectBase>* ExternalStreamingObject = SubObjectsToExternalStreamingObjectsRemapping.Find(*SubObjectContext); ExternalStreamingObject && ExternalStreamingObject->IsValid())
 	{
-		if (ExternalStreamingObject.IsValid())
+		const URuntimeHashExternalStreamingObjectBase* ExternalStreamingObjectPtr = ExternalStreamingObject->Get();
+		if (const FName* CellName = ExternalStreamingObjectPtr->SubObjectsToCellRemapping.Find(*SubObjectContext))
 		{
-			const URuntimeHashExternalStreamingObjectBase* ExternalStreamingObjectPtr = ExternalStreamingObject.Get();
-			if (const FName* CellName = ExternalStreamingObjectPtr->SubObjectsToCellRemapping.Find(*SubObjectContext))
-			{
-				OutLevelMountPointContext = ExternalStreamingObjectPtr->GetLevelMountPointContextObject();
-				return CellName;
-			}
+			OutLevelMountPointContext = ExternalStreamingObjectPtr->GetLevelMountPointContextObject();
+			return CellName;
 		}
 	}
 	
@@ -455,20 +463,15 @@ const UWorldPartitionRuntimeLevelStreamingCell* UWorldPartitionLevelStreamingPol
 
 	if (!CellPackage)
 	{
-		for (const TWeakObjectPtr<URuntimeHashExternalStreamingObjectBase>& ExternalStreamingObject : ExternalStreamingObjects)
+		if (const TWeakObjectPtr<URuntimeHashExternalStreamingObjectBase>* ExternalStreamingObject = SubObjectsToExternalStreamingObjectsRemapping.Find(SubObjectName); ExternalStreamingObject && ExternalStreamingObject->IsValid())
 		{
-			if (ExternalStreamingObject.IsValid())
+			if (const FName* FoundCell = ExternalStreamingObject->Get()->SubObjectsToCellRemapping.Find(SubObjectName))
 			{
-				if (const FName* FoundCell = ExternalStreamingObject->SubObjectsToCellRemapping.Find(SubObjectName))
-				{
-					CellName = *FoundCell;
-					CellPackage = ExternalStreamingObject.Get();
-					break;
-				}
+				CellName = *FoundCell;
+				CellPackage = ExternalStreamingObject->Get();
 			}
 		}
 	}
-	
 
 	if (CellPackage)
 	{
