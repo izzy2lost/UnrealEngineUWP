@@ -506,7 +506,7 @@ void FPropertyBagRepository::PostEditChangeChainProperty(const UObject* Object, 
 }
 
 // TODO: Create these by class on construction?
-FPropertyPathNameTree* FPropertyBagRepository::CreateUnknownPropertyTree(const UObject* Owner)
+FPropertyPathNameTree* FPropertyBagRepository::FindOrCreateUnknownPropertyTree(const UObject* Owner)
 {
 	FPropertyBagRepositoryLock LockRepo(this);
 	FPropertyBagAssociationData* BagData = AssociatedData.Find(Owner);

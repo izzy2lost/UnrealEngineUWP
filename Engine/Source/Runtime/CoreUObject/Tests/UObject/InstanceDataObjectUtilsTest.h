@@ -25,6 +25,25 @@ public:
 	int32 D = -1;
 };
 
+USTRUCT(meta=(OriginalType="TestInstanceDataObjectStruct"))
+struct FTestInstanceDataObjectStructAlternate
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY()
+	float B = -1;
+
+	UPROPERTY()
+	int64 C = -1;
+
+	UPROPERTY()
+	int32 D = -1;
+
+	UPROPERTY()
+	int32 E = -1;
+};
+
 UCLASS()
 class UTestInstanceDataObjectClass : public UObject
 {

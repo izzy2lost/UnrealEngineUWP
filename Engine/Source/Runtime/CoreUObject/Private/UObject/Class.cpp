@@ -1662,18 +1662,19 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 				}
 
 			#if WITH_EDITORONLY_DATA
-				if (SerializeContext->bTrackInitializedProperties && Property)
+				ON_SCOPE_EXIT
 				{
-					UE::SetPropertyValueInitialized(this, Data, Property, Tag.ArrayIndex);
-				}
+					if (SerializeContext->bTrackInitializedProperties && Property)
+					{
+						UE::SetPropertyValueInitialized(this, Data, Property, Tag.ArrayIndex);
+					}
+				};
 			#endif
 
 				if (Tag.SerializeType == EPropertyTagSerializeType::Skipped)
 				{
 					continue;
 				}
-
-				Tag.SetProperty(Property);
 
 				if (bUseRedirects)
 				{
@@ -1706,6 +1707,8 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					SerializedPropertyPath.Emplace(SerializeContext, Segment);
 				}
 			#endif
+
+				Tag.SetProperty(Property);
 
 				bool bTryStoreUnknownPropertyPath = false;
 
@@ -1814,7 +1817,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 						{
 							if (UObject* Object = SerializeContext->SerializedObject)
 							{
-								UnknownPropertyTree = FPropertyBagRepository::Get().CreateUnknownPropertyTree(Object);
+								UnknownPropertyTree = FPropertyBagRepository::Get().FindOrCreateUnknownPropertyTree(Object);
 							}
 						}
 					}
@@ -1856,9 +1859,6 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 						}
 					}
 				}
-
-				// Broadcast that a property was serialized if tracking the serialized property path.
-				SerializedPropertyPath.Reset();
 			#endif // WITH_EDITORONLY_DATA
 
 				int64 Loaded = UnderlyingArchive.Tell() - StartOfProperty;

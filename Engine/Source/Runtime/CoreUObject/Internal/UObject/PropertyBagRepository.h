@@ -64,7 +64,7 @@ public:
 	/**
 	 * Finds or creates a property path name tree to collect unknown property paths within the owner.
 	 */
-	FPropertyPathNameTree* CreateUnknownPropertyTree(const UObject* Owner);
+	FPropertyPathNameTree* FindOrCreateUnknownPropertyTree(const UObject* Owner);
 
 	// Future version for reworked InstanceDataObjects - track InstanceDataObject rather than bag (directly):
 	/**
