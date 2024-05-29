@@ -5,6 +5,7 @@
 #include "ConsoleVariablesAsset.h"
 #include "ConsoleVariablesEditorLog.h"
 #include "ConsoleVariablesEditorModule.h"
+#include "ConsoleVariablesEditorProjectSettings.h"
 #include "ConsoleVariablesEditorStyle.h"
 #include "MultiUser/ConsoleVariableSyncData.h"
 #include "Views/List/ConsoleVariablesEditorList.h"
@@ -288,6 +289,74 @@ TSharedRef<SWidget> SConsoleVariablesEditorMainPanel::OnGeneratePresetsMenu()
 
 	MenuBuilder.BeginSection(NAME_None, LOCTEXT("ImportPreset_MenuSection", "Import Preset"));
 	{
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("ImportPreset_ImportMode_Add", "Add Preset to Existing Console Variables"),
+			LOCTEXT(
+				"ImportPreset_ImportMode_Add_Tooltip",
+				"Add the list of variables from the imported preset to the current preset, replacing the "
+				"values of any overlapping variables with the values from the imported preset."
+			),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda([this]() {
+					if (UConsoleVariablesEditorProjectSettings* ProjectSettingsPtr =
+						GetMutableDefault<UConsoleVariablesEditorProjectSettings>())
+					{
+						ProjectSettingsPtr->PresetImportMode =
+							EConsoleVariablesEditorPresetImportMode::AddToExisting;
+					}
+				}),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([this]() {
+					if (const UConsoleVariablesEditorProjectSettings* ProjectSettingsPtr =
+						GetDefault<UConsoleVariablesEditorProjectSettings>())
+					{
+						return ProjectSettingsPtr->PresetImportMode ==
+							EConsoleVariablesEditorPresetImportMode::AddToExisting;
+					}
+
+					return false;
+				})
+			),
+			NAME_None,
+			EUserInterfaceActionType::RadioButton
+		);
+
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("ImportPreset_ImportMode_Replace", "Replace Console Variables with Preset"),
+			LOCTEXT(
+				"ImportPreset_ImportMode_Replace_Tooltip",
+				"Completely replace the list of variables in the current preset, resetting them "
+				"to their default values and removing them from the list before importing the new preset's variable list."
+			),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda([this]() {
+					if (UConsoleVariablesEditorProjectSettings* ProjectSettingsPtr =
+						GetMutableDefault<UConsoleVariablesEditorProjectSettings>())
+					{
+						ProjectSettingsPtr->PresetImportMode =
+							EConsoleVariablesEditorPresetImportMode::ReplaceExisting;
+					}
+				}),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([this]() {
+					if (const UConsoleVariablesEditorProjectSettings* ProjectSettingsPtr =
+						GetDefault<UConsoleVariablesEditorProjectSettings>())
+					{
+						return ProjectSettingsPtr->PresetImportMode ==
+							EConsoleVariablesEditorPresetImportMode::ReplaceExisting;
+					}
+
+					return false;
+				})
+			),
+			NAME_None,
+			EUserInterfaceActionType::RadioButton
+		);
+
+		MenuBuilder.AddMenuSeparator();
+
 		TSharedRef<SWidget> PresetPicker = SNew(SBox)
 			.MinDesiredWidth(400.f)
 			.MinDesiredHeight(400.f)

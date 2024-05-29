@@ -7,6 +7,7 @@
 #include "ConsoleVariablesEditorCommandInfo.h"
 #include "ConsoleVariablesEditorLog.h"
 #include "ConsoleVariablesEditorModule.h"
+#include "ConsoleVariablesEditorProjectSettings.h"
 #include "HAL/IConsoleManager.h"
 #include "MultiUser/ConsoleVariableSync.h"
 #include "Views/List/ConsoleVariablesEditorList.h"
@@ -305,10 +306,46 @@ bool FConsoleVariablesEditorMainPanel::ImportPreset_Impl(
 {
 	if (Preset && EditingAsset)
 	{
-		ReferenceAssetOnDisk = Preset;
+		bool bReplaceExisting = false;
+
+		FConsoleVariablesEditorModule& CVarModule = GetConsoleVariablesModule();
+		if (UConsoleVariablesEditorProjectSettings* ProjectSettingsPtr =
+			GetMutableDefault<UConsoleVariablesEditorProjectSettings>())
+		{
+			bReplaceExisting = ProjectSettingsPtr->PresetImportMode == 
+				EConsoleVariablesEditorPresetImportMode::ReplaceExisting;
+		}
+
+		if (bReplaceExisting || EditingAsset->GetSavedCommands().IsEmpty())
+		{
+			ReferenceAssetOnDisk = Preset;
+		}
+		else if (ReferenceAssetOnDisk.Get() != EditingAsset.Get())
+		{
+			ReferenceAssetOnDisk.Reset();
+		}
 
 		EditingAsset->Modify();
-		EditingAsset->CopyFrom(Preset);
+
+		if (bReplaceExisting)
+		{
+			// Reset the editing asset's variable values before replacing the list
+			for (const FConsoleVariablesEditorAssetSaveData& CommandData : EditingAsset->GetSavedCommands())
+			{
+				const TWeakPtr<FConsoleVariablesEditorCommandInfo>& Command = CVarModule.FindCommandInfoByName(CommandData.CommandName);
+				if (const TSharedPtr<FConsoleVariablesEditorCommandInfo> PinnedCommand = Command.Pin())
+				{
+					PinnedCommand->SetSourceFlag(PinnedCommand->StartupSource);
+					PinnedCommand->ExecuteCommand(PinnedCommand->StartupValueAsString, true, false);
+				}
+			}
+
+			EditingAsset->CopyFrom(Preset);
+		}
+		else
+		{
+			EditingAsset->AddFrom(Preset);
+		}
 
 		return true;
 	}
