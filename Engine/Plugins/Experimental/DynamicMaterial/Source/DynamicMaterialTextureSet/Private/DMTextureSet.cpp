@@ -2,39 +2,39 @@
 
 #include "DMTextureSet.h"
 
+#include "DMTextureSetMaterialProperty.h"
 #include "Engine/Texture.h"
-#include "SceneTypes.h"
 
 UDMTextureSet::UDMTextureSet()
 {
-	Textures.Reserve(13); // EMaterialProperty has more than 13 entries.
+	UEnum* MaterialPropertyEnum = StaticEnum<EDMTextureSetMaterialProperty>();
 
-	Textures.Emplace(EMaterialProperty::MP_EmissiveColor);
-	Textures.Emplace(EMaterialProperty::MP_Opacity);
-	Textures.Emplace(EMaterialProperty::MP_OpacityMask);
-	Textures.Emplace(EMaterialProperty::MP_BaseColor);
-	Textures.Emplace(EMaterialProperty::MP_Metallic);
-	Textures.Emplace(EMaterialProperty::MP_Specular);
-	Textures.Emplace(EMaterialProperty::MP_Roughness);
-	Textures.Emplace(EMaterialProperty::MP_Anisotropy);
-	Textures.Emplace(EMaterialProperty::MP_Normal);
-	Textures.Emplace(EMaterialProperty::MP_Tangent);
-	Textures.Emplace(EMaterialProperty::MP_SubsurfaceColor);
-	Textures.Emplace(EMaterialProperty::MP_AmbientOcclusion);
-	Textures.Emplace(EMaterialProperty::MP_Refraction);
+	Textures.Reserve(MaterialPropertyEnum->NumEnums());
+
+	for (int32 Index = 0; Index < MaterialPropertyEnum->NumEnums(); ++Index)
+	{
+		const EDMTextureSetMaterialProperty MaterialProperty = static_cast<EDMTextureSetMaterialProperty>(MaterialPropertyEnum->GetValueByIndex(Index));
+
+		if (MaterialProperty == EDMTextureSetMaterialProperty::None)
+		{
+			break;
+		}
+
+		Textures.Emplace(MaterialProperty);
+	}
 }
 
-bool UDMTextureSet::HasMaterialProperty(TEnumAsByte<EMaterialProperty> InMaterialProperty) const
+bool UDMTextureSet::HasMaterialProperty(EDMTextureSetMaterialProperty InMaterialProperty) const
 {
 	return Textures.Contains(InMaterialProperty);
 }
 
-const TMap<TEnumAsByte<EMaterialProperty>, FDMMaterialTexture>& UDMTextureSet::GetTextures() const
+const TMap<EDMTextureSetMaterialProperty, FDMMaterialTexture>& UDMTextureSet::GetTextures() const
 {
 	return Textures;
 }
 
-bool UDMTextureSet::HasMaterialTexture(TEnumAsByte<EMaterialProperty> InMaterialProperty) const
+bool UDMTextureSet::HasMaterialTexture(EDMTextureSetMaterialProperty InMaterialProperty) const
 {
 	if (const FDMMaterialTexture* MaterialTexture = Textures.Find(InMaterialProperty))
 	{
@@ -44,7 +44,7 @@ bool UDMTextureSet::HasMaterialTexture(TEnumAsByte<EMaterialProperty> InMaterial
 	return false;
 }
 
-bool UDMTextureSet::GetMaterialTexture(TEnumAsByte<EMaterialProperty> InMaterialProperty, FDMMaterialTexture& OutMaterialTexture) const
+bool UDMTextureSet::GetMaterialTexture(EDMTextureSetMaterialProperty InMaterialProperty, FDMMaterialTexture& OutMaterialTexture) const
 {
 	if (const FDMMaterialTexture* MaterialTexture = Textures.Find(InMaterialProperty))
 	{
@@ -55,12 +55,12 @@ bool UDMTextureSet::GetMaterialTexture(TEnumAsByte<EMaterialProperty> InMaterial
 	return false;
 }
 
-const FDMMaterialTexture* UDMTextureSet::GetMaterialTexture(TEnumAsByte<EMaterialProperty> InMaterialProperty) const
+const FDMMaterialTexture* UDMTextureSet::GetMaterialTexture(EDMTextureSetMaterialProperty InMaterialProperty) const
 {
 	return Textures.Find(InMaterialProperty);
 }
 
-void UDMTextureSet::SetMaterialTexture(TEnumAsByte<EMaterialProperty> InMaterialProperty, const FDMMaterialTexture& InMaterialTexture)
+void UDMTextureSet::SetMaterialTexture(EDMTextureSetMaterialProperty InMaterialProperty, const FDMMaterialTexture& InMaterialTexture)
 {
 	if (FDMMaterialTexture* MaterialTexture = Textures.Find(InMaterialProperty))
 	{
@@ -75,9 +75,9 @@ bool UDMTextureSet::ContainsTexture(UTexture* InTexture) const
 		return false;
 	}
 
-	for (const TPair<TEnumAsByte<EMaterialProperty>, FDMMaterialTexture>& Pair : Textures)
+	for (const TPair<EDMTextureSetMaterialProperty, FDMMaterialTexture>& TexturePair : Textures)
 	{
-		if (Pair.Value.Texture == InTexture)
+		if (TexturePair.Value.Texture == InTexture)
 		{
 			return true;
 		}

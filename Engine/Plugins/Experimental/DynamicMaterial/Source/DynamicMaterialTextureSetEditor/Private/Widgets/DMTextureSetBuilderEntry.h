@@ -5,7 +5,7 @@
 #include "IStructureDataProvider.h"
 
 #include "DMTextureChannelMask.h"
-#include "SceneTypes.h"
+#include "DMTextureSetMaterialProperty.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/ObjectPtr.h"
 
@@ -20,10 +20,10 @@ struct FDMTextureSetBuilderEntry
 
 	FDMTextureSetBuilderEntry();
 
-	FDMTextureSetBuilderEntry(EMaterialProperty InMaterialProperty, UTexture* InTexture, EDMTextureChannelMask InMask);
+	FDMTextureSetBuilderEntry(EDMTextureSetMaterialProperty InMaterialProperty, UTexture* InTexture, EDMTextureChannelMask InMask);
 
 	UPROPERTY(EditAnywhere, Category = "Material Designer")
-	TEnumAsByte<EMaterialProperty> MaterialProperty = EMaterialProperty::MP_BaseColor;
+	EDMTextureSetMaterialProperty MaterialProperty = EDMTextureSetMaterialProperty::BaseColor;
 
 	UPROPERTY(EditAnywhere, Category = "Material Designer")
 	TObjectPtr<UTexture> Texture;

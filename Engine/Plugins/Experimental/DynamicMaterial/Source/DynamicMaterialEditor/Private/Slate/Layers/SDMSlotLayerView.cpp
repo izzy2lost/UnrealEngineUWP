@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Slate/Layers/SDMSlotLayerView.h"
+
 #include "Components/DMMaterialEffect.h"
 #include "Components/DMMaterialEffectStack.h"
 #include "Components/DMMaterialLayer.h"
@@ -13,6 +14,8 @@
 #include "Components/MaterialStageInputs/DMMSIFunction.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Components/MaterialValues/DMMaterialValueTexture.h"
+#include "DMContentBrowserIntegration.h"
+#include "DMTextureSet.h"
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "DynamicMaterialEditorCommands.h"
 #include "DynamicMaterialEditorModule.h"
@@ -20,6 +23,8 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Materials/MaterialFunctionInterface.h"
 #include "Menus/DMMaterialSlotLayerMenus.h"
+#include "Misc/MessageDialog.h"
+#include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "SDMLayerEffectsItem.h"
 #include "Slate/Layers/SDMSlotLayerItem.h"
 #include "Slate/SDMSlot.h"
@@ -658,6 +663,46 @@ void SDMSlotLayerView::HandleAssetDragDropOperation(FAssetDragDropOp& InAssetDra
 		return;
 	}
 
+	TArray<UTexture*> TexturesDropped;
+	TexturesDropped.Reserve(Assets.Num());
+
+	for (const FAssetData& Asset : Assets)
+	{
+		UClass* AssetClass = Asset.GetClass(EResolveClass::Yes);
+
+		if (AssetClass && AssetClass->IsChildOf(UTexture::StaticClass()))
+		{
+			if (UTexture* Texture = Cast<UTexture>(Asset.GetAsset()))
+			{
+				TexturesDropped.Add(Texture);
+			}
+		}
+	}
+
+	if (TexturesDropped.Num() > 1)
+	{
+		const EAppReturnType::Type Result = FMessageDialog::Open(
+			EAppMsgType::YesNoCancel,
+			LOCTEXT("ReplaceSlotsMultiTexture", "You are about to import multiple Textures via a Material Designer Texture Set.\n\nDo you want to replace the slot contents?\n- Yes: All layers are deleted in the matching slots.\n- No: New texture layers are added to the matching slots.\n- Cancel: Abort this operation.")
+		);
+
+		switch (Result)
+		{
+			case EAppReturnType::No:
+				FDMContentBrowserIntegration::UpdateMaterialDesignerInstanceFromTextureSet(Assets, /* Replace */ false);
+				break;
+
+			case EAppReturnType::Yes:
+				FDMContentBrowserIntegration::UpdateMaterialDesignerInstanceFromTextureSet(Assets, /* Replace */ true);
+				break;
+
+			default:
+				break;
+		}
+
+		return;
+	}
+
 	UObject* Asset = Assets[0].GetAsset();
 
 	if (!IsValid(Asset))
@@ -731,6 +776,30 @@ void SDMSlotLayerView::HandleAssetDragDropOperation(FAssetDragDropOp& InAssetDra
 				Slot->RemoveLayer(Layer);
 				SlotWidget->InvalidateMainWidget();
 				SlotWidget->InvalidateComponentEditWidget();
+			}
+		}
+	}
+	else if (UDMTextureSet* TextureSet = Cast<UDMTextureSet>(Asset))
+	{
+		if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = Slot->GetMaterialModelEditorOnlyData())
+		{
+			const EAppReturnType::Type Result = FMessageDialog::Open(
+				EAppMsgType::YesNoCancel,
+				LOCTEXT("ReplaceSlotsTextureSet", "You are about to import a Material Designer Texture Set.\n\nDo you want to replace the slot contents?\n- Yes: All layers are deleted in the matching slots.\n- No: New texture layers are added to the matching slots.\n- Cancel: Abort this operation.")
+			);
+
+			switch (Result)
+			{
+				case EAppReturnType::No:
+					EditorOnlyData->AddTextureSet(TextureSet, /* Replace */ false);
+					break;
+
+				case EAppReturnType::Yes:
+					EditorOnlyData->AddTextureSet(TextureSet, /* Replace */ true);
+					break;
+
+				default:
+					break;
 			}
 		}
 	}

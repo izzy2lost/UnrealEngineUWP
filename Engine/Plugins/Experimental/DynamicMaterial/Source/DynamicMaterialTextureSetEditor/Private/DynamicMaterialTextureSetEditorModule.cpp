@@ -2,19 +2,19 @@
 
 #include "DynamicMaterialTextureSetEditorModule.h"
 
-#include "DMTextureSetContentBrowserIntegration.h"
+#include "DMTextureSetContentBrowserIntegrationPrivate.h"
 #include "DMTextureSetStyle.h"
 #include "Modules/ModuleManager.h"
 
 void FDynamicMaterialTextureSetEditorModule::StartupModule()
 {
 	FDMTextureSetStyle::Get();
-	FDMTextureSetContentBrowserIntegration::Integrate();
+	FDMTextureSetContentBrowserIntegrationPrivate::Integrate();
 }
 
 void FDynamicMaterialTextureSetEditorModule::ShutdownModule()
 {
-	FDMTextureSetContentBrowserIntegration::Disintegrate();
+	FDMTextureSetContentBrowserIntegrationPrivate::Disintegrate();
 }
 
 IMPLEMENT_MODULE(FDynamicMaterialTextureSetEditorModule, DynamicMaterialTextureSetEditor)

@@ -10,7 +10,7 @@
 
 #include "DMTextureSet.generated.h"
 
-enum EMaterialProperty : int;
+enum class EDMTextureSetMaterialProperty : uint8;
 
 UCLASS(BlueprintType, ClassGroup = "Material Designer")
 class DYNAMICMATERIALTEXTURESET_API UDMTextureSet : public UObject
@@ -29,12 +29,12 @@ public:
 	 * @return True if the property exists in the Texture Map.
 	 */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	bool HasMaterialProperty(TEnumAsByte<EMaterialProperty> InMaterialProperty) const;
+	bool HasMaterialProperty(EDMTextureSetMaterialProperty InMaterialProperty) const;
 
 	/**
 	 * @return Gets the entire Texture Map.
 	 */
-	const TMap<TEnumAsByte<EMaterialProperty>, FDMMaterialTexture>& GetTextures() const;
+	const TMap<EDMTextureSetMaterialProperty, FDMMaterialTexture>& GetTextures() const;
 
 	/**
 	 * Checks whether a given Material Property has a Texture assigned to it.
@@ -42,7 +42,7 @@ public:
 	 * @return True if the Material Property has an assigned Texture.
 	 */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	bool HasMaterialTexture(TEnumAsByte<EMaterialProperty> InMaterialProperty) const;
+	bool HasMaterialTexture(EDMTextureSetMaterialProperty InMaterialProperty) const;
 
 	/**
 	 * Gets the Material Texture associated with a Material Property. Does not check whether a Texture
@@ -52,7 +52,7 @@ public:
 	 * @return True if the Material Property exists within the Texture Map.
 	 */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	bool GetMaterialTexture(TEnumAsByte<EMaterialProperty> InMaterialProperty, FDMMaterialTexture& OutMaterialTexture) const;
+	bool GetMaterialTexture(EDMTextureSetMaterialProperty InMaterialProperty, FDMMaterialTexture& OutMaterialTexture) const;
 
 	/**
 	 * Gets the Material Texture associated with a Material Property. Does not check whether a Texture
@@ -60,7 +60,7 @@ public:
 	 * @param InMaterialProperty The Material Property to check.
 	 * @return A pointer to the found Material Texture, if it exists, or nullptr.
 	 */
-	const FDMMaterialTexture* GetMaterialTexture(TEnumAsByte<EMaterialProperty> InMaterialProperty) const;
+	const FDMMaterialTexture* GetMaterialTexture(EDMTextureSetMaterialProperty InMaterialProperty) const;
 
 	/**
 	 * Sets the Material Texture for a given Material Property. Can be used to unset Textures.
@@ -68,7 +68,7 @@ public:
 	 * @param InMaterialTexture The Material Texture to set on the given Material Property.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	void SetMaterialTexture(TEnumAsByte<EMaterialProperty> InMaterialProperty, const FDMMaterialTexture& InMaterialTexture);
+	void SetMaterialTexture(EDMTextureSetMaterialProperty InMaterialProperty, const FDMMaterialTexture& InMaterialTexture);
 
 	/**
 	 * Checks the Texture Map to see if a given Texture exists within it.
@@ -80,5 +80,5 @@ public:
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Material Designer", EditFixedSize, meta = (ReadOnlyKeys, AllowPrivateAccess))
-	TMap<TEnumAsByte<EMaterialProperty>, FDMMaterialTexture> Textures;
+	TMap<EDMTextureSetMaterialProperty, FDMMaterialTexture> Textures;
 };

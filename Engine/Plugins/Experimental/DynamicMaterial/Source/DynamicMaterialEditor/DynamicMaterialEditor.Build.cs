@@ -30,6 +30,7 @@ public class DynamicMaterialEditor : ModuleRules
 				"DeveloperSettings",
 				"DynamicMaterialShadersEditor",
 				"DynamicMaterialTextureSet",
+				"DynamicMaterialTextureSetEditor",
 				"EditorSubsystem",
 				"EditorWidgets",
 				"InputCore",

@@ -2,6 +2,7 @@
 
 #include "DMTextureSetStyle.h"
 
+#include "Brushes/SlateColorBrush.h"
 #include "Brushes/SlateImageBrush.h"
 #include "Styling/StyleColors.h"
 
@@ -14,7 +15,10 @@ const ISlateStyle& FDMTextureSetStyle::Get()
 FDMTextureSetStyle::FDMTextureSetStyle()
 	: FSlateStyleSet(TEXT("DMTextureSetStyle"))
 {
-	Set("TextureSetConfig.Background", new FSlateRoundedBoxBrush(
+	Set("TextureSetConfig.Window.Background", new FSlateColorBrush(
+		FStyleColors::Panel.GetSpecifiedColor()));
+
+	Set("TextureSetConfig.Cell.Background", new FSlateRoundedBoxBrush(
 		FStyleColors::Recessed.GetSpecifiedColor(), 6.0f,
 		FStyleColors::Header.GetSpecifiedColor(), 2.0f));
 }

@@ -9,6 +9,7 @@
 
 class UTexture;
 class UDMMaterialStage;
+enum class EDMTextureSetMaterialProperty : uint8;
 
 /** Some short names provided so they fit nicely on buttons! */
 UENUM(BlueprintType)
@@ -163,11 +164,15 @@ private:
 
 namespace UE::DynamicMaterial
 {
-	/** Designed to be used with preprocessor macros. See below. */
-	FString DYNAMICMATERIAL_API CreateNodeComment(const ANSICHAR* InFile, int InLine, const ANSICHAR* InFunction, const FString* InComment = nullptr);
-
 	constexpr int32 RenameFlags = REN_DontCreateRedirectors | REN_DoNotDirty | REN_ForceNoResetLoaders | REN_NonTransactional;
 	constexpr EClassFlags InvalidClassFlags = CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists;
+
+	/** Designed to be used with preprocessor macros. See below. */
+	DYNAMICMATERIAL_API FString CreateNodeComment(const ANSICHAR* InFile, int InLine, const ANSICHAR* InFunction, const FString* InComment = nullptr);
+
+	DYNAMICMATERIAL_API EDMTextureSetMaterialProperty MaterialPropertyTypeToMaterialProperty(EDMMaterialPropertyType InPropertyType);
+
+	DYNAMICMATERIAL_API EDMMaterialPropertyType MaterialPropertyToMaterialPropertyType(EDMTextureSetMaterialProperty InPropertyType);
 }
 
 #define UE_DM_NodeComment_Default UE::DynamicMaterial::CreateNodeComment(__FILE__, __LINE__, __FUNCTION__)

@@ -2,17 +2,26 @@
 
 #include "DMTextureSetFilter.h"
 
+#include "DMTextureSetSettings.h"
+
 FDMTextureSetFilter::FDMTextureSetFilter()
 	: FilterStrings({TEXT("_")})
-	, MaterialProperties({{EMaterialProperty::MP_BaseColor, EDMTextureChannelMask::RGBA}})
+	, MaterialProperties({{EDMTextureSetMaterialProperty::BaseColor, EDMTextureChannelMask::RGBA}})
 {
 }
 
 bool FDMTextureSetFilter::MatchesFilter(const FString& InAssetName) const
 {
+	bool bOnlyMatchEndOfAssetName = false;
+
+	if (UDMTextureSetSettings* Settings = UDMTextureSetSettings::Get())
+	{
+		bOnlyMatchEndOfAssetName = Settings->bOnlyMatchEndOfAssetName;
+	}
+
 	for (const FString& FilterString : FilterStrings)
 	{
-		if (FilterString.StartsWith(TEXT("_")))
+		if (bOnlyMatchEndOfAssetName || FilterString.StartsWith(TEXT("_")))
 		{
 			if (InAssetName.EndsWith(FilterString))
 			{

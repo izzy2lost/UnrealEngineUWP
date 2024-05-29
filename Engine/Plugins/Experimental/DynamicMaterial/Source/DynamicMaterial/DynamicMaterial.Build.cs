@@ -13,6 +13,7 @@ public class DynamicMaterial : ModuleRules
 			{
 				"Core",
 				"CoreUObject",
+				"DynamicMaterialTextureSet",
 				"Slate",
 				"SlateCore",
 				"UMG"

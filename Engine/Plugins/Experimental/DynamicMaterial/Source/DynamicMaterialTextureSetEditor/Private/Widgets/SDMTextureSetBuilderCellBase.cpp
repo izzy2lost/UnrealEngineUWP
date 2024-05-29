@@ -3,6 +3,7 @@
 #include "Widgets/SDMTextureSetBuilderCellBase.h"
 
 #include "AssetRegistry/AssetData.h"
+#include "DragAndDrop/AssetDragDropOp.h"
 #include "Engine/Texture.h"
 #include "Widgets/DMTextureSetBuilderDragDropOperation.h"
 #include "Widgets/Images/SImage.h"
@@ -74,9 +75,9 @@ bool SDMTextureSetBuilderCellBase::OnAssetDraggedOver(TArrayView<FAssetData> InA
 
 void SDMTextureSetBuilderCellBase::OnAssetsDropped(const FDragDropEvent& InDragDropEvent, TArrayView<FAssetData> InAssets)
 {
-	if (TSharedPtr<FDMTextureSetBuilderDragDropOperation> BuilderOperation = InDragDropEvent.GetOperationAs<FDMTextureSetBuilderDragDropOperation>())
+	if (TSharedPtr<SDMTextureSetBuilder> TextureSetBuilder = TextureSetBuilderWeak.Pin())
 	{
-		if (TSharedPtr<SDMTextureSetBuilder> TextureSetBuilder = TextureSetBuilderWeak.Pin())
+		if (TSharedPtr<FDMTextureSetBuilderDragDropOperation> BuilderOperation = InDragDropEvent.GetOperationAs<FDMTextureSetBuilderDragDropOperation>())
 		{
 			TextureSetBuilder->SwapTexture(
 				BuilderOperation->GetIndex(),
@@ -84,6 +85,28 @@ void SDMTextureSetBuilderCellBase::OnAssetsDropped(const FDragDropEvent& InDragD
 				Index,
 				bIsMaterialProperty
 			);
+		}
+		else if (TSharedPtr<FAssetDragDropOp> AssetOperation = InDragDropEvent.GetOperationAs<FAssetDragDropOp>())
+		{
+			for (const FAssetData& Asset : AssetOperation->GetAssets())
+			{
+				UClass* AssetClass = Asset.GetClass(EResolveClass::Yes);
+
+				if (AssetClass && AssetClass->IsChildOf(UTexture::StaticClass()))
+				{
+					if (UTexture* AssetTexture = Cast<UTexture>(Asset.GetAsset()))
+					{
+						TextureSetBuilder->SetTexture(
+							Index,
+							bIsMaterialProperty,
+							AssetTexture
+						);
+
+						// Only set the first texture.
+						break;
+					}
+				}
+			}
 		}
 	}
 }
@@ -102,7 +125,9 @@ FText SDMTextureSetBuilderCellBase::GetToolTipText() const
 		return LOCTEXT("NoTexture", "Texture slot empty.");
 	}
 
-	return FText::FromString(TextureObject->GetPathName());
+	const FText Format = LOCTEXT("TextureTooltipFormat", "{0}\n\nDrag to another slot to swap textures. Hold shift when dropping to overwrite.");
+
+	return FText::Format(Format, FText::FromString(TextureObject->GetPathName()));
 }
 
 FText SDMTextureSetBuilderCellBase::GetTextureName() const

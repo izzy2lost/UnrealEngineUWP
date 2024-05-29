@@ -2,14 +2,14 @@
 
 #include "Widgets/DMTextureSetBuilderEntry.h"
 
-#include "SceneTypes.h"
+#include "DMTextureSetMaterialProperty.h"
 
 FDMTextureSetBuilderEntry::FDMTextureSetBuilderEntry()
-	: FDMTextureSetBuilderEntry(EMaterialProperty::MP_BaseColor, nullptr, EDMTextureChannelMask::RGBA)
+	: FDMTextureSetBuilderEntry(EDMTextureSetMaterialProperty::BaseColor, nullptr, EDMTextureChannelMask::RGBA)
 {
 }
 
-FDMTextureSetBuilderEntry::FDMTextureSetBuilderEntry(EMaterialProperty InMaterialProperty, UTexture* InTexture, EDMTextureChannelMask InMask)
+FDMTextureSetBuilderEntry::FDMTextureSetBuilderEntry(EDMTextureSetMaterialProperty InMaterialProperty, UTexture* InTexture, EDMTextureChannelMask InMask)
 	: MaterialProperty(InMaterialProperty)
 	, Texture(InTexture)
 	, ChannelMask(InMask)

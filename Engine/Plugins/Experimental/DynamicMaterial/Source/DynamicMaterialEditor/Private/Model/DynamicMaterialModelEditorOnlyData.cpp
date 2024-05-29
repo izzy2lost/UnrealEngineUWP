@@ -7,6 +7,8 @@
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
+#include "Components/DMMaterialStageBlend.h"
+#include "Components/DMMaterialSubStage.h"
 #include "Components/DMMaterialValue.h"
 #include "Components/DMTextureUV.h"
 #include "Components/MaterialProperties/DMMPAmbientOcclusion.h"
@@ -23,9 +25,14 @@
 #include "Components/MaterialProperties/DMMPSpecular.h"
 #include "Components/MaterialProperties/DMMPTangent.h"
 #include "Components/MaterialProperties/DMMPWorldPositionOffset.h"
+#include "Components/MaterialStageExpressions/DMMSETextureSample.h"
+#include "Components/MaterialStageInputs/DMMSIExpression.h"
+#include "Components/MaterialStageInputs/DMMSIValue.h"
+#include "Components/MaterialValues/DMMaterialValueTexture.h"
 #include "CoreGlobals.h"
 #include "DMComponentPath.h"
 #include "DMDefs.h"
+#include "DMTextureSet.h"
 #include "DynamicMaterialEditorModule.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialModule.h"
@@ -809,8 +816,124 @@ TSharedRef<FDMMaterialBuildState> UDynamicMaterialModelEditorOnlyData::CreateBui
 
 bool UDynamicMaterialModelEditorOnlyData::AddTextureSet(UDMTextureSet* InTextureSet, bool bInReplaceSlots)
 {
-	// TODO Integrate!
-	return false;
+	bool bMadeChange = false;
+
+	for (const TPair<EDMTextureSetMaterialProperty, FDMMaterialTexture>& MaterialTexture : InTextureSet->GetTextures())
+	{
+		const EDMMaterialPropertyType PropertyType = UE::DynamicMaterial::MaterialPropertyToMaterialPropertyType(MaterialTexture.Key);
+
+		if (PropertyType == EDMMaterialPropertyType::None)
+		{
+			continue;
+		}
+
+		UDMMaterialSlot* Slot = GetSlotForMaterialProperty(PropertyType);
+
+		if (!Slot)
+		{
+			continue;
+		}
+
+		UTexture* Texture = MaterialTexture.Value.Texture.LoadSynchronous();
+
+		if (!Texture)
+		{
+			continue;
+		}
+
+		if (GUndo)
+		{
+			Slot->Modify();
+		}
+
+		const int32 OutputMask = MaterialTexture.Value.TextureChannel == EDMTextureChannelMask::RGBA
+			? FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+			: (EnumHasAnyFlags(MaterialTexture.Value.TextureChannel, EDMTextureChannelMask::Red) ? FDMMaterialStageConnectorChannel::FIRST_CHANNEL : 0)
+				+ (EnumHasAnyFlags(MaterialTexture.Value.TextureChannel, EDMTextureChannelMask::Green) ? FDMMaterialStageConnectorChannel::FIRST_CHANNEL : 0)
+				+ (EnumHasAnyFlags(MaterialTexture.Value.TextureChannel, EDMTextureChannelMask::Blue) ? FDMMaterialStageConnectorChannel::FIRST_CHANNEL : 0)
+				+ (EnumHasAnyFlags(MaterialTexture.Value.TextureChannel, EDMTextureChannelMask::Alpha) ? FDMMaterialStageConnectorChannel::FIRST_CHANNEL : 0);
+
+		UDMMaterialLayerObject* Layer = nullptr;
+
+		{
+			const FDMUpdateGuard Guard;
+
+			Layer = Slot->AddDefaultLayer(PropertyType);
+
+			if (!ensure(Layer))
+			{
+				continue;
+			}
+
+			bMadeChange = true;
+
+			UDMMaterialStage* Stage = Layer->GetStage(EDMMaterialLayerStage::Base);
+
+			if (!ensure(Stage))
+			{
+				continue;
+			}
+
+			UDMMaterialStageInputExpression* NewExpression = UDMMaterialStageInputExpression::ChangeStageInput_Expression(
+				Stage,
+				UDMMaterialStageExpressionTextureSample::StaticClass(),
+				UDMMaterialStageBlend::InputB,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+				0,
+				OutputMask
+			);
+
+			if (!ensure(NewExpression))
+			{
+				continue;
+			}
+
+			UDMMaterialSubStage* SubStage = NewExpression->GetSubStage();
+
+			if (!ensure(SubStage))
+			{
+				continue;
+			}
+
+			UDMMaterialStageInputValue* InputValue = UDMMaterialStageInputValue::ChangeStageInput_NewLocalValue(
+				SubStage,
+				0,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL,
+				EDMValueType::VT_Texture,
+				FDMMaterialStageConnectorChannel::WHOLE_CHANNEL
+			);
+
+			if (ensure(InputValue))
+			{
+				UDMMaterialValueTexture* InputTexture = Cast<UDMMaterialValueTexture>(InputValue->GetValue());
+
+				if (ensure(InputTexture))
+				{
+
+					InputTexture->SetValue(Texture);
+				}
+			}
+
+			if (bInReplaceSlots)
+			{
+				for (int32 Index = Slot->GetLayers().Num() - 1; Index >= 0; --Index)
+				{
+					UDMMaterialLayerObject* LayerIter = Slot->GetLayer(Index);
+
+					if (!LayerIter || LayerIter->GetStage(EDMMaterialLayerStage::Base) == Stage)
+					{
+						continue;
+					}
+
+					Slot->RemoveLayer(LayerIter);
+				}
+			}
+		}
+
+		Layer->Update(EDMUpdateType::Structure);
+	}
+
+	return bMadeChange;
 }
 
 bool UDynamicMaterialModelEditorOnlyData::NeedsWizard() const

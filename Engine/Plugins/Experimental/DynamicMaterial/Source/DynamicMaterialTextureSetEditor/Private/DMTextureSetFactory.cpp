@@ -30,7 +30,7 @@ UObject* UDMTextureSetFactory::FactoryCreateNew(UClass* Class, UObject* InParent
 
 FText UDMTextureSetFactory::GetDisplayName() const
 {
-	return LOCTEXT("UDMTextureSet", "Texture Set");
+	return LOCTEXT("UDMTextureSet", "Material Designer Texture Set");
 }
 
 FText UDMTextureSetFactory::GetToolTip() const

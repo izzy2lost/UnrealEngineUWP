@@ -28,6 +28,8 @@ public:
 
 	void SwapTexture(int32 InFromIndex, bool bInIsFromMaterialProperty, int32 InToIndex, bool bInIsToMaterialProperty);
 
+	void SetTexture(int32 InIndex, bool bInIsMaterialProperty, UTexture* InTexture);
+
 protected:
 	TStrongObjectPtr<UDMTextureSet> TextureSet;
 	TArray<FAssetData> Assets;

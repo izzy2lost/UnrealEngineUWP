@@ -958,7 +958,7 @@ void SDMSlot::OnSlotLayersUpdated(UDMMaterialSlot* InSlot)
 		return;
 	}
 
-	InvalidateComponentEditWidget();
+	InvalidateMainWidget();
 }
 
 void SDMSlot::OnSlotPropertiesUpdated(UDMMaterialSlot* InSlot)

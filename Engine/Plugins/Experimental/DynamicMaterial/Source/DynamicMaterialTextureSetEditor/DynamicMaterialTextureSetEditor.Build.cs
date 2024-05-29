@@ -22,8 +22,6 @@ public class DynamicMaterialTextureSetEditor : ModuleRules
 				"AssetDefinition",
 				"Core",
 				"DeveloperSettings",
-				"DynamicMaterial",
-				"DynamicMaterialEditor",
 				"DynamicMaterialTextureSet",
 				"EditorWidgets",
 				"Engine",

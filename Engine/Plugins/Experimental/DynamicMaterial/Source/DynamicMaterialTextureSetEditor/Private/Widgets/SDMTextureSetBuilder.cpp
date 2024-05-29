@@ -3,10 +3,10 @@
 #include "Widgets/SDMTextureSetBuilder.h"
 
 #include "DMTextureSet.h"
+#include "DMTextureSetMaterialProperty.h"
 #include "DMTextureSetStyle.h"
 #include "Engine/Texture.h"
 #include "SAssetDropTarget.h"
-#include "SceneTypes.h"
 #include "Widgets/DMTextureSetBuilderDragDropOperation.h"
 #include "Widgets/DMTextureSetBuilderEntry.h"
 #include "Widgets/Input/SButton.h"
@@ -22,7 +22,7 @@
 
 namespace UE::DynamicMaterialEditor::TextureSet::Private
 {
-	constexpr int32 WidthMax = 7;
+	constexpr int32 WidthMax = 8;
 }
 
 void SDMTextureSetBuilder::Construct(const FArguments& InArgs, UDMTextureSet* InTextureSet, const TArray<FAssetData>& InAssets, 
@@ -46,7 +46,7 @@ void SDMTextureSetBuilder::Construct(const FArguments& InArgs, UDMTextureSet* In
 
 	MaterialProperties.Reserve(InTextureSet->GetTextures().Num());
 
-	for (const TPair<TEnumAsByte<EMaterialProperty>, FDMMaterialTexture>& SetElement : InTextureSet->GetTextures())
+	for (const TPair<EDMTextureSetMaterialProperty, FDMMaterialTexture>& SetElement : InTextureSet->GetTextures())
 	{
 		TSharedRef<FDMTextureSetBuilderEntry> Entry = MakeShared<FDMTextureSetBuilderEntry>(
 			SetElement.Key,
@@ -77,8 +77,9 @@ void SDMTextureSetBuilder::Construct(const FArguments& InArgs, UDMTextureSet* In
 
 	ChildSlot
 	[
-		SNew(SBox)
-		.Padding(5.0f)
+		SNew(SBorder)
+		.Padding(5.f)
+		.BorderImage(FDMTextureSetStyle::Get().GetBrush("TextureSetConfig.Window.Background"))
 		[
 			SNew(SVerticalBox)
 
@@ -95,7 +96,7 @@ void SDMTextureSetBuilder::Construct(const FArguments& InArgs, UDMTextureSet* In
 			[
 				SNew(SBorder)
 				.Padding(5.f)
-				.BorderImage(FDMTextureSetStyle::Get().GetBrush("TextureSetConfig.Background"))
+				.BorderImage(FDMTextureSetStyle::Get().GetBrush("TextureSetConfig.Cell.Background"))
 				[
 					SNew(SAssetDropTarget)
 					.OnAreAssetsAcceptableForDrop(this, &SDMTextureSetBuilder::OnAssetDraggedOver)
@@ -213,6 +214,32 @@ void SDMTextureSetBuilder::SwapTexture(int32 InFromIndex, bool bInIsFromMaterial
 	}
 }
 
+void SDMTextureSetBuilder::SetTexture(int32 InIndex, bool bInIsMaterialProperty, UTexture* InTexture)
+{
+	if (!IsValid(InTexture))
+	{
+		return;
+	}
+
+	TSharedPtr<SDMTextureSetBuilderCellBase> Cell = GetCell(InIndex, bInIsMaterialProperty);
+
+	if (!Cell.IsValid())
+	{
+		return;
+	}
+
+	Cell->SetTexture(InTexture);
+
+	if (bInIsMaterialProperty)
+	{
+		MaterialProperties[InIndex]->Texture = InTexture;
+	}
+
+	Assets.AddUnique(FAssetData(InTexture));
+
+	CreateUnassignedTextureSlots();
+}
+
 TSharedRef<SWidget> SDMTextureSetBuilder::GenerateMaterialPropertyCell(const TSharedRef<FDMTextureSetBuilderEntry>& InListItem, int32 InIndex)
 {
 	return SNew(SDMTextureSetBuilderMaterialPropertyCell, SharedThis(this), InListItem, InIndex);
@@ -232,7 +259,7 @@ FReply SDMTextureSetBuilder::OnAcceptClicked()
 		return FReply::Handled();
 	}
 
-	for (const TPair<TEnumAsByte<EMaterialProperty>, FDMMaterialTexture>& SetElement : TextureSet->GetTextures())
+	for (const TPair<EDMTextureSetMaterialProperty, FDMMaterialTexture>& SetElement : TextureSet->GetTextures())
 	{
 		TextureSet->SetMaterialTexture(SetElement.Key, {nullptr, EDMTextureChannelMask::RGBA});
 	}

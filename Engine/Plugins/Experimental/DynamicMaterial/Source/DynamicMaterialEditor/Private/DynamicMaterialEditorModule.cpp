@@ -22,6 +22,7 @@
 #include "DetailsPanel/DMPropertyTypeCustomizer.h"
 #include "DetailsPanel/DMValueDetailsRowExtensions.h"
 #include "DetailsPanel/Slate/SDMMaterialListExtensionWidget.h"
+#include "DMContentBrowserIntegration.h"
 #include "DMWorldSubsystem.h"
 #include "DynamicMaterialEditorCommands.h"
 #include "DynamicMaterialEditorSettings.h"
@@ -259,6 +260,7 @@ void FDynamicMaterialEditorModule::StartupModule()
 {
 	FDynamicMaterialEditorStyle::Initialize();
 	FDynamicMaterialEditorCommands::Register();
+	FDMContentBrowserIntegration::Integrate();
 	MapCommands();
 
 	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
@@ -321,6 +323,7 @@ void FDynamicMaterialEditorModule::ShutdownModule()
 {
 	FDynamicMaterialEditorCommands::Unregister();
 	FDynamicMaterialEditorStyle::Shutdown();
+	FDMContentBrowserIntegration::Disintegrate();
 
 	if (UObjectInitialized() && !IsEngineExitRequested() && FModuleManager::Get().IsModuleLoaded("PropertyEditor"))
 	{
@@ -555,13 +558,13 @@ void FDynamicMaterialEditorModule::OpenEditor(UWorld* InWorld) const
 
 UDynamicMaterialModel* FDynamicMaterialEditorModule::GetOpenedMaterialModel(UWorld* InWorld) const
 {
+	if (TSharedPtr<SDMEditor> Editor = FDMLevelEditorIntegration::GetEditorForWorld(InWorld))
+	{
+		return Editor->GetMaterialModel();
+	}
+
 	if (IsValid(InWorld))
 	{
-		if (TSharedPtr<SDMEditor> Editor = FDMLevelEditorIntegration::GetEditorForWorld(InWorld))
-		{
-			return Editor->GetMaterialModel();
-		}
-
 		if (UDMWorldSubsystem* DMWorldSubsystem = InWorld->GetSubsystem<UDMWorldSubsystem>())
 		{
 			return DMWorldSubsystem->ExecuteGetCustomEditorModelDelegate();

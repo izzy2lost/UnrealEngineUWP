@@ -22,6 +22,9 @@ public:
 
 	static UDMTextureSetSettings* Get();
 
+	UPROPERTY(EditAnywhere, Category = "Material Designer")
+	bool bOnlyMatchEndOfAssetName = false;
+
 	UPROPERTY(EditAnywhere, Category = "Material Designer", meta = (TitleProperty=FilterStrings))
 	TArray<FDMTextureSetFilter> Filters;
 };

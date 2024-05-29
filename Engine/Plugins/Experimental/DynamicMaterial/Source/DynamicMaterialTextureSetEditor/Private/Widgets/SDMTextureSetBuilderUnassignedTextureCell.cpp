@@ -13,7 +13,7 @@
 #define LOCTEXT_NAMESPACE "SDMTextureSetBuilderUnassignedTextureCell"
 
 SDMTextureSetBuilderUnassignedTextureCell::SDMTextureSetBuilderUnassignedTextureCell()
-	: TextureBrush(FSlateImageBrush((UObject*)nullptr, FVector2D(100.f)))
+	: TextureBrush(FSlateImageBrush((UObject*)nullptr, FVector2D(120.f)))
 {
 }
 
@@ -59,7 +59,7 @@ void SDMTextureSetBuilderUnassignedTextureCell::Construct(const FArguments& InAr
 			[
 				SNew(SImage)
 				.Image(&TextureBrush)
-				.DesiredSizeOverride(FVector2D(100.f))
+				.DesiredSizeOverride(FVector2D(120.f))
 				.Visibility(this, &SDMTextureSetBuilderUnassignedTextureCell::GetImageVisibility)
 			]
 

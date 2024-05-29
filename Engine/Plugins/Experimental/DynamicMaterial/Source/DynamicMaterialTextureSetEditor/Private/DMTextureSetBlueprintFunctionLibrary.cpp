@@ -71,7 +71,7 @@ UDMTextureSet* UDMTextureSetBlueprintFunctionLibrary::CreateTextureSetFromAssets
 				continue;
 			}
 
-			for (const TPair<TEnumAsByte<EMaterialProperty>, EDMTextureChannelMask>& Pair : Filter.MaterialProperties)
+			for (const TPair<EDMTextureSetMaterialProperty, EDMTextureChannelMask>& Pair : Filter.MaterialProperties)
 			{
 				if (TextureSet->HasMaterialTexture(Pair.Key))
 				{
@@ -101,7 +101,7 @@ void UDMTextureSetBlueprintFunctionLibrary::CreateTextureSetFromAssetsInteractiv
 		.SizingRule(ESizingRule::Autosized)
 		.SupportsMinimize(false)
 		.SupportsMaximize(false)
-		.Title(LOCTEXT("TextureSetBuilder", "Texture Set Builder"))
+		.Title(LOCTEXT("TextureSetBuilder", "Material Designer Texture Set Builder"))
 		[
 			SNew(SDMTextureSetBuilder, TextureSet, InAssets, InOnComplete)
 		];

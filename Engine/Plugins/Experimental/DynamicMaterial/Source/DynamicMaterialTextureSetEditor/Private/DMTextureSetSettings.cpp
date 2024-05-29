@@ -2,49 +2,119 @@
 
 #include "DMTextureSetSettings.h"
 
+#include "DMTextureSetMaterialProperty.h"
+
 UDMTextureSetSettings::UDMTextureSetSettings()
 {
+	int32 FilterCount = 0;
+
 	FDMTextureSetFilter BaseColor;
-	BaseColor.FilterStrings = {TEXT("Base_Color"), TEXT("BaseColor"), TEXT("Base_Colour"), TEXT("BaseColour"), TEXT("_BC"), TEXT("Diffuse"), TEXT("Albedo")};
-	BaseColor.MaterialProperties = {{EMaterialProperty::MP_BaseColor, EDMTextureChannelMask::RGBA}};
+	BaseColor.FilterStrings = {TEXT("Base_Color"), TEXT("BaseColor"), TEXT("Base_Colour"), TEXT("BaseColour"), TEXT("_BC"), TEXT("Diffuse"), TEXT("Albedo"), TEXT("_Diff")};
+	BaseColor.MaterialProperties = {{EDMTextureSetMaterialProperty::BaseColor, EDMTextureChannelMask::RGBA}};
+	++FilterCount;
 
 	FDMTextureSetFilter Roughness;
 	Roughness.FilterStrings = {TEXT("Roughness"), TEXT("Rough"), TEXT("_R")};
-	Roughness.MaterialProperties = {{EMaterialProperty::MP_Roughness, EDMTextureChannelMask::RGBA}};
+	Roughness.MaterialProperties = {{EDMTextureSetMaterialProperty::Roughness, EDMTextureChannelMask::RGBA}};
+	++FilterCount;
 
 	FDMTextureSetFilter Normal;
-	Normal.FilterStrings = {TEXT("Normal"), TEXT("Norm"), TEXT("_N")};
-	Normal.MaterialProperties = {{EMaterialProperty::MP_Normal, EDMTextureChannelMask::RGBA}};
+	Normal.FilterStrings = {TEXT("Normal"), TEXT("Norm"), TEXT("_N"), TEXT("_Nor")};
+	Normal.MaterialProperties = {{EDMTextureSetMaterialProperty::Normal, EDMTextureChannelMask::RGBA}};
+	++FilterCount;
 
 	FDMTextureSetFilter Metallic;
 	Metallic.FilterStrings = {TEXT("Metallic"), TEXT("Metal"), TEXT("_M")};
-	Metallic.MaterialProperties = {{EMaterialProperty::MP_Metallic, EDMTextureChannelMask::RGBA}};
+	Metallic.MaterialProperties = {{EDMTextureSetMaterialProperty::Metallic, EDMTextureChannelMask::RGBA}};
+	++FilterCount;
 
 	FDMTextureSetFilter AmbientOcclusion;
 	AmbientOcclusion.FilterStrings = {TEXT("AmbientOcclusion"), TEXT("Ambient_Occlusion"), TEXT("_AO")};
-	AmbientOcclusion.MaterialProperties = {{EMaterialProperty::MP_AmbientOcclusion, EDMTextureChannelMask::RGBA}};
+	AmbientOcclusion.MaterialProperties = {{EDMTextureSetMaterialProperty::AmbientOcclusion, EDMTextureChannelMask::RGBA}};
+	++FilterCount;
 
 	FDMTextureSetFilter Specular;
 	Specular.FilterStrings = {TEXT("Specular"), TEXT("_S")};
-	Specular.MaterialProperties = {{EMaterialProperty::MP_EmissiveColor, EDMTextureChannelMask::RGBA}};
+	Specular.MaterialProperties = {{EDMTextureSetMaterialProperty::Specular, EDMTextureChannelMask::RGBA}};
+	++FilterCount;
 
 	FDMTextureSetFilter Emissive;
 	Emissive.FilterStrings = {TEXT("Emissive"), TEXT("Emission"), TEXT("_E")};
-	Emissive.MaterialProperties = {{EMaterialProperty::MP_EmissiveColor, EDMTextureChannelMask::RGBA}};
+	Emissive.MaterialProperties = {{EDMTextureSetMaterialProperty::EmissiveColor, EDMTextureChannelMask::RGBA}};
+	++FilterCount;
 
 	FDMTextureSetFilter Opacity;
 	Opacity.FilterStrings = {TEXT("Opacity"), TEXT("_O"), TEXT("Alpha"), TEXT("_A")};
-	Opacity.MaterialProperties = {{EMaterialProperty::MP_EmissiveColor, EDMTextureChannelMask::RGBA}};
+	Opacity.MaterialProperties = {{EDMTextureSetMaterialProperty::Opacity, EDMTextureChannelMask::RGBA}};
+	++FilterCount;
+
+	FDMTextureSetFilter OpacityMask;
+	Opacity.FilterStrings = {TEXT("OpacityMask"), TEXT("Opacity_Mask"), TEXT("_OM"), TEXT("AlphaMask"), TEXT("Alpha_Mask"), TEXT("_AM")};
+	Opacity.MaterialProperties = {{EDMTextureSetMaterialProperty::OpacityMask, EDMTextureChannelMask::RGBA}};
+	++FilterCount;
+
+	FDMTextureSetFilter Displacement;
+	Displacement.FilterStrings = {TEXT("Displacement"), TEXT("_Disp"), TEXT("Height")};
+	Displacement.MaterialProperties = {{EDMTextureSetMaterialProperty::Displacement, EDMTextureChannelMask::RGBA}};
+	++FilterCount;
+
+	FDMTextureSetFilter WorldPositionOffset;
+	WorldPositionOffset.FilterStrings = {TEXT("WorldPositionOffset"), TEXT("World_Position_Offset"), TEXT("_WPO")};
+	WorldPositionOffset.MaterialProperties = {{EDMTextureSetMaterialProperty::WorldPositionOffset, EDMTextureChannelMask::RGBA}};
+	++FilterCount;
+
+	FDMTextureSetFilter PixelDepthOffset;
+	PixelDepthOffset.FilterStrings = {TEXT("PixelDepthOffset"), TEXT("Pixel_Depth_Offset"), TEXT("_PDO")};
+	PixelDepthOffset.MaterialProperties = {{EDMTextureSetMaterialProperty::PixelDepthOffset, EDMTextureChannelMask::RGBA}};
+	++FilterCount;
+
+	FDMTextureSetFilter SubsurfaceColor;
+	SubsurfaceColor.FilterStrings = {TEXT("SubsurfaceColor"), TEXT("SubsurfaceColour"), TEXT("Subsurface_Color"), TEXT("Subsurface_Coluor"), TEXT("_SC"), TEXT("_SS"), TEXT("_SSC")};
+	SubsurfaceColor.MaterialProperties = {{EDMTextureSetMaterialProperty::SubsurfaceColor, EDMTextureChannelMask::RGBA}};
+	++FilterCount;
+
+	FDMTextureSetFilter Anisotropy;
+	Anisotropy.FilterStrings = {TEXT("Anisotropy"), TEXT("_Ani")};
+	Anisotropy.MaterialProperties = {{EDMTextureSetMaterialProperty::Anisotropy, EDMTextureChannelMask::RGBA}};
+	++FilterCount;
+
+	FDMTextureSetFilter Refraction;
+	Refraction.FilterStrings = {TEXT("Refraction"), TEXT("_Ref")};
+	Refraction.MaterialProperties = {{EDMTextureSetMaterialProperty::Refraction, EDMTextureChannelMask::RGBA}};
+	++FilterCount;
+
+	FDMTextureSetFilter Tangent;
+	Tangent.FilterStrings = {TEXT("Tangent"), TEXT("_T")};
+	Tangent.MaterialProperties = {{EDMTextureSetMaterialProperty::Tangent, EDMTextureChannelMask::RGBA}};
+	++FilterCount;
 
 	FDMTextureSetFilter ORM;
 	ORM.FilterStrings = {TEXT("_ORM")};
 	ORM.MaterialProperties = {
-		{EMaterialProperty::MP_Opacity, EDMTextureChannelMask::Red},
-		{EMaterialProperty::MP_Roughness, EDMTextureChannelMask::Green},
-		{EMaterialProperty::MP_Metallic, EDMTextureChannelMask::Blue}
+		{EDMTextureSetMaterialProperty::Opacity, EDMTextureChannelMask::Red},
+		{EDMTextureSetMaterialProperty::Roughness, EDMTextureChannelMask::Green},
+		{EDMTextureSetMaterialProperty::Metallic, EDMTextureChannelMask::Blue}
 	};
+	++FilterCount;
 
-	Filters.Reserve(9);
+	FDMTextureSetFilter RM;
+	RM.FilterStrings = {TEXT("_RM")};
+	RM.MaterialProperties = {
+		{EDMTextureSetMaterialProperty::Roughness, EDMTextureChannelMask::Red},
+		{EDMTextureSetMaterialProperty::Metallic, EDMTextureChannelMask::Green}
+	};
+	++FilterCount;
+
+	FDMTextureSetFilter RMA;
+	RMA.FilterStrings = {TEXT("_RMA")};
+	RMA.MaterialProperties = {
+		{EDMTextureSetMaterialProperty::Roughness, EDMTextureChannelMask::Red},
+		{EDMTextureSetMaterialProperty::Metallic, EDMTextureChannelMask::Green},
+		{EDMTextureSetMaterialProperty::AmbientOcclusion, EDMTextureChannelMask::Blue}
+	};
+	++FilterCount;
+
+	Filters.Reserve(FilterCount);
 
 	Filters.Add(MoveTemp(BaseColor));
 	Filters.Add(MoveTemp(Roughness));
@@ -54,7 +124,17 @@ UDMTextureSetSettings::UDMTextureSetSettings()
 	Filters.Add(MoveTemp(Specular));
 	Filters.Add(MoveTemp(Emissive));
 	Filters.Add(MoveTemp(Opacity));
+	Filters.Add(MoveTemp(OpacityMask));
+	Filters.Add(MoveTemp(Displacement));
+	Filters.Add(MoveTemp(WorldPositionOffset));
+	Filters.Add(MoveTemp(PixelDepthOffset));
+	Filters.Add(MoveTemp(SubsurfaceColor));
+	Filters.Add(MoveTemp(Anisotropy));
+	Filters.Add(MoveTemp(Refraction));
+	Filters.Add(MoveTemp(Tangent));
 	Filters.Add(MoveTemp(ORM));
+	Filters.Add(MoveTemp(RM));
+	Filters.Add(MoveTemp(RMA));
 }
 
 UDMTextureSetSettings* UDMTextureSetSettings::Get()

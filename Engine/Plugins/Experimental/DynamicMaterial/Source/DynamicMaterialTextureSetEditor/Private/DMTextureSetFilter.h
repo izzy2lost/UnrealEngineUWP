@@ -4,7 +4,7 @@
 
 #include "Containers/Map.h"
 #include "DMTextureChannelMask.h"
-#include "SceneTypes.h"
+#include "DMTextureSetMaterialProperty.h"
 
 #include "DMTextureSetFilter.generated.h"
 
@@ -27,7 +27,7 @@ struct FDMTextureSetFilter
 	 * Where the matched Texture assets should be placed into the Texture Set. Links to the channel for the given asset.
 	 */
 	UPROPERTY(EditAnywhere, Category = "Material Designer")
-	TMap<TEnumAsByte<EMaterialProperty>, EDMTextureChannelMask> MaterialProperties;
+	TMap<EDMTextureSetMaterialProperty, EDMTextureChannelMask> MaterialProperties;
 
 	/**
 	 * Checks the given asset name against the filter strings.

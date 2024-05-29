@@ -3,6 +3,8 @@
 #include "Widgets/SDMTextureSetBuilderMaterialPropertyCell.h"
 
 #include "DMTextureSetBuilderEntry.h"
+#include "DMTextureSetMaterialProperty.h"
+#include "DMTextureSetStyle.h"
 #include "Engine/Texture.h"
 #include "ISinglePropertyView.h"
 #include "Materials/Material.h"
@@ -10,7 +12,6 @@
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 #include "SAssetDropTarget.h"
-#include "SceneTypes.h"
 #include "SDMTextureSetBuilder.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/SBoxPanel.h"
@@ -32,7 +33,7 @@ namespace UE::DynamicMaterial::TextureSet::Private
 }
 
 SDMTextureSetBuilderMaterialPropertyCell::SDMTextureSetBuilderMaterialPropertyCell()
-	: MaterialBrush(FSlateMaterialBrush(FVector2D(100.f)))
+	: MaterialBrush(FSlateMaterialBrush(FVector2D(120.f)))
 {
 }
 
@@ -49,7 +50,7 @@ void SDMTextureSetBuilderMaterialPropertyCell::Construct(const FArguments& InArg
 
 	Entry = InEntry;
 
-	UEnum* MaterialPropertyEnum = StaticEnum<EMaterialProperty>();
+	UEnum* MaterialPropertyEnum = StaticEnum<EDMTextureSetMaterialProperty>();
 
 	if (!MaterialPropertyEnum)
 	{
@@ -81,54 +82,59 @@ void SDMTextureSetBuilderMaterialPropertyCell::Construct(const FArguments& InArg
 
 	ChildSlot
 	[
-		SNew(SVerticalBox)
-
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.HAlign(EHorizontalAlignment::HAlign_Center)
-		.Padding(0.f, 0.f, 0.f, 5.f)
+		SNew(SBorder)
+		.Padding(10.f)
+		.BorderImage(FDMTextureSetStyle::Get().GetBrush("TextureSetConfig.Cell.Background"))
 		[
-			SNew(STextBlock)
-			.Text(MaterialPropertyEnum->GetDisplayNameTextByValue(Entry->MaterialProperty))
-		]
+			SNew(SVerticalBox)
 
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.HAlign(EHorizontalAlignment::HAlign_Center)
-		.Padding(0.f, 0.f, 0.f, 5.f)
-		[
-			SNew(SAssetDropTarget)
-			.OnAreAssetsAcceptableForDrop(this, &SDMTextureSetBuilderMaterialPropertyCell::OnAssetDraggedOver)
-			.OnAssetsDropped(this, &SDMTextureSetBuilderMaterialPropertyCell::OnAssetsDropped)
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.HAlign(EHorizontalAlignment::HAlign_Center)
+			.Padding(0.f, 0.f, 0.f, 5.f)
 			[
-				SNew(SOverlay)
-				.ToolTipText(this, &SDMTextureSetBuilderMaterialPropertyCell::GetToolTipText)
+				SNew(STextBlock)
+				.Text(MaterialPropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(Entry->MaterialProperty)))
+			]
 
-				+ SOverlay::Slot()
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.HAlign(EHorizontalAlignment::HAlign_Center)
+			.Padding(0.f, 0.f, 0.f, 5.f)
+			[
+				SNew(SAssetDropTarget)
+				.OnAreAssetsAcceptableForDrop(this, &SDMTextureSetBuilderMaterialPropertyCell::OnAssetDraggedOver)
+				.OnAssetsDropped(this, &SDMTextureSetBuilderMaterialPropertyCell::OnAssetsDropped)
 				[
-					SNew(SImage)
-					.Image(&MaterialBrush)
-					.DesiredSizeOverride(FVector2D(100.f))
-					.Visibility(this, &SDMTextureSetBuilderMaterialPropertyCell::GetImageVisibility)
-				]
+					SNew(SOverlay)
+					.ToolTipText(this, &SDMTextureSetBuilderMaterialPropertyCell::GetToolTipText)
 
-				+ SOverlay::Slot()
-				.Padding(5.f)
-				[
-					SNew(STextBlock)
-					.Text(this, &SDMTextureSetBuilderMaterialPropertyCell::GetTextureName)
-					.WrappingPolicy(ETextWrappingPolicy::AllowPerCharacterWrapping)
-					.WrapTextAt(90.f)
+					+ SOverlay::Slot()
+					[
+						SNew(SImage)
+						.Image(&MaterialBrush)
+						.DesiredSizeOverride(FVector2D(120.f))
+						.Visibility(this, &SDMTextureSetBuilderMaterialPropertyCell::GetImageVisibility)
+					]
+
+					+ SOverlay::Slot()
+					.Padding(5.f)
+					[
+						SNew(STextBlock)
+						.Text(this, &SDMTextureSetBuilderMaterialPropertyCell::GetTextureName)
+						.WrappingPolicy(ETextWrappingPolicy::AllowPerCharacterWrapping)
+						.WrapTextAt(90.f)
+					]
 				]
 			]
-		]
 
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.HAlign(EHorizontalAlignment::HAlign_Left)
-		.Padding(0.f, 0.f, 0.f, 0.f)
-		[
-			PropertyView.ToSharedRef()
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.HAlign(EHorizontalAlignment::HAlign_Left)
+			.Padding(0.f, 0.f, 0.f, 0.f)
+			[
+				PropertyView.ToSharedRef()
+			]
 		]
 	];
 }
