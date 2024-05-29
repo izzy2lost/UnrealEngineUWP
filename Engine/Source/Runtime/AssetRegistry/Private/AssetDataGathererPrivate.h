@@ -858,17 +858,17 @@ public:
 	bool IsDiscoveryCacheReadEnabled() const;
 	EFeatureEnabled IsDiscoveryCacheWriteEnabled() const;
 	bool IsDiscoveryCacheInvalidateEnabled() const;
-	bool IsMonolithicCacheActivatedDuringPreload() const;
-	bool IsPreloadMonolithicCache() const;
+	bool IsPreloadCache() const;
 	bool IsGatherDependsData() const;
 	bool IsForceDependsGathering() const;
-	FString GetLegacyMonolithicCacheFilename() const;
-	const FString& GetMonolithicCacheBaseFilename() const;
+	FString GetLegacyCacheFilename() const;
+	FString GetLegacyNonMonolithicCacheDirectory() const;
+	const FString& GetCacheBaseFilename() const;
 	const FString& GetAssetRegistryCacheRootFolder() const;
-	TArray<FString> FindShardedMonolithicCacheFiles() const;
+	TArray<FString> FindShardedCacheFiles() const;
 
 private:
-	FString MonolithicCacheBaseFilename;
+	FString CacheBaseFilename;
 	FString AssetRegistryCacheRootFolder;
 	bool bForceDependsGathering = false;
 	bool bGatherDependsData = false;
@@ -877,7 +877,7 @@ private:
 	bool bDiscoveryCacheReadEnabled = false;
 	EFeatureEnabled DiscoveryCacheWriteEnabled = EFeatureEnabled::Never;
 	bool bDiscoveryCacheInvalidateEnabled = false;
-	bool bMonolithicCacheActivatedDuringPreload = false;
+	bool bPreloadCache = false;
 	bool bInitialized = false;
 };
 extern FPreloadSettings GPreloadSettings;

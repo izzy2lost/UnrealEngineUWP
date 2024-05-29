@@ -84,12 +84,6 @@ public:
 
 	void OnInitialSearchCompleted();
 
-	// Extra at-construction configuration 
-
-	/** Configure the gatherer to use a single monolithic cache, and read/write this cache during ticks. */
-	void ActivateMonolithicCache();
-
-
 	// Controlling Async behavior
 
 	/** Start the async thread, if this Gatherer was created async. Does nothing if not async or already started. */
@@ -167,11 +161,8 @@ public:
 	 * Add a set of paths to the allow list, optionally force rescanning and ignore deny list on them,
 	 * and wait for all assets in the paths to be added to search results.
 	 * Wait time is minimized by prioritizing the paths and transferring async scanning to the current thread.
-	 * If SaveCacheFilename is non-empty, save a cachefile to it with all discovered paths that are in one of
-	 * the SaveCacheLongPackageNameDirs paths.
 	 */
-	void ScanPathsSynchronous(const TArray<FString>& InPaths, bool bForceRescan, bool bIgnoreDenyListScanFilters,
-		const FString& SaveCacheFilename, const TArray<FString>& SaveCacheLongPackageNameDirs);
+	void ScanPathsSynchronous(const TArray<FString>& InPaths, bool bForceRescan, bool bIgnoreDenyListScanFilters);
 	/** Wait for all monitored assets to be added to search results. */
 	void WaitForIdle(float TimeoutSeconds = -1.0f);
 	/**
@@ -192,10 +183,6 @@ public:
 	bool IsCacheReadEnabled() const;
 	/** Return whether the current process enables writing AssetDataGatherer cache files. */
 	bool IsCacheWriteEnabled() const;
-	/** Calculate the cache filename that should be used for the given list of package paths. */
-	FString GetCacheFilename(TConstArrayView<FString> CacheFilePackagePaths);
-	/** Attempt to read the cache file at the given LocalPath, and store all of its results in the in-memory cache. */
-	void LoadCacheFiles(TConstArrayView<FString> CacheFilename);
 	/** Return the memory used by the gatherer. Used for performance metrics. */
 	SIZE_T GetAllocatedSize() const;
 
@@ -295,8 +282,7 @@ private:
 	 * Wait for all monitored assets under the given path to be added to search results.
 	 * Returns immediately if the given path are not monitored.
 	 */
-	void WaitOnPathsInternal(TArrayView<UE::AssetDataGather::Private::FPathExistence> QueryPaths,
-		const FString& SaveCacheFilename, const TArray<FString>& SaveCacheFilterDirs);
+	void WaitOnPathsInternal(TArrayView<UE::AssetDataGather::Private::FPathExistence> QueryPaths);
 
 	/** Sort the pending list of filepaths so that assets under the given directory/filename are processed first. */
 	void SortPathsByPriority(TArrayView<UE::AssetDataGather::Private::FPathExistence> QueryPaths,
@@ -320,14 +306,12 @@ private:
 	/** Add the given AssetDatas into DiskCachedAssetDataMap and DiskCachedAssetBlocks. */
 	void ConsumeCacheFiles(TArray<UE::AssetDataGather::Private::FCachePayload> Payloads);
 	/**
-	 * If a save of the monolithic cache has been triggered, get the cache filename and pointers to all elements that
+	 * If a cache save has been triggered, get the cache filename and pointers to all elements that
 	 * should be saved, for later saving outside of the critical section.
 	 */
-	void TryReserveSaveMonolithicCache(bool& bOutShouldSave, TArray<TPair<FName,FDiskCachedAssetData*>>& AssetsToSave);
-	/** 
-	 * Save a monolithic cache for the main asset discovery process, possibly sharded into multiple files.
-	*/
-	void SaveMonolithicCacheFile(const TArray<TPair<FName,FDiskCachedAssetData*>>& AssetsToSave);
+	void TryReserveSaveCache(bool& bOutShouldSave, TArray<TPair<FName,FDiskCachedAssetData*>>& AssetsToSave);
+	/** Save cache file for the assetdatas read from package headers, possibly sharded into multiple files. */
+	void SaveCacheFile(const TArray<TPair<FName,FDiskCachedAssetData*>>& AssetsToSave);
 	/**
 	 * If the CacheFilename/AssetsToSave are non empty, save the cache file. 
 	 * This function reads the read-only-after-creation data from each FDiskCachedAssetData*, but otherwise does not use
@@ -343,10 +327,10 @@ private:
 	void GetAssetsToSave(TArrayView<const FString> SaveCacheLongPackageNameDirs,
 		TArray<TPair<FName,FDiskCachedAssetData*>>& OutAssetsToSave);
 	/**
-	 * Get the list of FDiskCachedAssetData* for saving into the monolithic cache.
-	 * Includes both assets that were loaded in the gatherer and assets which were loaded from the monolithic cache and have not been pruned.
+	 * Get the list of FDiskCachedAssetData* for saving into the cache.
+	 * Includes both assets that were loaded in the gatherer and assets which were loaded from the cache and have not been pruned.
 	 */
-	void GetMonolithicCacheAssetsToSave(TArray<TPair<FName,FDiskCachedAssetData*>>& OutAssetsToSave);
+	void GetCacheAssetsToSave(TArray<TPair<FName,FDiskCachedAssetData*>>& OutAssetsToSave);
 
 	/* Adds the given pair into NewCachedAssetDataMap. Detects collisions for multiple files with the same PackageName */
 	void AddToCache(FName PackageName, FDiskCachedAssetData* DiskCachedAssetData);
@@ -474,16 +458,8 @@ private:
 	int32 NumCachedAssetFiles = 0;
 	/** The total number of files in the search results that were not in the cache and were read by parsing the file. */
 	int32 NumUncachedAssetFiles = 0;
-	/**
-	 * Track whether we are allowed to read from a monolithic cache that should be loaded during tick.
-	 * Even if we are or not, if bCacheReadEnabled the AssetRegistry can also call LoadCacheFile/ScanPathsSynchronous to
-	 * load/save smaller files.
-	 */
-	bool bReadMonolithicCache;
-	/** Track whether we are allowed to write to the monolithic cache. */
-	bool bWriteMonolithicCache;
-	/** If bHasLoadedMonolithicCache is true, track whether the cache has been loaded. */
-	bool bHasLoadedMonolithicCache;
+	/** Track whether the cache has been loaded. */
+	bool bHasLoadedCache;
 	/** Track whether the Discovery subsystem has gone idle and we have read all filenames from it. */
 	bool bDiscoveryIsComplete;
 	/** Track whether this Gather has gone idle and a caller has read all search data from it. */
@@ -513,7 +489,7 @@ private:
 	/** Used to block on gather results. If non-negative, tick should end when WaitBatchCount files have been processed. */
 	int32 WaitBatchCount;
 	/** How many uncached asset files had been discovered at the last async cache save */
-	int32 LastMonolithicCacheSaveUncachedAssetFiles;
+	int32 LastCacheSaveNumUncachedAssetFiles;
 	/**
 	 * Incremented when a thread is in the middle of saving any cache and therefore the cache cannot be deleted,
 	 * decremented when the thread is done. Only incremented when bCacheEnabled has been recently confirmed to be true.

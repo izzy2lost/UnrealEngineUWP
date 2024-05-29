@@ -989,7 +989,7 @@ void FAssetRegistryImpl::Initialize(Impl::FInitializeContext& Context)
 #if WITH_EDITOR
 	if (GIsEditor)
 	{
-		// Double check mount point is still valid because it could have been umounted
+		// Double check mount point is still valid because it could have been unmounted
 		bVerifyMountPointAfterGather = true;
 	}
 #endif // WITH_EDITOR
@@ -1016,8 +1016,10 @@ void FAssetRegistryImpl::Initialize(Impl::FInitializeContext& Context)
 		}
 		else
 		{
-			// For the Editor we need to take responsibility for the synchronous search; Commandlets will handle that themselves
-			Context.bNeedsSearchAllAssetsAtStartSynchronous = GIsEditor && !IsRunningCommandlet();
+			// For the Editor and editor game we need to take responsibility for the synchronous search;
+			// Commandlets and cooked game will handle it themselves.
+			constexpr bool bEditorExecutable = WITH_EDITOR;
+			Context.bNeedsSearchAllAssetsAtStartSynchronous = bEditorExecutable && !IsRunningCommandlet();
 		}
 	}
 
@@ -1241,7 +1243,7 @@ void FAssetRegistryImpl::InitRedirectors(Impl::FEventContext& EventContext,
 	bOutRedirectorsNeedSubscribe = false;
 
 	// plugins can't initialize redirectors in the editor, it will mess up the saving of content.
-	if ( GIsEditor )
+	if (GIsEditor)
 	{
 		return;
 	}
@@ -1812,9 +1814,6 @@ bool FAssetRegistryImpl::TryConstructGathererIfNeeded()
 void FAssetRegistryImpl::SearchAllAssetsInitialAsync(Impl::FEventContext& EventContext,
 	Impl::FClassInheritanceContext& InheritanceContext)
 {
-	InitialSearchStartTime = FPlatformTime::Seconds();
-	bInitialSearchStarted = true;
-	bInitialSearchCompleted = false;
 	SetPerformanceMode(Impl::EPerformanceMode::BulkLoading);
 	SearchAllAssets(EventContext, InheritanceContext, false /* bSynchronousSearch */);
 }
@@ -1877,14 +1876,13 @@ void UAssetRegistryImpl::SearchAllAssets(bool bSynchronousSearch)
 		}
 		GuardedData.SearchAllAssets(EventContext, InheritanceContext, bSynchronousSearch);
 	}
-#if WITH_EDITOR
+	Broadcast(EventContext);
+
 	if (bSynchronousSearch)
 	{
-		UE::AssetRegistry::Impl::FInterruptionContext InterruptionContext(-1., -1.);
-		ProcessLoadedAssetsToUpdateCache(EventContext, EGatherStatus::Complete, InterruptionContext);
+		// Continue calling TickGatherer until completion is signaled, and call ProcessLoadedAssetsToUpdateCache
+		WaitForCompletion();
 	}
-#endif
-	Broadcast(EventContext);
 }
 
 bool UAssetRegistryImpl::IsSearchAllAssets() const
@@ -1912,6 +1910,12 @@ void FAssetRegistryImpl::SearchAllAssets(Impl::FEventContext& EventContext,
 	{
 		return;
 	}
+	if (!bInitialSearchStarted)
+	{
+		InitialSearchStartTime = FPlatformTime::Seconds();
+		bInitialSearchStarted = true;
+		bInitialSearchCompleted = false;
+	}
 
 	FAssetDataGatherer& Gatherer = *GlobalGatherer;
 	if (!Gatherer.IsAsyncEnabled())
@@ -1919,8 +1923,6 @@ void FAssetRegistryImpl::SearchAllAssets(Impl::FEventContext& EventContext,
 		UE_CLOG(!bSynchronousSearch, LogAssetRegistry, Warning, TEXT("SearchAllAssets: Gatherer is in synchronous mode; forcing bSynchronousSearch=true."));
 		bSynchronousSearch = true;
 	}
-
-	Gatherer.ActivateMonolithicCache();
 
 	// Add all existing mountpoints to the GlobalGatherer
 	// This will include Engine content, Game content, but also may include mounted content directories for one or more plugins.
@@ -1939,14 +1941,6 @@ void FAssetRegistryImpl::SearchAllAssets(Impl::FEventContext& EventContext,
 		Gatherer.WaitForIdle();
 		Impl::FInterruptionContext InterruptionContext(-1., -1.);
 		Impl::EGatherStatus UnusedStatus = TickGatherer(EventContext, InheritanceContext, InterruptionContext);
-#if WITH_EDITOR
-		if (!bInitialSearchStarted)
-		{
-			// We have a contract that we call UpdateRedirectCollector after the call to SearchAllAssets completes.
-			// If we ran the initial async call asynchronously it is done in TickGatherer; for later synchronous calls it is done here
-			UpdateRedirectCollector();
-		}
-#endif
 	}
 	else
 	{
@@ -1964,6 +1958,7 @@ void UAssetRegistryImpl::WaitForCompletion()
 
 	bool bInitialSearchStarted = false;
 	bool bInitialSearchCompleted = false;
+	bool bAsyncGathering = false;
 
 	// Try taking over the gather thread for a short time in case it is mostly done.
 	// But if it has more than a small amount of work to do, let the gather thread do that work
@@ -1980,6 +1975,7 @@ void UAssetRegistryImpl::WaitForCompletion()
 		GuardedData.WaitForGathererIdle(TimeToJoinSeconds);
 		bInitialSearchStarted = GuardedData.IsInitialSearchStarted();
 		bInitialSearchCompleted = GuardedData.IsInitialSearchCompleted();
+		bAsyncGathering = GuardedData.GlobalGatherer && GuardedData.GlobalGatherer->IsAsyncEnabled();
 	}
 
 #if WITH_EDITOR
@@ -2069,9 +2065,12 @@ void UAssetRegistryImpl::WaitForCompletion()
 		}
 
 		FThreadHeartBeat::Get().HeartBeat();
-		// Sleep long enough to avoid causing contention on the CriticalSection in GetAndTrimSearchResults
-		constexpr float SleepTimeSeconds = 0.010f;
-		FPlatformProcess::SleepNoStats(SleepTimeSeconds);
+		if (Status == EGatherStatus::TickActiveGatherActive && bAsyncGathering)
+		{
+			// Sleep long enough to avoid causing contention on the CriticalSection in GetAndTrimSearchResults
+			constexpr float SleepTimeSeconds = 0.010f;
+			FPlatformProcess::SleepNoStats(SleepTimeSeconds);
+		}
 	}
 }
 
@@ -5701,18 +5700,6 @@ void FAssetRegistryImpl::ScanPathsSynchronous(Impl::FScanPathContext& Context)
 	}
 	FAssetDataGatherer& Gatherer = *GlobalGatherer;
 
-	// Add a cache file for any not-yet-scanned dirs
-	TArray<FString> CacheFilePackagePaths;
-	if (!Context.bForceRescan && (Gatherer.IsCacheReadEnabled() || Gatherer.IsCacheWriteEnabled()))
-	{
-		for (int n = 0; n < Context.LocalDirs.Num(); ++n)
-		{
-			if (!Gatherer.IsOnAllowList(Context.LocalDirs[n]))
-			{
-				CacheFilePackagePaths.Add(Context.PackageDirs[n]);
-			}
-		}
-	}
 	Context.LocalPaths.Reserve(Context.LocalFiles.Num() + Context.LocalDirs.Num());
 	Context.LocalPaths.Append(MoveTemp(Context.LocalDirs));
 	Context.LocalPaths.Append(MoveTemp(Context.LocalFiles));
@@ -5721,13 +5708,6 @@ void FAssetRegistryImpl::ScanPathsSynchronous(Impl::FScanPathContext& Context)
 		return;
 	}
 	Gatherer.AddRequiredMountPoints(Context.LocalPaths);
-
-	FString CacheFilename;
-	if (!CacheFilePackagePaths.IsEmpty())
-	{
-		CacheFilename = Gatherer.GetCacheFilename(CacheFilePackagePaths);
-		Gatherer.LoadCacheFiles({CacheFilename});
-	}
 
 	// If we are forcing a rescan, then delete any old assets that no longer exist. If we are not forcing a rescan,
 	// then there should not be any old assets that no longer exist, so we skip the cost of searching for them.
@@ -5780,7 +5760,7 @@ void FAssetRegistryImpl::ScanPathsSynchronous(Impl::FScanPathContext& Context)
 		}
 	}
 
-	Gatherer.ScanPathsSynchronous(Context.LocalPaths, Context.bForceRescan, Context.bIgnoreDenyListScanFilters, CacheFilename, Context.PackageDirs);
+	Gatherer.ScanPathsSynchronous(Context.LocalPaths, Context.bForceRescan, Context.bIgnoreDenyListScanFilters);
 	TArray<FName> FoundAssetPackageNames;
 
 	auto IsInRequestedDir = [&Context](const FAssetData& AssetData)
@@ -9153,8 +9133,17 @@ void GetAssetForPackages(TConstArrayView<FName> PackageNames, TMap<FName, FAsset
 
 bool ShouldSearchAllAssetsAtStart()
 {
-	// If in the editor or cookcommandlet, or an allowlist commandlet, we start the GlobalGatherer now
-	// In the game or other commandlets, we do not construct it until project or commandlet code calls SearchAllAssets or ScanPathsSynchronous
+	// Search at start for configurations that need the entire assetregistry and that do not load it from serialized:
+	// Need it: Editor IDE, CookCommandlet, other Allowlist Commandlets
+	// Possibly need it: editor running as -game or -server
+	// Do not need it: Commandlets not on the Allowlist
+	// Load it from serialized: Non-editor-executable
+	// 
+	// This behavior can be overridden with commandline option.
+	// 
+	// For the editor-executable configurations that do not search at start, the search will be triggered when
+	// SearchAllAssets or ScanPathsSynchronous is called.
+
 	bool bSearchAllAssetsAtStart = false;
 	if (GIsEditor)
 	{
@@ -9190,6 +9179,14 @@ bool ShouldSearchAllAssetsAtStart()
 			}
 		}
 	}
+#if WITH_EDITOR
+	else
+	{
+		bool bEditorGameScansAR = true;
+		GConfig->GetBool(TEXT("AssetRegistry"), TEXT("EditorGameScansAR"), bEditorGameScansAR, GEngineIni);
+		bSearchAllAssetsAtStart = bEditorGameScansAR;
+	}
+#endif
 #if WITH_EDITOR || !UE_BUILD_SHIPPING
 	bool bCommandlineAllAssetsAtStart;
 	if (FParse::Bool(FCommandLine::Get(), TEXT("AssetGatherAll="), bCommandlineAllAssetsAtStart))
