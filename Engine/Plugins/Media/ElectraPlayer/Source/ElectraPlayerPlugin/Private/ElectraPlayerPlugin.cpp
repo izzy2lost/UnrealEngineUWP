@@ -1039,6 +1039,7 @@ bool FElectraPlayerPlugin::Seek(const FTimespan& Time)
 				SequenceIndexMapperSubtitle.SetRemapPrimaryIndex(NextSequenceIndex, TOptional<int32>());
 				SequenceIndexMapperMetadata.SetRemapPrimaryIndex(NextSequenceIndex, TOptional<int32>());
 				CurrentSequenceIndex = NextSequenceIndex;
+				SampleLock.Unlock();
 				SendMediaEvent(EPlayerEvent::SeekCompleted);
 				return true;
 			}
@@ -1050,6 +1051,7 @@ bool FElectraPlayerPlugin::Seek(const FTimespan& Time)
 	SequenceIndexMapperSubtitle.SetExpectedPrimaryIndex(NextSequenceIndex);
 	SequenceIndexMapperMetadata.SetExpectedPrimaryIndex(NextSequenceIndex);
 	CurrentSequenceIndex = NextSequenceIndex;
+	SampleLock.Unlock();
 
 	IElectraPlayerInterface::FSeekParam sp;
 	sp.SequenceIndex = CurrentSequenceIndex;
