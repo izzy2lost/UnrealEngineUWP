@@ -500,11 +500,13 @@ D3D12_GPU_DESCRIPTOR_HANDLE FD3D12DescriptorCache::BuildSRVTable(EShaderFrequenc
 			Context.TransitionResource(SRV, State & ValidResourceStates);
 			Context.UpdateResidency(Cache.Resources[ShaderStage][SlotIndex]);
 
+#if RHI_RAYTRACING
 			FD3D12RayTracingScene* RayTracingScene = SRV->GetRayTracingScene();
 			if (RayTracingScene)
 			{
 				RayTracingScene->UpdateResidency(Context);
 			}
+#endif
 		}
 		else
 		{

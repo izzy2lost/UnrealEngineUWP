@@ -2562,7 +2562,7 @@ public:
 
 	FInitializer& SetRayTracingScene(FRHIRayTracingScene* InRayTracingScene)
 	{
-		check(Buffer.SRV.BufferType != EBufferType::Unknown && Buffer.SRV.BufferType == EBufferType::AccelerationStructure);
+		check(Buffer.SRV.BufferType == EBufferType::AccelerationStructure);
 		Buffer.SRV.RayTracingScene = InRayTracingScene;
 		return *this;
 	}

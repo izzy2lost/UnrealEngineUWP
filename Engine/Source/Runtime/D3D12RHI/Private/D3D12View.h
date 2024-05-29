@@ -10,6 +10,7 @@
 
 class FD3D12Buffer;
 class FD3D12Texture;
+class FD3D12RayTracingScene;
 struct FD3D12ResidencyHandle;
 
 struct FD3D12DefaultViews
