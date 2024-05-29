@@ -847,8 +847,12 @@ public:
 	ENGINE_API ~FStaticMeshComponentRecreateRenderStateContext();
 
 private:
-
-	TMap<void*, TArray<UStaticMeshComponent*>> StaticMeshComponents;
+	struct FData
+	{
+		TArray<UStaticMeshComponent*> UStaticMeshComponents;
+		TArray<IStaticMeshComponent*> IStaticMeshComponents;
+	};
+	TMap<void*, FData> StaticMeshComponents;
 	bool bUnbuildLighting;
 	bool bRefreshBounds;
 };
