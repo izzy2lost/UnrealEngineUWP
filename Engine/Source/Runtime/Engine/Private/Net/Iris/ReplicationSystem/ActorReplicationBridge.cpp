@@ -11,6 +11,7 @@
 #include "Iris/Core/IrisLog.h"
 #include "Iris/Core/IrisProfiler.h"
 #include "Iris/Core/NetObjectReference.h"
+#include "Iris/Core/IrisMemoryTracker.h"
 #include "Iris/ReplicationSystem/NetToken.h"
 #include "Iris/ReplicationSystem/ObjectReplicationBridgeConfig.h"
 #include "Iris/ReplicationSystem/StringTokenStore.h"
@@ -618,6 +619,8 @@ TUniquePtr<UObjectReplicationBridge::FCreationHeader> UActorReplicationBridge::R
 
 FObjectReplicationBridgeInstantiateResult UActorReplicationBridge::BeginInstantiateFromRemote(FNetRefHandle RootObjectOfSubObject, const UE::Net::FNetObjectResolveContext& ResolveContext, const UObjectReplicationBridge::FCreationHeader* InHeader)
 {
+	LLM_SCOPE(ELLMTag::EngineMisc);
+
 	using namespace UE::Net::Private;
 
 	IRIS_PROFILER_SCOPE(ActorReplicationBridge_OnBeginInstantiateFromRemote);
@@ -812,6 +815,8 @@ FObjectReplicationBridgeInstantiateResult UActorReplicationBridge::BeginInstanti
 
 bool UActorReplicationBridge::OnInstantiatedFromRemote(UObject* Instance, const UObjectReplicationBridge::FCreationHeader* InHeader, uint32 ConnectionId) const
 {
+	LLM_SCOPE(ELLMTag::EngineMisc);
+
 	using namespace UE::Net::Private;
 
 	const FActorReplicationBridgeCreationHeader* BridgeHeader = static_cast<const FActorReplicationBridgeCreationHeader*>(InHeader);

@@ -163,8 +163,6 @@ bool UObjectReplicationBridge::ShouldUseVerboseCsvStats() const
 
 void UObjectReplicationBridge::Initialize(UReplicationSystem* InReplicationSystem)
 {
-	LLM_SCOPE_BYTAG(Iris);
-
 	ensureMsgf((GEnsureNetRefHandleError == -1 || GEnsureNetRefHandleError < (int32)UE::Net::ENetRefHandleError::Max), TEXT("GEnsureNetRefHandleError is set to an invalid value: %u"), GEnsureNetRefHandleError);
 
 	Super::Initialize(InReplicationSystem);

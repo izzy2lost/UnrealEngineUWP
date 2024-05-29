@@ -95,8 +95,6 @@ public:
 
 	void Init(const UReplicationSystem::FReplicationSystemParams& Params)
 	{
-		LLM_SCOPE_BYTAG(Iris);
-
 #if !UE_BUILD_SHIPPING
 		IrisDebugHelperDummy = UE::Net::IrisDebugHelper::Init();
 #endif
@@ -658,8 +656,6 @@ UReplicationSystem::UReplicationSystem()
 
 void UReplicationSystem::Init(uint32 InId, const FReplicationSystemParams& Params)
 {
-	LLM_SCOPE_BYTAG(Iris);
-
 	Id = InId;
 	bIsServer = Params.bIsServer;
 	bAllowObjectReplication = Params.bAllowObjectReplication;
@@ -1755,6 +1751,8 @@ uint32 FReplicationSystemFactory::MaxReplicationSystemId = 0;
 
 UReplicationSystem* FReplicationSystemFactory::CreateReplicationSystem(const UReplicationSystem::FReplicationSystemParams& Params)
 {
+	LLM_SCOPE_BYTAG(IrisInitialization);
+
 	if (!Params.ReplicationBridge)
 	{
 		UE_LOG(LogIris, Error, TEXT("Cannot create ReplicationSystem without a ReplicationBridge"));
