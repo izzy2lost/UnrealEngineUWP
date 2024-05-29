@@ -137,7 +137,7 @@ public:
 	bool bNeedsDebugInstanceGPUSceneIndexBuffer = false;
 
 	// Used for transforming to translated world space in which TLAS was built.
-	FDFVector3 PreViewTranslation {};
+	FVector PreViewTranslation {};
 private:
 	void ReleaseReadbackBuffers();
 
