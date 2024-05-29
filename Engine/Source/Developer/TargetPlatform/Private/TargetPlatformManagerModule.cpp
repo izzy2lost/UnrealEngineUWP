@@ -192,7 +192,6 @@ public:
 		, bForceCacheUpdate(true)
 		, bHasInitErrors(false)
 		, bIgnoreFirstDelegateCall(true)
-		, bSkipOneTextureFormatManagerInvalidate(false)
 	{
 #if WITH_EDITOR && UE_WITH_TURNKEY_SUPPORT
 
@@ -224,9 +223,6 @@ public:
 #endif
 
 		TextureFormatManager = FModuleManager::LoadModulePtr<ITextureFormatManagerModule>("TextureFormat");
-
-		//TextureFormatManager->Invalidate() already done, don't do again now :
-		bSkipOneTextureFormatManagerInvalidate = true;
 
 		// Calling a virtual function from a constructor, but with no expectation that a derived implementation of this
 		// method would be called.  This is solely to avoid duplicating code in this implementation, not for polymorphism.
@@ -264,15 +260,6 @@ public:
 
 		bForceCacheUpdate = false;
 		
-		if ( bSkipOneTextureFormatManagerInvalidate )
-		{
-			bSkipOneTextureFormatManagerInvalidate = false;
-		}
-		else if (!bHasInitErrors)
-		{
-			TextureFormatManager->Invalidate();
-		}
-
 		// If we've had an error due to an invalid target platform, don't do additional work
 		if (!bHasInitErrors)
 		{
@@ -686,12 +673,6 @@ public:
 		}
 
 		return nullptr;
-	}
-
-	virtual const TArray<const ITextureFormat*>& GetTextureFormats() override
-	{
-		// note that this gets ALL ITextureFormat Modules, not just ones relevant to the current TargetPlatform
-		return TextureFormatManager->GetTextureFormats();
 	}
 
 	virtual const ITextureFormat* FindTextureFormat(FName Name) override
@@ -1363,9 +1344,6 @@ private:
 	// Flag to avoid redunant reloads
 	bool bIgnoreFirstDelegateCall;
 	
-	// Flag to avoid redunant reloads
-	bool bSkipOneTextureFormatManagerInvalidate;
-
 	// Holds the list of discovered platforms.
 	TArray<ITargetPlatform*> Platforms;
 	TArray<ITargetPlatformControls*> PlatformControls;

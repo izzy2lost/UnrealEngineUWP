@@ -14,7 +14,7 @@ class ITextureFormatManagerModule
 public:
 
 	/**
-	 * Finds a texture format with the specified name.
+	 * Finds a texture format with the specified name. Safe to call from any thread.
 	 *
 	 * @param Name Name of the format to find.
 	 * @return The texture format, or nullptr if not found.
@@ -23,7 +23,8 @@ public:
 
 	/**
 	 * Finds a texture format with the specified name and provides information about the module it came from.
-	 *
+	 * Safe to call from any thread.
+	 * 
 	 * @param Name Name of the format to find.
 	 * @param OutModuleName Name of the module that the found format came from, or unmodified if not found.
 	 * @param OutModule Interface of the module that the found format came from, or unmodified if not found.
@@ -36,15 +37,17 @@ public:
 	 *
 	 * @return Collection of texture formats.
 	 */
-	virtual const TArray<const class ITextureFormat*>& GetTextureFormats() = 0;
+	UE_DEPRECATED(5.6, "Deprecated as it's not thread safe - use FindTextureFormat")
+	TArray<const class ITextureFormat*> GetTextureFormats()	{ return {}; }
 
 	/**
 	 * Invalidates the texture format manager module.
-	 *
-	 * Invalidate should be called if any TextureFormat modules get loaded/unloaded/reloaded during 
-	 * runtime to give the implementation the chance to rebuild all its internal states and caches.
+	 * 
+	 * This is no longer necessary as all work is done in response to broadcast plugin/module discovery messages.
 	 */
-	virtual void Invalidate() = 0;
+	UE_DEPRECATED(5.6, "No longer necessary to call")
+	void Invalidate() { }
+
 public:
 
 	/** Virtual destructor. */

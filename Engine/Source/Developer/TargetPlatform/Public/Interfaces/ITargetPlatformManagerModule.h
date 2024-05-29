@@ -154,7 +154,8 @@ public:
 	 *
 	 * @return Collection of texture formats.
 	 */
-	virtual const TArray<const class ITextureFormat*>& GetTextureFormats() = 0;
+	UE_DEPRECATED(5.6, "Not thread safe, use FindTextureFormat")
+	TArray<const class ITextureFormat*> GetTextureFormats() { return {}; }
 
 	/**
 	 * Determine if there were errors during the initialization of the platform manager.
