@@ -19,6 +19,15 @@ class XRBASE_API UXRLoadingScreenFunctionLibrary : public UBlueprintFunctionLibr
 {
 	GENERATED_UCLASS_BODY()
 
+	/**
+	 * Sets the loading screen texture for VR displays.
+	 *
+	 * @param Texture			(in) A texture asset to be used for the loading screen.
+	 * @param Scale				(in) Scale of the loading screen texture quad.
+	 * @param Offset			(in) Offset of the loading screen texture quad relative to the tracking space origin, in meters.
+	 * @param bShowLoadingMovie	(in) If true, support animated texture assets, such as media textures.
+	 * @param bShowOnSet		(in) If true, immediately show the loading screen after it's set.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Input|HeadMountedDisplay|LoadingScreen")
 	static void SetLoadingScreen(class UTexture* Texture, FVector2D Scale = FVector2D(1.0f, 1.0f), FVector Offset = FVector::ZeroVector, bool bShowLoadingMovie = false, bool bShowOnSet = false);
 	
