@@ -28,6 +28,7 @@ namespace UnrealBuildTool
 			SourceDir = Source;
 			OutputDir = Output;
 			RspLines = ContentLines;
+			ArtifactMode = ArtifactMode.None;
 		}
 
 		public ClangSpecificFileAction(BinaryArchiveReader Reader) : base(Reader)
