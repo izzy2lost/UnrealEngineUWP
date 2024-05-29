@@ -288,7 +288,8 @@ private:
 		int32 RemainingSuccessorCount = 0;
 	};
 
-	TMap<FPCGTaskId, FOutputDataInfo> OutputData;
+	FRWLock TaskOutputsRWLock;
+	TMap<FPCGTaskId, FOutputDataInfo> TaskOutputs;
 
 	/** Monotonically increasing id. Should be reset once all tasks are executed, should be protected by the ScheduleLock */
 	FPCGTaskId NextTaskId = 0;
