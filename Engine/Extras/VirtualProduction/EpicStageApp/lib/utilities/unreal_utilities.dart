@@ -137,7 +137,7 @@ bool canConvertUnrealType(String typeName) {
 /// Some conversion functions may also make make use of arbitrary data stored in [conversionMetadata].
 dynamic convertUnrealTypeJsonToDart(String typeName, dynamic data,
     {dynamic previousValue, Map<String, dynamic>? conversionMetadata}) {
-  if (data == null) {
+  if (data == null || (data is String && data.isEmpty)) {
     return null;
   }
 
