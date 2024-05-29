@@ -1761,8 +1761,13 @@ uint32 FOnDemandIoBackend::Run()
 	{
 		if (ResolveDistributedEndpoint(DistributionUrl) == false)
 		{
-			UE_LOG(LogIas, Error, TEXT("Failed to resolve CDN endpoints from distribution URL"));
+			// ResolveDistributedEndpoint should spin forever until either a valid url is found or
+			// we give up and use a predetermined fallback url. If this returned false then we didn't
+			// have a fallback url but the current process is shutting down so we might as well just
+			// exist the thread early.
+			UE_LOG(LogIas, Warning, TEXT("Failed to resolve CDN endpoints from distribution URL"));
 			BackendStatus.SetHttpEnabled(false);
+
 			return 0;
 		}
 	}
