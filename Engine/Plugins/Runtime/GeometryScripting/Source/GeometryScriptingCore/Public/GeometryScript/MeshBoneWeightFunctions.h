@@ -188,6 +188,17 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBoneInfo
 	FLinearColor Color = FLinearColor::White;
 };
 
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptCopyBonesFromMeshOptions
+{
+	GENERATED_BODY()
+	
+	/** If the target Dynamic mesh has bone weights and a skeleton, re-index (re-bind) target weight indices from the  
+	 * target skeleton to the source skeleton.*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool ReindexWeights = false;
+};
+
 UCLASS(meta = (ScriptName = "GeometryScript_BoneWeights"))
 class GEOMETRYSCRIPTINGCORE_API UGeometryScriptLibrary_MeshBoneWeightFunctions : public UBlueprintFunctionLibrary
 {
@@ -338,6 +349,7 @@ public:
 	CopyBonesFromMesh(
 		UDynamicMesh* SourceMesh,
 		UDynamicMesh* TargetMesh,
+		FGeometryScriptCopyBonesFromMeshOptions Options = FGeometryScriptCopyBonesFromMeshOptions(),
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**

@@ -456,6 +456,7 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::TransferBoneWeight
 UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::CopyBonesFromMesh(
 	UDynamicMesh* SourceMesh, 
 	UDynamicMesh* TargetMesh, 
+	FGeometryScriptCopyBonesFromMeshOptions Options,
 	UGeometryScriptDebug* Debug)
 {
 	if (SourceMesh == nullptr)
@@ -490,8 +491,34 @@ UDynamicMesh* UGeometryScriptLibrary_MeshBoneWeightFunctions::CopyBonesFromMesh(
 			{
 				EditMesh.EnableAttributes();
 			}
-				
+			
+			if (Options.ReindexWeights)
+			{
+				if (EditMesh.Attributes()->HasBones())
+				{
+					for (const TPair<FName, TUniquePtr<FDynamicMeshVertexSkinWeightsAttribute>>& AttribPair : EditMesh.Attributes()->GetSkinWeightsAttributes())
+					{
+						FDynamicMeshVertexSkinWeightsAttribute* ToAttrib = EditMesh.Attributes()->GetSkinWeightsAttribute(AttribPair.Key);
+						if (ToAttrib)
+						{	
+							const bool bResult = ToAttrib->ReindexBoneIndicesToSkeleton(EditMesh.Attributes()->GetBoneNames()->GetAttribValues(),
+																	  				    ReadMesh.Attributes()->GetBoneNames()->GetAttribValues());
+							if (!bResult)
+							{
+								const FText Error = FText::Format(LOCTEXT("CopyBonesFromMesh_FailedToReindexWeights", "Failed to reindex bone weights for {0} weights profile"), FText::FromName(AttribPair.Key));
+								AppendError(Debug, EGeometryScriptErrorType::OperationFailed, Error);
+							}
+						}
+					}
+				}
+				else
+				{
+					AppendWarning(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyBonesFromMesh_TargetMeshHasNoBones", "Bone weight re-indexing was requested but the target mesh has no skeleton data"));
+				}
+			}
+
 			EditMesh.Attributes()->CopyBoneAttributes(*ReadMesh.Attributes());
+
 		}, EDynamicMeshChangeType::AttributeEdit, EDynamicMeshAttributeChangeFlags::Unknown, false);
 	});
 
