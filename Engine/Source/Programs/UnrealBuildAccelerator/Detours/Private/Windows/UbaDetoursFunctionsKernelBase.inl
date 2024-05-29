@@ -3260,7 +3260,7 @@ DWORD Detoured_ExpandEnvironmentStringsW(LPCWSTR lpSrc, LPWSTR lpDst, DWORD nSiz
 UINT Detoured_GetTempFileNameW(LPCWSTR lpPathName, LPCWSTR lpPrefixString, UINT uUnique, LPTSTR lpTempFileName)
 {
 	DETOURED_CALL(GetTempFileNameW);
-	DEBUG_LOG_TRUE(L"GetTempFileNameW", L"");
+	DEBUG_LOG_TRUE(L"GetTempFileNameW", L"%s %s", lpPathName, lpPrefixString);
 	return True_GetTempFileNameW(lpPathName, lpPrefixString, uUnique, lpTempFileName);
 }
 
