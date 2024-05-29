@@ -89,7 +89,7 @@ void MobileFogPS(
 
 // at least one of these is active
 #if PERMUTATION_SUPPORT_HEIGHT_FOG
-	FinalFog = CalculateHeightFog(WorldPositionRelativeToCamera, ArrayIndex);
+	FinalFog = CalculateHeightFog(WorldPositionRelativeToCamera, ArrayIndex, ResolvedView);
 #endif
 
 #if PERMUTATION_SUPPORT_LOCAL_FOG_VOLUME == 1
@@ -164,8 +164,8 @@ void MobileFogPS(
 #if PERMUTATION_SUPPORT_VOLUMETRIC_FOG
 	if (FogStruct.ApplyVolumetricFog > 0) 
 	{
-		float3 VolumeUV = ComputeVolumeUVFromTranslatedPos(TranslatedWorldPosition, ResolvedView.TranslatedWorldToClip);
-		FinalFog = CombineVolumetricFog(FinalFog, VolumeUV, ArrayIndex, SceneDepth);
+		float3 VolumeUV = ComputeVolumeUVFromTranslatedPos(TranslatedWorldPosition, ResolvedView.TranslatedWorldToClip, ResolvedView);
+		FinalFog = CombineVolumetricFog(FinalFog, VolumeUV, ArrayIndex, SceneDepth, ResolvedView);
 	}
 #endif
 

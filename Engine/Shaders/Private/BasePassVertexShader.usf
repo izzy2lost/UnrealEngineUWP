@@ -94,7 +94,7 @@ void Main(
 
 // Calculate the fog needed for translucency
 #if NEEDS_BASEPASS_VERTEX_FOGGING
-	Output.BasePassInterpolants.VertexFog = CalculateHeightFog(WorldPosition.xyz - ResolvedView.TranslatedWorldCameraOrigin);
+	Output.BasePassInterpolants.VertexFog = CalculateHeightFog(WorldPosition.xyz - ResolvedView.TranslatedWorldCameraOrigin, EyeIndex, ResolvedView);
 
 	const float OneOverPreExposure = ResolvedView.OneOverPreExposure;
 

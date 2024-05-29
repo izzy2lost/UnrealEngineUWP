@@ -51,9 +51,11 @@ void Main(
 	LayerIndex = EyeIndex;
 	Output.BasePassInterpolants.MultiViewId = EyeIndex;
 #elif MOBILE_MULTI_VIEW
+	const uint EyeIndex = ViewId;
 	ResolvedView = ResolveView(ViewId);
 	Output.BasePassInterpolants.MultiViewId = ViewId;
 #else
+	const uint EyeIndex = 0;
 	ResolvedView = ResolveView();
 #endif
 
@@ -90,7 +92,7 @@ void Main(
 #endif
 
 #if USE_VERTEX_FOG
-	half4 VertexFog = CalculateHeightFog(WorldPosition.xyz - ResolvedView.TranslatedWorldCameraOrigin);
+	half4 VertexFog = CalculateHeightFog(WorldPosition.xyz - ResolvedView.TranslatedWorldCameraOrigin, EyeIndex, ResolvedView);
 
 #if PROJECT_SUPPORT_SKY_ATMOSPHERE && MATERIAL_IS_SKY==0 // Do not apply aerial perpsective on sky materials
 	if (ResolvedView.SkyAtmosphereApplyCameraAerialPerspectiveVolume > 0.0f)

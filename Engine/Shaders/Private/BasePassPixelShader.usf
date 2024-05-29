@@ -1333,7 +1333,7 @@ void FPixelShaderInOut_MainPS(
 	#if NEEDS_BASEPASS_VERTEX_FOGGING
 		float4 HeightFogging = BasePassInterpolants.VertexFog;
 	#elif NEEDS_BASEPASS_PIXEL_FOGGING
-		float4 HeightFogging = CalculateHeightFog(MaterialParameters.WorldPosition_CamRelative);
+		float4 HeightFogging = CalculateHeightFog(MaterialParameters.WorldPosition_CamRelative, EyeIndex, ResolvedView);
 		#if LOCAL_FOG_VOLUME_ON_TRANSLUCENT
 		const float4 LocalFogVolumeContrib = BasePassInterpolants.VertexFog;
 		HeightFogging = float4(LocalFogVolumeContrib.rgb + HeightFogging.rgb * LocalFogVolumeContrib.a, LocalFogVolumeContrib.a * HeightFogging.a);
@@ -1354,8 +1354,8 @@ void FPixelShaderInOut_MainPS(
 		HeightFogging = float4(LocalFogVolumeContrib.rgb + HeightFogging.rgb * LocalFogVolumeContrib.a, LocalFogVolumeContrib.a * HeightFogging.a);
 	#endif 
 
-		float3 VolumeUV = ComputeVolumeUV(MaterialParameters.AbsoluteWorldPosition, ResolvedView.WorldToClip);
-		Fogging = CombineVolumetricFog(HeightFogging, VolumeUV, EyeIndex, GBuffer.Depth);
+		float3 VolumeUV = ComputeVolumeUV(MaterialParameters.AbsoluteWorldPosition, ResolvedView.WorldToClip, ResolvedView);
+		Fogging = CombineVolumetricFog(HeightFogging, VolumeUV, EyeIndex, GBuffer.Depth, ResolvedView);
 	}
 #endif
 
