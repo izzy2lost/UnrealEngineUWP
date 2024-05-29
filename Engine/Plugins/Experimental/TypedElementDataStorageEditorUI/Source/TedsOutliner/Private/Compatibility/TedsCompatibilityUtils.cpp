@@ -446,51 +446,31 @@ void FTedsOutlinerImpl::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TA
 	}
 }
 
-FSceneOutlinerTreeItemPtr FTedsOutlinerImpl::FindOrCreateParentItem(const ISceneOutlinerTreeItem& Item, const TMap<FSceneOutlinerTreeItemID, FSceneOutlinerTreeItemPtr>& Items, bool bCreate)
+TypedElementDataStorage::RowHandle FTedsOutlinerImpl::GetParentRow(TypedElementDataStorage::RowHandle InRowHandle)
 {
 	// No parent if there is no hierarchy data specified
 	if(!HierarchyData.IsSet())
 	{
-		return nullptr;
+		return TypedElementDataStorage::InvalidRowHandle;
 	}
 	
-	using namespace TypedElementDataStorage;
-
-	const FTypedElementOutlinerTreeItem* TEDSTreeItem = Item.CastTo<FTypedElementOutlinerTreeItem>();
-
-	// If this item is not a TEDS item, we are not handling it
-	if(!TEDSTreeItem)
-	{
-		return nullptr;
-	}
-		
-	TypedElementRowHandle ItemRowHandle = TEDSTreeItem->GetRowHandle();
-
-	// If this entity does not have a parent entity, return nullptr
-	void* ParentColumnData = Storage->GetColumnData(ItemRowHandle, HierarchyData.GetValue().HierarchyColumn);
+	// If this entity does not have a parent entity, return InvalidRowHandle
+	void* ParentColumnData = Storage->GetColumnData(InRowHandle, HierarchyData.GetValue().HierarchyColumn);
+	
 	if(!ParentColumnData)
 	{
-		return nullptr;
+		return TypedElementDataStorage::InvalidRowHandle;
 	}
 
-	// If the parent is invalid for some reason, return nullptr
+	// If the parent is invalid for some reason, return InvalidRowHandle
 	const TypedElementRowHandle ParentRowHandle = HierarchyData.GetValue().GetParent.Execute(ParentColumnData);
 	
 	if(!Storage->IsRowAvailable(ParentRowHandle))
 	{
-		return nullptr;
+		return TypedElementDataStorage::InvalidRowHandle;
 	}
 
-	if (const FSceneOutlinerTreeItemPtr* ParentItem = Items.Find(ParentRowHandle))
-	{
-		return *ParentItem;
-	}
-	else if(bCreate)
-	{
-		return SceneOutlinerMode->CreateItemFor<FTypedElementOutlinerTreeItem>(FTypedElementOutlinerTreeItem(ParentRowHandle, AsShared()), true);
-	}
-
-	return nullptr;
+	return ParentRowHandle;
 }
 
 void FTedsOutlinerImpl::OnItemAdded(TypedElementDataStorage::RowHandle ItemRowHandle)

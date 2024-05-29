@@ -153,8 +153,9 @@ public:
 	// Outliner specific functionality
 	void CreateItemsFromQuery(TArray<FSceneOutlinerTreeItemPtr>& OutItems, ISceneOutlinerMode* InMode) const;
 	void CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TArray<FSceneOutlinerTreeItemPtr>& OutChildren) const;
-	FSceneOutlinerTreeItemPtr FindOrCreateParentItem(const ISceneOutlinerTreeItem& Item, const TMap<FSceneOutlinerTreeItemID,
-		FSceneOutlinerTreeItemPtr>& Items, bool bCreate);
+
+	// Get the parent row for a given row
+	TypedElementDataStorage::RowHandle GetParentRow(TypedElementDataStorage::RowHandle InRowHandle);
 
 	// Recompile all queries used by this table viewer
 	void RecompileQueries();

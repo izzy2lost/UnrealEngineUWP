@@ -21,21 +21,21 @@ public:
 	
 	DECLARE_DELEGATE_RetVal_OneParam(bool, FFilterPredicate, const TypedElementDataStorage::RowHandle);
 
-	bool Filter(FFilterPredicate Pred) const
+	TEDSOUTLINER_API bool Filter(FFilterPredicate Pred) const
 	{
 		return Pred.Execute(RowHandle);
 	}
 
-	FTypedElementOutlinerTreeItem(const TypedElementRowHandle& InRowHandle, const TSharedRef<const FTedsOutlinerImpl>& InTedsOutlinerImpl);
+	TEDSOUTLINER_API FTypedElementOutlinerTreeItem(const TypedElementRowHandle& InRowHandle, const TSharedRef<const FTedsOutlinerImpl>& InTedsOutlinerImpl);
 
 	/* Begin ISceneOutlinerTreeItem Implementation */
-	virtual bool IsValid() const override;
-	virtual FSceneOutlinerTreeItemID GetID() const override;
-	virtual FString GetDisplayString() const override;
-	virtual bool CanInteract() const override;
-	virtual TSharedRef<SWidget> GenerateLabelWidget(ISceneOutliner& Outliner, const STableRow<FSceneOutlinerTreeItemPtr>& InRow) override;
+	TEDSOUTLINER_API virtual bool IsValid() const override;
+	TEDSOUTLINER_API virtual FSceneOutlinerTreeItemID GetID() const override;
+	TEDSOUTLINER_API virtual FString GetDisplayString() const override;
+	TEDSOUTLINER_API virtual bool CanInteract() const override;
+	TEDSOUTLINER_API virtual TSharedRef<SWidget> GenerateLabelWidget(ISceneOutliner& Outliner, const STableRow<FSceneOutlinerTreeItemPtr>& InRow) override;
 	/** Generate a context menu for this item. Only called if *only* this item is selected. */
-	virtual void GenerateContextMenu(UToolMenu* Menu, SSceneOutliner& Outliner);
+	TEDSOUTLINER_API virtual void GenerateContextMenu(UToolMenu* Menu, SSceneOutliner& Outliner);
 	/* End ISceneOutlinerTreeItem Implementation */
 
 	TEDSOUTLINER_API static const FSceneOutlinerTreeItemType Type;

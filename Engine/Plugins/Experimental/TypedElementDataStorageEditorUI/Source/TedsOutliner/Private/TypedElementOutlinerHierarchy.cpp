@@ -44,5 +44,30 @@ void FTypedElementOutlinerHierarchy::CreateChildren(const FSceneOutlinerTreeItem
 FSceneOutlinerTreeItemPtr FTypedElementOutlinerHierarchy::FindOrCreateParentItem(const ISceneOutlinerTreeItem& Item,
 	const TMap<FSceneOutlinerTreeItemID, FSceneOutlinerTreeItemPtr>& Items, bool bCreate)
 {
-	return TedsOutlinerImpl->FindOrCreateParentItem(Item, Items, bCreate);
+	const FTypedElementOutlinerTreeItem* TEDSTreeItem = Item.CastTo<FTypedElementOutlinerTreeItem>();
+	const ITypedElementDataStorageInterface* Storage = TedsOutlinerImpl->GetStorage();
+	
+	// If this item is not a TEDS item, we are not handling it
+	if(!TEDSTreeItem)
+	{
+		return nullptr;
+	}
+	
+	const TypedElementRowHandle ParentRowHandle = TedsOutlinerImpl->GetParentRow(TEDSTreeItem->GetRowHandle());
+
+	if(!Storage->IsRowAvailable(ParentRowHandle))
+	{
+		return nullptr;
+	}
+	
+	if (const FSceneOutlinerTreeItemPtr* ParentItem = Items.Find(ParentRowHandle))
+	{
+		return *ParentItem;
+	}
+	else if(bCreate)
+	{
+		return Mode->CreateItemFor<FTypedElementOutlinerTreeItem>(FTypedElementOutlinerTreeItem(ParentRowHandle, TedsOutlinerImpl), true);
+	}
+	
+	return nullptr;
 }
