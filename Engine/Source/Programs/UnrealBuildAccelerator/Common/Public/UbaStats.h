@@ -121,7 +121,8 @@ namespace uba
 	#define UBA_CACHE_STATS \
 		UBA_CACHE_STAT(Timer, fetchEntries, 0) \
 		UBA_CACHE_STAT(Timer, fetchCasTable, 0) \
-		UBA_CACHE_STAT(Timer, testEntries, 0) \
+		UBA_CACHE_STAT(Timer, normalizeFile, 28) \
+		UBA_CACHE_STAT(Timer, testEntry, 0) \
 		UBA_CACHE_STAT(Timer, fetchOutput, 0) \
 		UBA_CACHE_STAT(AtomicU64, fetchBytesRaw, 26) \
 		UBA_CACHE_STAT(AtomicU64, fetchBytesComp, 26) \

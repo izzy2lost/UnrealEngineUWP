@@ -314,7 +314,7 @@ namespace uba
 		bool success = false;
 		auto tg = MakeGuard([&]()
 			{
-				cacheStats.testEntries.time -= cacheStats.fetchCasTable.time;
+				cacheStats.testEntry.time -= (cacheStats.fetchCasTable.time + cacheStats.normalizeFile.time);
 				BinaryWriter writer(memory, 0, sizeof_array(memory));
 				cacheStats.Write(writer);
 				if (success)
@@ -366,7 +366,7 @@ namespace uba
 		for (; entryIndex!=entryCount; ++entryIndex)
 		{
 			{
-				TimerScope ts(cacheStats.testEntries);
+				TimerScope ts(cacheStats.testEntry);
 				bool isMatch = true;
 
 				bool result = traverser.TraverseEntryInputs([&](u32 casKeyOffset)
@@ -391,6 +391,7 @@ namespace uba
 								auto insres2 = normalizedCasKeys.try_emplace(ToStringKeyNoCheck(path.data, path.count));
 								if (insres2.second)
 								{
+									TimerScope ts(cacheStats.normalizeFile);
 									localCasKey = rootPaths.NormalizeAndHashFile(m_logger, path.data);
 									if (localCasKey != CasKeyZero)
 										localCasKey = AsCompressed(localCasKey, true);

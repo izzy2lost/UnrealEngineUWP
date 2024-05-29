@@ -1883,24 +1883,19 @@ namespace uba
 		}
 		fileEntry.verified = true;
 
-		FileHandle fileHandle;
-		if (!OpenFileSequentialRead(m_logger, fileName, fileHandle))
+		u64 fileSize = 0;
+		u64 lastWritten = 0;
+
+		if (!FileExists(m_logger, fileName, &fileSize, nullptr, &lastWritten))
 		{
 			fileEntry.casKey = CasKeyZero;
+
+			u32 lastError = GetLastError();
+			if (lastError != ERROR_FILE_NOT_FOUND && lastError != ERROR_PATH_NOT_FOUND)
+				return m_logger.Error(TC("FileExists failed on %s (%s)"), fileName, LastErrorToText(lastError).data);
 			out = CasKeyZero;
 			return true;
 		}
-		auto fileGuard = MakeGuard([&](){ CloseFile(fileName, fileHandle); });
-
-		FileInformation info;
-		if (!GetFileInformationByHandle(info, m_logger, fileName, fileHandle))
-		{
-			fileEntry.casKey = CasKeyZero;
-			return m_logger.Error(TC("GetFileInformationByHandle failed on %s"), fileName);
-		}
-
-		u64 fileSize = info.size;
-		u64 lastWritten = info.lastWriteTime;
 
 		if (fileEntry.casKey != CasKeyZero)
 		{
@@ -1925,6 +1920,11 @@ namespace uba
 		fileEntry.lastWritten = lastWritten;
 		if (casKeyOverride == CasKeyZero)
 		{
+			FileHandle fileHandle;
+			if (!OpenFileSequentialRead(m_logger, fileName, fileHandle))
+				return false;
+			auto fileGuard = MakeGuard([&](){ CloseFile(fileName, fileHandle); });
+
 			if (fileIsCompressed)
 			{
 				CompressedObjFileHeader header(CasKeyZero);
@@ -2044,7 +2044,7 @@ namespace uba
 #if !UBA_USE_SPARSEFILE
 	bool StorageImpl::GetCasFileName(StringBufferBase& out, const CasKey& casKey)
 	{
-		out.Appendf(TC("%s%02x"), m_rootDir.data, ((const u8*)&casKey)[0]);
+		out.Append(m_rootDir.data).AppendHex(((const u8*)&casKey)[0]);
 		if (!CreateDirectory(out.data))
 			return false;
 		out.Append(PathSeparator).Append(CasKeyString(casKey).str);

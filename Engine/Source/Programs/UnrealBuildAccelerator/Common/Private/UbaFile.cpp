@@ -219,7 +219,7 @@ namespace uba
 #endif
 	}
 
-	bool FileExists(Logger& logger, const tchar* fileName, u64* outSize, u32* outAttributes)
+	bool FileExists(Logger& logger, const tchar* fileName, u64* outSize, u32* outAttributes, u64* lastWriteTime)
 	{
 #if PLATFORM_WINDOWS
 		MAKE_LONG_FILENAME(fileName);
@@ -241,13 +241,20 @@ namespace uba
 		}
 		if (outAttributes)
 			*outAttributes = data.dwFileAttributes;
+
+		if (lastWriteTime)
+			*lastWriteTime = (u64&)data.ftLastWriteTime;
+
 		return true;
 #else
 		struct stat attr;
 		if (stat(fileName, &attr) == -1)
 		{
 			if (errno == ENOENT)
+			{
+				SetLastError(ERROR_FILE_NOT_FOUND);
 				return false;
+			}
 			UBA_ASSERTF(false, TC("FileExists error handling implemented"));
 			return false;
 		}
@@ -256,6 +263,8 @@ namespace uba
 			*outSize = attr.st_size;
 		if (outAttributes)
 			*outAttributes = attr.st_mode;
+		if (lastWriteTime)
+			*lastWriteTime = FromTimeSpec(attr.st_mtimespec);
 		return true;
 #endif
 	}
