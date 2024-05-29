@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "UbaHash.h"
 #include "UbaLogger.h"
 #include "UbaStringBuffer.h"
 
@@ -61,6 +62,9 @@ namespace uba
 
 		Atomic<u32> m_addsSinceMaintenance;
 		Atomic<bool> m_isRunningMaintenance;
+
+		struct CasFileInfo { u64 size; u64 refCount; };
+		UnorderedMap<CasKey, CasFileInfo> m_existingCas;
 
 		ReaderWriterLock m_bucketsLock;
 		Map<u64, Bucket> m_buckets;
