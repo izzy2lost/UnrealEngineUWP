@@ -213,7 +213,7 @@ FRHIViewDesc::FBuffer::FViewInfo FRHIViewDesc::FBuffer::GetViewInfo(FRHIBuffer* 
 	case EBufferType::AccelerationStructure:
 		checkf(EnumHasAnyFlags(Desc.Usage, BUF_AccelerationStructure), TEXT("The buffer descriptor does not a ray tracing acceleration structure, so is incompatible with this view type."));
 		checkf(Format == PF_Unknown, TEXT("Acceleration structure views should not specify a format."));
-		checkf(Stride == 0, TEXT("Do not specify a stride for acceleration structure views."));
+		checkf(RayTracingScene != nullptr, TEXT("RayTracingScene must be specified when creating view of ray tracing acceleration structures."));
 
 		// Treat acceleration structures as a byte array.
 		Info.StrideInBytes = 1;
@@ -238,8 +238,8 @@ FRHIViewDesc::FBuffer::FViewInfo FRHIViewDesc::FBuffer::GetViewInfo(FRHIBuffer* 
 	// OffsetInBytes == 0 && NumElements == 0 is a special case to mean "whole resource". If offset is non-zero, we need the caller to pass the required number of elements, except for acceleration structures.
 	checkf(Info.BufferType == EBufferType::AccelerationStructure || (OffsetInBytes == 0 || NumElements > 0), TEXT("NumElements field must be non-zero if a byte offset is used."));
 		
-	// When NumElements is zero, use "whole buffer".
-	Info.NumElements = NumElements == 0 ? (Desc.Size - OffsetInBytes) / Info.StrideInBytes : NumElements;
+	// If BufferType is AccelerationStructure or NumElements is zero, use "whole buffer".
+	Info.NumElements = (Info.BufferType == EBufferType::AccelerationStructure || NumElements == 0) ? (Desc.Size - OffsetInBytes) / Info.StrideInBytes : NumElements;
 	Info.SizeInBytes = Info.NumElements * Info.StrideInBytes;
 
 	checkf(Info.OffsetInBytes + Info.SizeInBytes <= Desc.Size,

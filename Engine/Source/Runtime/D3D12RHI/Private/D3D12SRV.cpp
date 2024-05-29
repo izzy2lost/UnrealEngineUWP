@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "D3D12RHIPrivate.h"
+#include "D3D12RayTracing.h"
 
 // -----------------------------------------------------------------------------------------------------
 //
@@ -10,6 +11,11 @@
 
 FD3D12ShaderResourceView::FD3D12ShaderResourceView(FD3D12Device* InDevice)
 	: TD3D12View(InDevice, ERHIDescriptorHeapType::Standard)
+{}
+
+FD3D12ShaderResourceView::FD3D12ShaderResourceView(FD3D12Device* InDevice, FD3D12RayTracingScene* InRayTracingScene)
+	: TD3D12View(InDevice, ERHIDescriptorHeapType::Standard)
+	, RayTracingScene(InRayTracingScene)
 {}
 
 void FD3D12ShaderResourceView::UpdateResourceInfo(const FResourceInfo& InResource, const D3D12_SHADER_RESOURCE_VIEW_DESC& InD3DViewDesc, EFlags InFlags)
@@ -289,7 +295,7 @@ void FD3D12ShaderResourceView_RHI::UpdateView(FD3D12ContextArray const& Contexts
 
 FD3D12ShaderResourceView_RHI::FD3D12ShaderResourceView_RHI(FD3D12Device* InDevice, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc)
 	: FRHIShaderResourceView(InResource, InViewDesc)
-	, FD3D12ShaderResourceView(InDevice)
+	, FD3D12ShaderResourceView(InDevice, InViewDesc.Buffer.SRV.BufferType == FRHIViewDesc::EBufferType::AccelerationStructure ? FD3D12DynamicRHI::ResourceCast(InViewDesc.Buffer.SRV.RayTracingScene) : nullptr)
 {}
 
 

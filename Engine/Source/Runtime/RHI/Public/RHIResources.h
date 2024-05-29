@@ -2381,8 +2381,15 @@ struct FRHIViewDesc
 		uint8       bAppendBuffer  : 1; // UAV only
 		uint8       /* padding */  : 6;
 		uint32      OffsetInBytes;
-		uint32      NumElements;
-		uint32      Stride;
+		union
+		{
+			struct
+			{
+				uint32 NumElements;
+				uint32 Stride;
+			};
+			FRHIRayTracingScene* RayTracingScene; // only if BufferType == AccelerationStructure
+		};
 
 		struct FViewInfo;
 	protected:
@@ -2541,13 +2548,22 @@ public:
 
 	FInitializer& SetStride(uint32 InStride)
 	{
+		check(Buffer.SRV.BufferType != EBufferType::Unknown && Buffer.SRV.BufferType != EBufferType::AccelerationStructure);
 		Buffer.SRV.Stride = InStride;
 		return *this;
 	}
 
 	FInitializer& SetNumElements(uint32 InNumElements)
 	{
+		check(Buffer.SRV.BufferType != EBufferType::Unknown && Buffer.SRV.BufferType != EBufferType::AccelerationStructure);
 		Buffer.SRV.NumElements = InNumElements;
+		return *this;
+	}
+
+	FInitializer& SetRayTracingScene(FRHIRayTracingScene* InRayTracingScene)
+	{
+		check(Buffer.SRV.BufferType != EBufferType::Unknown && Buffer.SRV.BufferType == EBufferType::AccelerationStructure);
+		Buffer.SRV.RayTracingScene = InRayTracingScene;
 		return *this;
 	}
 };
@@ -2838,7 +2854,7 @@ struct FRHIViewDesc::FBuffer::FViewInfo
 	// The format of the data exposed by this view. PF_Unknown for all buffer types except typed buffer views.
 	EPixelFormat Format;
 
-	// When true, the view is refering to a BUF_NullResource, so a null descriptor should be created.
+	// When true, the view is referring to a BUF_NullResource, so a null descriptor should be created.
 	bool bNullView;
 };
 
@@ -5085,11 +5101,17 @@ struct FRHIBufferSRVCreateInfo
 		, NumElements(InNumElements)
 	{}
 
+	FRHIBufferSRVCreateInfo(FRHIRayTracingScene* InRayTracingScene, uint32 InStartOffsetBytes)
+		: StartOffsetBytes(InStartOffsetBytes)
+		, RayTracingScene(InRayTracingScene)
+	{}
+
 	FORCEINLINE bool operator==(const FRHIBufferSRVCreateInfo& Other)const
 	{
 		return Format == Other.Format
 			&& StartOffsetBytes == Other.StartOffsetBytes
-			&& NumElements == Other.NumElements;
+			&& NumElements == Other.NumElements
+			&& RayTracingScene == Other.RayTracingScene;
 	}
 
 	FORCEINLINE bool operator!=(const FRHIBufferSRVCreateInfo& Other)const
@@ -5100,8 +5122,10 @@ struct FRHIBufferSRVCreateInfo
 	friend uint32 GetTypeHash(const FRHIBufferSRVCreateInfo& Desc)
 	{
 		return HashCombine(
-			HashCombine(GetTypeHash(Desc.Format), GetTypeHash(Desc.StartOffsetBytes)),
-			GetTypeHash(Desc.NumElements)
+			HashCombine(
+				HashCombine(GetTypeHash(Desc.Format), GetTypeHash(Desc.StartOffsetBytes)),
+				GetTypeHash(Desc.NumElements)),
+			GetTypeHash(Desc.RayTracingScene)
 		);
 	}
 
@@ -5113,6 +5137,9 @@ struct FRHIBufferSRVCreateInfo
 
 	/** Number of elements (whole buffer by default) */
 	uint32 NumElements = UINT32_MAX;
+
+	/** Ray tracing scene associated with the SRV (if BUF_AccelerationStructure) */
+	FRHIRayTracingScene* RayTracingScene = nullptr;
 };
 
 struct FRHIBufferUAVCreateInfo

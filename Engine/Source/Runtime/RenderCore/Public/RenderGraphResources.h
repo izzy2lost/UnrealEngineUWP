@@ -1105,6 +1105,11 @@ struct FRDGBufferSRVDesc final
 		, Buffer(InBuffer)
 	{}
 
+	FRDGBufferSRVDesc(FRDGBufferRef InBuffer, FRHIRayTracingScene* InRayTracingScene, uint32 InStartOffsetBytes)
+		: FRHIBufferSRVCreateInfo(InRayTracingScene, InStartOffsetBytes)
+		, Buffer(InBuffer)
+	{}
+
 	bool operator == (const FRDGBufferSRVDesc& Other) const
 	{
 		return Buffer == Other.Buffer && FRHIBufferSRVCreateInfo::operator==(Other);

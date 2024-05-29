@@ -2028,12 +2028,6 @@ FRHIShaderResourceView* FRHIBufferViewCache::GetOrCreateSRV(FRHICommandListBase&
 	}
 
 	auto CreateDesc = FRHIViewDesc::CreateBufferSRV();
-	CreateDesc.SetOffsetInBytes(SRVCreateInfo.StartOffsetBytes);
-
-	if (SRVCreateInfo.NumElements != UINT32_MAX)
-	{
-		CreateDesc.SetNumElements(SRVCreateInfo.NumElements);
-	}
 
 	if (EnumHasAnyFlags(Buffer->GetUsage(), BUF_ByteAddressBuffer))
 	{
@@ -2046,11 +2040,19 @@ FRHIShaderResourceView* FRHIBufferViewCache::GetOrCreateSRV(FRHICommandListBase&
 	else if (EnumHasAnyFlags(Buffer->GetUsage(), BUF_AccelerationStructure))
 	{
 		CreateDesc.SetType(FRHIViewDesc::EBufferType::AccelerationStructure);
+		CreateDesc.SetRayTracingScene(SRVCreateInfo.RayTracingScene);
 	}
 	else
 	{
 		CreateDesc.SetType(FRHIViewDesc::EBufferType::Typed);
 		CreateDesc.SetFormat(SRVCreateInfo.Format);
+	}
+
+	CreateDesc.SetOffsetInBytes(SRVCreateInfo.StartOffsetBytes);
+
+	if (SRVCreateInfo.NumElements != UINT32_MAX)
+	{
+		CreateDesc.SetNumElements(SRVCreateInfo.NumElements);
 	}
 
 	FShaderResourceViewRHIRef RHIShaderResourceView = RHICmdList.CreateShaderResourceView(Buffer, CreateDesc);

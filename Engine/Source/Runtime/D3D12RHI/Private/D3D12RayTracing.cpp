@@ -4133,6 +4133,11 @@ struct FD3D12RayTracingGlobalResourceBinder
 		CommandContext.TransitionResource(UAV, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	}
 
+	void AddRayTracingSceneReference(FD3D12RayTracingScene* D3D12RayTracingScene)
+	{
+		D3D12RayTracingScene->UpdateResidency(CommandContext);
+	}
+
 	FD3D12Device* GetDevice()
 	{
 		return CommandContext.GetParentDevice();
@@ -4249,6 +4254,11 @@ struct FD3D12RayTracingLocalResourceBinder
 		}
 	}
 
+	void AddRayTracingSceneReference(FD3D12RayTracingScene* D3D12RayTracingScene)
+	{
+		checkf(false, TEXT("Unexpected RayTracingScene reference in local shader bindings"));
+	}
+
 	FD3D12Device* GetDevice()
 	{
 		return &Device;
@@ -4314,6 +4324,7 @@ static bool SetRayTracingShaderResources(
 		uint32 SamplerVersions[MAX_SRVS];
 
 		TArray<FD3D12Resource*, TInlineAllocator<MAX_CBS + MAX_SRVS + MAX_UAVS>> ReferencedResources;
+		TArray<FD3D12RayTracingScene*, TInlineAllocator<1>> ReferencedRayTracingScenes;
 
 		uint64 BoundSRVMask = 0;
 		uint64 BoundCBVMask = 0;
@@ -4348,6 +4359,12 @@ static bool SetRayTracingShaderResources(
 
 			ReferencedResources.Add(SRV->GetResource());
 			Binder.AddResourceTransition(SRV);
+
+			FD3D12RayTracingScene* ReferencedRayTracingScene = SRV->GetRayTracingScene();
+			if (ReferencedRayTracingScene)
+			{
+				ReferencedRayTracingScenes.Add(ReferencedRayTracingScene);
+			}
 		}
 
 		void SetTexture(FRHITexture* RHITexture, uint8 Index)
@@ -4592,6 +4609,11 @@ static bool SetRayTracingShaderResources(
 		Binder.AddResourceReference(Resource);
 	}
 
+	for (FD3D12RayTracingScene* RayTracingScene : Bindings.ReferencedRayTracingScenes)
+	{
+		Binder.AddRayTracingSceneReference(RayTracingScene);
+	}
+
 	return true;
 }
 
@@ -4824,9 +4846,6 @@ void FD3D12CommandContext::RHIRayTraceDispatch(FRHIRayTracingPipelineState* InRa
 
 	const FD3D12RayTracingPipelineState* Pipeline = FD3D12DynamicRHI::ResourceCast(InRayTracingPipelineState);
 
-	FD3D12RayTracingScene* Scene = FD3D12DynamicRHI::ResourceCast(InScene);
-	Scene->UpdateResidency(*this);
-
 	FD3D12RayTracingShaderBindingTable* SBT = FD3D12DynamicRHI::ResourceCast(InSBT);
 	FD3D12RayTracingShaderBindingTableInternal* ShaderTableForDevice = SBT->GetTableForDevice(GetParentDevice());
 	checkf(!ShaderTableForDevice->bIsDirty, TEXT("The shader table contains pending modifications. CommitRayTracingBindings must be called after SetRayTracingBindings"));
@@ -4856,9 +4875,6 @@ void FD3D12CommandContext::RHIRayTraceDispatchIndirect(FRHIRayTracingPipelineSta
 	checkf(GRHISupportsRayTracingDispatchIndirect, TEXT("RHIRayTraceDispatchIndirect may not be used because DXR 1.1 is not supported on this machine."));
 
 	const FD3D12RayTracingPipelineState* Pipeline = FD3D12DynamicRHI::ResourceCast(InRayTracingPipelineState);
-
-	FD3D12RayTracingScene* Scene = FD3D12DynamicRHI::ResourceCast(InScene);
-	Scene->UpdateResidency(*this);
 
 	FD3D12RayTracingShaderBindingTable* SBT = FD3D12DynamicRHI::ResourceCast(InSBT);
 	FD3D12RayTracingShaderBindingTableInternal* ShaderTableForDevice = SBT->GetTableForDevice(GetParentDevice());

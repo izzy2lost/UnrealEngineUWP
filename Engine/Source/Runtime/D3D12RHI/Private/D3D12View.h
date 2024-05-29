@@ -300,11 +300,14 @@ public:
 	FRIEND_ENUM_CLASS_FLAGS(EFlags)
 
 	FD3D12ShaderResourceView(FD3D12Device* InDevice);
+	FD3D12ShaderResourceView(FD3D12Device* InDevice, FD3D12RayTracingScene* InRayTracingScene);
 	void CreateView(FResourceInfo const& InResource, D3D12_SHADER_RESOURCE_VIEW_DESC const& InD3DViewDesc, EFlags InFlags);
 	void UpdateView(FD3D12ContextArray const& Contexts, const FResourceInfo& InResource, const D3D12_SHADER_RESOURCE_VIEW_DESC& InD3DViewDesc, EFlags InFlags);
 
 	bool GetSkipFastClearFinalize() const { return EnumHasAnyFlags(Flags, EFlags::SkipFastClearFinalize); }
 	void UpdateMinLODClamp(FD3D12ContextArray const& Contexts, float MinLODClamp);
+
+	FD3D12RayTracingScene* GetRayTracingScene() const { return RayTracingScene; }
 
 protected:
 	void UpdateResourceInfo(const FResourceInfo& InResource, const D3D12_SHADER_RESOURCE_VIEW_DESC& InD3DViewDesc, EFlags InFlags);
@@ -316,6 +319,8 @@ protected:
 	uint32 StrideInBytes = 0;
 
 	EFlags Flags = EFlags::None;
+
+	FD3D12RayTracingScene* RayTracingScene = nullptr;
 };
 
 ENUM_CLASS_FLAGS(FD3D12ShaderResourceView::EFlags)

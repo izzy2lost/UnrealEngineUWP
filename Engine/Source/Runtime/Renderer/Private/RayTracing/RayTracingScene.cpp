@@ -105,7 +105,7 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 	LayerSRVs.SetNum(NumLayers);
 	for (uint32 LayerIndex = 0; LayerIndex < NumLayers; ++LayerIndex)
 	{
-		LayerSRVs[LayerIndex] = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(RayTracingSceneBufferRDG, RayTracingSceneRHI->GetLayerBufferOffset(LayerIndex), 0));
+		LayerSRVs[LayerIndex] = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(RayTracingSceneBufferRDG, RayTracingSceneRHI, RayTracingSceneRHI->GetLayerBufferOffset(LayerIndex)));
 	}
 
 	{
@@ -465,7 +465,7 @@ FShaderResourceViewRHIRef FRayTracingScene::CreateLayerViewRHI(FRHICommandListBa
 {
 	const uint8 LayerIndex = uint8(Layer);
 	checkf(RayTracingScenePooledBuffer, TEXT("Ray tracing scene was not created.Perhaps Create() was not called."));
-	return RHICmdList.CreateShaderResourceView(FShaderResourceViewInitializer(RayTracingScenePooledBuffer->GetRHI(), RayTracingSceneRHI->GetLayerBufferOffset(LayerIndex), 0));
+	return RHICmdList.CreateShaderResourceView(FShaderResourceViewInitializer(RayTracingScenePooledBuffer->GetRHI(), RayTracingSceneRHI, RayTracingSceneRHI->GetLayerBufferOffset(LayerIndex)));
 }
 
 FRDGBufferSRVRef FRayTracingScene::GetLayerView(ERayTracingSceneLayer Layer) const

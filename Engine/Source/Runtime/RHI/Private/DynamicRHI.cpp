@@ -887,9 +887,19 @@ RHI_API FShaderResourceViewInitializer::FShaderResourceViewInitializer(FRHIBuffe
 	: FRHIViewDesc::FBufferSRV::FInitializer()
 	, Buffer(InBuffer)
 {
+	SetTypeFromBuffer(Buffer);
 	SetOffsetInBytes(InStartOffsetBytes);
 	SetNumElements(InNumElements);
+}
+
+// Provided for back-compat.
+RHI_API FShaderResourceViewInitializer::FShaderResourceViewInitializer(FRHIBuffer* InBuffer, FRHIRayTracingScene* InRayTracingScene, uint32 InStartOffsetBytes)
+	: FRHIViewDesc::FBufferSRV::FInitializer()
+	, Buffer(InBuffer)
+{
 	SetTypeFromBuffer(Buffer);
+	SetRayTracingScene(InRayTracingScene);
+	SetOffsetInBytes(InStartOffsetBytes);
 }
 
 // Provided for back-compat.
