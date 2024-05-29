@@ -168,7 +168,7 @@ namespace PerfReportTool
 			SummaryTableColumn groupByColumn = table.GetColumnByName(JoinRowsByStatName);
 			if (groupByColumn == null)
 			{
-				Console.WriteLine($"[Error] -regressionJoinRowsByName doesn't refer to a real column name: {JoinRowsByStatName}. Will not be applying any grouping to rows.");
+				Console.Error.WriteLine($"[Error] -regressionJoinRowsByName doesn't refer to a real column name: {JoinRowsByStatName}. Will not be applying any grouping to rows.");
 				return 1;
 			}
 

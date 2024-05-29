@@ -488,7 +488,7 @@ namespace CSVTools
 				}
 				catch (System.Exception e)
 				{
-					Console.WriteLine("[ERROR] " + e.Message);
+					Console.Error.WriteLine("[ERROR] " + e.Message);
 					if (Debugger.IsAttached)
 					{
 						throw;

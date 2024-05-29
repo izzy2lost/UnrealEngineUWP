@@ -23,7 +23,7 @@ namespace PerfReportTool
     class Version
     {
 		// Format: Major.Minor.Bugfix
-        private static string VersionString = "4.237.0";
+        private static string VersionString = "4.237.1";
 
         public static string Get() { return VersionString; }
     };
@@ -629,7 +629,7 @@ namespace PerfReportTool
 				{
 					if (bBulkMode)
 					{
-						Console.Out.WriteLine("[ERROR] : " + e.Message);
+						Console.Error.WriteLine("[ERROR] : " + e.Message);
 					}
 					else
 					{
@@ -2108,7 +2108,7 @@ namespace PerfReportTool
 				}
 				catch (System.Exception e)
 				{
-					Console.WriteLine("[ERROR] " + e.Message);
+					Console.Error.WriteLine("[ERROR] " + e.Message);
 					return 1;
 				}
 			}
