@@ -75,7 +75,7 @@ void UCEEditorClonerSubsystem::FillClonerMenu(UToolMenu* InMenu, const FCEEditor
 		}
 	}
 
-	if (InOptions.IsMenuType(ECEEditorClonerMenuType::CreateEffector) && InContext.ContainsAnyComponent())
+	if (InOptions.IsMenuType(ECEEditorClonerMenuType::CreateEffector) && InContext.ContainsAnyCloner())
 	{
 		FillCreateClonerEffectorSection(InMenu, MenuData);
 	}
@@ -96,6 +96,11 @@ void UCEEditorClonerSubsystem::FillClonerMenu(UToolMenu* InMenu, const FCEEditor
 		{
 			FillConvertClonerSection(InMenu, MenuData);
 		}
+	}
+
+	if (InOptions.IsMenuType(ECEEditorClonerMenuType::CreateCloner) && !InContext.ContainsAnyCloner() && InContext.ContainsAnyActor())
+	{
+		FillCreateClonerSection(InMenu, MenuData);
 	}
 }
 

@@ -34,6 +34,8 @@ namespace UE::ClonerEditor::Menu
 
 	void FillConvertClonerSection(UToolMenu* InMenu, const FCEEditorClonerMenuData& InMenuData);
 
+	void FillCreateClonerSection(UToolMenu* InMenu, const FCEEditorClonerMenuData& InMenuData);
+
 	/** Actions */
 
 	void ExecuteEnableClonerAction(const FCEEditorClonerMenuData& InMenuData, bool bInEnable);
@@ -43,4 +45,6 @@ namespace UE::ClonerEditor::Menu
 	void ExecuteCreateClonerEffectorAction(const FCEEditorClonerMenuData& InMenuData);
 
 	void ExecuteConvertClonerAction(const FCEEditorClonerMenuData& InMenuData, ECEClonerMeshConversion InToMeshType);
+
+	void ExecuteCreateClonerAction(const FCEEditorClonerMenuData& InMenuData);
 }

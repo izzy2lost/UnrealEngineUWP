@@ -105,4 +105,5 @@ public:
 	TSharedPtr<FUICommandInfo> EnableCloners;
 	TSharedPtr<FUICommandInfo> DisableEffectors;
 	TSharedPtr<FUICommandInfo> EnableEffectors;
+	TSharedPtr<FUICommandInfo> CreateCloner;
 };

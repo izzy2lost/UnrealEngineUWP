@@ -2,7 +2,6 @@
 
 #include "Cloner/AvaClonerEditorOutlinerContextMenu.h"
 
-#include "Cloner/CEClonerComponent.h"
 #include "Cloner/Menus/CEEditorClonerMenuContext.h"
 #include "Cloner/Menus/CEEditorClonerMenuOptions.h"
 #include "GameFramework/Actor.h"
@@ -47,6 +46,7 @@ void FAvaClonerEditorOutlinerContextMenu::OnExtendOutlinerContextMenu(UToolMenu*
 			, ECEEditorClonerMenuType::Disable
 			, ECEEditorClonerMenuType::CreateEffector
 			, ECEEditorClonerMenuType::Convert
+			, ECEEditorClonerMenuType::CreateCloner
 		}
 	);
 	Options.UseTransact(true);
@@ -73,10 +73,7 @@ void FAvaClonerEditorOutlinerContextMenu::GetContextObjects(const UAvaOutlinerIt
 		{
 			if (AActor* Actor = ActorItem->GetActor())
 			{
-				if (Actor->FindComponentByClass<UCEClonerComponent>())
-				{
-					OutObjects.Add(Actor);
-				}
+				OutObjects.Add(Actor);
 			}
 		}
 		// is it a component
@@ -84,10 +81,7 @@ void FAvaClonerEditorOutlinerContextMenu::GetContextObjects(const UAvaOutlinerIt
 		{
 			if (USceneComponent* Component = ComponentItem->GetComponent())
 			{
-				if (Component->IsA<UCEClonerComponent>())
-				{
-					OutObjects.Add(Component);
-				}
+				OutObjects.Add(Component);
 			}
 		}
 	}

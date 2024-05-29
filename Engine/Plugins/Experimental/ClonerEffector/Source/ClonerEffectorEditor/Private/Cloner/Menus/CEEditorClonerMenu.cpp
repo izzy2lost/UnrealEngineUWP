@@ -187,6 +187,30 @@ void UE::ClonerEditor::Menu::FillConvertClonerSection(UToolMenu* InMenu, const F
 	);
 }
 
+void UE::ClonerEditor::Menu::FillCreateClonerSection(UToolMenu* InMenu, const FCEEditorClonerMenuData& InMenuData)
+{
+	if (!InMenu
+		|| InMenuData.Context.IsEmpty()
+		|| !InMenuData.Context.ContainsAnyActor())
+	{
+		return;
+	}
+
+	FToolMenuSection* ClonerSection = FindOrAddClonerSection(InMenu);
+
+	check(ClonerSection)
+
+	ClonerSection->AddMenuEntry(
+		TEXT("CreateCloner")
+		, LOCTEXT("CreateCloner.Label", "Create cloner")
+		, LOCTEXT("CreateCloner.Tooltip", "Create cloner with selection attached")
+		, FSlateIcon()
+		, FUIAction(
+			FExecuteAction::CreateLambda(&ExecuteCreateClonerAction, InMenuData)
+		)
+	);
+}
+
 void UE::ClonerEditor::Menu::ExecuteEnableClonerAction(const FCEEditorClonerMenuData& InMenuData, bool bInEnable)
 {
 	UCEClonerSubsystem* Subsystem = UCEClonerSubsystem::Get();
@@ -196,7 +220,7 @@ void UE::ClonerEditor::Menu::ExecuteEnableClonerAction(const FCEEditorClonerMenu
 		return;
 	}
 
-	Subsystem->SetClonersEnabled(InMenuData.Context.GetComponents(), bInEnable, InMenuData.Options.ShouldTransact());
+	Subsystem->SetClonersEnabled(InMenuData.Context.GetCloners(), bInEnable, InMenuData.Options.ShouldTransact());
 }
 
 void UE::ClonerEditor::Menu::ExecuteEnableLevelClonerAction(const FCEEditorClonerMenuData& InMenuData, bool bInEnable)
@@ -221,7 +245,7 @@ void UE::ClonerEditor::Menu::ExecuteCreateClonerEffectorAction(const FCEEditorCl
 		return;
 	}
 
-	Subsystem->CreateLinkedEffector(InMenuData.Context.GetComponents());
+	Subsystem->CreateLinkedEffector(InMenuData.Context.GetCloners());
 }
 
 void UE::ClonerEditor::Menu::ExecuteConvertClonerAction(const FCEEditorClonerMenuData& InMenuData, ECEClonerMeshConversion InToMeshType)
@@ -234,6 +258,18 @@ void UE::ClonerEditor::Menu::ExecuteConvertClonerAction(const FCEEditorClonerMen
 	}
 
 	Subsystem->ConvertCloners(InMenuData.Context.GetEnabledCloners(), InToMeshType);
+}
+
+void UE::ClonerEditor::Menu::ExecuteCreateClonerAction(const FCEEditorClonerMenuData& InMenuData)
+{
+	UCEClonerSubsystem* Subsystem = UCEClonerSubsystem::Get();
+
+	if (InMenuData.Context.IsEmpty() || !Subsystem)
+	{
+		return;
+	}
+
+	Subsystem->CreateClonerWithActors(InMenuData.Context.GetWorld(), InMenuData.Context.GetActors(), InMenuData.Options.ShouldTransact());
 }
 
 #undef LOCTEXT_NAMESPACE

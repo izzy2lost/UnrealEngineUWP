@@ -7,6 +7,7 @@
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "CEClonerSubsystem.generated.h"
 
+class AActor;
 class UCEClonerExtensionBase;
 
 UCLASS(MinimalAPI)
@@ -78,6 +79,10 @@ public:
 	/** Create cloners linked effector */
 	CLONEREFFECTOR_API void CreateLinkedEffector(const TSet<UCEClonerComponent*>& InCloners);
 #endif
+
+	/** Creates a new cloner with actors attached */
+	CLONEREFFECTOR_API AActor* CreateClonerWithActors(UWorld* InWorld, const TSet<AActor*>& InActors, bool bInShouldTransact);
+
 protected:
 	DECLARE_MULTICAST_DELEGATE(FOnSubsystemInitialized)
 	CLONEREFFECTOR_API static FOnSubsystemInitialized OnSubsystemInitializedDelegate;

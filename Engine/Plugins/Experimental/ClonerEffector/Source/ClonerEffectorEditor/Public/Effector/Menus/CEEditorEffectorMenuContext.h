@@ -4,6 +4,7 @@
 
 #include "Containers/Set.h"
 #include "UObject/Object.h"
+#include "UObject/ObjectKey.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
 class UCEEffectorComponent;
@@ -16,7 +17,7 @@ struct CLONEREFFECTOREDITOR_API FCEEditorEffectorMenuContext
 	FCEEditorEffectorMenuContext() {}
 	explicit FCEEditorEffectorMenuContext(const TSet<UObject*>& InObjects);
 
-	const TSet<UCEEffectorComponent*>& GetComponents() const;
+	TSet<UCEEffectorComponent*> GetComponents() const;
 	TSet<UCEEffectorComponent*> GetDisabledEffectors() const;
 	TSet<UCEEffectorComponent*> GetEnabledEffectors() const;
 	UWorld* GetWorld() const;
@@ -30,5 +31,5 @@ protected:
 	bool ContainsEffectorState(bool bInState) const;
 	TSet<UCEEffectorComponent*> GetStateEffectors(bool bInState) const;
 
-	TSet<UCEEffectorComponent*> ContextComponents;
+	TSet<TObjectKey<UCEEffectorComponent>> ContextComponentsKey;
 };

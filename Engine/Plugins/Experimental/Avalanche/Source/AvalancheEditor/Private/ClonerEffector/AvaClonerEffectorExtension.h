@@ -25,6 +25,7 @@ private:
 
 	void EnableEffectors(bool bInEnable) const;
 	void EnableCloners(bool bInEnable) const;
+	void CreateCloner() const;
 
 	TSharedRef<FUICommandList> ClonerEffectorCommands;
 };

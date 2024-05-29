@@ -2,6 +2,7 @@
 
 #include "Subsystems/CEClonerSubsystem.h"
 
+#include "Cloner/CEClonerActor.h"
 #include "Cloner/CEClonerComponent.h"
 #include "Cloner/Extensions/CEClonerEffectorExtension.h"
 #include "Cloner/Extensions/CEClonerExtensionBase.h"
@@ -20,6 +21,7 @@
 #include "UObject/UObjectIterator.h"
 
 #if WITH_EDITOR
+#include "Editor.h"
 #include "ScopedTransaction.h"
 #endif
 
@@ -361,6 +363,72 @@ void UCEClonerSubsystem::CreateLinkedEffector(const TSet<UCEClonerComponent*>& I
 	}
 }
 #endif
+
+AActor* UCEClonerSubsystem::CreateClonerWithActors(UWorld* InWorld, const TSet<AActor*>& InActors, bool bInShouldTransact)
+{
+	ACEClonerActor* NewClonerActor = nullptr;
+
+	if (!IsValid(InWorld))
+	{
+		return NewClonerActor;
+	}
+
+#if WITH_EDITOR
+	FScopedTransaction Transaction(LOCTEXT("CreateClonerWithActors", "Create cloner with actors attached"), bInShouldTransact);
+#endif
+
+	FActorSpawnParameters Parameters;
+	Parameters.ObjectFlags = RF_Transactional;
+#if WITH_EDITOR
+	Parameters.bTemporaryEditorActor = false;
+#endif
+
+	NewClonerActor = InWorld->SpawnActor<ACEClonerActor>(Parameters);
+
+	if (NewClonerActor)
+	{
+#if WITH_EDITOR
+		NewClonerActor->Modify();
+#endif
+
+		if (!InActors.IsEmpty())
+		{
+			FVector NewAverageLocation;
+
+			for (AActor* Actor : InActors)
+			{
+				if (IsValid(Actor))
+				{
+					NewAverageLocation += Actor->GetActorLocation() / InActors.Num();
+				}
+			}
+
+			NewClonerActor->SetActorLocation(NewAverageLocation);
+
+			for (AActor* Actor : InActors)
+			{
+				if (IsValid(Actor))
+				{
+#if WITH_EDITOR
+					Actor->Modify();
+#endif
+
+					Actor->AttachToActor(NewClonerActor, FAttachmentTransformRules::KeepWorldTransform);
+				}
+			}
+		}
+
+#if WITH_EDITOR
+		if (GEditor)
+		{
+			GEditor->SelectNone(/** SelectionChange */false, /** DeselectBSP */true);
+			GEditor->SelectActor(NewClonerActor, /** Selected */true, /** Notify */true);
+		}
+#endif
+	}
+
+	return NewClonerActor;
+}
 
 TArray<FName> UCEClonerSubsystem::GetLayoutNames() const
 {

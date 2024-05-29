@@ -14,8 +14,10 @@ FCEEditorClonerMenuContext::FCEEditorClonerMenuContext(const TSet<UObject*>& InO
 			continue;
 		}
 
-		if (const AActor* Actor = Cast<AActor>(Object))
+		if (AActor* Actor = Cast<AActor>(Object))
 		{
+			ContextActorsKey.Add(Actor);
+
 			TArray<UCEClonerComponent*> ClonerComponents;
 			Actor->GetComponents(ClonerComponents, /** IncludeChildren */false);
 
@@ -23,20 +25,58 @@ FCEEditorClonerMenuContext::FCEEditorClonerMenuContext(const TSet<UObject*>& InO
 			{
 				if (IsValid(Component))
 				{
-					ContextComponents.Add(Component);
+					ContextComponentsKey.Add(Component);
 				}
 			}
 		}
 		else if (UCEClonerComponent* Component = Cast<UCEClonerComponent>(Object))
 		{
-			ContextComponents.Add(Component);
+			ContextComponentsKey.Add(Component);
+			ContextActorsKey.Add(Component->GetOwner());
 		}
 	}
 }
 
-const TSet<UCEClonerComponent*>& FCEEditorClonerMenuContext::GetComponents() const
+TSet<AActor*> FCEEditorClonerMenuContext::GetActors() const
 {
-	return ContextComponents;
+	TSet<AActor*> Actors;
+	Actors.Reserve(ContextActorsKey.Num());
+
+	Algo::TransformIf(
+		ContextActorsKey
+		, Actors
+		, [](const TObjectKey<AActor>& InActorKey)
+		{
+			return IsValid(InActorKey.ResolveObjectPtr());
+		}
+		, [](const TObjectKey<AActor>& InActorKey)
+		{
+			return InActorKey.ResolveObjectPtr();
+		}
+	);
+
+	return Actors;
+}
+
+TSet<UCEClonerComponent*> FCEEditorClonerMenuContext::GetCloners() const
+{
+	TSet<UCEClonerComponent*> Components;
+	Components.Reserve(ContextComponentsKey.Num());
+
+	Algo::TransformIf(
+		ContextComponentsKey
+		, Components
+		, [](const TObjectKey<UCEClonerComponent>& InComponentKey)
+		{
+			return IsValid(InComponentKey.ResolveObjectPtr());
+		}
+		, [](const TObjectKey<UCEClonerComponent>& InComponentKey)
+		{
+			return InComponentKey.ResolveObjectPtr();
+		}
+	);
+
+	return Components;
 }
 
 TSet<UCEClonerComponent*> FCEEditorClonerMenuContext::GetDisabledCloners() const
@@ -51,9 +91,17 @@ TSet<UCEClonerComponent*> FCEEditorClonerMenuContext::GetEnabledCloners() const
 
 UWorld* FCEEditorClonerMenuContext::GetWorld() const
 {
-	for (const UCEClonerComponent* Component : ContextComponents)
+	for (const TObjectKey<AActor>& ActorKey : ContextActorsKey)
 	{
-		if (IsValid(Component))
+		if (const AActor* Actor = ActorKey.ResolveObjectPtr())
+		{
+			return Actor->GetWorld();
+		}
+	}
+
+	for (const TObjectKey<UCEClonerComponent>& ComponentKey : ContextComponentsKey)
+	{
+		if (const UCEClonerComponent* Component = ComponentKey.ResolveObjectPtr())
 		{
 			return Component->GetWorld();
 		}
@@ -64,12 +112,17 @@ UWorld* FCEEditorClonerMenuContext::GetWorld() const
 
 bool FCEEditorClonerMenuContext::IsEmpty() const
 {
-	return ContextComponents.IsEmpty();
+	return ContextComponentsKey.IsEmpty() && ContextActorsKey.IsEmpty();
 }
 
-bool FCEEditorClonerMenuContext::ContainsAnyComponent() const
+bool FCEEditorClonerMenuContext::ContainsAnyActor() const
 {
-	return !ContextComponents.IsEmpty();
+	return !ContextActorsKey.IsEmpty();
+}
+
+bool FCEEditorClonerMenuContext::ContainsAnyCloner() const
+{
+	return !ContextComponentsKey.IsEmpty();
 }
 
 bool FCEEditorClonerMenuContext::ContainsAnyDisabledCloner() const
@@ -84,11 +137,14 @@ bool FCEEditorClonerMenuContext::ContainsAnyEnabledCloner() const
 
 bool FCEEditorClonerMenuContext::ContainsClonerState(bool bInState) const
 {
-	for (UCEClonerComponent* Component : ContextComponents)
+	for (const TObjectKey<UCEClonerComponent>& ComponentKey : ContextComponentsKey)
 	{
-		if (IsValid(Component) && Component->GetEnabled() == bInState)
+		if (const UCEClonerComponent* Component = ComponentKey.ResolveObjectPtr())
 		{
-			return true;
+			if (Component->GetEnabled() == bInState)
+			{
+				return true;
+			}
 		}
 	}
 
@@ -98,13 +154,16 @@ bool FCEEditorClonerMenuContext::ContainsClonerState(bool bInState) const
 TSet<UCEClonerComponent*> FCEEditorClonerMenuContext::GetStateCloners(bool bInState) const
 {
 	TSet<UCEClonerComponent*> Cloners;
-	Cloners.Reserve(ContextComponents.Num());
+	Cloners.Reserve(ContextComponentsKey.Num());
 
-	for (UCEClonerComponent* Component : ContextComponents)
+	for (const TObjectKey<UCEClonerComponent>& ComponentKey : ContextComponentsKey)
 	{
-		if (IsValid(Component) && Component->GetEnabled() == bInState)
+		if (UCEClonerComponent* Component = ComponentKey.ResolveObjectPtr())
 		{
-			Cloners.Add(Component);
+			if (Component->GetEnabled() == bInState)
+			{
+				Cloners.Add(Component);
+			}
 		}
 	}
 

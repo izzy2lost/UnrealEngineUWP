@@ -23,20 +23,36 @@ FCEEditorEffectorMenuContext::FCEEditorEffectorMenuContext(const TSet<UObject*>&
 			{
 				if (IsValid(Component))
 				{
-					ContextComponents.Add(Component);
+					ContextComponentsKey.Add(Component);
 				}
 			}
 		}
 		else if (UCEEffectorComponent* Component = Cast<UCEEffectorComponent>(Object))
 		{
-			ContextComponents.Add(Component);
+			ContextComponentsKey.Add(Component);
 		}
 	}
 }
 
-const TSet<UCEEffectorComponent*>& FCEEditorEffectorMenuContext::GetComponents() const
+TSet<UCEEffectorComponent*> FCEEditorEffectorMenuContext::GetComponents() const
 {
-	return ContextComponents;
+	TSet<UCEEffectorComponent*> Components;
+	Components.Reserve(ContextComponentsKey.Num());
+
+	Algo::TransformIf(
+		ContextComponentsKey
+		, Components
+		, [](const TObjectKey<UCEEffectorComponent>& InComponentKey)
+		{
+			return IsValid(InComponentKey.ResolveObjectPtr());
+		}
+		, [](const TObjectKey<UCEEffectorComponent>& InComponentKey)
+		{
+			return InComponentKey.ResolveObjectPtr();
+		}
+	);
+
+	return Components;
 }
 
 TSet<UCEEffectorComponent*> FCEEditorEffectorMenuContext::GetDisabledEffectors() const
@@ -51,9 +67,9 @@ TSet<UCEEffectorComponent*> FCEEditorEffectorMenuContext::GetEnabledEffectors() 
 
 UWorld* FCEEditorEffectorMenuContext::GetWorld() const
 {
-	for (const UCEEffectorComponent* Component : ContextComponents)
+	for (const TObjectKey<UCEEffectorComponent>& ComponentKey : ContextComponentsKey)
 	{
-		if (IsValid(Component))
+		if (const UCEEffectorComponent* Component = ComponentKey.ResolveObjectPtr())
 		{
 			return Component->GetWorld();
 		}
@@ -64,12 +80,12 @@ UWorld* FCEEditorEffectorMenuContext::GetWorld() const
 
 bool FCEEditorEffectorMenuContext::IsEmpty() const
 {
-	return ContextComponents.IsEmpty();
+	return ContextComponentsKey.IsEmpty();
 }
 
 bool FCEEditorEffectorMenuContext::ContainsAnyComponent() const
 {
-	return !ContextComponents.IsEmpty();
+	return !ContextComponentsKey.IsEmpty();
 }
 
 bool FCEEditorEffectorMenuContext::ContainsAnyDisabledEffectors() const
@@ -84,11 +100,14 @@ bool FCEEditorEffectorMenuContext::ContainsAnyEnabledEffectors() const
 
 bool FCEEditorEffectorMenuContext::ContainsEffectorState(bool bInState) const
 {
-	for (const UCEEffectorComponent* Component : ContextComponents)
+	for (const TObjectKey<UCEEffectorComponent>& ComponentKey : ContextComponentsKey)
 	{
-		if (IsValid(Component) && Component->GetEnabled() == bInState)
+		if (const UCEEffectorComponent* Component = ComponentKey.ResolveObjectPtr())
 		{
-			return true;
+			if (Component->GetEnabled() == bInState)
+			{
+				return true;
+			}
 		}
 	}
 
@@ -98,13 +117,16 @@ bool FCEEditorEffectorMenuContext::ContainsEffectorState(bool bInState) const
 TSet<UCEEffectorComponent*> FCEEditorEffectorMenuContext::GetStateEffectors(bool bInState) const
 {
 	TSet<UCEEffectorComponent*> Effectors;
-	Effectors.Reserve(ContextComponents.Num());
+	Effectors.Reserve(ContextComponentsKey.Num());
 
-	for (UCEEffectorComponent* Component : ContextComponents)
+	for (const TObjectKey<UCEEffectorComponent>& ComponentKey : ContextComponentsKey)
 	{
-		if (IsValid(Component) && Component->GetEnabled() == bInState)
+		if (UCEEffectorComponent* Component = ComponentKey.ResolveObjectPtr())
 		{
-			Effectors.Add(Component);
+			if (Component->GetEnabled() == bInState)
+			{
+				Effectors.Add(Component);
+			}
 		}
 	}
 

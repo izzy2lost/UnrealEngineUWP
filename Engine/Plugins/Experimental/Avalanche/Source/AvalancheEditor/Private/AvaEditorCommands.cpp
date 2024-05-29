@@ -455,6 +455,12 @@ void FAvaEditorCommands::RegisterClonerEffectorCommands()
 		, "Enable cloners on the selected actors in the level"
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::C, EModifierKey::Shift))
+
+	UI_COMMAND(CreateCloner
+		, "Create Cloner"
+		, "Create new cloner with selected actors in the level"
+		, EUserInterfaceActionType::Button
+		, FInputChord(EKeys::C, EModifierKey::Control | EModifierKey::Alt))
 }
 
 #undef LOCTEXT_NAMESPACE

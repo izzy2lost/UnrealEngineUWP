@@ -34,6 +34,9 @@ void FAvaClonerEffectorExtension::BindCommands(const TSharedRef<FUICommandList>&
 
 	ClonerEffectorCommands->MapAction(EditorCommands.EnableCloners
 		, FExecuteAction::CreateSP(this, &FAvaClonerEffectorExtension::EnableCloners, true));
+
+	ClonerEffectorCommands->MapAction(EditorCommands.CreateCloner
+		, FExecuteAction::CreateSP(this, &FAvaClonerEffectorExtension::CreateCloner));
 }
 
 TSet<AActor*> FAvaClonerEffectorExtension::GetSelectedActors() const
@@ -125,6 +128,28 @@ void FAvaClonerEffectorExtension::EnableCloners(bool bInEnable) const
 	{
 		ClonerSubsystem->SetLevelClonersEnabled(GetWorld(), bInEnable, bTransact);
 	}
+}
+
+void FAvaClonerEffectorExtension::CreateCloner() const
+{
+	const FEditorModeTools* ModeTools = GetEditorModeTools();
+	if (!ModeTools)
+	{
+		return;
+	}
+
+	UCEClonerSubsystem* ClonerSubsystem = UCEClonerSubsystem::Get();
+	if (!ClonerSubsystem)
+	{
+		return;
+	}
+
+	TSet<AActor*> SelectedActors = GetSelectedActors();
+	UWorld* World = ModeTools->GetWorld();
+
+	constexpr bool bTransact = true;
+
+	ClonerSubsystem->CreateClonerWithActors(World, SelectedActors, bTransact);
 }
 
 #undef LOCTEXT_NAMESPACE
