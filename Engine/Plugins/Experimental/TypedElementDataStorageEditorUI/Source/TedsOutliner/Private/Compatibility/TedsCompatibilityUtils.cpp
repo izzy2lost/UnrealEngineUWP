@@ -13,7 +13,9 @@
 #include "TypedElementOutlinerColumnIntegration.h"
 #include "TypedElementOutlinerFilter.h"
 #include "TypedElementOutlinerItem.h"
+#include "Columns/TedsOutlinerColumns.h"
 #include "Elements/Columns/TypedElementSelectionColumns.h"
+#include "Elements/Columns/TypedElementSlateWidgetColumns.h"
 #include "Filters/FilterBase.h"
 #include "Widgets/SWidget.h"
 
@@ -75,7 +77,7 @@ void FTedsOutlinerImpl::CreateLabelWidgetConstructors()
 					return false;
 				});
 
-			if(bFoundWidget)
+			if (bFoundWidget)
 			{
 				break;
 			}
@@ -92,7 +94,7 @@ void FTedsOutlinerImpl::CreateLabelWidgetConstructors()
 																	);
 
 
-	if(TSharedPtr<FTypedElementWidgetConstructor> TypeColumnWidgetConstructor = CreateWidgetConstructorForQuery(Storage->GetQueryDescription(TypeColumnQueryHandle)))
+	if (TSharedPtr<FTypedElementWidgetConstructor> TypeColumnWidgetConstructor = CreateWidgetConstructorForQuery(Storage->GetQueryDescription(TypeColumnQueryHandle)))
 	{
 		QueryToWidgetConstructorMap.Emplace(TypeColumnQueryHandle, TypeColumnWidgetConstructor);
 	}
@@ -103,7 +105,7 @@ void FTedsOutlinerImpl::CreateLabelWidgetConstructors()
 																	.Compile()
 																	);
 
-	if(TSharedPtr<FTypedElementWidgetConstructor> LabelColumnWidgetConstructor = CreateWidgetConstructorForQuery(Storage->GetQueryDescription(LabelColumnQueryHandle)))
+	if (TSharedPtr<FTypedElementWidgetConstructor> LabelColumnWidgetConstructor = CreateWidgetConstructorForQuery(Storage->GetQueryDescription(LabelColumnQueryHandle)))
 	{
 		QueryToWidgetConstructorMap.Emplace(LabelColumnQueryHandle, LabelColumnWidgetConstructor);
 	}
@@ -113,7 +115,7 @@ void FTedsOutlinerImpl::CreateFilterQueries()
 {
 	using namespace TypedElementQueryBuilder;
 
-	if(CreationParams.bUseDefaultTedsFilters)
+	if (CreationParams.bUseDefaultTedsFilters)
 	{
 		// Create separate categories for columns and tags
 		TSharedRef<FFilterCategory> TedsColumnFilterCategory = MakeShared<FFilterCategory>(LOCTEXT("TEDSColumnFilters", "TEDS Columns"), LOCTEXT("TEDSColumnFiltersTooltip", "Filter by TEDS columns"));
@@ -127,7 +129,7 @@ void FTedsOutlinerImpl::CreateFilterQueries()
 		{
 			if (UScriptStruct* Struct = Cast<UScriptStruct>(Obj))
 			{
-				if(Struct->IsChildOf(TedsColumn) || Struct->IsChildOf(TedsTag))
+				if (Struct->IsChildOf(TedsColumn) || Struct->IsChildOf(TedsTag))
 				{
 					// Create a query description to filter for this tag/column
 					TypedElementDataStorage::FQueryDescription FilterQueryDesc =
@@ -163,7 +165,7 @@ void FTedsOutlinerImpl::Init()
 	CreateLabelWidgetConstructors();
 	CreateFilterQueries();
 	
-	if(SelectionSetName.IsSet())
+	if (SelectionSetName.IsSet())
 	{
 		// Ticker for selection updates so we don't fire the delegate multiple times in one frame for multi select
 		TickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda(
@@ -196,7 +198,7 @@ FTedsOutlinerImpl::FIsItemCompatible& FTedsOutlinerImpl::IsItemCompatible()
 
 void FTedsOutlinerImpl::SetSelection(const TArray<TypedElementDataStorage::RowHandle>& InSelectedRows)
 {
-	if(!SelectionSetName.IsSet())
+	if (!SelectionSetName.IsSet())
 	{
 		return;
 	}
@@ -235,6 +237,8 @@ TSharedRef<SWidget> FTedsOutlinerImpl::CreateLabelWidgetForItem(TypedElementRowH
 		{
 			RowReference->Row = InRowHandle;
 		}
+
+		Storage->AddColumn(UiRowHandle, FTableViewerColumn{.Outliner = StaticCastSharedRef<ISceneOutliner>(SceneOutliner->AsShared())});
 		
 		return StorageUi->ConstructWidget(UiRowHandle, *CellWidgetConstructor, MetaDataArgs);
 	};
@@ -243,7 +247,7 @@ TSharedRef<SWidget> FTedsOutlinerImpl::CreateLabelWidgetForItem(TypedElementRowH
 
 	for(const TPair<TypedElementDataStorage::QueryHandle, TSharedPtr<FTypedElementWidgetConstructor>>& QueryConstructorPair : QueryToWidgetConstructorMap)
 	{
-		if(TSharedPtr<SWidget> WidgetForQuery = CreateWidgetForQuery(QueryConstructorPair))
+		if (TSharedPtr<SWidget> WidgetForQuery = CreateWidgetForQuery(QueryConstructorPair))
 		{
 			CombinedWidget->AddSlot()
 					.AutoWidth()
@@ -276,7 +280,7 @@ void FTedsOutlinerImpl::AppendQuery(TypedElementDataStorage::FQueryDescription& 
 			return Selection == Query2.ConditionOperators[i].Type;
 		});
 
-		if(!FoundCondition && !FoundSelection)
+		if (!FoundCondition && !FoundSelection)
 		{
 			Query1.ConditionOperators.Add(Query2.ConditionOperators[i]);
 			Query1.ConditionTypes.Add(Query2.ConditionTypes[i]);
@@ -309,7 +313,7 @@ bool FTedsOutlinerImpl::HasItemParentChanged(TypedElementDataStorage::RowHandle 
 	const FSceneOutlinerTreeItemPtr Item = SceneOutliner->GetTreeItem(InRowHandle, true);
 
 	// If the item doesn't exist, it doesn't make sense to say its parent changed
-	if(!Item)
+	if (!Item)
 	{
 		return false;
 	}
@@ -317,20 +321,42 @@ bool FTedsOutlinerImpl::HasItemParentChanged(TypedElementDataStorage::RowHandle 
 	const FSceneOutlinerTreeItemPtr ParentItem = Item->GetParent();
 
 	// If the item doesn't have a parent, but ParentRowHandle is valid: The item just got added a parent so we want to dirty it
-	if(!ParentItem)
+	if (!ParentItem)
 	{
 		return Storage->IsRowAvailable(ParentRowHandle);
 	}
 	
 	const FTypedElementOutlinerTreeItem* TEDSParentItem = ParentItem->CastTo<FTypedElementOutlinerTreeItem>();
 
-	if(TEDSParentItem)
+	if (TEDSParentItem)
 	{
 		// return true if the row handle of the parent item doesn't match what we are given, i.e the parent has changed
 		return TEDSParentItem->GetRowHandle() != ParentRowHandle;
 	}
 
 	return false;
+}
+
+bool FTedsOutlinerImpl::CanDisplayRow(TypedElementDataStorage::RowHandle ItemRowHandle) const
+{
+	/*
+	 * Don't display widgets that are created for rows in this table viewer. Widgets are only created for rows that are currently visible, so if we
+	 * display the rows for them we are now adding/removing rows to the table viewer based on currently visible rows. But adding rows can cause
+	 * scrolling and change the currently visible rows which in turn again adds/removes widget rows. This chain keeps continuing which can cause
+	 * flickering/scrolling issues in the table viewer.
+	 */
+	if (Storage->HasColumns<FTypedElementSlateWidgetReferenceColumn>(ItemRowHandle))
+	{
+		// Check if this widget row belongs to the same table viewer it is being displayed in
+		if (const FTableViewerColumn* TableViewerColumn = Storage->GetColumn<FTableViewerColumn>(ItemRowHandle))
+		{
+			if (const TSharedPtr<ISceneOutliner> TableViewer = TableViewerColumn->Outliner.Pin())
+			{
+				return SceneOutliner != TableViewer.Get();
+			}
+		}
+	}
+	return true;
 }
 
 void FTedsOutlinerImpl::CreateItemsFromQuery(TArray<FSceneOutlinerTreeItemPtr>& OutItems, ISceneOutlinerMode* InMode) const
@@ -349,8 +375,13 @@ void FTedsOutlinerImpl::CreateItemsFromQuery(TArray<FSceneOutlinerTreeItemPtr>& 
 
 	Storage->RunQuery(RowHandleQuery, RowCollector);
 	
-	for(const TypedElementRowHandle& Row : Rows)
+	for (const TypedElementRowHandle& Row : Rows)
 	{
+		if (!CanDisplayRow(Row))
+		{
+			continue;
+		}
+		
 		if (FSceneOutlinerTreeItemPtr TreeItem = InMode->CreateItemFor<FTypedElementOutlinerTreeItem>(FTypedElementOutlinerTreeItem(Row, AsShared()), false))
 		{
 			OutItems.Add(TreeItem);
@@ -370,7 +401,7 @@ void FTedsOutlinerImpl::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TA
 	 */
 
 	// If there's no hierarchy data, there is no need to create children
-	if(!HierarchyData.IsSet())
+	if (!HierarchyData.IsSet())
 	{
 		return;
 	}
@@ -381,14 +412,14 @@ void FTedsOutlinerImpl::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TA
 	const FTypedElementOutlinerTreeItem* TEDSTreeItem = Item->CastTo<FTypedElementOutlinerTreeItem>();
 
 	// If this item is not a TEDS item, we are not handling it
-	if(!TEDSTreeItem)
+	if (!TEDSTreeItem)
 	{
 		return;
 	}
 		
 	TypedElementRowHandle ItemRowHandle = TEDSTreeItem->GetRowHandle();
 
-	if(!Storage->HasRowBeenAssigned(ItemRowHandle))
+	if (!Storage->HasRowBeenAssigned(ItemRowHandle))
 	{
 		return;
 	}
@@ -415,13 +446,13 @@ void FTedsOutlinerImpl::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TA
 		{
 			void* ParentColumnData = DataStorage->GetColumnData(ChildEntityRowHandle, InHierarchyData.GetValue().HierarchyColumn);
 
-			if(ensureMsgf(ParentColumnData, TEXT("We should always the a parent column since we only grabbed rows with those ")))
+			if (ensureMsgf(ParentColumnData, TEXT("We should always the a parent column since we only grabbed rows with those ")))
 			{
 				// Get the parent row handle
 				const TypedElementDataStorage::RowHandle ParentRowHandle = InHierarchyData.GetValue().GetParent.Execute(ParentColumnData);
 				
 				// Check if this entity is owned by the entity we are looking children for
-				if(ParentRowHandle == EntityRowHandle)
+				if (ParentRowHandle == EntityRowHandle)
 				{
 					ChildItems.Add(ChildEntityRowHandle);
 
@@ -439,6 +470,11 @@ void FTedsOutlinerImpl::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TA
 	// Actually create the items for the child entities 
 	for (TypedElementRowHandle ChildItemRowHandle : ChildItems)
 	{
+		if (!CanDisplayRow(ChildItemRowHandle))
+		{
+			continue;
+		}
+		
 		if (FSceneOutlinerTreeItemPtr ChildActorItem = SceneOutlinerMode->CreateItemFor<FTypedElementOutlinerTreeItem>(FTypedElementOutlinerTreeItem(ChildItemRowHandle, AsShared())))
 		{
 			OutChildren.Add(ChildActorItem);
@@ -449,7 +485,7 @@ void FTedsOutlinerImpl::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TA
 TypedElementDataStorage::RowHandle FTedsOutlinerImpl::GetParentRow(TypedElementDataStorage::RowHandle InRowHandle)
 {
 	// No parent if there is no hierarchy data specified
-	if(!HierarchyData.IsSet())
+	if (!HierarchyData.IsSet())
 	{
 		return TypedElementDataStorage::InvalidRowHandle;
 	}
@@ -457,7 +493,7 @@ TypedElementDataStorage::RowHandle FTedsOutlinerImpl::GetParentRow(TypedElementD
 	// If this entity does not have a parent entity, return InvalidRowHandle
 	void* ParentColumnData = Storage->GetColumnData(InRowHandle, HierarchyData.GetValue().HierarchyColumn);
 	
-	if(!ParentColumnData)
+	if (!ParentColumnData)
 	{
 		return TypedElementDataStorage::InvalidRowHandle;
 	}
@@ -465,7 +501,12 @@ TypedElementDataStorage::RowHandle FTedsOutlinerImpl::GetParentRow(TypedElementD
 	// If the parent is invalid for some reason, return InvalidRowHandle
 	const TypedElementRowHandle ParentRowHandle = HierarchyData.GetValue().GetParent.Execute(ParentColumnData);
 	
-	if(!Storage->IsRowAvailable(ParentRowHandle))
+	if (!Storage->IsRowAvailable(ParentRowHandle))
+	{
+		return TypedElementDataStorage::InvalidRowHandle;
+	}
+	
+	if (!CanDisplayRow(ParentRowHandle))
 	{
 		return TypedElementDataStorage::InvalidRowHandle;
 	}
@@ -475,6 +516,11 @@ TypedElementDataStorage::RowHandle FTedsOutlinerImpl::GetParentRow(TypedElementD
 
 void FTedsOutlinerImpl::OnItemAdded(TypedElementDataStorage::RowHandle ItemRowHandle)
 {
+	if (!CanDisplayRow(ItemRowHandle))
+	{
+		return;
+	}
+	
 	FSceneOutlinerHierarchyChangedData EventData;
 	EventData.Type = FSceneOutlinerHierarchyChangedData::Added;
 	EventData.Items.Add(SceneOutlinerMode->CreateItemFor<FTypedElementOutlinerTreeItem>(FTypedElementOutlinerTreeItem(ItemRowHandle, AsShared())));
@@ -491,6 +537,11 @@ void FTedsOutlinerImpl::OnItemRemoved(TypedElementDataStorage::RowHandle ItemRow
 
 void FTedsOutlinerImpl::OnItemMoved(TypedElementDataStorage::RowHandle ItemRowHandle)
 {
+	if (!CanDisplayRow(ItemRowHandle))
+	{
+		return;
+	}
+	
 	FSceneOutlinerHierarchyChangedData EventData;
 	EventData.Type = FSceneOutlinerHierarchyChangedData::Moved;
 	EventData.ItemIDs.Add(ItemRowHandle);
@@ -504,7 +555,7 @@ void FTedsOutlinerImpl::RecompileQueries()
 
 	UnregisterQueries();
 
-	if(!InitialQueryDescription.IsSet())
+	if (!InitialQueryDescription.IsSet())
 	{
 		return;
 	}
@@ -544,7 +595,7 @@ void FTedsOutlinerImpl::RecompileQueries()
 	AppendQuery(RowRemovalQueryDescription, FinalQueryDescription);
 
 	// Queries to track parent info, only required if we have hierarchy data
-	if(HierarchyData.IsSet())
+	if (HierarchyData.IsSet())
 	{
 		const UScriptStruct* ParentColumnType = HierarchyData.GetValue().HierarchyColumn;
 		
@@ -567,12 +618,12 @@ void FTedsOutlinerImpl::RecompileQueries()
 			{
 				TypedElementDataStorage::RowHandle ParentRowHandle = InvalidRowHandle;
 
-				if(const FTypedElementParentColumn* ParentColumn = Context.GetColumn<FTypedElementParentColumn>())
+				if (const FTypedElementParentColumn* ParentColumn = Context.GetColumn<FTypedElementParentColumn>())
 				{
 					ParentRowHandle = ParentColumn->Parent;
 				}
 				
-				if(HasItemParentChanged(Row, ParentRowHandle))
+				if (HasItemParentChanged(Row, ParentRowHandle))
 				{
 					OnItemMoved(Row);
 				}
@@ -589,7 +640,7 @@ void FTedsOutlinerImpl::RecompileQueries()
 		UpdateParentQuery = Storage->RegisterQuery(MoveTemp(UpdateParentQueryDescription));
 	}
 
-	if(SelectionSetName.IsSet())
+	if (SelectionSetName.IsSet())
 	{
 		// Query to grab all selected rows
 		FQueryDescription SelectedRowsQueryDescription =
@@ -639,7 +690,7 @@ void FTedsOutlinerImpl::RecompileQueries()
 
 void FTedsOutlinerImpl::UnregisterQueries() const
 {
-	if(Storage)
+	if (Storage)
 	{
 		Storage->UnregisterQuery(RowHandleQuery);
 		Storage->UnregisterQuery(RowAdditionQuery);
@@ -654,7 +705,7 @@ void FTedsOutlinerImpl::UnregisterQueries() const
 
 void FTedsOutlinerImpl::ClearSelection() const
 {
-	if(!SelectionSetName.IsSet())
+	if (!SelectionSetName.IsSet())
 	{
 		return;
 	}
@@ -672,9 +723,9 @@ void FTedsOutlinerImpl::ClearSelection() const
 
 		for(const TypedElementDataStorage::RowHandle RowHandle : Rows)
 		{
-			if(const FTypedElementSelectionColumn* SelectionColumn = Storage->GetColumn<FTypedElementSelectionColumn>(RowHandle))
+			if (const FTypedElementSelectionColumn* SelectionColumn = Storage->GetColumn<FTypedElementSelectionColumn>(RowHandle))
 			{
-				if(SelectionColumn->SelectionSet == SelectionSetName)
+				if (SelectionColumn->SelectionSet == SelectionSetName)
 				{
 					RowsToRemoveSelectionColumn.Add(RowHandle);
 				}
@@ -693,7 +744,7 @@ void FTedsOutlinerImpl::ClearSelection() const
 
 void FTedsOutlinerImpl::Tick()
 {
-	if(bSelectionDirty)
+	if (bSelectionDirty)
 	{
 		OnTedsOutlinerSelectionChanged.Broadcast();
 		bSelectionDirty = false;

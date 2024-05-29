@@ -172,6 +172,9 @@ protected:
 
 	void CreateLabelWidgetConstructors();
 	void CreateFilterQueries();
+
+	// Check if this row can be displayed in this table viewer
+	bool CanDisplayRow(TypedElementDataStorage::RowHandle ItemRowHandle) const;
 	
 protected:
 	// TEDS Storage Constructs
