@@ -56,3 +56,10 @@ float4 FSH_Pow(float2 uv : TEXCOORD0) : SV_Target0
 	return pow(op1, op2);
 }
 
+float4 FSH_Step(float2 uv : TEXCOORD0) : SV_Target0
+{
+	float4 op1 = Operand1.Sample(SamplerStates_Wrap, uv);
+	float4 op2 = Operand2.Sample(SamplerStates_Wrap, uv);
+	return step(op1, op2);
+}
+

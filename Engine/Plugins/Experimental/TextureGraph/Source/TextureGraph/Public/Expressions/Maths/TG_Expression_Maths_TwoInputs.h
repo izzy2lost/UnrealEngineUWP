@@ -130,6 +130,22 @@ protected:
 };
 
 //////////////////////////////////////////////////////////////////////////
+/// Step function: Usual HLSL step style function
+//////////////////////////////////////////////////////////////////////////
+UCLASS()
+class TEXTUREGRAPH_API UTG_Expression_Step : public UTG_Expression_BasicMath_Op
+{
+	GENERATED_BODY()
+	
+public:
+	virtual FText						GetTooltipText() const override { return FText::FromString(TEXT("step(y, x) returns 1 if the x parameter is greater than or equal to the y parameter; otherwise, 0.")); } 
+
+protected:
+	virtual float						EvaluateScalar_WithValue(FTG_EvaluationContext* InContext, const float* const Value, size_t Count) override;
+	virtual FTG_Texture					EvaluateTexture(FTG_EvaluationContext* InContext) override;
+};
+
+//////////////////////////////////////////////////////////////////////////
 /// Power
 //////////////////////////////////////////////////////////////////////////
 UCLASS()
