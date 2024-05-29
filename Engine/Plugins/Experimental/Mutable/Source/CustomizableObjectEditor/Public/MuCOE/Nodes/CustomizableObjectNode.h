@@ -109,7 +109,7 @@ public:
 
 	/** Add post load work here.
 	 * When called, it is guaranteed that all nodes in this graph will have executed the BackwardsCompatibleFixup function. */
-	virtual void PostBackwardsCompatibleFixup() {};
+	virtual void PostBackwardsCompatibleFixup() {}
 	
 	/** Virtual implementation of RemovePin. Allows to do work before removing a pin.
 	 * Use this function instead of RemovePin. RemovePin does not removes possible attached PinData. */

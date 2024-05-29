@@ -25,6 +25,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "MuCO/CustomizableObjectCustomVersion.h"
+#include "MuCOE/CustomizableObjectEditorUtilities.h"
 #include "UObject/LinkerLoad.h"
 
 class ICustomizableObjectEditor;
@@ -193,6 +194,58 @@ void UCustomizableObjectNodeTable::PostBackwardsCompatibleFixup()
 	if (Table)
 	{
 		OnTableChangedDelegateHandle = Table->OnDataTableChanged().AddUObject(this, &UCustomizableObjectNodeTable::OnTableChanged);
+	}
+}
+
+
+void UCustomizableObjectNodeTable::PostLoad()
+{
+	Super::PostLoad();
+	
+	if (Table)
+	{
+		ConditionalPostLoadReference(*Table);
+	}
+
+	if (Structure)
+	{
+		ConditionalPostLoadReference(*Structure);
+	}
+	
+	if (const UScriptStruct* TableStruct = GetTableNodeStruct())
+	{
+		TArray<int8> DefaultDataArray;
+		DefaultDataArray.SetNumZeroed(TableStruct->GetStructureSize());
+		TableStruct->InitializeStruct(DefaultDataArray.GetData());
+
+		for (TFieldIterator<FProperty> It(TableStruct); It; ++It)
+		{
+			FProperty* ColumnProperty = *It;
+			if (!ColumnProperty)
+			{
+				continue;
+			}
+		
+			if (const FSoftObjectProperty* SoftObjectProperty = CastField<FSoftObjectProperty>(ColumnProperty))
+			{
+				if (SoftObjectProperty->PropertyClass)
+				{
+					uint8* CellData = SoftObjectProperty->ContainerPtrToValuePtr<uint8>(DefaultDataArray.GetData());
+					if (!CellData)
+					{
+						continue;
+					}
+
+					UObject* Object = SoftObjectProperty->GetPropertyValue(CellData).LoadSynchronous();
+					if (!Object)
+					{
+						continue;
+					}
+
+					ConditionalPostLoadReference(*Object);
+				}
+			}
+		}
 	}
 }
 
@@ -549,15 +602,6 @@ void UCustomizableObjectNodeTable::GenerateMeshPins(UObject* Mesh, const FString
 {
 	if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Mesh))
 	{
-		// This can be called from a codepath that starts in PostLoad. The SkeletalMesh may not be serialized at this time so here we will preload it to make sure we can read the LOD data
-		if (SkeletalMesh->HasAnyFlags(RF_NeedLoad))
-		{
-			if (FLinkerLoad* Linker = GetLinker())
-			{
-				Linker->Preload(SkeletalMesh);
-			}
-		}
-
 		const int NumLODs = SkeletalMesh->GetLODNum();
 		const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
 

@@ -21,6 +21,7 @@
 #include "Modules/ModuleManager.h"
 #include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/CustomizableObjectEditorLogger.h"
+#include "MuCOE/CustomizableObjectEditorUtilities.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeExternalPin.h"
 
 class SGraphNode;
@@ -662,7 +663,7 @@ void UCustomizableObjectNodeMaterial::PostLoad()
 	
 	if (Material)
 	{
-		Material->ConditionalPostLoad(); // Make sure the Material has been fully loaded.
+		ConditionalPostLoadReference(*Material); // Make sure the Material has been fully loaded.
 	}
 }
 

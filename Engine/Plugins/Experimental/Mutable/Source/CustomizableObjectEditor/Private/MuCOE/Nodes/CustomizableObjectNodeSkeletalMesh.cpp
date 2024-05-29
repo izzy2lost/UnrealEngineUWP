@@ -9,6 +9,7 @@
 #include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/CustomizableObjectEditor.h"
 #include "MuCOE/CustomizableObjectEditorStyle.h"
+#include "MuCOE/CustomizableObjectEditorUtilities.h"
 #include "MuCOE/CustomizableObjectLayout.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
 #include "MuCOE/GraphTraversal.h"
@@ -28,6 +29,25 @@ struct FSlateBrush;
 
 /** Default node pin configuration pin name (node does not have an skeletal mesh). */
 static const TCHAR* SKELETAL_MESH_PIN_NAME = TEXT("Skeletal Mesh");
+
+
+void UCustomizableObjectNodeSkeletalMesh::PostLoad()
+{
+	Super::PostLoad();
+
+	if (SkeletalMesh)
+	{
+		ConditionalPostLoadReference(*SkeletalMesh);
+
+		for (const FSkeletalMaterial& SkeletalMaterial : SkeletalMesh->GetMaterials())
+		{
+			if (UMaterialInterface* Material = SkeletalMaterial.MaterialInterface)
+			{
+				ConditionalPostLoadReference(*Material);
+			}
+		}
+	}
+}
 
 
 void UCustomizableObjectNodeSkeletalMesh::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)

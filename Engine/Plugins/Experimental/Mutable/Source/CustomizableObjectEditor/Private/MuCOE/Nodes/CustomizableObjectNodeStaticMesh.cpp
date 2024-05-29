@@ -8,6 +8,7 @@
 #include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/CustomizableObjectEditor.h"
 #include "MuCOE/CustomizableObjectEditorStyle.h"
+#include "MuCOE/CustomizableObjectEditorUtilities.h"
 #include "MuCOE/CustomizableObjectLayout.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
 #include "MuCOE/GraphTraversal.h"
@@ -26,6 +27,25 @@ struct FSlateBrush;
 
 /** Default node pin configuration pin name (node does not have an static mesh). */
 static const TCHAR* STATIC_MESH_PIN_NAME = TEXT("Static Mesh");
+
+
+void UCustomizableObjectNodeStaticMesh::PostLoad()
+{
+	Super::PostLoad();
+
+	if (StaticMesh)
+	{
+		ConditionalPostLoadReference(*StaticMesh);
+
+		for (const FStaticMaterial& StaticMaterial : StaticMesh->GetStaticMaterials())
+		{
+			if (UMaterialInterface* Material = StaticMaterial.MaterialInterface)
+			{
+				ConditionalPostLoadReference(*Material);
+			}
+		}
+	}
+}
 
 
 void UCustomizableObjectNodeStaticMesh::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)

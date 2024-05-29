@@ -131,13 +131,14 @@ public:
 	FEdGraphPinReference DefaultPin;
 	
 	// UObject interface.
-	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void PostLoad() override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void Serialize(FArchive& Ar) override;
 
 	// UEdGraphNode interface
-	FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
-	FLinearColor GetNodeTitleColor() const override;
-	FText GetTooltipText() const override;
+	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
+	virtual FLinearColor GetNodeTitleColor() const override;
+	virtual FText GetTooltipText() const override;
 
 	// UCustomizableObjectNode interface
 	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
@@ -145,9 +146,8 @@ public:
 	virtual bool IsPinRelevant(const UEdGraphPin* Pin) const override;
 	virtual UCustomizableObjectNodeRemapPinsByName* CreateRemapPinsByName() const override;
 	virtual bool HasPinViewer() const override;
-
-	bool IsNodeOutDatedAndNeedsRefresh() override;
-	FString GetRefreshMessage() const override;
+	virtual bool IsNodeOutDatedAndNeedsRefresh() override;
+	virtual FString GetRefreshMessage() const override;
 
 	// UCustomizableObjectNodeMesh interface
 	virtual UTexture2D* FindTextureForPin(const UEdGraphPin* Pin) const override;
@@ -158,11 +158,11 @@ public:
 	virtual UEdGraphPin* GetLayoutPin(int32 LODIndex, int32 SectionIndex, int32 LayoutIndex) const override;
 	virtual void GetPinSection(const UEdGraphPin& Pin, int32& OutLODIndex, int32& OutSectionIndex, int32& OutLayoutIndex) const override;
 
-	/** Returns the material assossiated to the given output pin. */
+	/** Returns the material associated to the given output pin. */
 	UMaterialInterface* GetMaterialFor(const UEdGraphPin* Pin) const;
 
 	// Creates the SGraph Node widget for the thumbnail
-	TSharedPtr<SGraphNode> CreateVisualWidget() override;
+	virtual TSharedPtr<SGraphNode> CreateVisualWidget() override;
 
 	// Determines if the Node is collapsed or not
 	bool bCollapsed = true;

@@ -201,6 +201,7 @@ public:
 	FGameplayTagContainer AnimationGameplayTags;
 
 	// UObject interface.
+	virtual void PostLoad() override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	
 	// UEdGraphNode interface
