@@ -64,6 +64,38 @@ FGraphVertexHandle UGraph::CreateVertex(FGraphUniqueIndex InUniqueIndex)
 	return Vertex->Handle();
 }
 
+void UGraph::ChangeVertexHandle(const FGraphVertexHandle& OldVertexHandle, const FGraphVertexHandle& NewVertexHandle)
+{
+	UGraphVertex* Vertex = GetSafeVertexFromHandle(OldVertexHandle);
+	if (!ensure(Vertex))
+	{
+		return;
+	}
+
+	// Update vertex
+	Vertex->SetUniqueIndex(NewVertexHandle.GetUniqueIndex());
+
+	Vertices.Remove(OldVertexHandle);
+	Vertices.Add(NewVertexHandle, Vertex);
+
+	// Update edges. We use that it is bidirectional to only modify the edges of the adjacent vertices. 
+	Vertex->ForEachAdjacentVertex(
+		[this, &OldVertexHandle, &NewVertexHandle](const FGraphVertexHandle& EdgeVertexHandle)
+		{
+			UGraphVertex* EdgeNode = GetSafeVertexFromHandle(EdgeVertexHandle);
+			if (ensure(EdgeNode))
+			{
+				EdgeNode->ChangeEdgeVertexHandle(OldVertexHandle, NewVertexHandle);
+			}
+		});
+
+	// Update island
+	if (UGraphIsland* Island = Vertex->GetParentIsland().GetIsland())
+	{
+		Island->ChangeVertexHandle(OldVertexHandle, NewVertexHandle);
+	}
+}
+
 void UGraph::RegisterVertex(TObjectPtr<UGraphVertex> Vertex)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UGraph::RegisterVertex);

@@ -30,6 +30,14 @@ void UGraphVertex::RemoveEdge(const FGraphVertexHandle& AdjacentVertexHandle)
 	Edges.Remove(AdjacentVertexHandle);
 }
 
+void UGraphVertex::ChangeEdgeVertexHandle(const FGraphVertexHandle& OldVertexHandle, const FGraphVertexHandle& NewVertexHandle)
+{
+	if (ensure(Edges.Remove(OldVertexHandle)))
+	{
+		Edges.Add(NewVertexHandle);
+	}
+}
+
 void UGraphVertex::HandleOnVertexRemoved()
 {
 	OnVertexRemoved.Broadcast(Handle());

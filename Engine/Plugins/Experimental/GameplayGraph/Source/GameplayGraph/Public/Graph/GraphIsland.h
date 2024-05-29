@@ -85,6 +85,9 @@ public:
 	/** Removes a node from the island. */
 	void RemoveVertex(const FGraphVertexHandle& Node);
 
+	/** Changes a node handle. The vertex must exist. */
+	virtual void ChangeVertexHandle(const FGraphVertexHandle& OldVertexHandle, const FGraphVertexHandle& NewVertexHandle);
+
 	FOnGraphIslandVertexAdded OnVertexAdded;
 	FOnGraphIslandVertexRemoved OnVertexRemoved;
 	FOnGraphIslandDestroyed OnDestroyed;

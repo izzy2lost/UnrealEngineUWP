@@ -96,6 +96,9 @@ public:
 	/** Create a node with the specified subclass, adds it to the graph, and returns a handle to it. */
 	FGraphVertexHandle CreateVertex(FGraphUniqueIndex InUniqueIndex = FGraphUniqueIndex::CreateUniqueIndex(false));
 
+	/** Changes a node handle, updating all the references. The vertex must exist. */
+	void ChangeVertexHandle(const FGraphVertexHandle& OldVertexHandle, const FGraphVertexHandle& NewVertexHandle);
+
 	/** Creates edges in bulk. This is more efficient than calling CreateEdge multiple times since we will only try to assign a node to an island once. */
 	void CreateBulkEdges(TArray<FEdgeSpecifier>&& NodesToConnect);
 

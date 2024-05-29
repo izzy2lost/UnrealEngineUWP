@@ -37,6 +37,9 @@ public:
 	
 	const TSet<FGraphVertexHandle>& GetEdges() const { return Edges; }
 
+	/** Changes an edge vertex handle. The vertex must exist. */
+	void ChangeEdgeVertexHandle(const FGraphVertexHandle& OldVertexHandle, const FGraphVertexHandle& NewVertexHandle);
+
 	FOnGraphVertexRemoved OnVertexRemoved;
 	FOnGraphVertexParentIslandSet OnParentIslandSet;
 
