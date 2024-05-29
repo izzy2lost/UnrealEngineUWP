@@ -291,6 +291,12 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// true if notifications are enabled
 		/// </summary>
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/IOSRuntimeSettings.IOSRuntimeSettings", "bEnableStoreKitSupport")]
+		public readonly bool bEnableStoreKitSupport = true;
+
+		/// <summary>
+		/// true if notifications are enabled
+		/// </summary>
 		[ConfigFile(ConfigHierarchyType.Engine, "/Script/IOSRuntimeSettings.IOSRuntimeSettings", "bEnableRemoteNotificationsSupport")]
 		public readonly bool bNotificationsEnabled = false;
 
@@ -1212,9 +1218,17 @@ namespace UnrealBuildTool
 			CompileEnvironment.Definitions.Add("MINIMUM_UE_COMPILED_IOS_VERSION=" + TargetNum);
 
 			LinkEnvironment.AdditionalFrameworks.Add(new UEBuildFramework("GameKit"));
-			LinkEnvironment.AdditionalFrameworks.Add(new UEBuildFramework("StoreKit"));
 			LinkEnvironment.AdditionalFrameworks.Add(new UEBuildFramework("DeviceCheck"));
 
+			if (ProjectSettings.bEnableStoreKitSupport)
+			{
+				CompileEnvironment.Definitions.Add("UE_WITH_STORE_KIT=1");
+				LinkEnvironment.AdditionalFrameworks.Add(new UEBuildFramework("StoreKit"));
+			}
+			else
+			{
+				CompileEnvironment.Definitions.Add("UE_WITH_STORE_KIT=0");
+			}
 		}
 
 		/// <summary>

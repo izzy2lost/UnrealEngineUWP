@@ -90,7 +90,9 @@ namespace UnrealBuildTool.Rules
 					""
 					)
 				);
-				
+				// GoogleAppMeasurement depends on Storekit
+				PublicFrameworks.Add("StoreKit");
+
 				PublicAdditionalFrameworks.Add(
 					new Framework(
 					"GoogleUtilities",

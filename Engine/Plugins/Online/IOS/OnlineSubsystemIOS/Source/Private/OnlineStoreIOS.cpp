@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#if UE_WITH_STORE_KIT
+
 #include "OnlineStoreIOS.h"
 #include "Internationalization/Internationalization.h"
 #include "Internationalization/Culture.h"
@@ -312,3 +314,5 @@ SKProduct* FOnlineStoreIOS::GetSKProductByOfferId(const FUniqueOfferId& OfferId)
 	
 	return nil;
 }
+
+#endif //UE_WITH_STORE_KIT

@@ -179,6 +179,10 @@ class IOSRUNTIMESETTINGS_API UIOSRuntimeSettings : public UObject
 public:
 	GENERATED_UCLASS_BODY()
 
+	// Should StoreKit support be enabled?
+	UPROPERTY(GlobalConfig, EditAnywhere, Category = Online, meta = (ConfigHierarchyEditable))
+	bool bEnableStoreKitSupport;
+
 	// Should Game Center support (iOS Online Subsystem) be enabled?
 	UPROPERTY(GlobalConfig, EditAnywhere, Category = Online, meta = (ConfigHierarchyEditable))
     bool bEnableGameCenterSupport;

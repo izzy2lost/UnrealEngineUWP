@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#if UE_WITH_STORE_KIT
+
 #include "OnlinePurchaseIOS.h"
 #include "OnlineError.h"
 #include "OnlineSubsystemIOS.h"
@@ -794,3 +796,4 @@ TSharedRef<FPurchaseReceipt> FOnlinePurchaseIOS::GenerateReceipt(const FPurchase
 
 #undef LOCTEXT_NAMESPACE
 
+#endif //UE_WITH_STORE_KIT

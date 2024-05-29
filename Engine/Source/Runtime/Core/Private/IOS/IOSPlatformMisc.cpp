@@ -45,7 +45,9 @@
 #import <mach-o/dyld.h>
 #include <netinet/in.h>
 #include <SystemConfiguration/SystemConfiguration.h>
+#if UE_WITH_STORE_KIT
 #import <StoreKit/StoreKit.h>
+#endif
 #if !PLATFORM_VISIONOS
 #import <UserNotifications/UserNotifications.h>
 #endif
@@ -920,7 +922,7 @@ bool FIOSPlatformMisc::GetDiskTotalAndFreeSpace(const FString& InPath, uint64& T
 
 void FIOSPlatformMisc::RequestStoreReview()
 {
-#if !PLATFORM_TVOS
+#if UE_WITH_STORE_KIT && !PLATFORM_TVOS
     [SKStoreReviewController requestReviewInScene:[[[[UIApplication sharedApplication] delegate] window] windowScene]];
 #endif
 }
