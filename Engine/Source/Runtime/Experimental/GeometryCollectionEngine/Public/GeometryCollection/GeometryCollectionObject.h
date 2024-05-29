@@ -372,14 +372,12 @@ public:
 	GEOMETRYCOLLECTIONENGINE_API virtual bool Modify(bool bAlwaysMarkDirty = true) override;
 #endif
 	GEOMETRYCOLLECTIONENGINE_API virtual void PostInitProperties() override;
+	GEOMETRYCOLLECTIONENGINE_API virtual void PreSave(FObjectPreSaveContext SaveContext) override;
 	GEOMETRYCOLLECTIONENGINE_API virtual void PostLoad() override;
 	GEOMETRYCOLLECTIONENGINE_API virtual void BeginDestroy() override;
 	/** End UObject Interface */
 
 	GEOMETRYCOLLECTIONENGINE_API void Serialize(FArchive& Ar);
-#if WITH_EDITORONLY_DATA
-	GEOMETRYCOLLECTIONENGINE_API void PostSerialize(const FArchive& Ar);
-#endif
 
 #if WITH_EDITOR
 	GEOMETRYCOLLECTIONENGINE_API void EnsureDataIsCooked(bool bInitResources, bool bIsTransacting, bool bIsPersistant, bool bAllowCopyFromDDC = true);
@@ -844,6 +842,10 @@ private:
 #if WITH_EDITOR
 	GEOMETRYCOLLECTIONENGINE_API void CreateSimulationDataImp(bool bCopyFromDDC);
 	GEOMETRYCOLLECTIONENGINE_API void CreateRenderDataImp(bool bCopyFromDDC);
+
+	GEOMETRYCOLLECTIONENGINE_API void EnsureSimulationDataIsCooked(bool bIsTransacting, bool bAllowCopyFromDDC);
+	GEOMETRYCOLLECTIONENGINE_API void EnsureRenderDataIsCooked(bool bInitResources);
+
 #endif
 
 	/*
