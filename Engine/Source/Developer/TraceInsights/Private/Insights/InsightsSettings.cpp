@@ -99,7 +99,58 @@ void FInsightsSettings::LoadFromConfig()
 	GConfig->GetDouble(TEXT("Insights.TimingProfiler"), TEXT("AutoScrollViewportOffsetPercent"), AutoScrollViewportOffsetPercent, SettingsIni);
 	GConfig->GetDouble(TEXT("Insights.TimingProfiler"), TEXT("AutoScrollMinDelay"), AutoScrollMinDelay, SettingsIni);
 
-	GConfig->GetBool(TEXT("Insights.TimingProfiler"), TEXT("bAutoZoomOnFrameSelection"), bAutoZoomOnFrameSelection, SettingsIni);
+	//////////////////////////////////////////////////
+	// [Insights.TimingProfiler.FramesView]
+
+	GConfig->GetBool(TEXT("Insights.TimingProfiler.FramesView"), TEXT("bShowUpperThresholdLine"), bShowUpperThresholdLine, SettingsIni);
+	GConfig->GetBool(TEXT("Insights.TimingProfiler.FramesView"), TEXT("bShowLowerThresholdLine"), bShowLowerThresholdLine, SettingsIni);
+
+	static constexpr double MinThresholdTime = 0.001; // == 1ms == 1000 fps
+	static constexpr double MaxThresholdTime = 1.0; // == 1s == 1 fps
+
+	FString UpperThreshold;
+	if (GConfig->GetString(TEXT("Insights.TimingProfiler.FramesView"), TEXT("UpperThreshold"), UpperThreshold, SettingsIni))
+	{
+		if (UpperThreshold.IsEmpty())
+		{
+			UpperThreshold = TEXT("30 fps");
+		}
+		if (UpperThreshold.EndsWith(TEXT("fps")))
+		{
+			double FPS = FCString::Atof(*UpperThreshold);
+			UpperThresholdTime = 1.0 / FMath::Clamp(FPS, 1.0 / MaxThresholdTime, 1.0 / MinThresholdTime);
+			bShowUpperThresholdAsFps = true;
+		}
+		else
+		{
+			double Time = FCString::Atof(*UpperThreshold);
+			UpperThresholdTime = FMath::Clamp(Time, MinThresholdTime, MaxThresholdTime);
+			bShowUpperThresholdAsFps = false;
+		}
+	}
+
+	FString LowerThreshold;
+	if (GConfig->GetString(TEXT("Insights.TimingProfiler.FramesView"), TEXT("LowerThreshold"), LowerThreshold, SettingsIni))
+	{
+		if (LowerThreshold.IsEmpty())
+		{
+			LowerThreshold = TEXT("60 fps");
+		}
+		if (LowerThreshold.EndsWith(TEXT("fps")))
+		{
+			double FPS = FCString::Atof(*LowerThreshold);
+			LowerThresholdTime = 1.0 / FMath::Clamp(FPS, 1.0 / MaxThresholdTime, 1.0 / MinThresholdTime);
+			bShowLowerThresholdAsFps = true;
+		}
+		else
+		{
+			double Time = FCString::Atof(*LowerThreshold);
+			LowerThresholdTime = FMath::Clamp(Time, MinThresholdTime, MaxThresholdTime);
+			bShowLowerThresholdAsFps = false;
+		}
+	}
+
+	GConfig->GetBool(TEXT("Insights.TimingProfiler.FramesView"), TEXT("bAutoZoomOnFrameSelection"), bAutoZoomOnFrameSelection, SettingsIni);
 
 	//////////////////////////////////////////////////
 	// [Insights.TimingProfiler.MainGraph]
@@ -151,7 +202,35 @@ void FInsightsSettings::SaveToConfig()
 	GConfig->SetDouble(TEXT("Insights.TimingProfiler"), TEXT("AutoScrollViewportOffsetPercent"), AutoScrollViewportOffsetPercent, SettingsIni);
 	GConfig->SetDouble(TEXT("Insights.TimingProfiler"), TEXT("AutoScrollMinDelay"), AutoScrollMinDelay, SettingsIni);
 
-	GConfig->SetBool(TEXT("Insights.TimingProfiler"), TEXT("bAutoZoomOnFrameSelection"), bAutoZoomOnFrameSelection, SettingsIni);
+	//////////////////////////////////////////////////
+	// [Insights.TimingProfiler.FramesView]
+
+	GConfig->SetBool(TEXT("Insights.TimingProfiler.FramesView"), TEXT("bShowUpperThresholdLine"), bShowUpperThresholdLine, SettingsIni);
+	GConfig->SetBool(TEXT("Insights.TimingProfiler.FramesView"), TEXT("bShowLowerThresholdLine"), bShowLowerThresholdLine, SettingsIni);
+
+	if (bShowUpperThresholdAsFps)
+	{
+		FString UpperThreshold = FString::Printf(TEXT("%g fps"), 1.0 / UpperThresholdTime);
+		GConfig->SetString(TEXT("Insights.TimingProfiler.FramesView"), TEXT("UpperThreshold"), *UpperThreshold, SettingsIni);
+	}
+	else
+	{
+		FString UpperThreshold = FString::Printf(TEXT("%g"), UpperThresholdTime);
+		GConfig->SetString(TEXT("Insights.TimingProfiler.FramesView"), TEXT("UpperThreshold"), *UpperThreshold, SettingsIni);
+	}
+
+	if (bShowLowerThresholdAsFps)
+	{
+		FString LowerThreshold = FString::Printf(TEXT("%g fps"), 1.0 / LowerThresholdTime);
+		GConfig->SetString(TEXT("Insights.TimingProfiler.FramesView"), TEXT("LowerThreshold"), *LowerThreshold, SettingsIni);
+	}
+	else
+	{
+		FString LowerThreshold = FString::Printf(TEXT("%g"), LowerThresholdTime);
+		GConfig->SetString(TEXT("Insights.TimingProfiler.FramesView"), TEXT("LowerThreshold"), *LowerThreshold, SettingsIni);
+	}
+
+	GConfig->SetBool(TEXT("Insights.TimingProfiler.FramesView"), TEXT("bAutoZoomOnFrameSelection"), bAutoZoomOnFrameSelection, SettingsIni);
 
 	//////////////////////////////////////////////////
 	// [Insights.TimingProfiler.MainGraph]

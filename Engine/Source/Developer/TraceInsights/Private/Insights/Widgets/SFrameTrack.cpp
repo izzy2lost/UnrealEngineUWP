@@ -118,6 +118,15 @@ void SFrameTrack::Reset()
 
 	AnalysisSyncNextTimestamp = 0;
 
+	bShowUpperThresholdLine = Settings.IsShowUpperThresholdLineEnabled();
+	bShowLowerThresholdLine = Settings.IsShowLowerThresholdLineEnabled();
+
+	UpperThresholdTime = FMath::Clamp(Settings.GetUpperThresholdTime(), MinThresholdTime, MaxThresholdTime);
+	LowerThresholdTime = FMath::Clamp(Settings.GetLowerThresholdTime(), MinThresholdTime, MaxThresholdTime);
+
+	bShowUpperThresholdAsFps = Settings.IsShowUpperThresholdAsFpsEnabled();
+	bShowLowerThresholdAsFps = Settings.IsShowLowerThresholdAsFpsEnabled();
+
 	MousePosition = FVector2D::ZeroVector;
 
 	MousePositionOnButtonDown = FVector2D::ZeroVector;
@@ -1501,6 +1510,10 @@ void SFrameTrack::CreateThresholdsMenu(FMenuBuilder& MenuBuilder)
 				[this]()
 				{
 					bShowUpperThresholdLine = !bShowUpperThresholdLine;
+
+					// Persistent option. Save it to the config file.
+					FInsightsSettings& Settings = FInsightsManager::Get()->GetSettings();
+					Settings.SetAndSaveShowUpperThresholdLineEnabled(bShowUpperThresholdLine);
 				}),
 			FCanExecuteAction(),
 			FIsActionChecked::CreateLambda(
@@ -1522,6 +1535,10 @@ void SFrameTrack::CreateThresholdsMenu(FMenuBuilder& MenuBuilder)
 				[this]()
 				{
 					bShowLowerThresholdLine = !bShowLowerThresholdLine;
+
+					// Persistent option. Save it to the config file.
+					FInsightsSettings& Settings = FInsightsManager::Get()->GetSettings();
+					Settings.SetAndSaveShowLowerThresholdLineEnabled(bShowLowerThresholdLine);
 				}),
 			FCanExecuteAction(),
 			FIsActionChecked::CreateLambda(
@@ -1625,6 +1642,7 @@ TSharedRef<SWidget> SFrameTrack::CreateUpperThresholdWidget()
 			{
 				LowerThresholdTime = UpperThresholdTime;
 			}
+			SaveThresholds();
 		})
 	]
 
@@ -1707,6 +1725,7 @@ TSharedRef<SWidget> SFrameTrack::CreateLowerThresholdWidget()
 			{
 				UpperThresholdTime = LowerThresholdTime;
 			}
+			SaveThresholds();
 		})
 	]
 
@@ -1733,12 +1752,22 @@ TSharedRef<SWidget> SFrameTrack::CreateLowerThresholdWidget()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+void SFrameTrack::SaveThresholds()
+{
+	// Persistent option. Save it to the config file.
+	FInsightsSettings& Settings = FInsightsManager::Get()->GetSettings();
+	Settings.SetAndSaveThresholds(UpperThresholdTime, LowerThresholdTime, bShowUpperThresholdAsFps, bShowLowerThresholdAsFps);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 void SFrameTrack::SetThresholdsFPS(double InUpperThresholdFPS, double InLowerThresholdFPS)
 {
 	UpperThresholdTime = 1.0 / InUpperThresholdFPS;
 	LowerThresholdTime = 1.0 / InLowerThresholdFPS;
 	bShowUpperThresholdAsFps = true;
 	bShowLowerThresholdAsFps = true;
+	SaveThresholds();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

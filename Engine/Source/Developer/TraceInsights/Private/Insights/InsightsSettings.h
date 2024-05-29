@@ -72,6 +72,62 @@ public:
 	void SetAutoScrollMinDelay(double Delay) { AutoScrollMinDelay = Delay; }
 	void SetAndSaveAutoScrollMinDelay(double Delay) { SET_AND_SAVE(AutoScrollMinDelay, Delay); }
 
+	//////////////////////////////////////////////////
+	// [Insights.TimingProfiler.FramesView]
+
+	bool IsShowUpperThresholdLineEnabled() const { return bShowUpperThresholdLine; }
+	void SetShowUpperThresholdLineEnabled(bool bOnOff) { bShowUpperThresholdLine = bOnOff; }
+	void SetAndSaveShowUpperThresholdLineEnabled(bool bOnOff) { SET_AND_SAVE(bShowUpperThresholdLine, bOnOff); }
+
+	bool IsShowLowerThresholdLineEnabled() const { return bShowLowerThresholdLine; }
+	void SetShowLowerThresholdLineEnabled(bool bOnOff) { bShowLowerThresholdLine = bOnOff; }
+	void SetAndSaveShowLowerThresholdLineEnabled(bool bOnOff) { SET_AND_SAVE(bShowLowerThresholdLine, bOnOff); }
+
+	double GetUpperThresholdTime() const { return UpperThresholdTime; }
+	void SetUpperThresholdTime(double InUpperThresholdTime) { UpperThresholdTime = InUpperThresholdTime; }
+	void SetAndSaveUpperThresholdTime(double InUpperThresholdTime) { SET_AND_SAVE(UpperThresholdTime, InUpperThresholdTime); }
+
+	double GetLowerThresholdTime() const { return LowerThresholdTime; }
+	void SetLowerThresholdTime(double InLowerThresholdTime) { LowerThresholdTime = InLowerThresholdTime; }
+	void SetAndSaveLowerThresholdTime(double InLowerThresholdTime) { SET_AND_SAVE(LowerThresholdTime, InLowerThresholdTime); }
+
+	bool IsShowUpperThresholdAsFpsEnabled() const { return bShowUpperThresholdAsFps; }
+	void SetShowUpperThresholdAsFpsEnabled(bool bOnOff) { bShowUpperThresholdAsFps = bOnOff; }
+	void SetAndSaveShowUpperThresholdAsFpsEnabled(bool bOnOff) { SET_AND_SAVE(bShowUpperThresholdAsFps, bOnOff); }
+
+	bool IsShowLowerThresholdAsFpsEnabled() const { return bShowLowerThresholdAsFps; }
+	void SetShowLowerThresholdAsFpsEnabled(bool bOnOff) { bShowLowerThresholdAsFps = bOnOff; }
+	void SetAndSaveShowLowerThresholdAsFpsEnabled(bool bOnOff) { SET_AND_SAVE(bShowLowerThresholdAsFps, bOnOff); }
+
+	void SetAndSaveThresholds(double InUpperThresholdTime, double InLowerThresholdTime, bool bInShowUpperThresholdAsFps, bool bInShowLowerThresholdAsFps)
+	{
+		bool bChanged = false;
+		if (UpperThresholdTime != InUpperThresholdTime)
+		{
+			UpperThresholdTime = InUpperThresholdTime;
+			bChanged = true;
+		}
+		if (LowerThresholdTime != InLowerThresholdTime)
+		{
+			LowerThresholdTime = InLowerThresholdTime;
+			bChanged = true;
+		}
+		if (bShowUpperThresholdAsFps != bInShowUpperThresholdAsFps)
+		{
+			bShowUpperThresholdAsFps = bInShowUpperThresholdAsFps;
+			bChanged = true;
+		}
+		if (bShowLowerThresholdAsFps != bInShowLowerThresholdAsFps)
+		{
+			bShowLowerThresholdAsFps = bInShowLowerThresholdAsFps;
+			bChanged = true;
+		}
+		if (bChanged)
+		{
+			SaveToConfig();
+		}
+	}
+
 	bool IsAutoZoomOnFrameSelectionEnabled() const { return bAutoZoomOnFrameSelection; }
 	void SetAutoZoomOnFrameSelection(bool bOnOff) { bAutoZoomOnFrameSelection = bOnOff; }
 	void SetAndSaveAutoZoomOnFrameSelection(bool bOnOff) { SET_AND_SAVE(bAutoZoomOnFrameSelection, bOnOff); }
@@ -197,6 +253,29 @@ private:
 
 	/** Minimum time between two auto-scroll updates, in [seconds]. */
 	double AutoScrollMinDelay = 0.3; // [seconds]
+
+	//////////////////////////////////////////////////
+	// [Insights.TimingProfiler.FramesView]
+
+	/** If enabled, the upper threshold line is visible.The frame coloring by threshold is enabled regardless of this setting. */
+	bool bShowUpperThresholdLine = false;
+
+	/** If enabled, the lower threshold line is visible.The frame coloring by threshold is enabled regardless of this setting. */
+	bool bShowLowerThresholdLine = false;
+
+	/**
+	 * The upper threshold for frames.
+	 * Can be specified as a frame duration([0.001 .. 1.0] seconds; ex.: "0.010" for 10 ms) or as a framerate([1 fps .. 1000 fps]; ex: "100 fps").
+	 */
+	double UpperThresholdTime = 1.0 / 30.0;
+	/**
+	 * The lower threshold for frames.
+	 * Can be specified as a frame duration([0.001 .. 1.0] seconds; ex.: "0.010" for 10 ms) or as a framerate([1 fps .. 1000 fps]; ex: "100 fps").
+	 */
+	double LowerThresholdTime = 1.0 / 60.0;
+
+	bool bShowUpperThresholdAsFps = true;
+	bool bShowLowerThresholdAsFps = true;
 
 	/** If enabled, the Timing View will also be zoomed when a new frame is selected in the Frames track. */
 	bool bAutoZoomOnFrameSelection = false;

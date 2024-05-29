@@ -152,6 +152,7 @@ protected:
 	void CreateThresholdsMenu(FMenuBuilder& MenuBuilder);
 	TSharedRef<SWidget> CreateUpperThresholdWidget();
 	TSharedRef<SWidget> CreateLowerThresholdWidget();
+	void SaveThresholds();
 	void SetThresholdsFPS(double InUpperThresholdFPS, double InLowerThresholdFPS);
 	TSharedRef<SWidget> CreateThresholdPresetsWidget();
 	void CreateSelectedFrameMenu(FMenuBuilder& MenuBuilder);
@@ -215,6 +216,9 @@ protected:
 	//////////////////////////////////////////////////
 	// Thresholds
 
+	bool bShowUpperThresholdLine = false;
+	bool bShowLowerThresholdLine = false;
+
 	static constexpr double MinThresholdTime = 0.001; // == 1ms == 1000 fps
 	static constexpr double MaxThresholdTime = 1.0; // == 1s == 1 fps
 
@@ -223,9 +227,6 @@ protected:
 
 	bool bShowUpperThresholdAsFps = true;
 	bool bShowLowerThresholdAsFps = true;
-
-	bool bShowUpperThresholdLine = false;
-	bool bShowLowerThresholdLine = false;
 
 	//////////////////////////////////////////////////
 
