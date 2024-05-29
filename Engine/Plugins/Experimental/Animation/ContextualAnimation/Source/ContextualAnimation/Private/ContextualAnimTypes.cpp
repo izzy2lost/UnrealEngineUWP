@@ -405,6 +405,12 @@ void FContextualAnimSceneBindings::Clear()
 	Data.Reset();
 }
 
+bool FContextualAnimSceneBindings::ShouldSyncAnimation() const
+{
+	const FContextualAnimSceneSection* Section = IsValid() ? SceneAsset->GetSection(SectionIdx) : nullptr;
+	return Section ? Section->ShouldSyncAnimations() : false;
+}
+
 const FContextualAnimSceneBinding* FContextualAnimSceneBindings::GetSyncLeader() const
 {
 	//@TODO: Return first secondary binding as sync leader for now. This may have to be explicitly defined, either in the SceneAsset or when creating the bindings.

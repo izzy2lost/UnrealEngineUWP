@@ -498,6 +498,7 @@ struct CONTEXTUALANIMATION_API FContextualAnimSceneBindings
 	const FContextualAnimIKTargetDefContainer& GetIKTargetDefContainerFromBinding(const FContextualAnimSceneBinding& Binding) const;
 	FTransform GetIKTargetTransformFromBinding(const FContextualAnimSceneBinding& Binding, const FName& TrackName, float Time) const;
 
+	bool ShouldSyncAnimation() const;
 	const FContextualAnimSceneBinding* GetSyncLeader() const;
 	const FContextualAnimSceneBinding* GetPrimaryBinding() const;
 

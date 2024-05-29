@@ -112,6 +112,7 @@ public:
 	FORCEINLINE FName GetName() const { return Name; }
 	FORCEINLINE const TArray<FContextualAnimWarpPointDefinition>& GetWarpPointDefinitions() const { return WarpPointDefinitions; }
 	FORCEINLINE int32 GetNumAnimSets() const { return AnimSets.Num(); }
+	FORCEINLINE bool ShouldSyncAnimations() const { return bSyncAnimations; }
 
 protected:
 
@@ -126,6 +127,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Defaults", meta = (TitleProperty = "WarpTargetName"))
 	TArray<FContextualAnimWarpPointDefinition> WarpPointDefinitions;
+
+	UPROPERTY(EditAnywhere, Category = "Defaults")
+	bool bSyncAnimations = true;
 
 	void GenerateAlignmentTracks(UContextualAnimSceneAsset& SceneAsset);
 	void GenerateIKTargetTracks(UContextualAnimSceneAsset& SceneAsset);

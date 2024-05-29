@@ -500,7 +500,7 @@ void UContextualAnimSceneActorComponent::HandleTransitionSelf(int32 NewSectionId
 	// Play animation
 	const FContextualAnimSceneBinding& Binding = *Bindings.FindBindingByActor(GetOwner());
 	const FContextualAnimTrack& AnimTrack = Bindings.GetAnimTrackFromBinding(Binding);
-	PlayAnimation_Internal(AnimTrack.Animation, 0.f, true);
+	PlayAnimation_Internal(AnimTrack.Animation, 0.f, Bindings.ShouldSyncAnimation());
 
 	AddOrUpdateWarpTargets(NewSectionIdx, NewAnimSetIdx, WarpPoints, ExternalWarpTargets);
 
@@ -953,7 +953,7 @@ void UContextualAnimSceneActorComponent::JoinScene(const FContextualAnimSceneBin
 		Bindings = InBindings;
 
 		const FContextualAnimTrack& AnimTrack = Bindings.GetAnimTrackFromBinding(*Binding);
-		PlayAnimation_Internal(AnimTrack.Animation, 0.f, true);
+		PlayAnimation_Internal(AnimTrack.Animation, 0.f, Bindings.ShouldSyncAnimation());
 
 		AddOrUpdateWarpTargets(AnimTrack.SectionIdx, AnimTrack.AnimSetIdx, WarpPoints, ExternalWarpTargets);
 
