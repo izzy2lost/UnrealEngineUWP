@@ -36,7 +36,7 @@ void InitStats()
 void UsePlatformFileStubIfRequired()
 {
 #if UE_LLT_USE_PLATFORM_FILE_STUB
-	if (IPlatformFile* WrapperFile = FPlatformFileManager::Get().GetPlatformFile(TEXT("PlatformFileStub")))
+	if (IPlatformFile* WrapperFile = FPlatformFileManager::Get().GetPlatformFile(TEXT("LowLevelTestsRunner")))
 	{
 		IPlatformFile* CurrentPlatformFile = &FPlatformFileManager::Get().GetPlatformFile();
 		WrapperFile->Initialize(CurrentPlatformFile, TEXT(""));
