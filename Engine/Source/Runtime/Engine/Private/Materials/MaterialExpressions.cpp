@@ -2634,7 +2634,6 @@ void UMaterialExpressionTextureSample::PostLoad()
 TArrayView<FExpressionInput*> UMaterialExpressionTextureSample::GetInputsView()
 {
 	CachedInputs.Empty();
-	// todo: we should remove GetInputs() and make this the common code for all expressions
 	uint32 InputIndex = 0;
 	while (FExpressionInput* Ptr = GetInput(InputIndex++))
 	{
