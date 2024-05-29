@@ -15,8 +15,8 @@ namespace UE::Audio::Insights
 	FTraceModule::FTraceModule()
 		: ChannelManager(MakeShared<FTraceChannelManager>())
 	{
-		// Don't run providers in cook commandlet to avoid additional, unnecessary overhead as audio insights is dormant.
-		if (!IsRunningCookCommandlet())
+		// Don't run providers in any commandlet to avoid additional, unnecessary overhead as audio insights is dormant.
+		if (!IsRunningCommandlet())
 		{
 			TSharedPtr<FMixerSourceTraceProvider> SourceProvider = MakeShared<FMixerSourceTraceProvider>(ChannelManager);
 			TSharedPtr<FVirtualLoopTraceProvider> VirtualLoopProvider = MakeShared<FVirtualLoopTraceProvider>(ChannelManager);

@@ -27,7 +27,7 @@ namespace UE::Audio::Insights
 {
 	void FAudioInsightsEditorModule::StartupModule()
 	{
-		// Don't run providers in commandlet to avoid additional, unnecessary overhead as audio insights is dormant.
+		// Don't run providers in any commandlet to avoid additional, unnecessary overhead as audio insights is dormant.
 		if (!IsRunningCommandlet())
 		{
 			RegisterMenus();
