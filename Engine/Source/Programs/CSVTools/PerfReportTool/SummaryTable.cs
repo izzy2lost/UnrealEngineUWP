@@ -2217,7 +2217,27 @@ namespace PerfSummaries
 					SummaryTableColumn column = columnLookup.Get(s.ToLower());
 					if (column != null)
 					{
-						key += "{" + column.GetStringValue(i,false,"0000000000.0000000000") + "}";
+						string columnKey = column.GetStringValue(i, false, "0000000000.0000000000");
+						if (!column.isNumeric)
+						{
+							// If there's an integer suffix in the column value, pad it with zeroes for sorting purposes
+							int integerSuffixStartIndex = -1;
+							for (int ci = columnKey.Length-1; ci>0; ci-- )
+							{
+								char c = columnKey[ci];
+								if (c < '0' || c > '9')
+								{
+									break;
+								}
+								integerSuffixStartIndex = ci;
+							}
+							if (integerSuffixStartIndex >= 0)
+							{
+								string integerSuffixPadded = columnKey.Substring(integerSuffixStartIndex).PadLeft(12,'0');
+								columnKey = columnKey.Substring(0, integerSuffixStartIndex) + integerSuffixPadded;
+							}
+						}
+						key += "{" + columnKey + "}";
 					}
 					else
 					{
