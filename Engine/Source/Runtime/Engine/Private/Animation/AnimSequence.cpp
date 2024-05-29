@@ -431,7 +431,7 @@ void UAnimSequence::GetAssetRegistryTags(FAssetRegistryTagsContext Context) cons
 
 	if (DataModelInterface.GetObject() && DataModelInterface->HasBeenPopulated())
 	{
-		Context.AddTag(FAssetRegistryTag(TEXT("Compression Ratio"), FString::Printf(TEXT("%.03f"), (float)GetApproxCompressedSize() / (float)GetUncompressedRawSize()), FAssetRegistryTag::TT_Numerical));
+		Context.AddTag(FAssetRegistryTag(TEXT("Compression Ratio"), FString::Printf(TEXT("%.03f"), (double)GetApproxCompressedSize() / (double)GetUncompressedRawSize()), FAssetRegistryTag::TT_Numerical));
 		Context.AddTag(FAssetRegistryTag(TEXT("Source Frame Rate"), FString::Printf(TEXT("%.2f"), DataModelInterface->GetFrameRate().AsDecimal()), FAssetRegistryTag::TT_Numerical));
 		Context.AddTag(FAssetRegistryTag(TEXT("Number of Frames"), FString::Printf(TEXT("%.i"), DataModelInterface->GetNumberOfFrames()), FAssetRegistryTag::TT_Numerical));
 		Context.AddTag(FAssetRegistryTag(TEXT("Number of Keys"), FString::Printf(TEXT("%i"), DataModelInterface->GetNumberOfKeys()), FAssetRegistryTag::TT_Numerical));
@@ -502,17 +502,17 @@ void UAnimSequence::ClearAllCachedCookedPlatformData()
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
-int32 UAnimSequence::GetUncompressedRawSize() const
+int64 UAnimSequence::GetUncompressedRawSize() const
 {
 	if (DataModelInterface.GetObject())
 	{
-		const int32 BoneRawSize = FRawAnimSequenceTrack::SingleKeySize * DataModelInterface->GetNumBoneTracks() * DataModelInterface->GetNumberOfKeys();
-		int32 CurveRawSize = 0;
+		const int64 BoneRawSize = FRawAnimSequenceTrack::SingleKeySize * int64(DataModelInterface->GetNumBoneTracks()) * int64(DataModelInterface->GetNumberOfKeys());
+		int64 CurveRawSize = 0;
 
 		for (const FFloatCurve& Curve : DataModelInterface->GetCurveData().FloatCurves)
 		{
 			CurveRawSize += sizeof(FFloatCurve);
-			CurveRawSize += sizeof(FRichCurveKey) * Curve.FloatCurve.Keys.Num();
+			CurveRawSize += sizeof(FRichCurveKey) * int64(Curve.FloatCurve.Keys.Num());
 		}
 		return BoneRawSize + CurveRawSize;
 	}
@@ -524,18 +524,18 @@ int64 UAnimSequence::GetApproxRawSize() const
 	if (ShouldDataModelBeValid())
 	{
 		ValidateModel();
-		int32 Total = sizeof(FRawAnimSequenceTrack) * DataModelInterface->GetNumBoneTracks();
 
-		const int32 NumberOfTracks = DataModelInterface->GetNumBoneTracks();
+		const int64 NumberOfTracks = DataModelInterface->GetNumBoneTracks();
 
-		Total += DataModelInterface->GetNumberOfKeys() * sizeof(FVector3f) * NumberOfTracks;
-		Total += DataModelInterface->GetNumberOfKeys() * sizeof(FQuat4f) * NumberOfTracks;
-		Total += DataModelInterface->GetNumberOfKeys() * sizeof(FVector3f) * NumberOfTracks;
+		int64 Total = sizeof(FRawAnimSequenceTrack) * NumberOfTracks;
+		Total += int64(DataModelInterface->GetNumberOfKeys()) * sizeof(FVector3f) * NumberOfTracks;
+		Total += int64(DataModelInterface->GetNumberOfKeys()) * sizeof(FQuat4f) * NumberOfTracks;
+		Total += int64(DataModelInterface->GetNumberOfKeys()) * sizeof(FVector3f) * NumberOfTracks;
 
 		for (const FFloatCurve& Curve : DataModelInterface->GetCurveData().FloatCurves)
 		{
 			Total += sizeof(FFloatCurve);
-			Total += sizeof(FRichCurveKey) * Curve.FloatCurve.Keys.Num();
+			Total += sizeof(FRichCurveKey) * int64(Curve.FloatCurve.Keys.Num());
 		}
 		return Total;
 	}

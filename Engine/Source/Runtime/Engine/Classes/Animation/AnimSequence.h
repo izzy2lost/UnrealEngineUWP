@@ -564,7 +564,7 @@ public:
 	/** @return	estimate uncompressed raw size. This is *not* the real raw size. 
 				Here we estimate what it would be with no trivial compression. */
 #if WITH_EDITOR
-	ENGINE_API int32 GetUncompressedRawSize() const;
+	ENGINE_API int64 GetUncompressedRawSize() const;
 
 	/**
 	 * @return		The approximate size of raw animation data.

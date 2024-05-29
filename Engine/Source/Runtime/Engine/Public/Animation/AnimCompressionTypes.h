@@ -260,38 +260,38 @@ public:
 
 	const ITargetPlatform* TargetPlatform = nullptr;
 
-	static int32 GetApproxRawDataArraySize(const TArray<FRawAnimSequenceTrack>& AnimData)
+	static int64 GetApproxRawDataArraySize(const TArray<FRawAnimSequenceTrack>& AnimData)
 	{
-		int32 Total = sizeof(FRawAnimSequenceTrack) * AnimData.Num();
+		int64 Total = sizeof(FRawAnimSequenceTrack) * int64(AnimData.Num());
 		for (int32 i = 0; i < AnimData.Num(); ++i)
 		{
 			const FRawAnimSequenceTrack& RawTrack = AnimData[i];
 			Total +=
-				sizeof(FVector) * RawTrack.PosKeys.Num() +
-				sizeof(FQuat) * RawTrack.RotKeys.Num() +
-				sizeof(FVector) * RawTrack.ScaleKeys.Num();
+				sizeof(FVector) * int64(RawTrack.PosKeys.Num()) +
+				sizeof(FQuat) * int64(RawTrack.RotKeys.Num()) +
+				sizeof(FVector) * int64(RawTrack.ScaleKeys.Num());
 		}
 
 		return Total;
 	}
 
-	int32 GetApproxRawBoneSize() const
+	int64 GetApproxRawBoneSize() const
 	{
 		return GetApproxRawDataArraySize(RawAnimationData);
 	}
 
-	int32 GetApproxRawCurveSize() const
+	int64 GetApproxRawCurveSize() const
 	{
-		int32 Total = 0;
+		int64 Total = 0;
 		for (const FFloatCurve& Curve : RawFloatCurves)
 		{
 			Total += sizeof(FFloatCurve);
-			Total += sizeof(FRichCurveKey) * Curve.FloatCurve.Keys.Num();
+			Total += sizeof(FRichCurveKey) * int64(Curve.FloatCurve.Keys.Num());
 		}
 		return Total;
 	}
 
-	int32 GetApproxRawSize() const
+	int64 GetApproxRawSize() const
 	{
 		return GetApproxRawBoneSize() + GetApproxRawCurveSize();
 	}
