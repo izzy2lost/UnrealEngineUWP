@@ -87,36 +87,29 @@ namespace UnrealBuildBase
 			return UnrealBuildToolDllPath;
 		}
 
-		static private string DotnetVersionDirectory = "6.0.302";
+		static private string DotnetVersionDirectory = "8.0.300";
 
 		static private string FindRelativeDotnetDirectory(RuntimePlatform.Type HostPlatform)
 		{
-			string HostDotNetDirectoryName;
+			string platform;
+			string architecture;
+
 			switch (HostPlatform)
 			{
-				case RuntimePlatform.Type.Windows:
-					{
-						HostDotNetDirectoryName = "windows";
-						if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
-						{
-							HostDotNetDirectoryName = "win-arm64";
-						}
-						break;
-					}
-				case RuntimePlatform.Type.Mac:
-					{
-						HostDotNetDirectoryName = "mac-x64";
-						if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
-						{
-							HostDotNetDirectoryName = "mac-arm64";
-						}
-						break;
-					}
-				case RuntimePlatform.Type.Linux: HostDotNetDirectoryName = "linux"; break;
-				default: throw new Exception("Unknown host platform");
+				case RuntimePlatform.Type.Linux: platform = "linux"; break;
+				case RuntimePlatform.Type.Mac: platform = "mac"; break;
+				case RuntimePlatform.Type.Windows: platform = "win"; break;
+				default: throw new Exception($"Unsupported host platform {HostPlatform}");
 			}
 
-			return Path.Combine("Binaries", "ThirdParty", "DotNet", DotnetVersionDirectory, HostDotNetDirectoryName);
+			switch (RuntimeInformation.ProcessArchitecture)
+			{
+				case Architecture.Arm64: architecture = "arm64"; break;
+				case Architecture.X64: architecture = "x64"; break;
+				default: throw new Exception($"Unsupported host architecture {RuntimeInformation.ProcessArchitecture}");
+			}
+
+			return Path.Combine("Binaries", "ThirdParty", "DotNet", DotnetVersionDirectory, $"{platform}-{architecture}");
 		}
 
 		static private string FindRelativeDotnetDirectory() => FindRelativeDotnetDirectory(RuntimePlatform.Current);

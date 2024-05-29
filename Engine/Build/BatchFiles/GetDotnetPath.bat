@@ -9,16 +9,16 @@ rem if UE_USE_SYSTEM_DOTNET we assume a installed dotnet is present
 if "%UE_USE_SYSTEM_DOTNET%" == "1" goto verify_dotnet
 
 rem if UE_DOTNET_VERSION is already set we assume this script has already run
-if "%UE_DOTNET_VERSION%" == "6.0.302" goto Succeeded
+if "%UE_DOTNET_VERSION%" == "8.0.300" goto Succeeded
 
 rem figure out which architecture to use
-set UE_DOTNET_ARCH=windows
+set UE_DOTNET_ARCH=win-x64
 if "%PROCESSOR_ARCHITECTURE%" == "ARM64" (
 	set UE_DOTNET_ARCH=win-arm64
 )
 
 rem add the dotnet sdk in the repo as the current dotnet sdk
-set UE_DOTNET_VERSION=6.0.302
+set UE_DOTNET_VERSION=8.0.300
 set UE_DOTNET_DIR=%~dp0..\..\Binaries\ThirdParty\DotNet\%UE_DOTNET_VERSION%\%UE_DOTNET_ARCH%
 set PATH=%UE_DOTNET_DIR%;%PATH%
 set DOTNET_ROOT=%UE_DOTNET_DIR%

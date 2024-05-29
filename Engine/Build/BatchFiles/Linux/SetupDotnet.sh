@@ -35,7 +35,11 @@ if [ $IS_DOTNET_INSTALLED -eq 0 ]; then
 	# If this flag isn't set to 0, dotnet crashes during GenerateProjectFiles.sh on Ubuntu 20.04 
 	export DOTNET_gcServer=0
 
-	export UE_DOTNET_DIR="$CUR_DIR/../../../Binaries/ThirdParty/DotNet/6.0.302/linux"
+	# Select the preferred architecture for the current system
+	ARCH=x64
+	[ $(uname -m) == "arm64" ] && ARCH=arm64 
+
+	export UE_DOTNET_DIR="$CUR_DIR/../../../Binaries/ThirdParty/DotNet/8.0.300/linux-$ARCH"
 	chmod u+x "$UE_DOTNET_DIR/dotnet"
 	export PATH="$UE_DOTNET_DIR:$PATH"
 	export DOTNET_ROOT="$UE_DOTNET_DIR"
