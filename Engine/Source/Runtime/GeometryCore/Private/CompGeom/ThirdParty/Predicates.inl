@@ -125,9 +125,11 @@
 /* To try this out, write "#define INEXACT volatile" below.  Normally,       */
 /*   however, INEXACT should be defined to be nothing.  ("#define INEXACT".) */
 
+// @UE BEGIN
 // TODO: With the compile settings set to fp:precise for the predicates code, or #pragma float_control(precise, on, push),
 // we should be able to switch this back to the non-volatile version and get faster performance especially for the difficult cases.
 // But please validate this result before switching it.
+// @UE END
 //#define INEXACT                          /* Nothing */
 #define INEXACT volatile
 
@@ -1468,6 +1470,74 @@ REAL orient2dslow(const REAL *pa, const REAL *pb, const REAL *pc)
   return deter[deterlen - 1];
 }
 
+// @UE BEGIN
+REAL orient2dadapt_origin(const REAL acx, const REAL acy, const REAL bcx, const REAL bcy)
+{
+	// for the case where c is 0,0, orient2dadapt boils down to just doing the dekker double-REAL approximation
+	INEXACT REAL detleft, detright;
+	REAL det;
+	REAL detlefttail, detrighttail;
+	REAL B[4];
+	INEXACT REAL B3;
+
+	INEXACT REAL bvirt;
+	REAL avirt, bround, around;
+	INEXACT REAL c;
+	INEXACT REAL abig;
+	REAL ahi, alo, bhi, blo;
+	REAL err1, err2, err3;
+	INEXACT REAL _i, _j;
+	REAL _0;
+
+	Two_Product(acx, bcy, detleft, detlefttail);
+	Two_Product(acy, bcx, detright, detrighttail);
+
+	Two_Two_Diff(detleft, detlefttail, detright, detrighttail,
+		B3, B[2], B[1], B[0]);
+	B[3] = B3;
+
+	det = estimate(4, B);
+	return det;
+}
+
+REAL orient2d_origin(const REAL ax, const REAL ay, const REAL bx, const REAL by)
+{
+	REAL detleft, detright, det;
+	REAL detsum, errbound;
+
+	detleft = ax * by;
+	detright = ay * bx;
+	det = detleft - detright;
+
+	if (detleft > 0.0) {
+		if (detright <= 0.0) {
+			return det;
+		}
+		else {
+			detsum = detleft + detright;
+		}
+	}
+	else if (detleft < 0.0) {
+		if (detright >= 0.0) {
+			return det;
+		}
+		else {
+			detsum = -detleft - detright;
+		}
+	}
+	else {
+		return det;
+	}
+
+	errbound = ccwerrboundA * detsum;
+	if ((det >= errbound) || (-det >= errbound)) {
+		return det;
+	}
+
+	return orient2dadapt_origin(ax, ay, bx, by);
+}
+// @UE END
+
 REAL orient2dadapt(const REAL *pa, const REAL *pb, const REAL *pc, const REAL detsum)
 {
   INEXACT REAL acx, acy, bcx, bcy;
@@ -1581,6 +1651,7 @@ REAL orient2d(const REAL *pa, const REAL *pb, const REAL *pc)
   return orient2dadapt(pa, pb, pc, detsum);
 }
 
+// @UE BEGIN
 REAL facing2dadapt(const REAL* pa, const REAL* pc, const REAL* dir, REAL detsum)
 {
 	INEXACT REAL acx, acy, bcx, bcy;
@@ -1697,6 +1768,7 @@ REAL facing2d(const REAL* pa, const REAL* pc, const REAL* dir)
 
 	return facing2dadapt(pa, pc, dir, detsum);
 }
+// @UE END
 
 /*****************************************************************************/
 /*                                                                           */
@@ -2358,6 +2430,7 @@ REAL orient3d(const REAL *pa, const REAL *pb, const REAL *pc, const REAL *pd)
   return orient3dadapt(pa, pb, pc, pd, permanent);
 }
 
+// @UE BEGIN
 // Note this is almost an exact copy of orient3dadapt, but the pc-pd is replaced by dir
 REAL facing3dadapt(const REAL* pa, const REAL* pb, const REAL* pd, const REAL* dir, const REAL permanent)
 {
@@ -2812,6 +2885,7 @@ REAL facing3d(const REAL* pa, const REAL* pb, const REAL* pd, const REAL* dir)
 
 	return facing3dadapt(pa, pb, pd, dir, permanent);
 }
+// @UE END
 
 /*****************************************************************************/
 /*                                                                           */

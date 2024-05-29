@@ -28,6 +28,9 @@ void GEOMETRYCORE_API GlobalInit();
 double GEOMETRYCORE_API Orient2DInexact(const double* PA, const double* PB, const double* PC);
 double GEOMETRYCORE_API Orient2D(const double* PA, const double* PB, const double* PC);
 
+// Specialized version of Orient2D for the case when PC is the origin
+double GEOMETRYCORE_API Orient2DOrigin(double ax, double ay, double bx, double by);
+
 double GEOMETRYCORE_API Orient3DInexact(const double* PA, const double* PB, const double* PC, const double* PD);
 double GEOMETRYCORE_API Orient3D(const double* PA, const double* PB, const double* PC, const double* PD);
 
@@ -45,6 +48,9 @@ double GEOMETRYCORE_API InSphere(const double* PA, const double* PB, const doubl
 // Consider calling the double versions even for float inputs.
 float GEOMETRYCORE_API Orient2DInexact(const float* PA, const float* PB, const float* PC);
 float GEOMETRYCORE_API Orient2D(const float* PA, const float* PB, const float* PC);
+
+// Specialized version of Orient2D for the case when PC is the origin
+float GEOMETRYCORE_API Orient2DOrigin(float ax, float ay, float bx, float by);
 
 float GEOMETRYCORE_API Orient3DInexact(const float* PA, const float* PB, const float* PC, const float* PD);
 float GEOMETRYCORE_API Orient3D(const float* PA, const float* PB, const float* PC, const float* PD);
@@ -68,6 +74,12 @@ RealType Orient2(const TVector2<RealType>& A, const TVector2<RealType>& B, const
 	RealType PB[2]{ B.X, B.Y };
 	RealType PC[2]{ C.X, C.Y };
 	return Orient2D(PA, PB, PC);
+}
+
+template<typename RealType>
+inline RealType Orient2Origin(const TVector2<RealType>& A, const TVector2<RealType>& B)
+{
+	return Orient2DOrigin(A.X, A.Y, B.X, B.Y);
 }
 
 /**

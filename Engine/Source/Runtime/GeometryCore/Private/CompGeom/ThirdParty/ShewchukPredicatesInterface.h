@@ -17,6 +17,7 @@ namespace ShewchukExactPredicates
 
 	double orient2dfast(const double* pa, const double* pb, const double* pc);
 	double orient2d(const double* pa, const double* pb, const double* pc);
+	double orient2d_origin(const double ax, const double ay, const double bx, const double by);
 	double orient3dfast(const double* pa, const double* pb, const double* pc, const double* pd);
 	double orient3d(const double* pa, const double* pb, const double* pc, const double* pd);
 	double facing3d(const double* pa, const double* pb, const double* pc, const double* dir);
@@ -37,6 +38,7 @@ namespace ShewchukExactPredicatesFloat
 
 	float orient2dfast(const float* pa, const float* pb, const float* pc);
 	float orient2d(const float* pa, const float* pb, const float* pc);
+	float orient2d_origin(const float ax, const float ay, const float bx, const float by);
 	float orient3dfast(const float* pa, const float* pb, const float* pc, const float* pd);
 	float orient3d(const float* pa, const float* pb, const float* pc, const float* pd);
 	float facing3d(const float* pa, const float* pb, const float* pc, const float* dir);
