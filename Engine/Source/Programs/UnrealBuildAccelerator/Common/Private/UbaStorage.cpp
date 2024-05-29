@@ -1884,15 +1884,22 @@ namespace uba
 		fileEntry.verified = true;
 
 		u64 fileSize = 0;
+		u32 attributes = 0;
 		u64 lastWritten = 0;
 
-		if (!FileExists(m_logger, fileName, &fileSize, nullptr, &lastWritten))
+		if (!FileExists(m_logger, fileName, &fileSize, &attributes, &lastWritten))
 		{
 			fileEntry.casKey = CasKeyZero;
-
 			u32 lastError = GetLastError();
 			if (lastError != ERROR_FILE_NOT_FOUND && lastError != ERROR_PATH_NOT_FOUND)
 				return m_logger.Error(TC("FileExists failed on %s (%s)"), fileName, LastErrorToText(lastError).data);
+			out = CasKeyZero;
+			return true;
+		}
+
+		if (IsDirectory(attributes))
+		{
+			fileEntry.casKey = CasKeyZero;
 			out = CasKeyZero;
 			return true;
 		}
