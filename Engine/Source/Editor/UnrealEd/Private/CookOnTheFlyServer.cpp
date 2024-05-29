@@ -12372,6 +12372,11 @@ TArray<FName> UCookOnTheFlyServer::GetNeverCookPackageFileNames(TArrayView<const
 {
 	TArray<FString> NeverCookDirectories(ExtraNeverCookDirectories);
 
+	if (bRunningAsShaderServer)
+	{
+		return TArray<FName>();
+	}
+
 	auto AddDirectoryPathArray = [&NeverCookDirectories](const TArray<FDirectoryPath>& DirectoriesToNeverCook, const TCHAR* SettingName)
 	{
 		for (const FDirectoryPath& DirToNotCook : DirectoriesToNeverCook)
