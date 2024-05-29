@@ -108,8 +108,14 @@ void FRazerChromaInputDevice::HandlePlayAnimationFile(const FRazerChromaPlayAnim
 		UE_LOG(LogRazerChroma, Error, TEXT("[%hs] There is no animation data for chroma effect %s"), __func__, *Property.AnimName);
 		return;
 	}
+
+	FRazerChromaDeviceModule* Module = FRazerChromaDeviceModule::Get(); 
+	if (!Module)
+	{
+		return;
+	}
 	
-	const int32 LoadedAnimId = FRazerChromaDeviceModule::Get().FindOrLoadAnimationData(Property.AnimName, Property.AnimationByteBuffer);
+	const int32 LoadedAnimId = Module->FindOrLoadAnimationData(Property.AnimName, Property.AnimationByteBuffer);
 
 	if (LoadedAnimId == -1)
 	{

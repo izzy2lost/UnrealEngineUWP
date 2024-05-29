@@ -115,16 +115,19 @@ namespace UE::RazerChroma
 		TEXT("Forcibly reinitalizes the Razer Chroma Editor API (calls Uninit, and then Init)."),
 		FConsoleCommandDelegate::CreateLambda([]()
 			{
-				FRazerChromaDeviceModule::Get().ForceReinitalize();
+				if (FRazerChromaDeviceModule* Module = FRazerChromaDeviceModule::Get())
+				{
+					Module->ForceReinitalize();
+				}
 			})
 	);
 
 #endif //#if RAZER_CHROMA_SUPPORT
 }
 
-FRazerChromaDeviceModule& FRazerChromaDeviceModule::Get()
+FRazerChromaDeviceModule* FRazerChromaDeviceModule::Get()
 {
-	return IModularFeatures::Get().GetModularFeature<FRazerChromaDeviceModule>(UE::RazerChroma::FeatureName);
+	return (FRazerChromaDeviceModule*)IModularFeatures::Get().GetModularFeatureImplementation(UE::RazerChroma::FeatureName, 0);
 }
 
 FName FRazerChromaDeviceModule::GetModularFeatureName()
@@ -303,7 +306,13 @@ void FRazerChromaDeviceModule::ForceReinitalize()
 
 bool FRazerChromaDeviceModule::IsChromaRuntimeAvailable()
 {
-	return FRazerChromaDeviceModule::Get().IsChromaAvailable();
+	FRazerChromaDeviceModule* Module = FRazerChromaDeviceModule::Get(); 
+	if (!Module)
+	{
+		return false;
+	}
+	
+	return Module->IsChromaAvailable();
 }
 
 const int32 FRazerChromaDeviceModule::FindOrLoadAnimationData(const URazerChromaAnimationAsset* AnimAsset)

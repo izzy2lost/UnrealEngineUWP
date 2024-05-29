@@ -42,7 +42,13 @@ bool URazerChromaFunctionLibrary::PlayChromaAnimation(const URazerChromaAnimatio
 		return false;
 	}
 
-	const int32 LoadedAnimId = FRazerChromaDeviceModule::Get().FindOrLoadAnimationData(AnimToPlay);
+	FRazerChromaDeviceModule* Module = FRazerChromaDeviceModule::Get(); 
+	if (!Module)
+	{
+		return false;
+	}
+	
+	const int32 LoadedAnimId = Module->FindOrLoadAnimationData(AnimToPlay);
 	if (LoadedAnimId == INDEX_NONE)
 	{
 		UE_LOG(LogRazerChroma, Error, TEXT("[%hs] Failed to load Chroma Animation %s"), __func__, *GetNameSafe(AnimToPlay));
@@ -74,7 +80,13 @@ bool URazerChromaFunctionLibrary::IsAnimationPlaying(const URazerChromaAnimation
 		return false;
 	}
 
-	const int32 LoadedAnimId = FRazerChromaDeviceModule::Get().FindOrLoadAnimationData(Anim);
+	FRazerChromaDeviceModule* Module = FRazerChromaDeviceModule::Get(); 
+	if (!Module)
+	{
+		return false;
+	}
+
+	const int32 LoadedAnimId = Module->FindOrLoadAnimationData(Anim);
 	if (LoadedAnimId == INDEX_NONE)
 	{
 		UE_LOG(LogRazerChroma, Error, TEXT("[%hs] Failed to load Chroma Animation %s"), __func__, *GetNameSafe(Anim));
@@ -101,7 +113,13 @@ void URazerChromaFunctionLibrary::StopChromaAnimation(const URazerChromaAnimatio
 		return;
 	}
 
-	const int32 LoadedAnimId = FRazerChromaDeviceModule::Get().FindOrLoadAnimationData(AnimToStop);
+	FRazerChromaDeviceModule* Module = FRazerChromaDeviceModule::Get(); 
+	if (!Module)
+	{
+		return;
+	}
+
+	const int32 LoadedAnimId = Module->FindOrLoadAnimationData(AnimToStop);
 	if (LoadedAnimId == INDEX_NONE)
 	{
 		UE_LOG(LogRazerChroma, Error, TEXT("[%hs] Failed to load Chroma Animation %s"), __func__, *GetNameSafe(AnimToStop));
@@ -128,7 +146,13 @@ void URazerChromaFunctionLibrary::PauseChromaAnimation(const URazerChromaAnimati
 		return;
 	}
 
-	const int32 LoadedAnimId = FRazerChromaDeviceModule::Get().FindOrLoadAnimationData(AnimToPause);
+	FRazerChromaDeviceModule* Module = FRazerChromaDeviceModule::Get(); 
+	if (!Module)
+	{
+		return;
+	}
+
+	const int32 LoadedAnimId = Module->FindOrLoadAnimationData(AnimToPause);
 	if (LoadedAnimId == INDEX_NONE)
 	{
 		UE_LOG(LogRazerChroma, Error, TEXT("[%hs] Failed to load Chroma Animation %s"), __func__, *GetNameSafe(AnimToPause));
@@ -154,7 +178,13 @@ bool URazerChromaFunctionLibrary::IsChromaAnimationPaused(const URazerChromaAnim
 		return false;
 	}
 
-	const int32 LoadedAnimId = FRazerChromaDeviceModule::Get().FindOrLoadAnimationData(Anim);
+	FRazerChromaDeviceModule* Module = FRazerChromaDeviceModule::Get(); 
+	if (!Module)
+	{
+		return false;
+	}
+
+	const int32 LoadedAnimId = Module->FindOrLoadAnimationData(Anim);
 	if (LoadedAnimId == INDEX_NONE)
 	{
 		UE_LOG(LogRazerChroma, Error, TEXT("[%hs] Failed to load Chroma Animation %s"), __func__, *GetNameSafe(Anim));
@@ -180,8 +210,14 @@ void URazerChromaFunctionLibrary::ResumeChromaAnimation(const URazerChromaAnimat
 		UE_LOG(LogRazerChroma, Error, TEXT("[%hs] Invalid AnimToResume!"), __func__);
 		return;
 	}
+	
+	FRazerChromaDeviceModule* Module = FRazerChromaDeviceModule::Get(); 
+	if (!Module)
+	{
+		return;
+	}
 
-	const int32 LoadedAnimId = FRazerChromaDeviceModule::Get().FindOrLoadAnimationData(AnimToResume);
+	const int32 LoadedAnimId = Module->FindOrLoadAnimationData(AnimToResume);
 	if (LoadedAnimId == INDEX_NONE)
 	{
 		UE_LOG(LogRazerChroma, Error, TEXT("[%hs] Failed to load Chroma Animation %s"), __func__, *GetNameSafe(AnimToResume));
@@ -218,8 +254,14 @@ void URazerChromaFunctionLibrary::SetIdleAnimation(const URazerChromaAnimationAs
 		return;
 	}
 
+	FRazerChromaDeviceModule* Module = FRazerChromaDeviceModule::Get(); 
+	if (!Module)
+	{
+		return;
+	}
+	
 	// Load the animation
-	const int32 LoadedAnimId = FRazerChromaDeviceModule::Get().FindOrLoadAnimationData(NewIdleAnimation);
+	const int32 LoadedAnimId = Module->FindOrLoadAnimationData(NewIdleAnimation);
 
 	if (LoadedAnimId == INDEX_NONE)
 	{

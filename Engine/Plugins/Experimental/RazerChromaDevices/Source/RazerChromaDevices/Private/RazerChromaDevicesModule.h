@@ -12,7 +12,7 @@ class URazerChromaAnimationAsset;
 class RAZERCHROMADEVICES_API FRazerChromaDeviceModule : public IInputDeviceModule
 {
 public:
-	static FRazerChromaDeviceModule& Get();
+	static FRazerChromaDeviceModule* Get();
 	
 	static FName GetModularFeatureName();
 
