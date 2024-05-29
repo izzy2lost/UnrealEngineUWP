@@ -49,7 +49,7 @@ FHairSampleData ExtractSampleData(uint3 PixelCoord)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Gbuffer patching (+ LightChannel mask)
 #if SUBSTRATE_ENABLED
-#define OUTPUT_FORMAT uint
+#define OUTPUT_FORMAT uint 
 #else
 #define OUTPUT_FORMAT float4
 #endif
