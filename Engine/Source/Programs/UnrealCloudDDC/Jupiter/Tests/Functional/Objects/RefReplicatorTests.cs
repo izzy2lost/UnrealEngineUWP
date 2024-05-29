@@ -135,7 +135,7 @@ namespace Jupiter.FunctionalTests.Replication
 			foreach (BlobId blob in blobs.Keys)
 			{
 				RefId refId = refs[blob];
-				handler.SetupRequest($"http://localhost/api/v1/refs/{TestNamespace}/{TestBucket}/{refId}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(Array.Empty<BlobId>())), "application/json").Verifiable();
+				handler.SetupRequest($"http://localhost/api/v1/refs/{TestNamespace}/{TestBucket}/{refId}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(new BlobId[] { blob })), "application/json").Verifiable();
 			}
 
 			foreach ((BlobId key, byte[] blobContent) in blobs)
@@ -212,7 +212,7 @@ namespace Jupiter.FunctionalTests.Replication
 			foreach (BlobId blob in blobs.Keys)
 			{
 				RefId refId = refs[blob];
-				handler.SetupRequest($"http://localhost/api/v1/refs/{TestNamespace}/{TestBucket}/{refId}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(Array.Empty<BlobId>())), "application/json").Verifiable();
+				handler.SetupRequest($"http://localhost/api/v1/refs/{TestNamespace}/{TestBucket}/{refId}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(new BlobId[] { blob })), "application/json").Verifiable();
 			}
 
 			foreach ((BlobId key, byte[] blobContent) in blobs)
@@ -305,7 +305,7 @@ namespace Jupiter.FunctionalTests.Replication
 			foreach (BlobId blob in blobs.Keys)
 			{
 				RefId refId = refs[blob];
-				handler.SetupRequest($"http://localhost/api/v1/refs/{TestNamespace}/{TestBucket}/{refId}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(Array.Empty<BlobId>())), "application/json").Verifiable();
+				handler.SetupRequest($"http://localhost/api/v1/refs/{TestNamespace}/{TestBucket}/{refId}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(new BlobId[] { blob })), "application/json").Verifiable();
 			}
 
 			foreach ((BlobId key, byte[] blobContent) in blobs)
@@ -395,7 +395,7 @@ namespace Jupiter.FunctionalTests.Replication
 			foreach (BlobId blob in blobs.Keys)
 			{
 				RefId refId = refs[blob];
-				handler.SetupRequest($"http://localhost/api/v1/refs/{TestNamespace}/{TestBucket}/{refId}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(Array.Empty<BlobId>())), "application/json").Verifiable();
+				handler.SetupRequest($"http://localhost/api/v1/refs/{TestNamespace}/{TestBucket}/{refId}/references").ReturnsResponse(JsonSerializer.Serialize(new ResolvedReferencesResult(new BlobId[] { blob })), "application/json").Verifiable();
 			}
 
 			foreach ((BlobId key, byte[] blobContent) in blobs)
