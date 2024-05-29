@@ -2216,7 +2216,9 @@ void UGameplayTagsManager::DoneAddingNativeTags()
 	}
 }
 
-FGameplayTagContainer UGameplayTagsManager::RequestGameplayTagParents(const FGameplayTag& GameplayTag) const
+// #jira SOL-6589: remove forcenoinline once this JIRA is fixed.
+UE_AUTORTFM_ALWAYS_OPEN
+FORCENOINLINE FGameplayTagContainer UGameplayTagsManager::RequestGameplayTagParents(const FGameplayTag& GameplayTag) const
 {
 	FScopeLock Lock(&GameplayTagMapCritical);
 
