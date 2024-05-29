@@ -858,6 +858,9 @@ public:
 	/** Override the configured server tick rate. Value is in ticks per second. */
 	ENGINE_API void SetNetServerMaxTickRate(int32 InServerMaxTickRate);
 
+	/** Change the netdriver to have runtime features compatible with the remote connection. */
+	void TryUpgradeNetworkFeatures(EEngineNetworkRuntimeFeatures RemoteFeatures);
+
 	/** 
 	* Delegate triggered when SetNetServerMaxTickRate is called and causes a change to the current max tick rate.
 	* @param UNetDriver The netdriver that changed max tick rate.
@@ -1861,7 +1864,7 @@ public:
 
 	/** Returns the bitflag telling which network features are activated for this NetDriver. */
 	ENGINE_API EEngineNetworkRuntimeFeatures GetNetworkRuntimeFeatures() const;
-	
+
 #if UE_WITH_IRIS
 	/**
 	 * Destroy and recreate the iris replication system for an active netdriver.

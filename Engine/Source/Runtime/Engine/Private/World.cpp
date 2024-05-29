@@ -6494,12 +6494,13 @@ void UWorld::NotifyControlMessage(UNetConnection* Connection, uint8 MessageType,
 
 				if (FNetControlMessage<NMT_Hello>::Receive(Bunch, IsLittleEndian, RemoteNetworkVersion, EncryptionToken, RemoteNetworkFeatures))
 				{
-					const bool bIsCompatible = FNetworkVersion::IsNetworkCompatible(LocalNetworkVersion, RemoteNetworkVersion) && FNetworkVersion::AreNetworkRuntimeFeaturesCompatible(LocalNetworkFeatures, RemoteNetworkFeatures);
-					if (!bIsCompatible)
+					const bool bIsNetCLCompatible = FNetworkVersion::IsNetworkCompatible(LocalNetworkVersion, RemoteNetworkVersion);
+					const bool bAreNetFeaturesCompatible = FNetworkVersion::AreNetworkRuntimeFeaturesCompatible(LocalNetworkFeatures, RemoteNetworkFeatures);
+
+					if (!bIsNetCLCompatible || !bAreNetFeaturesCompatible)
 					{
 						TStringBuilder<128> LocalNetFeaturesDescription;
 						TStringBuilder<128> RemoteNetFeaturesDescription;
-
 						FNetworkVersion::DescribeNetworkRuntimeFeaturesBitset(LocalNetworkFeatures, LocalNetFeaturesDescription);
 						FNetworkVersion::DescribeNetworkRuntimeFeaturesBitset(RemoteNetworkFeatures, RemoteNetFeaturesDescription);
 
@@ -6511,10 +6512,15 @@ void UWorld::NotifyControlMessage(UNetConnection* Connection, uint8 MessageType,
 
 						FNetControlMessage<NMT_Upgrade>::Send(Connection, LocalNetworkVersion, LocalNetworkFeatures);
 						Connection->FlushNet(true);
-						Connection->Close(ENetCloseResult::Upgrade);
+						
+						// If the NetCL is not compatible, disconnect the client immediately. 
+						if (!bIsNetCLCompatible)
+						{
+							Connection->Close(ENetCloseResult::Upgrade);
 #if USE_SERVER_PERF_COUNTERS
-						PerfCountersIncrement(TEXT("ClosedConnectionsDueToIncompatibleVersion"));
+							PerfCountersIncrement(TEXT("ClosedConnectionsDueToIncompatibleVersion"));
 #endif
+						}
 					}
 					else
 					{

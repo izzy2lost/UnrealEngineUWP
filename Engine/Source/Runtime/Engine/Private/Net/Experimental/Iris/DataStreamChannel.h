@@ -33,7 +33,7 @@ private:
 
 	// UChannel interface
 	ENGINE_API virtual void Init(UNetConnection* InConnection, int32 InChIndex, EChannelCreateFlags CreateFlags) override;
-
+	ENGINE_API virtual void ReInit() override;
 	ENGINE_API virtual bool CleanUp(const bool bForDestroy, EChannelCloseReason CloseReason) override;
 
 	/**

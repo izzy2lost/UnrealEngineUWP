@@ -721,15 +721,7 @@ void UNetConnection::InitHandler()
 				StatelessConnectHandlerComponent* CurComponent = StatelessConnectComponent.Pin().Get();
 				
 				CurComponent->SetDriver(Driver);
-
-				CurComponent->SetHandshakeFailureCallback([this](FStatelessHandshakeFailureInfo HandshakeFailureInfo)
-					{
-						if (HandshakeFailureInfo.FailureReason == EHandshakeFailureReason::WrongVersion)
-						{
-							this->HandleReceiveNetUpgrade(HandshakeFailureInfo.RemoteNetworkVersion, HandshakeFailureInfo.RemoteNetworkFeatures,
-															ENetUpgradeSource::StatelessHandshake);
-						}
-					});
+				CurComponent->SetHandshakeFailureCallback([this](FStatelessHandshakeFailureInfo FailureInfo){this->OnStatelessHandshakeFailure(FailureInfo);});
 			}
 
 
@@ -777,6 +769,22 @@ void UNetConnection::InitSequence(int32 IncomingSequence, int32 OutgoingSequence
 		PacketNotify.Init(InPacketId, OutPacketId);
 
 		UE_LOG(LogNet, Verbose, TEXT("InitSequence: IncomingSequence: %i, OutgoingSequence: %i, InitInReliable: %i, InitOutReliable: %i"), IncomingSequence, OutgoingSequence, InitInReliable, InitOutReliable);
+	}
+}
+
+void UNetConnection::OnStatelessHandshakeFailure(UE::Net::FStatelessHandshakeFailureInfo HandshakeFailureInfo)
+{
+	using namespace UE::Net;
+
+	if (HandshakeFailureInfo.FailureReason == EHandshakeFailureReason::WrongVersion)
+	{
+		const bool bUpgradeSuccess = HandleReceiveNetUpgrade(HandshakeFailureInfo.RemoteNetworkVersion, HandshakeFailureInfo.RemoteNetworkFeatures, ENetUpgradeSource::StatelessHandshake);
+
+		if (bUpgradeSuccess)
+		{
+			// Restart the handshake since the network driver is now compatible
+			StatelessConnectComponent.Pin().Get()->NotifyHandshakeBegin();
+		}
 	}
 }
 
@@ -1209,34 +1217,47 @@ void UNetConnection::HandleReceiveCloseReason(const FString& CloseReasonList)
 	}
 }
 
-void UNetConnection::HandleReceiveNetUpgrade(uint32 RemoteNetworkVersion, EEngineNetworkRuntimeFeatures RemoteNetworkFeatures,
-												UE::Net::ENetUpgradeSource NetUpgradeSource/*=UE::Net::ENetUpgradeSource::ControlChannel*/)
+bool UNetConnection::HandleReceiveNetUpgrade(uint32 RemoteNetworkVersion, EEngineNetworkRuntimeFeatures RemoteNetworkFeatures, UE::Net::ENetUpgradeSource NetUpgradeSource)
 {
-	TStringBuilder<128> RemoteFeaturesDescription;
-	TStringBuilder<128> LocalFeaturesDescription;
+	bool bUpgradeSucceeded = false;
+	const uint32 LocalNetworkVersion = FNetworkVersion::GetLocalNetworkVersion();
 
-	FNetworkVersion::DescribeNetworkRuntimeFeaturesBitset(RemoteNetworkFeatures, RemoteFeaturesDescription);
+	const bool bIsNetCLValid = FNetworkVersion::IsNetworkCompatible(LocalNetworkVersion, RemoteNetworkVersion);
 
-	if (Driver != nullptr)
+	// If the NetCL is not identical, we cannot upgrade and must disconnect
+	if (!bIsNetCLValid || Driver == nullptr)
 	{
-		FNetworkVersion::DescribeNetworkRuntimeFeaturesBitset(Driver->GetNetworkRuntimeFeatures(), LocalFeaturesDescription);
+		bUpgradeSucceeded = false;
+	}
+	else
+	{
+		Driver->TryUpgradeNetworkFeatures(RemoteNetworkFeatures);
+		bUpgradeSucceeded = Driver->GetNetworkRuntimeFeatures() == RemoteNetworkFeatures;
 	}
 
-	UE_LOG(LogNet, Error, TEXT("Server is incompatible with the local version of the game: RemoteNetworkVersion=%u, ")
-			TEXT("RemoteNetworkFeatures=%s vs LocalNetworkVersion=%u, LocalNetworkFeatures=%s"), 
-			RemoteNetworkVersion, RemoteFeaturesDescription.ToString(), FNetworkVersion::GetLocalNetworkVersion(),
-			LocalFeaturesDescription.ToString());
-
-
-	const FString ConnectionError = NSLOCTEXT("Engine", "ClientOutdated",
-		"The match you are trying to join is running an incompatible version of the game.  Please try upgrading your game version.").ToString();
-
-	GEngine->BroadcastNetworkFailure(GetWorld(), Driver, ENetworkFailure::OutdatedClient, ConnectionError);
-
-	if (NetUpgradeSource == UE::Net::ENetUpgradeSource::StatelessHandshake)
+	if (!bUpgradeSucceeded)
 	{
-		Close(ENetCloseResult::OutdatedClient);
+		const EEngineNetworkRuntimeFeatures LocalNetworkFeatures = Driver ? Driver->GetNetworkRuntimeFeatures() : EEngineNetworkRuntimeFeatures::None;
+
+		TStringBuilder<128> LocalFeaturesDescription;
+		TStringBuilder<128> RemoteFeaturesDescription;
+		FNetworkVersion::DescribeNetworkRuntimeFeaturesBitset(LocalNetworkFeatures, LocalFeaturesDescription);
+		FNetworkVersion::DescribeNetworkRuntimeFeaturesBitset(RemoteNetworkFeatures, RemoteFeaturesDescription);
+
+		UE_LOG(LogNet, Error, TEXT("Server is incompatible with the local version of the game: RemoteNetworkVersion=%u vs LocalNetworkVersion=%u, RemoteNetworkFeatures=%s vs LocalNetworkFeatures=%s"),
+			RemoteNetworkVersion, LocalNetworkVersion,
+			RemoteFeaturesDescription.ToString(), LocalFeaturesDescription.ToString());
+
+		const FString ConnectionError = NSLOCTEXT("Engine", "ClientOutdated", "The match you are trying to join is running an incompatible version of the game.  Please try upgrading your game version.").ToString();
+		GEngine->BroadcastNetworkFailure(GetWorld(), Driver, ENetworkFailure::OutdatedClient, ConnectionError);
+
+		if (NetUpgradeSource == UE::Net::ENetUpgradeSource::StatelessHandshake)
+		{
+			Close(ENetCloseResult::OutdatedClient);
+		}
 	}
+
+	return bUpgradeSucceeded;
 }
 
 FString UNetConnection::Describe()

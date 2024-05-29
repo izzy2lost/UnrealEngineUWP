@@ -2229,8 +2229,65 @@ EEngineNetworkRuntimeFeatures UNetDriver::GetNetworkRuntimeFeatures() const
 	{
 		EnumAddFlags(NetDriverFeatures, EEngineNetworkRuntimeFeatures::IrisEnabled);
 	}
-	
+
 	return NetDriverFeatures;
+}
+
+void UNetDriver::TryUpgradeNetworkFeatures(EEngineNetworkRuntimeFeatures RemoteFeatures)
+{
+#if UE_WITH_IRIS
+	const bool bIsRemoteUsingIris = EnumHasAnyFlags(RemoteFeatures, EEngineNetworkRuntimeFeatures::IrisEnabled);
+
+	// If our netdriver needs to enable Iris
+	if (bIsRemoteUsingIris && !IsUsingIrisReplication())
+	{
+		SetReplicationDriver(nullptr);
+
+		constexpr bool bInitWithIris = true;
+		PostCreation(bInitWithIris);
+
+		RecreateIrisSystem();
+		
+		ReinitBase();
+
+		if (ensureMsgf(ReplicationSystem, TEXT("NetworkFeature Upgraded failed to create repSystem for %s"), *GetDescription()))
+		{
+			checkf(ServerConnection, TEXT("NMT_Upgrade control message received with no server connection on %s"), *GetDescription());
+			
+			// Tell Iris and the Datastream about the current netconnection
+			ReplicationSystem->AddConnection(ServerConnection->GetConnectionId());
+			ReplicationSystem->SetConnectionUserData(ServerConnection->GetConnectionId(), ServerConnection);
+			for (UChannel* Channel : ServerConnection->Channels)
+			{
+				if (Channel)
+				{
+					Channel->ReInit();
+				}
+			}
+		}
+
+	}
+	// If the remote was not using Iris but we did
+	else if(!bIsRemoteUsingIris && IsUsingIrisReplication())
+	{
+		DestroyIrisSystem();
+
+		constexpr bool bInitWithoutIris = false;
+		PostCreation(bInitWithoutIris);
+
+		ReinitBase();
+
+		for (UChannel* Channel : ServerConnection->Channels)
+		{
+			if (Channel)
+			{
+				Channel->ReInit();
+			}
+		}
+	}
+
+	ensureMsgf(GetNetworkRuntimeFeatures() == RemoteFeatures, TEXT("UNetDriver::TryUpgradeNetworkFeatures failed for %s"), *GetDescription());
+#endif
 }
 
 // ----------------------------------------------------------------------------------------

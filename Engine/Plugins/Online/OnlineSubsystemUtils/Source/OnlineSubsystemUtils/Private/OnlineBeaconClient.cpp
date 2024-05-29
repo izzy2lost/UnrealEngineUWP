@@ -511,12 +511,22 @@ void AOnlineBeaconClient::NotifyControlMessage(UNetConnection* Connection, uint8
 		case NMT_Upgrade:
 			{
 				// Report mismatch.
-				uint32 RemoteNetworkVersion;
+				uint32 RemoteNetworkVersion = 0;
 				EEngineNetworkRuntimeFeatures RemoteNetworkFeatures = EEngineNetworkRuntimeFeatures::None;
 
 				if (FNetControlMessage<NMT_Upgrade>::Receive(Bunch, RemoteNetworkVersion, RemoteNetworkFeatures))
 				{
-					Connection->HandleReceiveNetUpgrade(RemoteNetworkVersion, RemoteNetworkFeatures);
+					const bool bUpgradeSuccess = Connection->HandleReceiveNetUpgrade(RemoteNetworkVersion, RemoteNetworkFeatures);
+
+					if (bUpgradeSuccess)
+					{
+						ensureMsgf(false, TEXT("Beacons don't support any NetworkFeature trait yet. Upgrades shouldn't happen."));
+						//todo: retrigger an handshake via Join message
+					}
+					else
+					{
+						// Should the beacon disconnect here ?
+					}
 				}
 
 				break;

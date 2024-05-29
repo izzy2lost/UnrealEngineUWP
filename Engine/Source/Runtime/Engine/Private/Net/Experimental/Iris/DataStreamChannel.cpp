@@ -79,6 +79,17 @@ void UDataStreamChannel::Init(UNetConnection* InConnection, int32 InChIndex, ECh
 #endif // UE_WITH_IRIS
 }
 
+void UDataStreamChannel::ReInit()
+{
+	check(Connection);
+
+	if (UReplicationSystem* ReplicationSystem = Connection->Driver->GetReplicationSystem())
+	{
+		bIsReadyToHandshake = 1U;
+		ReplicationSystem->InitDataStreams(Connection->GetConnectionId(), DataStreamManager);
+	}
+}
+
 bool UDataStreamChannel::CleanUp(const bool bForDestroy, EChannelCloseReason CloseReason)
 {
 #if UE_WITH_IRIS

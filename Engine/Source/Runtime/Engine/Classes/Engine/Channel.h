@@ -95,6 +95,9 @@ public:
 	/** Initialize this channel for the given connection and index. */
 	ENGINE_API virtual void Init(UNetConnection* InConnection, int32 InChIndex, EChannelCreateFlags CreateFlags);
 
+    /** Reinitialize the channel with the existing NetConnection */
+	ENGINE_API virtual void ReInit() {}
+
 	/** Set the closing flag. */
 	ENGINE_API virtual void SetClosingFlag();
 

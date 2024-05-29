@@ -227,7 +227,7 @@ void UPendingNetGame::NotifyControlMessage(UNetConnection* Connection, uint8 Mes
 	check(Connection == NetDriver->ServerConnection);
 
 #if !UE_BUILD_SHIPPING
-	UE_LOG(LogNet, Verbose, TEXT("PendingLevel received: %s"), FNetControlMessageInfo::GetName(MessageType));
+	UE_LOG(LogNet, Verbose, TEXT("NotifyControlMessage: PendingLevel received: %s"), FNetControlMessageInfo::GetName(MessageType));
 #endif
 
 	// This client got a response from the server.
@@ -236,16 +236,22 @@ void UPendingNetGame::NotifyControlMessage(UNetConnection* Connection, uint8 Mes
 		case NMT_Upgrade:
 		{
 			// Report mismatch.
-			uint32 RemoteNetworkVersion;
-
+			uint32 RemoteNetworkVersion = 0;
 			EEngineNetworkRuntimeFeatures RemoteNetworkFeatures = EEngineNetworkRuntimeFeatures::None;
 
 			if (FNetControlMessage<NMT_Upgrade>::Receive(Bunch, RemoteNetworkVersion, RemoteNetworkFeatures))
 			{
-				// Upgrade
-				ConnectionError = NSLOCTEXT("Engine", "ClientOutdated", "The match you are trying to join is running an incompatible version of the game.  Please try upgrading your game version.").ToString();
-
-				Connection->HandleReceiveNetUpgrade(RemoteNetworkVersion, RemoteNetworkFeatures);
+				const bool bUpgradeSuccess = Connection->HandleReceiveNetUpgrade(RemoteNetworkVersion, RemoteNetworkFeatures);
+				if (bUpgradeSuccess)
+				{
+					// Restart the handshake process now that we are compatible
+					SendInitialJoin();
+				}
+				else
+				{
+					// Upgrade failed, trigger a disconnect via the connect error
+					ConnectionError = NSLOCTEXT("Engine", "ClientOutdated", "The match you are trying to join is running an incompatible version of the game.  Please try upgrading your game version.").ToString();
+				}
 			}
 
 			break;

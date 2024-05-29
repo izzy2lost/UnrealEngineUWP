@@ -56,6 +56,7 @@ namespace UE::Net
 {
 	class FNetPing;
 	class FNetConnectionFaultRecovery;
+	struct FStatelessHandshakeFailureInfo;
 
 } // end namespace UE::Net
 
@@ -1583,6 +1584,9 @@ private:
 
 private:
 
+	/** Called when the stateless handshake component is enabled and we received an handshake failure */
+	void OnStatelessHandshakeFailure(UE::Net::FStatelessHandshakeFailureInfo HandshakeFailureInfo);
+
 	/** Called by PlayerController to tell connection about client level visibility change */
 	void UpdateLevelVisibilityInternal(const struct FUpdateLevelVisibilityLevelInfo& LevelVisibility);
 
@@ -1816,8 +1820,9 @@ public:
 	 * @param RemoteNetworkVersion		The net version of the remote side
 	 * @param RemoteNetworkFeatures		The net runtime features of the remote side
 	 * @param NetUpgradeSource			The source of the net upgrade message
+	 * @return Return true if the connection could be upgraded and we can restart the handshake process. Return false if the upgrade was impossible and the connection must disconnect.
 	 */
-	ENGINE_API void HandleReceiveNetUpgrade(uint32 RemoteNetworkVersion, EEngineNetworkRuntimeFeatures RemoteNetworkFeatures,
+	ENGINE_API bool HandleReceiveNetUpgrade(uint32 RemoteNetworkVersion, EEngineNetworkRuntimeFeatures RemoteNetworkFeatures,
 											UE::Net::ENetUpgradeSource NetUpgradeSource=UE::Net::ENetUpgradeSource::ControlChannel);
 
 private:
