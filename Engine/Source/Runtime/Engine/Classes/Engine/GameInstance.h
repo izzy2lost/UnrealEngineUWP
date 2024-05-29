@@ -26,6 +26,7 @@ class ULocalPlayer;
 class UOnlineSession;
 enum EPlayNetMode : int;
 struct FLatentActionManager;
+struct FNetDriverReplicationSystemConfig;
 class ULevelEditorPlaySettings;
 class IAnalyticsProvider;
 namespace ERHIFeatureLevel { enum Type : int; }
@@ -663,6 +664,9 @@ public:
 
 	/** Allows a GameInstance to override the default configured replication system for it's specific conditions. Return Default to use the configured replication system. */
 	ENGINE_API virtual EReplicationSystem GetDesiredReplicationSystem(FName InNetDriverDefinition) const;
+
+	/** Allows a GameInstance to override the default configuration of the Iris replication system. For instance if specific game modes require different settings. */
+	ENGINE_API virtual void OverrideIrisReplicationSystemConfig(FNetDriverReplicationSystemConfig& OutConfig, bool bIsServer) const {}
 
 protected:
 	/** Non-virtual dispatch for OnStart, also calls the associated global OnStartGameInstance. */

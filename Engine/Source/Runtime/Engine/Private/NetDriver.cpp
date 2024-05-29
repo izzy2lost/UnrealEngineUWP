@@ -7087,21 +7087,23 @@ void UNetDriver::CreateReplicationSystem(bool bInitAsClient)
 	{
 		ReplicationBridge->SetNetDriver(this);
 
+		FNetDriverReplicationSystemConfig& RepSystemConfig = bInitAsClient ? ReplicationSystemConfigClient : ReplicationSystemConfigServer;
+		// Ask the GameInstance if it wants to override any configs
+		if (const UWorld* LocalWorld = GetWorld())
+		{
+			if (UGameInstance* GameInstance = LocalWorld->GetGameInstance())
+			{
+				GameInstance->OverrideIrisReplicationSystemConfig(RepSystemConfig, !bInitAsClient);
+			}
+		}
+
 		// Create ReplicationSystem
 		UReplicationSystem::FReplicationSystemParams Params;
 		Params.ReplicationBridge = ReplicationBridge;
 		Params.bIsServer = !bInitAsClient;
 		Params.bAllowObjectReplication = !bInitAsClient;
 		Params.ForwardNetRPCCallDelegate.BindUObject(this, &UNetDriver::ForwardRemoteFunction);
-
-		if (bInitAsClient)
-		{
-			UE::Net::Private::ApplyReplicationSystemConfig(ReplicationSystemConfigClient, Params);
-		}
-		else
-		{
-			UE::Net::Private::ApplyReplicationSystemConfig(ReplicationSystemConfigServer, Params);
-		}
+		UE::Net::Private::ApplyReplicationSystemConfig(RepSystemConfig, Params);
 
 		SetReplicationSystem(UE::Net::FReplicationSystemFactory::CreateReplicationSystem(Params));
 	}
