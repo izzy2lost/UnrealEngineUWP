@@ -113,6 +113,22 @@ namespace UE::ConcertSyncTests
 				TestHasNoChildren(TEXT("/Game/Maps.Map:PersistentLevel.Sphere.StaticMeshComponent0"));
 			});
 			
+			It("IsAssetInHierarchy", [this]()
+			{
+				TestTrue(TEXT("IsAssetInHierarchy(Map)"), Hierarchy.IsAssetInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.Map")}));
+				
+				TestFalse(TEXT("IsAssetInHierarchy(PersistentLevel)"), Hierarchy.IsAssetInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.Map:PersistentLevel")}));
+				TestFalse(TEXT("IsAssetInHierarchy(Cube)"), Hierarchy.IsAssetInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.Map:PersistentLevel.Cube")}));
+				TestFalse(TEXT("IsAssetInHierarchy(StaticMeshComponent0)"), Hierarchy.IsAssetInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.Map:PersistentLevel.Cube.StaticMeshComponent0")}));
+				TestFalse(TEXT("IsAssetInHierarchy(StaticMeshComponent1)"), Hierarchy.IsAssetInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.Map:PersistentLevel.Cube.StaticMeshComponent1")}));
+				TestFalse(TEXT("IsAssetInHierarchy(Cube)"), Hierarchy.IsAssetInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.Map:PersistentLevel.Sphere")}));
+				TestFalse(TEXT("IsAssetInHierarchy(StaticMeshComponent0)"), Hierarchy.IsAssetInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.Map:PersistentLevel.Sphere.StaticMeshComponent0")}));
+				
+				TestFalse(TEXT("IsAssetInHierarchy(null)"), Hierarchy.IsAssetInHierarchy(FSoftObjectPath{ }));
+				TestFalse(TEXT("IsAssetInHierarchy(OtherMap)"), Hierarchy.IsAssetInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.OtherMap")}));
+				TestFalse(TEXT("IsAssetInHierarchy(OtherMap's StaticMeshComponent0)"), Hierarchy.IsAssetInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.OtherMap:PersistentLevel.Sphere.StaticMeshComponent0")}));
+			});
+			
 			It("TraverseTopToBottom (all)", [this]()
 			{
 				TArray<FSoftObjectPath> Visited;
@@ -363,6 +379,20 @@ namespace UE::ConcertSyncTests
 				TestHasNoChildren(TEXT("/Game/Maps.Map:PersistentLevel.Sphere.StaticMeshComponent0.Subobject"));
 			});
 
+			It("IsAssetInHierarchy", [this]()
+			{
+				TestTrue(TEXT("IsAssetInHierarchy(Map)"), Hierarchy.IsAssetInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.Map")}));
+				
+				TestFalse(TEXT("IsAssetInHierarchy(PersistentLevel)"), Hierarchy.IsAssetInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.Map:PersistentLevel")}));
+				TestFalse(TEXT("IsAssetInHierarchy(Cube)"), Hierarchy.IsAssetInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.Map:PersistentLevel.Sphere")}));
+				TestFalse(TEXT("IsAssetInHierarchy(StaticMeshComponent0)"), Hierarchy.IsAssetInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.Map:PersistentLevel.Sphere.StaticMeshComponent0")}));
+				TestFalse(TEXT("IsAssetInHierarchy(StaticMeshComponent0)"), Hierarchy.IsAssetInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.Map:PersistentLevel.Sphere.StaticMeshComponent0.Subobject")}));
+				
+				TestFalse(TEXT("IsAssetInHierarchy(null)"), Hierarchy.IsAssetInHierarchy(FSoftObjectPath{ }));
+				TestFalse(TEXT("IsAssetInHierarchy(OtherMap)"), Hierarchy.IsAssetInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.OtherMap")}));
+				TestFalse(TEXT("IsAssetInHierarchy(OtherMap's StaticMeshComponent0)"), Hierarchy.IsAssetInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.OtherMap:PersistentLevel.Sphere.StaticMeshComponent0")}));
+			});
+
 			It("TraverseTopToBottom (all)", [this]()
 			{
 				TArray<FSoftObjectPath> Visited;
@@ -521,6 +551,23 @@ namespace UE::ConcertSyncTests
 				Hierarchy.RemoveObject(FSoftObjectPath{ TEXT("/Engine/Transient.Root:Subobject") });
 				Hierarchy.RemoveObject(FSoftObjectPath{ TEXT("/Engine/Transient.Root") });
 			});
+		});
+
+		It("Retain hierarchy after removal", [this]()
+		{
+			Hierarchy.AddObject(FSoftObjectPath{ TEXT("/Game/Maps.Map:PersistentLevel.Cube.Foo") });
+			Hierarchy.AddObject(FSoftObjectPath{ TEXT("/Game/Maps.Map:PersistentLevel.Cube.Bar") });
+			// We'll proceed to test that the rest of the hierarchy remains intact.
+			Hierarchy.RemoveObject(FSoftObjectPath{ TEXT("/Game/Maps.Map:PersistentLevel.Cube.Foo")});
+
+			// There used to be a bug where FObjectPathHierarchy::AssetNodes would be emptied incorrectly and FObjectPathHierarchy::CachedNodes left dangling. Check that case specifically with IsAssetInHierarchy:
+			TestTrue(TEXT("IsAsset(Map)"), Hierarchy.IsAssetInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.Map")}));
+			
+			TestTrue(TEXT("IsInHierarchy(Map)"), Hierarchy.IsInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.Map")}).IsSet());
+			TestTrue(TEXT("IsInHierarchy(Cube)"), Hierarchy.IsInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.Map:PersistentLevel")}).IsSet());
+			TestTrue(TEXT("IsInHierarchy(Cube)"), Hierarchy.IsInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.Map:PersistentLevel.Cube")}).IsSet());
+			TestTrue(TEXT("IsInHierarchy(Bar)"), Hierarchy.IsInHierarchy(FSoftObjectPath{ TEXT("/Game/Maps.Map:PersistentLevel.Cube.Bar")}).IsSet());
+			TestTrue(TEXT("HasChildren(Cube)"), Hierarchy.HasChildren(FSoftObjectPath{ TEXT("/Game/Maps.Map:PersistentLevel.Cube")}));
 		});
 	}
 }

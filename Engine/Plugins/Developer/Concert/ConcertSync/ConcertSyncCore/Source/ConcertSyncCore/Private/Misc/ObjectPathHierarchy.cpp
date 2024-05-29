@@ -74,6 +74,14 @@ namespace UE::ConcertSyncCore
 		return TreeNode && !(*TreeNode)->Children.IsEmpty();
 	}
 
+	bool FObjectPathHierarchy::IsAssetInHierarchy(const FSoftObjectPath& Object) const
+	{
+		return AssetNodes.ContainsByPredicate([&Object](const TUniquePtr<FTreeNode>& Node)
+		{
+			return Node->Data.Object == Object;
+		});
+	}
+
 	void FObjectPathHierarchy::AddObject(const FSoftObjectPath& ObjectPath)
 	{
 		if (FTreeNode** TreeNode = CachedNodes.Find(ObjectPath))
@@ -173,7 +181,7 @@ namespace UE::ConcertSyncCore
 			}
 			
 			// No more walking up the chain if we encounter an explicitly added object or a node that another object generated implicitly
-			bShouldStop = CurrentNode->Data.Type == EHierarchyObjectType::Explicit || CurrentNode->Children.Num() > 1;
+			bShouldStop = CurrentNode->Data.Type == EHierarchyObjectType::Explicit || CurrentNode->Children.Num() >= 1;
 		}
 	}
 

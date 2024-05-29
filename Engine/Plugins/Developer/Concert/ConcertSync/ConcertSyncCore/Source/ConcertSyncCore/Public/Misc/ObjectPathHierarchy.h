@@ -107,6 +107,8 @@ namespace UE::ConcertSyncCore
 		TOptional<EHierarchyObjectType> IsInHierarchy(const FSoftObjectPath& Object) const;
 		/** @return Whether Object has any subobjects in the hierarchy. */
 		bool HasChildren(const FSoftObjectPath& Object) const;
+		/** @return Whether Object is an asset, i.e. a top-level asset that has never have any parents. */
+		bool IsAssetInHierarchy(const FSoftObjectPath& Object) const;
 
 		/** Checks there is an hierarchy. */
 		bool IsEmpty() const { return AssetNodes.IsEmpty(); }
