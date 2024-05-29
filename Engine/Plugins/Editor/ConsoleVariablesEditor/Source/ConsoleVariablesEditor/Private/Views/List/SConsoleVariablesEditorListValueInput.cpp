@@ -139,10 +139,17 @@ void SConsoleVariablesEditorListValueInput_Float::OnSliderAffected(const float I
 	const TSharedPtr<FConsoleVariablesEditorListRow> PinnedItem = Item.Pin();
 					
 	const FString ValueAsString = FString::SanitizeFloat(InValue);
-					
-	PinnedItem->GetCommandInfo().Pin()->ExecuteCommand(ValueAsString, true, true, !bPrintCommand);
-					
-	PinnedItem->SetCachedValue(ValueAsString);
+
+	for (const FConsoleVariablesEditorListRowPtr& RowPtr : PinnedItem->GetRowsAffectedByActions())
+	{
+		if (RowPtr->GetCommandInfo().Pin()->ObjectType != FConsoleVariablesEditorCommandInfo::EConsoleObjectType::Variable)
+		{
+			continue;
+		}
+
+		RowPtr->GetCommandInfo().Pin()->ExecuteCommand(ValueAsString, true, true, !bPrintCommand);
+		RowPtr->SetCachedValue(ValueAsString);
+	}
 }
 
 void SConsoleVariablesEditorListValueInput_Int::Construct(const FArguments& InArgs,
@@ -241,21 +248,28 @@ void SConsoleVariablesEditorListValueInput_Int::OnSliderAffected(const int32 InV
 	const TSharedPtr<FConsoleVariablesEditorListRow> PinnedItem = Item.Pin();
 					
 	const FString ValueAsString = FString::FromInt(InValue);
-					
-	if (!PinnedItem->GetCachedValue().Equals(ValueAsString))
-	{				
-		PinnedItem->GetCommandInfo().Pin()->ExecuteCommand(ValueAsString, true, true, !bPrintCommand);
-					
-		PinnedItem->SetCachedValue(ValueAsString);
 
-		return;
-	}
-
-	// If the new value and cached value aren't different the command won't be executed.
-	// If we still want to print the command, do it here
-	if (bPrintCommand)
+	for (const FConsoleVariablesEditorListRowPtr& RowPtr : PinnedItem->GetRowsAffectedByActions())
 	{
-		PinnedItem->GetCommandInfo().Pin()->PrintCommandOrVariable();
+		if (RowPtr->GetCommandInfo().Pin()->ObjectType != FConsoleVariablesEditorCommandInfo::EConsoleObjectType::Variable)
+		{
+			continue;
+		}
+
+		if (!RowPtr->GetCachedValue().Equals(ValueAsString))
+		{
+			RowPtr->GetCommandInfo().Pin()->ExecuteCommand(ValueAsString, true, true, !bPrintCommand);
+			RowPtr->SetCachedValue(ValueAsString);
+
+			continue;
+		}
+
+		// If the new value and cached value aren't different the command won't be executed.
+		// If we still want to print the command, do it here
+		if (bPrintCommand)
+		{
+			RowPtr->GetCommandInfo().Pin()->PrintCommandOrVariable();
+		}
 	}
 }
 
@@ -290,15 +304,23 @@ void SConsoleVariablesEditorListValueInput_String::Construct(const FArguments& I
 		.OnTextCommitted_Lambda([this] (const FText& InValue, ETextCommit::Type InTextCommitType)
 		{
 			check (Item.IsValid());
-			
-			const FString ValueAsString = InValue.ToString();
-			
-			if (const TSharedPtr<FConsoleVariablesEditorListRow> PinnedItem = Item.Pin();
-				!PinnedItem->GetCachedValue().Equals(ValueAsString))
-			{				
-				PinnedItem->GetCommandInfo().Pin()->ExecuteCommand(ValueAsString);
 
-				PinnedItem->SetCachedValue(ValueAsString);
+			const TSharedPtr<FConsoleVariablesEditorListRow> PinnedItem = Item.Pin();
+
+			const FString ValueAsString = InValue.ToString();
+
+			for (const FConsoleVariablesEditorListRowPtr& RowPtr : PinnedItem->GetRowsAffectedByActions())
+			{
+				if (RowPtr->GetCommandInfo().Pin()->ObjectType != FConsoleVariablesEditorCommandInfo::EConsoleObjectType::Variable)
+				{
+					continue;
+				}
+
+				if (!RowPtr->GetCachedValue().Equals(ValueAsString))
+				{
+					RowPtr->GetCommandInfo().Pin()->ExecuteCommand(ValueAsString);
+					RowPtr->SetCachedValue(ValueAsString);
+				}
 			}
 		})
 		.IsEnabled(this, &SConsoleVariablesEditorListValueInput::IsRowChecked)
@@ -382,13 +404,21 @@ SConsoleVariablesEditorListValueInput_Bool::~SConsoleVariablesEditorListValueInp
 void SConsoleVariablesEditorListValueInput_Bool::SetInputValue(const FString& InValueAsString)
 {
 	check (Item.IsValid());
-			
-	if (const TSharedPtr<FConsoleVariablesEditorListRow> PinnedItem = Item.Pin();
-		!PinnedItem->GetCachedValue().Equals(InValueAsString))
-	{				
-		PinnedItem->GetCommandInfo().Pin()->ExecuteCommand(InValueAsString);
 
-		PinnedItem->SetCachedValue(InValueAsString);
+	const TSharedPtr<FConsoleVariablesEditorListRow> PinnedItem = Item.Pin();
+	
+	for (const FConsoleVariablesEditorListRowPtr& RowPtr : PinnedItem->GetRowsAffectedByActions())
+	{
+		if (RowPtr->GetCommandInfo().Pin()->ObjectType != FConsoleVariablesEditorCommandInfo::EConsoleObjectType::Variable)
+		{
+			continue;
+		}
+
+		if (!RowPtr->GetCachedValue().Equals(InValueAsString))
+		{
+			RowPtr->GetCommandInfo().Pin()->ExecuteCommand(InValueAsString);
+			RowPtr->SetCachedValue(InValueAsString);
+		}
 	}
 }
 

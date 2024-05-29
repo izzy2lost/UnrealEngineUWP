@@ -880,7 +880,7 @@ TSharedPtr<SHeaderRow> SConsoleVariablesEditorList::GenerateHeaderRow()
 				SNew(SScaleBox)
 				[
 					SNew(SImage)
-						.Image(FAppStyle::Get().GetBrush("Icons.Delete"))
+						.Image(this, &SConsoleVariablesEditorList::GetActionColumnImage)
 						.ColorAndOpacity(FSlateColor::UseForeground())
 				]
 			]
@@ -1304,6 +1304,22 @@ void SConsoleVariablesEditorList::SetChildExpansionRecursively(const FConsoleVar
 			SetChildExpansionRecursively(Child, bNewIsExpanded);
 		}
 	}
+}
+
+
+const FSlateBrush* SConsoleVariablesEditorList::GetActionColumnImage() const
+{
+	const FConsoleVariablesEditorList::EConsoleVariablesEditorListMode ListMode =
+		ListModelPtr.IsValid()
+		? ListModelPtr.Pin()->GetListMode()
+		: FConsoleVariablesEditorList::EConsoleVariablesEditorListMode::Preset;
+
+	if (ListMode == FConsoleVariablesEditorList::EConsoleVariablesEditorListMode::GlobalSearch)
+	{
+		return FAppStyle::Get().GetBrush("Icons.Star");
+	}
+
+	return FAppStyle::Get().GetBrush("Icons.Delete");
 }
 
 #undef LOCTEXT_NAMESPACE

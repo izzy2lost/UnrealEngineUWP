@@ -127,6 +127,19 @@ struct FConsoleVariablesEditorListRow final : TSharedFromThis<FConsoleVariablesE
 
 	[[nodiscard]] TArray<FConsoleVariablesEditorListRowPtr> GetSelectedTreeViewItems() const;
 
+	/** Return true if the row is being displayed in Global Search mode. */
+	[[nodiscard]] bool IsGlobalSearch() const;
+
+	/** Return true if the command represented by the row is included in the current preset. */
+	[[nodiscard]] bool IsInPreset() const;
+
+	/**
+	 * Get an array of all rows that should be affected if an action is performed on this row.
+	 * This takes multi-selection into account and imitates the Outliner visibility widget's behavior by only
+	 * returning the row itself if the row is outside of the current selection.
+	 */
+	[[nodiscard]] TArray<FConsoleVariablesEditorListRowPtr> GetRowsAffectedByActions();
+
 	FReply OnActionButtonClicked();
 	
 	void ResetToPresetValue();
