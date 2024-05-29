@@ -69,11 +69,7 @@ public:
 		const FVulkanComputePipelineDescriptorInfo& DescriptorInfo = CurrentState->GetComputePipelineDescriptorInfo();
 		uint8 DescriptorSet;
 		uint32 BindingIndex;
-		if (!DescriptorInfo.GetDescriptorSetAndBindingIndex(FVulkanShaderHeader::Global, UAVIndex, DescriptorSet, BindingIndex))
-		{
-			return;
-		}
-
+		DescriptorInfo.GetDescriptorSetAndBindingIndex(UAVIndex, DescriptorSet, BindingIndex);
 		SetUAVForUBResource(DescriptorSet, BindingIndex, UAV);
 	}
 
@@ -82,11 +78,7 @@ public:
 		const FVulkanComputePipelineDescriptorInfo& DescriptorInfo = CurrentState->GetComputePipelineDescriptorInfo();
 		uint8 DescriptorSet;
 		uint32 BindingIndex;
-		if (!DescriptorInfo.GetDescriptorSetAndBindingIndex(FVulkanShaderHeader::Global, TextureIndex, DescriptorSet, BindingIndex))
-		{
-			return;
-		}
-
+		DescriptorInfo.GetDescriptorSetAndBindingIndex(TextureIndex, DescriptorSet, BindingIndex);
 		CurrentState->SetTexture(DescriptorSet, BindingIndex, Texture, Layout);
 	}
 
@@ -95,11 +87,7 @@ public:
 		const FVulkanComputePipelineDescriptorInfo& DescriptorInfo = CurrentState->GetComputePipelineDescriptorInfo();
 		uint8 DescriptorSet;
 		uint32 BindingIndex;
-		if (!DescriptorInfo.GetDescriptorSetAndBindingIndex(FVulkanShaderHeader::Global, SamplerIndex, DescriptorSet, BindingIndex))
-		{
-			return;
-		}
-
+		DescriptorInfo.GetDescriptorSetAndBindingIndex(SamplerIndex, DescriptorSet, BindingIndex);
 		CurrentState->SetSamplerState(DescriptorSet, BindingIndex, Sampler);
 	}
 
@@ -115,11 +103,7 @@ public:
 		const FVulkanComputePipelineDescriptorInfo& DescriptorInfo = CurrentState->GetComputePipelineDescriptorInfo();
 		uint8 DescriptorSet;
 		uint32 BindingIndex;
-		if (!DescriptorInfo.GetDescriptorSetAndBindingIndex(FVulkanShaderHeader::Global, SRVIndex, DescriptorSet, BindingIndex))
-		{
-			return;
-		}
-
+		DescriptorInfo.GetDescriptorSetAndBindingIndex(SRVIndex, DescriptorSet, BindingIndex);
 		SetSRVForUBResource(DescriptorSet, BindingIndex, SRV);
 	}
 
@@ -275,11 +259,7 @@ public:
 		const FVulkanGfxPipelineDescriptorInfo& DescriptorInfo = CurrentState->GetGfxPipelineDescriptorInfo();
 		uint8 DescriptorSet;
 		uint32 BindingIndex;
-		if (!DescriptorInfo.GetDescriptorSetAndBindingIndex(FVulkanShaderHeader::Global, Stage, ParameterIndex, DescriptorSet, BindingIndex))
-		{
-			return;
-		}
-
+		DescriptorInfo.GetDescriptorSetAndBindingIndex(Stage, ParameterIndex, DescriptorSet, BindingIndex);
 		CurrentState->SetTexture(DescriptorSet, BindingIndex, Texture, Layout);
 	}
 
@@ -301,11 +281,7 @@ public:
 		const FVulkanGfxPipelineDescriptorInfo& DescriptorInfo = CurrentState->GetGfxPipelineDescriptorInfo();
 		uint8 DescriptorSet;
 		uint32 BindingIndex;
-		if (!DescriptorInfo.GetDescriptorSetAndBindingIndex(FVulkanShaderHeader::Global, Stage, ParameterIndex, DescriptorSet, BindingIndex))
-		{
-			return;
-		}
-
+		DescriptorInfo.GetDescriptorSetAndBindingIndex(Stage, ParameterIndex, DescriptorSet, BindingIndex);
 		SetUAVForUBResource(DescriptorSet, BindingIndex, UAV);
 	}
 
@@ -316,11 +292,7 @@ public:
 		const FVulkanGfxPipelineDescriptorInfo& DescriptorInfo = CurrentState->GetGfxPipelineDescriptorInfo();
 		uint8 DescriptorSet;
 		uint32 BindingIndex;
-		if (!DescriptorInfo.GetDescriptorSetAndBindingIndex(FVulkanShaderHeader::Global, Stage, ParameterIndex, DescriptorSet, BindingIndex))
-		{
-			return;
-		}
-
+		DescriptorInfo.GetDescriptorSetAndBindingIndex(Stage, ParameterIndex, DescriptorSet, BindingIndex);
 		SetSRVForUBResource(DescriptorSet, BindingIndex, SRV);
 	}
 
@@ -329,11 +301,7 @@ public:
 		const FVulkanGfxPipelineDescriptorInfo& DescriptorInfo = CurrentState->GetGfxPipelineDescriptorInfo();
 		uint8 DescriptorSet;
 		uint32 BindingIndex;
-		if (!DescriptorInfo.GetDescriptorSetAndBindingIndex(FVulkanShaderHeader::Global, Stage, ParameterIndex, DescriptorSet, BindingIndex))
-		{
-			return;
-		}
-
+		DescriptorInfo.GetDescriptorSetAndBindingIndex(Stage, ParameterIndex, DescriptorSet, BindingIndex);
 		CurrentState->SetSamplerState(DescriptorSet, BindingIndex, Sampler);
 	}
 

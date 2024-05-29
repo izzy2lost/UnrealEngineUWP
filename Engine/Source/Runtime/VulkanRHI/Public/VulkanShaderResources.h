@@ -18,15 +18,6 @@
 // Size = Ignored for non-globals
 struct FVulkanShaderHeader
 {
-	enum EType
-	{
-		PackedGlobal,
-		Global,
-		UniformBuffer,
-
-		Count,
-	};
-
 	struct FSpirvInfo
 	{
 		FSpirvInfo() = default;
@@ -39,8 +30,6 @@ struct FVulkanShaderHeader
 		uint32	DescriptorSetOffset = UINT32_MAX;
 		uint32	BindingIndexOffset = UINT32_MAX;
 	};
-
-
 
 	struct FUniformBufferInfo
 	{
@@ -62,17 +51,6 @@ struct FVulkanShaderHeader
 #endif
 	};
 	TArray<FGlobalInfo>					Globals;
-
-	struct FPackedGlobalInfo
-	{
-		uint16							ConstantDataSizeInFloats;
-		uint8							PackedUBIndex;
-		uint8							Pad0 = 0;
-#if VULKAN_ENABLE_BINDING_DEBUG_NAMES
-		FString							DebugName;
-#endif
-	};
-	TArray<FPackedGlobalInfo>			PackedGlobals;
 
 	struct FPackedUBInfo
 	{
@@ -167,16 +145,6 @@ inline FArchive& operator<<(FArchive& Ar, FVulkanShaderHeader::FUniformBufferInf
 	return Ar;
 }
 
-inline FArchive& operator<<(FArchive& Ar, FVulkanShaderHeader::FPackedGlobalInfo& PackedGlobalInfo)
-{
-	Ar << PackedGlobalInfo.ConstantDataSizeInFloats;
-	Ar << PackedGlobalInfo.PackedUBIndex;
-#if VULKAN_ENABLE_BINDING_DEBUG_NAMES
-	Ar << PackedGlobalInfo.DebugName;
-#endif
-	return Ar;
-}
-
 inline FArchive& operator<<(FArchive& Ar, FVulkanShaderHeader::FPackedUBInfo& PackedUBInfo)
 {
 	Ar << PackedUBInfo.SizeInBytes;
@@ -205,7 +173,6 @@ inline FArchive& operator<<(FArchive& Ar, FVulkanShaderHeader& Header)
 {
 	Ar << Header.UniformBuffers;
 	Ar << Header.Globals;
-	Ar << Header.PackedGlobals;
 	Ar << Header.PackedUBs;
 	Ar << Header.InputAttachments;
 	Ar << Header.InOutMask;

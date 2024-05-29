@@ -487,7 +487,7 @@ void FVulkanCommandListContext::RHISetUniformBufferDynamicOffset(FUniformBufferS
 			{
 				uint8 DescriptorSet;
 				uint32 BindingIndex;
-				if (DescriptorInfo.GetDescriptorSetAndBindingIndex(FVulkanShaderHeader::UniformBuffer, Stage, BufferIndex, DescriptorSet, BindingIndex))
+				DescriptorInfo.GetUBDescriptorSetAndBindingIndex(Stage, BufferIndex, DescriptorSet, BindingIndex);
 				{
 					// Uniform views always bind max supported range, so make sure Offset+Range is within buffer allocation
 					check((InOffset + PLATFORM_MAX_UNIFORM_BUFFER_RANGE) <= UniformBuffer->Allocation.Size);
@@ -522,10 +522,7 @@ void FVulkanCommandListContext::RHISetShaderUniformBuffer(FRHIGraphicsShader* Sh
 
 		uint8 DescriptorSet;
 		uint32 BindingIndex;
-		if (!DescriptorInfo.GetDescriptorSetAndBindingIndex(FVulkanShaderHeader::UniformBuffer, Stage, BufferIndex, DescriptorSet, BindingIndex))
-		{
-			return;
-		}
+		DescriptorInfo.GetUBDescriptorSetAndBindingIndex(Stage, BufferIndex, DescriptorSet, BindingIndex);
 
 		const VkDescriptorType DescriptorType = DescriptorInfo.GetDescriptorType(DescriptorSet, BindingIndex);
 
@@ -580,10 +577,7 @@ void FVulkanCommandListContext::RHISetShaderUniformBuffer(FRHIComputeShader* Com
 		
 		uint8 DescriptorSet;
 		uint32 BindingIndex;
-		if (!DescriptorInfo.GetDescriptorSetAndBindingIndex(FVulkanShaderHeader::UniformBuffer, BufferIndex, DescriptorSet, BindingIndex))
-		{
-			return;
-		}
+		DescriptorInfo.GetUBDescriptorSetAndBindingIndex(BufferIndex, DescriptorSet, BindingIndex);
 
 		const VkDescriptorType DescriptorType = DescriptorInfo.GetDescriptorType(DescriptorSet, BindingIndex);
 

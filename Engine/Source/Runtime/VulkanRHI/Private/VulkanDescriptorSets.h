@@ -674,29 +674,17 @@ public:
 		//		FMemory::Memzero(CodeHeaders);
 	}
 
-	inline bool GetDescriptorSetAndBindingIndex(const FVulkanShaderHeader::EType Type, int32 ParameterIndex, uint8& OutDescriptorSet, uint32& OutBindingIndex) const
+	inline void GetUBDescriptorSetAndBindingIndex(int32 ParameterIndex, uint8& OutDescriptorSet, uint32& OutBindingIndex) const
 	{
-		switch (Type)
-		{
-		case FVulkanShaderHeader::UniformBuffer:
-			//ensure(RemappingInfo->StageInfos[0].UniformBuffers[ParameterIndex].bHasConstantData);
-			ensure(RemappingUBInfos[ParameterIndex].bHasConstantData);
-			//OutDescriptorSet = RemappingInfo->StageInfos[0].UniformBuffers[ParameterIndex].Remapping.NewDescriptorSet;
-			//OutBindingIndex = RemappingInfo->StageInfos[0].UniformBuffers[ParameterIndex].Remapping.NewBindingIndex;
-			OutDescriptorSet = RemappingUBInfos[ParameterIndex].Remapping.NewDescriptorSet;
-			OutBindingIndex = RemappingUBInfos[ParameterIndex].Remapping.NewBindingIndex;
-			break;
-		case FVulkanShaderHeader::Global:
-			//OutDescriptorSet = RemappingInfo->StageInfos[0].Globals[ParameterIndex].NewDescriptorSet;
-			//OutBindingIndex = RemappingInfo->StageInfos[0].Globals[ParameterIndex].NewBindingIndex;
-			OutDescriptorSet = RemappingGlobalInfos[ParameterIndex].NewDescriptorSet;
-			OutBindingIndex = RemappingGlobalInfos[ParameterIndex].NewBindingIndex;
-			break;
-		default:
-			check(0);
-			return false;
-		}
-		return true;
+		ensure(RemappingUBInfos[ParameterIndex].bHasConstantData);
+		OutDescriptorSet = RemappingUBInfos[ParameterIndex].Remapping.NewDescriptorSet;
+		OutBindingIndex = RemappingUBInfos[ParameterIndex].Remapping.NewBindingIndex;
+	}
+
+	inline void GetDescriptorSetAndBindingIndex(int32 ParameterIndex, uint8& OutDescriptorSet, uint32& OutBindingIndex) const
+	{
+		OutDescriptorSet = RemappingGlobalInfos[ParameterIndex].NewDescriptorSet;
+		OutBindingIndex = RemappingGlobalInfos[ParameterIndex].NewBindingIndex;
 	}
 
 	inline const TArray<FDescriptorSetRemappingInfo::FRemappingInfo>& GetGlobalRemappingInfo() const
@@ -741,24 +729,17 @@ public:
 	{
 	}
 
-	inline bool GetDescriptorSetAndBindingIndex(const FVulkanShaderHeader::EType Type, const ShaderStage::EStage Stage, int32 ParameterIndex, uint8& OutDescriptorSet, uint32& OutBindingIndex) const
+	inline void GetUBDescriptorSetAndBindingIndex(const ShaderStage::EStage Stage, int32 ParameterIndex, uint8& OutDescriptorSet, uint32& OutBindingIndex) const
 	{
-		switch (Type)
-		{
-		case FVulkanShaderHeader::UniformBuffer:
-			ensure(RemappingUBInfos[Stage][ParameterIndex].bHasConstantData);
-			OutDescriptorSet = RemappingUBInfos[Stage][ParameterIndex].Remapping.NewDescriptorSet;
-			OutBindingIndex = RemappingUBInfos[Stage][ParameterIndex].Remapping.NewBindingIndex;
-			break;
-		case FVulkanShaderHeader::Global:
-			OutDescriptorSet = RemappingGlobalInfos[Stage][ParameterIndex].NewDescriptorSet;
-			OutBindingIndex = RemappingGlobalInfos[Stage][ParameterIndex].NewBindingIndex;
-			break;
-		default:
-			check(0);
-			return false;
-		}
-		return true;
+		ensure(RemappingUBInfos[Stage][ParameterIndex].bHasConstantData);
+		OutDescriptorSet = RemappingUBInfos[Stage][ParameterIndex].Remapping.NewDescriptorSet;
+		OutBindingIndex = RemappingUBInfos[Stage][ParameterIndex].Remapping.NewBindingIndex;
+	}
+
+	inline void GetDescriptorSetAndBindingIndex(const ShaderStage::EStage Stage, int32 ParameterIndex, uint8& OutDescriptorSet, uint32& OutBindingIndex) const
+	{
+		OutDescriptorSet = RemappingGlobalInfos[Stage][ParameterIndex].NewDescriptorSet;
+		OutBindingIndex = RemappingGlobalInfos[Stage][ParameterIndex].NewBindingIndex;
 	}
 
 	inline const TArray<FDescriptorSetRemappingInfo::FRemappingInfo>& GetGlobalRemappingInfo(ShaderStage::EStage Stage) const
