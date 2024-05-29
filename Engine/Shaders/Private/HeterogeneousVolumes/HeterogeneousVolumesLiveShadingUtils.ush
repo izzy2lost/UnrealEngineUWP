@@ -38,7 +38,7 @@ float3 SampleExtinctionCoefficients(in FPixelMaterialInputs PixelMaterialInputs)
 	float3 Extinction = 0.0f;
 #if SUBSTRATE_ENABLED
 	FSubstrateBSDF BSDF = PixelMaterialInputs.FrontMaterial.InlinedBSDF;
-	Extinction = VOLUMETRICFOGCLOUD_EXTINCTION(BSDF).r;
+	Extinction = VOLUMETRICFOGCLOUD_EXTINCTION(BSDF).rgb;
 #else
 #if !MATERIAL_SHADINGMODEL_UNLIT
 	Extinction = GetMaterialSubsurfaceDataRaw(PixelMaterialInputs).rgb;
