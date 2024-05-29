@@ -24,7 +24,7 @@ export const RetryStepsModal: React.FC<{ stepIds: string[]; jobDetails: JobDetai
 
    const [submitting, setSubmitting] = useState(false);
    const [submitResults, setSubmitResults] = useState<RunAgainResult[] | undefined>(undefined);
-   const [retrySteps, setRetrySteps] = useState(new Set());
+   const [retrySteps, setRetrySteps] = useState(new Set<string>());
 
    const { hordeClasses } = getHordeStyling();
 
