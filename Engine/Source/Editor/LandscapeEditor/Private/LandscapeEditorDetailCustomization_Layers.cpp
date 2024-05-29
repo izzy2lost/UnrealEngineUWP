@@ -118,7 +118,6 @@ FEdModeLandscape* FLandscapeEditorCustomNodeBuilder_Layers::GetEditorMode()
 
 FLandscapeEditorCustomNodeBuilder_Layers::FLandscapeEditorCustomNodeBuilder_Layers(TSharedRef<FAssetThumbnailPool> InThumbnailPool)
 	: ThumbnailPool(InThumbnailPool)
-	, CurrentEditingInlineTextBlock(INDEX_NONE)
 	, CurrentSlider(INDEX_NONE)
 {
 }
@@ -304,8 +303,6 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_Layers::GenerateRow(int32 
 								.ColorAndOpacity(TAttribute<FSlateColor>::Create(TAttribute<FSlateColor>::FGetter::CreateSP(this, &FLandscapeEditorCustomNodeBuilder_Layers::GetLayerTextColor, InLayerIndex)))
 								.ToolTipText(MakeAttributeSPLambda(this, [this, InLayerIndex] { FText Reason; CanRenameLayer(InLayerIndex, Reason); return Reason; }))
 								.OnVerifyTextChanged(FOnVerifyTextChanged::CreateSP(this, &FLandscapeEditorCustomNodeBuilder_Layers::CanRenameLayerTo, InLayerIndex))
-								.OnEnterEditingMode(this, &FLandscapeEditorCustomNodeBuilder_Layers::OnBeginNameTextEdit)
-								.OnExitEditingMode(this, &FLandscapeEditorCustomNodeBuilder_Layers::OnEndNameTextEdit)
 								.OnTextCommitted(FOnTextCommitted::CreateSP(this, &FLandscapeEditorCustomNodeBuilder_Layers::SetLayerName, InLayerIndex))
 						]
 				]
@@ -398,17 +395,6 @@ bool FLandscapeEditorCustomNodeBuilder_Layers::IsLayerSelected(int32 InLayerInde
 	}
 
 	return false;
-}
-
-void FLandscapeEditorCustomNodeBuilder_Layers::OnBeginNameTextEdit()
-{
-	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
-	CurrentEditingInlineTextBlock = LandscapeEdMode ? LandscapeEdMode->GetCurrentLayerIndex() : INDEX_NONE;
-}
-
-void FLandscapeEditorCustomNodeBuilder_Layers::OnEndNameTextEdit()
-{
-	CurrentEditingInlineTextBlock = INDEX_NONE;
 }
 
 bool FLandscapeEditorCustomNodeBuilder_Layers::CanRenameLayerTo(const FText& InNewText, FText& OutErrorMessage, int32 InLayerIndex)

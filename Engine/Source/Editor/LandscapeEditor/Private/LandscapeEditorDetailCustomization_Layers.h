@@ -106,8 +106,6 @@ protected:
 
 	void ShowOnlySelectedLayer(int32 InLayerIndex);
 	void ShowAllLayers();
-	void OnBeginNameTextEdit();
-	void OnEndNameTextEdit();
 	void SetLayerName(const FText& InText, ETextCommit::Type InCommitType, int32 InLayerIndex);
 	FText GetLayerText(int32 InLayerIndex) const;
 	FSlateColor GetLayerTextColor(int32 InLayerIndex) const;
@@ -137,7 +135,6 @@ private:
 	/** Widgets for displaying and editing the layer name */
 	TArray< TSharedPtr< SInlineEditableTextBlock > > InlineTextBlocks;
 
-	int32 CurrentEditingInlineTextBlock;
 	int32 CurrentSlider;
 };
 
