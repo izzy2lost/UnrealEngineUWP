@@ -43,6 +43,7 @@ struct TStaticSpatialIndexDataInterface
 	virtual ~TStaticSpatialIndexDataInterface() {}
 	virtual int32 GetNumBox() const = 0;
 	virtual const typename Profile::FBox& GetBox(uint32 InIndex) const = 0;
+	virtual const typename Profile::FBox* GetBoxes(uint32 InIndex, uint32& OutStride) const = 0;
 	virtual uint32 GetAllocatedSize() const = 0;
 };
 
@@ -123,6 +124,12 @@ public:
 		return Elements[InIndex].Key;
 	}
 
+	virtual const FBox* GetBoxes(uint32 InIndex, uint32& OutStride) const override
+	{
+		OutStride = Elements.GetTypeSize();
+		return &Elements[InIndex].Key;
+	}
+
 	virtual uint32 GetAllocatedSize() const override
 	{
 		return sizeof(*this) + Elements.GetAllocatedSize() + SpatialIndex.GetAllocatedSize();
@@ -191,11 +198,11 @@ namespace FStaticSpatialIndex
 
 		bool ForEachIntersectingElement(const FBox& InBox, TFunctionRef<bool(uint32 InValueIndex)> InFunc) const
 		{
-			for (int32 ValueIndex = 0; ValueIndex < this->DataInterface.GetNumBox(); ValueIndex++)
+			uint32 BoxStride;
+			const FBox* Box = this->DataInterface.GetBoxes(0, BoxStride);
+			for (int32 ValueIndex = 0; ValueIndex < this->DataInterface.GetNumBox(); ValueIndex++, *(uint8**)&Box += BoxStride)
 			{
-				const FBox& Box = this->DataInterface.GetBox(ValueIndex);
-
-				if (Box.Intersect(InBox))
+				if (Box->Intersect(InBox))
 				{
 					if (!InFunc(ValueIndex))
 					{
@@ -211,11 +218,11 @@ namespace FStaticSpatialIndex
 		{
 			const FSphere::FReal RadiusSquared = FMath::Square(InSphere.W);
 
-			for (int32 ValueIndex = 0; ValueIndex < this->DataInterface.GetNumBox(); ValueIndex++)
+			uint32 BoxStride;
+			const FBox* Box = this->DataInterface.GetBoxes(0, BoxStride);
+			for (int32 ValueIndex = 0; ValueIndex < this->DataInterface.GetNumBox(); ValueIndex++, *(uint8**)&Box += BoxStride)
 			{
-				const FBox& Box = this->DataInterface.GetBox(ValueIndex);
-
-				if (FastSphereAABBIntersection<Profile>(FVector(InSphere.Center), RadiusSquared, Box))
+				if (FastSphereAABBIntersection<Profile>(FVector(InSphere.Center), RadiusSquared, *Box))
 				{
 					if (!InFunc(ValueIndex))
 					{
@@ -337,7 +344,44 @@ namespace FStaticSpatialIndex
 		struct FNode
 		{
 			using FNodeType = TArray<FNode>;
-			using FLeafType = TArray<uint32>;
+			struct FLeafType
+			{
+				uint32 StartIndex;
+				uint32 NumElements;
+
+				inline FLeafType()
+					: StartIndex(0)
+					, NumElements(0)
+				{}
+
+				inline void Add(uint32 InIndex)
+				{
+					if (!NumElements)
+					{
+						StartIndex = InIndex;
+					}
+
+					check((StartIndex + NumElements) == InIndex);
+					NumElements++;					
+				}
+
+				inline uint32 Num() const { return NumElements; }
+				inline uint32 GetAllocatedSize() const { return sizeof(*this); }
+
+				struct TIterator
+				{
+					inline TIterator(uint32 InValue) : Value(InValue) {}
+					inline uint32 operator++() { return Value++; }
+					inline uint32 operator*() const { return Value; }
+					inline bool operator!=(const TIterator& Other) const { return Value != Other.Value; }
+					uint32 Value;
+				};
+				
+				inline TIterator begin() { return TIterator(StartIndex); }
+				inline TIterator begin() const { return TIterator(StartIndex); }
+				inline TIterator end() { return TIterator(StartIndex + NumElements); }
+				inline TIterator end() const { return TIterator(StartIndex + NumElements); }
+			};
 			using FBoxType = typename Profile::FBox;
 
 			FBoxType Box = FBoxType(ForceInit);
@@ -387,17 +431,20 @@ namespace FStaticSpatialIndex
 			}
 			else
 			{
+				uint32 BoxStride;
+				const FBox* Box = this->DataInterface.GetBoxes(InNode->Content.template Get<typename FNode::FLeafType>().StartIndex, BoxStride);
+
 				for (uint32 ValueIndex : InNode->Content.template Get<typename FNode::FLeafType>())
 				{
-					const FBox& Box = this->DataInterface.GetBox(ValueIndex);
-
-					if (Box.Intersect(InBox))
+					if (Box->Intersect(InBox))
 					{
 						if (!InFunc(ValueIndex))
 						{
 							return false;
 						}
 					}
+
+					*(uint8**)&Box += BoxStride;
 				}
 			}
 			return true;
@@ -420,18 +467,21 @@ namespace FStaticSpatialIndex
 			}
 			else
 			{
+				uint32 BoxStride;
+				const FBox* Box = this->DataInterface.GetBoxes(InNode->Content.template Get<typename FNode::FLeafType>().StartIndex, BoxStride);
+
 				for (uint32 ValueIndex : InNode->Content.template Get<typename FNode::FLeafType>())
 				{
-					const FBox& Box = this->DataInterface.GetBox(ValueIndex);
-
-					if (FastSphereAABBIntersection<Profile>(FVector(InSphereCenter), InRadiusSquared, Box))
+					if (FastSphereAABBIntersection<Profile>(FVector(InSphereCenter), InRadiusSquared, *Box))
 					{
 						if (!InFunc(ValueIndex))
 						{
 							return false;
 						}
 					}
-				}
+
+					*(uint8**)&Box += BoxStride;
+				}				
 			}
 			return true;
 		}
@@ -520,10 +570,10 @@ namespace FStaticSpatialIndex
 		void Init(const FBox& SortBox)
 		{
 			const FReal MaxExtent = SortBox.GetExtent().GetMax();
-			const uint32 NumBuckets = FMath::CeilToInt32(MaxExtent / (FReal)BucketSize);			
-			HilbertOrder = 1 + FMath::FloorLog2(NumBuckets);
+			const uint32 NumBuckets = FMath::CeilToInt32(MaxExtent / (FReal)BucketSize);
+			HilbertOrder = 1 + FMath::CeilLogTwo(NumBuckets);
 		}
-		
+
 		bool Sort(const FBox& A, const FBox& B)
 		{
 			const int32 HilbertCodeA = HilbertEncode({ int32(A.GetCenter().X / (FReal)BucketSize), int32(A.GetCenter().Y / (FReal)BucketSize) }, HilbertOrder);
@@ -532,7 +582,7 @@ namespace FStaticSpatialIndex
 		}
 
 	private:
-		uint32 HilbertEncode(const FIntVector2 Point, uint32 Order)
+		uint32 HilbertEncode(const FIntVector2& Point, uint32 Order)
 		{
 			uint32 Result = 0;
 

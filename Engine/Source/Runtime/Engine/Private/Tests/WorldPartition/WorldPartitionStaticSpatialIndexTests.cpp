@@ -35,17 +35,46 @@ namespace WorldPartitionTests
 		Class SpatialIndex;
 		SpatialIndex.Init(Elements);
 
-		Results.Reserve(Tests.Num());
-
 		const double StartTime = FPlatformTime::Seconds();
-
 		for (int32 ListNumTests = 0; ListNumTests < Tests.Num(); ListNumTests++)
 		{
 			SpatialIndex.ForEachIntersectingElement(Tests[ListNumTests], [&Results](const int32& Value) { Results.Add(Value); });
 		}
-
 		const double RunTime = FPlatformTime::Seconds() - StartTime;
+
 		Test->AddInfo(FString::Printf(TEXT("%s(%s): %d tests in %s (%.2f/s, %s)"), Name, GetSpaceString<typename Profile::FBox>(), Tests.Num(), *FPlatformTime::PrettyTime(RunTime), Tests.Num() / RunTime, *FGenericPlatformMemory::PrettyMemory(SpatialIndex.GetAllocatedSize())));
+	}
+
+	template <typename Profile, int32 MaxNumElementsPerNode, int32 MaxNumElementsPerLeaf>
+	FORCENOINLINE void PerformNoSortTest(FWorldPartitionStaticSpatialIndexTest* Test, const TArray<TPair<typename Profile::FBox, int32>>& Elements, const TArray<FSphere>& Tests, const TArray<int32>& ReferenceResults)
+	{
+		TArray<int32> RTreeNoSortResults;
+		RTreeNoSortResults.Reserve(ReferenceResults.Num());
+		FString TestName = FString::Printf(TEXT("TStaticSpatialIndexRTree(%s-NoSort-%d-%d)"), GetSpaceString<typename Profile::FBox>(), MaxNumElementsPerNode, MaxNumElementsPerLeaf);
+		PerformTests<Profile, TStaticSpatialIndexRTree<int32, FStaticSpatialIndex::TNodeSorterNoSort<Profile>, Profile>>(Test, *TestName, Elements, Tests, RTreeNoSortResults);
+		RTreeNoSortResults.Sort();
+		Test->TestTrue(TestName, RTreeNoSortResults == ReferenceResults);
+	}
+
+	template <typename Profile>
+	FORCENOINLINE void PerformNoSortTests(FWorldPartitionStaticSpatialIndexTest* Test, const TArray<TPair<typename Profile::FBox, int32>>& Elements, const TArray<FSphere>& Tests, const TArray<int32>& ReferenceResults)
+	{
+		PerformNoSortTest<Profile, 16, 16>(Test, Elements, Tests, ReferenceResults);
+		PerformNoSortTest<Profile, 16, 64>(Test, Elements, Tests, ReferenceResults);
+		PerformNoSortTest<Profile, 16, 256>(Test, Elements, Tests, ReferenceResults);
+		PerformNoSortTest<Profile, 16, 1024>(Test, Elements, Tests, ReferenceResults);
+		PerformNoSortTest<Profile, 64, 16>(Test, Elements, Tests, ReferenceResults);
+		PerformNoSortTest<Profile, 64, 64>(Test, Elements, Tests, ReferenceResults);
+		PerformNoSortTest<Profile, 64, 256>(Test, Elements, Tests, ReferenceResults);
+		PerformNoSortTest<Profile, 64, 1024>(Test, Elements, Tests, ReferenceResults);
+		PerformNoSortTest<Profile, 256, 16>(Test, Elements, Tests, ReferenceResults);
+		PerformNoSortTest<Profile, 256, 64>(Test, Elements, Tests, ReferenceResults);
+		PerformNoSortTest<Profile, 256, 256>(Test, Elements, Tests, ReferenceResults);
+		PerformNoSortTest<Profile, 256, 1024>(Test, Elements, Tests, ReferenceResults);
+		PerformNoSortTest<Profile, 1024, 16>(Test, Elements, Tests, ReferenceResults);
+		PerformNoSortTest<Profile, 1024, 64>(Test, Elements, Tests, ReferenceResults);
+		PerformNoSortTest<Profile, 1024, 256>(Test, Elements, Tests, ReferenceResults);
+		PerformNoSortTest<Profile, 1024, 1024>(Test, Elements, Tests, ReferenceResults);
 	}
 
 	template <typename Profile, int32 MaxNumElementsPerNode, int32 MaxNumElementsPerLeaf>
@@ -151,9 +180,8 @@ namespace WorldPartitionTests
 		PerformTests<Profile, TStaticSpatialIndexList<int32, FStaticSpatialIndex::TNodeSorterNoSort<Profile>, Profile>>(Test, TEXT("TStaticSpatialIndexList"), Elements, Tests, ListResults);
 		ListResults.Sort();
 
-		PerformMinXTests<Profile>(Test, Elements, Tests, ListResults);
-		PerformMinXTests<Profile>(Test, Elements, Tests, ListResults);
-		PerformMinXTests<Profile>(Test, Elements, Tests, ListResults);
+		PerformNoSortTests<Profile>(Test, Elements, Tests, ListResults);
+
 		PerformMinXTests<Profile>(Test, Elements, Tests, ListResults);
 
 		PerformMortonTests<Profile, 4096>(Test, Elements, Tests, ListResults);
