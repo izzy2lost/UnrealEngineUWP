@@ -71,6 +71,8 @@ public:
 
 	RENDERER_API void GetSkinnedPrimitives(TArray<FPrimitiveSceneInfo*>& OutPrimitives) const;
 
+	RENDERER_API static const FSkinningTransformProvider::FProviderId& GetRefPoseProviderId();
+
 private:
 	enum ETask : uint32
 	{
@@ -152,8 +154,6 @@ private:
 	TUniquePtr<FBuffers> Buffers;
 	TUniquePtr<FUploader> Uploader;
 	TStaticArray<UE::Tasks::FTask, NumTasks> TaskHandles;
-
-	FGuid RefPoseProvider;
 
 	void ProvideRefPoseTransforms(FSkinningTransformProvider::FProviderContext& Context);
 };

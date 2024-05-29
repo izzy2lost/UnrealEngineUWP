@@ -4,6 +4,7 @@
 #include "ScenePrivate.h"
 #include "RenderUtils.h"
 #include "SkeletalRenderPublic.h"
+#include "Nanite/NaniteSkinningSceneExtension.h"
 
 IMPLEMENT_SCENE_EXTENSION(FSkinningTransformProvider);
 
@@ -17,12 +18,19 @@ void FSkinningTransformProvider::InitExtension(FScene& InScene)
 	Scene = &InScene;
 }
 
-FSkinningTransformProvider::FProviderId FSkinningTransformProvider::RegisterProvider(const FOnProvideTransforms& Delegate)
+void FSkinningTransformProvider::RegisterProvider(const FSkinningTransformProvider::FProviderId& Id, const FOnProvideTransforms& Delegate)
 {
+#if DO_CHECK
+	for (const FTransformProvider& ProviderCheck : Providers)
+	{
+		check(ProviderCheck.Id != Id);
+	}
+#endif
+
+	check(Delegate.IsBound());
 	FTransformProvider& Provider = Providers.Emplace_GetRef();
-	Provider.Id = FGuid::NewGuid();
+	Provider.Id = Id;
 	Provider.Delegate = Delegate;
-	return Provider.Id;
 }
 
 void FSkinningTransformProvider::UnregisterProvider(const FSkinningTransformProvider::FProviderId& Id)
@@ -40,13 +48,29 @@ void FSkinningTransformProvider::UnregisterProvider(const FSkinningTransformProv
 	checkNoEntry(); // No provider found with this id - error!
 }
 
-void FSkinningTransformProvider::Broadcast(FProviderContext& Context)
+void FSkinningTransformProvider::Broadcast(const TConstArrayView<FProviderRange> Ranges, FProviderContext& Context)
 {
+	const TConstArrayView<FUintVector2> IndirectionView = Context.Indirections;
+
 	for (const FTransformProvider& Provider : Providers)
 	{
-		if (Context.PrimitiveIndices.Num() > 0)
+		for (const FProviderRange& Range : Ranges)
 		{
-			Provider.Delegate.ExecuteIfBound(Context);
+			if (Provider.Id == Range.Id)
+			{
+				if (Range.Count > 0)
+				{
+					Context.Indirections = MakeArrayView(IndirectionView.GetData() + Range.Offset, Range.Count);
+					Provider.Delegate.ExecuteIfBound(Context);
+				}
+				break;
+			}
 		}
 	}
+}
+
+const FSkinningTransformProvider::FProviderId& GetRefPoseProviderId()
+{
+	// TODO: Temp until skinning scene extension is refactored into a public API outside of Nanite
+	return Nanite::FSkinningSceneExtension::GetRefPoseProviderId();
 }

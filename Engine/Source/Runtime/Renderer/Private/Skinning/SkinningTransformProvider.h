@@ -18,23 +18,30 @@ class FSkinningTransformProvider : public ISceneExtension
 public:
 	typedef FGuid FProviderId;
 
+	struct FProviderRange
+	{
+		FProviderId Id;
+		uint32 Count;
+		uint32 Offset;
+	};
+
 	struct FProviderContext
 	{
 		FProviderContext(
 			const TConstArrayView<FPrimitiveSceneInfo*> InPrimitives,
-			const TConstArrayView<FUintVector2> InPrimitiveIndices,
+			const TConstArrayView<FUintVector2> InIndirections,
 			FRDGBuilder& InGraphBuilder,
 			FRDGBufferRef InTransformBuffer
 		)
 		: Primitives(InPrimitives)
-		, PrimitiveIndices(InPrimitiveIndices)
+		, Indirections(InIndirections)
 		, GraphBuilder(InGraphBuilder)
 		, TransformBuffer(InTransformBuffer)
 		{
 		}
 
-		const TConstArrayView<FPrimitiveSceneInfo*> Primitives;
-		const TConstArrayView<FUintVector2> PrimitiveIndices;
+		TConstArrayView<FPrimitiveSceneInfo*> Primitives;
+		TConstArrayView<FUintVector2> Indirections;
 
 		FRDGBuilder& GraphBuilder;
 		FRDGBufferRef TransformBuffer;
@@ -47,14 +54,25 @@ public:
 
 	virtual void InitExtension(FScene& InScene) override;
 
-	RENDERER_API FProviderId RegisterProvider(const FOnProvideTransforms& Delegate);
+	RENDERER_API void RegisterProvider(const FProviderId& Id, const FOnProvideTransforms& Delegate);
 	RENDERER_API void UnregisterProvider(const FProviderId& Id);
 
-	void Broadcast(FProviderContext& Context);
+	void Broadcast(const TConstArrayView<FProviderRange> Ranges, FProviderContext& Context);
 
 	inline bool HasProviders() const
 	{
 		return !Providers.IsEmpty();
+	}
+
+	inline TArray<FProviderId> GetProviderIds() const
+	{
+		TArray<FProviderId> Ids;
+		Ids.Reserve(Providers.Num());
+		for (const FTransformProvider& Provider : Providers)
+		{
+			Ids.Add(Provider.Id);
+		}
+		return Ids;
 	}
 
 private:
@@ -68,3 +86,5 @@ private:
 
 	const FScene* Scene = nullptr;
 };
+
+RENDERER_API const FSkinningTransformProvider::FProviderId& GetRefPoseProviderId();

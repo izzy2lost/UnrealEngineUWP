@@ -116,6 +116,8 @@ private:
 
 IMPLEMENT_GLOBAL_SHADER(FRefPoseTransformProviderCS, "/Engine/Private/Skinning/TransformProviders.usf", "RefPoseProviderCS", SF_Compute);
 
+static FGuid RefPoseProviderId(0x665207E7, 0x449A4FB, 0xA298F7AD, 0x8F989B11);
+
 // TODO: Nanite-Skinning [Need to safely populate UpdateList - for now we can defrag and full re-upload to GPU scene every frame]
 #define NANITE_SKINNING_WIP 1
 
@@ -149,7 +151,8 @@ void FSkinningSceneExtension::InitExtension(FScene& InScene)
 	// Register reference pose transform provider
 	if (auto TransformProvider = Scene->GetExtensionPtr<FSkinningTransformProvider>())
 	{
-		RefPoseProvider = TransformProvider->RegisterProvider(
+		TransformProvider->RegisterProvider(
+			GetRefPoseProviderId(),
 			FSkinningTransformProvider::FOnProvideTransforms::CreateRaw(this, &FSkinningSceneExtension::ProvideRefPoseTransforms)
 		);
 	}
@@ -258,23 +261,80 @@ void FSkinningSceneExtension::FinishSkinningBufferUpload(
 
 	if (auto TransformProvider = Scene->GetExtensionPtr<FSkinningTransformProvider>())
 	{
-		const uint32 IndirectionCount = HeaderData.Num();
-		if (IndirectionCount > 0 && CVarSkinningTransformProviders.GetValueOnRenderThread())
+		if (HeaderData.Num() > 0 && CVarSkinningTransformProviders.GetValueOnRenderThread())
 		{
 			FPrimitiveSceneInfo** Primitives = GraphBuilder.AllocPODArray<FPrimitiveSceneInfo*>(HeaderData.Num());
-			FUintVector2* PrimitiveIndices = GraphBuilder.AllocPODArray<FUintVector2>(IndirectionCount);
+			uint32* TransformOffsets = GraphBuilder.AllocPODArray<uint32>(HeaderData.Num());
 
-			uint32 PrimitiveIndex = 0;
+			uint32 TotalOffset = 0;
+
+			// TODO: Optimize further (incremental tracking of primitives within provider extension?)
+			// The current assumption is that skinned primitive counts should be fairly low, and heavy
+			// instancing would be used. If we need a ton of primitives, revisit this algorithm.
+
+			const TArray<FGuid> ProviderIds = TransformProvider->GetProviderIds();
+			TArray<FSkinningTransformProvider::FProviderRange, TInlineAllocator<8>> Ranges;
+			Ranges.Reserve(ProviderIds.Num());
+			for (const FGuid& ProviderId : ProviderIds)
+			{
+				FSkinningTransformProvider::FProviderRange& Range = Ranges.Emplace_GetRef();
+				Range.Id = ProviderId;
+				Range.Count = 0;
+				Range.Offset = 0;
+			}
+
+			uint32 PrimitiveCount = 0;
 			for (typename TSparseArray<FHeaderData>::TConstIterator It(HeaderData); It; ++It)
 			{
 				const FHeaderData& Header = *It;
-				Primitives[PrimitiveIndex] = Header.PrimitiveSceneInfo;
-				// TODO: Per-provider indices
-				PrimitiveIndices[PrimitiveIndex] = FUintVector2(PrimitiveIndex, Header.TransformBufferOffset * sizeof(FMatrix3x4));
-				++PrimitiveIndex;
+
+				const FPrimitiveSceneInfo* Primitive = Header.PrimitiveSceneInfo;
+				auto* SkinnedProxy = static_cast<Nanite::FSkinnedSceneProxy*>(Primitive->Proxy);
+
+				const FGuid ProviderId = SkinnedProxy->GetTransformProviderId();
+				for (FSkinningTransformProvider::FProviderRange& Range : Ranges)
+				{
+					if (ProviderId == Range.Id)
+					{
+						++Range.Count;
+						break;
+					}
+				}
+
+				Primitives[PrimitiveCount] = Header.PrimitiveSceneInfo;
+				TransformOffsets[PrimitiveCount] = Header.TransformBufferOffset;
+
+				++PrimitiveCount;
 			}
 
-			TConstArrayView<FPrimitiveSceneInfo*> PrimitivesView(Primitives, HeaderData.Num());
+			uint32 IndirectionCount = 0;
+
+			for (FSkinningTransformProvider::FProviderRange& Range : Ranges)
+			{
+				Range.Offset = IndirectionCount;
+				IndirectionCount += Range.Count;
+				Range.Count = 0;
+			}
+
+			FUintVector2* PrimitiveIndices = GraphBuilder.AllocPODArray<FUintVector2>(IndirectionCount);
+			for (uint32 PrimitiveIndex = 0; PrimitiveIndex < PrimitiveCount; ++PrimitiveIndex)
+			{
+				const FPrimitiveSceneInfo* Primitive = Primitives[PrimitiveIndex];
+				auto* SkinnedProxy = static_cast<Nanite::FSkinnedSceneProxy*>(Primitive->Proxy);
+				const FGuid ProviderId = SkinnedProxy->GetTransformProviderId();
+
+				for (FSkinningTransformProvider::FProviderRange& Range : Ranges)
+				{
+					if (ProviderId == Range.Id)
+					{
+						PrimitiveIndices[Range.Offset + Range.Count] = FUintVector2(PrimitiveIndex, TransformOffsets[PrimitiveIndex] * sizeof(FMatrix3x4));
+						++Range.Count;
+						break;
+					}
+				}
+			}
+
+			TConstArrayView<FPrimitiveSceneInfo*> PrimitivesView(Primitives, PrimitiveCount);
 			TConstArrayView<FUintVector2> IndiciesView(PrimitiveIndices, IndirectionCount);
 
 			FSkinningTransformProvider::FProviderContext Context(
@@ -284,7 +344,7 @@ void FSkinningSceneExtension::FinishSkinningBufferUpload(
 				TransformBuffer
 			);
 
-			TransformProvider->Broadcast(Context);
+			TransformProvider->Broadcast(Ranges, Context);
 		}
 	}
 
@@ -868,6 +928,11 @@ void FSkinningSceneExtension::GetSkinnedPrimitives(TArray<FPrimitiveSceneInfo*>&
 	}
 }
 
+const FSkinningTransformProvider::FProviderId& FSkinningSceneExtension::GetRefPoseProviderId()
+{
+	return RefPoseProviderId;
+}
+
 void FSkinningSceneExtension::ProvideRefPoseTransforms(FSkinningTransformProvider::FProviderContext& Context)
 {
 	const uint32 TransformsPerGroup = FRefPoseTransformProviderCS::TransformsPerGroup;
@@ -875,7 +940,7 @@ void FSkinningSceneExtension::ProvideRefPoseTransforms(FSkinningTransformProvide
 	// TODO: Optimize further
 
 	uint32 BlockCount = 0;
-	for (const FUintVector2& Indirection : Context.PrimitiveIndices)
+	for (const FUintVector2& Indirection : Context.Indirections)
 	{
 		const FPrimitiveSceneInfo* Primitive = Context.Primitives[Indirection.X];
 		auto* SkinnedProxy = static_cast<Nanite::FSkinnedSceneProxy*>(Primitive->Proxy);
@@ -893,7 +958,7 @@ void FSkinningSceneExtension::ProvideRefPoseTransforms(FSkinningTransformProvide
 	FTransformBlockHeader* BlockHeaders = GraphBuilder.AllocPODArray<FTransformBlockHeader>(BlockCount);
 
 	uint32 BlockWrite = 0;
-	for (const FUintVector2& Indirection : Context.PrimitiveIndices)
+	for (const FUintVector2& Indirection : Context.Indirections)
 	{
 		const FPrimitiveSceneInfo* Primitive = Context.Primitives[Indirection.X];
 		auto* SkinnedProxy = static_cast<Nanite::FSkinnedSceneProxy*>(Primitive->Proxy);
