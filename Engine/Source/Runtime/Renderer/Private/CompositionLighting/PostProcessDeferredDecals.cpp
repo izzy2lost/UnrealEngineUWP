@@ -192,13 +192,21 @@ void GetDeferredDecalPassParameters(
 
 	FRenderTargetBindingSlots& RenderTargets = PassParameters.RenderTargets;
 	PassParameters.RenderTargets.ShadingRateTexture = GVRSImageManager.GetVariableRateShadingImage(GraphBuilder, View, FVariableRateShadingImageManager::EVRSPassType::Decals);
-
+	PassParameters.RenderTargets.MultiViewCount = (View.bIsMobileMultiViewEnabled) ? 2 : (UE::StereoRenderUtils::FStereoShaderAspects(View.GetShaderPlatform()).IsMobileMultiViewEnabled() ? 1 : 0);
 	uint32 ColorTargetIndex = 0;
 
-	const auto AddColorTarget = [&](FRDGTextureRef Texture, ERenderTargetLoadAction LoadAction = ERenderTargetLoadAction::ELoad)
+	const auto AddColorTarget = [&](FRDGTextureRef Texture, ERenderTargetLoadAction LoadAction = ERenderTargetLoadAction::ELoad, FRDGTextureRef TextureArray = nullptr, bool bIsMobileMultiView = false)
 	{
-		checkf(Texture, TEXT("Attempting to bind decal render targets, but the texture is null."));
-		RenderTargets[ColorTargetIndex++] = FRenderTargetBinding(Texture, LoadAction);
+		if (bIsMobileMultiView)
+		{
+			checkf(TextureArray, TEXT("Attempting to bind decal render targets, but the texture array is null."));
+			RenderTargets[ColorTargetIndex++] = FRenderTargetBinding(TextureArray, LoadAction);
+		}
+		else
+		{
+			checkf(Texture, TEXT("Attempting to bind decal render targets, but the texture is null."));
+			RenderTargets[ColorTargetIndex++] = FRenderTargetBinding(Texture, LoadAction);
+		}
 	};
 
 	switch (RenderTargetMode)
@@ -224,13 +232,14 @@ void GetDeferredDecalPassParameters(
 
 		const FDBufferTextures& DBufferTextures = *Textures.DBufferTextures;
 
-		const ERenderTargetLoadAction LoadAction = DBufferTextures.DBufferA->HasBeenProduced()
+		const ERenderTargetLoadAction LoadAction = (DBufferTextures.DBufferA->HasBeenProduced() || DBufferTextures.DBufferATexArray->HasBeenProduced())
 			? ERenderTargetLoadAction::ELoad
 			: ERenderTargetLoadAction::EClear;
 
-		AddColorTarget(DBufferTextures.DBufferA, LoadAction);
-		AddColorTarget(DBufferTextures.DBufferB, LoadAction);
-		AddColorTarget(DBufferTextures.DBufferC, LoadAction);
+		bool bIsMobileMultiView = View.bIsMobileMultiViewEnabled || UE::StereoRenderUtils::FStereoShaderAspects(View.GetShaderPlatform()).IsMobileMultiViewEnabled();
+		AddColorTarget(DBufferTextures.DBufferA, LoadAction, DBufferTextures.DBufferATexArray, bIsMobileMultiView);
+		AddColorTarget(DBufferTextures.DBufferB, LoadAction, DBufferTextures.DBufferBTexArray, bIsMobileMultiView);
+		AddColorTarget(DBufferTextures.DBufferC, LoadAction, DBufferTextures.DBufferCTexArray, bIsMobileMultiView);
 
 		if (DBufferTextures.DBufferMask)
 		{
@@ -362,7 +371,7 @@ static bool RenderPreStencil(FRHICommandList& RHICmdList, const FViewInfo& View,
 	RHICmdList.SetStreamSource(0, GetUnitCubeVertexBuffer(), 0);
 
 	// Render decal mask
-	RHICmdList.DrawIndexedPrimitive(GetUnitCubeIndexBuffer(), 0, 0, 8, 0, UE_ARRAY_COUNT(GCubeIndices) / 3, 1);
+	RHICmdList.DrawIndexedPrimitive(GetUnitCubeIndexBuffer(), 0, 0, 8, 0, UE_ARRAY_COUNT(GCubeIndices) / 3, View.GetStereoPassInstanceFactor());
 
 	return true;
 }
@@ -708,7 +717,7 @@ void AddDeferredDecalPass(
 				}
 #endif // PSO_PRECACHING_VALIDATE
 
-				RHICmdList.DrawIndexedPrimitive(GetUnitCubeIndexBuffer(), 0, 0, 8, 0, UE_ARRAY_COUNT(GCubeIndices) / 3, 1);
+				RHICmdList.DrawIndexedPrimitive(GetUnitCubeIndexBuffer(), 0, 0, 8, 0, UE_ARRAY_COUNT(GCubeIndices) / 3, View.GetStereoPassInstanceFactor());
 			}
 		});
 	};

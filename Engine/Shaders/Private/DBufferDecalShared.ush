@@ -23,6 +23,12 @@
 #define OpaqueBasePassDBufferCTexture DBufferBasePass.DBufferCTexture
 #define OpaqueBasePassDBufferRenderMask DBufferBasePass.DBufferRenderMask
 
+#if MOBILE_MULTI_VIEW && SHADING_PATH_MOBILE
+#define OpaqueBasePassDBufferATextureArray DBufferBasePass.DBufferATextureArray
+#define OpaqueBasePassDBufferBTextureArray DBufferBasePass.DBufferBTextureArray
+#define OpaqueBasePassDBufferCTextureArray DBufferBasePass.DBufferCTextureArray
+#endif
+
 #if SUPPORTS_INDEPENDENT_SAMPLERS
 #define OpaqueBasePassDBufferATextureSampler DBufferBasePass.DBufferATextureSampler
 #define OpaqueBasePassDBufferBTextureSampler DBufferBasePass.DBufferATextureSampler
@@ -409,7 +415,7 @@ FDBufferData DecodeDBufferData(
 }
 
 // @param BufferUV - UV space in the DBuffer textures
-FDBufferData GetDBufferData(float2 BufferUV, uint RTMaskBit)
+FDBufferData GetDBufferData(float2 BufferUV, uint RTMaskBit, uint EyeIndex)
 {
 	// Setup default values, which mean that no decals are present in DBuffer
 	float4 DBufferA = float4(0.0, 0.0, 0.0, 1.0);
@@ -420,19 +426,31 @@ FDBufferData GetDBufferData(float2 BufferUV, uint RTMaskBit)
 	BRANCH
 	if (RTMaskBit & 0x1)
 	{
+	#if ((INSTANCED_STEREO && MOBILE_MULTI_VIEW) || MOBILE_MULTI_VIEW) && SHADING_PATH_MOBILE
+		DBufferA = Texture2DArraySampleLevel(OpaqueBasePassDBufferATextureArray, OpaqueBasePassDBufferATextureSampler, float3(BufferUV.xy, EyeIndex), 0);
+	#else
 		DBufferA = Texture2DSampleLevel(OpaqueBasePassDBufferATexture, OpaqueBasePassDBufferATextureSampler, BufferUV, 0);
+	#endif
 	}
 
 	BRANCH
 	if (RTMaskBit & 0x2)
 	{
+	#if ((INSTANCED_STEREO && MOBILE_MULTI_VIEW) || MOBILE_MULTI_VIEW) && SHADING_PATH_MOBILE
+		DBufferB = Texture2DArraySampleLevel(OpaqueBasePassDBufferBTextureArray, OpaqueBasePassDBufferBTextureSampler, float3(BufferUV.xy, EyeIndex), 0);
+	#else
 		DBufferB = Texture2DSampleLevel(OpaqueBasePassDBufferBTexture, OpaqueBasePassDBufferBTextureSampler, BufferUV, 0);
+	#endif
 	}
 
 	BRANCH
 	if (RTMaskBit & 0x4)
 	{
+	#if ((INSTANCED_STEREO && MOBILE_MULTI_VIEW) || MOBILE_MULTI_VIEW) && SHADING_PATH_MOBILE
+		DBufferC = Texture2DArraySampleLevel(OpaqueBasePassDBufferCTextureArray, OpaqueBasePassDBufferCTextureSampler, float3(BufferUV.xy, EyeIndex), 0);
+	#else
 		DBufferC = Texture2DSampleLevel(OpaqueBasePassDBufferCTexture, OpaqueBasePassDBufferCTextureSampler, BufferUV, 0);
+	#endif
 	}
 #elif USE_DBUFFER && RAYHITGROUPSHADER
 	BRANCH
@@ -456,6 +474,11 @@ FDBufferData GetDBufferData(float2 BufferUV, uint RTMaskBit)
 #endif
 
 	return DecodeDBufferData(DBufferA, DBufferB, DBufferC);
+}
+
+FDBufferData GetDBufferData(float2 BufferUV, uint RTMaskBit)
+{
+	return GetDBufferData(BufferUV, RTMaskBit, 0);
 }
 
 /** Populates DBufferA, DBufferB, DBufferC as float4 and puts opacity in alpha for frame buffer blending */

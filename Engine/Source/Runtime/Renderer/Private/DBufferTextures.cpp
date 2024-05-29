@@ -11,8 +11,8 @@
 
 bool FDBufferTextures::IsValid() const
 {
-	check(!DBufferA || (DBufferB && DBufferC));
-	return HasBeenProduced(DBufferA);
+	check((!DBufferA || (DBufferB && DBufferC)) || (!DBufferATexArray || (DBufferBTexArray && DBufferCTexArray)));
+	return HasBeenProduced(DBufferA) || HasBeenProduced(DBufferATexArray);
 }
 
 EDecalDBufferMaskTechnique GetDBufferMaskTechnique(EShaderPlatform ShaderPlatform)
@@ -43,18 +43,22 @@ FDBufferTexturesDesc GetDBufferTexturesDesc(FIntPoint Extent, EShaderPlatform Sh
 		const ETextureCreateFlags BaseFlags = WriteMaskFlags | TexCreate_ShaderResource | TexCreate_RenderTargetable;
 		
 		FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(Extent, PF_B8G8R8A8, FClearValueBinding::None, BaseFlags);
+		FRDGTextureDesc ArrayDesc = FRDGTextureDesc::Create2DArray(Extent, PF_B8G8R8A8, FClearValueBinding::None, BaseFlags, 2);
 
-		Desc.Flags = BaseFlags | GFastVRamConfig.DBufferA;
-		Desc.ClearValue = FClearValueBinding::Black;
+		Desc.Flags = ArrayDesc.Flags = BaseFlags | GFastVRamConfig.DBufferA;
+		Desc.ClearValue = ArrayDesc.ClearValue = FClearValueBinding::Black;
 		DBufferTexturesDesc.DBufferADesc = Desc;
+		DBufferTexturesDesc.DBufferATexArrayDesc = ArrayDesc;
 
-		Desc.Flags = BaseFlags | GFastVRamConfig.DBufferB;
-		Desc.ClearValue = FClearValueBinding(FLinearColor(128.0f / 255.0f, 128.0f / 255.0f, 128.0f / 255.0f, 1));
+		Desc.Flags = ArrayDesc.Flags = BaseFlags | GFastVRamConfig.DBufferB;
+		Desc.ClearValue = ArrayDesc.ClearValue = FClearValueBinding(FLinearColor(128.0f / 255.0f, 128.0f / 255.0f, 128.0f / 255.0f, 1));
 		DBufferTexturesDesc.DBufferBDesc = Desc;
+		DBufferTexturesDesc.DBufferBTexArrayDesc = ArrayDesc;
 
-		Desc.Flags = BaseFlags | GFastVRamConfig.DBufferC;
-		Desc.ClearValue = FClearValueBinding(FLinearColor(0, 0, 0, 1));
+		Desc.Flags = ArrayDesc.Flags = BaseFlags | GFastVRamConfig.DBufferC;
+		Desc.ClearValue = ArrayDesc.ClearValue = FClearValueBinding(FLinearColor(0, 0, 0, 1));
 		DBufferTexturesDesc.DBufferCDesc = Desc;
+		DBufferTexturesDesc.DBufferCTexArrayDesc = ArrayDesc;
 
 		if (DBufferMaskTechnique == EDecalDBufferMaskTechnique::PerPixel)
 		{
@@ -93,6 +97,10 @@ FDBufferTextures CreateDBufferTextures(FRDGBuilder& GraphBuilder, FIntPoint Exte
 		DBufferTextures.DBufferB = GraphBuilder.CreateTexture(TexturesDesc.DBufferBDesc, TEXT("DBufferB"), TextureFlags);
 		DBufferTextures.DBufferC = GraphBuilder.CreateTexture(TexturesDesc.DBufferCDesc, TEXT("DBufferC"), TextureFlags);
 
+		DBufferTextures.DBufferATexArray = GraphBuilder.CreateTexture(TexturesDesc.DBufferATexArrayDesc, TEXT("DBufferATexArray"), TextureFlags);
+		DBufferTextures.DBufferBTexArray = GraphBuilder.CreateTexture(TexturesDesc.DBufferBTexArrayDesc, TEXT("DBufferBTexArray"), TextureFlags);
+		DBufferTextures.DBufferCTexArray = GraphBuilder.CreateTexture(TexturesDesc.DBufferCTexArrayDesc, TEXT("DBufferCTexArray"), TextureFlags);
+
 		if (DBufferMaskTechnique == EDecalDBufferMaskTechnique::PerPixel)
 		{
 			DBufferTextures.DBufferMask = GraphBuilder.CreateTexture(TexturesDesc.DBufferMaskDesc, TEXT("DBufferMask"));
@@ -113,6 +121,10 @@ FDBufferParameters GetDBufferParameters(FRDGBuilder& GraphBuilder, const FDBuffe
 	Parameters.DBufferATexture = SystemTextures.BlackAlphaOne;
 	Parameters.DBufferBTexture = SystemTextures.DefaultNormal8Bit;
 	Parameters.DBufferCTexture = SystemTextures.BlackAlphaOne;
+	Parameters.DBufferATextureArray = GSystemTextures.GetDefaultTexture(GraphBuilder, ETextureDimension::Texture2DArray, EPixelFormat::PF_B8G8R8A8, FClearValueBinding::Black);
+	Parameters.DBufferBTextureArray = GSystemTextures.GetDefaultTexture(GraphBuilder, ETextureDimension::Texture2DArray, EPixelFormat::PF_B8G8R8A8, FClearValueBinding::Black);
+	Parameters.DBufferCTextureArray = GSystemTextures.GetDefaultTexture(GraphBuilder, ETextureDimension::Texture2DArray, EPixelFormat::PF_B8G8R8A8, FClearValueBinding::Black);
+
 	Parameters.DBufferRenderMask = SystemTextures.White;
 
 	if (DBufferTextures.IsValid())
@@ -120,6 +132,10 @@ FDBufferParameters GetDBufferParameters(FRDGBuilder& GraphBuilder, const FDBuffe
 		Parameters.DBufferATexture = DBufferTextures.DBufferA;
 		Parameters.DBufferBTexture = DBufferTextures.DBufferB;
 		Parameters.DBufferCTexture = DBufferTextures.DBufferC;
+
+		Parameters.DBufferATextureArray = DBufferTextures.DBufferATexArray;
+		Parameters.DBufferBTextureArray = DBufferTextures.DBufferBTexArray;
+		Parameters.DBufferCTextureArray = DBufferTextures.DBufferCTexArray;
 
 		if (DBufferTextures.DBufferMask)
 		{

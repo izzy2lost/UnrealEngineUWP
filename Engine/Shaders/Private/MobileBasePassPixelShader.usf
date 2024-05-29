@@ -480,12 +480,12 @@ void Main(
 			float2 BufferUV = SvPositionToBufferUV(SvPosition);
 		#if SUBSTRATE_ENABLED 
 			#if SUBSTRATE_INLINE_SHADING && !SUBSTRATE_OPTIMIZED_UNLIT
-			const FSubstrateDBuffer SubstrateBufferData = GetDBufferData(BufferUV, ValidDBufferTargetMask);
+			const FSubstrateDBuffer SubstrateBufferData = GetDBufferData(BufferUV, ValidDBufferTargetMask, BasePassInterpolants.MultiViewId);
 			ApplyDBufferData(SubstrateBufferData, SubstratePixelHeader, SubstrateData);
 			DBufferOpacity = SubstrateBufferData.Coverage;
 			#endif
 		#else
-			FDBufferData DBufferData = GetDBufferData(BufferUV, ValidDBufferTargetMask);
+			FDBufferData DBufferData = GetDBufferData(BufferUV, ValidDBufferTargetMask, BasePassInterpolants.MultiViewId);
 			ApplyDBufferData(DBufferData, MaterialParameters.WorldNormal, SubsurfaceColor, Roughness, BaseColor, Metallic, Specular);
 			DBufferOpacity = (DBufferData.ColorOpacity + DBufferData.NormalOpacity + DBufferData.RoughnessOpacity) * (1.0f / 3.0f);
 		#endif // SUBSTRATE_ENABLED

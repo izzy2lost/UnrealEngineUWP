@@ -25,6 +25,9 @@ struct FDBufferTexturesDesc
 	FRDGTextureDesc DBufferADesc;
 	FRDGTextureDesc DBufferBDesc;
 	FRDGTextureDesc DBufferCDesc;
+	FRDGTextureDesc DBufferATexArrayDesc;
+	FRDGTextureDesc DBufferBTexArrayDesc;
+	FRDGTextureDesc DBufferCTexArrayDesc;
 	FRDGTextureDesc DBufferMaskDesc;
 };
 
@@ -35,6 +38,9 @@ struct FDBufferTextures
 	FRDGTextureRef DBufferA = nullptr;
 	FRDGTextureRef DBufferB = nullptr;
 	FRDGTextureRef DBufferC = nullptr;
+	FRDGTextureRef DBufferATexArray = nullptr;
+	FRDGTextureRef DBufferBTexArray = nullptr;
+	FRDGTextureRef DBufferCTexArray = nullptr;
 	FRDGTextureRef DBufferMask = nullptr;
 };
 
@@ -45,6 +51,9 @@ BEGIN_SHADER_PARAMETER_STRUCT(FDBufferParameters, )
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DBufferATexture)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DBufferBTexture)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DBufferCTexture)
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray, DBufferATextureArray)
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray, DBufferBTextureArray)
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray, DBufferCTextureArray)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, DBufferRenderMask)
 	SHADER_PARAMETER_SAMPLER(SamplerState, DBufferATextureSampler)
 	SHADER_PARAMETER_SAMPLER(SamplerState, DBufferBTextureSampler)

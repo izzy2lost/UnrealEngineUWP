@@ -370,8 +370,12 @@ namespace DecalRendering
 			ComponentToWorldMatrix.GetScaledAxis(EAxis::Y).SizeSquared() +
 			ComponentToWorldMatrix.GetScaledAxis(EAxis::Z).SizeSquared());
 
+		const bool bIsVisibleInFirstView = View.ViewFrustum.IntersectSphere(ComponentToWorldMatrix.GetOrigin(), ConservativeRadius);
+		const FViewInfo* InstancedView = View.GetInstancedView();
+		const bool bIsVisibleInSecondView = InstancedView ? InstancedView->ViewFrustum.IntersectSphere(ComponentToWorldMatrix.GetOrigin(), ConservativeRadius) : false;
+
 		// can be optimized as the test is too conservative (sphere instead of OBB)
-		if (ConservativeRadius < SMALL_NUMBER || !View.ViewFrustum.IntersectSphere(ComponentToWorldMatrix.GetOrigin(), ConservativeRadius))
+		if (ConservativeRadius < SMALL_NUMBER || !(bIsVisibleInFirstView || bIsVisibleInSecondView))
 		{
 			return false;
 		}
