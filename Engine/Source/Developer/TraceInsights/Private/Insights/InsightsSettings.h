@@ -2,10 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Misc/ConfigCacheIni.h"
-#include "Misc/ConfigContext.h"
-#include "ProfilingDebugging/MiscTrace.h"
+#include "CoreTypes.h"
+#include "Containers/UnrealString.h"
 
 /** Contains all settings for the Unreal Insights, accessible through the main manager. */
 class FInsightsSettings
@@ -13,154 +11,18 @@ class FInsightsSettings
 	friend class SInsightsSettings;
 
 public:
-	FInsightsSettings(bool bInIsDefault = false)
-		: bIsEditing(false)
-		, bIsDefault(bInIsDefault)
-		, DefaultZoomLevel(5.0) // 5 seconds between major tick marks
-		, bAutoHideEmptyTracks(true)
-		, bAllowPanningOnScreenEdges(false)
-		, bAutoZoomOnFrameSelection(false)
-		, AutoScrollFrameAlignment((int32)TraceFrameType_Game) // -1 = none, 0 = game, 1 = rendering
-		, AutoScrollViewportOffsetPercent(0.1) // scrolls forward 10% of viewport's width
-		, AutoScrollMinDelay(0.3) // [seconds]
-		, TimersViewMode((int32)TraceFrameType_Count)
-		, TimersViewGroupingMode(3) // ByType
-		, bTimersViewShowCpuTimers(true)
-		, bTimersViewShowGpuTimers(true)
-		, bTimersViewShowZeroCountTimers(true)
-		, bTimingViewMainGraphShowPoints(false)
-		, bTimingViewMainGraphShowPointsWithBorder(true)
-		, bTimingViewMainGraphShowConnectedLines(true)
-		, bTimingViewMainGraphShowPolygons(true)
-		, bTimingViewMainGraphShowEventDuration(true)
-		, bTimingViewMainGraphShowBars(false)
-		, bTimingViewMainGraphShowGameFrames(true)
-		, bTimingViewMainGraphShowRenderingFrames(true)
+	FInsightsSettings(bool bInIsDefault = false);
+	~FInsightsSettings();
+
+	void LoadFromConfig();
+	void SaveToConfig();
+
+	const FInsightsSettings& GetDefaults() const
 	{
-		if (!bIsDefault)
-		{
-			LoadFromConfig();
-		}
-		else
-		{
-			TimersViewInstanceVisibleColumns.Add(TEXT("Count"));
-			TimersViewInstanceVisibleColumns.Add(TEXT("TotalInclTime"));
-			TimersViewInstanceVisibleColumns.Add(TEXT("TotalExclTime"));
-
-			TimersViewGameFrameVisibleColumns.Add(TEXT("MaxInclTime"));
-			TimersViewGameFrameVisibleColumns.Add(TEXT("AverageInclTime"));
-			TimersViewGameFrameVisibleColumns.Add(TEXT("MedianInclTime"));
-			TimersViewGameFrameVisibleColumns.Add(TEXT("MinInclTime"));
-
-			TimersViewRenderingFrameVisibleColumns.Add(TEXT("MaxInclTime"));
-			TimersViewRenderingFrameVisibleColumns.Add(TEXT("AverageInclTime"));
-			TimersViewRenderingFrameVisibleColumns.Add(TEXT("MedianInclTime"));
-			TimersViewRenderingFrameVisibleColumns.Add(TEXT("MinInclTime"));
-		}
+		return Defaults;
 	}
 
-	~FInsightsSettings()
-	{
-	}
-
-	void LoadFromConfig()
-	{
-		if (!FConfigContext::ReadIntoGConfig().Load(TEXT("UnrealInsightsSettings"), SettingsIni))
-		{
-			return;
-		}
-
-		GConfig->GetDouble(TEXT("Insights.TimingProfiler"), TEXT("DefaultZoomLevel"), DefaultZoomLevel, SettingsIni);
-		GConfig->GetBool(TEXT("Insights.TimingProfiler"), TEXT("bAutoHideEmptyTracks"), bAutoHideEmptyTracks, SettingsIni);
-		GConfig->GetBool(TEXT("Insights.TimingProfiler"), TEXT("bAllowPanningOnScreenEdges"), bAllowPanningOnScreenEdges, SettingsIni);
-		GConfig->GetBool(TEXT("Insights.TimingProfiler"), TEXT("bAutoZoomOnFrameSelection"), bAutoZoomOnFrameSelection, SettingsIni);
-
-		// Auto-scroll options
-		GConfig->GetBool(TEXT("Insights.AutoScroll"), TEXT("bAutoScroll"), bAutoScroll, SettingsIni);
-		FString FrameAlignment;
-		if (GConfig->GetString(TEXT("Insights.TimingProfiler"), TEXT("AutoScrollFrameAlignment"), FrameAlignment, SettingsIni))
-		{
-			FrameAlignment.TrimStartAndEndInline();
-			if (FrameAlignment.Equals(TEXT("game"), ESearchCase::IgnoreCase))
-			{
-				static_assert((int32)TraceFrameType_Game == 0, "ETraceFrameType");
-				AutoScrollFrameAlignment = (int32)TraceFrameType_Game;
-			}
-			else if (FrameAlignment.Equals(TEXT("rendering"), ESearchCase::IgnoreCase))
-			{
-				static_assert((int32)TraceFrameType_Rendering == 1, "ETraceFrameType");
-				AutoScrollFrameAlignment = (int32)TraceFrameType_Rendering;
-			}
-			else
-			{
-				AutoScrollFrameAlignment = -1;
-			}
-		}
-		GConfig->GetDouble(TEXT("Insights.TimingProfiler"), TEXT("AutoScrollViewportOffsetPercent"), AutoScrollViewportOffsetPercent, SettingsIni);
-		GConfig->GetDouble(TEXT("Insights.TimingProfiler"), TEXT("AutoScrollMinDelay"), AutoScrollMinDelay, SettingsIni);
-
-		GConfig->GetArray(TEXT("Insights.MemoryProfiler"), TEXT("SymbolSearchPaths"), SymbolSearchPaths, SettingsIni);
-		
-		GConfig->GetArray(TEXT("Insights.TimingProfiler.TimersView"), TEXT("InstanceColumns"), TimersViewInstanceVisibleColumns, SettingsIni);
-		GConfig->GetArray(TEXT("Insights.TimingProfiler.TimersView"), TEXT("GameFrameColumns"), TimersViewGameFrameVisibleColumns, SettingsIni);
-		GConfig->GetArray(TEXT("Insights.TimingProfiler.TimersView"), TEXT("RenderingFrameColumns"), TimersViewRenderingFrameVisibleColumns, SettingsIni);
-
-		GConfig->GetInt(TEXT("Insights.TimingProfiler.TimersView"), TEXT("Mode"), TimersViewMode, SettingsIni);
-
-		GConfig->GetInt(TEXT("Insights.TimingProfiler.TimersView"), TEXT("GroupingMode"), TimersViewGroupingMode, SettingsIni);
-		GConfig->GetBool(TEXT("Insights.TimingProfiler.TimersView"), TEXT("ShowCpuTimers"), bTimersViewShowCpuTimers, SettingsIni);
-		GConfig->GetBool(TEXT("Insights.TimingProfiler.TimersView"), TEXT("ShowGpuTimers"), bTimersViewShowGpuTimers, SettingsIni);
-		GConfig->GetBool(TEXT("Insights.TimingProfiler.TimersView"), TEXT("ShowZeroCountTimers"), bTimersViewShowZeroCountTimers, SettingsIni);
-
-		GConfig->GetBool(TEXT("Insights.TimingProfiler.MainGraph"), TEXT("ShowPoints"), bTimingViewMainGraphShowPoints, SettingsIni);
-		GConfig->GetBool(TEXT("Insights.TimingProfiler.MainGraph"), TEXT("ShowPointsWithBorder"), bTimingViewMainGraphShowPointsWithBorder, SettingsIni);
-		GConfig->GetBool(TEXT("Insights.TimingProfiler.MainGraph"), TEXT("ShowConnectedLines"), bTimingViewMainGraphShowConnectedLines, SettingsIni);
-		GConfig->GetBool(TEXT("Insights.TimingProfiler.MainGraph"), TEXT("ShowPolygons"), bTimingViewMainGraphShowPolygons, SettingsIni);
-		GConfig->GetBool(TEXT("Insights.TimingProfiler.MainGraph"), TEXT("ShowEventDuration"), bTimingViewMainGraphShowEventDuration, SettingsIni);
-		GConfig->GetBool(TEXT("Insights.TimingProfiler.MainGraph"), TEXT("ShowBars"), bTimingViewMainGraphShowBars, SettingsIni);
-		GConfig->GetBool(TEXT("Insights.TimingProfiler.MainGraph"), TEXT("ShowGameFrames"), bTimingViewMainGraphShowGameFrames, SettingsIni);
-		GConfig->GetBool(TEXT("Insights.TimingProfiler.MainGraph"), TEXT("ShowRenderingFrame"), bTimingViewMainGraphShowRenderingFrames, SettingsIni);
-
-	}
-
-	void SaveToConfig()
-	{
-		GConfig->SetDouble(TEXT("Insights.TimingProfiler"), TEXT("DefaultZoomLevel"), DefaultZoomLevel, SettingsIni);
-		GConfig->SetBool(TEXT("Insights.TimingProfiler"), TEXT("bAutoHideEmptyTracks"), bAutoHideEmptyTracks, SettingsIni);
-		GConfig->SetBool(TEXT("Insights.TimingProfiler"), TEXT("bAllowPanningOnScreenEdges"), bAllowPanningOnScreenEdges, SettingsIni);
-		GConfig->SetBool(TEXT("Insights.TimingProfiler"), TEXT("bAutoZoomOnFrameSelection"), bAutoZoomOnFrameSelection, SettingsIni);
-
-		// Auto-scroll options
-		GConfig->SetBool(TEXT("Insights.AutoScroll"), TEXT("bAutoScroll"), bAutoScroll, SettingsIni);
-		const TCHAR* FrameAlignment = (AutoScrollFrameAlignment == 0) ? TEXT("game") : (AutoScrollFrameAlignment == 1) ? TEXT("rendering") : TEXT("none");
-		GConfig->SetString(TEXT("Insights.TimingProfiler"), TEXT("AutoScrollFrameAlignment"), FrameAlignment, SettingsIni);
-		GConfig->SetDouble(TEXT("Insights.TimingProfiler"), TEXT("AutoScrollViewportOffsetPercent"), AutoScrollViewportOffsetPercent, SettingsIni);
-		GConfig->SetDouble(TEXT("Insights.TimingProfiler"), TEXT("AutoScrollMinDelay"), AutoScrollMinDelay, SettingsIni);
-
-		GConfig->SetArray(TEXT("Insights.MemoryProfiler"), TEXT("SymbolSearchPaths"), SymbolSearchPaths, SettingsIni);
-
-		GConfig->SetArray(TEXT("Insights.TimingProfiler.TimersView"), TEXT("InstanceColumns"), TimersViewInstanceVisibleColumns, SettingsIni);
-		GConfig->SetArray(TEXT("Insights.TimingProfiler.TimersView"), TEXT("GameFrameColumns"), TimersViewGameFrameVisibleColumns, SettingsIni);
-		GConfig->SetArray(TEXT("Insights.TimingProfiler.TimersView"), TEXT("RenderingFrameColumns"), TimersViewRenderingFrameVisibleColumns, SettingsIni);
-
-		GConfig->SetInt(TEXT("Insights.TimingProfiler.TimersView"), TEXT("Mode"), TimersViewMode, SettingsIni);
-
-		GConfig->SetInt(TEXT("Insights.TimingProfiler.TimersView"), TEXT("GroupingMode"), TimersViewGroupingMode, SettingsIni);
-		GConfig->SetInt(TEXT("Insights.TimingProfiler.TimersView"), TEXT("ShowCpuTimers"), bTimersViewShowCpuTimers, SettingsIni);
-		GConfig->SetInt(TEXT("Insights.TimingProfiler.TimersView"), TEXT("ShowGpuTimers"), bTimersViewShowGpuTimers, SettingsIni);
-		GConfig->SetInt(TEXT("Insights.TimingProfiler.TimersView"), TEXT("ShowZeroCountTimers"), bTimersViewShowZeroCountTimers, SettingsIni);
-
-		GConfig->SetBool(TEXT("Insights.TimingProfiler.MainGraph"), TEXT("ShowPoints"), bTimingViewMainGraphShowPoints, SettingsIni);
-		GConfig->SetBool(TEXT("Insights.TimingProfiler.MainGraph"), TEXT("ShowPointsWithBorder"), bTimingViewMainGraphShowPointsWithBorder, SettingsIni);
-		GConfig->SetBool(TEXT("Insights.TimingProfiler.MainGraph"), TEXT("ShowConnectedLines"), bTimingViewMainGraphShowConnectedLines, SettingsIni);
-		GConfig->SetBool(TEXT("Insights.TimingProfiler.MainGraph"), TEXT("ShowPolygons"), bTimingViewMainGraphShowPolygons, SettingsIni);
-		GConfig->SetBool(TEXT("Insights.TimingProfiler.MainGraph"), TEXT("ShowEventDuration"), bTimingViewMainGraphShowEventDuration, SettingsIni);
-		GConfig->SetBool(TEXT("Insights.TimingProfiler.MainGraph"), TEXT("ShowBars"), bTimingViewMainGraphShowBars, SettingsIni);
-		GConfig->SetBool(TEXT("Insights.TimingProfiler.MainGraph"), TEXT("ShowGameFrames"), bTimingViewMainGraphShowGameFrames, SettingsIni);
-		GConfig->SetBool(TEXT("Insights.TimingProfiler.MainGraph"), TEXT("ShowRenderingFrame"), bTimingViewMainGraphShowRenderingFrames, SettingsIni);
-
-		GConfig->Flush(false, SettingsIni);
-	}
+	void ResetToDefaults();
 
 	void EnterEditMode()
 	{
@@ -177,23 +39,10 @@ public:
 		return bIsEditing;
 	}
 
-	const FInsightsSettings& GetDefaults() const
-	{
-		return Defaults;
-	}
-
-	void ResetToDefaults()
-	{
-		DefaultZoomLevel = Defaults.DefaultZoomLevel;
-		bAutoHideEmptyTracks = Defaults.bAutoHideEmptyTracks;
-		bAllowPanningOnScreenEdges = Defaults.bAllowPanningOnScreenEdges;
-		bAutoZoomOnFrameSelection = Defaults.bAutoZoomOnFrameSelection;
-		AutoScrollFrameAlignment = Defaults.AutoScrollFrameAlignment;
-		AutoScrollViewportOffsetPercent = Defaults.AutoScrollViewportOffsetPercent;
-		AutoScrollMinDelay = Defaults.AutoScrollMinDelay;
-	}
-
 	#define SET_AND_SAVE(Option, Value) { if (Option != Value) { Option = Value; SaveToConfig(); } }
+
+	//////////////////////////////////////////////////
+	// [Insights.TimingProfiler]
 
 	double GetDefaultZoomLevel() const { return DefaultZoomLevel; }
 	void SetDefaultZoomLevel(double ZoomLevel) { DefaultZoomLevel = ZoomLevel; }
@@ -206,10 +55,6 @@ public:
 	bool IsPanningOnScreenEdgesEnabled() const { return bAllowPanningOnScreenEdges; }
 	void SetPanningOnScreenEdges(bool bOnOff) { bAllowPanningOnScreenEdges = bOnOff; }
 	void SetAndSavePanningOnScreenEdges(bool bOnOff) { SET_AND_SAVE(bAllowPanningOnScreenEdges, bOnOff); }
-
-	bool IsAutoZoomOnFrameSelectionEnabled() const { return bAutoZoomOnFrameSelection; }
-	void SetAutoZoomOnFrameSelection(bool bOnOff) { bAutoZoomOnFrameSelection = bOnOff; }
-	void SetAndSaveAutoZoomOnFrameSelection(bool bOnOff) { SET_AND_SAVE(bAutoZoomOnFrameSelection, bOnOff); }
 
 	bool IsAutoScrollEnabled() const { return bAutoScroll; }
 	void SetAutoScroll(bool bOnOff) { bAutoScroll = bOnOff; }
@@ -227,41 +72,12 @@ public:
 	void SetAutoScrollMinDelay(double Delay) { AutoScrollMinDelay = Delay; }
 	void SetAndSaveAutoScrollMinDelay(double Delay) { SET_AND_SAVE(AutoScrollMinDelay, Delay); }
 
-	const TArray<FString>& GetSymbolSearchPaths() const { return SymbolSearchPaths; }
-	void SetSymbolSearchPaths(const TArray<FString>& SearchPaths) { SymbolSearchPaths = SearchPaths; }
-	void SetAndSaveSymbolSearchPaths(const TArray<FString>& SearchPaths) { SET_AND_SAVE(SymbolSearchPaths, SearchPaths); }
+	bool IsAutoZoomOnFrameSelectionEnabled() const { return bAutoZoomOnFrameSelection; }
+	void SetAutoZoomOnFrameSelection(bool bOnOff) { bAutoZoomOnFrameSelection = bOnOff; }
+	void SetAndSaveAutoZoomOnFrameSelection(bool bOnOff) { SET_AND_SAVE(bAutoZoomOnFrameSelection, bOnOff); }
 
-	const TArray<FString>& GetTimersViewInstanceVisibleColumns() const { return TimersViewInstanceVisibleColumns; }
-	void SetTimersViewInstanceVisibleColumns(const TArray<FString>& Columns) { TimersViewInstanceVisibleColumns = Columns; }
-	void SetAndSaveTimersViewInstanceVisibleColumns(const TArray<FString>& Columns) { SET_AND_SAVE(TimersViewInstanceVisibleColumns, Columns); }
-
-	const TArray<FString>& GetTimersViewGameFrameVisibleColumns() const { return TimersViewGameFrameVisibleColumns; }
-	void SetTimersViewGameFrameVisibleColumns(const TArray<FString>& Columns) { TimersViewGameFrameVisibleColumns = Columns; }
-	void SetAndSaveTimersViewGameFrameVisibleColumns(const TArray<FString>& Columns) { SET_AND_SAVE(TimersViewGameFrameVisibleColumns, Columns); }
-
-	const TArray<FString>& GetTimersViewRenderingFrameVisibleColumns() const { return TimersViewRenderingFrameVisibleColumns; }
-	void SetTimersViewRenderingFrameVisibleColumns(const TArray<FString>& Columns) { TimersViewRenderingFrameVisibleColumns = Columns; }
-	void SetAndSaveTimersViewRenderingFrameVisibleColumns(const TArray<FString>& Columns) { SET_AND_SAVE(TimersViewRenderingFrameVisibleColumns, Columns); }
-
-	int32 GetTimersViewMode() const { return TimersViewMode; }
-	void SetTimersViewMode(int32 InMode) { TimersViewMode = InMode; }
-	void SetAndSaveTimersViewMode(int32 InMode) { SET_AND_SAVE(TimersViewMode, InMode); }
-
-	int32 GetTimersViewGroupingMode() const { return TimersViewGroupingMode; }
-	void SetTimersViewGroupingMode(int32 InValue) { TimersViewGroupingMode = InValue; }
-	void SetAndSaveTimersViewGroupingMode(int32 InValue) { SET_AND_SAVE(TimersViewGroupingMode, InValue); }
-
-	bool GetTimersViewShowCpuEvents() const { return bTimersViewShowCpuTimers; }
-	void SetTimersViewShowCpuEvents(bool InValue) { bTimersViewShowCpuTimers = InValue; }
-	void SetAndSaveTimersViewShowCpuEvents(bool InValue) { SET_AND_SAVE(bTimersViewShowCpuTimers, InValue); }
-
-	bool GetTimersViewShowGpuEvents() const { return bTimersViewShowGpuTimers; }
-	void SetTimersViewShowGpuEvents(bool InValue) { bTimersViewShowGpuTimers = InValue; }
-	void SetAndSaveTimersViewShowGpuEvents(bool InValue) { SET_AND_SAVE(bTimersViewShowGpuTimers, InValue); }
-
-	bool GetTimersViewShowZeroCountTimers() const { return bTimersViewShowZeroCountTimers; }
-	void SetTimersViewShowZeroCountTimers(bool InValue) { bTimersViewShowZeroCountTimers = InValue; }
-	void SetAndSaveTimersViewShowZeroCountTimers(bool InValue) { SET_AND_SAVE(bTimersViewShowZeroCountTimers, InValue); }
+	//////////////////////////////////////////////////
+	// [Insights.TimingProfiler.MainGraph]
 
 	bool GetTimingViewMainGraphShowPoints() const { return bTimingViewMainGraphShowPoints; }
 	void SetTimingViewMainGraphShowPoints(bool InValue) { bTimingViewMainGraphShowPoints = InValue; }
@@ -295,100 +111,158 @@ public:
 	void SetTimingViewMainGraphShowRenderingFrames(bool InValue) { bTimingViewMainGraphShowRenderingFrames = InValue; }
 	void SetAndSaveTimingViewMainGraphShowRenderingFrames(bool InValue) { SET_AND_SAVE(bTimingViewMainGraphShowRenderingFrames, InValue); }
 
+	//////////////////////////////////////////////////
+	// [Insights.TimingProfiler.TimersView]
+
+	const TArray<FString>& GetTimersViewInstanceVisibleColumns() const { return TimersViewInstanceVisibleColumns; }
+	void SetTimersViewInstanceVisibleColumns(const TArray<FString>& Columns) { TimersViewInstanceVisibleColumns = Columns; }
+	void SetAndSaveTimersViewInstanceVisibleColumns(const TArray<FString>& Columns) { SET_AND_SAVE(TimersViewInstanceVisibleColumns, Columns); }
+
+	const TArray<FString>& GetTimersViewGameFrameVisibleColumns() const { return TimersViewGameFrameVisibleColumns; }
+	void SetTimersViewGameFrameVisibleColumns(const TArray<FString>& Columns) { TimersViewGameFrameVisibleColumns = Columns; }
+	void SetAndSaveTimersViewGameFrameVisibleColumns(const TArray<FString>& Columns) { SET_AND_SAVE(TimersViewGameFrameVisibleColumns, Columns); }
+
+	const TArray<FString>& GetTimersViewRenderingFrameVisibleColumns() const { return TimersViewRenderingFrameVisibleColumns; }
+	void SetTimersViewRenderingFrameVisibleColumns(const TArray<FString>& Columns) { TimersViewRenderingFrameVisibleColumns = Columns; }
+	void SetAndSaveTimersViewRenderingFrameVisibleColumns(const TArray<FString>& Columns) { SET_AND_SAVE(TimersViewRenderingFrameVisibleColumns, Columns); }
+
+	int32 GetTimersViewMode() const { return TimersViewMode; }
+	void SetTimersViewMode(int32 InMode) { TimersViewMode = InMode; }
+	void SetAndSaveTimersViewMode(int32 InMode) { SET_AND_SAVE(TimersViewMode, InMode); }
+
+	int32 GetTimersViewGroupingMode() const { return TimersViewGroupingMode; }
+	void SetTimersViewGroupingMode(int32 InValue) { TimersViewGroupingMode = InValue; }
+	void SetAndSaveTimersViewGroupingMode(int32 InValue) { SET_AND_SAVE(TimersViewGroupingMode, InValue); }
+
+	bool GetTimersViewShowCpuEvents() const { return bTimersViewShowCpuTimers; }
+	void SetTimersViewShowCpuEvents(bool InValue) { bTimersViewShowCpuTimers = InValue; }
+	void SetAndSaveTimersViewShowCpuEvents(bool InValue) { SET_AND_SAVE(bTimersViewShowCpuTimers, InValue); }
+
+	bool GetTimersViewShowGpuEvents() const { return bTimersViewShowGpuTimers; }
+	void SetTimersViewShowGpuEvents(bool InValue) { bTimersViewShowGpuTimers = InValue; }
+	void SetAndSaveTimersViewShowGpuEvents(bool InValue) { SET_AND_SAVE(bTimersViewShowGpuTimers, InValue); }
+
+	bool GetTimersViewShowZeroCountTimers() const { return bTimersViewShowZeroCountTimers; }
+	void SetTimersViewShowZeroCountTimers(bool InValue) { bTimersViewShowZeroCountTimers = InValue; }
+	void SetAndSaveTimersViewShowZeroCountTimers(bool InValue) { SET_AND_SAVE(bTimersViewShowZeroCountTimers, InValue); }
+
+	//////////////////////////////////////////////////
+	// [Insights.MemoryProfiler]
+
+	const TArray<FString>& GetSymbolSearchPaths() const { return SymbolSearchPaths; }
+	void SetSymbolSearchPaths(const TArray<FString>& SearchPaths) { SymbolSearchPaths = SearchPaths; }
+	void SetAndSaveSymbolSearchPaths(const TArray<FString>& SearchPaths) { SET_AND_SAVE(SymbolSearchPaths, SearchPaths); }
+
+	//////////////////////////////////////////////////
+
 	#undef SET_AND_SAVE
 
 private:
 	/** Contains default settings. */
 	static FInsightsSettings Defaults;
 
-	/** Setting filename ini. */
-	FString SettingsIni;
+	/** Whether this instance contains defaults. */
+	bool bIsDefault = false;
 
 	/** Whether profiler settings is in edit mode. */
-	bool bIsEditing;
+	bool bIsEditing = false;
 
-	/** Whether this instance contains defaults. */
-	bool bIsDefault;
+	/** Settings filename ini. */
+	FString SettingsIni;
 
 	//////////////////////////////////////////////////
-	// Actual settings.
+	// [Insights.TimingProfiler]
 
 	/** The default (initial) zoom level of the Timing view. */
-	double DefaultZoomLevel;
+	double DefaultZoomLevel = 5.0; // 5 seconds between major tick marks
 
 	/** Auto hide empty tracks (ex.: ones without timing events in the current viewport). */
-	bool bAutoHideEmptyTracks;
+	bool bAutoHideEmptyTracks = true;
 
 	/** If enabled, the panning is allowed to continue when mouse cursor reaches the edges of the screen. */
-	bool bAllowPanningOnScreenEdges;
-
-	/** If enabled, the Timing View will also be zoomed when a new frame is selected in the Frames track. */
-	bool bAutoZoomOnFrameSelection;
-
-	/** -1 to disable frame alignment or the type of frame to align with (0 = Game or 1 = Rendering). */
-	int32 AutoScrollFrameAlignment;
-
-	/** List of search paths to look for symbol files */
-	TArray<FString> SymbolSearchPaths;
+	bool bAllowPanningOnScreenEdges = false;
 
 	/** If enabled, the Timing View will start with auto-scroll enabled. */
-	bool bAutoScroll;
+	bool bAutoScroll = false;
+
+	/** -1 to disable frame alignment or the type of frame to align with (0 = Game or 1 = Rendering). */
+	int32 AutoScrollFrameAlignment = 0; // -1 = none, 0 = game, 1 = rendering
 
 	/**
 	 * Viewport offset while auto-scrolling, as percent of viewport width.
 	 * If positive, it offsets the viewport forward, allowing an empty space at the right side of the viewport (i.e. after end of session).
 	 * If negative, it offsets the viewport backward (i.e. end of session will be outside viewport).
 	 */
-	double AutoScrollViewportOffsetPercent;
+	double AutoScrollViewportOffsetPercent = 0.1; // scrolls forward 10% of viewport's width
 
 	/** Minimum time between two auto-scroll updates, in [seconds]. */
-	double AutoScrollMinDelay;
+	double AutoScrollMinDelay = 0.3; // [seconds]
 
-	//** The list of visible columns in the Timers view in the Instance mode. */
+	/** If enabled, the Timing View will also be zoomed when a new frame is selected in the Frames track. */
+	bool bAutoZoomOnFrameSelection = false;
+
+	//////////////////////////////////////////////////
+	// [Insights.TimingProfiler.MainGraph]
+
+	/** If enabled, values will be displayed as points in the Main Graph Track in Timing Insights. */
+	bool bTimingViewMainGraphShowPoints = false;
+
+	/** If enabled, values will be displayed as points with border in the Main Graph Track in Timing Insights. */
+	bool bTimingViewMainGraphShowPointsWithBorder = true;
+
+	/** If enabled, values will be displayed as connected lines in the Main Graph Track in Timing Insights. */
+	bool bTimingViewMainGraphShowConnectedLines = true;
+
+	/** If enabled, values will be displayed as polygons in the Main Graph Track in Timing Insights. */
+	bool bTimingViewMainGraphShowPolygons = true;
+
+	/** If enabled, uses duration of timing events for connected lines and polygons in the Main Graph Track in Timing Insights. */
+	bool bTimingViewMainGraphShowEventDuration = true;
+
+	/** If enabled, shows bars corresponding to the duration of the timing events in the Main Graph Track in Timing Insights. */
+	bool bTimingViewMainGraphShowBars = false;
+
+	/** If enabled, shows game frames in the Main Graph Track in Timing Insights. */
+	bool bTimingViewMainGraphShowGameFrames = true;
+
+	/** If enabled, shows rendering frames in the Main Graph Track in Timing Insights. */
+	bool bTimingViewMainGraphShowRenderingFrames = true;
+
+	//////////////////////////////////////////////////
+	// [Insights.TimingProfiler.TimersView]
+
+	/** The list of visible columns in the Timers view in the Instance mode. */
 	TArray<FString> TimersViewInstanceVisibleColumns;
 
-	//** The list of visible columns in the Timers view in the Game Frame mode. */
+	/** The list of visible columns in the Timers view in the Game Frame mode. */
 	TArray<FString> TimersViewGameFrameVisibleColumns;
 
-	//** The list of visible columns in the Timers view in the Rendering Frame mode. */
+	/** The list of visible columns in the Timers view in the Rendering Frame mode. */
 	TArray<FString> TimersViewRenderingFrameVisibleColumns;
 
-	//** The mode for the timers panel. */
-	int32 TimersViewMode;
+	/**
+	 * The mode for the timers panel.
+	 * See ETraceFrameType in MiscTrace.h.
+	 */
+	int32 TimersViewMode = 2; // (int32)TraceFrameType_Count
 
-	//** The grouping mode for the timers panel. */
-	int32 TimersViewGroupingMode;
+	/** The grouping mode for the timers panel. */
+	int32 TimersViewGroupingMode = 3; // ByType
 
-	//** If enabled, Cpu timers will be displayed in the Timing View. */
-	bool bTimersViewShowCpuTimers;
+	/** If enabled, CPU timers will be displayed in the Timing View. */
+	bool bTimersViewShowCpuTimers = true;
 
-	//** If enabled, Gpu timers will be displayed in the Timing View. */
-	bool bTimersViewShowGpuTimers;
+	/** If enabled, GPU timers will be displayed in the Timing View. */
+	bool bTimersViewShowGpuTimers = true;
 
-	//** If enabled, timers with no instances in the selected interval will still be displayed in the Timers View. */
-	bool bTimersViewShowZeroCountTimers;
+	/** If enabled, timers with no instances in the selected interval will still be displayed in the Timers View. */
+	bool bTimersViewShowZeroCountTimers = true;
 
-	//** If enabled, values will be displayed as points in the Main Graph Track in Timing Insights. */
-	bool bTimingViewMainGraphShowPoints;
+	//////////////////////////////////////////////////
+	// [Insights.MemoryProfiler]
 
-	//** If enabled, values will be displayed as points with border in the Main Graph Track in Timing Insights. */
-	bool bTimingViewMainGraphShowPointsWithBorder;
+	/** List of search paths to look for symbol files */
+	TArray<FString> SymbolSearchPaths;
 
-	//** If enabled, values will be displayed as connected lines in the Main Graph Track in Timing Insights. */
-	bool bTimingViewMainGraphShowConnectedLines;
-
-	//** If enabled, values will be displayed as polygons in the Main Graph Track in Timing Insights. */
-	bool bTimingViewMainGraphShowPolygons;
-
-	//** If enabled, uses duration of timing events for connected lines and polygons in the Main Graph Track in Timing Insights. */
-	bool bTimingViewMainGraphShowEventDuration;
-
-	//** If enabled, shows bars corresponding to the duration of the timing events in the Main Graph Track in Timing Insights. */
-	bool bTimingViewMainGraphShowBars;
-
-	//** If enabled, shows game frames in the Main Graph Track in Timing Insights. */
-	bool bTimingViewMainGraphShowGameFrames;
-
-	//** If enabled, shows rendering frames in the Main Graph Track in Timing Insights. */
-	bool bTimingViewMainGraphShowRenderingFrames;
+	//////////////////////////////////////////////////
 };
