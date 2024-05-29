@@ -94,6 +94,7 @@ namespace AudioWidgets
 		EAudioSpectrumAnalyzerType AnalyzerType = EAudioSpectrumAnalyzerType::CQT;
 
 		TOptional<float> PrevTimeStamp;
+		float WindowCompensationPowerGain = 1.0f;
 		float AttackTimeMsec = 300.0f;
 		float ReleaseTimeMsec = 300.0f;
 		bool bIsAnalogAttackRelease = false;
