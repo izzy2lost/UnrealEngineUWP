@@ -7,7 +7,8 @@ public class AudioInsights : ModuleRules
 	public AudioInsights(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
-		
+		OptimizeCode = CodeOptimization.Never;
+
 		PublicDependencyModuleNames.AddRange
 		(
 			new string[]
@@ -27,7 +28,6 @@ public class AudioInsights : ModuleRules
 				"CoreUObject",
 				"InputCore",
 				"OutputLog",
-				"SessionServices",
 				"Slate",
 				"SlateCore",
 				"TraceAnalysis",

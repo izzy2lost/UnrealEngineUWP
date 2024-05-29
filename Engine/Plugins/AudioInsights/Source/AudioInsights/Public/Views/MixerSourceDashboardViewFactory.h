@@ -51,6 +51,8 @@ namespace UE::Audio::Insights
 		void OnPIEStopped(bool bSimulating);
 		void OnPIEPaused(bool bSimulating);
 		void OnPIEResumed(bool bSimulating);
+#else
+		void OnAudioInsightsComponentTabSpawn();
 #endif // WITH_EDITOR
 
 		void UpdatePlotsWidgetsData();
@@ -91,14 +93,14 @@ namespace UE::Audio::Insights
 		// Column names for plot selector widget 
 		TArray<FName> ColumnNames;
 		
-		enum class EPIEState : uint8
+		enum class EGameState : uint8
 		{
 			Running,
 			Stopped,
 			Paused
 		};
 
-		EPIEState PIEState = EPIEState::Stopped;
+		EGameState GameState = EGameState::Stopped;
 
 		double BeginTimestamp = TNumericLimits<double>::Max();
 		double CurrentTimestamp = 0.0;

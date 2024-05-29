@@ -14,6 +14,8 @@
 
 #if WITH_EDITOR
 #include "Editor.h"
+#else
+#include "AudioInsightsComponent.h"
 #endif // WITH_EDITOR
 
 #define LOCTEXT_NAMESPACE "AudioInsights"
@@ -389,24 +391,31 @@ namespace UE::Audio::Insights
 #if WITH_EDITOR
 	void FMixerSourceDashboardViewFactory::OnPIEStarted(bool bSimulating)
 	{
-		PIEState = EPIEState::Running;
+		GameState = EGameState::Running;
 	}
 
 	void FMixerSourceDashboardViewFactory::OnPIEStopped(bool bSimulating)
 	{
 		ResetPlots();
 
-		PIEState = EPIEState::Stopped;
+		GameState = EGameState::Stopped;
 	}
 
 	void FMixerSourceDashboardViewFactory::OnPIEPaused(bool bSimulating)
 	{
-		PIEState = EPIEState::Paused;
+		GameState = EGameState::Paused;
 	}
 
 	void FMixerSourceDashboardViewFactory::OnPIEResumed(bool bSimulating)
 	{
-		PIEState = EPIEState::Running;
+		GameState = EGameState::Running;
+	}
+#else
+	void FMixerSourceDashboardViewFactory::OnAudioInsightsComponentTabSpawn()
+	{
+		// It is guaranteed to have a game running when the audio insights tab is spawning from Unreal Insights 
+		// (In Unreal Insights the Audio Insights menu item is only active when a live trace is running)
+		GameState = EGameState::Running;
 	}
 #endif // WITH_EDITOR
 
@@ -638,12 +647,12 @@ namespace UE::Audio::Insights
 		// Create plot widgets
 		auto GetViewRange = [this]()
 		{
-			if (PIEState == EPIEState::Stopped || BeginTimestamp == TNumericLimits<double>::Max())
+			if (GameState == EGameState::Stopped || BeginTimestamp == TNumericLimits<double>::Max())
 			{
 				return TRange<double>(0, MaxPlotHistorySeconds);
 			}
 
-			if (PIEState == EPIEState::Running)
+			if (GameState == EGameState::Running)
 			{
 				const FTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
 				const double FirstTimestamp = TraceModule.GetFirstTimeStamp();
@@ -832,6 +841,8 @@ namespace UE::Audio::Insights
 		FEditorDelegates::EndPIE.AddSP(this, &FMixerSourceDashboardViewFactory::OnPIEStopped);
 		FEditorDelegates::PausePIE.AddSP(this, &FMixerSourceDashboardViewFactory::OnPIEPaused);
 		FEditorDelegates::ResumePIE.AddSP(this, &FMixerSourceDashboardViewFactory::OnPIEResumed);
+#else
+		FAudioInsightsComponent::OnTabSpawn.AddSP(this, &FMixerSourceDashboardViewFactory::OnAudioInsightsComponentTabSpawn);
 #endif // WITH_EDITOR
 
 		TSharedRef<SWidget> TableDashboardWidget = FTraceTableDashboardViewFactory::MakeWidget();

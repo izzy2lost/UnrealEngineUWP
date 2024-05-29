@@ -7,13 +7,13 @@
 #include "AudioInsightsTraceModule.h"
 #include "Features/IModularFeatures.h"
 #include "Framework/Docking/TabManager.h"
-#include "Insights/IUnrealInsightsModule.h"
 #include "Modules/ModuleManager.h"
 #include "Templates/SharedPointer.h"
 #include "TraceServices/ModuleService.h"
 #include "UObject/NameTypes.h"
 
 #if !WITH_EDITOR
+#include "AudioInsightsComponent.h"
 #include "Views/LogDashboardViewFactory.h"
 #include "Views/MixerSourceDashboardViewFactory.h"
 #include "Views/VirtualLoopDashboardViewFactory.h"
@@ -40,6 +40,11 @@ namespace UE::Audio::Insights
 			DashboardFactory->RegisterViewFactory(MakeShared<FLogDashboardViewFactory>());
 			DashboardFactory->RegisterViewFactory(MakeShared<FMixerSourceDashboardViewFactory>());
 			DashboardFactory->RegisterViewFactory(MakeShared<FVirtualLoopDashboardViewFactory>());
+			
+			AudioInsightsComponent = FAudioInsightsComponent::CreateInstance();
+
+			IUnrealInsightsModule& UnrealInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
+			UnrealInsightsModule.RegisterComponent(AudioInsightsComponent);
 #endif // !WITH_EDITOR
 
 			FCoreDelegates::OnFEngineLoopInitComplete.AddLambda([this]
@@ -60,10 +65,18 @@ namespace UE::Audio::Insights
 	{
 		if (!IsRunningCommandlet())
 		{
-			DashboardFactory.Reset();
-			IModularFeatures::Get().UnregisterModularFeature(TraceServices::ModuleFeatureName, &TraceModule);
+#if !WITH_EDITOR
+			IUnrealInsightsModule& UnrealInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
+			UnrealInsightsModule.UnregisterComponent(AudioInsightsComponent);
+
+			AudioInsightsComponent.Reset();
+#endif // !WITH_EDITOR
 
 			FDashboardAssetCommands::Unregister();
+
+			DashboardFactory.Reset();
+
+			IModularFeatures::Get().UnregisterModularFeature(TraceServices::ModuleFeatureName, &TraceModule);
 		}
 	}
 

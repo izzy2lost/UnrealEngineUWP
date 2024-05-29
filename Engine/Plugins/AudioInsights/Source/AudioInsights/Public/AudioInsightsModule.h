@@ -5,6 +5,7 @@
 #include "AudioInsightsTraceModule.h"
 #include "Framework/Docking/TabManager.h"
 #include "IAudioInsightsModule.h"
+#include "Insights/IUnrealInsightsModule.h"
 #include "Templates/SharedPointer.h"
 #include "Views/DashboardViewFactory.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -36,5 +37,9 @@ namespace UE::Audio::Insights
 	private:
 		TSharedPtr<FDashboardFactory> DashboardFactory;
 		FTraceModule TraceModule;
+
+#if !WITH_EDITOR
+		TSharedPtr<IInsightsComponent> AudioInsightsComponent;
+#endif // !WITH_EDITOR
 	};
 } // namespace UE::Audio::Insights
