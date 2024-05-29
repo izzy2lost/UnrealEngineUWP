@@ -4544,10 +4544,23 @@ void FVisibilityTaskData::SetupMeshPasses(FExclusiveDepthStencil::Type BasePassD
 
 	#if WITH_EDITOR
 		{
-			// Sort, uniquify and truncate the selected Nanite hit proxy IDs
+			// Sort the selected Nanite hit proxy IDs
 			Algo::Sort(View.EditorSelectedNaniteHitProxyIds);
-			int32 EndIndex = Algo::Unique(View.EditorSelectedNaniteHitProxyIds);
-			View.EditorSelectedNaniteHitProxyIds.RemoveAt(EndIndex, View.EditorSelectedNaniteHitProxyIds.Num() - EndIndex);
+
+			// Make sure it is power of 2 as it is searched in the shader with binary search that only works with power2 buffer sizes
+			int32 PreviousCount = View.EditorSelectedNaniteHitProxyIds.Num();
+			int32 NewCount = FMath::RoundUpToPowerOfTwo(PreviousCount);
+			
+			if (PreviousCount > 0)
+			{
+				const uint32 LastValue = View.EditorSelectedNaniteHitProxyIds.Last();
+				View.EditorSelectedNaniteHitProxyIds.SetNumUninitialized(NewCount);
+				// Pad the end with the last value to ensure still sorted
+				for (int32 Index = PreviousCount; Index < NewCount; ++Index)
+				{
+					View.EditorSelectedNaniteHitProxyIds[Index] = LastValue;
+				}
+			}
 		}
 	#endif
 

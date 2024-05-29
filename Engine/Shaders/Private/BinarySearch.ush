@@ -11,6 +11,7 @@ struct TDefaultCompare
 	}
 };
 
+// BufferCount must be a power of 2
 template<typename TBuffer, typename T, typename TCompare>
 T LowerBound(TBuffer SearchBuffer, uint BufferOffset, uint BufferCount, T Key)
 {
@@ -27,6 +28,7 @@ T LowerBound(TBuffer SearchBuffer, uint BufferOffset, uint BufferCount, T Key)
 	return Index;
 }
 
+// BufferCount must be a power of 2
 template<typename TBuffer, typename T, typename TCompare>
 bool BinarySearch(TBuffer SearchBuffer, uint BufferOffset, uint BufferCount, T Key, inout uint OutIndex)
 {
@@ -34,10 +36,11 @@ bool BinarySearch(TBuffer SearchBuffer, uint BufferOffset, uint BufferCount, T K
 	{
 		return false;
 	}
-	OutIndex = LowerBound<TBuffer, T, TCompare>(SearchBuffer, 0, BufferCount, Key);
+	OutIndex = LowerBound<TBuffer, T, TCompare>(SearchBuffer, BufferOffset, BufferCount, Key);
 	return SearchBuffer[OutIndex] == Key;
 }
 
+// BufferCount must be a power of 2
 template<typename TBuffer, typename T, typename TCompare>
 bool BinarySearch(TBuffer SearchBuffer, uint BufferOffset, uint BufferCount, T Key)
 {
@@ -45,12 +48,14 @@ bool BinarySearch(TBuffer SearchBuffer, uint BufferOffset, uint BufferCount, T K
 	return BinarySearch<TBuffer, T, TCompare>(SearchBuffer, BufferOffset, BufferCount, Key, Index);
 }
 
+// BufferCount must be a power of 2
 template<typename TBuffer, typename T>
 bool BinarySearch(TBuffer SearchBuffer, uint BufferOffset, uint BufferCount, T Key, inout uint OutIndex)
 {
 	return BinarySearch< TBuffer, T, TDefaultCompare<T> >(SearchBuffer, BufferOffset, BufferCount, Key, OutIndex);
 }
 
+// BufferCount must be a power of 2
 template<typename TBuffer, typename T>
 bool BinarySearch(TBuffer SearchBuffer, uint BufferOffset, uint BufferCount, T Key)
 {
