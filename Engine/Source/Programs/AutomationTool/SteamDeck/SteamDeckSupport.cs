@@ -201,7 +201,7 @@ public static class SteamDeckSupport
 		// make a standard set of options to pass to the rsync for auth's -e option
 		string[] AuthOpts =
 		{
-			SSHPath,
+			$"'{SSHPath}'",
 			$"-o UserKnownHostsFile='{KnownHostsPath}'",
 			$"-o StrictHostKeyChecking=no",
 			$"-i '{DevKitRSAPath}'",
