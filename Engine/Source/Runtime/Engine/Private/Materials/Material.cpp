@@ -4540,6 +4540,13 @@ bool UMaterial::CanEditChange(const FProperty* InProperty) const
 			return MaterialDomain == MD_PostProcess;
 		}
 
+		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, UserSceneTexture) ||
+			PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, UserTextureDivisor))
+		{
+			// "Replacing Tonemapper" blendable location doesn't support a UserSceneTexture output
+			return MaterialDomain == MD_PostProcess && BlendableLocation != BL_ReplacingTonemapper;
+		}
+
 		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UMaterial, BlendMode))
 		{
 			if (bSubstrateEnabled)

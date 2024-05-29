@@ -1430,7 +1430,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 							}
 							else
 							{ 
-								AddMobilePostProcessingPasses(GraphBuilder, Scene, Views[ViewIndex], GetSceneUniforms(), PostProcessingInputs, InstanceCullingManager);
+								AddMobilePostProcessingPasses(GraphBuilder, Scene, Views[ViewIndex], ViewIndex, GetSceneUniforms(), PostProcessingInputs, InstanceCullingManager);
 							}
 						}
 					}

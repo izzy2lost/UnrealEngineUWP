@@ -254,6 +254,7 @@
 #include "Materials/MaterialExpressionTruncate.h"
 #include "Materials/MaterialExpressionTruncateLWC.h"
 #include "Materials/MaterialExpressionTwoSidedSign.h"
+#include "Materials/MaterialExpressionUserSceneTexture.h"
 #include "Materials/MaterialExpressionVectorNoise.h"
 #include "Materials/MaterialExpressionVertexColor.h"
 #include "Materials/MaterialExpressionVertexNormalWS.h"
@@ -303,6 +304,7 @@
 #include "MaterialGraph/MaterialGraphSchema.h"
 #include "Serialization/ShaderKeyGenerator.h"
 #include "SubstrateMaterial.h"
+#include "PostProcess/PostProcessMaterialInputs.h"
 #else
 #include "Materials/MaterialExpressionVertexInterpolator.h"
 #include "Materials/MaterialParameterCollection.h"
@@ -11804,8 +11806,11 @@ int32 UMaterialExpressionSceneTexture::Compile(class FMaterialCompiler* Compiler
 
 	if(OutputIndex == 0)
 	{
-		// Color
-		return Compiler->SceneTextureLookup(ViewportUV, SceneTextureId, bFiltered);
+		// Color.  Note that clamping support is not necessary for regular SceneTexture, because it's only useful when sampling from lower resolution
+		// maps with filtering, where bilinear blending of a higher resolution UV sample can end up interpolating with pixels outside the valid UV
+		// range on a lower resolution map.  All SceneTextures are full resolution, while UserSceneTextures can be lower resolution (see
+		// UMaterialExpressionUserSceneTexture::Compile below), so those support a user specified clamp flag.
+		return Compiler->SceneTextureLookup(ViewportUV, SceneTextureId, bFiltered, /*bClamped=*/ false);
 	}
 	else if(OutputIndex == 1 || OutputIndex == 2)
 	{
@@ -11824,6 +11829,81 @@ void UMaterialExpressionSceneTexture::GetCaption(TArray<FString>& OutCaptions) c
 	FString Name = Enum->GetDisplayNameTextByValue(SceneTextureId).ToString();
 
 	OutCaptions.Add(FString(TEXT("SceneTexture:")) + Name);
+}
+#endif // WITH_EDITOR
+
+///////////////////////////////////////////////////////////////////////////////
+// UMaterialExpressionUserSceneTexture
+///////////////////////////////////////////////////////////////////////////////
+UMaterialExpressionUserSceneTexture::UMaterialExpressionUserSceneTexture(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+#if WITH_EDITORONLY_DATA
+	// Structure to hold one-time initialization
+	struct FConstructorStatics
+	{
+		FText NAME_Texture;
+		FConstructorStatics()
+			: NAME_Texture(LOCTEXT("Texture", "Texture"))
+		{
+		}
+	};
+	static FConstructorStatics ConstructorStatics;
+
+	MenuCategories.Add(ConstructorStatics.NAME_Texture);
+
+	bShaderInputData = true;
+	bShowOutputNameOnPin = true;
+#endif
+
+	// by default faster, most lookup are read/write the same pixel so this is rarely needed
+	bFiltered = false;
+
+#if WITH_EDITORONLY_DATA
+	Outputs.Reset();
+	Outputs.Add(FExpressionOutput(TEXT("Color"), 1, 1, 1, 1, 1));
+	Outputs.Add(FExpressionOutput(TEXT("Size")));
+	Outputs.Add(FExpressionOutput(TEXT("InvSize")));
+#endif
+}
+
+#if WITH_EDITOR
+int32 UMaterialExpressionUserSceneTexture::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	if (UserSceneTexture.IsNone())
+	{
+		return Compiler->Errorf(TEXT("UserSceneTexture missing name -- value must be set to something other than None"));
+	}
+
+	int32 SceneTextureId = Compiler->FindOrAddUserSceneTexture(UserSceneTexture);
+	if (SceneTextureId == INDEX_NONE)
+	{
+		return Compiler->Errorf(TEXT("Too many unique UserSceneTexture inputs in the post process material -- max allowed is %d"), kPostProcessMaterialInputCountMax);
+	}
+
+	int32 ViewportUV = INDEX_NONE;
+
+	if (Coordinates.GetTracedInput().Expression)
+	{
+		ViewportUV = Coordinates.Compile(Compiler);
+	}
+
+	if (OutputIndex == 0)
+	{
+		// Color
+		return Compiler->SceneTextureLookup(ViewportUV, SceneTextureId, bFiltered, bClamped);
+	}
+	else if (OutputIndex == 1 || OutputIndex == 2)
+	{
+		return Compiler->GetSceneTextureViewSize(SceneTextureId, /* InvProperty = */ OutputIndex == 2);
+	}
+
+	return Compiler->Errorf(TEXT("Invalid input parameter"));
+}
+
+void UMaterialExpressionUserSceneTexture::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Add(FString(TEXT("UserSceneTexture:")) + UserSceneTexture.ToString());
 }
 #endif // WITH_EDITOR
 

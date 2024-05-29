@@ -7,6 +7,7 @@
 #include "CustomDepthRendering.h"
 #include "SceneRenderTargetParameters.h"
 #include "GBufferInfo.h"
+#include "ScreenPass.h"
 
 struct FSceneTextures;
 class FViewInfo;
@@ -14,6 +15,36 @@ class FViewFamilyInfo;
 
 /** Initializes a scene textures config instance from the view family. */
 extern RENDERER_API void InitializeSceneTexturesConfig(FSceneTexturesConfig& Config, const FSceneViewFamily& ViewFamily);
+
+struct FTransientUserSceneTexture
+{
+	FRDGTextureRef Texture{};
+	FIntPoint ResolutionDivisor;
+	uint16 AllocationOrder;				// Order in which item of a given Name was allocated, mainly for differentiating items in texture visualizer
+	bool bUsed;							// Tracks whether output was used as an input, for debugging
+	uint32 ViewMask;					// Tracks which views this texture has been rendered in, so we can detect the first render in a given view
+};
+
+#if !(UE_BUILD_SHIPPING)
+enum class EUserSceneTextureEvent
+{
+	MissingInput,
+	CollidingInput,		// Input matches the output, and has been unbound as a result
+	FoundInput,
+	Output,
+	Pass				// Marker for the end of events for a given material pass with UserSceneTexture inputs or outputs
+};
+
+struct FUserSceneTextureEventData
+{
+	EUserSceneTextureEvent Event;
+	FName Name;
+	uint16 AllocationOrder;
+	uint16 ViewIndex;					// Necessary to differentiate events from multiple views in split screen
+	const FMaterial* Material;
+	FIntPoint RectSize;					// Only filled in for EUserSceneTextureEvent::Output
+};
+#endif
 
 /** RDG struct containing the minimal set of scene textures common across all rendering configurations. */
 struct FMinimalSceneTextures
@@ -53,7 +84,23 @@ struct FMinimalSceneTextures
 	// Textures containing depth / stencil information from the custom depth pass.
 	FCustomDepthTextures CustomDepth{};
 
+	// Dynamically allocated user scene textures, stored by name.  An array of textures per name is used, as it's possible the
+	// same name is allocated with different resolution divisors.  The most recently written texture resolution with a given name
+	// will be used as an input to other materials, by swapping to the front of the array.
+	mutable TMap<FName, TArray<FTransientUserSceneTexture>> UserSceneTextures;
+
+#if !(UE_BUILD_SHIPPING)
+	mutable TArray<FUserSceneTextureEventData> UserSceneTextureEvents;
+#endif
+
 	RENDERER_API FSceneTextureShaderParameters GetSceneTextureShaderParameters(ERHIFeatureLevel::Type FeatureLevel) const;
+
+	FRDGTextureRef FindOrAddUserSceneTexture(FRDGBuilder& GraphBuilder, int32 ViewIndex, FName Name, FIntPoint ResolutionDivisor, bool& bOutFirstRender, const FMaterial* Material, const FIntRect& OutputRect) const;
+	FScreenPassTextureSlice GetUserSceneTexture(FRDGBuilder& GraphBuilder, const FViewInfo& View, int32 ViewIndex, FName Name, const FMaterial* Material) const;
+
+#if !(UE_BUILD_SHIPPING)
+	const FTransientUserSceneTexture* FindUserSceneTextureByEvent(const FUserSceneTextureEventData& Event) const;
+#endif
 };
 
 /** RDG struct containing the complete set of scene textures for the deferred or mobile renderers. */

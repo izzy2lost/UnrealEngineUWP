@@ -767,7 +767,7 @@ FRDGTextureRef FVisualizeTexture::AddVisualizeTexturePass(
 	OutputExtent.X = FMath::Max(OutputExtent.X, 1);
 	OutputExtent.Y = FMath::Max(OutputExtent.Y, 1);
 
-	FRDGTextureRef OutputTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(OutputExtent, PF_B8G8R8A8, FClearValueBinding(FLinearColor(1, 1, 0, 1)), TexCreate_RenderTargetable | TexCreate_ShaderResource), TEXT("VisualizeTexture"));
+	FRDGTextureRef OutputTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(OutputExtent, PF_B8G8R8A8, FClearValueBinding(FLinearColor(1, 1, 0, 1)), TexCreate_RenderTargetable | TexCreate_ShaderResource), InputTexture->Name);
 
 	{
 		const EVisualisePSType VisualizeType = GetVisualizePSType(InputDesc);

@@ -79,6 +79,9 @@
 #define PPI_WorldTangent 29
 #define PPI_Anisotropy 30
 
+// Defines to remap PPI_UserSceneTexture0-6 to PPI_PostProcessInput0-6, generated via GenerateUserSceneTextureRemapDefines
+%{user_scene_texture_remap}
+
 //////////////////////////////////////////////////////////////////////////
 
 #define NUM_MATERIAL_TEXCOORDS_VERTEX %{num_material_texcoords_vertex}
@@ -3151,6 +3154,24 @@ float4 SceneTextureLookup(float2 UV, int SceneTextureIndex, bool bFiltered)
 
 	return float4(0, 0, 0, 0);
 }
+
+/**
+ * Utility function and macro to streamline Custom HLSL fetching from SceneTextures or UserSceneTextures with a pixel offset from default UVs, including
+ * multiplication by texture size and clamping.  Example that fetches at offset 1,1 from the default sample:
+ *
+ *     SceneTextureFetch(PPI_PostProcessInput0, float2(1,1));
+ */
+float4 SceneTextureFetchFunc(FMaterialPixelParameters Parameters, int SceneTextureIndex, float2 PixelOffset)
+{
+#if SCENE_TEXTURES_DISABLED || !POST_PROCESS_MATERIAL
+	return float4(0,0,0,0);
+#else
+	float2 UV = ClampSceneTextureUV(GetDefaultSceneTextureUV(Parameters, SceneTextureIndex) + GetSceneTextureViewSize(SceneTextureIndex).zw * PixelOffset, SceneTextureIndex);
+	return SceneTextureLookup(UV, SceneTextureIndex, true);
+#endif
+}
+
+#define SceneTextureFetch(SceneTextureIndex, PixelOffset) SceneTextureFetchFunc(Parameters, SceneTextureIndex, PixelOffset)
 
 #endif // SHADING_PATH_DEFERRED
 #endif // NEEDS_SCENE_TEXTURES

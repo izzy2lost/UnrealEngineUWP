@@ -48,6 +48,7 @@ FScreenPassTexture AddPostProcessMaterialPass(
 FScreenPassTexture AddPostProcessMaterialChain(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View,
+	int32 ViewIndex,
 	const FPostProcessMaterialInputs& Inputs,
 	const FPostProcessMaterialChain& MaterialChain,
 	EPostProcessMaterialInput MaterialInput = EPostProcessMaterialInput::SceneColor);

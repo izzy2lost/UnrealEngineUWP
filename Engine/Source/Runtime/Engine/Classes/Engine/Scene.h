@@ -2295,6 +2295,13 @@ struct FPostProcessSettings
 	FWeightedBlendables WeightedBlendables;
 
 #if WITH_EDITORONLY_DATA
+	/**
+	 * For editor material preview windows, we need to support visualizing the output of a blendable that writes to a UserSceneTexture.  Stores
+	 * a pointer to a blendable that's being previewed, forcing its output to write to SceneColor instead of the UserSceneTexture, making it visible.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UObject> PreviewBlendable;
+
 	// for backwards compatibility
 	UPROPERTY()
 	TArray<TObjectPtr<UObject>> Blendables_DEPRECATED;
