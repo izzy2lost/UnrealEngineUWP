@@ -422,6 +422,9 @@ public:
 	/** Card Representation data associated with this mesh, null if not present.  */
 	class FCardRepresentationData* CardRepresentationData;
 
+	/** Geometry for ray tracing. */
+	FRayTracingGeometry* RayTracingGeometry = nullptr;
+
 	/** The maximum distance by which this LOD deviates from the base from which it was generated. */
 	float MaxDeviation;
 
@@ -437,9 +440,6 @@ public:
 	uint32 bHasColorVertexData : 1;
 
 	uint32 bHasWireframeIndices : 1;
-
-	/** True if the ray tracing resources struct contained data at init. */
-	uint32 bHasRayTracingGeometry : 1;
 
 	/** True if vertex and index data are serialized inline */
 	uint32 bBuffersInlined : 1;
@@ -476,9 +476,6 @@ public:
 	FRawStaticIndexBuffer DepthOnlyIndexBuffer;
 
 	FAdditionalStaticMeshIndexBuffers* AdditionalIndexBuffers = nullptr;
-
-	/** Geometry for ray tracing. */
-	FRayTracingGeometry RayTracingGeometry;
 
 	/**	Allows uniform random selection of mesh sections based on their area. */
 	FStaticMeshAreaWeightedSectionSampler AreaWeightedSampler;

@@ -19,6 +19,7 @@
 #include "Math/Bounds.h"
 #include "NaniteBuilder.h"
 #include "Rendering/NaniteResources.h"
+#include "Interfaces/ITargetPlatform.h"
 
 DEFINE_LOG_CATEGORY(LogStaticMeshBuilder);
 
@@ -779,6 +780,18 @@ bool FStaticMeshBuilder::Build(FStaticMeshRenderData& StaticMeshRenderData, cons
 
 	// Update the render data bounds
 	StaticMeshRenderData.Bounds = MeshBoundsBuilder;
+
+	if (StaticMesh->bSupportRayTracing && BuildParameters.TargetPlatform->UsesRayTracing())
+	{
+		const int32 NumLODs = StaticMeshRenderData.LODResources.Num();
+
+		for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
+		{
+			FStaticMeshLODResources& LODResources = StaticMeshRenderData.LODResources[LODIndex];
+
+			LODResources.RayTracingGeometry = new FRayTracingGeometry();
+		}
+	}
 	
 	return true;
 }

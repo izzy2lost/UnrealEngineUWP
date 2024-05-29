@@ -563,15 +563,13 @@ void FStaticMeshLODResources::SerializeBuffers(FArchive& Ar, UStaticMesh* OwnerS
 		AdjacencyIndexBuffer.Serialize(Ar, bNeedsCPUAccess);
 	}
 
+	FRayTracingGeometry DummyRayTracingGeometry;
+	FRayTracingGeometry* SerializedRayTracingGeometry = RayTracingGeometry != nullptr ? RayTracingGeometry : &DummyRayTracingGeometry;
+
 	if (bSerializeRayTracingGeometry)
 	{
-		RayTracingGeometry.RawData.BulkSerialize(Ar);
-		AccumRayTracingGeometrySize(RayTracingGeometry, OutBuffersSize.SerializedBuffersSize);
-		if (Ar.IsLoading() && !IsRayTracingAllowed())
-		{
-			// Immediately release serialized offline BLAS data if it won't be used anyway due to rendering settings.
-			RayTracingGeometry.RawData.Discard();
-		}
+		SerializedRayTracingGeometry->RawData.BulkSerialize(Ar);
+		AccumRayTracingGeometrySize(*SerializedRayTracingGeometry, OutBuffersSize.SerializedBuffersSize);
 	}
 
 	AreaWeightedSectionSamplers.SetNum(Sections.Num());
@@ -584,7 +582,6 @@ void FStaticMeshLODResources::SerializeBuffers(FArchive& Ar, UStaticMesh* OwnerS
 	// Update metadata but only if serialization was successful. This needs to be done now because on cooked platform, indices are discarded after RHIInit.
 	if (!Ar.IsError())
 	{
-		bHasRayTracingGeometry = bSerializeRayTracingGeometry && RayTracingGeometry.RawData.Num() != 0;
 		bHasWireframeIndices = AdditionalIndexBuffers && bSerializeWireframeIndexBuffer && SerializedAdditionalIndexBuffers->WireframeIndexBuffer.GetNumIndices() != 0;
 		bHasDepthOnlyIndices = DepthOnlyIndexBuffer.GetNumIndices() != 0;
 		bHasReversedIndices = AdditionalIndexBuffers && bSerializeReversedIndexBuffer && SerializedAdditionalIndexBuffers->ReversedIndexBuffer.GetNumIndices() != 0;
@@ -610,8 +607,7 @@ void FStaticMeshLODResources::SerializeAvailabilityInfo(FArchive& Ar)
 			| (bHasReversedIndices << 2u)
 			| (bHasReversedDepthOnlyIndices << 3u)
 			| (bHasColorVertexData << 4u)
-			| (bHasWireframeIndices << 5u)
-			| (bHasRayTracingGeometry << 6u);
+			| (bHasWireframeIndices << 5u);
 		Ar << Packed;
 	}
 	else
@@ -625,7 +621,6 @@ void FStaticMeshLODResources::SerializeAvailabilityInfo(FArchive& Ar)
 		bHasReversedDepthOnlyIndices = bEnableReversedIndexBuffer && !!(Packed & 8u);
 		bHasColorVertexData = (Packed >> 4u) & 1u;
 		bHasWireframeIndices = (Packed >> 5u) & 1u;
-		bHasRayTracingGeometry = (Packed >> 6u) & 1u;
 	}
 
 	VertexBuffers.StaticMeshVertexBuffer.SerializeMetaData(Ar);
@@ -675,11 +670,6 @@ void FStaticMeshLODResources::SerializeAvailabilityInfo(FArchive& Ar)
 		FRawStaticIndexBuffer AdjacencyIndexBuffer;
 		AdjacencyIndexBuffer.SerializeMetaData(Ar);
 	}
-	// No metadata to serialize for ray tracing geometry
-	if (!bHasRayTracingGeometry)
-	{
-		RayTracingGeometry.RawData.Discard();
-	}
 }
 
 void FStaticMeshLODResources::ClearAvailabilityInfo()
@@ -690,7 +680,6 @@ void FStaticMeshLODResources::ClearAvailabilityInfo()
 	bHasReversedDepthOnlyIndices = false;
 	bHasColorVertexData = false;
 	bHasWireframeIndices = false;
-	bHasRayTracingGeometry = false;
 	VertexBuffers.StaticMeshVertexBuffer.ClearMetaData();
 	VertexBuffers.PositionVertexBuffer.ClearMetaData();
 	VertexBuffers.ColorVertexBuffer.ClearMetaData();
@@ -749,6 +738,18 @@ void FStaticMeshLODResources::Serialize(FArchive& Ar, UObject* Owner, int32 Inde
 
 	if (!StripFlags.IsAudioVisualDataStripped() && !bIsLODCookedOut)
 	{
+		{
+			bool bHasRayTracingGeometry = (RayTracingGeometry != nullptr);
+
+			Ar << bHasRayTracingGeometry;
+
+			if (bHasRayTracingGeometry && RayTracingGeometry == nullptr)
+			{
+				checkf(Ar.IsLoading(), TEXT("bHasRayTracingGeometry unexpectedly changed even though we are not loading data."));
+				RayTracingGeometry = new FRayTracingGeometry();
+			}
+		}
+
 		FStaticMeshBuffersSize TmpBuffersSize;
 		TArray<uint8> TmpBuff;
 
@@ -1256,7 +1257,6 @@ FStaticMeshLODResources::FStaticMeshLODResources(bool bAddRef)
 	, bHasReversedDepthOnlyIndices(false)
 	, bHasColorVertexData(false)
 	, bHasWireframeIndices(false)
-	, bHasRayTracingGeometry(false)
 	, bBuffersInlined(false)
 	, bIsOptionalLOD(false)
 	, DepthOnlyNumTriangles(0)
@@ -1277,6 +1277,7 @@ FStaticMeshLODResources::~FStaticMeshLODResources()
 	delete DistanceFieldData;
 	delete CardRepresentationData;
 	delete AdditionalIndexBuffers;
+	delete RayTracingGeometry;
 }
 
 template <bool bIncrement>
@@ -1377,16 +1378,21 @@ void FStaticMeshLODResources::InitResources(UStaticMesh* Parent, int32 LODIndex)
 		BeginInitResource(&AreaWeightedSectionSamplersBuffer);
 	}
 
+	if (Parent && !Parent->bSupportRayTracing)
+	{
+		checkf(RayTracingGeometry == nullptr, TEXT("Unexpected RayTracingGeometry on '%s' LOD:%d (ray tracing support is disabled on this UStaticMesh)."), *GetPathNameSafe(Parent), LODIndex);
+	}
+
 #if RHI_RAYTRACING
-	if (IsRayTracingAllowed() && Parent && Parent->bSupportRayTracing)
+	if (IsRayTracingAllowed() && RayTracingGeometry != nullptr)
 	{
 		ENQUEUE_RENDER_COMMAND(InitStaticMeshRayTracingGeometry)(
-			[this, DebugName = Parent->GetFName(), OwnerName](FRHICommandListImmediate& RHICmdList)
+			[this, DebugName = (Parent ? Parent->GetFName() : NAME_None), OwnerName](FRHICommandListImmediate& RHICmdList)
 			{
 				FRayTracingGeometryInitializer Initializer;
 				SetupRayTracingGeometryInitializer(Initializer, DebugName, OwnerName);
 
-				RayTracingGeometry.SetInitializer(Initializer);
+				RayTracingGeometry->SetInitializer(Initializer);
 			}
 		);
 	}
@@ -1496,7 +1502,10 @@ void FStaticMeshLODResources::ReleaseResources()
 	}
 
 #if RHI_RAYTRACING
-	BeginReleaseResource(&RayTracingGeometry);
+	if (RayTracingGeometry)
+	{
+		BeginReleaseResource(RayTracingGeometry);
+	}
 #endif // RHI_RAYTRACING
 }
 
@@ -1528,7 +1537,10 @@ void FStaticMeshLODResources::DiscardCPUData()
 	}
 	
 #if RHI_RAYTRACING
-	RayTracingGeometry.RawData.Discard();
+	if (RayTracingGeometry != nullptr)
+	{
+		RayTracingGeometry->RawData.Discard();
+	}
 #endif
 }
 
@@ -1930,7 +1942,7 @@ void FStaticMeshRenderData::InitResources(ERHIFeatureLevel::Type InFeatureLevel,
 	}
 
 #if RHI_RAYTRACING
-	if (IsRayTracingAllowed()) // TODO: Could move most of this to FStaticMeshLODResources::InitResources
+	if (IsRayTracingAllowed() && Owner->bSupportRayTracing) // TODO: Could move most of this to FStaticMeshLODResources::InitResources
 	{
 		ENQUEUE_RENDER_COMMAND(InitRayTracingGeometryForInlinedLODs)(
 			[this](FRHICommandListImmediate& RHICmdList)
@@ -1940,23 +1952,23 @@ void FStaticMeshRenderData::InitResources(ERHIFeatureLevel::Type InFeatureLevel,
 				for (int32 LODIndex = 0; LODIndex < LODResources.Num(); ++LODIndex)
 				{
 					// Skip LODs that have their render data stripped
-					if (LODResources[LODIndex].VertexBuffers.StaticMeshVertexBuffer.GetNumVertices() > 0)
+					if (LODResources[LODIndex].RayTracingGeometry != nullptr && LODResources[LODIndex].VertexBuffers.StaticMeshVertexBuffer.GetNumVertices() > 0)
 					{
-						LODResources[LODIndex].RayTracingGeometry.GroupHandle = RayTracingGeometryGroupHandle;
+						LODResources[LODIndex].RayTracingGeometry->GroupHandle = RayTracingGeometryGroupHandle;
 
 						if (LODIndex < CurrentFirstLODIdx)
 						{
-							LODResources[LODIndex].RayTracingGeometry.Initializer.Type = ERayTracingGeometryInitializerType::StreamingDestination;
+							LODResources[LODIndex].RayTracingGeometry->Initializer.Type = ERayTracingGeometryInitializerType::StreamingDestination;
 						}
 
-						LODResources[LODIndex].RayTracingGeometry.LODIndex = LODIndex;
-						LODResources[LODIndex].RayTracingGeometry.InitResource(RHICmdList);
+						LODResources[LODIndex].RayTracingGeometry->LODIndex = LODIndex;
+						LODResources[LODIndex].RayTracingGeometry->InitResource(RHICmdList);
 					}
 				}
 			}
 		);
 	}
-#endif
+#endif // RHI_RAYTRACING
 
 	check(NaniteResourcesPtr.IsValid());
 	NaniteResourcesPtr->InitResources(Owner);
@@ -1990,8 +2002,11 @@ void FStaticMeshRenderData::ReleaseResources()
 		ENQUEUE_RENDER_COMMAND(CmdReleaseRayTracingGeometryGroup)(
 			[this](FRHICommandListImmediate&)
 			{
-				GRayTracingGeometryManager->ReleaseRayTracingGeometryGroup(RayTracingGeometryGroupHandle);
-				RayTracingGeometryGroupHandle = INDEX_NONE;
+				if (RayTracingGeometryGroupHandle != INDEX_NONE)
+				{
+					GRayTracingGeometryManager->ReleaseRayTracingGeometryGroup(RayTracingGeometryGroupHandle);
+					RayTracingGeometryGroupHandle = INDEX_NONE;
+				}
 			});
 	}
 #endif
@@ -2044,7 +2059,7 @@ void UStaticMesh::RequestUpdateCachedRenderState() const
 	}
 
 #if RHI_RAYTRACING
-	if (IsRayTracingAllowed())
+	if (IsRayTracingAllowed() && bSupportRayTracing)
 	{
 		// TODO: this should only be necessary when a BLAS build was not requested (ie: non-compressed offline BLAS)
 		GRayTracingGeometryManager->RequestUpdateCachedRenderState(GetRenderData()->RayTracingGeometryGroupHandle);
@@ -2815,6 +2830,8 @@ static FString BuildStaticMeshDerivedDataKeySuffix(const ITargetPlatform* Target
 	{
 		KeySuffix += TEXT("zzzzzzzz");
 	}
+
+	KeySuffix += Mesh->bSupportRayTracing && TargetPlatform->UsesRayTracing() ? TEXT("RT1") : TEXT("RT0");
 
 	KeySuffix.AppendChar(Mesh->bSupportUniformlyDistributedSampling ? TEXT('1') : TEXT('0'));
 
@@ -7044,6 +7061,13 @@ void UStaticMesh::BuildFromMeshDescription(const FMeshDescription& MeshDescripti
 
 	LODResources.bHasReversedDepthOnlyIndices = true;
 	LODResources.AdditionalIndexBuffers->ReversedDepthOnlyIndexBuffer.SetIndices(ReversedIndexBuffer, IndexBufferStride);
+
+#if RHI_RAYTRACING
+	if (IsRayTracingAllowed() && bSupportRayTracing)
+	{
+		LODResources.RayTracingGeometry = new FRayTracingGeometry();
+	}
+#endif
 }
 
 

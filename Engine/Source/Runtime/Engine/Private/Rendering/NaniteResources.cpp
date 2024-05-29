@@ -1651,7 +1651,7 @@ int32 FSceneProxy::GetFirstValidRaytracingGeometryLODIndex() const
 	// find the first valid RT geometry index
 	for (; LODIndex < NumLODs; ++LODIndex)
 	{
-		const FRayTracingGeometry& RayTracingGeometry = RenderData->LODResources[LODIndex].RayTracingGeometry;
+		const FRayTracingGeometry& RayTracingGeometry = *RenderData->LODResources[LODIndex].RayTracingGeometry;
 		if (RayTracingGeometry.IsValid() && !RayTracingGeometry.IsEvicted() && !RayTracingGeometry.HasPendingBuildRequest())
 		{
 			return LODIndex;
@@ -1734,7 +1734,7 @@ void FSceneProxy::CreateDynamicRayTracingGeometries(FRHICommandListBase& RHICmdL
 
 	for (int32 LODIndex = ClampedMinLOD; LODIndex < RenderData->LODResources.Num(); LODIndex++)
 	{
-		FRayTracingGeometryInitializer Initializer = RenderData->LODResources[LODIndex].RayTracingGeometry.Initializer;
+		FRayTracingGeometryInitializer Initializer = RenderData->LODResources[LODIndex].RayTracingGeometry->Initializer;
 		for (FRayTracingGeometrySegment& Segment : Initializer.Segments)
 		{
 			Segment.VertexBuffer = nullptr;
@@ -1900,7 +1900,7 @@ ERayTracingPrimitiveFlags FSceneProxy::GetCachedRayTracingInstance(FRayTracingIn
 	}
 	else
 	{
-		RayTracingInstance.Geometry = &RenderData->LODResources[ValidLODIndex].RayTracingGeometry;
+		RayTracingInstance.Geometry = RenderData->LODResources[ValidLODIndex].RayTracingGeometry;
 		RayTracingInstance.bApplyLocalBoundsTransform = false;
 	}
 

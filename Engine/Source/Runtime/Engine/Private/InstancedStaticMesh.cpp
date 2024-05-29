@@ -1411,7 +1411,7 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(const FInstancedStaticMeshSceneP
 	UserData_DeselectedInstances.bRenderSelected = false;
 
 #if RHI_RAYTRACING
-	bSupportRayTracing = InProxyDesc.GetStaticMesh()->bSupportRayTracing;
+	bSupportRayTracing = IsRayTracingAllowed() && InProxyDesc.GetStaticMesh()->bSupportRayTracing;
 #endif
 
 	const bool bUseGPUScene = UseGPUScene(GetScene().GetShaderPlatform(), GetScene().GetFeatureLevel());
@@ -1643,13 +1643,13 @@ void FInstancedStaticMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTr
 	{
 		FStaticMeshLODResources& CurrentLODResources = RenderData->LODResources[LODIndex];
 
-		if (CurrentLODResources.RayTracingGeometry.HasPendingBuildRequest())
+		if (CurrentLODResources.RayTracingGeometry->HasPendingBuildRequest())
 		{
-			CurrentLODResources.RayTracingGeometry.BoostBuildPriority();
+			CurrentLODResources.RayTracingGeometry->BoostBuildPriority();
 		}
-		else if (CurrentLODResources.RayTracingGeometry.IsValid() && !CurrentLODResources.RayTracingGeometry.IsEvicted())
+		else if (CurrentLODResources.RayTracingGeometry->IsValid() && !CurrentLODResources.RayTracingGeometry->IsEvicted())
 		{
-			RayTracingGeometry = &CurrentLODResources.RayTracingGeometry;
+			RayTracingGeometry = CurrentLODResources.RayTracingGeometry;
 			break;
 		}
 	}
@@ -1989,7 +1989,7 @@ void FInstancedStaticMeshSceneProxy::SetupRayTracingDynamicInstances(int32 NumDy
 	{
 		FRayTracingDynamicData& DynamicData = RayTracingDynamicData.AddDefaulted_GetRef();
 
-		FRayTracingGeometryInitializer Initializer = LODModel.RayTracingGeometry.Initializer;
+		FRayTracingGeometryInitializer Initializer = LODModel.RayTracingGeometry->Initializer;
 		for (FRayTracingGeometrySegment& Segment : Initializer.Segments)
 		{
 			Segment.VertexBuffer = nullptr;

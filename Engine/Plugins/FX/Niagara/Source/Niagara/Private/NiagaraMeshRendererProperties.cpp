@@ -80,7 +80,7 @@ public:
 		OutLODModelData.Sections = MakeArrayView(LODResources.Sections);
 		OutLODModelData.IndexBuffer = &LODResources.IndexBuffer;
 		OutLODModelData.VertexFactoryUserData = RenderData->LODVertexFactories.IsValidIndex(OutLODModelData.LODIndex) ? RenderData->LODVertexFactories[OutLODModelData.LODIndex].VertexFactory.GetUniformBuffer() : nullptr;
-		OutLODModelData.RayTracingGeometry = &LODResources.RayTracingGeometry;
+		OutLODModelData.RayTracingGeometry = LODResources.RayTracingGeometry;
 
 		if (LODResources.AdditionalIndexBuffers != nullptr && LODResources.AdditionalIndexBuffers->WireframeIndexBuffer.IsInitialized())
 		{

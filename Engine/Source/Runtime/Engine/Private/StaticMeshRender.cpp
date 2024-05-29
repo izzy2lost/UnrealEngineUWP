@@ -311,11 +311,11 @@ FStaticMeshSceneProxy::FStaticMeshSceneProxy(const FStaticMeshSceneProxyDesc& In
 	const bool bLODsShareStaticLighting = RenderData->bLODsShareStaticLighting || bForceLODsShareStaticLighting;
 
 #if RHI_RAYTRACING
-	bSupportRayTracing = InProxyDesc.GetStaticMesh()->bSupportRayTracing;
+	bSupportRayTracing = IsRayTracingAllowed() && InProxyDesc.GetStaticMesh()->bSupportRayTracing;
 	bDynamicRayTracingGeometry = false;
 	bNeedsDynamicRayTracingGeometries = false;
 	
-	if (IsRayTracingAllowed() && bSupportRayTracing)
+	if (bSupportRayTracing)
 	{		
 		const bool bWantsRayTracingWPO = MaterialRelevance.bUsesWorldPositionOffset && InProxyDesc.bEvaluateWorldPositionOffsetInRayTracing;
 
@@ -419,7 +419,7 @@ FStaticMeshSceneProxy::FStaticMeshSceneProxy(const FStaticMeshSceneProxyDesc& In
 void FStaticMeshSceneProxy::SetEvaluateWorldPositionOffsetInRayTracing(FRHICommandListBase& RHICmdList, bool NewValue)
 {
 #if RHI_RAYTRACING
-	if (!IsRayTracingAllowed() || !bSupportRayTracing)
+	if (!bSupportRayTracing)
 	{
 		return;
 	}
@@ -722,7 +722,7 @@ void FStaticMeshSceneProxy::CreateDynamicRayTracingGeometries(FRHICommandListBas
 
 	for (int32 LODIndex = 0; LODIndex < RenderData->LODResources.Num(); LODIndex++)
 	{
-		FRayTracingGeometryInitializer Initializer = RenderData->LODResources[LODIndex].RayTracingGeometry.Initializer;
+		FRayTracingGeometryInitializer Initializer = RenderData->LODResources[LODIndex].RayTracingGeometry->Initializer;
 		for (FRayTracingGeometrySegment& Segment : Initializer.Segments)
 		{
 			Segment.VertexBuffer = nullptr;
@@ -1863,13 +1863,14 @@ bool FStaticMeshSceneProxy::HasRayTracingRepresentation() const
 
 TArray<FRayTracingGeometry*> FStaticMeshSceneProxy::GetStaticRayTracingGeometries() const
 {
-	if (IsRayTracingAllowed() && bSupportRayTracing)
+	if (bSupportRayTracing)
 	{
 		TArray<FRayTracingGeometry*> RayTracingGeometries;
 		RayTracingGeometries.AddDefaulted(RenderData->LODResources.Num());
 		for (int32 LODIndex = 0; LODIndex < RenderData->LODResources.Num(); LODIndex++)
 		{
-			RayTracingGeometries[LODIndex] = &RenderData->LODResources[LODIndex].RayTracingGeometry;
+			check(RenderData->LODResources[LODIndex].RayTracingGeometry != nullptr);
+			RayTracingGeometries[LODIndex] = RenderData->LODResources[LODIndex].RayTracingGeometry;
 		}
 
 		return MoveTemp(RayTracingGeometries);
@@ -1932,11 +1933,11 @@ void FStaticMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 		{
 			FStaticMeshLODResources& CurrentLODResources = RenderData->LODResources[LODIndex];
 
-			if (CurrentLODResources.RayTracingGeometry.HasPendingBuildRequest())
+			if (CurrentLODResources.RayTracingGeometry->HasPendingBuildRequest())
 			{
-				CurrentLODResources.RayTracingGeometry.BoostBuildPriority();
+				CurrentLODResources.RayTracingGeometry->BoostBuildPriority();
 			}
-			else if (CurrentLODResources.RayTracingGeometry.IsValid() && !CurrentLODResources.RayTracingGeometry.IsEvicted())
+			else if (CurrentLODResources.RayTracingGeometry->IsValid() && !CurrentLODResources.RayTracingGeometry->IsEvicted())
 			{
 				break;
 			}
@@ -1956,7 +1957,7 @@ void FStaticMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 	}
 
 	// TODO: Need to validate that the DynamicRayTracingGeometries are still valid - they could contain streamed out IndexBuffers from the shared StaticMesh (UE-139474)
-	FRayTracingGeometry& Geometry = bEvaluateWPO ? DynamicRayTracingGeometries[LODIndex] : RenderData->LODResources[LODIndex].RayTracingGeometry;
+	FRayTracingGeometry& Geometry = bEvaluateWPO ? DynamicRayTracingGeometries[LODIndex] : *RenderData->LODResources[LODIndex].RayTracingGeometry;
 
 	if (bEvaluateWPO)
 	{
