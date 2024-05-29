@@ -13,6 +13,7 @@ public class VPUtilities : ModuleRules
 			{
 				"AssetRegistry",
 				"CinematicCamera",
+				"CineCameraSceneCapture",
 				"Composure",
 				"Core",
 				"CoreUObject",

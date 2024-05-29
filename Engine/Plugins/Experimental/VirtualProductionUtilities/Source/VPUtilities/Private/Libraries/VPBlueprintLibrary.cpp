@@ -4,10 +4,12 @@
 
 #include "VPSettings.h"
 #include "VPUtilitiesModule.h"
+#include "Actors/VPBookmarkActor.h"
 
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
 #include "Components/SplineMeshComponent.h"
+#include "Misc/ComparisonUtility.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -326,4 +328,30 @@ void UVPBlueprintLibrary::VPBookmarkSplineMeshIndicatorSetStartAndEnd(USplineMes
 void UVPBlueprintLibrary::VPBookmarkSplineMeshIndicatorDisable(USplineMeshComponent* SplineMesh)
 {
 	SplineMesh->SetVisibility(false);
+}
+
+void UVPBlueprintLibrary::SortActorsByName(UPARAM(Ref) TArray<AActor*>& Actors, bool Ascending)
+{
+	Algo::Sort(Actors, [](const AActor* A, const AActor* B)
+		{
+			return UE::ComparisonUtility::CompareNaturalOrder(A->GetActorNameOrLabel(), B->GetActorNameOrLabel()) < 0;
+		});
+
+	if (!Ascending)
+	{
+		Algo::Reverse(Actors);
+	}
+}
+
+void UVPBlueprintLibrary::SortVPBookmarkActorsByTimestamp(UPARAM(Ref) TArray<AVPBookmarkActor*>& Actors, bool Ascending)
+{
+	Algo::Sort(Actors, [](const AVPBookmarkActor* A, const AVPBookmarkActor* B)
+		{
+			return A->Timestamp < B->Timestamp;
+		});
+
+	if (!Ascending)
+	{
+		Algo::Reverse(Actors);
+	}
 }

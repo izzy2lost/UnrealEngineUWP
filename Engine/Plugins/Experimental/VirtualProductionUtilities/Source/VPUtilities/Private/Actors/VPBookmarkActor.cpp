@@ -14,6 +14,10 @@
 #include "Components/SplineMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "CineCameraSceneCaptureComponent.h"
+#include "Engine/TextureRenderTarget2D.h"
+#include "Engine/Texture2D.h"
+#include "Logging/MessageLog.h"
 
 AVPBookmarkActor::AVPBookmarkActor(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -131,6 +135,12 @@ AVPBookmarkActor::AVPBookmarkActor(const FObjectInitializer& ObjectInitializer)
 #if WITH_EDITOR
 	CameraComponent->SetCameraMesh(nullptr);// set CameraMesh to null when we are in editor view
 #endif
+
+	SceneCaptureComponent = CreateDefaultSubobject<UCineCaptureComponent2D>(TEXT("SceneCapture"));
+	SceneCaptureComponent->SetupAttachment(CameraComponent);
+	SceneCaptureComponent->bCaptureEveryFrame = false;
+	SceneCaptureComponent->bCaptureOnMovement = false;
+
 }
 
 void AVPBookmarkActor::Tick(float DeltaSeconds)
@@ -149,6 +159,65 @@ void AVPBookmarkActor::Tick(float DeltaSeconds)
 	}
 #endif
 }
+
+void AVPBookmarkActor::CaptureSnapshot()
+{
+#if WITH_EDITOR
+	if (!SceneCaptureComponent->TextureTarget)
+	{
+		UE_LOG(LogVPUtilities, Verbose, TEXT("Creating transient texture target"));
+		UTextureRenderTarget2D* NewRenderTarget2D = NewObject<UTextureRenderTarget2D>();
+		NewRenderTarget2D->RenderTargetFormat = RTF_RGBA8_SRGB;
+		
+		int32 Width, Height;
+		if (CameraComponent->AspectRatio >= 1.)
+		{
+			Width = SceneCaptureComponent->RenderTargetHighestDimension;
+			Height = FMath::Max( Width / CameraComponent->AspectRatio, 1);
+		}
+		else
+		{
+			Height = SceneCaptureComponent->RenderTargetHighestDimension;
+			Width = FMath::Max( Height * CameraComponent->AspectRatio, 1);
+		}
+		NewRenderTarget2D->InitAutoFormat(Width, Height);
+		NewRenderTarget2D->UpdateResourceImmediate(true);
+
+		SceneCaptureComponent->TextureTarget = NewRenderTarget2D;
+	}
+	if (!SnapshotTexture)
+	{
+		UE_LOG(LogVPUtilities, Verbose, TEXT("Creating transient snapshot texture"));
+		SnapshotTexture = UTexture2D::CreateTransient(SceneCaptureComponent->TextureTarget->SizeX, SceneCaptureComponent->TextureTarget->SizeY, EPixelFormat::PF_B8G8R8A8);
+	}
+
+	if (SceneCaptureComponent->TextureTarget)
+	{
+		if (!SceneCaptureComponent->TextureTarget->GameThread_GetRenderTargetResource())
+		{
+			UE_LOG(LogVPUtilities, Warning, TEXT("Unable to get render target resource"));
+			return;
+		}
+		SceneCaptureComponent->CaptureScene();
+	}
+
+	FText ErrorMessage;
+	if (!SceneCaptureComponent->TextureTarget->UpdateTexture(SnapshotTexture, /*InFlags = */CTF_Default, /*InAlphaOverride = */nullptr, /*InOnTextureChangingDelegate = */[](UTexture*) {}, &ErrorMessage))
+	{
+		FMessageLog("VPBookmarkActor").Warning(ErrorMessage);
+		return;
+	}
+	SnapshotTexture->Modify();
+	SnapshotTexture->PostEditChange();
+	SnapshotTexture->UpdateResource();
+#endif
+}
+
+void AVPBookmarkActor::UpdateTimestamp()
+{
+	Timestamp = FDateTime::UtcNow();
+}
+
 
 //VP Interaction InterfaceEvents
 

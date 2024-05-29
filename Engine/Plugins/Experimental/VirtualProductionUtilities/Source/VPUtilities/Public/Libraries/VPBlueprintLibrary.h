@@ -12,7 +12,7 @@
 
 
 class UVPBookmark;
-
+class AVPBookmarkActor;
 
 /**
  * Functionality added to prototype the VR scouting tools
@@ -101,5 +101,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "VPBookmarks")
 	static void VPBookmarkSplineMeshIndicatorDisable(USplineMeshComponent* SplineMesh);
 
+	/** Sort actors by actor label*/
+	UFUNCTION(BlueprintCallable, Category = "VPBookmarks")
+	static void SortActorsByName(UPARAM(Ref) TArray<AActor*>& Actors, bool Ascending = true);
+
+	/** Sort VPBookmarkActors by Timestamp parameter*/
+	UFUNCTION(BlueprintCallable, Category = "VPBookmarks")
+	static void SortVPBookmarkActorsByTimestamp(UPARAM(Ref) TArray<AVPBookmarkActor*>& Actors, bool Ascending = true);
 	
 };
