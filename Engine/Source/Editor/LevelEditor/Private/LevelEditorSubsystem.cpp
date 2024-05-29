@@ -281,6 +281,20 @@ bool ULevelEditorSubsystem::EditorGetGameView(FName ViewportConfigKey)
 	return false;
 }
 
+void ULevelEditorSubsystem::EditorRequestBeginPlay()
+{
+	FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
+
+	TSharedPtr<IAssetViewport> ActiveLevelViewport = LevelEditorModule.GetFirstActiveViewport();
+	if (ActiveLevelViewport.IsValid())
+	{
+		FRequestPlaySessionParams SessionParams;
+		SessionParams.WorldType = EPlaySessionWorldType::PlayInEditor;
+		SessionParams.DestinationSlateViewport = ActiveLevelViewport;
+
+		GUnrealEd->RequestPlaySession(SessionParams);
+	}
+}
 
 void ULevelEditorSubsystem::EditorRequestEndPlay()
 {
