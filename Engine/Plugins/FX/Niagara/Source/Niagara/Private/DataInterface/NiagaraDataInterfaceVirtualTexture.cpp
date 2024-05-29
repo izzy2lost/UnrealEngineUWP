@@ -19,15 +19,15 @@
 namespace NDIVirtualTextureLocal
 {
 	BEGIN_SHADER_PARAMETER_STRUCT(FShaderParameters, )
-		SHADER_PARAMETER_TEXTURE(Texture2D,			VirtualTexture0)
+		SHADER_PARAMETER_SRV(Texture2D,				VirtualTexture0)
 		SHADER_PARAMETER_TEXTURE(Texture2D<uint4>,	VirtualTexture0PageTable)
 		SHADER_PARAMETER(FUintVector4,				VirtualTexture0TextureUniforms)
 
-		SHADER_PARAMETER_TEXTURE(Texture2D,			VirtualTexture1)
+		SHADER_PARAMETER_SRV(Texture2D,				VirtualTexture1)
 		SHADER_PARAMETER_TEXTURE(Texture2D<uint4>,	VirtualTexture1PageTable)
 		SHADER_PARAMETER(FUintVector4,				VirtualTexture1TextureUniforms)
 
-		SHADER_PARAMETER_TEXTURE(Texture2D,			VirtualTexture2)
+		SHADER_PARAMETER_SRV(Texture2D,				VirtualTexture2)
 		SHADER_PARAMETER_TEXTURE(Texture2D<uint4>,	VirtualTexture2PageTable)
 		SHADER_PARAMETER(FUintVector4,				VirtualTexture2TextureUniforms)
 
@@ -75,12 +75,13 @@ namespace NDIVirtualTextureLocal
 		{
 			bool IsValid() const
 			{
-				return Texture.IsValid() && PageTable.IsValid();
+				return Texture.IsValid() && TextureSRV.IsValid() && PageTable.IsValid();
 			}
 
-			FTextureRHIRef	Texture;
-			FTextureRHIRef	PageTable;
-			FUintVector4	TextureUniforms = FUintVector4(0, 0, 0, 0);
+			FTextureRHIRef				Texture;
+			FRHIShaderResourceViewRef	TextureSRV;
+			FTextureRHIRef				PageTable;
+			FUintVector4				TextureUniforms = FUintVector4(0, 0, 0, 0);
 		};
 
 		FLayerTexture		LayerTexture[MaxRVTLayers];
@@ -280,6 +281,11 @@ bool UNiagaraDataInterfaceVirtualTexture::PerInstanceTick(void* PerInstanceData,
 					InstanceData.UVUniforms[1] = RT_Texture->GetUniformParameter(ERuntimeVirtualTextureShaderUniform_WorldToUVTransform1);
 					InstanceData.UVUniforms[2] = RT_Texture->GetUniformParameter(ERuntimeVirtualTextureShaderUniform_WorldToUVTransform2);
 
+					const bool bBaseColorSRGB = 
+						InstanceData.MaterialType == ERuntimeVirtualTextureMaterialType::BaseColor ||
+						InstanceData.MaterialType == ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Roughness ||
+						InstanceData.MaterialType == ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular;
+
 					const FVector4 WorldHeightUnpack = RT_Texture->GetUniformParameter(ERuntimeVirtualTextureShaderUniform_WorldHeightUnpack);
 					InstanceData.WorldHeightUnpack = FVector2f(float(WorldHeightUnpack.X), float(WorldHeightUnpack.Y));		//LWC Precision Loss
 
@@ -287,6 +293,7 @@ bool UNiagaraDataInterfaceVirtualTexture::PerInstanceTick(void* PerInstanceData,
 					{
 						FNDInstanceData_RenderThread::FLayerTexture& LayerTexture = InstanceData.LayerTexture[iLayer];
 						LayerTexture.Texture = VirtualTexture->GetPhysicalTexture(iLayer);
+						LayerTexture.TextureSRV = VirtualTexture->GetPhysicalTextureSRV(iLayer, iLayer == 0 && bBaseColorSRGB);
 						LayerTexture.PageTable = VirtualTexture->GetPageTableTexture(0);//-TODO:iLayer);
 
 						VirtualTexture->GetPackedUniform(&LayerTexture.TextureUniforms, iLayer);
@@ -389,21 +396,21 @@ void UNiagaraDataInterfaceVirtualTexture::SetShaderParameters(const FNiagaraData
 
 		if ( bLayerValid[0] == true)
 		{
-			ShaderParameters->VirtualTexture0					= InstanceData->LayerTexture[0].Texture;
+			ShaderParameters->VirtualTexture0					= InstanceData->LayerTexture[0].TextureSRV;
 			ShaderParameters->VirtualTexture0PageTable			= InstanceData->LayerTexture[0].PageTable;
 			ShaderParameters->VirtualTexture0TextureUniforms	= InstanceData->LayerTexture[0].TextureUniforms;
 		}
 
 		if ( bLayerValid[1] == true)
 		{
-			ShaderParameters->VirtualTexture1					= InstanceData->LayerTexture[1].Texture;
+			ShaderParameters->VirtualTexture1					= InstanceData->LayerTexture[1].TextureSRV;
 			ShaderParameters->VirtualTexture1PageTable			= InstanceData->LayerTexture[1].PageTable;
 			ShaderParameters->VirtualTexture1TextureUniforms	= InstanceData->LayerTexture[1].TextureUniforms;
 		}
 
 		if ( bLayerValid[2] == true)
 		{
-			ShaderParameters->VirtualTexture2					= InstanceData->LayerTexture[2].Texture;
+			ShaderParameters->VirtualTexture2					= InstanceData->LayerTexture[2].TextureSRV;
 			ShaderParameters->VirtualTexture2PageTable			= InstanceData->LayerTexture[2].PageTable;
 			ShaderParameters->VirtualTexture2TextureUniforms	= InstanceData->LayerTexture[2].TextureUniforms;
 		}
@@ -417,7 +424,7 @@ void UNiagaraDataInterfaceVirtualTexture::SetShaderParameters(const FNiagaraData
 		ShaderParameters->MaterialType			= int(InstanceData->MaterialType);
 		ShaderParameters->PageTableUniforms[0]	= InstanceData->PageTableUniforms[0];
 		ShaderParameters->PageTableUniforms[1]	= InstanceData->PageTableUniforms[1];
-		ShaderParameters->UVUniforms[0]			= FVector4f(UVOriginRebased);
+		ShaderParameters->UVUniforms[0]			= FVector4f(UVOriginRebased, InstanceData->UVUniforms[0].W);
 		ShaderParameters->UVUniforms[1]			= FVector4f(InstanceData->UVUniforms[1]);
 		ShaderParameters->UVUniforms[2]			= FVector4f(InstanceData->UVUniforms[2]);
 		ShaderParameters->WorldHeightUnpack		= InstanceData->WorldHeightUnpack;
@@ -439,19 +446,19 @@ void UNiagaraDataInterfaceVirtualTexture::SetShaderParameters(const FNiagaraData
 	
 	if ( bLayerValid[0] == false )
 	{
-		ShaderParameters->VirtualTexture0					= GBlackTexture->GetTextureRHI();
+		ShaderParameters->VirtualTexture0					= GBlackTextureWithSRV->ShaderResourceViewRHI;
 		ShaderParameters->VirtualTexture0PageTable			= GBlackUintTexture->TextureRHI;
 		ShaderParameters->VirtualTexture0TextureUniforms	= FUintVector4(0, 0, 0, 0);
 	}
 	if ( bLayerValid[1] == false )
 	{
-		ShaderParameters->VirtualTexture1					= GBlackTexture->GetTextureRHI();
+		ShaderParameters->VirtualTexture1					= GBlackTextureWithSRV->ShaderResourceViewRHI;
 		ShaderParameters->VirtualTexture1PageTable			= GBlackUintTexture->TextureRHI;
 		ShaderParameters->VirtualTexture1TextureUniforms	= FUintVector4(0, 0, 0, 0);
 	}
 	if ( bLayerValid[2] == false )
 	{
-		ShaderParameters->VirtualTexture2					= GBlackTexture->GetTextureRHI();
+		ShaderParameters->VirtualTexture2					= GBlackTextureWithSRV->ShaderResourceViewRHI;
 		ShaderParameters->VirtualTexture2PageTable			= GBlackUintTexture->TextureRHI;
 		ShaderParameters->VirtualTexture2TextureUniforms	= FUintVector4(0, 0, 0, 0);
 	}

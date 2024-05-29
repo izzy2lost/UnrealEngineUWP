@@ -10,7 +10,7 @@
 
 // Mirror of ERuntimeVirtualTextureMaterialType
 #define ERuntimeVirtualTextureMaterialType_BaseColor								0
-#define ERuntimeVirtualTextureMaterialType_BaseColor_Normal_DEPRECATED				1
+#define ERuntimeVirtualTextureMaterialType_Mask4									1
 #define ERuntimeVirtualTextureMaterialType_BaseColor_Normal_Roughness				2
 #define ERuntimeVirtualTextureMaterialType_BaseColor_Normal_Specular				3
 #define ERuntimeVirtualTextureMaterialType_BaseColor_Normal_Specular_YCoCg			4
