@@ -106,6 +106,18 @@ namespace EpicGames.Redis
 	/// </summary>
 	public static class RedisHashExtensions
 	{
+		/// <summary>
+		/// Helper method to convert an array of hash entries into a dictionary
+		/// </summary>
+		public static async Task<Dictionary<TName, TValue>> ToDictionaryAsync<TName, TValue>(this Task<HashEntry<TName, TValue>[]> entries) where TName : notnull
+			=> (await entries).ToDictionary(x => x.Name, x => x.Value);
+
+		/// <summary>
+		/// Helper method to convert an array of hash entries into a dictionary
+		/// </summary>
+		public static async Task<Dictionary<TName, TValue>> ToDictionaryAsync<TName, TValue>(this Task<HashEntry<TName, TValue>[]> entries, IEqualityComparer<TName>? comparer) where TName : notnull
+			=> (await entries).ToDictionary(x => x.Name, x => x.Value, comparer);
+
 		#region Conditions
 
 		/// <inheritdoc cref="Condition.HashEqual(RedisKey, RedisValue, RedisValue)"/>
