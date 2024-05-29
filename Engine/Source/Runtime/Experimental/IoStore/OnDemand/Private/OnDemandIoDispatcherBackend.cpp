@@ -53,6 +53,7 @@ extern FString GIasOnDemandTocExt;
 void LatencyTest(FStringView, FStringView, uint32, TArrayView<int32>);
 
 ///////////////////////////////////////////////////////////////////////////////
+/** Note that GIasHttpPrimaryEndpoint has no effect after initial start up */
 int32 GIasHttpPrimaryEndpoint = 0;
 static FAutoConsoleVariableRef CVar_IasHttpPrimaryEndpoint(
 	TEXT("ias.HttpPrimaryEndpoint"),
@@ -1778,7 +1779,16 @@ uint32 FOnDemandIoBackend::Run()
 		BackendStatus.SetHttpEnabled(false);
 		return 0;
 	}
-	AvailableEps.Current = FMath::Min(GIasHttpPrimaryEndpoint, AvailableEps.Urls.Num() - 1);
+
+	if (GIasHttpPrimaryEndpoint < 0)
+	{
+		UE_LOG(LogIas, Error, TEXT("ias.HttpPrimaryEndpoint should not be set as a negative number, defaulting to 0"));
+		GIasHttpPrimaryEndpoint = 0;
+	}
+
+	// Rotate the list of urls so that the primary endpoint is the first element
+	Algo::Rotate(AvailableEps.Urls, GIasHttpPrimaryEndpoint);
+	AvailableEps.Current = 0;
 
 	BackendStatus.SetHttpEnabled(true);
 	FOnDemandIoBackendStats::Get()->OnHttpConnected();
