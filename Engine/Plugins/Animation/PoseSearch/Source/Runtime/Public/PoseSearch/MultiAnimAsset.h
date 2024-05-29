@@ -2,11 +2,13 @@
 
 #pragma once
 
+// @todo: move UMultiAnimAsset as well as IMultiAnimAssetEditor to Engine or a base plugin for multi character animation assets
+
 #include "MultiAnimAsset.generated.h"
 
 class UAnimationAsset;
 
-// @todo: move to Engine
+// UObject defining tuples of UAnimationAsset(s) with associated Role(s) and relative transforms from a shared reference system via GetOrigin
 UCLASS(Abstract, Experimental, BlueprintType, Category = "Animation")
 class POSESEARCH_API UMultiAnimAsset : public UObject
 {

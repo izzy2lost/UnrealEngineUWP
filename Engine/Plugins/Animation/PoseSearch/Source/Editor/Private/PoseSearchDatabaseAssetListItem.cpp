@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PoseSearchDatabaseAssetListItem.h"
-
 #include "Animation/AnimComposite.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/BlendSpace.h"
@@ -16,6 +15,7 @@
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "IAnimationEditor.h"
+#include "IMultiAnimAssetEditor.h"
 #include "IPersonaToolkit.h"
 #include "Misc/FeedbackContext.h"
 #include "Misc/TransactionObjectEvent.h"
@@ -252,19 +252,26 @@ namespace UE::PoseSearch
 
 							if (IAssetEditorInstance* Editor = AssetEditorSS->FindEditorForAsset(AnimationAsset, true))
 							{
+								float AnimationAssetTime = 0.f;
+								FVector AnimationAssetBlendParameters = FVector::ZeroVector;
+								ViewModel->GetAnimationTime(AssetTreeNode->SourceAssetIdx, AnimationAssetTime, AnimationAssetBlendParameters);
+
 								if (Editor->GetEditorName() == "AnimationEditor")
 								{
-									float AnimationAssetTime = 0.f;
-									FVector AnimationAssetBlendParameters = FVector::ZeroVector;
-									ViewModel->GetAnimationTime(AssetTreeNode->SourceAssetIdx, AnimationAssetTime, AnimationAssetBlendParameters);
-
-									const IAnimationEditor* AnimationEditor = static_cast<IAnimationEditor*>(Editor);
-									const UDebugSkelMeshComponent* PreviewComponent = AnimationEditor->GetPersonaToolkit()->GetPreviewMeshComponent();
+									IAnimationEditor* AnimationEditor = static_cast<IAnimationEditor*>(Editor);
+									UDebugSkelMeshComponent* PreviewComponent = AnimationEditor->GetPersonaToolkit()->GetPreviewMeshComponent();
 
 									// Open asset paused and at specific time as seen on the pose search debugger.
 									PreviewComponent->PreviewInstance->SetPosition(AnimationAssetTime);
 									PreviewComponent->PreviewInstance->SetPlaying(false);
 									PreviewComponent->PreviewInstance->SetBlendSpacePosition(AnimationAssetBlendParameters);
+								}
+								else if (Editor->GetEditorName() == "ChimeraAssetEditor")
+								{
+									IMultiAnimAssetEditor* MultiAnimAssetEditor = static_cast<IMultiAnimAssetEditor*>(Editor);
+
+									// Open asset paused and at specific time as seen on the pose search debugger.
+									MultiAnimAssetEditor->SetPreviewProperties(AnimationAssetTime, AnimationAssetBlendParameters, false);
 								}
 							}
 						}
