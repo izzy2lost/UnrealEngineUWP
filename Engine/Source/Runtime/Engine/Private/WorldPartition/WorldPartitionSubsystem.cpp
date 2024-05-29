@@ -197,6 +197,7 @@ static FAutoConsoleVariableRef CVarUdateStreamingStateTimeLimit(
 
 #if !UE_BUILD_SHIPPING
 TMap<FName, int32> UWorldPartitionSubsystem::OverriddenLoadingRanges;
+uint32 UWorldPartitionSubsystem::OverriddenLoadingRangesEpoch = 0;
 static const TCHAR* GOverrideLoadingRangeCommandName = TEXT("wp.Runtime.OverrideRuntimeLoadingRange");
 static FDelegateHandle OnWorldPartitionSubsystemDeinitializedFDelegateHandle;
 FAutoConsoleCommand UWorldPartitionSubsystem::OverrideLoadingRangeCommand(
@@ -530,6 +531,7 @@ void UWorldPartitionSubsystem::SetOverrideLoadingRange(FName Name, int32 Loading
 	{
 		OverriddenLoadingRanges.Remove(Name);
 	}
+	OverriddenLoadingRangesEpoch++;
 }
 
 bool UWorldPartitionSubsystem::GetOverrideLoadingRange(FName Name, int32& LoadingRange)
@@ -540,6 +542,11 @@ bool UWorldPartitionSubsystem::GetOverrideLoadingRange(FName Name, int32& Loadin
 		return true;
 	}
 	return false;
+}
+
+uint32 UWorldPartitionSubsystem::GetOverriddenLoadingRangesEpoch()
+{
+	return OverriddenLoadingRangesEpoch;
 }
 #endif
 

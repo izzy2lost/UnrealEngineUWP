@@ -622,17 +622,6 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FW
 	}
 }
 
-uint32 UWorldPartitionRuntimeHashSet::ComputeUpdateStreamingHash() const
-{
-	FHashBuilder HashBuilder(Super::ComputeUpdateStreamingHash());
-	ForEachStreamingData([&HashBuilder](const FRuntimePartitionStreamingData& StreamingData)
-	{
-		HashBuilder << StreamingData.GetLoadingRange();
-		return true;
-	});
-	return HashBuilder.GetHash();
-}
-
 bool UWorldPartitionRuntimeHashSet::SupportsWorldAssetStreaming(const FName& InTargetGrid)
 {
 	return IsValidGridInternal(InTargetGrid, nullptr);

@@ -155,6 +155,9 @@ uint32 UWorldPartitionStreamingPolicy::ComputeUpdateStreamingHash(bool bCanOptim
 		if (WorldPartition->RuntimeHash)
 		{
 			HashBuilder << WorldPartition->RuntimeHash->ComputeUpdateStreamingHash();
+#if !UE_BUILD_SHIPPING
+			HashBuilder << UWorldPartitionSubsystem::GetOverriddenLoadingRangesEpoch();
+#endif
 		}
 		HashBuilder << ComputeServerStreamingEnabledEpoch();
 		HashBuilder << WorldPartition->GetStreamingStateEpoch();

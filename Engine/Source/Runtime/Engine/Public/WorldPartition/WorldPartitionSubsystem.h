@@ -104,6 +104,7 @@ public:
 #if !UE_BUILD_SHIPPING
 	static ENGINE_API void SetOverrideLoadingRange(FName Name, int32 LoadingRange);
 	static ENGINE_API bool GetOverrideLoadingRange(FName Name, int32& LoadingRange);
+	static ENGINE_API uint32 GetOverriddenLoadingRangesEpoch();
 #endif
 
 #if WITH_EDITOR
@@ -134,6 +135,7 @@ protected:
 private:
 #if !UE_BUILD_SHIPPING
 	static TMap<FName, int32> OverriddenLoadingRanges;
+	static uint32 OverriddenLoadingRangesEpoch;
 	static class FAutoConsoleCommand OverrideLoadingRangeCommand;
 #endif
 
