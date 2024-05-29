@@ -234,6 +234,7 @@ namespace HarmonixMetasound::Analysis
 				Entry = MoveTemp(Other.Entry);
 				DiscontinuityDetectedInLastRead = Other.DiscontinuityDetectedInLastRead;
 				ReadCursor = MoveTemp(Other.ReadCursor);
+				return *this;
 			}
 
 			void Release()
