@@ -556,6 +556,7 @@ void FNetRefHandleManager::DestroyObjectsPendingDestroy()
 			PendingDestroyInternalIndices.RemoveAtSwap(It);
 		}
 	}
+	CSV_CUSTOM_STAT(IrisCommon, PendingDestroyInternalIndicesCount, (float)PendingDestroyInternalIndices.Num(), ECsvCustomStatOp::Set);
 }
 
 bool FNetRefHandleManager::AddSubObject(FNetRefHandle OwnerHandle, FNetRefHandle SubObjectHandle, FNetRefHandle RelativeOtherSubObjectHandle, EAddSubObjectFlags Flags)

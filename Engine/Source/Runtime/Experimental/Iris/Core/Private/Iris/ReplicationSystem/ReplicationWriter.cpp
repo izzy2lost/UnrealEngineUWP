@@ -901,12 +901,11 @@ void FReplicationWriter::InternalUpdateDirtyChangeMasks(const FChangeMaskCache& 
 	//UE_LOG_REPLICATIONWRITER(TEXT("FReplicationWriter::UpdateDirtyChangeMasks() Updated %u Objects for ConnectionId:%u, ReplicationSystemId: %u."), CachedChangeMasks.Indices.Num(), Parameters.ConnectionId, Parameters.ReplicationSystem->GetId());	
 }
 
-void FReplicationWriter::NotifyDestroyedObjectPendingTearOff(FInternalNetRefIndex ObjectInternalIndex)
+void FReplicationWriter::NotifyDestroyedObjectPendingEndReplication(FInternalNetRefIndex ObjectInternalIndex)
 {
 	const FReplicationInfo& ReplicationInfo = GetReplicationInfo(ObjectInternalIndex);
 	if (ReplicationInfo.GetState() == EReplicatedObjectState::PendingCreate)
 	{
-		check(ReplicationInfo.TearOff == 1U);
 		StopReplication(ObjectInternalIndex);
 	}
 }
@@ -1073,6 +1072,21 @@ void FReplicationWriter::HandleDeliveredRecord(const FReplicationRecord::FRecord
 				// If this object was teared off, it can now be considered as destroyed
 				else if (RecordInfo.WroteTearOff)
 				{
+					// Must also mark owner dirty as it might have been waiting for a subobject flush
+					if (Info.IsSubObject)
+					{
+						FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalIndex);
+						if (ObjectData.IsSubObject())
+						{
+							FReplicationInfo& OwnerInfo = ReplicatedObjects[ObjectData.SubObjectRootIndex];
+							if (OwnerInfo.GetState() != EReplicatedObjectState::Invalid && OwnerInfo.GetState() < EReplicatedObjectState::PendingDestroy)
+							{
+								MarkObjectDirty(ObjectData.SubObjectRootIndex, "HandleDeliveredRecordSubObjectTearOff");
+								OwnerInfo.HasDirtySubObjects = 1U;
+							}
+						}
+					}
+
 					SetState(InternalIndex, EReplicatedObjectState::PendingTearOff);
 					SetState(InternalIndex, EReplicatedObjectState::Destroyed);
 					StopReplication(InternalIndex);
@@ -1261,8 +1275,8 @@ void FReplicationWriter::HandleDroppedRecord<FReplicationWriter::EReplicatedObje
 	{
 		const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectData(InternalIndex);
 
-		// We can resend creation info even if we are marked for destroy if we have cached creation info.
-		const bool bCanSendCreationInfo = !ObjectsPendingDestroy.GetBit(InternalIndex) || ObjectData.bHasCachedCreationInfo;
+		// We can resend creation info even if we are marked for destroy/endrepliation as long as we have cached creation info.
+		const bool bCanSendCreationInfo = ObjectData.bHasCachedCreationInfo || (!ObjectsPendingDestroy.GetBit(InternalIndex) && !ObjectData.bPendingEndReplication);
 		if (bCanSendCreationInfo)
 		{
 			// Mark object as having dirty changes
@@ -2182,6 +2196,9 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 					{
 						if (!Context.HasErrorOrOverflow())
 						{
+							UE_LOG_REPLICATIONWRITER_WARNING(TEXT("Failed to replicate ( InternalIndex: %u ) %s, ProtocolName: %s, InstanceProtocol pointer: %p, HasCachedCreationInfo: %u"), InternalIndex, *NetRefHandle.ToString(), (ObjectData.Protocol ? ToCStr(ObjectData.Protocol->DebugName) : TEXT("nullptr")), ObjectData.InstanceProtocol, ObjectData.bHasCachedCreationInfo);
+							ensureMsgf(ObjectData.Protocol, TEXT("Failed to replicate ( InternalIndex: %u ) %s, Protocol: nullptr, InstanceProtocol pointer: %p, HasCachedCreationInfo: %u"), InternalIndex, *NetRefHandle.ToString(), ObjectData.InstanceProtocol, ObjectData.bHasCachedCreationInfo);
+
 							// Unforced error, treat it as we have no instance and cannot create this object but we can continue with other objects
 							return EWriteObjectStatus::NoInstanceProtocol;
 						}
