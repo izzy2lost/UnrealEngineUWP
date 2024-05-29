@@ -62,7 +62,7 @@ export const JobOperations: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({
 
    const failedSteps = jobDetails.getSteps().filter(s => {
 
-      if (!s.finishTime || (s.state !== JobStepState.Aborted && s.outcome !== JobStepOutcome.Failure)) {
+      if (s.state !== JobStepState.Skipped && (!s.finishTime || (s.state !== JobStepState.Aborted && s.outcome !== JobStepOutcome.Failure))) {
          return false;
       }
 
