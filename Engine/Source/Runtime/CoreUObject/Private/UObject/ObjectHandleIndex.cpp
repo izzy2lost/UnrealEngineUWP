@@ -130,9 +130,6 @@ namespace UE::CoreUObject::Private
 	void InitObjectHandles(int32 MaxObjects)
 	{
 		GObjectHandleIndex.ObjectIndexToPackedObjectRef.SetNumZeroed(MaxObjects);
-
-		// This allows the debug visualizer to evaluate a resolved handle to see if it has a packed ref stored in the global table.
-		GCoreObjectIndexToPackedObjectRefDebug = reinterpret_cast<const UPTRINT*>(GObjectHandleIndex.ObjectIndexToPackedObjectRef.GetData());
 	}
 
 	static FAutoConsoleCommand CmdPrintUnresolvedObjects(

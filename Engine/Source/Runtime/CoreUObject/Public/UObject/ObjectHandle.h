@@ -88,11 +88,6 @@ namespace UE::CoreUObject::Private
 
 	/** Read the handle as a pointer without checking if it is resolved. Invalid to call for unresolved handles. */
 	inline UObject* ReadObjectHandlePointerNoCheck(FObjectHandle Handle);
-
-#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
-	/** Determines if the handle represents a reference that is considered to be safe for object subtype pointers. */
-	inline bool IsObjectHandleTypeSafeNoReadNoCheck(FObjectHandle Handle);
-#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -121,12 +116,12 @@ inline bool IsObjectHandleResolved(FObjectHandle Handle)
 }
 
 /* return true if a handle is type safe.
- * null handles are considered safe, otherwise does a bit test
+ * null and resolved handles are considered type safe
  */ 
 inline bool IsObjectHandleTypeSafe(FObjectHandle Handle)
 {
-#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
-	return UE::CoreUObject::Private::IsObjectHandleTypeSafeNoReadNoCheck(Handle);
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE && UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+	return !((Handle.PointerOrRef & 3) == 3);
 #else
 	return true;
 #endif
@@ -281,7 +276,12 @@ namespace UE::CoreUObject::Private
 			FPackedObjectRef PackedObjectRef = ReadObjectHandlePackedObjectRefNoCheck(LocalHandle);
 			FObjectRef ObjectRef = MakeObjectRef(PackedObjectRef);
 			UObject* ResolvedObject = ObjectRef.Resolve();
-			Handle = MakeObjectHandle(ResolvedObject);
+#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+			if (IsObjectHandleTypeSafe(LocalHandle))
+#endif
+			{
+				Handle = MakeObjectHandle(ResolvedObject);
+			}
 			return ResolvedObject;
 		}
 #else
@@ -297,8 +297,13 @@ namespace UE::CoreUObject::Private
 		FPackedObjectRef PackedObjectRef = ReadObjectHandlePackedObjectRefNoCheck(LocalHandle);
 		FObjectRef ObjectRef = MakeObjectRef(PackedObjectRef);
 		UObject* ResolvedObject = ObjectRef.Resolve();
-		LocalHandle = MakeObjectHandle(ResolvedObject);
-		Handle = LocalHandle;
+#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+		if (IsObjectHandleTypeSafe(LocalHandle))
+#endif
+		{
+			LocalHandle = MakeObjectHandle(ResolvedObject);
+			Handle = LocalHandle;
+		}
 		return ResolvedObject;
 #else
 		return ReadObjectHandlePointerNoCheck(Handle);
@@ -359,18 +364,6 @@ namespace UE::CoreUObject::Private
 	inline constexpr uint32 ObjectIdShift = 2;
 	inline constexpr uint32 PackageIdShift = 34;
 	inline constexpr uint32 PackageIdMask = 0x3FFF'FFFF;
-
-#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
-	inline bool IsObjectHandleTypeSafeNoReadNoCheck(FObjectHandle Handle)
-	{
-#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
-		constexpr uint32 UnsafeTypeMask = (1 << TypeIdShift);
-		return IsObjectHandleNull(Handle) || ((Handle.PointerOrRef & (UnsafeTypeMask | 1)) == 1) || (IsObjectHandleResolved(Handle) && !(FindExistingPackedObjectRef(ReadObjectHandlePointerNoCheck(Handle)).EncodedRef & UnsafeTypeMask));
-#else
-		return true;
-#endif
-	}
-#endif
 
 #if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
 	//forward declarations

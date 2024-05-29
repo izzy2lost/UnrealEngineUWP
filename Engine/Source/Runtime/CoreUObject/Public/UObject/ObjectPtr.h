@@ -433,14 +433,13 @@ namespace ObjectPtr_Private
 	>
 	FORCEINLINE T* Get(const FObjectPtr& ObjectPtr)
 	{
-		// Always resolve the pointer first (for late resolve), even if the handle is not considered type safe.
-		UObject* Result = ObjectPtr.Get();
 		if (!IsObjectHandleTypeSafe(ObjectPtr.GetHandle()))
 		{
-			Result = nullptr;
+			// Type is unsafe; return NULL without resolving.
+			return nullptr;
 		}
 
-		return (T*)Result;
+		return (T*)ObjectPtr.Get();
 	}
 #endif
 
@@ -712,7 +711,10 @@ private:
 	//			to handle this case without forcing the calling code to be modified.
 	FORCEINLINE T*& GetInternalRef()
 	{
-		ObjectPtr.Get();
+		ObjectPtr_Private::Get<T>(ObjectPtr);
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE || UE_WITH_OBJECT_HANDLE_TRACKING
+		check(ObjectPtr.IsResolved());
+#endif
 		return (T*&)ObjectPtr.GetHandleRef();
 	}
 
@@ -923,6 +925,7 @@ ToRawPtrArrayUnsafe(TObjectPtr<T>(&ArrayOfPtr)[Size])
 	{
 		// NOTE: Relying on the fact that the TObjectPtr will cache the resolved pointer in place after calling Get.
 		Item.Get();
+		check(Item.IsResolved());
 	}
 #endif
 
@@ -969,6 +972,11 @@ ToRawPtrTArrayUnsafe(ArrayType&& Array)
 	using NewArrayType             = TArray<QualifiedRawPointerType, ArrayAllocatorType>;
 	using RefQualifiedNewArrayType = typename TCopyQualifiersAndRefsFromTo<ArrayType, NewArrayType>::Type;
 
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE || UE_WITH_OBJECT_HANDLE_TRACKING
+	using TypeCompat = TContainerElementTypeCompatibility<ArrayElementType>;
+	TypeCompat::ReinterpretRange(Array.begin(), Array.end());
+#endif
+
 	return (RefQualifiedNewArrayType&)Array;
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -987,6 +995,7 @@ struct TContainerElementTypeCompatibility<TObjectPtr<T>>
 		while (Iter != IterEnd)
 		{
 			Operator(Iter).Get();
+			check(Operator(Iter).IsResolved());
 			++Iter;
 		}
 #endif
@@ -1003,6 +1012,7 @@ struct TContainerElementTypeCompatibility<TObjectPtr<T>>
 			auto& Ptr = Operator(Iter);
 			const FObjectPtr& ObjPtr = reinterpret_cast<const FObjectPtr&>(Ptr);
 			UE::CoreUObject::Private::ResolveObjectHandleNoRead(ObjPtr.GetHandleRef());
+			check(ObjPtr.IsResolved());
 			++Iter;
 		}
 		const UObject* const* ObjPtr = reinterpret_cast<const UObject* const*>(Begin);
@@ -1028,6 +1038,7 @@ struct TContainerElementTypeCompatibility<const TObjectPtr<T>>
 		while (Iter != IterEnd)
 		{
 			Operator(Iter).Get();
+			check(Operator(Iter).IsResolved());
 			++Iter;
 		}
 #endif
@@ -1044,6 +1055,7 @@ struct TContainerElementTypeCompatibility<const TObjectPtr<T>>
 			auto& Ptr = Operator(Iter);
 			const FObjectPtr& ObjPtr = reinterpret_cast<const FObjectPtr&>(Ptr);
 			UE::CoreUObject::Private::ResolveObjectHandleNoRead(ObjPtr.GetHandleRef());
+			check(ObjPtr.IsResolved());
 			++Iter;
 		}
 		const UObject* const* ObjPtr = reinterpret_cast<const UObject* const*>(Begin);

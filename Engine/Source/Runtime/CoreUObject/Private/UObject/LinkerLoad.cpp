@@ -6230,23 +6230,21 @@ FArchive& FLinkerLoad::operator<<(FObjectPtr& ObjectPtr)
 		// Note: References to placeholder objects cannot resolve to it if the underlying pointer type is unsafe.
 		if (ResolvedObject && UE::FPropertyBagRepository::IsPropertyBagPlaceholderObject(ResolvedObject))
 		{
-#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE && UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
-			// If type safety features are enabled, create a packed reference mapping for the placeholder-typed object.
-			// This resolves to the placeholder object for UObject-typed pointers. For other types it resolves to NULL.
-			// However, the underlying value when serialized will always resolve to the object reference (e.g. for GC).
-			// Note: We could return an FObjectPtr that wraps the packed reference result, but that implies a lazy load.
-			// We need to register the packed object reference here, but we don't need to also defer the pointer resolve.
-			UE::CoreUObject::Private::MakePackedObjectRef(ResolvedObject);
-#else
-			// If type safety features are disabled, resolve unsafe references to placeholder-typed objects now to NULL.
-			// Note: Similar to hard references above, this means we won't find it for replacement at reinstancing time.
 			const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(GetSerializedProperty());
 			if (!ObjectProperty || !ResolvedObject->GetClass()->IsChildOf(ObjectProperty->PropertyClass))
 			{
-				UE_LOG(LogLinker, Warning, TEXT("Serializing reference to \"%s\" as NULL to ensure type safety."), *ResolvedObject->GetPathName());
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE && UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+				// If type safety features are enabled, create a packed reference mapping for the placeholder-typed object.
+				// This resolves to NULL on access since the reference can't be cast to a pointer bound to its original type.
+				// However, the underlying value (when serialized) will always resolve to the placeholder object (e.g. for GC).
+				return FObjectPtr({ UE::CoreUObject::Private::MakePackedObjectRef(ResolvedObject).EncodedRef });
+#else
+				// If type safety features are disabled, serialize it as an unsafe reference to a placeholder-typed object.
+				// Note: Similar to hard references above, this means we won't find it for replacement at reinstancing time.
+				UE_LOG(LogLinker, Warning, TEXT("Serializing reference to \"%s\" as NULL to ensure type safety. This will lead to data loss if the referencing object is saved."), *ResolvedObject->GetPathName());
 				ResolvedObject = nullptr;
-			}
 #endif
+			}
 		}
 #endif
 		return FObjectPtr(ResolvedObject);
