@@ -265,9 +265,6 @@ private:
 	 */
 	void FillShowHLODsMenu(UToolMenu* Menu) const;
 
-	/** Generates the layout sub-menu content */
-	void GenerateViewportConfigsMenu(UToolMenu* Menu) const;
-
 	/** Gets the world we are editing */
 	TWeakObjectPtr<UWorld> GetWorld() const;
 

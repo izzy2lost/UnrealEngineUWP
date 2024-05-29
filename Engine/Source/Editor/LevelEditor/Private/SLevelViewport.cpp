@@ -1926,8 +1926,15 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 			UToolMenu* const ViewportToolbarMenu = UToolMenus::Get()->RegisterMenu(
 				LevelEditorViewportToolbarName, NAME_None /* parent */, EMultiBoxType::ToolBar);
 
-			UE::LevelEditor::AddViewportToolbarTransformsSection(ViewportToolbarMenu);
-			UE::LevelEditor::AddLevelEditorViewportToolbarSettingsSection(ViewportToolbarMenu);
+			{
+				FToolMenuSection& LeftSection = ViewportToolbarMenu->FindOrAddSection("Left");
+				UE::LevelEditor::AddViewportToolbarTransformsSection(LeftSection);
+			}
+
+			{
+				FToolMenuSection& RightSection = ViewportToolbarMenu->FindOrAddSection("Right");
+				UE::LevelEditor::AddLevelEditorViewportToolbarSettingsSection(RightSection);
+			}
 		}
 	}
 

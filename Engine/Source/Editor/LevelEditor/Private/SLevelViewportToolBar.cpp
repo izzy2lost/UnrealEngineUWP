@@ -57,6 +57,7 @@
 #include "SCommonEditorViewportToolbarBase.h"
 #include "SActionableMessageViewportWidget.h"
 #include "Engine/SceneCapture.h"
+#include "ViewportToolbar/LevelEditorViewportToolbarSections.h"
 
 #define LOCTEXT_NAMESPACE "LevelViewportToolBar"
 
@@ -823,14 +824,11 @@ void SLevelViewportToolBar::FillOptionsMenu(UToolMenu* Menu)
 
 		{
 			FToolMenuSection& Section = Menu->AddSection("LevelViewportLayouts");
-			Section.AddSubMenu(
-				"Configs",
-				LOCTEXT("ConfigsSubMenu", "Layouts"),
-				FText::GetEmpty(),
-				FNewToolMenuDelegate::CreateSP(this, &SLevelViewportToolBar::GenerateViewportConfigsMenu),
-				false,
-				FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Layout")
-			);
+			Section.AddSubMenu("Configs", LOCTEXT("ConfigsSubMenu", "Layouts"), FText::GetEmpty(),
+				FNewToolMenuDelegate::CreateLambda([WeakViewport = Viewport](UToolMenu* InMenu) {
+					UE::LevelEditor::GenerateViewportLayoutsMenu(InMenu, WeakViewport.Pin());
+				}),
+				false, FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Layout"));
 		}
 
 		{
@@ -1102,125 +1100,6 @@ void SLevelViewportToolBar::FillCameraMenu(UToolMenu* Menu) const
 			FToolMenuSection& Section = Menu->AddSection("ViewportTypes", ViewportTypesHeading);
 			GenerateViewportTypeMenu(Section);
 		}
-	}
-}
-
-void SLevelViewportToolBar::GenerateViewportConfigsMenu(UToolMenu* Menu) const
-{
-	check (Viewport.IsValid());
-	TSharedPtr<FUICommandList> CommandList = Viewport.Pin()->GetCommandList();
-
-	// Disable searching in this menu because it only contains visual representations of
-	// viewport layouts without any searchable text.
-	Menu->bSearchable = false;
-
-	{
-		FToolMenuSection& Section = Menu->AddSection("LevelViewportOnePaneConfigs", LOCTEXT("OnePaneConfigHeader", "One Pane"));
-
-		FSlimHorizontalToolBarBuilder OnePaneButton(CommandList, FMultiBoxCustomization::None);
-		OnePaneButton.SetLabelVisibility(EVisibility::Collapsed);
-		OnePaneButton.SetStyle(&FAppStyle::Get(), "ViewportLayoutToolbar");
-
-		OnePaneButton.AddToolBarButton(FLevelViewportCommands::Get().ViewportConfig_OnePane);
-
-		Section.AddEntry(FToolMenuEntry::InitWidget(
-			"LevelViewportOnePaneConfigs",
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				OnePaneButton.MakeWidget()
-			]
-			+ SHorizontalBox::Slot()
-			.FillWidth(1)
-			[
-				SNullWidget::NullWidget
-			],
-			FText::GetEmpty(), true
-			));
-	}
-
-	{
-		FToolMenuSection& Section = Menu->AddSection("LevelViewportTwoPaneConfigs", LOCTEXT("TwoPaneConfigHeader", "Two Panes"));
-		FSlimHorizontalToolBarBuilder TwoPaneButtons(CommandList, FMultiBoxCustomization::None);
-		TwoPaneButtons.SetLabelVisibility(EVisibility::Collapsed);
-		TwoPaneButtons.SetStyle(&FAppStyle::Get(), "ViewportLayoutToolbar");
-
-		TwoPaneButtons.AddToolBarButton(FLevelViewportCommands::Get().ViewportConfig_TwoPanesH, NAME_None, FText());
-		TwoPaneButtons.AddToolBarButton(FLevelViewportCommands::Get().ViewportConfig_TwoPanesV, NAME_None, FText());
-
-		Section.AddEntry(FToolMenuEntry::InitWidget(
-			"LevelViewportTwoPaneConfigs",
-			SNew(SHorizontalBox)
-			+SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				TwoPaneButtons.MakeWidget()
-			]
-			+SHorizontalBox::Slot()
-			.FillWidth(1)
-			[
-				SNullWidget::NullWidget
-			],
-			FText::GetEmpty(), true
-			));
-	}
-
-	{
-		FToolMenuSection& Section = Menu->AddSection("LevelViewportThreePaneConfigs", LOCTEXT("ThreePaneConfigHeader", "Three Panes"));
-		FSlimHorizontalToolBarBuilder ThreePaneButtons(CommandList, FMultiBoxCustomization::None);
-		ThreePaneButtons.SetLabelVisibility(EVisibility::Collapsed);
-		ThreePaneButtons.SetStyle(&FAppStyle::Get(), "ViewportLayoutToolbar");
-
-		ThreePaneButtons.AddToolBarButton(FLevelViewportCommands::Get().ViewportConfig_ThreePanesLeft, NAME_None, FText());
-		ThreePaneButtons.AddToolBarButton(FLevelViewportCommands::Get().ViewportConfig_ThreePanesRight, NAME_None, FText());
-		ThreePaneButtons.AddToolBarButton(FLevelViewportCommands::Get().ViewportConfig_ThreePanesTop, NAME_None, FText());
-		ThreePaneButtons.AddToolBarButton(FLevelViewportCommands::Get().ViewportConfig_ThreePanesBottom, NAME_None, FText());
-
-		Section.AddEntry(FToolMenuEntry::InitWidget(
-			"LevelViewportThreePaneConfigs",
-			SNew(SHorizontalBox)
-			+SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				ThreePaneButtons.MakeWidget()
-			]
-			+SHorizontalBox::Slot()
-			.FillWidth(1)
-			[
-				SNullWidget::NullWidget
-			],
-			FText::GetEmpty(), true
-			));
-	}
-
-	{
-		FToolMenuSection& Section = Menu->AddSection("LevelViewportFourPaneConfigs", LOCTEXT("FourPaneConfigHeader", "Four Panes"));
-		FSlimHorizontalToolBarBuilder FourPaneButtons(CommandList, FMultiBoxCustomization::None);
-		FourPaneButtons.SetLabelVisibility(EVisibility::Collapsed);
-		FourPaneButtons.SetStyle(&FAppStyle::Get(), "ViewportLayoutToolbar");
-
-		FourPaneButtons.AddToolBarButton(FLevelViewportCommands::Get().ViewportConfig_FourPanes2x2, NAME_None, FText());
-		FourPaneButtons.AddToolBarButton(FLevelViewportCommands::Get().ViewportConfig_FourPanesLeft, NAME_None, FText());
-		FourPaneButtons.AddToolBarButton(FLevelViewportCommands::Get().ViewportConfig_FourPanesRight, NAME_None, FText());
-		FourPaneButtons.AddToolBarButton(FLevelViewportCommands::Get().ViewportConfig_FourPanesTop, NAME_None, FText());
-		FourPaneButtons.AddToolBarButton(FLevelViewportCommands::Get().ViewportConfig_FourPanesBottom, NAME_None, FText());	
-
-		Section.AddEntry(FToolMenuEntry::InitWidget(
-			"LevelViewportFourPaneConfigs",
-			SNew(SHorizontalBox)
-			+SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				FourPaneButtons.MakeWidget()
-			]
-			+SHorizontalBox::Slot()
-			.FillWidth(1)
-			[
-				SNullWidget::NullWidget
-			],
-			FText::GetEmpty(), true
-			));
 	}
 }
 

@@ -2,15 +2,19 @@
 
 #pragma once
 
-struct FToolMenuSection;
+#include "Templates/SharedPointerFwd.h"
+
+class SLevelViewport;
 class UToolMenu;
+struct FToolMenuSection;
 
 namespace UE::LevelEditor
 {
 
-void AddViewportToolbarTransformsSection(UToolMenu* InMenu);
+void AddViewportToolbarTransformsSection(FToolMenuSection& InSection);
 void AddMaterialQualityLevelSubmenu(FToolMenuSection& Section);
 void AddFeatureLevelPreviewSubmenu(FToolMenuSection& Section);
-void AddLevelEditorViewportToolbarSettingsSection(UToolMenu* InMenu);
+void GenerateViewportLayoutsMenu(UToolMenu* InMenu, TSharedPtr<::SLevelViewport> InViewport);
+void AddLevelEditorViewportToolbarSettingsSection(FToolMenuSection& InSection);
 
 } // namespace UE::LevelEditor
