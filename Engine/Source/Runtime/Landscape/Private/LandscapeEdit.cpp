@@ -2982,7 +2982,7 @@ const TArray<FName>& ALandscapeProxy::GetLayersFromMaterial() const
 	return GetLayersFromMaterial(LandscapeMaterial);
 }
 
-TArray<FName> ALandscapeProxy::RetrieveAllLayerNamesFromMaterials() const
+TArray<FName> ALandscapeProxy::RetrieveTargetLayerNamesFromMaterials() const
 {
 	TSet<FName> LayerNames;
 	LayerNames.Append(GetLayersFromMaterial());
@@ -3009,7 +3009,7 @@ TArray<FName> ALandscapeProxy::RetrieveAllLayerNamesFromMaterials() const
 	return LayerNames.Array();
 }
 
-TMap<FName, ULandscapeLayerInfoObject*> ALandscapeProxy::RetrieveAllocationInfos() const
+TMap<FName, ULandscapeLayerInfoObject*> ALandscapeProxy::RetrieveTargetLayerInfosFromAllocations() const
 {
 	TMap<FName, ULandscapeLayerInfoObject*> InfoObjects;
 	for (const TObjectPtr<ULandscapeComponent>& Component : LandscapeComponents)
@@ -7223,7 +7223,7 @@ void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterfa
 			int32 WeightmapSize = (SubsectionSizeQuads + 1) * NumSubsections;
 
 			// We need a new weightmap texture
-			CurrentWeightmapTexture = TargetProxy->CreateLandscapeTexture(WeightmapSize, WeightmapSize, TEXTUREGROUP_Terrain_Weightmap, TSF_BGRA8, nullptr, /* bCompress = */ false, /* bMipChain= */ bIsFinalWeightmap); //dmb-nomips
+			CurrentWeightmapTexture = TargetProxy->CreateLandscapeTexture(WeightmapSize, WeightmapSize, TEXTUREGROUP_Terrain_Weightmap, TSF_BGRA8, nullptr, /* bCompress = */ false, /* bMipChain= */ bIsFinalWeightmap); 
 
 			// Alloc dummy mips
 			if (bIsFinalWeightmap)

@@ -470,8 +470,8 @@ protected:
 
 public:
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(Transient)
-	bool bInitWeightLayersFromMaterial;
+	UPROPERTY()
+	TMap<FName, TObjectPtr<ULandscapeLayerInfoObject>> TargetLayersForFixup;
 #endif //WITH_EDITORONLY_DATA
 	/** Offset in quads from global components grid origin (in quads) **/
 	UPROPERTY()
@@ -1285,11 +1285,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	LANDSCAPE_API static const TArray<FName>& GetLayersFromMaterial(UMaterialInterface* Material);
 	LANDSCAPE_API const TArray<FName>& GetLayersFromMaterial() const;
 
-	// Get all Layer names used by the materials assigned the proxy and components ( Proxy Material, Component, Component LOD Material and Hole Material)
-	LANDSCAPE_API TArray<FName> RetrieveAllLayerNamesFromMaterials() const;
+	// Get all Layer names used by the materials assigned the proxy and components (Proxy Material, Component, Component LOD Material and Hole Material)
+	LANDSCAPE_API TArray<FName> RetrieveTargetLayerNamesFromMaterials() const;
 	
 	// Query all the LandscapeLayerInfo Objects from the weight layers allocated on this proxy.
-	LANDSCAPE_API TMap<FName, ULandscapeLayerInfoObject*> RetrieveAllocationInfos() const;
+	TMap<FName, ULandscapeLayerInfoObject*> RetrieveTargetLayerInfosFromAllocations() const;
 
 	/**
 	* Creates a new LandscapeLayerInfoObject

@@ -3924,42 +3924,38 @@ bool ULandscapeInfo::UpdateLayerInfoMapInternal(ALandscapeProxy* Proxy)
 		return false;
 	}
 
-	// Perform a delayed (see where bInitWeightLayersFromMaterial is assigned), one-time deprecation of the landscape layer data based on the content of the materials in the components (see FixupLandscapeTargetLayersInLandscapeActor)
-	if (GIsEditor && Proxy && Proxy->bInitWeightLayersFromMaterial)
+	// Perform a delayed (see where TargetLayersForFixup is set), one-time deprecation of the landscape layer data based on the content of the materials in the components (see FixupLandscapeTargetLayersInLandscapeActor)
+	if (GIsEditor && Proxy && !Proxy->TargetLayersForFixup.IsEmpty())
 	{
-		Proxy->bInitWeightLayersFromMaterial = false;
-		// add the landscape layers from the material on the proxy & LandscapeLayerInfos from the WeightMap Allocations
-		TArray<FName> LayerNames = Proxy->RetrieveAllLayerNamesFromMaterials();
-		const TMap<FName, ULandscapeLayerInfoObject*> InfoObjects = Proxy->RetrieveAllocationInfos();
-		for(const FName& LayerName : LayerNames)
+		// Go through the list of layer names / info to fixup and declare new or update existing layers in the main landscape actor if we have one that the main landscape doesn't know about :
+		for (const auto& It : Proxy->TargetLayersForFixup)
 		{
-			ULandscapeLayerInfoObject* const * LayerInfoObject = InfoObjects.Find(LayerName);
-			if (!LandscapeActor->HasTargetLayer(LayerName))
+			FName LayerName = It.Key;
+			ULandscapeLayerInfoObject* LayerInfo = It.Value;
+			check(LayerName.IsValid());
+
+			const FLandscapeTargetLayerSettings* LayerSettingsInLandscapeActor = LandscapeActor->GetTargetLayers().Find(LayerName);
+			// If the layer isn't known to the main landscape, add it now : 
+			if (LayerSettingsInLandscapeActor == nullptr)
 			{
 				// Mark the parent landscape actor dirty with bInForceResave == true so that the parent actor is put into the list of files to save even if we do this fixup on load :
 				MarkObjectDirty(/*InObject = */LandscapeActor.Get(), /*bInForceResave = */true);
 
-				LandscapeActor->AddTargetLayer(LayerName, FLandscapeTargetLayerSettings(LayerInfoObject ? *LayerInfoObject : nullptr), false);
+				LandscapeActor->AddTargetLayer(LayerName, FLandscapeTargetLayerSettings(LayerInfo), false);
+				bLayerInfoMapChanged = true;
+			}
+			// If the layer name is known to the main landscape but it hasn't got a landscape info associated to it yet, update it to use this LayerInfo :
+			else if ((LayerInfo != nullptr) && (LayerSettingsInLandscapeActor->LayerInfoObj == nullptr))
+			{
+				// Mark the parent landscape actor dirty with bInForceResave == true so that the parent actor is put into the list of files to save even if we do this fixup on load :
+				MarkObjectDirty(/*InObject = */LandscapeActor.Get(), /*bInForceResave = */true);
+
+				LandscapeActor->UpdateTargetLayer(LayerName, FLandscapeTargetLayerSettings(LayerInfo), false);
 				bLayerInfoMapChanged = true;
 			}
 		}
-			
-		for (const auto& Layer : LandscapeActor->GetTargetLayers())
-		{
-			// Fixup the layers that point to an invalid layer info found in the proxy if possible
-			if (Layer.Value.LayerInfoObj == nullptr)
-			{
-				ULandscapeLayerInfoObject* const * LayerInfoObject = InfoObjects.Find(Layer.Key);
-				if (LayerInfoObject && LandscapeActor->HasTargetLayer(Layer.Key))
-				{
-					// Mark the parent landscape actor dirty with bInForceResave == true so that the parent actor is put into the list of files to save even if we do this fixup on load :
-					MarkObjectDirty(/*InObject = */LandscapeActor.Get(), /*bInForceResave = */true);
 
-					LandscapeActor->UpdateTargetLayer(Layer.Key, FLandscapeTargetLayerSettings(*LayerInfoObject), false);
-					bLayerInfoMapChanged = true;
-				}
-			}
-		}
+		Proxy->TargetLayersForFixup.Empty();
 	}
 
 	Layers.Empty();
@@ -4115,12 +4111,6 @@ void ALandscapeProxy::PostLoad()
 	}
 
 #if WITH_EDITOR
-	const int32 LinkerVersion = GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID);
-	// With and before LandscapeTargetLayersInLandscapeActor and until FixupLandscapeTargetLayersInLandscapeActor, some layer info objects have been incorrectly unassigned and we now have to go through 
-	//  all materials of all streaming proxies to gather the missing landscape layer info objects and this can only be done after proxies are united with their parent landscape by their ULandscapeInfo 
-	//  (since TargetLayers is a LandscapeInherited property of the parent landscape, propagated to the child proxies), so we set a boolean to delay this operation until then :
-	bInitWeightLayersFromMaterial = (LinkerVersion < FFortniteMainBranchObjectVersion::FixupLandscapeTargetLayersInLandscapeActor);
-	
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (!LandscapeMaterialsOverride_DEPRECATED.IsEmpty())
 	{
@@ -4131,7 +4121,53 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		}
 		LandscapeMaterialsOverride_DEPRECATED.Reset();
 	}
+
+	if (!EditorLayerSettings_DEPRECATED.IsEmpty())
+	{
+		// If we still have access to EditorLayerSettings_DEPRECATED because it's the first time we deprecate this proxy since FFortniteMainBranchObjectVersion::LandscapeTargetLayersInLandscapeActor, 
+		//  fill the list of target layers to fixup based on the original property because it's the most accurate (it has layer info assignment even if there's no weightmap allocation for a given layer) :
+		TargetLayersForFixup.Reserve(EditorLayerSettings_DEPRECATED.Num());
+		for (const FLandscapeEditorLayerSettings& EditorLayerSetting : EditorLayerSettings_DEPRECATED)
+		{
+			if (EditorLayerSetting.LayerInfoObj != nullptr)
+			{
+				TargetLayersForFixup.Add(EditorLayerSetting.LayerInfoObj->LayerName, EditorLayerSetting.LayerInfoObj);
+			}
+		}
+		EditorLayerSettings_DEPRECATED.Reset();
+	}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	const int32 LinkerVersion = GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID);
+	// With and before LandscapeTargetLayersInLandscapeActor and until FixupLandscapeTargetLayersInLandscapeActor, some layer info objects have been incorrectly unassigned and we now have to go through 
+	//  all materials of all streaming proxies to gather the missing landscape layer info objects and this can only be done after proxies are united with their parent landscape by their ULandscapeInfo 
+	//  (since TargetLayers is a LandscapeInherited property of the parent landscape, propagated to the child proxies), so we must delay this operation until then. What we do here is prepare a list of 
+	//  layers to fixup in the main landscape actor (TargetLayersForFixup) and when the proxy is registered to the parent landscape, we'll go through that list and update the landscape's TargetLayers list,
+	//  which will then be synchronized with all proxies if necessary:
+	if (LinkerVersion < FFortniteMainBranchObjectVersion::FixupLandscapeTargetLayersInLandscapeActor)
+	{
+		// Go through the list of materials and weightmap allocations to gather potential layer name / layer info associations :
+		{
+			TMap<FName, ULandscapeLayerInfoObject*> LayerInfosFromAllocations = RetrieveTargetLayerInfosFromAllocations();
+			for (const auto& It : LayerInfosFromAllocations)
+			{
+				FName LayerName = It.Key;
+				ULandscapeLayerInfoObject* LayerInfo = It.Value;
+				TObjectPtr<ULandscapeLayerInfoObject>* LayerInfoInFixupMap = TargetLayersForFixup.Find(LayerName);
+				// Unknown layer name yet, let's add a layer name / info association :
+				if (LayerInfoInFixupMap == nullptr)
+				{
+					TargetLayersForFixup.Add(LayerName, LayerInfo);
+				}
+				// Known layer name, but we have no valid layer info associated with it yet, update it :
+				else if (*LayerInfoInFixupMap == nullptr)
+				{
+					*LayerInfoInFixupMap = LayerInfo;
+				}
+				// Otherwise, don't touch it, we consider that TargetLayersForFixup has the authority over this layer already
+			}
+		}
+	}
 
 	if (GIsEditor)
 	{
@@ -5458,7 +5494,7 @@ void ULandscapeInfo::RegisterLandscapeActorWithProxyInternal(ALandscapeProxy* Pr
 	// generic proxy setup (that requires ALandscape actor) here
 	if (bool bLayerInfoMapChanged = UpdateLayerInfoMap(Proxy))
 	{
-		// The layer info map is part of the main landscape so if it has changed, we needto do another round of shared data fixup on all proxies, so all proxies have their TargetLayers list synchronized. 
+		// The layer info map is part of the main landscape so if it has changed, we need to do another round of shared data fixup on all proxies, so all proxies have their TargetLayers list synchronized. 
 		//  This is a one-time thing because at some point during development, the target layer data was deprecated and the deprecation turned somewhat sour :S
 		ForEachLandscapeProxy([this, Landscape, bMapCheck](ALandscapeProxy* Proxy)
 		{

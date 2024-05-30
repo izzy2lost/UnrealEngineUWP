@@ -216,7 +216,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateHeaderRowContent(FD
 {
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
 	
-	if (LandscapeEdMode == NULL)
+	if (LandscapeEdMode == nullptr)
 	{
 		return;	
 	}
@@ -333,10 +333,10 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateHeaderRowContent(FD
 
 FReply FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleCreateLayersFromMaterials()
 {
-	FScopedTransaction Transaction(LOCTEXT("LandscapeWeightLayer_CreateFromMaterials", "Create Weight Layers from Assigned materials"));
+	FScopedTransaction Transaction(LOCTEXT("LandscapeTargetLayer_CreateFromMaterials", "Create Target Layers from Assigned materials"));
 	
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode(); 
-	if (LandscapeEdMode == NULL)
+	if (LandscapeEdMode == nullptr)
 	{
 		return FReply::Handled(); 
 	}
@@ -346,7 +346,7 @@ FReply FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleCreateLayersFromMat
 	TSet<FName> LayerNames;
 	LandscapeActor->GetLandscapeInfo()->ForEachLandscapeProxy([&LayerNames](ALandscapeProxy* Proxy)
 	{
-		LayerNames.Append(Proxy->RetrieveAllLayerNamesFromMaterials());
+		LayerNames.Append(Proxy->RetrieveTargetLayerNamesFromMaterials());
 		return true;
 	});
 
@@ -372,7 +372,7 @@ FReply FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleCreateLayersFromMat
 void FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleCreateLayer()
 {
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
-	if (LandscapeEdMode == NULL)
+	if (LandscapeEdMode == nullptr)
 	{
 		return; 
 	}
@@ -384,7 +384,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleCreateLayer()
 		return; 
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("LandscapeWeightLayer_Create", "Create a Weight Layer"));
+	FScopedTransaction Transaction(LOCTEXT("LandscapeTargetLayer_Create", "Create a Target Layer"));
 	
 	Landscape->AddTargetLayer();
 	
@@ -549,7 +549,7 @@ BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateChildContent(IDetailChildrenBuilder& ChildrenBuilder)
 {
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
-	if (LandscapeEdMode != NULL)
+	if (LandscapeEdMode != nullptr)
 	{
 		const TArray<TSharedRef<FLandscapeTargetListInfo>>& TargetList = LandscapeEdMode->GetTargetList();
 		const TArray<FName>* TargetDisplayOrderList = LandscapeEdMode->GetTargetDisplayOrderList();
@@ -737,18 +737,31 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateRow(
 											.Font(IDetailLayoutBuilder::GetDetailFontBold())
 											.Text(Target->TargetLayerDisplayName)
 											.ColorAndOpacity_Static(&FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetTextColor, Target)
-											.OnTextCommitted_Lambda([Target]( const FText& Text, ETextCommit::Type Type)
+											.OnVerifyTextChanged_Lambda([Target](const FText& InNewText, FText& OutErrorMessage)
 											{
-												FScopedTransaction Transaction(LOCTEXT("LandscapeWeightLayer_Rename", "Rename Weight Layer"));
+												const FName NewName(InNewText.ToString());
+												ALandscape* Landscape = Cast<ALandscape>(Target->Owner);
+												if ((Target->LayerName != NewName) && Landscape->HasTargetLayer(NewName))
+												{
+													OutErrorMessage = LOCTEXT("LandscapeTargetLayer_RenameFailed_AlreadyExists", "This target layer name already exists");
+													return false;
+												}
+
+												return true;
+											})
+											.OnTextCommitted_Lambda([Target](const FText& Text, ETextCommit::Type Type)
+											{
+												const FName NewName(Text.ToString());
+												if (Target->LayerName == NewName)
+												{
+													return;
+												}
+
+												FScopedTransaction Transaction(LOCTEXT("LandscapeTargetLayer_Rename", "Rename Target Layer"));
 												ALandscape* Landscape = Cast<ALandscape>(Target->Owner);
 												
 												const TMap<FName, FLandscapeTargetLayerSettings>& TargetLayers = Landscape->GetTargetLayers();
 												const FLandscapeTargetLayerSettings* LayerSettings = nullptr;
-												
-												if (Target->LayerName == FName(Text.ToString()))
-												{
-													LayerSettings = TargetLayers.Find(FName(Target->TargetLayerDisplayName.ToString()));	
-												}
 												
 												Landscape->RemoveTargetLayer(FName(Target->TargetLayerDisplayName.ToString()));
 											
@@ -785,7 +798,7 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateRow(
 									[
 										SNew(SObjectPropertyEntryBox)
 											.IsEnabled((bool)Target->bValid)
-											.ObjectPath(Target->LayerInfoObj != NULL ? Target->LayerInfoObj->GetPathName() : FString())
+											.ObjectPath(Target->LayerInfoObj != nullptr ? Target->LayerInfoObj->GetPathName() : FString())
 											.AllowedClass(ULandscapeLayerInfoObject::StaticClass())
 											.OnObjectChanged_Static(&FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerSetObject, Target)
 											.OnShouldFilterAsset_Static(&FLandscapeEditorCustomNodeBuilder_TargetLayers::ShouldFilterLayerInfo, Target->LayerName)
@@ -1036,7 +1049,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetSelectionChanged(co
 		LandscapeEdMode->CurrentToolTarget.TargetType = Target->TargetType;
 		if (Target->TargetType == ELandscapeToolTargetType::Heightmap)
 		{
-			checkSlow(Target->LayerInfoObj == NULL);
+			checkSlow(Target->LayerInfoObj == nullptr);
 			LandscapeEdMode->SetCurrentTargetLayer(NAME_None, nullptr);
 		}
 		else
@@ -1048,9 +1061,9 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetSelectionChanged(co
 
 TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerContextMenuOpening(const TSharedRef<FLandscapeTargetListInfo> Target)
 {
-	if (Target->TargetType == ELandscapeToolTargetType::Heightmap || Target->LayerInfoObj != NULL)
+	if (Target->TargetType == ELandscapeToolTargetType::Heightmap || Target->LayerInfoObj != nullptr)
 	{
-		FMenuBuilder MenuBuilder(true, NULL);
+		FMenuBuilder MenuBuilder(true, nullptr);
 		
 		MenuBuilder.BeginSection("LandscapeEditorLayerActions", LOCTEXT("LayerContextMenu.Heading", "Layer Actions"));
 		{
@@ -1092,7 +1105,7 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLaye
 		return MenuBuilder.MakeWidget();
 	}
 
-	return NULL;
+	return nullptr;
 }
 
 void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnExportLayer(const TSharedRef<FLandscapeTargetListInfo> Target)
@@ -1104,7 +1117,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnExportLayer(const TShared
 		IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
 
 		ULandscapeInfo* LandscapeInfo = Target->LandscapeInfo.Get();
-		ULandscapeLayerInfoObject* LayerInfoObj = Target->LayerInfoObj.Get(); // NULL for heightmaps
+		ULandscapeLayerInfoObject* LayerInfoObj = Target->LayerInfoObj.Get(); // nullptr for heightmaps
 
 		// Prompt for filename
 		FString SaveDialogTitle;
@@ -1167,7 +1180,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnImportLayer(const TShared
 		IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
 
 		ULandscapeInfo* LandscapeInfo = Target->LandscapeInfo.Get();
-		ULandscapeLayerInfoObject* LayerInfoObj = Target->LayerInfoObj.Get(); // NULL for heightmaps
+		ULandscapeLayerInfoObject* LayerInfoObj = Target->LayerInfoObj.Get(); // nullptr for heightmaps
 
 		// Prompt for filename
 		FString OpenDialogTitle;
@@ -1314,7 +1327,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerSetObject(cons
 {
 	// Can't assign null to a layer
 	UObject* Object = AssetData.GetAsset();
-	if (Object == NULL)
+	if (Object == nullptr)
 	{
 		return;
 	}
@@ -1416,7 +1429,7 @@ EVisibility FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetLayerDelete
 
 TSharedRef<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::OnGetTargetLayerCreateMenu(const TSharedRef<FLandscapeTargetListInfo> Target)
 {
-	FMenuBuilder MenuBuilder(true, NULL);
+	FMenuBuilder MenuBuilder(true, nullptr);
 
 	MenuBuilder.AddMenuEntry(LOCTEXT("Menu_Create_Blended", "Weight-Blended Layer (normal)"), FText(), FSlateIcon(),
 		FUIAction(FExecuteAction::CreateStatic(&FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerCreateClicked, Target, false)));
@@ -1638,7 +1651,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnDebugModeColorChannelChan
 	if (NewCheckedState == ECheckBoxState::Checked)
 	{
 		// Enable on us and disable colour channel on other targets
-		if (ensure(Target->LayerInfoObj != NULL))
+		if (ensure(Target->LayerInfoObj != nullptr))
 		{
 			ULandscapeInfo* LandscapeInfo = Target->LandscapeInfo.Get();
 			int32 Index = LandscapeInfo->GetLayerInfoIndex(Target->LayerInfoObj.Get(), Target->Owner.Get());
