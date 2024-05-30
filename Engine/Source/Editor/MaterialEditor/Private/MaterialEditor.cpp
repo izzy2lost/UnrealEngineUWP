@@ -883,9 +883,6 @@ void FMaterialEditor::InitMaterialEditor( const EToolkitMode::Type Mode, const T
 	{
 		SaveAsset_Execute();
 	}
-
-	// Notify other editors if this material editor has a post process named output, which may affect their preview
-	NotifyUserSceneTextureLoadOrUnload();
 }
 
 void FMaterialEditor::UpdateGenerator()
@@ -934,11 +931,6 @@ FMaterialEditor::FMaterialEditor()
 
 FMaterialEditor::~FMaterialEditor()
 {
-	bDestructing = true;
-
-	// Notify other editors if this material editor has a post process named output, which may affect their preview
-	NotifyUserSceneTextureLoadOrUnload();
-
 	// Broadcast that this editor is going down to all listeners
 	OnMaterialEditorClosed().Broadcast();
 
@@ -1014,37 +1006,6 @@ void FMaterialEditor::UpdatePreviewViewportsVisibility()
 	{
 		PreviewViewport->SetVisibility(EVisibility::Visible);
 		PreviewUIViewport->SetVisibility(EVisibility::Collapsed);
-	}
-}
-
-void FMaterialEditor::NotifyUserSceneTextureLoadOrUnload()
-{
-	if (Material->IsPostProcessMaterial() && !Material->UserSceneTexture.IsNone())
-	{
-		UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
-		TArray<UObject*> EditedAssets = AssetEditorSubsystem->GetAllEditedAssets();
-		for (UObject* EditedAsset : EditedAssets)
-		{
-			UPreviewMaterial* EditedMaterialInterface = Cast<UPreviewMaterial>(EditedAsset);
-
-			if (EditedMaterialInterface && EditedMaterialInterface != Material)
-			{
-				UMaterial* EditedMaterial = EditedMaterialInterface->GetMaterial();
-				if (EditedMaterial->IsPostProcessMaterial())
-				{
-					TArray<IAssetEditorInstance*> Editors = AssetEditorSubsystem->FindEditorsForAsset(EditedAsset);
-					for (IAssetEditorInstance* Editor : Editors)
-					{
-						if (Editor->GetEditorName() == FMaterialEditor::GetToolkitFName())
-						{
-							// Calling "SetPreviewMaterial" will refresh the other editor
-							FMaterialEditor* MaterialEditor = (FMaterialEditor*)Editor;
-							MaterialEditor->SetPreviewMaterial(EditedMaterialInterface);
-						}
-					}
-				}
-			}
-		}
 	}
 }
 

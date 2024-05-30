@@ -59,7 +59,6 @@
 #include "DerivedDataRequestOwner.h"
 #include "DerivedDataCache.h"
 #include "MaterialCachedData.h"
-#include "PostProcess/PostProcessMaterialInputs.h"
 
 #if WITH_EDITORONLY_DATA
 #include "Materials/MaterialExpressionSubstrate.h"
@@ -222,10 +221,6 @@ UE::DerivedData::FCacheBucket MaterialTranslationDDCBucket = UE::DerivedData::FC
 UE::DerivedData::FValueId MaterialCompilationOutputId = UE::DerivedData::FValueId::FromName("FHLSLMaterialTranslator_MaterialCompilationOutput");
 UE::DerivedData::FValueId MaterialResultsOutputId = UE::DerivedData::FValueId::FromName("FHLSLMaterialTranslator_Results");
 UE::DerivedData::FValueId EnvironmentDefinesId = UE::DerivedData::FValueId::FromName("FHLSLMaterialTranslator_EnvironmentDefines");
-
-/** HLSL generating utility functions */
-extern FString GenerateUserSceneTextureRemapHLSLDefines(FMaterialCompilationOutput& CompilationOutput);
-extern FString SceneTextureIdToHLSLString(ESceneTextureId TexId);
 
 /** Data structure used to cache a part of material translation results. It contains all the generated
  *  defines that will be declared during the compilation of the generated material shader.
@@ -1956,12 +1951,6 @@ void FHLSLMaterialTranslator::DoTranslate()
 				Errorf(TEXT("SceneTexture expressions cannot use post process inputs or scene color in non post process domain materials"));
 			}
 		}
-	}
-
-	int32 NumPostProcessInputs = MaterialCompilationOutput.GetNumPostProcessInputsUsed();
-	if (NumPostProcessInputs > kPostProcessMaterialInputCountMax)
-	{
-		Errorf(TEXT("Maximum Scene Texture post process inputs exceeded (%d > %d), between SceneTexture nodes with PostProcessInputs or UserSceneTexture nodes."), NumPostProcessInputs, kPostProcessMaterialInputCountMax);
 	}
 
 	if (IsModulateBlendMode(BlendMode) && Material->IsTranslucencyAfterMotionBlurEnabled())
@@ -4245,11 +4234,6 @@ EMaterialValueType FHLSLMaterialTranslator::GetArithmeticResultType(int32 A,int3
 		TypeB = (*CurrentScopeChunks)[B].Type;
 
 	return GetArithmeticResultType(TypeA,TypeB);
-}
-
-int32 FHLSLMaterialTranslator::FindOrAddUserSceneTexture(FName UserSceneTextureName)
-{
-	return MaterialCompilationOutput.FindOrAddUserSceneTexture(UserSceneTextureName);
 }
 
 // FMaterialCompiler interface.
@@ -7746,7 +7730,7 @@ int32 FHLSLMaterialTranslator::SceneDepth(int32 Offset, int32 ViewportUV, bool b
 }
 
 // @param SceneTextureId of type ESceneTextureId e.g. PPI_SubsurfaceColor
-int32 FHLSLMaterialTranslator::SceneTextureLookup(int32 ViewportUV, uint32 InSceneTextureId, bool bFiltered, bool bClamped)
+int32 FHLSLMaterialTranslator::SceneTextureLookup(int32 ViewportUV, uint32 InSceneTextureId, bool bFiltered)
 {
 	ESceneTextureId SceneTextureId = (ESceneTextureId)InSceneTextureId;
 
@@ -7770,25 +7754,16 @@ int32 FHLSLMaterialTranslator::SceneTextureLookup(int32 ViewportUV, uint32 InSce
 
 	UseSceneTextureId(SceneTextureId, true);
 
-	FString SceneTextureIdString = SceneTextureIdToHLSLString(SceneTextureId);
-
 	int32 BufferUV;
 	if (ViewportUV != INDEX_NONE)
 	{
 		BufferUV = AddCodeChunk(MCT_Float2,
-			TEXT("ClampSceneTextureUV(ViewportUVToSceneTextureUV(%s, %s), %s)"),
-			*CoerceParameter(ViewportUV, MCT_Float2), *SceneTextureIdString, *SceneTextureIdString);
+			TEXT("ClampSceneTextureUV(ViewportUVToSceneTextureUV(%s, %d), %d)"),
+			*CoerceParameter(ViewportUV, MCT_Float2), (int)SceneTextureId, (int)SceneTextureId);
 	}
 	else
 	{
-		if (bClamped)
-		{
-			BufferUV = AddInlinedCodeChunk(MCT_Float2, TEXT("ClampSceneTextureUV(GetDefaultSceneTextureUV(Parameters, %s), %s)"), *SceneTextureIdString, *SceneTextureIdString);
-		}
-		else
-		{
-			BufferUV = AddInlinedCodeChunk(MCT_Float2, TEXT("GetDefaultSceneTextureUV(Parameters, %s)"), *SceneTextureIdString);
-		}
+		BufferUV = AddInlinedCodeChunk(MCT_Float2, TEXT("GetDefaultSceneTextureUV(Parameters, %d)"), (int)SceneTextureId);
 	}
 
 	AddEstimatedTextureSample();
@@ -7799,13 +7774,13 @@ int32 FHLSLMaterialTranslator::SceneTextureLookup(int32 ViewportUV, uint32 InSce
 	{
 		LookUp = AddCodeChunk(
 			MCT_Float4,
-			TEXT("SceneTextureLookup(%s, %s, %s)"),
-			*CoerceParameter(BufferUV, MCT_Float2), *SceneTextureIdString, bFiltered ? TEXT("true") : TEXT("false")
+			TEXT("SceneTextureLookup(%s, %d, %s)"),
+			*CoerceParameter(BufferUV, MCT_Float2), (int)SceneTextureId, bFiltered ? TEXT("true") : TEXT("false")
 		);
 	}
 	else // mobile
 	{
-		LookUp = AddCodeChunk(MCT_Float4, TEXT("MobileSceneTextureLookup(Parameters, %s, %s)"), *SceneTextureIdString, *CoerceParameter(BufferUV, MCT_Float2));
+		LookUp = AddCodeChunk(MCT_Float4, TEXT("MobileSceneTextureLookup(Parameters, %d, %s)"), (int32)SceneTextureId, *CoerceParameter(BufferUV, MCT_Float2));
 	}
 
 	// Substrate only
@@ -7817,8 +7792,7 @@ int32 FHLSLMaterialTranslator::SceneTextureLookup(int32 ViewportUV, uint32 InSce
 	SubstrateCtx.SubstrateMaterialComplexity.bIsSimple = false;
 	SubstrateCtx.SubstrateMaterialComplexity.bIsSingle = false;
 	
-	if (((SceneTextureId >= PPI_PostProcessInput0 && SceneTextureId <= PPI_PostProcessInput6) || (SceneTextureId >= PPI_UserSceneTexture0 && SceneTextureId <= PPI_UserSceneTexture6)) &&
-		Material->GetMaterialDomain() == MD_PostProcess && Material->GetBlendableLocation() != BL_SceneColorAfterTonemapping)
+	if (SceneTextureId >= PPI_PostProcessInput0 && SceneTextureId <= PPI_PostProcessInput6 && Material->GetMaterialDomain() == MD_PostProcess && Material->GetBlendableLocation() != BL_SceneColorAfterTonemapping)
 	{
 		return AddInlinedCodeChunk(MCT_Float4, TEXT("(float4(View.OneOverPreExposure.xxx, 1) * %s)"), *CoerceParameter(LookUp, MCT_Float4));
 	}
@@ -7830,13 +7804,11 @@ int32 FHLSLMaterialTranslator::SceneTextureLookup(int32 ViewportUV, uint32 InSce
 
 int32 FHLSLMaterialTranslator::GetSceneTextureViewSize(int32 SceneTextureId, bool InvProperty)
 {
-	FString SceneTextureIdString = SceneTextureIdToHLSLString((ESceneTextureId)SceneTextureId);
-
 	if (InvProperty)
 	{
-		return AddCodeChunkZeroDeriv(MCT_Float2, TEXT("GetSceneTextureViewSize(%s).zw"), *SceneTextureIdString);
+		return AddCodeChunkZeroDeriv(MCT_Float2, TEXT("GetSceneTextureViewSize(%d).zw"), SceneTextureId);
 	}
-	return AddCodeChunkZeroDeriv(MCT_Float2, TEXT("GetSceneTextureViewSize(%s).xy"), *SceneTextureIdString);
+	return AddCodeChunkZeroDeriv(MCT_Float2, TEXT("GetSceneTextureViewSize(%d).xy"), SceneTextureId);
 }
 
 // @param bTextureLookup true: texture, false:no texture lookup, usually to get the size
@@ -7884,7 +7856,6 @@ void FHLSLMaterialTranslator::UseSceneTextureId(ESceneTextureId SceneTextureId, 
 	{
 		bNeedsSceneTexturePostProcessInputs = bNeedsSceneTexturePostProcessInputs
 			|| ((SceneTextureId >= PPI_PostProcessInput0 && SceneTextureId <= PPI_PostProcessInput6)
-			|| (SceneTextureId >= PPI_UserSceneTexture0 && SceneTextureId <= PPI_UserSceneTexture6)
 			|| SceneTextureId == PPI_Velocity
 			|| SceneTextureId == PPI_SceneColor);
 
@@ -15499,8 +15470,6 @@ void FHLSLMaterialTranslator::PrepareMaterialSourceStringParameters()
 			MaterialSourceTemplateParams.Add({ TEXT("calc_pixel_material_inputs_analytic_derivatives_other_inputs"), PixelMembersSetupAndAssignments[CompiledPDV_Analytic] });
 		}
 	}
-
-	MaterialSourceTemplateParams.Add({ TEXT("user_scene_texture_remap"), GenerateUserSceneTextureRemapHLSLDefines(MaterialCompilationOutput) });
 }
 
 int32 FHLSLMaterialTranslator::SparseVolumeTexture(USparseVolumeTexture* Texture, int32& TextureReferenceIndex, EMaterialSamplerType SamplerType)

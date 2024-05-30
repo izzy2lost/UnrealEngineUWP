@@ -19,7 +19,6 @@
 #include "SceneRendering.h"
 #include "ClearQuad.h"
 #include "Materials/MaterialExpressionSceneTexture.h"
-#include "Materials/MaterialExpressionUserSceneTexture.h"
 #include "PipelineStateCache.h"
 #include "PostProcess/PostProcessing.h"
 #include "PostProcess/PostProcessMobile.h"
@@ -459,25 +458,12 @@ FPostProcessMaterialParameters* GetPostProcessMaterialParameters(
 
 	FRHISamplerState* PointClampSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 
-	int32 NumUserSceneTextures = MaterialShaderMap->GetUserSceneTextureInputs().Num();
 	for (uint32 InputIndex = 0; InputIndex < kPostProcessMaterialInputCountMax; ++InputIndex)
 	{
 		FScreenPassTextureSlice Input = Inputs.GetInput((EPostProcessMaterialInput)InputIndex);
 
-		bool bIsUsed = MaterialShaderMap->UsesSceneTexture(PPI_PostProcessInput0 + InputIndex);
-
-		// User scene textures consume any consecutive slots not used by PPI_PostProcessInput0-6
-		if (!bIsUsed)
-		{
-			if (NumUserSceneTextures > 0)
-			{
-				NumUserSceneTextures--;
-				bIsUsed = true;
-			}
-		}
-
 		// Need to provide valid textures for when shader compilation doesn't cull unused parameters.
-		if (!Input.IsValid() || !bIsUsed)
+		if (!Input.IsValid() || !MaterialShaderMap->UsesSceneTexture(PPI_PostProcessInput0 + InputIndex))
 		{
 			Input = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, BlackDummy);
 		}
@@ -705,7 +691,7 @@ FScreenPassTexture AddPostProcessMaterialPass(
 	GetMaterialInfo(MaterialInterface, FeatureLevel, Inputs, Material, MaterialRenderProxy, MaterialShaderMap, VertexShader, PixelShader);
 
 	EBlendableLocation BlendableLocation = EBlendableLocation(Material->GetBlendableLocation());
-	const FScreenPassTextureSlice SceneColorOutput = Inputs.GetSceneColorOutput(BlendableLocation);
+	const FScreenPassTexture SceneColor = FScreenPassTexture::CopyFromSlice(GraphBuilder, Inputs.GetInput(BlendableLocation == BL_TranslucencyAfterDOF ? EPostProcessMaterialInput::SeparateTranslucency : EPostProcessMaterialInput::SceneColor));
 
 	check(VertexShader.IsValid());
 	check(PixelShader.IsValid());
@@ -743,14 +729,14 @@ FScreenPassTexture AddPostProcessMaterialPass(
 									 BlendState != DefaultBlendState ||
 									 bMayDiscard;
 
-	// We only prime color on the output texture if we are using fixed function Blend / Depth-Stencil, or we need to
-	// retain previously rendered views.  UserSceneTexture does its own output priming logic where required.
-	const bool bPrimeOutputColor = (bCompositeWithInput || !View.IsFirstInFamily()) && !Inputs.bUserSceneTextureOutput;
+	// We only prime color on the output texture if we are using fixed function Blend / Depth-Stencil,
+	// or we need to retain previously rendered views.
+	const bool bPrimeOutputColor = bCompositeWithInput || !View.IsFirstInFamily();
 
 	// Inputs.OverrideOutput is used to force drawing directly to the backbuffer. OpenGL doesn't support using the backbuffer color target with a custom depth/stencil
 	// buffer, so in that case we must draw to an intermediate target and copy to the backbuffer at the end. Ideally, we would test if Inputs.OverrideOutput.Texture
-	// is actually the backbuffer, but it's not worth doing all the plumbing and increasing the RHI surface area just for this hack.  UserSceneTexture is never a backbuffer.
-	const bool bBackbufferWithDepthStencil = (DepthStencilTexture != nullptr && !GRHISupportsBackBufferWithCustomDepthStencil && Inputs.OverrideOutput.IsValid() && !Inputs.bUserSceneTextureOutput);
+	// is actually the backbuffer, but it's not worth doing all the plumbing and increasing the RHI surface area just for this hack.
+	const bool bBackbufferWithDepthStencil = (DepthStencilTexture != nullptr && !GRHISupportsBackBufferWithCustomDepthStencil && Inputs.OverrideOutput.IsValid());
 
 	// We need to decode the target color for blending material, force it rendering to an intermediate render target and decode the color.
 	const bool bCompositeWithInputAndDecode = Inputs.bMetalMSAAHDRDecode && bCompositeWithInput;
@@ -763,10 +749,8 @@ FScreenPassTexture AddPostProcessMaterialPass(
 	// This is only necessary to do if we're going to be priming content from the render target since it avoids
 	// the copy. Otherwise, we just allocate a new render target.
 	const bool bValidShaderPlatform = (GMaxRHIShaderPlatform != SP_PCD3D_ES3_1);
-	if (!Output.IsValid() && !MaterialShaderMap->UsesSceneTexture(PPI_PostProcessInput0) && bPrimeOutputColor && !bForceIntermediateTarget && Inputs.bAllowSceneColorInputAsOutput && bValidShaderPlatform && !Inputs.bUserSceneTextureOutput)
+	if (!Output.IsValid() && !MaterialShaderMap->UsesSceneTexture(PPI_PostProcessInput0) && bPrimeOutputColor && !bForceIntermediateTarget && Inputs.bAllowSceneColorInputAsOutput && bValidShaderPlatform)
 	{
-		FScreenPassTexture SceneColor = FScreenPassTexture::CopyFromSlice(GraphBuilder, SceneColorOutput);
-
 		Output = FScreenPassRenderTarget(SceneColor, ERenderTargetLoadAction::ELoad);
 	}
 	else
@@ -774,10 +758,7 @@ FScreenPassTexture AddPostProcessMaterialPass(
 		// Allocate new transient output texture if none exists.
 		if (!Output.IsValid() || bForceIntermediateTarget)
 		{
-			FRDGTextureDesc OutputDesc = SceneColorOutput.TextureSRV->Desc.Texture->Desc;
-			OutputDesc.Dimension = ETextureDimension::Texture2D;
-			OutputDesc.ArraySize = 1;
-
+			FRDGTextureDesc OutputDesc = SceneColor.Texture->Desc;
 			OutputDesc.Reset();
 			if (Inputs.OutputFormat != PF_Unknown)
 			{
@@ -787,13 +768,11 @@ FScreenPassTexture AddPostProcessMaterialPass(
 			OutputDesc.Flags &= (~ETextureCreateFlags::FastVRAM);
 			OutputDesc.Flags |= GFastVRamConfig.PostProcessMaterial;
 
-			Output = FScreenPassRenderTarget(GraphBuilder.CreateTexture(OutputDesc, TEXT("PostProcessMaterial")), SceneColorOutput.ViewRect, View.GetOverwriteLoadAction());
+			Output = FScreenPassRenderTarget(GraphBuilder.CreateTexture(OutputDesc, TEXT("PostProcessMaterial")), SceneColor.ViewRect, View.GetOverwriteLoadAction());
 		}
 
 		if (bPrimeOutputColor || bForceIntermediateTarget)
 		{
-			FScreenPassTexture SceneColor = FScreenPassTexture::CopyFromSlice(GraphBuilder, SceneColorOutput);
-
 			// Copy existing contents to new output and use load-action to preserve untouched pixels.
 			if (Inputs.bMetalMSAAHDRDecode)
 			{
@@ -805,15 +784,9 @@ FScreenPassTexture AddPostProcessMaterialPass(
 			}
 			Output.LoadAction = ERenderTargetLoadAction::ELoad;
 		}
-
-		// If this is the first render to a UserSceneTexture which requires compositing, we copy the previous output as a starting point.
-		if (bCompositeWithInput && Inputs.bUserSceneTextureOutput && Inputs.bUserSceneTextureFirstRender)
-		{
-			AddDrawTexturePass(GraphBuilder, View, SceneColorOutput, Output);
-		}
 	}
 
-	const FScreenPassTextureViewport SceneColorViewport(SceneColorOutput);
+	const FScreenPassTextureViewport SceneColorViewport(SceneColor);
 	const FScreenPassTextureViewport OutputViewport(Output);
 
 	RDG_EVENT_SCOPE(GraphBuilder, "PostProcessMaterial %dx%d Material=%s", SceneColorViewport.Rect.Width(), SceneColorViewport.Rect.Height(), *Material->GetAssetName());
@@ -905,17 +878,16 @@ FScreenPassTexture AddPostProcessMaterialPass(
 	else
 	{
 		// When skipping the pass, we still need to output a valid FScreenPassRenderTarget
+		Output = FScreenPassRenderTarget(SceneColor, ERenderTargetLoadAction::ENoAction);
+
+		// If there is override output, we need to output to that
 		if (Inputs.OverrideOutput.IsValid())
 		{
-			// If there is an override output, we can copy directly to that from the scene color slice.
-			AddDrawTexturePass(GraphBuilder, View, SceneColorOutput, Inputs.OverrideOutput);
+			const FIntPoint SrcPoint = View.ViewRect.Min;
+			const FIntPoint DstPoint = OutputViewport.Rect.Min;
+			const FIntPoint Size = OutputViewport.Rect.Max - DstPoint;
+			AddDrawTexturePass(GraphBuilder, View, Output.Texture, Inputs.OverrideOutput.Texture, SrcPoint, DstPoint, Size);
 			Output = Inputs.OverrideOutput;
-		}
-		else
-		{
-			// Otherwise, we need to convert output to a single slice before returning
-			FScreenPassTexture SceneColor = FScreenPassTexture::CopyFromSlice(GraphBuilder, SceneColorOutput);
-			Output = FScreenPassRenderTarget(SceneColor, ERenderTargetLoadAction::ENoAction);
 		}
 	}
 
@@ -996,8 +968,7 @@ FPostProcessMaterialChain GetPostProcessMaterialChain(const FViewInfo& View, EBl
 		return {};
 	}
 
-	// Use stable sort, so if nodes with the same priority are explicitly ordered in the post process volume, they stay in that order
-	Algo::StableSort(Nodes, FPostProcessMaterialNode::FCompare());
+	Algo::Sort(Nodes, FPostProcessMaterialNode::FCompare());
 
 	FPostProcessMaterialChain OutputChain;
 	OutputChain.Reserve(Nodes.Num());
@@ -1010,62 +981,9 @@ FPostProcessMaterialChain GetPostProcessMaterialChain(const FViewInfo& View, EBl
 	return OutputChain;
 }
 
-static void RemoveCollidingUserSceneTextureInputs(FPostProcessMaterialInputs& PassInputs, const FSceneTextures& SceneTextures)
-{
-	for (int32 InputIndex = 0; InputIndex < kPostProcessMaterialInputCountMax; InputIndex++)
-	{
-		if (PassInputs.bUserSceneTexturesSet[InputIndex])
-		{
-			if (PassInputs.UserSceneTextures[InputIndex].TextureSRV && PassInputs.UserSceneTextures[InputIndex].TextureSRV->GetParent() == PassInputs.OverrideOutput.Texture)
-			{
-				// Zero out the input, and label it as an error in the event stream if necessary
-
-#if !(UE_BUILD_SHIPPING)
-				// Get the name from the resource, and strip off the prefix
-				const TCHAR* InputNameStr = PassInputs.UserSceneTextures[InputIndex].TextureSRV->Desc.Texture->Name;
-				if (FCString::Strstr(InputNameStr, TEXT("UST.")) == InputNameStr)
-				{
-					InputNameStr += 4;
-				}
-
-				// Iterate over the events, looking for that name
-				for (int32 EventIndex = SceneTextures.UserSceneTextureEvents.Num() - 1; EventIndex >= 0; EventIndex--)
-				{
-					// Stop if we reach a pass event marker
-					if (SceneTextures.UserSceneTextureEvents[EventIndex].Event == EUserSceneTextureEvent::Pass)
-					{
-						break;
-					}
-
-					if (SceneTextures.UserSceneTextureEvents[EventIndex].Event == EUserSceneTextureEvent::FoundInput)
-					{
-						FString EventName = SceneTextures.UserSceneTextureEvents[EventIndex].Name.ToString();
-						const TCHAR* EventNameStr = *EventName;
-
-						// Resource may have a numeric allocation order suffix as well, like [1] -- check if the front of the string matches
-						if (FCString::Strstr(InputNameStr, EventNameStr) == InputNameStr)
-						{
-							// Then check if that's the end of the string or an open bracket suffix
-							int32 EventNameLen = FCString::Strlen(EventNameStr);
-							if (InputNameStr[EventNameLen] == 0 || InputNameStr[EventNameLen] == TEXT('['))
-							{
-								SceneTextures.UserSceneTextureEvents[EventIndex].Event = EUserSceneTextureEvent::CollidingInput;
-							}
-						}
-					}
-				}
-#endif
-
-				PassInputs.UserSceneTextures[InputIndex] = FScreenPassTextureSlice();
-			}
-		}
-	}
-}
-
 FScreenPassTexture AddPostProcessMaterialChain(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View,
-	int32 ViewIndex,
 	const FPostProcessMaterialInputs& InputsTemplate,
 	const FPostProcessMaterialChain& Materials,
 	EPostProcessMaterialInput MaterialInput)
@@ -1073,122 +991,34 @@ FScreenPassTexture AddPostProcessMaterialChain(
 	FScreenPassTextureSlice CurrentInput = InputsTemplate.GetInput(MaterialInput);
 	FScreenPassTexture Outputs;
 
-	// Get last material that writes to the output (ignoring materials that write to UserSceneTextures)
-	const UMaterialInterface* LastOutputWrite = nullptr;
-	for (int32 MaterialIndex = Materials.Num() - 1; MaterialIndex >= 0; MaterialIndex--)
-	{
-		const FMaterial* Material = Materials[MaterialIndex]->GetRenderProxy()->GetMaterialNoFallback(View.FeatureLevel);
-		if (!Material || Material->GetRenderingThreadShaderMap()->GetUserSceneTextureOutput().IsNone())
-		{
-			// Doesn't write to a UserSceneTexture, so it writes to the output
-			LastOutputWrite = Materials[MaterialIndex];
-			break;
-		}
-	}
-
 	bool bFirstMaterialInChain = true;
 	for (const UMaterialInterface* MaterialInterface : Materials)
 	{
 		FPostProcessMaterialInputs Inputs = InputsTemplate;
 		Inputs.SetInput(MaterialInput, CurrentInput);
-
-		// Get UserSceneTexture inputs and output from material if present
-		const FMaterial* Material = MaterialInterface->GetRenderProxy()->GetMaterialNoFallback(View.FeatureLevel);
-		FName UserSceneTextureOutput(NAME_None);
-		FIntPoint UserTextureDivisor(0, 0);
-		int32 UserSceneTextureInputNum = 0;
-
-		if (Material)
-		{
-			const FMaterialShaderMap* MaterialShaderMap = Material->GetRenderingThreadShaderMap();
-
-			TConstArrayView<FScriptName> UserSceneTextureInputs = MaterialShaderMap->GetUserSceneTextureInputs();
-			if (!UserSceneTextureInputs.IsEmpty())
-			{
-				UserSceneTextureInputNum = UserSceneTextureInputs.Num();
-
-				const FSceneTextures& SceneTextures = View.GetSceneTextures();
-
-				int32 PostProcessIndex = 0;
-				for (int32 UserIndex = 0; UserIndex < UserSceneTextureInputs.Num();)
-				{
-					check(PostProcessIndex < kPostProcessMaterialInputCountMax);
-				
-					// Skip over this slot if it's used by a SceneTexture node
-					if (!MaterialShaderMap->UsesSceneTexture(PPI_PostProcessInput0 + PostProcessIndex))
-					{
-						// Not used as a SceneTexture, so it's used by the next UserSceneTexture
-						Inputs.SetUserSceneTextureInput((EPostProcessMaterialInput)PostProcessIndex, SceneTextures.GetUserSceneTexture(GraphBuilder, View, ViewIndex, FName(UserSceneTextureInputs[UserIndex]), Material));
-						UserIndex++;
-					}
-					PostProcessIndex++;
-				}
-			}
-
-#if WITH_EDITOR
-			// If this blendable is being previewed, don't write to the UserSceneTexture -- instead it will write to SceneColor
-			if (Material->GetMaterialInterface() != View.FinalPostProcessSettings.PreviewBlendable)
-#endif
-			{
-				UserSceneTextureOutput = FName(MaterialShaderMap->GetUserSceneTextureOutput());
-				UserTextureDivisor = MaterialShaderMap->GetUserTextureDivisor();
-			}
-		}
 		
 		// Only the first material in the chain needs to decode the input color
 		Inputs.bMetalMSAAHDRDecode = Inputs.bMetalMSAAHDRDecode && bFirstMaterialInChain;
 		bFirstMaterialInChain = false;
 
-		if (!UserSceneTextureOutput.IsNone())
+		// Certain inputs are only respected by the final post process material in the chain.
+		if (MaterialInterface != Materials.Last())
 		{
-			// Writing to UserSceneTexture, don't set Outputs or CurrentInput, as this is writing to a disjoint texture that's not part of the chain
-			FIntRect OutputRect = GetDownscaledViewRect(View.UnconstrainedViewRect, View.GetFamilyViewRect().Max, UserTextureDivisor);
-			FRDGTextureRef UserOutput = ((FViewFamilyInfo*)View.Family)->GetSceneTextures().FindOrAddUserSceneTexture(GraphBuilder, ViewIndex, UserSceneTextureOutput, UserTextureDivisor, Inputs.bUserSceneTextureFirstRender, Material, OutputRect);
-			Inputs.OverrideOutput = FScreenPassRenderTarget(UserOutput, OutputRect, ERenderTargetLoadAction::ELoad);
-			Inputs.bUserSceneTextureOutput = true;
-
-			RemoveCollidingUserSceneTextureInputs(Inputs, View.GetSceneTextures());
-
-			AddPostProcessMaterialPass(GraphBuilder, View, Inputs, MaterialInterface);
-		}
-		else
-		{
-			// Certain inputs are only respected by the final post process material in the chain, that writes to the Output
-			if (MaterialInterface != LastOutputWrite)
-			{
-				Inputs.OverrideOutput = FScreenPassRenderTarget();
-			}
-
-			Outputs = AddPostProcessMaterialPass(GraphBuilder, View, Inputs, MaterialInterface);
-
-			// Don't create the CurrentInput out of Outputs of the last material as this could possibly be the back buffer for AfterTonemap post process material
-			if (MaterialInterface != LastOutputWrite)
-			{
-				CurrentInput = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, Outputs);
-			}
+			Inputs.OverrideOutput = FScreenPassRenderTarget();
 		}
 
-#if !UE_BUILD_SHIPPING
-		if (UserSceneTextureInputNum || !UserSceneTextureOutput.IsNone())
+		Outputs = AddPostProcessMaterialPass(GraphBuilder, View, Inputs, MaterialInterface);
+
+		// Don't create the CurrentInput out of Outputs of the last material as this could possibly be the back buffer for AfterTonemap post process material
+		if (MaterialInterface != Materials.Last())
 		{
-			View.GetSceneTextures().UserSceneTextureEvents.Add({ EUserSceneTextureEvent::Pass, NAME_None, 0, (uint16)ViewIndex, Material });
+			CurrentInput = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, Outputs);
 		}
-#endif
 	}
 
 	if (!Outputs.IsValid())
 	{
-		// If no passes wrote to OverrideOutput, we need to copy to OverrideOutput now.  This can happen if all the passes wrote
-		// to UserSceneTextures instead of the default output.
-		if (InputsTemplate.OverrideOutput.IsValid())
-		{
-			AddDrawTexturePass(GraphBuilder, View, CurrentInput, InputsTemplate.OverrideOutput);
-			Outputs = InputsTemplate.OverrideOutput;
-		}
-		else
-		{
-			Outputs = FScreenPassTexture::CopyFromSlice(GraphBuilder, CurrentInput);
-		}
+		Outputs = FScreenPassTexture::CopyFromSlice(GraphBuilder, CurrentInput);
 	}
 
 	return Outputs;

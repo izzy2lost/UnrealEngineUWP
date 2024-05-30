@@ -46,9 +46,6 @@ FRDGViewableResource::FRDGViewableResource(const TCHAR* InName, const ERDGViewab
 	, bQueuedForUpload(0)
 	, bCollectForAllocate(1)
 	, bQueuedForReservedCommit(0)
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	, bHeapAllocatedDebugName(0)
-#endif
 	, TransientExtractionHint(ETransientExtractionHint::None)
 	, ReferenceCount(IsImmediateMode() ? 1 : 0)
 {

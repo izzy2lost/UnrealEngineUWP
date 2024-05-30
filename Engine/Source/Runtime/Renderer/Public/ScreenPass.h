@@ -675,13 +675,6 @@ void RENDERER_API AddDrawTexturePass(
 	FScreenPassTexture Input,
 	FScreenPassRenderTarget Output);
 
-/** Variation of above that accepts a slice, which contains a texture SRV instead of a texture */
-void RENDERER_API AddDrawTexturePass(
-	FRDGBuilder& GraphBuilder,
-	const FSceneView& View,
-	FScreenPassTextureSlice Input,
-	FScreenPassRenderTarget Output);
-
 template <typename TFunction>
 FORCEINLINE void AddRenderTargetPass(
 	FRDGBuilder& GraphBuilder,
