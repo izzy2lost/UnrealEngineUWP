@@ -46,5 +46,7 @@ public class BuildSettings : ModuleRules
 		PrivateDefinitions.Add($"BUILD_MACHINENAME=\"{machineName}\"");
 
 		PrivateDefinitions.Add("SUPPRESS_PER_MODULE_INLINE_FILE"); // This module does not use core's standard operator new/delete overloads
+		
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }

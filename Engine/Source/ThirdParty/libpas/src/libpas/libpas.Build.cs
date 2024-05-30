@@ -51,5 +51,7 @@ public class libpas : ModuleRules
 
 		// UE only sees the libpas includes in the ue_include subdirectory.
 		PublicSystemIncludePaths.Add(Path.Combine(libpasDirectory, "src", "libpas", "ue_include"));
+
+		bDisableAutoRTFMInstrumentation = true;
 	}
 }
