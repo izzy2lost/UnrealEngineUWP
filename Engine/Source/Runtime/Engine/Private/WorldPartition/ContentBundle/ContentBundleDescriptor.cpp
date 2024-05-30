@@ -8,9 +8,10 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ContentBundleDescriptor)
 
 UContentBundleDescriptor::UContentBundleDescriptor(const FObjectInitializer& ObjectInitializer)
-	: bRequired(false)
-	, DebugColor(FColor::Black)
-{}
+	: DebugColor(FColor::Black)
+{
+
+}
 
 FString UContentBundleDescriptor::GetPackageRoot() const
 {
