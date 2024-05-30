@@ -836,7 +836,7 @@ void FWidgetBlueprintCompilerContext::FinishCompilingClass(UClass* Class)
 			if (WidgetBP->bIsRegeneratingOnLoad)
 			{
 				FLinkerLoad* Linker = WidgetBP->GetLinker();
-				LinkerLoadingContext = Linker ? Linker->GetSerializeContext() : nullptr;
+				LinkerLoadingContext = Linker ? FUObjectThreadContext::Get().GetSerializeContext() : nullptr;
 				DupParams.bSkipPostLoad = true;
 				DupParams.CreatedObjects = &DupObjectsMap;
 			}

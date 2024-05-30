@@ -172,7 +172,7 @@ public:
 	FArchive& operator<<(FSoftObjectPath& SoftObjectPath);
 	FArchive& operator<<( FLazyObjectPtr& LazyObjectPtr );
 	virtual bool ShouldSkipProperty(const FProperty* InProperty) const override;
-	virtual void SetSerializeContext(FUObjectSerializeContext* InLoadContext) override;
+	UE_DEPRECATED(5.5, "GetSerializeContext is not supported. Use FUObjectThreadContext::Get().GetSerializeContext().")
 	FUObjectSerializeContext* GetSerializeContext() override;
 	virtual void UsingCustomVersion(const struct FGuid& Guid) override;
 	/**

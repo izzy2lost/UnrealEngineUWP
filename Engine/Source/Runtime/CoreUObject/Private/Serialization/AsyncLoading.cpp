@@ -7211,7 +7211,7 @@ EAsyncPackageState::Type FAsyncPackage::FinishObjects()
 	LastTypeOfWorkPerformed			= TEXT("finishing all objects");
 
 	FUObjectSerializeContext* LoadContext = GetSerializeContext();
-	check(!Linker || LoadContext == Linker->GetSerializeContext());		
+	check(!Linker || LoadContext == FUObjectThreadContext::Get().GetSerializeContext());
 	TArray<UObject*>& ThreadObjLoaded = LoadContext->PRIVATE_GetObjectsLoadedInternalUseOnly();
 
 	EAsyncLoadingResult::Type LoadingResult;
@@ -7269,10 +7269,6 @@ EAsyncPackageState::Type FAsyncPackage::FinishObjects()
 	{
 		const bool bInternalCallbacks = true;
 		CallCompletionCallbacks(bInternalCallbacks, LoadingResult);
-	}
-	else
-	{
-		LoadContext->DetachFromLinkers();
 	}
 
 	return EAsyncPackageState::Complete;

@@ -191,7 +191,7 @@ UStruct* FFieldPath::TryToResolveOwnerFromLinker(FLinkerLoad* InLinker) const
 {
 	UStruct* OwnerStruct = nullptr;
 	check(InLinker);
-	FUObjectSerializeContext* Context = InLinker->GetSerializeContext();
+	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
 	if (Context && Context->SerializedObject && Context->SerializedObject->IsA<UStruct>())
 	{
 		TArray<FName> StructPath;

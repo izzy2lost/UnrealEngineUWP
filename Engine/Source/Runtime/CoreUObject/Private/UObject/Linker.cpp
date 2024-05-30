@@ -673,13 +673,6 @@ FLinkerLoad* GetPackageLinker
 	// See if the linker is already loaded.
 	if (FLinkerLoad* Result = FLinkerLoad::FindExistingLinkerForPackage(InOuter))
 	{
-		if (InExistingContext && Result->GetSerializeContext() && Result->GetSerializeContext() != InExistingContext)
-		{
-			if (!Result->GetSerializeContext()->HasStartedLoading())
-			{
-				Result->SetSerializeContext(InExistingContext);
-			}
-		}
 		return Result;
 	}
 
@@ -809,22 +802,17 @@ FLinkerLoad* GetPackageLinker
 		{
 			if (InExistingContext)
 			{
-				if ((Result->GetSerializeContext() && Result->GetSerializeContext()->HasStartedLoading() && InExistingContext->GetBeginLoadCount() == 1) ||
-					(IsInAsyncLoadingThread() && Result->GetSerializeContext()))
+				TRefCountPtr<FUObjectSerializeContext> CurrentContext(FUObjectThreadContext::Get().GetSerializeContext());
+				if ((CurrentContext->HasStartedLoading() && InExistingContext->GetBeginLoadCount() == 1) || IsInAsyncLoadingThread())
 				{
-					// Use the context associated with the linker because it has already started loading objects (or we're in ALT where each package needs its own context)
-					*InOutLoadContext = Result->GetSerializeContext();
+					// Use the current context because it has already started loading objects (or we're in ALT where each package needs its own context)
+					*InOutLoadContext = CurrentContext;
 				}
-				else
+				else if (CurrentContext != InExistingContext)
 				{
-					if (Result->GetSerializeContext() && Result->GetSerializeContext() != InExistingContext)
-					{
-						// Make sure the objects already loaded with the context associated with the existing linker
-						// are copied to the context provided for this function call to make sure they all get loaded ASAP
-						InExistingContext->AddUniqueLoadedObjects(Result->GetSerializeContext()->PRIVATE_GetObjectsLoadedInternalUseOnly());
-					}
-					// Replace the linker context with the one passed into this function
-					Result->SetSerializeContext(InExistingContext);
+					// Make sure the objects already loaded with the context associated with the existing linker
+					// are copied to the context provided for this function call to make sure they all get loaded ASAP
+					InExistingContext->AddUniqueLoadedObjects(CurrentContext->PRIVATE_GetObjectsLoadedInternalUseOnly());
 				}
 			}
 			return Result;

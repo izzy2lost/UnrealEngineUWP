@@ -709,9 +709,11 @@ public:
 #endif
 
 	/** Sets the current UObject serialization context for this archive. */
+	UE_DEPRECATED(5.5, "SetSerializeContext is not supported. Remove calls to it.")
 	virtual void SetSerializeContext(FUObjectSerializeContext* InLoadContext) {}
 
 	/** Gets the current UObject serialization context for this archive. */
+	UE_DEPRECATED(5.5, "GetSerializeContext is not supported. Use FUObjectThreadContext::Get().GetSerializeContext().")
 	virtual FUObjectSerializeContext* GetSerializeContext() { return nullptr; }
 
 #if USE_STABLE_LOCALIZATION_KEYS

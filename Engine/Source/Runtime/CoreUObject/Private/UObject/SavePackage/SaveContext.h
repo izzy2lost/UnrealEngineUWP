@@ -472,13 +472,12 @@ public:
 	};
 
 public:
-	FSaveContext(UPackage* InPackage, UObject* InAsset, const TCHAR* InFilename, const FSavePackageArgs& InSaveArgs, FUObjectSerializeContext* InSerializeContext = nullptr)
+	FSaveContext(UPackage* InPackage, UObject* InAsset, const TCHAR* InFilename, const FSavePackageArgs& InSaveArgs)
 		: Package(InPackage)
 		, Asset(InAsset)
 		, Filename(InFilename)
 		, SaveArgs(InSaveArgs)
 		, PackageWriter(InSaveArgs.SavePackageContext ? InSaveArgs.SavePackageContext->PackageWriter : nullptr)
-		, SerializeContext(InSerializeContext)
 		, GameRealmExcludedObjectMarks(GetExcludedObjectMarksForGameRealm(SaveArgs.GetTargetPlatform()))
 	{
 		// Assumptions & checks
@@ -752,16 +751,6 @@ public:
 	bool ShouldRehydratePayloads() const
 	{
 		return (SaveArgs.SaveFlags & ESaveFlags::SAVE_RehydratePayloads) != 0;
-	}
-
-	FUObjectSerializeContext* GetSerializeContext() const
-	{
-		return SerializeContext;
-	}
-
-	void SetSerializeContext(FUObjectSerializeContext* InContext)
-	{
-		SerializeContext = InContext;
 	}
 
 	FEDLCookCheckerThreadState* GetEDLCookChecker() const
@@ -1202,7 +1191,6 @@ private:
 	IPackageWriter* PackageWriter;
 
 	// State context
-	FUObjectSerializeContext* SerializeContext = nullptr;
 	FObjectSaveContextData ObjectSaveContext;
 	bool bCanUseUnversionedPropertySerialization = false;
 	bool bTextFormat = false;

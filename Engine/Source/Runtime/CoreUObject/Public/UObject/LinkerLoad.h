@@ -1510,7 +1510,7 @@ private:
 public:
 
 	//~ FArchive interface
-	COREUOBJECT_API virtual void SetSerializeContext(FUObjectSerializeContext* InLoadContext) override;
+	UE_DEPRECATED(5.5, "GetSerializeContext is not supported. Use FUObjectThreadContext::Get().GetSerializeContext().")
 	COREUOBJECT_API virtual FUObjectSerializeContext* GetSerializeContext() override;
 };
 

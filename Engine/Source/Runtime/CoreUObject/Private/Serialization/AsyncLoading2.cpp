@@ -5278,7 +5278,6 @@ void FAsyncPackage2::CreateLinker(const FLinkerInstancingContext* InstancingCont
 		FUObjectSerializeContext* LoadContext = GetSerializeContext();
 #if ALT2_ENABLE_NEW_ARCHIVE_FOR_LINKERLOAD
 		Linker = new FLinkerLoad(LinkerRoot, Desc.PackagePathToLoad, LinkerFlags, InstancingContext ? *InstancingContext : FLinkerInstancingContext());
-		Linker->SetSerializeContext(LoadContext);
 		LinkerRoot->SetLinker(Linker);
 		FLinkerLoadArchive2* Loader = new FLinkerLoadArchive2(Desc.PackagePathToLoad);
 		Linker->SetLoader(Loader, Loader->NeedsEngineVersionChecks());

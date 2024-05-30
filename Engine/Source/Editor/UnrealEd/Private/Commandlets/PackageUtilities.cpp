@@ -1639,7 +1639,7 @@ int32 UPkgInfoCommandlet::Main( const FString& Params )
 			TRefCountPtr<FUObjectSerializeContext> LoadContext(FUObjectThreadContext::Get().GetSerializeContext());
 			BeginLoad(LoadContext);
 			Linker = CreateLinkerForFilename(LoadContext, Filename);
-			EndLoad(Linker ? Linker->GetSerializeContext() : LoadContext.GetReference());
+			EndLoad(LoadContext);
 		}
 		else
 		{

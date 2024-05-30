@@ -284,10 +284,7 @@ void FLinkerManager::DissociateImportsAndForcedExports()
 				// an import that points to a redirector will fail to find the redirector
 				Import.SourceIndex = INDEX_NONE;
 			}
-			if (Linker->GetSerializeContext())
-			{
-				Linker->GetSerializeContext()->ResetImportCount();
-			}
+			FUObjectThreadContext::Get().GetSerializeContext()->ResetImportCount();
 		}
 	}
 
@@ -304,10 +301,7 @@ void FLinkerManager::DissociateImportsAndForcedExports()
 					Export.ResetObject();
 				}
 			}
-			if (Linker->GetSerializeContext())
-			{
-				Linker->GetSerializeContext()->ResetForcedExports();
-			}
+			FUObjectThreadContext::Get().GetSerializeContext()->ResetForcedExports();
 		}
 	}
 }

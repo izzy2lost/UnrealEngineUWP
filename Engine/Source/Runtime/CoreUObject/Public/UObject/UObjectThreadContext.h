@@ -151,8 +151,6 @@ private:
 	TArray<UObject*> ObjectsLoaded;
 	/** List of linkers that we want to close the loaders for (to free file handles) - needs to be delayed until EndLoad is called with GObjBeginLoadCount of 0 */
 	TArray<FLinkerLoad*> DelayedLinkerClosePackages;
-	/** List of linkers associated with this context */
-	TSet<FLinkerLoad*> AttachedLinkers;
 
 public:
 
@@ -266,12 +264,15 @@ public:
 	}
 
 	/** Attaches a linker to this context */
+	UE_DEPRECATED(5.5, "AttachLinker is not necessary. Remove calls to it.")
 	COREUOBJECT_API void AttachLinker(FLinkerLoad* InLinker);
 	
 	/** Detaches a linker from this context */
+	UE_DEPRECATED(5.5, "DetachLinker is not necessary. Remove calls to it.")
 	COREUOBJECT_API void DetachLinker(FLinkerLoad* InLinker);
 
 	/** Detaches all linkers from this context */
+	UE_DEPRECATED(5.5, "DetachFromLinkers is not necessary. Remove calls to it.")
 	COREUOBJECT_API void DetachFromLinkers();
 
 	//~ TRefCountPtr interface

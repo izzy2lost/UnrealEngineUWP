@@ -2473,15 +2473,6 @@ void EndLoad(FUObjectSerializeContext* LoadContext, TArray<UPackage*>* OutLoaded
 	}
 #endif	// WITH_EDITOR
 
-
-	if (LoadContext->GetBeginLoadCount() == 0)
-	{
-		if (!GEventDrivenLoaderEnabled)
-		{
-			LoadContext->DetachFromLinkers();
-		}
-	}
-
 	if (OutLoadedPackages)
 	{
 		OutLoadedPackages->Reserve(LoadedPackages.Num());
@@ -3156,7 +3147,6 @@ UObject* StaticDuplicateObjectEx( FObjectDuplicationParameters& Parameters )
 
 	TRefCountPtr<FUObjectSerializeContext> LoadContext(FUObjectThreadContext::Get().GetSerializeContext());
 	FDuplicateDataReader Reader(DuplicatedObjectAnnotation, ObjectData.Get(), Parameters.PortFlags, Parameters.DestOuter);
-	Reader.SetSerializeContext(LoadContext);
 	for(int32 ObjectIndex = 0;ObjectIndex < SerializedObjects.Num();ObjectIndex++)
 	{
 		UObject* SerializedObject = SerializedObjects[ObjectIndex];

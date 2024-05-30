@@ -473,7 +473,7 @@ void FCallstacks::RecordSerialize(EOffsetFrame OffsetFrame, int64 CurrentOffset,
 
 	if (Length > 0)
 	{
-		UObject* SerializedObject = Ar.GetSerializeContext() ? Ar.GetSerializeContext()->SerializedObject : nullptr;
+		UObject* SerializedObject = FUObjectThreadContext::Get().GetSerializeContext()->SerializedObject;
 		TArrayView<const FName> DebugStack = Ar.GetDebugDataStack();
 
 		const bool bCollectingCallstacks = Accumulator.bFirstSaveComplete;
@@ -1440,14 +1440,14 @@ void DumpPackageHeaderDiffs_LinkerLoad(
 		TRefCountPtr<FUObjectSerializeContext> LinkerLoadContext(FUObjectThreadContext::Get().GetSerializeContext());
 		BeginLoad(LinkerLoadContext);
 		SourceLinker = CreateLinkerForPackage(LinkerLoadContext, SourceAssetPackageName, AssetFilename, SourcePackage);
-		EndLoad(SourceLinker ? SourceLinker->GetSerializeContext() : LinkerLoadContext.GetReference());
+		EndLoad(LinkerLoadContext);
 	}
 	
 	{
 		TRefCountPtr<FUObjectSerializeContext> LinkerLoadContext(FUObjectThreadContext::Get().GetSerializeContext());
 		BeginLoad(LinkerLoadContext);
 		DestLinker = CreateLinkerForPackage(LinkerLoadContext, DestAssetPackageName, AssetFilename, DestPackage);
-		EndLoad(DestLinker ? DestLinker->GetSerializeContext() : LinkerLoadContext.GetReference());
+		EndLoad(LinkerLoadContext);
 	}
 
 	if (SourceLinker && DestLinker)

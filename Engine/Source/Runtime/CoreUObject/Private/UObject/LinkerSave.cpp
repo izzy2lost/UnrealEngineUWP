@@ -377,8 +377,6 @@ FArchive& FLinkerSave::operator<<( FName& InName )
 {
 	int32 Save = MapName(InName.GetDisplayIndex());
 
-	check(GetSerializeContext());
-
 	bool bNameMapped = Save != INDEX_NONE;
 	if (!bNameMapped)
 	{
@@ -387,7 +385,7 @@ FArchive& FLinkerSave::operator<<( FName& InName )
 		FString ErrorMessage = FString::Printf(TEXT("Name \"%s\" is not mapped when saving %s (object: %s, property: %s). This can mean that this object serialize function is not deterministic between reference harvesting and serialization."),
 			*InName.ToString(),
 			*GetArchiveName(),
-			*GetSerializeContext()->SerializedObject->GetFullName(),
+			*FUObjectThreadContext::Get().GetSerializeContext()->SerializedObject->GetFullName(),
 			*GetFullNameSafe(GetSerializedProperty()));
 		ensureMsgf(false, TEXT("%s"), *ErrorMessage);
 		if (LogOutput)
@@ -404,7 +402,7 @@ FArchive& FLinkerSave::operator<<( FName& InName )
 			FString ErrorMessage = FString::Printf(TEXT("Name \"%s\" is referenced from an export but not mapped in the export data names region when saving %s (object: %s, property: %s)."),
 				*InName.ToString(),
 				*GetArchiveName(),
-				*GetSerializeContext()->SerializedObject->GetFullName(),
+				*FUObjectThreadContext::Get().GetSerializeContext()->SerializedObject->GetFullName(),
 				*GetFullNameSafe(GetSerializedProperty()));
 			ensureMsgf(false, TEXT("%s"), *ErrorMessage);
 			if (LogOutput)
@@ -444,7 +442,7 @@ FArchive& FLinkerSave::operator<<(FSoftObjectPath& SoftObjectPath)
 			FString ErrorMessage = FString::Printf(TEXT("SoftObjectPath \"%s\" is not mapped when saving %s (object: %s, property: %s). This can mean that this object serialize function is not deterministic between reference harvesting and serialization."),
 				*SoftObjectPath.ToString(),
 				*GetArchiveName(),
-				*GetSerializeContext()->SerializedObject->GetFullName(),
+				*FUObjectThreadContext::Get().GetSerializeContext()->SerializedObject->GetFullName(),
 				*GetFullNameSafe(GetSerializedProperty()));
 			ensureMsgf(false, TEXT("%s"), *ErrorMessage);
 			if (LogOutput)
@@ -480,18 +478,9 @@ bool FLinkerSave::ShouldSkipProperty(const FProperty* InProperty) const
 	return false;
 }
 
-void FLinkerSave::SetSerializeContext(FUObjectSerializeContext* InLoadContext)
-{
-	SaveContext = InLoadContext;
-	if (Saver)
-	{
-		Saver->SetSerializeContext(InLoadContext);
-	}
-}
-
 FUObjectSerializeContext* FLinkerSave::GetSerializeContext()
 {
-	return SaveContext;
+	return FUObjectThreadContext::Get().GetSerializeContext();
 }
 
 void FLinkerSave::UsingCustomVersion(const struct FGuid& Guid)
