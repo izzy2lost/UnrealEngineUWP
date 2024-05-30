@@ -2229,7 +2229,6 @@ FRayTracingShaderBindings UE::RHI::ConvertRayTracingShaderBindings(const FRHIBat
 void FRHICommandList::RayTraceDispatch(
 	FRayTracingPipelineState* Pipeline,
 	FRHIRayTracingShader* RayGenShader,
-	FRHIRayTracingScene* Scene,
 	FRHIShaderBindingTable* SBT,
 	const FRHIBatchedShaderParameters& GlobalResourceBindings,
 	uint32 Width, uint32 Height)
@@ -2237,7 +2236,7 @@ void FRHICommandList::RayTraceDispatch(
 #if RHI_RAYTRACING
 
 	FRayTracingShaderBindings LegacyBindings = UE::RHI::ConvertRayTracingShaderBindings(GlobalResourceBindings);
-	RayTraceDispatch(Pipeline, RayGenShader, Scene, SBT, LegacyBindings, Width, Height);
+	RayTraceDispatch(Pipeline, RayGenShader, SBT, LegacyBindings, Width, Height);
 
 #else // RHI_RAYTRACING
 
@@ -2249,7 +2248,6 @@ void FRHICommandList::RayTraceDispatch(
 void FRHICommandList::RayTraceDispatchIndirect(
 	FRayTracingPipelineState* Pipeline,
 	FRHIRayTracingShader* RayGenShader,
-	FRHIRayTracingScene* Scene,
 	FRHIShaderBindingTable* SBT,
 	const FRHIBatchedShaderParameters& GlobalResourceBindings,
 	FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset)
@@ -2257,7 +2255,7 @@ void FRHICommandList::RayTraceDispatchIndirect(
 #if RHI_RAYTRACING
 
 	FRayTracingShaderBindings LegacyBindings = UE::RHI::ConvertRayTracingShaderBindings(GlobalResourceBindings);
-	RayTraceDispatchIndirect(Pipeline, RayGenShader, Scene, SBT, LegacyBindings, ArgumentBuffer, ArgumentOffset);
+	RayTraceDispatchIndirect(Pipeline, RayGenShader, SBT, LegacyBindings, ArgumentBuffer, ArgumentOffset);
 
 #else // RHI_RAYTRACING
 
