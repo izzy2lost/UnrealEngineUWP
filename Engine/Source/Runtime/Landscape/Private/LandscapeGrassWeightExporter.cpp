@@ -59,10 +59,15 @@ static bool ShouldCacheLandscapeGrassShaders(const FMeshMaterialShaderPermutatio
 	const bool bPlatformUsesRuntimeGen = (GGrassMapUseRuntimeGeneration != 0);
 #endif // WITH_EDITOR
 
-	const bool bShouldBuildForPlatform = 
-		bIsEditorPlatform ||
-		GGrassMapAlwaysBuildRuntimeGenerationResources ||
-		bPlatformUsesRuntimeGen;
+#if WITH_EDITOR
+	static FShaderPlatformCachedIniValue<int32> GrassEnabledPerPlatform(TEXT("grass.Enable"));
+	const bool bGrassEnable = (GrassEnabledPerPlatform.Get(Parameters.Platform) != 0);
+#else 
+	const bool bGrassEnable = GGrassEnable != 0;
+#endif // WITH_EDITOR
+
+	const bool bShouldBuildForPlatform = GGrassMapAlwaysBuildRuntimeGenerationResources || (
+		bGrassEnable && (bIsEditorPlatform || bPlatformUsesRuntimeGen));
 
 	const bool bIsFixedGridVertexFactory =
 		Parameters.VertexFactoryType == FindVertexFactoryType(FName(TEXT("FLandscapeFixedGridVertexFactory"), FNAME_Find));
