@@ -881,6 +881,18 @@ public:
 
 	bool GetIsHDR() const { return bIsHDR; }
 
+	void SetViewportScaleUIOverride(float InViewportScaleUIOverride)
+	{
+		ViewportScaleUIOverride = InViewportScaleUIOverride;
+	}
+
+	void ResetViewportScaleUIOverride()
+	{
+		ViewportScaleUIOverride = -1.0f;
+	}
+
+	float GetViewportScaleUIOverride() const { return ViewportScaleUIOverride; }
+
 	bool IsVirtualWindow() const { return bVirtualWindow; }
 
 	bool IsMirrorWindow()
@@ -1195,6 +1207,13 @@ protected:
 
 	/** Pointer to the viewport registered with this window if any */
 	TWeakPtr<ISlateViewport> Viewport;
+
+	/** 
+	 * Mix of aspect ratio + DPI + UI Zoom. Used in shaders / materials.
+	 * Can be overriden by child widgets, is reset after draw every frame.
+	 * Negative value indicates not used, in which case application level UI scale will be used.
+	 */
+	float ViewportScaleUIOverride;
 
 	/** Size of this window's title bar.  Can be zero.  Set at construction and should not be changed afterwards. */
 	float TitleBarSize;

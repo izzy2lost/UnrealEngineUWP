@@ -212,6 +212,9 @@ static FSceneView* CreateSceneView( FSceneViewFamilyContext* ViewFamilyContext, 
 		FViewMatrices()
 	);
 
+	// Update Viewport Scale UI from any external sources (Material editor, UMG zoom scale / etc).
+	ViewUniformShaderParameters.ViewportScaleUI = Params.ViewportScaleUI;
+
 	// Always Update cursor position in realtime for slate
 	ViewUniformShaderParameters.CursorPosition = Params.CursorPostion;
 

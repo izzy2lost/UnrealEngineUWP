@@ -998,7 +998,13 @@ FChildren* SMaterialEditorUIPreviewZoomer::GetChildren()
 int32 SMaterialEditorUIPreviewZoomer::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
 	LayerId = SPanel::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
-	
+
+	// Set a UI scale for materials to use as reference, done on a per-window basis since don't want to change global uniforms per element
+	if (SWindow* ParentWindow = OutDrawElements.GetPaintWindow())
+	{
+		ParentWindow->SetViewportScaleUIOverride(ZoomLevel);
+	}
+
 	if (IsCurrentlyScrollable())
 	{
 		LayerId = ScrollyZoomy.PaintSoftwareCursorIfNeeded(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId);

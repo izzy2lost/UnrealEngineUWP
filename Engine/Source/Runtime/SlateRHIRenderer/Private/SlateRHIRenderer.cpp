@@ -12,6 +12,7 @@
 #include "EngineGlobals.h"
 #include "Engine/AssetManager.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "Engine/UserInterfaceSettings.h"
 #include "FX/SlateFXSubsystem.h"
 #include "FX/SlateRHIPostBufferProcessor.h"
 #include "Materials/MaterialRenderProxy.h"
@@ -142,6 +143,7 @@ struct FSlateDrawWindowCommandParams
 	SWindow* Window;
 	FIntPoint CursorPostion;
 	FIntRect ViewRect;
+	float ViewportScaleUI;
 	ESlatePostRT UsedSlatePostBuffers;
 #if WANTS_DRAW_MESH_EVENTS
 	FString WindowTitle;
@@ -1023,6 +1025,7 @@ void RenderSlateBatch(FTextureRHIRef SlateRenderTarget, bool bClear, bool bIsHDR
 				RenderParams.HDRDisplayColorGamut = ViewportInfo.HDRDisplayColorGamut;
 				RenderParams.ViewRect = DrawCommandParams.ViewRect;
 				RenderParams.CursorPostion = DrawCommandParams.CursorPostion;
+				RenderParams.ViewportScaleUI = DrawCommandParams.ViewportScaleUI;
 				RenderParams.UsedSlatePostBuffers = DrawCommandParams.UsedSlatePostBuffers;
 				if (ViewportInfo.bSceneHDREnabled && !bIsHDR)
 				{
@@ -1941,6 +1944,7 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 					Params.WindowElementList = &ElementList;
 					Params.Window = Window;
 					Params.ViewRect = GetViewRect();
+					Params.ViewportScaleUI = Window->GetViewportScaleUIOverride();
 					Params.CursorPostion = FIntPoint(CursorPosition.X, CursorPosition.Y);
 					Params.UsedSlatePostBuffers = UsedSlatePostBufferBits;
 #if WANTS_DRAW_MESH_EVENTS
@@ -1955,6 +1959,12 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 					Params.Time = FGameTime::CreateDilated(
 						FPlatformTime::Seconds() - GStartTime, (float)FApp::GetDeltaTime(),
 						FApp::GetCurrentTime() - GStartTime, (float)FApp::GetDeltaTime());
+
+					// Negative Viewport UI Scale, get the value from user settings
+					if (Params.ViewportScaleUI < 0)
+					{	
+						Params.ViewportScaleUI = GetDefault<UUserInterfaceSettings>()->GetDPIScaleBasedOnSize(Params.ViewRect.Size());
+					}
 
 					// Skip the actual draw if we're in a headless execution environment
 					bool bLocalTakingAScreenShot = bTakingAScreenShot;
@@ -1987,6 +1997,9 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 					}
 
 					SlateWindowRendered.Broadcast(*Window, &ViewInfo->ViewportRHI);
+
+					// Now that all widgets have drawn, reset material UI scale
+					Window->ResetViewportScaleUIOverride();
 
 					if (bLocalTakingAScreenShot)
 					{

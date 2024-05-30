@@ -2422,6 +2422,12 @@ void SDesignerView::OnPaintBackground(const FGeometry& AllottedGeometry, const F
 		}
 	}
 
+	// Set a UI scale for materials to use as reference, done on a per-window basis since don't want to change global uniforms per element
+	if (SWindow* ParentWindow = OutDrawElements.GetPaintWindow())
+	{
+		ParentWindow->SetViewportScaleUIOverride(GetZoomAmount());
+	}
+
 	SDesignSurface::OnPaintBackground(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId);
 
 	if (bShowResolutionOutlines)

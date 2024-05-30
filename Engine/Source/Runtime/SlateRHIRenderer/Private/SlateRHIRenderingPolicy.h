@@ -38,6 +38,7 @@ struct FSlateRenderingParams
 	FGameTime Time;
 	TRefCountPtr<IPooledRenderTarget> UITarget;
 	EDisplayColorGamut HDRDisplayColorGamut;
+	float ViewportScaleUI;
 	ESlatePostRT UsedSlatePostBuffers;
 	bool bWireFrame;
 	bool bIsHDR;
@@ -49,6 +50,7 @@ struct FSlateRenderingParams
 		, CursorPostion(FIntPoint())
 		, Time(InTime)
 		, HDRDisplayColorGamut(EDisplayColorGamut::sRGB_D65)
+		, ViewportScaleUI(1.0f)
 		, UsedSlatePostBuffers(ESlatePostRT::None)
 		, bWireFrame(false)
 		, bIsHDR(false)
