@@ -10,12 +10,18 @@ namespace EpicGames.UBA
 		/// <summary>
 		/// Register roots used to normalize paths in caches
 		/// </summary>
-		public abstract bool RegisterRoot(string path, bool includeInKey);
+		/// <param name="path">Path of root</param>
+		/// <param name="includeInKey">set this to false if you want to ignore all files under this folder (you know they are _always_ the same for all machines)</param>
+		/// <param name="id">Id of root. On windows these numbers need to increase two at the time since double backslash paths are added automatically under the hood</param>
+		/// <returns>True if successful</returns>
+		public abstract bool RegisterRoot(string path, bool includeInKey = true, byte id = 0);
 
 		/// <summary>
 		/// Register system roots used to normalize paths in caches
 		/// </summary>
-		public abstract bool RegisterSystemRoots();
+		/// <param name="startId">Start id for system roots. On windows these take up 10 entries</param>
+		/// <returns>True if successful</returns>
+		public abstract bool RegisterSystemRoots(byte startId = 0);
 
 		/// <summary>
 		/// Create root paths instance

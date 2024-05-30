@@ -18,10 +18,10 @@ namespace EpicGames.UBA
 		static extern void RootPaths_Destroy(IntPtr rootPaths);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern bool RootPaths_RegisterRoot(IntPtr rootPaths, string root, bool includeInKey);
+		static extern bool RootPaths_RegisterRoot(IntPtr rootPaths, string root, bool includeInKey, byte id);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern bool RootPaths_RegisterSystemRoots(IntPtr rootPaths);
+		static extern bool RootPaths_RegisterSystemRoots(IntPtr rootPaths, byte id);
 		#endregion
 
 		#region IDisposable
@@ -53,14 +53,14 @@ namespace EpicGames.UBA
 			_handle = RootPaths_Create(_logger.GetHandle());
 		}
 
-		public bool RegisterRoot(string path, bool includeInKey)
+		public bool RegisterRoot(string path, bool includeInKey, byte id)
 		{
-			return RootPaths_RegisterRoot(_handle, path, includeInKey);
+			return RootPaths_RegisterRoot(_handle, path, includeInKey, id);
 		}
 
-		public bool RegisterSystemRoots()
+		public bool RegisterSystemRoots(byte startId)
 		{
-			return RootPaths_RegisterSystemRoots(_handle);
+			return RootPaths_RegisterSystemRoots(_handle, startId);
 		}
 
 		public IntPtr GetHandle() => _handle;
