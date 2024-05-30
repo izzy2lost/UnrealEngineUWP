@@ -28,6 +28,8 @@ namespace UnrealBuildTool.Rules
 					"RHI",
 				}
 			);
+
+			bDisableAutoRTFMInstrumentation = true;
         }
     }
 }

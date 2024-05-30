@@ -38,6 +38,8 @@ namespace UnrealBuildTool.Rules
 					"UnrealEd",
 				});
 			}
+
+			bDisableAutoRTFMInstrumentation = true;
 		}
 	}
 }
