@@ -470,7 +470,6 @@ void UDynamicMaterialModelEditorOnlyData::CreateMaterial()
 		));
 
 		FAssetRegistryModule::AssetCreated(MaterialModel->DynamicMaterial);
-		Package->FullyLoad();
 	}
 
 	MaterialModel->DynamicMaterial->bOutputTranslucentVelocity = true;

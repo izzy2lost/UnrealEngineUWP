@@ -163,7 +163,6 @@ FReply SDMDetailsPanelTabSpawner::CreateDynamicMaterialModel()
 	));
 
 	FAssetRegistryModule::AssetCreated(NewModel);
-	Package->FullyLoad();
 
 	PropertyHandle->SetValueFromFormattedString(NewModel->GetPathName());
 

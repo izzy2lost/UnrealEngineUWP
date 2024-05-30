@@ -180,7 +180,6 @@ void UDMMaterialStageSource::CreatePreviewMaterial()
 		));
 
 		FAssetRegistryModule::AssetCreated(PreviewMaterial);
-		Package->FullyLoad();
 	}
 }
 

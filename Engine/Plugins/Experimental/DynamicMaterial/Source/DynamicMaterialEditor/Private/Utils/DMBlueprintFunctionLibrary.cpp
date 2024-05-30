@@ -304,7 +304,6 @@ bool UDMBlueprintFunctionLibrary::ExportMaterialInstance(UDynamicMaterialModel* 
 	}
 
 	FAssetRegistryModule::AssetCreated(NewAsset);
-	Package->FullyLoad();
 
 	return true;
 }
@@ -355,7 +354,6 @@ bool UDMBlueprintFunctionLibrary::ExportGeneratedMaterial(UDynamicMaterialModel*
 	NewAsset->SetFlags(RF_Public | RF_Standalone);
 
 	FAssetRegistryModule::AssetCreated(NewAsset);
-	Package->FullyLoad();
 
 	return true;
 }

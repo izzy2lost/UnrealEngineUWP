@@ -1466,7 +1466,6 @@ void UDMMaterialStage::CreatePreviewMaterial()
 		));
 
 		FAssetRegistryModule::AssetCreated(PreviewMaterialBase);
-		Package->FullyLoad();
 	}
 }
 
