@@ -452,9 +452,8 @@ namespace Metasound
 							FGraphBuilder::UnregisterGraphWithFrontend(*AssetObject);
 						}
 
+						IMetaSoundAssetManager::GetChecked().RemoveAsset(InAssetData);
 					}
-
-					IMetaSoundAssetManager::GetChecked().RemoveAsset(InAssetData);
 				}
 			}
 
