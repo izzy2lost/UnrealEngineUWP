@@ -135,6 +135,10 @@ public:
 	/// normal vector for this vertex instance.
 	/// If the morph was not registered to include normals, this will return an invalid attribute. 
 	SKELETALMESHDESCRIPTION_API TVertexInstanceAttributesConstRef<FVector3f> GetVertexInstanceMorphNormalDelta(const FName InMorphTargetName) const;
+
+	SKELETALMESHDESCRIPTION_API bool HasMorphTargetPositionsAttribute(const FName InMorphTargetName) const;
+
+	SKELETALMESHDESCRIPTION_API bool HasMorphTargetNormalsAttribute(const FName InMorphTargetName) const;
 	
 	//
 	// Bones Methods

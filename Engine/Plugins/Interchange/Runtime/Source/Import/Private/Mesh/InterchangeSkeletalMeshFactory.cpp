@@ -1286,6 +1286,10 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 	//Make sure we can modify the skeletalmesh properties
 	FSkinnedAssetAsyncBuildScope AsyncBuildScope(SkeletalMesh);
 
+	TMap<FString, TArray<FLODUtilities::FMorphTargetLodBackupData>> BackupImportedMorphTargetData;
+	FLODUtilities::BackupCustomImportedMorphTargetData(SkeletalMesh, BackupImportedMorphTargetData);
+
+
 	FTransform GlobalOffsetTransform = FTransform::Identity;
 	bool bBakeMeshes = false;
 	if (UInterchangeCommonPipelineDataFactoryNode* CommonPipelineDataFactoryNode = UInterchangeCommonPipelineDataFactoryNode::GetUniqueInstance(Arguments.NodeContainer))
@@ -1637,10 +1641,18 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 				}
 			}
 		}
-		//Store the original fbx import data the SkelMeshImportDataPtr should not be modified after this
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		SkeletalMesh->SaveLODImportedData(CurrentLodIndex, SkeletalMeshImportData);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+		//Store the original fbx import data the SkeletalMeshImportData should not be modified after this
+		{
+			FMeshDescription MeshDescription;
+			if (SkeletalMeshImportData.GetMeshDescription(nullptr, &SkeletalMesh->GetLODInfo(CurrentLodIndex)->BuildSettings, MeshDescription))
+			{
+				//Restore the morph target into the imported mesh description
+				FLODUtilities::RestoreCustomImportedMorphTargetData(SkeletalMesh, CurrentLodIndex, MeshDescription, BackupImportedMorphTargetData);
+				SkeletalMesh->CreateMeshDescription(CurrentLodIndex, MoveTemp(MeshDescription));
+				SkeletalMesh->CommitMeshDescription(CurrentLodIndex);
+			}
+		}
 
 		//Update the bounding box if we are importing the LOD 0
 		if(CurrentLodIndex == 0)

@@ -162,6 +162,11 @@ void UInterchangeGenericAssetsPipeline::AdjustSettingsForContext(EInterchangePip
 			}
 		}
 	}
+	else if (ImportType == EInterchangePipelineContext::AssetCustomMorphTargetImport
+		|| ImportType == EInterchangePipelineContext::AssetCustomMorphTargetReImport)
+	{
+		bUseSourceNameForAsset = false;
+	}
 
 	if (MaterialPipeline)
 	{

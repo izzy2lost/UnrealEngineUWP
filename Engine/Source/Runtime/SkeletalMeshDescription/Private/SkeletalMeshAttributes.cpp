@@ -478,6 +478,16 @@ TVertexInstanceAttributesConstRef<FVector3f> FSkeletalMeshAttributesShared::GetV
 	return MeshDescriptionShared.VertexInstanceAttributes().GetAttributesRef<FVector3f>(CreateMorphTargetAttributeName(InMorphTargetName));
 }
 
+bool FSkeletalMeshAttributesShared::HasMorphTargetPositionsAttribute(const FName InMorphTargetName) const
+{
+	return MeshDescriptionShared.VertexAttributes().HasAttribute(CreateMorphTargetAttributeName(InMorphTargetName));
+}
+
+bool FSkeletalMeshAttributesShared::HasMorphTargetNormalsAttribute(const FName InMorphTargetName) const
+{
+	return MeshDescriptionShared.VertexInstanceAttributes().HasAttribute(CreateMorphTargetAttributeName(InMorphTargetName));
+}
+
 
 bool FSkeletalMeshAttributesShared::HasBoneColorAttribute() const
 {

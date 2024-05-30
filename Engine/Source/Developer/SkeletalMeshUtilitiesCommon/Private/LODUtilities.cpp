@@ -549,6 +549,9 @@ bool FLODUtilities::SetCustomLOD(USkeletalMesh* DestinationSkeletalMesh, USkelet
 	TArray<int32> ClothingAssetSectionIndices;
 	TArray<int32> ClothingAssetInternalLodIndices;
 
+	//SAve custom imported morph targets
+	TMap<FString, TArray<FMorphTargetLodBackupData>> BackupImportedMorphTargetData;
+
 	TArray<FSkinWeightProfileInfo> ExistingSkinWeightProfileInfos;
 	TArray<FSkeletalMeshImportData> ExistingAlternateImportDataPerLOD;
 
@@ -563,6 +566,9 @@ bool FLODUtilities::SetCustomLOD(USkeletalMesh* DestinationSkeletalMesh, USkelet
 	if (DestImportedResource->LODModels.IsValidIndex(LodIndex))
 	{
 		FLODUtilities::UnbindClothingAndBackup(DestinationSkeletalMesh, ClothingBindings, LodIndex);
+
+		//Backup the lod custom imported morph
+		BackupCustomImportedMorphTargetData(DestinationSkeletalMesh, BackupImportedMorphTargetData);
 
 		int32 ExistingLodCount = DestinationSkeletalMesh->GetLODNum();
 
@@ -592,6 +598,20 @@ bool FLODUtilities::SetCustomLOD(USkeletalMesh* DestinationSkeletalMesh, USkelet
 		{
 			// Re-apply our clothing assets
 			FLODUtilities::RestoreClothingFromBackup(DestinationSkeletalMesh, ClothingBindings, LodIndex);
+		}
+	};
+
+	auto ReapplyCustomImportedMorphTarget = [&DestinationSkeletalMesh, &BackupImportedMorphTargetData, &LodIndex]()
+	{
+		if (FMeshDescription* MeshDescription = DestinationSkeletalMesh->GetMeshDescription(LodIndex))
+		{
+			if (FLODUtilities::RestoreCustomImportedMorphTargetData(DestinationSkeletalMesh, LodIndex, *MeshDescription, BackupImportedMorphTargetData))
+			{
+				USkeletalMesh::FCommitMeshDescriptionParams CommitParams;
+				CommitParams.bForceUpdate = false;
+				CommitParams.bMarkPackageDirty = false;
+				DestinationSkeletalMesh->CommitMeshDescription(LodIndex, CommitParams);
+			}
 		}
 	};
 
@@ -949,6 +969,8 @@ bool FLODUtilities::SetCustomLOD(USkeletalMesh* DestinationSkeletalMesh, USkelet
 	DestinationSkeletalMesh->GetLODInfo(LodIndex)->bImportWithBaseMesh = false;
 
 	ReapplyClothing();
+
+	ReapplyCustomImportedMorphTarget();
 
 	ReapplyAlternateSkinning();
 	
@@ -3989,6 +4011,132 @@ void FLODUtilities::RestoreClothingFromBackup(USkeletalMesh* SkeletalMesh, TArra
 			break;
 		}
 	}
+}
+
+void FLODUtilities::BackupCustomImportedMorphTargetData(USkeletalMesh* SkeletalMesh, TMap<FString, TArray<FMorphTargetLodBackupData>>& BackupImportedMorphTargetData)
+{
+	const int32 LodCount = SkeletalMesh->GetLODNum();
+	constexpr int32 LodIndex0 = 0;
+	//Find all imported morph targets
+	if (const FSkeletalMeshLODInfo* LodInfo = SkeletalMesh->GetLODInfo(LodIndex0))
+	{
+		TSet<FString> ImportedMorphTargetNames;
+		LodInfo->ImportedMorphTargetSourceFilename.GetKeys(ImportedMorphTargetNames);
+		for (const FString& MorphTargetNameStr : ImportedMorphTargetNames)
+		{
+			FName MorphTargetName(*MorphTargetNameStr);
+			TArray<FMorphTargetLodBackupData>& MorphTargetLodDatas = BackupImportedMorphTargetData.FindOrAdd(MorphTargetNameStr);
+			for (int32 LodIndex = 0; LodIndex < LodCount; ++LodIndex)
+			{
+				FMorphTargetLodBackupData& MorphTargetLodData = MorphTargetLodDatas.AddDefaulted_GetRef();
+				if (SkeletalMesh->HasMeshDescription(LodIndex))
+				{
+					FMeshDescription& MeshDescription = *(SkeletalMesh->GetMeshDescription(LodIndex));
+					FSkeletalMeshConstAttributes SkeletalMeshAttributes(MeshDescription);
+
+					if (SkeletalMeshAttributes.HasMorphTargetPositionsAttribute(MorphTargetName))
+					{
+						MorphTargetLodData.bIsEmpty = false;
+						MorphTargetLodData.MorphPositionDeltas.Reserve(MeshDescription.Vertices().Num());
+						TVertexAttributesConstRef<FVector3f> VertexPositionDeltas = SkeletalMeshAttributes.GetVertexMorphPositionDelta(MorphTargetName);
+						for (FVertexID VertexID : MeshDescription.Vertices().GetElementIDs())
+						{
+							MorphTargetLodData.MorphPositionDeltas.Add(VertexPositionDeltas[VertexID]);
+						}
+						if (SkeletalMeshAttributes.HasMorphTargetNormalsAttribute(MorphTargetName))
+						{
+							MorphTargetLodData.MorphNormalDeltas.Reserve(MeshDescription.VertexInstances().Num());
+							TVertexInstanceAttributesConstRef<FVector3f> VertexInstanceNormalDeltas = SkeletalMeshAttributes.GetVertexInstanceMorphNormalDelta(MorphTargetName);
+							for (FVertexInstanceID VertexInstanceID : MeshDescription.VertexInstances().GetElementIDs())
+							{
+								MorphTargetLodData.MorphNormalDeltas.Add(VertexInstanceNormalDeltas[VertexInstanceID]);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+bool FLODUtilities::RestoreCustomImportedMorphTargetData(USkeletalMesh* SkeletalMesh, const int32 LodIndex, FMeshDescription& LodMeshDescription, const TMap<FString, TArray<FMorphTargetLodBackupData>>& BackupImportedMorphTargetData)
+{
+	auto RemoveInvalidMorphTargetLOD = [SkeletalMesh, LodIndex](const FString& MorphTargetNameStr)
+		{
+			FName MorphTargetName(*MorphTargetNameStr);
+			if(UMorphTarget* MorphTarget = SkeletalMesh->FindMorphTarget(MorphTargetName))
+			{
+				MorphTarget->RemoveFromRoot();
+				MorphTarget->ClearFlags(RF_Standalone);
+				SkeletalMesh->UnregisterMorphTarget(MorphTarget, false);
+			}
+			if (FSkeletalMeshLODInfo* LodInfo = SkeletalMesh->GetLODInfo(LodIndex))
+			{
+				if (LodInfo->ImportedMorphTargetSourceFilename.Contains(MorphTargetNameStr))
+				{
+					LodInfo->ImportedMorphTargetSourceFilename.Remove(MorphTargetNameStr);
+				}
+			}
+		};
+
+	bool bIsMeshDescriptionModified = false;
+	for (const TPair<FString, TArray<FMorphTargetLodBackupData>>& ImportedMorphTargetPair : BackupImportedMorphTargetData)
+	{
+		const FString& MorphTargetNameStr = ImportedMorphTargetPair.Key;
+		FName MorphTargetName(*MorphTargetNameStr);
+
+		const TArray<FMorphTargetLodBackupData>& MorphTargetLodDatas = ImportedMorphTargetPair.Value;
+		if (!MorphTargetLodDatas.IsValidIndex(LodIndex))
+		{
+			continue;
+		}
+
+		const FMorphTargetLodBackupData& MorphTargetLodData = MorphTargetLodDatas[LodIndex];
+		if (MorphTargetLodData.bIsEmpty)
+		{
+			RemoveInvalidMorphTargetLOD(MorphTargetNameStr);
+			//Error out that the morph target is not valid anymore for this LOD
+			UE_ASSET_LOG(LogLODUtilities, Error, SkeletalMesh, TEXT("Cannot keep the generated morph target %s for LOD %d, because this LOD is now imported and the topology have change."), *MorphTargetNameStr, LodIndex);
+			continue;
+		}
+
+		FSkeletalMeshAttributes SkeletalMeshAttributes(LodMeshDescription);
+		if (SkeletalMeshAttributes.IsMorphTargetAttribute(MorphTargetName))
+		{
+			//The morph target already exist, this mean the re-import added this morph target
+			continue;
+		}
+
+		if (MorphTargetLodData.MorphPositionDeltas.Num() != LodMeshDescription.Vertices().Num())
+		{
+			RemoveInvalidMorphTargetLOD(MorphTargetNameStr);
+			//Error out that the morph target is not valid anymore for this LOD
+			UE_ASSET_LOG(LogLODUtilities, Error, SkeletalMesh, TEXT("Cannot keep custom morph target %s for LOD %d, because the re-import LOD now have a different mesh geometry topology."), *MorphTargetNameStr, LodIndex);
+			continue;
+		}
+
+		//We are good to go and we can add the data to the mesh description
+		bIsMeshDescriptionModified = true;
+		const bool bHasNormal = MorphTargetLodData.MorphNormalDeltas.Num() > 0;
+		SkeletalMeshAttributes.RegisterMorphTargetAttribute(MorphTargetName, bHasNormal);
+		TVertexAttributesRef<FVector3f> VertexPositionDeltas = SkeletalMeshAttributes.GetVertexMorphPositionDelta(MorphTargetName);
+		for (int32 VertexIndex = 0; VertexIndex < MorphTargetLodData.MorphPositionDeltas.Num(); ++VertexIndex)
+		{
+			FVertexID VertexID(VertexIndex);
+			VertexPositionDeltas[VertexID] = MorphTargetLodData.MorphPositionDeltas[VertexIndex];
+		}
+		if (bHasNormal)
+		{
+			TVertexInstanceAttributesRef<FVector3f> VertexInstanceNormalDeltas = SkeletalMeshAttributes.GetVertexInstanceMorphNormalDelta(MorphTargetName);
+			for (int32 VertexInstanceIndex = 0; VertexInstanceIndex < MorphTargetLodData.MorphPositionDeltas.Num(); ++VertexInstanceIndex)
+			{
+				FVertexInstanceID VertexInstanceID(VertexInstanceIndex);
+				VertexInstanceNormalDeltas[VertexInstanceID] = MorphTargetLodData.MorphNormalDeltas[VertexInstanceIndex];
+			}
+		}
+	}
+
+	return bIsMeshDescriptionModified;
 }
 
 void FLODUtilities::AdjustImportDataFaceMaterialIndex(const TArray<FSkeletalMaterial>& Materials, TArray<SkeletalMeshImportData::FMaterial>& RawMeshMaterials, TArray<SkeletalMeshImportData::FMeshFace>& LODFaces, int32 LODIndex)

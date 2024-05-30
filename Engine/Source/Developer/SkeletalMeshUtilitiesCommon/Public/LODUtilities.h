@@ -243,6 +243,23 @@ public:
 	static void RestoreClothingFromBackup(USkeletalMesh* SkeletalMesh, TArray<ClothingAssetUtils::FClothingAssetMeshBinding>& ClothingBindings);
 	static void RestoreClothingFromBackup(USkeletalMesh* SkeletalMesh, TArray<ClothingAssetUtils::FClothingAssetMeshBinding>& ClothingBindings, const int32 LODIndex);
 
+	struct FMorphTargetLodBackupData
+	{
+		bool bIsEmpty = true;
+		TArray<FVector3f> MorphPositionDeltas;
+		TArray<FVector3f> MorphNormalDeltas;
+	};
+
+	/**
+	 * Backup all the custom imported morph targets.
+	 */
+	static void BackupCustomImportedMorphTargetData(USkeletalMesh* SkeletalMesh, TMap<FString, TArray<FMorphTargetLodBackupData>>& BackupImportedMorphTargetData);
+
+	/**
+	 * Restore the custom imported morph target in the mesh description. Return true if the mesh description was changed because it restore some morph targets
+	 */
+	static bool RestoreCustomImportedMorphTargetData(USkeletalMesh* SkeletalMesh, const int32 LodIndex, FMeshDescription& LodMeshDescription, const TMap<FString, TArray<FMorphTargetLodBackupData>>& BackupImportedMorphTargetData);
+
 	/**
 	 * Before building skeletalmesh base LOD (LOD index 0) using MeshUtilities.BuildSkeletalMesh, we want to adjust the imported faces material index to point on the correct sk material. We use the material name to match the material.
 	 * @param Materials - The skeletalmesh material list to fit the import data face material
