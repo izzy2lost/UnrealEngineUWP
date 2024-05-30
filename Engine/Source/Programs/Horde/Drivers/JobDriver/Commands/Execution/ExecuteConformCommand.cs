@@ -45,8 +45,7 @@ namespace JobDriver.Commands.Execution
 
 			ConformTask conformTask = ConformTask.Parser.ParseFrom(Convert.FromBase64String(Task));
 
-			string accessToken = null!;
-			IHordeClient hordeClient = _hordeClientFactory.Create(accessToken);
+			IHordeClient hordeClient = _hordeClientFactory.Create();
 
 			ConformExecutor conformExecutor = new ConformExecutor(hordeClient, WorkingDir, AgentId, LeaseId, conformTask, _driverSettings.Value, logger);
 			await conformExecutor.ExecuteAsync(CancellationToken.None);
