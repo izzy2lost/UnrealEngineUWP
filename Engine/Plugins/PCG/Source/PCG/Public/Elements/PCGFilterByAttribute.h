@@ -36,6 +36,10 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	EPCGStringMatchingOperator Operator = EPCGStringMatchingOperator::Equal;
+
+	/** Controls whether properties (denoted by $) will be considered in the filter or not. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	bool bIgnoreProperties = false;
 };
 
 class FPCGFilterByAttributeElement : public IPCGElement

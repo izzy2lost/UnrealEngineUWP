@@ -80,24 +80,27 @@ bool FPCGFilterByAttributeElement::ExecuteInternal(FPCGContext* Context) const
 			Metadata->GetAttributes(DataAttributes, DataAttributeTypes);
 			Algo::Transform(DataAttributes, DataAttributeStrings, [](const FName& InAttribute) { return InAttribute.ToString(); });
 
-			if (Cast<UPCGPointData>(Input.Data))
+			if (!Settings->bIgnoreProperties)
 			{
-				if (const UEnum* PointProperties = StaticEnum<EPCGPointProperties>())
+				if (Cast<UPCGPointData>(Input.Data))
 				{
-					DataAttributeStrings.Reserve(DataAttributeStrings.Num() + PointProperties->NumEnums());
-					for (int32 EnumIndex = 0; EnumIndex < PointProperties->NumEnums(); ++EnumIndex)
+					if (const UEnum* PointProperties = StaticEnum<EPCGPointProperties>())
 					{
-						DataAttributeStrings.Add(FString(TEXT("$")) + PointProperties->GetNameStringByIndex(EnumIndex));
+						DataAttributeStrings.Reserve(DataAttributeStrings.Num() + PointProperties->NumEnums());
+						for (int32 EnumIndex = 0; EnumIndex < PointProperties->NumEnums(); ++EnumIndex)
+						{
+							DataAttributeStrings.Add(FString(TEXT("$")) + PointProperties->GetNameStringByIndex(EnumIndex));
+						}
 					}
 				}
-			}
 
-			if (const UEnum* ExtraProperties = StaticEnum<EPCGExtraProperties>())
-			{
-				DataAttributeStrings.Reserve(DataAttributeStrings.Num() + ExtraProperties->NumEnums());
-				for (int32 EnumIndex = 0; EnumIndex < ExtraProperties->NumEnums(); ++EnumIndex)
+				if (const UEnum* ExtraProperties = StaticEnum<EPCGExtraProperties>())
 				{
-					DataAttributeStrings.Add(FString(TEXT("$")) + ExtraProperties->GetNameStringByIndex(EnumIndex));
+					DataAttributeStrings.Reserve(DataAttributeStrings.Num() + ExtraProperties->NumEnums());
+					for (int32 EnumIndex = 0; EnumIndex < ExtraProperties->NumEnums(); ++EnumIndex)
+					{
+						DataAttributeStrings.Add(FString(TEXT("$")) + ExtraProperties->GetNameStringByIndex(EnumIndex));
+					}
 				}
 			}
 		}
@@ -106,12 +109,12 @@ bool FPCGFilterByAttributeElement::ExecuteInternal(FPCGContext* Context) const
 
 		for (const FString& Attribute : Attributes)
 		{
+			FPCGAttributePropertySelector Selector;
+			Selector.Update(Attribute);
+
 			// In the case of the equal test, we can test directly if the selector would yield something valid
 			if (Settings->Operator == EPCGStringMatchingOperator::Equal)
 			{
-				FPCGAttributePropertySelector Selector;
-				Selector.Update(Attribute);
-
 				TUniquePtr<const IPCGAttributeAccessor> Accessor = PCGAttributeAccessorHelpers::CreateConstAccessor(Input.Data, Selector, /*bQuiet=*/true);
 				if (!Accessor || !Accessor.IsValid())
 				{
@@ -123,19 +126,9 @@ bool FPCGFilterByAttributeElement::ExecuteInternal(FPCGContext* Context) const
 			{
 				// Otherwise, it's going to be a bit more complex -
 				// First, reconstruct the main property/attribute name from the selector, because it might have removed the $ character.
-				FString AttributeWithNoAccessor;
-				FString AttributeAccessors;
-				int32 FirstAccessorCharIndex = INDEX_NONE;
-				if (Attribute.FindChar('.', FirstAccessorCharIndex))
-				{
-					AttributeWithNoAccessor = Attribute.Left(FirstAccessorCharIndex);
-					AttributeAccessors = Attribute.RightChop(FirstAccessorCharIndex); // includes the '.' as we'll add it back after
-				}
-				else
-				{
-					AttributeWithNoAccessor = Attribute;
-				}
-
+				const FString AttributeWithNoAccessor = Selector.GetAttributePropertyString(/*bAddQualifier=*/true);
+				const FString AttributeAccessors = Selector.GetAttributePropertyAccessorsString(/*bAddLeadingSeparator=*/true);
+				
 				// Try to find a valid match of AttributeWithNoAccessor against the DataAttributeStrings.
 				bool bFoundValidMatch = false;
 				for (const FString& DataAttribute : DataAttributeStrings)
@@ -147,10 +140,10 @@ bool FPCGFilterByAttributeElement::ExecuteInternal(FPCGContext* Context) const
 					}
 
 					// We have a valid name-based match, now check if the full attribute can be used as a valid extractor.
-					FPCGAttributePropertySelector Selector;
-					Selector.Update(DataAttribute + AttributeAccessors);
+					FPCGAttributePropertySelector DataSelector;
+					DataSelector.Update(DataAttribute + AttributeAccessors);
 
-					TUniquePtr<const IPCGAttributeAccessor> Accessor = PCGAttributeAccessorHelpers::CreateConstAccessor(Input.Data, Selector, /*bQuiet=*/true);
+					TUniquePtr<const IPCGAttributeAccessor> Accessor = PCGAttributeAccessorHelpers::CreateConstAccessor(Input.Data, DataSelector, /*bQuiet=*/true);
 					if (Accessor && Accessor.IsValid())
 					{
 						bFoundValidMatch = true;

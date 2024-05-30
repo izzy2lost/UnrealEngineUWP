@@ -65,7 +65,14 @@ public:
 	// Return the name of the selector.
 	FName GetName() const;
 
+	// Returns qualified attribute/property name with the accessors.
 	FString ToString() const;
+	
+	// Returns attribute/property name only, with optional '$' qualifier for properties.
+	FString GetAttributePropertyString(bool bAddPropertyQualifier = true) const;
+
+	// Returns the accessor part of the selector, with optional leading '.' separator.
+	FString GetAttributePropertyAccessorsString(bool bAddLeadingSeparator) const;
 
 	// Returns the text to display in the widget.
 	FText GetDisplayText() const { return FText::FromString(ToString()); }

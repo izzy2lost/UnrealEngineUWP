@@ -152,32 +152,45 @@ bool FPCGAttributePropertySelector::SetExtraProperty(EPCGExtraProperties InExtra
 	}
 }
 
-FString FPCGAttributePropertySelector::ToString() const
+FString FPCGAttributePropertySelector::GetAttributePropertyString(bool bAddPropertyQualifier) const
 {
-	FString Res;
 	const FName Name = GetName();
-
 	// Add a '$' if it is a property
-	if (Selection != EPCGAttributePropertySelection::Attribute && (Name != NAME_None))
+	if (bAddPropertyQualifier && Selection != EPCGAttributePropertySelection::Attribute && Name != NAME_None)
 	{
-		Res = FString(PCGAttributePropertySelectorConstants::PropertyPrefix) + Name.ToString();
+		return FString(PCGAttributePropertySelectorConstants::PropertyPrefix) + Name.ToString();
 	}
 	else
 	{
-		Res = Name.ToString();
+		return Name.ToString();
 	}
-
-	if (!ExtraNames.IsEmpty())
-	{
-		TArray<FString> AllNames;
-		AllNames.Add(Res);
-		AllNames.Append(ExtraNames);
-		Res = FString::Join(AllNames, PCGAttributePropertySelectorConstants::ExtraSeparator);
-	}
-
-	return Res;
 }
 
+FString FPCGAttributePropertySelector::GetAttributePropertyAccessorsString(bool bAddLeadingSeparator) const
+{
+	if (!ExtraNames.IsEmpty())
+	{
+		FString LeadingSeparatorString;
+		if (bAddLeadingSeparator)
+		{
+			LeadingSeparatorString = FString(PCGAttributePropertySelectorConstants::ExtraSeparator);
+		}
+
+		return LeadingSeparatorString + FString::Join(ExtraNames, PCGAttributePropertySelectorConstants::ExtraSeparator);
+	}
+	else
+	{
+		return FString();
+	}
+}
+
+FString FPCGAttributePropertySelector::ToString() const
+{
+	const FString Attribute = GetAttributePropertyString(/*bAddPropertyQualifier=*/true);
+	const FString Accessors = GetAttributePropertyAccessorsString(/*bAddLeadingSeparator*/true);
+
+	return Attribute + Accessors;
+}
 
 bool FPCGAttributePropertySelector::operator==(const FPCGAttributePropertySelector& Other) const
 {
