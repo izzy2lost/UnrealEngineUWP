@@ -32,6 +32,7 @@ public:
 	virtual void ProcessImportedText(const UWidgetBlueprint* WidgetBlueprint, const FString& TextToImport, UPackage*& TempPackage) = 0;
 	virtual bool CanImportFromClipboard(const UWidget* Widget) const = 0;
 	virtual void ImportDataToWidget(const UWidget* Widget, FName OldWidgetName) = 0;
+	virtual bool CanWidgetAcceptPaste(const UWidget* Widget) const = 0;
 
 	virtual ~IClipboardExtension() { }
 };

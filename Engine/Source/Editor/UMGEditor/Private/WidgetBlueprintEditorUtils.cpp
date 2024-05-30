@@ -1529,6 +1529,34 @@ bool FWidgetBlueprintEditorUtils::IsAnySelectedWidgetLocked(TSet<FWidgetReferenc
 	return false;
 }
 
+bool FWidgetBlueprintEditorUtils::CanPasteWidgetsExtension(TSet<FWidgetReference> SelectedWidgets)
+{
+	if (!SelectedWidgets.IsEmpty())
+	{
+		IUMGEditorModule& EditorModule = FModuleManager::LoadModuleChecked<IUMGEditorModule>("UMGEditor");
+		const TArrayView<const TSharedPtr<IClipboardExtension>> ClipboardExtensions = EditorModule.GetClipboardExtensibilityManager()->GetExtensions();
+
+		for (const TSharedPtr<IClipboardExtension>& ClipboardExtension : ClipboardExtensions)
+		{
+			if (ensure(ClipboardExtension.IsValid()))
+			{
+				for (const FWidgetReference& SelectedWidget : SelectedWidgets)
+				{
+					if (UWidget* TemplateWidget = SelectedWidget.GetTemplate())
+					{
+						if (!ClipboardExtension->CanWidgetAcceptPaste(TemplateWidget))
+						{
+							return false;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return true;
+}
+
 UWidget* FWidgetBlueprintEditorUtils::GetWidgetTemplateFromDragDrop(UWidgetBlueprint* Blueprint, UWidgetTree* RootWidgetTree, TSharedPtr<FDragDropOperation>& DragDropOp)
 {
 	UWidget* Widget = nullptr;

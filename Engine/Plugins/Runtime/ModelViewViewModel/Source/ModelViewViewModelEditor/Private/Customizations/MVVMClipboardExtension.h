@@ -21,6 +21,7 @@ class FClipboardExtension
 	virtual void ProcessImportedText(const UWidgetBlueprint* WidgetBlueprint, const FString& TextToImport, UPackage*& TempPackage) override;
 	virtual bool CanImportFromClipboard(const UWidget* Widget) const override;
 	virtual void ImportDataToWidget(const UWidget* Widget, FName OldWidgetName) override;
+	virtual bool CanWidgetAcceptPaste(const UWidget* Widget) const override;
 	//~ End IClipboardExtension overrides
 
 private:

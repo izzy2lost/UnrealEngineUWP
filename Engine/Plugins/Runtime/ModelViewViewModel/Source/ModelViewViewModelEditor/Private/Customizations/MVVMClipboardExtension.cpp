@@ -4,6 +4,7 @@
 
 #include "Exporters/Exporter.h"
 #include "Extensions/MVVMBlueprintViewExtension.h"
+#include "Extensions/MVVMViewBlueprintPanelWidgetExtension.h"
 #include "MVVMDeveloperProjectSettings.h"
 #include "MVVMWidgetBlueprintExtension_View.h"
 #include "WidgetBlueprintEditorUtils.h"
@@ -78,6 +79,25 @@ void FClipboardExtension::ImportDataToWidget(const UWidget* Widget, FName OldWid
 			}
 		}
 	}
+}
+
+bool FClipboardExtension::CanWidgetAcceptPaste(const UWidget* Widget) const
+{
+	bool bCanWidgetAcceptPaste = true;
+
+	if (const UWidgetBlueprint* WidgetBlueprint = FWidgetBlueprintEditorUtils::GetWidgetBlueprintFromWidget(Widget))
+	{
+		if (const UMVVMWidgetBlueprintExtension_View* ExtensionView = UMVVMWidgetBlueprintExtension_View::GetExtension<UMVVMWidgetBlueprintExtension_View>(WidgetBlueprint))
+		{
+			const TArray<UMVVMBlueprintViewExtension*> BlueprintExtensions = ExtensionView->GetBlueprintExtensionsForWidget(Widget->GetFName());
+			bCanWidgetAcceptPaste = !BlueprintExtensions.ContainsByPredicate([](const UMVVMBlueprintViewExtension* BlueprintExtension) -> bool
+			{
+				return BlueprintExtension->IsA<UMVVMBlueprintViewExtension_PanelWidget>();
+			});
+		}
+	}
+
+	return bCanWidgetAcceptPaste;
 }
 
 FClipboardExtension::FExtensionTextFactory::FExtensionTextFactory()
