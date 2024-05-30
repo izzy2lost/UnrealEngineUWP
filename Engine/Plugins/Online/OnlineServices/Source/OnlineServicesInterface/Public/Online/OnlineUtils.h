@@ -8,6 +8,9 @@
 #include "Internationalization/Text.h"
 #include "Misc/TVariant.h"
 #include "Templates/SharedPointer.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "Online/OnlineUtilsCommon.h"
+#endif
 
 struct FDateTime;
 
