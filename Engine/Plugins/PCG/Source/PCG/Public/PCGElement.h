@@ -116,6 +116,8 @@ protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const = 0;
 	/** This function will be called once and once only, at the end of an execution */
 	void PostExecute(FPCGContext* Context) const;
+	/** Core post execute method for the given element. */
+	virtual void PostExecuteInternal(FPCGContext* Context) const {}
 	/** This function will be called once and only once if the element is aborted. The Context can be used to retrieve the current phase if needed. */
 	virtual void AbortInternal(FPCGContext* Context) const {};
 

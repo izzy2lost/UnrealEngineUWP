@@ -158,6 +158,9 @@ bool IPCGElement::PrepareDataInternal(FPCGContext* Context) const
 
 void IPCGElement::PostExecute(FPCGContext* Context) const
 {
+	// Allow sub class to do some processing here
+	PostExecuteInternal(Context);
+
 	// Cleanup and validate output
 	CleanupAndValidateOutput(Context);
 
