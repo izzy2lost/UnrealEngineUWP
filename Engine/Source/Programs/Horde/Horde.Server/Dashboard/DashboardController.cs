@@ -71,8 +71,8 @@ namespace Horde.Server.Dashboard
 			bool needsFirstTimeSetup = false;
 			if (_settings.AuthMethod == AuthMethod.Horde)
 			{
-				IAccount? account = await _hordeAccounts.FindByLoginAsync("Admin");
-				if (account == null)
+				IAccount? defaultAdminAccount = await _hordeAccounts.GetAsync(AccountId.Parse("65d4f282ff286703e0609ccd"));
+				if (defaultAdminAccount == null)
 				{
 					needsFirstTimeSetup = true;
 				}
