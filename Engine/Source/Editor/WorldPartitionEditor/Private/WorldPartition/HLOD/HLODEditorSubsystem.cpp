@@ -148,7 +148,7 @@ void UWorldPartitionHLODEditorSubsystem::ApplyHLODSettingsFiltering()
 				PermissionList.AddAllowListItem(PropertyPermissionListOwnerName, PropertyName);
 			}
 
-			FPropertyEditorPermissionList::Get().AddPermissionList(StructProperties.Key, PermissionList, EPropertyPermissionListRules::UseExistingPermissionList);
+			FPropertyEditorPermissionList::Get().AddPermissionList(StructProperties.Key, PermissionList, EPropertyPermissionListRules::UseExistingPermissionList, { PropertyPermissionListOwnerName });
 		}
 	}
 }
