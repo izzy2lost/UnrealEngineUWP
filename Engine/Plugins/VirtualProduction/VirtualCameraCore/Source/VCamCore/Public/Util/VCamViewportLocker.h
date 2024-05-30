@@ -11,7 +11,7 @@ struct FVCamViewportLockState
 	GENERATED_BODY()
 	
 	/** Whether the user wants the viewport to be locked */
-	UPROPERTY(EditAnywhere, Category = "Viewport", meta = (EditCondition = "!bIsForceLocked"))
+	UPROPERTY(EditAnywhere, Category = "Viewport")
 	bool bLockViewportToCamera = false;
 };
 
