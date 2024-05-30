@@ -16,6 +16,11 @@ namespace JobDriver.Execution;
 /// </summary>
 public sealed class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 {
+	/// <summary>
+	/// Name of this materializer
+	/// </summary>
+	public const string Name = "ManagedWorkspace";
+
 	private readonly RpcAgentWorkspace _agentWorkspace;
 	private readonly bool _useCacheFile;
 	private readonly bool _cleanDuringFinalize;

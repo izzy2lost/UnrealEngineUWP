@@ -101,26 +101,21 @@ public interface IWorkspaceMaterializer : IDisposable
 	Task FinalizeAsync(CancellationToken cancellationToken);
 }
 
-enum WorkspaceMaterializerType
-{
-	ManagedWorkspace,
-}
-
 /// <summary>
 /// Factory for creating new workspace materializers
 /// </summary>
-interface IWorkspaceMaterializerFactory
+public interface IWorkspaceMaterializerFactory
 {
 	/// <summary>
 	/// Creates a new workspace materializer instance
 	/// </summary>
-	/// <param name="type">Type of materializer to instantiate</param>
+	/// <param name="name">Name of the materializer to create</param>
 	/// <param name="workspaceInfo">Agent workspace</param>
-	/// <param name="options">Job options</param>
+	/// <param name="workspaceDir">Directory for the workspace</param>
 	/// <param name="forAutoSdk">Whether intended for AutoSDK materialization</param>
 	/// <param name="cancellationToken">Cancellation token for the operation</param>
 	/// <returns>A new workspace materializer instance</returns>
-	Task<IWorkspaceMaterializer> CreateMaterializerAsync(WorkspaceMaterializerType type, RpcAgentWorkspace workspaceInfo, JobExecutorOptions options, bool forAutoSdk = false, CancellationToken cancellationToken = default);
+	Task<IWorkspaceMaterializer?> CreateMaterializerAsync(string name, RpcAgentWorkspace workspaceInfo, DirectoryReference workspaceDir, bool forAutoSdk = false, CancellationToken cancellationToken = default);
 }
 
 class WorkspaceMaterializerFactory : IWorkspaceMaterializerFactory
@@ -131,17 +126,19 @@ class WorkspaceMaterializerFactory : IWorkspaceMaterializerFactory
 		=> _serviceProvider = serviceProvider;
 
 	/// <inheritdoc/>
-	public async Task<IWorkspaceMaterializer> CreateMaterializerAsync(WorkspaceMaterializerType type, RpcAgentWorkspace workspaceInfo, JobExecutorOptions options, bool forAutoSdk, CancellationToken cancellationToken)
+	public async Task<IWorkspaceMaterializer?> CreateMaterializerAsync(string name, RpcAgentWorkspace workspaceInfo, DirectoryReference workspaceDir, bool forAutoSdk, CancellationToken cancellationToken)
 	{
-		return type switch
+		if (name.Equals(ManagedWorkspaceMaterializer.Name, StringComparison.OrdinalIgnoreCase))
 		{
-			WorkspaceMaterializerType.ManagedWorkspace when forAutoSdk 
-				=> await ManagedWorkspaceMaterializer.CreateAsync(workspaceInfo, options.WorkingDir, true, false, _serviceProvider.GetRequiredService<ILogger<ManagedWorkspaceMaterializer>>(), cancellationToken),
-
-			WorkspaceMaterializerType.ManagedWorkspace 
-				=> await ManagedWorkspaceMaterializer.CreateAsync(workspaceInfo, options.WorkingDir, false, true, _serviceProvider.GetRequiredService<ILogger<ManagedWorkspaceMaterializer>>(), cancellationToken),
-
-			_ => throw new Exception("Unhandled materializer option: " + type)
-		};
+			if (forAutoSdk)
+			{
+				return await ManagedWorkspaceMaterializer.CreateAsync(workspaceInfo, workspaceDir, true, false, _serviceProvider.GetRequiredService<ILogger<ManagedWorkspaceMaterializer>>(), cancellationToken);
+			}
+			else
+			{
+				return await ManagedWorkspaceMaterializer.CreateAsync(workspaceInfo, workspaceDir, false, true, _serviceProvider.GetRequiredService<ILogger<ManagedWorkspaceMaterializer>>(), cancellationToken);
+			}
+		}
+		return null;
 	}
 }

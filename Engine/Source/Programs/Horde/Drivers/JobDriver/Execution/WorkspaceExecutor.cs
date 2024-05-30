@@ -152,14 +152,14 @@ namespace JobDriver.Execution
 
 	class WorkspaceExecutorFactory : IJobExecutorFactory
 	{
-		private readonly IWorkspaceMaterializerFactory _materializerFactory;
+		private readonly IEnumerable<IWorkspaceMaterializerFactory> _materializerFactories;
 		private readonly ILoggerFactory _loggerFactory;
 
 		public string Name => WorkspaceExecutor.Name;
 
-		public WorkspaceExecutorFactory(IWorkspaceMaterializerFactory materializerFactory, ILoggerFactory loggerFactory)
+		public WorkspaceExecutorFactory(IEnumerable<IWorkspaceMaterializerFactory> materializerFactories, ILoggerFactory loggerFactory)
 		{
-			_materializerFactory = materializerFactory;
+			_materializerFactories = materializerFactories;
 			_loggerFactory = loggerFactory;
 		}
 
@@ -169,12 +169,12 @@ namespace JobDriver.Execution
 			IWorkspaceMaterializer? autoSdkMaterializer = null;
 			try
 			{
-				WorkspaceMaterializerType type = GetMaterializerType(options.JobOptions.WorkspaceMaterializer, WorkspaceMaterializerType.ManagedWorkspace);
+				string name = String.IsNullOrEmpty(options.JobOptions.WorkspaceMaterializer) ? ManagedWorkspaceMaterializer.Name : options.JobOptions.WorkspaceMaterializer;
 
-				workspaceMaterializer = await _materializerFactory.CreateMaterializerAsync(type, workspaceInfo, options, forAutoSdk: false, cancellationToken);
+				workspaceMaterializer = await CreateMaterializerAsync(name, workspaceInfo, options.WorkingDir, forAutoSdk: false, cancellationToken);
 				if (autoSdkWorkspaceInfo != null)
 				{
-					autoSdkMaterializer = await _materializerFactory.CreateMaterializerAsync(type, autoSdkWorkspaceInfo, options, forAutoSdk: true, cancellationToken);
+					autoSdkMaterializer = await CreateMaterializerAsync(name, autoSdkWorkspaceInfo, options.WorkingDir, forAutoSdk: true, cancellationToken);
 				}
 
 				return new WorkspaceExecutor(options, workspaceMaterializer, autoSdkMaterializer, _loggerFactory.CreateLogger<WorkspaceExecutor>());
@@ -187,18 +187,16 @@ namespace JobDriver.Execution
 			}
 		}
 
-		private static WorkspaceMaterializerType GetMaterializerType(string name, WorkspaceMaterializerType defaultValue)
+		async Task<IWorkspaceMaterializer> CreateMaterializerAsync(string name, RpcAgentWorkspace workspaceInfo, DirectoryReference workspaceDir, bool forAutoSdk, CancellationToken cancellationToken)
 		{
-			if (String.IsNullOrEmpty(name))
+			foreach (IWorkspaceMaterializerFactory materializerFactory in _materializerFactories)
 			{
-				return defaultValue;
+				IWorkspaceMaterializer? materializer = await materializerFactory.CreateMaterializerAsync(name, workspaceInfo, workspaceDir, forAutoSdk, cancellationToken);
+				if (materializer != null)
+				{
+					return materializer;
+				}
 			}
-
-			if (Enum.TryParse(name, true, out WorkspaceMaterializerType enumType))
-			{
-				return enumType;
-			}
-
 			throw new ArgumentException($"Unable to find materializer type '{name}'");
 		}
 	}
