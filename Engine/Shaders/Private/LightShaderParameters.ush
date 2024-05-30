@@ -34,6 +34,9 @@ float  Light_RectLightBarnLength;
 float2 Light_RectLightAtlasUVOffset;
 float2 Light_RectLightAtlasUVScale;
 float  Light_RectLightAtlasMaxLevel;
+float  Light_IESAtlasIndex;
+uint   Light_LightFunctionAtlasLightIndex;
+uint   Light_bAffectsTranslucentLighting;
 
 /** Returns the FLightShaderParameters from the root shader parameters. */
 FLightShaderParameters GetRootLightShaderParameters()
@@ -56,5 +59,8 @@ FLightShaderParameters GetRootLightShaderParameters()
 	Out.RectLightAtlasUVOffset	= Light_RectLightAtlasUVOffset;
 	Out.RectLightAtlasUVScale	= Light_RectLightAtlasUVScale;
 	Out.RectLightAtlasMaxLevel	= Light_RectLightAtlasMaxLevel;
+	Out.IESAtlasIndex			= Light_IESAtlasIndex;
+	Out.LightFunctionAtlasLightIndex = Light_LightFunctionAtlasLightIndex;
+	Out.bAffectsTranslucentLighting = Light_bAffectsTranslucentLighting;
 	return Out;
 }

@@ -22,6 +22,7 @@
 #include "LightFunctionCommon.ush"
 #endif
 #include "LightDataUniforms.ush"
+#include "LightShaderParameters.ush"
 
 #ifndef USE_HAIR_COMPLEX_TRANSMITTANCE
 #define USE_HAIR_COMPLEX_TRANSMITTANCE 0
@@ -215,6 +216,40 @@ SamplerState	LocalLightShadowSampler;
 float4			LocalLightShadowBufferSize;
 #endif
 
+FDeferredLightData InitDeferredLightFromLightParameters(FLightShaderParameters In, uint InLightType)
+{
+	FDeferredLightData Out = (FDeferredLightData)0;
+	Out.TranslatedWorldPosition	= In.TranslatedWorldPosition;
+	Out.InvRadius				= In.InvRadius;
+	Out.Color					= In.Color;
+	Out.FalloffExponent			= In.FalloffExponent;
+	Out.Direction				= In.Direction;
+	Out.Tangent					= In.Tangent;
+	Out.SpotAngles				= In.SpotAngles;
+	Out.SpecularScale			= In.SpecularScale;
+	Out.SourceRadius			= In.SourceRadius;
+	Out.SoftSourceRadius		= In.SoftSourceRadius;
+	Out.SourceLength			= In.SourceLength;
+	
+	Out.RectLightData.BarnCosAngle				= In.RectLightBarnCosAngle;
+	Out.RectLightData.BarnLength				= In.RectLightBarnLength;
+	Out.RectLightData.AtlasData.AtlasUVOffset	= In.RectLightAtlasUVOffset;
+	Out.RectLightData.AtlasData.AtlasUVScale	= In.RectLightAtlasUVScale;
+	Out.RectLightData.AtlasData.AtlasMaxLevel	= In.RectLightAtlasMaxLevel;
+
+	Out.IESAtlasIndex			= In.IESAtlasIndex;
+	Out.LightFunctionAtlasLightIndex = In.LightFunctionAtlasLightIndex;
+	Out.bAffectsTranslucentLighting = In.bAffectsTranslucentLighting;
+	
+	Out.bInverseSquared			= In.FalloffExponent == 0;
+	Out.bRadialLight			= true;
+	Out.bSpotLight				= InLightType == LIGHT_TYPE_SPOT;
+	Out.bRectLight				= InLightType == LIGHT_TYPE_RECT;
+	Out.HairTransmittance		= InitHairTransmittanceData();
+
+	return Out;
+}
+
 void MobileRadialLightPS(
 	float4 InScreenPosition : TEXCOORD0,
 	float4 SVPos			: SV_POSITION,
@@ -239,11 +274,11 @@ void MobileRadialLightPS(
 	half3 CameraVector = normalize(TranslatedWorldPosition);
 			
 	FLightAccumulator DirectLighting = (FLightAccumulator)0;
-	FDeferredLightData LightData = InitDeferredLightFromUniforms(IS_SPOT_LIGHT ? LIGHT_TYPE_SPOT : LIGHT_TYPE_POINT);
-	
+	FDeferredLightData LightData = InitDeferredLightFromLightParameters(GetRootLightShaderParameters(), IS_SPOT_LIGHT ? LIGHT_TYPE_SPOT : LIGHT_TYPE_POINT);
+		
 	// Affect the light color by any other shadow/transmittance before the lighting is evaluated
 	{
-		half Attenuation = ComputeLightProfileMultiplier(TranslatedWorldPosition, DeferredLightUniforms.TranslatedWorldPosition, -DeferredLightUniforms.Direction, DeferredLightUniforms.Tangent, DeferredLightUniforms.IESAtlasIndex);
+		half Attenuation = ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
 		LightData.Color *= Attenuation;
 	}
 
