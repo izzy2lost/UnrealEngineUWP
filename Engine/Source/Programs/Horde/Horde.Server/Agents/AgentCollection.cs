@@ -568,7 +568,10 @@ namespace Horde.Server.Agents
 			if (options.DynamicPools != null)
 			{
 				List<PoolId> dynamicPools = CreatePoolsList(options.DynamicPools).ToList();
-				updates.Add(updateBuilder.Set(x => x.DynamicPools, dynamicPools));
+				if (!Enumerable.SequenceEqual(dynamicPools, agent.DynamicPools))
+				{
+					updates.Add(updateBuilder.Set(x => x.DynamicPools, dynamicPools));
+				}
 			}
 			if (options.Leases != null)
 			{
