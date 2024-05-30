@@ -123,11 +123,11 @@ namespace UE::Net
  */
 enum class ENetRefHandleError : uint32
 {
-	None = 0,
-	BitstreamCorrupted, // An error while reading detected an irrecoverable bitstream corruption. Client was forced to disconnect
-	ReplicationDisabled, // An error while reading was recoverable but prevents this NetObject from replicating.
-	Max, // always keep last
+	None = 0x00,
+	BitstreamCorrupted = 0x01, // An error while reading detected an irrecoverable bitstream corruption. Client was forced to disconnect
+	ReplicationDisabled = 0x02, // An error while reading was recoverable but prevents this NetObject from replicating.
 };
+ENUM_CLASS_FLAGS(ENetRefHandleError);
 
 inline const TCHAR* LexToString(ENetRefHandleError NetRefHandleError)
 {
@@ -136,7 +136,6 @@ inline const TCHAR* LexToString(ENetRefHandleError NetRefHandleError)
 		case ENetRefHandleError::None: return TEXT("None");
 		case ENetRefHandleError::BitstreamCorrupted: return TEXT("BitstreamCorrupted");
 		case ENetRefHandleError::ReplicationDisabled: return TEXT("ReplicationDisabled");
-		case ENetRefHandleError::Max: return TEXT("Max");
 		default: return TEXT("missing");
 	}
 }

@@ -163,8 +163,6 @@ bool UObjectReplicationBridge::ShouldUseVerboseCsvStats() const
 
 void UObjectReplicationBridge::Initialize(UReplicationSystem* InReplicationSystem)
 {
-	ensureMsgf((GEnsureNetRefHandleError == -1 || GEnsureNetRefHandleError < (int32)UE::Net::ENetRefHandleError::Max), TEXT("GEnsureNetRefHandleError is set to an invalid value: %u"), GEnsureNetRefHandleError);
-
 	Super::Initialize(InReplicationSystem);
 
 	const uint32 CurrentMaxInternalIndex = NetRefHandleManager->GetCurrentMaxInternalNetRefIndex();
@@ -2102,7 +2100,7 @@ void UObjectReplicationBridge::OnErrorWithNetRefHandleReported(UE::Net::ENetRefH
 	// Ensure at the end so the log contains all the relevant information
 	ON_SCOPE_EXIT
 	{
-		if (GEnsureNetRefHandleError==0 || GEnsureNetRefHandleError==(int32)ErrorType)
+		if (GEnsureNetRefHandleError != -1 && (GEnsureNetRefHandleError==0 || EnumHasAnyFlags((ENetRefHandleError)GEnsureNetRefHandleError,ErrorType)))
 		{
 			// Use different calls for every error type to prevent only reporting the first error that occured.
 			switch(ErrorType)
