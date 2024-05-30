@@ -365,14 +365,45 @@ void FCookDirector::AssignRequests(TArrayView<FPackageData*> Requests, TArray<FW
 TMap<FPackageData*, FAssignPackageExtraData> FCookDirector::GetAssignPackageExtraDatas(
 	TConstArrayView<FPackageData*> Requests) const
 {
+	FMPCollectorServerTickPackageContext Context;
+	Context.Platforms = COTFS.PlatformManager->GetSessionPlatforms();
+
 	TMap<FPackageData*, FAssignPackageExtraData> Results;
 	for (FPackageData* Request : Requests)
 	{
+		FAssignPackageExtraData* ExtraData = nullptr;
+
+		auto GetOrAllocateExtraData = [&Results, &ExtraData](FPackageData* InRequest)
+		{
+			if (!ExtraData)
+			{
+				ExtraData = &Results.FindOrAdd(InRequest);
+			}
+			return ExtraData;
+		};
+
 		TRefCountPtr<FGenerationHelper> GenerationHelper = Request->GetGenerationHelper();
 		if (GenerationHelper && !GenerationHelper->GetPreviousGeneratedPackages().IsEmpty())
 		{
-			FAssignPackageExtraData& ExtraData = Results.FindOrAdd(Request);
-			ExtraData.GeneratorPreviousGeneratedPackages = GenerationHelper->GetPreviousGeneratedPackages();
+			ExtraData = GetOrAllocateExtraData(Request);
+			ExtraData->GeneratorPreviousGeneratedPackages = GenerationHelper->GetPreviousGeneratedPackages();
+		}
+
+		Context.PackageName = Request->GetPackageName();
+		for (const TPair<FGuid, TRefCountPtr<IMPCollector>>& CollectorPair : Collectors)
+		{
+			IMPCollector* Collector = CollectorPair.Value.GetReference();
+			Collector->ServerTickPackage(Context);
+			if (!Context.Messages.IsEmpty())
+			{
+				ExtraData = GetOrAllocateExtraData(Request);
+				FGuid MessageType = Collector->GetMessageType();
+				for (FCbObject& Object : Context.Messages)
+				{
+					ExtraData->PerPackageCollectorMessages.Add({ MessageType, MoveTemp(Object) });
+				}
+				Context.Messages.Reset();
+			}
 		}
 	}
 	return Results;
@@ -1619,15 +1650,26 @@ void FCookDirector::ConstructReadonlyThreadVariables()
 	CommandletExecutablePath = FUnrealEdMisc::Get().GetProjectEditorBinaryPath();
 
 	InitialConfigMessage = MakeUnique<FInitialConfigMessage>();
-	const TArray<const ITargetPlatform*>& SessionPlatforms = COTFS.PlatformManager->GetSessionPlatforms();
-	TArray<ITargetPlatform*> OrderedSessionPlatforms;
-	OrderedSessionPlatforms.Reset(SessionPlatforms.Num());
-	for (const ITargetPlatform* TargetPlatform : SessionPlatforms)
-	{
-		OrderedSessionPlatforms.Add(const_cast<ITargetPlatform*>(TargetPlatform));
-	}
-	InitialConfigMessage->ReadFromLocal(COTFS, OrderedSessionPlatforms,
+	FMPCollectorServerTickContext StartupContext(FMPCollectorServerTickContext::EServerEventType::WorkerStartup);
+	StartupContext.Platforms = COTFS.PlatformManager->GetSessionPlatforms();
+	InitialConfigMessage->ReadFromLocal(COTFS, StartupContext.Platforms,
 		*COTFS.CookByTheBookOptions, *COTFS.CookOnTheFlyOptions, BeginCookContext);
+
+
+	for (const TPair<FGuid, TRefCountPtr<IMPCollector>>& CollectorPair : Collectors)
+	{
+		IMPCollector* Collector = CollectorPair.Value.GetReference();
+		Collector->ServerTick(StartupContext);
+		if (!StartupContext.Messages.IsEmpty())
+		{
+			FGuid MessageType = Collector->GetMessageType();
+			for (FCbObject& Object : StartupContext.Messages)
+			{
+				InitialConfigMessage->AddMessage({ MessageType, MoveTemp(Object) });
+			}
+			StartupContext.Messages.Reset();
+		}
+	}
 }
 
 const FInitialConfigMessage& FCookDirector::GetInitialConfigMessage()

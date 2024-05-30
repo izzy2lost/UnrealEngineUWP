@@ -169,6 +169,8 @@ const TArray<ITargetPlatform*>& FCookWorkerClient::GetTargetPlatforms() const
 void FCookWorkerClient::DoneWithInitialSettings()
 {
 	InitialConfigMessage.Reset();
+	// Process remaining deferred initialization messages and discard them
+	HandleReceiveMessages(MoveTemp(DeferredInitializationMessages));
 }
 
 void FCookWorkerClient::ReportDemoteToIdle(const FPackageData& PackageData, ESuppressCookReason Reason)
@@ -591,6 +593,8 @@ void FCookWorkerClient::PollReceiveConfigMessage()
 		return;
 	}
 
+	HandleReceiveMessages(InitialConfigMessage->ConsumeCollectorMessages());
+
 	UE_LOG(LogCook, Display, TEXT("Initialization from CookDirector complete."));
 	SendToState(EConnectStatus::Connected);
 	Messages.RemoveAt(0);
@@ -667,7 +671,7 @@ void FCookWorkerClient::PumpReceiveMessages()
 	HandleReceiveMessages(MoveTemp(Messages));
 }
 
-void FCookWorkerClient::HandleReceiveMessages(TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& Messages)
+void FCookWorkerClient::HandleReceiveMessages(TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& Messages, FName OptionalPackageName /*= NAME_None*/)
 {
 	for (UE::CompactBinaryTCP::FMarshalledMessage& Message : Messages)
 	{
@@ -742,7 +746,17 @@ void FCookWorkerClient::HandleReceiveMessages(TArray<UE::CompactBinaryTCP::FMars
 					check(*Collector);
 					FMPCollectorClientMessageContext Context;
 					Context.Platforms = OrderedSessionPlatforms;
+					Context.PackageName = OptionalPackageName;
 					(*Collector)->ClientReceiveMessage(Context, Message.Object);
+				}
+				else if (InitialConfigMessage.IsValid())
+				{
+					ensureMsgf(Messages.GetData() != DeferredInitializationMessages.GetData(), 
+						TEXT("HandleReceiveMessages may not be called with the deferred initialization message array until after calling DoneWithInitialSettings()"));
+
+					// If we are still running our initialization, then we may not have the relevant collectors registered yet
+					// Defer the message and try again at the end of initialization
+					DeferredInitializationMessages.Add(Message);
 				}
 				else
 				{
@@ -871,6 +885,10 @@ void FCookWorkerClient::AssignPackages(FAssignPackagesMessage& Message)
 			{
 				TRefCountPtr<FGenerationHelper> GenerationHelper = PackageData.CreateUninitializedGenerationHelper();
 				GenerationHelper->SetPreviousGeneratedPackages(MoveTemp(AssignData.GeneratorPreviousGeneratedPackages));
+			}
+			if (!AssignData.PerPackageCollectorMessages.IsEmpty())
+			{
+				HandleReceiveMessages(MoveTemp(AssignData.PerPackageCollectorMessages), AssignData.ConstructData.PackageName);
 			}
 			TConstArrayView<const ITargetPlatform*> NeedCookPlatforms =
 				AssignData.NeedCookPlatforms.GetPlatforms(COTFS, nullptr, OrderedSessionPlatforms,

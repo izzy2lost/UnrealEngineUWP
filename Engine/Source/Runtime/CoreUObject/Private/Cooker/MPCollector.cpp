@@ -46,6 +46,21 @@ const ITargetPlatform* FMPCollectorClientTickContext::IntToPlatform(uint8 Platfo
 	return IntToPlatformImpl(PlatformAsInt, Platforms);
 }
 
+void FMPCollectorServerTickContext::AddMessage(FCbObject Object)
+{
+	Messages.Add(Object);
+}
+
+uint8 FMPCollectorServerTickContext::PlatformToInt(const ITargetPlatform* Platform) const
+{
+	return PlatformToIntImpl(Platform, Platforms);
+}
+
+const ITargetPlatform* FMPCollectorServerTickContext::IntToPlatform(uint8 PlatformAsInt) const
+{
+	return IntToPlatformImpl(PlatformAsInt, Platforms);
+}
+
 void FMPCollectorClientTickPackageContext::AddMessage(FCbObject Object)
 {
 	Messages.Emplace(nullptr, MoveTemp(Object));
@@ -74,6 +89,21 @@ uint8 FMPCollectorClientTickPackageContext::PlatformToInt(const ITargetPlatform*
 }
 
 const ITargetPlatform* FMPCollectorClientTickPackageContext::IntToPlatform(uint8 PlatformAsInt) const
+{
+	return IntToPlatformImpl(PlatformAsInt, Platforms);
+}
+
+void FMPCollectorServerTickPackageContext::AddMessage(FCbObject Object)
+{
+	Messages.Emplace(MoveTemp(Object));
+}
+
+uint8 FMPCollectorServerTickPackageContext::PlatformToInt(const ITargetPlatform* Platform) const
+{
+	return PlatformToIntImpl(Platform, Platforms);
+}
+
+const ITargetPlatform* FMPCollectorServerTickPackageContext::IntToPlatform(uint8 PlatformAsInt) const
 {
 	return IntToPlatformImpl(PlatformAsInt, Platforms);
 }

@@ -366,3 +366,25 @@ bool LoadFromCompactBinary(FCbFieldView Field, FSoftObjectPathSerializationWrapp
 	Path.Inner.SetPath(PathString);
 	return true;
 }
+
+bool LoadFromCompactBinary(FCbFieldView Field, UE::CompactBinaryTCP::FMarshalledMessage& Value)
+{
+	bool bOk = !Field.HasError();
+	bOk &= LoadFromCompactBinary(Field["T"], Value.MessageType);
+
+	if (bOk)
+	{
+		FCbObjectView ValueView = Field["V"].AsObjectView();
+		bOk &= !Field.HasError();
+		if (bOk)
+		{
+			Value.Object = FCbObject::Clone(ValueView);
+		}
+	}
+	if (!bOk)
+	{
+		Value.MessageType.Invalidate();
+		Value.Object.Reset();
+	}
+	return bOk;
+}

@@ -51,6 +51,7 @@ enum class ENotifyRemote
 struct FAssignPackageExtraData
 {
 	TMap<FName, FAssetPackageData> GeneratorPreviousGeneratedPackages;
+	TArray<UE::CompactBinaryTCP::FMarshalledMessage> PerPackageCollectorMessages;
 };
 
 /** Class in a Director process that communicates over a Socket with FCookWorkerClient in a CookWorker process. */
@@ -255,6 +256,7 @@ struct FAssignPackageData
 	FInstigator Instigator;
 	FDiscoveredPlatformSet NeedCookPlatforms;
 	TMap<FName, FAssetPackageData> GeneratorPreviousGeneratedPackages;
+	TArray<UE::CompactBinaryTCP::FMarshalledMessage> PerPackageCollectorMessages;
 	ICookPackageSplitter::EGeneratedRequiresGenerator DoesGeneratedRequireGenerator
 		= ICookPackageSplitter::EGeneratedRequiresGenerator::None;
 
@@ -369,9 +371,10 @@ public:
 	virtual FGuid GetMessageType() const override { return MessageType; }
 	virtual const TCHAR* GetDebugName() const override { return TEXT("InitialConfigMessage"); }
 
-	void ReadFromLocal(const UCookOnTheFlyServer& COTFS, const TArray<ITargetPlatform*>& InOrderedSessionPlatforms,
+	void ReadFromLocal(const UCookOnTheFlyServer& COTFS, const TConstArrayView<const ITargetPlatform*>& InOrderedSessionPlatforms,
 		const FCookByTheBookOptions& InCookByTheBookOptions, const FCookOnTheFlyOptions& InCookOnTheFlyOptions,
 		const FBeginCookContextForWorker& InBeginContext);
+	void AddMessage(UE::CompactBinaryTCP::FMarshalledMessage&& InMarshalledMessage) { MPCollectorMessages.Add(MoveTemp(InMarshalledMessage)); }
 
 	ECookMode::Type GetDirectorCookMode() const { return DirectorCookMode; }
 	ECookInitializationFlags GetCookInitializationFlags() const { return CookInitializationFlags; }
@@ -379,6 +382,8 @@ public:
 	FBeginCookConfigSettings&& ConsumeBeginCookConfigSettings() { return MoveTemp(BeginCookSettings); }
 	FCookByTheBookOptions&& ConsumeCookByTheBookOptions() { return MoveTemp(CookByTheBookOptions); }
 	FCookOnTheFlyOptions&& ConsumeCookOnTheFlyOptions() { return MoveTemp(CookOnTheFlyOptions); }
+	TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& ConsumeCollectorMessages() { return MoveTemp(MPCollectorMessages); }
+
 	const FBeginCookContextForWorker& GetBeginCookContext() const { return BeginCookContext; }
 	const TArray<ITargetPlatform*>& GetOrderedSessionPlatforms() const { return OrderedSessionPlatforms; }
 	bool IsZenStore() const { return bZenStore; }
@@ -392,6 +397,7 @@ private:
 	FCookByTheBookOptions CookByTheBookOptions;
 	FCookOnTheFlyOptions CookOnTheFlyOptions;
 	TArray<ITargetPlatform*> OrderedSessionPlatforms;
+	TArray<UE::CompactBinaryTCP::FMarshalledMessage> MPCollectorMessages;
 	ECookMode::Type DirectorCookMode = ECookMode::CookByTheBook;
 	ECookInitializationFlags CookInitializationFlags = ECookInitializationFlags::None;
 	bool bZenStore = false;

@@ -84,6 +84,35 @@ private:
 	friend class FCookWorkerClient;
 };
 
+class FMPCollectorServerTickContext
+{
+public:
+	enum class EServerEventType : uint8
+	{
+		WorkerStartup,
+		Count
+	};
+
+	FMPCollectorServerTickContext(EServerEventType InEventType) : EventType(InEventType) { check(InEventType < EServerEventType::Count); }
+
+	TConstArrayView<const ITargetPlatform*> GetPlatforms() const { return Platforms; }
+	
+	COREUOBJECT_API void AddMessage(FCbObject Object);
+
+	COREUOBJECT_API uint8 PlatformToInt(const ITargetPlatform* Platform) const;
+	COREUOBJECT_API const ITargetPlatform* IntToPlatform(uint8 PlatformAsInt) const;
+	
+	EServerEventType GetEventType() const { return EventType; }
+
+private:
+	TConstArrayView<const ITargetPlatform*> Platforms;
+	TArray<FCbObject> Messages;
+	EServerEventType EventType;
+	bool bFlush = false;
+
+	friend class FCookDirector;
+};
+
 class FMPCollectorClientTickPackageContext
 {
 public:
@@ -114,16 +143,43 @@ private:
 	friend class FCookWorkerClient;
 };
 
+class FMPCollectorServerTickPackageContext
+{
+public:
+	struct FPlatformData
+	{
+		const ITargetPlatform* TargetPlatform = nullptr;
+		ECookResult CookResults = ECookResult::NotAttempted;
+	};
+	FName GetPackageName() const { return PackageName; }
+
+	COREUOBJECT_API void AddMessage(FCbObject Object);
+
+	COREUOBJECT_API uint8 PlatformToInt(const ITargetPlatform* Platform) const;
+	COREUOBJECT_API const ITargetPlatform* IntToPlatform(uint8 PlatformAsInt) const;
+
+private:
+	TArray<FCbObject> Messages;
+	TConstArrayView<const ITargetPlatform*> Platforms;
+	TConstArrayView<FPlatformData> PlatformDatas;
+	FName PackageName;
+
+	friend class FCookDirector;
+};
+
 class FMPCollectorClientMessageContext
 {
 public:
 	TConstArrayView<const ITargetPlatform*> GetPlatforms() { return Platforms; }
+	// Name of the relevant package or NAME_None if not available
+	FName GetPackageName() const { return PackageName; }
 
 	COREUOBJECT_API uint8 PlatformToInt(const ITargetPlatform* Platform) const;
 	COREUOBJECT_API const ITargetPlatform* IntToPlatform(uint8 PlatformAsInt) const;
 
 private:
 	TConstArrayView<const ITargetPlatform*> Platforms;
+	FName PackageName;
 
 	friend class FCookWorkerClient;
 };
@@ -167,7 +223,9 @@ public:
 	virtual FGuid GetMessageType() const = 0;
 	virtual const TCHAR* GetDebugName() const = 0;
 
+	virtual void ServerTick(FMPCollectorServerTickContext& Context) {}
 	virtual void ClientTick(FMPCollectorClientTickContext& Context) {}
+	virtual void ServerTickPackage(FMPCollectorServerTickPackageContext& Context) {}
 	virtual void ClientTickPackage(FMPCollectorClientTickPackageContext& Context) {}
 	virtual void ClientReceiveMessage(FMPCollectorClientMessageContext& Context, FCbObjectView Message) {}
 	virtual void ServerReceiveMessage(FMPCollectorServerMessageContext& Context, FCbObjectView Message) {}

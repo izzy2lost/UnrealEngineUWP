@@ -704,6 +704,7 @@ void FCookWorkerServer::SendPendingPackages()
 		if (ExtraData)
 		{
 			AssignData.GeneratorPreviousGeneratedPackages = MoveTemp(ExtraData->GeneratorPreviousGeneratedPackages);
+			AssignData.PerPackageCollectorMessages = MoveTemp(ExtraData->PerPackageCollectorMessages);
 		}
 	}
 	for (FPackageData* PackageData : PackagesToAssignInfoPackages)
@@ -1229,6 +1230,7 @@ void FAssignPackageData::Write(FCbWriter& Writer,
 	}
 	static_assert(sizeof(ICookPackageSplitter::EGeneratedRequiresGenerator) <= sizeof(uint8), "We are storing it in a uint8");
 	Writer << static_cast<uint8>(DoesGeneratedRequireGenerator);
+	Writer << PerPackageCollectorMessages;
 	Writer.EndArray();
 }
 
@@ -1282,6 +1284,7 @@ bool FAssignPackageData::TryRead(FCbFieldView Field, TConstArrayView<const ITarg
 	{
 		bOk = false;
 	}
+	bOk = LoadFromCompactBinary(*It++, PerPackageCollectorMessages) & bOk;
 	return bOk;
 }
 
@@ -1365,13 +1368,17 @@ bool FAbortWorkerMessage::TryRead(FCbObjectView Object)
 FGuid FAbortWorkerMessage::MessageType(TEXT("83FD99DFE8DB4A9A8E71684C121BE6F3"));
 
 void FInitialConfigMessage::ReadFromLocal(const UCookOnTheFlyServer& COTFS,
-	const TArray<ITargetPlatform*>& InOrderedSessionPlatforms, const FCookByTheBookOptions& InCookByTheBookOptions,
+	const TConstArrayView<const ITargetPlatform*>& InOrderedSessionPlatforms, const FCookByTheBookOptions& InCookByTheBookOptions,
 	const FCookOnTheFlyOptions& InCookOnTheFlyOptions, const FBeginCookContextForWorker& InBeginContext)
 {
 	InitialSettings.CopyFromLocal(COTFS);
 	BeginCookSettings.CopyFromLocal(COTFS);
 	BeginCookContext = InBeginContext;
-	OrderedSessionPlatforms = InOrderedSessionPlatforms;
+	OrderedSessionPlatforms.Reset(InOrderedSessionPlatforms.Num());
+	for (const ITargetPlatform* Platform : InOrderedSessionPlatforms)
+	{
+		OrderedSessionPlatforms.Add(const_cast<ITargetPlatform*>(Platform));
+	}
 	DirectorCookMode = COTFS.GetCookMode();
 	CookInitializationFlags = COTFS.GetCookFlags();
 	CookByTheBookOptions = InCookByTheBookOptions;
@@ -1398,6 +1405,7 @@ void FInitialConfigMessage::Write(FCbWriter& Writer) const
 	Writer << "BeginCookContext" << BeginCookContext;
 	Writer << "CookByTheBookOptions" << CookByTheBookOptions;
 	Writer << "CookOnTheFlyOptions" << CookOnTheFlyOptions;
+	Writer << "MPCollectorMessages" << MPCollectorMessages;
 }
 
 bool FInitialConfigMessage::TryRead(FCbObjectView Object)
@@ -1446,6 +1454,8 @@ bool FInitialConfigMessage::TryRead(FCbObjectView Object)
 	bOk = LoadFromCompactBinary(Object["BeginCookContext"], BeginCookContext) & bOk;
 	bOk = LoadFromCompactBinary(Object["CookByTheBookOptions"], CookByTheBookOptions) & bOk;
 	bOk = LoadFromCompactBinary(Object["CookOnTheFlyOptions"], CookOnTheFlyOptions) & bOk;
+	bOk = LoadFromCompactBinary(Object["MPCollectorMessages"], MPCollectorMessages) & bOk;
+
 	return bOk;
 }
 

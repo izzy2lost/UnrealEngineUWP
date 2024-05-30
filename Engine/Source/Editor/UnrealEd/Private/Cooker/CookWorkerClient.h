@@ -113,7 +113,7 @@ private:
 	/** Helper for Tick, pump receive messages from the Server. */
 	void PumpReceiveMessages();
 	/** Helper for PumpReceiveMessages: dispatch the messages received from the socket. */
-	void HandleReceiveMessages(TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& Messages);
+	void HandleReceiveMessages(TArray<UE::CompactBinaryTCP::FMarshalledMessage>&& Messages, FName OptionalPackageName = NAME_None);
 	/** Helper for Tick, pump Send/Receive and check for whether we are done shutting down. */
 	void PumpDisconnect(FTickStackData& StackData);
 	/** Send the message immediately to the Socket. If cannot complete immediately, it will be finished during Tick. */
@@ -154,6 +154,7 @@ private:
 	// Variables Read/Write only from the Scheduler thread
 	TSharedPtr<FInternetAddr> DirectorAddr;
 	TUniquePtr<FInitialConfigMessage> InitialConfigMessage;
+	TArray<UE::CompactBinaryTCP::FMarshalledMessage> DeferredInitializationMessages;
 	TRefCountPtr<FLogMessagesMessageHandler> LogMessageHandler;
 	TArray<ITargetPlatform*> OrderedSessionPlatforms;
 	TArray<ITargetPlatform*> OrderedSessionAndSpecialPlatforms;
