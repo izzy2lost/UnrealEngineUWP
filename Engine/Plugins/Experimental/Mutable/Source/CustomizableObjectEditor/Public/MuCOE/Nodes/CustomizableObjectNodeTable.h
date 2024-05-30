@@ -14,6 +14,7 @@ namespace ENodeTitleType { enum Type : int; }
 class UCustomizableObjectLayout;
 class UCustomizableObjectNodeRemapPins;
 class UCustomizableObjectNodeRemapPinsByName;
+class UCustomizableObjectNodeTable;
 class UEdGraphPin;
 class UObject;
 class USkeletalMesh;
@@ -99,28 +100,23 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeTableImagePinData : pu
 	GENERATED_BODY()
 
 public:
+	// UObject interface
+	virtual void PostLoad() override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual bool CanEditChange(const FProperty* InProperty) const override;
 
-	bool IsDefaultImageMode() { return bIsDefault; }
-	void SetDefaultImageMode(bool bValue) { bIsDefault = bValue; }
-
-	bool IsNotTexture2D() { return bIsNotTexture2D; }
-	void SetIsNotTexture2D(bool bValue) { bIsNotTexture2D = bValue; }
-
-	void ConvertArrayTextureToAnyTextureFixup();
-
-	// Pin Type
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, Category = NoCategory,  DisplayName = "Texture Parameter Mode")
 	ETableTextureType ImageMode = ETableTextureType::MUTABLE_TEXTURE;
 
-private:
-
 	UPROPERTY()
-	bool bIsDefault = true;
+	TObjectPtr<UCustomizableObjectNodeTable> NodeTable = nullptr;
 
+private:
 	// Replaced by the more general bIsNot2DTexture
 	UPROPERTY()
 	bool bIsArrayTexture_DEPRECATED = false;
 
+public:
 	UPROPERTY()
 	bool bIsNotTexture2D = false;
 };
@@ -210,13 +206,7 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = TableProperties, meta = (EditCondition = "TableDataGatheringMode == ETableDataGatheringSource::ETDGM_AssetRegistry", EditConditionHides))
 	TArray<FName> FilterPaths;
-
-	/** Decides the default type of the texture pins (passtrhough or mutable)
-	*   Right click on a non-linked image pin to customize its image mode
-	*/
-	UPROPERTY(EditAnywhere, Category = TableProperties)
-	ETableTextureType DefaultImageMode = ETableTextureType::MUTABLE_TEXTURE;
-
+	
 	/** Name of the column that contains the Version options. */
 	UPROPERTY(EditAnywhere, Category = TableProperties)
 	FName VersionColumn;
@@ -248,7 +238,6 @@ public:
 	FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
 	FLinearColor GetNodeTitleColor() const override;
 	FText GetTooltipText() const override;
-	virtual void PinConnectionListChanged(UEdGraphPin* Pin) override;
 	virtual void OnRenameNode(const FString& NewName) override;
 	virtual bool GetCanRenameNode() const override { return true; }
 	
@@ -262,6 +251,7 @@ public:
 	virtual bool IsPinRelevant(const UEdGraphPin* Pin) const override;
 	UCustomizableObjectNodeTableRemapPins* CreateRemapPinsDefault() const;
 	virtual bool HasPinViewer() const override;
+	virtual TSharedPtr<IDetailsView> CustomizePinDetails(const UEdGraphPin& Pin) const override;
 	
 	/*** Allows to perform work when remapping the pin data. */
 	virtual void RemapPinsData(const TMap<UEdGraphPin*, UEdGraphPin*>& PinsToRemap) override;
@@ -369,17 +359,7 @@ public:
 	// We should do this in a template!
 	USkeletalMesh* GetSkeletalMeshAt(const UEdGraphPin* Pin, const UDataTable* DataTable, const FName& RowName) const;
 	TSoftClassPtr<UAnimInstance> GetAnimInstanceAt(const UEdGraphPin* Pin, const UDataTable* DataTable, const FName& RowName) const;
-
-	// Changes the image mode of a pin
-	// bSetDefault param: if true sets the pin to be equal to the default mode (same as node)
-	void ChangeImagePinMode(UEdGraphPin* Pin, bool bSetDefault = false);
-
-	// Returns true if the pin is in the default mode (same as node)
-	bool IsImagePinDefault(const UEdGraphPin* Pin) const;
-
-	// Returns true if the pin is not a UTexture2D but a different kind of UTexture
-	bool IsNotTexture2DPin(const UEdGraphPin* Pin) const;
-
+	
 	// Returns the image mode of the column
 	ETableTextureType GetColumnImageMode(const FString& ColumnName) const;
 

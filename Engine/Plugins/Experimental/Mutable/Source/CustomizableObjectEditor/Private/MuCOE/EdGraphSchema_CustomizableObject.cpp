@@ -5,6 +5,7 @@
 #include "EdGraphNode_Comment.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "GraphEditorActions.h"
 #include "Materials/MaterialInterface.h"
@@ -874,8 +875,6 @@ void UEdGraphSchema_CustomizableObject::GetContextMenuActions(UToolMenu* Menu, U
 		{
 			if (const UEdGraphPin* Pin = Context->Pin)
 			{
-				FPropertyEditorModule& PropPlugin = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-				
 				if (Node->CanPinBeHidden(*Pin))
 				{
 					FToolMenuSection& Section = Menu->FindOrAddSection("EdGraphSchemaPinActions");
@@ -890,51 +889,19 @@ void UEdGraphSchema_CustomizableObject::GetContextMenuActions(UToolMenu* Menu, U
 				}
 				
 				
-				if (TSharedPtr<SWidget> Widget = Node->CustomizePinDetails(*Pin))
+				if (TSharedPtr<IDetailsView> Widget = Node->CustomizePinDetails(*Pin))
 				{
+					Widget->OnFinishedChangingProperties().AddLambda([WeakMenu = Widget->AsWeak()](const FPropertyChangedEvent& Event){
+						if (TSharedPtr<SWidget> Menu = WeakMenu.Pin())
+						{
+							FSlateApplication::Get().DismissMenuByWidget(Menu.ToSharedRef());
+						}
+					});
+					
 					FToolMenuSection& Section = Menu->FindOrAddSection("EdGraphSchemaPinActions");
 					Section.AddSeparator("Pin Viewer");
 					Section.AddEntry(FToolMenuEntry::InitWidget("Pin Viewer", Widget.ToSharedRef(), {}));
 				}
-			}
-		}
-		
-		const UCustomizableObjectNodeTable* TableNode = Cast<UCustomizableObjectNodeTable>(Context->Node);
-		UEdGraphPin* TexturePin = (UEdGraphPin*)Context->Pin;
-
-		if (TableNode && TexturePin && !TableNode->IsNotTexture2DPin(TexturePin) && !TexturePin->LinkedTo.Num() && (TexturePin->PinType.PinCategory == PC_Image || TexturePin->PinType.PinCategory == PC_PassThroughImage))
-		{
-			FText ActionText = FText::Format(LOCTEXT("ChangeTexturePinMode_Label", 
-				"Set as {0} texture"), Context->Pin->PinType.PinCategory == PC_PassThroughImage ? FText::FromString("Mutable") : FText::FromString("Pass Through"));
-			
-			FText ToolTipText = FText::Format(LOCTEXT("ChangeTexturePinMode_Tooltip",
-				"Set the texture pin as {0} texture."), Context->Pin->PinType.PinCategory == PC_PassThroughImage ? FText::FromString("Mutable") : FText::FromString("Pass Through"));
-
-			FToolMenuSection& Section = Menu->FindOrAddSection("EdGraphSchemaPinActions");
-			Section.InitSection("EdGraphSchemaPinActions", LOCTEXT("PinActionsMenuHeader", "Pin Actions"), FToolMenuInsert());
-
-			Section.AddMenuEntry
-			(
-				"ChangeTexturePinMode", ActionText, ToolTipText, FSlateIcon(),
-				FUIAction(FExecuteAction::CreateLambda([TableNode = const_cast<UCustomizableObjectNodeTable*>(TableNode), TexturePin]()
-					{
-						TableNode->ChangeImagePinMode(TexturePin);
-					}))
-			);
-
-			if (!TableNode->IsImagePinDefault(TexturePin))
-			{
-				Section.AddMenuEntry
-				(
-					"SetTexturePinModeDefault",
-					LOCTEXT("SetTexturePinModeDefault_Label","Set pin as default."),
-					LOCTEXT("SetTexturePinModeDefault_Tooltip","Set the selected texture pin to use the default node mode."),
-					FSlateIcon(),
-					FUIAction(FExecuteAction::CreateLambda([TableNode = const_cast<UCustomizableObjectNodeTable*>(TableNode), TexturePin]()
-						{
-							TableNode->ChangeImagePinMode(TexturePin, true);
-						}))
-				);
 			}
 		}
 	}

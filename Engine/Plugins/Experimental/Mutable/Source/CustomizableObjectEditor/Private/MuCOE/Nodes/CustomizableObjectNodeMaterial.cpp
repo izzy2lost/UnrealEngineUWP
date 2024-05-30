@@ -1074,7 +1074,7 @@ FString UCustomizableObjectNodeMaterial::GetRefreshMessage() const
 }
 
 
-TSharedPtr<SWidget> UCustomizableObjectNodeMaterial::CustomizePinDetails(const UEdGraphPin& Pin) const
+TSharedPtr<IDetailsView> UCustomizableObjectNodeMaterial::CustomizePinDetails(const UEdGraphPin& Pin) const
 {
 	if (UCustomizableObjectNodeMaterialPinDataImage* PinData = Cast<UCustomizableObjectNodeMaterialPinDataImage>(GetPinData(Pin)))
 	{

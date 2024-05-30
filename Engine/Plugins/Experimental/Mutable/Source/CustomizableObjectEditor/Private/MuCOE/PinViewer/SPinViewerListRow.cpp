@@ -8,6 +8,7 @@
 #include "ScopedTransaction.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Views/SListView.h"
+#include "IDetailsView.h"
 
 class STableViewBase;
 class SWidget;

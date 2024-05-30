@@ -27,6 +27,7 @@
 #include "MuCO/CustomizableObjectCustomVersion.h"
 #include "MuCOE/CustomizableObjectEditorUtilities.h"
 #include "UObject/LinkerLoad.h"
+#include "PropertyEditorModule.h"
 
 class ICustomizableObjectEditor;
 class UCustomizableObjectNodeRemapPins;
@@ -171,16 +172,14 @@ void UCustomizableObjectNodeTable::BackwardsCompatibleFixup()
 			}
 		}
 	}
-
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AddedAnyTextureTypeToPassThroughTextures)
+	
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::NodeTablePinViewer)
 	{
-		for (UEdGraphPin* Pin : Pins)
+		for (UEdGraphPin* Pin : GetAllPins())
 		{
-			UCustomizableObjectNodePinData* PinData = GetPinData(*Pin);
-
-			if (UCustomizableObjectNodeTableImagePinData* ImagePinData = Cast<UCustomizableObjectNodeTableImagePinData>(PinData))
+			if (UCustomizableObjectNodeTableImagePinData* ImagePinData = Cast<UCustomizableObjectNodeTableImagePinData>(GetPinData(*Pin)))
 			{
-				ImagePinData->ConvertArrayTextureToAnyTextureFixup();
+				ImagePinData->NodeTable = this;
 			}
 		}
 	}
@@ -334,23 +333,6 @@ void UCustomizableObjectNodeTable::OnRenameNode(const FString& NewName)
 }
 
 
-void UCustomizableObjectNodeTable::PinConnectionListChanged(UEdGraphPin* Pin)
-{
-	if (Pin && !Pin->LinkedTo.Num() && 
-		(Pin->PinType.PinCategory == UEdGraphSchema_CustomizableObject::PC_Image || Pin->PinType.PinCategory == UEdGraphSchema_CustomizableObject::PC_PassThroughImage))
-	{
-		if (UCustomizableObjectNodeTableImagePinData* ImagePinData = Cast<UCustomizableObjectNodeTableImagePinData>(GetPinData(*(Pin))))
-		{
-			if (!ImagePinData->IsNotTexture2D() && ImagePinData->IsDefaultImageMode() && ImagePinData->ImageMode != DefaultImageMode)
-			{
-				ImagePinData->ImageMode = DefaultImageMode;
-				ReconstructNode();
-			}
-		}
-	}
-}
-
-
 void UCustomizableObjectNodeTable::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -359,36 +341,13 @@ void UCustomizableObjectNodeTable::PostEditChangeProperty(FPropertyChangedEvent&
 
 	if (PropertyThatChanged)
 	{
-		if (PropertyThatChanged->GetName() == TEXT("Table") || PropertyThatChanged->GetName() == TEXT("Structure"))
+		if (PropertyThatChanged->GetName() == GET_MEMBER_NAME_CHECKED(UCustomizableObjectNodeTable, Table) || PropertyThatChanged->GetName() == GET_MEMBER_NAME_CHECKED(UCustomizableObjectNodeTable, Structure))
 		{
 			ParamUIMetadataColumn = NAME_None;
 			VersionColumn = NAME_None;
 			ReconstructNode();
 		}
-		else if (PropertyThatChanged->GetName() == TEXT("DefaultImageMode"))
-		{
-			bool bReconstruct = false;
-
-			for (UEdGraphPin* Pin : Pins)
-			{
-				if (UCustomizableObjectNodeTableImagePinData* TexturePinData = Cast<UCustomizableObjectNodeTableImagePinData>(GetPinData(*(Pin))))
-				{
-					if (!Pin->LinkedTo.Num() && !TexturePinData->IsNotTexture2D() && TexturePinData->IsDefaultImageMode())
-					{
-						ETableTextureType Mode = TexturePinData->ImageMode == ETableTextureType::PASSTHROUGH_TEXTURE ? ETableTextureType::MUTABLE_TEXTURE : ETableTextureType::PASSTHROUGH_TEXTURE;
-						TexturePinData->ImageMode = Mode;
-
-						bReconstruct = true;
-					}
-				}
-			}
-
-			if (bReconstruct)
-			{
-				ReconstructNode();
-			}
-		}
-		else if (PropertyThatChanged->GetName() == TEXT("TableDataGatheringMode"))
+		else if (PropertyThatChanged->GetName() == GET_MEMBER_NAME_CHECKED(UCustomizableObjectNodeTable, TableDataGatheringMode))
 		{
 			if (Table)
 			{
@@ -492,9 +451,10 @@ void UCustomizableObjectNodeTable::AllocateDefaultPins(UCustomizableObjectNodeRe
 						UCustomizableObjectNodeTableImagePinData* PinData = NewObject<UCustomizableObjectNodeTableImagePinData>(this);
 						PinData->ColumnName = ColumnName;
 						PinData->StructColumnId = ColumnPropertyId;
-						PinData->SetIsNotTexture2D(false);
+						PinData->bIsNotTexture2D = false;
+						PinData->NodeTable = this;
 
-						FName PinCategory = DefaultImageMode == ETableTextureType::PASSTHROUGH_TEXTURE ? Schema->PC_PassThroughImage : Schema->PC_Image;
+						FName PinCategory = PinData->ImageMode == ETableTextureType::PASSTHROUGH_TEXTURE ? Schema->PC_PassThroughImage : Schema->PC_Image;
 
 						for (UEdGraphPin* Pin : OldPins)
 						{
@@ -518,7 +478,8 @@ void UCustomizableObjectNodeTable::AllocateDefaultPins(UCustomizableObjectNodeRe
 						PinData->ColumnName = ColumnName;
 						PinData->StructColumnId = ColumnPropertyId;
 						PinData->ImageMode = ETableTextureType::PASSTHROUGH_TEXTURE;
-						PinData->SetIsNotTexture2D(true);
+						PinData->bIsNotTexture2D = true;
+						PinData->NodeTable = this;
 
 						OutPin = CustomCreatePin(EGPD_Output, Schema->PC_PassThroughImage, FName(*PinName), PinData);
 					}
@@ -874,6 +835,8 @@ FString UCustomizableObjectNodeTable::GetRefreshMessage() const
 // TODO(MTBL-1652): Move this to the Copy method of the NodePinData class which is more PinType specific (and the right plece to do this)
 void UCustomizableObjectNodeTable::RemapPinsData(const TMap<UEdGraphPin*, UEdGraphPin*>& PinsToRemap)
 {
+	Super::RemapPinsData(PinsToRemap);
+	
 	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
 
 	for (const TTuple<UEdGraphPin*, UEdGraphPin*>& Pair : PinsToRemap)
@@ -914,8 +877,7 @@ void UCustomizableObjectNodeTable::RemapPinsData(const TMap<UEdGraphPin*, UEdGra
 			if (PinDataOldPin && PinDataNewPin)
 			{
 				PinDataNewPin->ImageMode = PinDataOldPin->ImageMode;
-				PinDataNewPin->SetDefaultImageMode(PinDataOldPin->IsDefaultImageMode());
-				PinDataNewPin->SetIsNotTexture2D(PinDataOldPin->IsNotTexture2D());
+				PinDataNewPin->bIsNotTexture2D = PinDataOldPin->bIsNotTexture2D;
 			}
 		}
 	}
@@ -1232,49 +1194,45 @@ TSoftClassPtr<UAnimInstance> UCustomizableObjectNodeTable::GetAnimInstanceAt(con
 }
 
 
-void UCustomizableObjectNodeTableImagePinData::ConvertArrayTextureToAnyTextureFixup()
+void UCustomizableObjectNodeTableImagePinData::PostLoad()
 {
-	if (bIsArrayTexture_DEPRECATED)
+	Super::PostLoad();
+
+	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
+
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AddedAnyTextureTypeToPassThroughTextures)
 	{
-		bIsNotTexture2D = true;
-		bIsArrayTexture_DEPRECATED = false;
+		if (bIsArrayTexture_DEPRECATED)
+		{
+			bIsNotTexture2D = true;
+			bIsArrayTexture_DEPRECATED = false;
+		}
 	}
 }
 
 
-void UCustomizableObjectNodeTable::ChangeImagePinMode(UEdGraphPin* Pin, bool bSetDefault)
+void UCustomizableObjectNodeTableImagePinData::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	if (UCustomizableObjectNodeTableImagePinData* PinData = Cast<UCustomizableObjectNodeTableImagePinData>(GetPinData(*(Pin))))
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	if (const FProperty* PropertyThatChanged = PropertyChangedEvent.Property)
 	{
-		if (PinData->IsNotTexture2D())
+		if (PropertyThatChanged->GetFName() == GET_MEMBER_NAME_CHECKED(UCustomizableObjectNodeTableImagePinData, ImageMode))
 		{
-			return;
-		}
-
-		if (PinData->IsDefaultImageMode() && !bSetDefault)
-		{
-			ETableTextureType Mode = DefaultImageMode == ETableTextureType::PASSTHROUGH_TEXTURE ? ETableTextureType::MUTABLE_TEXTURE : ETableTextureType::PASSTHROUGH_TEXTURE;
-			PinData->ImageMode = Mode;
-			PinData->SetDefaultImageMode(false);
-
-			ReconstructNode();
-		}
-		else
-		{
-			if (bSetDefault)
-			{
-				PinData->ImageMode = DefaultImageMode;
-				PinData->SetDefaultImageMode(true);
-			}
-			else
-			{
-				ETableTextureType Mode = PinData->ImageMode == ETableTextureType::PASSTHROUGH_TEXTURE ? ETableTextureType::MUTABLE_TEXTURE : ETableTextureType::PASSTHROUGH_TEXTURE;
-				PinData->ImageMode = Mode;
-			}
-
-			ReconstructNode();
+			NodeTable->ReconstructNode();
 		}
 	}
+}
+
+
+bool UCustomizableObjectNodeTableImagePinData::CanEditChange(const FProperty* InProperty) const
+{
+	if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UCustomizableObjectNodeTableImagePinData, ImageMode))
+	{
+		return !NodeTable->GetPin(*this)->LinkedTo.Num() && !bIsNotTexture2D;
+	}
+	
+	return Super::CanEditChange(InProperty);
 }
 
 
@@ -1290,14 +1248,25 @@ bool UCustomizableObjectNodeTable::HasPinViewer() const
 }
 
 
-bool UCustomizableObjectNodeTable::IsImagePinDefault(const UEdGraphPin* Pin) const
+TSharedPtr<IDetailsView> UCustomizableObjectNodeTable::CustomizePinDetails(const UEdGraphPin& Pin) const
 {
-	if (UCustomizableObjectNodeTableImagePinData* PinData = Cast<UCustomizableObjectNodeTableImagePinData>(GetPinData(*(Pin))))
+	if (UCustomizableObjectNodeTableImagePinData* PinData = Cast<UCustomizableObjectNodeTableImagePinData>(GetPinData(Pin)))
 	{
-		return PinData->IsDefaultImageMode();
-	}
+		FPropertyEditorModule& EditModule = FModuleManager::Get().GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
-	return true;
+		FDetailsViewArgs DetailsViewArgs;
+		DetailsViewArgs.bAllowSearch = false;
+		DetailsViewArgs.bHideSelectionTip = true;
+		
+		const TSharedRef<IDetailsView> SettingsView = EditModule.CreateDetailView(DetailsViewArgs);
+		SettingsView->SetObject(PinData);
+		
+		return SettingsView;
+	}
+	else
+	{
+		return nullptr;
+	}
 }
 
 
@@ -1314,18 +1283,8 @@ ETableTextureType UCustomizableObjectNodeTable::GetColumnImageMode(const FString
 		}
 	}
 
-	return DefaultImageMode;
-}
-
-
-bool UCustomizableObjectNodeTable::IsNotTexture2DPin(const UEdGraphPin* Pin) const
-{
-	if (UCustomizableObjectNodeTableImagePinData* PinData = Cast<UCustomizableObjectNodeTableImagePinData>(GetPinData(*(Pin))))
-	{
-		return PinData->IsNotTexture2D();
-	}
-
-	return false;
+	unimplemented();
+	return {};
 }
 
 

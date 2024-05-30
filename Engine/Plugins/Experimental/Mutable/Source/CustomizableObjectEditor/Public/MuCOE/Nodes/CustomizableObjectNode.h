@@ -15,6 +15,7 @@ class UCustomizableObjectNodeObject;
 class UCustomizableObjectNodeRemapPins;
 class UCustomizableObjectNodeRemapPinsByName;
 class UCustomizableObjectNodeRemapPinsByPosition;
+class IDetailsView;
 struct FPropertyChangedEvent;
 
 /** Abstract base class for all pin data. */
@@ -234,7 +235,10 @@ public:
 	virtual bool HasPinViewer() const;
 
 	/** Returns pin custom details. Override if required. */
-	virtual TSharedPtr<SWidget> CustomizePinDetails(const UEdGraphPin& Pin) const;
+	virtual TSharedPtr<IDetailsView> CustomizePinDetails(const UEdGraphPin& Pin) const;
+
+	/** Given the pin data, returns its associated pin. */
+	UEdGraphPin* GetPin(const UCustomizableObjectNodePinData& PinData);
 	
 	/** See GetPinData(const FEdGraphPinReference&). */
 	UCustomizableObjectNodePinData* GetPinData(const UEdGraphPin &Pin) const;

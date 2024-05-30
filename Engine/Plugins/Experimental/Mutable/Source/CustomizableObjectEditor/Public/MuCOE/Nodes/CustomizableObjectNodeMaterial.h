@@ -131,7 +131,7 @@ public:
 	virtual void BreakExistingConnectionsPostConnection(UEdGraphPin* InputPin, UEdGraphPin* OutputPin) override;
 	virtual bool IsNodeOutDatedAndNeedsRefresh() override;
 	virtual FString GetRefreshMessage() const override;
-	virtual TSharedPtr<SWidget> CustomizePinDetails(const UEdGraphPin& Pin) const override;
+	virtual TSharedPtr<IDetailsView> CustomizePinDetails(const UEdGraphPin& Pin) const override;
 
 	
 	// UCustomizableObjectNodeMaterialBase interface

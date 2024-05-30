@@ -658,8 +658,22 @@ bool UCustomizableObjectNode::HasPinViewer() const
 }
 
 
-TSharedPtr<SWidget> UCustomizableObjectNode::CustomizePinDetails(const UEdGraphPin& Pin) const
+TSharedPtr<IDetailsView> UCustomizableObjectNode::CustomizePinDetails(const UEdGraphPin& Pin) const
 {
+	return nullptr;
+}
+
+
+UEdGraphPin* UCustomizableObjectNode::GetPin(const UCustomizableObjectNodePinData& PinData)
+{
+	for (const TTuple<FGuid, TObjectPtr<UCustomizableObjectNodePinData>>& Pair : PinsDataId)
+	{
+		if (Pair.Value == &PinData)
+		{
+			return FindPinById(Pair.Key);
+		}
+	}
+	
 	return nullptr;
 }
 
