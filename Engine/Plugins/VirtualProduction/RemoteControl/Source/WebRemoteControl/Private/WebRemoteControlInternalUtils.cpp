@@ -125,9 +125,9 @@ TSharedRef<FHttpServerRequest> UnwrapHttpRequest(const FRCRequestWrapper& Wrappe
 void SerializeWrappedCallResponse(int32 RequestId, TUniquePtr<FHttpServerResponse> Response, FMemoryWriter& Writer)
 {
 	FRCJsonStructSerializerBackend Backend(Writer, FRCJsonStructSerializerBackend::DefaultSerializerFlags);
-	TSharedPtr<TJsonWriter<ANSICHAR>> JsonWriter = TJsonWriter<ANSICHAR>::Create(&Writer);
-	TArray<FString>* ContentTypeHeaders = Response->Headers.Find(TEXT("Content-Type"));
-	const bool bIsBinaryData = ContentTypeHeaders && ContentTypeHeaders->Contains(TEXT("image/png"));
+	const TSharedPtr<TJsonWriter<ANSICHAR>> JsonWriter = TJsonWriter<ANSICHAR>::Create(&Writer);
+	const TArray<FString>* ContentTypeHeaders = Response->Headers.Find(TEXT("Content-Type"));
+	const bool bIsBinaryData = ContentTypeHeaders && ContentTypeHeaders->ContainsByPredicate([](const FString& InHeader) { return InHeader.StartsWith(TEXT("image/"));}); 
 
 	JsonWriter->WriteObjectStart();
 	JsonWriter->WriteValue(TEXT("RequestId"), RequestId);
