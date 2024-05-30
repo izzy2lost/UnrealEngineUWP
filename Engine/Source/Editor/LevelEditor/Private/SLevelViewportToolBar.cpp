@@ -1983,8 +1983,8 @@ FReply SLevelViewportToolBar::OnRealtimeWarningClicked()
 EVisibility SLevelViewportToolBar::GetRealtimeWarningVisibility() const
 {
 	FLevelEditorViewportClient& ViewportClient = Viewport.Pin()->GetLevelViewportClient();
-	// If the viewport is not realtime and there is no override then realtime is off
-	return !ViewportClient.IsRealtime() && !ViewportClient.IsRealtimeOverrideSet() && ViewportClient.IsPerspective() ? EVisibility::Visible : EVisibility::Collapsed;
+	const bool bWarn = UE::LevelEditor::ShowViewportRealtimeWarning(ViewportClient);
+	return bWarn ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 FText SLevelViewportToolBar::GetScalabilityWarningLabel() const

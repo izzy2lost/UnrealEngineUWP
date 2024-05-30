@@ -4,6 +4,7 @@
 
 #include "Templates/SharedPointerFwd.h"
 
+class FLevelEditorViewportClient;
 class SLevelViewport;
 class UToolMenu;
 struct FToolMenuSection;
@@ -12,6 +13,7 @@ namespace UE::LevelEditor
 {
 
 void AddViewportToolbarTransformsSection(FToolMenuSection& InSection);
+bool ShowViewportRealtimeWarning(FLevelEditorViewportClient& ViewportClient);
 void AddMaterialQualityLevelSubmenu(FToolMenuSection& Section);
 void AddFeatureLevelPreviewSubmenu(FToolMenuSection& Section);
 void GenerateViewportLayoutsMenu(UToolMenu* InMenu, TSharedPtr<::SLevelViewport> InViewport);

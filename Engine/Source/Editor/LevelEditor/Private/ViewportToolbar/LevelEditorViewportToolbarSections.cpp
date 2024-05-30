@@ -9,8 +9,45 @@
 #include "SLevelViewport.h"
 #include "Templates/SharedPointer.h"
 #include "ToolMenu.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "LevelEditorViewportToolbar"
+
+namespace UE::LevelEditor::Private
+{
+
+TOptional<bool> UpdateAndGetRealtimeWarningFromContext(const FToolMenuContext& Context)
+{
+	if (ULevelViewportContext* const LevelViewportContext = Context.FindContext<ULevelViewportContext>())
+	{
+		if (const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin())
+		{
+			const bool bShowWarning = ShowViewportRealtimeWarning(LevelViewport->GetLevelViewportClient());
+
+			LevelViewportContext->CachedShouldShowRealtimeOffWarning = bShowWarning;
+
+			return LevelViewportContext->CachedShouldShowRealtimeOffWarning;
+		}
+	}
+
+	return TOptional<bool>();
+}
+
+TOptional<bool> IsDirtyRealtimeWarningFromContext(const FToolMenuContext& Context)
+{
+	if (ULevelViewportContext* const LevelViewportContext = Context.FindContext<ULevelViewportContext>())
+	{
+		if (const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin())
+		{
+			const bool bShowWarning = ShowViewportRealtimeWarning(LevelViewport->GetLevelViewportClient());
+			return bShowWarning != LevelViewportContext->CachedShouldShowRealtimeOffWarning;
+		}
+	}
+
+	return TOptional<bool>();
+}
+
+} // namespace UE::LevelEditor::Private
 
 namespace UE::LevelEditor
 {
@@ -43,6 +80,11 @@ void AddViewportToolbarTransformsSection(FToolMenuSection& InSection)
 			ScaleMode.SetShowInToolbarTopLevel(true);
 			Section.AddEntry(ScaleMode);
 		}));
+}
+
+bool ShowViewportRealtimeWarning(FLevelEditorViewportClient& ViewportClient)
+{
+	return !ViewportClient.IsRealtime() && !ViewportClient.IsRealtimeOverrideSet() && ViewportClient.IsPerspective();
 }
 
 void AddMaterialQualityLevelSubmenu(FToolMenuSection& Section)
@@ -211,7 +253,76 @@ void AddLevelEditorViewportToolbarSettingsSection(FToolMenuSection& InSection)
 			FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection(NAME_None);
 
 			// Add realtime rendering toggle.
-			UnnamedSection.AddMenuEntry(FEditorViewportCommands::Get().ToggleRealTime).SetShowInToolbarTopLevel(true);
+			UnnamedSection.AddDynamicEntry("ToggleRealtimeDynamicSection",
+				FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InnerSection) -> void {
+					FToolUIAction RealtimeToggleAction;
+					RealtimeToggleAction.ExecuteAction = FToolMenuExecuteAction::CreateLambda(
+						[](const FToolMenuContext& Context) -> void {
+							ULevelViewportContext* const LevelViewportContext =
+								Context.FindContext<ULevelViewportContext>();
+							if (!LevelViewportContext)
+							{
+								return;
+							}
+
+							if (const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin())
+							{
+								LevelViewport->OnToggleRealtime();
+								UToolMenus::Get()->RefreshAllWidgets();
+							}
+						});
+
+					RealtimeToggleAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateLambda(
+						[](const FToolMenuContext& Context) -> ECheckBoxState {
+							ULevelViewportContext* const LevelViewportContext =
+								Context.FindContext<ULevelViewportContext>();
+							if (!LevelViewportContext)
+							{
+								return ECheckBoxState::Undetermined;
+							}
+
+							// Check if the realtime warn state is outdated and if so refresh widgets to update our
+							// top-level status.
+							if (const TOptional<bool> IsDirty = Private::IsDirtyRealtimeWarningFromContext(Context);
+								IsDirty.IsSet() && IsDirty.GetValue())
+							{
+								UToolMenus::Get()->RefreshAllWidgets();
+							}
+
+							if (const TSharedPtr<::SLevelViewport> LevelViewport = LevelViewportContext->LevelViewport.Pin())
+							{
+								return LevelViewport->IsRealtime() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+							}
+
+							return ECheckBoxState::Undetermined;
+						});
+
+					bool bDisplayTopLevel = false;
+					if (const TOptional<bool> ShouldWarn = Private::UpdateAndGetRealtimeWarningFromContext(
+							InnerSection.Context);
+						ShouldWarn.IsSet())
+					{
+						bDisplayTopLevel = ShouldWarn.GetValue();
+					}
+					else
+					{
+						// If we couldn't get the warn state, pretend we don't have to warn.
+						bDisplayTopLevel = false;
+					}
+
+					const FText Tooltip =
+						bDisplayTopLevel
+							? LOCTEXT("ToggleRealtimeTooltip_WarnRealtimeOff",
+								"This viewport is not updating in realtime.  Click to turn on realtime mode.")
+							: LOCTEXT("ToggleRealtimeTooltip", "Toggle realtime rendering of the viewport");
+
+					FToolMenuEntry ToggleRealtime = FToolMenuEntry::InitMenuEntry("ToggleRealtime",
+						LOCTEXT("ToggleRealtimeLabel", "Realtime"), Tooltip,
+						FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.ToggleRealTime"),
+						RealtimeToggleAction, EUserInterfaceActionType::ToggleButton);
+					ToggleRealtime.SetShowInToolbarTopLevel(bDisplayTopLevel);
+					InnerSection.AddEntry(ToggleRealtime);
+				}));
 
 			AddMaterialQualityLevelSubmenu(UnnamedSection);
 			AddFeatureLevelPreviewSubmenu(UnnamedSection);
