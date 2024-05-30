@@ -3612,10 +3612,7 @@ void ALandscape::SetDisableRuntimeGrassMapGeneration(bool bInDisableRuntimeGrass
 	{
 		LandscapeInfo->ForEachLandscapeProxy([bInDisableRuntimeGrassMapGeneration](ALandscapeProxy* Proxy) -> bool
 		{
-			if (Proxy != nullptr)
-			{
-				Proxy->bDisableRuntimeGrassMapGeneration = bInDisableRuntimeGrassMapGeneration;
-			}
+			Proxy->SetDisableRuntimeGrassMapGenerationProxyOnly(bInDisableRuntimeGrassMapGeneration);
 			return true;
 		});
 	}

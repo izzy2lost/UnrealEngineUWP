@@ -695,6 +695,7 @@ public:
 	void UpdateGrassTypeSummary();
 
 	inline bool GetDisableRuntimeGrassMapGeneration() { return bDisableRuntimeGrassMapGeneration; }
+	inline void SetDisableRuntimeGrassMapGenerationProxyOnly(bool bInDisableRuntimeGrassMapGeneration) { bDisableRuntimeGrassMapGeneration = bInDisableRuntimeGrassMapGeneration; }
 
 	/**
 	 *	The resolution to cache lighting at, in texels/quad in one axis

@@ -435,6 +435,7 @@ bool FLandscapeGrassMapsBuilder::UpdateTrackedComponents(const TArray<FVector>& 
 			case EComponentStage::NotReady:
 				// in game, any not ready component will never become ready.
 				// in editor, check to see if the conditions changed.
+#if WITH_EDITOR
 				if (!bIsGameWorld && AmortizedUpdate.ShouldUpdate(ComponentStateIndex))
 				{
 					if (UE::Landscape::CanRenderGrassMap(Component))
@@ -442,6 +443,7 @@ bool FLandscapeGrassMapsBuilder::UpdateTrackedComponents(const TArray<FVector>& 
 						break; // cancel and evict to restart build process
 					}
 				}
+#endif // WITH_EDITOR
 				continue; // next!
 			case EComponentStage::TextureStreaming:
 				// don't process streaming states yet -- first process rendering states to free up slots
