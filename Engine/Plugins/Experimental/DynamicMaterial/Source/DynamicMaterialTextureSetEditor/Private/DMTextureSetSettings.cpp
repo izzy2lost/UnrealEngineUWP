@@ -9,7 +9,7 @@ UDMTextureSetSettings::UDMTextureSetSettings()
 	int32 FilterCount = 0;
 
 	FDMTextureSetFilter BaseColor;
-	BaseColor.FilterStrings = {TEXT("Base_Color"), TEXT("BaseColor"), TEXT("Base_Colour"), TEXT("BaseColour"), TEXT("_BC"), TEXT("Diffuse"), TEXT("Albedo"), TEXT("_Diff")};
+	BaseColor.FilterStrings = {TEXT("Base_Color"), TEXT("BaseColor"), TEXT("Base_Colour"), TEXT("BaseColour"), TEXT("_BC"), TEXT("Diffuse"), TEXT("Albedo"), TEXT("_Diff"), TEXT("_D")};
 	BaseColor.MaterialProperties = {{EDMTextureSetMaterialProperty::BaseColor, EDMTextureChannelMask::RGBA}};
 	++FilterCount;
 
@@ -97,6 +97,15 @@ UDMTextureSetSettings::UDMTextureSetSettings()
 	};
 	++FilterCount;
 
+	FDMTextureSetFilter ORDp;
+	ORDp.FilterStrings = {TEXT("_ORDp")};
+	ORDp.MaterialProperties = {
+		{EDMTextureSetMaterialProperty::AmbientOcclusion, EDMTextureChannelMask::Red},
+		{EDMTextureSetMaterialProperty::Roughness, EDMTextureChannelMask::Green},
+		{EDMTextureSetMaterialProperty::Displacement, EDMTextureChannelMask::Blue}
+	};
+	++FilterCount;
+
 	FDMTextureSetFilter RM;
 	RM.FilterStrings = {TEXT("_RM")};
 	RM.MaterialProperties = {
@@ -133,6 +142,7 @@ UDMTextureSetSettings::UDMTextureSetSettings()
 	Filters.Add(MoveTemp(Refraction));
 	Filters.Add(MoveTemp(Tangent));
 	Filters.Add(MoveTemp(ORM));
+	Filters.Add(MoveTemp(ORDp));
 	Filters.Add(MoveTemp(RM));
 	Filters.Add(MoveTemp(RMA));
 }

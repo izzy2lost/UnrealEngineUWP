@@ -123,7 +123,7 @@ void FDMContentBrowserIntegration::OnCreateMaterialDesignerInstanceFromTextureSe
 	FString UniquePackageName;
 	FString UniqueAssetName;
 
-	const FString BasePackageName = InPath / TEXT("NewMaterialDesignerInstance");
+	const FString BasePackageName = InPath / TEXT("MDI_NewMaterial");
 	AssetToolsModule.Get().CreateUniqueAssetName(BasePackageName, TEXT(""), UniquePackageName, UniqueAssetName);
 
 	UPackage* Package = CreatePackage(*UniquePackageName);

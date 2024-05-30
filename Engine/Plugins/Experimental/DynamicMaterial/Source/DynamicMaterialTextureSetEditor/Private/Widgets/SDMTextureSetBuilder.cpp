@@ -51,7 +51,7 @@ void SDMTextureSetBuilder::Construct(const FArguments& InArgs, UDMTextureSet* In
 		TSharedRef<FDMTextureSetBuilderEntry> Entry = MakeShared<FDMTextureSetBuilderEntry>(
 			SetElement.Key,
 			SetElement.Value.Texture.LoadSynchronous(),
-			EDMTextureChannelMask::RGBA
+			SetElement.Value.TextureChannel
 		);
 
 		MaterialPropertyGrid->AddSlot(WidthIndex, HeightIndex)
