@@ -304,10 +304,8 @@ float2 GetDispatchSize()
 	return View.ViewSizeAndInvSize.xy / DownsampleFactor;
 }
 
-[numthreads(THREADGROUP_SIZE_2D, THREADGROUP_SIZE_2D, 1)]
-void RenderSingleScatteringWithLiveShadingCS(
-	uint2 GroupThreadId : SV_GroupThreadID,
-	uint2 DispatchThreadId : SV_DispatchThreadID
+void RenderSingleScatteringWithLiveShading(
+	uint2 DispatchThreadId
 )
 {
 	FDebugOutput DebugOutput = (FDebugOutput)0;
@@ -417,4 +415,35 @@ void RenderSingleScatteringWithLiveShadingCS(
 		// Debug output
 		//RWDebugOutputBuffer[LinearIndex] = DebugOutput;
 	}
+}
+
+[numthreads(THREADGROUP_SIZE_2D, THREADGROUP_SIZE_2D, 1)]
+void RenderSingleScatteringWithLiveShadingCS(
+	uint2 GroupThreadId : SV_GroupThreadID,
+	uint2 DispatchThreadId : SV_DispatchThreadID
+)
+{
+	RenderSingleScatteringWithLiveShading(DispatchThreadId);
+}
+
+struct FScreenTile
+{
+	uint Id;
+};
+
+
+
+StructuredBuffer<FScreenTile> ScreenTileBuffer;
+
+[numthreads(THREADGROUP_SIZE_2D, THREADGROUP_SIZE_2D, 1)]
+void RenderSingleScatteringWithLiveShadingIndirectCS(
+	uint GroupId : SV_GroupID,
+	uint2 GroupThreadId : SV_GroupThreadID
+)
+{
+	FScreenTile ScreenTile = ScreenTileBuffer[GroupId];
+	uint2 GroupId_2D = uint2(ScreenTile.Id % GroupCount.x, ScreenTile.Id / GroupCount.x);
+	uint2 DispatchThreadId = GroupId_2D * THREADGROUP_SIZE_2D + GroupThreadId;
+
+	RenderSingleScatteringWithLiveShading(DispatchThreadId);
 }
