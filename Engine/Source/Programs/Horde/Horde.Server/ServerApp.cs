@@ -32,7 +32,7 @@ namespace Horde.Server
 			/// <inheritdoc />
 			public void Enrich(Serilog.Events.LogEvent logEvent, Serilog.Core.ILogEventPropertyFactory propertyFactory)
 			{
-				logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("hordeserver.version", ServerApp.Version));
+				logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("service.version", ServerApp.Version));
 			}
 		}
 
