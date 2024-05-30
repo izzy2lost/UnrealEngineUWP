@@ -8,6 +8,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Amazon.EC2.Model;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
@@ -18,6 +19,7 @@ using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Auditing;
 using Horde.Server.Server;
 using HordeCommon.Rpc.Tasks;
+using Microsoft.Extensions.Azure;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
@@ -53,8 +55,9 @@ namespace Horde.Server.Agents
 			string? IAgent.LastUpgradeVersion => _document.LastUpgradeVersion;
 			DateTime? IAgent.LastUpgradeTime => _document.LastUpgradeTime;
 			int? IAgent.UpgradeAttemptCount => _document.UpgradeAttemptCount;
+			IReadOnlyList<PoolId> IAgent.Pools => _document.Pools;
 			IReadOnlyList<PoolId> IAgent.DynamicPools => _document.DynamicPools;
-			IReadOnlyList<PoolId> IAgent.ExplicitPools => _document.Pools;
+			IReadOnlyList<PoolId> IAgent.ExplicitPools => _document.ExplicitPools;
 			bool IAgent.RequestConform => _document.RequestConform;
 			bool IAgent.RequestFullConform => _document.RequestFullConform;
 			bool IAgent.RequestRestart => _document.RequestRestart;
@@ -168,8 +171,9 @@ namespace Horde.Server.Agents
 			[BsonIgnoreIfNull]
 			public int? UpgradeAttemptCount { get; set; }
 
-			public List<PoolId> DynamicPools { get; set; } = new List<PoolId>();
 			public List<PoolId> Pools { get; set; } = new List<PoolId>();
+			public List<PoolId> DynamicPools { get; set; } = new List<PoolId>();
+			public List<PoolId> ExplicitPools { get; set; } = new List<PoolId>();
 
 			[BsonIgnoreIfDefault, BsonDefaultValue(false)]
 			public bool RequestConform { get; set; }
@@ -200,6 +204,9 @@ namespace Horde.Server.Agents
 			public uint UpdateIndex { get; set; }
 			public string EnrollmentKey { get; set; } = String.Empty;
 			public string? Comment { get; set; }
+
+			[BsonElement("dv")]
+			public int DocumentVersion { get; set; } = 0;
 
 			[BsonConstructor]
 			private AgentDocument()
@@ -234,6 +241,44 @@ namespace Horde.Server.Agents
 			_clock = clock;
 			_updateEventChannel = new RedisChannel<AgentId>(RedisChannel.Literal("agents/notify"));
 			_auditLog = auditLog;
+		}
+
+		async ValueTask<AgentDocument?> PostLoadAsync(AgentDocument? document, CancellationToken cancellationToken)
+		{
+			while (document != null)
+			{
+				AgentDocument? newDocument = null;
+				if (document.DocumentVersion == 0)
+				{
+					UpdateDefinition<AgentDocument> updateDefinition = Builders<AgentDocument>.Update
+						.Set(x => x.Pools, CreatePoolsList(document.Pools, document.DynamicPools, document.Properties))
+						.Set(x => x.DynamicPools, CreatePoolsList(document.DynamicPools))
+						.Set(x => x.ExplicitPools, CreatePoolsList(document.Pools))
+						.Set(x => x.DocumentVersion, 1);
+
+					newDocument = await TryUpdateAsync(document, updateDefinition, cancellationToken);
+				}
+				else
+				{
+					break;
+				}
+				document = newDocument ?? await _agents.Find<AgentDocument>(x => x.Id == document.Id).FirstOrDefaultAsync(cancellationToken);
+			}
+			return document;
+		}
+
+		async ValueTask<List<AgentDocument>> PostLoadAsync(List<AgentDocument> documents, CancellationToken cancellationToken)
+		{
+			List<AgentDocument> newDocuments = new List<AgentDocument>();
+			foreach (AgentDocument document in documents)
+			{
+				AgentDocument? newDocument = await PostLoadAsync(document, cancellationToken);
+				if (newDocument != null)
+				{
+					newDocuments.Add(newDocument);
+				}
+			}
+			return newDocuments;
 		}
 
 		[return: NotNullIfNotNull("document")]
@@ -296,14 +341,16 @@ namespace Horde.Server.Agents
 		/// <inheritdoc/>
 		public async Task<IAgent?> GetAsync(AgentId agentId, CancellationToken cancellationToken)
 		{
-			AgentDocument? agent = await _agents.Find<AgentDocument>(x => x.Id == agentId).FirstOrDefaultAsync(cancellationToken);
-			return CreateAgentObject(agent);
+			AgentDocument? document = await _agents.Find<AgentDocument>(x => x.Id == agentId).FirstOrDefaultAsync(cancellationToken);
+			document = await PostLoadAsync(document, cancellationToken);
+			return CreateAgentObject(document);
 		}
 
 		/// <inheritdoc/>
 		public async Task<IReadOnlyList<IAgent>> GetManyAsync(List<AgentId> agentIds, CancellationToken cancellationToken)
 		{
 			List<AgentDocument> documents = await _agents.Find(p => agentIds.Contains(p.Id)).ToListAsync(cancellationToken);
+			documents = await PostLoadAsync(documents, cancellationToken);
 			return documents.ConvertAll(x => CreateAgentObject(x));
 		}
 
@@ -320,7 +367,7 @@ namespace Horde.Server.Agents
 
 			if (poolId != null)
 			{
-				filter &= filterBuilder.Eq(nameof(AgentDocument.Pools), poolId);
+				filter &= filterBuilder.AnyEq(x => x.Pools, poolId.Value);
 			}
 
 			if (modifiedAfter != null)
@@ -355,6 +402,7 @@ namespace Horde.Server.Agents
 			}
 
 			List<AgentDocument> documents = await search.ToListAsync(cancellationToken);
+			documents = await PostLoadAsync(documents, cancellationToken);
 			return documents.ConvertAll(x => CreateAgentObject(x));
 		}
 
@@ -362,7 +410,9 @@ namespace Horde.Server.Agents
 		public async Task<IReadOnlyList<IAgent>> FindExpiredAsync(DateTime utcNow, int maxAgents, CancellationToken cancellationToken)
 		{
 			FilterDefinition<AgentDocument> filter = Builders<AgentDocument>.Filter.Exists(x => x.SessionExpiresAt) & Builders<AgentDocument>.Filter.Lt(x => x.SessionExpiresAt, utcNow);
+
 			List<AgentDocument> documents = await _agents.Find(filter).Limit(maxAgents).ToListAsync(cancellationToken);
+			documents = await PostLoadAsync(documents, cancellationToken);
 			return documents.ConvertAll(x => CreateAgentObject(x));
 		}
 
@@ -370,6 +420,7 @@ namespace Horde.Server.Agents
 		public async Task<IReadOnlyList<IAgent>> FindDeletedAsync(CancellationToken cancellationToken)
 		{
 			List<AgentDocument> documents = await _agents.Find(x => x.Deleted).ToListAsync(cancellationToken);
+			documents = await PostLoadAsync(documents, cancellationToken);
 			return documents.ConvertAll(x => CreateAgentObject(x));
 		}
 
@@ -412,9 +463,13 @@ namespace Horde.Server.Agents
 			UpdateDefinitionBuilder<AgentDocument> updateBuilder = new UpdateDefinitionBuilder<AgentDocument>();
 
 			List<UpdateDefinition<AgentDocument>> updates = new List<UpdateDefinition<AgentDocument>>();
-			if (options.Pools != null)
+			if (options.ExplicitPools != null)
 			{
-				updates.Add(updateBuilder.Set(x => x.Pools, options.Pools));
+				List<PoolId> pools = CreatePoolsList(agent.DynamicPools, options.ExplicitPools, agent.Properties);
+				updates.Add(updateBuilder.Set(x => x.Pools, pools));
+
+				List<PoolId> explicitPools = CreatePoolsList(options.ExplicitPools).ToList();
+				updates.Add(updateBuilder.Set(x => x.ExplicitPools, explicitPools));
 			}
 			if (options.Enabled != null)
 			{
@@ -512,9 +567,10 @@ namespace Horde.Server.Agents
 			{
 				updates.Add(updateBuilder.Set(x => x.Resources, new Dictionary<string, int>(options.Resources)));
 			}
-			if (options.DynamicPools != null && !options.DynamicPools.SequenceEqual(agent.DynamicPools))
+			if (options.DynamicPools != null)
 			{
-				updates.Add(updateBuilder.Set(x => x.DynamicPools, new List<PoolId>(options.DynamicPools)));
+				List<PoolId> dynamicPools = CreatePoolsList(options.DynamicPools).ToList();
+				updates.Add(updateBuilder.Set(x => x.DynamicPools, dynamicPools));
 			}
 			if (options.Leases != null)
 			{
@@ -544,6 +600,13 @@ namespace Horde.Server.Agents
 				updates.Add(updateBuilder.Set(x => x.Leases, options.Leases));
 			}
 
+			// Update the pools
+			List<PoolId> pools = CreatePoolsList(options.DynamicPools ?? agent.DynamicPools, agent.ExplicitPools, options.Properties ?? agent.Properties ?? Enumerable.Empty<string>());
+			if (!Enumerable.SequenceEqual(pools, agent.Pools))
+			{
+				updates.Add(updateBuilder.Set(x => x.Pools, pools));
+			}
+
 			// If there are no new updates, return immediately. This is important for preventing UpdateSession calls from returning immediately.
 			if (updates.Count == 0)
 			{
@@ -553,6 +616,60 @@ namespace Horde.Server.Agents
 			// Update the agent, and try to create new lease documents if we succeed
 			return await TryUpdateAsync(agent, updateBuilder.Combine(updates), cancellationToken);
 		}
+
+		static List<PoolId> CreatePoolsList(IEnumerable<PoolId> pools)
+			=> pools.Distinct().OrderBy(x => x.Id.Text).ToList();
+
+		static List<PoolId> CreatePoolsList(IEnumerable<PoolId> dynamicPools, IEnumerable<PoolId> explicitPools, IEnumerable<string>? properties)
+		{
+			List<PoolId> pools = new List<PoolId>();
+			pools.AddRange(dynamicPools);
+			pools.AddRange(explicitPools);
+
+			if (properties != null)
+			{
+				foreach (string property in properties)
+				{
+					const string Key = KnownPropertyNames.RequestedPools + "=";
+					if (property.StartsWith(Key, StringComparison.Ordinal))
+					{
+						try
+						{
+							pools.AddRange(property[Key.Length..].Split(",").Select(x => new PoolId(x)));
+						}
+						catch
+						{
+							// Ignored
+						}
+					}
+				}
+			}
+
+			return CreatePoolsList(pools);
+		}
+
+		private static List<PoolId> GetRequestedPoolsFromProperties(IReadOnlyList<string> properties)
+		{
+			List<PoolId> poolIds = new();
+			foreach (string property in properties)
+			{
+				const string Key = KnownPropertyNames.RequestedPools + "=";
+				if (property.StartsWith(Key, StringComparison.InvariantCulture))
+				{
+					poolIds.AddRange(property[Key.Length..].Split(",").Select(x => new PoolId(x)));
+				}
+			}
+
+			return poolIds;
+		}
+
+		private static List<PoolId> CombineCurrentAndRequestedPools(IReadOnlyList<PoolId> pools, IReadOnlyList<string> properties)
+		{
+			HashSet<PoolId> uniquePools = new(pools);
+			uniquePools.UnionWith(GetRequestedPoolsFromProperties(properties));
+			return new List<PoolId>(uniquePools);
+		}
+
 
 		static bool ResourcesEqual(IReadOnlyDictionary<string, int>? dictA, IReadOnlyDictionary<string, int>? dictB)
 		{
@@ -600,7 +717,6 @@ namespace Horde.Server.Agents
 		{
 			List<string> newProperties = options.Properties.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
 			Dictionary<string, int> newResources = new(options.Resources);
-			List<PoolId> newPools = new(options.Pools);
 			List<PoolId> newDynamicPools = new(options.DynamicPools);
 
 			// Reset the agent to use the new session
@@ -614,7 +730,7 @@ namespace Horde.Server.Agents
 			updates.Add(updateBuilder.Unset(x => x.Deleted));
 			updates.Add(updateBuilder.Set(x => x.Properties, newProperties));
 			updates.Add(updateBuilder.Set(x => x.Resources, newResources));
-			updates.Add(updateBuilder.Set(x => x.Pools, newPools));
+			updates.Add(updateBuilder.Set(x => x.Pools, CreatePoolsList(agent.ExplicitPools, newDynamicPools, newProperties)));
 			updates.Add(updateBuilder.Set(x => x.DynamicPools, newDynamicPools));
 			updates.Add(updateBuilder.Set(x => x.Version, options.Version));
 			updates.Add(updateBuilder.Unset(x => x.RequestRestart));

@@ -166,7 +166,7 @@ namespace Horde.Server.Tests.Jobs
 				IAgent? agent = await AgentService.CreateAgentAsync("TestAgent", false, "");
 				Assert.IsNotNull(agent);
 
-				agent = await agent.TryUpdateAsync(new UpdateAgentOptions { Enabled = isAgentEnabled, Pools = new List<PoolId> { pool.Id } });
+				agent = await agent.TryUpdateAsync(new UpdateAgentOptions { Enabled = isAgentEnabled, ExplicitPools = new List<PoolId> { pool.Id } });
 				Assert.IsNotNull(agent);
 
 				await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new List<string>(), new Dictionary<string, int>(), null);

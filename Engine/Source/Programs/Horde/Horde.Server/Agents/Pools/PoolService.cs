@@ -128,7 +128,7 @@ namespace Horde.Server.Agents.Pools
 			Dictionary<PoolId, IPoolConfig> poolMapping = await GetPoolLookupAsync(validAtTime, cancellationToken);
 
 			List<IPoolConfig> pools = new List<IPoolConfig>();
-			foreach (PoolId poolId in agent.GetPools())
+			foreach (PoolId poolId in agent.Pools)
 			{
 				if (poolMapping.TryGetValue(poolId, out IPoolConfig? pool))
 				{
@@ -220,7 +220,7 @@ namespace Horde.Server.Agents.Pools
 			AutoSdkConfig? autoSdkConfig = null;
 
 			Dictionary<PoolId, IPoolConfig> poolMapping = await GetPoolLookupAsync(validAtTime, cancellationToken);
-			foreach (PoolId poolId in agent.GetPools())
+			foreach (PoolId poolId in agent.Pools)
 			{
 				IPoolConfig? pool;
 				if (poolMapping.TryGetValue(poolId, out pool))

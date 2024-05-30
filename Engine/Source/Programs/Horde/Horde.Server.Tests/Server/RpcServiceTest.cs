@@ -336,7 +336,7 @@ namespace Horde.Server.Tests.Server
 			RpcCreateSessionResponse res = await RpcService.CreateSession(req, _adminContext);
 
 			IAgent agent = (await AgentService.GetAgentAsync(new AgentId(res.AgentId)))!;
-			CollectionAssert.AreEquivalent(new List<PoolId> { new("fooPool"), new("barPool") }, agent.GetPools().ToList());
+			CollectionAssert.AreEquivalent(new List<PoolId> { new("fooPool"), new("barPool") }, agent.Pools.ToList());
 
 			// Connect a second time, when the agent has already been created
 			req = new() { Id = new AgentId("bogusAgentName").ToString(), Capabilities = new RpcAgentCapabilities() };
@@ -344,7 +344,7 @@ namespace Horde.Server.Tests.Server
 			res = await RpcService.CreateSession(req, _adminContext);
 
 			agent = (await AgentService.GetAgentAsync(new AgentId(res.AgentId)))!;
-			CollectionAssert.AreEquivalent(new List<PoolId> { new("fooPool"), new("barPool"), new("bazPool") }, agent.GetPools().ToList());
+			CollectionAssert.AreEquivalent(new List<PoolId> { new("fooPool"), new("barPool"), new("bazPool") }, agent.Pools.ToList());
 		}
 
 		[TestMethod]

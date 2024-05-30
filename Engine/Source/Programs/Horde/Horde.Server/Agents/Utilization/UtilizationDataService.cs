@@ -77,7 +77,7 @@ namespace Horde.Server.Agents.Utilization
 			agents = agents.Where(x => x.Enabled && x.IsSessionValid(currentTime)).ToList();
 
 			// Find all the agents
-			Dictionary<AgentId, List<PoolId>> agentToPoolIds = agents.ToDictionary(x => x.Id, x => x.GetPools().ToList());
+			Dictionary<AgentId, List<PoolId>> agentToPoolIds = agents.ToDictionary(x => x.Id, x => x.Pools.ToList());
 
 			// Generate all the telemetry data
 			DateTime bucketMinTime = minTime;

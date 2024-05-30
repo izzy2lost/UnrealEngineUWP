@@ -174,7 +174,7 @@ namespace Horde.Server.Agents
 				new Dictionary<string, int>(agent.Resources),
 				agent.UpdateTime,
 				agent.LastStatusChange,
-				agent.GetPools().Select(x => x.ToString()).ToList(),
+				agent.Pools.Select(x => x.ToString()).ToList(),
 				new { Devices = new[] { new { agent.Properties, agent.Resources } } },
 				leases,
 				agent.Workspaces.ConvertAll(x => CreateGetAgentWorkspaceResponse(x)),

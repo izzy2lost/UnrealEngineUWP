@@ -111,6 +111,11 @@ namespace Horde.Server.Agents
 		public int? UpgradeAttemptCount { get; }
 
 		/// <summary>
+		/// All pools for this agent
+		/// </summary>
+		public IReadOnlyList<PoolId> Pools { get; }
+
+		/// <summary>
 		/// Dynamically applied pools
 		/// </summary>
 		public IReadOnlyList<PoolId> DynamicPools { get; }
@@ -267,9 +272,9 @@ namespace Horde.Server.Agents
 	/// <param name="RequestShutdown">Whether to request the machine be shut down</param>
 	/// <param name="RequestForceRestart">Request an immediate restart without waiting for leases to complete</param>
 	/// <param name="ShutdownReason">The reason for shutting down agent, ex. Autoscaler/Manual/Unexpected</param>
-	/// <param name="Pools">List of pools for the agent</param>
+	/// <param name="ExplicitPools">List of pools for the agent</param>
 	/// <param name="Comment">New comment</param>
-	public record class UpdateAgentOptions(bool? Enabled = null, bool? RequestConform = null, bool? RequestFullConform = null, bool? RequestRestart = null, bool? RequestShutdown = null, bool? RequestForceRestart = null, string? ShutdownReason = null, List<PoolId>? Pools = null, string? Comment = null);
+	public record class UpdateAgentOptions(bool? Enabled = null, bool? RequestConform = null, bool? RequestFullConform = null, bool? RequestRestart = null, bool? RequestShutdown = null, bool? RequestForceRestart = null, string? ShutdownReason = null, List<PoolId>? ExplicitPools = null, string? Comment = null);
 
 	/// <summary>
 	/// Options for starting a new agent session
@@ -279,11 +284,10 @@ namespace Horde.Server.Agents
 	/// <param name="Status">Status of the agent</param>
 	/// <param name="Properties">Properties for the current session</param>
 	/// <param name="Resources">Resources for the agent</param>
-	/// <param name="Pools">New list of pools for the agent</param>
 	/// <param name="DynamicPools">New list of dynamic pools for the agent</param>
 	/// <param name="LastStatusChange">Time to force status change timestamp to</param>
 	/// <param name="Version">Current version of the agent software</param>
-	public record class CreateSessionOptions(SessionId SessionId, DateTime SessionExpiresAt, AgentStatus Status, IReadOnlyList<string> Properties, IReadOnlyDictionary<string, int> Resources, IReadOnlyList<PoolId> Pools, IReadOnlyList<PoolId> DynamicPools, DateTime LastStatusChange, string? Version);
+	public record class CreateSessionOptions(SessionId SessionId, DateTime SessionExpiresAt, AgentStatus Status, IReadOnlyList<string> Properties, IReadOnlyDictionary<string, int> Resources, IReadOnlyList<PoolId> DynamicPools, DateTime LastStatusChange, string? Version);
 
 	/// <summary>
 	/// Options for updating a new agent session
@@ -373,24 +377,7 @@ namespace Horde.Server.Agents
 		/// <returns></returns>
 		public static bool IsInPool(this IAgent agent, PoolId poolId)
 		{
-			return agent.DynamicPools.Contains(poolId) || agent.ExplicitPools.Contains(poolId);
-		}
-
-		/// <summary>
-		/// Get all the pools for each agent
-		/// </summary>
-		/// <param name="agent">The agent to query</param>
-		/// <returns></returns>
-		public static IEnumerable<PoolId> GetPools(this IAgent agent)
-		{
-			foreach (PoolId poolId in agent.DynamicPools)
-			{
-				yield return poolId;
-			}
-			foreach (PoolId poolId in agent.ExplicitPools)
-			{
-				yield return poolId;
-			}
+			return agent.Pools.Contains(poolId);
 		}
 
 		/// <summary>
@@ -462,7 +449,7 @@ namespace Horde.Server.Agents
 			}
 			else if (name.Equals(KnownPropertyNames.Pool, StringComparison.OrdinalIgnoreCase))
 			{
-				foreach (PoolId poolId in agent.GetPools())
+				foreach (PoolId poolId in agent.Pools)
 				{
 					yield return poolId.ToString();
 				}

@@ -288,7 +288,7 @@ namespace Horde.Server.Jobs
 				List<object> outputWaiters = new List<object>();
 				foreach (QueueWaiter waiter in _waiters)
 				{
-					outputWaiters.Add(new { Id = waiter.Agent.Id.ToString(), Pools = waiter.Agent.GetPools().Select(x => x.ToString()).ToList(), waiter.Agent.Workspaces });
+					outputWaiters.Add(new { Id = waiter.Agent.Id.ToString(), Pools = waiter.Agent.Pools.Select(x => x.ToString()).ToList(), waiter.Agent.Workspaces });
 				}
 
 				return new { Items = outputItems, Waiters = outputWaiters };

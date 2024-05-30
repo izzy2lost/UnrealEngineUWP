@@ -230,7 +230,7 @@ namespace Horde.Server.Server
 				IReadOnlyList<IAgent> agents = await agentCollection.FindAsync(cancellationToken: cancellationToken);
 				foreach (IAgent agent in agents)
 				{
-					foreach (PoolId poolId in agent.GetPools())
+					foreach (PoolId poolId in agent.Pools)
 					{
 						int count;
 						if (!poolIdToCount.TryGetValue(poolId, out count))

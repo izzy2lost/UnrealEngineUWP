@@ -214,7 +214,7 @@ namespace Horde.Server.Agents.Fleet
 			// Find pool utilization over the query period
 			foreach (AgentData agentData in agentIdToData.Values)
 			{
-				foreach (PoolId poolId in agentData.Agent.GetPools())
+				foreach (PoolId poolId in agentData.Agent.Pools)
 				{
 					PoolData? poolData;
 					if (poolToData.TryGetValue(poolId, out poolData))
