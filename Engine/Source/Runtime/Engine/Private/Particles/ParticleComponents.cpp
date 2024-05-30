@@ -128,26 +128,6 @@ FCustomVersionRegistration GRegisterParticleSystemCustomVersion(FParticleSystemC
 
 //////////////////////////////////////////////////////////////////////////
 
-void UFXSystemAsset::PostInitProperties()
-{
-	Super::PostInitProperties();
-
-#if WITH_PARTICLE_PERF_CSV_STATS
-	CSVStat_Total = *FString::Printf(TEXT("Total/%s"), *GetFName().ToString());
-	CSVStat_GTOnly = *FString::Printf(TEXT("GTOnly/%s"), *GetFName().ToString());
-	CSVStat_InstAvgGT = *FString::Printf(TEXT("InstAvgGT/%s"), *GetFName().ToString());
-	CSVStat_RT = *FString::Printf(TEXT("RT/%s"), *GetFName().ToString());
-	CSVStat_InstAvgRT = *FString::Printf(TEXT("InstAvgRT/%s"), *GetFName().ToString());
-	CSVStat_GPU = *FString::Printf(TEXT("GPU/%s"), *GetFName().ToString());
-	CSVStat_InstAvgGPU = *FString::Printf(TEXT("InstAvgGPU/%s"), *GetFName().ToString());
-	CSVStat_Count = *FString::Printf(TEXT("Count/%s"), *GetFName().ToString());
-	CSVStat_Activation = *FString::Printf(TEXT("Activation/%s"), *GetFName().ToString());
-	CSVStat_Waits = *FString::Printf(TEXT("Waits/%s"), *GetFName().ToString());
-	CSVStat_Culled = *FString::Printf(TEXT("Culled/%s"), *GetFName().ToString());
-	CSVStat_MemoryKB = *FString::Printf(TEXT("MemoryKB/%s"), *GetFName().ToString());
-#endif
-}
-
 void UFXSystemAsset::LaunchPSOPrecaching(const FMaterialInterfacePSOPrecacheParamsList& PSOPrecacheParamsList)
 {
 	FGraphEventArray PrecachePSOsEvents;

@@ -120,8 +120,6 @@ class UFXSystemAsset : public UObject
 public:
 	UFXSystemAsset() {}
 
-	ENGINE_API virtual void PostInitProperties() override;
-
 	/** Max number of components of this system to keep resident in the world component pool. */
 	UPROPERTY(EditAnywhere, Category = Performance, AdvancedDisplay)
 	uint32 MaxPoolSize;
@@ -137,22 +135,6 @@ public:
 
 #if WITH_PER_SYSTEM_PARTICLE_PERF_STATS
 	mutable FParticlePerfStats* ParticlePerfStats = nullptr;
-
-	//Cached CSV Stat names for this system.
-#if WITH_PARTICLE_PERF_CSV_STATS
-	FName CSVStat_Count = NAME_None;
-	FName CSVStat_Total = NAME_None;
-	FName CSVStat_GTOnly = NAME_None;
-	FName CSVStat_InstAvgGT = NAME_None;
-	FName CSVStat_RT = NAME_None;
-	FName CSVStat_InstAvgRT = NAME_None;
-	FName CSVStat_GPU = NAME_None;
-	FName CSVStat_InstAvgGPU = NAME_None;
-	FName CSVStat_Activation = NAME_None;
-	FName CSVStat_Waits = NAME_None;
-	FName CSVStat_Culled = NAME_None;
-	FName CSVStat_MemoryKB = NAME_None;
-#endif
 #endif
 
 	const FGraphEventRef& GetPrecachePSOsEvent() const { return PrecachePSOsEvent; }

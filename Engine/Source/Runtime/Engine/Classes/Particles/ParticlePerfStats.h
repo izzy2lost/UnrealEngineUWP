@@ -270,6 +270,25 @@ struct FParticlePerfStats
 		return GPUStats;
 	}
 
+	//Cached CSV Stat names for this system.
+#if WITH_PARTICLE_PERF_CSV_STATS
+	FName CSVStat_Count = NAME_None;
+	FName CSVStat_Total = NAME_None;
+	FName CSVStat_GTOnly = NAME_None;
+	FName CSVStat_InstAvgGT = NAME_None;
+	FName CSVStat_RT = NAME_None;
+	FName CSVStat_InstAvgRT = NAME_None;
+	FName CSVStat_GPU = NAME_None;
+	FName CSVStat_InstAvgGPU = NAME_None;
+	FName CSVStat_Activation = NAME_None;
+	FName CSVStat_Waits = NAME_None;
+	FName CSVStat_Culled = NAME_None;
+	FName CSVStat_MemoryKB = NAME_None;
+
+	void PopulateStatNames(const FName InName);
+	void ResetStatNames();
+#endif
+
 private:
 	static ENGINE_API FParticlePerfStats* GetWorldPerfStats(const UWorld* World);
 	static ENGINE_API FParticlePerfStats* GetSystemPerfStats(const UFXSystemAsset* FXAsset);

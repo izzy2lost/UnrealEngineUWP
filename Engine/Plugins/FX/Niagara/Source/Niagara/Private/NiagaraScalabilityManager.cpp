@@ -776,7 +776,8 @@ void FNiagaraScalabilityManager::CSVProfilerUpdate(FCsvProfiler* CSVProfiler)
 		if(CompState.bCulled)
 		{
 			UNiagaraSystem* System = Comp->GetAsset();
-			CSVProfiler->RecordCustomStat(System->CSVStat_Culled, CSV_CATEGORY_INDEX(Particles), 1, ECsvCustomStatOp::Accumulate);
+			FParticlePerfStats* Stats = FParticlePerfStatsManager::GetSystemPerfStats(System);
+			CSVProfiler->RecordCustomStat(Stats->CSVStat_Culled, CSV_CATEGORY_INDEX(Particles), 1, ECsvCustomStatOp::Accumulate);
 		}
 	}
 	CSVProfiler->RecordCustomStat(Total, CSV_CATEGORY_INDEX(Particles), NumCulled, ECsvCustomStatOp::Accumulate);
