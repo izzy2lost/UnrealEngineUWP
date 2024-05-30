@@ -116,7 +116,7 @@ private:
 
 IMPLEMENT_GLOBAL_SHADER(FRefPoseTransformProviderCS, "/Engine/Private/Skinning/TransformProviders.usf", "RefPoseProviderCS", SF_Compute);
 
-static FGuid RefPoseProviderId(0x665207E7, 0x449A4FB, 0xA298F7AD, 0x8F989B11);
+static FGuid RefPoseProviderId(0x665207E7, 0x449A4FB1, 0xA298F7AD, 0x8F989B11);
 
 // TODO: Nanite-Skinning [Need to safely populate UpdateList - for now we can defrag and full re-upload to GPU scene every frame]
 #define NANITE_SKINNING_WIP 1
