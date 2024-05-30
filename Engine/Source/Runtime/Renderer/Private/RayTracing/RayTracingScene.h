@@ -47,14 +47,51 @@ class FRayTracingScene
 {
 public:
 
+	struct FInstanceHandle
+	{
+		FInstanceHandle()
+			: Index(UINT32_MAX)
+		{}
+
+		bool IsValid() const
+		{
+			return Index != UINT32_MAX;
+		}
+
+	private:
+		FInstanceHandle(uint32 InIndex)
+			: Index(InIndex)
+		{}
+
+		uint32 Index;
+
+		friend class FRayTracingScene;
+	};
+
+	static const FInstanceHandle INVALID_INSTANCE_HANDLE;
+
+	struct FInstanceRange
+	{
+	private:
+		FInstanceRange(uint32 InStartIndex, uint32 InNum)
+			: StartIndex(InStartIndex)
+			, Num(InNum)
+		{}
+
+		uint32 StartIndex;
+		uint32 Num;
+
+		friend class FRayTracingScene;
+	};
+
 	FRayTracingScene();
 	~FRayTracingScene();
 
-	uint32 AddInstance(FRayTracingGeometryInstance Instance, const FPrimitiveSceneProxy* Proxy = nullptr, bool bDynamic = false);
+	FInstanceHandle AddInstance(FRayTracingGeometryInstance Instance, const FPrimitiveSceneProxy* Proxy = nullptr, bool bDynamic = false);
 
-	uint32 AddInstancesUninitialized(uint32 NumInstances);
+	FInstanceRange AllocateInstanceRangeUninitialized(uint32 NumInstances);
 
-	void SetInstance(uint32 InstanceIndex, FRayTracingGeometryInstance Instance, const FPrimitiveSceneProxy* Proxy = nullptr, bool bDynamic = false);
+	void SetInstance(FInstanceRange InstanceRange, uint32 InstanceIndexInRange, FRayTracingGeometryInstance Instance, const FPrimitiveSceneProxy* Proxy = nullptr, bool bDynamic = false);
 
 	// Allocates RayTracingSceneRHI and builds various metadata required to create the final scene.
 	FRayTracingSceneWithGeometryInstances BuildInitializationData() const;
@@ -106,7 +143,7 @@ public:
 
 	TArrayView<const FRayTracingGeometryInstance> GetInstances() const { return MakeArrayView(Instances); }
 
-	FRayTracingGeometryInstance& GetInstance(uint32 InstanceIndex) { return Instances[InstanceIndex]; }
+	FRayTracingGeometryInstance& GetInstance(FInstanceHandle Handle) { return Instances[Handle.Index]; }
 
 	uint32 GetTotalNumSegments() const { return NumSegments; }
 

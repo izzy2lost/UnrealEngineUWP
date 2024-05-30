@@ -31,6 +31,8 @@ BEGIN_SHADER_PARAMETER_STRUCT(FBuildInstanceBufferPassParams, )
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
 END_SHADER_PARAMETER_STRUCT()
 
+const FRayTracingScene::FInstanceHandle FRayTracingScene::INVALID_INSTANCE_HANDLE = FInstanceHandle();
+
 FRayTracingScene::FRayTracingScene()
 {
 
@@ -474,7 +476,7 @@ FRDGBufferSRVRef FRayTracingScene::GetLayerView(ERayTracingSceneLayer Layer) con
 	return LayerSRVs[uint8(Layer)];
 }
 
-uint32 FRayTracingScene::AddInstance(FRayTracingGeometryInstance Instance, const FPrimitiveSceneProxy* Proxy, bool bDynamic)
+FRayTracingScene::FInstanceHandle FRayTracingScene::AddInstance(FRayTracingGeometryInstance Instance, const FPrimitiveSceneProxy* Proxy, bool bDynamic)
 {
 	FRHIRayTracingGeometry* GeometryRHI = Instance.GeometryRHI;
 
@@ -494,10 +496,10 @@ uint32 FRayTracingScene::AddInstance(FRayTracingGeometryInstance Instance, const
 		check(Instances.Num() == InstancesDebugData.Num());
 	}
 
-	return InstanceIndex;
+	return { InstanceIndex };
 }
 
-uint32 FRayTracingScene::AddInstancesUninitialized(uint32 NumInstances)
+FRayTracingScene::FInstanceRange FRayTracingScene::AllocateInstanceRangeUninitialized(uint32 NumInstances)
 {
 	const uint32 OldNum = Instances.AddUninitialized(NumInstances);
 
@@ -508,11 +510,15 @@ uint32 FRayTracingScene::AddInstancesUninitialized(uint32 NumInstances)
 		check(Instances.Num() == InstancesDebugData.Num());
 	}
 
-	return OldNum;
+	return { OldNum, NumInstances };
 }
 
-void FRayTracingScene::SetInstance(uint32 InstanceIndex, FRayTracingGeometryInstance InInstance, const FPrimitiveSceneProxy* Proxy, bool bDynamic)
+void FRayTracingScene::SetInstance(FInstanceRange InstanceRange, uint32 InstanceIndexInRange, FRayTracingGeometryInstance InInstance, const FPrimitiveSceneProxy* Proxy, bool bDynamic)
 {
+	checkf(InstanceIndexInRange < InstanceRange.Num, TEXT("InstanceIndexInRange (%d) is out of bounds for the range (%d)"), InstanceIndexInRange, InstanceRange.Num);
+
+	const uint32 InstanceIndex = InstanceRange.StartIndex + InstanceIndexInRange;
+
 	FRHIRayTracingGeometry* GeometryRHI = InInstance.GeometryRHI;
 
 	FRayTracingGeometryInstance* Instance = &Instances[InstanceIndex];
