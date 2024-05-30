@@ -98,6 +98,9 @@ public:
 		const bool bInAdditionalViewFamily
 	) const = 0;
 
+	/** This function sets the engine flags corresponding to the rendering mode. */
+	static void SetupEngineShowFlags(const EDisplayClusterViewportCaptureMode InMode, FEngineShowFlags& InOutEngineShowFlags);
+
 	/**
 	* Initialize view family, using rules
 	* [Game thread func]
