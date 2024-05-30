@@ -5,6 +5,7 @@
 #include "IClientSelectionModel.h"
 #include "MultiStreamModel.h"
 #include "Replication/ClientReplicationWidgetFactories.h"
+#include "Replication/MultiUserReplicationManager.h"
 #include "Replication/ReplicationWidgetFactories.h"
 #include "Replication/Client/ReplicationClient.h"
 #include "Replication/Client/ReplicationClientManager.h"
@@ -22,12 +23,17 @@
 
 namespace UE::MultiUserClient
 {
-	void SMultiClientView::Construct(const FArguments& InArgs, TSharedRef<IConcertClient> InConcertClient, FReplicationClientManager& InClientManager, IClientSelectionModel& InDisplayClientsModel)
+	void SMultiClientView::Construct(
+		const FArguments&,
+		TSharedRef<IConcertClient> InConcertClient,
+		FMultiUserReplicationManager& InMultiUserReplicationManager,
+		IClientSelectionModel& InDisplayClientsModel
+		)
 	{
-		StreamModel = MakeShared<FMultiStreamModel>(InDisplayClientsModel, InClientManager);
+		ClientManager = InMultiUserReplicationManager.GetClientManager();
+		StreamModel = MakeShared<FMultiStreamModel>(InDisplayClientsModel, *ClientManager);
 
 		ConcertClient = MoveTemp(InConcertClient);
-		ClientManager = &InClientManager;
 		ClientManager->OnRemoteClientsChanged().AddSP(this, &SMultiClientView::RebuildClientSubscriptions);
 		SelectionModel = &InDisplayClientsModel;
 		SelectionModel->OnSelectionChanged().AddSP(this, &SMultiClientView::RebuildClientSubscriptions);
@@ -41,11 +47,11 @@ namespace UE::MultiUserClient
 			+SVerticalBox::Slot()
 			.FillHeight(1.f)
 			[
-				CreateEditorContent(ConcertClient.ToSharedRef(), InClientManager)
+				CreateEditorContent(ConcertClient.ToSharedRef(), InMultiUserReplicationManager)
 			]
 		];
 		
-		SReplicationStatus::AppendReplicationStatus(*Content, InClientManager.GetAuthorityCache(),
+		SReplicationStatus::AppendReplicationStatus(*Content, ClientManager->GetAuthorityCache(),
 			SReplicationStatus::FArguments()
 			.DisplayedClients(this, &SMultiClientView::GetDisplayClientIds)
 			.ForEachReplicatedObject(this, &SMultiClientView::EnumerateObjectsInStreams)
@@ -66,10 +72,12 @@ namespace UE::MultiUserClient
 		CleanClientSubscriptions();
 	}
 
-	TSharedRef<SWidget> SMultiClientView::CreateEditorContent(const TSharedRef<IConcertClient>& InConcertClient, FReplicationClientManager& InClientManager)
+	TSharedRef<SWidget> SMultiClientView::CreateEditorContent(const TSharedRef<IConcertClient>& InConcertClient, FMultiUserReplicationManager& InMultiUserReplicationManager)
 	{
 		using namespace UE::ConcertSharedSlate;
 
+		FMuteStateManager& MuteManager = *InMultiUserReplicationManager.GetMuteManager();
+		
 		TAttribute<TSharedPtr<IMultiReplicationStreamEditor>> MultiStreamEditorAttribute =
 		   TAttribute<TSharedPtr<IMultiReplicationStreamEditor>>::CreateLambda([this]()
 		   {
@@ -80,9 +88,9 @@ namespace UE::MultiUserClient
 		   {
 			   return ObjectHierarchy.Get();
 		   });
-		FGetAutoAssignTarget GetAutoAssignTargetDelegate = FGetAutoAssignTarget::CreateLambda([this, &InClientManager](TConstArrayView<UObject*>)
+		FGetAutoAssignTarget GetAutoAssignTargetDelegate = FGetAutoAssignTarget::CreateLambda([this](TConstArrayView<UObject*>)
 		{
-			const TSharedRef<IEditableReplicationStreamModel>& LocalStream = InClientManager.GetLocalClient().GetClientEditModel();
+			const TSharedRef<IEditableReplicationStreamModel>& LocalStream = ClientManager->GetLocalClient().GetClientEditModel();
 			return StreamModel->GetEditableStreams().Contains(LocalStream) ? LocalStream.ToSharedPtr() : nullptr;
 		});
 		const TSharedRef<ConcertClientSharedSlate::FSelectPropertyFromUClassModel> PropertySourceModel = MakeShared<ConcertClientSharedSlate::FSelectPropertyFromUClassModel>();
@@ -92,7 +100,7 @@ namespace UE::MultiUserClient
 			.AdditionalPropertyColumns =
 			{
 				ReplicationColumns::Property::LabelColumn(),
-				MultiStreamColumns::AssignPropertyColumn(MultiStreamEditorAttribute, InConcertClient, InClientManager)
+				MultiStreamColumns::AssignPropertyColumn(MultiStreamEditorAttribute, InConcertClient, *ClientManager)
 			}
 		};
 		TSharedRef<IPropertyTreeView> PropertyTreeView = CreateFilterablePropertyTreeView(MoveTemp(TreeViewParams));
@@ -116,8 +124,8 @@ namespace UE::MultiUserClient
 			.OnExtendObjectsContextMenu = FExtendObjectMenu::CreateSP(this, &SMultiClientView::ExtendObjectContextMenu),
 			.ObjectColumns =
 			{
-				MultiStreamColumns::ReplicationToggle(InConcertClient, ObjectHierarchyAttribute, InClientManager),
-				MultiStreamColumns::AssignedClientsColumn(InConcertClient, MultiStreamEditorAttribute, ObjectHierarchyAttribute, InClientManager.GetReassignmentLogic(), InClientManager)
+				MultiStreamColumns::MuteToggleColumn(MuteManager.GetChangeTracker()),
+				MultiStreamColumns::AssignedClientsColumn(InConcertClient, MultiStreamEditorAttribute, ObjectHierarchyAttribute, ClientManager->GetReassignmentLogic(), *ClientManager)
 			},
 			.ShouldDisplayObjectDelegate = FShouldDisplayObject::CreateSP(this, &SMultiClientView::ShouldDisplayObject)
 		};

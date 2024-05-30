@@ -20,6 +20,7 @@ namespace UE::MultiUserClient
 {
 	class FGlobalAuthorityCache;
 	class FMultiStreamModel;
+	class FMultiUserReplicationManager;
 	class FReplicationClient;
 	class FReplicationClientManager;
 	class IClientSelectionModel;
@@ -31,7 +32,12 @@ namespace UE::MultiUserClient
 		SLATE_BEGIN_ARGS(SMultiClientView){}
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, TSharedRef<IConcertClient> InConcertClient, FReplicationClientManager& InClientManager UE_LIFETIMEBOUND, IClientSelectionModel& InDisplayClientsModel UE_LIFETIMEBOUND);
+		void Construct(
+			const FArguments& InArgs,
+			TSharedRef<IConcertClient> InConcertClient,
+			FMultiUserReplicationManager& InMultiUserReplicationManager UE_LIFETIMEBOUND,
+			IClientSelectionModel& InDisplayClientsModel UE_LIFETIMEBOUND
+			);
 		virtual ~SMultiClientView() override;
 
 	private:
@@ -51,7 +57,7 @@ namespace UE::MultiUserClient
 		ConcertClientSharedSlate::FHideObjectsNotInWorldLogic HideObjectsNotInEditorWorld;
 
 		/** Creates this widget's editor content */
-		TSharedRef<SWidget> CreateEditorContent(const TSharedRef<IConcertClient>& InConcertClient, FReplicationClientManager& InClientManager);
+		TSharedRef<SWidget> CreateEditorContent(const TSharedRef<IConcertClient>& InConcertClient, FMultiUserReplicationManager& InMultiUserReplicationManager);
 
 		// SClientToolbar attributes
 		TSet<FGuid> GetDisplayClientIds() const;

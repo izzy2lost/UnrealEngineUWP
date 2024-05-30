@@ -39,6 +39,9 @@ namespace UE::MultiUserClient
 		/** Iterates every client that Object in its stream. */
 		void ForEachClientWithObjectInStream(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FGuid& ClientId)> Callback) const;
 
+		/** @return Whether the object is referenced by at least one client stream. */
+		bool IsObjectOrChildReferenced(const FSoftObjectPath& Object) const;
+
 		/** Iterates every client that has authority over Object. */
 		void ForEachClientWithAuthorityOverObject(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FGuid& ClientId)> Callback) const;
 		/** Util that uses ForEachClientWithAuthorityOverObject to make an array. */

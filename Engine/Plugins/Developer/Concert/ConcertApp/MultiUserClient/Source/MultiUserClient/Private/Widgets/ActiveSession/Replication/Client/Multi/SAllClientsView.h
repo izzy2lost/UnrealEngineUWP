@@ -3,6 +3,8 @@
 #pragma once
 
 #include "AllClientsSelectionModel.h"
+
+#include "HAL/Platform.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
@@ -10,6 +12,7 @@ class IConcertClient;
 
 namespace UE::MultiUserClient
 {
+	class FMultiUserReplicationManager;
 	class FReplicationClient;
 	class FReplicationClientManager;
 
@@ -19,7 +22,7 @@ namespace UE::MultiUserClient
 		SLATE_BEGIN_ARGS(SAllClientsView){}
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, TSharedRef<IConcertClient> InConcertClient, FReplicationClientManager& InClientManager);
+		void Construct(const FArguments&, TSharedRef<IConcertClient> InConcertClient, FMultiUserReplicationManager& InMultiUserReplicationManager UE_LIFETIMEBOUND);
 
 	private:
 

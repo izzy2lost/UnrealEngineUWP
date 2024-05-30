@@ -9,7 +9,6 @@
 #include "Replication/Submission/MultiEdit/ReassignObjectPropertiesLogic.h"
 #include "Replication/Submission/Notification/SubmissionNotifier.h"
 #include "Replication/Util/GlobalAuthorityCache.h"
-#include "Replication/Util/Query/RegularQueryService.h"
 
 #include "UObject/GCObject.h"
 #include "Templates/UnrealTemplate.h"
@@ -26,6 +25,7 @@ namespace UE::MultiUserClient
 	class FRemoteReplicationClient;
 	class FReplicationDiscoveryContainer;
 	class FReplicationClient;
+	class FStreamAndAuthorityQueryService;
 	class FStreamChangeTracker;
 
 	/**
@@ -44,11 +44,13 @@ namespace UE::MultiUserClient
 		 * @param InClient The local client. The owning FMultiUserReplicationManager ensures it outlives the constructed instance.
 		 * @param InSession The session to observe. The owning FMultiUserReplicationManager ensures it outlives the constructed instance.
 		 * @param InRegisteredExtenders Used for auto-discovering properties added to this client's stream. Passed to the clients. The owning FMultiUserReplicationManager ensures it outlives the constructed instance.
+		 * @param InQueryService Used for querying info about clients' streams. Passed to the clients. The owning FMultiUserReplicationManager ensures it outlives the constructed instance.
 		 */
 		FReplicationClientManager(
 			const TSharedRef<IConcertSyncClient>& InClient,
 			const TSharedRef<IConcertClientSession>& InSession,
-			FReplicationDiscoveryContainer& InRegisteredExtenders
+			FReplicationDiscoveryContainer& InRegisteredExtenders UE_LIFETIMEBOUND,
+			FStreamAndAuthorityQueryService& InQueryService UE_LIFETIMEBOUND
 			);
 		virtual ~FReplicationClientManager() override;
 
@@ -132,7 +134,7 @@ namespace UE::MultiUserClient
 		 * Sends FConcertReplication_QueryReplicationInfo_Request in regular intervals.
 		 * Shared by all remote clients so all requests are bundled reducing the number of network requests. 
 		 */
-		FRegularQueryService QueryService;
+		FStreamAndAuthorityQueryService& QueryService;
 		/** Keeps a cache of object to owning clients. */
 		FGlobalAuthorityCache AuthorityCache;
 		
@@ -150,12 +152,6 @@ namespace UE::MultiUserClient
 		FRemoteClientDelegate OnPostRemoteClientAddedDelegate;
 		/** Called just before a remote client is about to be removed from RemoteClients. */
 		FRemoteClientDelegate OnPreRemoteClientRemovedDelegate; 
-		
-		/**
-		 * Manages SNotificationItems when submission to the server fails.
-		 * TODO UE-200925: This should be moved to the client so we can customize messages depending on whether it is a remote or local client
-		 */
-		FSubmissionNotifier SubmissionNotifier;
 
 		/** Used for transferring ownership from multiple clients to one. Used by multi client view. */
 		FReassignObjectPropertiesLogic ReassignmentLogic;

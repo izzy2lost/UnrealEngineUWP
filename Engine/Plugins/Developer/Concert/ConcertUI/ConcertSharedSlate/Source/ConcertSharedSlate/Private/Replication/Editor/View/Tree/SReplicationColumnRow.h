@@ -99,12 +99,11 @@ namespace UE::ConcertSharedSlate
 					[
 						SNew(SHorizontalBox)
 						
-						+SHorizontalBox::Slot() 
-						.Padding(InPadding)
+						+SHorizontalBox::Slot()
 						.HAlign(HAlign)
 						[
 							SNew(SBox)
-							.Visibility_Lambda([this](){ return this->IsHovered() ? EVisibility::Visible : EVisibility::Collapsed; })
+							.Visibility_Lambda([this](){ return this->IsHovered() ? EVisibility::Visible : EVisibility::Hidden; })
 							[
 								HoverContent
 							]

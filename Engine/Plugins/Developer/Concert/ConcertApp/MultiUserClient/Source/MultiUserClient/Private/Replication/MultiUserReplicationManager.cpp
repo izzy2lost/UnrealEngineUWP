@@ -196,7 +196,11 @@ namespace UE::MultiUserClient
 	}
 
 	FMultiUserReplicationManager::FConnectedState::FConnectedState(TSharedRef<IConcertSyncClient> InClient, FReplicationDiscoveryContainer& InDiscoveryContainer)
-		: ClientManager(InClient, InClient->GetConcertClient()->GetCurrentSession().ToSharedRef(), InDiscoveryContainer)
+		: Client(InClient)
+		, QueryService(*InClient)
+		, ClientManager(InClient, InClient->GetConcertClient()->GetCurrentSession().ToSharedRef(), InDiscoveryContainer, QueryService.GetStreamAndAuthorityQueryService())
+		, MuteManager(*InClient, QueryService.GetMuteStateQueryService(), ClientManager.GetAuthorityCache())
 		, ChangeLevelHandler(ClientManager.GetLocalClient().GetClientEditModel().Get())
+		, UserNotifier(ClientManager, MuteManager)
 	{}
 }

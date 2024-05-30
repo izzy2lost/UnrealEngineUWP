@@ -7,8 +7,11 @@
 #include "Replication/IMultiUserReplication.h"
 #include "Replication/Stream/Discovery/ReplicationDiscoveryContainer.h"
 #include "UnrealEditor/ChangeLevelHandler.h"
+#include "Util/Query/RegularQueryService.h"
 
 #include "Misc/Optional.h"
+#include "Muting/MuteStateManager.h"
+#include "Notification/ReplicationUserNotifier.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
 
@@ -16,15 +19,8 @@ class IConcertClientSession;
 class IConcertSyncClient;
 enum class EConcertConnectionStatus : uint8;
 
-namespace UE::ConcertSyncClient::Replication
-{
-	struct FJoinReplicatedSessionResult;
-}
-
-namespace UE::ConcertSharedSlate
-{
-	class IEditableReplicationStreamModel;
-}
+namespace UE::ConcertSharedSlate { class IEditableReplicationStreamModel; }
+namespace UE::ConcertSyncClient::Replication { struct FJoinReplicatedSessionResult; }
 
 namespace UE::MultiUserClient
 {
@@ -65,6 +61,10 @@ namespace UE::MultiUserClient
 		/** @note You're not supposed to keep any reference to the ClientManager since it can become invalid depending on connection state. */
 		FReplicationClientManager* GetClientManager() { return ConnectedState ? &ConnectedState->ClientManager : nullptr; }
 		const FReplicationClientManager* GetClientManager() const { return ConnectedState ? &ConnectedState->ClientManager : nullptr; }
+		
+		/** @note You're not supposed to keep any reference to the MuteManager since it can become invalid depending on connection state. */
+		FMuteStateManager* GetMuteManager() { return ConnectedState ? &ConnectedState->MuteManager : nullptr; }
+		const FMuteStateManager* GetMuteManager() const { return ConnectedState ? &ConnectedState->MuteManager : nullptr; }
 
 		/** Called when the connection to the replication system changes. */
 		DECLARE_MULTICAST_DELEGATE_OneParam(FOnReplicationConnectionStateChanged, EMultiUserReplicationConnectionState /*NewState*/);
@@ -92,8 +92,17 @@ namespace UE::MultiUserClient
 
 		struct FConnectedState
 		{
-			// The order of the below members matters so they are destroyed in the right order!
+			// The order of the below members matters, so they are destroyed in the right order!
 			// Rule: Lower systems can only reference higher systems (reminder: C++ destroys in reverse declaration order).
+
+			/** Keep the client alive because it is referenced by the lower systems. */
+			TSharedRef<IConcertSyncClient> Client;
+			
+			/**
+			 * Regularly queries server state (only if a system is subscribed to it), such as remote client streams, authority, and global mute state.
+			 * Shared by subsystems, such as remote clients. This ensures requests are bundled, reducing the number of network requests. 
+			 */
+			FRegularQueryService QueryService;
 			
 			/**
 			 * Creates UMultiUserReplicationSessionPreset which is displayed by UI.
@@ -103,8 +112,14 @@ namespace UE::MultiUserClient
 			 */
 			FReplicationClientManager ClientManager;
 
+			/** Interacts with the mute global server mute system. */
+			FMuteStateManager MuteManager;
+
 			/** Clears local client's registered objects when leaving map. */
 			FChangeLevelHandler ChangeLevelHandler;
+
+			/** This system notifies users when requests go wrong */
+			FReplicationUserNotifier UserNotifier;
 			
 			FConnectedState(TSharedRef<IConcertSyncClient> InClient, FReplicationDiscoveryContainer& InDiscoveryContainer);
 		};

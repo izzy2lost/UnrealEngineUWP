@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "MuteStateQueryService.h"
 #include "StreamAndAuthorityQueryService.h"
 #include "Replication/IToken.h"
 
@@ -30,6 +31,8 @@ namespace UE::MultiUserClient
 
 		/** @return The service for querying stream and authority state. */
 		FStreamAndAuthorityQueryService& GetStreamAndAuthorityQueryService() { return StreamAndAuthorityQueryService; }
+		/** @return The service for querying global mute state. */
+		FMuteStateQueryService& GetMuteStateQueryService() { return MuteStateQueryService; }
 
 	private:
 		
@@ -49,6 +52,8 @@ namespace UE::MultiUserClient
 
 		/** Queries stream and authority changes. */
 		FStreamAndAuthorityQueryService StreamAndAuthorityQueryService;
+		/** Queries global mute state at regular intervals. */
+		FMuteStateQueryService MuteStateQueryService;
 
 		/** Ticks the sub-services when it is time to send a new request. */
 		void Tick();

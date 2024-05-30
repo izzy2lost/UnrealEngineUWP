@@ -7,6 +7,7 @@
 #include "RemoteReplicationClient.h"
 #include "Assets/MultiUserReplicationSessionPreset.h"
 #include "Replication/Stream/StreamSynchronizer_LocalClient.h"
+#include "Replication/Util/Query/StreamAndAuthorityQueryService.h"
 
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
@@ -16,20 +17,20 @@ namespace UE::MultiUserClient
 	FReplicationClientManager::FReplicationClientManager(
 		const TSharedRef<IConcertSyncClient>& InClient,
 		const TSharedRef<IConcertClientSession>& InSession,
-		FReplicationDiscoveryContainer& InRegisteredExtenders
+		FReplicationDiscoveryContainer& InRegisteredExtenders,
+		FStreamAndAuthorityQueryService& InQueryService
 		)
 		: SessionContent(NewObject<UMultiUserReplicationSessionPreset>(GetTransientPackage(), NAME_None, RF_Transient))
 		, ConcertClient(InClient)
 		, Session(InSession)
 		, RegisteredExtenders(InRegisteredExtenders)
-		, QueryService(*ConcertClient)
+		, QueryService(InQueryService)
 		, AuthorityCache(*this)
 		, LocalClient([this, InClient]()
 		{
 			UMultiUserReplicationClientPreset* ClientPreset = SessionContent->AddClient();
 			return FLocalReplicationClient(RegisteredExtenders, AuthorityCache, *ClientPreset, MakeUnique<FStreamSynchronizer_LocalClient>(InClient, ClientPreset->Stream->StreamId), InClient);
 		}())
-		, SubmissionNotifier(*this)
 		, ReassignmentLogic(*this)
 	{
 		AuthorityCache.RegisterEvents();
@@ -169,7 +170,7 @@ namespace UE::MultiUserClient
 			ConcertClient->GetConcertClient(),
 			AuthorityCache,
 			*SessionContent->AddClient(),
-			QueryService.GetStreamAndAuthorityQueryService()
+			QueryService
 			);
 		FRemoteReplicationClient& RemoteClient = *RemoteClientPtr;
 		RemoteClients.Emplace(

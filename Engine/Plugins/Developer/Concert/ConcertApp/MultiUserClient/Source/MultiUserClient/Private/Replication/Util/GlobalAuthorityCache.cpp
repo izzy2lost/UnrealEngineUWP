@@ -38,6 +38,19 @@ namespace UE::MultiUserClient
 		}
 	}
 
+	bool FGlobalAuthorityCache::IsObjectOrChildReferenced(const FSoftObjectPath& Object) const
+	{
+		const FString ObjectPathString = Object.ToString();
+		for (const TPair<FSoftObjectPath, TSet<FGuid>>& Pair : RegisteredObjectsToClients)
+		{
+			if (Pair.Key.ToString().Contains(ObjectPathString))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	void FGlobalAuthorityCache::ForEachClientWithAuthorityOverObject(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FGuid& ClientId)> Callback) const
 	{
 		const TSet<FGuid>* Clients = OwnedObjectsToClients.Find(Object);

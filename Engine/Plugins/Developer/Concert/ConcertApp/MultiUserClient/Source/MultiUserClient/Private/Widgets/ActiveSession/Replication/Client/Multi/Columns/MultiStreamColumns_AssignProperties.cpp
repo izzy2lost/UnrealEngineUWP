@@ -99,7 +99,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 			virtual SHeaderRow::FColumn::FArguments CreateHeaderRowArgs() const override
 			{
 				return SHeaderRow::Column(AssignPropertyColumnId)
-					.DefaultLabel(LOCTEXT("Owner.Label", "Client"))
+					.DefaultLabel(LOCTEXT("Owner.Label", "Author"))
 					.ToolTipText(LOCTEXT("Owner.ToolTip", "Client that should replicate this property"))
 					.FillSized(FMultiUserReplicationStyle::Get()->GetFloat(TEXT("AllClients.Property.OwnerSize")));
 			}

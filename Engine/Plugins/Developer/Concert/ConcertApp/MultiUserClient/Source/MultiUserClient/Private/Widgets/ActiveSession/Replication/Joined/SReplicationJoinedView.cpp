@@ -16,7 +16,7 @@ namespace UE::MultiUserClient
 	{
 		ChildSlot
 		[
-			SNew(SAllClientsView, InClient->GetConcertClient(), *InReplicationManager->GetClientManager())
+			SNew(SAllClientsView, InClient->GetConcertClient(), *InReplicationManager)
 		];
 	}
 }

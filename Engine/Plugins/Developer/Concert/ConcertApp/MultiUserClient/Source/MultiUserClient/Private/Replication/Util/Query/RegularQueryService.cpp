@@ -15,6 +15,7 @@ namespace UE::MultiUserClient
 				return true;
 			}))
 		, StreamAndAuthorityQueryService(Token, OwningClient)
+		, MuteStateQueryService(Token, OwningClient)
 	{}
 
 	FRegularQueryService::~FRegularQueryService()
@@ -25,5 +26,6 @@ namespace UE::MultiUserClient
 	void FRegularQueryService::Tick()
 	{
 		StreamAndAuthorityQueryService.SendQueryEvent();
+		MuteStateQueryService.SendQueryEvent();
 	}
 }

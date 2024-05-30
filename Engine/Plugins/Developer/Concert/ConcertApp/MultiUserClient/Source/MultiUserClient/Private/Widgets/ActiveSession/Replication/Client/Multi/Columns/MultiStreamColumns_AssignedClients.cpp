@@ -89,7 +89,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 			}
 		};
 	}
-	
+
 	ConcertSharedSlate::FObjectColumnEntry AssignedClientsColumn(
 		TSharedRef<IConcertClient> ConcertClient,
 		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamModelAttribute,
@@ -120,7 +120,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 			virtual SHeaderRow::FColumn::FArguments CreateHeaderRowArgs() const override
 			{
 				return SHeaderRow::Column(AssignedClientsColumnId)
-					.DefaultLabel(LOCTEXT("Owner.Label", "Clients"))
+					.DefaultLabel(LOCTEXT("Owner.Label", "Author"))
 					.ToolTipText(LOCTEXT("Owner.ToolTip", "Clients that have registered properties for the object"))
 					.FillSized(FMultiUserReplicationStyle::Get()->GetFloat(TEXT("AllClients.Object.OwnerSize")));
 			}

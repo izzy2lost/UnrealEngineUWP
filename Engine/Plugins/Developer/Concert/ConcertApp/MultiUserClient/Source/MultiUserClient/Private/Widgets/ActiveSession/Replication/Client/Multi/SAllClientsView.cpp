@@ -7,17 +7,19 @@
 #include "Replication/Client/ReplicationClientManager.h"
 
 #include "Algo/Transform.h"
+#include "Replication/MultiUserReplicationManager.h"
 
 namespace UE::MultiUserClient
 {
-	void SAllClientsView::Construct(const FArguments& InArgs, TSharedRef<IConcertClient> InConcertClient, FReplicationClientManager& InClientManager)
+	void SAllClientsView::Construct(const FArguments&, TSharedRef<IConcertClient> InConcertClient, FMultiUserReplicationManager& InMultiUserReplicationManager)
 	{
-		ClientManager = &InClientManager;
-		AllClientsModel = MakeUnique<FAllClientsSelectionModel>(InClientManager);
+		ClientManager = InMultiUserReplicationManager.GetClientManager();
+		check(ClientManager);
+		AllClientsModel = MakeUnique<FAllClientsSelectionModel>(*ClientManager);
 		
 		ChildSlot
 		[
-			SNew(SMultiClientView, InConcertClient, InClientManager, *AllClientsModel)
+			SNew(SMultiClientView, InConcertClient, InMultiUserReplicationManager, *AllClientsModel)
 		];
 	}
 

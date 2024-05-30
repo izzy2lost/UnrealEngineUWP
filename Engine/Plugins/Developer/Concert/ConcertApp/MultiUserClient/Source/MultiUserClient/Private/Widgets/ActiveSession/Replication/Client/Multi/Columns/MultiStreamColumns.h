@@ -6,12 +6,14 @@
 #include "Replication/Editor/View/Column/IObjectTreeColumn.h"
 
 #include "Delegates/Delegate.h"
+#include "HAL/Platform.h"
 #include "Misc/EnumClassFlags.h"
 
 class IConcertClient;
 
 namespace UE::MultiUserClient
 {
+	class FMuteChangeTracker;
 	class FReassignObjectPropertiesLogic;
 	class FReplicationClientManager;
 }
@@ -26,33 +28,27 @@ namespace UE::ConcertSharedSlate
 
 namespace UE::MultiUserClient::MultiStreamColumns
 {
-	const extern FName ReplicationToggleColumnId;
+	const extern FName MuteToggleColumnId;
 	const extern FName AssignedClientsColumnId;
 	const extern FName AssignPropertyColumnId;
 	
 	/* @see ETopLevelColumnOrder and EReplicationPropertyColumnOrder */
 	enum class EColumnSortOrder
 	{
-		ReplicationToggle = 0,
+		MuteToggle = 0,
 		AssignPropertyColumn = 30,
 		ReassignOwnership = 40
 	};
 
 	/**
-	 * Toggles replication for all clients assigned to the object (and optionally all children).
+	 * Mutes and unmutes the object and its child objects.
 	 * 
-	 * @param ConcertClient Used to look up client names
-	 * @param ObjectHierarchyModelAttribute Used to get child objects
-	 * @param ClientManager Used to access all clients for toggling authority
-	 * @param ColumnsSortPriority The order relative to the other columns
-	 * 
-	 * @return A checkbox for controlling the authority of the object in the row
+	 * @param MuteChangeTracker Tells us the mute state and changes it.
+	 * @return A checkbox with pause and unpause icons.
 	 */
-	ConcertSharedSlate::FObjectColumnEntry ReplicationToggle(
-		TSharedRef<IConcertClient> ConcertClient,
-		TAttribute<ConcertSharedSlate::IObjectHierarchyModel*> ObjectHierarchyModelAttribute,
-		FReplicationClientManager& ClientManager,
-		const int32 ColumnsSortPriority = static_cast<int32>(EColumnSortOrder::ReplicationToggle)
+	ConcertSharedSlate::FObjectColumnEntry MuteToggleColumn(
+		FMuteChangeTracker& MuteChangeTracker UE_LIFETIMEBOUND,
+		int32 ColumnsSortPriority = static_cast<int32>(EColumnSortOrder::MuteToggle)
 		);
 
 	/**
@@ -70,7 +66,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamModelAttribute,
 		TAttribute<ConcertSharedSlate::IObjectHierarchyModel*> ObjectHierarchyModelAttribute,
 		FReassignObjectPropertiesLogic& ReassignmentLogic,
-		const FReplicationClientManager& ClientManager,
+		const FReplicationClientManager& ClientManager UE_LIFETIMEBOUND,
 		int32 ColumnsSortPriority = static_cast<int32>(EColumnSortOrder::ReassignOwnership)
 		);
 	
@@ -87,7 +83,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 	ConcertSharedSlate::FPropertyColumnEntry AssignPropertyColumn(
 		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamEditor,
 		TSharedRef<IConcertClient> ConcertClient,
-		FReplicationClientManager& ClientManager,
+		FReplicationClientManager& ClientManager UE_LIFETIMEBOUND,
 		const int32 ColumnsSortPriority = static_cast<int32>(EColumnSortOrder::AssignPropertyColumn)
 		);
 }
