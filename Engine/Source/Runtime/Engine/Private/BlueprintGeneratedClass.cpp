@@ -31,6 +31,8 @@
 #include "UObject/SparseClassDataUtils.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "GenericPlatform/GenericPlatformCrashContext.h"
+#include "AutoRTFM/AutoRTFM.h"
+#include "Serialization/AsyncPackageLoader.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(BlueprintGeneratedClass)
 
@@ -1220,7 +1222,13 @@ void UBlueprintGeneratedClass::SetupObjectInitializer(FObjectInitializer& Object
 
 void UBlueprintGeneratedClass::InitPropertiesFromCustomList(uint8* DataPtr, const uint8* DefaultDataPtr)
 {
-	FScopeLock SerializeAndPostLoadLock(&SerializeAndPostLoadCritical);
+	// autortfm: we've introduced a conditional lock here because while running under autortfm, we
+	// only want to take this lock if necessary (if FAsyncLoadingThreadSettings says we're multithreaded)
+	// if not running under autortfm, IsClosed is false and we will always lock without querying whether
+	// we are running multithreaded.
+	UE::TConditionalScopeLock SerializeAndPostLoadLock(
+		SerializeAndPostLoadCritical, 
+		(!AutoRTFM::IsClosed()) || FAsyncLoadingThreadSettings::Get().bAsyncLoadingThreadEnabled);
 
 	if (GBlueprintNativePropertyInitFastPathDisabled
 		|| !ensureMsgf(bCustomPropertyListForPostConstructionInitialized, TEXT("Custom Property List Not Initialized for %s"), *GetPathNameSafe(this))) // Something went wrong, probably a race condition
