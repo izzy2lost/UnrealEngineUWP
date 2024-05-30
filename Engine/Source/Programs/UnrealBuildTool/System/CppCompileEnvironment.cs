@@ -282,11 +282,6 @@ namespace UnrealBuildTool
 		public bool bUseAutoRTFMCompiler = false;
 
 		/// <summary>
-		/// Enables AutoRTFM instrumentation to this cpp file only when AutoRTFMCompiler is enabled
-		/// </summary>
-		public bool bAllowAutoRTFMInstrumentation = false;
-
-		/// <summary>
 		/// Disables AutoRTFM instrumentation to this cpp file only when AutoRTFMCompiler is enabled
 		/// </summary>
 		public bool bDisableAutoRTFMInstrumentation = false;
@@ -780,7 +775,6 @@ namespace UnrealBuildTool
 			StaticAnalyzerRulesets = new HashSet<FileReference>(Other.StaticAnalyzerRulesets);
 			bOptimizeCode = Other.bOptimizeCode;
 			bUseAutoRTFMCompiler = Other.bUseAutoRTFMCompiler;
-			bAllowAutoRTFMInstrumentation = Other.bAllowAutoRTFMInstrumentation;
 			bDisableAutoRTFMInstrumentation = Other.bDisableAutoRTFMInstrumentation;
 			bCodeCoverage = Other.bCodeCoverage;
 			OptimizationLevel = Other.OptimizationLevel;

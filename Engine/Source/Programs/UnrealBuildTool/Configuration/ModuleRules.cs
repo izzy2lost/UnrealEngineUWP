@@ -1186,11 +1186,6 @@ namespace UnrealBuildTool
 		public bool bAllowConfidentialPlatformDefines { get; set; }
 
 		/// <summary>
-		/// Enables AutoRTFM instrumentation to this module only when AutoRTFMCompiler is enabled
-		/// </summary>
-		public bool bAllowAutoRTFMInstrumentation { get; set; }
-
-		/// <summary>
 		/// Disables AutoRTFM instrumentation to this module only when AutoRTFMCompiler is enabled
 		/// </summary>
 		public bool bDisableAutoRTFMInstrumentation { get; set; }
