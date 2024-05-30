@@ -136,13 +136,14 @@ namespace Metasound::Frontend
 
 				virtual TUniquePtr<IOperator> CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults) override
 				{
-					FBuildOperatorParams ForwardParams
+					FBuildOperatorParams ForwardParams 
 					{
 						*Graph,  // Point to correct INode instance
 						InParams.OperatorSettings,
 						InParams.InputData,
 						InParams.Environment,
-						InParams.Builder
+						InParams.Builder,
+						InParams.GraphRenderCost
 					};
 					return GraphFactory->CreateOperator(ForwardParams, OutResults);
 				}

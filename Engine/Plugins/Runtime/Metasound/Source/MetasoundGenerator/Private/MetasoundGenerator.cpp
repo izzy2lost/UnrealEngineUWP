@@ -256,6 +256,7 @@ namespace Metasound
 		InParams.AudioOutputNames = {};
 		InParams.DefaultParameters = {};
 		InParams.DataChannel.Reset();
+		InParams.GraphRenderCost.Reset();
 	}
 
 	void FMetasoundDynamicGraphGeneratorInitParams::Reset(FMetasoundDynamicGraphGeneratorInitParams& InParams)
@@ -284,6 +285,7 @@ namespace Metasound
 #else
 		, bDoRuntimeRenderTiming(false)
 #endif // if ENABLE_METASOUND_GENERATOR_RENDER_TIMING
+	    , RelativeRenderCost(1.f)
 	{
 	}
 
@@ -305,7 +307,7 @@ namespace Metasound
 		return OnSetGraph.Add(Delegate);
 	}
 
-	void FMetasoundGenerator::InitBase(const FMetasoundGeneratorInitParams& InInitParams)
+	void FMetasoundGenerator::InitBase(FMetasoundGeneratorInitParams& InInitParams)
 	{
 		MetasoundName = InInitParams.MetaSoundName;
 		NumChannels = InInitParams.AudioOutputNames.Num();
@@ -323,9 +325,20 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		ParameterPackSendAddress = UMetasoundParameterPack::CreateSendAddressFromEnvironment(InInitParams.Environment);
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		ParameterPackReceiver = FDataTransmissionCenter::Get().RegisterNewReceiver<FMetasoundParameterStorageWrapper>(ParameterPackSendAddress, FReceiverInitParams{ OperatorSettings });
+
+		if (InInitParams.GraphRenderCost.IsValid())
+		{
+			// Use the provided render cost if it exists
+			GraphRenderCost = InInitParams.GraphRenderCost;
+		}
+		else
+		{
+			// If no render cost object is provided make one. 
+			GraphRenderCost = FGraphRenderCost::MakeGraphRenderCost();
+			// Add to the init params so that it is available to metasound graph being built.
+			InInitParams.GraphRenderCost = GraphRenderCost;
+		}
 	}
-
-
 
 	bool FMetasoundGenerator::RemoveGraphSetCallback(const FDelegateHandle& Handle)
 	{
@@ -629,6 +642,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		while (NumSamplesRemaining > 0)
 		{
+			if (GraphRenderCost)
+			{
+				// Set all render node costs to zero to start
+				GraphRenderCost->ResetNodeRenderCosts();
+			}
 			// Create a scoped timed section for the bulk of the processing...
 			{
 				MetasoundGeneratorPrivate::FBlockRenderScope RuntimelBlockRenderScope(RenderTimer.Get());
@@ -691,6 +709,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			{
 				RenderTime = RenderTimer->UpdateCPUCoreUtilization();
 			}
+
+			if (GraphRenderCost)
+			{
+				// Require the cost to be a minimum of 1. 
+				RelativeRenderCost = FMath::Max(1.f, GraphRenderCost->ComputeGraphRenderCost());
+			}
+
 		}
 
 		// If the vertex interface changed, notify listeners
@@ -720,6 +745,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	double FMetasoundGenerator::GetCPUCoreUtilization() const
 	{
 		return RenderTime;
+	}
+
+	float FMetasoundGenerator::GetRelativeRenderCost() const
+	{
+		return RelativeRenderCost;
 	}
 
 	int32 FMetasoundGenerator::FillWithBuffer(const Audio::FAlignedFloatBuffer& InBuffer, float* OutAudio, int32 MaxNumOutputSamples)

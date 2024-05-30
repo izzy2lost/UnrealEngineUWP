@@ -51,6 +51,7 @@ namespace Audio
 		virtual float GetPlaybackPercent() const override;
 		virtual int64 GetNumFramesPlayed() const override;
 		virtual float GetEnvelopeValue() const override;
+		virtual float GetRelativeRenderCost() const override;
 		//~ End FSoundSource Interface
 
 		//~ Begin ISourceListener
@@ -88,6 +89,9 @@ namespace Audio
 
 		/** Updates the channel map of the sound if its a 3d sound.*/
 		void UpdateChannelMaps();
+
+		/** Updates the relative render cost estimate of the playing sound source. */
+		void UpdateRelativeRenderCost();
 
 #if ENABLE_AUDIO_DEBUG
 		void UpdateCPUCoreUtilization();

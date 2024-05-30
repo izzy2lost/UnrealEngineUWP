@@ -12,6 +12,7 @@
 #include "MetasoundNodeRegistrationMacro.h"
 #include "MetasoundParamHelper.h"
 #include "MetasoundPrimitives.h"
+#include "MetasoundRenderCost.h"
 #include "MetasoundTrace.h"
 #include "MetasoundTrigger.h"
 #include "MetasoundVertex.h"
@@ -307,6 +308,7 @@ namespace Metasound
 		FBoolReadRef bLoop;
 		FTimeReadRef LoopStartTime;
 		FTimeReadRef LoopDuration;
+		FNodeRenderCost CostReporter;
 	};
 
 	// Maximum decode size in frames. 
@@ -354,6 +356,7 @@ namespace Metasound
 			, LoopPercent(FFloatWriteRef::CreateNew(0.0f))
 			, PlaybackLocation(FFloatWriteRef::CreateNew(0.0f))
 			, PlaybackTime(FTimeWriteRef::CreateNew(0.0))
+			, CostReporter(InArgs.CostReporter)
 		{
 			NumOutputChannels = InArgs.OutputAudioVertices.Num();
 
@@ -436,6 +439,9 @@ namespace Metasound
 			TriggerOnCuePoint->AdvanceBlock();
 			TriggerOnLooped->AdvanceBlock();
 
+			// Reset flag to track render cost.
+			bDidWaveRenderThisBlock = false;
+
 			// Update wave proxy reader with any new looping bounds. 
 			if (WaveProxyReader.IsValid())
 			{
@@ -462,6 +468,11 @@ namespace Metasound
 
 			// Updates output playhead information
 			UpdatePlaybackLocation();
+
+			if (bDidWaveRenderThisBlock)
+			{
+				CostReporter.SetRenderCost(1.f);
+			}
 		}
 
 		void Reset(const IOperator::FResetParams& InParams)
@@ -582,6 +593,9 @@ namespace Metasound
 			using namespace Audio;
 
 			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FWavePlayerOperator::RenderFrameRange);
+
+			// Set flag that this node rendered wave audio this block.
+			bDidWaveRenderThisBlock = true;
 
 			// Assume this is set to true and checked by outside callers
 			check(bIsPlaying);
@@ -1053,6 +1067,7 @@ namespace Metasound
 		FTimeWriteRef PlaybackTime;
 		TArray<FAudioBufferWriteRef> OutputAudioBuffers;
 		TArray<FName> OutputAudioBufferVertexNames;
+		FNodeRenderCost CostReporter;
 
 		TUniquePtr<FSoundWaveProxyReader> WaveProxyReader;
 		TUniquePtr<Audio::IConvertDeinterleave> ConvertDeinterleave;
@@ -1071,6 +1086,7 @@ namespace Metasound
 		int32 NumDeinterleaveChannels;
 		bool bOnNearlyDoneTriggeredForWave = false;
 		bool bIsPlaying = false;
+		bool bDidWaveRenderThisBlock = false;
 		// Cached from cvar 
 		int32 DeinterleaveBufferBlockSizeInFrames;
 	};
@@ -1101,7 +1117,8 @@ namespace Metasound
 				Inputs.GetOrCreateDefaultDataReadReference<float>(METASOUND_GET_PARAM_NAME(InputPitchShift), InParams.OperatorSettings),
 				Inputs.GetOrCreateDefaultDataReadReference<bool>(METASOUND_GET_PARAM_NAME(InputLoop), InParams.OperatorSettings),
 				Inputs.GetOrCreateDefaultDataReadReference<FTime>(METASOUND_GET_PARAM_NAME(InputLoopStart), InParams.OperatorSettings),
-				Inputs.GetOrCreateDefaultDataReadReference<FTime>(METASOUND_GET_PARAM_NAME(InputLoopDuration), InParams.OperatorSettings)
+				Inputs.GetOrCreateDefaultDataReadReference<FTime>(METASOUND_GET_PARAM_NAME(InputLoopDuration), InParams.OperatorSettings),
+				FNodeRenderCost(InParams.GraphRenderCost ? InParams.GraphRenderCost->AddNode(InParams.Node.GetInstanceID(), InParams.Environment) : FNodeRenderCost{})
 			};
 
 			return MakeUnique<FWavePlayerOperator>(Args);

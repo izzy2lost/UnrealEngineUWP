@@ -848,6 +848,7 @@ FWaveInstance::FWaveInstance(const UPTRINT InWaveInstanceHash, FActiveSound& InA
 	, OcclusionAttenuation(1.0f)
 	, VolumeMultiplier(1.0f)
 	, EnvelopValue(0.0f)
+	, RelativeRenderCost(1.0f)
 	, EnvelopeFollowerAttackTime(10)
 	, EnvelopeFollowerReleaseTime(100)
 	, Priority(1.0f)

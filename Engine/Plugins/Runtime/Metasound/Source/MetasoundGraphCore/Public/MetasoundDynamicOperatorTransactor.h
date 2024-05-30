@@ -9,6 +9,7 @@
 #include "MetasoundOperatorBuilder.h"
 #include "MetasoundOperatorInterface.h"
 #include "MetasoundNodeInterface.h"
+#include "MetasoundRenderCost.h"
 #include "Templates/Function.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UniquePtr.h"
@@ -187,7 +188,9 @@ namespace Metasound
 			FDynamicOperatorTransactor(const FGraph& InGraph);
 
 			/** Create a queue for communication with a dynamic operator. */
+			UE_DEPRECATED(5.5, "Replace with CreateTransformQueue overload including FGraphRenderCost")
 			TSharedRef<TSpscQueue<TUniquePtr<IDynamicOperatorTransform>>> CreateTransformQueue(const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment);
+			TSharedRef<TSpscQueue<TUniquePtr<IDynamicOperatorTransform>>> CreateTransformQueue(const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment, const TSharedPtr<FGraphRenderCost>& InRenderCost);
 
 			/** Add a node to the graph. */
 			void AddNode(const FGuid& InNodeID, TUniquePtr<INode> InNode);
@@ -254,10 +257,17 @@ namespace Metasound
 			void EnqueueFadeAndAddEdgeOperatorTransform(const INode& InFromNode, const FVertexName& InFromVertex, const INode& InToNode, const FVertexName& InToVertex, const INode* InPriorLiteralNode, const TArray<FOrdinalSwap>& InOrdinalUpdates);
 
 			void AddDataEdgeInternal(const INode& InFromNode, const FVertexName& InFromVertex, const FGuid& InToNodeID, const INode& InToNode, const FVertexName& InToVertex);
+			struct FDynamicOperatorInfo
+			{
+				FOperatorSettings OperatorSettings;
+				FMetasoundEnvironment Environment;
+				TSharedPtr<FGraphRenderCost> GraphRenderCost;
+				TWeakPtr<TSpscQueue<TUniquePtr<IDynamicOperatorTransform>>> Queue;
+			};
 
-			using FCreateTransformFunctionRef = TFunctionRef<TUniquePtr<IDynamicOperatorTransform>(const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment)>;
+			using FCreateTransformFunctionRef = TFunctionRef<TUniquePtr<IDynamicOperatorTransform>(const FDynamicOperatorInfo& InOperatorInfo)>;
 
-			TUniquePtr<IDynamicOperatorTransform> CreateInsertOperatorTransform(const INode& InNode, int32 InOrdinal, const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) const;
+			TUniquePtr<IDynamicOperatorTransform> CreateInsertOperatorTransform(const INode& InNode, int32 InOrdinal, const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment, FGraphRenderCost* InGraphRenderCost) const;
 
 			void EnqueueTransformOnOperatorQueues(FCreateTransformFunctionRef InFunc);
 
@@ -265,12 +275,6 @@ namespace Metasound
 			FGraph Graph;
 			FDynamicGraphIncrementalSorter GraphSorter;
 
-			struct FDynamicOperatorInfo
-			{
-				FOperatorSettings OperatorSettings;
-				FMetasoundEnvironment Environment;
-				TWeakPtr< TSpscQueue< TUniquePtr< IDynamicOperatorTransform >>> Queue;
-			};
 
 			TArray<FDynamicOperatorInfo> OperatorInfos;
 

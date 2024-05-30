@@ -25,10 +25,6 @@ namespace Metasound
 	namespace OperatorBuilder
 	{
 		struct FBuildContext;
-		namespace Environment
-		{
-			METASOUNDGRAPHCORE_API const extern FName GraphHierarchy;
-		}
 	}
 
 	namespace DynamicGraph

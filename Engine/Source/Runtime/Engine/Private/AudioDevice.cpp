@@ -223,6 +223,14 @@ static FAutoConsoleCommandWithWorldArgsAndOutputDevice GSetCurrentSpatialPluginC
 		})
 	);
 
+
+static int32 EnableRelativeRenderCostVoiceLimitCVar = 0;
+FAutoConsoleVariableRef CVarEnableRelativeRenderCostVoiceLimit(
+	TEXT("au.EnableRelativeRenderCostVoiceLimit"),
+	EnableRelativeRenderCostVoiceLimitCVar,
+	TEXT("Enables or disables using the relative render cost of rendering sources to count toward max channels culling."),
+	ECVF_Default);
+
 #if UE_AUDIO_PROFILERTRACE_ENABLED
 UE_TRACE_EVENT_BEGIN(Audio, VirtualLoopStop)
 	UE_TRACE_EVENT_FIELD(uint32, DeviceId)
@@ -4198,7 +4206,7 @@ int32 FAudioDevice::GetSortedActiveWaveInstances(TArray<FWaveInstance*>& WaveIns
 
 	int32 FirstActiveIndex = 0;
 	// Only need to do the wave instance sort if we have any waves and if our wave instances are greater than our max channels.
-	if (WaveInstances.Num() >= 0)
+	if (WaveInstances.Num() > 0)
 	{
 		// Helper function for "Sort" (higher priority sorts last).
 		struct FCompareFWaveInstanceByPlayPriority
@@ -4214,7 +4222,23 @@ int32 FAudioDevice::GetSortedActiveWaveInstances(TArray<FWaveInstance*>& WaveIns
 
 		// Get the first index that will result in a active source voice
 		int32 CurrentMaxChannels = GetMaxChannels();
-		FirstActiveIndex = FMath::Max(WaveInstances.Num() - CurrentMaxChannels, 0);
+
+		if (EnableRelativeRenderCostVoiceLimitCVar)
+		{
+			// Find the first active index based on the relative render cost estimate of the wave instances
+			FirstActiveIndex = WaveInstances.Num() - 1;
+			float NumActiveChannels = 0.0f;
+			while (NumActiveChannels < (float)CurrentMaxChannels && FirstActiveIndex > 0)
+			{
+				FWaveInstance* WaveInstance = WaveInstances[FirstActiveIndex];
+				NumActiveChannels += WaveInstance->GetRelativeRenderCost();
+				FirstActiveIndex--;
+			}
+		}
+		else
+		{
+			FirstActiveIndex = FMath::Max(WaveInstances.Num() - CurrentMaxChannels, 0);
+		}
 	}
 
 	return FirstActiveIndex;

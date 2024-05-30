@@ -9,6 +9,7 @@
 #include "MetasoundParameterPack.h"
 #include "MetasoundRouter.h"
 #include "MetasoundTrigger.h"
+#include "MetasoundRenderCost.h"
 #include "MetasoundVertex.h"
 #include "MetasoundVertexData.h"
 
@@ -91,6 +92,7 @@ namespace Metasound
 		TArray<FAudioParameter> DefaultParameters;
 		bool bBuildSynchronous = false;
 		TSharedPtr<TSpscQueue<FMetaSoundParameterTransmitter::FParameter>> DataChannel;
+		TSharedPtr<FGraphRenderCost> GraphRenderCost;
 
 		static void Reset(FMetasoundGeneratorInitParams& InParams);
 	};
@@ -230,8 +232,9 @@ namespace Metasound
 
 		//~ Begin FSoundGenerator
 		virtual int32 OnGenerateAudio(float* OutAudio, int32 NumSamples) override;
-		int32 GetDesiredNumSamplesToRenderPerCallback() const override;
-		bool IsFinished() const override;
+		virtual int32 GetDesiredNumSamplesToRenderPerCallback() const override;
+		virtual bool IsFinished() const override;
+		virtual float GetRelativeRenderCost() const override;
 		//~ End FSoundGenerator
 
 		/** Enables the performance timing of the metasound rendering process. You
@@ -242,7 +245,6 @@ namespace Metasound
 
 		/** Fraction of a single CPU core used to render audio on a scale of 0.0 to 1.0 */
 		double GetCPUCoreUtilization() const;
-
 
 		// Called when a new graph has been "compiled" and set up as this generator's graph.
 		// Note: We don't allow direct assignment to the FOnSetGraph delegate
@@ -261,7 +263,7 @@ namespace Metasound
 
 	protected:
 
-		void InitBase(const FMetasoundGeneratorInitParams& InInitParams);
+		void InitBase(FMetasoundGeneratorInitParams& InInitParams);
 
 
 		/** SetGraph directly sets graph. Callers must ensure that no race conditions exist. */
@@ -372,6 +374,9 @@ namespace Metasound
 		double RenderTime;
 		bool bDoRuntimeRenderTiming;
 		TUniquePtr<MetasoundGeneratorPrivate::FRenderTimer> RenderTimer;
+
+		TSharedPtr<FGraphRenderCost> GraphRenderCost;
+		std::atomic<float> RelativeRenderCost;
 	};
 
 	/** FMetasoundConstGraphGenerator generates audio from a given metasound IOperator

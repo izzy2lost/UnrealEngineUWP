@@ -589,8 +589,14 @@ namespace Metasound
 
 		TSharedRef<TSpscQueue<TUniquePtr<IDynamicOperatorTransform>>> FDynamicOperatorTransactor::CreateTransformQueue(const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment)
 		{
+			TSharedPtr<FGraphRenderCost> GraphRenderCost;
+			return CreateTransformQueue(InOperatorSettings, InEnvironment, GraphRenderCost);
+		}
+
+		TSharedRef<TSpscQueue<TUniquePtr<IDynamicOperatorTransform>>> FDynamicOperatorTransactor::CreateTransformQueue(const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment, const TSharedPtr<FGraphRenderCost>& InGraphRenderCost)
+		{
 			TSharedRef<TSpscQueue<TUniquePtr<IDynamicOperatorTransform>>> Queue = MakeShared<TSpscQueue<TUniquePtr<IDynamicOperatorTransform>>>();
-			OperatorInfos.Add(FDynamicOperatorInfo{InOperatorSettings, InEnvironment, Queue});
+			OperatorInfos.Add(FDynamicOperatorInfo{InOperatorSettings, InEnvironment, InGraphRenderCost, Queue});
 
 			TMap<FOperatorID, int32> OperatorOrdinals;
 			GraphSorter.GenerateOrdinals(OperatorOrdinals);
@@ -612,7 +618,7 @@ namespace Metasound
 				{
 					if (const int32* Ordinal = OperatorOrdinals.Find(DirectedGraphAlgo::GetOperatorID(GuidAndNode.Value)))
 					{
-						AtomicTransforms.Add(CreateInsertOperatorTransform(*GuidAndNode.Value, *Ordinal, InOperatorSettings, InEnvironment));
+						AtomicTransforms.Add(CreateInsertOperatorTransform(*GuidAndNode.Value, *Ordinal, InOperatorSettings, InEnvironment, InGraphRenderCost.Get()));
 					}
 				}
 			}
@@ -803,9 +809,9 @@ namespace Metasound
 			// Always insert new literal nodes first in execution order.
 			int32 LiteralOrdinal = GraphSorter.InsertOperator(DirectedGraphAlgo::GetOperatorID(LiteralNode), FDynamicGraphIncrementalSorter::EInsertLocation::First);
 
-			auto CreateAddNodeTransform = [&](const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) -> TUniquePtr<IDynamicOperatorTransform>
+			auto CreateAddNodeTransform = [&](const FDynamicOperatorInfo& InInfo) -> TUniquePtr<IDynamicOperatorTransform>
 			{
-				return CreateInsertOperatorTransform(*LiteralNode, LiteralOrdinal, InOperatorSettings, InEnvironment);
+				return CreateInsertOperatorTransform(*LiteralNode, LiteralOrdinal, InInfo.OperatorSettings, InInfo.Environment, InInfo.GraphRenderCost.Get());
 			};
 
 			EnqueueTransformOnOperatorQueues(CreateAddNodeTransform);
@@ -846,9 +852,9 @@ namespace Metasound
 
 			Graph.AddInputDataDestination(*Node, InVertexName);
 
-			auto CreateAddInputTransform = [&](const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) -> TUniquePtr<IDynamicOperatorTransform>
+			auto CreateAddInputTransform = [&](const FDynamicOperatorInfo& InInfo) -> TUniquePtr<IDynamicOperatorTransform>
 			{
-				TOptional<FAnyDataReference> NewDataReference = InFunc(InOperatorSettings, InputVertex.DataTypeName, InDefaultLiteral, ReferenceAccessType);
+				TOptional<FAnyDataReference> NewDataReference = InFunc(InInfo.OperatorSettings, InputVertex.DataTypeName, InDefaultLiteral, ReferenceAccessType);
 				if (NewDataReference.IsSet())
 				{
 					return MakeUnique<FAddInput>(OperatorID, InVertexName, *NewDataReference);
@@ -869,7 +875,7 @@ namespace Metasound
 
 			Graph.RemoveInputDataDestination(InVertexName);
 
-			auto CreateRemoveInputTransform = [&](const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) -> TUniquePtr<IDynamicOperatorTransform>
+			auto CreateRemoveInputTransform = [&](const FDynamicOperatorInfo& InInfo) -> TUniquePtr<IDynamicOperatorTransform>
 			{
 				return MakeUnique<FRemoveInput>(InVertexName);
 			};
@@ -897,7 +903,7 @@ namespace Metasound
 			Graph.AddOutputDataSource(*Node, InVertexName);
 			const FOperatorID OperatorID = DirectedGraphAlgo::GetOperatorID(Node);
 
-			auto CreateAddOutputTransform = [&](const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) -> TUniquePtr<IDynamicOperatorTransform>
+			auto CreateAddOutputTransform = [&](const FDynamicOperatorInfo& InInfo) -> TUniquePtr<IDynamicOperatorTransform>
 			{
 				return MakeUnique<FAddOutput>(OperatorID, InVertexName);
 			};
@@ -911,7 +917,7 @@ namespace Metasound
 
 			Graph.RemoveOutputDataSource(InVertexName);
 
-			auto CreateRemoveOutputTransform = [&](const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) -> TUniquePtr<IDynamicOperatorTransform>
+			auto CreateRemoveOutputTransform = [&](const FDynamicOperatorInfo& InInfo) -> TUniquePtr<IDynamicOperatorTransform>
 			{
 				return MakeUnique<FRemoveOutput>(InVertexName);
 			};
@@ -981,9 +987,9 @@ namespace Metasound
 		
 		void FDynamicOperatorTransactor::EnqueueInsertOperatorTransform(const INode& InNode, int32 InOrdinal)
 		{
-			auto CreateAddNodeTransform = [&](const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) -> TUniquePtr<IDynamicOperatorTransform>
+			auto CreateAddNodeTransform = [&](const FDynamicOperatorInfo& InInfo) -> TUniquePtr<IDynamicOperatorTransform>
 			{
-				return CreateInsertOperatorTransform(InNode, InOrdinal, InOperatorSettings, InEnvironment);
+				return CreateInsertOperatorTransform(InNode, InOrdinal, InInfo.OperatorSettings, InInfo.Environment, InInfo.GraphRenderCost.Get());
 			};
 
 			EnqueueTransformOnOperatorQueues(CreateAddNodeTransform);
@@ -1044,7 +1050,7 @@ namespace Metasound
 			const FOperatorID PriorLiteralOperatorID = DirectedGraphAlgo::GetOperatorID(InPriorLiteralNode);
 
 			// Create transforms for runtime
-			auto CreateAddEdgeTransform = [&](const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) -> TUniquePtr<IDynamicOperatorTransform>
+			auto CreateAddEdgeTransform = [&](const FDynamicOperatorInfo& InInfo) -> TUniquePtr<IDynamicOperatorTransform>
 			{
 				TArray<TUniquePtr<IDynamicOperatorTransform>> AtomicTransforms;
 
@@ -1080,7 +1086,7 @@ namespace Metasound
 			TArrayView<const FVertexName> InputsToFade(&InToVertex, 1);
 			TArrayView<const FVertexName> OutputsToFade;
 
-			auto CreateBeginFadeAndAddEdgeTransform = [&](const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) -> TUniquePtr<IDynamicOperatorTransform>
+			auto CreateBeginFadeAndAddEdgeTransform = [&](const FDynamicOperatorInfo& InInfo) -> TUniquePtr<IDynamicOperatorTransform>
 			{
 				TArray<TUniquePtr<IDynamicOperatorTransform>> AtomicTransforms;
 
@@ -1121,7 +1127,7 @@ namespace Metasound
 		{
 			const FOperatorID OperatorID = DirectedGraphAlgo::GetOperatorID(InNode);
 
-			auto CreateBeginAudioFadeTransform = [&](const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) -> TUniquePtr<IDynamicOperatorTransform>
+			auto CreateBeginAudioFadeTransform = [&](const FDynamicOperatorInfo& InInfo) -> TUniquePtr<IDynamicOperatorTransform>
 			{
 				TArray<TUniquePtr<IDynamicOperatorTransform>> BeginAudioFadeAtomicTransforms;
 
@@ -1142,7 +1148,7 @@ namespace Metasound
 		{
 			const FOperatorID OperatorID = DirectedGraphAlgo::GetOperatorID(InNode);
 
-			auto CreateEndAudioFadeTransform = [&](const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) -> TUniquePtr<IDynamicOperatorTransform>
+			auto CreateEndAudioFadeTransform = [&](const FDynamicOperatorInfo& InInfo) -> TUniquePtr<IDynamicOperatorTransform>
 			{
 				return MakeUnique<FEndAudioFadeTransform>(OperatorID);
 			};
@@ -1154,7 +1160,7 @@ namespace Metasound
 		{
 			const FOperatorID OperatorID = DirectedGraphAlgo::GetOperatorID(InNode);
 
-			auto CreateRemoveNodeTransform = [&OperatorID, &InOperatorsConnectedToInput](const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) -> TUniquePtr<IDynamicOperatorTransform>
+			auto CreateRemoveNodeTransform = [&OperatorID, &InOperatorsConnectedToInput](const FDynamicOperatorInfo& InInfo) -> TUniquePtr<IDynamicOperatorTransform>
 			{
 				return MakeUnique<FRemoveOperator>(OperatorID, InOperatorsConnectedToInput);
 			};
@@ -1169,10 +1175,10 @@ namespace Metasound
 			const FOperatorID ToOperatorID = DirectedGraphAlgo::GetOperatorID(InToNode);
 			const FOperatorID LiteralOperatorID = DirectedGraphAlgo::GetOperatorID(InReplacementLiteralNode);
 
-			auto CreateRemoveEdgeTransform = [&](const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) -> TUniquePtr<IDynamicOperatorTransform>
+			auto CreateRemoveEdgeTransform = [&](const FDynamicOperatorInfo& InInfo) -> TUniquePtr<IDynamicOperatorTransform>
 			{
 				// Add the literal node.
-				TUniquePtr<IDynamicOperatorTransform> AddNodeTransform = CreateInsertOperatorTransform(InReplacementLiteralNode, InLiteralOrdinal, InOperatorSettings, InEnvironment);
+				TUniquePtr<IDynamicOperatorTransform> AddNodeTransform = CreateInsertOperatorTransform(InReplacementLiteralNode, InLiteralOrdinal, InInfo.OperatorSettings, InInfo.Environment, InInfo.GraphRenderCost.Get());
 
 				// Swap prior connection with new connections.
 				TUniquePtr<IDynamicOperatorTransform> ConnectOperatorsTransform = MakeUnique<FSwapOperatorConnection>(FromOperatorID, InFromVertex, LiteralOperatorID, DynamicOperatorTransactorPrivate::LiteralNodeOutputVertexName, ToOperatorID, InToVertex);
@@ -1221,7 +1227,7 @@ namespace Metasound
 			EnqueueEndFadeOperatorTransform(InToNode);
 		}
 
-		TUniquePtr<IDynamicOperatorTransform> FDynamicOperatorTransactor::CreateInsertOperatorTransform(const INode& InNode, int32 InOrdinal, const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment) const
+		TUniquePtr<IDynamicOperatorTransform> FDynamicOperatorTransactor::CreateInsertOperatorTransform(const INode& InNode, int32 InOrdinal, const FOperatorSettings& InOperatorSettings, const FMetasoundEnvironment& InEnvironment, FGraphRenderCost* InGraphRenderCost) const
 		{
 			using namespace DynamicOperatorTransactorPrivate;
 
@@ -1233,7 +1239,8 @@ namespace Metasound
 				InOperatorSettings,
 				InterfaceData.GetInputs(),
 				InEnvironment,
-				&OperatorBuilder // Supply an operator builder set to build rebindable inputs to ensure that subgraphs have their data references updated. 
+				&OperatorBuilder, // Supply an operator builder set to build rebindable inputs to ensure that subgraphs have their data references updated. 
+				InGraphRenderCost
 			};
 
 			FBuildResults Results;
@@ -1276,7 +1283,7 @@ namespace Metasound
 				TSharedPtr<TSpscQueue<TUniquePtr<IDynamicOperatorTransform>>> OperatorQueue = OperatorInfoIterator->Queue.Pin();
 				if (OperatorQueue.IsValid())
 				{
-					TUniquePtr<IDynamicOperatorTransform> Transform = InFunc(OperatorInfoIterator->OperatorSettings, OperatorInfoIterator->Environment);
+					TUniquePtr<IDynamicOperatorTransform> Transform = InFunc(*OperatorInfoIterator);
 					if (Transform.IsValid())
 					{
 						OperatorQueue->Enqueue(MoveTemp(Transform));

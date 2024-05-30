@@ -394,9 +394,12 @@ namespace Audio
 #if ENABLE_AUDIO_DEBUG
 		GameThreadInfo.CPUCoreUtilization.AddZeroed(NumTotalSources);
 #endif // if ENABLE_AUDIO_DEBUG
+
+		GameThreadInfo.RelativeRenderCost.Reset(NumTotalSources);
 		GameThreadInfo.FreeSourceIndices.Reset(NumTotalSources);
 		for (int32 i = NumTotalSources - 1; i >= 0; --i)
 		{
+			GameThreadInfo.RelativeRenderCost.Add(1.0f);
 			GameThreadInfo.FreeSourceIndices.Add(i);
 		}
 
@@ -1181,6 +1184,11 @@ namespace Audio
 		GameThreadInfo.bIsDebugMode[SourceId] = false;
 #endif
 
+#if ENABLE_AUDIO_DEBUG
+		GameThreadInfo.CPUCoreUtilization[SourceId] = 0.0f;
+#endif 
+
+		GameThreadInfo.RelativeRenderCost[SourceId] = 1.0f;
 		GameThreadInfo.FreeSourceIndices.Push(SourceId);
 
 		AUDIO_MIXER_CHECK(GameThreadInfo.FreeSourceIndices.Contains(SourceId));
@@ -1958,6 +1966,11 @@ namespace Audio
 	}
 #endif // if ENABLE_AUDIO_DEBUG
 
+	float FMixerSourceManager::GetRelativeRenderCost(const int32 SourceId) const
+	{
+		return GameThreadInfo.RelativeRenderCost[SourceId];
+	}
+
 	bool FMixerSourceManager::IsUsingHRTFSpatializer(const int32 SourceId) const
 	{
 		AUDIO_MIXER_CHECK_GAME_THREAD(MixerDevice);
@@ -2019,6 +2032,9 @@ namespace Audio
 					// out as an acceptable race condition given that it is utilized for debug purposes only. 
 					GameThreadInfo.CPUCoreUtilization[SourceId] = SourceInfo.MixerSourceBuffer->GetCPUCoreUtilization();
 #endif // if ENABLE_AUDIO_DEBUG
+
+					GameThreadInfo.RelativeRenderCost[SourceId] = SourceInfo.MixerSourceBuffer->GetRelativeRenderCost();
+
 					SourceInfo.MixerSourceBuffer->OnBufferEnd();
 				}
 			}

@@ -7,6 +7,7 @@
 #include "MetasoundEnvironment.h"
 #include "MetasoundNodeInterface.h"
 #include "MetasoundOperatorInterface.h"
+#include "MetasoundRenderCost.h"
 #include "Templates/UniquePtr.h"
 
 class FName;
@@ -107,10 +108,13 @@ namespace Metasound
 		/** Pointer to builder actively building graph. */
 		const IOperatorBuilder* Builder = nullptr;
 
+		/** Runtime render cost tracker. */
+		FGraphRenderCost* GraphRenderCost = nullptr;
+
 		/** Implicit conversion to FResetParams for convenience. */
 		operator IOperator::FResetParams() const
 		{
-			return IOperator::FResetParams{OperatorSettings, Environment};
+			return IOperator::FResetParams{OperatorSettings, Environment, GraphRenderCost};
 		}
 	};
 
@@ -147,6 +151,15 @@ namespace Metasound
 
 		/** Environment settings available. */
 		const FMetasoundEnvironment& Environment;
+
+		/** Runtime render cost tracker. */
+		FGraphRenderCost* GraphRenderCost;
+
+		/** Convert operator building params to graph building params */
+		static FBuildGraphOperatorParams FromBuildOperatorParams(const IGraph& InGraph, const FBuildOperatorParams& InParams)
+		{
+			return FBuildGraphOperatorParams{InGraph, InParams.OperatorSettings, InParams.InputData, InParams.Environment, InParams.GraphRenderCost};
+		}
 	};
 
 	/** Convenience template for adding build errors.

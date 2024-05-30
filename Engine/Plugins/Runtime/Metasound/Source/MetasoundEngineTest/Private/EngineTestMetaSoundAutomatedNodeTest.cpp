@@ -50,11 +50,13 @@ namespace Metasound::EngineTest{
 
 		FMetasoundEnvironment Environment;
 
+		Environment.SetValue<uint64>(CoreInterface::Environment::InstanceID, 0);
+		Environment.SetValue<TArray<FGuid>>(CoreInterface::Environment::GraphHierarchy, TArray<FGuid>({ FGuid() }));
+
 		Environment.SetValue<uint32>(SourceInterface::Environment::SoundUniqueID, 0);
 		Environment.SetValue<bool>(SourceInterface::Environment::IsPreview, false);
 		Environment.SetValue<uint64>(SourceInterface::Environment::TransmitterID, 0);
 		Environment.SetValue<FString>(SourceInterface::Environment::GraphName, TEXT("ENGINE_TEST_REGISTERED_NODES"));
-		Environment.SetValue<TArray<FGuid>>(OperatorBuilder::Environment::GraphHierarchy, TArray<FGuid>({ FGuid() }));
 
 		if (Audio::FMixerDevice* MixerDevice = GetAudioMixerDevice())
 		{

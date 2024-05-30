@@ -951,6 +951,7 @@ ISoundGeneratorPtr UMetaSoundSource::CreateSoundGenerator(const FSoundGeneratorI
 
 		BuilderSettings.bEnableOperatorRebind = true;
 
+		TSharedRef<FGraphRenderCost> GraphRenderCost = FGraphRenderCost::MakeGraphRenderCost();
 		FMetasoundDynamicGraphGeneratorInitParams InitParams
 		{
 			{
@@ -962,9 +963,10 @@ ISoundGeneratorPtr UMetaSoundSource::CreateSoundGenerator(const FSoundGeneratorI
 				GetOutputAudioChannelOrder(),
 				MoveTemp(InDefaultParameters),
 				bBuildSynchronous,
-				DataChannel
+				DataChannel,
+				GraphRenderCost
 			},
-			DynamicTransactor->CreateTransformQueue(InSettings, Environment) // Create transaction queue
+			DynamicTransactor->CreateTransformQueue(InSettings, Environment, GraphRenderCost) // Create transaction queue
 		};
 		TSharedPtr<FMetasoundDynamicGraphGenerator> DynamicGenerator = MakeShared<FMetasoundDynamicGraphGenerator>(InSettings);
 		DynamicGenerator->Init(MoveTemp(InitParams));
@@ -997,7 +999,7 @@ ISoundGeneratorPtr UMetaSoundSource::CreateSoundGenerator(const FSoundGeneratorI
 				MergePresetOverridesAndSuppliedDefaults(InDefaultParameters, MergedParameters);
 
 				// Update Graph Hierarchy with the asset unique ID (the hierarchy was collapsed by only using the base graph)
-				Environment.SetValue<TArray<FGuid>>(OperatorBuilder::Environment::GraphHierarchy, TArray<FGuid>({ AssetClassID }));
+				Environment.SetValue<TArray<FGuid>>(CoreInterface::Environment::GraphHierarchy, TArray<FGuid>({ AssetClassID }));
 
 				// Create generator.
 				FMetasoundGeneratorInitParams InitParams
@@ -1495,6 +1497,7 @@ Metasound::FMetasoundEnvironment UMetaSoundSource::CreateEnvironment(const FSoun
 
 	FMetasoundEnvironment Environment = CreateEnvironment();
 	Environment.SetValue<bool>(SourceInterface::Environment::IsPreview, InParams.bIsPreviewSound);
+	Environment.SetValue<uint64>(CoreInterface::Environment::InstanceID, InParams.InstanceID);
 	Environment.SetValue<uint64>(SourceInterface::Environment::TransmitterID, InParams.InstanceID);
 	Environment.SetValue<Audio::FDeviceId>(SourceInterface::Environment::DeviceID, InParams.AudioDeviceID);
 	Environment.SetValue<int32>(SourceInterface::Environment::AudioMixerNumOutputFrames, InParams.AudioMixerNumOutputFrames);
@@ -1513,7 +1516,7 @@ Metasound::FMetasoundEnvironment UMetaSoundSource::CreateEnvironment(const Audio
 	using namespace Metasound::Frontend;
 
 	FMetasoundEnvironment Environment = CreateEnvironment();
-	Environment.SetValue<uint64>(SourceInterface::Environment::TransmitterID, InParams.InstanceID);
+	Environment.SetValue<uint64>(CoreInterface::Environment::InstanceID, InParams.InstanceID);
 
 	return Environment;
 }

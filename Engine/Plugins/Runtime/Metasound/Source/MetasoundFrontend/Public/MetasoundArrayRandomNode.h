@@ -324,9 +324,9 @@ namespace Metasound
 			TriggerOnReset->Reset();
 
 			// Cache shared state id for shared state behavior types that cannot be changed after node init
-			if (InParams.Environment.Contains<TArray<FGuid>>(OperatorBuilder::Environment::GraphHierarchy))
+			if (InParams.Environment.Contains<TArray<FGuid>>(CoreInterface::Environment::GraphHierarchy))
 			{
-				const TArray<FGuid>& GraphHierarchy = InParams.Environment.GetValue<TArray<FGuid>>(OperatorBuilder::Environment::GraphHierarchy);
+				const TArray<FGuid>& GraphHierarchy = InParams.Environment.GetValue<TArray<FGuid>>(CoreInterface::Environment::GraphHierarchy);
 				if (SharedStateBehavior == ESharedStateBehaviorType::SameNode)
 				{
 					check(GraphHierarchy.Num() > 0);

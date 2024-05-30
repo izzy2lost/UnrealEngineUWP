@@ -99,6 +99,7 @@ public:
 					// Generators are responsible to zero memory in case they can't generate the requested amount of samples
 					ProceduralResult.NumSamplesWritten = ProceduralTaskData.SoundGenerator->GetNextBuffer(ProceduralTaskData.AudioData, ProceduralTaskData.NumSamples);
 					ProceduralResult.bIsFinished = ProceduralTaskData.SoundGenerator->IsFinished();
+					ProceduralResult.RelativeRenderCost = ProceduralTaskData.SoundGenerator->GetRelativeRenderCost();
 				}
 				else
 				{

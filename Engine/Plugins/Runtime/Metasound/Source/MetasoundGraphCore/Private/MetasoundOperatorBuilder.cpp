@@ -16,6 +16,7 @@
 #include "MetasoundOperatorInterface.h"
 #include "MetasoundProfilingOperator.h"
 #include "MetasoundRebindableGraphOperator.h"
+#include "MetasoundRenderCost.h"
 #include "MetasoundThreadLocalDebug.h"
 #include "MetasoundTrace.h"
 #include "Templates/PimplPtr.h"
@@ -25,11 +26,6 @@ namespace Metasound
 {
 	namespace OperatorBuilder
 	{
-		namespace Environment
-		{
-			const FName GraphHierarchy = "GraphHierarchy";
-		}
-
 		// Shared context used in the builder to maintain state of current build.
 		struct FBuildContext
 		{
@@ -37,6 +33,7 @@ namespace Metasound
 			const FDirectedGraphAlgoAdapter& AlgoAdapter;
 			const FOperatorSettings& Settings;
 			const FMetasoundEnvironment& Environment;
+			FGraphRenderCost* GraphRenderCost = nullptr;
 			
 			DirectedGraphAlgo::FGraphOperatorData& GraphOperatorData;
 			FBuildResults& Results;
@@ -46,12 +43,14 @@ namespace Metasound
 				const FDirectedGraphAlgoAdapter& InAlgoAdapter,
 				const FOperatorSettings& InSettings,
 				const FMetasoundEnvironment& InEnvironment,
+				FGraphRenderCost* InGraphRenderCost,
 				DirectedGraphAlgo::FGraphOperatorData& InGraphOperatorData,
 				FBuildResults& OutResults)
 			: Graph(InGraph)
 			, AlgoAdapter(InAlgoAdapter)
 			, Settings(InSettings)
 			, Environment(InEnvironment)
+			, GraphRenderCost(InGraphRenderCost)
 			, GraphOperatorData(InGraphOperatorData)
 			, Results(OutResults)
 			{
@@ -209,29 +208,29 @@ namespace Metasound
 
 		// Update environment with current graph hierarchy
 		FMetasoundEnvironment NewEnvironment;
-		if (!InParams.Environment.Contains<TArray<FGuid>>(OperatorBuilder::Environment::GraphHierarchy))
+		if (!InParams.Environment.Contains<TArray<FGuid>>(CoreInterface::Environment::GraphHierarchy))
 		{
 			// Copy old environment and add new environment variable
 			NewEnvironment = InParams.Environment;
 			TArray<FGuid> GraphHierarchy;
 			GraphHierarchy.Emplace(InParams.Graph.GetInstanceID());
-			NewEnvironment.SetValue<TArray<FGuid>>(OperatorBuilder::Environment::GraphHierarchy, GraphHierarchy);
+			NewEnvironment.SetValue<TArray<FGuid>>(CoreInterface::Environment::GraphHierarchy, GraphHierarchy);
 		}
 		else
 		{
 			// Copy and append to existing environment variable (environment variables aren't modifiable in place)
 			for (const auto& Iter : InParams.Environment)
 			{
-				if (Iter.Key == OperatorBuilder::Environment::GraphHierarchy)
+				if (Iter.Key == CoreInterface::Environment::GraphHierarchy)
 				{
 					TArray<FGuid> GraphHierarchy;
-					for (const FGuid Id : InParams.Environment.GetValue<TArray<FGuid>>(OperatorBuilder::Environment::GraphHierarchy))
+					for (const FGuid Id : InParams.Environment.GetValue<TArray<FGuid>>(CoreInterface::Environment::GraphHierarchy))
 					{
 						GraphHierarchy.Emplace(Id);
 					}
 					GraphHierarchy.Emplace(InParams.Graph.GetInstanceID());
 
-					NewEnvironment.SetValue<TArray<FGuid>>(OperatorBuilder::Environment::GraphHierarchy, GraphHierarchy);
+					NewEnvironment.SetValue<TArray<FGuid>>(CoreInterface::Environment::GraphHierarchy, GraphHierarchy);
 				}
 				else
 				{
@@ -241,7 +240,7 @@ namespace Metasound
 			}
 		}
 
-		OperatorBuilder::FBuildContext BuildContext(InParams.Graph, *AlgoAdapter, InParams.OperatorSettings, NewEnvironment, OutGraphOperatorData, OutResults);
+		OperatorBuilder::FBuildContext BuildContext(InParams.Graph, *AlgoAdapter, InParams.OperatorSettings, NewEnvironment, InParams.GraphRenderCost, OutGraphOperatorData, OutResults);
 
 		// Sort the nodes in a valid execution order
 		BuildStatus |= DepthFirstTopologicalSort(BuildContext, OutNodeOrder);
@@ -563,7 +562,7 @@ namespace Metasound
 				METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*TraceNamePtr);
 #endif // METASOUND_CPUPROFILERTRACE_ENABLED
 
-				FBuildOperatorParams CreateParams{*Node, InOutContext.Settings, OperatorInfo.VertexData.GetInputs(), InOutContext.Environment, this};
+				FBuildOperatorParams CreateParams{*Node, InOutContext.Settings, OperatorInfo.VertexData.GetInputs(), InOutContext.Environment, this, InOutContext.GraphRenderCost};
 				FOperatorFactorySharedRef Factory = Node->GetDefaultOperatorFactory();
 				if (ProfileOperators && Profiling::OperatorShouldBeProfiled(Node->GetMetadata()))
 				{

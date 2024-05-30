@@ -102,7 +102,7 @@ namespace Metasound::Test
 			const FOperatorSettings OperatorSettings{SampleRate, static_cast<float>(SampleRate) / SamplesPerBlock};
 
 			FMetasoundEnvironment Environment;
-			Environment.SetValue<uint64>(SourceInterface::Environment::TransmitterID, 123);
+			Environment.SetValue<uint64>(CoreInterface::Environment::InstanceID, 123);
 			
 			FMetasoundGeneratorInitParams GeneratorInitParams{
 				OperatorSettings,

@@ -40,7 +40,7 @@ namespace Metasound::Test::Generator::Dynamic
 			BuilderSettings.bEnableOperatorRebind = true;
 
 			FMetasoundEnvironment Environment;
-			Environment.SetValue<uint64>(Frontend::SourceInterface::Environment::TransmitterID, 123);
+			Environment.SetValue<uint64>(CoreInterface::Environment::InstanceID, 123);
 			
 			FMetasoundDynamicGraphGeneratorInitParams InitParams
 			{
@@ -54,7 +54,7 @@ namespace Metasound::Test::Generator::Dynamic
 					{},
 					true
 				},
-				Transactor.CreateTransformQueue(OperatorSettings, Environment) // Create transaction queue
+				Transactor.CreateTransformQueue(OperatorSettings, Environment, nullptr) // Create transaction queue
 			};
 			
 			Generator.Init(MoveTemp(InitParams));

@@ -40,4 +40,17 @@ namespace Metasound
 
 		return *this;
 	}
+
+	namespace CoreInterface
+	{
+		namespace Environment
+		{
+			// The InstanceID acts as an external ID for communicating and in and out of MetaSounds. Each MetaSound
+			// has a unique InstanceID
+			const FLazyName InstanceID = "InstanceID";
+			
+			// An array representing the graph hierarchy.
+			const FLazyName GraphHierarchy = "GraphHierarhcy";
+		}
+	}
 }

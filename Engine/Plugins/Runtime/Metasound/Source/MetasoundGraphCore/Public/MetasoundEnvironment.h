@@ -275,6 +275,19 @@ namespace Metasound
 	private:
 		TSortedMap<FName, TUniquePtr<IMetasoundEnvironmentVariable>, FDefaultAllocator, FNameFastLess> Variables;
 	};
+
+	namespace CoreInterface
+	{
+		namespace Environment
+		{
+			// The InstanceID acts as an external ID for communicating and in and out of MetaSounds. Each MetaSound
+			// has a unique InstanceID
+			METASOUNDGRAPHCORE_API const extern FLazyName InstanceID;
+
+			// An array representing the graph hierarchy.
+			METASOUNDGRAPHCORE_API const extern FLazyName GraphHierarchy;
+		}
+	}
 }
 
 /** Declare basic set of variable types. */

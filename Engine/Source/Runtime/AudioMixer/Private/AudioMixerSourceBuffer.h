@@ -129,6 +129,9 @@ namespace Audio
 		double GetCPUCoreUtilization() const;
 #endif // ENABLE_AUDIO_DEBUG
 
+		// Returns the runtime render cost
+		float GetRelativeRenderCost() const;
+
 	private:
 		FMixerSourceBuffer(FMixerSourceBufferInitArgs& InArgs, TArray<FAudioParameter>&& InDefaultParams);
 
@@ -166,6 +169,9 @@ namespace Audio
 		std::atomic<double> CPUCoreUtilization = 0.0;
 		void UpdateCPUCoreUtilization(double InCPUTime, double InAudioTime);
 #endif // ENABLE_AUDIO_DEBUG
+
+		std::atomic<float> RelativeRenderCost = 1.0f;
+		void SetRelativeRenderCost(float InRelativeRenderCost);
 
 		mutable FCriticalSection SoundWaveCritSec;
 		mutable FCriticalSection DecodeTaskCritSec;

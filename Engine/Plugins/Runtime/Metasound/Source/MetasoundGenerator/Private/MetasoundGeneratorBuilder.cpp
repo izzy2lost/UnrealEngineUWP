@@ -170,7 +170,7 @@ namespace Metasound
 			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(GeneratorBuilder::BuildGraphAnalyzer);
 			using namespace Frontend;
 
-			const uint64 InstanceID = InEnvironment.GetValue<uint64>(SourceInterface::Environment::TransmitterID);
+			const uint64 InstanceID = InEnvironment.GetValue<uint64>(CoreInterface::Environment::InstanceID);
 			return MakeUnique<FGraphAnalyzer>(InOperatorSettings, InstanceID, MoveTemp(InInternalDataReferences));
 		}
 
@@ -266,7 +266,7 @@ namespace Metasound
 				return OpAndInputs;
 			}
 			// Create an instance of the new graph operator
-			FBuildGraphOperatorParams BuildParams { *InInitParams.Graph, InOperatorSettings, OpAndInputs.Inputs, InInitParams.Environment };
+			FBuildGraphOperatorParams BuildParams { *InInitParams.Graph, InOperatorSettings, OpAndInputs.Inputs, InInitParams.Environment, InInitParams.GraphRenderCost.Get()};
 			FOperatorBuilder Builder(InInitParams.BuilderSettings);
 			OpAndInputs.Operator = Builder.BuildGraphOperator(BuildParams, OutBuildResults);
 
@@ -287,7 +287,8 @@ namespace Metasound
 					*InInitParams.Graph, 
 					InOperatorSettings, 
 					OpAndInputs.Inputs, 
-					InInitParams.Environment
+					InInitParams.Environment,
+					InInitParams.GraphRenderCost.Get()
 				},
 				MoveTemp(InInitParams.TransformQueue),
 				InCallbacks

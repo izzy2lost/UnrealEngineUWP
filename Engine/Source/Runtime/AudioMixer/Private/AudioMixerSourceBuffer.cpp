@@ -480,6 +480,9 @@ namespace Audio
 					double AudioDuration = static_cast<double>(TaskResult.NumSamplesWritten) / static_cast<double>(FMath::Max(1, NumChannels * SampleRate));
 					UpdateCPUCoreUtilization(TaskResult.CPUDuration, AudioDuration);
 #endif // ENABLE_AUDIO_DEBUG
+
+					// Set the render cost encountered during the last render
+					SetRelativeRenderCost(TaskResult.RelativeRenderCost);
 				}
 				break;
 			}
@@ -604,6 +607,16 @@ namespace Audio
 	bool FMixerSourceBuffer::IsGeneratorFinished() const
 	{
 		return bProcedural && SoundGenerator.IsValid() && SoundGenerator->IsFinished();
+	}
+
+	float FMixerSourceBuffer::GetRelativeRenderCost() const
+	{
+		return RelativeRenderCost.load(std::memory_order_relaxed);
+	}
+
+	void FMixerSourceBuffer::SetRelativeRenderCost(float InRelativeRenderCost)
+	{
+		RelativeRenderCost.store(InRelativeRenderCost, std::memory_order_relaxed);
 	}
 
 #if ENABLE_AUDIO_DEBUG

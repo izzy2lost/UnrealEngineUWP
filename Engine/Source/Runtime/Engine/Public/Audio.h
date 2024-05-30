@@ -235,6 +235,9 @@ private:
 	/** The current envelope value of the wave instance. */
 	float EnvelopValue;
 
+	/** The estimated relative render cost of the wave instance. 1.0 is cost of a single decoding sound source. Used for limited the overall voice count. */
+	float RelativeRenderCost;
+
 public:
 	/** The envelope follower attack time in milliseconds. */
 	int32 EnvelopeFollowerAttackTime;
@@ -512,6 +515,12 @@ public:
 	uint32 GetPlayOrder() const { return PlayOrder; }
 
 	friend inline uint32 GetTypeHash(FWaveInstance* A) { return A->PlayOrder; }
+
+	/** Sets the relative render cost of the wave instance. */
+	void SetRelativeRenderCost(float InRelativeRenderCost) { RelativeRenderCost = InRelativeRenderCost; }
+
+	/** Retrieves the relative render cost of wave instance. */
+	float GetRelativeRenderCost() const { return RelativeRenderCost; }
 };
 
 /*-----------------------------------------------------------------------------
@@ -737,6 +746,9 @@ public:
 	/** Returns the source's envelope at the callback block rate. Only implemented in audio mixer. */
 	virtual float GetEnvelopeValue() const { return 0.0f; };
 
+	/** Returns the source's estimated relative render cost (relative to a single decoded sound). Used for debug information and to constrain overall CPU usage. */
+	virtual float GetRelativeRenderCost() const { return 1.0f; }
+
 	ENGINE_API void GetChannelLocations(FVector& Left, FVector&Right) const;
 
 	void NotifyPlaybackData();
@@ -859,6 +871,9 @@ public:
 
 		/** Fraction of a single CPU core used to render audio. */
 		double CPUCoreUtilization = 0;
+
+		/** Relative cost to render wave. */
+		float RelativeRenderCost = 1.f;
 
 		/** Basic CS so we can pass this around safely. */
 		FCriticalSection CS;

@@ -1064,6 +1064,8 @@ namespace Audio
 
 		UpdateChannelMaps();
 
+		UpdateRelativeRenderCost();
+
 #if ENABLE_AUDIO_DEBUG
 		UpdateCPUCoreUtilization();
 
@@ -1520,6 +1522,15 @@ namespace Audio
 			return MixerSourceVoice->GetEnvelopeValue();
 		}
 		return 0.0f;
+	}
+
+	float FMixerSource::GetRelativeRenderCost() const
+	{
+		if (MixerSourceVoice)
+		{
+			return MixerSourceVoice->GetRelativeRenderCost();
+		}
+		return 1.0f;
 	}
 
 	void FMixerSource::OnBeginGenerate()
@@ -2037,6 +2048,23 @@ namespace Audio
 		}
 
 		bPrevAllowedSpatializationSetting = IsSpatializationCVarEnabled();
+	}
+
+	void FMixerSource::UpdateRelativeRenderCost()
+	{
+		if (MixerSourceVoice)
+		{
+			const float RelativeRenderCost = MixerSourceVoice->GetRelativeRenderCost();
+			check(WaveInstance);
+			WaveInstance->SetRelativeRenderCost(RelativeRenderCost);
+#if ENABLE_AUDIO_DEBUG
+			if (DebugInfo.IsValid())
+			{
+				FScopeLock DebugInfoLock(&DebugInfo->CS);
+				DebugInfo->RelativeRenderCost = RelativeRenderCost;
+			}
+#endif // if ENABLE_AUDIO_DEBUG
+		}
 	}
 
 #if ENABLE_AUDIO_DEBUG
