@@ -500,7 +500,8 @@ void FMetasoundAssetBase::SetDocument(FMetasoundFrontendDocument InDocument, boo
 	}
 }
 
-bool FMetasoundAssetBase::VersionAsset()
+#if WITH_EDITORONLY_DATA
+bool FMetasoundAssetBase::VersionAsset(FMetaSoundFrontendDocumentBuilder& Builder)
 {
 	using namespace Metasound;
 	using namespace Metasound::Frontend;
@@ -509,43 +510,29 @@ bool FMetasoundAssetBase::VersionAsset()
 	constexpr bool bIsDeterministic = true;
 	FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
 
-	UObject* OwningAsset = GetOwningAsset();
-	check(OwningAsset);
-
 	bool bDidEdit = false;
 
-#if WITH_EDITORONLY_DATA
 	// Version Document Model
-	if (GetConstDocumentChecked().RequiresInterfaceVersioning())
-	{
-		GetDocumentChecked().VersionInterfaces();
-		bDidEdit = true;
-	}
-#endif // WITH_EDITORONLY_DATA
+	bDidEdit = Builder.VersionInterfaces();
+	bDidEdit |= Metasound::Frontend::VersionDocument(*this, Builder);
 
-	bDidEdit |= Metasound::Frontend::VersionDocument(*this);
-
-	// Version Interfaces. Has to be re-run until no pass reports an update in case
-	// versions fork (ex. an interface splits into two newly named interfaces).
-	// TODO: Need to add function to determine if interfaces require updating before
-	// running update to avoid invalidating builder cache when not necessary. This
-	// will require either re-writing old transforms with the builder API or just
-	// leaving handle/controller logic and moving to deprecated implementation that
-	// is bypassed on versioned documents in most cases.
+	// TODO: Move this logic to builder API above, which will require rewriting update transforms to
+	// take in builder instead of DocumentHandle.
 	{
+		const FMetasoundFrontendDocument& Document = Builder.GetConstDocumentChecked();
 		bool bInterfaceUpdated = false;
 		bool bPassUpdated = true;
-		TScriptInterface<IMetaSoundDocumentInterface> Interface(OwningAsset);
-		const IMetaSoundDocumentInterface* ConstInterface = Interface.GetInterface();
+
+		// Has to be re-run until no pass reports an update in case versions
+		// fork (ex. an interface splits into two newly named interfaces).
 		while (bPassUpdated)
 		{
 			bPassUpdated = false;
 
-			const TArray<FMetasoundFrontendVersion> Versions = ConstInterface->GetConstDocument().Interfaces.Array();
+			const TArray<FMetasoundFrontendVersion> Versions = Document.Interfaces.Array();
 			for (const FMetasoundFrontendVersion& Version : Versions)
 			{
-				FUpdateRootGraphInterface UpdateTransform(Version, GetOwningAssetName());
-				bPassUpdated = TryUpdateInterfaceFromVersion(Version);
+				bPassUpdated |= TryUpdateInterfaceFromVersion(Version);
 			}
 
 			bInterfaceUpdated |= bPassUpdated;
@@ -553,6 +540,7 @@ bool FMetasoundAssetBase::VersionAsset()
 
 		if (bInterfaceUpdated)
 		{
+			TScriptInterface<IMetaSoundDocumentInterface> Interface(GetOwningAsset());
 			Interface->ConformObjectToDocument();
 		}
 		bDidEdit |= bInterfaceUpdated;
@@ -560,6 +548,7 @@ bool FMetasoundAssetBase::VersionAsset()
 
 	return bDidEdit;
 }
+#endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR
 void FMetasoundAssetBase::CacheRegistryMetadata()
@@ -853,10 +842,7 @@ const FMetasoundFrontendDocument& FMetasoundAssetBase::GetConstDocumentChecked()
 {
 	const UObject* Owner = GetOwningAsset();
 	check(Owner);
-
-	// Annoying const cast requirement because ScriptInterface isn't ctor isn't const correct :(
-	TScriptInterface<IMetaSoundDocumentInterface> DocInterface = const_cast<UObject*>(Owner);
-
+	TScriptInterface<const IMetaSoundDocumentInterface> DocInterface = Owner;
 	return DocInterface->GetConstDocument();
 }
 
@@ -984,9 +970,7 @@ bool FMetasoundAssetBase::TryUpdateInterfaceFromVersion(const FMetasoundFrontend
 	using namespace Metasound::Frontend;
 	using namespace AssetBasePrivate;
 
-	FConstDocumentHandle ConstDoc = IDocumentController::CreateDocumentHandle(GetDocumentConstAccessPtr());
-	FMetasoundFrontendInterface TargetInterface = GetInterfaceToVersion(Version, ConstDoc);
-
+	FMetasoundFrontendInterface TargetInterface = GetInterfaceToVersion(Version);
 	if (TargetInterface.Version.IsValid())
 	{
 		TArray<const IInterfaceRegistryEntry*> UpgradePath;
@@ -999,7 +983,7 @@ bool FMetasoundAssetBase::TryUpdateInterfaceFromVersion(const FMetasoundFrontend
 	return false;
 }
 
-FMetasoundFrontendInterface FMetasoundAssetBase::GetInterfaceToVersion(const FMetasoundFrontendVersion& InterfaceVersion, Metasound::Frontend::FConstDocumentHandle InDocument) const
+FMetasoundFrontendInterface FMetasoundAssetBase::GetInterfaceToVersion(const FMetasoundFrontendVersion& InterfaceVersion) const
 {
 	using namespace Metasound::Frontend;
 

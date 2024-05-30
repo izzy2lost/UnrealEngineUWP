@@ -232,9 +232,6 @@ public:
 	const IMetaSoundDocumentInterface& GetConstDocumentInterfaceChecked() const;
 	const FString GetDebugName() const;
 
-	// The graph ID used when graph is executed (i.e. utilized for node class registration)
-	const FGuid& GetExecutionGraphID() const;
-
 	UE_DEPRECATED(5.5, "Use GetConstDocumentChecked() instead")
 	const FMetasoundFrontendDocument& GetDocument() const;
 
@@ -386,6 +383,9 @@ public:
 	// Transforms template nodes within the given builder's document, which can include swapping associated edges and/or
 	// replacing nodes with other, registry-defined concrete node class instances. Returns true if any template nodes were processed.
 	bool TransformTemplateNodes();
+
+	// Versions legacy document members that contained interface information
+	bool VersionInterfaces();
 #endif // WITH_EDITORONLY_DATA
 
 private:

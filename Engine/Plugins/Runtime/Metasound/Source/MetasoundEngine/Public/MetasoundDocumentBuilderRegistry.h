@@ -2,11 +2,13 @@
 #pragma once
 
 #include "Algo/Find.h"
+#include "Async/Async.h"
 #include "MetasoundBuilderBase.h"
 #include "MetasoundDocumentInterface.h"
 #include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendRegistries.h"
 #include "MetasoundLog.h"
+#include "Misc/ScopeLock.h"
 
 
 namespace Metasound::Engine
@@ -60,20 +62,24 @@ namespace Metasound::Engine
 				return *CastChecked<BuilderClass>(Builder);
 			}
 
-			TObjectPtr<UMetaSoundBuilderBase> NewBuilder = CastChecked<UMetaSoundBuilderBase>(NewObject<UObject>(&InMetaSoundObject, &DocInterface->GetBuilderUClass()));
-			FMetaSoundFrontendDocumentBuilder& BuilderRef = NewBuilder->GetBuilder();
-			BuilderRef = FMetaSoundFrontendDocumentBuilder(DocInterface);
-
-			const FMetasoundFrontendDocument& Document = DocInterface->GetConstDocument();
-			const FMetasoundFrontendClassName& FullClassName = Document.RootGraph.Metadata.GetClassName();
-			if (!FullClassName.IsValid())
+			TObjectPtr<UMetaSoundBuilderBase> NewBuilder;
 			{
-				BuilderRef.InitDocument();
+				FScopeLock Lock(&BuildersCriticalSection);
+				NewBuilder = CastChecked<UMetaSoundBuilderBase>(NewObject<UObject>(&InMetaSoundObject, &DocInterface->GetBuilderUClass()));
+				FMetaSoundFrontendDocumentBuilder& BuilderRef = NewBuilder->GetBuilder();
+				BuilderRef = FMetaSoundFrontendDocumentBuilder(DocInterface);
+
+				const FMetasoundFrontendDocument& Document = DocInterface->GetConstDocument();
+				const FMetasoundFrontendClassName& FullClassName = Document.RootGraph.Metadata.GetClassName();
+				if (!FullClassName.IsValid())
+				{
+					BuilderRef.InitDocument();
+				}
+
+				checkf(FullClassName.IsValid(), TEXT("Document initialization must result in a valid class name being generated"));
+				Builders.Add(FullClassName, NewBuilder);
 			}
 
-			checkf(FullClassName.IsValid(), TEXT("Document initialization must result in a valid class name being generated"));
-			TObjectPtr<UMetaSoundBuilderBase> NewBuilderBase = CastChecked<UMetaSoundBuilderBase>(NewBuilder);
-			Builders.Add(FullClassName, NewBuilderBase);
 			return *CastChecked<BuilderClass>(NewBuilder);
 		}
 #endif // WITH_EDITORONLY_DATA
@@ -88,7 +94,7 @@ namespace Metasound::Engine
 
 		virtual FMetaSoundFrontendDocumentBuilder* FindOutermostBuilder(const UObject& InSubObject) const override;
 
-		virtual bool FinishBuilding(const FMetasoundFrontendClassName& InClassName, bool bForceUnregister = false) const override;
+		virtual bool FinishBuilding(const FMetasoundFrontendClassName& InClassName, bool bForceUnregisterNodeClass = false) const override;
 
 		UMetaSoundBuilderBase* FindBuilderObject(TScriptInterface<const IMetaSoundDocumentInterface> MetaSound) const;
 		UMetaSoundBuilderBase* FindBuilderObject(const FMetasoundFrontendClassName& ClassName) const;

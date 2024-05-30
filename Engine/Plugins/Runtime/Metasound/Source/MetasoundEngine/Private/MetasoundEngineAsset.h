@@ -12,18 +12,21 @@
 #include "Serialization/Archive.h"
 
 #if WITH_EDITORONLY_DATA
-#include "MetasoundFrontendRegistries.h"
 #include "Algo/Transform.h"
+#include "MetasoundFrontendRegistryContainer.h"
+#include "UObject/StrongObjectPtrTemplates.h"
+#include "UObject/ObjectMacros.h"
+#include "UObject/GarbageCollection.h"
 #endif // WITH_EDITORONLY_DATA
 
 
-namespace Metasound
+namespace Metasound::Engine
 {
 	/** MetaSound Engine Asset helper provides routines for UObject based MetaSound assets. 
 	 * Any UObject deriving from FMetaSoundAssetBase should use these helper functions
 	 * in their UObject overrides. 
 	 */
-	struct FMetaSoundEngineAssetHelper
+	struct FAssetHelper
 	{
 #if WITH_EDITOR
 		static void PostDuplicate(TScriptInterface<IMetaSoundDocumentInterface> MetaSound, EDuplicateMode::Type InDuplicateMode, FGuid& OutAssetClassID)
@@ -149,15 +152,27 @@ namespace Metasound
 		template <typename TMetaSoundObject>
 		static void SerializeToArchive(TMetaSoundObject& InMetaSound, FArchive& InArchive)
 		{
+#if WITH_EDITORONLY_DATA
+			bool bVersionedAsset = false;
+
 			if (InArchive.IsLoading())
 			{
-				if (InMetaSound.VersionAsset())
+				TStrongObjectPtr<UMetaSoundBuilderBase> Builder;
 				{
-#if WITH_EDITORONLY_DATA
-					InMetaSound.SetVersionedOnLoad();
-#endif // WITH_EDITORONLY_DATA
+					FGCScopeGuard ScopeGuard;
+					Builder.Reset(&FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(InMetaSound));
 				}
+
+				check(Builder.IsValid());
+				bVersionedAsset = InMetaSound.VersionAsset(Builder->GetBuilder());
+				Builder->ClearInternalFlags(EInternalObjectFlags::Async);
 			}
+
+			if (bVersionedAsset)
+			{
+				InMetaSound.SetVersionedOnLoad();
+			}
+#endif // WITH_EDITORONLY_DATA
 		}
 
 		template<typename TMetaSoundObject>
@@ -235,4 +250,4 @@ namespace Metasound
 		}
 #endif // WITH_EDITORONLY_DATA
 	};
-} // namespace Metasound
+} // namespace Metasound::Engine

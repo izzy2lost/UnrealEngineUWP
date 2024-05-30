@@ -19,6 +19,13 @@
 #include "Metasound.generated.h"
 
 
+// Forward Declarations
+namespace Metasound::Engine
+{
+	struct FAssetHelper;
+} // namespace Metasound::Engine
+
+
 UCLASS(Abstract)
 class METASOUNDENGINE_API UMetasoundEditorGraphBase : public UEdGraph
 {
@@ -53,13 +60,6 @@ public:
 };
 
 
-namespace Metasound
-{
-	// Forward declare
-	struct FMetaSoundEngineAssetHelper;
-}
-
-
 /**
  * This asset type is used for Metasound assets that can only be used as nodes in other Metasound graphs.
  * Because of this, they contain no required inputs or outputs.
@@ -69,7 +69,7 @@ class METASOUNDENGINE_API UMetaSoundPatch : public UObject, public FMetasoundAss
 {
 	GENERATED_BODY()
 
-	friend struct Metasound::FMetaSoundEngineAssetHelper;
+	friend struct Metasound::Engine::FAssetHelper;
 	friend class UMetaSoundPatchBuilder;
 
 protected:

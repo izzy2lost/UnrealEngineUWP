@@ -35,10 +35,18 @@ namespace Audio
 
 namespace Metasound
 {
-	struct FMetaSoundEngineAssetHelper;
 	struct FMetasoundGeneratorInitParams;
-
 	class FMetasoundGenerator;
+
+	namespace DynamicGraph
+	{
+		class FDynamicOperatorTransactor;
+	} // namespace DynamicGraph
+
+	namespace Engine
+	{
+		struct FAssetHelper;
+	} // namespace Engine;
 
 	namespace Frontend
 	{
@@ -51,10 +59,6 @@ namespace Metasound
 		using FCookedQualitySettings = FMetaSoundQualitySettings;
 	} // namespace SourcePrivate
 
-	namespace DynamicGraph
-	{
-		class FDynamicOperatorTransactor;
-	} // namespace DynamicGraph
 } // namespace Metasound
 
 
@@ -69,7 +73,7 @@ class METASOUNDENGINE_API UMetaSoundSource : public USoundWaveProcedural, public
 {
 	GENERATED_BODY()
 
-	friend struct Metasound::FMetaSoundEngineAssetHelper;
+	friend struct Metasound::Engine::FAssetHelper;
 	friend class UMetaSoundSourceBuilder;
 
 	// FRuntimeInput represents an input to a MetaSound which can be manipulated.

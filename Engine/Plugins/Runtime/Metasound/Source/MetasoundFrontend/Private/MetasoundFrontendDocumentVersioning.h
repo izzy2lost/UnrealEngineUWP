@@ -10,6 +10,7 @@
 #include "UObject/ScriptInterface.h"
 
 class IMetaSoundDocumentInterface;
+struct FMetaSoundFrontendDocumentBuilder;
 
 
 namespace Metasound::Frontend
@@ -21,5 +22,5 @@ namespace Metasound::Frontend
 
 	// Versions Frontend Document. Passed as AssetBase for backward compat to
 	// version asset documents predating the IMetaSoundDocumentInterface
-	bool VersionDocument(FMetasoundAssetBase& InAssetBase);
+	bool VersionDocument(FMetasoundAssetBase& InAssetBase, FMetaSoundFrontendDocumentBuilder& Builder);
 } // namespace Metasound::Frontend

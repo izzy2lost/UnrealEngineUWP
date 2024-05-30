@@ -154,7 +154,9 @@ public:
 	UE_DEPRECATED(5.4, "Use GetGraphRegistryKey instead.")
 	const Metasound::Frontend::FNodeRegistryKey& GetRegistryKey() const;
 
-	bool VersionAsset();
+#if WITH_EDITORONLY_DATA
+	bool VersionAsset(FMetaSoundFrontendDocumentBuilder& Builder);
+#endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR
 	/*
@@ -273,7 +275,7 @@ private:
 
 	// Returns new interface to be versioned to from the given version. If no interface versioning is
 	// required, returns invalid interface (interface with no name and invalid version number).
-	FMetasoundFrontendInterface GetInterfaceToVersion(const FMetasoundFrontendVersion& InterfaceVersion, Metasound::Frontend::FConstDocumentHandle InDocument) const;
+	FMetasoundFrontendInterface GetInterfaceToVersion(const FMetasoundFrontendVersion& InterfaceVersion) const;
 
 	Metasound::Frontend::FGraphRegistryKey GraphRegistryKey;
 };

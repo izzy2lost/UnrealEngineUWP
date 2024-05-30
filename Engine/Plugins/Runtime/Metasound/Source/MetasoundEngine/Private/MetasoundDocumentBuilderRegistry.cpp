@@ -158,7 +158,7 @@ namespace Metasound::Engine
 		return FindBuilder(DocumentInterface);
 	}
 
-	bool FDocumentBuilderRegistry::FinishBuilding(const FMetasoundFrontendClassName& InClassName, bool bForceUnregister) const
+	bool FDocumentBuilderRegistry::FinishBuilding(const FMetasoundFrontendClassName& InClassName, bool bForceUnregisterNodeClass) const
 	{
 		using namespace Metasound;
 		using namespace Metasound::Engine;
@@ -178,7 +178,7 @@ namespace Metasound::Engine
 				{
 					const int32 TransactionCount = DocBuilder.GetTransactionCount();
 					const int32 LastTransactionRegistered = Builder->GetLastTransactionRegistered();
-					if (bForceUnregister || LastTransactionRegistered != TransactionCount)
+					if (bForceUnregisterNodeClass || LastTransactionRegistered != TransactionCount)
 					{
 						UObject& MetaSound = DocBuilder.CastDocumentObjectChecked<UObject>();
 						if (FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&MetaSound))

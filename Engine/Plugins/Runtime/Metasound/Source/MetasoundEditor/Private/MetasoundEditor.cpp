@@ -884,22 +884,21 @@ namespace Metasound
 			Metasound->SetFlags(RF_Transactional);
 
 			// Typically sounds are versioned on load of the asset. There are certain instances where an asset is not versioned on reload.
-			// This is here as a hack around that fact to force versioning the document on load prior to the editor synchronizing and building
-			// the editor graph if an asset is reloaded while the asset editor was open.
+			// This forces versioning the document on load prior to the editor synchronizing and building the editor graph if an asset is
+			// reloaded while the asset editor was open.
+			Builder.Reset(&Engine::FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*ObjectToEdit));
 			if (FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(Metasound))
 			{
-				if (MetaSoundAsset->VersionAsset())
+				if (MetaSoundAsset->VersionAsset(Builder->GetBuilder()))
 				{
 					MetaSoundAsset->SetVersionedOnLoad();
 				}
 
-				// Hack to ensure validation is re-run on re-opening of the editor.
+				// Ensures validation is re-run on re-opening of the editor.
 				// This is needed to refresh errors potentially caused by unloading of
 				// references (ex. if a referenced asset is force deleted in the editor).
 				MetaSoundAsset->GetModifyContext().SetForceRefreshViews();
 			}
-
-			Builder.Reset(&Engine::FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*ObjectToEdit));
 
 			GEditor->RegisterForUndo(this);
 

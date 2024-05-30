@@ -106,13 +106,13 @@ const FMetasoundFrontendDocument& UMetaSoundPatch::GetConstDocument() const
 void UMetaSoundPatch::PostDuplicate(EDuplicateMode::Type InDuplicateMode)
 {
 	Super::PostDuplicate(InDuplicateMode);
-	Metasound::FMetaSoundEngineAssetHelper::PostDuplicate(this, InDuplicateMode, AssetClassID);
+	Metasound::Engine::FAssetHelper::PostDuplicate(this, InDuplicateMode, AssetClassID);
 }
 
 void UMetaSoundPatch::PostEditUndo()
 {
 	Super::PostEditUndo();
-	Metasound::FMetaSoundEngineAssetHelper::PostEditUndo(*this);
+	Metasound::Engine::FAssetHelper::PostEditUndo(*this);
 }
 #endif // WITHEDITOR
 
@@ -125,13 +125,13 @@ void UMetaSoundPatch::BeginDestroy()
 void UMetaSoundPatch::PreSave(FObjectPreSaveContext InSaveContext)
 {
 	Super::PreSave(InSaveContext);
-	Metasound::FMetaSoundEngineAssetHelper::PreSaveAsset(*this, InSaveContext);
+	Metasound::Engine::FAssetHelper::PreSaveAsset(*this, InSaveContext);
 }
 
 void UMetaSoundPatch::Serialize(FArchive& InArchive)
 {
 	Super::Serialize(InArchive);
-	Metasound::FMetaSoundEngineAssetHelper::SerializeToArchive(*this, InArchive);
+	Metasound::Engine::FAssetHelper::SerializeToArchive(*this, InArchive);
 }
 
 #if WITH_EDITORONLY_DATA
@@ -165,32 +165,32 @@ FText UMetaSoundPatch::GetDisplayName() const
 
 void UMetaSoundPatch::SetRegistryAssetClassInfo(const Metasound::Frontend::FNodeClassInfo& InNodeInfo)
 {
-	Metasound::FMetaSoundEngineAssetHelper::SetMetaSoundRegistryAssetClassInfo(*this, InNodeInfo);
+	Metasound::Engine::FAssetHelper::SetMetaSoundRegistryAssetClassInfo(*this, InNodeInfo);
 }
 #endif // WITH_EDITORONLY_DATA
 
 
 FTopLevelAssetPath UMetaSoundPatch::GetAssetPathChecked() const
 {
-	return Metasound::FMetaSoundEngineAssetHelper::GetAssetPathChecked(*this);
+	return Metasound::Engine::FAssetHelper::GetAssetPathChecked(*this);
 }
 
 void UMetaSoundPatch::PostLoad() 
 {
 	Super::PostLoad();
-	Metasound::FMetaSoundEngineAssetHelper::PostLoad(*this);
+	Metasound::Engine::FAssetHelper::PostLoad(*this);
 }
 
 #if WITH_EDITOR
 void UMetaSoundPatch::SetReferencedAssetClasses(TSet<Metasound::Frontend::IMetaSoundAssetManager::FAssetInfo>&& InAssetClasses)
 {
-	Metasound::FMetaSoundEngineAssetHelper::SetReferencedAssetClasses(*this, MoveTemp(InAssetClasses));
+	Metasound::Engine::FAssetHelper::SetReferencedAssetClasses(*this, MoveTemp(InAssetClasses));
 }
 #endif
 
 TArray<FMetasoundAssetBase*> UMetaSoundPatch::GetReferencedAssets()
 {
-	return Metasound::FMetaSoundEngineAssetHelper::GetReferencedAssets(*this);
+	return Metasound::Engine::FAssetHelper::GetReferencedAssets(*this);
 }
 
 const TSet<FSoftObjectPath>& UMetaSoundPatch::GetAsyncReferencedAssetClassPaths() const 
@@ -200,7 +200,7 @@ const TSet<FSoftObjectPath>& UMetaSoundPatch::GetAsyncReferencedAssetClassPaths(
 
 void UMetaSoundPatch::OnAsyncReferencedAssetsLoaded(const TArray<FMetasoundAssetBase*>& InAsyncReferences)
 {
-	Metasound::FMetaSoundEngineAssetHelper::OnAsyncReferencedAssetsLoaded(*this, InAsyncReferences);
+	Metasound::Engine::FAssetHelper::OnAsyncReferencedAssetsLoaded(*this, InAsyncReferences);
 }
 
 bool UMetaSoundPatch::IsActivelyBuilding() const

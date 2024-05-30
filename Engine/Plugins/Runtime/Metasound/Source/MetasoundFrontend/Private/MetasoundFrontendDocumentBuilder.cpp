@@ -3756,3 +3756,17 @@ bool FMetaSoundFrontendDocumentBuilder::UpdateDependencyClassNames(const TMap<FM
 	
 	return true;
 }
+
+#if WITH_EDITORONLY_DATA
+bool FMetaSoundFrontendDocumentBuilder::VersionInterfaces()
+{
+	FMetasoundFrontendDocument& Document = GetDocumentChecked();
+	if (Document.RequiresInterfaceVersioning())
+	{
+		Document.VersionInterfaces();
+		return true;
+	}
+
+	return false;
+}
+#endif // WITH_EDITORONLY_DATA

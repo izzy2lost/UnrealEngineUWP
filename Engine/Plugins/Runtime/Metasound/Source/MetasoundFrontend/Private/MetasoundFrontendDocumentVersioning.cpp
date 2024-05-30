@@ -2,6 +2,7 @@
 #include "MetasoundFrontendDocumentVersioning.h"
 
 #include "Algo/Transform.h"
+#include "CoreGlobals.h"
 #include "Interfaces/MetasoundFrontendInterface.h"
 #include "Interfaces/MetasoundFrontendInterfaceRegistry.h"
 #include "MetasoundAccessPtr.h"
@@ -596,7 +597,7 @@ namespace Metasound::Frontend
 		}
 	} // namespace VersioningPrivate
 
-	bool VersionDocument(FMetasoundAssetBase& InAssetBase)
+	bool VersionDocument(FMetasoundAssetBase& InAssetBase, FMetaSoundFrontendDocumentBuilder& Builder)
 	{
 		bool bWasUpdated = false;
 
@@ -630,14 +631,7 @@ namespace Metasound::Frontend
 				// No longer supported, new versions should go in VersioningPrivate::VersionBuilderDocument
 			}
 
-#if WITH_EDITORONLY_DATA
-			FMetaSoundFrontendDocumentBuilder& Builder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(DocumentInterface);
 			bWasUpdated |= VersioningPrivate::VersionBuilderDocument(InAssetBase, Builder);
-#else
-			FMetaSoundFrontendDocumentBuilder Builder(DocumentInterface);
-			bWasUpdated |= VersioningPrivate::VersionBuilderDocument(InAssetBase, Builder);
-#endif // WITH_EDITORONLY_DATA
-
 			if (bWasUpdated)
 			{
 				const FMetasoundFrontendVersionNumber& NewVersionNumber = Document.Metadata.Version.Number;
