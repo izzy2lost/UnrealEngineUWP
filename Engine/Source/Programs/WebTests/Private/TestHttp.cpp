@@ -552,11 +552,12 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Streaming http download", HTTP_
 	}
 	SECTION("Success with customized stream delegate")
 	{
-		FHttpRequestStreamDelegateV2 Delegate;
-		Delegate.BindLambda([TotalBytesReceived](void* Ptr, int64& Length) {
+		FHttpRequestStreamDelegate Delegate;
+		Delegate.BindLambda([TotalBytesReceived](void* Ptr, int64 Length) {
 			*TotalBytesReceived += Length;
+			return true;
 		});
-		CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegateV2(Delegate));
+		CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegate(Delegate));
 
 		HttpRequest->OnProcessRequestComplete().BindLambda([Chunks, ChunkSize, TotalBytesReceived](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 			CHECK(bSucceeded);
@@ -602,12 +603,12 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Streaming http download", HTTP_
 	{
 		DisableWarningsInThisTest();
 
-		FHttpRequestStreamDelegateV2 Delegate;
-		Delegate.BindLambda([TotalBytesReceived](void* Ptr, int64& Length) {
+		FHttpRequestStreamDelegate Delegate;
+		Delegate.BindLambda([TotalBytesReceived](void* Ptr, int64 Length) {
 			*TotalBytesReceived += Length;
-			Length = 0; // Mark as no data was serialized successfully
+			return false;
 		});
-		CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegateV2(Delegate));
+		CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegate(Delegate));
 
 		HttpRequest->OnProcessRequestComplete().BindLambda([ChunkSize, TotalBytesReceived](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 			CHECK(!bSucceeded);
@@ -661,9 +662,10 @@ public:
 		TotalBytesReceived = nullptr;
 	}
 
-	void OnReceivedData(void* Ptr, int64& Length)
+	bool OnReceivedData(void* Ptr, int64 Length)
 	{
 		*TotalBytesReceived += Length;
+		return true;
 	}
 
 	int64* TotalBytesReceived;
@@ -676,9 +678,9 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "In streaming downloading http r
 
 	TSharedPtr<FUserStreamingClass> UserInstance = MakeShared<FUserStreamingClass>();
 
-	FHttpRequestStreamDelegateV2 Delegate;
+	FHttpRequestStreamDelegate Delegate;
 	Delegate.BindThreadSafeSP(UserInstance.ToSharedRef(), &FUserStreamingClass::OnReceivedData);
-	CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegateV2(Delegate));
+	CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegate(Delegate));
 
 	HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 		CHECK(!bSucceeded);
@@ -705,9 +707,9 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "In streaming downloading http r
 
 	TSharedPtr<FUserStreamingClass> UserInstance = MakeShared<FUserStreamingClass>();
 
-	FHttpRequestStreamDelegateV2 Delegate;
+	FHttpRequestStreamDelegate Delegate;
 	Delegate.BindThreadSafeSP(UserInstance.ToSharedRef(), &FUserStreamingClass::OnReceivedData);
-	CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegateV2(Delegate));
+	CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegate(Delegate));
 	HttpRequest->ProcessRequest();
 
 	while (*UserInstance->TotalBytesReceived == 0) // Make sure it started receiving data
@@ -738,9 +740,9 @@ TEST_CASE_METHOD(FInvalidateDelegateShutdownFixture, "Shutdown http module witho
 	{
 		TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
 		HttpRequest->SetURL(UrlStreamDownload(10, 1024*1024));
-		FHttpRequestStreamDelegateV2 Delegate;
+		FHttpRequestStreamDelegate Delegate;
 		Delegate.BindThreadSafeSP(UserStreamingInstance.ToSharedRef(), &FUserStreamingClass::OnReceivedData);
-		CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegateV2(Delegate));
+		CHECK(HttpRequest->SetResponseBodyReceiveStreamDelegate(Delegate));
 
 		HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 			CHECK(bSucceeded);
@@ -791,11 +793,12 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can download big file exceeds 3
 	HttpRequest->SetVerb(TEXT("GET"));
 
 	TSharedRef<int64> TotalBytesReceived = MakeShared<int64>(0);
-	FHttpRequestStreamDelegateV2 Delegate;
-	Delegate.BindLambda([TotalBytesReceived](void* Ptr, int64& Length) {
+	FHttpRequestStreamDelegate Delegate;
+	Delegate.BindLambda([TotalBytesReceived](void* Ptr, int64 Length) {
 		*TotalBytesReceived += Length;
+		return true;
 	});
-	HttpRequest->SetResponseBodyReceiveStreamDelegateV2(Delegate);
+	HttpRequest->SetResponseBodyReceiveStreamDelegate(Delegate);
 
 	HttpRequest->OnProcessRequestComplete().BindLambda([Chunks, ChunkSize, TotalBytesReceived](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 		CHECK(bSucceeded);
@@ -1513,12 +1516,13 @@ TEST_CASE_METHOD(FValidateHeaderReceiveOrderFixture, "Http request header receiv
 	HttpRequest->SetURL(UrlStreamDownload(2/*Chunks*/, 1024/*ChunkSize*/));
 	HttpRequest->SetVerb(TEXT("GET"));
 
-	FHttpRequestStreamDelegateV2 StreamDelegate;
-	StreamDelegate.BindLambda([this](void *InDataPtr, int64& InLength) {
+	FHttpRequestStreamDelegate StreamDelegate;
+	StreamDelegate.BindLambda([this](void *InDataPtr, int64 InLength) {
 		bAnyDataReceived = true;
 		CHECK(!bCompleteCallbackTriggered);
+		return true;
 	});
-	HttpRequest->SetResponseBodyReceiveStreamDelegateV2(StreamDelegate);
+	HttpRequest->SetResponseBodyReceiveStreamDelegate(StreamDelegate);
 
 	SECTION("in http thread")
 	{
