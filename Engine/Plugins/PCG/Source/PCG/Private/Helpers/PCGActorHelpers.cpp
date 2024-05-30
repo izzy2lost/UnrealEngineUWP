@@ -529,7 +529,10 @@ AActor* UPCGActorHelpers::SpawnDefaultActor(const FSpawnDefaultActorParams& Para
 		RootComponent->RegisterComponent();
 	}
 
-	RootComponent->Mobility = EComponentMobility::Static;
+	if (Params.bForceStaticMobility)
+	{
+		RootComponent->Mobility = EComponentMobility::Static;
+	}
 
 #if WITH_EDITOR
 	RootComponent->bVisualizeComponent = true;

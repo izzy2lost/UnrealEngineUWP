@@ -809,6 +809,7 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 	}
 
 	UPCGActorHelpers::FSpawnDefaultActorParams SpawnDefaultActorParams(TargetActor->GetWorld(), InTemplateActorClass, FTransform::Identity, SpawnParams);
+	SpawnDefaultActorParams.bForceStaticMobility = false; // Always respect the actor's mobility
 
 #if WITH_EDITOR
 	SpawnDefaultActorParams.DataLayerInstances = TargetActor->GetDataLayerInstances();

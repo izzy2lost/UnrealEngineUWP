@@ -143,6 +143,7 @@ public:
 		FTransform Transform;
 		FActorSpawnParameters SpawnParams;
 		AActor* Parent = nullptr;
+		bool bForceStaticMobility = true;
 #if WITH_EDITOR
 		TArray<const UDataLayerInstance*> DataLayerInstances;
 #endif
