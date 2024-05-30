@@ -243,8 +243,7 @@ const FVisualizationOption FVisualizationOption::OptionData[] =
 			Visualization.DrawMaxDistances(PDI);
 		}),
 		LOCTEXT("ChaosVisName_MaxDistance", "Max Distances"), 
-		LOCTEXT("ChaosVisName_MaxDistance_ToolTip", "Draws the current max distances for the sim particles as a line along its normal"), 
-		/*bDisablesSimulation =*/true),
+		LOCTEXT("ChaosVisName_MaxDistance_ToolTip", "Draws the current max distances for the sim particles as a line along its normal")),
 	FVisualizationOption(
 		FClothVisualizationDebugDrawTexts::CreateLambda([](const FClothEditorSimulationVisualization&, const ::Chaos::FClothVisualization& Visualization, FCanvas* Canvas, const FSceneView* SceneView)
 		{
