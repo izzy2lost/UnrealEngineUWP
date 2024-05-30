@@ -35,6 +35,8 @@ namespace uba
 		static constexpr u8 RootStartByte = ' ';
 
 	private:
+		bool InternalRegisterRoot(Logger& logger, const tchar* rootPath, bool includeInKey, u8 index);
+
 		Vector<Root> m_roots;
 		u32 m_shortestRoot = 0;
 		u32 m_longestRoot = 0;
