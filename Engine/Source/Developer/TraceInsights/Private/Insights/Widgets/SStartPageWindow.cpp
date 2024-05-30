@@ -4770,7 +4770,18 @@ FReply SConnectionWindow::Connect_OnClicked()
 			UE_LOG(TraceInsights, Log, TEXT("[Connection] Try connecting to \"%s\"..."), *RunningInstanceAddressStr);
 
 			UE::Trace::FControlClient ControlClient;
-			if (ControlClient.Connect(*RunningInstanceAddressStr))
+			FString IPStr, PortStr;
+			RunningInstanceAddressStr.Split(TEXT(":"), &IPStr, &PortStr);
+			uint16 Port = 1985;
+			if (!PortStr.IsEmpty())
+			{
+				Port = uint16(FCString::Atoi(*PortStr));
+			}
+			else
+			{
+				IPStr = RunningInstanceAddressStr;
+			}
+			if (ControlClient.Connect(*IPStr, Port))
 			{
 				UE_LOG(TraceInsights, Log, TEXT("[Connection] SendSendTo(\"%s\")..."), *TraceRecorderAddressStr);
 				ControlClient.SendSendTo(*TraceRecorderAddressStr);
