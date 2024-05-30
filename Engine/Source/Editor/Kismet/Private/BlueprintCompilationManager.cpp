@@ -2679,6 +2679,7 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 				{ 
 					bool bIsArchetype = 
 						Obj->HasAnyFlags(RF_ArchetypeObject|RF_InheritableComponentTemplate)
+						|| (FOverridableManager::Get().IsEnabled(*Obj) && Obj->GetOutermostObject()->HasAnyFlags(RF_ClassDefaultObject))
 						|| Obj->GetTypedOuter<UBlueprintGeneratedClass>()
 						|| Obj->GetTypedOuter<UBlueprint>();
 					// remove if this is not an archetype or its already in the transient package, note
@@ -2728,9 +2729,22 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 							}
 
 							// this handles nested subobjects:
-							TArray<UObject*> ContainedObjects;
-							GetObjectsWithOuter(Iter, ContainedObjects);
-							ArchetypeReferencers.Append(ContainedObjects);
+							if (FOverridableManager::Get().IsEnabled(*Archetype))
+							{
+								ForEachObjectWithOuter(Iter, [Archetype, &ArchetypeReferencers](UObject* SubObject)
+								{
+									if (SubObject != Archetype && !SubObject->IsIn(Archetype))
+									{
+										ArchetypeReferencers.Add(SubObject);
+									}
+								});
+							}
+							else
+							{
+								TArray<UObject*> ContainedObjects;
+								GetObjectsWithOuter(Iter, ContainedObjects);
+								ArchetypeReferencers.Append(ContainedObjects);
+							}
 						}
 						Iter = Iter->GetOuter();
 					}
@@ -2780,6 +2794,23 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 				FName OriginalName = OldInstance->GetFName();
 				UObject* OriginalOuter = OldInstance->GetOuter();
 				EObjectFlags OriginalFlags = OldInstance->GetFlags();
+
+				// We need to cache the archetype of the instances of this archetype
+				// as it will not be possible to get them afterwards as it gets renamed
+				if (FOverridableManager::Get().IsEnabled(*OldInstance))
+				{
+					TArray<UObject*> ArchetypeInstances;
+					OldInstance->GetArchetypeInstances(ArchetypeInstances);
+					for (UObject* ArchetypeInstance : ArchetypeInstances)
+					{
+						FOverridableManager::Get().CacheArchetype(*ArchetypeInstance);
+
+						ForEachObjectWithOuter(ArchetypeInstance, [](UObject* SubObject)
+						{
+							FOverridableManager::Get().CacheArchetype(*SubObject);
+						});
+					}
+				}
 
 				UObject* Destination = GetTransientOuterForRename(OldInstance->GetClass());
 				OldInstance->Rename(

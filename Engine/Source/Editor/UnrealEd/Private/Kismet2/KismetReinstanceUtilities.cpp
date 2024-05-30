@@ -2711,6 +2711,23 @@ void FBlueprintCompileReinstancer::ReplaceInstancesOfClass_Inner(const TMap<UCla
 						}
 						return Dependencies;
 					});
+
+					// We need to cache the archetype of the objects about to be replaced 
+					// as it will not be possible to get them during this process as it renames the objects
+					for (UObject* OldObject : ObjectsToReplace)
+					{
+						if(!IsValid(OldObject))
+						{
+							continue;
+						}
+
+						FOverridableManager::Get().CacheArchetype(*OldObject);
+
+						ForEachObjectWithOuter(OldObject, [](UObject* SubObject)
+						{
+							FOverridableManager::Get().CacheArchetype(*SubObject);
+						});
+					}
 				}
 				
 				// Then fix 'real' (non archetype) instances of the class

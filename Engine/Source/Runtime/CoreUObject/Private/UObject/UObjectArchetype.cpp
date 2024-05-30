@@ -13,6 +13,7 @@
 #include "UObject/UObjectAnnotation.h"
 #include "Stats/StatsMisc.h"
 #include "HAL/IConsoleManager.h"
+#include "UObject/OverridableManager.h"
 #include "UObject/UObjectArchetypeHelper.h"
 
 #define UE_CACHE_ARCHETYPE (1 && !WITH_EDITORONLY_DATA)
@@ -203,6 +204,16 @@ UObject* GetArchetypeImpl(const UObject* InObject, const FObjectArchetypeHelper:
 			return Archetype;
 		}
 	}
+
+	if (const FOverriddenPropertySet* OverriddenProperties = FOverridableManager::Get().GetOverriddenProperties(*InObject))
+	{
+		// Use the cached archetype if set
+		if (UObject* CacheArchetype = OverriddenProperties->GetCachedArchetype())
+		{
+			return CacheArchetype;
+		}
+	}
+
 #endif
 
 	bool bUseUpToDateClass = false;

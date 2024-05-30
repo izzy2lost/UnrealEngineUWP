@@ -128,6 +128,14 @@ public:
 	COREUOBJECT_API void InheritEnabledFrom(UObject& Object, const UObject* DefaultData);
 
 	/**
+	 * Caches the archetype for this object if it has overridable serialization enabled.
+	 * NOTE: ONLY CACHE THE ARCHETYPE POINTER ON OBJECTS THAT ARE ABOUT TO BE REINSTANTIATED.
+	 * This is only a utility method to ensure the archetype is not lost during reinstantiation
+	 * as it renames and changes outers which makes impossible to retrieve it during the process.
+	 * @param Object top cache its archetype */
+	COREUOBJECT_API void CacheArchetype(UObject& Object);
+
+	/**
 	 * Return true if this object needs subobject template instantiation
 	 * @param Object to be querying about */
 	COREUOBJECT_API bool NeedSubObjectTemplateInstantiation(const UObject& Object);

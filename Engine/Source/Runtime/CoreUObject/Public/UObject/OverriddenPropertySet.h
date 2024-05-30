@@ -292,6 +292,18 @@ public:
 	void Reset();
 	void HandleObjectsReInstantiated(const TMap<UObject*, UObject*>& Map);
 
+	/**
+	 * Caches the archetype of this object for future reference */
+	void CacheArchetype();
+
+	/**
+	 * Gets the archetype that was cached when the CacheArchetype method was called
+	 * @return the cached Archetype if any */
+	UObject* GetCachedArchetype() const
+	{
+		return CachedArchetype;
+	}
+
 protected:
 
 	FOverriddenPropertyNode& FindOrAddNode(FOverriddenPropertyNode& ParentPropertyNode, FOverriddenPropertyNodeID NodeID);
@@ -316,6 +328,8 @@ private:
 
 	static inline FOverriddenPropertyNodeID RootNodeID = FOverriddenPropertyNodeID(FName(TEXT("root")));
 
+	/** Archetype is cache when it is or its archetype is about to be replaced **/
+	TObjectPtr<UObject> CachedArchetype = nullptr;
 public:
 	bool bNeedsSubobjectTemplateInstantiation = false;
 };

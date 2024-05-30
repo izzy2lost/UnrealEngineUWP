@@ -1026,6 +1026,14 @@ void FOverriddenPropertySet::RemoveOverriddenSubProperties(FOverriddenPropertyNo
 	PropertyNode.SubPropertyNodeKeys.Empty();
 }
 
+void FOverriddenPropertySet::CacheArchetype()
+{
+	if (!CachedArchetype)
+	{
+		CachedArchetype = Owner->GetArchetype();
+	}
+}
+
 EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperation(const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, bool* bOutInheritedOperation /*= nullptr*/) const
 {
 	if (const FOverriddenPropertyNode* RootNode = OverriddenPropertyNodes.FindByHash(GetTypeHash(RootNodeID), RootNodeID))
@@ -1189,6 +1197,13 @@ void FOverriddenPropertySet::Reset()
 
 void FOverriddenPropertySet::HandleObjectsReInstantiated(const TMap<UObject*, UObject*>& Map)
 {
+	// When the saved archetype is set, it is an indicator this object is about to be replaced
+	// So no need to replace any ptr, otherwise we might not be able to reconstitute the right information
+	if (CachedArchetype)
+	{
+		return;
+	}
+
 	for (FOverriddenPropertyNode& Node : OverriddenPropertyNodes)
 	{
 		Node.NodeID.HandleObjectsReInstantiated(Map);
