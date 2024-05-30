@@ -163,6 +163,7 @@ namespace uba
 
 	bool GetFileInformationByHandle(FileInformation& out, Logger& logger, const tchar* fileName, FileHandle hFile)
 	{
+		ExtendedTimerScope ts(SystemStats::GetCurrent().getFileAttributes);
 #if PLATFORM_WINDOWS
 		BY_HANDLE_FILE_INFORMATION info;
 		if (!::GetFileInformationByHandle(asHANDLE(hFile), &info))
@@ -221,6 +222,7 @@ namespace uba
 
 	bool FileExists(Logger& logger, const tchar* fileName, u64* outSize, u32* outAttributes, u64* lastWriteTime)
 	{
+		ExtendedTimerScope ts(SystemStats::GetCurrent().getFileAttributes);
 #if PLATFORM_WINDOWS
 		MAKE_LONG_FILENAME(fileName);
 		WIN32_FILE_ATTRIBUTE_DATA data;
@@ -632,6 +634,7 @@ namespace uba
 
 	bool GetFileSizeEx(u64& outFileSize, FileHandle hFile)
 	{
+		ExtendedTimerScope ts(SystemStats::GetCurrent().getFileAttributes);
 #if PLATFORM_WINDOWS
 		LARGE_INTEGER lpFileSize;
 		if (!::GetFileSizeEx(asHANDLE(hFile), &lpFileSize))
@@ -654,6 +657,7 @@ namespace uba
 
 	u32 GetFileAttributesW(const tchar* fileName)
 	{
+		ExtendedTimerScope ts(SystemStats::GetCurrent().getFileAttributes);
 #if PLATFORM_WINDOWS
 		MAKE_LONG_FILENAME(fileName);
 		return ::GetFileAttributesW(fileName);

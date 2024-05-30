@@ -317,11 +317,8 @@ namespace uba
 				cacheStats.testEntry.time -= (cacheStats.fetchCasTable.time + cacheStats.normalizeFile.time);
 				BinaryWriter writer(memory, 0, sizeof_array(memory));
 				cacheStats.Write(writer);
-				if (success)
-				{
-					storageStats.Write(writer);
-					systemStats.Write(writer);
-				}
+				storageStats.Write(writer);
+				systemStats.Write(writer);
 				m_session.GetTrace().CacheEndFetch(fetchId, success, memory, writer.GetPosition());
 			});
 

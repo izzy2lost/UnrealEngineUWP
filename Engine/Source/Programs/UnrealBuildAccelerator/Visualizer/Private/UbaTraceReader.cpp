@@ -912,7 +912,7 @@ namespace uba
 			StorageStats storageStats;
 			const u8* dataStart = reader.GetPositionData();
 			cacheStats.Read(reader, out.version);
-			if (success)
+			if (success || out.version >= 29)
 			{
 				storageStats.Read(reader);
 				systemStats.Read(reader, out.version);

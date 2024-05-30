@@ -133,6 +133,7 @@ namespace uba
 		UBA_SYSTEM_STAT(writeFile, 0) \
 		UBA_SYSTEM_STAT(readFile, 0) \
 		UBA_SYSTEM_STAT(setFileInfo, 0) \
+		UBA_SYSTEM_STAT(getFileAttributes, 29) \
 		UBA_SYSTEM_STAT(createFileMapping, 0) \
 		UBA_SYSTEM_STAT(mapViewOfFile, 0) \
 		UBA_SYSTEM_STAT(unmapViewOfFile, 0) \

@@ -1425,18 +1425,18 @@ namespace uba
 					sessionStats.Print(logger, m_traceView.frequency);
 				}
 
-				if (!storageStats.IsEmpty())
-				{
-					logger.Info(L"");
-					logger.Info(L"  ----------- Storage stats -----------");
-					storageStats.Print(logger, m_traceView.frequency);
-				}
-
 				if (!cacheStats.IsEmpty())
 				{
 					logger.Info(L"");
 					logger.Info(L"  ------------ Cache stats ------------");
 					cacheStats.Print(logger, m_traceView.frequency);
+				}
+
+				if (!storageStats.IsEmpty())
+				{
+					logger.Info(L"");
+					logger.Info(L"  ----------- Storage stats -----------");
+					storageStats.Print(logger, m_traceView.frequency);
 				}
 
 				if (!systemStats.IsEmpty())
