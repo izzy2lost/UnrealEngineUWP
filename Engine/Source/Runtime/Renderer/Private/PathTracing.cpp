@@ -3055,15 +3055,12 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 			ERDGPassFlags::Compute,
 			[PassParameters, RayGenShader, &View](FRHICommandList& RHICmdList)
 			{
-				FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
-
 				FRayTracingShaderBindingsWriter GlobalResources;
 				SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
 
 				RHICmdList.RayTraceDispatch(
 					View.RayTracingMaterialPipeline,
 					RayGenShader.GetRayTracingShader(),
-					RayTracingSceneRHI,
 					View.RayTracingSBT,
 					GlobalResources,
 					1, 1
@@ -3618,8 +3615,6 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 								ERDGPassFlags::Compute,
 								[PassParameters, RayGenShader, DispatchSizeX, DispatchSizeYLocal, bUseIndirectDispatch, bFlushRenderingCommands, GPUIndex, &View](FRHICommandList& RHICmdList)
 								{
-									FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
-
 									FRayTracingShaderBindingsWriter GlobalResources;
 									SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
 									if (bUseIndirectDispatch && PassParameters->Bounce > 0)
@@ -3629,7 +3624,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 										RHICmdList.RayTraceDispatchIndirect(
 											View.RayTracingMaterialPipeline,
 											RayGenShader.GetRayTracingShader(),
-											RayTracingSceneRHI, View.RayTracingSBT, GlobalResources,
+											View.RayTracingSBT, GlobalResources,
 											PassParameters->PathTracingIndirectArgs->GetIndirectRHICallBuffer(), 3 * PassParameters->Bounce * sizeof(uint32)
 										);
 									}
@@ -3638,7 +3633,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 										RHICmdList.RayTraceDispatch(
 											View.RayTracingMaterialPipeline,
 											RayGenShader.GetRayTracingShader(),
-											RayTracingSceneRHI, View.RayTracingSBT, GlobalResources,
+											View.RayTracingSBT, GlobalResources,
 											DispatchSizeX, DispatchSizeYLocal
 										);
 									}

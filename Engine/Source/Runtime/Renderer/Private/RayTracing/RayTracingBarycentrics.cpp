@@ -186,7 +186,7 @@ void RenderRayTracingBarycentricsRGS(FRDGBuilder& GraphBuilder, const FScene& Sc
 		// Dispatch rays using default shader binding table
 		RHICmdList.SetRayTracingMissShader(SBT, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
 		RHICmdList.CommitShaderBindingTable(SBT);
-		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), View.GetRayTracingSceneChecked(), SBT, ShaderParameters, ViewRect.Size().X, ViewRect.Size().Y);
+		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), SBT, ShaderParameters, ViewRect.Size().X, ViewRect.Size().Y);
 	});
 }
 

@@ -76,7 +76,7 @@ void DispatchBasicOcclusionRays(FRHICommandList& RHICmdList, FRHIRayTracingScene
 
 	FRayTracingShaderBindingsWriter GlobalResources;
 	SetShaderParameters(GlobalResources, RayTracingPipeline.OcclusionRGS, OcclusionParameters);
-	RHICmdList.RayTraceDispatch(RayTracingPipeline.PipelineState, RayTracingPipeline.OcclusionRGS.GetRayTracingShader(), Scene, SBT, GlobalResources, NumRays, 1);
+	RHICmdList.RayTraceDispatch(RayTracingPipeline.PipelineState, RayTracingPipeline.OcclusionRGS.GetRayTracingShader(), SBT, GlobalResources, NumRays, 1);
 }
 
 void DispatchBasicIntersectionRays(FRHICommandList& RHICmdList, FRHIRayTracingScene* Scene, FRHIShaderResourceView* SceneView, FRHIRayTracingGeometry* Geometry, FRHIShaderResourceView* RayBufferView, FRHIUnorderedAccessView* ResultView, uint32 NumRays)
@@ -102,7 +102,7 @@ void DispatchBasicIntersectionRays(FRHICommandList& RHICmdList, FRHIRayTracingSc
 
 	FRayTracingShaderBindingsWriter GlobalResources;
 	SetShaderParameters(GlobalResources, RayTracingPipeline.IntersectionRGS, OcclusionParameters);
-	RHICmdList.RayTraceDispatch(RayTracingPipeline.PipelineState, RayTracingPipeline.IntersectionRGS.GetRayTracingShader(), Scene, SBT, GlobalResources, NumRays, 1);
+	RHICmdList.RayTraceDispatch(RayTracingPipeline.PipelineState, RayTracingPipeline.IntersectionRGS.GetRayTracingShader(), SBT, GlobalResources, NumRays, 1);
 }
 
 #endif // RHI_RAYTRACING

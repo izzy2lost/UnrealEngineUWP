@@ -709,7 +709,6 @@ void RenderLightingCacheWithPreshadingHardwareRayTracing(
 			RHICmdList.RayTraceDispatch(
 				RayTracingPipelineState,
 				RayGenerationShader.GetRayTracingShader(),
-				RayTracingScene.GetRHIRayTracingSceneChecked(),
 				SBT,
 				GlobalResources,
 				DispatchResolution.X, DispatchResolution.Y);
@@ -881,7 +880,6 @@ void RenderSingleScatteringWithPreshadingHardwareRayTracing(
 			RHICmdList.RayTraceDispatch(
 				RayTracingPipelineState,
 				RayGenerationShader.GetRayTracingShader(),
-				RayTracingScene.GetRHIRayTracingSceneChecked(),
 				SBT,
 				GlobalResources,
 				DispatchResolution.X, DispatchResolution.Y);

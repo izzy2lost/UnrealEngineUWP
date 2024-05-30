@@ -221,8 +221,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingAmbientOcclusion(
 			RHICmdList.CommitShaderBindingTable(SBT);
 		}
 
-		FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
-		RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, SBT, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
+		RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), SBT, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
 	});
 
 	int32 DenoiserMode = CVarUseAODenoiser.GetValueOnRenderThread();

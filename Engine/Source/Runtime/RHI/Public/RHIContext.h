@@ -780,8 +780,7 @@ public:
 	}
 
 	virtual void RHIRayTraceDispatch(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
-		FRHIRayTracingScene* Scene, FRHIShaderBindingTable* SBT,
-		const FRayTracingShaderBindings& GlobalResourceBindings,
+		FRHIShaderBindingTable* SBT, const FRayTracingShaderBindings& GlobalResourceBindings,
 		uint32 Width, uint32 Height)
 	{
 		checkNoEntry();
@@ -794,15 +793,14 @@ public:
 	{
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		RHIRayTraceDispatch(RayTracingPipelineState, RayGenShader,
-			Scene, Scene->FindOrCreateShaderBindingTable(RayTracingPipelineState),
+			Scene->FindOrCreateShaderBindingTable(RayTracingPipelineState),
 			GlobalResourceBindings,
 			Width, Height);
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	virtual void RHIRayTraceDispatchIndirect(FRHIRayTracingPipelineState* RayTracingPipelineState, FRHIRayTracingShader* RayGenShader,
-		FRHIRayTracingScene* Scene, FRHIShaderBindingTable* SBT,
-		const FRayTracingShaderBindings& GlobalResourceBindings,
+		FRHIShaderBindingTable* SBT, const FRayTracingShaderBindings& GlobalResourceBindings,
 		FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset)
 	{
 		checkNoEntry();
@@ -815,7 +813,7 @@ public:
 	{
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		RHIRayTraceDispatchIndirect(RayTracingPipelineState, RayGenShader,
-			Scene, Scene->FindOrCreateShaderBindingTable(RayTracingPipelineState),
+			Scene->FindOrCreateShaderBindingTable(RayTracingPipelineState),
 			GlobalResourceBindings,
 			ArgumentBuffer, ArgumentOffset);
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS

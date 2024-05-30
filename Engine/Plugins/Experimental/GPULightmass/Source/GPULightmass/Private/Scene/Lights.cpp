@@ -453,12 +453,12 @@ void FDirectionalLightRenderState::RenderStaticShadowDepthMap(FRHICommandListImm
 		RDG_EVENT_NAME("StaticShadowDepthMapTracing"),
 		PassParameters,
 		ERDGPassFlags::Compute,
-		[PassParameters, RayGenShader, RayTracingSceneRHI = Scene.RayTracingScene, RayTracingPipelineState = Scene.RayTracingPipelineState, SBT = Scene.SBT](FRHICommandList& RHICmdList)
+		[PassParameters, RayGenShader, RayTracingPipelineState = Scene.RayTracingPipelineState, SBT = Scene.SBT](FRHICommandList& RHICmdList)
 	{
 		FRayTracingShaderBindingsWriter GlobalResources;
 		SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
 
-		RHICmdList.RayTraceDispatch(RayTracingPipelineState, RayGenShader.GetRayTracingShader(), RayTracingSceneRHI, SBT, GlobalResources, PassParameters->ShadowMapSize.X, PassParameters->ShadowMapSize.Y);
+		RHICmdList.RayTraceDispatch(RayTracingPipelineState, RayGenShader.GetRayTracingShader(), SBT, GlobalResources, PassParameters->ShadowMapSize.X, PassParameters->ShadowMapSize.Y);
 	}
 	);
 
@@ -565,12 +565,12 @@ void FSpotLightRenderState::RenderStaticShadowDepthMap(FRHICommandListImmediate&
 		RDG_EVENT_NAME("StaticShadowDepthMapTracing"),
 		PassParameters,
 		ERDGPassFlags::Compute,
-		[PassParameters, RayGenShader, RayTracingSceneRHI = Scene.RayTracingScene, RayTracingPipelineState = Scene.RayTracingPipelineState, SBT = Scene.SBT](FRHICommandList& RHICmdList)
+		[PassParameters, RayGenShader, RayTracingPipelineState = Scene.RayTracingPipelineState, SBT = Scene.SBT](FRHICommandList& RHICmdList)
 	{
 		FRayTracingShaderBindingsWriter GlobalResources;
 		SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
 
-		RHICmdList.RayTraceDispatch(RayTracingPipelineState, RayGenShader.GetRayTracingShader(), RayTracingSceneRHI, SBT, GlobalResources, PassParameters->ShadowMapSize.X, PassParameters->ShadowMapSize.Y);
+		RHICmdList.RayTraceDispatch(RayTracingPipelineState, RayGenShader.GetRayTracingShader(), SBT, GlobalResources, PassParameters->ShadowMapSize.X, PassParameters->ShadowMapSize.Y);
 	}
 	);
 
@@ -668,12 +668,12 @@ void FPointLightRenderState::RenderStaticShadowDepthMap(FRHICommandListImmediate
 		RDG_EVENT_NAME("StaticShadowDepthMapTracing"),
 		PassParameters,
 		ERDGPassFlags::Compute,
-		[PassParameters, RayGenShader, RayTracingSceneRHI = Scene.RayTracingScene, RayTracingPipelineState = Scene.RayTracingPipelineState, SBT = Scene.SBT](FRHICommandList& RHICmdList)
+		[PassParameters, RayGenShader, RayTracingPipelineState = Scene.RayTracingPipelineState, SBT = Scene.SBT](FRHICommandList& RHICmdList)
 	{
 		FRayTracingShaderBindingsWriter GlobalResources;
 		SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
 
-		RHICmdList.RayTraceDispatch(RayTracingPipelineState, RayGenShader.GetRayTracingShader(), RayTracingSceneRHI, SBT, GlobalResources, PassParameters->ShadowMapSize.X, PassParameters->ShadowMapSize.Y);
+		RHICmdList.RayTraceDispatch(RayTracingPipelineState, RayGenShader.GetRayTracingShader(), SBT, GlobalResources, PassParameters->ShadowMapSize.X, PassParameters->ShadowMapSize.Y);
 	}
 	);
 
@@ -762,12 +762,12 @@ void FRectLightRenderState::RenderStaticShadowDepthMap(FRHICommandListImmediate&
 		RDG_EVENT_NAME("StaticShadowDepthMapTracing"),
 		PassParameters,
 		ERDGPassFlags::Compute,
-		[PassParameters, RayGenShader, RayTracingSceneRHI = Scene.RayTracingScene, RayTracingPipelineState = Scene.RayTracingPipelineState, SBT = Scene.SBT](FRHICommandList& RHICmdList)
+		[PassParameters, RayGenShader, RayTracingPipelineState = Scene.RayTracingPipelineState, SBT = Scene.SBT](FRHICommandList& RHICmdList)
 	{
 		FRayTracingShaderBindingsWriter GlobalResources;
 		SetShaderParameters(GlobalResources, RayGenShader, *PassParameters);
 
-		RHICmdList.RayTraceDispatch(RayTracingPipelineState, RayGenShader.GetRayTracingShader(), RayTracingSceneRHI, SBT, GlobalResources, PassParameters->ShadowMapSize.X, PassParameters->ShadowMapSize.Y);
+		RHICmdList.RayTraceDispatch(RayTracingPipelineState, RayGenShader.GetRayTracingShader(), SBT, GlobalResources, PassParameters->ShadowMapSize.X, PassParameters->ShadowMapSize.Y);
 	}
 	);
 

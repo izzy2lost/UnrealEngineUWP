@@ -160,13 +160,11 @@ void RenderHardwareRayTracingShortRangeAO(
 				FRayTracingShaderBindingsWriter GlobalResources;
 				SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
 
-				FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
-
 				bool bBentNormalEnableMaterials = false;
 
 				if (bBentNormalEnableMaterials)
 				{
-					RHICmdList.RayTraceDispatch(View.RayTracingMaterialPipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, View.RayTracingSBT, GlobalResources, Resolution.X, Resolution.Y);
+					RHICmdList.RayTraceDispatch(View.RayTracingMaterialPipeline, RayGenerationShader.GetRayTracingShader(), View.RayTracingSBT, GlobalResources, Resolution.X, Resolution.Y);
 				}
 				else
 				{
@@ -196,7 +194,7 @@ void RenderHardwareRayTracingShortRangeAO(
 
 					RHICmdList.SetRayTracingMissShader(SBT, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
 					RHICmdList.CommitShaderBindingTable(SBT);
-					RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, SBT, GlobalResources, Resolution.X, Resolution.Y);
+					RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), SBT, GlobalResources, Resolution.X, Resolution.Y);
 				}
 			});
 	}

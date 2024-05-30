@@ -189,8 +189,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingPrimaryRaysView(
 		FRHIBatchedShaderParameters& ShaderParameters = RHICmdList.GetScratchShaderParameters();
 		SetShaderParameters(ShaderParameters, RayGenShader, *PassParameters);
 
-		FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
-		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), RayTracingSceneRHI, SBT, ShaderParameters, RayTracingResolution.X, RayTracingResolution.Y);
+		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), SBT, ShaderParameters, RayTracingResolution.X, RayTracingResolution.Y);
 	});
 }
 

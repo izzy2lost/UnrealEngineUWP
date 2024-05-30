@@ -476,7 +476,6 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 
 			FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
 			FShaderBindingTableRHIRef SBT = View.RayTracingSBT;
-			FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
 			if (CVarRayTracingSkyLightEnableMaterials.GetValueOnRenderThread() == 0)
 			{
 				// Declare default pipeline
@@ -506,7 +505,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 				RHICmdList.CommitShaderBindingTable(SBT);
 			}
 
-			RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, SBT, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
+			RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), SBT, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
 		});
 	}
 

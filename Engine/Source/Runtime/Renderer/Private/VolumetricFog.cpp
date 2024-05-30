@@ -505,9 +505,7 @@ static void RenderRaytracedDirectionalShadowVolume(
 				FRayTracingShaderBindingsWriter GlobalResources;
 				SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
 
-				FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
-
-				RHICmdList.RayTraceDispatch(View.RayTracingMaterialPipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, View.RayTracingSBT, GlobalResources, DispatchSize, 1);
+				RHICmdList.RayTraceDispatch(View.RayTracingMaterialPipeline, RayGenerationShader.GetRayTracingShader(), View.RayTracingSBT, GlobalResources, DispatchSize, 1);
 			}
 		);
 	}
@@ -912,9 +910,7 @@ void FSceneRenderer::RenderLocalLightsForVolumetricFog(
 						FRayTracingShaderBindingsWriter GlobalResources;
 						SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
 
-						FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
-
-						RHICmdList.RayTraceDispatch(View.RayTracingMaterialPipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, View.RayTracingSBT, GlobalResources, DispatchSize, 1);
+						RHICmdList.RayTraceDispatch(View.RayTracingMaterialPipeline, RayGenerationShader.GetRayTracingShader(), View.RayTracingSBT, GlobalResources, DispatchSize, 1);
 					}
 				);
 			}

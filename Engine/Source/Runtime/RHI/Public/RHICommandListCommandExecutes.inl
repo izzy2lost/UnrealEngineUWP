@@ -548,11 +548,11 @@ void FRHICommandRayTraceDispatch::Execute(FRHICommandListBase& CmdList)
 
 	if (ArgumentBuffer)
 	{
-		INTERNAL_DECORATOR(RHIRayTraceDispatchIndirect)(RayTracingPipelineState, RayGenShader, Scene, SBT, GlobalResourceBindings, ArgumentBuffer, ArgumentOffset);
+		INTERNAL_DECORATOR(RHIRayTraceDispatchIndirect)(RayTracingPipelineState, RayGenShader, SBT, GlobalResourceBindings, ArgumentBuffer, ArgumentOffset);
 	}
 	else
 	{
-		INTERNAL_DECORATOR(RHIRayTraceDispatch)(RayTracingPipelineState, RayGenShader, Scene, SBT, GlobalResourceBindings, Width, Height);
+		INTERNAL_DECORATOR(RHIRayTraceDispatch)(RayTracingPipelineState, RayGenShader, SBT, GlobalResourceBindings, Width, Height);
 	}
 }
 

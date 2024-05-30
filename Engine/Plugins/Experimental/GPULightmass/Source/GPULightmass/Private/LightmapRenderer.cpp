@@ -2478,14 +2478,14 @@ void FLightmapRenderer::Finalize(FRDGBuilder& GraphBuilder)
 										RDG_EVENT_NAME("LightmapPathTracing %dx%d", RayTracingResolution.X, RayTracingResolution.Y),
 										PassParameters,
 										ERDGPassFlags::Compute,
-										[PassParameters, this, RayTracingScene = Scene->RayTracingScene, PipelineState = Scene->RayTracingPipelineState, SBT = Scene->SBT, RayGenerationShader, RayTracingResolution, GPUIndex](FRHICommandList& RHICmdList)
+										[PassParameters, this, PipelineState = Scene->RayTracingPipelineState, SBT = Scene->SBT, RayGenerationShader, RayTracingResolution, GPUIndex](FRHICommandList& RHICmdList)
 									{
 										FRayTracingShaderBindingsWriter GlobalResources;
 										SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
 
 										check(RHICmdList.GetGPUMask().HasSingleIndex());
 
-										RHICmdList.RayTraceDispatch(PipelineState, RayGenerationShader.GetRayTracingShader(), RayTracingScene, SBT, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
+										RHICmdList.RayTraceDispatch(PipelineState, RayGenerationShader.GetRayTracingShader(), SBT, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
 									});
 								}
 
@@ -2821,12 +2821,12 @@ void FLightmapRenderer::Finalize(FRDGBuilder& GraphBuilder)
 							RDG_EVENT_NAME("StationaryLightShadowTracing %dx%d", RayTracingResolution.X, RayTracingResolution.Y),
 							PassParameters,
 							ERDGPassFlags::Compute,
-							[PassParameters, this, RayTracingScene = Scene->RayTracingScene, PipelineState = Scene->RayTracingPipelineState, SBT = Scene->SBT, RayGenerationShader, RayTracingResolution](FRHICommandList& RHICmdList)
+							[PassParameters, this, PipelineState = Scene->RayTracingPipelineState, SBT = Scene->SBT, RayGenerationShader, RayTracingResolution](FRHICommandList& RHICmdList)
 						{
 							FRayTracingShaderBindingsWriter GlobalResources;
 							SetShaderParameters(GlobalResources, RayGenerationShader, *PassParameters);
 
-							RHICmdList.RayTraceDispatch(PipelineState, RayGenerationShader.GetRayTracingShader(), RayTracingScene, SBT, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
+							RHICmdList.RayTraceDispatch(PipelineState, RayGenerationShader.GetRayTracingShader(), SBT, GlobalResources, RayTracingResolution.X, RayTracingResolution.Y);
 						});
 					}
 #endif

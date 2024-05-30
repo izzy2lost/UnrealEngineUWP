@@ -4838,8 +4838,7 @@ static void DispatchRays(FD3D12CommandContext& CommandContext,
 }
 
 void FD3D12CommandContext::RHIRayTraceDispatch(FRHIRayTracingPipelineState* InRayTracingPipelineState, FRHIRayTracingShader* RayGenShaderRHI,
-	FRHIRayTracingScene* InScene, FRHIShaderBindingTable* InSBT,
-	const FRayTracingShaderBindings& GlobalResourceBindings,
+	FRHIShaderBindingTable* InSBT, const FRayTracingShaderBindings& GlobalResourceBindings,
 	uint32 Width, uint32 Height)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(RHIRayTraceDispatch);
@@ -4867,8 +4866,7 @@ void FD3D12CommandContext::RHIRayTraceDispatch(FRHIRayTracingPipelineState* InRa
 }
 
 void FD3D12CommandContext::RHIRayTraceDispatchIndirect(FRHIRayTracingPipelineState* InRayTracingPipelineState, FRHIRayTracingShader* RayGenShaderRHI,
-	FRHIRayTracingScene* InScene, FRHIShaderBindingTable* InSBT,
-	const FRayTracingShaderBindings& GlobalResourceBindings,
+	FRHIShaderBindingTable* InSBT, const FRayTracingShaderBindings& GlobalResourceBindings,
 	FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(RHIRayTraceDispatchIndirect);

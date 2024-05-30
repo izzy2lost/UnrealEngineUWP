@@ -530,11 +530,9 @@ void FDeferredShadingSceneRenderer::RenderRayTracingShadows(
 					FRayTracingShaderBindingsWriter GlobalResources;
 					SetShaderParameters(GlobalResources, RayGenerationShader, *CommonPassParameters);
 
-					FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
-
 					if (GRayTracingShadowsEnableMaterials)
 					{
-						RHICmdList.RayTraceDispatch(View.RayTracingMaterialPipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, View.RayTracingSBT, GlobalResources, Resolution.X, Resolution.Y);
+						RHICmdList.RayTraceDispatch(View.RayTracingMaterialPipeline, RayGenerationShader.GetRayTracingShader(), View.RayTracingSBT, GlobalResources, Resolution.X, Resolution.Y);
 					}
 					else
 					{
@@ -564,7 +562,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingShadows(
 
 						RHICmdList.SetRayTracingMissShader(SBT, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
 						RHICmdList.CommitShaderBindingTable(SBT);
-						RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, SBT, GlobalResources, Resolution.X, Resolution.Y);
+						RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), SBT, GlobalResources, Resolution.X, Resolution.Y);
 					}
 				}
 			);

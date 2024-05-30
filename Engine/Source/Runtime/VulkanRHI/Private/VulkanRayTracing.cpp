@@ -2128,12 +2128,11 @@ static FVulkanPipelineBarrier SetRayGenResources(FVulkanDevice* Device, FVulkanC
 void FVulkanCommandListContext::RHIRayTraceDispatch(
 	FRHIRayTracingPipelineState* InRayTracingPipelineState, 
 	FRHIRayTracingShader* InRayGenShader,
-	FRHIRayTracingScene* InScene, FRHIShaderBindingTable* InSBT,
+	FRHIShaderBindingTable* InSBT,
 	const FRayTracingShaderBindings& InGlobalResourceBindings, // :todo-jn:
 	uint32 InWidth, uint32 InHeight)
 {
 	const FVulkanRayTracingPipelineState* Pipeline = ResourceCast(InRayTracingPipelineState);
-	FVulkanRayTracingScene* Scene = ResourceCast(InScene);
 	FVulkanRayTracingShader* RayGenShader = ResourceCast(InRayGenShader);
 	FVulkanRayTracingShaderTable* ShaderTable = ResourceCast(InSBT);
 
@@ -2163,14 +2162,13 @@ void FVulkanCommandListContext::RHIRayTraceDispatch(
 void FVulkanCommandListContext::RHIRayTraceDispatchIndirect(
 	FRHIRayTracingPipelineState* InRayTracingPipelineState, 
 	FRHIRayTracingShader* InRayGenShader,
-	FRHIRayTracingScene* InScene, FRHIShaderBindingTable* InSBT,
+	FRHIShaderBindingTable* InSBT,
 	const FRayTracingShaderBindings& InGlobalResourceBindings, // :todo-jn:
 	FRHIBuffer* InArgumentBuffer, uint32 InArgumentOffset)
 {
 	checkf(GRHISupportsRayTracingDispatchIndirect, TEXT("RHIRayTraceDispatchIndirect may not be used because it is not supported on this machine."));
 
 	const FVulkanRayTracingPipelineState* Pipeline = ResourceCast(InRayTracingPipelineState);
-	FVulkanRayTracingScene* Scene = ResourceCast(InScene);
 	FVulkanRayTracingShader* RayGenShader = ResourceCast(InRayGenShader);
 	FVulkanRayTracingShaderTable* ShaderTable = ResourceCast(InSBT);
 

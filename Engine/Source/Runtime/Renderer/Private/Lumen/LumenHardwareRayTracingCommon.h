@@ -194,7 +194,6 @@ static void AddLumenRayTraceDispatchPass(
 			FRayTracingShaderBindingsWriter GlobalResources;
 			SetShaderParameters(GlobalResources, RayGenerationShader, *Parameters);
 
-			FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
 			FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
 			FRHIShaderBindingTable* SBT = View.RayTracingSBT;
 
@@ -204,7 +203,7 @@ static void AddLumenRayTraceDispatchPass(
 				SBT = View.LumenHardwareRayTracingSBT;
 			}
 
-			RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, SBT, GlobalResources,
+			RHICmdList.RayTraceDispatch(Pipeline, RayGenerationShader.GetRayTracingShader(), SBT, GlobalResources,
 				Resolution.X, Resolution.Y);
 		}
 	);
@@ -234,7 +233,6 @@ static void AddLumenRayTraceDispatchIndirectPass(
 			FRayTracingShaderBindingsWriter GlobalResources;
 			SetShaderParameters(GlobalResources, RayGenerationShader, *Parameters);
 
-			FRHIRayTracingScene* RayTracingSceneRHI = View.GetRayTracingSceneChecked();
 			FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
 			FRHIShaderBindingTable* SBT = View.RayTracingSBT;
 
@@ -244,7 +242,7 @@ static void AddLumenRayTraceDispatchIndirectPass(
 				SBT = View.LumenHardwareRayTracingSBT;
 			}
 
-			RHICmdList.RayTraceDispatchIndirect(Pipeline, RayGenerationShader.GetRayTracingShader(), RayTracingSceneRHI, SBT, GlobalResources,
+			RHICmdList.RayTraceDispatchIndirect(Pipeline, RayGenerationShader.GetRayTracingShader(), SBT, GlobalResources,
 				IndirectArgsBuffer->GetIndirectRHICallBuffer(), IndirectArgsOffset);
 		}
 	);

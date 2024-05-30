@@ -853,7 +853,7 @@ static FRDGBufferRef RayTracingPerformPicking(FRDGBuilder& GraphBuilder, const F
 			RHICmdList.SetRayTracingMissShader(PickingSBT, 0, PickingPipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
 			RHICmdList.CommitShaderBindingTable(PickingSBT);
 
-			RHICmdList.RayTraceDispatch(PickingPipeline, RayGenShader.GetRayTracingShader(), View.GetRayTracingSceneChecked(), PickingSBT, GlobalResources, 1, 1);
+			RHICmdList.RayTraceDispatch(PickingPipeline, RayGenShader.GetRayTracingShader(), PickingSBT, GlobalResources, 1, 1);
 		});
 
 	const int32 MaxPickingBuffers = GRayTracingDebugResources.MaxPickingBuffers;
@@ -1109,7 +1109,7 @@ static FRDGBufferRef RayTracingPerformHitStatsPerPrimitive(FRDGBuilder& GraphBui
 			RHICmdList.SetRayTracingMissShader(HitStatsSBT, 0, HitStatsPerPrimitivePipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
 			RHICmdList.CommitShaderBindingTable(HitStatsSBT);
 
-			RHICmdList.RayTraceDispatch(HitStatsPerPrimitivePipeline, RayGenShader.GetRayTracingShader(), View.GetRayTracingSceneChecked(), HitStatsSBT, GlobalResources, ViewRect.Size().X, ViewRect.Size().Y);
+			RHICmdList.RayTraceDispatch(HitStatsPerPrimitivePipeline, RayGenShader.GetRayTracingShader(), HitStatsSBT, GlobalResources, ViewRect.Size().X, ViewRect.Size().Y);
 		});
 
 	TArray<FRayTracingHitStatsEntry> HitStatsKeyValuePairs;	
@@ -1597,7 +1597,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingDebug(FRDGBuilder& GraphBuil
 			RHICmdList.CommitShaderBindingTable(SBT);
 		}
 
-		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), View.GetRayTracingSceneChecked(), SBT, GlobalResources, ViewRect.Size().X, ViewRect.Size().Y);
+		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), SBT, GlobalResources, ViewRect.Size().X, ViewRect.Size().Y);
 	});
 
 	if (DebugVisualizationMode == RAY_TRACING_DEBUG_VIZ_INSTANCE_OVERLAP)
