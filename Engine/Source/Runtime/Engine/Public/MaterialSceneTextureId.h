@@ -73,4 +73,13 @@ enum ESceneTextureId : int
 	PPI_WorldTangent UMETA(DisplayName = "WorldTangent"),
 	/** Material anisotropy, single channel (GBuffer) */
 	PPI_Anisotropy UMETA(DisplayName = "Anisotropy"),
+
+	/** Used internally for user scene texture inputs.  Later remapped to PPI_PostProcessInput0-6 in the shader via procedurally generated defines. */
+	PPI_UserSceneTexture0 = 32 UMETA(Hidden),
+	PPI_UserSceneTexture1 UMETA(Hidden),
+	PPI_UserSceneTexture2 UMETA(Hidden),
+	PPI_UserSceneTexture3 UMETA(Hidden),
+	PPI_UserSceneTexture4 UMETA(Hidden),
+	PPI_UserSceneTexture5 UMETA(Hidden),
+	PPI_UserSceneTexture6 UMETA(Hidden),
 };

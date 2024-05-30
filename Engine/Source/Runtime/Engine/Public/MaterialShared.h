@@ -753,7 +753,24 @@ public:
 	}
 
 	bool IsSceneTextureUsed(ESceneTextureId TexId) const { return (UsedSceneTextures & (1 << TexId)) != 0; }
-	void SetIsSceneTextureUsed(ESceneTextureId TexId) { UsedSceneTextures |= (1 << TexId); }
+
+	void SetIsSceneTextureUsed(ESceneTextureId TexId)
+	{
+		// User scene textures aren't added to used bits -- those are stored separately in UserSceneTextureInputs
+		if (TexId < PPI_UserSceneTexture0)
+		{
+			UsedSceneTextures |= (1 << TexId);
+		}
+	}
+
+#if WITH_EDITOR
+	// Returns Id for a user scene texture input, or INDEX_NONE if allocation fails.
+	int32 FindOrAddUserSceneTexture(FName UserSceneTexture);
+
+	// Returns number of post process inputs used, between PostProcessInput SceneTexture nodes and UserSceneTexture nodes.  If this exceeds
+	// kPostProcessMaterialInputCountMax, compile should be failed (number is returned rather than bool for error reporting purposes).
+	int32 GetNumPostProcessInputsUsed() const;
+#endif  // WITH_EDITOR
 
 	void SetIsDBufferTextureUsed(int32 TextureIndex) { UsedDBufferTextures |= (1 << TextureIndex); }
 	void SetIsDBufferTextureLookupUsed(bool bValue) { bUsesDBufferTextureLookup = bValue; }
@@ -794,6 +811,9 @@ public:
 	bool UsesVelocitySceneTexture() const { return IsSceneTextureUsed(PPI_Velocity); }
 
 	LAYOUT_FIELD(FUniformExpressionSet, UniformExpressionSet);
+
+	/** User scene texture inputs to this material, these will use slots not taken up by the UsedSceneTextures bitfield below */
+	LAYOUT_FIELD(TMemoryImageArray<FScriptName>, UserSceneTextureInputs);
 
 	/** Bitfield of the ESceneTextures used */
 	LAYOUT_FIELD(uint32, UsedSceneTextures);
@@ -1328,6 +1348,10 @@ private:
 
 	LAYOUT_FIELD(FSHAHash, ShaderContentHash);
 
+	LAYOUT_FIELD(FScriptName, UserSceneTextureOutput);
+	LAYOUT_FIELD(int32, UserTextureDivisorX);
+	LAYOUT_FIELD(int32, UserTextureDivisorY);
+
 	LAYOUT_FIELD_EDITORONLY(TMemoryImageArray<FMaterialProcessedSource>, ShaderProcessedSource);
 	LAYOUT_FIELD_EDITORONLY(FMemoryImageString, FriendlyName);
 	LAYOUT_FIELD_EDITORONLY(FMemoryImageString, DebugDescription);
@@ -1569,6 +1593,10 @@ public:
 	uint32 GetNumVirtualTextureStacks() const { return GetContent()->MaterialCompilationOutput.UniformExpressionSet.VTStacks.Num(); }
 	uint8 GetRuntimeVirtualTextureOutputAttributeMask() const { return GetContent()->MaterialCompilationOutput.RuntimeVirtualTextureOutputAttributeMask; }
 	bool UsesSceneTexture(uint32 TexId) const { return (GetContent()->MaterialCompilationOutput.UsedSceneTextures & (1ull << TexId)) != 0; }
+	TConstArrayView<FScriptName> GetUserSceneTextureInputs() const { return GetContent()->MaterialCompilationOutput.UserSceneTextureInputs; }
+	FScriptName GetUserSceneTextureOutput() const { return GetContent()->UserSceneTextureOutput; }
+	FIntPoint GetUserTextureDivisor() const { return FIntPoint(FMath::Max(GetContent()->UserTextureDivisorX, 1), FMath::Max(GetContent()->UserTextureDivisorY, 1)); }
+
 	bool UsesPathTracingBufferTexture(uint32 TexId) const { return (GetContent()->MaterialCompilationOutput.UsedPathTracingBufferTextures & (1ull << TexId)) != 0;}
 
 	bool IsValidForRendering(bool bFailOnInvalid = false) const
@@ -2147,6 +2175,7 @@ public:
 	virtual bool IsDefaultMaterial() const { return false; };
 	virtual int32 GetNumCustomizedUVs() const { return 0; }
 	virtual int32 GetBlendableLocation() const { return 0; }
+	virtual int32 GetBlendablePriority() const { return 0; }
 	virtual bool GetBlendableOutputAlpha() const { return false; }
 	virtual bool IsStencilTestEnabled() const { return false; }
 	virtual uint32 GetStencilRefValue() const { return 0; }
@@ -2894,6 +2923,7 @@ public:
 	ENGINE_API virtual bool IsDefaultMaterial() const override;
 	ENGINE_API virtual int32 GetNumCustomizedUVs() const override;
 	ENGINE_API virtual int32 GetBlendableLocation() const override;
+	ENGINE_API virtual int32 GetBlendablePriority() const override;
 	ENGINE_API virtual bool GetBlendableOutputAlpha() const override;
 	ENGINE_API virtual bool IsStencilTestEnabled() const override;
 	ENGINE_API virtual uint32 GetStencilRefValue() const override;
