@@ -5,6 +5,7 @@
 #include "Commands/DMXControlConsoleEditorCommands.h"
 #include "DMXControlConsole.h"
 #include "DMXControlConsoleCompactEditorMenuContext.h"
+#include "DMXControlConsoleEditorModule.h"
 #include "DMXControlConsoleEditorSelection.h"
 #include "Editor.h"
 #include "FileHelpers.h"
@@ -13,8 +14,10 @@
 #include "Models/DMXControlConsoleEditorPlayMenuModel.h"
 #include "ToolMenu.h"
 #include "ToolMenus.h"
+#include "UObject/Package.h"
 #include "Views/SDMXControlConsoleEditorCueStackView.h"
 #include "Views/SDMXControlConsoleEditorLayoutView.h"
+#include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Layout/SBorder.h"
@@ -22,7 +25,6 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SDMXControlConsoleEditorCueStackComboBox.h"
 #include "Widgets/Text/STextBlock.h"
-#include "UObject/Package.h"
 
 
 #define LOCTEXT_NAMESPACE "SDMXControlConsoleCompactEditorView"
@@ -314,6 +316,15 @@ namespace UE::DMX::Private
 
 	FReply SDMXControlConsoleCompactEditorView::OnShowFullEditorButtonClicked()
 	{
+		const FDMXControlConsoleEditorModule& ControlConsoleEditorModule = FModuleManager::GetModuleChecked<FDMXControlConsoleEditorModule>(TEXT("DMXControlConsoleEditor"));
+		const TSharedPtr<SDockTab> CompactEditorTab = ControlConsoleEditorModule.GetCompactEditorTab();
+		const bool bFloatingWindow = CompactEditorTab.IsValid() && CompactEditorTab->GetParentWindow().IsValid();
+		if (bFloatingWindow)
+		{
+			// Close the compact editor tab if it is not docked
+			CompactEditorTab->RequestCloseTab();
+		}
+
 		UDMXControlConsoleCompactEditorModel* CompactEditorModel = GetMutableDefault<UDMXControlConsoleCompactEditorModel>();
 		CompactEditorModel->RestoreFullEditor();
 
