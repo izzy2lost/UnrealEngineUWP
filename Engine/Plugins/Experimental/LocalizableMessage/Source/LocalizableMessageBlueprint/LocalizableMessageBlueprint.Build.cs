@@ -14,8 +14,6 @@ namespace UnrealBuildTool.Rules
 					"LocalizableMessage",
 					"StructUtils"
 				});
-
-			bAllowAutoRTFMInstrumentation = true;
 		}
 	}
 }
