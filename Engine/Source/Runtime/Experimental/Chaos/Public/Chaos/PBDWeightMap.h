@@ -59,15 +59,7 @@ public:
 	 * The weight map table only gets updated after ApplyValues is called.
 	 * Low and high values are clamped between [0,1]
 	 */
-	void SetWeightedValue(const FSolverVec2& InWeightedValue) { bIsDirty = WeightedValue != InWeightedValue; WeightedValue = InWeightedValue;}
-
-	/**
-	 * Set the low and high values of the weight map.
-	 * The weight map table only gets updated after ApplyValues is called.
-	 * Low and high values are not clamped. Commonly used for XPBD Stiffness values which are not [0,1]
-	 */
-	UE_DEPRECATED(5.2, "Use SetWeightedValue.")
-	void SetWeightedValueUnclamped(const FSolverVec2& InWeightedValue) { bIsDirty = WeightedValue != InWeightedValue; WeightedValue = InWeightedValue;}
+	void SetWeightedValue(const FSolverVec2& InWeightedValue) { bIsDirty |= WeightedValue != InWeightedValue; WeightedValue = InWeightedValue;}
 
 	/**
 	 * Return the low and high values set for this weight map.

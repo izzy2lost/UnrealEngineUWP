@@ -488,6 +488,9 @@ struct FFortniteMainBranchObjectVersion
 
 		//Allow custom import of morph target
 		MorphTargetCustomImport,
+
+		// Fix chaos cloth buckling stiffness parameter bug 
+		ChaosClothAllowZeroBucklingStiffness,
 		
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,

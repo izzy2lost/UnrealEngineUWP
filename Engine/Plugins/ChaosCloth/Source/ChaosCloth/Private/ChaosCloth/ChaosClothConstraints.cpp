@@ -1937,8 +1937,8 @@ void FClothConstraints::CreatePBDRules()
 		ConstraintInits[ConstraintInitIndex++] =
 			[this](Softs::FSolverParticles& /*Particles*/, const Softs::FSolverReal Dt)
 			{
-				XBendingConstraints->Init();
 				XBendingConstraints->ApplyProperties(Dt, PBDEvolution->GetIterations());
+				XBendingConstraints->Init();
 			};
 		ConstraintRules[ConstraintRuleIndex++] =
 			[this](Softs::FSolverParticles& Particles, const Softs::FSolverReal Dt)
@@ -1964,8 +1964,8 @@ void FClothConstraints::CreatePBDRules()
 		ConstraintInits[ConstraintInitIndex++] =
 			[this](Softs::FSolverParticles& Particles, const Softs::FSolverReal Dt)
 			{
-				BendingElementConstraints->Init(Particles);
 				BendingElementConstraints->ApplyProperties(Dt, PBDEvolution->GetIterations());
+				BendingElementConstraints->Init(Particles);
 			};
 		ConstraintRules[ConstraintRuleIndex++] =
 			[this](Softs::FSolverParticles& Particles, const Softs::FSolverReal Dt)
@@ -1978,8 +1978,8 @@ void FClothConstraints::CreatePBDRules()
 		ConstraintInits[ConstraintInitIndex++] =
 			[this](Softs::FSolverParticles& Particles, const Softs::FSolverReal Dt)
 		{
-			XBendingElementConstraints->Init(Particles);
 			XBendingElementConstraints->ApplyProperties(Dt, PBDEvolution->GetIterations());
+			XBendingElementConstraints->Init(Particles);
 		};
 		ConstraintRules[ConstraintRuleIndex++] =
 			[this](Softs::FSolverParticles& Particles, const Softs::FSolverReal Dt)
@@ -1992,8 +1992,8 @@ void FClothConstraints::CreatePBDRules()
 		ConstraintInits[ConstraintInitIndex++] =
 			[this](Softs::FSolverParticles& Particles, const Softs::FSolverReal Dt)
 		{
-			XAnisoBendingElementConstraints->Init(Particles);
 			XAnisoBendingElementConstraints->ApplyProperties(Dt, PBDEvolution->GetIterations());
+			XAnisoBendingElementConstraints->Init(Particles);
 		};
 		ConstraintRules[ConstraintRuleIndex++] =
 			[this](Softs::FSolverParticles& Particles, const Softs::FSolverReal Dt)

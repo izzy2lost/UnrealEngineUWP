@@ -88,12 +88,9 @@ namespace Chaos
 
 					Property->AddValue(TEXT("BucklingRatio"), ClothConfig->BucklingRatio, AnimatablePropertyFlags);
 
-					if (ClothConfig->BucklingStiffnessWeighted.Low > 0.f || ClothConfig->BucklingStiffnessWeighted.High > 0.f)
-					{
-						const int32 BucklingStiffnessIndex = Property->AddProperty(TEXT("BucklingStiffness"), AnimatablePropertyFlags);
-						Property->SetWeightedValue(BucklingStiffnessIndex, ClothConfig->BucklingStiffnessWeighted.Low, ClothConfig->BucklingStiffnessWeighted.High);
-						Property->SetStringValue(BucklingStiffnessIndex, TEXT("BucklingStiffness"));
-					}
+					const int32 BucklingStiffnessIndex = Property->AddProperty(TEXT("BucklingStiffness"), AnimatablePropertyFlags);
+					Property->SetWeightedValue(BucklingStiffnessIndex, ClothConfig->BucklingStiffnessWeighted.Low, ClothConfig->BucklingStiffnessWeighted.High);
+					Property->SetStringValue(BucklingStiffnessIndex, TEXT("BucklingStiffness"));
 				}
 				else  // Not using bending elements
 				{
