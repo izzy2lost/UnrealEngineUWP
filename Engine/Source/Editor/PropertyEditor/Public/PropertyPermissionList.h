@@ -41,6 +41,8 @@ enum class EPropertyPermissionListRules : uint8
 struct FPropertyPermissionListEntry
 {
     FNamePermissionList PermissionList;
+	// When the permission list does not contain any AllowList, DenyList or DenyListAll it needs an AdditionalOwnerName to be tracked here so stays alive without being removed
+	TArray<FName> AdditionalOwnerNames;
 	EPropertyPermissionListRules Rules = EPropertyPermissionListRules::UseExistingPermissionList;
 };
 
@@ -48,7 +50,10 @@ class PROPERTYEDITOR_API FPropertyPermissionList
 {
 public:
 	/** Add a set of rules for a specific base UStruct to determine which properties are visible in all details panels */
-	void AddPermissionList(TSoftObjectPtr<UStruct> Struct, const FNamePermissionList& PermissionList, EPropertyPermissionListRules Rules = EPropertyPermissionListRules::UseExistingPermissionList);
+	UE_DEPRECATED(5.5, "Call AddPermissionList with additional required arguments instead.")
+	void AddPermissionList(TSoftObjectPtr<UStruct> Struct, const FNamePermissionList& PermissionList, const EPropertyPermissionListRules Rules = EPropertyPermissionListRules::UseExistingPermissionList);
+	/** Add a set of rules for a specific base UStruct to determine which properties are visible in all details panels */
+	void AddPermissionList(TSoftObjectPtr<UStruct> Struct, const FNamePermissionList& PermissionList, const EPropertyPermissionListRules Rules, const TConstArrayView<FName> InAdditionalOwnerNames);
 	/** Remove a set of rules for a specific base UStruct to determine which properties are visible in all details panels */
 	void RemovePermissionList(TSoftObjectPtr<UStruct> Struct);
 	/** Remove all rules */
