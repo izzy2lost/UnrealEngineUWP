@@ -11,6 +11,7 @@
 #include "HAL/MallocMimalloc.h"
 #include "HAL/MallocBinned.h"
 #include "HAL/MallocBinned2.h"
+#include "HAL/MallocBinned3.h"
 #include "HAL/MallocStomp.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/CoreStats.h"
@@ -25,9 +26,6 @@ extern "C"
 {
 	#include <crt_externs.h> // Needed for _NSGetArgc & _NSGetArgv
 }
-
-// Set rather to use BinnedMalloc2 for binned malloc, can be overridden below
-#define USE_MALLOC_BINNED2 (1)
 
 #if PLATFORM_MAC_X86
 void* CFNetwork_CFAllocatorOperatorNew_Replacement(unsigned long Size, CFAllocatorRef Alloc)
@@ -97,6 +95,10 @@ FMalloc* FMacPlatformMemory::BaseAllocator()
 	{
 		AllocatorToUse = EMemoryAllocatorToUse::Binned2;
 	}
+	else if (USE_MALLOC_BINNED3)
+	{
+		AllocatorToUse = EMemoryAllocatorToUse::Binned3;
+	}
 	else
 	{
 		AllocatorToUse = EMemoryAllocatorToUse::Binned;
@@ -149,6 +151,10 @@ FMalloc* FMacPlatformMemory::BaseAllocator()
 #endif
 	case EMemoryAllocatorToUse::Binned2:
 		Instance = new FMallocBinned2();
+		break;
+
+	case EMemoryAllocatorToUse::Binned3:
+		Instance = new FMallocBinned3();
 		break;
 
 	default:	// intentional fall-through

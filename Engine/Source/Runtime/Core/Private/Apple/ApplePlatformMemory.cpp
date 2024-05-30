@@ -288,17 +288,6 @@ void FApplePlatformMemory::Init()
 	
 }
 
-// if USE_MALLOC_BINNED3 isn't configured enable it by default
-#ifndef USE_MALLOC_BINNED3
-	#define USE_MALLOC_BINNED3 1
-#endif // USE_MALLOC_BINNED3
-
-
-// if USE_MALLOC_BINNED2 isn't configured enable it if USE_MALLOC_BINNED3 isn't true
-#ifndef USE_MALLOC_BINNED2
-	#define USE_MALLOC_BINNED2 !USE_MALLOC_BINNED3
-#endif // USE_MALLOC_BINNED2
-
 void FApplePlatformMemory::SetAllocatorToUse()
 {
     // force Ansi allocator in particular cases
