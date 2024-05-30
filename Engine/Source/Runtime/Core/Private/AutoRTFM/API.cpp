@@ -14,6 +14,8 @@ namespace
 	int GAutoRTFMRuntimeEnabled = AutoRTFM::EAutoRTFMEnabledState::AutoRTFM_Disabled;
 #endif // UE_AUTORTFM_ENABLED_RUNTIME_BY_DEFAULT
 
+	bool GAutoRTFMEnsureOnAbortByLanguage = true;
+
 	void UpdateAutoRTFMRuntimeCrashData()
 	{
 		FGenericCrashContext::SetGameData(TEXT("IsAutoRTFMRuntimeEnabled"), AutoRTFM::ForTheRuntime::IsAutoRTFMRuntimeEnabled() ? TEXT("true") : TEXT("false"));
@@ -94,6 +96,22 @@ namespace AutoRTFM
 			case EAutoRTFMEnabledState::AutoRTFM_EnabledForAllVerse:
 				return true;
 			}
+#else
+			return false;
+#endif
+		}
+
+		void SetEnsureOnAbortByLanguage(bool bEnabled)
+		{
+#if UE_AUTORTFM
+			GAutoRTFMEnsureOnAbortByLanguage = bEnabled;
+#endif
+		}
+
+		bool IsEnsureOnAbortByLanguageEnabled()
+		{
+#if UE_AUTORTFM
+			return GAutoRTFMEnsureOnAbortByLanguage;
 #else
 			return false;
 #endif
@@ -242,7 +260,7 @@ extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_close") autortfm_status autortfm_
 		}
 		else
 		{
-			UE_LOG(LogAutoRTFM, Fatal, TEXT("Could not find function %p '%s' where '%s'."), UninstrumentedWork, *GetFunctionDescription(UninstrumentedWork), ANSI_TO_TCHAR("autortfm_close"));
+			ensureMsgf(!ForTheRuntime::IsEnsureOnAbortByLanguageEnabled(), TEXT("Could not find function %p '%s' where '%s'."), UninstrumentedWork, *GetFunctionDescription(UninstrumentedWork), ANSI_TO_TCHAR("autortfm_close"));
 	        Context->AbortByLanguageAndThrow();
 		}
 	}
@@ -470,7 +488,7 @@ extern "C" UE_AUTORTFM_NOAUTORTFM autortfm_status RTFM_autortfm_close(void (*Uni
     }
 	else
 	{
-		UE_LOG(LogAutoRTFM, Fatal, TEXT("Could not find function %p '%s' where '%s'."), UninstrumentedWork, *GetFunctionDescription(UninstrumentedWork), ANSI_TO_TCHAR("autortfm_close"));
+		ensureMsgf(!ForTheRuntime::IsEnsureOnAbortByLanguageEnabled(), TEXT("Could not find function %p '%s' where '%s'."), UninstrumentedWork, *GetFunctionDescription(UninstrumentedWork), ANSI_TO_TCHAR("autortfm_close"));
 	    Context->AbortByLanguageAndThrow();
 	}
 

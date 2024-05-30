@@ -17,7 +17,11 @@ public:
 		GEngineLoop.PreInit(0, nullptr);
 		FModuleManager::Get().StartProcessingNewlyLoadedObjects();
 
-		AutoRTFM::ForTheRuntime::SetAutoRTFMRuntime(AutoRTFM::ForTheRuntime::EAutoRTFMEnabledState::AutoRTFM_Enabled);
+		// Enable all Verse code to run under AutoRTFM (shouldn't affect our tests here, but better safe than sorry).
+		AutoRTFM::ForTheRuntime::SetAutoRTFMRuntime(AutoRTFM::ForTheRuntime::EAutoRTFMEnabledState::AutoRTFM_EnabledForAllVerse);
+
+		// We don't want to trigger ensure's on abort because we are going to test that.
+		AutoRTFM::ForTheRuntime::SetEnsureOnAbortByLanguage(false);
 	}
 
 	void testRunEnded(const Catch::TestRunStats&) override

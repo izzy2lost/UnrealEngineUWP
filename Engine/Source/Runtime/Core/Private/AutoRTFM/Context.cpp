@@ -409,10 +409,14 @@ ETransactionResult FContext::Transact(void (*InstrumentedFunction)(void*), void*
 		ASSERT(CurrentNest != nullptr);
 		ASSERT(CurrentTransaction != nullptr);
 
-		// A cascading abort should cause all transactions to abort!
-		if (ETransactionResult::AbortedByCascade == Result)
+		// Cascading aborts should cause all transactions to abort!
+		switch (Result)
 		{
+		default:
+			break;
+		case ETransactionResult::AbortedByCascade:
 			CurrentTransaction->AbortAndThrow();
+			break;
 		}
 
 		ClearTransactionStatus();
@@ -439,7 +443,6 @@ void FContext::AbortByRequestWithoutThrowing()
 
 void FContext::AbortByLanguageAndThrow()
 {
-	UE_DEBUG_BREAK();
     ASSERT(Status == EContextStatus::OnTrack);
 	GAutoRTFMMetrics.NumTransactionsAbortedByLanguage++;
     Status = EContextStatus::AbortedByLanguage;

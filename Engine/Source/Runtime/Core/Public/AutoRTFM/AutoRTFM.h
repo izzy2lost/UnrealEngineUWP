@@ -706,6 +706,12 @@ namespace ForTheRuntime
 	// Query whether the AutoRTFM runtime is enabled for *all* Verse code (not just failure contexts).
 	UE_AUTORTFM_API bool IsAutoRTFMRuntimeEnabledForAllVerse();
 
+	// Set whether we should trigger an ensure on an abort-by-language.
+	UE_AUTORTFM_API void SetEnsureOnAbortByLanguage(bool bEnabled);
+
+	// Returns whether the runtime will trigger an ensure on an abort-by-language, or not.
+	UE_AUTORTFM_API bool IsEnsureOnAbortByLanguageEnabled();
+
 	// Manually create a new transaction from open code and push it as a transaction nest.
 	// Can only be called within an already active parent transaction (EG. this cannot start
 	// a transaction nest itself).

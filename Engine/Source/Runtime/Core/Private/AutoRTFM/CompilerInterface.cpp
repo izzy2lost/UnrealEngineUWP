@@ -121,11 +121,11 @@ extern "C" UE_AUTORTFM_API void autortfm_llvm_fail(const char* Message)
 {
     if (Message)
     {
-		UE_LOG(LogAutoRTFM, Fatal, TEXT("Transaction failing because of language issue '%s'."), ANSI_TO_TCHAR(Message));
+		ensureMsgf(!ForTheRuntime::IsEnsureOnAbortByLanguageEnabled(), TEXT("Transaction failing because of language issue '%s'."), ANSI_TO_TCHAR(Message));
     }
     else
     {
-		UE_LOG(LogAutoRTFM, Fatal, TEXT("Transaction failing because of language issue."));
+		ensureMsgf(!ForTheRuntime::IsEnsureOnAbortByLanguageEnabled(), TEXT("Transaction failing because of language issue."));
 	}
 
 	FContext* Context = FContext::Get();
@@ -134,7 +134,7 @@ extern "C" UE_AUTORTFM_API void autortfm_llvm_fail(const char* Message)
 
 extern "C" UE_AUTORTFM_API void autortfm_llvm_missing_function()
 {
-	UE_LOG(LogAutoRTFM, Fatal, TEXT("Transaction failing because of missing function."));
+	ensureMsgf(!ForTheRuntime::IsEnsureOnAbortByLanguageEnabled(), TEXT("Transaction failing because of missing function."));
 
 	FContext* Context = FContext::Get();
     Context->AbortByLanguageAndThrow();

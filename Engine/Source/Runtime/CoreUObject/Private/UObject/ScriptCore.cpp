@@ -4086,6 +4086,21 @@ DEFINE_FUNCTION(UObject::execAutoRtfmTransact)
 
 	P_NATIVE_BEGIN;
 
+	if (UNLIKELY(Result == AutoRTFM::ETransactionResult::AbortedByLanguage))
+	{
+		FBlueprintExceptionInfo AbortedByLanguage(
+			EBlueprintExceptionType::FatalError,
+			LOCTEXT("AbortedByLanguage", "AutoRTFM aborted because of unhandled constructs in the code (atomics, unhandled function calls, etc)")
+		);
+
+		FBlueprintCoreDelegates::ThrowScriptException(Context, Stack, AbortedByLanguage);
+
+		if (AutoRTFM::IsTransactional())
+		{
+			AutoRTFM::CascadingAbortTransaction();
+		}
+	}
+
 	if (Result != AutoRTFM::ETransactionResult::Committed)
 	{
 		// if this transaction didn't commit, move our code pointer to the target

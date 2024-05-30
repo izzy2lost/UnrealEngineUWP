@@ -476,3 +476,42 @@ TEST_CASE("Abort.OnAbortTiming")
 	REQUIRE(Memory == 666);
 	REQUIRE(bOnAbortRan == true);
 }
+
+TEST_CASE("Abort.Language")
+{
+	bool bTouched = false;
+	std::atomic_bool bThingie = false;
+
+	const AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+		{
+			bTouched = true;
+			bThingie = true;
+		});
+
+	REQUIRE(AutoRTFM::ETransactionResult::AbortedByLanguage == Result);
+	REQUIRE(false == bTouched);
+}
+
+TEST_CASE("Abort.LanguageThroughOpen")
+{
+	bool bTouched = false;
+	std::atomic_bool bThingie = false;
+
+	const AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+		{
+			bTouched = true;
+
+			AutoRTFM::Open([&]
+				{
+					const AutoRTFM::EContextStatus Status = AutoRTFM::Close([&]
+						{
+							bThingie = true;
+						});
+
+					REQUIRE(AutoRTFM::EContextStatus::AbortedByLanguage == Status);
+				});
+		});
+
+	REQUIRE(AutoRTFM::ETransactionResult::AbortedByLanguage == Result);
+	REQUIRE(false == bTouched);
+}
