@@ -50,7 +50,7 @@ namespace Audio
 	{
 		FDeviceId AudioDeviceID = 0;
 		uint64 AudioComponentID = 0;
-		uint32 InstanceID = 0;
+		uint64 InstanceID = 0;
 		int32 SampleRate = 0;
 		int32 AudioMixerNumOutputFrames = 0;
 		FMixerBuffer* Buffer = nullptr;
@@ -156,6 +156,7 @@ namespace Audio
 		Audio::EBufferType::Type BufferType;
 		int32 NumPrecacheFrames;
 		Audio::FDeviceId AuioDeviceID;
+		uint64 InstanceID;
 		TArray<uint8> CachedRealtimeFirstBuffer;
 		FName WaveName;
 		uint64 AsyncTaskStartTimeInCycles=0;

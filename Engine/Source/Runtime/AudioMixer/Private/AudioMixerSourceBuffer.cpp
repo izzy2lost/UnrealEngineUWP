@@ -78,6 +78,7 @@ namespace Audio
 		, BufferType(InArgs.Buffer->GetType())
 		, NumPrecacheFrames(InArgs.SoundWave->NumPrecacheFrames)
 		, AuioDeviceID(InArgs.AudioDeviceID)
+		, InstanceID(InArgs.InstanceID)
 		, WaveName(InArgs.SoundWave->GetFName())
 #if ENABLE_AUDIO_DEBUG
 		, SampleRate(InArgs.SampleRate)
@@ -490,6 +491,16 @@ namespace Audio
 			SubmitRealTimeSourceData(bIsFinishedOrLooped);
 		}
 
+		if (FAudioDeviceManager* ADM = FAudioDeviceManager::Get())
+		{
+			if (FAudioDevice* AudioDevice = ADM->GetAudioDeviceRaw(AuioDeviceID))
+			{
+				UAudioBusSubsystem* AudioBusSubsystem = AudioDevice->GetSubsystem<UAudioBusSubsystem>();
+				check(AudioBusSubsystem);
+				AudioBusSubsystem->ConnectPatches(InstanceID);
+			}
+		}
+
 		if (!AsyncRealtimeAudioTask)
 		{
 			// Update the buffer index
@@ -687,6 +698,16 @@ namespace Audio
 			if (SoundWave)
 			{
 				SoundWave->OnEndGenerate(SoundGenerator);
+			}
+
+			if (FAudioDeviceManager* ADM = FAudioDeviceManager::Get())
+			{
+				if (FAudioDevice* AudioDevice = ADM->GetAudioDeviceRaw(AuioDeviceID))
+				{
+					UAudioBusSubsystem* AudioBusSubsystem = AudioDevice->GetSubsystem<UAudioBusSubsystem>();
+					check(AudioBusSubsystem);
+					AudioBusSubsystem->RemoveSound(InstanceID);
+				}
 			}
 		}
 		else

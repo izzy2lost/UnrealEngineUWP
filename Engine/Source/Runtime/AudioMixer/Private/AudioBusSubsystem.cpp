@@ -145,6 +145,98 @@ Audio::FPatchOutputStrongPtr UAudioBusSubsystem::AddPatchOutputForAudioBus(Audio
 	return PatchOutput;
 }
 
+Audio::FPatchInput UAudioBusSubsystem::AddPatchInputForSoundAndAudioBus(uint64 SoundInstanceID, Audio::FAudioBusKey AudioBusKey, int32 InFrames, int32 NumChannels, float InGain)
+{
+	Audio::FMixerDevice* MixerDevice = GetMutableMixerDevice();
+	if (!MixerDevice)
+	{
+		return {};
+	}
+
+	if (Audio::FPatchOutputStrongPtr PatchOutput = MixerDevice->MakePatch(InFrames, NumChannels, InGain))
+	{
+		Audio::FPatchInput PatchInput = MoveTemp(PatchOutput);
+		AddPendingConnection(SoundInstanceID, FPendingConnection{ FPendingConnection::FPatchVariant(TInPlaceType<Audio::FPatchInput>(), PatchInput), MoveTemp(AudioBusKey), InFrames, NumChannels });
+		return PatchInput;
+	}
+
+	return {};
+}
+
+Audio::FPatchOutputStrongPtr UAudioBusSubsystem::AddPatchOutputForSoundAndAudioBus(uint64 SoundInstanceID, Audio::FAudioBusKey AudioBusKey, int32 InFrames, int32 NumChannels, float InGain)
+{
+	Audio::FMixerDevice* MixerDevice = GetMutableMixerDevice();
+	if (!MixerDevice)
+	{
+		return {};
+	}
+
+	if (Audio::FPatchOutputStrongPtr PatchOutput = MixerDevice->MakePatch(InFrames, NumChannels, InGain))
+	{
+		AddPendingConnection(SoundInstanceID, FPendingConnection{ FPendingConnection::FPatchVariant(TInPlaceType<Audio::FPatchOutputStrongPtr>(), PatchOutput), MoveTemp(AudioBusKey), InFrames, NumChannels });
+		return PatchOutput;
+	}
+
+	return {};
+}
+
+void UAudioBusSubsystem::AddPendingConnection(uint64 SoundInstanceID, FPendingConnection&& PendingConnection)
+{
+	FScopeLock ScopeLock(&Mutex);
+	FSoundInstanceConnections& SoundInstanceConnections = SoundInstanceConnectionMap.FindOrAdd(SoundInstanceID);
+	SoundInstanceConnections.PendingConnections.Add(MoveTemp(PendingConnection));
+}
+
+void UAudioBusSubsystem::ReadyToConnect(uint64 SoundInstanceID)
+{
+	FScopeLock ScopeLock(&Mutex);
+	FSoundInstanceConnections& SoundInstanceConnections = SoundInstanceConnectionMap.FindOrAdd(SoundInstanceID);
+	SoundInstanceConnections.bSoundInstanceReady = true;
+}
+
+void UAudioBusSubsystem::ConnectPatches(uint64 SoundInstanceID)
+{
+	TArray<FPendingConnection> PendingConnections = ExtractPendingConnectionsIfReady(SoundInstanceID);
+	if (!PendingConnections.IsEmpty())
+	{
+		Audio::FMixerSourceManager* SourceManager = GetMutableSourceManager();
+		check(SourceManager);
+		for (FPendingConnection& PendingConnection : PendingConnections)
+		{
+			switch (PendingConnection.PatchVariant.GetIndex())
+			{
+			case FPendingConnection::FPatchVariant::IndexOfType<Audio::FPatchInput>():
+				SourceManager->AddPendingAudioBusConnection(MoveTemp(PendingConnection.AudioBusKey), PendingConnection.NumChannels, PendingConnection.bIsAutomatic, MoveTemp(PendingConnection.PatchVariant.Get<Audio::FPatchInput>()));
+				break;
+			case FPendingConnection::FPatchVariant::IndexOfType<Audio::FPatchOutputStrongPtr>():
+				SourceManager->AddPendingAudioBusConnection(MoveTemp(PendingConnection.AudioBusKey), PendingConnection.NumChannels, PendingConnection.bIsAutomatic, MoveTemp(PendingConnection.PatchVariant.Get<Audio::FPatchOutputStrongPtr>()));
+				break;
+			}
+		}
+	}
+}
+
+void UAudioBusSubsystem::RemoveSound(uint64 SoundInstanceID)
+{
+	FScopeLock ScopeLock(&Mutex);
+	SoundInstanceConnectionMap.Remove(SoundInstanceID);
+}
+
+TArray<UAudioBusSubsystem::FPendingConnection> UAudioBusSubsystem::ExtractPendingConnectionsIfReady(uint64 SoundInstanceID)
+{
+	FScopeLock ScopeLock(&Mutex);
+	if (FSoundInstanceConnections* SoundInstanceConnections = SoundInstanceConnectionMap.Find(SoundInstanceID))
+	{
+		if (SoundInstanceConnections->bSoundInstanceReady)
+		{
+			TArray<FPendingConnection> PendingConnections = MoveTemp(SoundInstanceConnections->PendingConnections);
+			SoundInstanceConnections->PendingConnections.Empty();
+			return PendingConnections;
+		}
+	}
+	return {};
+}
+
 void UAudioBusSubsystem::InitDefaultAudioBuses()
 {
 	if (!ensure(IsInGameThread()))

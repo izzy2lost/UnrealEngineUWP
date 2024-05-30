@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "DSP/MultithreadedPatching.h"
+#include "Misc/TVariant.h"
 #include "Subsystems/AudioEngineSubsystem.h"
 #include "Templates/TypeHash.h"
 #include "UObject/StrongObjectPtr.h"
@@ -15,9 +17,6 @@ namespace Audio
 	// Forward declarations 
 	class FMixerAudioBus;
 	class FMixerSourceManager;
-	class FPatchInput;
-	struct FPatchOutput;
-	typedef TSharedPtr<FPatchOutput, ESPMode::ThreadSafe> FPatchOutputStrongPtr;
 
 	struct FAudioBusKey
 	{
@@ -87,6 +86,12 @@ public:
 	AUDIOMIXER_API Audio::FPatchInput AddPatchInputForAudioBus(Audio::FAudioBusKey InAudioBusKey, int32 InFrames, int32 InChannels, float InGain = 1.f);
 	AUDIOMIXER_API Audio::FPatchOutputStrongPtr AddPatchOutputForAudioBus(Audio::FAudioBusKey InAudioBusKey, int32 InFrames, int32 InChannels, float InGain = 1.f);
 
+	AUDIOMIXER_API Audio::FPatchInput AddPatchInputForSoundAndAudioBus(uint64 SoundInstanceID, Audio::FAudioBusKey AudioBusKey, int32 InFrames, int32 NumChannels, float InGain = 1.f);
+	AUDIOMIXER_API Audio::FPatchOutputStrongPtr AddPatchOutputForSoundAndAudioBus(uint64 SoundInstanceID, Audio::FAudioBusKey AudioBusKey, int32 InFrames, int32 NumChannels, float InGain = 1.f);
+	AUDIOMIXER_API void ReadyToConnect(uint64 SoundInstanceID);
+	AUDIOMIXER_API void ConnectPatches(uint64 SoundInstanceID);
+	AUDIOMIXER_API void RemoveSound(uint64 SoundInstanceID);
+
 	AUDIOMIXER_API void InitDefaultAudioBuses();
 	AUDIOMIXER_API void ShutdownDefaultAudioBuses();
 
@@ -101,4 +106,27 @@ private:
 	TArray<TStrongObjectPtr<UAudioBus>> DefaultAudioBuses; 
 	// The active audio bus list accessible on the game thread
 	TMap<Audio::FAudioBusKey, FActiveBusData> ActiveAudioBuses_GameThread;
+
+	struct FPendingConnection
+	{
+		using FPatchVariant = TVariant<Audio::FPatchInput, Audio::FPatchOutputStrongPtr>;
+		FPatchVariant PatchVariant;
+		Audio::FAudioBusKey AudioBusKey;
+		int32 BlockSizeFrames = 0;
+		int32 NumChannels = 0;
+		bool bIsAutomatic = false;
+	};
+
+	void AddPendingConnection(uint64 SoundInstanceID, FPendingConnection&& PendingConnection);
+
+	struct FSoundInstanceConnections
+	{
+		TArray<FPendingConnection> PendingConnections;
+		bool bSoundInstanceReady = false;
+	};
+
+	TArray<FPendingConnection> ExtractPendingConnectionsIfReady(uint64 SoundInstanceID);
+
+	TMap<uint64, FSoundInstanceConnections> SoundInstanceConnectionMap;
+	FCriticalSection Mutex;
 };
