@@ -287,6 +287,11 @@ namespace UnrealBuildTool
 		public bool bAllowAutoRTFMInstrumentation = false;
 
 		/// <summary>
+		/// Disables AutoRTFM instrumentation to this cpp file only when AutoRTFMCompiler is enabled
+		/// </summary>
+		public bool bDisableAutoRTFMInstrumentation = false;
+
+		/// <summary>
 		/// If unity builds are enabled this can be used to override if this specific module will build using Unity.
 		/// This is set using the per module configurations in BuildConfiguration.
 		/// </summary>
@@ -776,6 +781,7 @@ namespace UnrealBuildTool
 			bOptimizeCode = Other.bOptimizeCode;
 			bUseAutoRTFMCompiler = Other.bUseAutoRTFMCompiler;
 			bAllowAutoRTFMInstrumentation = Other.bAllowAutoRTFMInstrumentation;
+			bDisableAutoRTFMInstrumentation = Other.bDisableAutoRTFMInstrumentation;
 			bCodeCoverage = Other.bCodeCoverage;
 			OptimizationLevel = Other.OptimizationLevel;
 			FPSemantics = Other.FPSemantics;

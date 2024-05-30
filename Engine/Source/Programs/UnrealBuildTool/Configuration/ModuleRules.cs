@@ -1191,6 +1191,11 @@ namespace UnrealBuildTool
 		public bool bAllowAutoRTFMInstrumentation { get; set; }
 
 		/// <summary>
+		/// Disables AutoRTFM instrumentation to this module only when AutoRTFMCompiler is enabled
+		/// </summary>
+		public bool bDisableAutoRTFMInstrumentation { get; set; }
+
+		/// <summary>
 		/// List of modules names (no path needed) with header files that our module's public headers needs access to, but we don't need to "import" or link against.
 		/// </summary>
 		public List<string> PublicIncludePathModuleNames = new();

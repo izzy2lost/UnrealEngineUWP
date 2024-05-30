@@ -1148,7 +1148,7 @@ namespace UnrealBuildTool
 				// Additional disabled warnings for msvc. Everything below should be checked if it is necessary
 				ClangWarnings.GetVCDisabledWarnings(Arguments);
 
-				if (CompileEnvironment.bAllowAutoRTFMInstrumentation)
+				if (!CompileEnvironment.bDisableAutoRTFMInstrumentation)
 				{
 					Arguments.Add("-fautortfm");
 				}
@@ -1189,7 +1189,7 @@ namespace UnrealBuildTool
 
 			if (Target.WindowsPlatform.Compiler.IsClang())
 			{
-				if (CompileEnvironment.bAllowAutoRTFMInstrumentation)
+				if (!CompileEnvironment.bDisableAutoRTFMInstrumentation)
 				{
 					Arguments.Add("-fautortfm");
 				}
