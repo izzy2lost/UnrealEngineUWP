@@ -13,6 +13,8 @@
 #include "Templates/SharedPointer.h"
 #include "ToolMenus.h"
 
+#define LOCTEXT_NAMESPACE "AdvancedRenamerLevelEditorIntegration"
+
 namespace UE::AdvancedRenamer::Private
 {
 	FDelegateHandle LevelEditorCreatedDelegateHandle;
@@ -89,17 +91,23 @@ namespace UE::AdvancedRenamer::Private
 	{
 		const FAdvancedRenamerCommands& AdvRenCommands = FAdvancedRenamerCommands::Get();
 
-		InLevelEditor->GetLevelEditorActions()->MapAction(
-			AdvRenCommands.RenameSelectedActors,
-			FExecuteAction::CreateStatic(&RenameSelectedActors, InLevelEditor.ToWeakPtr()),
-			FCanExecuteAction::CreateStatic(&CanOpenAdvancedRenamer, InLevelEditor.ToWeakPtr())
-		);
+		const TSharedPtr<FUICommandList>& LevelEditorAction = InLevelEditor->GetLevelEditorActions();
+		if (LevelEditorAction.IsValid())
+		{
+			LevelEditorAction->MapAction(
+				AdvRenCommands.BatchRenameObject,
+				FExecuteAction::CreateStatic(&RenameSelectedActors, InLevelEditor.ToWeakPtr()),
+				FCanExecuteAction::CreateStatic(&CanOpenAdvancedRenamer, InLevelEditor.ToWeakPtr())
+			);
 
-		InLevelEditor->GetLevelEditorActions()->MapAction(
-			AdvRenCommands.RenameSharedClassActors,
-			FExecuteAction::CreateStatic(&RenameSharedClassActors, InLevelEditor.ToWeakPtr()),
-			FCanExecuteAction::CreateStatic(&CanOpenAdvancedRenamer, InLevelEditor.ToWeakPtr())
-		);
+			LevelEditorAction->MapAction(
+				AdvRenCommands.BatchRenameSharedClassActors,
+				FExecuteAction::CreateStatic(&RenameSharedClassActors, InLevelEditor.ToWeakPtr()),
+				FCanExecuteAction::CreateStatic(&CanOpenAdvancedRenamer, InLevelEditor.ToWeakPtr())
+			);
+		}
+
+		FInputBindingManager::Get().RegisterCommandList(AdvRenCommands.GetContextName(), LevelEditorAction.ToSharedRef());
 	}
 }
 
@@ -114,34 +122,7 @@ void FAdvancedRenamerLevelEditorIntegration::Initialize()
 
 	FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
 	LevelEditorCreatedDelegateHandle = LevelEditorModule.OnLevelEditorCreated().AddStatic(&OnLevelEditorCreated);
-}
-
-void FAdvancedRenamerLevelEditorIntegration::InitializeMenu()
-{
-	const FAdvancedRenamerCommands& AdvRenCommands = FAdvancedRenamerCommands::Get();
-
-	const TAttribute<FText> TextAttribute;
-	const FSlateIcon RenameIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Rename");
-
-	for (const FName& Menu : Menus)
-	{
-		UToolMenu* ToolMenu = UToolMenus::Get()->ExtendMenu(Menu);
-		FToolMenuSection& Section = ToolMenu->FindOrAddSection(NAME_None);
-
-		Section.AddMenuEntry(
-			AdvRenCommands.RenameSelectedActors,
-			TextAttribute,
-			TextAttribute,
-			RenameIcon
-		);
-
-		Section.AddMenuEntry(
-			AdvRenCommands.RenameSharedClassActors,
-			TextAttribute,
-			TextAttribute,
-			RenameIcon
-		);
-	}
+	InitializeMenu();
 }
 
 void FAdvancedRenamerLevelEditorIntegration::Shutdown()
@@ -152,6 +133,32 @@ void FAdvancedRenamerLevelEditorIntegration::Shutdown()
 	{
 		LevelEditorModule->OnLevelEditorCreated().Remove(LevelEditorCreatedDelegateHandle);
 		LevelEditorCreatedDelegateHandle.Reset();
+	}
+	ShutdownMenu();
+}
+
+void FAdvancedRenamerLevelEditorIntegration::InitializeMenu()
+{
+	const FAdvancedRenamerCommands& AdvRenCommands = FAdvancedRenamerCommands::Get();
+
+	const TAttribute<FText> TextAttribute;
+
+	for (const FName& Menu : Menus)
+	{
+		UToolMenu* ToolMenu = UToolMenus::Get()->ExtendMenu(Menu);
+		FToolMenuSection& Section = ToolMenu->FindOrAddSection(NAME_None);
+
+		Section.AddMenuEntry(
+			AdvRenCommands.BatchRenameObject,
+			LOCTEXT("BatchRename", "Rename Selected Actors"),
+			LOCTEXT("BatchRenameToolTip", "Opens the Batch Renamer Panel to rename all selected actors.")
+			
+		);
+
+		Section.AddMenuEntry(
+			AdvRenCommands.BatchRenameSharedClassActors,
+			LOCTEXT("BatchRenameByClass", "Rename Actors of Selected Actor Classes")
+		);
 	}
 }
 
@@ -166,3 +173,5 @@ void FAdvancedRenamerLevelEditorIntegration::ShutdownMenu()
 		}
 	}
 }
+
+#undef LOCTEXT_NAMESPACE

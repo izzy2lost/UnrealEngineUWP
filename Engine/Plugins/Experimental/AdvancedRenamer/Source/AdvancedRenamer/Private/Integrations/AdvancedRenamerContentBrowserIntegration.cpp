@@ -1,11 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Integrations/AdvancedRenamerContentBrowserIntegration.h"
+
+#include "AdvancedRenamerCommands.h"
 #include "ContentBrowserDelegates.h"
 #include "ContentBrowserMenuContexts.h"
 #include "ContentBrowserModule.h"
 #include "Delegates/IDelegateInstance.h"
 #include "Framework/Commands/UIAction.h"
+#include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/MultiBox/MultiBoxExtender.h"
 #include "IAdvancedRenamerModule.h"
@@ -13,57 +16,83 @@
 #include "ToolMenus.h"
 #include "ToolMenuSection.h"
 
-
 #define LOCTEXT_NAMESPACE "AdvancedRenamerContentBrowserIntegration"
 
 namespace UE::AdvancedRenamer::Private
 {
 	FDelegateHandle ContentBrowserDelegateHandle;
 
-	void OpenAdvancedRenamer(const TArray<FAssetData> AssetArray)
+	TArray<FAssetData> GetContentBrowserSelectedAssets(FOnContentBrowserGetSelection InGetSelectionDelegate)
 	{
-		TSharedRef<FAdvancedRenamerAssetProvider> AssetProvider = MakeShared<FAdvancedRenamerAssetProvider>();
-		AssetProvider->SetAssetList(AssetArray);
+		if (InGetSelectionDelegate.IsBound())
+		{
+			TArray<FAssetData> SelectedAssets;
+			TArray<FString> SelectedPaths;
+			InGetSelectionDelegate.Execute(SelectedAssets, SelectedPaths);
+			return SelectedAssets;
+		}
+		return TArray<FAssetData>();
+	}
+
+	void OpenAdvancedRenamer(FOnContentBrowserGetSelection InGetSelectionDelegate)
+	{
+		const TArray<FAssetData> SelectedAssets = GetContentBrowserSelectedAssets(InGetSelectionDelegate);
+		if (SelectedAssets.IsEmpty())
+		{
+			return;
+		}
+
+		const TSharedRef<FAdvancedRenamerAssetProvider> AssetProvider = MakeShared<FAdvancedRenamerAssetProvider>();
+		AssetProvider->SetAssetList(SelectedAssets);
 
 		TSharedPtr<SWidget> HostWidget = nullptr;
 
 		IAdvancedRenamerModule::Get().OpenAdvancedRenamer(StaticCastSharedRef<IAdvancedRenamerProvider>(AssetProvider), HostWidget);
 	}
 
-	void AddMenuEntry(FToolMenuSection& MenuSection, const TArray<FAssetData> SelectedAssets)
+	void AddMenuEntry(FToolMenuSection& InMenuSection)
 	{
-		MenuSection.AddMenuEntry(
-			"BatchRename",
-			LOCTEXT("AdvancedRename", "Batch Rename"),
-			LOCTEXT("AdvancedRenameTooltip", "Opens the Batch Renamer Panel to rename all selected assets."),
-			FSlateIcon(FAppStyle::GetAppStyleSetName(), "ContentBrowser.AssetActions.Rename"),
-			FUIAction(FExecuteAction::CreateStatic(&OpenAdvancedRenamer, SelectedAssets)));
+		FToolMenuEntry& BatchRenameMenuEntry = InMenuSection.AddMenuEntry(
+			FAdvancedRenamerCommands::Get().BatchRenameObject,
+			LOCTEXT("BatchRename", "Batch Rename"),
+			LOCTEXT("AdvancedRenameTooltip", "Opens the Batch Renamer Panel to rename all selected assets."));
+
+		BatchRenameMenuEntry.InsertPosition = FToolMenuInsert(TEXT("Rename"), EToolMenuInsertType::After);
 	}
 
-	void ExtendAssetContextMenu()
+	void RegisterAssetMenu()
 	{
 		if (UToolMenus* ToolMenus = UToolMenus::Get())
 		{
 			FToolMenuOwnerScoped OwnerScoped(TEXT("AdvancedRenamer"));
 
-			if (UToolMenu* Menu = ToolMenus->ExtendMenu("ContentBrowser.AssetContextMenu"))
+			if (UToolMenu* Menu = ToolMenus->ExtendMenu(TEXT("ContentBrowser.AssetContextMenu")))
 			{
-				if (FToolMenuSection* MenuSection = Menu->FindSection("CommonAssetActions"))
-				{
-					MenuSection->AddDynamicEntry("CreateVariant", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
-					{
-						UContentBrowserAssetContextMenuContext* Context = InSection.FindContext<UContentBrowserAssetContextMenuContext>();
-						if (Context)
-						{
-							const TArray<FAssetData>& SelectedAssets = Context->SelectedAssets;
-							if (SelectedAssets.Num() > 0 )
-							{
-								AddMenuEntry(InSection, SelectedAssets);
-							}
-						}
-					}));
-				}
+				FToolMenuSection& MenuSection = Menu->FindOrAddSection(TEXT("CommonAssetActions"));
+				AddMenuEntry(MenuSection);
 			}
+		}
+	}
+
+	void OnExtendContentBrowserCommands(TSharedRef<FUICommandList> OutCommandList, FOnContentBrowserGetSelection InGetSelectionDelegate)
+	{
+		using namespace UE::AdvancedRenamer::Private;
+
+		OutCommandList->MapAction(
+			FAdvancedRenamerCommands::Get().BatchRenameObject,
+			FUIAction(FExecuteAction::CreateStatic(&OpenAdvancedRenamer, InGetSelectionDelegate)));
+
+		FInputBindingManager::Get().RegisterCommandList(FAdvancedRenamerCommands::Get().GetContextName(), OutCommandList);
+	}
+
+	void ExtendContentBrowserCommands()
+	{
+		if (FModuleManager::Get().IsModuleLoaded(TEXT("ContentBrowser")))
+		{
+			FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
+			TArray<FContentBrowserCommandExtender>& CBCommandExtenderDelegates = ContentBrowserModule.GetAllContentBrowserCommandExtenders();
+			CBCommandExtenderDelegates.Add(FContentBrowserCommandExtender::CreateStatic(&OnExtendContentBrowserCommands));
+			ContentBrowserDelegateHandle = CBCommandExtenderDelegates.Last().GetHandle();
 		}
 	}
 }
@@ -72,15 +101,25 @@ void FAdvancedRenamerContentBrowserIntegration::Initialize()
 {
 	using namespace UE::AdvancedRenamer::Private;
 
-	// Register Content Browser selection extensions
-	ExtendAssetContextMenu();
+	// Extend the Content Browser Commands
+	ExtendContentBrowserCommands();
+
+	// Register the menu entry
+	RegisterAssetMenu();
 }
 
 void FAdvancedRenamerContentBrowserIntegration::Shutdown()
 {
-	if (UToolMenus* ToolMenus = UToolMenus::TryGet())
+	using namespace UE::AdvancedRenamer::Private;
+
+	UToolMenus::UnregisterOwner(TEXT("AdvancedRenamer"));
+
+	if (FModuleManager::Get().IsModuleLoaded(TEXT("ContentBrowser")))
 	{
-		ToolMenus->UnregisterOwner(TEXT("AdvancedRenamer"));
+		FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
+		
+		TArray<FContentBrowserCommandExtender>& CBCommandExtenderDelegates = ContentBrowserModule.GetAllContentBrowserCommandExtenders();
+		CBCommandExtenderDelegates.RemoveAll([](const FContentBrowserCommandExtender& Delegate) { return Delegate.GetHandle() == ContentBrowserDelegateHandle; });
 	}
 }
 

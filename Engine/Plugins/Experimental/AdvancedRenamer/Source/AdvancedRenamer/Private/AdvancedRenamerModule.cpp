@@ -36,65 +36,23 @@ namespace UE::AdvancedRenamer::Private
 			.MinWidth(737)
 			.MinHeight(586.5f);
 	}
-
-	static TAutoConsoleVariable<bool> CVarBatchRenamerEnableIntegration(
-		TEXT("BatchRenamer.EnableIntegration"),
-		false,
-		TEXT("If enabled, the Batch Renamer will hook into the ContentBrowser and Outliner.")
-	);
-
-	static bool bPreviousCVarValue = false;
-
-	void OnBatchRenamerEnabledChanged(IConsoleVariable* InVar)
-	{
-		if (InVar)
-		{
-			const bool bCurrentValue = InVar->GetBool();
-			if (bCurrentValue != bPreviousCVarValue)
-			{
-				if (InVar->GetBool())
-				{
-					FAdvancedRenamerContentBrowserIntegration::Initialize();
-					FAdvancedRenamerLevelEditorIntegration::InitializeMenu();
-				}
-				else
-				{
-					FAdvancedRenamerContentBrowserIntegration::Shutdown();
-					FAdvancedRenamerLevelEditorIntegration::ShutdownMenu();
-				}
-				bPreviousCVarValue = bCurrentValue;
-			}
-		}
-	}
 }
 
 void FAdvancedRenamerModule::StartupModule()
 {
 	FAdvancedRenamerStyle::Initialize();
-	FAdvancedRenamerLevelEditorIntegration::Initialize();
 	FAdvancedRenamerCommands::Register();
-
-	{
-		// Enable plugins integration section from CVar
-		using namespace UE::AdvancedRenamer::Private;
-		EnableRenamerHandle = CVarBatchRenamerEnableIntegration.AsVariable()->OnChangedDelegate().AddStatic(&OnBatchRenamerEnabledChanged);
-	}
-
+	FAdvancedRenamerContentBrowserIntegration::Initialize();
+	FAdvancedRenamerLevelEditorIntegration::Initialize();
 	RegisterDefaultSections();
 }
 
 void FAdvancedRenamerModule::ShutdownModule()
 {
-	FAdvancedRenamerCommands::Unregister();
 	FAdvancedRenamerStyle::Shutdown();
+	FAdvancedRenamerCommands::Unregister();
 	FAdvancedRenamerContentBrowserIntegration::Shutdown();
 	FAdvancedRenamerLevelEditorIntegration::Shutdown();
-	FAdvancedRenamerLevelEditorIntegration::ShutdownMenu();
-	if (EnableRenamerHandle.IsValid())
-	{
-		using namespace UE::AdvancedRenamer::Private;
-		CVarBatchRenamerEnableIntegration.AsVariable()->OnChangedDelegate().Remove(EnableRenamerHandle);
-	}
 }
 
 TSharedRef<IAdvancedRenamer> FAdvancedRenamerModule::CreateAdvancedRenamer(const TSharedRef<IAdvancedRenamerProvider>& InRenameProvider)

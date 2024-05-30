@@ -8,6 +8,8 @@
 #include "Styling/SlateStyleRegistry.h"
 #include "Styling/SlateTypes.h"
 
+#define IMAGE_BRUSH(RelativePath, ...) FSlateImageBrush(StyleInstance->RootToContentDir(RelativePath, TEXT(".png") ), __VA_ARGS__)
+
 TSharedPtr<FSlateStyleSet> FAdvancedRenamerStyle::StyleInstance = nullptr;
 
 void FAdvancedRenamerStyle::Initialize()
@@ -44,13 +46,9 @@ void FAdvancedRenamerStyle::InitStyle()
 
 	StyleInstance = MakeShared<FSlateStyleSet>("AdvancedRenamer");
 
-	TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("AdvancedRenamer"));
-	check(Plugin.IsValid());
-
-	if (Plugin.IsValid())
-	{
-		StyleInstance->SetContentRoot(FPaths::Combine(Plugin->GetBaseDir(), TEXT("Resources")));
-	}
+	// Same ContentDir and CoreRootContentDir as the ContentBrowser
+	StyleInstance->SetContentRoot(FPaths::EngineContentDir() / TEXT("Editor/Slate"));
+	StyleInstance->SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Slate"));
 
 	const FSplitterStyle SplitterStyle = FSplitterStyle()
 		.SetHandleNormalBrush(FSlateNoResource())
@@ -76,6 +74,10 @@ void FAdvancedRenamerStyle::InitStyle()
 
 	StyleInstance->Set("AdvancedRenamer.Style.TitleFont", FCoreStyle::GetDefaultFontStyle("Regular", 12));
 	StyleInstance->Set("AdvancedRenamer.Style.RegularFont", FCoreStyle::GetDefaultFontStyle("Regular", 10));
+
+	// Commands Icon
+	StyleInstance->Set("AdvancedRenamer.BatchRenameObject", new IMAGE_BRUSH("Icons/Icon_Asset_Rename_16x", FVector2D(16.f, 16.f)));
+	StyleInstance->Set("AdvancedRenamer.BatchRenameSharedClassActors", new IMAGE_BRUSH("Icons/Icon_Asset_Rename_16x", FVector2D(16.f, 16.f)));
 }
 
 const ISlateStyle& FAdvancedRenamerStyle::Get()
@@ -87,3 +89,5 @@ const ISlateStyle& FAdvancedRenamerStyle::Get()
 
 	return *StyleInstance;
 }
+
+#undef IMAGE_BRUSH
