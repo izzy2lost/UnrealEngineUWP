@@ -4023,6 +4023,12 @@ public:
 		}
 	}
 
+	/*
+	* Compatibility adaptor that operates on the new FRHIBatchedShaderParameters instead of legacy FRayTracingShaderBindings (planned for deprecation).
+	* This will become the default native code path in a future UE version.
+	*/
+	RHI_API void RayTraceDispatch(FRayTracingPipelineState* Pipeline, FRHIRayTracingShader* RayGenShader, FRHIRayTracingScene* Scene, FRHIShaderBindingTable* SBT, const FRHIBatchedShaderParameters& GlobalResourceBindings, uint32 Width, uint32 Height);
+
 	/**
 	 * Trace rays using dimensions from a GPU buffer containing uint[3], interpreted as number of rays in X, Y and Z dimensions.
 	 * ArgumentBuffer must be in IndirectArgs|SRVCompute state.
@@ -4052,6 +4058,12 @@ public:
 			ALLOC_COMMAND(FRHICommandRayTraceDispatch)(Pipeline, RayGenShader, Scene, SBT, GlobalResourceBindings, ArgumentBuffer, ArgumentOffset);
 		}
 	}
+
+	/*
+	* Compatibility adaptor that operates on the new FRHIBatchedShaderParameters instead of legacy FRayTracingShaderBindings (planned for deprecation).
+	* This will become the default native code path in a future UE version.
+	*/
+	RHI_API void RayTraceDispatchIndirect(FRayTracingPipelineState* Pipeline, FRHIRayTracingShader* RayGenShader, FRHIRayTracingScene* Scene, FRHIShaderBindingTable* SBT, const FRHIBatchedShaderParameters& GlobalResourceBindings, FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset);
 
 	UE_DEPRECATED(5.5, "Use FRHIShaderBindingTable instead.")
 	FORCEINLINE_DEBUGGABLE void SetRayTracingBindings(
@@ -5543,6 +5555,10 @@ namespace UE::RHI
 	// Provided for backwards compatibility. Caller should prefer CopySharedMips() with optimally batched transitions.
 	//
 	RHI_API void CopySharedMips_AssumeSRVMaskState(FRHICommandList& RHICmdList, FRHITexture* SrcTexture, FRHITexture* DstTexture);
+
+	// Backwards compatibility adaptor to convert new FRHIBatchedShaderParameters to legacy FRayTracingShaderBindings.
+	// This function will be deprecated in a future release, once legacy FRayTracingShaderBindings is removed.
+	RHI_API FRayTracingShaderBindings ConvertRayTracingShaderBindings(const FRHIBatchedShaderParameters& BatchedParameters);
 
 } //! UE::RHI
 

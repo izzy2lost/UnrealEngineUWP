@@ -180,13 +180,13 @@ void RenderRayTracingBarycentricsRGS(FRDGBuilder& GraphBuilder, const FScene& Sc
 		ERDGPassFlags::Compute,
 		[RayGenParameters, RayGenShader, &View, SBT, Pipeline, ViewRect](FRHICommandList& RHICmdList)
 	{
-		FRayTracingShaderBindingsWriter GlobalResources;
-		SetShaderParameters(GlobalResources, RayGenShader, *RayGenParameters);
+		FRHIBatchedShaderParameters& ShaderParameters = RHICmdList.GetScratchShaderParameters();
+		SetShaderParameters(ShaderParameters, RayGenShader, *RayGenParameters);
 
 		// Dispatch rays using default shader binding table
 		RHICmdList.SetRayTracingMissShader(SBT, 0, Pipeline, 0 /* ShaderIndexInPipeline */, 0, nullptr, 0);
 		RHICmdList.CommitShaderBindingTable(SBT);
-		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), View.GetRayTracingSceneChecked(), SBT, GlobalResources, ViewRect.Size().X, ViewRect.Size().Y);
+		RHICmdList.RayTraceDispatch(Pipeline, RayGenShader.GetRayTracingShader(), View.GetRayTracingSceneChecked(), SBT, ShaderParameters, ViewRect.Size().X, ViewRect.Size().Y);
 	});
 }
 

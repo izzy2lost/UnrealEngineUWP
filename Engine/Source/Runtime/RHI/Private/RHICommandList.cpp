@@ -2171,3 +2171,99 @@ void FRHICommandList::GenerateMips(FRHITexture*)
 {
 	UE_LOG(LogRHI, Fatal, TEXT("GenerateMips on RHI command lists is deprecated and no longer functions. Use the FGenerateMips helper class from the RenderCore module to generate mips on textures."));
 }
+
+FRayTracingShaderBindings UE::RHI::ConvertRayTracingShaderBindings(const FRHIBatchedShaderParameters& BatchedParameters)
+{
+	FRayTracingShaderBindings Result;
+
+#if RHI_RAYTRACING
+
+	// Use array views for bounds checking
+	TArrayView<FRHITexture*> Textures = Result.Textures;
+	TArrayView<FRHIShaderResourceView*> SRVs = Result.SRVs;
+	TArrayView<FRHIUniformBuffer*> UniformBuffers = Result.UniformBuffers;
+	TArrayView<FRHISamplerState*> Samplers = Result.Samplers;
+	TArrayView<FRHIUnorderedAccessView*> UAVs = Result.UAVs;
+
+	checkf(BatchedParameters.Parameters.IsEmpty(), TEXT("FRHIShaderParameter is not supported by FRayTracingShaderBindings"));
+
+	// TODO: Handle FRHIBatchedShaderParameters::BindlessParameters once supported in FRayTracingShaderBindings
+
+	for (const FRHIShaderParameterResource& It : BatchedParameters.ResourceParameters)
+	{
+		using EType = FRHIShaderParameterResource::EType;
+		switch (It.Type)
+		{
+		case EType::Texture:
+			Textures[It.Index] = static_cast<FRHITexture*>(It.Resource);
+			break;
+		case EType::ResourceView:
+			SRVs[It.Index] = static_cast<FRHIShaderResourceView*>(It.Resource);
+			break;
+		case EType::UnorderedAccessView:
+			UAVs[It.Index] = static_cast<FRHIUnorderedAccessView*>(It.Resource);
+			break;
+		case EType::Sampler:
+			Samplers[It.Index] = static_cast<FRHISamplerState*>(It.Resource);
+			break;
+		case EType::UniformBuffer:
+			UniformBuffers[It.Index] = static_cast<FRHIUniformBuffer*>(It.Resource);
+			break;
+		case EType::ResourceCollection:
+			checkNoEntry(); // not supported
+			break;
+		default:
+			checkNoEntry();
+		}
+	}
+
+#else // // RHI_RAYTRACING
+
+	checkNoEntry();
+
+#endif // RHI_RAYTRACING
+
+	return Result;
+}
+
+void FRHICommandList::RayTraceDispatch(
+	FRayTracingPipelineState* Pipeline,
+	FRHIRayTracingShader* RayGenShader,
+	FRHIRayTracingScene* Scene,
+	FRHIShaderBindingTable* SBT,
+	const FRHIBatchedShaderParameters& GlobalResourceBindings,
+	uint32 Width, uint32 Height)
+{
+#if RHI_RAYTRACING
+
+	FRayTracingShaderBindings LegacyBindings = UE::RHI::ConvertRayTracingShaderBindings(GlobalResourceBindings);
+	RayTraceDispatch(Pipeline, RayGenShader, Scene, SBT, LegacyBindings, Width, Height);
+
+#else // RHI_RAYTRACING
+
+	checkNoEntry();
+
+#endif // RHI_RAYTRACING
+}
+
+void FRHICommandList::RayTraceDispatchIndirect(
+	FRayTracingPipelineState* Pipeline,
+	FRHIRayTracingShader* RayGenShader,
+	FRHIRayTracingScene* Scene,
+	FRHIShaderBindingTable* SBT,
+	const FRHIBatchedShaderParameters& GlobalResourceBindings,
+	FRHIBuffer* ArgumentBuffer, uint32 ArgumentOffset)
+{
+#if RHI_RAYTRACING
+
+	FRayTracingShaderBindings LegacyBindings = UE::RHI::ConvertRayTracingShaderBindings(GlobalResourceBindings);
+	RayTraceDispatchIndirect(Pipeline, RayGenShader, Scene, SBT, LegacyBindings, ArgumentBuffer, ArgumentOffset);
+
+#else // RHI_RAYTRACING
+
+	checkNoEntry();
+
+#endif // RHI_RAYTRACING
+}
+
+

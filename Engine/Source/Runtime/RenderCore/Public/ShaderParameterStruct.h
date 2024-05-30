@@ -239,7 +239,17 @@ inline void SetShaderParameters(
 	const typename TShaderClass::FParameters& Parameters)
 {
 	ValidateShaderParameters(Shader, ParametersMetadata, &Parameters);
-	SetShaderParameters(BatchedParameters, Shader->Bindings, ParametersMetadata, &Parameters);
+
+#if RHI_RAYTRACING
+	if (IsRayTracingShaderFrequency(Shader->GetFrequency()))
+	{
+		SetRayTracingShaderParameters(BatchedParameters, Shader->Bindings, ParametersMetadata, &Parameters);
+	}
+	else
+#endif // RHI_RAYTRACING
+	{
+		SetShaderParameters(BatchedParameters, Shader->Bindings, ParametersMetadata, &Parameters);
+	}
 }
 
 template<typename TShaderClass>
@@ -293,6 +303,17 @@ inline void SetShaderParameters(TRHICmdList& RHICmdList, const TShaderRef<TShade
 }
 
 #if RHI_RAYTRACING
+
+/**
+* Similar to SetShaderParameters(), but also binds static uniform buffers that are skipped otherwise.
+* This helper function exists in UE 5.5 to aid with compatibility between FRHIBatchedShaderParameters and legacy FRayTracingShaderBindings[Writer].
+* It will be deprecated in a future release, once legacy FRayTracingShaderBindings[Writer] is removed.
+*/
+RENDERCORE_API void SetRayTracingShaderParameters(
+	FRHIBatchedShaderParameters& BatchedParameters,
+	const FShaderParameterBindings& Bindings,
+	const FShaderParametersMetadata* ParametersMetadata,
+	const void* ParametersData);
 
 RENDERCORE_API void SetShaderParameters(
 	FRayTracingShaderBindingsWriter& RTBindingsWriter,
