@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HttpThread.h"
-#include "IHttpThreadedRequest.h"
+#include "GenericPlatform/HttpRequestCommon.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/RunnableThread.h"
@@ -151,24 +151,26 @@ void FHttpThreadBase::StopThread()
 	bIsSingleThread = true;
 }
 
-void FHttpThreadBase::AddRequest(IHttpThreadedRequest* Request)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+void FHttpThreadBase::AddRequest(FHttpRequestCommon* Request)
 {
 	NewThreadedRequests.Enqueue(Request);
 }
 
-void FHttpThreadBase::CancelRequest(IHttpThreadedRequest* Request)
+void FHttpThreadBase::CancelRequest(FHttpRequestCommon* Request)
 {
 	CancelledThreadedRequests.Enqueue(Request);
 }
 
-void FHttpThreadBase::GetCompletedRequests(TArray<IHttpThreadedRequest*>& OutCompletedRequests)
+void FHttpThreadBase::GetCompletedRequests(TArray<FHttpRequestCommon*>& OutCompletedRequests)
 {
-	IHttpThreadedRequest* Request = nullptr;
+	FHttpRequestCommon* Request = nullptr;
 	while (CompletedThreadedRequests.Dequeue(Request))
 	{
 		OutCompletedRequests.Add(Request);
 	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 bool FHttpThreadBase::Init()
 {
@@ -203,12 +205,13 @@ void FHttpThreadBase::HttpThreadTick(float DeltaSeconds)
 {
 }
 
-bool FHttpThreadBase::StartThreadedRequest(IHttpThreadedRequest* Request)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+bool FHttpThreadBase::StartThreadedRequest(FHttpRequestCommon* Request)
 {
 	return Request->StartThreadedRequest();
 }
 
-void FHttpThreadBase::CompleteThreadedRequest(IHttpThreadedRequest* Request)
+void FHttpThreadBase::CompleteThreadedRequest(FHttpRequestCommon* Request)
 {
 	// empty
 }
@@ -223,11 +226,11 @@ void FHttpThreadBase::Exit()
 	// empty
 }
 
-void FHttpThreadBase::ConsumeCanceledRequestsAndNewRequests(TArray<IHttpThreadedRequest*>& RequestsToCancel, TArray<IHttpThreadedRequest*>& RequestsToComplete)
+void FHttpThreadBase::ConsumeCanceledRequestsAndNewRequests(TArray<FHttpRequestCommon*>& RequestsToCancel, TArray<FHttpRequestCommon*>& RequestsToComplete)
 {
 	// cache all cancelled and new requests
 	{
-		IHttpThreadedRequest* Request = nullptr;
+		FHttpRequestCommon* Request = nullptr;
 
 		RequestsToCancel.Reset();
 		while (CancelledThreadedRequests.Dequeue(Request))
@@ -243,7 +246,7 @@ void FHttpThreadBase::ConsumeCanceledRequestsAndNewRequests(TArray<IHttpThreaded
 	}
 
 	// Cancel any pending cancel requests
-	for (IHttpThreadedRequest* Request : RequestsToCancel)
+	for (FHttpRequestCommon* Request : RequestsToCancel)
 	{
 		if (RunningThreadedRequests.Remove(Request) > 0)
 		{
@@ -261,7 +264,7 @@ void FHttpThreadBase::ConsumeCanceledRequestsAndNewRequests(TArray<IHttpThreaded
 	}
 }
 
-void FHttpThreadBase::StartRequestsWaitingInQueue(TArray<IHttpThreadedRequest*>& RequestsToComplete)
+void FHttpThreadBase::StartRequestsWaitingInQueue(TArray<FHttpRequestCommon*>& RequestsToComplete)
 {
 	// We'll start rate limited requests until we hit the limit
 	// Tick new requests separately from existing RunningThreadedRequests so they get a chance 
@@ -274,7 +277,7 @@ void FHttpThreadBase::StartRequestsWaitingInQueue(TArray<IHttpThreadedRequest*>&
 		{
 			SCOPE_CYCLE_COUNTER(STAT_HTTPThread_StartThreadedRequest);
 
-			IHttpThreadedRequest* ReadyThreadedRequest = RateLimitedThreadedRequests[0];
+			FHttpRequestCommon* ReadyThreadedRequest = RateLimitedThreadedRequests[0];
 			RateLimitedThreadedRequests.RemoveAt(0);
 
 			float DurationInQueue = FPlatformTime::Seconds() - ReadyThreadedRequest->GetTimeStartedWaitingInQueue();
@@ -306,7 +309,7 @@ void FHttpThreadBase::StartRequestsWaitingInQueue(TArray<IHttpThreadedRequest*>&
 	}
 }
 
-void FHttpThreadBase::MoveCompletingRequestsToCompletedRequests(TArray<IHttpThreadedRequest*>& RequestsToComplete)
+void FHttpThreadBase::MoveCompletingRequestsToCompletedRequests(TArray<FHttpRequestCommon*>& RequestsToComplete)
 {
 	const double AppTime = FPlatformTime::Seconds();
 	const double ElapsedTime = AppTime - LastTime;
@@ -314,7 +317,7 @@ void FHttpThreadBase::MoveCompletingRequestsToCompletedRequests(TArray<IHttpThre
 
 	// Tick any running requests
 	// as long as they properly finish in HttpThreadTick below they are unaffected by a possibly large ElapsedTime above
-	for (IHttpThreadedRequest* Request : RunningThreadedRequests)
+	for (FHttpRequestCommon* Request : RunningThreadedRequests)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_HTTPThread_TickThreadedRequest);
 
@@ -334,7 +337,7 @@ void FHttpThreadBase::MoveCompletingRequestsToCompletedRequests(TArray<IHttpThre
 	{
 		SCOPE_CYCLE_COUNTER(STAT_HTTPThread_IsThreadedRequestComplete);
 
-		IHttpThreadedRequest* Request = RunningThreadedRequests[Index];
+		FHttpRequestCommon* Request = RunningThreadedRequests[Index];
 
 		if (Request->IsThreadedRequestComplete())
 		{
@@ -346,11 +349,11 @@ void FHttpThreadBase::MoveCompletingRequestsToCompletedRequests(TArray<IHttpThre
 	}
 }
 
-void FHttpThreadBase::FinishRequestsFromHttpThreadWithCallbacks(TArray<IHttpThreadedRequest*>& RequestsToComplete)
+void FHttpThreadBase::FinishRequestsFromHttpThreadWithCallbacks(TArray<FHttpRequestCommon*>& RequestsToComplete)
 {
 	if (RequestsToComplete.Num() > 0)
 	{
-		for (IHttpThreadedRequest* Request : RequestsToComplete)
+		for (FHttpRequestCommon* Request : RequestsToComplete)
 		{
 			SCOPE_CYCLE_COUNTER(STAT_HTTPThread_CompleteThreadedRequest);
 
@@ -368,7 +371,7 @@ void FHttpThreadBase::FinishRequestsFromHttpThreadWithCallbacks(TArray<IHttpThre
 	}
 }
 
-void FHttpThreadBase::Process(TArray<IHttpThreadedRequest*>& RequestsToCancel, TArray<IHttpThreadedRequest*>& RequestsToComplete)
+void FHttpThreadBase::Process(TArray<FHttpRequestCommon*>& RequestsToCancel, TArray<FHttpRequestCommon*>& RequestsToComplete)
 {
 	SCOPE_CYCLE_COUNTER(STAT_HTTPThread_Process);
 
@@ -409,17 +412,17 @@ void FLegacyHttpThread::StopThread()
 	FHttpThreadBase::StopThread();
 }
 
-void FLegacyHttpThread::AddRequest(IHttpThreadedRequest* Request)
+void FLegacyHttpThread::AddRequest(FHttpRequestCommon* Request)
 {
 	FHttpThreadBase::AddRequest(Request);
 }
 
-void FLegacyHttpThread::CancelRequest(IHttpThreadedRequest* Request)
+void FLegacyHttpThread::CancelRequest(FHttpRequestCommon* Request)
 {
 	FHttpThreadBase::CancelRequest(Request);
 }
 
-void FLegacyHttpThread::GetCompletedRequests(TArray<IHttpThreadedRequest*>& OutCompletedRequests)
+void FLegacyHttpThread::GetCompletedRequests(TArray<FHttpRequestCommon*>& OutCompletedRequests)
 {
 	FHttpThreadBase::GetCompletedRequests(OutCompletedRequests);
 }
@@ -430,11 +433,12 @@ void FLegacyHttpThread::Tick()
 
 	if (ensure(NeedsSingleThreadTick()))
 	{
-		TArray<IHttpThreadedRequest*> RequestsToCancel;
-		TArray<IHttpThreadedRequest*> RequestsToComplete;
+		TArray<FHttpRequestCommon*> RequestsToCancel;
+		TArray<FHttpRequestCommon*> RequestsToComplete;
 		Process(RequestsToCancel, RequestsToComplete);
 	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 TSharedPtr<IHttpTaskTimerHandle> FLegacyHttpThread::AddHttpThreadTask(TFunction<void()>&& Task, float InDelay)
 {
@@ -470,9 +474,11 @@ bool FLegacyHttpThread::Init()
 UE_DISABLE_OPTIMIZATION_SHIP
 uint32 FLegacyHttpThread::Run()
 {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// Arrays declared outside of loop to re-use memory
-	TArray<IHttpThreadedRequest*> RequestsToCancel;
-	TArray<IHttpThreadedRequest*> RequestsToComplete;
+	TArray<FHttpRequestCommon*> RequestsToCancel;
+	TArray<FHttpRequestCommon*> RequestsToComplete;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	while (!ExitRequest.GetValue())
 	{
 		if (ensureMsgf(!NeedsSingleThreadTick(), TEXT("HTTP Thread was set to singlethread mode while it was running autonomously!")))

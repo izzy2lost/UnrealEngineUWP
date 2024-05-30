@@ -3,7 +3,7 @@
 #include "EventLoopHttpThread.h"
 #include "EventLoop/EventLoop.h"
 #include "EventLoop/EventLoopIOManagerNull.h"
-#include "IHttpThreadedRequest.h"
+#include "GenericPlatform/HttpRequestCommon.h"
 #include "Http.h"
 #include "PlatformHttp.h"
 #include "Stats/Stats.h"
@@ -99,7 +99,8 @@ void FEventLoopHttpThread::UpdateConfigs()
 	FHttpThreadBase::UpdateConfigs();
 }
 
-void FEventLoopHttpThread::AddRequest(IHttpThreadedRequest* Request)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+void FEventLoopHttpThread::AddRequest(FHttpRequestCommon* Request)
 {
 	FHttpThreadBase::AddRequest(Request);
 
@@ -108,14 +109,14 @@ void FEventLoopHttpThread::AddRequest(IHttpThreadedRequest* Request)
 		// Force a wakeup to process new tasks.
 		EventLoop->PostAsyncTask([this]()
 		{
-			TArray<IHttpThreadedRequest*> RequestsToCancel;
-			TArray<IHttpThreadedRequest*> RequestsToComplete;
+			TArray<FHttpRequestCommon*> RequestsToCancel;
+			TArray<FHttpRequestCommon*> RequestsToComplete;
 			Process(RequestsToCancel, RequestsToComplete);
 		});
 	}
 }
 
-void FEventLoopHttpThread::CancelRequest(IHttpThreadedRequest* Request)
+void FEventLoopHttpThread::CancelRequest(FHttpRequestCommon* Request)
 {
 	FHttpThreadBase::CancelRequest(Request);
 
@@ -124,17 +125,18 @@ void FEventLoopHttpThread::CancelRequest(IHttpThreadedRequest* Request)
 		// Force a wakeup to process new tasks.
 		EventLoop->PostAsyncTask([this]()
 		{
-			TArray<IHttpThreadedRequest*> RequestsToCancel;
-			TArray<IHttpThreadedRequest*> RequestsToComplete;
+			TArray<FHttpRequestCommon*> RequestsToCancel;
+			TArray<FHttpRequestCommon*> RequestsToComplete;
 			Process(RequestsToCancel, RequestsToComplete);
 		});
 	}
 }
 
-void FEventLoopHttpThread::GetCompletedRequests(TArray<IHttpThreadedRequest*>& OutCompletedRequests)
+void FEventLoopHttpThread::GetCompletedRequests(TArray<FHttpRequestCommon*>& OutCompletedRequests)
 {
 	FHttpThreadBase::GetCompletedRequests(OutCompletedRequests);
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FEventLoopHttpThread::Tick()
 {
@@ -171,9 +173,11 @@ void FEventLoopHttpThread::ResetTickTimer()
 
 	RequestTickTimer = EventLoop.SetTimer([this]()
 	{
-		TArray<IHttpThreadedRequest*> RequestsToCancel;
-		TArray<IHttpThreadedRequest*> RequestsToComplete;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		TArray<FHttpRequestCommon*> RequestsToCancel;
+		TArray<FHttpRequestCommon*> RequestsToComplete;
 		Process(RequestsToCancel, RequestsToComplete);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	},
 	FTimespan::FromSeconds(FHttpModule::Get().GetHttpEventLoopThreadTickIntervalInSeconds()),
 	true /* repeat */);

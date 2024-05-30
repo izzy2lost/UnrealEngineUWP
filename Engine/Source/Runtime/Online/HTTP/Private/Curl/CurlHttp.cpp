@@ -62,6 +62,7 @@ static CURLcode sslctx_function(CURL * curl, void * sslctx, void * parm)
 }
 #endif //#if WITH_SSL
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FCurlHttpRequest::FCurlHttpRequest()
 	: EasyHandle(nullptr)
 	, HeaderList(nullptr)
@@ -1037,7 +1038,7 @@ bool FCurlHttpRequest::ProcessRequest()
 
 void FCurlHttpRequest::ClearInCaseOfRetry()
 {
-	IHttpThreadedRequest::ClearInCaseOfRetry();
+	FHttpRequestCommon::ClearInCaseOfRetry();
 
 	// Clear out response. If this is a re-used request, Response could point to a stale response until SetupRequestHttpThread is called
 	LastReportedBytesRead = 0;
@@ -1125,10 +1126,8 @@ void FCurlHttpRequest::CheckProgressDelegate()
 	{
 		LastReportedBytesSent = CurrentBytesSent;
 		LastReportedBytesRead = CurrentBytesRead;
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		// Update response progress
 		OnRequestProgress().ExecuteIfBound(SharedThis(this), LastReportedBytesSent, LastReportedBytesRead);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		OnRequestProgress64().ExecuteIfBound(SharedThis(this), LastReportedBytesSent, LastReportedBytesRead);
 	}
 }
@@ -1370,5 +1369,6 @@ FString FCurlHttpResponse::GetContentAsString() const
 	FUTF8ToTCHAR TCHARData(reinterpret_cast<const ANSICHAR*>(Payload.GetData()), Payload.Num());
 	return FString(TCHARData.Length(), TCHARData.Get());
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 #endif //WITH_CURL

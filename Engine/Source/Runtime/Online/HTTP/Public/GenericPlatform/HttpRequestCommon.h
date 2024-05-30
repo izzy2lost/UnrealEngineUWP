@@ -11,7 +11,7 @@ class IHttpTaskTimerHandle;
 /**
  * Contains implementation of some common functions that don't vary between implementations of different platforms
  */
-class FHttpRequestCommon : public FHttpRequestImpl
+class UE_DEPRECATED(5.5, "FHttpRequestCommon is deprecated and will be moved to internal") FHttpRequestCommon : public FHttpRequestImpl
 {
 public:
 	FHttpRequestCommon();
@@ -47,6 +47,13 @@ public:
 	HTTP_API virtual bool SetResponseBodyReceiveStream(TSharedRef<FArchive> Stream) override;
 
 	HTTP_API virtual float GetElapsedTime() const override;
+
+	HTTP_API virtual bool IsThreadedRequestComplete() = 0;
+	HTTP_API virtual bool StartThreadedRequest() = 0;
+	HTTP_API virtual void TickThreadedRequest(float DeltaSeconds) = 0;
+
+	HTTP_API void StartWaitingInQueue();
+	HTTP_API float GetTimeStartedWaitingInQueue() const;
 
 protected:
 	/**
@@ -145,7 +152,9 @@ protected:
 	FString EffectiveURL;
 
 	/** The response object which we will use to pair with this request */
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	TSharedPtr<FHttpResponseCommon> ResponseCommon;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** The stream to receive response body */
 	TSharedPtr<FArchive> ResponseBodyReceiveStream;
@@ -162,4 +171,7 @@ protected:
 
 	/** Total elapsed time in seconds since the start of the request */
 	float ElapsedTime = 0.0f;
+
+	/** Record the time started to wait in the queue */
+	float TimeStartedWaitingInQueue = 0.0f;
 };

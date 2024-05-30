@@ -9,12 +9,14 @@ class FHttpRequestCommon;
 /**
  * Contains implementation of some common functions that don't vary between implementations of different platforms
  */
-class FHttpResponseCommon : public IHttpResponse
+class UE_DEPRECATED(5.5, "FHttpResponseCommon is deprecated and will be moved to internal") FHttpResponseCommon : public IHttpResponse
 {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	friend FHttpRequestCommon;
 
 public:
 	HTTP_API FHttpResponseCommon(const FHttpRequestCommon& HttpRequest);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// IHttpBase
 	HTTP_API virtual FString GetURLParameter(const FString& ParameterName) const override;

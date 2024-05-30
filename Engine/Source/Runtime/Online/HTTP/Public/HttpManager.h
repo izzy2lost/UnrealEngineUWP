@@ -19,9 +19,11 @@
 #include "Templates/SharedPointer.h"
 
 class FHttpThreadBase;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+class FHttpRequestCommon;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 class FOutputDevice;
 class IHttpTaskTimerHandle;
-class IHttpThreadedRequest;
 
 enum class EHttpFlushReason : uint8
 {
@@ -160,19 +162,21 @@ public:
 	 */
 	HTTP_API virtual void FlushTick(float DeltaSeconds);
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	/** 
 	 * Add a http request to be executed on the http thread
 	 *
 	 * @param Request - the request object to add
 	 */
-	HTTP_API void AddThreadedRequest(const TSharedRef<IHttpThreadedRequest, ESPMode::ThreadSafe>& Request);
+	HTTP_API void AddThreadedRequest(const TSharedRef<FHttpRequestCommon, ESPMode::ThreadSafe>& Request);
 
 	/**
 	 * Mark a threaded http request as cancelled to be removed from the http thread
 	 *
 	 * @param Request - the request object to cancel
 	 */
-	HTTP_API void CancelThreadedRequest(const TSharedRef<IHttpThreadedRequest, ESPMode::ThreadSafe>& Request);
+	HTTP_API void CancelThreadedRequest(const TSharedRef<FHttpRequestCommon, ESPMode::ThreadSafe>& Request);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
 	 * List all of the Http requests currently being processed

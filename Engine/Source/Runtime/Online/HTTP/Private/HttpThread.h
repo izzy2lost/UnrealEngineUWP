@@ -15,7 +15,7 @@
 
 #include <atomic>
 
-class IHttpThreadedRequest;
+class FHttpRequestCommon;
 class FHttpThreadBase;
 
 class IHttpTaskTimerHandle
@@ -53,26 +53,28 @@ public:
 	 */
 	bool IsStopped() const { return bIsStopped; }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	/**
 	 * Add a request to begin processing on HTTP thread.
 	 *
 	 * @param Request the request to be processed on the HTTP thread
 	 */
-	virtual void AddRequest(IHttpThreadedRequest* Request);
+	virtual void AddRequest(FHttpRequestCommon* Request);
 
 	/**
 	 * Mark a request as cancelled.    Called on non-HTTP thread.
 	 *
 	 * @param Request the request to be processed on the HTTP thread
 	 */
-	virtual void CancelRequest(IHttpThreadedRequest* Request);
+	virtual void CancelRequest(FHttpRequestCommon* Request);
 
 	/**
 	 * Get completed requests.  Clears internal arrays.  Called on non-HTTP thread.
 	 *
 	 * @param OutCompletedRequests array of requests that have been completed
 	 */
-	virtual void GetCompletedRequests(TArray<IHttpThreadedRequest*>& OutCompletedRequests);
+	virtual void GetCompletedRequests(TArray<FHttpRequestCommon*>& OutCompletedRequests);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	//~ Begin FSingleThreadRunnable Interface
 	virtual void Tick() override;
@@ -109,15 +111,16 @@ protected:
 	 */
 	virtual void HttpThreadTick(float DeltaSeconds);
 	
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	/** 
 	 * Start processing a request on the http thread
 	 */
-	virtual bool StartThreadedRequest(IHttpThreadedRequest* Request);
+	virtual bool StartThreadedRequest(FHttpRequestCommon* Request);
 
 	/** 
 	 * Complete a request on the http thread
 	 */
-	virtual void CompleteThreadedRequest(IHttpThreadedRequest* Request);
+	virtual void CompleteThreadedRequest(FHttpRequestCommon* Request);
 
 protected:
 
@@ -130,7 +133,7 @@ protected:
 	virtual void Exit() override;
 	//~ End FRunnable Interface
 
-	void Process(TArray<IHttpThreadedRequest*>& RequestsToCancel, TArray<IHttpThreadedRequest*>& RequestsToComplete);
+	void Process(TArray<FHttpRequestCommon*>& RequestsToCancel, TArray<FHttpRequestCommon*>& RequestsToComplete);
 
 	/**
 	*  FSingleThreadRunnable accessor for ticking this FRunnable when multi-threading is disabled.
@@ -139,11 +142,12 @@ protected:
 	virtual class FSingleThreadRunnable* GetSingleThreadInterface() override { return this; }
 
 private:
-	void ConsumeCanceledRequestsAndNewRequests(TArray<IHttpThreadedRequest*>& RequestsToCancel, TArray<IHttpThreadedRequest*>& RequestsToComplete);
-	void MoveCompletingRequestsToCompletedRequests(TArray<IHttpThreadedRequest*>& RequestsToComplete);
-	void StartRequestsWaitingInQueue(TArray<IHttpThreadedRequest*>& RequestsToComplete);
-	void FinishRequestsFromHttpThreadWithCallbacks(TArray<IHttpThreadedRequest*>& RequestsToComplete);
+	void ConsumeCanceledRequestsAndNewRequests(TArray<FHttpRequestCommon*>& RequestsToCancel, TArray<FHttpRequestCommon*>& RequestsToComplete);
+	void MoveCompletingRequestsToCompletedRequests(TArray<FHttpRequestCommon*>& RequestsToComplete);
+	void StartRequestsWaitingInQueue(TArray<FHttpRequestCommon*>& RequestsToComplete);
+	void FinishRequestsFromHttpThreadWithCallbacks(TArray<FHttpRequestCommon*>& RequestsToComplete);
 	void UpdateThreadPriorityIfNeeded();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 protected:
 	/** Pointer to Runnable Thread */
@@ -163,35 +167,37 @@ private:
 	EThreadPriority CurrentThreadPriority;
 
 protected:
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	/** 
 	 * Threaded requests that are waiting to be processed on the http thread.
 	 * Added to on (any) non-HTTP thread, processed then cleared on HTTP thread.
 	 */
-	TMpscQueue<IHttpThreadedRequest*> NewThreadedRequests;
+	TMpscQueue<FHttpRequestCommon*> NewThreadedRequests;
 
 	/**
 	 * Threaded requests that are waiting to be cancelled on the http thread.
 	 * Added to on (any) non-HTTP thread, processed then cleared on HTTP thread.
 	 */
-	TMpscQueue<IHttpThreadedRequest*> CancelledThreadedRequests;
+	TMpscQueue<FHttpRequestCommon*> CancelledThreadedRequests;
 
 	/**
 	 * Threaded requests that are ready to run, but waiting due to the running request limit (not in any of the other lists, except potentially CancelledThreadedRequests).
 	 * Only accessed on the HTTP thread.
 	 */
-	TArray<IHttpThreadedRequest*> RateLimitedThreadedRequests;
+	TArray<FHttpRequestCommon*> RateLimitedThreadedRequests;
 
 	/**
 	 * Currently running threaded requests (not in any of the other lists, except potentially CancelledThreadedRequests).
 	 * Only accessed on the HTTP thread.
 	 */
-	TArray<IHttpThreadedRequest*> RunningThreadedRequests;
+	TArray<FHttpRequestCommon*> RunningThreadedRequests;
 
 	/**
 	 * Threaded requests that have completed and are waiting for the game thread to process.
 	 * Added to on HTTP thread, processed then cleared on game thread (Single producer, single consumer)
 	 */
-	TSpscQueue<IHttpThreadedRequest*> CompletedThreadedRequests;
+	TSpscQueue<FHttpRequestCommon*> CompletedThreadedRequests;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 class FLegacyHttpThread	: public FHttpThreadBase
@@ -203,9 +209,11 @@ public:
 
 	virtual void StartThread() override final;
 	virtual void StopThread() override final;
-	virtual void AddRequest(IHttpThreadedRequest* Request) override final;
-	virtual void CancelRequest(IHttpThreadedRequest* Request) override final;
-	virtual void GetCompletedRequests(TArray<IHttpThreadedRequest*>& OutCompletedRequests) override final;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	virtual void AddRequest(FHttpRequestCommon* Request) override final;
+	virtual void CancelRequest(FHttpRequestCommon* Request) override final;
+	virtual void GetCompletedRequests(TArray<FHttpRequestCommon*>& OutCompletedRequests) override final;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	//~ Begin FSingleThreadRunnable Interface
 	// Cannot be overridden to ensure identical behavior with the threaded tick

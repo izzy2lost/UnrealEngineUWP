@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GenericPlatform/HttpResponseCommon.h"
-#include "IHttpThreadedRequest.h"
+#include "GenericPlatform/HttpRequestCommon.h"
 #include "PlatformHttp.h"
 #include "HttpPackage.h"
 #include "Misc/TVariant.h"
@@ -18,7 +18,9 @@ DECLARE_DELEGATE(FNewAppleHttpEventDelegate);
 /**
  * Apple implementation of an Http request
  */
-class FAppleHttpRequest : public IHttpThreadedRequest
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+class FAppleHttpRequest : public FHttpRequestCommon
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 public:
 	// implementation friends
@@ -68,6 +70,7 @@ public:
 	virtual ~FAppleHttpRequest();
 
 PACKAGE_SCOPE:
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	using FHttpRequestCommon::StartProcessTime;
 	using FHttpRequestCommon::ConnectTime;
 	using FHttpRequestCommon::BroadcastResponseHeadersReceived;
@@ -77,6 +80,7 @@ PACKAGE_SCOPE:
 	using FHttpRequestCommon::TriggerStatusCodeReceivedDelegate;
 	using FHttpRequestCommon::SetEffectiveURL;
 	using FHttpRequestCommon::PassReceivedDataToStream;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	bool IsInitializedWithValidStream() const;
 
@@ -137,7 +141,9 @@ private:
 /**
  * Apple implementation of an Http response
  */
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 class FAppleHttpResponse : public FHttpResponseCommon
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 public:
 	//~ Begin IHttpBase Interface

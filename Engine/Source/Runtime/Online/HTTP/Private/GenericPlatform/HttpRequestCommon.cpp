@@ -10,6 +10,7 @@
 #include "Misc/CommandLine.h"
 #include "Stats/Stats.h"
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 namespace UE::HttpRequestCommon::Private
 {
 
@@ -498,6 +499,17 @@ float FHttpRequestCommon::GetElapsedTime() const
 	return ElapsedTime;
 }
 
+void FHttpRequestCommon::StartWaitingInQueue()
+{
+	TimeStartedWaitingInQueue = FPlatformTime::Seconds();
+}
+
+float FHttpRequestCommon::GetTimeStartedWaitingInQueue() const
+{
+	check(TimeStartedWaitingInQueue != 0);
+	return TimeStartedWaitingInQueue;
+}
+
 bool FHttpRequestCommon::PassReceivedDataToStream(void* Ptr, int64 Length)
 {
 	const FScopeLock StreamLock(&ResponseBodyReceiveStreamCriticalSection);
@@ -627,3 +639,4 @@ void FHttpRequestCommon::LogResponse(const TSharedPtr<IHttpResponse>& InResponse
 		StartPos = EndPos + 1;
 	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

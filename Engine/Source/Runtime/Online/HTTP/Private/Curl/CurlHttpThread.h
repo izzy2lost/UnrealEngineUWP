@@ -22,7 +22,7 @@
 
 #endif //WITH_CURL
 
-class IHttpThreadedRequest;
+class FHttpRequestCommon;
 
 #if WITH_CURL
 
@@ -36,13 +36,15 @@ public:
 protected:
 	//~ Begin FHttpThread Interface
 	virtual void HttpThreadTick(float DeltaSeconds) override;
-	virtual bool StartThreadedRequest(IHttpThreadedRequest* Request) override;
-	virtual void CompleteThreadedRequest(IHttpThreadedRequest* Request) override;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	virtual bool StartThreadedRequest(FHttpRequestCommon* Request) override;
+	virtual void CompleteThreadedRequest(FHttpRequestCommon* Request) override;
 	//~ End FHttpThread Interface
 protected:
 
 	/** Mapping of libcurl easy handles to HTTP requests */
-	TMap<CURL*, IHttpThreadedRequest*> HandlesToRequests;
+	TMap<CURL*, FHttpRequestCommon*> HandlesToRequests;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 

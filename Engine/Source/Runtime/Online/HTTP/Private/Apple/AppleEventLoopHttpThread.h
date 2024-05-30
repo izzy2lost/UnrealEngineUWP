@@ -87,8 +87,10 @@ class FAppleEventLoopHttpThread
 {
 protected:
 	//~ Begin FHttpThread Interface
-	virtual bool StartThreadedRequest(IHttpThreadedRequest* Request) override;
-	virtual void CompleteThreadedRequest(IHttpThreadedRequest* Request) override;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	virtual bool StartThreadedRequest(FHttpRequestCommon* Request) override;
+	virtual void CompleteThreadedRequest(FHttpRequestCommon* Request) override;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	//~ End FHttpThread Interface
 protected:
 	virtual void CreateEventLoop() override;

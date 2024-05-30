@@ -3,12 +3,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "HAL/LowLevelMemTracker.h"
-#include "HAL/ThreadSafeCounter.h"
-#include "IHttpThreadedRequest.h"
 #include "Containers/SpscQueue.h"
-#include "GenericPlatform/HttpResponseCommon.h"
+#include "HAL/LowLevelMemTracker.h"
 #include "HAL/ThreadSafeBool.h"
+#include "HAL/ThreadSafeCounter.h"
+#include "GenericPlatform/HttpRequestCommon.h"
+#include "GenericPlatform/HttpResponseCommon.h"
 
 class FCurlHttpResponse;
 
@@ -135,7 +135,9 @@ namespace
 /**
  * Curl implementation of an HTTP request
  */
-class FCurlHttpRequest : public IHttpThreadedRequest
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+class FCurlHttpRequest : public FHttpRequestCommon
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 public:
 
@@ -402,7 +404,9 @@ private:
 /**
  * Curl implementation of an HTTP response
  */
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 class FCurlHttpResponse : public FHttpResponseCommon
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 public:
 	// implementation friends

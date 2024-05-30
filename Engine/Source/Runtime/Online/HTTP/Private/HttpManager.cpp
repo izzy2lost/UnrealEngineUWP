@@ -11,7 +11,7 @@
 #include "Misc/Guid.h"
 #include "Misc/Fork.h"
 #include "HttpThread.h"
-#include "IHttpThreadedRequest.h"
+#include "GenericPlatform/HttpRequestCommon.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CommandLine.h"
 
@@ -471,7 +471,8 @@ bool FHttpManager::Tick(float DeltaSeconds)
 			}
 		}
 
-		TArray<IHttpThreadedRequest*> CompletedThreadedRequests;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		TArray<FHttpRequestCommon*> CompletedThreadedRequests;
 
 		{
 			// Thread->GetCompletedRequests doesn't support multi-thread access
@@ -480,7 +481,7 @@ bool FHttpManager::Tick(float DeltaSeconds)
 		}
 
 		// Finish and remove any completed requests
-		for (IHttpThreadedRequest* CompletedRequest : CompletedThreadedRequests)
+		for (FHttpRequestCommon* CompletedRequest : CompletedThreadedRequests)
 		{
 			FHttpRequestRef CompletedRequestRef = CompletedRequest->AsShared();
 
@@ -495,6 +496,7 @@ bool FHttpManager::Tick(float DeltaSeconds)
 				BroadcastHttpRequestCompleted(CompletedRequestRef);
 			}
 		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	// keep ticking
@@ -523,22 +525,22 @@ void FHttpManager::RemoveRequest(const FHttpRequestRef& Request)
 	Requests.Remove(Request);
 }
 
-void FHttpManager::AddThreadedRequest(const TSharedRef<IHttpThreadedRequest, ESPMode::ThreadSafe>& Request)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+void FHttpManager::AddThreadedRequest(const TSharedRef<FHttpRequestCommon, ESPMode::ThreadSafe>& Request)
 {
 	check(Thread);
 	{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		AddRequest(Request);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 	Thread->AddRequest(&Request.Get());
 }
 
-void FHttpManager::CancelThreadedRequest(const TSharedRef<IHttpThreadedRequest, ESPMode::ThreadSafe>& Request)
+void FHttpManager::CancelThreadedRequest(const TSharedRef<FHttpRequestCommon, ESPMode::ThreadSafe>& Request)
 {
 	check(Thread);
 	Thread->CancelRequest(&Request.Get());
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 bool FHttpManager::IsValidRequest(const IHttpRequest* RequestPtr) const
 {

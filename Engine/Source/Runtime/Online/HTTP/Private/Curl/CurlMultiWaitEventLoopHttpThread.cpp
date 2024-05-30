@@ -87,7 +87,8 @@ FCurlMultiWaitEventLoopHttpThread::FCurlMultiWaitEventLoopHttpThread()
 {
 }
 
-bool FCurlMultiWaitEventLoopHttpThread::StartThreadedRequest(IHttpThreadedRequest* Request)
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+bool FCurlMultiWaitEventLoopHttpThread::StartThreadedRequest(FHttpRequestCommon* Request)
 {
 	FCurlHttpRequest* CurlRequest = static_cast<FCurlHttpRequest*>(Request);
 	CURL* EasyHandle = CurlRequest->GetEasyHandle();
@@ -113,7 +114,7 @@ bool FCurlMultiWaitEventLoopHttpThread::StartThreadedRequest(IHttpThreadedReques
 	return FEventLoopHttpThread::StartThreadedRequest(Request);
 }
 
-void FCurlMultiWaitEventLoopHttpThread::CompleteThreadedRequest(IHttpThreadedRequest* Request)
+void FCurlMultiWaitEventLoopHttpThread::CompleteThreadedRequest(FHttpRequestCommon* Request)
 {
 	FCurlHttpRequest* CurlRequest = static_cast<FCurlHttpRequest*>(Request);
 	CURL* EasyHandle = CurlRequest->GetEasyHandle();
@@ -123,6 +124,7 @@ void FCurlMultiWaitEventLoopHttpThread::CompleteThreadedRequest(IHttpThreadedReq
 		curl_multi_remove_handle(FCurlHttpManager::GMultiHandle, EasyHandle);
 	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FCurlMultiWaitEventLoopHttpThread::CreateEventLoop()
 {
@@ -172,7 +174,9 @@ void FCurlMultiWaitEventLoopHttpThread::ProcessCurlRequests()
 			CURL* CompletedHandle = Message->easy_handle;
 			curl_multi_remove_handle(FCurlHttpManager::GMultiHandle, CompletedHandle);
 
-			IHttpThreadedRequest** Request = HandlesToRequests.Find(CompletedHandle);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			FHttpRequestCommon** Request = HandlesToRequests.Find(CompletedHandle);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			if (Request)
 			{
 				FCurlHttpRequest* CurlRequest = static_cast<FCurlHttpRequest*>(*Request);
@@ -193,8 +197,10 @@ void FCurlMultiWaitEventLoopHttpThread::ProcessCurlRequests()
 	// If any requests completed, immediately process requests to handle completion event.
 	if (CompletedRequest)
 	{
-		TArray<IHttpThreadedRequest*> RequestsToCancel;
-		TArray<IHttpThreadedRequest*> RequestsToComplete;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		TArray<FHttpRequestCommon*> RequestsToCancel;
+		TArray<FHttpRequestCommon*> RequestsToComplete;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		Process(RequestsToCancel, RequestsToComplete);
 	}
 }

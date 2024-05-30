@@ -24,7 +24,7 @@
 #include "Microsoft/HideMicrosoftPlatformTypes.h"
 #endif
 
-class IHttpThreadedRequest;
+class FHttpRequestCommon;
 
 class FCurlSocketEventLoopHttpThread
 	: public FEventLoopHttpThread
@@ -36,8 +36,10 @@ public:
 protected:
 	//~ Begin FHttpThread Interface
 	virtual void HttpThreadTick(float DeltaSeconds) override;
-	virtual bool StartThreadedRequest(IHttpThreadedRequest* Request) override;
-	virtual void CompleteThreadedRequest(IHttpThreadedRequest* Request) override;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	virtual bool StartThreadedRequest(FHttpRequestCommon* Request) override;
+	virtual void CompleteThreadedRequest(FHttpRequestCommon* Request) override;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	//~ End FHttpThread Interface
 protected:
 	virtual void CreateEventLoop() override;
@@ -63,7 +65,9 @@ protected:
 	};
 
 	/** Mapping of libcurl easy handles to HTTP requests */
-	TMap<CURL*, IHttpThreadedRequest*> HandlesToRequests;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	TMap<CURL*, FHttpRequestCommon*> HandlesToRequests;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	UE::EventLoop::FTimerHandle RequestTimeoutTimer;
 
