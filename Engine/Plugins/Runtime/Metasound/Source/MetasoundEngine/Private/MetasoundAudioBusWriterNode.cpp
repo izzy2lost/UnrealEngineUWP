@@ -148,11 +148,11 @@ namespace Metasound
 					{
 						AudioBusSubsystem = AudioDevice->GetSubsystem<UAudioBusSubsystem>();
 						check(AudioBusSubsystem);
-						if (!AudioBusSubsystem)
-						{
-							return;
-						}
 					}
+				}
+				if (!AudioBusSubsystem)
+				{
+					return;
 				}
 
 				AudioBusChannels = uint32(FMath::Min(AudioBusProxy->NumChannels, int32(EAudioBusChannels::MaxChannelCount)));
