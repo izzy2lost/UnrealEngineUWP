@@ -23,7 +23,6 @@ public class AudioInsightsEditor : ModuleRules
 			{
 				"AudioInsights",
 				"AudioMixer",
-				"AudioMixerCore",
 				"AudioWidgets",
 				"CoreUObject",
 				"Engine",
