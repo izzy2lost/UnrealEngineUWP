@@ -6,6 +6,7 @@
 
 #include "Http.h"
 
+#include "HAL/IConsoleManager.h"
 #include "HAL/ThreadSafeCounter.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/PlatformProcess.h"
@@ -33,6 +34,15 @@
 DECLARE_STATS_GROUP(TEXT("Electra HTTP Stream"), STATGROUP_ElectraHTTPStream, STATCAT_Advanced);
 DECLARE_CYCLE_STAT(TEXT("Process"), STAT_ElectraHTTPThread_Process, STATGROUP_ElectraHTTPStream);
 DECLARE_CYCLE_STAT(TEXT("Custom handler"), STAT_ElectraHTTPThread_CustomHandler, STATGROUP_ElectraHTTPStream);
+
+/***************************************************************************************************************************************************/
+/***************************************************************************************************************************************************/
+/***************************************************************************************************************************************************/
+TAutoConsoleVariable<bool> CVarElectraUseHttpStreamDelegateV2(
+	TEXT("electra.UseHttpStreamDelegateV2"),
+	true,
+	TEXT("Use http stream delegate v2 in electra")
+);
 
 /***************************************************************************************************************************************************/
 /***************************************************************************************************************************************************/
@@ -244,6 +254,7 @@ private:
 	void OnHeaderReceived(FHttpRequestPtr InSourceHttpRequest, const FString& InHeaderName, const FString& InHeaderValue);
 	void OnStatusCodeReceived(FHttpRequestPtr InSourceHttpRequest, int32 InHttpStatusCode);
 	bool OnProcessRequestStream(void *InDataPtr, int64 InLength);
+	void OnProcessRequestStreamV2(void *InDataPtr, int64& InLength);
 
 	// Owner to be notified on activity.
 	TWeakPtr<FElectraHTTPStreamGeneric, ESPMode::ThreadSafe> Owner;
@@ -325,10 +336,22 @@ bool FElectraHTTPStreamRequestGeneric::Setup()
 	RequestHandle->OnHeaderReceived().BindThreadSafeSP(AsShared(), &FElectraHTTPStreamRequestGeneric::OnHeaderReceived);
 	RequestHandle->OnStatusCodeReceived().BindThreadSafeSP(AsShared(), &FElectraHTTPStreamRequestGeneric::OnStatusCodeReceived);
 
-	FHttpRequestStreamDelegate StreamDelegate;
-	StreamDelegate.BindThreadSafeSP(AsShared(), &FElectraHTTPStreamRequestGeneric::OnProcessRequestStream);
-	bool bOk = RequestHandle->SetResponseBodyReceiveStreamDelegate(StreamDelegate);
-	(void)bOk; check(bOk);
+	if (CVarElectraUseHttpStreamDelegateV2.GetValueOnAnyThread())
+	{
+		FHttpRequestStreamDelegateV2 StreamDelegate;
+		StreamDelegate.BindThreadSafeSP(AsShared(), &FElectraHTTPStreamRequestGeneric::OnProcessRequestStreamV2);
+		bool bOk = RequestHandle->SetResponseBodyReceiveStreamDelegateV2(StreamDelegate);
+		(void)bOk; check(bOk);
+	}
+	else
+	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS 
+		FHttpRequestStreamDelegate StreamDelegate;
+		StreamDelegate.BindThreadSafeSP(AsShared(), &FElectraHTTPStreamRequestGeneric::OnProcessRequestStream);
+		bool bOk = RequestHandle->SetResponseBodyReceiveStreamDelegate(StreamDelegate);
+		(void)bOk; check(bOk);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS 
+	}
 
 	// We set the user agent manually. For simplicities sake we add it to the list of additional headers.
 	AdditionalHeaders.FindOrAdd(TEXT("User-Agent"), UserAgent);
@@ -629,6 +652,45 @@ bool FElectraHTTPStreamRequestGeneric::OnProcessRequestStream(void *InDataPtr, i
 		PinnedOwner->TriggerWorkSignal();
 	}
 	return true;
+}
+
+void FElectraHTTPStreamRequestGeneric::OnProcessRequestStreamV2(void *InDataPtr, int64& InOutLength)
+{
+	if (InDataPtr == nullptr || InOutLength < 0)
+	{
+		InOutLength = 0;
+		return;
+	}
+	if (WasCanceled())
+	{
+		return;
+	}
+	double Now = FPlatformTime::Seconds();
+	if (CurrentState < EState::ReadingResponseData)
+	{
+		CurrentState = EState::ReadingResponseData;
+		Response->TimeUntilFirstByte = Now - Response->StartTime;
+		// Parse the headers and report them.
+		if (!ParseResponseHeaders())
+		{
+			InOutLength = 0;
+			return;
+		}
+	}
+
+	// Add the data to the response.
+	TConstArrayView<const uint8> Data(static_cast<const uint8*>(InDataPtr), (int32)InOutLength);
+	Response->AddResponseData(Data);
+	// Notify amount of new data available.
+	NotifyCallback(EElectraHTTPStreamNotificationReason::ReadData, InOutLength);
+
+	Response->TimeOfMostRecentReceive = Now;
+
+	TSharedPtr<FElectraHTTPStreamGeneric, ESPMode::ThreadSafe> PinnedOwner = Owner.Pin();
+	if (PinnedOwner.IsValid())
+	{
+		PinnedOwner->TriggerWorkSignal();
+	}
 }
 
 
