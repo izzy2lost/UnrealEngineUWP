@@ -1677,6 +1677,10 @@ class UKismetSystemLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintCallable, Category = "Utilities|Platform")
 	static ENGINE_API void LaunchURL(const FString& URL);
 
+	// Opens an external URL in the platform's web browser of choice if it meets the allowlist of passed in domains
+	UFUNCTION(BlueprintCallable, Category = "Utilities|Platform")
+	static ENGINE_API void LaunchExternalUrl(const TArray<FString>& InDomainStrings, const FString& URL);
+
 	UFUNCTION(BlueprintCallable, Category = "Utilities|Platform")
 	static ENGINE_API bool CanLaunchURL(const FString& URL);
 

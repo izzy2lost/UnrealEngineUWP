@@ -2770,6 +2770,18 @@ void UKismetSystemLibrary::LaunchURL(const FString& URL)
 	}
 }
 
+void UKismetSystemLibrary::LaunchExternalUrl(const TArray<FString>& DomainStrings, const FString& URL)
+{
+	if (!URL.IsEmpty())
+	{
+		UE::Core::FURLRequestFilter::FRequestMap AllowedDomains;
+		AllowedDomains.Add(TEXT("http"), DomainStrings);
+		UE::Core::FURLRequestFilter Filter(AllowedDomains);
+
+		FPlatformProcess::LaunchURLFiltered(*URL, nullptr, nullptr, Filter);
+	}
+}
+
 bool UKismetSystemLibrary::CanLaunchURL(const FString& URL)
 {
 	if (!URL.IsEmpty())
