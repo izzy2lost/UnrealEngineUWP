@@ -954,6 +954,11 @@ UUsdDrawModeComponent::UUsdDrawModeComponent()
 	, MaterialInstances({nullptr, nullptr, nullptr, nullptr, nullptr, nullptr})
 	, AuthoredFaces{(int32)EUsdModelCardFace::None}
 {
+	if (IsTemplate())
+	{
+		return;
+	}
+
 	RefreshMaterialInstances();
 }
 
