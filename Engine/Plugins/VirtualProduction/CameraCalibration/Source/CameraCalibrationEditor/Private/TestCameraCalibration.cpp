@@ -352,6 +352,8 @@ namespace UE::Private::CameraCalibration::AutomatedTests
 
 		ULensDistortionSolverOpenCV* TestSolver = NewObject<ULensDistortionSolverOpenCV>();
 
+		TArray<FTransform> TargetPoses;
+
 		FDistortionCalibrationResult Result = TestSolver->Solve(
 			NoisyObjectPoints,
 			NoisyImagePoints,
@@ -360,6 +362,7 @@ namespace UE::Private::CameraCalibration::AutomatedTests
 			CalibratedImageCenter,
 			DistortionGuess,
 			EstimatedCameraPoses,
+			TargetPoses,
 			USphericalLensModel::StaticClass(),
 			PixelAspect,
 			SolverFlags
@@ -847,6 +850,8 @@ namespace UE::Private::CameraCalibration::AutomatedTests
 
 		const FVector2D FocalLengthGuessInPixels = CalibrationTest.CameraProfile.ConvertFocalLengthToPixels(SolverSettings.FocalLengthGuess);
 
+		TArray<FTransform> TargetPoses;
+
 		FDistortionCalibrationResult Result = TestSolver->Solve(
 			CalibratorPoints3D,
 			ImagePoints2D,
@@ -855,6 +860,7 @@ namespace UE::Private::CameraCalibration::AutomatedTests
 			SolverSettings.ImageCenterGuess,
 			InitialDistortion,
 			CameraPoseGuesses,
+			TargetPoses,
 			USphericalLensModel::StaticClass(),
 			1.0,
 			SolverFlags

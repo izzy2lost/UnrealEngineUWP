@@ -31,7 +31,6 @@
 static TAutoConsoleVariable<bool> CVarFixExtrinsicsPoints(TEXT("LensDistortionPoints.FixExtrinsics"), false, TEXT("If true, the solver will fix the camera extrinsics to the user-provided camera poses"));
 static TAutoConsoleVariable<bool> CVarFixDistortionPoints(TEXT("LensDistortionPoints.FixDistortion"), false, TEXT("If true, the solver will not optimize distortion, and will use the input distortion values if any are given, or assume zero distortion otherwise."));
 static TAutoConsoleVariable<bool> CVarUseExtrinsicsGuessPoints(TEXT("LensDistortionPoints.UseExtrinsicsGuess"), false, TEXT("If true, the actual checkerboard and camera poses will be used when running the solver"));
-static TAutoConsoleVariable<bool> CVarGroupPointsByCameraPosePoints(TEXT("LensDistortionPoints.GroupPointsByCameraPose"), true, TEXT("If true, the points sent to the solver will be grouped together if they share the same camera pose."));
 #endif
 
 const int UCameraLensDistortionAlgoPoints::DATASET_VERSION = 1;
@@ -440,29 +439,6 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoPoints::BeginCalibration(FTe
 		++NextPatternIndex;
 	}
 
-	// Validate that there are at least 4 patterns
-	if (Samples3d.Num() < 4)
-	{
-		OutErrorMessage = LOCTEXT("NotEnoughSamples", "At least 4 calibration patterns are required");
-		return CalibrationTask;
-	}
-
-	// Validate that each pattern has the same number of points
-	const int32 NumPointsInPattern = Samples3d[0].Points.Num();
-	for (int32 PatternIndex = 1; PatternIndex < Samples3d.Num(); ++PatternIndex)
-	{
-		if (Samples3d[PatternIndex].Points.Num() != NumPointsInPattern)
-		{
-			OutErrorMessage = LOCTEXT("DifferentNumPointsInPattern", "Every calibration pattern must have the same number of points");
-			return CalibrationTask;
-		}
-	}
-
-	if (CVarGroupPointsByCameraPosePoints.GetValueOnGameThread())
-	{
-		UE::CameraCalibration::Private::GroupPointsByCameraPose(Samples3d, Samples2d, CameraPoses);
-	}
-
 	// Because the calibration pattern is not coplanar, OpenCV requires an initial intrinsics guess
 	if (FMath::IsNearlyEqual(FocalLengthEstimate, 0.0) || FocalLengthEstimate < 0.0)
 	{
@@ -516,13 +492,17 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoPoints::BeginCalibration(FTe
 	}
 
 	FDistortionInfo DistortionGuess;
-	LensFile->GetDistortionPoint(Focus, Zoom, DistortionGuess);
+	LensFile->EvaluateDistortionParameters(Focus, Zoom, DistortionGuess);
 
 	const TSubclassOf<ULensModel> Model = LensFile->LensInfo.LensModel;
 
 	Solver = NewObject<ULensDistortionSolver>(this, LensDistortionTool->GetSolverClass());
 
-	CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [Solver = Solver, Model, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, DistortionGuess, CameraPoses, PixelAspect, SolverFlags, Focus, Zoom]() mutable
+	// When capturing individual marker positions, there is no need to calibrate for a tracking offset of the prop
+	// Therefore there is no need to capture any target poses for the calibrator actor
+	TArray<FTransform> TargetPoses;
+
+	CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [Solver = Solver, Model, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, DistortionGuess, CameraPoses, TargetPoses, PixelAspect, SolverFlags, Focus, Zoom]() mutable
 	{
 		FDistortionCalibrationResult Result = Solver->Solve(
 			Samples3d,
@@ -532,6 +512,7 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoPoints::BeginCalibration(FTe
 			ImageCenter,
 			DistortionGuess.Parameters,
 			CameraPoses,
+			TargetPoses,
 			Model,
 			PixelAspect,
 			SolverFlags

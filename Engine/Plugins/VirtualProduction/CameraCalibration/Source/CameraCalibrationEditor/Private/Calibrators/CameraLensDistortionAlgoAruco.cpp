@@ -38,7 +38,7 @@
 static TAutoConsoleVariable<bool> CVarFixExtrinsicsAruco(TEXT("LensDistortionAruco.FixExtrinsics"), false, TEXT("If true, the solver will fix the camera extrinsics to the user-provided camera poses"));
 static TAutoConsoleVariable<bool> CVarFixDistortionAruco(TEXT("LensDistortionAruco.FixDistortion"), false, TEXT("If true, the solver will not optimize distortion, and will use the input distortion values if any are given, or assume zero distortion otherwise."));
 static TAutoConsoleVariable<bool> CVarUseExtrinsicsGuessAruco(TEXT("LensDistortionAruco.UseExtrinsicsGuess"), false, TEXT("If true, the actual calibrator and camera poses will be used when running the solver"));
-static TAutoConsoleVariable<bool> CVarGroupPointsByCameraPoseAruco(TEXT("LensDistortionAruco.GroupPointsByCameraPose"), true, TEXT("If true, the points sent to the solver will be grouped together if they share the same camera pose."));
+static TAutoConsoleVariable<bool> CVarSolveTargetOffsetAruco(TEXT("LensDistortionAruco.SolveTargetOffset"), false, TEXT("If true, the solver will calibrate for an offset from the calibrator tracking origin that further minimizes reprojection error."));
 #endif
 
 const int UCameraLensDistortionAlgoAruco::DATASET_VERSION = 1;
@@ -340,6 +340,9 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoAruco::BeginCalibration(FTex
 	TArray<FTransform> CameraPoses;
 	CameraPoses.Reserve(CalibrationRows.Num());
 
+	TArray<FTransform> TargetPoses;
+	CameraPoses.Reserve(CalibrationRows.Num());
+
 	// Extract the 3D points, 2D points, and camera poses from each row to pass to the solver
 	for (const TSharedPtr<FLensDistortionArucoRowData>& Row : CalibrationRows)
 	{
@@ -365,11 +368,21 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoAruco::BeginCalibration(FTex
 		Samples3d.Add(Points3d);
 		Samples2d.Add(Points2d);
 		CameraPoses.Add(Row->CameraPose);
-	}
 
-	if (CVarGroupPointsByCameraPoseAruco.GetValueOnGameThread())
-	{
-		UE::CameraCalibration::Private::GroupPointsByCameraPose(Samples3d, Samples2d, CameraPoses);
+		FTransform FirstMarkerPose;
+
+		FArucoCalibrationPoint& FirstAruco = Row->ArucoPoints[0];
+
+		FVector TopLeft = FirstAruco.Corners3D[0];
+		FVector TopRight = FirstAruco.Corners3D[1];
+		FVector BottomLeft = FirstAruco.Corners3D[3];
+
+		FirstMarkerPose.SetLocation(TopLeft);
+
+		FRotator FirstMarkerRotation = FRotationMatrix::MakeFromYZ(TopRight - TopLeft, TopLeft - BottomLeft).Rotator();
+		FirstMarkerPose.SetRotation(FirstMarkerRotation.Quaternion());
+
+		TargetPoses.Add(FirstMarkerPose);
 	}
 
 	ECalibrationFlags SolverFlags = ECalibrationFlags::None;
@@ -404,14 +417,19 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoAruco::BeginCalibration(FTex
 		EnumAddFlags(SolverFlags, ECalibrationFlags::FixPrincipalPoint);
 	}
 
+	if (CVarSolveTargetOffsetAruco.GetValueOnGameThread())
+	{
+		EnumAddFlags(SolverFlags, ECalibrationFlags::SolveTargetOffset);
+	}
+
 	FDistortionInfo DistortionGuess;
-	LensFile->GetDistortionPoint(Focus, Zoom, DistortionGuess);
+	LensFile->EvaluateDistortionParameters(Focus, Zoom, DistortionGuess);
 
 	const TSubclassOf<ULensModel> Model = LensFile->LensInfo.LensModel;
 
 	UClass* SolverClass = LensDistortionTool->GetSolverClass();
 
-	CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [SolverClass, Model, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, DistortionGuess, CameraPoses, PixelAspect, SolverFlags, Focus, Zoom]() mutable
+	CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [SolverClass, Model, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, DistortionGuess, CameraPoses, TargetPoses, PixelAspect, SolverFlags, Focus, Zoom]() mutable
 		{
 			ULensDistortionSolver* Solver = NewObject<ULensDistortionSolver>(GetTransientPackage(), SolverClass);
 
@@ -423,6 +441,7 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoAruco::BeginCalibration(FTex
 				ImageCenter,
 				DistortionGuess.Parameters,
 				CameraPoses,
+				TargetPoses,
 				Model,
 				PixelAspect,
 				SolverFlags

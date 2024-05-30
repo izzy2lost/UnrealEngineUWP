@@ -404,10 +404,10 @@ bool FOpenCVHelper::IdentifyArucoMarkers(TArray<FColor>& Image, FIntPoint ImageS
 
 		const std::vector<cv::Point2f>& MarkerCorners = Corners[MarkerIndex];
 
-		NewMarker.Corners[0] = FVector2f(MarkerCorners[0].x, MarkerCorners[0].y);
-		NewMarker.Corners[1] = FVector2f(MarkerCorners[1].x, MarkerCorners[1].y);
-		NewMarker.Corners[2] = FVector2f(MarkerCorners[2].x, MarkerCorners[2].y);
-		NewMarker.Corners[3] = FVector2f(MarkerCorners[3].x, MarkerCorners[3].y);
+		NewMarker.Corners[0] = FVector2f(MarkerCorners[0].x, MarkerCorners[0].y); // TopLeft
+		NewMarker.Corners[1] = FVector2f(MarkerCorners[1].x, MarkerCorners[1].y); // TopRight
+		NewMarker.Corners[2] = FVector2f(MarkerCorners[2].x, MarkerCorners[2].y); // BottomRight
+		NewMarker.Corners[3] = FVector2f(MarkerCorners[3].x, MarkerCorners[3].y); // BottomLeft
 
 		OutMarkers.Add(NewMarker);
 	}

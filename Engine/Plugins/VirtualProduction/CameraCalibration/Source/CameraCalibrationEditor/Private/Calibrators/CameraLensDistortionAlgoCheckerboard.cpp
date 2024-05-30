@@ -42,7 +42,7 @@ static TAutoConsoleVariable<bool> CVarFixExtrinsics(TEXT("LensDistortionCheckerb
 static TAutoConsoleVariable<bool> CVarFixDistortion(TEXT("LensDistortionCheckerboard.FixDistortion"), false, TEXT("If true, the solver will not optimize distortion, and will use the input distortion values if any are given, or assume zero distortion otherwise."));
 static TAutoConsoleVariable<bool> CVarUseExtrinsicsGuess(TEXT("LensDistortionCheckerboard.UseExtrinsicsGuess"), false, TEXT("If true, the actual checkerboard and camera poses will be used when running the solver"));
 static TAutoConsoleVariable<bool> CVarUseTrackedCalibrator(TEXT("LensDistortionCheckerboard.UseTrackedCalibrator"), false, TEXT("If true, the 3D points of the checkerboard will come from the tracked pose of the object, otherwise, dummy points will be used."));
-static TAutoConsoleVariable<bool> CVarGroupPointsByCameraPose(TEXT("LensDistortionCheckerboard.GroupPointsByCameraPose"), true, TEXT("If true, the points sent to the solver will be grouped together if they share the same camera pose."));
+static TAutoConsoleVariable<bool> CVarSolveTargetOffset(TEXT("LensDistortionCheckerboard.SolveTargetOffset"), false, TEXT("If true, the solver will calibrate for an offset from the calibrator tracking origin that further minimizes reprojection error."));
 #endif
 
 const int UCameraLensDistortionAlgoCheckerboard::DATASET_VERSION = 1;
@@ -680,6 +680,9 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibrati
 	TArray<FTransform> CameraPoses;
 	CameraPoses.Reserve(CalibrationRows.Num());
 
+	TArray<FTransform> TargetPoses;
+	CameraPoses.Reserve(CalibrationRows.Num());
+
 	for (const TSharedPtr<FLensDistortionCheckerboardRowData>& Row : CalibrationRows)
 	{
 		FObjectPoints Points3d;
@@ -695,6 +698,19 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibrati
 		Samples3d.Add(Points3d);
 		Samples2d.Add(Points2d);
 		CameraPoses.Add(Row->CameraData.Pose);
+
+		FTransform BoardPose;
+
+		FVector TopLeft = Row->Points3d[0];
+		FVector TopRight = Row->Points3d[Row->NumCornerCols - 1];
+		FVector BottomLeft = Row->Points3d[Row->NumCornerCols * (Row->NumCornerRows - 1)];
+
+		BoardPose.SetLocation(TopLeft);
+
+		FRotator BoardRotation = FRotationMatrix::MakeFromYZ(TopRight - TopLeft, TopLeft - BottomLeft).Rotator();
+		BoardPose.SetRotation(BoardRotation.Quaternion());
+
+		TargetPoses.Add(BoardPose);
 	}
 
 	if (!CVarUseTrackedCalibrator.GetValueOnGameThread())
@@ -715,10 +731,6 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibrati
 
 			Samples3d.Add(Points3d);
 		}
-	}
-	else if (CVarGroupPointsByCameraPose.GetValueOnGameThread())
-	{
-		UE::CameraCalibration::Private::GroupPointsByCameraPose(Samples3d, Samples2d, CameraPoses);
 	}
 
 	ECalibrationFlags SolverFlags = ECalibrationFlags::None;
@@ -753,14 +765,19 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibrati
 		EnumAddFlags(SolverFlags, ECalibrationFlags::FixPrincipalPoint);
 	}
 
+	if (CVarSolveTargetOffset.GetValueOnGameThread())
+	{
+		EnumAddFlags(SolverFlags, ECalibrationFlags::SolveTargetOffset);
+	}
+
 	FDistortionInfo DistortionGuess;
-	LensFile->GetDistortionPoint(Focus, Zoom, DistortionGuess);
+	LensFile->EvaluateDistortionParameters(Focus, Zoom, DistortionGuess);
 
 	const TSubclassOf<ULensModel> Model = LensFile->LensInfo.LensModel;
 	
 	Solver = NewObject<ULensDistortionSolver>(this, Tool->GetSolverClass());
 
-	CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [Solver = Solver, Model, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, DistortionGuess, CameraPoses, PixelAspect, SolverFlags, Focus, Zoom]() mutable
+	CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [Solver = Solver, Model, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, DistortionGuess, CameraPoses, TargetPoses, PixelAspect, SolverFlags, Focus, Zoom]() mutable
 		{
 			FDistortionCalibrationResult Result = Solver->Solve(
 				Samples3d,
@@ -770,6 +787,7 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibrati
 				ImageCenter,
 				DistortionGuess.Parameters,
 				CameraPoses,
+				TargetPoses,
 				Model,
 				PixelAspect,
 				SolverFlags
