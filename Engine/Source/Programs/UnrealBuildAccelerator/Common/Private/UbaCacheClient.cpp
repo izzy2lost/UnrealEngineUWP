@@ -17,7 +17,7 @@
 
 namespace uba
 {
-	u64 MakeId(u32 bucketId) { return u64(bucketId) | (u64(!CaseInsensitiveFs) << 32); }
+	u64 MakeId(u32 bucketId) { return u64(bucketId) | ((u64(!CaseInsensitiveFs) + (RootPathsVersion << 1)) << 32); }
 
 	struct CacheClient::Bucket
 	{

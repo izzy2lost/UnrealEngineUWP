@@ -7,6 +7,8 @@
 
 namespace uba
 {
+	static constexpr u8 RootPathsVersion = 1;
+
 	class RootPaths
 	{
 	public:
