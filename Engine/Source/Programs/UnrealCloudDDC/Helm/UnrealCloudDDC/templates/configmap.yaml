@@ -158,6 +158,11 @@ CacheRef:
 {{ $config.CacheRef | toYaml | nindent 2 }}
 {{- end }}
 
+{{- if $config.Symbols }}
+Symbols:
+{{ $config.Symbols | toYaml | nindent 2 }}
+{{- end }}
+
 {{- if and (.Values.global.cloudProvider) (eq .Values.global.cloudProvider "Azure") }}
 {{ include "cloud.settings.azure" .Values }}
 {{- else if and (.Values.global.cloudProvider) (eq .Values.global.cloudProvider "AWS") }}
