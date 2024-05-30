@@ -15,7 +15,7 @@ static struct FInitializer
 } Initializer;
 
 
-#if PLATFORM_HAS_FPlatformVirtualMemoryBlock
+#if UE_ENABLE_LINEAR_VIRTUAL_ALLOCATOR
 
 #include "CoreGlobals.h"
 #include "Misc/ScopeLock.h"
@@ -138,4 +138,5 @@ FLinearVirtualMemoryAllocator& GetPersistentLinearAllocator()
 	static FLinearVirtualMemoryAllocator GPersistentLinearAllocator(UE_PERSISTENT_ALLOCATOR_RESERVE_SIZE);
 	return GPersistentLinearAllocator;
 }
-#endif //~PLATFORM_HAS_FPlatformVirtualMemoryBlock
+
+#endif //~UE_ENABLE_LINEAR_VIRTUAL_ALLOCATOR

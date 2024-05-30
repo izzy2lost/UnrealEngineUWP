@@ -5,7 +5,11 @@
 #include "HAL/Platform.h"
 #include "HAL/UnrealMemory.h"
 
-#if PLATFORM_HAS_FPlatformVirtualMemoryBlock
+#ifndef UE_ENABLE_LINEAR_VIRTUAL_ALLOCATOR
+	#define UE_ENABLE_LINEAR_VIRTUAL_ALLOCATOR PLATFORM_HAS_FPlatformVirtualMemoryBlock
+#endif
+
+#if UE_ENABLE_LINEAR_VIRTUAL_ALLOCATOR
 #include <atomic>
 #include "HAL/CriticalSection.h"
 
@@ -87,7 +91,7 @@ struct FLinearVirtualMemoryAllocator
 
 FORCEINLINE FLinearVirtualMemoryAllocator GetPersistentLinearAllocator() { return FLinearVirtualMemoryAllocator(0); }
 
-#endif	//~PLATFORM_HAS_FPlatformVirtualMemoryBlock
+#endif	//~UE_ENABLE_LINEAR_VIRTUAL_ALLOCATOR
 
 struct FLinearVirtualMemoryAllocatorExtends
 {
